@@ -1,0 +1,223 @@
+# Tự biên dịch firmware máy chấm công và phát hành file .bin để bấm cập nhật từ xa.
+#
+# Repo này CÔNG KHAI, và nó tự phát hành bản của CHÍNH NÓ bằng GITHUB_TOKEN có sẵn —
+# KHÔNG cần Personal Access Token, KHÔNG cần đặt secret hay variable nào.
+# Web app đọc  https://github.com/<chu>/<repo>/releases/download/latest/latest.json  (tag cố định).
+#
+# VÌ SAO CÓ FILE NÀY
+#   - Trước đây sửa .ino xong phải mở Arduino IDE compile rồi mang file tới từng máy.
+#   - Nay push là CI compile luôn: SAI CODE LÀ BIẾT NGAY, không phải chờ tới lúc nạp mới vỡ.
+#   - File .bin build ở đây KHÔNG CHỨA BÍ MẬT (secrets.ci.h toàn placeholder) nên đặt được ở
+#     chỗ tải công khai — điều kiện bắt buộc vì máy tải firmware KHÔNG kèm xác thực.
+#
+# ⚠️ Máy phải chạy bản 2026-07-30c (bản A) TRƯỚC ÍT NHẤT 1 LẦN. Bản đó chép bí mật vào bộ nhớ
+#    trong (NVS); OTA không ghi đè NVS. Máy chưa qua bước đó mà nhận bản CI thì mất cấu hình.
+name: Build firmware ESP32
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'esp32_hik_chamcong_full/**'
+      - 'esp32_ota_updater/**'
+      - '.github/workflows/firmware.yml'
+  workflow_dispatch:
+
+env:
+  SKETCH: esp32_hik_chamcong_full
+  # Y NGUYÊN cấu hình anh Thắng build ở máy (đọc từ build/…/build.options.json của bản 28/07).
+  # Lệch PartitionScheme là .bin có thể KHÔNG VỪA phân vùng đang chạy -> OTA không bao giờ xong.
+  FQBN: esp32:esp32:esp32:CPUFreq=240,FlashFreq=80,FlashMode=qio,FlashSize=4M,PartitionScheme=default,DebugLevel=none,PSRAM=disabled,LoopCore=1,EventsCore=1
+  CORE_VER: 3.3.10
+  # PartitionScheme=default -> app0 = 0x140000. Quá cỡ này là KHÔNG nạp được.
+  APP_MAX: 1310720
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cai arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 1.4.0
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Cache core + thu vien
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: acli-esp32-${{ env.CORE_VER }}-v3
+
+      - name: Cai core ESP32 + thu vien
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@${CORE_VER}
+          # Ghim phien ban thu vien: doi ban moi ma khong biet la mot kieu "tu nhien hong"
+          arduino-cli lib install "ArduinoJson@7.2.0" "TFT_eSPI@2.5.43" "TJpg_Decoder@1.1.0"
+
+      - name: Cau hinh man CYD cho TFT_eSPI
+        run: |
+          set -e
+          LIB=$(find "$HOME/Arduino/libraries" -maxdepth 1 -type d -name 'TFT_eSPI*' | head -1)
+          [ -n "$LIB" ] || { echo "KHONG thay thu vien TFT_eSPI"; exit 1; }
+          # Ghi de User_Setup.h bang ban trong repo -> CI build GIONG may anh Thang.
+          # Khong lam buoc nay thi .bin nap duoc nhung MAN HINH CHET (sai chan/driver).
+          cp "$SKETCH/ci/User_Setup.h" "$LIB/User_Setup.h"
+          echo "Da ap User_Setup.h cho $LIB"
+
+      - name: Dat secrets.h PLACEHOLDER (co y - .bin phai sach bi mat)
+        run: |
+          set -e
+          cp "$SKETCH/ci/secrets.ci.h" "$SKETCH/secrets.h"
+          echo "secrets.h = placeholder; may lay bi mat tu NVS."
+
+      - name: Compile
+        run: |
+          # ⚠️ pipefail BẮT BUỘC: "arduino-cli … | tee" tra ve ma cua TEE, nen compile hong ma
+          #    buoc van XANH roi buoc sau bao "khong co .bin" — dung cai bay da ghi trong CLAUDE.md.
+          set -eo pipefail
+          # Log day hang nghin dong canh bao ArduinoJson -> dong loi that bi chim.
+          # Hong thi in RIENG cac dong loi ra cuoi log cho de tim.
+          if ! arduino-cli compile --fqbn "$FQBN" --warnings default \
+                 --build-path "$PWD/fwbuild" "$SKETCH" 2>&1 | tee compile.log; then
+            echo "===== CHI CAC DONG LOI ====="
+            grep -nE 'error:|Error during build|exceeds|undefined reference|No such file' compile.log | head -40
+            echo "===== HET ====="
+            exit 1
+          fi
+          echo "--- File build sinh ra ---"
+          ls -la fwbuild/ | head -20
+
+      - name: Kiem .bin - sach bi mat va vua phan vung
+        run: |
+          set -e
+          BIN="fwbuild/$SKETCH.ino.bin"
+          [ -f "$BIN" ] || { echo "KHONG co file .bin"; exit 1; }
+          SZ=$(stat -c%s "$BIN")
+          PCT=$(( SZ * 100 / APP_MAX ))
+          echo "Kich thuoc .bin: $SZ / $APP_MAX byte ($PCT%)"
+          if [ "$SZ" -gt "$APP_MAX" ]; then
+            echo "::error::.bin $SZ byte > phan vung app $APP_MAX byte. KHONG nap duoc."
+            echo "::error::Doi PartitionScheme sang min_spiffs thi PHAI nap lai TAT CA may bang USB"
+            echo "::error::(bang phan vung nam ngoai vung app, OTA khong doi duoc)."
+            exit 1
+          fi
+          [ "$PCT" -ge 90 ] && echo "::warning::.bin da dung $PCT% phan vung app - sap het cho."
+          # Chan lo bi mat: neu .bin lot bat ky dau vet nao thi DUNG, khong phat hanh.
+          fail=0
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio'; do
+            if grep -aqF "$pat" "$BIN"; then echo "::error::.bin CO chua '$pat' - khong duoc phat hanh cong khai"; fail=1; fi
+          done
+          [ "$fail" = "0" ] || exit 1
+          echo "OK: .bin khong chua link/token nao."
+          mkdir -p out
+          VER="$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          cp "$BIN" "out/chamcong-$VER.bin"
+          echo "VER=$VER" >> $GITHUB_ENV
+          echo "SZ=$SZ"   >> $GITHUB_ENV
+
+      - name: Luu file de tai tay (du phong)
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ env.VER }}
+          path: out/*.bin
+
+      - name: Phat hanh ban moi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUB: ${{ github.repository }}
+        run: |
+          set -e
+          BIN="out/chamcong-$VER.bin"
+          # latest.json: web app doc file nay de tu dien san phien ban + link (khong can token).
+          # Dung jq chu khong heredoc: dong ket thuc heredoc phai o cot 1, ma the la vo khoi "run: |" cua YAML.
+          jq -n --arg ver "$VER" \
+                --arg url "https://github.com/$PUB/releases/download/$VER/chamcong-$VER.bin" \
+                --argjson size "$SZ" --arg commit "$GITHUB_SHA" --arg repo "$PUB" \
+                '{ver:$ver, url:$url, size:$size, commit:$commit, repo:$repo}' > out/latest.json
+          cat out/latest.json
+          gh release create "$VER" "$BIN" "out/latest.json" \
+            --repo "$PUB" --title "chamcong $VER" \
+            --notes "Firmware may cham cong - build tu $PUB@${GITHUB_SHA::7}. KHONG chua bi mat (may lay tu NVS)." \
+            || gh release upload "$VER" "$BIN" "out/latest.json" --repo "$PUB" --clobber
+          # latest.json o tag co dinh 'latest' -> web app chi can 1 link khong doi
+          gh release create latest "out/latest.json" --repo "$PUB" --title "latest" \
+            --notes "Tro toi ban moi nhat. Web app doc file nay." \
+            || gh release upload latest "out/latest.json" --repo "$PUB" --clobber
+          echo "Da phat hanh $VER"
+
+  # Máy trạm ("thợ nạp"): CHỈ kiểm biên dịch, không phát hành.
+  # Sketch này trước 30/07/2026 CHƯA TỪNG được compile kiểm lần nào.
+  updater:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cai arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 1.4.0
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Cache core + thu vien
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: acli-esp32-${{ env.CORE_VER }}-v3
+
+      - name: Cai core ESP32 + thu vien
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@${CORE_VER}
+          arduino-cli lib install "ArduinoJson@7.2.0" "TFT_eSPI@2.5.43" "TJpg_Decoder@1.1.0"
+
+      - name: Cau hinh man CYD + secrets placeholder
+        run: |
+          set -e
+          LIB=$(find "$HOME/Arduino/libraries" -maxdepth 1 -type d -name 'TFT_eSPI*' | head -1)
+          [ -n "$LIB" ] || { echo "KHONG thay thu vien TFT_eSPI"; exit 1; }
+          # Dung CHUNG User_Setup.h voi may cham cong -> 1 dinh nghia duy nhat cho ca 2 sketch
+          cp esp32_hik_chamcong_full/ci/User_Setup.h "$LIB/User_Setup.h"
+          cp esp32_ota_updater/ci/secrets.ci.h esp32_ota_updater/secrets.h
+
+      - name: Compile may tram
+        run: |
+          # pipefail: "arduino-cli | tee" tra ve ma cua TEE -> compile hong ma buoc van xanh.
+          set -eo pipefail
+          if ! arduino-cli compile --fqbn "$FQBN" --warnings default \
+                 --build-path "$PWD/upbuild" esp32_ota_updater 2>&1 | tee up.log; then
+            echo "===== CHI CAC DONG LOI ====="
+            grep -nE 'error:|Error during build|exceeds|undefined reference|No such file' up.log | head -40
+            echo "===== HET ====="
+            exit 1
+          fi
+          BIN="upbuild/esp32_ota_updater.ino.bin"
+          [ -f "$BIN" ] || { echo "KHONG co file .bin"; ls -la upbuild/ | head; exit 1; }
+          SZ=$(stat -c%s "$BIN")
+          echo "May tram .bin: $SZ / $APP_MAX byte ($(( SZ * 100 / APP_MAX ))%)"
+          [ "$SZ" -le "$APP_MAX" ] || { echo "::error::.bin may tram qua co phan vung app"; exit 1; }
+          # Ban nay cung phai sach bi mat (may tram lay tu NVS)
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong'; do
+            if grep -aqF "$pat" "$BIN"; then echo "::error::.bin may tram CO chua '$pat'"; exit 1; fi
+          done
+          echo "OK: .bin may tram sach bi mat va vua phan vung."
+
+      - name: Luu file may tram
+        uses: actions/upload-artifact@v4
+        with:
+          name: thonap-${{ github.sha }}
+          path: upbuild/esp32_ota_updater.ino.bin

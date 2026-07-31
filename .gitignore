@@ -1,0 +1,26 @@
+# === Rác hệ điều hành ===
+Thumbs.db
+ehthumbs.db
+desktop.ini
+.DS_Store
+
+# === Trình soạn thảo / IDE ===
+.vscode/
+*.swp
+*~
+*.tmp
+
+# === Bí mật ===
+.env
+*.key
+secrets.*
+# .gitignore KHÔNG hỗ trợ comment cuối dòng — phải để riêng dòng như này.
+# File MẪU (chỉ placeholder) PHẢI được commit, không thì pull về không có khuôn để copy:
+!secrets.example.h
+# secrets.ci.h chỉ chứa "__CHUA_CAU_HINH__" cho GitHub Actions build.
+# PHẢI commit, không thì workflow đỏ ngay bước cp (đã bị một lần ở repo nội bộ).
+!secrets.ci.h
+
+# Bản build Arduino: rác 42MB, và .bin/.elf/.map chứa bí mật ở dạng chữ đọc được.
+esp32_*/build/
+*/build/esp32.esp32.esp32/
