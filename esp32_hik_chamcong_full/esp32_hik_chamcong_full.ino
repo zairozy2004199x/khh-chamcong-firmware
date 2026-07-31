@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-07-31f (whoami doc tu Firebase /may/<MAC> — qua duoc 4G; /exec la duong lui)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-01c (bo het return IM LANG; in nguyen van dau doc tra ve + gio 2 ben)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -552,47 +552,119 @@ int timeToSec(const String& t) {
   return h * 3600 + m * 60 + s;
 }
 
-// ---------- POST tới máy chấm công (Digest) ----------
-String hikPost(String payload) {
-  HTTPClient http;
-  String url = "http://" + String(hik_ip) + "/ISAPI/AccessControl/AcsEvent?format=json";
-  String uri = "/ISAPI/AccessControl/AcsEvent?format=json";
+/* ---------- searchID: MỖI LẦN TÌM MỘT MÃ RIÊNG ----------
+   🔴 Đây là NGUYÊN NHÂN của "check-in chạy 1-2 lần rồi thôi, lượt bù thì vẫn chạy" (01/08/2026).
 
-  http.begin(url);
-  http.setTimeout(8000);
-  const char* headerKeys[] = {"WWW-Authenticate"};
-  http.collectHeaders(headerKeys, 1);
-  http.addHeader("Content-Type", "application/json");
-  int code = http.POST(payload);
+   Với ISAPI của Hikvision, `searchID` là KHOÁ MỘT PHIÊN TÌM KIẾM: đầu đọc giữ lại tập kết quả
+   ứng với mã đó để mình lật trang. Hàm đọc lượt trực tiếp trước đây dùng cứng `searchID:"1"`:
+     · hỏi lần 1 với maxResults=1 trên tổng N lượt -> phiên tìm BỎ DỞ (còn "MORE")
+     · hỏi lần 2 vẫn `searchID:"1"` nhưng ĐỔI vị trí và số lượng -> đầu đọc kẹt phiên đó
+   Kẹt rồi thì mọi lần hỏi sau bằng mã "1" đều chết, tới khi khởi động lại đầu đọc mới hết.
+   Còn hàm bù dùng `searchID:"backfill"` (mã khác, lại lật hết trang mới thôi) nên vẫn chạy —
+   đúng như hiện trường báo. `FDSearch`/`UserInfo/Search` cũng dùng cứng "1" nhưng chỉ chạy khi
+   người dùng bấm, rất thưa, nên chưa lộ.
 
-  if (code == 401) {
-    String authReq = http.header("WWW-Authenticate");
-    http.end();
-    String realm  = extractParam(authReq, "realm");
-    String nonce  = extractParam(authReq, "nonce");
-    String qop    = extractParam(authReq, "qop");
-    String opaque = extractParam(authReq, "opaque");
-    String cnonce = "0a4f113b";
-    String nc     = "00000001";
-    String HA1 = getMD5(String(hik_user) + ":" + realm + ":" + String(hik_pass));
-    String HA2 = getMD5("POST:" + uri);
-    String response = getMD5(HA1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + qop + ":" + HA2);
-    String authHeader = "Digest username=\"" + String(hik_user) + "\", realm=\"" + realm +
-                        "\", nonce=\"" + nonce + "\", uri=\"" + uri + "\", qop=" + qop +
-                        ", nc=" + nc + ", cnonce=\"" + cnonce + "\", response=\"" + response +
-                        "\", opaque=\"" + opaque + "\"";
-    http.begin(url);
-    http.setTimeout(8000);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("Authorization", authHeader);
-    code = http.POST(payload);
+   ⚠️ Vì sao nó lừa được lâu: hỏng KHÔNG ở dạng "sai mật khẩu" hay "sai IP" mà ra `-1` (đầu đọc
+   ngắt kết nối), nên nhìn log cứ tưởng lỗi mạng. Đã đi sai hướng 2 lần vì con số đó.
+
+   Quy tắc từ nay: MỘT lần tìm = MỘT mã. Vòng lật trang thì lấy mã MỘT LẦN trước vòng và giữ
+   nguyên cho cả vòng đó — đó mới là ý nghĩa thật của searchID. */
+String acsSearchId(){
+  static uint32_t dem = 0;
+  return "cc" + String((uint32_t)millis(), HEX) + "_" + String(++dem);
+}
+
+// Nguyên mẫu: mấy hàm chẩn đoán dưới đây gọi hikRequest/shortResp định nghĩa ở xa phía dưới.
+// Khai trước cho tường minh, không dựa vào việc Arduino tự sinh nguyên mẫu.
+String hikRequest(const String& method, const String& uri, const String& payload, int* outCode);
+String shortResp(const String& r, int code);
+
+/* Giờ hiện tại của ESP32, dạng đọc được — chỉ để in ra chẩn đoán. */
+String gioEspISO(){
+  struct tm t;
+  if (!getLocalTime(&t, 10)) return "KHONG DOC DUOC";
+  char b[64];
+  snprintf(b, sizeof b, "%04d-%02d-%02d %02d:%02d:%02d",
+           t.tm_year + 1900, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min, t.tm_sec);
+  return String(b);
+}
+
+/* Giờ hiện tại của ĐẦU ĐỌC (ISAPI /System/time) — chỉ để in ra chẩn đoán.
+   Lượt chấm công mang dấu thời gian của ĐẦU ĐỌC, không phải của ESP32. Hai bên lệch ngày là
+   khoảng startTime/endTime mình đặt sẽ loại sạch lượt thật, mà đầu đọc vẫn trả 200 tử tế —
+   hỏng IM LẶNG, đúng kiểu khó tìm nhất. */
+String hikGioMay(){
+  int code = 0;
+  String r = hikRequest("GET", "/ISAPI/System/time?format=json", "", &code);
+  if (code != 200 || r.length() == 0) return "khong doc duoc (http" + String(code) + ")";
+  StaticJsonDocument<192> filter;
+  filter["Time"]["localTime"] = true;
+  filter["Time"]["timeZone"]  = true;
+  DynamicJsonDocument d(384);
+  if (deserializeJson(d, r, DeserializationOption::Filter(filter))) {
+    String x = r; x.replace("\n"," "); x.replace("\r"," ");
+    return "parse loi -> " + x.substring(0, 120);
   }
+  String lt = String((const char*)(d["Time"]["localTime"] | ""));
+  String tz = String((const char*)(d["Time"]["timeZone"]  | ""));
+  if (!lt.length()) { String x = r; x.replace("\n"," "); return "khong thay localTime -> " + x.substring(0, 120); }
+  return lt + (tz.length() ? ("  (tz " + tz + ")") : "");
+}
 
-  String body = "";
-  if (code == 200) body = http.getString();
-  else { Serial.print("[MÁY] Lỗi HTTP: "); Serial.println(code); }
-  http.end();
-  return body;
+/* Mốc BẮT ĐẦU cho lệnh đọc sổ chấm công trực tiếp.
+   ⚠️ Đồng hồ ESP32 có thể CHƯA đồng bộ (NTP không chạy qua AT-HTTP; giờ mạng 4G AT+CCLK? phải
+      đợi NITZ). Lúc đó getLocalTime() trả năm 1970. Nếu lấy nguyên năm 1970 làm mốc thì vẫn
+      chạy được, nhưng nếu lấy "now - 24h" của một đồng hồ sai thì có thể LỌT MẤT lượt chấm
+      công thật — mất công của nhân viên. Nên:
+        · đồng hồ tin được (năm >= 2020) -> lùi 2 ngày, đủ rộng để không bỏ sót lượt nào
+        · đồng hồ CHƯA tin được          -> lấy mốc cố định 2020-01-01, thà quét rộng còn hơn sót
+      Cả hai nhánh đều LUÔN có mốc — đó mới là thứ đầu đọc đòi. */
+String acsMocBatDau(){
+  struct tm t;
+  if (getLocalTime(&t, 10) && (t.tm_year + 1900) >= 2020) {
+    time_t nay = mktime(&t) - (time_t)(2 * 24 * 3600);      // lùi 2 ngày
+    struct tm lui;
+    if (localtime_r(&nay, &lui)) {
+      char b[64];   // 64 chứ không 40: g++ -Wformat-truncation cảnh báo %04d in được tới 11 ký tự
+      snprintf(b, sizeof b, "%04d-%02d-%02dT00:00:00+07:00",
+               lui.tm_year + 1900, lui.tm_mon + 1, lui.tm_mday);
+      return String(b);
+    }
+  }
+  return "2020-01-01T00:00:00+07:00";
+}
+
+// ---------- POST đọc SỔ CHẤM CÔNG của máy (AcsEvent, Digest) ----------
+/* ⚠️ Đây là đường LẤY LƯỢT CHẤM CÔNG — hỏng là không lượt nào lên sheet, mà web app
+   KHÔNG hề biết (máy vẫn báo online bằng heartbeat). Trước bản này hàm tự dựng lại Digest
+   một lần nữa (bản chép tay thứ hai) và khi lỗi chỉ in "[MÁY] Lỗi HTTP: -1" — con số đó
+   không cho biết gì: -1 là CHƯA MỞ NỔI KẾT NỐI TCP tới đầu đọc (đầu đọc hết khe kết nối,
+   vừa bị dội sau lượt tải ảnh, hoặc mất mạng nội bộ), khác hẳn 401/403 (sai mật khẩu) hay
+   500 (đầu đọc từ chối câu lệnh).
+   Nay: dùng lại hikRequest() — đúng đường đã chạy được cho UserInfo/Record — và
+     · code <= 0 (chưa nối được) -> NGHỈ rồi THỬ LẠI, tối đa 3 lần
+     · code > 0  (đầu đọc đã trả lời) -> lỗi thật, thử lại vô ích, in nguyên văn câu trả lời
+   Đầu đọc trả body cũng in ra để lần sau đọc log là biết ngay, không phải đoán. */
+String hikPost(String payload) {
+  const String uri = "/ISAPI/AccessControl/AcsEvent?format=json";
+  int code = 0;
+  String r;
+  for (int lan = 1; lan <= 3; lan++) {
+    r = hikRequest("POST", uri, payload, &code);
+    if (code == 200) return r;
+    String vt = (code > 0) ? (" " + shortResp(r, code)) : String(" (chua mo noi ket noi TCP toi dau doc)");
+    // ⚠️ In kèm TÀI NGUYÊN. Hiện trường báo "check-in được 1-2 lần rồi thôi" — dáng đó là CẠN
+    // tài nguyên, không phải sai mật khẩu/sai IP. Ba con số dưới đây phân biệt được ngay:
+    //   · heap tụt dần         -> rò bộ nhớ
+    //   · nhomax nhỏ mà heap to -> heap phân mảnh (xin khối liền mạch không nổi)
+    //   · apKhach = 0          -> đầu đọc RỜI khỏi AP, thử lại bao nhiêu cũng vô ích
+    Serial.printf("[MÁY] Đọc sổ chấm công lần %d LỖI: http%d%s | heap=%u nhomax=%u apKhach=%u\n",
+                  lan, code, vt.c_str(), (unsigned)ESP.getFreeHeap(),
+                  (unsigned)ESP.getMaxAllocHeap(), (unsigned)WiFi.softAPgetStationNum());
+    if (code > 0) break;                 // đầu đọc đã trả lời -> lỗi thật, thử lại không đổi gì
+    if (lan < 3) delay(500L * lan);       // nghỉ tăng dần rồi thử lại
+  }
+  return "";
 }
 
 // Encode base64 -> trả về ĐỘ DÀI, *out = buffer malloc (caller phải free). Lỗi -> trả 0, *out=NULL.
@@ -1317,9 +1389,10 @@ void hikScanRoster(){
   String faceSet = ",";
   {
     int pos = 0, total = -1; const int P = 20;
+    const String sidFd = acsSearchId();          // một mã cho cả vòng lật trang, mới ở mỗi lần quét
     for (int g = 0; g < 200; g++) {
       int code;
-      String body = "{\"searchID\":\"1\",\"searchResultPosition\":" + String(pos) + ",\"maxResults\":" + String(P) +
+      String body = "{\"searchID\":\"" + sidFd + "\",\"searchResultPosition\":" + String(pos) + ",\"maxResults\":" + String(P) +
                     ",\"faceLibType\":\"" + String(FACE_LIB_TYPE) + "\",\"FDID\":\"" + String(FDID_STR) + "\"}";
       String r = hikRequest("POST", "/ISAPI/Intelligent/FDLib/FDSearch?format=json", body, &code);
       if (g == 0) { String dbg=r; dbg.replace("\r"," "); dbg.replace("\n"," ");
@@ -1346,9 +1419,10 @@ void hikScanRoster(){
   filter["UserInfoSearch"]["totalMatches"] = true;
   filter["UserInfoSearch"]["UserInfo"][0]["employeeNo"] = true;
   filter["UserInfoSearch"]["UserInfo"][0]["name"] = true;
+  const String sidNv = acsSearchId();            // một mã cho cả vòng lật trang, mới ở mỗi lần quét
   for (int guard = 0; guard < 200; guard++) {
     int code;
-    String body = "{\"UserInfoSearchCond\":{\"searchID\":\"1\",\"searchResultPosition\":" + String(pos) +
+    String body = "{\"UserInfoSearchCond\":{\"searchID\":\"" + sidNv + "\",\"searchResultPosition\":" + String(pos) +
                   ",\"maxResults\":" + String(PAGE) + "}}";
     String r = hikRequest("POST", "/ISAPI/AccessControl/UserInfo/Search?format=json", body, &code);
     if (code != 200 || r.length() == 0) { Serial.printf("[SCAN] Search http%d -> dừng\n", code); break; }
@@ -1494,7 +1568,7 @@ void handleGetPhoto(const String& opId, const String& emp, const String& date,
   Serial.printf("[TRICH] opId=%s emp=%s %s..%s (%s)\n", opId.c_str(), emp.c_str(), startT.c_str(), endT.c_str(), which.c_str());
 
   // 2) Tìm sự kiện của đúng NV có ảnh, gần giờ mục tiêu nhất
-  String payload = "{\"AcsEventCond\":{\"searchID\":\"1\",\"searchResultPosition\":0,\"maxResults\":10,"
+  String payload = "{\"AcsEventCond\":{\"searchID\":\"" + acsSearchId() + "\",\"searchResultPosition\":0,\"maxResults\":10,"
                    "\"major\":0,\"minor\":0,\"startTime\":\"" + startT + "\",\"endTime\":\"" + endT +
                    "\",\"employeeNoString\":\"" + emp + "\"}}";
   String r = hikPost(payload);
@@ -1660,9 +1734,12 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
   filter["AcsEvent"]["responseStatusStrg"] = true;
   filter["AcsEvent"]["numOfMatches"] = true;
   filter["AcsEvent"]["totalMatches"] = true;
+  // MỘT mã cho cả vòng lật trang (đúng ý nghĩa searchID), nhưng phải MỚI ở mỗi lần chạy bù —
+  // dùng lại "backfill" cho lần bù sau là đúng cái bẫy đã làm lượt trực tiếp chết.
+  const String sidBu = acsSearchId();
   for (int guard = 0; guard < 1000; guard++) {
     if (!netUp()) { Serial.println("[BÙ] Mất mạng, dừng."); break; }
-    String payload = "{\"AcsEventCond\":{\"searchID\":\"backfill\",\"searchResultPosition\":" + String(pos) +
+    String payload = "{\"AcsEventCond\":{\"searchID\":\"" + sidBu + "\",\"searchResultPosition\":" + String(pos) +
                      ",\"maxResults\":" + String(PAGE) + ",\"major\":0,\"minor\":0" +
                      ",\"startTime\":\"" + startISO + "\",\"endTime\":\"" + endISO + "\"}}";
     String r = hikPost(payload);
@@ -1784,18 +1861,69 @@ void checkOtaUpdate(){
 
 // ---------- Kiểm tra lượt chấm công mới ----------
 void checkNewAcsEvents() {
-  String r1 = hikPost("{\"AcsEventCond\":{\"searchID\":\"1\",\"searchResultPosition\":0,\"maxResults\":1,\"major\":0,\"minor\":0}}");
-  if (r1.length() == 0) return;
+  // ⚠️ PHẢI có startTime/endTime. Đây là điểm KHÁC DUY NHẤT giữa lệnh chạy được và lệnh chết:
+  //      lượt bù  (backfillRange) -> CÓ startTime/endTime -> chạy
+  //      trích ảnh (trichAnhTheoOp) -> CÓ startTime/endTime -> chạy
+  //      lượt trực tiếp (hàm này)   -> KHÔNG có           -> luôn -1
+  //    Cả ba đều gọi CHUNG hikPost, cùng một endpoint, cùng đầu đọc, cách nhau vài giây.
+  //    ISAPI của Hikvision đòi khoảng thời gian trong AcsEventCond; thiếu thì đầu đọc phải quét
+  //    toàn bộ sổ và nó NGẮT KẾT NỐI -> HTTPClient trả -1, trông y như lỗi mạng.
+  //    Khớp luôn "chạy 1-2 lần rồi thôi": sổ còn ít thì máy chịu được, sổ dài ra là chết hẳn.
+  String tuNgay = acsMocBatDau(), denNgay = FAR_FUTURE;
+  String khoang = ",\"startTime\":\"" + tuNgay + "\",\"endTime\":\"" + denNgay + "\"";
+
+  // ⚠️ 01/08/2026 — TỪ ĐÂY KHÔNG CÒN `return` IM LẶNG NÀO TRONG HÀM NÀY.
+  //    Bản trước thoát ra 3 chỗ mà không in một chữ (phản hồi rỗng / parse lỗi / total<=0), nên
+  //    ngoài hiện trường thấy: không có dòng LỖI, cũng không có [LƯỢT MỚI] — không biết hàm có
+  //    chạy hay không, cũng không biết đầu đọc trả gì. Mất mấy lượt chẩn đoán vì đúng chỗ này.
+  //    Đây là đường TIỀN LƯƠNG: thà log dài còn hơn im lặng. In dồn 60s/lần cho khỏi rác.
+  static unsigned long inLanCuoi = 0;
+  bool inDuoc = (inLanCuoi == 0) || (millis() - inLanCuoi >= 60000);
+
+  // Mã RIÊNG cho lần đếm tổng (phiên này cố tình bỏ dở: chỉ cần totalMatches).
+  String r1 = hikPost("{\"AcsEventCond\":{\"searchID\":\"" + acsSearchId() +
+                      "\",\"searchResultPosition\":0,\"maxResults\":1,\"major\":0,\"minor\":0" + khoang + "}}");
+  if (r1.length() == 0) {
+    if (inDuoc) { inLanCuoi = millis();
+      Serial.println("[SỔ] Đếm tổng: KHÔNG có phản hồi (hikPost đã in lý do ở trên). Khoảng: " + tuNgay); }
+    return;
+  }
   DynamicJsonDocument d1(1024);
-  if (deserializeJson(d1, r1)) return;
+  if (deserializeJson(d1, r1)) {
+    if (inDuoc) { inLanCuoi = millis();
+      String x = r1; x.replace("\n"," "); x.replace("\r"," ");
+      Serial.println("[SỔ] Đếm tổng: đầu đọc trả về thứ KHÔNG PHẢI JSON hợp lệ -> " + x.substring(0, 160)); }
+    return;
+  }
   long total = d1["AcsEvent"]["totalMatches"] | 0;
-  if (total <= 0) return;
+  if (total <= 0) {
+    // Trước đây đây là chỗ thoát IM LẶNG tệ nhất: đầu đọc trả lời tử tế nhưng nói "không có
+    // lượt nào", mà mình thì không in gì -> trông y như hàm không hề chạy.
+    if (inDuoc) { inLanCuoi = millis();
+      String x = r1; x.replace("\n"," "); x.replace("\r"," ");
+      Serial.println("[SỔ] Đầu đọc nói KHÔNG có lượt nào trong khoảng từ " + tuNgay +
+                     " -> nguyên văn: " + x.substring(0, 200));
+      // ⚠️ Nghi số 1 khi gặp ca này: GIỜ TRÊN ĐẦU ĐỌC lệch giờ trên ESP32. Lượt chấm công mang
+      //    dấu thời gian của ĐẦU ĐỌC, nên đầu đọc chạy sai ngày là khoảng mình đặt loại sạch.
+      //    In cả hai giờ ra cạnh nhau thì nhìn một cái là biết, khỏi phải mò.
+      Serial.println("        giờ ESP32 : " + gioEspISO());
+      Serial.println("        giờ đầu đọc: " + hikGioMay()); }
+    return;
+  }
+  if (inDuoc) { inLanCuoi = millis();
+    Serial.printf("[SỔ] tổng=%ld  đã đẩy tới serial=%ld  (từ %s)\n", total, lastSerialNo, tuNgay.c_str()); }
 
   long pos = total > WINDOW ? total - WINDOW : 0;
-  String payload2 = "{\"AcsEventCond\":{\"searchID\":\"1\",\"searchResultPosition\":" + String(pos) +
-                    ",\"maxResults\":" + String(WINDOW) + ",\"major\":0,\"minor\":0}}";
+  // Mã RIÊNG cho lần lấy cửa sổ — KHÔNG dùng lại mã của lần đếm ở trên.
+  // ⚠️ Khoảng thời gian phải Y HỆT lần đếm, vì `pos` tính từ `total` của lần đếm đó. Lệch
+  //    khoảng là lệch tổng -> nhảy sai vị trí -> bỏ sót hoặc đọc trùng lượt chấm công.
+  String payload2 = "{\"AcsEventCond\":{\"searchID\":\"" + acsSearchId() + "\",\"searchResultPosition\":" + String(pos) +
+                    ",\"maxResults\":" + String(WINDOW) + ",\"major\":0,\"minor\":0" + khoang + "}}";
   String r2 = hikPost(payload2);
-  if (r2.length() == 0) return;
+  if (r2.length() == 0) {
+    Serial.printf("[SỔ] Lấy %d lượt cuối từ vị trí %ld: KHÔNG có phản hồi.\n", WINDOW, pos);
+    return;
+  }
 
   StaticJsonDocument<400> filter;
   JsonObject fi = filter["AcsEvent"]["InfoList"].createNestedObject();
@@ -1813,6 +1941,13 @@ void checkNewAcsEvents() {
   }
 
   JsonArray list = doc["AcsEvent"]["InfoList"].as<JsonArray>();
+  // Đầu đọc bảo có `total` lượt nhưng danh sách trả về RỖNG -> phải nói ra, đừng lặng lẽ bỏ qua.
+  if (list.isNull() || list.size() == 0) {
+    String x = r2; x.replace("\n"," "); x.replace("\r"," ");
+    Serial.printf("[SỔ] tổng=%ld nhưng danh sách RỖNG (vị trí %ld) -> %s\n",
+                  total, pos, x.substring(0, 200).c_str());
+    return;
+  }
   long adv = lastSerialNo, maxSerial = lastSerialNo; bool stop = false;
 
   for (JsonObject e : list) {
@@ -1842,6 +1977,9 @@ void checkNewAcsEvents() {
     Serial.println("\n[LƯỢT MỚI]");
     Serial.print("   NV: "); Serial.print(emp); Serial.print("  Tên: "); Serial.println(name);
     Serial.print("   Thời gian: "); Serial.println(eventTime);
+    // In tài nguyên ở MỖI lượt: so mấy dòng này với nhau là thấy ngay có tụt dần hay không.
+    Serial.printf("   [TÀI NGUYÊN] heap=%u nhomax=%u apKhach=%u\n", (unsigned)ESP.getFreeHeap(),
+                  (unsigned)ESP.getMaxAllocHeap(), (unsigned)WiFi.softAPgetStationNum());
 
     uint8_t* jpeg = NULL; int jpegLen = 0; char* imgB64 = NULL; int imgB64Len = 0;
     // 4G: KHÔNG gửi ảnh lúc chấm công (chỉ trích khi bấm nút) -> bỏ tải+encode ảnh cho nhẹ + tránh "Hết RAM".
@@ -2321,7 +2459,7 @@ void handleRoot(){
 void handleEmpList(){
   lastWebMs = millis();
   if (!hikUp()) { server.send(200,"application/json","[]"); return; }
-  String body = "{\"UserInfoSearchCond\":{\"searchID\":\"cyd\",\"searchResultPosition\":0,\"maxResults\":50}}";
+  String body = "{\"UserInfoSearchCond\":{\"searchID\":\"" + acsSearchId() + "\",\"searchResultPosition\":0,\"maxResults\":50}}";
   int code; String r = hikRequest("POST","/ISAPI/AccessControl/UserInfo/Search?format=json", body, &code);
   String out = "[";
   StaticJsonDocument<192> filter;                          // chỉ giữ employeeNo + name -> doc nhỏ, không tràn RAM khi nhiều NV
@@ -2373,7 +2511,7 @@ void handleUserRaw(){
   String no = server.arg("no"); no.trim();
   if (no.length()==0) { server.send(400,"text/plain; charset=utf-8","Thêm ?no=<mã NV>, vd /userraw?no=1"); return; }
   if (!hikUp()) { server.send(503,"text/plain; charset=utf-8","Chưa tới được máy chấm công"); return; }
-  String body = "{\"UserInfoSearchCond\":{\"searchID\":\"raw\",\"searchResultPosition\":0,\"maxResults\":1,\"EmployeeNoList\":[{\"employeeNo\":\"" + no + "\"}]}}";
+  String body = "{\"UserInfoSearchCond\":{\"searchID\":\"" + acsSearchId() + "\",\"searchResultPosition\":0,\"maxResults\":1,\"EmployeeNoList\":[{\"employeeNo\":\"" + no + "\"}]}}";
   int code; String r = hikRequest("POST","/ISAPI/AccessControl/UserInfo/Search?format=json", body, &code);
   server.send(200,"text/plain; charset=utf-8", "HTTP " + String(code) + "\n" + r);
 }

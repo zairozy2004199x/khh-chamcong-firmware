@@ -48,7 +48,7 @@ void   scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const S
 #endif
 #include "secrets.h"
 
-#define FW_VERSION "2026-07-30a (tu tai .bin ve the qua WiFi; BAM moi nap; bi mat trong NVS)"
+#define FW_VERSION "2026-08-01c (nut BOOT lam nut nap: nhan=chon, giu 2s=NAP, giu 5s=tu dong)"
 
 /* Máy chính từ 31/07/2026 dùng AP tên CỐ ĐỊNH "CHAM_CONG" (trước là ChamCong-<cơ sở>, mà tên
    cơ sở đổi là Hikvision mất WiFi). Vẫn NHẬN cả tên cũ, không thì không nạp được cho những máy
@@ -523,6 +523,422 @@ String _esc(const String& s){
     if(c=='<') o+="&lt;"; else if(c=='>') o+="&gt;"; else if(c=='&') o+="&amp;"; else if(c=='"') o+="&quot;"; else o+=c; }
   return o;
 }
+/* =====================================================================================
+ *  CẢM ỨNG XPT2046 — SPI MỀM, CỐ Ý KHÔNG DÙNG TOUCH_CS CỦA TFT_eSPI
+ * -------------------------------------------------------------------------------------
+ *  Vì sao SPI mềm: trên bo CYD, cảm ứng KHÔNG chung bus với màn hình.
+ *      Màn:     SCLK 14, MOSI 13, MISO 12, CS 15   (User_Setup.h)
+ *      Cảm ứng: SCLK 25, MOSI 32, MISO 39, CS 33   (bus RIÊNG)
+ *      Thẻ SD:  SCLK 18, MISO 19, MOSI 23, CS 5    (bus thứ ba)
+ *  TOUCH_CS của TFT_eSPI giả định cảm ứng chung bus với màn -> thêm vào KHÔNG chạy, mà
+ *  còn phải sửa User_Setup.h — file đó DÙNG CHUNG cho cả máy chính và nằm trong 5 file
+ *  job `doichieu` đối chiếu. Sửa là đụng cả máy chính. XPT2046 chỉ chạy ~2 MHz nên
+ *  bit-bang thừa sức, và không tranh bus với ai.
+ *
+ *  ⚠️ HIỆU CHỈNH LÀ DỮ LIỆU, KHÔNG PHẢI MÃ. Không ai kiểm được cảm ứng bằng máy ảo, nên
+ *     4 mốc + 3 cờ đảo/hoán nằm trong NVS, sửa ở portal hoặc màn CALIB — khỏi nạp lại.
+ *     Bấm lệch thì vào màn CALIB đọc số thô rồi khai lại, không phải sửa firmware.
+ * ===================================================================================== */
+/* ⚠️ 01/08/2026 — CHÂN LÀ DỮ LIỆU, KHÔNG PHẢI MÃ.
+   Bản đầu #define cứng 5 chân. Cảm ứng không phản hồi thì phải đoán từng chân, mỗi lần
+   đoán là nạp lại USB — 5 chân là 5 lượt. Nay chân nằm trong NVS, sửa ở /tpcal hoặc đọc
+   log chẩn đoán rồi khai lại. Mặc định theo bo CYD ESP32-2432S028R. */
+int  g_tpClk = 25, g_tpDin = 32, g_tpDo = 39, g_tpCs = 33, g_tpIrq = 36;
+/* Có dùng chân IRQ để biết "có ai chạm" không.
+   ⚠️ ĐÂY LÀ CHỖ CHẾT IM LẶNG: bản đầu chặn cứng `if (IRQ == HIGH) return false;`. Chân đó
+   không nối đúng thì nó luôn HIGH -> KHÔNG BAO GIỜ đọc cảm ứng, mà không in ra một chữ nào.
+   Đặt tpDungIrq=0 thì bỏ qua IRQ, chỉ xét lực nhấn Z — chậm hơn chút nhưng chạy được
+   trên bo lô khác chân. */
+bool g_tpDungIrq = true;
+bool g_tpDebug   = false;      // in số thô ra Serial mỗi 500ms để chẩn đoán
+
+int  g_tpXMin = 300, g_tpXMax = 3800, g_tpYMin = 300, g_tpYMax = 3800;
+bool g_tpSwap = true, g_tpInvX = false, g_tpInvY = true;   // mặc định cho CYD ở setRotation(1)
+bool g_tpCo   = false;                                     // có đọc được cảm ứng lần nào chưa
+
+void tpNapCauHinh(){
+  g_tpXMin = prefs.getInt("tpXMin", g_tpXMin);
+  g_tpXMax = prefs.getInt("tpXMax", g_tpXMax);
+  g_tpYMin = prefs.getInt("tpYMin", g_tpYMin);
+  g_tpYMax = prefs.getInt("tpYMax", g_tpYMax);
+  g_tpSwap = prefs.getString("tpSwap", g_tpSwap ? "1" : "0") == "1";
+  g_tpInvX = prefs.getString("tpInvX", g_tpInvX ? "1" : "0") == "1";
+  g_tpInvY = prefs.getString("tpInvY", g_tpInvY ? "1" : "0") == "1";
+  g_tpClk  = prefs.getInt("tpClk", g_tpClk);
+  g_tpDin  = prefs.getInt("tpDin", g_tpDin);
+  g_tpDo   = prefs.getInt("tpDo",  g_tpDo);
+  g_tpCs   = prefs.getInt("tpCs",  g_tpCs);
+  g_tpIrq  = prefs.getInt("tpIrq", g_tpIrq);
+  g_tpDungIrq = prefs.getString("tpIrqOn", g_tpDungIrq ? "1" : "0") == "1";
+  g_tpDebug   = prefs.getString("tpDebug", "0") == "1";
+}
+void tpKhoiDong(){
+  tpNapCauHinh();                                   // đọc chân TRƯỚC khi pinMode
+  pinMode(g_tpClk, OUTPUT); pinMode(g_tpDin, OUTPUT); pinMode(g_tpCs, OUTPUT);
+  pinMode(g_tpDo, INPUT);   pinMode(g_tpIrq, INPUT);
+  digitalWrite(g_tpCs, HIGH); digitalWrite(g_tpClk, LOW);
+  Serial.printf("[TP] chan CLK=%d DIN=%d DO=%d CS=%d IRQ=%d  dungIrq=%d debug=%d\n",
+                g_tpClk, g_tpDin, g_tpDo, g_tpCs, g_tpIrq, (int)g_tpDungIrq, (int)g_tpDebug);
+  Serial.println("[TP] Cam ung khong phan hoi? Bat chan doan: POST /tpcal?debug=1  (hoac tpIrqOn=0)");
+}
+/* 1 lượt trao đổi: gửi 8 bit lệnh, 1 xung rỗng, rồi đọc 12 bit (MSB trước). */
+static uint16_t tpHoi(uint8_t lenh){
+  for (int i = 7; i >= 0; i--){
+    digitalWrite(g_tpDin, (lenh >> i) & 1);
+    digitalWrite(g_tpClk, HIGH); delayMicroseconds(1);
+    digitalWrite(g_tpClk, LOW);  delayMicroseconds(1);
+  }
+  digitalWrite(g_tpClk, HIGH); delayMicroseconds(1); digitalWrite(g_tpClk, LOW);  // xung rỗng
+  uint16_t v = 0;
+  for (int i = 0; i < 12; i++){
+    digitalWrite(g_tpClk, HIGH); delayMicroseconds(1);
+    v = (uint16_t)((v << 1) | (digitalRead(g_tpDo) ? 1 : 0));
+    digitalWrite(g_tpClk, LOW);  delayMicroseconds(1);
+  }
+  return v;
+}
+/* Đọc thô. Trả false khi không có ai chạm. Lấy TRUNG VỊ của 3 lần: nhiễu 1 lần không lọt. */
+bool tpDocTho(uint16_t* rx, uint16_t* ry, uint16_t* rz){
+  if (g_tpDungIrq && digitalRead(g_tpIrq) == HIGH) return false;   // chưa chạm (theo IRQ)
+  uint16_t xs[3], ys[3], z = 0;
+  digitalWrite(g_tpCs, LOW); delayMicroseconds(2);
+  z = tpHoi(0xB1);                                        // Z1
+  for (int k = 0; k < 3; k++){ ys[k] = tpHoi(0x91); xs[k] = tpHoi(0xD1); }
+  tpHoi(0xD0);                                            // lượt cuối để chip nghỉ
+  digitalWrite(g_tpCs, HIGH);
+  // trung vị 3 phần tử, không cần sắp xếp
+  #define _TPMID(a,b,c) ( (a)>(b) ? ((b)>(c)?(b):((a)>(c)?(c):(a))) : ((a)>(c)?(a):((b)>(c)?(c):(b))) )
+  uint16_t x = _TPMID(xs[0], xs[1], xs[2]);
+  uint16_t y = _TPMID(ys[0], ys[1], ys[2]);
+  #undef _TPMID
+  if (z < 200) return false;                              // chạm quá nhẹ -> bỏ, tránh bấm oan
+  if (x < 50 || y < 50 || x > 4000 || y > 4000) return false;
+  if (rx) *rx = x; if (ry) *ry = y; if (rz) *rz = z;
+  g_tpCo = true;
+  return true;
+}
+/* CHẨN ĐOÁN: đọc BỎ QUA mọi cổng chặn, in hết ra Serial.
+   Có hàm này thì không phải đoán chân — nhìn số là biết SPI có nói chuyện được không:
+     · Z luôn 0 và X/Y luôn 0 (hoặc luôn 4095) -> SPI/chân sai
+     · Z nhảy lên khi chạm                     -> SPI TỐT, chỉ còn hiệu chỉnh trục
+     · IRQ luôn =1 dù đang chạm                -> chân IRQ sai -> đặt tpIrqOn=0 là chạy
+*/
+void tpChanDoan(){
+  static unsigned long lan = 0;
+  if (!g_tpDebug || millis() - lan < 500) return;
+  lan = millis();
+  int irq = digitalRead(g_tpIrq);
+  uint16_t z, ys[1], xs[1];
+  digitalWrite(g_tpCs, LOW); delayMicroseconds(2);
+  z     = tpHoi(0xB1);
+  ys[0] = tpHoi(0x91);
+  xs[0] = tpHoi(0xD1);
+  tpHoi(0xD0);
+  digitalWrite(g_tpCs, HIGH);
+  Serial.printf("[TP] IRQ=%d  Z=%4u  X=%4u  Y=%4u\n", irq, z, xs[0], ys[0]);
+}
+/* Đổi số thô sang toạ độ màn 320x240. TÁCH RIÊNG khỏi phần đọc để test được bằng g++. */
+void tpDoiToaDo(uint16_t rx, uint16_t ry, int* sx, int* sy,
+                int xmin, int xmax, int ymin, int ymax, bool swap, bool invX, bool invY){
+  long a = rx, b = ry;
+  long ax = (xmax != xmin) ? ( (a - xmin) * 1000L / (xmax - xmin) ) : 0;   // 0..1000
+  long ay = (ymax != ymin) ? ( (b - ymin) * 1000L / (ymax - ymin) ) : 0;
+  if (ax < 0) ax = 0; if (ax > 1000) ax = 1000;
+  if (ay < 0) ay = 0; if (ay > 1000) ay = 1000;
+  long px = swap ? ay : ax;            // ở setRotation(1) trục cảm ứng thường hoán so với màn
+  long py = swap ? ax : ay;
+  if (invX) px = 1000 - px;
+  if (invY) py = 1000 - py;
+  if (sx) *sx = (int)(px * 319 / 1000);
+  if (sy) *sy = (int)(py * 239 / 1000);
+}
+/* Một lần CHẠM đã nhả (nhấn-nhả), có chống dội. Trả false nếu không có gì. */
+bool tpCham(int* sx, int* sy){
+  static unsigned long lanCuoi = 0;
+  if (millis() - lanCuoi < 250) return false;
+  uint16_t rx, ry, rz;
+  if (!tpDocTho(&rx, &ry, &rz)) return false;
+  tpDoiToaDo(rx, ry, sx, sy, g_tpXMin, g_tpXMax, g_tpYMin, g_tpYMax, g_tpSwap, g_tpInvX, g_tpInvY);
+  unsigned long t0 = millis();
+  while (digitalRead(g_tpIrq) == LOW && millis() - t0 < 1500) delay(10);   // chờ nhả
+  lanCuoi = millis();
+  return true;
+}
+/* Điểm có nằm trong ô chữ nhật? Tách riêng để test được. */
+bool tpTrong(int x, int y, int ox, int oy, int ow, int oh){
+  return x >= ox && x < ox + ow && y >= oy && y < oy + oh;
+}
+
+/* =====================================================================================
+ *  NÚT BOOT (GPIO0) LÀM NÚT NẠP — đường ĐIỀU KHIỂN CHÍNH
+ * -------------------------------------------------------------------------------------
+ *  Vì sao: cảm ứng không phản hồi trên bo thật (thử 2 bản, cả khi bỏ qua chân IRQ), mà
+ *  điện thoại anh Thắng cũng không nối được AP nên portal vô dụng ngoài hiện trường.
+ *  Nút BOOT thì CHẮC CHẮN có trên mọi bo ESP32, là nút cơ thật, không cần hiệu chỉnh,
+ *  không dùng SPI, không có chân nào phải đoán. Một nút là đủ nếu phân theo THỜI GIAN GIỮ.
+ *
+ *      Nhấn nhả nhanh  (< 800ms)   -> chọn máy kế tiếp (danh sách rỗng thì QUÉT LẠI)
+ *      Giữ 2 giây                  -> NẠP cho máy đang chọn (màn đếm ngược, nhả tay là HUỶ)
+ *      Giữ 5 giây                  -> bật/tắt chế độ tự động
+ *
+ *  ⚠️ GPIO0 là chân quyết định chế độ khởi động. ĐANG CHẠY thì đọc thoải mái, nhưng
+ *     ĐỪNG GIỮ NÚT LÚC CẤP ĐIỆN / RESET — giữ lúc đó là bo vào chế độ nạp qua USB và
+ *     không chạy chương trình. Nhấn sau khi máy đã lên màn thì không sao.
+ * ===================================================================================== */
+#define NUT_BOOT 0
+const unsigned long NUT_NGAN_MS = 800;    // dưới mức này = nhấn nhả nhanh
+const unsigned long NUT_NAP_MS  = 2000;   // giữ tới đây = nạp
+const unsigned long NUT_AUTO_MS = 5000;   // giữ tới đây = bật/tắt tự động
+
+/* Phân loại một lần nhấn theo thời gian giữ. TÁCH RIÊNG để test được bằng g++ —
+   phần đọc chân thì không test được, nhưng phần QUYẾT ĐỊNH thì phải chắc. */
+#define NUT_KHONG 0
+#define NUT_NGAN  1
+#define NUT_NAP   2
+#define NUT_AUTO  3
+int nutPhanLoai(unsigned long giuMs){
+  if (giuMs < 40)            return NUT_KHONG;   // nhiễu / dội tiếp xúc
+  if (giuMs < NUT_NGAN_MS)   return NUT_NGAN;
+  if (giuMs < NUT_NAP_MS)    return NUT_KHONG;   // vùng chết: giữ lỡ cỡ thì KHÔNG làm gì
+  if (giuMs < NUT_AUTO_MS)   return NUT_NAP;
+  return NUT_AUTO;
+}
+void nutKhoiDong(){ pinMode(NUT_BOOT, INPUT_PULLUP); }
+bool nutDangNhan(){ return digitalRead(NUT_BOOT) == LOW; }   // BOOT kéo xuống GND khi nhấn
+
+/* ============ MÀN CẢM ỨNG: danh sách máy + nút ============ */
+#define MAN_DS      0
+#define MAN_XACNHAN 1
+#define MAN_CALIB   2
+int g_man = MAN_DS;
+
+#define TP_MAX_MAY 4
+struct MayGan { String ssid, bssid; int ch, rssi; bool daNap; };
+MayGan g_dsMay[TP_MAX_MAY]; int g_soMay = 0;
+int    g_chon = -1;
+
+// Toạ độ các ô bấm — MỘT định nghĩa duy nhất, cả phần vẽ và phần bắt chạm đều dùng.
+const int O_QUET_X = 246, O_QUET_Y = 6,   O_QUET_W = 68, O_QUET_H = 30;
+const int O_HANG_X = 8,   O_HANG_Y = 44,  O_HANG_W = 304, O_HANG_H = 36;
+const int O_HANG_CACH = 40;
+const int O_AUTO_X = 8,   O_AUTO_Y = 202, O_AUTO_W = 150, O_AUTO_H = 32;
+const int O_CAL_X  = 246, O_CAL_Y  = 202, O_CAL_W  = 68,  O_CAL_H  = 32;
+const int O_HUY_X  = 20,  O_HUY_Y  = 170, O_HUY_W  = 130, O_HUY_H  = 44;
+const int O_NAP_X  = 170, O_NAP_Y  = 170, O_NAP_W  = 130, O_NAP_H  = 44;
+
+static void _nut(int x, int y, int w, int h, const String& chu, uint16_t nen, uint16_t chuMau, int font){
+  tft.fillRoundRect(x, y, w, h, 6, nen);
+  tft.drawRoundRect(x, y, w, h, 6, TFT_DARKGREY);
+  tft.setTextDatum(MC_DATUM); tft.setTextColor(chuMau, nen);
+  tft.drawString(chu, x + w/2, y + h/2, font);
+}
+void tpQuetVaoDs(){
+  int n = WiFi.scanNetworks();
+  g_soMay = 0;
+  for (int i = 0; i < n && g_soMay < TP_MAX_MAY; i++){
+    String sd = WiFi.SSID(i);
+    if (!laMayChamCong(sd)) continue;
+    g_dsMay[g_soMay].ssid  = sd;
+    g_dsMay[g_soMay].bssid = WiFi.BSSIDstr(i);
+    g_dsMay[g_soMay].ch    = WiFi.channel(i);
+    g_dsMay[g_soMay].rssi  = WiFi.RSSI(i);
+    g_dsMay[g_soMay].daNap = isDone(g_dsMay[g_soMay].bssid);
+    g_soMay++;
+  }
+  WiFi.scanDelete();
+}
+void veManDs(){
+  tft.fillScreen(TFT_BLACK); veKhung();
+  tft.setTextDatum(TL_DATUM); tft.setTextColor(colChay(), TFT_BLACK);
+  tft.drawString("NAP FIRMWARE", 12, 12, 4);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString(g_fwSize > 0 ? (String(g_fwSize/1024) + " KB") : "CHUA CO FILE", 12, 40, 2);
+  _nut(O_QUET_X, O_QUET_Y, O_QUET_W, O_QUET_H, "QUET", colVien(), TFT_WHITE, 2);
+  if (g_soMay == 0){
+    tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.drawString("Khong thay may nao", 160, 120, 4);
+    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.drawString("Lai gan may cham cong roi bam QUET", 160, 150, 2);
+  } else {
+    for (int i = 0; i < g_soMay; i++){
+      int y = O_HANG_Y + i * O_HANG_CACH;
+      bool gan = g_dsMay[i].rssi >= NEAR_RSSI;
+      // xanh lá = ở gần, nạp được ngay · xanh dương = xa · xám = đã nạp phiên này
+      uint16_t nen = g_dsMay[i].daNap ? TFT_DARKGREY : (gan ? colChay() : colVien());
+      _nut(O_HANG_X, y, O_HANG_W, O_HANG_H, "", nen, TFT_WHITE, 2);
+      // Viền trắng dày = máy ĐANG CHỌN (nút BOOT nhấn nhả nhanh để đổi)
+      if (i == g_chon){
+        tft.drawRoundRect(O_HANG_X-2, y-2, O_HANG_W+4, O_HANG_H+4, 7, TFT_WHITE);
+        tft.drawRoundRect(O_HANG_X-3, y-3, O_HANG_W+6, O_HANG_H+6, 8, TFT_WHITE);
+      }
+      tft.setTextDatum(TL_DATUM); tft.setTextColor(TFT_WHITE, nen);
+      // 5 ký tự cuối BSSID = danh tính máy, vì MỌI máy giờ cùng tên AP "CHAM_CONG"
+      String bs = g_dsMay[i].bssid;
+      tft.drawString(g_dsMay[i].ssid + "  " + bs.substring(bs.length() >= 5 ? bs.length()-5 : 0),
+                     O_HANG_X + 10, y + 10, 2);
+      tft.setTextDatum(TR_DATUM);
+      tft.drawString(String(g_dsMay[i].rssi) + "dBm" + (g_dsMay[i].daNap ? " da nap" : ""),
+                     O_HANG_X + O_HANG_W - 10, y + 10, 2);
+    }
+  }
+  _nut(O_AUTO_X, O_AUTO_Y, O_AUTO_W, O_AUTO_H,
+       g_tuDongNap ? "TU DONG: BAT" : "TU DONG: TAT",
+       g_tuDongNap ? colDo() : colVien(), TFT_WHITE, 2);
+  _nut(O_CAL_X, O_CAL_Y, O_CAL_W, O_CAL_H, "CALIB", colVien(), TFT_WHITE, 2);
+  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.drawString("OK:" + String(g_okCount) + "  Loi:" + String(g_failCount), 200, 218, 2);
+  // Hướng dẫn nút BOOT ngay trên màn — không ai phải nhớ, không cần tra tài liệu
+  tft.setTextColor(colChay(), TFT_BLACK);
+  tft.drawString("BOOT: nhan = chon may  |  giu 2s = NAP", 160, 190, 2);
+}
+void veManXacNhan(){
+  tft.fillScreen(TFT_BLACK); veKhung();
+  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+  tft.drawString("NAP CHO MAY NAY?", 160, 40, 4);
+  if (g_chon >= 0 && g_chon < g_soMay){
+    String bs = g_dsMay[g_chon].bssid;
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);  tft.drawString(bs, 160, 85, 2);
+    tft.setTextColor(colChay(), TFT_BLACK);
+    tft.drawString(bs.substring(bs.length() >= 5 ? bs.length()-5 : 0), 160, 120, 4);
+    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.drawString(String(g_dsMay[g_chon].rssi) + " dBm", 160, 150, 2);
+  }
+  _nut(O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H, "HUY", colVien(), TFT_WHITE, 4);
+  _nut(O_NAP_X, O_NAP_Y, O_NAP_W, O_NAP_H, "NAP", colChay(), TFT_WHITE, 4);
+}
+/* Màn CALIB: in SỐ THÔ để hiệu chỉnh được mà không phải nạp lại firmware.
+   Không có màn này thì bấm lệch là bó tay, vì cảm ứng không test được bằng máy ảo. */
+void veManCalib(){
+  tft.fillScreen(TFT_BLACK); veKhung();
+  tft.setTextDatum(TL_DATUM); tft.setTextColor(TFT_CYAN, TFT_BLACK);
+  tft.drawString("CALIB cam ung", 12, 12, 4);
+  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.drawString("Cham 4 goc, doc so tho ben duoi.", 12, 44, 2);
+  tft.drawString("Khai lai o portal: /tpcal", 12, 62, 2);
+  _nut(O_CAL_X, O_CAL_Y, O_CAL_W, O_CAL_H, "XONG", colVien(), TFT_WHITE, 2);
+}
+void veCalibSo(uint16_t rx, uint16_t ry, uint16_t rz, int sx, int sy){
+  tft.setTextDatum(TL_DATUM); tft.setTextColor(TFT_WHITE, TFT_BLACK); tft.setTextPadding(300);
+  tft.drawString("tho  X=" + String(rx) + "  Y=" + String(ry) + "  Z=" + String(rz), 12, 100, 4);
+  tft.drawString("man  x=" + String(sx) + "  y=" + String(sy), 12, 140, 4);
+  tft.setTextPadding(0);
+  tft.fillCircle(sx, sy, 4, TFT_RED);
+}
+/* Màn ĐẾM NGƯỢC khi đang giữ nút — để nhả tay kịp nếu bấm nhầm.
+   Một nút thì phải có đường huỷ, không thì giữ lỡ tay là nạp sai máy. */
+void veDemGiu(unsigned long giuMs){
+  static int cuoi = -1;
+  int con = (int)((NUT_NAP_MS - (giuMs > NUT_NAP_MS ? NUT_NAP_MS : giuMs) + 999) / 1000);
+  bool quaNap = giuMs >= NUT_NAP_MS;
+  int hienThi = quaNap ? -(int)((giuMs - NUT_NAP_MS) / 1000) : con;
+  if (hienThi == cuoi) return;
+  cuoi = hienThi;
+  tft.fillRect(4, 96, 312, 60, TFT_BLACK);
+  tft.setTextDatum(MC_DATUM);
+  if (!quaNap){
+    tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+    tft.drawString("GIU DE NAP... " + String(con), 160, 112, 4);
+    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.drawString("Nha tay de HUY", 160, 142, 2);
+  } else {
+    tft.setTextColor(colChay(), TFT_BLACK);
+    tft.drawString("NHA TAY DE NAP", 160, 112, 4);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.drawString("Giu tiep 5s = doi che do TU DONG", 160, 142, 2);
+  }
+}
+/* Đọc nút BOOT, xử lý theo thời gian giữ. Trả true nếu cần vẽ lại màn. */
+bool nutXuLy(){
+  static bool dangGiu = false;
+  static unsigned long batDau = 0;
+  bool nhan = nutDangNhan();
+
+  if (nhan && !dangGiu){ dangGiu = true; batDau = millis(); return false; }
+  if (nhan && dangGiu){
+    unsigned long giu = millis() - batDau;
+    if (giu >= NUT_NGAN_MS && g_man == MAN_DS) veDemGiu(giu);   // đang giữ -> đếm ngược
+    return false;
+  }
+  if (!nhan && !dangGiu) return false;
+
+  // vừa NHẢ tay
+  dangGiu = false;
+  unsigned long giu = millis() - batDau;
+  int loai = nutPhanLoai(giu);
+  Serial.printf("[NUT] giu %lums -> %s\n", giu,
+    loai==NUT_NGAN?"chon may ke tiep":loai==NUT_NAP?"NAP":loai==NUT_AUTO?"doi che do tu dong":"bo qua");
+
+  if (loai == NUT_KHONG) return true;                 // vẽ lại để xoá phần đếm ngược
+  if (loai == NUT_AUTO){
+    g_tuDongNap = !g_tuDongNap;
+    prefs.putString("autoNap", g_tuDongNap ? "1" : "0");
+    ghiTinhTrang(g_tuDongNap ? "Bat TU DONG nap (nut BOOT)" : "Tat TU DONG nap (nut BOOT)");
+    return true;
+  }
+  if (loai == NUT_NGAN){
+    if (g_soMay == 0){ tpQuetVaoDs(); g_chon = (g_soMay > 0) ? 0 : -1; return true; }
+    g_chon = (g_chon + 1) % g_soMay;                  // xoay vòng qua các máy
+    return true;
+  }
+  // NUT_NAP
+  if (g_soMay == 0 || g_chon < 0 || g_chon >= g_soMay){
+    scrLoi("CHUA CHON MAY", "Nhan BOOT de chon", "Roi giu 2s de nap"); delay(1600); return true;
+  }
+  if (g_fwSize <= 0){ scrLoi("CHUA CO FILE", "Cam the co firmware.bin", ""); delay(1800); return true; }
+  g_dangLamViec = true;
+  updateOne(g_dsMay[g_chon].ssid, g_dsMay[g_chon].bssid, g_dsMay[g_chon].ch);
+  g_dangLamViec = false;
+  tpQuetVaoDs();
+  if (g_chon >= g_soMay) g_chon = g_soMay - 1;
+  return true;
+}
+
+/* Bắt chạm cho màn đang hiện. Trả true nếu cần vẽ lại. */
+bool tpXuLy(){
+  int x = 0, y = 0;
+  if (g_man == MAN_CALIB){
+    uint16_t rx, ry, rz;
+    if (!tpDocTho(&rx, &ry, &rz)) return false;
+    tpDoiToaDo(rx, ry, &x, &y, g_tpXMin, g_tpXMax, g_tpYMin, g_tpYMax, g_tpSwap, g_tpInvX, g_tpInvY);
+    veCalibSo(rx, ry, rz, x, y);
+    if (tpTrong(x, y, O_CAL_X, O_CAL_Y, O_CAL_W, O_CAL_H)){ g_man = MAN_DS; delay(300); return true; }
+    return false;
+  }
+  if (!tpCham(&x, &y)) return false;
+  if (g_man == MAN_DS){
+    if (tpTrong(x, y, O_QUET_X, O_QUET_Y, O_QUET_W, O_QUET_H)){ tpQuetVaoDs(); return true; }
+    if (tpTrong(x, y, O_AUTO_X, O_AUTO_Y, O_AUTO_W, O_AUTO_H)){
+      g_tuDongNap = !g_tuDongNap;
+      prefs.putString("autoNap", g_tuDongNap ? "1" : "0");
+      ghiTinhTrang(g_tuDongNap ? "Bat TU DONG nap (bam tren man)" : "Tat TU DONG nap (bam tren man)");
+      return true;
+    }
+    if (tpTrong(x, y, O_CAL_X, O_CAL_Y, O_CAL_W, O_CAL_H)){ g_man = MAN_CALIB; return true; }
+    for (int i = 0; i < g_soMay; i++){
+      int oy = O_HANG_Y + i * O_HANG_CACH;
+      if (tpTrong(x, y, O_HANG_X, oy, O_HANG_W, O_HANG_H)){ g_chon = i; g_man = MAN_XACNHAN; return true; }
+    }
+    return false;
+  }
+  if (g_man == MAN_XACNHAN){
+    if (tpTrong(x, y, O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H)){ g_man = MAN_DS; g_chon = -1; return true; }
+    if (tpTrong(x, y, O_NAP_X, O_NAP_Y, O_NAP_W, O_NAP_H)){
+      if (g_chon >= 0 && g_chon < g_soMay){
+        if (g_fwSize <= 0){ scrLoi("CHUA CO FILE", "Cam the co firmware.bin", ""); delay(1800); }
+        else {
+          g_dangLamViec = true;
+          updateOne(g_dsMay[g_chon].ssid, g_dsMay[g_chon].bssid, g_dsMay[g_chon].ch);
+          g_dangLamViec = false;
+          tpQuetVaoDs();                       // quét lại để cập nhật dấu "da nap"
+        }
+      }
+      g_man = MAN_DS; g_chon = -1; return true;
+    }
+    return false;
+  }
+  return false;
+}
+
 // Quét máy chấm công ở gần -> JSON cho portal
 String quetMayJson(){
   int n = WiFi.scanNetworks();
@@ -641,6 +1057,50 @@ void hTai(){
   if(loi.length()) server.send(200, "text/plain; charset=utf-8", "KHONG XONG: " + loi);
   else             server.send(200, "text/plain; charset=utf-8", "Da tai xong vao the: " + String(g_fwSize/1024) + " KB");
 }
+/* Hiệu chỉnh cảm ứng qua portal — để sửa được mà KHÔNG phải nạp lại firmware.
+   Không có đường này thì bấm lệch là bó tay, vì cảm ứng không kiểm được bằng máy ảo.
+   GET  /tpcal        -> xem giá trị đang dùng (JSON)
+   POST /tpcal?xmin=..&xmax=..&ymin=..&ymax=..&swap=0|1&invx=0|1&invy=0|1  (gửi ô nào đổi ô đó) */
+void hTpCal(){
+  if (server.method() == HTTP_POST){
+    struct { const char* arg; const char* khoa; } m[] = {
+      {"xmin","tpXMin"}, {"xmax","tpXMax"}, {"ymin","tpYMin"}, {"ymax","tpYMax"} };
+    int n = 0;
+    for (unsigned i = 0; i < sizeof(m)/sizeof(m[0]); i++){
+      if (!server.hasArg(m[i].arg)) continue;
+      long v = server.arg(m[i].arg).toInt();
+      if (v < 0 || v > 4095){ server.send(400, "text/plain; charset=utf-8", "Moc phai trong 0..4095"); return; }
+      prefs.putInt(m[i].khoa, (int)v); n++;
+    }
+    // chân: 0..39 trên ESP32; 34-39 chỉ-vào-được nên chỉ hợp cho DO/IRQ
+    struct { const char* arg; const char* khoa; } ch[] = {
+      {"clk","tpClk"}, {"din","tpDin"}, {"do","tpDo"}, {"cs","tpCs"}, {"irq","tpIrq"} };
+    for (unsigned i = 0; i < sizeof(ch)/sizeof(ch[0]); i++){
+      if (!server.hasArg(ch[i].arg)) continue;
+      long v = server.arg(ch[i].arg).toInt();
+      if (v < 0 || v > 39){ server.send(400, "text/plain; charset=utf-8", "Chan phai trong 0..39"); return; }
+      prefs.putInt(ch[i].khoa, (int)v); n++;
+    }
+    const char* co[5]   = {"swap","invx","invy","irqon","debug"};
+    const char* coKhoa[5]= {"tpSwap","tpInvX","tpInvY","tpIrqOn","tpDebug"};
+    for (int i = 0; i < 5; i++)
+      if (server.hasArg(co[i])){ prefs.putString(coKhoa[i], server.arg(co[i]) == "1" ? "1" : "0"); n++; }
+    tpNapCauHinh();
+    veManDs();
+    server.send(200, "text/plain; charset=utf-8", "Da luu " + String(n) + " gia tri. Cham thu lai tren man.");
+    return;
+  }
+  String j = String("{\"clk\":") + String(g_tpClk) + ",\"din\":" + String(g_tpDin)
+           + ",\"do\":" + String(g_tpDo) + ",\"cs\":" + String(g_tpCs)
+           + ",\"irq\":" + String(g_tpIrq) + ",\"irqon\":" + String(g_tpDungIrq ? 1 : 0)
+           + ",\"debug\":" + String(g_tpDebug ? 1 : 0) + ","
+           + "\"xmin\":" + String(g_tpXMin) + ",\"xmax\":" + String(g_tpXMax)
+           + ",\"ymin\":" + String(g_tpYMin) + ",\"ymax\":" + String(g_tpYMax)
+           + ",\"swap\":" + String(g_tpSwap ? 1 : 0) + ",\"invx\":" + String(g_tpInvX ? 1 : 0)
+           + ",\"invy\":" + String(g_tpInvY ? 1 : 0)
+           + ",\"docDuoc\":" + String(g_tpCo ? 1 : 0) + "}";
+  server.send(200, "application/json", j);
+}
 void hQuet(){ server.send(200, "application/json", quetMayJson()); }
 void hNap(){
   if(g_dangLamViec){ server.send(409, "text/plain; charset=utf-8", "Dang lam viec khac, cho xong da."); return; }
@@ -693,6 +1153,8 @@ void batPortal(){
   dnsServer.start(53, "*", IPAddress(192,168,4,1));
   server.on("/",        HTTP_GET,  hTrangChinh);
   server.on("/quet",    HTTP_GET,  hQuet);
+  server.on("/tpcal",   HTTP_GET,  hTpCal);
+  server.on("/tpcal",   HTTP_POST, hTpCal);
   server.on("/tai",     HTTP_POST, hTai);
   server.on("/tunangcap", HTTP_POST, hTuNangCap);
   server.on("/nap",     HTTP_POST, hNap);
@@ -720,6 +1182,10 @@ void setup(){
   SPI.begin(18, 19, 23, SD_CS);
   g_sdOk = SD.begin(SD_CS);
   doLaiCoFile();
+  tpKhoiDong();                 // cảm ứng: SPI mềm, bus riêng, không tranh với màn/SD
+  nutKhoiDong();                // nút BOOT (GPIO0) = đường điều khiển CHÍNH
+  Serial.println("[NUT] BOOT: nhan nha = chon may | giu 2s = NAP | giu 5s = doi che do tu dong");
+  Serial.println("[NUT] ⚠️ DUNG giu nut luc cap dien/reset — bo se vao che do nap USB.");
   Serial.printf("[SD] sdOk=%d firmware.bin=%ld byte\n", (int)g_sdOk, g_fwSize);
 
   if(_cfgStaSsid.length()) noiInternet(12000);   // có khai WiFi thì nối sẵn cho bấm Tải là chạy ngay
@@ -733,9 +1199,46 @@ void setup(){
         g_tuDongNap ? "Tu dong nap may o gan" : "Vao 192.168.4.1 de bam Nap", TFT_DARKGREY);
 }
 
+/* Gõ trên Serial Monitor (đường DUY NHẤT chắc chắn tới được máy khi cảm ứng chết và
+   portal cũng không vào được — hoàn cảnh thật của anh Thắng):
+     d = bật/tắt in số thô cảm ứng      i = bật/tắt dùng chân IRQ
+     p = in cấu hình chân đang dùng     ? = nhắc lại các lệnh  */
+void tpLenhSerial(){
+  if (!Serial.available()) return;
+  char c = (char)Serial.read();
+  if (c == 'd'){ g_tpDebug = !g_tpDebug; prefs.putString("tpDebug", g_tpDebug ? "1" : "0");
+                 Serial.printf("[TP] debug = %d\n", (int)g_tpDebug); }
+  else if (c == 'i'){ g_tpDungIrq = !g_tpDungIrq; prefs.putString("tpIrqOn", g_tpDungIrq ? "1" : "0");
+                 Serial.printf("[TP] dungIrq = %d (0 = bo qua IRQ, chi xet luc nhan Z)\n", (int)g_tpDungIrq); }
+  else if (c == 'p'){ Serial.printf("[TP] CLK=%d DIN=%d DO=%d CS=%d IRQ=%d dungIrq=%d debug=%d\n",
+                 g_tpClk, g_tpDin, g_tpDo, g_tpCs, g_tpIrq, (int)g_tpDungIrq, (int)g_tpDebug); }
+  else if (c == '?'){ Serial.println("[TP] d=debug  i=dung IRQ  p=in chan  ?=tro giup"); }
+}
 void loop(){
+  tpLenhSerial();
   server.handleClient();
   dnsServer.processNextRequest();
+
+  /* CẢM ỨNG: đặt TRƯỚC phần tự động, và bỏ qua khi đang nạp.
+     Anh Thắng không nối được điện thoại vào AP nên portal không dùng được ngoài hiện trường
+     -> bấm trực tiếp trên màn là đường CHÍNH, portal thành đường lùi. */
+  tpChanDoan();                 // in số thô ra Serial khi bật debug — đường chẩn đoán DUY NHẤT
+                                //   khi cảm ứng không phản hồi và portal cũng không vào được
+  if (!g_dangLamViec){
+    static bool daVeLanDau = false;
+    if (!daVeLanDau){ tpQuetVaoDs(); if (g_soMay > 0) g_chon = 0; veManDs(); daVeLanDau = true; }
+    // NÚT BOOT là đường chính; cảm ứng để đó, chạy được thì tốt, không thì vẫn dùng nút.
+    if (nutXuLy()){
+      if      (g_man == MAN_DS)      veManDs();
+      else if (g_man == MAN_XACNHAN) veManXacNhan();
+      else if (g_man == MAN_CALIB)   veManCalib();
+    }
+    if (tpXuLy()){
+      if      (g_man == MAN_DS)      veManDs();
+      else if (g_man == MAN_XACNHAN) veManXacNhan();
+      else if (g_man == MAN_CALIB)   veManCalib();
+    }
+  }
 
   // MẶC ĐỊNH: KHÔNG tự nạp. Trước bản này loop() quét thấy máy nào sóng >= NEAR_RSSI là
   // tự nối và nạp luôn — với thẻ cắm sẵn thường trực thì đi ngang máy nào là nạp máy đó.
