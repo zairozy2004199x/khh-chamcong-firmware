@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-07-31c (nhu 31b; hbSend escape FW_VERSION va MAC bo lay tu efuse)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-07-31f (whoami doc tu Firebase /may/<MAC> — qua duoc 4G; /exec la duong lui)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -107,6 +107,25 @@ const char* OTA_PASS = SEC_OTA_PASS;    // ĐỔI mật khẩu này nếu muốn
 #ifndef SEC_EXEC_URL
   #define SEC_EXEC_URL CFG_PLACEHOLDER
 #endif
+/* ⚠️ 31/07/2026 — CHẶN NGAY LÚC BIÊN DỊCH cái bẫy đã làm mất cả buổi.
+   Dạng /a/macros/<tên miền>/s/<id>/exec là link cho người ĐÃ ĐĂNG NHẬP Workspace.
+   Thiết bị gọi ẩn danh bị chặn: trước bản 31b thì Google trả 404, từ 31b thì
+   execUrlHopLe() loại link -> máy không có link -> module trả 713. Cả hai đều chỉ hiện
+   ra lúc chạy ngoài hiện trường. Nay sai là KHÔNG BUILD ĐƯỢC, đọc thẳng câu dưới đây.
+   (constexpr nên tính được lúc biên dịch; đã kiểm 7 phép bằng g++ -std=c++17.) */
+constexpr bool _cxTim(const char* h, const char* n){
+  for (int i = 0; h[i]; i++){
+    int j = 0;
+    while (n[j] && h[i+j] == n[j]) j++;
+    if (!n[j]) return true;
+  }
+  return false;
+}
+static_assert(!_cxTim(SEC_EXEC_URL, "/a/macros/"),
+  "SEC_EXEC_URL dang /a/macros/<ten mien>/s/<id>/exec la link Workspace — thiet bi goi an danh SE BI CHAN. "
+  "Doi sang dang https://script.google.com/macros/s/<id>/exec (bo phan /a/macros/<ten mien>).");
+static_assert(_cxTim(SEC_EXEC_URL, "__CHUA_CAU_HINH") || _cxTim(SEC_EXEC_URL, "/macros/s/"),
+  "SEC_EXEC_URL phai co /macros/s/ va ket thuc /exec. Lay link o web app: Trien khai > Quan ly ban trien khai.");
 const char* google_script_url = SEC_EXEC_URL;
 
 // --- Đồng bộ nhân viên: DÙNG CHUNG web dashboard chấm công (cùng /exec) ---
@@ -855,10 +874,74 @@ void docThongTinDauDoc() {
   Serial.println("[MÃ MÁY] serial đầu đọc: " + HIK_SERIAL + (HIK_MODEL.length() ? ("  (" + HIK_MODEL + ")") : ""));
 }
 
+/* ---- Hỏi FIREBASE "tôi ở cửa hàng nào?" (đường CHÍNH từ bản 2026-07-31f) ----
+   Vì sao không hỏi qua ?action=whoami nữa: qua 4G, Apps Script trả 302 sang
+   googleusercontent với URL ~532 ký tự — VƯỢT giới hạn dòng lệnh AT của module A7680C
+   (hạn chế đã ghi ở QuanLyNhanVien/Code.gs:31). Đo được ngoài hiện trường: hop1 trả 706,
+   thử lại ra 302, hết 3 hop -> status=0. Hậu quả: máy giữ tên CHUA_DAT_TEN, web app xếp
+   lệnh vào /queue/<tên thật> mà máy đọc /queue/CHUA_DAT_TEN -> MỌI lệnh điều khiển từ xa
+   nằm im và KHÔNG báo lỗi.
+   Firebase không có redirect nên qua 4G được — đã đo: status=200.
+   Khoá là MAC bo (bỏ ':', chữ HOA) vì MAC luôn có, còn serial đầu đọc thì rỗng khi
+   đầu đọc mất mạng — đúng ca đang xảy ra. */
+String httpGetBody(const String& url);   // forward decl (định nghĩa ở khối Firebase bên dưới)
+String fbAuthParam();                    // forward decl
+String macKeyFb(){
+  String k = macBo(); k.toUpperCase();
+  String o = "";
+  for (unsigned i = 0; i < k.length(); i++){
+    char c = k.charAt(i);
+    if ((c>='0'&&c<='9') || (c>='A'&&c<='Z')) o += c;
+  }
+  return o;
+}
+bool hoiCuaHangFirebase(){
+  if (!netUp()) return false;
+  if (!fbHostHopLe(String(FB_HOST))) return false;          // chưa khai Firebase thì đừng gọi
+  String k = macKeyFb();
+  if (k.length() == 0) return false;
+  String body = httpGetBody(String(FB_HOST) + "/may/" + k + "/station.json" + fbAuthParam());
+  body.trim();
+  if (body.length() == 0 || body == "null") {
+    Serial.println("[CƠ SỞ] Firebase chưa có bản đồ cho máy này (/may/" + k + ") -> giữ '" + STATION_NAME + "'");
+    return false;
+  }
+  // Firebase trả chuỗi JSON có dấu nháy: "VP_KH-HCM"
+  if (body.startsWith("\"") && body.endsWith("\"") && body.length() >= 2)
+    body = body.substring(1, body.length()-1);
+  body.trim();
+  if (body.length() == 0) return false;
+  // Chỉ nhận tên hợp lệ — đừng để một node Firebase bị sửa tay làm máy ghi vào đường rác.
+  for (unsigned i = 0; i < body.length(); i++){
+    char c = body.charAt(i);
+    bool okc = (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-';
+    if (!okc){ Serial.println("[CƠ SỞ] ⚠️ Tên từ Firebase có ký tự lạ -> bỏ qua: '" + body + "'"); return false; }
+  }
+  STATION_TU_SERVER = true;
+  if (body != STATION_NAME){
+    Serial.println("[CƠ SỞ] Firebase: máy này thuộc '" + body + "' (trước là '" + STATION_NAME + "') -> ghi nhớ");
+    STATION_NAME = body;
+    prefs.putString("station", body);
+  } else {
+    Serial.println("[CƠ SỞ] Firebase xác nhận: '" + STATION_NAME + "'");
+  }
+  return true;
+}
+
 /* ---- Hỏi server "tôi ở cửa hàng nào?" ----
    Cần TÊN cửa hàng vì mọi đường Firebase đều mang tên đó (/queue/<trạm>, /hb/<trạm>,
    /roster/<trạm>, /photo/<trạm>) — không thể để server tự suy hết.
    Mất mạng / server chưa gán -> GIỮ NGUYÊN tên đang nhớ, KHÔNG xoá trắng. */
+/**
+ * Cửa ngõ DUY NHẤT để biết tên cửa hàng: Firebase trước, ?action=whoami là ĐƯỜNG LÙI.
+ * Một định nghĩa duy nhất, để sau này khỏi có chỗ gọi Firebase chỗ gọi /exec rồi lệch nhau.
+ */
+bool hoiCuaHang();                       // forward decl (định nghĩa ngay dưới)
+bool hoiCuaHangGop(){
+  if (hoiCuaHangFirebase()) return true;
+  Serial.println("[CƠ SỞ] Firebase không trả lời -> thử đường cũ ?action=whoami (qua 4G hay bị chặn)");
+  return hoiCuaHang();
+}
 bool hoiCuaHang() {
   if (!netUp()) return false;
   String q = "action=whoami&serial=" + urlEncodeMin(HIK_SERIAL)
@@ -1902,6 +1985,17 @@ String urlDeIn(const String& u){
  */
 bool atDatUrl(const String& url, const char* nhan){
   Serial.printf("   [%s] URL len=%d: %s\n", nhan, url.length(), urlDeIn(url).c_str());
+  /* ⚠️ 31/07/2026 — CHƯA CÓ LINK thì NÓI RA, đừng chọc module.
+     Bản 31b bắt đầu từ chối link sai dạng (execUrlHopLe) nên cfgLay trả "" — rồi code vẫn
+     gọi AT+HTTPPARA="URL","" và module đáp 7xx. Nhìn log chỉ thấy "status=713", không ai
+     đoán được là do CHƯA KHAI LINK. Một câu tiếng người ở đây tiết kiệm được cả buổi. */
+  if (!url.startsWith("http")) {
+    Serial.printf("   [%s] 🔴 CHUA CO LINK — may chua duoc khai link web app / Firebase.\n", nhan);
+    Serial.println("        Vao http://192.168.4.1 (WiFi CHAM_CONG) khai o muc cau hinh,");
+    Serial.println("        hoac sua SEC_EXEC_URL / SEC_FB_HOST trong secrets.h roi nap lai.");
+    Serial.println("        Link web app phai dang: https://script.google.com/macros/s/<id>/exec");
+    return false;
+  }
   Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n");
   String r = atWait("OK", 3000);
   if (r.indexOf("OK") < 0){
@@ -2428,7 +2522,7 @@ void setup() {
   // MÃ THIẾT BỊ -> hỏi server tên cơ sở. Làm TRƯỚC khi in "Cơ sở" và trước phần bù dữ liệu,
   // vì mọi đường Firebase (/queue, /hb, /roster, /photo) đều mang tên cơ sở.
   docThongTinDauDoc();
-  hoiCuaHang();
+  hoiCuaHangGop();
   lastWhoAmIMs = millis();
   Serial.print("-> Cơ sở: "); Serial.print(STATION_NAME);
   Serial.println(STATION_TU_SERVER ? "  (server gán theo mã máy)" : "  (bản nhớ trong máy — server chưa gán hoặc chưa hỏi được)");
@@ -2504,7 +2598,7 @@ void loop() {
   if (!webBusy && netUp() && millis() - lastWhoAmIMs >= WHOAMI_CHU_KY_MS) {
     lastWhoAmIMs = millis();
     if (HIK_SERIAL.length() == 0) docThongTinDauDoc();
-    hoiCuaHang();
+    hoiCuaHangGop();
   }
 
   // ③ OTA từ xa: kiểm tra firmware mới trên Firebase /ota mỗi 5 phút (tải + flash khi có bản mới)
