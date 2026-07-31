@@ -26,10 +26,15 @@
 #include <DNSServer.h>
 #include <Update.h>       // OTA qua WiFi AP nội bộ (nạp .bin qua trình duyệt, không cần cáp)
 #include <PPP.h>          // Internet qua 4G A7680C (ESP32 Arduino core >= 3.0)
+#include "esp_mac.h"      // esp_read_mac: MAC bo doc tu efuse, khong phu thuoc WiFi da bat chua
 //#define LOAD_FONT7
 #define LOAD_FONT6
 // ======================= CẤU HÌNH =======================
-#define FW_VERSION "2026-07-31b (nhu 31a, + bat o chua trong kieu \"...\" trong secrets.h la CHUA KHAI, khong ghi vao NVS)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+/* ⚠️ FW_VERSION bị nhồi NGUYÊN VĂN vào JSON của heartbeat (hbSend) và vào HTML portal.
+   Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
+   web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
+   Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
+#define FW_VERSION "2026-07-31c (nhu 31b; hbSend escape FW_VERSION va MAC bo lay tu efuse)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -259,6 +264,29 @@ String cfgLay(const char* khoa, const char* biencompile){
                   khoa, khoe ? " — dang luu: " : "", khoe ? v.c_str() : "");
   }
   return "";
+}
+/**
+ * MAC của bo ESP32 — DANH TÍNH của máy trong bảng MayChamCong của web app.
+ * ⚠️ 31/07/2026 — TRƯỚC ĐÂY dùng macBo(), trả MAC của giao diện STA.
+ *    Ở chế độ 4G (USE_4G=true) máy chỉ bật softAP, STA không hề khởi tạo, nên hàm đó trả
+ *    "00:00:00:00:00:00". Máy tự khai danh tính toàn số 0 -> web app không khớp được máy nào,
+ *    tab "Máy chấm công" hiện 0 máy, không có gì để gán cửa hàng. IM LẶNG hoàn toàn.
+ *    Nay đọc từ efuse: luôn có, và LÀ ĐÚNG giá trị mà máy chạy WiFi vẫn báo (ESP_MAC_WIFI_STA),
+ *    nên máy cũ đã ghi nhận bằng macBo() vẫn khớp, không sinh dòng trùng.
+ */
+String macBo(){
+  static String cache = "";
+  if (cache.length()) return cache;
+  uint8_t m[6] = {0};
+  if (esp_read_mac(m, ESP_MAC_WIFI_STA) == ESP_OK) {
+    char b[18];
+    snprintf(b, sizeof(b), "%02X:%02X:%02X:%02X:%02X:%02X", m[0], m[1], m[2], m[3], m[4], m[5]);
+    cache = String(b);
+  } else {
+    cache = WiFi.macAddress();        // đường lùi; ít nhất không tệ hơn cách cũ
+    Serial.println("[MAC] esp_read_mac thất bại -> tạm dùng macBo()");
+  }
+  return cache;
 }
 void napCauHinh(){
   _cfgHikUser = cfgLay("hikUser",  SEC_HIK_USER);
@@ -646,7 +674,7 @@ bool net4gHttpPost(const String& url, const String& body);   // forward decl (đ
 bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB64, int imageB64Len) {
   String body;
   body.reserve(imageB64Len + 400);
-  body  = "{\"macAddress\":\""  + WiFi.macAddress() + "\",";
+  body  = "{\"macAddress\":\""  + macBo() + "\",";
   body += "\"hikSerial\":\""    + HIK_SERIAL + "\",";     // server ghép mã này -> cửa hàng (khoá chính)
   body += "\"hikModel\":\""     + HIK_MODEL  + "\",";
   body += "\"stationName\":\""  + String(STATION_NAME) + "\",";
@@ -663,7 +691,7 @@ bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB
   // 4G: đẩy qua LỆNH AT HTTP của module (không PPP). GỬI BẢN GỌN (KHÔNG kèm ảnh) để né giới hạn AT+HTTPDATA.
   // Chấm công chỉ cần Mã NV + tên + giờ; ảnh mặt đã enroll sẵn trong máy nên không cần đẩy qua 4G.
   if (USE_4G) {
-    String slim = String("{\"macAddress\":\"") + WiFi.macAddress()
+    String slim = String("{\"macAddress\":\"") + macBo()
                 + "\",\"hikSerial\":\"" + HIK_SERIAL + "\",\"hikModel\":\"" + HIK_MODEL
                 + "\",\"stationName\":\"" + String(STATION_NAME)
                 + "\",\"employeeNo\":\"" + empNo + "\",\"name\":\"" + name + "\",\"time\":\"" + eventTime + "\",\"image\":\"\"}";
@@ -834,7 +862,7 @@ void docThongTinDauDoc() {
 bool hoiCuaHang() {
   if (!netUp()) return false;
   String q = "action=whoami&serial=" + urlEncodeMin(HIK_SERIAL)
-           + "&mac="     + urlEncodeMin(WiFi.macAddress())
+           + "&mac="     + urlEncodeMin(macBo())
            + "&station=" + urlEncodeMin(STATION_NAME)
            + "&model="   + urlEncodeMin(HIK_MODEL);
   String r = empGet(q);
@@ -844,7 +872,7 @@ bool hoiCuaHang() {
   if (d["choGan"] | false) {
     STATION_TU_SERVER = false;
     Serial.println("[CƠ SỞ] ⚠️ MÁY CHƯA ĐƯỢC GÁN CỬA HÀNG. Vào web app > tab 'Máy chấm công' rồi gán cửa hàng cho máy này.");
-    Serial.println("        serial=" + HIK_SERIAL + "  mac=" + WiFi.macAddress());
+    Serial.println("        serial=" + HIK_SERIAL + "  mac=" + macBo());
     Serial.println("        Chấm công vẫn được giữ ở server (sheet ChamCongChoGan), gán xong sẽ tự chuyển về.");
     return false;
   }
@@ -1595,7 +1623,9 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
 void hbSend() {
   if (!netUp()) return;
   String url = String(FB_HOST) + "/hb/" + STATION_NAME + ".json" + fbAuthParam();
-  fbHttpPut(url, "{\"t\":{\".sv\":\"timestamp\"},\"fw\":\"" FW_VERSION "\"}");
+  // ⚠️ PHẢI escape: FW_VERSION là chuỗi người viết tay, có 1 dấu nháy là JSON hỏng và
+  //    Firebase trả 400 — mất heartbeat MÀ KHÔNG mất chấm công, nên rất dễ tưởng máy chết mạng.
+  fbHttpPut(url, "{\"t\":{\".sv\":\"timestamp\"},\"fw\":\"" + jsonEscMin_(String(FW_VERSION)) + "\"}");
 }
 
 // ===== OTA TỪ XA: tải firmware .bin từ URL (GitHub) rồi ghi flash =====
@@ -1852,13 +1882,47 @@ bool net4gDiag(){
   return (reg.indexOf(",1")>=0 || reg.indexOf(",5")>=0);      // đã đăng ký mạng?
 }
 // Đẩy 1 JSON lên URL bằng LỆNH AT HTTP của module (không cần PPP). Apps Script trả 302 = đã nhận.
+/**
+ * URL để IN RA LOG: che token, giữ nguyên phần còn lại.
+ * Link web app và link Firebase KHÔNG phải bí mật, mà che đi thì hết đường chẩn đoán —
+ * đã mất công vì portal che link. Riêng ?token= / ?auth= thì phải che.
+ */
+String urlDeIn(const String& u){
+  String o = u;
+  int i = o.indexOf("token=");
+  if (i >= 0){ int e = o.indexOf('&', i); o = o.substring(0, i+6) + "…che…" + (e>=0 ? o.substring(e) : ""); }
+  i = o.indexOf("auth=");
+  if (i >= 0){ int e = o.indexOf('&', i); o = o.substring(0, i+5) + "…che…" + (e>=0 ? o.substring(e) : ""); }
+  return o;
+}
+/**
+ * Đặt AT+HTTPPARA="URL" và KIỂM kết quả. Trước đây kết quả bị bỏ đi, nên URL bị module
+ * từ chối (quá dài / ký tự lạ) mà vẫn chạy tiếp tới HTTPACTION rồi báo một con số 7xx
+ * không hiểu từ đâu ra. Nay hỏng ở đâu biết ngay ở đó.
+ */
+bool atDatUrl(const String& url, const char* nhan){
+  Serial.printf("   [%s] URL len=%d: %s\n", nhan, url.length(), urlDeIn(url).c_str());
+  Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n");
+  String r = atWait("OK", 3000);
+  if (r.indexOf("OK") < 0){
+    r.replace("\r"," "); r.replace("\n"," "); r.trim();
+    Serial.printf("   [%s] ⚠️ MODULE TU CHOI URL -> '%s'\n", nhan, r.c_str());
+    return false;
+  }
+  return true;
+}
+/** In nguyên văn dòng +HTTPACTION (và mọi thứ module trả về) — 3 trường, không chỉ mã. */
+void inHttpAction(const String& r, const char* nhan){
+  String t = r; t.replace("\r"," "); t.replace("\n"," "); t.trim();
+  Serial.printf("   [%s] module tra: '%s'\n", nhan, t.c_str());
+}
 bool net4gHttpPost(const String& url, const String& body){
   if(!g_4gReady) return false;
   while(Serial2.available()) Serial2.read();
   Serial2.print("AT+HTTPTERM\r\n"); delay(150); while(Serial2.available()) Serial2.read();  // dọn phiên cũ
   Serial2.print("AT+HTTPINIT\r\n"); String ri=atWait("OK",6000); ri.replace("\r"," ");ri.replace("\n"," ");ri.trim(); Serial.println("   [HTTPINIT] "+ri);
   Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
-  Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n"); atWait("OK",3000);
+  if (!atDatUrl(url, "4G HTTP")) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return false; }
   Serial2.print("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n"); atWait("OK",2000);
   Serial2.print("AT+HTTPDATA="); Serial2.print(body.length()); Serial2.print(",30000\r\n");
   String rd=atWait("DOWNLOAD",6000); rd.replace("\r"," ");rd.replace("\n"," ");rd.trim(); Serial.println("   [HTTPDATA] "+rd);
@@ -1870,6 +1934,9 @@ bool net4gHttpPost(const String& url, const String& body){
   if(p>=0){ int c1=r.indexOf(',',p); int c2=(c1>=0)?r.indexOf(',',c1+1):-1; if(c1>=0&&c2>=0) code=r.substring(c1+1,c2).toInt(); }
   Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
   Serial.printf("   [4G HTTP] status=%d\n", code);
+  // 7xx KHÔNG phải mã HTTP — đó là lỗi nội bộ của module (request chưa tới server).
+  // In nguyên văn để đối chiếu sổ tay AT, chứ một con số trơ thì không tra được.
+  if (code >= 600) { inHttpAction(r, "4G HTTP"); Serial.println("   ⚠️ 7xx la loi CUA MODULE, khong phai server tra ve."); }
   return (code==200||code==301||code==302||code==303||code==307);   // 2xx hoặc redirect Apps Script = đã nhận
 }
 // PUT 1 body JSON lên URL (Firebase set/overwrite). Trả true nếu 2xx.
@@ -1879,7 +1946,7 @@ bool net4gHttpPut(const String& url, const String& body){
   Serial2.print("AT+HTTPTERM\r\n"); delay(150); while(Serial2.available()) Serial2.read();
   Serial2.print("AT+HTTPINIT\r\n"); atWait("OK",6000);
   Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
-  Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n"); atWait("OK",3000);
+  if (!atDatUrl(url, "4G PUT")) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return false; }
   Serial2.print("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n"); atWait("OK",2000);
   // 9600 baud CHẬM: ảnh to (base64 ~40-70KB) cần ~60-90s để gửi hết qua UART.
   // Cửa sổ nhận data phải đủ dài theo kích thước, trần 120s (giới hạn AT+HTTPDATA của module).
@@ -1894,6 +1961,8 @@ bool net4gHttpPut(const String& url, const String& body){
   if(p>=0){ int c1=r.indexOf(',',p); int c2=(c1>=0)?r.indexOf(',',c1+1):-1; if(c1>=0&&c2>=0) code=r.substring(c1+1,c2).toInt(); }
   Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
   Serial.printf("   [4G PUT] status=%d\n", code);
+  if (code >= 600) inHttpAction(r, "4G PUT");
+  if (code == 400) Serial.println("   ⚠️ 400 = Firebase tu choi THAN JSON (sai cu phap), khong phai sai auth.");
   return (code>=200 && code<300);
 }
 // GET qua AT-HTTP: mở phiên + ACTION=0 + tự follow 302 (Apps Script). Trả status, gán *datalen (byte body 200).
@@ -1905,8 +1974,7 @@ int net4gGetOpen(String url, int* datalen){
     Serial2.print("AT+HTTPINIT\r\n"); atWait("OK",6000);
     Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
     Serial2.print("AT+HTTPPARA=\"REDIR\",1\r\n"); atWait("OK",2000);   // module TỰ follow 302 (nếu hỗ trợ) -> hop0 ra 200 luôn
-    Serial.printf("   [4G GET] hop%d URL len=%d\n", hop, url.length());
-    Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n"); atWait("OK",3000);
+    if (!atDatUrl(url, "4G GET")) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return 0; }
     int status=0, dl=0;
     for(int tryn=0; tryn<2; tryn++){                            // thử 2 lần: đủ để biết 706 có phải chập chờn, mà không khựng lâu
       Serial2.print("AT+HTTPACTION=0\r\n");                     // 0 = GET
@@ -2051,7 +2119,7 @@ bool net4gConnect(){
     g_4gReady = true; Serial.println("[4G] SẴN SÀNG (đã đăng ký LTE) — đẩy dữ liệu qua AT-HTTP");
     static bool tested = false;
     if (!tested) { tested = true;                              // đẩy thử 1 gói để XÁC NHẬN đường 4G→Google (không cần Hikvision)
-      String tb = String("{\"macAddress\":\"") + WiFi.macAddress() + "\",\"stationName\":\"" + String(STATION_NAME) + "\",\"employeeNo\":\"TEST4G\",\"name\":\"AT-HTTP test\",\"time\":\"test\",\"image\":\"\"}";
+      String tb = String("{\"macAddress\":\"") + macBo() + "\",\"stationName\":\"" + String(STATION_NAME) + "\",\"employeeNo\":\"TEST4G\",\"name\":\"AT-HTTP test\",\"time\":\"test\",\"image\":\"\"}";
       Serial.println("[4G] === TEST: đẩy thử 1 gói lên Google ===");
       bool tok = net4gHttpPost(google_script_url, tb);
       Serial.println(tok ? "[4G] ✔️ TEST OK — đường 4G → Google CHẠY!" : "[4G] ✖ TEST chưa được — xem 'status=' phía trên");
@@ -2084,7 +2152,7 @@ void handleRoot(){
                                   : "<b>bản nhớ trong máy</b>; server chưa gán hoặc chưa hỏi được.") + "</div>";
   h += "<div class='muted'>Mã máy để server nhận ra cơ sở — <b>serial đầu đọc:</b> "
        + String(HIK_SERIAL.length() ? HIK_SERIAL : String("(chưa đọc được)"))
-       + (HIK_MODEL.length() ? (" · " + HIK_MODEL) : "") + " · <b>MAC bo:</b> " + WiFi.macAddress() + "</div>";
+       + (HIK_MODEL.length() ? (" · " + HIK_MODEL) : "") + " · <b>MAC bo:</b> " + macBo() + "</div>";
   h += "<div class='muted'>👉 <b>Không cần gõ tên ở đây nữa.</b> Vào web app &gt; tab <b>Máy chấm công</b>, "
        "tìm máy theo serial/MAC ở trên rồi chọn cơ sở. Máy tự nhận trong 30 phút (hoặc khởi động lại cho nhanh). "
        "Đổi bo ESP32 mà giữ đầu đọc thì <b>không phải khai lại gì</b>.</div>";

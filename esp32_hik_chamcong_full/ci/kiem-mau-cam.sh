@@ -11,8 +11,17 @@ set -uo pipefail
 cd "$(dirname "$0")/../.."
 
 MAU=('AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio')
+# ⚠️ 31/07/2026 — PHẢI liệt kê MỌI file được đồng bộ sang repo CÔNG KHAI, không chỉ 2 file .ino.
+#    Đã hớ một lần: điền link RTDB thật vào secrets.example.h. File đó đi nguyên văn sang repo
+#    công khai nên là lộ thật, mà bước "Kiem .bin" của CI không thấy (bin build từ ci/secrets.ci.h
+#    toàn placeholder) và script này lúc đó chỉ quét .ino. Phiên khác bắt được, không phải CI.
 FILE=(esp32_hik_chamcong_full/esp32_hik_chamcong_full.ino
-      esp32_ota_updater/esp32_ota_updater.ino)
+      esp32_ota_updater/esp32_ota_updater.ino
+      esp32_hik_chamcong_full/secrets.example.h
+      esp32_ota_updater/secrets.example.h
+      esp32_hik_chamcong_full/ci/secrets.ci.h
+      esp32_ota_updater/ci/secrets.ci.h
+      esp32_hik_chamcong_full/ci/User_Setup.h)
 
 # Chỉ xét thứ LỌT VÀO .bin: chuỗi trong dấu ngoặc kép. Ghi chú thì vô hại.
 # Cách bóc: xoá ghi chú // và /* */ trước, rồi mới trích chuỗi.
@@ -42,7 +51,7 @@ PY
 )"
   for m in "${MAU[@]}"; do
     if printf '%s' "$chuoi" | grep -qF "$m"; then
-      echo "🔴 $f: chuỗi có '$m' -> CI se do o buoc Kiem .bin"
+      echo "🔴 $f: chuỗi có '$m'"
       printf '%s' "$chuoi" | grep -nF "$m" | head -3 | sed 's/^/     /'
       loi=1
     fi
