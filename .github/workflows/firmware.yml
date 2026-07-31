@@ -131,6 +131,48 @@ jobs:
           name: firmware-${{ env.VER }}
           path: out/*.bin
 
+      # ⚠️ 01/08/2026 — .bin PHAI co link raw, KHONG dung link release.
+      #    Do that: link release  125 ky tu -> HTTP 302 -> redirect dai 943 KY TU.
+      #    Module 4G A7680C chet o khoang 532 ky tu (loi 706, da do khi lam whoami), nen may
+      #    chay 4G KHONG BAO GIO tai duoc firmware qua link release. Cap nhat tu xa vo dung.
+      #    raw.githubusercontent.com tra HTTP 200 THANG, khong redirect, link chi 100 ky tu.
+      #    De history khong phinh (moi ban .bin ~1,2 MB), day len nhanh 'bin' bang commit MO COI
+      #    roi force-push: nhanh do luon chi co DUNG 1 commit, khong tich luy.
+      - name: Day .bin len nhanh 'bin' (de co link raw, khong redirect)
+        env:
+          PUB: ${{ github.repository }}
+        run: |
+          set -e
+          BIN="out/chamcong-$VER.bin"
+          [ -f "$BIN" ] || { echo "::error::Khong co $BIN"; exit 1; }
+          mkdir -p /tmp/binbr && cp "$BIN" /tmp/binbr/chamcong-latest.bin
+          printf 'ver=%s\ncommit=%s\nsize=%s\n' "$VER" "$GITHUB_SHA" "$SZ" > /tmp/binbr/thongtin.txt
+          echo 'Nhanh nay CHI chua file .bin de may cham cong tai qua link raw (khong redirect).' > /tmp/binbr/README.md
+          echo 'Nhanh bi force-push moi lan build, dung dat gi khac vao day.' >> /tmp/binbr/README.md
+          cd /tmp/binbr
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b bin
+          git add -A && git commit -q -m "bin $VER ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$PUB.git" bin
+          echo "Da day .bin len nhanh 'bin'."
+          # Kiem THAT: link raw phai tra 200 va KHONG redirect. Khong dat thi bao do ngay,
+          # dung de latest.json tro vao link chet roi cha ai biet.
+          RAW="https://raw.githubusercontent.com/$PUB/bin/chamcong-latest.bin"
+          echo "RAW=$RAW  (${#RAW} ky tu)"
+          for i in 1 2 3 4 5 6; do
+            sleep 5
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$RAW" || echo 0)
+            NRED=$(curl -s -o /dev/null -w '%{num_redirects}' "$RAW" || echo 9)
+            echo "  thu $i: http=$CODE redirects=$NRED"
+            [ "$CODE" = "200" ] && [ "$NRED" = "0" ] && break
+          done
+          [ "$CODE" = "200" ] || { echo "::error::Link raw khong tra 200 -> may 4G se khong tai duoc."; exit 1; }
+          [ "$NRED" = "0" ]   || { echo "::error::Link raw CO redirect -> URL se dai qua gioi han AT."; exit 1; }
+          [ "${#RAW}" -le 300 ] || { echo "::error::Link raw dai ${#RAW} ky tu, qua gioi han an toan cua module."; exit 1; }
+          echo "RAW=$RAW" >> $GITHUB_ENV
+
       - name: Phat hanh ban moi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -140,10 +182,12 @@ jobs:
           BIN="out/chamcong-$VER.bin"
           # latest.json: web app doc file nay de tu dien san phien ban + link (khong can token).
           # Dung jq chu khong heredoc: dong ket thuc heredoc phai o cot 1, ma the la vo khoi "run: |" cua YAML.
+          # url = link RAW (khong redirect). urlRelease giu lai de nguoi TAI TAY cho de.
           jq -n --arg ver "$VER" \
-                --arg url "https://github.com/$PUB/releases/download/$VER/chamcong-$VER.bin" \
+                --arg url "$RAW" \
+                --arg urlRelease "https://github.com/$PUB/releases/download/$VER/chamcong-$VER.bin" \
                 --argjson size "$SZ" --arg commit "$GITHUB_SHA" --arg repo "$PUB" \
-                '{loai:"may-chinh", ver:$ver, url:$url, size:$size, commit:$commit, repo:$repo}' > out/latest.json
+                '{loai:"may-chinh", ver:$ver, url:$url, urlRelease:$urlRelease, size:$size, commit:$commit, repo:$repo}' > out/latest.json
           cat out/latest.json
           gh release create "$VER" "$BIN" "out/latest.json" \
             --repo "$PUB" --title "chamcong $VER" \
