@@ -60,6 +60,20 @@
 //     bị CHẶN cho tới khi khai xong mật khẩu /update.
 //  ⚠️ Nạp lần đầu bằng USB thì nên dùng bản build ở máy anh (có secrets.h thật)
 //     để máy tự có cấu hình, khỏi khai tay.
+//
+//  TỪ BẢN 2026-07-31a: SỬA FILE NÀY RỒI NẠP LẠI LÀ ĐỦ
+//  ----------------------------------------------------------------------------
+//  Trước đây NVS chỉ cần CÓ ký tự nào là NVS thắng. Hậu quả: máy nạp trước bản
+//  2026-07-30c đã bị ghi thẳng giá trị MẪU ("FIREBASE_DATABASE_SECRET",
+//  "TOKEN_WEB_APP") và link dạng /a/macros/<tên miền>/… vào NVS -> sửa file này
+//  rồi nạp lại KHÔNG cứu được, chỉ "Erase All Flash" mới xoá, mà không ai đoán ra.
+//
+//  Nay NVS chỉ thắng khi giá trị trong NVS DÙNG ĐƯỢC (khác giá trị mẫu, và với
+//  2 link thì phải đúng dạng). Rác trong NVS thì file này GHI ĐÈ lên và log rõ
+//  "KHONG dung duoc -> thay bang secrets.h".
+//
+//  Vẫn đúng: giá trị THẬT anh đã khai ở portal 192.168.4.1 thì file này KHÔNG
+//  đè lên — portal là nơi khai cuối cùng, muốn đổi thì đổi ở portal.
 // ============================================================================
 
 // --- 2 link (từ bản 2026-07-30c) ---
@@ -68,4 +82,11 @@
 // ⚠️ Link web app PHẢI dạng /macros/s/<id>/exec — dạng /a/macros/<tên miền>/s/… là link cho
 //    người đã đăng nhập Workspace, thiết bị gọi ẩn danh sẽ bị chặn.
 #define SEC_EXEC_URL      "https://script.google.com/macros/s/DIEN_ID/exec"
-#define SEC_FB_HOST       "https://DIEN_TEN-default-rtdb.asia-southeast1.firebasedatabase.app"
+// ⚠️ Firebase của CHẤM CÔNG là project RIÊNG (tên "Chamcong"), KHÔNG phải project
+//    gen-lang-client-… của Ghế massage. Lấy link đúng ở web app: chẩn đoán > FB_HOST.dangDung,
+//    rồi dán y nguyên vào đây — phải TRÙNG KHÍT với web app. Lệch project = máy ghi một nơi,
+//    web đọc một nơi, KHÔNG báo lỗi.
+//    Dạng link: https://<ten-project>-default-rtdb.<vùng>.firebasedatabase.app
+// ⚠️ ĐỪNG commit link thật vào đây: file này được đồng bộ nguyên văn sang repo firmware
+//    CÔNG KHAI. Link thật khai ở portal 192.168.4.1 hoặc trong secrets.h (đã .gitignore).
+#define SEC_FB_HOST       "DIEN_VAO_DAY_LINK_FIREBASE_RTDB"

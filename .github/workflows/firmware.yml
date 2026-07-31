@@ -143,7 +143,7 @@ jobs:
           jq -n --arg ver "$VER" \
                 --arg url "https://github.com/$PUB/releases/download/$VER/chamcong-$VER.bin" \
                 --argjson size "$SZ" --arg commit "$GITHUB_SHA" --arg repo "$PUB" \
-                '{ver:$ver, url:$url, size:$size, commit:$commit, repo:$repo}' > out/latest.json
+                '{loai:"may-chinh", ver:$ver, url:$url, size:$size, commit:$commit, repo:$repo}' > out/latest.json
           cat out/latest.json
           gh release create "$VER" "$BIN" "out/latest.json" \
             --repo "$PUB" --title "chamcong $VER" \
@@ -159,6 +159,8 @@ jobs:
   # Sketch này trước 30/07/2026 CHƯA TỪNG được compile kiểm lần nào.
   updater:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -221,3 +223,31 @@ jobs:
         with:
           name: thonap-${{ github.sha }}
           path: upbuild/esp32_ota_updater.ino.bin
+
+      - name: Phat hanh ban may tram
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUB: ${{ github.repository }}
+        run: |
+          set -e
+          # ⚠️ TAG RIENG 'latest-tram', TEN FILE RIENG 'thonap-*.bin', va latest-tram.json mang
+          #    "loai":"may-tram". Ba thu nay de MAY TRAM khong bao gio nap nham firmware may
+          #    cham cong vao chinh no — firmware tu choi neu loai khong khop.
+          mkdir -p outtram
+          VER="tram-$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          BIN="outtram/thonap-$VER.bin"
+          cp upbuild/esp32_ota_updater.ino.bin "$BIN"
+          SZ=$(stat -c%s "$BIN")
+          jq -n --arg ver "$VER" \
+                --arg url "https://github.com/$PUB/releases/download/$VER/thonap-$VER.bin" \
+                --argjson size "$SZ" --arg commit "$GITHUB_SHA" --arg repo "$PUB" \
+                '{loai:"may-tram", ver:$ver, url:$url, size:$size, commit:$commit, repo:$repo}' > outtram/latest-tram.json
+          cat outtram/latest-tram.json
+          gh release create "$VER" "$BIN" "outtram/latest-tram.json" \
+            --repo "$PUB" --title "may tram $VER" \
+            --notes "Firmware MAY TRAM (tho nap) - build tu $PUB@${GITHUB_SHA::7}. KHONG chua bi mat." \
+            || gh release upload "$VER" "$BIN" "outtram/latest-tram.json" --repo "$PUB" --clobber
+          gh release create latest-tram "outtram/latest-tram.json" --repo "$PUB" --title "latest-tram" \
+            --notes "Tro toi ban may tram moi nhat. Chi MAY TRAM doc file nay." \
+            || gh release upload latest-tram "outtram/latest-tram.json" --repo "$PUB" --clobber
+          echo "Da phat hanh $VER" 

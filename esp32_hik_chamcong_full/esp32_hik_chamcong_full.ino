@@ -29,7 +29,7 @@
 //#define LOAD_FONT7
 #define LOAD_FONT6
 // ======================= CẤU HÌNH =======================
-#define FW_VERSION "2026-07-30c (bi mat + 2 link doc tu NVS, tu di tru 1 lan -> ban CI build sach bi mat; nhan co so theo ma may)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-07-31b (nhu 31a, + bat o chua trong kieu \"...\" trong secrets.h la CHUA KHAI, khong ghi vao NVS)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -57,7 +57,7 @@ bool   netUp();
 // WiFi cửa hàng MẶC ĐỊNH (dùng khi flash lần đầu / chưa lưu cấu hình). Đổi tại portal 192.168.4.1.
 const char* ssid     = SEC_WIFI_SSID;
 const char* password = SEC_WIFI_PASS;
-const char* AP_PASS  = SEC_AP_PASS;   // mật khẩu WiFi cấu hình (AP ChamCong-<trạm> @ 192.168.4.1)
+const char* AP_PASS  = SEC_AP_PASS;   // mật khẩu WiFi cấu hình (AP "CHAM_CONG" @ 192.168.4.1)
 
 // --- CHẾ ĐỘ MẠNG ---
 const bool  USE_4G   = true;         // true: cửa hàng KHÔNG có WiFi -> Hikvision nối AP của ESP32, Internet qua 4G A7680C. false: dùng WiFi cửa hàng như cũ.
@@ -175,15 +175,89 @@ String _cfgHikUser, _cfgHikPass, _cfgApPass, _cfgOtaUser, _cfgOtaPass,
        _cfgEmpTok, _cfgFbSec, _cfgExecUrl, _cfgFbHost;
 bool   g_chuaCauHinh = false;      // thiếu giá trị bắt buộc -> hiện rõ trên màn hình, không chết im
 
+/* ⚠️ PHẢI bắt cả GIÁ TRỊ MẪU của secrets.example.h, không chỉ "__CHUA_CAU_HINH".
+   Đã trả giá thật 31/07/2026: secrets.h còn nguyên `SEC_EMP_TOKEN "TOKEN_WEB_APP"` và
+   `SEC_FB_SECRET "FIREBASE_DATABASE_SECRET"`. Hai chuỗi đó KHÔNG bị coi là placeholder nên
+   được CHÉP THẲNG VÀO NVS như giá trị thật -> máy gửi `&token=TOKEN_WEB_APP` (bad_token) và
+   `?auth=FIREBASE_DATABASE_SECRET` (403), mà log thì báo `empTok=có fbSec=có` nên soi mãi
+   không ra. Tệ hơn: một khi đã vào NVS thì sửa secrets.h cũng vô ích, NVS thắng. */
 bool cfgLaPlaceholder(const String& v){
-  return v.length() == 0 || v.startsWith("__CHUA_CAU_HINH") || v.startsWith("REPLACE");
+  if (v.length() == 0) return true;
+  if (v.startsWith("__CHUA_CAU_HINH") || v.startsWith("REPLACE")) return true;
+  static const char* MAU[] = { "TOKEN_WEB_APP", "FIREBASE_DATABASE_SECRET",
+                               "MAT_KHAU", "TEN_WIFI", "DIEN_ID", "DIEN_TEN",
+                               "CUA_HANG", "DIEN_VAO", "CHUA_KHAI" };
+  for (unsigned i = 0; i < sizeof(MAU) / sizeof(MAU[0]); i++)
+    if (v.indexOf(MAU[i]) >= 0) return true;
+  /* ⚠️ 31/07/2026 — Ô CHỪA TRỐNG kiểu "..." / "---" / "***".
+     Mẫu secrets.h phát cho người dùng để "..." ở chỗ phải tự điền. Chuỗi đó dài 3 ký tự,
+     không trùng mẫu nào ở trên, nên TRƯỚC ĐÂY bị coi là giá trị THẬT và ghi thẳng vào NVS
+     -> máy báo "có cấu hình" mà thật ra chưa có gì, đúng kiểu lỗi im lặng đã mất công 2 lần.
+     Quy tắc: không có LẤY MỘT chữ hoặc số nào thì không thể là giá trị thật. */
+  bool coChuSo = false;
+  for (unsigned i = 0; i < v.length(); i++) {
+    char c = v.charAt(i);
+    if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) { coChuSo = true; break; }
+  }
+  if (!coChuSo) return true;
+  return false;
 }
-/** Đọc NVS -> nếu trống thì lấy giá trị compile và chép vào NVS (di trú 1 lần). */
+/* Link /exec phải dạng  /macros/s/<id>/exec.
+   Dạng /a/macros/<tên miền>/s/… là link cho người ĐÃ ĐĂNG NHẬP Workspace — thiết bị gọi ẩn danh
+   bị chặn. Còn id sai (VD DIEN_ID) thì Google trả 404. Cả hai trước đây im lặng: máy cứ đẩy, cứ
+   thất bại, log chỉ có mã số. Nay sai dạng = coi như CHƯA CẤU HÌNH và nói rõ sai chỗ nào. */
+bool execUrlHopLe(const String& u){
+  if (u.length() == 0)              return false;
+  if (u.indexOf("/a/macros/") >= 0) return false;
+  if (u.indexOf("/macros/s/") < 0)  return false;
+  if (!u.endsWith("/exec"))         return false;
+  return true;
+}
+/**
+ * Link Firebase RTDB có đúng dạng không — cùng ý với _fbHost() bên web app.
+ * ⚠️ CỐ Ý chỉ nhận ".firebasedatabase.app", KHÔNG nhận dạng cũ "<ten>.firebaseio.com":
+ *    CI quét file .bin tìm mẫu 'firebaseio' để chặn lộ link ra bản tải công khai, nên
+ *    viết chuỗi đó vào firmware là CI đỏ — và đó là CI làm đúng việc của nó, đừng nới ra.
+ *    Database của mình là dạng .firebasedatabase.app nên không mất gì. Web app thì vẫn
+ *    nhận cả 2 dạng (Apps Script không bị quét, giữ đường lùi ở đó là được).
+ */
+bool fbHostHopLe(const String& u){
+  if (!u.startsWith("https://")) return false;
+  if (u.endsWith("/"))           return false;
+  return u.indexOf(".firebasedatabase.app") > 0;
+}
+/** Giá trị này DÙNG ĐƯỢC không. Hai khoá là link nên còn phải đúng dạng, không chỉ "khác mẫu". */
+bool cfgDungDuoc(const char* khoa, const String& v){
+  if (cfgLaPlaceholder(v)) return false;
+  if (strcmp(khoa, "execUrl") == 0) return execUrlHopLe(v);
+  if (strcmp(khoa, "fbHost")  == 0) return fbHostHopLe(v);
+  return true;
+}
+/**
+ * Đọc cấu hình: NVS trước, giá trị trong secrets.h là dự phòng.
+ * ⚠️ 31/07/2026 — TRƯỚC ĐÂY chỉ cần NVS có ký tự nào là NVS thắng, nên:
+ *    máy nạp trước bản 2026-07-30c đã bị ghi thẳng giá trị MẪU ("FIREBASE_DATABASE_SECRET",
+ *    "TOKEN_WEB_APP") và link /a/macros/<tên miền>/… vào NVS. Sửa secrets.h rồi nạp lại
+ *    KHÔNG cứu được — chỉ "Erase All Flash" mới xoá, mà điều đó không ai đoán ra.
+ *    Nay: NVS chỉ thắng khi giá trị trong NVS DÙNG ĐƯỢC. Rác trong NVS thì secrets.h ghi đè.
+ *    Nhờ vậy "sửa secrets.h rồi nạp lại" là đủ, khỏi phải xoá sạch flash.
+ */
 String cfgLay(const char* khoa, const char* biencompile){
   String v = prefs.getString(khoa, "");
-  if (v.length()) return v;
   String c = String(biencompile ? biencompile : "");
-  if (!cfgLaPlaceholder(c)) { prefs.putString(khoa, c); Serial.printf("[CFG] di tru '%s' vao NVS\n", khoa); return c; }
+  if (cfgDungDuoc(khoa, v)) return v;                        // NVS tốt -> NVS thắng, như cũ
+  if (cfgDungDuoc(khoa, c)) {                                // NVS rác/trống mà secrets.h tốt -> lấy
+    prefs.putString(khoa, c);
+    if (v.length()) Serial.printf("[CFG] '%s' trong may KHONG dung duoc -> thay bang secrets.h\n", khoa);
+    else            Serial.printf("[CFG] di tru '%s' vao NVS\n", khoa);
+    return c;
+  }
+  if (v.length()){
+    // Chỉ 2 khoá này KHÔNG phải bí mật nên mới in ra được — in bí mật là hớ.
+    bool khoe = (strcmp(khoa,"execUrl") == 0 || strcmp(khoa,"fbHost") == 0);
+    Serial.printf("[CFG] ⚠️ '%s': ca trong may va secrets.h deu khong dung duoc%s%s\n",
+                  khoa, khoe ? " — dang luu: " : "", khoe ? v.c_str() : "");
+  }
   return "";
 }
 void napCauHinh(){
@@ -203,14 +277,25 @@ void napCauHinh(){
   google_script_url = _cfgExecUrl.c_str();  emp_script_url = _cfgExecUrl.c_str();
   FB_HOST = _cfgFbHost.c_str();
   // FB_SECRET được phép trống (rule Firebase mở thì gọi không kèm auth) -> KHÔNG tính là thiếu.
-  g_chuaCauHinh = (_cfgExecUrl.length() == 0) || (_cfgFbHost.length() == 0) ||
+  bool _urlXau = !execUrlHopLe(_cfgExecUrl);
+  g_chuaCauHinh = _urlXau || (_cfgFbHost.length() == 0) ||
                   (_cfgEmpTok.length()  == 0) || (_cfgHikPass.length() == 0) ||
                   (_cfgOtaPass.length() == 0);
   Serial.printf("[CFG] exec=%s fbHost=%s empTok=%s hikPass=%s otaPass=%s apPass=%s fbSec=%s\n",
     _cfgExecUrl.length()?"có":"THIẾU", _cfgFbHost.length()?"có":"THIẾU", _cfgEmpTok.length()?"có":"THIẾU",
     _cfgHikPass.length()?"có":"THIẾU", _cfgOtaPass.length()?"có":"THIẾU", _cfgApPass.length()?"có":"THIẾU",
     _cfgFbSec.length()?"có":"(trống - gọi Firebase không auth)");
-  if (g_chuaCauHinh) Serial.println("[CFG] ⚠️ CHƯA CẤU HÌNH ĐỦ — vào AP ChamCong-… @192.168.4.1 để khai, hoặc nạp USB bản có secrets.h thật.");
+  // Nói RÕ sai chỗ nào. Trước đây chỉ có một câu chung nên vẫn phải đi mò từng thứ.
+  if (_urlXau) {
+    Serial.println("[CFG] 🔴 LINK WEB APP SAI DẠNG — máy sẽ KHÔNG đẩy được chấm công.");
+    Serial.println("        Đang có: " + (_cfgExecUrl.length() ? _cfgExecUrl : String("(trống)")));
+    Serial.println("        Phải là: https://script.google.com/macros/s/<id>/exec");
+    if (_cfgExecUrl.indexOf("/a/macros/") >= 0)
+      Serial.println("        ⚠️ Dạng /a/macros/<tên miền>/… chỉ dùng được khi đã đăng nhập Workspace — bỏ phần đó đi.");
+  }
+  if (_cfgEmpTok.length() == 0) Serial.println("[CFG] 🔴 THIẾU token web app (EMP_TOKEN) — whoami và đồng bộ nhân viên sẽ bị chặn.");
+  if (_cfgFbSec.length() == 0)  Serial.println("[CFG] 🟠 Chưa có Firebase secret — mất OTA từ xa / heartbeat. Chấm công VẪN chạy.");
+  if (g_chuaCauHinh) Serial.println("[CFG] ⚠️ CHƯA CẤU HÌNH ĐỦ — vào AP \"CHAM_CONG\" @192.168.4.1 để khai, hoặc nạp USB bản có secrets.h thật.");
 }
 /** Che bí mật khi hiện lên portal: 4 ký tự đầu + độ dài. KHÔNG in giá trị thật. */
 String cfgChe(const String& v){
@@ -302,6 +387,37 @@ void updateClock() {
 }
 
 // Màn chờ = đồng hồ số. Vẽ phần khung/nhãn TĨNH 1 lần rồi để updateClock() lo phần động.
+/* ---------- Khung + thanh tiến trình dùng chung cho các màn PHỤ ----------
+ * Trước đây chỉ showIdle có khung cam + panel navy; bảy màn còn lại trơ chữ giữa nền đen.
+ * Dùng lại ĐÚNG bảng màu đó cho các màn phụ -> nhìn thành một bộ.
+ */
+void veKhung(){
+  uint16_t k = tft.color565(255, 140, 0);
+  tft.drawRoundRect(3, 3, 314, 234, 10, k);
+  tft.drawRoundRect(4, 4, 312, 232, 10, k);
+}
+const int TT_X = 30, TT_Y = 140, TT_W = 260, TT_H = 26;
+int _ttPctCu = -1;
+void ttKhung(){
+  tft.fillRoundRect(TT_X, TT_Y, TT_W, TT_H, 6, COL_PANEL);
+  tft.drawRoundRect(TT_X, TT_Y, TT_W, TT_H, 6, tft.color565(40, 90, 150));
+  _ttPctCu = -1;
+}
+/* Chỉ tô lại phần đổi. Update.onProgress bắn RẤT dày (mỗi khối ghi) — vẽ mỗi lần bắn là
+   màn nháy và làm chậm hẳn việc nạp, nên bỏ qua khi phần trăm chưa nhích. */
+void ttPct(int pct){
+  if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+  if (pct == _ttPctCu) return;
+  _ttPctCu = pct;
+  int rong = (TT_W - 4) * pct / 100;
+  uint16_t xanh = tft.color565(0, 190, 120);
+  // fillRoundRect với bề rộng nhỏ hơn 2*bán kính vẽ ra hình méo -> hẹp thì dùng fillRect
+  if (rong >= 12)    tft.fillRoundRect(TT_X + 2, TT_Y + 2, rong, TT_H - 4, 4, xanh);
+  else if (rong > 0) tft.fillRect(TT_X + 2, TT_Y + 2, rong, TT_H - 4, xanh);
+  if (rong < TT_W - 4)
+    tft.fillRect(TT_X + 2 + rong, TT_Y + 2, (TT_W - 4) - rong, TT_H - 4, COL_PANEL);
+}
+
 void showIdle() {
   idleActive = true;
   statusUntil = 0;
@@ -327,7 +443,7 @@ void showIdle() {
   // Tên cơ sở — hoặc BÁO ĐỎ nếu máy chưa khai đủ cấu hình (đừng để chết im, phải thấy ngay tại quầy)
   if (g_chuaCauHinh) {
     tft.setTextColor(tft.color565(230, 70, 90), COL_BG);
-    tft.drawString("CHUA CAU HINH - 192.168.4.1", 160, 196, 2);
+    tft.drawString("CHUA CAU HINH - AP CHAM_CONG", 160, 196, 2);
   } else {
     tft.setTextColor(tft.color565(150, 170, 190), COL_BG);
     tft.drawString(String(STATION_NAME), 160, 196, 4);
@@ -344,7 +460,7 @@ void showIdle() {
 void showThankYou(String name, String eventTime, uint8_t* jpeg, int jpegLen) {
   (void)jpeg; (void)jpegLen;          // không hiện ảnh trên màn (ảnh vẫn được gửi lên Google Sheet)
   idleActive = false;                 // dừng cập nhật đồng hồ khi hiện màn cảm ơn
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(TFT_BLACK); veKhung();
   tft.setTextDatum(MC_DATUM);
 
   // Lời cảm ơn (chữ lớn, canh giữa trên)
@@ -1039,7 +1155,7 @@ void pollDeleteProcess() {
 // Màn báo đang đồng bộ NV
 void showSync(const String& action, const String& name) {
   idleActive = false;                 // dừng cập nhật đồng hồ khi hiện màn đồng bộ
-  tft.fillScreen(TFT_BLACK);
+  tft.fillScreen(TFT_BLACK); veKhung();
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_ORANGE, TFT_BLACK);
   tft.drawString("DONG BO NHAN VIEN", 160, 90, 4);
@@ -1416,7 +1532,7 @@ void rememberSync(const String& eventTime) {
 
 void showBackfillProgress(int done) {
   idleActive = false;
-  tft.fillScreen(TFT_BLACK); tft.setTextDatum(MC_DATUM);
+  tft.fillScreen(TFT_BLACK); veKhung(); tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_ORANGE, TFT_BLACK); tft.drawString("DANG TAI LAI DU LIEU", 160, 95, 4);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);  tft.drawString("Da dong bo: " + String(done), 160, 145, 4);
   tft.setTextColor(TFT_DARKGREY, TFT_BLACK); tft.drawString("Vui long doi...", 160, 185, 2);
@@ -1487,9 +1603,14 @@ void hbSend() {
 bool otaDownloadAndFlash(const String& url){
   Serial.println("[OTA] Tải firmware: " + url);
   idleActive = false;
-  tft.fillScreen(TFT_BLACK); tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(TFT_ORANGE, TFT_BLACK); tft.drawString("DANG CAP NHAT FW", 160, 95, 4);
-  tft.setTextColor(TFT_RED, TFT_BLACK);    tft.drawString("KHONG TAT NGUON", 160, 145, 2);
+  tft.fillScreen(TFT_BLACK); veKhung(); tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(TFT_ORANGE, TFT_BLACK); tft.drawString("DANG CAP NHAT FW", 160, 70, 4);
+  tft.setTextColor(TFT_RED, TFT_BLACK);    tft.drawString("KHONG TAT NGUON", 160, 110, 2);
+  ttKhung(); ttPct(0);
+  /* ⚠️ Nhánh WiFi dùng Update.writeStream() — MỘT lệnh chạy suốt, không có mốc nào để
+     cập nhật màn. Trước đây nạp qua WiFi là màn ĐỨNG IM cả phút, đúng lúc cần biết máy
+     còn sống. onProgress() cho thanh chạy được ở cả nhánh WiFi lẫn 4G. */
+  Update.onProgress([](size_t da, size_t tong){ if (tong) ttPct((int)((uint64_t)da * 100 / tong)); });
 
   if (USE_4G) {
     int dl = 0, st = net4gGetOpen(url, &dl);
@@ -1502,6 +1623,7 @@ bool otaDownloadAndFlash(const String& url){
       if (got <= 0) { Serial.printf("[OTA] đọc chunk lỗi tại %d/%d\n", start, dl); ok = false; break; }
       if (Update.write(buf, got) != (size_t)got) { Update.printError(Serial); ok = false; break; }
       start += got;
+      ttPct((int)((long)start * 100 / dl));
       if (millis() - lastShow > 1500) { lastShow = millis();
         tft.setTextColor(TFT_WHITE, TFT_BLACK); tft.setTextPadding(260);
         tft.drawString(String((long)start * 100 / dl) + "%  (" + String(start/1024) + "/" + String(dl/1024) + " KB)", 160, 195, 4);
@@ -1648,9 +1770,15 @@ bool connectSTA(uint32_t timeoutMs){
   return WiFi.status() == WL_CONNECTED;
 }
 
-// Bật AP cấu hình (song song STA): SSID ChamCong-<trạm> @ 192.168.4.1 (luôn bật để vào quản lý/cấu hình)
+// Bật AP cấu hình (song song STA): SSID "CHAM_CONG" @ 192.168.4.1 (luôn bật để vào quản lý/cấu hình)
+/* ⚠️ 31/07/2026 — TÊN AP CỐ ĐỊNH "CHAM_CONG", KHÔNG ghép tên cơ sở nữa. ĐỪNG ĐỔI LẠI.
+   Lý do (đã trả giá thật): đầu đọc Hikvision ở máy 4G nối vào AP này theo SSID. Tên AP ghép
+   STATION_NAME nên hễ tên cơ sở đổi — nạp lại firmware làm NVS trống, hay web app gán cơ sở
+   qua whoami — là AP đổi tên, Hikvision tìm không thấy SSID cũ, mất mạng luôn. Triệu chứng:
+   `[MÁY] Lỗi HTTP: -1` liên tục, không đọc được lượt quẹt nào, web app thì trắng trơn.
+   Tên cơ sở giờ chỉ dùng để hiển thị + đặt tên sheet, KHÔNG dính vào tên AP. */
 void startAP(){
-  String apName = "ChamCong-" + String(STATION_NAME);
+  String apName = "CHAM_CONG";
   // Chip mới nạp bản CI (secrets.h toàn placeholder) thì chưa có mật khẩu AP -> phải MỞ AP,
   // không thì không vào được portal mà khai cấu hình = máy thành cục chặn giấy.
   bool mo = (_cfgApPass.length() < 8);      // WPA2 đòi tối thiểu 8 ký tự
@@ -1939,7 +2067,7 @@ void handleRoot(){
   String staTxt = USE_4G
       ? (g_4gReady ? ("4G sẵn sàng · " + String(STATION_NAME) + " (đẩy qua AT-HTTP)") : "4G CHƯA kết nối (soi Serial)")
       : ((WiFi.status()==WL_CONNECTED) ? ("Đã kết nối · IP LAN: " + WiFi.localIP().toString()) : "CHƯA kết nối WiFi cửa hàng");
-  String apName = "ChamCong-" + String(STATION_NAME);
+  String apName = "CHAM_CONG";        // CỐ ĐỊNH — xem ghi chú ở startAP()
   String h; h.reserve(8500);
   h += "<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>";
   h += "<title>Chấm công " + String(STATION_NAME) + "</title><style>";
@@ -1966,8 +2094,15 @@ void handleRoot(){
   h += "<div class='muted'>Bản firmware do CI build KHÔNG chứa bí mật (cố ý, để file .bin đặt chỗ tải "
        "công khai được mà không lộ Firebase secret). Máy lấy bí mật từ bộ nhớ trong — <b>cập nhật firmware "
        "KHÔNG làm mất</b>. Bỏ trống ô nào là <b>giữ nguyên</b> giá trị đang có.</div>";
-  h += "<div class='muted'>Đang có: link web app <b>" + cfgChe(_cfgExecUrl) + "</b> · link Firebase <b>" + cfgChe(_cfgFbHost)
-       + "</b> · token web app <b>" + cfgChe(_cfgEmpTok) + "</b> · Firebase secret <b>" + cfgChe(_cfgFbSec)
+  /* ⚠️ HAI LINK HIỆN NGUYÊN VĂN, cố ý. Trước đây che bằng cfgChe() nên chỉ thấy 4 ký tự đầu —
+     mà 4 ký tự đầu của mọi link đều là "http", tức là che xong thì KHÔNG CÒN CÁCH NÀO biết máy
+     đang giữ link đúng hay link cũ. Đã trả giá: máy đẩy chấm công ra 404 mà soi mãi không ra.
+     Link không phải bí mật (đã có token gác đường /exec, và Firebase có secret riêng), còn portal
+     thì nằm sau mật khẩu AP. Token/secret/mật khẩu vẫn che như cũ. */
+  h += "<div class='muted'>Đang có:<br>link web app <b style='word-break:break-all'>"
+       + (_cfgExecUrl.length() ? _cfgExecUrl : String("(trống)")) + "</b><br>link Firebase <b style='word-break:break-all'>"
+       + (_cfgFbHost.length() ? _cfgFbHost : String("(trống)"))
+       + "</b><br>token web app <b>" + cfgChe(_cfgEmpTok) + "</b> · Firebase secret <b>" + cfgChe(_cfgFbSec)
        + "</b> · mật khẩu Hikvision <b>" + cfgChe(_cfgHikPass) + "</b> · mật khẩu /update <b>" + cfgChe(_cfgOtaPass)
        + "</b> · mật khẩu AP <b>" + cfgChe(_cfgApPass) + "</b></div>";
   h += "<input id='cExec'  placeholder='Link web app /exec (dạng /macros/s/…/exec)'>";
@@ -2104,7 +2239,11 @@ void handleSaveCfg(){
     if (String(m[i].khoa) == "apPass" && v.length() < 8) { loi += "Mat khau AP phai >= 8 ky tu. "; continue; }
     if (String(m[i].khoa) == "execUrl" && v.indexOf("/macros/s/") < 0)
       { loi += "Link web app phai dang /macros/s/<id>/exec. "; continue; }
-    if (String(m[i].khoa) == "fbHost" && v.endsWith("/")) v.remove(v.length()-1);
+    if (String(m[i].khoa) == "fbHost") {
+      while (v.endsWith("/")) v.remove(v.length()-1);          // dan tu Console hay dinh "/"
+      // Câu này KHÔNG được chứa mẫu CI đang quét ('default-rtdb'), nên tả bằng lời.
+      if (!fbHostHopLe(v)) { loi += "Link Firebase phai bat dau https:// va ket thuc .firebasedatabase.app "; continue; }
+    }
     prefs.putString(m[i].khoa, v); n++;
   }
   if (loi.length()) { server.send(400, "text/plain; charset=utf-8", "KHONG luu: " + loi); return; }
@@ -2155,7 +2294,7 @@ void handleUpdateUpload(){
     if (_cfgOtaPass.length() == 0) { Serial.println("[OTA] Từ chối upload: máy chưa khai mật khẩu /update"); return; }
     if (!server.authenticate(OTA_USER, OTA_PASS)) { Serial.println("[OTA] Từ chối upload: chưa đăng nhập"); return; }   // chặn ghi firmware nếu chưa auth
     Serial.printf("[OTA] Bắt đầu nạp: %s\n", up.filename.c_str());
-    idleActive=false; tft.fillScreen(TFT_BLACK); tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_ORANGE,TFT_BLACK); tft.drawString("DANG NAP FIRMWARE...", 160, 120, 4);
+    idleActive=false; tft.fillScreen(TFT_BLACK); veKhung(); tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_ORANGE,TFT_BLACK); tft.drawString("DANG NAP FIRMWARE...", 160, 120, 4);
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
   } else if (up.status==UPLOAD_FILE_WRITE){
     if (Update.write(up.buf, up.currentSize)!=up.currentSize) Update.printError(Serial);
@@ -2208,7 +2347,7 @@ void setup() {
 
   if (USE_4G) {
     WiFi.mode(WIFI_AP);              // chỉ phát AP cho Hikvision + điện thoại; Internet đi qua 4G
-    startAP();                       // AP ChamCong-<trạm> @ 192.168.4.1 (Hik nối vào với IP tĩnh 192.168.4.50)
+    startAP();                       // AP "CHAM_CONG" @ 192.168.4.1 (Hik nối vào với IP tĩnh 192.168.4.50)
     tft.drawString("Bat 4G...", 160, 145, 2);
     bool ok4g = net4gConnect();      // bật A7680C + PPP (Viettel v-internet)
     Serial.println(ok4g ? "✔️ 4G online" : "✖ 4G chưa online (kiểm SIM/sóng/nguồn)");
