@@ -17,7 +17,7 @@
 #pragma once
 
 // --- WiFi cửa hàng mặc định (dùng khi flash lần đầu; đổi được ở portal 192.168.4.1) ---
-#define SEC_WIFI_SSID     "CHAM_CONG"
+#define SEC_WIFI_SSID     "CHAMCONG"
 #define SEC_WIFI_PASS     "KHHCM@a1"
 
 // --- Mật khẩu AP cấu hình của chính máy chấm công (AP "ChamCong-<trạm>") ---
