@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-04b (dau doc khong cho serialNo -> chot luot moi theo THOI GIAN)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-04c (bo han serialNo lam khoa chot - chot theo THOI GIAN cho moi doi may)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -935,6 +935,32 @@ int hikSend_(HTTPClient& http, const String& method, const String& payload) {
  *      401  -> tới được đầu đọc, SAI MẬT KHẨU ISAPI
  *      ≤ 0  -> không với tới (sai IP / chưa nối AP / đầu đọc tắt)
  * =========================================================================== */
+/* ---- Vòng nhớ 12 lượt vừa đẩy: chặn đẩy lại vô hạn khi chốt theo THỜI GIAN ----
+   Chốt bằng `>=` để không mất người quẹt cùng giây, nên cùng một lượt sẽ xuất hiện lại ở vòng poll
+   sau. Nhớ 12 khoá "mã|giờ" gần nhất là đủ: mỗi vòng chỉ có vài lượt trong khoảng hẹp.
+   ⚠️ Nhớ trong RAM, mất khi khởi động lại — không sao, lúc đó máy chủ vẫn bỏ giờ đã ghi. */
+/* Mã NV của một bản ghi AcsEvent — thẻ thay mã khi máy chỉ quẹt thẻ. Tách ra hàm vì cần dùng
+   ở bộ lọc (trước khi bóc các trường khác) và ở phần đẩy. */
+String emp0(JsonObject e){
+  String x = e["employeeNoString"] | "";
+  if (x.length() == 0) x = String((const char*)(e["cardNo"] | ""));
+  return x;
+}
+/* ⚠️ PHẢI rộng hơn WINDOW (30): trang baseline có thể mang tới 30 lượt, vòng nhớ nhỏ hơn thì
+   mấy lượt đầu bị đẩy ra khỏi vòng và vòng poll sau đẩy lại chúng lên sheet. */
+#define DA_DAY_TOI_DA 34
+String g_daDay[DA_DAY_TOI_DA]; int g_daDayIdx = 0;
+static inline String khoaLuot(const String& emp, const String& t){ return emp + "|" + t; }
+bool daDayRoi(const String& emp, const String& t){
+  String k = khoaLuot(emp, t);
+  for (int i = 0; i < DA_DAY_TOI_DA; i++) if (g_daDay[i] == k) return true;
+  return false;
+}
+void ghiDaDay(const String& emp, const String& t){
+  g_daDay[g_daDayIdx] = khoaLuot(emp, t);
+  g_daDayIdx = (g_daDayIdx + 1) % DA_DAY_TOI_DA;
+}
+
 /* Kết quả lượt ĐỌC SỔ CHẤM CÔNG gần nhất — gửi lên web để chẩn đoán từ xa.
    🔴 04/08/2026, anh Thắng: *"chấm lúc máy đang mở thì không lên, nhưng rút điện gắn lại thì
    đồng bộ lên"*. Rút điện gắn lại = chạy `backfillRange` lúc khởi động, nên lên. Tức là LƯỢT
@@ -2209,21 +2235,44 @@ void checkNewAcsEvents() {
     if (sn > 0) coSerial = true;
     if (sn > maxSerial) maxSerial = sn;
 
-    /* Lấy giờ TRƯỚC khi lọc: nhánh không-serialNo cần chính con số này để chốt. */
+    /* Lấy giờ TRƯỚC khi lọc: bộ lọc chốt theo THỜI GIAN cần chính con số này. */
     String eventTime = e["time"].as<String>();
     eventTime.replace("T", " ");
     eventTime.replace("+07:00", "");
     if (eventTime.length() >= 19 && eventTime > tMoiNhat) tMoiNhat = eventTime;
 
     if (stop) continue;                            // đã gặp 1 lỗi -> để dành vòng sau (không bỏ sót)
-    if (sn > 0) {
-      if (lastSerialNo == -1) continue;            // baseline (mới nạp) -> chỉ lấy maxSerial
-      if (sn <= lastSerialNo) continue;            // đã gửi
-    } else {
-      // Không có serialNo -> chốt theo thời gian. Chưa có mốc thì vòng này chỉ NHẬN mốc.
-      if (mocDau.length() < 19) continue;
-      if (eventTime.length() < 19 || eventTime <= mocDau) continue;
-    }
+    /* ===========================================================================
+     *  🔴🔴 04/08/2026 — BỎ HẲN `serialNo` LÀM KHOÁ CHỐT (bản 04c)
+     * ---------------------------------------------------------------------------
+     *  SỐ THẬT từ hiện trường (FZ_LTVT, K1T320, bản 04b):
+     *      tổng=5 · trả về=5 · chốt theo=**serial** · mốc=2026-08-04T02:23:03+07:00 · 0 phút trước
+     *  Ba điều đọc ra:
+     *    · đầu đọc CÓ trả `serialNo` -> giả thuyết "không trả serialNo" của bản 04b **SAI**,
+     *      nhánh vá đó không hề chạy;
+     *    · đọc sổ ra ĐỦ 5 dòng, ISAPI trả 2xx -> không phải mạng, không phải IP, không phải mật khẩu;
+     *    · vậy 5 dòng đó bị chính bộ lọc `sn <= lastSerialNo` loại sạch.
+     *  ⇒ `serialNo` của đời máy này KHÔNG phải mã lượt toàn cục tăng dần (rất có thể là **thứ tự
+     *    trong kết quả tìm**, 1..N mỗi lần tìm). Dùng nó làm khoá chốt là sai từ gốc, và không có
+     *    cách nào "sửa cho đúng" khi chính nghĩa của trường đó khác nhau giữa hai đời máy.
+     *
+     *  Chốt theo THỜI GIAN cho MỌI đầu đọc — đúng cơ chế `backfillRange` vẫn dùng, và lượt bù
+     *  chạy được trên CẢ HAI đời máy (đó là lý do rút điện gắn lại thì lên). Máy chủ vốn tự bỏ giờ
+     *  đã ghi nên đẩy trùng vô hại.
+     *
+     *  ⚠️ Dùng `>=` chứ không `>`: hai người quẹt trong CÙNG một giây thì `>` làm mất người thứ
+     *     hai — mất công của nhân viên, không được. Bù lại phải chống đẩy lại vô hạn, nên có
+     *     `daDay` (vòng 12 khoá "mã|giờ" gần nhất) chặn tại chỗ, khỏi phụ thuộc máy chủ.
+     *  ⚠️ K1T343 cũng đổi sang nhánh này. Cố ý: giữ hai đường khác nhau cho hai đời máy chính là
+     *     cách sinh ra lỗi tối nay. Đường mới là đường mà lượt bù của CHÍNH K1T343 vẫn đi.
+     * =========================================================================== */
+    /* Chưa có mốc (máy mới / vừa xoá flash) -> vòng này CHỈ nhận mốc, KHÔNG dội lịch sử lên sheet.
+       ⚠️ Phải GHI NHỚ luôn mấy lượt đang có: mô phỏng bắt được nếu không ghi thì vòng poll ngay
+          sau đó thấy chúng "mới hơn hoặc bằng mốc" và đẩy lên — tức là vẫn dội lịch sử, chỉ chậm
+          một nhịp. */
+    if (mocDau.length() < 19) { ghiDaDay(emp0(e), eventTime); continue; }
+    if (eventTime.length() < 19 || eventTime < mocDau) continue;
+    if (daDayRoi(emp0(e), eventTime)) continue;    // đã đẩy trong 12 lượt gần nhất -> bỏ
 
     String emp  = e["employeeNoString"] | "";
     String name = e["name"] | "";
@@ -2261,26 +2310,22 @@ void checkNewAcsEvents() {
     imgB64 = NULL;   // quyền sở hữu đã chuyển cho pushEventToGoogle
     /* `adv` chỉ có nghĩa khi đầu đọc cho serialNo. Nhánh không-serialNo chốt bằng `rememberSync`
        (nó tự đẩy `lastSyncTime` lên) — gán adv = 0 ở đây là kéo con trỏ về 0, sai hẳn. */
-    if (ok) { if (sn > 0) adv = sn; lastEmp = emp; lastEmpSec = evSec; rememberSync(eventTime); }
+    if (ok) { if (sn > 0) adv = sn; lastEmp = emp; lastEmpSec = evSec;
+              ghiDaDay(emp, eventTime); rememberSync(eventTime); }
     else { stop = true; Serial.printf("[GIỮ] serial %ld gửi lỗi -> thử lại vòng sau (không mất lượt)\n", sn); }
   }
 
   /* Đầu đọc KHÔNG cho serialNo -> KHÔNG được chạm `lastSerialNo` (để 0 vào đó là khoá chết nhánh
      serialNo mãi mãi, đúng cái bẫy vừa sửa). Mốc thời gian do `rememberSync` lo. */
-  g_soChot = coSerial ? "serial" : "thoi-gian";
-  if (!coSerial) {
-    if (lastSyncTime.length() < 19 && tMoiNhat.length() >= 19) {
-      rememberSync(tMoiNhat);
-      Serial.println("[KHỞI TẠO] Đầu đọc không cho serialNo -> theo dõi theo THỜI GIAN từ " + tMoiNhat);
-    }
-    return;
+  /* Chốt theo THỜI GIAN cho mọi đời máy. `coSerial` giờ chỉ để BÁO cho web biết đầu đọc có trả
+     serialNo hay không — không còn dùng để quyết định gì. */
+  g_soChot = coSerial ? "thoi-gian (dau doc co serialNo)" : "thoi-gian";
+  if (mocDau.length() < 19 && tMoiNhat.length() >= 19) {
+    rememberSync(tMoiNhat);
+    Serial.println("[KHỞI TẠO] Theo dõi theo THỜI GIAN từ " + tMoiNhat);
   }
-  if (lastSerialNo == -1) {                        // lần đầu (mới nạp): nhận baseline, KHÔNG đẩy lịch sử
-    if (maxSerial >= 0) { lastSerialNo = maxSerial; prefs.putLong("lastSN", lastSerialNo); }
-    Serial.print("[KHỞI TẠO] Theo dõi từ serialNo = "); Serial.println(lastSerialNo);
-    return;
-  }
-  if (adv != lastSerialNo) { lastSerialNo = adv; prefs.putLong("lastSN", lastSerialNo); }
+  /* Vẫn ghi `lastSerialNo` để bản cũ lùi về được mà không thấy con trỏ lạ. KHÔNG dùng để lọc nữa. */
+  if (maxSerial > lastSerialNo) { lastSerialNo = maxSerial; prefs.putLong("lastSN", lastSerialNo); }
 }
 
 // ======================= WEB PORTAL: cấu hình WiFi + quản lý nhân viên =======================
