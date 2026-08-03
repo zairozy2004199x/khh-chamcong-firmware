@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-01d (doc so cham cong tu pos=0 + khoang hep, bo gia dinh thu tu)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-03i (van an toan: khong lenh nao chan hang doi vinh vien)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -73,8 +73,14 @@ const long  PPP_BAUD = 9600;        // baud UART cho PPP. 9600 = ổn định qu
 #define SIM_RX_PIN   16              // ESP32 RX <- A7680C TX
 #define SIM_PWRKEY   17              // chân PEN/PWRKEY bật module (xem modemPowerOn nếu cần chỉnh)
 
-// IP Hikvision: 4G -> đặt máy Hik nối AP ESP32 với IP TĨNH này (gateway 192.168.4.1); WiFi -> IP trên LAN cửa hàng
-const char* hik_ip   = USE_4G ? "192.168.4.50" : "192.168.4.1";
+/* IP Hikvision. 4G -> máy Hik nối AP ESP32 với IP TĨNH này (gateway 192.168.4.1);
+   WiFi -> IP của đầu đọc trên LAN cửa hàng.
+   🔴 03/08/2026 — TRƯỚC ĐÂY đây là HẰNG SỐ, không khai được ở portal. Máy mới ở FZ_SC_VIVO_T4
+      đọc không ra đầu đọc (serial trống, Model trống, quét roster 0 NV, tải lại 0 lượt) mà
+      KHÔNG CÁCH NÀO sửa từ xa — phải mang laptop ra nạp lại. Mọi bí mật/link khác đều khai được
+      ở portal, riêng ô quan trọng nhất khi lắp máy mới thì không. Nay khai được như các ô kia. */
+const char* HIK_IP_MAC_DINH = USE_4G ? "192.168.4.50" : "192.168.4.1";
+const char* hik_ip   = HIK_IP_MAC_DINH;
 const char* hik_user = SEC_HIK_USER;
 const char* hik_pass = SEC_HIK_PASS;
 
@@ -196,7 +202,7 @@ Preferences prefs;
 // CFG_PLACEHOLDER đã định nghĩa ở ĐẦU FILE (SEC_EXEC_URL/SEC_FB_HOST dùng tới nó từ dòng ~100).
 // Giữ giá trị thật ở String toàn cục (sống suốt đời chương trình) rồi trỏ các con trỏ cũ vào .c_str()
 String _cfgHikUser, _cfgHikPass, _cfgApPass, _cfgOtaUser, _cfgOtaPass,
-       _cfgEmpTok, _cfgFbSec, _cfgExecUrl, _cfgFbHost;
+       _cfgEmpTok, _cfgFbSec, _cfgExecUrl, _cfgFbHost, _cfgHikIp;
 bool   g_chuaCauHinh = false;      // thiếu giá trị bắt buộc -> hiện rõ trên màn hình, không chết im
 
 /* ⚠️ PHẢI bắt cả GIÁ TRỊ MẪU của secrets.example.h, không chỉ "__CHUA_CAU_HINH".
@@ -308,6 +314,7 @@ String macBo(){
   return cache;
 }
 void napCauHinh(){
+  _cfgHikIp   = cfgLay("hikIp",    HIK_IP_MAC_DINH);
   _cfgHikUser = cfgLay("hikUser",  SEC_HIK_USER);
   _cfgHikPass = cfgLay("hikPass",  SEC_HIK_PASS);
   _cfgApPass  = cfgLay("apPass",   SEC_AP_PASS);
@@ -317,6 +324,8 @@ void napCauHinh(){
   _cfgFbSec   = cfgLay("fbSec",    SEC_FB_SECRET);
   _cfgExecUrl = cfgLay("execUrl",  google_script_url);
   _cfgFbHost  = cfgLay("fbHost",   FB_HOST);
+  if (_cfgHikIp.length() == 0) _cfgHikIp = HIK_IP_MAC_DINH;   // trống là mọi lệnh ISAPI đi vào "http:///…"
+  hik_ip = _cfgHikIp.c_str();
   hik_user = _cfgHikUser.c_str();  hik_pass = _cfgHikPass.c_str();
   AP_PASS  = _cfgApPass.c_str();
   OTA_USER = _cfgOtaUser.c_str();  OTA_PASS = _cfgOtaPass.c_str();
@@ -328,6 +337,8 @@ void napCauHinh(){
   g_chuaCauHinh = _urlXau || (_cfgFbHost.length() == 0) ||
                   (_cfgEmpTok.length()  == 0) || (_cfgHikPass.length() == 0) ||
                   (_cfgOtaPass.length() == 0);
+  Serial.printf("[CFG] IP dau doc = %s%s\n", hik_ip,
+                (_cfgHikIp == String(HIK_IP_MAC_DINH)) ? " (mac dinh)" : " (khai o portal)");
   Serial.printf("[CFG] exec=%s fbHost=%s empTok=%s hikPass=%s otaPass=%s apPass=%s fbSec=%s\n",
     _cfgExecUrl.length()?"có":"THIẾU", _cfgFbHost.length()?"có":"THIẾU", _cfgEmpTok.length()?"có":"THIẾU",
     _cfgHikPass.length()?"có":"THIẾU", _cfgOtaPass.length()?"có":"THIẾU", _cfgApPass.length()?"có":"THIẾU",
@@ -1499,6 +1510,7 @@ String httpGetBody(const String& url){
 // ?auth=<secret> nếu đã điền secret; rỗng nếu còn "REPLACE..." (rule đang mở). Auth SAI sẽ bị Firebase từ chối kể cả rule mở.
 String fbAuthParam(){ String s = FB_SECRET; if(s.length()==0 || s.startsWith("REPLACE")) return ""; return "?auth=" + s; }
 
+bool fbDelete(const String& opId);   // khai trước: fbGetPending phải xóa lại được lệnh đã xử lý mà còn nằm lại
 // Firebase: lấy 1 lệnh pending (bỏ opId vừa xử lý). Trả JSON {opId,action,...} chuẩn cho checkEmployeeQueue, "" nếu rỗng.
 String fbGetPending(){
   // CHỈ lấy 1 lệnh cũ nhất (orderBy $key + limitToFirst=1) -> response ~125 byte, tránh giới hạn đọc ~1KB của module 4G
@@ -1512,7 +1524,19 @@ String fbGetPending(){
   if(root.containsKey("error")){ Serial.println("[FB] Firebase error: " + body.substring(0, 90)); return ""; }  // vd Permission denied / auth sai
   for(JsonPair kv : root){
     String opId = kv.key().c_str();
-    if(opDone(opId)) continue;                                // đã xử lý -> chờ Apps Script xóa
+    /* 🔴 03/08/2026 — LỆNH ĐÃ XỬ LÝ MÀ VẪN CÒN TRÊN FIREBASE = LỆNH XÓA TRƯỚC ĐÓ THẤT BẠI.
+       Bản cũ chỉ `continue`. Nhưng URL đọc có `limitToFirst=1` nên `root` chỉ chứa MỘT khóa ->
+       vòng lặp chỉ có một lượt -> `continue` là hết vòng, hàm trả "" = "hàng đợi rỗng".
+       Lệnh đó nằm ở ĐẦU hàng nên MỌI lệnh phía sau không bao giờ tới. Máy vẫn báo online, vẫn
+       chấm công (chấm công đi đường khác) nên nhìn hệt như "máy hỏng".
+       `fbDelete` xóa hỏng là chuyện thường trên 4G (HTTPACTION=3 rớt giữa) mà bản cũ KHÔNG
+       kiểm kết quả -> kẹt vĩnh viễn cho tới khi có người xóa tay trên web.
+       Nay: xóa LẠI ở đây. Tự thoát được, không cần ai can thiệp. */
+    if(opDone(opId)){
+      Serial.println("[FB] Lenh da xu ly con nam lai -> xoa lai: " + opId);
+      if(!fbDelete(opId)) Serial.println("[FB] Xoa lai VAN HONG -> vong sau thu nua");
+      continue;
+    }
     JsonObject c = kv.value().as<JsonObject>();
     DynamicJsonDocument o(1024);
     o["opId"]       = opId;
@@ -1548,16 +1572,23 @@ bool net4gHttpDelete(const String& url){
   return (code>=200 && code<300);
 }
 
-// Xóa 1 lệnh khỏi Firebase (đã xử lý xong) để ESP khỏi đọc lại — xóa cả /queue lẫn /photo cho gọn
-void fbDelete(const String& opId){
+/* Xóa 1 lệnh khỏi Firebase (đã xử lý xong) để ESP khỏi đọc lại — xóa cả /queue lẫn /photo cho gọn.
+ * 🔴 TRẢ VỀ true/false: xóa /queue hỏng là lệnh nằm lại ở ĐẦU hàng và chặn sạch phía sau
+ *    (xem khối ghi chú trong fbGetPending). Bản cũ trả void nên không chỗ nào biết mà báo.
+ *    Chỉ tính theo /queue — /photo xóa hỏng thì chỉ tốn dung lượng, không kẹt gì. */
+bool fbDelete(const String& opId){
   String qurl = String(FB_HOST) + "/queue/" + STATION_NAME + "/" + opId + ".json" + fbAuthParam();
   String purl = String(FB_HOST) + "/photo/" + STATION_NAME + "/" + opId + ".json" + fbAuthParam();
-  if (USE_4G) { net4gHttpDelete(qurl); net4gHttpDelete(purl); }
+  bool ok = false;
+  if (USE_4G) { ok = net4gHttpDelete(qurl); net4gHttpDelete(purl); }
   else {
     WiFiClientSecure c; c.setInsecure(); HTTPClient h;
-    h.begin(c, qurl); h.sendRequest("DELETE"); h.end();
+    h.begin(c, qurl); int code = h.sendRequest("DELETE"); h.end();
+    ok = (code >= 200 && code < 300);
     h.begin(c, purl); h.sendRequest("DELETE"); h.end();
   }
+  if (!ok) Serial.println("[FB] XOA LENH HONG: " + opId + " (lenh se nam lai o dau hang)");
+  return ok;
 }
 
 // PUT 1 body JSON lên Firebase — dùng được CẢ 4G (AT-HTTP) LẪN WiFi (HTTPS trực tiếp).
@@ -1665,7 +1696,15 @@ void checkEmployeeQueue() {
   String bfStart = d["startTime"]  | "";                             // lệnh backfill (Tải lại)
   String bfEnd   = d["endTime"]    | "";
   bool   bfImage = d["bfImage"]    | false;
-  if (opId.length() == 0 || action.length() == 0) return;
+  /* 🔴 Lệnh KHÔNG có `action` là rác (web ghi dở, bản web cũ, hay ai sửa tay trên Firebase).
+     Bản cũ chỉ `return` -> nó nằm mãi ở ĐẦU hàng và chặn sạch phía sau, y hệt ca 03/08. Có opId
+     thì xoá được, nên xoá; không có opId thì mới đành thôi. */
+  if (opId.length() == 0) { Serial.println("[NV] Lenh khong co opId -> bo qua"); return; }
+  if (action.length() == 0) {
+    Serial.println("[NV] Lenh rac (thieu action) -> xoa: " + opId);
+    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);
+    return;
+  }
 
   if (action == "scan") {                                            // QUÉT: đọc danh sách NV từ máy -> Firebase /roster
     Serial.printf("[NV] Lệnh quét máy (%s)\n", opId.c_str());
@@ -1704,10 +1743,26 @@ void checkEmployeeQueue() {
     return;
   }
 
+  /* ⚠️ VAN AN TOÀN — 03/08/2026.
+     Nhánh dưới CỐ Ý không ack để chờ RAM rảnh. Nhưng nếu RAM **không bao giờ** đủ (ảnh quá lớn,
+     bộ nhớ phân mảnh) thì lệnh này nằm ở đầu hàng VĨNH VIỄN và chặn sạch phía sau — kể cả lệnh
+     tải lại, kể cả lệnh xoá nhân viên. Đúng loại lỗi đã làm mất cả tối 03/08 với FZ_SC_VIVO_T4.
+     Nay đếm số lần hoãn CÙNG một lệnh: quá `HOAN_TOI_DA` thì BỎ lệnh đó (xoá) để thông hàng.
+     Bỏ một lệnh thêm/sửa NV thì lưu lại hồ sơ trên web là nó xếp lại — mất cả hàng đợi thì không
+     cứu được bằng gì. */
+  static String opHoan = ""; static int soHoan = 0;
+  const int HOAN_TOI_DA = 30;                 // 30 vòng × 10 giây ≈ 5 phút
   if (hasPhoto && ESP.getFreeHeap() < MIN_HEAP_FOR_PHOTO) {
-    Serial.printf("[NV] Hoãn %s: heap %d < %d\n", opId.c_str(), ESP.getFreeHeap(), MIN_HEAP_FOR_PHOTO);
-    return;   // không ack -> xử lý lại vòng sau khi RAM rảnh
+    if (opHoan == opId) soHoan++; else { opHoan = opId; soHoan = 1; }
+    Serial.printf("[NV] Hoãn %s (lần %d/%d): heap %d < %d\n", opId.c_str(), soHoan, HOAN_TOI_DA,
+                  ESP.getFreeHeap(), MIN_HEAP_FOR_PHOTO);
+    if (soHoan < HOAN_TOI_DA) return;         // không ack -> xử lý lại vòng sau khi RAM rảnh
+    Serial.println("[NV] Hoãn quá lâu -> BỎ lệnh này để thông hàng đợi: " + opId);
+    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);
+    opHoan = ""; soHoan = 0;
+    return;
   }
+  if (opHoan == opId) { opHoan = ""; soHoan = 0; }   // qua được rồi thì xoá bộ đếm
 
   Serial.printf("\n[NV] Xử lý %s: %s NV=%s '%s' pin=%s photo=%d\n",
                 opId.c_str(), action.c_str(), emp.c_str(), name.c_str(), pin.c_str(), hasPhoto);
@@ -1805,12 +1860,69 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
 }
 
 // ② Heartbeat online: ghi mốc thời gian (Firebase server timestamp) lên /hb/<trạm> mỗi 60s -> dashboard biết máy online.
+/* ===========================================================================
+ *  AI ĐANG NỐI VÀO AP CỦA ESP32 — và ở IP nào
+ * ---------------------------------------------------------------------------
+ *  🔴 03/08/2026, anh Thắng: *"có cách nào xác định được đầu đọc nối vào ESP đúng IP"*.
+ *  Trước đây KHÔNG có: heartbeat chỉ gửi mốc giờ + số bản firmware, nên từ web chỉ suy được
+ *  "đọc được / không đọc được đầu đọc" (cột Serial trống), chứ không biết đầu đọc đang ở IP nào
+ *  — mà đó đúng là câu cần trả lời khi lắp máy mới. Kết quả: phải ra tận cửa hàng mới biết.
+ *
+ *  ESP32 CHÍNH LÀ router của đầu đọc (softAP 192.168.4.1) nên nó tự dò được. Đem lên heartbeat
+ *  là chẩn đoán được TỪ XA:
+ *    · apSo = 0            -> đầu đọc chưa nối AP (sai mật khẩu WiFi / chưa khai / ngoài vùng)
+ *    · apSo ≥ 1, hikOk=0   -> đã nối nhưng KHÔNG trả lời ISAPI: so apIp với hikIp là ra ngay
+ *                             "sai IP" hay "đúng IP nhưng sai mật khẩu ISAPI"
+ *    · hikOk=1             -> tốt
+ *  Chỉ ĐỌC trạng thái, không đổi hành vi gì.
+ * =========================================================================== */
+/* 🔴 LẦN ĐẦU EM LÀM SAI, CI BẮT ĐƯỢC — ghi lại để không lặp:
+   bản đầu lấy IP máy con bằng `esp_netif_get_sta_list()` + `esp_netif_sta_list_t`, bọc
+   `#if __has_include(<esp_netif.h>)`. Guard đó VÔ DỤNG: header CÓ, nhưng IDF 5 (core 3.3.10)
+   đã bỏ chính hai cái tên đó -> compile đỏ 4 dòng. Bài học: `__has_include` chỉ chứng minh có
+   FILE, không chứng minh có HÀM. Máy soạn bản này không biên dịch được nên phải dùng thứ chắc
+   chắn có, hoặc chờ CI xác nhận — đừng suy từ "header tồn tại".
+
+   Nay dò thẳng: ESP32 là router của đầu đọc, mà dải DHCP của softAP bắt từ 192.168.4.2, nên
+   thử mở cổng 80 từ .2 tới .12 là biết đầu đọc THẬT đang ở IP nào. Trả lời đúng câu anh Thắng
+   hỏi ("nối đúng IP chưa") mà không cần API tầng IDF nào.
+   ⚠️ CHỈ dò khi CHƯA đọc được đầu đọc, và tối đa 5 phút một lần: lúc đó máy vốn không ghi được
+      lượt nào nên 3 giây dò không mất gì; máy đang chạy tốt thì hàm này thoát ngay ở dòng đầu. */
+String g_apDoIp = "";
+unsigned long g_apDoLuc = 0;
+String apDoIpMoCong80(){
+  if (HIK_SERIAL.length()) return "";                                  // đang tốt -> khỏi dò
+  if (g_apDoLuc && millis() - g_apDoLuc < 300000UL) return g_apDoIp;   // nhớ kết quả 5 phút
+  g_apDoLuc = millis();
+  String out;
+  for (int i = 2; i <= 12; i++) {
+    String ip = "192.168.4." + String(i);
+    WiFiClient c;
+    if (c.connect(ip.c_str(), 80, 300)) {                              // 300ms/IP -> cả vòng ~3s
+      if (out.length()) out += ",";
+      out += ip;
+      c.stop();
+    }
+  }
+  g_apDoIp = out;
+  Serial.println("[AP] Do cong 80 tren dai AP -> " + (out.length() ? out : String("khong thay gi")));
+  return out;
+}
+
 void hbSend() {
   if (!netUp()) return;
   String url = String(FB_HOST) + "/hb/" + STATION_NAME + ".json" + fbAuthParam();
+  /* Kèm CHẨN ĐOÁN ĐẦU ĐỌC. Thêm ~70 byte mỗi 60 giây — không đáng gì so với cái bắt tay TLS
+     của chính lượt PUT này, mà đổi lại là khỏi phải ra cửa hàng để biết máy có với tới đầu đọc. */
+  String cd = ",\"hikIp\":\"" + String(hik_ip) + "\""
+            + ",\"hikOk\":"   + String(HIK_SERIAL.length() ? 1 : 0)
+            + ",\"hikSn\":\"" + jsonEscMin_(HIK_SERIAL) + "\""
+            + ",\"hikModel\":\"" + jsonEscMin_(HIK_MODEL) + "\""
+            + ",\"apSo\":"    + String(WiFi.softAPgetStationNum())
+            + ",\"apIp\":\""  + apDoIpMoCong80() + "\"";
   // ⚠️ PHẢI escape: FW_VERSION là chuỗi người viết tay, có 1 dấu nháy là JSON hỏng và
   //    Firebase trả 400 — mất heartbeat MÀ KHÔNG mất chấm công, nên rất dễ tưởng máy chết mạng.
-  fbHttpPut(url, "{\"t\":{\".sv\":\"timestamp\"},\"fw\":\"" + jsonEscMin_(String(FW_VERSION)) + "\"}");
+  fbHttpPut(url, "{\"t\":{\".sv\":\"timestamp\"},\"fw\":\"" + jsonEscMin_(String(FW_VERSION)) + "\"" + cd + "}");
 }
 
 // ===== OTA TỪ XA: tải firmware .bin từ URL (GitHub) rồi ghi flash =====
@@ -2397,7 +2509,14 @@ void handleRoot(){
   h += "button{background:#2563eb;border:0;font-weight:700;cursor:pointer}.b2{background:#dc2626;width:auto;padding:5px 10px;margin:0}";
   h += "table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid #334155;text-align:left}.muted{color:#94a3b8;font-size:13px}</style></head><body>";
   h += "<h2>🕒 Chấm công — " + String(STATION_NAME) + "</h2>";
-  h += "<div class='muted'>Mạng: " + staTxt + " · AP: " + apName + " · Hik: " + String(hik_ip) + "</div>";
+  /* 🔴 Dòng này là chỗ ĐẦU TIÊN người lắp máy nhìn. Phải trả lời được câu "máy có với tới đầu
+     đọc không", vì đó là gốc của mọi triệu chứng "chấm công không lên". Bản cũ chỉ in IP nên
+     nhìn vào vẫn không biết IP đó có ai trả lời hay không. */
+  h += "<div class='muted'>Mạng: " + staTxt + " · AP: " + apName + " · Hik: <b>" + String(hik_ip) + "</b> — "
+       + (HIK_SERIAL.length() ? String("<b style='color:#4ade80'>ĐỌC ĐƯỢC đầu đọc</b>")
+                              : String("<b style='color:#f87171'>KHÔNG đọc được đầu đọc</b> "
+                                       "(sai IP, sai mật khẩu ISAPI, hoặc đầu đọc không cùng mạng)"))
+       + "</div>";
   h += "<div class='card'><h2>🏪 Cơ sở của máy này</h2>";
   h += "<div class='muted'>Cơ sở hiện tại: <b>" + String(STATION_NAME) + "</b> — "
        + String(STATION_TU_SERVER ? "do <b>server gán theo mã máy</b> (đúng cách dùng)."
@@ -2424,11 +2543,14 @@ void handleRoot(){
        + (_cfgFbHost.length() ? _cfgFbHost : String("(trống)"))
        + "</b><br>token web app <b>" + cfgChe(_cfgEmpTok) + "</b> · Firebase secret <b>" + cfgChe(_cfgFbSec)
        + "</b> · mật khẩu Hikvision <b>" + cfgChe(_cfgHikPass) + "</b> · mật khẩu /update <b>" + cfgChe(_cfgOtaPass)
-       + "</b> · mật khẩu AP <b>" + cfgChe(_cfgApPass) + "</b></div>";
+       + "</b> · mật khẩu AP <b>" + cfgChe(_cfgApPass)
+       + "</b><br>IP đầu đọc <b>" + _cfgHikIp + "</b>"
+       + ((_cfgHikIp == String(HIK_IP_MAC_DINH)) ? " (mặc định)" : " (đã khai)") + "</div>";
   h += "<input id='cExec'  placeholder='Link web app /exec (dạng /macros/s/…/exec)'>";
   h += "<input id='cFb'    placeholder='Link Firebase RTDB (không có / ở cuối)'>";
   h += "<input id='cTok'   placeholder='Token web app (EMP_TOKEN)'>";
   h += "<input id='cFbSec' placeholder='Firebase database secret (để trống = gọi không auth)'>";
+  h += "<input id='cHikIp' placeholder='IP đầu đọc Hikvision (mặc định " + String(HIK_IP_MAC_DINH) + ")'>";
   h += "<input id='cHikU'  placeholder='Tài khoản Hikvision (mặc định admin)'>";
   h += "<input id='cHikP'  placeholder='Mật khẩu Hikvision'>";
   h += "<input id='cOtaU'  placeholder='Tài khoản trang /update (mặc định admin)'>";
@@ -2465,7 +2587,7 @@ void handleRoot(){
   h += "fetch('/addemp',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'no='+encodeURIComponent(no)+'&name='+encodeURIComponent(nm)+'&pin='+encodeURIComponent(pin)}).then(r=>r.text()).then(t=>{g('amsg').textContent=t;g('no').value='';g('nm').value='';g('pin').value='';loadEmp();});}";
   h += "function delEmp(no){if(!confirm('Xóa nhân viên '+no+'?'))return;fetch('/delemp',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'no='+encodeURIComponent(no)}).then(r=>r.text()).then(t=>{alert(t);loadEmp();});}";
   h += "function saveWifi(){let s=g('ss').value.trim();if(!s){alert('Nhập SSID');return;}fetch('/savewifi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'ssid='+encodeURIComponent(s)+'&pass='+encodeURIComponent(g('pw').value)}).then(r=>r.text()).then(t=>alert(t));}";
-  h += "function saveCfg(){let f=['cExec','cFb','cTok','cFbSec','cHikU','cHikP','cOtaU','cOtaP','cApP'];"
+  h += "function saveCfg(){let f=['cExec','cFb','cTok','cFbSec','cHikIp','cHikU','cHikP','cOtaU','cOtaP','cApP'];"
        "let b=[],co=0;f.forEach(function(k){let v=g(k).value.trim();if(v!==''){co++;b.push(k+'='+encodeURIComponent(v));}});"
        "if(!co){alert('Chua nhap o nao. Bo trong = giu nguyen.');return;}"
        "if(!confirm('Luu cau hinh vao bo nho trong va khoi dong lai?'))return;"
@@ -2544,11 +2666,25 @@ void handleSaveWifi(){
   delay(900); ESP.restart();
 }
 
+/* IP dạng a.b.c.d, mỗi số 0..255. Không nhận tên miền: hikRequest ghép thẳng "http://"+ip nên
+   tên miền cũng chạy, nhưng đầu đọc trong LAN không có tên miền, cho gõ chữ chỉ mở đường gõ sai. */
+bool ipHopLe(const String& v){
+  int so = 0, phan = 0, chuSo = 0;
+  for (unsigned i = 0; i <= v.length(); i++) {
+    char c = (i < v.length()) ? v[i] : '.';
+    if (c >= '0' && c <= '9') { so = so * 10 + (c - '0'); chuSo++; if (chuSo > 3 || so > 255) return false; }
+    else if (c == '.') { if (chuSo == 0) return false; phan++; so = 0; chuSo = 0; }
+    else return false;
+  }
+  return phan == 4;
+}
+
 /* Khai bí mật + 2 link vào NVS. Ô nào KHÔNG gửi lên thì GIỮ NGUYÊN — cố ý, để sửa 1 mật
    khẩu không phải gõ lại cả 9 ô (gõ lại là dịp làm sai). NVS sống qua OTA. */
 void handleSaveCfg(){
   struct { const char* arg; const char* khoa; } m[] = {
     {"cExec","execUrl"}, {"cFb","fbHost"}, {"cTok","empTok"}, {"cFbSec","fbSec"},
+    {"cHikIp","hikIp"},
     {"cHikU","hikUser"}, {"cHikP","hikPass"}, {"cOtaU","otaUser"}, {"cOtaP","otaPass"}, {"cApP","apPass"}
   };
   int n = 0; String loi = "";
@@ -2557,6 +2693,9 @@ void handleSaveCfg(){
     String v = server.arg(m[i].arg); v.trim();
     if (!v.length()) continue;
     if (String(m[i].khoa) == "apPass" && v.length() < 8) { loi += "Mat khau AP phai >= 8 ky tu. "; continue; }
+    /* IP sai dạng thì MỌI lệnh ISAPI im lặng thất bại — chặn ngay lúc lưu, đừng để máy chạy
+       cả tuần rồi mới thấy "chấm công không lên". Chỉ nhận 4 số 0..255. */
+    if (String(m[i].khoa) == "hikIp" && !ipHopLe(v)) { loi += "IP dau doc phai dang 192.168.4.50. "; continue; }
     if (String(m[i].khoa) == "execUrl" && v.indexOf("/macros/s/") < 0)
       { loi += "Link web app phai dang /macros/s/<id>/exec. "; continue; }
     if (String(m[i].khoa) == "fbHost") {
