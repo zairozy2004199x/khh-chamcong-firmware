@@ -35,7 +35,7 @@
 
 // --- Token gọi web app Apps Script (?token=...) ---
 // ⚠️ Phải KHỚP Script Property `EMP_TOKEN` của web app ChamCongLive.
-#define SEC_EMP_TOKEN     "khhcm-chamcong-2026"
+#define SEC_EMP_TOKEN     "kh_058fa55e892543bbb84ba10a94520b262d51c8970cc44d76"
 
 // --- Firebase Realtime Database secret (QUYỀN ADMIN, bỏ qua mọi rule) ---
 // ⚠️ Đây là bí mật nặng nhất: ai có nó thì ghi được /ota, tức ĐẨY FIRMWARE TUỲ Ý
