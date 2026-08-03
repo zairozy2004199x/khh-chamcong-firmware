@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-04a (goi thu khong ghi sheet + bao ket qua doc so len web)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-04b (dau doc khong cho serialNo -> chot luot moi theo THOI GIAN)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -947,6 +947,7 @@ String g_soTu = "";               // startTime của lượt đọc sổ gần n
 long   g_soTong = -1;             // totalMatches đầu đọc báo (-1 = chưa đọc lần nào)
 long   g_soSo = -1;               // số dòng đầu đọc trả về
 unsigned long g_soLuc = 0;        // millis() lượt đọc sổ gần nhất
+const char* g_soChot = "?";       // đang chốt lượt mới theo gì: "serial" | "thoi-gian" | "?"
 
 int g_hikHttp = 0;                 // mã HTTP lượt ISAPI gần nhất (0 = chưa gọi lần nào)
 unsigned long g_hikOkLuc = 0;      // millis() lượt ISAPI 2xx gần nhất
@@ -2000,6 +2001,7 @@ void hbSend() {
             + ",\"soTu\":\""   + jsonEscMin_(g_soTu) + "\""
             + ",\"soTong\":"  + String(g_soTong)
             + ",\"soSo\":"    + String(g_soSo)
+            + ",\"soChot\":\"" + String(g_soChot) + "\""
             + ",\"soPhut\":"  + String(g_soLuc ? (long)((millis() - g_soLuc) / 60000UL) : -1)
             + ",\"apSo\":"    + String(WiFi.softAPgetStationNum())
             + ",\"apIp\":\""  + apDoIpMoCong80() + "\"";
@@ -2167,30 +2169,73 @@ void checkNewAcsEvents() {
   if (inDuoc) { inLanCuoi = millis();
     Serial.printf("[SỔ] đọc %u lượt (tổng %ld trong khoảng, từ %s)  đã đẩy tới serial=%ld\n",
                   (unsigned)list.size(), total, tuNgay.c_str(), lastSerialNo); }
+  /* ===========================================================================
+   *  🔴🔴 04/08/2026 — VÌ SAO K1T320 CHỈ LÊN SAU KHI RÚT ĐIỆN GẮN LẠI
+   * ---------------------------------------------------------------------------
+   *  Anh Thắng: *"chấm giữa giờ thì không đẩy lên và TRÊN ESP CŨNG KHÔNG NHẬN, rút điện gắn
+   *  lại nó mới đọc"*.
+   *
+   *  Đã so TỪNG TRƯỜNG hai lệnh đọc sổ: lượt trực tiếp và lượt bù dùng **cùng** endpoint,
+   *  **cùng** major/minor, **cùng** khoảng thời gian (bù lấy `lastSyncTime`+"+07:00", trực tiếp
+   *  lấy đúng mốc đó lùi 60 giây). Khác nhau ĐÚNG MỘT CHỖ:
+   *
+   *      lượt trực tiếp CHỐT THEO `serialNo`   ·   lượt bù KHÔNG dùng `serialNo` chút nào
+   *
+   *  Đầu đọc nào KHÔNG trả trường `serialNo` (hoặc trả 0) thì `sn = 0` cho mọi lượt:
+   *    · vòng đầu: `lastSerialNo == -1` -> nhận baseline, `maxSerial = 0` -> lưu `lastSerialNo = 0`;
+   *    · mọi vòng sau: `sn (0) <= lastSerialNo (0)` -> **BỎ QUA HẾT, MÃI MÃI**.
+   *  Nên lượt trực tiếp KHÔNG BAO GIỜ đẩy được lượt nào, mà cũng KHÔNG in [LƯỢT MỚI] — khớp đúng
+   *  câu "trên ESP cũng không nhận". Còn lượt bù bỏ qua `serialNo` nên vẫn lấy đủ -> rút điện gắn
+   *  lại là lên. K1T343 trả `serialNo` nên chạy bình thường: đây chính là "hai đời máy không hành
+   *  xử giống nhau" mà ghi chú 01/08 nói tới, nay chỉ được ra ĐÚNG một trường JSON.
+   *
+   *  Chữa: đầu đọc nào không cho `serialNo` thì **chốt theo THỜI GIAN** — đúng cách lượt bù vẫn
+   *  làm, và máy chủ vốn đã tự bỏ giờ đã ghi (nên chạy lại bù không nhân đôi).
+   *  ⚠️ Đầu đọc CÓ `serialNo` thì đi ĐÚNG nhánh cũ, không đổi một dòng nào — K1T343 đang chạy
+   *     tốt, không được mang nó ra làm thí nghiệm.
+   * =========================================================================== */
   long adv = lastSerialNo, maxSerial = lastSerialNo; bool stop = false;
+  bool coSerial = false;         // đầu đọc này có cho serialNo dùng được không
+  String tMoiNhat = "";          // mốc mới nhất thấy trong trang (dùng khi KHÔNG có serialNo)
+  /* 🔴 CHỐT MỐC ĐẦU VÒNG, không so với `lastSyncTime` đang chạy.
+     Mô phỏng bằng Node bắt được: đầu đọc trả trang theo thứ tự MỚI→CŨ (đúng kiểu K1T320) thì lượt
+     đầu tiên đẩy xong `rememberSync` nâng `lastSyncTime` lên NGAY, nên các lượt CŨ HƠN trong CÙNG
+     trang liền trượt điều kiện `<= lastSyncTime` và bị loại OAN — trang 3 lượt mới chỉ lên 1.
+     So với bản chụp đầu vòng thì thứ tự máy trả về không còn ảnh hưởng gì. */
+  const String mocDau = lastSyncTime;
 
   for (JsonObject e : list) {
     long sn = e["serialNo"] | 0;
+    if (sn > 0) coSerial = true;
     if (sn > maxSerial) maxSerial = sn;
 
-    if (lastSerialNo == -1) continue;              // baseline (mới nạp) -> chỉ lấy maxSerial, không đẩy lịch sử
-    if (sn <= lastSerialNo || stop) continue;      // đã gửi / đã gặp 1 lỗi -> để dành vòng sau (giữ thứ tự, không bỏ sót)
+    /* Lấy giờ TRƯỚC khi lọc: nhánh không-serialNo cần chính con số này để chốt. */
+    String eventTime = e["time"].as<String>();
+    eventTime.replace("T", " ");
+    eventTime.replace("+07:00", "");
+    if (eventTime.length() >= 19 && eventTime > tMoiNhat) tMoiNhat = eventTime;
+
+    if (stop) continue;                            // đã gặp 1 lỗi -> để dành vòng sau (không bỏ sót)
+    if (sn > 0) {
+      if (lastSerialNo == -1) continue;            // baseline (mới nạp) -> chỉ lấy maxSerial
+      if (sn <= lastSerialNo) continue;            // đã gửi
+    } else {
+      // Không có serialNo -> chốt theo thời gian. Chưa có mốc thì vòng này chỉ NHẬN mốc.
+      if (mocDau.length() < 19) continue;
+      if (eventTime.length() < 19 || eventTime <= mocDau) continue;
+    }
 
     String emp  = e["employeeNoString"] | "";
     String name = e["name"] | "";
     String card = e["cardNo"] | "";
     String pic  = e["pictureURL"] | "";
     if (emp.length() == 0) emp = card;
-    if (emp.length() == 0 && name.length() == 0) { if (sn > adv) adv = sn; continue; }   // rác -> bỏ, vẫn nhảy con trỏ
-
-    String eventTime = e["time"].as<String>();
-    eventTime.replace("T", " ");
-    eventTime.replace("+07:00", "");
+    if (emp.length() == 0 && name.length() == 0) { if (sn > 0 && sn > adv) adv = sn; continue; }   // rác -> bỏ, vẫn nhảy con trỏ
 
     int evSec = timeToSec(eventTime);
     if (emp == lastEmp && evSec >= 0 && (evSec - lastEmpSec) >= 0 && (evSec - lastEmpSec) < DEBOUNCE_SEC) {
       Serial.printf("[BỎ QUA] %s quẹt trùng trong %ds\n", emp.c_str(), DEBOUNCE_SEC);
-      if (sn > adv) adv = sn; continue;            // quẹt trùng (đã ghi) -> coi như xử lý, nhảy con trỏ
+      if (sn > 0 && sn > adv) adv = sn; continue;   // quẹt trùng (đã ghi) -> coi như xử lý, nhảy con trỏ
     }
 
     Serial.println("\n[LƯỢT MỚI]");
@@ -2214,10 +2259,22 @@ void checkNewAcsEvents() {
     // CHỈ nhảy con trỏ (adv) + ghi mốc đồng bộ khi gửi THÀNH CÔNG -> mất mạng/đẩy lỗi KHÔNG mất lượt (thử lại vòng sau).
     bool ok = pushEventToGoogle(emp, name, eventTime, imgB64, imgB64Len);
     imgB64 = NULL;   // quyền sở hữu đã chuyển cho pushEventToGoogle
-    if (ok) { adv = sn; lastEmp = emp; lastEmpSec = evSec; rememberSync(eventTime); }
+    /* `adv` chỉ có nghĩa khi đầu đọc cho serialNo. Nhánh không-serialNo chốt bằng `rememberSync`
+       (nó tự đẩy `lastSyncTime` lên) — gán adv = 0 ở đây là kéo con trỏ về 0, sai hẳn. */
+    if (ok) { if (sn > 0) adv = sn; lastEmp = emp; lastEmpSec = evSec; rememberSync(eventTime); }
     else { stop = true; Serial.printf("[GIỮ] serial %ld gửi lỗi -> thử lại vòng sau (không mất lượt)\n", sn); }
   }
 
+  /* Đầu đọc KHÔNG cho serialNo -> KHÔNG được chạm `lastSerialNo` (để 0 vào đó là khoá chết nhánh
+     serialNo mãi mãi, đúng cái bẫy vừa sửa). Mốc thời gian do `rememberSync` lo. */
+  g_soChot = coSerial ? "serial" : "thoi-gian";
+  if (!coSerial) {
+    if (lastSyncTime.length() < 19 && tMoiNhat.length() >= 19) {
+      rememberSync(tMoiNhat);
+      Serial.println("[KHỞI TẠO] Đầu đọc không cho serialNo -> theo dõi theo THỜI GIAN từ " + tMoiNhat);
+    }
+    return;
+  }
   if (lastSerialNo == -1) {                        // lần đầu (mới nạp): nhận baseline, KHÔNG đẩy lịch sử
     if (maxSerial >= 0) { lastSerialNo = maxSerial; prefs.putLong("lastSN", lastSerialNo); }
     Serial.print("[KHỞI TẠO] Theo dõi từ serialNo = "); Serial.println(lastSerialNo);
