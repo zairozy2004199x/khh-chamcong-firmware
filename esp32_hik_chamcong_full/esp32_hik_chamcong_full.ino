@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-03k (doc duoc doi may ca khi dau doc tra XML -> phan biet K1T320/K1T343)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-04a (goi thu khong ghi sheet + bao ket qua doc so len web)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -935,6 +935,19 @@ int hikSend_(HTTPClient& http, const String& method, const String& payload) {
  *      401  -> tới được đầu đọc, SAI MẬT KHẨU ISAPI
  *      ≤ 0  -> không với tới (sai IP / chưa nối AP / đầu đọc tắt)
  * =========================================================================== */
+/* Kết quả lượt ĐỌC SỔ CHẤM CÔNG gần nhất — gửi lên web để chẩn đoán từ xa.
+   🔴 04/08/2026, anh Thắng: *"chấm lúc máy đang mở thì không lên, nhưng rút điện gắn lại thì
+   đồng bộ lên"*. Rút điện gắn lại = chạy `backfillRange` lúc khởi động, nên lên. Tức là LƯỢT
+   TRỰC TIẾP (`checkNewAcsEvents`) im, còn LƯỢT BÙ chạy. Hai đường cùng gọi một endpoint, khác
+   nhau ở khoảng thời gian và ở chỗ lượt bù LẬT TRANG còn lượt trực tiếp chỉ đọc trang đầu.
+   Có mấy giả thuyết đều hợp lý, mà log chỉ in ra Serial — phải cắm USB tại cửa hàng mới thấy.
+   Nên đem ba số này lên heartbeat: đọc TỪ MỐC NÀO · đầu đọc báo TỔNG bao nhiêu · trả về BAO NHIÊU
+   dòng. Ba số đó phân biệt được các giả thuyết mà không cần đoán, cũng không cần ra cửa hàng. */
+String g_soTu = "";               // startTime của lượt đọc sổ gần nhất
+long   g_soTong = -1;             // totalMatches đầu đọc báo (-1 = chưa đọc lần nào)
+long   g_soSo = -1;               // số dòng đầu đọc trả về
+unsigned long g_soLuc = 0;        // millis() lượt đọc sổ gần nhất
+
 int g_hikHttp = 0;                 // mã HTTP lượt ISAPI gần nhất (0 = chưa gọi lần nào)
 unsigned long g_hikOkLuc = 0;      // millis() lượt ISAPI 2xx gần nhất
 
@@ -1984,6 +1997,10 @@ void hbSend() {
             + ",\"hikHttp\":" + String(g_hikHttp)
             + ",\"hikSn\":\"" + jsonEscMin_(HIK_SERIAL) + "\""
             + ",\"hikModel\":\"" + jsonEscMin_(HIK_MODEL) + "\""
+            + ",\"soTu\":\""   + jsonEscMin_(g_soTu) + "\""
+            + ",\"soTong\":"  + String(g_soTong)
+            + ",\"soSo\":"    + String(g_soSo)
+            + ",\"soPhut\":"  + String(g_soLuc ? (long)((millis() - g_soLuc) / 60000UL) : -1)
             + ",\"apSo\":"    + String(WiFi.softAPgetStationNum())
             + ",\"apIp\":\""  + apDoIpMoCong80() + "\"";
   // ⚠️ PHẢI escape: FW_VERSION là chuỗi người viết tay, có 1 dấu nháy là JSON hỏng và
@@ -2086,6 +2103,7 @@ void checkNewAcsEvents() {
      tự máy trả về — khoảng hẹp thì WINDOW lượt đầu đã bao trọn phần mới, xếp kiểu nào cũng đúng.
      Bớt luôn 1 lệnh mỗi vòng: totalMatches lấy trong CÙNG phản hồi, khỏi gọi riêng để đếm. */
   String tuNgay = acsMocTuLuotCuoi();
+  g_soTu = tuNgay;                       // để heartbeat nói được "đọc từ mốc nào"
 
   // ⚠️ TỪ ĐÂY KHÔNG CÒN `return` IM LẶNG NÀO TRONG HÀM NÀY.
   //    Bản trước thoát ra mà không in một chữ, nên ngoài hiện trường thấy: không có dòng LỖI,
@@ -2125,8 +2143,11 @@ void checkNewAcsEvents() {
     return;
   }
   long total = doc["AcsEvent"]["totalMatches"] | 0;
+  g_soTong = total;
+  g_soLuc  = millis();
 
   JsonArray list = doc["AcsEvent"]["InfoList"].as<JsonArray>();
+  g_soSo = (list.isNull() ? 0 : (long)list.size());
   if (list.isNull() || list.size() == 0) {
     // Đầu đọc trả lời tử tế nhưng danh sách rỗng. Ca hay gặp nhất: chưa có lượt nào MỚI kể từ
     // mốc `tuNgay` — bình thường. Nhưng nếu total > 0 mà rỗng thì có chuyện, phải nói ra.
@@ -2549,7 +2570,13 @@ bool net4gConnect(){
     g_4gReady = true; Serial.println("[4G] SẴN SÀNG (đã đăng ký LTE) — đẩy dữ liệu qua AT-HTTP");
     static bool tested = false;
     if (!tested) { tested = true;                              // đẩy thử 1 gói để XÁC NHẬN đường 4G→Google (không cần Hikvision)
-      String tb = String("{\"macAddress\":\"") + macBo() + "\",\"stationName\":\"" + String(STATION_NAME) + "\",\"employeeNo\":\"TEST4G\",\"name\":\"AT-HTTP test\",\"time\":\"test\",\"image\":\"\"}";
+      /* 🔴 04/08/2026 — GÓI THỬ NÀY TỪNG GHI RÁC VÀO SHEET TIỀN LƯƠNG.
+         Anh Thắng: *"khi rút điện ra gắn lại, nó tạo ra lệnh test"*. Vì gói thử đi vào ĐÚNG đường
+         ghi chấm công với `time:"test"`, mà máy chủ `"test".split(" ")` ra dateStr="test" rồi
+         `findOrCreateDateBlock` TẠO THẬT một khối tháng tên "test" trong sheet cơ sở.
+         Nay gắn cờ `selftest:true` để máy chủ trả lời mà KHÔNG ghi gì. Máy chủ cũng đã chặn thêm
+         theo khuôn ngày giờ (bảo vệ mọi máy còn chạy bản cũ) — hai lớp, vì một lớp là còn lọt. */
+      String tb = String("{\"selftest\":true,\"macAddress\":\"") + macBo() + "\",\"stationName\":\"" + String(STATION_NAME) + "\",\"employeeNo\":\"TEST4G\",\"name\":\"AT-HTTP test\",\"time\":\"test\",\"image\":\"\"}";
       Serial.println("[4G] === TEST: đẩy thử 1 gói lên Google ===");
       bool tok = net4gHttpPost(google_script_url, tb);
       Serial.println(tok ? "[4G] ✔️ TEST OK — đường 4G → Google CHẠY!" : "[4G] ✖ TEST chưa được — xem 'status=' phía trên");
