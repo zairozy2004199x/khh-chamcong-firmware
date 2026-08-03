@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-01c (bo het return IM LANG; in nguyen van dau doc tra ve + gio 2 ben)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-01d (doc so cham cong tu pos=0 + khoang hep, bo gia dinh thu tu)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -578,6 +578,7 @@ String acsSearchId(){
 // Khai trước cho tường minh, không dựa vào việc Arduino tự sinh nguyên mẫu.
 String hikRequest(const String& method, const String& uri, const String& payload, int* outCode);
 String shortResp(const String& r, int code);
+String acsMocBatDau();          // acsMocTuLuotCuoi() gọi tới, mà nó định nghĩa ở dưới
 
 /* Giờ hiện tại của ESP32, dạng đọc được — chỉ để in ra chẩn đoán. */
 String gioEspISO(){
@@ -609,6 +610,30 @@ String hikGioMay(){
   String tz = String((const char*)(d["Time"]["timeZone"]  | ""));
   if (!lt.length()) { String x = r; x.replace("\n"," "); return "khong thay localTime -> " + x.substring(0, 120); }
   return lt + (tz.length() ? ("  (tz " + tz + ")") : "");
+}
+
+/* Mốc bắt đầu cho lượt TRỰC TIẾP: từ lượt cuối đã đẩy thành công.
+   Khoảng HẸP là điều kiện để không cần biết đầu đọc xếp kết quả kiểu gì — chỉ cần WINDOW lượt
+   đầu tiên là đã bao trọn phần mới. Chưa đẩy được lượt nào (máy mới) thì lùi rộng ra.
+   ⚠️ Lùi lại 60 giây so với lượt cuối: đầu đọc có thể ghi hai lượt trong cùng một giây, lấy
+      đúng mốc bằng nhau thì lượt thứ hai có nguy cơ rơi ra ngoài khoảng. Đẩy trùng thì vô hại
+      (serialNo lọc, và doPost bỏ qua bản trùng), còn SÓT là mất công của nhân viên. */
+String acsMocTuLuotCuoi(){
+  if (lastSyncTime.length() >= 19) {
+    struct tm t; memset(&t, 0, sizeof t);
+    if (strptime(lastSyncTime.c_str(), "%Y-%m-%d %H:%M:%S", &t)) {
+      t.tm_isdst = -1;
+      time_t e = mktime(&t) - 60;
+      struct tm l;
+      if (localtime_r(&e, &l)) {
+        char b[64];
+        snprintf(b, sizeof b, "%04d-%02d-%02dT%02d:%02d:%02d+07:00",
+                 l.tm_year + 1900, l.tm_mon + 1, l.tm_mday, l.tm_hour, l.tm_min, l.tm_sec);
+        return String(b);
+      }
+    }
+  }
+  return acsMocBatDau();
 }
 
 /* Mốc BẮT ĐẦU cho lệnh đọc sổ chấm công trực tiếp.
@@ -1869,59 +1894,38 @@ void checkNewAcsEvents() {
   //    ISAPI của Hikvision đòi khoảng thời gian trong AcsEventCond; thiếu thì đầu đọc phải quét
   //    toàn bộ sổ và nó NGẮT KẾT NỐI -> HTTPClient trả -1, trông y như lỗi mạng.
   //    Khớp luôn "chạy 1-2 lần rồi thôi": sổ còn ít thì máy chịu được, sổ dài ra là chết hẳn.
-  String tuNgay = acsMocBatDau(), denNgay = FAR_FUTURE;
-  String khoang = ",\"startTime\":\"" + tuNgay + "\",\"endTime\":\"" + denNgay + "\"";
+  /* 🔴 01/08/2026 — BỎ HẲN kiểu "đếm tổng rồi nhảy tới total-WINDOW".
+     Bằng chứng ngoài hiện trường (hai dòng [SỔ] cách nhau 1 phút, lúc đang quẹt thật):
+         [SỔ] tổng=186  đã đẩy tới serial=3089
+         [SỔ] tổng=197  đã đẩy tới serial=3089
+     Tổng TĂNG 11 lượt mà con trỏ serial KHÔNG nhích. Lượt mới có thật, đầu đọc đếm được, nhưng
+     cửa sổ đọc không chứa lượt mới nào. Vì `pos = total - WINDOW` GIẢ ĐỊNH đầu đọc trả kết quả
+     theo thứ tự CŨ -> MỚI. Máy này trả MỚI -> CŨ, nên total-WINDOW nhảy đúng vào chỗ CŨ NHẤT:
+     serial nào cũng <= lastSerialNo -> "không có gì mới" -> IM LẶNG mãi mãi.
+     Lượt bù chạy được chính vì nó LUÔN bắt đầu từ pos=0.
 
-  // ⚠️ 01/08/2026 — TỪ ĐÂY KHÔNG CÒN `return` IM LẶNG NÀO TRONG HÀM NÀY.
-  //    Bản trước thoát ra 3 chỗ mà không in một chữ (phản hồi rỗng / parse lỗi / total<=0), nên
-  //    ngoài hiện trường thấy: không có dòng LỖI, cũng không có [LƯỢT MỚI] — không biết hàm có
-  //    chạy hay không, cũng không biết đầu đọc trả gì. Mất mấy lượt chẩn đoán vì đúng chỗ này.
+     Nay: pos=0 + khoảng thời gian HẸP (từ lượt cuối đã đẩy). Cách này KHÔNG còn phụ thuộc thứ
+     tự máy trả về — khoảng hẹp thì WINDOW lượt đầu đã bao trọn phần mới, xếp kiểu nào cũng đúng.
+     Bớt luôn 1 lệnh mỗi vòng: totalMatches lấy trong CÙNG phản hồi, khỏi gọi riêng để đếm. */
+  String tuNgay = acsMocTuLuotCuoi();
+
+  // ⚠️ TỪ ĐÂY KHÔNG CÒN `return` IM LẶNG NÀO TRONG HÀM NÀY.
+  //    Bản trước thoát ra mà không in một chữ, nên ngoài hiện trường thấy: không có dòng LỖI,
+  //    cũng không có [LƯỢT MỚI] — không biết hàm có chạy hay không, cũng không biết đầu đọc trả
+  //    gì. Mất bốn lượt chẩn đoán vì đúng chỗ này.
   //    Đây là đường TIỀN LƯƠNG: thà log dài còn hơn im lặng. In dồn 60s/lần cho khỏi rác.
   static unsigned long inLanCuoi = 0;
   bool inDuoc = (inLanCuoi == 0) || (millis() - inLanCuoi >= 60000);
 
-  // Mã RIÊNG cho lần đếm tổng (phiên này cố tình bỏ dở: chỉ cần totalMatches).
-  String r1 = hikPost("{\"AcsEventCond\":{\"searchID\":\"" + acsSearchId() +
-                      "\",\"searchResultPosition\":0,\"maxResults\":1,\"major\":0,\"minor\":0" + khoang + "}}");
-  if (r1.length() == 0) {
-    if (inDuoc) { inLanCuoi = millis();
-      Serial.println("[SỔ] Đếm tổng: KHÔNG có phản hồi (hikPost đã in lý do ở trên). Khoảng: " + tuNgay); }
-    return;
-  }
-  DynamicJsonDocument d1(1024);
-  if (deserializeJson(d1, r1)) {
-    if (inDuoc) { inLanCuoi = millis();
-      String x = r1; x.replace("\n"," "); x.replace("\r"," ");
-      Serial.println("[SỔ] Đếm tổng: đầu đọc trả về thứ KHÔNG PHẢI JSON hợp lệ -> " + x.substring(0, 160)); }
-    return;
-  }
-  long total = d1["AcsEvent"]["totalMatches"] | 0;
-  if (total <= 0) {
-    // Trước đây đây là chỗ thoát IM LẶNG tệ nhất: đầu đọc trả lời tử tế nhưng nói "không có
-    // lượt nào", mà mình thì không in gì -> trông y như hàm không hề chạy.
-    if (inDuoc) { inLanCuoi = millis();
-      String x = r1; x.replace("\n"," "); x.replace("\r"," ");
-      Serial.println("[SỔ] Đầu đọc nói KHÔNG có lượt nào trong khoảng từ " + tuNgay +
-                     " -> nguyên văn: " + x.substring(0, 200));
-      // ⚠️ Nghi số 1 khi gặp ca này: GIỜ TRÊN ĐẦU ĐỌC lệch giờ trên ESP32. Lượt chấm công mang
-      //    dấu thời gian của ĐẦU ĐỌC, nên đầu đọc chạy sai ngày là khoảng mình đặt loại sạch.
-      //    In cả hai giờ ra cạnh nhau thì nhìn một cái là biết, khỏi phải mò.
-      Serial.println("        giờ ESP32 : " + gioEspISO());
-      Serial.println("        giờ đầu đọc: " + hikGioMay()); }
-    return;
-  }
-  if (inDuoc) { inLanCuoi = millis();
-    Serial.printf("[SỔ] tổng=%ld  đã đẩy tới serial=%ld  (từ %s)\n", total, lastSerialNo, tuNgay.c_str()); }
-
-  long pos = total > WINDOW ? total - WINDOW : 0;
-  // Mã RIÊNG cho lần lấy cửa sổ — KHÔNG dùng lại mã của lần đếm ở trên.
-  // ⚠️ Khoảng thời gian phải Y HỆT lần đếm, vì `pos` tính từ `total` của lần đếm đó. Lệch
-  //    khoảng là lệch tổng -> nhảy sai vị trí -> bỏ sót hoặc đọc trùng lượt chấm công.
-  String payload2 = "{\"AcsEventCond\":{\"searchID\":\"" + acsSearchId() + "\",\"searchResultPosition\":" + String(pos) +
-                    ",\"maxResults\":" + String(WINDOW) + ",\"major\":0,\"minor\":0" + khoang + "}}";
+  String payload2 = "{\"AcsEventCond\":{\"searchID\":\"" + acsSearchId() +
+                    "\",\"searchResultPosition\":0,\"maxResults\":" + String(WINDOW) +
+                    ",\"major\":0,\"minor\":0,\"startTime\":\"" + tuNgay +
+                    "\",\"endTime\":\"" + String(FAR_FUTURE) + "\"}}";
   String r2 = hikPost(payload2);
   if (r2.length() == 0) {
-    Serial.printf("[SỔ] Lấy %d lượt cuối từ vị trí %ld: KHÔNG có phản hồi.\n", WINDOW, pos);
+    if (inDuoc) { inLanCuoi = millis();
+      Serial.printf("[SỔ] Đọc %d lượt từ %s: KHÔNG có phản hồi (hikPost đã in lý do ở trên).\n",
+                    WINDOW, tuNgay.c_str()); }
     return;
   }
 
@@ -1933,21 +1937,37 @@ void checkNewAcsEvents() {
   fi["name"] = true;
   fi["cardNo"] = true;
   fi["pictureURL"] = true;
+  filter["AcsEvent"]["totalMatches"] = true;    // lấy luôn trong phản hồi này, khỏi gọi lệnh đếm riêng
+  filter["AcsEvent"]["numOfMatches"] = true;
 
   DynamicJsonDocument doc(16384);
   if (deserializeJson(doc, r2, DeserializationOption::Filter(filter))) {
-    Serial.println("[MÁY] Parse đuôi lỗi.");
+    String x = r2; x.replace("\n"," "); x.replace("\r"," ");
+    Serial.println("[SỔ] Đầu đọc trả về thứ KHÔNG PHẢI JSON hợp lệ -> " + x.substring(0, 200));
     return;
   }
+  long total = doc["AcsEvent"]["totalMatches"] | 0;
 
   JsonArray list = doc["AcsEvent"]["InfoList"].as<JsonArray>();
-  // Đầu đọc bảo có `total` lượt nhưng danh sách trả về RỖNG -> phải nói ra, đừng lặng lẽ bỏ qua.
   if (list.isNull() || list.size() == 0) {
-    String x = r2; x.replace("\n"," "); x.replace("\r"," ");
-    Serial.printf("[SỔ] tổng=%ld nhưng danh sách RỖNG (vị trí %ld) -> %s\n",
-                  total, pos, x.substring(0, 200).c_str());
+    // Đầu đọc trả lời tử tế nhưng danh sách rỗng. Ca hay gặp nhất: chưa có lượt nào MỚI kể từ
+    // mốc `tuNgay` — bình thường. Nhưng nếu total > 0 mà rỗng thì có chuyện, phải nói ra.
+    if (inDuoc) { inLanCuoi = millis();
+      if (total > 0) {
+        String x = r2; x.replace("\n"," "); x.replace("\r"," ");
+        Serial.printf("[SỔ] tổng=%ld nhưng danh sách RỖNG (từ %s) -> %s\n",
+                      total, tuNgay.c_str(), x.substring(0, 200).c_str());
+        Serial.println("        giờ ESP32 : " + gioEspISO());
+        Serial.println("        giờ đầu đọc: " + hikGioMay());
+      } else {
+        Serial.printf("[SỔ] Chưa có lượt nào mới kể từ %s (đã đẩy tới serial=%ld)\n",
+                      tuNgay.c_str(), lastSerialNo);
+      } }
     return;
   }
+  if (inDuoc) { inLanCuoi = millis();
+    Serial.printf("[SỔ] đọc %u lượt (tổng %ld trong khoảng, từ %s)  đã đẩy tới serial=%ld\n",
+                  (unsigned)list.size(), total, tuNgay.c_str(), lastSerialNo); }
   long adv = lastSerialNo, maxSerial = lastSerialNo; bool stop = false;
 
   for (JsonObject e : list) {

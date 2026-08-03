@@ -11,11 +11,11 @@
 #pragma once
 
 // Mật khẩu AP của MÁY CHẤM CÔNG (AP tên "ChamCong-<trạm>") — khớp SEC_AP_PASS bên kia.
-#define SEC_AP_PASS    "KHHCM@a1"
+#define SEC_AP_PASS    "MAT_KHAU_AP"
 
 // Tài khoản trang /update của máy chấm công — khớp SEC_OTA_USER / SEC_OTA_PASS bên kia.
 #define SEC_OTA_USER   "admin"
-#define SEC_OTA_PASS   "KHHCM@a1"
+#define SEC_OTA_PASS   "MAT_KHAU_TRANG_UPDATE"
 
 // ============================================================================
 //  TỪ BẢN 2026-07-30a: 3 giá trị trên chỉ là DỰ PHÒNG
