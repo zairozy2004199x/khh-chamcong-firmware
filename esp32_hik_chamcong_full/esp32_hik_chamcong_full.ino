@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-03i (van an toan: khong lenh nao chan hang doi vinh vien)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-03k (doc duoc doi may ca khi dau doc tra XML -> phan biet K1T320/K1T343)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -920,6 +920,24 @@ int hikSend_(HTTPClient& http, const String& method, const String& payload) {
 }
 
 // GET/POST/PUT JSON tới máy (Digest). Trả body; *outCode = mã HTTP.
+/* ===========================================================================
+ *  MÃ HTTP CỦA LƯỢT ISAPI GẦN NHẤT — để web nói ĐÚNG nguyên nhân
+ * ---------------------------------------------------------------------------
+ *  🔴 03/08 (bản j) — LỖI CỦA BẢN i: em lấy `HIK_SERIAL.length()` làm dấu hiệu "đọc được đầu
+ *  đọc". Sai: serial đọc từ `/ISAPI/System/deviceInfo`, mà có đời đầu đọc KHÔNG trả lời đường
+ *  đó trong khi vẫn trả lời `AcsEvent` (tức là chấm công vẫn chạy tốt). Máy như vậy bị web tô
+ *  đỏ "chưa đọc được đầu đọc" — BÁO ĐỘNG GIẢ, đúng loại lỗi tệ nhất vì nó đẩy người ta đi sửa
+ *  một thứ không hỏng. Đây là điều em vẫn nhắc mình: đừng kết luận từ một dấu hiệu gián tiếp.
+ *
+ *  Nay ghi lại mã HTTP + mốc giờ của lượt ISAPI GẦN NHẤT, ngay trong `hikRequest` — mọi lượt
+ *  ISAPI đều đi qua đây nên không sót đường nào. Web đọc mã đó là biết chắc:
+ *      2xx  -> tốt (kể cả khi serial trống vì đời máy không trả deviceInfo)
+ *      401  -> tới được đầu đọc, SAI MẬT KHẨU ISAPI
+ *      ≤ 0  -> không với tới (sai IP / chưa nối AP / đầu đọc tắt)
+ * =========================================================================== */
+int g_hikHttp = 0;                 // mã HTTP lượt ISAPI gần nhất (0 = chưa gọi lần nào)
+unsigned long g_hikOkLuc = 0;      // millis() lượt ISAPI 2xx gần nhất
+
 String hikRequest(const String& method, const String& uri, const String& payload, int* outCode) {
   HTTPClient http;
   String url = "http://" + String(hik_ip) + uri;
@@ -938,6 +956,8 @@ String hikRequest(const String& method, const String& uri, const String& payload
   }
   String body = (code > 0) ? http.getString() : "";
   http.end();
+  g_hikHttp = code;
+  if (code >= 200 && code < 300) g_hikOkLuc = millis();
   if (outCode) *outCode = code;
   return body;
 }
@@ -957,6 +977,18 @@ String shortResp(const String& r, int code) {
   return "http" + String(code) + " " + s;
 }
 
+/* Bóc nội dung giữa <the>…</the> trong một chuỗi XML. Trả "" nếu không có.
+   Cố ý KHÔNG dùng thư viện XML: chỉ cần đúng hai trường (serialNumber, model), mà thêm thư viện
+   là phình .bin của con ESP32 vốn đã sát phân vùng. */
+String xmlGiua(const String& xml, const char* the){
+  String mo = String("<") + the + ">", dong = String("</") + the + ">";
+  int a = xml.indexOf(mo); if (a < 0) return "";
+  a += mo.length();
+  int b = xml.indexOf(dong, a); if (b < 0) return "";
+  String v = xml.substring(a, b); v.trim();
+  return v;
+}
+
 /* ---- MÃ THIẾT BỊ: đọc serial + model của đầu đọc Hikvision ----
    Nhớ vào Preferences: đầu đọc mất điện / chưa kịp lên mạng lúc khởi động thì vẫn còn mã để hỏi
    server. Không có mã cũng không sao — server còn khoá dự phòng là MAC bo. */
@@ -969,13 +1001,32 @@ void docThongTinDauDoc() {
     Serial.printf("[MÃ MÁY] Chưa đọc được đầu đọc (http%d) -> dùng mã đã nhớ: '%s'\n", code, HIK_SERIAL.c_str());
     return;
   }
+  /* 🔴 03/08/2026 — ĐỜI ĐẦU ĐỌC là thứ phải xem ĐẦU TIÊN khi hỏng (ghi chú 01/08: K1T320 và
+     K1T343 hành xử KHÁC nhau trên cùng firmware). Nhưng cột `Model` trong sheet MayChamCong lại
+     hay TRỐNG, nên suốt cả tối 03/08 không phân biệt được đời máy từ web — phải hỏi anh Thắng.
+     Lý do: hàm này CHỈ đọc được JSON. Có đời máy chấm công Hikvision **bỏ qua `?format=json`**
+     và trả về XML với HTTP 200. Parse JSON thất bại -> `return` -> serial + model rỗng, dù ISAPI
+     hoàn toàn sống.
+     Nay: parse JSON không được thì bóc thẳng từ XML. Không thư viện XML nào cần — chỉ cần cắt
+     giữa hai thẻ. */
   StaticJsonDocument<256> filter;
   filter["DeviceInfo"]["serialNumber"] = true;
   filter["DeviceInfo"]["model"]        = true;
   DynamicJsonDocument d(512);
-  if (deserializeJson(d, r, DeserializationOption::Filter(filter))) { Serial.println("[MÃ MÁY] parse deviceInfo lỗi"); return; }
-  String sn = String((const char*)(d["DeviceInfo"]["serialNumber"] | ""));
-  String md = String((const char*)(d["DeviceInfo"]["model"] | ""));
+  String sn, md;
+  if (deserializeJson(d, r, DeserializationOption::Filter(filter))) {
+    Serial.println("[MÃ MÁY] deviceInfo không phải JSON -> thử đọc XML");
+    sn = xmlGiua(r, "serialNumber");
+    md = xmlGiua(r, "model");
+    if (!sn.length() && !md.length()) {
+      String x = r; x.replace("\n", " "); x.replace("\r", " ");
+      Serial.println("[MÃ MÁY] cũng không đọc được XML. 160 byte đầu: " + x.substring(0, 160));
+      return;
+    }
+  } else {
+    sn = String((const char*)(d["DeviceInfo"]["serialNumber"] | ""));
+    md = String((const char*)(d["DeviceInfo"]["model"] | ""));
+  }
   sn.trim(); md.trim();
   if (sn.length()) { if (sn != HIK_SERIAL) prefs.putString("hikSn", sn);    HIK_SERIAL = sn; }
   if (md.length()) { if (md != HIK_MODEL)  prefs.putString("hikModel", md); HIK_MODEL  = md; }
@@ -1895,8 +1946,19 @@ String apDoIpMoCong80(){
   if (g_apDoLuc && millis() - g_apDoLuc < 300000UL) return g_apDoIp;   // nhớ kết quả 5 phút
   g_apDoLuc = millis();
   String out;
+  /* 🔴 03/08 (bản j) — LỖI CỦA BẢN i: dò .2 → .12 mà **BỎ QUÊN chính `hik_ip` (.50)**.
+     Hậu quả thật ở FZ_LTVT: đầu đọc nằm đúng .50 và trả lời cổng 80, nhưng dải dò không có .50
+     nên `apIp` rỗng -> web kết luận "chưa lấy được danh sách máy con để so", tức là NÓI KHÔNG
+     BIẾT trong khi đã có đủ dữ liệu để nói "đúng IP, chỉ sai mật khẩu ISAPI".
+     Nay dò `hik_ip` TRƯỚC — nó là IP quan trọng nhất, và cũng là cái phân biệt "sai IP" với
+     "đúng IP mà ISAPI không trả lời". */
+  {
+    WiFiClient c0;
+    if (c0.connect(hik_ip, 80, 400)) { out = String(hik_ip); c0.stop(); }
+  }
   for (int i = 2; i <= 12; i++) {
     String ip = "192.168.4." + String(i);
+    if (ip == String(hik_ip)) continue;                 // đã dò ở trên
     WiFiClient c;
     if (c.connect(ip.c_str(), 80, 300)) {                              // 300ms/IP -> cả vòng ~3s
       if (out.length()) out += ",";
@@ -1914,8 +1976,12 @@ void hbSend() {
   String url = String(FB_HOST) + "/hb/" + STATION_NAME + ".json" + fbAuthParam();
   /* Kèm CHẨN ĐOÁN ĐẦU ĐỌC. Thêm ~70 byte mỗi 60 giây — không đáng gì so với cái bắt tay TLS
      của chính lượt PUT này, mà đổi lại là khỏi phải ra cửa hàng để biết máy có với tới đầu đọc. */
+  /* `hikOk` = ISAPI CÓ trả lời trong 10 phút gần đây, KHÔNG phải "có serial" (xem ghi chú ở
+     `hikRequest`). Kèm `hikHttp` để web nói đúng nguyên nhân thay vì chỉ "không đọc được". */
+  bool ispiSong = (g_hikOkLuc && (millis() - g_hikOkLuc) < 600000UL);
   String cd = ",\"hikIp\":\"" + String(hik_ip) + "\""
-            + ",\"hikOk\":"   + String(HIK_SERIAL.length() ? 1 : 0)
+            + ",\"hikOk\":"   + String((ispiSong || HIK_SERIAL.length()) ? 1 : 0)
+            + ",\"hikHttp\":" + String(g_hikHttp)
             + ",\"hikSn\":\"" + jsonEscMin_(HIK_SERIAL) + "\""
             + ",\"hikModel\":\"" + jsonEscMin_(HIK_MODEL) + "\""
             + ",\"apSo\":"    + String(WiFi.softAPgetStationNum())
