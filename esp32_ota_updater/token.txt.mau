@@ -1,0 +1,48 @@
+# 04/08/2026 - doi token
+# ^ Dòng '#' ĐẦU TIÊN hiện lên màn máy trạm. Ghi ngày/lý do để nhân viên
+#   biết đang cầm thẻ nào, tránh mang thẻ cũ đi nạp.
+#
+# CÁCH DÙNG
+#   1. Đổi tên file này thành  token.txt  rồi copy vào GỐC thẻ SD của máy trạm.
+#   2. Cắm thẻ, bật máy trạm, mang tới gần máy chấm công.
+#   3. Trên màn: chọn máy trong danh sách -> bấm nút TOKEN (nút giữa).
+#   4. Máy chấm công lưu vào NVS rồi TỰ KHỞI ĐỘNG LẠI. Màn hiện "TOKEN XONG!".
+#      Máy đã nạp có dấu "+tok" trong danh sách -> nạp lần lượt từng máy, không sợ bỏ sót.
+#
+# QUY TẮC
+#   - Mỗi dòng một cặp  khoa=gia_tri . Khoá nào KHÔNG ghi thì máy GIỮ NGUYÊN giá trị cũ.
+#     => Đổi mình token thì chỉ cần đúng một dòng 'token=...', khỏi gõ lại 9 ô.
+#   - Dòng không có dấu '=' được hiểu là token trần (dạng thẻ cũ vẫn chạy).
+#   - Dòng trống và dòng '#' bị bỏ qua.
+#
+# CÁC KHOÁ DÙNG ĐƯỢC (bỏ '#' ở dòng nào cần nạp)
+#
+token=DAN_TOKEN_MOI_VAO_DAY
+#
+# Link web app Apps Script. CHỈ nhận dạng /macros/s/<id>/exec — máy TỪ CHỐI dạng
+# /a/macros/<domain>/... (link Workspace, người ngoài mở không được).
+# Chỉ đổi khi tạo deployment MỚI; deploy bằng  clasp deploy -i <DEPLOYMENT_ID>  thì link KHÔNG đổi.
+#exec=https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec
+#
+# Host Firebase: phải bắt đầu https:// và kết thúc .firebasedatabase.app (dấu '/' cuối tự cắt)
+#fb=https://<ten-du-an>.<vung>.firebasedatabase.app
+#fbsec=DATABASE_SECRET
+#
+# Đầu đọc Hikvision trong LAN
+#hikip=192.168.4.50
+#hikuser=admin
+#hikpass=MAT_KHAU_DAU_DOC
+#
+# Tài khoản trang /update của máy chấm công
+#otauser=admin
+#otapass=MAT_KHAU_UPDATE
+#
+# ⚠️ MỘT CHIỀU — CÂN NHẮC KỸ: đây là mật khẩu WiFi AP của máy chấm công.
+#    Đổi xong, máy trạm dùng mật khẩu biên dịch sẵn (AP_PASS) sẽ KHÔNG nối lại được máy đó
+#    => muốn nạp tiếp phải build lại máy trạm với mật khẩu mới. Phải >= 8 ký tự.
+#appass=MAT_KHAU_AP_MOI
+#
+# NẾU MÁY BÁO "TOKEN TRUOT"
+#   Màn hiện đúng câu máy trả lời. "KHONG luu: ..." nghĩa là một giá trị sai dạng —
+#   máy KHÔNG khởi động lại, sửa dòng đó trong thẻ rồi nạp lại.
+#   Máy trạm cũng tự loại dòng sai dạng ngay khi đọc thẻ và hiện "(loai 1+)" ở màn xác nhận.

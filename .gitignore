@@ -21,6 +21,12 @@ secrets.*
 # PHẢI commit, không thì workflow đỏ ngay bước cp (đã bị một lần ở repo nội bộ).
 !secrets.ci.h
 
+# token.txt là thẻ SD mang token/mật khẩu THẬT đi nạp máy chấm công.
+# Repo này CÔNG KHAI — lọt vào một lần là lộ vĩnh viễn trong lịch sử git.
+token.txt
+# Bản MẪU toàn placeholder thì phải commit, để pull về có khuôn mà copy:
+!token.txt.mau
+
 # Bản build Arduino: rác 42MB, và .bin/.elf/.map chứa bí mật ở dạng chữ đọc được.
 esp32_*/build/
 */build/esp32.esp32.esp32/

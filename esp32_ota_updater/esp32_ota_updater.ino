@@ -36,6 +36,7 @@
    đã vỡ đúng vì lỗi này ('netUp' was not declared in this scope). */
 bool   pushFirmware(const String& ssid);
 bool   pushToken();
+String urlEncode(const String& s);
 bool   updateOne(const String& ssid, const String& bssid, int kenh, bool chiToken = false);
 String cfgChe(const String& v);
 void   scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const String& l3, uint16_t c3);
@@ -90,26 +91,102 @@ long   g_fwSize = 0;
 bool   g_sdOk = false;
 String g_done[40];    int g_doneN = 0;     // BSSID đã nạp FIRMWARE trong phiên (khỏi nạp lại)
 String g_doneTok[40]; int g_doneTokN = 0;  // BSSID đã nạp TOKEN — đếm RIÊNG, đừng lẫn với firmware
-String g_tokMoi  = "";                     // token đọc từ /token.txt
 String g_tokNgay = "";                     // nhãn ngày lấy từ dòng '#' đầu tiên
+String g_theBody = "";                     // thân POST dựng sẵn: "cTok=..&cExec=.."
+int    g_theSo   = 0;                      // số giá trị HỢP LỆ đọc được từ thẻ
+String g_theLoi  = "";                     // dòng nào trong thẻ bị loại, vì sao
+String g_theTraLoi = "";                   // máy trả lời gì (để hiện khi nạp trượt)
+
+/* Khoá trong token.txt  ->  tham số /savecfg của máy chấm công.
+   Chỉ gửi khoá NÀO CÓ trong thẻ; khoá khác trong máy giữ nguyên. */
+struct { const char* khoaThe; const char* argMay; } MAP_THE[] = {
+  {"token",   "cTok"  },   // EMP_TOKEN
+  {"exec",    "cExec" },   // link web app /macros/s/<id>/exec  (may TU CHOI dang /a/macros/)
+  {"fb",      "cFb"   },   // host Firebase
+  {"fbsec",   "cFbSec"},   // Firebase database secret
+  {"hikip",   "cHikIp"},   // IP đầu đọc Hikvision trong LAN, vd 192.168.4.50
+  {"hikuser", "cHikU" }, {"hikpass", "cHikP"},
+  {"otauser", "cOtaU" }, {"otapass", "cOtaP"},
+  {"appass",  "cApP"  }    // ⚠ MỘT CHIỀU: đổi rồi thợ nạp không nối lại máy đó bằng mật khẩu cũ
+};
+
+/* Máy chấm công kiểm 4 khoá này lúc lưu. Nếu MỘT khoá sai, handleSaveCfg() trả 400 và
+   KHÔNG khởi động lại — nhưng các khoá TRƯỚC nó trong vòng lặp thì ĐÃ ghi vào NVS rồi.
+   Tức là thẻ sai 1 dòng => máy ghi nửa vời, màn báo TRƯỢT, nhân viên nạp lại vô ích.
+   Nên chặn NGAY TỪ THẺ: dòng sai bị loại, phần còn lại vẫn nạp được. */
+bool theIpHopLe(const String& v){
+  int so = 0, phan = 0, chuSo = 0;
+  for (unsigned i = 0; i <= v.length(); i++){
+    char c = (i < v.length()) ? v[i] : '.';
+    if (c >= '0' && c <= '9'){ so = so*10 + (c - '0'); chuSo++; if (chuSo > 3 || so > 255) return false; }
+    else if (c == '.'){ if (chuSo == 0) return false; phan++; so = 0; chuSo = 0; }
+    else return false;
+  }
+  return phan == 4;
+}
+/* Trả "" nếu dùng được, ngược lại là lý do NGẮN để in ra màn 320px. */
+String theViSaoLoai(const String& k, String& v){
+  if (k == "exec"){
+    if (v.indexOf("/macros/s/") < 0) return "exec phai dang /macros/s/";
+  } else if (k == "fb"){
+    while (v.endsWith("/")) v.remove(v.length()-1);          // dán từ Console hay dính "/"
+    if (!v.startsWith("https://") || v.indexOf(".firebasedatabase.app") <= 0)
+      return "fb phai https:// va .firebasedatabase.app";
+  } else if (k == "hikip"){
+    if (!theIpHopLe(v)) return "hikip phai dang 192.168.4.50";
+  } else if (k == "appass"){
+    if (v.length() < 8) return "appass phai >= 8 ky tu";
+  }
+  return "";
+}
 bool isDoneTok(const String& s){ for(int i=0;i<g_doneTokN;i++) if(g_doneTok[i]==s) return true; return false; }
 void markDoneTok(const String& s){ if(g_doneTokN < 40) g_doneTok[g_doneTokN++] = s; }
 
-/* Đọc /token.txt trên thẻ SD. Bỏ dòng trống; dòng '#' ĐẦU TIÊN giữ làm nhãn ngày để nhân
-   viên nhìn màn biết đang mang bản token nào; dòng dữ liệu ĐẦU TIÊN là token. */
+/* Đọc /token.txt trên thẻ SD, dựng sẵn thân POST cho /savecfg.
+   - dòng trống bỏ qua; dòng '#' ĐẦU TIÊN giữ làm nhãn ngày để nhân viên nhìn màn là biết
+     đang cầm thẻ nào (tránh cầm thẻ cũ);
+   - dòng "khoa=gia_tri" -> tra MAP_THE; khoá lạ bỏ qua có báo;
+   - dòng KHÔNG có '=' -> hiểu là token trần, ĐÚNG như thẻ dạng cũ, nên thẻ cũ vẫn chạy. */
 void docTokenTuThe(){
-  g_tokMoi = ""; g_tokNgay = "";
+  g_theBody = ""; g_theSo = 0; g_tokNgay = ""; g_theLoi = "";
   if (!g_sdOk) return;
   File f = SD.open(TOK_PATH, FILE_READ);
-  if (!f){ Serial.println("[TOK] The khong co " + String(TOK_PATH)); return; }
+  if (!f){ Serial.println("[THE] Khong co " + String(TOK_PATH)); return; }
+  int dong = 0;
   while (f.available()){
-    String d = f.readStringUntil('\n'); d.trim();
+    String d = f.readStringUntil('\n'); d.trim(); dong++;
     if (!d.length()) continue;
     if (d.startsWith("#")){ if (!g_tokNgay.length()){ g_tokNgay = d.substring(1); g_tokNgay.trim(); } continue; }
-    g_tokMoi = d; break;
+
+    String k, v; int e = d.indexOf('=');
+    if (e < 0){ k = "token"; v = d; }               // dạng CŨ: cả dòng là token -> vẫn chạy
+    else { k = d.substring(0, e); v = d.substring(e + 1); k.trim(); k.toLowerCase(); v.trim(); }
+    if (!v.length()) continue;
+
+    const char* arg = 0;
+    for (unsigned i = 0; i < sizeof(MAP_THE)/sizeof(MAP_THE[0]); i++)
+      if (k == MAP_THE[i].khoaThe){ arg = MAP_THE[i].argMay; break; }
+    if (!arg){
+      Serial.println("[THE] dong " + String(dong) + ": khoa la '" + k + "' -> bo qua");
+      if (!g_theLoi.length()) g_theLoi = "khoa la: " + k;
+      continue;
+    }
+
+    String vsl = theViSaoLoai(k, v);               // v có thể bị sửa (cắt '/' cuối của fb)
+    if (vsl.length()){
+      Serial.println("[THE] dong " + String(dong) + " LOAI: " + vsl);
+      if (!g_theLoi.length()) g_theLoi = vsl;
+      continue;
+    }
+
+    if (g_theBody.length()) g_theBody += "&";
+    g_theBody += String(arg) + "=" + urlEncode(v);
+    g_theSo++;
+    Serial.println("[THE] doc " + k);              // CỐ Ý không in giá trị: đây là bí mật
   }
   f.close();
-  Serial.printf("[TOK] Doc the: %d ky tu | nhan: %s\n", g_tokMoi.length(), g_tokNgay.c_str());
+  Serial.printf("[THE] %d gia tri | nhan: %s | loi: %s\n",
+                g_theSo, g_tokNgay.c_str(), g_theLoi.c_str());
 }
 bool laMayChamCong(const String& ssid){ return ssid == String(AP_TEN) || ssid.startsWith(AP_PREFIX); }
 int    g_okCount = 0, g_failCount = 0;
@@ -344,20 +421,25 @@ String urlEncode(const String& s){
 }
 
 /* Đẩy token vào máy đích qua /savecfg — endpoint đó KHÔNG đòi đăng nhập.
-   CHỈ gửi cTok => mọi khoá khác trong máy GIỮ NGUYÊN.
+   Gửi ĐÚNG những khoá có trong thẻ => khoá khác trong máy GIỮ NGUYÊN.
    Máy tự ESP.restart() sau khi lưu, nên đây phải là việc CUỐI trong một lần nối. */
 bool pushToken(){
-  if (!g_tokMoi.length()){ Serial.println("[TOK] Chua co token — bo qua."); return false; }
-  scr("Dang day token...", TFT_CYAN, "192.168.4.1", TFT_WHITE, g_tokNgay, TFT_DARKGREY);
+  if (!g_theSo){ Serial.println("[THE] Chua co gia tri nao — bo qua."); return false; }
+  scr("Dang day " + String(g_theSo) + " gia tri...", TFT_CYAN, "192.168.4.1", TFT_WHITE,
+      g_tokNgay, TFT_DARKGREY);
 
   HTTPClient h; h.setTimeout(12000);
-  if (!h.begin("http://192.168.4.1/savecfg")){ Serial.println("[TOK] begin() loi"); return false; }
+  if (!h.begin("http://192.168.4.1/savecfg")){ Serial.println("[THE] begin() loi"); return false; }
   h.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  int code = h.POST(String("cTok=") + urlEncode(g_tokMoi));
+  int code = h.POST(g_theBody);
   String tl = (code > 0) ? h.getString() : String("");
   h.end();
 
-  Serial.printf("[TOK] POST /savecfg -> HTTP %d : %s\n", code, tl.c_str());
+  Serial.printf("[THE] POST /savecfg -> HTTP %d : %s\n", code, tl.c_str());
+  g_theTraLoi = (code > 0) ? tl : ("HTTP " + String(code));
+  if (g_theTraLoi.length() > 60) g_theTraLoi = g_theTraLoi.substring(0, 60);
+  /* 200 + "Da luu" là máy đã ghi VÀ đang khởi động lại. 400 = máy loại giá trị và
+     KHÔNG khởi động lại -> coi là trượt, đừng đánh dấu máy này xong. */
   return code == 200 && tl.indexOf("Da luu") >= 0;
 }
 
@@ -862,17 +944,21 @@ void veManXacNhan(){
     tft.drawString(String(g_dsMay[g_chon].rssi) + " dBm", 160, 122, 2);
   }
   // Nhãn token đang mang trên thẻ — nhân viên nhìn là biết nạp bản nào, tránh cầm thẻ cũ
-  if (g_tokMoi.length()){
-    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-    tft.drawString("Token the: " + (g_tokNgay.length() ? g_tokNgay
-                   : (String(g_tokMoi.length()) + " ky tu")), 160, 148, 2);
+  if (g_theSo){
+    String nh = "The: " + String(g_theSo) + " gia tri";
+    if (g_tokNgay.length()) nh += "  " + g_tokNgay;
+    tft.setTextColor(g_theLoi.length() ? colDo() : TFT_YELLOW, TFT_BLACK);
+    if (g_theLoi.length()) nh += "  (loai 1+)";
+    tft.drawString(nh, 160, 148, 2);
   } else {
+    String nh = "The CHUA co token.txt";
+    if (g_theLoi.length()) nh = "The sai: " + g_theLoi;
     tft.setTextColor(colDo(), TFT_BLACK);
-    tft.drawString("The CHUA co token.txt", 160, 148, 2);
+    tft.drawString(nh, 160, 148, 2);
   }
   _nut(O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H, "HUY",   colVien(), TFT_WHITE, 4);
   _nut(O_TOK_X, O_TOK_Y, O_TOK_W, O_TOK_H, "TOKEN",
-       g_tokMoi.length() ? colKhung() : TFT_DARKGREY, TFT_WHITE, 2);
+       g_theSo ? colKhung() : TFT_DARKGREY, TFT_WHITE, 2);
   _nut(O_NAP_X, O_NAP_Y, O_NAP_W, O_NAP_H, "NAP",
        g_fwSize > 0 ? colChay() : TFT_DARKGREY, TFT_WHITE, 4);
 }
@@ -993,14 +1079,28 @@ bool tpXuLy(){
   if (g_man == MAN_XACNHAN){
     if (tpTrong(x, y, O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H)){ g_man = MAN_DS; g_chon = -1; return true; }
     if (tpTrong(x, y, O_TOK_X, O_TOK_Y, O_TOK_W, O_TOK_H)){
-      if (!g_tokMoi.length()){ scrLoi("CHUA CO TOKEN", "Cam the co token.txt", ""); delay(1800); return true; }
+      if (!g_theSo){
+        scrLoi("THE KHONG DUNG DUOC",
+               g_theLoi.length() ? g_theLoi : String("Cam the co token.txt"),
+               "Xem /token.txt tren the");
+        delay(2200); return true;
+      }
       if (g_chon >= 0 && g_chon < g_soMay){
         String bs = g_dsMay[g_chon].bssid;
+        g_theTraLoi = "";                 // XOÁ trước, kẻo nối trượt lại hiện câu của MÁY TRƯỚC
         g_dangLamViec = true;
         bool ok = updateOne(g_dsMay[g_chon].ssid, bs, g_dsMay[g_chon].ch, true);   // true = CHỈ token
         g_dangLamViec = false;
         // markDoneTok, KHÔNG markDone — dấu "da nap" dành cho firmware, lẫn vào là ẩn máy khỏi lần nạp sau
         if (ok){ markDoneTok(bs); g_okCount++; } else g_failCount++;
+        /* Hiện HẲN câu máy trả lời. Máy trả 400 khi loại giá trị, và lúc đó nó KHÔNG khởi
+           động lại — nhân viên phải đọc được lý do, không thì cứ bấm lại mãi. */
+        if (ok) scr("TOKEN XONG!", TFT_GREEN, g_dsMay[g_chon].ssid, TFT_WHITE,
+                    "May dich dang khoi dong lai...", TFT_DARKGREY);
+        else    scrLoi("TOKEN TRUOT",
+                       g_theTraLoi.length() ? g_theTraLoi : String("Khong noi duoc may"),
+                       "Lai gan hon roi thu lai");
+        delay(ok ? 1600 : 2600);
         ghiTinhTrang(ok ? "Token XONG" : "Token LOI");
         if (_cfgStaSsid.length()) noiInternet(8000);
         tpQuetVaoDs();
