@@ -29,6 +29,7 @@
 #include <Preferences.h>        // cấu hình + bí mật giữ trong NVS (không nằm trong .bin)
 #include <ArduinoJson.h>        // đọc latest.json
 #include <Update.h>             // TỰ nâng cấp chính máy trạm (ghi sang phân vùng app còn lại)
+#include "logo_khh.h"           // logo K&H dạng 1 bit (sinh từ file gốc, xem đầu file .h)
 
 /* ⚠️ KHAI BÁO TRƯỚC — PHẢI Ở ĐÂY, ĐỪNG DỜI XUỐNG GIỮA FILE.
    arduino-cli tự sinh prototype cho hàm trong .ino, NHƯNG có sẵn khai báo thì nó THÔI tự sinh.
@@ -267,16 +268,46 @@ void veKhung(){
   tft.drawRoundRect(3, 3, 314, 234, 10, colKhung());
   tft.drawRoundRect(4, 4, 312, 232, 10, colKhung());
 }
+
+/* ---------------- LOGO K&H ----------------
+ * drawBitmap() với bitmap 1 bit KHÔNG tô các bit 0 -> nền/khung vẽ trước vẫn còn.
+ * Nhưng chữ TFT_eSPI vẽ kèm màu nền thì tô ĐẶC cả ô chữ, đục lỗ đen vào logo.
+ * Nên MỌI màn có logo chìm phải vẽ chữ NỀN TRONG SUỐT (setTextColor 1 tham số).
+ * An toàn vì các màn đó đều fillScreen() trước, không có chữ cũ cần xoá.
+ * ⚠️ Màn tiến trình (ttMo/ttPct) CỐ Ý không có logo: ttPct xoá vệt số cũ bằng
+ *    fillRect đen ngay giữa màn, mỗi 1% lại khoét một vệt đen vào logo.
+ */
+uint16_t colVangKH(){ return tft.color565(187, 146, 16); }   // vàng thương hiệu, đo từ file gốc
+uint16_t colChim(){   return tft.color565(58,  44,  4); }    // vàng rất tối = chìm dưới chữ
+
+void veLogoChim(int oy, uint16_t mau){
+  tft.drawBitmap((320 - KHH_LOGO_W) / 2, oy, KHH_LOGO, KHH_LOGO_W, KHH_LOGO_H, mau);
+}
+void veLogoChim(int oy){ veLogoChim(oy, colChim()); }
+void veDauNho(int x, int y){ tft.drawBitmap(x, y, KHH_MARK, KHH_MARK_W, KHH_MARK_H, colVangKH()); }
+
+/* Màn CHÀO lúc bật máy. Không delay() thêm một ly nào: vẽ xong là setup() chạy tiếp
+   (nối WiFi, đọc thẻ...) nên logo hiện suốt mấy giây đó rồi bị màn trạng thái thay. */
+void veManChao(){
+  tft.fillScreen(TFT_BLACK); veKhung();
+  tft.drawBitmap((320 - KHH_LOGO_W) / 2, 10, KHH_LOGO, KHH_LOGO_W, KHH_LOGO_H, colVangKH());
+  tft.drawFastHLine(54, 172, 212, colVangKH());
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(colVangKH());   tft.drawString("K&H COM.,LTD", 160, 192, 4);
+  tft.setTextColor(TFT_DARKGREY);  tft.drawString("MAY TRAM  -  THO NAP", 160, 220, 2);
+}
 void veDemCuoi(){
-  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_DARKGREY);   // trong suốt: đừng đục lỗ vào logo
   tft.drawString("OK: " + String(g_okCount) + "   Loi: " + String(g_failCount), 160, 218, 2);
 }
 
 void scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const String& l3, uint16_t c3){
-  tft.fillScreen(TFT_BLACK); veKhung(); tft.setTextDatum(MC_DATUM);
-  if(l1.length()){ tft.setTextColor(c1, TFT_BLACK); tft.drawString(l1, 160, 60, 4); }
-  if(l2.length()){ tft.setTextColor(c2, TFT_BLACK); tft.drawString(l2, 160, 118, 4); }
-  if(l3.length()){ tft.setTextColor(c3, TFT_BLACK); tft.drawString(l3, 160, 170, 2); }
+  tft.fillScreen(TFT_BLACK); veKhung();
+  veLogoChim(45);                                   // TRƯỚC chữ, để chữ nằm trên logo
+  tft.setTextDatum(MC_DATUM);
+  if(l1.length()){ tft.setTextColor(c1); tft.drawString(l1, 160, 60, 4); }
+  if(l2.length()){ tft.setTextColor(c2); tft.drawString(l2, 160, 118, 4); }
+  if(l3.length()){ tft.setTextColor(c3); tft.drawString(l3, 160, 170, 2); }
   veDemCuoi();
 }
 
@@ -285,10 +316,13 @@ void scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const Str
 void scrLoi(const String& l1, const String& l2, const String& l3){
   tft.fillScreen(TFT_BLACK);
   tft.fillRoundRect(6, 6, 308, 38, 8, colDo());
-  veKhung(); tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(TFT_WHITE, colDo());      tft.drawString(l1, 160, 25, 4);
-  if(l2.length()){ tft.setTextColor(TFT_YELLOW, TFT_BLACK);   tft.drawString(l2, 160, 110, 4); }
-  if(l3.length()){ tft.setTextColor(TFT_DARKGREY, TFT_BLACK); tft.drawString(l3, 160, 165, 2); }
+  veKhung();
+  // Màn LỖI thì chữ quan trọng hơn thương hiệu -> logo mờ hơn hẳn màn thường.
+  veLogoChim(58, tft.color565(40, 30, 0));
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(TFT_WHITE, colDo());      tft.drawString(l1, 160, 25, 4);   // trên dải đỏ: giữ nền đặc
+  if(l2.length()){ tft.setTextColor(TFT_YELLOW);   tft.drawString(l2, 160, 110, 4); }
+  if(l3.length()){ tft.setTextColor(TFT_DARKGREY); tft.drawString(l3, 160, 165, 2); }
   veDemCuoi();
 }
 
@@ -891,11 +925,21 @@ void veManDs(){
   tft.drawString("NAP FIRMWARE", 12, 12, 4);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString(g_fwSize > 0 ? (String(g_fwSize/1024) + " KB") : "CHUA CO FILE", 12, 40, 2);
+  /* Màn danh sách KHÔNG có chỗ cho logo lớn: 4 hàng máy chiếm nguyên y=44..200 hết bề
+     ngang, hai nút chiếm y=202..234. Chỗ duy nhất còn lại là khe giữa tiêu đề và nút QUET.
+     ⚠️ Bề rộng chữ font 4 KHÔNG đoán được từ số ký tự -> ĐO bằng textWidth() rồi mới vẽ.
+        Đoán sai là dấu logo đè lên chữ "NAP FIRMWARE", mà lỗi đó chỉ thấy khi cầm máy thật. */
+  int xHetTd = 12 + tft.textWidth("NAP FIRMWARE", 4);
+  int khe    = O_QUET_X - xHetTd;
+  if (khe >= KHH_MARK_W + 10) veDauNho(xHetTd + (khe - KHH_MARK_W) / 2, 6);
   _nut(O_QUET_X, O_QUET_Y, O_QUET_W, O_QUET_H, "QUET", colVien(), TFT_WHITE, 2);
   if (g_soMay == 0){
-    tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    // Không có hàng máy nào -> giữa màn trống thật, đây là chỗ duy nhất trên màn này
+    // chắc chắn đủ chỗ cho logo lớn. Có máy rồi thì hàng máy phủ kín, không vẽ nữa.
+    veLogoChim(58);
+    tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_YELLOW);
     tft.drawString("Khong thay may nao", 160, 120, 4);
-    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.setTextColor(TFT_DARKGREY);
     tft.drawString("Lai gan may cham cong roi bam QUET", 160, 150, 2);
   } else {
     for (int i = 0; i < g_soMay; i++){
@@ -933,27 +977,28 @@ void veManDs(){
 }
 void veManXacNhan(){
   tft.fillScreen(TFT_BLACK); veKhung();
-  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+  veLogoChim(30);
+  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_ORANGE);
   tft.drawString("CHON VIEC CHO MAY NAY", 160, 34, 2);
   if (g_chon >= 0 && g_chon < g_soMay){
     String bs = g_dsMay[g_chon].bssid;
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);  tft.drawString(bs, 160, 60, 2);
-    tft.setTextColor(colChay(), TFT_BLACK);
+    tft.setTextColor(TFT_WHITE);  tft.drawString(bs, 160, 60, 2);
+    tft.setTextColor(colChay());
     tft.drawString(bs.substring(bs.length() >= 5 ? bs.length()-5 : 0), 160, 94, 4);
-    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.setTextColor(TFT_DARKGREY);
     tft.drawString(String(g_dsMay[g_chon].rssi) + " dBm", 160, 122, 2);
   }
   // Nhãn token đang mang trên thẻ — nhân viên nhìn là biết nạp bản nào, tránh cầm thẻ cũ
   if (g_theSo){
     String nh = "The: " + String(g_theSo) + " gia tri";
     if (g_tokNgay.length()) nh += "  " + g_tokNgay;
-    tft.setTextColor(g_theLoi.length() ? colDo() : TFT_YELLOW, TFT_BLACK);
+    tft.setTextColor(g_theLoi.length() ? colDo() : TFT_YELLOW);
     if (g_theLoi.length()) nh += "  (loai 1+)";
     tft.drawString(nh, 160, 148, 2);
   } else {
     String nh = "The CHUA co token.txt";
     if (g_theLoi.length()) nh = "The sai: " + g_theLoi;
-    tft.setTextColor(colDo(), TFT_BLACK);
+    tft.setTextColor(colDo());
     tft.drawString(nh, 160, 148, 2);
   }
   _nut(O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H, "HUY",   colVien(), TFT_WHITE, 4);
@@ -1353,6 +1398,7 @@ void setup(){
   Serial.begin(115200); delay(400);
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   tft.init(); tft.setRotation(1); tft.fillScreen(TFT_BLACK);
+  veManChao();                        // hiện trong lúc setup() còn đang nối WiFi/đọc thẻ
   Serial.println("\n=== ESP32 THO NAP OTA ===");
 
   prefs.begin("napfw", false);
