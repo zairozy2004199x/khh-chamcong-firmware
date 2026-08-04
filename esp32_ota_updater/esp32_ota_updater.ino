@@ -35,7 +35,8 @@
    Đặt giữa file là mọi chỗ dùng phía TRÊN nó mất khai báo -> build đỏ. Firmware máy chấm công
    đã vỡ đúng vì lỗi này ('netUp' was not declared in this scope). */
 bool   pushFirmware(const String& ssid);
-bool   updateOne(const String& ssid, const String& bssid, int kenh);
+bool   pushToken();
+bool   updateOne(const String& ssid, const String& bssid, int kenh, bool chiToken = false);
 String cfgChe(const String& v);
 void   scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const String& l3, uint16_t c3);
 
@@ -63,6 +64,7 @@ const char*   AP_PASS     = SEC_AP_PASS;   // mật khẩu WiFi AP của máy ch
 const char*   OTA_USER    = SEC_OTA_USER;  // tài khoản trang /update
 const char*   OTA_PASS    = SEC_OTA_PASS;
 const char*   FW_PATH     = "/firmware.bin"; // tên file .bin trên thẻ SD
+const char*   TOK_PATH    = "/token.txt";    // token đẩy vào máy chấm công (dòng '#' = nhãn ngày)
 
 /* Link mặc định -> cắm điện là dùng được, khỏi gõ tay ở portal.
    ⚠️ Tên repo PHẢI KHỚP `FW_REPO_MACDINH` trong ChamCongLive/Mã.js và trong firmware.yml.
@@ -86,7 +88,29 @@ const int     SD_CS       = 5;             // chân CS thẻ SD trên CYD (SPI: 
 TFT_eSPI tft = TFT_eSPI();
 long   g_fwSize = 0;
 bool   g_sdOk = false;
-String g_done[40]; int g_doneN = 0;        // BSSID đã nạp trong phiên (khỏi nạp lại)
+String g_done[40];    int g_doneN = 0;     // BSSID đã nạp FIRMWARE trong phiên (khỏi nạp lại)
+String g_doneTok[40]; int g_doneTokN = 0;  // BSSID đã nạp TOKEN — đếm RIÊNG, đừng lẫn với firmware
+String g_tokMoi  = "";                     // token đọc từ /token.txt
+String g_tokNgay = "";                     // nhãn ngày lấy từ dòng '#' đầu tiên
+bool isDoneTok(const String& s){ for(int i=0;i<g_doneTokN;i++) if(g_doneTok[i]==s) return true; return false; }
+void markDoneTok(const String& s){ if(g_doneTokN < 40) g_doneTok[g_doneTokN++] = s; }
+
+/* Đọc /token.txt trên thẻ SD. Bỏ dòng trống; dòng '#' ĐẦU TIÊN giữ làm nhãn ngày để nhân
+   viên nhìn màn biết đang mang bản token nào; dòng dữ liệu ĐẦU TIÊN là token. */
+void docTokenTuThe(){
+  g_tokMoi = ""; g_tokNgay = "";
+  if (!g_sdOk) return;
+  File f = SD.open(TOK_PATH, FILE_READ);
+  if (!f){ Serial.println("[TOK] The khong co " + String(TOK_PATH)); return; }
+  while (f.available()){
+    String d = f.readStringUntil('\n'); d.trim();
+    if (!d.length()) continue;
+    if (d.startsWith("#")){ if (!g_tokNgay.length()){ g_tokNgay = d.substring(1); g_tokNgay.trim(); } continue; }
+    g_tokMoi = d; break;
+  }
+  f.close();
+  Serial.printf("[TOK] Doc the: %d ky tu | nhan: %s\n", g_tokMoi.length(), g_tokNgay.c_str());
+}
 bool laMayChamCong(const String& ssid){ return ssid == String(AP_TEN) || ssid.startsWith(AP_PREFIX); }
 int    g_okCount = 0, g_failCount = 0;
 
@@ -308,7 +332,36 @@ bool macTuChuoi(const String& s, uint8_t out[6]){
 }
 /* ⚠️ PHẢI nhắm đúng BSSID. Mọi máy giờ cùng tên AP "CHAM_CONG", mà WiFi.begin(ssid,pass) chỉ chọn
    AP nào SÓNG MẠNH NHẤT — đứng giữa hai máy là nạp nhầm sang máy bàn bên mà không hề biết. */
-bool updateOne(const String& ssid, const String& bssid, int kenh){
+/* Mã hoá thân POST dạng form — token có thể chứa ký tự cần escape. */
+String urlEncode(const String& s){
+  String r; char b[4];
+  for (unsigned i = 0; i < s.length(); i++){
+    char c = s[i];
+    if (isalnum((unsigned char)c) || c=='-' || c=='_' || c=='.' || c=='~') r += c;
+    else { sprintf(b, "%%%02X", (unsigned char)c); r += b; }
+  }
+  return r;
+}
+
+/* Đẩy token vào máy đích qua /savecfg — endpoint đó KHÔNG đòi đăng nhập.
+   CHỈ gửi cTok => mọi khoá khác trong máy GIỮ NGUYÊN.
+   Máy tự ESP.restart() sau khi lưu, nên đây phải là việc CUỐI trong một lần nối. */
+bool pushToken(){
+  if (!g_tokMoi.length()){ Serial.println("[TOK] Chua co token — bo qua."); return false; }
+  scr("Dang day token...", TFT_CYAN, "192.168.4.1", TFT_WHITE, g_tokNgay, TFT_DARKGREY);
+
+  HTTPClient h; h.setTimeout(12000);
+  if (!h.begin("http://192.168.4.1/savecfg")){ Serial.println("[TOK] begin() loi"); return false; }
+  h.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int code = h.POST(String("cTok=") + urlEncode(g_tokMoi));
+  String tl = (code > 0) ? h.getString() : String("");
+  h.end();
+
+  Serial.printf("[TOK] POST /savecfg -> HTTP %d : %s\n", code, tl.c_str());
+  return code == 200 && tl.indexOf("Da luu") >= 0;
+}
+
+bool updateOne(const String& ssid, const String& bssid, int kenh, bool chiToken){
   scr("Ket noi...", TFT_CYAN, ssid, TFT_WHITE, bssid, TFT_DARKGREY);
   WiFi.disconnect(true); delay(200);
   uint8_t bs[6];
@@ -319,7 +372,7 @@ bool updateOne(const String& ssid, const String& bssid, int kenh){
   if(WiFi.status() != WL_CONNECTED){ Serial.println("\n[NET] Nối AP thất bại: " + ssid); return false; }
   Serial.println("\n[NET] Đã nối " + ssid + " " + WiFi.BSSIDstr() + " (" + WiFi.localIP().toString() + ")");
   delay(500);
-  bool ok = pushFirmware(ssid);
+  bool ok = chiToken ? pushToken() : pushFirmware(ssid);   // cờ chiToken quyết định gửi gì
   WiFi.disconnect(true);
   return ok;
 }
@@ -713,7 +766,7 @@ bool nutDangNhan(){ return digitalRead(NUT_BOOT) == LOW; }   // BOOT kéo xuốn
 int g_man = MAN_DS;
 
 #define TP_MAX_MAY 4
-struct MayGan { String ssid, bssid; int ch, rssi; bool daNap; };
+struct MayGan { String ssid, bssid; int ch, rssi; bool daNap, daTok; };
 MayGan g_dsMay[TP_MAX_MAY]; int g_soMay = 0;
 int    g_chon = -1;
 
@@ -723,8 +776,9 @@ const int O_HANG_X = 8,   O_HANG_Y = 44,  O_HANG_W = 304, O_HANG_H = 36;
 const int O_HANG_CACH = 40;
 const int O_AUTO_X = 8,   O_AUTO_Y = 202, O_AUTO_W = 150, O_AUTO_H = 32;
 const int O_CAL_X  = 246, O_CAL_Y  = 202, O_CAL_W  = 68,  O_CAL_H  = 32;
-const int O_HUY_X  = 20,  O_HUY_Y  = 170, O_HUY_W  = 130, O_HUY_H  = 44;
-const int O_NAP_X  = 170, O_NAP_Y  = 170, O_NAP_W  = 130, O_NAP_H  = 44;
+const int O_HUY_X  = 10,  O_HUY_Y  = 170, O_HUY_W  = 95,  O_HUY_H  = 44;
+const int O_TOK_X  = 112, O_TOK_Y  = 170, O_TOK_W  = 96,  O_TOK_H  = 44;
+const int O_NAP_X  = 215, O_NAP_Y  = 170, O_NAP_W  = 95,  O_NAP_H  = 44;
 
 static void _nut(int x, int y, int w, int h, const String& chu, uint16_t nen, uint16_t chuMau, int font){
   tft.fillRoundRect(x, y, w, h, 6, nen);
@@ -733,6 +787,7 @@ static void _nut(int x, int y, int w, int h, const String& chu, uint16_t nen, ui
   tft.drawString(chu, x + w/2, y + h/2, font);
 }
 void tpQuetVaoDs(){
+  docTokenTuThe();                 // đổi thẻ khỏi phải khởi động lại: mỗi lần QUÉT là đọc lại
   int n = WiFi.scanNetworks();
   g_soMay = 0;
   for (int i = 0; i < n && g_soMay < TP_MAX_MAY; i++){
@@ -743,6 +798,7 @@ void tpQuetVaoDs(){
     g_dsMay[g_soMay].ch    = WiFi.channel(i);
     g_dsMay[g_soMay].rssi  = WiFi.RSSI(i);
     g_dsMay[g_soMay].daNap = isDone(g_dsMay[g_soMay].bssid);
+    g_dsMay[g_soMay].daTok = isDoneTok(g_dsMay[g_soMay].bssid);
     g_soMay++;
   }
   WiFi.scanDelete();
@@ -777,7 +833,9 @@ void veManDs(){
       tft.drawString(g_dsMay[i].ssid + "  " + bs.substring(bs.length() >= 5 ? bs.length()-5 : 0),
                      O_HANG_X + 10, y + 10, 2);
       tft.setTextDatum(TR_DATUM);
-      tft.drawString(String(g_dsMay[i].rssi) + "dBm" + (g_dsMay[i].daNap ? " da nap" : ""),
+      tft.drawString(String(g_dsMay[i].rssi) + "dBm"
+                     + (g_dsMay[i].daNap ? " da nap" : "")
+                     + (g_dsMay[i].daTok ? " +tok"   : ""),
                      O_HANG_X + O_HANG_W - 10, y + 10, 2);
     }
   }
@@ -794,17 +852,29 @@ void veManDs(){
 void veManXacNhan(){
   tft.fillScreen(TFT_BLACK); veKhung();
   tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-  tft.drawString("NAP CHO MAY NAY?", 160, 40, 4);
+  tft.drawString("CHON VIEC CHO MAY NAY", 160, 34, 2);
   if (g_chon >= 0 && g_chon < g_soMay){
     String bs = g_dsMay[g_chon].bssid;
-    tft.setTextColor(TFT_WHITE, TFT_BLACK);  tft.drawString(bs, 160, 85, 2);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);  tft.drawString(bs, 160, 60, 2);
     tft.setTextColor(colChay(), TFT_BLACK);
-    tft.drawString(bs.substring(bs.length() >= 5 ? bs.length()-5 : 0), 160, 120, 4);
+    tft.drawString(bs.substring(bs.length() >= 5 ? bs.length()-5 : 0), 160, 94, 4);
     tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    tft.drawString(String(g_dsMay[g_chon].rssi) + " dBm", 160, 150, 2);
+    tft.drawString(String(g_dsMay[g_chon].rssi) + " dBm", 160, 122, 2);
   }
-  _nut(O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H, "HUY", colVien(), TFT_WHITE, 4);
-  _nut(O_NAP_X, O_NAP_Y, O_NAP_W, O_NAP_H, "NAP", colChay(), TFT_WHITE, 4);
+  // Nhãn token đang mang trên thẻ — nhân viên nhìn là biết nạp bản nào, tránh cầm thẻ cũ
+  if (g_tokMoi.length()){
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.drawString("Token the: " + (g_tokNgay.length() ? g_tokNgay
+                   : (String(g_tokMoi.length()) + " ky tu")), 160, 148, 2);
+  } else {
+    tft.setTextColor(colDo(), TFT_BLACK);
+    tft.drawString("The CHUA co token.txt", 160, 148, 2);
+  }
+  _nut(O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H, "HUY",   colVien(), TFT_WHITE, 4);
+  _nut(O_TOK_X, O_TOK_Y, O_TOK_W, O_TOK_H, "TOKEN",
+       g_tokMoi.length() ? colKhung() : TFT_DARKGREY, TFT_WHITE, 2);
+  _nut(O_NAP_X, O_NAP_Y, O_NAP_W, O_NAP_H, "NAP",
+       g_fwSize > 0 ? colChay() : TFT_DARKGREY, TFT_WHITE, 4);
 }
 /* Màn CALIB: in SỐ THÔ để hiệu chỉnh được mà không phải nạp lại firmware.
    Không có màn này thì bấm lệch là bó tay, vì cảm ứng không test được bằng máy ảo. */
@@ -922,6 +992,21 @@ bool tpXuLy(){
   }
   if (g_man == MAN_XACNHAN){
     if (tpTrong(x, y, O_HUY_X, O_HUY_Y, O_HUY_W, O_HUY_H)){ g_man = MAN_DS; g_chon = -1; return true; }
+    if (tpTrong(x, y, O_TOK_X, O_TOK_Y, O_TOK_W, O_TOK_H)){
+      if (!g_tokMoi.length()){ scrLoi("CHUA CO TOKEN", "Cam the co token.txt", ""); delay(1800); return true; }
+      if (g_chon >= 0 && g_chon < g_soMay){
+        String bs = g_dsMay[g_chon].bssid;
+        g_dangLamViec = true;
+        bool ok = updateOne(g_dsMay[g_chon].ssid, bs, g_dsMay[g_chon].ch, true);   // true = CHỈ token
+        g_dangLamViec = false;
+        // markDoneTok, KHÔNG markDone — dấu "da nap" dành cho firmware, lẫn vào là ẩn máy khỏi lần nạp sau
+        if (ok){ markDoneTok(bs); g_okCount++; } else g_failCount++;
+        ghiTinhTrang(ok ? "Token XONG" : "Token LOI");
+        if (_cfgStaSsid.length()) noiInternet(8000);
+        tpQuetVaoDs();
+      }
+      g_man = MAN_DS; g_chon = -1; return true;
+    }
     if (tpTrong(x, y, O_NAP_X, O_NAP_Y, O_NAP_W, O_NAP_H)){
       if (g_chon >= 0 && g_chon < g_soMay){
         if (g_fwSize <= 0){ scrLoi("CHUA CO FILE", "Cam the co firmware.bin", ""); delay(1800); }
