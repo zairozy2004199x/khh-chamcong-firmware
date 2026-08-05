@@ -51,7 +51,7 @@ void   scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const S
 #endif
 #include "secrets.h"
 
-#define FW_VERSION "2026-08-01c (nut BOOT lam nut nap: nhan=chon, giu 2s=NAP, giu 5s=tu dong)"
+#define FW_VERSION "2026-08-04a (BOOT: nhan=chon, 2s=NAP firmware, 5s=NAP token, 8s=tu dong)"
 
 /* Máy chính từ 31/07/2026 dùng AP tên CỐ ĐỊNH "CHAM_CONG" (trước là ChamCong-<cơ sở>, mà tên
    cơ sở đổi là Hikvision mất WiFi). Vẫn NHẬN cả tên cũ, không thì không nạp được cho những máy
@@ -847,8 +847,15 @@ bool tpTrong(int x, int y, int ox, int oy, int ow, int oh){
  *  không dùng SPI, không có chân nào phải đoán. Một nút là đủ nếu phân theo THỜI GIAN GIỮ.
  *
  *      Nhấn nhả nhanh  (< 800ms)   -> chọn máy kế tiếp (danh sách rỗng thì QUÉT LẠI)
- *      Giữ 2 giây                  -> NẠP cho máy đang chọn (màn đếm ngược, nhả tay là HUỶ)
- *      Giữ 5 giây                  -> bật/tắt chế độ tự động
+ *      Giữ 2 giây                  -> NẠP FIRMWARE cho máy đang chọn
+ *      Giữ 5 giây                  -> NẠP TOKEN (các giá trị trong /token.txt trên thẻ)
+ *      Giữ 8 giây                  -> bật/tắt chế độ tự động
+ *
+ *  Màn đếm ngược hiện RÕ việc sắp chạy ở từng mốc, nhả tay lúc nào là làm việc đó;
+ *  nhả trong "vùng chết" 0,8–2s thì KHÔNG làm gì.
+ *
+ *  ⚠️ Nút TOKEN trên màn cảm ứng KHÔNG đủ: cảm ứng chết trên bo thật (ghi ngay trên
+ *     đây), nên mọi việc PHẢI bấm được bằng nút BOOT, nếu không là tính năng chết.
  *
  *  ⚠️ GPIO0 là chân quyết định chế độ khởi động. ĐANG CHẠY thì đọc thoải mái, nhưng
  *     ĐỪNG GIỮ NÚT LÚC CẤP ĐIỆN / RESET — giữ lúc đó là bo vào chế độ nạp qua USB và
@@ -856,8 +863,9 @@ bool tpTrong(int x, int y, int ox, int oy, int ow, int oh){
  * ===================================================================================== */
 #define NUT_BOOT 0
 const unsigned long NUT_NGAN_MS = 800;    // dưới mức này = nhấn nhả nhanh
-const unsigned long NUT_NAP_MS  = 2000;   // giữ tới đây = nạp
-const unsigned long NUT_AUTO_MS = 5000;   // giữ tới đây = bật/tắt tự động
+const unsigned long NUT_NAP_MS  = 2000;   // giữ tới đây = nạp FIRMWARE
+const unsigned long NUT_TOK_MS  = 5000;   // giữ tới đây = nạp TOKEN
+const unsigned long NUT_AUTO_MS = 8000;   // giữ tới đây = bật/tắt tự động
 
 /* Phân loại một lần nhấn theo thời gian giữ. TÁCH RIÊNG để test được bằng g++ —
    phần đọc chân thì không test được, nhưng phần QUYẾT ĐỊNH thì phải chắc. */
@@ -865,12 +873,14 @@ const unsigned long NUT_AUTO_MS = 5000;   // giữ tới đây = bật/tắt t�
 #define NUT_NGAN  1
 #define NUT_NAP   2
 #define NUT_AUTO  3
+#define NUT_TOK   4
 int nutPhanLoai(unsigned long giuMs){
   if (giuMs < 40)            return NUT_KHONG;   // nhiễu / dội tiếp xúc
   if (giuMs < NUT_NGAN_MS)   return NUT_NGAN;
   if (giuMs < NUT_NAP_MS)    return NUT_KHONG;   // vùng chết: giữ lỡ cỡ thì KHÔNG làm gì
-  if (giuMs < NUT_AUTO_MS)   return NUT_NAP;
-  return NUT_AUTO;
+  if (giuMs < NUT_TOK_MS)    return NUT_NAP;     // 2–5s  : firmware (GIỮ NGUYÊN thói quen cũ)
+  if (giuMs < NUT_AUTO_MS)   return NUT_TOK;     // 5–8s  : token
+  return NUT_AUTO;                               // >=8s  : đổi chế độ tự động
 }
 void nutKhoiDong(){ pinMode(NUT_BOOT, INPUT_PULLUP); }
 bool nutDangNhan(){ return digitalRead(NUT_BOOT) == LOW; }   // BOOT kéo xuống GND khi nhấn
@@ -972,8 +982,14 @@ void veManDs(){
   tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
   tft.drawString("OK:" + String(g_okCount) + "  Loi:" + String(g_failCount), 200, 218, 2);
   // Hướng dẫn nút BOOT ngay trên màn — không ai phải nhớ, không cần tra tài liệu
-  tft.setTextColor(colChay(), TFT_BLACK);
-  tft.drawString("BOOT: nhan = chon may  |  giu 2s = NAP", 160, 190, 2);
+  /* Cảm ứng chết trên bo thật -> đây là chỗ DUY NHẤT nhân viên đọc được cách bấm, và
+     cũng là chỗ duy nhất biết thẻ có giá trị hay không (màn xác nhận không vào được).
+     ⚠️ PHẢI gói trong MỘT dòng, đúng chỗ cũ: đủ 4 máy thì hàng thứ 4 chiếm y=164..200,
+        thêm dòng thứ hai là đè lên hàng máy. */
+  String nhac = "BOOT: nhan=chon | 2s=FW | 5s=TOKEN";
+  nhac += g_theSo ? ("(" + String(g_theSo) + ")") : "(!)";
+  tft.setTextColor(g_theSo ? colChay() : colDo(), TFT_BLACK);
+  tft.drawString(nhac, 160, 190, 2);
 }
 void veManXacNhan(){
   tft.fillScreen(TFT_BLACK); veKhung();
@@ -1027,25 +1043,43 @@ void veCalibSo(uint16_t rx, uint16_t ry, uint16_t rz, int sx, int sy){
 }
 /* Màn ĐẾM NGƯỢC khi đang giữ nút — để nhả tay kịp nếu bấm nhầm.
    Một nút thì phải có đường huỷ, không thì giữ lỡ tay là nạp sai máy. */
+/* Trong lúc GIỮ nút: nói rõ nhả tay bây giờ thì việc gì chạy. Không có màn này thì
+   một nút ba việc là đánh đố — nhất là khi việc nhầm là ghi đè cấu hình máy chấm công. */
 void veDemGiu(unsigned long giuMs){
-  static int cuoi = -1;
+  static int cuoi = -2;
+  int moc;                                  // 0=chưa tới, 1=firmware, 2=token, 3=tự động
+  if      (giuMs < NUT_NAP_MS)  moc = 0;
+  else if (giuMs < NUT_TOK_MS)  moc = 1;
+  else if (giuMs < NUT_AUTO_MS) moc = 2;
+  else                          moc = 3;
   int con = (int)((NUT_NAP_MS - (giuMs > NUT_NAP_MS ? NUT_NAP_MS : giuMs) + 999) / 1000);
-  bool quaNap = giuMs >= NUT_NAP_MS;
-  int hienThi = quaNap ? -(int)((giuMs - NUT_NAP_MS) / 1000) : con;
-  if (hienThi == cuoi) return;
-  cuoi = hienThi;
+  int khoa = (moc == 0) ? con : (100 + moc);      // chỉ vẽ lại khi ĐỔI, kẻo nháy màn
+  if (khoa == cuoi) return;
+  cuoi = khoa;
+
   tft.fillRect(4, 96, 312, 60, TFT_BLACK);
   tft.setTextDatum(MC_DATUM);
-  if (!quaNap){
+  if (moc == 0){
     tft.setTextColor(TFT_ORANGE, TFT_BLACK);
-    tft.drawString("GIU DE NAP... " + String(con), 160, 112, 4);
+    tft.drawString("GIU... " + String(con), 160, 112, 4);
     tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-    tft.drawString("Nha tay de HUY", 160, 142, 2);
-  } else {
+    tft.drawString("Nha tay bay gio = HUY", 160, 142, 2);
+  } else if (moc == 1){
     tft.setTextColor(colChay(), TFT_BLACK);
-    tft.drawString("NHA TAY DE NAP", 160, 112, 4);
+    tft.drawString("NHA = NAP FIRMWARE", 160, 112, 4);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-    tft.drawString("Giu tiep 5s = doi che do TU DONG", 160, 142, 2);
+    tft.drawString("Giu toi 5s = nap TOKEN", 160, 142, 2);
+  } else if (moc == 2){
+    tft.setTextColor(TFT_CYAN, TFT_BLACK);
+    tft.drawString("NHA = NAP TOKEN", 160, 112, 4);
+    tft.setTextColor(TFT_YELLOW, TFT_BLACK);
+    tft.drawString(g_theSo ? ("The co " + String(g_theSo) + " gia tri  |  8s = tu dong")
+                           : String("THE CHUA CO GIA TRI!"), 160, 142, 2);
+  } else {
+    tft.setTextColor(TFT_ORANGE, TFT_BLACK);
+    tft.drawString("NHA = DOI TU DONG", 160, 112, 4);
+    tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
+    tft.drawString("Bat/tat che do tu dong nap", 160, 142, 2);
   }
 }
 /* Đọc nút BOOT, xử lý theo thời gian giữ. Trả true nếu cần vẽ lại màn. */
@@ -1067,7 +1101,8 @@ bool nutXuLy(){
   unsigned long giu = millis() - batDau;
   int loai = nutPhanLoai(giu);
   Serial.printf("[NUT] giu %lums -> %s\n", giu,
-    loai==NUT_NGAN?"chon may ke tiep":loai==NUT_NAP?"NAP":loai==NUT_AUTO?"doi che do tu dong":"bo qua");
+    loai==NUT_NGAN?"chon may ke tiep":loai==NUT_NAP?"NAP firmware":
+  loai==NUT_TOK?"NAP token":loai==NUT_AUTO?"doi che do tu dong":"bo qua");
 
   if (loai == NUT_KHONG) return true;                 // vẽ lại để xoá phần đếm ngược
   if (loai == NUT_AUTO){
@@ -1081,10 +1116,38 @@ bool nutXuLy(){
     g_chon = (g_chon + 1) % g_soMay;                  // xoay vòng qua các máy
     return true;
   }
-  // NUT_NAP
+  // Từ đây là NUT_NAP hoặc NUT_TOK — cả hai đều cần có máy đang chọn
   if (g_soMay == 0 || g_chon < 0 || g_chon >= g_soMay){
     scrLoi("CHUA CHON MAY", "Nhan BOOT de chon", "Roi giu 2s de nap"); delay(1600); return true;
   }
+
+  if (loai == NUT_TOK){
+    if (!g_theSo){
+      scrLoi("THE KHONG DUNG DUOC",
+             g_theLoi.length() ? g_theLoi : String("Cam the co token.txt"),
+             "Xem /token.txt tren the");
+      delay(2200); return true;
+    }
+    String bs = g_dsMay[g_chon].bssid;
+    g_theTraLoi = "";                       // xoá trước, kẻo nối trượt lại hiện câu của máy trước
+    g_dangLamViec = true;
+    bool ok = updateOne(g_dsMay[g_chon].ssid, bs, g_dsMay[g_chon].ch, true);   // true = CHỈ token
+    g_dangLamViec = false;
+    // markDoneTok chứ KHÔNG markDone — dấu "da nap" dành riêng cho firmware
+    if (ok){ markDoneTok(bs); g_okCount++; } else g_failCount++;
+    if (ok) scr("TOKEN XONG!", TFT_GREEN, g_dsMay[g_chon].ssid, TFT_WHITE,
+                "May dich dang khoi dong lai...", TFT_DARKGREY);
+    else    scrLoi("TOKEN TRUOT",
+                   g_theTraLoi.length() ? g_theTraLoi : String("Khong noi duoc may"),
+                   "Lai gan hon roi thu lai");
+    delay(ok ? 1600 : 2600);
+    ghiTinhTrang(ok ? "Token XONG (nut BOOT)" : "Token LOI (nut BOOT)");
+    tpQuetVaoDs();
+    if (g_chon >= g_soMay) g_chon = g_soMay - 1;
+    return true;
+  }
+
+  // NUT_NAP — firmware
   if (g_fwSize <= 0){ scrLoi("CHUA CO FILE", "Cam the co firmware.bin", ""); delay(1800); return true; }
   g_dangLamViec = true;
   updateOne(g_dsMay[g_chon].ssid, g_dsMay[g_chon].bssid, g_dsMay[g_chon].ch);
@@ -1415,7 +1478,7 @@ void setup(){
   doLaiCoFile();
   tpKhoiDong();                 // cảm ứng: SPI mềm, bus riêng, không tranh với màn/SD
   nutKhoiDong();                // nút BOOT (GPIO0) = đường điều khiển CHÍNH
-  Serial.println("[NUT] BOOT: nhan nha = chon may | giu 2s = NAP | giu 5s = doi che do tu dong");
+  Serial.println("[NUT] BOOT: nhan nha = chon may | 2s = NAP firmware | 5s = NAP token | 8s = doi che do tu dong");
   Serial.println("[NUT] ⚠️ DUNG giu nut luc cap dien/reset — bo se vao che do nap USB.");
   Serial.printf("[SD] sdOk=%d firmware.bin=%ld byte\n", (int)g_sdOk, g_fwSize);
 
