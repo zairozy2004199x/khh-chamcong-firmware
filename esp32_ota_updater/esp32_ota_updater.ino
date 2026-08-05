@@ -150,12 +150,44 @@ void markDoneTok(const String& s){ if(g_doneTokN < 40) g_doneTok[g_doneTokN++] =
    - dòng KHÔNG có '=' -> hiểu là token trần, ĐÚNG như thẻ dạng cũ, nên thẻ cũ vẫn chạy. */
 void docTokenTuThe(){
   g_theBody = ""; g_theSo = 0; g_tokNgay = ""; g_theLoi = "";
-  if (!g_sdOk) return;
-  File f = SD.open(TOK_PATH, FILE_READ);
-  if (!f){ Serial.println("[THE] Khong co " + String(TOK_PATH)); return; }
+  if (!g_sdOk){ g_theLoi = "chua doc duoc the SD"; return; }
+
+  /* Windows hay giấu phần mở rộng -> đổi tên xong thật ra thành token.txt.txt, mà nhân
+     viên nhìn Explorer vẫn thấy "token.txt". Thử luôn mấy tên hay bị nhầm, nhưng BÁO RÕ
+     là đang đọc tên nào để còn sửa cho đúng. */
+  const char* TEN_THU[] = { TOK_PATH, "/token.txt.txt", "/token.TXT", "/TOKEN.TXT" };
+  File f; String tenDung = "";
+  for (unsigned i = 0; i < sizeof(TEN_THU)/sizeof(TEN_THU[0]); i++){
+    f = SD.open(TEN_THU[i], FILE_READ);
+    if (f){ tenDung = TEN_THU[i]; break; }
+  }
+  if (!f){
+    Serial.println("[THE] KHONG THAY " + String(TOK_PATH) + " — thu muc goc cua the co:");
+    File goc = SD.open("/");                       // in ra để soi bằng cáp là biết ngay
+    if (goc){
+      for (File x = goc.openNextFile(); x; x = goc.openNextFile()){
+        Serial.printf("       %s%s  %u byte\n", x.isDirectory() ? "[thu muc] " : "", x.name(), (unsigned)x.size());
+        x.close();
+      }
+      goc.close();
+    }
+    g_theLoi = "khong co /token.txt";
+    return;
+  }
+  if (tenDung != String(TOK_PATH))
+    Serial.println("[THE] ⚠ dang doc '" + tenDung + "' — nen doi ten dung thanh " + String(TOK_PATH));
+
   int dong = 0;
   while (f.available()){
     String d = f.readStringUntil('\n'); d.trim(); dong++;
+    /* Notepad lưu UTF-8 kèm BOM (EF BB BF) ở đầu file. Không cắt thì dòng đầu
+       "token=..." biến thành khoá "\uFEFFtoken", không khớp bảng -> cả thẻ coi như rỗng.
+       Đúng cái bẫy này làm máy báo "khong co gia tri" dù file ghi chuẩn. */
+    if (dong == 1 && d.length() >= 3
+        && (uint8_t)d[0] == 0xEF && (uint8_t)d[1] == 0xBB && (uint8_t)d[2] == 0xBF){
+      d = d.substring(3); d.trim();
+      Serial.println("[THE] da cat BOM UTF-8 o dau file");
+    }
     if (!d.length()) continue;
     if (d.startsWith("#")){ if (!g_tokNgay.length()){ g_tokNgay = d.substring(1); g_tokNgay.trim(); } continue; }
 
@@ -186,6 +218,8 @@ void docTokenTuThe(){
     Serial.println("[THE] doc " + k);              // CỐ Ý không in giá trị: đây là bí mật
   }
   f.close();
+  // Mở được file mà không lấy ra giá trị nào -> nói rõ, đừng để màn báo "chua co token.txt"
+  if (!g_theSo && !g_theLoi.length()) g_theLoi = "file rong, chua co dong nao";
   Serial.printf("[THE] %d gia tri | nhan: %s | loi: %s\n",
                 g_theSo, g_tokNgay.c_str(), g_theLoi.c_str());
 }
@@ -1073,8 +1107,11 @@ void veDemGiu(unsigned long giuMs){
     tft.setTextColor(TFT_CYAN, TFT_BLACK);
     tft.drawString("NHA = NAP TOKEN", 160, 112, 4);
     tft.setTextColor(TFT_YELLOW, TFT_BLACK);
-    tft.drawString(g_theSo ? ("The co " + String(g_theSo) + " gia tri  |  8s = tu dong")
-                           : String("THE CHUA CO GIA TRI!"), 160, 142, 2);
+    String ph;
+    if (g_theSo)              ph = "The co " + String(g_theSo) + " gia tri  |  8s = tu dong";
+    else if (g_theLoi.length()) ph = "THE HONG: " + g_theLoi;   // lý do THẬT, không nói chung chung
+    else                      ph = "THE CHUA CO GIA TRI!";
+    tft.drawString(ph, 160, 142, 2);
   } else {
     tft.setTextColor(TFT_ORANGE, TFT_BLACK);
     tft.drawString("NHA = DOI TU DONG", 160, 112, 4);
