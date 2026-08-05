@@ -189,7 +189,31 @@ void docTokenTuThe(){
       Serial.println("[THE] da cat BOM UTF-8 o dau file");
     }
     if (!d.length()) continue;
-    if (d.startsWith("#")){ if (!g_tokNgay.length()){ g_tokNgay = d.substring(1); g_tokNgay.trim(); } continue; }
+    if (d.startsWith("#")){
+      String ghi = d.substring(1); ghi.trim();
+      /* Dòng '#<khoá>=...' gần như chắc chắn là ghi nhầm: định nạp mà lỡ để dấu '#'.
+         HAI việc phải làm:
+         1) Nói ra, không thì thẻ im lặng rỗng và nhân viên đứng đoán.
+         2) TUYỆT ĐỐI không lấy làm nhãn màn hình — nhãn được IN LÊN MÀN, mà vế phải
+            có thể là token thật. Ghi nhầm một dấu '#' mà lộ token thì quá đắt. */
+      int eq = ghi.indexOf('=');
+      if (eq > 0){
+        String kk = ghi.substring(0, eq); kk.trim(); kk.toLowerCase();
+        for (unsigned i = 0; i < sizeof(MAP_THE)/sizeof(MAP_THE[0]); i++){
+          if (kk == MAP_THE[i].khoaThe){
+            Serial.println("[THE] dong " + String(dong) + ": '#" + kk + "=' la GHI CHU, KHONG nap. Bo dau # neu muon nap.");
+            if (!g_theLoi.length()) g_theLoi = "dong " + kk + " con dau #";
+            eq = -2;                                  // đánh dấu: đã xử lý, đừng dùng làm nhãn
+            break;
+          }
+        }
+      }
+      if (eq != -2 && !g_tokNgay.length()){
+        if (ghi.length() > 26) ghi = ghi.substring(0, 26);   // nhãn dài hơn là tràn mép màn
+        g_tokNgay = ghi;
+      }
+      continue;
+    }
 
     String k, v; int e = d.indexOf('=');
     if (e < 0){ k = "token"; v = d; }               // dạng CŨ: cả dòng là token -> vẫn chạy

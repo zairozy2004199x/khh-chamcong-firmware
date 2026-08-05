@@ -15,9 +15,14 @@
 #   - Dòng không có dấu '=' được hiểu là token trần (dạng thẻ cũ vẫn chạy).
 #   - Dòng trống và dòng '#' bị bỏ qua.
 #
-# CÁC KHOÁ DÙNG ĐƯỢC (bỏ '#' ở dòng nào cần nạp)
+# ⚠️ DẤU '#' ĐẦU DÒNG = GHI CHÚ, MÁY BỎ QUA DÒNG ĐÓ.
+#    Dòng nào muốn NẠP thì phải XOÁ dấu '#' đi. Dòng token dưới đây CỐ Ý không có '#'.
+#    Ghi "#token=..." là thẻ coi như rỗng, máy báo không tìm thấy token.
 #
+# ===== DÒNG DUY NHẤT BẮT BUỘC: đổi token thì chỉ cần dòng này =====
 token=DAN_TOKEN_MOI_VAO_DAY
+#
+# ===== Từ đây trở xuống là TUỲ CHỌN — cần dòng nào thì xoá '#' của dòng đó =====
 #
 # Link web app Apps Script. CHỈ nhận dạng /macros/s/<id>/exec — máy TỪ CHỐI dạng
 # /a/macros/<domain>/... (link Workspace, người ngoài mở không được).
