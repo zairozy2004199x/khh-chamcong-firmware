@@ -34,7 +34,7 @@
    Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-04c (bo han serialNo lam khoa chot - chot theo THOI GIAN cho moi doi may)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-07e (luot bu chi day gio VAO + gio RA - bo het luot o giua)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
@@ -489,6 +489,23 @@ void showIdle() {
   tft.drawRoundRect(3, 3, 314, 234, 10, frame);
   tft.drawRoundRect(4, 4, 312, 232, 10, frame);
 
+  /* Bản firmware ở GÓC TRÊN TRÁI — anh Thắng 07/08/2026: *"bổ sung tên firmware ra màn hình
+     chấm công, bổ sung vào 1 góc"*.
+     Vì sao đáng có: đứng tại cửa hàng muốn biết máy này đã lên bản mới chưa thì trước đây phải
+     mở web tra heartbeat, mà máy CHƯA GÁN thì web lại không hiện gì. Nhìn màn là xong.
+     ⚠️ Chỉ lấy phần MÃ NGÀY (tới dấu cách đầu tiên): FW_VERSION có kèm câu mô tả dài, in cả
+        chuỗi thì tràn ngang màn và đè lên tiêu đề.
+     ⚠️ Font 1 (cao 8px) đặt ở y=6 -> chiếm y 6..14, còn tiêu đề font 4 canh giữa y=28 chiếm
+        y 15..41. Không đụng nhau. Đổi font/toạ độ thì phải tính lại chỗ này. */
+  {
+    String _fw = String(FW_VERSION);
+    int _sp = _fw.indexOf(' ');
+    if (_sp > 0) _fw = _fw.substring(0, _sp);
+    tft.setTextDatum(TL_DATUM);
+    tft.setTextColor(tft.color565(110, 130, 150), COL_BG);
+    tft.drawString("fw " + _fw, 10, 6, 1);
+  }
+
   // Tiêu đề
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(frame, COL_BG);
@@ -935,9 +952,13 @@ int hikSend_(HTTPClient& http, const String& method, const String& payload) {
  *      401  -> tới được đầu đọc, SAI MẬT KHẨU ISAPI
  *      ≤ 0  -> không với tới (sai IP / chưa nối AP / đầu đọc tắt)
  * =========================================================================== */
-/* ---- Vòng nhớ 12 lượt vừa đẩy: chặn đẩy lại vô hạn khi chốt theo THỜI GIAN ----
+/* ---- Vòng nhớ các lượt ĐÃ XỬ LÝ: chặn đẩy lại vô hạn khi chốt theo THỜI GIAN ----
    Chốt bằng `>=` để không mất người quẹt cùng giây, nên cùng một lượt sẽ xuất hiện lại ở vòng poll
-   sau. Nhớ 12 khoá "mã|giờ" gần nhất là đủ: mỗi vòng chỉ có vài lượt trong khoảng hẹp.
+   sau. Nhớ DA_DAY_TOI_DA khoá "mã|giờ" gần nhất là đủ: mỗi vòng chỉ có vài lượt trong khoảng hẹp.
+   "Đã xử lý" gồm cả lượt đã đẩy, lượt rác và lượt quẹt trùng — mọi thứ đã có kết luận thì đừng
+   xét lại. Chỉ lượt ĐẨY LỖI là KHÔNG ghi, để vòng sau thử lại (không mất công nhân viên).
+   ⚠️ Số lượng khai ở `#define` ngay dưới — ĐỪNG viết con số vào chú thích, sửa define mà quên
+      chú thích là bẫy cho người đọc sau (đã hụt một lần: chú thích ghi 12, thực tế 34).
    ⚠️ Nhớ trong RAM, mất khi khởi động lại — không sao, lúc đó máy chủ vẫn bỏ giờ đã ghi. */
 /* Mã NV của một bản ghi AcsEvent — thẻ thay mã khi máy chỉ quẹt thẻ. Tách ra hàm vì cần dùng
    ở bộ lọc (trước khi bóc các trường khác) và ở phần đẩy. */
@@ -1894,10 +1915,125 @@ void showBackfillProgress(int done) {
   tft.setTextColor(TFT_DARKGREY, TFT_BLACK); tft.drawString("Vui long doi...", 160, 185, 2);
 }
 
-// Bù lịch sử theo khoảng thời gian (phân trang toàn bộ log Hikvision, đẩy từng lượt).
+/* ===========================================================================
+ *  DẤU THỜI GIAN CỦA ĐẦU ĐỌC — CẮT MÚI GIỜ, KHÔNG ĐOÁN MÚI GIỜ NÀO
+ * ---------------------------------------------------------------------------
+ *  🔴 07/08/2026 — máy MỚI của anh Thắng in ra log khởi động:
+ *        [KHỞI ĐỘNG] Bù dữ liệu bỏ lỡ từ 2026-08-07 17:06:09+08:00 ...
+ *  Cái đuôi `+08:00` KHÔNG được phép có mặt trong `lastSyncTime`. Nó lọt vào vì hai chỗ bóc giờ
+ *  đều viết CỨNG `eventTime.replace("+07:00", "")` — đầu đọc Hikvision MỚI XUẤT XƯỞNG mặc định
+ *  múi giờ GMT+08 (Trung Quốc), nên chuỗi không khớp và cái đuôi ở lại. Hậu quả:
+ *    · `lastSyncTime` = "2026-08-07 17:06:09+08:00", rồi lượt bù nối thêm "+07:00" nữa thành
+ *      "2026-08-07T17:06:09+08:00+07:00" — mốc HỎNG gửi xuống đầu đọc;
+ *    · lượt chấm công đẩy lên máy chủ mang nguyên đuôi đó -> tách ngày/giờ sai.
+ *  Cắt cứng 19 ký tự đầu thì múi giờ nào cũng sạch, khỏi phải liệt kê.
+ *
+ *  ⚠️ Cắt đuôi chỉ làm chuỗi ĐÚNG ĐỊNH DẠNG — nó KHÔNG sửa được giờ sai. Đầu đọc để GMT+08 thì
+ *     giờ nó ghi vẫn SỚM HƠN giờ Việt Nam 1 tiếng, và đó là tiền lương. Nên nhớ lại múi giờ đọc
+ *     được và đẩy lên heartbeat để web kêu lên, thay vì lặng lẽ ghi sai cả tháng.
+ * =========================================================================== */
+String g_tzDoc = "";                 // múi giờ thấy trong lượt gần nhất ("+07:00" / "+08:00" / "")
+String chuanGioDauDoc(String t){
+  t.replace("T", " ");
+  if (t.length() > 19){ g_tzDoc = t.substring(19); t = t.substring(0, 19); }
+  else if (t.length() == 19) g_tzDoc = "";        // đầu đọc không kèm múi giờ
+  return t;
+}
+
+/* ===========================================================================
+ *  DỪNG ĐƯỢC LƯỢT BÙ ĐANG CHẠY  —  /stop/<trạm>
+ * ---------------------------------------------------------------------------
+ *  🔴 07/08/2026, anh Thắng: *"Đồng bộ anh thấy vẫn chạy, dù ngắt nó vẫn chạy ngầm, không ngăn
+ *  cản được, dẫn đến tình trạng nghẽn"*.
+ *
+ *  Anh nói đúng, và trước bản này thì KHÔNG CÓ CÁCH NÀO ngắt. Ba lý do cộng lại:
+ *    · lệnh tải lại bị XOÁ KHỎI HÀNG ĐỢI TRƯỚC khi chạy (dòng ~1825) — cố ý, để máy khởi động
+ *      lại giữa chừng không chạy lại từ đầu. Nhưng hệ quả là xoá lệnh trên web sau đó **không
+ *      còn tác dụng gì**: máy đã cầm lệnh trong tay rồi;
+ *    · `backfillRange` là vòng CHẶN, chạy tới khi hết trang. Trong lúc đó `loop()` KHÔNG quay →
+ *      máy không hỏi hàng đợi, không gửi heartbeat. Mọi lệnh gửi xuống lúc đó nằm chết ở đầu
+ *      hàng, web đọc ra là "ĐƠ" — chính cái NGHẼN anh thấy;
+ *    · lượt bù lúc khởi động và lượt bù ĐỊNH KỲ 30 phút KHÔNG có lệnh nào trong hàng đợi cả —
+ *      web không có gì để mà xoá.
+ *
+ *  Nay: mỗi TRANG (20 lượt) máy liếc `/stop/<trạm>`; có cờ thì dừng ngay và tự xoá cờ. Web đặt
+ *  cờ = ngắt được cả ba đường trên, kể cả lượt chạy ngầm.
+ *  ⚠️ Cờ do CẢ HAI bên xoá (máy xoá khi dừng, web xoá mỗi lần ra lệnh tải lại mới). Chỉ một bên
+ *     xoá là lỡ sót một lần thì mọi lượt bù sau đều chết câm — đúng kiểu hỏng im lặng tệ nhất.
+ *  ⚠️ Liếc theo TRANG chứ không theo từng lượt: mỗi trang vốn đã là 20 lượt HTTP POST, thêm 1
+ *     lượt GET nhỏ là ~5% — còn hỏi từng lượt thì gấp đôi lưu lượng 4G.
+ * =========================================================================== */
+/* Khai trước: `hbSend` định nghĩa ở DƯỚI `backfillRange` mà vòng bù phải gọi nó. Arduino tự sinh
+   prototype được, nhưng dựa vào thứ đó là mỗi lần đổi chỗ hàm lại hồi hộp — khai thẳng cho chắc. */
+void hbSend();
+bool bfXinDung(){
+  String url = String(FB_HOST) + "/stop/" + STATION_NAME + ".json" + fbAuthParam();
+  String b = httpGetBody(url); b.trim();
+  // "" = không đọc được (mất mạng/lỗi) -> KHÔNG coi là xin dừng. Đọc hỏng mà dừng bù là mất dữ liệu.
+  return (b.length() > 0 && b != "null");
+}
+void bfXoaCoDung(){
+  String url = String(FB_HOST) + "/stop/" + STATION_NAME + ".json" + fbAuthParam();
+  if (USE_4G) net4gHttpDelete(url);
+  else { WiFiClientSecure c; c.setInsecure(); HTTPClient h; h.begin(c, url); h.sendRequest("DELETE"); h.end(); }
+}
+/* Máy CÓ ĐANG chạy lượt bù hay không — heartbeat mang lên để web phân biệt "đang bận" với "chết".
+   Không có cái này thì web nhìn hàng đợi đứng im là kết luận ĐƠ, trong khi máy đang làm việc tử tế. */
+bool g_dangBu = false; int g_buDaDay = 0; String g_buNgay = "";
+
+/* ===========================================================================
+ *  LƯỢT BÙ CHỈ ĐẨY GIỜ VÀO + GIỜ RA  —  bỏ hết lượt ở giữa
+ * ---------------------------------------------------------------------------
+ *  🔴 07/08/2026, anh Thắng: *"chỉ đọc giờ vào và giờ ra, tránh đọc lục tung, vì máy chấm công
+ *  nhận diện liên tục nên sinh ra rất nhiều giờ… tránh nghẽn cổ chai"*.
+ *
+ *  Đúng, và quan trọng hơn: đẩy lượt ở giữa là PHÍ HOÀN TOÀN, không mất gì khi bỏ. Máy chủ lưu
+ *  mỗi người mỗi ngày đúng MỘT CẶP [sớm nhất, muộn nhất] và quy tắc chỉ NỚI RỘNG, không bao giờ
+ *  thu hẹp — lượt nằm giữa bị trả về `'giua'` và KHÔNG ghi gì cả (Mã.js `_ghiGioVaoRa`). Nên
+ *  gom ở đây rồi chỉ đẩy 2 lượt/người/ngày là RA ĐÚNG KẾT QUẢ CŨ, chỉ khác là nhanh hơn nhiều lần.
+ *
+ *  Đây cũng là chỗ chữa gốc của cái nghẽn: mỗi lượt đẩy là một HTTP POST + delay(50), mà đầu đọc
+ *  nhận diện khuôn mặt liên tục nên một người có thể sinh vài chục lượt/ngày. Bỏ lượt giữa là
+ *  giảm số POST xuống đúng bằng 2 × số người.
+ *
+ *  ⚠️ Mảng để STATIC, KHÔNG để trên ngăn xếp: 80 phần tử × 83 byte ≈ 6,6 KB, đủ sức thổi bay
+ *     ngăn xếp của tác vụ loop().
+ *  ⚠️ Quá sức chứa thì KHÔNG được lặng lẽ bỏ: đánh dấu tràn rồi đẩy thẳng lượt đó như cách cũ.
+ *     Thà chậm còn hơn mất một lượt chấm công.
+ *  ⚠️ Dùng char cố định chứ không String: 320 đối tượng String là băm nhỏ đống nhớ, mà máy này
+ *     vốn đã phải canh RAM cho ảnh khuôn mặt.
+ * =========================================================================== */
+#define BF_GOM_MAX 80
+struct BfMoc { char emp[20]; char ten[34]; char ngay[11]; char som[9]; char muon[9]; };
+static BfMoc g_bfGom[BF_GOM_MAX];
+static int   g_bfGomN = 0;
+static bool  g_bfGomTran = false;
+static void bfGomXoa(){ g_bfGomN = 0; g_bfGomTran = false; }
+/* Trả true nếu đã gom được (khỏi đẩy ngay); false = hết chỗ, người gọi phải tự đẩy. */
+static bool bfGomThem(const String& emp, const String& ten, const String& ngay, const String& gio){
+  for (int i = 0; i < g_bfGomN; i++){
+    if (strcmp(g_bfGom[i].emp, emp.c_str()) == 0 && strcmp(g_bfGom[i].ngay, ngay.c_str()) == 0){
+      if (gio < String(g_bfGom[i].som))  strlcpy(g_bfGom[i].som,  gio.c_str(), sizeof(g_bfGom[i].som));
+      if (gio > String(g_bfGom[i].muon)) strlcpy(g_bfGom[i].muon, gio.c_str(), sizeof(g_bfGom[i].muon));
+      return true;
+    }
+  }
+  if (g_bfGomN >= BF_GOM_MAX){ g_bfGomTran = true; return false; }
+  BfMoc& m = g_bfGom[g_bfGomN++];
+  strlcpy(m.emp,  emp.c_str(),  sizeof(m.emp));
+  strlcpy(m.ten,  ten.c_str(),  sizeof(m.ten));
+  strlcpy(m.ngay, ngay.c_str(), sizeof(m.ngay));
+  strlcpy(m.som,  gio.c_str(),  sizeof(m.som));
+  strlcpy(m.muon, gio.c_str(),  sizeof(m.muon));
+  return true;
+}
+
+// Bù lịch sử theo khoảng thời gian (phân trang toàn bộ log Hikvision).
 // Google TỰ chống trùng (bỏ giờ đã ghi) nên chạy lại an toàn. 4G: pushEventToGoogle tự gửi slim (không ảnh).
 int backfillRange(String startISO, String endISO, bool withImage, String empFilter) {
   int pos = 0, pushed = 0, seen = 0; const int PAGE = 20;
+  bfGomXoa();
+  g_dangBu = true; g_buDaDay = 0; g_buNgay = startISO.substring(0, 10);
   StaticJsonDocument<512> filter;
   JsonObject fi = filter["AcsEvent"]["InfoList"].createNestedObject();
   fi["serialNo"] = true; fi["time"] = true; fi["employeeNoString"] = true;
@@ -1910,6 +2046,15 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
   const String sidBu = acsSearchId();
   for (int guard = 0; guard < 1000; guard++) {
     if (!netUp()) { Serial.println("[BÙ] Mất mạng, dừng."); break; }
+    /* Web bấm DỪNG -> thoát ngay tại đây. Đặt TRƯỚC lệnh hỏi đầu đọc: dừng rồi thì đừng tốn thêm
+       một vòng ISAPI + 20 lượt POST nữa. */
+    if (bfXinDung()) {
+      Serial.println("[BÙ] Web xin DỪNG -> thoát (đã đẩy " + String(pushed) + " lượt).");
+      bfXoaCoDung(); break;
+    }
+    /* Heartbeat NGAY TRONG vòng bù. Trước đây `loop()` đứng im suốt lượt bù nên máy đang chạy
+       tử tế mà web đọc ra "mất tín hiệu / hàng đợi ĐƠ" — anh Thắng thấy nghẽn là ở đây. */
+    if (millis() - lastHbMs >= HB_INTERVAL_MS) { lastHbMs = millis(); hbSend(); }
     String payload = "{\"AcsEventCond\":{\"searchID\":\"" + sidBu + "\",\"searchResultPosition\":" + String(pos) +
                      ",\"maxResults\":" + String(PAGE) + ",\"major\":0,\"minor\":0" +
                      ",\"startTime\":\"" + startISO + "\",\"endTime\":\"" + endISO + "\"}}";
@@ -1926,8 +2071,14 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
       if (emp.length() == 0) emp = card;
       if (emp.length() == 0 && name.length() == 0) continue;
       if (empFilter.length() > 0 && emp != empFilter) continue;
-      String eventTime = e["time"].as<String>();
-      eventTime.replace("T", " "); eventTime.replace("+07:00", "");
+      String eventTime = chuanGioDauDoc(e["time"].as<String>());
+      if (eventTime.length() < 19) continue;                 // giờ không đọc được -> bỏ, đừng gom rác
+      /* GOM, KHÔNG ĐẨY. Chỉ đẩy ở vòng dưới, mỗi người mỗi ngày đúng 2 lượt.
+         Hết chỗ gom thì đẩy thẳng như cách cũ — thà chậm còn hơn mất một lượt. */
+      if (bfGomThem(emp, name, eventTime.substring(0, 10), eventTime.substring(11, 19))) {
+        if (seen % 20 == 0) showBackfillProgress(pushed);
+        continue;
+      }
       char* imgB64 = NULL; int imgB64Len = 0;
       if (!USE_4G && withImage && pic.length() > 5) {   // 4G: bỏ ảnh (pushEventToGoogle cũng tự bỏ)
         uint8_t* jpeg = NULL; int jl = fetchImageRaw(pic, &jpeg);
@@ -1935,7 +2086,7 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
         if (jpeg) free(jpeg);
       }
       bool ok = pushEventToGoogle(emp, name, eventTime, imgB64, imgB64Len); imgB64 = NULL;
-      if (ok) { pushed++; rememberSync(eventTime); }
+      if (ok) { pushed++; rememberSync(eventTime); g_buDaDay = pushed; }
       if (seen % 3 == 0) showBackfillProgress(pushed);
       delay(50);
     }
@@ -1946,7 +2097,32 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
     if (pageCount == 0) break;
     pos += (numMatches > 0 ? numMatches : pageCount);
   }
+
+  /* ---- Đẩy phần đã gom: mỗi người mỗi ngày ĐÚNG giờ VÀO + giờ RA ----
+     Vào == ra (cả ngày chỉ quẹt 1 lần) thì chỉ đẩy MỘT lượt, đừng đẩy hai lần cùng một giờ. */
+  Serial.printf("[BÙ] Gom xong: %d người-ngày từ %d lượt quét -> chỉ đẩy giờ VÀO + giờ RA.\n",
+                g_bfGomN, seen);
+  if (g_bfGomTran)
+    Serial.println("[BÙ] ⚠️ Vượt sức chứa bảng gom — phần dư đã đẩy thẳng từng lượt (chậm nhưng không sót).");
+  for (int i = 0; i < g_bfGomN; i++){
+    if (!netUp()) { Serial.println("[BÙ] Mất mạng khi đang đẩy phần gom."); break; }
+    if (bfXinDung()) { Serial.println("[BÙ] Web xin DỪNG giữa lúc đẩy."); bfXoaCoDung(); break; }
+    if (millis() - lastHbMs >= HB_INTERVAL_MS) { lastHbMs = millis(); hbSend(); }
+    String ngay = String(g_bfGom[i].ngay), emp = String(g_bfGom[i].emp), ten = String(g_bfGom[i].ten);
+    String gio[2] = { String(g_bfGom[i].som), String(g_bfGom[i].muon) };
+    int soGio = (gio[0] == gio[1]) ? 1 : 2;
+    for (int k = 0; k < soGio; k++){
+      String t = ngay + " " + gio[k];
+      if (pushEventToGoogle(emp, ten, t, NULL, 0)) { pushed++; rememberSync(t); g_buDaDay = pushed; }
+      delay(50);
+    }
+    showBackfillProgress(pushed);
+  }
   Serial.printf("[BÙ] Hoàn tất: quét %d, đẩy %d lượt.\n", seen, pushed);
+  g_dangBu = false;
+  /* Gửi heartbeat NGAY khi xong: web thấy `dangBu` tắt là biết máy rảnh, khỏi chờ hết chu kỳ 60s
+     mới dám kết luận. */
+  lastHbMs = millis(); hbSend();
   return pushed;
 }
 
@@ -2030,7 +2206,29 @@ void hbSend() {
             + ",\"soChot\":\"" + String(g_soChot) + "\""
             + ",\"soPhut\":"  + String(g_soLuc ? (long)((millis() - g_soLuc) / 60000UL) : -1)
             + ",\"apSo\":"    + String(WiFi.softAPgetStationNum())
-            + ",\"apIp\":\""  + apDoIpMoCong80() + "\"";
+            + ",\"apIp\":\""  + apDoIpMoCong80() + "\""
+            /* Đang chạy lượt bù hay không. Web CẦN số này để đừng báo "hàng đợi ĐƠ" trong khi
+               máy đang làm việc — lúc bù thì `loop()` không quay nên hàng đợi đứng im là ĐÚNG. */
+            + ",\"dangBu\":" + String(g_dangBu ? 1 : 0)
+            + ",\"buDaDay\":" + String(g_buDaDay)
+            + ",\"buNgay\":\"" + jsonEscMin_(g_buNgay) + "\""
+            /* 🔴 07/08/2026 — MAC trong heartbeat. Máy CHƯA GÁN cửa hàng thì tên trạm là
+               "CHUA_DAT_TEN", nên heartbeat của MỌI máy chưa gán rơi chung vào /hb/CHUA_DAT_TEN
+               và đè lên nhau — web không tài nào biết nhịp đó là của máy nào, đành báo "máy chưa
+               gửi heartbeat" cho tất cả. Anh Thắng: *"thêm thiết bị mới, giờ nó không hiện thiết
+               bị online"*. MAC là thứ duy nhất phân biệt được máy trước khi nó có tên. */
+            + ",\"mac\":\"" + jsonEscMin_(macBo()) + "\""
+            /* 🔴 07/08/2026, anh Thắng: *"máy lấy địa chỉ mac sai 22:F8 nhưng trên máy trạm thấy
+               là 22:F9"*. KHÔNG bên nào sai — MỘT con ESP32 có NHIỀU địa chỉ MAC sinh từ một MAC
+               gốc: WiFi STA = gốc, softAP = gốc **+1** ở nhóm cuối, Bluetooth = +2.
+                 · máy chấm công khai `macBo()` = MAC **STA** -> F8, đó là cái nằm trong Sheet;
+                 · máy trạm dò WiFi nên chỉ thấy **BSSID** = MAC của **AP** -> F9.
+               Máy trạm không có cách nào biết MAC STA (nó chỉ quét sóng). Nên chính máy phải khai
+               LUÔN CẢ HAI, để web đối chiếu được với cái anh đang cầm trên tay. */
+            + ",\"macAp\":\"" + jsonEscMin_(WiFi.softAPmacAddress()) + "\""
+            /* Múi giờ ĐẦU ĐỌC đang đóng vào lượt chấm công. Đầu đọc mới xuất xưởng để GMT+08 thì
+               mọi lượt ghi SỚM HƠN 1 tiếng — sai lương mà không ai thấy. Đẩy lên để web kêu. */
+            + ",\"tzDoc\":\"" + jsonEscMin_(g_tzDoc) + "\"";
   // ⚠️ PHẢI escape: FW_VERSION là chuỗi người viết tay, có 1 dấu nháy là JSON hỏng và
   //    Firebase trả 400 — mất heartbeat MÀ KHÔNG mất chấm công, nên rất dễ tưởng máy chết mạng.
   fbHttpPut(url, "{\"t\":{\".sv\":\"timestamp\"},\"fw\":\"" + jsonEscMin_(String(FW_VERSION)) + "\"" + cd + "}");
@@ -2207,20 +2405,25 @@ void checkNewAcsEvents() {
    *
    *      lượt trực tiếp CHỐT THEO `serialNo`   ·   lượt bù KHÔNG dùng `serialNo` chút nào
    *
-   *  Đầu đọc nào KHÔNG trả trường `serialNo` (hoặc trả 0) thì `sn = 0` cho mọi lượt:
-   *    · vòng đầu: `lastSerialNo == -1` -> nhận baseline, `maxSerial = 0` -> lưu `lastSerialNo = 0`;
-   *    · mọi vòng sau: `sn (0) <= lastSerialNo (0)` -> **BỎ QUA HẾT, MÃI MÃI**.
-   *  Nên lượt trực tiếp KHÔNG BAO GIỜ đẩy được lượt nào, mà cũng KHÔNG in [LƯỢT MỚI] — khớp đúng
-   *  câu "trên ESP cũng không nhận". Còn lượt bù bỏ qua `serialNo` nên vẫn lấy đủ -> rút điện gắn
-   *  lại là lên. K1T343 trả `serialNo` nên chạy bình thường: đây chính là "hai đời máy không hành
-   *  xử giống nhau" mà ghi chú 01/08 nói tới, nay chỉ được ra ĐÚNG một trường JSON.
+   *  ⚠️⚠️ BẢN 04b ĐOÁN SAI Ở ĐÂY — GIỮ LẠI LÀM BÀI HỌC, ĐỪNG TIN LẠI:
+   *  04b đoán "K1T320 không trả `serialNo` nên `sn = 0` -> bỏ qua mãi mãi", rồi chỉ vá riêng
+   *  nhánh không-serialNo. Số đo hiện trường bác bỏ: máy báo **`chốt theo=serial`**, tức đầu đọc
+   *  CÓ trả `serialNo`, nên nhánh vá đó chưa từng chạy — nạp xong vẫn không lên.
    *
-   *  Chữa: đầu đọc nào không cho `serialNo` thì **chốt theo THỜI GIAN** — đúng cách lượt bù vẫn
-   *  làm, và máy chủ vốn đã tự bỏ giờ đã ghi (nên chạy lại bù không nhân đôi).
-   *  ⚠️ Đầu đọc CÓ `serialNo` thì đi ĐÚNG nhánh cũ, không đổi một dòng nào — K1T343 đang chạy
-   *     tốt, không được mang nó ra làm thí nghiệm.
+   *  SỰ THẬT (04c): `tổng=5 · trả về=5 · chốt theo=serial` -> ISAPI trả 2xx, về đủ 5 dòng, rồi
+   *  5 dòng đó bị chính bộ lọc `sn <= lastSerialNo` ném đi. Vậy `serialNo` của đời máy này KHÔNG
+   *  phải mã lượt toàn cục tăng dần — gần như chắc là **thứ tự trong kết quả tìm** (1..N, mỗi lần
+   *  tìm lại đánh số lại từ 1). Sau lần đồng bộ đầu, `lastSerialNo` luôn ≥ số của mọi dòng mới.
+   *  Lượt bù không xét `serialNo` nên vẫn lấy đủ -> rút điện gắn lại là lên, khớp đúng anh thấy.
+   *
+   *  Chữa (04c): **bỏ hẳn `serialNo` làm khoá chốt, chốt theo THỜI GIAN cho MỌI đời máy** — đúng
+   *  cơ chế lượt bù vẫn dùng, và lượt bù chạy được trên cả hai đời máy. Máy chủ vốn tự bỏ giờ đã
+   *  ghi nên đẩy trùng vô hại.
+   *  ⚠️ ĐỪNG dựng lại hai nhánh riêng cho hai đời máy: chính việc đó sinh ra lỗi này. Một trường
+   *     JSON mang nghĩa khác nhau giữa hai đời máy thì không có cách "sửa cho đúng" — phải ngừng
+   *     dùng nó. `coSerial` từ đây chỉ để BÁO lên web, không quyết định gì.
    * =========================================================================== */
-  long adv = lastSerialNo, maxSerial = lastSerialNo; bool stop = false;
+  long maxSerial = lastSerialNo; bool stop = false;   // maxSerial chỉ để ghi lại, KHÔNG dùng để lọc
   bool coSerial = false;         // đầu đọc này có cho serialNo dùng được không
   String tMoiNhat = "";          // mốc mới nhất thấy trong trang (dùng khi KHÔNG có serialNo)
   /* 🔴 CHỐT MỐC ĐẦU VÒNG, không so với `lastSyncTime` đang chạy.
@@ -2236,9 +2439,7 @@ void checkNewAcsEvents() {
     if (sn > maxSerial) maxSerial = sn;
 
     /* Lấy giờ TRƯỚC khi lọc: bộ lọc chốt theo THỜI GIAN cần chính con số này. */
-    String eventTime = e["time"].as<String>();
-    eventTime.replace("T", " ");
-    eventTime.replace("+07:00", "");
+    String eventTime = chuanGioDauDoc(e["time"].as<String>());
     if (eventTime.length() >= 19 && eventTime > tMoiNhat) tMoiNhat = eventTime;
 
     if (stop) continue;                            // đã gặp 1 lỗi -> để dành vòng sau (không bỏ sót)
@@ -2262,7 +2463,8 @@ void checkNewAcsEvents() {
      *
      *  ⚠️ Dùng `>=` chứ không `>`: hai người quẹt trong CÙNG một giây thì `>` làm mất người thứ
      *     hai — mất công của nhân viên, không được. Bù lại phải chống đẩy lại vô hạn, nên có
-     *     `daDay` (vòng 12 khoá "mã|giờ" gần nhất) chặn tại chỗ, khỏi phụ thuộc máy chủ.
+     *     `daDay` (vòng nhớ khoá "mã|giờ" gần nhất, cỡ = DA_DAY_TOI_DA) chặn tại chỗ, khỏi
+     *     phụ thuộc máy chủ.
      *  ⚠️ K1T343 cũng đổi sang nhánh này. Cố ý: giữ hai đường khác nhau cho hai đời máy chính là
      *     cách sinh ra lỗi tối nay. Đường mới là đường mà lượt bù của CHÍNH K1T343 vẫn đi.
      * =========================================================================== */
@@ -2272,19 +2474,22 @@ void checkNewAcsEvents() {
           một nhịp. */
     if (mocDau.length() < 19) { ghiDaDay(emp0(e), eventTime); continue; }
     if (eventTime.length() < 19 || eventTime < mocDau) continue;
-    if (daDayRoi(emp0(e), eventTime)) continue;    // đã đẩy trong 12 lượt gần nhất -> bỏ
+    if (daDayRoi(emp0(e), eventTime)) continue;    // đã đẩy trong vòng nhớ -> bỏ
 
     String emp  = e["employeeNoString"] | "";
     String name = e["name"] | "";
     String card = e["cardNo"] | "";
     String pic  = e["pictureURL"] | "";
     if (emp.length() == 0) emp = card;
-    if (emp.length() == 0 && name.length() == 0) { if (sn > 0 && sn > adv) adv = sn; continue; }   // rác -> bỏ, vẫn nhảy con trỏ
+    /* Rác (không mã, không tên) -> bỏ. GHI vào vòng nhớ để vòng poll sau khỏi xét lại. */
+    if (emp.length() == 0 && name.length() == 0) { ghiDaDay(emp0(e), eventTime); continue; }
 
     int evSec = timeToSec(eventTime);
     if (emp == lastEmp && evSec >= 0 && (evSec - lastEmpSec) >= 0 && (evSec - lastEmpSec) < DEBOUNCE_SEC) {
       Serial.printf("[BỎ QUA] %s quẹt trùng trong %ds\n", emp.c_str(), DEBOUNCE_SEC);
-      if (sn > 0 && sn > adv) adv = sn; continue;   // quẹt trùng (đã ghi) -> coi như xử lý, nhảy con trỏ
+      /* ⚠️ PHẢI ghi vào vòng nhớ, đừng dựa vào `lastEmp`: người khác quẹt xen vào là `lastEmp` đổi,
+         vòng poll sau lượt trùng này không còn ai chặn -> đẩy lên. Ghi ở đây thì chặn dứt điểm. */
+      ghiDaDay(emp, eventTime); continue;
     }
 
     Serial.println("\n[LƯỢT MỚI]");
@@ -2305,12 +2510,11 @@ void checkNewAcsEvents() {
 
     showThankYou(name, eventTime, NULL, 0);
 
-    // CHỈ nhảy con trỏ (adv) + ghi mốc đồng bộ khi gửi THÀNH CÔNG -> mất mạng/đẩy lỗi KHÔNG mất lượt (thử lại vòng sau).
+    /* CHỈ ghi vòng nhớ + đẩy mốc đồng bộ khi gửi THÀNH CÔNG -> mất mạng/đẩy lỗi KHÔNG mất lượt
+       (vòng sau `eventTime >= mocDau` mà chưa có trong vòng nhớ nên được thử lại). */
     bool ok = pushEventToGoogle(emp, name, eventTime, imgB64, imgB64Len);
     imgB64 = NULL;   // quyền sở hữu đã chuyển cho pushEventToGoogle
-    /* `adv` chỉ có nghĩa khi đầu đọc cho serialNo. Nhánh không-serialNo chốt bằng `rememberSync`
-       (nó tự đẩy `lastSyncTime` lên) — gán adv = 0 ở đây là kéo con trỏ về 0, sai hẳn. */
-    if (ok) { if (sn > 0) adv = sn; lastEmp = emp; lastEmpSec = evSec;
+    if (ok) { lastEmp = emp; lastEmpSec = evSec;
               ghiDaDay(emp, eventTime); rememberSync(eventTime); }
     else { stop = true; Serial.printf("[GIỮ] serial %ld gửi lỗi -> thử lại vòng sau (không mất lượt)\n", sn); }
   }
