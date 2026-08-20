@@ -906,6 +906,98 @@ t( 'nạp CH_Nhom thành công', ! empty( $r_nhom['success'] ) );
 teq( 'nạp cấu hình cũ tự copy mã sang danh mục', 1, $r_nhom['dongBoLoai'] );
 teq( 'loại nhận mã ngay khi nạp cấu hình', '6789', VHCP_Cfg::loai_tk( 'Chưa khai ở đâu cả' )['tkNo'] );
 
+// ------------------------------- 25. TK NỢ THEO MẢNG KINH DOANH (loại chi phí × phân loại lớn)
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'VR SORA',      'maDonVi' => 'VR_SORA', 'phanLoaiLon' => 'EVENT VR MN', 'tenMisa' => 'VR Sora' ),
+	array( 'ten' => 'FARM PHAN THIẾT', 'maDonVi' => 'FARM_PT', 'phanLoaiLon' => 'FARM MN', 'tenMisa' => 'Farm Phan Thiết' ),
+	array( 'ten' => 'FUNZONE VŨNG TÀU', 'maDonVi' => 'FZ_VT', 'phanLoaiLon' => 'FZ MN', 'tenMisa' => 'FZ Vũng Tàu' ),
+	array( 'ten' => 'TÀU ESTELLA', 'maDonVi' => 'TAU_EST', 'phanLoaiLon' => '', 'tenMisa' => 'Tàu Estella' ),
+) ) );
+teq( 'cơ sở -> mảng kinh doanh', 'FARM MN', VHCP_Cfg::pll_of( 'FARM PHAN THIẾT' ) );
+teq( 'cơ sở chưa khai mảng -> rỗng', '', VHCP_Cfg::pll_of( 'TÀU ESTELLA' ) );
+
+// Cùng "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126
+VHCP_Cfg::save_config( array(
+	'loaiChiPhi' => array(
+		array( 'ten' => 'Chi phí khác',    'tkNo' => '',      'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '', 'tenMisa' => '' ),
+		array( 'ten' => 'Chi phí nuôi thú', 'tkNo' => '',     'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '', 'tenMisa' => '' ),
+		array( 'ten' => 'Chi phí dịch vụ mua ngoài', 'tkNo' => '6427', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '', 'tenMisa' => 'Chi phí dịch vụ mua ngoài' ),
+	),
+	'tkNoMatrix' => array(
+		array( 'nhom' => 'Chi phí khác',    'pll' => 'EVENT VR MN', 'tkNo' => '64196' ),
+		array( 'nhom' => 'Chi phí khác',    'pll' => 'FARM MN',     'tkNo' => '64166' ),
+		array( 'nhom' => 'Chi phí khác',    'pll' => 'FZ MN',       'tkNo' => '64126' ),
+		array( 'nhom' => 'Chi phí nuôi thú', 'pll' => 'FARM MN',    'tkNo' => '64168' ),
+	),
+) );
+teq( 'ma trận: Chi phí khác ở EVENT', '64196', VHCP_Cfg::tkno_mx( 'Chi phí khác', 'VR SORA' ) );
+teq( 'ma trận: Chi phí khác ở FARM',  '64166', VHCP_Cfg::tkno_mx( 'Chi phí khác', 'FARM PHAN THIẾT' ) );
+teq( 'ma trận: Chi phí khác ở FZ',    '64126', VHCP_Cfg::tkno_mx( 'Chi phí khác', 'FUNZONE VŨNG TÀU' ) );
+teq( 'ma trận: mảng không khai -> rỗng', '', VHCP_Cfg::tkno_mx( 'Chi phí nuôi thú', 'FUNZONE VŨNG TÀU' ) );
+
+$sc_ev = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Chi phí khác', 'noiDung' => 'Sửa loa', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'dòng chi ở EVENT lấy mã EVENT', '64196', $sc_ev['tkNo'] );
+$sc_farm = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FARM PHAN THIẾT', 'loai' => 'Chi phí khác', 'noiDung' => 'Sửa loa', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'cùng loại chi phí, cơ sở khác mảng -> mã khác', '64166', $sc_farm['tkNo'] );
+$sc_fz = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNZONE VŨNG TÀU', 'loai' => 'Chi phí nuôi thú', 'noiDung' => 'Cám', 'soTien' => 200000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'mảng không dùng loại đó -> để trống, không đoán', '', $sc_fz['tkNo'] );
+$sc_chung = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'TÀU ESTELLA', 'loai' => 'Chi phí dịch vụ mua ngoài', 'noiDung' => 'Thuê xe', 'soTien' => 800000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'loại dùng chung -> mã cố định, mảng nào cũng đúng', '6427', $sc_chung['tkNo'] );
+$sc_ovr = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FARM PHAN THIẾT', 'loai' => 'Chi phí khác', 'noiDung' => 'Đặc thù', 'soTien' => 100000, 'hinhThuc' => 'Tạm ứng NV', 'tkNo' => '6428' ), 'NV A' );
+teq( 'mã gõ tay trên dòng thắng ma trận', '6428', $sc_ovr['tkNo'] );
+
+// ------------------------------- 26. GHÉP HỆ THỐNG TÀI KHOẢN VÀO DANH MỤC
+$csv_tk = "Số hiệu,Tên tài khoản,Tính chất\n"
+	. "6412,Chi phí Funzone,Lưỡng tính\n"
+	. "64121,Chi phí lương Funzone,Lưỡng tính\n"
+	. "64125,Chi phí setup Funzone,Lưỡng tính\n"
+	. "6416,Chi phí Farm,Lưỡng tính\n"
+	. "64161,Chi phí lương Farm,Lưỡng tính\n"
+	. "64165,Chi phí setup Farm,Lưỡng tính\n"
+	. "64168,Chi phí nuôi thú FARM,Lưỡng tính\n"
+	. "6427,Chi phí dịch vụ mua ngoài,Lưỡng tính\n";
+$r_tk = VHCP_Import::run( 'CH_TaiKhoan', $csv_tk, array( 'replace' => true, 'header' => true ) );
+teq( 'nạp hệ thống tài khoản', 8, $r_tk['inserted'] );
+teq( 'đọc lại hệ thống tài khoản', 8, count( VHCP_Cfg::tai_khoan() ) );
+
+$r_no_mang = VHCP_Cfg::ghep_he_thong_tk();
+t( 'chưa khai bảng mảng thì không ghép bừa', empty( $r_no_mang['success'] ) );
+
+VHCP_Cfg::save_config( array( 'mangTk' => array(
+	array( 'pll' => 'FZ MN',   'nhomTk' => '6412', 'tuKhoa' => 'Funzone', 'note' => '' ),
+	array( 'pll' => 'FARM MN', 'nhomTk' => '6416', 'tuKhoa' => 'Farm',    'note' => '' ),
+) ) );
+$gh = VHCP_Cfg::ghep_he_thong_tk( array( 'dungChung' => array( '6427' ) ) );
+t( 'ghép hệ thống tài khoản chạy được', ! empty( $gh['success'] ) );
+teq( 'ma trận: lương Funzone', '64121', VHCP_Cfg::tkno_mx( 'Chi phí lương', 'FUNZONE VŨNG TÀU' ) );
+teq( 'ma trận: lương Farm',    '64161', VHCP_Cfg::tkno_mx( 'Chi phí lương', 'FARM PHAN THIẾT' ) );
+teq( 'ma trận: setup Farm',    '64165', VHCP_Cfg::tkno_mx( 'Chi phí setup', 'FARM PHAN THIẾT' ) );
+teq( 'ma trận: nuôi thú chỉ có ở Farm', '', VHCP_Cfg::tkno_mx( 'Chi phí nuôi thú', 'FUNZONE VŨNG TÀU' ) );
+teq( 'ô đã khai tay không bị ghi đè', '64126', VHCP_Cfg::tkno_mx( 'Chi phí khác', 'FUNZONE VŨNG TÀU' ) );
+$dm_sau = array(); foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $x ) { $dm_sau[ $x['ten'] ] = $x; }
+t( 'sinh loại chi phí dùng chung theo tên đã bỏ từ khóa mảng', isset( $dm_sau['Chi phí lương'] ) );
+teq( 'loại sinh ra để trống TK Nợ (đi theo ma trận)', '', $dm_sau['Chi phí lương']['tkNo'] );
+teq( 'tài khoản không theo mảng -> mã cố định dùng chung', '6427', VHCP_Cfg::loai_tk( 'Chi phí dịch vụ mua ngoài' )['tkNo'] );
+
+// Chạy lần 2 không sinh trùng, và loại tự thêm tay vẫn còn
+$truoc = count( VHCP_Cfg::cfg_static()['loaiChiPhi'] );
+$gh2   = VHCP_Cfg::ghep_he_thong_tk( array( 'dungChung' => array( '6427' ) ) );
+teq( 'ghép lần 2 không thêm loại trùng', 0, $gh2['themLoai'] );
+teq( 'ghép lần 2 không sinh ô ma trận mới', 0, $gh2['oMaTran'] );
+teq( 'danh mục không phình ra', $truoc, count( VHCP_Cfg::cfg_static()['loaiChiPhi'] ) );
+t( 'loại chi phí khai tay vẫn còn sau khi ghép', isset( $dm_sau['Chi phí nuôi thú'] ) && VHCP_Cfg::loai_tk( 'Chi phí dịch vụ mua ngoài' )['tkNo'] === '6427' );
+
+// Tên theo MISA dùng cho diễn giải, để trống thì lấy chính tên loại
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => array_merge(
+	array_map(
+		function ( $x ) { return array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'maDt' => $x['maDt'], 'boPhan' => $x['boPhan'], 'note' => $x['note'], 'tenMisa' => $x['tenMisa'] ); },
+		VHCP_Cfg::cfg_static()['loaiChiPhi']
+	),
+	array( array( 'ten' => 'Chi phí NVL đồ uống - Mua lẻ', 'tkNo' => '6329', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '', 'tenMisa' => 'Giá vốn event' ) )
+) ) );
+teq( 'tên theo MISA của loại chi phí', 'Giá vốn event', VHCP_Cfg::ten_misa_loai( 'Chi phí NVL đồ uống - Mua lẻ' ) );
+teq( 'không khai tên MISA -> dùng tên loại', 'Chi phí khác', VHCP_Cfg::ten_misa_loai( 'Chi phí khác' ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

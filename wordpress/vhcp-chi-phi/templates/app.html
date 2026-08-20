@@ -301,7 +301,7 @@
       <div class="cb">
         <div class="grid">
           <div class="fld"><label>Ngày chi</label><input id="sc_ngay" type="date"></div>
-          <div class="fld"><label>Cơ sở</label><select id="sc_coso"></select></div>
+          <div class="fld"><label>Cơ sở</label><select id="sc_coso" onchange="onScCoso()"></select></div>
           <div class="fld"><label>Loại chi phí <span style="color:#dc2626">*</span></label><select id="sc_loai" onchange="onScLoai()"></select></div>
           <div class="fld"><label>Mã tài khoản (tự lấy)</label><input id="sc_tk" placeholder="—" readonly style="background:#f8fafc;font-family:Consolas,monospace"></div>
           <div class="fld"><label>Hình thức chi</label><select id="sc_ht" onchange="onScLoai()"><option value="Tạm ứng NV">💰 Tạm ứng NV</option><option value="Trực tiếp NCC">🏢 Trực tiếp NCC</option></select></div>
@@ -411,7 +411,7 @@
         <div class="fld"><label>Thuộc</label><select id="da_capCha" style="width:190px" onchange="daCapChaHint()"><option value="">— Hạng mục lớn (mới) —</option><option value="(Phát sinh)">➕ Phát sinh (độc lập)</option></select></div>
         <div class="fld"><label>Nội dung hạng mục</label><input id="da_nd" list="dl_da_nd" placeholder="Gõ mới / chọn lại từ lịch sử" style="min-width:200px"><datalist id="dl_da_nd"></datalist></div>
         <div class="fld"><label>Loại chi phí <span id="da_tkHint" style="font-weight:700;font-family:Consolas,monospace;font-size:10px"></span></label><select id="da_loaicp" style="width:210px" onchange="daTkHint()"></select></div>
-        <div class="fld"><label>Bộ phận / Gian</label><input id="da_gian" placeholder="VD: Gian A" style="width:120px"></div>
+        <div class="fld"><label>Bộ phận / Gian</label><input id="da_gian" placeholder="VD: Gian A" style="width:120px" onchange="_fillLoaiCp('da_loaicp', el('da_loaicp')?el('da_loaicp').value:'', _daCoso()); daTkHint();"></div>
         <div class="fld"><label>Chi phí dự toán</label><input id="da_dt" type="number" min="0" placeholder="0" style="width:120px"></div>
         <div class="fld"><label>Số lượng</label><input id="da_sl" type="number" min="0" placeholder="0" style="width:75px" oninput="daCalcTT()"></div>
         <div class="fld"><label>Đơn giá</label><input id="da_dg" type="number" min="0" placeholder="0" style="width:110px" oninput="daCalcTT()"></div>
@@ -826,7 +826,7 @@
 
     <div class="card">
       <div class="ch"><h2>💵 Loại chi phí — gắn mã tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-x" onclick="dongBoTkLoai()" title="Copy TK Nợ đã khai ở bảng nhóm mặt hàng / ma trận TK Nợ sang đây">⬇️ Lấy mã từ cấu hình cũ</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgLoai()">💾 Lưu</button></div></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Loại chi phí</th><th style="width:110px">TK Nợ</th><th style="width:110px">TK Có</th><th style="width:130px">Mã đối tượng</th><th style="width:140px">Bộ phận</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgLoaiBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Loại chi phí</th><th style="width:110px">TK Nợ<div style="font-weight:400;font-size:10px;color:#94a3b8">mã cố định</div></th><th style="width:110px">TK Có</th><th style="width:130px">Mã đối tượng</th><th style="width:140px">Bộ phận</th><th style="width:170px">Tên theo MISA</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgLoaiBody"></tbody></table></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Đây là nơi <b>duy nhất</b> quyết định "chi phí này là chi phí gì". Dòng chi lưu luôn mã tại thời điểm nhập, nên sửa mã ở đây <b>không</b> làm đổi số cũ — muốn áp mã mới cho dòng cũ thì bấm <b>🔗 Gán mã cho dòng cũ</b>. <b>TK Có</b> để trống = tự lấy theo hình thức chi (Tạm ứng NV → 141 · Trực tiếp NCC → 331).</div>
     </div>
 
@@ -837,9 +837,21 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>🧮 TK Nợ theo MA TRẬN (Nhóm × Phân loại lớn)</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu ma trận</button></div></div>
+      <div class="ch"><h2>🏦 Hệ thống tài khoản của kế toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Sinh danh mục loại chi phí + ma trận mã theo mảng từ hệ thống tài khoản">🧩 Ghép vào danh mục</button></div></div>
+      <div style="padding:6px 14px 4px;font-size:11px;color:#94a3b8">Nạp 1 lần từ file kế toán: <b>⚙️ Cấu hình → nạp CSV → CH_TaiKhoan</b> (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>). Nạp xong, mọi ô điền mã ở đây sẽ gợi ý tên tài khoản để không gõ sai số.</div>
+      <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#0f766e"></div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
+      <div class="tw"><table style="min-width:760px"><thead><tr><th>Mảng kinh doanh <div style="font-weight:400;font-size:10px;color:#94a3b8">= Phân loại lớn của cơ sở</div></th><th style="width:130px">Nhóm TK</th><th style="width:200px">Từ khóa trong tên TK</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgMangBody"></tbody></table></div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Khai 1 lần để app tự đọc hệ thống tài khoản: <b>Nhóm TK</b> là 4 số đầu của mảng đó (VD <b>6412</b> = Funzone · <b>6416</b> = Farm · <b>6419</b> = Event), <b>Từ khóa</b> là chữ đứng trong tên tài khoản (VD <b>Funzone</b> trong "Chi phí lương Funzone"). Bấm <b>🧩 Ghép vào danh mục</b> ở thẻ trên: app bỏ từ khóa khỏi tên để ra tên loại chi phí dùng chung ("Chi phí lương") và đưa số hiệu từng mảng vào ma trận. Mã anh đã sửa tay và loại anh tự thêm <b>không bị đụng</b>.</div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h2>🧮 TK Nợ theo MA TRẬN (Loại chi phí × Mảng kinh doanh)</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu ma trận</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Dự phòng cho dữ liệu cũ.</b> TK Nợ = giao của <b>Nhóm mặt hàng</b> (hàng) × <b>Phân loại lớn của cơ sở</b> (cột: FARM/FZ/TUTU/EVENT…). Ô để trống = combo đó không dùng (xuất MISA gặp sẽ cảnh báo "thiếu TK Nợ"). Cột lấy tự động từ "Phân loại lớn" ở bảng Cơ sở phía trên — thêm/sửa cơ sở & Lưu rồi các cột ở đây sẽ cập nhật.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Đây là nơi quyết định mã cho từng mảng.</b> TK Nợ = giao của <b>Loại chi phí</b> (hàng) × <b>Mảng kinh doanh của cơ sở</b> (cột: EVENT / FARM / FZ / TUTU…). Cùng một loại chi phí mà khác mảng thì khác mã — VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106. Ô để trống = <b>mảng đó không dùng loại này</b>, nên ô chọn loại chi phí của cơ sở thuộc mảng đó cũng sẽ không hiện loại này. Loại nào <b>mọi mảng cùng 1 mã</b> thì khỏi khai ở đây, điền <b>TK Nợ</b> ở bảng 💵 Loại chi phí là xong. Cột lấy tự động từ "Phân loại lớn" của bảng Cơ sở phía trên.</div>
     </div>
 
     <div class="card">
@@ -1669,7 +1681,7 @@
   }
   // ===================== 📣 MARKETING — mỗi GIAN HÀNG/SỰ KIỆN = 1 ĐƠN (2 sheet chung: MK_Don + MK_Line) =====================
   var MK_LIST=[], MK_CUR=null, ML_EDIT=null;
-  function loadMkt(){ _ensureLoaiCp(function(){ _fillLoaiCp('ml_loaicp', el('ml_loaicp')?el('ml_loaicp').value:''); mlTkHint(); }); loading(true);
+  function loadMkt(){ _ensureLoaiCp(function(){ _fillLoaiCp('ml_loaicp', el('ml_loaicp')?el('ml_loaicp').value:'', MK_CUR?MK_CUR.coso:''); mlTkHint(); }); loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi tải Marketing'); return; }
       MK_LIST=r.items||[];
@@ -1716,6 +1728,7 @@
     google.script.run.withSuccessHandler(function(r){loading(false); if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; } MK_CUR=r; renderMkDetail(r); try{ el('mkDetailCard').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getMkDon(ma);
   }
   function renderMkDetail(r){
+    _fillLoaiCp('ml_loaicp', el('ml_loaicp')?el('ml_loaicp').value:'', r&&r.coso);
     el('mkDetailCard').style.display='';
     el('mkDetailTitle').textContent='📣 '+(r.coso||'—')+(r.ten?(' · '+r.ten):'')+(r.ky?(' · '+r.ky):'')+(r.kenh?(' · '+r.kenh):'');
     var closed=r.closed;
@@ -1755,7 +1768,7 @@
     else google.script.run.withSuccessHandler(done).withFailureHandler(fail).addMkDonLine(MK_CUR.ma, rec);
   }
   function mlEdit(id){ if(!MK_CUR)return; var l=null; (MK_CUR.lines||[]).forEach(function(x){if(String(x.id)===String(id))l=x;}); if(!l)return;
-    el('ml_kenh').value=l.kenh||''; el('ml_nd').value=l.noiDung||''; el('ml_dt').value=l.duToan||''; el('ml_tt').value=l.thucTe||''; el('ml_httt').value=l.hinhThuc||''; el('ml_vat').value=l.vat||''; el('ml_kq').value=l.ketQua||''; el('ml_ngay').value=l.ngay||''; el('ml_note').value=l.note||''; el('ml_hoso').value=l.hoSo||''; _mlDocLbl(); _fillLoaiCp('ml_loaicp', l.loaiCp||''); mlTkHint();
+    el('ml_kenh').value=l.kenh||''; el('ml_nd').value=l.noiDung||''; el('ml_dt').value=l.duToan||''; el('ml_tt').value=l.thucTe||''; el('ml_httt').value=l.hinhThuc||''; el('ml_vat').value=l.vat||''; el('ml_kq').value=l.ketQua||''; el('ml_ngay').value=l.ngay||''; el('ml_note').value=l.note||''; el('ml_hoso').value=l.hoSo||''; _mlDocLbl(); _fillLoaiCp('ml_loaicp', l.loaiCp||'', MK_CUR?MK_CUR.coso:''); mlTkHint();
     ML_EDIT=id; el('mlAddBtn').textContent='💾 Cập nhật'; el('mlCancelEdit').style.display='inline-block';
     try{ el('ml_nd').scrollIntoView({block:'center'}); el('ml_nd').focus(); }catch(e){}
   }
@@ -1801,7 +1814,7 @@
     if(el('bpColNguoi')) el('bpColNguoi').textContent=ct?'Người đi':'Phụ trách';
     if(el('bpColDd')) el('bpColDd').textContent=ct?'Tuyến/Địa điểm':'Cơ sở';
   }
-  function loadBP(){ _ensureLoaiCp(function(){ _fillLoaiCp('bl_loaicp', el('bl_loaicp')?el('bl_loaicp').value:''); blTkHint(); }); _bpLabels(); loading(true);
+  function loadBP(){ _ensureLoaiCp(function(){ _fillLoaiCp('bl_loaicp', el('bl_loaicp')?el('bl_loaicp').value:'', BP_CUR?BP_CUR.diaDiem:''); blTkHint(); }); _bpLabels(); loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
       BP_LIST=r.items||[];
@@ -1830,6 +1843,7 @@
     google.script.run.withSuccessHandler(function(r){loading(false); if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; } BP_CUR=r; renderBpDetail(r); try{ el('bpDetailCard').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getBP(ma);
   }
   function renderBpDetail(r){
+    _fillLoaiCp('bl_loaicp', el('bl_loaicp')?el('bl_loaicp').value:'', r&&r.diaDiem);
     el('bpDetailCard').style.display='';
     var icon=(r.loai==='Công tác')?'✈️':'🛠️';
     el('bpDetailTitle').textContent=icon+' '+r.ten+(r.nguoi?(' · '+r.nguoi):'')+(r.diaDiem?(' · '+r.diaDiem):'')+(r.ky?(' · '+r.ky):'');
@@ -1870,7 +1884,7 @@
     else google.script.run.withSuccessHandler(done).withFailureHandler(fail).addBPLine(BP_CUR.ma, rec);
   }
   function blEdit(row){ if(!BP_CUR)return; var l=null; (BP_CUR.lines||[]).forEach(function(x){if(x.row===row)l=x;}); if(!l)return;
-    el('bl_nd').value=l.noiDung||''; el('bl_sl').value=l.soLuong||''; el('bl_dg').value=l.donGia||''; blCalcTT(); el('bl_dt').value=l.duToan||''; el('bl_thucchi').value=l.thucTe||''; el('bl_httt').value=l.hinhThuc||''; el('bl_vat').value=l.vat||''; el('bl_ngay').value=l.ngay||''; el('bl_note').value=l.note||''; el('bl_hoso').value=l.hoSo||''; _blDocLbl(); _fillLoaiCp('bl_loaicp', l.loaiCp||''); blTkHint();
+    el('bl_nd').value=l.noiDung||''; el('bl_sl').value=l.soLuong||''; el('bl_dg').value=l.donGia||''; blCalcTT(); el('bl_dt').value=l.duToan||''; el('bl_thucchi').value=l.thucTe||''; el('bl_httt').value=l.hinhThuc||''; el('bl_vat').value=l.vat||''; el('bl_ngay').value=l.ngay||''; el('bl_note').value=l.note||''; el('bl_hoso').value=l.hoSo||''; _blDocLbl(); _fillLoaiCp('bl_loaicp', l.loaiCp||'', BP_CUR?BP_CUR.diaDiem:''); blTkHint();
     BL_EDIT=row; el('blAddBtn').textContent='💾 Cập nhật'; el('blCancelEdit').style.display='inline-block';
     try{ el('bl_nd').scrollIntoView({block:'center'}); el('bl_nd').focus(); }catch(e){}
   }
@@ -2047,7 +2061,7 @@
     el('daTenLbl').textContent=setup?'Tên gian hàng mới (Setup)':'Chọn cơ sở (Tháo dỡ)';
     el('daTen').placeholder=setup?'Gõ tên gian hàng mới':'Chọn cơ sở có sẵn';
   }
-  function loadDuAn(){ _ensureLoaiCp(function(){ _fillLoaiCp('da_loaicp', el('da_loaicp')?el('da_loaicp').value:''); daTkHint(); }); loading(true);
+  function loadDuAn(){ _ensureLoaiCp(function(){ _fillLoaiCp('da_loaicp', el('da_loaicp')?el('da_loaicp').value:'', _daCoso()); daTkHint(); }); loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
       DA_ITEMS=r.items||[];
@@ -2398,7 +2412,7 @@
     el('da_nd').value=l.noiDung||''; el('da_gian').value=l.gian||''; el('da_dt').value=(l.duToan||l.duToan===0)?l.duToan:''; el('da_sl').value=l.soLuong||''; el('da_dg').value=l.donGia||''; daCalcTT();
     el('da_thucte').value=l.thucTe||''; el('da_vat').value=l.vat||''; el('da_note').value=l.note||''; el('da_anh').value=l.anh||''; el('daImgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     if(el('da_capCha')) el('da_capCha').value=l.capCha||''; if(el('da_httt')) el('da_httt').value=l.hinhThuc||''; if(el('da_hoso')) el('da_hoso').value=l.hoSo||''; _daDocLbl(); daCapChaHint();
-    _fillLoaiCp('da_loaicp', l.loaiCp||''); daTkHint();
+    _fillLoaiCp('da_loaicp', l.loaiCp||'', _daCoso()); daTkHint();
     DA_EDIT_ROW=row; el('daAddBtn').textContent='💾 Cập nhật dòng'; el('daCancelEdit').style.display='inline-block';
     try{ el('da_nd').scrollIntoView({block:'center'}); el('da_nd').focus(); }catch(e){}
   }
@@ -2694,15 +2708,46 @@
   }
 
   // ===================== LOẠI CHI PHÍ + MÃ TÀI KHOẢN (dùng chung mọi mảng) =====================
-  function _loaiCpList(){
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
-    return (BOOT.loaiChiPhi||[]).filter(function(x){ if(!bp) return true; var b=String(x.boPhan||'').trim(); return !b||b===bp; });
+  // Mảng kinh doanh của 1 cơ sở / gian / địa điểm
+  function _mangCua(coso){
+    var k=String(coso||'').trim().toLowerCase();
+    return (k && BOOT.cosoPll && BOOT.cosoPll[k]) ? String(BOOT.cosoPll[k]) : '';
   }
-  function _fillLoaiCp(selId, cur){
+  // TK Nợ của (loại chi phí × mảng kinh doanh) — ma trận thắng mã cố định
+  function _tkNoCua(loai, coso){
+    var k=String(loai||'').trim().toLowerCase();
+    var mang=_mangCua(coso).toLowerCase();
+    var mx=(BOOT.tkNoMx||{})[k];
+    if(mang && mx && mx[mang]) return String(mx[mang]);
+    var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) hit=x; });
+    return (hit&&hit.tkNo)?String(hit.tkNo):'';
+  }
+  /**
+   * Danh sách loại chi phí được chọn ở 1 cơ sở.
+   * Lọc 2 lớp để không chọn lộn: theo BỘ PHẬN của người đang đăng nhập, rồi theo
+   * MẢNG KINH DOANH của cơ sở — loại nào mảng đó không khai mã thì không hiện
+   * (VD "Chi phí nuôi thú" chỉ hiện ở FARM). Loại có mã cố định thì mảng nào cũng hiện.
+   */
+  function _loaiCpList(coso){
+    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var mang=_mangCua(coso).toLowerCase();
+    var mx=BOOT.tkNoMx||{};
+    return (BOOT.loaiChiPhi||[]).filter(function(x){
+      var b=String(x.boPhan||'').trim();
+      if(bp && b && b!==bp) return false;
+      if(!mang) return true;                                   // chưa khai mảng cho cơ sở -> hiện hết
+      var k=String(x.ten||'').trim().toLowerCase();
+      var row=mx[k];
+      if(!row) return true;                                    // loại không khai theo ma trận -> dùng chung
+      return !!row[mang];                                      // khai theo ma trận -> chỉ mảng nào có mã
+    });
+  }
+  function _fillLoaiCp(selId, cur, coso){
     var sel=el(selId); if(!sel) return;
-    var L=_loaiCpList();
+    var L=_loaiCpList(coso);
     sel.innerHTML='<option value="">— chưa gắn mã —</option>'+L.map(function(x){
-      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(x.tkNo?('  ·  TK '+esc(x.tkNo)):'  ·  (chưa gắn mã)')+'</option>'; }).join('');
+      var tk=_tkNoCua(x.ten, coso);
+      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(tk?('  ·  TK '+esc(tk)):'  ·  (chưa gắn mã)')+'</option>'; }).join('');
     if(cur){
       var co=L.filter(function(x){return String(x.ten)===String(cur);}).length;
       if(!co) sel.insertAdjacentHTML('beforeend','<option value="'+esc(cur)+'">'+esc(cur)+'</option>');
@@ -2710,15 +2755,18 @@
     }
   }
   // Hiện luôn cặp mã sẽ ghi vào dòng; chưa chọn loại thì nói rõ là giữ cách hạch toán cũ
-  function _tkHint(spanId, selId, httId){
+  function _tkHint(spanId, selId, httId, coso){
     var lb=el(spanId); if(!lb) return;
-    var ten=String((el(selId)&&el(selId).value)||'').trim().toLowerCase();
+    var ten=String((el(selId)&&el(selId).value)||'').trim();
     var tt=(String((el(httId)&&el(httId).value)||'')==='Trực tiếp');
     if(!ten){ lb.textContent='· chưa gắn mã → giữ cách cũ Nợ 141 / Có '+(tt?'331':'64125'); lb.style.color='#94a3b8'; return; }
-    var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===ten) hit=x; });
+    var k=ten.toLowerCase();
+    var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) hit=x; });
+    var no=_tkNoCua(ten, coso);
     var co=(hit&&hit.tkCo)?hit.tkCo:(tt?'331':'141');
-    lb.textContent='· Nợ '+((hit&&hit.tkNo)||'?')+' / Có '+co;
-    lb.style.color=(hit&&hit.tkNo)?'#0f766e':'#dc2626';
+    var mang=_mangCua(coso);
+    lb.textContent='· Nợ '+(no||'?')+' / Có '+co+(mang?(' · '+mang):'');
+    lb.style.color=no?'#0f766e':'#dc2626';
   }
   // Badge mã tài khoản hiện ngay dưới nội dung dòng — dò bằng mắt, khỏi mở Cấu hình
   function tkBadge(loaiCp, tkNo, tkCo){
@@ -2726,9 +2774,11 @@
     if(!tkNo) return '<div style="font-size:10px;color:#dc2626">'+esc(loaiCp)+' · chưa gắn mã</div>';
     return '<div style="font-size:10px;color:#0f766e;font-family:Consolas,monospace">'+esc(loaiCp||'')+' · Nợ '+esc(tkNo)+(tkCo?(' / Có '+esc(tkCo)):'')+'</div>';
   }
-  function daTkHint(){ _tkHint('da_tkHint','da_loaicp','da_httt'); }
-  function mlTkHint(){ _tkHint('ml_tkHint','ml_loaicp','ml_httt'); }
-  function blTkHint(){ _tkHint('bl_tkHint','bl_loaicp','bl_httt'); }
+  function daTkHint(){ _tkHint('da_tkHint','da_loaicp','da_httt', _daCoso()); }
+  function mlTkHint(){ _tkHint('ml_tkHint','ml_loaicp','ml_httt', MK_CUR?MK_CUR.coso:''); }
+  function blTkHint(){ _tkHint('bl_tkHint','bl_loaicp','bl_httt', BP_CUR?BP_CUR.diaDiem:''); }
+  // Cơ sở của từng mảng: kỹ thuật lấy theo GIAN đang nhập, MKT theo đơn, công tác theo địa điểm đợt
+  function _daCoso(){ return String((el('da_gian')&&el('da_gian').value)||'').trim(); }
   // Danh mục nằm trong BOOT — vào thẳng tab Kỹ thuật/MKT/Công tác mà chưa boot thì nạp 1 lần
   function _ensureLoaiCp(cb){
     if((BOOT.loaiChiPhi||[]).length) { if(cb) cb(); return; }
@@ -2767,12 +2817,7 @@
     el('sc_coso').innerHTML=opts(cosoOpts);
     if(curCoso && cosoOpts.indexOf(curCoso)>=0) el('sc_coso').value=curCoso;
     else if(isNV && myCoso.length) el('sc_coso').value=myCoso[0];
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
-    var dm=(r.danhMuc||[]).filter(function(x){ if(!bp) return true; var b=String(x.boPhan||'').trim(); return !b||b===bp; });
-    el('sc_loai').innerHTML='<option value="">— Chọn loại chi phí —</option>'+dm.map(function(x){
-      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(x.tkNo?('  ·  TK '+esc(x.tkNo)):'  ·  (chưa gắn mã)')+'</option>'; }).join('');
-    if(curLoai) el('sc_loai').value=curLoai;
-    onScLoai();
+    fillScLoai(curLoai);
     // bộ lọc
     _scKeepSel('scfKy',   r.kyList||[],   null, 'Tất cả kỳ');
     _scKeepSel('scfCoso', cosoOpts,       null, 'Tất cả cơ sở');
@@ -2811,13 +2856,36 @@
   }
 
   // Chọn loại chi phí -> hiện luôn mã tài khoản sẽ ghi vào dòng
+  /**
+   * Danh sách loại chi phí của Ô CHỌN theo đúng cơ sở đang chọn: cơ sở nào thuộc mảng
+   * kinh doanh nào thì chỉ hiện loại chi phí mảng đó có khai mã -> khỏi chọn lộn mảng.
+   */
+  function fillScLoai(cur){
+    var coso=String(el('sc_coso').value||'').trim();
+    var L=_loaiCpList(coso);
+    el('sc_loai').innerHTML='<option value="">— Chọn loại chi phí —</option>'+L.map(function(x){
+      var tk=_tkNoCua(x.ten, coso);
+      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(tk?('  ·  TK '+esc(tk)):'  ·  (chưa gắn mã)')+'</option>'; }).join('');
+    if(cur){
+      var co=L.filter(function(x){return String(x.ten)===String(cur);}).length;
+      if(!co) el('sc_loai').insertAdjacentHTML('beforeend','<option value="'+esc(cur)+'">'+esc(cur)+' · (mảng này không khai)</option>');
+      el('sc_loai').value=cur;
+    }
+    onScLoai();
+  }
+  function onScCoso(){ fillScLoai(el('sc_loai').value); }
   function onScLoai(){
-    var ten=String(el('sc_loai').value||'').trim().toLowerCase();
-    var hit=null; ((SC&&SC.danhMuc)||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===ten) hit=x; });
+    var ten=String(el('sc_loai').value||'').trim();
+    var coso=String(el('sc_coso').value||'').trim();
+    var k=ten.toLowerCase();
+    var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) hit=x; });
+    if(!hit) ((SC&&SC.danhMuc)||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) hit=x; });
     var ht=el('sc_ht').value||'Tạm ứng NV';
     var tkCo=(hit&&hit.tkCo)?hit.tkCo:(ht==='Trực tiếp NCC'?'331':'141');
-    el('sc_tk').value = hit ? ('Nợ '+(hit.tkNo||'?')+' / Có '+tkCo) : '';
-    el('sc_tk').style.color=(hit&&hit.tkNo)?'#0f766e':'#dc2626';
+    var no=ten?_tkNoCua(ten, coso):'';
+    var mang=_mangCua(coso);
+    el('sc_tk').value = ten ? ('Nợ '+(no||'?')+' / Có '+tkCo+(mang?('  ·  '+mang):'')) : '';
+    el('sc_tk').style.color=no?'#0f766e':'#dc2626';
   }
   function calcScTT(){ var sl=parseFloat(el('sc_sl').value)||0, dg=parseFloat(el('sc_dg').value)||0; if(sl&&dg) el('sc_tt').value=Math.round(sl*dg); }
 
@@ -3397,11 +3465,40 @@
     google.script.run.withSuccessHandler(function(r){loading(false); if(r&&r.success){toast('ok','Đã hồi lại cấu hình'); loadCfg(); boot();} else toast('warn',(r&&r.error)||'Không có gì để hồi lại');})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).undoConfig();
   }
+  var TKCHART=[], TKNAME={};
   function loadCfg(){ loading(true);
     google.script.run.withSuccessHandler(function(c){ CFG=c||{};
-      google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; renderCfg(); renderUsers();})
-        .withFailureHandler(function(e){loading(false); CFGUSERS=[]; renderCfg(); renderUsers();}).getUsers();
+      google.script.run.withSuccessHandler(function(t){
+        TKCHART=(t&&t.taiKhoan)||[]; TKNAME={}; TKCHART.forEach(function(x){ TKNAME[String(x.ma)]=x.ten||''; });
+        CFG.mangTk=(t&&t.mangTk)||[];
+        google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; renderCfg(); renderUsers();})
+          .withFailureHandler(function(e){loading(false); CFGUSERS=[]; renderCfg(); renderUsers();}).getUsers();
+      }).withFailureHandler(function(e){ TKCHART=[]; TKNAME={};
+        google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; renderCfg(); renderUsers();})
+          .withFailureHandler(function(e2){loading(false); CFGUSERS=[]; renderCfg(); renderUsers();}).getUsers();
+      }).getTaiKhoan();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getConfig();
+  }
+  /**
+   * Ô CHỌN MÃ TK MISA: gõ vài số là hiện luôn "6329 · Giá vốn event" để chọn,
+   * chọn xong tự điền "Tên theo MISA" của dòng đó nếu đang trống -> khỏi gõ sai số.
+   */
+  function _tkInp(v, ph){
+    return '<input list="tkChartList" value="'+esc(v||'')+'" placeholder="'+(ph||'')+'" style="width:100%" oninput="onPickTk(this)">';
+  }
+  function _tkChartHtml(){
+    return '<datalist id="tkChartList">'+TKCHART.map(function(x){
+      return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+' · '+esc(x.ten)+'</option>'; }).join('')+'</datalist>';
+  }
+  function onPickTk(inp){
+    var ma=String(inp.value||'').trim();
+    var ten=TKNAME[ma]||'';
+    inp.title = ten ? (ma+' · '+ten) : '';
+    inp.style.color = (ma && TKCHART.length && !ten) ? '#dc2626' : '';   // gõ mã không có trong hệ thống TK -> đỏ
+    var tr=inp.parentNode&&inp.parentNode.parentNode;
+    if(!ten||!tr||tr.parentNode.id!=='cfgLoaiBody') return;
+    var f=tr.getElementsByTagName('input'), misa=f[4];                   // ô "Tên theo MISA" của dòng
+    if(misa && !String(misa.value||'').trim()) misa.value=ten;
   }
   function _inp(v,ph,w){ return '<input value="'+esc(v||'')+'" placeholder="'+(ph||'')+'"'+(w?' style="width:'+w+'"':' style="width:100%"')+'>'; }
   function _loaiSel(v){ var o=[['ncc','Nhà cung cấp'],['canhan','Cá nhân'],['both','Cả hai']];
@@ -3414,7 +3511,9 @@
   function renderCfg(){
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
     renderCosoBody();
-    el('cfgLoaiBody').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'VD: Chi phí cơ sở')+'</td><td>'+_inp(x.tkNo,'VD: 64127')+'</td><td>'+_inp(x.tkCo,'trống = tự')+'</td><td>'+_inp(x.maDt,'Mã MISA')+'</td><td>'+_bpSel(x.boPhan)+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
+    el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
+    el('cfgMangBody').innerHTML=(CFG.mangTk||[]).map(function(x){ return '<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
+    el('cfgLoaiBody').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'VD: Chi phí lương')+'</td><td>'+_tkInp(x.tkNo,'trống = theo ma trận')+'</td><td>'+_inp(x.tkCo,'trống = tự')+'</td><td>'+_inp(x.maDt,'Mã MISA')+'</td><td>'+_bpSel(x.boPhan)+'</td><td>'+_inp(x.tenMisa,'trống = dùng tên bên trái')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgNhomBody').innerHTML=(CFG.nhom||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên nhóm')+'</td><td>'+_loaiSel(x.loai)+'</td><td>'+_inp(x.tkNo,'VD: 152')+'</td><td>'+_bpSel(x.boPhan)+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgDtBody').innerHTML=(CFG.doiTuong||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên đối tượng')+'</td><td>'+_inp(x.ma,'Mã MISA')+'</td><td>'+_inp(x.loai,'NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'; }).join('');
@@ -3438,22 +3537,36 @@
       else el('imgMaintMsg').textContent='❌ '+((r&&r.message)||'Lỗi');
     }).withFailureHandler(function(e){ loading(false); el('imgMaintMsg').textContent='❌ '+e.message; }).migrateOldImages(400);
   }
-  // MA TRẬN TK Nợ: hàng = Nhóm mặt hàng, cột = Phân loại lớn (lấy từ Cơ sở)
+  // MA TRẬN TK Nợ: hàng = LOẠI CHI PHÍ, cột = Mảng kinh doanh (Phân loại lớn của Cơ sở)
+  var MX_LOCK=true;
+  function toggleMxLock(){
+    MX_LOCK=!MX_LOCK;
+    var b=el('mxLockBtn');
+    if(b){ b.textContent=MX_LOCK?'🔒 Đang khóa — bấm để mở':'🔓 Đang mở — bấm để khóa'; b.className='btn '+(MX_LOCK?'b-x':'b-p'); }
+    Array.prototype.forEach.call(el('cfgTkNoMx').querySelectorAll('input[data-nhom]'),function(f){ f.disabled=MX_LOCK; });
+  }
   function renderTkNoMatrix(){
     var box=el('cfgTkNoMx'); if(!box) return;
     var plls={}; (CFG.coso||[]).forEach(function(x){ var v=String(x.phanLoaiLon||'').trim(); if(v) plls[v]=1; });
     var cols=Object.keys(plls).sort();
-    var nhoms=(CFG.nhom||[]).map(function(x){return String(x.ten||'').trim();}).filter(Boolean);
-    var mx={}; (CFG.tkNoMatrix||[]).forEach(function(x){ mx[String(x.nhom||'').trim()+'|'+String(x.pll||'').trim()]=x.tkNo||''; });
-    if(!cols.length){ box.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:6px 0">Chưa có "Phân loại lớn" ở bảng Cơ sở — thêm phân loại lớn cho cơ sở & Lưu trước.</div>'; return; }
-    if(!nhoms.length){ box.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:6px 0">Chưa có Nhóm mặt hàng — thêm ở bảng "TK Nợ theo Nhóm" phía trên & Lưu trước.</div>'; return; }
-    var h='<table style="min-width:'+(220+cols.length*110)+'px"><thead><tr><th style="text-align:left">Nhóm \\ Phân loại</th>'+cols.map(function(c){return '<th style="width:110px">'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
-    h+=nhoms.map(function(n){
+    // Hàng: danh mục loại chi phí + những hàng cũ trong ma trận chưa có trong danh mục
+    var rows=[], seen={};
+    (CFG.loaiChiPhi||[]).forEach(function(x){ var t=String(x.ten||'').trim(); if(t&&!seen[t.toLowerCase()]){seen[t.toLowerCase()]=1; rows.push(t);} });
+    var mx={}; (CFG.tkNoMatrix||[]).forEach(function(x){
+      var n=String(x.nhom||'').trim();
+      mx[n+'|'+String(x.pll||'').trim()]=x.tkNo||'';
+      if(n&&!seen[n.toLowerCase()]){ seen[n.toLowerCase()]=1; rows.push(n); }
+    });
+    if(!cols.length){ box.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:6px 0">Chưa có "Phân loại lớn" ở bảng Cơ sở — khai mảng kinh doanh cho từng cơ sở & Lưu trước, các cột ở đây sẽ hiện ra.</div>'; return; }
+    if(!rows.length){ box.innerHTML='<div style="color:#94a3b8;font-size:12px;padding:6px 0">Chưa có loại chi phí nào — thêm ở bảng 💵 Loại chi phí phía trên & Lưu trước.</div>'; return; }
+    var h='<table style="min-width:'+(260+cols.length*110)+'px"><thead><tr><th style="text-align:left">Loại chi phí \\ Mảng</th>'+cols.map(function(c){return '<th style="width:110px">'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>';
+    h+=rows.map(function(n){
       return '<tr><td style="font-weight:600">'+esc(n)+'</td>'+cols.map(function(c){
-        return '<td><input data-nhom="'+esc(n)+'" data-pll="'+esc(c)+'" value="'+esc(mx[n+'|'+c]||'')+'" placeholder="—" style="width:100%"></td>';
+        return '<td><input list="tkChartList" data-nhom="'+esc(n)+'" data-pll="'+esc(c)+'" value="'+esc(mx[n+'|'+c]||'')+'" placeholder="—" style="width:100%" oninput="onPickTk(this)" disabled></td>';
       }).join('')+'</tr>';
     }).join('');
     box.innerHTML=h+'</tbody></table>';
+    MX_LOCK=true; var b=el('mxLockBtn'); if(b){ b.textContent='🔒 Đang khóa — bấm để mở'; b.className='btn b-x'; }
   }
   function saveCfgTkNoMx(){
     var box=el('cfgTkNoMx'); if(!box) return;
@@ -3463,6 +3576,33 @@
       if(v) data.push({nhom:f.getAttribute('data-nhom'), pll:f.getAttribute('data-pll'), tkNo:v});
     });
     _saveCfg({tkNoMatrix:data},'Đã lưu ma trận TK Nợ');
+  }
+  // Mảng kinh doanh = Phân loại lớn của cơ sở -> cho chọn đúng danh sách đang có
+  function _pllSel(v){
+    var seen={}, out=[];
+    (CFG.coso||[]).forEach(function(x){ var p=String(x.phanLoaiLon||'').trim(); if(p&&!seen[p]){seen[p]=1; out.push(p);} });
+    v=String(v||'');
+    if(v&&!seen[v]) out.push(v);
+    return '<select style="width:100%">'+['<option value="">— chọn mảng —</option>'].concat(out.map(function(p){
+      return '<option value="'+esc(p)+'"'+(p===v?' selected':'')+'>'+esc(p)+'</option>'; })).join('')+'</select>';
+  }
+  function addCfgMang(){ el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel('')+'</td><td>'+_inp('','VD: 6412')+'</td><td>'+_inp('','VD: Funzone')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
+  function saveCfgMang(){
+    var data=_readRows('cfgMangBody').map(function(r){return {pll:(r[0]||'').trim(), nhomTk:(r[1]||'').trim(), tuKhoa:(r[2]||'').trim(), note:r[3]||''};}).filter(function(x){return x.pll;});
+    _saveCfg({mangTk:data},'Đã lưu bảng mảng kinh doanh');
+  }
+  function ghepHeThongTk(){
+    if(!confirm('Ghép hệ thống tài khoản vào danh mục loại chi phí?\n\n• Bỏ từ khóa mảng khỏi tên TK để ra tên loại chi phí dùng chung.\n• Số hiệu của từng mảng vào ma trận [loại × mảng].\n• Chỉ THÊM và điền ô TRỐNG — mã anh sửa tay và loại anh tự thêm không bị đụng.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var msg='Đã thêm '+r.themLoai+' loại chi phí · điền '+r.oMaTran+' ô ma trận';
+      if(r.suaLoai) msg+=' · '+r.suaLoai+' loại nhận mã cố định';
+      if(r.boQuaTaiKhoan) msg+=' · bỏ qua '+r.boQuaTaiKhoan+' TK không thấy từ khóa mảng trong tên';
+      toast('ok', msg);
+      _log('Ghép hệ thống tài khoản','', r.themLoai+' loại · '+r.oMaTran+' ô');
+      loadCfg();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).ghepHeThongTk({});
   }
   function addCfgNhom(){ el('cfgNhomBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên nhóm')+'</td><td>'+_loaiSel('canhan')+'</td><td>'+_inp('','VD: 152')+'</td><td>'+_bpSel('')+'</td>'+_delBtn()+'</tr>'); }
   function addCfgPl(){ el('cfgPlBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Phân loại')+'</td><td>'+_inp('','VD: 141')+'</td>'+_delBtn()+'</tr>'); }
@@ -3500,8 +3640,8 @@
   function saveCfgCoso(){ var data=_readRows('cfgCosoBody').map(function(r){return {ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||''};}).filter(function(x){return x.ten;});
     _saveCfg({coso:data},'Đã lưu cấu hình cơ sở');
   }
-  function addCfgLoai(){ el('cfgLoaiBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Chi phí cơ sở')+'</td><td>'+_inp('','VD: 64127')+'</td><td>'+_inp('','trống = tự')+'</td><td>'+_inp('','Mã MISA')+'</td><td>'+_bpSel('')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
-  function saveCfgLoai(){ var data=_readRows('cfgLoaiBody').map(function(r){return {ten:(r[0]||'').trim(), tkNo:(r[1]||'').trim(), tkCo:(r[2]||'').trim(), maDt:(r[3]||'').trim(), boPhan:r[4]||'', note:r[5]||''};}).filter(function(x){return x.ten;});
+  function addCfgLoai(){ el('cfgLoaiBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Chi phí lương')+'</td><td>'+_tkInp('','trống = theo ma trận')+'</td><td>'+_inp('','trống = tự')+'</td><td>'+_inp('','Mã MISA')+'</td><td>'+_bpSel('')+'</td><td>'+_inp('','trống = dùng tên bên trái')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
+  function saveCfgLoai(){ var data=_readRows('cfgLoaiBody').map(function(r){return {ten:(r[0]||'').trim(), tkNo:(r[1]||'').trim(), tkCo:(r[2]||'').trim(), maDt:(r[3]||'').trim(), boPhan:r[4]||'', tenMisa:(r[5]||'').trim(), note:r[6]||''};}).filter(function(x){return x.ten;});
     _saveCfg({loaiChiPhi:data},'Đã lưu danh mục loại chi phí');
   }
   // Điền mã tài khoản cho dòng CŨ ở MỌI mảng (sổ chi phí · đơn · kỹ thuật · marketing · công tác/setup)

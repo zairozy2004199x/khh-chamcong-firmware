@@ -106,6 +106,48 @@ Hai chỗ **vẫn gom** (cố ý, vì là báo cáo tra cứu có chia mục rõ
 
 Muốn bỏ luôn 2 chỗ đó thì nói một câu, em cắt.
 
+### Cùng một loại chi phí, mảng kinh doanh khác thì mã khác (bản 1.3.0)
+
+Hệ thống tài khoản của K&H đặt theo kiểu `641<mảng><hạng mục>`: *Chi phí lương* là `64121` ở
+Funzone nhưng `64161` ở Farm; *Chi phí khác* là `64196` ở Event · `64166` ở Farm · `64126` ở
+Funzone · `64106` ở TuTu. Vì vậy TK Nợ **không** phải một mã cố định cho mỗi loại chi phí.
+
+Thứ tự chốt TK Nợ cho một dòng chi (dừng ở bước đầu tiên có mã):
+
+1. **Mã gõ tay trên dòng** — đặc thù, ưu tiên cao nhất.
+2. **Ma trận `[Loại chi phí] × [Mảng kinh doanh]`** — ⚙️ Cấu hình → 🧮 *TK Nợ theo MA TRẬN*.
+   Mảng kinh doanh lấy từ cột **Phân loại lớn** của cơ sở, nên chỉ cần chọn cơ sở là ra mã.
+3. **Mã cố định** ở cột TK Nợ của thẻ 💵 *Loại chi phí* — dùng cho loại mảng nào cũng một mã
+   (`6423` đồ dùng văn phòng, `6427` dịch vụ mua ngoài, `811` chi phí khác…).
+4. **Để trống + báo thiếu.** Không đoán, để không âm thầm hạch toán sai.
+
+Cơ sở của từng mảng: sổ chi phí & đơn vận hành lấy **Cơ sở**, kỹ thuật lấy **Gian**, marketing lấy
+**Cơ sở của đơn**, công tác/setup lấy **Địa điểm của đợt**.
+
+**Ô trống trong ma trận = mảng đó không dùng loại này** — và ô chọn *Loại chi phí* khi nhập cũng
+**không hiện** loại đó nữa. VD *Chi phí nuôi thú* chỉ hiện khi cơ sở thuộc mảng FARM. Nhân viên
+đỡ chọn lộn mảng. Ma trận có nút **🔒 khóa** để không sửa nhầm mã hạch toán khi đang xem.
+
+### Nạp hệ thống tài khoản rồi ghép một lần (bản 1.3.0)
+
+Cách tạo một loại chi phí cho nhân viên nhập gồm 3 phần: **tên gọi** (nhân viên thấy) ·
+**mã TK MISA** · **tên chi phí theo MISA** (diễn giải khi xuất). VD
+`Chi phí NVL đồ uống - Mua lẻ` · `6329` · `Giá vốn event`.
+
+Để không gõ tay mã:
+
+1. Nạp file tài khoản của kế toán: ⚙️ Cấu hình → nạp CSV → **`CH_TaiKhoan`**
+   (3 cột: *Số hiệu · Tên tài khoản · Tính chất*). Nạp xong mọi ô mã trong trang Cấu hình có gợi ý
+   `số hiệu · tên tài khoản`; gõ mã không có trong hệ thống thì ô đổi màu đỏ.
+2. Khai thẻ **🧭 Mảng kinh doanh → nhóm tài khoản**: mỗi mảng một dòng — *Mảng* (= phân loại lớn
+   của cơ sở) · *Nhóm TK* (4 số đầu, VD `6412`) · *Từ khóa trong tên TK* (VD `Funzone`).
+3. Bấm **🧩 Ghép vào danh mục**: app bỏ từ khóa mảng khỏi tên tài khoản để ra tên loại chi phí dùng
+   chung (`Chi phí lương Funzone` → `Chi phí lương`) rồi đưa số hiệu của từng mảng vào đúng ô ma
+   trận. Chạy bao nhiêu lần cũng được: **chỉ thêm mới và điền ô trống**, mã đã sửa tay và loại tự
+   thêm không bị đụng.
+
+Loại chi phí vẫn **thêm tay được** bất cứ lúc nào bằng **＋ Thêm loại**.
+
 ## 4. Mang dữ liệu cũ từ Google Sheet sang
 
 Vào **Vận Hành Chi Phí → Nhập dữ liệu**. Với từng tab của bảng tính:

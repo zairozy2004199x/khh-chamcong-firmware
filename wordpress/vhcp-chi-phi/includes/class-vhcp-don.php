@@ -100,8 +100,16 @@ class VHCP_Don {
 			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'] );
 		}
 
+		// Cơ sở -> mảng kinh doanh, và ma trận [loại][mảng] -> TK Nợ: để ô "Loại chi phí"
+		// chỉ hiện những loại mà cơ sở đang chọn thật sự dùng (tránh chọn lộn mảng).
+		$s_all   = VHCP_Cfg::cfg_static();
+		$coso_ml = isset( $s_all['cosoPll'] ) ? $s_all['cosoPll'] : array();
+		$mx      = isset( $s_all['tkNoMx'] ) ? $s_all['tkNoMx'] : array();
+
 		return array(
 			'coso'       => $coso,
+			'cosoPll'    => $coso_ml,
+			'tkNoMx'     => $mx,
 			'nhom'       => $nhom,
 			'loaiChiPhi' => $loai,
 			'phanloai'   => $pl,

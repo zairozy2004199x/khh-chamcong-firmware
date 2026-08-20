@@ -153,11 +153,12 @@ class VHCP_MK {
 		) );
 	}
 
-	private static function line_data( $rec ) {
+	private static function line_data( $rec, $coso = '' ) {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? $rec[ $k ] : null; };
 		$loai_cp = VHCP_Util::st( $g( 'loaiCp' ) );
-		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ) );
+		// Cơ sở của ĐƠN marketing quyết định mảng kinh doanh -> quyết định TK Nợ.
+		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ), $coso );
 		return array(
 			'loai_cp'   => $loai_cp,
 			'tk_no'     => $loai_cp !== '' ? $tk['tk_no'] : '',
@@ -178,10 +179,11 @@ class VHCP_MK {
 
 	public static function add_line( $ma_don, $rec ) {
 		global $wpdb;
-		if ( ! self::don_row( $ma_don ) ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$don = self::don_row( $ma_don );
+		if ( ! $don ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		$rec = (array) $rec;
 		if ( ! isset( $rec['ngay'] ) || trim( (string) $rec['ngay'] ) === '' ) { $rec['ngay'] = VHCP_Util::now()->format( 'd/m/Y' ); }
-		$data           = self::line_data( $rec );
+		$data           = self::line_data( $rec, (string) $don['coso'] );
 		$data['id']     = VHCP_Util::uid( 'MKL' );
 		$data['ma_don'] = (string) $ma_don;
 		$wpdb->insert( VHCP_DB::t( 'mk_line' ), $data );
@@ -193,7 +195,8 @@ class VHCP_MK {
 		$t = VHCP_DB::t( 'mk_line' );
 		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE id=%s", (string) $id ) );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy hạng mục' ); }
-		$wpdb->update( $t, self::line_data( $rec ), array( 'id' => (string) $id ) );
+		$don = self::don_row( (string) $cur['ma_don'] );
+		$wpdb->update( $t, self::line_data( $rec, $don ? (string) $don['coso'] : '' ), array( 'id' => (string) $id ) );
 		return VHCP_Util::ok();
 	}
 
@@ -238,11 +241,14 @@ class VHCP_MK {
 		global $wpdb;
 		$t = VHCP_DB::t( 'mk_line' );
 		$n = 0; $thieu = array(); $chua = 0;
+		$coso_of = array();
+		foreach ( self::all_dons() as $d ) { $coso_of[ (string) $d['ma'] ] = (string) $d['coso']; }
 		foreach ( self::all_lines() as $r ) {
 			$loai = trim( (string) $r['loai_cp'] );
 			if ( $loai === '' ) { $chua++; continue; }
 			if ( ! $all && trim( (string) $r['tk_no'] ) !== '' ) { continue; }
-			$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ) );
+			$md = (string) $r['ma_don'];
+			$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ), array(), isset( $coso_of[ $md ] ) ? $coso_of[ $md ] : '' );
 			if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (string) $r['id'] ) );
 			$n++;

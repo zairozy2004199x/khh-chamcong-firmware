@@ -300,7 +300,8 @@ class VHCP_DuAn {
 		$cap = VHCP_Util::st( $g( 'capCha' ) );
 		// Gắn mã tài khoản theo LOẠI CHI PHÍ ngay lúc nhập (giống sổ chi phí).
 		$loai_cp = VHCP_Util::st( $g( 'loaiCp' ) );
-		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ) );
+		// Gian hàng đóng vai "cơ sở" ở mảng kỹ thuật -> mã theo mảng kinh doanh của gian đó.
+		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ), VHCP_Util::st( $g( 'gian' ) ) );
 		return array(
 			'loai_cp'    => $loai_cp,
 			'tk_no'      => $loai_cp !== '' ? $tk['tk_no'] : '',
@@ -476,7 +477,7 @@ class VHCP_DuAn {
 				if ( ! $all && $cu !== '' && trim( (string) $x['tk_no'] ) !== '' ) { continue; }
 				$cap = trim( (string) $x['cap_cha'] );
 				$ht  = ( $cap !== '' && $cap !== '(Phát sinh)' && ! empty( $parent_ht[ $cap ] ) ) ? $parent_ht[ $cap ] : trim( (string) $x['hinh_thuc'] );
-				$tk  = VHCP_Cfg::resolve_tk( $loai, $ht );
+				$tk  = VHCP_Cfg::resolve_tk( $loai, $ht, array(), trim( (string) $x['gian'] ) );
 				if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
 				if ( $loai === $cu && $tk['tk_no'] === trim( (string) $x['tk_no'] ) && $tk['tk_co'] === trim( (string) $x['tk_co'] ) ) { continue; }
 				$wpdb->update( $t, array( 'loai_cp' => $loai, 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (int) $x['id'] ) );

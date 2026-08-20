@@ -37,6 +37,8 @@ class VHCP_Import {
 			'CH_SSO'        => array( 'label' => 'CH_SSO — phân vai trò theo email', 'skip' => 0 ),
 			'CH_Quyen'      => array( 'label' => 'CH_Quyen — ma trận phân quyền', 'skip' => 0 ),
 			'CH_LoaiChiPhi' => array( 'label' => 'CH_LoaiChiPhi — danh mục loại chi phí + mã tài khoản', 'skip' => 0 ),
+			'CH_TaiKhoan'   => array( 'label' => 'CH_TaiKhoan — hệ thống tài khoản của kế toán', 'skip' => 0 ),
+			'CH_MangTK'     => array( 'label' => 'CH_MangTK — mảng kinh doanh → nhóm tài khoản', 'skip' => 0 ),
 		);
 	}
 
@@ -306,7 +308,7 @@ class VHCP_Import {
 					// Loại chi phí: lấy cột 14 nếu file có, trống thì suy theo loại dự án.
 					$loai_cp = self::c( $r, 13 );
 					if ( $loai_cp === '' ) { $loai_cp = $loai_mac_dinh; }
-					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 11 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 11 ), array(), self::c( $r, 8 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
 					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->insert( $t, array(
 						'ma_da'      => $ma,
@@ -357,11 +359,14 @@ class VHCP_Import {
 			case 'MK_Line':
 				$t = VHCP_DB::t( 'mk_line' );
 				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				$coso_don = array();
+				foreach ( VHCP_MK::all_dons() as $d ) { $coso_don[ (string) $d['ma'] ] = (string) $d['coso']; }
 				foreach ( $rows as $r ) {
 					$k = self::c( $r, 0 );
 					if ( $k === '' || self::c( $r, 1 ) === '' ) { $skipped++; continue; }
 					$loai_cp = self::c( $r, 12 );
-					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 6 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					$md      = self::c( $r, 1 );
+					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 6 ), array(), isset( $coso_don[ $md ] ) ? $coso_don[ $md ] : '' ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
 					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->delete( $t, array( 'id' => $k ) );
 					$wpdb->insert( $t, array(
@@ -415,6 +420,8 @@ class VHCP_Import {
 				if ( $replace ) { $wpdb->delete( $t, array( 'ma' => $ma ) ); }
 				$row_no = (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(row_no) FROM $t WHERE ma=%s", $ma ) );
 				$row_no = max( VHCP_DB::DATA_ROW - 1, $row_no );
+				$dot_rec  = VHCP_BP::find( $ma );
+				$dia_diem = $dot_rec ? (string) $dot_rec['dia_diem'] : '';
 				foreach ( $rows as $r ) {
 					$nd = self::c( $r, 0 );
 					if ( $nd === '' && ! self::n0( self::c( $r, 4 ) ) && ! self::n0( self::c( $r, 5 ) ) ) { $skipped++; continue; }
@@ -422,7 +429,7 @@ class VHCP_Import {
 					$sl = self::n0( self::c( $r, 1 ) );
 					$dg = self::n0( self::c( $r, 2 ) );
 					$loai_cp = self::c( $r, 11 );
-					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 6 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 6 ), array(), $dia_diem ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
 					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->insert( $t, array(
 						'ma'         => $ma,

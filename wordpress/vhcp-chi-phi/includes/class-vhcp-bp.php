@@ -167,13 +167,14 @@ class VHCP_BP {
 		) );
 	}
 
-	private static function line_data( $rec ) {
+	private static function line_data( $rec, $coso = '' ) {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? $rec[ $k ] : null; };
 		$sl  = VHCP_Util::num( $g( 'soLuong' ) );
 		$dg  = VHCP_Util::num( $g( 'donGia' ) );
 		$loai_cp = VHCP_Util::st( $g( 'loaiCp' ) );
-		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ) );
+		// Địa điểm của đợt công tác / setup đóng vai "cơ sở" -> quyết định mảng kinh doanh.
+		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ), $coso );
 		return array(
 			'loai_cp'    => $loai_cp,
 			'tk_no'      => $loai_cp !== '' ? $tk['tk_no'] : '',
@@ -195,10 +196,11 @@ class VHCP_BP {
 
 	public static function add_line( $ma, $rec ) {
 		global $wpdb;
-		if ( ! self::find( $ma ) ) { return VHCP_Util::err( 'Không tìm thấy' ); }
+		$dot = self::find( $ma );
+		if ( ! $dot ) { return VHCP_Util::err( 'Không tìm thấy' ); }
 		$rec = (array) $rec;
 		if ( ! isset( $rec['ngay'] ) || trim( (string) $rec['ngay'] ) === '' ) { $rec['ngay'] = VHCP_Util::now()->format( 'd/m/Y' ); }
-		$data           = self::line_data( $rec );
+		$data           = self::line_data( $rec, (string) $dot['dia_diem'] );
 		$data['ma']     = (string) $ma;
 		$data['row_no'] = self::next_row( $ma );
 		$wpdb->insert( VHCP_DB::t( 'bp_line' ), $data );
@@ -207,12 +209,13 @@ class VHCP_BP {
 
 	public static function update_line( $ma, $row, $rec ) {
 		global $wpdb;
-		if ( ! self::find( $ma ) ) { return VHCP_Util::err( 'Không tìm thấy' ); }
+		$dot = self::find( $ma );
+		if ( ! $dot ) { return VHCP_Util::err( 'Không tìm thấy' ); }
 		$row = (int) $row;
 		if ( $row < self::DATA_ROW ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
 		$t = VHCP_DB::t( 'bp_line' );
 		if ( ! VHCP_DB::row( $wpdb->prepare( "SELECT id FROM $t WHERE ma=%s AND row_no=%d", (string) $ma, $row ) ) ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
-		$wpdb->update( $t, self::line_data( $rec ), array( 'ma' => (string) $ma, 'row_no' => $row ) );
+		$wpdb->update( $t, self::line_data( $rec, (string) $dot['dia_diem'] ), array( 'ma' => (string) $ma, 'row_no' => $row ) );
 		return VHCP_Util::ok();
 	}
 
@@ -258,7 +261,7 @@ class VHCP_BP {
 				$loai = trim( (string) $r['loai_cp'] );
 				if ( $loai === '' ) { $chua++; continue; }
 				if ( ! $all && trim( (string) $r['tk_no'] ) !== '' ) { continue; }
-				$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ) );
+				$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ), array(), (string) $b['dia_diem'] );
 				if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
 				$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (int) $r['id'] ) );
 				$n++;

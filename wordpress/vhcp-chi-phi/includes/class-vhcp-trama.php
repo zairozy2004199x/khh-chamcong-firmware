@@ -112,8 +112,8 @@ class VHCP_TraMa {
 				if ( ! $tien ) { continue; }
 				$ht    = ( $cap !== '' && $cap !== '(Phát sinh)' && ! empty( $parent_ht[ $cap ] ) ) ? $parent_ht[ $cap ] : trim( (string) $x['hinh_thuc'] );
 				$is_tt = ( $ht === 'Trực tiếp' );
-				$tkm   = VHCP_Misa::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], '', $x['ma_dt'] );
 				$gian  = trim( (string) $x['gian'] );
+				$tkm   = VHCP_Misa::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], '', $x['ma_dt'], $gian );
 				$out[] = array(
 					'mang' => 'kt',
 					'ngay' => $ngay,
@@ -139,7 +139,7 @@ class VHCP_TraMa {
 			if ( ! $tien ) { continue; }
 			$d     = isset( $mk_don[ (string) $r['ma_don'] ] ) ? $mk_don[ (string) $r['ma_don'] ] : array( 'coso' => '', 'ten' => '', 'ky' => '', 'ngay_tao' => '' );
 			$is_tt = ( trim( (string) $r['hinh_thuc'] ) === 'Trực tiếp' );
-			$tkm   = VHCP_Misa::tk_mang( $r['loai_cp'], $is_tt, $r['tk_no'], $r['tk_co'], $r['ma_dt'] );
+			$tkm   = VHCP_Misa::tk_mang( $r['loai_cp'], $is_tt, $r['tk_no'], $r['tk_co'], $r['ma_dt'], (string) $d['coso'] );
 			$ngay  = VHCP_Util::fmt( $r['ngay'] );
 			if ( $ngay === '' ) { $ngay = VHCP_Util::fmt( $d['ngay_tao'] ); }
 			$out[] = array(
@@ -167,7 +167,7 @@ class VHCP_TraMa {
 				$tien = VHCP_Util::num( $x['thuc_te'] );
 				if ( ! $tien ) { continue; }
 				$is_tt = ( trim( (string) $x['hinh_thuc'] ) === 'Trực tiếp' );
-				$tkm   = VHCP_Misa::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], $x['tk_co'], $x['ma_dt'] );
+				$tkm   = VHCP_Misa::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], $x['tk_co'], $x['ma_dt'], (string) $b['dia_diem'] );
 				$ngay  = VHCP_Util::fmt( $x['ngay'] );
 				if ( $ngay === '' ) { $ngay = $ngay0; }
 				$out[] = array(

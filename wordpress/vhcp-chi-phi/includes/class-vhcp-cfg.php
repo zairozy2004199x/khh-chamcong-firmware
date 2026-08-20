@@ -20,6 +20,8 @@ class VHCP_Cfg {
 	const SSO   = 'CH_SSO';
 	const QUYEN = 'CH_Quyen';
 	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
+	const TK    = 'CH_TaiKhoan';     // HỆ THỐNG TÀI KHOẢN của kế toán (nạp từ file Excel/CSV)
+	const MANG  = 'CH_MangTK';       // MẢNG KINH DOANH -> nhóm tài khoản 641x + từ khóa trong tên TK
 
 	public static function headers( $bang ) {
 		$h = array(
@@ -31,7 +33,9 @@ class VHCP_Cfg {
 			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
-			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú' ),
+			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA' ),
+			self::TK    => array( 'Số hiệu', 'Tên tài khoản', 'Tính chất' ),
+			self::MANG  => array( 'Phân loại lớn', 'Nhóm TK', 'Từ khóa trong tên TK', 'Ghi chú' ),
 		);
 		if ( isset( $h[ $bang ] ) ) { return $h[ $bang ]; }
 		if ( $bang === self::QUYEN ) { return array_merge( array( 'Mã', 'Hành động' ), self::roles() ); }
@@ -168,7 +172,11 @@ class VHCP_Cfg {
 		self::clear_cache();
 	}
 
+	/** Cấu hình tĩnh của lượt request hiện tại (xóa cùng lúc với cache). */
+	private static $memo = null;
+
 	public static function clear_cache() {
+		self::$memo = null;
 		wp_cache_delete( 'vhcp_cfgstatic', 'vhcp' );
 		wp_cache_delete( 'vhcp_quyen', 'vhcp' );
 		wp_cache_delete( 'vhcp_ssomap', 'vhcp' );
@@ -244,8 +252,9 @@ class VHCP_Cfg {
 
 	/** Bản dịch của _cfgStatic() (cache 5 phút như CacheService). */
 	public static function cfg_static() {
+		if ( is_array( self::$memo ) ) { return self::$memo; }
 		$hit = get_transient( 'vhcp_cfgstatic' );
-		if ( is_array( $hit ) ) { return $hit; }
+		if ( is_array( $hit ) ) { self::$memo = $hit; return $hit; }
 
 		$all = self::read_all();
 		if ( self::seed_from( $all ) ) { $all = self::read_all(); }   // chỉ đọc lại khi thực sự có seed
@@ -262,7 +271,7 @@ class VHCP_Cfg {
 		}
 		foreach ( self::rows_of( $all, self::LOAI ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => $r[1], 'tkCo' => $r[2], 'maDt' => $r[3], 'boPhan' => $r[4], 'note' => $r[5] );
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => $r[1], 'tkCo' => $r[2], 'maDt' => $r[3], 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -292,7 +301,24 @@ class VHCP_Cfg {
 			$out['users'][] = array( 'ten' => $r[0], 'pin' => (string) $r[1], 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => $r[4], 'maDt' => $r[5], 'boPhan' => $r[6] );
 		}
 
+		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
+		// ma trận [loại chi phí][phân loại lớn] -> TK Nợ (khóa đã hạ chữ thường).
+		$out['cosoPll'] = array();
+		foreach ( $out['coso'] as $x ) {
+			$k = mb_strtolower( trim( (string) $x['ten'] ) );
+			if ( $k !== '' ) { $out['cosoPll'][ $k ] = trim( (string) $x['phanLoaiLon'] ); }
+		}
+		$out['tkNoMx'] = array();
+		foreach ( $out['tkNoMatrix'] as $x ) {
+			$kn = mb_strtolower( trim( (string) $x['nhom'] ) );
+			$kp = mb_strtolower( trim( (string) $x['pll'] ) );
+			$v  = trim( (string) $x['tkNo'] );
+			if ( $kn === '' || $kp === '' || $v === '' ) { continue; }
+			$out['tkNoMx'][ $kn ][ $kp ] = $v;
+		}
+
 		set_transient( 'vhcp_cfgstatic', $out, 300 );
+		self::$memo = $out;
 		return $out;
 	}
 
@@ -348,9 +374,14 @@ class VHCP_Cfg {
 			$rows = array();
 			foreach ( $cfg['loaiChiPhi'] as $x ) {
 				$x = (array) $x;
-				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $g( $x, 'note' ) );
+				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $g( $x, 'note' ), $g( $x, 'tenMisa' ) );
 			}
 			self::write( self::LOAI, $rows );
+		}
+		if ( isset( $cfg['mangTk'] ) && is_array( $cfg['mangTk'] ) ) {
+			$rows = array();
+			foreach ( $cfg['mangTk'] as $x ) { $x = (array) $x; $rows[] = array( $g( $x, 'pll' ), $g( $x, 'nhomTk' ), $g( $x, 'tuKhoa' ), $g( $x, 'note' ) ); }
+			self::write( self::MANG, $rows );
 		}
 		if ( isset( $cfg['tkNoMatrix'] ) && is_array( $cfg['tkNoMatrix'] ) ) {
 			$rows = array();
@@ -468,29 +499,219 @@ class VHCP_Cfg {
 	public static function loai_tk( $ten ) {
 		$m = self::loai_map();
 		$k = mb_strtolower( trim( (string) $ten ) );
-		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '' ); }
+		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '' ); }
+		$x = $m[ $k ];
 		return array(
-			'tkNo' => (string) $m[ $k ]['tkNo'],
-			'tkCo' => (string) $m[ $k ]['tkCo'],
-			'maDt' => (string) $m[ $k ]['maDt'],
+			'tkNo'    => (string) $x['tkNo'],
+			'tkCo'    => (string) $x['tkCo'],
+			'maDt'    => (string) $x['maDt'],
+			'boPhan'  => isset( $x['boPhan'] ) ? (string) $x['boPhan'] : '',
+			'tenMisa' => isset( $x['tenMisa'] ) ? (string) $x['tenMisa'] : '',
 		);
+	}
+
+	/** Phân loại lớn (mảng kinh doanh) của 1 cơ sở / gian / địa điểm. */
+	public static function pll_of( $coso ) {
+		$s = self::cfg_static();
+		$k = mb_strtolower( trim( (string) $coso ) );
+		if ( $k === '' || ! isset( $s['cosoPll'][ $k ] ) ) { return ''; }
+		return (string) $s['cosoPll'][ $k ];
+	}
+
+	/**
+	 * TK Nợ theo MA TRẬN: [loại chi phí] × [phân loại lớn của cơ sở].
+	 * Cùng một loại chi phí nhưng khác mảng kinh doanh thì khác mã (VD "Chi phí cơ sở":
+	 * EVENT 64196 · FARM 64166 · FZ 64126 · TUTU 64106), nên đây mới là mã sát nhất.
+	 * Trả '' khi combo đó chưa khai -> để bước sau lấy mã cố định của loại.
+	 */
+	public static function tkno_mx( $loai, $coso ) {
+		$pll = self::pll_of( $coso );
+		if ( $pll === '' ) { return ''; }
+		$s = self::cfg_static();
+		$k = mb_strtolower( trim( (string) $loai ) );
+		$p = mb_strtolower( $pll );
+		return isset( $s['tkNoMx'][ $k ][ $p ] ) ? (string) $s['tkNoMx'][ $k ][ $p ] : '';
+	}
+
+	// ------------------------------------------------ hệ thống tài khoản của kế toán
+
+	/** Hệ thống tài khoản đã nạp: [ ['ma'=>, 'ten'=>, 'tinhChat'=>], ... ] */
+	public static function tai_khoan() {
+		$out = array();
+		foreach ( self::read( self::TK ) as $r ) {
+			$ma = trim( (string) $r[0] );
+			if ( $ma === '' ) { continue; }
+			$out[] = array( 'ma' => $ma, 'ten' => trim( (string) $r[1] ), 'tinhChat' => trim( (string) $r[2] ) );
+		}
+		return $out;
+	}
+
+	/** Hệ thống tài khoản + bảng mảng, cho tab Cấu hình (gợi ý mã khi khai danh mục). */
+	public static function get_tai_khoan() {
+		return VHCP_Util::ok( array( 'taiKhoan' => self::tai_khoan(), 'mangTk' => self::mang_tk() ) );
+	}
+
+	/** Bảng mảng kinh doanh: phân loại lớn -> nhóm TK (VD 6412) + từ khóa trong tên TK (VD Funzone). */
+	public static function mang_tk() {
+		$out = array();
+		foreach ( self::read( self::MANG ) as $r ) {
+			$pll = trim( (string) $r[0] );
+			if ( $pll === '' ) { continue; }
+			$out[] = array( 'pll' => $pll, 'nhomTk' => trim( (string) $r[1] ), 'tuKhoa' => trim( (string) $r[2] ), 'note' => trim( (string) $r[3] ) );
+		}
+		return $out;
+	}
+
+	/**
+	 * GHÉP HỆ THỐNG TÀI KHOẢN VÀO DANH MỤC LOẠI CHI PHÍ.
+	 *
+	 * Tài khoản của kế toán đặt tên theo kiểu "Chi phí <hạng mục> <mảng>"
+	 * (VD 64121 Chi phí lương Funzone · 64161 Chi phí lương Farm), nên:
+	 *   - Bỏ từ khóa mảng khỏi tên -> ra TÊN LOẠI CHI PHÍ dùng chung ("Chi phí lương").
+	 *   - Số hiệu tài khoản của từng mảng -> 1 ô trong MA TRẬN [loại] × [phân loại lớn].
+	 * Tài khoản KHÔNG thuộc nhóm mảng nào (6423 đồ dùng văn phòng, 6427 dịch vụ mua ngoài,
+	 * 811 chi phí khác…) thì tên giữ nguyên và TK Nợ là mã cố định, mảng nào cũng dùng chung.
+	 *
+	 * Chỉ THÊM và ĐIỀN Ô TRỐNG: loại chi phí anh tự thêm và mã anh đã sửa tay không bị đụng.
+	 *
+	 * @param array $opts ['dungChung' => array các số hiệu TK dùng chung cần thêm]
+	 */
+	public static function ghep_he_thong_tk( $opts = array() ) {
+		$opts = (array) $opts;
+		$chart = self::tai_khoan();
+		$mang  = self::mang_tk();
+		if ( ! count( $chart ) ) { return VHCP_Util::err( 'Chưa nạp hệ thống tài khoản (⚙️ Cấu hình → nạp CSV → CH_TaiKhoan)' ); }
+		if ( ! count( $mang ) ) { return VHCP_Util::err( 'Chưa khai bảng "Mảng kinh doanh → nhóm TK" nên chưa biết tài khoản nào thuộc mảng nào' ); }
+
+		$k = function ( $v ) { return mb_strtolower( trim( (string) $v ) ); };
+
+		// 1) Từ hệ thống TK + bảng mảng -> các ô ma trận cần có.
+		$mx_new    = array();   // [loại chi phí] [phân loại lớn] = số hiệu
+		$ten_cua   = array();   // khóa hạ chữ -> tên loại chi phí hiển thị
+		$bo_qua_tk = 0;
+		foreach ( $mang as $m ) {
+			$nhom  = $m['nhomTk'];
+			$tu    = $m['tuKhoa'];
+			if ( $nhom === '' || $tu === '' ) { continue; }
+			foreach ( $chart as $tk ) {
+				if ( $tk['ma'] === $nhom || strpos( $tk['ma'], $nhom ) !== 0 ) { continue; }   // chỉ tài khoản con
+				$ten = $tk['ten'];
+				// bỏ từ khóa mảng ở bất kỳ đâu trong tên, rồi dọn dấu và khoảng trắng dư
+				$sach = preg_replace( '/\s*' . preg_quote( $tu, '/' ) . '\s*/iu', ' ', $ten );
+				$sach = trim( preg_replace( '/\s{2,}/u', ' ', (string) $sach ) );
+				$sach = trim( $sach, " -–—_" );
+				if ( $sach === '' || $k( $sach ) === $k( $ten ) ) { $bo_qua_tk++; continue; }   // không nhận ra mảng trong tên
+				$kk = $k( $sach );
+				if ( ! isset( $ten_cua[ $kk ] ) ) { $ten_cua[ $kk ] = $sach; }
+				$mx_new[ $kk ][ $k( $m['pll'] ) ] = array( 'pll' => $m['pll'], 'ma' => $tk['ma'] );
+			}
+		}
+
+		// 2) Các tài khoản dùng chung (không theo mảng) -> loại chi phí có mã cố định.
+		$chung = array();
+		$want  = array();
+		foreach ( (array) ( isset( $opts['dungChung'] ) ? $opts['dungChung'] : array() ) as $x ) {
+			$x = trim( (string) $x );
+			if ( $x !== '' ) { $want[ $x ] = 1; }
+		}
+		foreach ( $chart as $tk ) {
+			if ( ! isset( $want[ $tk['ma'] ] ) ) { continue; }
+			if ( $tk['ten'] === '' ) { continue; }
+			$chung[ $k( $tk['ten'] ) ] = array( 'ten' => $tk['ten'], 'ma' => $tk['ma'] );
+		}
+
+		// 3) Bổ sung danh mục loại chi phí (giữ nguyên dòng đã có).
+		$rows = array(); $co = array();
+		foreach ( self::read( self::LOAI ) as $r ) {
+			$row = array_slice( array_values( (array) $r ), 0, 7 );
+			for ( $i = count( $row ); $i < 7; $i++ ) { $row[ $i ] = ''; }
+			if ( trim( (string) $row[0] ) === '' ) { continue; }
+			$co[ $k( $row[0] ) ] = count( $rows );
+			$rows[] = $row;
+		}
+		$them = 0; $sua = 0;
+		foreach ( $ten_cua as $kk => $ten ) {
+			if ( isset( $co[ $kk ] ) ) { continue; }
+			$rows[] = array( $ten, '', '', '', '', '', '' );   // TK Nợ trống: lấy theo ma trận
+			$co[ $kk ] = count( $rows ) - 1;
+			$them++;
+		}
+		foreach ( $chung as $kk => $x ) {
+			if ( isset( $co[ $kk ] ) ) {
+				$i = $co[ $kk ];
+				if ( trim( (string) $rows[ $i ][1] ) === '' ) { $rows[ $i ][1] = $x['ma']; $sua++; }
+				continue;
+			}
+			$rows[] = array( $x['ten'], $x['ma'], '', '', '', '', '' );
+			$co[ $kk ] = count( $rows ) - 1;
+			$them++;
+		}
+		if ( $them || $sua ) { self::write( self::LOAI, $rows ); }
+
+		// 4) Bổ sung ma trận (không ghi đè ô đã có mã).
+		$cu = array(); $mx_rows = array();
+		foreach ( self::read( self::TKNO ) as $r ) {
+			$n0 = trim( (string) $r[0] ); $p0 = trim( (string) $r[1] ); $v0 = trim( (string) $r[2] );
+			if ( $n0 === '' || $p0 === '' ) { continue; }
+			$cu[ $k( $n0 ) . '|' . $k( $p0 ) ] = count( $mx_rows );
+			$mx_rows[] = array( $n0, $p0, $v0 );
+		}
+		$o_them = 0;
+		foreach ( $mx_new as $kk => $per_pll ) {
+			$ten = $ten_cua[ $kk ];
+			foreach ( $per_pll as $kp => $x ) {
+				$key = $kk . '|' . $kp;
+				if ( isset( $cu[ $key ] ) ) {
+					if ( trim( (string) $mx_rows[ $cu[ $key ] ][2] ) !== '' ) { continue; }   // đã khai tay -> giữ
+					$mx_rows[ $cu[ $key ] ][2] = $x['ma'];
+					$o_them++;
+					continue;
+				}
+				$mx_rows[] = array( $ten, $x['pll'], $x['ma'] );
+				$cu[ $key ] = count( $mx_rows ) - 1;
+				$o_them++;
+			}
+		}
+		if ( $o_them ) { self::write( self::TKNO, $mx_rows ); }
+		self::clear_cache();
+
+		return VHCP_Util::ok( array(
+			'themLoai'    => $them,
+			'suaLoai'     => $sua,
+			'oMaTran'     => $o_them,
+			'tongLoai'    => count( $rows ),
+			'boQuaTaiKhoan' => $bo_qua_tk,
+		) );
+	}
+
+	/** Tên dùng cho diễn giải MISA của 1 loại chi phí (để trống = dùng chính tên loại). */
+	public static function ten_misa_loai( $loai ) {
+		$t = self::loai_tk( $loai );
+		return $t['tenMisa'] !== '' ? $t['tenMisa'] : trim( (string) $loai );
 	}
 
 	/**
 	 * CHỐT MÃ TÀI KHOẢN cho 1 dòng chi ở BẤT KỲ mảng nào (sổ chi phí, đơn vận hành,
-	 * kỹ thuật, marketing, công tác/setup). Thứ tự ưu tiên:
+	 * kỹ thuật, marketing, công tác/setup).
+	 *
+	 * TK Nợ theo thứ tự ưu tiên:
 	 *   1) mã người nhập gõ tay trên dòng ($override)
-	 *   2) mã đã khai trong danh mục LOẠI CHI PHÍ
-	 *   3) TK Có mặc định theo hình thức chi: "Trực tiếp…" -> 331 · còn lại -> 141
-	 * (TK Nợ không có bước 3: chưa khai danh mục thì để trống và báo thiếu, để không
-	 *  âm thầm hạch toán sai.)
+	 *   2) MA TRẬN [loại chi phí] × [phân loại lớn của cơ sở] — cùng loại chi phí mà
+	 *      khác mảng kinh doanh thì khác mã, nên đây là mã sát nhất
+	 *   3) mã cố định khai ở danh mục LOẠI CHI PHÍ (dùng cho loại mảng nào cũng 1 mã)
+	 *   4) để trống + báo thiếu (KHÔNG đoán, để không âm thầm hạch toán sai)
+	 *
+	 * TK Có / Mã đối tượng: gõ tay -> danh mục -> mặc định theo hình thức chi
+	 * ("Trực tiếp…" -> 331 · còn lại -> 141).
 	 */
-	public static function resolve_tk( $loai, $hinh_thuc = '', $override = array() ) {
+	public static function resolve_tk( $loai, $hinh_thuc = '', $override = array(), $coso = '' ) {
 		$override = (array) $override;
 		$ov = function ( $k ) use ( $override ) { return isset( $override[ $k ] ) ? trim( (string) $override[ $k ] ) : ''; };
 		$cat = self::loai_tk( $loai );
 
-		$tk_no = $ov( 'tkNo' ) !== '' ? $ov( 'tkNo' ) : $cat['tkNo'];
+		$tk_no = $ov( 'tkNo' );
+		if ( $tk_no === '' && trim( (string) $loai ) !== '' ) { $tk_no = self::tkno_mx( $loai, $coso ); }
+		if ( $tk_no === '' ) { $tk_no = $cat['tkNo']; }
 		$tk_co = $ov( 'tkCo' ) !== '' ? $ov( 'tkCo' ) : $cat['tkCo'];
 		$ma_dt = $ov( 'maDt' ) !== '' ? $ov( 'maDt' ) : $cat['maDt'];
 
@@ -531,27 +752,38 @@ class VHCP_Cfg {
 			if ( ! isset( $bp[ $key ] ) && trim( (string) $r[3] ) !== '' ) { $bp[ $key ] = trim( (string) $r[3] ); }
 		}
 
-		$mt = array();   // tên nhóm -> tập các TK Nợ gặp trong ma trận
+		// Ma trận: chỉ hạ thành "mã cố định" khi loại đó khai ĐỦ mọi phân loại lớn và
+		// cùng một mã. Ô trống trong ma trận nghĩa là "mảng đó không dùng loại này",
+		// hạ xuống mã cố định sẽ biến ô trống thành hạch toán sai.
+		$so_pll = array();
+		foreach ( self::rows_of( $all, self::COSO ) as $r ) {
+			$v = trim( (string) $r[2] );
+			if ( $v !== '' ) { $so_pll[ mb_strtolower( $v ) ] = 1; }
+		}
+		$so_pll = count( $so_pll );
+
+		$mt = array();   // tên loại -> [ mã => số ô ]
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			$key = $k( $r[0] );
 			$v   = trim( (string) $r[2] );
 			if ( $key === '' || $v === '' ) { continue; }
 			if ( ! isset( $mt[ $key ] ) ) { $mt[ $key ] = array(); }
-			$mt[ $key ][ $v ] = 1;
+			if ( ! isset( $mt[ $key ][ $v ] ) ) { $mt[ $key ][ $v ] = 0; }
+			$mt[ $key ][ $v ]++;
 		}
 
 		$rows = array(); $upd = 0; $thieu = 0; $changed = false;
 		foreach ( $loai as $r ) {
-			$row = array_slice( array_values( (array) $r ), 0, 6 );
-			for ( $i = count( $row ); $i < 6; $i++ ) { $row[ $i ] = ''; }
+			$row = array_slice( array_values( (array) $r ), 0, 7 );
+			for ( $i = count( $row ); $i < 7; $i++ ) { $row[ $i ] = ''; }
 			$key = $k( $row[0] );
 
 			if ( trim( (string) $row[1] ) === '' ) {
 				$v = '';
 				if ( isset( $tk[ $key ] ) ) { $v = $tk[ $key ]; }
-				elseif ( isset( $mt[ $key ] ) && count( $mt[ $key ] ) === 1 ) {
+				elseif ( isset( $mt[ $key ] ) && count( $mt[ $key ] ) === 1 && $so_pll > 0 ) {
 					$ma = array_map( 'strval', array_keys( $mt[ $key ] ) );
-					$v  = $ma[0];
+					if ( (int) $mt[ $key ][ $ma[0] ] >= $so_pll ) { $v = $ma[0]; }
 				}
 				if ( $v !== '' ) { $row[1] = $v; $upd++; $changed = true; }
 			}

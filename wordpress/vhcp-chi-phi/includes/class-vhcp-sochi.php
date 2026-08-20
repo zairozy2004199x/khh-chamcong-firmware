@@ -37,7 +37,7 @@ class VHCP_SoChi {
 	public static function resolve_tk( $rec ) {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };
-		return VHCP_Cfg::resolve_tk( $g( 'loai' ), $g( 'hinhThuc' ), array( 'tkNo' => $g( 'tkNo' ), 'tkCo' => $g( 'tkCo' ), 'maDt' => $g( 'maDt' ) ) );
+		return VHCP_Cfg::resolve_tk( $g( 'loai' ), $g( 'hinhThuc' ), array( 'tkNo' => $g( 'tkNo' ), 'tkCo' => $g( 'tkCo' ), 'maDt' => $g( 'maDt' ) ), $g( 'coso' ) );
 	}
 
 	// ---------------------------------------------------------------- thêm / sửa / xóa
@@ -270,7 +270,7 @@ class VHCP_SoChi {
 			if ( VHCP_Util::fmt( $r['ngay_xuat'] ) !== '' ) { continue; }
 			$thieu = ( trim( (string) $r['tk_no'] ) === '' || trim( (string) $r['tk_co'] ) === '' );
 			if ( ! $all && ! $thieu ) { continue; }
-			$tk = self::resolve_tk( array( 'loai' => $r['loai'], 'hinhThuc' => $r['hinh_thuc'] ) );
+			$tk = self::resolve_tk( array( 'loai' => $r['loai'], 'hinhThuc' => $r['hinh_thuc'], 'coso' => $r['coso'] ) );
 			if ( $tk['tk_no'] === '' ) { $chua[ (string) $r['loai'] ] = 1; }
 			if ( $tk['tk_no'] === (string) $r['tk_no'] && $tk['tk_co'] === (string) $r['tk_co'] && $tk['ma_dt'] === (string) $r['ma_dt'] ) { continue; }
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (string) $r['id'] ) );

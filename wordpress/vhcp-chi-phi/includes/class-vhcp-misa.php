@@ -22,7 +22,7 @@ class VHCP_Misa {
 	 *
 	 * @return array [tk_no, tk_co, ma_dt, legacy(bool)]
 	 */
-	public static function tk_mang( $loai_cp, $is_tt, $line_tk_no = '', $line_tk_co = '', $line_ma_dt = '' ) {
+	public static function tk_mang( $loai_cp, $is_tt, $line_tk_no = '', $line_tk_co = '', $line_ma_dt = '', $coso = '' ) {
 		$loai_cp = trim( (string) $loai_cp );
 		$line_tk_no = trim( (string) $line_tk_no );
 		if ( $loai_cp === '' && $line_tk_no === '' ) {
@@ -32,7 +32,7 @@ class VHCP_Misa {
 			'tkNo' => $line_tk_no,
 			'tkCo' => trim( (string) $line_tk_co ),
 			'maDt' => trim( (string) $line_ma_dt ),
-		) );
+		), $coso );
 		$tk['legacy'] = false;
 		return $tk;
 	}
@@ -222,7 +222,7 @@ class VHCP_Misa {
 
 				// Mã tài khoản theo LOẠI CHI PHÍ của dòng; dòng chưa gắn loại thì giữ đúng cách cũ.
 				// (mục con thừa hưởng hình thức chi của hạng mục cha -> $is_tt đã tính ở trên)
-				$tkm   = self::tk_mang( isset( $x['loai_cp'] ) ? $x['loai_cp'] : '', $is_tt, isset( $x['tk_no'] ) ? $x['tk_no'] : '', '', isset( $x['ma_dt'] ) ? $x['ma_dt'] : '' );
+				$tkm   = self::tk_mang( isset( $x['loai_cp'] ) ? $x['loai_cp'] : '', $is_tt, isset( $x['tk_no'] ) ? $x['tk_no'] : '', '', isset( $x['ma_dt'] ) ? $x['ma_dt'] : '', isset( $x['gian'] ) ? (string) $x['gian'] : '' );
 				$tk_no = $tkm['tk_no'];
 				$tk_co = $tkm['tk_co'];
 				$ma_dt = $tkm['ma_dt'];
@@ -278,7 +278,7 @@ class VHCP_Misa {
 			$ma_dv    = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			if ( $coso !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso . ' (thêm ở ⚙️ Cấu hình cơ sở)' ] = 1; }
-			$tkm = self::tk_mang( $r['loai_cp'], $is_tt, $r['tk_no'], $r['tk_co'], $r['ma_dt'] );
+			$tkm = self::tk_mang( $r['loai_cp'], $is_tt, $r['tk_no'], $r['tk_co'], $r['ma_dt'], $coso );
 			if ( $tkm['tk_no'] === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $r['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 			$dg1 = VHCP_Util::j( array( 'MKT', $d['ten'], $coso, $kenh, $d['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 			$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( trim( $gc ) !== '' ? '_' . $gc : '' );
@@ -316,7 +316,7 @@ class VHCP_Misa {
 				$ma_dv    = isset( $m_unit[ $dia_diem ] ) ? $m_unit[ $dia_diem ] : '';
 				$ten_misa = ! empty( $m_tm[ $dia_diem ] ) ? $m_tm[ $dia_diem ] : $dia_diem;
 				if ( $dia_diem !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho: ' . $dia_diem . ' (thêm ở ⚙️ Cấu hình cơ sở nếu là cơ sở)' ] = 1; }
-				$tkm = self::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], $x['tk_co'], $x['ma_dt'] );
+				$tkm = self::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], $x['tk_co'], $x['ma_dt'], $dia_diem );
 				if ( $tkm['tk_no'] === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $x['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 				$dg1 = VHCP_Util::j( array( $lo, $ten, $nguoi, $ky ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 				$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( $ghichu !== '' ? '_' . $ghichu : '' );
