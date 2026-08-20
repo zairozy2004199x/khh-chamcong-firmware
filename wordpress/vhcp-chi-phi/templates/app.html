@@ -2759,12 +2759,17 @@
    * Loại nào ở cơ sở đó khai 2 mã trở lên thì tách thành từng dòng theo mã, kèm tên tài
    * khoản, để người nhập chọn đúng một -> app khỏi đoán, sổ khỏi sai.
    */
+  function _tenTk(ma){
+    ma=String(ma||'');
+    if(TKNAME && TKNAME[ma]) return TKNAME[ma];
+    return (BOOT.tenTk && BOOT.tenTk[ma]) ? BOOT.tenTk[ma] : '';
+  }
   function _loaiCpOpts(coso, cur, curTk){
     var out=[];
     _loaiCpList(coso).forEach(function(x){
       var ds=_tkNoList(x.ten, coso);
       if(ds.length>1){
-        ds.forEach(function(ma){ out.push({ten:x.ten, tk:String(ma), nhan:x.ten+'  ·  TK '+ma+(TKNAME[ma]?('  '+TKNAME[ma]):'')}); });
+        ds.forEach(function(ma){ var tn=_tenTk(ma); out.push({ten:x.ten, tk:String(ma), nhan:x.ten+'  ·  TK '+ma+(tn?('  '+tn):'')}); });
         return;
       }
       var tk=_tkNoCua(x.ten, coso);

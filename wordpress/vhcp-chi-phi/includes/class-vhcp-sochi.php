@@ -270,7 +270,9 @@ class VHCP_SoChi {
 			if ( VHCP_Util::fmt( $r['ngay_xuat'] ) !== '' ) { continue; }
 			$thieu = ( trim( (string) $r['tk_no'] ) === '' || trim( (string) $r['tk_co'] ) === '' );
 			if ( ! $all && ! $thieu ) { continue; }
-			$tk = self::resolve_tk( array( 'loai' => $r['loai'], 'hinhThuc' => $r['hinh_thuc'], 'coso' => $r['coso'] ) );
+			// Ô khai nhiều mã thì máy không chọn hộ được — giữ mã người nhập đã chọn tay.
+			$giu = VHCP_Cfg::ma_con_hop_le( $r['loai'], $r['coso'], $r['tk_no'] );
+			$tk  = self::resolve_tk( array( 'loai' => $r['loai'], 'hinhThuc' => $r['hinh_thuc'], 'coso' => $r['coso'], 'tkNo' => $giu ) );
 			if ( $tk['tk_no'] === '' ) { $chua[ (string) $r['loai'] ] = 1; }
 			if ( $tk['tk_no'] === (string) $r['tk_no'] && $tk['tk_co'] === (string) $r['tk_co'] && $tk['ma_dt'] === (string) $r['ma_dt'] ) { continue; }
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (string) $r['id'] ) );

@@ -1151,6 +1151,25 @@ teq( 'chọn mã nào thì dòng mang mã đó', '64197', $hai_2['tkNo'] );
 $hai_3 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Chi phí marketing', 'noiDung' => 'Ads', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV', 'tkNo' => '64196' ), 'NV A' );
 teq( 'cơ sở khác cùng mảng cũng có 2 lựa chọn', '64196', $hai_3['tkNo'] );
 
+// Áp lại mã cho dòng cũ KHÔNG được xóa mã người nhập đã chọn tay
+teq( 'mã đã chọn còn trong danh sách thì giữ', '64197', VHCP_Cfg::ma_con_hop_le( 'Chi phí marketing', 'VR TÂN AN', '64197' ) );
+teq( 'mã không còn trong danh sách thì bỏ', '', VHCP_Cfg::ma_con_hop_le( 'Chi phí marketing', 'VR TÂN AN', '9999' ) );
+$gm = VHCP_SoChi::gan_ma_tai_khoan( true );
+t( 'gán lại mã cho toàn sổ chạy được', ! empty( $gm['success'] ) );
+$con = array();
+foreach ( VHCP_SoChi::list_chi( array() )['items'] as $r ) {
+	if ( (string) $r['noiDung'] === 'Hoa hồng' ) { $con[] = (string) $r['tkNo']; }
+	if ( (string) $r['noiDung'] === 'Ads' && (string) $r['coso'] === 'VR SORA' ) { $con[] = (string) $r['tkNo']; }
+}
+teq( 'dòng đã chọn 64197 vẫn là 64197 sau khi gán lại', true, in_array( '64197', $con, true ) );
+teq( 'dòng đã chọn 64196 vẫn là 64196 sau khi gán lại', true, in_array( '64196', $con, true ) );
+
+// Bootstrap phải kèm tên tài khoản để người nhập phân biệt 2 mã
+$bs = VHCP_Don::get_bootstrap();
+t( 'bootstrap có bảng mã -> tên tài khoản', isset( $bs['tenTk'] ) && isset( $bs['tenTk']['64196'] ) && isset( $bs['tenTk']['64197'] ) );
+teq( 'tên tài khoản của mã thứ 2', 'Chi phí hoa hồng Event', $bs['tenTk']['64197'] );
+t( 'bootstrap có ma trận dạng danh sách mã', isset( $bs['tkNoMx']['chi phí marketing'] ) );
+
 // Thêm mã thứ 3, rồi khai lại KHÔNG tích "thêm" -> gộp về 1 mã
 $k3 = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64221', 'mangs' => array( 'EVENT VR MN' ), 'them' => true ) );
 teq( 'thêm được mã thứ 3', 3, count( VHCP_Cfg::tkno_mx_list( 'Chi phí marketing', 'VR TÂN AN' ) ) );

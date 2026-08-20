@@ -550,6 +550,21 @@ class VHCP_Cfg {
 	}
 
 	/**
+	 * Mã đang có trên dòng còn hợp lệ không? Trả lại chính nó nếu còn, ngược lại ''.
+	 *
+	 * Dùng khi áp lại mã cho dòng cũ: ô nào khai NHIỀU mã thì máy không chọn được hộ,
+	 * nhưng mã người nhập đã chọn tay vẫn đúng — phải giữ, không được xóa thành trống.
+	 */
+	public static function ma_con_hop_le( $loai, $coso, $tk_hien_tai ) {
+		$tk = trim( (string) $tk_hien_tai );
+		if ( $tk === '' ) { return ''; }
+		$ds = self::tkno_mx_list( $loai, $coso );
+		if ( count( $ds ) && in_array( $tk, array_map( 'strval', $ds ), true ) ) { return $tk; }
+		if ( ! count( $ds ) && self::loai_tk( $loai )['tkNo'] === $tk ) { return $tk; }
+		return '';
+	}
+
+	/**
 	 * Đúng 1 mã thì trả mã đó. Ô khai 2 mã trở lên thì trả '' — người nhập phải chỉ rõ
 	 * mã nào (ô chọn loại chi phí tách sẵn từng mã), app không tự đoán hộ.
 	 */

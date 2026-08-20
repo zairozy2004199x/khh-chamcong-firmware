@@ -247,8 +247,10 @@ class VHCP_MK {
 			$loai = trim( (string) $r['loai_cp'] );
 			if ( $loai === '' ) { $chua++; continue; }
 			if ( ! $all && trim( (string) $r['tk_no'] ) !== '' ) { continue; }
-			$md = (string) $r['ma_don'];
-			$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ), array(), isset( $coso_of[ $md ] ) ? $coso_of[ $md ] : '' );
+			$md   = (string) $r['ma_don'];
+			$cs   = isset( $coso_of[ $md ] ) ? $coso_of[ $md ] : '';
+			$giu  = VHCP_Cfg::ma_con_hop_le( $loai, $cs, $r['tk_no'] );
+			$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ), array( 'tkNo' => $giu ), $cs );
 			if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (string) $r['id'] ) );
 			$n++;

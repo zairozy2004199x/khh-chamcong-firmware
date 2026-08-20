@@ -163,6 +163,8 @@ hai. Hệ quả:
 - App **không tự chọn hộ**: dòng nào nhập mà không chỉ mã (VD nạp CSV cũ) thì để trống và báo
   "thiếu TK Nợ" khi xuất MISA — thà báo còn hơn hạch toán sai âm thầm.
 - Muốn gộp lại về một mã: khai lại **không** tích ô "thêm mã nữa" — ô đó chỉ còn mã vừa khai.
+- Nút **🔗 Gán mã cho dòng cũ** **không** xóa mã người nhập đã chọn tay: dòng nào đang mang một mã
+  còn nằm trong danh sách đã khai thì giữ nguyên mã đó, chỉ điền cho dòng còn trống.
 
 Cách còn lại, đơn giản hơn khi hai mã ứng với hai việc khác nhau: khai luôn **hai tên gọi** riêng
 ("Chi phí marketing" và "Chi phí hoa hồng"). Nhân viên chọn tên là xong, khỏi phải hiểu mã.

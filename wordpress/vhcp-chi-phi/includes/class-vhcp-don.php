@@ -106,10 +106,27 @@ class VHCP_Don {
 		$coso_ml = isset( $s_all['cosoPll'] ) ? $s_all['cosoPll'] : array();
 		$mx      = isset( $s_all['tkNoMx'] ) ? $s_all['tkNoMx'] : array();
 
+		// Tên tài khoản của các mã ĐANG dùng: ô nào khai 2 mã thì người nhập phân biệt bằng
+		// tên ("64196 Chi phí khác Event" / "64197 Chi phí hoa hồng Event"), nên phải có tên.
+		$can = array();
+		foreach ( $mx as $per ) {
+			foreach ( (array) $per as $ds ) {
+				foreach ( (array) $ds as $m ) { $can[ (string) $m ] = 1; }
+			}
+		}
+		foreach ( $loai as $x ) { if ( trim( (string) $x['tkNo'] ) !== '' ) { $can[ trim( (string) $x['tkNo'] ) ] = 1; } }
+		$ten_tk = array();
+		if ( count( $can ) ) {
+			foreach ( VHCP_Cfg::tai_khoan() as $x ) {
+				if ( isset( $can[ (string) $x['ma'] ] ) ) { $ten_tk[ (string) $x['ma'] ] = $x['ten']; }
+			}
+		}
+
 		return array(
 			'coso'       => $coso,
 			'cosoPll'    => $coso_ml,
 			'tkNoMx'     => $mx,
+			'tenTk'      => $ten_tk,
 			'nhom'       => $nhom,
 			'loaiChiPhi' => $loai,
 			'phanloai'   => $pl,

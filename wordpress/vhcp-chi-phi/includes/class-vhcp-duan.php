@@ -477,7 +477,9 @@ class VHCP_DuAn {
 				if ( ! $all && $cu !== '' && trim( (string) $x['tk_no'] ) !== '' ) { continue; }
 				$cap = trim( (string) $x['cap_cha'] );
 				$ht  = ( $cap !== '' && $cap !== '(Phát sinh)' && ! empty( $parent_ht[ $cap ] ) ) ? $parent_ht[ $cap ] : trim( (string) $x['hinh_thuc'] );
-				$tk  = VHCP_Cfg::resolve_tk( $loai, $ht, array(), trim( (string) $x['gian'] ) );
+				$gian_x = trim( (string) $x['gian'] );
+				$giu    = VHCP_Cfg::ma_con_hop_le( $loai, $gian_x, $x['tk_no'] );
+				$tk  = VHCP_Cfg::resolve_tk( $loai, $ht, array( 'tkNo' => $giu ), $gian_x );
 				if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
 				if ( $loai === $cu && $tk['tk_no'] === trim( (string) $x['tk_no'] ) && $tk['tk_co'] === trim( (string) $x['tk_co'] ) ) { continue; }
 				$wpdb->update( $t, array( 'loai_cp' => $loai, 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (int) $x['id'] ) );

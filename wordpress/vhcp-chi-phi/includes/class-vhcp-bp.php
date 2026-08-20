@@ -261,7 +261,8 @@ class VHCP_BP {
 				$loai = trim( (string) $r['loai_cp'] );
 				if ( $loai === '' ) { $chua++; continue; }
 				if ( ! $all && trim( (string) $r['tk_no'] ) !== '' ) { continue; }
-				$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ), array(), (string) $b['dia_diem'] );
+				$giu = VHCP_Cfg::ma_con_hop_le( $loai, (string) $b['dia_diem'], $r['tk_no'] );
+				$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ), array( 'tkNo' => $giu ), (string) $b['dia_diem'] );
 				if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
 				$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (int) $r['id'] ) );
 				$n++;
