@@ -136,8 +136,9 @@ Cách tạo một loại chi phí cho nhân viên nhập gồm 3 phần: **tên 
 
 Để không gõ tay mã:
 
-1. Nạp file tài khoản của kế toán: ⚙️ Cấu hình → nạp CSV → **`CH_TaiKhoan`**
-   (3 cột: *Số hiệu · Tên tài khoản · Tính chất*). Nạp xong mọi ô mã trong trang Cấu hình có gợi ý
+1. Nạp file tài khoản của kế toán — làm ở **wp-admin**, không phải trong app:
+   **wp-admin → Vận Hành Chi Phí → Nhập dữ liệu** → chọn bảng **`CH_TaiKhoan`** → tải file CSV lên
+   (3 cột: *Số hiệu · Tên tài khoản · Tính chất*) → **Nạp dữ liệu**. Nạp xong mọi ô mã trong trang Cấu hình có gợi ý
    `số hiệu · tên tài khoản`; gõ mã không có trong hệ thống thì ô đổi màu đỏ.
 2. Khai thẻ **🧭 Mảng kinh doanh → nhóm tài khoản**: mỗi mảng một dòng — *Mảng* (= phân loại lớn
    của cơ sở) · *Nhóm TK* (4 số đầu, VD `6412`) · *Từ khóa trong tên TK* (VD `Funzone`).
