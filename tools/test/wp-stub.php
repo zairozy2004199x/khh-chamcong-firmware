@@ -44,6 +44,29 @@ function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF
 function esc_attr( $s ) { return esc_html( $s ); }
 function esc_url( $s ) { return (string) $s; }
 function esc_url_raw( $s ) { return (string) $s; }
+
+/**
+ * Giả lập gọi mạng: bài kiểm không ra Internet, nên $GLOBALS['VHCP_HTTP'] đóng vai
+ * Google Sheet — khóa là địa chỉ (khớp một phần cũng được), giá trị là nội dung trả về.
+ */
+$GLOBALS['VHCP_HTTP'] = array();
+function is_wp_error( $x ) { return ( $x instanceof VHCP_Test_WP_Error ); }
+class VHCP_Test_WP_Error {
+	private $msg;
+	public function __construct( $m ) { $this->msg = $m; }
+	public function get_error_message() { return $this->msg; }
+}
+function wp_remote_get( $url, $args = array() ) {
+	foreach ( $GLOBALS['VHCP_HTTP'] as $k => $v ) {
+		if ( strpos( $url, $k ) !== false ) {
+			return is_array( $v ) ? $v : array( 'code' => 200, 'body' => (string) $v );
+		}
+	}
+	return new VHCP_Test_WP_Error( 'không có mạng trong bài kiểm: ' . $url );
+}
+function wp_remote_retrieve_response_code( $r ) { return isset( $r['code'] ) ? (int) $r['code'] : 200; }
+function wp_remote_retrieve_body( $r ) { return isset( $r['body'] ) ? (string) $r['body'] : ''; }
+function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
 function home_url( $p = '/' ) { return 'http://example.test' . $p; }
 function add_query_arg() { return ''; }
@@ -195,7 +218,7 @@ function vhcp_test_boot( $dir ) {
 	define( 'VHCP_VERSION', 'test' );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
-	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'import' ) as $c ) {
+	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'sheet', 'import' ) as $c ) {
 		require_once $dir . '/includes/class-vhcp-' . $c . '.php';
 	}
 	vhcp_test_create_tables();

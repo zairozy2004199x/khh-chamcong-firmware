@@ -219,6 +219,40 @@ class VHCP_Nap {
 		);
 	}
 
+	/** Danh sách bảng đích có thể tự dò, theo thứ tự nạp (danh mục trước, dòng chi sau). */
+	public static function cac_bang() {
+		return array( 'don', 'bp_index', 'mk_don', 'chiphi', 'bp_line', 'da_line', 'mk_line', 'sochi' );
+	}
+
+	/**
+	 * Điểm khớp của một bảng dữ liệu với một bảng đích = số tên cột nhận ra được.
+	 * Dùng để tự chọn "tab này là bảng gì" khi đọc cả file Google Sheet một lượt.
+	 */
+	public static function diem( $bang, $rows ) {
+		$k = self::khop( $bang, $rows );
+		if ( ! empty( $k['loi'] ) ) { return 0; }
+		return count( $k['hd'] );
+	}
+
+	/**
+	 * Đoán bảng đích của một tab: chọn bảng khớp được nhiều tên cột nhất.
+	 * Yêu cầu tối thiểu 3 cột khớp để không nhận bừa.
+	 *
+	 * @return array [bang, diem, tatCa]
+	 */
+	public static function doan_bang( $rows ) {
+		$diem = array();
+		foreach ( self::cac_bang() as $b ) { $diem[ $b ] = self::diem( $b, $rows ); }
+		arsort( $diem );
+		$top = key( $diem );
+		$max = $diem[ $top ];
+		return array(
+			'bang'  => ( $max >= 3 ? $top : '' ),
+			'diem'  => $max,
+			'tatCa' => $diem,
+		);
+	}
+
 	/** Lấy ô theo TÊN TRƯỜNG (rỗng nếu file không có cột đó). */
 	public static function o( $row, $hd, $field ) {
 		if ( ! isset( $hd[ $field ] ) ) { return ''; }

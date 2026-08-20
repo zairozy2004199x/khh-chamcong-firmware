@@ -10,6 +10,7 @@ class VHCP_Admin {
 	public static function menu() {
 		add_menu_page( 'Vận Hành Chi Phí', 'Vận Hành Chi Phí', self::CAP, 'vhcp', array( __CLASS__, 'page_main' ), 'dashicons-money-alt', 58 );
 		add_submenu_page( 'vhcp', 'Nhập dữ liệu từ Google Sheet', 'Nhập dữ liệu', self::CAP, 'vhcp-import', array( __CLASS__, 'page_import' ) );
+		add_submenu_page( 'vhcp', 'Nạp cả bảng tính từ link', 'Nạp từ link Sheet', self::CAP, 'vhcp-sheet', array( __CLASS__, 'page_sheet' ) );
 		add_submenu_page( 'vhcp', 'Cài đặt Vận Hành Chi Phí', 'Cài đặt', self::CAP, 'vhcp-settings', array( __CLASS__, 'page_settings' ) );
 	}
 
@@ -59,6 +60,18 @@ class VHCP_Admin {
 			exit;
 		}
 
+		if ( $action === 'sheet' ) {
+			$url = isset( $_POST['vhcp_url'] ) ? esc_url_raw( wp_unslash( $_POST['vhcp_url'] ) ) : '';
+			$res = VHCP_Sheet::nap_ca_file( $url, array(
+				'thu'     => ! empty( $_POST['vhcp_thu'] ),
+				'replace' => ! empty( $_POST['vhcp_replace'] ),
+				'taoCha'  => ! empty( $_POST['vhcp_taocha'] ),
+			) );
+			set_transient( 'vhcp_sheet_res_' . get_current_user_id(), $res, 120 );
+			set_transient( 'vhcp_sheet_url_' . get_current_user_id(), $url, 3600 );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp-sheet' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
 		if ( $action === 'doiten' ) {
 			$cu  = isset( $_POST['vhcp_cu'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcp_cu'] ) ) : '';
 			$moi = isset( $_POST['vhcp_moi'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcp_moi'] ) ) : '';
@@ -153,6 +166,69 @@ class VHCP_Admin {
 		echo '<p><button class="button">Kiểm tra lại bảng dữ liệu + làm mới đường dẫn</button> ';
 		echo '<span class="description">Chạy khi mới cập nhật plugin hoặc mở app bị lỗi 404.</span></p></form>';
 		echo '</div>';
+	}
+
+	public static function page_sheet() {
+		$uid = get_current_user_id();
+		$res = get_transient( 'vhcp_sheet_res_' . $uid );
+		if ( $res ) { delete_transient( 'vhcp_sheet_res_' . $uid ); }
+		$url = (string) get_transient( 'vhcp_sheet_url_' . $uid );
+
+		echo '<div class="wrap"><h1>Nạp cả bảng tính từ link Google Sheet</h1>';
+		echo '<p>Dán link bảng tính, plugin tự tải <b>mọi tab</b>, tự nhận tab nào là bảng gì (theo tên cột),'
+			. ' tự nạp <b>danh mục trước — dòng chi sau</b>, và tự tạo dự án / đợt còn thiếu để dòng chi không bị mồ côi.</p>';
+		echo '<p><b>Bảng tính phải cho xem bằng link:</b> mở bảng tính → <em>Chia sẻ → Bất kỳ ai có đường liên kết → Người xem</em>.'
+			. ' App chỉ ĐỌC, không ghi gì vào bảng tính của anh.</p>';
+
+		if ( $res ) {
+			if ( empty( $res['success'] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( isset( $res['error'] ) ? $res['error'] : 'Lỗi' ) . '</p></div>';
+			} else {
+				echo '<div class="notice ' . ( ! empty( $res['thu'] ) ? 'notice-info' : 'notice-success' ) . '"><p>'
+					. ( ! empty( $res['thu'] ) ? '<b>Chỉ thử — chưa ghi gì.</b> ' : '' )
+					. 'Đọc ' . (int) $res['soTab'] . ' tab · nạp <b>' . (int) $res['tong'] . '</b> dòng'
+					. ' · bỏ qua ' . (int) $res['boQua'] . ' · chưa ra mã tài khoản ' . (int) $res['thieuMa'] . '</p></div>';
+
+				echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Tab</th><th>Nhận là</th>'
+					. '<th>Cột khớp</th><th>Kết quả</th><th>Cột app không dùng</th><th>Dòng mồ côi</th></tr></thead><tbody>';
+				foreach ( (array) $res['baoCao'] as $b ) {
+					$la = isset( $b['cotLa'] ) ? (array) $b['cotLa'] : array();
+					$mc = isset( $b['moCoi'] ) ? (array) $b['moCoi'] : array();
+					echo '<tr><td><code>' . esc_html( $b['tab'] ) . '</code></td>'
+						. '<td>' . esc_html( isset( $b['bang'] ) ? VHCP_Sheet::ten_bang( $b['bang'] ) : '—' ) . '</td>'
+						. '<td>' . esc_html( isset( $b['cotKhop'] ) ? (string) $b['cotKhop'] : '—' ) . '</td>'
+						. '<td>' . esc_html( isset( $b['ketQua'] ) ? $b['ketQua'] : '' ) . '</td>'
+						. '<td>' . esc_html( count( $la ) ? implode( ' · ', $la ) : '—' ) . '</td>'
+						. '<td>' . esc_html( count( $mc ) ? implode( ' · ', $mc ) : '—' ) . '</td></tr>';
+				}
+				echo '</tbody></table>';
+
+				if ( count( (array) $res['tuTao'] ) ) {
+					echo '<div class="notice notice-warning"><p><b>App tự tạo dòng cha còn thiếu — kiểm lại mấy chỗ này:</b></p><ul style="margin-left:18px;list-style:disc">';
+					foreach ( (array) $res['tuTao'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+					echo '</ul></div>';
+				}
+				if ( empty( $res['thu'] ) && (int) $res['thieuMa'] > 0 ) {
+					echo '<div class="notice notice-warning"><p>Có <b>' . (int) $res['thieuMa'] . '</b> dòng chưa ra được TK Nợ.'
+						. ' Vào app → ⚙️ Cấu hình khai mã cho loại chi phí (và điền địa điểm cho đợt vừa tạo), rồi bấm'
+						. ' <b>🔗 Gán mã cho dòng cũ</b>.</p></div>';
+				}
+			}
+		}
+
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp-sheet' ) ) . '">';
+		wp_nonce_field( 'vhcp_sheet' );
+		echo '<input type="hidden" name="vhcp_action" value="sheet">';
+		echo '<table class="form-table"><tr><th scope="row">Link bảng tính</th><td>'
+			. '<input name="vhcp_url" class="large-text" value="' . esc_attr( $url ) . '" placeholder="https://docs.google.com/spreadsheets/d/…"></td></tr>';
+		echo '<tr><th scope="row">Chỉ thử</th><td><label><input type="checkbox" name="vhcp_thu" value="1" checked>'
+			. ' chỉ xem sẽ nạp gì, chưa ghi vào database</label></td></tr>';
+		echo '<tr><th scope="row">Xóa dữ liệu cũ</th><td><label><input type="checkbox" name="vhcp_replace" value="1">'
+			. ' xóa sạch bảng tương ứng trước khi nạp (chỉ tích cho lượt nạp đầu)</label></td></tr>';
+		echo '<tr><th scope="row">Tự tạo dòng cha</th><td><label><input type="checkbox" name="vhcp_taocha" value="1" checked>'
+			. ' tạo dự án / đợt còn thiếu để dòng chi không bị bỏ (app sẽ liệt kê ra để anh kiểm)</label></td></tr></table>';
+		submit_button( 'Đọc bảng tính' );
+		echo '</form></div>';
 	}
 
 	public static function page_import() {

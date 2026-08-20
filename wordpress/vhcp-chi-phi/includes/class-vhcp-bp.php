@@ -57,6 +57,34 @@ class VHCP_BP {
 		return ! ( trim( (string) $r['noi_dung'] ) === '' && ! ( VHCP_Util::num( $r['du_toan'] ) || VHCP_Util::num( $r['thuc_te'] ) ) );
 	}
 
+	/**
+	 * Tạo đợt với MÃ CHO TRƯỚC — dùng khi nạp dữ liệu cũ: dòng chi đã mang mã chuyến
+	 * (BP_ms5y6…), nếu tạo đợt mã mới thì dòng chi mất liên kết.
+	 * Địa điểm để trống thì dòng chi của đợt này CHƯA ra được TK Nợ (mảng lấy theo địa
+	 * điểm) — phải điền rồi bấm "Gán mã cho dòng cũ".
+	 */
+	public static function create_voi_ma( $ma, $loai, $ten, $nguoi, $dia_diem, $ky, $creator ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( $ma === '' ) { return VHCP_Util::err( 'Thiếu mã đợt' ); }
+		if ( self::find( $ma ) ) { return VHCP_Util::ok( array( 'ma' => $ma, 'daCo' => 1 ) ); }
+		$loai = in_array( trim( (string) $loai ), array( 'Công tác', 'Setup' ), true ) ? trim( (string) $loai ) : 'Công tác';
+		$ky   = trim( (string) $ky );
+		if ( $ky === '' ) { $ky = VHCP_Util::now()->format( 'm/Y' ); }
+		$wpdb->insert( VHCP_DB::t( 'bp_index' ), array(
+			'ma'         => $ma,
+			'loai'       => $loai,
+			'ten'        => VHCP_Util::san( $ten ) !== '' ? VHCP_Util::san( $ten ) : $ma,
+			'nguoi'      => trim( (string) $nguoi ),
+			'dia_diem'   => trim( (string) $dia_diem ),
+			'ky'         => $ky,
+			'trang_thai' => 'Đang xử lý',
+			'ngay_tao'   => VHCP_Util::now()->format( 'd/m/Y' ),
+			'nguoi_tao'  => (string) $creator,
+		) );
+		return VHCP_Util::ok( array( 'ma' => $ma ) );
+	}
+
 	public static function create( $loai, $ten, $nguoi, $dia_diem, $ky, $creator ) {
 		global $wpdb;
 		$loai = trim( (string) $loai );

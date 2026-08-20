@@ -1332,6 +1332,58 @@ teq( 'link ảnh đã sang tên miền mới', 'https://khmatrix.com/wp-content/
 t( 'tên miền cũ = mới thì từ chối', empty( VHCP_Upload::doi_ten_mien( 'khmatrix.com', 'khmatrix.com' )['success'] ) );
 t( 'thiếu tên miền cũ thì từ chối', empty( VHCP_Upload::doi_ten_mien( '', 'khmatrix.com' )['success'] ) );
 
+// ------------------------------- 34. ĐỌC CẢ BẢNG TÍNH TỪ LINK MỘT LƯỢT
+teq( 'bóc được ID từ link đầy đủ', '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789', VHCP_Sheet::doc_id( 'https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789/edit#gid=0' ) );
+teq( 'nhận cả khi dán mỗi ID', '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789', VHCP_Sheet::doc_id( '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789' ) );
+t( 'link không phải Sheet thì từ chối', empty( VHCP_Sheet::nap_ca_file( 'https://example.com/abc' )['success'] ) );
+
+$SID = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789';
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => '{"name":"VH_Index","x":1,"gid":"111"} {"name":"CT_ChiTiet","x":1,"gid":"222"} {"name":"VP_Line","x":1,"gid":"333"}',
+	'gid=111'   => "Mã đơn,Gian/Cơ sở,Kỳ,Trạng thái,Ngày tạo,Người tạo,Ghi chú\n"
+		. "VH_link1,FARM PHAN THIẾT,09/2026,Đã duyệt,01/09/2026,Admin,\n",
+	'gid=222'   => "Mã chuyến,Nội dung,Số lượng,Đơn giá,Thành tiền,Ngân sách (dự toán),Thực chi,Hình thức chi,VAT,Ngày,Ghi chú,Hồ sơ,Mã công trình\n"
+		. "BP_moi_toanh,Chi phí khách sạn,1,900000,900000,900000,905000,,,29/07/2026,,,\n",
+	'gid=333'   => "cột lạ,không nhận ra\n1,2\n",
+);
+
+// Chạy thử: không được ghi gì
+$thu = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => true ) );
+t( 'đọc thử chạy được', ! empty( $thu['success'] ) );
+teq( 'thấy đủ 3 tab', 3, $thu['soTab'] );
+teq( 'chạy thử không nạp dòng nào', 0, $thu['tong'] );
+$nhan = array();
+foreach ( $thu['baoCao'] as $b ) { $nhan[ $b['tab'] ] = isset( $b['bang'] ) ? $b['bang'] : ''; }
+teq( 'nhận ra VH_Index là đơn vận hành', 'don', $nhan['VH_Index'] );
+teq( 'nhận ra CT_ChiTiet là dòng chi công tác', 'bp_line', $nhan['CT_ChiTiet'] );
+teq( 'tab lạ thì bỏ, không đoán bừa', '', $nhan['VP_Line'] );
+
+// Nạp thật: tự tạo đợt còn thiếu để dòng chi không bị mồ côi
+$that = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false, 'taoCha' => true ) );
+t( 'nạp thật chạy được', ! empty( $that['success'] ) );
+teq( 'nạp 2 dòng (1 đơn + 1 dòng chi)', 2, $that['tong'] );
+t( 'báo lại đợt tự tạo', count( $that['tuTao'] ) === 1 && strpos( $that['tuTao'][0], 'BP_moi_toanh' ) !== false );
+t( 'đợt tự tạo giữ đúng mã cũ', (bool) VHCP_BP::find( 'BP_moi_toanh' ) );
+$dot_moi = VHCP_BP::get( 'BP_moi_toanh' );
+teq( 'dòng chi gắn được vào đợt', 1, count( $dot_moi['lines'] ) );
+teq( 'địa điểm để trống chờ người điền', '', trim( (string) $dot_moi['diaDiem'] ) );
+teq( 'nên dòng đó chưa ra TK Nợ', '', trim( (string) $dot_moi['lines'][0]['tkNo'] ) );
+t( 'đơn vận hành từ link đã vào', ! empty( VHCP_Don::get_don( 'VH_link1', false )['success'] ) );
+
+// Tắt tự tạo dòng cha -> dòng chi bị bỏ và báo mồ côi
+VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false, 'taoCha' => true, 'replace' => true ) );
+$GLOBALS['VHCP_HTTP']['gid=222'] = "Mã chuyến,Nội dung,Thực chi,Ngày\nBP_khong_tao,Ăn uống,500000,01/08/2026\n";
+$khong = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false, 'taoCha' => false ) );
+$mocoi = array();
+foreach ( $khong['baoCao'] as $b ) { if ( ! empty( $b['moCoi'] ) ) { $mocoi = array_merge( $mocoi, (array) $b['moCoi'] ); } }
+t( 'tắt tự tạo thì báo dòng mồ côi', in_array( 'BP_khong_tao', $mocoi, true ) );
+
+// Bảng tính chưa chia sẻ -> nói rõ, không nạp nửa vời
+$GLOBALS['VHCP_HTTP'] = array( '/htmlview' => array( 'code' => 200, 'body' => '<html><a href="https://accounts.google.com/signin">Sign in</a></html>' ) );
+$chua = VHCP_Sheet::nap_ca_file( $SID );
+t( 'chưa chia sẻ thì báo rõ', empty( $chua['success'] ) && strpos( $chua['error'], 'chưa cho xem bằng link' ) !== false );
+$GLOBALS['VHCP_HTTP'] = array();
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
