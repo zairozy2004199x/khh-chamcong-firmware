@@ -1226,6 +1226,16 @@ t( 'CSV UTF-8 bình thường vẫn nạp được', ! empty( VHCP_Import::run( 
 teq( 'không báo lỗi oan cho CSV tiếng Việt', '', VHCP_Import::loi_nhi_phan( "Ngày,Cơ sở,Loại chi phí\n05/08/2025,FARM PHAN THIẾT,Chi phí lương\n" ) );
 teq( 'file rỗng không bị coi là nhị phân', '', VHCP_Import::loi_nhi_phan( '' ) );
 
+// ------------------------------- 30. NẠP LỖI THÌ NÓI RÕ VƯỚNG Ở ĐÂU
+$e1 = VHCP_Import::run( 'DonHang', '', array() );
+t( 'chưa chọn file -> nói chưa chọn file', ! empty( $e1['error'] ) && strpos( $e1['error'], 'Chưa chọn file' ) === 0 );
+
+$e2 = VHCP_Import::run( 'CH_TaiKhoan', "Số hiệu,Tên tài khoản,Tính chất\n", array( 'header' => true ) );
+t( 'chỉ có dòng tiêu đề -> chỉ cách bỏ tích', ! empty( $e2['error'] ) && strpos( $e2['error'], 'Bỏ tích' ) !== false );
+
+$e3 = VHCP_Import::run( 'DA_Sheet', "a\nb\n", array( 'ma' => 'DA1' ) );
+t( 'file ít dòng hơn số dòng phải bỏ -> nói rõ số dòng', ! empty( $e3['error'] ) && strpos( $e3['error'], 'chỉ có 2 dòng' ) !== false );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

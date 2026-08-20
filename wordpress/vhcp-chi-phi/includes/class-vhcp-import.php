@@ -90,6 +90,12 @@ class VHCP_Import {
 		return '';
 	}
 
+	/** Trích 80 ký tự đầu để soi nhanh khi file không tách được dòng nào. */
+	private static function xem_dau( $text ) {
+		$d = trim( mb_substr( preg_replace( '/\s+/u', ' ', (string) $text ), 0, 80 ) );
+		return $d === '' ? '(rỗng)' : '"' . $d . '…"';
+	}
+
 	/** Tách bảng từ nội dung CSV/TSV (đọc được cả ô nhiều dòng nhờ fgetcsv). */
 	public static function parse( $text ) {
 		$text = str_replace( array( "\r\n", "\r" ), "\n", (string) $text );
@@ -183,16 +189,38 @@ class VHCP_Import {
 		$types = self::types();
 		if ( ! isset( $types[ $type ] ) ) { return VHCP_Util::err( 'Loại tab không hợp lệ' ); }
 
-		$rows = self::parse( $text );
-		if ( ! count( $rows ) ) { return VHCP_Util::err( 'Không đọc được dòng nào — kiểm tra lại file CSV' ); }
+		// Chưa chọn file / chưa dán gì: nói đúng chuyện đó, đừng bắt người dùng đi soi file.
+		if ( trim( (string) $text ) === '' ) {
+			return VHCP_Util::err( 'Chưa chọn file CSV (và ô "dán nội dung" cũng đang trống). Bấm "Choose File" chọn file .csv rồi nạp lại.' );
+		}
 
 		$header  = ! empty( $opts['header'] );
 		$replace = ! empty( $opts['replace'] );
 		$ma      = isset( $opts['ma'] ) ? trim( (string) $opts['ma'] ) : '';
+		$skip    = (int) $types[ $type ]['skip'];
 
-		$skip = (int) $types[ $type ]['skip'];
+		$rows = self::parse( $text );
+		if ( ! count( $rows ) ) {
+			return VHCP_Util::err( 'File có ' . number_format( strlen( $text ) ) . ' ký tự nhưng không tách được dòng nào. '
+				. 'Thường là do file lưu sai định dạng — mở lại bằng Google Sheet rồi "Tải xuống → CSV". '
+				. 'Đầu file đang là: ' . self::xem_dau( $text ) );
+		}
+
+		// Số dòng thực tế ít hơn số dòng phải bỏ -> nói rõ, đừng báo "không đọc được dòng nào"
+		$tho = count( $rows );
+		if ( $skip > 0 && $tho <= $skip ) {
+			return VHCP_Util::err( 'Tab này bỏ ' . $skip . ' dòng đầu (dòng tiêu đề của bảng tính) nhưng file chỉ có ' . $tho . ' dòng. '
+				. 'Anh xuất đúng tab chưa? Tab dự án / đợt phải xuất cả phần tiêu đề ở trên.' );
+		}
 		if ( $skip > 0 ) { $rows = array_slice( $rows, $skip ); }
-		elseif ( $header ) { $rows = array_slice( $rows, 1 ); }
+		elseif ( $header ) {
+			if ( $tho === 1 ) {
+				return VHCP_Util::err( 'File chỉ có 1 dòng và đang tích "Dòng đầu là tiêu đề" nên không còn dòng dữ liệu nào. '
+					. 'Bỏ tích ô đó nếu dòng đầu đã là dữ liệu.' );
+			}
+			$rows = array_slice( $rows, 1 );
+		}
+		if ( ! count( $rows ) ) { return VHCP_Util::err( 'Không còn dòng dữ liệu nào sau khi bỏ dòng tiêu đề — kiểm tra lại file.' ); }
 
 		$n = 0; $skipped = 0; $thieu_ma = 0;   // thieu_ma: dòng nạp xong vẫn chưa có TK Nợ
 
