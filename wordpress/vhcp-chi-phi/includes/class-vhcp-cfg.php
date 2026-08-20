@@ -562,6 +562,99 @@ class VHCP_Cfg {
 		return $out;
 	}
 
+	/** Bỏ dấu + hạ chữ + gom khoảng trắng, để so tên mảng với tên phân loại lớn. */
+	public static function kd( $s ) {
+		$s = mb_strtolower( trim( (string) $s ) );
+		$map = array(
+			'a' => 'áàảãạăắằẳẵặâấầẩẫậ', 'e' => 'éèẻẽẹêếềểễệ', 'i' => 'íìỉĩị',
+			'o' => 'óòỏõọôốồổỗộơớờởỡợ', 'u' => 'úùủũụưứừửữự', 'y' => 'ýỳỷỹỵ', 'd' => 'đ',
+		);
+		foreach ( $map as $plain => $accented ) {
+			$chars = preg_split( '//u', $accented, -1, PREG_SPLIT_NO_EMPTY );
+			$s     = str_replace( $chars, $plain, $s );
+		}
+		return trim( preg_replace( '/\s{2,}/u', ' ', $s ) );
+	}
+
+	/**
+	 * DÒ BẢNG MẢNG KINH DOANH TỪ HỆ THỐNG TÀI KHOẢN — khỏi khai tay.
+	 *
+	 * Trong file kế toán, mỗi mảng là 1 tài khoản cha có tài khoản con bên dưới:
+	 *   6412 Chi phí Funzone -> 64121 Chi phí lương Funzone · 64125 Chi phí setup Funzone…
+	 * Nên bỏ chữ "Chi phí" khỏi tên tài khoản cha là ra TỪ KHÓA của mảng ("Funzone"),
+	 * và số hiệu cha là NHÓM TK ("6412"). Phần app không tự biết được là mảng đó ứng với
+	 * "Phân loại lớn" nào của cơ sở, nên chỗ nào ghép được theo tên thì điền sẵn, chỗ nào
+	 * không thì để trống cho người khai chọn (không đoán bừa mã hạch toán).
+	 *
+	 * KHÔNG ghi vào cấu hình — chỉ trả đề xuất để xem rồi bấm Lưu.
+	 */
+	public static function do_mang_tu_tk( $goc = '641' ) {
+		$chart = self::tai_khoan();
+		if ( ! count( $chart ) ) { return VHCP_Util::err( 'Chưa nạp hệ thống tài khoản (wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → CH_TaiKhoan)' ); }
+		$goc = trim( (string) $goc );
+
+		// Tài khoản cha = có ít nhất 1 tài khoản con trong hệ thống.
+		// Giữ danh sách mã dạng LIST (không dùng làm khóa mảng): khóa mảng PHP tự đổi
+		// "64121" thành số nguyên, so sánh với chuỗi sẽ luôn khác nhau -> dòng con tự
+		// nhận là cha của chính nó.
+		$ma_list = array();
+		foreach ( $chart as $x ) { $ma_list[] = (string) $x['ma']; }
+		$cha = array();
+		foreach ( $chart as $x ) {
+			$ma = (string) $x['ma'];
+			if ( $goc !== '' && strpos( $ma, $goc ) !== 0 ) { continue; }
+			if ( $ma === $goc ) { continue; }
+			$co_con = false;
+			foreach ( $ma_list as $m2 ) {
+				if ( $m2 !== $ma && strpos( $m2, $ma ) === 0 ) { $co_con = true; break; }
+			}
+			if ( ! $co_con ) { continue; }
+			$tu = trim( preg_replace( '/^\s*chi\s*ph[íi]\s*/iu', '', $x['ten'] ) );
+			if ( $tu === '' ) { continue; }
+			$cha[] = array( 'nhomTk' => $ma, 'tuKhoa' => $tu, 'tenTk' => $x['ten'] );
+		}
+		if ( ! count( $cha ) ) { return VHCP_Util::err( 'Không thấy nhóm tài khoản nào dưới ' . $goc . ' có tài khoản con' ); }
+
+		// Danh sách phân loại lớn đang khai ở bảng Cơ sở
+		$plls = array();
+		foreach ( self::read( self::COSO ) as $r ) {
+			$v = trim( (string) $r[2] );
+			if ( $v !== '' ) { $plls[ $v ] = 1; }
+		}
+		$plls = array_keys( $plls );
+
+		// Đã khai rồi thì không đề xuất lại
+		$da_co = array();
+		foreach ( self::mang_tk() as $m ) { $da_co[ self::kd( $m['pll'] ) . '|' . $m['nhomTk'] ] = 1; }
+
+		$rows = array(); $chua_ghep = array();
+		foreach ( $cha as $c ) {
+			$tu_kd = self::kd( $c['tuKhoa'] );
+			$hit   = array();
+			foreach ( $plls as $pll ) {
+				$p = self::kd( $pll );
+				// khớp khi tên phân loại lớn có chứa từ khóa mảng (hoặc ngược lại)
+				if ( $tu_kd !== '' && ( strpos( $p, $tu_kd ) !== false || strpos( $tu_kd, $p ) !== false ) ) { $hit[] = $pll; }
+			}
+			if ( ! count( $hit ) ) {
+				$chua_ghep[] = $c['nhomTk'] . ' · ' . $c['tuKhoa'];
+				$rows[] = array( 'pll' => '', 'nhomTk' => $c['nhomTk'], 'tuKhoa' => $c['tuKhoa'], 'note' => 'chọn mảng cho ' . $c['tenTk'] );
+				continue;
+			}
+			foreach ( $hit as $pll ) {
+				if ( isset( $da_co[ self::kd( $pll ) . '|' . $c['nhomTk'] ] ) ) { continue; }
+				$rows[] = array( 'pll' => $pll, 'nhomTk' => $c['nhomTk'], 'tuKhoa' => $c['tuKhoa'], 'note' => $c['tenTk'] );
+			}
+		}
+
+		return VHCP_Util::ok( array(
+			'rows'      => $rows,
+			'chuaGhep'  => $chua_ghep,
+			'soNhom'    => count( $cha ),
+			'soPll'     => count( $plls ),
+		) );
+	}
+
 	/**
 	 * GHÉP HỆ THỐNG TÀI KHOẢN VÀO DANH MỤC LOẠI CHI PHÍ.
 	 *

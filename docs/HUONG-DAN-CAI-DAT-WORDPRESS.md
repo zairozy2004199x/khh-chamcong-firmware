@@ -140,8 +140,11 @@ Cách tạo một loại chi phí cho nhân viên nhập gồm 3 phần: **tên 
    **wp-admin → Vận Hành Chi Phí → Nhập dữ liệu** → chọn bảng **`CH_TaiKhoan`** → tải file CSV lên
    (3 cột: *Số hiệu · Tên tài khoản · Tính chất*) → **Nạp dữ liệu**. Nạp xong mọi ô mã trong trang Cấu hình có gợi ý
    `số hiệu · tên tài khoản`; gõ mã không có trong hệ thống thì ô đổi màu đỏ.
-2. Khai thẻ **🧭 Mảng kinh doanh → nhóm tài khoản**: mỗi mảng một dòng — *Mảng* (= phân loại lớn
-   của cơ sở) · *Nhóm TK* (4 số đầu, VD `6412`) · *Từ khóa trong tên TK* (VD `Funzone`).
+2. Thẻ **🧭 Mảng kinh doanh → nhóm tài khoản**: bấm **🔎 Dò từ hệ thống tài khoản** — khỏi gõ.
+   App thấy tài khoản cha nào có tài khoản con thì lấy số hiệu làm *Nhóm TK* (`6412`) và bỏ chữ
+   "Chi phí" khỏi tên cha làm *Từ khóa* (`Funzone`), rồi điền sẵn cột *Mảng* nếu tên phân loại lớn
+   của cơ sở khớp được (`Farm` → `FARM MN`; `Event` → mọi cột có chữ EVENT). Dòng nào cột *Mảng*
+   còn trống là app **không dám đoán** (VD `Funzone` không tự khớp `FZ MN`) — chọn tay rồi 💾 Lưu.
 3. Bấm **🧩 Ghép vào danh mục**: app bỏ từ khóa mảng khỏi tên tài khoản để ra tên loại chi phí dùng
    chung (`Chi phí lương Funzone` → `Chi phí lương`) rồi đưa số hiệu của từng mảng vào đúng ô ma
    trận. Chạy bao nhiêu lần cũng được: **chỉ thêm mới và điền ô trống**, mã đã sửa tay và loại tự

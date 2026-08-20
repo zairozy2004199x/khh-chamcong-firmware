@@ -987,6 +987,51 @@ teq( 'ghép lần 2 không sinh ô ma trận mới', 0, $gh2['oMaTran'] );
 teq( 'danh mục không phình ra', $truoc, count( VHCP_Cfg::cfg_static()['loaiChiPhi'] ) );
 t( 'loại chi phí khai tay vẫn còn sau khi ghép', isset( $dm_sau['Chi phí nuôi thú'] ) && VHCP_Cfg::loai_tk( 'Chi phí dịch vụ mua ngoài' )['tkNo'] === '6427' );
 
+// ------------------------------- 26b. DÒ BẢNG MẢNG KINH DOANH TỪ HỆ THỐNG TÀI KHOẢN
+teq( 'bỏ dấu tiếng Việt', 'chi phi luong funzone', VHCP_Cfg::kd( 'Chi phí lương Funzone' ) );
+$csv_tk2 = "Số hiệu,Tên tài khoản,Tính chất\n"
+	. "641,Chi phí bán hàng,Lưỡng tính\n"
+	. "6412,Chi phí Funzone,Lưỡng tính\n"
+	. "64121,Chi phí lương Funzone,Lưỡng tính\n"
+	. "64126,Chi phí khác Funzone,Lưỡng tính\n"
+	. "6416,Chi phí Farm,Lưỡng tính\n"
+	. "64161,Chi phí lương Farm,Lưỡng tính\n"
+	. "64168,Chi phí nuôi thú FARM,Lưỡng tính\n"
+	. "6419,Chi phí Event,Lưỡng tính\n"
+	. "64191,Chi phí lương Event,Lưỡng tính\n"
+	. "6427,Chi phí dịch vụ mua ngoài,Lưỡng tính\n";
+VHCP_Import::run( 'CH_TaiKhoan', $csv_tk2, array( 'replace' => true, 'header' => true ) );
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'FUNZONE VŨNG TÀU', 'maDonVi' => 'FZ_VT',   'phanLoaiLon' => 'FZ MN',       'tenMisa' => '' ),
+	array( 'ten' => 'FARM PHAN THIẾT',  'maDonVi' => 'FARM_PT', 'phanLoaiLon' => 'FARM MN',     'tenMisa' => '' ),
+	array( 'ten' => 'VR SORA',          'maDonVi' => 'VR_SORA', 'phanLoaiLon' => 'EVENT VR MN', 'tenMisa' => '' ),
+	array( 'ten' => 'FUNFEST SC VIVO',  'maDonVi' => 'FF_VIVO', 'phanLoaiLon' => 'EVENT GHOST MN', 'tenMisa' => '' ),
+) ) );
+VHCP_Cfg::save_config( array( 'mangTk' => array() ) );
+
+$do = VHCP_Cfg::do_mang_tu_tk( '641' );
+t( 'dò bảng mảng chạy được', ! empty( $do['success'] ) );
+teq( 'chỉ nhận tài khoản cha có con', 3, $do['soNhom'] );   // 6412 · 6416 · 6419 (6427 không có con)
+$de_xuat = array();
+foreach ( $do['rows'] as $r ) { $de_xuat[ $r['nhomTk'] . '|' . $r['pll'] ] = $r['tuKhoa']; }
+teq( 'lấy từ khóa từ tên tài khoản cha', 'Farm', $de_xuat['6416|FARM MN'] );
+t( 'ghép được mảng theo tên phân loại lớn', isset( $de_xuat['6412|FZ MN'] ) === false );   // "Funzone" không khớp "FZ MN"
+t( 'Event khớp mọi phân loại lớn có chữ EVENT', isset( $de_xuat['6419|EVENT VR MN'] ) && isset( $de_xuat['6419|EVENT GHOST MN'] ) );
+$trong = 0;
+foreach ( $do['rows'] as $r ) { if ( $r['pll'] === '' ) { $trong++; } }
+teq( 'nhóm không ghép được thì để trống chờ người chọn', 1, $trong );   // Funzone
+t( 'báo rõ nhóm nào chưa ghép', count( $do['chuaGhep'] ) === 1 && strpos( $do['chuaGhep'][0], 'Funzone' ) !== false );
+teq( 'dò xong chưa ghi vào cấu hình', 0, count( VHCP_Cfg::mang_tk() ) );
+
+// Khai xong rồi dò lại thì không đề xuất trùng
+VHCP_Cfg::save_config( array( 'mangTk' => array(
+	array( 'pll' => 'FARM MN', 'nhomTk' => '6416', 'tuKhoa' => 'Farm', 'note' => '' ),
+) ) );
+$do2 = VHCP_Cfg::do_mang_tu_tk( '641' );
+$lai = array();
+foreach ( $do2['rows'] as $r ) { $lai[ $r['nhomTk'] . '|' . $r['pll'] ] = 1; }
+t( 'dòng đã khai không đề xuất lại', ! isset( $lai['6416|FARM MN'] ) );
+
 // Tên theo MISA dùng cho diễn giải, để trống thì lấy chính tên loại
 VHCP_Cfg::save_config( array( 'loaiChiPhi' => array_merge(
 	array_map(

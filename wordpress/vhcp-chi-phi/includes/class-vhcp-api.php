@@ -22,7 +22,7 @@ class VHCP_API {
 	 */
 	private static function required_roles( $fn ) {
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
-		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'getTaiKhoan', 'ghepHeThongTk' );
+		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		if ( in_array( $fn, $cau_hinh, true ) )   { return array( 'Admin', 'Quản lý' ); }
 		return array();
@@ -149,6 +149,7 @@ class VHCP_API {
 			'dongBoTkLoai'          => array( 'VHCP_Cfg', 'dong_bo_tk_loai' ),
 			'getTaiKhoan'           => array( 'VHCP_Cfg', 'get_tai_khoan' ),
 			'ghepHeThongTk'         => array( 'VHCP_Cfg', 'ghep_he_thong_tk' ),
+			'doMangTuTaiKhoan'      => array( 'VHCP_Cfg', 'do_mang_tu_tk' ),
 
 			// báo cáo
 			'getFinanceReport'      => array( 'VHCP_Report', 'finance' ),

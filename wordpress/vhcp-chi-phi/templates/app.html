@@ -843,9 +843,9 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doMangTk()" title="Đọc hệ thống tài khoản, tự điền Nhóm TK + Từ khóa cho từng mảng">🔎 Dò từ hệ thống tài khoản</button><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:760px"><thead><tr><th>Mảng kinh doanh <div style="font-weight:400;font-size:10px;color:#94a3b8">= Phân loại lớn của cơ sở</div></th><th style="width:130px">Nhóm TK</th><th style="width:200px">Từ khóa trong tên TK</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgMangBody"></tbody></table></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Khai 1 lần để app tự đọc hệ thống tài khoản: <b>Nhóm TK</b> là 4 số đầu của mảng đó (VD <b>6412</b> = Funzone · <b>6416</b> = Farm · <b>6419</b> = Event), <b>Từ khóa</b> là chữ đứng trong tên tài khoản (VD <b>Funzone</b> trong "Chi phí lương Funzone"). Bấm <b>🧩 Ghép vào danh mục</b> ở thẻ trên: app bỏ từ khóa khỏi tên để ra tên loại chi phí dùng chung ("Chi phí lương") và đưa số hiệu từng mảng vào ma trận. Mã anh đã sửa tay và loại anh tự thêm <b>không bị đụng</b>.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Khỏi khai tay: nạp hệ thống tài khoản rồi bấm <b>🔎 Dò từ hệ thống tài khoản</b> — app thấy tài khoản cha nào có tài khoản con thì lấy số hiệu làm <b>Nhóm TK</b> (VD <b>6412</b>) và bỏ chữ "Chi phí" khỏi tên cha làm <b>Từ khóa</b> (VD <b>Funzone</b>), rồi ghép sẵn vào <b>Mảng</b> nếu tên phân loại lớn của cơ sở khớp được. Dòng nào cột <b>Mảng</b> còn trống là app không dám đoán — anh chọn tay rồi <b>💾 Lưu</b>. Xong bấm <b>🧩 Ghép vào danh mục</b> ở thẻ trên: app bỏ từ khóa khỏi tên tài khoản để ra tên loại chi phí dùng chung ("Chi phí lương") và đưa số hiệu từng mảng vào ma trận. Mã đã sửa tay và loại tự thêm <b>không bị đụng</b>.</div>
     </div>
 
     <div class="card">
@@ -3587,6 +3587,25 @@
       return '<option value="'+esc(p)+'"'+(p===v?' selected':'')+'>'+esc(p)+'</option>'; })).join('')+'</select>';
   }
   function addCfgMang(){ el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel('')+'</td><td>'+_inp('','VD: 6412')+'</td><td>'+_inp('','VD: Funzone')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
+  function doMangTk(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var rows=r.rows||[];
+      if(!rows.length){ toast('warn','Không có mảng nào mới để thêm — bảng đã khai đủ.'); return; }
+      // thêm vào bảng, bỏ qua cặp (mảng + nhóm TK) đã có sẵn trên màn hình
+      var da={}; _readRows('cfgMangBody').forEach(function(x){ da[String(x[0]||'').trim()+'|'+String(x[1]||'').trim()]=1; });
+      var them=0;
+      rows.forEach(function(x){
+        if(da[String(x.pll||'')+'|'+String(x.nhomTk||'')]) return;
+        el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>');
+        them++;
+      });
+      var msg='Đã dò '+r.soNhom+' nhóm tài khoản → thêm '+them+' dòng';
+      if((r.chuaGhep||[]).length) msg+=' · '+r.chuaGhep.length+' nhóm chưa biết thuộc mảng nào: '+r.chuaGhep.slice(0,6).join(' · ');
+      toast((r.chuaGhep||[]).length?'warn':'ok', msg+' — kiểm tra rồi bấm 💾 Lưu');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doMangTuTaiKhoan('641');
+  }
   function saveCfgMang(){
     var data=_readRows('cfgMangBody').map(function(r){return {pll:(r[0]||'').trim(), nhomTk:(r[1]||'').trim(), tuKhoa:(r[2]||'').trim(), note:r[3]||''};}).filter(function(x){return x.pll;});
     _saveCfg({mangTk:data},'Đã lưu bảng mảng kinh doanh');
