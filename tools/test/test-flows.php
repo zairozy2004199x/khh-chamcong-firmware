@@ -1130,6 +1130,34 @@ foreach ( $xm2['rows'] as $row ) {
 t( 'sửa nội dung xuất MISA là đổi ngay ở bản xuất', $thay2 );
 t( 'sửa nội dung xuất MISA KHÔNG làm đổi mã đã lưu', $ma_giu );
 
+// ------------------------------- 27b. MỘT CHI PHÍ CÓ 2 MÃ Ở CÙNG MỘT MẢNG
+VHCP_Import::run( 'CH_TaiKhoan', "Số hiệu,Tên tài khoản,Tính chất\n64196,Chi phí khác Event,Lưỡng tính\n64197,Chi phí hoa hồng Event,Lưỡng tính\n64221,Chi phí lương Miền Bắc,Lưỡng tính\n", array( 'replace' => true, 'header' => true ) );
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'VR TÂN AN',  'maDonVi' => 'EVVRAMTA', 'phanLoaiLon' => 'EVENT VR MN', 'tenMisa' => '' ),
+	array( 'ten' => 'VR SORA',    'maDonVi' => 'EVVRSORA', 'phanLoaiLon' => 'EVENT VR MN', 'tenMisa' => '' ),
+), 'loaiChiPhi' => array(), 'tkNoMatrix' => array() ) );
+
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64196', 'mangs' => array( 'EVENT VR MN' ) ) );
+$k2 = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64197', 'mangs' => array( 'EVENT VR MN' ), 'them' => true ) );
+teq( 'thêm mã thứ 2 vào cùng 1 ô', 1, $k2['oThem'] );
+teq( 'ô đó không bị thay mã cũ', 0, $k2['oDoi'] );
+teq( 'ô giữ cả 2 mã', array( '64196', '64197' ), VHCP_Cfg::tkno_mx_list( 'Chi phí marketing', 'VR TÂN AN' ) );
+teq( 'có 2 mã thì KHÔNG tự chọn hộ', '', VHCP_Cfg::tkno_mx( 'Chi phí marketing', 'VR TÂN AN' ) );
+
+$hai_1 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR TÂN AN', 'loai' => 'Chi phí marketing', 'noiDung' => 'Ads', 'soTien' => 1000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'người nhập chưa chỉ mã -> để trống + báo thiếu, không đoán', '', $hai_1['tkNo'] );
+$hai_2 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR TÂN AN', 'loai' => 'Chi phí marketing', 'noiDung' => 'Hoa hồng', 'soTien' => 2000000, 'hinhThuc' => 'Tạm ứng NV', 'tkNo' => '64197' ), 'NV A' );
+teq( 'chọn mã nào thì dòng mang mã đó', '64197', $hai_2['tkNo'] );
+$hai_3 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Chi phí marketing', 'noiDung' => 'Ads', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV', 'tkNo' => '64196' ), 'NV A' );
+teq( 'cơ sở khác cùng mảng cũng có 2 lựa chọn', '64196', $hai_3['tkNo'] );
+
+// Thêm mã thứ 3, rồi khai lại KHÔNG tích "thêm" -> gộp về 1 mã
+$k3 = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64221', 'mangs' => array( 'EVENT VR MN' ), 'them' => true ) );
+teq( 'thêm được mã thứ 3', 3, count( VHCP_Cfg::tkno_mx_list( 'Chi phí marketing', 'VR TÂN AN' ) ) );
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64196', 'mangs' => array( 'EVENT VR MN' ) ) );
+teq( 'khai lại không tích "thêm" thì gộp về đúng 1 mã', array( '64196' ), VHCP_Cfg::tkno_mx_list( 'Chi phí marketing', 'VR TÂN AN' ) );
+teq( 'về 1 mã thì lại tự ra mã', '64196', VHCP_Cfg::tkno_mx( 'Chi phí marketing', 'VR SORA' ) );
+
 // Thiếu dữ liệu -> báo lỗi rõ, không ghi bừa
 t( 'không tích cơ sở nào thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'ten' => 'X', 'tkNo' => '1' ) )['success'] ) );
 t( 'thiếu tên thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'cosos' => array( 'FARM PHAN THIẾT' ), 'tkNo' => '1' ) )['success'] ) );

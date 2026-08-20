@@ -308,13 +308,21 @@ class VHCP_Cfg {
 			$k = mb_strtolower( trim( (string) $x['ten'] ) );
 			if ( $k !== '' ) { $out['cosoPll'][ $k ] = trim( (string) $x['phanLoaiLon'] ); }
 		}
+		// Một ô có thể khai NHIỀU mã (cách nhau bởi "|") khi cùng một tên gọi chi phí ở
+		// cùng một mảng lại hạch toán vào 2 tài khoản khác nhau. Khi đó app KHÔNG tự chọn:
+		// ô "Loại chi phí" lúc nhập sẽ tách thành từng dòng mã để người nhập chỉ đúng một.
 		$out['tkNoMx'] = array();
 		foreach ( $out['tkNoMatrix'] as $x ) {
 			$kn = mb_strtolower( trim( (string) $x['nhom'] ) );
 			$kp = mb_strtolower( trim( (string) $x['pll'] ) );
-			$v  = trim( (string) $x['tkNo'] );
-			if ( $kn === '' || $kp === '' || $v === '' ) { continue; }
-			$out['tkNoMx'][ $kn ][ $kp ] = $v;
+			if ( $kn === '' || $kp === '' ) { continue; }
+			$ds = array();
+			foreach ( explode( '|', (string) $x['tkNo'] ) as $m ) {
+				$m = trim( $m );
+				if ( $m !== '' && ! in_array( $m, $ds, true ) ) { $ds[] = $m; }
+			}
+			if ( ! count( $ds ) ) { continue; }
+			$out['tkNoMx'][ $kn ][ $kp ] = $ds;
 		}
 
 		set_transient( 'vhcp_cfgstatic', $out, 300 );
@@ -526,19 +534,28 @@ class VHCP_Cfg {
 	 *      EVENT 64196 · FARM 64166 · FZ 64126 · TUTU 64106)
 	 * Trả '' khi chưa khai -> để bước sau lấy mã cố định của loại.
 	 */
-	public static function tkno_mx( $loai, $coso ) {
+	public static function tkno_mx_list( $loai, $coso ) {
 		$s  = self::cfg_static();
 		$k  = mb_strtolower( trim( (string) $loai ) );
-		if ( $k === '' || ! isset( $s['tkNoMx'][ $k ] ) ) { return ''; }
+		if ( $k === '' || ! isset( $s['tkNoMx'][ $k ] ) ) { return array(); }
 		$row = $s['tkNoMx'][ $k ];
 
 		$c = mb_strtolower( trim( (string) $coso ) );
-		if ( $c !== '' && isset( $row[ $c ] ) ) { return (string) $row[ $c ]; }
+		if ( $c !== '' && isset( $row[ $c ] ) ) { return (array) $row[ $c ]; }
 
 		$pll = self::pll_of( $coso );
-		if ( $pll === '' ) { return ''; }
+		if ( $pll === '' ) { return array(); }
 		$p = mb_strtolower( $pll );
-		return isset( $row[ $p ] ) ? (string) $row[ $p ] : '';
+		return isset( $row[ $p ] ) ? (array) $row[ $p ] : array();
+	}
+
+	/**
+	 * Đúng 1 mã thì trả mã đó. Ô khai 2 mã trở lên thì trả '' — người nhập phải chỉ rõ
+	 * mã nào (ô chọn loại chi phí tách sẵn từng mã), app không tự đoán hộ.
+	 */
+	public static function tkno_mx( $loai, $coso ) {
+		$ds = self::tkno_mx_list( $loai, $coso );
+		return ( count( $ds ) === 1 ) ? (string) $ds[0] : '';
 	}
 
 	/** Các cơ sở cùng mảng với cơ sở đã chọn (dùng để báo "mã này áp cho những cơ sở nào"). */
@@ -635,12 +652,23 @@ class VHCP_Cfg {
 			$vi_tri[ $k( $n0 ) . '|' . $k( $p0 ) ] = count( $mx );
 			$mx[] = array( $n0, $p0, $v0 );
 		}
-		$ma_cu = array(); $o_moi = 0; $o_doi = 0;
+		$them  = ! empty( $rec['them'] );   // thêm mã nữa cho ô đó (1 chi phí 2 mã), không thay mã cũ
+		$ma_cu = array(); $o_moi = 0; $o_doi = 0; $o_them = 0;
 		foreach ( array_merge( $mangs, $cosos ) as $cot ) {
 			$key = $k( $ten ) . '|' . $k( $cot );
 			if ( isset( $vi_tri[ $key ] ) ) {
 				$cu = trim( (string) $mx[ $vi_tri[ $key ] ][2] );
-				if ( $cu === $tkno ) { continue; }
+				$ds = array();
+				foreach ( explode( '|', $cu ) as $m ) { $m = trim( $m ); if ( $m !== '' ) { $ds[] = $m; } }
+				if ( $them ) {
+					if ( in_array( $tkno, $ds, true ) ) { continue; }   // ô đã có mã này
+					$ds[] = $tkno;
+					$mx[ $vi_tri[ $key ] ] = array( $ten, $cot, implode( ' | ', $ds ) );
+					if ( count( $ds ) > 1 ) { $o_them++; } else { $o_moi++; }
+					continue;
+				}
+				// Không tích "thêm": ô chỉ còn đúng mã vừa khai (kể cả ô đang có nhiều mã)
+				if ( count( $ds ) === 1 && $ds[0] === $tkno ) { continue; }
 				if ( $cu !== '' ) { $ma_cu[ $cu ] = 1; $o_doi++; }
 				else { $o_moi++; }
 				$mx[ $vi_tri[ $key ] ] = array( $ten, $cot, $tkno );
@@ -672,6 +700,7 @@ class VHCP_Cfg {
 			'cot'         => array_merge( $mangs, $cosos ),
 			'oMoi'        => $o_moi,
 			'oDoi'        => $o_doi,
+			'oThem'       => $o_them,
 			'maCu'        => array_map( 'strval', array_keys( $ma_cu ) ),
 			'apDung'      => array_keys( $ap_dung ),
 		) );

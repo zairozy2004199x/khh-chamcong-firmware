@@ -150,6 +150,23 @@ Bấm **💾 Khai mã**. Từ đó cơ sở đã tích mà nhập `Chi phí mark
 - Mã không có trong hệ thống tài khoản thì cảnh báo nhưng vẫn cho lưu (kế toán có thể vừa mở
   tài khoản mới).
 
+#### Một tên gọi chi phí mà có 2 mã
+
+Có khi cùng "Chi phí marketing" ở cùng một mảng lại phải vào 2 tài khoản (VD `64196` chi phí khác
+Event và `64197` hoa hồng Event). Khi đó tích ô **thêm mã nữa (không thay mã cũ)** rồi khai mã thứ
+hai. Hệ quả:
+
+- Ô ma trận giữ cả hai mã, hiện là `64196 | 64197`.
+- Ô **Loại chi phí** lúc nhập **tách thành từng dòng theo mã**, kèm tên tài khoản:
+  `Chi phí marketing · TK 64196 Chi phí khác Event` và `Chi phí marketing · TK 64197 Chi phí hoa
+  hồng Event`. Người nhập chọn đúng một.
+- App **không tự chọn hộ**: dòng nào nhập mà không chỉ mã (VD nạp CSV cũ) thì để trống và báo
+  "thiếu TK Nợ" khi xuất MISA — thà báo còn hơn hạch toán sai âm thầm.
+- Muốn gộp lại về một mã: khai lại **không** tích ô "thêm mã nữa" — ô đó chỉ còn mã vừa khai.
+
+Cách còn lại, đơn giản hơn khi hai mã ứng với hai việc khác nhau: khai luôn **hai tên gọi** riêng
+("Chi phí marketing" và "Chi phí hoa hồng"). Nhân viên chọn tên là xong, khỏi phải hiểu mã.
+
 **Nội dung xuất MISA sửa được bất cứ lúc nào** — đổi ô *Tên xuất MISA* (ở thẻ khai mã hoặc cột
 *Tên theo MISA* của thẻ 💵 Loại chi phí) là bản xuất đổi theo ngay, còn **mã đã lưu trên dòng chi
 không đổi**. Dòng chi đã nhập giữ nguyên mã lúc nhập; muốn áp mã mới cho dòng cũ thì bấm
