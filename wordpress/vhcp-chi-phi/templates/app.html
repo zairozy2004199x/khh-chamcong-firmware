@@ -60,8 +60,8 @@
     <div style="background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)">
       <div style="font-size:34px">💵</div>
       <h2 style="font-size:18px;color:#0f766e;margin:6px 0 4px">Vận Hành Chi Phí</h2>
-      <div style="font-size:12px;color:#64748b;margin-bottom:16px">Nhập mã PIN 4 số để đăng nhập</div>
-      <input id="gatePin" type="password" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="••••" style="width:170px;text-align:center;font-size:26px;letter-spacing:10px;padding:10px" onkeydown="if(event.key==='Enter')doLogin()">
+      <div style="font-size:12px;color:#64748b;margin-bottom:16px">Nhập mã PIN (4–8 số) để đăng nhập</div>
+      <input id="gatePin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" style="width:170px;text-align:center;font-size:26px;letter-spacing:10px;padding:10px" onkeydown="if(event.key==='Enter')doLogin()">
       <div id="gateErr" style="color:#dc2626;font-size:12px;min-height:16px;margin:8px 0"></div>
       <button class="btn b-p" onclick="doLogin()" style="width:170px">Đăng nhập</button>
     </div>
@@ -795,7 +795,7 @@
     </div>
     <div class="card" id="userCard">
       <div class="ch"><h2>🔐 Người dùng & Phân quyền (chỉ Admin)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên</th><th>PIN (4 số)</th><th>Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th>Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:120px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên</th><th>PIN (4–8 số)</th><th>Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th>Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:120px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Vai trò: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ cơ sở của mình). Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
     <div class="card" id="ssoCard">
@@ -953,10 +953,10 @@
   <div id="pinModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1960;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(400px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
       <h3 style="font-size:16px;margin-bottom:6px;color:#0f766e">🔑 Đổi mật khẩu (PIN)</h3>
-      <div style="font-size:12px;color:#64748b;margin-bottom:12px">PIN gồm 4 chữ số — dùng để đăng nhập.</div>
-      <div class="fld"><label>PIN hiện tại</label><input id="pinOld" type="password" maxlength="4" inputmode="numeric" autocomplete="off" style="width:100%"></div>
-      <div class="fld" style="margin-top:8px"><label>PIN mới (4 số)</label><input id="pinNew" type="password" maxlength="4" inputmode="numeric" autocomplete="off" style="width:100%"></div>
-      <div class="fld" style="margin-top:8px"><label>Nhập lại PIN mới</label><input id="pinNew2" type="password" maxlength="4" inputmode="numeric" autocomplete="off" style="width:100%"></div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">PIN gồm 4–8 chữ số — dùng để đăng nhập.</div>
+      <div class="fld"><label>PIN hiện tại</label><input id="pinOld" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
+      <div class="fld" style="margin-top:8px"><label>PIN mới (4–8 số)</label><input id="pinNew" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
+      <div class="fld" style="margin-top:8px"><label>Nhập lại PIN mới</label><input id="pinNew2" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
       <div id="pinErr" style="color:#dc2626;font-size:12px;margin-top:8px"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
         <button class="btn b-x" onclick="closePin()">Huỷ</button>
@@ -1086,7 +1086,7 @@
   }
   function doLogin(){
     var pin=(el('gatePin').value||'').trim();
-    if(!/^\d{4}$/.test(pin)){ el('gateErr').textContent='PIN phải 4 số'; return; }
+    if(!/^\d{4,8}$/.test(pin)){ el('gateErr').textContent='PIN phải 4–8 số'; return; }
     el('gateErr').textContent=''; loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.ok){ CURUSER={name:r.name,role:r.role,coso:r.coso,boPhan:r.boPhan||''}; try{sessionStorage.setItem('vhcp_user',JSON.stringify(CURUSER));}catch(e){} el('gate').style.display='none'; onLoggedIn(); }
@@ -1101,8 +1101,8 @@
   function closePin(){ el('pinModal').style.display='none'; }
   function submitPin(){
     var o=String(el('pinOld').value||'').trim(), n=String(el('pinNew').value||'').trim(), n2=String(el('pinNew2').value||'').trim();
-    if(!/^\d{4}$/.test(o)){ el('pinErr').textContent='Nhập PIN hiện tại (4 số)'; return; }
-    if(!/^\d{4}$/.test(n)){ el('pinErr').textContent='PIN mới phải gồm 4 chữ số'; return; }
+    if(!/^\d{4,8}$/.test(o)){ el('pinErr').textContent='Nhập PIN hiện tại (4–8 số)'; return; }
+    if(!/^\d{4,8}$/.test(n)){ el('pinErr').textContent='PIN mới phải gồm 4–8 chữ số'; return; }
     if(n!==n2){ el('pinErr').textContent='Nhập lại PIN mới chưa khớp'; return; }
     if(n===o){ el('pinErr').textContent='PIN mới trùng PIN hiện tại'; return; }
     el('pinErr').textContent=''; loading(true);
@@ -3940,11 +3940,11 @@
     if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';   // chỉ Admin bảo trì ảnh
     if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }   // chỉ Admin chỉnh phân quyền
     if(!el('cfgUserBody')) return;
-    el('cfgUserBody').innerHTML=(CFGUSERS||[]).map(function(u){ return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="4" inputmode="numeric" placeholder="4 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td>'+_delBtn()+'</tr>'; }).join('');
+    el('cfgUserBody').innerHTML=(CFGUSERS||[]).map(function(u){ return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td>'+_delBtn()+'</tr>'; }).join('');
   }
-  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="4" inputmode="numeric" placeholder="4 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td>'+_delBtn()+'</tr>'); }
+  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td>'+_delBtn()+'</tr>'); }
   function saveCfgUsers(){ var data=_readRows('cfgUserBody').map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:r[5]||'', maDt:r[6]||''};}).filter(function(x){return x.ten;});
-    for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4 số'); return; } }
+    for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }
     _saveCfg({users:data},'Đã lưu người dùng');
   }
   // ---- Ma trận phân quyền (Admin) ----

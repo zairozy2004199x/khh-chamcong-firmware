@@ -1286,6 +1286,24 @@ foreach ( $bp['lines'] as $x ) { $tong_tc += VHCP_Util::num( $x['thucTe'] ); }
 teq( 'thực chi vào đúng cột Thực chi', 3918000, $tong_tc );
 teq( 'ngân sách vào đúng cột Dự toán', 1217730, VHCP_Util::num( $bp['lines'][0]['duToan'] ) );
 
+// ------------------------------- 32. PIN DÀI HƠN 4 SỐ VẪN ĐĂNG NHẬP ĐƯỢC
+VHCP_Cfg::save_config( array( 'users' => array(
+	array( 'ten' => 'Admin', 'pin' => '859624', 'vaiTro' => 'Admin', 'coso' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '' ),
+	array( 'ten' => 'Kế Toán', 'pin' => '2222', 'vaiTro' => 'Kế toán cá nhân', 'coso' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '' ),
+) ) );
+$dn6 = VHCP_Auth::login( '859624' );
+t( 'PIN 6 số đăng nhập được', ! empty( $dn6['ok'] ) );
+teq( 'vào đúng tài khoản Admin', 'Admin', isset( $dn6['name'] ) ? $dn6['name'] : '' );
+$dn4 = VHCP_Auth::login( '2222' );
+t( 'PIN 4 số vẫn đăng nhập được', ! empty( $dn4['ok'] ) );
+$dn3 = VHCP_Auth::login( '222' );
+t( 'PIN 3 số bị từ chối', empty( $dn3['ok'] ) );
+$dn9 = VHCP_Auth::login( '1234567890' );
+t( 'PIN 10 số bị từ chối', empty( $dn9['ok'] ) );
+$doi = VHCP_Auth::change_pin( 'Admin', '859624', '123456' );
+t( 'đổi sang PIN 6 số được', ! empty( $doi['success'] ) );
+t( 'PIN mới dùng được ngay', ! empty( VHCP_Auth::login( '123456' )['ok'] ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

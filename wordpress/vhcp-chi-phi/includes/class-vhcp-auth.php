@@ -18,7 +18,9 @@ class VHCP_Auth {
 	/** login(pin) */
 	public static function login( $pin ) {
 		$pin = trim( (string) $pin );
-		if ( ! preg_match( '/^\d{4}$/', $pin ) ) { return array( 'ok' => false, 'error' => 'PIN phải gồm 4 chữ số' ); }
+		// 4–8 chữ số: PIN dài hơn 4 số vẫn phải đăng nhập được, không thì cấp PIN 6 số
+		// là khoá luôn tài khoản đó (chặn ngay ở đây, chưa kịp so PIN).
+		if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) { return array( 'ok' => false, 'error' => 'PIN phải gồm 4–8 chữ số' ); }
 		if ( self::is_locked() ) { return array( 'ok' => false, 'error' => 'Nhập sai quá nhiều lần — thử lại sau 10 phút' ); }
 
 		foreach ( VHCP_Cfg::get_users() as $u ) {   // get_users() tự seed nếu cấu hình còn trống
@@ -44,7 +46,7 @@ class VHCP_Auth {
 		$name = trim( (string) $name );
 		$old  = trim( (string) $old );
 		$new  = trim( (string) $new );
-		if ( ! preg_match( '/^\d{4}$/', $new ) ) { return VHCP_Util::err( 'PIN mới phải gồm 4 chữ số' ); }
+		if ( ! preg_match( '/^\d{4,8}$/', $new ) ) { return VHCP_Util::err( 'PIN mới phải gồm 4–8 chữ số' ); }
 		VHCP_Cfg::seed();
 		$rows = VHCP_Cfg::read( VHCP_Cfg::USER );
 		$my   = -1;
