@@ -825,6 +825,22 @@
     </div>
 
     <div class="card">
+      <div class="ch"><h2>🆕 Khai chi phí cho cơ sở</h2></div>
+      <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Chọn cơ sở → gõ tên gọi chi phí → nhập số tài khoản. <b>Hết.</b> App tự biết cơ sở đó thuộc mảng nào nên khỏi khai mảng trước; mọi cơ sở cùng mảng dùng luôn mã này.</div>
+      <div class="row" style="padding:4px 14px 0">
+        <div class="fld"><label>Cơ sở</label><select id="kcCoso" onchange="kcInfo()"></select></div>
+        <div class="fld" style="flex:1.4"><label>Tên gọi chi phí <span style="color:#dc2626">*</span></label><input id="kcTen" list="kcLoaiList" placeholder="VD: Chi phí lương" oninput="kcInfo()"></div>
+        <div class="fld"><label>Số tài khoản (TK Nợ) <span style="color:#dc2626">*</span></label><input id="kcTk" list="tkChartList" placeholder="VD: 64221" oninput="kcInfo()"></div>
+        <div class="fld" style="flex:1.2"><label>Tên theo MISA</label><input id="kcMisa" placeholder="trống = lấy tên tài khoản"></div>
+        <div class="fld"><label>Bộ phận</label><span id="kcBpWrap"></span></div>
+        <div class="fld" style="max-width:210px"><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px"><input type="checkbox" id="kcRieng" onchange="kcInfo()"> chỉ riêng cơ sở này</label></div>
+        <div class="fld" style="max-width:130px"><label>&nbsp;</label><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div>
+      </div>
+      <div id="kcInfo" style="padding:2px 14px 12px;font-size:12px;color:#64748b"></div>
+      <datalist id="kcLoaiList"></datalist>
+    </div>
+
+    <div class="card">
       <div class="ch"><h2>💵 Loại chi phí — gắn mã tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-x" onclick="dongBoTkLoai()" title="Copy TK Nợ đã khai ở bảng nhóm mặt hàng / ma trận TK Nợ sang đây">⬇️ Lấy mã từ cấu hình cũ</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgLoai()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Loại chi phí</th><th style="width:110px">TK Nợ<div style="font-weight:400;font-size:10px;color:#94a3b8">mã cố định</div></th><th style="width:110px">TK Có</th><th style="width:130px">Mã đối tượng</th><th style="width:140px">Bộ phận</th><th style="width:170px">Tên theo MISA</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgLoaiBody"></tbody></table></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Đây là nơi <b>duy nhất</b> quyết định "chi phí này là chi phí gì". Dòng chi lưu luôn mã tại thời điểm nhập, nên sửa mã ở đây <b>không</b> làm đổi số cũ — muốn áp mã mới cho dòng cũ thì bấm <b>🔗 Gán mã cho dòng cũ</b>. <b>TK Có</b> để trống = tự lấy theo hình thức chi (Tạm ứng NV → 141 · Trực tiếp NCC → 331).</div>
@@ -837,13 +853,13 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>🏦 Hệ thống tài khoản của kế toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Sinh danh mục loại chi phí + ma trận mã theo mảng từ hệ thống tài khoản">🧩 Ghép vào danh mục</button></div></div>
-      <div style="padding:6px 14px 4px;font-size:11px;color:#94a3b8">Nạp 1 lần từ file kế toán, làm ở <b>wp-admin</b> (không phải trong app này): <b>wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → chọn bảng <code>CH_TaiKhoan</code></b> → tải file CSV lên (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>) → <b>Nạp dữ liệu</b>. Nạp xong quay lại trang này bấm F5, mọi ô điền mã sẽ gợi ý tên tài khoản để không gõ sai số.</div>
+      <div class="ch"><h2>🏦 Hệ thống tài khoản của kế toán</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="ghepHeThongTk()" title="Tùy chọn: sinh sẵn danh mục + ma trận từ tên tài khoản, dùng khi muốn khai hàng loạt">🧩 Ghép hàng loạt</button></div></div>
+      <div style="padding:6px 14px 4px;font-size:11px;color:#94a3b8">App chỉ cần bảng này để <b>biết một mã có tên là gì</b> (chi phí hay doanh thu đều nạp được) — nó <b>không</b> quyết định mảng, mảng lấy theo cơ sở. Nạp 1 lần từ file kế toán, làm ở <b>wp-admin</b> (không phải trong app này): <b>wp-admin → Vận Hành Chi Phí → Nhập dữ liệu → chọn bảng <code>CH_TaiKhoan</code></b> → tải file CSV lên (3 cột: <b>Số hiệu · Tên tài khoản · Tính chất</b>) → <b>Nạp dữ liệu</b>. Nạp xong quay lại trang này bấm F5, mọi ô điền mã sẽ gợi ý tên tài khoản để không gõ sai số.</div>
       <div id="cfgTkInfo" style="padding:0 14px 12px;font-size:12px;color:#0f766e"></div>
     </div>
 
     <div class="card">
-      <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doMangTk()" title="Đọc hệ thống tài khoản, tự điền Nhóm TK + Từ khóa cho từng mảng">🔎 Dò từ hệ thống tài khoản</button><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🧭 Mảng kinh doanh → nhóm tài khoản <span style="font-size:11px;font-weight:400;color:#94a3b8">(tùy chọn — chỉ cần khi ghép hàng loạt)</span></h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doMangTk()" title="Đọc hệ thống tài khoản, tự điền Nhóm TK + Từ khóa cho từng mảng">🔎 Dò từ hệ thống tài khoản</button><button class="btn b-x" onclick="addCfgMang()">＋ Thêm mảng</button><button class="btn b-g" onclick="saveCfgMang()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:760px"><thead><tr><th>Mảng kinh doanh <div style="font-weight:400;font-size:10px;color:#94a3b8">= Phân loại lớn của cơ sở</div></th><th style="width:130px">Nhóm TK</th><th style="width:200px">Từ khóa trong tên TK</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgMangBody"></tbody></table></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Khỏi khai tay: nạp hệ thống tài khoản rồi bấm <b>🔎 Dò từ hệ thống tài khoản</b> — app thấy tài khoản cha nào có tài khoản con thì lấy số hiệu làm <b>Nhóm TK</b> (VD <b>6412</b>) và bỏ chữ "Chi phí" khỏi tên cha làm <b>Từ khóa</b> (VD <b>Funzone</b>), rồi ghép sẵn vào <b>Mảng</b> nếu tên phân loại lớn của cơ sở khớp được. Dòng nào cột <b>Mảng</b> còn trống là app không dám đoán — anh chọn tay rồi <b>💾 Lưu</b>. Xong bấm <b>🧩 Ghép vào danh mục</b> ở thẻ trên: app bỏ từ khóa khỏi tên tài khoản để ra tên loại chi phí dùng chung ("Chi phí lương") và đưa số hiệu từng mảng vào ma trận. Mã đã sửa tay và loại tự thêm <b>không bị đụng</b>.</div>
     </div>
@@ -3517,6 +3533,7 @@
     el('cfgNhomBody').innerHTML=(CFG.nhom||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên nhóm')+'</td><td>'+_loaiSel(x.loai)+'</td><td>'+_inp(x.tkNo,'VD: 152')+'</td><td>'+_bpSel(x.boPhan)+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgDtBody').innerHTML=(CFG.doiTuong||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên đối tượng')+'</td><td>'+_inp(x.ma,'Mã MISA')+'</td><td>'+_inp(x.loai,'NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'; }).join('');
+    kcFill();
     renderTkNoMatrix();
     renderSso();
   }
@@ -3547,7 +3564,10 @@
   }
   function renderTkNoMatrix(){
     var box=el('cfgTkNoMx'); if(!box) return;
-    var plls={}; (CFG.coso||[]).forEach(function(x){ var v=String(x.phanLoaiLon||'').trim(); if(v) plls[v]=1; });
+    // Cột = mảng kinh doanh; cơ sở nào chưa khai mảng thì tự thành 1 cột riêng
+    var plls={}; (CFG.coso||[]).forEach(function(x){ var v=String(x.phanLoaiLon||'').trim(); plls[v||String(x.ten||'').trim()]=1; });
+    (CFG.tkNoMatrix||[]).forEach(function(x){ var p=String(x.pll||'').trim(); if(p) plls[p]=1; });
+    delete plls[''];
     var cols=Object.keys(plls).sort();
     // Hàng: danh mục loại chi phí + những hàng cũ trong ma trận chưa có trong danh mục
     var rows=[], seen={};
@@ -3587,6 +3607,62 @@
       return '<option value="'+esc(p)+'"'+(p===v?' selected':'')+'>'+esc(p)+'</option>'; })).join('')+'</select>';
   }
   function addCfgMang(){ el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel('')+'</td><td>'+_inp('','VD: 6412')+'</td><td>'+_inp('','VD: Funzone')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
+  // ---- KHAI NHANH: cơ sở + tên gọi + số tài khoản
+  function kcFill(){
+    var ten=el('kcCoso').value;
+    el('kcCoso').innerHTML='<option value="">— chọn cơ sở —</option>'+(CFG.coso||[]).map(function(x){
+      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(x.phanLoaiLon?('  ·  '+esc(x.phanLoaiLon)):'  ·  (chưa khai mảng)')+'</option>'; }).join('');
+    if(ten) el('kcCoso').value=ten;
+    el('kcLoaiList').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<option value="'+esc(x.ten)+'"></option>'; }).join('');
+    el('kcBpWrap').innerHTML=_bpSel('', 'Tất cả bộ phận');
+    kcInfo();
+  }
+  function _kcMang(coso){
+    var hit=null; (CFG.coso||[]).forEach(function(x){ if(String(x.ten)===String(coso)) hit=x; });
+    return hit?String(hit.phanLoaiLon||'').trim():'';
+  }
+  function kcInfo(){
+    var coso=el('kcCoso').value, ten=String(el('kcTen').value||'').trim(), tk=String(el('kcTk').value||'').trim();
+    var mang=_kcMang(coso), rieng=el('kcRieng').checked||!mang;
+    var msg=[], mau='#64748b';
+    if(!coso){ el('kcInfo').innerHTML='<span style="color:#94a3b8">Chọn cơ sở để bắt đầu.</span>'; return; }
+    if(tk){
+      var tenTk=TKNAME[tk]||'';
+      if(tenTk) msg.push('Mã <b>'+esc(tk)+'</b> = <b>'+esc(tenTk)+'</b>');
+      else if(TKCHART.length){ msg.push('<span style="color:#dc2626">Mã <b>'+esc(tk)+'</b> không có trong hệ thống tài khoản</span>'); mau='#dc2626'; }
+      if(tenTk && !String(el('kcMisa').value||'').trim()) el('kcMisa').placeholder=tenTk;
+    }
+    if(rieng) msg.push('Áp <b>chỉ cho '+esc(coso)+'</b>'+(mang?'':' (cơ sở chưa khai mảng)'));
+    else {
+      var ds=(CFG.coso||[]).filter(function(x){ return String(x.phanLoaiLon||'').trim()===mang; }).map(function(x){return x.ten;});
+      msg.push('Mảng <b>'+esc(mang)+'</b> → áp cho <b>'+ds.length+'</b> cơ sở: '+esc(ds.slice(0,6).join(' · '))+(ds.length>6?' …':''));
+    }
+    if(ten){
+      var cu=_tkNoCua(ten, coso);
+      if(cu && tk && cu!==tk) msg.push('<span style="color:#b45309">Đang là <b>'+esc(cu)+'</b> → sẽ đổi thành <b>'+esc(tk)+'</b></span>');
+      else if(cu) msg.push('Hiện đang là <b>'+esc(cu)+'</b>');
+    }
+    el('kcInfo').innerHTML='<span style="color:'+mau+'">'+msg.join(' · ')+'</span>';
+  }
+  function khaiChiPhi(){
+    var rec={ coso:el('kcCoso').value, ten:String(el('kcTen').value||'').trim(), tkNo:String(el('kcTk').value||'').trim(),
+      tenMisa:String(el('kcMisa').value||'').trim(), boPhan:(el('kcBpWrap').getElementsByTagName('select')[0]||{}).value||'',
+      rieng: el('kcRieng').checked };
+    if(!rec.coso){ toast('warn','Chọn cơ sở'); return; }
+    if(!rec.ten){ toast('warn','Nhập tên gọi chi phí'); return; }
+    if(!rec.tkNo){ toast('warn','Nhập số tài khoản'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var m=(r.loaiMoi?'Đã thêm loại "':'Đã cập nhật "')+r.loai+'" · Nợ '+r.tkNo+(r.tenTaiKhoan?(' ('+r.tenTaiKhoan+')'):'');
+      m+=' · '+(r.theoMang?('mảng '+r.cot+' — '+(r.apDung||[]).length+' cơ sở'):('riêng '+r.cot));
+      if(r.maCu && r.maCu!==r.tkNo) m+=' · thay mã cũ '+r.maCu;
+      toast(r.laTkLa?'warn':'ok', m+(r.laTkLa?' — LƯU Ý: mã này không có trong hệ thống tài khoản':''));
+      _log('Khai mã chi phí', r.cot, r.loai+' → '+r.tkNo);
+      el('kcTen').value=''; el('kcTk').value=''; el('kcMisa').value='';
+      loadCfg(); boot();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).khaiChiPhiChoCoSo(rec);
+  }
   function doMangTk(){
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);

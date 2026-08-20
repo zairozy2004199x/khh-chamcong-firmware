@@ -519,18 +519,119 @@ class VHCP_Cfg {
 	}
 
 	/**
-	 * TK Nợ theo MA TRẬN: [loại chi phí] × [phân loại lớn của cơ sở].
-	 * Cùng một loại chi phí nhưng khác mảng kinh doanh thì khác mã (VD "Chi phí cơ sở":
-	 * EVENT 64196 · FARM 64166 · FZ 64126 · TUTU 64106), nên đây mới là mã sát nhất.
-	 * Trả '' khi combo đó chưa khai -> để bước sau lấy mã cố định của loại.
+	 * TK Nợ theo MA TRẬN cho 1 loại chi phí tại 1 cơ sở. Dò từ hẹp ra rộng:
+	 *   1) khai riêng cho ĐÚNG cơ sở đó   (trường hợp ngoại lệ)
+	 *   2) khai cho MẢNG KINH DOANH của cơ sở (phân loại lớn) — dùng chung cho mọi cơ sở
+	 *      cùng mảng, vì cùng loại chi phí mà khác mảng là khác mã ("Chi phí cơ sở":
+	 *      EVENT 64196 · FARM 64166 · FZ 64126 · TUTU 64106)
+	 * Trả '' khi chưa khai -> để bước sau lấy mã cố định của loại.
 	 */
 	public static function tkno_mx( $loai, $coso ) {
+		$s  = self::cfg_static();
+		$k  = mb_strtolower( trim( (string) $loai ) );
+		if ( $k === '' || ! isset( $s['tkNoMx'][ $k ] ) ) { return ''; }
+		$row = $s['tkNoMx'][ $k ];
+
+		$c = mb_strtolower( trim( (string) $coso ) );
+		if ( $c !== '' && isset( $row[ $c ] ) ) { return (string) $row[ $c ]; }
+
 		$pll = self::pll_of( $coso );
 		if ( $pll === '' ) { return ''; }
-		$s = self::cfg_static();
-		$k = mb_strtolower( trim( (string) $loai ) );
 		$p = mb_strtolower( $pll );
-		return isset( $s['tkNoMx'][ $k ][ $p ] ) ? (string) $s['tkNoMx'][ $k ][ $p ] : '';
+		return isset( $row[ $p ] ) ? (string) $row[ $p ] : '';
+	}
+
+	/** Các cơ sở cùng mảng với cơ sở đã chọn (dùng để báo "mã này áp cho những cơ sở nào"). */
+	public static function coso_cung_mang( $coso ) {
+		$pll = self::pll_of( $coso );
+		$out = array();
+		foreach ( self::cfg_static()['coso'] as $x ) {
+			if ( $pll === '' ) { continue; }
+			if ( mb_strtolower( trim( (string) $x['phanLoaiLon'] ) ) === mb_strtolower( $pll ) ) { $out[] = (string) $x['ten']; }
+		}
+		if ( ! count( $out ) && trim( (string) $coso ) !== '' ) { $out[] = trim( (string) $coso ); }
+		return $out;
+	}
+
+	/**
+	 * KHAI NHANH: kế toán chọn cơ sở, gõ tên chi phí + số tài khoản là xong.
+	 *
+	 * Không phải khai trước bảng mảng, không phải mở ma trận: app tự lấy MẢNG KINH DOANH
+	 * của cơ sở (cột "Phân loại lớn") rồi ghi mã vào đúng ô ma trận, nên mọi cơ sở cùng
+	 * mảng dùng luôn mã đó. Cơ sở chưa khai phân loại lớn thì mã ghi riêng cho cơ sở đó.
+	 * Muốn mã chỉ áp cho một cơ sở duy nhất thì đặt $rec['rieng'] = true.
+	 *
+	 * Dòng chi đã nhập trước đó KHÔNG đổi mã (đã chốt lúc nhập) — muốn áp lại thì bấm
+	 * "🔗 Gán mã cho dòng cũ".
+	 */
+	public static function khai_cho_coso( $rec ) {
+		$rec  = (array) $rec;
+		$g    = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };
+		$coso = $g( 'coso' );
+		$ten  = $g( 'ten' );
+		$tkno = $g( 'tkNo' );
+		if ( $coso === '' ) { return VHCP_Util::err( 'Chọn cơ sở' ); }
+		if ( $ten === '' ) { return VHCP_Util::err( 'Nhập tên gọi chi phí' ); }
+		if ( $tkno === '' ) { return VHCP_Util::err( 'Nhập số tài khoản (TK Nợ)' ); }
+
+		$pll   = self::pll_of( $coso );
+		$rieng = ! empty( $rec['rieng'] ) || $pll === '';
+		$khoa  = $rieng ? $coso : $pll;                       // ghi vào cột nào của ma trận
+		$k     = function ( $v ) { return mb_strtolower( trim( (string) $v ) ); };
+
+		// Số tài khoản có trong hệ thống tài khoản không? (không chặn, chỉ báo lại)
+		$ten_tk = '';
+		foreach ( self::tai_khoan() as $x ) {
+			if ( (string) $x['ma'] === $tkno ) { $ten_tk = $x['ten']; break; }
+		}
+
+		// 1) danh mục loại chi phí: thêm nếu chưa có, điền ô trống, KHÔNG ghi đè
+		$rows = array(); $vt = null;
+		foreach ( self::read( self::LOAI ) as $r ) {
+			$row = array_slice( array_values( (array) $r ), 0, 7 );
+			for ( $i = count( $row ); $i < 7; $i++ ) { $row[ $i ] = ''; }
+			if ( trim( (string) $row[0] ) === '' ) { continue; }
+			if ( $k( $row[0] ) === $k( $ten ) ) { $vt = count( $rows ); }
+			$rows[] = $row;
+		}
+		$loai_moi = false;
+		$tenmisa  = $g( 'tenMisa' ) !== '' ? $g( 'tenMisa' ) : $ten_tk;
+		if ( $vt === null ) {
+			$rows[]   = array( $ten, '', $g( 'tkCo' ), $g( 'maDt' ), $g( 'boPhan' ), '', $tenmisa );
+			$loai_moi = true;
+		} else {
+			foreach ( array( 2 => $g( 'tkCo' ), 3 => $g( 'maDt' ), 4 => $g( 'boPhan' ), 6 => $tenmisa ) as $i => $v ) {
+				if ( $v !== '' && trim( (string) $rows[ $vt ][ $i ] ) === '' ) { $rows[ $vt ][ $i ] = $v; }
+			}
+		}
+		self::write( self::LOAI, $rows );
+
+		// 2) ma trận: ghi mã vào ô [loại × cột] — đây là lệnh khai rõ ràng nên ghi đè được
+		$mx = array(); $ov = null;
+		foreach ( self::read( self::TKNO ) as $r ) {
+			$n0 = trim( (string) $r[0] ); $p0 = trim( (string) $r[1] ); $v0 = trim( (string) $r[2] );
+			if ( $n0 === '' || $p0 === '' ) { continue; }
+			if ( $k( $n0 ) === $k( $ten ) && $k( $p0 ) === $k( $khoa ) ) { $ov = count( $mx ); }
+			$mx[] = array( $n0, $p0, $v0 );
+		}
+		$ma_cu = '';
+		if ( $ov === null ) { $mx[] = array( $ten, $khoa, $tkno ); }
+		else { $ma_cu = $mx[ $ov ][2]; $mx[ $ov ] = array( $ten, $khoa, $tkno ); }
+		self::write( self::TKNO, $mx );
+		self::clear_cache();
+
+		$ap_dung = $rieng ? array( $coso ) : self::coso_cung_mang( $coso );
+		return VHCP_Util::ok( array(
+			'loai'      => $ten,
+			'loaiMoi'   => $loai_moi,
+			'cot'       => $khoa,
+			'theoMang'  => ! $rieng,
+			'tkNo'      => $tkno,
+			'tenTaiKhoan' => $ten_tk,
+			'laTkLa'    => ( $ten_tk === '' && count( self::tai_khoan() ) > 0 ),
+			'maCu'      => $ma_cu,
+			'apDung'    => $ap_dung,
+		) );
 	}
 
 	// ------------------------------------------------ hệ thống tài khoản của kế toán
