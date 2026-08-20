@@ -10,6 +10,55 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_Upload {
 
+	/**
+	 * ĐỔI TÊN MIỀN TRONG LINK ẢNH ĐÃ LƯU.
+	 *
+	 * Ảnh lưu theo địa chỉ đầy đủ (https://ten-mien/wp-content/uploads/...), nên đổi tên
+	 * miền của web là mọi link ảnh cũ trỏ về tên miền chết. Hàm này thay tên miền cũ
+	 * bằng tên miền mới trong tất cả cột có chứa link: sổ chi phí, dòng chi của đơn,
+	 * dòng kỹ thuật / marketing / công tác.
+	 *
+	 * @param string $cu  tên miền cũ (có thể dán cả https://…)
+	 * @param string $moi tên miền mới; để trống = lấy tên miền hiện tại của web
+	 * @param bool   $thu true = chỉ ĐẾM sẽ đổi bao nhiêu chỗ, không ghi gì
+	 */
+	public static function doi_ten_mien( $cu, $moi = '', $thu = false ) {
+		global $wpdb;
+		$goc = function ( $v ) {
+			$v = trim( (string) $v );
+			$v = preg_replace( '#^https?://#i', '', $v );
+			return rtrim( (string) $v, '/' );
+		};
+		$cu  = $goc( $cu );
+		$moi = $goc( $moi !== '' ? $moi : home_url( '/' ) );
+		if ( $cu === '' ) { return VHCP_Util::err( 'Nhập tên miền cũ' ); }
+		if ( $moi === '' ) { return VHCP_Util::err( 'Không đọc được tên miền hiện tại' ); }
+		if ( strcasecmp( $cu, $moi ) === 0 ) { return VHCP_Util::err( 'Tên miền cũ và mới giống nhau' ); }
+
+		$cot = array(
+			'so_chi'  => array( 'anh' ),
+			'chiphi'  => array( 'anh' ),
+			'da_line' => array( 'anh', 'ho_so' ),
+			'mk_line' => array( 'ho_so' ),
+			'bp_line' => array( 'ho_so' ),
+			'don'     => array( 'anh_cap', 'hoa_don_qt' ),
+		);
+		$tong = 0; $chi_tiet = array();
+		foreach ( $cot as $bang => $cols ) {
+			$t = VHCP_DB::t( $bang );
+			foreach ( $cols as $c ) {
+				$n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE $c LIKE %s", '%' . $wpdb->esc_like( $cu ) . '%' ) );
+				if ( ! $n ) { continue; }
+				if ( ! $thu ) {
+					$wpdb->query( $wpdb->prepare( "UPDATE $t SET $c = REPLACE($c, %s, %s) WHERE $c LIKE %s", $cu, $moi, '%' . $wpdb->esc_like( $cu ) . '%' ) );
+				}
+				$tong += $n;
+				$chi_tiet[] = $bang . '.' . $c . ': ' . $n;
+			}
+		}
+		return VHCP_Util::ok( array( 'doi' => $tong, 'chiTiet' => $chi_tiet, 'cu' => $cu, 'moi' => $moi, 'thu' => $thu ? 1 : 0 ) );
+	}
+
 	const ROOT     = 'vhcp';
 	const MAX_SIZE = 15728640;   // 15 MB
 

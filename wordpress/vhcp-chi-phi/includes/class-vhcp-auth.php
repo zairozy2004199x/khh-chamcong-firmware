@@ -133,6 +133,25 @@ class VHCP_Auth {
 		delete_transient( self::fail_key() );
 	}
 
+	/**
+	 * MỞ KHÓA ĐĂNG NHẬP (gọi từ wp-admin).
+	 *
+	 * Khóa đếm theo IP và tự hết sau 10 phút, nhưng người bị khóa thì đang cần vào ngay.
+	 * Ai vào được wp-admin thì đã là quản trị WordPress, cho mở khóa luôn khỏi phải chờ.
+	 * Xóa cả khóa của IP đang gọi lẫn mọi khóa còn hạn trong bảng transient.
+	 */
+	public static function mo_khoa() {
+		global $wpdb;
+		delete_transient( self::fail_key() );
+		$n = 0;
+		$rows = $wpdb->get_col( "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '_transient_vhcp\\_fail\\_%'" );
+		foreach ( (array) $rows as $o ) {
+			$key = preg_replace( '/^_transient_/', '', (string) $o );
+			if ( $key !== '' ) { delete_transient( $key ); $n++; }
+		}
+		return $n;
+	}
+
 	// ---------------------------------------------------------------- SSO từ trang tổng K&H
 
 	public static function sso_secret() {

@@ -59,6 +59,20 @@ class VHCP_Admin {
 			exit;
 		}
 
+		if ( $action === 'doiten' ) {
+			$cu  = isset( $_POST['vhcp_cu'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcp_cu'] ) ) : '';
+			$moi = isset( $_POST['vhcp_moi'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcp_moi'] ) ) : '';
+			$thu = ! empty( $_POST['vhcp_thu'] );
+			$res = VHCP_Upload::doi_ten_mien( $cu, $moi, $thu );
+			set_transient( 'vhcp_doiten_res_' . get_current_user_id(), $res, 60 );
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
+		if ( $action === 'mokhoa' ) {
+			$n = VHCP_Auth::mo_khoa();
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp', 'vhcp_msg' => 'mokhoa', 'vhcp_n' => $n ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
 		if ( $action === 'flush' ) {
 			update_option( 'vhcp_flush_rewrite', 1 );
 			VHCP_DB::install();
@@ -76,6 +90,52 @@ class VHCP_Admin {
 		if ( isset( $_GET['vhcp_msg'] ) && $_GET['vhcp_msg'] === 'flushed' ) {
 			echo '<div class="notice notice-success"><p>Đã kiểm tra lại bảng dữ liệu và làm mới đường dẫn.</p></div>';
 		}
+		if ( isset( $_GET['vhcp_msg'] ) && $_GET['vhcp_msg'] === 'mokhoa' ) {
+			echo '<div class="notice notice-success"><p>Đã mở khóa đăng nhập — vào app nhập PIN lại được ngay.</p></div>';
+		}
+
+		// Còn chạy trên tên miền tạm của Hostinger -> cảnh báo trước khi có ai up ảnh
+		$host = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+		if ( $host && preg_match( '/hostingersite\.com$/i', $host ) ) {
+			echo '<div class="notice notice-warning"><p><b>Web đang chạy trên tên miền tạm</b> (' . esc_html( $host ) . ').'
+				. ' Ảnh hóa đơn lưu theo địa chỉ đầy đủ, nên hãy đổi sang tên miền thật <b>trước khi</b> có ai up ảnh —'
+				. ' đổi sau thì mọi ảnh đã up sẽ trỏ về tên miền chết (có công cụ sửa ở dưới, nhưng làm trước thì khỏi phải sửa).</p>'
+				. '<p>Đổi ở: <b>hPanel → Trang web → Tên miền → Đổi tên miền của trang web</b>, rồi quay lại đây bấm'
+				. ' <b>Làm mới đường dẫn</b>.</p></div>';
+		}
+
+		$dt = get_transient( 'vhcp_doiten_res_' . get_current_user_id() );
+		if ( $dt ) {
+			delete_transient( 'vhcp_doiten_res_' . get_current_user_id() );
+			if ( empty( $dt['success'] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( isset( $dt['error'] ) ? $dt['error'] : 'Lỗi' ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-success"><p>'
+					. ( ! empty( $dt['thu'] ) ? 'Thử: sẽ đổi ' : 'Đã đổi ' )
+					. '<b>' . (int) $dt['doi'] . '</b> chỗ · ' . esc_html( $dt['cu'] ) . ' → ' . esc_html( $dt['moi'] )
+					. ( count( (array) $dt['chiTiet'] ) ? ' · ' . esc_html( implode( ' · ', (array) $dt['chiTiet'] ) ) : '' )
+					. '</p></div>';
+			}
+		}
+
+		echo '<h2>Đổi tên miền trong link ảnh đã lưu</h2>';
+		echo '<p>Dùng khi đã đổi tên miền web mà ảnh hóa đơn cũ vẫn trỏ về tên miền cũ. Tích <b>Chỉ thử</b> để xem sẽ đổi bao nhiêu chỗ mà chưa ghi gì.</p>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
+		wp_nonce_field( 'vhcp_doiten' );
+		echo '<input type="hidden" name="vhcp_action" value="doiten">';
+		echo '<table class="form-table"><tr><th scope="row">Tên miền cũ</th><td><input name="vhcp_cu" class="regular-text" placeholder="khaki-scorpion-706230.hostingersite.com"></td></tr>';
+		echo '<tr><th scope="row">Tên miền mới</th><td><input name="vhcp_moi" class="regular-text" placeholder="' . esc_attr( (string) $host ) . '"> <span class="description">để trống = tên miền hiện tại</span></td></tr>';
+		echo '<tr><th scope="row">Chỉ thử</th><td><label><input type="checkbox" name="vhcp_thu" value="1" checked> chỉ đếm, chưa ghi</label></td></tr></table>';
+		submit_button( 'Đổi tên miền trong link ảnh', 'secondary', 'submit', false );
+		echo '</form>';
+
+		echo '<h2>Bị khóa vì nhập sai PIN?</h2>';
+		echo '<p>Nhập sai 10 lần thì app khóa theo địa chỉ mạng, tự mở sau 10 phút. Không muốn chờ thì bấm đây:</p>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
+		wp_nonce_field( 'vhcp_mokhoa' );
+		echo '<input type="hidden" name="vhcp_action" value="mokhoa">';
+		submit_button( 'Mở khóa đăng nhập ngay', 'secondary', 'submit', false );
+		echo '</form>';
 
 		echo '<h2>Mở app</h2><p><a class="button button-primary" target="_blank" href="' . esc_url( $url ) . '">' . esc_html( $url ) . '</a></p>';
 		echo '<p>Nhúng vào 1 trang WordPress bằng shortcode: <code>[vhcp_app height="900"]</code>. ';

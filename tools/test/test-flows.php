@@ -1304,6 +1304,34 @@ $doi = VHCP_Auth::change_pin( 'Admin', '859624', '123456' );
 t( 'đổi sang PIN 6 số được', ! empty( $doi['success'] ) );
 t( 'PIN mới dùng được ngay', ! empty( VHCP_Auth::login( '123456' )['ok'] ) );
 
+// ------------------------------- 33. ĐỔI TÊN MIỀN TRONG LINK ẢNH ĐÃ LƯU
+$tam = 'khaki-scorpion-706230.hostingersite.com';
+$sc_anh = VHCP_SoChi::add( array(
+	'ngay' => $today, 'coso' => 'FARM PHAN THIẾT', 'loai' => 'Chi phí dịch vụ mua ngoài',
+	'noiDung' => 'Có ảnh', 'soTien' => 100000, 'hinhThuc' => 'Tạm ứng NV',
+	'anh' => 'https://' . $tam . '/wp-content/uploads/vhcp/a.jpg',
+), 'NV A' );
+t( 'thêm dòng có ảnh', ! empty( $sc_anh['success'] ) );
+
+$thu = VHCP_Upload::doi_ten_mien( $tam, 'khmatrix.com', true );
+teq( 'chế độ thử đếm đúng 1 chỗ', 1, $thu['doi'] );
+$con = false;
+foreach ( VHCP_SoChi::list_chi( array() )['items'] as $r ) {
+	if ( strpos( (string) $r['anh'], $tam ) !== false ) { $con = true; }
+}
+t( 'chế độ thử KHÔNG ghi gì', $con );
+
+$that = VHCP_Upload::doi_ten_mien( 'https://' . $tam . '/', 'khmatrix.com', false );
+teq( 'đổi thật 1 chỗ', 1, $that['doi'] );
+teq( 'bỏ được cả https:// và dấu / khi nhập', 'khaki-scorpion-706230.hostingersite.com', $that['cu'] );
+$moi = '';
+foreach ( VHCP_SoChi::list_chi( array() )['items'] as $r ) {
+	if ( (string) $r['noiDung'] === 'Có ảnh' ) { $moi = (string) $r['anh']; }
+}
+teq( 'link ảnh đã sang tên miền mới', 'https://khmatrix.com/wp-content/uploads/vhcp/a.jpg', $moi );
+t( 'tên miền cũ = mới thì từ chối', empty( VHCP_Upload::doi_ten_mien( 'khmatrix.com', 'khmatrix.com' )['success'] ) );
+t( 'thiếu tên miền cũ thì từ chối', empty( VHCP_Upload::doi_ten_mien( '', 'khmatrix.com' )['success'] ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
