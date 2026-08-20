@@ -107,7 +107,7 @@ class VHCP_Admin {
 				echo '. Mã tài khoản được gán ngay khi nạp theo danh mục Loại chi phí.</p>';
 				if ( ! empty( $res['thieuMa'] ) ) {
 					echo '<p><b>⚠ ' . (int) $res['thieuMa'] . ' dòng chưa có TK Nợ</b> — do loại chi phí chưa khai mã, hoặc file không có cột "Loại chi phí". '
-						. 'Khai mã ở app (⚙️ Cấu hình → 💵 Loại chi phí) rồi bấm <b>🔗 Gán mã cho dòng cũ</b>; xem chỗ nào còn thiếu ở tab <b>🔎 Tra theo mã</b>.</p>';
+						. 'Khai mã ở app (⚙️ Cấu hình → 🆕 Khai mã chi phí) rồi bấm <b>🔗 Gán mã cho dòng cũ</b>; xem chỗ nào còn thiếu ở tab <b>🔎 Tra theo mã</b>.</p>';
 				}
 				echo '</div>';
 			} else {

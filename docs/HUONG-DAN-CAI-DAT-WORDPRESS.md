@@ -106,6 +106,28 @@ Hai chỗ **vẫn gom** (cố ý, vì là báo cáo tra cứu có chia mục rõ
 
 Muốn bỏ luôn 2 chỗ đó thì nói một câu, em cắt.
 
+### Một bảng duy nhất cho loại chi phí (bản 1.3.0)
+
+Trong ⚙️ Cấu hình chỉ còn **một** bảng quyết định "chi phí này là chi phí gì":
+**🧮 Loại chi phí × Mảng kinh doanh**. Hai bảng cũ (*💵 Loại chi phí* và *📒 TK Nợ theo Nhóm mặt
+hàng*) đã bỏ; mọi cột của chúng gộp vào bảng này:
+
+| Cột | Nghĩa |
+|---|---|
+| Loại chi phí | tên nhân viên thấy khi nhập |
+| Loại | mua của **NCC** hay **cá nhân** ứng tiền — lọc ô chọn theo hình thức chi |
+| Bộ phận | ai được thấy loại này |
+| Tên theo MISA | tên đem đi xuất (trống = dùng tên bên trái) |
+| TK Có | trống = tự lấy theo hình thức chi (Tạm ứng NV → 141 · Trực tiếp NCC → 331) |
+| Mọi mảng | TK Nợ dùng chung khi mảng nào cũng một mã (`6427`, `811`…) |
+| *(các cột sau)* | TK Nợ của **từng mảng kinh doanh** |
+
+Bảng khoá sẵn (🔒) để không sửa nhầm mã hạch toán; bấm để mở. Thêm dòng bằng **＋ Thêm loại**,
+hoặc khai nhanh bằng thẻ **🆕 Khai mã chi phí** phía trên.
+
+*Lưu ý:* danh sách **nhóm mặt hàng** của tab 📝 Nhập đơn vẫn còn nguyên trong dữ liệu và vẫn dùng
+được, chỉ là không sửa được từ giao diện nữa (nạp lại bằng CSV `CH_Nhom` nếu cần đổi).
+
 ### Cùng một loại chi phí, mảng kinh doanh khác thì mã khác (bản 1.3.0)
 
 Hệ thống tài khoản của K&H đặt theo kiểu `641<mảng><hạng mục>`: *Chi phí lương* là `64121` ở

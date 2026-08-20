@@ -1182,6 +1182,34 @@ t( 'không tích cơ sở nào thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso(
 t( 'thiếu tên thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'cosos' => array( 'FARM PHAN THIẾT' ), 'tkNo' => '1' ) )['success'] ) );
 t( 'thiếu số tài khoản thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'cosos' => array( 'FARM PHAN THIẾT' ), 'ten' => 'X' ) )['success'] ) );
 
+// ------------------------------- 28. CỘT "LOẠI" + "BỘ PHẬN" NẰM TRONG BẢNG GỘP
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => array(
+	array( 'ten' => 'Chi phí NCC thôi',  'tkNo' => '331', 'tkCo' => '', 'maDt' => '', 'boPhan' => '',        'note' => '', 'tenMisa' => '', 'loaiTt' => 'ncc' ),
+	array( 'ten' => 'Chi phí cá nhân',   'tkNo' => '141', 'tkCo' => '', 'maDt' => '', 'boPhan' => 'Kỹ thuật', 'note' => '', 'tenMisa' => '', 'loaiTt' => 'canhan' ),
+	array( 'ten' => 'Chi phí cả hai',    'tkNo' => '642', 'tkCo' => '', 'maDt' => '', 'boPhan' => '',        'note' => '', 'tenMisa' => '', 'loaiTt' => '' ),
+) ) );
+$dm3 = array();
+foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $x ) { $dm3[ $x['ten'] ] = $x; }
+teq( 'lưu được cột Loại = NCC', 'ncc', $dm3['Chi phí NCC thôi']['loaiTt'] );
+teq( 'lưu được cột Loại = cá nhân', 'canhan', $dm3['Chi phí cá nhân']['loaiTt'] );
+teq( 'lưu được cột Bộ phận trong bảng gộp', 'Kỹ thuật', $dm3['Chi phí cá nhân']['boPhan'] );
+teq( 'loai_tk trả kèm Loại', 'ncc', VHCP_Cfg::loai_tk( 'Chi phí NCC thôi' )['loaiTt'] );
+
+$bs3 = VHCP_Don::get_bootstrap();
+$bl  = array();
+foreach ( $bs3['loaiChiPhi'] as $x ) { $bl[ $x['ten'] ] = $x; }
+t( 'bootstrap kèm Loại để lọc theo hình thức chi', isset( $bl['Chi phí NCC thôi'] ) && $bl['Chi phí NCC thôi']['loaiTt'] === 'ncc' );
+t( 'bootstrap kèm Bộ phận', isset( $bl['Chi phí cá nhân'] ) && $bl['Chi phí cá nhân']['boPhan'] === 'Kỹ thuật' );
+
+// Vá riêng cột Loại (bảng gộp lưu cột này kèm ma trận) không được đụng cột khác
+VHCP_Cfg::save_config( array( 'loaiTt' => array( array( 'ten' => 'Chi phí cả hai', 'loaiTt' => 'ncc' ) ) ) );
+$dm4 = array();
+foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $x ) { $dm4[ $x['ten'] ] = $x; }
+teq( 'vá được cột Loại', 'ncc', $dm4['Chi phí cả hai']['loaiTt'] );
+teq( 'TK Nợ không bị đụng', '642', $dm4['Chi phí cả hai']['tkNo'] );
+teq( 'các loại khác không bị đụng', 'canhan', $dm4['Chi phí cá nhân']['loaiTt'] );
+teq( 'số loại không đổi', 3, count( $dm4 ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

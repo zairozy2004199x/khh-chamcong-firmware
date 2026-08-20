@@ -33,7 +33,7 @@ class VHCP_Cfg {
 			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
-			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA' ),
+			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại' ),
 			self::TK    => array( 'Số hiệu', 'Tên tài khoản', 'Tính chất' ),
 			self::MANG  => array( 'Phân loại lớn', 'Nhóm TK', 'Từ khóa trong tên TK', 'Ghi chú' ),
 		);
@@ -271,7 +271,7 @@ class VHCP_Cfg {
 		}
 		foreach ( self::rows_of( $all, self::LOAI ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => $r[1], 'tkCo' => $r[2], 'maDt' => $r[3], 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '' );
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => $r[1], 'tkCo' => $r[2], 'maDt' => $r[3], 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -382,7 +382,27 @@ class VHCP_Cfg {
 			$rows = array();
 			foreach ( $cfg['loaiChiPhi'] as $x ) {
 				$x = (array) $x;
-				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $g( $x, 'note' ), $g( $x, 'tenMisa' ) );
+				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $g( $x, 'note' ), $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
+			}
+			self::write( self::LOAI, $rows );
+		}
+		// Cột "Loại" (mua của NCC / cá nhân ứng tiền) khai ngay trong bảng ma trận, nên lưu
+		// riêng lẻ: chỉ vá đúng cột đó theo tên loại, không đụng TK Nợ / Tên MISA đã khai.
+		if ( isset( $cfg['loaiTt'] ) && is_array( $cfg['loaiTt'] ) ) {
+			$moi = array();
+			foreach ( $cfg['loaiTt'] as $x ) {
+				$x = (array) $x;
+				$t = mb_strtolower( trim( $g( $x, 'ten' ) ) );
+				if ( $t !== '' ) { $moi[ $t ] = $g( $x, 'loaiTt' ); }
+			}
+			$rows = array();
+			foreach ( self::read( self::LOAI ) as $r ) {
+				$row = array_slice( array_values( (array) $r ), 0, 8 );
+				for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
+				if ( trim( (string) $row[0] ) === '' ) { continue; }
+				$t = mb_strtolower( trim( (string) $row[0] ) );
+				if ( isset( $moi[ $t ] ) ) { $row[7] = $moi[ $t ]; }
+				$rows[] = $row;
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -507,9 +527,10 @@ class VHCP_Cfg {
 	public static function loai_tk( $ten ) {
 		$m = self::loai_map();
 		$k = mb_strtolower( trim( (string) $ten ) );
-		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '' ); }
+		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'tenMisa' => '', 'loaiTt' => '' ); }
 		$x = $m[ $k ];
 		return array(
+			'loaiTt'  => isset( $x['loaiTt'] ) ? (string) $x['loaiTt'] : '',
 			'tkNo'    => (string) $x['tkNo'],
 			'tkCo'    => (string) $x['tkCo'],
 			'maDt'    => (string) $x['maDt'],
@@ -639,8 +660,8 @@ class VHCP_Cfg {
 		// 1) danh mục loại chi phí: thêm nếu chưa có, điền ô trống, KHÔNG ghi đè
 		$rows = array(); $vt = null;
 		foreach ( self::read( self::LOAI ) as $r ) {
-			$row = array_slice( array_values( (array) $r ), 0, 7 );
-			for ( $i = count( $row ); $i < 7; $i++ ) { $row[ $i ] = ''; }
+			$row = array_slice( array_values( (array) $r ), 0, 8 );
+			for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
 			if ( trim( (string) $row[0] ) === '' ) { continue; }
 			if ( $k( $row[0] ) === $k( $ten ) ) { $vt = count( $rows ); }
 			$rows[] = $row;
@@ -648,7 +669,7 @@ class VHCP_Cfg {
 		$loai_moi = false;
 		$tenmisa  = $g( 'tenMisa' ) !== '' ? $g( 'tenMisa' ) : $ten_tk;
 		if ( $vt === null ) {
-			$rows[]   = array( $ten, '', $g( 'tkCo' ), $g( 'maDt' ), $g( 'boPhan' ), '', $tenmisa );
+			$rows[]   = array( $ten, '', $g( 'tkCo' ), $g( 'maDt' ), $g( 'boPhan' ), '', $tenmisa, $g( 'loaiTt' ) );
 			$loai_moi = true;
 		} else {
 			// Tên MISA gõ tay thì ghi đè (đây là chỗ chỉnh nội dung xuất MISA), còn lại chỉ điền ô trống
@@ -904,8 +925,8 @@ class VHCP_Cfg {
 		// 3) Bổ sung danh mục loại chi phí (giữ nguyên dòng đã có).
 		$rows = array(); $co = array();
 		foreach ( self::read( self::LOAI ) as $r ) {
-			$row = array_slice( array_values( (array) $r ), 0, 7 );
-			for ( $i = count( $row ); $i < 7; $i++ ) { $row[ $i ] = ''; }
+			$row = array_slice( array_values( (array) $r ), 0, 8 );
+			for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
 			if ( trim( (string) $row[0] ) === '' ) { continue; }
 			$co[ $k( $row[0] ) ] = count( $rows );
 			$rows[] = $row;
@@ -913,7 +934,7 @@ class VHCP_Cfg {
 		$them = 0; $sua = 0;
 		foreach ( $ten_cua as $kk => $ten ) {
 			if ( isset( $co[ $kk ] ) ) { continue; }
-			$rows[] = array( $ten, '', '', '', '', '', '' );   // TK Nợ trống: lấy theo ma trận
+			$rows[] = array( $ten, '', '', '', '', '', '', '' );   // TK Nợ trống: lấy theo ma trận
 			$co[ $kk ] = count( $rows ) - 1;
 			$them++;
 		}
@@ -923,7 +944,7 @@ class VHCP_Cfg {
 				if ( trim( (string) $rows[ $i ][1] ) === '' ) { $rows[ $i ][1] = $x['ma']; $sua++; }
 				continue;
 			}
-			$rows[] = array( $x['ten'], $x['ma'], '', '', '', '', '' );
+			$rows[] = array( $x['ten'], $x['ma'], '', '', '', '', '', '' );
 			$co[ $kk ] = count( $rows ) - 1;
 			$them++;
 		}
@@ -1055,8 +1076,8 @@ class VHCP_Cfg {
 
 		$rows = array(); $upd = 0; $thieu = 0; $changed = false;
 		foreach ( $loai as $r ) {
-			$row = array_slice( array_values( (array) $r ), 0, 7 );
-			for ( $i = count( $row ); $i < 7; $i++ ) { $row[ $i ] = ''; }
+			$row = array_slice( array_values( (array) $r ), 0, 8 );
+			for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
 			$key = $k( $row[0] );
 
 			if ( trim( (string) $row[1] ) === '' ) {
