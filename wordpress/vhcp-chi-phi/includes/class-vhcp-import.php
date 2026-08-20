@@ -39,6 +39,16 @@ class VHCP_Import {
 			'CH_LoaiChiPhi' => array( 'label' => 'CH_LoaiChiPhi — danh mục loại chi phí + mã tài khoản', 'skip' => 0 ),
 			'CH_TaiKhoan'   => array( 'label' => 'CH_TaiKhoan — hệ thống tài khoản của kế toán', 'skip' => 0 ),
 			'CH_MangTK'     => array( 'label' => 'CH_MangTK — mảng kinh doanh → nhóm tài khoản', 'skip' => 0 ),
+
+			// ---- TỰ DÒ THEO TÊN TIÊU ĐỀ: không phụ thuộc thứ tự cột, dùng cho bảng tính đang chạy
+			'TD_Don'     => array( 'label' => '★ Tự dò tiêu đề — ĐƠN VẬN HÀNH (tab VH_Index)', 'skip' => 0, 'td' => 'don' ),
+			'TD_ChiPhi'  => array( 'label' => '★ Tự dò tiêu đề — DÒNG CHI CỦA ĐƠN (tab VH_Line)', 'skip' => 0, 'td' => 'chiphi' ),
+			'TD_BPIndex' => array( 'label' => '★ Tự dò tiêu đề — DANH MỤC ĐỢT Công tác/Setup', 'skip' => 0, 'td' => 'bp_index' ),
+			'TD_BPLine'  => array( 'label' => '★ Tự dò tiêu đề — DÒNG CHI Công tác/Setup (tab CT_ChiTiet, khóa theo Mã chuyến)', 'skip' => 0, 'td' => 'bp_line' ),
+			'TD_DALine'  => array( 'label' => '★ Tự dò tiêu đề — DÒNG HẠNG MỤC DỰ ÁN (tab DA …; cần chọn dự án nếu file không có cột Mã dự án)', 'skip' => 0, 'td' => 'da_line' ),
+			'TD_MKDon'   => array( 'label' => '★ Tự dò tiêu đề — ĐƠN MARKETING', 'skip' => 0, 'td' => 'mk_don' ),
+			'TD_MKLine'  => array( 'label' => '★ Tự dò tiêu đề — HẠNG MỤC MARKETING', 'skip' => 0, 'td' => 'mk_line' ),
+			'TD_SoChi'   => array( 'label' => '★ Tự dò tiêu đề — SỔ CHI PHÍ PHẲNG', 'skip' => 0, 'td' => 'sochi' ),
 		);
 	}
 
@@ -88,6 +98,309 @@ class VHCP_Import {
 			return 'File không phải mã UTF-8 nên tiếng Việt sẽ thành ký tự lạ. Mở lại bằng Google Sheet rồi "Tải xuống → CSV" (Google luôn xuất UTF-8).';
 		}
 		return '';
+	}
+
+	/**
+	 * Nạp một tab bằng cách KHỚP TÊN TIÊU ĐỀ. Trả về báo cáo gồm cả cột app bỏ qua,
+	 * để không có dữ liệu nào âm thầm biến mất.
+	 */
+	private static function nap_theo_tieu_de( $bang, $rows, $replace, $ma_chon ) {
+		global $wpdb;
+		$k = VHCP_Nap::khop( $bang, $rows );
+		if ( ! empty( $k['loi'] ) ) { return VHCP_Util::err( $k['loi'] ); }
+		$hd = $k['hd'];
+		$o  = function ( $r, $f ) use ( $hd ) { return VHCP_Nap::o( $r, $hd, $f ); };
+
+		$n = 0; $skipped = 0; $thieu_ma = 0; $chua_co_cha = array();
+
+		switch ( $bang ) {
+			case 'don':
+				$t = VHCP_DB::t( 'don' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				foreach ( $k['rows'] as $r ) {
+					$md = $o( $r, 'ma_don' );
+					if ( $md === '' ) { $skipped++; continue; }
+					$wpdb->delete( $t, array( 'ma_don' => $md ) );
+					$wpdb->insert( $t, array(
+						'ma_don'        => $md,
+						'ky'            => $o( $r, 'ky' ),
+						'nguoi_lap'     => $o( $r, 'nguoi_lap' ),
+						'ngay_tao'      => self::dt( $o( $r, 'ngay_tao' ) ),
+						'trang_thai'    => ( $o( $r, 'trang_thai' ) !== '' ? $o( $r, 'trang_thai' ) : 'Nháp' ),
+						'ghi_chu'       => $o( $r, 'ghi_chu' ),
+						'nguoi_duyet'   => $o( $r, 'nguoi_duyet' ),
+						'ngay_duyet'    => self::dt( $o( $r, 'ngay_duyet' ) ),
+						'nguoi_qt'      => $o( $r, 'nguoi_qt' ),
+						'ngay_qt'       => self::dt( $o( $r, 'ngay_qt' ) ),
+						'tam_ung_duyet' => self::n( $o( $r, 'tam_ung_duyet' ) ),
+						'hinh_thuc_tt'  => $o( $r, 'hinh_thuc_tt' ),
+					) );
+					// Cơ sở của đơn nằm ở từng dòng chi -> ghi sẵn 1 dòng tạm ứng theo cơ sở nếu có
+					$cs = $o( $r, 'coso' );
+					if ( $cs !== '' ) {
+						$tu = VHCP_DB::t( 'tamung' );
+						$wpdb->delete( $tu, array( 'ma_don' => $md, 'coso' => $cs ) );
+						$wpdb->insert( $tu, array( 'ma_don' => $md, 'coso' => $cs, 'so' => self::n0( $o( $r, 'du_toan' ) ) ) );
+					}
+					$n++;
+				}
+				break;
+
+			case 'chiphi':
+				$t = VHCP_DB::t( 'chiphi' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				foreach ( $k['rows'] as $r ) {
+					$md = $o( $r, 'ma_don' );
+					$nd = $o( $r, 'noi_dung' );
+					if ( $md === '' && $nd === '' ) { $skipped++; continue; }
+					$sl  = self::n( $o( $r, 'so_luong' ) );
+					$dg  = self::n( $o( $r, 'don_gia' ) );
+					$tt  = $o( $r, 'thanh_tien' ) !== '' ? self::n0( $o( $r, 'thanh_tien' ) ) : ( VHCP_Util::num( $sl ) * VHCP_Util::num( $dg ) );
+					$cs  = $o( $r, 'coso' );
+					$loai = $o( $r, 'loai_cp' );
+					$tk  = ( $loai !== '' )
+						? VHCP_Cfg::resolve_tk( $loai, $o( $r, 'phan_loai_tt' ), array(), $cs )
+						: VHCP_Don::tk_of_line( $o( $r, 'nhom' ), $o( $r, 'phan_loai_tt' ) );
+					if ( trim( (string) $tk['tk_no'] ) === '' ) { $thieu_ma++; }
+					$id = $o( $r, 'id' ) !== '' ? $o( $r, 'id' ) : VHCP_Util::uid( 'CP' );
+					$wpdb->delete( $t, array( 'id' => $id ) );
+					$wpdb->insert( $t, array(
+						'id'           => $id,
+						'ma_don'       => $md,
+						'coso'         => $cs,
+						'ngay'         => self::d( $o( $r, 'ngay' ) ),
+						'phan_loai_tt' => $o( $r, 'phan_loai_tt' ),
+						'doi_tuong'    => $o( $r, 'doi_tuong' ),
+						'nhom'         => $o( $r, 'nhom' ),
+						'noi_dung'     => $nd,
+						'dvt'          => $o( $r, 'dvt' ),
+						'so_luong'     => $sl,
+						'don_gia'      => $dg,
+						'thanh_tien'   => $tt,
+						'ghi_chu'      => $o( $r, 'ghi_chu' ),
+						'anh'          => $o( $r, 'anh' ),
+						'thue_suat'    => self::n( $o( $r, 'thue_suat' ) ),
+						'tien_thue'    => self::n( $o( $r, 'tien_thue' ) ),
+						'thuc_mua'     => self::n( $o( $r, 'thuc_mua' ) ),
+						'loai_cp'      => $loai,
+						'tk_no'        => $tk['tk_no'],
+						'tk_co'        => $tk['tk_co'],
+						'ma_dt'        => isset( $tk['ma_dt'] ) ? $tk['ma_dt'] : '',
+					) );
+					$n++;
+				}
+				break;
+
+			case 'bp_index':
+				$t = VHCP_DB::t( 'bp_index' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				foreach ( $k['rows'] as $r ) {
+					$m = $o( $r, 'ma' );
+					if ( $m === '' ) { $skipped++; continue; }
+					$wpdb->delete( $t, array( 'ma' => $m ) );
+					$wpdb->insert( $t, array(
+						'ma'         => $m,
+						'loai'       => ( $o( $r, 'loai' ) !== '' ? $o( $r, 'loai' ) : 'Công tác' ),
+						'ten'        => $o( $r, 'ten' ),
+						'nguoi'      => $o( $r, 'nguoi' ),
+						'dia_diem'   => $o( $r, 'dia_diem' ),
+						'ky'         => $o( $r, 'ky' ),
+						'trang_thai' => ( $o( $r, 'trang_thai' ) !== '' ? $o( $r, 'trang_thai' ) : 'Đang xử lý' ),
+						'ngay_tao'   => $o( $r, 'ngay_tao' ),
+						'nguoi_tao'  => $o( $r, 'nguoi_tao' ),
+					) );
+					$n++;
+				}
+				break;
+
+			case 'bp_line':
+				$t = VHCP_DB::t( 'bp_line' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				$dia = array();
+				foreach ( VHCP_BP::all_with_lines() as $b ) { $dia[ (string) $b['ma'] ] = (string) $b['dia_diem']; }
+				$row_no = array();
+				foreach ( $k['rows'] as $r ) {
+					$m  = $o( $r, 'ma' ) !== '' ? $o( $r, 'ma' ) : $ma_chon;
+					$nd = $o( $r, 'noi_dung' );
+					if ( $m === '' || ( $nd === '' && ! self::n0( $o( $r, 'thuc_te' ) ) ) ) { $skipped++; continue; }
+					if ( ! isset( $dia[ $m ] ) ) { $chua_co_cha[ $m ] = 1; $skipped++; continue; }
+					if ( ! isset( $row_no[ $m ] ) ) {
+						$row_no[ $m ] = max( VHCP_DB::DATA_ROW - 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(row_no) FROM $t WHERE ma=%s", $m ) ) );
+					}
+					$row_no[ $m ]++;
+					$sl   = self::n0( $o( $r, 'so_luong' ) );
+					$dg   = self::n0( $o( $r, 'don_gia' ) );
+					$loai = $o( $r, 'loai_cp' );
+					$tk   = ( $loai !== '' ) ? VHCP_Cfg::resolve_tk( $loai, $o( $r, 'hinh_thuc' ), array(), $dia[ $m ] ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
+					$wpdb->insert( $t, array(
+						'ma'         => $m,
+						'row_no'     => $row_no[ $m ],
+						'noi_dung'   => $nd,
+						'so_luong'   => $sl,
+						'don_gia'    => $dg,
+						'thanh_tien' => ( $o( $r, 'thanh_tien' ) !== '' ? self::n0( $o( $r, 'thanh_tien' ) ) : $sl * $dg ),
+						'du_toan'    => self::n0( $o( $r, 'du_toan' ) ),
+						'thuc_te'    => self::n0( $o( $r, 'thuc_te' ) ),
+						'hinh_thuc'  => $o( $r, 'hinh_thuc' ),
+						'vat'        => $o( $r, 'vat' ),
+						'ngay'       => $o( $r, 'ngay' ),
+						'note'       => $o( $r, 'note' ),
+						'ho_so'      => $o( $r, 'ho_so' ),
+						'loai_cp'    => $loai,
+						'tk_no'      => $tk['tk_no'],
+						'tk_co'      => $tk['tk_co'],
+						'ma_dt'      => $tk['ma_dt'],
+					) );
+					$n++;
+				}
+				break;
+
+			case 'da_line':
+				$t = VHCP_DB::t( 'da_line' );
+				$row_no = array();
+				foreach ( $k['rows'] as $r ) {
+					$da = $o( $r, 'ma_da' ) !== '' ? $o( $r, 'ma_da' ) : $ma_chon;
+					$nd = $o( $r, 'noi_dung' );
+					if ( $da === '' ) { return VHCP_Util::err( 'File không có cột "Mã dự án" — chọn dự án ở ô "Dự án / Đợt nhận dòng" rồi nạp lại.' ); }
+					if ( $nd === '' && ! self::n0( $o( $r, 'thuc_te' ) ) && ! self::n0( $o( $r, 'du_toan' ) ) ) { $skipped++; continue; }
+					if ( ! VHCP_DuAn::find( $da ) ) { $chua_co_cha[ $da ] = 1; $skipped++; continue; }
+					if ( ! isset( $row_no[ $da ] ) ) {
+						if ( $replace ) { $wpdb->delete( $t, array( 'ma_da' => $da ) ); }
+						$row_no[ $da ] = max( VHCP_DB::DATA_ROW - 1, (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(row_no) FROM $t WHERE ma_da=%s", $da ) ) );
+					}
+					$row_no[ $da ]++;
+					$sl   = self::n0( $o( $r, 'so_luong' ) );
+					$dg   = self::n0( $o( $r, 'don_gia' ) );
+					$gian = $o( $r, 'gian' );
+					$loai = $o( $r, 'loai_cp' );
+					$tk   = ( $loai !== '' ) ? VHCP_Cfg::resolve_tk( $loai, $o( $r, 'hinh_thuc' ), array(), $gian ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
+					$wpdb->insert( $t, array(
+						'ma_da'      => $da,
+						'row_no'     => $row_no[ $da ],
+						'noi_dung'   => $nd,
+						'du_toan'    => self::n0( $o( $r, 'du_toan' ) ),
+						'thuc_te'    => self::n0( $o( $r, 'thuc_te' ) ),
+						'so_luong'   => $sl,
+						'don_gia'    => $dg,
+						'thanh_tien' => ( $o( $r, 'thanh_tien' ) !== '' ? self::n0( $o( $r, 'thanh_tien' ) ) : $sl * $dg ),
+						'vat'        => $o( $r, 'vat' ),
+						'anh'        => $o( $r, 'anh' ),
+						'gian'       => $gian,
+						'note'       => $o( $r, 'note' ),
+						'cap_cha'    => $o( $r, 'cap_cha' ),
+						'hinh_thuc'  => $o( $r, 'hinh_thuc' ),
+						'ho_so'      => $o( $r, 'ho_so' ),
+						'loai_cp'    => $loai,
+						'tk_no'      => $tk['tk_no'],
+						'tk_co'      => $tk['tk_co'],
+						'ma_dt'      => $tk['ma_dt'],
+					) );
+					$n++;
+				}
+				break;
+
+			case 'mk_don':
+				$t = VHCP_DB::t( 'mk_don' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				foreach ( $k['rows'] as $r ) {
+					$m = $o( $r, 'ma' );
+					if ( $m === '' ) { $skipped++; continue; }
+					$wpdb->delete( $t, array( 'ma' => $m ) );
+					$wpdb->insert( $t, array(
+						'ma'         => $m,
+						'coso'       => $o( $r, 'coso' ),
+						'ten'        => $o( $r, 'ten' ),
+						'ky'         => $o( $r, 'ky' ),
+						'kenh'       => $o( $r, 'kenh' ),
+						'trang_thai' => ( $o( $r, 'trang_thai' ) !== '' ? $o( $r, 'trang_thai' ) : 'Đang chạy' ),
+						'ngay_tao'   => $o( $r, 'ngay_tao' ),
+						'nguoi_tao'  => $o( $r, 'nguoi_tao' ),
+					) );
+					$n++;
+				}
+				break;
+
+			case 'mk_line':
+				$t = VHCP_DB::t( 'mk_line' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				$cs_don = array();
+				foreach ( VHCP_MK::all_dons() as $d ) { $cs_don[ (string) $d['ma'] ] = (string) $d['coso']; }
+				foreach ( $k['rows'] as $r ) {
+					$md = $o( $r, 'ma_don' );
+					if ( $md === '' ) { $skipped++; continue; }
+					if ( ! isset( $cs_don[ $md ] ) ) { $chua_co_cha[ $md ] = 1; $skipped++; continue; }
+					$loai = $o( $r, 'loai_cp' );
+					$tk   = ( $loai !== '' ) ? VHCP_Cfg::resolve_tk( $loai, $o( $r, 'hinh_thuc' ), array(), $cs_don[ $md ] ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
+					$id = $o( $r, 'id' ) !== '' ? $o( $r, 'id' ) : VHCP_Util::uid( 'MKL' );
+					$wpdb->delete( $t, array( 'id' => $id ) );
+					$wpdb->insert( $t, array(
+						'id'        => $id,
+						'ma_don'    => $md,
+						'kenh'      => $o( $r, 'kenh' ),
+						'noi_dung'  => $o( $r, 'noi_dung' ),
+						'du_toan'   => self::n0( $o( $r, 'du_toan' ) ),
+						'thuc_te'   => self::n0( $o( $r, 'thuc_te' ) ),
+						'hinh_thuc' => $o( $r, 'hinh_thuc' ),
+						'vat'       => $o( $r, 'vat' ),
+						'ket_qua'   => self::n0( $o( $r, 'ket_qua' ) ),
+						'ngay'      => $o( $r, 'ngay' ),
+						'note'      => $o( $r, 'note' ),
+						'ho_so'     => $o( $r, 'ho_so' ),
+						'loai_cp'   => $loai,
+						'tk_no'     => $tk['tk_no'],
+						'tk_co'     => $tk['tk_co'],
+						'ma_dt'     => $tk['ma_dt'],
+					) );
+					$n++;
+				}
+				break;
+
+			case 'sochi':
+				$t = VHCP_DB::t( 'so_chi' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				foreach ( $k['rows'] as $r ) {
+					$loai = $o( $r, 'loai' );
+					$nd   = $o( $r, 'noi_dung' );
+					if ( $loai === '' && $nd === '' ) { $skipped++; continue; }
+					$res = VHCP_SoChi::add( array(
+						'ngay'     => $o( $r, 'ngay' ),
+						'coso'     => $o( $r, 'coso' ),
+						'loai'     => $loai,
+						'noiDung'  => $nd,
+						'dvt'      => $o( $r, 'dvt' ),
+						'soLuong'  => self::n( $o( $r, 'so_luong' ) ),
+						'donGia'   => self::n( $o( $r, 'don_gia' ) ),
+						'soTien'   => self::n( $o( $r, 'so_tien' ) ),
+						'hinhThuc' => $o( $r, 'hinh_thuc' ),
+						'thueSuat' => self::n( $o( $r, 'thue_suat' ) ),
+						'vat'      => $o( $r, 'vat' ),
+						'doiTuong' => $o( $r, 'doi_tuong' ),
+						'ghiChu'   => $o( $r, 'ghi_chu' ),
+						'anh'      => $o( $r, 'anh' ),
+					), 'Nạp từ Sheet' );
+					if ( empty( $res['success'] ) ) { $skipped++; continue; }
+					if ( trim( (string) $res['tkNo'] ) === '' ) { $thieu_ma++; }
+					$n++;
+				}
+				break;
+
+			default:
+				return VHCP_Util::err( 'Bảng đích chưa hỗ trợ tự dò' );
+		}
+
+		return VHCP_Util::ok( array(
+			'inserted'   => $n,
+			'skipped'    => $skipped,
+			'thieuMa'    => $thieu_ma,
+			'dongTieuDe' => $k['dongTieuDe'],
+			'cotDung'    => array_keys( $hd ),
+			'cotThieu'   => $k['thieu'],
+			'cotLa'      => $k['la'],
+			'chuaCoCha'  => array_map( 'strval', array_keys( $chua_co_cha ) ),
+		) );
 	}
 
 	/** Trích 80 ký tự đầu để soi nhanh khi file không tách được dòng nào. */
@@ -212,6 +525,7 @@ class VHCP_Import {
 			return VHCP_Util::err( 'Tab này bỏ ' . $skip . ' dòng đầu (dòng tiêu đề của bảng tính) nhưng file chỉ có ' . $tho . ' dòng. '
 				. 'Anh xuất đúng tab chưa? Tab dự án / đợt phải xuất cả phần tiêu đề ở trên.' );
 		}
+		$rows_goc = $rows;   // nhánh tự dò cần cả dòng tiêu đề để khớp tên cột
 		if ( $skip > 0 ) { $rows = array_slice( $rows, $skip ); }
 		elseif ( $header ) {
 			if ( $tho === 1 ) {
@@ -223,6 +537,11 @@ class VHCP_Import {
 		if ( ! count( $rows ) ) { return VHCP_Util::err( 'Không còn dòng dữ liệu nào sau khi bỏ dòng tiêu đề — kiểm tra lại file.' ); }
 
 		$n = 0; $skipped = 0; $thieu_ma = 0;   // thieu_ma: dòng nạp xong vẫn chưa có TK Nợ
+
+		// ---- TỰ DÒ THEO TÊN TIÊU ĐỀ
+		if ( ! empty( $types[ $type ]['td'] ) ) {
+			return self::nap_theo_tieu_de( $types[ $type ]['td'], $rows_goc, $replace, $ma );
+		}
 
 		// ---- các bảng cấu hình CH_* : ghi thẳng dạng hàng JSON
 		if ( strpos( $type, 'CH_' ) === 0 ) {

@@ -49,6 +49,9 @@
   #lo.show{display:flex}.spin{width:40px;height:40px;border:4px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
   @keyframes sp{to{transform:rotate(360deg)}}
   .hide{display:none}
+.csw{position:relative}
+.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
+.cs-list label:hover{background:#f1f5f9}
 </style>
 </head>
 <body>
@@ -3777,7 +3780,9 @@
   function addCfgPl(){ el('cfgPlBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Phân loại')+'</td><td>'+_inp('','VD: 141')+'</td>'+_delBtn()+'</tr>'); }
   function addCfgDt(){ el('cfgDtBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên đối tượng')+'</td><td>'+_inp('','Mã MISA')+'</td><td>'+_inp('','NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'); }
   function _readRows(tbodyId){ return Array.prototype.map.call(el(tbodyId).getElementsByTagName('tr'),function(tr){
-    return Array.prototype.map.call(tr.querySelectorAll('input,select'),function(f){
+    // Bỏ ô tích của hộp chọn cơ sở thu gọn: giá trị thật vẫn nằm ở <select multiple> bị ẩn,
+    // đếm cả checkbox thì mọi cột phía sau lệch một nhịp.
+    return Array.prototype.map.call(tr.querySelectorAll('input:not([type=checkbox]),select'),function(f){
       if(f.tagName==='SELECT'&&f.multiple){ return Array.prototype.map.call(f.selectedOptions,function(o){return o.value;}).join(', '); }
       return f.value; }); }); }
   function _saveCfg(payload,msg){ loading(true);
@@ -3885,10 +3890,49 @@
   // ---- Người dùng & phân quyền ----
   function _roleSel(v){ var o=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC','Nhân viên'];
     return '<select style="width:100%">'+o.map(function(r){return '<option'+(r===v?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'; }
-  function _cosoSel(v){ var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+  /**
+   * Ô CƠ SỞ thu gọn: mỗi người chỉ còn 1 dòng cao 36px thay vì hộp 4 dòng.
+   * Ô chọn thật vẫn là <select multiple> (để _readRows đọc như cũ) nhưng bị ẩn;
+   * người dùng thấy 1 nút tóm tắt "3 cơ sở", bấm mới mở danh sách để tích.
+   */
+  function _cosoSel(v){
+    var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var arr=(CFG.coso||[]).map(function(x){return x.ten;}); sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
-    return '<select multiple size="4" title="Bấm để chọn/bỏ nhiều cơ sở" onmousedown="_msToggle(event)" style="width:100%;min-height:36px">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select><div style="font-size:10px;color:#94a3b8;margin-top:2px">Bấm chọn/bỏ nhiều · để trống = tất cả cơ sở</div>'; }
-  function _msToggle(e){ var o=e.target; if(!o||o.tagName!=='OPTION') return; e.preventDefault(); o.selected=!o.selected; try{o.parentNode.focus();}catch(_){}; }
+    return '<div class="csw">'
+      + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
+      + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
+      + '<div class="cs-pop" style="display:none">'
+      +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
+      +   '<div class="cs-list">'+arr.map(function(c,i){ return '<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'+(sel.indexOf(c)>=0?' checked':'')+'>'+esc(c)+'</label>'; }).join('')+'</div>'
+      + '</div></div>';
+  }
+  function _csLabel(sel){
+    if(!sel.length) return 'Tất cả cơ sở';
+    if(sel.length===1) return sel[0];
+    return sel.length+' cơ sở: '+sel.slice(0,2).join(', ')+(sel.length>2?'…':'');
+  }
+  function _csWrap(n){ while(n && !(n.className&&String(n.className).indexOf('csw')>=0)) n=n.parentNode; return n; }
+  function _csOpen(btn){
+    var w=_csWrap(btn), pop=w.querySelector('.cs-pop');
+    var dang=(pop.style.display!=='none');
+    // đóng mọi ô khác trước, chỉ mở 1 ô một lúc
+    Array.prototype.forEach.call(document.querySelectorAll('.cs-pop'),function(p){ p.style.display='none'; });
+    pop.style.display=dang?'none':'block';
+  }
+  function _csAll(btn, on){
+    var w=_csWrap(btn);
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-list input'),function(c){ c.checked=!!on; });
+  }
+  function _csDone(btn){
+    var w=_csWrap(btn), sel=w.querySelector('select'), sels=[];
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-list input'),function(c){
+      var i=parseInt(c.getAttribute('data-i'),10);
+      sel.options[i].selected=c.checked;
+      if(c.checked) sels.push(sel.options[i].value);
+    });
+    w.querySelector('.cs-btn').textContent=_csLabel(sels);
+    w.querySelector('.cs-pop').style.display='none';
+  }
   function renderUsers(){
     var adm=(CURUSER&&CURUSER.role==='Admin');
     if(el('userCard')) el('userCard').style.display=adm?'':'none';   // chỉ Admin quản trị người dùng

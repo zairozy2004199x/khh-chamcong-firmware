@@ -195,7 +195,7 @@ function vhcp_test_boot( $dir ) {
 	define( 'VHCP_VERSION', 'test' );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
-	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'import' ) as $c ) {
+	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'import' ) as $c ) {
 		require_once $dir . '/includes/class-vhcp-' . $c . '.php';
 	}
 	vhcp_test_create_tables();

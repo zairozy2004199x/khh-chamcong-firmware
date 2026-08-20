@@ -33,6 +33,7 @@ require_once VHCP_DIR . 'includes/class-vhcp-report.php';
 require_once VHCP_DIR . 'includes/class-vhcp-misa.php';
 require_once VHCP_DIR . 'includes/class-vhcp-trama.php';
 require_once VHCP_DIR . 'includes/class-vhcp-upload.php';
+require_once VHCP_DIR . 'includes/class-vhcp-nap.php';
 require_once VHCP_DIR . 'includes/class-vhcp-import.php';
 require_once VHCP_DIR . 'includes/class-vhcp-api.php';
 require_once VHCP_DIR . 'includes/class-vhcp-app.php';

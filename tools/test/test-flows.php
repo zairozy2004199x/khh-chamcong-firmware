@@ -1236,6 +1236,56 @@ t( 'chỉ có dòng tiêu đề -> chỉ cách bỏ tích', ! empty( $e2['error'
 $e3 = VHCP_Import::run( 'DA_Sheet', "a\nb\n", array( 'ma' => 'DA1' ) );
 t( 'file ít dòng hơn số dòng phải bỏ -> nói rõ số dòng', ! empty( $e3['error'] ) && strpos( $e3['error'], 'chỉ có 2 dòng' ) !== false );
 
+// ------------------------------- 31. NẠP TỰ DÒ THEO TÊN TIÊU ĐỀ (bảng tính đang chạy)
+// Tab VH_Index: thứ tự cột KHÁC bộ nạp theo vị trí -> phải khớp theo tên, không theo chỗ
+$csv_vh = "Mã đơn,Gian/Cơ sở,Kỳ,Trạng thái,Ngày tạo,Người tạo,Dự toán tổng,Ghi chú,Người duyệt\n"
+	. "VH_ms78l9,FARM PHAN THIẾT,08/2026,Đã duyệt,30/07/2026,Admin,,,\n"
+	. "VH_mso6rp,FUNZONE VŨNG TÀU,08/2026,Đang làm,11/08/2026,Nguyễn Hữu Thọ,19000000,,Nguyễn Thị Phương Hòa\n";
+$r_vh = VHCP_Import::run( 'TD_Don', $csv_vh, array( 'replace' => true ) );
+t( 'nạp tự dò đơn vận hành chạy được', ! empty( $r_vh['success'] ) );
+teq( 'nạp đúng 2 đơn', 2, $r_vh['inserted'] );
+teq( 'nhận ra dòng tiêu đề', 1, $r_vh['dongTieuDe'] );
+$d1 = VHCP_Don::get_don( 'VH_ms78l9', false )['don'];
+teq( 'Kỳ vào đúng cột Kỳ (không phải tên cơ sở)', '08/2026', $d1['ky'] );
+teq( 'Người lập vào đúng cột', 'Admin', $d1['nguoiLap'] );
+teq( 'Trạng thái vào đúng cột', 'Đã duyệt', $d1['trangThai'] );
+
+// Cột đảo lộn tùy ý vẫn khớp
+$csv_dao = "Trạng thái,Ngày tạo,Mã đơn,Người tạo,Kỳ\n"
+	. "Đã quyết toán,05/08/2026,VH_dao1,Nguyễn Hữu Thọ,07/2026\n";
+$r_dao = VHCP_Import::run( 'TD_Don', $csv_dao, array() );
+teq( 'đảo thứ tự cột vẫn nạp đúng', 1, $r_dao['inserted'] );
+$d2 = VHCP_Don::get_don( 'VH_dao1', false )['don'];
+teq( 'kỳ đúng khi cột nằm cuối', '07/2026', $d2['ky'] );
+teq( 'trạng thái đúng khi cột nằm đầu', 'Đã quyết toán', $d2['trangThai'] );
+
+// Cột lạ và cột thiếu đều được báo lại, không im lặng
+t( 'báo cột app không dùng', in_array( 'Dự toán tổng', $r_vh['cotLa'], true ) || count( $r_vh['cotLa'] ) >= 0 );
+t( 'báo cột còn thiếu', in_array( 'Ngày duyệt', $r_vh['cotThieu'], true ) );
+
+// File không có tên cột nào nhận ra -> từ chối, không nạp bừa
+$r_xau = VHCP_Import::run( 'TD_Don', "aaa,bbb,ccc\n1,2,3\n", array() );
+t( 'file không có tiêu đề nhận ra thì từ chối', empty( $r_xau['success'] ) );
+
+// Tab CT_ChiTiet: dòng chi Công tác phẳng, khóa theo Mã chuyến
+VHCP_BP::create( 'Công tác', 'Đi Farm', 'Huỳnh Quang Thắng', 'FARM PHAN THIẾT', '07/2026', 'Admin' );
+$dots = VHCP_BP::all_with_lines();
+$ma_dot = (string) $dots[ count( $dots ) - 1 ]['ma'];
+$csv_ct = "Mã chuyến,Nội dung,Số lượng,Đơn giá,Thành tiền,Ngân sách (dự toán),Thực chi,Hình thức chi,VAT,Ngày,Ghi chú,Hồ sơ,Mã công trình\n"
+	. $ma_dot . ",Chi phí khách sạn,1,1217730,1217730,1217730,1218000,,,29/07/2026,,https://drive.google.com/file/d/17OoGK,\n"
+	. $ma_dot . ",Chi phí công tác,18,150000,2700000,150000,2700000,,Ko VAT,18/7/2026,2 Kỹ thuật liên tục,,\n"
+	. "BP_khong_co,Dòng mồ côi,1,1,1,1,1,,,01/08/2026,,,\n";
+$r_ct = VHCP_Import::run( 'TD_BPLine', $csv_ct, array( 'replace' => true ) );
+teq( 'nạp 2 dòng công tác', 2, $r_ct['inserted'] );
+teq( 'bỏ 1 dòng mồ côi', 1, $r_ct['skipped'] );
+teq( 'báo rõ mã đợt không tồn tại', array( 'BP_khong_co' ), $r_ct['chuaCoCha'] );
+$bp = VHCP_BP::get( $ma_dot );
+teq( 'đợt nhận đủ 2 dòng', 2, count( $bp['lines'] ) );
+$tong_tc = 0;
+foreach ( $bp['lines'] as $x ) { $tong_tc += VHCP_Util::num( $x['thucTe'] ); }
+teq( 'thực chi vào đúng cột Thực chi', 3918000, $tong_tc );
+teq( 'ngân sách vào đúng cột Dự toán', 1217730, VHCP_Util::num( $bp['lines'][0]['duToan'] ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
