@@ -98,9 +98,18 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 (dựng $wpdb tối giản trên SQLite):
 
 ```bash
-php tools/test/test-flows.php     # 147 phép thử: đơn, duyệt, quyết toán, dự án, MKT,
-                                  # công tác, báo cáo tuần, 4 luồng xuất MISA, nhập CSV, tải ảnh
+php tools/test/test-flows.php
 ```
+
+170 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
+cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
+báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
+đổi PIN, nhật ký, tải ảnh/hồ sơ (chặn .php), nhập CSV.
+
+Hai phép thử cuối là lưới an toàn quan trọng nhất: **cả 92 hàm public của Code.gs cũ đều có trong
+bảng REST**, và **mọi hàm giao diện gọi đều tồn tại ở backend** — thiếu 1 hàm là bộ test đỏ ngay,
+không phải chờ người dùng bấm mới vỡ.
 
 ## 6. Cập nhật plugin về sau
 

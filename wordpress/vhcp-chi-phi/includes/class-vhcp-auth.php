@@ -64,7 +64,7 @@ class VHCP_Auth {
 
 	public static function issue_token( $ten, $role, $coso, $bo_phan ) {
 		global $wpdb;
-		self::gc();
+		self::gc( $ten );
 		$tok = bin2hex( random_bytes( 32 ) );
 		$wpdb->insert( VHCP_DB::t( 'session' ), array(
 			'token'   => $tok,
@@ -94,10 +94,22 @@ class VHCP_Auth {
 		return VHCP_Util::ok();
 	}
 
-	private static function gc() {
+	private static function gc( $ten = '' ) {
 		global $wpdb;
 		$t = VHCP_DB::t( 'session' );
 		$wpdb->query( "DELETE FROM $t WHERE het_han < UTC_TIMESTAMP()" );
+		// SSO phát token mỗi lần tải trang -> giữ tối đa 20 phiên còn sống cho mỗi người.
+		if ( $ten !== '' ) {
+			$keep = $wpdb->get_col( $wpdb->prepare( "SELECT token FROM $t WHERE ten=%s ORDER BY het_han DESC LIMIT 20", (string) $ten ) );
+			if ( is_array( $keep ) && count( $keep ) >= 20 ) {
+				$in = implode( ',', array_map( array( __CLASS__, 'quote_token' ), $keep ) );
+				$wpdb->query( $wpdb->prepare( "DELETE FROM $t WHERE ten=%s AND token NOT IN ($in)", (string) $ten ) );
+			}
+		}
+	}
+
+	private static function quote_token( $t ) {
+		return "'" . preg_replace( '/[^0-9a-f]/', '', (string) $t ) . "'";
 	}
 
 	// ---------------------------------------------------------------- hãm thử PIN

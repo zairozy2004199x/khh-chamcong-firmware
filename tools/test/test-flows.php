@@ -336,12 +336,186 @@ teq( 'nhập CSV cấu hình: 1 cơ sở', 1, $imp2['inserted'] );
 teq( 'nhập CSV cấu hình: ghi đè bảng', 1, count( VHCP_Cfg::cfg_static()['coso'] ) );
 teq( 'nhập CSV cấu hình: đúng mã đơn vị', 'VR_SORA', VHCP_Cfg::cfg_static()['coso'][0]['maDonVi'] );
 
+// ---------------------------------------------------------------- 13b. trả lại đơn / không dùng / tách dòng
+$d3  = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'NV C' );
+$m3  = $d3['maDon'];
+$x1  = VHCP_Don::add_line( $m3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Bơm nước', 'thanhTien' => 800000 ) );
+VHCP_Don::gui_duyet_tam_ung( $m3 );
+VHCP_Don::duyet_tam_ung( $m3, 'Trần Quản Lý', '' );
+VHCP_Don::cap_tam_ung( $m3, 'Lê Kế Toán', 'Tiền mặt' );
+
+// tách 1 dòng sang cơ sở khác
+$dup = VHCP_Don::duplicate_line( $x1['id'], 'TÀU ESTELLA', 'Lê Kế Toán' );
+t( 'tách dòng sang cơ sở khác', ! empty( $dup['success'] ) );
+$g3 = VHCP_Don::get_don( $m3 );
+teq( 'sau khi tách: 2 dòng', 2, count( $g3['lines'] ) );
+teq( 'bản sao mang cơ sở mới', 'TÀU ESTELLA', $g3['lines'][1]['coso'] );
+
+// bỏ tích "CN xử lý" -> dòng cá nhân chuyển sang luồng NCC
+t( 'bỏ tích CN xử lý', ! empty( VHCP_Don::set_line_cn( $dup['id'], false )['success'] ) );
+$g3 = VHCP_Don::get_don( $m3 );
+teq( 'dòng bỏ tích tính về NCC', 800000, $g3['tongNCC']['thucChi'] );
+teq( 'dòng bỏ tích không còn ở cá nhân', 800000, $g3['tongCN']['thucChi'] );
+
+// trả lại đơn sau khi đã cấp -> quay về "Đã cấp tạm ứng" + mở khóa xóa hạng mục xin
+VHCP_Don::gui_quyet_toan( $m3 );
+$tra = VHCP_Don::tra_lai_don( $m3, 'Thiếu hóa đơn' );
+teq( 'trả lại sau khi cấp -> Đã cấp tạm ứng', 'Đã cấp tạm ứng', $tra['target'] );
+t( 'ghi chú mang cờ [Trả lại]', strpos( VHCP_Don::don_row( $m3 )['ghi_chu'], '[Trả lại]' ) !== false );
+t( 'đơn bị trả lại: xóa được hạng mục xin', ! empty( VHCP_Don::delete_line( $dup['id'] )['success'] ) );
+VHCP_Don::gui_quyet_toan( $m3 );
+t( 'gửi lại thì gỡ cờ [Trả lại]', strpos( VHCP_Don::don_row( $m3 )['ghi_chu'], '[Trả lại]' ) === false, VHCP_Don::don_row( $m3 )['ghi_chu'] );
+
+// "không dùng" tạm ứng
+$d4 = VHCP_Don::create_don( 'T8/2026', 'NV D' );
+$m4 = $d4['maDon'];
+VHCP_Don::add_line( $m4, array( 'coso' => 'VR SORA', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dự phòng', 'thanhTien' => 500000 ) );
+VHCP_Don::gui_duyet_tam_ung( $m4 );
+VHCP_Don::duyet_tam_ung( $m4, 'Trần Quản Lý', '' );
+t( 'chưa cấp tiền thì không đánh dấu Không dùng', empty( VHCP_Don::khong_dung_tam_ung( $m4 )['success'] ) );
+VHCP_Don::cap_tam_ung( $m4, 'Lê Kế Toán', 'Tiền mặt' );
+t( 'đánh dấu Không dùng', ! empty( VHCP_Don::khong_dung_tam_ung( $m4 )['success'] ) );
+$r4 = VHCP_Don::don_row( $m4 );
+teq( 'Không dùng -> chờ quyết toán', 'Chờ quyết toán', $r4['trang_thai'] );
+t( 'Không dùng -> có cờ [Không dùng]', strpos( $r4['ghi_chu'], '[Không dùng]' ) !== false );
+
+// tất toán tuần
+t( 'đánh dấu tất toán tuần', ! empty( VHCP_Don::set_tat_toan_tuan( $m4, true, 'Trần Quản Lý' )['success'] ) );
+$ds = VHCP_Don::list_dons();
+$found4 = null;
+foreach ( $ds as $x ) { if ( $x['maDon'] === $m4 ) { $found4 = $x; } }
+t( 'danh sách hiện đã tất toán', $found4 && $found4['tatToan'] === true );
+t( 'bỏ đánh dấu tất toán', ! empty( VHCP_Don::set_tat_toan_tuan( $m4, false, '' )['success'] ) );
+
+VHCP_Don::delete_don_admin( $m3 );
+VHCP_Don::delete_don_admin( $m4 );
+
 // ---------------------------------------------------------------- 14. xóa đơn
 $d2 = VHCP_Don::create_don( 'T8/2026', 'NV B' );
 t( 'xóa đơn nháp', ! empty( VHCP_Don::delete_don( $d2['maDon'] )['success'] ) );
 t( 'không xóa đơn đã xuất MISA bằng lệnh thường', empty( VHCP_Don::delete_don( $ma )['success'] ) );
 t( 'Admin xóa vĩnh viễn được', ! empty( VHCP_Don::delete_don_admin( $ma )['success'] ) );
 teq( 'xóa đơn thì xóa luôn dòng chi', 0, count( VHCP_Don::cp_rows() ) );
+
+// ---------------------------------------------------------------- 15. bảng hàm của REST API
+require_once dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php';
+$map = VHCP_API::map();
+$bad = array();
+foreach ( $map as $name => $cb ) { if ( ! is_callable( $cb ) ) { $bad[] = $name; } }
+teq( 'mọi hàm trong bảng REST đều tồn tại', array(), $bad );
+t( 'bảng REST đủ nhiều hàm', count( $map ) >= 85, count( $map ) );
+
+// Mọi hàm giao diện gọi (google.script.run.<tên>) phải có trong bảng.
+$ui = file_get_contents( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+preg_match_all( '/(?:google\.script\.run|\brun)((?:\.with[A-Za-z]+Handler\([^;]*?\))*)\.([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/', $ui, $mm );
+$called = array_unique( isset( $mm[2] ) ? $mm[2] : array() );
+$missing = array();
+foreach ( $called as $fn ) {
+	if ( strpos( $fn, 'with' ) === 0 ) { continue; }   // withSuccessHandler/withFailureHandler là của lớp shim
+	if ( ! isset( $map[ $fn ] ) ) { $missing[] = $fn; }
+}
+teq( 'giao diện không gọi hàm nào thiếu ở backend', array(), $missing );
+t( 'giao diện có gọi backend', count( $called ) > 15, count( $called ) );
+
+// Toàn bộ hàm PUBLIC của Code.gs (app Apps Script cũ) phải có mặt trong bảng REST.
+$gas = array(
+	'addBPLine',
+	'addDuAnLine',
+	'addLine',
+	'addMkDonLine',
+	'approveDuAn',
+	'capTamUng',
+	'capTamUngNhieu',
+	'changePin',
+	'closeBP',
+	'closeDuAn',
+	'closeMkDon',
+	'confirmDuAnPay',
+	'createBP',
+	'createDon',
+	'createDuAn',
+	'createMkDon',
+	'dayChoKeToan',
+	'deleteBP',
+	'deleteBPLine',
+	'deleteDon',
+	'deleteDonAdmin',
+	'deleteDuAn',
+	'deleteDuAnLine',
+	'deleteLine',
+	'deleteMkDon',
+	'deleteMkDonLine',
+	'duplicateLine',
+	'duyetTamUng',
+	'duyetTamUngNhieu',
+	'editMkDon',
+	'ensureCoSoChung',
+	'exportMisa',
+	'exportMisaBP',
+	'exportMisaKyThuat',
+	'exportMisaMarketing',
+	'getBP',
+	'getBootstrap',
+	'getConfig',
+	'getDon',
+	'getDuAn',
+	'getFinanceReport',
+	'getGianReport',
+	'getLog',
+	'getMkDon',
+	'getPendingModules',
+	'getQuyen',
+	'getQuyenConfig',
+	'getSoDuDauKy',
+	'getUsers',
+	'getVanHanhTuan',
+	'guiDuyetTamUng',
+	'guiQuyetToan',
+	'khongDungTamUng',
+	'listBP',
+	'listDons',
+	'listDuAn',
+	'listMkDon',
+	'logAction',
+	'login',
+	'markExported',
+	'migrateOldImages',
+	'renameBP',
+	'renameDuAn',
+	'reopenBP',
+	'reopenDuAn',
+	'reopenMkDon',
+	'returnDuAn',
+	'saveConfig',
+	'saveQuyetToan',
+	'setDuPhong',
+	'setLineAnh',
+	'setLineCN',
+	'setLineThucMua',
+	'setQuyen',
+	'setSoDuDauKy',
+	'setTamUng',
+	'setTatToanTuan',
+	'setTuExtra',
+	'submitDuAn',
+	'traLaiDon',
+	'traLaiDonNhieu',
+	'unconfirmDuAnPay',
+	'undoConfig',
+	'updateBPLine',
+	'updateDuAnLine',
+	'updateLine',
+	'updateMkDonLine',
+	'uploadDuAnDoc',
+	'uploadImage',
+	'xacNhanQTCNNhieu',
+	'xacNhanQuyetToanCN',
+	'xacNhanQuyetToanNCC',
+);
+$chua_co = array();
+foreach ( $gas as $fn ) { if ( ! isset( $map[ $fn ] ) ) { $chua_co[] = $fn; } }
+teq( 'đủ 100% hàm của app Apps Script cũ', array(), $chua_co );
+teq( 'số hàm cũ đã port', 92, count( $gas ) );
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";

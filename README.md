@@ -83,6 +83,6 @@ Hướng dẫn cài + mang dữ liệu cũ sang: [`docs/HUONG-DAN-CAI-DAT-WORDPR
 
 ```bash
 bash tools/build-plugin-zip.sh    # đóng gói lại plugin
-php tools/test/test-flows.php     # 147 phép thử logic, không cần WordPress/MySQL
+php tools/test/test-flows.php     # 170 phép thử logic, không cần WordPress/MySQL
 bash tools/deploy-hosting.sh      # đẩy lên hosting qua SSH/FTP (chạy ở máy có mạng vào hosting)
 ```

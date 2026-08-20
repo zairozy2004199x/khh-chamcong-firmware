@@ -104,6 +104,12 @@ class VHCP_Test_WPDB {
 		return count( $r ) ? $r[0] : null;
 	}
 
+	public function get_col( $sql ) {
+		$out = array();
+		foreach ( $this->get_results( $sql ) as $r ) { $v = array_values( $r ); $out[] = $v[0]; }
+		return $out;
+	}
+
 	public function get_var( $sql ) {
 		$r = $this->get_row( $sql );
 		if ( ! $r ) { return null; }
