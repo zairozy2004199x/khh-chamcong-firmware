@@ -44,6 +44,52 @@ class VHCP_Import {
 
 	// ---------------------------------------------------------------- đọc CSV
 
+	/**
+	 * Nội dung có phải file nhị phân (Excel/zip/PDF/ảnh) chứ không phải CSV?
+	 *
+	 * Nạp thẳng .xlsx vào đây thì trước kia app cứ thế đọc, ra một mớ ký tự rác và
+	 * ghi vào bảng. Nhận ra sớm rồi báo đúng việc cần làm: mở bằng Excel/Google Sheet
+	 * rồi "Tải xuống → CSV".
+	 *
+	 * @return string '' nếu là văn bản, ngược lại là câu báo lỗi.
+	 */
+	public static function loi_nhi_phan( $text ) {
+		$t = (string) $text;
+		if ( $t === '' ) { return ''; }
+		$dau = substr( $t, 0, 8 );
+		$sig = array(
+			"PK\x03\x04"     => 'file Excel (.xlsx) hoặc file nén (.zip)',
+			"\xD0\xCF\x11\xE0" => 'file Excel cũ (.xls)',
+			'%PDF'            => 'file PDF',
+			"\x89PNG"         => 'file ảnh PNG',
+			"\xFF\xD8\xFF"    => 'file ảnh JPG',
+			'{\rtf'           => 'file RTF',
+		);
+		foreach ( $sig as $magic => $ten ) {
+			if ( strpos( $dau, $magic ) === 0 ) {
+				return 'Đây là ' . $ten . ', không phải CSV. Mở file bằng Excel / Google Sheet rồi chọn "Tải xuống → Giá trị được phân tách bằng dấu phẩy (.csv)" và nạp lại file .csv đó.';
+			}
+		}
+		// Không nhận ra chữ ký nhưng lẫn byte 0 / quá nhiều ký tự điều khiển -> vẫn là nhị phân
+		$mau = substr( $t, 0, 4096 );
+		if ( strpos( $mau, "\0" ) !== false ) {
+			return 'File này là dữ liệu nhị phân, không phải CSV. Xuất lại từ Excel / Google Sheet ra định dạng .csv rồi nạp.';
+		}
+		$xau = 0;
+		$n   = strlen( $mau );
+		for ( $i = 0; $i < $n; $i++ ) {
+			$c = ord( $mau[ $i ] );
+			if ( $c < 9 || ( $c > 13 && $c < 32 ) ) { $xau++; }
+		}
+		if ( $n > 0 && $xau / $n > 0.05 ) {
+			return 'File này không đọc được như văn bản (có thể là Excel hoặc file nén). Xuất lại ra .csv rồi nạp.';
+		}
+		if ( ! mb_check_encoding( $mau, 'UTF-8' ) ) {
+			return 'File không phải mã UTF-8 nên tiếng Việt sẽ thành ký tự lạ. Mở lại bằng Google Sheet rồi "Tải xuống → CSV" (Google luôn xuất UTF-8).';
+		}
+		return '';
+	}
+
 	/** Tách bảng từ nội dung CSV/TSV (đọc được cả ô nhiều dòng nhờ fgetcsv). */
 	public static function parse( $text ) {
 		$text = str_replace( array( "\r\n", "\r" ), "\n", (string) $text );
@@ -131,6 +177,8 @@ class VHCP_Import {
 	 * @param array  $opts   ['header'=>bool, 'replace'=>bool, 'ma'=>string (cho DA_Sheet/BP_Sheet)]
 	 */
 	public static function run( $type, $text, $opts = array() ) {
+		$loi = self::loi_nhi_phan( $text );
+		if ( $loi !== '' ) { return VHCP_Util::err( $loi ); }
 		global $wpdb;
 		$types = self::types();
 		if ( ! isset( $types[ $type ] ) ) { return VHCP_Util::err( 'Loại tab không hợp lệ' ); }

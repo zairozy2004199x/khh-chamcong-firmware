@@ -1210,6 +1210,22 @@ teq( 'TK Nợ không bị đụng', '642', $dm4['Chi phí cả hai']['tkNo'] );
 teq( 'các loại khác không bị đụng', 'canhan', $dm4['Chi phí cá nhân']['loaiTt'] );
 teq( 'số loại không đổi', 3, count( $dm4 ) );
 
+// ------------------------------- 29. NẠP FILE KHÔNG PHẢI CSV -> BÁO ĐÚNG VIỆC CẦN LÀM
+$xlsx = "PK\x03\x04" . str_repeat( "\x00\x11\x22", 40 );
+$r_x  = VHCP_Import::run( 'CH_TaiKhoan', $xlsx, array( 'replace' => false ) );
+t( 'nạp .xlsx bị chặn', empty( $r_x['success'] ) );
+t( 'báo rõ là file Excel', strpos( (string) $r_x['error'], 'Excel' ) !== false );
+t( 'chỉ đúng việc cần làm', strpos( (string) $r_x['error'], '.csv' ) !== false );
+
+$xls = VHCP_Import::run( 'CH_TaiKhoan', "\xD0\xCF\x11\xE0abcdefgh", array() );
+t( 'nạp .xls cũ bị chặn', empty( $xls['success'] ) );
+t( 'nạp PDF bị chặn', empty( VHCP_Import::run( 'CH_TaiKhoan', '%PDF-1.7 rác', array() )['success'] ) );
+t( 'nạp ảnh PNG bị chặn', empty( VHCP_Import::run( 'CH_TaiKhoan', "\x89PNG\r\n\x1a\n rác", array() )['success'] ) );
+t( 'lẫn byte 0 cũng chặn', empty( VHCP_Import::run( 'CH_TaiKhoan', "6427,Chi phí\x00 mua ngoài,x", array() )['success'] ) );
+t( 'CSV UTF-8 bình thường vẫn nạp được', ! empty( VHCP_Import::run( 'CH_TaiKhoan', "Số hiệu,Tên tài khoản,Tính chất\n6427,Chi phí dịch vụ mua ngoài,Lưỡng tính\n", array( 'replace' => true, 'header' => true ) )['success'] ) );
+teq( 'không báo lỗi oan cho CSV tiếng Việt', '', VHCP_Import::loi_nhi_phan( "Ngày,Cơ sở,Loại chi phí\n05/08/2025,FARM PHAN THIẾT,Chi phí lương\n" ) );
+teq( 'file rỗng không bị coi là nhị phân', '', VHCP_Import::loi_nhi_phan( '' ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

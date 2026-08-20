@@ -141,7 +141,10 @@ class VHCP_Admin {
 		}
 		echo '</select></td></tr>';
 
-		echo '<tr><th scope="row">File CSV</th><td><input type="file" name="vhcp_file" accept=".csv,.tsv,.txt,text/csv"></td></tr>';
+		echo '<tr><th scope="row">File CSV</th><td><input type="file" name="vhcp_file" accept=".csv,.tsv,.txt,text/csv">'
+			. '<p class="description"><b>Phải là file .csv</b> — nạp thẳng .xlsx / .xls / .zip sẽ bị từ chối vì đó là file nhị phân, đọc ra ký tự rác. '
+			. 'Trong Google Sheet: <em>Tệp → Tải xuống → Giá trị được phân tách bằng dấu phẩy (.csv)</em>. '
+			. 'Trong Excel: <em>Tệp → Lưu dưới dạng → CSV UTF-8</em>.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcp_csv">…hoặc dán nội dung</label></th><td><textarea name="vhcp_csv" id="vhcp_csv" rows="8" style="width:100%;font-family:monospace"></textarea></td></tr>';
 		echo '<tr><th scope="row">Tùy chọn</th><td>';
 		echo '<label><input type="checkbox" name="vhcp_header" value="1" checked> Dòng đầu là tiêu đề (bỏ qua)</label><br>';
