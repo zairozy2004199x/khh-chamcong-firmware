@@ -804,6 +804,61 @@ $still_141 = 0;
 foreach ( $exk3['rows'] as $r ) { if ( $r[5] === '141' && mb_strpos( $r[3], 'TÀU BÌNH TÂN' ) !== false ) { $still_141++; } }
 teq( 'xuất MISA kỹ thuật: không còn dòng mã cũ ở dự án đã gán', 0, $still_141 );
 
+// ---------------------------------------------------------------- 22. NẠP DỮ LIỆU CŨ: mã tài khoản tự gán ngay khi nạp
+// (a) dòng chi của đơn — mã lấy theo cột "Nhóm mặt hàng"
+$csv_cp = "ID,Mã đơn,Cơ sở,Ngày,Phân loại TT,Đối tượng,Nhóm mặt hàng,Nội dung,ĐVT,Số lượng,Đơn giá,Thành tiền,Ghi chú,Ảnh,Tạo lúc,Thuế suất (%),Tiền thuế,Thực mua,CN xử lý,Phát sinh\n"
+        . "L_sync1,{$m9},VR SORA,19/08/2026,Thanh toán cá nhân,NV,Chi phí cơ sở,Thay khóa cửa,lần,1,,\"450.000\",,,,,,,1,0\n";
+teq( 'nạp CSV dòng chi: 1 dòng', 1, VHCP_Import::run( 'ChiPhi', $csv_cp, array( 'header' => true ) )['inserted'] );
+$li2 = VHCP_Don::line_row( 'L_sync1' );
+teq( 'dòng chi nạp từ CSV tự có TK Nợ', '64127', (string) $li2['tk_no'] );
+teq( 'dòng chi nạp từ CSV tự có TK Có', '141', (string) $li2['tk_co'] );
+
+// (b) tab dự án kỹ thuật — file KHÔNG có cột loại chi phí -> tự suy theo loại dự án (Tháo dỡ)
+$csv_da = "Nội dung hạng mục,Chi phí dự toán,Chi phí thực tế,Số lượng,Đơn giá,Thành tiền,VAT,Ảnh,Bộ phận / Gian,Ghi chú,Thuộc hạng mục lớn,Hình thức chi,Hồ sơ\n"
+        . "h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11,h12,h13\n"
+        . ",,,,,,,,,,,,\n"
+        . "x,x,x,x,x,x,x,x,x,x,x,x,x\n"
+        . "Vận chuyển phế liệu,,\"1.800.000\",,,,,,Gian B,,Tháo vách,Trực tiếp,\n";
+teq( 'nạp CSV tab dự án: 1 dòng', 1, VHCP_Import::run( 'DA_Sheet', $csv_da, array( 'ma' => $md2 ) )['inserted'] );
+$da_lines = VHCP_DuAn::get_du_an( $md2 )['lines'];
+$da_new = null;
+foreach ( $da_lines as $l ) { if ( $l['noiDung'] === 'Vận chuyển phế liệu' ) { $da_new = $l; } }
+teq( 'dòng dự án nạp từ CSV: tự suy loại chi phí theo loại dự án', 'Chi phí tháo dỡ', $da_new['loaiCp'] );
+teq( 'dòng dự án nạp từ CSV: có TK Nợ', '2413', $da_new['tkNo'] );
+
+// (c) hạng mục marketing — có cột "Loại chi phí" thì dùng, không có thì để trống (giữ mã cũ)
+$csv_mk = "Mã dòng,Mã đơn,Kênh,Nội dung,Ngân sách,Thực chi,Hình thức chi,VAT,Kết quả,Ngày,Ghi chú,Hồ sơ,Loại chi phí\n"
+        . "MKL_sync1,{$mk2['ma']},Facebook Ads,Boost bài hội chợ,,\"1.200.000\",Trực tiếp,Có VAT,50,19/08/2026,,,MKT - Hoạt náo\n"
+        . "MKL_sync2,{$mk2['ma']},Zalo,Tin nhắn ZNS,,\"300.000\",,,10,19/08/2026,,,\n";
+teq( 'nạp CSV marketing: 2 dòng', 2, VHCP_Import::run( 'MK_Line', $csv_mk, array( 'header' => true ) )['inserted'] );
+$mk_lines = array();
+foreach ( VHCP_MK::get_don( $mk2['ma'] )['lines'] as $l ) { $mk_lines[ $l['id'] ] = $l; }
+teq( 'marketing có cột loại -> tự gán TK Nợ', '6417', $mk_lines['MKL_sync1']['tkNo'] );
+teq( 'marketing có cột loại -> TK Có 331 (trực tiếp)', '331', $mk_lines['MKL_sync1']['tkCo'] );
+teq( 'marketing thiếu cột loại -> để trống, giữ cách hạch toán cũ', '', $mk_lines['MKL_sync2']['tkNo'] );
+$imp_mk2 = VHCP_Import::run( 'MK_Line', $csv_mk, array( 'header' => true ) );
+teq( 'nạp CSV báo lại số dòng chưa có mã', 1, $imp_mk2['thieuMa'] );
+
+// (d) tab đợt Công tác — có cột "Loại chi phí"
+$csv_bp = "Nội dung,Số lượng,Đơn giá,Thành tiền,Ngân sách,Thực chi,Hình thức chi,VAT,Ngày,Ghi chú,Hồ sơ,Loại chi phí\n"
+        . "h,h,h,h,h,h,h,h,h,h,h,h\n"
+        . ",,,,,,,,,,,\n"
+        . "x,x,x,x,x,x,x,x,x,x,x,x\n"
+        . "Taxi sân bay,,,,\"200.000\",\"250.000\",,,19/08/2026,,,Chi phí công tác\n";
+teq( 'nạp CSV tab công tác: 1 dòng', 1, VHCP_Import::run( 'BP_Sheet', $csv_bp, array( 'ma' => $bp2['ma'] ) )['inserted'] );
+$bp_new = null;
+foreach ( VHCP_BP::get( $bp2['ma'] )['lines'] as $l ) { if ( $l['noiDung'] === 'Taxi sân bay' ) { $bp_new = $l; } }
+teq( 'dòng công tác nạp từ CSV: có TK Nợ', '6427', $bp_new['tkNo'] );
+teq( 'dòng công tác nạp từ CSV: TK Có 141 (tạm ứng)', '141', $bp_new['tkCo'] );
+
+// (e) nạp xong là tra theo mã ra ngay, không cần bấm gán mã
+$t2413c = VHCP_TraMa::search( array( 'tkNo' => '2413' ) );
+$co_moi = false;
+foreach ( $t2413c['items'] as $x ) { if ( $x['noiDung'] === 'Vận chuyển phế liệu' ) { $co_moi = true; } }
+t( 'dữ liệu vừa nạp tra theo mã ra ngay', $co_moi );
+$t6417 = VHCP_TraMa::search( array( 'tkNo' => '6417' ) );
+t( 'mã 6417 ra cả dòng marketing vừa nạp', $t6417['tong'] >= 1200000, $t6417['tong'] );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

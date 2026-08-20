@@ -125,6 +125,26 @@ Nạp theo thứ tự này để không bị lệch khóa:
    Mã tài khoản được gắn từ danh mục **ngay khi nạp**, y như nhập tay.
 7. `NhatKy` (tùy, chỉ để tra lịch sử)
 
+### Nạp dữ liệu cũ có tự gán mã tài khoản không? — CÓ, ngay khi nạp
+
+| Tab nạp | Mã tài khoản lúc nạp |
+|---|---|
+| `SoChi` | lấy theo cột **Loại chi phí** trong file |
+| `ChiPhi` (dòng chi của đơn) | **tự lấy theo cột "Nhóm mặt hàng"** (= loại chi phí) + phân loại thanh toán |
+| `DA_Sheet` (tab dự án kỹ thuật) | cột 14 "Loại chi phí" nếu file có; **trống thì tự suy theo loại dự án** (Tháo dỡ / Setup lắp đặt / Chi phí cơ sở) |
+| `MK_Line` (marketing) | cột 13 "Loại chi phí" nếu file có; không có thì để trống → dòng đó giữ mã cũ `141/64125` |
+| `BP_Sheet` (Công tác/Setup) | cột 12 "Loại chi phí" nếu file có; không có thì để trống → giữ mã cũ |
+
+Nạp xong, trang Nhập dữ liệu **báo lại ngay số dòng chưa có TK Nợ** (do loại chi phí chưa khai mã,
+hoặc file thiếu cột Loại chi phí). Hai trường hợp cần bấm thêm **🔗 Gán mã cho dòng cũ**:
+
+1. **Nạp dữ liệu TRƯỚC khi khai mã** trong ⚙️ Cấu hình → 💵 Loại chi phí. Khai mã xong bấm nút là
+   xong (nút chỉ điền chỗ trống, không sửa dòng đã có mã nên số cũ không bị nhảy).
+2. **Dữ liệu ghi thẳng vào database** bằng script/SQL, không qua trang Nhập dữ liệu.
+
+Chỗ nào còn thiếu thì tab **🔎 Tra theo mã** hiện rõ: số dòng chưa gắn mã, số tiền, thuộc mảng nào,
+loại chi phí nào.
+
 Lưu ý:
 
 - **Ngày tháng đọc kiểu Việt Nam** (ngày trước: `20/08/2026`). Nếu bảng tính đang xuất kiểu Mỹ,
@@ -179,13 +199,14 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 php tools/test/test-flows.php
 ```
 
-284 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+300 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
 đổi PIN, nhật ký, tải ảnh/hồ sơ (chặn .php), nhập CSV.
 
-Có cả **mã tài khoản của 3 mảng Kỹ thuật/MKT/Công tác** (dòng có loại → mã danh mục, dòng chưa có →
+Có cả **nạp dữ liệu cũ tự gán mã** (cả 5 đường nạp: đơn theo nhóm mặt hàng, dự án suy theo loại
+dự án, marketing/công tác theo cột tùy chọn, và báo lại số dòng chưa có mã), **mã tài khoản của 3 mảng Kỹ thuật/MKT/Công tác** (dòng có loại → mã danh mục, dòng chưa có →
 giữ đúng 141/64125 cũ), **tra theo mã** (1 mã ra nhiều mảng, lọc theo mảng/kỳ/cơ sở/từ khóa, đếm
 dòng chưa gắn mã), **gán mã cho dòng cũ** (kỹ thuật suy theo loại dự án), **sổ chi phí** (gắn mã TK theo danh mục, TK Có theo hình thức chi, lọc theo mã tài khoản,
 chốt/bỏ chốt đã xuất, gán mã cho dòng cũ, nhập CSV) và **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`

@@ -18,13 +18,13 @@ class VHCP_Import {
 		return array(
 			'DonHang'       => array( 'label' => 'DonHang — đơn vận hành (28 cột)', 'skip' => 0 ),
 			'TamUng'        => array( 'label' => 'TamUng — tạm ứng theo cơ sở (3 cột)', 'skip' => 0 ),
-			'ChiPhi'        => array( 'label' => 'ChiPhi — dòng chi của đơn (20 cột)', 'skip' => 0 ),
+			'ChiPhi'        => array( 'label' => 'ChiPhi — dòng chi của đơn (20 cột; mã tài khoản tự gán theo Nhóm mặt hàng)', 'skip' => 0 ),
 			'DA_Index'      => array( 'label' => 'DA_Index — danh mục dự án kỹ thuật (7 cột)', 'skip' => 0 ),
-			'DA_Sheet'      => array( 'label' => 'Tab 1 dự án kỹ thuật (13 cột, bỏ 4 dòng đầu) — cần chọn dự án', 'skip' => 4 ),
+			'DA_Sheet'      => array( 'label' => 'Tab 1 dự án kỹ thuật (13 cột, bỏ 4 dòng đầu) — cần chọn dự án; cột 14 "Loại chi phí" tùy chọn, trống thì tự suy theo loại dự án', 'skip' => 4 ),
 			'MK_Don'        => array( 'label' => 'MK_Don — đơn marketing (8 cột)', 'skip' => 0 ),
-			'MK_Line'       => array( 'label' => 'MK_Line — hạng mục marketing (12 cột)', 'skip' => 0 ),
+			'MK_Line'       => array( 'label' => 'MK_Line — hạng mục marketing (12 cột; cột 13 "Loại chi phí" tùy chọn để tự gán mã)', 'skip' => 0 ),
 			'BP_Index'      => array( 'label' => 'BP_Index — danh mục đợt Công tác/Setup (10 cột)', 'skip' => 0 ),
-			'BP_Sheet'      => array( 'label' => 'Tab 1 đợt Công tác/Setup (11 cột, bỏ 4 dòng đầu) — cần chọn đợt', 'skip' => 4 ),
+			'BP_Sheet'      => array( 'label' => 'Tab 1 đợt Công tác/Setup (11 cột, bỏ 4 dòng đầu) — cần chọn đợt; cột 12 "Loại chi phí" tùy chọn để tự gán mã', 'skip' => 4 ),
 			'SoChi'         => array( 'label' => 'SoChi — sổ chi phí phẳng (Ngày · Cơ sở · Loại chi phí · Nội dung · ĐVT · SL · ĐG · Số tiền · Hình thức chi · Thuế suất · VAT · Đối tượng · Ghi chú · Ảnh)', 'skip' => 0 ),
 			'NhatKy'        => array( 'label' => 'NhatKy — nhật ký hoạt động (6 cột)', 'skip' => 0 ),
 			'CH_CoSo'       => array( 'label' => 'CH_CoSo — cấu hình cơ sở', 'skip' => 0 ),
@@ -144,7 +144,7 @@ class VHCP_Import {
 		if ( $skip > 0 ) { $rows = array_slice( $rows, $skip ); }
 		elseif ( $header ) { $rows = array_slice( $rows, 1 ); }
 
-		$n = 0; $skipped = 0;
+		$n = 0; $skipped = 0; $thieu_ma = 0;   // thieu_ma: dòng nạp xong vẫn chưa có TK Nợ
 
 		// ---- các bảng cấu hình CH_* : ghi thẳng dạng hàng JSON
 		if ( strpos( $type, 'CH_' ) === 0 ) {
@@ -249,6 +249,12 @@ class VHCP_Import {
 						'cn_xu_ly'     => VHCP_Util::cn_flag( self::c( $r, 18 ) ) ? 1 : 0,
 						'phat_sinh'    => VHCP_Util::is_phat_sinh( self::c( $r, 19 ) ) ? 1 : 0,
 					);
+					// Gán mã tài khoản ngay khi nạp: TK Nợ theo LOẠI CHI PHÍ (= cột Nhóm mặt hàng),
+					// TK Có theo phân loại thanh toán — y như nhập tay, khỏi phải bấm gán mã sau.
+					$tk = VHCP_Don::tk_of_line( $data['nhom'], $data['phan_loai_tt'] );
+					$data['tk_no'] = $tk['tk_no'];
+					$data['tk_co'] = $tk['tk_co'];
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->delete( $t, array( 'id' => $id ) );
 					$wpdb->insert( $t, $data );
 					$n++;
@@ -276,7 +282,9 @@ class VHCP_Import {
 
 			case 'DA_Sheet':
 				if ( $ma === '' ) { return VHCP_Util::err( 'Chọn dự án kỹ thuật để nạp các dòng hạng mục vào' ); }
-				if ( ! VHCP_DuAn::find( $ma ) ) { return VHCP_Util::err( 'Không tìm thấy dự án: ' . $ma ); }
+				$da_rec = VHCP_DuAn::find( $ma );
+				if ( ! $da_rec ) { return VHCP_Util::err( 'Không tìm thấy dự án: ' . $ma ); }
+				$loai_mac_dinh = VHCP_DuAn::loai_cp_mac_dinh( $da_rec['loai'] );
 				$t = VHCP_DB::t( 'da_line' );
 				if ( $replace ) { $wpdb->delete( $t, array( 'ma_da' => $ma ) ); }
 				$row_no = (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(row_no) FROM $t WHERE ma_da=%s", $ma ) );
@@ -287,6 +295,11 @@ class VHCP_Import {
 					$row_no++;
 					$sl = self::n0( self::c( $r, 3 ) );
 					$dg = self::n0( self::c( $r, 4 ) );
+					// Loại chi phí: lấy cột 14 nếu file có, trống thì suy theo loại dự án.
+					$loai_cp = self::c( $r, 13 );
+					if ( $loai_cp === '' ) { $loai_cp = $loai_mac_dinh; }
+					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 11 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->insert( $t, array(
 						'ma_da'      => $ma,
 						'row_no'     => $row_no,
@@ -303,6 +316,10 @@ class VHCP_Import {
 						'cap_cha'    => self::c( $r, 10 ),
 						'hinh_thuc'  => self::c( $r, 11 ),
 						'ho_so'      => self::c( $r, 12 ),
+						'loai_cp'    => $loai_cp,
+						'tk_no'      => $tk['tk_no'],
+						'tk_co'      => $tk['tk_co'],
+						'ma_dt'      => $tk['ma_dt'],
 					) );
 					$n++;
 				}
@@ -335,10 +352,17 @@ class VHCP_Import {
 				foreach ( $rows as $r ) {
 					$k = self::c( $r, 0 );
 					if ( $k === '' || self::c( $r, 1 ) === '' ) { $skipped++; continue; }
+					$loai_cp = self::c( $r, 12 );
+					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 6 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->delete( $t, array( 'id' => $k ) );
 					$wpdb->insert( $t, array(
 						'id'        => $k,
 						'ma_don'    => self::c( $r, 1 ),
+						'loai_cp'   => $loai_cp,
+						'tk_no'     => $tk['tk_no'],
+						'tk_co'     => $tk['tk_co'],
+						'ma_dt'     => $tk['ma_dt'],
 						'kenh'      => self::c( $r, 2 ),
 						'noi_dung'  => self::c( $r, 3 ),
 						'du_toan'   => self::n0( self::c( $r, 4 ) ),
@@ -389,8 +413,15 @@ class VHCP_Import {
 					$row_no++;
 					$sl = self::n0( self::c( $r, 1 ) );
 					$dg = self::n0( self::c( $r, 2 ) );
+					$loai_cp = self::c( $r, 11 );
+					$tk = ( $loai_cp !== '' ) ? VHCP_Cfg::resolve_tk( $loai_cp, self::c( $r, 6 ) ) : array( 'tk_no' => '', 'tk_co' => '', 'ma_dt' => '' );
+					if ( $tk['tk_no'] === '' ) { $thieu_ma++; }
 					$wpdb->insert( $t, array(
 						'ma'         => $ma,
+						'loai_cp'    => $loai_cp,
+						'tk_no'      => $tk['tk_no'],
+						'tk_co'      => $tk['tk_co'],
+						'ma_dt'      => $tk['ma_dt'],
 						'row_no'     => $row_no,
 						'noi_dung'   => $nd,
 						'so_luong'   => $sl,
@@ -432,6 +463,7 @@ class VHCP_Import {
 						'anh'      => self::c( $r, 13 ),
 					), 'Nhập từ CSV' );
 					if ( empty( $res['success'] ) ) { $skipped++; continue; }
+					if ( empty( $res['tkNo'] ) ) { $thieu_ma++; }
 					$n++;
 				}
 				break;
@@ -458,7 +490,7 @@ class VHCP_Import {
 		}
 
 		VHCP_Cfg::clear_cache();
-		return VHCP_Util::ok( array( 'inserted' => $n, 'skipped' => $skipped ) );
+		return VHCP_Util::ok( array( 'inserted' => $n, 'skipped' => $skipped, 'thieuMa' => $thieu_ma ) );
 	}
 
 	/** Đếm dòng từng bảng — hiện ở trang quản trị. */

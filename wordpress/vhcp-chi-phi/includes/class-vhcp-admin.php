@@ -104,7 +104,12 @@ class VHCP_Admin {
 			if ( ! empty( $res['success'] ) ) {
 				echo '<div class="notice notice-success"><p>Đã nạp <b>' . (int) $res['inserted'] . '</b> dòng';
 				if ( ! empty( $res['skipped'] ) ) { echo ', bỏ qua ' . (int) $res['skipped'] . ' dòng trống/không hợp lệ'; }
-				echo '.</p></div>';
+				echo '. Mã tài khoản được gán ngay khi nạp theo danh mục Loại chi phí.</p>';
+				if ( ! empty( $res['thieuMa'] ) ) {
+					echo '<p><b>⚠ ' . (int) $res['thieuMa'] . ' dòng chưa có TK Nợ</b> — do loại chi phí chưa khai mã, hoặc file không có cột "Loại chi phí". '
+						. 'Khai mã ở app (⚙️ Cấu hình → 💵 Loại chi phí) rồi bấm <b>🔗 Gán mã cho dòng cũ</b>; xem chỗ nào còn thiếu ở tab <b>🔎 Tra theo mã</b>.</p>';
+				}
+				echo '</div>';
 			} else {
 				echo '<div class="notice notice-error"><p>' . esc_html( isset( $res['error'] ) ? $res['error'] : 'Lỗi không rõ' ) . '</p></div>';
 			}

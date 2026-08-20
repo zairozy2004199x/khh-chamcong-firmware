@@ -49,6 +49,12 @@ qua `?sso=<token>` dùng chung `SSO_SECRET`.
 * Nút **🔗 Gán mã cho dòng cũ** làm một lượt cho cả 5 mảng; riêng Kỹ thuật tự suy loại chi phí theo
   loại dự án (Tháo dỡ / Setup lắp đặt / Chi phí cơ sở).
 
+= 1.2.1 =
+* Nạp dữ liệu cũ từ CSV nay **tự gán mã tài khoản ngay khi nạp** cho cả 5 đường: dòng chi của đơn
+  (theo cột Nhóm mặt hàng), tab dự án kỹ thuật (cột Loại chi phí, trống thì suy theo loại dự án),
+  marketing & công tác/setup (cột Loại chi phí tùy chọn), sổ chi phí. Nạp xong báo lại số dòng
+  chưa có TK Nợ.
+
 = 1.1.0 =
 * Thêm tab **💵 Sổ chi phí**: chọn loại chi phí rồi nhập, không cần lập đơn/tạm ứng/quyết toán.
 * Thêm danh mục **Loại chi phí gắn mã tài khoản** (TK Nợ/TK Có/Mã đối tượng) — nơi duy nhất
