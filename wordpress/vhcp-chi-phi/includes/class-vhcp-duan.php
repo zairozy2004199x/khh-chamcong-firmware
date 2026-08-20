@@ -163,6 +163,10 @@ class VHCP_DuAn {
 				'capCha'    => trim( (string) $r['cap_cha'] ),
 				'hinhThuc'  => trim( (string) $r['hinh_thuc'] ),
 				'hoSo'      => trim( (string) $r['ho_so'] ),
+				'loaiCp'    => (string) $r['loai_cp'],
+				'tkNo'      => (string) $r['tk_no'],
+				'tkCo'      => (string) $r['tk_co'],
+				'maDt'      => (string) $r['ma_dt'],
 			);
 		}
 
@@ -294,7 +298,14 @@ class VHCP_DuAn {
 		$sl  = VHCP_Util::num( $g( 'soLuong' ) );
 		$dg  = VHCP_Util::num( $g( 'donGia' ) );
 		$cap = VHCP_Util::st( $g( 'capCha' ) );
+		// Gắn mã tài khoản theo LOẠI CHI PHÍ ngay lúc nhập (giống sổ chi phí).
+		$loai_cp = VHCP_Util::st( $g( 'loaiCp' ) );
+		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ) );
 		return array(
+			'loai_cp'    => $loai_cp,
+			'tk_no'      => $loai_cp !== '' ? $tk['tk_no'] : '',
+			'tk_co'      => $loai_cp !== '' ? $tk['tk_co'] : '',
+			'ma_dt'      => $loai_cp !== '' ? $tk['ma_dt'] : '',
 			'noi_dung'   => VHCP_Util::st( $g( 'noiDung' ) ),
 			'du_toan'    => ( $cap === '' ) ? VHCP_Util::num( $g( 'duToan' ) ) : 0,   // chỉ hạng mục lớn có dự toán
 			'thuc_te'    => VHCP_Util::num( $g( 'thucTe' ) ),
@@ -431,6 +442,48 @@ class VHCP_DuAn {
 		VHCP_Meta::del( 'daPay_' . $ma_da );
 		VHCP_Meta::del( 'daApp_' . $ma_da );
 		return VHCP_Util::ok();
+	}
+
+	/** Loại dự án -> loại chi phí tương ứng trong danh mục (tên trùng khớp, không phải đoán). */
+	public static function loai_cp_mac_dinh( $loai_du_an ) {
+		$map = array(
+			'Tháo dỡ'       => 'Chi phí tháo dỡ',
+			'Setup lắp đặt' => 'Chi phí setup lắp đặt gian hàng mới',
+			'Chi phí cơ sở' => 'Chi phí cơ sở',
+		);
+		$k = trim( (string) $loai_du_an );
+		return isset( $map[ $k ] ) ? $map[ $k ] : '';
+	}
+
+	/**
+	 * Gán loại chi phí + mã tài khoản cho dòng hạng mục CŨ.
+	 * Dòng chưa có loại -> lấy theo loại dự án (Tháo dỡ / Setup lắp đặt / Chi phí cơ sở).
+	 */
+	public static function gan_ma_tai_khoan( $all = false ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'da_line' );
+		$n = 0; $thieu = array(); $khong_suy = 0;
+		foreach ( self::all_with_lines() as $p ) {
+			$mac_dinh  = self::loai_cp_mac_dinh( $p['loai'] );
+			$parent_ht = array();
+			foreach ( $p['lines'] as $x ) {
+				if ( trim( (string) $x['cap_cha'] ) === '' ) { $parent_ht[ trim( (string) $x['noi_dung'] ) ] = trim( (string) $x['hinh_thuc'] ); }
+			}
+			foreach ( $p['lines'] as $x ) {
+				$cu   = trim( (string) $x['loai_cp'] );
+				$loai = ( $cu !== '' ) ? $cu : $mac_dinh;
+				if ( $loai === '' ) { $khong_suy++; continue; }
+				if ( ! $all && $cu !== '' && trim( (string) $x['tk_no'] ) !== '' ) { continue; }
+				$cap = trim( (string) $x['cap_cha'] );
+				$ht  = ( $cap !== '' && $cap !== '(Phát sinh)' && ! empty( $parent_ht[ $cap ] ) ) ? $parent_ht[ $cap ] : trim( (string) $x['hinh_thuc'] );
+				$tk  = VHCP_Cfg::resolve_tk( $loai, $ht );
+				if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
+				if ( $loai === $cu && $tk['tk_no'] === trim( (string) $x['tk_no'] ) && $tk['tk_co'] === trim( (string) $x['tk_co'] ) ) { continue; }
+				$wpdb->update( $t, array( 'loai_cp' => $loai, 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (int) $x['id'] ) );
+				$n++;
+			}
+		}
+		return VHCP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ), 'khongSuyDuoc' => $khong_suy ) );
 	}
 
 	/**

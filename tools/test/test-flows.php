@@ -694,6 +694,116 @@ $mods2 = array();
 foreach ( $gr2['sections'] as $x ) { $mods2[] = $x['module']; }
 t( 'báo cáo gian có mục Sổ chi phí', in_array( '💵 Sổ chi phí', $mods2, true ), $mods2 );
 
+// ---------------------------------------------------------------- 20. Kỹ thuật / Marketing / Công tác cũng mang mã tài khoản
+$dm_now2 = VHCP_Cfg::cfg_static()['loaiChiPhi'];
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => array_merge( $dm_now2, array(
+	array( 'ten' => 'Chi phí công tác', 'tkNo' => '6427', 'tkCo' => '', 'maDt' => '', 'boPhan' => '' ),
+	array( 'ten' => 'MKT - Hoạt náo',   'tkNo' => '6417', 'tkCo' => '', 'maDt' => '', 'boPhan' => '' ),
+) ) ) );
+
+// --- Kỹ thuật: dòng có loại chi phí -> mã theo danh mục; dòng không có -> giữ mã cũ 141/64125
+$da2 = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'TÀU BÌNH TÂN', 'KT' );
+$md2 = $da2['maDA'];
+VHCP_DuAn::add_line( $md2, array( 'noiDung' => 'Tháo vách', 'duToan' => 5000000, 'hinhThuc' => 'Tạm ứng', 'loaiCp' => 'Chi phí tháo dỡ' ) );
+VHCP_DuAn::add_line( $md2, array( 'noiDung' => 'Nhân công', 'thucTe' => 4000000, 'capCha' => 'Tháo vách', 'loaiCp' => 'Chi phí tháo dỡ' ) );
+VHCP_DuAn::add_line( $md2, array( 'noiDung' => 'Chưa gắn loại', 'thucTe' => 1000000, 'capCha' => 'Tháo vách' ) );
+$gd2 = VHCP_DuAn::get_du_an( $md2 );
+teq( 'dòng kỹ thuật lưu loại chi phí', 'Chi phí tháo dỡ', $gd2['lines'][1]['loaiCp'] );
+teq( 'dòng kỹ thuật lưu TK Nợ theo danh mục', '2413', $gd2['lines'][1]['tkNo'] );
+teq( 'danh mục ghi đè TK Có (331)', '331', $gd2['lines'][1]['tkCo'] );
+teq( 'dòng chưa gắn loại thì chưa có mã', '', $gd2['lines'][2]['tkNo'] );
+
+VHCP_DuAn::submit( $md2 );
+VHCP_DuAn::approve( $md2, 'Lê Kế Toán' );
+$exk2 = VHCP_Misa::export_ky_thuat();
+$rows_bt = array();
+foreach ( $exk2['rows'] as $r ) { if ( mb_strpos( $r[3], 'TÀU BÌNH TÂN' ) !== false ) { $rows_bt[] = $r; } }
+teq( 'xuất MISA kỹ thuật: 2 dòng của dự án mới', 2, count( $rows_bt ) );
+$tk_bt = array();
+foreach ( $rows_bt as $r ) { $tk_bt[ $r[5] . '/' . $r[6] ] = $r[7]; }
+teq( 'dòng có loại: Nợ 2413 / Có 331', 4000000, isset( $tk_bt['2413/331'] ) ? $tk_bt['2413/331'] : 0 );
+teq( 'dòng chưa gắn loại: giữ cách cũ Nợ 141 / Có 64125', 1000000, isset( $tk_bt['141/64125'] ) ? $tk_bt['141/64125'] : 0 );
+
+// --- Marketing
+$mk2 = VHCP_MK::create_don( 'VR SORA', 'Sự kiện hè', '08/2026', 'Hoạt náo', 'MKT' );
+VHCP_MK::add_line( $mk2['ma'], array( 'kenh' => 'Hoạt náo', 'noiDung' => 'Thuê nhóm nhảy', 'thucTe' => 2000000, 'hinhThuc' => 'Trực tiếp', 'ngay' => $today, 'loaiCp' => 'MKT - Hoạt náo' ) );
+$gm2 = VHCP_MK::get_don( $mk2['ma'] );
+teq( 'dòng marketing lưu mã TK', '6417', $gm2['lines'][0]['tkNo'] );
+$exm2 = VHCP_Misa::export_marketing();
+$found_mk = null;
+foreach ( $exm2['rows'] as $r ) { if ( mb_strpos( $r[4], 'Thuê nhóm nhảy' ) !== false ) { $found_mk = $r; } }
+teq( 'xuất MISA marketing: TK Nợ theo loại chi phí', '6417', $found_mk[5] );
+teq( 'xuất MISA marketing: TK Có 331 (trực tiếp)', '331', $found_mk[6] );
+
+// --- Công tác
+$bp2 = VHCP_BP::create( 'Công tác', 'Đi Bình Dương', 'NV H', 'VR SORA', '08/2026', 'Admin' );
+VHCP_BP::add_line( $bp2['ma'], array( 'noiDung' => 'Vé máy bay', 'duToan' => 2000000, 'thucTe' => 2200000, 'hinhThuc' => 'Tạm ứng', 'ngay' => $today, 'loaiCp' => 'Chi phí công tác' ) );
+$gb2 = VHCP_BP::get( $bp2['ma'] );
+teq( 'dòng công tác lưu mã TK', '6427', $gb2['lines'][0]['tkNo'] );
+teq( 'TK Có 141 (tạm ứng)', '141', $gb2['lines'][0]['tkCo'] );
+$exb2 = VHCP_Misa::export_bp( 'Công tác' );
+$found_bp = null;
+foreach ( $exb2['rows'] as $r ) { if ( mb_strpos( $r[4], 'Vé máy bay' ) !== false ) { $found_bp = $r; } }
+teq( 'xuất MISA công tác: Nợ 6427', '6427', $found_bp[5] );
+teq( 'xuất MISA công tác: Có 141', '141', $found_bp[6] );
+
+// ---------------------------------------------------------------- 21. TRA THEO MÃ TÀI KHOẢN
+$tra = VHCP_TraMa::search( array() );
+t( 'tra theo mã: có dữ liệu mọi mảng', $tra['soDong'] > 5, $tra['soDong'] );
+$mangs = array();
+foreach ( $tra['byMang'] as $x ) { $mangs[ $x['mang'] ] = $x['tien']; }
+t( 'gom được cả 5 nguồn', count( $mangs ) >= 4, array_keys( $mangs ) );
+t( 'danh sách mã để chọn có 2413', in_array( '2413', $tra['maList'], true ), $tra['maList'] );
+
+// Một mã ra nhiều mảng cùng lúc — đúng thứ cần: 2413 có ở cả Kỹ thuật lẫn Sổ chi phí
+$t2413 = VHCP_TraMa::search( array( 'tkNo' => '2413' ) );
+$m2413 = array();
+foreach ( $t2413['byMang'] as $x ) { $m2413[ $x['mang'] ] = $x['tien']; }
+teq( 'tra mã 2413: tổng gộp mọi mảng', 7000000, $t2413['tong'] );
+teq( 'tra mã 2413: phần kỹ thuật', 4000000, isset( $m2413['kt'] ) ? $m2413['kt'] : 0 );
+teq( 'tra mã 2413: phần sổ chi phí', 3000000, isset( $m2413['sochi'] ) ? $m2413['sochi'] : 0 );
+
+$t6427 = VHCP_TraMa::search( array( 'tkNo' => '6427' ) );
+teq( 'tra mã 6427: ra dòng công tác', 2200000, $t6427['tong'] );
+teq( 'tra mã 6427: đúng nội dung', 'Vé máy bay', $t6427['items'][0]['noiDung'] );
+teq( 'tra mã 6427: kèm mảng', 'ct', $t6427['items'][0]['mang'] );
+
+$t64127 = VHCP_TraMa::search( array( 'tkNo' => '64127' ) );
+$m64127 = array();
+foreach ( $t64127['byMang'] as $x ) { $m64127[ $x['mang'] ] = 1; }
+t( 'mã 64127 ra cả sổ chi phí và đơn vận hành', isset( $m64127['sochi'] ) && isset( $m64127['don'] ), array_keys( $m64127 ) );
+
+// dòng cũ vẫn hiện, mang mã cũ, và được đếm riêng để biết còn phải khai
+$macu = array();
+foreach ( $tra['maCu'] as $x ) { $macu[ $x['mang'] ] = $x['n']; }
+t( 'đếm được dòng còn dùng mã cũ 141/64125', array_sum( $macu ) > 0, $macu );
+$t141 = VHCP_TraMa::search( array( 'tkNo' => '141' ) );
+t( 'tra mã 141 ra các dòng chưa gắn loại', $t141['soDong'] > 0, $t141['soDong'] );
+
+// lọc theo mảng / kỳ / cơ sở / từ khóa
+teq( 'lọc theo mảng', 'ct', VHCP_TraMa::search( array( 'mang' => 'ct' ) )['items'][0]['mang'] );
+teq( 'lọc theo cơ sở', 1, count( VHCP_TraMa::search( array( 'coso' => 'VR SORA', 'mang' => 'ct' ) )['byCoso'] ) );
+teq( 'tìm theo từ khóa', 1, VHCP_TraMa::search( array( 'q' => 'nhóm nhảy' ) )['soDong'] );
+$tk_ky = ( new DateTime( 'now', VHCP_Util::tz() ) )->format( 'm/Y' );
+t( 'lọc theo kỳ', VHCP_TraMa::search( array( 'ky' => $tk_ky ) )['soDong'] > 0 );
+teq( 'giới hạn cơ sở của nhân viên', 0, count( VHCP_TraMa::search( array( 'coso_scope' => array( 'Cơ sở không tồn tại' ) ) )['items'] ) );
+
+// gán mã 1 lần cho mọi mảng: dòng kỹ thuật chưa gắn loại -> suy từ loại dự án
+$gm_all = VHCP_TraMa::gan_ma_tat_ca();
+t( 'gán mã tất cả mảng: có cập nhật', $gm_all['updated'] > 0, $gm_all );
+$gd2b = VHCP_DuAn::get_du_an( $md2 );
+teq( 'dòng kỹ thuật cũ được suy loại từ loại dự án', 'Chi phí tháo dỡ', $gd2b['lines'][2]['loaiCp'] );
+teq( 'và có mã tài khoản', '2413', $gd2b['lines'][2]['tkNo'] );
+$t2413b = VHCP_TraMa::search( array( 'tkNo' => '2413' ) );
+t( 'sau khi gán: mã 2413 gom thêm các dòng kỹ thuật cũ', $t2413b['tong'] > $t2413['tong'], $t2413b['tong'] );
+$m2413b = array();
+foreach ( $t2413b['byMang'] as $x ) { $m2413b[ $x['mang'] ] = $x['tien']; }
+teq( 'sau khi gán: kỹ thuật gồm cả dự án cũ', 16500000, isset( $m2413b['kt'] ) ? $m2413b['kt'] : 0 );
+$exk3 = VHCP_Misa::export_ky_thuat();
+$still_141 = 0;
+foreach ( $exk3['rows'] as $r ) { if ( $r[5] === '141' && mb_strpos( $r[3], 'TÀU BÌNH TÂN' ) !== false ) { $still_141++; } }
+teq( 'xuất MISA kỹ thuật: không còn dòng mã cũ ở dự án đã gán', 0, $still_141 );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

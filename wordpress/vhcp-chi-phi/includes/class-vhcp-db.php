@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.1.0';
+	const SCHEMA_VERSION = '1.2.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -174,8 +174,13 @@ class VHCP_DB {
 			cap_cha VARCHAR(190) NOT NULL DEFAULT '',
 			hinh_thuc VARCHAR(60) NOT NULL DEFAULT '',
 			ho_so TEXT NULL,
+			loai_cp VARCHAR(190) NOT NULL DEFAULT '',
+			tk_no VARCHAR(20) NOT NULL DEFAULT '',
+			tk_co VARCHAR(20) NOT NULL DEFAULT '',
+			ma_dt VARCHAR(60) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
-			UNIQUE KEY da_row (ma_da,row_no)
+			UNIQUE KEY da_row (ma_da,row_no),
+			KEY tk_no (tk_no)
 		) $c";
 
 		$sql[] = "CREATE TABLE " . self::t( 'mk_don' ) . " (
@@ -206,10 +211,15 @@ class VHCP_DB {
 			ngay VARCHAR(40) NOT NULL DEFAULT '',
 			note TEXT NULL,
 			ho_so TEXT NULL,
+			loai_cp VARCHAR(190) NOT NULL DEFAULT '',
+			tk_no VARCHAR(20) NOT NULL DEFAULT '',
+			tk_co VARCHAR(20) NOT NULL DEFAULT '',
+			ma_dt VARCHAR(60) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			PRIMARY KEY  (id),
 			UNIQUE KEY stt (stt),
-			KEY ma_don (ma_don)
+			KEY ma_don (ma_don),
+			KEY tk_no (tk_no)
 		) $c";
 
 		$sql[] = "CREATE TABLE " . self::t( 'bp_index' ) . " (
@@ -243,8 +253,13 @@ class VHCP_DB {
 			ngay VARCHAR(40) NOT NULL DEFAULT '',
 			note TEXT NULL,
 			ho_so TEXT NULL,
+			loai_cp VARCHAR(190) NOT NULL DEFAULT '',
+			tk_no VARCHAR(20) NOT NULL DEFAULT '',
+			tk_co VARCHAR(20) NOT NULL DEFAULT '',
+			ma_dt VARCHAR(60) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
-			UNIQUE KEY bp_row (ma,row_no)
+			UNIQUE KEY bp_row (ma,row_no),
+			KEY tk_no (tk_no)
 		) $c";
 
 		$sql[] = "CREATE TABLE " . self::t( 'cfg' ) . " (

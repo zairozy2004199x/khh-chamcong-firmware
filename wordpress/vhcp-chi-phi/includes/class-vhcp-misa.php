@@ -13,6 +13,30 @@ class VHCP_Misa {
 		return array( 'Ngày chứng từ (*)', 'Ngày hạch toán (*)', 'Số chứng từ (*)', 'Diễn giải', 'Diễn giải (Hạch toán)', 'TK Nợ (*)', 'TK Có (*)', 'Số tiền', 'Mã đối tượng Có', 'Mã đơn vị' );
 	}
 
+	/**
+	 * Chốt mã tài khoản cho 1 dòng của các mảng Kỹ thuật / Marketing / Công tác-Setup.
+	 *
+	 * Dòng ĐÃ gắn loại chi phí -> lấy mã theo danh mục (Nợ = tài khoản chi phí, Có = 141/331
+	 * theo hình thức chi). Dòng CHƯA gắn -> giữ đúng cách hạch toán cũ (Nợ 141 · Có 331 nếu
+	 * trực tiếp NCC / Có 64125 nếu tạm ứng NV) để số liệu cũ xuất ra không đổi.
+	 *
+	 * @return array [tk_no, tk_co, ma_dt, legacy(bool)]
+	 */
+	public static function tk_mang( $loai_cp, $is_tt, $line_tk_no = '', $line_tk_co = '', $line_ma_dt = '' ) {
+		$loai_cp = trim( (string) $loai_cp );
+		$line_tk_no = trim( (string) $line_tk_no );
+		if ( $loai_cp === '' && $line_tk_no === '' ) {
+			return array( 'tk_no' => '141', 'tk_co' => $is_tt ? '331' : '64125', 'ma_dt' => '', 'legacy' => true );
+		}
+		$tk = VHCP_Cfg::resolve_tk( $loai_cp, $is_tt ? 'Trực tiếp' : 'Tạm ứng', array(
+			'tkNo' => $line_tk_no,
+			'tkCo' => trim( (string) $line_tk_co ),
+			'maDt' => trim( (string) $line_ma_dt ),
+		) );
+		$tk['legacy'] = false;
+		return $tk;
+	}
+
 	/** _cleanNhom(): bỏ đuôi "- NCC" / "- Mua lẻ" khỏi tên nhóm. */
 	private static function clean_nhom( $nhom ) {
 		$s = preg_replace( '/\s*-\s*NCC/iu', '', (string) $nhom );
@@ -196,10 +220,14 @@ class VHCP_Misa {
 				$noi_dung = ( $cap === '' || $cap === '(Phát sinh)' ) ? '' : $nd0;
 				$ghichu   = trim( (string) $x['note'] );
 
-				$tk_no = '141';
-				$tk_co = $is_tt ? '331' : '64125';
-				$ma_dt = '';
-				if ( ! $is_tt ) {
+				// Mã tài khoản theo LOẠI CHI PHÍ của dòng; dòng chưa gắn loại thì giữ đúng cách cũ.
+				// (mục con thừa hưởng hình thức chi của hạng mục cha -> $is_tt đã tính ở trên)
+				$tkm   = self::tk_mang( isset( $x['loai_cp'] ) ? $x['loai_cp'] : '', $is_tt, isset( $x['tk_no'] ) ? $x['tk_no'] : '', '', isset( $x['ma_dt'] ) ? $x['ma_dt'] : '' );
+				$tk_no = $tkm['tk_no'];
+				$tk_co = $tkm['tk_co'];
+				$ma_dt = $tkm['ma_dt'];
+				if ( $tk_no === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $x['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
+				if ( ! empty( $tkm['legacy'] ) && ! $is_tt ) {
 					$by_name = ! empty( $pay['tamUng']['tu']['by'] ) ? $pay['tamUng']['tu']['by'] : (string) $r['nguoi_tao'];
 					$bk      = mb_strtolower( trim( (string) $by_name ) );
 					$ma_dt   = isset( $user_dt[ $bk ] ) ? $user_dt[ $bk ] : '';
@@ -250,9 +278,11 @@ class VHCP_Misa {
 			$ma_dv    = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			if ( $coso !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso . ' (thêm ở ⚙️ Cấu hình cơ sở)' ] = 1; }
+			$tkm = self::tk_mang( $r['loai_cp'], $is_tt, $r['tk_no'], $r['tk_co'], $r['ma_dt'] );
+			if ( $tkm['tk_no'] === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $r['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 			$dg1 = VHCP_Util::j( array( 'MKT', $d['ten'], $coso, $kenh, $d['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 			$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( trim( $gc ) !== '' ? '_' . $gc : '' );
-			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, '141', $is_tt ? '331' : '64125', $tt, '', $ma_dv );
+			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tkm['tk_no'], $tkm['tk_co'], $tt, $tkm['ma_dt'], $ma_dv );
 			$seen[ (string) $r['ma_don'] ] = 1;
 		}
 		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => count( $seen ), 'warn' => array_keys( $warn ), 'maDons' => array() );
@@ -286,9 +316,11 @@ class VHCP_Misa {
 				$ma_dv    = isset( $m_unit[ $dia_diem ] ) ? $m_unit[ $dia_diem ] : '';
 				$ten_misa = ! empty( $m_tm[ $dia_diem ] ) ? $m_tm[ $dia_diem ] : $dia_diem;
 				if ( $dia_diem !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho: ' . $dia_diem . ' (thêm ở ⚙️ Cấu hình cơ sở nếu là cơ sở)' ] = 1; }
+				$tkm = self::tk_mang( $x['loai_cp'], $is_tt, $x['tk_no'], $x['tk_co'], $x['ma_dt'] );
+				if ( $tkm['tk_no'] === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $x['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 				$dg1 = VHCP_Util::j( array( $lo, $ten, $nguoi, $ky ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 				$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( $ghichu !== '' ? '_' . $ghichu : '' );
-				$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, '141', $is_tt ? '331' : '64125', $tt, '', $ma_dv );
+				$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tkm['tk_no'], $tkm['tk_co'], $tt, $tkm['ma_dt'], $ma_dv );
 				$used   = true;
 			}
 			if ( $used ) { $ndot++; }

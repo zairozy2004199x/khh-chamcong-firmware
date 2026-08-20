@@ -63,6 +63,35 @@ Chỉ khác: dòng chi của đơn giờ cũng **gắn mã tài khoản ngay khi
 mã trên dòng được ưu tiên; ma trận *nhóm × phân loại lớn* chỉ còn là dự phòng cho dữ liệu cũ.
 Ô chọn ở form nhập đơn đã đổi nhãn thành **Loại chi phí** và hiện mã TK bên cạnh.
 
+### Cả 5 mảng đều mang mã — và tab 🔎 Tra theo mã (bản 1.2.0)
+
+Từ bản 1.2.0, **Kỹ thuật · Marketing · Công tác · Setup** cũng có ô **Loại chi phí** trên từng dòng
+hạng mục, mã tài khoản gắn ngay lúc nhập và hiện dưới nội dung dòng (`Chi phí tháo dỡ · Nợ 2413 / Có 331`).
+Trước đây 3 mảng này **gán cứng trong code** `Nợ 141 / Có 331` (trực tiếp NCC) hoặc `Có 64125`
+(tạm ứng NV) — sửa được từ Cấu hình là mục đích của thay đổi này.
+
+> ⚠️ **Nói với kế toán trước khi dùng:** dòng đã gắn loại chi phí sẽ hạch toán theo hình mới —
+> **Nợ &lt;tài khoản chi phí&gt; / Có 141 (hoặc 331)** — thay cho hình cũ **Nợ 141 / Có 64125**.
+> Dòng **chưa** gắn loại vẫn xuất y như cũ, nên có thể chuyển dần từng mảng, không phải làm một lúc.
+
+Tab **🔎 Tra theo mã** là thứ thay hẳn việc gom: chọn 1 mã (vd `64127`) là ra **mọi khoản chi của
+mọi mảng** mang mã đó — 💵 Sổ chi phí · 📝 Đơn vận hành · 🔧 Kỹ thuật · 📣 Marketing · ✈️🛠️ Công tác/Setup —
+kèm tổng theo mã · theo mảng · theo kỳ · theo cơ sở, lọc thêm được theo mảng/kỳ/cơ sở/từ khóa, và
+**tải Excel**. Mã hiện ở đây **chính là mã đi vào MISA** nên tra ra bao nhiêu thì hạch toán đúng bấy nhiêu.
+
+Màn này còn tự cảnh báo 2 việc còn phải làm, kèm số dòng và số tiền:
+- **Chưa gắn mã** — loại chi phí chưa khai TK Nợ ở Cấu hình (dòng đó sẽ không hiện khi tra theo mã).
+- **Còn dùng mã cũ** — dòng của 3 mảng chưa chọn loại chi phí, vẫn đang mang `141/64125`.
+
+Nút **🔗 Gán mã cho dòng cũ** (⚙️ Cấu hình → 💵 Loại chi phí) xử lý một lượt cho **cả 5 mảng**:
+- Sổ chi phí & dòng chi của đơn: điền mã còn trống theo danh mục.
+- **Kỹ thuật: tự suy loại chi phí theo loại dự án** (Tháo dỡ → *Chi phí tháo dỡ*, Setup lắp đặt →
+  *Chi phí setup lắp đặt gian hàng mới*, Chi phí cơ sở → *Chi phí cơ sở*) — tên trùng khớp danh mục nên
+  không phải đoán.
+- Marketing & Công tác/Setup: không suy được (không có manh mối), phải mở tab đó chọn loại cho từng
+  dòng; nút này báo lại còn bao nhiêu dòng như vậy.
+- Dòng sổ chi phí **đã xuất MISA** thì giữ nguyên, không sửa.
+
 ### Vận hành tuần: bỏ gom Kỹ thuật / Công tác / Setup
 
 Tab **📅 Vận hành tuần** trước đây gom 5 mảng vào một con số mỗi cơ sở, nên muốn dò một số là phải
@@ -118,6 +147,8 @@ Lưu ý:
 | Giới hạn 6 phút/lệnh của Apps Script | có | không còn |
 | Giao diện | Index.html | giữ nguyên, **thêm** tab 💵 Sổ chi phí + thẻ Loại chi phí ở Cấu hình |
 | Quyết định "chi phí gì" | dò ma trận nhóm × phân loại lớn lúc xuất MISA | **loại chi phí gắn mã tài khoản**, dòng chi lưu sẵn mã |
+| Mã của Kỹ thuật/MKT/Công tác | gán cứng trong code (141 · 331/64125) | khai ở Cấu hình, gắn trên từng dòng |
+| Xem chi phí 1 mảng | gom nhiều mảng bằng hàm rồi đọc kết quả | **🔎 Tra theo mã**: 1 mã ra mọi mảng |
 | Vận hành tuần | gom 5 mảng vào 1 số/cơ sở | chỉ 3 nguồn vận hành (đơn · sổ chi phí · marketing) |
 | Đăng nhập | PIN, API mở cho mọi người có link | PIN + **token phiên** (API chặn nếu không có token) và **hãm 10 lần thử PIN sai / 10 phút** |
 
@@ -148,13 +179,15 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 php tools/test/test-flows.php
 ```
 
-247 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+284 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
 đổi PIN, nhật ký, tải ảnh/hồ sơ (chặn .php), nhập CSV.
 
-Có cả **sổ chi phí** (gắn mã TK theo danh mục, TK Có theo hình thức chi, lọc theo mã tài khoản,
+Có cả **mã tài khoản của 3 mảng Kỹ thuật/MKT/Công tác** (dòng có loại → mã danh mục, dòng chưa có →
+giữ đúng 141/64125 cũ), **tra theo mã** (1 mã ra nhiều mảng, lọc theo mảng/kỳ/cơ sở/từ khóa, đếm
+dòng chưa gắn mã), **gán mã cho dòng cũ** (kỹ thuật suy theo loại dự án), **sổ chi phí** (gắn mã TK theo danh mục, TK Có theo hình thức chi, lọc theo mã tài khoản,
 chốt/bỏ chốt đã xuất, gán mã cho dòng cũ, nhập CSV) và **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`
 hay `saveConfig` → 403, Quản lý gọi `deleteDonAdmin` → 403, đăng xuất rồi token hết hiệu lực.
 

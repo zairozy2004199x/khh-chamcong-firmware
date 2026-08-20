@@ -56,6 +56,8 @@ function measure( $label ) {
 	$run( 'getPendingModules', function () { VHCP_Report::pending_modules(); } );
 	$run( 'getVanHanhTuan',    function () { VHCP_Report::van_hanh_tuan( '' ); } );
 	$run( 'getGianReport',     function () { VHCP_Report::gian_report( 'VR SORA' ); } );
+	$run( 'traTheoMa (tất cả)', function () { VHCP_TraMa::search( array() ); } );
+	$run( 'traTheoMa (1 mã)',   function () { VHCP_TraMa::search( array( 'tkNo' => '64127' ) ); } );
 	$run( 'getFinanceReport',  function () { VHCP_Report::finance( array() ); } );
 	$run( 'exportMisa',        function () { VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' ); } );
 	$run( 'exportMisaKyThuat', function () { VHCP_Misa::export_ky_thuat(); } );

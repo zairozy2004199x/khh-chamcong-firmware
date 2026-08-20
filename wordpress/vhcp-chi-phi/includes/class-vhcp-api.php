@@ -22,7 +22,7 @@ class VHCP_API {
 	 */
 	private static function required_roles( $fn ) {
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
-		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon' );
+		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		if ( in_array( $fn, $cau_hinh, true ) )   { return array( 'Admin', 'Quản lý' ); }
 		return array();
@@ -142,6 +142,10 @@ class VHCP_API {
 			'closeBP'               => array( 'VHCP_BP', 'close' ),
 			'reopenBP'              => array( 'VHCP_BP', 'reopen' ),
 			'deleteBP'              => array( 'VHCP_BP', 'delete' ),
+
+			// tra theo mã tài khoản (gom mọi mảng theo mã, thay cho việc gom số)
+			'traTheoMa'             => array( 'VHCP_TraMa', 'search' ),
+			'ganMaTaiKhoanTatCa'    => array( 'VHCP_TraMa', 'gan_ma_tat_ca' ),
 
 			// báo cáo
 			'getFinanceReport'      => array( 'VHCP_Report', 'finance' ),

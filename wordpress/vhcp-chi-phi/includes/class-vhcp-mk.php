@@ -116,6 +116,10 @@ class VHCP_MK {
 				'ngay'     => VHCP_Util::fmt( $r['ngay'] ),
 				'note'     => (string) $r['note'],
 				'hoSo'     => trim( (string) $r['ho_so'] ),
+				'loaiCp'   => (string) $r['loai_cp'],
+				'tkNo'     => (string) $r['tk_no'],
+				'tkCo'     => (string) $r['tk_co'],
+				'maDt'     => (string) $r['ma_dt'],
 			);
 			$dt += $d; $tt += $t; $kq += $k;
 			if ( $is_tt ) {
@@ -152,7 +156,13 @@ class VHCP_MK {
 	private static function line_data( $rec ) {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? $rec[ $k ] : null; };
+		$loai_cp = VHCP_Util::st( $g( 'loaiCp' ) );
+		$tk      = VHCP_Cfg::resolve_tk( $loai_cp, VHCP_Util::st( $g( 'hinhThuc' ) ), array( 'tkNo' => VHCP_Util::st( $g( 'tkNo' ) ), 'tkCo' => VHCP_Util::st( $g( 'tkCo' ) ), 'maDt' => VHCP_Util::st( $g( 'maDt' ) ) ) );
 		return array(
+			'loai_cp'   => $loai_cp,
+			'tk_no'     => $loai_cp !== '' ? $tk['tk_no'] : '',
+			'tk_co'     => $loai_cp !== '' ? $tk['tk_co'] : '',
+			'ma_dt'     => $loai_cp !== '' ? $tk['ma_dt'] : '',
 			'kenh'      => VHCP_Util::st( $g( 'kenh' ) ),
 			'noi_dung'  => VHCP_Util::st( $g( 'noiDung' ) ),
 			'du_toan'   => VHCP_Util::num( $g( 'duToan' ) ),
@@ -218,6 +228,26 @@ class VHCP_MK {
 		if ( ! self::don_row( $ma ) ) { return VHCP_Util::err( 'Không tìm thấy' ); }
 		$wpdb->update( VHCP_DB::t( 'mk_don' ), array( 'trang_thai' => 'Đang chạy' ), array( 'ma' => (string) $ma ) );
 		return VHCP_Util::ok();
+	}
+
+	/**
+	 * Áp lại mã tài khoản cho hạng mục marketing đã chọn loại chi phí.
+	 * Dòng chưa chọn loại thì không suy được (đếm vào chuaChonLoai để báo lại).
+	 */
+	public static function gan_ma_tai_khoan( $all = false ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'mk_line' );
+		$n = 0; $thieu = array(); $chua = 0;
+		foreach ( self::all_lines() as $r ) {
+			$loai = trim( (string) $r['loai_cp'] );
+			if ( $loai === '' ) { $chua++; continue; }
+			if ( ! $all && trim( (string) $r['tk_no'] ) !== '' ) { continue; }
+			$tk = VHCP_Cfg::resolve_tk( $loai, trim( (string) $r['hinh_thuc'] ) );
+			if ( $tk['tk_no'] === '' ) { $thieu[ $loai ] = 1; }
+			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'], 'ma_dt' => $tk['ma_dt'] ), array( 'id' => (string) $r['id'] ) );
+			$n++;
+		}
+		return VHCP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ), 'chuaChonLoai' => $chua ) );
 	}
 
 	public static function delete_don( $ma ) {

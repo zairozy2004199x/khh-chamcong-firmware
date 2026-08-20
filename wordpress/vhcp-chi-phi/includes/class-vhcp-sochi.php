@@ -33,28 +33,11 @@ class VHCP_SoChi {
 
 	// ---------------------------------------------------------------- mã tài khoản
 
-	/** TK Có mặc định theo hình thức chi (danh mục loại chi phí ghi đè nếu có khai). */
-	private static function tk_co_default( $hinh_thuc ) {
-		$pl  = ( trim( (string) $hinh_thuc ) === self::HT_TRUC_TIEP ) ? 'Nhà cung cấp' : 'Thanh toán cá nhân';
-		$cfg = VHCP_Cfg::cfg_static();
-		foreach ( (array) $cfg['phanloai'] as $x ) {
-			if ( trim( (string) $x['ten'] ) === $pl ) { return (string) $x['tkCo']; }
-		}
-		return ( $pl === 'Nhà cung cấp' ) ? '331' : '141';
-	}
-
-	/**
-	 * Chốt mã tài khoản cho 1 dòng: ưu tiên mã người nhập gõ tay, rồi tới danh mục
-	 * loại chi phí, cuối cùng là TK Có mặc định theo hình thức chi.
-	 */
+	/** Chốt mã tài khoản cho 1 dòng — dùng chung bộ chốt của Cấu hình (mọi mảng giống nhau). */
 	public static function resolve_tk( $rec ) {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };
-		$cat = VHCP_Cfg::loai_tk( $g( 'loai' ) );
-		$tk_no = $g( 'tkNo' ) !== '' ? $g( 'tkNo' ) : $cat['tkNo'];
-		$tk_co = $g( 'tkCo' ) !== '' ? $g( 'tkCo' ) : ( $cat['tkCo'] !== '' ? $cat['tkCo'] : self::tk_co_default( $g( 'hinhThuc' ) ) );
-		$ma_dt = $g( 'maDt' ) !== '' ? $g( 'maDt' ) : $cat['maDt'];
-		return array( 'tk_no' => $tk_no, 'tk_co' => $tk_co, 'ma_dt' => $ma_dt );
+		return VHCP_Cfg::resolve_tk( $g( 'loai' ), $g( 'hinhThuc' ), array( 'tkNo' => $g( 'tkNo' ), 'tkCo' => $g( 'tkCo' ), 'maDt' => $g( 'maDt' ) ) );
 	}
 
 	// ---------------------------------------------------------------- thêm / sửa / xóa
@@ -247,8 +230,8 @@ class VHCP_SoChi {
 		usort( $ky_list, function ( $a, $b ) { return VHCP_Util::ky_num( $b ) <=> VHCP_Util::ky_num( $a ); } );
 		$loai_list = array_keys( $loai_set );
 		sort( $loai_list );
-		$tk_list = array_keys( $tk_set );
-		sort( $tk_list );
+		$tk_list = array_map( 'strval', array_keys( $tk_set ) );   // mã toàn số -> ép lại chuỗi
+		sort( $tk_list, SORT_NATURAL );
 
 		$cfg   = VHCP_Cfg::cfg_static();
 		$dm    = array();

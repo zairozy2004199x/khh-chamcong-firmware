@@ -4,7 +4,7 @@ Tags: chi phí, tạm ứng, quyết toán, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPLv2 or later
 
 App "Chi Phí Cơ Sở / Vận Hành Chi Phí" của K&H, dựng lại từ Google Apps Script sang WordPress.
@@ -39,6 +39,15 @@ qua `?sso=<token>` dùng chung `SSO_SECRET`.
 4. Muốn mang dữ liệu cũ sang: **Vận Hành Chi Phí → Nhập dữ liệu**.
 
 == Changelog ==
+
+= 1.2.0 =
+* **Kỹ thuật · Marketing · Công tác · Setup** cũng có ô Loại chi phí trên từng dòng; mã tài khoản
+  gắn lúc nhập, hiện dưới nội dung dòng. Bỏ mã gán cứng 141/331/64125 trong code — dòng chưa gắn
+  loại vẫn xuất y như cũ để chuyển dần từng mảng.
+* Thêm tab **🔎 Tra theo mã tài khoản**: 1 mã ra mọi khoản chi của mọi mảng, tổng theo mã/mảng/kỳ/
+  cơ sở, lọc + tải Excel, tự cảnh báo số dòng chưa gắn mã và số dòng còn dùng mã cũ.
+* Nút **🔗 Gán mã cho dòng cũ** làm một lượt cho cả 5 mảng; riêng Kỹ thuật tự suy loại chi phí theo
+  loại dự án (Tháo dỡ / Setup lắp đặt / Chi phí cơ sở).
 
 = 1.1.0 =
 * Thêm tab **💵 Sổ chi phí**: chọn loại chi phí rồi nhập, không cần lập đơn/tạm ứng/quyết toán.

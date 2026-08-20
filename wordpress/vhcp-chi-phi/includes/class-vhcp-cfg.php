@@ -476,6 +476,36 @@ class VHCP_Cfg {
 		);
 	}
 
+	/**
+	 * CHỐT MÃ TÀI KHOẢN cho 1 dòng chi ở BẤT KỲ mảng nào (sổ chi phí, đơn vận hành,
+	 * kỹ thuật, marketing, công tác/setup). Thứ tự ưu tiên:
+	 *   1) mã người nhập gõ tay trên dòng ($override)
+	 *   2) mã đã khai trong danh mục LOẠI CHI PHÍ
+	 *   3) TK Có mặc định theo hình thức chi: "Trực tiếp…" -> 331 · còn lại -> 141
+	 * (TK Nợ không có bước 3: chưa khai danh mục thì để trống và báo thiếu, để không
+	 *  âm thầm hạch toán sai.)
+	 */
+	public static function resolve_tk( $loai, $hinh_thuc = '', $override = array() ) {
+		$override = (array) $override;
+		$ov = function ( $k ) use ( $override ) { return isset( $override[ $k ] ) ? trim( (string) $override[ $k ] ) : ''; };
+		$cat = self::loai_tk( $loai );
+
+		$tk_no = $ov( 'tkNo' ) !== '' ? $ov( 'tkNo' ) : $cat['tkNo'];
+		$tk_co = $ov( 'tkCo' ) !== '' ? $ov( 'tkCo' ) : $cat['tkCo'];
+		$ma_dt = $ov( 'maDt' ) !== '' ? $ov( 'maDt' ) : $cat['maDt'];
+
+		if ( $tk_co === '' ) {
+			$is_tt = ( mb_strpos( trim( (string) $hinh_thuc ), 'Trực tiếp' ) === 0 );
+			$pl    = $is_tt ? 'Nhà cung cấp' : 'Thanh toán cá nhân';
+			$s     = self::cfg_static();
+			foreach ( (array) $s['phanloai'] as $x ) {
+				if ( trim( (string) $x['ten'] ) === $pl ) { $tk_co = (string) $x['tkCo']; break; }
+			}
+			if ( $tk_co === '' ) { $tk_co = $is_tt ? '331' : '141'; }
+		}
+		return array( 'tk_no' => $tk_no, 'tk_co' => $tk_co, 'ma_dt' => $ma_dt );
+	}
+
 	public static function get_users() {
 		$s = self::cfg_static();   // đã gồm bảng người dùng, có cache 5 phút
 		return isset( $s['users'] ) ? $s['users'] : array();
