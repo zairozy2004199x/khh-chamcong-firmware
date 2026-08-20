@@ -1056,44 +1056,84 @@ VHCP_Cfg::save_config( array(
 ) );
 VHCP_Import::run( 'CH_TaiKhoan', "Số hiệu,Tên tài khoản,Tính chất\n64221,Chi phí lương Miền Bắc,Lưỡng tính\n64121,Chi phí lương Funzone,Lưỡng tính\n", array( 'replace' => true, 'header' => true ) );
 
-$kc = VHCP_Cfg::khai_cho_coso( array( 'coso' => 'FUNZONE VŨNG TÀU', 'ten' => 'Chi phí lương', 'tkNo' => '64121' ) );
+// Khai 1 lần: gõ tên + mã, tích các cơ sở áp dụng
+$kc = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64121', 'cosos' => array( 'FUNZONE VŨNG TÀU', 'FARM PHAN THIẾT' ) ) );
 t( 'khai nhanh chạy được', ! empty( $kc['success'] ) );
 t( 'thêm loại chi phí mới', ! empty( $kc['loaiMoi'] ) );
-teq( 'ghi vào cột mảng của cơ sở', 'FZ MN', $kc['cot'] );
-teq( 'lấy luôn tên tài khoản', 'Chi phí lương Funzone', $kc['tenTaiKhoan'] );
+teq( 'ghi 1 ô cho mỗi cơ sở được tích', 2, $kc['oMoi'] );
+teq( 'lấy luôn tên tài khoản (tên TK nội bộ)', 'Chi phí lương Funzone', $kc['tenTaiKhoan'] );
+teq( 'tên MISA mặc định = tên tài khoản', 'Chi phí lương Funzone', $kc['tenMisa'] );
 teq( 'báo rõ áp cho mấy cơ sở', 2, count( $kc['apDung'] ) );
-teq( 'tên MISA tự lấy theo tên tài khoản', 'Chi phí lương Funzone', VHCP_Cfg::ten_misa_loai( 'Chi phí lương' ) );
 
-$a1 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNZONE VŨNG TÀU', 'loai' => 'Chi phí lương', 'noiDung' => 'Lương T8', 'soTien' => 9000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
-teq( 'cơ sở vừa khai ra mã ngay', '64121', $a1['tkNo'] );
-$a2 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNZONE ADVENTURE', 'loai' => 'Chi phí lương', 'noiDung' => 'Lương T8', 'soTien' => 8000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
-teq( 'cơ sở khác cùng mảng dùng luôn mã đó', '64121', $a2['tkNo'] );
-$a3 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FARM PHAN THIẾT', 'loai' => 'Chi phí lương', 'noiDung' => 'Lương T8', 'soTien' => 7000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
-teq( 'mảng khác chưa khai thì để trống, không lây mã', '', $a3['tkNo'] );
+$a1 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNZONE VŨNG TÀU', 'loai' => 'Chi phí marketing', 'noiDung' => 'Chạy ads', 'soTien' => 9000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'cơ sở được tích ra mã ngay', '64121', $a1['tkNo'] );
+$a2 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FARM PHAN THIẾT', 'loai' => 'Chi phí marketing', 'noiDung' => 'Chạy ads', 'soTien' => 7000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'cơ sở khác mảng nhưng có tích cũng ra mã đó', '64121', $a2['tkNo'] );
+$a3 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNZONE ADVENTURE', 'loai' => 'Chi phí marketing', 'noiDung' => 'Chạy ads', 'soTien' => 5000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'cơ sở KHÔNG tích thì không ăn mã, dù cùng mảng', '', $a3['tkNo'] );
 
-// Khai riêng cho 1 cơ sở: thắng mã của mảng
-VHCP_Cfg::khai_cho_coso( array( 'coso' => 'FUNZONE ADVENTURE', 'ten' => 'Chi phí lương', 'tkNo' => '64221', 'rieng' => true ) );
-teq( 'khai riêng chỉ áp đúng cơ sở đó', '64221', VHCP_Cfg::tkno_mx( 'Chi phí lương', 'FUNZONE ADVENTURE' ) );
-teq( 'cơ sở cùng mảng vẫn giữ mã của mảng', '64121', VHCP_Cfg::tkno_mx( 'Chi phí lương', 'FUNZONE VŨNG TÀU' ) );
+// Tích cả mảng: áp cho mọi cơ sở của mảng, gồm cơ sở mở sau này
+$kcm = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí hoạt náo', 'tkNo' => '64221', 'mangs' => array( 'FZ MN' ) ) );
+teq( 'tích cả mảng chỉ ghi 1 ô', 1, $kcm['oMoi'] );
+teq( 'nhưng áp cho cả 2 cơ sở của mảng', 2, count( $kcm['apDung'] ) );
+teq( 'cơ sở trong mảng ăn mã của mảng', '64221', VHCP_Cfg::tkno_mx( 'Chi phí hoạt náo', 'FUNZONE ADVENTURE' ) );
+VHCP_Cfg::save_config( array( 'coso' => array_merge(
+	array_map( function ( $x ) { return array( 'ten' => $x['ten'], 'maDonVi' => $x['maDonVi'], 'phanLoaiLon' => $x['phanLoaiLon'], 'tenMisa' => $x['tenMisa'] ); }, VHCP_Cfg::cfg_static()['coso'] ),
+	array( array( 'ten' => 'FUNZONE MỚI MỞ', 'maDonVi' => 'FZ_NEW', 'phanLoaiLon' => 'FZ MN', 'tenMisa' => '' ) )
+) ) );
+teq( 'cơ sở mở sau trong mảng đó dùng luôn mã', '64221', VHCP_Cfg::tkno_mx( 'Chi phí hoạt náo', 'FUNZONE MỚI MỞ' ) );
 
-// Cơ sở chưa khai mảng -> tự thành cột riêng, vẫn khai được
-$kc2 = VHCP_Cfg::khai_cho_coso( array( 'coso' => 'TÀU ESTELLA', 'ten' => 'Chi phí lương', 'tkNo' => '64221' ) );
-t( 'cơ sở chưa khai mảng thì khai riêng cho nó', empty( $kc2['theoMang'] ) );
-teq( 'vẫn ra mã đúng', '64221', VHCP_Cfg::tkno_mx( 'Chi phí lương', 'TÀU ESTELLA' ) );
+// Tích cơ sở đã nằm trong mảng được tích -> không ghi trùng
+$kc_tr = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí hoạt náo', 'tkNo' => '64221', 'mangs' => array( 'FZ MN' ), 'cosos' => array( 'FUNZONE VŨNG TÀU' ) ) );
+teq( 'không ghi trùng ô cho cơ sở đã thuộc mảng đã tích', 0, $kc_tr['oMoi'] + $kc_tr['oDoi'] );
 
-// Khai lại cùng ô -> báo mã cũ, không sinh loại trùng
-$kc3 = VHCP_Cfg::khai_cho_coso( array( 'coso' => 'FUNZONE VŨNG TÀU', 'ten' => 'Chi phí lương', 'tkNo' => '6427' ) );
-teq( 'báo lại mã cũ vừa thay', '64121', $kc3['maCu'] );
+// Khai riêng 1 cơ sở thắng mã của mảng
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí hoạt náo', 'tkNo' => '64196', 'cosos' => array( 'FUNZONE ADVENTURE' ) ) );
+teq( 'ngoại lệ theo cơ sở thắng mã của mảng', '64196', VHCP_Cfg::tkno_mx( 'Chi phí hoạt náo', 'FUNZONE ADVENTURE' ) );
+teq( 'cơ sở khác trong mảng vẫn giữ mã mảng', '64221', VHCP_Cfg::tkno_mx( 'Chi phí hoạt náo', 'FUNZONE VŨNG TÀU' ) );
+
+// Cơ sở chưa khai mảng vẫn khai được
+$kc2 = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '64221', 'cosos' => array( 'TÀU ESTELLA' ) ) );
+t( 'cơ sở chưa khai mảng vẫn khai được', ! empty( $kc2['success'] ) );
+teq( 'và ra mã đúng', '64221', VHCP_Cfg::tkno_mx( 'Chi phí marketing', 'TÀU ESTELLA' ) );
+
+// Khai lại: báo mã cũ bị thay, không sinh loại trùng
+$kc3 = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '6427', 'cosos' => array( 'FUNZONE VŨNG TÀU' ) ) );
+teq( 'báo lại mã cũ vừa thay', array( '64121' ), $kc3['maCu'] );
+teq( 'đếm đúng số ô bị đổi', 1, $kc3['oDoi'] );
 t( 'mã lạ ngoài hệ thống tài khoản thì cảnh báo', ! empty( $kc3['laTkLa'] ) );
-$dm = VHCP_Cfg::cfg_static()['loaiChiPhi'];
 $dem = 0;
-foreach ( $dm as $x ) { if ( mb_strtolower( $x['ten'] ) === 'chi phí lương' ) { $dem++; } }
+foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $x ) { if ( mb_strtolower( $x['ten'] ) === 'chi phí marketing' ) { $dem++; } }
 teq( 'không sinh loại chi phí trùng tên', 1, $dem );
 
+// Tên MISA: gõ tay thì ghi đè (chỗ chỉnh nội dung xuất MISA), mã lưu không đổi
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí marketing', 'tkNo' => '6427', 'tenMisa' => 'Giá vốn event', 'cosos' => array( 'FUNZONE VŨNG TÀU' ) ) );
+teq( 'sửa được nội dung xuất MISA', 'Giá vốn event', VHCP_Cfg::ten_misa_loai( 'Chi phí marketing' ) );
+teq( 'mã lưu vẫn nguyên', '6427', VHCP_Cfg::tkno_mx( 'Chi phí marketing', 'FUNZONE VŨNG TÀU' ) );
+
+// Xuất MISA lấy tên xuất MISA đã khai, mã trên dòng không đổi
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí điện nước', 'tkNo' => '64221', 'tenMisa' => 'Chi phí điện Funzone', 'cosos' => array( 'FUNZONE VŨNG TÀU' ) ) );
+$sc_x = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNZONE VŨNG TÀU', 'loai' => 'Chi phí điện nước', 'noiDung' => 'Điện T8', 'soTien' => 3000000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
+teq( 'dòng chi mang mã đã khai', '64221', $sc_x['tkNo'] );
+$xm = VHCP_SoChi::export_misa( 'all', 'chuaxuat' );
+$thay = false;
+foreach ( $xm['rows'] as $row ) {
+	if ( strpos( (string) $row[3], 'Chi phí điện Funzone' ) !== false && (string) $row[5] === '64221' ) { $thay = true; }
+}
+t( 'diễn giải xuất MISA dùng tên đã khai', $thay );
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí điện nước', 'tkNo' => '64221', 'tenMisa' => 'Điện nước - Funzone VT', 'cosos' => array( 'FUNZONE VŨNG TÀU' ) ) );
+$xm2 = VHCP_SoChi::export_misa( 'all', 'chuaxuat' );
+$thay2 = false; $ma_giu = false;
+foreach ( $xm2['rows'] as $row ) {
+	if ( strpos( (string) $row[3], 'Điện nước - Funzone VT' ) !== false ) { $thay2 = true; if ( (string) $row[5] === '64221' ) { $ma_giu = true; } }
+}
+t( 'sửa nội dung xuất MISA là đổi ngay ở bản xuất', $thay2 );
+t( 'sửa nội dung xuất MISA KHÔNG làm đổi mã đã lưu', $ma_giu );
+
 // Thiếu dữ liệu -> báo lỗi rõ, không ghi bừa
-t( 'thiếu cơ sở thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'ten' => 'X', 'tkNo' => '1' ) )['success'] ) );
-t( 'thiếu tên thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'coso' => 'FARM PHAN THIẾT', 'tkNo' => '1' ) )['success'] ) );
-t( 'thiếu số tài khoản thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'coso' => 'FARM PHAN THIẾT', 'ten' => 'X' ) )['success'] ) );
+t( 'không tích cơ sở nào thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'ten' => 'X', 'tkNo' => '1' ) )['success'] ) );
+t( 'thiếu tên thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'cosos' => array( 'FARM PHAN THIẾT' ), 'tkNo' => '1' ) )['success'] ) );
+t( 'thiếu số tài khoản thì báo lỗi', empty( VHCP_Cfg::khai_cho_coso( array( 'cosos' => array( 'FARM PHAN THIẾT' ), 'ten' => 'X' ) )['success'] ) );
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";

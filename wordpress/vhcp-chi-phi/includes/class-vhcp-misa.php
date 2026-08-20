@@ -280,7 +280,8 @@ class VHCP_Misa {
 			if ( $coso !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso . ' (thêm ở ⚙️ Cấu hình cơ sở)' ] = 1; }
 			$tkm = self::tk_mang( $r['loai_cp'], $is_tt, $r['tk_no'], $r['tk_co'], $r['ma_dt'], $coso );
 			if ( $tkm['tk_no'] === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $r['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
-			$dg1 = VHCP_Util::j( array( 'MKT', $d['ten'], $coso, $kenh, $d['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
+			$lc  = trim( (string) $r['loai_cp'] );
+			$dg1 = VHCP_Util::j( array( 'MKT', $lc !== '' ? VHCP_Cfg::ten_misa_loai( $lc ) : '', $d['ten'], $coso, $kenh, $d['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 			$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( trim( $gc ) !== '' ? '_' . $gc : '' );
 			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tkm['tk_no'], $tkm['tk_co'], $tt, $tkm['ma_dt'], $ma_dv );
 			$seen[ (string) $r['ma_don'] ] = 1;

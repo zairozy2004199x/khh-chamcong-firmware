@@ -819,24 +819,29 @@
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Mã ngân hàng theo chuẩn VietQR (VCB, TCB, MB, ACB, BIDV, VietinBank, TPB, VPB, Sacombank...). QR dùng khi NV chuyển trả tiền <b>thừa</b> về công ty.</div>
     </div>
     <div class="card">
-      <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
     </div>
 
     <div class="card">
-      <div class="ch"><h2>🆕 Khai chi phí cho cơ sở</h2></div>
-      <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Chọn cơ sở → gõ tên gọi chi phí → nhập số tài khoản. <b>Hết.</b> App tự biết cơ sở đó thuộc mảng nào nên khỏi khai mảng trước; mọi cơ sở cùng mảng dùng luôn mã này.</div>
+      <div class="ch"><h2>🆕 Khai mã chi phí</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div></div>
+      <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Gõ <b>tên gọi chi phí</b> → <b>số tài khoản</b> → <b>tích những cơ sở áp dụng</b>. Xong. Sau đó cơ sở đã tích mà nhập loại chi phí này là tự ra: TK Nợ · tên tài khoản nội bộ · tên xuất MISA.</div>
       <div class="row" style="padding:4px 14px 0">
-        <div class="fld"><label>Cơ sở</label><select id="kcCoso" onchange="kcInfo()"></select></div>
-        <div class="fld" style="flex:1.4"><label>Tên gọi chi phí <span style="color:#dc2626">*</span></label><input id="kcTen" list="kcLoaiList" placeholder="VD: Chi phí lương" oninput="kcInfo()"></div>
-        <div class="fld"><label>Số tài khoản (TK Nợ) <span style="color:#dc2626">*</span></label><input id="kcTk" list="tkChartList" placeholder="VD: 64221" oninput="kcInfo()"></div>
-        <div class="fld" style="flex:1.2"><label>Tên theo MISA</label><input id="kcMisa" placeholder="trống = lấy tên tài khoản"></div>
+        <div class="fld" style="flex:1.4"><label>Tên gọi chi phí <span style="color:#dc2626">*</span></label><input id="kcTen" list="kcLoaiList" placeholder="VD: Chi phí marketing" oninput="kcInfo()"></div>
+        <div class="fld"><label>Số tài khoản (TK Nợ) <span style="color:#dc2626">*</span></label><input id="kcTk" list="tkChartList" placeholder="VD: 64196" oninput="kcInfo()"></div>
+        <div class="fld" style="flex:1.3"><label>Tên xuất MISA</label><input id="kcMisa" placeholder="trống = tên tài khoản" oninput="kcInfo()"></div>
+        <div class="fld"><label>TK Có</label><input id="kcTkCo" list="tkChartList" placeholder="trống = tự (141/331)"></div>
         <div class="fld"><label>Bộ phận</label><span id="kcBpWrap"></span></div>
-        <div class="fld" style="max-width:210px"><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:12px"><input type="checkbox" id="kcRieng" onchange="kcInfo()"> chỉ riêng cơ sở này</label></div>
-        <div class="fld" style="max-width:130px"><label>&nbsp;</label><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div>
       </div>
-      <div id="kcInfo" style="padding:2px 14px 12px;font-size:12px;color:#64748b"></div>
+      <div id="kcInfo" style="padding:2px 14px 6px;font-size:12px;color:#64748b"></div>
+      <div style="padding:0 14px 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <b style="font-size:12px">Áp dụng cho phân loại lớn:</b>
+        <button class="btn b-x" onclick="kcTickAll(true)">Tích hết</button>
+        <button class="btn b-x" onclick="kcTickAll(false)">Bỏ hết</button>
+        <span style="font-size:11px;color:#94a3b8">Tích theo <b>phân loại lớn</b> là nhanh nhất — mọi cơ sở trong đó, kể cả cơ sở mở sau này, đều dùng mã này. Chỉ mở phần tích lẻ khi có cơ sở cần mã khác.</span>
+      </div>
+      <div id="kcCosoBox" style="padding:0 14px 12px"></div>
       <datalist id="kcLoaiList"></datalist>
     </div>
 
@@ -3607,59 +3612,101 @@
       return '<option value="'+esc(p)+'"'+(p===v?' selected':'')+'>'+esc(p)+'</option>'; })).join('')+'</select>';
   }
   function addCfgMang(){ el('cfgMangBody').insertAdjacentHTML('beforeend','<tr><td>'+_pllSel('')+'</td><td>'+_inp('','VD: 6412')+'</td><td>'+_inp('','VD: Funzone')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
-  // ---- KHAI NHANH: cơ sở + tên gọi + số tài khoản
+  // ---- KHAI MÃ: tên gọi + số tài khoản + tích cơ sở áp dụng
   function kcFill(){
-    var ten=el('kcCoso').value;
-    el('kcCoso').innerHTML='<option value="">— chọn cơ sở —</option>'+(CFG.coso||[]).map(function(x){
-      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(x.phanLoaiLon?('  ·  '+esc(x.phanLoaiLon)):'  ·  (chưa khai mảng)')+'</option>'; }).join('');
-    if(ten) el('kcCoso').value=ten;
     el('kcLoaiList').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<option value="'+esc(x.ten)+'"></option>'; }).join('');
     el('kcBpWrap').innerHTML=_bpSel('', 'Tất cả bộ phận');
+    // Chọn theo PHÂN LOẠI LỚN (nhanh); từng cơ sở chỉ mở ra khi cần ngoại lệ
+    var nhom={}, le=[];
+    (CFG.coso||[]).forEach(function(x){
+      var m=String(x.phanLoaiLon||'').trim();
+      if(m){ (nhom[m]=nhom[m]||[]).push(String(x.ten)); } else { le.push(String(x.ten)); }
+    });
+    var mangs=Object.keys(nhom).sort();
+    var h='<div style="display:flex;flex-wrap:wrap;gap:8px">'+mangs.map(function(m){
+      return '<label style="display:inline-flex;align-items:center;gap:6px;border:1px solid #cbd5e1;border-radius:999px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer">'
+        +'<input type="checkbox" data-mang="'+esc(m)+'" onchange="kcInfo()"> '+esc(m)
+        +' <span style="font-weight:400;color:#94a3b8">'+nhom[m].length+'</span></label>';
+    }).join('')+'</div>';
+    if(le.length){
+      h+='<div style="margin-top:8px;border:1px dashed #fbbf24;border-radius:8px;padding:8px 10px">'
+        +'<div style="font-size:11px;color:#b45309;font-weight:600">Chưa khai phân loại lớn — phải tích lẻ</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px">'
+        +le.map(function(c){ return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" data-coso="'+esc(c)+'" onchange="kcInfo()"> '+esc(c)+'</label>'; }).join('')
+        +'</div></div>';
+    }
+    h+='<div style="margin-top:8px"><a href="javascript:void(0)" onclick="kcToggleLe()" id="kcLeLink" style="font-size:11px;color:#2563eb">＋ ngoại lệ: tích lẻ từng cơ sở</a></div>'
+      +'<div id="kcLeBox" style="display:none;margin-top:6px">'+mangs.map(function(m){
+        return '<div style="border:1px solid #e2e8f0;border-radius:8px;padding:6px 10px;margin-bottom:6px">'
+          +'<div style="font-size:11px;color:#64748b;font-weight:600">'+esc(m)+'</div>'
+          +'<div style="display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px">'
+          +nhom[m].map(function(c){ return '<label style="display:inline-flex;align-items:center;gap:5px;font-size:12px"><input type="checkbox" data-coso="'+esc(c)+'" data-cua-mang="'+esc(m)+'" onchange="kcInfo()"> '+esc(c)+'</label>'; }).join('')
+          +'</div></div>';
+      }).join('')+'</div>';
+    el('kcCosoBox').innerHTML=mangs.length||le.length?h:'<div style="color:#94a3b8;font-size:12px">Chưa có cơ sở nào — thêm ở bảng Cơ sở phía dưới.</div>';
     kcInfo();
   }
-  function _kcMang(coso){
-    var hit=null; (CFG.coso||[]).forEach(function(x){ if(String(x.ten)===String(coso)) hit=x; });
-    return hit?String(hit.phanLoaiLon||'').trim():'';
+  function kcToggleLe(){
+    var b=el('kcLeBox'), on=(b.style.display==='none');
+    b.style.display=on?'block':'none';
+    el('kcLeLink').textContent=on?'− ẩn phần tích lẻ từng cơ sở':'＋ ngoại lệ: tích lẻ từng cơ sở';
+  }
+  function kcTickAll(on){
+    Array.prototype.forEach.call(el('kcCosoBox').querySelectorAll('input[data-mang]'),function(f){ f.checked=on; });
+    if(!on) Array.prototype.forEach.call(el('kcCosoBox').querySelectorAll('input[data-coso]'),function(f){ f.checked=false; });
+    kcInfo();
+  }
+  function kcChon(){
+    var mangs=[], cosos=[];
+    Array.prototype.forEach.call(el('kcCosoBox').querySelectorAll('input[data-mang]'),function(f){ if(f.checked) mangs.push(f.getAttribute('data-mang')); });
+    Array.prototype.forEach.call(el('kcCosoBox').querySelectorAll('input[data-coso]'),function(f){
+      if(!f.checked) return;
+      var m=f.getAttribute('data-cua-mang');
+      if(m && mangs.indexOf(m)>=0) return;              // đã tích cả mảng thì khỏi tích lẻ
+      cosos.push(f.getAttribute('data-coso'));
+    });
+    return {mangs:mangs, cosos:cosos};
   }
   function kcInfo(){
-    var coso=el('kcCoso').value, ten=String(el('kcTen').value||'').trim(), tk=String(el('kcTk').value||'').trim();
-    var mang=_kcMang(coso), rieng=el('kcRieng').checked||!mang;
-    var msg=[], mau='#64748b';
-    if(!coso){ el('kcInfo').innerHTML='<span style="color:#94a3b8">Chọn cơ sở để bắt đầu.</span>'; return; }
+    var ten=String(el('kcTen').value||'').trim(), tk=String(el('kcTk').value||'').trim();
+    var ch=kcChon(), msg=[], mau='#64748b';
     if(tk){
       var tenTk=TKNAME[tk]||'';
-      if(tenTk) msg.push('Mã <b>'+esc(tk)+'</b> = <b>'+esc(tenTk)+'</b>');
-      else if(TKCHART.length){ msg.push('<span style="color:#dc2626">Mã <b>'+esc(tk)+'</b> không có trong hệ thống tài khoản</span>'); mau='#dc2626'; }
-      if(tenTk && !String(el('kcMisa').value||'').trim()) el('kcMisa').placeholder=tenTk;
+      if(tenTk){ msg.push('<b>'+esc(tk)+'</b> = <b>'+esc(tenTk)+'</b>'); el('kcMisa').placeholder=tenTk; }
+      else if(TKCHART.length){ msg.push('<span style="color:#dc2626"><b>'+esc(tk)+'</b> không có trong hệ thống tài khoản</span>'); mau='#dc2626'; }
     }
-    if(rieng) msg.push('Áp <b>chỉ cho '+esc(coso)+'</b>'+(mang?'':' (cơ sở chưa khai mảng)'));
-    else {
-      var ds=(CFG.coso||[]).filter(function(x){ return String(x.phanLoaiLon||'').trim()===mang; }).map(function(x){return x.ten;});
-      msg.push('Mảng <b>'+esc(mang)+'</b> → áp cho <b>'+ds.length+'</b> cơ sở: '+esc(ds.slice(0,6).join(' · '))+(ds.length>6?' …':''));
-    }
+    var misa=String(el('kcMisa').value||'').trim();
+    if(misa) msg.push('xuất MISA ghi <b>'+esc(misa)+'</b>');
+    // đếm số cơ sở thật sự ăn mã
+    var ds={};
+    (CFG.coso||[]).forEach(function(x){ if(ch.mangs.indexOf(String(x.phanLoaiLon||'').trim())>=0) ds[String(x.ten)]=1; });
+    ch.cosos.forEach(function(c){ ds[c]=1; });
+    var n=Object.keys(ds).length;
+    msg.push(n?('áp cho <b>'+n+'</b> cơ sở'+(ch.mangs.length?(' (gồm '+ch.mangs.length+' mảng — cơ sở mở sau cũng dùng)'):'')):'<span style="color:#b45309">chưa tích cơ sở nào</span>');
     if(ten){
-      var cu=_tkNoCua(ten, coso);
-      if(cu && tk && cu!==tk) msg.push('<span style="color:#b45309">Đang là <b>'+esc(cu)+'</b> → sẽ đổi thành <b>'+esc(tk)+'</b></span>');
-      else if(cu) msg.push('Hiện đang là <b>'+esc(cu)+'</b>');
+      var doi=[];
+      Object.keys(ds).forEach(function(c){ var cu=_tkNoCua(ten,c); if(cu&&tk&&cu!==tk) doi.push(c+': '+cu); });
+      if(doi.length) msg.push('<span style="color:#b45309">sẽ thay mã cũ ở '+doi.length+' cơ sở ('+esc(doi.slice(0,3).join(' · '))+(doi.length>3?' …':'')+')</span>');
     }
     el('kcInfo').innerHTML='<span style="color:'+mau+'">'+msg.join(' · ')+'</span>';
   }
   function khaiChiPhi(){
-    var rec={ coso:el('kcCoso').value, ten:String(el('kcTen').value||'').trim(), tkNo:String(el('kcTk').value||'').trim(),
-      tenMisa:String(el('kcMisa').value||'').trim(), boPhan:(el('kcBpWrap').getElementsByTagName('select')[0]||{}).value||'',
-      rieng: el('kcRieng').checked };
-    if(!rec.coso){ toast('warn','Chọn cơ sở'); return; }
+    var ch=kcChon();
+    var rec={ ten:String(el('kcTen').value||'').trim(), tkNo:String(el('kcTk').value||'').trim(),
+      tenMisa:String(el('kcMisa').value||'').trim(), tkCo:String(el('kcTkCo').value||'').trim(),
+      boPhan:(el('kcBpWrap').getElementsByTagName('select')[0]||{}).value||'',
+      cosos:ch.cosos, mangs:ch.mangs };
     if(!rec.ten){ toast('warn','Nhập tên gọi chi phí'); return; }
     if(!rec.tkNo){ toast('warn','Nhập số tài khoản'); return; }
+    if(!ch.cosos.length && !ch.mangs.length){ toast('warn','Tích ít nhất 1 cơ sở'); return; }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
-      var m=(r.loaiMoi?'Đã thêm loại "':'Đã cập nhật "')+r.loai+'" · Nợ '+r.tkNo+(r.tenTaiKhoan?(' ('+r.tenTaiKhoan+')'):'');
-      m+=' · '+(r.theoMang?('mảng '+r.cot+' — '+(r.apDung||[]).length+' cơ sở'):('riêng '+r.cot));
-      if(r.maCu && r.maCu!==r.tkNo) m+=' · thay mã cũ '+r.maCu;
+      var m=(r.loaiMoi?'Đã thêm "':'Đã cập nhật "')+r.loai+'" · Nợ '+r.tkNo+(r.tenTaiKhoan?(' ('+r.tenTaiKhoan+')'):'')
+        +' · áp cho '+(r.apDung||[]).length+' cơ sở'+(r.oDoi?(' · thay '+r.oDoi+' mã cũ '+(r.maCu||[]).join(',')):'');
       toast(r.laTkLa?'warn':'ok', m+(r.laTkLa?' — LƯU Ý: mã này không có trong hệ thống tài khoản':''));
-      _log('Khai mã chi phí', r.cot, r.loai+' → '+r.tkNo);
-      el('kcTen').value=''; el('kcTk').value=''; el('kcMisa').value='';
+      _log('Khai mã chi phí', (r.cot||[]).join(', '), r.loai+' → '+r.tkNo);
+      el('kcTen').value=''; el('kcTk').value=''; el('kcMisa').value=''; el('kcTkCo').value='';
       loadCfg(); boot();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).khaiChiPhiChoCoSo(rec);
   }
@@ -3719,7 +3766,17 @@
     el('cfgCosoBody').innerHTML=ord.map(function(g){
       return '<tr><td colspan="5" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
     }).join('');
+    _csLock(true);
   }
+  // Khóa bảng cơ sở: mã đơn vị MISA sửa nhầm là xuất sai đơn vị, nên mặc định chỉ xem
+  var CS_LOCK=true;
+  function _csLock(on){
+    CS_LOCK=on;
+    Array.prototype.forEach.call(el('cfgCosoBody').querySelectorAll('input'),function(f){ f.disabled=on; });
+    var b=el('csLockBtn');
+    if(b){ b.textContent=on?'🔒 Đang khóa — bấm để mở':'🔓 Đang mở — bấm để khóa'; b.className='btn '+(on?'b-x':'b-p'); }
+  }
+  function toggleCsLock(){ _csLock(!CS_LOCK); }
   // Đồng bộ chỉnh sửa đang gõ trên bảng vào CFG.coso (để không mất khi thêm/vẽ lại)
   function _syncCosoFromDOM(){
     CFG.coso=_readRows('cfgCosoBody').filter(function(r){return r.length>=4;}).map(function(r){return {ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||''};}).filter(function(x){return x.ten;});

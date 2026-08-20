@@ -565,21 +565,40 @@ class VHCP_Cfg {
 	 * "🔗 Gán mã cho dòng cũ".
 	 */
 	public static function khai_cho_coso( $rec ) {
-		$rec  = (array) $rec;
-		$g    = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };
-		$coso = $g( 'coso' );
+		$rec = (array) $rec;
+		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };
 		$ten  = $g( 'ten' );
 		$tkno = $g( 'tkNo' );
-		if ( $coso === '' ) { return VHCP_Util::err( 'Chọn cơ sở' ); }
 		if ( $ten === '' ) { return VHCP_Util::err( 'Nhập tên gọi chi phí' ); }
 		if ( $tkno === '' ) { return VHCP_Util::err( 'Nhập số tài khoản (TK Nợ)' ); }
 
-		$pll   = self::pll_of( $coso );
-		$rieng = ! empty( $rec['rieng'] ) || $pll === '';
-		$khoa  = $rieng ? $coso : $pll;                       // ghi vào cột nào của ma trận
-		$k     = function ( $v ) { return mb_strtolower( trim( (string) $v ) ); };
+		// Cột ma trận sẽ ghi: từng CƠ SỞ được tích, và/hoặc cả MẢNG (áp luôn cho cơ sở mở sau)
+		$lay = function ( $key ) use ( $rec ) {
+			$out = array();
+			foreach ( (array) ( isset( $rec[ $key ] ) ? $rec[ $key ] : array() ) as $v ) {
+				$v = trim( (string) $v );
+				if ( $v !== '' ) { $out[ $v ] = 1; }
+			}
+			return array_keys( $out );
+		};
+		$cosos = $lay( 'cosos' );
+		$mangs = $lay( 'mangs' );
+		if ( $g( 'coso' ) !== '' ) { $cosos[] = $g( 'coso' ); }   // tương thích lời gọi 1 cơ sở
+		if ( ! count( $cosos ) && ! count( $mangs ) ) { return VHCP_Util::err( 'Tích ít nhất 1 cơ sở (hoặc 1 mảng) để áp mã' ); }
 
-		// Số tài khoản có trong hệ thống tài khoản không? (không chặn, chỉ báo lại)
+		$k = function ( $v ) { return mb_strtolower( trim( (string) $v ) ); };
+
+		// Cơ sở nào đã nằm trong mảng được tích thì khỏi ghi riêng cho nó nữa
+		$mang_set = array();
+		foreach ( $mangs as $m ) { $mang_set[ $k( $m ) ] = 1; }
+		$giu = array();
+		foreach ( $cosos as $c ) {
+			if ( isset( $mang_set[ $k( self::pll_of( $c ) ) ] ) ) { continue; }
+			$giu[] = $c;
+		}
+		$cosos = $giu;
+
+		// Số tài khoản này có trong hệ thống tài khoản không? Tên của nó là tên TK NỘI BỘ.
 		$ten_tk = '';
 		foreach ( self::tai_khoan() as $x ) {
 			if ( (string) $x['ma'] === $tkno ) { $ten_tk = $x['ten']; break; }
@@ -600,37 +619,61 @@ class VHCP_Cfg {
 			$rows[]   = array( $ten, '', $g( 'tkCo' ), $g( 'maDt' ), $g( 'boPhan' ), '', $tenmisa );
 			$loai_moi = true;
 		} else {
+			// Tên MISA gõ tay thì ghi đè (đây là chỗ chỉnh nội dung xuất MISA), còn lại chỉ điền ô trống
+			if ( $g( 'tenMisa' ) !== '' ) { $rows[ $vt ][6] = $g( 'tenMisa' ); }
 			foreach ( array( 2 => $g( 'tkCo' ), 3 => $g( 'maDt' ), 4 => $g( 'boPhan' ), 6 => $tenmisa ) as $i => $v ) {
 				if ( $v !== '' && trim( (string) $rows[ $vt ][ $i ] ) === '' ) { $rows[ $vt ][ $i ] = $v; }
 			}
 		}
 		self::write( self::LOAI, $rows );
 
-		// 2) ma trận: ghi mã vào ô [loại × cột] — đây là lệnh khai rõ ràng nên ghi đè được
-		$mx = array(); $ov = null;
+		// 2) ma trận: 1 ô cho mỗi cột được tích — khai rõ ràng nên ghi đè được
+		$mx = array(); $vi_tri = array();
 		foreach ( self::read( self::TKNO ) as $r ) {
 			$n0 = trim( (string) $r[0] ); $p0 = trim( (string) $r[1] ); $v0 = trim( (string) $r[2] );
 			if ( $n0 === '' || $p0 === '' ) { continue; }
-			if ( $k( $n0 ) === $k( $ten ) && $k( $p0 ) === $k( $khoa ) ) { $ov = count( $mx ); }
+			$vi_tri[ $k( $n0 ) . '|' . $k( $p0 ) ] = count( $mx );
 			$mx[] = array( $n0, $p0, $v0 );
 		}
-		$ma_cu = '';
-		if ( $ov === null ) { $mx[] = array( $ten, $khoa, $tkno ); }
-		else { $ma_cu = $mx[ $ov ][2]; $mx[ $ov ] = array( $ten, $khoa, $tkno ); }
+		$ma_cu = array(); $o_moi = 0; $o_doi = 0;
+		foreach ( array_merge( $mangs, $cosos ) as $cot ) {
+			$key = $k( $ten ) . '|' . $k( $cot );
+			if ( isset( $vi_tri[ $key ] ) ) {
+				$cu = trim( (string) $mx[ $vi_tri[ $key ] ][2] );
+				if ( $cu === $tkno ) { continue; }
+				if ( $cu !== '' ) { $ma_cu[ $cu ] = 1; $o_doi++; }
+				else { $o_moi++; }
+				$mx[ $vi_tri[ $key ] ] = array( $ten, $cot, $tkno );
+				continue;
+			}
+			$mx[] = array( $ten, $cot, $tkno );
+			$vi_tri[ $key ] = count( $mx ) - 1;
+			$o_moi++;
+		}
 		self::write( self::TKNO, $mx );
 		self::clear_cache();
 
-		$ap_dung = $rieng ? array( $coso ) : self::coso_cung_mang( $coso );
+		// Danh sách cơ sở thật sự ăn mã này (gồm cơ sở thuộc các mảng được tích)
+		$ap_dung = array();
+		foreach ( self::cfg_static()['coso'] as $x ) {
+			$ten_cs = (string) $x['ten'];
+			if ( isset( $mang_set[ $k( $x['phanLoaiLon'] ) ] ) ) { $ap_dung[ $ten_cs ] = 1; continue; }
+			foreach ( $cosos as $c ) { if ( $k( $c ) === $k( $ten_cs ) ) { $ap_dung[ $ten_cs ] = 1; } }
+		}
+		foreach ( $cosos as $c ) { if ( ! isset( $ap_dung[ $c ] ) ) { $ap_dung[ $c ] = 1; } }
+
 		return VHCP_Util::ok( array(
-			'loai'      => $ten,
-			'loaiMoi'   => $loai_moi,
-			'cot'       => $khoa,
-			'theoMang'  => ! $rieng,
-			'tkNo'      => $tkno,
+			'loai'        => $ten,
+			'loaiMoi'     => $loai_moi,
+			'tkNo'        => $tkno,
 			'tenTaiKhoan' => $ten_tk,
-			'laTkLa'    => ( $ten_tk === '' && count( self::tai_khoan() ) > 0 ),
-			'maCu'      => $ma_cu,
-			'apDung'    => $ap_dung,
+			'tenMisa'     => self::ten_misa_loai( $ten ),
+			'laTkLa'      => ( $ten_tk === '' && count( self::tai_khoan() ) > 0 ),
+			'cot'         => array_merge( $mangs, $cosos ),
+			'oMoi'        => $o_moi,
+			'oDoi'        => $o_doi,
+			'maCu'        => array_map( 'strval', array_keys( $ma_cu ) ),
+			'apDung'      => array_keys( $ap_dung ),
 		) );
 	}
 

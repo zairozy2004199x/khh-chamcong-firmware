@@ -128,25 +128,32 @@ Cơ sở của từng mảng: sổ chi phí & đơn vận hành lấy **Cơ sở
 **không hiện** loại đó nữa. VD *Chi phí nuôi thú* chỉ hiện khi cơ sở thuộc mảng FARM. Nhân viên
 đỡ chọn lộn mảng. Ma trận có nút **🔒 khóa** để không sửa nhầm mã hạch toán khi đang xem.
 
-### Kế toán khai mã: chọn cơ sở → gõ tên → nhập số TK (bản 1.3.0)
+### Kế toán khai mã: gõ tên + số TK, tích cơ sở áp dụng (bản 1.3.0)
 
-Thẻ **🆕 Khai chi phí cho cơ sở** (⚙️ Cấu hình, trên cùng) là đường chính. Ba ô:
+Thẻ **🆕 Khai mã chi phí** (⚙️ Cấu hình, trên cùng) là đường chính:
 
 | Ô | VD |
 |---|---|
-| Cơ sở | `FUNZONE VŨNG TÀU  ·  FZ MN` |
-| Tên gọi chi phí | `Chi phí lương` |
-| Số tài khoản (TK Nợ) | `64121` → hiện luôn `Chi phí lương Funzone` |
+| Tên gọi chi phí | `Chi phí marketing` |
+| Số tài khoản (TK Nợ) | `64196` → hiện luôn `Chi phí khác Event` |
+| Tên xuất MISA | trống = lấy tên tài khoản |
+| Áp dụng cho | ☑ tích **phân loại lớn** (nhanh nhất) — cần ngoại lệ thì mở phần tích lẻ từng cơ sở |
 
-Bấm **💾 Khai mã** là xong. **Không phải khai mảng trước, không phải mở ma trận**: app lấy mảng
-kinh doanh từ cột *Phân loại lớn* của cơ sở đã chọn rồi ghi mã vào đúng ô, nên **mọi cơ sở cùng
-mảng dùng luôn mã đó** — thẻ báo trước "áp cho 2 cơ sở: FUNZONE VŨNG TÀU · FUNZONE ADVENTURE".
+Bấm **💾 Khai mã**. Từ đó cơ sở đã tích mà nhập `Chi phí marketing` là app tự biết cả ba thứ:
+**TK Nợ** · **tên tài khoản nội bộ** (lấy từ hệ thống tài khoản theo mã) · **tên xuất MISA**.
 
-- Muốn mã chỉ đúng một cơ sở: tích **chỉ riêng cơ sở này**. Mã riêng thắng mã của mảng.
-- Cơ sở chưa khai *Phân loại lớn* vẫn khai được — nó tự thành một cột riêng trong ma trận.
-- Khai lại cùng ô thì thẻ báo "đang là 64121 → sẽ đổi thành …", và mã lạ không có trong hệ thống
-  tài khoản thì cảnh báo (vẫn cho lưu, vì kế toán có thể mở tài khoản mới trước).
-- Dòng chi **đã nhập** không đổi mã (đã chốt lúc nhập). Muốn áp lại: **🔗 Gán mã cho dòng cũ**.
+- Tích theo **phân loại lớn** là đường nhanh: mọi cơ sở trong đó, kể cả cơ sở **mở sau này**, đều
+  dùng mã này — khỏi khai lại. Chỉ mở link *＋ ngoại lệ: tích lẻ từng cơ sở* khi có cơ sở cần mã
+  khác; mã lẻ **thắng** mã của phân loại lớn.
+- Cơ sở **chưa khai** *Phân loại lớn* vẫn tích được (nằm ở khung "Chưa khai mảng kinh doanh").
+- Thẻ báo trước: áp cho bao nhiêu cơ sở, và cơ sở nào đang có mã cũ sẽ bị thay.
+- Mã không có trong hệ thống tài khoản thì cảnh báo nhưng vẫn cho lưu (kế toán có thể vừa mở
+  tài khoản mới).
+
+**Nội dung xuất MISA sửa được bất cứ lúc nào** — đổi ô *Tên xuất MISA* (ở thẻ khai mã hoặc cột
+*Tên theo MISA* của thẻ 💵 Loại chi phí) là bản xuất đổi theo ngay, còn **mã đã lưu trên dòng chi
+không đổi**. Dòng chi đã nhập giữ nguyên mã lúc nhập; muốn áp mã mới cho dòng cũ thì bấm
+**🔗 Gán mã cho dòng cũ**.
 
 Hệ thống tài khoản chỉ để app **biết một mã có tên là gì** — nạp cả tài khoản doanh thu cũng
 được; nó không quyết định mảng.

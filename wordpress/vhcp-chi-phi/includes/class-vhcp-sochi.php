@@ -311,7 +311,10 @@ class VHCP_SoChi {
 			if ( $coso !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso ] = 1; }
 
 			$is_tt = ( trim( (string) $r['hinh_thuc'] ) === self::HT_TRUC_TIEP );
-			$dg1   = VHCP_Util::j( array( $loai, $coso, $r['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
+			// Diễn giải lấy TÊN XUẤT MISA của loại chi phí (khai ở danh mục, sửa lúc nào cũng
+			// được); trống thì dùng chính tên gọi. Mã đã lưu trên dòng không đổi theo.
+			$ten_xuat = VHCP_Cfg::ten_misa_loai( $loai );
+			$dg1   = VHCP_Util::j( array( $ten_xuat, $coso, $r['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 			$dg2   = VHCP_Util::j( array( (string) $r['noi_dung'], $tenm ) );
 			$gc    = trim( (string) $r['ghi_chu'] );
 			if ( $gc !== '' ) { $dg2 .= '_' . $gc; }
