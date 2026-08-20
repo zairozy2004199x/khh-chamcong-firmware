@@ -50,11 +50,28 @@ function add_query_arg() { return ''; }
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
 function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/vhcp-chi-phi/'; }
 
+class WP_REST_Request {
+	private $p;
+	private $h;
+	public function __construct( $p = array(), $h = array() ) { $this->p = $p; $this->h = $h; }
+	public function get_param( $k ) { return array_key_exists( $k, $this->p ) ? $this->p[ $k ] : null; }
+	public function get_header( $k ) { return array_key_exists( $k, $this->h ) ? $this->h[ $k ] : ''; }
+}
+
+class WP_REST_Response {
+	public $data;
+	public $status;
+	public function __construct( $d = null, $s = 200 ) { $this->data = $d; $this->status = $s; }
+	public function get_data() { return $this->data; }
+	public function get_status() { return $this->status; }
+}
+
 /** $wpdb tối giản trên SQLite. */
 class VHCP_Test_WPDB {
 
 	public $prefix = 'wp_';
 	public $last_error = '';
+	public $q_count = 0;      // đếm số lệnh xuống DB — dùng để kiểm "không đọc lặp"
 	private $pdo;
 
 	public function __construct() {
@@ -63,6 +80,8 @@ class VHCP_Test_WPDB {
 	}
 
 	public function get_charset_collate() { return ''; }
+
+	public function esc_like( $t ) { return addcslashes( (string) $t, '_%\\' ); }
 
 	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
 
@@ -95,12 +114,13 @@ class VHCP_Test_WPDB {
 	}
 
 	public function get_results( $sql, $mode = null ) {
+		$this->q_count++;
 		$st = $this->pdo->query( $this->tr( $sql ) );
 		return $st ? $st->fetchAll( PDO::FETCH_ASSOC ) : array();
 	}
 
 	public function get_row( $sql, $mode = null ) {
-		$r = $this->get_results( $sql );
+		$r = $this->get_results( $sql );   // get_results đã đếm
 		return count( $r ) ? $r[0] : null;
 	}
 
@@ -117,13 +137,14 @@ class VHCP_Test_WPDB {
 		return $v[0];
 	}
 
-	public function query( $sql ) { return $this->pdo->exec( $this->tr( $sql ) ); }
+	public function query( $sql ) { $this->q_count++; return $this->pdo->exec( $this->tr( $sql ) ); }
 
 	public function insert( $table, $data ) {
 		$cols = array_keys( $data );
 		$vals = array();
 		foreach ( $data as $v ) { $vals[] = ( $v === null ) ? 'NULL' : $this->quote( $v ); }
 		$sql = 'INSERT INTO ' . $table . ' (' . implode( ',', $cols ) . ') VALUES (' . implode( ',', $vals ) . ')';
+		$this->q_count++;
 		return $this->pdo->exec( $sql );
 	}
 
@@ -132,12 +153,14 @@ class VHCP_Test_WPDB {
 		foreach ( $data as $k => $v ) { $set[] = $k . '=' . ( $v === null ? 'NULL' : $this->quote( $v ) ); }
 		$w = array();
 		foreach ( $where as $k => $v ) { $w[] = $k . '=' . ( $v === null ? 'NULL' : $this->quote( $v ) ); }
+		$this->q_count++;
 		return $this->pdo->exec( 'UPDATE ' . $table . ' SET ' . implode( ',', $set ) . ' WHERE ' . implode( ' AND ', $w ) );
 	}
 
 	public function delete( $table, $where ) {
 		$w = array();
 		foreach ( $where as $k => $v ) { $w[] = $k . '=' . ( $v === null ? 'NULL' : $this->quote( $v ) ); }
+		$this->q_count++;
 		return $this->pdo->exec( 'DELETE FROM ' . $table . ' WHERE ' . implode( ' AND ', $w ) );
 	}
 }

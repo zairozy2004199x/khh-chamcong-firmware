@@ -147,12 +147,12 @@ class VHCP_Report {
 			);
 		}
 
-		foreach ( VHCP_BP::all_index() as $r ) {
+		foreach ( VHCP_BP::all_with_lines() as $r ) {
 			$st = (string) $r['trang_thai'];
 			if ( $st === 'Đã đóng' ) { continue; }
 			$lo  = (string) $r['loai'];
 			$sum = 0;
-			foreach ( VHCP_BP::lines_of( $r['ma'] ) as $x ) { $sum += VHCP_Util::num( $x['thuc_te'] ); }
+			foreach ( $r['lines'] as $x ) { $sum += VHCP_Util::num( $x['thuc_te'] ); }
 			$out[] = array(
 				'module'    => $lo,
 				'icon'      => ( $lo === 'Công tác' ) ? '✈️' : '🛠️',
@@ -218,9 +218,9 @@ class VHCP_Report {
 
 		// 3) Công tác / Setup
 		$rows = array(); $tot = 0;
-		foreach ( VHCP_BP::all_index() as $r ) {
+		foreach ( VHCP_BP::all_with_lines() as $r ) {
 			if ( mb_strtolower( trim( (string) $r['dia_diem'] ) ) !== $kl ) { continue; }
-			foreach ( VHCP_BP::lines_of( $r['ma'] ) as $x ) {
+			foreach ( $r['lines'] as $x ) {
 				$tt = VHCP_Util::num( $x['thuc_te'] );
 				if ( ! $tt ) { continue; }
 				$rows[] = array( 'nd' => (string) $x['noi_dung'], 'ct' => (string) $r['loai'] . ' · ' . (string) $r['ten'], 'tien' => $tt );
@@ -298,10 +298,10 @@ class VHCP_Report {
 		}
 
 		// 3) Công tác / Setup
-		foreach ( VHCP_BP::all_index() as $r ) {
+		foreach ( VHCP_BP::all_with_lines() as $r ) {
 			$ngay_dot  = VHCP_Util::vh_parse_dmy( $r['ngay_tao'] );
 			$is_setup  = ( (string) $r['loai'] === 'Setup' );
-			foreach ( VHCP_BP::lines_of( $r['ma'] ) as $x ) {
+			foreach ( $r['lines'] as $x ) {
 				$tt = VHCP_Util::num( $x['thuc_te'] );
 				if ( ! $tt ) { continue; }
 				$dt = VHCP_Util::vh_parse_dmy( $x['ngay'] );
@@ -314,8 +314,10 @@ class VHCP_Report {
 		}
 
 		// 4) Kỹ thuật — không có ngày dòng, dùng ngày kế toán duyệt || ngày tạo dự án
+		$app_map = VHCP_DuAn::approve_date_map();
 		foreach ( VHCP_DuAn::all_with_lines() as $r ) {
-			$dt = VHCP_Util::vh_parse_dmy( VHCP_DuAn::approve_date( $r['ma_da'] ) );
+			$ma_da = (string) $r['ma_da'];
+			$dt    = VHCP_Util::vh_parse_dmy( isset( $app_map[ $ma_da ] ) ? $app_map[ $ma_da ] : '' );
 			if ( ! $dt ) { $dt = VHCP_Util::vh_parse_dmy( $r['ngay_tao'] ); }
 			if ( ! $in_wk( $dt ) ) { continue; }
 			$ten_da = (string) $r['ten'];

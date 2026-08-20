@@ -98,6 +98,28 @@ class VHCP_Cfg {
 		return $out;
 	}
 
+	/**
+	 * Đọc MỌI bảng cấu hình trong ĐÚNG 1 LỆNH DB -> [ tên bảng => các hàng ].
+	 * Trước đây cấu hình tĩnh đọc 6 bảng = 6 lệnh, cộng 4 lệnh đếm dòng để seed.
+	 */
+	public static function read_all() {
+		$t    = VHCP_DB::t( 'cfg' );
+		$out  = array();
+		foreach ( VHCP_DB::rows( "SELECT bang, cols FROM $t ORDER BY bang ASC, stt ASC, id ASC" ) as $r ) {
+			$bang = (string) $r['bang'];
+			$a    = json_decode( $r['cols'], true );
+			if ( ! is_array( $a ) ) { $a = array(); }
+			$n = count( self::headers( $bang ) );
+			for ( $i = count( $a ); $i < $n; $i++ ) { $a[ $i ] = ''; }
+			$out[ $bang ][] = $a;
+		}
+		return $out;
+	}
+
+	private static function rows_of( $all, $bang ) {
+		return isset( $all[ $bang ] ) ? $all[ $bang ] : array();
+	}
+
 	/** Ghi đè toàn bộ 1 bảng cấu hình (bỏ hàng có ô đầu trống, giống _writeCfg). */
 	public static function write( $bang, $rows, $snapshot = true ) {
 		global $wpdb;
@@ -157,21 +179,35 @@ class VHCP_Cfg {
 
 	/** Bản dịch của _seedConfig(). */
 	public static function seed() {
-		if ( ! self::count_rows( self::COSO ) ) {
+		self::seed_from( self::read_all() );
+	}
+
+	/**
+	 * Như _seedConfig() nhưng dùng dữ liệu ĐÃ ĐỌC SẴN (khỏi 4 lệnh đếm dòng).
+	 * Trả về true nếu có thêm/ sửa gì -> nơi gọi biết là phải đọc lại.
+	 */
+	private static function seed_from( $all ) {
+		$did = false;
+		if ( ! count( self::rows_of( $all, self::COSO ) ) ) {
 			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '' ) ); }
+			$did = true;
 		}
-		if ( ! self::count_rows( self::NHOM ) ) {
+		if ( ! count( self::rows_of( $all, self::NHOM ) ) ) {
 			foreach ( self::default_nhom() as $n ) { self::append( self::NHOM, array( $n[0], $n[1], '', '' ) ); }
+			$did = true;
 		}
-		if ( ! self::count_rows( self::PL ) ) {
+		if ( ! count( self::rows_of( $all, self::PL ) ) ) {
 			self::append( self::PL, array( 'Thanh toán cá nhân', '141' ) );
 			self::append( self::PL, array( 'Nhà cung cấp', '331' ) );
+			$did = true;
 		}
-		if ( ! self::count_rows( self::USER ) ) {
+		if ( ! count( self::rows_of( $all, self::USER ) ) ) {
 			self::append( self::USER, array( 'Admin', '1111', 'Admin', '', '', '', '' ) );
+			$did = true;
 		}
 		// Bổ sung 1 lần 2 nhóm chi phí kỹ thuật (tháo dỡ / setup) — gán Bộ phận "Kỹ thuật".
 		if ( ! VHCP_Meta::get( 'seeded_thaodo_setup_v2' ) ) {
+			$did  = true;
 			$rows = self::read( self::NHOM );
 			$want = array(
 				array( 'Chi phí tháo dỡ', 'canhan', '', 'Kỹ thuật' ),
@@ -187,6 +223,7 @@ class VHCP_Cfg {
 			}
 			VHCP_Meta::set( 'seeded_thaodo_setup_v2', '1' );
 		}
+		return $did;
 	}
 
 	// ---------------------------------------------------------------- cấu hình tĩnh
@@ -195,33 +232,46 @@ class VHCP_Cfg {
 	public static function cfg_static() {
 		$hit = get_transient( 'vhcp_cfgstatic' );
 		if ( is_array( $hit ) ) { return $hit; }
-		self::seed();
+
+		$all = self::read_all();
+		if ( self::seed_from( $all ) ) { $all = self::read_all(); }   // chỉ đọc lại khi thực sự có seed
 
 		$out = array( 'coso' => array(), 'nhom' => array(), 'tkNoMatrix' => array(), 'phanloai' => array(), 'dtCfg' => array(), 'qr' => array( 'stk' => '', 'bank' => '', 'ten' => '' ) );
 
-		foreach ( self::read( self::COSO ) as $r ) {
+		foreach ( self::rows_of( $all, self::COSO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => $r[1], 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3] );
 		}
-		foreach ( self::read( self::NHOM ) as $r ) {
+		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['nhom'][] = array( 'ten' => $r[0], 'loai' => ( $r[1] !== '' ? $r[1] : 'canhan' ), 'tkNo' => $r[2], 'boPhan' => $r[3] );
 		}
-		foreach ( self::read( self::TKNO ) as $r ) {
+		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['tkNoMatrix'][] = array( 'nhom' => $r[0], 'pll' => $r[1], 'tkNo' => $r[2] );
 		}
-		foreach ( self::read( self::PL ) as $r ) {
+		foreach ( self::rows_of( $all, self::PL ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['phanloai'][] = array( 'ten' => $r[0], 'tkCo' => $r[1] );
 		}
-		foreach ( self::read( self::DT ) as $r ) {
+		foreach ( self::rows_of( $all, self::DT ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['dtCfg'][] = array( 'ten' => $r[0], 'ma' => $r[1], 'loai' => $r[2] );
 		}
-		foreach ( self::read( self::QR ) as $r ) {
+		foreach ( self::rows_of( $all, self::QR ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['qr'][ $r[0] ] = $r[1];
+		}
+
+		$out['sso'] = array();
+		foreach ( self::rows_of( $all, self::SSO ) as $r ) {
+			if ( trim( (string) $r[0] ) === '' ) { continue; }
+			$out['sso'][] = array( 'email' => $r[0], 'role' => $r[1], 'coso' => $r[2] );
+		}
+		$out['users'] = array();
+		foreach ( self::rows_of( $all, self::USER ) as $r ) {
+			if ( trim( (string) $r[0] ) === '' ) { continue; }
+			$out['users'][] = array( 'ten' => $r[0], 'pin' => (string) $r[1], 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => $r[4], 'maDt' => $r[5], 'boPhan' => $r[6] );
 		}
 
 		set_transient( 'vhcp_cfgstatic', $out, 300 );
@@ -249,11 +299,7 @@ class VHCP_Cfg {
 			$seen[ $k ] = 1;
 			$dt[] = array( 'ten' => $t, 'ma' => '', 'loai' => ( $r['phan_loai_tt'] === 'Nhà cung cấp' ? 'NCC' : 'NV' ) );
 		}
-		$sso = array();
-		foreach ( self::read( self::SSO ) as $r ) {
-			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$sso[] = array( 'email' => $r[0], 'role' => $r[1], 'coso' => $r[2] );
-		}
+		$sso = isset( $s['sso'] ) ? $s['sso'] : array();
 		return array(
 			'coso'       => $s['coso'],
 			'nhom'       => $s['nhom'],
@@ -378,12 +424,7 @@ class VHCP_Cfg {
 	// ---------------------------------------------------------------- người dùng
 
 	public static function get_users() {
-		self::seed();
-		$out = array();
-		foreach ( self::read( self::USER ) as $r ) {
-			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out[] = array( 'ten' => $r[0], 'pin' => (string) $r[1], 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => $r[4], 'maDt' => $r[5], 'boPhan' => $r[6] );
-		}
-		return $out;
+		$s = self::cfg_static();   // đã gồm bảng người dùng, có cache 5 phút
+		return isset( $s['users'] ) ? $s['users'] : array();
 	}
 }

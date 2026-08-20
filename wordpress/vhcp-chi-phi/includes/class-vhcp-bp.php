@@ -23,9 +23,27 @@ class VHCP_BP {
 	}
 
 	public static function all_index() {
-		global $wpdb;
 		$t = VHCP_DB::t( 'bp_index' );
 		return VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" );
+	}
+
+	/**
+	 * Mọi đợt kèm dòng chi — ĐÚNG 2 LỆNH DB (danh mục + toàn bộ dòng, gom trong PHP).
+	 * Dùng cho danh sách, báo cáo tuần, báo cáo gian và xuất MISA.
+	 */
+	public static function all_with_lines() {
+		$ti = VHCP_DB::t( 'bp_index' );
+		$tl = VHCP_DB::t( 'bp_line' );
+		$rows = VHCP_DB::rows( "SELECT * FROM $ti ORDER BY stt ASC" );
+		$by   = array();
+		foreach ( VHCP_DB::rows( "SELECT * FROM $tl ORDER BY ma ASC, row_no ASC" ) as $l ) {
+			$by[ (string) $l['ma'] ][] = $l;
+		}
+		foreach ( $rows as $i => $r ) {
+			$k = (string) $r['ma'];
+			$rows[ $i ]['lines'] = isset( $by[ $k ] ) ? $by[ $k ] : array();
+		}
+		return $rows;
 	}
 
 	private static function next_row( $ma ) {
@@ -66,10 +84,10 @@ class VHCP_BP {
 		$coso = array();
 		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
 		$out = array();
-		foreach ( self::all_index() as $r ) {
+		foreach ( self::all_with_lines() as $r ) {
 			if ( $loai && $loai !== 'all' && (string) $r['loai'] !== $loai ) { continue; }
 			$dt = 0; $tt = 0;
-			foreach ( self::lines_of( $r['ma'] ) as $x ) {
+			foreach ( $r['lines'] as $x ) {
 				$dt += VHCP_Util::num( $x['du_toan'] );
 				$tt += VHCP_Util::num( $x['thuc_te'] );
 			}

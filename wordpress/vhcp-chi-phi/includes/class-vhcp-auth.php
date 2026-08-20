@@ -21,8 +21,7 @@ class VHCP_Auth {
 		if ( ! preg_match( '/^\d{4}$/', $pin ) ) { return array( 'ok' => false, 'error' => 'PIN phải gồm 4 chữ số' ); }
 		if ( self::is_locked() ) { return array( 'ok' => false, 'error' => 'Nhập sai quá nhiều lần — thử lại sau 10 phút' ); }
 
-		VHCP_Cfg::seed();
-		foreach ( VHCP_Cfg::get_users() as $u ) {
+		foreach ( VHCP_Cfg::get_users() as $u ) {   // get_users() tự seed nếu cấu hình còn trống
 			if ( trim( (string) $u['pin'] ) === $pin ) {
 				self::clear_fails();
 				$tok = self::issue_token( $u['ten'], ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ), $u['coso'], $u['boPhan'] );

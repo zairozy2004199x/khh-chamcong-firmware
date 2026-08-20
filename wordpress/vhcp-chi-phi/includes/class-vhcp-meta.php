@@ -36,4 +36,19 @@ class VHCP_Meta {
 	public static function set_json( $key, $val ) {
 		self::set( $key, wp_json_encode( $val ) );
 	}
+
+	/**
+	 * Đọc HẾT khóa cùng tiền tố trong 1 lệnh (vd 'daPay_', 'daApp_').
+	 * Dùng cho báo cáo/xuất MISA: trước đây mỗi dự án 1 lệnh, giờ cả bảng 1 lệnh.
+	 */
+	public static function get_prefix( $prefix ) {
+		global $wpdb;
+		$t    = VHCP_DB::t( 'meta' );
+		$like = $wpdb->esc_like( (string) $prefix ) . '%';
+		$out  = array();
+		foreach ( VHCP_DB::rows( $wpdb->prepare( "SELECT k,v FROM $t WHERE k LIKE %s", $like ) ) as $r ) {
+			$out[ $r['k'] ] = $r['v'];
+		}
+		return $out;
+	}
 }

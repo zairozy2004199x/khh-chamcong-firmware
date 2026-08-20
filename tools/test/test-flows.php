@@ -517,6 +517,47 @@ foreach ( $gas as $fn ) { if ( ! isset( $map[ $fn ] ) ) { $chua_co[] = $fn; } }
 teq( 'đủ 100% hàm của app Apps Script cũ', array(), $chua_co );
 teq( 'số hàm cũ đã port', 92, count( $gas ) );
 
+// ---------------------------------------------------------------- 16. cửa API: phiên & vai trò
+function api( $fn, $args = array(), $token = '' ) {
+	$res = VHCP_API::handle( new WP_REST_Request( array( 'fn' => $fn, 'args' => $args, 'token' => $token ) ) );
+	return array( 'status' => $res->get_status(), 'body' => $res->get_data() );
+}
+
+$a = api( 'login', array( '4321' ) );
+teq( 'API login: 200', 200, $a['status'] );
+t( 'API login: trả token', ! empty( $a['body']['data']['token'] ) );
+$tok_admin = $a['body']['data']['token'];
+
+$a = api( 'getBootstrap' );
+teq( 'API không token: 401', 401, $a['status'] );
+teq( 'API không token: mã no_session', 'no_session', $a['body']['code'] );
+
+$a = api( 'getBootstrap', array(), $tok_admin );
+teq( 'API có token: 200', 200, $a['status'] );
+t( 'API có token: trả dữ liệu', isset( $a['body']['data']['coso'] ) );
+
+$a = api( 'getBootstrap', array(), str_repeat( 'a', 64 ) );
+teq( 'API token bịa: 401', 401, $a['status'] );
+
+$a = api( 'khongCoHamNay', array(), $tok_admin );
+teq( 'API hàm lạ: 400', 400, $a['status'] );
+
+$tok_nv = VHCP_Auth::issue_token( 'NV E', 'Nhân viên', 'VR SORA', '' );
+$tok_ql = VHCP_Auth::issue_token( 'QL F', 'Quản lý', '', '' );
+
+$a = api( 'getUsers', array(), $tok_nv );
+teq( 'Nhân viên đọc danh sách PIN: 403', 403, $a['status'] );
+teq( 'lý do: forbidden', 'forbidden', $a['body']['code'] );
+teq( 'Quản lý đọc được danh sách người dùng', 200, api( 'getUsers', array(), $tok_ql )['status'] );
+teq( 'Nhân viên lưu cấu hình: 403', 403, api( 'saveConfig', array( array() ), $tok_nv )['status'] );
+teq( 'Nhân viên sửa ma trận quyền: 403', 403, api( 'setQuyen', array( array() ), $tok_nv )['status'] );
+teq( 'Quản lý xóa vĩnh viễn đơn: 403 (chỉ Admin)', 403, api( 'deleteDonAdmin', array( 'D_x' ), $tok_ql )['status'] );
+teq( 'Nhân viên vẫn nhập đơn bình thường', 200, api( 'createDon', array( 'T8/2026', 'NV E' ), $tok_nv )['status'] );
+
+$a = api( 'vhcpLogout', array( $tok_nv ), $tok_nv );
+teq( 'API đăng xuất: 200', 200, $a['status'] );
+teq( 'token sau đăng xuất hết hiệu lực: 401', 401, api( 'getBootstrap', array(), $tok_nv )['status'] );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

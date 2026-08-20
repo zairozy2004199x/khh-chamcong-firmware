@@ -101,17 +101,66 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 php tools/test/test-flows.php
 ```
 
-170 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+187 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
 đổi PIN, nhật ký, tải ảnh/hồ sơ (chặn .php), nhập CSV.
 
+Có cả **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`
+hay `saveConfig` → 403, Quản lý gọi `deleteDonAdmin` → 403, đăng xuất rồi token hết hiệu lực.
+
 Hai phép thử cuối là lưới an toàn quan trọng nhất: **cả 92 hàm public của Code.gs cũ đều có trong
 bảng REST**, và **mọi hàm giao diện gọi đều tồn tại ở backend** — thiếu 1 hàm là bộ test đỏ ngay,
 không phải chờ người dùng bấm mới vỡ.
 
-## 6. Cập nhật plugin về sau
+## 6. Hiệu năng: đã cắt hết chỗ đọc lặp
+
+Bản đầu port đúng nguyên văn app cũ nên thừa hưởng luôn kiểu "mỗi dự án 1 lượt đọc" của Apps
+Script. Đã sửa xong, và có thước đo hẳn hoi — `tools/test/bench-queries.php` đếm **số lệnh xuống
+database** của từng màn hình ở 2 mức dữ liệu (3 bộ và 12 bộ dự án/đợt/đơn), cache cấu hình để
+nguội (trường hợp xấu nhất):
+
+| Màn hình | Trước | Sau |
+|---|---:|---:|
+| Xuất MISA — Kỹ thuật | 56 | **6** |
+| Vận hành theo tuần | 41 | **8** |
+| Báo cáo 1 gian/cơ sở | 29 | **7** |
+| Gom đơn chờ kế toán | 28 | **6** |
+| Xuất MISA — Công tác/Setup | 26 | **4** |
+| Danh sách dự án kỹ thuật | 24 | **4** |
+| Danh sách đợt Công tác/Setup | 24 | **4** |
+| Xuất MISA — Đơn vận hành | 21 | **4** |
+| Khởi động app (getBootstrap) | 16 | **6** |
+| Xuất MISA — Marketing | 15 | **4** |
+| Danh sách đơn marketing | 13 | **4** |
+| Duyệt quyết toán 5 đơn | 30 | **13** |
+
+Quan trọng hơn con số: **không màn hình nào còn tăng theo số bản ghi** (trước đây 7 màn hình tăng
+tuyến tính — 30 dự án là 31 lệnh). Bốn thay đổi chính:
+
+- Dòng hạng mục của **mọi** dự án / đợt đọc trong **1 lệnh** rồi gom trong PHP (`all_with_lines()`),
+  thay vì mỗi dự án 1 lệnh.
+- **6 bảng cấu hình đọc trong 1 lệnh** (`read_all()`), và bỏ 4 lệnh đếm dòng của bước seed —
+  seed giờ dùng luôn dữ liệu vừa đọc. Danh sách người dùng lấy từ cấu hình đã cache 5 phút.
+- Ghi nhận chi tiền + ngày duyệt của mọi dự án (`daPay_*`, `daApp_*`) đọc **1 lệnh cho cả bảng**
+  thay vì 2 lệnh mỗi dự án.
+- **Duyệt quyết toán theo lô** tính chênh lệch từ 1 lượt đọc chung — trước đây duyệt 50 đơn là 50
+  lượt đọc cả bảng chi phí. Ba luồng xuất MISA không cần danh mục đối tượng nên thôi đọc bảng
+  ChiPhi; `getDon` đọc bảng ChiPhi 1 lần thay vì 2.
+
+Chạy lại số đo bất cứ lúc nào (thoát mã ≠ 0 nếu có màn hình đọc lặp trở lại, dùng được trong CI):
+
+```bash
+php tools/test/bench-queries.php
+php tools/test/bench-queries.php /duong/dan/plugin/khac   # so với 1 phiên bản khác
+```
+
+Chỗ còn lại **cố ý giữ nguyên** để không đổi cách vận hành: `getBootstrap` vẫn trả **toàn bộ** đơn
+(giao diện lọc/tìm ở phía máy người dùng), nên khi số đơn lên hàng chục nghìn thì nên phân trang —
+lúc đó nói em làm, vì việc đó đổi cả giao diện.
+
+## 7. Cập nhật plugin về sau
 
 ```bash
 bash tools/build-plugin-zip.sh    # tạo lại dist/vhcp-chi-phi.zip
@@ -130,7 +179,7 @@ bash tools/deploy-hosting.sh                               # rsync/lftp lên wp-
 
 File `tools/deploy-hosting.env` đã nằm trong `.gitignore` — **không bao giờ commit mật khẩu hosting**.
 
-## 7. Bảo mật cần biết
+## 8. Bảo mật cần biết
 
 - **PIN vẫn lưu nguyên văn** trong bảng cấu hình, vì tab ⚙️ Cấu hình hiện & sửa PIN từng người
   đúng như cách vận hành cũ. Ai vào được wp-admin hoặc database là thấy PIN. Muốn siết thì đổi
@@ -142,8 +191,13 @@ File `tools/deploy-hosting.env` đã nằm trong `.gitignore` — **không bao g
 - Token phiên sống 30 ngày, thu hồi khi bấm **Đăng xuất**.
 - API chỉ mở đúng 1 endpoint và chỉ chạy các hàm trong bảng cho phép (`class-vhcp-api.php`);
   file hồ sơ chặn mọi đuôi chạy được trên server (`.php`, …), ảnh giới hạn 15MB.
+- **Chặn theo vai trò ở phía máy chủ** (app cũ không có): `getUsers` / `saveConfig` / `undoConfig` /
+  `setQuyen` / `getQuyenConfig` / `migrateOldImages` chỉ Admin và Quản lý gọi được, `deleteDonAdmin`
+  chỉ Admin. Trước đây ai có link cũng gọi được `getUsers` để đọc PIN của mọi người — kể cả khi giao
+  diện đã ẩn tab Cấu hình. Danh sách này khớp đúng những tab mà giao diện vốn chỉ cho Admin/Quản lý
+  thấy, nên người dùng thật không thấy khác gì.
 
-## 8. Khắc phục sự cố
+## 9. Khắc phục sự cố
 
 | Hiện tượng | Xử lý |
 |---|---|

@@ -14,6 +14,20 @@ class VHCP_API {
 	/** Hàm chạy được KHI CHƯA đăng nhập. */
 	private static $public_fns = array( 'login' );
 
+	/**
+	 * Hàm chỉ dành cho vai trò nhất định — chặn ngay ở máy chủ, không tin giao diện.
+	 * (App Apps Script cũ KHÔNG có lớp này: ai có link đều gọi được getUsers để đọc PIN
+	 *  của mọi người. Danh sách dưới khớp đúng những tab mà giao diện vốn chỉ cho
+	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
+	 */
+	private static function required_roles( $fn ) {
+		$admin_only = array( 'deleteDonAdmin' );
+		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages' );
+		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
+		if ( in_array( $fn, $cau_hinh, true ) )   { return array( 'Admin', 'Quản lý' ); }
+		return array();
+	}
+
 	public static function register_routes() {
 		register_rest_route( 'vhcp/v1', '/call', array(
 			'methods'             => 'POST',
@@ -152,9 +166,21 @@ class VHCP_API {
 		if ( ! in_array( $fn, self::$public_fns, true ) ) {
 			$token = (string) $req->get_param( 'token' );
 			if ( $token === '' ) { $token = (string) $req->get_header( 'x_vhcp_token' ); }
-			$user = VHCP_Auth::user_by_token( $token );
-			if ( ! $user && ! current_user_can( 'manage_options' ) ) {
+			$user     = VHCP_Auth::user_by_token( $token );
+			$wp_admin = current_user_can( 'manage_options' );
+			if ( ! $user && ! $wp_admin ) {
 				return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phiên đã hết — đăng nhập lại bằng PIN', 'code' => 'no_session' ), 401 );
+			}
+			$need = self::required_roles( $fn );
+			if ( $need ) {
+				$role = $user ? (string) $user['role'] : ( $wp_admin ? 'Admin' : '' );
+				if ( ! in_array( $role, $need, true ) ) {
+					return new WP_REST_Response( array(
+						'ok'    => false,
+						'error' => 'Vai trò "' . ( $role !== '' ? $role : 'không rõ' ) . '" không được phép dùng chức năng này',
+						'code'  => 'forbidden',
+					), 403 );
+				}
 			}
 		}
 

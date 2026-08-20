@@ -233,8 +233,13 @@ class VHCP_Don {
 		return VHCP_Util::ok( array( 'maDon' => $m ) );
 	}
 
-	/** getDon(): đơn + tạm ứng theo cơ sở + dòng chi + đối chiếu CN/NCC. */
-	public static function get_don( $ma_don ) {
+	/**
+	 * getDon(): đơn + tạm ứng theo cơ sở + dòng chi + đối chiếu CN/NCC.
+	 *
+	 * $with_products = false: bỏ phần gợi ý sản phẩm (cần đọc cả bảng ChiPhi) —
+	 * dùng khi gọi hàng loạt trong nội bộ, vd duyệt quyết toán theo lô.
+	 */
+	public static function get_don( $ma_don, $with_products = true ) {
 		$r = self::don_row( $ma_don );
 		if ( ! $r ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 
@@ -273,8 +278,17 @@ class VHCP_Don {
 			$has_tu_rows = true;
 		}
 
-		$tcp   = VHCP_DB::t( 'chiphi' );
-		$cp    = VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $tcp WHERE ma_don=%s ORDER BY stt ASC", (string) $ma_don ) );
+		$tcp = VHCP_DB::t( 'chiphi' );
+		if ( $with_products ) {
+			// Gợi ý sản phẩm cần lịch sử toàn bảng -> đọc 1 lần rồi lọc trong PHP,
+			// thay vì 1 lệnh lọc theo đơn + 1 lệnh đọc cả bảng như trước.
+			$cp_all = self::cp_rows();
+			$cp     = array();
+			foreach ( $cp_all as $x ) { if ( (string) $x['ma_don'] === (string) $ma_don ) { $cp[] = $x; } }
+		} else {
+			$cp_all = null;
+			$cp     = VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $tcp WHERE ma_don=%s ORDER BY stt ASC", (string) $ma_don ) );
+		}
 		$lines = array();
 		foreach ( $cp as $x ) {
 			$lines[] = array(
@@ -344,7 +358,7 @@ class VHCP_Don {
 			'tongCN'    => array( 'tamUng' => $cn_tu, 'thucChi' => $cn_tc, 'chenhLech' => $cn_tu - $cn_tc ),
 			'reconNCC'  => $recon_ncc,
 			'tongNCC'   => array( 'thucChi' => $ncc_tc ),
-			'products'  => self::product_suggestions(),
+			'products'  => $with_products ? self::product_suggestions( $cp_all ) : array(),
 		) );
 	}
 
@@ -758,10 +772,13 @@ class VHCP_Don {
 
 	public static function xac_nhan_qt_cn_nhieu( $ma_dons, $nguoi ) {
 		$ok = 0; $errs = array();
+		// Chênh lệch của mọi đơn tính từ 3 lệnh DB dùng chung (listDons), thay vì
+		// gọi getDon cho từng đơn — duyệt 50 đơn trước đây là 50 lượt đọc cả bảng.
+		$cl_by = array();
+		foreach ( self::list_dons() as $x ) { $cl_by[ $x['maDon'] ] = $x['chenhLech']; }
 		foreach ( (array) $ma_dons as $m ) {
-			$d = self::get_don( $m );
-			if ( empty( $d['success'] ) ) { $errs[] = $m . ': ' . ( isset( $d['error'] ) ? $d['error'] : '?' ); continue; }
-			$cl    = isset( $d['tongCN']['chenhLech'] ) ? $d['tongCN']['chenhLech'] : 0;
+			if ( ! array_key_exists( (string) $m, $cl_by ) ) { $errs[] = $m . ': Không tìm thấy đơn'; continue; }
+			$cl    = $cl_by[ (string) $m ];
 			$xu_ly = $cl > 0 ? 'NV trả lại' : ( $cl < 0 ? 'Kế toán bù' : 'Khớp' );
 			$r     = self::xac_nhan_quyet_toan_cn( $m, $nguoi, $xu_ly, $cl );
 			if ( ! empty( $r['success'] ) ) { $ok++; } else { $errs[] = $m . ': ' . ( isset( $r['error'] ) ? $r['error'] : '?' ); }

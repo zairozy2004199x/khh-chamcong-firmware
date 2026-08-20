@@ -90,12 +90,9 @@ class VHCP_DuAn {
 	}
 
 	public static function list_du_an() {
-		global $wpdb;
-		$t    = VHCP_DB::t( 'da_index' );
-		$rows = VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" );
-		$out  = array();
-		foreach ( $rows as $r ) {
-			$lines = self::lines_of( $r['ma_da'] );
+		$out = array();
+		foreach ( self::all_with_lines() as $r ) {
+			$lines = $r['lines'];
 			$dt = 0; $tt = 0; $child = array();
 			foreach ( $lines as $x ) {
 				$cap = trim( (string) $x['cap_cha'] );
@@ -436,14 +433,41 @@ class VHCP_DuAn {
 		return VHCP_Util::ok();
 	}
 
-	/** Dùng chung cho báo cáo: mọi dự án kèm dòng hạng mục. */
+	/**
+	 * Dùng chung cho báo cáo: mọi dự án kèm dòng hạng mục — ĐÚNG 2 LỆNH DB
+	 * (1 lệnh danh mục + 1 lệnh toàn bộ dòng, rồi gom trong PHP).
+	 * Trước đây mỗi dự án 1 lệnh nên 30 dự án là 31 lệnh.
+	 */
 	public static function all_with_lines() {
-		global $wpdb;
-		$t    = VHCP_DB::t( 'da_index' );
-		$out  = array();
-		foreach ( VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" ) as $r ) {
-			$r['lines'] = self::lines_of( $r['ma_da'] );
-			$out[]      = $r;
+		$ti = VHCP_DB::t( 'da_index' );
+		$tl = VHCP_DB::t( 'da_line' );
+		$rows = VHCP_DB::rows( "SELECT * FROM $ti ORDER BY stt ASC" );
+		$by   = array();
+		foreach ( VHCP_DB::rows( "SELECT * FROM $tl ORDER BY ma_da ASC, row_no ASC" ) as $l ) {
+			$by[ (string) $l['ma_da'] ][] = $l;
+		}
+		foreach ( $rows as $i => $r ) {
+			$k = (string) $r['ma_da'];
+			$rows[ $i ]['lines'] = isset( $by[ $k ] ) ? $by[ $k ] : array();
+		}
+		return $rows;
+	}
+
+	/** Toàn bộ ghi nhận chi tiền của mọi dự án — 1 lệnh DB. */
+	public static function pay_map() {
+		$out = array();
+		foreach ( VHCP_Meta::get_prefix( 'daPay_' ) as $k => $v ) {
+			$o = json_decode( (string) $v, true );
+			$out[ substr( $k, 7 ) ] = is_array( $o ) ? $o : array();
+		}
+		return $out;
+	}
+
+	/** Ngày kế toán duyệt của mọi dự án — 1 lệnh DB. */
+	public static function approve_date_map() {
+		$out = array();
+		foreach ( VHCP_Meta::get_prefix( 'daApp_' ) as $k => $v ) {
+			$out[ substr( $k, 7 ) ] = (string) $v;
 		}
 		return $out;
 	}

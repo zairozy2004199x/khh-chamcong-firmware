@@ -25,7 +25,8 @@ class VHCP_Misa {
 	public static function export_misa( $ky = 'all', $mode = 'chuaxuat', $pl_f = 'all' ) {
 		$mode = $mode ? $mode : 'chuaxuat';
 		$pl_f = $pl_f ? $pl_f : 'all';
-		$cfg  = VHCP_Cfg::get_config();
+		$cp   = VHCP_Don::cp_rows();              // đọc 1 lần, dùng cho cả cấu hình đối tượng lẫn vòng lặp dưới
+		$cfg  = VHCP_Cfg::get_config( $cp );
 
 		$m_unit = array(); $m_pll = array(); $m_tm = array();
 		foreach ( $cfg['coso'] as $x ) { $m_unit[ $x['ten'] ] = $x['maDonVi']; $m_pll[ $x['ten'] ] = $x['phanLoaiLon']; $m_tm[ $x['ten'] ] = $x['tenMisa']; }
@@ -73,7 +74,7 @@ class VHCP_Misa {
 		}
 
 		$rows_by_nhom = array(); $nhom_order = array(); $warn = array(); $ndon = 0; $seen_don = array();
-		foreach ( VHCP_Don::cp_rows() as $r ) {
+		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( ! isset( $by_don[ $m ] ) ) { continue; }
 			$d       = $by_don[ $m ];
@@ -133,7 +134,7 @@ class VHCP_Misa {
 
 	/** exportMisaKyThuat(): dự án Kỹ thuật đã duyệt / đã đóng + Chi phí cơ sở chung. */
 	public static function export_ky_thuat() {
-		$cfg = VHCP_Cfg::get_config();
+		$cfg = VHCP_Cfg::cfg_static();   // chỉ cần danh mục cơ sở -> khỏi đọc bảng ChiPhi để gộp đối tượng
 		$m_unit = array(); $m_pll = array(); $m_tm = array();
 		foreach ( $cfg['coso'] as $x ) { $m_unit[ $x['ten'] ] = $x['maDonVi']; $m_pll[ $x['ten'] ] = $x['phanLoaiLon']; $m_tm[ $x['ten'] ] = $x['tenMisa']; }
 		$user_dt = array();
@@ -142,6 +143,9 @@ class VHCP_Misa {
 			$user_dt[ mb_strtolower( trim( $u['ten'] ) ) ] = $u['maDt'];
 		}
 
+		$pay_map = VHCP_DuAn::pay_map();
+		$app_map = VHCP_DuAn::approve_date_map();
+
 		$rows = array(); $warn = array(); $nda = 0;
 		foreach ( VHCP_DuAn::all_with_lines() as $r ) {
 			$st   = (string) $r['trang_thai'];
@@ -149,8 +153,8 @@ class VHCP_Misa {
 			if ( $st !== 'Đã duyệt' && $st !== 'Đã đóng' && $loai !== 'Chi phí cơ sở' ) { continue; }
 			$ma_da  = (string) $r['ma_da'];
 			$ten_da = (string) $r['ten'];
-			$pay    = VHCP_DuAn::get_pay( $ma_da );
-			$ngay   = VHCP_DuAn::approve_date( $ma_da );
+			$pay    = isset( $pay_map[ $ma_da ] ) ? $pay_map[ $ma_da ] : array();
+			$ngay   = isset( $app_map[ $ma_da ] ) ? $app_map[ $ma_da ] : '';
 			if ( $ngay === '' ) { $ngay = VHCP_Util::fmt( $r['ngay_tao'] ); }
 			$ma_dv    = isset( $m_unit[ $ten_da ] ) ? $m_unit[ $ten_da ] : '';
 			$pll      = isset( $m_pll[ $ten_da ] ) ? $m_pll[ $ten_da ] : '';
@@ -205,7 +209,7 @@ class VHCP_Misa {
 
 	/** exportMisaMarketing(): mỗi khoản có thực chi = 1 dòng hạch toán. */
 	public static function export_marketing() {
-		$cfg = VHCP_Cfg::get_config();
+		$cfg = VHCP_Cfg::cfg_static();
 		$m_unit = array(); $m_tm = array();
 		foreach ( $cfg['coso'] as $x ) { $m_unit[ $x['ten'] ] = $x['maDonVi']; $m_tm[ $x['ten'] ] = $x['tenMisa']; }
 
@@ -244,12 +248,12 @@ class VHCP_Misa {
 
 	/** exportMisaBP(): Công tác / Setup. */
 	public static function export_bp( $loai = 'all' ) {
-		$cfg = VHCP_Cfg::get_config();
+		$cfg = VHCP_Cfg::cfg_static();
 		$m_unit = array(); $m_tm = array();
 		foreach ( $cfg['coso'] as $x ) { $m_unit[ $x['ten'] ] = $x['maDonVi']; $m_tm[ $x['ten'] ] = $x['tenMisa']; }
 
 		$rows = array(); $warn = array(); $ndot = 0;
-		foreach ( VHCP_BP::all_index() as $r ) {
+		foreach ( VHCP_BP::all_with_lines() as $r ) {
 			if ( $loai && $loai !== 'all' && (string) $r['loai'] !== $loai ) { continue; }
 			$lo       = (string) $r['loai'];
 			$ten      = (string) $r['ten'];
@@ -258,7 +262,7 @@ class VHCP_Misa {
 			$ky       = VHCP_Util::fmt( $r['ky'] );
 			$ngay_dot = VHCP_Util::fmt( $r['ngay_tao'] );
 			$used     = false;
-			foreach ( VHCP_BP::lines_of( $r['ma'] ) as $x ) {
+			foreach ( $r['lines'] as $x ) {
 				$nd = trim( (string) $x['noi_dung'] );
 				$tt = VHCP_Util::num( $x['thuc_te'] );
 				if ( $nd === '' && ! $tt ) { continue; }
