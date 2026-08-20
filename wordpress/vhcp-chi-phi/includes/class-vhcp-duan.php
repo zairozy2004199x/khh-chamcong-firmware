@@ -1,0 +1,450 @@
+<?php
+/**
+ * CHI PHÍ KỸ THUẬT — dự án Tháo dỡ / Setup lắp đặt + sheet "Chi phí cơ sở" chung xuyên suốt.
+ *
+ * App cũ mỗi dự án là 1 tab Google Sheet; ở đây là các dòng trong vhcp_da_line khóa theo
+ * (ma_da, row_no). row_no vẫn bắt đầu từ 5 để giao diện gọi updateDuAnLine(maDA, row, rec) như cũ.
+ *
+ * Quy ước tính tiền giữ nguyên:
+ *   - Hạng mục lớn (cap_cha rỗng) mang DỰ TOÁN. Thực tế của nó chỉ tính khi KHÔNG có mục con.
+ *   - Mục con / (Phát sinh) chỉ mang THỰC TẾ; hình thức chi thừa hưởng của hạng mục cha.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCP_DuAn {
+
+	const DATA_ROW = 5;
+
+	public static function find( $ma_da ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'da_index' );
+		return VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s", (string) $ma_da ) );
+	}
+
+	private static function lines_of( $ma_da ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'da_line' );
+		return VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s ORDER BY row_no ASC", (string) $ma_da ) );
+	}
+
+	private static function next_row( $ma_da ) {
+		global $wpdb;
+		$t   = VHCP_DB::t( 'da_line' );
+		$max = (int) $wpdb->get_var( $wpdb->prepare( "SELECT MAX(row_no) FROM $t WHERE ma_da=%s", (string) $ma_da ) );
+		return max( self::DATA_ROW, $max + 1 );
+	}
+
+	/** Dòng "có nội dung": bỏ hàng trống hoàn toàn (giống điều kiện lọc của app cũ). */
+	private static function is_real( $r ) {
+		return ! ( trim( (string) $r['noi_dung'] ) === '' && ! ( VHCP_Util::num( $r['du_toan'] ) || VHCP_Util::num( $r['thuc_te'] ) ) );
+	}
+
+	// ---------------------------------------------------------------- tạo / danh sách
+
+	public static function create_du_an( $loai, $ten, $nguoi ) {
+		global $wpdb;
+		$loai = trim( (string) $loai );
+		if ( $loai === 'Chi phí cơ sở' ) { return self::ensure_co_so_chung( $nguoi ); }
+		$ten = VHCP_Util::san( $ten );
+		if ( ! in_array( $loai, array( 'Tháo dỡ', 'Setup lắp đặt' ), true ) ) { return VHCP_Util::err( 'Loại không hợp lệ' ); }
+		if ( $ten === '' ) { return VHCP_Util::err( 'Nhập tên dự án' ); }
+		$ma = VHCP_Util::uid( 'DA' );
+		$wpdb->insert( VHCP_DB::t( 'da_index' ), array(
+			'ma_da'      => $ma,
+			'ten'        => $ten,
+			'loai'       => $loai,
+			'trang_thai' => 'Đang làm',
+			'ngay_tao'   => VHCP_Util::now_sql(),
+			'nguoi_tao'  => (string) $nguoi,
+		) );
+		return VHCP_Util::ok( array( 'maDA' => $ma, 'ten' => $ten, 'loai' => $loai, 'sheet' => '', 'trangThai' => 'Đang làm', 'url' => '' ) );
+	}
+
+	/** ensureCoSoChung(): chi phí cơ sở kỹ thuật = 1 "sheet" CHUNG duy nhất, xuyên suốt. */
+	public static function ensure_co_so_chung( $nguoi ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'da_index' );
+		$r = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE loai=%s ORDER BY stt ASC LIMIT 1", 'Chi phí cơ sở' ) );
+		if ( $r ) {
+			return VHCP_Util::ok( array(
+				'maDA'      => $r['ma_da'],
+				'ten'       => $r['ten'],
+				'loai'      => 'Chi phí cơ sở',
+				'sheet'     => '',
+				'trangThai' => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Đang làm' ),
+				'url'       => '',
+			) );
+		}
+		$ma  = VHCP_Util::uid( 'DA' );
+		$ten = 'Chi phí cơ sở (Kỹ thuật · chung)';
+		$wpdb->insert( VHCP_DB::t( 'da_index' ), array(
+			'ma_da'      => $ma,
+			'ten'        => $ten,
+			'loai'       => 'Chi phí cơ sở',
+			'trang_thai' => 'Đang làm',
+			'ngay_tao'   => VHCP_Util::now_sql(),
+			'nguoi_tao'  => (string) $nguoi,
+		) );
+		return VHCP_Util::ok( array( 'maDA' => $ma, 'ten' => $ten, 'loai' => 'Chi phí cơ sở', 'sheet' => '', 'trangThai' => 'Đang làm', 'url' => '' ) );
+	}
+
+	public static function list_du_an() {
+		global $wpdb;
+		$t    = VHCP_DB::t( 'da_index' );
+		$rows = VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" );
+		$out  = array();
+		foreach ( $rows as $r ) {
+			$lines = self::lines_of( $r['ma_da'] );
+			$dt = 0; $tt = 0; $child = array();
+			foreach ( $lines as $x ) {
+				$cap = trim( (string) $x['cap_cha'] );
+				if ( $cap !== '' && $cap !== '(Phát sinh)' ) { $child[ $cap ] = ( isset( $child[ $cap ] ) ? $child[ $cap ] : 0 ) + VHCP_Util::num( $x['thuc_te'] ); }
+			}
+			foreach ( $lines as $x ) {
+				if ( ! self::is_real( $x ) ) { continue; }
+				$nd  = trim( (string) $x['noi_dung'] );
+				$cap = trim( (string) $x['cap_cha'] );
+				if ( $cap === '' ) {
+					$dt += VHCP_Util::num( $x['du_toan'] );
+					if ( ! ( isset( $child[ $nd ] ) && $child[ $nd ] > 0 ) ) { $tt += VHCP_Util::num( $x['thuc_te'] ); }
+				} else {
+					$tt += VHCP_Util::num( $x['thuc_te'] );
+				}
+			}
+			$out[] = array(
+				'maDA'       => $r['ma_da'],
+				'ten'        => $r['ten'],
+				'loai'       => $r['loai'],
+				'sheet'      => '',
+				'trangThai'  => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Đang làm' ),
+				'ngayTao'    => VHCP_Util::fmt( $r['ngay_tao'] ),
+				'nguoi'      => $r['nguoi_tao'],
+				'tongDuToan' => $dt,
+				'tongThucTe' => $tt,
+				'chenh'      => $tt - $dt,
+				'url'        => '',
+			);
+		}
+		$coso = array();
+		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
+		return VHCP_Util::ok( array( 'items' => array_reverse( $out ), 'coso' => $coso ) );
+	}
+
+	public static function rename_du_an( $ma_da, $ten ) {
+		global $wpdb;
+		$ten = VHCP_Util::san( $ten );
+		if ( $ten === '' ) { return VHCP_Util::err( 'Tên trống' ); }
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( (string) $f['loai'] === 'Chi phí cơ sở' ) { return VHCP_Util::err( 'Sheet Chi phí cơ sở chung không đổi tên' ); }
+		$wpdb->update( VHCP_DB::t( 'da_index' ), array( 'ten' => $ten ), array( 'ma_da' => (string) $ma_da ) );
+		return VHCP_Util::ok( array( 'ten' => $ten ) );
+	}
+
+	// ---------------------------------------------------------------- chi tiết
+
+	public static function get_du_an( $ma_da ) {
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+
+		$lines = array();
+		foreach ( self::lines_of( $ma_da ) as $r ) {
+			if ( ! self::is_real( $r ) ) { continue; }
+			$lines[] = array(
+				'row'       => (int) $r['row_no'],
+				'noiDung'   => (string) $r['noi_dung'],
+				'duToan'    => VHCP_Util::num( $r['du_toan'] ),
+				'thucTe'    => VHCP_Util::num( $r['thuc_te'] ),
+				'soLuong'   => VHCP_Util::num( $r['so_luong'] ),
+				'donGia'    => VHCP_Util::num( $r['don_gia'] ),
+				'thanhTien' => VHCP_Util::num( $r['thanh_tien'] ),
+				'vat'       => (string) $r['vat'],
+				'anh'       => (string) $r['anh'],
+				'gian'      => (string) $r['gian'],
+				'note'      => (string) $r['note'],
+				'capCha'    => trim( (string) $r['cap_cha'] ),
+				'hinhThuc'  => trim( (string) $r['hinh_thuc'] ),
+				'hoSo'      => trim( (string) $r['ho_so'] ),
+			);
+		}
+
+		$child_tt = array(); $parent_ht = array();
+		foreach ( $lines as $l ) {
+			if ( $l['capCha'] !== '' && $l['capCha'] !== '(Phát sinh)' ) { $child_tt[ $l['capCha'] ] = ( isset( $child_tt[ $l['capCha'] ] ) ? $child_tt[ $l['capCha'] ] : 0 ) + $l['thucTe']; }
+			if ( $l['capCha'] === '' ) { $parent_ht[ $l['noiDung'] ] = $l['hinhThuc']; }
+		}
+		foreach ( $lines as $i => $l ) {
+			if ( $l['capCha'] !== '' && $l['capCha'] !== '(Phát sinh)' && isset( $parent_ht[ $l['capCha'] ] ) && $parent_ht[ $l['capCha'] ] !== '' ) {
+				$lines[ $i ]['hinhThuc'] = $parent_ht[ $l['capCha'] ];
+			}
+		}
+
+		$dt = 0; $tt = 0; $du_tu = 0; $du_tt = 0; $tt_tu = 0; $tt_tt = 0; $tt_vat = 0; $tt_novat = 0;
+		foreach ( $lines as $l ) {
+			$has_child = ( isset( $child_tt[ $l['noiDung'] ] ) && $child_tt[ $l['noiDung'] ] > 0 );
+			$is_pay    = ( $l['capCha'] !== '' ) || ( $l['capCha'] === '' && ! $has_child );
+			$is_tt     = ( $l['hinhThuc'] === 'Trực tiếp' );
+			if ( $l['capCha'] === '' ) {
+				$dt += $l['duToan'];
+				if ( ! $has_child ) { $tt += $l['thucTe']; }
+				if ( $is_tt ) { $du_tt += $l['duToan']; } else { $du_tu += $l['duToan']; }
+			} else {
+				$tt += $l['thucTe'];
+			}
+			if ( $is_pay ) {
+				if ( $is_tt ) {
+					$tt_tt += $l['thucTe'];
+					if ( mb_strpos( (string) $l['vat'], 'Có' ) !== false ) { $tt_vat += $l['thucTe']; } else { $tt_novat += $l['thucTe']; }
+				} else {
+					$tt_tu += $l['thucTe'];
+				}
+			}
+		}
+
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		return VHCP_Util::ok( array(
+			'maDA'            => (string) $ma_da,
+			'ten'             => $f['ten'],
+			'loai'            => $f['loai'],
+			'trangThai'       => $st,
+			'url'             => '',
+			'isCoSo'          => ( $f['loai'] === 'Chi phí cơ sở' ),
+			'editable'        => ( $st === 'Đang làm' ),
+			'pending'         => ( $st === 'Chờ kế toán duyệt' ),
+			'approved'        => ( $st === 'Đã duyệt' ),
+			'thiCong'         => ( $st === 'Đã duyệt' ),
+			'closed'          => ( $st === 'Đã đóng' ),
+			'lines'           => $lines,
+			'tongDuToan'      => $dt,
+			'tongThucTe'      => $tt,
+			'chenh'           => $tt - $dt,
+			'canTamUng'       => $du_tu,
+			'traTrucTiep'     => $du_tt,
+			'ttTamUng'        => $tt_tu,
+			'ttTrucTiep'      => $tt_tt,
+			'ttTrucTiepVAT'   => $tt_vat,
+			'ttTrucTiepNoVAT' => $tt_novat,
+			'thieuTamUng'     => $tt_tu - $du_tu,
+			'thieuTrucTiep'   => $tt_tt - $du_tt,
+			'pay'             => self::get_pay( $ma_da ),
+			'noiDungList'     => self::nd_list( $f['loai'] ),
+		) );
+	}
+
+	// ---------------------------------------------------------------- gợi ý hạng mục con
+
+	private static function nd_list( $loai ) {
+		$o = VHCP_Meta::get_json( 'da_ndlist_v1', array() );
+		return isset( $o[ $loai ] ) ? $o[ $loai ] : array();
+	}
+
+	private static function push_nd( $loai, $nd ) {
+		$nd = trim( (string) $nd );
+		if ( $nd === '' ) { return; }
+		$o = VHCP_Meta::get_json( 'da_ndlist_v1', array() );
+		$a = isset( $o[ $loai ] ) ? (array) $o[ $loai ] : array();
+		$low = mb_strtolower( $nd );
+		foreach ( $a as $x ) { if ( mb_strtolower( (string) $x ) === $low ) { return; } }
+		array_unshift( $a, $nd );
+		if ( count( $a ) > 300 ) { $a = array_slice( $a, 0, 300 ); }
+		$o[ $loai ] = $a;
+		VHCP_Meta::set_json( 'da_ndlist_v1', $o );
+	}
+
+	// ---------------------------------------------------------------- kế toán chi tiền
+
+	public static function get_pay( $ma_da ) {
+		return VHCP_Meta::get_json( 'daPay_' . $ma_da, array() );
+	}
+
+	public static function approve_date( $ma_da ) {
+		return (string) VHCP_Meta::get( 'daApp_' . $ma_da, '' );
+	}
+
+	public static function confirm_pay( $ma_da, $phase, $loai, $amount, $nguoi ) {
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( ! in_array( (string) $phase, array( 'tamUng', 'quyetToan' ), true ) ) { return VHCP_Util::err( 'Giai đoạn không hợp lệ' ); }
+		if ( ! in_array( (string) $loai, array( 'tu', 'tt' ), true ) ) { return VHCP_Util::err( 'Loại chi không hợp lệ' ); }
+		$st = (string) $f['trang_thai'];
+		if ( $st !== 'Đã duyệt' && $st !== 'Đã đóng' ) { return VHCP_Util::err( 'Chỉ chi tiền khi dự án đã kế toán duyệt tạm ứng' ); }
+		$p = self::get_pay( $ma_da );
+		if ( ! isset( $p[ $phase ] ) || ! is_array( $p[ $phase ] ) ) { $p[ $phase ] = array(); }
+		$p[ $phase ][ $loai ] = array(
+			'done'   => true,
+			'amount' => VHCP_Util::num( $amount ),
+			'date'   => VHCP_Util::now()->format( 'd/m/Y H:i' ),
+			'by'     => (string) $nguoi,
+		);
+		VHCP_Meta::set_json( 'daPay_' . $ma_da, $p );
+		return VHCP_Util::ok( array( 'pay' => $p ) );
+	}
+
+	public static function unconfirm_pay( $ma_da, $phase, $loai ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$p = self::get_pay( $ma_da );
+		if ( isset( $p[ $phase ][ $loai ] ) ) { unset( $p[ $phase ][ $loai ] ); }
+		VHCP_Meta::set_json( 'daPay_' . $ma_da, $p );
+		return VHCP_Util::ok( array( 'pay' => $p ) );
+	}
+
+	// ---------------------------------------------------------------- dòng hạng mục
+
+	private static function line_data( $rec ) {
+		$rec = (array) $rec;
+		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? $rec[ $k ] : null; };
+		$sl  = VHCP_Util::num( $g( 'soLuong' ) );
+		$dg  = VHCP_Util::num( $g( 'donGia' ) );
+		$cap = VHCP_Util::st( $g( 'capCha' ) );
+		return array(
+			'noi_dung'   => VHCP_Util::st( $g( 'noiDung' ) ),
+			'du_toan'    => ( $cap === '' ) ? VHCP_Util::num( $g( 'duToan' ) ) : 0,   // chỉ hạng mục lớn có dự toán
+			'thuc_te'    => VHCP_Util::num( $g( 'thucTe' ) ),
+			'so_luong'   => $sl,
+			'don_gia'    => $dg,
+			'thanh_tien' => $sl * $dg,
+			'vat'        => VHCP_Util::st( $g( 'vat' ) ),
+			'anh'        => VHCP_Util::st( $g( 'anh' ) ),
+			'gian'       => VHCP_Util::st( $g( 'gian' ) ),
+			'note'       => VHCP_Util::st( $g( 'note' ) ),
+			'cap_cha'    => $cap,
+			'hinh_thuc'  => VHCP_Util::st( $g( 'hinhThuc' ) ),
+			'ho_so'      => VHCP_Util::st( $g( 'hoSo' ) ),
+		);
+	}
+
+	public static function add_line( $ma_da, $rec ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( $st !== 'Đang làm' && $st !== 'Đã duyệt' ) {
+			return VHCP_Util::err( 'Chỉ nhập khi "Đang làm" (lập dự toán) hoặc "Đã duyệt" (thi công) — chờ duyệt / đã đóng thì khóa' );
+		}
+		$data           = self::line_data( $rec );
+		$data['ma_da']  = (string) $ma_da;
+		$data['row_no'] = self::next_row( $ma_da );
+		$wpdb->insert( VHCP_DB::t( 'da_line' ), $data );
+		self::push_nd( $f['loai'], $data['noi_dung'] );
+		return VHCP_Util::ok();
+	}
+
+	public static function update_line( $ma_da, $row, $rec ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( $st !== 'Đang làm' && $st !== 'Đã duyệt' ) { return VHCP_Util::err( 'Chỉ sửa khi "Đang làm" hoặc "Đã duyệt" (thi công)' ); }
+		$row = (int) $row;
+		if ( $row < self::DATA_ROW ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
+		$t   = VHCP_DB::t( 'da_line' );
+		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
+		if ( ! $cur ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
+		$old_name = trim( (string) $cur['noi_dung'] );
+		$data     = self::line_data( $rec );
+		$wpdb->update( $t, $data, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		if ( $data['cap_cha'] === '' && $old_name !== '' && $old_name !== $data['noi_dung'] ) {
+			self::relink_children( $ma_da, $old_name, $data['noi_dung'] );   // hạng mục lớn đổi tên -> cập nhật mục con
+		}
+		self::push_nd( $f['loai'], $data['noi_dung'] );
+		return VHCP_Util::ok();
+	}
+
+	public static function delete_line( $ma_da, $row ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
+		if ( $st !== 'Đang làm' && $st !== 'Đã duyệt' ) { return VHCP_Util::err( 'Chỉ sửa/xóa khi "Đang làm" hoặc "Đã duyệt" (thi công)' ); }
+		$row = (int) $row;
+		if ( $row < self::DATA_ROW ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
+		$t   = VHCP_DB::t( 'da_line' );
+		$cur = VHCP_DB::row( $wpdb->prepare( "SELECT * FROM $t WHERE ma_da=%s AND row_no=%d", (string) $ma_da, $row ) );
+		if ( ! $cur ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
+		$nm  = trim( (string) $cur['noi_dung'] );
+		$cap = trim( (string) $cur['cap_cha'] );
+		if ( $cap === '' && $nm !== '' ) { self::relink_children( $ma_da, $nm, '(Phát sinh)' ); }   // xóa hạng mục lớn -> mục con thành phát sinh
+		$wpdb->delete( $t, array( 'ma_da' => (string) $ma_da, 'row_no' => $row ) );
+		return VHCP_Util::ok();
+	}
+
+	private static function relink_children( $ma_da, $old, $new ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'da_line' );
+		$wpdb->query( $wpdb->prepare( "UPDATE $t SET cap_cha=%s WHERE ma_da=%s AND TRIM(cap_cha)=%s", (string) $new, (string) $ma_da, (string) $old ) );
+	}
+
+	// ---------------------------------------------------------------- quy trình
+
+	private static function set_status( $ma_da, $status ) {
+		global $wpdb;
+		$wpdb->update( VHCP_DB::t( 'da_index' ), array( 'trang_thai' => (string) $status ), array( 'ma_da' => (string) $ma_da ) );
+	}
+
+	public static function submit( $ma_da ) {
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( (string) $f['loai'] === 'Chi phí cơ sở' ) { return VHCP_Util::err( 'Chi phí cơ sở chung không cần duyệt' ); }
+		if ( (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' ) !== 'Đang làm' ) { return VHCP_Util::err( 'Chỉ gửi khi đang làm' ); }
+		self::set_status( $ma_da, 'Chờ kế toán duyệt' );
+		return VHCP_Util::ok();
+	}
+
+	public static function approve( $ma_da, $nguoi ) {
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( (string) $f['trang_thai'] !== 'Chờ kế toán duyệt' ) { return VHCP_Util::err( 'Dự án không ở trạng thái chờ duyệt' ); }
+		self::set_status( $ma_da, 'Đã duyệt' );
+		VHCP_Meta::set( 'daApp_' . $ma_da, VHCP_Util::now()->format( 'd/m/Y' ) );   // ngày chứng từ khi xuất MISA
+		return VHCP_Util::ok();
+	}
+
+	public static function ret( $ma_da ) {
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( (string) $f['trang_thai'] !== 'Chờ kế toán duyệt' ) { return VHCP_Util::err( 'Chỉ trả khi đang chờ duyệt' ); }
+		self::set_status( $ma_da, 'Đang làm' );
+		return VHCP_Util::ok();
+	}
+
+	public static function close( $ma_da ) {
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( (string) $f['loai'] === 'Chi phí cơ sở' ) { return VHCP_Util::err( 'Chi phí cơ sở chung không đóng' ); }
+		if ( (string) $f['trang_thai'] !== 'Đã duyệt' ) { return VHCP_Util::err( 'Phải "Đã duyệt" mới đóng được' ); }
+		self::set_status( $ma_da, 'Đã đóng' );
+		return VHCP_Util::ok();
+	}
+
+	public static function reopen( $ma_da ) {
+		if ( ! self::find( $ma_da ) ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		self::set_status( $ma_da, 'Đang làm' );
+		return VHCP_Util::ok();
+	}
+
+	public static function delete( $ma_da ) {
+		global $wpdb;
+		$f = self::find( $ma_da );
+		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		if ( (string) $f['loai'] === 'Chi phí cơ sở' ) { return VHCP_Util::err( 'Không xóa sheet Chi phí cơ sở chung' ); }
+		if ( (string) $f['trang_thai'] === 'Đã đóng' ) { return VHCP_Util::err( 'Dự án đã đóng — Admin "Mở lại" trước khi xóa' ); }
+		$wpdb->delete( VHCP_DB::t( 'da_line' ), array( 'ma_da' => (string) $ma_da ) );
+		$wpdb->delete( VHCP_DB::t( 'da_index' ), array( 'ma_da' => (string) $ma_da ) );
+		VHCP_Meta::del( 'daPay_' . $ma_da );
+		VHCP_Meta::del( 'daApp_' . $ma_da );
+		return VHCP_Util::ok();
+	}
+
+	/** Dùng chung cho báo cáo: mọi dự án kèm dòng hạng mục. */
+	public static function all_with_lines() {
+		global $wpdb;
+		$t    = VHCP_DB::t( 'da_index' );
+		$out  = array();
+		foreach ( VHCP_DB::rows( "SELECT * FROM $t ORDER BY stt ASC" ) as $r ) {
+			$r['lines'] = self::lines_of( $r['ma_da'] );
+			$out[]      = $r;
+		}
+		return $out;
+	}
+}

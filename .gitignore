@@ -30,3 +30,6 @@ token.txt
 # Bản build Arduino: rác 42MB, và .bin/.elf/.map chứa bí mật ở dạng chữ đọc được.
 esp32_*/build/
 */build/esp32.esp32.esp32/
+
+# Thông tin đăng nhập hosting để đẩy plugin — KHÔNG commit.
+tools/deploy-hosting.env
