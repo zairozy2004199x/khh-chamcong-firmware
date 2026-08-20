@@ -21,8 +21,8 @@ class VHCP_API {
 	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
 	 */
 	private static function required_roles( $fn ) {
-		$admin_only = array( 'deleteDonAdmin' );
-		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages' );
+		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
+		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		if ( in_array( $fn, $cau_hinh, true ) )   { return array( 'Admin', 'Quản lý' ); }
 		return array();
@@ -89,6 +89,17 @@ class VHCP_API {
 			'xacNhanQTCNNhieu'      => array( 'VHCP_Don', 'xac_nhan_qt_cn_nhieu' ),
 			'getSoDuDauKy'          => array( 'VHCP_Don', 'get_so_du_dau_ky' ),
 			'setSoDuDauKy'          => array( 'VHCP_Don', 'set_so_du_dau_ky' ),
+
+			// sổ chi phí (nhập phẳng: chọn loại chi phí -> nhập)
+			'listSoChi'             => array( 'VHCP_SoChi', 'list_chi' ),
+			'addSoChi'              => array( 'VHCP_SoChi', 'add' ),
+			'updateSoChi'           => array( 'VHCP_SoChi', 'update' ),
+			'deleteSoChi'           => array( 'VHCP_SoChi', 'delete' ),
+			'exportMisaSoChi'       => array( 'VHCP_SoChi', 'export_misa' ),
+			'markExportedSoChi'     => array( 'VHCP_SoChi', 'mark_exported' ),
+			'unmarkExportedSoChi'   => array( 'VHCP_SoChi', 'unmark_exported' ),
+			'ganMaTaiKhoanSoChi'    => array( 'VHCP_SoChi', 'gan_ma_tai_khoan' ),
+			'ganMaTaiKhoanDon'      => array( 'VHCP_Don', 'gan_ma_tai_khoan' ),
 
 			// chi phí kỹ thuật (dự án)
 			'createDuAn'            => array( 'VHCP_DuAn', 'create_du_an' ),

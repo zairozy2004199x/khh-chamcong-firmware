@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.0.0';
+	const SCHEMA_VERSION = '1.1.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -100,12 +100,48 @@ class VHCP_DB {
 			thuc_mua DECIMAL(18,2) NULL,
 			cn_xu_ly TINYINT(1) NOT NULL DEFAULT 1,
 			phat_sinh TINYINT(1) NOT NULL DEFAULT 0,
+			tk_no VARCHAR(20) NOT NULL DEFAULT '',
+			tk_co VARCHAR(20) NOT NULL DEFAULT '',
 			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
 			PRIMARY KEY  (id),
 			UNIQUE KEY stt (stt),
 			KEY ma_don (ma_don),
 			KEY coso (coso),
 			KEY ngay (ngay)
+		) $c";
+
+		$sql[] = "CREATE TABLE " . self::t( 'so_chi' ) . " (
+			id VARCHAR(40) NOT NULL,
+			ngay DATE NULL,
+			ky VARCHAR(60) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			loai VARCHAR(190) NOT NULL DEFAULT '',
+			tk_no VARCHAR(20) NOT NULL DEFAULT '',
+			tk_co VARCHAR(20) NOT NULL DEFAULT '',
+			ma_dt VARCHAR(60) NOT NULL DEFAULT '',
+			doi_tuong VARCHAR(190) NOT NULL DEFAULT '',
+			noi_dung TEXT NULL,
+			dvt VARCHAR(60) NOT NULL DEFAULT '',
+			so_luong DECIMAL(18,3) NULL,
+			don_gia DECIMAL(18,2) NULL,
+			so_tien DECIMAL(18,2) NOT NULL DEFAULT 0,
+			hinh_thuc VARCHAR(60) NOT NULL DEFAULT '',
+			vat VARCHAR(60) NOT NULL DEFAULT '',
+			thue_suat DECIMAL(8,2) NULL,
+			tien_thue DECIMAL(18,2) NULL,
+			ghi_chu TEXT NULL,
+			anh TEXT NULL,
+			nguoi_nhap VARCHAR(120) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			ngay_xuat DATETIME NULL,
+			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			PRIMARY KEY  (id),
+			UNIQUE KEY stt (stt),
+			KEY ngay (ngay),
+			KEY coso (coso),
+			KEY loai (loai),
+			KEY tk_no (tk_no),
+			KEY ngay_xuat (ngay_xuat)
 		) $c";
 
 		$sql[] = "CREATE TABLE " . self::t( 'da_index' ) . " (

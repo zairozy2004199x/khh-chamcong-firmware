@@ -276,7 +276,7 @@ t( 'vận hành tuần: có số liệu', $tong_vh > 0, $tong_vh );
 teq( 'vận hành tuần: tổng khớp grand', $tong_vh, $vh['grand']['tong'] );
 teq( 'vận hành tuần: mảng vận hành = thực chi các dòng đơn', 1750000, $vh['grand']['vh'] );
 teq( 'vận hành tuần: mảng marketing', 6800000, $vh['grand']['mkt'] );
-teq( 'vận hành tuần: mảng công tác', 1840000, $vh['grand']['ct'] );
+t( 'vận hành tuần: KHÔNG gom công tác vào nữa', ! array_key_exists( 'ct', $vh['grand'] ), array_keys( $vh['grand'] ) );
 t( 'vận hành tuần: có thứ 2 và chủ nhật', ! empty( $vh['monday'] ) && ! empty( $vh['sunday'] ) );
 
 $gr = VHCP_Report::gian_report( 'FARM PHAN THIẾT' );
@@ -557,6 +557,142 @@ teq( 'Nhân viên vẫn nhập đơn bình thường', 200, api( 'createDon', ar
 $a = api( 'vhcpLogout', array( $tok_nv ), $tok_nv );
 teq( 'API đăng xuất: 200', 200, $a['status'] );
 teq( 'token sau đăng xuất hết hiệu lực: 401', 401, api( 'getBootstrap', array(), $tok_nv )['status'] );
+
+// ---------------------------------------------------------------- 17. SỔ CHI PHÍ + loại chi phí gắn mã tài khoản
+$dm = VHCP_Cfg::cfg_static();
+t( 'danh mục loại chi phí tự dựng từ nhóm mặt hàng', count( $dm['loaiChiPhi'] ) >= 13, count( $dm['loaiChiPhi'] ) );
+
+// Khai mã tài khoản cho 3 loại chi phí
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => array(
+	array( 'ten' => 'Chi phí cơ sở',   'tkNo' => '64127', 'tkCo' => '',    'maDt' => '',       'boPhan' => '' ),
+	array( 'ten' => 'NVL đồ ăn - Mua lẻ', 'tkNo' => '6421', 'tkCo' => '',  'maDt' => '',       'boPhan' => '' ),
+	array( 'ten' => 'Chi phí tháo dỡ', 'tkNo' => '2413',  'tkCo' => '331', 'maDt' => 'NCC_XX', 'boPhan' => 'Kỹ thuật' ),
+) ) );
+$tk = VHCP_Cfg::loai_tk( 'Chi phí cơ sở' );
+teq( 'tra mã TK theo loại chi phí', '64127', $tk['tkNo'] );
+teq( 'loại chưa khai -> mã rỗng', '', VHCP_Cfg::loai_tk( 'Không có loại này' )['tkNo'] );
+
+// Nhập phẳng: chọn loại chi phí rồi nhập, không cần lập đơn
+$c1 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Chi phí cơ sở', 'noiDung' => 'Thay bóng đèn', 'soLuong' => 4, 'donGia' => 150000, 'hinhThuc' => 'Tạm ứng NV' ), 'Nguyễn Văn A' );
+t( 'thêm dòng sổ chi phí', ! empty( $c1['success'] ) );
+teq( 'TK Nợ gắn theo loại chi phí', '64127', $c1['tkNo'] );
+teq( 'TK Có mặc định = 141 (tạm ứng NV)', '141', $c1['tkCo'] );
+
+$c2 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Chi phí tháo dỡ', 'noiDung' => 'Thuê xe cẩu', 'soTien' => 3000000, 'hinhThuc' => 'Trực tiếp NCC', 'thueSuat' => 8 ), 'KT' );
+teq( 'TK Nợ loại kỹ thuật', '2413', $c2['tkNo'] );
+teq( 'danh mục ghi đè TK Có', '331', $c2['tkCo'] );
+
+$c3 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'TÀU ESTELLA', 'loai' => 'NVL đồ ăn - Mua lẻ', 'noiDung' => 'Rau củ', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV B' );
+t( 'thêm dòng cơ sở khác', ! empty( $c3['success'] ) );
+t( 'thiếu loại chi phí thì không cho nhập', empty( VHCP_SoChi::add( array( 'coso' => 'VR SORA', 'soTien' => 1000 ) )['success'] ) );
+
+$L = VHCP_SoChi::list_chi();
+teq( 'sổ chi phí: 3 dòng', 3, $L['soDong'] );
+teq( 'sổ chi phí: tổng tiền', 4100000, $L['tong'] );
+teq( 'số tiền tự tính SL × ĐG', 600000, $L['items'][2]['soTien'] );
+teq( 'tiền thuế tính theo thuế suất', 240000, $L['items'][1]['tienThue'] );
+teq( 'kỳ tự điền theo tháng của ngày chi', ( new DateTime( 'now', VHCP_Util::tz() ) )->format( 'm/Y' ), $L['items'][0]['ky'] );
+
+// gom theo LOẠI CHI PHÍ và theo MÃ TÀI KHOẢN — đúng thứ anh cần để "gọi lại sau này"
+$by_loai = array();
+foreach ( $L['byLoai'] as $x ) { $by_loai[ $x['loai'] ] = $x; }
+teq( 'gom theo loại: chi phí cơ sở', 600000, $by_loai['Chi phí cơ sở']['tien'] );
+teq( 'gom theo loại: kèm mã TK', '64127', $by_loai['Chi phí cơ sở']['tkNo'] );
+$by_tk = array();
+foreach ( $L['byTkNo'] as $x ) { $by_tk[ $x['tkNo'] ] = $x['tien']; }
+teq( 'gom theo mã TK 2413', 3000000, $by_tk['2413'] );
+teq( 'gom theo mã TK 6421', 500000, $by_tk['6421'] );
+
+teq( 'lọc theo cơ sở', 3600000, VHCP_SoChi::list_chi( array( 'coso' => 'VR SORA' ) )['tong'] );
+teq( 'lọc theo mã tài khoản', 3000000, VHCP_SoChi::list_chi( array( 'tkNo' => '2413' ) )['tong'] );
+teq( 'lọc theo loại chi phí', 600000, VHCP_SoChi::list_chi( array( 'loai' => 'Chi phí cơ sở' ) )['tong'] );
+teq( 'tìm theo từ khóa', 1, VHCP_SoChi::list_chi( array( 'q' => 'cẩu' ) )['soDong'] );
+teq( 'giới hạn cơ sở của nhân viên', 500000, VHCP_SoChi::list_chi( array( 'coso_scope' => array( 'TÀU ESTELLA' ) ) )['tong'] );
+
+// sửa: đổi loại chi phí thì mã tài khoản đổi theo
+$u = VHCP_SoChi::update( $c3['id'], array( 'ngay' => $today, 'coso' => 'TÀU ESTELLA', 'loai' => 'Chi phí cơ sở', 'noiDung' => 'Rau củ', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV' ) );
+teq( 'đổi loại -> đổi mã TK Nợ', '64127', $u['tkNo'] );
+
+// xuất MISA sổ chi phí: lấy thẳng mã trên dòng
+$ex = VHCP_SoChi::export_misa( 'all', 'chuaxuat' );
+teq( 'xuất MISA sổ chi phí: 3 dòng', 3, $ex['count'] );
+teq( 'xuất MISA sổ chi phí: 10 cột', 10, count( $ex['cols'] ) );
+$tkno_set = array();
+foreach ( $ex['rows'] as $r ) { $tkno_set[ $r[5] ] = ( isset( $tkno_set[ $r[5] ] ) ? $tkno_set[ $r[5] ] : 0 ) + $r[7]; }
+teq( 'xuất MISA: 2413 = 3.000.000', 3000000, $tkno_set['2413'] );
+teq( 'xuất MISA: 64127 = 1.100.000', 1100000, $tkno_set['64127'] );
+$row_kt = null;
+foreach ( $ex['rows'] as $r ) { if ( $r[5] === '2413' ) { $row_kt = $r; } }
+teq( 'xuất MISA: TK Có lấy từ dòng', '331', $row_kt[6] );
+teq( 'xuất MISA: mã đối tượng lấy từ danh mục', 'NCC_XX', $row_kt[8] );
+teq( 'xuất MISA: mã đơn vị theo cơ sở', 'VR_SORA', $row_kt[9] );
+
+// chốt đã xuất -> khóa sửa/xóa
+$mk = VHCP_SoChi::mark_exported( $ex['maDons'] );
+teq( 'chốt đã xuất 3 dòng', 3, $mk['count'] );
+teq( 'xuất lại lần 2 không còn dòng nào', 0, VHCP_SoChi::export_misa( 'all', 'chuaxuat' )['count'] );
+teq( 'lọc đã xuất thì thấy lại', 3, VHCP_SoChi::export_misa( 'all', 'daxuat' )['count'] );
+t( 'dòng đã xuất không sửa được', empty( VHCP_SoChi::update( $c1['id'], array( 'loai' => 'Chi phí cơ sở', 'soTien' => 1 ) )['success'] ) );
+t( 'dòng đã xuất không xóa được', empty( VHCP_SoChi::delete( $c1['id'] )['success'] ) );
+t( 'Admin bỏ chốt xuất', ! empty( VHCP_SoChi::unmark_exported( array( $c1['id'] ) )['success'] ) );
+t( 'bỏ chốt rồi xóa được', ! empty( VHCP_SoChi::delete( $c1['id'] )['success'] ) );
+
+// gán mã tài khoản cho dòng cũ (nhập trước khi khai danh mục)
+$c4 = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Nuôi thú', 'noiDung' => 'Cám', 'soTien' => 200000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV C' );
+teq( 'loại chưa khai mã -> dòng chưa có TK Nợ', '', $c4['tkNo'] );
+$g = VHCP_SoChi::gan_ma_tai_khoan();
+t( 'báo đúng loại còn thiếu mã', in_array( 'Nuôi thú', $g['thieuMa'], true ), $g['thieuMa'] );
+$dm_now = VHCP_Cfg::cfg_static()['loaiChiPhi'];   // lấy danh mục HIỆN TẠI, không dùng bản chụp lúc đầu
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => array_merge( $dm_now, array( array( 'ten' => 'Nuôi thú', 'tkNo' => '6428' ) ) ) ) );
+$g = VHCP_SoChi::gan_ma_tai_khoan();
+teq( 'gán mã cho dòng cũ: 1 dòng', 1, $g['updated'] );
+teq( 'dòng cũ đã có mã TK', '6428', VHCP_SoChi::list_chi( array( 'q' => 'cám' ) )['items'][0]['tkNo'] );
+
+// nhập sổ chi phí từ CSV — mã tài khoản gắn ngay khi nạp
+$csv_sc = "Ngày,Cơ sở,Loại chi phí,Nội dung,ĐVT,Số lượng,Đơn giá,Số tiền,Hình thức chi,Thuế suất,VAT,Đối tượng,Ghi chú,Ảnh\n"
+        . "18/08/2026,VR SORA,Chi phí cơ sở,\"Bơm nước, thay ống\",lần,1,,\"2.400.000\",Trực tiếp NCC,8,Có VAT,CTY ABC,gấp,\n";
+$imp_sc = VHCP_Import::run( 'SoChi', $csv_sc, array( 'header' => true, 'replace' => false ) );
+teq( 'nhập CSV sổ chi phí: 1 dòng', 1, $imp_sc['inserted'] );
+$sc_new = VHCP_SoChi::list_chi( array( 'q' => 'bơm nước' ) )['items'][0];
+teq( 'CSV: số tiền có dấu chấm nghìn', 2400000, $sc_new['soTien'] );
+teq( 'CSV: mã TK gắn từ danh mục', '64127', $sc_new['tkNo'] );
+teq( 'CSV: TK Có theo hình thức trực tiếp', '331', $sc_new['tkCo'] );
+teq( 'CSV: ngày kiểu Việt Nam', '18/08/2026', $sc_new['ngay'] );
+teq( 'CSV: kỳ tự điền', '08/2026', $sc_new['ky'] );
+
+// ---------------------------------------------------------------- 18. đơn vận hành cũng gắn mã tài khoản
+VHCP_Cfg::save_config( array( 'coso' => array( array( 'ten' => 'VR SORA', 'maDonVi' => 'VR_SORA', 'phanLoaiLon' => 'VR', 'tenMisa' => 'VR Sora' ) ) ) );
+$d9 = VHCP_Don::create_don( 'T8/2026', 'NV G' );
+$m9 = $d9['maDon'];
+$l9 = VHCP_Don::add_line( $m9, array( 'coso' => 'VR SORA', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa mái', 'soTien' => 0, 'thanhTien' => 900000 ) );
+$g9 = VHCP_Don::get_don( $m9 );
+teq( 'dòng đơn lưu sẵn TK Nợ theo loại chi phí', '64127', $g9['lines'][0]['tkNo'] );
+teq( 'dòng đơn lưu sẵn TK Có theo phân loại', '141', $g9['lines'][0]['tkCo'] );
+
+VHCP_Don::gui_duyet_tam_ung( $m9 );
+VHCP_Don::duyet_tam_ung( $m9, 'Trần Quản Lý', '' );
+VHCP_Don::cap_tam_ung( $m9, 'Lê Kế Toán', 'Tiền mặt' );
+VHCP_Don::gui_quyet_toan( $m9 );
+VHCP_Don::xac_nhan_quyet_toan_cn( $m9, 'Lê Kế Toán', 'Khớp', 0 );
+$exd = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'cn' );
+teq( 'xuất MISA đơn: dùng mã TK Nợ đã gắn trên dòng', '64127', $exd['rows'][0][5] );
+teq( 'xuất MISA đơn: không còn cảnh báo thiếu TK Nợ', array(), array_values( array_filter( $exd['warn'], function ( $w ) { return mb_strpos( $w, 'TK Nợ' ) !== false; } ) ) );
+
+// ---------------------------------------------------------------- 19. vận hành tuần: đã bỏ gom Kỹ thuật/Công tác/Setup
+$vh2 = VHCP_Report::van_hanh_tuan( $today );
+t( 'vận hành tuần: không còn cột Kỹ thuật', ! array_key_exists( 'kt', $vh2['grand'] ), array_keys( $vh2['grand'] ) );
+t( 'vận hành tuần: không còn cột Công tác', ! array_key_exists( 'ct', $vh2['grand'] ) );
+t( 'vận hành tuần: không còn cột Setup', ! array_key_exists( 'setup', $vh2['grand'] ) );
+t( 'vận hành tuần: có cột Sổ chi phí', array_key_exists( 'chi', $vh2['grand'] ) );
+teq( 'vận hành tuần: tổng = vận hành + sổ chi phí + marketing', $vh2['grand']['vh'] + $vh2['grand']['chi'] + $vh2['grand']['mkt'], $vh2['grand']['tong'] );
+$mods = array();
+foreach ( $vh2['list'] as $m ) { foreach ( $m['lines'] as $l ) { $mods[ $l['mod'] ] = 1; } }
+teq( 'chi tiết tuần chỉ còn 3 mảng', array(), array_values( array_diff( array_keys( $mods ), array( 'vh', 'chi', 'mkt' ) ) ) );
+
+$gr2 = VHCP_Report::gian_report( 'VR SORA' );
+$mods2 = array();
+foreach ( $gr2['sections'] as $x ) { $mods2[] = $x['module']; }
+t( 'báo cáo gian có mục Sổ chi phí', in_array( '💵 Sổ chi phí', $mods2, true ), $mods2 );
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";

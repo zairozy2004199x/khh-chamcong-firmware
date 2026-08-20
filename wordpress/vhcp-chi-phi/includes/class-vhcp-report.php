@@ -229,7 +229,20 @@ class VHCP_Report {
 		}
 		if ( count( $rows ) ) { $sections[] = array( 'module' => '✈️🛠️ Công tác / Setup', 'rows' => $rows, 'tot' => $tot ); $grand += $tot; }
 
-		// 4) Đơn vận hành
+		// 4) Sổ chi phí (nhập phẳng) — kèm mã tài khoản để dò thẳng, không phải lần lại hàm
+		$rows = array(); $tot = 0;
+		foreach ( VHCP_SoChi::all_rows() as $r ) {
+			if ( mb_strtolower( trim( (string) $r['coso'] ) ) !== $kl ) { continue; }
+			$so = VHCP_Util::num( $r['so_tien'] );
+			if ( ! $so ) { continue; }
+			$ct = trim( (string) $r['loai'] );
+			if ( trim( (string) $r['tk_no'] ) !== '' ) { $ct .= ' · TK ' . trim( (string) $r['tk_no'] ); }
+			$rows[] = array( 'nd' => (string) $r['noi_dung'], 'ct' => $ct, 'tien' => $so );
+			$tot   += $so;
+		}
+		if ( count( $rows ) ) { $sections[] = array( 'module' => '💵 Sổ chi phí', 'rows' => $rows, 'tot' => $tot ); $grand += $tot; }
+
+		// 5) Đơn vận hành
 		$rows = array(); $tot = 0;
 		foreach ( VHCP_Don::cp_rows() as $r ) {
 			if ( mb_strtolower( trim( (string) $r['coso'] ) ) !== $kl ) { continue; }
@@ -245,7 +258,12 @@ class VHCP_Report {
 		return VHCP_Util::ok( array( 'key' => $key, 'sections' => $sections, 'grand' => $grand ) );
 	}
 
-	/** getVanHanhTuan(): gom mọi mảng chi phí theo tuần Thứ 2 → Chủ nhật, mỗi cơ sở 1 dòng. */
+	/**
+	 * getVanHanhTuan(): chi phí VẬN HÀNH theo tuần (Thứ 2 → Chủ nhật), mỗi cơ sở 1 dòng.
+	 *
+	 * Từ bản 1.1.0 chỉ gom 3 nguồn của mảng vận hành: 📝 đơn vận hành · 💵 sổ chi phí ·
+	 * 📣 marketing. Chi phí Kỹ thuật / Công tác / Setup KHÔNG còn bị kéo vào đây.
+	 */
 	public static function van_hanh_tuan( $monday_str = '' ) {
 		$mon = $monday_str ? VHCP_Util::vh_parse_dmy( $monday_str ) : null;
 		if ( ! $mon ) { $mon = VHCP_Util::now(); }
@@ -266,7 +284,7 @@ class VHCP_Report {
 		$co  = function ( $c ) use ( &$map ) {
 			$c = trim( (string) $c );
 			if ( $c === '' ) { $c = '(Không rõ cơ sở)'; }
-			if ( ! isset( $map[ $c ] ) ) { $map[ $c ] = array( 'coso' => $c, 'vh' => 0, 'kt' => 0, 'mkt' => 0, 'ct' => 0, 'setup' => 0, 'lines' => array() ); }
+			if ( ! isset( $map[ $c ] ) ) { $map[ $c ] = array( 'coso' => $c, 'vh' => 0, 'chi' => 0, 'mkt' => 0, 'lines' => array() ); }
 			return $c;
 		};
 
@@ -283,7 +301,20 @@ class VHCP_Report {
 			$map[ $k ]['lines'][] = array( 'mod' => 'vh', 'nd' => ( (string) $r['noi_dung'] !== '' ? (string) $r['noi_dung'] : (string) $r['nhom'] ), 'ct' => (string) $r['nhom'], 'ngay' => $dstr( $dt ), 'tien' => $st );
 		}
 
-		// 2) Marketing
+		// 2) Sổ chi phí (nhập phẳng) — mã tài khoản đi kèm từng dòng
+		foreach ( VHCP_SoChi::all_rows() as $r ) {
+			$dt = VHCP_Util::vh_parse_dmy( $r['ngay'] );
+			if ( ! $in_wk( $dt ) ) { continue; }
+			$st = VHCP_Util::num( $r['so_tien'] );
+			if ( ! $st ) { continue; }
+			$k = $co( $r['coso'] );
+			$map[ $k ]['chi'] += $st;
+			$ct = trim( (string) $r['loai'] );
+			if ( trim( (string) $r['tk_no'] ) !== '' ) { $ct .= ' · TK ' . trim( (string) $r['tk_no'] ); }
+			$map[ $k ]['lines'][] = array( 'mod' => 'chi', 'nd' => (string) $r['noi_dung'], 'ct' => $ct, 'ngay' => $dstr( $dt ), 'tien' => $st );
+		}
+
+		// 3) Marketing
 		$don = array();
 		foreach ( VHCP_MK::all_dons() as $r ) { $don[ (string) $r['ma'] ] = array( 'coso' => (string) $r['coso'], 'ten' => (string) $r['ten'] ); }
 		foreach ( VHCP_MK::all_lines() as $r ) {
@@ -297,59 +328,21 @@ class VHCP_Report {
 			$map[ $k ]['lines'][] = array( 'mod' => 'mkt', 'nd' => (string) $r['noi_dung'], 'ct' => $dd['ten'] . ( $r['kenh'] !== '' ? ' · ' . $r['kenh'] : '' ), 'ngay' => $dstr( $dt ), 'tien' => $tt );
 		}
 
-		// 3) Công tác / Setup
-		foreach ( VHCP_BP::all_with_lines() as $r ) {
-			$ngay_dot  = VHCP_Util::vh_parse_dmy( $r['ngay_tao'] );
-			$is_setup  = ( (string) $r['loai'] === 'Setup' );
-			foreach ( $r['lines'] as $x ) {
-				$tt = VHCP_Util::num( $x['thuc_te'] );
-				if ( ! $tt ) { continue; }
-				$dt = VHCP_Util::vh_parse_dmy( $x['ngay'] );
-				if ( ! $dt ) { $dt = $ngay_dot; }
-				if ( ! $in_wk( $dt ) ) { continue; }
-				$k = $co( $r['dia_diem'] );
-				if ( $is_setup ) { $map[ $k ]['setup'] += $tt; } else { $map[ $k ]['ct'] += $tt; }
-				$map[ $k ]['lines'][] = array( 'mod' => $is_setup ? 'setup' : 'ct', 'nd' => (string) $x['noi_dung'], 'ct' => (string) $r['ten'], 'ngay' => $dstr( $dt ), 'tien' => $tt );
-			}
-		}
-
-		// 4) Kỹ thuật — không có ngày dòng, dùng ngày kế toán duyệt || ngày tạo dự án
-		$app_map = VHCP_DuAn::approve_date_map();
-		foreach ( VHCP_DuAn::all_with_lines() as $r ) {
-			$ma_da = (string) $r['ma_da'];
-			$dt    = VHCP_Util::vh_parse_dmy( isset( $app_map[ $ma_da ] ) ? $app_map[ $ma_da ] : '' );
-			if ( ! $dt ) { $dt = VHCP_Util::vh_parse_dmy( $r['ngay_tao'] ); }
-			if ( ! $in_wk( $dt ) ) { continue; }
-			$ten_da = (string) $r['ten'];
-			$child  = array();
-			foreach ( $r['lines'] as $x ) {
-				$cap = trim( (string) $x['cap_cha'] );
-				if ( $cap !== '' && $cap !== '(Phát sinh)' ) { $child[ $cap ] = ( isset( $child[ $cap ] ) ? $child[ $cap ] : 0 ) + VHCP_Util::num( $x['thuc_te'] ); }
-			}
-			foreach ( $r['lines'] as $x ) {
-				$nd   = trim( (string) $x['noi_dung'] );
-				$cap  = trim( (string) $x['cap_cha'] );
-				$tt   = VHCP_Util::num( $x['thuc_te'] );
-				$gian = trim( (string) $x['gian'] );
-				if ( $cap === '' && isset( $child[ $nd ] ) && $child[ $nd ] > 0 ) { continue; }
-				if ( ! $tt ) { continue; }
-				$k = $co( $gian !== '' ? $gian : $ten_da );
-				$map[ $k ]['kt'] += $tt;
-				$map[ $k ]['lines'][] = array( 'mod' => 'kt', 'nd' => $nd, 'ct' => $ten_da . ( $cap !== '' ? ' · ' . $cap : '' ), 'ngay' => $dstr( $dt ), 'tien' => $tt );
-			}
-		}
+		// ĐÃ BỎ (bản 1.1.0): gom Công tác · Setup · Kỹ thuật vào chi phí vận hành.
+		// Mỗi mảng đó đứng riêng theo mã tài khoản của nó; kéo chung vào đây khiến muốn dò
+		// một con số là phải lần lại hàm gom nhiều mảng.
 
 		$list = array();
 		foreach ( $map as $m ) {
-			$m['tong'] = $m['vh'] + $m['kt'] + $m['mkt'] + $m['ct'] + $m['setup'];
+			$m['tong'] = $m['vh'] + $m['chi'] + $m['mkt'];
 			usort( $m['lines'], function ( $a, $b ) { return $b['tien'] <=> $a['tien']; } );
 			if ( $m['tong'] > 0 ) { $list[] = $m; }
 		}
 		usort( $list, function ( $a, $b ) { return $b['tong'] <=> $a['tong']; } );
 
-		$grand = array( 'vh' => 0, 'kt' => 0, 'mkt' => 0, 'ct' => 0, 'setup' => 0, 'tong' => 0 );
+		$grand = array( 'vh' => 0, 'chi' => 0, 'mkt' => 0, 'tong' => 0 );
 		foreach ( $list as $m ) {
-			foreach ( array( 'vh', 'kt', 'mkt', 'ct', 'setup', 'tong' ) as $k ) { $grand[ $k ] += $m[ $k ]; }
+			foreach ( array( 'vh', 'chi', 'mkt', 'tong' ) as $k ) { $grand[ $k ] += $m[ $k ]; }
 		}
 
 		$prev = clone $mon; $prev->modify( '-7 day' );

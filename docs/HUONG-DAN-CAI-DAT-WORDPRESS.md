@@ -37,19 +37,64 @@ tổng **không phải sửa gì**: chỉ cần điền cùng chuỗi bí mật 
 SSO_SECRET** (giá trị `SSO_SECRET` đang đặt trong Script Properties của app cũ). Bảng phân vai trò
 theo email (`CH_SSO`) vẫn hoạt động y như trước.
 
-## 3. Mang dữ liệu cũ từ Google Sheet sang
+## 3. Nhập chi phí kiểu mới: chọn loại chi phí rồi nhập (bản 1.1.0)
+
+Tab **💵 Sổ chi phí** làm việc đúng như sheet *Chi phí cơ sở* cũ: **không lập đơn, không tạm ứng,
+không quyết toán** — chọn **Loại chi phí** rồi nhập, hết.
+
+Thứ quyết định "đây là chi phí gì" nằm ở **⚙️ Cấu hình → 💵 Loại chi phí**: mỗi loại gắn sẵn
+**TK Nợ** (và TK Có / Mã đối tượng nếu muốn). Khi nhập, dòng chi **lưu luôn mã tài khoản** vào
+chính nó. Nhờ vậy:
+
+- Chọn loại xong là thấy ngay dòng `Nợ 64127 / Có 141` cạnh ô chọn — không phải đoán.
+- Sau này dò lại một con số chỉ cần **đọc cột mã trên dòng**; không phải chạy lại hàm dò ma trận
+  *nhóm × phân loại lớn* như luồng đơn.
+- Lọc / gom được **theo mã tài khoản**: bảng "Tổng theo loại chi phí & mã tài khoản" ở cuối tab,
+  và ô lọc *Tất cả mã TK* ở thanh danh sách.
+- Xuất MISA của tab này lấy **thẳng mã trên dòng**, chốt "đã xuất" theo từng dòng (dòng đã xuất bị
+  khóa sửa/xóa; Admin bỏ chốt được).
+
+Sửa mã trong danh mục **không** làm đổi mã của dòng đã nhập (số cũ giữ đúng lịch sử). Muốn áp mã
+mới cho dòng cũ thì bấm **🔗 Gán mã cho dòng cũ** ở ngay thẻ Loại chi phí — nó điền mã cho cả sổ
+chi phí lẫn dòng chi của đơn còn trống, và báo lại loại nào chưa khai mã.
+
+**Luồng đơn vận hành (📝 Nhập đơn) vẫn giữ nguyên** cho việc cần tạm ứng → quyết toán thừa/thiếu.
+Chỉ khác: dòng chi của đơn giờ cũng **gắn mã tài khoản ngay khi nhập**, và khi xuất MISA thì
+mã trên dòng được ưu tiên; ma trận *nhóm × phân loại lớn* chỉ còn là dự phòng cho dữ liệu cũ.
+Ô chọn ở form nhập đơn đã đổi nhãn thành **Loại chi phí** và hiện mã TK bên cạnh.
+
+### Vận hành tuần: bỏ gom Kỹ thuật / Công tác / Setup
+
+Tab **📅 Vận hành tuần** trước đây gom 5 mảng vào một con số mỗi cơ sở, nên muốn dò một số là phải
+lần lại hàm gom. Từ bản 1.1.0 nó chỉ còn **3 nguồn của mảng vận hành**: 📝 Đơn vận hành ·
+💵 Sổ chi phí · 📣 Marketing. Chi phí **Kỹ thuật · Công tác · Setup** không bị kéo vào đây nữa —
+mỗi mảng đứng riêng ở tab của nó theo mã tài khoản của nó.
+
+Hai chỗ **vẫn gom** (cố ý, vì là báo cáo tra cứu có chia mục rõ ràng, không phải một cục):
+- **📊 Báo cáo 1 gian/cơ sở** — tách sẵn từng mục 🔧 Kỹ thuật · 📣 Marketing · ✈️🛠️ Công tác/Setup ·
+  💵 Sổ chi phí · 📝 Đơn vận hành, mục Sổ chi phí có kèm mã TK trên từng dòng.
+- **📥 Gom hóa đơn** — hộp thư "đơn đang chờ kế toán" của các mảng, không phải cộng tiền vào vận hành.
+
+Muốn bỏ luôn 2 chỗ đó thì nói một câu, em cắt.
+
+## 4. Mang dữ liệu cũ từ Google Sheet sang
 
 Vào **Vận Hành Chi Phí → Nhập dữ liệu**. Với từng tab của bảng tính:
 **Tệp → Tải xuống → CSV** rồi tải file lên, chọn đúng "Tab đang nạp".
 
 Nạp theo thứ tự này để không bị lệch khóa:
 
-1. `CH_CoSo`, `CH_Nhom`, `CH_PhanLoai`, `CH_DoiTuong`, `CH_TKNo`, `CH_QR`, `CH_NguoiDung`, `CH_SSO`, `CH_Quyen`
+1. `CH_CoSo`, `CH_Nhom`, `CH_PhanLoai`, `CH_DoiTuong`, `CH_TKNo`, `CH_QR`, `CH_NguoiDung`, `CH_SSO`, `CH_Quyen`,
+   `CH_LoaiChiPhi` (danh mục loại chi phí + mã tài khoản — lần đầu plugin tự dựng từ `CH_Nhom` nên
+   thường không cần nạp)
 2. `DonHang` → `TamUng` → `ChiPhi`
 3. `DA_Index` → rồi **từng tab dự án** (chọn dự án ở ô "Dự án / Đợt nhận dòng")
 4. `MK_Don` → `MK_Line`
 5. `BP_Index` → rồi **từng tab đợt** Công tác/Setup
-6. `NhatKy` (tùy, chỉ để tra lịch sử)
+6. `SoChi` — sổ chi phí phẳng, nếu anh có sẵn bảng chi theo dòng (cột: Ngày · Cơ sở · Loại chi phí ·
+   Nội dung · ĐVT · SL · ĐG · Số tiền · Hình thức chi · Thuế suất · VAT · Đối tượng · Ghi chú · Ảnh).
+   Mã tài khoản được gắn từ danh mục **ngay khi nạp**, y như nhập tay.
+7. `NhatKy` (tùy, chỉ để tra lịch sử)
 
 Lưu ý:
 
@@ -62,7 +107,7 @@ Lưu ý:
   nạp lại cùng mã đơn / cùng ID dòng thì hệ thống tự ghi đè.
 - Tab dự án / tab đợt có 4 dòng đầu là tiêu đề + dải tổng hợp — trình nhập tự bỏ 4 dòng đó.
 
-## 4. Khác gì so với bản Apps Script
+## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |
 |---|---|---|
@@ -71,7 +116,9 @@ Lưu ý:
 | Nút "Mở sheet" ở tab Kỹ thuật / Công tác | mở tab Google Sheet | **đã ẩn** (không còn sheet để mở) |
 | Dọn ảnh cũ (`migrateOldImages`) | dời ảnh trong Drive | không cần — lưu đúng cây ngay khi tải lên |
 | Giới hạn 6 phút/lệnh của Apps Script | có | không còn |
-| Giao diện | Index.html | **giữ nguyên 100%** nhờ lớp tương thích `google.script.run` |
+| Giao diện | Index.html | giữ nguyên, **thêm** tab 💵 Sổ chi phí + thẻ Loại chi phí ở Cấu hình |
+| Quyết định "chi phí gì" | dò ma trận nhóm × phân loại lớn lúc xuất MISA | **loại chi phí gắn mã tài khoản**, dòng chi lưu sẵn mã |
+| Vận hành tuần | gom 5 mảng vào 1 số/cơ sở | chỉ 3 nguồn vận hành (đơn · sổ chi phí · marketing) |
 | Đăng nhập | PIN, API mở cho mọi người có link | PIN + **token phiên** (API chặn nếu không có token) và **hãm 10 lần thử PIN sai / 10 phút** |
 
 Giao diện không bị viết lại: `assets/js/gas-shim.js` dựng lại `google.script.run` và chuyển mỗi
@@ -92,7 +139,7 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
   TK Có ưu tiên **TK Có của người duyệt tạm ứng** rồi mới đến TK Có của phân loại (141/331);
   các dòng cùng nhóm mặt hàng xếp liền nhau; chốt "đã xuất" theo từng bộ phận CN/NCC.
 
-## 5. Kiểm nghiệm
+## 6. Kiểm nghiệm
 
 `tools/test/` có bộ tự kiểm chạy bằng PHP CLI, **không cần WordPress hay MySQL**
 (dựng $wpdb tối giản trên SQLite):
@@ -101,20 +148,21 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 php tools/test/test-flows.php
 ```
 
-187 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+247 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
 đổi PIN, nhật ký, tải ảnh/hồ sơ (chặn .php), nhập CSV.
 
-Có cả **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`
+Có cả **sổ chi phí** (gắn mã TK theo danh mục, TK Có theo hình thức chi, lọc theo mã tài khoản,
+chốt/bỏ chốt đã xuất, gán mã cho dòng cũ, nhập CSV) và **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`
 hay `saveConfig` → 403, Quản lý gọi `deleteDonAdmin` → 403, đăng xuất rồi token hết hiệu lực.
 
 Hai phép thử cuối là lưới an toàn quan trọng nhất: **cả 92 hàm public của Code.gs cũ đều có trong
 bảng REST**, và **mọi hàm giao diện gọi đều tồn tại ở backend** — thiếu 1 hàm là bộ test đỏ ngay,
 không phải chờ người dùng bấm mới vỡ.
 
-## 6. Hiệu năng: đã cắt hết chỗ đọc lặp
+## 7. Hiệu năng: đã cắt hết chỗ đọc lặp
 
 Bản đầu port đúng nguyên văn app cũ nên thừa hưởng luôn kiểu "mỗi dự án 1 lượt đọc" của Apps
 Script. Đã sửa xong, và có thước đo hẳn hoi — `tools/test/bench-queries.php` đếm **số lệnh xuống
@@ -160,7 +208,7 @@ Chỗ còn lại **cố ý giữ nguyên** để không đổi cách vận hành
 (giao diện lọc/tìm ở phía máy người dùng), nên khi số đơn lên hàng chục nghìn thì nên phân trang —
 lúc đó nói em làm, vì việc đó đổi cả giao diện.
 
-## 7. Cập nhật plugin về sau
+## 8. Cập nhật plugin về sau
 
 ```bash
 bash tools/build-plugin-zip.sh    # tạo lại dist/vhcp-chi-phi.zip
@@ -179,7 +227,7 @@ bash tools/deploy-hosting.sh                               # rsync/lftp lên wp-
 
 File `tools/deploy-hosting.env` đã nằm trong `.gitignore` — **không bao giờ commit mật khẩu hosting**.
 
-## 8. Bảo mật cần biết
+## 9. Bảo mật cần biết
 
 - **PIN vẫn lưu nguyên văn** trong bảng cấu hình, vì tab ⚙️ Cấu hình hiện & sửa PIN từng người
   đúng như cách vận hành cũ. Ai vào được wp-admin hoặc database là thấy PIN. Muốn siết thì đổi
@@ -197,7 +245,7 @@ File `tools/deploy-hosting.env` đã nằm trong `.gitignore` — **không bao g
   diện đã ẩn tab Cấu hình. Danh sách này khớp đúng những tab mà giao diện vốn chỉ cho Admin/Quản lý
   thấy, nên người dùng thật không thấy khác gì.
 
-## 9. Khắc phục sự cố
+## 10. Khắc phục sự cố
 
 | Hiện tượng | Xử lý |
 |---|---|

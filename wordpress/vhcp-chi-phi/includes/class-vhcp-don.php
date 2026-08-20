@@ -95,9 +95,15 @@ class VHCP_Don {
 		$pl = array();
 		foreach ( $cfg['phanloai'] as $x ) { $pl[] = $x['ten']; }
 
+		$loai = array();
+		foreach ( (array) ( isset( $cfg['loaiChiPhi'] ) ? $cfg['loaiChiPhi'] : array() ) as $x ) {
+			$loai[] = array( 'ten' => $x['ten'], 'tkNo' => $x['tkNo'], 'tkCo' => $x['tkCo'], 'boPhan' => $x['boPhan'] );
+		}
+
 		return array(
 			'coso'       => $coso,
 			'nhom'       => $nhom,
+			'loaiChiPhi' => $loai,
 			'phanloai'   => $pl,
 			'doiTuong'   => $cfg['doiTuong'],
 			'qr'         => $cfg['qr'],
@@ -310,6 +316,8 @@ class VHCP_Don {
 				'thucMua'    => VHCP_Util::out_num( $x['thuc_mua'] ),
 				'cnXuLy'     => VHCP_Util::cn_flag( $x['cn_xu_ly'] ),
 				'phatSinh'   => VHCP_Util::is_phat_sinh( $x['phat_sinh'] ),
+				'tkNo'       => (string) $x['tk_no'],
+				'tkCo'       => (string) $x['tk_co'],
 			);
 		}
 
@@ -414,6 +422,11 @@ class VHCP_Don {
 		$ngay  = VHCP_Util::parse_date( $get( 'ngay' ) );
 		if ( ! $ngay ) { $ngay = VHCP_Util::today_sql(); }   // không nhập ngày -> lấy ngày nhập
 
+		// GẮN MÃ TÀI KHOẢN NGAY LÚC NHẬP: TK Nợ lấy theo LOẠI CHI PHÍ (danh mục), TK Có theo
+		// phân loại thanh toán. Nhờ vậy dò lại một dòng chỉ cần đọc cột mã, không phải chạy
+		// lại hàm dò ma trận. (Xuất MISA vẫn ưu tiên TK Có của người duyệt tạm ứng như cũ.)
+		$tk = self::tk_of_line( $get( 'nhom' ), $get( 'phanLoaiTT' ) );
+
 		return array(
 			'id'           => (string) $id,
 			'ma_don'       => (string) $ma_don,
@@ -435,7 +448,44 @@ class VHCP_Don {
 			'thuc_mua'     => $tm,
 			'cn_xu_ly'     => $cn,
 			'phat_sinh'    => $ps,
+			'tk_no'        => $tk['tk_no'],
+			'tk_co'        => $tk['tk_co'],
 		);
+	}
+
+	/** Mã tài khoản của 1 dòng chi: TK Nợ theo loại chi phí, TK Có theo phân loại thanh toán. */
+	public static function tk_of_line( $nhom, $phan_loai_tt ) {
+		$cat   = VHCP_Cfg::loai_tk( $nhom );
+		$tk_no = $cat['tkNo'];
+		$tk_co = $cat['tkCo'];
+		if ( $tk_co === '' ) {
+			$pl  = ( trim( (string) $phan_loai_tt ) === 'Nhà cung cấp' ) ? 'Nhà cung cấp' : 'Thanh toán cá nhân';
+			$cfg = VHCP_Cfg::cfg_static();
+			foreach ( (array) $cfg['phanloai'] as $x ) {
+				if ( trim( (string) $x['ten'] ) === $pl ) { $tk_co = (string) $x['tkCo']; break; }
+			}
+		}
+		return array( 'tk_no' => $tk_no, 'tk_co' => $tk_co );
+	}
+
+	/**
+	 * Gán mã tài khoản cho các dòng chi CŨ (nhập trước khi có danh mục loại chi phí).
+	 * $all = true thì áp lại cho mọi dòng; mặc định chỉ điền chỗ còn trống.
+	 */
+	public static function gan_ma_tai_khoan( $all = false ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'chiphi' );
+		$n = 0; $thieu = array();
+		foreach ( self::cp_rows() as $r ) {
+			$thieu_ma = ( trim( (string) $r['tk_no'] ) === '' || trim( (string) $r['tk_co'] ) === '' );
+			if ( ! $all && ! $thieu_ma ) { continue; }
+			$tk = self::tk_of_line( $r['nhom'], $r['phan_loai_tt'] );
+			if ( $tk['tk_no'] === '' && trim( (string) $r['nhom'] ) !== '' ) { $thieu[ (string) $r['nhom'] ] = 1; }
+			if ( $tk['tk_no'] === (string) $r['tk_no'] && $tk['tk_co'] === (string) $r['tk_co'] ) { continue; }
+			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'] ), array( 'id' => (string) $r['id'] ) );
+			$n++;
+		}
+		return VHCP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ) ) );
 	}
 
 	public static function add_line( $ma_don, $rec ) {
@@ -471,6 +521,9 @@ class VHCP_Don {
 
 		$data = self::line_data( $id, $ma_don, $rec );
 		$data['tao_luc'] = $cur['tao_luc'] ? $cur['tao_luc'] : VHCP_Util::now_sql();
+		// Danh mục chưa khai mã -> giữ mã cũ của dòng, không ghi rỗng lên.
+		if ( $data['tk_no'] === '' && trim( (string) $cur['tk_no'] ) !== '' ) { $data['tk_no'] = $cur['tk_no']; }
+		if ( $data['tk_co'] === '' && trim( (string) $cur['tk_co'] ) !== '' ) { $data['tk_co'] = $cur['tk_co']; }
 		unset( $data['id'] );
 		$wpdb->update( VHCP_DB::t( 'chiphi' ), $data, array( 'id' => (string) $id ) );
 		return VHCP_Util::ok();

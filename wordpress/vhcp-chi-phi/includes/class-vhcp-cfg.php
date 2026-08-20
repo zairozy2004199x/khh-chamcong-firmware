@@ -19,6 +19,7 @@ class VHCP_Cfg {
 	const TKNO  = 'CH_TKNo';
 	const SSO   = 'CH_SSO';
 	const QUYEN = 'CH_Quyen';
+	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
 
 	public static function headers( $bang ) {
 		$h = array(
@@ -30,6 +31,7 @@ class VHCP_Cfg {
 			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
+			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú' ),
 		);
 		if ( isset( $h[ $bang ] ) ) { return $h[ $bang ]; }
 		if ( $bang === self::QUYEN ) { return array_merge( array( 'Mã', 'Hành động' ), self::roles() ); }
@@ -223,6 +225,18 @@ class VHCP_Cfg {
 			}
 			VHCP_Meta::set( 'seeded_thaodo_setup_v2', '1' );
 		}
+
+		// Danh mục LOẠI CHI PHÍ: lần đầu dựng từ nhóm mặt hàng đang có (giữ luôn TK Nợ + Bộ phận)
+		// để anh không phải khai lại; sau đó sửa độc lập trong tab ⚙️ Cấu hình.
+		if ( ! count( self::rows_of( $all, self::LOAI ) ) ) {
+			$nhom = self::rows_of( $all, self::NHOM );
+			if ( ! count( $nhom ) ) { $nhom = self::read( self::NHOM ); }   // vừa seed trong lượt này -> đọc lại
+			foreach ( $nhom as $r ) {
+				if ( trim( (string) $r[0] ) === '' ) { continue; }
+				self::append( self::LOAI, array( $r[0], isset( $r[2] ) ? $r[2] : '', '', '', isset( $r[3] ) ? $r[3] : '', '' ) );
+			}
+			$did = true;
+		}
 		return $did;
 	}
 
@@ -236,7 +250,7 @@ class VHCP_Cfg {
 		$all = self::read_all();
 		if ( self::seed_from( $all ) ) { $all = self::read_all(); }   // chỉ đọc lại khi thực sự có seed
 
-		$out = array( 'coso' => array(), 'nhom' => array(), 'tkNoMatrix' => array(), 'phanloai' => array(), 'dtCfg' => array(), 'qr' => array( 'stk' => '', 'bank' => '', 'ten' => '' ) );
+		$out = array( 'coso' => array(), 'nhom' => array(), 'loaiChiPhi' => array(), 'tkNoMatrix' => array(), 'phanloai' => array(), 'dtCfg' => array(), 'qr' => array( 'stk' => '', 'bank' => '', 'ten' => '' ) );
 
 		foreach ( self::rows_of( $all, self::COSO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -245,6 +259,10 @@ class VHCP_Cfg {
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			$out['nhom'][] = array( 'ten' => $r[0], 'loai' => ( $r[1] !== '' ? $r[1] : 'canhan' ), 'tkNo' => $r[2], 'boPhan' => $r[3] );
+		}
+		foreach ( self::rows_of( $all, self::LOAI ) as $r ) {
+			if ( trim( (string) $r[0] ) === '' ) { continue; }
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => $r[1], 'tkCo' => $r[2], 'maDt' => $r[3], 'boPhan' => $r[4], 'note' => $r[5] );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -303,6 +321,7 @@ class VHCP_Cfg {
 		return array(
 			'coso'       => $s['coso'],
 			'nhom'       => $s['nhom'],
+			'loaiChiPhi' => isset( $s['loaiChiPhi'] ) ? $s['loaiChiPhi'] : array(),
 			'tkNoMatrix' => $s['tkNoMatrix'],
 			'phanloai'   => $s['phanloai'],
 			'doiTuong'   => $dt,
@@ -324,6 +343,14 @@ class VHCP_Cfg {
 			$rows = array();
 			foreach ( $cfg['nhom'] as $x ) { $x = (array) $x; $rows[] = array( $g( $x, 'ten' ), ( $g( $x, 'loai' ) !== '' ? $g( $x, 'loai' ) : 'canhan' ), $g( $x, 'tkNo' ), $g( $x, 'boPhan' ) ); }
 			self::write( self::NHOM, $rows );
+		}
+		if ( isset( $cfg['loaiChiPhi'] ) && is_array( $cfg['loaiChiPhi'] ) ) {
+			$rows = array();
+			foreach ( $cfg['loaiChiPhi'] as $x ) {
+				$x = (array) $x;
+				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $g( $x, 'note' ) );
+			}
+			self::write( self::LOAI, $rows );
 		}
 		if ( isset( $cfg['tkNoMatrix'] ) && is_array( $cfg['tkNoMatrix'] ) ) {
 			$rows = array();
@@ -422,6 +449,32 @@ class VHCP_Cfg {
 	}
 
 	// ---------------------------------------------------------------- người dùng
+
+	/**
+	 * Tra danh mục LOẠI CHI PHÍ theo tên -> mã tài khoản đã gắn.
+	 * Đây là nơi duy nhất quyết định "chi phí này là chi phí gì": không còn dò
+	 * ma trận nhóm × phân loại lớn nữa, nên số nào cũng dò được bằng mắt.
+	 */
+	public static function loai_map() {
+		$s   = self::cfg_static();
+		$out = array();
+		foreach ( (array) ( isset( $s['loaiChiPhi'] ) ? $s['loaiChiPhi'] : array() ) as $x ) {
+			$out[ mb_strtolower( trim( (string) $x['ten'] ) ) ] = $x;
+		}
+		return $out;
+	}
+
+	/** Mã tài khoản của 1 loại chi phí (rỗng nếu chưa khai). */
+	public static function loai_tk( $ten ) {
+		$m = self::loai_map();
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( ! isset( $m[ $k ] ) ) { return array( 'tkNo' => '', 'tkCo' => '', 'maDt' => '' ); }
+		return array(
+			'tkNo' => (string) $m[ $k ]['tkNo'],
+			'tkCo' => (string) $m[ $k ]['tkCo'],
+			'maDt' => (string) $m[ $k ]['maDt'],
+		);
+	}
 
 	public static function get_users() {
 		$s = self::cfg_static();   // đã gồm bảng người dùng, có cache 5 phút

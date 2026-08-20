@@ -25,6 +25,7 @@ class VHCP_Import {
 			'MK_Line'       => array( 'label' => 'MK_Line — hạng mục marketing (12 cột)', 'skip' => 0 ),
 			'BP_Index'      => array( 'label' => 'BP_Index — danh mục đợt Công tác/Setup (10 cột)', 'skip' => 0 ),
 			'BP_Sheet'      => array( 'label' => 'Tab 1 đợt Công tác/Setup (11 cột, bỏ 4 dòng đầu) — cần chọn đợt', 'skip' => 4 ),
+			'SoChi'         => array( 'label' => 'SoChi — sổ chi phí phẳng (Ngày · Cơ sở · Loại chi phí · Nội dung · ĐVT · SL · ĐG · Số tiền · Hình thức chi · Thuế suất · VAT · Đối tượng · Ghi chú · Ảnh)', 'skip' => 0 ),
 			'NhatKy'        => array( 'label' => 'NhatKy — nhật ký hoạt động (6 cột)', 'skip' => 0 ),
 			'CH_CoSo'       => array( 'label' => 'CH_CoSo — cấu hình cơ sở', 'skip' => 0 ),
 			'CH_Nhom'       => array( 'label' => 'CH_Nhom — cấu hình nhóm mặt hàng', 'skip' => 0 ),
@@ -35,6 +36,7 @@ class VHCP_Import {
 			'CH_TKNo'       => array( 'label' => 'CH_TKNo — ma trận TK Nợ', 'skip' => 0 ),
 			'CH_SSO'        => array( 'label' => 'CH_SSO — phân vai trò theo email', 'skip' => 0 ),
 			'CH_Quyen'      => array( 'label' => 'CH_Quyen — ma trận phân quyền', 'skip' => 0 ),
+			'CH_LoaiChiPhi' => array( 'label' => 'CH_LoaiChiPhi — danh mục loại chi phí + mã tài khoản', 'skip' => 0 ),
 		);
 	}
 
@@ -406,6 +408,34 @@ class VHCP_Import {
 				}
 				break;
 
+			case 'SoChi':
+				$t = VHCP_DB::t( 'so_chi' );
+				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+				foreach ( $rows as $r ) {
+					$loai = self::c( $r, 2 );
+					if ( $loai === '' && self::c( $r, 3 ) === '' ) { $skipped++; continue; }
+					// Mã tài khoản lấy từ danh mục loại chi phí ngay khi nạp, đúng như nhập tay.
+					$res = VHCP_SoChi::add( array(
+						'ngay'     => self::c( $r, 0 ),
+						'coso'     => self::c( $r, 1 ),
+						'loai'     => $loai,
+						'noiDung'  => self::c( $r, 3 ),
+						'dvt'      => self::c( $r, 4 ),
+						'soLuong'  => self::n( self::c( $r, 5 ) ),   // qua bộ đọc số kiểu Việt Nam (1.234.567)
+						'donGia'   => self::n( self::c( $r, 6 ) ),
+						'soTien'   => self::n( self::c( $r, 7 ) ),
+						'hinhThuc' => ( self::c( $r, 8 ) !== '' ? self::c( $r, 8 ) : 'Tạm ứng NV' ),
+						'thueSuat' => self::n( self::c( $r, 9 ) ),
+						'vat'      => self::c( $r, 10 ),
+						'doiTuong' => self::c( $r, 11 ),
+						'ghiChu'   => self::c( $r, 12 ),
+						'anh'      => self::c( $r, 13 ),
+					), 'Nhập từ CSV' );
+					if ( empty( $res['success'] ) ) { $skipped++; continue; }
+					$n++;
+				}
+				break;
+
 			case 'NhatKy':
 				$t = VHCP_DB::t( 'log' );
 				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
@@ -445,6 +475,7 @@ class VHCP_Import {
 			'Hạng mục marketing'  => 'mk_line',
 			'Đợt Công tác/Setup'  => 'bp_index',
 			'Dòng Công tác/Setup' => 'bp_line',
+			'Dòng sổ chi phí'     => 'so_chi',
 			'Hàng cấu hình'       => 'cfg',
 			'Nhật ký'             => 'log',
 		);

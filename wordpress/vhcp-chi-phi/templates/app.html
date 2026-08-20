@@ -77,6 +77,7 @@
   <div class="bar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
     <button class="btn b-x" id="tab-don" onclick="showPage('don')">📝 Nhập đơn</button>
+    <button class="btn b-x" id="tab-sochi" onclick="showPage('sochi')">💵 Sổ chi phí</button>
     <button class="btn b-x" id="tab-duan" onclick="showPage('duan')">🔧 Chi phí Kỹ thuật</button>
     <button class="btn b-x" id="tab-mkt" onclick="showPage('mkt')">📣 Marketing</button>
     <button class="btn b-x" id="tab-congtac" onclick="showPage('congtac')">✈️ Công tác</button>
@@ -225,7 +226,7 @@
           <div class="fld"><label>Ngày</label><input id="f_ngay" type="date"></div>
           <div class="fld"><label>Phân loại (Cá nhân / NCC) *</label><select id="f_pltt" onchange="onPlttChange()"></select></div>
           <div class="fld"><label id="lblDoiTuong">Đối tượng (NV/NCC)</label><input id="f_dt" list="dl_dt" autocomplete="off" placeholder="Tên NV hoặc NCC"><datalist id="dl_dt"></datalist></div>
-          <div class="fld"><label>Nhóm mặt hàng *</label><select id="f_nhom" onchange="onNhomPick()"></select></div>
+          <div class="fld"><label>Loại chi phí * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select></div>
           <div class="fld"><label>Nội dung *</label><input id="f_nd" list="dl_nd" oninput="onNoiDung()" autocomplete="off" placeholder="VD: Nước bình 20L"><datalist id="dl_nd"></datalist></div>
           <div class="fld"><label>ĐVT</label><input id="f_dvt" placeholder="Cái, kg..."></div>
           <div class="fld"><label>Số lượng</label><input id="f_sl" type="number" min="0" step="any" oninput="calcTT()"></div>
@@ -286,6 +287,79 @@
 
   </div>
   </div><!-- /page-don -->
+
+  <!-- ============ TRANG: SỔ CHI PHÍ (nhập phẳng: chọn loại chi phí -> nhập) ============ -->
+  <div id="page-sochi" class="wrap" style="display:none">
+    <div class="card">
+      <div class="ch"><h2>💵 Sổ chi phí — chọn loại chi phí rồi nhập</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn b-x" onclick="loadSoChi()">↻ Tải lại</button>
+        </div>
+      </div>
+      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Không cần lập đơn, không tạm ứng, không quyết toán — nhập thẳng như sheet <b>Chi phí cơ sở</b>. Mỗi loại chi phí đã gắn sẵn <b>mã tài khoản</b> ở ⚙️ Cấu hình, nên dòng nào cũng tự mang TK Nợ/TK Có: sau này dò lại chỉ cần đọc cột mã.</div>
+      <div class="cb">
+        <div class="grid">
+          <div class="fld"><label>Ngày chi</label><input id="sc_ngay" type="date"></div>
+          <div class="fld"><label>Cơ sở</label><select id="sc_coso"></select></div>
+          <div class="fld"><label>Loại chi phí <span style="color:#dc2626">*</span></label><select id="sc_loai" onchange="onScLoai()"></select></div>
+          <div class="fld"><label>Mã tài khoản (tự lấy)</label><input id="sc_tk" placeholder="—" readonly style="background:#f8fafc;font-family:Consolas,monospace"></div>
+          <div class="fld"><label>Hình thức chi</label><select id="sc_ht" onchange="onScLoai()"><option value="Tạm ứng NV">💰 Tạm ứng NV</option><option value="Trực tiếp NCC">🏢 Trực tiếp NCC</option></select></div>
+          <div class="fld"><label>Đối tượng (NV/NCC)</label><input id="sc_dt" list="dl_dt" placeholder="Tên NV hoặc NCC"></div>
+        </div>
+        <div class="grid" style="margin-top:10px">
+          <div class="fld" style="grid-column:span 2"><label>Nội dung</label><input id="sc_nd" placeholder="Chi cho việc gì"></div>
+          <div class="fld"><label>ĐVT</label><input id="sc_dvt" placeholder="cái / kg / lần"></div>
+          <div class="fld"><label>Số lượng</label><input id="sc_sl" type="number" step="any" oninput="calcScTT()"></div>
+          <div class="fld"><label>Đơn giá</label><input id="sc_dg" type="number" step="any" oninput="calcScTT()"></div>
+          <div class="fld"><label>Số tiền</label><input id="sc_tt" type="number" step="any"></div>
+        </div>
+        <div class="grid" style="margin-top:10px">
+          <div class="fld"><label>Thuế suất (%)</label><input id="sc_thue" type="number" step="any" placeholder="0 / 8 / 10"></div>
+          <div class="fld"><label>VAT</label><select id="sc_vat"><option value="">—</option><option value="Có VAT">Có VAT</option><option value="Không VAT">Không VAT</option></select></div>
+          <div class="fld" style="grid-column:span 2"><label>Ghi chú</label><input id="sc_gc" placeholder="Ghi chú thêm"></div>
+          <div class="fld"><label>Hóa đơn / ảnh</label>
+            <div style="display:flex;gap:6px"><button class="btn b-x" id="scImgBtn" onclick="attachScImg()" style="flex:1">📎 Đính ảnh</button></div>
+            <input id="sc_anh" type="hidden"><input id="scImgFile" type="file" accept="image/*" class="hide">
+          </div>
+          <div class="fld"><label>&nbsp;</label>
+            <div style="display:flex;gap:6px">
+              <button class="btn b-p" id="scBtnSave" onclick="saveSoChi()" style="flex:1">＋ Thêm dòng chi</button>
+              <button class="btn b-x hide" id="scBtnCancel" onclick="resetScForm()">Huỷ</button>
+            </div>
+            <input id="sc_id" type="hidden">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h2 id="scListTitle">Danh sách chi phí</h2>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="scfKy" onchange="loadSoChi()"><option value="all">Tất cả kỳ</option></select>
+          <select id="scfCoso" onchange="loadSoChi()"><option value="all">Tất cả cơ sở</option></select>
+          <select id="scfLoai" onchange="loadSoChi()"><option value="all">Tất cả loại chi phí</option></select>
+          <select id="scfTk" onchange="loadSoChi()"><option value="all">Tất cả mã TK</option></select>
+          <select id="scfXuat" onchange="loadSoChi()"><option value="all">Cả đã & chưa xuất</option><option value="chuaxuat">Chưa xuất MISA</option><option value="daxuat">Đã xuất MISA</option></select>
+          <input id="scfQ" placeholder="Tìm nội dung / mã TK…" oninput="scSearchDebounced()" style="width:190px">
+        </div>
+      </div>
+      <div id="scSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
+      <div class="tw"><table style="min-width:1080px">
+        <thead><tr><th style="width:95px">Ngày</th><th>Cơ sở</th><th>Loại chi phí</th><th style="width:80px">TK Nợ</th><th style="width:80px">TK Có</th><th>Nội dung</th><th style="width:120px">Hình thức</th><th style="text-align:right;width:120px">Số tiền</th><th style="width:70px">HĐ</th><th style="width:110px"></th></tr></thead>
+        <tbody id="scBody"></tbody>
+        <tfoot id="scFoot"></tfoot>
+      </table><div class="empty" id="scEmpty" style="display:none">Chưa có dòng chi nào khớp bộ lọc.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h2>📊 Tổng theo loại chi phí & mã tài khoản</h2></div>
+      <div class="tw" style="display:flex;gap:16px;flex-wrap:wrap;padding:8px 14px 16px">
+        <table style="min-width:340px;flex:1"><thead><tr><th>Loại chi phí</th><th style="width:80px">TK Nợ</th><th style="width:60px">Dòng</th><th style="text-align:right;width:130px">Số tiền</th></tr></thead><tbody id="scByLoai"></tbody></table>
+        <table style="min-width:280px;flex:1"><thead><tr><th>Mã tài khoản</th><th style="width:60px">Dòng</th><th style="text-align:right;width:130px">Số tiền</th></tr></thead><tbody id="scByTk"></tbody></table>
+        <table style="min-width:280px;flex:1"><thead><tr><th>Cơ sở</th><th style="text-align:right;width:130px">Số tiền</th></tr></thead><tbody id="scByCoso"></tbody></table>
+      </div>
+    </div>
+  </div>
 
   <!-- ============ TRANG: DỰ ÁN THÁO DỠ / LẮP ĐẶT ============ -->
   <div id="page-duan" class="wrap" style="display:none">
@@ -479,10 +553,10 @@
           <button class="btn b-x" onclick="loadVHTuan()">↻ Tải lại</button>
         </div>
       </div>
-      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Gom TẤT CẢ chi phí phát sinh trong tuần (Thứ 2 → Chủ nhật) từ mọi mảng: <b>📝 Vận hành · 🔧 Kỹ thuật · 📣 Marketing · ✈️ Công tác · 🛠️ Setup</b>. Mỗi cơ sở là 1 đơn — bấm để mở xem chi tiết từng khoản chi của tuần. Số tiền = <b>thực chi / thực mua</b>. (Kỹ thuật gom theo ngày kế toán duyệt dự án.)</div>
+      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Chi phí <b>VẬN HÀNH</b> phát sinh trong tuần (Thứ 2 → Chủ nhật) từ 3 nguồn: <b>📝 Đơn vận hành · 💵 Sổ chi phí · 📣 Marketing</b>. Mỗi cơ sở là 1 dòng — bấm để xem chi tiết từng khoản. Số tiền = <b>thực chi / thực mua</b>.<br><b>Kỹ thuật · Công tác · Setup KHÔNG còn gom vào đây</b> — mỗi mảng đứng riêng theo mã tài khoản của nó, xem ở tab của mảng đó.</div>
       <div id="vhOvSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div class="tw"><table style="min-width:920px">
-        <thead><tr><th>Cơ sở / Gian</th><th style="text-align:right">📝 Vận hành</th><th style="text-align:right">🔧 Kỹ thuật</th><th style="text-align:right">📣 Marketing</th><th style="text-align:right">✈️ Công tác</th><th style="text-align:right">🛠️ Setup</th><th style="text-align:right">TỔNG</th><th style="width:70px">Chi tiết</th></tr></thead>
+        <thead><tr><th>Cơ sở / Gian</th><th style="text-align:right">📝 Đơn vận hành</th><th style="text-align:right">💵 Sổ chi phí</th><th style="text-align:right">📣 Marketing</th><th style="text-align:right">TỔNG</th><th style="width:70px">Chi tiết</th></tr></thead>
         <tbody id="vhListBody"></tbody>
         <tfoot id="vhListFoot"></tfoot>
       </table><div class="empty" id="vhListEmpty" style="display:none">Tuần này chưa có chi phí nào.</div></div>
@@ -647,6 +721,7 @@
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <select id="xuatNguon" onchange="onXuatNguon()">
             <option value="vh">Chi phí vận hành (đơn)</option>
+            <option value="chi">💵 Sổ chi phí (nhập phẳng)</option>
             <option value="kt">Chi phí Kỹ thuật (dự án)</option>
             <option value="mkt">Marketing (chiến dịch)</option>
             <option value="ct">Công tác (đợt)</option>
@@ -711,15 +786,21 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>📒 TK Nợ theo Nhóm mặt hàng</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgNhom()">＋ Thêm nhóm</button><button class="btn b-g" onclick="saveCfgNhom()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>💵 Loại chi phí — gắn mã tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgLoai()">💾 Lưu</button></div></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Loại chi phí</th><th style="width:110px">TK Nợ</th><th style="width:110px">TK Có</th><th style="width:130px">Mã đối tượng</th><th style="width:140px">Bộ phận</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgLoaiBody"></tbody></table></div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Đây là nơi <b>duy nhất</b> quyết định "chi phí này là chi phí gì". Dòng chi lưu luôn mã tại thời điểm nhập, nên sửa mã ở đây <b>không</b> làm đổi số cũ — muốn áp mã mới cho dòng cũ thì bấm <b>🔗 Gán mã cho dòng cũ</b>. <b>TK Có</b> để trống = tự lấy theo hình thức chi (Tạm ứng NV → 141 · Trực tiếp NCC → 331).</div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><h2>📒 TK Nợ theo Nhóm mặt hàng <span style="font-size:11px;font-weight:400;color:#94a3b8">(dự phòng cho dữ liệu cũ)</span></h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgNhom()">＋ Thêm nhóm</button><button class="btn b-g" onclick="saveCfgNhom()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:720px"><thead><tr><th>Nhóm mặt hàng</th><th style="width:150px">Loại</th><th style="width:120px">TK Nợ (mặc định)</th><th style="width:150px">Bộ phận</th><th style="width:44px"></th></tr></thead><tbody id="cfgNhomBody"></tbody></table></div>
-      <div style="padding:0 14px 10px;font-size:11px;color:#94a3b8">"TK Nợ (mặc định)" chỉ dùng khi ô trong MA TRẬN bên dưới để trống.</div>
+      <div style="padding:0 14px 10px;font-size:11px;color:#94a3b8">Chỉ còn dùng cho <b>dòng chi cũ chưa gắn mã</b>. Dòng nhập mới lấy mã từ bảng <b>💵 Loại chi phí</b> phía trên.</div>
     </div>
 
     <div class="card">
       <div class="ch"><h2>🧮 TK Nợ theo MA TRẬN (Nhóm × Phân loại lớn)</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu ma trận</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
-      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">TK Nợ = giao của <b>Nhóm mặt hàng</b> (hàng) × <b>Phân loại lớn của cơ sở</b> (cột: FARM/FZ/TUTU/EVENT…). Ô để trống = combo đó không dùng (xuất MISA gặp sẽ cảnh báo "thiếu TK Nợ"). Cột lấy tự động từ "Phân loại lớn" ở bảng Cơ sở phía trên — thêm/sửa cơ sở & Lưu rồi các cột ở đây sẽ cập nhật.</div>
+      <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Dự phòng cho dữ liệu cũ.</b> TK Nợ = giao của <b>Nhóm mặt hàng</b> (hàng) × <b>Phân loại lớn của cơ sở</b> (cột: FARM/FZ/TUTU/EVENT…). Ô để trống = combo đó không dùng (xuất MISA gặp sẽ cảnh báo "thiếu TK Nợ"). Cột lấy tự động từ "Phân loại lớn" ở bảng Cơ sở phía trên — thêm/sửa cơ sở & Lưu rồi các cột ở đây sẽ cập nhật.</div>
     </div>
 
     <div class="card">
@@ -870,7 +951,7 @@
   }
   // Lọc nhóm mặt hàng theo phân loại TT (NCC / cá nhân)
   function loaiOf(pltt){ return pltt==='Nhà cung cấp'?'ncc':(pltt==='Thanh toán cá nhân'?'canhan':''); }
-  function fillNhom(keep){
+  function fillNhom(keep){ /* danh mục loại chi phí lọc theo phân loại TT + bộ phận */
     var loai=loaiOf(el('f_pltt').value);
     var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();   // bộ phận người nhập: '' = xem tất cả; có -> chỉ nhóm "Tất cả" hoặc đúng bộ phận
     var cur=(keep!==undefined)?keep:el('f_nhom').value;
@@ -879,10 +960,17 @@
       if(bp){ var nbp=String(n.boPhan||'').trim(); if(nbp && nbp!==bp) return false; }
       return true;
     }).map(function(n){return n.ten;});
+    // Loại chi phí mới khai ở ⚙️ Cấu hình (chưa có trong bảng nhóm cũ) cũng chọn được ở đây
+    (BOOT.loaiChiPhi||[]).forEach(function(x){
+      var ten=String(x.ten||'').trim(); if(!ten||names.indexOf(ten)>=0) return;
+      if(bp){ var b=String(x.boPhan||'').trim(); if(b && b!==bp) return; }
+      names.push(ten);
+    });
     if(cur && names.indexOf(cur)<0) names.push(cur);
     el('f_nhom').innerHTML='<option value="">—</option>'+names.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
     el('f_nhom').value=(cur && names.indexOf(cur)>=0)?cur:'';
     fillNoiDungList(el('f_nhom').value);
+    showTkNhom();
   }
   // Chọn Phân loại (Cá nhân/NCC) trước -> lọc Nhóm mặt hàng + Đối tượng theo loại đó
   function onPlttChange(){ var pltt=el('f_pltt').value; fillNhom(''); updateDoiTuongUI(pltt); }
@@ -904,7 +992,15 @@
     var dl=el('dl_nd'); if(!dl) return;
     dl.innerHTML=PRODLIST.filter(function(p){ return !nhom || p.nhom===nhom; }).map(function(p){return '<option value="'+esc(p.ten)+'">';}).join('');
   }
-  function onNhomPick(){ fillNoiDungList(el('f_nhom').value); }
+  function onNhomPick(){ fillNoiDungList(el('f_nhom').value); showTkNhom(); }
+  // Hiện mã tài khoản của loại chi phí đang chọn ngay cạnh ô Nhóm — dò bằng mắt, khỏi đoán
+  function showTkNhom(){
+    var lb=el('lblNhomTk'); if(!lb) return;
+    var ten=String((el('f_nhom')&&el('f_nhom').value)||'').trim().toLowerCase();
+    var hit=null; (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===ten) hit=x; });
+    lb.textContent = hit && hit.tkNo ? ('TK Nợ '+hit.tkNo) : (ten?'chưa gắn mã TK':'');
+    lb.style.color = (hit&&hit.tkNo)?'#0f766e':'#dc2626';
+  }
   function onNoiDung(){
     var p=PRODMAP[el('f_nd').value.trim().toLowerCase()]; if(!p) return;
     if(!el('f_dg').value && p.gia){ el('f_dg').value=p.gia; calcTT(); }   // cùng giá -> tự điền, sửa được
@@ -955,16 +1051,16 @@
   function onLoggedIn(){ applyPerms(); showPage(defaultPageFor(CURUSER.role)); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
   function applyPerms(){
     var role=CURUSER.role;
-    var vis={ 'Admin':{tongquan:1,don:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
-              'Quản lý':{tongquan:1,don:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
-              'Kế toán cá nhân':{tongquan:1,don:0,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:1,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:0,log:0},
-              'Kế toán NCC':{tongquan:1,don:0,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:0,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:0,log:0},
-              'Nhân viên':{tongquan:1,don:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,duyet:0,gom:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
+    var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
+              'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
+              'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:1,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:0,log:0},
+              'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,duyet:0,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:0,log:0},
+              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,duyet:0,gom:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
     if(role==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
       var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
       if(bp){ vis.duan=(bp==='Kỹ thuật')?1:0; vis.mkt=(bp==='Marketing')?1:0; vis.congtac=(bp==='Công tác')?1:0; vis.setup=(bp==='Setup')?1:0; }
     }
-    ['tongquan','don','duan','mkt','congtac','setup','vhtuan','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=vis[x]?'inline-block':'none'; });
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=vis[x]?'inline-block':'none'; });
     var tqt=el('tab-qt'); if(tqt) tqt.textContent=(role==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
     var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý')?'inline-block':'none';
     el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
@@ -1509,7 +1605,7 @@
     CUR_PAGE=p;
     if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
     var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
-    ['tongquan','don','duan','mkt','bp','vhtuan','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
+    ['tongquan','don','sochi','duan','mkt','bp','vhtuan','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
     });
     ['tongquan','don','duan','mkt','congtac','setup','vhtuan','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
@@ -1523,6 +1619,7 @@
     if(p==='setup'){ BP_LOAI='Setup'; loadBP(); }
     if(p==='vhtuan') loadVHTuan();
     if(p==='don') boot();
+    if(p==='sochi') loadSoChi();
     if(p==='duyet') loadDuyet();
     if(p==='gom') loadGom();
     if(p==='qt') loadQT();
@@ -1762,7 +1859,7 @@
   }
   // ===================== 📅 VẬN HÀNH THEO TUẦN (gom mọi mảng, mỗi cơ sở = 1 đơn) =====================
   var VH_CUR=null, VH_MON='';   // VH_MON = Thứ 2 (dd/mm/yyyy) của tuần đang xem
-  var VH_MOD={ vh:{icon:'📝',ten:'Vận hành'}, kt:{icon:'🔧',ten:'Kỹ thuật'}, mkt:{icon:'📣',ten:'Marketing'}, ct:{icon:'✈️',ten:'Công tác'}, setup:{icon:'🛠️',ten:'Setup'} };
+  var VH_MOD={ vh:{icon:'📝',ten:'Đơn vận hành'}, chi:{icon:'💵',ten:'Sổ chi phí'}, mkt:{icon:'📣',ten:'Marketing'} };
   function loadVHTuan(){ loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi tải vận hành tuần'); return; }
@@ -1773,33 +1870,30 @@
   function vhPickDay(){ var v=el('vhPickDay').value; if(!v) return; var p=v.split('-'); VH_MON=p[2]+'/'+p[1]+'/'+p[0]; if(el('vhDetailCard'))el('vhDetailCard').style.display='none'; loadVHTuan(); }
   function renderVHTuan(r){
     if(el('vhWeekLabel')) el('vhWeekLabel').textContent='Tuần '+r.weekNo+'/'+r.nam+' · '+r.monday+' → '+r.sunday;
-    var g=r.grand||{vh:0,kt:0,mkt:0,ct:0,setup:0,tong:0};
+    var g=r.grand||{vh:0,chi:0,mkt:0,tong:0};
     el('vhOvSummary').innerHTML=
       _tqCard('#f1f5f9','#cbd5e1','#334155','Số cơ sở', String((r.list||[]).length),'có phát sinh trong tuần')+
-      _tqCard('#eff6ff','#bfdbfe','#1e40af','📝 Vận hành', money(g.vh)+'đ','chi phí cơ sở')+
-      _tqCard('#fef2f2','#fecaca','#991b1b','🔧 Kỹ thuật', money(g.kt)+'đ','setup/tháo dỡ')+
+      _tqCard('#eff6ff','#bfdbfe','#1e40af','📝 Đơn vận hành', money(g.vh)+'đ','đơn tạm ứng theo tuần')+
+      _tqCard('#ecfdf5','#a7f3d0','#065f46','💵 Sổ chi phí', money(g.chi)+'đ','nhập thẳng theo loại')+
       _tqCard('#faf5ff','#e9d5ff','#6b21a8','📣 Marketing', money(g.mkt)+'đ','quảng cáo/sự kiện')+
-      _tqCard('#fff7ed','#fed7aa','#9a3412','✈️🛠️ Công tác/Setup', money((g.ct||0)+(g.setup||0))+'đ','công tác + setup')+
-      _tqCard('#dcfce7','#86efac','#166534','TỔNG TẤT CẢ', money(g.tong)+'đ','gom mọi cơ sở tuần này');
+      _tqCard('#dcfce7','#86efac','#166534','TỔNG VẬN HÀNH', money(g.tong)+'đ','mọi cơ sở tuần này');
     var L=r.list||[];
     el('vhListEmpty').style.display=L.length?'none':'block';
     el('vhListBody').innerHTML=L.map(function(x,i){
       return '<tr style="cursor:pointer" onclick="openVHCoso('+i+')"><td><b>'+esc(x.coso)+'</b></td>'+
-        '<td class="money">'+money(x.vh)+'</td><td class="money">'+money(x.kt)+'</td><td class="money">'+money(x.mkt)+'</td><td class="money">'+money(x.ct)+'</td><td class="money">'+money(x.setup)+'</td>'+
+        '<td class="money">'+money(x.vh)+'</td><td class="money">'+money(x.chi)+'</td><td class="money">'+money(x.mkt)+'</td>'+
         '<td class="money"><b>'+money(x.tong)+'</b></td>'+
         '<td style="text-align:center"><button class="btn b-s" onclick="event.stopPropagation();openVHCoso('+i+')" title="Xem chi tiết khoản chi">📂</button></td></tr>';
     }).join('');
-    el('vhListFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td>TỔNG TẤT CẢ CƠ SỞ</td><td class="money">'+money(g.vh)+'</td><td class="money">'+money(g.kt)+'</td><td class="money">'+money(g.mkt)+'</td><td class="money">'+money(g.ct)+'</td><td class="money">'+money(g.setup)+'</td><td class="money">'+money(g.tong)+'</td><td></td></tr>'):'';
+    el('vhListFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td>TỔNG TẤT CẢ CƠ SỞ</td><td class="money">'+money(g.vh)+'</td><td class="money">'+money(g.chi)+'</td><td class="money">'+money(g.mkt)+'</td><td class="money">'+money(g.tong)+'</td><td></td></tr>'):'';
   }
   function openVHCoso(i){ if(!VH_CUR) return; var x=(VH_CUR.list||[])[i]; if(!x) return;
     el('vhDetailCard').style.display='';
     el('vhDetailTitle').textContent='🏢 '+x.coso+' · Tuần '+VH_CUR.weekNo+'/'+VH_CUR.nam+' ('+VH_CUR.monday+' → '+VH_CUR.sunday+')';
     el('vhDetailSummary').innerHTML=
-      _tqCard('#eff6ff','#bfdbfe','#1e40af','📝 Vận hành', money(x.vh)+'đ','')+
-      _tqCard('#fef2f2','#fecaca','#991b1b','🔧 Kỹ thuật', money(x.kt)+'đ','')+
+      _tqCard('#eff6ff','#bfdbfe','#1e40af','📝 Đơn vận hành', money(x.vh)+'đ','')+
+      _tqCard('#ecfdf5','#a7f3d0','#065f46','💵 Sổ chi phí', money(x.chi)+'đ','')+
       _tqCard('#faf5ff','#e9d5ff','#6b21a8','📣 Marketing', money(x.mkt)+'đ','')+
-      _tqCard('#ecfeff','#a5f3fc','#155e75','✈️ Công tác', money(x.ct)+'đ','')+
-      _tqCard('#fff7ed','#fed7aa','#9a3412','🛠️ Setup', money(x.setup)+'đ','')+
       _tqCard('#dcfce7','#86efac','#166534','TỔNG CƠ SỞ', money(x.tong)+'đ','tuần này');
     var lines=x.lines||[];
     el('vhDetailBody').innerHTML=lines.length?lines.map(function(l){ var m=VH_MOD[l.mod]||{icon:'•',ten:l.mod};
@@ -1808,15 +1902,15 @@
     try{ el('vhDetailCard').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
   }
   function vhPrint(){ if(!VH_CUR){ toast('warn','Chưa có dữ liệu'); return; } var r=VH_CUR, g=r.grand||{};
-    var head='<tr><th>Cơ sở / Gian</th><th class="r">Vận hành</th><th class="r">Kỹ thuật</th><th class="r">Marketing</th><th class="r">Công tác</th><th class="r">Setup</th><th class="r">TỔNG</th></tr>';
-    var body=(r.list||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="r">'+money(x.vh)+'</td><td class="r">'+money(x.kt)+'</td><td class="r">'+money(x.mkt)+'</td><td class="r">'+money(x.ct)+'</td><td class="r">'+money(x.setup)+'</td><td class="r"><b>'+money(x.tong)+'</b></td></tr>'; }).join('');
-    var foot='<tr class="tot"><td>TỔNG TẤT CẢ CƠ SỞ</td><td class="r">'+money(g.vh)+'</td><td class="r">'+money(g.kt)+'</td><td class="r">'+money(g.mkt)+'</td><td class="r">'+money(g.ct)+'</td><td class="r">'+money(g.setup)+'</td><td class="r">'+money(g.tong)+'</td></tr>';
+    var head='<tr><th>Cơ sở / Gian</th><th class="r">Đơn vận hành</th><th class="r">Sổ chi phí</th><th class="r">Marketing</th><th class="r">TỔNG</th></tr>';
+    var body=(r.list||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="r">'+money(x.vh)+'</td><td class="r">'+money(x.chi)+'</td><td class="r">'+money(x.mkt)+'</td><td class="r"><b>'+money(x.tong)+'</b></td></tr>'; }).join('');
+    var foot='<tr class="tot"><td>TỔNG TẤT CẢ CƠ SỞ</td><td class="r">'+money(g.vh)+'</td><td class="r">'+money(g.chi)+'</td><td class="r">'+money(g.mkt)+'</td><td class="r">'+money(g.tong)+'</td></tr>';
     var detail=(r.list||[]).map(function(x){ var ls=(x.lines||[]).map(function(l){ var m=VH_MOD[l.mod]||{icon:'',ten:l.mod}; return '<tr><td>'+m.icon+' '+esc(m.ten)+'</td><td>'+esc(l.nd||'')+'</td><td>'+esc(l.ct||'')+'</td><td>'+esc(l.ngay||'')+'</td><td class="r">'+money(l.tien)+'</td></tr>'; }).join('');
       return '<h3>🏢 '+esc(x.coso)+' — TỔNG '+money(x.tong)+'đ</h3><table class="d"><tr><th>Mảng</th><th>Nội dung</th><th>Thuộc</th><th>Ngày</th><th class="r">Số tiền</th></tr>'+ls+'</table>'; }).join('');
     var w=window.open('','_blank'); if(!w){ toast('warn','Trình duyệt chặn cửa sổ in'); return; }
     w.document.write('<html><head><meta charset="utf-8"><title>Vận hành tuần '+r.weekNo+'/'+r.nam+'</title>'+
       '<style>body{font-family:Arial,sans-serif;padding:24px;color:#0f172a}h1{font-size:20px;margin:0 0 4px}h2{font-size:14px;color:#475569;font-weight:400;margin:0 0 16px}h3{font-size:14px;margin:18px 0 6px}table{border-collapse:collapse;width:100%;margin-bottom:10px;font-size:13px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left}.r{text-align:right;white-space:nowrap}tfoot td,.tot td{font-weight:700;background:#f1f5f9}table.d th{background:#f8fafc}@media print{button{display:none}}</style></head><body>'+
-      '<h1>📅 BÁO CÁO VẬN HÀNH THEO TUẦN</h1><h2>Tuần '+r.weekNo+'/'+r.nam+' · '+r.monday+' → '+r.sunday+' · Gom mọi mảng chi phí theo cơ sở</h2>'+
+      '<h1>📅 BÁO CÁO VẬN HÀNH THEO TUẦN</h1><h2>Tuần '+r.weekNo+'/'+r.nam+' · '+r.monday+' → '+r.sunday+' · Đơn vận hành + Sổ chi phí + Marketing (không gom Kỹ thuật/Công tác/Setup)</h2>'+
       '<table><thead>'+head+'</thead><tbody>'+body+'</tbody><tfoot>'+foot+'</tfoot></table>'+
       '<h2 style="margin-top:22px">CHI TIẾT KHOẢN CHI THEO CƠ SỞ</h2>'+detail+
       '<p style="margin-top:20px;color:#64748b;font-size:12px">In lúc: '+new Date().toLocaleString('vi-VN')+'</p>'+
@@ -2389,9 +2483,10 @@
     el('xuatKy').innerHTML='<option value="all">Tất cả kỳ</option>'+kys.map(function(k){return '<option value="'+esc(k)+'">'+esc(k)+'</option>';}).join('');
     callExport();
   }); }
-  function onXuatNguon(){ var notVH=(el('xuatNguon')&&el('xuatNguon').value!=='vh');
-    if(el('xuatTT')) el('xuatTT').style.display=notVH?'none':'';   // KT/MKT không có trạng thái chưa/đã xuất
-    if(el('xuatKy')) el('xuatKy').style.display=notVH?'none':'';
+  function onXuatNguon(){ var src=(el('xuatNguon')&&el('xuatNguon').value)||'vh';
+    var coTT=(src==='vh'||src==='chi');   // chỉ đơn vận hành & sổ chi phí có trạng thái chưa/đã xuất
+    if(el('xuatTT')) el('xuatTT').style.display=coTT?'':'none';
+    if(el('xuatKy')) el('xuatKy').style.display=coTT?'':'none';
     callExport();
   }
   function callExport(){ loading(true);
@@ -2404,6 +2499,11 @@
     if(src==='mkt'){
       google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
         .withFailureHandler(function(e){loading(false);toast('err',e.message);}).exportMisaMarketing();
+      return;
+    }
+    if(src==='chi'){
+      google.script.run.withSuccessHandler(function(res){loading(false); XUAT=res||{cols:[],rows:[]}; renderXuat();})
+        .withFailureHandler(function(e){loading(false);toast('err',e.message);}).exportMisaSoChi(el('xuatKy').value, el('xuatTT').value);
       return;
     }
     if(src==='ct' || src==='stp'){
@@ -2444,6 +2544,18 @@
       setTimeout(function(){a.remove();URL.revokeObjectURL(a.href);},150);
       toast('warn','Không tải được Excel (máy chặn thư viện) — đã tải CSV thay thế');
     }
+    // Sổ chi phí: chốt từng DÒNG chi đã xuất (khóa sửa/xóa, tránh xuất trùng)
+    if((el('xuatNguon')&&el('xuatNguon').value)==='chi'){
+      if(el('xuatTT').value==='chuaxuat' && XUAT.maDons && XUAT.maDons.length && canDo('xuatMISA')){
+        setTimeout(function(){
+          if(!confirm('Đã tải file MISA ('+XUAT.maDons.length+' dòng chi).\nChốt các dòng này là "đã xuất" (khóa sửa/xóa)?')) return;
+          loading(true);
+          google.script.run.withSuccessHandler(function(r){loading(false); if(r&&r.success){toast('ok','Đã chốt '+r.count+' dòng chi'); loadXuat();} else toast('err',(r&&r.error)||'Lỗi');})
+            .withFailureHandler(function(e){loading(false);toast('err',e.message);}).markExportedSoChi(XUAT.maDons);
+        },500);
+      }
+      return;
+    }
     // Sau khi tải: chốt các đơn "Đã quyết toán" -> "Đã xuất MISA" (khóa, tránh xuất/sửa trùng)
     if(el('xuatTT').value==='chuaxuat' && XUAT.maDons && XUAT.maDons.length && canDo('xuatMISA')){   // chốt "đã xuất" theo quyền
       var plF=(CURUSER&&CURUSER.role==='Kế toán NCC')?'ncc':((CURUSER&&CURUSER.role==='Kế toán cá nhân')?'cn':'all');
@@ -2455,6 +2567,157 @@
       },500);
     }
   }
+  // ===================== SỔ CHI PHÍ (nhập phẳng: chọn loại chi phí -> nhập) =====================
+  var SC=null, SC_T=null;
+  function scSearchDebounced(){ clearTimeout(SC_T); SC_T=setTimeout(loadSoChi,350); }
+
+  function loadSoChi(){
+    loading(true);
+    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+    var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    var opt={ ky:el('scfKy').value||'all', coso:el('scfCoso').value||'all', loai:el('scfLoai').value||'all',
+              tkNo:el('scfTk').value||'all', xuat:el('scfXuat').value||'all', q:el('scfQ').value||'' };
+    if(isNV && myCoso.length) opt.coso_scope=myCoso;   // Nhân viên chỉ thấy cơ sở mình phụ trách
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi tải sổ chi phí'); return; }
+      SC=r; renderSoChi(r);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listSoChi(opt);
+  }
+
+  function _scKeepSel(id, list, cur, allLabel){
+    var v=cur||el(id).value||'all';
+    el(id).innerHTML='<option value="all">'+allLabel+'</option>'+list.map(function(x){return '<option value="'+esc(x)+'">'+esc(x)+'</option>';}).join('');
+    el(id).value=(list.indexOf(v)>=0)?v:'all';
+  }
+
+  function renderSoChi(r){
+    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+    var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
+    var cosoOpts=(isNV&&myCoso.length)?myCoso:(r.coso||[]);
+    // form: cơ sở + loại chi phí (từ danh mục có mã TK)
+    var curCoso=el('sc_coso').value, curLoai=el('sc_loai').value;
+    el('sc_coso').innerHTML=opts(cosoOpts);
+    if(curCoso && cosoOpts.indexOf(curCoso)>=0) el('sc_coso').value=curCoso;
+    else if(isNV && myCoso.length) el('sc_coso').value=myCoso[0];
+    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var dm=(r.danhMuc||[]).filter(function(x){ if(!bp) return true; var b=String(x.boPhan||'').trim(); return !b||b===bp; });
+    el('sc_loai').innerHTML='<option value="">— Chọn loại chi phí —</option>'+dm.map(function(x){
+      return '<option value="'+esc(x.ten)+'">'+esc(x.ten)+(x.tkNo?('  ·  TK '+esc(x.tkNo)):'  ·  (chưa gắn mã)')+'</option>'; }).join('');
+    if(curLoai) el('sc_loai').value=curLoai;
+    onScLoai();
+    // bộ lọc
+    _scKeepSel('scfKy',   r.kyList||[],   null, 'Tất cả kỳ');
+    _scKeepSel('scfCoso', cosoOpts,       null, 'Tất cả cơ sở');
+    _scKeepSel('scfLoai', r.loaiList||[], null, 'Tất cả loại chi phí');
+    _scKeepSel('scfTk',   r.tkNoList||[], null, 'Tất cả mã TK');
+
+    el('scSummary').innerHTML=
+      _tqCard('#ecfdf5','#a7f3d0','#065f46','TỔNG CHI', money(r.tong)+'đ', r.soDong+' dòng')+
+      _tqCard('#eff6ff','#bfdbfe','#1e40af','Tiền thuế', money(r.tongThue)+'đ','VAT của các dòng có thuế')+
+      _tqCard('#f1f5f9','#cbd5e1','#334155','Số loại chi phí', String((r.byLoai||[]).length),'đang có phát sinh')+
+      _tqCard('#faf5ff','#e9d5ff','#6b21a8','Số mã tài khoản', String((r.byTkNo||[]).length),'gọi lại được theo mã');
+
+    var L=r.items||[];
+    el('scEmpty').style.display=L.length?'none':'block';
+    el('scBody').innerHTML=L.map(function(x){
+      var kh=x.daXuat;
+      return '<tr'+(kh?' style="background:#f8fafc;color:#64748b"':'')+'>'+
+        '<td style="white-space:nowrap">'+esc(x.ngay)+'</td>'+
+        '<td>'+esc(x.coso)+'</td>'+
+        '<td>'+esc(x.loai)+(kh?' <span class="badge st-duyet">đã xuất</span>':'')+'</td>'+
+        '<td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td>'+
+        '<td style="font-family:Consolas,monospace">'+(x.tkCo?esc(x.tkCo):'<span style="color:#dc2626">—</span>')+'</td>'+
+        '<td>'+esc(x.noiDung||'')+(x.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(x.ghiChu)+'</div>':'')+'</td>'+
+        '<td style="font-size:12px">'+esc(x.hinhThuc||'')+'</td>'+
+        '<td class="money">'+money(x.soTien)+'</td>'+
+        '<td style="text-align:center">'+(x.anh?'<a href="'+esc(x.anh)+'" target="_blank" title="Xem hóa đơn">🧾</a>':'')+'</td>'+
+        '<td style="text-align:center;white-space:nowrap">'+(kh?'':(
+          '<button class="btn b-s" onclick="editSoChi(\''+esc(x.id)+'\')" title="Sửa">✎</button> '+
+          '<button class="btn b-d" onclick="delSoChi(\''+esc(x.id)+'\')" title="Xóa">✕</button>'))+'</td></tr>';
+    }).join('');
+    el('scFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td colspan="7">TỔNG '+L.length+' DÒNG</td><td class="money">'+money(r.tong)+'</td><td colspan="2"></td></tr>'):'';
+
+    el('scByLoai').innerHTML=(r.byLoai||[]).map(function(x){ return '<tr><td>'+esc(x.loai)+'</td><td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="4" style="color:#94a3b8">—</td></tr>';
+    el('scByTk').innerHTML=(r.byTkNo||[]).map(function(x){ return '<tr><td style="font-family:Consolas,monospace"><b>'+esc(x.tkNo)+'</b></td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="3" style="color:#94a3b8">—</td></tr>';
+    el('scByCoso').innerHTML=(r.byCoso||[]).map(function(x){ return '<tr><td>'+esc(x.coso)+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="2" style="color:#94a3b8">—</td></tr>';
+  }
+
+  // Chọn loại chi phí -> hiện luôn mã tài khoản sẽ ghi vào dòng
+  function onScLoai(){
+    var ten=String(el('sc_loai').value||'').trim().toLowerCase();
+    var hit=null; ((SC&&SC.danhMuc)||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===ten) hit=x; });
+    var ht=el('sc_ht').value||'Tạm ứng NV';
+    var tkCo=(hit&&hit.tkCo)?hit.tkCo:(ht==='Trực tiếp NCC'?'331':'141');
+    el('sc_tk').value = hit ? ('Nợ '+(hit.tkNo||'?')+' / Có '+tkCo) : '';
+    el('sc_tk').style.color=(hit&&hit.tkNo)?'#0f766e':'#dc2626';
+  }
+  function calcScTT(){ var sl=parseFloat(el('sc_sl').value)||0, dg=parseFloat(el('sc_dg').value)||0; if(sl&&dg) el('sc_tt').value=Math.round(sl*dg); }
+
+  function collectSoChi(){
+    return { ngay:el('sc_ngay').value?_dmy(el('sc_ngay').value):'', coso:el('sc_coso').value, loai:el('sc_loai').value,
+      hinhThuc:el('sc_ht').value, doiTuong:el('sc_dt').value.trim(), noiDung:el('sc_nd').value.trim(), dvt:el('sc_dvt').value.trim(),
+      soLuong:el('sc_sl').value, donGia:el('sc_dg').value, soTien:el('sc_tt').value, thueSuat:el('sc_thue').value,
+      vat:el('sc_vat').value, ghiChu:el('sc_gc').value.trim(), anh:el('sc_anh').value };
+  }
+  function resetScForm(){
+    ['sc_id','sc_dt','sc_nd','sc_dvt','sc_sl','sc_dg','sc_tt','sc_thue','sc_gc','sc_anh'].forEach(function(i){el(i).value='';});
+    var t=new Date(); el('sc_ngay').value=t.getFullYear()+'-'+('0'+(t.getMonth()+1)).slice(-2)+'-'+('0'+t.getDate()).slice(-2);
+    el('sc_vat').value=''; el('scImgBtn').textContent='📎 Đính ảnh';
+    el('scBtnSave').textContent='＋ Thêm dòng chi'; el('scBtnCancel').classList.add('hide');
+    el('scListTitle').textContent='Danh sách chi phí';
+  }
+  function saveSoChi(){
+    var r=collectSoChi();
+    if(!r.loai){ toast('warn','Chọn loại chi phí'); return; }
+    if(!r.coso){ toast('warn','Chọn cơ sở'); return; }
+    if(!(parseFloat(r.soTien)||0)){ toast('warn','Nhập số tiền'); return; }
+    var id=el('sc_id').value;
+    loading(true);
+    var cb=function(res){ loading(false);
+      if(res&&res.success){ _log(id?'Sửa dòng sổ chi phí':'Thêm dòng sổ chi phí', r.loai, (r.noiDung||'')+' · '+money(r.soTien)+'đ · TK '+(res.tkNo||'?'));
+        toast('ok',(id?'Đã cập nhật':'Đã thêm')+' · TK Nợ '+(res.tkNo||'chưa gắn mã')); resetScForm(); loadSoChi(); }
+      else toast('err',(res&&res.error)||'Lỗi');
+    };
+    var fb=function(e){loading(false);toast('err',e.message);};
+    var me=(CURUSER&&CURUSER.name)||'';
+    if(id) google.script.run.withSuccessHandler(cb).withFailureHandler(fb).updateSoChi(id,r,me);
+    else   google.script.run.withSuccessHandler(cb).withFailureHandler(fb).addSoChi(r,me);
+  }
+  function editSoChi(id){
+    var x=((SC&&SC.items)||[]).filter(function(y){return y.id===id;})[0]; if(!x) return;
+    el('sc_id').value=x.id;
+    var p=String(x.ngay||'').split('/'); el('sc_ngay').value=(p.length===3)?(p[2]+'-'+p[1]+'-'+p[0]):'';
+    el('sc_coso').value=x.coso; el('sc_loai').value=x.loai; el('sc_ht').value=x.hinhThuc||'Tạm ứng NV';
+    el('sc_dt').value=x.doiTuong||''; el('sc_nd').value=x.noiDung||''; el('sc_dvt').value=x.dvt||'';
+    el('sc_sl').value=x.soLuong||''; el('sc_dg').value=x.donGia||''; el('sc_tt').value=x.soTien||'';
+    el('sc_thue').value=x.thueSuat||''; el('sc_vat').value=x.vat||''; el('sc_gc').value=x.ghiChu||''; el('sc_anh').value=x.anh||'';
+    el('scImgBtn').textContent=x.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
+    el('scBtnSave').textContent='💾 Lưu thay đổi'; el('scBtnCancel').classList.remove('hide');
+    el('scListTitle').textContent='Đang sửa dòng chi';
+    onScLoai();
+    try{ el('sc_nd').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
+  }
+  function delSoChi(id){
+    var x=((SC&&SC.items)||[]).filter(function(y){return y.id===id;})[0];
+    if(!confirm('Xóa dòng chi "'+((x&&x.noiDung)||id)+'" ('+money((x&&x.soTien)||0)+'đ)?')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r&&r.success){ _log('Xóa dòng sổ chi phí',(x&&x.loai)||'',(x&&x.noiDung)||''); toast('ok','Đã xóa'); loadSoChi(); }
+      else toast('err',(r&&r.error)||'Lỗi');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).deleteSoChi(id);
+  }
+  function attachScImg(){
+    var inp=el('scImgFile'); inp.value='';
+    inp.onchange=function(){ var f=inp.files[0]; if(!f) return; loading(true);
+      var rd=new FileReader(); rd.onload=function(e){ var b64=e.target.result.split(',')[1];
+        google.script.run.withSuccessHandler(function(res){loading(false);
+          if(res&&res.success){ el('sc_anh').value=res.url; el('scImgBtn').textContent='✓ Đã đính ảnh'; toast('ok','Đã đính ảnh'); }
+          else toast('err',(res&&res.error)||'Lỗi tải ảnh');
+        }).withFailureHandler(function(er){loading(false);toast('err',er.message);}).uploadImage({base64:b64,type:f.type},'',el('sc_coso').value);
+      }; rd.readAsDataURL(f);
+    }; inp.click();
+  }
+
   // ===================== QUYẾT TOÁN (danh sách) =====================
   function loadQT(){ boot(renderQTList); }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
@@ -2983,6 +3246,7 @@
   function renderCfg(){
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
     renderCosoBody();
+    el('cfgLoaiBody').innerHTML=(CFG.loaiChiPhi||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'VD: Chi phí cơ sở')+'</td><td>'+_inp(x.tkNo,'VD: 64127')+'</td><td>'+_inp(x.tkCo,'trống = tự')+'</td><td>'+_inp(x.maDt,'Mã MISA')+'</td><td>'+_bpSel(x.boPhan)+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgNhomBody').innerHTML=(CFG.nhom||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên nhóm')+'</td><td>'+_loaiSel(x.loai)+'</td><td>'+_inp(x.tkNo,'VD: 152')+'</td><td>'+_bpSel(x.boPhan)+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgDtBody').innerHTML=(CFG.doiTuong||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Tên đối tượng')+'</td><td>'+_inp(x.ma,'Mã MISA')+'</td><td>'+_inp(x.loai,'NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'; }).join('');
@@ -3067,6 +3331,23 @@
   }
   function saveCfgCoso(){ var data=_readRows('cfgCosoBody').map(function(r){return {ten:(r[0]||'').trim(), tenMisa:r[1]||'', maDonVi:r[2]||'', phanLoaiLon:r[3]||''};}).filter(function(x){return x.ten;});
     _saveCfg({coso:data},'Đã lưu cấu hình cơ sở');
+  }
+  function addCfgLoai(){ el('cfgLoaiBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Chi phí cơ sở')+'</td><td>'+_inp('','VD: 64127')+'</td><td>'+_inp('','trống = tự')+'</td><td>'+_inp('','Mã MISA')+'</td><td>'+_bpSel('')+'</td><td>'+_inp('','Ghi chú')+'</td>'+_delBtn()+'</tr>'); }
+  function saveCfgLoai(){ var data=_readRows('cfgLoaiBody').map(function(r){return {ten:(r[0]||'').trim(), tkNo:(r[1]||'').trim(), tkCo:(r[2]||'').trim(), maDt:(r[3]||'').trim(), boPhan:r[4]||'', note:r[5]||''};}).filter(function(x){return x.ten;});
+    _saveCfg({loaiChiPhi:data},'Đã lưu danh mục loại chi phí');
+  }
+  // Điền mã tài khoản cho các dòng chi CŨ còn trống (sổ chi phí + dòng chi của đơn)
+  function ganMaTK(){
+    if(!confirm('Điền mã tài khoản từ danh mục cho các dòng chi CŨ còn trống?\n(Dòng đã xuất MISA giữ nguyên.)')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(a){
+      google.script.run.withSuccessHandler(function(b){ loading(false);
+        var thieu=[].concat((a&&a.thieuMa)||[],(b&&b.thieuMa)||[]);
+        var n=((a&&a.updated)||0)+((b&&b.updated)||0);
+        toast(thieu.length?'warn':'ok','Đã gán mã cho '+n+' dòng'+(thieu.length?(' · còn thiếu mã ở loại: '+thieu.join(', ')):''));
+        _log('Gán mã tài khoản cho dòng cũ','', n+' dòng');
+      }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).ganMaTaiKhoanDon(false);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).ganMaTaiKhoanSoChi(false);
   }
   function saveCfgNhom(){ var data=_readRows('cfgNhomBody').map(function(r){return {ten:(r[0]||'').trim(), loai:r[1]||'canhan', tkNo:r[2]||'', boPhan:r[3]||''};}).filter(function(x){return x.ten;});
     _saveCfg({nhom:data},'Đã lưu TK Nợ theo nhóm');

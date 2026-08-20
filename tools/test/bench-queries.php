@@ -23,6 +23,8 @@ function seed( $n, $today ) {
 		$bp = VHCP_BP::create( 'Công tác', 'Đợt ' . uniqid(), 'A', 'VR SORA', '08/2026', 'Admin' );
 		VHCP_BP::add_line( $bp['ma'], array( 'noiDung' => 'Vé', 'duToan' => 100000, 'thucTe' => 120000, 'ngay' => $today ) );
 
+		VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'VR SORA', 'loai' => 'Chi phí cơ sở', 'noiDung' => 'Chi ' . uniqid(), 'soTien' => 250000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV' );
+
 		$mk = VHCP_MK::create_don( 'VR SORA', 'CD ' . uniqid(), '08/2026', 'FB', 'MKT' );
 		VHCP_MK::add_line( $mk['ma'], array( 'noiDung' => 'Ads', 'duToan' => 500000, 'thucTe' => 480000, 'ngay' => $today ) );
 
@@ -49,6 +51,8 @@ function measure( $label ) {
 	$run( 'listDuAn',          function () { VHCP_DuAn::list_du_an(); } );
 	$run( 'listBP',            function () { VHCP_BP::list_bp( 'all' ); } );
 	$run( 'listMkDon',         function () { VHCP_MK::list_don( 'all' ); } );
+	$run( 'listSoChi',         function () { VHCP_SoChi::list_chi( array() ); } );
+	$run( 'exportMisaSoChi',   function () { VHCP_SoChi::export_misa( 'all', 'chuaxuat' ); } );
 	$run( 'getPendingModules', function () { VHCP_Report::pending_modules(); } );
 	$run( 'getVanHanhTuan',    function () { VHCP_Report::van_hanh_tuan( '' ); } );
 	$run( 'getGianReport',     function () { VHCP_Report::gian_report( 'VR SORA' ); } );

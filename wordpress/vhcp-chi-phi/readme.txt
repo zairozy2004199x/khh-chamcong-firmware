@@ -4,7 +4,7 @@ Tags: chi phí, tạm ứng, quyết toán, MISA, kế toán
 Requires at least: 5.6
 Tested up to: 6.8
 Requires PHP: 7.2
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 
 App "Chi Phí Cơ Sở / Vận Hành Chi Phí" của K&H, dựng lại từ Google Apps Script sang WordPress.
@@ -14,6 +14,8 @@ App "Chi Phí Cơ Sở / Vận Hành Chi Phí" của K&H, dựng lại từ Goog
 Toàn bộ nghiệp vụ của app cũ, dữ liệu nằm trong bảng MySQL riêng của WordPress
 (tiền tố `wp_vhcp_*`), không còn phụ thuộc Google Sheet:
 
+* **Sổ chi phí** (nhập phẳng): chọn **loại chi phí** rồi nhập — mỗi loại gắn sẵn **mã tài khoản**,
+  dòng chi lưu luôn mã nên dò lại chỉ cần đọc cột mã, không phải chạy lại hàm dò.
 * **Nhập đơn** theo tuần, nhiều cơ sở: hạng mục xin tạm ứng → phát sinh → thực chi từng dòng.
 * **Duyệt tạm ứng** (quản lý) → **cấp tạm ứng** (kế toán, tiền mặt/chuyển khoản kèm ảnh).
 * **Quyết toán** tách 2 luồng cá nhân (141) và nhà cung cấp (331); thừa/thiếu tự tính.
@@ -37,6 +39,16 @@ qua `?sso=<token>` dùng chung `SSO_SECRET`.
 4. Muốn mang dữ liệu cũ sang: **Vận Hành Chi Phí → Nhập dữ liệu**.
 
 == Changelog ==
+
+= 1.1.0 =
+* Thêm tab **💵 Sổ chi phí**: chọn loại chi phí rồi nhập, không cần lập đơn/tạm ứng/quyết toán.
+* Thêm danh mục **Loại chi phí gắn mã tài khoản** (TK Nợ/TK Có/Mã đối tượng) — nơi duy nhất
+  quyết định "chi phí này là chi phí gì". Dòng chi (cả sổ chi phí lẫn dòng của đơn) lưu sẵn mã
+  tại thời điểm nhập; có nút gán mã cho dòng cũ.
+* Xuất MISA ưu tiên mã tài khoản trên dòng; ma trận nhóm × phân loại lớn chỉ còn là dự phòng.
+* **Vận hành tuần bỏ gom** Kỹ thuật / Công tác / Setup — chỉ còn Đơn vận hành · Sổ chi phí · Marketing.
+* Chặn theo vai trò ở phía máy chủ; cắt hết các chỗ đọc lặp database (không màn hình nào tăng
+  số lệnh theo số bản ghi).
 
 = 1.0.0 =
 * Bản đầu tiên: chuyển toàn bộ app Apps Script `VanHanhChiPhi` sang WordPress

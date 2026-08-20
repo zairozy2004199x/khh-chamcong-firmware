@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -13,7 +13,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCP_VERSION', '1.0.0' );
+define( 'VHCP_VERSION', '1.1.0' );
 define( 'VHCP_FILE', __FILE__ );
 define( 'VHCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCP_URL', plugin_dir_url( __FILE__ ) );
@@ -25,6 +25,7 @@ require_once VHCP_DIR . 'includes/class-vhcp-cfg.php';
 require_once VHCP_DIR . 'includes/class-vhcp-auth.php';
 require_once VHCP_DIR . 'includes/class-vhcp-log.php';
 require_once VHCP_DIR . 'includes/class-vhcp-don.php';
+require_once VHCP_DIR . 'includes/class-vhcp-sochi.php';
 require_once VHCP_DIR . 'includes/class-vhcp-duan.php';
 require_once VHCP_DIR . 'includes/class-vhcp-mk.php';
 require_once VHCP_DIR . 'includes/class-vhcp-bp.php';

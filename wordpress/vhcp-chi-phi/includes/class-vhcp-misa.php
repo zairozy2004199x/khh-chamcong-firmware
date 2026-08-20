@@ -38,6 +38,11 @@ class VHCP_Misa {
 		foreach ( $cfg['doiTuong'] as $x ) { $m_dt[ mb_strtolower( (string) $x['ten'] ) ] = $x['ma']; }
 		$m_no_mx = array();
 		foreach ( (array) $cfg['tkNoMatrix'] as $x ) { $m_no_mx[ trim( (string) $x['nhom'] ) . '|' . trim( (string) $x['pll'] ) ] = $x['tkNo']; }
+		$m_loai = array();   // danh mục LOẠI CHI PHÍ -> TK Nợ
+		foreach ( (array) ( isset( $cfg['loaiChiPhi'] ) ? $cfg['loaiChiPhi'] : array() ) as $x ) {
+			if ( trim( (string) $x['tkNo'] ) === '' ) { continue; }
+			$m_loai[ mb_strtolower( trim( (string) $x['ten'] ) ) ] = (string) $x['tkNo'];
+		}
 
 		$m_co_user = array(); $m_dt_user = array(); $role_by = array();
 		foreach ( VHCP_Cfg::get_users() as $u ) {
@@ -97,12 +102,19 @@ class VHCP_Misa {
 			$pll       = isset( $m_pll[ $coso ] ) ? $m_pll[ $coso ] : '';
 			$duyet_key = mb_strtolower( trim( (string) $d['nguoiDuyet'] ) );
 
-			$tk_no = '';
+			// TK Nợ: ưu tiên MÃ ĐÃ GẮN TRÊN DÒNG (nhập sao xuất vậy, dò bằng mắt được),
+			// rồi tới danh mục loại chi phí, cuối cùng mới là ma trận/TK nhóm cho dữ liệu cũ.
+			$tk_no = trim( (string) ( isset( $r['tk_no'] ) ? $r['tk_no'] : '' ) );
 			$mx_k  = trim( $nhom ) . '|' . trim( (string) $pll );
-			if ( ! empty( $m_no_mx[ $mx_k ] ) )      { $tk_no = $m_no_mx[ $mx_k ]; }
+			if ( $tk_no !== '' )                     { /* dùng luôn mã trên dòng */ }
+			elseif ( ! empty( $m_loai[ mb_strtolower( trim( $nhom ) ) ] ) ) { $tk_no = $m_loai[ mb_strtolower( trim( $nhom ) ) ]; }
+			elseif ( ! empty( $m_no_mx[ $mx_k ] ) )  { $tk_no = $m_no_mx[ $mx_k ]; }
 			elseif ( ! empty( $m_no[ $nhom ] ) )     { $tk_no = $m_no[ $nhom ]; }
+			// TK Có = ai ứng tiền, không phải "chi phí gì": vẫn ưu tiên TK Có của người duyệt
+			// tạm ứng như cũ, rồi tới mã gắn trên dòng, rồi tới TK Có của phân loại.
 			$tk_co = '';
 			if ( ! empty( $m_co_user[ $duyet_key ] ) ) { $tk_co = $m_co_user[ $duyet_key ]; }
+			elseif ( trim( (string) ( isset( $r['tk_co'] ) ? $r['tk_co'] : '' ) ) !== '' ) { $tk_co = trim( (string) $r['tk_co'] ); }
 			elseif ( ! empty( $m_co[ $co_key ] ) )     { $tk_co = $m_co[ $co_key ]; }
 			$ma_dv = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$ma_dt = '';
