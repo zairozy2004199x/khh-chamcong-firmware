@@ -825,7 +825,7 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>💵 Loại chi phí — gắn mã tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgLoai()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>💵 Loại chi phí — gắn mã tài khoản</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-x" onclick="dongBoTkLoai()" title="Copy TK Nợ đã khai ở bảng nhóm mặt hàng / ma trận TK Nợ sang đây">⬇️ Lấy mã từ cấu hình cũ</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgLoai()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Loại chi phí</th><th style="width:110px">TK Nợ</th><th style="width:110px">TK Có</th><th style="width:130px">Mã đối tượng</th><th style="width:140px">Bộ phận</th><th>Ghi chú</th><th style="width:44px"></th></tr></thead><tbody id="cfgLoaiBody"></tbody></table></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8">Đây là nơi <b>duy nhất</b> quyết định "chi phí này là chi phí gì". Dòng chi lưu luôn mã tại thời điểm nhập, nên sửa mã ở đây <b>không</b> làm đổi số cũ — muốn áp mã mới cho dòng cũ thì bấm <b>🔗 Gán mã cho dòng cũ</b>. <b>TK Có</b> để trống = tự lấy theo hình thức chi (Tạm ứng NV → 141 · Trực tiếp NCC → 331).</div>
     </div>
@@ -3517,6 +3517,18 @@
       toast((r.chuaChonLoai||(r.thieuMa||[]).length)?'warn':'ok', msg);
       _log('Gán mã tài khoản cho dòng cũ','', r.updated+' dòng');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).ganMaTaiKhoanTatCa(false);
+  }
+  function dongBoTkLoai(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      if(!r.updated){ toast('warn','Không có mã nào để lấy — bảng 🧮 TK Nợ theo nhóm / ma trận TK Nợ cũng đang trống. Anh điền TK Nợ trực tiếp ở bảng này rồi 💾 Lưu.'); return; }
+      var msg='Đã lấy mã cho '+r.updated+'/'+r.tong+' loại chi phí';
+      if(r.thieuMa) msg+=' · còn '+r.thieuMa+' loại chưa có TK Nợ, cần điền tay';
+      toast(r.thieuMa?'warn':'ok', msg);
+      _log('Lấy TK Nợ từ cấu hình cũ','', r.updated+' loại');
+      loadCfg();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).dongBoTkLoai();
   }
   function saveCfgNhom(){ var data=_readRows('cfgNhomBody').map(function(r){return {ten:(r[0]||'').trim(), loai:r[1]||'canhan', tkNo:r[2]||'', boPhan:r[3]||''};}).filter(function(x){return x.ten;});
     _saveCfg({nhom:data},'Đã lưu TK Nợ theo nhóm');

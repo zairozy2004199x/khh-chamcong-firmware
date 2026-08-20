@@ -506,6 +506,65 @@ class VHCP_Cfg {
 		return array( 'tk_no' => $tk_no, 'tk_co' => $tk_co, 'ma_dt' => $ma_dt );
 	}
 
+	/**
+	 * LẤY MÃ SẴN CÓ CHO DANH MỤC LOẠI CHI PHÍ.
+	 *
+	 * Cấu hình cũ đã khai TK Nợ ở 2 chỗ: cột "TK Nợ" của CH_Nhom và ma trận CH_TKNo
+	 * (nhóm × phân loại lớn). Hàm này copy các mã đó sang danh mục LOẠI CHI PHÍ để
+	 * anh không phải gõ lại 13 dòng — chỉ điền vào ô ĐANG TRỐNG, không ghi đè mã đã khai.
+	 * Ma trận chỉ dùng được khi mọi phân loại lớn của nhóm đó cùng 1 mã (khác nhau thì
+	 * để trống và báo thiếu, để không âm thầm hạch toán sai).
+	 */
+	public static function dong_bo_tk_loai() {
+		$all  = self::read_all();
+		$loai = self::rows_of( $all, self::LOAI );
+		if ( ! count( $loai ) ) { return VHCP_Util::ok( array( 'updated' => 0, 'thieuMa' => 0, 'tong' => 0 ) ); }
+
+		$k = function ( $v ) { return mb_strtolower( trim( (string) $v ) ); };
+
+		$tk = array();   // tên nhóm -> TK Nợ
+		$bp = array();   // tên nhóm -> Bộ phận
+		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
+			$key = $k( $r[0] );
+			if ( $key === '' ) { continue; }
+			if ( ! isset( $tk[ $key ] ) && trim( (string) $r[2] ) !== '' ) { $tk[ $key ] = trim( (string) $r[2] ); }
+			if ( ! isset( $bp[ $key ] ) && trim( (string) $r[3] ) !== '' ) { $bp[ $key ] = trim( (string) $r[3] ); }
+		}
+
+		$mt = array();   // tên nhóm -> tập các TK Nợ gặp trong ma trận
+		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
+			$key = $k( $r[0] );
+			$v   = trim( (string) $r[2] );
+			if ( $key === '' || $v === '' ) { continue; }
+			if ( ! isset( $mt[ $key ] ) ) { $mt[ $key ] = array(); }
+			$mt[ $key ][ $v ] = 1;
+		}
+
+		$rows = array(); $upd = 0; $thieu = 0; $changed = false;
+		foreach ( $loai as $r ) {
+			$row = array_slice( array_values( (array) $r ), 0, 6 );
+			for ( $i = count( $row ); $i < 6; $i++ ) { $row[ $i ] = ''; }
+			$key = $k( $row[0] );
+
+			if ( trim( (string) $row[1] ) === '' ) {
+				$v = '';
+				if ( isset( $tk[ $key ] ) ) { $v = $tk[ $key ]; }
+				elseif ( isset( $mt[ $key ] ) && count( $mt[ $key ] ) === 1 ) {
+					$ma = array_map( 'strval', array_keys( $mt[ $key ] ) );
+					$v  = $ma[0];
+				}
+				if ( $v !== '' ) { $row[1] = $v; $upd++; $changed = true; }
+			}
+			if ( trim( (string) $row[4] ) === '' && isset( $bp[ $key ] ) ) { $row[4] = $bp[ $key ]; $changed = true; }
+			if ( trim( (string) $row[1] ) === '' ) { $thieu++; }
+			$rows[] = $row;
+		}
+
+		if ( $changed ) { self::write( self::LOAI, $rows ); }
+		else { self::clear_cache(); }
+		return VHCP_Util::ok( array( 'updated' => $upd, 'thieuMa' => $thieu, 'tong' => count( $rows ) ) );
+	}
+
 	public static function get_users() {
 		$s = self::cfg_static();   // đã gồm bảng người dùng, có cache 5 phút
 		return isset( $s['users'] ) ? $s['users'] : array();

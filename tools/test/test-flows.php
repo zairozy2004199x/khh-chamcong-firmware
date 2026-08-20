@@ -859,6 +859,53 @@ t( 'dữ liệu vừa nạp tra theo mã ra ngay', $co_moi );
 $t6417 = VHCP_TraMa::search( array( 'tkNo' => '6417' ) );
 t( 'mã 6417 ra cả dòng marketing vừa nạp', $t6417['tong'] >= 1200000, $t6417['tong'] );
 
+// ------------------------------------------------ 24. LẤY TK NỢ TỪ CẤU HÌNH CŨ SANG DANH MỤC LOẠI CHI PHÍ
+// Danh mục loại chi phí có 1 loại còn trống mã; cấu hình cũ (nhóm mặt hàng + ma trận) đã khai.
+$dm_cu = VHCP_Cfg::cfg_static()['loaiChiPhi'];
+$dm_cu[] = array( 'ten' => 'Nuôi thú',           'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '' );
+$dm_cu[] = array( 'ten' => 'Phát sinh',          'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '' );
+$dm_cu[] = array( 'ten' => 'Chưa khai ở đâu cả', 'tkNo' => '', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '' );
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => $dm_cu ) );
+VHCP_Cfg::save_config( array(
+	'nhom' => array(
+		array( 'ten' => 'Nuôi thú', 'loai' => 'canhan', 'tkNo' => '6428', 'boPhan' => 'Vận hành' ),
+	),
+	'tkNoMatrix' => array(
+		array( 'nhom' => 'Phát sinh', 'pll' => 'VR',      'tkNo' => '6425' ),
+		array( 'nhom' => 'Phát sinh', 'pll' => 'FUNZONE', 'tkNo' => '6425' ),
+	),
+) );
+$db = VHCP_Cfg::dong_bo_tk_loai();
+t( 'lấy mã từ cấu hình cũ chạy được', ! empty( $db['success'] ) );
+teq( 'lấy được 2 mã (1 từ nhóm, 1 từ ma trận)', 2, $db['updated'] );
+teq( 'TK Nợ copy từ bảng nhóm mặt hàng', '6428', VHCP_Cfg::loai_tk( 'Nuôi thú' )['tkNo'] );
+$_bp_nt = '';
+foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $_x ) { if ( $_x['ten'] === 'Nuôi thú' ) { $_bp_nt = $_x['boPhan']; } }
+teq( 'Bộ phận copy theo luôn', 'Vận hành', $_bp_nt );
+teq( 'TK Nợ copy từ ma trận khi mọi phân loại lớn cùng mã', '6425', VHCP_Cfg::loai_tk( 'Phát sinh' )['tkNo'] );
+teq( 'loại không khai ở đâu -> vẫn trống', '', VHCP_Cfg::loai_tk( 'Chưa khai ở đâu cả' )['tkNo'] );
+t( 'báo số loại còn thiếu mã', $db['thieuMa'] >= 1, $db['thieuMa'] );
+
+// Mã đã khai tay thì KHÔNG bị ghi đè, và ma trận nhiều mã khác nhau thì không đoán bừa
+VHCP_Cfg::save_config( array(
+	'nhom' => array( array( 'ten' => 'Nuôi thú', 'loai' => 'canhan', 'tkNo' => '9999', 'boPhan' => 'Vận hành' ) ),
+	'tkNoMatrix' => array(
+		array( 'nhom' => 'Chưa khai ở đâu cả', 'pll' => 'VR',      'tkNo' => '6111' ),
+		array( 'nhom' => 'Chưa khai ở đâu cả', 'pll' => 'FUNZONE', 'tkNo' => '6222' ),
+	),
+) );
+$db2 = VHCP_Cfg::dong_bo_tk_loai();
+teq( 'không ghi đè mã đã có', '6428', VHCP_Cfg::loai_tk( 'Nuôi thú' )['tkNo'] );
+teq( 'ma trận mâu thuẫn -> không đoán, để trống', '', VHCP_Cfg::loai_tk( 'Chưa khai ở đâu cả' )['tkNo'] );
+teq( 'lần 2 không còn gì để lấy', 0, $db2['updated'] );
+
+// Nạp CSV cấu hình nhóm cũ là tự copy mã sang danh mục ngay trong lượt nạp đó
+$csv_nhom = "Nhóm mặt hàng,Loại,TK Nợ,Bộ phận\nChưa khai ở đâu cả,canhan,6789,Vận hành\n";
+$r_nhom = VHCP_Import::run( 'CH_Nhom', $csv_nhom, array( 'replace' => true, 'header' => true ) );
+t( 'nạp CH_Nhom thành công', ! empty( $r_nhom['success'] ) );
+teq( 'nạp cấu hình cũ tự copy mã sang danh mục', 1, $r_nhom['dongBoLoai'] );
+teq( 'loại nhận mã ngay khi nạp cấu hình', '6789', VHCP_Cfg::loai_tk( 'Chưa khai ở đâu cả' )['tkNo'] );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

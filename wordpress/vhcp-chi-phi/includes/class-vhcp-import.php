@@ -160,7 +160,15 @@ class VHCP_Import {
 			if ( $replace ) { VHCP_Cfg::write( $type, $clean, false ); }
 			else { foreach ( $clean as $row ) { VHCP_Cfg::append( $type, $row ); } }
 			VHCP_Cfg::clear_cache();
-			return VHCP_Util::ok( array( 'inserted' => $n, 'skipped' => $skipped ) );
+			// Nạp cấu hình cũ có sẵn TK Nợ -> copy luôn sang danh mục LOẠI CHI PHÍ,
+			// để dòng nhập sau đó tự mang mã đúng mà không phải khai lại bằng tay.
+			$dong_bo = 0;
+			if ( $type === VHCP_Cfg::NHOM || $type === VHCP_Cfg::TKNO ) {
+				$r       = VHCP_Cfg::dong_bo_tk_loai();
+				$dong_bo = (int) $r['updated'];
+				$thieu_ma = (int) $r['thieuMa'];
+			}
+			return VHCP_Util::ok( array( 'inserted' => $n, 'skipped' => $skipped, 'dongBoLoai' => $dong_bo, 'thieuMa' => $thieu_ma ) );
 		}
 
 		switch ( $type ) {
