@@ -1435,7 +1435,10 @@ class VHCC_Admin {
 					}
 					echo '</tbody></table>';
 					echo '<p class="description">Bảng này KHÔNG in PIN — chỉ số chữ số, đủ để biết mình '
-						. 'đang gõ thiếu hay thừa. Sửa PIN ở tab ⚙️ Cấu hình của app chi phí.</p>';
+						. 'đang gõ thiếu hay thừa. Sửa PIN ở tab ⚙️ Cấu hình của app chi phí.<br>'
+						. '⚠️ <b>Chỉ những PIN trong bảng này mới vào được trang chấm công.</b> PIN ở màn '
+						. '<b>Phân quyền &amp; PIN</b> là của app gốc, KHÔNG dùng để đăng nhập trang web; '
+						. 'hồ sơ ở màn <b>Nhân sự</b> cũng không phải tài khoản đăng nhập.</p>';
 				}
 
 				if ( $pin_hong ) {

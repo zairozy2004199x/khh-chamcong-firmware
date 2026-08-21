@@ -3586,6 +3586,58 @@ t( 'dán rỗng thì nói "Ô dán đang trống", không vẽ bảng 0/0/0',
 t( 'và chỉ sang đường kéo cho khỏi dán tay',
 	strpos( $h_rong, 'Kéo dữ liệu cũ từ app gốc' ) !== false );
 
+// ================= 40. BA KHO PIN KHÁC NHAU — MÀN HÌNH PHẢI NÓI RÕ CÁI NÀO DÙNG ĐỂ ĐĂNG NHẬP
+/* 🔴 CA THẬT, tốn của anh Thắng một vòng: anh kéo nhân sự về, thêm một dòng PIN ở màn "Phân
+   quyền & PIN", rồi thử đăng nhập trang chấm công — không vào được, tưởng dữ liệu chưa đồng bộ.
+   Sự thật: KHÔNG có chỗ nào trong plugin xác thực bằng bảng `phan_quyen`, và bảng `nhan_vien`
+   cũng không phải tài khoản. Cổng PIN của trang chỉ đọc NGUỒN NGƯỜI DÙNG khai ở màn Cài đặt.
+
+   Phép thử này khoá cả hai đầu: sự thật trong mã, và lời nói trên màn hình. */
+
+/* Đầu 1 — SỰ THẬT: đường đăng nhập không được đụng tới hai bảng kia. */
+$auth_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-auth.php' );
+t( 'đường đăng nhập KHÔNG đọc bảng phan_quyen', strpos( $auth_src, 'phan_quyen' ) === false );
+t( 'đường đăng nhập KHÔNG đọc bảng nhan_vien', strpos( $auth_src, 'nhan_vien' ) === false );
+t( 'đường đăng nhập đọc đúng nguồn người dùng (vhcp_cfg / CH_NguoiDung)',
+	strpos( $auth_src, 'CH_NguoiDung' ) !== false );
+
+/* Thử thật: có hồ sơ + có dòng phân quyền, nhưng PIN đó vẫn KHÔNG vào được. */
+vhcc_dung_bang();
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+global $wpdb;
+$bang_cfg2 = $wpdb->prefix . 'vhcp_cfg';
+$wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+$wpdb->insert( $bang_cfg2, array( 'bang' => 'CH_NguoiDung', 'stt' => 1,
+	'cols' => wp_json_encode( array( 'Chị Kế Toán', '246813', 'Kế toán cá nhân', 'TUTU_BT' ) ) ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV777', 'ho_ten' => 'Anh Có Hồ Sơ',
+	'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '975310', 'ho_ten' => 'Anh Có Hồ Sơ',
+	'vai_tro' => 'ADMIN', 'cua_hang' => 'TUTU_BT' ) );
+
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '975310' );
+t( 'PIN ở bảng Phân quyền KHÔNG đăng nhập được trang web (đúng thiết kế)', empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '246813' );
+t( 'PIN ở NGUỒN NGƯỜI DÙNG thì vào được', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+
+/* Đầu 2 — LỜI NÓI: hai màn dễ hiểu nhầm phải tự nói ra. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Man::trang_quyen(); $h_q = ob_get_clean();
+t( 'màn Phân quyền nói rõ PIN của nó KHÔNG dùng đăng nhập trang chấm công',
+	strpos( $h_q, 'KHÔNG dùng để đăng nhập' ) !== false );
+t( 'và chỉ đường sang màn Cài đặt để xem PIN nào mới đúng',
+	strpos( $h_q, 'page=vhcc' ) !== false && strpos( $h_q, 'Nguồn người dùng' ) !== false );
+
+ob_start(); VHCC_Admin::page(); $h_cd2 = ob_get_clean();
+t( 'màn Cài đặt nói rõ chỉ PIN trong bảng đó mới vào được',
+	strpos( $h_cd2, 'mới vào được trang chấm công' ) !== false );
+t( 'và nói rõ hồ sơ Nhân sự không phải tài khoản đăng nhập',
+	strpos( $h_cd2, 'không phải tài khoản đăng nhập' ) !== false );
+
+$wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

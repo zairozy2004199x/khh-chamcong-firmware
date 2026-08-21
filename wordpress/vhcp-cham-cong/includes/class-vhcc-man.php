@@ -117,6 +117,17 @@ class VHCC_Man {
 		echo '<div class="wrap"><h1>Phân quyền &amp; PIN</h1>';
 		self::bao( $bao );
 
+		/* 🔴 NÓI RÕ ĐÂY LÀ PIN GÌ — vì tên màn hình không nói ra được, và đoán sai thì mất cả
+		   buổi. Anh Thắng thêm một dòng PIN ở đây rồi thử đăng nhập trang chấm công, không vào
+		   được, tưởng dữ liệu chưa đồng bộ. Thật ra KHÔNG có chỗ nào trong plugin dùng bảng này
+		   để đăng nhập trang web: cổng PIN của trang đọc nguồn người dùng khai ở màn Cài đặt. */
+		echo '<div class="notice notice-info"><p><b>PIN ở màn này KHÔNG dùng để đăng nhập '
+			. '<code>' . esc_html( VHCC_Trang::url() ) . '</code>.</b> Đây là bảng phân quyền của '
+			. '<b>app gốc</b> (Apps Script) — dùng cho chấm công online và quyền theo cơ sở bên đó.</p>'
+			. '<p>PIN vào trang chấm công lấy từ <b>Nguồn người dùng</b> khai ở '
+			. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc' ) ) . '">Chấm Công → Cài đặt</a> — '
+			. 'ở đó có bảng liệt kê ai vào được và PIN dài mấy số.</p></div>';
+
 		/* ---- Cấp PIN hàng loạt ---- */
 		echo '<h2>Cấp PIN cho người chưa có tài khoản</h2>';
 		echo '<p>Dán danh sách Mã NV (cách nhau dấu phẩy, dấu cách hoặc xuống dòng). Hệ thống sinh '
