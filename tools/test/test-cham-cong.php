@@ -3531,6 +3531,23 @@ ob_start(); VHCC_Admin::page(); $h_pin = ob_get_clean();
 t( 'màn Cài đặt KHÔNG in giá trị PIN admin ra',
 	strpos( $h_pin, (string) VHCC_May::pin() ) === false || '' === VHCC_May::pin() );
 
+/* Số bản phải hiện ở MỌI màn của plugin, không riêng màn Cài đặt. Câu hỏi tốn thời gian nhất
+   suốt buổi cài là "đang chạy bản nào" — mà đó là câu chỉ trả lời được nếu bỏ màn đang làm để
+   sang màn khác xem. Đã có lần cả hai bên nhìn một màn hình cũ và đi tìm lỗi đã sửa xong. */
+$chinh_pl = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
+t( 'dải số bản móc vào in_admin_header (một chỗ, không sửa 11 hàm vẽ)',
+	strpos( $chinh_pl, "add_action( 'in_admin_header', array( 'VHCC_Admin', 'dai_ban' ) );" ) !== false );
+foreach ( array( 'vhcc', 'vhcc-nhan-su', 'vhcc-luong', 'vhcc-may' ) as $trang_thu ) {
+	$_GET['page'] = $trang_thu;
+	ob_start(); VHCC_Admin::dai_ban(); $h_ban = ob_get_clean();
+	t( "màn $trang_thu hiện số bản", strpos( $h_ban, VHCC_VERSION ) !== false, $h_ban );
+}
+/* Và KHÔNG chen vào màn của plugin khác — dải này là của plugin chấm công. */
+$_GET['page'] = 'vhcp-chi-phi';
+ob_start(); VHCC_Admin::dai_ban(); $h_ban = ob_get_clean();
+teq( 'không chen dải vào màn của plugin khác', '', $h_ban );
+unset( $_GET['page'] );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

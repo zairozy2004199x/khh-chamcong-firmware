@@ -15,6 +15,21 @@ class VHCC_Admin {
 	/** Số cặp (cơ sở × tháng) kéo mỗi lượt bấm. Xem chú thích ở nút "Kéo chấm công". */
 	const KEO_MOI_ME = 8;
 
+	/**
+	 * Dải nhỏ trên MỌI màn của plugin: số bản đang chạy.
+	 *
+	 * 🔴 Vì sao cần: suốt buổi cài, câu hỏi tốn thời gian nhất là "anh đang chạy bản nào" —
+	 *    một câu chỉ trả lời được nếu bỏ màn đang làm để sang màn Cài đặt xem. Đã có lần cả
+	 *    hai bên nhìn một màn hình cũ và đi tìm lỗi đã sửa xong từ bản trước.
+	 *    Móc vào `in_admin_header` nên chỉ sửa MỘT chỗ, không phải sửa 11 hàm vẽ.
+	 */
+	public static function dai_ban() {
+		$m = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+		if ( 'vhcc' !== $m && strpos( $m, 'vhcc-' ) !== 0 ) { return; }
+		echo '<div style="margin:6px 0 0;color:#64748b;font-size:12px">Chấm Công — bản <code>'
+			. esc_html( VHCC_VERSION ) . '</code></div>';
+	}
+
 	public static function menu() {
 		add_menu_page(
 			'Chấm Công', 'Chấm Công', self::CAP, 'vhcc', array( __CLASS__, 'page' ),
