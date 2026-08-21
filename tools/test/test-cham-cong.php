@@ -3268,6 +3268,22 @@ VHCC_Auth::mo_khoa();
 
 $wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
 
+/* PIN đã bị LỘ thì phải chặn, dù nó không "dễ đoán". `888888` và `859624` đều đã ra ngoài
+   trong quá trình làm việc này (một cái là PIN mặc định của app gốc, một cái hiện trong ảnh
+   màn hình gửi qua chat). Một mật khẩu đã ra ngoài thì mạnh hay yếu không còn nghĩa gì. */
+foreach ( array( '888888', '859624' ) as $pin_lo ) {
+	t( "không cho ĐẶT lại PIN đã lộ $pin_lo", VHCC_Quyen::pin_hop_le( $pin_lo ) !== '' );
+}
+/* Nhưng KHÔNG chặn ở chỗ đăng nhập — khoá người ta ra khỏi hệ thống của chính họ mà không báo
+   trước là tệ hơn. Bộ chặn chỉ được gọi lúc đặt/đổi mật khẩu. */
+$q_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-quyen.php' );
+$_i = strpos( $q_src, 'function pin_hop_le' );
+t( 'phép chặn PIN nằm ở chỗ đặt mật khẩu, không nằm trong đường đăng nhập',
+	$_i !== false && strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-auth.php' ),
+		'PIN_CAM' ) === false );
+t( 'và giải thích rõ hai nhóm lý do (dễ đoán vs đã bị lộ)',
+	strpos( $q_src, 'ĐÃ BỊ LỘ' ) !== false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

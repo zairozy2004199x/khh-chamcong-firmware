@@ -33,8 +33,21 @@ class VHCC_Quyen {
 	const TRA_PIN_TONG   = 30;
 
 	/** PIN bị cấm — dãy dễ đoán nhất. Đây là chìa khoá vào toàn bộ chấm công của chuỗi. */
+	/**
+	 * PIN bị chặn.
+	 *
+	 * Hai nhóm, khác nhau về lý do:
+	 *   · Dễ đoán ai cũng thử: 000000, 111111, 123456…
+	 *   · ĐÃ BỊ LỘ trong quá trình làm việc này: `888888` (PIN admin mặc định của app gốc, có
+	 *     trong lịch sử chat) và `859624`. Chúng không "dễ đoán" nhưng đã ra ngoài, mà một mật
+	 *     khẩu đã ra ngoài thì mạnh hay yếu không còn nghĩa gì.
+	 *
+	 * ⚠️ Chặn ở chỗ ĐẶT MẬT KHẨU, không chặn ở chỗ đăng nhập — ai đang dùng thì vẫn dùng được
+	 *    cho tới khi tự đổi. Chặn đăng nhập là khoá người ta ra khỏi hệ thống của chính họ mà
+	 *    không báo trước.
+	 */
 	const PIN_CAM = array( '000000', '111111', '123456', '654321', '888888', '999999',
-		'012345', '121212' );
+		'012345', '121212', '859624' );
 
 	// ======================================================================= bộ đếm
 
