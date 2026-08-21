@@ -499,6 +499,23 @@ ra `{"ok":true}` là cổng còn sống (lỗi nằm ở POST / tường lửa),
 chạy (plugin chưa cập nhật). Đường dự phòng cuối nay gửi dạng form thường
 (`x-www-form-urlencoded`) chứ không phải multipart, vì tường lửa soi multipart chặt hơn.
 
+### Mỗi đơn một cơ sở (bản 1.8.0)
+
+Đơn tạm ứng là tiền giao cho **một người ở một cơ sở**, rồi đối chiếu thừa/thiếu theo cơ sở
+đó. Trộn hai cơ sở vào một đơn thì phần đối chiếu và mã đơn vị lúc xuất MISA không còn quy
+được về đâu. Nên:
+
+- Đơn **chưa có dòng nào** → chọn cơ sở nào cũng được; ô chọn có dòng nhắc *"Thêm hạng mục
+  đầu tiên là đơn chốt cơ sở X"*.
+- Thêm dòng đầu tiên → đơn **chốt** cơ sở đó. Ô chọn cơ sở khoá lại 🔒, ghi rõ *"Đơn này của
+  cơ sở X · muốn nhập cơ sở khác thì Tạo đơn mới"*.
+- Sửa dòng cũng không đổi được sang cơ sở khác — trừ khi đó là **dòng duy nhất** đang giữ cơ
+  sở của đơn (lúc đó đổi là đổi cả đơn, hợp lý).
+- Máy chủ chặn lần nữa với câu báo rõ, không chỉ khoá ô chọn.
+
+**Đơn cũ đã nạp từ bảng tính** có thể đang mang nhiều cơ sở — luật này chỉ áp cho lần nhập
+mới, không sửa lại dữ liệu cũ, nên số liệu đã đối chiếu không bị xáo.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

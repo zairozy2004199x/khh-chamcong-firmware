@@ -303,6 +303,9 @@ class VHCP_Don {
 
 		// Bù trừ luân chuyển: tính lại từ kỳ trước mỗi lần mở đơn (còn "Nháp" thì ghi lại),
 		// và trả kèm lý do để giao diện nói rõ số ở đâu ra — ô nhập nay chỉ để xem.
+		// Cơ sở đã chốt của đơn (mỗi đơn 1 cơ sở) — giao diện khóa ô chọn theo cái này
+		$don['cosoDon'] = self::coso_cua_don( $ma_don );
+
 		$bt_auto = self::chot_bu_tru( $ma_don );
 		if ( (string) $don['trangThai'] === 'Nháp' ) { $don['buTru'] = VHCP_Util::num( $bt_auto['so'] ); }
 		$don['buTruAuto'] = $bt_auto;
@@ -593,6 +596,35 @@ class VHCP_Don {
 		return VHCP_Util::ok( array( 'updated' => $n, 'thieuMa' => array_keys( $thieu ) ) );
 	}
 
+	/**
+	 * MỘT ĐƠN = MỘT CƠ SỞ.
+	 *
+	 * Đơn tạm ứng là tiền giao cho một người ở MỘT cơ sở, rồi đối chiếu thừa/thiếu theo
+	 * cơ sở đó. Trộn hai cơ sở vào một đơn thì phần đối chiếu và mã đơn vị xuất MISA đều
+	 * không còn quy được về đâu. Đơn đã có dòng thì chốt luôn cơ sở của đơn.
+	 *
+	 * @return string cơ sở của đơn, '' nếu đơn chưa có dòng nào (còn tự do chọn)
+	 */
+	public static function coso_cua_don( $ma_don ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'chiphi' );
+		$v = $wpdb->get_var( $wpdb->prepare(
+			"SELECT coso FROM $t WHERE ma_don=%s AND coso<>'' ORDER BY id ASC LIMIT 1",
+			(string) $ma_don
+		) );
+		return trim( (string) $v );
+	}
+
+	/** Cơ sở gửi lên có khớp cơ sở đã chốt của đơn? Trả câu lỗi, '' là hợp lệ. */
+	private static function loi_khac_coso( $ma_don, $coso ) {
+		$moi = trim( (string) $coso );
+		if ( $moi === '' ) { return ''; }
+		$cu = self::coso_cua_don( $ma_don );
+		if ( $cu === '' || mb_strtolower( $cu ) === mb_strtolower( $moi ) ) { return ''; }
+		return 'Đơn này là của cơ sở "' . $cu . '" — mỗi đơn chỉ nhập 1 cơ sở.'
+			. ' Muốn nhập cho "' . $moi . '" thì tạo đơn mới.';
+	}
+
 	public static function add_line( $ma_don, $rec ) {
 		global $wpdb;
 		$rec = (array) $rec;
@@ -600,6 +632,8 @@ class VHCP_Don {
 		if ( $st === 'Nháp' ) { $ps = 0; }
 		elseif ( $st === 'Đã cấp tạm ứng' ) { $ps = 1; }
 		else { return VHCP_Util::err( 'Chỉ thêm hạng mục khi đơn "Nháp" (hạng mục xin) hoặc "Đã cấp tạm ứng" (phát sinh)' ); }
+		$loi = self::loi_khac_coso( $ma_don, isset( $rec['coso'] ) ? $rec['coso'] : '' );
+		if ( $loi !== '' ) { return VHCP_Util::err( $loi ); }
 		$rec['phatSinh'] = $ps;
 		$id   = VHCP_Util::uid( 'L' );
 		$data = self::line_data( $id, $ma_don, $rec );
@@ -620,6 +654,20 @@ class VHCP_Don {
 		if ( $ps && $st !== 'Đã cấp tạm ứng' && $st !== 'Nháp' ) { return VHCP_Util::err( 'Dòng phát sinh chỉ sửa khi đơn "Nháp" hoặc "Đã cấp tạm ứng"' ); }
 
 		$rec = (array) $rec;
+		// Sửa dòng cũng không được đổi sang cơ sở khác — trừ khi đây là dòng duy nhất
+		// đang giữ cơ sở của đơn (lúc đó đổi là đổi cả đơn, hợp lý).
+		if ( isset( $rec['coso'] ) && trim( (string) $rec['coso'] ) !== '' ) {
+			global $wpdb;
+			$tc  = VHCP_DB::t( 'chiphi' );
+			$khac = (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM $tc WHERE ma_don=%s AND coso<>'' AND id<>%s",
+				$ma_don, (string) $id
+			) );
+			if ( $khac > 0 ) {
+				$loi2 = self::loi_khac_coso( $ma_don, $rec['coso'] );
+				if ( $loi2 !== '' ) { return VHCP_Util::err( $loi2 ); }
+			}
+		}
 		if ( ! array_key_exists( 'thucMua', $rec ) ) { $rec['thucMua'] = VHCP_Util::out_num( $cur['thuc_mua'] ); }
 		if ( ! array_key_exists( 'cnXuLy', $rec ) )  { $rec['cnXuLy']  = (int) $cur['cn_xu_ly']; }
 		$rec['phatSinh'] = $ps ? 1 : 0;

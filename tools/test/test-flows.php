@@ -50,18 +50,41 @@ t( 'tạo đơn', ! empty( $d['success'] ) && $ma !== '' );
 
 $l1 = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'doiTuong' => 'Nguyễn Văn A', 'nhom' => 'NVL đồ ăn - Mua lẻ', 'noiDung' => 'Thịt heo', 'dvt' => 'kg', 'soLuong' => 10, 'donGia' => 120000, 'thanhTien' => 1200000 ) );
 $l2 = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 300000, 'thanhTien' => 300000 ) );
-$l3 = VHCP_Don::add_line( $ma, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Nhà cung cấp', 'doiTuong' => 'CTY ABC', 'nhom' => 'SP Đồ uống - NCC', 'noiDung' => 'Nước ngọt', 'soLuong' => 20, 'donGia' => 15000, 'thanhTien' => 300000, 'thueSuat' => 8 ) );
+// MỖI ĐƠN 1 CƠ SỞ: dòng của TÀU TÂN PHÚ phải nằm ở đơn riêng. Để người lập KHÁC để
+// không chen vào chuỗi bù trừ luân chuyển của Nguyễn Văn A.
+$d_ncc = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'Nguyễn Văn B' );
+$ma_ncc = $d_ncc['maDon'];
+$l3 = VHCP_Don::add_line( $ma_ncc, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Nhà cung cấp', 'doiTuong' => 'CTY ABC', 'nhom' => 'SP Đồ uống - NCC', 'noiDung' => 'Nước ngọt', 'soLuong' => 20, 'donGia' => 15000, 'thanhTien' => 300000, 'thueSuat' => 8 ) );
 teq( 'dòng 1..3 đều là hạng mục xin', 0, $l3['phatSinh'] );
 
 $g = VHCP_Don::get_don( $ma );
 teq( 'tạm ứng FARM = 1.500.000', 1500000, $g['tamUng']['FARM PHAN THIẾT'] );
-teq( 'tạm ứng TÀU TÂN PHÚ = 300.000', 300000, $g['tamUng']['TÀU TÂN PHÚ'] );
-teq( 'tổng tạm ứng cục = 1.800.000', 1800000, $g['tongCN']['tamUng'] );
+t( 'đơn FARM không có cơ sở khác', ! isset( $g['tamUng']['TÀU TÂN PHÚ'] ) );
+teq( 'tổng tạm ứng cục = 1.500.000', 1500000, $g['tongCN']['tamUng'] );
 teq( 'đã chi cá nhân = 1.500.000', 1500000, $g['tongCN']['thucChi'] );
-teq( 'đã chi NCC = 300.000', 300000, $g['tongNCC']['thucChi'] );
-teq( 'tiền thuế dòng NCC = 24.000', 24000, $g['lines'][2]['tienThue'] );
+$g_ncc = VHCP_Don::get_don( $ma_ncc );
+teq( 'tạm ứng TÀU TÂN PHÚ = 300.000', 300000, $g_ncc['tamUng']['TÀU TÂN PHÚ'] );
+teq( 'đã chi NCC = 300.000', 300000, $g_ncc['tongNCC']['thucChi'] );
+teq( 'tiền thuế dòng NCC = 24.000', 24000, $g_ncc['lines'][0]['tienThue'] );
 teq( 'ngày dòng hiện dd/MM/yyyy', $today, $g['lines'][0]['ngay'] );
 t( 'thực mua để trống', $g['lines'][0]['thucMua'] === '' );
+
+// MỘT ĐƠN = MỘT CƠ SỞ. Đơn trên đã có dòng của FARM PHAN THIẾT và TÀU TÂN PHÚ do dữ liệu
+// thử dựng từ trước; kiểm luật khóa trên một đơn mới cho sạch.
+$dcs = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV Một Cơ Sở' );
+$mcs = $dcs['maDon'];
+teq( 'đơn mới chưa chốt cơ sở nào', '', VHCP_Don::coso_cua_don( $mcs ) );
+$lcs = VHCP_Don::add_line( $mcs, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa đèn', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( 'dòng đầu vào được', ! empty( $lcs['success'] ) );
+teq( 'đơn chốt cơ sở theo dòng đầu', 'FARM PHAN THIẾT', VHCP_Don::coso_cua_don( $mcs ) );
+$lcs2 = VHCP_Don::add_line( $mcs, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( 'cơ sở khác bị chặn', empty( $lcs2['success'] ) );
+t( 'và nói rõ phải tạo đơn mới', strpos( (string) $lcs2['error'], 'tạo đơn mới' ) !== false, $lcs2 );
+$lcs3 = VHCP_Don::add_line( $mcs, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( 'cùng cơ sở thì thêm tiếp được', ! empty( $lcs3['success'] ) );
+t( 'sửa dòng sang cơ sở khác cũng bị chặn', empty( VHCP_Don::update_line( $lcs3['id'], array( 'coso' => 'TÀU TÂN PHÚ', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa quạt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) )['success'] ) );
+teq( 'get_don trả cơ sở đã chốt', 'FARM PHAN THIẾT', VHCP_Don::get_don( $mcs )['don']['cosoDon'] );
+VHCP_Don::delete_don_admin( $mcs );
 
 // dự phòng khi còn Nháp. BÙ TRỪ do hệ thống tính từ kỳ trước: số gửi lên bị BỎ QUA,
 // nếu không thì nhân viên gõ số dương là xin nhiều hơn phần đáng được ứng.
@@ -69,7 +92,7 @@ t( 'set dự phòng khi Nháp', ! empty( VHCP_Don::set_tu_extra( $ma, 200000, -1
 $g = VHCP_Don::get_don( $ma );
 teq( 'bù trừ gửi từ giao diện bị bỏ qua', 0, VHCP_Util::num( $g['don']['buTru'] ) );
 t( 'nói rõ vì sao bằng 0', strpos( (string) $g['don']['buTruAuto']['lyDo'], 'chưa có kỳ nào trước' ) !== false, $g['don']['buTruAuto'] );
-teq( 'tạm ứng cục = hạng mục + dự phòng', 2000000, $g['tongCN']['tamUng'] );
+teq( 'tạm ứng cục = hạng mục + dự phòng', 1700000, $g['tongCN']['tamUng'] );
 
 // quy trình
 t( 'gửi duyệt tạm ứng', ! empty( VHCP_Don::gui_duyet_tam_ung( $ma )['success'] ) );
@@ -94,8 +117,8 @@ VHCP_Don::set_line_thuc_mua( $l3['id'], 300000, 'Nguyễn Văn A' );
 VHCP_Don::set_line_thuc_mua( $l4['id'], 50000, 'Nguyễn Văn A' );
 $g = VHCP_Don::get_don( $ma );
 teq( 'đã chi cá nhân sau thực chi', 1500000, $g['tongCN']['thucChi'] );   // 1.150.000 + 300.000 + 50.000
-teq( 'tạm ứng cục giữ nguyên', 2000000, $g['tongCN']['tamUng'] );
-teq( 'chênh lệch = thừa 500.000', 500000, $g['tongCN']['chenhLech'] );
+teq( 'tạm ứng cục giữ nguyên', 1700000, $g['tongCN']['tamUng'] );
+teq( 'chênh lệch = thừa 200.000', 200000, $g['tongCN']['chenhLech'] );
 
 t( 'gửi quyết toán', ! empty( VHCP_Don::gui_quyet_toan( $ma )['success'] ) );
 $before = VHCP_Don::don_row( $ma )['ghi_chu'];
@@ -103,30 +126,33 @@ VHCP_Don::set_line_thuc_mua( $l1['id'], 1100000, 'Lê Kế Toán' );
 t( 'kế toán sửa số khi Chờ quyết toán -> gắn cờ [KT sửa]', strpos( VHCP_Don::don_row( $ma )['ghi_chu'], '[KT sửa]' ) !== false, VHCP_Don::don_row( $ma )['ghi_chu'] );
 
 $g = VHCP_Don::get_don( $ma );
-teq( 'chênh lệch sau khi KT sửa', 550000, $g['tongCN']['chenhLech'] );
+teq( 'chênh lệch sau khi KT sửa', 250000, $g['tongCN']['chenhLech'] );
 $b = VHCP_Don::xac_nhan_qt_cn_nhieu( array( $ma ), 'Lê Kế Toán' );
 t( 'duyệt quyết toán theo lô', ! empty( $b['success'] ) && $b['done'] === 1, $b );
 $row = VHCP_Don::don_row( $ma );
 teq( 'trạng thái sau quyết toán', 'Đã quyết toán', $row['trang_thai'] );
 teq( 'xử lý = NV trả lại', 'NV trả lại', $row['xu_ly'] );
-teq( 'chênh lệch lưu vào đơn', 550000, (float) $row['chenh_lech_qt'] );
+teq( 'chênh lệch lưu vào đơn', 250000, (float) $row['chenh_lech_qt'] );
 
 // danh sách đơn
 $dons = VHCP_Don::list_dons();
-teq( 'danh sách có 1 đơn', 1, count( $dons ) );
-teq( 'cơ sở gom trên danh sách', 'FARM PHAN THIẾT, TÀU TÂN PHÚ', $dons[0]['coso'] );
-teq( 'thực chi cá nhân trên danh sách', 1450000, $dons[0]['thucChiCN'] );
-teq( 'thực chi NCC trên danh sách', 300000, $dons[0]['thucChiNCC'] );
+teq( 'danh sách có 2 đơn (FARM + TÀU TÂN PHÚ)', 2, count( $dons ) );
+$d_farm = null; $d_tau = null;
+foreach ( $dons as $x ) { if ( $x['maDon'] === $ma ) { $d_farm = $x; } if ( $x['maDon'] === $ma_ncc ) { $d_tau = $x; } }
+teq( 'cơ sở của đơn FARM', 'FARM PHAN THIẾT', $d_farm['coso'] );
+teq( 'cơ sở của đơn TÀU TÂN PHÚ', 'TÀU TÂN PHÚ', $d_tau['coso'] );
+teq( 'thực chi cá nhân trên danh sách', 1450000, $d_farm['thucChiCN'] );
+teq( 'thực chi NCC trên danh sách', 300000, $d_tau['thucChiNCC'] );
 
 // BÙ TRỪ LUÂN CHUYỂN: kỳ này tự lấy phần dư/thiếu của kỳ TRƯỚC của CHÍNH người đó.
 // Đơn trên: tạm ứng 2.000.000 − thực chi cá nhân 1.450.000 = DƯ 550.000 -> kỳ sau trừ đi.
 $d2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
 $ma2 = $d2['maDon'];
 $g2  = VHCP_Don::get_don( $ma2 );
-teq( 'kỳ trước DƯ thì kỳ này trừ đi', -550000, VHCP_Util::num( $g2['don']['buTru'] ) );
+teq( 'kỳ trước DƯ thì kỳ này trừ đi', -250000, VHCP_Util::num( $g2['don']['buTru'] ) );
 teq( 'chỉ ra đúng đơn kỳ trước', $ma, (string) $g2['don']['buTruAuto']['donTruoc'] );
 t( 'ghi rõ lý do là còn DƯ', strpos( (string) $g2['don']['buTruAuto']['lyDo'], 'DƯ' ) !== false, $g2['don']['buTruAuto']['lyDo'] );
-teq( 'số ghi thẳng vào đơn, không chờ giao diện', -550000, (float) VHCP_Don::don_row( $ma2 )['bu_tru'] );
+teq( 'số ghi thẳng vào đơn, không chờ giao diện', -250000, (float) VHCP_Don::don_row( $ma2 )['bu_tru'] );
 
 // Người khác thì không ăn theo bù trừ của người này
 $d3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Mới Toanh' );
@@ -153,11 +179,20 @@ teq( 'tổng xin (không tính phát sinh)', 1800000, $fr['totals']['xin'] );
 teq( 'tổng thực tế', 1750000, $fr['totals']['thucTe'] );
 teq( 'dự phòng vào báo cáo', 200000, $fr['totals']['duPhong'] );
 teq( 'bù trừ vào báo cáo', 0, $fr['totals']['buTru'] );
-teq( 'số đơn', 1, $fr['totals']['soDon'] );
+teq( 'số đơn', 2, $fr['totals']['soDon'] );
 $fr2 = VHCP_Report::finance( array( 'coso' => 'TÀU TÂN PHÚ' ) );
 teq( 'lọc theo cơ sở', 300000, $fr2['totals']['thucTe'] );
 
 // ---------------------------------------------------------------- 5. xuất MISA đơn vận hành
+// Đơn TÀU TÂN PHÚ (dòng NCC) cũng phải đi hết quy trình mới xuất MISA được — mỗi đơn 1 cơ
+// sở nên nó là đơn riêng, không còn đi kèm đơn FARM như trước.
+VHCP_Don::gui_duyet_tam_ung( $ma_ncc );
+VHCP_Don::duyet_tam_ung( $ma_ncc, 'Trần Quản Lý', '' );
+VHCP_Don::cap_tam_ung( $ma_ncc, 'Lê Kế Toán', 'Tiền mặt' );
+VHCP_Don::gui_quyet_toan( $ma_ncc );
+VHCP_Don::xac_nhan_qt_cn_nhieu( array( $ma_ncc ), 'Lê Kế Toán' );
+teq( 'đơn NCC đã quyết toán', 'Đã quyết toán', VHCP_Don::don_row( $ma_ncc )['trang_thai'] );
+
 VHCP_Cfg::save_config( array(
 	'coso' => array(
 		array( 'ten' => 'FARM PHAN THIẾT', 'maDonVi' => 'FARM_PT', 'phanLoaiLon' => 'FARM', 'tenMisa' => 'Farm Phan Thiết' ),
@@ -177,7 +212,7 @@ VHCP_Cfg::save_config( array(
 $ex = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' );
 teq( 'MISA: 10 cột', 10, count( $ex['cols'] ) );
 teq( 'MISA: 4 dòng hạch toán', 4, $ex['count'] );
-teq( 'MISA: 1 đơn', 1, $ex['sodon'] );
+teq( 'MISA: 2 đơn (FARM + TÀU TÂN PHÚ)', 2, $ex['sodon'] );
 $sum = 0;
 foreach ( $ex['rows'] as $rw ) { $sum += $rw[7]; }
 teq( 'MISA: tổng tiền = 1.750.000', 1750000, $sum );
@@ -191,7 +226,7 @@ t( 'MISA: TK Nợ lấy từ ma trận nhóm × phân loại lớn', isset( $tk_
 teq( 'MISA: không còn cảnh báo thiếu cấu hình', array(), $ex['warn'] );
 
 teq( 'MISA lọc NCC: chưa duyệt NCC thì không xuất', 0, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'ncc' )['count'] );
-t( 'kế toán NCC duyệt độc lập', ! empty( VHCP_Don::xac_nhan_quyet_toan_ncc( $ma, 'Phạm KT NCC' )['success'] ) );
+t( 'kế toán NCC duyệt độc lập', ! empty( VHCP_Don::xac_nhan_quyet_toan_ncc( $ma_ncc, 'Phạm KT NCC' )['success'] ) );
 $exn = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'ncc' );
 teq( 'MISA lọc NCC: 1 dòng', 1, $exn['count'] );
 // App cũ: TK Có LUÔN ưu tiên TK Có của người duyệt tạm ứng, chỉ khi người đó chưa
@@ -234,7 +269,7 @@ VHCP_Cfg::save_config( array( 'users' => array(
 	array( 'ten' => 'Trần Quản Lý', 'pin' => '2222', 'vaiTro' => 'Quản lý', 'tkCo' => '3341', 'maDt' => 'NV_QL' ),
 ) ) );
 
-t( 'chốt đã xuất', ! empty( VHCP_Misa::mark_exported( array( $ma ), 'all' )['success'] ) );
+t( 'chốt đã xuất', ! empty( VHCP_Misa::mark_exported( array( $ma, $ma_ncc ), 'all' )['success'] ) );
 teq( 'trạng thái sau chốt xuất', 'Đã xuất MISA', VHCP_Don::don_row( $ma )['trang_thai'] );
 teq( 'xuất lại lần 2 không còn đơn nào', 0, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' )['count'] );
 teq( 'lọc mode đã xuất thì thấy lại', 4, VHCP_Misa::export_misa( 'all', 'daxuat', 'all' )['count'] );
@@ -446,6 +481,7 @@ $d2 = VHCP_Don::create_don( 'T8/2026', 'NV B' );
 t( 'xóa đơn nháp', ! empty( VHCP_Don::delete_don( $d2['maDon'] )['success'] ) );
 t( 'không xóa đơn đã xuất MISA bằng lệnh thường', empty( VHCP_Don::delete_don( $ma )['success'] ) );
 t( 'Admin xóa vĩnh viễn được', ! empty( VHCP_Don::delete_don_admin( $ma )['success'] ) );
+t( 'Admin xóa được cả đơn NCC', ! empty( VHCP_Don::delete_don_admin( $ma_ncc )['success'] ) );
 teq( 'xóa đơn thì xóa luôn dòng chi', 0, count( VHCP_Don::cp_rows() ) );
 
 // ---------------------------------------------------------------- 15. bảng hàm của REST API

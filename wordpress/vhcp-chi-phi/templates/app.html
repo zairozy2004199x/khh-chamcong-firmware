@@ -280,7 +280,8 @@
       <div class="cb">
         <input type="hidden" id="lineId">
         <div class="grid">
-          <div class="fld"><label>Cơ sở *</label><select id="f_coso"></select></div>
+          <div class="fld"><label>Cơ sở *</label><select id="f_coso" onchange="_khoaCoSoHint()"></select>
+            <div id="cosoLock" style="font-size:11px;color:#b45309;margin-top:3px;display:none"></div></div>
           <div class="fld"><label>Ngày</label><input id="f_ngay" type="date"></div>
           <div class="fld"><label>Phân loại (Cá nhân / NCC) *</label><select id="f_pltt" onchange="onPlttChange()"></select></div>
           <div class="fld"><label id="lblDoiTuong">Đối tượng (NV/NCC)</label><input id="f_dt" list="dl_dt" autocomplete="off" placeholder="Tên NV hoặc NCC"><datalist id="dl_dt"></datalist></div>
@@ -1295,6 +1296,9 @@
       var cosoOpts=(isNV&&myCoso.length)?myCoso:BOOT.coso;
       el('tuCoso').innerHTML=opts(cosoOpts); el('f_coso').innerHTML=opts(cosoOpts);
       if(isNV&&myCoso.length) el('f_coso').value=myCoso[0];
+      // Vừa dựng lại ô chọn -> khóa lại theo cơ sở đã chốt của đơn đang mở, không thì
+      // boot() chạy sau openDon() là mở lại đủ cơ sở, hết khóa mà không ai thấy.
+      if(typeof _khoaCoSo==='function') _khoaCoSo();
       el('f_pltt').innerHTML=opts(BOOT.phanloai,'—'); fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
       var dons=(b.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; });
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
@@ -1418,6 +1422,7 @@
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
       renderTU(); renderLines(); renderRecon(); renderQT(); setProducts(r.products); resetLineForm(); renderDonList(); _syncDonView();
+      _khoaCoSo();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getDon(maDon);
   }
 
@@ -2991,6 +2996,32 @@
       if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) n++;
     });
     return n;
+  }
+  /**
+   * MỘT ĐƠN = MỘT CƠ SỞ. Đơn đã có dòng thì chốt cơ sở: ô chọn chỉ còn đúng cơ sở đó.
+   * Muốn nhập cơ sở khác thì tạo đơn mới — máy chủ cũng chặn lần nữa, không tin giao diện.
+   */
+  function _khoaCoSo(){
+    var sel=el('f_coso'), note=el('cosoLock'); if(!sel) return;
+    var cs=(CUR&&CUR.don&&CUR.don.cosoDon)?String(CUR.don.cosoDon):'';
+    if(cs){
+      sel.innerHTML='<option value="'+esc(cs)+'">'+esc(cs)+'</option>';
+      sel.value=cs; sel.disabled=true;
+      sel.style.background='#f1f5f9';
+      if(note){ note.style.display='block'; note.innerHTML='🔒 Đơn này của cơ sở <b>'+esc(cs)+'</b> · muốn nhập cơ sở khác thì <b>Tạo đơn mới</b>'; }
+    } else {
+      sel.disabled=false; sel.style.background='';
+      if(note) note.style.display='none';
+    }
+    _khoaCoSoHint();
+  }
+  /** Chưa có dòng nào: nhắc trước là chọn cơ sở nào là đơn chốt luôn cơ sở đó. */
+  function _khoaCoSoHint(){
+    var sel=el('f_coso'), note=el('cosoLock'); if(!sel||!note) return;
+    if(sel.disabled) return;
+    var v=String(sel.value||'');
+    if(v){ note.style.display='block'; note.innerHTML='ℹ️ Thêm hạng mục đầu tiên là đơn chốt cơ sở <b>'+esc(v)+'</b> — cơ sở khác phải tạo đơn mới'; }
+    else { note.style.display='none'; }
   }
   function _fillLoaiCp(selId, cur, coso, curTk, hinhThuc){
     var sel=el(selId); if(!sel) return;
