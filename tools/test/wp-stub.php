@@ -207,6 +207,7 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}mk_line (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, kenh TEXT DEFAULT '', noi_dung TEXT DEFAULT '', du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ket_qua REAL DEFAULT 0, ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '')",
 		"CREATE TABLE {$p}bp_index (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT UNIQUE, loai TEXT DEFAULT '', ten TEXT DEFAULT '', nguoi TEXT DEFAULT '', dia_diem TEXT DEFAULT '', ky TEXT DEFAULT '', trang_thai TEXT DEFAULT 'Đang xử lý', ngay_tao TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '')",
 		"CREATE TABLE {$p}bp_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', UNIQUE(ma,row_no))",
+		"CREATE TABLE {$p}hopdong (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, so_hd TEXT DEFAULT '', ten TEXT DEFAULT '', doi_tac TEXT DEFAULT '', coso TEXT DEFAULT '', loai_hd TEXT DEFAULT '', ngay_ky TEXT DEFAULT '', ngay_het TEXT DEFAULT '', gia_tri REAL, trang_thai TEXT DEFAULT 'Còn hiệu lực', nguoi_pt TEXT DEFAULT '', ghi_chu TEXT DEFAULT '', files TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '', tao_luc TEXT DEFAULT '')",
 		"CREATE TABLE {$p}cfg (id INTEGER PRIMARY KEY AUTOINCREMENT, bang TEXT, stt INTEGER DEFAULT 0, cols TEXT)",
 		"CREATE TABLE {$p}meta (k TEXT PRIMARY KEY, v TEXT)",
 		"CREATE TABLE {$p}log (id INTEGER PRIMARY KEY AUTOINCREMENT, tg TEXT, nguoi TEXT DEFAULT '', vai_tro TEXT DEFAULT '', hanh_dong TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', chi_tiet TEXT DEFAULT '')",
@@ -220,7 +221,7 @@ function vhcp_test_boot( $dir ) {
 	define( 'VHCP_VERSION', 'test' );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
-	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'sheet', 'import' ) as $c ) {
+	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'sheet', 'import', 'hopdong' ) as $c ) {
 		require_once $dir . '/includes/class-vhcp-' . $c . '.php';
 	}
 	vhcp_test_create_tables();

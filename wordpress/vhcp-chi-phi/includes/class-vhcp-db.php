@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.3.0';
+	const SCHEMA_VERSION = '1.4.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -38,6 +38,8 @@ class VHCP_DB {
 	 */
 	public static function xoa_du_lieu() {
 		global $wpdb;
+		// KHÔNG có 'hopdong' ở đây: lệnh này để nạp lại dữ liệu từ bảng tính, mà thư viện
+		// hợp đồng không đến từ đó — xóa theo là mất bản scan hợp đồng mà không ai ngờ.
 		$bang = array( 'don', 'tamung', 'chiphi', 'so_chi', 'da_index', 'da_line',
 			'mk_don', 'mk_line', 'bp_index', 'bp_line', 'log' );
 		$out = array();
@@ -293,6 +295,34 @@ class VHCP_DB {
 			PRIMARY KEY  (id),
 			UNIQUE KEY bp_row (ma,row_no),
 			KEY tk_no (tk_no)
+		) $c";
+
+		// THƯ VIỆN HỢP ĐỒNG. File đính kèm để dạng JSON trong 1 cột: một hợp đồng thường
+		// chỉ vài file (bản scan, phụ lục), tách bảng riêng chỉ thêm một lần đọc mà không
+		// được gì. ngay_het để VARCHAR kiểu yyyy-mm-dd cho so sánh chuỗi được và trống
+		// được (hợp đồng vô thời hạn) — DATE NULL thì mọi chỗ đọc phải xử null.
+		$sql[] = "CREATE TABLE " . self::t( 'hopdong' ) . " (
+			id VARCHAR(40) NOT NULL,
+			so_hd VARCHAR(120) NOT NULL DEFAULT '',
+			ten VARCHAR(255) NOT NULL DEFAULT '',
+			doi_tac VARCHAR(190) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			loai_hd VARCHAR(120) NOT NULL DEFAULT '',
+			ngay_ky VARCHAR(20) NOT NULL DEFAULT '',
+			ngay_het VARCHAR(20) NOT NULL DEFAULT '',
+			gia_tri DECIMAL(18,2) NULL,
+			trang_thai VARCHAR(40) NOT NULL DEFAULT 'Còn hiệu lực',
+			nguoi_pt VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu TEXT NULL,
+			files TEXT NULL,
+			nguoi_tao VARCHAR(120) NOT NULL DEFAULT '',
+			tao_luc VARCHAR(40) NOT NULL DEFAULT '',
+			stt BIGINT(20) NOT NULL AUTO_INCREMENT,
+			PRIMARY KEY  (id),
+			UNIQUE KEY stt (stt),
+			KEY coso (coso),
+			KEY ngay_het (ngay_het),
+			KEY doi_tac (doi_tac)
 		) $c";
 
 		$sql[] = "CREATE TABLE " . self::t( 'cfg' ) . " (

@@ -13,7 +13,7 @@ if ( ! defined( 'VHCP_DELETE_DATA_ON_UNINSTALL' ) || ! VHCP_DELETE_DATA_ON_UNINS
 }
 
 global $wpdb;
-$tables = array( 'don', 'tamung', 'chiphi', 'so_chi', 'da_index', 'da_line', 'mk_don', 'mk_line', 'bp_index', 'bp_line', 'cfg', 'meta', 'log', 'session' );
+$tables = array( 'don', 'tamung', 'chiphi', 'so_chi', 'da_index', 'da_line', 'mk_don', 'mk_line', 'bp_index', 'bp_line', 'hopdong', 'cfg', 'meta', 'log', 'session' );
 foreach ( $tables as $t ) {
 	$name = $wpdb->prefix . 'vhcp_' . $t;
 	$wpdb->query( "DROP TABLE IF EXISTS `$name`" );

@@ -139,7 +139,12 @@ class VHCP_Upload {
 	}
 
 	/** uploadDuAnDoc(dataObj, maDA) — hồ sơ nhà thầu, giữ nguyên loại file. */
-	public static function upload_doc( $data, $ma_da = '' ) {
+	/**
+	 * @param array  $data     {base64, name, type}
+	 * @param string $ma_da    tiền tố tên file (mã dự án / mã hợp đồng)
+	 * @param string $thu_muc  thư mục con trong uploads — hợp đồng để riêng cho dễ sao lưu
+	 */
+	public static function upload_doc( $data, $ma_da = '', $thu_muc = 'HoSo_DuAn' ) {
 		$data = (array) $data;
 		$bin  = self::decode( isset( $data['base64'] ) ? $data['base64'] : '' );
 		if ( $bin === null ) { return VHCP_Util::err( 'File trống' ); }
@@ -153,7 +158,9 @@ class VHCP_Upload {
 		$base = sanitize_file_name( pathinfo( $raw, PATHINFO_FILENAME ) );
 		if ( $base === '' ) { $base = 'hoso'; }
 
-		list( $dir, $url ) = self::dir( array( 'HoSo_DuAn' ) );
+		$tm = preg_replace( '/[^A-Za-z0-9_\-]/', '', (string) $thu_muc );
+		if ( $tm === '' ) { $tm = 'HoSo_DuAn'; }
+		list( $dir, $url ) = self::dir( array( $tm ) );
 		$name = ( $ma_da ? self::safe_name( $ma_da ) . '_' : '' ) . $base . '_' . wp_generate_password( 6, false, false ) . '.' . $ext;
 		$file = $dir . '/' . $name;
 		if ( false === file_put_contents( $file, $bin ) ) { return VHCP_Util::err( 'Không ghi được file lên hosting (kiểm tra quyền thư mục uploads)' ); }

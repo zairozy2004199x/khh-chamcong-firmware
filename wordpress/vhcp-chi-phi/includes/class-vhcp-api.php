@@ -34,6 +34,11 @@ class VHCP_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
+		// THƯ VIỆN HỢP ĐỒNG: mang giá và điều khoản, không phải thứ để cả cơ sở đọc.
+		$hop_dong = array( 'listHopDong', 'getHopDong', 'saveHopDong', 'deleteHopDong', 'uploadHopDongFile' );
+		if ( in_array( $fn, $hop_dong, true ) ) {
+			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
+		}
 		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
@@ -151,6 +156,12 @@ class VHCP_API {
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),
 			'resetQuyen'            => array( 'VHCP_Cfg', 'reset_quyen' ),
+
+			// thư viện hợp đồng
+			'listHopDong'           => array( 'VHCP_HopDong', 'list_hd' ),
+			'getHopDong'            => array( 'VHCP_HopDong', 'get_hd' ),
+			'saveHopDong'           => array( 'VHCP_HopDong', 'save_hd' ),
+			'deleteHopDong'         => array( 'VHCP_HopDong', 'delete_hd' ),
 			'dongCuaCoSo'           => array( 'VHCP_Cfg', 'dong_cua_coso' ),
 
 			// đơn vận hành
@@ -267,6 +278,7 @@ class VHCP_API {
 			// tệp
 			'uploadImage'           => array( 'VHCP_Upload', 'upload_image' ),
 			'uploadDuAnDoc'         => array( 'VHCP_Upload', 'upload_doc' ),
+			'uploadHopDongFile'     => array( 'VHCP_HopDong', 'upload_file' ),
 			'migrateOldImages'      => array( 'VHCP_Upload', 'migrate_old_images' ),
 		);
 	}

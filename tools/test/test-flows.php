@@ -2187,6 +2187,101 @@ VHCP_Auth::dat_vai_tro( '', '' );
 VHCP_Don::delete_don_admin( $ma_a );
 VHCP_Don::delete_don_admin( $ma_b );
 
+// ------------------------------- THƯ VIỆN HỢP ĐỒNG
+$hn = new DateTime( 'now', VHCP_Util::tz() );
+$sau = function ( $ngay ) use ( $hn ) {
+	$d = clone $hn; $d->modify( ( $ngay >= 0 ? '+' : '-' ) . abs( (int) $ngay ) . ' days' );
+	return $d->format( 'd/m/Y' );
+};
+
+t( 'bắt buộc tên hợp đồng', empty( VHCP_HopDong::save_hd( array( 'soHD' => 'HD-X' ) )['success'] ) );
+
+$h1 = VHCP_HopDong::save_hd( array(
+	'soHD' => 'HD-2026-001', 'ten' => 'Thuê mặt bằng Funzone Vũng Tàu', 'doiTac' => 'CTY MẶT BẰNG',
+	'coso' => 'FUNZONE VŨNG TÀU', 'loaiHD' => 'Thuê mặt bằng',
+	'ngayKy' => $sau( -400 ), 'ngayHet' => $sau( 20 ), 'giaTri' => 240000000,
+	'nguoiPT' => 'Chị Nhân', 'ghiChu' => 'Trả theo tháng',
+	'files' => array( array( 'url' => 'https://x/hd1.pdf', 'ten' => 'HD scan.pdf' ), 'https://x/pl1.pdf' ),
+), 'Admin' );
+t( 'thêm hợp đồng', ! empty( $h1['success'] ), $h1 );
+
+t( 'số HĐ trùng bị chặn', empty( VHCP_HopDong::save_hd( array( 'soHD' => 'HD-2026-001', 'ten' => 'Cái khác' ) )['success'] ) );
+$ngay_sai = VHCP_HopDong::save_hd( array( 'ten' => 'Ngày lộn', 'ngayKy' => $sau( 10 ), 'ngayHet' => $sau( 5 ) ) );
+t( 'hết hạn trước ngày ký bị chặn', empty( $ngay_sai['success'] ) );
+t( 'và nói rõ hai ngày', strpos( (string) $ngay_sai['error'], 'trước ngày ký' ) !== false, $ngay_sai );
+
+VHCP_HopDong::save_hd( array( 'ten' => 'HĐ đã hết hạn', 'coso' => 'FARM PHAN THIẾT', 'doiTac' => 'NCC CŨ', 'ngayHet' => $sau( -5 ) ), 'Admin' );
+VHCP_HopDong::save_hd( array( 'ten' => 'HĐ còn 45 ngày', 'coso' => 'FARM PHAN THIẾT', 'ngayHet' => $sau( 45 ) ), 'Admin' );
+VHCP_HopDong::save_hd( array( 'ten' => 'HĐ vô thời hạn', 'coso' => 'TÀU TÂN PHÚ' ), 'Admin' );
+
+$ls = VHCP_HopDong::list_hd();
+teq( 'đếm tổng hợp đồng', 4, $ls['dem']['tong'] );
+teq( 'đếm đã hết hạn', 1, $ls['dem']['hetHan'] );
+teq( 'đếm còn <= 30 ngày', 1, $ls['dem']['con30'] );
+teq( 'đếm còn <= 60 ngày', 2, $ls['dem']['con60'] );
+teq( 'đếm không có hạn', 1, $ls['dem']['khongHan'] );
+teq( 'tổng giá trị', 240000000, VHCP_Util::num( $ls['tongGiaTri'] ) );
+
+// Lọc
+teq( 'lọc đã hết hạn', 1, VHCP_HopDong::list_hd( array( 'han' => 'hethan' ) )['soDong'] );
+teq( 'lọc còn <= 30 ngày (không lẫn cái đã hết hạn)', 1, VHCP_HopDong::list_hd( array( 'han' => 'con30' ) )['soDong'] );
+teq( 'lọc theo cơ sở', 2, VHCP_HopDong::list_hd( array( 'coso' => 'FARM PHAN THIẾT' ) )['soDong'] );
+teq( 'lọc theo đối tác', 1, VHCP_HopDong::list_hd( array( 'doiTac' => 'NCC CŨ' ) )['soDong'] );
+teq( 'tìm theo tên', 1, VHCP_HopDong::list_hd( array( 'q' => 'mặt bằng funzone' ) )['soDong'] );
+teq( 'tìm theo số HĐ', 1, VHCP_HopDong::list_hd( array( 'q' => 'hd-2026-001' ) )['soDong'] );
+t( 'ô lọc có danh sách cơ sở', in_array( 'FARM PHAN THIẾT', (array) $ls['cosoList'], true ) );
+
+// Nội dung một hợp đồng
+$hd1 = null;
+foreach ( $ls['items'] as $x ) { if ( $x['soHD'] === 'HD-2026-001' ) { $hd1 = $x; } }
+teq( 'giữ đủ 2 file đính kèm', 2, count( $hd1['files'] ) );
+teq( 'file dạng chuỗi cũng nhận', 'https://x/pl1.pdf', $hd1['files'][1]['url'] );
+teq( 'ngày hiện dd/MM/yyyy', $sau( 20 ), $hd1['ngayHet'] );
+t( 'trả kèm ngày dạng yyyy-mm-dd cho ô type=date', preg_match( '/^\d{4}-\d{2}-\d{2}$/', $hd1['ngayHetSql'] ) === 1, $hd1['ngayHetSql'] );
+teq( 'còn 20 ngày', 20, $hd1['han']['conLai'] );
+teq( 'xếp vào mốc 30 ngày', 'con30', $hd1['han']['ma'] );
+
+// Sửa: giữ id, đổi số tiền
+$sua = VHCP_HopDong::save_hd( array( 'id' => $hd1['id'], 'ten' => $hd1['ten'], 'soHD' => 'HD-2026-001', 'giaTri' => 250000000 ), 'Admin' );
+t( 'sửa hợp đồng', ! empty( $sua['success'] ) );
+teq( 'sửa không sinh bản mới', 4, VHCP_HopDong::list_hd()['dem']['tong'] );
+teq( 'số tiền đã đổi', 250000000, VHCP_Util::num( VHCP_HopDong::get_hd( $hd1['id'] )['hd']['giaTri'] ) );
+// Sửa mà không gửi lại ngày / file thì KHÔNG được xoá trắng — sửa giá hợp đồng xong mà bay
+// mất ngày hết hạn thì hết nhắc hạn, mà không có gì báo.
+$sau_sua = VHCP_HopDong::get_hd( $hd1['id'] )['hd'];
+teq( 'ngày hết hạn còn nguyên', $hd1['ngayHetSql'], $sau_sua['ngayHetSql'] );
+teq( 'ngày ký còn nguyên', $hd1['ngayKySql'], $sau_sua['ngayKySql'] );
+teq( 'file đính kèm còn nguyên', 2, count( $sau_sua['files'] ) );
+teq( 'cơ sở còn nguyên', $hd1['coso'], $sau_sua['coso'] );
+teq( 'người phụ trách còn nguyên', 'Chị Nhân', $sau_sua['nguoiPT'] );
+// Gửi rỗng RÕ RÀNG thì mới xoá
+VHCP_HopDong::save_hd( array( 'id' => $hd1['id'], 'ten' => $hd1['ten'], 'nguoiPT' => '' ), 'Admin' );
+teq( 'gửi rỗng rõ ràng thì xoá được', '', VHCP_HopDong::get_hd( $hd1['id'] )['hd']['nguoiPT'] );
+
+// Nhắc hạn cho Tổng quan
+$nhac = VHCP_HopDong::sap_het_han( 90 );
+teq( 'nhắc hạn 90 ngày: 3 HĐ (gồm cả đã hết hạn)', 3, count( $nhac ) );
+teq( 'sắp xếp: hết hạn lâu nhất trước', 'HĐ đã hết hạn', $nhac[0]['ten'] );
+
+// Xóa
+t( 'xóa hợp đồng', ! empty( VHCP_HopDong::delete_hd( $hd1['id'], 'Admin' )['success'] ) );
+teq( 'còn 3 hợp đồng', 3, VHCP_HopDong::list_hd()['dem']['tong'] );
+t( 'xóa id không có thì báo lỗi', empty( VHCP_HopDong::delete_hd( 'HD_khong_co' )['success'] ) );
+
+// Cửa API: hợp đồng mang giá và điều khoản -> Nhân viên không được xem
+$tok_nv3 = VHCP_Auth::issue_token( 'NV Xem Trộm', 'Nhân viên', '', '' );
+teq( 'API: nhân viên xem hợp đồng -> 403', 403, api( 'listHopDong', array( array() ), $tok_nv3 )['status'] );
+teq( 'API: nhân viên lưu hợp đồng -> 403', 403, api( 'saveHopDong', array( array( 'ten' => 'x' ) ), $tok_nv3 )['status'] );
+teq( 'API: kế toán xem được', 200, api( 'listHopDong', array( array() ), $tok_kt )['status'] );
+teq( 'API: quản lý xem được', 200, api( 'listHopDong', array( array() ), $tok_ql )['status'] );
+teq( 'API: nhân viên tải file HĐ lên -> 403', 403, api( 'uploadHopDongFile', array( array(), 'HD' ), $tok_nv3 )['status'] );
+// File hợp đồng để riêng thư mục, không lẫn hồ sơ dự án
+$up = VHCP_HopDong::upload_file( array( 'base64' => base64_encode( '%PDF-1.4 test' ), 'name' => 'hd.pdf' ), 'HD_TEST' );
+t( 'tải được file hợp đồng', ! empty( $up['success'] ), $up );
+t( 'file nằm trong thư mục HopDong', strpos( (string) $up['url'], '/HopDong/' ) !== false, $up['url'] );
+t( 'tên file mang tiền tố mã HĐ', strpos( basename( (string) $up['url'] ), 'HD_TEST_' ) === 0, basename( (string) $up['url'] ) );
+t( 'file lạ bị chặn', empty( VHCP_HopDong::upload_file( array( 'base64' => base64_encode( 'x' ), 'name' => 'virus.exe' ) )['success'] ) );
+
 // ------------------------------- XIN TẠM ỨNG LÀ QUYỀN RIÊNG, KHÔNG DÍNH "SỬA SỐ"
 // Luồng chi phí cơ sở: lên đơn (NV) → xin tạm ứng (NV) → duyệt (QL) → cấp (KT) →
 // gửi quyết toán (NV) → quyết toán (KT). Nút gửi đơn của NV từng bị gác bởi quyền

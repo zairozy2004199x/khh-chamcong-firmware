@@ -738,6 +738,42 @@ nhập. Đổi ô **Cơ sở** thì danh sách loại cập nhật theo — vì 
 Dòng đang sửa mà loại nay không còn trong danh mục thì **vẫn chọn được**, để không mất dữ liệu
 cũ.
 
+### 📄 Thư viện hợp đồng (bản 1.15.0)
+
+Tab mới **📄 Hợp đồng** — lưu hợp đồng và **bản scan ngay trên web**, kèm **đếm ngược hạn**.
+
+**Một hợp đồng lưu:** Số HĐ · Tên HĐ · Đối tác/NCC · Cơ sở · Loại HĐ · Ngày ký · Ngày hết hạn
+· Giá trị · Trạng thái · Người phụ trách · Ghi chú · **nhiều file đính kèm** (PDF · ảnh · Word
+· Excel, tối đa 15MB mỗi file).
+
+**Nhắc hạn** — bốn ô đếm ở đầu trang: *đã hết hạn* · *còn ≤ 30 ngày* · *còn ≤ 90 ngày* · *tổng*.
+Mỗi dòng có nhãn màu (đỏ = hết hạn, cam = ≤30 ngày, vàng = ≤60, xanh = còn xa). **Tổng quan**
+cũng hiện một dòng nhắc khi có hợp đồng hết hạn hoặc còn ≤ 30 ngày, kèm 5 cái gần nhất.
+
+Mấy ô đếm tính trên **toàn bộ** hợp đồng, không theo bộ lọc — lọc hẹp lại rồi tưởng hết việc thì
+mất ý nghĩa của việc nhắc.
+
+**Lọc & tìm:** theo hạn · cơ sở · đối tác, và gõ tìm theo số HĐ / tên / đối tác / ghi chú.
+
+**Quyền:** chỉ **Kế toán · Quản lý · Admin** — hợp đồng mang giá và điều khoản, không phải thứ
+để cả cơ sở đọc. Nhân viên không thấy tab, và cửa API trả **403** kể cả khi gọi thẳng.
+
+**Mấy chỗ đã lường trước:**
+
+- **Số HĐ trùng** bị chặn (trùng số là lúc tra cứu không biết bản nào mới). Số HĐ *không* bắt
+  buộc vì hợp đồng nhỏ nhiều khi không có số; **tên** thì bắt buộc.
+- **Ngày hết hạn trước ngày ký** bị chặn, báo rõ cả hai ngày. Sửa mà chỉ gửi một trong hai ngày
+  thì app đối chiếu với ngày đang lưu.
+- **Sửa một ô không xoá các ô khác**: sửa giá hợp đồng mà không gửi lại ngày thì ngày **còn
+  nguyên** (trước đó app tự viết ra lỗi này, phép thử bắt được). Muốn xoá thì gửi rỗng rõ ràng.
+- **Xóa hợp đồng không xóa file** trên ổ đĩa; đường dẫn file được ghi vào 📜 **Nhật ký** để còn
+  tìm lại. Mọi lần thêm/sửa/xóa đều vào Nhật ký.
+- File hợp đồng để **thư mục riêng** `uploads/…/HopDong/`, không lẫn hồ sơ dự án — dễ sao lưu.
+- Lệnh **"Xóa sạch dữ liệu để nạp lại"** **không** xóa thư viện hợp đồng: lệnh đó để nạp lại dữ
+  liệu từ bảng tính, mà hợp đồng không đến từ đó.
+
+Bảng dữ liệu mới `vhcp_hopdong` (schema 1.4.0) — plugin tự tạo khi kích hoạt bản này.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

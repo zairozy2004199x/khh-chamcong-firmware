@@ -53,6 +53,8 @@ function measure( $label ) {
 	$run( 'listMkDon',         function () { VHCP_MK::list_don( 'all' ); } );
 	$run( 'listSoChi',         function () { VHCP_SoChi::list_chi( array() ); } );
 	$run( 'exportMisaSoChi',   function () { VHCP_SoChi::export_misa( 'all', 'chuaxuat' ); } );
+	$run( 'listHopDong',       function () { VHCP_HopDong::list_hd( array() ); } );
+	$run( 'sapHetHan',         function () { VHCP_HopDong::sap_het_han( 90 ); } );
 	$run( 'getPendingModules', function () { VHCP_Report::pending_modules(); } );
 	$run( 'getVanHanhTuan',    function () { VHCP_Report::van_hanh_tuan( '' ); } );
 	$run( 'getGianReport',     function () { VHCP_Report::gian_report( 'VR SORA' ); } );
