@@ -1411,6 +1411,48 @@ teq( 'nạp đúng 1 dòng', 1, $tay['tong'] );
 t( 'báo rõ lấy danh sách tab bằng cách nào', strpos( $tay['cach'], 'gõ tay' ) === 0 );
 t( 'đơn nạp bằng tên tab gõ tay đã vào', ! empty( VHCP_Don::get_don( 'VH_taytab', false )['success'] ) );
 
+// Đọc thẳng file .xlsx: lấy GIÁ TRỊ GỐC mọi ô, không qua chỗ Google đoán kiểu cột
+$xlsx = file_get_contents( __DIR__ . '/fixtures/nha-ma-ba-ria.xlsx' );
+$GLOBALS['VHCP_HTTP'] = array(
+	'format=xlsx' => array( 'code' => 200, 'body' => $xlsx ),
+	// gviz (tải theo TÊN) xóa trắng ô tiêu đề của cột số — đường này KHÔNG được dùng nữa
+	'gviz'        => "Nội dung hạng mục,,,,,,Thuộc hạng mục lớn\nVật tư Khánh Thảo,,,,,,\n",
+);
+$SID_X = '2XlsxEfGhIjKlMnOpQrStUvWxYz0123456789';
+$wb = VHCP_Sheet::tai_workbook( $SID_X );
+t( 'đọc được workbook .xlsx', isset( $wb['DA NHÀ MA BÀ RỊA'] ) );
+$rows_wb = $wb['DA NHÀ MA BÀ RỊA'];
+teq( 'đủ 6 dòng', 6, count( $rows_wb ) );
+teq( 'banner ở dòng 1', '🏗 SETUP LẮP ĐẶT: NHÀ MA BÀ RỊA', (string) $rows_wb[0][0] );
+teq( 'ô lỗi #REF! thành trống', '', (string) $rows_wb[1][4] );
+teq( 'tiêu đề cột số ở dòng 4 KHÔNG bị mất', 'Chi phí thực tế', (string) $rows_wb[3][2] );
+teq( 'số đọc ra giá trị gốc', '825000', (string) $rows_wb[5][2] );
+
+$k_wb = VHCP_Nap::khop( 'sochi', $rows_wb );
+t( 'nhờ vậy khớp được cột tiền', isset( $k_wb['hd']['so_tien'] ) );
+t( 'và cột dự toán', isset( $k_wb['hd']['du_toan'] ) );
+
+$r_wb = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => true, 'tabs' => array( 'DA NHÀ MA BÀ RỊA' ) ) );
+teq( 'báo rõ đọc bằng file .xlsx', 'file .xlsx', $r_wb['cach'] );
+$bc_wb = $r_wb['baoCao'][0];
+t( 'dòng đọc: có so_tien', isset( $bc_wb['khopVoi']['so_tien'] ) );
+t( 'tổng tiền tính trước ra 825.000 (dòng tổng hợp về 0)', strpos( $bc_wb['ketQua'], '825.000' ) !== false );
+t( 'không cảnh báo tải theo tên nữa', empty( $bc_wb['canhBao'] ) );
+
+// Nạp thật từ workbook: số phải vào đúng
+$r_wb2 = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => false, 'replace' => true, 'tabs' => array( 'DA NHÀ MA BÀ RỊA' ) ) );
+teq( 'nạp 2 dòng', 2, $r_wb2['tong'] );
+$sc_wb = VHCP_SoChi::list_chi( array( 'maDuAn' => 'NHÀ MA BÀ RỊA' ) );
+teq( 'tổng vào sổ chi phí đúng', 825000, VHCP_Util::num( $sc_wb['tong'] ) );
+$hom_wb = null;
+foreach ( $sc_wb['items'] as $x ) { if ( (string) $x['noiDung'] === 'Tủ Điện 24 tép' ) { $hom_wb = $x; } }
+teq( 'dòng con mang đúng số tiền', 825000, VHCP_Util::num( $hom_wb['soTien'] ) );
+teq( 'và đúng số lượng', 1, VHCP_Util::num( $hom_wb['soLuong'] ) );
+$vt_wb = null;
+foreach ( $sc_wb['items'] as $x ) { if ( (string) $x['noiDung'] === 'Vật tư Khánh Thảo' ) { $vt_wb = $x; } }
+teq( 'dòng tổng hợp về 0 nhưng giữ dự toán', 4800000, VHCP_Util::num( $vt_wb['duToan'] ) );
+$GLOBALS['VHCP_HTTP'] = array();
+
 // Gõ tay tên tab thì VẪN phải tải bằng gid — tải theo tên (gviz) làm cột số mất tiêu đề
 $GLOBALS['VHCP_HTTP'] = array(
 	'/htmlview' => '{"name":"DA GIAN X","gid":"555"}',

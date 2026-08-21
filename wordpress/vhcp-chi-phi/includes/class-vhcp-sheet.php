@@ -180,6 +180,135 @@ class VHCP_Sheet {
 		return isset( $mux[ $loai ] ) ? $mux[ $loai ] : 9;
 	}
 
+	/**
+	 * TẢI CẢ BẢNG TÍNH DẠNG .XLSX RỒI ĐỌC THẲNG — đường đáng tin nhất.
+	 *
+	 * Hai đường kia đều có chỗ hụt: tải theo TÊN tab (gviz) thì Google tự đoán kiểu cột
+	 * nên ô tiêu đề của cột số bị trả về rỗng (mất luôn cột tiền); tải theo GID thì phải
+	 * dò được gid, mà danh sách tab lấy từ .xlsx lại không kèm gid.
+	 *
+	 * Đọc .xlsx thì lấy được GIÁ TRỊ GỐC của mọi ô, mọi tab, chỉ với 1 lần tải.
+	 *
+	 * @return array [ tên tab => mảng dòng (mảng ô) ] · [] nếu không đọc được
+	 */
+	public static function tai_workbook( $id ) {
+		// Chỉ nhớ khi ĐỌC ĐƯỢC: một lần tải lỗi không được làm chết cả lượt sau
+		static $nho = array();
+		if ( ! empty( $nho[ $id ] ) ) { return $nho[ $id ]; }
+
+		if ( ! class_exists( 'ZipArchive' ) ) { return array(); }
+		$r = self::tai( 'https://docs.google.com/spreadsheets/d/' . $id . '/export?format=xlsx' );
+		if ( ! empty( $r['loi'] ) ) { return array(); }
+		$tmp = wp_tempnam( 'vhcp-xlsx' );
+		if ( ! $tmp ) { return array(); }
+		file_put_contents( $tmp, $r['body'] );
+
+		$zip = new ZipArchive();
+		if ( $zip->open( $tmp ) !== true ) { @unlink( $tmp ); return array(); }
+
+		// 1) tên tab + rId  ·  2) rId -> file worksheet
+		$wb = (string) $zip->getFromName( 'xl/workbook.xml' );
+		$rels = (string) $zip->getFromName( 'xl/_rels/workbook.xml.rels' );
+		$sheet_file = array();
+		if ( preg_match_all( '#<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"#', $rels, $mr, PREG_SET_ORDER ) ) {
+			foreach ( $mr as $x ) { $sheet_file[ $x[1] ] = ltrim( str_replace( '/xl/', '', $x[2] ), '/' ); }
+		}
+		$tabs = array();
+		if ( preg_match_all( '#<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]+)"#', $wb, $ms, PREG_SET_ORDER ) ) {
+			foreach ( $ms as $x ) {
+				$ten = html_entity_decode( $x[1], ENT_QUOTES, 'UTF-8' );
+				$f   = isset( $sheet_file[ $x[2] ] ) ? $sheet_file[ $x[2] ] : '';
+				if ( $ten !== '' && $f !== '' ) { $tabs[ $ten ] = $f; }
+			}
+		}
+
+		// 3) bảng chuỗi dùng chung
+		$ss = array();
+		$sx = (string) $zip->getFromName( 'xl/sharedStrings.xml' );
+		if ( $sx !== '' && preg_match_all( '#<si>(.*?)</si>#s', $sx, $mss ) ) {
+			foreach ( $mss[1] as $si ) {
+				$t = '';
+				if ( preg_match_all( '#<t[^>]*>(.*?)</t>#s', $si, $mt ) ) { $t = implode( '', $mt[1] ); }
+				$ss[] = html_entity_decode( $t, ENT_QUOTES, 'UTF-8' );
+			}
+		}
+
+		// 4) từng tab -> mảng dòng
+		$out = array();
+		foreach ( $tabs as $ten => $f ) {
+			$xml = (string) $zip->getFromName( 'xl/' . $f );
+			if ( $xml === '' ) { $xml = (string) $zip->getFromName( $f ); }
+			if ( $xml === '' ) { continue; }
+			$out[ $ten ] = self::doc_sheet_xml( $xml, $ss );
+		}
+		$zip->close();
+		@unlink( $tmp );
+
+		$nho[ $id ] = $out;
+		return $out;
+	}
+
+	/** Đọc 1 worksheet XML thành mảng dòng, giữ đúng vị trí cột theo địa chỉ ô (A1, C4…). */
+	private static function doc_sheet_xml( $xml, $ss ) {
+		$rows = array();
+		if ( ! preg_match_all( '#<row[^>]*>(.*?)</row>#s', $xml, $mr ) ) { return $rows; }
+		foreach ( $mr[1] as $rx ) {
+			$dong = array();
+			if ( preg_match_all( '#<c\s([^>]*)>(.*?)</c>#s', $rx, $mc, PREG_SET_ORDER ) ) {
+				foreach ( $mc as $c ) {
+					$attr = $c[1];
+					$noi  = $c[2];
+					$cot  = 0;
+					if ( preg_match( '#r="([A-Z]+)#', $attr, $mA ) ) { $cot = self::cot_so( $mA[1] ); }
+					$loai = ( preg_match( '#t="([^"]+)"#', $attr, $mT ) ? $mT[1] : '' );
+					$val  = '';
+					if ( $loai === 's' ) {
+						if ( preg_match( '#<v>(.*?)</v>#s', $noi, $mv ) ) {
+							$i = (int) $mv[1];
+							$val = isset( $ss[ $i ] ) ? $ss[ $i ] : '';
+						}
+					} elseif ( $loai === 'inlineStr' ) {
+						if ( preg_match_all( '#<t[^>]*>(.*?)</t>#s', $noi, $mt2 ) ) { $val = html_entity_decode( implode( '', $mt2[1] ), ENT_QUOTES, 'UTF-8' ); }
+					} elseif ( $loai === 'e' ) {
+						$val = '';   // ô lỗi (#ERROR!) -> coi như trống
+					} else {
+						if ( preg_match( '#<v>(.*?)</v>#s', $noi, $mv2 ) ) { $val = html_entity_decode( $mv2[1], ENT_QUOTES, 'UTF-8' ); }
+					}
+					$dong[ $cot ] = $val;
+				}
+			}
+			if ( count( $dong ) ) {
+				$max = max( array_keys( $dong ) );
+				for ( $i = 0; $i <= $max; $i++ ) { if ( ! isset( $dong[ $i ] ) ) { $dong[ $i ] = ''; } }
+				ksort( $dong );
+				$rows[] = array_values( $dong );
+			} else {
+				$rows[] = array();
+			}
+		}
+		return $rows;
+	}
+
+	/** Dựng lại CSV từ mảng dòng, để dùng chung bộ nạp sẵn có. */
+	public static function rows_to_csv( $rows ) {
+		$fh = fopen( 'php://memory', 'r+' );
+		foreach ( (array) $rows as $r ) { fputcsv( $fh, array_map( 'strval', (array) $r ) ); }
+		rewind( $fh );
+		$out = stream_get_contents( $fh );
+		fclose( $fh );
+		return (string) $out;
+	}
+
+	/** "A" -> 0, "B" -> 1, "AA" -> 26 */
+	private static function cot_so( $chu ) {
+		$n = 0;
+		$chu = strtoupper( (string) $chu );
+		for ( $i = 0, $L = strlen( $chu ); $i < $L; $i++ ) {
+			$n = $n * 26 + ( ord( $chu[ $i ] ) - 64 );
+		}
+		return max( 0, $n - 1 );
+	}
+
 	/** Tải 1 tab về dạng CSV (theo gid nếu có, không thì theo tên). */
 	public static function tai_tab( $id, $gid = '', $ten = '' ) {
 		if ( $gid !== '' ) {
@@ -212,9 +341,15 @@ class VHCP_Sheet {
 			$t = trim( (string) $t );
 			if ( $t !== '' ) { $ten_tay[] = $t; }
 		}
+		// Đọc thẳng .xlsx trước: 1 lần tải, mọi tab, GIÁ TRỊ GỐC của mọi ô — không qua
+		// chỗ Google đoán kiểu cột (chỗ làm mất tiêu đề cột số).
+		$wbk  = self::tai_workbook( $id );
 		$cach = 'gõ tay';
 		$tabs = array();
-		$lk   = self::liet_ke_tab( $id );   // luôn thử lấy danh sách để có GID
+		$lk   = count( $wbk ) ? array( 'tabs' => array(), 'cach' => 'file .xlsx' ) : self::liet_ke_tab( $id );
+		if ( count( $wbk ) ) {
+			foreach ( array_keys( $wbk ) as $tn ) { $lk['tabs'][] = array( 'gid' => '', 'ten' => $tn ); }
+		}
 		if ( count( $ten_tay ) ) {
 			// Gõ tay tên tab nhưng VẪN dò gid: tải theo gid mới đúng nguyên bản sheet.
 			// Tải theo TÊN (gviz) thì Google tự đoán kiểu cột, cột số sẽ trả ô tiêu đề
@@ -231,9 +366,13 @@ class VHCP_Sheet {
 					$tabs[] = array( 'gid' => '', 'ten' => $t );
 				}
 			}
-			$co_gid = 0;
-			foreach ( $tabs as $x ) { if ( $x['gid'] !== '' ) { $co_gid++; } }
-			$cach = 'gõ tay' . ( $co_gid ? ' (có gid cho ' . $co_gid . '/' . count( $tabs ) . ' tab)' : ' — KHÔNG dò được gid, phải tải theo tên' );
+			if ( count( $wbk ) ) {
+				$cach = 'file .xlsx';   // đọc thẳng workbook, tên tab gõ tay chỉ để chọn tab
+			} else {
+				$co_gid = 0;
+				foreach ( $tabs as $x ) { if ( $x['gid'] !== '' ) { $co_gid++; } }
+				$cach = 'gõ tay' . ( $co_gid ? ' (có gid cho ' . $co_gid . '/' . count( $tabs ) . ' tab)' : ' — KHÔNG dò được gid, phải tải theo tên' );
+			}
 		} else {
 			if ( empty( $lk['tabs'] ) ) { return VHCP_Util::err( isset( $lk['loi'] ) ? $lk['loi'] : 'Không đọc được danh sách tab' ); }
 			$tabs = $lk['tabs'];
@@ -243,13 +382,21 @@ class VHCP_Sheet {
 		// 1) Tải từng tab: ưu tiên nhận theo TÊN TAB, không được thì dò theo TÊN CỘT
 		$viec = array();
 		foreach ( $tabs as $tab ) {
-			$r = self::tai_tab( $id, $tab['gid'], $tab['ten'] );
-			$theo_ten = ( $tab['gid'] === '' );
-			if ( ! empty( $r['loi'] ) ) {
-				$viec[] = array( 'tab' => $tab['ten'], 'bo' => 'không tải được: ' . $r['loi'] );
-				continue;
+			$theo_ten = false;
+			$csv_tab  = '';
+			if ( isset( $wbk[ $tab['ten'] ] ) ) {
+				$rows    = $wbk[ $tab['ten'] ];
+				$csv_tab = self::rows_to_csv( $rows );
+			} else {
+				$r = self::tai_tab( $id, $tab['gid'], $tab['ten'] );
+				$theo_ten = ( $tab['gid'] === '' );
+				if ( ! empty( $r['loi'] ) ) {
+					$viec[] = array( 'tab' => $tab['ten'], 'bo' => 'không tải được: ' . $r['loi'] );
+					continue;
+				}
+				$csv_tab = $r['body'];
+				$rows    = VHCP_Import::parse( $csv_tab );
 			}
-			$rows = VHCP_Import::parse( $r['body'] );
 			if ( ! count( $rows ) ) { $viec[] = array( 'tab' => $tab['ten'], 'bo' => 'tab trống' ); continue; }
 
 			$loai = self::doan_tu_ten( $tab['ten'] );
@@ -272,7 +419,7 @@ class VHCP_Sheet {
 				$cach_nhan = 'tên cột';
 				$diem      = $doan['diem'];
 			}
-			$viec[] = array( 'tab' => $tab['ten'], 'loai' => $loai, 'cachNhan' => $cach_nhan, 'diem' => $diem, 'rows' => $rows, 'csv' => $r['body'], 'theoTen' => $theo_ten );
+			$viec[] = array( 'tab' => $tab['ten'], 'loai' => $loai, 'cachNhan' => $cach_nhan, 'diem' => $diem, 'rows' => $rows, 'csv' => $csv_tab, 'theoTen' => $theo_ten );
 		}
 
 		// 2) Sắp thứ tự: cấu hình -> danh mục -> tạm ứng -> dòng chi -> nhật ký
