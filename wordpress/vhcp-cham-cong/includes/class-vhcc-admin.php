@@ -364,7 +364,29 @@ class VHCC_Admin {
 			. 'thì không biết đã tới đâu. Bấm lại là nó đi tiếp từ chỗ dừng. Trần khoảng tháng là 36.</p>';
 		$td = VHCC_Keo::tien_do();
 		if ( $td ) {
-			echo '<p>Đã kéo xong <b>' . count( $td ) . '</b> cặp (cơ sở × tháng).</p>';
+			/* 🔴 LIỆT KÊ RA, không chỉ đếm. Câu hỏi thật khi mở bảng chấm công thấy "0 hàng" là
+			   "đã kéo cơ sở này tháng này chưa?" — một con số tổng không trả lời được câu đó, mà
+			   đoán thì mất cả vòng. Bảng dưới trả lời trực tiếp: cặp nào đã kéo, được mấy lượt. */
+			echo '<p>Đã kéo <b>' . count( $td ) . '</b> cặp (cơ sở × tháng):</p>';
+			krsort( $td );
+			echo '<table class="widefat striped" style="max-width:760px;margin:6px 0"><thead><tr>'
+				. '<th>Cơ sở</th><th>Tháng</th><th>Lượt người</th><th>Giờ vào/ra</th><th>Lúc kéo</th>'
+				. '</tr></thead><tbody>';
+			$dem_td = 0;
+			foreach ( $td as $khoa_td => $x_td ) {
+				if ( ++$dem_td > 40 ) { break; }
+				$phan = explode( '|', (string) $khoa_td );
+				$luot_td = isset( $x_td['luot'] ) ? (int) $x_td['luot'] : 0;
+				echo '<tr><td>' . esc_html( isset( $phan[0] ) ? $phan[0] : '?' ) . '</td><td>'
+					. esc_html( isset( $phan[1] ) ? $phan[1] : '?' ) . '</td><td>'
+					. (int) ( isset( $x_td['nguoi'] ) ? $x_td['nguoi'] : 0 ) . '</td><td>'
+					/* 0 giờ = đã kéo nhưng tháng đó sheet không có gì. Nói rõ, vì "đã kéo" mà bảng
+					   trống thì người xem sẽ tưởng lệnh kéo hỏng. */
+					. ( $luot_td ? $luot_td : '<span style="color:#8a6d3b">0 — tháng đó sheet không có dữ liệu</span>' )
+					. '</td><td>' . esc_html( isset( $x_td['luc'] ) ? $x_td['luc'] : '' ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+			if ( count( $td ) > 40 ) { echo '<p><em>(chỉ hiện 40 cặp gần nhất)</em></p>'; }
 			echo '<form method="post" style="display:inline">';
 			wp_nonce_field( 'vhcc_ns' );
 			echo '<input type="hidden" name="vhcc_ns" value="keo_xoa_td" />';
@@ -1172,6 +1194,26 @@ class VHCC_Admin {
 	}
 
 	public static function handle_post() {
+		/* Danh sách người dùng riêng — xử TRƯỚC lúc vẽ, nhờ vậy bảng vẽ ra là bảng sau khi sửa. */
+		if ( isset( $_POST['vhcc_nd'] ) && current_user_can( self::CAP ) ) {
+			check_admin_referer( 'vhcc_nd' );
+			$v_nd = sanitize_text_field( wp_unslash( $_POST['vhcc_nd'] ) );
+			if ( 'luu' === $v_nd ) {
+				$r_nd = VHCC_NguoiDung::luu(
+					isset( $_POST['id'] ) ? wp_unslash( $_POST['id'] ) : '',
+					isset( $_POST['ten'] ) ? wp_unslash( $_POST['ten'] ) : '',
+					isset( $_POST['pin'] ) ? wp_unslash( $_POST['pin'] ) : '',
+					isset( $_POST['vai_tro'] ) ? wp_unslash( $_POST['vai_tro'] ) : '',
+					isset( $_POST['coso'] ) ? wp_unslash( $_POST['coso'] ) : '' );
+			} elseif ( 'xoa' === $v_nd ) {
+				$r_nd = VHCC_NguoiDung::xoa( isset( $_POST['id'] ) ? wp_unslash( $_POST['id'] ) : '' );
+			} else {
+				$r_nd = array( 'ok' => false, 'error' => 'Việc không rõ.' );
+			}
+			set_transient( 'vhcc_nd_' . get_current_user_id(), $r_nd, 60 );
+			self::ve( 'nd' );
+		}
+
 		if ( ! isset( $_POST['vhcc_action'] ) ) { return; }
 		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
 		$action = sanitize_text_field( wp_unslash( $_POST['vhcc_action'] ) );
@@ -1259,6 +1301,17 @@ class VHCC_Admin {
 		);
 		if ( isset( $loi_nhan[ $msg ] ) ) {
 			echo '<div class="notice notice-success"><p>' . wp_kses_post( $loi_nhan[ $msg ] ) . '</p></div>';
+		}
+
+		if ( $msg === 'nd' ) {
+			$bao_nd = get_transient( 'vhcc_nd_' . get_current_user_id() );
+			delete_transient( 'vhcc_nd_' . get_current_user_id() );
+			if ( is_array( $bao_nd ) ) {
+				echo '<div class="notice notice-' . ( empty( $bao_nd['ok'] ) ? 'error' : 'success' ) . '"><p>'
+					. esc_html( empty( $bao_nd['ok'] )
+						? ( isset( $bao_nd['error'] ) ? $bao_nd['error'] : 'Lỗi không rõ' )
+						: ( isset( $bao_nd['thong_bao'] ) ? $bao_nd['thong_bao'] : 'Đã lưu.' ) ) . '</p></div>';
+			}
 		}
 
 		$sua_url = get_transient( 'vhcc_sua_url_' . get_current_user_id() );
@@ -1360,24 +1413,65 @@ class VHCC_Admin {
 			. 'Danh sách riêng của plugin này</label>';
 		echo '<p class="description">Dùng chung thì thêm/sửa/xoá nhân sự vẫn làm ở tab ⚙️ Cấu hình của app chi phí — '
 			. 'khai một lần cho cả hai hệ thống. Khai hai nơi là sớm muộn xoá một nơi quên nơi kia.</p>';
-		/* ⚠️ Bản này CHƯA có màn khai danh sách riêng: `vhcc_nguoidung` chỉ được ĐỌC, không chỗ
-		   nào ghi. Chọn "riêng" là không ai đăng nhập được trang chấm công, mà màn hình lại
-		   không hề nói ra — đúng kiểu tắc im lặng. Nói thẳng ngay tại chỗ chọn. */
+		/* DANH SÁCH RIÊNG — màn khai ngay tại chỗ.
+		   Anh Thắng: *"anh để chỉ plugin này thôi mà"*. Plugin phải chạy được MỘT MÌNH, không
+		   bắt cài kèm plugin chi phí chỉ để có chỗ khai người dùng. Bản trước chọn "riêng" là
+		   tắc: option `vhcc_nguoidung` chỉ được ĐỌC, không màn nào ghi — chọn xong không ai đăng
+		   nhập được, và màn hình chỉ biết khuyên đi cài plugin khác. */
 		if ( $nguon === 'rieng' ) {
-			$ds_rieng = get_option( 'vhcc_nguoidung' );
-			$so_rieng = is_array( $ds_rieng ) ? count( $ds_rieng ) : 0;
-			if ( ! $so_rieng ) {
+			$ds_r  = VHCC_NguoiDung::ds();
+			$vao_r = VHCC_NguoiDung::so_vao_duoc( $ds_r );
+			$cho_r = VHCC_Auth::vai_tro_vao();
+
+			if ( ! $ds_r ) {
+				echo '<div class="notice notice-warning inline" style="margin:8px 0"><p>'
+					. '<b>Danh sách đang rỗng — chưa ai đăng nhập được.</b> Thêm người đầu tiên ở ô '
+					. 'ngay dưới, nhớ chọn vai trò nằm trong nhóm vào được ('
+					. esc_html( implode( ' · ', $cho_r ) ) . ').</p></div>';
+			} elseif ( ! $vao_r ) {
 				echo '<div class="notice notice-error inline" style="margin:8px 0"><p>'
-					. '<b>Danh sách riêng đang RỖNG, và bản này chưa có màn để khai nó.</b> '
-					. 'Để nguyên thế thì trang <code>' . esc_html( VHCC_Trang::url() ) . '</code> '
-					. 'sẽ không ai đăng nhập được — PIN nào cũng bị chối.</p>'
-					. '<p>Cách đang chạy được: cài thêm plugin <b>Vận Hành Chi Phí</b> '
-					. '(<code>vhcp-chi-phi.zip</code>), khai nhân sự ở tab ⚙️ Cấu hình bên đó, rồi '
-					. 'quay lại chọn <b>Dùng chung</b> ở trên. Nhân sự khai một lần, dùng cho cả hai '
-					. 'hệ thống.</p></div>';
-			} else {
-				echo '<p>Danh sách riêng đang có <b>' . (int) $so_rieng . '</b> người.</p>';
+					. '<b>Có ' . count( $ds_r ) . ' người nhưng KHÔNG AI vào được</b> — vai trò của họ '
+					. 'đều nằm ngoài nhóm cho vào. Sửa vai trò, hoặc tích thêm vai trò ở mục '
+					. '<b>Vai trò vào được</b> bên dưới.</p></div>';
 			}
+
+			if ( $ds_r ) {
+				echo '<table class="widefat striped" style="max-width:760px;margin:8px 0"><thead><tr>'
+					. '<th>Họ tên</th><th>Vai trò</th><th>Cơ sở</th><th>PIN</th><th></th>'
+					. '</tr></thead><tbody>';
+				foreach ( $ds_r as $u_r ) {
+					$duoc_r = in_array( $u_r['vaiTro'], $cho_r, true );
+					echo '<tr><td><b>' . esc_html( $u_r['ten'] ) . '</b></td><td>'
+						. esc_html( $u_r['vaiTro'] )
+						. ( $duoc_r ? '' : ' <span style="color:#b32d2e">(không vào được)</span>' )
+						. '</td><td>' . esc_html( $u_r['coso'] ) . '</td>'
+						/* ⚠️ CHỈ SỐ CHỮ SỐ. Không bao giờ in PIN — ảnh màn hình đi khắp nơi. */
+						. '<td>' . strlen( $u_r['pin'] ) . ' số</td><td>';
+					echo '<form method="post" style="display:inline">';
+					wp_nonce_field( 'vhcc_nd' );
+					echo '<input type="hidden" name="vhcc_nd" value="xoa" />';
+					echo '<input type="hidden" name="id" value="' . esc_attr( $u_r['id'] ) . '" />';
+					echo '<button class="button button-small">Xoá</button></form></td></tr>';
+				}
+				echo '</tbody></table>';
+			}
+
+			echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:8px 0">';
+			wp_nonce_field( 'vhcc_nd' );
+			echo '<input type="hidden" name="vhcc_nd" value="luu" />';
+			echo '<label>Họ tên<br><input name="ten" required style="width:190px" /></label>';
+			echo '<label>PIN (4–8 số)<br><input name="pin" inputmode="numeric" required style="width:120px" /></label>';
+			echo '<label>Vai trò<br><select name="vai_tro">';
+			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_r ) {
+				echo '<option value="' . esc_attr( $vt_r ) . '"' . selected( $vt_r, 'Admin', false ) . '>'
+					. esc_html( $vt_r ) . ( in_array( $vt_r, $cho_r, true ) ? '' : ' — không vào được' )
+					. '</option>';
+			}
+			echo '</select></label>';
+			echo '<label>Cơ sở<br><input name="coso" style="width:160px" placeholder="trống = cả chuỗi" /></label>';
+			echo '<button class="button button-primary">Thêm người</button></form>';
+			echo '<p class="description">Bảng không in PIN, chỉ in số chữ số. Quên PIN thì xoá dòng đó '
+				. 'rồi thêm lại. PIN quá dễ đoán hoặc đã bị lộ sẽ bị chặn.</p>';
 		}
 		if ( $nguon === 'chung' ) {
 			$u = VHCC_Auth::users();

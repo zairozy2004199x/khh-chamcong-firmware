@@ -3006,19 +3006,16 @@ t( 'kết quả Thử cầu nối bị xoá ngay sau khi đọc (không hiện l
 	strpos( $khuc_thu, "delete_transient( 'vhcc_thu_'" ) !== false );
 
 /* Chế độ "danh sách riêng" chưa có màn khai người — chọn nó là tắc im lặng, phải nói thẳng. */
-t( 'chọn "danh sách riêng" mà rỗng thì màn Cài đặt CẢNH BÁO, không im lặng',
-	strpos( $ad, 'Danh sách riêng đang RỖNG' ) !== false );
-t( 'và nói rõ hậu quả: không ai đăng nhập được',
-	strpos( $ad, 'không ai đăng nhập được' ) !== false );
-t( 'và chỉ ra đường đi được: cài plugin chi phí rồi chọn Dùng chung',
-	strpos( $ad, 'vhcp-chi-phi.zip' ) !== false );
-/* Cảnh báo này chỉ đúng khi `vhcc_nguoidung` vẫn KHÔNG có chỗ nào ghi vào. Ngày nào làm màn
-   khai danh sách riêng thì phép thử này phải đỏ, để nhớ bỏ đoạn cảnh báo đi. */
-$co_ghi = 0;
-foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f ) {
-	if ( preg_match( "/update_option\(\s*'vhcc_nguoidung'/", file_get_contents( $f ) ) ) { $co_ghi++; }
-}
-t( 'chưa màn nào ghi vhcc_nguoidung — nên cảnh báo trên vẫn còn đúng', $co_ghi === 0, $co_ghi );
+/* ⚠️ ĐÃ LẬT LẠI. Ba phép thử ở đây trước kia đòi màn Cài đặt khuyên "đi cài plugin chi phí" —
+   tức chúng canh giữ đúng chỗ thiếu: chế độ "danh sách riêng" không có màn khai người dùng.
+   Anh Thắng: *"anh để chỉ plugin này thôi mà"*. Giờ có màn thật (VHCC_NguoiDung), nên phép thử
+   phải đòi CÓ Ô THÊM NGƯỜI, chứ không đòi lời khuyên đi cài plugin khác. */
+t( 'chế độ danh sách riêng có ô thêm người ngay tại màn Cài đặt',
+	strpos( $ad, "name=\"vhcc_nd\" value=\"luu\"" ) !== false );
+t( 'danh sách rỗng thì vẫn cảnh báo là chưa ai đăng nhập được',
+	strpos( $ad, 'chưa ai đăng nhập được' ) !== false );
+t( 'KHÔNG còn khuyên đi cài plugin chi phí để có chỗ khai người dùng',
+	strpos( $ad, 'vhcp-chi-phi.zip' ) === false );
 
 /* Phiên bản: hai chỗ khai số này, lệch nhau là WordPress hiện một số mà mã chạy một số khác. */
 $chinh = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
@@ -3637,6 +3634,150 @@ t( 'và nói rõ hồ sơ Nhân sự không phải tài khoản đăng nhập',
 	strpos( $h_cd2, 'không phải tài khoản đăng nhập' ) !== false );
 
 $wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+
+// ================ 41. DANH SÁCH NGƯỜI DÙNG RIÊNG — plugin chạy được MỘT MÌNH
+/* Anh Thắng: *"anh để chỉ plugin này thôi mà"*. Trước bản này chọn "danh sách riêng" là tắc:
+   option chỉ được đọc, không màn nào ghi. Mục này canh cả đường ghi lẫn các chốt an toàn. */
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+delete_option( 'vhcc_vai_tro_vao' );      // về mặc định: Admin · Quản lý · Kế toán cá nhân · Kế toán NCC
+
+teq( 'ban đầu danh sách rỗng', 0, count( VHCC_NguoiDung::ds() ) );
+$r = VHCC_NguoiDung::luu( '', 'Anh Thắng', '246813', 'Admin', '' );
+t( 'thêm người đầu tiên', ! empty( $r['ok'] ), $r );
+teq( 'danh sách có 1 người', 1, count( VHCC_NguoiDung::ds() ) );
+teq( 'và người đó vào được', 1, VHCC_NguoiDung::so_vao_duoc() );
+
+/* Đăng nhập thật bằng PIN vừa khai — đây mới là phép thử đáng giá. */
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '246813' );
+t( 'đăng nhập được bằng PIN của danh sách riêng', ! empty( $kq['ok'] ), $kq );
+teq( 'và vào đúng tên', 'Anh Thắng', isset( $kq['name'] ) ? $kq['name'] : null );
+VHCC_Auth::mo_khoa();
+
+/* ---- Chốt an toàn ---- */
+$r = VHCC_NguoiDung::luu( '', 'Người B', '246813', 'Quản lý', '' );
+t( 'chối PIN TRÙNG với người khác', empty( $r['ok'] ) && strpos( $r['error'], 'đã cấp cho' ) !== false, $r );
+foreach ( array( '123', '123456789', '12a4' ) as $xau ) {
+	$r = VHCC_NguoiDung::luu( '', 'Người X', $xau, 'Admin', '' );
+	t( "chối PIN sai khuôn ($xau)", empty( $r['ok'] ), $r );
+}
+$r = VHCC_NguoiDung::luu( '', 'Người X', '1234', 'Admin', '' );
+t( 'chối PIN dãy liên tiếp 1234', empty( $r['ok'] ), $r );
+$r = VHCC_NguoiDung::luu( '', 'Người X', '4444', 'Admin', '' );
+t( 'chối PIN một chữ số lặp 4444', empty( $r['ok'] ), $r );
+/* Dùng lại ĐÚNG danh sách PIN cấm của màn Phân quyền — hai bản danh sách sớm muộn lệch nhau,
+   và bên lỏng hơn thành cửa vào. */
+$r = VHCC_NguoiDung::luu( '', 'Người X', '888888', 'Admin', '' );
+t( 'chối PIN đã bị lộ 888888', empty( $r['ok'] ), $r );
+$r = VHCC_NguoiDung::luu( '', 'Người X', '859624', 'Admin', '' );
+t( 'chối PIN đã bị lộ 859624', empty( $r['ok'] ), $r );
+teq( 'danh sách PIN cấm dùng chung với màn Phân quyền, không khai bản thứ hai',
+	VHCC_Quyen::PIN_CAM, VHCC_NguoiDung::pin_bi_cam() );
+$r = VHCC_NguoiDung::luu( '', 'Người X', '246814', 'Vai trò lạ', '' );
+t( 'chối vai trò không có trong hệ thống', empty( $r['ok'] ), $r );
+$r = VHCC_NguoiDung::luu( '', '', '246814', 'Admin', '' );
+t( 'chối thiếu họ tên', empty( $r['ok'] ), $r );
+
+/* 🔴 KHÔNG XOÁ ĐƯỢC NGƯỜI CUỐI CÙNG CÒN VÀO ĐƯỢC — xoá là không ai đăng nhập nổi nữa. */
+$ds1 = VHCC_NguoiDung::ds();
+$r = VHCC_NguoiDung::xoa( $ds1[0]['id'] );
+t( 'chặn xoá người CUỐI CÙNG còn vào được',
+	empty( $r['ok'] ) && strpos( $r['error'], 'CUỐI CÙNG' ) !== false, $r );
+teq( 'và không xoá thật', 1, count( VHCC_NguoiDung::ds() ) );
+
+/* Thêm người thứ hai rồi mới xoá được người thứ nhất. */
+$r = VHCC_NguoiDung::luu( '', 'Chị Kế Toán', '357913', 'Kế toán cá nhân', 'TUTU_BT' );
+t( 'thêm người thứ hai', ! empty( $r['ok'] ), $r );
+$r = VHCC_NguoiDung::xoa( $ds1[0]['id'] );
+t( 'giờ xoá được người thứ nhất', ! empty( $r['ok'] ), $r );
+teq( 'còn lại 1 người', 1, count( VHCC_NguoiDung::ds() ) );
+
+/* Người có vai trò KHÔNG vào được thì xoá thoải mái, không vướng chốt trên. */
+VHCC_NguoiDung::luu( '', 'Em Nhân Viên', '468024', 'Nhân viên', '' );
+$ds2 = VHCC_NguoiDung::ds();
+$id_nv = '';
+foreach ( $ds2 as $u ) { if ( 'Nhân viên' === $u['vaiTro'] ) { $id_nv = $u['id']; } }
+$r = VHCC_NguoiDung::xoa( $id_nv );
+t( 'xoá được người vốn không vào được (không vướng chốt người cuối)', ! empty( $r['ok'] ), $r );
+
+/* Sửa: để trống ô PIN = giữ PIN cũ. Bắt gõ lại PIN mỗi lần đổi tên là mời đặt PIN dễ nhớ hơn. */
+$ds3 = VHCC_NguoiDung::ds();
+$r = VHCC_NguoiDung::luu( $ds3[0]['id'], 'Chị Kế Toán Trưởng', '', 'Kế toán cá nhân', 'TUTU_BT' );
+t( 'sửa tên mà để trống PIN thì giữ PIN cũ', ! empty( $r['ok'] ), $r );
+$ds4 = VHCC_NguoiDung::ds();
+teq( 'tên đã đổi', 'Chị Kế Toán Trưởng', $ds4[0]['ten'] );
+teq( 'PIN giữ nguyên', '357913', $ds4[0]['pin'] );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '357913' );
+t( 'và vẫn đăng nhập được bằng PIN cũ đó', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+
+/* 🔴 MÀN HÌNH KHÔNG ĐƯỢC IN PIN. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Admin::page(); $h_nd = ob_get_clean();
+t( 'màn Cài đặt liệt kê người của danh sách riêng',
+	strpos( $h_nd, 'Chị Kế Toán Trưởng' ) !== false );
+t( 'nhưng KHÔNG in PIN ra', strpos( $h_nd, '357913' ) === false );
+t( 'chỉ in số chữ số', strpos( $h_nd, '6 số' ) !== false );
+t( 'có ô thêm người ngay tại chỗ', strpos( $h_nd, 'Thêm người' ) !== false );
+
+/* Có người nhưng KHÔNG AI vào được -> phải báo đỏ, vì trông vẫn "có danh sách" mà thật ra tắc. */
+delete_option( 'vhcc_nguoidung' );
+VHCC_NguoiDung::luu( '', 'Chỉ Nhân Viên', '468024', 'Nhân viên', '' );
+ob_start(); VHCC_Admin::page(); $h_nd2 = ob_get_clean();
+t( 'có người mà không ai vào được thì báo rõ',
+	strpos( $h_nd2, 'KHÔNG AI vào được' ) !== false );
+
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
+// ============= 42. "0 HÀNG" PHẢI NÓI VÌ SAO — chưa kéo, hay kéo rồi mà sheet trống
+/* Anh Thắng mở bảng chấm công thấy "(0 hàng)" rồi hỏi "tại sao nó chưa qua". Một con số 0 trơn
+   không phân biệt được ba chuyện khác hẳn nhau: chưa kéo tháng đó, đã kéo mà sheet trống, hay
+   nhìn nhầm tháng. Sổ tiến độ có sẵn câu trả lời — chỉ là màn hình không tra. */
+vhcc_dung_bang();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+VHCC_Keo::xoa_tien_do();
+$_GET = array( 'coso' => 'VP_KH-HCM', 'thang' => '2026-08' );
+
+ob_start(); VHCC_Man::trang_cham(); $h_0a = ob_get_clean();
+t( 'chưa kéo tháng đó thì nói "Chưa kéo tháng này"',
+	strpos( $h_0a, 'Chưa kéo tháng này' ) !== false );
+t( 'và chỉ đúng đường đi, kèm tên cơ sở để gõ vào ô',
+	strpos( $h_0a, 'page=vhcc-nhan-su' ) !== false && strpos( $h_0a, 'VP_KH-HCM' ) !== false );
+
+/* Đã kéo mà 0 giờ -> KHÔNG phải lệnh kéo hỏng. Nói rõ để khỏi đi sửa nhầm chỗ. */
+VHCC_Keo::ghi_tien_do( 'VP_KH-HCM', '08-2026', array( 'nguoi' => 0, 'luot' => 0 ) );
+ob_start(); VHCC_Man::trang_cham(); $h_0b = ob_get_clean();
+t( 'đã kéo rồi thì nói "Đã kéo tháng này rồi"',
+	strpos( $h_0b, 'Đã kéo tháng này rồi' ) !== false );
+t( 'và nói rõ là sheet không có dữ liệu, KHÔNG phải lệnh kéo hỏng',
+	strpos( $h_0b, 'không phải lệnh kéo hỏng' ) !== false );
+t( 'không còn nói "Chưa kéo" nữa', strpos( $h_0b, 'Chưa kéo tháng này' ) === false );
+
+/* Khoá tiến độ dùng MM-yyyy còn màn hình dùng yyyy-MM — đổi khuôn sai là bảng luôn nói "chưa
+   kéo" dù đã kéo, một lỗi im lặng đúng kiểu khó thấy nhất. */
+$td_kt = VHCC_Keo::tien_do();
+t( 'khoá sổ tiến độ đúng khuôn <cơ sở>|MM-yyyy', isset( $td_kt['VP_KH-HCM|08-2026'] ),
+	implode( ', ', array_keys( $td_kt ) ) );
+
+/* Có dữ liệu thì đừng chen mấy dòng nhắc đó vào. */
+vhcc_cham( 'VP_KH-HCM', '2026-08-03', 'NV001', '', '08:00', '17:00' );
+ob_start(); VHCC_Man::trang_cham(); $h_0c = ob_get_clean();
+t( 'có dữ liệu rồi thì không nhắc gì thêm',
+	strpos( $h_0c, 'Chưa kéo tháng này' ) === false
+	&& strpos( $h_0c, 'Đã kéo tháng này rồi' ) === false );
+
+/* Màn kéo phải LIỆT KÊ từng cặp, không chỉ đếm — con số tổng không trả lời được "cơ sở này
+   tháng này đã kéo chưa". */
+$ad5 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+t( 'màn kéo liệt kê từng cặp cơ sở × tháng', strpos( $ad5, 'Lượt người' ) !== false );
+t( 'và nói rõ khi kéo được 0 giờ là do sheet trống',
+	strpos( $ad5, 'tháng đó sheet không có dữ liệu' ) !== false );
+
+$_GET = array();
+VHCC_Keo::xoa_tien_do();
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

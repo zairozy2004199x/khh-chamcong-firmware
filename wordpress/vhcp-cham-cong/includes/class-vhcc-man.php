@@ -370,6 +370,27 @@ class VHCC_Man {
 		}
 		echo '<h2>Chấm công ' . esc_html( $coso ) . ' — ' . esc_html( $b['thang'] )
 			. ' (' . count( $b['hang'] ) . ' hàng)</h2>';
+		/* 🔴 "0 hàng" KHÔNG nói được vì sao. Ba lý do khác hẳn nhau: chưa kéo tháng đó, đã kéo mà
+		   sheet trống, hoặc kéo rồi mà nhìn nhầm tháng. Tra thẳng sổ tiến độ rồi nói ra — bản
+		   trước chỉ hiện "0 hàng" trơn và anh Thắng phải hỏi "tại sao nó chưa qua". */
+		if ( ! count( $b['hang'] ) ) {
+			$td_cc  = VHCC_Keo::tien_do();
+			$khoa_cc = $coso . '|' . substr( $b['thang'], 5, 2 ) . '-' . substr( $b['thang'], 0, 4 );
+			if ( isset( $td_cc[ $khoa_cc ] ) ) {
+				$x_cc = $td_cc[ $khoa_cc ];
+				echo '<div class="notice notice-info inline"><p><b>Đã kéo tháng này rồi</b> (lúc '
+					. esc_html( isset( $x_cc['luc'] ) ? $x_cc['luc'] : '?' ) . ') nhưng app gốc trả về '
+					. (int) ( isset( $x_cc['luot'] ) ? $x_cc['luot'] : 0 ) . ' giờ vào/ra — nghĩa là '
+					. '<b>sheet của cơ sở này tháng này không có dữ liệu</b>, không phải lệnh kéo hỏng. '
+					. 'Kiểm lại tên cơ sở và tháng bên Google Sheet.</p></div>';
+			} else {
+				echo '<div class="notice notice-warning inline"><p><b>Chưa kéo tháng này.</b> '
+					. 'Vào <a href="' . esc_url( admin_url( 'admin.php?page=vhcc-nhan-su' ) ) . '">Nhân sự '
+					. '→ Kéo dữ liệu cũ từ app gốc</a>, mục <b>Chấm công cũ</b>: điền Từ tháng / Đến tháng '
+					. 'dạng <code>MM-yyyy</code>, ô Cơ sở gõ <code>' . esc_html( $coso ) . '</code> (hoặc để '
+					. 'trống để kéo mọi cơ sở), bỏ tích "chỉ xem trước", rồi bấm Kéo.</p></div>';
+			}
+		}
 		echo '<table class="widefat striped"><thead><tr><th>Ngày</th><th>Mã NV</th><th>Hậu tố</th>'
 			. '<th>Họ tên</th><th>Giờ vào</th><th>Giờ ra</th></tr></thead><tbody>';
 		foreach ( $b['hang'] as $r ) {
