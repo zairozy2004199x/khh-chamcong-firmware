@@ -2285,9 +2285,16 @@
       if(!(ttChi>0)) return 'chưa có thực tế';
       return (thieu>0)?('⚠️ THIẾU '+money(thieu)+'đ → bù lần 2'):(thieu<0?('✓ DƯ '+money(-thieu)+'đ → thu lại'):'✓ khớp dự toán');
     };
+    // Hai tổng này gộp từ HAI nguồn: bảng hạng mục của dự án và các dòng sổ chi phí mang
+    // mã dự án này. Đối chiếu với hệ cũ mà lệch thì phải biết lệch ở nguồn nào, nên ghi
+    // luôn phần tách ra dưới mỗi ô — khỏi phải mò.
+    var scT=Number(r.tongSoChi||0), scN=(r.soChi||[]).length;
+    var hmDT=Number(r.tongDuToan||0)-Number(r.duToanSoChi||0), hmTT=Number(r.tongThucTe||0)-scT;
     el('daSummary').innerHTML=
-      _tqCard('#eff6ff','#bfdbfe','#1e40af','Tổng dự toán', money(r.tongDuToan)+'đ','các hạng mục lớn')+
-      _tqCard('#fff7ed','#fed7aa','#9a3412','Tổng thực tế', money(r.tongThucTe)+'đ','mục con + phát sinh')+
+      _tqCard('#eff6ff','#bfdbfe','#1e40af','Tổng dự toán', money(r.tongDuToan)+'đ',
+        'hạng mục '+money(hmDT)+'đ + sổ chi phí '+money(r.duToanSoChi||0)+'đ')+
+      _tqCard('#fff7ed','#fed7aa','#9a3412','Tổng thực tế', money(r.tongThucTe)+'đ',
+        'hạng mục '+money(hmTT)+'đ + sổ chi phí '+money(scT)+'đ ('+scN+' dòng)')+
       _tqCard(over?'#fee2e2':'#dcfce7', over?'#fecaca':'#86efac', over?'#b91c1c':'#166534', chLabel, chVal,'thực tế so với dự toán');
     // Dự án CHI TRỰC TIẾP: không có bước xin/duyệt tạm ứng nên bỏ 4 ô tạm ứng/trực tiếp
     // và bảng "Kế toán chi tiền". Chỉ còn dự toán · thực tế · chênh lệch.

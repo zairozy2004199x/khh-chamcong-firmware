@@ -378,6 +378,27 @@ Màn dự án hiện tổng nhỏ hơn hệ cũ nhiều lần, do hai lỗi khi 
 Đối chiếu sau khi nạp lại: tổng **Thực tế** của màn dự án phải khớp con số trên hệ cũ.
 Còn lệch thì so tiếp `TỔNG TIỀN` từng tab trên báo cáo Chỉ thử với dòng tổng của tab đó.
 
+### Gõ tên tab thiếu chữ "DA" → nạp 0 dòng (bản 1.5.4)
+
+Báo cáo ra `nạp 0 dòng · TỔNG TIỀN 0đ` kèm `⚠ tải theo TÊN tab`: tab thật tên
+`DA NHÀ MA BÀ RỊA` mà ô "Tên các tab" gõ `NHÀ MA BÀ RỊA`. Trước đây app so tên **nguyên
+văn**, trượt là âm thầm rơi xuống đường tải theo tên — đường làm mất tiêu đề cột số.
+
+Nay app dò tên tab kiểu gần đúng: bỏ dấu, bỏ hoa/thường, thiếu hay thừa chữ `DA ` đều ra.
+Gõ tên **không có thật** thì báo thẳng kèm danh sách tên tab trong bảng tính, thay vì nạp
+0 dòng rồi im. **Cách chắc nhất: xóa trống ô "Tên các tab"** để nạp hết mọi tab.
+
+### Đối chiếu số tiền dự án với hệ cũ
+
+Màn dự án nay ghi rõ mỗi tổng gồm những gì:
+
+- `Tổng dự toán` → `hạng mục X đ + sổ chi phí Y đ`
+- `Tổng thực tế` → `hạng mục X đ + sổ chi phí Y đ (N dòng)`
+
+Lệch với hệ cũ thì nhìn hai phần đó là biết thiếu ở đâu: thiếu bên **sổ chi phí** là tab
+chưa nạp đủ (soi lại `TỔNG TIỀN` từng tab trên báo cáo Chỉ thử); thiếu bên **hạng mục** là
+bảng hạng mục của dự án chưa có dòng.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

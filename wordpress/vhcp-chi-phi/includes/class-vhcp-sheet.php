@@ -328,6 +328,40 @@ class VHCP_Sheet {
 		return max( 0, $n - 1 );
 	}
 
+	/**
+	 * Dò TÊN TAB gõ tay về đúng tên tab thật trong bảng tính.
+	 *
+	 * Gõ tay thì không ai gõ trùng từng ký tự: tab thật là "DA NHÀ MA BÀ RỊA" mà người
+	 * dùng gõ "NHÀ MA BÀ RỊA", hoặc lệch dấu cách / chữ hoa. Trước đây so khớp nguyên
+	 * văn nên trượt, rồi âm thầm rơi xuống đường tải theo tên (đường làm mất tiêu đề cột
+	 * số) — báo cáo ra "nạp 0 dòng" mà không nói vì sao.
+	 *
+	 * @param string $ten tên gõ tay
+	 * @param array  $ds  danh sách tên tab thật
+	 * @return string tên tab thật, '' nếu không chắc chắn khớp cái nào
+	 */
+	public static function khop_ten_tab( $ten, $ds ) {
+		$k = VHCP_Nap::kh( $ten );
+		if ( $k === '' ) { return ''; }
+		$bo_da = function ( $x ) { return VHCP_Nap::kh( preg_replace( '/^\s*DA\s+/iu', '', (string) $x ) ); };
+
+		// 1) khớp nguyên tên (đã bỏ dấu, bỏ hoa/thường)
+		foreach ( (array) $ds as $t ) { if ( VHCP_Nap::kh( $t ) === $k ) { return (string) $t; } }
+		// 2) khớp sau khi bỏ tiền tố "DA " ở cả hai bên — gõ thiếu/thừa chữ DA
+		$kd = $bo_da( $ten );
+		$hit = array();
+		foreach ( (array) $ds as $t ) { if ( $bo_da( $t ) === $kd ) { $hit[] = (string) $t; } }
+		if ( count( $hit ) === 1 ) { return $hit[0]; }
+		if ( count( $hit ) > 1 ) { return ''; }   // mơ hồ thì không đoán
+		// 3) chứa nhau và CHỈ có một tab như vậy
+		$hit = array();
+		foreach ( (array) $ds as $t ) {
+			$kt = VHCP_Nap::kh( $t );
+			if ( $kt !== '' && ( strpos( $kt, $k ) !== false || strpos( $k, $kt ) !== false ) ) { $hit[] = (string) $t; }
+		}
+		return ( count( $hit ) === 1 ) ? $hit[0] : '';
+	}
+
 	/** Tải 1 tab về dạng CSV (theo gid nếu có, không thì theo tên). */
 	public static function tai_tab( $id, $gid = '', $ten = '' ) {
 		if ( $gid !== '' ) {
@@ -377,13 +411,30 @@ class VHCP_Sheet {
 			foreach ( (array) ( isset( $lk['tabs'] ) ? $lk['tabs'] : array() ) as $x ) {
 				$gid_theo_ten[ VHCP_Nap::kh( $x['ten'] ) ] = array( 'gid' => $x['gid'], 'ten' => $x['ten'] );
 			}
+			$ten_that  = array();
+			foreach ( (array) ( isset( $lk['tabs'] ) ? $lk['tabs'] : array() ) as $x ) { $ten_that[] = $x['ten']; }
+			$khong_thay = array();
 			foreach ( $ten_tay as $t ) {
-				$kk = VHCP_Nap::kh( $t );
+				// Dò về tên tab THẬT trước: gõ "NHÀ MA BÀ RỊA" phải ra tab "DA NHÀ MA BÀ RỊA"
+				$that = self::khop_ten_tab( $t, $ten_that );
+				if ( $that === '' && count( $wbk ) ) {
+					// Đọc được cả bảng tính mà không có tab nào tên vậy: báo thẳng, đừng
+					// rơi xuống đường tải theo tên rồi ra 0 dòng.
+					$khong_thay[] = $t;
+					continue;
+				}
+				if ( $that === '' ) { $that = $t; }
+				$kk = VHCP_Nap::kh( $that );
 				if ( isset( $gid_theo_ten[ $kk ] ) && $gid_theo_ten[ $kk ]['gid'] !== '' ) {
 					$tabs[] = array( 'gid' => $gid_theo_ten[ $kk ]['gid'], 'ten' => $gid_theo_ten[ $kk ]['ten'] );
 				} else {
-					$tabs[] = array( 'gid' => '', 'ten' => $t );
+					$tabs[] = array( 'gid' => '', 'ten' => $that );
 				}
+			}
+			if ( count( $khong_thay ) && ! count( $tabs ) ) {
+				return VHCP_Util::err( 'Bảng tính không có tab nào tên "' . implode( '", "', $khong_thay ) . '".'
+					. ' Tên tab trong bảng tính: ' . implode( ' · ', $ten_that )
+					. '. Xóa trống ô "Tên các tab" để nạp hết mọi tab.' );
 			}
 			if ( count( $wbk ) ) {
 				$cach = 'file .xlsx';   // đọc thẳng workbook, tên tab gõ tay chỉ để chọn tab
@@ -400,6 +451,10 @@ class VHCP_Sheet {
 
 		// 1) Tải từng tab: ưu tiên nhận theo TÊN TAB, không được thì dò theo TÊN CỘT
 		$viec = array();
+		// Tên gõ tay không có trong bảng tính: đưa vào báo cáo cho thấy, đừng lặng lẽ bỏ
+		foreach ( ( isset( $khong_thay ) ? $khong_thay : array() ) as $t ) {
+			$viec[] = array( 'tab' => $t, 'bo' => 'bảng tính không có tab nào tên vậy — kiểm lại chính tả, hoặc xóa trống ô "Tên các tab" để nạp hết' );
+		}
 		foreach ( $tabs as $tab ) {
 			$theo_ten = false;
 			$csv_tab  = '';

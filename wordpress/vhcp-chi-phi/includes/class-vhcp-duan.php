@@ -246,6 +246,9 @@ class VHCP_DuAn {
 			// thì gian nào cũng hiện 0đ dù dữ liệu đã nạp xong.
 			'soChi'           => $sc_lines,
 			'tongSoChi'       => $sc_tien,
+			// Tách riêng để màn dự án ghi rõ tổng gồm những gì — đối chiếu hệ cũ mới biết
+			// lệch ở bảng hạng mục hay ở sổ chi phí.
+			'duToanSoChi'     => $sc_du_toan,
 			'tongDuToan'      => $dt + $sc_du_toan,
 			'tongThucTe'      => $tt + $sc_tien,
 			'chenh'           => ( $tt + $sc_tien ) - ( $dt + $sc_du_toan ),

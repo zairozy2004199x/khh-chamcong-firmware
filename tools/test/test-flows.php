@@ -204,6 +204,9 @@ VHCP_DuAn::add_line( $md, array( 'noiDung' => 'Thuê kho', 'duToan' => 2000000, 
 $gd = VHCP_DuAn::get_du_an( $md );
 teq( 'dự án: tổng dự toán', 12000000, $gd['tongDuToan'] );
 teq( 'dự án: tổng thực tế (mục con + dòng lớn không con)', 11500000, $gd['tongThucTe'] );
+// Tách rõ phần đến từ sổ chi phí, để màn dự án ghi được "hạng mục X + sổ chi phí Y"
+teq( 'dự án: chưa có dòng sổ chi phí thì phần đó bằng 0', 0, VHCP_Util::num( $gd['tongSoChi'] ) );
+teq( 'dự án: dự toán từ sổ chi phí cũng bằng 0', 0, VHCP_Util::num( $gd['duToanSoChi'] ) );
 teq( 'dự án: cần tạm ứng (dự toán hình thức Tạm ứng)', 10000000, $gd['canTamUng'] );
 teq( 'dự án: trả trực tiếp (dự toán)', 2000000, $gd['traTrucTiep'] );
 teq( 'dự án: thực tế tạm ứng', 9000000, $gd['ttTamUng'] );
@@ -1518,6 +1521,22 @@ $tg_m = VHCP_SoChi::tong_theo_du_an();
 $k_m  = mb_strtolower( 'GIAN M' );
 teq( 'màn dự án cộng đủ tiền cả 2 tab', 3000000, VHCP_Util::num( $tg_m[ $k_m ]['tien'] ) );
 teq( 'và đếm đủ 2 dòng', 2, (int) $tg_m[ $k_m ]['n'] );
+
+$GLOBALS['VHCP_HTTP'] = array();
+
+// GÕ TAY THIẾU CHỮ "DA": tab thật là "DA NHÀ MA BÀ RỊA", gõ "NHÀ MA BÀ RỊA" vẫn phải ra
+$GLOBALS['VHCP_HTTP'] = array( 'format=xlsx' => array( 'code' => 200, 'body' => $xlsx ) );
+$r_thieu = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => true, 'tabs' => array( 'NHÀ MA BÀ RỊA' ) ) );
+t( 'gõ thiếu chữ DA vẫn dò ra tab', ! empty( $r_thieu['success'] ) );
+$bc_thieu = $r_thieu['baoCao'][0];
+teq( 'và dùng đúng tên tab thật', 'DA NHÀ MA BÀ RỊA', $bc_thieu['tab'] );
+t( 'không rơi xuống đường tải theo tên', empty( $bc_thieu['canhBao'] ) );
+t( 'nên vẫn đọc ra tiền', strpos( $bc_thieu['ketQua'], '825.000' ) !== false );
+
+// Gõ tên tab không có thật: báo thẳng kèm danh sách tab, đừng nạp 0 dòng rồi im
+$r_sai = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => true, 'tabs' => array( 'TAB KHONG CO' ) ) );
+t( 'tên tab sai thì báo lỗi rõ', empty( $r_sai['success'] ) );
+t( 'và liệt kê tên tab có thật', strpos( (string) $r_sai['error'], 'DA NHÀ MA BÀ RỊA' ) !== false );
 $GLOBALS['VHCP_HTTP'] = array();
 
 // Gõ tay tên tab thì VẪN phải tải bằng gid — tải theo tên (gviz) làm cột số mất tiêu đề
