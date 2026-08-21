@@ -1234,7 +1234,8 @@ class VHCC_Admin {
 			if ( $ch['mien'] !== '' ) { update_option( 'vhcc_exec_mien', $ch['mien'] ); }
 			set_transient( 'vhcc_sua_url_' . get_current_user_id(), $ch['sua'], 120 );
 
-			$nguon = ( isset( $_POST['vhcc_nguon'] ) && $_POST['vhcc_nguon'] === 'rieng' ) ? 'rieng' : 'chung';
+			$nguon = isset( $_POST['vhcc_nguon'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcc_nguon'] ) ) : 'chung';
+			if ( ! in_array( $nguon, array( 'chung', 'rieng', 'app' ), true ) ) { $nguon = 'chung'; }
 			update_option( 'vhcc_nguon_nguoidung', $nguon );
 
 			$vt = array();
@@ -1410,7 +1411,14 @@ class VHCC_Admin {
 		echo '<label><input type="radio" name="vhcc_nguon" value="chung"' . checked( $nguon, 'chung', false ) . '> '
 			. 'Dùng chung với plugin <b>Vận hành chi phí</b> (khuyến nghị)</label><br>';
 		echo '<label><input type="radio" name="vhcc_nguon" value="rieng"' . checked( $nguon, 'rieng', false ) . '> '
-			. 'Danh sách riêng của plugin này</label>';
+			. 'Danh sách riêng của plugin này</label><br>';
+		/* Nguồn thứ ba, thêm 22/08/2026. Anh Thắng: *"mỗi nhân viên đều có pin hết, sao không
+		   đăng nhập được"* — ai cũng có PIN, nhưng PIN đó nằm ở sổ PhanQuyen của app gốc. Kéo sổ
+		   đó về rồi đọc thẳng nó là khỏi cấp PIN lần thứ hai cho mấy chục người. */
+		$so_pq = (int) $GLOBALS['wpdb']->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+		echo '<label><input type="radio" name="vhcc_nguon" value="app"' . checked( $nguon, 'app', false ) . '> '
+			. '<b>Phân quyền của app gốc</b> — dùng đúng PIN mọi người đang đăng nhập app cũ ('
+			. $so_pq . ' dòng đã kéo về)</label>';
 		echo '<p class="description">Dùng chung thì thêm/sửa/xoá nhân sự vẫn làm ở tab ⚙️ Cấu hình của app chi phí — '
 			. 'khai một lần cho cả hai hệ thống. Khai hai nơi là sớm muộn xoá một nơi quên nơi kia.</p>';
 		/* DANH SÁCH RIÊNG — màn khai ngay tại chỗ.
@@ -1473,6 +1481,30 @@ class VHCC_Admin {
 			echo '<p class="description">Bảng không in PIN, chỉ in số chữ số. Quên PIN thì xoá dòng đó '
 				. 'rồi thêm lại. PIN quá dễ đoán hoặc đã bị lộ sẽ bị chặn.</p>';
 		}
+		if ( $nguon === 'app' ) {
+			$ds_pq = VHCC_Auth::users();
+			$vao_pq = 0;
+			$cho_pq = VHCC_Auth::vai_tro_vao();
+			foreach ( (array) $ds_pq as $x_pq ) {
+				if ( in_array( $x_pq['vaiTro'], $cho_pq, true ) ) { $vao_pq++; }
+			}
+			if ( ! $so_pq ) {
+				echo '<div class="notice notice-error inline" style="margin:8px 0"><p>'
+					. '<b>Chưa kéo sổ phân quyền về.</b> Vào <a href="'
+					. esc_url( admin_url( 'admin.php?page=vhcc-quyen' ) ) . '">Phân quyền &amp; PIN</a> '
+					. '→ <b>Kéo sổ phân quyền từ app gốc</b>, rồi quay lại đây.</p></div>';
+			} else {
+				echo '<p>Đọc được <b>' . count( (array) $ds_pq ) . '</b> người, trong đó <b>' . $vao_pq
+					. '</b> người vào được (' . esc_html( implode( ' · ', $cho_pq ) ) . ').</p>';
+				if ( ! $vao_pq ) {
+					echo '<div class="notice notice-error inline" style="margin:8px 0"><p>'
+						. '<b>Không ai vào được.</b> Sổ phân quyền của app gốc phần lớn là Cửa hàng trưởng '
+						. 'và Nhân viên — hai vai trò đó mặc định KHÔNG vào được vì chấm công là căn cứ '
+						. 'tính lương. Tích thêm vai trò ở mục <b>Vai trò vào được</b> ngay dưới.</p></div>';
+				}
+			}
+		}
+
 		if ( $nguon === 'chung' ) {
 			$u = VHCC_Auth::users();
 			if ( is_wp_error( $u ) ) {

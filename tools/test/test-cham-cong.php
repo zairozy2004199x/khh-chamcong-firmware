@@ -92,8 +92,8 @@ $MAY_22 = array(
    nghĩa trong chính cau-noi.gs.
    Con số ở đây phải sửa TAY mỗi lần thêm hàm — mỗi hàm khai vào cầu nối là một cửa mới mở ra
    cho web, nên phải là quyết định có ý thức, không phải phép thử tự chạy theo mã. */
-$DOC_THEM = array( 'getEmployees', 'ccDsCoSoXuat', 'ccXuatChamCong' );
-teq( 'cầu nối khai đúng 26 hàm (23 máy/OTA + 3 hàm đọc)', 26, count( $ham_app ) );
+$DOC_THEM = array( 'getEmployees', 'ccDsCoSoXuat', 'ccXuatChamCong', 'ccXuatPhanQuyen' );
+teq( 'cầu nối khai đúng 27 hàm (23 máy/OTA + 4 hàm đọc)', 27, count( $ham_app ) );
 sort( $ham_app );
 $mong = array_merge( $MAY_22, $DOC_THEM ); sort( $mong );
 teq( 'và đúng danh sách đó, không thừa không thiếu', $mong, $ham_app );
@@ -3465,9 +3465,18 @@ $lot_ghi = array_intersect( $ghi_cam, $ds_ham_cn );
 t( 'cầu nối KHÔNG khai hàm nào GHI nhân sự / chấm công lên sheet (một chiều)',
 	count( $lot_ghi ) === 0, implode( ', ', $lot_ghi ) );
 /* Hai hàm xuất phải gọi lại `_bangCongTho` của app, không tự đọc sheet lần thứ hai. */
-t( 'hàm xuất dùng lại _bangCongTho của app, không viết vòng đọc sheet thứ hai',
-	strpos( $gs_cn, '_bangCongTho(station, prefix)' ) !== false
-	&& strpos( $gs_cn, 'getRange' ) === false );
+/* Hàm xuất CHẤM CÔNG phải dùng lại `_bangCongTho` — cách đọc sheet CS_ có nhiều bẫy (một cơ sở
+   gộp nhiều sheet cho ca đêm, hàng dán ngược), viết vòng đọc thứ hai là sớm muộn hai bên ra hai
+   số khác nhau cho cùng một tháng.
+   ⚠️ Chỉ soi TRONG THÂN hàm đó, không soi cả tệp: `ccXuatPhanQuyen` thêm sau có đọc sheet trực
+      tiếp, và đó là đúng — app gốc không có hàm nào trả về sổ phân quyền để dùng lại
+      (`_loginResolve` đọc thẳng trong thân nó). Bản đầu soi cả tệp nên trượt oan. */
+$_tu_cc  = strpos( $gs_cn, 'function ccXuatChamCong(' );
+$_den_cc = strpos( $gs_cn, "\nfunction ", $_tu_cc + 10 );
+$than_cc = substr( $gs_cn, $_tu_cc, ( false === $_den_cc ? strlen( $gs_cn ) : $_den_cc ) - $_tu_cc );
+t( 'hàm xuất chấm công dùng lại _bangCongTho, không tự đọc sheet',
+	strpos( $than_cc, '_bangCongTho(station, prefix)' ) !== false
+	&& strpos( $than_cc, 'getRange' ) === false );
 t( 'hàm xuất chốt quyền Admin/Quản lý', substr_count( $gs_cn, "u.role !== ROLE.QUAN_LY" ) >= 2 );
 
 $GLOBALS['VHD_POST'] = array();
@@ -3593,7 +3602,10 @@ t( 'và chỉ sang đường kéo cho khỏi dán tay',
 
 /* Đầu 1 — SỰ THẬT: đường đăng nhập không được đụng tới hai bảng kia. */
 $auth_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-auth.php' );
-t( 'đường đăng nhập KHÔNG đọc bảng phan_quyen', strpos( $auth_src, 'phan_quyen' ) === false );
+/* ⚠️ ĐÃ SIẾT LẠI, KHÔNG NỚI RA. Trước đây bất biến là "đường đăng nhập không bao giờ đụng
+   `phan_quyen`" — để chặn dính nhau NGẦM. Giờ có nguồn 'app' đọc đúng bảng đó, nhưng phải là
+   LỰA CHỌN CÓ Ý THỨC: chọn ở màn Cài đặt. Nên bất biến mới mạnh hơn và kiểm bằng HÀNH VI:
+   nguồn 'chung'/'rieng' thì PIN trong `phan_quyen` PHẢI bị chối. */
 t( 'đường đăng nhập KHÔNG đọc bảng nhan_vien', strpos( $auth_src, 'nhan_vien' ) === false );
 t( 'đường đăng nhập đọc đúng nguồn người dùng (vhcp_cfg / CH_NguoiDung)',
 	strpos( $auth_src, 'CH_NguoiDung' ) !== false );
@@ -3825,6 +3837,112 @@ t( 'và nói rõ vì sao không tách được',
 	strpos( $man_src, 'sheet không ghi lượt nào do máy' ) !== false );
 
 delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
+// ============== 44. NGUỒN PIN THỨ BA: SỔ PHÂN QUYỀN CỦA APP GỐC (khỏi cấp PIN lần hai)
+/* Anh Thắng: *"mỗi nhân viên đều có pin hết, sao không đăng nhập được"*. Đúng — ai cũng có PIN,
+   nhưng PIN đó nằm ở sổ `PhanQuyen` của app gốc, còn cổng của plugin lại đọc danh sách khác.
+   Kéo sổ đó về rồi đọc thẳng nó là ai đăng nhập được app gốc thì đăng nhập được trang web bằng
+   CHÍNH PIN đó. */
+vhcc_dung_bang();
+update_option( 'vhcc_exec_url', 'https://script.google.com/macros/s/' . $ID . '/exec' );
+update_option( 'vhcc_web_key', 'khoa-thu' );
+delete_option( 'vhcc_vai_tro_vao' );
+
+$pq_app = array(
+	array( 'pin' => '246813', 'hoTen' => 'Anh Thắng',   'vaiTro' => 'ADMIN',           'cuaHang' => '' ),
+	array( 'pin' => '357913', 'hoTen' => 'Chị Quản Lý', 'vaiTro' => 'QUAN_LY',         'cuaHang' => 'TUTU_BT' ),
+	array( 'pin' => '468024', 'hoTen' => 'Anh CHT',     'vaiTro' => 'CUA_HANG_TRUONG', 'cuaHang' => 'TUTU_BT' ),
+	array( 'pin' => '579135', 'hoTen' => 'Em Nhân Viên','vaiTro' => 'NHAN_VIEN',       'cuaHang' => 'TUTU_BT' ),
+	array( 'pin' => '13',     'hoTen' => 'PIN Ngắn',    'vaiTro' => 'QUAN_LY',         'cuaHang' => '' ),
+	array( 'pin' => '680246', 'hoTen' => 'Vai Trò Lạ',  'vaiTro' => 'GIAM_DOC_MOI',    'cuaHang' => '' ),
+);
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array(
+	'ccXuatPhanQuyen' => array( 'ok' => true, 'rows' => $pq_app ) ) ) );
+
+$xem = VHCC_Keo::keo_phan_quyen( true );
+t( 'xem trước sổ phân quyền: đọc được', ! empty( $xem['ok'] ), $xem );
+teq( 'xem trước: 5 dòng sẽ thêm (bỏ 1 dòng PIN ngắn)', 5, $xem['them'] );
+teq( 'và nói rõ dòng bị bỏ vì PIN ngoài khuôn', 1, count( $xem['bo'] ) );
+t( 'lý do bỏ nói rõ là PIN mấy ký tự', strpos( $xem['bo'][0], 'ký tự' ) !== false, $xem['bo'] );
+global $wpdb;
+teq( 'XEM TRƯỚC KHÔNG GHI GÌ', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'phan_quyen' ) ) );
+
+VHCC_Keo::keo_phan_quyen( false );
+teq( 'kéo thật: 5 dòng vào bảng', 5,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'phan_quyen' ) ) );
+$kq2 = VHCC_Keo::keo_phan_quyen( false );
+teq( 'kéo lại: 0 thêm', 0, $kq2['them'] );
+teq( 'kéo lại: 5 cập nhật, không nhân đôi', 5, $kq2['sua'] );
+teq( 'bảng vẫn 5 dòng', 5,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'phan_quyen' ) ) );
+
+/* ---- Đăng nhập bằng chính PIN của app gốc ---- */
+update_option( 'vhcc_nguon_nguoidung', 'app' );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '246813' );
+t( 'ADMIN của app gốc đăng nhập được', ! empty( $kq['ok'] ), $kq );
+teq( 'và vai trò quy đúng về Admin', 'Admin', isset( $kq['role'] ) ? $kq['role'] : null );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '357913' );
+t( 'QUAN_LY đăng nhập được', ! empty( $kq['ok'] ), $kq );
+teq( 'vai trò quy về Quản lý', 'Quản lý', isset( $kq['role'] ) ? $kq['role'] : null );
+VHCC_Auth::mo_khoa();
+
+/* Cửa hàng trưởng và Nhân viên: MẶC ĐỊNH không vào được — chấm công là căn cứ tính lương. */
+$kq = VHCC_Auth::login( '468024' );
+t( 'CỬA HÀNG TRƯỞNG mặc định KHÔNG vào được',
+	empty( $kq['ok'] ) && strpos( $kq['error'], 'không được xem' ) !== false, $kq );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '579135' );
+t( 'NHÂN VIÊN mặc định KHÔNG vào được', empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+/* 🔴 Vai trò LẠ phải rơi về bậc THẤP NHẤT. Đoán nhầm lên Admin là mở toàn bộ bảng lương cho
+   một dòng gõ sai chính tả trong sheet. */
+$kq = VHCC_Auth::login( '680246' );
+t( 'vai trò LẠ rơi về bậc thấp nhất, KHÔNG thành Admin', empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+
+/* Mở thêm vai trò thì cửa hàng trưởng vào được — và đó phải là lựa chọn có ý thức ở Cài đặt. */
+update_option( 'vhcc_vai_tro_vao', array( 'Admin', 'Quản lý', 'Cửa hàng trưởng' ) );
+$kq = VHCC_Auth::login( '468024' );
+t( 'tích thêm "Cửa hàng trưởng" thì họ vào được', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '579135' );
+t( 'nhưng nhân viên VẪN không — hai vai trò tách riêng, không gộp', empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+delete_option( 'vhcc_vai_tro_vao' );
+
+/* 🔴 BẤT BIẾN SIẾT LẠI: nguồn 'chung'/'rieng' thì PIN trong `phan_quyen` PHẢI bị chối.
+   Nối hai đường đó lại một cách NGẦM là điều duy nhất không được xảy ra. */
+foreach ( array( 'chung', 'rieng' ) as $ng_khac ) {
+	update_option( 'vhcc_nguon_nguoidung', $ng_khac );
+	VHCC_Auth::mo_khoa();
+	$kq = VHCC_Auth::login( '246813' );
+	t( "nguồn '$ng_khac': PIN của sổ phân quyền bị chối", empty( $kq['ok'] ), $kq );
+}
+update_option( 'vhcc_nguon_nguoidung', 'app' );
+VHCC_Auth::mo_khoa();
+
+/* Màn Cài đặt: có ô chọn nguồn thứ ba, và nói rõ khi chưa kéo / khi không ai vào được. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Admin::page(); $h_ng = ob_get_clean();
+t( 'màn Cài đặt có ô chọn "Phân quyền của app gốc"',
+	strpos( $h_ng, 'value="app"' ) !== false && strpos( $h_ng, 'Phân quyền của app gốc' ) !== false );
+t( 'và đếm được bao nhiêu người vào được', strpos( $h_ng, 'người vào được' ) !== false );
+/* KHÔNG in PIN ra, kể cả ở màn này. */
+foreach ( array( '246813', '357913' ) as $pin_that ) {
+	t( "màn Cài đặt không in PIN $pin_that", strpos( $h_ng, $pin_that ) === false );
+}
+
+/* Chưa dán hàm mới bên Apps Script -> nói rõ tên hàm còn thiếu. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array() ) );
+$kq = VHCC_Keo::keo_phan_quyen( true );
+t( 'chưa dán ccXuatPhanQuyen thì nói rõ tên hàm',
+	empty( $kq['ok'] ) && strpos( $kq['error'], 'ccXuatPhanQuyen' ) !== false, $kq );
+
+$GLOBALS['VHD_POST'] = array();
 update_option( 'vhcc_nguon_nguoidung', 'chung' );
 
 if ( count( $truot ) ) {

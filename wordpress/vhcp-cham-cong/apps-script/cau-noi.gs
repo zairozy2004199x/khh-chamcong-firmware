@@ -115,7 +115,9 @@ var CC_CHO_PHEP = [
   /* --- Nạp chấm công CŨ một chiều: sheet CS_<cơ sở> -> MySQL. CHỈ ĐỌC. ---
      Hai hàm này định nghĩa ở CUỐI file này (không nằm trong Code.gs), và chúng gọi lại đúng
      `_bangCongTho` mà bảng lương của app đang dùng — khỏi sinh ra cách đọc sheet thứ hai. */
-  'ccDsCoSoXuat', 'ccXuatChamCong'
+  'ccDsCoSoXuat', 'ccXuatChamCong',
+  /* Sổ phân quyền — PIN đăng nhập thật của mọi người, để khỏi cấp PIN lần thứ hai. */
+  'ccXuatPhanQuyen'
 ];
 
 /** Tên file HTML của giao diện trong project này (doGet đang dùng file nào thì để tên đó). */
@@ -249,4 +251,40 @@ function ccXuatChamCong(pin, station, monthLabel) {
   if (tho.error) return { ok: true, khongCoSheet: true, station: station, thang: prefix, rows: [] };
 
   return { ok: true, station: station, thang: prefix, sheets: tho.sheets || [], rows: tho.rows || [] };
+}
+
+/**
+ * Sổ PHÂN QUYỀN của app gốc — PIN đăng nhập thật của mọi người.
+ *
+ * 🔴 Vì sao cần: anh Thắng kéo nhân sự về rồi vẫn không đăng nhập được trang web, vì cổng PIN
+ *    của plugin đọc một danh sách khác. Mà PIN thật thì mọi người ĐÃ CÓ — chúng nằm ở sheet
+ *    `PhanQuyen`, đúng chỗ `loginByPin` của app gốc đọc. Kéo sổ đó về là ai đang đăng nhập
+ *    được app gốc thì đăng nhập được trang web bằng CHÍNH PIN đó, không phải cấp lại lần hai.
+ *
+ * ⚠️ CHỈ ĐỌC, và chỉ Admin/Quản lý. Đây là danh sách PIN của cả chuỗi.
+ * ⚠️ Trả về PIN — bắt buộc, vì đầu kia phải so PIN lúc đăng nhập. Chỗ nhận (WordPress) không
+ *    bao giờ in nó ra màn hình, và cầu nối thì đã có WEB_KEY chặn.
+ */
+function ccXuatPhanQuyen(pin) {
+  var u = _requireAuth(pin);
+  if (!u.isAdmin && u.role !== ROLE.QUAN_LY) {
+    return { ok: false, error: 'Chỉ Admin / Quản lý xuất được sổ phân quyền.' };
+  }
+  var sh = _ensureSheet(SH_ROLE);
+  if (!sh || sh.getLastRow() < 2) return { ok: true, rows: [] };
+  var v = sh.getRange(2, 1, sh.getLastRow() - 1, PQ_H.length).getValues();
+  var out = [];
+  for (var i = 0; i < v.length; i++) {
+    var p = String(v[i][0] == null ? '' : v[i][0]).trim();
+    if (!p) continue;
+    out.push({
+      pin:      p,
+      hoTen:    String(v[i][1] || '').trim(),
+      vaiTro:   String(v[i][2] || '').trim().toUpperCase(),
+      cuaHang:  String(v[i][3] || '').trim(),
+      maCcOnline:   String(v[i][4] || '').trim(),
+      coSoCcOnline: String(v[i][5] || '').trim()
+    });
+  }
+  return { ok: true, rows: out };
 }

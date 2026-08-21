@@ -100,6 +100,15 @@ class VHCC_Man {
 					'cua_hang' => wp_unslash( $_POST['cua_hang'] ),
 					'ma_cc_online' => wp_unslash( $_POST['ma_cc_online'] ),
 					'coso_cc_online' => wp_unslash( $_POST['coso_cc_online'] ) ) );
+			} elseif ( 'keo_pq_xem' === $v || 'keo_pq' === $v ) {
+				/* Trả THẲNG kết quả cho `bao()` — nó đã biết in "thêm N · sửa M" và liệt kê từng
+				   dòng bị bỏ kèm lý do. Viết thêm một câu tóm tắt ở đây là dựng bản thứ hai của
+				   cùng một việc, rồi hai bản lệch nhau. */
+				$kq_pq = VHCC_Keo::keo_phan_quyen( 'keo_pq_xem' === $v );
+				if ( ! empty( $kq_pq['ok'] ) && 'keo_pq_xem' === $v ) {
+					$kq_pq['canhBao'] = 'XEM TRƯỚC — chưa ghi gì vào cơ sở dữ liệu.';
+				}
+				$bao[] = $kq_pq;
 			} elseif ( 'xoa' === $v ) {
 				$bao[] = VHCC_Quyen::xoa_phan_quyen( $u, wp_unslash( $_POST['pin'] ) );
 			} elseif ( 'cap_loat' === $v ) {
@@ -127,6 +136,25 @@ class VHCC_Man {
 			. '<p>PIN vào trang chấm công lấy từ <b>Nguồn người dùng</b> khai ở '
 			. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc' ) ) . '">Chấm Công → Cài đặt</a> — '
 			. 'ở đó có bảng liệt kê ai vào được và PIN dài mấy số.</p></div>';
+
+		/* ---- Kéo sổ phân quyền từ app gốc ---- */
+		echo '<h2>Kéo sổ phân quyền từ app gốc</h2>';
+		echo '<p>Lấy PIN đăng nhập <b>mọi người đang dùng ở app gốc</b> về đây, khớp theo PIN nên '
+			. 'kéo lại bao nhiêu lần cũng không nhân đôi. Kéo xong, sang '
+			. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc' ) ) . '">Cài đặt</a> chọn nguồn '
+			. 'người dùng = <b>Phân quyền của app gốc</b> là ai đăng nhập được app gốc thì đăng nhập '
+			. 'được trang chấm công bằng <b>chính PIN đó</b> — khỏi cấp PIN lần thứ hai.</p>';
+		foreach ( array(
+			'keo_pq_xem' => array( 'Xem trước', 'button' ),
+			'keo_pq'     => array( 'KÉO SỔ PHÂN QUYỀN', 'button button-primary' ),
+		) as $act_pq => $n_pq ) {
+			echo '<form method="post" style="display:inline-block;margin-right:8px">';
+			wp_nonce_field( 'vhcc_q' );
+			echo '<input type="hidden" name="vhcc_q" value="' . esc_attr( $act_pq ) . '" />';
+			echo '<button class="' . esc_attr( $n_pq[1] ) . '">' . esc_html( $n_pq[0] ) . '</button></form>';
+		}
+		echo '<p class="description">Cần đã dán bản <code>CauNoiChamCong</code> mới nhất (có hàm '
+			. '<code>ccXuatPhanQuyen</code>) rồi Deploy → New version.</p>';
 
 		/* ---- Cấp PIN hàng loạt ---- */
 		echo '<h2>Cấp PIN cho người chưa có tài khoản</h2>';

@@ -33,7 +33,27 @@ class VHCC_Auth {
 	const VAI_TRO_MAC_DINH = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 
 	/** Mọi vai trò có trong hệ thống — để Cài đặt vẽ ô tích. */
-	const VAI_TRO_TAT_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+	const VAI_TRO_TAT_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
+		'Cửa hàng trưởng', 'Nhân viên' );
+
+	/**
+	 * Vai trò của app gốc -> vai trò ở đây.
+	 *
+	 * App gốc dùng mã hoa (`ADMIN`, `CUA_HANG_TRUONG`…), plugin dùng tên tiếng Việt. Bản đồ để
+	 * MỘT CHỖ, vì khai hai nơi thì thêm vai trò là lệch, và lệch phân quyền là lệch quyền xem
+	 * bảng lương.
+	 *
+	 * ⚠️ `CUA_HANG_TRUONG` có vai trò riêng, KHÔNG gộp vào "Nhân viên". Gộp là mất khả năng cho
+	 *    cửa hàng trưởng vào mà không mở cho toàn bộ nhân viên — đúng thứ anh Thắng cần cân nhắc
+	 *    riêng. Mặc định cả hai đều KHÔNG vào được (xem VAI_TRO_MAC_DINH).
+	 */
+	const BAN_DO_VAI_TRO = array(
+		'ADMIN'            => 'Admin',
+		'QUAN_LY'          => 'Quản lý',
+		'KE_TOAN'          => 'Kế toán cá nhân',
+		'CUA_HANG_TRUONG'  => 'Cửa hàng trưởng',
+		'NHAN_VIEN'        => 'Nhân viên',
+	);
 
 	public static function vai_tro_vao() {
 		$ds = get_option( 'vhcc_vai_tro_vao' );
@@ -48,9 +68,17 @@ class VHCC_Auth {
 		return count( $ra ) ? $ra : self::VAI_TRO_MAC_DINH;
 	}
 
+	/**
+	 * Nguồn người dùng đang dùng: 'chung' | 'rieng' | 'app'.
+	 *
+	 * 'app' thêm 22/08/2026. Anh Thắng: *"mỗi nhân viên đều có pin hết, sao không đăng nhập
+	 * được"* — đúng, ai cũng có PIN, nhưng PIN đó nằm ở sổ `PhanQuyen` của app gốc, còn cổng
+	 * của plugin lại đọc một danh sách khác. Kéo sổ đó về rồi đọc thẳng nó thì ai đang đăng
+	 * nhập được app gốc là đăng nhập được trang web bằng CHÍNH PIN đó, khỏi cấp lần hai.
+	 */
 	public static function nguon() {
 		$n = get_option( 'vhcc_nguon_nguoidung' );
-		return ( $n === 'rieng' ) ? 'rieng' : 'chung';
+		return in_array( $n, array( 'rieng', 'app' ), true ) ? $n : 'chung';
 	}
 
 	/** Bảng cấu hình của plugin Vận hành chi phí có tồn tại không? */
@@ -67,6 +95,28 @@ class VHCC_Auth {
 	 */
 	public static function users() {
 		global $wpdb;
+
+		/* Nguồn 'app': đọc thẳng bảng `phan_quyen` — bản sao sổ PhanQuyen của app gốc, kéo về
+		   bằng nút ở màn Phân quyền & PIN. */
+		if ( self::nguon() === 'app' ) {
+			$bang_pq = VHCC_DB::t( 'phan_quyen' );
+			$ra_pq   = array();
+			foreach ( VHCC_DB::rows( "SELECT pin, ho_ten, vai_tro, cua_hang FROM $bang_pq" ) as $r ) {
+				$pin_pq = trim( (string) $r['pin'] );
+				if ( '' === $pin_pq ) { continue; }
+				$vt_pq = strtoupper( trim( (string) $r['vai_tro'] ) );
+				$ra_pq[] = array(
+					'ten'    => trim( (string) $r['ho_ten'] ),
+					'pin'    => $pin_pq,
+					/* Vai trò lạ -> 'Nhân viên' (bậc thấp nhất). KHÔNG đoán lên cao: đoán nhầm
+					   lên Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả. */
+					'vaiTro' => isset( self::BAN_DO_VAI_TRO[ $vt_pq ] ) ? self::BAN_DO_VAI_TRO[ $vt_pq ] : 'Nhân viên',
+					'coso'   => trim( (string) $r['cua_hang'] ),
+				);
+			}
+			return $ra_pq;
+		}
+
 		if ( self::nguon() === 'rieng' ) {
 			$ds  = get_option( 'vhcc_nguoidung' );
 			$out = array();

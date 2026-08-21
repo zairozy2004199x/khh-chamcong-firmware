@@ -211,6 +211,71 @@ class VHCC_Keo {
 		return array( 'ok' => true, 'nguoi' => $nguoi, 'luot' => $luot, 'bo' => $bo );
 	}
 
+	/* ================================================================ SỔ PHÂN QUYỀN */
+
+	/**
+	 * Kéo sổ `PhanQuyen` của app gốc về bảng `phan_quyen`.
+	 *
+	 * 🔴 Vì sao: anh Thắng — *"mỗi nhân viên đều có pin hết, sao không đăng nhập được"*. Đúng,
+	 *    ai cũng có PIN, nhưng PIN đó nằm ở sổ PhanQuyen của app gốc. Kéo về rồi chọn nguồn
+	 *    người dùng = "Phân quyền của app gốc" là ai đăng nhập được app gốc thì đăng nhập được
+	 *    trang web bằng CHÍNH PIN đó — không phải cấp PIN lần thứ hai cho mấy chục người.
+	 *
+	 * ⚠️ Khớp theo PIN (đó là khoá duy nhất của sổ đó, và cũng là UNIQUE KEY của bảng). Kéo lại
+	 *    thì cập nhật, không nhân đôi.
+	 */
+	public static function keo_phan_quyen( $chi_xem = true ) {
+		global $wpdb;
+		$r = VHCC_CauNoi::goi( 'ccXuatPhanQuyen', array( VHCC_May::pin() ) );
+		if ( empty( $r['ok'] ) ) {
+			return array( 'ok' => false, 'error' => isset( $r['error'] ) ? $r['error'] : 'Không gọi được app gốc.' );
+		}
+		$d = (array) $r['data'];
+		if ( empty( $d['ok'] ) ) {
+			return array( 'ok' => false, 'error' => isset( $d['error'] ) ? $d['error']
+				: 'App gốc chối: có thể chưa dán bản CauNoiChamCong.gs mới (hàm ccXuatPhanQuyen).' );
+		}
+		$rows = (array) ( isset( $d['rows'] ) ? $d['rows'] : array() );
+		if ( ! $rows ) {
+			return array( 'ok' => false, 'error' => 'Sổ PhanQuyen của app gốc trả về 0 dòng.' );
+		}
+
+		$bang = VHCC_DB::t( 'phan_quyen' );
+		$dang_co = array();
+		foreach ( VHCC_DB::rows( "SELECT pin FROM $bang" ) as $x ) { $dang_co[ $x['pin'] ] = 1; }
+
+		$them = 0; $sua = 0; $bo = array();
+		foreach ( $rows as $x ) {
+			$x   = (array) $x;
+			$pin = trim( (string) ( isset( $x['pin'] ) ? $x['pin'] : '' ) );
+			if ( '' === $pin ) { continue; }
+			/* Cổng đăng nhập của plugin đòi 4–8 chữ số. PIN ngoài khuôn đó có kéo về cũng không
+			   đăng nhập được — nói ra ngay chứ đừng để người ta ngồi thử. */
+			if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) {
+				$bo[] = trim( (string) ( isset( $x['hoTen'] ) ? $x['hoTen'] : '?' ) )
+					. ': PIN ' . strlen( $pin ) . ' ký tự, không phải 4–8 chữ số';
+				continue;
+			}
+			$ghi = array(
+				'ho_ten'         => trim( (string) ( isset( $x['hoTen'] ) ? $x['hoTen'] : '' ) ),
+				'vai_tro'        => strtoupper( trim( (string) ( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' ) ) ),
+				'cua_hang'       => trim( (string) ( isset( $x['cuaHang'] ) ? $x['cuaHang'] : '' ) ),
+				'ma_cc_online'   => trim( (string) ( isset( $x['maCcOnline'] ) ? $x['maCcOnline'] : '' ) ),
+				'coso_cc_online' => trim( (string) ( isset( $x['coSoCcOnline'] ) ? $x['coSoCcOnline'] : '' ) ),
+				'cap_nhat'       => current_time( 'mysql' ),
+			);
+			if ( isset( $dang_co[ $pin ] ) ) { $sua++; } else { $them++; }
+			if ( $chi_xem ) { continue; }
+			if ( isset( $dang_co[ $pin ] ) ) {
+				$wpdb->update( $bang, $ghi, array( 'pin' => $pin ) );
+			} else {
+				$ghi['pin'] = $pin;
+				$wpdb->insert( $bang, $ghi );
+			}
+		}
+		return array( 'ok' => true, 'them' => $them, 'sua' => $sua, 'bo' => $bo );
+	}
+
 	/** Danh sách tháng từ `$tu` tới `$den` (cùng khuôn `MM-yyyy`), cũ trước. */
 	public static function ds_thang( $tu, $den ) {
 		if ( ! preg_match( '#^(\d{2})-(\d{4})$#', trim( (string) $tu ), $a )
