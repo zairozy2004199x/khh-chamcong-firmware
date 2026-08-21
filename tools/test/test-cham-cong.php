@@ -253,6 +253,140 @@ foreach ( $ds as $ten_ham ) {
 }
 t( 'mọi hàm trong bản kê đều có thật trong Code.gs', count( $thieu_gs ) === 0,
 	implode( ', ', $thieu_gs ) );
+
+// ============================================================ 10. Sơ đồ MySQL app chấm công
+/* Đây là chỗ dữ liệu chấm công SẼ Ở (Hostinger, không phải Sheet). Phép thử ở mục này canh hai
+   loại lỗi khác nhau:
+     a) lỗi CÚ PHÁP — `dbDelta` không báo lỗi bao giờ. Viết sai một dấu phẩy hay thiếu hai dấu
+        cách sau `PRIMARY KEY` thì nó lặng lẽ hiểu sai, rồi mỗi lần tải trang lại thử `ALTER`
+        cùng một bảng mãi mãi. Không phép thử thì không ai thấy.
+     b) lỗi QUYẾT ĐỊNH — mấy chỗ cột được chọn có lý do tính tiền phía sau. Ai đó "dọn dẹp" sau
+        này (đổi `vai_tro` thành ENUM, cho `ngay_cong` một mặc định) là sai lương, mà bảng vẫn
+        có số nên chẳng ai nghi. Phép thử giữ lại lý do đó. */
+$so_do = VHCC_DB::bang();
+/* 20 bảng, không phải 19: khối ghi chú số 14 trong class-vhcc-db.php gom hai bảng (lịch công
+   việc + xin đổi lịch) vì chúng là một nghiệp vụ. Con số này chốt cứng để ai thêm bảng mới thì
+   phải sửa phép thử — tức là phải nghĩ một lần nữa xem bảng đó có thật cần không. */
+t( 'sơ đồ có đủ 20 bảng', count( $so_do ) === 20, count( $so_do ) );
+
+foreach ( $so_do as $ten => $than ) {
+	$dong = array_values( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) );
+	/* `dbDelta` bắt buộc HAI dấu cách giữa `PRIMARY KEY` và dấu mở ngoặc. Một dấu cách là nó
+	   không nhận ra khoá chính. Đây là cái bẫy nổi tiếng nhất của dbDelta. */
+	t( "bảng $ten có PRIMARY KEY đúng dạng dbDelta (hai dấu cách)",
+		count( preg_grep( '/^PRIMARY KEY  \(/', $dong ) ) === 1 );
+	/* Mỗi cột / mỗi khoá một dòng — dbDelta tách bằng ký tự xuống dòng, gộp hai cột một dòng là
+	   nó bỏ mất cột thứ hai. */
+	t( "bảng $ten mỗi cột một dòng", count( preg_grep( '/,\s*\S+\s+(?:BIGINT|VARCHAR|INT|CHAR|TEXT|DATE|DATETIME|DECIMAL|TINYINT|LONGTEXT)/i', $dong ) ) === 0 );
+	t( "bảng $ten mọi KEY đều có tên", count( preg_grep( '/^(?:UNIQUE )?KEY \(/', $dong ) ) === 0 );
+	t( "bảng $ten không dòng nào thừa dấu phẩy cuối", substr( rtrim( $than ), -1 ) !== ',' );
+	t( "bảng $ten không dùng ENUM", stripos( $than, 'ENUM(' ) === false );
+	/* Tiền không được là FLOAT. FLOAT làm 0.1+0.2 ra 0.30000000000000004; cộng dồn lương cả
+	   cơ sở là lệch vài đồng rồi không ai đối được sổ. */
+	t( "bảng $ten không dùng FLOAT/DOUBLE cho số",
+		stripos( $than, 'FLOAT' ) === false && stripos( $than, 'DOUBLE' ) === false );
+}
+
+/* Mọi cột phải khai một kiểu MySQL CÓ THẬT. Phải kiểm bằng danh sách trắng vì SQLite dưới đây
+   KHÔNG bắt được: SQLite định kiểu động, `VARCHARR(190)` nó vẫn nhận và vẫn tạo bảng ngon lành,
+   còn MySQL thì chết lúc kích hoạt plugin. Thử phá bằng cách gõ sai một kiểu để chắc chỗ này bắt. */
+$kieu_ok = array( 'BIGINT', 'INT', 'TINYINT', 'VARCHAR', 'CHAR', 'TEXT', 'LONGTEXT',
+	'DATE', 'DATETIME', 'DECIMAL' );
+$kieu_la = array();
+foreach ( $so_do as $ten => $than ) {
+	foreach ( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) as $d ) {
+		if ( preg_match( '/^(?:PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
+		if ( ! preg_match( '/^(\S+)\s+([A-Za-z]+)/', $d, $m ) ) { continue; }
+		if ( ! in_array( strtoupper( $m[2] ), $kieu_ok, true ) ) { $kieu_la[] = "$ten.$m[1]: $m[2]"; }
+	}
+}
+t( 'mọi cột dùng kiểu MySQL có thật', count( $kieu_la ) === 0, implode( ', ', $kieu_la ) );
+
+/* Bảng có thật, cột có thật — dựng luôn bằng SQLite trong bộ nhớ. `dbDelta` trong phép thử là
+   hàm rỗng nên nó KHÔNG chứng minh được gì. Chỗ này bắt được lỗi cấu trúc: thiếu/thừa dấu phẩy,
+   dấu ngoặc lệch, khoá trỏ vào cột không tồn tại. Kiểu cột thì do phép thử ngay trên canh. */
+$pdo = new PDO( 'sqlite::memory:' );
+$pdo->setAttribute( PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION );
+$loi_ddl = array();
+$cot_thuc = array();
+foreach ( $so_do as $ten => $than ) {
+	$dong  = array_values( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) );
+	$cot   = array();
+	$chi_muc = array();
+	foreach ( $dong as $d ) {
+		$d = rtrim( $d, ',' );
+		if ( preg_match( '/^PRIMARY KEY\s+\((.+)\)$/', $d, $m ) ) { $cot[] = 'PRIMARY KEY (' . $m[1] . ')'; continue; }
+		if ( preg_match( '/^(UNIQUE )?KEY\s+(\S+)\s+\((.+)\)$/', $d, $m ) ) {
+			$chi_muc[] = 'CREATE ' . ( $m[1] ? 'UNIQUE ' : '' ) . 'INDEX ix_' . $ten . '_' . $m[2] . ' ON ' . $ten . ' (' . $m[3] . ')';
+			continue;
+		}
+		// SQLite không biết AUTO_INCREMENT của MySQL; đổi sang dạng của nó, phần còn lại giữ nguyên.
+		$cot[] = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i', 'INTEGER', $d );
+	}
+	// SQLite: AUTOINCREMENT phải đi cùng INTEGER PRIMARY KEY, nên bỏ dòng PRIMARY KEY (id) rời ra.
+	$cot = array_values( array_filter( $cot, function ( $x ) { return $x !== 'PRIMARY KEY (id)'; } ) );
+	$cot[0] = preg_replace( '/^id INTEGER$/', 'id INTEGER PRIMARY KEY AUTOINCREMENT', $cot[0] );
+	try {
+		$pdo->exec( 'CREATE TABLE ' . $ten . " (\n" . implode( ",\n", $cot ) . "\n)" );
+		foreach ( $chi_muc as $ix ) { $pdo->exec( $ix ); }
+		$r = $pdo->query( 'PRAGMA table_info(' . $ten . ')' )->fetchAll( PDO::FETCH_ASSOC );
+		$cot_thuc[ $ten ] = array_column( $r, 'name' );
+	} catch ( Exception $e ) {
+		$loi_ddl[] = $ten . ': ' . $e->getMessage();
+		/* Vẫn phải có khoá rỗng: các phép thử dưới soi $cot_thuc[...]. Không đặt thì bảng nào
+		   dựng trượt sẽ làm cả phép thử CHẾT giữa đường bằng fatal error — lúc đó không đọc được
+		   bảng nào sai lẫn còn bao nhiêu phép thử chưa chạy. Trượt phải ra báo trượt, không ra sập. */
+		$cot_thuc[ $ten ] = array();
+	}
+}
+t( 'mọi bảng dựng được thật (DDL chạy trên SQLite)', count( $loi_ddl ) === 0, implode( ' | ', $loi_ddl ) );
+
+/* ---- Mấy quyết định phía sau các cột, giữ lại bằng phép thử ---- */
+$cc = $cot_thuc['cham_cong'];
+t( 'cham_cong có khoá duy nhất (coso,ngay,ma_nv,hau_to) — đây là thứ chặn hàng trùng',
+	strpos( $so_do['cham_cong'], 'UNIQUE KEY o (coso,ngay,ma_nv,hau_to)' ) !== false );
+t( 'cham_cong lưu giờ bằng PHÚT (INT), không phải TIME — ca đêm cần trục phẳng > 1440',
+	in_array( 'gio_vao_phut', $cc, true ) && in_array( 'gio_ra_phut', $cc, true )
+	&& stripos( $so_do['cham_cong'], ' TIME' ) === false );
+t( 'cham_cong giữ hậu tố mã (TT/TG/CD/CT/TC) thành MỘT cột, không bung ra nhiều cờ',
+	in_array( 'hau_to', $cc, true ) && ! in_array( 'la_tang_ca', $cc, true ) );
+t( 'giờ vào/ra cho phép NULL — chưa chấm KHÁC chấm lúc 00:00',
+	preg_match( '/gio_vao_phut INT NULL/', $so_do['cham_cong'] ) === 1
+	&& preg_match( '/gio_ra_phut INT NULL/', $so_do['cham_cong'] ) === 1 );
+t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — không được đoán mẫu số quy lương',
+	preg_match( '/ngay_cong DECIMAL\(5,2\) NULL/', $so_do['vp_ngay_cong'] ) === 1
+	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
+t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
+	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
+t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS', count( $cot_thuc['nhan_vien'] ) === 27 ); // 26 + id
+t( 'nhan_vien.luong_co_ban là DECIMAL (tiền), không FLOAT',
+	preg_match( '/luong_co_ban DECIMAL\(12,0\)/', $so_do['nhan_vien'] ) === 1 );
+t( 'nhat_ky_tra_pin KHÔNG có cột nào chứa PIN — nhật ký là chỗ rò rỉ dễ nhất',
+	count( preg_grep( '/pin/i', $cot_thuc['nhat_ky_tra_pin'] ) ) === 0 );
+t( 'nhat_ky_tra_pin lưu CCCD đã che', in_array( 'cccd_che', $cot_thuc['nhat_ky_tra_pin'], true ) );
+t( 'chống dò PIN đếm trong BẢNG, không trong transient (cache bị xoá là hình phạt tự bỏ)',
+	isset( $so_do['nhip_do'] ) && strpos( $so_do['nhip_do'], 'so_lan INT' ) !== false );
+t( 'cho_gan tồn tại — mã máy gửi về mà hồ sơ chưa khai thì GIỮ, không bỏ',
+	isset( $so_do['cho_gan'] ) && in_array( 'gan_vao_ma', $cot_thuc['cho_gan'], true ) );
+t( 'ma_song_song khai theo CẶP mã, không suy từ tên',
+	strpos( $so_do['ma_song_song'], 'UNIQUE KEY cap (ma_a,ma_b)' ) !== false );
+
+/* ---- Đổi giờ <-> phút phải khứ hồi đúng, kể cả trên trục phẳng ca đêm ---- */
+teq( 'phut(08:30)', 510, VHCC_DB::phut( '08:30' ) );
+teq( 'phut(17:00)', 1020, VHCC_DB::phut( '17:00' ) );
+teq( 'phut(00:00) là 0, KHÔNG phải null', 0, VHCC_DB::phut( '00:00' ) );
+teq( 'phut() của chuỗi rỗng là null (chưa chấm)', null, VHCC_DB::phut( '' ) );
+teq( 'phut() của rác là null', null, VHCC_DB::phut( 'x' ) );
+teq( 'hhmm(510)', '08:30', VHCC_DB::hhmm( 510 ) );
+teq( 'hhmm(0) là 00:00, không phải rỗng', '00:00', VHCC_DB::hhmm( 0 ) );
+teq( 'hhmm(null) là rỗng (chưa chấm)', '', VHCC_DB::hhmm( null ) );
+/* Trục phẳng: 01:30 của ca đêm lưu là 1440+90 để nó nằm SAU 22:00, nhưng hiện ra vẫn là 01:30. */
+teq( 'hhmm(1530) trên trục phẳng ca đêm vẫn hiện 01:30', '01:30', VHCC_DB::hhmm( 1530 ) );
+teq( 'hhmm(1440) là 00:00', '00:00', VHCC_DB::hhmm( 1440 ) );
+/* Đúng phép tính vòng nửa đêm của Code.gs: ra 01:30, vào 22:00 -> 3.5 tiếng. */
+$vaoM = VHCC_DB::phut( '22:00' ); $raM = VHCC_DB::phut( '01:30' );
+teq( 'số phút ca qua nửa đêm (22:00 -> 01:30) là 210', 210,
+	( $raM > $vaoM ) ? ( $raM - $vaoM ) : ( $raM + 1440 - $vaoM ) );
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
