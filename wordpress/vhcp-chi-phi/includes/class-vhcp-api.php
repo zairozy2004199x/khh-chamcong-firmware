@@ -36,6 +36,35 @@ class VHCP_API {
 		) );
 	}
 
+	/**
+	 * CỔNG DỰ PHÒNG QUA admin-ajax.php.
+	 *
+	 * Kha khá hosting (LiteSpeed/ModSecurity) và plugin bảo mật chặn thẳng /wp-json/ rồi
+	 * trả 403 kèm trang HTML — app không gọi được gì mà cũng không biết vì sao. Cổng này
+	 * dùng CHUNG bộ xử lý với REST, chỉ khác đường vào; giao diện tự chuyển sang đây khi
+	 * gặp 403/404/405 hoặc phản hồi không phải JSON.
+	 */
+	public static function ajax() {
+		$fn   = isset( $_POST['fn'] ) ? sanitize_text_field( wp_unslash( $_POST['fn'] ) ) : '';
+		$tok  = isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '';
+		$args = array();
+		if ( isset( $_POST['args'] ) ) {
+			$tmp = json_decode( (string) wp_unslash( $_POST['args'] ), true );
+			if ( is_array( $tmp ) ) { $args = $tmp; }
+		}
+
+		$req = new WP_REST_Request( 'POST', '/vhcp/v1/call' );
+		$req->set_param( 'fn', $fn );
+		$req->set_param( 'args', $args );
+		$req->set_param( 'token', $tok );
+
+		$res = self::handle( $req );
+		status_header( (int) $res->get_status() );
+		header( 'Content-Type: application/json; charset=utf-8' );
+		echo wp_json_encode( $res->get_data() );
+		wp_die();
+	}
+
 	/** Bảng tên hàm (như bên Apps Script) → callable PHP. */
 	public static function map() {
 		return array(

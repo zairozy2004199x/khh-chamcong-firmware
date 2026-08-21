@@ -24,28 +24,67 @@
 		try { sessionStorage.removeItem( USER_KEY ); } catch ( e ) {}
 	}
 
+	/**
+	 * Nhiều hosting (LiteSpeed/ModSecurity) hoặc plugin bảo mật chặn thẳng /wp-json/ và
+	 * trả 403 kèm trang HTML — không phải lỗi của app. Khi đó chuyển sang admin-ajax.php:
+	 * cùng một bộ xử lý phía máy chủ, nhưng đường này hầu như không bị chặn.
+	 */
+	var duongAjax = false;
+	try { duongAjax = localStorage.getItem( 'vhcp_ajax' ) === '1'; } catch ( e ) {}
+
+	function guiRest( fn, args, tok ) {
+		return fetch( CFG.endpoint, {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/json', 'X-VHCP-Token': tok },
+			body: JSON.stringify( { fn: fn, args: args, token: tok } )
+		} );
+	}
+
+	function guiAjax( fn, args, tok ) {
+		var fd = new FormData();
+		fd.append( 'action', 'vhcp_call' );
+		fd.append( 'fn', fn );
+		fd.append( 'args', JSON.stringify( args || [] ) );
+		fd.append( 'token', tok );
+		return fetch( CFG.ajax, { method: 'POST', credentials: 'same-origin', body: fd } );
+	}
+
+	function docKetQua( res ) {
+		return res.text().then( function ( txt ) {
+			var j = null;
+			try { j = JSON.parse( txt ); } catch ( e ) {}
+			return { status: res.status, json: j, raw: txt };
+		} );
+	}
+
+	/** 403/404/405 hoặc trả về không phải JSON = đường /wp-json/ bị chặn, không phải lỗi app. */
+	function biChan( r ) {
+		if ( r.json && typeof r.json.ok !== 'undefined' ) { return false; }
+		return ( r.status === 403 || r.status === 404 || r.status === 405 || r.status === 0 || ! r.json );
+	}
+
 	function call( fn, args, onOk, onErr ) {
 		var tok = getToken();
-		var body;
 		try {
-			body = JSON.stringify( { fn: fn, args: args, token: tok } );
+			JSON.stringify( { fn: fn, args: args, token: tok } );
 		} catch ( e ) {
 			if ( onErr ) { onErr( { message: 'Dữ liệu gửi lên không hợp lệ' } ); }
 			return;
 		}
 
-		fetch( CFG.endpoint, {
-			method: 'POST',
-			credentials: 'same-origin',
-			headers: { 'Content-Type': 'application/json', 'X-VHCP-Token': tok },
-			body: body
-		} ).then( function ( res ) {
-			return res.text().then( function ( txt ) {
-				var j = null;
-				try { j = JSON.parse( txt ); } catch ( e ) {}
-				return { status: res.status, json: j, raw: txt };
-			} );
+		var gui = ( duongAjax && CFG.ajax ) ? guiAjax : guiRest;
+
+		gui( fn, args, tok ).then( docKetQua ).then( function ( r ) {
+			// Lần đầu bị chặn -> đổi sang admin-ajax.php và gọi lại đúng lệnh đó
+			if ( ! duongAjax && CFG.ajax && biChan( r ) ) {
+				duongAjax = true;
+				try { localStorage.setItem( 'vhcp_ajax', '1' ); } catch ( e ) {}
+				return guiAjax( fn, args, tok ).then( docKetQua );
+			}
+			return r;
 		} ).then( function ( r ) {
+			if ( ! r ) { return; }
 			var j = r.json;
 
 			if ( r.status === 401 && j && j.code === 'no_session' ) {
@@ -57,6 +96,12 @@
 
 			if ( ! j || j.ok !== true ) {
 				var msg = ( j && j.error ) ? j.error : ( 'Lỗi máy chủ (' + r.status + ')' );
+				if ( ! j ) {
+					// Không phải JSON: gần như chắc chắn bị hosting hoặc plugin bảo mật chặn.
+					// In vài chữ đầu của thứ máy chủ trả về để biết ai chặn.
+					var dau = String( r.raw || '' ).replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim().slice( 0, 120 );
+					msg = 'Máy chủ chặn yêu cầu (' + r.status + ')' + ( dau ? ' — ' + dau : '' );
+				}
 				if ( onErr ) { onErr( { message: msg } ); }
 				return;
 			}

@@ -1448,6 +1448,34 @@ $chua = VHCP_Sheet::nap_ca_file( $SID );
 t( 'chưa chia sẻ thì báo rõ', empty( $chua['success'] ) && strpos( $chua['error'], 'chưa cho xem bằng link' ) !== false );
 $GLOBALS['VHCP_HTTP'] = array();
 
+// ------------------------------- 35. CỔNG DỰ PHÒNG admin-ajax.php dùng chung bộ xử lý
+// Tab dự án của app cũ: banner ở dòng 1, dòng tổng ở dòng 2, TIÊU ĐỀ Ở DÒNG 4
+$da_tab = "🏗 SETUP LẮP ĐẶT: NHÀ MA BÀ RỊA · Tạo 28/07/2026,,,,,,,,,,,,\n"
+	. "TRẠNG THÁI: ĐANG LÀM,TỔNG DỰ TOÁN,760.127.194,TỔNG THỰC,#ERROR!,CHÊNH LỆCH,#ERROR!,PHÁT SINH,,#ERROR!,,,\n"
+	. ",,,,,,,,,,,,\n"
+	. "Nội dung hạng mục,Chi phí dự toán,Chi phí thực tế,Số lượng,Đơn giá,Thành tiền,VAT,Ảnh chi phí,Bộ phận / Gian,Ghi chú,Thuộc hạng mục lớn,Hình thức chi,Hồ sơ\n"
+	. "Vật tư Khánh Thảo,34,33.534.000,1,33.534.000,33.534.000,Có VAT,,FunZone,VAT 4%,,,\n"
+	. "Tủ Điện 24 tép,0,825.000,1,825.000,825.000,Có VAT,,,,Vật tư Khánh Thảo,,\n";
+$rows_da = VHCP_Import::parse( $da_tab );
+$k_da    = VHCP_Nap::khop( 'da_line', $rows_da );
+teq( 'tìm được dòng tiêu đề ở dòng 4', 4, isset( $k_da['dongTieuDe'] ) ? $k_da['dongTieuDe'] : 0 );
+teq( 'còn đúng 2 dòng dữ liệu', 2, count( $k_da['rows'] ) );
+t( 'khớp được cột "Nội dung hạng mục"', isset( $k_da['hd']['noi_dung'] ) );
+t( 'khớp được cột "Chi phí dự toán"', isset( $k_da['hd']['du_toan'] ) );
+t( 'khớp được cột "Chi phí thực tế"', isset( $k_da['hd']['thuc_te'] ) );
+t( 'khớp được cột "Thuộc hạng mục lớn"', isset( $k_da['hd']['cap_cha'] ) );
+t( 'khớp được cột "Ảnh chi phí"', isset( $k_da['hd']['anh'] ) );
+
+$da_moi = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'NHÀ MA BÀ RỊA', 'Admin' );
+$r_da   = VHCP_Import::run( 'TD_DALine', $da_tab, array( 'ma' => $da_moi['maDA'] ) );
+teq( 'nạp 2 dòng hạng mục', 2, $r_da['inserted'] );
+$da_xem = VHCP_DuAn::get_du_an( $da_moi['maDA'] );
+$dong1  = $da_xem['lines'][0];
+teq( 'nội dung vào đúng cột', 'Vật tư Khánh Thảo', (string) $dong1['noiDung'] );
+teq( 'số kiểu Việt "33.534.000" đọc đúng', 33534000, VHCP_Util::num( $dong1['thucTe'] ) );
+teq( 'gian vào đúng cột', 'FunZone', (string) $dong1['gian'] );
+teq( 'hạng mục cha của dòng 2', 'Vật tư Khánh Thảo', (string) $da_xem['lines'][1]['capCha'] );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

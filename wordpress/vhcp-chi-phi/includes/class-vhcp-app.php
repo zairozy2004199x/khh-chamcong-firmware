@@ -63,6 +63,8 @@ class VHCP_App {
 		$sso = self::sso_user();
 		$cfg = array(
 			'endpoint' => esc_url_raw( rest_url( 'vhcp/v1/call' ) ),
+			// Đường dự phòng khi hosting chặn /wp-json/ (giao diện tự chuyển)
+			'ajax'     => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
 			'fns'      => array_keys( VHCP_API::map() ),
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'], 'coso' => $sso['coso'] ) : null,
 			'ver'      => VHCP_VERSION,

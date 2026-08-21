@@ -278,6 +278,14 @@ class VHCP_Sheet {
 				if ( strpos( $loai, 'TD_' ) === 0 ) {
 					$bang_td = self::bang_cua_td( $loai );
 					$k = VHCP_Nap::khop( $bang_td, $v['rows'] );
+					if ( $loai === 'TD_DALine' && ( ! empty( $k['loi'] ) || count( $k['hd'] ) < 5 ) ) {
+						$mo['bang']    = self::ten_loai( 'DA_Sheet' );
+						$mo['cachNhan'] = 'tên tab (cột không có tiêu đề → đọc theo vị trí)';
+						$mo['ketQua']  = 'sẽ nạp ' . max( 0, count( $v['rows'] ) - 4 ) . ' dòng vào dòng hạng mục dự án'
+							. ' · dự án lấy theo tên tab' . ( $tao_cha ? ' (tạo mới nếu chưa có)' : '' );
+						$bc[] = $mo;
+						continue;
+					}
 					if ( empty( $k['loi'] ) ) {
 						$mo['ketQua']   = 'sẽ nạp ' . count( $k['rows'] ) . ' dòng vào ' . self::ten_loai( $loai );
 						$mo['cotThieu'] = $k['thieu'];
@@ -294,12 +302,23 @@ class VHCP_Sheet {
 			// Tab dự án kỹ thuật: tên tab chính là tên dự án -> tìm/tạo dự án
 			$ma_chon = '';
 			if ( $loai === 'TD_DALine' || $loai === 'DA_Sheet' ) {
-				$can_ma = true;
+				// Tab dự án của app cũ mở đầu bằng dòng tiêu đề trang trí ("🏗 SETUP LẮP ĐẶT: …")
+				// và cột không có tên -> khớp tên cột không ăn. Khi đó dùng bộ nạp THEO VỊ TRÍ
+				// (13 cột, bỏ 4 dòng đầu) đúng như bảng tính cũ.
 				if ( $loai === 'TD_DALine' ) {
 					$k = VHCP_Nap::khop( 'da_line', $v['rows'] );
-					$can_ma = empty( $k['loi'] ) && ! isset( $k['hd']['ma_da'] );
+					if ( ! empty( $k['loi'] ) || count( $k['hd'] ) < 5 ) {
+						$loai = 'DA_Sheet';
+						$mo['bang'] = self::ten_loai( $loai );
+						$mo['cachNhan'] = 'tên tab (cột không có tiêu đề → đọc theo vị trí)';
+					}
 				}
-				if ( $can_ma ) {
+				$co_cot_ma = false;
+				if ( $loai === 'TD_DALine' ) {
+					$k = VHCP_Nap::khop( 'da_line', $v['rows'] );
+					$co_cot_ma = empty( $k['loi'] ) && isset( $k['hd']['ma_da'] );
+				}
+				if ( ! $co_cot_ma ) {
 					$ten_da  = trim( preg_replace( '/^\s*DA\s+/iu', '', $v['tab'] ) );
 					$ma_chon = self::tim_hoac_tao_du_an( $ten_da, $tao_cha, $tao );
 					if ( $ma_chon === '' ) {

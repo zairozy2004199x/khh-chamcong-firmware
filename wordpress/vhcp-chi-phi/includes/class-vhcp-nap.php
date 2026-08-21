@@ -103,17 +103,17 @@ class VHCP_Nap {
 			// ---- dòng hạng mục dự án kỹ thuật (tab DA ...)
 			'da_line' => array(
 				'ma_da'      => array( 'Mã dự án', 'Mã DA', 'Mã công trình' ),
-				'noi_dung'   => array( 'Nội dung', 'Hạng mục' ),
-				'du_toan'    => array( 'Dự toán', 'Ngân sách (dự toán)', 'Ngân sách' ),
-				'thuc_te'    => array( 'Thực tế', 'Thực chi' ),
+				'noi_dung'   => array( 'Nội dung hạng mục', 'Nội dung', 'Hạng mục' ),
+				'du_toan'    => array( 'Chi phí dự toán', 'Dự toán', 'Ngân sách (dự toán)', 'Ngân sách' ),
+				'thuc_te'    => array( 'Chi phí thực tế', 'Thực tế', 'Thực chi' ),
 				'so_luong'   => array( 'Số lượng', 'SL' ),
 				'don_gia'    => array( 'Đơn giá', 'ĐG' ),
 				'thanh_tien' => array( 'Thành tiền' ),
 				'vat'        => array( 'VAT' ),
-				'anh'        => array( 'Ảnh', 'Hình' ),
-				'gian'       => array( 'Gian', 'Bộ phận / Gian', 'Gian hàng', 'Cơ sở' ),
+				'anh'        => array( 'Ảnh chi phí', 'Ảnh', 'Hình' ),
+				'gian'       => array( 'Bộ phận / Gian', 'Gian', 'Gian hàng', 'Cơ sở' ),
 				'note'       => array( 'Ghi chú' ),
-				'cap_cha'    => array( 'Cấp cha', 'Thuộc hạng mục', 'Hạng mục cha' ),
+				'cap_cha'    => array( 'Thuộc hạng mục lớn', 'Cấp cha', 'Thuộc hạng mục', 'Hạng mục cha' ),
 				'hinh_thuc'  => array( 'Hình thức chi', 'Hình thức' ),
 				'ho_so'      => array( 'Hồ sơ', 'Chứng từ' ),
 				'loai_cp'    => array( 'Loại chi phí' ),
@@ -185,7 +185,8 @@ class VHCP_Nap {
 
 		// Dòng tiêu đề = dòng khớp được nhiều tên cột nhất trong 8 dòng đầu
 		$best = -1; $best_n = 0;
-		$gioi_han = min( 8, count( $rows ) );
+		// Tab của app cũ có dòng banner + dòng tổng hợp phía trên, nên tìm sâu hơn một chút
+		$gioi_han = min( 12, count( $rows ) );
 		for ( $i = 0; $i < $gioi_han; $i++ ) {
 			$n = 0;
 			foreach ( (array) $rows[ $i ] as $o ) {

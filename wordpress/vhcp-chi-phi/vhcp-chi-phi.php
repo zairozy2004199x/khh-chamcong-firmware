@@ -50,6 +50,9 @@ function vhcp_maybe_upgrade() {
 }
 
 add_action( 'rest_api_init', array( 'VHCP_API', 'register_routes' ) );
+// Cổng dự phòng: hosting nào chặn /wp-json/ thì giao diện tự chuyển sang admin-ajax.php
+add_action( 'wp_ajax_vhcp_call', array( 'VHCP_API', 'ajax' ) );
+add_action( 'wp_ajax_nopriv_vhcp_call', array( 'VHCP_API', 'ajax' ) );
 add_action( 'init', array( 'VHCP_App', 'init' ) );
 add_action( 'admin_menu', array( 'VHCP_Admin', 'menu' ) );
 add_action( 'admin_init', array( 'VHCP_Admin', 'handle_post' ) );
