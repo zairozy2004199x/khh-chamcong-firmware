@@ -61,7 +61,7 @@ class VHCP_SoChi {
 
 		$tk = self::resolve_tk( $rec );
 
-		return array(
+		$d = array(
 			'ngay'       => $ngay,
 			'ky'         => $ky,
 			'coso'       => VHCP_Util::st( $g( 'coso' ) ),
@@ -89,6 +89,14 @@ class VHCP_SoChi {
 			'ho_so'      => VHCP_Util::st( $g( 'hoSo' ) ),
 			'nguoi_nhap' => (string) $nguoi,
 		);
+
+		// Dòng nạp từ hệ cũ ĐÃ XUẤT MISA thì phải vào app ở trạng thái đã xuất, không thì
+		// lần xuất tới nó ra lần nữa -> hạch toán trùng. Chỉ gán khi lời gọi có truyền,
+		// nên sửa dòng bình thường không làm mất dấu đã xuất.
+		$nx = VHCP_Util::parse_date( $g( 'ngayXuat' ) );
+		if ( $nx ) { $d['ngay_xuat'] = $nx . ' 00:00:00'; }
+
+		return $d;
 	}
 
 	public static function add( $rec, $nguoi = '' ) {

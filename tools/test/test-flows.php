@@ -1651,6 +1651,63 @@ $them = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'EVENT FARM NHA TRAN
 t( 'gian đã đóng vẫn ghi được vào sổ chi phí', ! empty( $them['success'] ) );
 teq( 'và số của gian cập nhật theo', 10500000, VHCP_Util::num( VHCP_DuAn::get_du_an( $ma_gian )['tongSoChi'] ) );
 
+// ------------------------------- 39. TAB NÀY ĐIỀN "THÀNH TIỀN", TAB KIA "CHI PHÍ THỰC TẾ"
+// Tab NHÀ MA BÀ RỊA: cột "Chi phí thực tế" để trống/0, tiền nằm ở "Thành tiền".
+// Lấy cứng một cột là nạp ra 0 hết — dạng sai im lặng.
+$da_bo = "🏗 SETUP LẮP ĐẶT: NHÀ MA BÀ RỊA,,,,,,,,,,,,\n"
+	. "TRẠNG THÁI: ĐANG LÀM,TỔNG DỰ TOÁN,24.340.000,TỔNG THỰC,#ERROR!,,,,,,,,\n"
+	. ",,,,,,,,,,,,\n"
+	. "Nội dung hạng mục,Chi phí dự toán,Chi phí thực tế,Số lượng,Đơn giá,Thành tiền,VAT,Ảnh chi phí,Bộ phận / Gian,Ghi chú,Thuộc hạng mục lớn,Hình thức chi,Hồ sơ\n"
+	. "Đồ Gỗ,24.340.000,,,,24.340.000,,,FunZone,Cắt CNC và Đồ Cũ,,Tạm ứng,\n"
+	. "Hòm (cắt gỗ CNC theo yêu cầu),0,,2,4.000.000,8.000.000,,,,,Đồ Gỗ,,\n"
+	. "Ghế chân ngựa,0,,2,400.000,800.000,,,,,Đồ Gỗ,,\n"
+	. "Bàn 1.2m,0,,3,430.000,1.290.000,,,,,Đồ Gỗ,,\n";
+
+$k_bo = VHCP_Nap::khop( 'sochi', VHCP_Import::parse( $da_bo ) );
+t( 'ghi nhận NHIỀU cột cho cùng một trường tiền', isset( $k_bo['hdAll']['so_tien'] ) && count( $k_bo['hdAll']['so_tien'] ) >= 2 );
+$hang_hom = $k_bo['rows'][1];
+teq( 'lấy cột có số, không lấy cột rỗng', '8.000.000', VHCP_Nap::o_so( $hang_hom, $k_bo, 'so_tien' ) );
+
+$r_bo = VHCP_Import::run( 'TD_SoChi', $da_bo, array( 'replace' => true, 'ma' => 'NHÀ MA BÀ RỊA', 'coso' => 'FUNFEST SC VIVO' ) );
+teq( 'nạp 4 dòng', 4, $r_bo['inserted'] );
+$sc_bo = VHCP_SoChi::list_chi( array( 'maDuAn' => 'NHÀ MA BÀ RỊA' ) );
+teq( 'tổng đúng, không còn 0', 10090000, VHCP_Util::num( $sc_bo['tong'] ) );   // 8.000.000 + 800.000 + 1.290.000
+$hom = null;
+foreach ( $sc_bo['items'] as $x ) { if ( strpos( (string) $x['noiDung'], 'Hòm' ) === 0 ) { $hom = $x; } }
+teq( 'số tiền của dòng con', 8000000, VHCP_Util::num( $hom['soTien'] ) );
+teq( 'số lượng vào đúng cột', 2, VHCP_Util::num( $hom['soLuong'] ) );
+teq( 'đơn giá vào đúng cột', 4000000, VHCP_Util::num( $hom['donGia'] ) );
+$dogo = null;
+foreach ( $sc_bo['items'] as $x ) { if ( (string) $x['noiDung'] === 'Đồ Gỗ' ) { $dogo = $x; } }
+teq( 'dòng tổng hợp vẫn về 0', 0, VHCP_Util::num( $dogo['soTien'] ) );
+teq( 'nhưng giữ dự toán 24.340.000', 24340000, VHCP_Util::num( $dogo['duToan'] ) );
+
+// Trường hợp ngược lại: chỉ có "Chi phí thực tế" thì vẫn lấy đúng
+$da_nguoc = "Nội dung hạng mục,Chi phí thực tế,Thành tiền\nSơn,3.500.000,\n";
+$r_ng = VHCP_Import::run( 'TD_SoChi', $da_nguoc, array( 'ma' => 'X1', 'coso' => 'FUNFEST SC VIVO' ) );
+teq( 'nạp được dòng chỉ có Chi phí thực tế', 1, $r_ng['inserted'] );
+$sc_ng = VHCP_SoChi::list_chi( array( 'maDuAn' => 'X1' ) );
+teq( 'lấy đúng cột còn lại', 3500000, VHCP_Util::num( $sc_ng['tong'] ) );
+
+// Dòng đã xuất MISA ở hệ cũ phải vào app ở trạng thái ĐÃ XUẤT, không thì xuất trùng
+$csv_dx = "Nội dung hạng mục,Chi phí thực tế,Ngày xuất MISA\n"
+	. "Đã xuất rồi,1.000.000,13/08/2026\n"
+	. "Chưa xuất,2.000.000,\n";
+$r_dx = VHCP_Import::run( 'TD_SoChi', $csv_dx, array( 'ma' => 'DX1', 'coso' => 'FUNFEST SC VIVO' ) );
+teq( 'nạp 2 dòng', 2, $r_dx['inserted'] );
+$sc_dx = VHCP_SoChi::list_chi( array( 'maDuAn' => 'DX1' ) );
+$da_x = null; $chua_x = null;
+foreach ( $sc_dx['items'] as $x ) {
+	if ( (string) $x['noiDung'] === 'Đã xuất rồi' ) { $da_x = $x; }
+	if ( (string) $x['noiDung'] === 'Chưa xuất' ) { $chua_x = $x; }
+}
+t( 'dòng có ngày xuất MISA vào app là đã xuất', ! empty( $da_x['daXuat'] ) );
+t( 'dòng không có thì vẫn là chưa xuất', empty( $chua_x['daXuat'] ) );
+$xm2 = VHCP_SoChi::export_misa( 'all', 'chuaxuat' );
+$co_trung = false;
+foreach ( $xm2['rows'] as $row ) { if ( strpos( (string) $row[4], 'Đã xuất rồi' ) !== false ) { $co_trung = true; } }
+t( 'xuất MISA lần tới KHÔNG lấy lại dòng đã xuất', ! $co_trung );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

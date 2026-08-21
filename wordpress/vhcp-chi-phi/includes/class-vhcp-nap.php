@@ -169,6 +169,7 @@ class VHCP_Nap {
 				'doi_tuong' => array( 'Đối tượng' ),
 				'ghi_chu'   => array( 'Ghi chú' ),
 				'anh'       => array( 'Ảnh chi phí', 'Ảnh', 'Hình' ),
+				'ngay_xuat'  => array( 'Ngày xuất MISA', 'Ngày xuất', 'Đã xuất MISA' ),
 			),
 		);
 		return isset( $d[ $bang ] ) ? $d[ $bang ] : array();
@@ -206,12 +207,28 @@ class VHCP_Nap {
 			return array( 'loi' => 'Không tìm được dòng tiêu đề — file này không có tên cột nào app nhận ra. Kiểm tra lại anh có xuất đúng tab không.' );
 		}
 
-		$hd = array(); $la = array();
+		// Một trường có thể khớp NHIỀU cột (VD tiền: vừa có "Chi phí thực tế" vừa có
+		// "Thành tiền", tab này điền cột nọ tab kia điền cột kia). Ghi lại HẾT theo thứ tự
+		// ưu tiên trong từ điển để lúc đọc còn lấy được cột nào có số.
+		$hd = array(); $la = array(); $cot_theo_ten = array();
 		foreach ( (array) $rows[ $best ] as $i => $o ) {
 			$k = self::kh( $o );
 			if ( $k === '' ) { continue; }
-			if ( isset( $ten_ve[ $k ] ) && ! isset( $hd[ $ten_ve[ $k ] ] ) ) { $hd[ $ten_ve[ $k ] ] = $i; }
-			elseif ( ! isset( $ten_ve[ $k ] ) ) { $la[] = trim( (string) $o ); }
+			if ( isset( $ten_ve[ $k ] ) ) {
+				if ( ! isset( $cot_theo_ten[ $k ] ) ) { $cot_theo_ten[ $k ] = $i; }
+			} else {
+				$la[] = trim( (string) $o );
+			}
+		}
+		$hd_all = array();
+		foreach ( $td as $field => $tens ) {
+			foreach ( $tens as $t ) {
+				$kt = self::kh( $t );
+				if ( isset( $cot_theo_ten[ $kt ] ) && ! in_array( $cot_theo_ten[ $kt ], isset( $hd_all[ $field ] ) ? $hd_all[ $field ] : array(), true ) ) {
+					$hd_all[ $field ][] = $cot_theo_ten[ $kt ];
+				}
+			}
+			if ( isset( $hd_all[ $field ] ) ) { $hd[ $field ] = $hd_all[ $field ][0]; }
 		}
 
 		$thieu = array();
@@ -221,6 +238,7 @@ class VHCP_Nap {
 
 		return array(
 			'hd'         => $hd,
+			'hdAll'      => $hd_all,
 			'rows'       => array_slice( $rows, $best + 1 ),
 			'thieu'      => $thieu,
 			'la'         => $la,
@@ -260,6 +278,29 @@ class VHCP_Nap {
 			'diem'  => $max,
 			'tatCa' => $diem,
 		);
+	}
+
+	/**
+	 * Lấy SỐ theo tên trường, quét mọi cột cùng nghĩa và lấy cột ĐẦU TIÊN CÓ SỐ KHÁC 0.
+	 *
+	 * Tab dự án của app cũ có cả "Chi phí thực tế" và "Thành tiền": tab thì điền cột này,
+	 * tab thì điền cột kia, cột còn lại để 0. Lấy cứng một cột là nạp ra 0 hết mà không
+	 * có gì báo — dạng sai im lặng khó thấy nhất.
+	 *
+	 * @return string ô gốc (chuỗi) của cột chọn được, '' nếu mọi cột đều rỗng/0
+	 */
+	public static function o_so( $row, $k, $field ) {
+		$ds = ( isset( $k['hdAll'][ $field ] ) ) ? (array) $k['hdAll'][ $field ] : array();
+		if ( ! count( $ds ) && isset( $k['hd'][ $field ] ) ) { $ds = array( $k['hd'][ $field ] ); }
+		$dau = '';
+		foreach ( $ds as $i ) {
+			$v = isset( $row[ $i ] ) ? trim( (string) $row[ $i ] ) : '';
+			if ( $v === '' ) { continue; }
+			if ( $dau === '' ) { $dau = $v; }
+			if ( VHCP_Util::num( str_replace( array( '.', ' ' ), '', str_replace( ',', '.', $v ) ) ) != 0 ) { return $v; }
+			if ( VHCP_Util::num( $v ) != 0 ) { return $v; }
+		}
+		return $dau;
 	}
 
 	/** Lấy ô theo TÊN TRƯỜNG (rỗng nếu file không có cột đó). */

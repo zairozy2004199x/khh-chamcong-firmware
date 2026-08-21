@@ -396,7 +396,7 @@ class VHCP_Import {
 						'dvt'      => $o( $r, 'dvt' ),
 						'soLuong'  => self::n( $o( $r, 'so_luong' ) ),
 						'donGia'   => self::n( $o( $r, 'don_gia' ) ),
-						'soTien'   => ( isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ? 0 : self::n( $o( $r, 'so_tien' ) ) ),
+						'soTien'   => ( isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ? 0 : self::n( VHCP_Nap::o_so( $r, $k, 'so_tien' ) ) ),
 						'hinhThuc' => $o( $r, 'hinh_thuc' ),
 						'thueSuat' => self::n( $o( $r, 'thue_suat' ) ),
 						'vat'      => $o( $r, 'vat' ),
@@ -406,8 +406,10 @@ class VHCP_Import {
 						'anh'      => $o( $r, 'anh' ),
 						'maDuAn'   => $mda,
 						'hangMuc'  => $o( $r, 'hang_muc' ),
-						'duToan'   => self::n( $o( $r, 'du_toan' ) ),
+						'duToan'   => self::n( VHCP_Nap::o_so( $r, $k, 'du_toan' ) ),
 						'hoSo'     => $o( $r, 'ho_so' ),
+						// dòng đã xuất MISA ở hệ cũ -> vào app cũng là đã xuất, khỏi xuất trùng
+						'ngayXuat' => $o( $r, 'ngay_xuat' ),
 					), 'Nạp từ Sheet' );
 					if ( empty( $res['success'] ) ) { $skipped++; continue; }
 					if ( trim( (string) $res['tkNo'] ) === '' ) { $thieu_ma++; }
