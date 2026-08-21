@@ -513,6 +513,11 @@ chạy (plugin chưa cập nhật). Đường dự phòng cuối nay gửi dạn
   sở của đơn (lúc đó đổi là đổi cả đơn, hợp lý).
 - Máy chủ chặn lần nữa với câu báo rõ, không chỉ khoá ô chọn.
 
+Cơ sở của đơn hiện ở **mọi chỗ nhìn thấy đơn** (bản 1.8.2): cột **Cơ sở** trong 📋 Danh
+sách đơn · trong ô chọn đơn (*"T8/2026 · TÀU TÂN PHÚ · Huỳnh Quang Thắng · Nháp"*) · trên
+badge trạng thái khi mở đơn (**🏢 TÀU TÂN PHÚ**) · và trong hai bảng của kế toán: 📥 Gom hóa
+đơn, 💰 Thừa/thiếu tuần (Duyệt tạm ứng và Quyết toán đã có sẵn).
+
 **Đơn cũ đã nạp từ bảng tính** có thể đang mang nhiều cơ sở — luật này chỉ áp cho lần nhập
 mới, không sửa lại dữ liệu cũ, nên số liệu đã đối chiếu không bị xáo.
 

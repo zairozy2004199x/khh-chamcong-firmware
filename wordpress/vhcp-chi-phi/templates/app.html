@@ -252,7 +252,7 @@
       <button class="btn b-x" onclick="boot()">↻ Tải lại</button></div>
     <div class="tw" style="max-height:340px;overflow:auto">
       <table>
-        <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Trạng thái</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Còn lại</th><th style="text-align:center">Mở</th></tr></thead>
+        <thead><tr><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th>Trạng thái</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Còn lại</th><th style="text-align:center">Mở</th></tr></thead>
         <tbody id="donListBody"></tbody>
       </table>
       <div class="empty" id="donListEmpty">Chưa có đơn nào.</div>
@@ -763,7 +763,7 @@
       </div>
       <div class="tw">
         <table>
-          <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="gomChkAll" onchange="gomToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Ghi chú</th><th style="text-align:center">Xem</th></tr></thead>
+          <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="gomChkAll" onchange="gomToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Ghi chú</th><th style="text-align:center">Xem</th></tr></thead>
           <tbody id="gomBody"></tbody>
         </table>
         <div class="empty" id="gomEmpty">Chưa có đơn nào chờ gom.</div>
@@ -840,7 +840,7 @@
       <div style="padding:0 14px 6px;font-size:12px;color:#64748b">Thừa/thiếu = <b>Tạm ứng − Đã chi cá nhân</b> (không tính NCC 331). Tick <b>"Đã tất toán"</b> khi đã thu tiền thừa / bù tiền thiếu xong với kế toán.</div>
       <div class="tw">
         <table>
-          <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Đã chi</th><th style="text-align:right">Thừa/Thiếu</th><th>Trạng thái</th><th style="text-align:center">Đã tất toán</th></tr></thead>
+          <thead><tr><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Đã chi</th><th style="text-align:right">Thừa/Thiếu</th><th>Trạng thái</th><th style="text-align:center">Đã tất toán</th></tr></thead>
           <tbody id="ttBody"></tbody>
         </table>
         <div class="empty" id="ttEmpty">Chưa có đơn phù hợp.</div>
@@ -1236,7 +1236,10 @@
     tb.innerHTML=dons.map(function(d){
       var cl=d.chenhLech>=0?'pos':'neg', on=(d.maDon===curM);
       return '<tr'+(on?' style="background:#ecfeff"':'')+'>'+
-        '<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
+        '<td>'+esc(d.ky||d.maDon)+'</td>'+
+        // Mỗi đơn 1 cơ sở -> hiện thẳng ở danh sách, khỏi phải mở từng đơn ra xem
+        '<td>'+(d.coso?('<b>'+esc(d.coso)+'</b>'):'<span style="color:#94a3b8">chưa có dòng nào</span>')+'</td>'+
+        '<td>'+esc(d.nguoiLap||'')+'</td>'+
         '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td>'+
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
@@ -1310,7 +1313,7 @@
       el('f_pltt').innerHTML=opts(BOOT.phanloai,'—'); fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
       var dons=(b.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; });
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
-        return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
+        return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
       renderDonList(dons);
       if(CUR&&CUR.don){ el('donSel').value=CUR.don.maDon; openDon(CUR.don.maDon); }   // đang mở đơn nào -> làm mới đơn đó
       else { el('donSel').value=''; _syncDonView(); }                                   // không -> hiện danh sách (không tự mở đơn)
@@ -1414,7 +1417,10 @@
       var _kdBanner=(/\[Không dùng\]/.test(_gc))?('<div style="margin-top:8px;padding:8px 12px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;color:#b45309;font-size:12px">🚫 <b>Tạm ứng không dùng / không hóa đơn</b> — hoàn lại toàn bộ tạm ứng, không nhập dòng chi.</div>'):'';
       var _mKt=_gc.match(/\[KT sửa\]\s*([^|\[]*)/);
       var _ktBanner=_mKt?('<div style="margin-top:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#b91c1c;font-size:12px;font-weight:600">⚠️ ĐƠN ĐÃ ĐƯỢC KẾ TOÁN SỬA SỐ TIỀN'+(_mKt[1].trim()?(' (bởi '+esc(_mKt[1].trim())+')'):'')+' — số liệu quyết toán đã thay đổi, QL & NV lưu ý.</div>'):'';
-      el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_traBanner+_kdBanner+_ktBanner;
+      // Ghi luôn CƠ SỞ của đơn lên badge: mỗi đơn 1 cơ sở nên đây là thông tin nhận dạng
+      // chính, phải thấy ngay chứ không phải cuộn xuống mục nhập mới biết.
+      var _csD=r.don.cosoDon?('<b style="color:#0f766e"> · 🏢 '+esc(r.don.cosoDon)+'</b>'):'';
+      el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
       var nhan='', tay=null, goi='';
       if(st==='Nháp' && canDo('suaTU')){ nhan='📤 Gửi duyệt tạm ứng'; tay=guiDuyetTU; goi='Nhập đủ hạng mục xin rồi bấm gửi — kế toán sẽ duyệt và cấp tạm ứng.'; }
@@ -2707,7 +2713,7 @@
       var cl=Number(d.chenhLech)||0, ccls=cl>0?'pos':(cl<0?'neg':'');
       var tip=d.nguoiTatToan?('Tất toán bởi '+d.nguoiTatToan+(d.ngayTatToan?' · '+d.ngayTatToan:'')):'Đánh dấu đã thu/bù xong với kế toán';
       return '<tr'+(d.tatToan?' style="opacity:.6;background:#f0fdf4"':'')+'>'+
-        '<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
+        '<td>'+esc(d.ky||d.maDon)+'</td>'+'<td>'+(d.coso?esc(d.coso):'<span style="color:#94a3b8">—</span>')+'</td>'+'<td>'+esc(d.nguoiLap||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(d.thucChiCN)+'</td>'+
         '<td class="money '+ccls+'">'+(cl>0?'▲ ':(cl<0?'▼ ':''))+money(Math.abs(cl))+'</td>'+
         '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span></td>'+
@@ -3553,7 +3559,7 @@
       var kd=/\[Không dùng\]/.test(d.ghiChu||'');
       var mua=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
       return '<tr><td style="text-align:center"><input type="checkbox" class="gomChk" data-m="'+esc(d.maDon)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="gomUpdateBar()"></td>'+
-        '<td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
+        '<td>'+esc(d.ky||d.maDon)+'</td>'+'<td>'+(d.coso?esc(d.coso):'<span style="color:#94a3b8">—</span>')+'</td>'+'<td>'+esc(d.nguoiLap||'')+'</td>'+
         '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(mua)+'</td>'+
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
         '<td>'+(kd?'<span style="color:#b45309;font-size:11px">🚫 Không dùng — hoàn toàn bộ</span>':'')+'</td>'+
