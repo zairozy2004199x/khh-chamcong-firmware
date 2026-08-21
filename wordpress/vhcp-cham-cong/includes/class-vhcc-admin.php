@@ -318,6 +318,60 @@ class VHCC_Admin {
 
 		/* ---- Danh sách ---- */
 		$ds = VHCC_NhanSu::ds_nhan_vien( $u, $coso_loc, $tim );
+		/* ⚠️ KHỐI NÀY PHẢI Ở TRÊN. Bản đầu em đặt nó ở CUỐI trang, dưới tám mục khác — mà khi
+		   MySQL còn trống thì kéo dữ liệu là việc ĐẦU TIÊN phải làm, không phải việc cuối. Anh
+		   Thắng cuộn không tới, bấm nhầm "Xem trước" của ô dán tay (dán rỗng nên ra 0) rồi tưởng
+		   lệnh kéo không chạy. Thứ tự trên màn hình chính là thứ tự việc phải làm. */
+		/* ---- Kéo từ app gốc (đường B) ---- */
+		$trong_rong = ! count( $ds ) && ! count( VHCC_DB::rows( 'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' LIMIT 1' ) );
+		echo '<h2>Kéo dữ liệu cũ từ app gốc</h2>';
+		if ( $trong_rong ) {
+			echo '<div class="notice notice-warning inline" style="margin:8px 0"><p>'
+				. '<b>Chưa có hồ sơ nào trong cơ sở dữ liệu.</b> Bắt đầu từ đây: bấm '
+				. '<b>Xem trước hồ sơ sẽ kéo</b> ngay bên dưới. Mọi mục khác trên trang này '
+				. '(sửa, xoá, cho nghỉ, đổi mã) đều cần có hồ sơ trước đã.</p></div>';
+		}
+		echo '<p>Đọc thẳng từ Google Sheet qua cầu nối — <b>một chiều</b>, sheet vẫn là nguồn thật. '
+			. 'Kéo lại bao nhiêu lần cũng không sinh thêm dòng rác: hồ sơ khớp theo Mã NV, còn chấm '
+			. 'công đi qua đúng cửa mà máy đang đẩy vào nên luật <em>chỉ nới, không thu hẹp</em> áp y '
+			. 'nguyên.</p>';
+		echo '<p><em>Cần đã dán bản <code>CauNoiChamCong</code> mới nhất (có hai hàm '
+			. '<code>ccDsCoSoXuat</code>, <code>ccXuatChamCong</code>) rồi Deploy → New version.</em></p>';
+
+		foreach ( array(
+			'keo_ns_xem' => array( 'Xem trước hồ sơ sẽ kéo', 'button' ),
+			'keo_ns'     => array( 'KÉO HỒ SƠ NHÂN SỰ', 'button button-primary' ),
+		) as $act => $n ) {
+			echo '<form method="post" style="display:inline-block;margin-right:8px">';
+			wp_nonce_field( 'vhcc_ns' );
+			echo '<input type="hidden" name="vhcc_ns" value="' . esc_attr( $act ) . '" />';
+			echo '<button class="' . esc_attr( $n[1] ) . '">' . esc_html( $n[0] ) . '</button></form>';
+		}
+
+		echo '<h3>Chấm công cũ</h3>';
+		echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<input type="hidden" name="vhcc_ns" value="keo_cc" />';
+		echo '<label>Từ tháng<br><input name="tu" value="' . esc_attr( gmdate( 'm-Y', (int) current_time( 'timestamp' ) ) )
+			. '" placeholder="MM-yyyy" style="width:110px" /></label>';
+		echo '<label>Đến tháng<br><input name="den" value="' . esc_attr( gmdate( 'm-Y', (int) current_time( 'timestamp' ) ) )
+			. '" placeholder="MM-yyyy" style="width:110px" /></label>';
+		echo '<label>Cơ sở<br><input name="coso" placeholder="để trống = mọi cơ sở" style="width:220px" /></label>';
+		echo '<label><input type="checkbox" name="chi_xem" value="1" checked /> chỉ xem trước</label>';
+		echo '<button class="button button-primary">Kéo chấm công</button></form>';
+		echo '<p class="description">Mỗi lượt bấm kéo <b>tối đa ' . (int) self::KEO_MOI_ME . ' cặp (cơ sở × tháng)</b> '
+			. 'rồi dừng và báo còn lại bao nhiêu — hosting chia sẻ có giới hạn thời gian, chết giữa mẻ '
+			. 'thì không biết đã tới đâu. Bấm lại là nó đi tiếp từ chỗ dừng. Trần khoảng tháng là 36.</p>';
+		$td = VHCC_Keo::tien_do();
+		if ( $td ) {
+			echo '<p>Đã kéo xong <b>' . count( $td ) . '</b> cặp (cơ sở × tháng).</p>';
+			echo '<form method="post" style="display:inline">';
+			wp_nonce_field( 'vhcc_ns' );
+			echo '<input type="hidden" name="vhcc_ns" value="keo_xoa_td" />';
+			echo '<button class="button">Xoá tiến độ (kéo lại từ đầu)</button></form>';
+		}
+
+
 		echo '<h2>Danh sách (' . count( $ds ) . ')</h2>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
 			. '<th>Cửa hàng</th><th>Cơ sở phụ</th><th>Chức vụ</th><th>Nhiệm vụ</th>'
@@ -456,48 +510,6 @@ class VHCC_Admin {
 			. '<input name="nhiem_vu" placeholder="Thu Tiền - Vệ Sinh / Trực Ghế Posh - JP" /> '
 			. '<button class="button">Lưu nhiệm vụ</button></form>';
 
-		/* ---- Kéo từ app gốc (đường B) ---- */
-		echo '<hr><h2>Kéo dữ liệu cũ từ app gốc</h2>';
-		echo '<p>Đọc thẳng từ Google Sheet qua cầu nối — <b>một chiều</b>, sheet vẫn là nguồn thật. '
-			. 'Kéo lại bao nhiêu lần cũng không sinh thêm dòng rác: hồ sơ khớp theo Mã NV, còn chấm '
-			. 'công đi qua đúng cửa mà máy đang đẩy vào nên luật <em>chỉ nới, không thu hẹp</em> áp y '
-			. 'nguyên.</p>';
-		echo '<p><em>Cần đã dán bản <code>CauNoiChamCong</code> mới nhất (có hai hàm '
-			. '<code>ccDsCoSoXuat</code>, <code>ccXuatChamCong</code>) rồi Deploy → New version.</em></p>';
-
-		foreach ( array(
-			'keo_ns_xem' => array( 'Xem trước hồ sơ sẽ kéo', 'button' ),
-			'keo_ns'     => array( 'KÉO HỒ SƠ NHÂN SỰ', 'button button-primary' ),
-		) as $act => $n ) {
-			echo '<form method="post" style="display:inline-block;margin-right:8px">';
-			wp_nonce_field( 'vhcc_ns' );
-			echo '<input type="hidden" name="vhcc_ns" value="' . esc_attr( $act ) . '" />';
-			echo '<button class="' . esc_attr( $n[1] ) . '">' . esc_html( $n[0] ) . '</button></form>';
-		}
-
-		echo '<h3>Chấm công cũ</h3>';
-		echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
-		wp_nonce_field( 'vhcc_ns' );
-		echo '<input type="hidden" name="vhcc_ns" value="keo_cc" />';
-		echo '<label>Từ tháng<br><input name="tu" value="' . esc_attr( gmdate( 'm-Y', (int) current_time( 'timestamp' ) ) )
-			. '" placeholder="MM-yyyy" style="width:110px" /></label>';
-		echo '<label>Đến tháng<br><input name="den" value="' . esc_attr( gmdate( 'm-Y', (int) current_time( 'timestamp' ) ) )
-			. '" placeholder="MM-yyyy" style="width:110px" /></label>';
-		echo '<label>Cơ sở<br><input name="coso" placeholder="để trống = mọi cơ sở" style="width:220px" /></label>';
-		echo '<label><input type="checkbox" name="chi_xem" value="1" checked /> chỉ xem trước</label>';
-		echo '<button class="button button-primary">Kéo chấm công</button></form>';
-		echo '<p class="description">Mỗi lượt bấm kéo <b>tối đa ' . (int) self::KEO_MOI_ME . ' cặp (cơ sở × tháng)</b> '
-			. 'rồi dừng và báo còn lại bao nhiêu — hosting chia sẻ có giới hạn thời gian, chết giữa mẻ '
-			. 'thì không biết đã tới đâu. Bấm lại là nó đi tiếp từ chỗ dừng. Trần khoảng tháng là 36.</p>';
-		$td = VHCC_Keo::tien_do();
-		if ( $td ) {
-			echo '<p>Đã kéo xong <b>' . count( $td ) . '</b> cặp (cơ sở × tháng).</p>';
-			echo '<form method="post" style="display:inline">';
-			wp_nonce_field( 'vhcc_ns' );
-			echo '<input type="hidden" name="vhcc_ns" value="keo_xoa_td" />';
-			echo '<button class="button">Xoá tiến độ (kéo lại từ đầu)</button></form>';
-		}
-
 		/* ---- Nhập hàng loạt ---- */
 		echo '<hr><h2>Nhập nhân sự hàng loạt</h2>';
 		echo '<p>Mỗi dòng một người, các ô cách nhau bằng dấu phẩy hoặc tab, theo thứ tự: '
@@ -509,7 +521,14 @@ class VHCC_Admin {
 		echo '<p><textarea name="csv" rows="6" class="large-text" placeholder="NV001, Nguyễn A, TUTU_BT, 0900…">'
 			. esc_textarea( isset( $_POST['csv'] ) ? wp_unslash( $_POST['csv'] ) : '' ) . '</textarea></p>';
 		echo '<p><button class="button">Xem trước</button></p></form>';
-		if ( is_array( $xem_nhap ) && ! empty( $xem_nhap['ok'] ) ) {
+		/* Dán rỗng mà vẫn vẽ bảng "Sẽ thêm 0 · cập nhật 0 · bỏ 0" kèm nút "Nhập thật" thì trông
+		   y như một lệnh đã chạy và không tìm thấy gì — trong khi thật ra chưa dán gì cả. Nói
+		   thẳng, và KHÔNG đưa nút "Nhập thật" cho một tệp rỗng. */
+		if ( is_array( $xem_nhap ) && ! empty( $xem_nhap['ok'] ) && ! count( $ds_nhap ) ) {
+			echo '<div class="notice notice-warning"><p><b>Ô dán đang trống</b> — chưa có gì để xem trước. '
+				. 'Dán danh sách vào ô ở trên, hoặc dùng <b>Kéo dữ liệu cũ từ app gốc</b> ở đầu trang '
+				. 'để lấy thẳng từ Google Sheet, khỏi dán tay.</p></div>';
+		} elseif ( is_array( $xem_nhap ) && ! empty( $xem_nhap['ok'] ) ) {
 			echo '<div class="notice notice-info"><p>Sẽ <strong>thêm ' . (int) $xem_nhap['dem']['them']
 				. '</strong> · <strong>cập nhật ' . (int) $xem_nhap['dem']['capNhat']
 				. '</strong> · bỏ ' . (int) $xem_nhap['dem']['bo'] . '.</p>';

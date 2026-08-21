@@ -3548,6 +3548,44 @@ ob_start(); VHCC_Admin::dai_ban(); $h_ban = ob_get_clean();
 teq( 'không chen dải vào màn của plugin khác', '', $h_ban );
 unset( $_GET['page'] );
 
+/* Thứ tự trên màn Nhân sự = thứ tự việc phải làm. Khi MySQL còn trống thì KÉO là việc đầu
+   tiên; bản đầu em để nó ở cuối trang dưới tám mục khác, anh Thắng cuộn không tới nên bấm nhầm
+   "Xem trước" của ô dán tay (dán rỗng nên ra 0) rồi tưởng lệnh kéo không chạy. */
+$ad4 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+$vt_keo  = strpos( $ad4, "echo '<h2>Kéo dữ liệu cũ từ app gốc</h2>'" );
+$vt_ds   = strpos( $ad4, "echo '<h2>Danh sách (' . count( \$ds ) . ')</h2>'" );
+$vt_dan  = strpos( $ad4, "Nhập nhân sự hàng loạt" );
+t( 'khối KÉO nằm TRÊN danh sách hồ sơ', $vt_keo !== false && $vt_ds !== false && $vt_keo < $vt_ds );
+t( 'và nằm TRÊN ô dán tay', $vt_keo !== false && $vt_dan !== false && $vt_keo < $vt_dan );
+
+/* Bảng trống thì phải chỉ thẳng việc đầu tiên, không để người dùng tự đoán. */
+vhcc_dung_bang();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_ns = ob_get_clean();
+t( 'chưa có hồ sơ nào thì chỉ thẳng: bắt đầu bằng Xem trước hồ sơ sẽ kéo',
+	strpos( $h_ns, 'Chưa có hồ sơ nào trong cơ sở dữ liệu' ) !== false );
+t( 'và nói rõ mọi mục khác đều cần có hồ sơ trước',
+	strpos( $h_ns, 'đều cần có hồ sơ trước' ) !== false );
+
+/* Có hồ sơ rồi thì đừng nhắc nữa — nhắc mãi thành tiếng ồn. */
+global $wpdb;
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV900', 'ho_ten' => 'Có rồi',
+	'cua_hang' => 'TUTU_BT' ) );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_ns2 = ob_get_clean();
+t( 'đã có hồ sơ thì KHÔNG nhắc nữa',
+	strpos( $h_ns2, 'Chưa có hồ sơ nào trong cơ sở dữ liệu' ) === false );
+$wpdb->query( "DELETE FROM " . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV900'" );
+
+/* Dán rỗng: nói thẳng là ô trống, và KHÔNG đưa nút "Nhập thật" cho một tệp rỗng. */
+$GLOBALS['VHD_POST'] = array();
+$_POST = array( 'vhcc_ns' => 'xem_nhap', 'csv' => '' );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_rong = ob_get_clean();
+$_POST = array();
+t( 'dán rỗng thì nói "Ô dán đang trống", không vẽ bảng 0/0/0',
+	strpos( $h_rong, 'Ô dán đang trống' ) !== false );
+t( 'và chỉ sang đường kéo cho khỏi dán tay',
+	strpos( $h_rong, 'Kéo dữ liệu cũ từ app gốc' ) !== false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
