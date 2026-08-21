@@ -287,6 +287,47 @@ class VHCP_SoChi {
 		) );
 	}
 
+	/**
+	 * TỔNG SỔ CHI PHÍ THEO MÃ DỰ ÁN — 1 lệnh DB cho mọi dự án.
+	 *
+	 * Dòng chi của dự án nay nằm trong sổ chi phí (mang mã dự án), nên màn hình dự án và
+	 * danh sách dự án phải cộng cả phần này, không thì gian nào cũng hiện 0đ.
+	 *
+	 * @return array khóa = mã dự án đã hạ chữ thường
+	 */
+	public static function tong_theo_du_an() {
+		global $wpdb;
+		$t = VHCP_DB::t( 'so_chi' );
+		$rows = VHCP_DB::rows(
+			"SELECT ma_du_an, COUNT(*) AS n, SUM(so_tien) AS tien, SUM(du_toan) AS du_toan
+			 FROM $t WHERE ma_du_an <> '' GROUP BY ma_du_an"
+		);
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			$k = mb_strtolower( trim( (string) $r['ma_du_an'] ) );
+			if ( $k === '' ) { continue; }
+			$out[ $k ] = array(
+				'maDuAn' => (string) $r['ma_du_an'],
+				'n'      => (int) $r['n'],
+				'tien'   => VHCP_Util::num( $r['tien'] ),
+				'duToan' => VHCP_Util::num( $r['du_toan'] ),
+			);
+		}
+		return $out;
+	}
+
+	/** Các dòng sổ chi phí của 1 mã dự án (dùng cho màn hình dự án). */
+	public static function theo_du_an( $ma_du_an ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_du_an );
+		if ( $ma === '' ) { return array(); }
+		$t = VHCP_DB::t( 'so_chi' );
+		$rows = VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE LOWER(ma_du_an)=%s ORDER BY stt ASC", mb_strtolower( $ma ) ) );
+		$out = array();
+		foreach ( (array) $rows as $r ) { $out[] = self::out( $r ); }
+		return $out;
+	}
+
 	// ---------------------------------------------------------------- gán mã cho dòng cũ
 
 	/**

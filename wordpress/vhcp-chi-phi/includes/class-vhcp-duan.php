@@ -91,6 +91,7 @@ class VHCP_DuAn {
 
 	public static function list_du_an() {
 		$out = array();
+		$sc_tong = VHCP_SoChi::tong_theo_du_an();   // 1 lệnh DB cho mọi dự án
 		foreach ( self::all_with_lines() as $r ) {
 			$lines = $r['lines'];
 			$dt = 0; $tt = 0; $child = array();
@@ -109,6 +110,8 @@ class VHCP_DuAn {
 					$tt += VHCP_Util::num( $x['thuc_te'] );
 				}
 			}
+			// Cộng thêm phần nằm ở SỔ CHI PHÍ mang mã dự án này (khớp theo mã hoặc theo tên)
+			$sc = self::sc_cua( $sc_tong, $r['ma_da'], $r['ten'] );
 			$out[] = array(
 				'maDA'       => $r['ma_da'],
 				'ten'        => $r['ten'],
@@ -117,15 +120,26 @@ class VHCP_DuAn {
 				'trangThai'  => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Đang làm' ),
 				'ngayTao'    => VHCP_Util::fmt( $r['ngay_tao'] ),
 				'nguoi'      => $r['nguoi_tao'],
-				'tongDuToan' => $dt,
-				'tongThucTe' => $tt,
-				'chenh'      => $tt - $dt,
+				'tongDuToan' => $dt + $sc['duToan'],
+				'tongThucTe' => $tt + $sc['tien'],
+				'soDongSoChi' => $sc['n'],
+				'chenh'      => ( $tt + $sc['tien'] ) - ( $dt + $sc['duToan'] ),
 				'url'        => '',
 			);
 		}
 		$coso = array();
 		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) { $coso[] = $x['ten']; }
 		return VHCP_Util::ok( array( 'items' => array_reverse( $out ), 'coso' => $coso ) );
+	}
+
+	/** Lấy phần sổ chi phí của 1 dự án trong bảng tổng (khớp theo mã dự án hoặc theo tên). */
+	private static function sc_cua( $sc_tong, $ma_da, $ten ) {
+		$k0 = array( 'tien' => 0, 'duToan' => 0, 'n' => 0 );
+		foreach ( array( $ma_da, $ten ) as $key ) {
+			$k = mb_strtolower( trim( (string) $key ) );
+			if ( $k !== '' && isset( $sc_tong[ $k ] ) ) { return $sc_tong[ $k ]; }
+		}
+		return $k0;
 	}
 
 	public static function rename_du_an( $ma_da, $ten ) {
@@ -203,6 +217,15 @@ class VHCP_DuAn {
 			}
 		}
 
+		// Phần nằm ở sổ chi phí: khớp theo MÃ dự án, không có thì khớp theo TÊN
+		$sc_lines = VHCP_SoChi::theo_du_an( (string) $ma_da );
+		if ( ! count( $sc_lines ) ) { $sc_lines = VHCP_SoChi::theo_du_an( (string) $f['ten'] ); }
+		$sc_tien = 0; $sc_du_toan = 0;
+		foreach ( $sc_lines as $x ) {
+			$sc_tien    += VHCP_Util::num( $x['soTien'] );
+			$sc_du_toan += VHCP_Util::num( $x['duToan'] );
+		}
+
 		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
 		return VHCP_Util::ok( array(
 			'maDA'            => (string) $ma_da,
@@ -219,9 +242,13 @@ class VHCP_DuAn {
 			'thiCong'         => ( $st !== 'Đã đóng' ),
 			'closed'          => ( $st === 'Đã đóng' ),
 			'lines'           => $lines,
-			'tongDuToan'      => $dt,
-			'tongThucTe'      => $tt,
-			'chenh'           => $tt - $dt,
+			// Dòng chi của dự án nay nằm ở SỔ CHI PHÍ (mang mã dự án). Không cộng vào đây
+			// thì gian nào cũng hiện 0đ dù dữ liệu đã nạp xong.
+			'soChi'           => $sc_lines,
+			'tongSoChi'       => $sc_tien,
+			'tongDuToan'      => $dt + $sc_du_toan,
+			'tongThucTe'      => $tt + $sc_tien,
+			'chenh'           => ( $tt + $sc_tien ) - ( $dt + $sc_du_toan ),
 			'canTamUng'       => $du_tu,
 			'traTrucTiep'     => $du_tt,
 			'ttTamUng'        => $tt_tu,
@@ -329,9 +356,11 @@ class VHCP_DuAn {
 		global $wpdb;
 		$f = self::find( $ma_da );
 		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
+		// Dự án chi trực tiếp: chỉ ĐÃ ĐÓNG mới khóa. Trước đây còn chặn cả trạng thái
+		// "Chờ kế toán duyệt" của luồng duyệt đã bỏ, làm gian cũ không nhận được dữ liệu.
 		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
-		if ( $st !== 'Đang làm' && $st !== 'Đã duyệt' ) {
-			return VHCP_Util::err( 'Chỉ nhập khi "Đang làm" (lập dự toán) hoặc "Đã duyệt" (thi công) — chờ duyệt / đã đóng thì khóa' );
+		if ( $st === 'Đã đóng' ) {
+			return VHCP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi nhập' );
 		}
 		$data           = self::line_data( $rec );
 		$data['ma_da']  = (string) $ma_da;
@@ -346,7 +375,7 @@ class VHCP_DuAn {
 		$f = self::find( $ma_da );
 		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
-		if ( $st !== 'Đang làm' && $st !== 'Đã duyệt' ) { return VHCP_Util::err( 'Chỉ sửa khi "Đang làm" hoặc "Đã duyệt" (thi công)' ); }
+		if ( $st === 'Đã đóng' ) { return VHCP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi sửa' ); }
 		$row = (int) $row;
 		if ( $row < self::DATA_ROW ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
 		$t   = VHCP_DB::t( 'da_line' );
@@ -367,7 +396,7 @@ class VHCP_DuAn {
 		$f = self::find( $ma_da );
 		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		$st = (string) ( $f['trang_thai'] !== '' ? $f['trang_thai'] : 'Đang làm' );
-		if ( $st !== 'Đang làm' && $st !== 'Đã duyệt' ) { return VHCP_Util::err( 'Chỉ sửa/xóa khi "Đang làm" hoặc "Đã duyệt" (thi công)' ); }
+		if ( $st === 'Đã đóng' ) { return VHCP_Util::err( 'Dự án đã đóng — bấm "Mở lại" rồi xóa' ); }
 		$row = (int) $row;
 		if ( $row < self::DATA_ROW ) { return VHCP_Util::err( 'Dòng không hợp lệ' ); }
 		$t   = VHCP_DB::t( 'da_line' );

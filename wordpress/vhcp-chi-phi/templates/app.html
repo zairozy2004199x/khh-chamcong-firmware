@@ -434,6 +434,10 @@
       <div id="daStatusBar" style="display:none;margin:0 14px 8px;padding:8px 12px;border-radius:8px;font-size:13px;font-weight:600"></div>
       <div id="daSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div id="daPayPanel" style="display:none;gap:12px;flex-wrap:wrap;padding:0 14px 12px"></div>
+      <div id="daSoChiBox" style="display:none;padding:0 14px 14px">
+        <div style="font-weight:800;color:#6b21a8;margin-bottom:6px">💵 Dòng chi từ sổ chi phí <span style="font-weight:400;font-size:11px;color:#64748b">— các dòng mang mã dự án này; sửa ở tab 💵 Sổ chi phí</span></div>
+        <div class="tw"><table style="min-width:820px"><thead><tr><th style="width:90px">Ngày</th><th>Nội dung</th><th style="width:150px">Loại chi phí</th><th style="width:80px">TK Nợ</th><th style="width:150px">Hạng mục lớn</th><th style="text-align:right;width:130px">Dự toán</th><th style="text-align:right;width:130px">Thực chi</th></tr></thead><tbody id="daSoChiBody"></tbody></table></div>
+      </div>
       <div id="daClosedNote" style="display:none"></div>
       <div id="daLineForm" class="cb" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #e2e8f0">
         <div class="fld"><label>Thuộc</label><select id="da_capCha" style="width:190px" onchange="daCapChaHint()"><option value="">— Hạng mục lớn (mới) —</option><option value="(Phát sinh)">➕ Phát sinh (độc lập)</option></select></div>
@@ -2174,6 +2178,30 @@
   }
   // Bảng KẾ TOÁN CHI TIỀN — chỉ hiện khi dự án đã duyệt tạm ứng (hoặc đã đóng)
   // 💰 Tạm ứng NV -> Kế toán cá nhân · 🏢 Trực tiếp NCC -> Kế toán NCC · Admin/Quản lý làm cả hai
+  /**
+   * Dòng chi của dự án nằm ở SỔ CHI PHÍ (mang mã dự án) — hiện ra ngay tại màn dự án
+   * để khỏi phải nhớ là số nằm ở đâu. Sửa thì sửa bên tab Sổ chi phí, một chỗ duy nhất.
+   */
+  function renderDaSoChi(r){
+    var box=el('daSoChiBox'), body=el('daSoChiBody');
+    if(!box||!body) return;
+    var L=r.soChi||[];
+    if(!L.length){ box.style.display='none'; body.innerHTML=''; return; }
+    box.style.display='block';
+    body.innerHTML=L.map(function(x){
+      return '<tr><td style="white-space:nowrap">'+esc(x.ngay||'')+'</td>'+
+        '<td>'+esc(x.noiDung||'')+(x.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(x.ghiChu)+'</div>':'')+'</td>'+
+        '<td>'+esc(x.loai||'')+'</td>'+
+        '<td style="font-family:Consolas,monospace">'+(x.tkNo?esc(x.tkNo):'<span style="color:#dc2626">—</span>')+'</td>'+
+        '<td>'+esc(x.hangMuc||'')+'</td>'+
+        '<td class="money">'+money(x.duToan||0)+'</td>'+
+        '<td class="money">'+money(x.soTien||0)+'</td></tr>';
+    }).join('')+
+      '<tr style="font-weight:700;background:#faf5ff"><td colspan="5">TỔNG '+L.length+' DÒNG TỪ SỔ CHI PHÍ</td>'+
+      '<td class="money">'+money(L.reduce(function(a,x){return a+(Number(x.duToan)||0);},0))+'</td>'+
+      '<td class="money">'+money(r.tongSoChi||0)+'</td></tr>';
+  }
+
   function renderDuAnPay(r){
     var box=el('daPayPanel'); if(!box) return;
     if(r.isCoSo || !(r.approved||r.closed)){ box.style.display='none'; box.innerHTML=''; return; }
@@ -2264,6 +2292,7 @@
     // Dự án CHI TRỰC TIẾP: không có bước xin/duyệt tạm ứng nên bỏ 4 ô tạm ứng/trực tiếp
     // và bảng "Kế toán chi tiền". Chỉ còn dự toán · thực tế · chênh lệch.
     if(el('daPayPanel')){ el('daPayPanel').style.display='none'; el('daPayPanel').innerHTML=''; }
+    renderDaSoChi(r);
     if(el('dl_da_nd')) el('dl_da_nd').innerHTML=(r.noiDungList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');   // gợi ý hạng mục con đã dùng
     var isCoSo=r.isCoSo, role=(CURUSER&&CURUSER.role)||'';
     var canApprove=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;

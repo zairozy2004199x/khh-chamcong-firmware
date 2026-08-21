@@ -212,7 +212,9 @@ teq( 'dự án: trực tiếp có VAT', 2500000, $gd['ttTrucTiepVAT'] );
 teq( 'mục con thừa hưởng hình thức chi của cha', 'Tạm ứng', $gd['lines'][1]['hinhThuc'] );
 
 t( 'gửi kế toán duyệt', ! empty( VHCP_DuAn::submit( $md )['success'] ) );
-t( 'đang chờ duyệt thì khóa nhập', empty( VHCP_DuAn::add_line( $md, array( 'noiDung' => 'X' ) )['success'] ) );
+// Dự án chi trực tiếp: chỉ ĐÃ ĐÓNG mới khóa, các trạng thái khác vẫn nhập được
+t( 'chưa đóng thì vẫn nhập được', ! empty( VHCP_DuAn::add_line( $md, array( 'noiDung' => 'X ghi được' ) )['success'] ) );
+t( 'xóa lại dòng vừa thêm', ! empty( VHCP_DuAn::delete_line( $md, VHCP_DuAn::get_du_an( $md )['lines'][ count( VHCP_DuAn::get_du_an( $md )['lines'] ) - 1 ]['row'] )['success'] ) );
 $pend = VHCP_Report::pending_modules();
 teq( 'gom đơn chờ kế toán: 1', 1, count( $pend['items'] ) );
 teq( 'gom đơn chờ kế toán: đúng số tiền thực tế', 11500000, $pend['items'][0]['soTien'] );
@@ -1617,6 +1619,37 @@ t( 'đóng rồi thì khoá nhập', empty( VHCP_DuAn::get_du_an( $ma_tt )['edit
 t( 'đóng hai lần thì báo lỗi', empty( VHCP_DuAn::close( $ma_tt )['success'] ) );
 t( 'mở lại được', ! empty( VHCP_DuAn::reopen( $ma_tt )['success'] ) );
 t( 'mở lại thì nhập được tiếp', ! empty( VHCP_DuAn::get_du_an( $ma_tt )['editable'] ) );
+
+// ------------------------------- 38. MÀN DỰ ÁN PHẢI CỘNG CẢ PHẦN Ở SỔ CHI PHÍ
+$da_gian = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'FARM NHA TRANG', 'Admin' );
+$ma_gian = (string) $da_gian['maDA'];
+// dòng chi nạp vào sổ chi phí, mang MÃ DỰ ÁN = tên gian (đúng như bộ đọc Sheet làm)
+VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'EVENT FARM NHA TRANG', 'loai' => 'Nhân Công',
+	'noiDung' => 'Tháo dỡ đợt 1', 'soTien' => 6000000, 'duToan' => 7000000,
+	'hinhThuc' => 'Tạm ứng NV', 'maDuAn' => 'FARM NHA TRANG', 'hangMuc' => 'Nhân Công' ), 'NV A' );
+VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'EVENT FARM NHA TRANG', 'loai' => 'Nhân Công',
+	'noiDung' => 'Tháo dỡ đợt 2', 'soTien' => 4000000,
+	'hinhThuc' => 'Tạm ứng NV', 'maDuAn' => 'FARM NHA TRANG' ), 'NV A' );
+
+$xg = VHCP_DuAn::get_du_an( $ma_gian );
+teq( 'màn dự án thấy 2 dòng từ sổ chi phí', 2, count( $xg['soChi'] ) );
+teq( 'tổng phần sổ chi phí', 10000000, VHCP_Util::num( $xg['tongSoChi'] ) );
+teq( 'tổng thực tế của gian không còn là 0', 10000000, VHCP_Util::num( $xg['tongThucTe'] ) );
+teq( 'dự toán cộng cả phần sổ chi phí', 7000000, VHCP_Util::num( $xg['tongDuToan'] ) );
+
+$ds = VHCP_DuAn::list_du_an();
+$dong_gian = null;
+foreach ( $ds['items'] as $x ) { if ( (string) $x['ten'] === 'FARM NHA TRANG' ) { $dong_gian = $x; } }
+t( 'gian có trong danh sách dự án', $dong_gian !== null );
+teq( 'danh sách dự án cũng cộng phần sổ chi phí', 10000000, VHCP_Util::num( $dong_gian['tongThucTe'] ) );
+teq( 'đếm số dòng nằm ở sổ chi phí', 2, (int) $dong_gian['soDongSoChi'] );
+
+// Gian ĐÃ ĐÓNG vẫn nhận được dòng chi ở sổ chi phí (sổ chi phí không theo trạng thái dự án)
+VHCP_DuAn::close( $ma_gian );
+$them = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'EVENT FARM NHA TRANG', 'loai' => 'Nhân Công',
+	'noiDung' => 'Bù sau khi đóng', 'soTien' => 500000, 'hinhThuc' => 'Tạm ứng NV', 'maDuAn' => 'FARM NHA TRANG' ), 'NV A' );
+t( 'gian đã đóng vẫn ghi được vào sổ chi phí', ! empty( $them['success'] ) );
+teq( 'và số của gian cập nhật theo', 10500000, VHCP_Util::num( VHCP_DuAn::get_du_an( $ma_gian )['tongSoChi'] ) );
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
