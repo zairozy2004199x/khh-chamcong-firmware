@@ -21,6 +21,48 @@ class VHCC_Admin {
 			'vhcc-cong-may', array( __CLASS__, 'trang_cong_may' ) );
 		add_submenu_page( 'vhcc', 'Bảng công & Lương', 'Bảng công & Lương', self::CAP,
 			'vhcc-luong', array( __CLASS__, 'trang_luong' ) );
+		add_submenu_page( 'vhcc', 'In bảng chấm công', 'In bảng chấm công', self::CAP,
+			'vhcc-in', array( __CLASS__, 'trang_in' ) );
+	}
+
+	/**
+	 * IN BẢNG CHẤM CÔNG. Có tham số `xuat=1` thì TRẢ NGUYÊN tờ giấy rồi dừng — không có khung
+	 * quản trị của WordPress bao quanh, vì khung đó in ra giấy là rác.
+	 */
+	public static function trang_in() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
+		global $wpdb;
+		$coso = isset( $_GET['coso'] ) ? sanitize_text_field( wp_unslash( $_GET['coso'] ) ) : '';
+		$tu   = isset( $_GET['tu'] ) ? sanitize_text_field( wp_unslash( $_GET['tu'] ) ) : gmdate( 'Y-m-01' );
+		$den  = isset( $_GET['den'] ) ? sanitize_text_field( wp_unslash( $_GET['den'] ) ) : gmdate( 'Y-m-d' );
+
+		$hop_le = function ( $d ) { return (bool) preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ); };
+		if ( isset( $_GET['xuat'] ) && '' !== $coso && $hop_le( $tu ) && $hop_le( $den ) ) {
+			$u = wp_get_current_user();
+			echo VHCC_Pdf::trang_in( $coso, $tu, $den, $u ? $u->display_name : '' );
+			exit;
+		}
+
+		$ds = $wpdb->get_col( 'SELECT DISTINCT coso FROM ' . VHCC_DB::t( 'cham_cong' ) . ' ORDER BY coso' );
+		echo '<div class="wrap"><h1>In bảng chấm công</h1>';
+		echo '<p>Chọn cơ sở và khoảng ngày, bấm <b>Mở tờ in</b> rồi Ctrl+P → <b>Lưu thành PDF</b>. '
+			. 'WordPress không có bộ chuyển HTML→PDF như Apps Script, nên tờ giấy in ra từ trình duyệt — '
+			. 'đúng khổ A4, đúng khuôn, mà không phụ thuộc thư viện nào có thể hỏng.</p>';
+		echo '<form method="get" target="_blank"><input type="hidden" name="page" value="vhcc-in" />'
+			. '<input type="hidden" name="xuat" value="1" />';
+		echo '<table class="form-table"><tr><th>Cơ sở</th><td><select name="coso" required>'
+			. '<option value="">— chọn —</option>';
+		foreach ( (array) $ds as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . ( $x === $coso ? ' selected' : '' ) . '>'
+				. esc_html( $x ) . '</option>';
+		}
+		echo '</select></td></tr>';
+		echo '<tr><th>Từ ngày</th><td><input type="date" name="tu" value="' . esc_attr( $tu ) . '" required /></td></tr>';
+		echo '<tr><th>Đến ngày</th><td><input type="date" name="den" value="' . esc_attr( $den ) . '" required /></td></tr>';
+		echo '</table><p><button class="button button-primary">Mở tờ in</button></p></form>';
+		echo '<p><em>Số trên tờ giấy do MÁY CHỦ tính từ cơ sở dữ liệu. Bản Apps Script cũ nhận số '
+			. 'do trình duyệt tính rồi đẩy lên — tức ai sửa được yêu cầu là sửa được tờ giấy chấm công.</em></p>';
+		echo '</div>';
 	}
 
 	/**

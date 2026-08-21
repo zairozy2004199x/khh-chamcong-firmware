@@ -1282,6 +1282,105 @@ t( 'chi tiết từng ngày hiện được "công đêm từ ngày nào" để 
 	strpos( $than_luong, 'demTuNgay' ) !== false && strpos( $than_luong, 'demSangNgay' ) !== false );
 t( 'màn lương gác quyền trước khi hiện gì',
 	strpos( $than_luong, "current_user_can( self::CAP )" ) !== false );
+
+// ============================================================ 17. Tờ in bảng chấm công
+/* Bản gốc nhận `tongHop`/`chiTiet` TỪ TRÌNH DUYỆT rồi đổ vào khuôn — số trên tờ giấy chấm công là
+   số máy khách gửi lên. Bản này máy chủ tự tính từ MySQL, nên phép thử canh chính chỗ đó. */
+vhcc_dung_bang();
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'N1', '', '08:00:00', '17:30:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-04', 'N1', '', '08:15:00', null );          // QUÊN CHECK-OUT
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'N2', '', '09:00:00', '12:00:00' );
+vhcc_cham( 'TUTU_BT', '2026-09-01', 'N9', '', '08:00:00', '17:00:00' );    // ngoài khoảng
+
+$d = VHCC_Pdf::gom( 'TUTU_BT', '2026-08-01', '2026-08-31' );
+teq( 'chỉ gom hàng trong khoảng ngày', 3, $d['soChiTiet'] );
+$t = array();
+foreach ( $d['tongHop'] as $r ) { $t[ $r['ma'] ] = $r; }
+teq( 'N1: 2 ngày công', 2, $t['N1']['soNgay'] );
+teq( 'N1: đếm được 1 ngày thiếu giờ ra', 1, $t['N1']['thieuRa'] );
+/* Ngày thiếu giờ ra KHÔNG được cộng giờ — cộng bừa là tự bịa giờ làm. 08:00→17:30 = 9.5h. */
+teq( 'N1: tổng giờ chỉ tính ngày đủ cặp (9.5h)', 570, $t['N1']['phut'] );
+teq( 'N2: 3 giờ', 180, $t['N2']['phut'] );
+
+$html = VHCC_Pdf::trang_in( 'TUTU_BT', '2026-08-01', '2026-08-31', 'Anh Thắng' );
+t( 'tờ in là HTML đứng một mình', strpos( $html, '<!DOCTYPE html>' ) === 0 );
+t( 'khổ A4 và lề như bản gốc', strpos( $html, '@page{size:A4;margin:12mm 10mm}' ) !== false );
+/* Sang trang mới phải lặp lại dòng tiêu đề, và không cắt một hàng làm hai trang. Thiếu hai dòng
+   CSS này thì bảng nhiều trang đọc không ra ai là ai. */
+t( 'sang trang lặp lại dòng tiêu đề', strpos( $html, 'thead{display:table-header-group}' ) !== false );
+t( 'không cắt một hàng làm hai trang', strpos( $html, 'tr{page-break-inside:avoid}' ) !== false );
+t( 'có tên công ty', strpos( $html, 'K&amp;H' ) !== false );
+t( 'có người xuất', strpos( $html, 'Anh Thắng' ) !== false );
+t( 'ngày viết kiểu Việt dd/MM/yyyy', strpos( $html, '03/08/2026' ) !== false );
+t( 'KHÔNG để nguyên khuôn yyyy-MM-dd trên giấy', strpos( $html, '2026-08-03' ) === false );
+/* Quên check-out phải hiện chữ THIẾU đỏ, và có dòng giải thích cuối trang. */
+t( 'ngày quên check-out hiện chữ THIẾU', strpos( $html, '>THIẾU<' ) !== false );
+t( 'có dòng giải thích chữ THIẾU nghĩa là gì', strpos( $html, 'quên check-out' ) !== false );
+t( 'có hai ô ký tên', strpos( $html, 'NHÂN VIÊN XÁC NHẬN' ) !== false
+	&& strpos( $html, 'CỬA HÀNG TRƯỞNG' ) !== false );
+/* Thanh nút chỉ có trên màn hình, KHÔNG in ra giấy. */
+t( 'thanh nút bị ẩn khi in', strpos( $html, '@media print{.thanh{display:none}' ) !== false );
+
+/* Ca qua nửa đêm: giờ làm KHÔNG được ra số âm trên tờ giấy chấm công. */
+vhcc_dung_bang();
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'ND', '', '22:00:00', '02:00:00' );
+$d = VHCC_Pdf::gom( 'TUTU_BT', '2026-08-01', '2026-08-31' );
+teq( 'ca qua nửa đêm: 4 giờ, không âm', 240, $d['tongHop'][0]['phut'] );
+/* Ô "Giờ làm" của dòng CHI TIẾT cũng phải là 4.00h — đây là chỗ trước đây có bản tính thứ hai,
+   nên phép thử soi riêng ô đó chứ không soi cả trang (cả trang thì cột tổng hợp che mất). */
+teq( 'ô Giờ làm của dòng chi tiết cũng 4.00h', '4.00h', $d['chiTiet'][0]['gio'] );
+teq( 'phut_lam là MỘT chỗ tính duy nhất, dùng được trực tiếp', 240,
+	VHCC_Pdf::phut_lam( VHCC_DB::giay( '22:00:00' ), VHCC_DB::giay( '02:00:00' ) ) );
+teq( 'thiếu giờ ra thì phut_lam trả null, không trả 0', null,
+	VHCC_Pdf::phut_lam( VHCC_DB::giay( '08:00:00' ), null ) );
+teq( 'và ô Giờ làm để trống', '', VHCC_Pdf::gio_lam( VHCC_DB::giay( '08:00:00' ), null ) );
+/* Hàng ca đêm đã trải phẳng thì hiệu đã dương sẵn, không được cộng bù lần nữa. */
+vhcc_dung_bang();
+vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
+vhcc_cham_dem( 'VP_HCM', '2026-08-10', 'VD', '22:00:00', '01:30:00' );
+$d = VHCC_Pdf::gom( 'VP_HCM', '2026-08-01', '2026-08-31' );
+teq( 'hàng ca đêm đã trải phẳng: 3.5 giờ, KHÔNG cộng bù thêm 24h', 210, $d['tongHop'][0]['phut'] );
+
+/* Hàng có hậu tố phải hiện rõ là hàng nào, không gộp lẫn vào hàng chính. */
+vhcc_dung_bang();
+vhcc_cham( 'POSH_HCM', '2026-08-03', 'P9', '', '08:00:00', '12:00:00' );
+vhcc_cham( 'POSH_HCM', '2026-08-03', 'P9', 'TG', '13:00:00', '17:00:00' );
+$d = VHCC_Pdf::gom( 'POSH_HCM', '2026-08-01', '2026-08-31' );
+teq( 'hàng chính và hàng -TG là hai dòng tổng hợp riêng', 2, count( $d['tongHop'] ) );
+$ma = array();
+foreach ( $d['tongHop'] as $r ) { $ma[] = $r['ma']; }
+sort( $ma );
+teq( 'và mã hiện rõ hậu tố', array( 'P9', 'P9-TG' ), $ma );
+
+/* Cắt bớt phải IN HẲN cảnh báo lên giấy. Cắt im lặng là tờ giấy trông đầy đủ trong khi thiếu người. */
+teq( 'ngưỡng cắt chi tiết', 4000, VHCC_Pdf::MAX_CHI_TIET );
+$than_pdf = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-pdf.php' );
+t( 'có in cảnh báo khi bị cắt', strpos( $than_pdf, 'ĐÃ BỊ CẮT BỚT' ) !== false );
+t( 'và cảnh báo nằm trong phần dựng giấy, không phải chỉ ghi chú',
+	strpos( $than_pdf, "if ( \$d['biCat'] ) {" ) !== false );
+
+/* Tên tệp: không dấu, không khoảng trắng. */
+teq( 'tên tệp một ngày', 'BangCong_TUTU_BT_20260803', VHCC_Pdf::ten_tep( 'CS_TUTU_BT', '2026-08-03', '2026-08-03' ) );
+teq( 'tên tệp một khoảng', 'BangCong_TUTU_BT_20260801-20260831',
+	VHCC_Pdf::ten_tep( 'TUTU_BT', '2026-08-01', '2026-08-31' ) );
+teq( 'tên cơ sở có dấu bị thay hết', 'BangCong_C__S__20260801',
+	VHCC_Pdf::ten_tep( 'Cơ Sở', '2026-08-01', '2026-08-01' ) );
+
+/* Ô rác dài phải bị cắt, không kéo dài cả trang. Và phải thoát HTML. */
+teq( 'ô quá dài bị cắt còn 120 ký tự', 120, mb_strlen( VHCC_Pdf::esc( str_repeat( 'x', 500 ) ) ) );
+t( 'ô có thẻ HTML bị thoát', strpos( VHCC_Pdf::esc( '<script>' ), '<script>' ) === false );
+teq( 'ngày sai khuôn thì GIỮ NGUYÊN, không tự đoán', 'hôm qua', VHCC_Pdf::ngay_vn( 'hôm qua' ) );
+
+/* Tờ in phải gác quyền trước khi hiện gì. */
+$ad2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+$i_in = strpos( $ad2, 'public static function trang_in()' );
+$than_in = substr( $ad2, $i_in, 2000 );
+t( 'tờ in gác quyền', strpos( $than_in, 'current_user_can( self::CAP )' ) !== false );
+/* Chỉ nhận ngày ĐÚNG KHUÔN mới xuất — không thì tham số rác chạy thẳng vào câu truy vấn ngày. */
+t( 'chỉ xuất khi ngày đúng khuôn yyyy-MM-dd', strpos( $than_in, '$hop_le( $tu ) && $hop_le( $den )' ) !== false );
+t( 'tờ in KHÔNG ghi gì vào bảng chấm công',
+	strpos( $than_pdf, "insert( VHCC_DB::t( 'cham_cong'" ) === false
+	&& strpos( $than_pdf, "update( VHCC_DB::t( 'cham_cong'" ) === false );
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

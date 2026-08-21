@@ -314,7 +314,7 @@ function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
 	define( 'VHCC_URL', 'http://example.test/plugin-cham-cong/' );
-	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang', 'nhan', 'online', 'luong' ) as $c ) {
+	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang', 'nhan', 'online', 'luong', 'pdf' ) as $c ) {
 		require_once $dir . '/includes/class-vhcc-' . $c . '.php';
 	}
 }
