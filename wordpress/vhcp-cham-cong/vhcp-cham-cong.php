@@ -50,6 +50,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-online.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
+require_once VHCC_DIR . 'includes/class-vhcc-man.php';
 
 register_activation_hook( __FILE__, array( 'VHCC_DB', 'install' ) );
 

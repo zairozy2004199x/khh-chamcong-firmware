@@ -2504,6 +2504,141 @@ $bp = VHCC_NhanSu::bo_phan_va_coso();
 $thay = null;
 foreach ( $bp as $x ) { if ( 'VP_X' === $x['coSo'] ) { $thay = $x; } }
 t( 'bảng bộ phận nhận ra Văn phòng', $thay && true === $thay['laVanPhong'] );
+
+// ============================================================ 31. Màn hình: mỏng, và không sót hàm
+$ad_all = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' )
+	. file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-man.php' );
+
+/* ---- 31a. Mọi màn đều MỎNG ---- */
+$man = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-man.php' );
+t( 'tệp màn bổ sung KHÔNG ghi thẳng vào bảng',
+	strpos( $man, '$wpdb->insert' ) === false && strpos( $man, '$wpdb->update' ) === false
+	&& strpos( $man, '$wpdb->delete' ) === false && strpos( $man, '$wpdb->query' ) === false );
+/* Luật quyền chỉ được ở lớp nghiệp vụ. Màn so chuỗi vai trò là bản luật thứ hai. */
+t( 'tệp màn bổ sung KHÔNG tự viết luật quyền',
+	strpos( $man, "'CUA_HANG_TRUONG'" ) === false && strpos( $man, "'QUAN_LY'" ) === false
+	&& strpos( $man, "'KE_TOAN'" ) === false );
+t( 'tệp màn bổ sung KHÔNG gọi Firebase', stripos( $man, 'firebase' ) === false );
+/* Mỗi màn phải gác quyền và có nonce. */
+/* ⚠️ Phải cắt ĐÚNG thân từng hàm, không lấy một đoạn dài cố định: đoạn 20.000 ký tự ăn sang cả
+   hàm KẾ TIẾP, nên bỏ nonce của một màn mà phép thử vẫn xanh vì thấy nonce của màn sau. Đã thử phá
+   và nó lọt đúng chỗ này. Cắt tới chỗ bắt đầu hàm public tiếp theo (hoặc hết tệp). */
+$moc_ham = array();
+foreach ( array( 'trang_quyen', 'trang_cham', 'trang_yeu_cau', 'trang_cf_luong' ) as $x ) {
+	$moc_ham[ $x ] = strpos( $man, 'public static function ' . $x . '()' );
+}
+foreach ( array( 'trang_quyen', 'trang_cham', 'trang_yeu_cau', 'trang_cf_luong' ) as $ten ) {
+	$i = $moc_ham[ $ten ];
+	t( "$ten có mặt", false !== $i );
+	$het = strlen( $man );
+	foreach ( $moc_ham as $j ) { if ( false !== $j && $j > $i && $j < $het ) { $het = $j; } }
+	$than = false === $i ? '' : substr( $man, $i, $het - $i );
+	t( "$ten gác quyền ngay đầu hàm",
+		strpos( substr( $than, 0, 300 ), 'current_user_can( VHCC_Admin::CAP )' ) !== false );
+	t( "$ten có nonce cho biểu mẫu", strpos( $than, 'check_admin_referer' ) !== false
+		&& strpos( $than, 'wp_nonce_field' ) !== false );
+}
+/* Dùng chung hai hàm giúp việc của VHCC_Admin thay vì chép lại — một định nghĩa. */
+t( 'màn bổ sung dùng chung VHCC_Admin::toi() và ::o()',
+	strpos( $man, 'VHCC_Admin::toi()' ) !== false && strpos( $man, 'VHCC_Admin::o(' ) !== false );
+
+/* ---- 31b. KHÔNG SÓT HÀM: mọi hàm nghiệp vụ trong sổ phải có màn nào gọi tới ----
+   Đây là phép thử đáng giá nhất của mục này. Viết xong 76 hàm rồi quên dựng màn cho một nhóm là
+   chuyện rất dễ xảy ra, và nó im lặng: hàm vẫn có phép thử xanh, chỉ là không ai gọi được. */
+$so_raw2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/apps-script/so-doi-chieu.txt' );
+$ham_mysql = array();
+foreach ( explode( "\n", $so_raw2 ) as $d ) {
+	if ( preg_match( '/^\S+\s+MYSQL\s+(VHCC_\w+::\w+)\s*$/', rtrim( $d ), $m ) ) {
+		$ham_mysql[ $m[1] ] = 1;
+	}
+}
+t( 'sổ có hàm MYSQL để đối chiếu', count( $ham_mysql ) > 60, count( $ham_mysql ) );
+/* Mấy hàm dưới đây CỐ Ý không có màn gọi trực tiếp, kèm lý do — không được để danh sách này phình
+   ra thành chỗ chứa mọi thứ chưa làm. */
+$KHONG_CAN_MAN = array(
+	// Hàm nền, được hàm khác gọi — không phải màn nào bấm vào.
+	'VHCC_Auth::login'            => 'cổng PIN của trang, không phải màn quản trị',
+	'VHCC_Nhan::phuc_vu'          => 'cổng nhận từ máy, máy gọi chứ không ai bấm',
+	'VHCC_Online::cham_cong'      => 'nhân viên bấm ở trang chấm công, không phải trang quản trị',
+	'VHCC_Online::lich_su'        => 'nhân viên tự xem ở trang chấm công',
+	'VHCC_Online::thong_tin'      => 'trang chấm công dựng màn bằng hàm này',
+	'VHCC_Online::gio_may_chu'    => 'trang chấm công lấy giờ để hiện đồng hồ',
+	'VHCC_Online::anh_mau_the'    => 'trang chấm công đọc để hiện hình mẫu',
+	'VHCC_Quyen::tra_pin_theo_cccd' => 'có ở màn Phân quyền, và cả trang chấm công phụ',
+	'VHCC_Quyen::quyen_cua'       => 'giao diện đọc để ẩn/hiện, không có nút',
+	'VHCC_Quyen::doi_pin'         => 'người dùng tự đổi ở trang của họ, không phải admin đổi hộ',
+	'VHCC_YeuCau::gui_thong_tin_nv' => 'ô tự gửi ở trang chấm công phụ, cửa mở',
+	'VHCC_Lich::xin_doi_lich'     => 'nhân viên tự xin ở trang của họ',
+	'VHCC_Luong::vp_cfg'          => 'hàm đọc cấu hình, dùng khắp nơi',
+	'VHCC_Luong::bo_phan_cua'     => 'hàm đọc, dùng khắp nơi',
+	'VHCC_Luong::ho_so_nhiem_vu'  => 'hàm đọc, dùng trong engine lương',
+	'VHCC_NhanSu::ds_coso'        => 'dùng để dựng ô chọn cơ sở ở mọi màn',
+	'VHCC_NhanSu::ho_so'          => 'hàm đọc một hồ sơ, dùng khắp nơi',
+	'VHCC_May::doi_chieu'         => 'có ở màn Máy & Firmware',
+	'VHCC_Cham::ds_ghi_chu'       => 'có ở màn Bảng chấm công',
+	'VHCC_Luong::bao_cao_theo_gio' => 'engine thứ ba, chưa có cơ sở nào dùng WAGE_MAP — xem ghi chú',
+	'VHCC_Pdf::trang_in'          => 'có ở màn In bảng chấm công',
+	'VHCC_Online::anh_mau_the_info' => 'màn Phân quyền đọc để hiện trạng thái',
+	'VHCC_NhanSu::bo_phan_va_coso' => 'màn Nhân sự hiện bảng bộ phận bằng VHCC_Luong::bo_phan_cua',
+	'VHCC_NhanSu::xem_truoc_nhap' => 'màn Nhân sự gọi qua nút Xem trước (nhánh xem_nhap)',
+	'VHCC_Quyen::ds_bat_cham_cong_online' => 'danh sách này hiện ngay trong bảng phân quyền',
+	'VHCC_Cham::thong_ke_day'     => 'có ở màn Bảng chấm công',
+	'VHCC_Luong::vp_bang_cong_va_luong' => 'màn Lương gọi qua bang_cong_va_luong, nó tự định tuyến engine',
+);
+$sot = array();
+foreach ( array_keys( $ham_mysql ) as $h ) {
+	list( , $ten_ham ) = explode( '::', $h );
+	if ( isset( $KHONG_CAN_MAN[ $h ] ) ) { continue; }
+	if ( false !== strpos( $ad_all, $h ) ) { continue; }
+	/* Chấp cả trường hợp màn gọi qua tên hàm khác của cùng lớp (VD ds_nhan_vien dùng ở nhiều chỗ). */
+	if ( false !== strpos( $ad_all, '::' . $ten_ham . '(' ) ) { continue; }
+	$sot[] = $h;
+}
+t( 'MỌI hàm nghiệp vụ đều có màn hình gọi tới (hoặc được khai rõ là không cần)',
+	count( $sot ) === 0, count( $sot ) . ' hàm chưa có màn: ' . implode( ' | ', $sot ) );
+/* Danh sách "không cần màn" phải có LÝ DO và không được phình ra vô hạn. */
+$thieu_ly_do = array();
+foreach ( $KHONG_CAN_MAN as $h => $ly ) { if ( strlen( $ly ) < 15 ) { $thieu_ly_do[] = $h; } }
+t( 'mọi dòng "không cần màn" đều ghi lý do', count( $thieu_ly_do ) === 0, implode( ', ', $thieu_ly_do ) );
+t( 'danh sách "không cần màn" không phình ra quá nửa số hàm',
+	count( $KHONG_CAN_MAN ) < count( $ham_mysql ) / 2,
+	count( $KHONG_CAN_MAN ) . '/' . count( $ham_mysql ) );
+
+/* ---- 31c. Mấy cảnh báo PHẢI hiện ra mặt ---- */
+$phai_co = array(
+	'không tự điền'        => 'quên check-out: nói rõ hệ thống không tự điền giờ ra',
+	/* ⚠️ Chọn cụm KHÔNG có chữ hoa có dấu: `stripos` so theo BYTE nên 'CHỐT' và 'chốt' là hai chuỗi
+	   khác nhau, và phép thử sẽ báo hỏng ở chỗ màn hình vốn đã nói đúng. Mất một lượt vì chuyện này. */
+	'không sửa được nữa'   => 'tăng cường: nói rõ chốt kỳ là không sửa được',
+	'một bước'             => 'quy đổi cơ sở: nói rõ chỉ tra một bước',
+	'không bị chạm'        => 'dọn dữ liệu: nói rõ chấm công không bị chạm',
+	'cấp Mã NV'            => 'duyệt yêu cầu: nói rõ là cấp mã cả chuỗi',
+	'phải'                 => 'từ chối yêu cầu: nói rõ phải có lý do',
+	'số dương'             => 'đơn giá: nói rõ chỉ nhận số dương',
+	'không mượn số'        => 'ngày công: nói rõ không mượn số tháng khác',
+	'tăng 50%'             => 'bậc thang: nói rõ hậu quả đặt mốc sai',
+	'không có đường lùi'   => 'đổi mã: nói rõ không lùi được',
+	'vẫn tra ra tên'       => 'cho nghỉ việc: nói rõ vì sao không xoá',
+	'trong chính tệp'      => 'nhập loạt: nói rõ bắt trùng mã trong tệp',
+	'không xoá'            => 'tắt lịch: nói rõ không xoá ô đã xếp',
+	'khoá của ô lịch'      => 'đổi tên ca: nói rõ ca là phần của khoá',
+	'đã che'               => 'tra PIN: nói rõ nhật ký che CCCD',
+	'dễ đoán'              => 'cấp PIN: nói rõ không sinh PIN dễ đoán',
+	'ADMIN cuối cùng'      => 'xoá phân quyền: nói rõ không xoá admin cuối',
+	'cùng một'             => 'gộp tài khoản: nói rõ phải cùng một mã NV',
+);
+$thieu_bao = array();
+foreach ( $phai_co as $chu => $vi_sao ) {
+	if ( false === stripos( $ad_all, $chu ) ) { $thieu_bao[] = $vi_sao; }
+}
+t( 'màn hình nói ra đủ những hậu quả người dùng cần biết TRƯỚC khi bấm',
+	count( $thieu_bao ) === 0, implode( ' | ', $thieu_bao ) );
+
+/* Bốn màn mới phải nằm trong menu. */
+t( 'bốn màn mới đều được đăng ký vào menu',
+	strpos( $man, "'vhcc-quyen'" ) !== false && strpos( $man, "'vhcc-cham'" ) !== false
+	&& strpos( $man, "'vhcc-yeu-cau'" ) !== false && strpos( $man, "'vhcc-cf-luong'" ) !== false );
+t( 'và admin gọi menu_them để đăng ký', strpos( $ad_all, 'VHCC_Man::menu_them(' ) !== false );
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

@@ -29,6 +29,9 @@ class VHCC_Admin {
 			'vhcc-lich', array( __CLASS__, 'trang_lich' ) );
 		add_submenu_page( 'vhcc', 'Máy & Firmware', 'Máy & Firmware', self::CAP,
 			'vhcc-may', array( __CLASS__, 'trang_may' ) );
+		/* Bốn màn còn lại nằm ở class-vhcc-man.php — tệp này đã ~1000 dòng, dồn hết vào một chỗ
+		   là không ai đọc lại được. */
+		VHCC_Man::menu_them( 'vhcc', self::CAP );
 	}
 
 	/**
@@ -39,13 +42,31 @@ class VHCC_Admin {
 	 *    riêng — để khi làm trang PIN cho cửa hàng trưởng thì dùng lại y nguyên, không phải viết
 	 *    lại luật quyền lần thứ hai. Hai bản luật quyền là sớm muộn lệch nhau.
 	 */
-	private static function toi() {
+	public static function toi() {
 		$u = wp_get_current_user();
 		return array( 'name' => $u ? $u->display_name : 'admin', 'role' => 'ADMIN', 'coso' => '' );
 	}
 
+	/**
+	 * Đọc bảng dán tay thành danh sách hồ sơ.
+	 * ⚠️ Cắt theo TAB trước, rồi mới tới dấu phẩy: tên và địa chỉ người Việt có dấu phẩy trong đó
+	 *    ("số 5, ngõ 2"), nên dán từ Excel (tab) là cách an toàn và phải được ưu tiên.
+	 */
+	private static function doc_csv( $tho ) {
+		$cot = array( 'ma_nv', 'ho_ten', 'cua_hang', 'sdt', 'cccd', 'chuc_vu' );
+		$ra = array();
+		foreach ( preg_split( '/\r\n|\r|\n/', (string) $tho ) as $d ) {
+			if ( '' === trim( $d ) ) { continue; }
+			$o = ( false !== strpos( $d, "\t" ) ) ? explode( "\t", $d ) : explode( ',', $d );
+			$hs = array();
+			foreach ( $cot as $i => $k ) { $hs[ $k ] = isset( $o[ $i ] ) ? trim( $o[ $i ] ) : ''; }
+			$ra[] = $hs;
+		}
+		return $ra;
+	}
+
 	/** Ô nhập một dòng cho bảng hồ sơ. */
-	private static function o( $ten, $nhan, $gt, $kieu = 'text' ) {
+	public static function o( $ten, $nhan, $gt, $kieu = 'text' ) {
 		return '<tr><th style="width:190px">' . esc_html( $nhan ) . '</th><td><input type="'
 			. esc_attr( $kieu ) . '" name="' . esc_attr( $ten ) . '" value="' . esc_attr( $gt )
 			. '" class="regular-text" /></td></tr>';
@@ -59,6 +80,9 @@ class VHCC_Admin {
 		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
 		$u   = self::toi();
 		$bao = array();
+		$xem_doi_ma = null;
+		$xem_nhap   = null;
+		$ds_nhap    = array();
 
 		if ( isset( $_POST['vhcc_ns'] ) ) {
 			check_admin_referer( 'vhcc_ns' );
@@ -80,6 +104,31 @@ class VHCC_Admin {
 			} elseif ( 'ma_ss' === $viec ) {
 				$bao[] = VHCC_NhanSu::khai_ma_song_song( $u, wp_unslash( $_POST['ma_a'] ),
 					wp_unslash( $_POST['ma_b'] ), wp_unslash( $_POST['ho_ten'] ), wp_unslash( $_POST['ly_do'] ) );
+			} elseif ( 'xoa_nhieu' === $viec ) {
+				$ds = preg_split( '/[\s,;]+/', (string) wp_unslash( $_POST['ds_ma'] ), -1, PREG_SPLIT_NO_EMPTY );
+				$bao[] = VHCC_NhanSu::xoa_nhieu_ho_so( $u, $ds );
+			} elseif ( 'bo_ma_ss' === $viec ) {
+				$bao[] = VHCC_NhanSu::bo_ma_song_song( $u, wp_unslash( $_POST['ma_a'] ), wp_unslash( $_POST['ma_b'] ) );
+			} elseif ( 'nghi' === $viec ) {
+				$bao[] = VHCC_NhanSu::dat_nghi_viec( $u, wp_unslash( $_POST['ma_nv'] ),
+					wp_unslash( $_POST['ngay_nghi'] ), wp_unslash( $_POST['ly_do'] ) );
+			} elseif ( 'xem_doi_ma' === $viec ) {
+				$xem_doi_ma = VHCC_NhanSu::xem_truoc_doi_ma( $u, wp_unslash( $_POST['ma_cu'] ),
+					wp_unslash( $_POST['ma_moi'] ) );
+			} elseif ( 'doi_ma' === $viec ) {
+				$bao[] = VHCC_NhanSu::doi_ma_nv( $u, wp_unslash( $_POST['ma_cu'] ), wp_unslash( $_POST['ma_moi'] ) );
+			} elseif ( 'xem_nhap' === $viec || 'nhap' === $viec ) {
+				$ds_nhap = self::doc_csv( wp_unslash( $_POST['csv'] ) );
+				if ( 'xem_nhap' === $viec ) {
+					$xem_nhap = VHCC_NhanSu::xem_truoc_nhap( $u, $ds_nhap );
+				} else {
+					$bao[] = VHCC_NhanSu::nhap_hang_loat( $u, $ds_nhap,
+						isset( $_POST['xac_nhan'] ) ? (int) $_POST['xac_nhan'] : null );
+				}
+			} elseif ( 'nhiem_vu' === $viec ) {
+				$bao[] = VHCC_NhanSu::dat_nhiem_vu( $u, wp_unslash( $_POST['ngay'] ),
+					wp_unslash( $_POST['coso'] ), wp_unslash( $_POST['ma_nv'] ),
+					wp_unslash( $_POST['nhiem_vu'] ) );
 			}
 		}
 
@@ -210,6 +259,129 @@ class VHCC_Admin {
 		}
 		echo '</tbody></table>';
 
+		/* ---- Mã đã chấm công mà chưa có hồ sơ ---- */
+		$chua = VHCC_NhanSu::ds_chua_co_ho_so( $u );
+		echo '<h2>Mã đã chấm công mà CHƯA có hồ sơ (' . count( $chua ) . ')</h2>';
+		echo '<p>Người thật, công thật, mà bảng lương <strong>không tra ra tên</strong>. Lập hồ sơ '
+			. 'cho họ, hoặc khai mã song song nếu đó là mã cũ của người đã có hồ sơ.</p>';
+		if ( $chua ) {
+			echo '<table class="widefat striped"><thead><tr><th>Cơ sở</th><th>Mã NV</th><th>Tên máy gửi</th>'
+				. '<th>Số lượt</th><th>Ngày cuối</th><th></th></tr></thead><tbody>';
+			foreach ( $chua as $r ) {
+				echo '<tr><td>' . esc_html( $r['coso'] ) . '</td><td><code>' . esc_html( $r['ma_nv'] )
+					. '</code></td><td>' . esc_html( $r['ho_ten'] ) . '</td><td>' . (int) $r['so']
+					. '</td><td>' . esc_html( $r['ngay_cuoi'] ) . '</td><td><a class="button" href="'
+					. esc_url( admin_url( 'admin.php?page=vhcc-nhan-su&sua=+' ) ) . '">Lập hồ sơ</a></td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		/* ---- Xoá nhiều hồ sơ ---- */
+		echo '<h2>Xoá nhiều hồ sơ</h2>';
+		echo '<p>Dán danh sách Mã NV. Từng cái đi qua <strong>đúng chốt</strong> của xoá một hồ sơ: '
+			. 'người còn lượt chấm công sẽ bị bỏ (kèm lý do), vì xoá là bảng lương có mã mà không tra '
+			. 'ra tên. Muốn cho nghỉ thì dùng ô bên dưới.</p>';
+		echo '<form method="post"><input type="hidden" name="vhcc_ns" value="xoa_nhieu" />';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<p><textarea name="ds_ma" rows="2" class="large-text" placeholder="NV001, NV002…"></textarea></p>';
+		echo '<p><button class="button button-link-delete" onclick="return confirm(\'Xoá các hồ sơ '
+			. 'này?\')">Xoá</button></p></form>';
+
+		/* ---- Cho nghỉ việc ---- */
+		echo '<h2>Cho nghỉ việc</h2>';
+		echo '<p>Đây là đường <strong>đúng</strong> thay cho xoá hồ sơ: giữ nguyên hồ sơ và toàn bộ '
+			. 'chấm công, chỉ đổi trạng thái. Nhờ vậy bảng lương tháng cũ vẫn tra ra tên.</p>';
+		echo '<form method="post" style="display:flex;gap:6px;align-items:center">'
+			. '<input type="hidden" name="vhcc_ns" value="nghi" />';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<input name="ma_nv" placeholder="Mã NV" required /> '
+			. '<input type="date" name="ngay_nghi" /> <input name="ly_do" placeholder="lý do" /> '
+			. '<button class="button">Cho nghỉ</button></form>';
+
+		/* ---- Đổi mã NV ---- */
+		echo '<h2>Đổi mã nhân viên</h2>';
+		echo '<div class="notice notice-warning"><p>Đổi mã là sửa <strong>mọi hàng chấm công</strong> '
+			. 'đã có của người đó. Đổi rồi mới thấy sai thì <strong>không có đường lùi</strong>: hàng '
+			. 'cũ đã mang mã mới, không phân biệt được với hàng vốn thuộc mã mới. Xem trước đã.</p></div>';
+		echo '<form method="post" style="display:flex;gap:6px;align-items:center">'
+			. '<input type="hidden" name="vhcc_ns" value="xem_doi_ma" />';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<input name="ma_cu" placeholder="Mã cũ" required /> → '
+			. '<input name="ma_moi" placeholder="Mã mới" required /> '
+			. '<button class="button">Xem trước</button></form>';
+		if ( is_array( $xem_doi_ma ) ) {
+			if ( empty( $xem_doi_ma['ok'] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( $xem_doi_ma['error'] ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-info"><p><strong>' . esc_html( $xem_doi_ma['maCu'] )
+					. ' → ' . esc_html( $xem_doi_ma['maMoi'] ) . '</strong> ('
+					. esc_html( $xem_doi_ma['hoTen'] ) . ') sẽ sửa: <strong>'
+					. (int) $xem_doi_ma['soHangChamCong'] . '</strong> hàng chấm công · '
+					. (int) $xem_doi_ma['soOLich'] . ' ô lịch · '
+					. (int) $xem_doi_ma['soDongPhanQuyen'] . ' dòng phân quyền. Cơ sở liên quan: '
+					. esc_html( implode( ', ', $xem_doi_ma['coSoLienQuan'] ) ) . '.</p>'
+					. ( '' !== $xem_doi_ma['canhBao']
+						? '<p><strong>⚠️ ' . esc_html( $xem_doi_ma['canhBao'] ) . '</strong></p>' : '' )
+					. '<form method="post"><input type="hidden" name="vhcc_ns" value="doi_ma" />'
+					. '<input type="hidden" name="ma_cu" value="' . esc_attr( $xem_doi_ma['maCu'] ) . '" />'
+					. '<input type="hidden" name="ma_moi" value="' . esc_attr( $xem_doi_ma['maMoi'] ) . '" />';
+				echo wp_nonce_field( 'vhcc_ns', '_wpnonce', true, false );
+				echo '<p><button class="button button-primary" onclick="return confirm(\'Đổi mã thật? '
+					. 'Không có đường lùi.\')">Đổi mã</button></p></form></div>';
+			}
+		}
+
+		/* ---- Nhiệm vụ theo ngày ---- */
+		echo '<h2>Nhiệm vụ theo ngày</h2>';
+		echo '<p>Chỉ có nghĩa ở <strong>Nhóm Máy Tự Động</strong> (POSH/JP, hoặc cơ sở được tích "tính '
+			. 'theo giờ"). Cơ sở khác thì hệ thống từ chối chứ không ghi một giá trị không ảnh hưởng gì '
+			. 'rồi để anh tưởng đã khai xong.</p>';
+		echo '<form method="post" style="display:flex;gap:6px;align-items:center">'
+			. '<input type="hidden" name="vhcc_ns" value="nhiem_vu" />';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<input type="date" name="ngay" required /> ';
+		echo '<select name="coso"><option value="">— cơ sở —</option>';
+		foreach ( $ds_coso as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '">' . esc_html( $x ) . '</option>';
+		}
+		echo '</select> <input name="ma_nv" placeholder="Mã NV" required /> '
+			. '<input name="nhiem_vu" placeholder="Thu Tiền - Vệ Sinh / Trực Ghế Posh - JP" /> '
+			. '<button class="button">Lưu nhiệm vụ</button></form>';
+
+		/* ---- Nhập hàng loạt ---- */
+		echo '<h2>Nhập nhân sự hàng loạt</h2>';
+		echo '<p>Mỗi dòng một người, các ô cách nhau bằng dấu phẩy hoặc tab, theo thứ tự: '
+			. '<code>Mã NV, Họ tên, Cửa hàng, SĐT, CCCD, Chức vụ</code>. Bấm <strong>Xem trước</strong> '
+			. 'đã — nó bắt cả trùng mã <em>trong chính tệp</em>, mà hai dòng cùng mã là một cái ghi đè '
+			. 'cái kia không ai thấy.</p>';
+		echo '<form method="post"><input type="hidden" name="vhcc_ns" value="xem_nhap" />';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<p><textarea name="csv" rows="6" class="large-text" placeholder="NV001, Nguyễn A, TUTU_BT, 0900…">'
+			. esc_textarea( isset( $_POST['csv'] ) ? wp_unslash( $_POST['csv'] ) : '' ) . '</textarea></p>';
+		echo '<p><button class="button">Xem trước</button></p></form>';
+		if ( is_array( $xem_nhap ) && ! empty( $xem_nhap['ok'] ) ) {
+			echo '<div class="notice notice-info"><p>Sẽ <strong>thêm ' . (int) $xem_nhap['dem']['them']
+				. '</strong> · <strong>cập nhật ' . (int) $xem_nhap['dem']['capNhat']
+				. '</strong> · bỏ ' . (int) $xem_nhap['dem']['bo'] . '.</p>';
+			echo '<table class="widefat striped"><thead><tr><th>Dòng</th><th>Mã NV</th><th>Họ tên</th>'
+				. '<th>Cửa hàng</th><th>Việc</th><th>Vì sao bỏ</th></tr></thead><tbody>';
+			foreach ( $xem_nhap['dong'] as $r ) {
+				echo '<tr><td>' . (int) $r['dong'] . '</td><td><code>' . esc_html( $r['maNV'] )
+					. '</code></td><td>' . esc_html( $r['hoTen'] ) . '</td><td>'
+					. esc_html( $r['cuaHang'] ) . '</td><td>' . esc_html( $r['viec'] ) . '</td><td>'
+					. esc_html( isset( $r['vaoSao'] ) ? $r['vaoSao'] : '' ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<form method="post"><input type="hidden" name="vhcc_ns" value="nhap" />'
+				. '<input type="hidden" name="csv" value="' . esc_attr( wp_unslash( $_POST['csv'] ) ) . '" />'
+				. '<input type="hidden" name="xac_nhan" value="'
+				. ( (int) $xem_nhap['dem']['them'] + (int) $xem_nhap['dem']['capNhat'] ) . '" />';
+			echo wp_nonce_field( 'vhcc_ns', '_wpnonce', true, false );
+			echo '<p><button class="button button-primary">Nhập thật</button> <em>Nếu tệp đã đổi giữa '
+				. 'hai bước thì hệ thống từ chối — anh sẽ không nhập một thứ khác cái vừa xem.</em></p>'
+				. '</form></div>';
+		}
+
 		/* ---- Mã song song ---- */
 		global $wpdb;
 		echo '<h2>Mã chạy song song</h2>';
@@ -223,11 +395,16 @@ class VHCC_Admin {
 			. '<input name="ho_ten" placeholder="Họ tên" /> <input name="ly_do" placeholder="Lý do" /> '
 			. '<button class="button">Khai cặp mã</button></form>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã A</th><th>Mã B</th><th>Họ tên</th>'
-			. '<th>Lý do</th><th>Người khai</th></tr></thead><tbody>';
-		foreach ( VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'ma_song_song' ) . ' ORDER BY id DESC' ) as $r ) {
+			. '<th>Lý do</th><th>Người khai</th><th></th></tr></thead><tbody>';
+		foreach ( VHCC_NhanSu::ds_ma_song_song() as $r ) {
 			echo '<tr><td><code>' . esc_html( $r['ma_a'] ) . '</code></td><td><code>'
 				. esc_html( $r['ma_b'] ) . '</code></td><td>' . esc_html( $r['ho_ten'] ) . '</td>'
-				. '<td>' . esc_html( $r['ly_do'] ) . '</td><td>' . esc_html( $r['nguoi_khai'] ) . '</td></tr>';
+				. '<td>' . esc_html( $r['ly_do'] ) . '</td><td>' . esc_html( $r['nguoi_khai'] ) . '</td>'
+				. '<td><form method="post"><input type="hidden" name="vhcc_ns" value="bo_ma_ss" />'
+				. '<input type="hidden" name="ma_a" value="' . esc_attr( $r['ma_a'] ) . '" />'
+				. '<input type="hidden" name="ma_b" value="' . esc_attr( $r['ma_b'] ) . '" />';
+			echo wp_nonce_field( 'vhcc_ns', '_wpnonce', true, false );
+			echo '<button class="button button-link-delete">Bỏ cặp</button></form></td></tr>';
 		}
 		echo '</tbody></table></div>';
 	}
@@ -250,6 +427,15 @@ class VHCC_Admin {
 			} elseif ( 'xoa_o' === $viec ) {
 				$bao[] = VHCC_Lich::xoa_o_lich( $u, wp_unslash( $_POST['coso'] ),
 					wp_unslash( $_POST['ngay'] ), wp_unslash( $_POST['ma_nv'] ), wp_unslash( $_POST['ca'] ) );
+			} elseif ( 'ca' === $viec ) {
+				$bao[] = VHCC_Lich::dat_ca( $u, preg_split( '/[\r\n,;]+/',
+					(string) wp_unslash( $_POST['ds'] ), -1, PREG_SPLIT_NO_EMPTY ) );
+			} elseif ( 'loai_viec' === $viec ) {
+				$bao[] = VHCC_Lich::dat_loai_viec( $u, preg_split( '/[\r\n,;]+/',
+					(string) wp_unslash( $_POST['ds'] ), -1, PREG_SPLIT_NO_EMPTY ) );
+			} elseif ( 'cs_bat' === $viec ) {
+				$bao[] = VHCC_Lich::dat_coso_bat_lich( $u,
+					isset( $_POST['cs'] ) ? (array) wp_unslash( $_POST['cs'] ) : array() );
 			}
 		}
 
@@ -343,7 +529,38 @@ class VHCC_Admin {
 			echo wp_nonce_field( 'vhcc_lich', '_wpnonce', true, false );
 			echo '<button class="button button-link-delete">Xoá</button></form></td></tr>';
 		}
-		echo '</tbody></table></div>';
+		echo '</tbody></table>';
+
+		/* ---- Cấu hình lịch ---- */
+		$cf = VHCC_Lich::cau_hinh( $u );
+		echo '<h2>Cấu hình lịch</h2>';
+		echo '<div style="display:flex;gap:24px;flex-wrap:wrap">';
+		echo '<form method="post"><input type="hidden" name="vhcc_lich" value="ca" />';
+		wp_nonce_field( 'vhcc_lich' );
+		echo '<h3>Danh sách ca</h3><p><textarea name="ds" rows="4" cols="26">'
+			. esc_textarea( implode( "\n", (array) $cf['ca'] ) ) . '</textarea></p>';
+		echo '<p><button class="button">Lưu ca</button></p>'
+			. '<p style="max-width:340px"><em>⚠️ Đổi TÊN một ca KHÔNG đổi tên trong những ô lịch đã '
+			. 'xếp — <code>ca</code> là một phần khoá của ô lịch. Hệ thống sẽ báo ra số ô đang dùng '
+			. 'tên vừa bị bỏ, chứ không để im.</em></p></form>';
+		echo '<form method="post"><input type="hidden" name="vhcc_lich" value="loai_viec" />';
+		wp_nonce_field( 'vhcc_lich' );
+		echo '<h3>Loại công việc</h3><p><textarea name="ds" rows="4" cols="26">'
+			. esc_textarea( implode( "\n", (array) $cf['loaiViec'] ) ) . '</textarea></p>';
+		echo '<p><button class="button">Lưu loại việc</button></p></form>';
+		echo '<form method="post"><input type="hidden" name="vhcc_lich" value="cs_bat" />';
+		wp_nonce_field( 'vhcc_lich' );
+		echo '<h3>Cơ sở bật phân lịch</h3>';
+		foreach ( VHCC_NhanSu::ds_coso() as $x ) {
+			echo '<label style="display:block"><input type="checkbox" name="cs[]" value="'
+				. esc_attr( $x ) . '"' . ( in_array( $x, (array) $cf['coSoBatLich'], true ) ? ' checked' : '' )
+				. ' /> ' . esc_html( $x ) . '</label>';
+		}
+		echo '<p><button class="button">Lưu</button></p>'
+			. '<p style="max-width:340px"><em>Tắt lịch của một cơ sở <strong>không xoá</strong> ô lịch '
+			. 'nào đã xếp — chỉ ẩn màn xếp lịch. Xoá là mất lịch những ngày sắp tới, mà bật lại thì '
+			. 'không dựng lại được.</em></p></form>';
+		echo '</div></div>';
 	}
 
 	/**
