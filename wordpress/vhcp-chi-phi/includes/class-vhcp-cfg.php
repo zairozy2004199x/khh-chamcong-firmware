@@ -433,6 +433,22 @@ class VHCP_Cfg {
 			self::write( self::QR, array( array( 'stk', $g( $q, 'stk' ) ), array( 'bank', $g( $q, 'bank' ) ), array( 'ten', $g( $q, 'ten' ) ) ) );
 		}
 		if ( isset( $cfg['users'] ) && is_array( $cfg['users'] ) ) {
+			// CHỈ ADMIN SỬA ĐƯỢC TÀI KHOẢN ADMIN. Kế toán / Quản lý vào Cấu hình làm mọi
+			// việc khác, nhưng không đổi tên, PIN, vai trò của Admin, cũng không tự phong
+			// mình làm Admin. Giữ nguyên các dòng Admin đang có, bỏ mọi dòng Admin gửi lên.
+			if ( VHCP_Auth::vai_tro() !== '' && VHCP_Auth::vai_tro() !== 'Admin' ) {
+				$admin_cu = array();
+				foreach ( self::get_users() as $u0 ) {
+					if ( (string) $u0['vaiTro'] === 'Admin' ) { $admin_cu[] = $u0; }
+				}
+				$con_lai = array();
+				foreach ( $cfg['users'] as $x0 ) {
+					$x0 = (array) $x0;
+					if ( ( isset( $x0['vaiTro'] ) ? (string) $x0['vaiTro'] : '' ) === 'Admin' ) { continue; }
+					$con_lai[] = $x0;
+				}
+				$cfg['users'] = array_merge( $admin_cu, $con_lai );
+			}
 			$rows = array();
 			foreach ( $cfg['users'] as $x ) {
 				$x = (array) $x;
@@ -1033,6 +1049,49 @@ class VHCP_Cfg {
 			self::clear_cache();
 		}
 		return $them;
+	}
+
+	/** Loại này đã được khai mã ở BẤT KỲ mảng nào trong ma trận chưa? */
+	private static function loai_co_ma_trong_mx( $loai ) {
+		$s = self::cfg_static();
+		$k = mb_strtolower( trim( (string) $loai ) );
+		if ( $k === '' || ! isset( $s['tkNoMx'][ $k ] ) ) { return false; }
+		foreach ( (array) $s['tkNoMx'][ $k ] as $ds ) {
+			foreach ( (array) $ds as $ma ) { if ( trim( (string) $ma ) !== '' ) { return true; } }
+		}
+		return false;
+	}
+
+	/**
+	 * DỌN CÁC LOẠI CHI PHÍ DO LÚC NẠP TỰ SINH RA MÀ VẪN CHƯA KHAI MÃ.
+	 *
+	 * Nạp dữ liệu cũ thì mỗi tên hạng mục lạ đều được thêm vào danh mục để còn khai mã
+	 * được cho nó. Phần lớn không phải loại chi phí ("Nguyễn Hữu Thọ, Nguyễn Bá Tuấn",
+	 * "Cấp Mạng VNPT") nên danh mục phình ra vài trăm dòng rác.
+	 *
+	 * Chỉ xóa dòng CÒN nguyên dấu "(nạp từ dữ liệu cũ)" VÀ chưa có mã nào — đã khai mã
+	 * (cố định hay theo ma trận) nghĩa là kế toán đã nhận nó là loại thật, giữ lại.
+	 *
+	 * @return array [ 'xoa' => số dòng đã xóa, 'giu' => số dòng giữ lại, 'ten' => tên đã xóa ]
+	 */
+	public static function xoa_loai_tu_tao() {
+		$rows = array(); $xoa = array(); $giu = 0;
+		foreach ( self::read( self::LOAI ) as $r ) {
+			$row = array_slice( array_values( (array) $r ), 0, 8 );
+			for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
+			$ten = trim( (string) $row[0] );
+			if ( $ten === '' ) { continue; }
+			$tu_tao = ( mb_strpos( (string) $row[5], 'nạp từ dữ liệu cũ' ) !== false );
+			$co_ma  = ( trim( (string) $row[1] ) !== '' ) || self::loai_co_ma_trong_mx( $ten );
+			if ( $tu_tao && ! $co_ma ) { $xoa[] = $ten; continue; }
+			$rows[] = $row;
+			$giu++;
+		}
+		if ( count( $xoa ) ) {
+			self::write( self::LOAI, $rows );
+			self::clear_cache();
+		}
+		return array( 'xoa' => count( $xoa ), 'giu' => $giu, 'ten' => array_slice( $xoa, 0, 40 ) );
 	}
 
 	/** Tên dùng cho diễn giải MISA của 1 loại chi phí (để trống = dùng chính tên loại). */

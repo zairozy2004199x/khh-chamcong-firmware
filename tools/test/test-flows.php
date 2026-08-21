@@ -63,10 +63,13 @@ teq( 'tiền thuế dòng NCC = 24.000', 24000, $g['lines'][2]['tienThue'] );
 teq( 'ngày dòng hiện dd/MM/yyyy', $today, $g['lines'][0]['ngay'] );
 t( 'thực mua để trống', $g['lines'][0]['thucMua'] === '' );
 
-// dự phòng + bù trừ khi còn Nháp
+// dự phòng khi còn Nháp. BÙ TRỪ do hệ thống tính từ kỳ trước: số gửi lên bị BỎ QUA,
+// nếu không thì nhân viên gõ số dương là xin nhiều hơn phần đáng được ứng.
 t( 'set dự phòng khi Nháp', ! empty( VHCP_Don::set_tu_extra( $ma, 200000, -100000 )['success'] ) );
 $g = VHCP_Don::get_don( $ma );
-teq( 'tạm ứng cục có dự phòng + bù trừ', 1900000, $g['tongCN']['tamUng'] );
+teq( 'bù trừ gửi từ giao diện bị bỏ qua', 0, VHCP_Util::num( $g['don']['buTru'] ) );
+t( 'nói rõ vì sao bằng 0', strpos( (string) $g['don']['buTruAuto']['lyDo'], 'chưa có kỳ nào trước' ) !== false, $g['don']['buTruAuto'] );
+teq( 'tạm ứng cục = hạng mục + dự phòng', 2000000, $g['tongCN']['tamUng'] );
 
 // quy trình
 t( 'gửi duyệt tạm ứng', ! empty( VHCP_Don::gui_duyet_tam_ung( $ma )['success'] ) );
@@ -91,8 +94,8 @@ VHCP_Don::set_line_thuc_mua( $l3['id'], 300000, 'Nguyễn Văn A' );
 VHCP_Don::set_line_thuc_mua( $l4['id'], 50000, 'Nguyễn Văn A' );
 $g = VHCP_Don::get_don( $ma );
 teq( 'đã chi cá nhân sau thực chi', 1500000, $g['tongCN']['thucChi'] );   // 1.150.000 + 300.000 + 50.000
-teq( 'tạm ứng cục giữ nguyên', 1900000, $g['tongCN']['tamUng'] );
-teq( 'chênh lệch = thừa 400.000', 400000, $g['tongCN']['chenhLech'] );
+teq( 'tạm ứng cục giữ nguyên', 2000000, $g['tongCN']['tamUng'] );
+teq( 'chênh lệch = thừa 500.000', 500000, $g['tongCN']['chenhLech'] );
 
 t( 'gửi quyết toán', ! empty( VHCP_Don::gui_quyet_toan( $ma )['success'] ) );
 $before = VHCP_Don::don_row( $ma )['ghi_chu'];
@@ -100,13 +103,13 @@ VHCP_Don::set_line_thuc_mua( $l1['id'], 1100000, 'Lê Kế Toán' );
 t( 'kế toán sửa số khi Chờ quyết toán -> gắn cờ [KT sửa]', strpos( VHCP_Don::don_row( $ma )['ghi_chu'], '[KT sửa]' ) !== false, VHCP_Don::don_row( $ma )['ghi_chu'] );
 
 $g = VHCP_Don::get_don( $ma );
-teq( 'chênh lệch sau khi KT sửa', 450000, $g['tongCN']['chenhLech'] );
+teq( 'chênh lệch sau khi KT sửa', 550000, $g['tongCN']['chenhLech'] );
 $b = VHCP_Don::xac_nhan_qt_cn_nhieu( array( $ma ), 'Lê Kế Toán' );
 t( 'duyệt quyết toán theo lô', ! empty( $b['success'] ) && $b['done'] === 1, $b );
 $row = VHCP_Don::don_row( $ma );
 teq( 'trạng thái sau quyết toán', 'Đã quyết toán', $row['trang_thai'] );
 teq( 'xử lý = NV trả lại', 'NV trả lại', $row['xu_ly'] );
-teq( 'chênh lệch lưu vào đơn', 450000, (float) $row['chenh_lech_qt'] );
+teq( 'chênh lệch lưu vào đơn', 550000, (float) $row['chenh_lech_qt'] );
 
 // danh sách đơn
 $dons = VHCP_Don::list_dons();
@@ -114,6 +117,29 @@ teq( 'danh sách có 1 đơn', 1, count( $dons ) );
 teq( 'cơ sở gom trên danh sách', 'FARM PHAN THIẾT, TÀU TÂN PHÚ', $dons[0]['coso'] );
 teq( 'thực chi cá nhân trên danh sách', 1450000, $dons[0]['thucChiCN'] );
 teq( 'thực chi NCC trên danh sách', 300000, $dons[0]['thucChiNCC'] );
+
+// BÙ TRỪ LUÂN CHUYỂN: kỳ này tự lấy phần dư/thiếu của kỳ TRƯỚC của CHÍNH người đó.
+// Đơn trên: tạm ứng 2.000.000 − thực chi cá nhân 1.450.000 = DƯ 550.000 -> kỳ sau trừ đi.
+$d2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$ma2 = $d2['maDon'];
+$g2  = VHCP_Don::get_don( $ma2 );
+teq( 'kỳ trước DƯ thì kỳ này trừ đi', -550000, VHCP_Util::num( $g2['don']['buTru'] ) );
+teq( 'chỉ ra đúng đơn kỳ trước', $ma, (string) $g2['don']['buTruAuto']['donTruoc'] );
+t( 'ghi rõ lý do là còn DƯ', strpos( (string) $g2['don']['buTruAuto']['lyDo'], 'DƯ' ) !== false, $g2['don']['buTruAuto']['lyDo'] );
+teq( 'số ghi thẳng vào đơn, không chờ giao diện', -550000, (float) VHCP_Don::don_row( $ma2 )['bu_tru'] );
+
+// Người khác thì không ăn theo bù trừ của người này
+$d3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Mới Toanh' );
+teq( 'người khác không bị bù trừ của người này', 0, VHCP_Util::num( VHCP_Don::get_don( $d3['maDon'] )['don']['buTru'] ) );
+
+// Kỳ trước đã TẤT TOÁN = đã thu/bù xong bằng tiền -> không còn gì luân chuyển
+t( 'đánh dấu tất toán kỳ trước', ! empty( VHCP_Don::set_tat_toan_tuan( $ma, true, 'Lê Kế Toán' )['success'] ) );
+$g2b = VHCP_Don::get_don( $ma2 );
+teq( 'tất toán rồi thì bù trừ về 0', 0, VHCP_Util::num( $g2b['don']['buTru'] ) );
+t( 'và nói rõ vì sao', strpos( (string) $g2b['don']['buTruAuto']['lyDo'], 'tất toán' ) !== false, $g2b['don']['buTruAuto']['lyDo'] );
+VHCP_Don::set_tat_toan_tuan( $ma, false, 'Lê Kế Toán' );
+VHCP_Don::delete_don_admin( $ma2 );
+VHCP_Don::delete_don_admin( $d3['maDon'] );
 
 // gợi ý sản phẩm
 $prod = VHCP_Don::product_suggestions();
@@ -126,7 +152,7 @@ $fr = VHCP_Report::finance( array() );
 teq( 'tổng xin (không tính phát sinh)', 1800000, $fr['totals']['xin'] );
 teq( 'tổng thực tế', 1750000, $fr['totals']['thucTe'] );
 teq( 'dự phòng vào báo cáo', 200000, $fr['totals']['duPhong'] );
-teq( 'bù trừ vào báo cáo', -100000, $fr['totals']['buTru'] );
+teq( 'bù trừ vào báo cáo', 0, $fr['totals']['buTru'] );
 teq( 'số đơn', 1, $fr['totals']['soDon'] );
 $fr2 = VHCP_Report::finance( array( 'coso' => 'TÀU TÂN PHÚ' ) );
 teq( 'lọc theo cơ sở', 300000, $fr2['totals']['thucTe'] );
@@ -572,6 +598,52 @@ $tok_ql = VHCP_Auth::issue_token( 'QL F', 'Quản lý', '', '' );
 
 $a = api( 'getUsers', array(), $tok_nv );
 teq( 'Nhân viên đọc danh sách PIN: 403', 403, $a['status'] );
+
+// KẾ TOÁN vào được Cấu hình (khai mã tài khoản là việc của kế toán) — NHƯNG không sửa
+// được tài khoản Admin. Chặn ở máy chủ, không chỉ khoá ô nhập trên giao diện.
+$tok_kt = VHCP_Auth::issue_token( 'Kế Toán G', 'Kế toán cá nhân', '', '' );
+teq( 'Kế toán mở được Cấu hình', 200, api( 'getUsers', array(), $tok_kt )['status'] );
+teq( 'Kế toán lưu được Cấu hình', 200, api( 'saveConfig', array( array() ), $tok_kt )['status'] );
+VHCP_Cfg::save_config( array( 'users' => array(
+	array( 'ten' => 'Admin', 'pin' => '4321', 'vaiTro' => 'Admin' ),
+	array( 'ten' => 'Kế Toán G', 'pin' => '2468', 'vaiTro' => 'Kế toán cá nhân' ),
+) ) );
+// Kế toán thử đổi PIN của Admin + tự phong mình làm Admin
+api( 'saveConfig', array( array( 'users' => array(
+	array( 'ten' => 'Admin', 'pin' => '9999', 'vaiTro' => 'Admin' ),
+	array( 'ten' => 'Kế Toán G', 'pin' => '2468', 'vaiTro' => 'Kế toán cá nhân' ),
+	array( 'ten' => 'Tự Phong', 'pin' => '7777', 'vaiTro' => 'Admin' ),
+) ) ), $tok_kt );
+$sau = VHCP_Cfg::get_users();
+$ad = null; $tp = null;
+foreach ( $sau as $u ) { if ( $u['ten'] === 'Admin' ) { $ad = $u; } if ( $u['ten'] === 'Tự Phong' ) { $tp = $u; } }
+teq( 'kế toán KHÔNG đổi được PIN của Admin', '4321', $ad ? $ad['pin'] : null );
+t( 'kế toán KHÔNG tự phong mình làm Admin', $tp === null );
+t( 'PIN Admin cũ vẫn đăng nhập được', ! empty( VHCP_Auth::login( '4321' )['ok'] ) );
+t( 'PIN kế toán đặt cho Admin thì không', empty( VHCP_Auth::login( '9999' )['ok'] ) );
+// Admin thì sửa được
+api( 'saveConfig', array( array( 'users' => array(
+	array( 'ten' => 'Admin', 'pin' => '4321', 'vaiTro' => 'Admin' ),
+	array( 'ten' => 'Kế Toán G', 'pin' => '2468', 'vaiTro' => 'Kế toán cá nhân' ),
+	array( 'ten' => 'Người Admin Thêm', 'pin' => '5150', 'vaiTro' => 'Nhân viên' ),
+) ) ), $tok_admin );
+$co_moi = false;
+foreach ( VHCP_Cfg::get_users() as $u ) { if ( $u['ten'] === 'Người Admin Thêm' ) { $co_moi = true; } }
+t( 'Admin vẫn sửa được bảng người dùng', $co_moi );
+
+// DỌN LOẠI CHI PHÍ DO LÚC NẠP TỰ SINH: chưa khai mã thì xóa, đã khai mã thì giữ
+VHCP_Cfg::them_loai_neu_thieu( array( 'Nguyễn Hữu Thọ, Nguyễn Bá Tuấn', 'Cấp Mạng VNPT', 'Nhân Công' ) );
+$co_rac = false;
+foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { if ( $x['ten'] === 'Cấp Mạng VNPT' ) { $co_rac = true; } }
+t( 'nạp xong thì loại tự sinh có trong danh mục', $co_rac );
+$kc = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Nhân Công', 'tkNo' => '64121', 'cosos' => array( 'FUNZONE ADVENTURE' ) ) );
+t( 'khai mã cho loại tự sinh', ! empty( $kc['success'] ), $kc );
+$dl = VHCP_Cfg::xoa_loai_tu_tao();
+t( 'dọn được ít nhất 2 loại rác', (int) $dl['xoa'] >= 2, $dl );
+$ten_sau = array();
+foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $ten_sau[] = $x['ten']; }
+t( 'loại rác đã đi', ! in_array( 'Cấp Mạng VNPT', $ten_sau, true ) );
+t( 'loại đã khai mã thì GIỮ LẠI', in_array( 'Nhân Công', $ten_sau, true ) );
 teq( 'lý do: forbidden', 'forbidden', $a['body']['code'] );
 teq( 'Quản lý đọc được danh sách người dùng', 200, api( 'getUsers', array(), $tok_ql )['status'] );
 teq( 'Nhân viên lưu cấu hình: 403', 403, api( 'saveConfig', array( array() ), $tok_nv )['status'] );

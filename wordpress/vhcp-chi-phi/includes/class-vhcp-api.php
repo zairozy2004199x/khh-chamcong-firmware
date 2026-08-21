@@ -22,9 +22,12 @@ class VHCP_API {
 	 */
 	private static function required_roles( $fn ) {
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
-		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
-		if ( in_array( $fn, $cau_hinh, true ) )   { return array( 'Admin', 'Quản lý' ); }
+		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
+		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
+		// VHCP_Cfg::save_config() theo vai trò người đang gọi.
+		if ( in_array( $fn, $cau_hinh, true ) )   { return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' ); }
 		return array();
 	}
 
@@ -230,6 +233,7 @@ class VHCP_API {
 			'getTaiKhoan'           => array( 'VHCP_Cfg', 'get_tai_khoan' ),
 			'ghepHeThongTk'         => array( 'VHCP_Cfg', 'ghep_he_thong_tk' ),
 			'doMangTuTaiKhoan'      => array( 'VHCP_Cfg', 'do_mang_tu_tk' ),
+			'xoaLoaiTuTao'          => array( 'VHCP_Cfg', 'xoa_loai_tu_tao' ),
 			'khaiChiPhiChoCoSo'     => array( 'VHCP_Cfg', 'khai_cho_coso' ),
 
 			// báo cáo
@@ -263,6 +267,11 @@ class VHCP_API {
 			return new WP_REST_Response( array( 'ok' => false, 'error' => 'Hàm không tồn tại: ' . $fn ), 400 );
 		}
 
+		// Xóa vai trò của lượt gọi TRƯỚC. Biến static sống suốt request, mà hàm công khai
+		// (login) thì không đi qua đoạn xác thực bên dưới — để sót là lượt sau thừa hưởng
+		// vai trò của lượt trước, đúng loại lỗi phân quyền khó thấy nhất.
+		VHCP_Auth::dat_vai_tro( '' );
+
 		if ( ! in_array( $fn, self::$public_fns, true ) ) {
 			$token = (string) $req->get_param( 'token' );
 			if ( $token === '' ) { $token = (string) $req->get_header( 'x_vhcp_token' ); }
@@ -271,9 +280,11 @@ class VHCP_API {
 			if ( ! $user && ! $wp_admin ) {
 				return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phiên đã hết — đăng nhập lại bằng PIN', 'code' => 'no_session' ), 401 );
 			}
+			$role_ht = $user ? (string) $user['role'] : ( $wp_admin ? 'Admin' : '' );
+			VHCP_Auth::dat_vai_tro( $role_ht );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
-				$role = $user ? (string) $user['role'] : ( $wp_admin ? 'Admin' : '' );
+				$role = $role_ht;
 				if ( ! in_array( $role, $need, true ) ) {
 					return new WP_REST_Response( array(
 						'ok'    => false,

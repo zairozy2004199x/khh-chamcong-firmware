@@ -15,6 +15,17 @@ class VHCP_Auth {
 
 	const TTL = 2592000;   // 30 ngày — giao diện nhớ phiên trong sessionStorage/localStorage
 
+	/**
+	 * Vai trò của người đang gọi trong lượt request này.
+	 *
+	 * Bảng hàm gọi thẳng vào VHCP_Cfg::save_config() nên bên đó không biết ai đang lưu.
+	 * Cần biết để chặn người không phải Admin sửa tài khoản Admin — chặn ở MÁY CHỦ, chứ
+	 * khoá ô nhập trên giao diện chỉ là lớp sơn.
+	 */
+	private static $vai_tro = '';
+	public static function dat_vai_tro( $r ) { self::$vai_tro = (string) $r; }
+	public static function vai_tro() { return self::$vai_tro; }
+
 	/** login(pin) */
 	public static function login( $pin ) {
 		$pin = trim( (string) $pin );

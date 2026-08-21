@@ -301,6 +301,12 @@ class VHCP_Don {
 			'buTru'       => VHCP_Util::num( $r['bu_tru'] ),
 		);
 
+		// Bù trừ luân chuyển: tính lại từ kỳ trước mỗi lần mở đơn (còn "Nháp" thì ghi lại),
+		// và trả kèm lý do để giao diện nói rõ số ở đâu ra — ô nhập nay chỉ để xem.
+		$bt_auto = self::chot_bu_tru( $ma_don );
+		if ( (string) $don['trangThai'] === 'Nháp' ) { $don['buTru'] = VHCP_Util::num( $bt_auto['so'] ); }
+		$don['buTruAuto'] = $bt_auto;
+
 		global $wpdb;
 		$tt = VHCP_DB::t( 'tamung' );
 		$tam_ung = array(); $has_tu_rows = false;
@@ -416,12 +422,86 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * BÙ TRỪ LUÂN CHUYỂN KỲ TRƯỚC — HỆ THỐNG TỰ TÍNH, nhân viên không nhập.
+	 *
+	 * Kỳ trước của CHÍNH người đó còn dư tiền thì kỳ này trừ đi, còn thiếu thì kỳ này bù
+	 * thêm. Để nhân viên tự gõ số này là mở đường cho cả sai sót lẫn gian: gõ dương thêm
+	 * là xin nhiều hơn phần đáng được ứng.
+	 *
+	 * chenhLech của đơn = tạm ứng − thực chi cá nhân: DƯƠNG là DƯ, ÂM là THIẾU. Bù trừ
+	 * mang dấu ngược lại: dư thì trừ (âm), thiếu thì bù (dương).
+	 *
+	 * Kỳ trước đã đánh dấu TẤT TOÁN nghĩa là đã thu/bù xong bằng tiền với kế toán, không
+	 * còn gì luân chuyển — về 0, không thì cộng hai lần.
+	 *
+	 * @return array [ 'so', 'donTruoc', 'kyTruoc', 'chenhTruoc', 'lyDo' ]
+	 */
+	public static function bu_tru_tu_dong( $ma_don, $ds = null ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return array( 'so' => 0, 'lyDo' => 'không thấy đơn' ); }
+		$nguoi = trim( (string) $d['nguoi_lap'] );
+		if ( $nguoi === '' ) { return array( 'so' => 0, 'lyDo' => 'đơn chưa ghi người lập nên chưa dò được kỳ trước' ); }
+
+		if ( $ds === null ) { $ds = self::list_dons(); }
+		// list_dons() trả MỚI NHẤT TRƯỚC, nên phần tử phía sau là đơn cũ hơn.
+		$vi = -1;
+		foreach ( $ds as $i => $x ) { if ( (string) $x['maDon'] === (string) $ma_don ) { $vi = $i; break; } }
+		if ( $vi < 0 ) { return array( 'so' => 0, 'lyDo' => 'không thấy đơn trong danh sách' ); }
+
+		$truoc = null;
+		$n = count( $ds );
+		for ( $i = $vi + 1; $i < $n; $i++ ) {
+			if ( trim( (string) $ds[ $i ]['nguoiLap'] ) === $nguoi ) { $truoc = $ds[ $i ]; break; }
+		}
+		if ( ! $truoc ) { return array( 'so' => 0, 'lyDo' => 'chưa có kỳ nào trước đó của ' . $nguoi ); }
+
+		$ky = (string) $truoc['ky'];
+		if ( ! empty( $truoc['tatToan'] ) ) {
+			return array(
+				'so'       => 0,
+				'donTruoc' => (string) $truoc['maDon'],
+				'kyTruoc'  => $ky,
+				'lyDo'     => 'kỳ trước (' . $ky . ') đã tất toán xong với kế toán — không còn gì luân chuyển',
+			);
+		}
+
+		$chenh = VHCP_Util::num( $truoc['chenhLech'] );
+		$so    = -$chenh;
+		if ( $so > 0 )      { $ly = 'kỳ trước (' . $ky . ') THIẾU ' . VHCP_Util::tien( $so ) . ' → kỳ này bù thêm'; }
+		elseif ( $so < 0 )  { $ly = 'kỳ trước (' . $ky . ') còn DƯ ' . VHCP_Util::tien( -$so ) . ' → kỳ này trừ đi'; }
+		else                { $ly = 'kỳ trước (' . $ky . ') vừa khớp — không phải bù trừ'; }
+
+		return array(
+			'so'         => $so,
+			'donTruoc'   => (string) $truoc['maDon'],
+			'kyTruoc'    => $ky,
+			'chenhTruoc' => $chenh,
+			'lyDo'       => $ly,
+		);
+	}
+
+	/** Ghi lại bù trừ tự tính (chỉ khi đơn còn ở "Nháp" — gửi duyệt rồi thì chốt số). */
+	private static function chot_bu_tru( $ma_don, $ds = null ) {
+		$bt = self::bu_tru_tu_dong( $ma_don, $ds );
+		$d  = self::don_row( $ma_don );
+		if ( ! $d ) { return $bt; }
+		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return $bt; }
+		if ( VHCP_Util::num( $d['bu_tru'] ) !== VHCP_Util::num( $bt['so'] ) ) {
+			self::upd_don( $ma_don, array( 'bu_tru' => VHCP_Util::num( $bt['so'] ) ) );
+		}
+		return $bt;
+	}
+
 	public static function set_tu_extra( $ma_don, $du_phong, $bu_tru ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return VHCP_Util::err( 'Chỉ sửa khi đơn ở "Nháp"' ); }
-		self::upd_don( $ma_don, array( 'du_phong' => VHCP_Util::num( $du_phong ), 'bu_tru' => VHCP_Util::num( $bu_tru ) ) );
-		return VHCP_Util::ok();
+		// $bu_tru gửi lên bị BỎ QUA: số này do hệ thống tính từ kỳ trước, không nhận từ
+		// giao diện. Chặn ở máy chủ chứ không chỉ khoá ô nhập — khoá ô chỉ là lớp sơn.
+		self::upd_don( $ma_don, array( 'du_phong' => VHCP_Util::num( $du_phong ) ) );
+		self::chot_bu_tru( $ma_don );
+		return VHCP_Util::ok( array( 'buTru' => VHCP_Util::num( self::don_row( $ma_don )['bu_tru'] ) ) );
 	}
 
 	// ---------------------------------------------------------------- dòng chi phí
@@ -651,6 +731,8 @@ class VHCP_Don {
 		$dp = VHCP_Util::num( $d['du_phong'] );
 		if ( ! $n && ! ( $dp > 0 ) ) { return VHCP_Util::err( 'Chưa nhập hạng mục nào và cũng chưa nhập tạm ứng dự phòng' ); }
 		self::clear_tra_marker( $ma_don );
+		// Chốt bù trừ theo đúng thời điểm gửi duyệt, trước khi đơn rời trạng thái "Nháp"
+		self::chot_bu_tru( $ma_don );
 		self::upd_don( $ma_don, array( 'trang_thai' => 'Chờ duyệt tạm ứng' ) );
 		return VHCP_Util::ok();
 	}

@@ -68,12 +68,21 @@
 	 * kích hoạt preflight, và không đặt header lạ vì tường lửa hay soi header.
 	 */
 	function guiTrang( fn, args, tok ) {
-		var fd = new FormData();
-		fd.append( 'fn', fn );
-		fd.append( 'args', JSON.stringify( args || [] ) );
-		fd.append( 'token', tok );
-		return fetch( CFG.trang, { method: 'POST', credentials: 'same-origin', body: fd } );
+		// Gửi dạng x-www-form-urlencoded (không phải multipart): tường lửa hosting soi
+		// multipart chặt hơn nhiều, mà đây là đường dự phòng cuối nên phải càng thường
+		// càng tốt — giống y một form HTML bình thường.
+		var b = 'fn=' + encodeURIComponent( fn )
+			+ '&args=' + encodeURIComponent( JSON.stringify( args || [] ) )
+			+ '&token=' + encodeURIComponent( tok );
+		return fetch( CFG.trang, {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+			body: b
+		} );
 	}
+
+	var TEN_DUONG = { rest: '/wp-json/', ajax: 'admin-ajax.php', trang: 'URL app' };
 
 	function boGui( d ) {
 		if ( d === 'ajax' && CFG.ajax ) { return guiAjax; }
@@ -112,12 +121,25 @@
 		}
 
 		// Bị chặn thì tự lần lượt đổi đường: /wp-json/ -> admin-ajax.php -> URL của app.
+		// Ghi lại TỪNG đường thất bại thế nào: chặn ở đâu, mã bao nhiêu, trả về gì. Gộp
+		// thành một câu "chặn cả 3 đường" thì không biết đường nào hỏng vì lý do gì —
+		// 403 của tường lửa và 200-trả-HTML (cổng không chạy) là hai bệnh khác nhau.
+		var vet = [];
+		function ghiVet( d, r ) {
+			var loai = ( r.status === 0 ) ? 'không tới được máy chủ'
+				: ( r.status === 403 || r.status === 401 ) ? 'bị chặn'
+				: ( r.status === 404 ) ? 'không có đường này'
+				: ( r.status === 405 ) ? 'không cho POST'
+				: ( ! r.json ) ? 'trả về không phải JSON' : 'lỗi';
+			vet.push( TEN_DUONG[ d ] + ': ' + r.status + ' ' + loai );
+		}
 		function thu( d ) {
 			return boGui( d )( fn, args, tok ).then( docKetQua ).then( function ( r ) {
 				if ( ! biChan( r ) ) {
 					if ( d !== duong ) { nhoDuong( d ); }
 					return r;
 				}
+				ghiVet( d, r );
 				var ke = duongKe( d );
 				if ( ke ) { return thu( ke ); }
 				return r;
@@ -139,11 +161,12 @@
 				var msg = ( j && j.error ) ? j.error : ( 'Lỗi máy chủ (' + r.status + ')' );
 				if ( ! j ) {
 					// Không phải JSON: gần như chắc chắn bị hosting hoặc plugin bảo mật chặn.
-					// Đã thử hết 3 đường (wp-json, admin-ajax, URL app) nên báo rõ để còn xử.
-					var dau = String( r.raw || '' ).replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim().slice( 0, 120 );
-					msg = 'Máy chủ chặn cả 3 đường gọi (' + r.status + ')' + ( dau ? ' — ' + dau : '' )
-						+ ' · Tường lửa (Cloudflare / bảo mật hosting) đang chặn. Tắt "Bot Fight Mode" /'
-						+ ' chế độ Under Attack, hoặc cho qua đường dẫn /wp-json/ và admin-ajax.php.';
+					// In VẾT của từng đường + vài chữ đầu máy chủ trả về, để biết chữa ở đâu.
+					var dau = String( r.raw || '' ).replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim().slice( 0, 110 );
+					msg = 'Không gọi được máy chủ. Đã thử: ' + vet.join( ' · ' )
+						+ ( dau ? ' — máy chủ trả về: "' + dau + '"' : '' )
+						+ ' · Mở thử ' + ( CFG.trang || '' ) + ' trên trình duyệt: ra {"ok":true} là cổng còn sống,'
+						+ ' ra trang app là cổng chưa chạy (cần cập nhật plugin).';
 				}
 				if ( onErr ) { onErr( { message: msg } ); }
 				return;

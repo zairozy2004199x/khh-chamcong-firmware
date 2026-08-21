@@ -437,6 +437,53 @@ Người dùng vẫn thấy PIN nằm đó nên không ai nghĩ là lỗi. Nay a
 **đọc** (dòng đã nạp lệch tự về đúng, khỏi sửa tay) và khi **lưu**. Số thập phân thật
 (`1.5`) không bị cắt.
 
+### Bù trừ luân chuyển kỳ trước: hệ thống tự tính (bản 1.7.0)
+
+Nhân viên **không nhập** ô này nữa. App tự lấy phần dư / thiếu của **kỳ trước của chính
+người đó**: kỳ trước còn **dư** thì kỳ này **trừ đi**, kỳ trước **thiếu** thì kỳ này **bù
+thêm**. Ô nhập thành ô chỉ để xem, kèm một dòng nói rõ số ở đâu ra
+(*"kỳ trước (T8/2026 17/8-23/8) còn DƯ 550.000đ → kỳ này trừ đi"*).
+
+Kỳ trước đã đánh dấu **tất toán** (đã thu/bù xong bằng tiền với kế toán) thì bù trừ về 0 —
+không thì cộng hai lần. Số được chốt lại đúng lúc bấm **Gửi kế toán duyệt**.
+
+Máy chủ **bỏ qua** số bù trừ do giao diện gửi lên, không chỉ khoá ô nhập: khoá ô chỉ là lớp
+sơn, ai cũng sửa được bằng công cụ của trình duyệt.
+
+### Kế toán vào được Cấu hình (bản 1.7.0)
+
+Khai mã tài khoản, tên MISA, mã đơn vị là việc của kế toán, nên vai trò **Kế toán cá nhân**
+và **Kế toán NCC** nay thấy tab ⚙️ Cấu hình và làm được mọi việc trong đó — **trừ tài khoản
+Admin**: dòng Admin hiện ra nhưng bị khoá 🔒, và máy chủ chặn lần nữa (không đổi được tên,
+PIN, vai trò của Admin, cũng không tự phong mình làm Admin).
+
+### Ô "NV thanh toán" mặc định là chính nhân viên đó
+
+Với vai trò **Nhân viên**, ô *Đối tượng — NV thanh toán* điền sẵn tên họ và gợi ý **chỉ có
+tên họ** — không liệt kê tên nhân viên khác, vì chọn lộn là tiền vào tay người khác. Vẫn gõ
+tay được tên khác khi thật sự có thay đổi. Kế toán / Quản lý vẫn thấy đủ danh sách vì họ
+nhập hộ nhiều người.
+
+### Dọn loại chi phí rác sau khi nạp dữ liệu cũ
+
+Lúc nạp, mỗi tên hạng mục lạ đều được thêm vào danh mục loại chi phí để còn khai mã được.
+Phần lớn **không phải loại chi phí** (*"Nguyễn Hữu Thọ, Nguyễn Bá Tuấn"*, *"Cấp Mạng
+VNPT"*, *"Vật tư và tiếp khách từ 18-26/7"*) nên ô chọn lúc nhập phình ra vài trăm dòng.
+
+Nay ô chọn lúc nhập **chỉ hiện loại đã khai mã trong Cấu hình** — loại tự sinh chưa khai mã
+bị ẩn khỏi ô chọn nhưng vẫn nằm trong bảng ma trận để kế toán khai mã cho nó. Muốn dọn hẳn:
+**⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh → 🧹 Dọn loại tự sinh**. Loại **đã khai
+mã** thì giữ lại; dòng chi phí cũ không bị ảnh hưởng.
+
+### Lỗi 403 báo rõ từng đường gọi
+
+Thông báo lỗi nay ghi từng đường thử và thất bại thế nào (*"/wp-json/: 403 bị chặn ·
+admin-ajax.php: 403 bị chặn · URL app: 200 trả về không phải JSON"*) kèm vài chữ đầu máy
+chủ trả về. **Cách tự kiểm nhanh**: mở `…/chi-phi/?vhcp_api=1` trên trình duyệt —
+ra `{"ok":true}` là cổng còn sống (lỗi nằm ở POST / tường lửa), ra trang app là cổng chưa
+chạy (plugin chưa cập nhật). Đường dự phòng cuối nay gửi dạng form thường
+(`x-www-form-urlencoded`) chứ không phải multipart, vì tường lửa soi multipart chặt hơn.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

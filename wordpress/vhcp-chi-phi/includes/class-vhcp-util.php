@@ -136,6 +136,11 @@ class VHCP_Util {
 	 *
 	 * Chỉ cắt khi phần thập phân toàn số 0 — "1.5" là số thật, không được cắt.
 	 */
+	/** Số tiền kiểu Việt Nam để ghép vào câu thông báo: 1234567 -> "1.234.567đ". */
+	public static function tien( $v ) {
+		return number_format( (float) self::num( $v ), 0, ',', '.' ) . 'đ';
+	}
+
 	public static function ma_so( $v ) {
 		$s = trim( (string) $v );
 		if ( $s === '' ) { return ''; }
