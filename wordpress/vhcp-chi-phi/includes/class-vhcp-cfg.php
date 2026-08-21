@@ -551,6 +551,28 @@ class VHCP_Cfg {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * ĐẶT LẠI PHÂN QUYỀN VỀ MẶC ĐỊNH.
+	 *
+	 * Bảng CH_Quyen nạp từ bảng tính cũ có thể lệch cột hoặc thiếu hành động mới, nên một
+	 * vai trò mất quyền mà không ai biết — biểu hiện là "nhập xong không thấy nút gửi".
+	 * Bấm một nút để về mặc định rồi tinh chỉnh lại, khỏi tích tay cả ma trận.
+	 *
+	 * @return array [ 'soHanhDong' => số hành động đã đặt lại ]
+	 */
+	public static function reset_quyen() {
+		$roles = self::roles();
+		$rows  = array();
+		foreach ( self::actions() as $a ) {
+			$row = array( $a['key'], $a['ten'] );
+			foreach ( $roles as $role ) { $row[] = ! empty( $a['def'][ $role ] ) ? 1 : 0; }
+			$rows[] = $row;
+		}
+		self::write( self::QUYEN, $rows, false );
+		self::clear_cache();
+		return VHCP_Util::ok( array( 'soHanhDong' => count( $rows ) ) );
+	}
+
 	// ---------------------------------------------------------------- người dùng
 
 	/**

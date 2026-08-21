@@ -9,10 +9,15 @@
   #daOpenSheet,#bpOpenSheet{display:none !important}
   *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
   body{background:#f1f5f9;color:#0f172a;font-size:13px}
-  .top{background:#0f766e;color:#fff;padding:14px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+  /* CANH THẲNG HÀNG VỚI NỘI DUNG.
+     Thanh xanh trên cùng và các thanh trắng chạy hết bề rộng màn hình, còn thẻ nội dung
+     thì canh giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề trái mà thẻ
+     bên dưới lại thụt vào giữa, nhìn như lệch trang. Đệm hai bên của thanh được tính cho
+     bằng đúng lề của khối nội dung. */
+  .top{background:#0f766e;color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
   .top h1{font-size:18px;display:flex;align-items:center;gap:8px}
   .top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
-  .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   select,input,textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
   select:focus,input:focus,textarea:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
   .btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
@@ -93,7 +98,10 @@
     .btn{padding:8px 11px;font-size:12.5px}
   }
   /* Màn rất rộng: cho bảng dùng hết chỗ, khỏi phải trượt ngang vô ích */
-  @media(min-width:1700px){ .wrap{max-width:1800px} }
+  @media(min-width:1700px){
+    .wrap{max-width:1800px}
+    .top,.bar{padding-left:max(22px, calc((100% - 1800px) / 2));padding-right:max(22px, calc((100% - 1800px) / 2))}
+  }
 </style>
 </head>
 <body>
@@ -896,7 +904,7 @@
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Dời ảnh cũ đang nằm ở thư mục gốc <b>AnhChiPhi_VanHanh</b> về đúng cây <b>Cơ sở / Người tạo đơn</b> (dựa theo mã đơn trong tên file). Bấm nhiều lần đến khi "đã dời = 0". Ảnh không suy được đơn sẽ được giữ nguyên.<div id="imgMaintMsg" style="margin-top:6px;color:#475569;font-size:12px"></div></div>
     </div>
     <div class="card" id="quyenCard">
-      <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div>
+      <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doResetQuyen()" title="Đặt lại toàn bộ ma trận về mặc định. Dùng khi nạp bảng CH_Quyen cũ bị lệch cột làm một vai trò mất quyền (biểu hiện: nhập xong không thấy nút gửi).">↺ Đặt lại mặc định</button><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div></div>
       <div class="tw"><table style="min-width:640px"><thead id="quyenHead"></thead><tbody id="quyenBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
     </div>
@@ -1413,11 +1421,21 @@
       else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ nhan='📤 Gửi hóa đơn cho kế toán'; tay=guiQT; goi='Nhập đủ số thực mua + ảnh chứng từ rồi bấm gửi.'; }
       if(nhan){ btn.style.display='inline-block'; btn.textContent=nhan; btn.onclick=tay; }
       else { btn.style.display='none'; btn.onclick=null; }
-      // Nhắc lại nút đó ở cuối bảng dòng đã nhập
+      // KHÔNG CÓ NÚT THÌ PHẢI NÓI VÌ SAO.
+      // Trước đây không đủ điều kiện là khối này ẩn luôn — người dùng nhập xong, không thấy
+      // nút nào, không biết đơn đã gửi rồi hay vai trò mình không được gửi hay còn thiếu gì.
+      // Nay luôn hiện: có nút thì nút, không thì đúng một câu nói rõ đang vướng ở đâu.
       var bd=el('btnActionDuoi'), hd=el('donActionDuoi');
       if(bd&&hd){
-        if(nhan){ hd.style.display='flex'; bd.textContent=nhan; bd.onclick=tay; if(el('donActionDuoiHint')) el('donActionDuoiHint').textContent=goi; }
-        else { hd.style.display='none'; bd.onclick=null; }
+        hd.style.display='flex';
+        if(nhan){
+          bd.style.display='inline-block'; bd.textContent=nhan; bd.onclick=tay;
+          if(el('donActionDuoiHint')){ el('donActionDuoiHint').innerHTML=esc(goi); el('donActionDuoiHint').style.color='#64748b'; }
+        } else {
+          bd.style.display='none'; bd.onclick=null;
+          var ly=_viSaoKhongGui(st);
+          if(el('donActionDuoiHint')){ el('donActionDuoiHint').innerHTML=ly.html; el('donActionDuoiHint').style.color=ly.mau; }
+        }
       }
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
@@ -2997,6 +3015,35 @@
     });
     return n;
   }
+  /**
+   * Vì sao đơn này chưa có nút gửi? Trả về câu nói rõ đang vướng ở đâu và chữa thế nào.
+   * Trạng thái đơn thì nằm ở badge trên đầu trang — người nhập ở giữa trang không thấy.
+   */
+  /** Đặt lại ma trận phân quyền về mặc định (bảng CH_Quyen cũ nạp vào có thể lệch cột). */
+  function doResetQuyen(){
+    if(!confirm('Đặt lại TOÀN BỘ phân quyền về mặc định?\n\nDùng khi một vai trò bị mất quyền do bảng phân quyền cũ nạp vào bị lệch cột. Sau đó vẫn tinh chỉnh lại được.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r&&r.success){ toast('ok','Đã đặt lại '+(r.soHanhDong||0)+' hành động về mặc định'); loadCfg(); boot(); }
+      else toast('err',(r&&r.error)||'Không đặt lại được');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).resetQuyen();
+  }
+  function _viSaoKhongGui(st){
+    var vt=(CURUSER&&CURUSER.role)||'—';
+    if(st==='Nháp'){
+      // Ở Nháp mà không có nút = vai trò không có quyền "Sửa số tạm ứng (lúc Nháp)"
+      return { mau:'#b91c1c', html:'⚠️ Vai trò <b>'+esc(vt)+'</b> chưa được phép gửi duyệt tạm ứng.'
+        +' Bật quyền <b>“Sửa số tạm ứng (lúc Nháp)”</b> cho vai trò này ở ⚙️ <b>Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.' };
+    }
+    if(st==='Chờ duyệt tạm ứng') return { mau:'#0f766e', html:'✔ <b>Đã gửi rồi</b> — đơn đang chờ quản lý / kế toán <b>duyệt tạm ứng</b>. Không cần bấm gì thêm.' };
+    if(st==='Chờ cấp tạm ứng')   return { mau:'#0f766e', html:'✔ <b>Đã được duyệt</b> — đang chờ kế toán <b>chuyển tiền tạm ứng</b>.' };
+    if(st==='Đã cấp tạm ứng')    return { mau:'#b91c1c', html:'⚠️ Đã nhận tạm ứng. Bước kế tiếp là gửi hóa đơn cho kế toán, nhưng vai trò <b>'+esc(vt)+'</b> chưa có quyền <b>“Gửi quyết toán”</b> — bật ở ⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa.' };
+    if(st==='Chờ quyết toán')    return { mau:'#0f766e', html:'✔ <b>Đã gửi hóa đơn</b> — đang chờ kế toán <b>quyết toán</b>.' };
+    if(st==='Đã quyết toán')     return { mau:'#64748b', html:'🔒 Đơn đã <b>quyết toán xong</b> — chỉ còn chờ xuất MISA.' };
+    if(st==='Đã xuất MISA')      return { mau:'#64748b', html:'🔒 Đơn đã <b>xuất MISA</b> — khóa, không sửa được nữa.' };
+    return { mau:'#64748b', html:'Trạng thái đơn: <b>'+esc(st||'—')+'</b> — bước này không có thao tác nào dành cho vai trò '+esc(vt)+'.' };
+  }
+
   /**
    * MỘT ĐƠN = MỘT CƠ SỞ. Đơn đã có dòng thì chốt cơ sở: ô chọn chỉ còn đúng cơ sở đó.
    * Muốn nhập cơ sở khác thì tạo đơn mới — máy chủ cũng chặn lần nữa, không tin giao diện.

@@ -2034,6 +2034,20 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ------------------------------- ĐẶT LẠI PHÂN QUYỀN VỀ MẶC ĐỊNH
+// Bảng CH_Quyen nạp từ bảng tính cũ lệch cột thì một vai trò mất quyền mà không ai biết —
+// biểu hiện đúng là "nhập xong không thấy nút gửi duyệt".
+VHCP_Cfg::set_quyen( array( 'suaTU' => array( 'Quản lý' => 1 ) ) );   // Nhân viên bị mất quyền
+$q1 = VHCP_Cfg::get_quyen();
+t( 'dựng lại đúng cảnh mất quyền', empty( $q1['suaTU']['Nhân viên'] ) );
+$rq = VHCP_Cfg::reset_quyen();
+t( 'đặt lại mặc định chạy được', ! empty( $rq['success'] ) );
+t( 'có báo số hành động', (int) $rq['soHanhDong'] > 0, $rq );
+$q2 = VHCP_Cfg::get_quyen();
+t( 'Nhân viên có lại quyền sửa số tạm ứng', ! empty( $q2['suaTU']['Nhân viên'] ) );
+t( 'Quản lý vẫn có quyền đó', ! empty( $q2['suaTU']['Quản lý'] ) );
+t( 'Nhân viên KHÔNG tự dưng được duyệt tạm ứng', empty( $q2['duyetTU']['Nhân viên'] ) );
+
 // ---------------------------------------------------------------- DỌN LOẠI CHƯA KHAI MÃ
 // Đặt CUỐI CÙNG: phép thử này xóa mọi loại chưa khai mã, kể cả danh mục dựng sẵn từ nhóm
 // mặt hàng — chạy giữa bài là các phần sau mất danh mục.

@@ -22,7 +22,7 @@ class VHCP_API {
 	 */
 	private static function required_roles( $fn ) {
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
-		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -138,6 +138,7 @@ class VHCP_API {
 			'getQuyen'              => array( 'VHCP_Cfg', 'get_quyen' ),
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),
+			'resetQuyen'            => array( 'VHCP_Cfg', 'reset_quyen' ),
 
 			// đơn vận hành
 			'listDons'              => array( 'VHCP_Don', 'list_dons' ),

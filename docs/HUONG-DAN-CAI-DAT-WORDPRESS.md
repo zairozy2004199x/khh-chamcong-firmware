@@ -516,6 +516,28 @@ chạy (plugin chưa cập nhật). Đường dự phòng cuối nay gửi dạn
 **Đơn cũ đã nạp từ bảng tính** có thể đang mang nhiều cơ sở — luật này chỉ áp cho lần nhập
 mới, không sửa lại dữ liệu cũ, nên số liệu đã đối chiếu không bị xáo.
 
+### Không thấy nút "Gửi duyệt tạm ứng"? App nói luôn vì sao (bản 1.8.1)
+
+Trước đây thiếu điều kiện là khối nút **ẩn luôn** — nhập xong không thấy nút nào, không biết
+đơn đã gửi rồi, hay vai trò mình không được gửi, hay còn thiếu gì. Nay khối đó **luôn hiện**:
+có nút thì nút, không thì đúng một câu nói rõ đang vướng ở đâu, ví dụ:
+
+- *"Vai trò **Nhân viên** chưa được phép gửi duyệt tạm ứng. Bật quyền **“Sửa số tạm ứng (lúc
+  Nháp)”** ở ⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa."*
+- *"✔ Đã gửi rồi — đơn đang chờ quản lý / kế toán duyệt tạm ứng. Không cần bấm gì thêm."*
+- *"🔒 Đơn đã xuất MISA — khóa, không sửa được nữa."*
+
+Nguyên nhân hay gặp nhất: bảng **CH_Quyen** nạp từ bảng tính cũ bị **lệch cột** hoặc thiếu
+hành động mới, nên một vai trò mất quyền mà không ai biết. Chữa một nút: ⚙️ **Cấu hình → 🔑
+Phân quyền chỉnh sửa → ↺ Đặt lại mặc định**, rồi tinh chỉnh lại.
+
+### Thanh trên cùng canh thẳng hàng với nội dung
+
+Thanh xanh tiêu đề và các thanh trắng chạy hết bề rộng màn hình, còn thẻ nội dung thì canh
+giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề trái mà thẻ bên dưới thụt vào
+giữa, nhìn như **lệch trang**. Nay đệm hai bên của thanh được tính bằng đúng lề của khối
+nội dung, mọi bề rộng màn hình đều thẳng hàng.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |
