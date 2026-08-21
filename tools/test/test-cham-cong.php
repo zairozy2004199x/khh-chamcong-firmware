@@ -85,9 +85,9 @@ $MAY_22 = array(
 	'getDanhSachMay', 'getMachineStatus', 'getMachineRoster', 'chanDoanMay',
 	'getQueueMay', 'getHangDoiTaiLai', 'xemKhoiTest', 'getLuongMayTuDong', 'getGiaMayTuDong',
 	'ganMayVaoCuaHang', 'boGanMay', 'luuSimMay', 'requestMachineScan',
-	'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai', 'setGiaMayTuDong', 'donKhoiTest',
+	'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai', 'setGiaMayTuDong', 'donKhoiTest', 'requestBackfill',
 	'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget' );
-teq( 'cầu nối khai đúng 22 hàm máy + OTA', 22, count( $ham_app ) );
+teq( 'cầu nối khai đúng 23 hàm máy + OTA', 23, count( $ham_app ) );
 sort( $ham_app );
 $mong = $MAY_22; sort( $mong );
 teq( 'và đúng danh sách đó, không thừa không thiếu', $mong, $ham_app );
@@ -1836,6 +1836,674 @@ t( 'màn máy cảnh báo rõ hậu quả của link release (302 / 943 / 532 k�
 t( 'ô xác nhận DONG Y có trên màn', strpos( $than_tm, 'DONG Y' ) !== false );
 /* Màn KHÔNG tự xoá máy thừa — chỉ báo. Xoá là mất chỗ gán của máy vừa gửi lượt đầu. */
 t( 'màn máy không có nút xoá máy thừa', stripos( $than_tm, 'xoa_may' ) === false );
+
+// ============================================================ 23. Sổ đối chiếu 111 hàm
+/* Bản kê nói CÓ GÌ PHẢI PORT; sổ đối chiếu nói ĐÃ PORT TỚI ĐÂU. Không có mục này thì "còn lại mấy
+   hàm" là câu không ai trả lời được, và hàm bị bỏ quên sẽ im lặng — đúng loại lỗi cả việc này
+   đang tránh. */
+$so_raw = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/apps-script/so-doi-chieu.txt' );
+$so = array();
+foreach ( explode( "\n", $so_raw ) as $d ) {
+	$d = rtrim( $d );
+	if ( '' === $d || '#' === $d[0] ) { continue; }
+	$p = preg_split( '/\s+/', $d, 2 );
+	$so[ $p[0] ] = isset( $p[1] ) ? trim( $p[1] ) : '';
+}
+$ke = array();
+foreach ( explode( "\n", file_get_contents( $goc . '/wordpress/vhcp-cham-cong/apps-script/ham-giao-dien.txt' ) ) as $d ) {
+	$d = trim( $d );
+	if ( '' !== $d && '#' !== $d[0] ) { $ke[] = $d; }
+}
+teq( 'bản kê vẫn đúng 111 hàm', 111, count( $ke ) );
+$thieu_so = array_diff( $ke, array_keys( $so ) );
+$du_so    = array_diff( array_keys( $so ), $ke );
+t( 'MỌI hàm trong bản kê đều có dòng trong sổ đối chiếu', count( $thieu_so ) === 0,
+	implode( ', ', $thieu_so ) );
+t( 'sổ không kê hàm nào ngoài bản kê', count( $du_so ) === 0, implode( ', ', $du_so ) );
+
+$loi_tt = array();
+$khong_can_thieu_ly_do = array();
+$ham_thieu = array();
+$cn_lech = array();
+foreach ( $so as $ten => $tt ) {
+	$p = preg_split( '/\s+/', $tt, 2 );
+	$loai = $p[0];
+	$them = isset( $p[1] ) ? trim( $p[1] ) : '';
+	if ( ! in_array( $loai, array( 'MYSQL', 'CAUNOI', 'KHONGCAN' ), true ) ) {
+		$loi_tt[] = "$ten: $loai"; continue;
+	}
+	if ( 'KHONGCAN' === $loai ) {
+		/* KHONGCAN mà không ghi lý do là "chưa làm" đội lốt "không cần". Bắt buộc phải có lý do. */
+		if ( strlen( $them ) < 20 ) { $khong_can_thieu_ly_do[] = $ten; }
+		continue;
+	}
+	if ( 'CAUNOI' === $loai ) {
+		if ( ! in_array( $ten, $fns, true ) ) { $cn_lech[] = $ten; }
+		continue;
+	}
+	/* MYSQL: lớp và hàm phải TỒN TẠI THẬT. Ghi tên vào sổ mà chưa viết hàm là sổ nói dối. */
+	if ( ! preg_match( '/^(VHCC_\w+)::(\w+)$/', $them, $m ) ) { $loi_tt[] = "$ten: '$them'"; continue; }
+	if ( ! class_exists( $m[1] ) || ! method_exists( $m[1], $m[2] ) ) { $ham_thieu[] = "$ten -> $them"; }
+}
+t( 'mọi dòng dùng đúng một trong ba trạng thái', count( $loi_tt ) === 0, implode( ' | ', $loi_tt ) );
+t( 'mọi dòng KHONGCAN đều ghi rõ LÝ DO', count( $khong_can_thieu_ly_do ) === 0,
+	implode( ', ', $khong_can_thieu_ly_do ) );
+t( 'mọi dòng CAUNOI đều có trong danh sách cho phép của cầu nối', count( $cn_lech ) === 0,
+	implode( ', ', $cn_lech ) );
+t( 'mọi hàm MYSQL trong sổ đều TỒN TẠI THẬT (sổ không nói dối)', count( $ham_thieu ) === 0,
+	count( $ham_thieu ) . ' hàm chưa viết: ' . implode( ' | ', array_slice( $ham_thieu, 0, 40 ) ) );
+
+// ============================================================ 24. Quyền · PIN · chống dò
+vhcc_dung_bang();
+$U_AD  = array( 'name' => 'Admin',  'role' => 'ADMIN',   'coso' => '', 'pin' => '100001' );
+$U_QL  = array( 'name' => 'QuanLy', 'role' => 'QUAN_LY', 'coso' => '' );
+$U_CHT = array( 'name' => 'CHT',    'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' );
+$U_NV  = array( 'name' => 'NV',     'role' => 'NHAN_VIEN', 'coso' => 'TUTU_BT' );
+
+/* ---- Luật PIN: đây là chìa khoá vào toàn bộ chấm công của chuỗi ---- */
+teq( 'PIN 6 số bình thường: nhận', '', VHCC_Quyen::pin_hop_le( '481937' ) );
+t( '5 số: từ chối', '' !== VHCC_Quyen::pin_hop_le( '48193' ) );
+t( 'có chữ: từ chối', '' !== VHCC_Quyen::pin_hop_le( '4819a7' ) );
+t( '6 số giống nhau: từ chối', '' !== VHCC_Quyen::pin_hop_le( '444444' ) );
+t( 'dãy tăng 123456: từ chối', '' !== VHCC_Quyen::pin_hop_le( '123456' ) );
+t( 'dãy tăng 234567: từ chối', '' !== VHCC_Quyen::pin_hop_le( '234567' ) );
+t( 'dãy giảm 654321: từ chối', '' !== VHCC_Quyen::pin_hop_le( '654321' ) );
+t( 'dãy giảm 543210: từ chối', '' !== VHCC_Quyen::pin_hop_le( '543210' ) );
+/* 888888 là PIN admin mặc định của bản gốc — phải nằm trong danh sách chặn. */
+t( '888888 bị chặn', '' !== VHCC_Quyen::pin_hop_le( '888888' ) );
+
+/* ---- Bộ đếm nằm trong BẢNG, không trong cache ---- */
+$than_q = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-quyen.php' );
+t( 'bộ đếm chống dò KHÔNG dùng transient (cache bị xoá là hình phạt tự bỏ)',
+	strpos( $than_q, 'set_transient' ) === false && strpos( $than_q, 'get_transient' ) === false );
+t( 'bộ đếm dùng bảng nhip_do', strpos( $than_q, "VHCC_DB::t( 'nhip_do' )" ) !== false );
+teq( 'đếm lần đầu là 1', 1, VHCC_Quyen::dem( 'thu', 3 )['so'] );
+teq( 'đếm cộng dồn', 2, VHCC_Quyen::dem( 'thu', 3 )['so'] );
+t( 'chưa quá ngưỡng', ! VHCC_Quyen::dem( 'thu', 3 )['qua'] );
+t( 'quá ngưỡng thì báo qua', VHCC_Quyen::dem( 'thu', 3 )['qua'] );
+teq( 'đọc đếm KHÔNG cộng thêm', 4, VHCC_Quyen::doc_dem( 'thu' ) );
+teq( 'đọc lại vẫn 4', 4, VHCC_Quyen::doc_dem( 'thu' ) );
+teq( 'khoá chưa từng đếm thì là 0', 0, VHCC_Quyen::doc_dem( 'chua-co' ) );
+/* Cửa sổ hết hạn thì đếm lại từ 1, không cộng dồn vô hạn. */
+$wpdb->query( "UPDATE " . VHCC_DB::t( 'nhip_do' ) . " SET cua_so_tu='2020-01-01 00:00:00' WHERE khoa='thu'" );
+teq( 'cửa sổ hết hạn: đếm lại từ 1', 1, VHCC_Quyen::dem( 'thu', 3 )['so'] );
+
+/* ---- ĐỔI PIN ---- */
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '111222', 'ho_ten' => 'A', 'vai_tro' => 'NHAN_VIEN' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '333444', 'ho_ten' => 'B', 'vai_tro' => 'NHAN_VIEN' ) );
+t( 'hai lần nhập khác nhau: từ chối', empty( VHCC_Quyen::doi_pin( '111222', '555666', '555777' )['ok'] ) );
+t( 'trùng PIN đang dùng: từ chối', empty( VHCC_Quyen::doi_pin( '111222', '111222', '111222' )['ok'] ) );
+t( 'PIN mới dễ đoán: từ chối', empty( VHCC_Quyen::doi_pin( '111222', '123456', '123456' )['ok'] ) );
+$r = VHCC_Quyen::doi_pin( '111222', '333444', '333444' );
+t( 'PIN mới đã có người dùng: từ chối và NÓI THẬT lý do',
+	empty( $r['ok'] ) && stripos( $r['error'], 'đã có người dùng' ) !== false, $r['error'] );
+/* Đụng PIN người khác quá 5 lần / 10 phút thì thôi cho biết gì thêm. */
+for ( $i = 0; $i < 5; $i++ ) { VHCC_Quyen::doi_pin( '111222', '333444', '333444' ); }
+$r = VHCC_Quyen::doi_pin( '111222', '333444', '333444' );
+t( 'quá 5 lần đụng PIN người khác: CHẶN, không cho biết thêm gì',
+	empty( $r['ok'] ) && stripos( $r['error'], 'quá nhiều' ) !== false, $r['error'] );
+teq( 'hàm thuần: dưới ngưỡng thì còn được', true, VHCC_Quyen::doi_pin_con_duoc( 4 ) );
+teq( 'hàm thuần: tới ngưỡng thì hết', false, VHCC_Quyen::doi_pin_con_duoc( 5 ) );
+/* Đổi được thì CHỈ đổi cột PIN, không đụng vai trò / cửa hàng. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhip_do' ) );
+$wpdb->update( VHCC_DB::t( 'phan_quyen' ),
+	array( 'vai_tro' => 'CUA_HANG_TRUONG', 'cua_hang' => 'TUTU_BT' ), array( 'pin' => '111222' ) );
+$r = VHCC_Quyen::doi_pin( '111222', '481937', '481937' );
+t( 'đổi PIN được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$sau = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'phan_quyen' ) . " WHERE pin='481937'", ARRAY_A );
+t( 'chỉ đổi PIN, vai trò và cửa hàng KHÔNG đổi',
+	$sau && 'CUA_HANG_TRUONG' === $sau['vai_tro'] && 'TUTU_BT' === $sau['cua_hang'] );
+t( 'PIN cũ mất hiệu lực ngay',
+	null === $wpdb->get_var( "SELECT id FROM " . VHCC_DB::t( 'phan_quyen' ) . " WHERE pin='111222'" ) );
+
+/* ---- Xoá phân quyền: hai chốt tự khoá mình ra ngoài ---- */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '100001', 'ho_ten' => 'Admin', 'vai_tro' => 'ADMIN' ) );
+$r = VHCC_Quyen::xoa_phan_quyen( $U_AD, '100001' );
+t( 'không xoá được dòng của CHÍNH MÌNH (xoá là mất quyền, không vào lại được)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'chính bạn' ) !== false, $r['error'] );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '200002', 'ho_ten' => 'Ad2', 'vai_tro' => 'ADMIN' ) );
+$r = VHCC_Quyen::xoa_phan_quyen( $U_AD, '200002' );
+t( 'xoá được admin khác khi còn admin', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '300003', 'ho_ten' => 'Ad3', 'vai_tro' => 'ADMIN' ) );
+$U_AD3 = array( 'name' => 'Ad3', 'role' => 'ADMIN', 'coso' => '', 'pin' => '300003' );
+$r = VHCC_Quyen::xoa_phan_quyen( $U_AD3, '100001' );
+t( 'còn hai admin thì xoá được một', ! empty( $r['ok'] ) );
+$r = VHCC_Quyen::xoa_phan_quyen( array( 'name' => 'x', 'role' => 'ADMIN', 'pin' => '999' ), '300003' );
+t( 'KHÔNG xoá được admin CUỐI CÙNG (không còn ai cấp lại quyền)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'duy nhất' ) !== false, $r['error'] );
+teq( 'cửa hàng trưởng không sửa được phân quyền', false,
+	VHCC_Quyen::luu_phan_quyen( $U_CHT, array( 'pin' => '777888' ) )['ok'] );
+
+/* ---- Cấp PIN hàng loạt ---- */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'N1', 'ho_ten' => 'Nguyễn A', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'N2', 'ho_ten' => '', 'cua_hang' => 'TUTU_BT' ) );
+$r = VHCC_Quyen::cap_pin_hang_loat( $U_AD, array( 'N1', 'N2', 'KHONG_CO' ) );
+teq( 'cấp được 2 PIN', 2, count( $r['cap'] ) );
+teq( 'mã chưa có hồ sơ thì bỏ và nói lý do', 1, count( $r['boQua'] ) );
+$pins = array();
+foreach ( $r['cap'] as $x ) { $pins[] = $x['pin']; }
+$xau = array();
+foreach ( $pins as $p ) { if ( '' !== VHCC_Quyen::pin_hop_le( $p ) ) { $xau[] = $p; } }
+teq( 'PIN sinh ra KHÔNG bao giờ là PIN dễ đoán', array(), $xau );
+/* ⚠️ Phép thử theo HÀNH VI ở trên gần như không bao giờ bắt được lỗi bỏ chốt này: chỉ có 8 PIN
+   trong danh sách cấm trên một triệu khả năng, nên bỏ chốt đi thì 500 lượt sinh vẫn ra PIN sạch.
+   Đã thử phá và nó lọt. Nên chỗ này phải soi MÃ NGUỒN — không phải vì thích soi mã, mà vì hành
+   vi không phân biệt được. */
+t( 'hàm sinh PIN có kiểm pin_hop_le trước khi trả về',
+	preg_match( '/for \(.*sinh_pin|private static function sinh_pin/', $than_q ) === 1
+	&& strpos( $than_q, "if ( '' !== self::pin_hop_le( \$p ) ) { continue; }" ) !== false );
+teq( 'PIN sinh ra không trùng nhau', 2, count( array_unique( $pins ) ) );
+/* ⚠️ Hồ sơ bỏ trống TÊN thì để trống, KHÔNG lấy MÃ làm tên — bản gốc từng làm vậy và màn hình
+   chào "Xin chào, MNNV2MTD0026". */
+$n2 = $wpdb->get_var( "SELECT ho_ten FROM " . VHCC_DB::t( 'phan_quyen' ) . " WHERE ma_cc_online='N2'" );
+teq( 'tên trống thì để TRỐNG, không lấy mã làm tên', '', $n2 );
+$r2 = VHCC_Quyen::cap_pin_hang_loat( $U_AD, array( 'N1' ) );
+teq( 'cấp lại cho người đã có tài khoản: bỏ qua', 0, count( $r2['cap'] ) );
+teq( 'cửa hàng trưởng không cấp PIN hàng loạt được', false,
+	VHCC_Quyen::cap_pin_hang_loat( $U_CHT, array( 'N1' ) )['ok'] );
+
+/* ---- TRA PIN THEO CCCD: cửa MỞ, nên ba bộ đếm là thứ duy nhất đứng giữa ---- */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'T1', 'ho_ten' => 'Trần C',
+	'cccd' => '079123456789', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '481937', 'ho_ten' => 'Trần C',
+	'vai_tro' => 'NHAN_VIEN', 'ma_cc_online' => 'T1', 'coso_cc_online' => 'TUTU_BT' ) );
+teq( 'che CCCD: chỉ để 3 số đầu và 3 số cuối', '079***789', VHCC_Quyen::che_cccd( '079123456789' ) );
+teq( 'CCCD có dấu cách / gạch vẫn chuẩn hoá được', '079123456789',
+	VHCC_Quyen::chuan_cccd( '079-123 456.789' ) );
+t( 'CCCD quá ngắn: từ chối', empty( VHCC_Quyen::tra_pin_theo_cccd( '1234' )['ok'] ) );
+$r = VHCC_Quyen::tra_pin_theo_cccd( '079123456789' );
+t( 'tra được PIN', ! empty( $r['ok'] ) && '481937' === $r['pin'], isset( $r['error'] ) ? $r['error'] : '' );
+teq( 'và trả cả cơ sở', 'TUTU_BT', $r['coSo'] );
+/* Nhật ký ghi CCCD ĐÃ CHE và KHÔNG BAO GIỜ ghi PIN. */
+$nk = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhat_ky_tra_pin' ) . ' ORDER BY id DESC' );
+t( 'nhật ký ghi CCCD đã che', '079***789' === $nk[0]['cccd_che'] );
+$co_pin = false;
+foreach ( $nk as $x ) { foreach ( $x as $v ) { if ( false !== strpos( (string) $v, '481937' ) ) { $co_pin = true; } } }
+t( 'nhật ký TUYỆT ĐỐI không chứa PIN', ! $co_pin );
+/* Khớp TUYỆT ĐỐI, không khớp một phần — khớp một phần là gõ 4 số cũng ra người khác. */
+t( 'khớp một phần KHÔNG ra kết quả', empty( VHCC_Quyen::tra_pin_theo_cccd( '079123456' )['ok'] ) );
+/* Chặn theo TỪNG SỐ: 5 lượt / 10 phút. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhip_do' ) );
+for ( $i = 0; $i < 5; $i++ ) { VHCC_Quyen::tra_pin_theo_cccd( '079123456789' ); }
+$r = VHCC_Quyen::tra_pin_theo_cccd( '079123456789' );
+t( 'quá 5 lượt cho CÙNG một số: chặn',
+	empty( $r['ok'] ) && stripos( $r['error'], 'quá nhiều lần' ) !== false, $r['error'] );
+/* ⚠️ Ngưỡng TOÀN HỆ THỐNG chỉ đếm lượt TRƯỢT. Đếm cả lượt đúng thì một buổi sáng đông người quên
+   PIN là cả cửa hàng tự khoá nhau — đúng lúc cần tra nhất. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhip_do' ) );
+for ( $i = 0; $i < 4; $i++ ) { VHCC_Quyen::tra_pin_theo_cccd( '079123456789' ); }
+teq( 'lượt tra ĐÚNG không làm tăng bộ đếm toàn hệ thống', 0, VHCC_Quyen::doc_dem( 'trapin_hong' ) );
+for ( $i = 0; $i < 3; $i++ ) { VHCC_Quyen::tra_pin_theo_cccd( '099' . $i . '00000000' ); }
+t( 'lượt tra TRƯỢT thì có tăng', VHCC_Quyen::doc_dem( 'trapin_hong' ) > 0 );
+
+/* ---- Gộp tài khoản: không đụng chấm công ---- */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '111000', 'ma_cc_online' => 'G1' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '222000', 'ma_cc_online' => 'G1' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '333000', 'ma_cc_online' => 'G2' ) );
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'G1', '', '08:00:00', '17:00:00' );
+teq( 'tìm được PIN trùng mã NV', 1, count( VHCC_Quyen::tim_pin_trung( $U_AD ) ) );
+$r = VHCC_Quyen::gop_tai_khoan( $U_AD, '111000', '333000' );
+t( 'gộp hai tài khoản KHÁC mã NV: từ chối (gộp là mất một người)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'khác nhau' ) !== false, $r['error'] );
+t( 'gộp cùng mã NV: được', ! empty( VHCC_Quyen::gop_tai_khoan( $U_AD, '111000', '222000' )['ok'] ) );
+teq( 'chấm công KHÔNG bị chạm khi gộp tài khoản', 1,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='G1'" ) );
+$than_q2 = $than_q;
+t( 'mã gộp tài khoản KHÔNG có lệnh nào ghi bảng chấm công',
+	strpos( $than_q2, "cham_cong" ) === false || strpos( $than_q2, "UPDATE ' . VHCC_DB::t( 'cham_cong'" ) === false );
+
+// ============================================================ 25. Chấm công: cờ · tăng cường · quy đổi
+vhcc_dung_bang();
+$than_c = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-cham.php' );
+/* ⚠️ Lớp này CHỈ ĐỌC bảng chấm công. Mở đường sửa giờ ở đây là mở đường sửa lương bằng tay mà
+   không có dấu vết — chỉ có hai đường được ghi giờ: cổng nhận từ máy và chấm công online. */
+t( 'lớp Chấm KHÔNG có lệnh nào ghi/sửa giờ trong bảng chấm công',
+	strpos( $than_c, "insert( VHCC_DB::t( 'cham_cong' )" ) === false
+	&& strpos( $than_c, "update( VHCC_DB::t( 'cham_cong' )" ) === false
+	&& strpos( $than_c, "DELETE FROM ' . VHCC_DB::t( 'cham_cong'" ) === false );
+
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'C1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-04', 'C1', '', '08:10:00', null );        // quên check-out
+vhcc_cham( 'POSH_HCM', '2026-08-03', 'C9', '', '08:00:00', '17:00:00' );
+$b = VHCC_Cham::bang_cham_cong( $U_CHT, 'TUTU_BT', '2026-08' );
+t( 'cửa hàng trưởng xem được bảng cơ sở mình', ! empty( $b['ok'] ) );
+teq( 'đúng 2 hàng của tháng đó', 2, count( $b['hang'] ) );
+teq( 'cửa hàng trưởng KHÔNG xem được cơ sở khác', false,
+	VHCC_Cham::bang_cham_cong( $U_CHT, 'POSH_HCM', '2026-08' )['ok'] );
+teq( 'nhân viên không xem được bảng', false, VHCC_Cham::bang_cham_cong( $U_NV, 'TUTU_BT', '2026-08' )['ok'] );
+
+/* Cảnh báo thiếu giờ ra — chỉ CẢNH BÁO, không tự điền. */
+$cb = VHCC_Cham::canh_bao_thieu_gio_ra( $U_CHT, 'TUTU_BT', '2026-08' );
+teq( 'đúng 1 ngày quên check-out', 1, count( $cb ) );
+teq( 'và là ngày 04', '2026-08-04', $cb[0]['ngay'] );
+$h = vhcc_hang( 'TUTU_BT', '2026-08-04', 'C1' );
+teq( 'KHÔNG tự điền giờ ra (điền là bịa giờ làm)', null, $h['gio_ra_giay'] );
+
+/* Cờ cần kiểm — nằm CẠNH giờ, không đè lên giờ. */
+$r = VHCC_Cham::luu_ghi_chu( $U_CHT, array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-04',
+	'ma_nv' => 'C1', 'ghi_chu' => 'quên chấm ra, đã hỏi' ) );
+t( 'gắn cờ được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$co = $r['flagId'];
+teq( 'cờ rỗng bị từ chối', false, VHCC_Cham::luu_ghi_chu( $U_CHT,
+	array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-04', 'ghi_chu' => '  ' ) )['ok'] );
+teq( 'ngày sai khuôn bị từ chối', false, VHCC_Cham::luu_ghi_chu( $U_CHT,
+	array( 'coso' => 'TUTU_BT', 'ngay' => 'mai', 'ghi_chu' => 'x' ) )['ok'] );
+teq( 'cửa hàng trưởng không gắn cờ cơ sở khác', false, VHCC_Cham::luu_ghi_chu( $U_CHT,
+	array( 'coso' => 'POSH_HCM', 'ngay' => '2026-08-03', 'ghi_chu' => 'x' ) )['ok'] );
+teq( 'gắn cờ KHÔNG đụng giờ', null, vhcc_hang( 'TUTU_BT', '2026-08-04', 'C1' )['gio_ra_giay'] );
+teq( 'bảng chấm công trả kèm cờ', 1, count( VHCC_Cham::bang_cham_cong( $U_CHT, 'TUTU_BT', '2026-08' )['co'] ) );
+/* Xử lý cờ: GIỮ nội dung cũ, chỉ thêm kết luận. */
+VHCC_Cham::xu_ly_ghi_chu( $U_CHT, $co, 'đã bổ sung tay' );
+$g = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'ghi_chu' ) . ' WHERE flag_id=%s', $co ), ARRAY_A );
+teq( 'trạng thái thành Đã xử lý', 'Đã xử lý', $g['trang_thai'] );
+t( 'GIỮ nội dung cờ gốc (lý do gắn cờ là thứ duy nhất giải thích ngày công bất thường)',
+	strpos( $g['ghi_chu'], 'quên chấm ra, đã hỏi' ) !== false, $g['ghi_chu'] );
+t( 'và có thêm kết luận', strpos( $g['ghi_chu'], 'đã bổ sung tay' ) !== false );
+
+/* ---- Tăng cường: chốt kỳ là không sửa được nữa ---- */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TC1', 'ho_ten' => 'Lê D', 'cua_hang' => 'POSH_HCM' ) );
+$r = VHCC_Cham::them_tang_cuong( $U_CHT, array( 'coso_den' => 'TUTU_BT', 'ngay' => '2026-08-05',
+	'ma_nv' => 'TC1' ) );
+t( 'khai tăng cường được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$tc = VHCC_Cham::ds_tang_cuong( 'TUTU_BT', '2026-08' );
+teq( 'và tự lấy cơ sở GỐC từ hồ sơ', 'POSH_HCM', $tc[0]['coso_goc'] );
+teq( 'cửa hàng trưởng không khai vào cơ sở khác', false,
+	VHCC_Cham::them_tang_cuong( $U_CHT, array( 'coso_den' => 'POSH_HCM', 'ngay' => '2026-08-05',
+		'ma_nv' => 'TC1' ) )['ok'] );
+teq( 'cửa hàng trưởng không chốt kỳ được', false,
+	VHCC_Cham::khoa_tang_cuong( $U_CHT, 'TUTU_BT', '2026-08' )['ok'] );
+t( 'Admin chốt kỳ được', ! empty( VHCC_Cham::khoa_tang_cuong( $U_AD, 'TUTU_BT', '2026-08' )['ok'] ) );
+$r = VHCC_Cham::them_tang_cuong( $U_CHT, array( 'coso_den' => 'TUTU_BT', 'ngay' => '2026-08-05',
+	'ma_nv' => 'TC1', 'ghi_chu' => 'sửa sau khi chốt' ) );
+t( 'đã chốt kỳ thì KHÔNG sửa được nữa (sửa là số công đổi sau khi bảng lương đã in)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'CHỐT KỲ' ) !== false, $r['error'] );
+
+/* ---- Quy đổi cơ sở: chặn chuỗi hai bước ---- */
+t( 'Admin quy đổi được', ! empty( VHCC_Cham::luu_quy_doi_coso( $U_AD, 'TUTU BT', 'TUTU_BT' )['ok'] ) );
+teq( 'cửa hàng trưởng không quy đổi được', false,
+	VHCC_Cham::luu_quy_doi_coso( $U_CHT, 'X', 'Y' )['ok'] );
+teq( 'quy đổi về chính nó: từ chối', false, VHCC_Cham::luu_quy_doi_coso( $U_AD, 'A', 'A' )['ok'] );
+/* Bên đọc chỉ tra MỘT bước, nên chuỗi A->B->C là sai IM LẶNG. */
+$r = VHCC_Cham::luu_quy_doi_coso( $U_AD, 'TUTU_CU', 'TUTU BT' );
+t( 'chuỗi quy đổi hai bước: TỪ CHỐI và chỉ đường đi thẳng',
+	empty( $r['ok'] ) && stripos( $r['error'], 'MỘT bước' ) !== false, $r['error'] );
+
+/* ---- Thống kê đẩy + dọn: KHÔNG được xoá chấm công ---- */
+$tk = VHCC_Cham::thong_ke_day( $U_AD, '2026-08' );
+t( 'thống kê đếm theo cơ sở và nguồn', count( $tk ) >= 1 );
+$truoc_cc = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$wpdb->insert( VHCC_DB::t( 'cho_gan' ), array( 'nhan_luc' => '2020-01-01 00:00:00',
+	'serial' => 'S', 'ma_nv' => 'X', 'da_chuyen' => 'da-gan' ) );
+$wpdb->insert( VHCC_DB::t( 'cho_gan' ), array( 'nhan_luc' => '2020-01-01 00:00:00',
+	'serial' => 'S2', 'ma_nv' => 'Y', 'da_chuyen' => '' ) );
+$r = VHCC_Cham::xoa_thong_ke_day( $U_AD, '2026-01-01' );
+teq( 'chỉ dọn lượt chờ gán ĐÃ xử lý', 1, $r['so'] );
+teq( 'lượt chờ gán CHƯA xử lý vẫn còn', 1,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cho_gan' ) ) );
+teq( '⚠️ bảng chấm công KHÔNG bị chạm', $truoc_cc,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+teq( 'cửa hàng trưởng không dọn được', false, VHCC_Cham::xoa_thong_ke_day( $U_CHT, '2026-01-01' )['ok'] );
+teq( 'ngày mốc sai khuôn: từ chối', false, VHCC_Cham::xoa_thong_ke_day( $U_AD, 'hôm qua' )['ok'] );
+
+// ============================================================ 26. Yêu cầu nhân viên
+vhcc_dung_bang();
+$r = VHCC_YeuCau::gui( $U_CHT, array( 'coso' => 'TUTU_BT', 'loai' => 'Thêm người',
+	'ma_nv' => 'M1', 'ho_ten' => 'Phạm E', 'noi_dung' => 'xin thêm 1 bạn thu tiền' ) );
+t( 'cửa hàng trưởng gửi yêu cầu được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$yc = $r['maYc'];
+teq( 'nhân viên không gửi yêu cầu nhân sự (họ dùng ô tự gửi thông tin)', false,
+	VHCC_YeuCau::gui( $U_NV, array( 'coso' => 'TUTU_BT', 'noi_dung' => 'x' ) )['ok'] );
+teq( 'yêu cầu rỗng bị từ chối', false,
+	VHCC_YeuCau::gui( $U_CHT, array( 'coso' => 'TUTU_BT', 'noi_dung' => ' ' ) )['ok'] );
+teq( 'cửa hàng trưởng thấy yêu cầu cơ sở mình', 1, VHCC_YeuCau::dem_cho( $U_CHT ) );
+/* ⚠️ DUYỆT là cấp Mã NV cả chuỗi -> cửa hàng trưởng KHÔNG duyệt được yêu cầu của chính mình. Cho
+   duyệt thì hai bậc quyền thành vô nghĩa: ai cũng tự cấp mã qua đường yêu cầu. */
+$r = VHCC_YeuCau::duyet( $U_CHT, $yc, true );
+t( 'cửa hàng trưởng KHÔNG duyệt được yêu cầu của chính mình',
+	empty( $r['ok'] ) && stripos( $r['error'], 'Mã NV' ) !== false, $r['error'] );
+/* ⚠️ Phải thử CẢ ca `tao_ho_so = false`. Với `true` thì chốt bên trong `luu_ho_so` cũng chặn và
+   cũng nói "Mã NV", nên bỏ chốt quyền trong `duyet` đi mà phép thử trên vẫn xanh — phép thử đúng
+   nhưng đúng vì lý do khác. Đã thử phá và nó lọt đúng chỗ này. */
+$r_kh = VHCC_YeuCau::duyet( $U_CHT, $yc, false );
+t( 'cửa hàng trưởng KHÔNG duyệt được dù không tạo hồ sơ', empty( $r_kh['ok'] ),
+	isset( $r_kh['error'] ) ? $r_kh['error'] : 'lại cho duyệt!' );
+$tt_yc = $wpdb->get_var( $wpdb->prepare( 'SELECT trang_thai FROM ' . VHCC_DB::t( 'yeu_cau_nv' )
+	. ' WHERE ma_yc=%s', $yc ) );
+teq( 'và yêu cầu vẫn ở trạng thái chờ', 'Chờ duyệt', $tt_yc );
+$r = VHCC_YeuCau::duyet( $U_AD, $yc, true, array( 'chuc_vu' => 'Thu ngân' ) );
+t( 'Admin duyệt và tạo luôn hồ sơ', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$hs = VHCC_NhanSu::ho_so( 'M1' );
+t( 'hồ sơ được tạo thật', $hs && 'Phạm E' === $hs['ho_ten'] && 'Thu ngân' === $hs['chuc_vu'] );
+teq( 'và cơ sở lấy từ yêu cầu', 'TUTU_BT', $hs['cua_hang'] );
+t( 'duyệt lại lần hai: bị chặn', empty( VHCC_YeuCau::duyet( $U_AD, $yc, true )['ok'] ) );
+/* Hồ sơ tạo TRƯỢT thì KHÔNG đánh dấu đã duyệt — không thì yêu cầu hiện "Đã duyệt" mà không có
+   hồ sơ nào, và không ai biết phải làm lại. */
+$r2 = VHCC_YeuCau::gui( $U_CHT, array( 'coso' => 'TUTU_BT', 'ma_nv' => '', 'noi_dung' => 'thiếu mã' ) );
+$r3 = VHCC_YeuCau::duyet( $U_AD, $r2['maYc'], true );
+t( 'tạo hồ sơ trượt thì duyệt cũng trượt', empty( $r3['ok'] ) );
+$tt = $wpdb->get_var( $wpdb->prepare( 'SELECT trang_thai FROM ' . VHCC_DB::t( 'yeu_cau_nv' )
+	. ' WHERE ma_yc=%s', $r2['maYc'] ) );
+teq( 'và yêu cầu VẪN ở trạng thái chờ, không hiện "Đã duyệt" giả', 'Chờ duyệt', $tt );
+/* Từ chối PHẢI có lý do — không thì người gửi gửi lại y như cũ. */
+t( 'từ chối không lý do: bị chặn', empty( VHCC_YeuCau::tu_choi( $U_AD, $r2['maYc'], '' )['ok'] ) );
+t( 'từ chối có lý do: được', ! empty( VHCC_YeuCau::tu_choi( $U_AD, $r2['maYc'], 'thiếu mã NV' )['ok'] ) );
+
+/* Ô "tự gửi thông tin" — cửa MỞ, nên phải có nhịp độ và KHÔNG được tạo hồ sơ. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhip_do' ) );
+$so_hs = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) );
+$r = VHCC_YeuCau::gui_thong_tin_nv( array( 'ho_ten' => 'Người mới', 'sdt' => '0900111222',
+	'coso' => 'TUTU_BT', 'cccd' => '079999888777' ) );
+t( 'người chưa có hồ sơ tự gửi được (không cần đăng nhập)', ! empty( $r['ok'] ),
+	isset( $r['error'] ) ? $r['error'] : '' );
+teq( '⚠️ KHÔNG tạo hồ sơ nào', $so_hs,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) ) );
+teq( 'thiếu SĐT: từ chối', false,
+	VHCC_YeuCau::gui_thong_tin_nv( array( 'ho_ten' => 'X', 'coso' => 'TUTU_BT' ) )['ok'] );
+teq( 'thiếu cơ sở: từ chối', false,
+	VHCC_YeuCau::gui_thong_tin_nv( array( 'ho_ten' => 'X', 'sdt' => '0900' ) )['ok'] );
+for ( $i = 0; $i < 3; $i++ ) {
+	VHCC_YeuCau::gui_thong_tin_nv( array( 'ho_ten' => 'Người mới', 'sdt' => '0900111222',
+		'coso' => 'TUTU_BT' ) );
+}
+$r = VHCC_YeuCau::gui_thong_tin_nv( array( 'ho_ten' => 'Người mới', 'sdt' => '0900111222',
+	'coso' => 'TUTU_BT' ) );
+t( 'gửi lặp quá nhiều lần: chặn theo SỐ ĐIỆN THOẠI (không chặn cả cơ sở)',
+	empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+t( 'số khác vẫn gửi được', ! empty( VHCC_YeuCau::gui_thong_tin_nv(
+	array( 'ho_ten' => 'Ai khác', 'sdt' => '0977000111', 'coso' => 'TUTU_BT' ) )['ok'] ) );
+/* Yêu cầu KHÔNG có cơ sở thì chỉ Admin/Quản lý thấy — không gán bừa cho cửa hàng nào. */
+$wpdb->insert( VHCC_DB::t( 'yeu_cau_nv' ), array( 'ma_yc' => 'YCX', 'coso' => '',
+	'trang_thai' => 'Chờ duyệt', 'noi_dung' => 'không rõ cơ sở' ) );
+$ma_cht = array();
+foreach ( VHCC_YeuCau::ds( $U_CHT, true ) as $x ) { $ma_cht[] = $x['ma_yc']; }
+t( 'cửa hàng trưởng KHÔNG thấy yêu cầu không rõ cơ sở', ! in_array( 'YCX', $ma_cht, true ) );
+$ma_ad = array();
+foreach ( VHCC_YeuCau::ds( $U_AD, true ) as $x ) { $ma_ad[] = $x['ma_yc']; }
+t( 'Admin thấy', in_array( 'YCX', $ma_ad, true ) );
+
+// ============================================================ 27. Đặt cấu hình lương + bảng đối chiếu
+vhcc_dung_bang();
+$U_KT = array( 'name' => 'KeToan', 'role' => 'KE_TOAN', 'coso' => '' );
+teq( 'đơn giá 0 bị từ chối (mọi ô tiền cả cơ sở thành 0 mà bảng vẫn có số)', false,
+	VHCC_Luong::dat_don_gia_gio( $U_AD, array( 'congThuong' => '0' ) )['ok'] );
+teq( 'đơn giá âm bị từ chối', false,
+	VHCC_Luong::dat_don_gia_gio( $U_AD, array( 'congThuong' => '-5000' ) )['ok'] );
+teq( 'cửa hàng trưởng không đặt đơn giá', false,
+	VHCC_Luong::dat_don_gia_gio( $U_CHT, array( 'congThuong' => '200000' ) )['ok'] );
+t( 'kế toán đặt được', ! empty( VHCC_Luong::dat_don_gia_gio( $U_KT,
+	array( 'congThuong' => '200.000', 'gioThuong' => '30000' ) )['ok'] ) );
+$g = VHCC_Luong::mtd_gia();
+teq( 'đơn giá gõ kiểu Việt vẫn đúng', 200000.0, $g['congThuong'] );
+teq( 'và ô không khai thì giữ 0', 0, $g['congLe'] );
+/* Đặt tiếp một ô khác thì KHÔNG xoá ô đã khai. */
+VHCC_Luong::dat_don_gia_gio( $U_AD, array( 'congLe' => '400000' ) );
+$g2 = VHCC_Luong::mtd_gia();
+t( 'khai thêm ô mới không xoá ô cũ', 200000.0 === $g2['congThuong'] && 400000.0 === $g2['congLe'] );
+
+/* Số ngày công: theo ĐÚNG cặp (cơ sở, tháng) */
+teq( 'số ngày công 0 bị từ chối', false, VHCC_Luong::dat_ngay_cong( $U_AD, 'VP_HCM', '2026-09', '0' )['ok'] );
+teq( 'quá 31 bị từ chối', false, VHCC_Luong::dat_ngay_cong( $U_AD, 'VP_HCM', '2026-09', '40' )['ok'] );
+t( 'đặt được', ! empty( VHCC_Luong::dat_ngay_cong( $U_AD, 'VP_HCM', '2026-09', '26' )['ok'] ) );
+teq( 'và chỉ áp cho ĐÚNG tháng đó', 26.0, VHCC_Luong::vp_nc_lay( 'VP_HCM', '2026-09' ) );
+teq( 'tháng khác vẫn CHƯA khai, không mượn số', 0, VHCC_Luong::vp_nc_lay( 'VP_HCM', '2026-10' ) );
+teq( 'cơ sở khác cũng vậy', 0, VHCC_Luong::vp_nc_lay( 'VP_SG', '2026-09' ) );
+
+/* ---- BẢNG ĐỐI CHIẾU cách tính: chỉ đọc, và hai bên dùng CÙNG một lần đọc dữ liệu ---- */
+vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'V1', 'luong_co_ban' => 13000000 ) );
+$wpdb->insert( VHCC_DB::t( 'vp_ngay_cong' ), array( 'coso' => 'VP_HCM', 'thang' => '2026-09', 'ngay_cong' => 26 ) );
+for ( $i = 1; $i <= 5; $i++ ) {
+	vhcc_cham( 'VP_HCM', '2026-09-0' . $i, 'V1', '', '08:30:00', '13:00:00' );   // 4.5 giờ/ngày
+}
+$ds = VHCC_Luong::so_sanh_cach_tinh( $U_AD, 'VP_HCM', '2026-09', array( 'duoiMin' => 'bacthang' ) );
+t( 'xem được bảng đối chiếu', ! empty( $ds['ok'] ), isset( $ds['error'] ) ? $ds['error'] : '' );
+/* 4.5 giờ: 'tyle' cho 4.5/8 = 0.56 công/ngày; 'bacthang' cho 1 công/ngày (>=4h, <9h). Chênh phải
+   DƯƠNG và thấy được TRƯỚC khi lưu. */
+t( 'bảng đối chiếu chỉ ra chênh công', $ds['chenhCong'] > 0, $ds['chenhCong'] );
+t( 'và chênh tiền', $ds['chenhTien'] > 0, $ds['chenhTien'] );
+teq( 'có dòng cho từng người', 1, count( $ds['dong'] ) );
+/* ⚠️ CHỈ ĐỌC: xem bảng KHÔNG đổi cấu hình đang lưu. */
+teq( 'xem bảng đối chiếu KHÔNG đổi cấu hình đang lưu', 'tyle', VHCC_Luong::vp_cfg()['duoiMin'] );
+teq( 'cửa hàng trưởng không xem được bảng đối chiếu', false,
+	VHCC_Luong::so_sanh_cach_tinh( $U_CHT, 'VP_HCM', '2026-09', array() )['ok'] );
+teq( 'cơ sở không phải Văn phòng: từ chối', false,
+	VHCC_Luong::so_sanh_cach_tinh( $U_AD, 'TUTU_BT', '2026-09', array() )['ok'] );
+/* `caChuan` là con số phải hiện TRƯỚC khi bấm Lưu. */
+$cc = VHCC_Luong::ca_chuan( array_merge( VHCC_Luong::vp_cfg(), array( 'duoiMin' => 'bacthang' ) ) );
+teq( 'ca chuẩn 08:30-17:00 là 8.5 tiếng', 8.5, $cc['gio'] );
+teq( 'và với mốc bậcMột = 9 thì ra 1 công', 1.0, $cc['cong'] );
+$cc8 = VHCC_Luong::ca_chuan( array_merge( VHCC_Luong::vp_cfg(),
+	array( 'duoiMin' => 'bacthang', 'bacMot' => 8 ) ) );
+teq( 'đổi mốc thành 8 thì chính ca chuẩn thành 1.5 công — đây là chỗ tăng 50% cả cơ sở', 1.5, $cc8['cong'] );
+
+/* Đặt cấu hình VP: kiểm giá trị, và trả kèm bảng đối chiếu để thấy trước khi lưu */
+teq( 'cách tính lạ bị từ chối', false,
+	VHCC_Luong::dat_vp_cfg( $U_AD, array( 'duoiMin' => 'tuỳ ý' ) )['ok'] );
+teq( 'giờ sai khuôn bị từ chối', false,
+	VHCC_Luong::dat_vp_cfg( $U_AD, array( 'ngayDen' => '17 giờ' ) )['ok'] );
+$r = VHCC_Luong::dat_vp_cfg( $U_AD, array( 'duoiMin' => 'bacthang' ), 'VP_HCM', '2026-09' );
+t( 'đặt được và TRẢ KÈM bảng đối chiếu', ! empty( $r['ok'] ) && ! empty( $r['doiChieu']['ok'] ) );
+teq( 'sau khi lưu thì cấu hình đã đổi', 'bacthang', VHCC_Luong::vp_cfg()['duoiMin'] );
+teq( 'cửa hàng trưởng không đặt cấu hình công', false,
+	VHCC_Luong::dat_vp_cfg( $U_CHT, array( 'duoiMin' => 'tron' ) )['ok'] );
+
+/* ---- Báo cáo theo GIỜ (engine thứ ba) ---- */
+vhcc_dung_bang();
+vhcc_cai_dat( 'CA_LAM', array( 'start' => '08:00', 'end' => '17:00',
+	'startW' => '09:00', 'endW' => '15:00' ) );
+vhcc_cai_dat( 'WAGE_MAP', array( 'TUTU_BT' => array( '*' => 30000 ) ) );
+vhcc_cham( 'TUTU_BT', '2026-09-01', 'W1', '', '07:00:00', '18:00:00' );   // thứ Ba, khung 08-17
+vhcc_cham( 'TUTU_BT', '2026-09-05', 'W1', '', '07:00:00', '18:00:00' );   // thứ Bảy, khung 09-15
+$r = VHCC_Luong::bao_cao_theo_gio( $U_AD, 'TUTU_BT', '2026-09' );
+t( 'báo cáo giờ chạy được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+/* Chỉ tính phần GIAO với khung ca: ngày thường 9 giờ, cuối tuần 6 giờ -> 15 giờ. */
+teq( 'chỉ tính phần giao với khung ca, và khung cuối tuần KHÁC ngày thường', 15.0, $r['rows'][0]['gio'] );
+teq( 'tiền = 15 × 30000', 450000, $r['rows'][0]['tien'] );
+teq( 'cửa hàng trưởng không xem báo cáo giờ', false,
+	VHCC_Luong::bao_cao_theo_gio( $U_CHT, 'TUTU_BT', '2026-09' )['ok'] );
+$r2 = VHCC_Luong::bao_cao_theo_gio( $U_AD, 'CHUA_KHAI_GIA', '2026-09' );
+t( 'cơ sở chưa khai đơn giá: có cờ báo', ! empty( $r2['chuaKhaiGiaCoSo'] ) );
+
+// ============================================================ 28. Cấu hình lịch
+vhcc_dung_bang();
+$c = VHCC_Lich::cau_hinh( $U_AD );
+t( 'có danh sách ca mặc định', count( $c['ca'] ) >= 1 );
+teq( 'cửa hàng trưởng không bật/tắt lịch theo cơ sở', false,
+	VHCC_Lich::dat_coso_bat_lich( $U_CHT, array( 'TUTU_BT' ) )['ok'] );
+t( 'Admin bật được', ! empty( VHCC_Lich::dat_coso_bat_lich( $U_AD, array( 'CS_TUTU_BT', 'TUTU_BT', '' ) )['ok'] ) );
+teq( 'bỏ tiền tố CS_ và bỏ trùng', array( 'TUTU_BT' ), VHCC_Lich::cau_hinh( $U_AD )['coSoBatLich'] );
+/* ⚠️ Tắt lịch KHÔNG xoá ô lịch đã xếp. */
+VHCC_Lich::xep_lich( $U_CHT, 'TUTU_BT', array( array( 'ngay' => '2026-09-01', 'ma_nv' => 'L1',
+	'ca' => 'Sáng', 'viec' => 'A' ) ) );
+VHCC_Lich::dat_coso_bat_lich( $U_AD, array() );
+teq( 'tắt lịch KHÔNG xoá ô lịch đã xếp', 1,
+	count( VHCC_Lich::ds_lich( 'TUTU_BT', '2026-09-01', '2026-09-30' ) ) );
+/* ⚠️ Đổi tên ca thì ô cũ giữ tên cũ — phải BÁO RA số ô mồ côi, không để im. */
+$r = VHCC_Lich::dat_ca( $U_CHT, array( 'Ca 1', 'Ca 2' ) );
+t( 'đổi danh sách ca được', ! empty( $r['ok'] ) );
+teq( 'và BÁO RA ô lịch đang dùng tên ca vừa bị bỏ', 1, $r['oMoCoi']['Sáng'] );
+teq( 'danh sách ca rỗng bị từ chối', false, VHCC_Lich::dat_ca( $U_AD, array() )['ok'] );
+teq( 'nhân viên không sửa được ca', false, VHCC_Lich::dat_ca( $U_NV, array( 'X' ) )['ok'] );
+t( 'đặt loại việc được', ! empty( VHCC_Lich::dat_loai_viec( $U_CHT, array( 'Thu tiền', 'Vệ sinh', 'Thu tiền' ) )['ok'] ) );
+teq( 'loại việc bỏ trùng', 2, count( VHCC_Lich::cau_hinh( $U_AD )['loaiViec'] ) );
+
+// ============================================================ 29. Chấm công online: phần còn lại
+vhcc_dung_bang();
+$g = VHCC_Online::gio_may_chu();
+t( 'giờ máy chủ có ngày và giờ', ! empty( $g['ngay'] ) && ! empty( $g['gio'] ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'O1', 'ho_ten' => 'Ngô F',
+	'cua_hang' => 'TUTU_BT', 'coso_phu' => 'POSH_HCM', 'nhiem_vu' => 'Trực Ghế' ) );
+$tt = VHCC_Online::thong_tin( array( 'ma_nv' => 'O1', 'ho_ten' => 'Ngô F', 'coso' => 'TUTU_BT' ) );
+t( 'bật chấm công online', ! empty( $tt['bat'] ) );
+teq( 'trả đủ cơ sở chính + phụ', 2, count( $tt['dsCoSo'] ) );
+teq( 'và nhiệm vụ được khai', array( 'Trực Ghế' ), $tt['dsNhiemVu'] );
+t( 'kèm giờ máy chủ để trang hiện đồng hồ đúng', ! empty( $tt['gio']['gio'] ) );
+$tt2 = VHCC_Online::thong_tin( array( 'ma_nv' => '', 'ho_ten' => 'X', 'coso' => '' ) );
+t( 'tài khoản chưa bật thì nói rõ', empty( $tt2['bat'] ) );
+/* Ảnh mẫu thẻ: chưa khai thì trả ok:false để trang tự dùng hình vẽ sẵn, KHÔNG trả ảnh rỗng. */
+t( 'chưa khai ảnh mẫu: ok:false', empty( VHCC_Online::anh_mau_the()['ok'] ) );
+t( 'ảnh không phải data:image bị từ chối',
+	empty( VHCC_Online::dat_anh_mau_the( $U_AD, 'http://x/y.jpg' )['ok'] ) );
+$r = VHCC_Online::dat_anh_mau_the( $U_AD, 'data:image/jpeg;base64,' . str_repeat( 'A', 300 ) );
+t( 'đặt ảnh mẫu được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+t( 'đọc lại được', ! empty( VHCC_Online::anh_mau_the()['ok'] ) );
+t( 'và info nói đã khai', ! empty( VHCC_Online::anh_mau_the_info()['daKhai'] ) );
+$r = VHCC_Online::dat_anh_mau_the( $U_AD, 'data:image/jpeg;base64,' . str_repeat( 'A', 250000 ) );
+t( 'ảnh quá lớn bị từ chối (nó tải kèm MỌI lượt mở trang chấm công)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'quá lớn' ) !== false, $r['error'] );
+teq( 'cửa hàng trưởng không đặt ảnh mẫu', false,
+	VHCC_Online::dat_anh_mau_the( $U_CHT, 'data:image/png;base64,' . str_repeat( 'A', 300 ) )['ok'] );
+
+// ============================================================ 30. Nhân sự: đổi mã · nghỉ việc · nhập loạt
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'D1', 'ho_ten' => 'Đỗ G', 'cua_hang' => 'TUTU_BT' ) );
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'D1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-04', 'D1', '', '08:00:00', '17:00:00' );
+$wpdb->insert( VHCC_DB::t( 'lich_cv' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-05',
+	'ma_nv' => 'D1', 'ca' => 'Sáng' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '481937', 'ma_cc_online' => 'D1' ) );
+
+/* ---- XEM TRƯỚC là bắt buộc: đổi mã là sửa MỌI hàng chấm công, đổi rồi thì không có đường lùi ---- */
+$xt = VHCC_NhanSu::xem_truoc_doi_ma( $U_AD, 'D1', 'D2' );
+t( 'xem trước chạy được', ! empty( $xt['ok'] ), isset( $xt['error'] ) ? $xt['error'] : '' );
+teq( 'đếm đúng số hàng chấm công sẽ bị sửa', 2, $xt['soHangChamCong'] );
+teq( 'đếm đúng số ô lịch', 1, $xt['soOLich'] );
+teq( 'đếm đúng dòng phân quyền', 1, $xt['soDongPhanQuyen'] );
+teq( 'và liệt kê cơ sở liên quan', array( 'TUTU_BT' ), $xt['coSoLienQuan'] );
+/* Xem trước là CHỈ ĐỌC — không được sửa gì. */
+teq( 'xem trước KHÔNG sửa hàng nào', 2,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='D1'" ) );
+/* Mã mới ĐÃ có hồ sơ khác dùng -> chặn, vì đổi vào là GỘP CÔNG HAI NGƯỜI. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DX', 'ho_ten' => 'Người khác' ) );
+$r = VHCC_NhanSu::xem_truoc_doi_ma( $U_AD, 'D1', 'DX' );
+t( 'mã mới đã có người dùng: CHẶN (đổi vào là gộp công hai người)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'gộp công' ) !== false, $r['error'] );
+/* Mã đang khai chạy song song -> cảnh báo trước, đừng để phát hiện sau. */
+$wpdb->insert( VHCC_DB::t( 'ma_song_song' ), array( 'ma_a' => 'D1', 'ma_b' => 'DCU' ) );
+$xt2 = VHCC_NhanSu::xem_truoc_doi_ma( $U_AD, 'D1', 'D2' );
+t( 'cảnh báo mã đang chạy song song', '' !== $xt2['canhBao'], $xt2['canhBao'] );
+
+/* ---- ĐỔI MÃ ---- */
+teq( 'cửa hàng trưởng KHÔNG đổi được mã', false, VHCC_NhanSu::doi_ma_nv( $U_CHT, 'D1', 'D2' )['ok'] );
+/* ⚠️ Phải thử qua CHÍNH `doi_ma_nv`, không chỉ qua `xem_truoc_doi_ma`: bỏ chốt "xem trước trượt
+   thì dừng" trong doi_ma_nv thì phép thử xem-trước vẫn xanh mà hàm thật vẫn đổi bừa. Đã thử phá
+   và nó lọt đúng chỗ này. */
+$truoc_dx = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='D1'" );
+$r_dx = VHCC_NhanSu::doi_ma_nv( $U_AD, 'D1', 'DX' );
+t( 'doi_ma_nv TỪ CHỐI khi mã mới đã có hồ sơ khác dùng',
+	empty( $r_dx['ok'] ) && stripos( $r_dx['error'], 'gộp công' ) !== false,
+	isset( $r_dx['error'] ) ? $r_dx['error'] : 'lại cho đổi!' );
+teq( 'và KHÔNG hàng nào bị đổi sang mã đó', 0,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DX'" ) );
+teq( 'hàng cũ còn nguyên', $truoc_dx,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='D1'" ) );
+$r = VHCC_NhanSu::doi_ma_nv( $U_AD, 'D1', 'D2' );
+t( 'Admin đổi được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+teq( 'MỌI hàng chấm công đã đổi sang mã mới', 2,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='D2'" ) );
+teq( 'không còn hàng nào mang mã cũ', 0,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='D1'" ) );
+teq( 'ô lịch cũng đổi', 1,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'lich_cv' ) . " WHERE ma_nv='D2'" ) );
+teq( 'dòng phân quyền cũng đổi', 'D2',
+	$wpdb->get_var( "SELECT ma_cc_online FROM " . VHCC_DB::t( 'phan_quyen' ) . " WHERE pin='481937'" ) );
+teq( 'hồ sơ cũng đổi', 'Đỗ G', VHCC_NhanSu::ho_so( 'D2' )['ho_ten'] );
+/* ⚠️ Phải NÓI RÕ là chỉ đổi trên web — người trên MÁY vẫn mang mã cũ. Không nói thì người dùng
+   tưởng máy cũng đã đổi rồi chấm công vào mã cũ cả tháng. */
+t( 'nói rõ máy chấm công VẪN mang mã cũ',
+	stripos( $r['canhBao'], 'MÁY' ) !== false, $r['canhBao'] );
+/* Người có mặt ở cơ sở NGOÀI quyền -> chỉ Admin. */
+vhcc_cham( 'POSH_HCM', '2026-08-03', 'D2', '', '08:00:00', '17:00:00' );
+$U_QL_BT = array( 'name' => 'QL', 'role' => 'QUAN_LY', 'coso' => 'TUTU_BT' );
+t( 'Quản lý (không phải Admin) vẫn đổi được vì Quản lý có quyền mọi cơ sở',
+	! empty( VHCC_NhanSu::doi_ma_nv( $U_QL_BT, 'D2', 'D3' )['ok'] ) );
+
+/* ---- CHO NGHỈ VIỆC: đường ĐÚNG thay cho xoá ---- */
+$r = VHCC_NhanSu::dat_nghi_viec( $U_CHT, 'D3', '2026-08-31', 'chuyển chỗ khác' );
+t( 'cửa hàng trưởng cho nghỉ được (người của cửa hàng mình)', ! empty( $r['ok'] ),
+	isset( $r['error'] ) ? $r['error'] : '' );
+$hs = VHCC_NhanSu::ho_so( 'D3' );
+t( 'trạng thái ghi rõ ngày và lý do',
+	stripos( $hs['trang_thai_lam_viec'], 'Đã nghỉ' ) !== false
+	&& stripos( $hs['trang_thai_lam_viec'], '2026-08-31' ) !== false );
+teq( '⚠️ chấm công GIỮ NGUYÊN (bảng lương tháng cũ vẫn tra ra tên)', 3,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='D3'" ) );
+t( 'hồ sơ vẫn còn', null !== VHCC_NhanSu::ho_so( 'D3' ) );
+
+/* ---- XOÁ NHIỀU: từng cái đi qua đúng chốt của xoa_ho_so ---- */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'Z1', 'cua_hang' => 'TUTU_BT' ) );
+$r = VHCC_NhanSu::xoa_nhieu_ho_so( $U_AD, array( 'Z1', 'D3' ) );
+teq( 'xoá được người chưa có chấm công', array( 'Z1' ), $r['xong'] );
+teq( 'và bỏ người còn chấm công, kèm lý do', 1, count( $r['bo'] ) );
+t( 'lý do nói rõ còn lượt chấm công', stripos( $r['bo'][0], 'chấm công' ) !== false, $r['bo'][0] );
+
+/* ---- NHẬP HÀNG LOẠT: xem trước bắt trùng mã TRONG CHÍNH tệp ---- */
+vhcc_dung_bang();
+$tep = array(
+	array( 'ma_nv' => 'B1', 'ho_ten' => 'Một', 'cua_hang' => 'TUTU_BT' ),
+	array( 'ma_nv' => 'B2', 'ho_ten' => 'Hai', 'cua_hang' => 'TUTU_BT' ),
+	array( 'ma_nv' => 'B1', 'ho_ten' => 'Một lần nữa', 'cua_hang' => 'TUTU_BT' ),
+	array( 'ma_nv' => '',   'ho_ten' => 'Không mã' ),
+);
+$xt = VHCC_NhanSu::xem_truoc_nhap( $U_AD, $tep );
+teq( 'xem trước: 2 thêm', 2, $xt['dem']['them'] );
+teq( 'và 2 bỏ (trùng mã trong tệp + thiếu mã)', 2, $xt['dem']['bo'] );
+$ly_do = '';
+foreach ( $xt['dong'] as $d ) { if ( 3 === $d['dong'] ) { $ly_do = $d['vaoSao']; } }
+t( 'nói rõ trùng với DÒNG NÀO trong cùng tệp', stripos( $ly_do, 'dòng 1' ) !== false, $ly_do );
+teq( 'xem trước KHÔNG ghi hồ sơ nào', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) ) );
+/* Xác nhận lệch số -> chặn, vì tệp đã đổi giữa hai bước. */
+$r = VHCC_NhanSu::nhap_hang_loat( $U_AD, $tep, 5 );
+t( 'số xác nhận lệch: CHẶN (tệp đã đổi giữa hai bước)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'đã đổi' ) !== false, $r['error'] );
+$r = VHCC_NhanSu::nhap_hang_loat( $U_AD, $tep, 2 );
+teq( 'nhập đúng 2 dòng', 2, count( $r['xong'] ) );
+teq( 'và bỏ 2 dòng kèm lý do', 2, count( $r['bo'] ) );
+teq( 'chỉ có 2 hồ sơ được tạo', 2,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) ) );
+teq( 'cửa hàng trưởng không nhập hàng loạt', false,
+	VHCC_NhanSu::nhap_hang_loat( $U_CHT, $tep )['ok'] );
+
+/* ---- Nhiệm vụ: chỉ có nghĩa ở Nhóm Máy Tự Động ---- */
+$r = VHCC_NhanSu::dat_nhiem_vu( $U_CHT, '2026-08-03', 'TUTU_BT', 'B1', 'Trực Ghế' );
+t( 'cơ sở KHÔNG thuộc Nhóm Máy Tự Động: từ chối và nói rõ vì sao',
+	empty( $r['ok'] ) && stripos( $r['error'], 'Máy Tự Động' ) !== false, $r['error'] );
+$U_CHT_P = array( 'name' => 'CHT_P', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'POSH_HCM' );
+t( 'cơ sở POSH thì đặt được',
+	! empty( VHCC_NhanSu::dat_nhiem_vu( $U_CHT_P, '2026-08-03', 'POSH_HCM', 'B1', 'Trực Ghế' )['ok'] ) );
+VHCC_NhanSu::dat_nhiem_vu( $U_CHT_P, '2026-08-03', 'POSH_HCM', 'B1', 'Thu Tiền' );
+teq( 'đặt lại cùng (ngày, cơ sở, mã): GHI ĐÈ, không thêm dòng thứ hai', 1,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong_nhiem_vu' ) ) );
+
+/* ---- Mã đã chấm công mà chưa có hồ sơ ---- */
+vhcc_cham( 'TUTU_BT', '2026-08-10', 'KHONG_HO_SO', '', '08:00:00', '17:00:00' );
+$ds = VHCC_NhanSu::ds_chua_co_ho_so( $U_AD );
+$ma = array();
+foreach ( $ds as $x ) { $ma[] = $x['ma_nv']; }
+t( 'tìm ra mã đã chấm công mà chưa có hồ sơ', in_array( 'KHONG_HO_SO', $ma, true ), implode( ',', $ma ) );
+t( 'và KHÔNG kể mã đã có hồ sơ', ! in_array( 'B1', $ma, true ) );
+
+/* ---- Mã song song: bỏ cặp ---- */
+VHCC_NhanSu::khai_ma_song_song( $U_AD, 'S1', 'S2', 'X', '' );
+teq( 'liệt kê được', 1, count( VHCC_NhanSu::ds_ma_song_song() ) );
+teq( 'cửa hàng trưởng không bỏ được', false, VHCC_NhanSu::bo_ma_song_song( $U_CHT, 'S1', 'S2' )['ok'] );
+t( 'bỏ được kể cả khi gõ đảo thứ tự hai mã',
+	! empty( VHCC_NhanSu::bo_ma_song_song( $U_AD, 'S2', 'S1' )['ok'] ) );
+teq( 'đã bỏ thật', 0, count( VHCC_NhanSu::ds_ma_song_song() ) );
+t( 'bỏ cặp không tồn tại: báo không thấy',
+	empty( VHCC_NhanSu::bo_ma_song_song( $U_AD, 'KHONG', 'CO' )['ok'] ) );
+
+/* ---- Bộ phận + nhóm của mọi cơ sở, một bảng ---- */
+vhcc_bo_phan( 'VP_X', 'Văn phòng' );
+$bp = VHCC_NhanSu::bo_phan_va_coso();
+$thay = null;
+foreach ( $bp as $x ) { if ( 'VP_X' === $x['coSo'] ) { $thay = $x; } }
+t( 'bảng bộ phận nhận ra Văn phòng', $thay && true === $thay['laVanPhong'] );
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

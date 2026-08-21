@@ -102,6 +102,89 @@ class VHCC_Lich {
 		return array( 'ok' => true );
 	}
 
+	// ======================================================================= cấu hình lịch
+
+	/** Ca và loại việc dùng CHUNG toàn chuỗi; cơ sở bật lịch thì khai riêng. */
+	public static function cau_hinh( $u ) {
+		return array(
+			'ca'        => (array) VHCC_Luong::cai_dat( 'LICH_CA', array( 'Sáng', 'Chiều', 'Tối' ) ),
+			'loaiViec'  => (array) VHCC_Luong::cai_dat( 'LICH_LOAI_VIEC', array() ),
+			'coSoBatLich' => (array) VHCC_Luong::cai_dat( 'LICH_CO_SO', array() ),
+			'moiCoSo'   => VHCC_NhanSu::ds_coso(),
+			'coSoCuaToi' => VHCC_NhanSu::co_quan_tri_nv( $u )
+				? VHCC_NhanSu::ds_coso() : VHCC_NhanSu::ds_coso_cua( $u ),
+			'suaDuocCauHinh' => VHCC_NhanSu::co_sua_ho_so( $u ),
+		);
+	}
+
+	/**
+	 * Cơ sở nào BẬT phân lịch.
+	 * ⚠️ Tắt lịch của một cơ sở KHÔNG xoá ô lịch nào đã xếp — chỉ ẩn màn xếp lịch. Xoá là mất lịch
+	 *    đã xếp cho những ngày sắp tới, mà bật lại thì không dựng lại được.
+	 */
+	public static function dat_coso_bat_lich( $u, $ds ) {
+		if ( ! VHCC_NhanSu::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Bật/tắt phân lịch theo cơ sở — ' . VHCC_NhanSu::LOI_QT );
+		}
+		$sach = array();
+		foreach ( (array) $ds as $x ) {
+			$x = VHCC_NhanSu::chuan_coso( $x );
+			if ( '' !== $x && ! in_array( $x, $sach, true ) ) { $sach[] = $x; }
+		}
+		return self::luu( 'LICH_CO_SO', $sach, $u );
+	}
+
+	/**
+	 * Danh sách CA. Dùng chung toàn chuỗi.
+	 * ⚠️ ĐỔI TÊN một ca KHÔNG đổi tên trong những ô lịch đã xếp — `ca` là một phần KHOÁ của ô lịch.
+	 *    Nên đổi tên là những ô cũ giữ tên cũ và trông như ca lạ. Hàm này báo ra số ô đang dùng tên
+	 *    bị bỏ, chứ không lặng lẽ để đó.
+	 */
+	public static function dat_ca( $u, $ds ) {
+		global $wpdb;
+		if ( ! VHCC_NhanSu::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền sửa danh sách ca.' );
+		}
+		$sach = array();
+		foreach ( (array) $ds as $x ) {
+			$x = trim( (string) $x );
+			if ( '' !== $x && ! in_array( $x, $sach, true ) ) { $sach[] = $x; }
+		}
+		if ( ! $sach ) { return array( 'ok' => false, 'error' => 'Phải có ít nhất một ca.' ); }
+		$mo_coi = array();
+        foreach ( VHCC_DB::rows( 'SELECT ca, COUNT(*) so FROM ' . VHCC_DB::t( 'lich_cv' )
+			. " WHERE ca <> '' GROUP BY ca" ) as $r ) {
+			if ( ! in_array( $r['ca'], $sach, true ) ) { $mo_coi[ $r['ca'] ] = (int) $r['so']; }
+		}
+		$kq = self::luu( 'LICH_CA', $sach, $u );
+		$kq['oMoCoi'] = $mo_coi;      // ô lịch đang dùng tên ca vừa bị bỏ — nói ra, đừng để im
+		return $kq;
+	}
+
+	public static function dat_loai_viec( $u, $ds ) {
+		if ( ! VHCC_NhanSu::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền sửa loại công việc.' );
+		}
+		$sach = array();
+		foreach ( (array) $ds as $x ) {
+			$x = trim( (string) $x );
+			if ( '' !== $x && ! in_array( $x, $sach, true ) ) { $sach[] = $x; }
+		}
+		return self::luu( 'LICH_LOAI_VIEC', $sach, $u );
+	}
+
+	private static function luu( $khoa, $gia_tri, $u ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cai_dat' );
+		$ghi = array( 'khoa' => $khoa, 'gia_tri' => wp_json_encode( $gia_tri ),
+			'cap_nhat' => current_time( 'mysql' ),
+			'nguoi_sua' => isset( $u['name'] ) ? (string) $u['name'] : '' );
+		$cu = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE khoa=%s", $khoa ) );
+		if ( $cu ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu ) ); }
+		else       { $wpdb->insert( $bang, $ghi ); }
+		return array( 'ok' => true );
+	}
+
 	// ======================================================================= xin đổi lịch
 
 	/**

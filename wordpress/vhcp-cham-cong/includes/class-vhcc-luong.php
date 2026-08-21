@@ -601,7 +601,15 @@ class VHCC_Luong {
 	}
 
 	public static function vp_bang_cong_va_luong( $coso, $tt ) {
-		$cfg = self::vp_cfg();
+		return self::vp_bang_cong_va_luong_voi( $coso, $tt, self::vp_cfg() );
+	}
+
+	/**
+	 * Cùng phép tính nhưng nhận cấu hình từ ngoài — để bảng đối chiếu chạy HAI cấu hình mà chỉ
+	 * đọc dữ liệu MỘT lần. Đọc hai lần thì cột chênh có thể do dữ liệu vừa đổi giữa hai lượt đọc,
+	 * và lúc đó bảng đối chiếu nói dối về nguyên nhân.
+	 */
+	public static function vp_bang_cong_va_luong_voi( $coso, $tt, $cfg ) {
 
 		/* Gom theo NGƯỜI rồi theo NGÀY. Hàng chính -> 'chinh', hàng -CD -> 'dem'.
 		   ⚠️ Hàng -CT (công tối, hậu tố CŨ không còn ghi mới) cũng gom vào 'dem': bản gốc giữ nó
@@ -662,6 +670,219 @@ class VHCC_Luong {
 			'chuaKhaiKeToan' => ( 0 === count( $cfg['ktMaNV'] ) ),
 			'ncThang' => $tt, 'ncSo' => $nc,
 			'ncGoiY' => ( $nc > 0 ? null : self::vp_nc_goi_y( $coso, $tt ) ) );
+	}
+
+	// ======================================================================= đặt cấu hình
+
+	private static function luu_cai_dat( $khoa, $gia_tri, $u ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cai_dat' );
+		$ghi = array( 'khoa' => $khoa, 'gia_tri' => wp_json_encode( $gia_tri ),
+			'cap_nhat' => current_time( 'mysql' ),
+			'nguoi_sua' => isset( $u['name'] ) ? (string) $u['name'] : '' );
+		$cu = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE khoa=%s", $khoa ) );
+		if ( $cu ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu ) ); }
+		else       { $wpdb->insert( $bang, $ghi ); }
+		return array( 'ok' => true );
+	}
+
+	/**
+	 * Đơn giá theo GIỜ / theo CÔNG của Nhóm Máy Tự Động.
+	 * ⚠️ Chỉ nhận số DƯƠNG. Ghi 0 hay số âm là mọi ô tiền của cả cơ sở thành 0 hoặc âm, mà bảng
+	 *    vẫn có số nên trông như "tháng này không ai làm".
+	 */
+	public static function dat_don_gia_gio( $u, $gia ) {
+		if ( ! self::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ) ) {
+			return array( 'ok' => false, 'error' => 'Đặt đơn giá — chỉ Admin / Kế toán.' );
+		}
+		$o = array();
+		$loi = array();
+		foreach ( array( 'congThuong', 'congCuoiTuan', 'congLe', 'gioThuong', 'gioCuoiTuan', 'gioLe' ) as $k ) {
+			if ( ! isset( $gia[ $k ] ) || '' === trim( (string) $gia[ $k ] ) ) { continue; }
+			$n = VHCC_NhanSu::so_tien( $gia[ $k ] );
+			if ( $n <= 0 ) { $loi[] = $k; continue; }
+			$o[ $k ] = $n;
+		}
+		if ( $loi ) {
+			return array( 'ok' => false, 'error' => 'Đơn giá phải là số dương: ' . implode( ', ', $loi )
+				. '. Để 0 là mọi ô tiền của cả cơ sở thành 0 mà bảng vẫn có số.' );
+		}
+		if ( ! $o ) { return array( 'ok' => false, 'error' => 'Chưa nhập đơn giá nào.' ); }
+		$cu = self::cai_dat( 'MTD_DON_GIA', array() );
+		return self::luu_cai_dat( 'MTD_DON_GIA', array_merge( is_array( $cu ) ? $cu : array(), $o ), $u );
+	}
+
+	/**
+	 * Số ngày công CHUẨN của một (cơ sở, tháng) — mẫu số quy lương.
+	 * ⚠️ Khai theo ĐÚNG cặp (cơ sở, tháng), không có "áp cho mọi tháng". Mỗi tháng số ngày khác
+	 *    nhau, và mượn số tháng khác là sai tiền của mọi người cùng lúc.
+	 */
+	public static function dat_ngay_cong( $u, $coso, $thang, $so ) {
+		global $wpdb;
+		if ( ! self::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ) ) {
+			return array( 'ok' => false, 'error' => 'Đặt số ngày công — chỉ Admin / Kế toán.' );
+		}
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$tt = self::tien_to_thang( $thang );
+		if ( '' === $coso || '' === $tt ) {
+			return array( 'ok' => false, 'error' => 'Thiếu cơ sở hoặc tháng không hợp lệ.' );
+		}
+		$n = (float) str_replace( ',', '.', preg_replace( '/[^0-9.,]/', '', (string) $so ) );
+		if ( $n <= 0 || $n > 31 ) {
+			return array( 'ok' => false, 'error' => 'Số ngày công phải trong khoảng 1–31.' );
+		}
+		$bang = VHCC_DB::t( 'vp_ngay_cong' );
+		$ghi = array( 'coso' => $coso, 'thang' => $tt, 'ngay_cong' => $n,
+			'nguoi_khai' => isset( $u['name'] ) ? (string) $u['name'] : '',
+			'cap_nhat' => current_time( 'mysql' ) );
+		$cu = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM $bang WHERE LOWER(coso)=LOWER(%s) AND thang=%s", $coso, $tt ) );
+		if ( $cu ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu ) ); }
+		else       { $wpdb->insert( $bang, $ghi ); }
+		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'so' => $n );
+	}
+
+	/**
+	 * Đặt cấu hình công Văn phòng.
+	 * ⚠️ ĐỔI `duoiMin` hay mấy mốc bậc thang là ĐỔI LƯƠNG của cả cơ sở. Nên hàm này trả kèm bảng
+	 *    ĐỐI CHIẾU trước/sau: người đặt phải thấy con số thay đổi bao nhiêu TRƯỚC khi lưu, chứ
+	 *    không phải phát hiện ở kỳ lương.
+	 */
+	public static function dat_vp_cfg( $u, $cfg_moi, $coso_thu = '', $thang_thu = '' ) {
+		if ( ! self::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ) ) {
+			return array( 'ok' => false, 'error' => 'Đặt cấu hình công — chỉ Admin / Kế toán.' );
+		}
+		$cho_phep = array( 'ngayTu', 'ngayDen', 'ngayMin', 'ngayMax', 'duoiMin', 'gioChuan',
+			'bacNua', 'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut',
+			'ktThu7Tu', 'ktThu7Den', 'ktThu7Min', 'ktMaNV', 'ktChuNhatNghi',
+			'demTu', 'demDen', 'demCong', 'demCongBu', 'demBuKhiDaLam', 'tangCaCong' );
+		$o = self::vp_cfg();
+		foreach ( $cho_phep as $k ) {
+			if ( array_key_exists( $k, (array) $cfg_moi ) ) { $o[ $k ] = $cfg_moi[ $k ]; }
+		}
+		$hop = array( 'tyle', 'nua', 'tron', 'khong', 'bacthang' );
+		if ( ! in_array( $o['duoiMin'], $hop, true ) ) {
+			return array( 'ok' => false, 'error' => 'Cách tính khi thiếu giờ phải là một trong: '
+				. implode( ' · ', $hop ) );
+		}
+		foreach ( array( 'ngayTu', 'ngayDen', 'demTu', 'demDen', 'ktThu7Tu', 'ktThu7Den' ) as $k ) {
+			if ( null === VHCC_DB::giay( $o[ $k ] ) ) {
+				return array( 'ok' => false, 'error' => 'Giờ "' . $k . '" phải dạng HH:mm.' );
+			}
+		}
+		$doi_chieu = ( '' !== $coso_thu && '' !== $thang_thu )
+			? self::so_sanh_cach_tinh( $u, $coso_thu, $thang_thu, $o ) : null;
+		$r = self::luu_cai_dat( 'VP_CONG_CFG', $o, $u );
+		$r['doiChieu'] = $doi_chieu;
+		return $r;
+	}
+
+	/**
+	 * BẢNG ĐỐI CHIẾU: công và tiền theo cách tính ĐANG LƯU so với cách tính ĐANG THỬ.
+	 *
+	 * ⚠️ CHỈ ĐỌC TUYỆT ĐỐI — không ghi cài đặt, không ghi chấm công. Xem bảng này KHÔNG đổi lương
+	 *    của ai.
+	 * ⚠️ Hai bên chạy trên CÙNG một lần đọc dữ liệu, nên cột chênh chỉ có thể do CÁCH TÍNH. Đọc hai
+	 *    lần là chênh có thể do dữ liệu vừa đổi giữa hai lượt đọc, và lúc đó bảng đối chiếu nói dối.
+	 */
+	public static function so_sanh_cach_tinh( $u, $coso, $thang, $cfg_thu ) {
+		if ( ! self::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ) ) {
+			return array( 'ok' => false, 'error' => 'Xem bảng đối chiếu — chỉ Admin / Kế toán.' );
+		}
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$tt = self::tien_to_thang( $thang );
+		if ( '' === $tt ) { return array( 'ok' => false, 'error' => 'Tháng không hợp lệ.' ); }
+		if ( ! self::la_van_phong( $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Bảng đối chiếu này chỉ dùng cho bộ phận Văn phòng.' );
+		}
+		$cu  = self::vp_bang_cong_va_luong_voi( $coso, $tt, self::vp_cfg() );
+		$moi = self::vp_bang_cong_va_luong_voi( $coso, $tt, array_merge( self::vp_cfg(), (array) $cfg_thu ) );
+		$m = array();
+		foreach ( $moi['rows'] as $r ) { $m[ $r['ma'] ] = $r; }
+		$dong = array();
+		$chenh_cong = 0.0;
+		$chenh_tien = 0;
+		foreach ( $cu['rows'] as $a ) {
+			$b = isset( $m[ $a['ma'] ] ) ? $m[ $a['ma'] ] : null;
+			$d = array( 'ma' => $a['ma'], 'ten' => $a['ten'],
+				'congCu' => $a['tong'], 'congMoi' => $b ? $b['tong'] : 0,
+				'tienCu' => $a['tien'], 'tienMoi' => $b ? $b['tien'] : 0 );
+			$d['chenhCong'] = round( $d['congMoi'] - $d['congCu'], 2 );
+			$d['chenhTien'] = $d['tienMoi'] - $d['tienCu'];
+			$chenh_cong = round( $chenh_cong + $d['chenhCong'], 2 );
+			$chenh_tien += $d['chenhTien'];
+			$dong[] = $d;
+		}
+		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'dong' => $dong,
+			'chenhCong' => $chenh_cong, 'chenhTien' => $chenh_tien,
+			'caChuan' => self::ca_chuan( array_merge( self::vp_cfg(), (array) $cfg_thu ) ) );
+	}
+
+	/**
+	 * MỘT NGÀY LÀM BÌNH THƯỜNG dài mấy tiếng, và theo cấu hình đang thử thì ra mấy công.
+	 * Bản dịch `_vpCaChuan`. Đây là con số phải hiện ra TRƯỚC khi bấm Lưu: khung chuẩn 08:30–17:00
+	 * là 8.5 tiếng, và với mốc bậc thang sai thì chính NGÀY LÀM BÌNH THƯỜNG thành 1.5 công — lương
+	 * tăng 50% cho tất cả mọi người, không riêng người thiếu giờ.
+	 */
+	public static function ca_chuan( $cfg ) {
+		$phut = self::vp_phut_trong_khung(
+			intdiv( VHCC_DB::giay( $cfg['ngayTu'] ), 60 ),
+			intdiv( VHCC_DB::giay( $cfg['ngayDen'] ), 60 ), $cfg['ngayTu'], $cfg['ngayDen'] );
+		return array( 'gio' => round( $phut / 60, 2 ),
+			'cong' => self::vp_cong_ngay_tu_phut( $phut, (float) $cfg['ngayMin'], $cfg ) );
+	}
+
+	/**
+	 * BÁO CÁO THEO GIỜ — bản dịch `getWorkPayReport`: số giờ giao với khung ca × đơn giá theo việc.
+	 * Khác engine MTD (đủ vào+ra = 1 công) và engine VP (bậc thang): ở đây tính theo phần GIAO NHAU
+	 * với khung ca, và khung ngày thường / cuối tuần khác nhau.
+	 */
+	public static function bao_cao_theo_gio( $u, $coso, $thang ) {
+		if ( ! self::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ) ) {
+			return array( 'ok' => false, 'error' => 'Xem báo cáo giờ & lương — chỉ Admin / Kế toán.' );
+		}
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$tt = self::tien_to_thang( $thang );
+		if ( '' === $tt ) { return array( 'ok' => false, 'error' => 'Tháng không hợp lệ.' ); }
+		$wage = self::cai_dat( 'WAGE_MAP', array() );
+		$ca   = self::cai_dat( 'CA_LAM', array( 'start' => '08:00', 'end' => '17:00',
+			'startW' => '08:00', 'endW' => '17:00' ) );
+		$gia_coso = ( is_array( $wage ) && isset( $wage[ $coso ] ) ) ? (array) $wage[ $coso ] : array();
+		$ho_so = self::ho_so_nhiem_vu();
+
+		$by = array();
+		$chua_khai = array();
+		foreach ( self::doc_thang( $coso, $tt ) as $r ) {
+			if ( null === $r['gio_vao_giay'] || null === $r['gio_ra_giay'] ) { continue; }
+			$ma = trim( (string) $r['ma_nv'] );
+			if ( '' === $ma ) { continue; }
+			$cuoi_tuan = self::la_cuoi_tuan( $r['ngay'] );
+			$tu  = $cuoi_tuan ? $ca['startW'] : $ca['start'];
+			$den = $cuoi_tuan ? $ca['endW'] : $ca['end'];
+			$phut = self::vp_phut_trong_khung( intdiv( (int) $r['gio_vao_giay'], 60 ),
+				intdiv( (int) $r['gio_ra_giay'], 60 ), $tu, $den );
+			$viec = self::nhiem_vu_cua_hang( strtoupper( trim( (string) $r['hau_to'] ) ),
+				isset( $ho_so[ strtolower( $ma ) ] ) ? $ho_so[ strtolower( $ma ) ] : array() );
+			$dg = 0.0;
+			if ( '' !== $viec && isset( $gia_coso[ $viec ] ) ) { $dg = (float) $gia_coso[ $viec ]; }
+			elseif ( isset( $gia_coso['*'] ) ) { $dg = (float) $gia_coso['*']; }
+			elseif ( '' !== $viec ) { $chua_khai[ $viec ] = 1; }
+			if ( ! isset( $by[ $ma ] ) ) {
+				$by[ $ma ] = array( 'ma' => $ma, 'ten' => (string) $r['ho_ten'],
+					'phut' => 0, 'gio' => 0.0, 'tien' => 0, 'viec' => $viec );
+			}
+			$by[ $ma ]['phut'] += $phut;
+			$by[ $ma ]['tien'] += (int) round( $phut / 60 * $dg );
+		}
+		$rows = array();
+		foreach ( $by as $x ) {
+			$x['gio'] = round( $x['phut'] / 60, 2 );
+			$rows[] = $x;
+		}
+		usort( $rows, function ( $a, $b ) { return strcmp( $a['ten'], $b['ten'] ); } );
+		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'ca' => $ca,
+			'rows' => $rows, 'chuaKhaiDonGia' => array_keys( $chua_khai ),
+			'chuaKhaiGiaCoSo' => ! $gia_coso );
 	}
 
 	// ======================================================================= bảng thô

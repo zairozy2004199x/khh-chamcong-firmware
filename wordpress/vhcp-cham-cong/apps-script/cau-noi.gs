@@ -94,6 +94,9 @@ var CC_CHO_PHEP = [
   'getLuongMayTuDong', 'getGiaMayTuDong',
   /* --- Máy chấm công: GHI trong phạm vi một máy --- */
   'ganMayVaoCuaHang', 'boGanMay', 'luuSimMay', 'requestMachineScan',
+  /* Bảo máy ĐỌC LẠI sổ chấm công của đầu đọc trong một khoảng — lệnh của MÁY, không phải dữ liệu
+     của web, nên không có gì để viết lại trên MySQL. */
+  'requestBackfill',
   'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai',
   'setGiaMayTuDong',
   /* --- Dọn khối "test" do gói thử đường truyền tạo ra (đụng sheet cơ sở -> Admin) --- */

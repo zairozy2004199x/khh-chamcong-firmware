@@ -293,6 +293,76 @@ class VHCC_Online {
 		return $s;
 	}
 
+	/** GIỜ MÁY CHỦ — trang chấm công phụ hiện đồng hồ theo giờ này, không theo giờ điện thoại.
+	 *  Nếu hiện giờ điện thoại thì người ta thấy 08:29 rồi bấm, mà máy chủ ghi 08:31. */
+	public static function gio_may_chu() {
+		return array( 'ok' => true, 'ngay' => current_time( 'Y-m-d' ),
+			'gio' => current_time( 'H:i:s' ), 'moc' => (int) current_time( 'timestamp' ) );
+	}
+
+	/**
+	 * Thông tin để trang chấm công online dựng màn: mình là ai, được chấm ở cơ sở nào, được khai
+	 * nhiệm vụ nào, và HÔM NAY đã chấm gì.
+	 */
+	public static function thong_tin( $u ) {
+		$ma_nv = trim( isset( $u['ma_nv'] ) ? (string) $u['ma_nv'] : '' );
+		if ( '' === $ma_nv ) {
+			return array( 'ok' => true, 'bat' => false,
+				'ghiChu' => 'Tài khoản này chưa bật chấm công online.' );
+		}
+		$mac_dinh = VHCC_NhanSu::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' );
+		$ds_coso = self::ds_coso_cua_nv( $ma_nv, $mac_dinh );
+		$hn = array();
+		foreach ( $ds_coso as $cs ) { $hn[ $cs ] = self::hom_nay( $cs, $ma_nv ); }
+		return array( 'ok' => true, 'bat' => true, 'maNV' => $ma_nv, 'hoTen' => (string) $u['ho_ten'],
+			'coSoMacDinh' => $mac_dinh, 'dsCoSo' => $ds_coso,
+			'dsNhiemVu' => self::nhiem_vu_cua_nv( $ma_nv ),
+			'homNay' => $hn, 'gio' => self::gio_may_chu() );
+	}
+
+	/**
+	 * Ảnh mẫu thẻ 3×4 — hình mẫu để nhân viên biết chụp thế nào cho đúng.
+	 * ⚠️ Trả `{ok:false}` khi chưa khai, để trang tự dùng hình vẽ sẵn. KHÔNG trả ảnh rỗng: ảnh rỗng
+	 *    hiện ra là một ô đen, và người ta tưởng hệ thống hỏng.
+	 */
+	public static function anh_mau_the() {
+		$v = self::cai_dat( 'ANH_MAU_THE' );
+		if ( ! is_string( $v ) || strlen( $v ) < 100 ) { return array( 'ok' => false ); }
+		return array( 'ok' => true, 'dataUri' => $v );
+	}
+
+	public static function anh_mau_the_info() {
+		$v = self::cai_dat( 'ANH_MAU_THE' );
+		return array( 'ok' => true, 'daKhai' => ( is_string( $v ) && strlen( $v ) >= 100 ),
+			'soByte' => is_string( $v ) ? strlen( $v ) : 0 );
+	}
+
+	public static function dat_anh_mau_the( $u, $data_uri ) {
+		global $wpdb;
+		if ( ! VHCC_NhanSu::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Đặt ảnh mẫu thẻ — ' . VHCC_NhanSu::LOI_QT );
+		}
+		$v = trim( (string) $data_uri );
+		if ( '' !== $v && 0 !== strpos( $v, 'data:image/' ) ) {
+			return array( 'ok' => false, 'error' => 'Phải là ảnh dạng data:image/… (dán từ ô tải ảnh).' );
+		}
+		/* Giới hạn kích cỡ: ảnh mẫu đi kèm MỌI lượt mở trang chấm công, ảnh vài trăm KB là làm
+		   trang nặng cho mọi người chỉ vì một hình minh hoạ. */
+		if ( strlen( $v ) > 200000 ) {
+			return array( 'ok' => false, 'error' => 'Ảnh mẫu quá lớn ('
+				. round( strlen( $v ) / 1024 ) . ' KB). Nó tải kèm MỌI lượt mở trang chấm công — '
+				. 'nén xuống dưới 150 KB.' );
+		}
+		$bang = VHCC_DB::t( 'cai_dat' );
+		$cu = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE khoa=%s", 'ANH_MAU_THE' ) );
+		$ghi = array( 'khoa' => 'ANH_MAU_THE', 'gia_tri' => wp_json_encode( $v ),
+			'cap_nhat' => current_time( 'mysql' ),
+			'nguoi_sua' => isset( $u['name'] ) ? (string) $u['name'] : '' );
+		if ( $cu ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu ) ); }
+		else       { $wpdb->insert( $bang, $ghi ); }
+		return array( 'ok' => true );
+	}
+
 	public static function hang( $coso, $ngay, $ma_nv, $hau_to ) {
 		global $wpdb;
 		return $wpdb->get_row( $wpdb->prepare(

@@ -1,0 +1,144 @@
+# SỔ ĐỐI CHIẾU 111 HÀM — mỗi hàm ĐÚNG MỘT trạng thái, không được để trống
+#
+# Vì sao có tệp này: bản kê `ham-giao-dien.txt` nói CÓ GÌ PHẢI PORT. Tệp này nói ĐÃ PORT TỚI ĐÂU.
+# Không có nó thì "còn lại mấy hàm" là câu không ai trả lời được, và hàm bị bỏ quên sẽ im lặng —
+# đúng loại lỗi mà cả việc này đang tránh. `tools/test/test-cham-cong.php` mục 23 canh: mọi hàm
+# trong bản kê phải có ĐÚNG MỘT dòng ở đây, và mọi lớp/hàm nhắc tới phải TỒN TẠI THẬT.
+#
+# Ba trạng thái:
+#   MYSQL <Lớp::hàm>   viết lại trên MySQL, dữ liệu ở Hostinger
+#   CAUNOI             gọi Apps Script qua cầu nối (Firebase / sheet vẫn là nguồn thật)
+#   KHONGCAN <lý do>   KHÔNG cần trên MySQL — phải ghi rõ lý do, không được để trống
+#
+# ⚠️ KHONGCAN không phải "chưa làm". Đó là những hàm CHỈ TỒN TẠI VÌ SHEET: tạo sheet, chuẩn hoá
+#    cột sheet, tô màu ô, nạp/xuất PIN giữa hai sheet. Bảng MySQL có kiểu dữ liệu và một nguồn
+#    duy nhất nên mấy việc đó biến mất. Viết vỏ rỗng cho chúng là để sẵn đường sai không ai kiểm.
+
+## ---- Đăng nhập / phiên / quyền ----
+loginByPin              MYSQL VHCC_Auth::login
+doiPin                  MYSQL VHCC_Quyen::doi_pin
+getMyStations           MYSQL VHCC_NhanSu::ds_coso
+getNvPerms              MYSQL VHCC_Quyen::quyen_cua
+getRoles                MYSQL VHCC_Quyen::ds_phan_quyen
+saveRole                MYSQL VHCC_Quyen::luu_phan_quyen
+deleteRole              MYSQL VHCC_Quyen::xoa_phan_quyen
+capPinHangLoat          MYSQL VHCC_Quyen::cap_pin_hang_loat
+napPinTuSheet           KHONGCAN PIN chỉ nằm ở MỘT bảng phan_quyen; bên Sheet phải nạp qua lại vì PIN có bản sao ở sheet NhanVien
+xuatPinRaSheet          KHONGCAN cùng lý do napPinTuSheet: không có bản sao thứ hai để xuất PIN sang
+
+## ---- Chấm công: bảng, cờ, ảnh, PDF ----
+getSheetDataVaFlags     MYSQL VHCC_Cham::bang_cham_cong
+getSheetsList           KHONGCAN không có sheet để liệt kê; danh sách cơ sở lấy ở VHCC_NhanSu::ds_coso
+getFlags                MYSQL VHCC_Cham::ds_ghi_chu
+saveFlag                MYSQL VHCC_Cham::luu_ghi_chu
+resolveFlag             MYSQL VHCC_Cham::xu_ly_ghi_chu
+getAttPhoto             KHONGCAN anh Thắng chốt không cần lấy ảnh, có giờ chấm công là đủ
+getPhotoDay             KHONGCAN không lấy ảnh chấm công nữa; giờ vào/ra là đủ để tính công
+requestAttPhoto         KHONGCAN không lấy ảnh chấm công nữa nên không cần xin máy trích ảnh
+toMauCoVaoSheet         KHONGCAN tô màu Ô trong sheet; ở MySQL chính cái cờ LÀ dữ liệu, không cần tô gì
+getNoCheckinWarning     MYSQL VHCC_Cham::canh_bao_thieu_gio_ra
+xuatPdfChamCong         MYSQL VHCC_Pdf::trang_in
+requestBackfill         CAUNOI
+
+## ---- Phân lịch làm ----
+getWorkSchedule         MYSQL VHCC_Lich::ds_lich
+saveWorkSchedule        MYSQL VHCC_Lich::xep_lich
+getScheduleConfig       MYSQL VHCC_Lich::cau_hinh
+setScheduleStations     MYSQL VHCC_Lich::dat_coso_bat_lich
+setShifts               MYSQL VHCC_Lich::dat_ca
+setJobTypes             MYSQL VHCC_Lich::dat_loai_viec
+xinDoiLich              MYSQL VHCC_Lich::xin_doi_lich
+getDoiLichList          MYSQL VHCC_Lich::ds_doi_lich
+duyetDoiLich            MYSQL VHCC_Lich::duyet
+
+## ---- Giờ & lương ----
+getWorkPayReport        MYSQL VHCC_Luong::bao_cao_theo_gio
+getCauHinhCong          MYSQL VHCC_Luong::vp_cfg
+setWages                MYSQL VHCC_Luong::dat_don_gia_gio
+setNgayCongThang        MYSQL VHCC_Luong::dat_ngay_cong
+soSanhCachTinhCong      MYSQL VHCC_Luong::so_sanh_cach_tinh
+luuQuyDoiCoSo           MYSQL VHCC_Cham::luu_quy_doi_coso
+khoaTangCuong           MYSQL VHCC_Cham::khoa_tang_cuong
+themTangCuong           MYSQL VHCC_Cham::them_tang_cuong
+getThongKeDay           MYSQL VHCC_Cham::thong_ke_day
+xoaThongKeDay           MYSQL VHCC_Cham::xoa_thong_ke_day
+
+## ---- Công văn phòng ----
+getCongVanPhong         MYSQL VHCC_Luong::vp_bang_cong_va_luong
+getCauHinhVanPhong      MYSQL VHCC_Luong::vp_cfg
+setCauHinhVanPhong      MYSQL VHCC_Luong::dat_vp_cfg
+
+## ---- Chấm công online (trang nhẹ) ----
+chamCongOnline          MYSQL VHCC_Online::cham_cong
+getChamCongOnlineInfo   MYSQL VHCC_Online::thong_tin
+getLichSuChamCongOnline MYSQL VHCC_Online::lich_su
+getGioMayChu            MYSQL VHCC_Online::gio_may_chu
+getNvCoChamCongOnline   MYSQL VHCC_Quyen::ds_bat_cham_cong_online
+getAnhMauThe            MYSQL VHCC_Online::anh_mau_the
+getAnhMauTheInfo        MYSQL VHCC_Online::anh_mau_the_info
+datAnhMauThe            MYSQL VHCC_Online::dat_anh_mau_the
+traPinTheoCccd          MYSQL VHCC_Quyen::tra_pin_theo_cccd
+guiThongTinNvOnline     MYSQL VHCC_YeuCau::gui_thong_tin_nv
+dsCoSoChoNvGui          MYSQL VHCC_NhanSu::ds_coso
+
+## ---- Nhân sự: hồ sơ, cơ sở, bộ phận ----
+getEmployees            MYSQL VHCC_NhanSu::ds_nhan_vien
+upsertEmployee          MYSQL VHCC_NhanSu::luu_ho_so
+deleteEmployee          MYSQL VHCC_NhanSu::xoa_ho_so
+deleteEmployees         MYSQL VHCC_NhanSu::xoa_nhieu_ho_so
+datNghiViec             MYSQL VHCC_NhanSu::dat_nghi_viec
+doiMaNhanVien           MYSQL VHCC_NhanSu::doi_ma_nv
+xemTruocDoiMa           MYSQL VHCC_NhanSu::xem_truoc_doi_ma
+nhapNhanSu              MYSQL VHCC_NhanSu::nhap_hang_loat
+xemTruocNhapNhanSu      MYSQL VHCC_NhanSu::xem_truoc_nhap
+getBoPhanCoSo           MYSQL VHCC_Luong::bo_phan_cua
+setBoPhanCoSo           MYSQL VHCC_NhanSu::xep_bo_phan
+getBoPhanVaSheets       MYSQL VHCC_NhanSu::bo_phan_va_coso
+getNhiemVuNV            MYSQL VHCC_Luong::ho_so_nhiem_vu
+datNhiemVuCoSo          MYSQL VHCC_NhanSu::dat_nhiem_vu
+taoSheetNvCoSo          KHONGCAN không tạo sheet NV_<cơ sở>; nhân sự nằm ở MỘT bảng nhan_vien, cơ sở là một CỘT
+taoSheetMauNv           KHONGCAN tạo sheet MẪU cho nhân sự; không có sheet nào để tạo mẫu
+chuanHoaSheetNhanVien   KHONGCAN chuẩn hoá THỨ TỰ CỘT của sheet; bảng MySQL gọi cột theo TÊN nên không lệch được
+quetNvVeNhanVien        KHONGCAN quét các sheet NV_ gom về sheet NhanVien; không có sheet NV_ nào để quét
+getNvChuaCoHoSo         MYSQL VHCC_NhanSu::ds_chua_co_ho_so
+getNvChonTheoCoSo       MYSQL VHCC_NhanSu::ds_nhan_vien
+timHoSoDaoCot           KHONGCAN tìm hồ sơ bị ĐẢO CỘT khi gõ vào sheet; cột MySQL có kiểu và tên, không đảo được
+timTaiKhoanTrung        MYSQL VHCC_Quyen::tim_pin_trung
+gopTaiKhoan             MYSQL VHCC_Quyen::gop_tai_khoan
+getMaSongSong           MYSQL VHCC_NhanSu::ds_ma_song_song
+khaiMaSongSong          MYSQL VHCC_NhanSu::khai_ma_song_song
+boMaSongSong            MYSQL VHCC_NhanSu::bo_ma_song_song
+
+## ---- Yêu cầu nhân viên ----
+dsYeuCauNV              MYSQL VHCC_YeuCau::ds
+guiYeuCauNV             MYSQL VHCC_YeuCau::gui
+guiYeuCauNVLoat         MYSQL VHCC_YeuCau::gui_loat
+duyetYeuCauNV           MYSQL VHCC_YeuCau::duyet
+tuChoiYeuCauNV          MYSQL VHCC_YeuCau::tu_choi
+demYeuCauNVCho          MYSQL VHCC_YeuCau::dem_cho
+
+## ---- Máy chấm công + firmware (qua cầu nối) ----
+addFromMachine          MYSQL VHCC_Nhan::phuc_vu
+demMayChuaGan           MYSQL VHCC_May::doi_chieu
+getDanhSachMay          CAUNOI
+getMachineStatus        CAUNOI
+getMachineRoster        CAUNOI
+ganMayVaoCuaHang        CAUNOI
+boGanMay                CAUNOI
+requestMachineScan      CAUNOI
+chanDoanMay             CAUNOI
+getQueueMay             CAUNOI
+xoaLenhQueue            CAUNOI
+getHangDoiTaiLai        CAUNOI
+xoaLenhTaiLai           CAUNOI
+dungTaiLai              CAUNOI
+luuSimMay               CAUNOI
+getLuongMayTuDong       CAUNOI
+getGiaMayTuDong         CAUNOI
+setGiaMayTuDong         CAUNOI
+xemKhoiTest             CAUNOI
+donKhoiTest             CAUNOI
+getFwMoiNhat            CAUNOI
+getOtaTarget            CAUNOI
+setOtaTarget            CAUNOI
+clearOtaTarget          CAUNOI

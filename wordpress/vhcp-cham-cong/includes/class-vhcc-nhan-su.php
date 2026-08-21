@@ -271,6 +271,272 @@ class VHCC_NhanSu {
 		return array( 'ok' => true );
 	}
 
+	/** Xoá nhiều hồ sơ. Từng cái đi qua ĐÚNG chốt của xoa_ho_so — không có đường tắt hàng loạt. */
+	public static function xoa_nhieu_ho_so( $u, $ds_ma ) {
+		$xong = array();
+		$bo = array();
+		foreach ( (array) $ds_ma as $ma ) {
+			$r = self::xoa_ho_so( $u, $ma );
+			if ( ! empty( $r['ok'] ) ) { $xong[] = trim( (string) $ma ); }
+			else { $bo[] = trim( (string) $ma ) . ': ' . $r['error']; }
+		}
+		return array( 'ok' => true, 'xong' => $xong, 'bo' => $bo );
+	}
+
+	/**
+	 * CHO NGHỈ VIỆC — đường ĐÚNG thay cho xoá hồ sơ.
+	 * Giữ nguyên hồ sơ và toàn bộ chấm công; chỉ đổi trạng thái. Nhờ vậy bảng lương tháng cũ vẫn
+	 * tra ra tên, mà người đó không còn hiện trong danh sách đang làm.
+	 */
+	public static function dat_nghi_viec( $u, $ma_nv, $ngay_nghi = '', $ly_do = '' ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		$cu = self::ho_so( $ma );
+		if ( ! $cu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $cu['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền với hồ sơ này.' );
+		}
+		$gc = 'Đã nghỉ';
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', trim( (string) $ngay_nghi ) ) ) {
+			$gc .= ' từ ' . trim( (string) $ngay_nghi );
+		}
+		if ( '' !== trim( (string) $ly_do ) ) { $gc .= ' — ' . trim( (string) $ly_do ); }
+		$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+			array( 'trang_thai_lam_viec' => $gc, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma_nv' => $ma ) );
+		return array( 'ok' => true, 'trangThai' => $gc );
+	}
+
+	/**
+	 * XEM TRƯỚC khi đổi mã NV — hàm CHỈ ĐỌC.
+	 *
+	 * ⚠️ Phải có bước xem trước vì đổi mã là sửa MỌI hàng chấm công đã có của người đó. Đổi rồi mới
+	 *    thấy sai thì không có đường lùi: hàng cũ đã mang mã mới, không phân biệt được với hàng
+	 *    vốn thuộc mã mới.
+	 */
+	public static function xem_truoc_doi_ma( $u, $ma_cu, $ma_moi ) {
+		global $wpdb;
+		$cu  = trim( (string) $ma_cu );
+		$moi = trim( (string) $ma_moi );
+		if ( '' === $cu || '' === $moi ) { return array( 'ok' => false, 'error' => 'Thiếu mã cũ hoặc mã mới.' ); }
+		if ( strtolower( $cu ) === strtolower( $moi ) ) {
+			return array( 'ok' => false, 'error' => 'Hai mã giống nhau.' );
+		}
+		$hs = self::ho_so( $cu );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ mã ' . $cu . '.' ); }
+		if ( self::ho_so( $moi ) ) {
+			return array( 'ok' => false, 'error' => 'Mã mới "' . $moi . '" ĐÃ có hồ sơ khác dùng. '
+				. 'Đổi vào là gộp công hai người.' );
+		}
+		$so_cc = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $cu ) );
+		$coso_lq = $wpdb->get_col( $wpdb->prepare(
+			'SELECT DISTINCT coso FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $cu ) );
+		$so_lich = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'lich_cv' ) . ' WHERE ma_nv=%s', $cu ) );
+		$so_pq = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'phan_quyen' ) . ' WHERE LOWER(ma_cc_online)=LOWER(%s)', $cu ) );
+		/* Mã song song: nếu mã cũ đang được khai là chạy song song với mã khác thì đổi mã làm hỏng
+		   cặp đó. Nói ra trước, đừng để phát hiện sau. */
+		$ss = VHCC_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'ma_song_song' )
+			. ' WHERE LOWER(ma_a)=LOWER(%s) OR LOWER(ma_b)=LOWER(%s)', $cu, $cu ) );
+		return array( 'ok' => true, 'maCu' => $cu, 'maMoi' => $moi, 'hoTen' => $hs['ho_ten'],
+			'soHangChamCong' => $so_cc, 'coSoLienQuan' => array_values( (array) $coso_lq ),
+			'soOLich' => $so_lich, 'soDongPhanQuyen' => $so_pq, 'maSongSong' => $ss,
+			'canhBao' => $ss ? 'Mã này đang khai chạy song song — đổi mã sẽ làm cặp mã đó trỏ sai.' : '' );
+	}
+
+	/**
+	 * ĐỔI MÃ NV. Chỉ Admin/Quản lý, và phải có quyền trên MỌI cơ sở người đó có mặt.
+	 *
+	 * ⚠️ Người làm nhiều cơ sở: đổi mã phải sửa cả những cơ sở kia. Cho người chỉ quản một cơ sở
+	 *    làm là họ ghi được vào dữ liệu cơ sở khác.
+	 * ⚠️ KHÔNG đụng máy chấm công. Bên Apps Script hàm này còn xoá/tạo lại người trên máy Hikvision
+	 *    (nên nó đòi có ảnh trước khi xoá). Ở đây phần máy vẫn do Apps Script + Firebase lo, nên
+	 *    hàm này CHỈ đổi dữ liệu web — và phải nói rõ, không thì người dùng tưởng máy cũng đã đổi.
+	 */
+	public static function doi_ma_nv( $u, $ma_cu, $ma_moi ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Đổi mã NV ảnh hưởng mọi hàng chấm công đã có — '
+				. self::LOI_QT );
+		}
+		$xt = self::xem_truoc_doi_ma( $u, $ma_cu, $ma_moi );
+		if ( empty( $xt['ok'] ) ) { return $xt; }
+		$cu  = $xt['maCu'];
+		$moi = $xt['maMoi'];
+		foreach ( $xt['coSoLienQuan'] as $cs ) {
+			if ( ! self::co_quyen_coso( $u, $cs ) ) {
+				return array( 'ok' => false, 'error' => 'Người này còn có mặt ở ' . $cs
+					. ' — đổi mã phải sửa cả nơi đó, nên chỉ Admin làm được.' );
+			}
+		}
+		foreach ( array( 'nhan_vien' => 'ma_nv', 'cham_cong' => 'ma_nv', 'lich_cv' => 'ma_nv',
+			'doi_lich_cv' => 'ma_nv', 'cham_cong_nhiem_vu' => 'ma_nv', 'tang_cuong' => 'ma_nv',
+			'ghi_chu' => 'ma_nv' ) as $bang => $cot ) {
+			$wpdb->query( $wpdb->prepare(
+				'UPDATE ' . VHCC_DB::t( $bang ) . " SET $cot=%s WHERE $cot=%s", $moi, $cu ) );
+		}
+		$wpdb->query( $wpdb->prepare(
+			'UPDATE ' . VHCC_DB::t( 'phan_quyen' ) . ' SET ma_cc_online=%s WHERE LOWER(ma_cc_online)=LOWER(%s)',
+			$moi, $cu ) );
+		return array( 'ok' => true, 'maCu' => $cu, 'maMoi' => $moi,
+			'daSua' => $xt['soHangChamCong'] . ' hàng chấm công, ' . $xt['soOLich'] . ' ô lịch',
+			'canhBao' => 'Chỉ đổi dữ liệu trên web. Người trên MÁY chấm công vẫn mang mã cũ — '
+				. 'xoá/tạo lại trên máy làm ở màn "Máy & Firmware".' );
+	}
+
+	/**
+	 * XEM TRƯỚC nhập nhân sự hàng loạt — CHỈ ĐỌC, không ghi một dòng nào.
+	 * Trả từng dòng kèm việc sẽ làm (thêm / cập nhật / bỏ) và lý do bỏ.
+	 */
+	public static function xem_truoc_nhap( $u, $ds ) {
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Nhập nhân sự toàn chuỗi — ' . self::LOI_QT );
+		}
+		$ra = array();
+		$thay = array();
+		foreach ( (array) $ds as $i => $d ) {
+			$d = (array) $d;
+			$ma = trim( isset( $d['ma_nv'] ) ? (string) $d['ma_nv'] : '' );
+			$dong = array( 'dong' => (int) $i + 1, 'maNV' => $ma,
+				'hoTen' => trim( isset( $d['ho_ten'] ) ? (string) $d['ho_ten'] : '' ),
+				'cuaHang' => self::chuan_coso( isset( $d['cua_hang'] ) ? $d['cua_hang'] : '' ) );
+			if ( '' === $ma ) { $dong['viec'] = 'bỏ'; $dong['vaoSao'] = 'thiếu Mã NV'; $ra[] = $dong; continue; }
+			/* Trùng mã TRONG CHÍNH tệp nhập: hai dòng cùng mã là một cái ghi đè cái kia mà không
+			   ai thấy. Bắt ở bước xem trước, đừng để chạy xong mới biết mất một dòng. */
+			if ( isset( $thay[ strtolower( $ma ) ] ) ) {
+				$dong['viec'] = 'bỏ';
+				$dong['vaoSao'] = 'trùng mã với dòng ' . $thay[ strtolower( $ma ) ] . ' trong cùng tệp';
+				$ra[] = $dong; continue;
+			}
+			$thay[ strtolower( $ma ) ] = (int) $i + 1;
+			$dong['viec'] = self::ho_so( $ma ) ? 'cập nhật' : 'thêm';
+			$ra[] = $dong;
+		}
+		$dem = array( 'them' => 0, 'capNhat' => 0, 'bo' => 0 );
+		foreach ( $ra as $x ) {
+			if ( 'thêm' === $x['viec'] ) { $dem['them']++; }
+			elseif ( 'cập nhật' === $x['viec'] ) { $dem['capNhat']++; }
+			else { $dem['bo']++; }
+		}
+		return array( 'ok' => true, 'dong' => $ra, 'dem' => $dem );
+	}
+
+	/**
+	 * NHẬP NHÂN SỰ HÀNG LOẠT. Từng dòng đi qua ĐÚNG `luu_ho_so` — không có đường ghi tắt.
+	 * ⚠️ Đòi chạy `xem_truoc_nhap` sạch trước: `$xac_nhan` phải là số dòng mà bước xem trước đếm
+	 *    được. Lệch số nghĩa là tệp đã đổi giữa hai bước, và lúc đó người bấm không biết mình đang
+	 *    nhập cái gì.
+	 */
+	public static function nhap_hang_loat( $u, $ds, $xac_nhan = null ) {
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Nhập nhân sự toàn chuỗi — ' . self::LOI_QT );
+		}
+		$xt = self::xem_truoc_nhap( $u, $ds );
+		if ( empty( $xt['ok'] ) ) { return $xt; }
+		$se_ghi = $xt['dem']['them'] + $xt['dem']['capNhat'];
+		if ( null !== $xac_nhan && (int) $xac_nhan !== $se_ghi ) {
+			return array( 'ok' => false, 'error' => 'Số dòng sẽ ghi (' . $se_ghi . ') khác số đã xem '
+				. 'trước (' . (int) $xac_nhan . ') — tệp đã đổi giữa hai bước. Xem lại rồi nhập.' );
+		}
+		$xong = array();
+		$bo = array();
+		$thay = array();
+		foreach ( (array) $ds as $i => $d ) {
+			$d = (array) $d;
+			$ma = trim( isset( $d['ma_nv'] ) ? (string) $d['ma_nv'] : '' );
+			if ( '' === $ma || isset( $thay[ strtolower( $ma ) ] ) ) {
+				$bo[] = 'dòng ' . ( (int) $i + 1 ) . ( '' === $ma ? ': thiếu Mã NV' : ': trùng mã trong tệp' );
+				continue;
+			}
+			$thay[ strtolower( $ma ) ] = 1;
+			$r = self::luu_ho_so( $u, $d );
+			if ( ! empty( $r['ok'] ) ) { $xong[] = $ma; }
+			else { $bo[] = 'dòng ' . ( (int) $i + 1 ) . ' (' . $ma . '): ' . $r['error']; }
+		}
+		return array( 'ok' => true, 'xong' => $xong, 'bo' => $bo );
+	}
+
+	/** Bộ phận + nhóm lương của MỌI cơ sở — một bảng cho màn quản trị. */
+	public static function bo_phan_va_coso() {
+		$out = array();
+		foreach ( self::ds_coso() as $cs ) {
+			$nh = VHCC_Luong::nhom_coso( $cs );
+			$out[] = array( 'coSo' => $cs, 'boPhan' => VHCC_Luong::bo_phan_cua( $cs ),
+				'nhom' => $nh ? $nh['ten'] : '', 'theoGio' => VHCC_Luong::coso_tinh_theo_gio( $cs ),
+				'laVanPhong' => VHCC_Luong::la_van_phong( $cs ) );
+		}
+		return $out;
+	}
+
+	/**
+	 * Nhiệm vụ của một người TẠI một cơ sở, cho một ngày.
+	 * ⚠️ Nhiệm vụ chỉ có nghĩa ở Nhóm Máy Tự Động — cơ sở khác thì từ chối, đừng ghi một giá trị
+	 *    không ảnh hưởng gì rồi để người ta tưởng đã khai xong.
+	 */
+	public static function dat_nhiem_vu( $u, $ngay, $coso, $ma_nv, $nhiem_vu ) {
+		global $wpdb;
+		$coso = self::chuan_coso( $coso );
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
+		}
+		if ( ! VHCC_Luong::la_may_tu_dong( $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Nhiệm vụ chỉ có nghĩa ở Nhóm Máy Tự Động. '
+				. 'Cơ sở "' . $coso . '" không thuộc nhóm đó nên khai vào cũng không đổi cách tính công.' );
+		}
+		$ngay = trim( (string) $ngay );
+		$ma = trim( (string) $ma_nv );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) || '' === $ma ) {
+			return array( 'ok' => false, 'error' => 'Thiếu ngày hoặc mã NV.' );
+		}
+		$nv = trim( (string) $nhiem_vu );
+		$bang = VHCC_DB::t( 'cham_cong_nhiem_vu' );
+		$cu = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM $bang WHERE ngay=%s AND LOWER(coso)=LOWER(%s) AND ma_nv=%s", $ngay, $coso, $ma ) );
+		$ghi = array( 'ngay' => $ngay, 'coso' => $coso, 'ma_nv' => $ma, 'nhiem_vu' => $nv,
+			'ghi_luc' => current_time( 'mysql' ),
+			'nguoi_ghi' => isset( $u['name'] ) ? (string) $u['name'] : '' );
+		// Ghi ĐÈ, không thêm dòng thứ hai cho cùng (ngày, cơ sở, mã).
+		if ( $cu ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu ) ); }
+		else       { $wpdb->insert( $bang, $ghi ); }
+		return array( 'ok' => true, 'nhiemVu' => $nv );
+	}
+
+	/** Mã đã CHẤM CÔNG mà chưa có hồ sơ — người thật, công thật, mà bảng lương không tra ra tên. */
+	public static function ds_chua_co_ho_so( $u ) {
+		global $wpdb;
+		$out = array();
+		foreach ( VHCC_DB::rows(
+			'SELECT c.coso, c.ma_nv, MAX(c.ho_ten) ho_ten, COUNT(*) so, MAX(c.ngay) ngay_cuoi FROM '
+			. VHCC_DB::t( 'cham_cong' ) . ' c LEFT JOIN ' . VHCC_DB::t( 'nhan_vien' ) . ' n'
+			. ' ON n.ma_nv = c.ma_nv WHERE n.id IS NULL GROUP BY c.coso, c.ma_nv ORDER BY so DESC' ) as $r ) {
+			if ( ! self::co_quyen_coso( $u, $r['coso'] ) ) { continue; }
+			$out[] = $r;
+		}
+		return $out;
+	}
+
+	public static function ds_ma_song_song() {
+		return VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'ma_song_song' ) . ' ORDER BY id DESC' );
+	}
+
+	public static function bo_ma_song_song( $u, $ma_a, $ma_b ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Mã song song ảnh hưởng cả chuỗi — ' . self::LOI_QT );
+		}
+		$so = $wpdb->query( $wpdb->prepare(
+			'DELETE FROM ' . VHCC_DB::t( 'ma_song_song' )
+			. ' WHERE (LOWER(ma_a)=LOWER(%s) AND LOWER(ma_b)=LOWER(%s))'
+			. ' OR (LOWER(ma_a)=LOWER(%s) AND LOWER(ma_b)=LOWER(%s))',
+			$ma_a, $ma_b, $ma_b, $ma_a ) );
+		return ( 0 === (int) $so )
+			? array( 'ok' => false, 'error' => 'Không thấy cặp mã này.' )
+			: array( 'ok' => true );
+	}
+
 	/** Xếp bộ phận cho một cơ sở. Bộ phận quyết định công thức lương -> chỉ Admin/Quản lý. */
 	public static function xep_bo_phan( $u, $coso, $bo_phan, $theo_gio = null ) {
 		global $wpdb;
