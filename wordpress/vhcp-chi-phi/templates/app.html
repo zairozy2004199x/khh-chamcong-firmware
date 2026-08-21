@@ -295,7 +295,7 @@
       <div class="cb">
         <input type="hidden" id="lineId">
         <div class="grid">
-          <div class="fld"><label>Cơ sở *</label><select id="f_coso" onchange="_khoaCoSoHint()"></select>
+          <div class="fld"><label>Cơ sở *</label><select id="f_coso" onchange="_khoaCoSoHint();renderNhomCp();fillNhom(el('f_nhom')?el('f_nhom').value:'')"></select>
             <div id="cosoLock" style="font-size:11px;color:#b45309;margin-top:3px;display:none"></div></div>
           <div class="fld"><label>Ngày</label><input id="f_ngay" type="date"></div>
           <div class="fld"><label>Phân loại (Cá nhân / NCC) *</label><select id="f_pltt" onchange="onPlttChange()"></select></div>
@@ -1145,12 +1145,22 @@
   var NHOM_CP_CS='(cơ sở)';   // khoá nội bộ cho nhóm KHÔNG có bộ phận
 
   /**
-   * Bộ phận của một loại chi phí quy về khoá nhóm.
-   * Để TRỐNG và ghi "Cơ sở" là cùng một nghĩa — không gộp thì nhóm cơ sở bị tách làm hai ô.
+   * Bộ phận của một loại chi phí quy về khoá nhóm cho ô "Chọn chi phí nào".
+   *
+   * Cột Bộ phận KHAI RÕ thì luôn thắng — kể cả khai "Cơ sở" (về nhóm cơ sở) — vì đó là ý
+   * của kế toán. Cột đó TRỐNG thì suy từ TÊN loại: dữ liệu nạp từ bảng tính cũ để trống gần
+   * hết cột này, mà bắt khai tay cả chục dòng mới nhóm đúng thì vô lý. Suy sai cũng chỉ ảnh
+   * hưởng loại đó nằm ở nút nào, KHÔNG đụng tới mã tài khoản; khai Bộ phận là hết suy.
    */
-  function _khoaNhom(b){
+  function _khoaNhom(b, ten){
     b=String(b||'').trim();
-    return (b==='' || b==='Cơ sở') ? NHOM_CP_CS : b;
+    if(b==='Cơ sở') return NHOM_CP_CS;
+    if(b) return b;
+    var t=String(ten||'').toLowerCase();
+    if(/th[áa]o d[ỡơ]|setup|l[ắa]p đ[ặa]t/.test(t)) return 'Kỹ thuật';
+    if(/marketing|mkt|ho[ạa]t n[áa]o|qu[ảa]ng c[áa]o|truy[ềe]n th[ôo]ng/.test(t)) return 'Marketing';
+    if(/c[ôo]ng t[áa]c|đi c[ôo]ng t[áa]c|l[ưu] tr[úu]/.test(t)) return 'Công tác';
+    return NHOM_CP_CS;
   }
   /** Các mảng chi phí có trong danh mục (theo cột Bộ phận), lọc theo bộ phận người nhập. */
   function _cacNhomCp(){
@@ -1159,7 +1169,7 @@
     (BOOT.loaiChiPhi||[]).forEach(function(x){
       var b=String(x.boPhan||'').trim();
       if(bp && b && b!==bp) return;                    // không phải bộ phận của mình
-      var k=_khoaNhom(b);
+      var k=_khoaNhom(b, x.ten);
       if(!co[k]){ co[k]=1; ds.push(k); }
     });
     // "Chi phí cơ sở" luôn đứng đầu nếu có
@@ -1183,29 +1193,21 @@
   }
   function pickNhomCp(k){ NHOM_CP=k; renderNhomCp(); fillNhom(''); }
 
-  function fillNhom(keep){ /* danh mục loại chi phí lọc theo phân loại TT + bộ phận + mảng đang chọn */
-    var loai=loaiOf(el('f_pltt').value);
-    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();   // bộ phận người nhập: '' = xem tất cả; có -> chỉ nhóm "Tất cả" hoặc đúng bộ phận
-    // Mảng đang chọn ở ô "Chọn chi phí nào": '(cơ sở)' = loại KHÔNG khai bộ phận
-    var nhomChon=NHOM_CP;
-    var khopNhom=function(b){
-      if(!nhomChon) return true;
-      return _khoaNhom(b)===nhomChon;
-    };
+  /**
+   * Ô LOẠI CHI PHÍ của đơn — dùng CHUNG một danh sách với mọi màn khác (_loaiCpList).
+   *
+   * Trước đây hàm này tự dựng danh sách riêng: lấy tên từ cả bảng "Nhóm mặt hàng" cũ và
+   * KHÔNG đòi phải có mã tài khoản. Nên loại đã xóa khỏi danh mục (Tháo dỡ · Setup lắp đặt
+   * · Vận hành) vẫn hiện ở đây, còn chỗ khác thì không — hai danh sách lệch nhau mà nhìn
+   * ngoài không thấy. Nay một nguồn duy nhất: danh mục loại chi phí, đã khai mã, đúng mảng
+   * đang chọn ở ô "Chọn chi phí nào".
+   */
+  function fillNhom(keep){
     var cur=(keep!==undefined)?keep:el('f_nhom').value;
-    var names=(BOOT.nhom||[]).filter(function(n){
-      if(loai && !(n.loai===loai||n.loai==='both')) return false;
-      if(bp){ var nbp=String(n.boPhan||'').trim(); if(nbp && nbp!==bp) return false; }
-      if(!khopNhom(n.boPhan)) return false;
-      return true;
-    }).map(function(n){return n.ten;});
-    // Loại chi phí mới khai ở ⚙️ Cấu hình (chưa có trong bảng nhóm cũ) cũng chọn được ở đây
-    (BOOT.loaiChiPhi||[]).forEach(function(x){
-      var ten=String(x.ten||'').trim(); if(!ten||names.indexOf(ten)>=0) return;
-      if(bp){ var b=String(x.boPhan||'').trim(); if(b && b!==bp) return; }
-      if(!khopNhom(x.boPhan)) return;
-      names.push(ten);
-    });
+    var coso=el('f_coso')?el('f_coso').value:'';
+    var ds=_loaiCpList(coso, '', loaiOf(el('f_pltt').value));
+    var names=ds.map(function(x){ return String(x.ten||'').trim(); }).filter(Boolean);
+    // Dòng đang sửa mà loại nay không còn trong danh mục -> vẫn để chọn được, khỏi mất dữ liệu
     if(cur && names.indexOf(cur)<0) names.push(cur);
     el('f_nhom').innerHTML='<option value="">—</option>'+names.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
     el('f_nhom').value=(cur && names.indexOf(cur)>=0)?cur:'';
@@ -1701,7 +1703,7 @@
       var k=String(l.nhom||'').trim().toLowerCase(), b=null;
       (BOOT.loaiChiPhi||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=String(x.boPhan||'').trim(); });
       if(b===null) (BOOT.nhom||[]).forEach(function(x){ if(String(x.ten||'').trim().toLowerCase()===k) b=String(x.boPhan||'').trim(); });
-      if(b!==null){ NHOM_CP=_khoaNhom(b); renderNhomCp(); }
+      if(b!==null){ NHOM_CP=_khoaNhom(b, l.nhom); renderNhomCp(); }
     })();
     el('f_dt').value=l.doiTuong||''; fillNhom(l.nhom||''); updateDoiTuongUI(l.phanLoaiTT||''); el('f_nd').value=l.noiDung||'';
     el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; el('f_dg').value=l.donGia||''; el('f_tt').value=l.thanhTien||''; el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
@@ -3167,13 +3169,14 @@
    * MẢNG KINH DOANH của cơ sở — loại nào mảng đó không khai mã thì không hiện
    * (VD "Chi phí nuôi thú" chỉ hiện ở FARM). Loại có mã cố định thì mảng nào cũng hiện.
    */
-  function _loaiCpList(coso, hinhThuc){
+  function _loaiCpList(coso, hinhThuc, loaiTtEx){
     var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
     var mang=_mangCua(coso).toLowerCase();
     var mx=BOOT.tkNoMx||{};
-    // "Trực tiếp…" = trả nhà cung cấp · còn lại = cá nhân ứng tiền
+    // "Trực tiếp…" = trả nhà cung cấp · còn lại = cá nhân ứng tiền.
+    // loaiTtEx: chỗ gọi tự biết (đơn chi phí dùng Phân loại TT, không phải Hình thức chi).
     var ht=String(hinhThuc||'').trim();
-    var loaiTt = ht ? (ht.indexOf('Trực tiếp')===0 ? 'ncc' : 'canhan') : '';
+    var loaiTt = loaiTtEx ? String(loaiTtEx) : ( ht ? (ht.indexOf('Trực tiếp')===0 ? 'ncc' : 'canhan') : '' );
     return (BOOT.loaiChiPhi||[]).filter(function(x){
       // CHỈ HIỆN LOẠI ĐÃ KHAI MÃ trong Cấu hình.
       //
@@ -3187,6 +3190,8 @@
       // hết — lọc theo dấu là lọc theo thứ tự người dùng bấm nút, không đáng tin. Loại chưa
       // có mã thì chọn cũng ra dòng KHÔNG có TK Nợ, tức chưa dùng được.
       if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) return false;
+      // Ô "Chọn chi phí nào" ở mục 1 -> chỉ hiện loại của mảng đang chọn
+      if(NHOM_CP && _khoaNhom(x.boPhan, x.ten)!==NHOM_CP) return false;
       var b=String(x.boPhan||'').trim();
       if(bp && b && b!==bp) return false;
       var lt=String(x.loaiTt||'').trim();

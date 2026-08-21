@@ -701,10 +701,21 @@ mảng bằng ô mới **"Chọn chi phí nào"** ở **mục 1**, ngay trước
 | ✈️ Công tác | các loại của Công tác |
 
 **Nhóm lấy theo cột "Bộ phận"** của danh mục loại chi phí (⚙️ Cấu hình → 🧮 Loại chi phí ×
-Mảng kinh doanh). Muốn một loại nằm ở mảng nào thì đặt **Bộ phận** của nó là mảng đó — ví dụ
-*Chi phí hoạt náo* để **Marketing** thì nó rời khỏi nhóm cơ sở và sang nhóm Marketing. Để
-**trống** hoặc ghi **"Cơ sở"** đều thuộc nhóm 🏢 *Chi phí cơ sở*. Khai thêm bộ phận mới ở Cấu
-hình là ô "Chọn chi phí nào" tự có thêm, không phải sửa app.
+Mảng kinh doanh) — khai rõ thì **luôn thắng**, kể cả khai `Cơ sở` (về nhóm 🏢). Khai thêm bộ
+phận mới ở Cấu hình là ô "Chọn chi phí nào" tự có thêm nút, không phải sửa app.
+
+Cột đó **để trống** thì app **suy từ tên loại** (bản 1.14.1) — dữ liệu nạp từ bảng tính cũ để
+trống gần hết cột này, bắt khai tay cả chục dòng mới nhóm đúng thì vô lý:
+
+| Tên loại chứa | Vào nhóm |
+|---|---|
+| *tháo dỡ · setup · lắp đặt* | 🔧 Setup / Tháo dỡ |
+| *marketing · mkt · hoạt náo · quảng cáo · truyền thông* | 🔥 Marketing |
+| *công tác · lưu trú* | ✈️ Công tác |
+| còn lại | 🏢 Chi phí cơ sở |
+
+Suy sai cũng **chỉ ảnh hưởng loại đó nằm ở nút nào, không đụng tới mã tài khoản**; khai Bộ
+phận cho loại đó là hết suy. Luật này có phép thử riêng: `node tools/test/test-nhom-chi-phi.js`.
 
 Chỉ có một nhóm thì ô này tự ẩn cho gọn. Sửa một dòng cũ thì ô tự nhảy về đúng mảng của dòng
 đó, không thì ô *Loại chi phí* không có sẵn giá trị cũ và người sửa tưởng mất.
@@ -712,6 +723,20 @@ Chỉ có một nhóm thì ô này tự ẩn cho gọn. Sửa một dòng cũ th
 **Dữ liệu Marketing / Công tác / Setup đã có: giữ nguyên** — chỉ ẩn tab, báo cáo và xuất MISA
 vẫn cộng đủ như trước. Nhân viên thuộc mấy bộ phận đó nay vào **Đơn chi phí** và **Sổ chi
 phí** để nhập.
+
+### Loại đã xóa vẫn hiện trong đơn — hai danh sách lệch nhau (bản 1.14.1)
+
+Ô **Loại chi phí trong đơn chi phí** trước đây tự dựng danh sách riêng: lấy tên từ **cả bảng
+"Nhóm mặt hàng" cũ** và **không đòi phải có mã** tài khoản. Nên loại đã xóa khỏi danh mục
+(*Tháo dỡ · Setup lắp đặt · Vận hành*) vẫn hiện ở đây, trong khi Sổ chi phí và màn dự án thì
+không — hai danh sách lệch nhau mà nhìn ngoài không thấy vì sao.
+
+Nay **một nguồn duy nhất** cho mọi màn: danh mục loại chi phí, **đã khai mã**, đúng **mảng
+đang chọn** ở ô "Chọn chi phí nào", đúng **phân loại thanh toán** và **bộ phận** của người
+nhập. Đổi ô **Cơ sở** thì danh sách loại cập nhật theo — vì mã đổi theo mảng của cơ sở.
+
+Dòng đang sửa mà loại nay không còn trong danh mục thì **vẫn chọn được**, để không mất dữ liệu
+cũ.
 
 ## 5. Khác gì so với bản Apps Script
 
