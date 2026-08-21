@@ -19,6 +19,170 @@ class VHCC_Admin {
 		);
 		add_submenu_page( 'vhcc', 'Cổng nhận từ máy', 'Cổng nhận từ máy', self::CAP,
 			'vhcc-cong-may', array( __CLASS__, 'trang_cong_may' ) );
+		add_submenu_page( 'vhcc', 'Bảng công & Lương', 'Bảng công & Lương', self::CAP,
+			'vhcc-luong', array( __CLASS__, 'trang_luong' ) );
+	}
+
+	/**
+	 * BẢNG CÔNG & LƯƠNG — đọc từ MySQL.
+	 *
+	 * ⚠️ Màn này chỉ ĐỌC. Không có nút nào ghi vào bảng chấm công: xem lương không được phép đổi
+	 *    chấm công, kể cả một ô.
+	 *
+	 * ⚠️ Ba thứ PHẢI hiện ra mặt, không được để lẫn trong bảng số:
+	 *      · cơ sở CHƯA CÓ CÔNG THỨC  -> nói thẳng là chưa có, đừng để người ta tưởng số 0 là
+	 *        "tháng này không ai làm";
+	 *      · CHƯA KHAI số ngày công    -> tiền hiện "—", vì 0 đồng và "chưa tính được" là hai
+	 *        chuyện khác nhau;
+	 *      · ngày có DẤU CẦN SOI (ca lạ, ca đêm thiếu giờ, ca đêm thiếu cặp giờ) -> đếm ra cột
+	 *        riêng. Engine cố ý GIỮ mấy ngày đó lại thay vì lặng lẽ bỏ, nên màn hình phải hiện,
+	 *        không thì việc giữ lại thành vô nghĩa.
+	 */
+	public static function trang_luong() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
+		global $wpdb;
+		$coso  = isset( $_GET['coso'] ) ? sanitize_text_field( wp_unslash( $_GET['coso'] ) ) : '';
+		$thang = isset( $_GET['thang'] ) ? sanitize_text_field( wp_unslash( $_GET['thang'] ) ) : gmdate( 'Y-m' );
+
+		$ds = $wpdb->get_col( 'SELECT DISTINCT coso FROM ' . VHCC_DB::t( 'cham_cong' ) . ' ORDER BY coso' );
+		echo '<div class="wrap"><h1>Bảng công &amp; Lương</h1>';
+		echo '<form method="get"><input type="hidden" name="page" value="vhcc-luong" />';
+		echo '<select name="coso"><option value="">— chọn cơ sở —</option>';
+		foreach ( (array) $ds as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . ( $x === $coso ? ' selected' : '' ) . '>'
+				. esc_html( $x ) . ' (' . esc_html( VHCC_Luong::bo_phan_cua( $x ) ) . ')</option>';
+		}
+		echo '</select> <input type="text" name="thang" value="' . esc_attr( $thang )
+			. '" placeholder="yyyy-MM" /> <button class="button button-primary">Xem</button></form>';
+
+		if ( '' === $coso ) { echo '<p><em>Chọn cơ sở rồi bấm Xem.</em></p></div>'; return; }
+
+		$r = VHCC_Luong::bang_cong_va_luong( $coso, $thang );
+		if ( empty( $r['ok'] ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html( $r['error'] ) . '</p></div></div>';
+			return;
+		}
+		echo '<p>Bộ phận: <strong>' . esc_html( $r['boPhan'] ) . '</strong> · cách tính: <code>'
+			. esc_html( $r['kieu'] ) . '</code></p>';
+
+		if ( 'tho' === $r['kieu'] ) {
+			echo '<div class="notice notice-warning"><p><strong>Cơ sở này CHƯA có công thức lương.</strong> '
+				. 'Bảng dưới chỉ là giờ vào / giờ ra thô. Hệ thống cố ý KHÔNG suy ra một cách tính nào — '
+				. 'bịa công thức là đưa ra một con số tiền mà không ai biết từ đâu.</p></div>';
+			echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Tên</th><th>Ngày</th>'
+				. '<th>Vào</th><th>Ra</th></tr></thead><tbody>';
+			foreach ( $r['tho']['rows'] as $e ) {
+				foreach ( $e['ngay'] as $i => $d ) {
+					echo '<tr><td>' . ( 0 === $i ? esc_html( $e['ma'] ) : '' ) . '</td><td>'
+						. ( 0 === $i ? esc_html( $e['ten'] ) : '' ) . '</td><td>' . esc_html( $d['date'] )
+						. '</td><td>' . esc_html( $d['vao'] ) . '</td><td>' . esc_html( $d['ra'] ) . '</td></tr>';
+				}
+			}
+			echo '</tbody></table></div>';
+			return;
+		}
+
+		if ( 'mtd' === $r['kieu'] ) {
+			$m = $r['mtd'];
+			if ( $m['chuaKhaiGia'] ) {
+				echo '<div class="notice notice-error"><p><strong>Chưa khai đơn giá</strong> '
+					. '(<code>MTD_DON_GIA</code>) — mọi ô tiền dưới đây là 0 vì thiếu đơn giá, '
+					. 'KHÔNG phải vì không ai làm.</p></div>';
+			}
+			if ( ! empty( $m['theoGioCaCoSo'] ) ) {
+				echo '<p><em>Cơ sở này được tích "tính theo giờ" — mọi dòng tính theo tiếng.</em></p>';
+			}
+			echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Tên</th>'
+				. '<th>Công thường</th><th>Công cuối tuần</th><th>Công lễ</th>'
+				. '<th>Giờ thường</th><th>Giờ cuối tuần</th><th>Giờ lễ</th>'
+				. '<th>Tiền công</th><th>Tiền giờ</th><th>Tổng</th></tr></thead><tbody>';
+			foreach ( $m['rows'] as $e ) {
+				echo '<tr><td>' . esc_html( $e['ma'] ) . '</td><td>' . esc_html( $e['ten'] ) . '</td>'
+					. '<td>' . esc_html( $e['cong']['thuong'] ) . '</td>'
+					. '<td>' . esc_html( $e['cong']['cuoiTuan'] ) . '</td>'
+					. '<td>' . esc_html( $e['cong']['le'] ) . '</td>'
+					. '<td>' . esc_html( $e['gio']['thuong'] ) . '</td>'
+					. '<td>' . esc_html( $e['gio']['cuoiTuan'] ) . '</td>'
+					. '<td>' . esc_html( $e['gio']['le'] ) . '</td>'
+					. '<td>' . esc_html( number_format( $e['tienCong'] ) ) . '</td>'
+					. '<td>' . esc_html( number_format( $e['tienGio'] ) ) . '</td>'
+					. '<td><strong>' . esc_html( number_format( $e['tong'] ) ) . '</strong></td></tr>';
+			}
+			echo '</tbody><tfoot><tr><th colspan="8">Tổng</th>'
+				. '<th>' . esc_html( number_format( $m['tong']['tienCong'] ) ) . '</th>'
+				. '<th>' . esc_html( number_format( $m['tong']['tienGio'] ) ) . '</th>'
+				. '<th>' . esc_html( number_format( $m['tong']['tong'] ) ) . '</th></tr></tfoot></table>';
+			echo '</div>';
+			return;
+		}
+
+		$v = $r['vp'];
+		if ( $v['tien']['chuaKhaiNgayCong'] ) {
+			echo '<div class="notice notice-error"><p><strong>Chưa khai số ngày công của '
+				. esc_html( $v['ncThang'] ) . '</strong> — cột Tiền hiện “—”. Hệ thống KHÔNG đoán '
+				. 'mẫu số: đoán là sai tiền của mọi người cùng lúc, mà bảng vẫn có số nên chẳng ai nghi.'
+				. ( $v['ncGoiY'] ? ' Tháng gần nhất đã khai tại cơ sở này: <strong>'
+					. esc_html( $v['ncGoiY'] ) . '</strong> (chỉ để tham khảo, chưa dùng để tính).' : '' )
+				. '</p></div>';
+		}
+		if ( $v['chuaKhaiKeToan'] ) {
+			echo '<div class="notice notice-warning"><p>Chưa khai mã NV thuộc <strong>Kế toán văn '
+				. 'phòng</strong> (<code>ktMaNV</code>) — nên chưa ai được áp khung thứ Bảy 08:30–12:00 '
+				. 'và luật Chủ nhật nghỉ.</p></div>';
+		}
+		if ( ! empty( $v['tien']['thieuLuong'] ) ) {
+			echo '<div class="notice notice-warning"><p>Chưa khai lương cơ bản: '
+				. esc_html( implode( ', ', $v['tien']['thieuLuong'] ) ) . '</p></div>';
+		}
+		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Tên</th><th>Công ngày</th>'
+			. '<th>Tăng ca</th><th>Công đêm</th><th>Công bù</th><th>Tổng công</th>'
+			. '<th>Lương tháng</th><th>Đơn giá 1 công</th><th>Tiền</th><th>Cần soi</th>'
+			. '</tr></thead><tbody>';
+		foreach ( $v['rows'] as $e ) {
+			$soi = array();
+			if ( $e['soNgayCaLa'] ) { $soi[] = $e['soNgayCaLa'] . ' ngày ca lạ'; }
+			if ( $e['soNgayDemThieuGio'] ) { $soi[] = $e['soNgayDemThieuGio'] . ' đêm thiếu giờ'; }
+			if ( $e['soNgayDemChuaDuCap'] ) { $soi[] = $e['soNgayDemChuaDuCap'] . ' đêm thiếu cặp giờ'; }
+			echo '<tr><td>' . esc_html( $e['ma'] ) . '</td><td>' . esc_html( $e['ten'] )
+				. ( $e['laKeToan'] ? ' <em>(kế toán)</em>' : '' ) . '</td>'
+				. '<td>' . esc_html( $e['congNgay'] ) . '</td>'
+				. '<td>' . esc_html( $e['congTangCa'] ) . '</td>'
+				. '<td>' . esc_html( $e['congDem'] ) . '</td>'
+				. '<td>' . esc_html( $e['congBu'] ) . '</td>'
+				. '<td><strong>' . esc_html( $e['tong'] ) . '</strong></td>'
+				. '<td>' . esc_html( $e['luongThang'] ? number_format( $e['luongThang'] ) : '—' ) . '</td>'
+				. '<td>' . esc_html( $e['donGiaCong'] ? number_format( $e['donGiaCong'] ) : '—' ) . '</td>'
+				. '<td><strong>' . esc_html( $e['tien'] ? number_format( $e['tien'] ) : '—' ) . '</strong></td>'
+				. '<td>' . ( $soi ? '<span style="color:#b32d2e">' . esc_html( implode( ' · ', $soi ) )
+					. '</span>' : '' ) . '</td></tr>';
+		}
+		echo '</tbody><tfoot><tr><th colspan="6">Tổng</th><th>' . esc_html( $v['tong']['tong'] )
+			. '</th><th colspan="2"></th><th>'
+			. esc_html( $v['tien']['tongTien'] ? number_format( $v['tien']['tongTien'] ) : '—' )
+			. '</th><th></th></tr></tfoot></table>';
+
+		echo '<h2>Chi tiết từng ngày</h2>';
+		echo '<p>Ngày ca đêm được GIỮ lại dù 0 công, để đọc được công của hôm sau từ đâu ra — '
+			. 'không soi được là không kiểm được lương.</p>';
+		echo '<table class="widefat striped"><thead><tr><th>Ngày</th><th>Mã</th><th>Khung</th>'
+			. '<th>Phút ca ngày</th><th>Công ngày</th><th>Tăng ca</th><th>Công đêm</th><th>Bù</th>'
+			. '<th>Ghi chú</th></tr></thead><tbody>';
+		foreach ( $v['detail'] as $d ) {
+			$gc = array();
+			if ( $d['kt7'] ) { $gc[] = 'kế toán thứ Bảy'; }
+			if ( $d['ktCnNghi'] ) { $gc[] = 'Chủ nhật — lịch nghỉ'; }
+			if ( $d['caLa'] ) { $gc[] = 'giờ ca ngày lọt hàng 2, KHÔNG tính'; }
+			if ( $d['demSangNgay'] ) { $gc[] = 'ca đêm → công ghi cho ' . $d['demSangNgay']; }
+			if ( $d['demTuNgay'] ) { $gc[] = 'công đêm từ ' . $d['demTuNgay']; }
+			if ( $d['demThieuGio'] ) { $gc[] = 'đêm ' . $d['gioDemThuc'] . 'h < ngưỡng, KHÔNG được công'; }
+			if ( $d['demChuaDuCap'] ) { $gc[] = 'đêm thiếu cặp giờ — vẫn tính, cần soi'; }
+			echo '<tr><td>' . esc_html( $d['ngay'] ) . '</td><td>' . esc_html( $d['ma'] ) . '</td>'
+				. '<td>' . esc_html( $d['khung'] ) . '</td><td>' . esc_html( $d['phutNgay'] ) . '</td>'
+				. '<td>' . esc_html( $d['congNgay'] ) . '</td><td>' . esc_html( $d['congTangCa'] ) . '</td>'
+				. '<td>' . esc_html( $d['congDem'] ) . '</td><td>' . esc_html( $d['congBu'] ) . '</td>'
+				. '<td>' . esc_html( implode( ' · ', $gc ) ) . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
 	}
 
 	/**

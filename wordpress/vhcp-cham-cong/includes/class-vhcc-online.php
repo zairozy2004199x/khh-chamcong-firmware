@@ -71,20 +71,18 @@ class VHCC_Online {
 		return null === $d ? $v : $d;
 	}
 
-	/** Cơ sở này có thuộc bộ phận Văn phòng không. */
+	/**
+	 * Cơ sở này có thuộc bộ phận Văn phòng không — uỷ cho VHCC_Luong để CHỈ CÓ MỘT định nghĩa.
+	 *
+	 * ⚠️ Bản đầu của hàm này em viết `LIKE '%van phong%'` và đó là SAI. Bên Code.gs phép so là
+	 *    KHỚP ĐÚNG chuỗi 'Văn phòng' trên một bảng đã chuẩn hoá: bộ phận nào không nằm trong
+	 *    ['Máy tự động','Khu vui chơi','Văn phòng'] thì thành 'Chưa xếp', tức KHÔNG CÓ công thức
+	 *    lương nào. Với LIKE thì một cơ sở khai "Văn phòng phụ" bị áp trọn công thức Văn phòng —
+	 *    định tuyến hàng 2, ân hạn, công đêm — trong khi bản gốc không tính lương cho nó. Tự sinh
+	 *    ra công thức cho một cơ sở chưa được xếp là tự sinh ra tiền.
+	 */
 	public static function la_van_phong( $coso ) {
-		global $wpdb;
-		$v = $wpdb->get_var( $wpdb->prepare(
-			'SELECT 1 FROM ' . VHCC_DB::t( 'bo_phan_coso' )
-			. " WHERE LOWER(coso)=LOWER(%s) AND LOWER(bo_phan) LIKE %s LIMIT 1",
-			$coso, '%van phong%' ) );
-		if ( $v ) { return true; }
-		// Chấp cả cách viết có dấu.
-		$v2 = $wpdb->get_var( $wpdb->prepare(
-			'SELECT 1 FROM ' . VHCC_DB::t( 'bo_phan_coso' )
-			. " WHERE LOWER(coso)=LOWER(%s) AND bo_phan LIKE %s LIMIT 1",
-			$coso, '%ăn phòng%' ) );
-		return (bool) $v2;
+		return VHCC_Luong::la_van_phong( $coso );
 	}
 
 	/**
