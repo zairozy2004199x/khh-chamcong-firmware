@@ -81,6 +81,12 @@ class VHCP_SoChi {
 			'tien_thue'  => $tthue,
 			'ghi_chu'    => VHCP_Util::st( $g( 'ghiChu' ) ),
 			'anh'        => VHCP_Util::st( $g( 'anh' ) ),
+			// Dòng thuộc một dự án / công trình thì mang MÃ DỰ ÁN — gom theo mã là ra cả
+			// dự án, khỏi cần bảng riêng cho dự án nữa.
+			'ma_du_an'   => VHCP_Util::st( $g( 'maDuAn' ) ),
+			'hang_muc'   => VHCP_Util::st( $g( 'hangMuc' ) ),
+			'du_toan'    => VHCP_Util::blank_or_num( $g( 'duToan' ) ),
+			'ho_so'      => VHCP_Util::st( $g( 'hoSo' ) ),
 			'nguoi_nhap' => (string) $nguoi,
 		);
 	}
@@ -138,6 +144,10 @@ class VHCP_SoChi {
 			'vat'       => (string) $r['vat'],
 			'thueSuat'  => VHCP_Util::out_num( $r['thue_suat'] ),
 			'tienThue'  => VHCP_Util::num( $r['tien_thue'] ),
+			'maDuAn'    => isset( $r['ma_du_an'] ) ? (string) $r['ma_du_an'] : '',
+			'hangMuc'   => isset( $r['hang_muc'] ) ? (string) $r['hang_muc'] : '',
+			'duToan'    => isset( $r['du_toan'] ) ? VHCP_Util::out_num( $r['du_toan'] ) : '',
+			'hoSo'      => isset( $r['ho_so'] ) ? (string) $r['ho_so'] : '',
 			'ghiChu'    => (string) $r['ghi_chu'],
 			'anh'       => (string) $r['anh'],
 			'nguoiNhap' => (string) $r['nguoi_nhap'],
@@ -158,6 +168,7 @@ class VHCP_SoChi {
 		$f_cs   = (string) $o( 'coso', 'all' );
 		$f_loai = (string) $o( 'loai', 'all' );
 		$f_tk   = (string) $o( 'tkNo', 'all' );
+		$f_da   = (string) $o( 'maDuAn', 'all' );
 		$f_x    = (string) $o( 'xuat', 'all' );
 		$q      = mb_strtolower( trim( (string) $o( 'q', '' ) ) );
 
@@ -169,24 +180,30 @@ class VHCP_SoChi {
 		}
 
 		$items = array();
-		$by_loai = array(); $by_coso = array(); $by_ky = array(); $by_tk = array();
-		$tong = 0; $tong_thue = 0; $ky_set = array(); $loai_set = array(); $tk_set = array();
+		$by_loai = array(); $by_coso = array(); $by_ky = array(); $by_tk = array(); $by_da = array();
+		$tong = 0; $tong_thue = 0; $ky_set = array(); $loai_set = array(); $tk_set = array(); $da_set = array();
 
 		foreach ( self::all_rows() as $r ) {
 			$ky_set[ (string) $r['ky'] ] = 1;
 			if ( trim( (string) $r['loai'] ) !== '' ) { $loai_set[ (string) $r['loai'] ] = 1; }
 			if ( trim( (string) $r['tk_no'] ) !== '' ) { $tk_set[ (string) $r['tk_no'] ] = 1; }
+			$mda = isset( $r['ma_du_an'] ) ? trim( (string) $r['ma_du_an'] ) : '';
+			if ( $mda !== '' ) { $da_set[ $mda ] = 1; }
 
 			if ( $scope !== null && ! isset( $scope[ mb_strtolower( trim( (string) $r['coso'] ) ) ] ) ) { continue; }
 			if ( $f_ky !== 'all' && (string) $r['ky'] !== $f_ky ) { continue; }
 			if ( $f_cs !== 'all' && (string) $r['coso'] !== $f_cs ) { continue; }
 			if ( $f_loai !== 'all' && (string) $r['loai'] !== $f_loai ) { continue; }
 			if ( $f_tk !== 'all' && (string) $r['tk_no'] !== $f_tk ) { continue; }
+			if ( $f_da !== 'all' ) {
+				if ( $f_da === '(khong)' ) { if ( $mda !== '' ) { continue; } }
+				elseif ( $mda !== $f_da ) { continue; }
+			}
 			$da_xuat = ( VHCP_Util::fmt( $r['ngay_xuat'] ) !== '' );
 			if ( $f_x === 'chuaxuat' && $da_xuat ) { continue; }
 			if ( $f_x === 'daxuat' && ! $da_xuat ) { continue; }
 			if ( $q !== '' ) {
-				$hay = mb_strtolower( $r['noi_dung'] . ' ' . $r['loai'] . ' ' . $r['coso'] . ' ' . $r['doi_tuong'] . ' ' . $r['ghi_chu'] . ' ' . $r['tk_no'] );
+				$hay = mb_strtolower( $r['noi_dung'] . ' ' . $r['loai'] . ' ' . $r['coso'] . ' ' . $r['doi_tuong'] . ' ' . $r['ghi_chu'] . ' ' . $r['tk_no'] . ' ' . $mda . ' ' . ( isset( $r['hang_muc'] ) ? $r['hang_muc'] : '' ) );
 				if ( mb_strpos( $hay, $q ) === false ) { continue; }
 			}
 
@@ -213,6 +230,15 @@ class VHCP_SoChi {
 			if ( ! isset( $by_tk[ $kt ] ) ) { $by_tk[ $kt ] = array( 'tkNo' => $kt, 'tien' => 0, 'n' => 0 ); }
 			$by_tk[ $kt ]['tien'] += $x['soTien'];
 			$by_tk[ $kt ]['n']++;
+
+			// Gom theo MÃ DỰ ÁN: một dự án giờ chỉ là các dòng chi mang cùng mã, nên
+			// dự toán / thực chi / chênh lệch của nó tính ngay ở đây.
+			if ( $mda !== '' ) {
+				if ( ! isset( $by_da[ $mda ] ) ) { $by_da[ $mda ] = array( 'maDuAn' => $mda, 'tien' => 0, 'duToan' => 0, 'n' => 0 ); }
+				$by_da[ $mda ]['tien']   += $x['soTien'];
+				$by_da[ $mda ]['duToan'] += VHCP_Util::num( $x['duToan'] );
+				$by_da[ $mda ]['n']++;
+			}
 		}
 
 		$items = array_reverse( $items );   // mới nhất trước
@@ -223,6 +249,7 @@ class VHCP_SoChi {
 		$sort_desc( $by_loai );
 		$sort_desc( $by_coso );
 		$sort_desc( $by_tk );
+		$sort_desc( $by_da );
 		$by_ky = array_values( $by_ky );
 		usort( $by_ky, function ( $a, $b ) { return VHCP_Util::ky_num( $b['ky'] ) <=> VHCP_Util::ky_num( $a['ky'] ); } );
 
@@ -232,6 +259,8 @@ class VHCP_SoChi {
 		sort( $loai_list );
 		$tk_list = array_map( 'strval', array_keys( $tk_set ) );   // mã toàn số -> ép lại chuỗi
 		sort( $tk_list, SORT_NATURAL );
+		$da_list = array_map( 'strval', array_keys( $da_set ) );
+		sort( $da_list, SORT_NATURAL );
 
 		$cfg   = VHCP_Cfg::cfg_static();
 		$dm    = array();
@@ -248,9 +277,11 @@ class VHCP_SoChi {
 			'byCoso'     => $by_coso,
 			'byKy'       => $by_ky,
 			'byTkNo'     => $by_tk,
+			'byDuAn'     => $by_da,
 			'kyList'     => array_values( $ky_list ),
 			'loaiList'   => array_values( $loai_list ),
 			'tkNoList'   => array_values( $tk_list ),
+			'duAnList'   => array_values( $da_list ),
 			'danhMuc'    => $dm,
 			'coso'       => $coso,
 		) );
@@ -316,8 +347,10 @@ class VHCP_SoChi {
 			// Diễn giải lấy TÊN XUẤT MISA của loại chi phí (khai ở danh mục, sửa lúc nào cũng
 			// được); trống thì dùng chính tên gọi. Mã đã lưu trên dòng không đổi theo.
 			$ten_xuat = VHCP_Cfg::ten_misa_loai( $loai );
+			$mda   = isset( $r['ma_du_an'] ) ? trim( (string) $r['ma_du_an'] ) : '';
 			$dg1   = VHCP_Util::j( array( $ten_xuat, $coso, $r['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
-			$dg2   = VHCP_Util::j( array( (string) $r['noi_dung'], $tenm ) );
+			// Dòng thuộc dự án thì ghi mã dự án vào diễn giải để bên kế toán dò lại được
+			$dg2   = VHCP_Util::j( array( $mda, (string) $r['noi_dung'], $tenm ) );
 			$gc    = trim( (string) $r['ghi_chu'] );
 			if ( $gc !== '' ) { $dg2 .= '_' . $gc; }
 

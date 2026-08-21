@@ -223,6 +223,29 @@ Cách tạo một loại chi phí cho nhân viên nhập gồm 3 phần: **tên 
 
 Loại chi phí vẫn **thêm tay được** bất cứ lúc nào bằng **＋ Thêm loại**.
 
+### Dự án = các dòng chi mang cùng mã dự án (bản 1.4.0)
+
+Trước đây dự án kỹ thuật là một bảng riêng, mỗi dự án một tab. Nay bỏ hẳn cách đó: **dòng chi
+của dự án nằm chung trong sổ chi phí**, chỉ khác là mang thêm **Mã dự án / công trình**. Gom theo
+mã là ra cả dự án — dự toán, thực chi, còn lại — mà không cần bảng riêng và không phải gom.
+
+Sổ chi phí có thêm 3 ô: **Mã dự án** (trống = chi phí cơ sở) · **Hạng mục lớn** · **Dự toán**.
+Thanh lọc có thêm ô chọn dự án; chọn `(khong)` để xem các dòng không thuộc dự án nào. Cuối tab có
+bảng **🏗 Tổng theo dự án / công trình**. Xuất MISA ghi mã dự án vào diễn giải để kế toán dò lại.
+
+TK Nợ vẫn lấy như mọi dòng khác: **loại chi phí × mảng kinh doanh của cơ sở**. Dòng dự án không
+có luật riêng nào.
+
+**Chống đếm hai lần:** tab dự án của bảng tính cũ ghi hạng mục lớn thành một dòng riêng
+("Nhân Công" 12.000.000) rồi liệt kê các dòng con bên dưới cùng thuộc hạng mục đó. Nạp cả hai là
+cộng đôi. Nên khi nạp, dòng nào có tên trùng với **hạng mục lớn** của dòng khác thì app **giữ dự
+toán, đưa thực chi về 0** — tổng đúng mà vẫn còn ngân sách của hạng mục. Báo cáo nạp có ghi số
+dòng bị xử lý như vậy.
+
+**Tab không có cột "Loại chi phí"** (đúng như tab dự án cũ): app lấy **hạng mục lớn** làm loại chi
+phí, dòng hạng mục thì lấy chính tên nó. Đúng cách gom của bảng tính cũ, và khai mã cho những tên
+đó là xong.
+
 ## 4. Mang dữ liệu cũ từ Google Sheet sang
 
 Vào **Vận Hành Chi Phí → Nhập dữ liệu**. Với từng tab của bảng tính:

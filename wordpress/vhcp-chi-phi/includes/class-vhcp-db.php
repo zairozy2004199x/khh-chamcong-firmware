@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.2.0';
+	const SCHEMA_VERSION = '1.3.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -131,6 +131,10 @@ class VHCP_DB {
 			tien_thue DECIMAL(18,2) NULL,
 			ghi_chu TEXT NULL,
 			anh TEXT NULL,
+			ma_du_an VARCHAR(60) NOT NULL DEFAULT '',
+			hang_muc VARCHAR(190) NOT NULL DEFAULT '',
+			du_toan DECIMAL(18,2) NULL,
+			ho_so TEXT NULL,
 			nguoi_nhap VARCHAR(120) NOT NULL DEFAULT '',
 			tao_luc DATETIME NULL,
 			ngay_xuat DATETIME NULL,
@@ -141,6 +145,7 @@ class VHCP_DB {
 			KEY coso (coso),
 			KEY loai (loai),
 			KEY tk_no (tk_no),
+			KEY ma_du_an (ma_du_an),
 			KEY ngay_xuat (ngay_xuat)
 		) $c";
 

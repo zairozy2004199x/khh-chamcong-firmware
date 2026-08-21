@@ -361,10 +361,32 @@ class VHCP_Import {
 			case 'sochi':
 				$t = VHCP_DB::t( 'so_chi' );
 				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
+
+				// DÒNG TỔNG HỢP: tab dự án ghi hạng mục lớn thành một dòng riêng ("Nhân Công"
+				// 12.000.000) rồi liệt kê các dòng con bên dưới cùng thuộc hạng mục đó. Nạp cả
+				// hai là ĐẾM HAI LẦN. Nên dòng nào có tên trùng với một "hạng mục lớn" của
+				// dòng khác thì chỉ giữ DỰ TOÁN, số thực chi để 0 — tổng vẫn đúng mà không mất
+				// ngân sách của hạng mục.
+				$la_hang_muc = array();
+				foreach ( $k['rows'] as $r ) {
+					$hm = $o( $r, 'hang_muc' );
+					if ( $hm !== '' ) { $la_hang_muc[ mb_strtolower( $hm ) ] = 1; }
+				}
+				$dong_tong = 0; $loai_suy_ra = 0;
+
 				foreach ( $k['rows'] as $r ) {
 					$loai = $o( $r, 'loai' );
 					$nd   = $o( $r, 'noi_dung' );
 					if ( $loai === '' && $nd === '' ) { $skipped++; continue; }
+					// File không có cột "Loại chi phí" (tab dự án) -> lấy HẠNG MỤC LỚN làm loại,
+					// dòng hạng mục thì lấy chính tên nó. Đúng cách gom của bảng tính cũ.
+					if ( $loai === '' ) {
+						$loai = $o( $r, 'hang_muc' ) !== '' ? $o( $r, 'hang_muc' ) : $nd;
+						if ( $loai !== '' ) { $loai_suy_ra++; }
+					}
+					// Dòng của một dự án: mã dự án lấy từ cột trong file, không có thì lấy
+					// mã chọn ở ô "Dự án / Đợt nhận dòng" (bộ đọc Sheet truyền tên tab vào đây).
+					$mda = $o( $r, 'ma_du_an' ) !== '' ? $o( $r, 'ma_du_an' ) : $ma_chon;
 					$res = VHCP_SoChi::add( array(
 						'ngay'     => $o( $r, 'ngay' ),
 						'coso'     => $o( $r, 'coso' ),
@@ -373,16 +395,21 @@ class VHCP_Import {
 						'dvt'      => $o( $r, 'dvt' ),
 						'soLuong'  => self::n( $o( $r, 'so_luong' ) ),
 						'donGia'   => self::n( $o( $r, 'don_gia' ) ),
-						'soTien'   => self::n( $o( $r, 'so_tien' ) ),
+						'soTien'   => ( isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ? 0 : self::n( $o( $r, 'so_tien' ) ) ),
 						'hinhThuc' => $o( $r, 'hinh_thuc' ),
 						'thueSuat' => self::n( $o( $r, 'thue_suat' ) ),
 						'vat'      => $o( $r, 'vat' ),
 						'doiTuong' => $o( $r, 'doi_tuong' ),
 						'ghiChu'   => $o( $r, 'ghi_chu' ),
 						'anh'      => $o( $r, 'anh' ),
+						'maDuAn'   => $mda,
+						'hangMuc'  => $o( $r, 'hang_muc' ),
+						'duToan'   => self::n( $o( $r, 'du_toan' ) ),
+						'hoSo'     => $o( $r, 'ho_so' ),
 					), 'Nạp từ Sheet' );
 					if ( empty( $res['success'] ) ) { $skipped++; continue; }
 					if ( trim( (string) $res['tkNo'] ) === '' ) { $thieu_ma++; }
+					if ( isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ) { $dong_tong++; }
 					$n++;
 				}
 				break;
@@ -395,6 +422,8 @@ class VHCP_Import {
 			'inserted'   => $n,
 			'skipped'    => $skipped,
 			'thieuMa'    => $thieu_ma,
+			'dongTong'   => isset( $dong_tong ) ? $dong_tong : 0,
+			'loaiSuyRa'  => isset( $loai_suy_ra ) ? $loai_suy_ra : 0,
 			'dongTieuDe' => $k['dongTieuDe'],
 			'cotDung'    => array_keys( $hd ),
 			'cotThieu'   => $k['thieu'],

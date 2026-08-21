@@ -148,19 +148,23 @@ class VHCP_Nap {
 			// ---- sổ chi phí phẳng
 			'sochi' => array(
 				'ngay'      => array( 'Ngày' ),
-				'coso'      => array( 'Cơ sở', 'Gian/Cơ sở' ),
-				'loai'      => array( 'Loại chi phí', 'Loại' ),
-				'noi_dung'  => array( 'Nội dung' ),
+				'coso'      => array( 'Cơ sở', 'Gian/Cơ sở', 'Bộ phận / Gian', 'Gian' ),
+				'loai'      => array( 'Loại chi phí', 'Loại', 'Nhóm mặt hàng' ),
+				'noi_dung'  => array( 'Nội dung hạng mục', 'Nội dung', 'Hạng mục' ),
+				'ma_du_an'  => array( 'Mã dự án', 'Mã công trình', 'Thuộc dự án', 'Mã DA' ),
+				'hang_muc'  => array( 'Thuộc hạng mục lớn', 'Hạng mục lớn', 'Cấp cha' ),
+				'du_toan'   => array( 'Chi phí dự toán', 'Dự toán', 'Ngân sách (dự toán)', 'Ngân sách' ),
+				'ho_so'     => array( 'Hồ sơ', 'Chứng từ' ),
 				'dvt'       => array( 'ĐVT', 'Đơn vị tính' ),
 				'so_luong'  => array( 'Số lượng', 'SL' ),
 				'don_gia'   => array( 'Đơn giá' ),
-				'so_tien'   => array( 'Số tiền', 'Thành tiền', 'Thực chi' ),
+				'so_tien'   => array( 'Số tiền', 'Chi phí thực tế', 'Thực chi', 'Thành tiền', 'Thực tế' ),
 				'hinh_thuc' => array( 'Hình thức chi', 'Hình thức' ),
 				'thue_suat' => array( 'Thuế suất' ),
 				'vat'       => array( 'VAT' ),
 				'doi_tuong' => array( 'Đối tượng' ),
 				'ghi_chu'   => array( 'Ghi chú' ),
-				'anh'       => array( 'Ảnh', 'Hồ sơ' ),
+				'anh'       => array( 'Ảnh chi phí', 'Ảnh', 'Hình' ),
 			),
 		);
 		return isset( $d[ $bang ] ) ? $d[ $bang ] : array();

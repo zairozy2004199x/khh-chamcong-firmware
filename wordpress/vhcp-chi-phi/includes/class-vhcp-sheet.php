@@ -159,7 +159,9 @@ class VHCP_Sheet {
 		if ( isset( $alias[ $k ] ) ) { return $alias[ $k ]; }
 
 		// Tab của một dự án kỹ thuật: tên bắt đầu bằng "DA "
-		if ( preg_match( '/^da[a-z0-9]/', $k ) || preg_match( '/^\s*DA\s+/iu', (string) $ten ) ) { return 'TD_DALine'; }
+		// Tab của một dự án: đổ vào SỔ CHI PHÍ, dòng nào cũng mang mã dự án = tên tab.
+		// Một dự án giờ chỉ là "các dòng chi cùng mã", khỏi cần bảng dự án riêng.
+		if ( preg_match( '/^da[a-z0-9]/', $k ) || preg_match( '/^\s*DA\s+/iu', (string) $ten ) ) { return 'TD_SoChi'; }
 
 		return '';
 	}
@@ -278,16 +280,11 @@ class VHCP_Sheet {
 				if ( strpos( $loai, 'TD_' ) === 0 ) {
 					$bang_td = self::bang_cua_td( $loai );
 					$k = VHCP_Nap::khop( $bang_td, $v['rows'] );
-					if ( $loai === 'TD_DALine' && ( ! empty( $k['loi'] ) || count( $k['hd'] ) < 5 ) ) {
-						$mo['bang']    = self::ten_loai( 'DA_Sheet' );
-						$mo['cachNhan'] = 'tên tab (cột không có tiêu đề → đọc theo vị trí)';
-						$mo['ketQua']  = 'sẽ nạp ' . max( 0, count( $v['rows'] ) - 4 ) . ' dòng vào dòng hạng mục dự án'
-							. ' · dự án lấy theo tên tab' . ( $tao_cha ? ' (tạo mới nếu chưa có)' : '' );
-						$bc[] = $mo;
-						continue;
-					}
 					if ( empty( $k['loi'] ) ) {
 						$mo['ketQua']   = 'sẽ nạp ' . count( $k['rows'] ) . ' dòng vào ' . self::ten_loai( $loai );
+						if ( self::la_tab_du_an( $v['tab'] ) ) {
+							$mo['ketQua'] .= ' · mã dự án "' . self::ma_du_an_tu_ten_tab( $v['tab'] ) . '" gắn vào từng dòng';
+						}
 						$mo['cotThieu'] = $k['thieu'];
 						$mo['cotLa']    = $k['la'];
 					} else {
@@ -299,32 +296,17 @@ class VHCP_Sheet {
 				continue;
 			}
 
-			// Tab dự án kỹ thuật: tên tab chính là tên dự án -> tìm/tạo dự án
+			// Tab của một dự án: mã dự án lấy từ TÊN TAB, gắn vào từng dòng chi
 			$ma_chon = '';
+			if ( self::la_tab_du_an( $v['tab'] ) ) {
+				$ma_chon = self::ma_du_an_tu_ten_tab( $v['tab'] );
+			}
 			if ( $loai === 'TD_DALine' || $loai === 'DA_Sheet' ) {
-				// Tab dự án của app cũ mở đầu bằng dòng tiêu đề trang trí ("🏗 SETUP LẮP ĐẶT: …")
-				// và cột không có tên -> khớp tên cột không ăn. Khi đó dùng bộ nạp THEO VỊ TRÍ
-				// (13 cột, bỏ 4 dòng đầu) đúng như bảng tính cũ.
-				if ( $loai === 'TD_DALine' ) {
-					$k = VHCP_Nap::khop( 'da_line', $v['rows'] );
-					if ( ! empty( $k['loi'] ) || count( $k['hd'] ) < 5 ) {
-						$loai = 'DA_Sheet';
-						$mo['bang'] = self::ten_loai( $loai );
-						$mo['cachNhan'] = 'tên tab (cột không có tiêu đề → đọc theo vị trí)';
-					}
-				}
-				$co_cot_ma = false;
-				if ( $loai === 'TD_DALine' ) {
-					$k = VHCP_Nap::khop( 'da_line', $v['rows'] );
-					$co_cot_ma = empty( $k['loi'] ) && isset( $k['hd']['ma_da'] );
-				}
-				if ( ! $co_cot_ma ) {
-					$ten_da  = trim( preg_replace( '/^\s*DA\s+/iu', '', $v['tab'] ) );
-					$ma_chon = self::tim_hoac_tao_du_an( $ten_da, $tao_cha, $tao );
-					if ( $ma_chon === '' ) {
-						$bc[] = array( 'tab' => $v['tab'], 'ketQua' => 'bỏ qua — chưa có dự án "' . $ten_da . '" và đang tắt tự tạo dòng cha' );
-						continue;
-					}
+				$ten_da  = trim( preg_replace( '/^\s*DA\s+/iu', '', $v['tab'] ) );
+				$ma_chon = self::tim_hoac_tao_du_an( $ten_da, $tao_cha, $tao );
+				if ( $ma_chon === '' ) {
+					$bc[] = array( 'tab' => $v['tab'], 'ketQua' => 'bỏ qua — chưa có dự án "' . $ten_da . '" và đang tắt tự tạo dòng cha' );
+					continue;
 				}
 			}
 			if ( ( $loai === 'TD_BPLine' || $loai === 'BP_Sheet' ) && $tao_cha ) {
@@ -365,6 +347,17 @@ class VHCP_Sheet {
 			'thieuMa'  => $tong_thieu_ma,
 			'tuTao'    => array_values( $tao ),
 		) );
+	}
+
+	/** Tab này có phải tab của một dự án không (tên bắt đầu bằng "DA ")? */
+	public static function la_tab_du_an( $ten ) {
+		return (bool) preg_match( '/^\s*DA\s+/iu', (string) $ten );
+	}
+
+	/** Mã dự án lấy từ tên tab: bỏ chữ "DA " đứng đầu, giữ nguyên phần còn lại. */
+	public static function ma_du_an_tu_ten_tab( $ten ) {
+		$m = trim( preg_replace( '/^\s*DA\s+/iu', '', (string) $ten ) );
+		return $m !== '' ? $m : trim( (string) $ten );
 	}
 
 	/** 6 ô đầu của dòng đầu tiên — để soi tab lạ chứa gì. */
