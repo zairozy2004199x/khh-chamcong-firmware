@@ -246,6 +246,21 @@ dòng bị xử lý như vậy.
 phí, dòng hạng mục thì lấy chính tên nó. Đúng cách gom của bảng tính cũ, và khai mã cho những tên
 đó là xong.
 
+### Một loại đơn, hai cách gom (bản 1.5.0)
+
+Dự án kỹ thuật và đơn xin tạm ứng tuần của cơ sở **là cùng một loại đơn chi phí** — chỉ khác cái
+gom: bên cơ sở gom theo **tuần**, bên kỹ thuật gom theo **gian thi công**. Nên hai tab 📝 Nhập đơn
+và 🔧 Chi phí Kỹ thuật gộp thành một tab **📋 Đơn chi phí**, có thanh **GOM THEO** để đổi qua lại
+(app nhớ lựa chọn lần sau). Loại chi phí, mã tài khoản, xuất MISA vẫn dùng chung như trước.
+
+Dữ liệu vẫn nằm ở hai bảng riêng như cũ — gộp bảng để sau khi nạp xong dữ liệu cũ, để không đụng
+vào việc đang làm.
+
+**Dự án chi trực tiếp:** dự án không còn bước xin/duyệt tạm ứng. Chỉ còn 2 trạng thái **Đang làm**
+và **Đã đóng**; đang làm là nhập được và đóng được luôn. Bỏ 4 ô tạm ứng/trực tiếp và bảng "Kế toán
+chi tiền" ở màn dự án — còn lại **dự toán · thực tế · chênh lệch**. Đơn tuần của cơ sở thì giữ
+nguyên luồng duyệt tạm ứng → quyết toán.
+
 ## 4. Mang dữ liệu cũ từ Google Sheet sang
 
 Vào **Vận Hành Chi Phí → Nhập dữ liệu**. Với từng tab của bảng tính:

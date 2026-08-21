@@ -1601,6 +1601,23 @@ $co_ma_da = false;
 foreach ( $xm['rows'] as $row ) { if ( strpos( (string) $row[4], 'FUNFEST SC VIVO' ) !== false ) { $co_ma_da = true; } }
 t( 'diễn giải MISA có mã dự án', $co_ma_da );
 
+// ------------------------------- 37. DỰ ÁN CHI TRỰC TIẾP — bỏ bước duyệt tạm ứng
+$da_tt = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'GIAN THỬ CHI TRỰC TIẾP', 'Admin' );
+$ma_tt = (string) $da_tt['maDA'];
+$xem   = VHCP_DuAn::get_du_an( $ma_tt );
+teq( 'dự án mới ở trạng thái đang làm', 'Đang làm', (string) $xem['trangThai'] );
+t( 'nhập được ngay, không chờ duyệt', ! empty( $xem['editable'] ) && ! empty( $xem['thiCong'] ) );
+t( 'không còn trạng thái chờ duyệt', empty( $xem['pending'] ) );
+
+// Đang làm là đóng được luôn (trước đây đòi phải "Đã duyệt")
+$dong = VHCP_DuAn::close( $ma_tt );
+t( 'đóng dự án ngay khi đang làm', ! empty( $dong['success'] ) );
+teq( 'trạng thái sau khi đóng', 'Đã đóng', (string) VHCP_DuAn::get_du_an( $ma_tt )['trangThai'] );
+t( 'đóng rồi thì khoá nhập', empty( VHCP_DuAn::get_du_an( $ma_tt )['editable'] ) );
+t( 'đóng hai lần thì báo lỗi', empty( VHCP_DuAn::close( $ma_tt )['success'] ) );
+t( 'mở lại được', ! empty( VHCP_DuAn::reopen( $ma_tt )['success'] ) );
+t( 'mở lại thì nhập được tiếp', ! empty( VHCP_DuAn::get_du_an( $ma_tt )['editable'] ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

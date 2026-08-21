@@ -211,10 +211,12 @@ class VHCP_DuAn {
 			'trangThai'       => $st,
 			'url'             => '',
 			'isCoSo'          => ( $f['loai'] === 'Chi phí cơ sở' ),
-			'editable'        => ( $st === 'Đang làm' ),
-			'pending'         => ( $st === 'Chờ kế toán duyệt' ),
-			'approved'        => ( $st === 'Đã duyệt' ),
-			'thiCong'         => ( $st === 'Đã duyệt' ),
+			// Dự án chi trực tiếp: chỉ còn 2 trạng thái thật là Đang làm / Đã đóng.
+			// Chưa đóng thì nhập được — không còn khoá theo bước duyệt tạm ứng.
+			'editable'        => ( $st !== 'Đã đóng' ),
+			'pending'         => false,
+			'approved'        => ( $st !== 'Đã đóng' ),
+			'thiCong'         => ( $st !== 'Đã đóng' ),
 			'closed'          => ( $st === 'Đã đóng' ),
 			'lines'           => $lines,
 			'tongDuToan'      => $dt,
@@ -417,11 +419,15 @@ class VHCP_DuAn {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * Đóng dự án. Dự án CHI TRỰC TIẾP — không có bước xin/duyệt tạm ứng như đơn tuần,
+	 * nên đang làm là đóng được luôn, không đòi phải "Đã duyệt" trước.
+	 */
 	public static function close( $ma_da ) {
 		$f = self::find( $ma_da );
 		if ( ! $f ) { return VHCP_Util::err( 'Không tìm thấy dự án' ); }
 		if ( (string) $f['loai'] === 'Chi phí cơ sở' ) { return VHCP_Util::err( 'Chi phí cơ sở chung không đóng' ); }
-		if ( (string) $f['trang_thai'] !== 'Đã duyệt' ) { return VHCP_Util::err( 'Phải "Đã duyệt" mới đóng được' ); }
+		if ( (string) $f['trang_thai'] === 'Đã đóng' ) { return VHCP_Util::err( 'Dự án đã đóng' ); }
 		self::set_status( $ma_da, 'Đã đóng' );
 		return VHCP_Util::ok();
 	}

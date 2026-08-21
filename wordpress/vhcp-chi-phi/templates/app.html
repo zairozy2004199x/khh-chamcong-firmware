@@ -79,9 +79,8 @@
 
   <div class="bar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
-    <button class="btn b-x" id="tab-don" onclick="showPage('don')">📝 Nhập đơn</button>
+    <button class="btn b-x" id="tab-donchi" onclick="showDonChi()">📋 Đơn chi phí</button>
     <button class="btn b-x" id="tab-sochi" onclick="showPage('sochi')">💵 Sổ chi phí</button>
-    <button class="btn b-x" id="tab-duan" onclick="showPage('duan')">🔧 Chi phí Kỹ thuật</button>
     <button class="btn b-x" id="tab-mkt" onclick="showPage('mkt')">📣 Marketing</button>
     <button class="btn b-x" id="tab-congtac" onclick="showPage('congtac')">✈️ Công tác</button>
     <button class="btn b-x" id="tab-setup" onclick="showPage('setup')">🛠️ Setup</button>
@@ -174,6 +173,14 @@
   </div>
 
   <div id="page-don">
+  <div class="wrap" style="padding-top:10px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
+      <span style="font-size:12px;color:#64748b;font-weight:700">GOM THEO</span>
+      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Tuần · cơ sở</button>
+      <button class="btn b-x" data-dcsw="duan" onclick="showPage('duan')">🏗 Dự án · gian thi công</button>
+      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px">Cùng một loại đơn chi phí — bên cơ sở gom theo <b>tuần</b> (đơn xin tạm ứng tuần), bên kỹ thuật gom theo <b>gian thi công</b> (dự án). Loại chi phí, mã tài khoản, xuất MISA dùng chung.</span>
+    </div>
+  </div>
   <div class="bar">
     <div class="fld"><label>Đơn</label>
       <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
@@ -377,6 +384,14 @@
 
   <!-- ============ TRANG: DỰ ÁN THÁO DỠ / LẮP ĐẶT ============ -->
   <div id="page-duan" class="wrap" style="display:none">
+  <div style="padding-top:2px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
+      <span style="font-size:12px;color:#64748b;font-weight:700">GOM THEO</span>
+      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Tuần · cơ sở</button>
+      <button class="btn b-x" data-dcsw="duan" onclick="showPage('duan')">🏗 Dự án · gian thi công</button>
+      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px">Cùng một loại đơn chi phí — bên cơ sở gom theo <b>tuần</b> (đơn xin tạm ứng tuần), bên kỹ thuật gom theo <b>gian thi công</b> (dự án). Loại chi phí, mã tài khoản, xuất MISA dùng chung.</span>
+    </div>
+  </div>
     <div class="card">
       <div class="ch"><h2>🔧 Chi phí Kỹ thuật</h2>
         <button class="btn b-x" onclick="loadDuAn()">↻ Tải lại</button></div>
@@ -1675,6 +1690,10 @@
   function doTraLaiCur(){ if(!CUR)return; openTraModal(CUR.don.maDon,'don'); }
 
   // ===================== TAB =====================
+  var DONCHI_MODE='don';
+  try{ var _dc=localStorage.getItem('vhcp_donchi'); if(_dc==='don'||_dc==='duan') DONCHI_MODE=_dc; }catch(e){}
+  function showDonChi(){ showPage(DONCHI_MODE); }
+
   function showPage(p){
     CUR_PAGE=p;
     if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
@@ -1684,6 +1703,14 @@
     });
     ['tongquan','don','duan','mkt','congtac','setup','vhtuan','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var tb=el('tab-'+x); if(tb) tb.className='btn '+(x===p?'b-p':'b-x');
+    });
+    // Đơn theo tuần và đơn theo dự án là CÙNG một loại đơn, chỉ khác cái gom:
+    // bên cơ sở gom theo tuần, bên kỹ thuật gom theo gian thi công. Nên chung 1 tab.
+    var tbd=el('tab-donchi');
+    if(tbd) tbd.className='btn '+((p==='don'||p==='duan')?'b-p':'b-x');
+    if(p==='don'||p==='duan'){ DONCHI_MODE=p; try{ localStorage.setItem('vhcp_donchi',p); }catch(e){} }
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw]'),function(b){
+      b.className='btn '+((b.getAttribute('data-dcsw')===p)?'b-p':'b-x');
     });
     if(p==='tongquan') loadTongQuan();
     if(p==='log') loadLog();
@@ -2233,12 +2260,10 @@
     el('daSummary').innerHTML=
       _tqCard('#eff6ff','#bfdbfe','#1e40af','Tổng dự toán', money(r.tongDuToan)+'đ','các hạng mục lớn')+
       _tqCard('#fff7ed','#fed7aa','#9a3412','Tổng thực tế', money(r.tongThucTe)+'đ','mục con + phát sinh')+
-      _tqCard(over?'#fee2e2':'#dcfce7', over?'#fecaca':'#86efac', over?'#b91c1c':'#166534', chLabel, chVal,'thực tế so với dự toán')+
-      _tqCard('#f0fdf4','#bbf7d0','#166534','💰 Cần tạm ứng · DỰ TOÁN', money(r.canTamUng||0)+'đ','số xin ứng (NV tự trả)')+
-      _tqCard('#ecfeff','#a5f3fc','#155e75','💰 Tạm ứng · THỰC TẾ', money(r.ttTamUng||0)+'đ', tdTxt(r.ttTamUng, r.thieuTamUng))+
-      _tqCard('#eef2ff','#c7d2fe','#3730a3','🏢 Trả trực tiếp · DỰ TOÁN', money(r.traTrucTiep||0)+'đ','số xin trả NCC')+
-      _tqCard('#f5f3ff','#ddd6fe','#5b21b6','🏢 Trực tiếp · THỰC TẾ', money(r.ttTrucTiep||0)+'đ', tdTxt(r.ttTrucTiep, r.thieuTrucTiep));
-    renderDuAnPay(r);   // bảng "Kế toán chi tiền" (lần 1 tạm ứng · lần 2 bù/thu)
+      _tqCard(over?'#fee2e2':'#dcfce7', over?'#fecaca':'#86efac', over?'#b91c1c':'#166534', chLabel, chVal,'thực tế so với dự toán');
+    // Dự án CHI TRỰC TIẾP: không có bước xin/duyệt tạm ứng nên bỏ 4 ô tạm ứng/trực tiếp
+    // và bảng "Kế toán chi tiền". Chỉ còn dự toán · thực tế · chênh lệch.
+    if(el('daPayPanel')){ el('daPayPanel').style.display='none'; el('daPayPanel').innerHTML=''; }
     if(el('dl_da_nd')) el('dl_da_nd').innerHTML=(r.noiDungList||[]).map(function(x){return '<option value="'+esc(x)+'">';}).join('');   // gợi ý hạng mục con đã dùng
     var isCoSo=r.isCoSo, role=(CURUSER&&CURUSER.role)||'';
     var canApprove=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'].indexOf(role)>=0;
@@ -2247,19 +2272,19 @@
     // Cơ sở chung: luôn nhập được, không có quy trình duyệt/đóng
     el('daLineForm').style.display=(isCoSo||canEdit)?'flex':'none';
     el('daRenameBtn').style.display=(!isCoSo && !r.closed)?'inline-block':'none';
-    el('daSubmitBtn').style.display=(!isCoSo && r.editable)?'inline-block':'none';
-    el('daApproveBtn').style.display=(!isCoSo && r.pending && canApprove)?'inline-block':'none';
-    el('daReturnBtn').style.display=(!isCoSo && r.pending && canApprove)?'inline-block':'none';
-    el('daCloseBtn').style.display=(!isCoSo && r.approved)?'inline-block':'none';
-    el('daReopenBtn').style.display=(!isCoSo && (r.closed||r.approved||r.pending) && isAdmin)?'inline-block':'none';
+    // Dự án chi trực tiếp -> không còn Gửi duyệt / Duyệt / Trả lại
+    if(el('daSubmitBtn'))  el('daSubmitBtn').style.display='none';
+    if(el('daApproveBtn')) el('daApproveBtn').style.display='none';
+    if(el('daReturnBtn'))  el('daReturnBtn').style.display='none';
+    el('daCloseBtn').style.display=(!isCoSo && !r.closed)?'inline-block':'none';
+    el('daReopenBtn').style.display=(!isCoSo && r.closed && isAdmin)?'inline-block':'none';
     el('daDeleteBtn').style.display=(!isCoSo && !r.closed && (r.editable || isAdmin))?'inline-block':'none';
     if(el('daGianBtn')) el('daGianBtn').style.display=canApprove?'inline-block':'none';   // báo cáo tổng gian: Admin/Kế toán/Quản lý
     var sb=el('daStatusBar');
     if(sb){ if(isCoSo){ sb.style.display='none'; }
-      else { var mp={'Đang làm':['#eef2ff','#3730a3','⏳ Đang làm — nhập chi phí, xong bấm "Gửi kế toán duyệt"'],
-                     'Chờ kế toán duyệt':['#fef9c3','#854d0e','📤 Chờ kế toán duyệt — kế toán kiểm tra rồi Duyệt hoặc Trả lại'],
-                     'Đã duyệt':['#dcfce7','#166534','🔨 Đã duyệt tạm ứng — ĐANG THI CÔNG: nhập chi phí thực tế / hóa đơn, thêm mục con & phát sinh (dự toán đã khóa). Xong bấm "Đóng dự án".'],
-                     'Đã đóng':['#f1f5f9','#475569','🔒 Đã đóng — khóa, chỉ xem (phần kế toán)']}[r.trangThai]||['#eef2ff','#3730a3',r.trangThai];
+      else { var mp=(r.trangThai==='Đã đóng')
+               ? ['#f1f5f9','#475569','🔒 Đã đóng — khóa, chỉ xem']
+               : ['#dcfce7','#166534','🔨 Đang thi công — nhập dự toán & chi phí thực tế, thêm mục con & phát sinh. Xong bấm "Đóng dự án". (Dự án chi trực tiếp, không qua bước duyệt tạm ứng.)'];
         sb.style.display='block'; sb.style.background=mp[0]; sb.style.color=mp[1]; sb.textContent=mp[2]; } }
     daCancelEditLine();   // mở dự án khác -> thoát chế độ sửa dòng
     // Phân cấp: hạng mục lớn (capCha='') · mục con (capCha=tên cha) · phát sinh (capCha='(Phát sinh)')
