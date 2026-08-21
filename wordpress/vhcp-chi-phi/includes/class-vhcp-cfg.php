@@ -1165,11 +1165,25 @@ class VHCP_Cfg {
 			$co[ $k( $row[0] ) ] = 1;
 			$rows[] = $row;
 		}
+		// Bỏ tiền tố "Chi phí " để nhận ra TRÙNG: bảng tính cũ ghi hạng mục là "Tháo dỡ",
+		// "Vận hành", trong khi danh mục đã có "Chi phí tháo dỡ", "Chi phí vận hành". Thêm
+		// cả hai là danh mục có hai dòng cùng nghĩa, nhân viên chọn lộn mà kế toán phải khai
+		// mã hai lần. So khớp chính xác sau khi bỏ tiền tố, không dò mờ — "Chi phí khác" và
+		// "Chi phí khác - Event" vẫn là hai loại riêng.
+		$goc = function ( $v ) use ( $k ) {
+			$x = $k( $v );
+			return preg_replace( '/^chi\s*ph[ií]\s+/u', '', $x );
+		};
+		$co_goc = array();
+		foreach ( array_keys( $co ) as $ten_co ) { $co_goc[ $goc( $ten_co ) ] = 1; }
+
 		$them = 0;
 		foreach ( (array) $tens as $t ) {
 			$t = trim( (string) $t );
 			if ( $t === '' || isset( $co[ $k( $t ) ] ) ) { continue; }
+			if ( isset( $co_goc[ $goc( $t ) ] ) ) { continue; }   // đã có loại cùng nghĩa
 			$co[ $k( $t ) ] = 1;
+			$co_goc[ $goc( $t ) ] = 1;
 			$rows[] = array( $t, '', '', '', '', '(nạp từ dữ liệu cũ)', '', '' );
 			$them++;
 		}

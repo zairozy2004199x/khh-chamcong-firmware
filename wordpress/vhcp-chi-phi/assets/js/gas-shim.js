@@ -211,10 +211,13 @@
 					msg = 'Không gọi được máy chủ. Đã thử: ' + vet.join( ' · ' )
 						+ ( dau ? ' — máy chủ trả về: "' + dau + '"' : '' );
 					if ( laCf ) {
-						msg += ' ⇒ Đây là TƯỜNG LỬA CLOUDFLARE chặn, không phải lỗi app.'
-							+ ' Vào Cloudflare của khmatrix.com: Security → Bots → tắt "Bot Fight Mode";'
-							+ ' Security → Settings → Security Level đưa về Medium (tắt "I\'m Under Attack").'
-							+ ' Hoặc thêm WAF Custom Rule: Skip cho URI Path chứa /chi-phi/ , /wp-json/ và /wp-admin/admin-ajax.php.';
+						msg = 'TƯỜNG LỬA đang chặn, không phải lỗi app: máy chủ trả về trang "Checking your'
+							+ ' browser" cho cả 4 đường gọi. Kiểm nhanh: mở ' + ( CFG.trang || '' ) + ' trên'
+							+ ' trình duyệt — ra {"ok":true} thì chỉ XHR bị chặn, ra trang "Checking your browser"'
+							+ ' thì cả site bị chặn. Chữa: nếu tên miền chạy qua Cloudflare → Security → Bots →'
+							+ ' tắt "Bot Fight Mode", và Security Level hạ về Medium. Nếu dùng "Cloudflare'
+							+ ' protected nameservers" của Hostinger → hPanel → Tên miền → đổi về nameserver'
+							+ ' thường, hoặc tắt bot protection ở đó. Chi tiết kỹ thuật: ' + vet.join( ' · ' );
 					} else {
 						msg += ' · Mở thử ' + ( CFG.trang || '' ) + ' trên trình duyệt: ra {"ok":true} là cổng còn sống,'
 							+ ' ra trang app là cổng chưa chạy (cần cập nhật plugin).';

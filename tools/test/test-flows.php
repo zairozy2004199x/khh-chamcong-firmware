@@ -2034,6 +2034,21 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ------------------------------- NẠP KHÔNG SINH LOẠI TRÙNG NGHĨA
+// Bảng tính cũ ghi hạng mục là "Tháo dỡ" / "Vận hành", trong khi danh mục đã có
+// "Chi phí tháo dỡ" / "Chi phí vận hành" -> danh mục thành hai dòng cùng nghĩa, nhân viên
+// chọn lộn mà kế toán phải khai mã hai lần.
+VHCP_Cfg::them_loai_neu_thieu( array( 'Chi phí tháo dỡ', 'Chi phí vận hành' ) );
+$n_trung = VHCP_Cfg::them_loai_neu_thieu( array( 'Tháo dỡ', 'Vận hành' ) );
+teq( 'không thêm loại trùng nghĩa', 0, $n_trung );
+$ten_dm = array();
+foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $ten_dm[] = $x['ten']; }
+t( 'giữ "Chi phí tháo dỡ"', in_array( 'Chi phí tháo dỡ', $ten_dm, true ) );
+t( 'KHÔNG sinh thêm "Tháo dỡ"', ! in_array( 'Tháo dỡ', $ten_dm, true ) );
+// Tên khác nghĩa thì vẫn thêm bình thường
+$n_khac = VHCP_Cfg::them_loai_neu_thieu( array( 'Chi phí khác - Event' ) );
+teq( 'tên khác nghĩa vẫn thêm', 1, $n_khac );
+
 // ------------------------------- MÃ SỐ MANG ĐUÔI ".0" TỪ BẢNG TÍNH
 // Bảng tính coi mã tài khoản là SỐ nên xuất ra "64196.0", "6329.0". Mã đó không khớp hệ
 // thống tài khoản và xuất MISA ra sai, mà nhìn bảng cấu hình vẫn thấy mã nằm đó.

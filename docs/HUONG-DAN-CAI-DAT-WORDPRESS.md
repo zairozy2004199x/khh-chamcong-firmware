@@ -661,6 +661,32 @@ Lúc xuất MISA, mã đối tượng vẫn ưu tiên lấy từ **bảng Ngư�
 đối tượng từ trước). Dữ liệu `CH_DoiTuong` cũ **vẫn giữ** — còn dùng làm gợi ý tên khi nhập
 và làm mã dự phòng cho đối tượng NCC.
 
+### Bỏ chữ "sheet riêng" — chạy trên hosting thì nhập thẳng trong app (bản 1.13.0)
+
+Bản Apps Script mở **một sheet riêng** cho mỗi dự án / chuyến công tác / đợt setup. Bản
+WordPress lưu hết trong database nên không còn sheet nào: nút *"➕ Tạo (mở sheet riêng)"* nay
+là **"➕ Tạo dự án"** / **"＋ Tạo"**, và các câu mô tả đổi theo (*"Mỗi đợt setup là một mục
+riêng, nhập ngay trong app"*). Câu xóa cũng nói đúng việc: *"sẽ xóa cả các dòng chi bên
+trong"* thay vì *"xóa cả sheet"*.
+
+### Nạp lại không sinh loại chi phí trùng nghĩa
+
+Bảng tính cũ ghi hạng mục là *"Tháo dỡ"*, *"Vận hành"*, trong khi danh mục đã có *"Chi phí
+tháo dỡ"*, *"Chi phí vận hành"* — nạp vào thành hai dòng cùng nghĩa, nhân viên chọn lộn mà kế
+toán phải khai mã hai lần. Nay lúc nạp, app bỏ tiền tố *"Chi phí "* rồi so khớp: trùng thì
+dùng lại loại đã có. So khớp **chính xác**, không dò mờ — *"Chi phí khác"* và *"Chi phí khác -
+Event"* vẫn là hai loại riêng.
+
+Ba loại lỡ sinh ra trước đó (*Tháo dỡ · Setup lắp đặt · Vận hành*) là **dữ liệu**, không phải
+danh mục app dựng sẵn — xoá trong ⚙️ **Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh**: bấm
+**🔓 mở khoá** → bấm **✕** ở ba dòng đó → **💾 Lưu**.
+
+### Thông báo lỗi dài không còn phủ kín thanh tab
+
+Câu lỗi tường lửa rất dài che luôn chỗ cần bấm. Nay thông báo dài bị cắt gọn, **bấm vào** thì
+xem đầy đủ (và tự copy vào clipboard); lỗi dài có nút **✕** và không tự tắt sau 3,5 giây nữa —
+vì đó là việc phải xử, không phải thông báo trôi qua.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

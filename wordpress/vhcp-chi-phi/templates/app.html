@@ -382,7 +382,7 @@
           <button class="btn b-x" onclick="loadSoChi()">↻ Tải lại</button>
         </div>
       </div>
-      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Không cần lập đơn, không tạm ứng, không quyết toán — nhập thẳng như sheet <b>Chi phí cơ sở</b>. Mỗi loại chi phí đã gắn sẵn <b>mã tài khoản</b> ở ⚙️ Cấu hình, nên dòng nào cũng tự mang TK Nợ/TK Có: sau này dò lại chỉ cần đọc cột mã.</div>
+      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Không cần lập đơn, không tạm ứng, không quyết toán — nhập thẳng vào <b>Sổ chi phí</b>. Mỗi loại chi phí đã gắn sẵn <b>mã tài khoản</b> ở ⚙️ Cấu hình, nên dòng nào cũng tự mang TK Nợ/TK Có: sau này dò lại chỉ cần đọc cột mã.</div>
       <div class="cb">
         <div class="grid">
           <div class="fld"><label>Ngày chi</label><input id="sc_ngay" type="date"></div>
@@ -471,14 +471,14 @@
       <div class="ch"><h2>🔧 Chi phí Kỹ thuật</h2>
         <button class="btn b-x" onclick="loadDuAn()">↻ Tải lại</button></div>
       <div class="cb" style="padding:12px 14px">
-        <div style="font-size:12px;color:#64748b;margin-bottom:8px">Chọn danh mục lớn: <b>Chi phí cơ sở</b> (chung, xuyên suốt — 1 sheet) · <b>Setup</b> / <b>Tháo dỡ</b> (mỗi lần 1 sheet riêng).</div>
+        <div style="font-size:12px;color:#64748b;margin-bottom:8px">Chọn danh mục lớn: <b>Chi phí cơ sở</b> (chung, xuyên suốt — 1 danh mục) · <b>Setup</b> / <b>Tháo dỡ</b> (mỗi lần một dự án riêng).</div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
           <button class="btn b-g" onclick="openCoSoChung()">🔧 Mở Chi phí cơ sở (chung)</button>
           <span style="color:#cbd5e1">|</span>
           <div class="fld"><label>Tạo mới (Setup / Tháo dỡ)</label>
             <select id="daLoai" onchange="daOnLoai()" style="min-width:230px"><option value="Setup lắp đặt">Chi phí Setup lắp đặt gian hàng</option><option value="Tháo dỡ">Chi phí Tháo dỡ</option></select></div>
           <div class="fld"><label id="daTenLbl">Tên gian hàng mới (Setup)</label><input id="daTen" list="dl_coso_da" placeholder="Gõ tên gian hàng mới" style="min-width:280px"><datalist id="dl_coso_da"></datalist></div>
-          <button class="btn b-p" onclick="createDuAnUI()">➕ Tạo (mở sheet riêng)</button>
+          <button class="btn b-p" onclick="createDuAnUI()">➕ Tạo dự án</button>
         </div>
         <span id="daCreateHint" style="font-size:11px;color:#94a3b8">Setup = gõ TÊN GIAN MỚI (sửa được sau). Tháo dỡ = chọn CƠ SỞ có sẵn. Xong bấm "🔒 Đóng dự án" — dự án đóng chỉ còn hiện ở bộ lọc "Đã đóng" cho kế toán.</span>
       </div>
@@ -608,7 +608,7 @@
         <div class="fld"><label id="bpNewNguoiLbl">Người/Phụ trách</label><input id="bpNewNguoi" placeholder="" style="width:150px"></div>
         <div class="fld"><label id="bpNewDdLbl">Địa điểm/Cơ sở</label><input id="bpNewDd" list="dl_coso_bp" placeholder="" style="width:150px"><datalist id="dl_coso_bp"></datalist></div>
         <div class="fld"><label>Kỳ (tháng)</label><input id="bpNewKy" placeholder="VD: 07/2026" style="width:100px"></div>
-        <button class="btn b-p" onclick="createBpUI()">＋ Tạo (mở sheet riêng)</button>
+        <button class="btn b-p" onclick="createBpUI()">＋ Tạo</button>
       </div>
       <div class="tw"><table style="min-width:900px">
         <thead><tr><th id="bpColTen">Tên đợt</th><th id="bpColNguoi">Người</th><th id="bpColDd">Địa điểm</th><th>Kỳ</th><th style="text-align:right">Dự toán</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Chênh</th><th>Trạng thái</th><th style="width:70px">Thao tác</th></tr></thead>
@@ -2088,7 +2088,7 @@
   function _bpLabels(){
     var ct=(BP_LOAI==='Công tác');
     if(el('bpPageTitle')) el('bpPageTitle').textContent=ct?'✈️ Chi phí Công tác':'🛠️ Chi phí Setup';
-    if(el('bpHint')) el('bpHint').innerHTML='Mỗi <b>'+(ct?'chuyến công tác':'đợt setup')+' = 1 sheet riêng</b>. '+(ct?'Đi lại · lưu trú · công tác phí · tiếp khách...':'Thuê nhân công · ăn uống setup · vật tư...')+' — ngân sách (dự toán) vs thực chi, có hình thức chi + VAT + hồ sơ + xuất MISA.';
+    if(el('bpHint')) el('bpHint').innerHTML='Mỗi <b>'+(ct?'chuyến công tác':'đợt setup')+'</b> là một mục riêng, nhập ngay trong app. '+(ct?'Đi lại · lưu trú · công tác phí · tiếp khách...':'Thuê nhân công · ăn uống setup · vật tư...')+' — ngân sách (dự toán) vs thực chi, có hình thức chi + VAT + hồ sơ + xuất MISA.';
     if(el('bpNewTenLbl')) el('bpNewTenLbl').textContent=ct?'Tên chuyến công tác':'Tên đợt setup';
     if(el('bpNewNguoiLbl')) el('bpNewNguoiLbl').textContent=ct?'Người đi':'Phụ trách';
     if(el('bpNewDdLbl')) el('bpNewDdLbl').textContent=ct?'Tuyến/Địa điểm':'Cơ sở/Địa điểm';
@@ -2118,7 +2118,7 @@
     var ten=el('bpNewTen').value.trim(); if(!ten){ toast('warn','Nhập tên'); return; }
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r&&r.success){ _log('Tạo '+BP_LOAI, ten, ''); toast('ok','Đã tạo (sheet riêng)'); el('bpNewTen').value=''; el('bpNewNguoi').value=''; el('bpNewDd').value=''; el('bpNewKy').value=''; loadBP(); openBp(r.ma); }
+      if(r&&r.success){ _log('Tạo '+BP_LOAI, ten, ''); toast('ok','Đã tạo'); el('bpNewTen').value=''; el('bpNewNguoi').value=''; el('bpNewDd').value=''; el('bpNewKy').value=''; loadBP(); openBp(r.ma); }
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createBP(BP_LOAI, ten, el('bpNewNguoi').value.trim(), el('bpNewDd').value.trim(), el('bpNewKy').value.trim(), (CURUSER&&CURUSER.name)||'');
   }
@@ -2191,7 +2191,7 @@
   function reopenBpUI(){ if(!BP_CUR)return; loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false); if(r&&r.success){ toast('ok','Đã mở lại'); openBp(BP_CUR.ma); loadBP(); } else toast('err',(r&&r.error)||'Lỗi'); }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).reopenBP(BP_CUR.ma);
   }
-  function delBpUI(){ if(!BP_CUR)return; if(!confirm('XÓA HẲN "'+BP_CUR.ten+'"? Sẽ xóa cả sheet — không khôi phục.'))return; loading(true);
+  function delBpUI(){ if(!BP_CUR)return; if(!confirm('XÓA HẲN "'+BP_CUR.ten+'"? Sẽ xóa cả các dòng chi bên trong — không khôi phục.'))return; loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false); if(r&&r.success){ toast('ok','Đã xóa'); BP_CUR=null; el('bpDetailCard').style.display='none'; loadBP(); } else toast('err',(r&&r.error)||'Lỗi'); }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).deleteBP(BP_CUR.ma);
   }
   // ===================== 📅 VẬN HÀNH THEO TUẦN (gom mọi mảng, mỗi cơ sở = 1 đơn) =====================
@@ -2378,7 +2378,7 @@
     }).join('');
   }
   function delDuAnUI(maDA, ten){
-    if(!confirm('XÓA HẲN dự án "'+ten+'"? Sẽ xóa cả sheet của dự án này — KHÔNG khôi phục được.'))return;
+    if(!confirm('XÓA HẲN dự án "'+ten+'"? Sẽ xóa cả các dòng chi của dự án này — KHÔNG khôi phục được.'))return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false);
       if(r&&r.success){ _log('XÓA dự án KT', ten, ''); toast('ok','Đã xóa dự án'); if(DA_CUR&&DA_CUR.maDA===maDA){ DA_CUR=null; el('daDetailCard').style.display='none'; } loadDuAn(); }
@@ -2390,11 +2390,11 @@
     if(!ten){ toast('warn','Nhập tên dự án'); return; }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.success){ _log('Tạo dự án KT', r.ten||ten, loai); toast('ok','Đã tạo + mở sheet riêng'); el('daTen').value=''; loadDuAn(); openDuAn(r.maDA); }
+      if(r&&r.success){ _log('Tạo dự án KT', r.ten||ten, loai); toast('ok','Đã tạo dự án'); el('daTen').value=''; loadDuAn(); openDuAn(r.maDA); }
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn(loai, ten, (CURUSER&&CURUSER.name)||'');
   }
-  function openCoSoChung(){ loading(true);   // Chi phí cơ sở = 1 sheet chung xuyên suốt (tạo nếu chưa có)
+  function openCoSoChung(){ loading(true);   // Chi phí cơ sở = một mục chung xuyên suốt (tạo nếu chưa có)
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(r&&r.success){ loadDuAn(); openDuAn(r.maDA); } else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDuAn('Chi phí cơ sở','',(CURUSER&&CURUSER.name)||'');
@@ -4440,7 +4440,36 @@
   }
 
   function loading(on){el('lo').classList.toggle('show',!!on);}
-  function toast(type,msg){var box=el('toast');var d=document.createElement('div');d.className='t '+(type==='err'?'err':type==='warn'?'warn':'');d.textContent=msg;box.appendChild(d);setTimeout(function(){d.remove();},3500);}
+  /**
+   * Thông báo góc phải. Câu dài (VD hướng dẫn mở tường lửa) thì cắt gọn lại và cho bấm để
+   * xem đủ + copy — không thì một câu lỗi dài phủ kín thanh tab, che luôn chỗ cần bấm.
+   */
+  function toast(type,msg){
+    var box=el('toast');var d=document.createElement('div');
+    d.className='t '+(type==='err'?'err':type==='warn'?'warn':'');
+    msg=String(msg==null?'':msg);
+    var dai=msg.length>150, giu=(type==='err'&&dai);
+    if(dai){
+      d.textContent=msg.slice(0,150)+'…';
+      d.title='Bấm để xem đầy đủ';
+      d.style.cursor='pointer';
+      d.onclick=function(){
+        if(d.dataset.mo==='1'){ d.textContent=msg.slice(0,150)+'…'; d.dataset.mo=''; return; }
+        d.textContent=msg; d.dataset.mo='1';
+        try{ if(navigator.clipboard) navigator.clipboard.writeText(msg); }catch(e){}
+      };
+    } else { d.textContent=msg; }
+    box.appendChild(d);
+    // Lỗi dài = việc phải xử (thường là tường lửa): giữ lại cho đọc kỹ, có nút ✕ để tắt
+    if(giu){
+      var x=document.createElement('span');
+      x.textContent=' ✕'; x.style.cssText='float:right;cursor:pointer;color:#94a3b8;font-weight:700';
+      x.onclick=function(ev){ ev.stopPropagation(); d.remove(); };
+      d.insertBefore(x, d.firstChild);
+    } else {
+      setTimeout(function(){d.remove();},3500);
+    }
+  }
 </script>
 </body>
 </html>
