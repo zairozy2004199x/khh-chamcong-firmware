@@ -52,7 +52,7 @@ function wp_tempnam( $p = '' ) { return tempnam( sys_get_temp_dir(), 'vhcp' ); }
  * Google Sheet — khóa là địa chỉ (khớp một phần cũng được), giá trị là nội dung trả về.
  */
 $GLOBALS['VHCP_HTTP'] = array();
-function is_wp_error( $x ) { return ( $x instanceof VHCP_Test_WP_Error ); }
+function is_wp_error( $x ) { return ( $x instanceof VHCP_Test_WP_Error ) || ( $x instanceof WP_Error ); }
 class VHCP_Test_WP_Error {
 	private $msg;
 	public function __construct( $m ) { $this->msg = $m; }
@@ -65,6 +65,32 @@ function wp_remote_get( $url, $args = array() ) {
 		}
 	}
 	return new VHCP_Test_WP_Error( 'không có mạng trong bài kiểm: ' . $url );
+}
+/**
+ * Giả lập gọi POST — dùng cho cầu nối sang Apps Script của plugin Thư viện hợp đồng.
+ * $GLOBALS['VHD_POST'] đóng vai app Apps Script: khoá là địa chỉ (khớp một phần cũng được).
+ * Mọi lượt gọi được ghi vào $GLOBALS['VHD_DA_GUI'] để bài kiểm soát được ĐÃ GỬI GÌ LÊN.
+ */
+$GLOBALS['VHD_POST']   = array();
+$GLOBALS['VHD_DA_GUI'] = array();
+function wp_remote_post( $url, $args = array() ) {
+	$GLOBALS['VHD_DA_GUI'][] = array( 'url' => $url, 'body' => isset( $args['body'] ) ? $args['body'] : '' );
+	foreach ( $GLOBALS['VHD_POST'] as $k => $v ) {
+		if ( strpos( $url, $k ) !== false ) {
+			if ( is_callable( $v ) ) { $v = call_user_func( $v, $args ); }
+			return is_array( $v ) ? $v : array( 'code' => 200, 'body' => (string) $v );
+		}
+	}
+	return new VHCP_Test_WP_Error( 'không có mạng trong bài kiểm: ' . $url );
+}
+function wp_strip_all_tags( $s ) { return strip_tags( (string) $s ); }
+function checked( $a, $b = true, $echo = true ) { return ( (string) $a === (string) $b ) ? " checked='checked'" : ''; }
+/** WP_Error thật của WordPress — plugin hợp đồng dùng lớp này để báo "thiếu bảng người dùng". */
+class WP_Error {
+	private $code; private $msg;
+	public function __construct( $code = '', $msg = '' ) { $this->code = $code; $this->msg = $msg; }
+	public function get_error_message() { return $this->msg; }
+	public function get_error_code() { return $this->code; }
 }
 function wp_remote_retrieve_response_code( $r ) { return isset( $r['code'] ) ? (int) $r['code'] : 200; }
 function wp_remote_retrieve_body( $r ) { return isset( $r['body'] ) ? (string) $r['body'] : ''; }
@@ -111,6 +137,10 @@ class VHCP_Test_WPDB {
 	public function exec_raw( $sql ) { return $this->pdo->exec( $sql ); }
 
 	private function tr( $sql ) {
+		// SQLite không có SHOW TABLES — plugin dùng câu đó để hỏi "bảng của plugin kia có không".
+		if ( preg_match( "/^\s*SHOW\s+TABLES\s+LIKE\s+'([^']*)'/i", $sql, $m ) ) {
+			return "SELECT name FROM sqlite_master WHERE type='table' AND name='" . $m[1] . "'";
+		}
 		$sql = str_ireplace( 'UTC_TIMESTAMP()', "datetime('now')", $sql );
 		if ( stripos( $sql, 'ON DUPLICATE KEY UPDATE' ) !== false ) {
 			$sql = preg_replace( '/\s+ON DUPLICATE KEY UPDATE.*$/is', '', $sql );
@@ -207,6 +237,8 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}mk_line (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, kenh TEXT DEFAULT '', noi_dung TEXT DEFAULT '', du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ket_qua REAL DEFAULT 0, ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '')",
 		"CREATE TABLE {$p}bp_index (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT UNIQUE, loai TEXT DEFAULT '', ten TEXT DEFAULT '', nguoi TEXT DEFAULT '', dia_diem TEXT DEFAULT '', ky TEXT DEFAULT '', trang_thai TEXT DEFAULT 'Đang xử lý', ngay_tao TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '')",
 		"CREATE TABLE {$p}bp_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', UNIQUE(ma,row_no))",
+		// Bảng phiên của plugin Thư viện hợp đồng — tiền tố vhd_, KHÔNG phải vhcp_
+		"CREATE TABLE wp_vhd_session (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', het_han TEXT)",
 		"CREATE TABLE {$p}hopdong (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, so_hd TEXT DEFAULT '', ten TEXT DEFAULT '', doi_tac TEXT DEFAULT '', coso TEXT DEFAULT '', loai_hd TEXT DEFAULT '', ngay_ky TEXT DEFAULT '', ngay_het TEXT DEFAULT '', gia_tri REAL, trang_thai TEXT DEFAULT 'Còn hiệu lực', nguoi_pt TEXT DEFAULT '', ghi_chu TEXT DEFAULT '', files TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '', tao_luc TEXT DEFAULT '')",
 		"CREATE TABLE {$p}cfg (id INTEGER PRIMARY KEY AUTOINCREMENT, bang TEXT, stt INTEGER DEFAULT 0, cols TEXT)",
 		"CREATE TABLE {$p}meta (k TEXT PRIMARY KEY, v TEXT)",
@@ -221,9 +253,22 @@ function vhcp_test_boot( $dir ) {
 	define( 'VHCP_VERSION', 'test' );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
-	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'sheet', 'import', 'hopdong' ) as $c ) {
+	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'sheet', 'import' ) as $c ) {
 		require_once $dir . '/includes/class-vhcp-' . $c . '.php';
 	}
 	vhcp_test_create_tables();
 	VHCP_Cfg::seed();
+}
+
+/**
+ * Nạp plugin THƯ VIỆN HỢP ĐỒNG (vhcp-hop-dong) — plugin riêng, chỉ nối sang app Apps Script.
+ * Gọi SAU vhcp_test_boot() vì nó đọc bảng người dùng của plugin Vận hành chi phí.
+ */
+function vhd_test_boot( $dir ) {
+	define( 'VHD_VERSION', 'test' );
+	define( 'VHD_DIR', $dir . '/' );
+	define( 'VHD_URL', 'http://example.test/plugin-hop-dong/' );
+	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang' ) as $c ) {
+		require_once $dir . '/includes/class-vhd-' . $c . '.php';
+	}
 }

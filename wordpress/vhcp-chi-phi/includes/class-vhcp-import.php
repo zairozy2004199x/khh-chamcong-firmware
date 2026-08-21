@@ -49,7 +49,6 @@ class VHCP_Import {
 			'TD_MKDon'   => array( 'label' => '★ Tự dò tiêu đề — ĐƠN MARKETING', 'skip' => 0, 'td' => 'mk_don' ),
 			'TD_MKLine'  => array( 'label' => '★ Tự dò tiêu đề — HẠNG MỤC MARKETING', 'skip' => 0, 'td' => 'mk_line' ),
 			'TD_SoChi'   => array( 'label' => '★ Tự dò tiêu đề — SỔ CHI PHÍ PHẲNG', 'skip' => 0, 'td' => 'sochi' ),
-			'TD_HopDong' => array( 'label' => '★ Tự dò tiêu đề — THƯ VIỆN HỢP ĐỒNG (số HĐ · đối tác · ngày ký · ngày hết hạn)', 'skip' => 0, 'td' => 'hopdong' ),
 		);
 	}
 
@@ -426,75 +425,6 @@ class VHCP_Import {
 				$them_loai = VHCP_Cfg::them_loai_neu_thieu( array_keys( $loai_moi ) );
 				break;
 
-			case 'hopdong':
-				$t = VHCP_DB::t( 'hopdong' );
-				if ( $replace ) { $wpdb->query( "DELETE FROM $t" ); }
-
-				// SỐ HỢP ĐỒNG ĐÃ CÓ -> CẬP NHẬT, không thêm bản thứ hai.
-				//
-				// save_hd() chặn trùng số hợp đồng (đúng), nên nạp lại cùng file lần thứ hai
-				// sẽ báo lỗi từng dòng và bỏ hết. Ở đây tra số HĐ ra id rồi sửa chính hợp đồng
-				// đó — nạp lại bao nhiêu lần cũng cho ra một bản duy nhất.
-				$theo_so = array();
-				foreach ( VHCP_DB::rows( "SELECT id, so_hd FROM $t" ) as $r0 ) {
-					$s0 = trim( (string) $r0['so_hd'] );
-					if ( $s0 !== '' ) { $theo_so[ mb_strtolower( $s0 ) ] = (string) $r0['id']; }
-				}
-
-				$tong_tien = 0; $khong_han = 0; $loi_dong = array();
-				foreach ( $k['rows'] as $r ) {
-					$ten_hd = $o( $r, 'ten' );
-					$so_hd  = $o( $r, 'so_hd' );
-					// Không tên thì lấy số HĐ làm tên (save_hd bắt buộc có tên); không có cả hai
-					// thì đây là dòng rỗng / dòng tổng, bỏ.
-					if ( $ten_hd === '' ) { $ten_hd = $so_hd; }
-					if ( $ten_hd === '' ) { $skipped++; continue; }
-
-					// Cột file có thể ghi nhiều đường dẫn, cách nhau bằng dấu phẩy / xuống dòng
-					$files = array();
-					foreach ( preg_split( '/[\r\n,;]+/', $o( $r, 'files' ) ) as $u ) {
-						$u = trim( $u );
-						if ( $u !== '' && preg_match( '#^https?://#i', $u ) ) { $files[] = $u; }
-					}
-
-					// GIÁ TRỊ phải qua doc_so(): ô của bảng tính ghi "1.200.000.000" kiểu Việt Nam
-					// hoặc "5.6E7" kiểu khoa học, mà bộ lưu chỉ nhận số thuần -> để nguyên chuỗi
-					// là cột giá trị vào database thành rỗng mà không có gì báo.
-					$gia_tri = VHCP_Util::doc_so( VHCP_Nap::o_so( $r, $k, 'gia_tri' ) );
-
-					$id_cu = ( $so_hd !== '' && isset( $theo_so[ mb_strtolower( $so_hd ) ] ) ) ? $theo_so[ mb_strtolower( $so_hd ) ] : '';
-					$rec   = array(
-						'id'        => $id_cu,
-						'soHD'      => $so_hd,
-						'ten'       => $ten_hd,
-						'doiTac'    => $o( $r, 'doi_tac' ),
-						'coso'      => ( $o( $r, 'coso' ) !== '' ? $o( $r, 'coso' ) : $coso_mac_dinh ),
-						'loaiHD'    => $o( $r, 'loai_hd' ),
-						'ngayKy'    => $o( $r, 'ngay_ky' ),
-						'ngayHet'   => $o( $r, 'ngay_het' ),
-						'giaTri'    => ( $gia_tri === null ? '' : $gia_tri ),
-						'trangThai' => $o( $r, 'trang_thai' ),
-						'nguoiPT'   => $o( $r, 'nguoi_pt' ),
-						'ghiChu'    => $o( $r, 'ghi_chu' ),
-						'files'     => $files,
-					);
-					$res = VHCP_HopDong::save_hd( $rec, 'Nạp từ Sheet' );
-					if ( empty( $res['success'] ) ) {
-						$skipped++;
-						// Giữ lại vài lý do đầu để báo cáo nói rõ vì sao bỏ, khỏi phải mò
-						if ( count( $loi_dong ) < 5 ) {
-							$loi_dong[] = ( $so_hd !== '' ? $so_hd : $ten_hd ) . ': ' . ( isset( $res['error'] ) ? $res['error'] : 'không lưu được' );
-						}
-						continue;
-					}
-					if ( $so_hd !== '' ) { $theo_so[ mb_strtolower( $so_hd ) ] = (string) $res['id']; }
-					$tong_tien += VHCP_Util::num( $gia_tri );
-					// Hợp đồng không có ngày hết hạn thì vĩnh viễn không được nhắc -> đếm để báo
-					if ( ! VHCP_Util::parse_date( $o( $r, 'ngay_het' ) ) ) { $khong_han++; }
-					$n++;
-				}
-				break;
-
 			default:
 				return VHCP_Util::err( 'Bảng đích chưa hỗ trợ tự dò' );
 		}
@@ -514,8 +444,6 @@ class VHCP_Import {
 			'cotThieu'   => $k['thieu'],
 			'cotLa'      => $k['la'],
 			'chuaCoCha'  => array_map( 'strval', array_keys( $chua_co_cha ) ),
-			'khongHan'   => isset( $khong_han ) ? $khong_han : 0,
-			'loiDong'    => isset( $loi_dong ) ? $loi_dong : array(),
 		) );
 	}
 

@@ -635,16 +635,8 @@ class VHCP_Sheet {
 			$mo['ketQua']   = 'nạp ' . $mo['napDuoc'] . ' dòng vào ' . self::ten_loai( $loai );
 			if ( ! empty( $mo['dongTong'] ) ) { $mo['ketQua'] .= ' · ' . (int) $mo['dongTong'] . ' dòng tổng hợp đưa về 0 để không đếm hai lần'; }
 			if ( ! empty( $mo['ketQua_them'] ) ) { $mo['ketQua'] .= ' · thêm ' . (int) $mo['ketQua_them'] . ' loại chi phí vào danh mục'; }
-			if ( ! empty( $res['khongHan'] ) ) {
-				$mo['ketQua'] .= ' · ' . (int) $res['khongHan'] . ' HĐ không có ngày hết hạn (sẽ không được nhắc hạn)';
-			}
-			if ( ! empty( $res['loiDong'] ) ) {
-				$mo['ketQua'] .= ' · bỏ: ' . implode( '; ', array_slice( (array) $res['loiDong'], 0, 5 ) );
-			}
 			if ( isset( $res['tongTien'] ) ) {
-				// Hợp đồng thì con số này là GIÁ TRỊ hợp đồng, không phải tiền đã chi
-				$nhan_tong = ( $bang_dich === 'hopdong' ) ? 'TỔNG GIÁ TRỊ' : 'TỔNG TIỀN';
-				$mo['ketQua'] .= ' · ' . $nhan_tong . ' ' . number_format( (float) $res['tongTien'], 0, ',', '.' ) . 'đ';
+				$mo['ketQua'] .= ' · TỔNG TIỀN ' . number_format( (float) $res['tongTien'], 0, ',', '.' ) . 'đ';
 				if ( ! empty( $res['khongTien'] ) ) { $mo['ketQua'] .= ' · ' . (int) $res['khongTien'] . ' dòng ra 0đ (kiểm lại cột tiền!)'; }
 			}
 			if ( ! empty( $mo['coSo'] ) ) { $mo['ketQua'] .= ' · ' . $mo['coSo']; }
@@ -741,7 +733,6 @@ class VHCP_Sheet {
 			'BP_Index' => 'danh mục đợt Công tác/Setup', 'TD_BPIndex' => 'danh mục đợt Công tác/Setup',
 			'BP_Sheet' => 'dòng chi Công tác/Setup', 'TD_BPLine' => 'dòng chi Công tác/Setup',
 			'SoChi' => 'sổ chi phí', 'TD_SoChi' => 'sổ chi phí', 'NhatKy' => 'nhật ký',
-			'TD_HopDong' => 'thư viện hợp đồng',
 		);
 		return isset( $m[ $loai ] ) ? $m[ $loai ] : $loai;
 	}
@@ -751,7 +742,6 @@ class VHCP_Sheet {
 		$m = array(
 			'TD_Don' => 'don', 'TD_ChiPhi' => 'chiphi', 'TD_BPIndex' => 'bp_index', 'TD_BPLine' => 'bp_line',
 			'TD_DALine' => 'da_line', 'TD_MKDon' => 'mk_don', 'TD_MKLine' => 'mk_line', 'TD_SoChi' => 'sochi',
-			'TD_HopDong' => 'hopdong',
 		);
 		return isset( $m[ $loai ] ) ? $m[ $loai ] : '';
 	}
@@ -761,7 +751,6 @@ class VHCP_Sheet {
 			'don' => 'đơn vận hành', 'chiphi' => 'dòng chi của đơn', 'bp_index' => 'danh mục đợt Công tác/Setup',
 			'bp_line' => 'dòng chi Công tác/Setup', 'da_line' => 'dòng hạng mục dự án',
 			'mk_don' => 'đơn marketing', 'mk_line' => 'hạng mục marketing', 'sochi' => 'sổ chi phí',
-			'hopdong' => 'thư viện hợp đồng',
 		);
 		return isset( $m[ $b ] ) ? $m[ $b ] : $b;
 	}

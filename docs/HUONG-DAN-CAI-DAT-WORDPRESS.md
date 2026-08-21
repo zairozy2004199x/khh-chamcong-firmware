@@ -31,8 +31,8 @@ thì dùng `https://<tên-miền>/?vhcp=app`.
 | Nhúng vào 1 trang WordPress | dán shortcode `[vhcp_app height="900"]` |
 | Nhúng vào trang tổng K&H | đặt `CHIPHI_URL = 'https://<tên-miền>/chi-phi/'` trong `AttendanceScript/Index.html` |
 | Đăng nhập một lần từ trang tổng | `https://<tên-miền>/chi-phi/?sso=<token>` |
-| **Mở thư viện hợp đồng** (hệ thống riêng) | `https://<tên-miền>/hop-dong/` (đổi được ở **Cài đặt**) |
-| Nhúng thư viện hợp đồng vào 1 trang | dán shortcode `[vhcp_hopdong height="900"]` |
+| **Mở thư viện hợp đồng** (plugin riêng) | `https://<tên-miền>/hop-dong/` (đổi được ở Cài đặt của plugin đó) |
+| Nhúng thư viện hợp đồng vào 1 trang | dán shortcode `[vhd_hop_dong height="1000"]` |
 
 **SSO** dùng đúng thuật toán của app cũ — `base64url(payload).base64url(HMAC-SHA256)` — nên trang
 tổng **không phải sửa gì**: chỉ cần điền cùng chuỗi bí mật vào **Vận Hành Chi Phí → Cài đặt →
@@ -740,110 +740,74 @@ nhập. Đổi ô **Cơ sở** thì danh sách loại cập nhật theo — vì 
 Dòng đang sửa mà loại nay không còn trong danh mục thì **vẫn chọn được**, để không mất dữ liệu
 cũ.
 
-### 📄 Thư viện hợp đồng (bản 1.15.0 · tách thành hệ thống riêng ở bản 1.16.0)
+### 📄 Thư viện hợp đồng — plugin RIÊNG, dữ liệu vẫn ở Google Sheet (bản 1.18.0)
 
-Lưu hợp đồng và **bản scan ngay trên web**, kèm **đếm ngược hạn**.
+App Thư viện hợp đồng đang chạy trên Apps Script là một hệ thống lớn: 7 tab, 61 trường, bóc tách
+PDF bằng AI (Claude · Groq · Gemini), dò thư mục Drive, tách smart-chip link, tính tiền thuê theo
+tháng đẩy sang app chi phí, học gán gian hàng. **Không dựng lại bằng PHP** — vừa mất hàng tuần vừa
+chắc chắn lệch nghiệp vụ ở những chỗ rất lâu sau mới phát hiện.
 
-**Đây là một hệ thống riêng, không phải một tab của app chi phí** (bản 1.15.0 làm dạng tab, bản
-1.16.0 tách ra):
+Nên cách làm là **giữ nguyên bản gốc, chỉ đổi chỗ mở**:
 
-| | App chi phí | Thư viện hợp đồng |
-|---|---|---|
-| Đường dẫn | `/chi-phi/` | `/hop-dong/` |
-| Cổng đăng nhập | PIN riêng của trang | PIN riêng của trang |
-| Vào được | mọi vai trò | chỉ Kế toán · Quản lý · Admin |
+```
+Trình duyệt → khmatrix.com/hop-dong/ → (khoá bí mật) → /exec của app Apps Script → Google Sheet
+              ↑ cổng PIN ở đây                          ↑ toàn bộ nghiệp vụ vẫn ở đây
+```
 
-Hai trang **dùng chung một bộ mã PIN nhân sự** (khỏi phải cấp mật khẩu lần hai) và chung một bộ
-dữ liệu cơ sở, nhưng chạy độc lập: sửa app chi phí không ảnh hưởng thư viện hợp đồng, và người
-mở `/hop-dong/` không tải theo cả bộ giao diện chi phí. Trang hợp đồng chỉ gọi được **8 hàm**
-của riêng nó (khai ở `class-vhcp-hdapp.php`, có phép thử canh) — không mở đường sang dữ liệu đơn.
+Plugin **`vhcp-hop-dong`** (file `dist/vhcp-hop-dong.zip`) chỉ làm ba việc:
 
-Giao diện chung của hai trang lấy từ **một file CSS duy nhất** `assets/css/vhcp.css`, nên đổi
-màu/khoảng cách một chỗ là cả hai trang theo.
+1. **Cổng PIN** — dùng chung tài khoản với app Vận hành chi phí (đọc bảng `CH_NguoiDung` của nó),
+   nên nhân sự khai một lần. Chỉ **Kế toán · Quản lý · Admin** vào được; Nhân viên nhập PIN đúng
+   vẫn bị chặn kèm lời giải thích, và cửa API trả 401 kể cả khi có token thật.
+2. **Phục vụ giao diện gốc** — lấy thẳng `Index.html` từ project Apps Script (nhớ tạm 10 phút).
+   Không có bản chép nào trong plugin, nên **sửa giao diện bên Apps Script là trang web có bản mới**,
+   không phải cập nhật plugin.
+3. **Chuyển tiếp lệnh** — mọi `google.script.run.<hàm>()` của giao diện gốc đi qua WordPress rồi
+   sang `/exec`, kèm khoá bí mật. Khoá nằm ở máy chủ, **không bao giờ xuống trình duyệt**.
 
-**Một hợp đồng lưu:** Số HĐ · Tên HĐ · Đối tác/NCC · Cơ sở · Loại HĐ · Ngày ký · Ngày hết hạn
-· Giá trị · Trạng thái · Người phụ trách · Ghi chú · **nhiều file đính kèm** (PDF · ảnh · Word
-· Excel, tối đa 15MB mỗi file).
+#### Cài (làm một lần)
 
-**Nhắc hạn** — bốn ô đếm ở đầu trang: *đã hết hạn* · *còn ≤ 30 ngày* · *còn ≤ 90 ngày* · *tổng*.
-Mỗi dòng có nhãn màu (đỏ = hết hạn, cam = ≤30 ngày, vàng = ≤60, xanh = còn xa).
+1. Cài plugin `vhcp-hop-dong.zip`, vào **wp-admin → Thư Viện Hợp Đồng**, copy **khoá cầu nối**.
+2. Mở **chính project Apps Script của app hợp đồng** → File → New → Script file, tên `CauNoi`,
+   dán toàn bộ `apps-script/cau-noi.gs` (nội dung hiện luôn ở cuối trang Cài đặt).
+   ⚠️ Nếu project đã có hàm `doPost()` ở file khác thì **đừng dán** — Apps Script chỉ nhận một
+   `doPost`, cái còn lại chết im lặng.
+3. **Project Settings → Script Properties** → thêm `WEB_KEY` = khoá vừa copy.
+4. **Deploy → Manage deployments → bản đang chạy → ✏️ → New version → Deploy.** URL `/exec` không đổi.
+5. Dán URL `/exec` vào Cài đặt, bấm **Thử cầu nối** — phải ra số hàm và tên file giao diện.
 
-Mấy ô đếm tính trên **toàn bộ** hợp đồng, không theo bộ lọc — lọc hẹp lại rồi tưởng hết việc thì
-mất ý nghĩa của việc nhắc.
+Sau này sửa app: sửa `Code.gs` như trước rồi **Deploy → New version**. Không phải sửa gì bên WordPress.
 
-**Lọc & tìm:** theo hạn · cơ sở · đối tác, và gõ tìm theo số HĐ / tên / đối tác / ghi chú.
+#### Mấy chỗ đã lường trước
 
-**Quyền:** chỉ **Kế toán · Quản lý · Admin** — hợp đồng mang giá và điều khoản, không phải thứ
-để cả cơ sở đọc. Nhân viên có nhập đúng PIN vào `/hop-dong/` cũng chỉ thấy màn *"Không có quyền
-xem hợp đồng"*, và cửa API trả **403** kể cả khi gọi thẳng.
+- **App gốc gọi `getData` ngay khi tải trang**, trước lúc ai kịp nhập PIN. Lệnh nào chưa có phiên
+  thì được **giữ lại**, đăng nhập xong mới thả ra — app gốc không biết gì, chỉ thấy hơi lâu. Không
+  làm vậy thì màn hình đăng nhập hiện luôn "Không tải được dữ liệu".
+- **Phiên hết giữa lúc đang dùng** → hiện lại cổng PIN và **giữ chính lệnh đó**, đăng nhập xong
+  chạy tiếp, không mất việc đang làm.
+- **Lệnh chạy lâu** (bóc tách 1 PDF bằng AI mất 1–3 phút) → không đặt timeout ở trình duyệt.
+- **Bốn chỗ hỏng được** của cầu nối đều có thông báo riêng nói đúng việc phải làm: chưa dán
+  `CauNoi.gs` · sai `WEB_KEY` · chưa Deploy bản mới · deploy sai quyền (Google đòi đăng nhập).
+  Trang lỗi liệt kê đủ 4 bước thay vì để màn hình trắng.
+- **Token riêng** (`vhd_token`), không dùng chung với app chi phí: hai hệ thống riêng thì thu hồi
+  phiên bên này không kéo bên kia xuống theo.
 
-**Mấy chỗ đã lường trước:**
+#### Bảo mật cần biết
 
-- **Số HĐ trùng** bị chặn (trùng số là lúc tra cứu không biết bản nào mới). Số HĐ *không* bắt
-  buộc vì hợp đồng nhỏ nhiều khi không có số; **tên** thì bắt buộc.
-- **Ngày hết hạn trước ngày ký** bị chặn, báo rõ cả hai ngày. Sửa mà chỉ gửi một trong hai ngày
-  thì app đối chiếu với ngày đang lưu.
-- **Sửa một ô không xoá các ô khác**: sửa giá hợp đồng mà không gửi lại ngày thì ngày **còn
-  nguyên** (trước đó app tự viết ra lỗi này, phép thử bắt được). Muốn xoá thì gửi rỗng rõ ràng.
-- **Xóa hợp đồng không xóa file** trên ổ đĩa; đường dẫn file được ghi vào 📜 **Nhật ký** để còn
-  tìm lại. Mọi lần thêm/sửa/xóa đều vào Nhật ký.
-- File hợp đồng để **thư mục riêng** `uploads/…/HopDong/`, không lẫn hồ sơ dự án — dễ sao lưu.
-- Lệnh **"Xóa sạch dữ liệu để nạp lại"** **không** xóa thư viện hợp đồng: lệnh đó để nạp lại dữ
-  liệu từ bảng tính, mà hợp đồng không đến từ đó.
+`appsscript.json` của app hợp đồng đang để `"access": "ANYONE_ANONYMOUS"` — **ai có link `/exec` là
+dùng được app**, thấy hết giá và điều khoản. Link dài nên khó đoán, nhưng khó đoán không phải là
+khoá: nó lọt vào lịch sử trình duyệt, tin nhắn, log của bên thứ ba. Sau khi `/hop-dong/` chạy ổn thì
+không ai cần mở `/exec` bằng trình duyệt nữa — lúc đó nên chặn `doGet` lại (xem ghi chú cuối file
+`cau-noi.gs`).
 
-Bảng dữ liệu mới `vhcp_hopdong` (schema 1.4.0) — plugin tự tạo khi kích hoạt bản này.
+#### Module hợp đồng trong plugin chi phí đã bỏ (1.18.0)
 
-#### Mang thư viện hợp đồng cũ sang (bản 1.17.0)
+Bản 1.15.0 → 1.17.0 có một module hợp đồng tự dựng, lưu vào bảng MySQL `vhcp_hopdong`. Nay thư viện
+hợp đồng thật nằm ở Google Sheet nên module đó thành **nguồn sự thật thứ hai** và còn giành đường dẫn
+`/hop-dong/` với plugin mới, nên đã bỏ: tab, trang, bảng, đường nạp `TD_HopDong`, 5 hàm API.
 
-Thư viện hợp đồng cũ chạy trên Apps Script, dữ liệu nằm ở một **bảng tính Google riêng** (không
-phải workbook chi phí). Nạp sang bằng đúng bộ nạp đang dùng cho các bảng khác:
-
-1. Mở bảng tính của app hợp đồng cũ → **Chia sẻ → Bất kỳ ai có đường liên kết → Người xem**.
-2. wp-admin → **Vận Hành Chi Phí → Nạp từ Google Sheet** → dán link → **tick "Chỉ thử, chưa
-   ghi"** → Nạp. Báo cáo sẽ nói tab nào được nhận là *thư viện hợp đồng*, bao nhiêu dòng, **TỔNG
-   GIÁ TRỊ** là bao nhiêu.
-3. Đọc báo cáo thấy đúng thì bỏ tick "Chỉ thử" và nạp thật.
-
-Hoặc tải bảng tính về `.xlsx` rồi vào **Nạp dữ liệu**, chọn loại
-**★ Tự dò tiêu đề — THƯ VIỆN HỢP ĐỒNG**.
-
-**Cột nào cũng nhận theo TÊN, không theo thứ tự** — mỗi cột có nhiều cách gọi:
-
-| Trường | Tên cột nhận được |
-|---|---|
-| Số HĐ | Số hợp đồng · Số HĐ · Mã hợp đồng · Mã HĐ |
-| Tên | Tên hợp đồng · Tên HĐ · Nội dung hợp đồng · Tên |
-| Đối tác | Đối tác · Nhà cung cấp · NCC · Bên B · Chủ nhà · Khách hàng |
-| Cơ sở | Cơ sở · Gian/Cơ sở · Gian · Gian hàng |
-| Loại HĐ | Loại hợp đồng · Loại HĐ |
-| Ngày ký | Ngày ký · Ngày hiệu lực · Từ ngày · Ngày bắt đầu |
-| Ngày hết hạn | Ngày hết hạn · Hết hạn · Đến ngày · Ngày kết thúc · Ngày đáo hạn |
-| Giá trị | Giá trị hợp đồng · Giá trị HĐ · Giá trị · Tiền thuê · Giá thuê |
-| Người phụ trách | Người phụ trách · Người theo dõi · Phụ trách |
-| File | File hợp đồng · Link hợp đồng · Bản scan · Link file · Tệp đính kèm |
-
-Thiếu cột nào thì để trống cột đó, báo cáo liệt kê rõ cột nào app không thấy và cột nào app
-không dùng — không đoán bừa.
-
-**Mấy chỗ đã lường trước khi nạp:**
-
-- **Nạp lại cùng file không sinh bản trùng**: dòng nào có số HĐ đã tồn tại thì **sửa** chính hợp
-  đồng đó. Nạp bao nhiêu lần cũng ra một bản.
-- **Giá trị viết kiểu bảng tính** — `1.200.000.000` hay `5.6E7` — đều đọc đúng. (Để nguyên chuỗi
-  thì cột giá trị vào database thành rỗng mà không có gì báo; phép thử canh chỗ này.)
-- **Dòng có ngày hết hạn trước ngày ký bị bỏ**, và báo cáo ghi rõ số HĐ nào bỏ vì lý do gì.
-- **Đếm số HĐ không có ngày hết hạn** — những cái đó vĩnh viễn không được nhắc hạn, nên báo để
-  còn bổ sung.
-- Dòng không có cả tên và số HĐ (dòng rỗng, dòng tổng) bị bỏ, không tạo hợp đồng rỗng.
-- Cột file nhận **nhiều đường dẫn** trên một dòng (cách nhau bằng dấu phẩy hoặc xuống dòng); chỉ
-  nhận `http(s)://`. File vẫn nằm ở Drive cũ — muốn nằm trên hosting thì tải lên lại từ trang
-  hợp đồng.
-- Tick **"Xóa dữ liệu cũ trước khi nạp"** ở đây sẽ **xóa sạch thư viện hợp đồng** (kể cả hợp đồng
-  nhập tay) rồi nạp lại. Không tick thì chỉ thêm/sửa.
-
-**Đường dẫn `/hop-dong/` báo 404 sau khi cập nhật?** Bình thường thì không: từ bản 1.16.0, hễ đổi
-phiên bản plugin là bảng đường dẫn tự nạp lại. Nếu vẫn 404 thì vào **Bảo trì → làm mới đường
-dẫn**, hoặc **Cài đặt → Lưu**.
+**Bảng `vhcp_hopdong` cũ KHÔNG bị xoá** — plugin chỉ thôi tạo mới. Nếu đã nhập hợp đồng nào vào đó
+thì dữ liệu vẫn còn nguyên trong database, lấy ra được.
 
 ## 5. Khác gì so với bản Apps Script
 
@@ -885,12 +849,12 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 (dựng $wpdb tối giản trên SQLite):
 
 ```bash
-php tools/test/test-flows.php              # 840 phép thử (không cần WordPress — chạy trên SQLite)
+php tools/test/test-flows.php              # 763 phép thử (không cần WordPress — chạy trên SQLite)
+php tools/test/test-hop-dong.php           # 57 phép thử: plugin Thư viện hợp đồng nối đúng
 node tools/test/test-nhom-chi-phi.js       # 18 phép thử: loại chi phí thuộc nhóm nào
-node tools/test/test-trang-hopdong.js      # 29 phép thử: trang /hop-dong/ đứng riêng được
 ```
 
-840 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+763 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
@@ -902,12 +866,6 @@ giữ đúng 141/64125 cũ), **tra theo mã** (1 mã ra nhiều mảng, lọc th
 dòng chưa gắn mã), **gán mã cho dòng cũ** (kỹ thuật suy theo loại dự án), **sổ chi phí** (gắn mã TK theo danh mục, TK Có theo hình thức chi, lọc theo mã tài khoản,
 chốt/bỏ chốt đã xuất, gán mã cho dòng cũ, nhập CSV) và **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`
 hay `saveConfig` → 403, Quản lý gọi `deleteDonAdmin` → 403, đăng xuất rồi token hết hiệu lực.
-
-Thư viện hợp đồng có phần riêng: nhắc hạn theo mốc 30/60/90, chặn số HĐ trùng, chặn ngày hết hạn
-trước ngày ký, **sửa một ô không xoá các ô khác**, cửa API 403 với Nhân viên, và **trang
-`/hop-dong/` đứng một mình được** — `test-trang-hopdong.js` soi template: không còn dùng biến của
-app chi phí (`BOOT`, `showPage`, `CUR`), mọi lệnh gọi máy chủ đều nằm trong 8 hàm đã khai, và
-app chi phí đã sạch dấu vết tab hợp đồng.
 
 Hai phép thử cuối là lưới an toàn quan trọng nhất: **cả 92 hàm public của Code.gs cũ đều có trong
 bảng REST**, và **mọi hàm giao diện gọi đều tồn tại ở backend** — thiếu 1 hàm là bộ test đỏ ngay,

@@ -145,25 +145,6 @@ class VHCP_Nap {
 				'ho_so'     => array( 'Hồ sơ' ),
 				'loai_cp'   => array( 'Loại chi phí' ),
 			),
-			// ---- THƯ VIỆN HỢP ĐỒNG (bảng danh sách hợp đồng của app cũ)
-			//
-			// Chỉ nhận những tên cột ĐẶC TRƯNG của hợp đồng. Không nhận "Số tiền" hay
-			// "Thành tiền" làm giá trị hợp đồng: hai tên đó có ở mọi bảng chi phí, nhận vào
-			// là tab sổ chi phí cũng bị đoán thành hợp đồng.
-			'hopdong' => array(
-				'so_hd'      => array( 'Số hợp đồng', 'Số HĐ', 'Số HD', 'Mã hợp đồng', 'Mã HĐ' ),
-				'ten'        => array( 'Tên hợp đồng', 'Tên HĐ', 'Nội dung hợp đồng', 'Tên' ),
-				'doi_tac'    => array( 'Đối tác', 'Đối tác / NCC', 'Nhà cung cấp', 'NCC', 'Bên B', 'Chủ nhà', 'Khách hàng' ),
-				'coso'       => array( 'Cơ sở', 'Gian/Cơ sở', 'Gian', 'Gian hàng' ),
-				'loai_hd'    => array( 'Loại hợp đồng', 'Loại HĐ', 'Loại HD' ),
-				'ngay_ky'    => array( 'Ngày ký', 'Ngày hiệu lực', 'Từ ngày', 'Ngày bắt đầu' ),
-				'ngay_het'   => array( 'Ngày hết hạn', 'Hết hạn', 'Đến ngày', 'Ngày kết thúc', 'Ngày đáo hạn' ),
-				'gia_tri'    => array( 'Giá trị hợp đồng', 'Giá trị HĐ', 'Giá trị', 'Tiền thuê', 'Giá thuê' ),
-				'trang_thai' => array( 'Trạng thái', 'Tình trạng' ),
-				'nguoi_pt'   => array( 'Người phụ trách', 'Người theo dõi', 'Phụ trách' ),
-				'ghi_chu'    => array( 'Ghi chú', 'Điều khoản', 'Lưu ý' ),
-				'files'      => array( 'File hợp đồng', 'Link hợp đồng', 'Bản scan', 'Link file', 'Đường dẫn file', 'Tệp đính kèm' ),
-			),
 			// ---- sổ chi phí phẳng
 			'sochi' => array(
 				'ngay'      => array( 'Ngày' ),
@@ -288,7 +269,7 @@ class VHCP_Nap {
 
 	/** Danh sách bảng đích có thể tự dò, theo thứ tự nạp (danh mục trước, dòng chi sau). */
 	public static function cac_bang() {
-		return array( 'don', 'bp_index', 'mk_don', 'chiphi', 'bp_line', 'da_line', 'mk_line', 'sochi', 'hopdong' );
+		return array( 'don', 'bp_index', 'mk_don', 'chiphi', 'bp_line', 'da_line', 'mk_line', 'sochi' );
 	}
 
 	/**

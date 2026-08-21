@@ -29,14 +29,6 @@ class VHCP_Admin {
 			update_option( 'vhcp_slug', $slug );
 			if ( $old !== $slug ) { update_option( 'vhcp_flush_rewrite', 1 ); }
 
-			// Thư viện hợp đồng là hệ thống RIÊNG nên có đường dẫn riêng của nó.
-			$slug_hd = isset( $_POST['vhcp_slug_hd'] ) ? sanitize_title( wp_unslash( $_POST['vhcp_slug_hd'] ) ) : 'hop-dong';
-			if ( $slug_hd === '' ) { $slug_hd = 'hop-dong'; }
-			if ( $slug_hd === $slug ) { $slug_hd = 'hop-dong'; }   // trùng đường dẫn app thì trả về mặc định
-			$old_hd = get_option( 'vhcp_slug_hd' );
-			update_option( 'vhcp_slug_hd', $slug_hd );
-			if ( $old_hd !== $slug_hd ) { update_option( 'vhcp_flush_rewrite', 1 ); }
-
 			$tz = isset( $_POST['vhcp_timezone'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcp_timezone'] ) ) : 'Asia/Bangkok';
 			if ( in_array( $tz, timezone_identifiers_list(), true ) ) { update_option( 'vhcp_timezone', $tz ); }
 
@@ -204,10 +196,6 @@ class VHCP_Admin {
 		echo '</form>';
 
 		echo '<h2>Mở app</h2><p><a class="button button-primary" target="_blank" href="' . esc_url( $url ) . '">' . esc_html( $url ) . '</a></p>';
-		// Thư viện hợp đồng chạy như một hệ thống riêng -> đường dẫn riêng, để cạnh cho dễ lấy.
-		$url_hd = VHCP_HDApp::app_url();
-		echo '<h2>Mở thư viện hợp đồng</h2><p><a class="button" target="_blank" href="' . esc_url( $url_hd ) . '">' . esc_html( $url_hd ) . '</a>'
-			. '<br><span class="description">Hệ thống riêng, cổng PIN riêng — chỉ Kế toán · Quản lý · Admin vào được (chặn cả ở máy chủ).</span></p>';
 		echo '<p>Nhúng vào 1 trang WordPress bằng shortcode: <code>[vhcp_app height="900"]</code>. ';
 		echo 'Nhúng vào trang tổng K&amp;H: đặt biến <code>CHIPHI_URL</code> = đường dẫn trên (thêm <code>?sso=&lt;token&gt;</code> nếu dùng đăng nhập một lần).</p>';
 
@@ -368,7 +356,6 @@ class VHCP_Admin {
 
 	public static function page_settings() {
 		$slug    = get_option( 'vhcp_slug', 'chi-phi' );
-		$slug_hd = get_option( 'vhcp_slug_hd', 'hop-dong' );
 		$tz     = get_option( 'vhcp_timezone', 'Asia/Bangkok' );
 		$secret = (string) VHCP_Meta::get( 'SSO_SECRET', '' );
 
@@ -381,7 +368,6 @@ class VHCP_Admin {
 		echo '<input type="hidden" name="vhcp_action" value="settings">';
 		echo '<table class="form-table"><tbody>';
 		echo '<tr><th scope="row"><label for="vhcp_slug">Đường dẫn app</label></th><td>' . esc_html( home_url( '/' ) ) . '<input name="vhcp_slug" id="vhcp_slug" value="' . esc_attr( $slug ) . '" class="regular-text"> /<p class="description">Mặc định <code>chi-phi</code>. Đổi xong hãy mở lại app 1 lần để đường dẫn được nạp.</p></td></tr>';
-		echo '<tr><th scope="row"><label for="vhcp_slug_hd">Đường dẫn thư viện hợp đồng</label></th><td>' . esc_html( home_url( '/' ) ) . '<input name="vhcp_slug_hd" id="vhcp_slug_hd" value="' . esc_attr( $slug_hd ) . '" class="regular-text"> /<p class="description">Mặc định <code>hop-dong</code>. Đây là <b>hệ thống riêng</b>: đường dẫn riêng, cổng PIN riêng, chỉ Kế toán · Quản lý · Admin vào được. Đổi xong hãy mở lại trang 1 lần để đường dẫn được nạp.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="vhcp_timezone">Múi giờ</label></th><td><select name="vhcp_timezone" id="vhcp_timezone">';
 		foreach ( timezone_identifiers_list() as $z ) {
 			echo '<option value="' . esc_attr( $z ) . '"' . selected( $z, $tz, false ) . '>' . esc_html( $z ) . '</option>';
