@@ -687,6 +687,32 @@ Câu lỗi tường lửa rất dài che luôn chỗ cần bấm. Nay thông bá
 xem đầy đủ (và tự copy vào clipboard); lỗi dài có nút **✕** và không tự tắt sau 3,5 giây nữa —
 vì đó là việc phải xử, không phải thông báo trôi qua.
 
+### Bỏ 3 tab Marketing · Công tác · Setup — nhập ngay trong đơn (bản 1.14.0)
+
+Ba mảng đó không còn tab riêng. Chi phí của chúng nhập ngay trong **📋 Đơn chi phí**, chọn
+mảng bằng ô mới **"Chọn chi phí nào"** ở **mục 1**, ngay trước ô *Loại chi phí* — mỗi mảng một
+ô riêng, bấm vào thì ô *Loại chi phí* chỉ hiện loại của mảng đó:
+
+| Bấm ô | Ô Loại chi phí hiện |
+|---|---|
+| 🏢 Chi phí cơ sở | Chi phí cơ sở · Chi phí nuôi thú · Chi phí NVL … Mua lẻ … |
+| 🔧 Setup / Tháo dỡ | Chi phí tháo dỡ · Chi phí setup |
+| 🔥 Marketing | Chi phí marketing · Chi phí hoạt náo … |
+| ✈️ Công tác | các loại của Công tác |
+
+**Nhóm lấy theo cột "Bộ phận"** của danh mục loại chi phí (⚙️ Cấu hình → 🧮 Loại chi phí ×
+Mảng kinh doanh). Muốn một loại nằm ở mảng nào thì đặt **Bộ phận** của nó là mảng đó — ví dụ
+*Chi phí hoạt náo* để **Marketing** thì nó rời khỏi nhóm cơ sở và sang nhóm Marketing. Để
+**trống** hoặc ghi **"Cơ sở"** đều thuộc nhóm 🏢 *Chi phí cơ sở*. Khai thêm bộ phận mới ở Cấu
+hình là ô "Chọn chi phí nào" tự có thêm, không phải sửa app.
+
+Chỉ có một nhóm thì ô này tự ẩn cho gọn. Sửa một dòng cũ thì ô tự nhảy về đúng mảng của dòng
+đó, không thì ô *Loại chi phí* không có sẵn giá trị cũ và người sửa tưởng mất.
+
+**Dữ liệu Marketing / Công tác / Setup đã có: giữ nguyên** — chỉ ẩn tab, báo cáo và xuất MISA
+vẫn cộng đủ như trước. Nhân viên thuộc mấy bộ phận đó nay vào **Đơn chi phí** và **Sổ chi
+phí** để nhập.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |
