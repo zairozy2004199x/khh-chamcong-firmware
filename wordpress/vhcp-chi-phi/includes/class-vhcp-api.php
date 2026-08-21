@@ -65,6 +65,57 @@ class VHCP_API {
 		wp_die();
 	}
 
+	/**
+	 * Nhận lệnh ngay trên URL của app (…/chi-phi/?vhcp_api=1).
+	 *
+	 * Cloudflare và tường lửa hosting chặn theo ĐƯỜNG DẪN: /wp-json/ và
+	 * /wp-admin/admin-ajax.php trả 403 "Checking your browser", còn trang app thì mở
+	 * được. Đường này dùng đúng đường dẫn đã mở được đó nên không bị chặn.
+	 *
+	 * Nhận cả body JSON và form-data để giao diện gửi kiểu nào cũng xong.
+	 */
+	public static function trang() {
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=utf-8' );
+
+		$fn = ''; $tok = ''; $args = array();
+
+		$raw = file_get_contents( 'php://input' );
+		$j   = ( $raw !== '' && $raw !== false ) ? json_decode( (string) $raw, true ) : null;
+		if ( is_array( $j ) ) {
+			$fn  = isset( $j['fn'] ) ? sanitize_text_field( (string) $j['fn'] ) : '';
+			$tok = isset( $j['token'] ) ? sanitize_text_field( (string) $j['token'] ) : '';
+			if ( isset( $j['args'] ) && is_array( $j['args'] ) ) { $args = $j['args']; }
+		} else {
+			$fn  = isset( $_POST['fn'] ) ? sanitize_text_field( wp_unslash( $_POST['fn'] ) ) : '';
+			$tok = isset( $_POST['token'] ) ? sanitize_text_field( wp_unslash( $_POST['token'] ) ) : '';
+			if ( isset( $_POST['args'] ) ) {
+				$tmp = json_decode( (string) wp_unslash( $_POST['args'] ), true );
+				if ( is_array( $tmp ) ) { $args = $tmp; }
+			}
+		}
+		if ( $tok === '' && isset( $_SERVER['HTTP_X_VHCP_TOKEN'] ) ) {
+			$tok = sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_VHCP_TOKEN'] ) );
+		}
+
+		// GET không kèm lệnh: dùng để giao diện thử xem đường này có đi được không.
+		if ( $fn === '' ) {
+			status_header( 200 );
+			echo wp_json_encode( array( 'ok' => true, 'data' => array( 'song' => true, 'ver' => VHCP_VERSION ) ) );
+			exit;
+		}
+
+		$req = new WP_REST_Request( 'POST', '/vhcp/v1/call' );
+		$req->set_param( 'fn', $fn );
+		$req->set_param( 'args', $args );
+		$req->set_param( 'token', $tok );
+
+		$res = self::handle( $req );
+		status_header( (int) $res->get_status() );
+		echo wp_json_encode( $res->get_data() );
+		exit;
+	}
+
 	/** Bảng tên hàm (như bên Apps Script) → callable PHP. */
 	public static function map() {
 		return array(

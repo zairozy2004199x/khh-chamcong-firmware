@@ -1452,6 +1452,31 @@ teq( 'báo rõ đọc bằng file .xlsx', 'file .xlsx', $r_wb['cach'] );
 $bc_wb = $r_wb['baoCao'][0];
 t( 'dòng đọc: có so_tien', isset( $bc_wb['khopVoi']['so_tien'] ) );
 t( 'tổng tiền tính trước ra 825.000 (dòng tổng hợp về 0)', strpos( $bc_wb['ketQua'], '825.000' ) !== false );
+// Dự toán chỉ điền ở dòng hạng mục lớn -> tổng đúng 4.800.000, không cảnh báo cộng hai lần
+t( 'in trước cả TỔNG DỰ TOÁN', strpos( $bc_wb['ketQua'], 'TỔNG DỰ TOÁN 4.800.000đ' ) !== false );
+
+// Dự toán điền ở CẢ dòng cha LẪN dòng con -> phải cảnh báo cộng hai lần, đừng nạp mù
+$rows_2c = array(
+	array( 'Nội dung hạng mục', 'Chi phí dự toán', 'Chi phí thực tế', 'Thuộc hạng mục lớn' ),
+	array( 'Nhân Công', '10.000.000', '9.000.000', '' ),
+	array( 'Thợ điện', '4.000.000', '4.000.000', 'Nhân Công' ),
+	array( 'Thợ hàn', '6.000.000', '5.000.000', 'Nhân Công' ),
+);
+$GLOBALS['VHCP_HTTP'] = array( 'format=xlsx' => array( 'code' => 500, 'body' => '' ) );
+$k_2c = VHCP_Nap::khop( 'sochi', $rows_2c );
+$hm_2c = array(); $dtc = 0; $dtn = 0;
+foreach ( $k_2c['rows'] as $rr ) {
+	$h = VHCP_Nap::o( $rr, $k_2c['hd'], 'hang_muc' );
+	if ( $h !== '' ) { $hm_2c[ mb_strtolower( $h ) ] = 1; }
+}
+foreach ( $k_2c['rows'] as $rr ) {
+	$nd0 = VHCP_Nap::o( $rr, $k_2c['hd'], 'noi_dung' );
+	$d   = VHCP_Util::num( VHCP_Util::doc_so( VHCP_Nap::o_so( $rr, $k_2c, 'du_toan' ) ) );
+	if ( isset( $hm_2c[ mb_strtolower( $nd0 ) ] ) ) { $dtc += $d; } else { $dtn += $d; }
+}
+teq( 'dự toán dòng cha đọc đúng', 10000000, $dtc );
+teq( 'dự toán dòng con đọc đúng', 10000000, $dtn );
+t( 'nhận ra thế là cộng hai lần', $dtc > 0 && $dtn > 0 );
 t( 'không cảnh báo tải theo tên nữa', empty( $bc_wb['canhBao'] ) );
 
 // Nạp thật từ workbook: số phải vào đúng

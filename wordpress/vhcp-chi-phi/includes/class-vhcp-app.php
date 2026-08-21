@@ -43,6 +43,18 @@ class VHCP_App {
 		$is_app = ( (int) get_query_var( 'vhcp_app' ) === 1 );
 		if ( ! $is_app && isset( $_GET['vhcp'] ) && $_GET['vhcp'] === 'app' ) { $is_app = true; }
 		if ( ! $is_app ) { return; }
+
+		// ĐƯỜNG GỌI THỨ BA — qua chính URL của app.
+		//
+		// Cloudflare / tường lửa của hosting thường chặn theo ĐƯỜNG DẪN: /wp-json/ và
+		// /wp-admin/admin-ajax.php bị trả 403 kèm trang "Checking your browser", trong khi
+		// trang app vẫn mở bình thường. Vậy thì nhận luôn lệnh trên đường dẫn đã mở được
+		// đó: người dùng vừa tải trang này xong nên tường lửa chắc chắn cho đi qua.
+		if ( isset( $_GET['vhcp_api'] ) ) {
+			VHCP_API::trang();
+			exit;
+		}
+
 		self::render();
 		exit;
 	}
@@ -65,6 +77,9 @@ class VHCP_App {
 			'endpoint' => esc_url_raw( rest_url( 'vhcp/v1/call' ) ),
 			// Đường dự phòng khi hosting chặn /wp-json/ (giao diện tự chuyển)
 			'ajax'     => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
+			// Đường dự phòng CUỐI: chính URL của app — Cloudflare chặn theo đường dẫn,
+			// mà đường dẫn này người dùng vừa mở được nên không thể bị chặn.
+			'trang'    => esc_url_raw( add_query_arg( 'vhcp_api', '1', self::app_url() ) ),
 			'fns'      => array_keys( VHCP_API::map() ),
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'], 'coso' => $sso['coso'] ) : null,
 			'ver'      => VHCP_VERSION,

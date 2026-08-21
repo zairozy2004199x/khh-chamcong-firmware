@@ -342,6 +342,26 @@ Hai chỗ số liệu từng bị sai, nay đã xử (bản 1.5.1) — nếu th�
 Nạp sai vẫn sửa được: **Nạp từ link Sheet → Xóa sạch dữ liệu để nạp lại** (gõ chữ `XOA` để xác nhận)
 rồi nạp lại từ đầu. Cấu hình, người dùng và PIN không bị xóa.
 
+### Lỗi 403 "Checking your browser" — tường lửa chặn, không phải lỗi app (bản 1.5.2)
+
+Cloudflare và tường lửa của hosting chặn theo **đường dẫn**: `/wp-json/` và
+`/wp-admin/admin-ajax.php` bị trả 403 kèm trang "Checking your browser before accessing",
+trong khi trang `/chi-phi/` vẫn mở bình thường. Bấm tab nào cũng ra lỗi đỏ.
+
+App nay tự thử **ba đường** rồi nhớ đường nào đi được:
+
+1. `/wp-json/vhcp/v1/call` — đường chuẩn;
+2. `/wp-admin/admin-ajax.php` — khi đường 1 bị chặn;
+3. `…/chi-phi/?vhcp_api=1` — chính URL của app. Người dùng vừa mở được trang đó nên
+   tường lửa không thể chặn đường này.
+
+Cả ba bị chặn thì lỗi ghi rõ "Máy chủ chặn cả 3 đường gọi" — lúc đó là phải sửa ở tường lửa:
+
+- **Cloudflare**: tắt *Bot Fight Mode*, tắt chế độ *Under Attack*, hoặc thêm
+  WAF Custom Rule *Skip* cho `URI Path contains /wp-json/` và
+  `URI Path equals /wp-admin/admin-ajax.php`.
+- **Plugin bảo mật** (Wordfence / All In One WP Security…): bỏ chặn REST API.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

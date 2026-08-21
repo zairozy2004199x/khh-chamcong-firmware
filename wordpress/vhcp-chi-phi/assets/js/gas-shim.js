@@ -29,8 +29,17 @@
 	 * trả 403 kèm trang HTML — không phải lỗi của app. Khi đó chuyển sang admin-ajax.php:
 	 * cùng một bộ xử lý phía máy chủ, nhưng đường này hầu như không bị chặn.
 	 */
-	var duongAjax = false;
-	try { duongAjax = localStorage.getItem( 'vhcp_ajax' ) === '1'; } catch ( e ) {}
+	var DUONG_KEY = 'vhcp_duong';
+	var duong = 'rest';
+	try {
+		var d = localStorage.getItem( DUONG_KEY );
+		if ( d === 'ajax' || d === 'trang' ) { duong = d; }
+		else if ( localStorage.getItem( 'vhcp_ajax' ) === '1' ) { duong = 'ajax'; }
+	} catch ( e ) {}
+	function nhoDuong( d ) {
+		duong = d;
+		try { localStorage.setItem( DUONG_KEY, d ); } catch ( e ) {}
+	}
 
 	function guiRest( fn, args, tok ) {
 		return fetch( CFG.endpoint, {
@@ -48,6 +57,35 @@
 		fd.append( 'args', JSON.stringify( args || [] ) );
 		fd.append( 'token', tok );
 		return fetch( CFG.ajax, { method: 'POST', credentials: 'same-origin', body: fd } );
+	}
+
+	/**
+	 * Đường CUỐI: gửi vào chính URL của app (…/chi-phi/?vhcp_api=1).
+	 *
+	 * Cloudflare / tường lửa hosting chặn theo ĐƯỜNG DẪN. Khi cả /wp-json/ lẫn
+	 * /wp-admin/admin-ajax.php đều trả 403 "Checking your browser" thì đường dẫn của
+	 * trang app vẫn đi được — người dùng vừa mở nó xong. Gửi bằng form-data để không
+	 * kích hoạt preflight, và không đặt header lạ vì tường lửa hay soi header.
+	 */
+	function guiTrang( fn, args, tok ) {
+		var fd = new FormData();
+		fd.append( 'fn', fn );
+		fd.append( 'args', JSON.stringify( args || [] ) );
+		fd.append( 'token', tok );
+		return fetch( CFG.trang, { method: 'POST', credentials: 'same-origin', body: fd } );
+	}
+
+	function boGui( d ) {
+		if ( d === 'ajax' && CFG.ajax ) { return guiAjax; }
+		if ( d === 'trang' && CFG.trang ) { return guiTrang; }
+		return guiRest;
+	}
+
+	/** Đường kế tiếp để thử khi đường đang dùng bị chặn ('' = hết đường). */
+	function duongKe( d ) {
+		if ( d === 'rest' && CFG.ajax ) { return 'ajax'; }
+		if ( ( d === 'rest' || d === 'ajax' ) && CFG.trang ) { return 'trang'; }
+		return '';
 	}
 
 	function docKetQua( res ) {
@@ -73,17 +111,20 @@
 			return;
 		}
 
-		var gui = ( duongAjax && CFG.ajax ) ? guiAjax : guiRest;
+		// Bị chặn thì tự lần lượt đổi đường: /wp-json/ -> admin-ajax.php -> URL của app.
+		function thu( d ) {
+			return boGui( d )( fn, args, tok ).then( docKetQua ).then( function ( r ) {
+				if ( ! biChan( r ) ) {
+					if ( d !== duong ) { nhoDuong( d ); }
+					return r;
+				}
+				var ke = duongKe( d );
+				if ( ke ) { return thu( ke ); }
+				return r;
+			} );
+		}
 
-		gui( fn, args, tok ).then( docKetQua ).then( function ( r ) {
-			// Lần đầu bị chặn -> đổi sang admin-ajax.php và gọi lại đúng lệnh đó
-			if ( ! duongAjax && CFG.ajax && biChan( r ) ) {
-				duongAjax = true;
-				try { localStorage.setItem( 'vhcp_ajax', '1' ); } catch ( e ) {}
-				return guiAjax( fn, args, tok ).then( docKetQua );
-			}
-			return r;
-		} ).then( function ( r ) {
+		thu( duong ).then( function ( r ) {
 			if ( ! r ) { return; }
 			var j = r.json;
 
@@ -98,9 +139,11 @@
 				var msg = ( j && j.error ) ? j.error : ( 'Lỗi máy chủ (' + r.status + ')' );
 				if ( ! j ) {
 					// Không phải JSON: gần như chắc chắn bị hosting hoặc plugin bảo mật chặn.
-					// In vài chữ đầu của thứ máy chủ trả về để biết ai chặn.
+					// Đã thử hết 3 đường (wp-json, admin-ajax, URL app) nên báo rõ để còn xử.
 					var dau = String( r.raw || '' ).replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim().slice( 0, 120 );
-					msg = 'Máy chủ chặn yêu cầu (' + r.status + ')' + ( dau ? ' — ' + dau : '' );
+					msg = 'Máy chủ chặn cả 3 đường gọi (' + r.status + ')' + ( dau ? ' — ' + dau : '' )
+						+ ' · Tường lửa (Cloudflare / bảo mật hosting) đang chặn. Tắt "Bot Fight Mode" /'
+						+ ' chế độ Under Attack, hoặc cho qua đường dẫn /wp-json/ và admin-ajax.php.';
 				}
 				if ( onErr ) { onErr( { message: msg } ); }
 				return;

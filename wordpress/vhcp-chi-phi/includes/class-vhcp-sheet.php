@@ -481,16 +481,28 @@ class VHCP_Sheet {
 								$h = VHCP_Nap::o( $rr, $k['hd'], 'hang_muc' );
 								if ( $h !== '' ) { $hm[ mb_strtolower( $h ) ] = 1; }
 							}
-							$tt = 0; $k0 = 0;
+							$tt = 0; $k0 = 0; $dt_cha = 0; $dt_con = 0;
 							foreach ( $k['rows'] as $rr ) {
-								$nd0 = VHCP_Nap::o( $rr, $k['hd'], 'noi_dung' );
-								if ( isset( $hm[ mb_strtolower( $nd0 ) ] ) ) { continue; }   // dòng tổng hợp
+								$nd0  = VHCP_Nap::o( $rr, $k['hd'], 'noi_dung' );
+								$la_c = isset( $hm[ mb_strtolower( $nd0 ) ] );
+								$dt   = VHCP_Util::num( VHCP_Util::doc_so( VHCP_Nap::o_so( $rr, $k, 'du_toan' ) ) );
+								if ( $la_c ) { $dt_cha += $dt; continue; }   // dòng tổng hợp: bỏ phần thực chi
+								$dt_con += $dt;
 								$so = VHCP_Util::num( VHCP_Util::doc_so( VHCP_Nap::o_so( $rr, $k, 'so_tien' ) ) );
 								$tt += $so;
 								if ( ! $so ) { $k0++; }
 							}
 							$mo['ketQua'] .= ' · TỔNG TIỀN sẽ nạp ' . number_format( $tt, 0, ',', '.' ) . 'đ';
 							if ( $k0 ) { $mo['ketQua'] .= ' · ' . $k0 . ' dòng ra 0đ'; }
+							$mo['ketQua'] .= ' · TỔNG DỰ TOÁN ' . number_format( $dt_cha + $dt_con, 0, ',', '.' ) . 'đ';
+							// Dự toán mà điền CẢ dòng hạng mục lớn LẪN dòng con là cộng hai lần.
+							// Báo ngay ở đây, đừng để tới lúc màn dự án hiện số gấp đôi.
+							if ( $dt_cha > 0 && $dt_con > 0 ) {
+								$mo['canhBao'] = 'Dự toán điền ở CẢ dòng hạng mục lớn ('
+									. number_format( $dt_cha, 0, ',', '.' ) . 'đ) LẪN dòng con ('
+									. number_format( $dt_con, 0, ',', '.' ) . 'đ) — tổng dự toán sẽ bị cộng hai lần.'
+									. ' Đối chiếu với dòng tổng của tab trước khi nạp thật.';
+							}
 						}
 						$mo['cotThieu'] = $k['thieu'];
 						$mo['cotLa']    = $k['la'];
