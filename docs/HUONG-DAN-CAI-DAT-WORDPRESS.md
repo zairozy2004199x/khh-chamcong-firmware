@@ -470,10 +470,25 @@ Lúc nạp, mỗi tên hạng mục lạ đều được thêm vào danh mục l
 Phần lớn **không phải loại chi phí** (*"Nguyễn Hữu Thọ, Nguyễn Bá Tuấn"*, *"Cấp Mạng
 VNPT"*, *"Vật tư và tiếp khách từ 18-26/7"*) nên ô chọn lúc nhập phình ra vài trăm dòng.
 
-Nay ô chọn lúc nhập **chỉ hiện loại đã khai mã trong Cấu hình** — loại tự sinh chưa khai mã
-bị ẩn khỏi ô chọn nhưng vẫn nằm trong bảng ma trận để kế toán khai mã cho nó. Muốn dọn hẳn:
-**⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh → 🧹 Dọn loại tự sinh**. Loại **đã khai
-mã** thì giữ lại; dòng chi phí cũ không bị ảnh hưởng.
+Nay ô chọn lúc nhập **chỉ hiện loại ĐÃ KHAI MÃ trong Cấu hình** — loại chưa khai mã bị ẩn
+khỏi ô chọn nhưng vẫn nằm trong bảng ma trận để kế toán khai mã cho nó (trỏ chuột vào ô chọn
+sẽ thấy còn bao nhiêu loại đang ẩn). Muốn dọn hẳn: **⚙️ Cấu hình → 🧮 Loại chi phí × Mảng
+kinh doanh → 🧹 Dọn loại chưa khai mã**. Loại **đã khai mã** thì giữ lại; dòng chi phí cũ
+không bị ảnh hưởng — tên loại vẫn nằm trên từng dòng.
+
+Mốc là **có mã hay không**, không dựa vào ghi chú *"(nạp từ dữ liệu cũ)"*: bảng ma trận trên
+giao diện không có cột Ghi chú nên chỉ cần bấm 💾 Lưu bảng đó một lần là dấu đó bay hết —
+lọc theo dấu là lọc theo thứ tự người dùng bấm nút. (Bản 1.7.1 cũng giữ lại ghi chú cũ khi
+lưu bảng ma trận, để dấu không bị xóa nữa.)
+
+### Nút "Gửi duyệt tạm ứng" luôn ở trong tầm mắt (bản 1.7.1)
+
+Nút này chỉ nằm ở thanh trên cùng của trang đơn, mà trang đơn dài mấy màn hình: nhập xong
+hạng mục ở giữa trang thì thanh đã cuộn mất, nhân viên tưởng app không có chỗ gửi. Nay:
+
+- thanh thao tác của trang đơn được **ghim** lại, cuộn tới đâu cũng thấy;
+- có thêm **một nút nữa ngay dưới bảng "Các dòng đã nhập"** — nhập xong là thấy nút ngay,
+  kèm dòng nhắc *"Nhập đủ hạng mục xin rồi bấm gửi — kế toán sẽ duyệt và cấp tạm ứng."*
 
 ### Lỗi 403 báo rõ từng đường gọi
 

@@ -381,10 +381,26 @@ class VHCP_Cfg {
 			self::write( self::NHOM, $rows );
 		}
 		if ( isset( $cfg['loaiChiPhi'] ) && is_array( $cfg['loaiChiPhi'] ) ) {
+			// GIỮ LẠI GHI CHÚ CŨ khi dữ liệu gửi lên không mang theo.
+			// Bảng ma trận trên giao diện không có cột Ghi chú, nên lưu bảng đó là ghi chú
+			// của mọi dòng bị xóa trắng — mất luôn dấu "(nạp từ dữ liệu cũ)" dùng để phân
+			// biệt loại thật với tên hạng mục lỡ nạp vào.
+			$note_cu = array();
+			foreach ( self::read( self::LOAI ) as $r0 ) {
+				$r0 = array_values( (array) $r0 );
+				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
+				if ( $t0 !== '' && isset( $r0[5] ) && trim( (string) $r0[5] ) !== '' ) { $note_cu[ $t0 ] = (string) $r0[5]; }
+			}
 			$rows = array();
 			foreach ( $cfg['loaiChiPhi'] as $x ) {
-				$x = (array) $x;
-				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $g( $x, 'note' ), $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
+				$x  = (array) $x;
+				$tn = $g( $x, 'ten' );
+				$nt = $g( $x, 'note' );
+				if ( $nt === '' && ! array_key_exists( 'note', $x ) ) {
+					$k0 = mb_strtolower( trim( $tn ) );
+					if ( isset( $note_cu[ $k0 ] ) ) { $nt = $note_cu[ $k0 ]; }
+				}
+				$rows[] = array( $tn, $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -1063,14 +1079,15 @@ class VHCP_Cfg {
 	}
 
 	/**
-	 * DỌN CÁC LOẠI CHI PHÍ DO LÚC NẠP TỰ SINH RA MÀ VẪN CHƯA KHAI MÃ.
+	 * DỌN CÁC LOẠI CHI PHÍ CHƯA KHAI MÃ.
 	 *
 	 * Nạp dữ liệu cũ thì mỗi tên hạng mục lạ đều được thêm vào danh mục để còn khai mã
 	 * được cho nó. Phần lớn không phải loại chi phí ("Nguyễn Hữu Thọ, Nguyễn Bá Tuấn",
 	 * "Cấp Mạng VNPT") nên danh mục phình ra vài trăm dòng rác.
 	 *
-	 * Chỉ xóa dòng CÒN nguyên dấu "(nạp từ dữ liệu cũ)" VÀ chưa có mã nào — đã khai mã
-	 * (cố định hay theo ma trận) nghĩa là kế toán đã nhận nó là loại thật, giữ lại.
+	 * Chỉ xóa dòng chưa có mã nào (cả mã cố định lẫn mã trong ma trận). Đã khai mã nghĩa
+	 * là kế toán đã nhận nó là loại thật — giữ lại. Dòng chi phí cũ không bị ảnh hưởng:
+	 * tên loại vẫn nằm trên từng dòng, xóa danh mục chỉ là dọn ô chọn.
 	 *
 	 * @return array [ 'xoa' => số dòng đã xóa, 'giu' => số dòng giữ lại, 'ten' => tên đã xóa ]
 	 */
@@ -1081,9 +1098,11 @@ class VHCP_Cfg {
 			for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
 			$ten = trim( (string) $row[0] );
 			if ( $ten === '' ) { continue; }
-			$tu_tao = ( mb_strpos( (string) $row[5], 'nạp từ dữ liệu cũ' ) !== false );
-			$co_ma  = ( trim( (string) $row[1] ) !== '' ) || self::loai_co_ma_trong_mx( $ten );
-			if ( $tu_tao && ! $co_ma ) { $xoa[] = $ten; continue; }
+			// Mốc là CHƯA CÓ MÃ, không dựa vào ghi chú "(nạp từ dữ liệu cũ)": bảng ma trận
+			// trên giao diện không có cột Ghi chú nên lưu bảng đó một lần là dấu đó bay hết.
+			// Loại chưa có mã ở đâu cả thì chọn cũng ra dòng không có TK Nợ — chưa dùng được.
+			$co_ma = ( trim( (string) $row[1] ) !== '' ) || self::loai_co_ma_trong_mx( $ten );
+			if ( ! $co_ma ) { $xoa[] = $ten; continue; }
 			$rows[] = $row;
 			$giu++;
 		}

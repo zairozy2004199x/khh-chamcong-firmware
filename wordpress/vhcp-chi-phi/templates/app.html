@@ -223,7 +223,10 @@
       <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px">Cùng một loại đơn chi phí — bên cơ sở gom theo <b>tuần</b> (đơn xin tạm ứng tuần), bên kỹ thuật gom theo <b>gian thi công</b> (dự án). Loại chi phí, mã tài khoản, xuất MISA dùng chung.</span>
     </div>
   </div>
-  <div class="bar">
+  <!-- GHIM thanh này lại. Nút "Gửi duyệt tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
+       hình: nhập xong hạng mục ở giữa trang thì thanh đã cuộn mất, nhân viên tưởng app
+       không có chỗ gửi. -->
+  <div class="bar" id="donBar" style="position:sticky;top:0;z-index:40">
     <div class="fld"><label>Đơn</label>
       <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
     <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
@@ -309,6 +312,13 @@
           <tbody id="lineBody"></tbody>
         </table>
         <div class="empty" id="lineEmpty">Chưa có dòng chi nào. Thêm ở mục 2 phía trên.</div>
+      </div>
+      <!-- Nhắc lại nút thao tác NGAY CHỖ NHẬP XONG: nhập hạng mục xong thì việc kế tiếp là
+           gửi duyệt, không nên buộc cuộn lên đầu trang mới thấy nút. -->
+      <div id="donActionDuoi" style="display:none;padding:10px 16px;border-top:1px solid #f1f5f9;background:#f8fafc;align-items:center;gap:10px;flex-wrap:wrap">
+        <span id="donActionDuoiHint" style="font-size:12px;color:#64748b"></span>
+        <div style="flex:1"></div>
+        <button class="btn b-s" id="btnActionDuoi" style="font-size:14px;padding:10px 18px"></button>
       </div>
     </div>
 
@@ -939,7 +949,7 @@
     </div>
 
     <div class="card">
-      <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-d" onclick="doXoaLoaiTuTao()" title="Xóa các loại do lúc nạp dữ liệu cũ tự sinh ra từ tên hạng mục mà đến giờ vẫn chưa khai mã. Loại đã khai mã thì GIỮ LẠI.">🧹 Dọn loại tự sinh</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🧮 Loại chi phí × Mảng kinh doanh</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="mxLockBtn" onclick="toggleMxLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgLoai()">＋ Thêm loại</button><button class="btn b-d" onclick="doXoaLoaiTuTao()" title="Xóa các loại chi phí chưa khai mã nào — phần lớn là tên hạng mục lỡ nạp vào từ bảng tính cũ. Loại đã khai mã thì GIỮ LẠI. Dòng chi phí cũ không đổi.">🧹 Dọn loại chưa khai mã</button><button class="btn b-x" onclick="ganMaTK()" title="Điền mã tài khoản cho các dòng chi cũ còn trống">🔗 Gán mã cho dòng cũ</button><button class="btn b-g" onclick="saveCfgTkNoMx()">💾 Lưu</button></div></div>
       <div class="tw"><div id="cfgTkNoMx" style="padding:4px 14px 8px"></div></div>
       <div style="padding:0 14px 12px;font-size:11px;color:#94a3b8"><b>Bảng duy nhất quyết định "chi phí này là chi phí gì".</b> Mỗi hàng là một loại chi phí; <b>Loại</b> = mua của NCC hay cá nhân ứng tiền (dùng để lọc lúc nhập theo hình thức chi) · <b>Bộ phận</b> = ai được thấy loại này · <b>Tên theo MISA</b> = tên đem đi xuất (trống = dùng tên bên trái) · <b>TK Có</b> trống = tự lấy theo hình thức chi (Tạm ứng NV → 141 · Trực tiếp NCC → 331) · <b>Mọi mảng</b> = mã dùng chung khi mảng nào cũng một mã. Các cột sau là <b>TK Nợ theo từng mảng</b>, cùng loại chi phí mà khác mảng thì khác mã (VD "Chi phí khác": Event 64196 · Farm 64166 · Funzone 64126 · TuTu 64106). Ô để trống = <b>mảng đó không dùng loại này</b> → ô chọn loại chi phí ở cơ sở thuộc mảng đó cũng không hiện. Một ô khai được <b>nhiều mã</b>, cách nhau bởi <code>|</code> (VD <code>64196 | 64197</code>) — lúc nhập ô chọn tách thành từng dòng theo mã để người nhập chỉ đúng một. Cột mảng lấy tự động từ "Phân loại lớn" của bảng Cơ sở. Sửa mã ở đây <b>không</b> đổi mã của dòng đã nhập; muốn áp lại thì bấm <b>🔗 Gán mã cho dòng cũ</b>.</div>
     </div>
@@ -1394,9 +1404,17 @@
       var _ktBanner=_mKt?('<div style="margin-top:8px;padding:8px 12px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#b91c1c;font-size:12px;font-weight:600">⚠️ ĐƠN ĐÃ ĐƯỢC KẾ TOÁN SỬA SỐ TIỀN'+(_mKt[1].trim()?(' (bởi '+esc(_mKt[1].trim())+')'):'')+' — số liệu quyết toán đã thay đổi, QL & NV lưu ý.</div>'):'';
       el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
-      if(st==='Nháp' && canDo('suaTU')){ btn.style.display='inline-block'; btn.textContent='📤 Gửi duyệt tạm ứng'; btn.onclick=guiDuyetTU; }
-      else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ btn.style.display='inline-block'; btn.textContent='📤 Gửi hóa đơn cho kế toán'; btn.onclick=guiQT; }
+      var nhan='', tay=null, goi='';
+      if(st==='Nháp' && canDo('suaTU')){ nhan='📤 Gửi duyệt tạm ứng'; tay=guiDuyetTU; goi='Nhập đủ hạng mục xin rồi bấm gửi — kế toán sẽ duyệt và cấp tạm ứng.'; }
+      else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ nhan='📤 Gửi hóa đơn cho kế toán'; tay=guiQT; goi='Nhập đủ số thực mua + ảnh chứng từ rồi bấm gửi.'; }
+      if(nhan){ btn.style.display='inline-block'; btn.textContent=nhan; btn.onclick=tay; }
       else { btn.style.display='none'; btn.onclick=null; }
+      // Nhắc lại nút đó ở cuối bảng dòng đã nhập
+      var bd=el('btnActionDuoi'), hd=el('donActionDuoi');
+      if(bd&&hd){
+        if(nhan){ hd.style.display='flex'; bd.textContent=nhan; bd.onclick=tay; if(el('donActionDuoiHint')) el('donActionDuoiHint').textContent=goi; }
+        else { hd.style.display='none'; bd.onclick=null; }
+      }
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
       renderTU(); renderLines(); renderRecon(); renderQT(); setProducts(r.products); resetLineForm(); renderDonList(); _syncDonView();
@@ -2939,12 +2957,18 @@
     var ht=String(hinhThuc||'').trim();
     var loaiTt = ht ? (ht.indexOf('Trực tiếp')===0 ? 'ncc' : 'canhan') : '';
     return (BOOT.loaiChiPhi||[]).filter(function(x){
-      // Loại do lúc NẠP DỮ LIỆU CŨ tự sinh ra từ tên hạng mục ("Nguyễn Hữu Thọ, Nguyễn Bá
-      // Tuấn", "Cấp Mạng VNPT", "Vật tư và tiếp khách từ 18-26/7") KHÔNG phải loại chi phí
-      // — nó chỉ là tên dòng trong bảng tính cũ. Để nguyên trong ô chọn thì danh sách
-      // thành vài trăm dòng rác, nhân viên chọn lộn. Chỉ hiện khi kế toán đã khai mã cho
-      // nó trong Cấu hình: khai mã là lúc nó thành loại chi phí thật.
-      if(String(x.note||'').indexOf('nạp từ dữ liệu cũ')>=0 && !_tkNoCua(x.ten, coso)) return false;
+      // CHỈ HIỆN LOẠI ĐÃ KHAI MÃ trong Cấu hình.
+      //
+      // Lúc nạp dữ liệu cũ, mỗi tên hạng mục lạ đều được thêm vào danh mục để còn khai mã
+      // được cho nó — phần lớn không phải loại chi phí ("Nguyễn Hữu Thọ, Nguyễn Bá Tuấn",
+      // "Cấp Mạng VNPT", "Vật tư và tiếp khách từ 18-26/7"). Để nguyên thì ô chọn thành
+      // vài trăm dòng rác, nhân viên chọn lộn.
+      //
+      // Mốc là CÓ MÃ hay không, không dựa vào ghi chú "(nạp từ dữ liệu cũ)": bảng ma trận
+      // trên giao diện không có cột Ghi chú nên chỉ cần lưu bảng đó một lần là dấu đó bay
+      // hết — lọc theo dấu là lọc theo thứ tự người dùng bấm nút, không đáng tin. Loại chưa
+      // có mã thì chọn cũng ra dòng KHÔNG có TK Nợ, tức chưa dùng được.
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) return false;
       var b=String(x.boPhan||'').trim();
       if(bp && b && b!==bp) return false;
       var lt=String(x.loaiTt||'').trim();
@@ -2960,9 +2984,21 @@
     var ch=_selLoai(selId);
     _fillLoaiCp(selId, ch.loai, coso, ch.tkNo, httId?String((el(httId)&&el(httId).value)||''):'');
   }
+  /** Bao nhiêu loại đang bị ẩn vì chưa khai mã — để ghi chú dưới ô chọn. */
+  function _soLoaiChuaMa(coso){
+    var n=0;
+    (BOOT.loaiChiPhi||[]).forEach(function(x){
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length) n++;
+    });
+    return n;
+  }
   function _fillLoaiCp(selId, cur, coso, curTk, hinhThuc){
     var sel=el(selId); if(!sel) return;
-    sel.innerHTML=_optsHtml(_loaiCpOpts(coso, cur, curTk, hinhThuc), cur, curTk, '— chưa gắn mã —');
+    var ds=_loaiCpOpts(coso, cur, curTk, hinhThuc);
+    sel.innerHTML=_optsHtml(ds, cur, curTk, '— chưa gắn mã —');
+    // Nói rõ có bao nhiêu loại đang bị ẩn vì chưa khai mã, khỏi tưởng mất dữ liệu
+    var an=_soLoaiChuaMa(coso);
+    sel.title=an?(an+' loại chưa khai mã nên chưa hiện ở đây — khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh'):'';
   }
   // Hiện luôn cặp mã sẽ ghi vào dòng; chưa chọn loại thì nói rõ là giữ cách hạch toán cũ
   function _tkHint(spanId, selId, httId, coso){
@@ -3986,11 +4022,11 @@
    * nghĩa là kế toán nhận nó là loại thật, giữ lại.
    */
   function doXoaLoaiTuTao(){
-    if(!confirm('Xóa các loại chi phí do lúc nạp tự sinh ra mà đến giờ vẫn CHƯA khai mã?\n\nLoại đã khai mã sẽ được giữ lại. Dòng chi phí cũ không bị ảnh hưởng.')) return;
+    if(!confirm('Xóa các loại chi phí CHƯA khai mã nào?\n\nPhần lớn là tên hạng mục lỡ nạp vào từ bảng tính cũ. Loại đã khai mã sẽ được giữ lại. Dòng chi phí cũ không bị ảnh hưởng — tên loại vẫn nằm trên từng dòng.')) return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false);
       if(!r){toast('err','Không có phản hồi');return;}
-      toast(r.xoa?'ok':'warn','Đã xóa '+(r.xoa||0)+' loại tự sinh chưa khai mã · còn lại '+(r.giu||0)+' loại'
+      toast(r.xoa?'ok':'warn','Đã xóa '+(r.xoa||0)+' loại chưa khai mã · còn lại '+(r.giu||0)+' loại'
         +((r.ten&&r.ten.length)?' · VD: '+r.ten.slice(0,5).join(', '):''));
       loadCfg(); boot();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).xoaLoaiTuTao();

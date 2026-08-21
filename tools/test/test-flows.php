@@ -631,19 +631,6 @@ $co_moi = false;
 foreach ( VHCP_Cfg::get_users() as $u ) { if ( $u['ten'] === 'Người Admin Thêm' ) { $co_moi = true; } }
 t( 'Admin vẫn sửa được bảng người dùng', $co_moi );
 
-// DỌN LOẠI CHI PHÍ DO LÚC NẠP TỰ SINH: chưa khai mã thì xóa, đã khai mã thì giữ
-VHCP_Cfg::them_loai_neu_thieu( array( 'Nguyễn Hữu Thọ, Nguyễn Bá Tuấn', 'Cấp Mạng VNPT', 'Nhân Công' ) );
-$co_rac = false;
-foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { if ( $x['ten'] === 'Cấp Mạng VNPT' ) { $co_rac = true; } }
-t( 'nạp xong thì loại tự sinh có trong danh mục', $co_rac );
-$kc = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Nhân Công', 'tkNo' => '64121', 'cosos' => array( 'FUNZONE ADVENTURE' ) ) );
-t( 'khai mã cho loại tự sinh', ! empty( $kc['success'] ), $kc );
-$dl = VHCP_Cfg::xoa_loai_tu_tao();
-t( 'dọn được ít nhất 2 loại rác', (int) $dl['xoa'] >= 2, $dl );
-$ten_sau = array();
-foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $ten_sau[] = $x['ten']; }
-t( 'loại rác đã đi', ! in_array( 'Cấp Mạng VNPT', $ten_sau, true ) );
-t( 'loại đã khai mã thì GIỮ LẠI', in_array( 'Nhân Công', $ten_sau, true ) );
 teq( 'lý do: forbidden', 'forbidden', $a['body']['code'] );
 teq( 'Quản lý đọc được danh sách người dùng', 200, api( 'getUsers', array(), $tok_ql )['status'] );
 teq( 'Nhân viên lưu cấu hình: 403', 403, api( 'saveConfig', array( array() ), $tok_nv )['status'] );
@@ -2011,6 +1998,22 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ---------------------------------------------------------------- DỌN LOẠI CHƯA KHAI MÃ
+// Đặt CUỐI CÙNG: phép thử này xóa mọi loại chưa khai mã, kể cả danh mục dựng sẵn từ nhóm
+// mặt hàng — chạy giữa bài là các phần sau mất danh mục.
+VHCP_Cfg::them_loai_neu_thieu( array( 'Nguyễn Hữu Thọ, Nguyễn Bá Tuấn', 'Cấp Mạng VNPT', 'Nhân Công' ) );
+$co_rac = false;
+foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { if ( $x['ten'] === 'Cấp Mạng VNPT' ) { $co_rac = true; } }
+t( 'nạp xong thì loại tự sinh có trong danh mục', $co_rac );
+$kc = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Nhân Công', 'tkNo' => '64121', 'cosos' => array( 'FUNZONE ADVENTURE' ) ) );
+t( 'khai mã cho loại tự sinh', ! empty( $kc['success'] ), $kc );
+$dl = VHCP_Cfg::xoa_loai_tu_tao();
+t( 'dọn được ít nhất 2 loại rác', (int) $dl['xoa'] >= 2, $dl );
+$ten_sau = array();
+foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $ten_sau[] = $x['ten']; }
+t( 'loại rác đã đi', ! in_array( 'Cấp Mạng VNPT', $ten_sau, true ) );
+t( 'loại đã khai mã thì GIỮ LẠI', in_array( 'Nhân Công', $ten_sau, true ) );
+
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {
 	echo 'HỎNG: ' . count( $GLOBALS['T_NG'] ) . "\n";
