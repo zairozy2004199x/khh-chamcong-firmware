@@ -254,10 +254,13 @@ class VHCP_Sheet {
 		if ( ! preg_match_all( '#<row[^>]*>(.*?)</row>#s', $xml, $mr ) ) { return $rows; }
 		foreach ( $mr[1] as $rx ) {
 			$dong = array();
-			if ( preg_match_all( '#<c\s([^>]*)>(.*?)</c>#s', $rx, $mc, PREG_SET_ORDER ) ) {
+			// Ô RỖNG của bảng tính là thẻ tự đóng: <c r="A7" s="3"/>. Nếu chỉ bắt dạng
+			// <c ...>...</c> thì phần "..." ăn luôn sang ô KẾ TIẾP, nên ô rỗng lại mang giá
+			// trị của ô sau — lệch cột và ra số vô lý. Bắt cả hai dạng trong một lần.
+			if ( preg_match_all( '#<c\b([^>]*?)(?:/>|>(.*?)</c>)#s', $rx, $mc, PREG_SET_ORDER ) ) {
 				foreach ( $mc as $c ) {
 					$attr = $c[1];
-					$noi  = $c[2];
+					$noi  = isset( $c[2] ) ? $c[2] : '';
 					$cot  = 0;
 					if ( preg_match( '#r="([A-Z]+)#', $attr, $mA ) ) { $cot = self::cot_so( $mA[1] ); }
 					$loai = ( preg_match( '#t="([^"]+)"#', $attr, $mT ) ? $mT[1] : '' );
@@ -286,7 +289,23 @@ class VHCP_Sheet {
 				$rows[] = array();
 			}
 		}
-		return $rows;
+
+		// CẮT ĐUÔI RỖNG. Bảng tính của K&H kẻ khung/định dạng sẵn cả nghìn dòng, nên file
+		// .xlsx chứa <row> cho từng dòng đó dù không có chữ nào (ô chỉ có định dạng, hoặc
+		// công thức =IFERROR(...,"") trả ra rỗng). Google xuất CSV thì tự cắt, còn .xlsx
+		// thì không: giữ lại là báo "sẽ nạp 981 dòng" cho một tab chỉ có 135 dòng thật.
+		for ( $i = count( $rows ) - 1; $i >= 0; $i-- ) {
+			if ( self::dong_rong( $rows[ $i ] ) ) { unset( $rows[ $i ] ); } else { break; }
+		}
+		return array_values( $rows );
+	}
+
+	/** Dòng không có ô nào mang chữ (kể cả ô chỉ có định dạng hay công thức trả rỗng). */
+	private static function dong_rong( $dong ) {
+		foreach ( (array) $dong as $o ) {
+			if ( trim( (string) $o ) !== '' ) { return false; }
+		}
+		return true;
 	}
 
 	/** Dựng lại CSV từ mảng dòng, để dùng chung bộ nạp sẵn có. */
@@ -466,7 +485,7 @@ class VHCP_Sheet {
 							foreach ( $k['rows'] as $rr ) {
 								$nd0 = VHCP_Nap::o( $rr, $k['hd'], 'noi_dung' );
 								if ( isset( $hm[ mb_strtolower( $nd0 ) ] ) ) { continue; }   // dòng tổng hợp
-								$so = VHCP_Util::num( str_replace( array( '.', ' ' ), '', VHCP_Nap::o_so( $rr, $k, 'so_tien' ) ) );
+								$so = VHCP_Util::num( VHCP_Util::doc_so( VHCP_Nap::o_so( $rr, $k, 'so_tien' ) ) );
 								$tt += $so;
 								if ( ! $so ) { $k0++; }
 							}

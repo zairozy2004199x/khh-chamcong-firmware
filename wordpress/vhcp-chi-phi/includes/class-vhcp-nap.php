@@ -246,11 +246,21 @@ class VHCP_Nap {
 			$khop_voi[ $field ] = $ten_cot;
 		}
 
+		// Bỏ DÒNG RỖNG: bảng tính kẻ khung sẵn nên file .xlsx có cả dòng trắng ở giữa và
+		// cuối bảng. Bộ nạp vẫn bỏ qua chúng, nhưng nếu để lại trong 'rows' thì màn Chỉ thử
+		// báo số dòng lớn hơn số thật -> tưởng nạp lộn dữ liệu.
+		$du_lieu = array();
+		foreach ( array_slice( $rows, $best + 1 ) as $r ) {
+			$co = false;
+			foreach ( (array) $r as $o ) { if ( trim( (string) $o ) !== '' ) { $co = true; break; } }
+			if ( $co ) { $du_lieu[] = $r; }
+		}
+
 		return array(
 			'hd'         => $hd,
 			'hdAll'      => $hd_all,
 			'khopVoi'    => $khop_voi,
-			'rows'       => array_slice( $rows, $best + 1 ),
+			'rows'       => $du_lieu,
 			'thieu'      => $thieu,
 			'la'         => $la,
 			'dongTieuDe' => $best + 1,
@@ -308,8 +318,7 @@ class VHCP_Nap {
 			$v = isset( $row[ $i ] ) ? trim( (string) $row[ $i ] ) : '';
 			if ( $v === '' ) { continue; }
 			if ( $dau === '' ) { $dau = $v; }
-			if ( VHCP_Util::num( str_replace( array( '.', ' ' ), '', str_replace( ',', '.', $v ) ) ) != 0 ) { return $v; }
-			if ( VHCP_Util::num( $v ) != 0 ) { return $v; }
+			if ( VHCP_Util::num( VHCP_Util::doc_so( $v ) ) != 0 ) { return $v; }
 		}
 		return $dau;
 	}

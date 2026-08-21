@@ -1422,15 +1422,30 @@ $SID_X = '2XlsxEfGhIjKlMnOpQrStUvWxYz0123456789';
 $wb = VHCP_Sheet::tai_workbook( $SID_X );
 t( 'đọc được workbook .xlsx', isset( $wb['DA NHÀ MA BÀ RỊA'] ) );
 $rows_wb = $wb['DA NHÀ MA BÀ RỊA'];
-teq( 'đủ 6 dòng', 6, count( $rows_wb ) );
+// 40 dòng đuôi chỉ có định dạng / công thức trả rỗng -> phải bị cắt, không thành 46 dòng
+teq( 'cắt đuôi rỗng, còn đúng 6 dòng', 6, count( $rows_wb ) );
 teq( 'banner ở dòng 1', '🏗 SETUP LẮP ĐẶT: NHÀ MA BÀ RỊA', (string) $rows_wb[0][0] );
 teq( 'ô lỗi #REF! thành trống', '', (string) $rows_wb[1][4] );
+// Ô rỗng dạng thẻ tự đóng <c r="A2"/> KHÔNG được ăn giá trị của ô kế tiếp
+teq( 'ô rỗng tự đóng vẫn là rỗng', '', (string) $rows_wb[1][0] );
+teq( 'và số vẫn nằm đúng cột C', '760127194', (string) $rows_wb[1][2] );
 teq( 'tiêu đề cột số ở dòng 4 KHÔNG bị mất', 'Chi phí thực tế', (string) $rows_wb[3][2] );
-teq( 'số đọc ra giá trị gốc', '825000', (string) $rows_wb[5][2] );
+teq( 'số đọc ra giá trị gốc', '825000.0000000001', (string) $rows_wb[5][2] );
 
 $k_wb = VHCP_Nap::khop( 'sochi', $rows_wb );
 t( 'nhờ vậy khớp được cột tiền', isset( $k_wb['hd']['so_tien'] ) );
 t( 'và cột dự toán', isset( $k_wb['hd']['du_toan'] ) );
+teq( 'chỉ còn 2 dòng dữ liệu thật (dòng trắng bị bỏ)', 2, count( $k_wb['rows'] ) );
+
+// Số thô của .xlsx có đuôi float: bỏ dấu chấm là thành số triệu tỉ. Đọc phải ra số thật.
+teq( 'số thô .xlsx không bị thổi phồng', 825000, round( VHCP_Util::doc_so( '825000.0000000001' ) ) );
+teq( 'phần trăm 0,04 vẫn là 0,04', 0.04, VHCP_Util::doc_so( '0.04' ) );
+teq( 'số nhóm nghìn kiểu VN vẫn đọc đúng', 1234567, VHCP_Util::doc_so( '1.234.567' ) );
+teq( 'kiểu VN có phần thập phân', 1234567.5, VHCP_Util::doc_so( '1.234.567,5' ) );
+teq( 'kiểu Mỹ vẫn đọc đúng', 1234567.5, VHCP_Util::doc_so( '1,234,567.5' ) );
+teq( 'ô trống -> null', null, VHCP_Util::doc_so( '' ) );
+teq( 'ô rác -> null', null, VHCP_Util::doc_so( '#REF!' ) );
+teq( 'o_so lấy được số có đuôi float', '825000.0000000001', VHCP_Nap::o_so( $k_wb['rows'][1], $k_wb, 'so_tien' ) );
 
 $r_wb = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => true, 'tabs' => array( 'DA NHÀ MA BÀ RỊA' ) ) );
 teq( 'báo rõ đọc bằng file .xlsx', 'file .xlsx', $r_wb['cach'] );

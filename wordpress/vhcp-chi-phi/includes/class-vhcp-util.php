@@ -78,6 +78,45 @@ class VHCP_Util {
 		return $ts ? gmdate( 'Y-m-d', $ts ) : null;
 	}
 
+	/**
+	 * Đọc SỐ từ một ô bảng tính, dùng CHUNG cho mọi chỗ nạp dữ liệu.
+	 *
+	 * Ô có thể là chuỗi kiểu Việt Nam ("1.234.567", "1.234.567,5"), kiểu Mỹ
+	 * ("1,234,567.5") hoặc SỐ THÔ của file .xlsx ("2405000.0000000005" —
+	 * Google xuất công thức ra đủ độ chính xác float). Chỗ nào tự bỏ dấu chấm
+	 * là biến 0,04 thành 4 và 2405000.0000000005 thành 2,4 triệu tỉ, nên chỉ
+	 * bỏ dấu chấm khi nó ĐÚNG LÀ dấu nghìn (nhóm 3 chữ số).
+	 *
+	 * @return float|null null nếu ô trống hoặc không có số nào
+	 */
+	public static function doc_so( $v ) {
+		if ( is_bool( $v ) ) { return $v ? 1.0 : 0.0; }
+		if ( is_int( $v ) || is_float( $v ) ) { return (float) $v; }
+		$s = trim( (string) $v );
+		if ( $s === '' ) { return null; }
+		$s   = str_replace( array( ' ', "\xc2\xa0", '₫', 'đ', 'VND' ), '', $s );
+		$neg = ( strpos( $s, '(' ) !== false && strpos( $s, ')' ) !== false ) || strpos( $s, '-' ) === 0;
+		$s   = str_replace( array( '(', ')', '+' ), '', $s );
+		$has_dot   = strpos( $s, '.' ) !== false;
+		$has_comma = strpos( $s, ',' ) !== false;
+		if ( $has_dot && $has_comma ) {
+			// dấu nào ở sau cùng là dấu thập phân
+			if ( strrpos( $s, ',' ) > strrpos( $s, '.' ) ) { $s = str_replace( '.', '', $s ); $s = str_replace( ',', '.', $s ); }
+			else { $s = str_replace( ',', '', $s ); }
+		} elseif ( $has_comma ) {
+			$s = ( preg_match( '/,\d{3}(\D|$)/', $s ) ) ? str_replace( ',', '', $s ) : str_replace( ',', '.', $s );
+		} elseif ( $has_dot ) {
+			// CHỈ bỏ dấu chấm khi cả chuỗi là số nhóm nghìn: 1.234.567 -> 1234567.
+			// Còn 2405000.0000000005 hay 0.04 là số thô, giữ nguyên dấu thập phân.
+			if ( preg_match( '/^-?\d{1,3}(\.\d{3})+$/', $s ) ) { $s = str_replace( '.', '', $s ); }
+		}
+		$s = preg_replace( '/[^0-9.\-]/', '', $s );
+		if ( $s === '' || $s === '-' || ! is_numeric( $s ) ) { return null; }
+		$f = (float) $s;
+		if ( $neg && $f > 0 ) { $f = -$f; }
+		return $f;
+	}
+
 	/** Số (0 nếu không phải số) — tương đương Number(x)||0. */
 	public static function num( $v ) {
 		if ( is_bool( $v ) ) { return $v ? 1 : 0; }

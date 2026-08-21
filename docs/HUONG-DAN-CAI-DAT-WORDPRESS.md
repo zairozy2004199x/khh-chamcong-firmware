@@ -311,6 +311,37 @@ Lưu ý:
   nạp lại cùng mã đơn / cùng ID dòng thì hệ thống tự ghi đè.
 - Tab dự án / tab đợt có 4 dòng đầu là tiêu đề + dải tổng hợp — trình nhập tự bỏ 4 dòng đó.
 
+### Nhanh hơn: nạp cả bảng tính bằng 1 đường link (bản 1.4.0)
+
+Khỏi tải từng tab. Vào **Vận Hành Chi Phí → Nạp từ link Sheet**, dán link bảng tính
+(chia sẻ ở mức "Bất kỳ ai có đường liên kết → Người xem" là đủ), tick **Chỉ thử** rồi bấm.
+App đọc **thẳng file `.xlsx`** của bảng tính — một lần tải là có giá trị gốc của mọi ô, mọi tab.
+
+Chỉ thử KHÔNG ghi gì vào database, chỉ in báo cáo để soát trước:
+
+| Dòng trên báo cáo | Nghĩa |
+|---|---|
+| `danh sách tab lấy bằng: file .xlsx` | đang đọc đúng đường tốt nhất |
+| `sẽ nạp N dòng vào …` | số dòng THẬT (dòng trắng và đuôi bảng kẻ khung sẵn đã bị cắt) |
+| `đọc: so_tien ← Chi phí thực tế / Thành tiền` | app lấy trường nào từ cột nào — soi chỗ này là biết có đọc đúng cột tiền chưa |
+| `TỔNG TIỀN sẽ nạp …` | đối chiếu với dòng tổng của tab; lệch là do đọc sai cột, đừng nạp |
+| `N dòng ra 0đ` | dòng không có số tiền (dòng tiêu đề nhóm, dòng chưa chi) |
+| `Cột app không dùng` / `Dòng mồ côi` | dữ liệu sẽ KHÔNG vào — xem có cần không |
+
+Đối chiếu xong, bỏ tick **Chỉ thử** và bấm lại để nạp thật.
+
+Hai chỗ số liệu từng bị sai, nay đã xử (bản 1.5.1) — nếu thấy lại thì là lỗi khác:
+
+- **Tổng tiền ra số khổng lồ** (kiểu 5.492.887.938.004.800đ): Google xuất `.xlsx` giữ đủ độ chính
+  xác float (`2405000.0000000005`), chỗ đọc số lại bỏ dấu chấm như dấu nghìn nên `0,04` thành `4`.
+  Giờ chỉ bỏ dấu chấm khi nó đúng là dấu nghìn (nhóm 3 chữ số).
+- **Số dòng lớn hơn thực tế** (kiểu 981 dòng cho tab chỉ có 135 dòng): bảng tính kẻ khung sẵn cả
+  nghìn dòng nên file `.xlsx` chứa cả dòng trắng; và ô rỗng dạng thẻ tự đóng còn "ăn" giá trị của
+  ô kế tiếp làm lệch cột. Cả hai đã cắt/sửa.
+
+Nạp sai vẫn sửa được: **Nạp từ link Sheet → Xóa sạch dữ liệu để nạp lại** (gõ chữ `XOA` để xác nhận)
+rồi nạp lại từ đầu. Cấu hình, người dùng và PIN không bị xóa.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

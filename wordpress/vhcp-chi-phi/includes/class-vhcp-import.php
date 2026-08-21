@@ -478,29 +478,11 @@ class VHCP_Import {
 		return $rows;
 	}
 
-	/** Số kiểu Việt Nam / kiểu Mỹ đều đọc được; ô trống -> null. */
+	/** Số kiểu Việt Nam / kiểu Mỹ / số thô .xlsx đều đọc được; ô trống -> null. */
 	private static function n( $v, $default_null = true ) {
-		$s = trim( (string) $v );
-		if ( $s === '' ) { return $default_null ? null : 0; }
-		$s = str_replace( array( ' ', "\xc2\xa0", '₫', 'đ', 'VND' ), '', $s );
-		$neg = ( strpos( $s, '(' ) !== false && strpos( $s, ')' ) !== false ) || strpos( $s, '-' ) === 0;
-		$s = str_replace( array( '(', ')', '+' ), '', $s );
-		$has_dot   = strpos( $s, '.' ) !== false;
-		$has_comma = strpos( $s, ',' ) !== false;
-		if ( $has_dot && $has_comma ) {
-			// dấu nào ở sau cùng là dấu thập phân
-			if ( strrpos( $s, ',' ) > strrpos( $s, '.' ) ) { $s = str_replace( '.', '', $s ); $s = str_replace( ',', '.', $s ); }
-			else { $s = str_replace( ',', '', $s ); }
-		} elseif ( $has_comma ) {
-			$s = ( preg_match( '/,\d{3}(\D|$)/', $s ) ) ? str_replace( ',', '', $s ) : str_replace( ',', '.', $s );
-		} elseif ( $has_dot ) {
-			if ( preg_match( '/^-?\d{1,3}(\.\d{3})+$/', $s ) ) { $s = str_replace( '.', '', $s ); }
-		}
-		$s = preg_replace( '/[^0-9.\-]/', '', $s );
-		if ( $s === '' || $s === '-' ) { return $default_null ? null : 0; }
-		$f = (float) $s;
-		if ( $neg && $f > 0 ) { $f = -$f; }
-		return $f;
+		$x = VHCP_Util::doc_so( $v );
+		if ( $x === null ) { return $default_null ? null : 0; }
+		return $x;
 	}
 
 	private static function n0( $v ) {
