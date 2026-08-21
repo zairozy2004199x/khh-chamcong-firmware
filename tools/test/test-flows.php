@@ -1493,6 +1493,33 @@ foreach ( $sc_wb['items'] as $x ) { if ( (string) $x['noiDung'] === 'Vật tư K
 teq( 'dòng tổng hợp về 0 nhưng giữ dự toán', 4800000, VHCP_Util::num( $vt_wb['duToan'] ) );
 $GLOBALS['VHCP_HTTP'] = array();
 
+// NHIỀU TAB VÀO CÙNG MỘT BẢNG: "Xoá dữ liệu cũ" chỉ được xoá MỘT LẦN cho cả lượt nạp.
+// Trước đây mỗi tab đều xoá nên tab sau xoá sạch tab trước, chỉ tab cuối còn lại — màn
+// dự án hiện thiếu tiền mà không có gì báo.
+$SID_M = '3MotLanXoaAbCdEfGhIjKlMnOpQrStUvWx';
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => '{"name":"DA GIAN M","gid":"901"} {"name":"DA GIAN M (2)","gid":"902"}',
+	'gid=901'   => "Nội dung hạng mục,Chi phí thực tế,Số lượng,Thuộc hạng mục lớn\nPhần một,1.000.000,1,\n",
+	'gid=902'   => "Nội dung hạng mục,Chi phí thực tế,Số lượng,Thuộc hạng mục lớn\nPhần hai,2.000.000,1,\n",
+);
+$r_2tab = VHCP_Sheet::nap_ca_file( $SID_M, array( 'thu' => false, 'replace' => true ) );
+teq( 'nạp cả 2 tab', 2, (int) $r_2tab['tong'] );
+$xoa_bao = 0;
+foreach ( (array) $r_2tab['baoCao'] as $b ) { if ( ! empty( $b['xoaTruoc'] ) ) { $xoa_bao++; } }
+teq( 'chỉ báo xoá 1 lần', 1, $xoa_bao );
+$sc_m = VHCP_SoChi::list_chi( array( 'maDuAn' => 'GIAN M' ) );
+teq( 'tab đầu KHÔNG bị tab sau xoá', 3000000, VHCP_Util::num( $sc_m['tong'] ) );
+// Tab nhân bản "(2)" là cùng một công trình -> cùng một mã dự án, không tách làm hai
+$gop = 0;
+foreach ( (array) $r_2tab['baoCao'] as $b ) { if ( ! empty( $b['gopVao'] ) ) { $gop++; } }
+teq( 'báo đã gộp tab nhân bản', 1, $gop );
+teq( 'không sinh ra dự án "GIAN M (2)" riêng', 0, count( VHCP_SoChi::theo_du_an( 'GIAN M (2)' ) ) );
+$tg_m = VHCP_SoChi::tong_theo_du_an();
+$k_m  = mb_strtolower( 'GIAN M' );
+teq( 'màn dự án cộng đủ tiền cả 2 tab', 3000000, VHCP_Util::num( $tg_m[ $k_m ]['tien'] ) );
+teq( 'và đếm đủ 2 dòng', 2, (int) $tg_m[ $k_m ]['n'] );
+$GLOBALS['VHCP_HTTP'] = array();
+
 // Gõ tay tên tab thì VẪN phải tải bằng gid — tải theo tên (gviz) làm cột số mất tiêu đề
 $GLOBALS['VHCP_HTTP'] = array(
 	'/htmlview' => '{"name":"DA GIAN X","gid":"555"}',

@@ -362,6 +362,22 @@ Cả ba bị chặn thì lỗi ghi rõ "Máy chủ chặn cả 3 đường gọi
   `URI Path equals /wp-admin/admin-ajax.php`.
 - **Plugin bảo mật** (Wordfence / All In One WP Security…): bỏ chặn REST API.
 
+### Số tiền dự án ra thiếu — hai chỗ đã xử (bản 1.5.3)
+
+Màn dự án hiện tổng nhỏ hơn hệ cũ nhiều lần, do hai lỗi khi nạp một bảng tính có
+**nhiều tab vào cùng một bảng**:
+
+1. **Tick "Xoá dữ liệu cũ" thì mỗi tab đều xoá.** Cả chục tab dự án đều vào sổ chi phí,
+   nên tab sau xoá sạch những gì tab trước vừa nạp — chỉ tab CUỐI còn lại. Nay chỉ tab
+   đầu tiên của mỗi bảng xoá, và báo cáo ghi rõ `🗑 đã xoá dữ liệu cũ của … (chỉ 1 lần)`.
+2. **Tab nhân bản `(2)` thành một dự án khác.** Công trình dài thì hết chỗ, nhân bản tab
+   thành `DA NHÀ MA BÀ RỊA (2)`; đuôi `(2)` bị giữ lại nên tiền tách làm hai dự án, màn dự
+   án chỉ thấy một nửa. Nay cùng công trình về cùng một mã, báo cáo ghi
+   `🔗 tab nhân bản — gộp vào dự án …`.
+
+Đối chiếu sau khi nạp lại: tổng **Thực tế** của màn dự án phải khớp con số trên hệ cũ.
+Còn lệch thì so tiếp `TỔNG TIỀN` từng tab trên báo cáo Chỉ thử với dòng tổng của tab đó.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

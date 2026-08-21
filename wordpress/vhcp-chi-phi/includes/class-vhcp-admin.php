@@ -253,6 +253,8 @@ class VHCP_Admin {
 						. '<td>' . esc_html( isset( $b['ketQua'] ) ? $b['ketQua'] : '' )
 						. ( ! empty( $b['dongDau'] ) ? '<br><small style="color:#777">dòng đầu: <code>' . esc_html( $b['dongDau'] ) . '</code></small>' : '' )
 						. ( count( $kv_txt ) ? '<br><small style="color:#777">đọc: ' . esc_html( implode( ' · ', $kv_txt ) ) . '</small>' : '' )
+						. ( ! empty( $b['xoaTruoc'] ) ? '<br><small style="color:#996800">🗑 đã xoá dữ liệu cũ của ' . esc_html( $b['xoaTruoc'] ) . ' (chỉ 1 lần cho cả lượt nạp)</small>' : '' )
+						. ( ! empty( $b['gopVao'] ) ? '<br><small style="color:#996800">🔗 tab nhân bản — gộp vào dự án <b>' . esc_html( $b['gopVao'] ) . '</b></small>' : '' )
 						. ( ! empty( $b['canhBao'] ) ? '<br><small style="color:#b32d2e">⚠ ' . esc_html( $b['canhBao'] ) . '</small>' : '' )
 						. '</td>'
 						. '<td>' . esc_html( count( $la ) ? implode( ' · ', $la ) : '—' ) . '</td>'

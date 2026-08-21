@@ -451,6 +451,15 @@ class VHCP_Sheet {
 		// 3) Nạp
 		$bc = array(); $tong = 0; $tong_bo = 0; $tong_thieu_ma = 0; $tao = array();
 
+		// XOÁ DỮ LIỆU CŨ CHỈ MỘT LẦN CHO MỖI BẢNG ĐÍCH.
+		//
+		// Một bảng đích thường nhận NHIỀU tab: bảng tính có "DA NHÀ MA BÀ RỊA",
+		// "DA NHÀ MA BÀ RỊA (2)", rồi hàng chục tab dự án khác, tất cả đều vào sổ chi phí.
+		// Trước đây mỗi tab đều được truyền replace=true nên tab sau XOÁ SẠCH những gì các
+		// tab trước vừa nạp — chỉ tab cuối còn lại, màn dự án hiện thiếu tiền mà không có
+		// gì báo. Nay chỉ tab ĐẦU TIÊN của mỗi bảng mới xoá.
+		$da_xoa = array();
+
 		foreach ( $viec as $v ) {
 			if ( empty( $v['loai'] ) ) {
 				$bc[] = array( 'tab' => $v['tab'], 'ketQua' => 'bỏ qua — ' . $v['bo'], 'dongDau' => isset( $v['dongDau'] ) ? $v['dongDau'] : '' );
@@ -538,10 +547,15 @@ class VHCP_Sheet {
 				$cs_tab = self::coso_cua_tab( $v['tab'] );
 				if ( $cs_tab['ghiChu'] !== '' ) { $mo['coSo'] = $cs_tab['ghiChu']; }
 			}
+			$bang_dich = self::bang_cua_td( $loai );
+			if ( $bang_dich === '' ) { $bang_dich = $loai; }
+			$xoa_lan_nay = ( ! empty( $opts['replace'] ) && empty( $da_xoa[ $bang_dich ] ) );
+			if ( $xoa_lan_nay ) { $da_xoa[ $bang_dich ] = 1; }
+
 			$res = VHCP_Import::run( $loai, $v['csv'], array(
 				'ma'      => $ma_chon,
 				'coso'    => $cs_tab['coso'],
-				'replace' => ! empty( $opts['replace'] ),
+				'replace' => $xoa_lan_nay,
 				'header'  => true,
 			) );
 			if ( empty( $res['success'] ) ) {
@@ -549,6 +563,10 @@ class VHCP_Sheet {
 				$mo['dongDau'] = self::xem_dong( $v['rows'] );
 				$bc[] = $mo;
 				continue;
+			}
+			if ( $xoa_lan_nay ) { $mo['xoaTruoc'] = self::ten_bang( $bang_dich ); }
+			if ( self::la_tab_du_an( $v['tab'] ) && self::tab_nhan_ban( $v['tab'] ) ) {
+				$mo['gopVao'] = self::ma_du_an_tu_ten_tab( $v['tab'] );
 			}
 			$mo['napDuoc']  = (int) $res['inserted'];
 			$mo['boQua']    = isset( $res['skipped'] ) ? (int) $res['skipped'] : 0;
@@ -596,10 +614,9 @@ class VHCP_Sheet {
 	 * @return array [coso, ghiChu]
 	 */
 	public static function coso_cua_tab( $ten_tab ) {
+		// ma_du_an_tu_ten_tab() đã bỏ đuôi nhân bản "(2)" nên tên này dùng được luôn.
 		$m = self::ma_du_an_tu_ten_tab( $ten_tab );
-		// Bỏ đuôi "(2)" do nhân bản tab — nó không thuộc tên cơ sở. Mã dự án vẫn giữ
-		// nguyên cả đuôi để còn truy được về đúng tab.
-		$k = VHCP_Nap::kh( preg_replace( '/\s*\(\d+\)\s*$/', '', $m ) );
+		$k = VHCP_Nap::kh( $m );
 		if ( $k === '' ) { return array( 'coso' => '', 'ghiChu' => '' ); }
 		$hit = array();
 		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) {
@@ -620,10 +637,25 @@ class VHCP_Sheet {
 		return (bool) preg_match( '/^\s*DA\s+/iu', (string) $ten );
 	}
 
-	/** Mã dự án lấy từ tên tab: bỏ chữ "DA " đứng đầu, giữ nguyên phần còn lại. */
+	/**
+	 * Mã dự án lấy từ tên tab: bỏ chữ "DA " đứng đầu và bỏ đuôi nhân bản "(2)".
+	 *
+	 * Một công trình dài thường trải ra nhiều tab: "DA NHÀ MA BÀ RỊA", rồi hết chỗ thì
+	 * nhân bản thành "DA NHÀ MA BÀ RỊA (2)". Giữ đuôi đó lại là tách thành HAI dự án khác
+	 * nhau, nên màn dự án chỉ hiện tiền của một nửa — đúng bằng lỗi "số tiền dự án ra sai".
+	 * Cùng một công trình thì về cùng một mã.
+	 */
 	public static function ma_du_an_tu_ten_tab( $ten ) {
 		$m = trim( preg_replace( '/^\s*DA\s+/iu', '', (string) $ten ) );
+		$g = trim( preg_replace( '/\s*\(\d+\)\s*$/', '', $m ) );
+		if ( $g !== '' ) { $m = $g; }
 		return $m !== '' ? $m : trim( (string) $ten );
+	}
+
+	/** Tên tab có đuôi nhân bản "(2)" không — để báo lại là đã gộp vào dự án gốc. */
+	public static function tab_nhan_ban( $ten ) {
+		$m = trim( preg_replace( '/^\s*DA\s+/iu', '', (string) $ten ) );
+		return (bool) preg_match( '/\s*\(\d+\)\s*$/', $m );
 	}
 
 	/** 6 ô đầu của dòng đầu tiên — để soi tab lạ chứa gì. */
