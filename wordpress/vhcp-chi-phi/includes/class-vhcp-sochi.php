@@ -330,7 +330,14 @@ class VHCP_SoChi {
 		$ma = trim( (string) $ma_du_an );
 		if ( $ma === '' ) { return array(); }
 		$t = VHCP_DB::t( 'so_chi' );
-		$rows = VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE LOWER(ma_du_an)=%s ORDER BY stt ASC", mb_strtolower( $ma ) ) );
+		// So bằng LOWER() của SQL rồi đối chiếu với mb_strtolower() của PHP là sai: SQL
+		// LOWER() không hạ được chữ có dấu ("NHÀ" vẫn là "NHÀ"), nên mã dự án tiếng Việt
+		// không bao giờ khớp. So thẳng bằng = (đối chiếu của MySQL vốn không phân biệt
+		// chữ hoa/thường), không ra thì thử lại với LOWER() ở CẢ HAI phía.
+		$rows = VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE ma_du_an=%s ORDER BY stt ASC", $ma ) );
+		if ( ! count( $rows ) ) {
+			$rows = VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE LOWER(ma_du_an)=LOWER(%s) ORDER BY stt ASC", $ma ) );
+		}
 		$out = array();
 		foreach ( (array) $rows as $r ) { $out[] = self::out( $r ); }
 		return $out;

@@ -1708,6 +1708,24 @@ $co_trung = false;
 foreach ( $xm2['rows'] as $row ) { if ( strpos( (string) $row[4], 'Đã xuất rồi' ) !== false ) { $co_trung = true; } }
 t( 'xuất MISA lần tới KHÔNG lấy lại dòng đã xuất', ! $co_trung );
 
+// Mã dự án CÓ DẤU phải tra được: LOWER() của SQL không hạ chữ có dấu
+$da_dau = VHCP_DuAn::create_du_an( 'Setup lắp đặt', 'GIAN CÓ DẤU ĐẶC BIỆT', 'Admin' );
+VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNFEST SC VIVO', 'loai' => 'Vật tư',
+	'noiDung' => 'Tủ Điện 24 tép', 'soTien' => 825000, 'duToan' => 4800000,
+	'hinhThuc' => 'Tạm ứng NV', 'maDuAn' => 'GIAN CÓ DẤU ĐẶC BIỆT' ), 'NV A' );
+VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNFEST SC VIVO', 'loai' => 'Vật tư',
+	'noiDung' => 'Màn co 3.5kg', 'soTien' => 800000,
+	'hinhThuc' => 'Tạm ứng NV', 'maDuAn' => 'GIAN CÓ DẤU ĐẶC BIỆT' ), 'NV A' );
+teq( 'tra được mã dự án có dấu', 2, count( VHCP_SoChi::theo_du_an( 'GIAN CÓ DẤU ĐẶC BIỆT' ) ) );
+$x_dau = VHCP_DuAn::get_du_an( (string) $da_dau['maDA'] );
+teq( 'màn dự án tên có dấu thấy đủ dòng', 2, count( $x_dau['soChi'] ) );
+teq( 'tổng thực tế của gian tên có dấu', 1625000, VHCP_Util::num( $x_dau['tongThucTe'] ) );
+teq( 'tổng dự toán của gian tên có dấu', 4800000, VHCP_Util::num( $x_dau['tongDuToan'] ) );
+$ds_dau = VHCP_DuAn::list_du_an();
+$dong_dau = null;
+foreach ( $ds_dau['items'] as $y ) { if ( (string) $y['ten'] === 'GIAN CÓ DẤU ĐẶC BIỆT' ) { $dong_dau = $y; } }
+teq( 'danh sách dự án cũng ra số cho tên có dấu', 1625000, VHCP_Util::num( $dong_dau['tongThucTe'] ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
