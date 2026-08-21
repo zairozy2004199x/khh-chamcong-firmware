@@ -149,6 +149,65 @@ t( 'firmware vẫn gọi /macros/s/<id>/exec như cũ', strpos( $ino, '/macros/s
 t( 'firmware KHÔNG bị thêm địa chỉ WordPress nào', strpos( $ino, 'vhcc' ) === false
 	&& stripos( $ino, 'wp-json' ) === false );
 
+// ============================================================ 7. Bản gốc lưu trong repo CÔNG KHAI
+/* Hai tệp `goc/` là giao diện thật anh Thắng dán vào. Repo này công khai, nên phép thử dưới đây
+   canh đúng một điều: đừng có ngày nào ai dán bản mới kèm khoá vào đây mà không ai thấy. */
+$goc_ui = $goc . '/wordpress/vhcp-cham-cong/goc';
+foreach ( array( 'Index.html', 'ChamCongOnline.html' ) as $ten_ui ) {
+	$ui = file_get_contents( $goc_ui . '/' . $ten_ui );
+	t( "$ten_ui có mặt và không rỗng", strlen( $ui ) > 10000 );
+	t( "$ten_ui KHÔNG chứa mã triển khai Apps Script (AKfycb…)", strpos( $ui, 'AKfycb' ) === false );
+	t( "$ten_ui KHÔNG chứa địa chỉ Firebase", stripos( $ui, 'firebaseio' ) === false
+		&& stripos( $ui, 'default-rtdb' ) === false );
+	t( "$ten_ui KHÔNG chứa khoá API Google (AIza…)", strpos( $ui, 'AIza' ) === false );
+	/* Chỉ bắt liên kết THẬT. Trong tệp có nhắc chữ `/exec` trong lời ghi chú ("KHÔNG ghi cứng
+	   link /exec") — bắt cả cái đó thì phép thử báo hỏng ở chỗ không có lỗi. */
+	t( "$ten_ui KHÔNG chứa liên kết triển khai thật",
+		stripos( $ui, 'script.google.com' ) === false && strpos( $ui, '/macros/s/' ) === false );
+	/* Giao diện chỉ dùng `google.script.run` — không `google.script.host`, không `url`. Nghĩa là
+	   một lớp thay thế `run` là đủ; đây là điều kiện để port sang PHP mà KHÔNG sửa giao diện. */
+	$khac = preg_match_all( '/google\.script\.(?!run\b)(\w+)/', $ui, $mm );
+	t( "$ten_ui chỉ gọi google.script.run, không dùng API Apps Script nào khác", $khac === 0,
+		$khac ? implode( ', ', $mm[1] ) : null );
+}
+
+// ============================================================ 8. Bản kê bề mặt phải port
+$ke  = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/apps-script/ham-giao-dien.txt' );
+$ds  = array_values( array_filter( array_map( 'trim', explode( "\n", $ke ) ),
+	function ( $d ) { return $d !== '' && $d[0] !== '#'; } ) );
+$ds  = array_values( array_filter( $ds, function ( $d ) { return strpos( $d, '## ' ) !== 0; } ) );
+teq( 'bản kê không có tên trùng', count( $ds ), count( array_unique( $ds ) ) );
+t( 'bản kê có đủ 111 hàm giao diện gọi', count( $ds ) === 111, count( $ds ) );
+
+/* Bản kê phải khớp ĐÚNG với những gì hai tệp giao diện thật sự gọi. Rút lại từ HTML tại đây, để
+   sau này anh dán giao diện mới mà thêm hàm thì phép thử này HỎNG NGAY, chứ không âm thầm thiếu. */
+$that = array();
+foreach ( array( 'Index.html', 'ChamCongOnline.html' ) as $ten_ui ) {
+	$ui = file_get_contents( $goc_ui . '/' . $ten_ui );
+	$off = 0;
+	while ( ( $i = strpos( $ui, 'google.script.run', $off ) ) !== false ) {
+		$off = $i + 17;
+		$j   = $off;
+		// đi qua chuỗi .withXxx(...) rồi lấy tên hàm cuối chuỗi
+		while ( preg_match( '/^\s*\.\s*(\w+)\s*\(/', substr( $ui, $j, 200 ), $m ) ) {
+			$k = $j + strpos( substr( $ui, $j, 200 ), '(' ) + strlen( $m[1] ) - strlen( $m[1] );
+			$k = $j + strpos( substr( $ui, $j ), '(' );
+			if ( strpos( $m[1], 'with' ) !== 0 ) { $that[ $m[1] ] = 1; break; }
+			$d = 0;
+			while ( $k < strlen( $ui ) ) {
+				if ( $ui[ $k ] === '(' ) { $d++; } elseif ( $ui[ $k ] === ')' ) { $d--; if ( ! $d ) { break; } }
+				$k++;
+			}
+			$j = $k + 1;
+		}
+	}
+}
+$that = array_keys( $that );
+$thieu = array_diff( $that, $ds );
+$du    = array_diff( $ds, $that );
+t( 'bản kê không thiếu hàm nào giao diện đang gọi', count( $thieu ) === 0, implode( ', ', $thieu ) );
+t( 'bản kê không kê thừa hàm giao diện không gọi', count( $du ) === 0, implode( ', ', $du ) );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
