@@ -8,7 +8,7 @@ Làm sai thứ tự thì **mất chấm công**, nên đọc hết mục 1 trư�
 
 | Tệp | Plugin | Cần gì thêm |
 |---|---|---|
-| `vhcp-cham-cong.zip` | Chấm Công | 3 dòng `wp-config.php` + 1 khoá Firebase |
+| `vhcp-cham-cong.zip` | Chấm Công | 1 dòng `wp-config.php` (`VHCC_KHOA_MAY`) + múi giờ + 1 khoá Firebase |
 | `vhcp-chi-phi.zip` | Vận Hành Chi Phí | — |
 | `vhcp-hop-dong.zip` | Thư Viện Hợp Đồng | dán `cau-noi.gs` + đặt `WEB_KEY` |
 
@@ -25,7 +25,7 @@ Trong bản cài **không có** `goc/` và `apps-script/` — hai thư mục đ�
 Máy chấm công ngoài cơ sở **đang chạy** qua Apps Script. Việc dưới đây thêm một đường thứ hai
 vào MySQL, **không cắt đường cũ**. Làm sai thứ tự là cắt đường cũ trước khi đường mới sống.
 
-### 1.1 · `wp-config.php` — ba dòng
+### 1.1 · `wp-config.php` — hai dòng
 
 Thêm **trên** dòng `/* That's all, stop editing! */`:
 
@@ -42,14 +42,21 @@ define( 'VHCC_PIN_ADMIN', '…PIN admin của app chấm công…' );
 > **Đổi PIN `888888` ngay.** Nó là PIN admin mặc định của app gốc, đã nằm trong lịch sử chat,
 > và giờ mở được cả màn đẩy firmware toàn chuỗi. Đổi ở **Chấm Công → Phân quyền & PIN**.
 
-### 1.2 · Kích hoạt plugin
+### 1.2 · Múi giờ
 
-Kích hoạt là nó tự dựng **20 bảng**. Chưa có bảng thì mọi màn đều trống.
+**Settings → General → Timezone** = `Asia/Ho_Chi_Minh`. Không có hằng nào cho việc này —
+plugin dùng luôn múi giờ của WordPress. Đặt sai là **giờ vào/ra lệch cả buổi**, và ca đêm
+lệch sang hẳn ngày khác.
+
+### 1.3 · Kích hoạt plugin
+
+Kích hoạt là nó tự dựng **20 bảng**, âm thầm, không có màn nào báo. Chưa có bảng thì mọi màn
+đều trống.
 
 Kiểm: **Chấm Công → Cổng nhận từ máy** phải hiện dòng
 `✔️ Đã cấu hình khoá VHCC_KHOA_MAY`. Nếu hiện chữ đỏ thì quay lại 1.1.
 
-### 1.3 · Firebase `/cfg/wp` — để máy tự nhận liên kết
+### 1.4 · Firebase `/cfg/wp` — để máy tự nhận liên kết
 
 Vào Firebase Console → Realtime Database, tạo nhánh `cfg/wp`:
 
@@ -63,7 +70,7 @@ vẫn có thể trông như thành công.
 
 Nhờ nhánh này mà **nạp OTA là xong**, không phải gõ tay ở portal từng máy.
 
-### 1.4 · Apps Script — ghi song song
+### 1.5 · Apps Script — ghi song song
 
 1. Mở project Apps Script của app chấm công → **File → New → Script file**, tên
    `GhiSongSongWP`, dán toàn bộ `wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs`.
@@ -80,14 +87,14 @@ Nhờ nhánh này mà **nạp OTA là xong**, không phải gõ tay ở portal t
 
 Kiểm: chạy `wpTinhTrang()` → phải thấy `daKhaiUrl: true`, `daKhaiKey: true`, `coLich: true`.
 
-### 1.5 · Đợi vài ngày rồi ĐỐI SỐ HÀNG
+### 1.6 · Đợi vài ngày rồi ĐỐI SỐ HÀNG
 
 Chạy `wpDoiSoHang('TUTU_BT', '2026-08')` cho từng cơ sở.
 
 > **Còn dòng `treo` thì ĐỪNG nạp OTA.** Dòng treo là lượt bấm *có* trong sheet mà *không* có
 > trong MySQL. Nạp firmware lúc đang lệch là không còn cách nào biết bên nào đúng.
 
-### 1.6 · Nạp OTA — máy nào tiện thì nạp, không cần nạp hết
+### 1.7 · Nạp OTA — máy nào tiện thì nạp, không cần nạp hết
 
 **Chấm Công → Máy & Firmware → Đẩy cập nhật.** Link phải là link `raw` của nhánh `bin`.
 
@@ -156,6 +163,9 @@ Theo thứ tự này, vì cái sau cần cái trước:
 | Số công trông sai | **Bảng công & Lương** → cột **Cần soi** (ca lạ · đêm thiếu giờ · đêm thiếu cặp giờ). |
 | Lượt bấm không vào cơ sở nào | **Máy & Firmware → Lượt bấm chờ gán.** Máy chưa gán cơ sở vẫn được giữ lượt bấm. |
 | Hai bên lệch cơ sở | **Máy & Firmware → Đối chiếu** (ở đầu trang). |
+| **Trang đứt giữa, mất nút Lưu** | Nội dung hiện được một nửa rồi tới câu *"Đã xảy ra lỗi nghiêm trọng trên trang web này"* là **lỗi PHP**, không phải anh làm sai. Cài bản mới nhất; còn thì bật `WP_DEBUG_LOG` rồi gửi em dòng cuối của `wp-content/debug.log`. |
+| Cổng nhận chối mọi lượt | **Cổng nhận từ máy** — chưa thấy dòng ✔️ xanh thì `VHCC_KHOA_MAY` chưa vào `wp-config.php`. |
+| Giờ vào/ra lệch cả buổi | **Settings → General → Timezone** phải là `Asia/Ho_Chi_Minh`. Plugin dùng múi giờ của WordPress, không tự đặt. |
 
 Cổng nhận trả `SUCCESS` cho **cả những gói nó bỏ** — buộc phải vậy, không thì firmware đẩy lại
 vô hạn. Nên **nhật ký là chỗ duy nhất** thấy được cái gì đã bị bỏ và vì sao.

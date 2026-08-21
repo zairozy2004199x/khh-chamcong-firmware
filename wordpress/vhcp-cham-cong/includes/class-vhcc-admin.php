@@ -1053,6 +1053,10 @@ class VHCC_Admin {
 	}
 
 	public static function page() {
+		/* WordPress đã chặn theo `manage_options` khai ở add_menu_page, nhưng 10 màn kia đều
+		   chốt lại một lần nữa ngay trong hàm vẽ — màn này thiếu. Một hàm public vẽ ra khoá
+		   WEB_KEY thì không được dựa vào chỗ khác chặn hộ. */
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
 		$slug  = get_option( 'vhcc_slug', 'cham-cong' );
 		$exec  = VHCC_CauNoi::url();
 		$khoa  = VHCC_CauNoi::bao_dam_khoa();
@@ -1123,12 +1127,17 @@ class VHCC_Admin {
 			if ( is_wp_error( $u ) ) {
 				echo '<p style="color:#b32d2e"><b>' . esc_html( $u->get_error_message() ) . '</b></p>';
 			} else {
+				/* Vai trò vào được là do Cài đặt quyết định, nên phải đọc qua vai_tro_vao() —
+				   KHÔNG có hằng VHCC_Auth::VAI_TRO_VAO. Dùng tên hằng không tồn tại là lỗi
+				   nghiêm trọng (fatal) và nó giết cả trang từ chỗ này xuống, tức là mất luôn
+				   nút Lưu ở dưới. Lấy một lần vào biến để đếm và để in ra cùng một danh sách. */
+				$duoc_vao = VHCC_Auth::vai_tro_vao();
 				$duoc = 0;
 				foreach ( $u as $x ) {
-					if ( in_array( $x['vaiTro'], VHCC_Auth::VAI_TRO_VAO, true ) ) { $duoc++; }
+					if ( in_array( $x['vaiTro'], $duoc_vao, true ) ) { $duoc++; }
 				}
 				echo '<p>Đang đọc được <b>' . count( $u ) . '</b> người, trong đó <b>' . $duoc
-					. '</b> người vào được hệ thống chấm công (' . esc_html( implode( ' · ', VHCC_Auth::vai_tro_vao() ) ) . ').</p>';
+					. '</b> người vào được hệ thống chấm công (' . esc_html( implode( ' · ', $duoc_vao ) ) . ').</p>';
 			}
 		}
 		echo '</td></tr>';

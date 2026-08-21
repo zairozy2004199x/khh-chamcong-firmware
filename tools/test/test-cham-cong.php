@@ -2687,6 +2687,136 @@ foreach ( array( '', '/includes', '/assets', '/assets/js' ) as $d ) {
 	t( "thư mục$d có index.php im lặng",
 		file_exists( $goc . '/wordpress/vhcp-cham-cong' . $d . '/index.php' ) );
 }
+// ======================================================= 33. VẼ THẬT TỪNG MÀN HÌNH wp-admin
+/* ⚠️ LOẠI LỖI BỘ THỬ NÀY TỪNG MÙ HOÀN TOÀN.
+   Trang Cài đặt đã lên hosting với một dòng `VHCC_Auth::VAI_TRO_VAO` — hằng đó KHÔNG tồn tại
+   (tên đúng là hàm `vai_tro_vao()`). PHP coi đó là lỗi nghiêm trọng, trang đứt ngay tại dòng
+   đó, và vì nút "Lưu cài đặt" nằm PHÍA DƯỚI nên anh Thắng dán xong liên kết mà không có nút
+   nào để lưu. 873 phép thử trước đó không thấy gì, vì chúng gọi thẳng hàm nghiệp vụ và KHÔNG
+   HỀ VẼ màn hình — mà lỗi này chỉ nổ lúc vẽ.
+
+   Nên mục này vẽ thật từng màn, và lấy danh sách màn từ `VHCC_Admin::menu()` chứ không gõ tay:
+   thêm màn mới là tự có phép thử, không phải nhớ bổ sung vào đây. */
+vhcc_dung_bang();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$GLOBALS['VHCP_MENU']     = array();
+VHCC_Admin::menu();
+
+t( 'menu khai đủ 11 màn', count( $GLOBALS['VHCP_MENU'] ) === 11, count( $GLOBALS['VHCP_MENU'] ) );
+t( 'mục gốc `vhcc` là trang Cài đặt', isset( $GLOBALS['VHCP_MENU']['vhcc'] ) );
+
+foreach ( $GLOBALS['VHCP_MENU'] as $slug => $m ) {
+	t( "màn $slug đòi quyền manage_options", $m['cap'] === 'manage_options', $m['cap'] );
+	t( "màn $slug có hàm vẽ gọi được", is_callable( $m['cb'] ) );
+	if ( ! is_callable( $m['cb'] ) ) { continue; }
+	ob_start();
+	$loi = '';
+	try { call_user_func( $m['cb'] ); } catch ( Throwable $e ) {
+		$loi = get_class( $e ) . ': ' . $e->getMessage() . ' @' . basename( $e->getFile() ) . ':' . $e->getLine();
+	}
+	$html = ob_get_clean();
+	t( "màn $slug vẽ hết không chết giữa đường", $loi === '', $loi );
+	t( "màn $slug vẽ ra nội dung", strlen( $html ) > 200, strlen( $html ) );
+	/* Vẽ xong mà thẻ mở nhiều hơn thẻ đóng thì trang bị đứt giữa — đúng triệu chứng của lỗi trên. */
+	t( "màn $slug đóng đủ thẻ <div>",
+		substr_count( $html, '<div' ) === substr_count( $html, '</div>' ),
+		substr_count( $html, '<div' ) . ' mở / ' . substr_count( $html, '</div>' ) . ' đóng' );
+	/* Màn nào có <form> thì phải có nút bấm — form không nút là form không dùng được. */
+	if ( strpos( $html, '<form' ) !== false ) {
+		t( "màn $slug: form nào cũng tới được nút bấm",
+			strpos( $html, '<button' ) !== false || strpos( $html, 'type="submit"' ) !== false );
+	}
+	/* Nonce: soát TỪNG form, và chỉ đòi ở form POST.
+	   Form GET ở đây là bộ lọc (chọn cơ sở, chọn khoảng ngày) — chỉ đọc, không đổi gì, đòi
+	   nonce là sai. Đòi cả cụm "màn này có _wpnonce ở đâu đó" cũng sai theo chiều ngược lại:
+	   một màn có 5 form mà chỉ 1 form có nonce thì vẫn lọt. Nên cắt theo từng form. */
+	foreach ( array_slice( explode( '<form', $html ), 1 ) as $khuc ) {
+		$het = strpos( $khuc, '</form>' );
+		$than = ( false === $het ) ? $khuc : substr( $khuc, 0, $het );
+		if ( false === stripos( $than, 'method="post"' ) ) { continue; }
+		$dau = trim( substr( $than, 0, 60 ) );
+		t( "màn $slug: form POST có nonce (" . $dau . ')', strpos( $than, '_wpnonce' ) !== false );
+	}
+}
+
+/* Chốt quyền: KHÔNG có manage_options thì mọi màn phải chặn (wp_die), không màn nào lọt. */
+$GLOBALS['VHCP_CO_QUYEN'] = false;
+$lot = array();
+foreach ( $GLOBALS['VHCP_MENU'] as $slug => $m ) {
+	ob_start();
+	$chan = false;
+	try { call_user_func( $m['cb'] ); } catch ( Throwable $e ) {
+		$chan = strpos( $e->getMessage(), 'wp_die' ) === 0;
+	}
+	ob_end_clean();
+	if ( ! $chan ) { $lot[] = $slug; }
+}
+t( 'người không đủ quyền bị chặn ở CẢ 11 màn', count( $lot ) === 0, implode( ', ', $lot ) );
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+
+/* LƯỢT VẼ THỨ HAI — CÓ DỮ LIỆU VÀ CÓ CHỌN BỘ LỌC.
+   Lượt trên vẽ lúc bảng rỗng, nên hầu hết màn chỉ ra được mỗi cái form chọn cơ sở rồi thôi:
+   đúng phần thân bảng — chỗ nhiều mã nhất và nhiều chỗ hỏng nhất — không hề chạy. Lượt này
+   gieo một cơ sở, một người, một hàng chấm công, một hàng lịch, một yêu cầu, rồi đặt $_GET
+   như lúc anh Thắng bấm "Xem". */
+global $wpdb;
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'NV001', 'ho_ten' => 'Trần Văn A', 'cua_hang' => 'TUTU_BT',
+	'chuc_vu' => 'Nhân viên', 'sdt' => '0900000001' ) );
+vhcc_bo_phan( 'TUTU_BT', 'Bán hàng' );
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'NV001', '', '08:00', '17:30' );
+vhcc_cham( 'TUTU_BT', '2026-08-04', 'NV001', 'TC', '18:00', '21:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-05', 'NV001', '', '08:05', null );   // thiếu giờ ra: nhánh cảnh báo
+$wpdb->insert( VHCC_DB::t( 'lich_cv' ), array(
+	'coso' => 'TUTU_BT', 'ma_nv' => 'NV001', 'ho_ten' => 'Trần Văn A',
+	'ngay' => '2026-08-03', 'ca' => 'Sáng', 'viec' => 'Bán hàng' ) );
+$wpdb->insert( VHCC_DB::t( 'yeu_cau_nv' ), array(
+	'ma_yc' => 'YC20260801120000123', 'loai' => 'them_nv', 'ho_ten' => 'Lê Thị B',
+	'coso' => 'TUTU_BT', 'trang_thai' => 'Chờ duyệt', 'nguoi_xin' => 'CHT',
+	'luc_xin' => '2026-08-01 12:00:00' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array(
+	'serial' => 'SN-THU-1', 'mac' => 'AA:BB:CC:DD:EE:01', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array(
+	'pin' => '123456', 'ho_ten' => 'Trần Văn A', 'vai_tro' => 'NHAN_VIEN', 'cua_hang' => 'TUTU_BT' ) );
+
+$_GET = array( 'coso' => 'TUTU_BT', 'tu' => '2026-08-01', 'den' => '2026-08-31',
+	'thang' => '2026-08', 'ma_nv' => 'NV001', 'cach' => 'mtd' );
+
+foreach ( $GLOBALS['VHCP_MENU'] as $slug => $m ) {
+	ob_start();
+	$loi = '';
+	try { call_user_func( $m['cb'] ); } catch ( Throwable $e ) {
+		$loi = get_class( $e ) . ': ' . $e->getMessage() . ' @' . basename( $e->getFile() ) . ':' . $e->getLine();
+	}
+	$html = ob_get_clean();
+	t( "màn $slug (có dữ liệu) vẽ hết không chết giữa đường", $loi === '', $loi );
+	t( "màn $slug (có dữ liệu) đóng đủ thẻ <div>",
+		substr_count( $html, '<div' ) === substr_count( $html, '</div>' ),
+		substr_count( $html, '<div' ) . ' mở / ' . substr_count( $html, '</div>' ) . ' đóng' );
+	t( "màn $slug (có dữ liệu) đóng đủ thẻ <table>",
+		substr_count( $html, '<table' ) === substr_count( $html, '</table>' ),
+		substr_count( $html, '<table' ) . ' mở / ' . substr_count( $html, '</table>' ) . ' đóng' );
+	foreach ( array_slice( explode( '<form', $html ), 1 ) as $khuc ) {
+		$het = strpos( $khuc, '</form>' );
+		$than = ( false === $het ) ? $khuc : substr( $khuc, 0, $het );
+		if ( false === stripos( $than, 'method="post"' ) ) { continue; }
+		t( "màn $slug (có dữ liệu): form POST có nonce (" . trim( substr( $than, 0, 60 ) ) . ')',
+			strpos( $than, '_wpnonce' ) !== false );
+	}
+}
+/* Vẽ ra dữ liệu thật thì phải THẤY nó — không thì lượt trên chỉ đang vẽ lại cái form rỗng. */
+ob_start(); VHCC_Man::trang_cham(); $h_cham = ob_get_clean();
+t( 'màn Bảng chấm công thật sự in ra hàng đã gieo', strpos( $h_cham, 'NV001' ) !== false );
+t( 'và in ra giờ dạng HH:mm chứ không phải số giây',
+	strpos( $h_cham, '08:00' ) !== false && strpos( $h_cham, '28800' ) === false );
+$_GET = array();
+
+/* Phép soát tham chiếu tĩnh phải nằm trong bộ thử, không chỉ là tệp rời ai nhớ thì chạy. */
+$ma_soat = 0;
+exec( 'php ' . escapeshellarg( $goc . '/tools/test/kiem-tham-chieu.php' ) . ' 2>&1', $ra_soat, $ma_soat );
+t( 'phép soát tham chiếu tĩnh: không chỗ nào gọi hằng/hàm không tồn tại',
+	$ma_soat === 0, implode( "\n      ", $ra_soat ) );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

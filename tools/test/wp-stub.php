@@ -84,7 +84,44 @@ function vhcp_test_uu_tien( $hook, $ten_ham ) {
 	}
 	return null;
 }
-function current_user_can( $c ) { return false; }
+/* Mặc định KHÔNG có quyền: phần lớn phép thử canh đúng chuyện "người không đủ quyền bị chặn",
+   nên mặc định phải là chặn. Phép thử VẼ MÀN HÌNH bật cờ này lên để đi qua được chốt quyền. */
+function current_user_can( $c ) { return ! empty( $GLOBALS['VHCP_CO_QUYEN'] ); }
+
+/* ---- Đủ để VẼ được màn hình wp-admin ----------------------------------------------------
+   Có bộ này thì phép thử gọi thẳng hàm vẽ trang được, và mọi lỗi nghiêm trọng lúc vẽ (hằng
+   không tồn tại, gọi hàm sai tên) nổ ra ngay trong bài kiểm thay vì nổ trên trang của anh
+   Thắng. Trang Cài đặt đã từng mất nút "Lưu cài đặt" đúng vì một lỗi loại đó. */
+function wp_die( $m = '', $t = '', $a = array() ) { throw new RuntimeException( 'wp_die: ' . wp_strip_all_tags( (string) $m ) ); }
+function wp_create_nonce( $a = -1 ) { return 'nonce_' . md5( (string) $a ); }
+function wp_nonce_field( $a = -1, $n = '_wpnonce', $ref = true, $echo = true ) {
+	$h = '<input type="hidden" name="' . esc_attr( $n ) . '" value="' . wp_create_nonce( $a ) . '">';
+	if ( $echo ) { echo $h; }
+	return $h;
+}
+function check_admin_referer( $a = -1, $n = '_wpnonce' ) { return true; }
+function submit_button( $nhan = null, $lop = 'primary', $ten = 'submit', $bao = true ) {
+	echo '<p class="submit"><button type="submit" class="button button-' . esc_attr( $lop ) . '">'
+		. esc_html( null === $nhan ? 'Save Changes' : $nhan ) . '</button></p>';
+}
+function admin_url( $p = '' ) { return 'http://example.test/wp-admin/' . ltrim( (string) $p, '/' ); }
+function wp_kses_post( $s ) { return (string) $s; }
+function esc_js( $s ) { return addslashes( (string) $s ); }
+function selected( $a, $b = true, $echo = true ) { return ( (string) $a === (string) $b ) ? " selected='selected'" : ''; }
+function disabled( $a, $b = true, $echo = true ) { return ( (string) $a === (string) $b ) ? " disabled='disabled'" : ''; }
+function number_format_i18n( $n, $d = 0 ) { return number_format( (float) $n, (int) $d ); }
+function get_current_user_id() { return 1; }
+function wp_get_current_user() { return (object) array( 'ID' => 1, 'display_name' => 'admin', 'roles' => array( 'administrator' ) ); }
+function wp_enqueue_script() { return true; }
+function wp_enqueue_style() { return true; }
+function add_menu_page( $tt, $mt, $cap, $slug, $cb = '', $icon = '', $pos = null ) {
+	$GLOBALS['VHCP_MENU'][ $slug ] = array( 'ten' => $mt, 'cap' => $cap, 'cb' => $cb, 'cha' => '' );
+	return $slug;
+}
+function add_submenu_page( $cha, $tt, $mt, $cap, $slug, $cb = '' ) {
+	$GLOBALS['VHCP_MENU'][ $slug ] = array( 'ten' => $mt, 'cap' => $cap, 'cb' => $cb, 'cha' => $cha );
+	return $slug;
+}
 function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $s ) { return esc_html( $s ); }
 function esc_url( $s ) { return (string) $s; }
@@ -97,6 +134,7 @@ function wp_tempnam( $p = '' ) { return tempnam( sys_get_temp_dir(), 'vhcp' ); }
  * Google Sheet — khóa là địa chỉ (khớp một phần cũng được), giá trị là nội dung trả về.
  */
 $GLOBALS['VHCP_HTTP'] = array();
+$GLOBALS['VHCP_MENU'] = array();
 function is_wp_error( $x ) { return ( $x instanceof VHCP_Test_WP_Error ) || ( $x instanceof WP_Error ); }
 class VHCP_Test_WP_Error {
 	private $msg;

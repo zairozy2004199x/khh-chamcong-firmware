@@ -1,0 +1,67 @@
+# Chạy bộ thử của ba plugin WordPress mỗi lần push.
+#
+# VÌ SAO CÓ FILE NÀY
+#   Trang Cài đặt của plugin chấm công đã lên hosting với một dòng `VHCC_Auth::VAI_TRO_VAO` —
+#   hằng không tồn tại, PHP coi là lỗi nghiêm trọng, trang đứt ngay tại đó và mất luôn nút
+#   "Lưu cài đặt" nằm phía dưới. Bộ thử tại chỗ đã có sẵn nhưng KHÔNG AI CHẠY trước khi đóng
+#   gói, mà workflow firmware thì chỉ nổ khi sửa .ino nên không đụng tới.
+#
+#   Giờ mỗi lần push là chạy: soát tham chiếu tĩnh → cú pháp → bốn bộ thử.
+name: Kiểm plugin WordPress
+
+on:
+  push:
+    paths:
+      - 'wordpress/**'
+      - 'tools/test/**'
+      - '.github/workflows/plugin-php.yml'
+  pull_request:
+    paths:
+      - 'wordpress/**'
+      - 'tools/test/**'
+  workflow_dispatch:
+
+jobs:
+  kiem:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_sqlite, mbstring
+          coverage: none
+
+      - name: Cú pháp PHP mọi tệp plugin
+        run: |
+          set -eo pipefail
+          # xargs trả 123 nếu có lượt nào hỏng, `set -e` bắt được. pipefail để mã thoát của
+          # xargs không bị `grep` phía sau che mất.
+          find wordpress -name '*.php' -print0 | xargs -0 -n1 php -l | grep -v 'No syntax errors' || true
+          find wordpress -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+
+      - name: Soát tham chiếu tĩnh (hằng/hàm không tồn tại = lỗi nghiêm trọng lúc vẽ trang)
+        run: php tools/test/kiem-tham-chieu.php
+
+      - name: Bộ thử chấm công
+        run: php tools/test/test-cham-cong.php
+
+      - name: Bộ thử chi phí
+        run: php tools/test/test-flows.php
+
+      - name: Bộ thử hợp đồng
+        run: php tools/test/test-hop-dong.php
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Bộ thử Apps Script (ghi song song, nhóm chi phí)
+        run: |
+          set -e
+          node tools/test/test-ghi-song-song.js
+          node tools/test/test-nhom-chi-phi.js
+
+      - name: Đóng gói thử — bản cài phải dựng được và sạch bí mật
+        run: bash tools/build-plugin-zip.sh
