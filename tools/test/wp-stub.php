@@ -239,6 +239,7 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}bp_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', UNIQUE(ma,row_no))",
 		// Bảng phiên của plugin Thư viện hợp đồng — tiền tố vhd_, KHÔNG phải vhcp_
 		"CREATE TABLE wp_vhd_session (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', het_han TEXT)",
+		"CREATE TABLE wp_vhcc_session (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', het_han TEXT)",
 		"CREATE TABLE {$p}hopdong (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, so_hd TEXT DEFAULT '', ten TEXT DEFAULT '', doi_tac TEXT DEFAULT '', coso TEXT DEFAULT '', loai_hd TEXT DEFAULT '', ngay_ky TEXT DEFAULT '', ngay_het TEXT DEFAULT '', gia_tri REAL, trang_thai TEXT DEFAULT 'Còn hiệu lực', nguoi_pt TEXT DEFAULT '', ghi_chu TEXT DEFAULT '', files TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '', tao_luc TEXT DEFAULT '')",
 		"CREATE TABLE {$p}cfg (id INTEGER PRIMARY KEY AUTOINCREMENT, bang TEXT, stt INTEGER DEFAULT 0, cols TEXT)",
 		"CREATE TABLE {$p}meta (k TEXT PRIMARY KEY, v TEXT)",
@@ -264,6 +265,15 @@ function vhcp_test_boot( $dir ) {
  * Nạp plugin THƯ VIỆN HỢP ĐỒNG (vhcp-hop-dong) — plugin riêng, chỉ nối sang app Apps Script.
  * Gọi SAU vhcp_test_boot() vì nó đọc bảng người dùng của plugin Vận hành chi phí.
  */
+function vhcc_test_boot( $dir ) {
+	define( 'VHCC_VERSION', 'test' );
+	define( 'VHCC_DIR', $dir . '/' );
+	define( 'VHCC_URL', 'http://example.test/plugin-cham-cong/' );
+	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang' ) as $c ) {
+		require_once $dir . '/includes/class-vhcc-' . $c . '.php';
+	}
+}
+
 function vhd_test_boot( $dir ) {
 	define( 'VHD_VERSION', 'test' );
 	define( 'VHD_DIR', $dir . '/' );

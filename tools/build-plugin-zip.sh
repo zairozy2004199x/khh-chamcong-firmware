@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Đóng gói plugin thành file .zip cài được qua wp-admin (Plugin → Cài mới → Tải plugin lên).
 #
-#   bash tools/build-plugin-zip.sh            -> đóng gói CẢ HAI plugin
+#   bash tools/build-plugin-zip.sh            -> đóng gói CẢ BA plugin
 #   bash tools/build-plugin-zip.sh chi-phi    -> chỉ Vận Hành Chi Phí
 #   bash tools/build-plugin-zip.sh hop-dong   -> chỉ Thư Viện Hợp Đồng
+#   bash tools/build-plugin-zip.sh cham-cong  -> chỉ Chấm Công
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -35,13 +36,15 @@ dong_goi() {
 case "$CHON" in
   chi-phi)  dong_goi "Vận Hành Chi Phí" vhcp-chi-phi ;;
   hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
+  cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
   tatca)
     dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
     dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong
+    dong_goi "Chấm Công" vhcp-cham-cong
     ;;
-  *) echo "Tham số không hiểu: $CHON (chi-phi | hop-dong | tatca)"; exit 1 ;;
+  *) echo "Tham số không hiểu: $CHON (chi-phi | hop-dong | cham-cong | tatca)"; exit 1 ;;
 esac
 
 echo
 echo "Cài lên hosting: wp-admin → Plugin → Cài mới → Tải plugin lên → chọn file → Cài đặt → Kích hoạt."
-echo "Hai plugin cài độc lập, cài cái nào trước cũng được."
+echo "Ba plugin cài độc lập, cài cái nào trước cũng được."
