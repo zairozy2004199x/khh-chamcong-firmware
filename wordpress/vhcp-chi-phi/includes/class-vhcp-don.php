@@ -88,8 +88,12 @@ class VHCP_Don {
 		$cp  = self::cp_rows();
 		$cfg = VHCP_Cfg::get_config( $cp );
 
-		$coso = array();
-		foreach ( $cfg['coso'] as $x ) { $coso[] = $x['ten']; }
+		$coso = array(); $coso_dong = array();
+		foreach ( $cfg['coso'] as $x ) {
+			$coso[] = $x['ten'];
+			// Gian đã đóng: gửi kèm để giao diện bỏ khỏi ô chọn lúc nhập
+			if ( trim( (string) ( isset( $x['dongCua'] ) ? $x['dongCua'] : '' ) ) !== '' ) { $coso_dong[] = $x['ten']; }
+		}
 		$nhom = array();
 		foreach ( $cfg['nhom'] as $x ) { $nhom[] = array( 'ten' => $x['ten'], 'loai' => $x['loai'], 'boPhan' => isset( $x['boPhan'] ) ? $x['boPhan'] : '' ); }
 		$pl = array();
@@ -124,6 +128,7 @@ class VHCP_Don {
 
 		return array(
 			'coso'       => $coso,
+			'cosoDong'   => $coso_dong,
 			'cosoPll'    => $coso_ml,
 			'tkNoMx'     => $mx,
 			'tenTk'      => $ten_tk,
@@ -502,6 +507,22 @@ class VHCP_Don {
 		if ( ! $truoc ) { return array( 'so' => 0, 'lyDo' => 'chưa có kỳ nào trước đó của ' . $nguoi ); }
 
 		$ky = (string) $truoc['ky'];
+
+		// ĐÓNG CỬA GIAN HÀNG LÀ HẾT LUÂN CHUYỂN. Kế toán làm lệnh đóng gian là đã tất toán
+		// hết bằng tiền với người ta; còn trừ tiếp sang kỳ sau là trừ hai lần một khoản.
+		$cs_truoc = trim( (string) $truoc['coso'] );
+		$ngay_dong = ( $cs_truoc !== '' ) ? VHCP_Cfg::coso_dong_cua( $cs_truoc ) : '';
+		if ( $ngay_dong !== '' ) {
+			return array(
+				'so'       => 0,
+				'donTruoc' => (string) $truoc['maDon'],
+				'kyTruoc'  => $ky,
+				'coSoDong' => $cs_truoc,
+				'lyDo'     => 'cơ sở "' . $cs_truoc . '" đã đóng cửa ngày ' . $ngay_dong
+					. ' — kế toán đã tất toán khi đóng gian, không luân chuyển nữa',
+			);
+		}
+
 		if ( ! empty( $truoc['tatToan'] ) ) {
 			return array(
 				'so'       => 0,
@@ -682,6 +703,14 @@ class VHCP_Don {
 		else { return VHCP_Util::err( 'Chỉ thêm hạng mục khi đơn "Nháp" (hạng mục xin) hoặc "Đã cấp tạm ứng" (phát sinh)' ); }
 		$loi = self::loi_khac_coso( $ma_don, isset( $rec['coso'] ) ? $rec['coso'] : '' );
 		if ( $loi !== '' ) { return VHCP_Util::err( $loi ); }
+		// Gian đã đóng thì không nhận chi mới — đóng gian là đã chốt sổ với cơ sở đó.
+		$cs_moi = trim( (string) ( isset( $rec['coso'] ) ? $rec['coso'] : '' ) );
+		if ( $cs_moi !== '' ) {
+			$nd = VHCP_Cfg::coso_dong_cua( $cs_moi );
+			if ( $nd !== '' ) {
+				return VHCP_Util::err( 'Cơ sở "' . $cs_moi . '" đã đóng cửa ngày ' . $nd . ' — không nhập chi phí mới cho gian đã đóng.' );
+			}
+		}
 		$rec['phatSinh'] = $ps;
 		$id   = VHCP_Util::uid( 'L' );
 		$data = self::line_data( $id, $ma_don, $rec );

@@ -942,7 +942,7 @@
     </div>
     <div class="card">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
     </div>
 
@@ -1387,6 +1387,10 @@
       var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
       var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
       var cosoOpts=(isNV&&myCoso.length)?myCoso:BOOT.coso;
+      // Gian ĐÃ ĐÓNG thì bỏ khỏi ô chọn — để đó thì nhân viên chọn rồi mới bị máy chủ chặn,
+      // vô ích. Gian đang mở của đơn đã có dòng vẫn giữ (đơn cũ vẫn xem/sửa được).
+      var dongRoi={}; (BOOT.cosoDong||[]).forEach(function(c){ dongRoi[String(c).trim().toLowerCase()]=1; });
+      cosoOpts=(cosoOpts||[]).filter(function(c){ return !dongRoi[String(c).trim().toLowerCase()]; });
       el('tuCoso').innerHTML=opts(cosoOpts); el('f_coso').innerHTML=opts(cosoOpts);
       if(isNV&&myCoso.length) el('f_coso').value=myCoso[0];
       // Vừa dựng lại ô chọn -> khóa lại theo cơ sở đã chốt của đơn đang mở, không thì
@@ -1745,8 +1749,20 @@
     if(el('reconBox')) el('reconBox').innerHTML=_reconTablesHtml(CUR,{people:false});   // banner cục + đã chi theo cơ sở
   }
   function guiDuyetTU(){ if(!CUR)return;
-    var _tu=CUR.tamUng||{}; if(!Object.keys(_tu).some(function(cs){return Number(_tu[cs])>0;})){ toast('warn','Chưa có hạng mục xin nào — nhập chi tiết hạng mục ở mục 1 (tạm ứng = tổng hạng mục) trước khi gửi xin tạm ứng'); return; }
-    if(!confirm('Gửi đơn để kế toán DUYỆT TẠM ỨNG?'))return;
+    // XIN TẠM ỨNG CHỈ CẦN CÓ SỐ: hoặc hạng mục, hoặc TẠM ỨNG DỰ PHÒNG. Nhiều tuần nhân
+    // viên chưa biết sẽ mua gì, chỉ xin một cục dự phòng — bắt liệt kê hạng mục trước là
+    // bắt họ khai bừa. Máy chủ vốn đã cho gửi khi dự phòng > 0; chỗ chặn nằm ở đây.
+    var _tu=CUR.tamUng||{};
+    var coHangMuc=Object.keys(_tu).some(function(cs){return Number(_tu[cs])>0;});
+    var coDuPhong=(Number(CUR.don&&CUR.don.duPhong)||0)>0;
+    if(!coHangMuc && !coDuPhong){
+      toast('warn','Chưa có số nào để xin — nhập hạng mục ở mục 1, hoặc nhập Tạm ứng dự phòng rồi bấm Lưu');
+      return;
+    }
+    var _hoi=coHangMuc
+      ? 'Gửi đơn xin tạm ứng để quản lý duyệt?'
+      : 'Đơn này chỉ xin TẠM ỨNG DỰ PHÒNG '+money(CUR.don.duPhong)+'đ, chưa liệt kê hạng mục.\nGửi xin tạm ứng?';
+    if(!confirm(_hoi))return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã gửi xin tạm ứng — chờ quản lý duyệt');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiDuyetTamUng(CUR.don.maDon);
@@ -4175,14 +4191,40 @@
     google.script.run.withSuccessHandler(function(r){loading(false); if(r&&r.success){_log('Sửa cấu hình', Object.keys(payload||{}).join(','), msg||''); toast('ok',msg); loadCfg(); boot();} else toast('err',(r&&r.error)||'Lỗi');})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).saveConfig(payload);
   }
+  /**
+   * LỆNH ĐÓNG / MỞ LẠI GIAN HÀNG (kế toán).
+   * Đóng gian: ghi ngày đóng, tất toán mọi đơn còn treo của gian đó, và từ đó KHÔNG luân
+   * chuyển bù trừ sang kỳ sau nữa (đã chốt bằng tiền lúc đóng).
+   */
+  function doDongCua(coso, dong){
+    var hoi=dong
+      ? ('ĐÓNG CỬA gian hàng "'+coso+'"?\n\n· Các đơn của gian này còn treo sẽ được đánh dấu ĐÃ TẤT TOÁN.\n· Kỳ sau KHÔNG còn luân chuyển bù trừ thừa/thiếu của gian này.\n· Gian này không nhập chi phí mới được nữa.')
+      : ('MỞ LẠI gian hàng "'+coso+'"?\n\nGian hoạt động lại, nhập chi phí và luân chuyển bù trừ bình thường. Các đơn đã đánh dấu tất toán vẫn giữ nguyên (tiền đã thu/bù thật).');
+    if(!confirm(hoi)) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r&&r.success){
+        toast('ok', dong?('Đã đóng gian "'+coso+'" ngày '+r.ngay+(r.soDonTatToan?(' · tất toán '+r.soDonTatToan+' đơn còn treo'):'')):('Đã mở lại gian "'+coso+'"'));
+        loadCfg(); boot();
+      } else toast('err',(r&&r.error)||'Không làm được lệnh này');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).dongCuaCoSo(coso, dong, (CURUSER&&CURUSER.name)||'');
+  }
   function renderCosoBody(){
     var plls={}; (CFG.coso||[]).forEach(function(x){ var v=String(x.phanLoaiLon||'').trim(); if(v) plls[v]=1; });
     if(el('dl_pll')) el('dl_pll').innerHTML=Object.keys(plls).sort().map(function(v){return '<option value="'+esc(v)+'">';}).join('');
-    var rowCoso=function(x){ return '<tr><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td>'+_delBtn()+'</tr>'; };
+    // Cột ĐÓNG CỬA: đóng gian là kế toán đã tất toán hết bằng tiền -> thôi luân chuyển bù
+    // trừ sang kỳ sau, và gian đó không nhận chi phí mới. Nút riêng chứ không phải ô nhập:
+    // lệnh này còn tất toán các đơn còn treo nên phải hỏi lại trước khi làm.
+    var rowCoso=function(x){
+      var dc=String(x.dongCua||'').trim();
+      var oDong=dc
+        ? '<span style="color:#b91c1c;font-weight:700">🔒 đóng '+esc(dc)+'</span> <button class="btn b-x" style="padding:4px 8px;font-size:11px" onclick="doDongCua(\''+esc(x.ten)+'\',false)">Mở lại</button>'
+        : '<button class="btn b-d" style="padding:5px 9px;font-size:11.5px" onclick="doDongCua(\''+esc(x.ten)+'\',true)">🔒 Đóng gian</button>';
+      return '<tr'+(dc?' style="background:#fef2f2"':'')+'><td>'+_inp(x.ten,'Tên thường gọi')+'</td><td>'+_inp(x.tenMisa,'Tên trong MISA')+'</td><td>'+_inp(x.maDonVi,'VD: FLMPT')+'</td><td><input value="'+esc(x.phanLoaiLon||'')+'" list="dl_pll" placeholder="Chọn/nhập (VD: FARM MN)" style="width:100%"></td><td style="white-space:nowrap">'+oDong+'</td>'+_delBtn()+'</tr>'; };
     var gr={}, ord=[]; (CFG.coso||[]).forEach(function(x){ var g=String(x.phanLoaiLon||'').trim()||'(Chưa phân loại)'; if(!gr[g]){gr[g]=[];ord.push(g);} gr[g].push(x); });
     ord.sort();
     el('cfgCosoBody').innerHTML=ord.map(function(g){
-      return '<tr><td colspan="5" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
+      return '<tr><td colspan="6" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
     }).join('');
     _csLock(true);
   }

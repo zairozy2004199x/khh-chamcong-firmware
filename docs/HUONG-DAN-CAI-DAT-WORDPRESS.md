@@ -602,6 +602,33 @@ biến mất. Nay nút **📎 Đính hóa đơn** còn dùng được ở mọi 
 **ngay** vào đơn thay vì chờ nút "Lưu nháp quyết toán" (đơn đã chốt thì không còn nút đó, chờ
 nó là ảnh vừa tải lên bay mất). Đường ghi ảnh này **không đụng số tiền nào** và có vào nhật ký.
 
+### Xin tạm ứng: chỉ cần dự phòng là gửi được (bản 1.11.0)
+
+Nhiều tuần nhân viên chưa biết sẽ mua gì, chỉ xin một cục **Tạm ứng dự phòng**. Bắt liệt kê
+hạng mục trước khi gửi là bắt khai bừa. Nay **có hạng mục HOẶC có dự phòng > 0** là gửi được;
+nếu chỉ có dự phòng thì hộp xác nhận nói rõ *"Đơn này chỉ xin TẠM ỨNG DỰ PHÒNG X đ, chưa liệt
+kê hạng mục"*. (Máy chủ vốn đã cho phép — chỗ chặn nằm ở giao diện.)
+
+### Lệnh đóng cửa gian hàng — hết luân chuyển bù trừ (bản 1.11.0)
+
+Đóng gian là lúc kế toán **tất toán hết bằng tiền**, nên từ đó không luân chuyển bù trừ sang
+kỳ sau nữa — không thì kỳ sau lại trừ tiếp một khoản đã thu xong.
+
+Bảng **⚙️ Cấu hình → 🏢 Mã đơn vị theo Cơ sở** có thêm cột **Đóng cửa gian hàng** với nút
+**🔒 Đóng gian**. Bấm vào, app hỏi lại rồi làm ba việc:
+
+1. ghi **ngày đóng** vào cơ sở đó;
+2. đánh dấu **đã tất toán** mọi đơn của gian còn treo;
+3. từ đó **bù trừ luân chuyển = 0** cho gian đó, kèm lý do *"cơ sở X đã đóng cửa ngày … —
+   kế toán đã tất toán khi đóng gian, không luân chuyển nữa"*.
+
+Gian đã đóng cũng **không nhận chi phí mới** (chặn ở máy chủ) và bị bỏ khỏi ô chọn Cơ sở lúc
+nhập. Đơn cũ của gian vẫn xem được bình thường. Cần mở lại thì bấm **Mở lại** — các đơn đã
+đánh dấu tất toán vẫn giữ nguyên vì tiền đã thu/bù thật.
+
+Lệnh này chỉ **Kế toán / Quản lý / Admin** gọi được (chặn ở cửa API). Mọi lần đóng/mở đều
+vào **Nhật ký**.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

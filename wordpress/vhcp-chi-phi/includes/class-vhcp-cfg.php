@@ -25,7 +25,9 @@ class VHCP_Cfg {
 
 	public static function headers( $bang ) {
 		$h = array(
-			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA' ),
+			// Cột "Đóng cửa": ngày kế toán làm lệnh đóng gian hàng. Đóng rồi thì thôi luân
+			// chuyển bù trừ sang kỳ sau — lúc đóng là đã tất toán bằng tiền.
+			self::COSO  => array( 'Cơ sở', 'Mã đơn vị', 'Phân loại lớn', 'Tên MISA', 'Đóng cửa' ),
 			self::NHOM  => array( 'Nhóm mặt hàng', 'Loại', 'TK Nợ', 'Bộ phận' ),
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
@@ -40,6 +42,71 @@ class VHCP_Cfg {
 		if ( isset( $h[ $bang ] ) ) { return $h[ $bang ]; }
 		if ( $bang === self::QUYEN ) { return array_merge( array( 'Mã', 'Hành động' ), self::roles() ); }
 		return array();
+	}
+
+	/**
+	 * CƠ SỞ ĐÃ ĐÓNG CỬA CHƯA (và đóng ngày nào).
+	 *
+	 * Đóng gian hàng là lúc kế toán tất toán hết bằng tiền, nên từ đó KHÔNG luân chuyển
+	 * bù trừ sang kỳ sau nữa — không thì kỳ sau lại trừ tiếp một khoản đã thu xong.
+	 *
+	 * @return string ngày đóng (dd/MM/yyyy) · '' nếu còn hoạt động
+	 */
+	public static function coso_dong_cua( $ten ) {
+		$k = mb_strtolower( trim( (string) $ten ) );
+		if ( $k === '' ) { return ''; }
+		foreach ( self::cfg_static()['coso'] as $x ) {
+			if ( mb_strtolower( trim( (string) $x['ten'] ) ) === $k ) {
+				return isset( $x['dongCua'] ) ? trim( (string) $x['dongCua'] ) : '';
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * LỆNH ĐÓNG / MỞ LẠI GIAN HÀNG (việc của kế toán).
+	 *
+	 * Đóng: ghi ngày đóng, và đánh dấu TẤT TOÁN mọi đơn của cơ sở đó chưa tất toán — đóng
+	 * gian là chốt sổ với người ta, nên không còn gì luân chuyển. Mở lại: xóa ngày đóng
+	 * (không tự bỏ đánh dấu tất toán, vì tiền đã thu/bù thật rồi).
+	 *
+	 * @return array [ 'coso', 'ngay', 'soDonTatToan' ]
+	 */
+	public static function dong_cua_coso( $ten, $dong = true, $nguoi = '' ) {
+		$ten = trim( (string) $ten );
+		if ( $ten === '' ) { return VHCP_Util::err( 'Chọn cơ sở' ); }
+		$k = mb_strtolower( $ten );
+
+		$rows = array(); $thay = false;
+		$ngay = $dong ? VHCP_Util::now()->format( 'd/m/Y' ) : '';
+		foreach ( self::read( self::COSO ) as $r ) {
+			$row = array_slice( array_values( (array) $r ), 0, 5 );
+			for ( $i = count( $row ); $i < 5; $i++ ) { $row[ $i ] = ''; }
+			if ( trim( (string) $row[0] ) === '' ) { continue; }
+			if ( mb_strtolower( trim( (string) $row[0] ) ) === $k ) { $row[4] = $ngay; $thay = true; }
+			$rows[] = $row;
+		}
+		if ( ! $thay ) { return VHCP_Util::err( 'Không thấy cơ sở "' . $ten . '" trong bảng cơ sở' ); }
+		self::write( self::COSO, $rows );
+		self::clear_cache();
+
+		// Đóng gian thì chốt luôn các đơn còn treo của gian đó
+		$n = 0;
+		if ( $dong ) {
+			foreach ( VHCP_Don::list_dons() as $d ) {
+				if ( mb_strtolower( trim( (string) $d['coso'] ) ) !== $k ) { continue; }
+				if ( ! empty( $d['tatToan'] ) ) { continue; }
+				VHCP_Don::set_tat_toan_tuan( $d['maDon'], true, ( $nguoi !== '' ? $nguoi : 'Đóng gian hàng' ) );
+				$n++;
+			}
+		}
+		VHCP_Log::log_action( array(
+			'actor'  => (string) $nguoi,
+			'action' => $dong ? 'Đóng cửa gian hàng' : 'Mở lại gian hàng',
+			'target' => $ten,
+			'detail' => $dong ? ( 'ngày ' . $ngay . ' · tất toán ' . $n . ' đơn còn treo' ) : 'bỏ ngày đóng',
+		) );
+		return VHCP_Util::ok( array( 'coso' => $ten, 'ngay' => $ngay, 'soDonTatToan' => $n ) );
 	}
 
 	/** Danh sách cơ sở mặc định (COSO_LIST của app cũ). */
@@ -203,7 +270,7 @@ class VHCP_Cfg {
 	private static function seed_from( $all ) {
 		$did = false;
 		if ( ! count( self::rows_of( $all, self::COSO ) ) ) {
-			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '' ) ); }
+			foreach ( self::default_coso() as $c ) { self::append( self::COSO, array( $c, '', '', '', '' ) ); }
 			$did = true;
 		}
 		if ( ! count( self::rows_of( $all, self::NHOM ) ) ) {
@@ -267,7 +334,7 @@ class VHCP_Cfg {
 
 		foreach ( self::rows_of( $all, self::COSO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => $r[1], 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3] );
+			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => $r[1], 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '' );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -376,7 +443,24 @@ class VHCP_Cfg {
 
 		if ( isset( $cfg['coso'] ) && is_array( $cfg['coso'] ) ) {
 			$rows = array();
-			foreach ( $cfg['coso'] as $x ) { $x = (array) $x; $rows[] = array( $g( $x, 'ten' ), $g( $x, 'maDonVi' ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ) ); }
+			// Giữ lại ngày ĐÓNG CỬA khi dữ liệu gửi lên không mang theo — bảng cơ sở trên
+			// giao diện không có cột đó, lưu bảng là mất trạng thái đóng của mọi gian.
+			$dong_cu = array();
+			foreach ( self::read( self::COSO ) as $r0 ) {
+				$r0 = array_values( (array) $r0 );
+				$t0 = isset( $r0[0] ) ? mb_strtolower( trim( (string) $r0[0] ) ) : '';
+				if ( $t0 !== '' && isset( $r0[4] ) && trim( (string) $r0[4] ) !== '' ) { $dong_cu[ $t0 ] = (string) $r0[4]; }
+			}
+			foreach ( $cfg['coso'] as $x ) {
+				$x  = (array) $x;
+				$tn = $g( $x, 'ten' );
+				$dc = $g( $x, 'dongCua' );
+				if ( $dc === '' && ! array_key_exists( 'dongCua', $x ) ) {
+					$k0 = mb_strtolower( trim( $tn ) );
+					if ( isset( $dong_cu[ $k0 ] ) ) { $dc = $dong_cu[ $k0 ]; }
+				}
+				$rows[] = array( $tn, $g( $x, 'maDonVi' ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc );
+			}
 			self::write( self::COSO, $rows );
 		}
 		if ( isset( $cfg['nhom'] ) && is_array( $cfg['nhom'] ) ) {

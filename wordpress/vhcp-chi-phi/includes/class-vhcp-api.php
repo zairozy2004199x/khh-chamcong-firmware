@@ -28,7 +28,7 @@ class VHCP_API {
 		$nguoi_duyet = array(
 			'duyetTamUng', 'capTamUng', 'duyetTamUngNhieu', 'capTamUngNhieu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
-			'xacNhanQtCnNhieu', 'dayChoKeToan', 'setTatToanTuan', 'setSoDuDauKy',
+			'xacNhanQtCnNhieu', 'dayChoKeToan', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
 			'setLineThucMua', 'setLineCN',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
@@ -151,6 +151,7 @@ class VHCP_API {
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),
 			'resetQuyen'            => array( 'VHCP_Cfg', 'reset_quyen' ),
+			'dongCuaCoSo'           => array( 'VHCP_Cfg', 'dong_cua_coso' ),
 
 			// đơn vận hành
 			'listDons'              => array( 'VHCP_Don', 'list_dons' ),

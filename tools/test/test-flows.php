@@ -2034,6 +2034,65 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ------------------------------- ĐÓNG CỬA GIAN HÀNG THÌ HẾT LUÂN CHUYỂN BÙ TRỪ
+// Kế toán làm lệnh đóng gian là đã tất toán hết bằng tiền; còn trừ tiếp sang kỳ sau là trừ
+// hai lần một khoản.
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'FARM PHAN THIẾT', 'maDonVi' => 'FARM_PT', 'phanLoaiLon' => 'FARM', 'tenMisa' => 'Farm Phan Thiết' ),
+	array( 'ten' => 'TÀU TÂN PHÚ', 'maDonVi' => 'TAU_TP', 'phanLoaiLon' => 'TAU', 'tenMisa' => 'Tàu Tân Phú' ),
+	array( 'ten' => 'GIAN SẼ ĐÓNG', 'maDonVi' => 'GD', 'phanLoaiLon' => 'FARM', 'tenMisa' => 'Gian sẽ đóng' ),
+) ) );
+teq( 'gian mới thì chưa đóng', '', VHCP_Cfg::coso_dong_cua( 'GIAN SẼ ĐÓNG' ) );
+
+$d_c1 = VHCP_Don::create_don( 'T9/2026 (15/9-21/9/2026)', 'NV Gian Đóng' );
+$mc1  = $d_c1['maDon'];
+VHCP_Don::add_line( $mc1, array( 'coso' => 'GIAN SẼ ĐÓNG', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Mua đồ', 'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mc1 );
+VHCP_Don::duyet_tam_ung( $mc1, 'Trần Quản Lý', '' );
+VHCP_Don::cap_tam_ung( $mc1, 'Lê Kế Toán', 'Tiền mặt' );
+// còn dư: tạm ứng 1.000.000, thực mua 600.000
+VHCP_Don::set_line_thuc_mua( VHCP_Don::get_don( $mc1 )['lines'][0]['id'], 600000, 'Lê Kế Toán' );
+
+$d_c2 = VHCP_Don::create_don( 'T9/2026 (22/9-28/9/2026)', 'NV Gian Đóng' );
+$mc2  = $d_c2['maDon'];
+teq( 'chưa đóng gian thì kỳ sau bị trừ phần dư', -400000, VHCP_Util::num( VHCP_Don::get_don( $mc2 )['don']['buTru'] ) );
+
+$dc = VHCP_Cfg::dong_cua_coso( 'GIAN SẼ ĐÓNG', true, 'Lê Kế Toán' );
+t( 'kế toán đóng được gian hàng', ! empty( $dc['success'] ), $dc );
+t( 'ghi lại ngày đóng', VHCP_Cfg::coso_dong_cua( 'GIAN SẼ ĐÓNG' ) !== '' );
+t( 'tất toán luôn đơn còn treo của gian', (int) $dc['soDonTatToan'] >= 1, $dc );
+$g_c2 = VHCP_Don::get_don( $mc2 );
+teq( 'đóng gian rồi thì bù trừ về 0', 0, VHCP_Util::num( $g_c2['don']['buTru'] ) );
+t( 'và nói rõ vì đã đóng cửa', strpos( (string) $g_c2['don']['buTruAuto']['lyDo'], 'đã đóng cửa' ) !== false, $g_c2['don']['buTruAuto'] );
+
+$them = VHCP_Don::add_line( $mc2, array( 'coso' => 'GIAN SẼ ĐÓNG', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Chi thêm', 'soLuong' => 1, 'donGia' => 1, 'thanhTien' => 1 ) );
+t( 'gian đã đóng thì không nhận chi mới', empty( $them['success'] ) );
+t( 'câu báo nêu ngày đóng', strpos( (string) $them['error'], 'đã đóng cửa ngày' ) !== false, $them );
+
+// getBootstrap gửi kèm danh sách gian đã đóng để giao diện bỏ khỏi ô chọn
+$bs_dong = VHCP_Don::get_bootstrap();
+t( 'bootstrap báo gian đã đóng', in_array( 'GIAN SẼ ĐÓNG', (array) $bs_dong['cosoDong'], true ), $bs_dong['cosoDong'] );
+t( 'gian còn mở không nằm trong đó', ! in_array( 'TÀU TÂN PHÚ', (array) $bs_dong['cosoDong'], true ) );
+
+t( 'mở lại gian được', ! empty( VHCP_Cfg::dong_cua_coso( 'GIAN SẼ ĐÓNG', false, 'Lê Kế Toán' )['success'] ) );
+teq( 'mở lại thì xóa ngày đóng', '', VHCP_Cfg::coso_dong_cua( 'GIAN SẼ ĐÓNG' ) );
+VHCP_Don::delete_don_admin( $mc1 );
+VHCP_Don::delete_don_admin( $mc2 );
+
+// ------------------------------- XIN TẠM ỨNG CHỈ CẦN DỰ PHÒNG, KHÔNG BẮT LIỆT KÊ HẠNG MỤC
+// Nhiều tuần nhân viên chưa biết sẽ mua gì, chỉ xin một cục dự phòng. Bắt liệt kê hạng mục
+// trước khi gửi là bắt họ khai bừa.
+$d_dp = VHCP_Don::create_don( 'T9/2026 (8/9-14/9/2026)', 'NV Chỉ Dự Phòng' );
+$ma_dp = $d_dp['maDon'];
+t( 'chưa có gì thì không gửi được', empty( VHCP_Don::gui_duyet_tam_ung( $ma_dp )['success'] ) );
+t( 'nhập dự phòng', ! empty( VHCP_Don::set_du_phong( $ma_dp, 5000000 )['success'] ) );
+$g_dp = VHCP_Don::get_don( $ma_dp );
+teq( 'không có hạng mục nào', 0, count( $g_dp['lines'] ) );
+teq( 'tạm ứng = dự phòng', 5000000, $g_dp['tongCN']['tamUng'] );
+t( 'CHỈ dự phòng vẫn gửi xin tạm ứng được', ! empty( VHCP_Don::gui_duyet_tam_ung( $ma_dp )['success'] ) );
+teq( 'đơn sang chờ duyệt', 'Chờ duyệt tạm ứng', VHCP_Don::don_row( $ma_dp )['trang_thai'] );
+VHCP_Don::delete_don_admin( $ma_dp );
+
 // ------------------------------- NHÂN VIÊN CHỈ THẤY / SỬA ĐƠN CỦA CHÍNH MÌNH
 // Đã gặp cảnh một Nhân viên thấy tab Duyệt tạm ứng với đơn của MỌI NGƯỜI kèm nút
 // "Gửi tạm ứng" — do bảng phân quyền nạp từ bảng tính cũ bị lệch. Chặn ở MÁY CHỦ.
