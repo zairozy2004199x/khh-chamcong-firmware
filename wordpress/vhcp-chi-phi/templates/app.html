@@ -2743,7 +2743,11 @@
       _tqCard(chuaGan?'#fef2f2':'#f1f5f9', chuaGan?'#fecaca':'#cbd5e1', chuaGan?'#991b1b':'#334155','⚠ Chưa gắn mã', String(chuaGan)+' dòng', chuaGan?(money(tienChuaGan)+'đ chưa dò được'):'không còn dòng nào');
 
     var w=el('tmWarn'), msg=[];
-    if(chuaGan) msg.push('<b>'+chuaGan+' dòng chưa có mã tài khoản</b> nên KHÔNG hiện khi tra theo mã: '+(r.thieuMa||[]).map(function(x){return _tmName(x.mang)+' · '+esc(x.loai)+' ('+x.n+' dòng)';}).join(' · '));
+    // Ghi luôn SỐ TIỀN của từng loại còn thiếu mã (danh sách đã sắp tiền nhiều trước):
+    // khai mã theo thứ tự này là dọn được phần lớn số tiền chỉ với vài dòng đầu.
+    if(chuaGan) msg.push('<b>'+chuaGan+' dòng chưa có mã tài khoản</b> ('+money(tienChuaGan)+'đ) nên KHÔNG hiện khi tra theo mã.'
+      +' Khai mã lần lượt từ trên xuống — tiền nhiều xếp trước: '
+      +(r.thieuMa||[]).map(function(x){return _tmName(x.mang)+' · <b>'+esc(x.loai)+'</b> — '+money(x.tien)+'đ ('+x.n+' dòng)';}).join(' · '));
     if(maCu) msg.push('<b>'+maCu+' dòng còn dùng mã cũ</b> (Nợ 141 / Có 331-64125) vì chưa chọn loại chi phí: '+(r.maCu||[]).map(function(x){return _tmName(x.mang)+' ('+x.n+')';}).join(' · ')+'. Vào ⚙️ Cấu hình → 🧮 bảng Loại chi phí → <b>🔗 Gán mã cho dòng cũ</b>, hoặc mở tab của mảng đó chọn loại cho từng dòng.');
     if(msg.length){ w.style.display='block'; w.innerHTML='• '+msg.join('<br>• '); } else w.style.display='none';
 
