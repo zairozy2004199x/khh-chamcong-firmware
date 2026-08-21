@@ -2289,6 +2289,51 @@ $ds_hd = VHCP_HopDong::list_hd();
 t( 'listHopDong gửi kèm danh sách cơ sở của cấu hình', ! empty( $ds_hd['cosoCfg'] ) );
 t( 'cơ sở chưa có hợp đồng nào vẫn chọn được', in_array( 'FARM PHAN THIẾT', $ds_hd['cosoCfg'], true ), $ds_hd['cosoCfg'] );
 
+// NẠP THƯ VIỆN HỢP ĐỒNG CŨ từ bảng danh sách (Excel / Google Sheet)
+$csv_hd = "Số HĐ,Tên hợp đồng,Đối tác,Cơ sở,Loại HĐ,Ngày ký,Ngày hết hạn,Giá trị hợp đồng,Người phụ trách,Ghi chú,Link hợp đồng\n"
+	. "HD-2024-001,Thuê mặt bằng FUNZONE Vũng Tàu,Cty Mặt Bằng,FUNZONE VŨNG TÀU,Thuê mặt bằng,01/03/2024,28/02/2027,1.200.000.000,Chị Nhân,Trả theo quý,https://x.test/a.pdf\n"
+	. "HD-2024-002,Cung cấp điện nước,Cty Điện Nước,FARM PHAN THIẾT,Dịch vụ,15/05/2024,,5.6E7,Anh Quân,,\n"
+	. ",,,,,,,,,,\n"
+	. "HD-2024-003,Ngày lộn xộn,Đối tác X,,Khác,01/06/2024,01/01/2024,10.000.000,,,\n";
+$imp_hd = VHCP_Import::run( 'TD_HopDong', $csv_hd, array( 'header' => true ) );
+t( 'nạp được bảng hợp đồng', ! empty( $imp_hd['success'] ), $imp_hd );
+teq( 'nạp 2 hợp đồng hợp lệ', 2, $imp_hd['inserted'] );
+// Dòng rỗng đã bị bộ khớp tiêu đề lọc trước, nên chỉ còn dòng ngày lộn bị bỏ ở đây
+teq( 'bỏ dòng có ngày hết hạn trước ngày ký', 1, $imp_hd['skipped'] );
+t( 'báo rõ lý do bỏ dòng', count( $imp_hd['loiDong'] ) === 1 && strpos( $imp_hd['loiDong'][0], 'HD-2024-003' ) === 0, $imp_hd['loiDong'] );
+teq( 'đếm HĐ không có ngày hết hạn', 1, $imp_hd['khongHan'] );
+// Số kiểu khoa học của .xlsx ("5.6E7") phải ra 56 triệu, không phải 5,6
+teq( 'tổng giá trị đọc đúng', 1256000000.0, (float) $imp_hd['tongTien'] );
+
+$ds_nap = VHCP_HopDong::list_hd( array( 'q' => 'HD-2024-00' ) );
+$hd_thue = null;
+foreach ( $ds_nap['items'] as $x ) { if ( $x['soHD'] === 'HD-2024-001' ) { $hd_thue = $x; } }
+t( 'tìm lại được hợp đồng vừa nạp', $hd_thue !== null );
+teq( 'ngày ký đúng', '2024-03-01', $hd_thue['ngayKySql'] );
+teq( 'ngày hết hạn đúng', '2027-02-28', $hd_thue['ngayHetSql'] );
+teq( 'giá trị đúng', 1200000000.0, (float) $hd_thue['giaTri'] );
+teq( 'cơ sở đúng', 'FUNZONE VŨNG TÀU', $hd_thue['coso'] );
+teq( 'file đính kèm nạp theo', 1, count( $hd_thue['files'] ) );
+
+// NẠP LẠI CÙNG FILE: phải cập nhật chính hợp đồng đó, không sinh bản thứ hai
+$truoc = VHCP_HopDong::list_hd()['dem']['tong'];
+$imp_hd2 = VHCP_Import::run( 'TD_HopDong', $csv_hd, array( 'header' => true ) );
+teq( 'nạp lại vẫn ghi được 2 dòng', 2, $imp_hd2['inserted'] );
+teq( 'nạp lại KHÔNG sinh hợp đồng trùng', $truoc, VHCP_HopDong::list_hd()['dem']['tong'] );
+
+// Tự dò: tab hợp đồng phải được nhận ra đúng, không lẫn với sổ chi phí
+$dong_hd = array(
+	array( 'Số HĐ', 'Tên hợp đồng', 'Đối tác', 'Cơ sở', 'Ngày ký', 'Ngày hết hạn', 'Giá trị hợp đồng' ),
+	array( 'HD-1', 'Thuê kho', 'Cty A', 'FARM PHAN THIẾT', '01/01/2025', '31/12/2025', '100000' ),
+);
+teq( 'tự dò ra bảng hợp đồng', 'hopdong', VHCP_Nap::doan_bang( $dong_hd )['bang'] );
+// và ngược lại: tab sổ chi phí KHÔNG bị nhận thành hợp đồng
+$dong_sc = array(
+	array( 'Ngày', 'Cơ sở', 'Loại chi phí', 'Nội dung', 'Số tiền', 'Hình thức chi', 'Ghi chú' ),
+	array( '01/01/2025', 'FARM PHAN THIẾT', 'Điện nước', 'Tiền điện', '500000', 'Tiền mặt', '' ),
+);
+teq( 'tab sổ chi phí vẫn ra sổ chi phí', 'sochi', VHCP_Nap::doan_bang( $dong_sc )['bang'] );
+
 require_once dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-hdapp.php';
 teq( 'đường dẫn riêng mặc định', 'hop-dong', VHCP_HDApp::slug() );
 $GLOBALS['VHCP_OPT']['vhcp_slug_hd'] = 'thu-vien-hd';

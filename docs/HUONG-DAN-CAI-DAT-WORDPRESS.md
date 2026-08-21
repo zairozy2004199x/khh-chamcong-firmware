@@ -793,6 +793,54 @@ xem hợp đồng"*, và cửa API trả **403** kể cả khi gọi thẳng.
 
 Bảng dữ liệu mới `vhcp_hopdong` (schema 1.4.0) — plugin tự tạo khi kích hoạt bản này.
 
+#### Mang thư viện hợp đồng cũ sang (bản 1.17.0)
+
+Thư viện hợp đồng cũ chạy trên Apps Script, dữ liệu nằm ở một **bảng tính Google riêng** (không
+phải workbook chi phí). Nạp sang bằng đúng bộ nạp đang dùng cho các bảng khác:
+
+1. Mở bảng tính của app hợp đồng cũ → **Chia sẻ → Bất kỳ ai có đường liên kết → Người xem**.
+2. wp-admin → **Vận Hành Chi Phí → Nạp từ Google Sheet** → dán link → **tick "Chỉ thử, chưa
+   ghi"** → Nạp. Báo cáo sẽ nói tab nào được nhận là *thư viện hợp đồng*, bao nhiêu dòng, **TỔNG
+   GIÁ TRỊ** là bao nhiêu.
+3. Đọc báo cáo thấy đúng thì bỏ tick "Chỉ thử" và nạp thật.
+
+Hoặc tải bảng tính về `.xlsx` rồi vào **Nạp dữ liệu**, chọn loại
+**★ Tự dò tiêu đề — THƯ VIỆN HỢP ĐỒNG**.
+
+**Cột nào cũng nhận theo TÊN, không theo thứ tự** — mỗi cột có nhiều cách gọi:
+
+| Trường | Tên cột nhận được |
+|---|---|
+| Số HĐ | Số hợp đồng · Số HĐ · Mã hợp đồng · Mã HĐ |
+| Tên | Tên hợp đồng · Tên HĐ · Nội dung hợp đồng · Tên |
+| Đối tác | Đối tác · Nhà cung cấp · NCC · Bên B · Chủ nhà · Khách hàng |
+| Cơ sở | Cơ sở · Gian/Cơ sở · Gian · Gian hàng |
+| Loại HĐ | Loại hợp đồng · Loại HĐ |
+| Ngày ký | Ngày ký · Ngày hiệu lực · Từ ngày · Ngày bắt đầu |
+| Ngày hết hạn | Ngày hết hạn · Hết hạn · Đến ngày · Ngày kết thúc · Ngày đáo hạn |
+| Giá trị | Giá trị hợp đồng · Giá trị HĐ · Giá trị · Tiền thuê · Giá thuê |
+| Người phụ trách | Người phụ trách · Người theo dõi · Phụ trách |
+| File | File hợp đồng · Link hợp đồng · Bản scan · Link file · Tệp đính kèm |
+
+Thiếu cột nào thì để trống cột đó, báo cáo liệt kê rõ cột nào app không thấy và cột nào app
+không dùng — không đoán bừa.
+
+**Mấy chỗ đã lường trước khi nạp:**
+
+- **Nạp lại cùng file không sinh bản trùng**: dòng nào có số HĐ đã tồn tại thì **sửa** chính hợp
+  đồng đó. Nạp bao nhiêu lần cũng ra một bản.
+- **Giá trị viết kiểu bảng tính** — `1.200.000.000` hay `5.6E7` — đều đọc đúng. (Để nguyên chuỗi
+  thì cột giá trị vào database thành rỗng mà không có gì báo; phép thử canh chỗ này.)
+- **Dòng có ngày hết hạn trước ngày ký bị bỏ**, và báo cáo ghi rõ số HĐ nào bỏ vì lý do gì.
+- **Đếm số HĐ không có ngày hết hạn** — những cái đó vĩnh viễn không được nhắc hạn, nên báo để
+  còn bổ sung.
+- Dòng không có cả tên và số HĐ (dòng rỗng, dòng tổng) bị bỏ, không tạo hợp đồng rỗng.
+- Cột file nhận **nhiều đường dẫn** trên một dòng (cách nhau bằng dấu phẩy hoặc xuống dòng); chỉ
+  nhận `http(s)://`. File vẫn nằm ở Drive cũ — muốn nằm trên hosting thì tải lên lại từ trang
+  hợp đồng.
+- Tick **"Xóa dữ liệu cũ trước khi nạp"** ở đây sẽ **xóa sạch thư viện hợp đồng** (kể cả hợp đồng
+  nhập tay) rồi nạp lại. Không tick thì chỉ thêm/sửa.
+
 **Đường dẫn `/hop-dong/` báo 404 sau khi cập nhật?** Bình thường thì không: từ bản 1.16.0, hễ đổi
 phiên bản plugin là bảng đường dẫn tự nạp lại. Nếu vẫn 404 thì vào **Bảo trì → làm mới đường
 dẫn**, hoặc **Cài đặt → Lưu**.
@@ -837,12 +885,12 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 (dựng $wpdb tối giản trên SQLite):
 
 ```bash
-php tools/test/test-flows.php              # 824 phép thử (không cần WordPress — chạy trên SQLite)
+php tools/test/test-flows.php              # 840 phép thử (không cần WordPress — chạy trên SQLite)
 node tools/test/test-nhom-chi-phi.js       # 18 phép thử: loại chi phí thuộc nhóm nào
 node tools/test/test-trang-hopdong.js      # 29 phép thử: trang /hop-dong/ đứng riêng được
 ```
 
-824 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+840 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
