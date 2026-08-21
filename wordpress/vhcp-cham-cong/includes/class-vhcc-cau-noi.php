@@ -35,7 +35,10 @@ class VHCC_CauNoi {
 		$tho = trim( (string) get_option( 'vhcc_exec_url', '' ) );
 		if ( $tho === '' ) { return ''; }
 		$ch = self::chuan_hoa_url( $tho );
-		if ( $ch['url'] !== $tho ) { update_option( 'vhcc_exec_url', $ch['url'] ); }
+		if ( $ch['url'] !== $tho ) {
+			update_option( 'vhcc_exec_url', $ch['url'] );
+			if ( $ch['mien'] !== '' ) { update_option( 'vhcc_exec_mien', $ch['mien'] ); }
+		}
 		return $ch['url'];
 	}
 
@@ -63,8 +66,10 @@ class VHCC_CauNoi {
 		$sua = array();
 		if ( $url === '' ) { return array( 'url' => '', 'sua' => $sua ); }
 
+		$mien = '';
 		if ( preg_match( '#^(https://script\.google\.com)/a/macros/([^/]+)(/s/.+)$#', $url, $m ) ) {
 			$url   = $m[1] . '/macros' . $m[3];
+			$mien  = $m[2];
 			$sua[] = 'Đã bỏ đoạn <code>/a/macros/' . esc_html( $m[2] ) . '</code> khỏi địa chỉ. '
 				. 'Dạng đó đòi người gọi đăng nhập bằng tài khoản ' . esc_html( $m[2] )
 				. ', mà WordPress gọi máy-với-máy nên Google trả <code>400 Bad Request</code>. '
@@ -85,7 +90,11 @@ class VHCC_CauNoi {
 				. 'Deploy → Manage deployments.';
 		}
 
-		return array( 'url' => $url, 'sua' => $sua );
+		/* Trả kèm tên miền Workspace đã cắt: cắt xong là thông tin đó MẤT khỏi địa chỉ, mà phép
+		   chẩn đoán lại cần nó để thử dạng theo tên miền. Đoán theo tên miền của website là sai —
+		   tên miền Google Workspace không nhất thiết trùng tên miền trang web. Phép thử ca "bản
+		   triển khai bị giới hạn" đã bắt được đúng chỗ này. */
+		return array( 'url' => $url, 'sua' => $sua, 'mien' => $mien );
 	}
 	public static function khoa() { return trim( (string) get_option( 'vhcc_web_key', '' ) ); }
 
@@ -161,6 +170,98 @@ class VHCC_CauNoi {
 	/** Thử cầu nối (dùng ở trang Cài đặt). */
 	public static function thu() {
 		return self::goi( '__ping' );
+	}
+
+	/**
+	 * CHẨN ĐOÁN ĐỊA CHỈ — thử cả hai dạng bằng GET trơn, nói rõ mỗi dạng trả về gì.
+	 *
+	 * 🔴 VÌ SAO CẦN: `400 Bad Request` của Google là lỗi ở CỔNG VÀO của Google, tức là yêu cầu
+	 *    CHƯA TỚI được script. Nên mọi phỏng đoán kiểu "chưa dán CauNoiChamCong" hay "sai
+	 *    WEB_KEY" đều vô nghĩa — script chưa hề chạy. Mà một câu 400 thì không nói được là
+	 *    bản triển khai sai, hay bản triển khai không cho người ngoài gọi.
+	 *
+	 *    Phân biệt được bằng cách thử CẢ HAI dạng địa chỉ trên cùng một mã triển khai:
+	 *      · dạng `/a/macros/<tên miền>/` đòi đăng nhập  + dạng rút gọn trả 400
+	 *          -> bản triển khai bị giới hạn theo tên miền. Phải đặt "Who has access" = Anyone.
+	 *      · dạng rút gọn trả HTML của app
+	 *          -> địa chỉ tốt, lỗi nằm ở chỗ khác (chưa dán cầu nối / sai khoá / chưa Deploy).
+	 *      · cả hai đều 400
+	 *          -> mã triển khai không tồn tại, hoặc đó không phải bản triển khai Web app.
+	 *
+	 * Dùng GET chứ không POST: chỉ cần biết cổng vào có mở không, mà GET thì không chạm gì tới
+	 * dữ liệu. Máy chấm công không liên quan — nó POST bằng địa chỉ riêng của nó.
+	 */
+	public static function chan_doan() {
+		$url = self::url();
+		if ( $url === '' ) { return array( 'ok' => false, 'error' => 'Chưa khai địa chỉ /exec.' ); }
+
+		if ( ! preg_match( '#/s/([^/]+)/(exec|dev)#', $url, $m ) ) {
+			return array( 'ok' => false, 'error' => 'Địa chỉ không có dạng .../s/<mã triển khai>/exec.' );
+		}
+		$ma = $m[1];
+
+		$dang = array(
+			'rút gọn (gọi ẩn danh được)' => 'https://script.google.com/macros/s/' . $ma . '/exec',
+		);
+		/* Dạng theo tên miền chỉ thử được khi biết tên miền — lấy từ chính địa chỉ anh đã dán,
+		   hoặc từ tên miền của site này. */
+		$mien = trim( (string) get_option( 'vhcc_exec_mien', '' ) );
+		if ( $mien !== '' ) {
+			/* Đã nhớ từ lúc cắt — nguồn đúng nhất. */
+		} elseif ( preg_match( '#/a/macros/([^/]+)/#', self::url_tho(), $m2 ) ) {
+			$mien = $m2[1];
+		} else {
+			$h = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+			$mien = is_string( $h ) ? preg_replace( '/^www\./', '', $h ) : '';
+		}
+		if ( $mien !== '' ) {
+			$dang[ 'theo tên miền ' . $mien ] = 'https://script.google.com/a/macros/' . $mien
+				. '/s/' . $ma . '/exec';
+		}
+
+		$ra = array();
+		foreach ( $dang as $ten => $u ) {
+			$r = wp_remote_get( $u, array( 'timeout' => 25, 'redirection' => 5 ) );
+			if ( is_wp_error( $r ) ) {
+				$ra[] = array( 'ten' => $ten, 'ma' => 0, 'ket' => 'không gọi được: ' . $r->get_error_message() );
+				continue;
+			}
+			$code = (int) wp_remote_retrieve_response_code( $r );
+			$body = (string) wp_remote_retrieve_body( $r );
+			$ket  = 'HTML lạ';
+			if ( stripos( $body, 'accounts.google.com' ) !== false || stripos( $body, 'Sign in' ) !== false
+				|| stripos( $body, 'ServiceLogin' ) !== false ) {
+				$ket = 'ĐÒI ĐĂNG NHẬP Google';
+			} elseif ( $code === 400 ) {
+				$ket = 'Google chối ở cổng vào (400) — yêu cầu chưa tới script';
+			} elseif ( $code === 200 ) {
+				$ket = 'TRẢ VỀ TRANG CỦA APP (' . strlen( $body ) . ' byte) — cổng vào mở';
+			}
+			$ra[] = array( 'ten' => $ten, 'ma' => $code, 'ket' => $ket );
+		}
+
+		/* Kết luận — chỗ này là toàn bộ giá trị của phép chẩn đoán. Bảng số liệu mà không kèm
+		   câu "vậy phải làm gì" thì lại thành một việc nữa để đoán. */
+		$mo    = false;
+		$doi_dn = false;
+		foreach ( $ra as $x ) {
+			if ( strpos( $x['ket'], 'cổng vào mở' ) !== false ) { $mo = true; }
+			if ( strpos( $x['ket'], 'ĐÒI ĐĂNG NHẬP' ) !== false ) { $doi_dn = true; }
+		}
+		if ( $mo ) {
+			$kl = 'Địa chỉ TỐT — cổng vào của Google mở. Lỗi nằm ở bên trong: chưa dán '
+				. 'CauNoiChamCong.gs, hoặc WEB_KEY chưa khớp, hoặc dán rồi mà chưa Deploy → New version.';
+		} elseif ( $doi_dn ) {
+			$kl = 'BẢN TRIỂN KHAI BỊ GIỚI HẠN — nó đòi người gọi đăng nhập, mà WordPress gọi '
+				. 'máy-với-máy. Vào Apps Script → Deploy → Manage deployments → bản đang chạy → ✏️ → '
+				. '"Who has access" = <b>Anyone</b> → Deploy. Máy chấm công KHÔNG bị ảnh hưởng: '
+				. 'chúng cũng gọi ẩn danh nên Anyone là đúng cái chúng cần.';
+		} else {
+			$kl = 'Cả hai dạng đều bị chối ở cổng vào — mã triển khai này không tồn tại, hoặc nó '
+				. 'không phải bản triển khai <b>Web app</b>. Lấy lại địa chỉ ở Deploy → Manage '
+				. 'deployments, đúng dòng có chữ Web app, và so với địa chỉ máy chấm công đang dùng.';
+		}
+		return array( 'ok' => true, 'ma_trien_khai' => $ma, 'thu' => $ra, 'ket_luan' => $kl );
 	}
 
 	/**

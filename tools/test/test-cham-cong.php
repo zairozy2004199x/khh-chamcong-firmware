@@ -3018,6 +3018,85 @@ teq( 'số bản ở đầu tệp khớp với VHCC_VERSION',
 t( 'màn Cài đặt hiện bản đang chạy (để trả lời được "cài bản mới chưa")',
 	strpos( $ad, 'Bản plugin đang chạy' ) !== false );
 
+// ============================================ 35. CHẨN ĐOÁN ĐỊA CHỈ /exec — ba tình huống thật
+/* `400 Bad Request` của Google là lỗi ở CỔNG VÀO, tức là yêu cầu chưa tới script. Nên mọi
+   phỏng đoán "chưa dán cầu nối / sai WEB_KEY" đều vô nghĩa — script chưa hề chạy. Phép chẩn
+   đoán thử cả hai dạng địa chỉ để phân biệt, và phải KẾT LUẬN chứ không chỉ in số. */
+update_option( 'vhcc_exec_url', 'https://script.google.com/a/macros/khmatrix.com/s/' . $ID . '/exec' );
+
+/* Ca 1 — bản triển khai bị giới hạn: dạng tên miền đòi đăng nhập, dạng rút gọn bị 400. */
+$GLOBALS['VHCP_HTTP'] = array(
+	'/a/macros/khmatrix.com/s/' => array( 'code' => 200, 'body' => '<html>ServiceLogin accounts.google.com</html>' ),
+	'/macros/s/'                => array( 'code' => 400, 'body' => 'Error 400 (Bad Request)!!1' ),
+);
+$cd = VHCC_CauNoi::chan_doan();
+t( 'ca giới hạn tên miền: chẩn ra là BẢN TRIỂN KHAI BỊ GIỚI HẠN',
+	! empty( $cd['ok'] ) && strpos( $cd['ket_luan'], 'BẢN TRIỂN KHAI BỊ GIỚI HẠN' ) !== false,
+	isset( $cd['ket_luan'] ) ? $cd['ket_luan'] : $cd );
+t( 'và chỉ đúng việc phải làm: Who has access = Anyone',
+	strpos( $cd['ket_luan'], 'Anyone' ) !== false );
+t( 'và trấn an rằng máy chấm công không bị ảnh hưởng',
+	strpos( $cd['ket_luan'], 'KHÔNG bị ảnh hưởng' ) !== false );
+t( 'chẩn đoán thử ĐỦ HAI dạng địa chỉ', count( (array) $cd['thu'] ) === 2, count( (array) $cd['thu'] ) );
+
+/* Ca 2 — địa chỉ tốt: dạng rút gọn trả về trang của app. Lỗi phải được chỉ vào bên trong. */
+$GLOBALS['VHCP_HTTP'] = array(
+	'/macros/s/' => array( 'code' => 200, 'body' => str_repeat( '<div>giao diện chấm công</div>', 50 ) ),
+);
+$cd = VHCC_CauNoi::chan_doan();
+t( 'ca địa chỉ tốt: chẩn ra là "Địa chỉ TỐT"',
+	strpos( $cd['ket_luan'], 'Địa chỉ TỐT' ) !== false, $cd['ket_luan'] );
+t( 'và kể đúng ba nguyên nhân bên trong (dán / khoá / deploy)',
+	strpos( $cd['ket_luan'], 'CauNoiChamCong' ) !== false
+	&& strpos( $cd['ket_luan'], 'WEB_KEY' ) !== false
+	&& strpos( $cd['ket_luan'], 'New version' ) !== false );
+
+/* Ca 3 — cả hai dạng đều 400: mã triển khai không tồn tại / không phải Web app. */
+$GLOBALS['VHCP_HTTP'] = array(
+	'/macros/' => array( 'code' => 400, 'body' => 'Error 400 (Bad Request)!!1' ),
+);
+$cd = VHCC_CauNoi::chan_doan();
+t( 'ca cả hai đều bị chối: chẩn ra là mã triển khai sai / không phải Web app',
+	strpos( $cd['ket_luan'], 'không phải bản triển khai' ) !== false, $cd['ket_luan'] );
+t( 'và bảo so với địa chỉ máy chấm công đang dùng',
+	strpos( $cd['ket_luan'], 'máy chấm công đang dùng' ) !== false );
+
+/* Địa chỉ không có dạng .../s/<mã>/exec thì nói ngay, đừng ra mạng. */
+update_option( 'vhcc_exec_url', 'https://khmatrix.com/khong-phai-apps-script' );
+$cd = VHCC_CauNoi::chan_doan();
+t( 'địa chỉ không đúng khuôn thì chối ngay, không gọi mạng',
+	empty( $cd['ok'] ) && strpos( $cd['error'], 'mã triển khai' ) !== false, $cd );
+
+/* Chẩn đoán dùng GET — POST vào /exec là chạm đúng cửa máy chấm công đang đẩy vào. */
+$cn_noi = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-cau-noi.php' );
+$_k = strpos( $cn_noi, 'public static function chan_doan()' );
+$khuc_cd = substr( $cn_noi, $_k, strpos( $cn_noi, 'return array( \'ok\' => true, \'ma_trien_khai\'', $_k ) - $_k );
+t( 'chẩn đoán chỉ dùng wp_remote_get, TUYỆT ĐỐI không POST vào /exec',
+	strpos( $khuc_cd, 'wp_remote_get' ) !== false && strpos( $khuc_cd, 'wp_remote_post' ) === false );
+
+/* Tên miền Workspace phải được NHỚ LẠI lúc cắt — cắt xong là nó mất khỏi địa chỉ, mà chẩn
+   đoán cần nó. Trước khi sửa, chẩn đoán rơi về đoán theo tên miền của website; ở đây hai cái
+   tình cờ giống nhau nên sai mà không lộ, nên phép thử dùng tên miền KHÁC hẳn. */
+delete_option( 'vhcc_exec_mien' );
+update_option( 'vhcc_exec_url', 'https://script.google.com/a/macros/kh-noi-bo.vn/s/' . $ID . '/exec' );
+VHCC_CauNoi::url();                                   // tự chữa -> phải nhớ tên miền
+teq( 'cắt địa chỉ thì NHỚ LẠI tên miền Workspace', 'kh-noi-bo.vn', get_option( 'vhcc_exec_mien' ) );
+$GLOBALS['VHCP_HTTP'] = array(
+	'/a/macros/kh-noi-bo.vn/s/' => array( 'code' => 200, 'body' => '<html>ServiceLogin</html>' ),
+	'/macros/s/'                => array( 'code' => 400, 'body' => 'Error 400 (Bad Request)!!1' ),
+);
+$cd = VHCC_CauNoi::chan_doan();
+t( 'chẩn đoán dùng tên miền đã nhớ, không dùng tên miền của website',
+	strpos( $cd['ket_luan'], 'BẢN TRIỂN KHAI BỊ GIỚI HẠN' ) !== false, $cd['ket_luan'] );
+$ten_thu = array();
+foreach ( (array) $cd['thu'] as $x ) { $ten_thu[] = $x['ten']; }
+t( 'và nói rõ đã thử tên miền nào', strpos( implode( ' | ', $ten_thu ), 'kh-noi-bo.vn' ) !== false,
+	implode( ' | ', $ten_thu ) );
+
+$GLOBALS['VHCP_HTTP'] = array();
+delete_option( 'vhcc_exec_mien' );
+update_option( 'vhcc_exec_url', 'https://script.google.com/macros/s/' . $ID . '/exec' );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

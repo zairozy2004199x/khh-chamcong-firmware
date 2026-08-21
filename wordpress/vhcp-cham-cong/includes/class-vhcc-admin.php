@@ -1013,6 +1013,7 @@ class VHCC_Admin {
 			   dán lại đúng cái địa chỉ sai đó và không hiểu vì sao lần này lại chạy. */
 			$ch = VHCC_CauNoi::chuan_hoa_url( $url );
 			update_option( 'vhcc_exec_url', $ch['url'] );
+			if ( $ch['mien'] !== '' ) { update_option( 'vhcc_exec_mien', $ch['mien'] ); }
 			set_transient( 'vhcc_sua_url_' . get_current_user_id(), $ch['sua'], 120 );
 
 			$nguon = ( isset( $_POST['vhcc_nguon'] ) && $_POST['vhcc_nguon'] === 'rieng' ) ? 'rieng' : 'chung';
@@ -1043,6 +1044,11 @@ class VHCC_Admin {
 		if ( $action === 'thu' ) {
 			set_transient( 'vhcc_thu_' . get_current_user_id(), VHCC_CauNoi::thu(), 120 );
 			self::ve( 'thu' );
+		}
+
+		if ( $action === 'chandoan' ) {
+			set_transient( 'vhcc_cd_' . get_current_user_id(), VHCC_CauNoi::chan_doan(), 120 );
+			self::ve( 'chandoan' );
 		}
 
 		if ( $action === 'mokhoa' ) {
@@ -1107,6 +1113,26 @@ class VHCC_Admin {
 		/* Bản đang chạy — trong lúc cài, câu "anh cài bản mới chưa" phải trả lời được bằng mắt.
 		   Số này cũng hiện ở Plugins của WordPress, nhưng ở đây là chỗ người ta đang đứng. */
 		echo '<p style="color:#64748b">Bản plugin đang chạy: <code>' . esc_html( VHCC_VERSION ) . '</code></p>';
+		if ( $msg === 'chandoan' ) {
+			$cd = get_transient( 'vhcc_cd_' . get_current_user_id() );
+			delete_transient( 'vhcc_cd_' . get_current_user_id() );
+			if ( is_array( $cd ) && ! empty( $cd['ok'] ) ) {
+				echo '<div class="notice notice-info"><p><b>Chẩn đoán địa chỉ /exec</b> — mã triển khai <code>'
+					. esc_html( substr( (string) $cd['ma_trien_khai'], 0, 12 ) ) . '…</code></p>';
+				echo '<table class="widefat striped" style="max-width:900px;margin:6px 0"><thead><tr>'
+					. '<th>Dạng địa chỉ</th><th>Mã HTTP</th><th>Trả về gì</th></tr></thead><tbody>';
+				foreach ( (array) $cd['thu'] as $x ) {
+					echo '<tr><td>' . esc_html( $x['ten'] ) . '</td><td>' . (int) $x['ma'] . '</td><td>'
+						. esc_html( $x['ket'] ) . '</td></tr>';
+				}
+				echo '</tbody></table>';
+				echo '<p><b>Kết luận:</b> ' . wp_kses_post( $cd['ket_luan'] ) . '</p></div>';
+			} elseif ( is_array( $cd ) ) {
+				echo '<div class="notice notice-error"><p><b>Không chẩn đoán được:</b> '
+					. esc_html( isset( $cd['error'] ) ? $cd['error'] : '?' ) . '</p></div>';
+			}
+		}
+
 		echo '<h2>Mở hệ thống chấm công</h2><p><a class="button button-primary" target="_blank" href="'
 			. esc_url( VHCC_Trang::url() ) . '">' . esc_html( VHCC_Trang::url() ) . '</a></p>';
 
@@ -1200,7 +1226,8 @@ class VHCC_Admin {
 
 		echo '<hr><h2>Bảo trì</h2><p>';
 		foreach ( array(
-			'thu'     => 'Thử cầu nối',
+			'thu'      => 'Thử cầu nối',
+			'chandoan' => 'Chẩn đoán địa chỉ',
 			'lammoi'  => 'Làm mới giao diện',
 			'mokhoa'  => 'Mở khoá đăng nhập',
 			'khoamoi' => 'Sinh khoá mới',
