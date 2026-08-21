@@ -12,6 +12,9 @@ class VHCC_Admin {
 
 	const CAP = 'manage_options';
 
+	/** Số cặp (cơ sở × tháng) kéo mỗi lượt bấm. Xem chú thích ở nút "Kéo chấm công". */
+	const KEO_MOI_ME = 8;
+
 	public static function menu() {
 		add_menu_page(
 			'Chấm Công', 'Chấm Công', self::CAP, 'vhcc', array( __CLASS__, 'page' ),
@@ -45,6 +48,64 @@ class VHCC_Admin {
 	public static function toi() {
 		$u = wp_get_current_user();
 		return array( 'name' => $u ? $u->display_name : 'admin', 'role' => 'ADMIN', 'coso' => '' );
+	}
+
+	/**
+	 * Điều phối một MẺ kéo chấm công: nhiều cặp (cơ sở × tháng), có trần, ghi tiến độ.
+	 *
+	 * 🔴 VÌ SAO CHIA MẺ chứ không kéo hết một lượt: hosting chia sẻ giới hạn thời gian chạy PHP,
+	 *    mà mỗi cặp là một lượt gọi mạng sang Apps Script (vài giây). 26 cơ sở × 12 tháng = 312
+	 *    lượt — chết giữa đường là chắc, và chết giữa đường thì KHÔNG BIẾT đã tới đâu. Nên: làm
+	 *    tối đa KEO_MOI_ME cặp, ghi lại từng cặp xong, rồi báo còn bao nhiêu.
+	 *
+	 * 🔴 Bỏ qua cặp ĐÃ KÉO XONG, nên bấm lại là đi tiếp, không làm lại từ đầu. (Kéo lại vẫn an
+	 *    toàn — chỉ là mất thời gian vô ích.)
+	 */
+	private static function keo_cham_cong( $tu, $den, $coso_chon, $chi_xem ) {
+		$thangs = VHCC_Keo::ds_thang( $tu, $den );
+		if ( ! $thangs ) {
+			return array( 'ok' => false, 'error' => 'Khoảng tháng không hợp lệ. Dạng MM-yyyy, '
+				. 'tháng đầu không được sau tháng cuối, và tối đa 36 tháng một lần.' );
+		}
+
+		$coso_chon = trim( (string) $coso_chon );
+		if ( '' !== $coso_chon ) {
+			$ds_cs = array( VHCC_NhanSu::chuan_coso( $coso_chon ) );
+		} else {
+			$r = VHCC_Keo::ds_coso();
+			if ( empty( $r['ok'] ) ) { return $r; }
+			$ds_cs = $r['ds'];
+			if ( ! $ds_cs ) {
+				return array( 'ok' => false, 'error' => 'App gốc không trả về cơ sở nào. Bên đó cần '
+					. '"Quét sheet CS" trước, hoặc anh gõ thẳng tên một cơ sở vào ô Cơ sở.' );
+			}
+		}
+
+		$td   = VHCC_Keo::tien_do();
+		$lam  = 0; $con = 0; $nguoi = 0; $luot = 0; $loi = array(); $khong_sheet = 0;
+		foreach ( $ds_cs as $cs ) {
+			foreach ( $thangs as $th ) {
+				if ( ! $chi_xem && isset( $td[ $cs . '|' . $th ] ) ) { continue; }   // đã xong
+				if ( $lam >= self::KEO_MOI_ME ) { $con++; continue; }
+				$kq = VHCC_Keo::keo_thang( $cs, $th, $chi_xem );
+				$lam++;
+				if ( empty( $kq['ok'] ) ) {
+					$loi[] = $cs . ' ' . $th . ': ' . ( isset( $kq['error'] ) ? $kq['error'] : '?' );
+					continue;
+				}
+				if ( ! empty( $kq['khong_co_sheet'] ) ) { $khong_sheet++; continue; }
+				$nguoi += (int) $kq['nguoi'];
+				$luot  += (int) $kq['luot'];
+				if ( ! $chi_xem ) { VHCC_Keo::ghi_tien_do( $cs, $th, $kq ); }
+			}
+		}
+
+		$msg = ( $chi_xem ? 'XEM TRƯỚC — chưa ghi gì. ' : 'Đã kéo. ' )
+			. 'Làm ' . $lam . ' cặp (cơ sở × tháng) · ' . $nguoi . ' lượt người · ' . $luot . ' giờ vào/ra';
+		if ( $khong_sheet ) { $msg .= ' · ' . $khong_sheet . ' cặp không có sheet (bỏ qua, không phải lỗi)'; }
+		if ( $con )         { $msg .= ' · CÒN ' . $con . ' cặp — bấm lại để đi tiếp'; }
+		if ( $loi )         { $msg .= ' · LỖI: ' . implode( ' | ', array_slice( $loi, 0, 3 ) ); }
+		return array( 'ok' => empty( $loi ), 'thong_bao' => $msg, 'error' => implode( ' | ', $loi ) );
 	}
 
 	/**
@@ -125,6 +186,31 @@ class VHCC_Admin {
 					$bao[] = VHCC_NhanSu::nhap_hang_loat( $u, $ds_nhap,
 						isset( $_POST['xac_nhan'] ) ? (int) $_POST['xac_nhan'] : null );
 				}
+			} elseif ( 'keo_ns_xem' === $viec || 'keo_ns' === $viec ) {
+				/* Kéo hồ sơ từ app gốc. Chỉ Admin/Quản lý — đây là ghi hồ sơ TOÀN CHUỖI, vượt
+				   hẳn phạm vi một cửa hàng, nên đi qua đúng chốt quyền của nhân sự. */
+				if ( ! VHCC_NhanSu::co_quan_tri_nv( $u ) ) {
+					$bao[] = array( 'ok' => false, 'error' => VHCC_NhanSu::LOI_QT );
+				} else {
+					$keo_ns = VHCC_Keo::keo_nhan_su( 'keo_ns_xem' === $viec );
+					$bao[]  = empty( $keo_ns['ok'] )
+						? $keo_ns
+						: array( 'ok' => true, 'thong_bao' => ( 'keo_ns_xem' === $viec ? 'XEM TRƯỚC — chưa ghi gì. ' : 'Đã kéo. ' )
+							. 'Thêm ' . (int) $keo_ns['them'] . ' · cập nhật ' . (int) $keo_ns['sua']
+							. ( $keo_ns['bo'] ? ' · bỏ ' . count( $keo_ns['bo'] ) . ' (' . implode( '; ', array_slice( $keo_ns['bo'], 0, 5 ) ) . ')' : '' ) );
+				}
+			} elseif ( 'keo_cc' === $viec ) {
+				if ( ! VHCC_NhanSu::co_quan_tri_nv( $u ) ) {
+					$bao[] = array( 'ok' => false, 'error' => VHCC_NhanSu::LOI_QT );
+				} else {
+					$bao[] = self::keo_cham_cong(
+						wp_unslash( $_POST['tu'] ), wp_unslash( $_POST['den'] ),
+						wp_unslash( $_POST['coso'] ), ! empty( $_POST['chi_xem'] ) );
+				}
+			} elseif ( 'keo_xoa_td' === $viec ) {
+				VHCC_Keo::xoa_tien_do();
+				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã xoá tiến độ. Lượt kéo tới sẽ đi lại từ đầu — '
+					. 'không sao cả, kéo lại không sinh thêm dòng nào.' );
 			} elseif ( 'nhiem_vu' === $viec ) {
 				$bao[] = VHCC_NhanSu::dat_nhiem_vu( $u, wp_unslash( $_POST['ngay'] ),
 					wp_unslash( $_POST['coso'] ), wp_unslash( $_POST['ma_nv'] ),
@@ -348,8 +434,50 @@ class VHCC_Admin {
 			. '<input name="nhiem_vu" placeholder="Thu Tiền - Vệ Sinh / Trực Ghế Posh - JP" /> '
 			. '<button class="button">Lưu nhiệm vụ</button></form>';
 
+		/* ---- Kéo từ app gốc (đường B) ---- */
+		echo '<hr><h2>Kéo dữ liệu cũ từ app gốc</h2>';
+		echo '<p>Đọc thẳng từ Google Sheet qua cầu nối — <b>một chiều</b>, sheet vẫn là nguồn thật. '
+			. 'Kéo lại bao nhiêu lần cũng không sinh thêm dòng rác: hồ sơ khớp theo Mã NV, còn chấm '
+			. 'công đi qua đúng cửa mà máy đang đẩy vào nên luật <em>chỉ nới, không thu hẹp</em> áp y '
+			. 'nguyên.</p>';
+		echo '<p><em>Cần đã dán bản <code>CauNoiChamCong</code> mới nhất (có hai hàm '
+			. '<code>ccDsCoSoXuat</code>, <code>ccXuatChamCong</code>) rồi Deploy → New version.</em></p>';
+
+		foreach ( array(
+			'keo_ns_xem' => array( 'Xem trước hồ sơ sẽ kéo', 'button' ),
+			'keo_ns'     => array( 'KÉO HỒ SƠ NHÂN SỰ', 'button button-primary' ),
+		) as $act => $n ) {
+			echo '<form method="post" style="display:inline-block;margin-right:8px">';
+			wp_nonce_field( 'vhcc_ns' );
+			echo '<input type="hidden" name="vhcc_ns" value="' . esc_attr( $act ) . '" />';
+			echo '<button class="' . esc_attr( $n[1] ) . '">' . esc_html( $n[0] ) . '</button></form>';
+		}
+
+		echo '<h3>Chấm công cũ</h3>';
+		echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
+		wp_nonce_field( 'vhcc_ns' );
+		echo '<input type="hidden" name="vhcc_ns" value="keo_cc" />';
+		echo '<label>Từ tháng<br><input name="tu" value="' . esc_attr( gmdate( 'm-Y', (int) current_time( 'timestamp' ) ) )
+			. '" placeholder="MM-yyyy" style="width:110px" /></label>';
+		echo '<label>Đến tháng<br><input name="den" value="' . esc_attr( gmdate( 'm-Y', (int) current_time( 'timestamp' ) ) )
+			. '" placeholder="MM-yyyy" style="width:110px" /></label>';
+		echo '<label>Cơ sở<br><input name="coso" placeholder="để trống = mọi cơ sở" style="width:220px" /></label>';
+		echo '<label><input type="checkbox" name="chi_xem" value="1" checked /> chỉ xem trước</label>';
+		echo '<button class="button button-primary">Kéo chấm công</button></form>';
+		echo '<p class="description">Mỗi lượt bấm kéo <b>tối đa ' . (int) self::KEO_MOI_ME . ' cặp (cơ sở × tháng)</b> '
+			. 'rồi dừng và báo còn lại bao nhiêu — hosting chia sẻ có giới hạn thời gian, chết giữa mẻ '
+			. 'thì không biết đã tới đâu. Bấm lại là nó đi tiếp từ chỗ dừng. Trần khoảng tháng là 36.</p>';
+		$td = VHCC_Keo::tien_do();
+		if ( $td ) {
+			echo '<p>Đã kéo xong <b>' . count( $td ) . '</b> cặp (cơ sở × tháng).</p>';
+			echo '<form method="post" style="display:inline">';
+			wp_nonce_field( 'vhcc_ns' );
+			echo '<input type="hidden" name="vhcc_ns" value="keo_xoa_td" />';
+			echo '<button class="button">Xoá tiến độ (kéo lại từ đầu)</button></form>';
+		}
+
 		/* ---- Nhập hàng loạt ---- */
-		echo '<h2>Nhập nhân sự hàng loạt</h2>';
+		echo '<hr><h2>Nhập nhân sự hàng loạt</h2>';
 		echo '<p>Mỗi dòng một người, các ô cách nhau bằng dấu phẩy hoặc tab, theo thứ tự: '
 			. '<code>Mã NV, Họ tên, Cửa hàng, SĐT, CCCD, Chức vụ</code>. Bấm <strong>Xem trước</strong> '
 			. 'đã — nó bắt cả trùng mã <em>trong chính tệp</em>, mà hai dòng cùng mã là một cái ghi đè '

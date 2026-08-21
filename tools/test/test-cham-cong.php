@@ -87,9 +87,15 @@ $MAY_22 = array(
 	'ganMayVaoCuaHang', 'boGanMay', 'luuSimMay', 'requestMachineScan',
 	'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai', 'setGiaMayTuDong', 'donKhoiTest', 'requestBackfill',
 	'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget' );
-teq( 'cầu nối khai đúng 23 hàm máy + OTA', 23, count( $ham_app ) );
+/* 🔴 Thêm 22/08/2026: BA hàm CHỈ ĐỌC để kéo dữ liệu cũ sang MySQL (anh Thắng chọn "đường B"
+   thay vì dán tay). `getEmployees` là hàm của app; `ccDsCoSoXuat` và `ccXuatChamCong` định
+   nghĩa trong chính cau-noi.gs.
+   Con số ở đây phải sửa TAY mỗi lần thêm hàm — mỗi hàm khai vào cầu nối là một cửa mới mở ra
+   cho web, nên phải là quyết định có ý thức, không phải phép thử tự chạy theo mã. */
+$DOC_THEM = array( 'getEmployees', 'ccDsCoSoXuat', 'ccXuatChamCong' );
+teq( 'cầu nối khai đúng 26 hàm (23 máy/OTA + 3 hàm đọc)', 26, count( $ham_app ) );
 sort( $ham_app );
-$mong = $MAY_22; sort( $mong );
+$mong = array_merge( $MAY_22, $DOC_THEM ); sort( $mong );
 teq( 'và đúng danh sách đó, không thừa không thiếu', $mong, $ham_app );
 teq( 'không khai trùng tên', count( $ham_app ), count( array_unique( $ham_app ) ) );
 
@@ -3283,6 +3289,192 @@ t( 'phép chặn PIN nằm ở chỗ đặt mật khẩu, không nằm trong đ�
 		'PIN_CAM' ) === false );
 t( 'và giải thích rõ hai nhóm lý do (dễ đoán vs đã bị lộ)',
 	strpos( $q_src, 'ĐÃ BỊ LỘ' ) !== false );
+
+// ================================ 39. KÉO DỮ LIỆU CŨ TỪ APP GỐC (đường B)
+/* Anh Thắng chọn kéo qua cầu nối thay vì dán tay. Đây là đường dữ liệu THẬT đi qua, nên mục
+   này thử kỹ nhất: kéo lại nhiều lần, giờ chỉ nới không thu hẹp, số tiền kiểu Việt, ngày kiểu
+   dd/mm/yyyy, và MỘT CHIỀU — không hàm nào ghi lên sheet. */
+vhcc_dung_bang();
+update_option( 'vhcc_exec_url', 'https://script.google.com/macros/s/' . $ID . '/exec' );
+update_option( 'vhcc_web_key', 'khoa-thu' );
+VHCC_Keo::xoa_tien_do();
+
+/** Bộ giả lập app gốc: trả theo tên hàm trong thân POST. */
+function vhcc_app_goc( $ban ) {
+	return function ( $args ) use ( $ban ) {
+		$than = json_decode( isset( $args['body'] ) ? $args['body'] : '{}', true );
+		$fn   = isset( $than['fn'] ) ? $than['fn'] : '';
+		if ( ! array_key_exists( $fn, $ban ) ) {
+			return array( 'code' => 200, 'body' => wp_json_encode( array( 'ok' => false,
+				'error' => 'Project này không có hàm "' . $fn . '"' ) ) );
+		}
+		$d = $ban[ $fn ];
+		if ( is_callable( $d ) ) { $d = call_user_func( $d, $than ); }
+		return array( 'code' => 200, 'body' => wp_json_encode( array( 'ok' => true, 'data' => $d ) ) );
+	};
+}
+
+/* ---- Nhân sự ---- */
+$ho_so_app = array(
+	array( 'employeeNo' => 'NV001', 'name' => 'Trần Văn A', 'station' => 'TUTU_BT',
+		'phone' => '0900000001', 'dob' => '15/03/1998', 'cccd' => '052123456789',
+		'position' => 'Nhân viên', 'startDate' => '2025-01-06', 'baseSalary' => '13.000.000',
+		'nhiemVu' => 'Thu Tiền', 'coSoPhu' => 'POSH_HCM' ),
+	array( 'employeeNo' => 'NV002', 'name' => 'Lê Thị B', 'station' => 'POSH_HCM',
+		'baseSalary' => '7500000', 'startDate' => '' ),
+	array( 'employeeNo' => '',      'name' => 'Không mã' ),        // phải bị bỏ
+	array( 'employeeNo' => 'NV003', 'name' => '' ),                // phải bị bỏ
+);
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array( 'getEmployees' => $ho_so_app ) ) );
+
+$xem = VHCC_Keo::keo_nhan_su( true );
+t( 'xem trước hồ sơ: đọc được', ! empty( $xem['ok'] ), $xem );
+teq( 'xem trước: 2 hồ sơ sẽ thêm', 2, $xem['them'] );
+teq( 'xem trước: bỏ 2 dòng thiếu mã/tên', 2, count( $xem['bo'] ) );
+teq( 'XEM TRƯỚC KHÔNG GHI GÌ VÀO MySQL', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) ) );
+
+$kq = VHCC_Keo::keo_nhan_su( false );
+teq( 'kéo thật: thêm 2', 2, $kq['them'] );
+$nv1 = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV001'", ARRAY_A );
+teq( 'họ tên vào đúng', 'Trần Văn A', $nv1['ho_ten'] );
+teq( 'ngày sinh dd/mm/yyyy -> yyyy-mm-dd', '1998-03-15', $nv1['ngay_sinh'] );
+teq( 'ngày vào làm dạng ISO giữ nguyên', '2025-01-06', $nv1['ngay_vao_lam'] );
+/* 🔴 `13.000.000` là mười ba triệu. Đây đúng là cái lỗi đã mắc một lần ở chỗ khác trong việc
+   này (đọc thành 13 đồng), nên phải có phép thử ở CẢ đường kéo. */
+teq( 'lương 13.000.000 đọc thành mười ba triệu, KHÔNG phải 13', 13000000.0, (float) $nv1['luong_co_ban'] );
+teq( 'cơ sở phụ giữ nguyên', 'POSH_HCM', $nv1['coso_phu'] );
+$nv2 = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='NV002'", ARRAY_A );
+teq( 'lương kiểu số trơn vẫn đúng', 7500000.0, (float) $nv2['luong_co_ban'] );
+t( 'ngày rỗng thì để NULL, KHÔNG đoán', null === $nv2['ngay_vao_lam'], $nv2['ngay_vao_lam'] );
+
+/* Kéo LẦN HAI: phải là cập nhật, không nhân đôi. */
+$kq = VHCC_Keo::keo_nhan_su( false );
+teq( 'kéo lần hai: 0 thêm', 0, $kq['them'] );
+teq( 'kéo lần hai: 2 cập nhật', 2, $kq['sua'] );
+teq( 'tổng hồ sơ vẫn là 2 — không nhân đôi', 2,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) ) );
+
+/* App gốc trả rỗng -> nói rõ nghi PIN, đừng báo "thành công 0 dòng". */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array( 'getEmployees' => array() ) ) );
+$kq = VHCC_Keo::keo_nhan_su( true );
+t( '0 hồ sơ thì nghi PIN admin, không báo thành công',
+	empty( $kq['ok'] ) && strpos( $kq['error'], 'VHCC_PIN_ADMIN' ) !== false, $kq );
+
+/* ---- Chấm công cũ ---- */
+$cc_app = array(
+	'ccDsCoSoXuat'   => array( 'ok' => true, 'daQuet' => true, 'ds' => array( 'TUTU_BT', 'POSH_HCM' ) ),
+	'ccXuatChamCong' => function ( $than ) {
+		$cs = isset( $than['args'][1] ) ? $than['args'][1] : '';
+		$th = isset( $than['args'][2] ) ? $than['args'][2] : '';
+		if ( 'TUTU_BT' !== $cs || '08-2026' !== $th ) {
+			return array( 'ok' => true, 'khongCoSheet' => true, 'station' => $cs, 'rows' => array() );
+		}
+		return array( 'ok' => true, 'station' => $cs, 'thang' => '2026-08', 'rows' => array(
+			array( 'ma' => 'NV001', 'ten' => 'Trần Văn A', 'ngay' => array(
+				array( 'date' => '2026-08-03', 'vao' => '08:00:00', 'ra' => '17:30:00' ),
+				array( 'date' => '2026-08-04', 'vao' => '08:05:00', 'ra' => '' ),
+				array( 'date' => '2026-08-05', 'vao' => 'xx:yy',    'ra' => '17:00:00' ),
+			) ),
+			array( 'ma' => 'NV001-TC', 'ten' => 'Trần Văn A', 'ngay' => array(
+				array( 'date' => '2026-08-03', 'vao' => '18:00:00', 'ra' => '21:00:00' ),
+			) ),
+		) );
+	},
+);
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( $cc_app ) );
+
+$r = VHCC_Keo::ds_coso();
+teq( 'đọc được danh sách cơ sở từ app gốc', 2, count( $r['ds'] ) );
+
+$xem = VHCC_Keo::keo_thang( 'TUTU_BT', '08-2026', true );
+teq( 'xem trước: 2 lượt người', 2, $xem['nguoi'] );
+/* Đếm tay: 08:00 + 17:30 + 08:05 + 17:00 + 18:00 + 21:00 = 6 giờ đọc được; `xx:yy` bị bỏ.
+   (Bản đầu em ghi 5 — em đếm sai, mã đúng.) */
+teq( 'xem trước: 6 giờ đọc được (1 giờ rác bị bỏ)', 6, $xem['luot'] );
+teq( 'và kể ra giờ rác', 1, count( $xem['bo'] ) );
+teq( 'XEM TRƯỚC KHÔNG GHI GÌ', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+
+VHCC_Keo::keo_thang( 'TUTU_BT', '08-2026', false );
+$h = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' )
+	. " WHERE coso='TUTU_BT' AND ngay='2026-08-03' AND ma_nv='NV001' AND hau_to=''", ARRAY_A );
+teq( 'giờ vào vào đúng ô', '08:00:00', VHCC_DB::hhmmss( $h['gio_vao_giay'] ) );
+teq( 'giờ ra vào đúng ô', '17:30:00', VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
+teq( 'nguồn ghi là "sheet" để phân biệt với lượt máy đẩy trực tiếp', 'sheet', $h['nguon'] );
+/* Hậu tố TC phải thành HÀNG RIÊNG, không trộn vào hàng chính — nếu trộn thì tăng cường bị
+   cộng vào giờ làm chính và bảng lương sai. */
+$tc = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' )
+	. " WHERE coso='TUTU_BT' AND ngay='2026-08-03' AND ma_nv='NV001' AND hau_to='TC'", ARRAY_A );
+t( 'hậu tố TC tách thành hàng riêng', is_array( $tc ), $tc );
+teq( 'giờ của hàng TC đúng', '18:00:00', VHCC_DB::hhmmss( $tc['gio_vao_giay'] ) );
+$mot_gio = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ngay='2026-08-04' AND ma_nv='NV001'", ARRAY_A );
+t( 'ngày chỉ có giờ vào thì giờ ra để trống, không tự điền',
+	null === $mot_gio['gio_ra_giay'], $mot_gio['gio_ra_giay'] );
+
+/* 🔴 KÉO LẠI LẦN HAI — không sinh dòng, không đổi giờ. */
+$truoc = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) );
+VHCC_Keo::keo_thang( 'TUTU_BT', '08-2026', false );
+teq( 'kéo lại lần hai: số hàng không đổi', $truoc,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+$h2 = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ngay='2026-08-03' AND ma_nv='NV001' AND hau_to=''", ARRAY_A );
+teq( 'kéo lại: giờ vào không đổi', $h['gio_vao_giay'], $h2['gio_vao_giay'] );
+teq( 'kéo lại: giờ ra không đổi', $h['gio_ra_giay'], $h2['gio_ra_giay'] );
+
+/* 🔴 KHÔNG THU HẸP: MySQL đã có cặp giờ RỘNG hơn (máy đẩy trực tiếp), sheet chỉ có một nửa —
+   kéo về KHÔNG được cắt bớt. Đây là lý do phải dùng lại ghi_gio() chứ không viết UPDATE riêng. */
+$wpdb->query( "UPDATE " . VHCC_DB::t( 'cham_cong' )
+	. " SET gio_vao_giay=" . VHCC_DB::giay( '07:30:00' ) . ", gio_ra_giay=" . VHCC_DB::giay( '19:00:00' )
+	. " WHERE ngay='2026-08-03' AND ma_nv='NV001' AND hau_to=''" );
+VHCC_Keo::keo_thang( 'TUTU_BT', '08-2026', false );
+$h3 = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ngay='2026-08-03' AND ma_nv='NV001' AND hau_to=''", ARRAY_A );
+teq( 'kéo về KHÔNG thu hẹp giờ vào đã sớm hơn', '07:30:00', VHCC_DB::hhmmss( $h3['gio_vao_giay'] ) );
+teq( 'kéo về KHÔNG thu hẹp giờ ra đã muộn hơn', '19:00:00', VHCC_DB::hhmmss( $h3['gio_ra_giay'] ) );
+
+/* Cơ sở không có sheet: không phải lỗi, phải đi tiếp. */
+$kq = VHCC_Keo::keo_thang( 'POSH_HCM', '08-2026', false );
+t( 'cơ sở không có sheet: coi là bỏ qua, không phải lỗi',
+	! empty( $kq['ok'] ) && ! empty( $kq['khong_co_sheet'] ), $kq );
+
+/* Chưa dán bản CauNoiChamCong mới -> nói rõ, đừng để "lỗi không rõ". */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => vhcc_app_goc( array() ) );
+$kq = VHCC_Keo::keo_thang( 'TUTU_BT', '08-2026', true );
+t( 'chưa dán hàm mới thì nói rõ tên hàm còn thiếu',
+	empty( $kq['ok'] ) && strpos( $kq['error'], 'ccXuatChamCong' ) !== false, $kq );
+
+/* ---- Khoảng tháng ---- */
+teq( 'ds_thang: một tháng', array( '08-2026' ), VHCC_Keo::ds_thang( '08-2026', '08-2026' ) );
+teq( 'ds_thang: bắc qua năm', array( '11-2025', '12-2025', '01-2026' ),
+	VHCC_Keo::ds_thang( '11-2025', '01-2026' ) );
+teq( 'ds_thang: ngược thứ tự -> rỗng', array(), VHCC_Keo::ds_thang( '03-2026', '01-2026' ) );
+teq( 'ds_thang: quá 36 tháng -> rỗng (chặn gõ nhầm năm)', array(),
+	VHCC_Keo::ds_thang( '01-2016', '01-2026' ) );
+teq( 'ds_thang: sai khuôn -> rỗng', array(), VHCC_Keo::ds_thang( '2026-08', '2026-09' ) );
+
+/* ---- MỘT CHIỀU: cầu nối KHÔNG được khai hàm ghi nhân sự / chấm công nào ---- */
+$gs_cn = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/apps-script/cau-noi.gs' );
+preg_match( '/CC_CHO_PHEP\s*=\s*\[(.*?)\]/s', $gs_cn, $mcp );
+preg_match_all( "/'([A-Za-z_][A-Za-z0-9_]*)'/", $mcp[1], $mds );
+$ds_ham_cn = $mds[1];
+t( 'cầu nối khai getEmployees (đọc hồ sơ)', in_array( 'getEmployees', $ds_ham_cn, true ) );
+t( 'cầu nối khai hai hàm xuất chấm công',
+	in_array( 'ccXuatChamCong', $ds_ham_cn, true ) && in_array( 'ccDsCoSoXuat', $ds_ham_cn, true ) );
+$ghi_cam = array( 'saveEmployee', 'luuHoSo', 'deleteEmployee', 'xoaHoSo', 'ghiChamCong',
+	'setChamCong', 'suaGioChamCong', 'luuNhanSu' );
+$lot_ghi = array_intersect( $ghi_cam, $ds_ham_cn );
+t( 'cầu nối KHÔNG khai hàm nào GHI nhân sự / chấm công lên sheet (một chiều)',
+	count( $lot_ghi ) === 0, implode( ', ', $lot_ghi ) );
+/* Hai hàm xuất phải gọi lại `_bangCongTho` của app, không tự đọc sheet lần thứ hai. */
+t( 'hàm xuất dùng lại _bangCongTho của app, không viết vòng đọc sheet thứ hai',
+	strpos( $gs_cn, '_bangCongTho(station, prefix)' ) !== false
+	&& strpos( $gs_cn, 'getRange' ) === false );
+t( 'hàm xuất chốt quyền Admin/Quản lý', substr_count( $gs_cn, "u.role !== ROLE.QUAN_LY" ) >= 2 );
+
+$GLOBALS['VHD_POST'] = array();
+VHCC_Keo::xoa_tien_do();
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

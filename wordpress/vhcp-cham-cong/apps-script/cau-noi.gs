@@ -102,7 +102,20 @@ var CC_CHO_PHEP = [
   /* --- Dọn khối "test" do gói thử đường truyền tạo ra (đụng sheet cơ sở -> Admin) --- */
   'donKhoiTest',
   /* --- Cập nhật firmware. NGUY: đẩy cho cả chuỗi. Xem khối ⚠️ ở trên. --- */
-  'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget'
+  'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget',
+  /* --- Nạp hồ sơ nhân sự một chiều: sheet NhanVien -> MySQL. CHỈ ĐỌC. ---
+     Thêm 22/08/2026. Trước đó nhân sự phải dán tay từ Sheet sang, mà 21+ người trải nhiều cơ sở
+     thì dán tay là chép sai vài ô rồi bảng lương lệch mà không biết lệch ở đâu.
+     ⚠️ MỘT CHIỀU. Không có hàm GHI nhân sự nào ở đây: sheet `NhanVien` vẫn là nguồn thật, WordPress
+        chỉ sao lại. Mở đường ghi hai chiều là sớm muộn hai bên đè nhau và không ai biết bên nào đúng.
+     ⚠️ Hàm này TỰ LỌC theo quyền của PIN gọi nó (`getEmployees` xét `_canStation`, và ẩn lương/ngân
+        hàng với cửa hàng trưởng). Nên PIN dùng để gọi quyết định kéo được bao nhiêu người — cầu nối
+        gọi bằng PIN admin, tức kéo đủ. */
+  'getEmployees',
+  /* --- Nạp chấm công CŨ một chiều: sheet CS_<cơ sở> -> MySQL. CHỈ ĐỌC. ---
+     Hai hàm này định nghĩa ở CUỐI file này (không nằm trong Code.gs), và chúng gọi lại đúng
+     `_bangCongTho` mà bảng lương của app đang dùng — khỏi sinh ra cách đọc sheet thứ hai. */
+  'ccDsCoSoXuat', 'ccXuatChamCong'
 ];
 
 /** Tên file HTML của giao diện trong project này (doGet đang dùng file nào thì để tên đó). */
@@ -179,4 +192,61 @@ function ccCauNoi(e) {
 function ccTraVe(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+/* ===========================================================================================
+ *  XUẤT DỮ LIỆU CŨ SANG WORDPRESS — MỘT CHIỀU, CHỈ ĐỌC        (22/08/2026)
+ * -------------------------------------------------------------------------------------------
+ *  Anh Thắng: *"kéo cả dữ liệu chấm công cũ qua luôn nhé"*.
+ *
+ *  🔴 VÌ SAO HAI HÀM NÀY NẰM Ở ĐÂY, KHÔNG NẰM TRONG Code.gs
+ *     `Code.gs` là file của anh Thắng, đang chạy thật cho cả chuỗi máy. Thêm hàm vào đó là thêm
+ *     một chỗ có thể hỏng trong file đó. Còn file này thì plugin phát hành, dán lại là xong.
+ *
+ *  🔴 VÌ SAO GỌI LẠI `_bangCongTho` CHỨ KHÔNG TỰ ĐỌC SHEET
+ *     Cách đọc sheet `CS_<cơ sở>` không đơn giản: một cơ sở có thể GỘP NHIỀU SHEET (ca đêm), cột
+ *     giờ vào/ra nằm ở vị trí cố định, và có hàng dán ngược. Tự viết vòng đọc thứ hai ở đây là
+ *     sớm muộn hai bên đọc ra hai kết quả khác nhau cho cùng một tháng — mà đó là bảng lương.
+ *     Nên dùng ĐÚNG hàm mà bảng lương của app đang dùng.
+ *
+ *  ⚠️ MỘT CHIỀU. Không có hàm nào ở đây ghi vào sheet. Sheet vẫn là nguồn thật.
+ *  ⚠️ Chỉ Admin/Quản lý — dữ liệu chấm công cả cơ sở là căn cứ tính lương.
+ * =========================================================================================== */
+
+/** Danh sách cơ sở đã quét, để WordPress biết phải kéo những cơ sở nào. */
+function ccDsCoSoXuat(pin) {
+  var u = _requireAuth(pin);
+  if (!u.isAdmin && u.role !== ROLE.QUAN_LY) {
+    return { ok: false, error: 'Chỉ Admin / Quản lý xuất được dữ liệu cả chuỗi.' };
+  }
+  var r = luongDsCoSo(pin);
+  if (!r || !r.ok) return { ok: false, error: (r && r.error) ? r.error : 'Không đọc được danh sách cơ sở.' };
+  return { ok: true, daQuet: !!r.daQuet, ds: r.ds || [] };
+}
+
+/**
+ * Chấm công THÔ của MỘT cơ sở trong MỘT tháng: [{ma, ten, ngay:[{date, vao, ra}]}]
+ *
+ * ⚠️ MỘT CƠ SỞ MỘT THÁNG MỖI LƯỢT — cố ý. Apps Script chỉ có 6 phút mỗi lượt chạy, và một lượt
+ *    trả về cả chuỗi cả năm thì vừa quá 6 phút vừa quá cỡ phản hồi. WordPress gọi nhiều lượt,
+ *    mỗi lượt một cơ sở một tháng, và tự biết đã kéo tới đâu.
+ *
+ * @param {string} monthLabel dạng `MM-yyyy`, ví dụ `08-2026`.
+ */
+function ccXuatChamCong(pin, station, monthLabel) {
+  var u = _requireAuth(pin);
+  if (!u.isAdmin && u.role !== ROLE.QUAN_LY) {
+    return { ok: false, error: 'Chỉ Admin / Quản lý xuất được dữ liệu chấm công.' };
+  }
+  station = String(station || '').replace(/^CS_/, '').trim();
+  if (!station) return { ok: false, error: 'Thiếu cơ sở.' };
+  var prefix = _vpThangPrefix(monthLabel);
+  if (!prefix) return { ok: false, error: 'Tháng phải dạng MM-yyyy, ví dụ 08-2026.' };
+
+  var tho = _bangCongTho(station, prefix);
+  /* Cơ sở không có sheet thì KHÔNG phải lỗi của lượt kéo — nói rõ là "không có sheet" để
+     WordPress ghi nhận rồi đi tiếp, chứ đừng dừng cả mẻ kéo vì một cơ sở. */
+  if (tho.error) return { ok: true, khongCoSheet: true, station: station, thang: prefix, rows: [] };
+
+  return { ok: true, station: station, thang: prefix, sheets: tho.sheets || [], rows: tho.rows || [] };
 }

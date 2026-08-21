@@ -372,9 +372,16 @@ function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
 	define( 'VHCC_URL', 'http://example.test/plugin-cham-cong/' );
-	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang', 'nhan', 'online', 'luong', 'pdf', 'quyen', 'nhan-su', 'cham', 'yeucau', 'lich', 'may', 'admin', 'man' ) as $c ) {
-		require_once $dir . '/includes/class-vhcc-' . $c . '.php';
+	/* ĐỌC danh sách lớp từ CHÍNH tệp plugin, không gõ tay lại.
+	   Bản đầu gõ tay 17 tên lớp ở đây. Thêm `class-vhcc-keo.php` vào plugin là bài kiểm không
+	   nạp nó và mọi màn dùng tới nó chết với "Class VHCC_Keo not found" — một lỗi của BÀI KIỂM
+	   trông y như lỗi của plugin. Thứ tự require trong tệp plugin cũng chính là thứ tự phụ thuộc
+	   đúng, nên đọc lại là được cả hai thứ. */
+	$chinh = file_get_contents( $dir . '/vhcp-cham-cong.php' );
+	if ( ! preg_match_all( "#require_once VHCC_DIR \. '(includes/class-vhcc-[a-z-]+\.php)';#", $chinh, $m ) ) {
+		throw new RuntimeException( 'Không đọc được danh sách lớp trong vhcp-cham-cong.php' );
 	}
+	foreach ( $m[1] as $duong ) { require_once $dir . '/' . $duong; }
 }
 
 function vhd_test_boot( $dir ) {

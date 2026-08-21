@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Đưa app Hệ thống chấm công (Apps Script) lên website: giao diện và nghiệp vụ GIỮ NGUYÊN bản gốc, dữ liệu vẫn đọc/ghi trên Google Sheet. WordPress lo cổng PIN và giữ khoá bí mật.
- * Version:           1.0.6
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -29,7 +29,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '1.0.6' );
+define( 'VHCC_VERSION', '1.1.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -48,6 +48,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-lich.php';
 require_once VHCC_DIR . 'includes/class-vhcc-may.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-online.php';
+require_once VHCC_DIR . 'includes/class-vhcc-keo.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-man.php';
