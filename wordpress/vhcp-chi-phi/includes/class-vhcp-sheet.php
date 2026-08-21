@@ -287,8 +287,27 @@ class VHCP_Sheet {
 							$ct = self::coso_cua_tab( $v['tab'] );
 							if ( $ct['ghiChu'] !== '' ) { $mo['ketQua'] .= ' · ' . $ct['ghiChu']; }
 						}
+						// Tính trước TỔNG TIỀN sẽ nạp — biết cột tiền đọc đúng chưa mà chưa ghi gì
+						if ( $bang_td === 'sochi' ) {
+							$hm = array();
+							foreach ( $k['rows'] as $rr ) {
+								$h = VHCP_Nap::o( $rr, $k['hd'], 'hang_muc' );
+								if ( $h !== '' ) { $hm[ mb_strtolower( $h ) ] = 1; }
+							}
+							$tt = 0; $k0 = 0;
+							foreach ( $k['rows'] as $rr ) {
+								$nd0 = VHCP_Nap::o( $rr, $k['hd'], 'noi_dung' );
+								if ( isset( $hm[ mb_strtolower( $nd0 ) ] ) ) { continue; }   // dòng tổng hợp
+								$so = VHCP_Util::num( str_replace( array( '.', ' ' ), '', VHCP_Nap::o_so( $rr, $k, 'so_tien' ) ) );
+								$tt += $so;
+								if ( ! $so ) { $k0++; }
+							}
+							$mo['ketQua'] .= ' · TỔNG TIỀN sẽ nạp ' . number_format( $tt, 0, ',', '.' ) . 'đ';
+							if ( $k0 ) { $mo['ketQua'] .= ' · ' . $k0 . ' dòng ra 0đ'; }
+						}
 						$mo['cotThieu'] = $k['thieu'];
 						$mo['cotLa']    = $k['la'];
+						$mo['khopVoi']  = isset( $k['khopVoi'] ) ? $k['khopVoi'] : array();
 					} else {
 						$mo['ketQua'] = 'KHÔNG khớp được tên cột — ' . $k['loi'];
 						$mo['dongDau'] = self::xem_dong( $v['rows'] );
