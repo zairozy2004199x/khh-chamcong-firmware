@@ -134,6 +134,46 @@ static_assert(_cxTim(SEC_EXEC_URL, "__CHUA_CAU_HINH") || _cxTim(SEC_EXEC_URL, "/
   "SEC_EXEC_URL phai co /macros/s/ va ket thuc /exec. Lay link o web app: Trien khai > Quan ly ban trien khai.");
 const char* google_script_url = SEC_EXEC_URL;
 
+/* ===========================================================================================
+ *  ĐƯỜNG THỨ HAI: WORDPRESS  (chạy SONG SONG với /exec, không thay nó)
+ * -------------------------------------------------------------------------------------------
+ *  Anh Thắng: *"để sẵn liên kết wed, để có nhân viên đi nhờ nạp luôn, còn máy nào chưa nạp
+ *  được thì vẫn chạy qua sscript. chạy song song 2 đường"*.
+ *
+ *  Nên máy nạp bản này đẩy MỖI LƯỢT CHẤM CÔNG vào CẢ HAI nơi:
+ *      · Apps Script /exec  -> vào sheet (như xưa, KHÔNG đổi gì)
+ *      · WordPress          -> vào MySQL trực tiếp
+ *  Máy CHƯA nạp thì chỉ đi đường /exec, và Apps Script tự chuyển tiếp sang WordPress bằng hàng
+ *  đợi (xem wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs). Hai đường cùng tồn tại,
+ *  không có mốc "phải nạp xong hết mới chạy được".
+ *
+ *  ⚠️ ĐẨY HAI NƠI KHÔNG SINH CÔNG ĐÔI. Cổng WordPress ghi theo luật [sớm nhất, muộn nhất] và
+ *     chỉ NỚI RỘNG, không bao giờ THU HẸP; lượt trùng bị trả 'trung' và không đụng gì. Nên một
+ *     lượt tới hai lần (một lần trực tiếp, một lần qua hàng đợi) vẫn ra đúng một cặp giờ. Đây
+ *     chính là lý do luật đó phải đúng — nếu nó không idempotent thì chạy song song là sai công.
+ *
+ *  ⚠️ LIÊN KẾT + KHOÁ KHÔNG NẰM TRONG BẢN .BIN. Bản .bin do CI build được đặt ở chỗ tải công
+ *     khai, nên nó không được chứa bí mật nào — SEC_WP_* ở ci/secrets.ci.h là placeholder.
+ *     Máy lấy hai giá trị này theo thứ tự: NVS -> secrets.h (nạp USB) -> Firebase /cfg/wp.
+ *     Nhờ đường Firebase mà "nạp OTA là xong": khỏi gõ tay ở portal từng máy. Máy vốn đã đọc
+ *     Firebase để nhận lệnh OTA, nên đây không phải một cửa tin cậy mới.
+ * =========================================================================================== */
+#ifndef SEC_WP_URL
+  #define SEC_WP_URL CFG_PLACEHOLDER
+#endif
+#ifndef SEC_WP_KEY
+  #define SEC_WP_KEY CFG_PLACEHOLDER
+#endif
+/* Chặn lúc BIÊN DỊCH cái lỗi dán lẫn hai link — dán link /exec vào ô WordPress thì máy đẩy
+   hai lần vào cùng Apps Script và KHÔNG có lượt nào tới MySQL, mà log thì trông như thành công. */
+static_assert(!_cxTim(SEC_WP_URL, "/macros/"),
+  "SEC_WP_URL dang chua /macros/ — day la link Apps Script, khong phai link WordPress. "
+  "Phai la dang https://<ten mien>/cham-cong-may (khong co dau / o cuoi).");
+static_assert(_cxTim(SEC_WP_URL, "__CHUA_CAU_HINH") || _cxTim(SEC_WP_URL, "https://"),
+  "SEC_WP_URL phai bat dau bang https:// . Cong nhan cham cong tu choi HTTP thuong.");
+const char* wp_url = SEC_WP_URL;
+const char* wp_key = SEC_WP_KEY;
+
 // --- Đồng bộ nhân viên: DÙNG CHUNG web dashboard chấm công (cùng /exec) ---
 // doGet của dashboard đã xử lý action=pending/photo/ack. Token phải khớp EMP_TOKEN trong Code.gs.
 const char* emp_script_url = google_script_url;
@@ -202,7 +242,8 @@ Preferences prefs;
 // CFG_PLACEHOLDER đã định nghĩa ở ĐẦU FILE (SEC_EXEC_URL/SEC_FB_HOST dùng tới nó từ dòng ~100).
 // Giữ giá trị thật ở String toàn cục (sống suốt đời chương trình) rồi trỏ các con trỏ cũ vào .c_str()
 String _cfgHikUser, _cfgHikPass, _cfgApPass, _cfgOtaUser, _cfgOtaPass,
-       _cfgEmpTok, _cfgFbSec, _cfgExecUrl, _cfgFbHost, _cfgHikIp;
+       _cfgEmpTok, _cfgFbSec, _cfgExecUrl, _cfgFbHost, _cfgHikIp,
+       _cfgWpUrl, _cfgWpKey;
 bool   g_chuaCauHinh = false;      // thiếu giá trị bắt buộc -> hiện rõ trên màn hình, không chết im
 
 /* ⚠️ PHẢI bắt cả GIÁ TRỊ MẪU của secrets.example.h, không chỉ "__CHUA_CAU_HINH".
@@ -251,6 +292,24 @@ bool execUrlHopLe(const String& u){
  *    Database của mình là dạng .firebasedatabase.app nên không mất gì. Web app thì vẫn
  *    nhận cả 2 dạng (Apps Script không bị quét, giữ đường lùi ở đó là được).
  */
+/**
+ * Link cổng nhận chấm công của WordPress có dùng được không.
+ *
+ * ⚠️ TUYỆT ĐỐI KHÔNG được có dấu "/" ở cuối. Firmware KHÔNG đi theo chuyển hướng (xem
+ *    HTTPC_DISABLE_FOLLOW_REDIRECTS ở hàm gửi): WordPress chuyển hướng để thêm/bỏ dấu gạch là
+ *    máy gọi lại bằng GET, MẤT trọn thân POST — mà thân POST chính là lượt chấm công. Tệ hơn:
+ *    trang WordPress trả về có thể tình cờ chứa chữ "SUCCESS" nên máy báo đồng bộ thành công
+ *    trong khi không có gì được ghi. Nên chặn ngay ở đây, đừng để ra hiện trường mới biết.
+ * ⚠️ Loại luôn link có "/macros/": đó là link Apps Script bị dán lẫn ô.
+ */
+bool wpUrlHopLe(const String& u){
+  if (u.length() == 0)             return false;
+  if (!u.startsWith("https://"))   return false;   // cổng từ chối HTTP thường
+  if (u.endsWith("/"))             return false;   // xem khối ⚠️ ở trên
+  if (u.indexOf("/macros/") >= 0)  return false;   // dán lẫn link Apps Script
+  if (u.indexOf('.', 8) < 0)       return false;   // phải có tên miền thật
+  return u.length() > 12;
+}
 bool fbHostHopLe(const String& u){
   if (!u.startsWith("https://")) return false;
   if (u.endsWith("/"))           return false;
@@ -261,6 +320,7 @@ bool cfgDungDuoc(const char* khoa, const String& v){
   if (cfgLaPlaceholder(v)) return false;
   if (strcmp(khoa, "execUrl") == 0) return execUrlHopLe(v);
   if (strcmp(khoa, "fbHost")  == 0) return fbHostHopLe(v);
+  if (strcmp(khoa, "wpUrl")   == 0) return wpUrlHopLe(v);
   return true;
 }
 /**
@@ -324,6 +384,8 @@ void napCauHinh(){
   _cfgFbSec   = cfgLay("fbSec",    SEC_FB_SECRET);
   _cfgExecUrl = cfgLay("execUrl",  google_script_url);
   _cfgFbHost  = cfgLay("fbHost",   FB_HOST);
+  _cfgWpUrl   = cfgLay("wpUrl",    wp_url);
+  _cfgWpKey   = cfgLay("wpKey",    wp_key);
   if (_cfgHikIp.length() == 0) _cfgHikIp = HIK_IP_MAC_DINH;   // trống là mọi lệnh ISAPI đi vào "http:///…"
   hik_ip = _cfgHikIp.c_str();
   hik_user = _cfgHikUser.c_str();  hik_pass = _cfgHikPass.c_str();
@@ -332,6 +394,10 @@ void napCauHinh(){
   EMP_TOKEN = _cfgEmpTok.c_str();  FB_SECRET = _cfgFbSec.c_str();
   google_script_url = _cfgExecUrl.c_str();  emp_script_url = _cfgExecUrl.c_str();
   FB_HOST = _cfgFbHost.c_str();
+  wp_url = _cfgWpUrl.c_str();  wp_key = _cfgWpKey.c_str();
+  /* ⚠️ Đường WordPress THIẾU thì KHÔNG tính là "chưa cấu hình". Máy vẫn chạy đủ bằng đường
+     /exec như xưa; bắt nó báo lỗi đỏ vì thiếu một đường CHƯA bắt buộc là làm người đi lắp máy
+     tưởng máy hỏng rồi đi mò. Trạng thái đường thứ hai in riêng ở dòng dưới. */
   // FB_SECRET được phép trống (rule Firebase mở thì gọi không kèm auth) -> KHÔNG tính là thiếu.
   bool _urlXau = !execUrlHopLe(_cfgExecUrl);
   g_chuaCauHinh = _urlXau || (_cfgFbHost.length() == 0) ||
@@ -343,6 +409,10 @@ void napCauHinh(){
     _cfgExecUrl.length()?"có":"THIẾU", _cfgFbHost.length()?"có":"THIẾU", _cfgEmpTok.length()?"có":"THIẾU",
     _cfgHikPass.length()?"có":"THIẾU", _cfgOtaPass.length()?"có":"THIẾU", _cfgApPass.length()?"có":"THIẾU",
     _cfgFbSec.length()?"có":"(trống - gọi Firebase không auth)");
+  Serial.printf("[CFG] duong 2 (WordPress): %s\n",
+    (wpUrlHopLe(_cfgWpUrl) && _cfgWpKey.length()) ? "CO -> day ca 2 noi"
+      : (_cfgWpUrl.length() ? "LINK/KHOA CHUA DUNG -> tam thoi chi day /exec"
+                            : "chua khai -> chi day /exec (binh thuong)"));
   // Nói RÕ sai chỗ nào. Trước đây chỉ có một câu chung nên vẫn phải đi mò từng thứ.
   if (_urlXau) {
     Serial.println("[CFG] 🔴 LINK WEB APP SAI DẠNG — máy sẽ KHÔNG đẩy được chấm công.");
@@ -813,6 +883,10 @@ int fetchImageRaw(String picUrl, uint8_t** out) {
 
 // ---------- Đẩy Google Sheets ----------
 bool net4gHttpPost(const String& url, const String& body);   // forward decl (định nghĩa ở khối 4G bên dưới)
+/* Khai báo trước: pushEventToGoogle gọi wpDayLuot mà hàm đó định nghĩa NGAY DƯỚI nó. Arduino tự
+   sinh prototype nên thường vẫn build được, nhưng nó sinh theo heuristic và đã có tiền lệ hỏng
+   khi hàm nằm sau macro/#if — khai tay thì không phụ thuộc vào đó nữa. */
+bool wpDayLuot(const String& body);
 // LƯU Ý: hàm này NHẬN QUYỀN SỞ HỮU imageB64 và sẽ free nó (sau khi copy vào body).
 // Caller KHÔNG được free lại.
 bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB64, int imageB64Len) {
@@ -832,16 +906,29 @@ bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB
   // TLS handshake cần ~40KB RAM liền mạch; còn giữ buffer base64 sẽ thiếu -> lỗi HTTP -1.
   if (imageB64) { free(imageB64); imageB64 = NULL; }
 
-  // 4G: đẩy qua LỆNH AT HTTP của module (không PPP). GỬI BẢN GỌN (KHÔNG kèm ảnh) để né giới hạn AT+HTTPDATA.
+  /* BẢN GỌN (KHÔNG kèm ảnh) — dùng cho CẢ HAI chỗ:
+       · đường 4G: né giới hạn AT+HTTPDATA;
+       · đường WordPress: anh Thắng chốt không cần ảnh, chỉ cần giờ chấm công.
+     Dựng một lần ở đây thay vì dựng hai lần: hai bản chuỗi cho cùng một lượt là sớm muộn lệch
+     nhau, mà lệch ở đây là hai nơi ghi hai lượt khác nhau cho cùng một lần bấm. */
+  String slimBody = String("{\"macAddress\":\"") + macBo()
+              + "\",\"hikSerial\":\"" + HIK_SERIAL + "\",\"hikModel\":\"" + HIK_MODEL
+              + "\",\"stationName\":\"" + String(STATION_NAME)
+              + "\",\"employeeNo\":\"" + empNo + "\",\"name\":\"" + name + "\",\"time\":\"" + eventTime + "\",\"image\":\"\"}";
+
+  // 4G: đẩy qua LỆNH AT HTTP của module (không PPP).
   // Chấm công chỉ cần Mã NV + tên + giờ; ảnh mặt đã enroll sẵn trong máy nên không cần đẩy qua 4G.
   if (USE_4G) {
-    String slim = String("{\"macAddress\":\"") + macBo()
-                + "\",\"hikSerial\":\"" + HIK_SERIAL + "\",\"hikModel\":\"" + HIK_MODEL
-                + "\",\"stationName\":\"" + String(STATION_NAME)
-                + "\",\"employeeNo\":\"" + empNo + "\",\"name\":\"" + name + "\",\"time\":\"" + eventTime + "\",\"image\":\"\"}";
+    String slim = slimBody;
     for (int a = 1; a <= 3; a++) {
       Serial.printf("   -> [4G HTTP] gửi Google (lần %d, %d byte, heap %d)...\n", a, slim.length(), ESP.getFreeHeap());
-      if (net4gHttpPost(google_script_url, slim)) { Serial.println("   ✔️ ĐỒNG BỘ (4G HTTP, không kèm ảnh)!"); return true; }
+      if (net4gHttpPost(google_script_url, slim)) {
+        Serial.println("   ✔️ ĐỒNG BỘ (4G HTTP, không kèm ảnh)!");
+        /* Máy 4G KHÔNG đẩy đường WordPress: gói phải đi qua lệnh AT, hai lượt AT mỗi lần chấm
+           công là làm chậm hẳn cái đang chạy được. Lượt của máy này vẫn tới MySQL — qua hàng đợi
+           của Apps Script. Chỉ chậm hơn một phút. */
+        return true;
+      }
       delay(1500);
     }
     Serial.println("   ⚠️ 4G HTTP thất bại sau 3 lần"); return false;
@@ -879,6 +966,12 @@ bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB
 
     if (code == 200 && resp.indexOf("SUCCESS") >= 0) {
       Serial.println("   ✔️ ĐỒNG BỘ THÀNH CÔNG!");
+      /* ĐƯỜNG THỨ HAI. Gửi BẢN GỌN (không kèm ảnh): anh Thắng chốt "ảnh driver không cần lấy
+         qua đâu, có giờ chấm công là được rồi", mà ảnh base64 là gần hết gói.
+         ⚠️ BỎ HẲN giá trị trả về. Lượt này ĐÃ vào sheet; WordPress hỏng thì hàng đợi của Apps
+            Script vẫn đưa nó sang. Để nó đổi kết quả ở đây là một đường MỚI làm hỏng đường
+            ĐANG CHẠY TỐT — máy sẽ đẩy lại vào Apps Script cho một lượt vốn đã xong. */
+      (void) wpDayLuot(slimBody);
       return true;
     }
     Serial.printf("   ⚠️ Lỗi (mã %d), thử lại %d/3...\n", code, attempt);
@@ -886,6 +979,99 @@ bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB
   }
   Serial.println("   ❌ Gửi Google thất bại sau 3 lần.");
   return false;
+}
+
+/**
+ * ĐẨY MỘT LƯỢT SANG WORDPRESS — đường thứ hai, chạy song song với /exec.
+ *
+ * ⚠️ HÀM NÀY KHÔNG ĐƯỢC ẢNH HƯỞNG KẾT QUẢ CỦA ĐƯỜNG /exec. Nơi gọi bỏ hẳn giá trị trả về:
+ *    lượt chấm công đã vào sheet rồi, và Apps Script còn chuyển tiếp bằng hàng đợi nữa. Để
+ *    WordPress hỏng làm máy coi cả lượt là thất bại thì máy đẩy lại vào Apps Script -> trùng
+ *    lượt, và tệ hơn là một đường mới hỏng làm hỏng đường đang chạy tốt.
+ *
+ * ⚠️ KHÔNG đi theo chuyển hướng (như đường /exec). Gặp 30x là coi như THẤT BẠI và nói rõ link
+ *    sai — chứ không phải gọi lại bằng GET rồi mất thân POST mà vẫn tưởng xong.
+ *
+ * Chỉ trả true khi HTTP 200 và thân có chữ "SUCCESS" — CÙNG luật đường /exec đang dùng, để hai
+ * đường không bao giờ hiểu khác nhau về chữ "xong".
+ */
+bool wpDayLuot(const String& body){
+  if (!wpUrlHopLe(String(wp_url)) || strlen(wp_key) == 0) return false;   // chưa khai -> lặng lẽ bỏ
+  if (!netUp()) return false;
+
+  /* Đường 4G dùng lệnh AT, gói phải GỌN. Đường này chỉ đi khi có WiFi; máy 4G vẫn đủ đường
+     /exec + hàng đợi nên không mất lượt nào. Cố đẩy qua AT nữa là hai lần AT mỗi lượt chấm
+     công, chậm hẳn cái đang chạy được để thêm một cái chưa cần. */
+  if (USE_4G) return false;
+
+  for (int lan = 1; lan <= 2; lan++) {
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.begin(client, wp_url);
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-VHCC-Key", wp_key);
+    http.setTimeout(15000);
+    int code = http.POST(body);
+    String resp = http.getString();
+    http.end();
+
+    if (code == 200 && resp.indexOf("SUCCESS") >= 0) {
+      Serial.println("   ✔️ [WP] da ghi MySQL");
+      return true;
+    }
+    if (code == 301 || code == 302 || code == 307 || code == 308) {
+      Serial.printf("   ⚠️ [WP] HTTP %d CHUYEN HUONG — link wpUrl sai (dau / o cuoi? sai ten mien?). "
+                    "May KHONG di theo chuyen huong nen luot nay khong vao MySQL.\n", code);
+      return false;                      // sai cấu hình thì thử lại cũng vậy
+    }
+    if (code == 401) {
+      Serial.println("   ⚠️ [WP] HTTP 401 — sai khoa wpKey (phai khop VHCC_KHOA_MAY o wp-config.php).");
+      return false;                      // sai khoá thì thử lại cũng vậy
+    }
+    Serial.printf("   ⚠️ [WP] loi HTTP %d (lan %d/2)\n", code, lan);
+    delay(500);
+  }
+  return false;
+}
+
+/**
+ * NHẬN LIÊN KẾT + KHOÁ WORDPRESS QUA FIREBASE — để "nạp OTA là xong".
+ *
+ * Đọc `/cfg/wp.json` = {"url":"https://…/cham-cong-may","key":"…"} rồi lưu vào NVS.
+ * Vì sao đi đường này chứ không gõ ở portal: bản .bin công khai không được chứa bí mật, mà bắt
+ * người đi nạp gõ tay link + khoá ở 192.168.4.1 cho từng máy là vừa lâu vừa dễ gõ sai một ký tự
+ * rồi không ai biết. Máy vốn ĐÃ đọc Firebase để nhận lệnh OTA — mà OTA thì mạnh hơn hẳn (nạp
+ * được firmware bất kỳ) — nên đây không phải một cửa tin cậy mới mở ra.
+ *
+ * ⚠️ Chỉ GHI khi giá trị mới DÙNG ĐƯỢC và KHÁC cái đang có. Ghi NVS mỗi 5 phút là mài flash;
+ *    và ghi một link rác vào NVS thì nó thắng cả secrets.h ở lượt khởi động sau.
+ * ⚠️ KHÔNG in khoá ra Serial. Log máy chấm công bị đọc bởi nhiều người hơn số người được biết khoá.
+ */
+void wpNhanCauHinh(){
+  if (!netUp() || String(FB_HOST).length() == 0) return;
+  String body = httpGetBody(String(FB_HOST) + "/cfg/wp.json" + fbAuthParam());
+  body.trim();
+  if (body.length() == 0 || body == "null") return;
+  DynamicJsonDocument d(512);
+  if (deserializeJson(d, body)) return;
+  String u = d["url"] | "";
+  String k = d["key"] | "";
+  u.trim(); k.trim();
+
+  if (wpUrlHopLe(u) && u != _cfgWpUrl) {
+    prefs.putString("wpUrl", u);
+    _cfgWpUrl = u; wp_url = _cfgWpUrl.c_str();
+    Serial.println("[WP] nhan link tu Firebase: " + u);
+  } else if (u.length() && !wpUrlHopLe(u)) {
+    Serial.println("[WP] ⚠️ link trong Firebase SAI DANG, bo qua: " + u);
+  }
+  if (k.length() && !cfgLaPlaceholder(k) && k != _cfgWpKey) {
+    prefs.putString("wpKey", k);
+    _cfgWpKey = k; wp_key = _cfgWpKey.c_str();
+    Serial.println("[WP] nhan khoa tu Firebase (da luu, khong in ra)");
+  }
 }
 
 // =======================================================================
@@ -3296,6 +3482,11 @@ void loop() {
     if (HIK_SERIAL.length() == 0) docThongTinDauDoc();
     hoiCuaHangGop();
   }
+
+  /* Nhận link + khoá WordPress từ Firebase, CÙNG NHỊP với lượt kiểm OTA (5 phút). Cùng nhịp vì
+     cùng một chuyến đọc Firebase, và vì hai thứ này đi đôi: nạp OTA xong là có cấu hình ngay,
+     khỏi ai phải gõ tay ở portal từng máy. */
+  wpNhanCauHinh();
 
   // ③ OTA từ xa: kiểm tra firmware mới trên Firebase /ota mỗi 5 phút (tải + flash khi có bản mới)
   if (!webBusy && netUp() && millis() - lastOtaCheck >= OTA_CHECK_MS) {

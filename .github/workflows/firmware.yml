@@ -74,6 +74,14 @@ jobs:
           cp "$SKETCH/ci/User_Setup.h" "$LIB/User_Setup.h"
           echo "Da ap User_Setup.h cho $LIB"
 
+      - name: Kiem ham kiem dang link (g++, khong can Arduino)
+        run: |
+          set -e
+          # Chay TRUOC buoc Compile (~3 phut): sai o hai o link thi biet trong vai giay.
+          # Tu khi may day CA HAI duong (Apps Script + WordPress) thi loi ton kem nhat la DAN LAN
+          # O — dan link /exec vao o WordPress thi khong luot nao toi MySQL ma log trong nhu xong.
+          bash tools/test/fw/kiem-link.sh
+
       - name: Dat secrets.h PLACEHOLDER (co y - .bin phai sach bi mat)
         run: |
           set -e

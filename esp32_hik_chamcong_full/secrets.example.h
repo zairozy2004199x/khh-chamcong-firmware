@@ -90,3 +90,24 @@
 // ⚠️ ĐỪNG commit link thật vào đây: file này được đồng bộ nguyên văn sang repo firmware
 //    CÔNG KHAI. Link thật khai ở portal 192.168.4.1 hoặc trong secrets.h (đã .gitignore).
 #define SEC_FB_HOST       "DIEN_VAO_DAY_LINK_FIREBASE_RTDB"
+
+// ============================================================================
+//  ĐƯỜNG THỨ HAI: WORDPRESS  (chạy SONG SONG với /exec, KHÔNG thay nó)
+//  ----------------------------------------------------------------------------
+//  Máy nạp bản này đẩy MỖI lượt chấm công vào cả hai nơi: /exec (vào sheet) và
+//  WordPress (vào MySQL). Máy CHƯA nạp thì chỉ đi /exec, rồi Apps Script tự
+//  chuyển tiếp sang WordPress bằng hàng đợi. Không có mốc "phải nạp hết mới chạy".
+//
+//  HAI Ô NÀY THƯỜNG KHÔNG CẦN ĐIỀN. Máy nhận link + khoá qua Firebase /cfg/wp
+//  ngay sau khi nạp OTA — đó là cách để "nhân viên đi ngang nạp luôn" mà không
+//  phải gõ tay từng máy. Chỉ điền khi nạp USB cho chip trắng và muốn có sẵn.
+//
+//  ⚠️ URL KHÔNG ĐƯỢC CÓ DẤU "/" Ở CUỐI. Firmware không đi theo chuyển hướng;
+//     WordPress chuyển hướng để thêm dấu gạch là máy gọi lại bằng GET và MẤT
+//     trọn lượt chấm công — mà log vẫn có thể trông như thành công.
+//  ⚠️ ĐỪNG dán link /exec vào đây. Sai ô thì máy đẩy hai lần vào Apps Script và
+//     không lượt nào tới MySQL. Đã có static_assert chặn lúc biên dịch.
+//  ⚠️ SEC_WP_KEY phải KHỚP HỆT `VHCC_KHOA_MAY` trong wp-config.php của website.
+// ============================================================================
+#define SEC_WP_URL        "https://DIEN_TEN_MIEN_CUA_ANH/cham-cong-may"
+#define SEC_WP_KEY        "DIEN_KHOA_GIONG_VHCC_KHOA_MAY"
