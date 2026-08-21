@@ -23,8 +23,18 @@ class VHCP_Auth {
 	 * khoá ô nhập trên giao diện chỉ là lớp sơn.
 	 */
 	private static $vai_tro = '';
-	public static function dat_vai_tro( $r ) { self::$vai_tro = (string) $r; }
+	private static $nguoi   = '';
+	public static function dat_vai_tro( $r, $ten = '' ) {
+		self::$vai_tro = (string) $r;
+		self::$nguoi   = (string) $ten;
+	}
 	public static function vai_tro() { return self::$vai_tro; }
+	public static function nguoi() { return self::$nguoi; }
+
+	/** Người đang gọi là NHÂN VIÊN (chỉ được thấy / sửa đơn của chính mình)? */
+	public static function la_nhan_vien() {
+		return ( self::$vai_tro === 'Nhân viên' && trim( self::$nguoi ) !== '' );
+	}
 
 	/** login(pin) */
 	public static function login( $pin ) {

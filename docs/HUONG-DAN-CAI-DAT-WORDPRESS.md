@@ -565,6 +565,43 @@ Nhân viên); bảng phân quyền cũ thiếu hành động này thì tự dùn
 Nhãn cũng gọi đúng việc: nút của nhân viên là **📤 Gửi xin tạm ứng** (không phải "Gửi duyệt"
 — duyệt là bước sau của quản lý), và **📤 Gửi quyết toán cho kế toán**.
 
+### Nhân viên chỉ thấy đơn của chính mình (bản 1.10.0) — QUAN TRỌNG
+
+Đã gặp cảnh một **Nhân viên** thấy tab *Duyệt tạm ứng* với đơn của **mọi người**, kèm cả nút
+**Gửi tạm ứng**. Nguyên nhân: bảng phân quyền nạp từ bảng tính cũ bị lệch nên vai trò Nhân
+viên được tích những quyền của người duyệt, mà máy chủ lại gửi xuống trình duyệt danh sách
+đơn của tất cả. Đã chặn ba lớp:
+
+1. **Nguồn dữ liệu**: `list_dons()` lọc theo người lập khi vai trò là Nhân viên — mọi màn
+   hình (danh sách đơn, duyệt tạm ứng, quyết toán, thừa/thiếu, báo cáo) đều lấy từ đây, nên
+   không màn nào lỡ để lộ. Lọc trên giao diện là vô nghĩa: dữ liệu đã gửi xuống máy người ta.
+2. **Từng hành động**: mở đơn, thêm/sửa/xóa dòng, gửi xin tạm ứng, gửi quyết toán, xóa đơn —
+   đều kiểm đơn có phải của mình không, báo *"Đơn này của người khác"* nếu không.
+3. **Cửa API**: các việc của người duyệt / kế toán (duyệt tạm ứng, cấp tạm ứng, trả lại đơn,
+   xác nhận quyết toán, sửa số thực mua…) **luôn** trả 403 cho vai trò Nhân viên, **bất kể**
+   bảng phân quyền tích gì. Tab của những việc đó cũng không mở thêm cho Nhân viên nữa.
+
+Nếu bảng phân quyền của anh đang lệch: ⚙️ **Cấu hình → 🔑 Phân quyền chỉnh sửa → ↺ Đặt lại
+mặc định**.
+
+### Lọc theo tháng / tuần / cơ sở
+
+📋 **Danh sách đơn** và ✅ **Duyệt tạm ứng** có thêm 3 ô lọc **Tháng · Tuần/kỳ · Cơ sở**
+(Danh sách đơn có thêm **Trạng thái**) và nút **✕ Bỏ lọc**. Ô Tuần chỉ liệt kê tuần thuộc
+tháng đang chọn nên hai ô không chọi nhau. Số trên tiêu đề ghi *đang hiện / tổng*.
+
+### Màn Quyết toán chỉ còn việc quyết toán
+
+Trước đây xổ hết mọi trạng thái (Nháp, chờ duyệt, chờ cấp…) nên kế toán phải lội qua mấy
+chục đơn chưa tới lượt mình. Nay **chỉ hiện đơn "Chờ quyết toán" và "Đã quyết toán"**.
+
+### Đính hóa đơn được cả sau khi đã quyết toán
+
+Hóa đơn giấy về sau ngày chi tiền là chuyện thường. Trước đây quyết toán xong là nút đính
+biến mất. Nay nút **📎 Đính hóa đơn** còn dùng được ở mọi trạng thái (kèm nút **👁 Xem**), ghi
+**ngay** vào đơn thay vì chờ nút "Lưu nháp quyết toán" (đơn đã chốt thì không còn nút đó, chờ
+nó là ảnh vừa tải lên bay mất). Đường ghi ảnh này **không đụng số tiền nào** và có vào nhật ký.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

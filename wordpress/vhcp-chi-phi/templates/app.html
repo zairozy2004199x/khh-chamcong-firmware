@@ -249,7 +249,14 @@
 
   <div class="card" id="donListCard">
     <div class="ch"><h2>📋 Danh sách đơn (<span id="donListCount">0</span>)</h2>
-      <button class="btn b-x" onclick="boot()">↻ Tải lại</button></div>
+      <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+        <div class="fld"><label>Tháng</label><select id="dlThang" onchange="renderDonList()" style="min-width:120px"></select></div>
+        <div class="fld"><label>Tuần / kỳ</label><select id="dlKy" onchange="renderDonList()" style="min-width:190px"></select></div>
+        <div class="fld"><label>Cơ sở</label><select id="dlCoso" onchange="renderDonList()" style="min-width:170px"></select></div>
+        <div class="fld"><label>Trạng thái</label><select id="dlSt" onchange="renderDonList()" style="min-width:150px"></select></div>
+        <button class="btn b-x" onclick="dlXoaLoc()" title="Bỏ hết bộ lọc">✕ Bỏ lọc</button>
+        <button class="btn b-x" onclick="boot()">↻ Tải lại</button>
+      </div></div>
     <div class="tw" style="max-height:340px;overflow:auto">
       <table>
         <thead><tr><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th>Trạng thái</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Còn lại</th><th style="text-align:center">Mở</th></tr></thead>
@@ -346,7 +353,12 @@
           <div class="fld"><label>Tạm ứng (số đã duyệt)</label><input id="qtTU" disabled style="width:160px;font-weight:700"></div>
           <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="number" disabled style="width:170px;font-weight:700"></div>
           <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:150px;font-weight:800;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;font-family:Consolas,monospace">—</div></div>
-          <div class="fld"><label>Hóa đơn tổng (nếu cần)</label><button class="btn b-x" id="qtImgBtn" onclick="attachHoaDon()">📎 Đính hóa đơn</button></div>
+          <div class="fld"><label>Hóa đơn tổng (nếu cần)</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn b-x" id="qtImgBtn" onclick="attachHoaDon()">📎 Đính hóa đơn</button>
+              <button class="btn b-s" id="qtImgXem" style="display:none">👁 Xem</button>
+            </div>
+            <div id="qtImgNote" style="font-size:11px;color:#64748b;margin-top:3px"></div></div>
           <div class="fld"><label>Hình thức trả kế toán</label>
             <select id="qtHTTT" onchange="calcQT()" style="width:180px"><option value="">—</option><option value="Tiền mặt">Tiền mặt</option><option value="Chuyển khoản">Chuyển khoản</option></select></div>
         </div>
@@ -714,7 +726,11 @@
     <div class="card">
       <div class="ch">
         <h2>✅ Duyệt đơn (Kế toán)</h2>
-        <div style="display:flex;gap:8px;align-items:center">
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="fld"><label>Tháng</label><select id="dvThang" onchange="renderDuyet()" style="min-width:115px"></select></div>
+          <div class="fld"><label>Tuần / kỳ</label><select id="dvKy" onchange="renderDuyet()" style="min-width:185px"></select></div>
+          <div class="fld"><label>Cơ sở</label><select id="dvCoso" onchange="renderDuyet()" style="min-width:165px"></select></div>
+          <button class="btn b-x" onclick="dvXoaLoc()" title="Bỏ lọc tháng / tuần / cơ sở">✕ Bỏ lọc</button>
           <select id="duyetFilter" onchange="renderDuyet()">
             <option value="cho">Cần xử lý (chờ duyệt / quyết toán)</option>
             <option value="Chờ duyệt tạm ứng">Chờ duyệt tạm ứng</option>
@@ -787,13 +803,11 @@
   <div id="page-qt" class="wrap" style="display:none">
     <div class="card">
       <div class="ch">
-        <h2>🧾 Quyết toán (NV nhập thực mua · kế toán xác nhận)</h2>
+        <h2>🧾 Quyết toán <span style="font-size:11px;font-weight:400;color:#64748b">— chỉ đơn <b>Chờ quyết toán</b> &amp; <b>Đã quyết toán</b></span></h2>
         <div style="display:flex;gap:8px;align-items:center">
           <select id="qtFilter" onchange="renderQTList()">
-            <option value="all">Tất cả — xổ theo trạng thái (đầu → cuối)</option>
+            <option value="all">Cả hai nhóm — chờ quyết toán &amp; đã quyết toán</option>
             <option value="tuan">Theo tuần / kỳ — xổ theo tuần (mới nhất trước)</option>
-            <option value="lam">Đang xử lý (đã cấp TƯ / chờ quyết toán)</option>
-            <option value="Đã cấp tạm ứng">Đã cấp tạm ứng (NV nhập)</option>
             <option value="Chờ quyết toán">Chờ quyết toán (kế toán xác nhận)</option>
             <option value="Đã quyết toán">Đã quyết toán</option>
           </select>
@@ -1237,11 +1251,65 @@
     el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
   }
   function _myDons(){ var isNV=(CURUSER&&CURUSER.role==='Nhân viên'); return (BOOT.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; }); }
+  /** "T8/2026 (17/8-23/8/2026)" -> "T8/2026" (tháng) — phần trước dấu ngoặc. */
+  function _thangCuaKy(ky){ return String(ky||'').split(' (')[0].trim(); }
+  /**
+   * Dựng lại 4 ô lọc của danh sách đơn từ chính dữ liệu đang có, giữ nguyên lựa chọn cũ.
+   * Ô Tuần/kỳ chỉ liệt kê kỳ THUỘC tháng đang chọn, để hai ô không chọi nhau.
+   */
+  /** Nạp 3 ô lọc tháng / tuần / cơ sở dùng chung cho nhiều màn. */
+  function _napLocDon(all, idThang, idKy, idCoso){
+    function duy(arr){ var o={},r=[]; arr.forEach(function(v){ v=String(v||'').trim(); if(v&&!o[v]){o[v]=1;r.push(v);} }); return r; }
+    function nap(id, ds, nhan){
+      var sel=el(id); if(!sel) return;
+      var cu=sel.value||'', co=ds.indexOf(cu)>=0;
+      sel.innerHTML='<option value="">'+nhan+'</option>'+ds.map(function(v){return '<option value="'+esc(v)+'"'+((co&&v===cu)?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+      sel.value=co?cu:'';
+    }
+    nap(idThang, duy(all.map(function(d){return _thangCuaKy(d.ky);})).sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tháng —');
+    var tc=el(idThang)?el(idThang).value:'';
+    nap(idKy, duy(all.filter(function(d){ return !tc || _thangCuaKy(d.ky)===tc; }).map(function(d){return d.ky;})).sort(function(a,b){return _kyVal(b)-_kyVal(a);}), '— Mọi tuần —');
+    nap(idCoso, duy(all.map(function(d){return d.coso;})).sort(), '— Mọi cơ sở —');
+  }
+  function _fillDonFilters(all){
+    function nap(id, ds, nhan){
+      var sel=el(id); if(!sel) return;
+      var cu=sel.value||'';
+      var co=ds.indexOf(cu)>=0;
+      sel.innerHTML='<option value="">'+nhan+'</option>'+ds.map(function(v){return '<option value="'+esc(v)+'"'+((co&&v===cu)?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+      sel.value=co?cu:'';
+    }
+    function duy(arr){ var o={},r=[]; arr.forEach(function(v){ v=String(v||'').trim(); if(v&&!o[v]){o[v]=1;r.push(v);} }); return r; }
+    var thang=duy(all.map(function(d){return _thangCuaKy(d.ky);})).sort(function(a,b){return _kyVal(b)-_kyVal(a);});
+    nap('dlThang', thang, '— Mọi tháng —');
+    var thangChon=el('dlThang')?el('dlThang').value:'';
+    var kys=duy(all.filter(function(d){ return !thangChon || _thangCuaKy(d.ky)===thangChon; }).map(function(d){return d.ky;}))
+              .sort(function(a,b){return _kyVal(b)-_kyVal(a);});
+    nap('dlKy', kys, '— Mọi tuần —');
+    nap('dlCoso', duy(all.map(function(d){return d.coso;})).sort(), '— Mọi cơ sở —');
+    nap('dlSt', duy(all.map(function(d){return d.trangThai;})), '— Mọi trạng thái —');
+  }
+  function dlXoaLoc(){ ['dlThang','dlKy','dlCoso','dlSt'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderDonList(); }
+
   function renderDonList(dons){
-    dons=dons||_myDons(); var tb=el('donListBody'); if(!tb) return;
+    var all=dons||_myDons(); var tb=el('donListBody'); if(!tb) return;
+    _fillDonFilters(all);
+    // Lọc cho gọn: tháng / tuần / cơ sở / trạng thái. Ô nào để trống là không lọc theo ô đó.
+    var fT=el('dlThang')?el('dlThang').value:'', fK=el('dlKy')?el('dlKy').value:'';
+    var fC=el('dlCoso')?el('dlCoso').value:'', fS=el('dlSt')?el('dlSt').value:'';
+    dons=all.filter(function(d){
+      if(fT && _thangCuaKy(d.ky)!==fT) return false;
+      if(fK && String(d.ky||'')!==fK) return false;
+      if(fC && String(d.coso||'')!==fC) return false;
+      if(fS && String(d.trangThai||'')!==fS) return false;
+      return true;
+    });
     var curM=(CUR&&CUR.don)?CUR.don.maDon:'';
-    if(el('donListCount')) el('donListCount').textContent=dons.length;
-    if(el('donListEmpty')) el('donListEmpty').style.display=dons.length?'none':'block';
+    if(el('donListCount')) el('donListCount').textContent=dons.length+(dons.length!==all.length?(' / '+all.length):'');
+    if(el('donListEmpty')){
+      el('donListEmpty').style.display=dons.length?'none':'block';
+      el('donListEmpty').textContent=all.length?'Không có đơn nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':'Chưa có đơn nào.';
+    }
     tb.innerHTML=dons.map(function(d){
       var cl=d.chenhLech>=0?'pos':'neg', on=(d.maDon===curM);
       return '<tr'+(on?' style="background:#ecfeff"':'')+'>'+
@@ -1301,6 +1369,11 @@
     return q ? !!q[CURUSER&&CURUSER.role] : false;
   }
   function _applyTabPerms(){   // CỘNG THÊM: mở tab nếu vai trò có quyền hành động trong đó (không ẩn bớt tab role-default)
+    // NHÂN VIÊN KHÔNG BAO GIỜ ĐƯỢC MỞ THÊM TAB theo bảng phân quyền. Bảng đó nạp từ bảng
+    // tính cũ có thể lệch cột, và đã có cảnh nhân viên thấy tab Duyệt tạm ứng với đơn của
+    // mọi người kèm nút "Gửi tạm ứng". Máy chủ đã chặn dữ liệu và hành động, đây là lớp
+    // thứ hai để đừng bày ra thứ họ không được làm.
+    if(CURUSER && CURUSER.role==='Nhân viên') return;
     function show(tab,on){ var t=el('tab-'+tab); if(t&&on) t.style.display='inline-block'; }
     show('duyet', canDo('duyetTU')||canDo('capTU')||canDo('traDon'));
     show('gom',   canDo('gom'));
@@ -1712,9 +1785,18 @@
       : '💡 Đơn không nhập tạm ứng theo cơ sở — <b>Thực mua = tổng thực chi các dòng</b> (đối chiếu khớp).';
     el('qtHTTT').value=CUR.don.httt||''; el('qtHTTT').disabled=!editable;
     QT.anh=CUR.don.anhHoaDon||'';
-    el('qtImgBtn').textContent=QT.anh?'✓ Đã đính hóa đơn':'📎 Đính hóa đơn';
-    el('qtImgBtn').style.display=(editable||QT.anh)?'inline-block':'none';
-    el('qtImgBtn').onclick=(!editable&&QT.anh)?function(){window.open(QT.anh,'_blank');}:attachHoaDon;
+    // ĐÍNH HÓA ĐƠN ĐƯỢC CẢ SAU KHI QUYẾT TOÁN. Hóa đơn giấy về sau ngày chi tiền là chuyện
+    // thường: kế toán chi bù hôm nay, mai mới có hóa đơn đỏ. Trước đây quyết toán xong là
+    // nút biến mất, không còn chỗ đính. Nút chỉ ghi ẢNH, không đụng số nào.
+    el('qtImgBtn').style.display='inline-block';
+    el('qtImgBtn').textContent=QT.anh?(editable?'✓ Đã đính hóa đơn':'✓ Xem hóa đơn')  : '📎 Đính hóa đơn';
+    el('qtImgBtn').onclick=attachHoaDon;
+    var _xemHd=el('qtImgXem');
+    if(_xemHd){
+      _xemHd.style.display=QT.anh?'inline-block':'none';
+      _xemHd.onclick=function(){ if(QT.anh) window.open(QT.anh,'_blank'); };
+    }
+    if(el('qtImgNote')) el('qtImgNote').textContent=editable?'' : 'Đơn đã chốt — đính thêm hóa đơn vẫn được, số tiền không đổi.';
     var b=el('qtBtns'), role=(CURUSER&&CURUSER.role)||'', loai=_curLoai();
     var cnDone=!!(CUR.don.nguoiQT&&String(CUR.don.nguoiQT).trim()), nccDone=!!(CUR.don.nguoiQTNCC&&String(CUR.don.nguoiQTNCC).trim());
     if(el('qtCNBox')) el('qtCNBox').style.display=(role==='Kế toán NCC')?'none':'';   // KT NCC không xem phần cá nhân
@@ -1787,9 +1869,16 @@
     var inp=el('hoaDonFile'); inp.value='';
     inp.onchange=function(){ var file=inp.files[0]; if(!file)return; loading(true);
       var rd=new FileReader(); rd.onload=function(e){ var b64=e.target.result.split(',')[1];
-        google.script.run.withSuccessHandler(function(res){loading(false);
-          if(res.success){QT.anh=res.url; el('qtImgBtn').textContent='✓ Đã đính hóa đơn'; toast('ok','Đã đính hóa đơn');}
-          else toast('err',res.error);
+        google.script.run.withSuccessHandler(function(res){
+          if(!res.success){loading(false);toast('err',res.error);return;}
+          QT.anh=res.url;
+          // GHI NGAY vào đơn. Đơn đã quyết toán thì không còn nút "Lưu nháp quyết toán"
+          // nữa, để chờ nút đó là ảnh vừa tải lên bay mất mà không ai biết.
+          google.script.run.withSuccessHandler(function(r2){loading(false);
+            if(r2&&r2.success){ toast('ok','Đã đính hóa đơn'); _log('Đính hóa đơn tổng', CUR.don.maDon, ''); openDon(CUR.don.maDon); }
+            else toast('err',(r2&&r2.error)||'Tải được ảnh nhưng chưa ghi vào đơn');
+          }).withFailureHandler(function(e2){loading(false);toast('err',e2.message);})
+            .setHoaDonQT(CUR.don.maDon, res.url, (CURUSER&&CURUSER.name)||'');
         }).withFailureHandler(function(er){loading(false);toast('err',er.message);}).uploadImage({base64:b64,type:file.type},CUR.don.maDon);
       }; rd.readAsDataURL(file);
     }; inp.click();
@@ -3372,10 +3461,15 @@
     var c=el.querySelector('.qtcaret'); if(c) c.textContent=open?'▸':'▾';
   }
   function renderQTList(){
-    var f=el('qtFilter').value, role=(CURUSER&&CURUSER.role)||'';
+    var f=el('qtFilter').value;
     var canBatch=canDo('xacNhanQT');   // ai được xác nhận quyết toán -> tích nhiều đơn duyệt 1 lần
     if(el('qtChkHead')) el('qtChkHead').style.display=canBatch?'':'none';
-    var COLS=canBatch?10:9, all=BOOT.dons||[], html='', total=0;   // +1 cột Cơ sở
+    // MÀN QUYẾT TOÁN CHỈ LO VIỆC QUYẾT TOÁN: chỉ hiện đơn "Chờ quyết toán" và "Đã quyết
+    // toán". Trước đây xổ hết mọi trạng thái (Nháp, chờ duyệt tạm ứng, chờ cấp…) nên kế
+    // toán phải lội qua mấy chục đơn chưa tới lượt mình. Đơn ở bước trước thì xem ở tab
+    // của bước đó (Duyệt tạm ứng), còn NV nhập thực mua thì làm ngay trong đơn của mình.
+    var COLS=canBatch?10:9, html='', total=0;   // +1 cột Cơ sở
+    var all=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Chờ quyết toán' || d.trangThai==='Đã quyết toán'; });
     if(f==='all'){
       // XỔ TẤT CẢ theo trạng thái, nhóm sẵn (không phải chọn dropdown), sắp giai đoạn đầu -> cuối
       var bySt={}; all.forEach(function(d){ (bySt[d.trangThai]=bySt[d.trangThai]||[]).push(d); });
@@ -3409,10 +3503,7 @@
       });
     } else {
       var list=all.filter(function(d){
-        if(f!=='lam') return d.trangThai===f;
-        if(role==='Kế toán cá nhân') return d.trangThai==='Chờ quyết toán' && !d.qtCN && (d.thucChiCN>0 || d.tamUng>0);
-        if(role==='Kế toán NCC')     return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quản lý gom','Chờ quyết toán','Đã quyết toán'].indexOf(d.trangThai)>=0 && !d.qtNCC && (d.thucChiNCC>0);
-        return d.trangThai==='Đã cấp tạm ứng'||d.trangThai==='Chờ quản lý gom'||d.trangThai==='Chờ quyết toán';   // Quản lý
+        return d.trangThai===f;   // 'all' và 'tuan' đi nhánh trên; ở đây chỉ lọc theo 1 trạng thái
       });
       total=list.length;
       if(list.length) html+='<tr class="qtGrpHdr"><td colspan="'+COLS+'" style="background:#eef2ff;font-weight:600;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px;font-size:12px">Tổng '+list.length+' đơn · '+_qtSumHtml(list)+'</td></tr>';
@@ -3643,10 +3734,18 @@
     box.innerHTML=(big?'⚠️ ':'💰 ')+'Tạm ứng đang lưu hành (chưa quyết toán): <b>'+money(tong)+'đ</b> · '+lh.length+' đơn';
   }
   function loadDuyet(){ boot(renderDuyet); }
+  function dvXoaLoc(){ ['dvThang','dvKy','dvCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderDuyet(); }
   function renderDuyet(){
     _renderTongLH('duyetTongLH');
     var f=el('duyetFilter').value;
-    var list=(BOOT.dons||[]).filter(function(d){
+    var all=(BOOT.dons||[]);
+    _napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');
+    var fT=el('dvThang')?el('dvThang').value:'', fK=el('dvKy')?el('dvKy').value:'', fC=el('dvCoso')?el('dvCoso').value:'';
+    var list=all.filter(function(d){
+      // Lọc cho gọn: tháng / tuần / cơ sở — ô nào trống là không lọc theo ô đó
+      if(fT && _thangCuaKy(d.ky)!==fT) return false;
+      if(fK && String(d.ky||'')!==fK) return false;
+      if(fC && String(d.coso||'')!==fC) return false;
       if(f==='all') return true;
       if(f==='cho') return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0;
       return d.trangThai===f; });

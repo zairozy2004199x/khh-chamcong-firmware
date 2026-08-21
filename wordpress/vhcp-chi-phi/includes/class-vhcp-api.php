@@ -22,6 +22,18 @@ class VHCP_API {
 	 */
 	private static function required_roles( $fn ) {
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
+		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
+		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
+		// của người khác nên phải chốt ở máy chủ.
+		$nguoi_duyet = array(
+			'duyetTamUng', 'capTamUng', 'duyetTamUngNhieu', 'capTamUngNhieu',
+			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
+			'xacNhanQtCnNhieu', 'dayChoKeToan', 'setTatToanTuan', 'setSoDuDauKy',
+			'setLineThucMua', 'setLineCN',
+		);
+		if ( in_array( $fn, $nguoi_duyet, true ) ) {
+			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
+		}
 		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
@@ -157,6 +169,7 @@ class VHCP_API {
 			'guiDuyetTamUng'        => array( 'VHCP_Don', 'gui_duyet_tam_ung' ),
 			'guiQuyetToan'          => array( 'VHCP_Don', 'gui_quyet_toan' ),
 			'saveQuyetToan'         => array( 'VHCP_Don', 'save_quyet_toan' ),
+			'setHoaDonQT'           => array( 'VHCP_Don', 'set_hoa_don_qt' ),
 			'duyetTamUng'           => array( 'VHCP_Don', 'duyet_tam_ung' ),
 			'capTamUng'             => array( 'VHCP_Don', 'cap_tam_ung' ),
 			'xacNhanQuyetToanCN'    => array( 'VHCP_Don', 'xac_nhan_quyet_toan_cn' ),
@@ -271,7 +284,7 @@ class VHCP_API {
 		// Xóa vai trò của lượt gọi TRƯỚC. Biến static sống suốt request, mà hàm công khai
 		// (login) thì không đi qua đoạn xác thực bên dưới — để sót là lượt sau thừa hưởng
 		// vai trò của lượt trước, đúng loại lỗi phân quyền khó thấy nhất.
-		VHCP_Auth::dat_vai_tro( '' );
+		VHCP_Auth::dat_vai_tro( '', '' );
 
 		if ( ! in_array( $fn, self::$public_fns, true ) ) {
 			$token = (string) $req->get_param( 'token' );
@@ -282,7 +295,7 @@ class VHCP_API {
 				return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phiên đã hết — đăng nhập lại bằng PIN', 'code' => 'no_session' ), 401 );
 			}
 			$role_ht = $user ? (string) $user['role'] : ( $wp_admin ? 'Admin' : '' );
-			VHCP_Auth::dat_vai_tro( $role_ht );
+			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
 				$role = $role_ht;

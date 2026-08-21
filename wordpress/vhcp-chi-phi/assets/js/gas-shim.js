@@ -82,18 +82,57 @@
 		} );
 	}
 
-	var TEN_DUONG = { rest: '/wp-json/', ajax: 'admin-ajax.php', trang: 'URL app' };
+	/**
+	 * Đường CUỐI CÙNG: GET, payload nằm trong query.
+	 *
+	 * Tường lửa (Cloudflare Bot Fight Mode / Under Attack) chặn theo KIỂU yêu cầu, không
+	 * chỉ theo đường dẫn: trang app mở được bằng GET nhưng POST vào đúng đường dẫn đó vẫn
+	 * bị 403. Đường này gửi bằng GET nên đi cùng kiểu với lần tải trang.
+	 *
+	 * Chỉ dùng được khi payload NGẮN — URL có hạn. Ảnh hóa đơn (base64) thì quá dài, phải
+	 * để nó thất bại rõ ràng chứ không cắt bớt dữ liệu.
+	 */
+	var GET_MAX = 6000;
+	function guiTrangGet( fn, args, tok ) {
+		var q = CFG.trang + '&fn=' + encodeURIComponent( fn )
+			+ '&args=' + encodeURIComponent( JSON.stringify( args || [] ) )
+			+ '&token=' + encodeURIComponent( tok );
+		if ( q.length > GET_MAX ) {
+			return Promise.resolve( {
+				status: 413, json: null,
+				raw: 'Dữ liệu quá dài để gửi bằng đường GET (' + q.length + ' ký tự). Lệnh này bắt buộc phải mở được POST.'
+			} );
+		}
+		return fetch( q, { method: 'GET', credentials: 'same-origin' } );
+	}
+
+	var TEN_DUONG = { rest: '/wp-json/', ajax: 'admin-ajax.php', trang: 'URL app (POST)', trangGet: 'URL app (GET)' };
+	var THU_TU    = [ 'rest', 'ajax', 'trang', 'trangGet' ];
+
+	function coDuong( d ) {
+		if ( d === 'rest' ) { return !! CFG.endpoint; }
+		if ( d === 'ajax' ) { return !! CFG.ajax; }
+		return !! CFG.trang;
+	}
 
 	function boGui( d ) {
-		if ( d === 'ajax' && CFG.ajax ) { return guiAjax; }
-		if ( d === 'trang' && CFG.trang ) { return guiTrang; }
+		if ( d === 'ajax' ) { return guiAjax; }
+		if ( d === 'trang' ) { return guiTrang; }
+		if ( d === 'trangGet' ) { return guiTrangGet; }
 		return guiRest;
 	}
 
-	/** Đường kế tiếp để thử khi đường đang dùng bị chặn ('' = hết đường). */
-	function duongKe( d ) {
-		if ( d === 'rest' && CFG.ajax ) { return 'ajax'; }
-		if ( ( d === 'rest' || d === 'ajax' ) && CFG.trang ) { return 'trang'; }
+	/**
+	 * Đường kế tiếp chưa thử ('' = hết đường).
+	 * Đi theo THỨ TỰ CỐ ĐỊNH và bỏ qua đường đã thử, nên dù đang nhớ đường giữa danh sách
+	 * thì vẫn quay lại thử những đường trước đó — tường lửa mở lại là app tự dùng đường
+	 * tốt nhất, không mắc kẹt ở đường dự phòng.
+	 */
+	function duongKe( daThu ) {
+		for ( var i = 0; i < THU_TU.length; i++ ) {
+			var d = THU_TU[ i ];
+			if ( daThu.indexOf( d ) < 0 && coDuong( d ) ) { return d; }
+		}
 		return '';
 	}
 
@@ -124,29 +163,34 @@
 		// Ghi lại TỪNG đường thất bại thế nào: chặn ở đâu, mã bao nhiêu, trả về gì. Gộp
 		// thành một câu "chặn cả 3 đường" thì không biết đường nào hỏng vì lý do gì —
 		// 403 của tường lửa và 200-trả-HTML (cổng không chạy) là hai bệnh khác nhau.
-		var vet = [];
+		var vet = [], daThu = [];
 		function ghiVet( d, r ) {
 			var loai = ( r.status === 0 ) ? 'không tới được máy chủ'
 				: ( r.status === 403 || r.status === 401 ) ? 'bị chặn'
 				: ( r.status === 404 ) ? 'không có đường này'
 				: ( r.status === 405 ) ? 'không cho POST'
+				: ( r.status === 413 ) ? 'dữ liệu quá dài cho đường này'
 				: ( ! r.json ) ? 'trả về không phải JSON' : 'lỗi';
 			vet.push( TEN_DUONG[ d ] + ': ' + r.status + ' ' + loai );
 		}
 		function thu( d ) {
+			daThu.push( d );
 			return boGui( d )( fn, args, tok ).then( docKetQua ).then( function ( r ) {
 				if ( ! biChan( r ) ) {
 					if ( d !== duong ) { nhoDuong( d ); }
 					return r;
 				}
 				ghiVet( d, r );
-				var ke = duongKe( d );
+				var ke = duongKe( daThu );
 				if ( ke ) { return thu( ke ); }
+				// Hết đường: quên đường đang nhớ để lần sau thử lại từ đầu — tường lửa
+				// được mở lại thì app tự chạy tiếp, không phải xóa dữ liệu trình duyệt.
+				try { localStorage.removeItem( DUONG_KEY ); localStorage.removeItem( 'vhcp_ajax' ); } catch ( e ) {}
 				return r;
 			} );
 		}
 
-		thu( duong ).then( function ( r ) {
+		thu( coDuong( duong ) ? duong : 'rest' ).then( function ( r ) {
 			if ( ! r ) { return; }
 			var j = r.json;
 
@@ -163,10 +207,18 @@
 					// Không phải JSON: gần như chắc chắn bị hosting hoặc plugin bảo mật chặn.
 					// In VẾT của từng đường + vài chữ đầu máy chủ trả về, để biết chữa ở đâu.
 					var dau = String( r.raw || '' ).replace( /<[^>]*>/g, ' ' ).replace( /\s+/g, ' ' ).trim().slice( 0, 110 );
+					var laCf = /checking your browser|just a moment|cloudflare|attention required/i.test( String( r.raw || '' ) );
 					msg = 'Không gọi được máy chủ. Đã thử: ' + vet.join( ' · ' )
-						+ ( dau ? ' — máy chủ trả về: "' + dau + '"' : '' )
-						+ ' · Mở thử ' + ( CFG.trang || '' ) + ' trên trình duyệt: ra {"ok":true} là cổng còn sống,'
-						+ ' ra trang app là cổng chưa chạy (cần cập nhật plugin).';
+						+ ( dau ? ' — máy chủ trả về: "' + dau + '"' : '' );
+					if ( laCf ) {
+						msg += ' ⇒ Đây là TƯỜNG LỬA CLOUDFLARE chặn, không phải lỗi app.'
+							+ ' Vào Cloudflare của khmatrix.com: Security → Bots → tắt "Bot Fight Mode";'
+							+ ' Security → Settings → Security Level đưa về Medium (tắt "I\'m Under Attack").'
+							+ ' Hoặc thêm WAF Custom Rule: Skip cho URI Path chứa /chi-phi/ , /wp-json/ và /wp-admin/admin-ajax.php.';
+					} else {
+						msg += ' · Mở thử ' + ( CFG.trang || '' ) + ' trên trình duyệt: ra {"ok":true} là cổng còn sống,'
+							+ ' ra trang app là cổng chưa chạy (cần cập nhật plugin).';
+					}
 				}
 				if ( onErr ) { onErr( { message: msg } ); }
 				return;

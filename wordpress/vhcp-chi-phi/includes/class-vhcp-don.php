@@ -245,7 +245,39 @@ class VHCP_Don {
 				'chenhLech'   => $tam_ung - $mua_cn,
 			);
 		}
+		// NHÂN VIÊN CHỈ THẤY ĐƠN CỦA CHÍNH MÌNH. Chặn ở đây, tức ở NGUỒN: mọi màn hình
+		// (danh sách đơn, duyệt tạm ứng, quyết toán, thừa/thiếu, báo cáo) đều lấy từ đây,
+		// nên không màn nào lỡ để lộ đơn của người khác. Lọc trên giao diện thì dữ liệu
+		// vẫn đã gửi xuống máy người ta rồi.
+		if ( VHCP_Auth::la_nhan_vien() ) {
+			$toi = mb_strtolower( trim( VHCP_Auth::nguoi() ) );
+			$out = array_values( array_filter( $out, function ( $x ) use ( $toi ) {
+				return mb_strtolower( trim( (string) $x['nguoiLap'] ) ) === $toi;
+			} ) );
+		}
 		return array_reverse( $out );
+	}
+
+	/**
+	 * Đơn này có phải của người đang gọi? Trả câu lỗi, '' là được phép.
+	 * Nhân viên chỉ mở / sửa đơn do chính mình lập; vai trò khác thì không giới hạn.
+	 */
+	private static function loi_khong_phai_don_minh( $ma_don ) {
+		if ( ! VHCP_Auth::la_nhan_vien() ) { return ''; }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return 'Không tìm thấy đơn'; }
+		$cua = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
+		$toi = mb_strtolower( trim( VHCP_Auth::nguoi() ) );
+		if ( $cua === '' || $cua === $toi ) { return ''; }
+		return 'Đơn này của người khác — bạn chỉ làm việc trên đơn do mình lập.';
+	}
+
+	/** Như trên nhưng tra theo ID DÒNG (dòng nào cũng thuộc một đơn). */
+	private static function loi_khong_phai_dong_minh( $id ) {
+		if ( ! VHCP_Auth::la_nhan_vien() ) { return ''; }
+		$l = self::line_row( $id );
+		if ( ! $l ) { return 'Không tìm thấy dòng'; }
+		return self::loi_khong_phai_don_minh( (string) $l['ma_don'] );
 	}
 
 	// ---------------------------------------------------------------- 1 đơn
@@ -271,6 +303,10 @@ class VHCP_Don {
 	 * dùng khi gọi hàng loạt trong nội bộ, vd duyệt quyết toán theo lô.
 	 */
 	public static function get_don( $ma_don, $with_products = true ) {
+		// Nhân viên mở đơn người khác qua mã đơn: chặn ở máy chủ, không tin giao diện.
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		$r = self::don_row( $ma_don );
 		if ( ! $r ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 
@@ -407,6 +443,9 @@ class VHCP_Don {
 	// ---------------------------------------------------------------- tạm ứng
 
 	public static function set_tam_ung( $ma_don, $coso, $so ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		if ( ! $coso ) { return VHCP_Util::err( 'Thiếu cơ sở' ); }
 		$d = self::don_row( $ma_don );
@@ -418,6 +457,9 @@ class VHCP_Don {
 	}
 
 	public static function set_du_phong( $ma_don, $so ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return VHCP_Util::err( 'Chỉ sửa dự phòng khi đơn ở "Nháp"' ); }
@@ -497,6 +539,9 @@ class VHCP_Don {
 	}
 
 	public static function set_tu_extra( $ma_don, $du_phong, $bu_tru ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return VHCP_Util::err( 'Chỉ sửa khi đơn ở "Nháp"' ); }
@@ -626,6 +671,9 @@ class VHCP_Don {
 	}
 
 	public static function add_line( $ma_don, $rec ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$rec = (array) $rec;
 		$st  = self::state( $ma_don );
@@ -642,6 +690,9 @@ class VHCP_Don {
 	}
 
 	public static function update_line( $id, $rec ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$cur = self::line_row( $id );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
@@ -706,6 +757,9 @@ class VHCP_Don {
 	}
 
 	public static function set_line_anh( $id, $url ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$cur = self::line_row( $id );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
@@ -718,6 +772,9 @@ class VHCP_Don {
 	}
 
 	public static function delete_line( $id ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$cur = self::line_row( $id );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
@@ -733,6 +790,9 @@ class VHCP_Don {
 
 	/** duplicateLine(): tách 1 dòng sang cơ sở khác (đơn 1 phiếu nhiều cơ sở). */
 	public static function duplicate_line( $id, $coso, $actor = '' ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$v = self::line_row( $id );
 		if ( ! $v ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
@@ -768,6 +828,9 @@ class VHCP_Don {
 	// ---------------------------------------------------------------- NV gửi đơn qua các bước
 
 	public static function gui_duyet_tam_ung( $ma_don ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
@@ -786,6 +849,9 @@ class VHCP_Don {
 	}
 
 	public static function gui_quyet_toan( $ma_don ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Đã cấp tạm ứng' ) { return VHCP_Util::err( 'Chỉ gửi khi đơn "Đã cấp tạm ứng"' ); }
@@ -795,6 +861,9 @@ class VHCP_Don {
 	}
 
 	public static function save_quyet_toan( $ma_don, $obj ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] === 'Đã quyết toán' ) { return VHCP_Util::err( 'Đơn đã quyết toán — không sửa' ); }
@@ -805,6 +874,31 @@ class VHCP_Don {
 			'hoa_don_qt'       => isset( $obj['anhHoaDon'] ) ? (string) $obj['anhHoaDon'] : '',
 		) );
 		return VHCP_Util::ok();
+	}
+
+	/**
+	 * ĐÍNH HÓA ĐƠN TỔNG — làm được cả SAU khi đã quyết toán.
+	 *
+	 * Hóa đơn giấy về sau ngày chi tiền là chuyện thường: kế toán đã chi bù rồi, hôm sau
+	 * mới có hóa đơn đỏ. save_quyet_toan() khóa hẳn khi "Đã quyết toán" (đúng, vì nó ghi
+	 * cả SỐ TIỀN), nên tách riêng đường chỉ ghi ẢNH: không đụng số nào, mọi trạng thái
+	 * đều đính được, và ghi nhật ký để còn truy ai đính lúc nào.
+	 */
+	public static function set_hoa_don_qt( $ma_don, $url, $nguoi = '' ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$u = trim( (string) $url );
+		self::upd_don( $ma_don, array( 'hoa_don_qt' => $u ) );
+		VHCP_Log::log_action( array(
+			'actor'  => (string) $nguoi,
+			'action' => ( $u === '' ? 'Bỏ hóa đơn tổng' : 'Đính hóa đơn tổng' ),
+			'target' => (string) $ma_don,
+			'detail' => 'trạng thái đơn: ' . (string) $d['trang_thai'],
+		) );
+		return VHCP_Util::ok( array( 'anhHoaDon' => $u ) );
 	}
 
 	// ---------------------------------------------------------------- kế toán / quản lý
@@ -890,6 +984,9 @@ class VHCP_Don {
 	}
 
 	public static function delete_don( $ma_don ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		global $wpdb;
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
@@ -956,6 +1053,9 @@ class VHCP_Don {
 	}
 
 	public static function khong_dung_tam_ung( $ma_don ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		if ( (string) $d['trang_thai'] !== 'Đã cấp tạm ứng' ) { return VHCP_Util::err( 'Chỉ đánh dấu khi đơn "Đã cấp tạm ứng"' ); }

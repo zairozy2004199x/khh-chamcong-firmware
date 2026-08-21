@@ -2034,6 +2034,41 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ------------------------------- NHÂN VIÊN CHỈ THẤY / SỬA ĐƠN CỦA CHÍNH MÌNH
+// Đã gặp cảnh một Nhân viên thấy tab Duyệt tạm ứng với đơn của MỌI NGƯỜI kèm nút
+// "Gửi tạm ứng" — do bảng phân quyền nạp từ bảng tính cũ bị lệch. Chặn ở MÁY CHỦ.
+$d_a = VHCP_Don::create_don( 'T9/2026 (1/9-7/9/2026)', 'NV Của Tôi' );
+$d_b = VHCP_Don::create_don( 'T9/2026 (1/9-7/9/2026)', 'NV Người Khác' );
+$ma_a = $d_a['maDon']; $ma_b = $d_b['maDon'];
+VHCP_Don::add_line( $ma_a, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Của tôi', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+VHCP_Don::add_line( $ma_b, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Của người khác', 'soLuong' => 1, 'donGia' => 200000, 'thanhTien' => 200000 ) );
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV Của Tôi' );
+$ds_nv = VHCP_Don::list_dons();
+$ten_nv = array();
+foreach ( $ds_nv as $x ) { $ten_nv[ $x['nguoiLap'] ] = 1; }
+teq( 'nhân viên chỉ thấy đơn của mình', array( 'NV Của Tôi' ), array_keys( $ten_nv ) );
+t( 'mở được đơn của mình', ! empty( VHCP_Don::get_don( $ma_a )['success'] ) );
+$mo_lo = VHCP_Don::get_don( $ma_b );
+t( 'KHÔNG mở được đơn người khác', empty( $mo_lo['success'] ) );
+t( 'và nói rõ vì sao', strpos( (string) $mo_lo['error'], 'của người khác' ) !== false, $mo_lo );
+t( 'không thêm dòng vào đơn người khác', empty( VHCP_Don::add_line( $ma_b, array( 'coso' => 'TÀU TÂN PHÚ', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Chen vào', 'soLuong' => 1, 'donGia' => 1, 'thanhTien' => 1 ) )['success'] ) );
+t( 'không gửi xin tạm ứng hộ người khác', empty( VHCP_Don::gui_duyet_tam_ung( $ma_b )['success'] ) );
+t( 'không xóa đơn người khác', empty( VHCP_Don::delete_don( $ma_b )['success'] ) );
+t( 'vẫn gửi được đơn của mình', ! empty( VHCP_Don::gui_duyet_tam_ung( $ma_a )['success'] ) );
+
+// Cửa API: nhân viên không gọi được việc của người duyệt, dù bảng phân quyền có tích
+VHCP_Cfg::set_quyen( array( 'duyetTU' => array( 'Nhân viên' => 1 ), 'capTU' => array( 'Nhân viên' => 1 ) ) );
+$tok_nv2 = VHCP_Auth::issue_token( 'NV Của Tôi', 'Nhân viên', '', '' );
+teq( 'API: nhân viên duyệt tạm ứng -> 403', 403, api( 'duyetTamUng', array( $ma_a, 'NV Của Tôi' ), $tok_nv2 )['status'] );
+teq( 'API: nhân viên cấp tạm ứng -> 403', 403, api( 'capTamUng', array( $ma_a, 'NV Của Tôi' ), $tok_nv2 )['status'] );
+teq( 'API: nhân viên trả lại đơn -> 403', 403, api( 'traLaiDon', array( $ma_a, 'x' ), $tok_nv2 )['status'] );
+teq( 'API: quản lý duyệt thì được', 200, api( 'duyetTamUng', array( $ma_a, 'QL F' ), $tok_ql )['status'] );
+VHCP_Cfg::reset_quyen();
+VHCP_Auth::dat_vai_tro( '', '' );
+VHCP_Don::delete_don_admin( $ma_a );
+VHCP_Don::delete_don_admin( $ma_b );
+
 // ------------------------------- XIN TẠM ỨNG LÀ QUYỀN RIÊNG, KHÔNG DÍNH "SỬA SỐ"
 // Luồng chi phí cơ sở: lên đơn (NV) → xin tạm ứng (NV) → duyệt (QL) → cấp (KT) →
 // gửi quyết toán (NV) → quyết toán (KT). Nút gửi đơn của NV từng bị gác bởi quyền
