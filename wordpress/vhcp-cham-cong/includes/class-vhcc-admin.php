@@ -1009,7 +1009,11 @@ class VHCC_Admin {
 			if ( $cu !== $slug ) { update_option( 'vhcc_flush_rewrite', 1 ); }
 
 			$url = isset( $_POST['vhcc_exec_url'] ) ? esc_url_raw( wp_unslash( $_POST['vhcc_exec_url'] ) ) : '';
-			update_option( 'vhcc_exec_url', $url );
+			/* Chuẩn hoá TRƯỚC khi lưu, và giữ lại lời giải thích — sửa ngầm thì lần sau anh Thắng
+			   dán lại đúng cái địa chỉ sai đó và không hiểu vì sao lần này lại chạy. */
+			$ch = VHCC_CauNoi::chuan_hoa_url( $url );
+			update_option( 'vhcc_exec_url', $ch['url'] );
+			set_transient( 'vhcc_sua_url_' . get_current_user_id(), $ch['sua'], 120 );
 
 			$nguon = ( isset( $_POST['vhcc_nguon'] ) && $_POST['vhcc_nguon'] === 'rieng' ) ? 'rieng' : 'chung';
 			update_option( 'vhcc_nguon_nguoidung', $nguon );
@@ -1073,6 +1077,14 @@ class VHCC_Admin {
 		);
 		if ( isset( $loi_nhan[ $msg ] ) ) {
 			echo '<div class="notice notice-success"><p>' . wp_kses_post( $loi_nhan[ $msg ] ) . '</p></div>';
+		}
+
+		$sua_url = get_transient( 'vhcc_sua_url_' . get_current_user_id() );
+		if ( is_array( $sua_url ) && $sua_url ) {
+			delete_transient( 'vhcc_sua_url_' . get_current_user_id() );
+			echo '<div class="notice notice-warning"><p><b>Địa chỉ /exec đã được sửa lại:</b></p><ul style="margin-left:18px;list-style:disc">';
+			foreach ( $sua_url as $x ) { echo '<li>' . wp_kses_post( $x ) . '</li>'; }
+			echo '</ul></div>';
 		}
 
 		if ( $msg === 'thu' ) {

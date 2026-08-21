@@ -20,6 +20,52 @@ class VHCC_CauNoi {
 	const TIMEOUT = 300;
 
 	public static function url()  { return trim( (string) get_option( 'vhcc_exec_url', '' ) ); }
+
+	/**
+	 * CHUẨN HOÁ địa chỉ /exec, và nói rõ đã sửa gì.
+	 *
+	 * 🔴 CA THẬT, mất một buổi mới ra: trình soạn Apps Script của tài khoản Google Workspace
+	 *    hiện địa chỉ dạng `script.google.com/a/macros/<tên miền>/s/<ID>/exec`. Dạng đó BUỘC
+	 *    người gọi phải đăng nhập bằng tài khoản của tên miền đó. WordPress gọi máy-với-máy,
+	 *    không đăng nhập được, nên Google trả `400 Bad Request` — một câu không hề nhắc gì tới
+	 *    đăng nhập, nên đọc xong vẫn tưởng mình dán sai ID hoặc quên Deploy.
+	 *    Cùng một bản triển khai đó, bỏ đoạn `/a/macros/<tên miền>` đi là gọi ẩn danh được.
+	 *    Firmware cũng chỉ chạy được với dạng rút gọn — nó có `static_assert` chặn dạng kia.
+	 *
+	 * Sửa luôn chứ không chỉ báo lỗi: giữ nguyên ID bản triển khai nên không có gì để đoán,
+	 * mà bắt anh Thắng tự cắt chuỗi 60 ký tự bằng tay thì thêm một chỗ gõ sai.
+	 *
+	 * @return array [ 'url' => string, 'sua' => string[] ] — `sua` rỗng là không đổi gì.
+	 */
+	public static function chuan_hoa_url( $url ) {
+		$url = trim( (string) $url );
+		$sua = array();
+		if ( $url === '' ) { return array( 'url' => '', 'sua' => $sua ); }
+
+		if ( preg_match( '#^(https://script\.google\.com)/a/macros/([^/]+)(/s/.+)$#', $url, $m ) ) {
+			$url   = $m[1] . '/macros' . $m[3];
+			$sua[] = 'Đã bỏ đoạn <code>/a/macros/' . esc_html( $m[2] ) . '</code> khỏi địa chỉ. '
+				. 'Dạng đó đòi người gọi đăng nhập bằng tài khoản ' . esc_html( $m[2] )
+				. ', mà WordPress gọi máy-với-máy nên Google trả <code>400 Bad Request</code>. '
+				. 'Vẫn đúng bản triển khai đó, chỉ khác đường vào.';
+		}
+
+		/* Dấu / ở cuối: Apps Script bỏ qua được, nhưng để nguyên thì địa chỉ này khác địa chỉ
+		   trong nhật ký nên đối chiếu bằng mắt hay bị lẫn. */
+		if ( substr( $url, -6 ) === '/exec/' ) {
+			$url   = substr( $url, 0, -1 );
+			$sua[] = 'Đã bỏ dấu <code>/</code> ở cuối.';
+		}
+
+		/* `/dev` là địa chỉ bản thử — nó LUÔN đòi đăng nhập, không bao giờ gọi được từ ngoài. */
+		if ( substr( $url, -4 ) === '/dev' ) {
+			$sua[] = '⚠️ Đây là địa chỉ <code>/dev</code> (bản thử), nó <b>luôn</b> đòi đăng nhập '
+				. 'nên gọi từ WordPress không bao giờ được. Lấy địa chỉ <code>/exec</code> ở '
+				. 'Deploy → Manage deployments.';
+		}
+
+		return array( 'url' => $url, 'sua' => $sua );
+	}
 	public static function khoa() { return trim( (string) get_option( 'vhcc_web_key', '' ) ); }
 
 	/** Khoá dùng chung với Apps Script — sinh sẵn để không ai đặt tay một chuỗi ngắn dễ đoán. */

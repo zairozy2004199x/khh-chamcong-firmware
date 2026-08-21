@@ -102,11 +102,36 @@ Hai file dùng **hai khoá khác nhau** trong Script Properties, đừng dán l�
 2. **Project Settings → Script properties**, thêm:
    - `WP_URL` = `https://khmatrix.com/cham-cong-may` (không dấu `/` cuối)
    - `WP_KEY` = đúng `VHCC_KHOA_MAY`
-3. Chèn **đúng một dòng** vào đầu hàm `doPost` đang có, ngay sau `try {`:
+3. Chèn **đúng một dòng** vào `doPost` đang có.
+
+   ⚠️ `doPost` có **hai** dòng `try {`. Phải là cái **thứ hai** — dòng `try {` đứng một mình,
+   ngay **trên** `var data = JSON.parse(...)`:
+
    ```javascript
-   wpXepHang(e && e.postData ? e.postData.contents : '');
+   function doPost(e) {
+     var _cn = ccCauNoi(e);          // ⬅️ CẦU NỐI (mục 1.5a) — phải ở dòng đầu tiên
+     if (_cn) return _cn;            // ⬅️ CẦU NỐI
+
+     var lock = LockService.getScriptLock();
+     try { lock.waitLock(20000); } catch (le) {}     // ← KHÔNG phải try này
+     try {                                           // ← try THỨ HAI
+       wpXepHang(e && e.postData ? e.postData.contents : '');   // ⬅️ GHI SONG SONG
+
+       var data = JSON.parse(e.postData.contents);
+       // … mã cũ của anh, không sửa gì …
    ```
-   Dòng này không bao giờ ném lỗi, nên không thể làm `doPost` chết.
+
+   Hai dấu `&` liền nhau, **không có dấu gạch chéo** nào giữa chúng. Có phần mềm xem file
+   Markdown tự thêm gạch chéo vào trước mỗi dấu `&` khi hiển thị; copy nguyên cái đó vào là
+   Apps Script báo sai cú pháp ngay. Thấy gạch chéo thì xoá đi.
+   (Phép thử mục 35 canh chính file này không được chứa dạng đã thoát đó, nên ở đây không viết
+   nó ra để làm ví dụ.)
+
+   Ghép cả hai việc rồi **Deploy một lần**. Vì sao đúng thứ tự này: cầu nối phải đứng trước
+   `LockService`, không thì mỗi lần mở trang web là chiếm khoá script 20 giây và trang web với
+   máy chấm công xếp hàng chờ nhau. `wpXepHang` đặt trước `JSON.parse` để gói hỏng khuôn vẫn
+   được giữ nguyên văn trong hàng đợi. Dòng đó không bao giờ ném lỗi nên không thể làm
+   `doPost` chết.
 4. **Deploy → New version.**
 5. Chạy tay hàm `wpBatDongBo()` một lần.
 

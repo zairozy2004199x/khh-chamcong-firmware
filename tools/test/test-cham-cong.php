@@ -2885,6 +2885,83 @@ t( 'hướng dẫn phân biệt rõ WEB_KEY với WP_KEY',
 	strpos( $hd, '`WEB_KEY`' ) !== false && strpos( $hd, '`WP_KEY`' ) !== false
 	&& strpos( $hd, 'đừng dán lẫn' ) !== false );
 
+// ===================================================== 35. CHUẨN HOÁ ĐỊA CHỈ /exec
+/* CA THẬT lúc anh Thắng cài: trình soạn Apps Script của tài khoản Google Workspace hiện địa chỉ
+   dạng `script.google.com/a/macros/khmatrix.com/s/<ID>/exec`. Dạng đó buộc người gọi phải đăng
+   nhập bằng tài khoản của tên miền, mà WordPress gọi máy-với-máy — Google trả `400 Bad Request`,
+   một câu không hề nhắc gì tới đăng nhập. Đọc câu đó xong vẫn tưởng mình dán sai ID hoặc quên
+   Deploy, mà cả hai đều đúng cả. */
+$ID = 'AKfycbIyzyeX3_CNnc2QF1--8T2d5nzXt9pKqHc1zICI8QBfKXFPv';
+
+$r = VHCC_CauNoi::chuan_hoa_url( 'https://script.google.com/a/macros/khmatrix.com/s/' . $ID . '/exec' );
+teq( 'bỏ /a/macros/<tên miền>, giữ nguyên ID bản triển khai',
+	'https://script.google.com/macros/s/' . $ID . '/exec', $r['url'] );
+t( 'và NÓI RÕ đã sửa gì (sửa ngầm thì lần sau lại dán đúng cái sai đó)',
+	count( $r['sua'] ) === 1 && strpos( $r['sua'][0], '/a/macros/khmatrix.com' ) !== false );
+t( 'lời giải thích có nhắc 400 Bad Request — đúng câu anh thấy trên màn hình',
+	strpos( $r['sua'][0], '400 Bad Request' ) !== false );
+
+/* Địa chỉ đã đúng thì KHÔNG được đụng vào. */
+$dung = 'https://script.google.com/macros/s/' . $ID . '/exec';
+$r = VHCC_CauNoi::chuan_hoa_url( $dung );
+teq( 'địa chỉ đã đúng thì để nguyên', $dung, $r['url'] );
+teq( 'và không báo đã sửa gì', array(), $r['sua'] );
+
+/* Dấu / ở cuối. */
+$r = VHCC_CauNoi::chuan_hoa_url( $dung . '/' );
+teq( 'bỏ dấu / ở cuối', $dung, $r['url'] );
+t( 'và nói là đã bỏ', count( $r['sua'] ) === 1 );
+
+/* Cả hai lỗi một lúc — phải sửa cả hai, không phải chỉ cái đầu. */
+$r = VHCC_CauNoi::chuan_hoa_url( 'https://script.google.com/a/macros/khmatrix.com/s/' . $ID . '/exec/' );
+teq( 'sửa được cả hai lỗi cùng lúc', $dung, $r['url'] );
+teq( 'và kể ra cả hai', 2, count( $r['sua'] ) );
+
+/* `/dev` là địa chỉ bản THỬ — nó luôn đòi đăng nhập, gọi từ ngoài không bao giờ được. Chỉ CẢNH
+   BÁO chứ không tự đổi: /dev và /exec là hai bản khác nhau, tự đổi là đoán bừa. */
+$dev = 'https://script.google.com/macros/s/' . $ID . '/dev';
+$r = VHCC_CauNoi::chuan_hoa_url( $dev );
+teq( 'địa chỉ /dev KHÔNG bị tự đổi thành /exec (hai bản khác nhau, không đoán)', $dev, $r['url'] );
+t( 'nhưng phải cảnh báo /dev luôn đòi đăng nhập',
+	count( $r['sua'] ) === 1 && strpos( $r['sua'][0], '/dev' ) !== false );
+
+/* Rỗng và rác không được làm hàm này chết — nó chạy trên đường lưu Cài đặt. */
+teq( 'địa chỉ rỗng trả rỗng', '', VHCC_CauNoi::chuan_hoa_url( '' )['url'] );
+teq( 'khoảng trắng cũng về rỗng', '', VHCC_CauNoi::chuan_hoa_url( "  \n\t " )['url'] );
+$r = VHCC_CauNoi::chuan_hoa_url( 'ba la bla' );
+teq( 'chuỗi rác thì để nguyên, không ném lỗi', 'ba la bla', $r['url'] );
+
+/* Tên miền khác `script.google.com` thì đừng cắt gì — không phải Apps Script, đoán là hỏng. */
+$la = 'https://vidu.test/a/macros/abc.com/s/XYZ/exec';
+teq( 'không cắt địa chỉ ngoài script.google.com', $la, VHCC_CauNoi::chuan_hoa_url( $la )['url'] );
+
+/* Trang Cài đặt phải THẬT SỰ gọi hàm này lúc lưu, và phải hiện lời giải thích ra. */
+$ad = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+t( 'lúc lưu Cài đặt có chuẩn hoá địa chỉ',
+	preg_match( '/VHCC_CauNoi::chuan_hoa_url\s*\(\s*\$url\s*\)/', $ad ) === 1 );
+t( 'lưu ĐÚNG địa chỉ đã chuẩn hoá, không lưu chuỗi thô',
+	strpos( $ad, "update_option( 'vhcc_exec_url', \$ch['url'] )" ) !== false
+	&& preg_match( "/update_option\(\s*'vhcc_exec_url',\s*\\\$url\s*\)/", $ad ) === 0 );
+t( 'và hiện lời giải thích ra màn hình',
+	strpos( $ad, 'Địa chỉ /exec đã được sửa lại' ) !== false );
+
+/* Hướng dẫn phải chỉ rõ CHÈN VÀO ĐÂU: doPost thật có HAI dòng `try {`, nói "sau try {" là mơ hồ. */
+$q_hd = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs' );
+t( 'ghi-song-song.gs nói rõ là `try {` THỨ HAI, không chỉ nói "sau try {"',
+	stripos( $q_hd, 'try {` THỨ HAI' ) !== false || stripos( $q_hd, 'try {` thứ hai' ) !== false );
+t( 'và mốc nhận dạng được: dòng ngay trên JSON.parse',
+	strpos( $q_hd, 'JSON.parse' ) !== false );
+
+/* Dòng phải chèn KHÔNG được có dấu \ thoát — copy vào Apps Script là sai cú pháp ngay.
+   Anh Thắng phát hiện chỗ đang đọc tự thêm `\&\&`; file gốc phải sạch để không góp thêm. */
+foreach ( array( 'wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs',
+	'docs/CAI-LEN-HOSTINGER.md' ) as $x ) {
+	$noi = file_get_contents( $goc . '/' . $x );
+	t( "$x: dòng wpXepHang dùng && sạch, không có dấu \\ thoát",
+		strpos( $noi, 'wpXepHang(e && e.postData' ) !== false
+		&& strpos( $noi, '\\&\\&' ) === false );
+}
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

@@ -353,7 +353,15 @@ t('tệp .gs đọc địa chỉ + khoá từ Script Property, không ghi cứng
   src.indexOf("getProperty('WP_URL')") > 0 && src.indexOf("getProperty('WP_KEY')") > 0);
 /* Tệp này TUYỆT ĐỐI không được khai doPost: Apps Script chỉ nhận MỘT doPost, khai cái thứ hai là
    cửa của cả chuỗi máy chấm công chết im lặng. */
-t('tệp .gs KHÔNG khai doPost (Apps Script chỉ nhận một)', !/function\s+doPost\s*\(/.test(src));
+/* Chỉ tính KHAI BÁO THẬT: `function doPost` ở đầu dòng, cột 0. Phần hướng dẫn ở đầu tệp BUỘC
+   phải in ra `function doPost(e) {` — đó là cái mốc anh Thắng tìm trong Code.gs để biết chèn vào
+   đâu, mà `doPost` của anh có hai dòng `try {` nên không vẽ ra thì chèn sai chỗ. Phép thử của
+   cau-noi.gs đã neo cột 0 đúng vì lý do này; phép thử này thì chưa, nên nó báo hỏng oan lúc
+   hướng dẫn được viết rõ hơn. Neo cột 0: dòng chú thích luôn bắt đầu bằng ' * ' nên không lọt. */
+t('tệp .gs KHÔNG khai doPost (Apps Script chỉ nhận một)', !/^function\s+doPost\s*\(/m.test(src));
+/* Nhưng phải chắc phép thử trên vẫn bắt được khai báo thật — neo cột 0 mà nới quá thì thành mù. */
+t('phép thử trên vẫn bắt được khai báo thật',
+  /^function\s+doPost\s*\(/m.test('var a = 1;\nfunction doPost(e) {\n}\n'));
 
 if (truot.length) {
   console.error(`HỎNG: ${truot.length}`);

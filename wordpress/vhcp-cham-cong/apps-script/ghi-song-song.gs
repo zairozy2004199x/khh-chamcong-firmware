@@ -24,11 +24,29 @@
  *      WP_KEY  = <chuỗi ngẫu nhiên dài, giống hệt VHCC_KHOA_MAY trong wp-config.php>
  *    ⚠️ ĐỪNG ghi cứng hai giá trị này vào tệp — repo công khai.
  *
- * 3. Chèn ĐÚNG MỘT DÒNG vào đầu hàm `doPost` đang có, ngay sau `try {`:
+ * 3. Chèn ĐÚNG MỘT DÒNG vào `doPost` đang có.
  *
- *        wpXepHang(e && e.postData ? e.postData.contents : '');
+ *    ⚠️ CHÈN VÀO ĐÂU — `doPost` có HAI dòng `try {`, phải là cái `try {` THỨ HAI (dòng `try {`
+ *       đứng một mình, ngay TRÊN `var data = JSON.parse(...)`). Cái thứ nhất là
+ *       `try { lock.waitLock(20000); } catch (le) {}` — chèn vào đó thì dòng này nằm ngoài
+ *       thân hàm thật, và lượt nào lock hết giờ là mất luôn.
  *
- *    Dòng này KHÔNG BAO GIỜ ném lỗi (xem thân hàm) nên không thể làm `doPost` chết.
+ *        function doPost(e) {
+ *          var lock = LockService.getScriptLock();
+ *          try { lock.waitLock(20000); } catch (le) {}     // ← KHÔNG phải chỗ này
+ *          try {                                           // ← try THỨ HAI
+ *            wpXepHang(e && e.postData ? e.postData.contents : '');   // ⬅️ CHÈN
+ *
+ *            var data = JSON.parse(e.postData.contents);
+ *            … mã cũ, không sửa gì …
+ *
+ *    Chèn TRƯỚC `JSON.parse` là có chủ ý: gói hỏng khuôn cũng được giữ nguyên văn trong hàng
+ *    đợi, còn xem lại được. Dòng này KHÔNG BAO GIỜ ném lỗi (xem thân hàm) nên không thể làm
+ *    `doPost` chết.
+ *
+ *    Nếu cũng dán cả `CauNoiChamCong` thì hai dòng cầu nối đứng ở DÒNG ĐẦU hàm, trước
+ *    `LockService` — xem phần đầu file cau-noi.gs. Đặt sau là mỗi lần mở trang web chiếm khoá
+ *    script 20 giây, trang web với máy chấm công xếp hàng chờ nhau.
  *
  * 4. Chạy tay hàm `wpBatDongBo()` một lần để tạo lịch mỗi phút.
  *    Muốn dừng: `wpTatDongBo()`. Muốn xem tình hình: `wpTinhTrang()`.
