@@ -124,6 +124,60 @@ class VHCP_Sheet {
 		return array( 'tabs' => $uniq );
 	}
 
+	/**
+	 * ĐOÁN BẢNG ĐÍCH THEO TÊN TAB — chắc hơn dò theo tên cột.
+	 *
+	 * Tab của bảng tính cũ vốn đặt đúng tên bảng (CH_CoSo, DonHang, ChiPhi…), nên khớp
+	 * tên tab là xong; tab của bản sau này thì đổi tên (VH_Index, VH_Line, CT_ChiTiet)
+	 * nên có bảng tên gọi khác. Không khớp được thì mới quay sang dò theo tên cột.
+	 *
+	 * @return string mã loại tab của bộ nạp, '' nếu không nhận ra
+	 */
+	public static function doan_tu_ten( $ten ) {
+		$k = VHCP_Nap::kh( $ten );
+		if ( $k === '' ) { return ''; }
+
+		// Tên tab trùng luôn tên loại tab của bộ nạp (CH_CoSo, DonHang, TamUng, ChiPhi…)
+		foreach ( array_keys( VHCP_Import::types() ) as $loai ) {
+			if ( VHCP_Nap::kh( $loai ) === $k ) { return $loai; }
+		}
+
+		// Tên gọi khác
+		$alias = array(
+			'vhindex'    => 'TD_Don',
+			'vhline'     => 'TD_ChiPhi',
+			'vhchiphi'   => 'TD_ChiPhi',
+			'ctindex'    => 'TD_BPIndex',
+			'ctchitiet'  => 'TD_BPLine',
+			'bpline'     => 'TD_BPLine',
+			'bpchitiet'  => 'TD_BPLine',
+			'mkline'     => 'TD_MKLine',
+			'mkdon'      => 'TD_MKDon',
+			'sochi'      => 'TD_SoChi',
+			'chiphicoso' => 'TD_SoChi',
+		);
+		if ( isset( $alias[ $k ] ) ) { return $alias[ $k ]; }
+
+		// Tab của một dự án kỹ thuật: tên bắt đầu bằng "DA "
+		if ( preg_match( '/^da[a-z0-9]/', $k ) || preg_match( '/^\s*DA\s+/iu', (string) $ten ) ) { return 'TD_DALine'; }
+
+		return '';
+	}
+
+	/** Thứ tự nạp: cấu hình trước, danh mục, rồi dòng chi. */
+	public static function uu_tien( $loai ) {
+		if ( strpos( $loai, 'CH_' ) === 0 ) { return 1; }
+		$mux = array(
+			'DonHang' => 2, 'TD_Don' => 2, 'DA_Index' => 2, 'BP_Index' => 2, 'TD_BPIndex' => 2,
+			'MK_Don' => 2, 'TD_MKDon' => 2,
+			'TamUng' => 3,
+			'ChiPhi' => 4, 'TD_ChiPhi' => 4, 'BP_Sheet' => 4, 'TD_BPLine' => 4,
+			'DA_Sheet' => 4, 'TD_DALine' => 4, 'MK_Line' => 4, 'TD_MKLine' => 4,
+			'SoChi' => 5, 'TD_SoChi' => 5, 'NhatKy' => 6,
+		);
+		return isset( $mux[ $loai ] ) ? $mux[ $loai ] : 9;
+	}
+
 	/** Tải 1 tab về dạng CSV (theo gid nếu có, không thì theo tên). */
 	public static function tai_tab( $id, $gid = '', $ten = '' ) {
 		if ( $gid !== '' ) {
@@ -167,10 +221,9 @@ class VHCP_Sheet {
 			$cach = isset( $lk['cach'] ) ? $lk['cach'] : '';
 		}
 
-		// 1) Tải từng tab, đoán bảng đích
+		// 1) Tải từng tab: ưu tiên nhận theo TÊN TAB, không được thì dò theo TÊN CỘT
 		$viec = array();
 		foreach ( $tabs as $tab ) {
-			if ( count( $chi ) && ! isset( $chi[ VHCP_Nap::kh( $tab['ten'] ) ] ) ) { continue; }
 			$r = self::tai_tab( $id, $tab['gid'], $tab['ten'] );
 			if ( ! empty( $r['loi'] ) ) {
 				$viec[] = array( 'tab' => $tab['ten'], 'bo' => 'không tải được: ' . $r['loi'] );
@@ -178,56 +231,76 @@ class VHCP_Sheet {
 			}
 			$rows = VHCP_Import::parse( $r['body'] );
 			if ( ! count( $rows ) ) { $viec[] = array( 'tab' => $tab['ten'], 'bo' => 'tab trống' ); continue; }
-			$doan = VHCP_Nap::doan_bang( $rows );
-			if ( $doan['bang'] === '' ) {
-				$viec[] = array( 'tab' => $tab['ten'], 'bo' => 'không nhận ra là bảng gì (khớp được ' . (int) $doan['diem'] . ' cột)' );
-				continue;
+
+			$loai = self::doan_tu_ten( $tab['ten'] );
+			$cach_nhan = 'tên tab';
+			$diem = '';
+			if ( $loai === '' ) {
+				$doan = VHCP_Nap::doan_bang( $rows );
+				if ( $doan['bang'] === '' ) {
+					$viec[] = array(
+						'tab'    => $tab['ten'],
+						'bo'     => 'tên tab không nhận ra, tên cột cũng không (khớp được ' . (int) $doan['diem'] . ' cột)',
+						'dongDau' => self::xem_dong( $rows ),
+					);
+					continue;
+				}
+				$loai = array(
+					'don' => 'TD_Don', 'chiphi' => 'TD_ChiPhi', 'bp_index' => 'TD_BPIndex', 'bp_line' => 'TD_BPLine',
+					'da_line' => 'TD_DALine', 'mk_don' => 'TD_MKDon', 'mk_line' => 'TD_MKLine', 'sochi' => 'TD_SoChi',
+				)[ $doan['bang'] ];
+				$cach_nhan = 'tên cột';
+				$diem      = $doan['diem'];
 			}
-			$viec[] = array( 'tab' => $tab['ten'], 'bang' => $doan['bang'], 'diem' => $doan['diem'], 'rows' => $rows, 'csv' => $r['body'] );
+			$viec[] = array( 'tab' => $tab['ten'], 'loai' => $loai, 'cachNhan' => $cach_nhan, 'diem' => $diem, 'rows' => $rows, 'csv' => $r['body'] );
 		}
 
-		// 2) Sắp thứ tự: danh mục trước, dòng chi sau
-		$uu_tien = array_flip( VHCP_Nap::cac_bang() );
-		usort( $viec, function ( $a, $b ) use ( $uu_tien ) {
-			$x = isset( $a['bang'], $uu_tien[ $a['bang'] ] ) ? $uu_tien[ $a['bang'] ] : 99;
-			$y = isset( $b['bang'], $uu_tien[ $b['bang'] ] ) ? $uu_tien[ $b['bang'] ] : 99;
+		// 2) Sắp thứ tự: cấu hình -> danh mục -> tạm ứng -> dòng chi -> nhật ký
+		usort( $viec, function ( $a, $b ) {
+			$x = isset( $a['loai'] ) ? VHCP_Sheet::uu_tien( $a['loai'] ) : 99;
+			$y = isset( $b['loai'] ) ? VHCP_Sheet::uu_tien( $b['loai'] ) : 99;
 			return $x <=> $y;
 		} );
 
 		// 3) Nạp
-		$loai_theo_bang = array(
-			'don'      => 'TD_Don',
-			'chiphi'   => 'TD_ChiPhi',
-			'bp_index' => 'TD_BPIndex',
-			'bp_line'  => 'TD_BPLine',
-			'da_line'  => 'TD_DALine',
-			'mk_don'   => 'TD_MKDon',
-			'mk_line'  => 'TD_MKLine',
-			'sochi'    => 'TD_SoChi',
-		);
 		$bc = array(); $tong = 0; $tong_bo = 0; $tong_thieu_ma = 0; $tao = array();
 
 		foreach ( $viec as $v ) {
-			if ( empty( $v['bang'] ) ) { $bc[] = array( 'tab' => $v['tab'], 'ketQua' => 'bỏ qua — ' . $v['bo'] ); continue; }
-			$bang = $v['bang'];
-			$mo   = array( 'tab' => $v['tab'], 'bang' => $bang, 'cotKhop' => $v['diem'] );
+			if ( empty( $v['loai'] ) ) {
+				$bc[] = array( 'tab' => $v['tab'], 'ketQua' => 'bỏ qua — ' . $v['bo'], 'dongDau' => isset( $v['dongDau'] ) ? $v['dongDau'] : '' );
+				continue;
+			}
+			$loai = $v['loai'];
+			$mo   = array( 'tab' => $v['tab'], 'bang' => self::ten_loai( $loai ), 'cachNhan' => $v['cachNhan'], 'cotKhop' => $v['diem'] );
 
 			if ( $thu ) {
-				$k = VHCP_Nap::khop( $bang, $v['rows'] );
-				$mo['soDong']   = count( $k['rows'] );
-				$mo['cotThieu'] = $k['thieu'];
-				$mo['cotLa']    = $k['la'];
-				$mo['ketQua']   = 'sẽ nạp ' . count( $k['rows'] ) . ' dòng vào ' . self::ten_bang( $bang );
+				$mo['ketQua'] = 'sẽ nạp vào ' . self::ten_loai( $loai ) . ' · ' . max( 0, count( $v['rows'] ) - 1 ) . ' dòng (trừ dòng tiêu đề)';
+				if ( strpos( $loai, 'TD_' ) === 0 ) {
+					$bang_td = self::bang_cua_td( $loai );
+					$k = VHCP_Nap::khop( $bang_td, $v['rows'] );
+					if ( empty( $k['loi'] ) ) {
+						$mo['ketQua']   = 'sẽ nạp ' . count( $k['rows'] ) . ' dòng vào ' . self::ten_loai( $loai );
+						$mo['cotThieu'] = $k['thieu'];
+						$mo['cotLa']    = $k['la'];
+					} else {
+						$mo['ketQua'] = 'KHÔNG khớp được tên cột — ' . $k['loi'];
+						$mo['dongDau'] = self::xem_dong( $v['rows'] );
+					}
+				}
 				$bc[] = $mo;
 				continue;
 			}
 
-			// Tab dự án kỹ thuật: tên tab chính là tên dự án -> tự tạo dự án nếu chưa có
+			// Tab dự án kỹ thuật: tên tab chính là tên dự án -> tìm/tạo dự án
 			$ma_chon = '';
-			if ( $bang === 'da_line' ) {
-				$k = VHCP_Nap::khop( $bang, $v['rows'] );
-				if ( ! isset( $k['hd']['ma_da'] ) ) {
-					$ten_da = trim( preg_replace( '/^\s*DA\s+/iu', '', $v['tab'] ) );
+			if ( $loai === 'TD_DALine' || $loai === 'DA_Sheet' ) {
+				$can_ma = true;
+				if ( $loai === 'TD_DALine' ) {
+					$k = VHCP_Nap::khop( 'da_line', $v['rows'] );
+					$can_ma = empty( $k['loi'] ) && ! isset( $k['hd']['ma_da'] );
+				}
+				if ( $can_ma ) {
+					$ten_da  = trim( preg_replace( '/^\s*DA\s+/iu', '', $v['tab'] ) );
 					$ma_chon = self::tim_hoac_tao_du_an( $ten_da, $tao_cha, $tao );
 					if ( $ma_chon === '' ) {
 						$bc[] = array( 'tab' => $v['tab'], 'ketQua' => 'bỏ qua — chưa có dự án "' . $ten_da . '" và đang tắt tự tạo dòng cha' );
@@ -235,24 +308,28 @@ class VHCP_Sheet {
 					}
 				}
 			}
-			// Dòng chi công tác: mã chuyến phải có trong danh mục đợt -> tạo trước cho đủ
-			if ( $bang === 'bp_line' && $tao_cha ) {
+			if ( ( $loai === 'TD_BPLine' || $loai === 'BP_Sheet' ) && $tao_cha ) {
 				self::tao_dot_con_thieu( $v['rows'], $tao );
 			}
 
-			$res = VHCP_Import::run( $loai_theo_bang[ $bang ], $v['csv'], array( 'ma' => $ma_chon, 'replace' => ! empty( $opts['replace'] ) ) );
+			$res = VHCP_Import::run( $loai, $v['csv'], array(
+				'ma'      => $ma_chon,
+				'replace' => ! empty( $opts['replace'] ),
+				'header'  => true,
+			) );
 			if ( empty( $res['success'] ) ) {
 				$mo['ketQua'] = 'lỗi — ' . ( isset( $res['error'] ) ? $res['error'] : '' );
+				$mo['dongDau'] = self::xem_dong( $v['rows'] );
 				$bc[] = $mo;
 				continue;
 			}
-			$mo['napDuoc'] = (int) $res['inserted'];
-			$mo['boQua']   = (int) $res['skipped'];
-			$mo['thieuMa'] = isset( $res['thieuMa'] ) ? (int) $res['thieuMa'] : 0;
+			$mo['napDuoc']  = (int) $res['inserted'];
+			$mo['boQua']    = isset( $res['skipped'] ) ? (int) $res['skipped'] : 0;
+			$mo['thieuMa']  = isset( $res['thieuMa'] ) ? (int) $res['thieuMa'] : 0;
 			$mo['cotThieu'] = isset( $res['cotThieu'] ) ? $res['cotThieu'] : array();
 			$mo['cotLa']    = isset( $res['cotLa'] ) ? $res['cotLa'] : array();
 			$mo['moCoi']    = isset( $res['chuaCoCha'] ) ? $res['chuaCoCha'] : array();
-			$mo['ketQua']   = 'nạp ' . $mo['napDuoc'] . ' dòng vào ' . self::ten_bang( $bang );
+			$mo['ketQua']   = 'nạp ' . $mo['napDuoc'] . ' dòng vào ' . self::ten_loai( $loai );
 			$tong          += $mo['napDuoc'];
 			$tong_bo       += $mo['boQua'];
 			$tong_thieu_ma += $mo['thieuMa'];
@@ -269,6 +346,39 @@ class VHCP_Sheet {
 			'thieuMa'  => $tong_thieu_ma,
 			'tuTao'    => array_values( $tao ),
 		) );
+	}
+
+	/** 6 ô đầu của dòng đầu tiên — để soi tab lạ chứa gì. */
+	public static function xem_dong( $rows ) {
+		if ( ! count( $rows ) ) { return ''; }
+		$o = array_slice( (array) $rows[0], 0, 6 );
+		foreach ( $o as $i => $v ) { $o[ $i ] = mb_substr( trim( (string) $v ), 0, 24 ); }
+		return implode( ' | ', $o );
+	}
+
+	/** Tên tiếng Việt của loại tab, để in báo cáo. */
+	public static function ten_loai( $loai ) {
+		if ( strpos( $loai, 'CH_' ) === 0 ) { return 'cấu hình ' . $loai; }
+		$m = array(
+			'DonHang' => 'đơn vận hành', 'TD_Don' => 'đơn vận hành', 'TamUng' => 'tạm ứng theo cơ sở',
+			'ChiPhi' => 'dòng chi của đơn', 'TD_ChiPhi' => 'dòng chi của đơn',
+			'DA_Index' => 'danh mục dự án', 'DA_Sheet' => 'dòng hạng mục dự án', 'TD_DALine' => 'dòng hạng mục dự án',
+			'MK_Don' => 'đơn marketing', 'TD_MKDon' => 'đơn marketing',
+			'MK_Line' => 'hạng mục marketing', 'TD_MKLine' => 'hạng mục marketing',
+			'BP_Index' => 'danh mục đợt Công tác/Setup', 'TD_BPIndex' => 'danh mục đợt Công tác/Setup',
+			'BP_Sheet' => 'dòng chi Công tác/Setup', 'TD_BPLine' => 'dòng chi Công tác/Setup',
+			'SoChi' => 'sổ chi phí', 'TD_SoChi' => 'sổ chi phí', 'NhatKy' => 'nhật ký',
+		);
+		return isset( $m[ $loai ] ) ? $m[ $loai ] : $loai;
+	}
+
+	/** Loại tab tự dò -> tên bảng trong từ điển. */
+	public static function bang_cua_td( $loai ) {
+		$m = array(
+			'TD_Don' => 'don', 'TD_ChiPhi' => 'chiphi', 'TD_BPIndex' => 'bp_index', 'TD_BPLine' => 'bp_line',
+			'TD_DALine' => 'da_line', 'TD_MKDon' => 'mk_don', 'TD_MKLine' => 'mk_line', 'TD_SoChi' => 'sochi',
+		);
+		return isset( $m[ $loai ] ) ? $m[ $loai ] : '';
 	}
 
 	public static function ten_bang( $b ) {

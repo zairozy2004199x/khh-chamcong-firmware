@@ -1354,9 +1354,23 @@ teq( 'thấy đủ 3 tab', 3, $thu['soTab'] );
 teq( 'chạy thử không nạp dòng nào', 0, $thu['tong'] );
 $nhan = array();
 foreach ( $thu['baoCao'] as $b ) { $nhan[ $b['tab'] ] = isset( $b['bang'] ) ? $b['bang'] : ''; }
-teq( 'nhận ra VH_Index là đơn vận hành', 'don', $nhan['VH_Index'] );
-teq( 'nhận ra CT_ChiTiet là dòng chi công tác', 'bp_line', $nhan['CT_ChiTiet'] );
+teq( 'nhận ra VH_Index là đơn vận hành', 'đơn vận hành', $nhan['VH_Index'] );
+teq( 'nhận ra CT_ChiTiet là dòng chi công tác', 'dòng chi Công tác/Setup', $nhan['CT_ChiTiet'] );
 teq( 'tab lạ thì bỏ, không đoán bừa', '', $nhan['VP_Line'] );
+
+// Nhận theo TÊN TAB: tên tab đúng là nhận ngay, khỏi cần dò tên cột
+teq( 'CH_CoSo nhận theo tên tab', 'CH_CoSo', VHCP_Sheet::doan_tu_ten( 'CH_CoSo' ) );
+teq( 'DonHang nhận theo tên tab', 'DonHang', VHCP_Sheet::doan_tu_ten( 'DonHang' ) );
+teq( 'TamUng nhận theo tên tab', 'TamUng', VHCP_Sheet::doan_tu_ten( 'TamUng' ) );
+teq( 'VH_Line là dòng chi của đơn', 'TD_ChiPhi', VHCP_Sheet::doan_tu_ten( 'VH_Line' ) );
+teq( 'CT_ChiTiet là dòng chi công tác', 'TD_BPLine', VHCP_Sheet::doan_tu_ten( 'CT_ChiTiet' ) );
+teq( 'tab bắt đầu bằng "DA " là dòng hạng mục dự án', 'TD_DALine', VHCP_Sheet::doan_tu_ten( 'DA SNOW NHÀ TUYẾT BÌNH DƯƠNG' ) );
+teq( 'tab lạ thì không nhận theo tên', '', VHCP_Sheet::doan_tu_ten( 'VH_Gom' ) );
+
+// Cấu hình phải nạp TRƯỚC dòng chi
+t( 'cấu hình xếp trước danh mục', VHCP_Sheet::uu_tien( 'CH_CoSo' ) < VHCP_Sheet::uu_tien( 'TD_Don' ) );
+t( 'danh mục xếp trước dòng chi', VHCP_Sheet::uu_tien( 'TD_Don' ) < VHCP_Sheet::uu_tien( 'TD_ChiPhi' ) );
+t( 'danh mục đợt xếp trước dòng chi công tác', VHCP_Sheet::uu_tien( 'TD_BPIndex' ) < VHCP_Sheet::uu_tien( 'TD_BPLine' ) );
 
 // Nạp thật: tự tạo đợt còn thiếu để dòng chi không bị mồ côi
 $that = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false, 'taoCha' => true ) );
@@ -1402,6 +1416,31 @@ $GLOBALS['VHCP_HTTP'] = array(
 $q_edit = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => true ) );
 t( 'đọc được danh sách tab từ trang edit', ! empty( $q_edit['success'] ) );
 teq( 'ghi lại đọc bằng đường nào', 'edit', $q_edit['cach'] );
+
+// Nạp cả bảng tính kiểu cũ: tab CH_* và DonHang nhận theo tên tab, cấu hình vào trước
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => '{"name":"DonHang","gid":"11"} {"name":"CH_CoSo","gid":"22"} {"name":"VH_Gom","gid":"33"}',
+	'gid=11'    => "Mã đơn,Kỳ,Người lập,Ngày tạo,Trạng thái\nVH_ten_tab,12/2026,Admin,01/12/2026,Đang làm\n",
+	'gid=22'    => "Cơ sở,Mã đơn vị,Phân loại lớn,Tên MISA\nTÀU MỚI,TAU_M,FZ MN,Tàu mới\n",
+	'gid=33'    => "cột lạ,thứ hai\n1,2\n",
+);
+$ten_tab = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false ) );
+t( 'nạp theo tên tab chạy được', ! empty( $ten_tab['success'] ) );
+$thu_tu = array(); $nhan_nho = array();
+foreach ( $ten_tab['baoCao'] as $b ) {
+	$thu_tu[] = $b['tab'];
+	if ( isset( $b['cachNhan'] ) ) { $nhan_nho[ $b['tab'] ] = $b['cachNhan']; }
+}
+teq( 'cấu hình nạp trước đơn hàng', 0, array_search( 'CH_CoSo', $thu_tu, true ) );
+teq( 'nhận DonHang nhờ tên tab', 'tên tab', $nhan_nho['DonHang'] );
+t( 'cơ sở mới từ CH_CoSo đã vào cấu hình', VHCP_Cfg::pll_of( 'TÀU MỚI' ) === 'FZ MN' );
+t( 'đơn nạp bằng bộ nạp theo vị trí đã vào', ! empty( VHCP_Don::get_don( 'VH_ten_tab', false )['success'] ) );
+$bo_gom = '';
+foreach ( $ten_tab['baoCao'] as $b ) { if ( $b['tab'] === 'VH_Gom' ) { $bo_gom = $b['ketQua']; } }
+t( 'tab lạ bị bỏ và nói rõ vì sao', strpos( $bo_gom, 'bỏ qua' ) === 0 );
+$co_dong_dau = false;
+foreach ( $ten_tab['baoCao'] as $b ) { if ( $b['tab'] === 'VH_Gom' && ! empty( $b['dongDau'] ) ) { $co_dong_dau = true; } }
+t( 'tab bỏ qua có in dòng đầu để soi', $co_dong_dau );
 
 // Bảng tính chưa chia sẻ -> nói rõ, không nạp nửa vời
 $GLOBALS['VHCP_HTTP'] = array( '/htmlview' => array( 'code' => 200, 'body' => '<html><a href="https://accounts.google.com/signin">Sign in</a></html>' ) );

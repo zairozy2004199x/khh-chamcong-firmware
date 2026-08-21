@@ -200,15 +200,19 @@ class VHCP_Admin {
 					. ' · nạp <b>' . (int) $res['tong'] . '</b> dòng'
 					. ' · bỏ qua ' . (int) $res['boQua'] . ' · chưa ra mã tài khoản ' . (int) $res['thieuMa'] . '</p></div>';
 
-				echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Tab</th><th>Nhận là</th>'
-					. '<th>Cột khớp</th><th>Kết quả</th><th>Cột app không dùng</th><th>Dòng mồ côi</th></tr></thead><tbody>';
+				echo '<table class="widefat striped" style="max-width:1200px"><thead><tr><th>Tab</th><th>Nhận là</th>'
+					. '<th>Nhận nhờ</th><th>Kết quả</th><th>Cột app không dùng</th><th>Dòng mồ côi</th></tr></thead><tbody>';
 				foreach ( (array) $res['baoCao'] as $b ) {
 					$la = isset( $b['cotLa'] ) ? (array) $b['cotLa'] : array();
 					$mc = isset( $b['moCoi'] ) ? (array) $b['moCoi'] : array();
+					$nhan = isset( $b['cachNhan'] ) ? $b['cachNhan'] : '';
+					if ( $nhan === 'tên cột' && isset( $b['cotKhop'] ) && $b['cotKhop'] !== '' ) { $nhan .= ' (' . (int) $b['cotKhop'] . ' cột)'; }
 					echo '<tr><td><code>' . esc_html( $b['tab'] ) . '</code></td>'
-						. '<td>' . esc_html( isset( $b['bang'] ) ? VHCP_Sheet::ten_bang( $b['bang'] ) : '—' ) . '</td>'
-						. '<td>' . esc_html( isset( $b['cotKhop'] ) ? (string) $b['cotKhop'] : '—' ) . '</td>'
-						. '<td>' . esc_html( isset( $b['ketQua'] ) ? $b['ketQua'] : '' ) . '</td>'
+						. '<td>' . esc_html( isset( $b['bang'] ) ? $b['bang'] : '—' ) . '</td>'
+						. '<td>' . esc_html( $nhan !== '' ? $nhan : '—' ) . '</td>'
+						. '<td>' . esc_html( isset( $b['ketQua'] ) ? $b['ketQua'] : '' )
+						. ( ! empty( $b['dongDau'] ) ? '<br><small style="color:#777">dòng đầu: <code>' . esc_html( $b['dongDau'] ) . '</code></small>' : '' )
+						. '</td>'
 						. '<td>' . esc_html( count( $la ) ? implode( ' · ', $la ) : '—' ) . '</td>'
 						. '<td>' . esc_html( count( $mc ) ? implode( ' · ', $mc ) : '—' ) . '</td></tr>';
 				}
