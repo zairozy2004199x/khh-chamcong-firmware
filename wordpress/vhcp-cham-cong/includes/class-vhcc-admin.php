@@ -17,6 +17,53 @@ class VHCC_Admin {
 			'Chấm Công', 'Chấm Công', self::CAP, 'vhcc', array( __CLASS__, 'page' ),
 			'dashicons-portfolio', 57
 		);
+		add_submenu_page( 'vhcc', 'Cổng nhận từ máy', 'Cổng nhận từ máy', self::CAP,
+			'vhcc-cong-may', array( __CLASS__, 'trang_cong_may' ) );
+	}
+
+	/**
+	 * Màn hình của cổng nhận chấm công: địa chỉ để nạp vào máy, tình trạng khoá, và NHẬT KÝ.
+	 * Nhật ký là phần chính. Mọi ca cổng BỎ một gói (gói thử đường, giờ sai khuôn, máy chưa gán,
+	 * thân bị cắt) đều trả SUCCESS cho firmware — buộc phải vậy, xem class-vhcc-nhan.php. Nghĩa là
+	 * firmware KHÔNG BAO GIỜ báo cho ai biết là đã bỏ. Chỗ duy nhất đọc ra được là đây.
+	 */
+	public static function trang_cong_may() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
+		$duong  = home_url( '/' . VHCC_Nhan::DUONG );
+		$co_khoa = defined( 'VHCC_KHOA_MAY' ) && '' !== (string) VHCC_KHOA_MAY;
+		$nk     = get_option( 'vhcc_nhat_ky_may', array() );
+		if ( ! is_array( $nk ) ) { $nk = array(); }
+		echo '<div class="wrap"><h1>Cổng nhận chấm công từ máy</h1>';
+
+		echo '<h2>Địa chỉ để nạp vào máy</h2><p><code>' . esc_html( $duong ) . '</code></p>';
+		echo '<p><em>Đúng địa chỉ này, không thêm dấu gạch chéo cuối.</em> Firmware không đi theo '
+			. 'chuyển hướng — gặp chuyển hướng nó gọi lại bằng GET và mất trọn lượt bấm.</p>';
+
+		if ( $co_khoa ) {
+			echo '<p style="color:#046b2d">✔️ Đã cấu hình khoá <code>VHCC_KHOA_MAY</code>.</p>';
+		} else {
+			echo '<div class="notice notice-error"><p><strong>Chưa cấu hình khoá — cổng đang ĐÓNG, '
+				. 'mọi lượt bấm bị chối.</strong> Thêm vào <code>wp-config.php</code>:</p>'
+				. '<p><code>define( \'VHCC_KHOA_MAY\', \'…chuỗi ngẫu nhiên dài…\' );</code></p>'
+				. '<p>Đặt trong <code>wp-config.php</code> chứ không trong cơ sở dữ liệu: bảng cài đặt '
+				. 'thì app đọc được, mà app thì có màn hình.</p></div>';
+		}
+
+		echo '<h2>Nhật ký (' . count( $nk ) . ' dòng gần nhất)</h2>';
+		echo '<p>Cổng trả SUCCESS cho cả những gói nó BỎ — buộc phải vậy, không thì firmware đẩy lại '
+			. 'vô hạn. Nên đây là chỗ duy nhất thấy được cái gì đã bị bỏ và vì sao.</p>';
+		if ( ! $nk ) {
+			echo '<p><em>Chưa có gì. Cổng chưa nhận lượt nào, hoặc mọi lượt đều vào sổ trót lọt.</em></p>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr><th>Lúc</th><th>Mã</th><th>Chi tiết</th>'
+				. '</tr></thead><tbody>';
+			foreach ( $nk as $d ) {
+				echo '<tr><td>' . esc_html( $d['luc'] ) . '</td><td><code>' . esc_html( $d['ma'] )
+					. '</code></td><td>' . esc_html( $d['loi'] ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+		echo '</div>';
 	}
 
 	public static function handle_post() {

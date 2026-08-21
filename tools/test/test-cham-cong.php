@@ -345,14 +345,18 @@ t( 'mọi bảng dựng được thật (DDL chạy trên SQLite)', count( $loi_
 $cc = $cot_thuc['cham_cong'];
 t( 'cham_cong có khoá duy nhất (coso,ngay,ma_nv,hau_to) — đây là thứ chặn hàng trùng',
 	strpos( $so_do['cham_cong'], 'UNIQUE KEY o (coso,ngay,ma_nv,hau_to)' ) !== false );
-t( 'cham_cong lưu giờ bằng PHÚT (INT), không phải TIME — ca đêm cần trục phẳng > 1440',
-	in_array( 'gio_vao_phut', $cc, true ) && in_array( 'gio_ra_phut', $cc, true )
+t( 'cham_cong lưu giờ bằng GIÂY (INT), không phải TIME — ca đêm cần trục phẳng > 86400',
+	in_array( 'gio_vao_giay', $cc, true ) && in_array( 'gio_ra_giay', $cc, true )
 	&& stripos( $so_do['cham_cong'], ' TIME' ) === false );
+/* Lưu PHÚT là mất dữ liệu: `secOf` bên Code.gs so ở mức giây và ô giờ vào/ra của sheet giữ đủ
+   HH:mm:ss. Chốt cứng để không ai "gọn hoá" về phút rồi làm bước đối số hàng thành vô nghĩa. */
+t( 'cham_cong KHÔNG lưu giờ bằng phút',
+	! in_array( 'gio_vao_phut', $cc, true ) && ! in_array( 'gio_ra_phut', $cc, true ) );
 t( 'cham_cong giữ hậu tố mã (TT/TG/CD/CT/TC) thành MỘT cột, không bung ra nhiều cờ',
 	in_array( 'hau_to', $cc, true ) && ! in_array( 'la_tang_ca', $cc, true ) );
 t( 'giờ vào/ra cho phép NULL — chưa chấm KHÁC chấm lúc 00:00',
-	preg_match( '/gio_vao_phut INT NULL/', $so_do['cham_cong'] ) === 1
-	&& preg_match( '/gio_ra_phut INT NULL/', $so_do['cham_cong'] ) === 1 );
+	preg_match( '/gio_vao_giay INT NULL/', $so_do['cham_cong'] ) === 1
+	&& preg_match( '/gio_ra_giay INT NULL/', $so_do['cham_cong'] ) === 1 );
 t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — không được đoán mẫu số quy lương',
 	preg_match( '/ngay_cong DECIMAL\(5,2\) NULL/', $so_do['vp_ngay_cong'] ) === 1
 	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
@@ -366,27 +370,349 @@ t( 'nhat_ky_tra_pin KHÔNG có cột nào chứa PIN — nhật ký là chỗ r�
 t( 'nhat_ky_tra_pin lưu CCCD đã che', in_array( 'cccd_che', $cot_thuc['nhat_ky_tra_pin'], true ) );
 t( 'chống dò PIN đếm trong BẢNG, không trong transient (cache bị xoá là hình phạt tự bỏ)',
 	isset( $so_do['nhip_do'] ) && strpos( $so_do['nhip_do'], 'so_lan INT' ) !== false );
-t( 'cho_gan tồn tại — mã máy gửi về mà hồ sơ chưa khai thì GIỮ, không bỏ',
-	isset( $so_do['cho_gan'] ) && in_array( 'gan_vao_ma', $cot_thuc['cho_gan'], true ) );
+t( 'cho_gan tồn tại — lượt bấm của máy chưa gán cơ sở thì GIỮ, không bỏ',
+	isset( $so_do['cho_gan'] ) && in_array( 'da_chuyen', $cot_thuc['cho_gan'], true )
+	&& in_array( 'thoi_diem', $cot_thuc['cho_gan'], true ) );
+/* Khoá nghiệp vụ của bảng máy là SERIAL đầu đọc, không phải MAC bo — thay bo thì đầu đọc vẫn
+   là đầu đọc đó. Nhưng KHÔNG được UNIQUE: firmware khai lại serial cũ từ NVS là chuyện có thật. */
+t( 'may tra theo serial đầu đọc, và serial KHÔNG unique',
+	in_array( 'serial', $cot_thuc['may'], true )
+	&& strpos( $so_do['may'], 'KEY serial (serial)' ) !== false
+	&& strpos( $so_do['may'], 'UNIQUE KEY serial' ) === false );
 t( 'ma_song_song khai theo CẶP mã, không suy từ tên',
 	strpos( $so_do['ma_song_song'], 'UNIQUE KEY cap (ma_a,ma_b)' ) !== false );
 
-/* ---- Đổi giờ <-> phút phải khứ hồi đúng, kể cả trên trục phẳng ca đêm ---- */
-teq( 'phut(08:30)', 510, VHCC_DB::phut( '08:30' ) );
-teq( 'phut(17:00)', 1020, VHCC_DB::phut( '17:00' ) );
-teq( 'phut(00:00) là 0, KHÔNG phải null', 0, VHCC_DB::phut( '00:00' ) );
-teq( 'phut() của chuỗi rỗng là null (chưa chấm)', null, VHCC_DB::phut( '' ) );
-teq( 'phut() của rác là null', null, VHCC_DB::phut( 'x' ) );
-teq( 'hhmm(510)', '08:30', VHCC_DB::hhmm( 510 ) );
-teq( 'hhmm(0) là 00:00, không phải rỗng', '00:00', VHCC_DB::hhmm( 0 ) );
-teq( 'hhmm(null) là rỗng (chưa chấm)', '', VHCC_DB::hhmm( null ) );
-/* Trục phẳng: 01:30 của ca đêm lưu là 1440+90 để nó nằm SAU 22:00, nhưng hiện ra vẫn là 01:30. */
-teq( 'hhmm(1530) trên trục phẳng ca đêm vẫn hiện 01:30', '01:30', VHCC_DB::hhmm( 1530 ) );
-teq( 'hhmm(1440) là 00:00', '00:00', VHCC_DB::hhmm( 1440 ) );
-/* Đúng phép tính vòng nửa đêm của Code.gs: ra 01:30, vào 22:00 -> 3.5 tiếng. */
-$vaoM = VHCC_DB::phut( '22:00' ); $raM = VHCC_DB::phut( '01:30' );
+/* ---- Đổi giờ <-> giây phải khứ hồi đúng, kể cả trên trục phẳng ca đêm ---- */
+teq( 'giay(08:30:00)', 30600, VHCC_DB::giay( '08:30:00' ) );
+teq( 'giay(08:30) thiếu phần giây thì coi là 0 giây', 30600, VHCC_DB::giay( '08:30' ) );
+/* Đây là chỗ lưu PHÚT sẽ mất dữ liệu: hai lượt bấm cách nhau 30 giây phải là HAI giá trị khác. */
+t( 'giay() phân biệt được hai lượt cách nhau 30 giây',
+	VHCC_DB::giay( '08:30:00' ) !== VHCC_DB::giay( '08:30:30' ) );
+teq( 'giay(00:00:00) là 0, KHÔNG phải null', 0, VHCC_DB::giay( '00:00:00' ) );
+teq( 'giay() của chuỗi rỗng là null (chưa chấm)', null, VHCC_DB::giay( '' ) );
+teq( 'giay() của rác là null', null, VHCC_DB::giay( 'test' ) );
+teq( 'hhmmss(30600)', '08:30:00', VHCC_DB::hhmmss( 30600 ) );
+teq( 'hhmm(30600) cắt còn HH:mm như ô "Thời gian trong ngày"', '08:30', VHCC_DB::hhmm( 30600 ) );
+teq( 'hhmmss(0) là 00:00:00, không phải rỗng', '00:00:00', VHCC_DB::hhmmss( 0 ) );
+teq( 'hhmmss(null) là rỗng (chưa chấm)', '', VHCC_DB::hhmmss( null ) );
+/* Trục phẳng: 01:30 của ca đêm lưu là 86400+5400 để nó nằm SAU 22:00, nhưng hiện ra vẫn 01:30. */
+teq( 'hhmmss(91800) trên trục phẳng ca đêm vẫn hiện 01:30:00', '01:30:00', VHCC_DB::hhmmss( 91800 ) );
+teq( 'hhmmss(86400) là 00:00:00', '00:00:00', VHCC_DB::hhmmss( 86400 ) );
+teq( 'phut() suy từ giây cho ba engine lương', 510, VHCC_DB::phut( 30600 ) );
+teq( 'phut(null) là null', null, VHCC_DB::phut( null ) );
+/* Đúng phép tính vòng nửa đêm của Code.gs, ở mức phút: ra 01:30, vào 22:00 -> 3.5 tiếng. */
+$vaoM = VHCC_DB::phut( VHCC_DB::giay( '22:00:00' ) );
+$raM  = VHCC_DB::phut( VHCC_DB::giay( '01:30:00' ) );
 teq( 'số phút ca qua nửa đêm (22:00 -> 01:30) là 210', 210,
 	( $raM > $vaoM ) ? ( $raM - $vaoM ) : ( $raM + 1440 - $vaoM ) );
+
+
+// ============================================================ 11. Cổng nhận chấm công từ máy
+/* Đây là đường nóng: mỗi lượt nhân viên bấm mặt là một lượt vào đây. Sai không hiện ra ngay —
+   hiện ra cuối tháng ở bảng lương, lúc không dựng lại được lượt bấm đã mất. Nên mục này CHẠY THẬT
+   cổng đó trên SQLite, không chỉ đọc mã. */
+define( 'VHCC_TEST', 1 );
+define( 'VHCC_KHOA_MAY', 'khoa-thu-nghiem-123' );
+
+// Dựng bảng thật trong SQLite (dịch DDL MySQL sang SQLite, y như mục 10).
+function vhcc_dung_bang() {
+	global $wpdb;
+	foreach ( VHCC_DB::bang() as $ten => $than ) {
+		$bang = $wpdb->prefix . 'vhcc_' . $ten;
+		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $bang );
+		$cot = array();
+		foreach ( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) as $d ) {
+			$d = rtrim( $d, ',' );
+			if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
+			$cot[] = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $d );
+		}
+		$wpdb->exec_raw( 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)" );
+	}
+}
+
+/** Một lượt máy gửi lên. Trả về [mã HTTP, thân đã giải JSON]. */
+function vhcc_may_gui( $goi, $khoa = 'khoa-thu-nghiem-123', $phuong_thuc = 'POST' ) {
+	$GLOBALS['VHCC_THAN']         = is_string( $goi ) ? $goi : json_encode( $goi );
+	$_SERVER['REQUEST_METHOD']    = $phuong_thuc;
+	$_SERVER['REQUEST_URI']       = '/' . VHCC_Nhan::DUONG;
+	$_SERVER['HTTP_X_VHCC_KEY']   = $khoa;
+	$_SERVER['CONTENT_LENGTH']    = isset( $GLOBALS['VHCC_DAI_KHAI'] )
+		? $GLOBALS['VHCC_DAI_KHAI'] : strlen( $GLOBALS['VHCC_THAN'] );
+	$GLOBALS['VHCP_QVAR']['vhcc_nhan'] = 1;
+	$GLOBALS['VHCP_MA_HTTP']      = 200;
+	ob_start();
+	VHCC_Nhan::phuc_vu();
+	$ra = ob_get_clean();
+	return array( $GLOBALS['VHCP_MA_HTTP'], json_decode( $ra, true ), $ra );
+}
+
+/** Gói đúng khuôn của firmware — đúng 8 trường .ino dòng 821-830 gửi. */
+function vhcc_goi( $ma, $luc, $coso = 'TUTU_BT', $anh = '' ) {
+	return array(
+		'macAddress' => 'AA:BB:CC:DD:EE:01', 'hikSerial' => 'SN-0001', 'hikModel' => 'DS-K1T341',
+		'stationName' => $coso, 'employeeNo' => $ma, 'name' => 'Nguyễn Văn A',
+		'time' => $luc, 'image' => $anh,
+	);
+}
+
+/** Hàng chấm công đang có trong bảng. */
+function vhcc_hang( $coso, $ngay, $ma, $hau_to = '' ) {
+	global $wpdb;
+	return $wpdb->get_row( $wpdb->prepare(
+		'SELECT * FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s',
+		$coso, $ngay, $ma, $hau_to ), ARRAY_A );
+}
+
+vhcc_dung_bang();
+// Gán cơ sở cho máy SN-0001 để nó không rơi vào nhánh "chờ gán".
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-0001', 'mac' => 'AA:BB:CC:DD:EE:01',
+	'cua_hang' => 'TUTU_BT', 'model' => 'DS-K1T341' ) );
+
+/* ---- 11a. Luật số 1 của firmware: THÂN TRẢ VỀ PHẢI CHỨA CHỮ "SUCCESS" ----------------------
+   `.ino` dòng 880: `code == 200 && resp.indexOf("SUCCESS") >= 0`. Đây là TÌM CHUỖI CON, nên chỉ
+   cần thân không có chữ đó là firmware coi thất bại, thử lại 3 lần rồi BỎ LƯỢT BẤM.
+   Bốn ca dưới đây đều KHÔNG ghi được chấm công, nhưng vẫn phải trả SUCCESS — vì bắt firmware
+   đẩy lại một gói không bao giờ hợp lệ là đẩy lại vô hạn. */
+list( $ma_http, $tt, $tho ) = vhcc_may_gui( vhcc_goi( 'NV001', '2026-08-20 08:00:00' ) );
+t( 'lượt hợp lệ: HTTP 200', $ma_http === 200, $ma_http );
+t( 'lượt hợp lệ: thân có chữ SUCCESS (firmware tìm chuỗi con)', strpos( $tho, 'SUCCESS' ) !== false, $tho );
+teq( 'lượt đầu tiên trong ngày là giờ VÀO', 'vao', $tt['loai'] );
+
+list( $ma_http, $tt, $tho ) = vhcc_may_gui( vhcc_goi( 'TEST4G', 'test' ) );
+t( 'gói thử đường 4G: vẫn SUCCESS (không được bắt đẩy lại vô hạn)',
+	$ma_http === 200 && strpos( $tho, 'SUCCESS' ) !== false );
+t( 'gói thử đường 4G: bỏ qua, KHÔNG ghi chấm công', ! empty( $tt['boQua'] ) );
+list( , , $tho ) = vhcc_may_gui( array_merge( vhcc_goi( 'NV009', '2026-08-20 08:00:00' ), array( 'selftest' => true ) ) );
+t( 'cờ selftest cũng bị chặn, không chỉ chặn đúng chữ TEST4G', strpos( $tho, '"boQua":true' ) !== false );
+t( 'gói thử KHÔNG tạo hàng chấm công nào', vhcc_hang( 'TUTU_BT', '2026-08-20', 'TEST4G' ) === null );
+
+list( , $tt, $tho ) = vhcc_may_gui( vhcc_goi( 'NV002', '2026-08-20 8:5' ) );
+t( 'giờ sai khuôn: vẫn SUCCESS nhưng bỏ qua',
+	strpos( $tho, 'SUCCESS' ) !== false && ! empty( $tt['boQua'] ) );
+/* Ngày không tồn tại: khuôn ĐÚNG mà ngày SAI. Bên Sheet chuyện này tạo ra một khối tháng lạ. */
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NV002', '2026-02-31 08:00:00' ) );
+t( 'ngày không có thật (2026-02-31) bị bỏ, dù đúng khuôn', ! empty( $tt['boQua'] ) );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NV002', '2026-13-01 08:00:00' ) );
+t( 'tháng 13 bị bỏ', ! empty( $tt['boQua'] ) );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( '', '2026-08-20 08:00:00' ) );
+t( 'thiếu mã NV thì bỏ, không tạo hàng mã rỗng', ! empty( $tt['boQua'] ) );
+list( , , $tho ) = vhcc_may_gui( 'khong-phai-json{{{' );
+t( 'JSON hỏng mà thân ĐỦ: vẫn SUCCESS (đẩy lại cũng hỏng y vậy) nhưng bỏ qua',
+	strpos( $tho, 'SUCCESS' ) !== false );
+
+/* THÂN BỊ CẮT là ca khác hẳn: ảnh mặt vượt post_max_size thì PHP giao thân ngắn hơn
+   Content-Length mà không báo lỗi gì — trông y như gói rác. Trộn hai ca này là BỎ IM LẶNG một
+   lượt chấm công thật vì một dòng cấu hình PHP. */
+$goi_to = json_encode( vhcc_goi( 'NVTO', '2026-08-20 08:00:00', 'TUTU_BT', str_repeat( 'A', 400 ) ) );
+$GLOBALS['VHCC_DAI_KHAI'] = strlen( $goi_to ) + 50000;      // máy khai dài hơn -> PHP đã cắt
+list( $ma_http, , $tho ) = vhcc_may_gui( substr( $goi_to, 0, -200 ) );
+t( 'thân bị cắt: HTTP 413 và thân KHÔNG có chữ SUCCESS (không bỏ im lặng)',
+	413 === $ma_http && strpos( $tho, 'SUCCESS' ) === false, $ma_http . ' ' . $tho );
+$nk = get_option( 'vhcc_nhat_ky_may', array() );
+t( 'thân bị cắt: nhật ký nói rõ nghi post_max_size, để người ta sửa được',
+	! empty( $nk ) && 'THAN_BI_CAT' === $nk[0]['ma'] && stripos( $nk[0]['loi'], 'post_max_size' ) !== false );
+unset( $GLOBALS['VHCC_DAI_KHAI'] );
+
+/* ---- 11b. Sai khoá và GET thì KHÔNG được có chữ SUCCESS -------------------------------------
+   Hai ca này ngược lại: phải để người gọi biết là hỏng. */
+list( $ma_http, , $tho ) = vhcc_may_gui( vhcc_goi( 'NV003', '2026-08-20 08:00:00' ), 'khoa-sai' );
+t( 'sai khoá: HTTP 401 và thân KHÔNG có chữ SUCCESS',
+	$ma_http === 401 && strpos( $tho, 'SUCCESS' ) === false, $ma_http . ' ' . $tho );
+t( 'sai khoá: KHÔNG ghi gì vào bảng', vhcc_hang( 'TUTU_BT', '2026-08-20', 'NV003' ) === null );
+list( $ma_http, , $tho ) = vhcc_may_gui( vhcc_goi( 'NV003', '2026-08-20 08:00:00' ), 'khoa-thu-nghiem-123', 'GET' );
+/* Luật số 2: firmware KHÔNG theo chuyển hướng — gặp 30x nó gọi lại bằng GET, mất thân POST. Nên
+   một lượt GET vào đây gần như luôn là triệu chứng của chuyện đó, và tuyệt đối không được trả
+   chữ SUCCESS: trả là firmware báo "ĐỒNG BỘ THÀNH CÔNG" trong khi không có gì được ghi. */
+t( 'GET vào cổng máy: HTTP 405 và thân KHÔNG có chữ SUCCESS',
+	$ma_http === 405 && strpos( $tho, 'SUCCESS' ) === false, $ma_http . ' ' . $tho );
+
+/* ---- 11c. Máy chưa gán cơ sở: GIỮ lượt bấm, không bỏ, không tự tạo cơ sở ------------------- */
+$goi_la = vhcc_goi( 'NV100', '2026-08-20 09:00:00', 'CO_SO_MOI_TINH' );
+$goi_la['hikSerial'] = 'SN-LA'; $goi_la['macAddress'] = 'AA:BB:CC:DD:EE:99';
+list( $ma_http, $tt, $tho ) = vhcc_may_gui( $goi_la );
+t( 'máy chưa gán: vẫn SUCCESS (bỏ là mất công của người thật)',
+	$ma_http === 200 && strpos( $tho, 'SUCCESS' ) !== false );
+t( 'máy chưa gán: lượt bấm được GIỮ vào bảng chờ gán', ! empty( $tt['choGan'] ) && 'da-giu' === $tt['luu'] );
+$cg = $wpdb->get_row( 'SELECT * FROM ' . VHCC_DB::t( 'cho_gan' ) . " WHERE ma_nv='NV100'", ARRAY_A );
+t( 'bảng chờ gán giữ đủ mã NV, thời điểm và lời khai của máy',
+	$cg && 'NV100' === $cg['ma_nv'] && '2026-08-20 09:00:00' === $cg['thoi_diem']
+	&& 'CO_SO_MOI_TINH' === $cg['ten_tu_khai'] );
+t( 'máy chưa gán: KHÔNG tạo cơ sở mới từ lời khai của máy',
+	vhcc_hang( 'CO_SO_MOI_TINH', '2026-08-20', 'NV100' ) === null );
+$may_moi = $wpdb->get_row( 'SELECT * FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='SN-LA'", ARRAY_A );
+t( 'máy lạ được ghi nhận vào bảng máy với cơ sở TRỐNG, chờ người gán',
+	$may_moi && '' === trim( (string) $may_moi['cua_hang'] ) );
+
+/* ---- 11d. Cơ sở lấy theo MÃ THIẾT BỊ, không tin tên máy tự khai --------------------------- */
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NV004', '2026-08-20 08:00:00', 'CO_SO_MAY_KHAI_LUNG' ) );
+teq( 'máy khai lệch tên: vẫn ghi vào cơ sở ĐÃ GÁN trong bảng, không theo lời khai',
+	'TUTU_BT', $tt['coSo'] );
+t( 'lượt đó nằm ở TUTU_BT', vhcc_hang( 'TUTU_BT', '2026-08-20', 'NV004' ) !== null );
+t( 'KHÔNG có hàng nào ở cơ sở máy tự khai',
+	vhcc_hang( 'CO_SO_MAY_KHAI_LUNG', '2026-08-20', 'NV004' ) === null );
+
+/* Đổi phần cứng thì CHỈ GHI DẤU. "Thay bo" và "mang bo sang cửa hàng khác" nhìn từ máy chủ
+   giống hệt nhau — tự sửa là chấm công cơ sở mới chảy vào cơ sở cũ, sai người sai lương. */
+$goi_doi = vhcc_goi( 'NV005', '2026-08-20 08:00:00' );
+$goi_doi['hikSerial'] = 'SN-KHAC-HOAN-TOAN';
+vhcc_may_gui( $goi_doi );
+$may = $wpdb->get_row( 'SELECT * FROM ' . VHCC_DB::t( 'may' ) . " WHERE mac='AA:BB:CC:DD:EE:01'", ARRAY_A );
+t( 'serial đổi: KHÔNG tự ghi đè serial cũ', 'SN-0001' === $may['serial'], $may['serial'] );
+t( 'serial đổi: có ghi dấu để người ta đọc ra', strpos( (string) $may['ghi_chu'], 'SERIAL ĐẦU ĐỌC ĐỔI' ) !== false );
+t( 'serial đổi: KHÔNG ghi đè cơ sở đã gán', 'TUTU_BT' === $may['cua_hang'] );
+
+/* ---- 11e. LUẬT KHÔNG BAO GIỜ THU HẸP — phần đáng tin cậy nhất phải có ---------------------
+   Ô giờ vào / giờ ra là cặp [sớm nhất, muộn nhất] của ngày. Nạp lại cả tháng theo THỨ TỰ NÀO,
+   đứt ở đâu, chạy lại bao nhiêu lần cũng phải ra một kết quả. Không có tính chất này thì bước
+   "Apps Script ghi song song hai nơi rồi đối số hàng" là vô nghĩa: hai bên nhận cùng tập lượt
+   bấm mà thứ tự đến khác nhau sẽ ra hai cặp giờ khác nhau, và không ai biết bên nào đúng.
+
+   Thử BẰNG MỌI HOÁN VỊ của 4 lượt (24 thứ tự) + chạy lặp lại — đúng ca anh Thắng gặp:
+   "chạy được 10 lượt thì tự quay lại từ đầu". */
+$luot = array( '06:30:00', '10:00:00', '14:20:00', '22:05:00' );
+$hoan_vi = array();
+foreach ( $luot as $a ) { foreach ( $luot as $b ) { foreach ( $luot as $c ) { foreach ( $luot as $d2 ) {
+	if ( count( array_unique( array( $a, $b, $c, $d2 ) ) ) === 4 ) { $hoan_vi[] = array( $a, $b, $c, $d2 ); }
+} } } }
+teq( 'có đủ 24 hoán vị của 4 lượt bấm', 24, count( $hoan_vi ) );
+$lech = array();
+foreach ( $hoan_vi as $i => $tt_hv ) {
+	$ngay = '2026-09-' . sprintf( '%02d', $i + 1 );
+	foreach ( $tt_hv as $g ) { vhcc_may_gui( vhcc_goi( 'NVHV', $ngay . ' ' . $g ) ); }
+	$h = vhcc_hang( 'TUTU_BT', $ngay, 'NVHV' );
+	$co = VHCC_DB::hhmmss( $h['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h['gio_ra_giay'] );
+	if ( '06:30:00|22:05:00' !== $co ) { $lech[] = implode( ',', $tt_hv ) . ' -> ' . $co; }
+}
+t( 'MỌI thứ tự trong 24 hoán vị đều ra cặp [06:30:00, 22:05:00]', count( $lech ) === 0,
+	implode( ' | ', array_slice( $lech, 0, 4 ) ) );
+
+/* Chạy lại toàn bộ, nhiều lần, xen kẽ — kết quả không được nhúc nhích. */
+$ngay_l = '2026-10-01';
+foreach ( array( '10:00:00', '14:20:00', '22:05:00', '06:30:00' ) as $g ) { vhcc_may_gui( vhcc_goi( 'NVLL', $ngay_l . ' ' . $g ) ); }
+$truoc = vhcc_hang( 'TUTU_BT', $ngay_l, 'NVLL' );
+for ( $v = 0; $v < 3; $v++ ) {
+	foreach ( array( '14:20:00', '06:30:00', '22:05:00', '10:00:00', '10:00:00' ) as $g ) {
+		vhcc_may_gui( vhcc_goi( 'NVLL', $ngay_l . ' ' . $g ) );
+	}
+}
+$sau = vhcc_hang( 'TUTU_BT', $ngay_l, 'NVLL' );
+t( 'nạp lại 3 vòng nữa: giờ vào/ra KHÔNG nhúc nhích (chạy lại được)',
+	$truoc['gio_vao_giay'] === $sau['gio_vao_giay'] && $truoc['gio_ra_giay'] === $sau['gio_ra_giay'],
+	VHCC_DB::hhmmss( $sau['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $sau['gio_ra_giay'] ) );
+t( 'nạp lại KHÔNG sinh hàng thứ hai cho cùng một ngày',
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+		. " WHERE coso='TUTU_BT' AND ngay='$ngay_l' AND ma_nv='NVLL'" ) === 1 );
+
+/* Bốn nhánh của _ghiGioVaoRa, gọi tên đúng như bản gốc. */
+$n = '2026-11-01';
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVNH', $n . ' 10:00:00' ) ); teq( 'nhánh vào', 'vao', $tt['loai'] );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVNH', $n . ' 17:00:00' ) ); teq( 'nhánh ra', 'ra', $tt['loai'] );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVNH', $n . ' 12:00:00' ) ); teq( 'nhánh giữa (KHÔNG thu hẹp giờ ra)', 'giua', $tt['loai'] );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVNH', $n . ' 10:00:00' ) ); teq( 'nhánh trùng', 'trung', $tt['loai'] );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVNH', $n . ' 17:00:00' ) ); teq( 'nhánh trùng (ô giờ ra)', 'trung', $tt['loai'] );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVNH', $n . ' 06:00:00' ) ); teq( 'nhánh đảo thứ tự', 'daoThuTu', $tt['loai'] );
+$h = vhcc_hang( 'TUTU_BT', $n, 'NVNH' );
+t( 'sau lượt giữa: giờ ra vẫn là 17:00:00, KHÔNG bị thu về 12:00:00',
+	'17:00:00' === VHCC_DB::hhmmss( $h['gio_ra_giay'] ), VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
+t( 'sau lượt đảo thứ tự: giờ vào thành 06:00:00 mà giờ ra 17:00:00 KHÔNG mất',
+	'06:00:00' === VHCC_DB::hhmmss( $h['gio_vao_giay'] ) && '17:00:00' === VHCC_DB::hhmmss( $h['gio_ra_giay'] ) );
+teq( 'ô "Thời gian trong ngày" cắt còn HH:mm như sheet', '06:00 17:00', $h['chuan'] );
+
+/* Ca anh Thắng gặp thật: lượt SỚM NHẤT tới SAU CÙNG, ô giờ ra ĐÃ CÓ -> giờ vào cũ chỉ là lượt ở
+   giữa, KHÔNG được tụt xuống ghi đè giờ ra. Trước khi có luật này, 22:05 bị mất. */
+$n2 = '2026-11-02';
+foreach ( array( '10:00:00', '14:20:00', '22:05:00', '06:30:00' ) as $g ) { vhcc_may_gui( vhcc_goi( 'NVSAU', $n2 . ' ' . $g ) ); }
+$h2 = vhcc_hang( 'TUTU_BT', $n2, 'NVSAU' );
+t( 'lượt sớm nhất tới sau cùng: KHÔNG xoá mất giờ ra 22:05:00',
+	'06:30:00' === VHCC_DB::hhmmss( $h2['gio_vao_giay'] ) && '22:05:00' === VHCC_DB::hhmmss( $h2['gio_ra_giay'] ),
+	VHCC_DB::hhmmss( $h2['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h2['gio_ra_giay'] ) );
+/* Ngược lại: ô giờ ra CÒN TRỐNG thì giờ vào cũ PHẢI tụt xuống làm giờ ra. */
+$n3 = '2026-11-03';
+vhcc_may_gui( vhcc_goi( 'NVTUT', $n3 . ' 10:00:00' ) );
+vhcc_may_gui( vhcc_goi( 'NVTUT', $n3 . ' 06:30:00' ) );
+$h3 = vhcc_hang( 'TUTU_BT', $n3, 'NVTUT' );
+t( 'ô giờ ra còn trống: giờ vào cũ tụt xuống làm giờ ra',
+	'06:30:00' === VHCC_DB::hhmmss( $h3['gio_vao_giay'] ) && '10:00:00' === VHCC_DB::hhmmss( $h3['gio_ra_giay'] ),
+	VHCC_DB::hhmmss( $h3['gio_vao_giay'] ) . '|' . VHCC_DB::hhmmss( $h3['gio_ra_giay'] ) );
+
+/* Hai lượt cách nhau 30 GIÂY là hai lượt khác nhau — chỗ lưu-bằng-phút sẽ nhập thành một. */
+$n4 = '2026-11-04';
+vhcc_may_gui( vhcc_goi( 'NVGIAY', $n4 . ' 08:00:00' ) );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVGIAY', $n4 . ' 08:00:30' ) );
+teq( 'lượt cách 30 giây KHÔNG bị coi là trùng', 'ra', $tt['loai'] );
+$h4 = vhcc_hang( 'TUTU_BT', $n4, 'NVGIAY' );
+teq( 'giữ đủ giây trong ô giờ ra', '08:00:30', VHCC_DB::hhmmss( $h4['gio_ra_giay'] ) );
+
+/* ---- 11f. Hậu tố mã: tách đúng, và KHÔNG cắt hậu tố lạ ------------------------------------ */
+teq( 'tách -CD (tăng ca / ca đêm)', array( 'NV001', 'CD' ), VHCC_Nhan::tach_hau_to( 'NV001-CD' ) );
+teq( 'tách -TG (trực ghế, tính theo giờ)', array( 'NV001', 'TG' ), VHCC_Nhan::tach_hau_to( 'NV001-TG' ) );
+teq( 'tách -tc chữ thường vẫn nhận', array( 'NV001', 'TC' ), VHCC_Nhan::tach_hau_to( 'NV001-tc' ) );
+/* Mã `NV-XX` là mã THẬT tên vậy. Cắt bừa hậu tố lạ là gộp công hai người khác nhau. */
+teq( 'KHÔNG cắt hậu tố lạ', array( 'NV001-XX', '' ), VHCC_Nhan::tach_hau_to( 'NV001-XX' ) );
+teq( 'mã không hậu tố', array( 'NV001', '' ), VHCC_Nhan::tach_hau_to( 'NV001' ) );
+/* Hàng chính và hàng -CD là HAI hàng riêng của cùng một người trong cùng một ngày. */
+$n5 = '2026-11-05';
+vhcc_may_gui( vhcc_goi( 'NVCA', $n5 . ' 08:30:00' ) );
+vhcc_may_gui( vhcc_goi( 'NVCA-CD', $n5 . ' 22:00:00' ) );
+t( 'hàng chính và hàng -CD là hai hàng riêng, không đè nhau',
+	vhcc_hang( 'TUTU_BT', $n5, 'NVCA', '' ) !== null && vhcc_hang( 'TUTU_BT', $n5, 'NVCA', 'CD' ) !== null );
+$h5 = vhcc_hang( 'TUTU_BT', $n5, 'NVCA', 'CD' );
+teq( 'hàng -CD lưu mã GỐC ở cột mã, hậu tố ở cột riêng', 'NVCA', $h5['ma_nv'] );
+
+/* ---- 11g. Ảnh thiếu là bình thường (đường 4G gửi image:""), không được vì thế mà bỏ giờ --- */
+$n6 = '2026-11-06';
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NV4G', $n6 . ' 08:00:00', 'TUTU_BT', '' ) );
+teq( 'gói 4G không kèm ảnh: vẫn ghi giờ', 'vao', $tt['loai'] );
+teq( 'và ghi rõ là không có ảnh', 'no-img', $tt['img'] );
+/* Ảnh base64 hỏng -> VẪN ghi giờ, chỉ mất ảnh. Giờ là tiền, ảnh là bằng chứng phụ. */
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVANH', $n6 . ' 08:00:00', 'TUTU_BT', str_repeat( '!!!!', 60 ) ) );
+teq( 'ảnh hỏng: VẪN ghi giờ', 'vao', $tt['loai'] );
+t( 'ảnh hỏng: hàng chấm công vẫn có và có giờ vào',
+	( $x = vhcc_hang( 'TUTU_BT', $n6, 'NVANH' ) ) && null !== $x['gio_vao_giay'] );
+/* Ảnh thật thì lưu được và ghi đường dẫn. */
+$jpg = base64_encode( str_repeat( "\xFF\xD8\xFF\xE0", 60 ) );
+list( , $tt ) = vhcc_may_gui( vhcc_goi( 'NVOK', $n6 . ' 08:00:00', 'TUTU_BT', $jpg ) );
+t( 'ảnh hợp lệ: lưu được và trả về đường dẫn', strpos( (string) $tt['img'], 'ok:' ) === 0, $tt['img'] );
+
+/* ---- 11h. Luật đường dẫn + chặn chuyển hướng ---------------------------------------------- */
+$GLOBALS['VHCP_MOC'] = array(); $GLOBALS['VHCP_LUAT'] = array();
+VHCC_Nhan::init();
+$co_luat = false;
+foreach ( $GLOBALS['VHCP_LUAT'] as $mau => $v ) {
+	if ( strpos( $mau, VHCC_Nhan::DUONG ) !== false ) { $co_luat = ( 'top' === $v[1] ); }
+}
+t( 'cổng máy gài luật đường dẫn ở ĐẦU danh sách (top)', $co_luat );
+/* Luật số 2 của firmware: nó KHÔNG theo chuyển hướng, gặp 30x là gọi lại bằng GET và mất thân
+   POST. Nên cổng này phải tắt chuyển hướng chuẩn hoá của WordPress. */
+t( 'cổng máy gài chỗ tắt chuyển hướng chuẩn hoá',
+	vhcp_test_uu_tien( 'parse_request', 'VHCC_Nhan::chan_chuyen_huong' ) === 0 );
+$goc_nhan = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-nhan.php' );
+t( 'có tắt redirect_canonical', strpos( $goc_nhan, "add_filter( 'redirect_canonical', '__return_false'" ) !== false );
+t( 'có gỡ luôn hành động redirect_canonical trên template_redirect',
+	strpos( $goc_nhan, "remove_action( 'template_redirect', 'redirect_canonical' )" ) !== false );
+/* Đường của máy KHÔNG được có dấu gạch chéo cuối trong hằng số: WordPress chuyển hướng để thêm
+   dấu đó, và chuyển hướng trên đường này là mất chấm công. */
+t( 'hằng số đường của máy không có dấu gạch chéo', strpos( VHCC_Nhan::DUONG, '/' ) === false );
+/* So khoá phải dùng hash_equals: so bằng === rò rỉ chỗ khớp qua thời gian đáp. */
+t( 'so khoá bằng hash_equals', strpos( $goc_nhan, 'hash_equals(' ) !== false );
+/* Khoá RỖNG phải bị chối, dù cổng đã cấu hình khoá thật. Kiểm bằng HÀNH VI, không bằng cách
+   đọc mã: nhánh "chưa cấu hình thì đóng" và nhánh "gửi khoá rỗng" đi qua cùng một chỗ. */
+list( $ma_http, , $tho ) = vhcc_may_gui( vhcc_goi( 'NVK', '2026-08-20 08:00:00' ), '' );
+t( 'khoá rỗng bị chối (401) và thân KHÔNG có chữ SUCCESS',
+	401 === $ma_http && strpos( $tho, 'SUCCESS' ) === false, $ma_http . ' ' . $tho );
+t( 'khoá rỗng: KHÔNG ghi gì vào bảng', vhcc_hang( 'TUTU_BT', '2026-08-20', 'NVK' ) === null );
+/* Và không có nhánh nào coi "chưa cấu hình" là MỞ. Mặc định mở là cả chuỗi hở mà không ai biết.
+   Chỗ này phải đọc mã, vì không định nghĩa lại được hằng số đã định nghĩa trong cùng tiến trình. */
+t( 'chưa cấu hình khoá thì cổng ĐÓNG, không phải mở',
+	preg_match( '/if \( \x27\x27 === \$that \) \{ return false; \}/', $goc_nhan ) === 1 );
+/* Khoá phải đọc từ hằng số wp-config, KHÔNG từ bảng `cai_dat` — bảng đó app đọc được, mà app thì
+   có màn hình. Bắt lượt ĐỌC BẢNG thật, đừng bắt chữ "cai_dat" trong lời ghi chú (chính lời ghi
+   chú ở đầu tệp đang nhắc tên bảng đó để giải thích vì sao không dùng nó). */
+t( 'khoá đọc từ hằng số wp-config', strpos( $goc_nhan, "defined( 'VHCC_KHOA_MAY' )" ) !== false );
+t( 'cổng KHÔNG đọc khoá từ bảng cai_dat',
+	strpos( $goc_nhan, "VHCC_DB::t( 'cai_dat' )" ) === false
+	&& strpos( $goc_nhan, 'get_option( \'vhcc_khoa' ) === false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

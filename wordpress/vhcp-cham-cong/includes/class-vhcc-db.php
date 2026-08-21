@@ -22,10 +22,15 @@
  *    (cơ sở, mã NV, hậu tố, ngày). Hết chuyện đếm cột, hết chuyện dò khối tháng, và câu
  *    "tháng này cơ sở này ai chấm bao nhiêu" thành một `WHERE` thay vì đọc cả sheet.
  *
- * 2. Giờ lưu bằng SỐ PHÚT TỪ 00:00 (`INT`), không phải `TIME`. Vì chính Code.gs tính bằng phút
- *    (`vaoM`, `raM`, cộng `1440` khi qua nửa đêm) và ca đêm chạy trên "trục phẳng" — giờ trước
- *    `demDen` được cộng 1440 để 01:30 nằm SAU 22:00 chứ không phải trước. `TIME` không diễn tả
- *    được chuyện đó mà không thêm cột ngày thứ hai. Cho phép giá trị > 1440 là cố ý.
+ * 2. Giờ lưu bằng SỐ GIÂY TỪ 00:00 (`INT`), không phải `TIME`.
+ *    · Vì sao là SỐ, không phải `TIME`: ca đêm chạy trên "trục phẳng" — giờ trước `demDen` được
+ *      cộng một ngày để 01:30 nằm SAU 22:00 chứ không phải trước. `TIME` không diễn tả được
+ *      chuyện đó mà không thêm cột ngày thứ hai. Cho phép giá trị > 86400 là cố ý.
+ *    · Vì sao là GIÂY, không phải PHÚT: `secOf` bên Code.gs so giờ ở mức GIÂY, và ô giờ vào/ra
+ *      trong sheet giữ đủ `HH:mm:ss` (chỉ ô "Thời gian trong ngày" mới cắt còn `HH:mm`). Lưu
+ *      phút là hai lượt bấm cách nhau 30 giây bị nhập thành một — mà đúng lúc ĐỐI SỐ HÀNG giữa
+ *      Sheet và MySQL thì lệch đó không giải thích được. Ba engine lương tính bằng phút, nhưng
+ *      phút suy ra từ giây được, giây không suy ra từ phút được.
  *
  * 3. Luật ghi giờ "KHÔNG BAO GIỜ THU HẸP" của `_ghiGioVaoRa` (giữ cặp [sớm nhất, muộn nhất], nạp
  *    lại theo thứ tự nào cũng ra một kết quả) ở đây là `LEAST`/`GREATEST` trong câu upsert, dựa
@@ -48,18 +53,34 @@ class VHCC_DB {
 		return $wpdb->prefix . 'vhcc_' . $name;
 	}
 
-	/** Số phút từ 00:00. Cho phép > 1440 (trục phẳng ca đêm). NULL = chưa chấm. */
-	public static function phut( $hhmm ) {
-		if ( ! preg_match( '/^(\d{1,2}):(\d{2})$/', trim( (string) $hhmm ), $m ) ) { return null; }
-		return (int) $m[1] * 60 + (int) $m[2];
+	const NGAY_GIAY = 86400;
+
+	/**
+	 * 'HH:mm' hoặc 'HH:mm:ss' -> số giây từ 00:00. NULL = không đọc được / chưa chấm.
+	 * Bản dịch của `secOf` bên Code.gs. Thiếu phần giây thì coi là 0 giây, y như `parseInt(p[2])||0`.
+	 */
+	public static function giay( $gio ) {
+		if ( ! preg_match( '/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/', trim( (string) $gio ), $m ) ) { return null; }
+		return (int) $m[1] * 3600 + (int) $m[2] * 60 + ( isset( $m[3] ) ? (int) $m[3] : 0 );
 	}
 
-	/** Ngược lại. 1530 -> '01:30' (đã trừ vòng), giữ đúng cách Sheet hiện ra chữ. */
-	public static function hhmm( $phut ) {
-		if ( $phut === null || $phut === '' ) { return ''; }
-		$p = ( (int) $phut ) % 1440;
-		if ( $p < 0 ) { $p += 1440; }
-		return sprintf( '%02d:%02d', intdiv( $p, 60 ), $p % 60 );
+	/** Ngược lại, đủ giây: 5400 -> '01:30:00'. Đây là dạng ô Giờ vào / Giờ ra của sheet. */
+	public static function hhmmss( $giay ) {
+		if ( $giay === null || $giay === '' ) { return ''; }
+		$g = ( (int) $giay ) % self::NGAY_GIAY;
+		if ( $g < 0 ) { $g += self::NGAY_GIAY; }
+		return sprintf( '%02d:%02d:%02d', intdiv( $g, 3600 ), intdiv( $g % 3600, 60 ), $g % 60 );
+	}
+
+	/** Cắt còn 'HH:mm' — bản dịch của `hhmm` bên Code.gs, dùng cho ô "Thời gian trong ngày". */
+	public static function hhmm( $giay ) {
+		$s = self::hhmmss( $giay );
+		return $s === '' ? '' : substr( $s, 0, 5 );
+	}
+
+	/** Số phút (ba engine lương tính bằng phút). Suy từ giây, KHÔNG lưu riêng một cột. */
+	public static function phut( $giay ) {
+		return ( $giay === null || $giay === '' ) ? null : intdiv( (int) $giay, 60 );
 	}
 
 	public static function install() {
@@ -184,8 +205,8 @@ class VHCC_DB {
 			ma_nv VARCHAR(40) NOT NULL,
 			hau_to VARCHAR(4) NOT NULL DEFAULT '',
 			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
-			gio_vao_phut INT NULL,
-			gio_ra_phut INT NULL,
+			gio_vao_giay INT NULL,
+			gio_ra_giay INT NULL,
 			anh_vao VARCHAR(190) NOT NULL DEFAULT '',
 			anh_ra VARCHAR(190) NOT NULL DEFAULT '',
 			chuan VARCHAR(190) NOT NULL DEFAULT '',
@@ -269,40 +290,46 @@ class VHCC_DB {
 		   ⚠️ Bảng này KHÔNG thay Firebase được. Firmware đọc /queue, /hb, /roster, /ota TRỰC TIẾP
 		      từ Firebase RTDB — dựng bảng MySQL rồi tưởng đã điều khiển được máy là máy hoá điếc.
 		      Bảng này chỉ là BẢN GHI phía web cho tới khi firmware được nạp bản trỏ về WordPress. */
+/* Cột đúng theo MAY_H của Code.gs. Khoá nghiệp vụ là SERIAL ĐẦU ĐỌC, không phải MAC — thay bo
+		   ESP32 thì đầu đọc vẫn là đầu đọc đó. Nhưng KHÔNG đặt UNIQUE trên serial: firmware nhớ serial
+		   trong NVS và khai lại serial CŨ khi chưa với tới đầu đọc mới, nên hai dòng cùng serial là
+		   chuyện có thật, phải giữ được cả hai cho người ta xử chứ không phải để MySQL chặn.
+		   `ghi_chu` là nơi ghi dấu khi phần cứng đổi — CHỈ ghi dấu, KHÔNG tự sửa: "thay bo" và "mang
+		   bo sang cửa hàng khác" nhìn từ máy chủ giống hệt nhau, đoán sai là chấm công cửa hàng mới
+		   chảy vào cơ sở cũ, sai người sai lương mà không ai thấy. */
 		$b['may'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
-			mac VARCHAR(40) NOT NULL,
-			tram VARCHAR(120) NOT NULL DEFAULT '',
-			coso VARCHAR(120) NOT NULL DEFAULT '',
-			ten VARCHAR(190) NOT NULL DEFAULT '',
-			fw VARCHAR(60) NOT NULL DEFAULT '',
-			ip VARCHAR(60) NOT NULL DEFAULT '',
-			nhip_cuoi DATETIME NULL,
-			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			serial VARCHAR(120) NOT NULL DEFAULT '',
+			mac VARCHAR(40) NOT NULL DEFAULT '',
+			cua_hang VARCHAR(120) NOT NULL DEFAULT '',
+			model VARCHAR(120) NOT NULL DEFAULT '',
+			ten_tu_khai VARCHAR(190) NOT NULL DEFAULT '',
+			lan_cuoi_thay DATETIME NULL,
+			ghi_chu TEXT NULL,
+			sim VARCHAR(60) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
-			UNIQUE KEY mac (mac),
-			KEY tram (tram)";
+			KEY serial (serial),
+			KEY mac (mac),
+			KEY cua_hang (cua_hang)";
 
 		/* ===== 12. CHẤM CÔNG CHỜ GẮN (sheet ChamCongChoGan) =================================
 		   Máy gửi về một mã KHÔNG có trong hồ sơ -> không được bỏ, phải giữ ở đây chờ người gắn.
 		   Bỏ là mất công của người thật chỉ vì hồ sơ chưa khai. */
 		$b['cho_gan'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
-			tram VARCHAR(120) NOT NULL DEFAULT '',
-			coso VARCHAR(120) NOT NULL DEFAULT '',
-			ma_may VARCHAR(40) NOT NULL DEFAULT '',
-			ten_may VARCHAR(190) NOT NULL DEFAULT '',
-			ngay DATE NULL,
-			gio_phut INT NULL,
-			huong VARCHAR(10) NOT NULL DEFAULT '',
-			anh VARCHAR(190) NOT NULL DEFAULT '',
-			trang_thai VARCHAR(30) NOT NULL DEFAULT '',
-			gan_vao_ma VARCHAR(40) NOT NULL DEFAULT '',
 			nhan_luc DATETIME NULL,
+			serial VARCHAR(120) NOT NULL DEFAULT '',
+			mac VARCHAR(40) NOT NULL DEFAULT '',
+			ten_tu_khai VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			thoi_diem VARCHAR(40) NOT NULL DEFAULT '',
+			co_anh TINYINT(1) NOT NULL DEFAULT 0,
+			da_chuyen VARCHAR(120) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
-			KEY tra (coso,ngay),
-			KEY trang_thai (trang_thai),
-			KEY ma_may (ma_may)";
+			KEY may (serial,mac),
+			KEY da_chuyen (da_chuyen),
+			KEY nhan_luc (nhan_luc)";
 
 		/* ===== 13. HÀNG ĐỢI ĐẨY ẢNH / LỆNH MÁY (sheet Queue) ================================= */
 		$b['queue'] = "

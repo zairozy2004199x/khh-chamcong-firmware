@@ -39,6 +39,42 @@ function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
 function sanitize_file_name( $s ) { return preg_replace( '/[^A-Za-z0-9._-]+/u', '-', (string) $s ); }
 function sanitize_title( $s ) { return strtolower( preg_replace( '/[^A-Za-z0-9-]+/', '-', (string) $s ) ); }
 function wp_unslash( $s ) { return is_string( $s ) ? stripslashes( $s ) : $s; }
+
+/* ---- Móc và luật đường dẫn ------------------------------------------------------------------
+   Chỉ GHI LẠI ai gài gì, không chạy gì. Đủ để bài kiểm soát được cổng nhận chấm công có gài
+   luật đường đúng và có TẮT chuyển hướng hay không — mà chuyện tắt chuyển hướng thì không mô
+   phỏng nổi bằng cách gọi thật, vì nó là hành vi của WordPress thật. */
+$GLOBALS['VHCP_MOC']   = array();   // hook => danh sách callback
+$GLOBALS['VHCP_LUAT']  = array();   // luật đường dẫn đã gài
+$GLOBALS['VHCP_QVAR']  = array();
+$GLOBALS['VHCP_MA_HTTP'] = 0;
+function add_action( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
+function add_filter( $h, $cb, $uu = 10, $n = 1 ) { $GLOBALS['VHCP_MOC'][ $h ][] = array( $cb, $uu ); return true; }
+function remove_action( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
+function remove_filter( $h, $cb, $uu = 10 ) { $GLOBALS['VHCP_MOC'][ '-' . $h ][] = array( $cb, $uu ); return true; }
+function apply_filters( $h, $v ) { return $v; }
+function do_action( $h ) { return null; }
+function add_rewrite_rule( $mau, $dich, $vt = 'bottom' ) { $GLOBALS['VHCP_LUAT'][ $mau ] = array( $dich, $vt ); }
+function add_shortcode( $t, $cb ) { return true; }
+function flush_rewrite_rules( $x = true ) { return true; }
+function get_query_var( $k, $d = '' ) { return array_key_exists( $k, $GLOBALS['VHCP_QVAR'] ) ? $GLOBALS['VHCP_QVAR'][ $k ] : $d; }
+function __return_false() { return false; }
+function __return_true() { return true; }
+function status_header( $m ) { $GLOBALS['VHCP_MA_HTTP'] = (int) $m; }
+function nocache_headers() { return true; }
+function current_time( $dang = 'mysql', $gmt = 0 ) {
+	return 'mysql' === $dang ? gmdate( 'Y-m-d H:i:s' ) : time();
+}
+/** Cổng nhận chấm công gài hook ở ưu tiên nào — bài kiểm cần đọc được con số đó. */
+function vhcp_test_uu_tien( $hook, $ten_ham ) {
+	if ( empty( $GLOBALS['VHCP_MOC'][ $hook ] ) ) { return null; }
+	foreach ( $GLOBALS['VHCP_MOC'][ $hook ] as $m ) {
+		$cb = $m[0];
+		$ten = is_array( $cb ) ? ( ( is_string( $cb[0] ) ? $cb[0] : get_class( $cb[0] ) ) . '::' . $cb[1] ) : (string) $cb;
+		if ( $ten === $ten_ham ) { return $m[1]; }
+	}
+	return null;
+}
 function current_user_can( $c ) { return false; }
 function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF-8' ); }
 function esc_attr( $s ) { return esc_html( $s ); }
@@ -269,7 +305,7 @@ function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
 	define( 'VHCC_URL', 'http://example.test/plugin-cham-cong/' );
-	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang' ) as $c ) {
+	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang', 'nhan' ) as $c ) {
 		require_once $dir . '/includes/class-vhcc-' . $c . '.php';
 	}
 }

@@ -38,6 +38,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-db.php';
 require_once VHCC_DIR . 'includes/class-vhcc-auth.php';
 require_once VHCC_DIR . 'includes/class-vhcc-cau-noi.php';
 require_once VHCC_DIR . 'includes/class-vhcc-api.php';
+require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
 
@@ -58,6 +59,10 @@ add_action( 'wp_ajax_vhcc_call', array( 'VHCC_API', 'ajax' ) );
 add_action( 'wp_ajax_nopriv_vhcc_call', array( 'VHCC_API', 'ajax' ) );
 
 add_action( 'init', array( 'VHCC_Trang', 'init' ), 5 );
+/* Cổng nhận chấm công của máy. Gài ở ưu tiên 4 — TRƯỚC trang (5) và trước lượt nạp lại luật
+   đường dẫn (99) — để luật đường của máy có mặt sớm nhất. Đường của máy là đường duy nhất trong
+   plugin này mà một lượt bị chuyển hướng đồng nghĩa MẤT chấm công, xem class-vhcc-nhan.php. */
+add_action( 'init', array( 'VHCC_Nhan', 'init' ), 4 );
 add_action( 'init', 'vhcc_flush_rewrite', 99 );
 function vhcc_flush_rewrite() {
 	if ( ! get_option( 'vhcc_flush_rewrite' ) ) { return; }
