@@ -1089,6 +1089,10 @@ class VHCC_Admin {
 
 		if ( $msg === 'thu' ) {
 			$r = get_transient( 'vhcc_thu_' . get_current_user_id() );
+			/* Xoá ngay sau khi đọc: tải lại trang thì kết quả cũ hiện lại y nguyên, không có mốc
+			   giờ, nên trông như lỗi VẪN CÒN. Đã mất một vòng đúng vì chuyện này — địa chỉ đã tự
+			   chữa xong rồi mà hộp đỏ cũ vẫn nằm đó. Kết quả một lần thử thì chỉ đúng cho lần đó. */
+			delete_transient( 'vhcc_thu_' . get_current_user_id() );
 			if ( is_array( $r ) && ! empty( $r['ok'] ) ) {
 				$d = (array) $r['data'];
 				echo '<div class="notice notice-success"><p><b>Cầu nối sống.</b> App cho gọi '
@@ -1100,6 +1104,9 @@ class VHCC_Admin {
 			}
 		}
 
+		/* Bản đang chạy — trong lúc cài, câu "anh cài bản mới chưa" phải trả lời được bằng mắt.
+		   Số này cũng hiện ở Plugins của WordPress, nhưng ở đây là chỗ người ta đang đứng. */
+		echo '<p style="color:#64748b">Bản plugin đang chạy: <code>' . esc_html( VHCC_VERSION ) . '</code></p>';
 		echo '<h2>Mở hệ thống chấm công</h2><p><a class="button button-primary" target="_blank" href="'
 			. esc_url( VHCC_Trang::url() ) . '">' . esc_html( VHCC_Trang::url() ) . '</a></p>';
 
@@ -1134,6 +1141,25 @@ class VHCC_Admin {
 			. 'Danh sách riêng của plugin này</label>';
 		echo '<p class="description">Dùng chung thì thêm/sửa/xoá nhân sự vẫn làm ở tab ⚙️ Cấu hình của app chi phí — '
 			. 'khai một lần cho cả hai hệ thống. Khai hai nơi là sớm muộn xoá một nơi quên nơi kia.</p>';
+		/* ⚠️ Bản này CHƯA có màn khai danh sách riêng: `vhcc_nguoidung` chỉ được ĐỌC, không chỗ
+		   nào ghi. Chọn "riêng" là không ai đăng nhập được trang chấm công, mà màn hình lại
+		   không hề nói ra — đúng kiểu tắc im lặng. Nói thẳng ngay tại chỗ chọn. */
+		if ( $nguon === 'rieng' ) {
+			$ds_rieng = get_option( 'vhcc_nguoidung' );
+			$so_rieng = is_array( $ds_rieng ) ? count( $ds_rieng ) : 0;
+			if ( ! $so_rieng ) {
+				echo '<div class="notice notice-error inline" style="margin:8px 0"><p>'
+					. '<b>Danh sách riêng đang RỖNG, và bản này chưa có màn để khai nó.</b> '
+					. 'Để nguyên thế thì trang <code>' . esc_html( VHCC_Trang::url() ) . '</code> '
+					. 'sẽ không ai đăng nhập được — PIN nào cũng bị chối.</p>'
+					. '<p>Cách đang chạy được: cài thêm plugin <b>Vận Hành Chi Phí</b> '
+					. '(<code>vhcp-chi-phi.zip</code>), khai nhân sự ở tab ⚙️ Cấu hình bên đó, rồi '
+					. 'quay lại chọn <b>Dùng chung</b> ở trên. Nhân sự khai một lần, dùng cho cả hai '
+					. 'hệ thống.</p></div>';
+			} else {
+				echo '<p>Danh sách riêng đang có <b>' . (int) $so_rieng . '</b> người.</p>';
+			}
+		}
 		if ( $nguon === 'chung' ) {
 			$u = VHCC_Auth::users();
 			if ( is_wp_error( $u ) ) {

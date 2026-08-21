@@ -2982,6 +2982,42 @@ t( 'và bảo tải lại trang, chứ không bảo đi kiểm lại địa ch�
 t( 'trang lỗi soi CẢ giá trị thô — nếu chỉ soi cái đã chữa thì không bao giờ khớp',
 	strpos( $tr, 'VHCC_CauNoi::url_tho()' ) !== false );
 
+/* Kết quả "Thử cầu nối" chỉ được hiện MỘT LẦN. Để nó nằm lại là tải lại trang thấy y nguyên
+   hộp đỏ cũ, không mốc giờ, nên trông như lỗi vẫn còn — đã mất một vòng đúng vì chuyện này. */
+$ad = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+/* ⚠️ Cắt theo MỐC, không cắt theo số ký tự cố định. Bản đầu cắt 400 ký tự và trượt oan: chú
+   thích giải thích chuyện này dài hơn 400 ký tự nên `delete_transient` rơi ra ngoài lát cắt.
+   Đây là lần thứ hai cùng một cái bẫy trong bộ thử này. */
+$_tu  = strpos( $ad, "if ( \$msg === 'thu' )" );
+$_den = strpos( $ad, "echo '<h2>Mở hệ thống chấm công</h2>", $_tu );
+$khuc_thu = substr( $ad, $_tu, $_den - $_tu );
+t( 'kết quả Thử cầu nối bị xoá ngay sau khi đọc (không hiện lại lần sau)',
+	strpos( $khuc_thu, "delete_transient( 'vhcc_thu_'" ) !== false );
+
+/* Chế độ "danh sách riêng" chưa có màn khai người — chọn nó là tắc im lặng, phải nói thẳng. */
+t( 'chọn "danh sách riêng" mà rỗng thì màn Cài đặt CẢNH BÁO, không im lặng',
+	strpos( $ad, 'Danh sách riêng đang RỖNG' ) !== false );
+t( 'và nói rõ hậu quả: không ai đăng nhập được',
+	strpos( $ad, 'không ai đăng nhập được' ) !== false );
+t( 'và chỉ ra đường đi được: cài plugin chi phí rồi chọn Dùng chung',
+	strpos( $ad, 'vhcp-chi-phi.zip' ) !== false );
+/* Cảnh báo này chỉ đúng khi `vhcc_nguoidung` vẫn KHÔNG có chỗ nào ghi vào. Ngày nào làm màn
+   khai danh sách riêng thì phép thử này phải đỏ, để nhớ bỏ đoạn cảnh báo đi. */
+$co_ghi = 0;
+foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f ) {
+	if ( preg_match( "/update_option\(\s*'vhcc_nguoidung'/", file_get_contents( $f ) ) ) { $co_ghi++; }
+}
+t( 'chưa màn nào ghi vhcc_nguoidung — nên cảnh báo trên vẫn còn đúng', $co_ghi === 0, $co_ghi );
+
+/* Phiên bản: hai chỗ khai số này, lệch nhau là WordPress hiện một số mà mã chạy một số khác. */
+$chinh = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
+preg_match( '/^ \* Version:\s+(\S+)$/m', $chinh, $m1 );
+preg_match( "/define\(\s*'VHCC_VERSION',\s*'([^']+)'/", $chinh, $m2 );
+teq( 'số bản ở đầu tệp khớp với VHCC_VERSION',
+	isset( $m1[1] ) ? $m1[1] : 'thiếu', isset( $m2[1] ) ? $m2[1] : 'thiếu' );
+t( 'màn Cài đặt hiện bản đang chạy (để trả lời được "cài bản mới chưa")',
+	strpos( $ad, 'Bản plugin đang chạy' ) !== false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
