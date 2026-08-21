@@ -2034,6 +2034,25 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ------------------------------- XIN TẠM ỨNG LÀ QUYỀN RIÊNG, KHÔNG DÍNH "SỬA SỐ"
+// Luồng chi phí cơ sở: lên đơn (NV) → xin tạm ứng (NV) → duyệt (QL) → cấp (KT) →
+// gửi quyết toán (NV) → quyết toán (KT). Nút gửi đơn của NV từng bị gác bởi quyền
+// 'suaTU' (sửa SỐ tiền) — bỏ tích quyền đó là NV mất luôn khả năng gửi đơn của mình.
+VHCP_Cfg::reset_quyen();   // bài trước có sửa ma trận, về mặc định rồi mới kiểm mặc định
+$q0 = VHCP_Cfg::get_quyen();
+t( 'có quyền riêng "xin tạm ứng"', isset( $q0['xinTU'] ) );
+t( 'mặc định Nhân viên được xin tạm ứng', ! empty( $q0['xinTU']['Nhân viên'] ) );
+t( 'mặc định Nhân viên KHÔNG được duyệt tạm ứng', empty( $q0['duyetTU']['Nhân viên'] ) );
+t( 'mặc định Quản lý được duyệt tạm ứng', ! empty( $q0['duyetTU']['Quản lý'] ) );
+t( 'mặc định Kế toán cá nhân được cấp tạm ứng', ! empty( $q0['capTU']['Kế toán cá nhân'] ) );
+t( 'mặc định Nhân viên được gửi quyết toán', ! empty( $q0['guiQT']['Nhân viên'] ) );
+t( 'mặc định Kế toán xác nhận quyết toán', ! empty( $q0['xacNhanQT']['Kế toán cá nhân'] ) );
+// Bỏ tích "sửa số tạm ứng" thì quyền xin tạm ứng KHÔNG bị mất theo
+VHCP_Cfg::set_quyen( array( 'xinTU' => array( 'Nhân viên' => 1 ), 'duyetTU' => array( 'Quản lý' => 1 ) ) );
+$q0b = VHCP_Cfg::get_quyen();
+t( 'bỏ quyền sửa số thì vẫn xin được tạm ứng', ! empty( $q0b['xinTU']['Nhân viên'] ) && empty( $q0b['suaTU']['Nhân viên'] ) );
+VHCP_Cfg::reset_quyen();
+
 // ------------------------------- ĐẶT LẠI PHÂN QUYỀN VỀ MẶC ĐỊNH
 // Bảng CH_Quyen nạp từ bảng tính cũ lệch cột thì một vai trò mất quyền mà không ai biết —
 // biểu hiện đúng là "nhập xong không thấy nút gửi duyệt".

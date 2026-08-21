@@ -771,7 +771,7 @@ class VHCP_Don {
 		global $wpdb;
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
-		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return VHCP_Util::err( 'Chỉ gửi duyệt khi đơn ở "Nháp"' ); }
+		if ( (string) $d['trang_thai'] !== 'Nháp' ) { return VHCP_Util::err( 'Chỉ gửi xin tạm ứng khi đơn ở "Nháp"' ); }
 		$t = VHCP_DB::t( 'chiphi' );
 		$n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ma_don=%s", (string) $ma_don ) );
 		// Ở "Nháp" mọi dòng là hạng mục XIN: gộp cả dòng phát sinh (nếu có do đơn bị trả về).
@@ -779,7 +779,7 @@ class VHCP_Don {
 		$dp = VHCP_Util::num( $d['du_phong'] );
 		if ( ! $n && ! ( $dp > 0 ) ) { return VHCP_Util::err( 'Chưa nhập hạng mục nào và cũng chưa nhập tạm ứng dự phòng' ); }
 		self::clear_tra_marker( $ma_don );
-		// Chốt bù trừ theo đúng thời điểm gửi duyệt, trước khi đơn rời trạng thái "Nháp"
+		// Chốt bù trừ theo đúng thời điểm gửi xin, trước khi đơn rời trạng thái "Nháp"
 		self::chot_bu_tru( $ma_don );
 		self::upd_don( $ma_don, array( 'trang_thai' => 'Chờ duyệt tạm ứng' ) );
 		return VHCP_Util::ok();

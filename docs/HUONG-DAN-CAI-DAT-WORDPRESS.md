@@ -543,6 +543,28 @@ giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề 
 giữa, nhìn như **lệch trang**. Nay đệm hai bên của thanh được tính bằng đúng lề của khối
 nội dung, mọi bề rộng màn hình đều thẳng hàng.
 
+### Luồng chi phí cơ sở & quyền "Xin tạm ứng" (bản 1.9.0)
+
+| Bước | Ai làm | Quyền trong ⚙️ Cấu hình → 🔑 Phân quyền |
+|---|---|---|
+| Lên đơn | Nhân viên | *Sửa / thêm / xóa dòng chi* |
+| **Xin tạm ứng** | Nhân viên | **Xin tạm ứng (gửi đơn lên)** |
+| Duyệt tạm ứng | Quản lý | *Duyệt tạm ứng* |
+| Cấp tạm ứng (chuyển tiền) | Kế toán | *Cấp (gửi) tạm ứng* |
+| Gửi quyết toán | Nhân viên | *Gửi quyết toán / gửi hóa đơn* |
+| Quyết toán | Kế toán | *Xác nhận quyết toán (cá nhân)* |
+
+Luồng này được in thẳng trên card Phân quyền để khỏi phải tra tài liệu.
+
+**Sửa một chỗ sai khái niệm:** nút gửi đơn của nhân viên trước đây bị gác bởi quyền
+*"Sửa số tạm ứng (lúc Nháp)"* — mà đó là quyền sửa **số tiền**, không phải quyền **xin**.
+Ai bỏ tích quyền sửa số là nhân viên mất luôn khả năng gửi đơn của chính mình, và app
+không nói vì sao. Nay có quyền riêng **"Xin tạm ứng (gửi đơn lên)"** (mặc định: Quản lý +
+Nhân viên); bảng phân quyền cũ thiếu hành động này thì tự dùng mặc định, không cần làm gì.
+
+Nhãn cũng gọi đúng việc: nút của nhân viên là **📤 Gửi xin tạm ứng** (không phải "Gửi duyệt"
+— duyệt là bước sau của quản lý), và **📤 Gửi quyết toán cho kế toán**.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

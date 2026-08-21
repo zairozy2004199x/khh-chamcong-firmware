@@ -231,7 +231,7 @@
       <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px">Cùng một loại đơn chi phí — bên cơ sở gom theo <b>tuần</b> (đơn xin tạm ứng tuần), bên kỹ thuật gom theo <b>gian thi công</b> (dự án). Loại chi phí, mã tài khoản, xuất MISA dùng chung.</span>
     </div>
   </div>
-  <!-- GHIM thanh này lại. Nút "Gửi duyệt tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
+  <!-- GHIM thanh này lại. Nút "Gửi xin tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
        hình: nhập xong hạng mục ở giữa trang thì thanh đã cuộn mất, nhân viên tưởng app
        không có chỗ gửi. -->
   <div class="bar" id="donBar" style="position:sticky;top:0;z-index:40">
@@ -323,7 +323,7 @@
         <div class="empty" id="lineEmpty">Chưa có dòng chi nào. Thêm ở mục 2 phía trên.</div>
       </div>
       <!-- Nhắc lại nút thao tác NGAY CHỖ NHẬP XONG: nhập hạng mục xong thì việc kế tiếp là
-           gửi duyệt, không nên buộc cuộn lên đầu trang mới thấy nút. -->
+           gửi xin tạm ứng, không nên buộc cuộn lên đầu trang mới thấy nút. -->
       <div id="donActionDuoi" style="display:none;padding:10px 16px;border-top:1px solid #f1f5f9;background:#f8fafc;align-items:center;gap:10px;flex-wrap:wrap">
         <span id="donActionDuoiHint" style="font-size:12px;color:#64748b"></span>
         <div style="flex:1"></div>
@@ -906,6 +906,15 @@
     <div class="card" id="quyenCard">
       <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doResetQuyen()" title="Đặt lại toàn bộ ma trận về mặc định. Dùng khi nạp bảng CH_Quyen cũ bị lệch cột làm một vai trò mất quyền (biểu hiện: nhập xong không thấy nút gửi).">↺ Đặt lại mặc định</button><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div></div>
       <div class="tw"><table style="min-width:640px"><thead id="quyenHead"></thead><tbody id="quyenBody"></tbody></table></div>
+      <div style="padding:8px 14px 0;font-size:11.5px;color:#334155">
+        <b>Luồng chi phí cơ sở:</b>
+        <span style="display:inline-block;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;margin:2px">Lên đơn · <b>NV</b></span>→
+        <span style="display:inline-block;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;margin:2px">Xin tạm ứng · <b>NV</b></span>→
+        <span style="display:inline-block;background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:2px 7px;margin:2px">Duyệt tạm ứng · <b>Quản lý</b></span>→
+        <span style="display:inline-block;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:2px 7px;margin:2px">Cấp tạm ứng · <b>Kế toán</b></span>→
+        <span style="display:inline-block;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:6px;padding:2px 7px;margin:2px">Gửi quyết toán · <b>NV</b></span>→
+        <span style="display:inline-block;background:#fff7ed;border:1px solid #fed7aa;border-radius:6px;padding:2px 7px;margin:2px">Quyết toán · <b>Kế toán</b></span>
+      </div>
       <div style="padding:8px 14px;font-size:11.5px;color:#64748b">Tích ✓ = vai trò đó <b>được phép</b> làm hành động. Bỏ tích = chặn. <b>Admin luôn toàn quyền</b> (không nằm trong bảng). Các bước vẫn theo trạng thái đơn (vd "Duyệt tạm ứng" chỉ hiện khi đơn ở "Chờ duyệt tạm ứng"). Lưu xong áp dụng ngay cho mọi người (khi họ tải lại).</div>
     </div>
     <div class="card">
@@ -1404,7 +1413,7 @@
         if(_wy) _wy.textContent=(CUR.don.buTruAuto&&CUR.don.buTruAuto.lyDo)?CUR.don.buTruAuto.lyDo:'';
       }
       if(el('lineFormCard'))el('lineFormCard').style.display= (CUR.stNhap||CUR.stCap)?'':'none'; // Nháp: hạng mục xin · Đã cấp: phát sinh
-      var hint={'Nháp':'✏️ nhập CHI TIẾT hạng mục xin (cơ sở · nhóm · nội dung · SL · đơn giá) — tạm ứng = tổng các hạng mục — rồi Gửi duyệt',
+      var hint={'Nháp':'✏️ nhập CHI TIẾT hạng mục xin (cơ sở · nhóm · nội dung · SL · đơn giá) — tạm ứng = tổng các hạng mục — rồi Gửi xin tạm ứng',
                 'Chờ duyệt tạm ứng':'⏳ chờ Quản lý/Kế toán duyệt tạm ứng',
                 'Chờ cấp tạm ứng':'✅ đã duyệt — chờ kế toán gửi (cấp) tiền tạm ứng',
                 'Đã cấp tạm ứng':'💰 đã cấp — nhập THỰC CHI cho hạng mục đã xin (không mua để 0); mua thêm ngoài dự kiến thì thêm ở mục PHÁT SINH; xong bấm Gửi hóa đơn cho kế toán (hoặc 🚫 Không dùng)',
@@ -1423,8 +1432,10 @@
       el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
       var nhan='', tay=null, goi='';
-      if(st==='Nháp' && canDo('suaTU')){ nhan='📤 Gửi duyệt tạm ứng'; tay=guiDuyetTU; goi='Nhập đủ hạng mục xin rồi bấm gửi — kế toán sẽ duyệt và cấp tạm ứng.'; }
-      else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ nhan='📤 Gửi hóa đơn cho kế toán'; tay=guiQT; goi='Nhập đủ số thực mua + ảnh chứng từ rồi bấm gửi.'; }
+      // Nhân viên GỬI XIN tạm ứng; DUYỆT là bước sau của quản lý. Gác bằng quyền 'xinTU'
+      // chứ không phải 'suaTU' (quyền sửa SỐ tiền) — hai việc khác nhau.
+      if(st==='Nháp' && canDo('xinTU')){ nhan='📤 Gửi xin tạm ứng'; tay=guiDuyetTU; goi='Nhập đủ hạng mục rồi bấm gửi — quản lý duyệt, kế toán cấp tiền.'; }
+      else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ nhan='📤 Gửi quyết toán cho kế toán'; tay=guiQT; goi='Nhập đủ số thực mua + ảnh chứng từ rồi bấm gửi.'; }
       if(nhan){ btn.style.display='inline-block'; btn.textContent=nhan; btn.onclick=tay; }
       else { btn.style.display='none'; btn.onclick=null; }
       // KHÔNG CÓ NÚT THÌ PHẢI NÓI VÌ SAO.
@@ -1661,10 +1672,10 @@
     if(el('reconBox')) el('reconBox').innerHTML=_reconTablesHtml(CUR,{people:false});   // banner cục + đã chi theo cơ sở
   }
   function guiDuyetTU(){ if(!CUR)return;
-    var _tu=CUR.tamUng||{}; if(!Object.keys(_tu).some(function(cs){return Number(_tu[cs])>0;})){ toast('warn','Chưa có hạng mục xin nào — nhập chi tiết hạng mục ở mục 1 (tạm ứng = tổng hạng mục) trước khi gửi duyệt'); return; }
+    var _tu=CUR.tamUng||{}; if(!Object.keys(_tu).some(function(cs){return Number(_tu[cs])>0;})){ toast('warn','Chưa có hạng mục xin nào — nhập chi tiết hạng mục ở mục 1 (tạm ứng = tổng hạng mục) trước khi gửi xin tạm ứng'); return; }
     if(!confirm('Gửi đơn để kế toán DUYỆT TẠM ỨNG?'))return;
     loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã gửi duyệt tạm ứng');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
+    google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã gửi xin tạm ứng — chờ quản lý duyệt');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiDuyetTamUng(CUR.don.maDon);
   }
   function guiQT(){ if(!CUR)return;
@@ -3038,12 +3049,13 @@
     var vt=(CURUSER&&CURUSER.role)||'—';
     if(st==='Nháp'){
       // Ở Nháp mà không có nút = vai trò không có quyền "Sửa số tạm ứng (lúc Nháp)"
-      return { mau:'#b91c1c', html:'⚠️ Vai trò <b>'+esc(vt)+'</b> chưa được phép gửi duyệt tạm ứng.'
-        +' Bật quyền <b>“Sửa số tạm ứng (lúc Nháp)”</b> cho vai trò này ở ⚙️ <b>Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.' };
+      return { mau:'#b91c1c', html:'⚠️ Vai trò <b>'+esc(vt)+'</b> chưa được phép <b>xin tạm ứng</b>.'
+        +' Bật quyền <b>“Xin tạm ứng (gửi đơn lên)”</b> cho vai trò này ở ⚙️ <b>Cấu hình → 🔑 Phân quyền chỉnh sửa</b>'
+        +' — hoặc bấm <b>↺ Đặt lại mặc định</b> ở card đó.' };
     }
-    if(st==='Chờ duyệt tạm ứng') return { mau:'#0f766e', html:'✔ <b>Đã gửi rồi</b> — đơn đang chờ quản lý / kế toán <b>duyệt tạm ứng</b>. Không cần bấm gì thêm.' };
-    if(st==='Chờ cấp tạm ứng')   return { mau:'#0f766e', html:'✔ <b>Đã được duyệt</b> — đang chờ kế toán <b>chuyển tiền tạm ứng</b>.' };
-    if(st==='Đã cấp tạm ứng')    return { mau:'#b91c1c', html:'⚠️ Đã nhận tạm ứng. Bước kế tiếp là gửi hóa đơn cho kế toán, nhưng vai trò <b>'+esc(vt)+'</b> chưa có quyền <b>“Gửi quyết toán”</b> — bật ở ⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa.' };
+    if(st==='Chờ duyệt tạm ứng') return { mau:'#0f766e', html:'✔ <b>Đã xin rồi</b> — đang chờ <b>quản lý duyệt tạm ứng</b>. Không cần bấm gì thêm.' };
+    if(st==='Chờ cấp tạm ứng')   return { mau:'#0f766e', html:'✔ <b>Quản lý đã duyệt</b> — đang chờ <b>kế toán cấp tạm ứng</b> (chuyển tiền).' };
+    if(st==='Đã cấp tạm ứng')    return { mau:'#b91c1c', html:'⚠️ Đã nhận tạm ứng. Bước kế tiếp là <b>gửi quyết toán</b> cho kế toán, nhưng vai trò <b>'+esc(vt)+'</b> chưa có quyền <b>“Gửi quyết toán / gửi hóa đơn”</b> — bật ở ⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa.' };
     if(st==='Chờ quyết toán')    return { mau:'#0f766e', html:'✔ <b>Đã gửi hóa đơn</b> — đang chờ kế toán <b>quyết toán</b>.' };
     if(st==='Đã quyết toán')     return { mau:'#64748b', html:'🔒 Đơn đã <b>quyết toán xong</b> — chỉ còn chờ xuất MISA.' };
     if(st==='Đã xuất MISA')      return { mau:'#64748b', html:'🔒 Đơn đã <b>xuất MISA</b> — khóa, không sửa được nữa.' };

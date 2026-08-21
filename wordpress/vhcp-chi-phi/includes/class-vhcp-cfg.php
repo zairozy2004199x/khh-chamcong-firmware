@@ -73,6 +73,10 @@ class VHCP_Cfg {
 		return array(
 			array( 'key' => 'duyetTU',   'ten' => 'Duyệt tạm ứng',                'def' => array( 'Quản lý' => 1 ) ),
 			array( 'key' => 'capTU',     'ten' => 'Cấp (gửi) tạm ứng',            'def' => array( 'Kế toán cá nhân' => 1 ) ),
+			// XIN TẠM ỨNG là việc của NHÂN VIÊN: lên đơn rồi gửi lên xin. Trước đây nút gửi
+			// bị gác bởi 'suaTU' — mà 'suaTU' là quyền SỬA SỐ tiền, khác hẳn. Ai bỏ tích
+			// "sửa số" là nhân viên mất luôn khả năng gửi đơn của chính mình.
+			array( 'key' => 'xinTU',     'ten' => 'Xin tạm ứng (gửi đơn lên)',    'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'suaTU',     'ten' => 'Sửa số tạm ứng (lúc Nháp)',    'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'suaDong',   'ten' => 'Sửa / thêm / xóa dòng chi',    'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'guiQT',     'ten' => 'Gửi quyết toán / gửi hóa đơn', 'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
