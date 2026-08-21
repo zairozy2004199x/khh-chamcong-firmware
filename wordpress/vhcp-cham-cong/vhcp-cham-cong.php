@@ -40,6 +40,8 @@ require_once VHCC_DIR . 'includes/class-vhcc-cau-noi.php';
 require_once VHCC_DIR . 'includes/class-vhcc-api.php';
 require_once VHCC_DIR . 'includes/class-vhcc-luong.php';
 require_once VHCC_DIR . 'includes/class-vhcc-pdf.php';
+require_once VHCC_DIR . 'includes/class-vhcc-nhan-su.php';
+require_once VHCC_DIR . 'includes/class-vhcc-lich.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nhan.php';
 require_once VHCC_DIR . 'includes/class-vhcc-online.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';

@@ -1,0 +1,200 @@
+<?php
+/**
+ * PHÂN LỊCH LÀM VIỆC + XIN ĐỔI LỊCH — trên MySQL.
+ *
+ * Dịch từ `saveWorkSchedule` / `_upsertSched` / `xinDoiLich` / `duyetDoiLich`.
+ *
+ * =============================================================================================
+ * KHOÁ CỦA MỘT Ô LỊCH LÀ (cơ sở, ngày, mã NV, CA) — BỐN thứ, không phải ba
+ * =============================================================================================
+ * `_upsertSched` bên Code.gs dựng khoá `station|day|empNo|ca`. Bỏ `ca` ra khỏi khoá là người làm
+ * hai ca trong một ngày chỉ giữ được ca sau — ca trước bị GHI ĐÈ mất, và mất im lặng vì ô vẫn có
+ * dữ liệu. Bảng MySQL đã có UNIQUE đúng bốn cột này (xem class-vhcc-db.php, bảng lich_cv), nên
+ * chỗ này chỉ cần upsert đúng khoá đó.
+ *
+ * =============================================================================================
+ * PHÂN LỊCH ≠ CHẤM CÔNG. ĐỪNG ĐỂ MỘT CÁI GHI VÀO CÁI KIA
+ * =============================================================================================
+ * Bên Apps Script, `saveWorkSchedule` gọi thêm `_syncSchedToAttendance` để tạo sẵn CỘT NGÀY trên
+ * sheet `CS_` và ghi ghi-chú lên ô tiêu đề. Việc đó CẦN ở Sheet vì cột ngày phải tồn tại trước
+ * khi có gì ghi vào.
+ *
+ * ⚠️ Ở MySQL thì KHÔNG port bước đó, và cố ý: bảng `cham_cong` là bảng dọc, hàng sinh ra khi có
+ *    lượt bấm thật, không cần "tạo sẵn" gì. Nếu phân lịch mà chèn hàng vào `cham_cong` thì bảng
+ *    lương sẽ thấy những ngày CÓ HÀNG mà không có giờ — tức là những ngày "đã xếp lịch" trông
+ *    giống "đã đi làm mà quên chấm". Lịch là DỰ ĐỊNH, chấm công là THỰC TẾ; trộn hai thứ đó là
+ *    trả tiền theo dự định.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHCC_Lich {
+
+	const CHO_DUYET = 'Chờ duyệt';
+	const DA_DUYET  = 'Đã duyệt';
+	const TU_CHOI   = 'Từ chối';
+
+	/** Xếp lịch: Admin / Quản lý / Cửa hàng trưởng, và phải có quyền trên cơ sở đó. */
+	public static function co_xep_lich( $u, $coso ) {
+		return VHCC_NhanSu::co_sua_ho_so( $u ) && VHCC_NhanSu::co_quyen_coso( $u, $coso );
+	}
+
+	/** Duyệt xin đổi lịch: cùng bậc — đúng `duyetDoiLich` bản gốc. */
+	public static function co_duyet( $u, $coso ) {
+		return self::co_xep_lich( $u, $coso );
+	}
+
+	// ======================================================================= lịch công việc
+
+	public static function ds_lich( $coso, $tu, $den ) {
+		global $wpdb;
+		return VHCC_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'lich_cv' )
+			. ' WHERE coso=%s AND ngay >= %s AND ngay <= %s ORDER BY ngay, ho_ten, ca',
+			VHCC_NhanSu::chuan_coso( $coso ), $tu, $den ) );
+	}
+
+	/**
+	 * Xếp / sửa lịch. `$o` = array( array('ngay','ma_nv','ho_ten','ca','viec'), … ).
+	 * Trả array('ok', 'so' => số ô đã ghi, 'error').
+	 */
+	public static function xep_lich( $u, $coso, $o ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		if ( '' === $coso ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
+		if ( ! self::co_xep_lich( $u, $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền xếp lịch cơ sở này.' );
+		}
+		$bang = VHCC_DB::t( 'lich_cv' );
+		$so = 0;
+		foreach ( (array) $o as $c ) {
+			$ngay = trim( isset( $c['ngay'] ) ? (string) $c['ngay'] : '' );
+			$ma   = trim( isset( $c['ma_nv'] ) ? (string) $c['ma_nv'] : '' );
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) || '' === $ma ) { continue; }
+			$ca   = trim( isset( $c['ca'] ) ? (string) $c['ca'] : '' );
+			$ghi  = array(
+				'coso' => $coso, 'ngay' => $ngay, 'ma_nv' => $ma, 'ca' => $ca,
+				'ho_ten' => trim( isset( $c['ho_ten'] ) ? (string) $c['ho_ten'] : '' ),
+				'viec' => trim( isset( $c['viec'] ) ? (string) $c['viec'] : '' ),
+				'nguoi_xep' => isset( $u['name'] ) ? (string) $u['name'] : '',
+				'cap_nhat' => current_time( 'mysql' ),
+			);
+			/* Upsert theo ĐÚNG bốn cột khoá. Tra rồi ghi thay vì INSERT..ON DUPLICATE để câu lệnh
+			   đọc được và chạy giống nhau trên MySQL lẫn SQLite của bộ phép thử. */
+			$cu = $wpdb->get_var( $wpdb->prepare(
+				"SELECT id FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND ca=%s",
+				$coso, $ngay, $ma, $ca ) );
+			if ( $cu ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu ) ); }
+			else       { $wpdb->insert( $bang, $ghi ); }
+			$so++;
+		}
+		return array( 'ok' => true, 'so' => $so );
+	}
+
+	public static function xoa_o_lich( $u, $coso, $ngay, $ma_nv, $ca ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		if ( ! self::co_xep_lich( $u, $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền xếp lịch cơ sở này.' );
+		}
+		$wpdb->delete( VHCC_DB::t( 'lich_cv' ), array(
+			'coso' => $coso, 'ngay' => $ngay, 'ma_nv' => trim( (string) $ma_nv ), 'ca' => (string) $ca ) );
+		return array( 'ok' => true );
+	}
+
+	// ======================================================================= xin đổi lịch
+
+	/**
+	 * Nhân viên xin đổi lịch. KHÔNG đòi quyền quản lý — chính họ xin cho mình.
+	 * ⚠️ Nhưng phải có `ma_nv`: yêu cầu không có mã thì lúc duyệt không biết xếp cho ai.
+	 */
+	public static function xin_doi_lich( $u, $req ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( isset( $req['coso'] ) ? $req['coso'] : '' );
+		$ma   = trim( isset( $req['ma_nv'] ) ? (string) $req['ma_nv'] : '' );
+		if ( '' === $coso || '' === $ma ) {
+			return array( 'ok' => false, 'error' => 'Thiếu cơ sở hoặc mã NV.' );
+		}
+		$ngay = trim( isset( $req['ngay'] ) ? (string) $req['ngay'] : '' );
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) ) {
+			return array( 'ok' => false, 'error' => 'Ngày không hợp lệ.' );
+		}
+		$sang = trim( isset( $req['doi_sang_ngay'] ) ? (string) $req['doi_sang_ngay'] : '' );
+		if ( '' !== $sang && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $sang ) ) {
+			return array( 'ok' => false, 'error' => 'Ngày đổi sang không hợp lệ.' );
+		}
+		$ma_yc = 'YC' . gmdate( 'YmdHis', (int) current_time( 'timestamp' ) ) . wp_rand( 100, 999 );
+		$ok = $wpdb->insert( VHCC_DB::t( 'doi_lich_cv' ), array(
+			'ma_yc' => $ma_yc, 'coso' => $coso, 'ma_nv' => $ma,
+			'ho_ten' => trim( isset( $req['ho_ten'] ) ? (string) $req['ho_ten'] : '' ),
+			'ngay' => $ngay, 'ca' => trim( isset( $req['ca'] ) ? (string) $req['ca'] : '' ),
+			'viec_moi' => trim( isset( $req['viec_moi'] ) ? (string) $req['viec_moi'] : '' ),
+			'doi_sang_ngay' => ( '' !== $sang ? $sang : null ),
+			'ly_do' => trim( isset( $req['ly_do'] ) ? (string) $req['ly_do'] : '' ),
+			'trang_thai' => self::CHO_DUYET,
+			'nguoi_xin' => isset( $u['name'] ) ? (string) $u['name'] : '',
+			'luc_xin' => current_time( 'mysql' ) ) );
+		return ( false === $ok )
+			? array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error )
+			: array( 'ok' => true, 'maYc' => $ma_yc );
+	}
+
+	public static function ds_doi_lich( $u, $chi_cho_duyet = false ) {
+		global $wpdb;
+		$sql = 'SELECT * FROM ' . VHCC_DB::t( 'doi_lich_cv' );
+		if ( $chi_cho_duyet ) { $sql .= $wpdb->prepare( ' WHERE trang_thai=%s', self::CHO_DUYET ); }
+		$sql .= ' ORDER BY luc_xin DESC';
+		$out = array();
+		foreach ( VHCC_DB::rows( $sql ) as $r ) {
+			// Lọc theo cơ sở người xem phụ trách — đúng `getDoiLichList` bản gốc.
+			if ( ! VHCC_NhanSu::co_quyen_coso( $u, $r['coso'] ) ) { continue; }
+			$out[] = $r;
+		}
+		return $out;
+	}
+
+	/**
+	 * Duyệt / từ chối một yêu cầu.
+	 *
+	 * ⚠️ DUYỆT thì phải GHI THẬT vào lịch, không chỉ đổi trạng thái. Bản gốc gọi `_upsertSched`
+	 *    ngay trong nhánh duyệt; bỏ bước đó là yêu cầu hiện "Đã duyệt" mà lịch không đổi — người
+	 *    xin tưởng xong, người xếp tưởng xong, và không ai thấy sai cho tới hôm đó.
+	 * ⚠️ CÓ `doi_sang_ngay` thì phải ghi HAI ô: ngày cũ thành TRỐNG việc, ngày mới nhận việc. Chỉ
+	 *    ghi ngày mới là người đó bị xếp cả hai ngày.
+	 * ⚠️ Yêu cầu đã xử lý rồi thì KHÔNG xử lại — duyệt hai lần là ghi lịch hai lần.
+	 */
+	public static function duyet( $u, $ma_yc, $dong_y ) {
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'doi_lich_cv' ) . ' WHERE ma_yc=%s', trim( (string) $ma_yc ) ), ARRAY_A );
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không tìm thấy yêu cầu.' ); }
+		if ( ! self::co_duyet( $u, $r['coso'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền duyệt cơ sở này.' );
+		}
+		if ( self::CHO_DUYET !== $r['trang_thai'] ) {
+			return array( 'ok' => false, 'error' => 'Yêu cầu đã xử lý rồi (' . $r['trang_thai'] . ').' );
+		}
+
+		if ( $dong_y ) {
+			$o = array();
+			if ( ! empty( $r['doi_sang_ngay'] ) ) {
+				// Ngày cũ: giữ ô nhưng BỎ việc. Xoá hẳn ô thì mất dấu là hôm đó vốn có xếp lịch.
+				$o[] = array( 'ngay' => $r['ngay'], 'ma_nv' => $r['ma_nv'], 'ho_ten' => $r['ho_ten'],
+					'ca' => $r['ca'], 'viec' => '' );
+				$o[] = array( 'ngay' => $r['doi_sang_ngay'], 'ma_nv' => $r['ma_nv'], 'ho_ten' => $r['ho_ten'],
+					'ca' => $r['ca'], 'viec' => (string) $r['viec_moi'] );
+			} else {
+				$o[] = array( 'ngay' => $r['ngay'], 'ma_nv' => $r['ma_nv'], 'ho_ten' => $r['ho_ten'],
+					'ca' => $r['ca'], 'viec' => (string) $r['viec_moi'] );
+			}
+			$kq = self::xep_lich( $u, $r['coso'], $o );
+			if ( empty( $kq['ok'] ) ) { return $kq; }        // ghi lịch trượt -> KHÔNG đổi trạng thái
+		}
+
+		$wpdb->update( VHCC_DB::t( 'doi_lich_cv' ), array(
+			'trang_thai' => $dong_y ? self::DA_DUYET : self::TU_CHOI,
+			'nguoi_duyet' => isset( $u['name'] ) ? (string) $u['name'] : '',
+			'luc_duyet' => current_time( 'mysql' ) ), array( 'id' => (int) $r['id'] ) );
+		return array( 'ok' => true, 'trangThai' => $dong_y ? self::DA_DUYET : self::TU_CHOI );
+	}
+}

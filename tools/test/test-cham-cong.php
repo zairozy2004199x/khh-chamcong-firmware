@@ -1381,6 +1381,274 @@ t( 'chỉ xuất khi ngày đúng khuôn yyyy-MM-dd', strpos( $than_in, '$hop_le
 t( 'tờ in KHÔNG ghi gì vào bảng chấm công',
 	strpos( $than_pdf, "insert( VHCC_DB::t( 'cham_cong'" ) === false
 	&& strpos( $than_pdf, "update( VHCC_DB::t( 'cham_cong'" ) === false );
+
+// ============================================================ 18. Nhân sự: hai bậc quyền
+/* Anh Thắng chốt "chọn cht phân quyền theo mức" — ĐÚNG hai cửa, và ranh giới không phải cho gọn.
+   Gộp hai bậc lại là cửa hàng trưởng cấp được Mã NV dùng chung cả chuỗi và chuyển người giữa hai
+   cửa hàng, tức chuyển cả công và lương. */
+vhcc_dung_bang();
+$U_AD  = array( 'name' => 'Admin',  'role' => 'ADMIN',           'coso' => '' );
+$U_QL  = array( 'name' => 'QuanLy', 'role' => 'QUAN_LY',         'coso' => '' );
+$U_CHT = array( 'name' => 'CHT_BT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' );
+$U_NV  = array( 'name' => 'NhanVien','role' => 'NHAN_VIEN',      'coso' => 'TUTU_BT' );
+$U_KT  = array( 'name' => 'KeToan', 'role' => 'KE_TOAN',         'coso' => '' );
+
+teq( 'Admin sửa được hồ sơ', true, VHCC_NhanSu::co_sua_ho_so( $U_AD ) );
+teq( 'Quản lý sửa được hồ sơ', true, VHCC_NhanSu::co_sua_ho_so( $U_QL ) );
+teq( 'Cửa hàng trưởng sửa được hồ sơ', true, VHCC_NhanSu::co_sua_ho_so( $U_CHT ) );
+teq( 'Nhân viên KHÔNG sửa được hồ sơ', false, VHCC_NhanSu::co_sua_ho_so( $U_NV ) );
+teq( 'Kế toán KHÔNG sửa được hồ sơ (việc của họ ở app Lương)', false, VHCC_NhanSu::co_sua_ho_so( $U_KT ) );
+/* Bậc trên: chỉ Admin/Quản lý. Cửa hàng trưởng KHÔNG được. */
+teq( 'Cửa hàng trưởng KHÔNG có quyền quản trị NV', false, VHCC_NhanSu::co_quan_tri_nv( $U_CHT ) );
+teq( 'Admin có', true, VHCC_NhanSu::co_quan_tri_nv( $U_AD ) );
+teq( 'Quản lý có', true, VHCC_NhanSu::co_quan_tri_nv( $U_QL ) );
+/* Lương: cửa hàng trưởng sửa hồ sơ người mình được, nhưng KHÔNG thấy lương. */
+teq( 'Cửa hàng trưởng KHÔNG xem được lương', false, VHCC_NhanSu::co_xem_luong( $U_CHT ) );
+teq( 'Quản lý xem được lương', true, VHCC_NhanSu::co_xem_luong( $U_QL ) );
+/* Cơ sở: NHÂN VIÊN trả false LUÔN, kể cả cơ sở ghi trong dòng phân quyền của họ. */
+teq( 'Nhân viên KHÔNG có quyền cơ sở nào, kể cả cơ sở của mình', false,
+	VHCC_NhanSu::co_quyen_coso( $U_NV, 'TUTU_BT' ) );
+teq( 'Cửa hàng trưởng có quyền cơ sở mình', true, VHCC_NhanSu::co_quyen_coso( $U_CHT, 'TUTU_BT' ) );
+teq( 'Cửa hàng trưởng KHÔNG có quyền cơ sở khác', false, VHCC_NhanSu::co_quyen_coso( $U_CHT, 'POSH_HCM' ) );
+teq( 'Admin có quyền mọi cơ sở', true, VHCC_NhanSu::co_quyen_coso( $U_AD, 'CO_SO_LA' ) );
+teq( 'tiền tố CS_ được bỏ khi so cơ sở', true, VHCC_NhanSu::co_quyen_coso( $U_CHT, 'CS_TUTU_BT' ) );
+
+/* ---- Bốn chốt của luu_ho_so, mỗi chốt một lý do ---- */
+$hs = array( 'ma_nv' => 'NV001', 'ho_ten' => 'Nguyễn A', 'cua_hang' => 'TUTU_BT', 'sdt' => '0900' );
+teq( 'Nhân viên: không lưu được', false, VHCC_NhanSu::luu_ho_so( $U_NV, $hs )['ok'] );
+/* TẠO MỚI là cấp Mã NV dùng chung cả chuỗi -> cửa hàng trưởng KHÔNG được, dù đúng cơ sở mình. */
+$r = VHCC_NhanSu::luu_ho_so( $U_CHT, $hs );
+t( 'Cửa hàng trưởng KHÔNG tạo được hồ sơ MỚI (Mã NV dùng chung cả chuỗi)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'Mã NV' ) !== false, $r['error'] );
+t( 'và không có hồ sơ nào được tạo', VHCC_NhanSu::ho_so( 'NV001' ) === null );
+$r = VHCC_NhanSu::luu_ho_so( $U_AD, $hs );
+t( 'Admin tạo được', ! empty( $r['ok'] ) && true === $r['tao_moi'], isset( $r['error'] ) ? $r['error'] : '' );
+/* Sửa hồ sơ ĐANG ở cơ sở mình: cửa hàng trưởng ĐƯỢC. */
+$r = VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV001', 'sdt' => '0911', 'chuc_vu' => 'Thu ngân' ) );
+t( 'Cửa hàng trưởng sửa được hồ sơ người của cửa hàng mình', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+teq( 'và sửa vào thật', '0911', VHCC_NhanSu::ho_so( 'NV001' )['sdt'] );
+/* ĐỔI CỬA HÀNG là chuyển cả công và lương -> cửa hàng trưởng KHÔNG được. */
+$r = VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV001', 'cua_hang' => 'POSH_HCM' ) );
+t( 'Cửa hàng trưởng KHÔNG đổi được cửa hàng của một người',
+	empty( $r['ok'] ) && stripos( $r['error'], 'Đổi cửa hàng' ) !== false, $r['error'] );
+teq( 'cửa hàng KHÔNG bị đổi', 'TUTU_BT', VHCC_NhanSu::ho_so( 'NV001' )['cua_hang'] );
+t( 'và lời báo có gợi ý dùng Cơ sở phụ thay vì đổi hẳn',
+	stripos( $r['error'], 'Cơ sở phụ' ) !== false, $r['error'] );
+$r = VHCC_NhanSu::luu_ho_so( $U_QL, array( 'ma_nv' => 'NV001', 'cua_hang' => 'POSH_HCM' ) );
+t( 'Quản lý đổi được', ! empty( $r['ok'] ) );
+teq( 'và đổi thật', 'POSH_HCM', VHCC_NhanSu::ho_so( 'NV001' )['cua_hang'] );
+/* Sau khi người đó chuyển đi, cửa hàng trưởng cũ KHÔNG sửa được nữa. */
+$r = VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV001', 'sdt' => '0999' ) );
+t( 'người đã chuyển đi: cửa hàng trưởng cũ không sửa được nữa',
+	empty( $r['ok'] ) && stripos( $r['error'], 'không thuộc cơ sở' ) !== false, $r['error'] );
+
+/* ---- Ô LƯƠNG: bị BỎ khỏi dữ liệu, không phải ẩn trên màn ---- */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'NV002', 'ho_ten' => 'Trần B',
+	'cua_hang' => 'TUTU_BT', 'luong_co_ban' => '13.000.000', 'so_tai_khoan' => '123', 'ngan_hang' => 'VCB' ) );
+teq( 'lương ghi được và bỏ dấu chấm phân cách', 13000000.0,
+	(float) VHCC_NhanSu::ho_so( 'NV002' )['luong_co_ban'] );
+/* ⚠️ Ô tiền gõ tay. Vét sạch dấu chấm rồi thôi là "13.000.000" thành 13 ĐỒNG — mà ô vẫn có số
+   nên bảng lương trông bình thường. Phải phân biệt kiểu Việt (chấm = nghìn) và kiểu Anh. */
+teq( 'kiểu Việt: 13.000.000', 13000000.0, VHCC_NhanSu::so_tien( '13.000.000' ) );
+teq( 'kiểu Anh: 13,000,000', 13000000.0, VHCC_NhanSu::so_tien( '13,000,000' ) );
+teq( 'kiểu Anh có phần thập phân', 13000000.5, VHCC_NhanSu::so_tien( '13,000,000.5' ) );
+teq( 'phẩy thập phân kiểu Việt: 13,5', 13.5, VHCC_NhanSu::so_tien( '13,5' ) );
+teq( 'có chữ đ và khoảng trắng', 8000000.0, VHCC_NhanSu::so_tien( ' 8.000.000 đ ' ) );
+teq( 'số trơn', 9000000.0, VHCC_NhanSu::so_tien( '9000000' ) );
+teq( 'ô rỗng là 0', 0.0, VHCC_NhanSu::so_tien( '' ) );
+teq( 'ô rác là 0, không phải NaN', 0.0, VHCC_NhanSu::so_tien( 'chưa khai' ) );
+teq( 'nhận cả số thật', 7000000.0, VHCC_NhanSu::so_tien( 7000000 ) );
+$ds_ql = VHCC_NhanSu::ds_nhan_vien( $U_QL, 'TUTU_BT' );
+t( 'Quản lý thấy ô lương', isset( $ds_ql[0]['luong_co_ban'] ) );
+$ds_cht = VHCC_NhanSu::ds_nhan_vien( $U_CHT, 'TUTU_BT' );
+t( 'Cửa hàng trưởng: ô lương bị BỎ khỏi dữ liệu, không phải ẩn bằng CSS',
+	count( $ds_cht ) > 0 && ! isset( $ds_cht[0]['luong_co_ban'] )
+	&& ! isset( $ds_cht[0]['so_tai_khoan'] ) && ! isset( $ds_cht[0]['ngan_hang'] ) );
+t( 'nhưng vẫn thấy các ô khác', isset( $ds_cht[0]['sdt'] ) && isset( $ds_cht[0]['chuc_vu'] ) );
+/* Cửa hàng trưởng KHÔNG ghi được ô lương dù có gửi lên. */
+VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV002', 'luong_co_ban' => '99000000' ) );
+teq( 'Cửa hàng trưởng gửi ô lương lên: BỊ BỎ, lương không đổi', 13000000.0,
+	(float) VHCC_NhanSu::ho_so( 'NV002' )['luong_co_ban'] );
+/* Nhân viên: danh sách rỗng hẳn. */
+teq( 'Nhân viên xem danh sách: rỗng hẳn', 0, count( VHCC_NhanSu::ds_nhan_vien( $U_NV, 'TUTU_BT' ) ) );
+/* Cửa hàng trưởng chỉ thấy người cửa hàng mình, kể cả khi không lọc cơ sở. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'NV003', 'ho_ten' => 'Lê C', 'cua_hang' => 'POSH_HCM' ) );
+$ma_thay = array();
+foreach ( VHCC_NhanSu::ds_nhan_vien( $U_CHT ) as $x ) { $ma_thay[] = $x['ma_nv']; }
+t( 'Cửa hàng trưởng KHÔNG thấy người cửa hàng khác dù không lọc',
+	! in_array( 'NV003', $ma_thay, true ), implode( ',', $ma_thay ) );
+
+/* ---- Cột lạ gửi lên KHÔNG được ghi (danh sách CHO PHÉP, không phải danh sách CHẶN) ---- */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'NV002', 'photo_file_id' => 'HACK',
+	'trang_thai_dong_bo' => 'HACK', 'ho_ten' => 'Trần B2' ) );
+$h2 = VHCC_NhanSu::ho_so( 'NV002' );
+teq( 'ô ngoài danh sách cho phép: KHÔNG ghi', '', $h2['photo_file_id'] );
+teq( 'ô trạng thái đồng bộ máy cũng không ghi được từ màn hồ sơ', '', $h2['trang_thai_dong_bo'] );
+teq( 'nhưng ô hợp lệ vẫn ghi', 'Trần B2', $h2['ho_ten'] );
+/* Ngày sai khuôn -> NULL, không ghi rác vào cột DATE. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'NV002', 'ngay_sinh' => 'hôm qua' ) );
+teq( 'ngày sai khuôn thành NULL, không ghi rác', null, VHCC_NhanSu::ho_so( 'NV002' )['ngay_sinh'] );
+
+/* ---- XOÁ hồ sơ: chặn khi còn chấm công ---- */
+teq( 'Cửa hàng trưởng không xoá được hồ sơ', false, VHCC_NhanSu::xoa_ho_so( $U_CHT, 'NV003' )['ok'] );
+vhcc_cham( 'POSH_HCM', '2026-08-03', 'NV003', '', '08:00:00', '17:00:00' );
+$r = VHCC_NhanSu::xoa_ho_so( $U_AD, 'NV003' );
+t( 'còn chấm công thì KHÔNG xoá được (bảng lương sẽ có mã không tra ra tên)',
+	empty( $r['ok'] ) && stripos( $r['error'], 'lượt chấm công' ) !== false, $r['error'] );
+t( 'và lời báo chỉ đường đúng: đổi Trạng thái làm việc',
+	stripos( $r['error'], 'Trạng thái làm việc' ) !== false, $r['error'] );
+t( 'hồ sơ vẫn còn', VHCC_NhanSu::ho_so( 'NV003' ) !== null );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'NV009', 'ho_ten' => 'Chưa chấm', 'cua_hang' => 'TUTU_BT' ) );
+t( 'chưa có chấm công thì xoá được', ! empty( VHCC_NhanSu::xoa_ho_so( $U_AD, 'NV009' )['ok'] ) );
+
+/* ---- Xếp bộ phận: quyết định CÔNG THỨC LƯƠNG -> chỉ Admin/Quản lý, và chỉ nhận đúng danh sách ---- */
+teq( 'Cửa hàng trưởng không xếp được bộ phận', false,
+	VHCC_NhanSu::xep_bo_phan( $U_CHT, 'TUTU_BT', 'Văn phòng' )['ok'] );
+$r = VHCC_NhanSu::xep_bo_phan( $U_AD, 'VP_X', 'Văn phòng phụ' );
+t( 'bộ phận ngoài danh sách: TỪ CHỐI và nói rõ hậu quả',
+	empty( $r['ok'] ) && stripos( $r['error'], 'Chưa xếp' ) !== false, $r['error'] );
+t( 'Admin xếp đúng danh sách thì được', ! empty( VHCC_NhanSu::xep_bo_phan( $U_AD, 'VP_X', 'Văn phòng' )['ok'] ) );
+teq( 'và engine lương nhận ra ngay', true, VHCC_Luong::la_van_phong( 'VP_X' ) );
+
+/* ---- Mã song song: PHẢI KHAI, không suy từ tên ---- */
+teq( 'Cửa hàng trưởng không khai được mã song song', false,
+	VHCC_NhanSu::khai_ma_song_song( $U_CHT, 'A1', 'A2', 'X', '' )['ok'] );
+t( 'Admin khai được', ! empty( VHCC_NhanSu::khai_ma_song_song( $U_AD, 'A1', 'A2', 'Nguyễn A', 'máy cũ' )['ok'] ) );
+t( 'khai lại cùng cặp: bị chặn', empty( VHCC_NhanSu::khai_ma_song_song( $U_AD, 'A2', 'A1', 'x', '' )['ok'] ) );
+t( 'hai mã giống nhau: bị chặn', empty( VHCC_NhanSu::khai_ma_song_song( $U_AD, 'A1', 'a1', 'x', '' )['ok'] ) );
+
+// ============================================================ 19. Phân lịch + xin đổi lịch
+vhcc_dung_bang();
+/* KHOÁ một ô lịch là BỐN cột (cơ sở, ngày, mã, CA). Bỏ `ca` ra là người làm hai ca một ngày chỉ
+   giữ được ca sau — ca trước bị ghi đè mất, và mất IM LẶNG vì ô vẫn có dữ liệu. */
+$r = VHCC_Lich::xep_lich( $U_CHT, 'TUTU_BT', array(
+	array( 'ngay' => '2026-08-03', 'ma_nv' => 'NV1', 'ho_ten' => 'A', 'ca' => 'Sáng', 'viec' => 'Thu tiền' ),
+	array( 'ngay' => '2026-08-03', 'ma_nv' => 'NV1', 'ho_ten' => 'A', 'ca' => 'Chiều', 'viec' => 'Vệ sinh' ),
+) );
+teq( 'xếp 2 ca trong cùng một ngày cho cùng một người', 2, $r['so'] );
+teq( 'và giữ được CẢ HAI ô (ca là một phần của khoá)', 2,
+	count( VHCC_Lich::ds_lich( 'TUTU_BT', '2026-08-01', '2026-08-31' ) ) );
+/* Xếp lại cùng khoá thì SỬA, không thêm dòng thứ hai. */
+VHCC_Lich::xep_lich( $U_CHT, 'TUTU_BT', array(
+	array( 'ngay' => '2026-08-03', 'ma_nv' => 'NV1', 'ho_ten' => 'A', 'ca' => 'Sáng', 'viec' => 'Trực ghế' ) ) );
+$ds = VHCC_Lich::ds_lich( 'TUTU_BT', '2026-08-01', '2026-08-31' );
+teq( 'xếp lại cùng khoá: SỬA, không thêm dòng', 2, count( $ds ) );
+$sang = null;
+foreach ( $ds as $x ) { if ( 'Sáng' === $x['ca'] ) { $sang = $x; } }
+teq( 'và việc đã đổi', 'Trực ghế', $sang['viec'] );
+/* Ngày sai khuôn hay thiếu mã thì BỎ Ô đó, không ghi rác. */
+$r = VHCC_Lich::xep_lich( $U_CHT, 'TUTU_BT', array(
+	array( 'ngay' => 'hôm qua', 'ma_nv' => 'NV2', 'ca' => 'Sáng' ),
+	array( 'ngay' => '2026-08-04', 'ma_nv' => '', 'ca' => 'Sáng' ) ) );
+teq( 'ô sai khuôn bị bỏ, không ghi rác', 0, $r['so'] );
+/* Quyền: cửa hàng trưởng chỉ xếp cơ sở mình; nhân viên không xếp được. */
+teq( 'Cửa hàng trưởng không xếp được cơ sở khác', false,
+	VHCC_Lich::xep_lich( $U_CHT, 'POSH_HCM', array( array( 'ngay' => '2026-08-03', 'ma_nv' => 'X' ) ) )['ok'] );
+teq( 'Nhân viên không xếp được lịch', false,
+	VHCC_Lich::xep_lich( $U_NV, 'TUTU_BT', array( array( 'ngay' => '2026-08-03', 'ma_nv' => 'X' ) ) )['ok'] );
+
+/* ---- PHÂN LỊCH KHÔNG ĐƯỢC GHI VÀO BẢNG CHẤM CÔNG ----
+   Lịch là DỰ ĐỊNH, chấm công là THỰC TẾ. Xếp lịch mà chèn hàng vào cham_cong thì bảng lương thấy
+   những ngày CÓ HÀNG mà không có giờ — trông y như "đã đi làm mà quên chấm". Trộn hai thứ đó là
+   trả tiền theo dự định. */
+teq( 'xếp lịch KHÔNG sinh hàng nào trong bảng chấm công', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+$than_lich = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-lich.php' );
+t( 'và mã cũng không có lệnh ghi nào vào bảng chấm công',
+	strpos( $than_lich, "insert( VHCC_DB::t( 'cham_cong'" ) === false
+	&& strpos( $than_lich, "update( VHCC_DB::t( 'cham_cong'" ) === false );
+
+/* ---- Xin đổi lịch + duyệt ---- */
+$r = VHCC_Lich::xin_doi_lich( $U_NV, array( 'coso' => 'TUTU_BT', 'ma_nv' => 'NV1', 'ho_ten' => 'A',
+	'ngay' => '2026-08-03', 'ca' => 'Sáng', 'viec_moi' => 'Thu tiền', 'ly_do' => 'việc nhà' ) );
+t( 'nhân viên tự xin đổi lịch được (không cần quyền quản lý)', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$yc = $r['maYc'];
+teq( 'thiếu mã NV thì từ chối (duyệt xong không biết xếp cho ai)', false,
+	VHCC_Lich::xin_doi_lich( $U_NV, array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-03' ) )['ok'] );
+teq( 'ngày sai khuôn thì từ chối', false,
+	VHCC_Lich::xin_doi_lich( $U_NV, array( 'coso' => 'TUTU_BT', 'ma_nv' => 'NV1', 'ngay' => 'mai' ) )['ok'] );
+/* Danh sách lọc theo cơ sở người xem phụ trách. */
+teq( 'Cửa hàng trưởng thấy yêu cầu của cơ sở mình', 1, count( VHCC_Lich::ds_doi_lich( $U_CHT, true ) ) );
+teq( 'Nhân viên không thấy danh sách yêu cầu', 0, count( VHCC_Lich::ds_doi_lich( $U_NV, true ) ) );
+/* DUYỆT phải GHI THẬT vào lịch, không chỉ đổi trạng thái. */
+$r = VHCC_Lich::duyet( $U_CHT, $yc, true );
+t( 'duyệt được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$sang2 = null;
+foreach ( VHCC_Lich::ds_lich( 'TUTU_BT', '2026-08-01', '2026-08-31' ) as $x ) {
+	if ( '2026-08-03' === $x['ngay'] && 'Sáng' === $x['ca'] ) { $sang2 = $x; }
+}
+teq( 'DUYỆT ghi thật vào lịch, không chỉ đổi trạng thái', 'Thu tiền', $sang2['viec'] );
+t( 'duyệt hai lần: bị chặn (duyệt lại là ghi lịch hai lần)',
+	empty( VHCC_Lich::duyet( $U_CHT, $yc, true )['ok'] ) );
+
+/* CÓ đổi sang ngày khác thì phải ghi HAI ô: ngày cũ TRỐNG việc, ngày mới nhận việc. Chỉ ghi ngày
+   mới là người đó bị xếp CẢ HAI ngày. */
+$r2 = VHCC_Lich::xin_doi_lich( $U_NV, array( 'coso' => 'TUTU_BT', 'ma_nv' => 'NV5', 'ho_ten' => 'E',
+	'ngay' => '2026-08-10', 'ca' => 'Sáng', 'viec_moi' => 'Trực ghế', 'doi_sang_ngay' => '2026-08-11' ) );
+VHCC_Lich::duyet( $U_AD, $r2['maYc'], true );
+$c10 = null; $c11 = null;
+foreach ( VHCC_Lich::ds_lich( 'TUTU_BT', '2026-08-01', '2026-08-31' ) as $x ) {
+	if ( 'NV5' !== $x['ma_nv'] ) { continue; }
+	if ( '2026-08-10' === $x['ngay'] ) { $c10 = $x; }
+	if ( '2026-08-11' === $x['ngay'] ) { $c11 = $x; }
+}
+t( 'đổi sang ngày khác: ngày CŨ vẫn có ô nhưng TRỐNG việc', $c10 && '' === $c10['viec'],
+	$c10 ? $c10['viec'] : 'không có ô ngày cũ' );
+t( 'ngày MỚI nhận việc', $c11 && 'Trực ghế' === $c11['viec'], $c11 ? $c11['viec'] : 'không có ô ngày mới' );
+/* Từ chối thì KHÔNG ghi lịch. */
+$r3 = VHCC_Lich::xin_doi_lich( $U_NV, array( 'coso' => 'TUTU_BT', 'ma_nv' => 'NV7', 'ho_ten' => 'G',
+	'ngay' => '2026-08-20', 'ca' => 'Sáng', 'viec_moi' => 'KHÔNG ĐƯỢC GHI' ) );
+VHCC_Lich::duyet( $U_AD, $r3['maYc'], false );
+$co7 = false;
+foreach ( VHCC_Lich::ds_lich( 'TUTU_BT', '2026-08-01', '2026-08-31' ) as $x ) {
+	if ( 'NV7' === $x['ma_nv'] ) { $co7 = true; }
+}
+t( 'từ chối thì KHÔNG ghi gì vào lịch', ! $co7 );
+/* Cửa hàng trưởng cơ sở khác không duyệt được. */
+$r4 = VHCC_Lich::xin_doi_lich( $U_NV, array( 'coso' => 'POSH_HCM', 'ma_nv' => 'NV8',
+	'ngay' => '2026-08-20', 'ca' => 'Sáng' ) );
+teq( 'Cửa hàng trưởng KHÔNG duyệt được yêu cầu của cơ sở khác', false,
+	VHCC_Lich::duyet( $U_CHT, $r4['maYc'], true )['ok'] );
+
+// ============================================================ 20. Hai màn hình: chỉ nối, không tự tính
+/* Màn hình KHÔNG được có bản luật quyền thứ hai. Hai bản luật quyền là sớm muộn lệch nhau, và lúc
+   lệch thì màn hình cho bấm mà lớp dưới chặn (hoặc tệ hơn: màn chặn mà lớp dưới cho). */
+$ad3 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+$i_ns = strpos( $ad3, 'public static function trang_nhan_su()' );
+$i_l  = strpos( $ad3, 'public static function trang_lich()' );
+$i_in3 = strpos( $ad3, 'public static function trang_in()' );
+$than_ns = substr( $ad3, $i_ns, $i_l - $i_ns );
+$than_lc = substr( $ad3, $i_l, $i_in3 - $i_l );
+
+foreach ( array( 'nhân sự' => $than_ns, 'phân lịch' => $than_lc ) as $ten => $than ) {
+	t( "màn $ten gác quyền trước khi hiện gì", strpos( $than, 'current_user_can( self::CAP )' ) !== false );
+	/* Mọi lượt GHI phải đi qua lớp nghiệp vụ, không có $wpdb->insert/update/delete trực tiếp trên
+	   màn hình — đi tắt là bỏ qua cả bốn chốt quyền. */
+	t( "màn $ten KHÔNG ghi thẳng vào bảng, phải qua lớp nghiệp vụ",
+		strpos( $than, '$wpdb->insert' ) === false && strpos( $than, '$wpdb->update' ) === false
+		&& strpos( $than, '$wpdb->delete' ) === false );
+	t( "màn $ten KHÔNG tự viết luật quyền (không so chuỗi vai trò)",
+		strpos( $than, "'CUA_HANG_TRUONG'" ) === false && strpos( $than, "'QUAN_LY'" ) === false );
+	// Mọi biểu mẫu POST phải có nonce — thiếu là ai gửi được yêu cầu thay người khác.
+	t( "màn $ten có nonce cho biểu mẫu", strpos( $than, 'check_admin_referer' ) !== false
+		&& strpos( $than, 'wp_nonce_field' ) !== false );
+}
+t( 'màn nhân sự gọi đúng lớp nghiệp vụ', strpos( $than_ns, 'VHCC_NhanSu::luu_ho_so' ) !== false
+	&& strpos( $than_ns, 'VHCC_NhanSu::xoa_ho_so' ) !== false
+	&& strpos( $than_ns, 'VHCC_NhanSu::xep_bo_phan' ) !== false );
+t( 'màn phân lịch gọi đúng lớp nghiệp vụ', strpos( $than_lc, 'VHCC_Lich::xep_lich' ) !== false
+	&& strpos( $than_lc, 'VHCC_Lich::duyet' ) !== false );
+/* Ô lương chỉ dựng khi có quyền — dựng rồi ẩn là số vẫn đi xuống trình duyệt. */
+t( 'màn nhân sự chỉ dựng ô lương khi có quyền xem lương',
+	strpos( $than_ns, 'if ( VHCC_NhanSu::co_xem_luong( $u ) ) {' ) !== false );
+/* Danh sách trường nhận từ POST phải là danh sách CHO PHÉP, không quét bừa $_POST. */
+t( 'màn nhân sự nhận trường theo danh sách cho phép, không quét bừa $_POST',
+	strpos( $than_ns, "foreach ( array( 'ma_nv', 'ho_ten'" ) !== false
+	&& strpos( $than_ns, 'foreach ( $_POST' ) === false );
+/* Màn phân lịch phải nói rõ lịch không phải chấm công — đây là chỗ dễ hiểu sai nhất. */
+t( 'màn phân lịch nói rõ lịch là dự định, chấm công là thực tế',
+	strpos( $than_lc, 'dự định' ) !== false && strpos( $than_lc, 'thực tế' ) !== false );
+t( 'màn phân lịch giải thích vì sao khoá có CA', strpos( $than_lc, '(cơ sở, ngày, mã NV, ca)' ) !== false );
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
