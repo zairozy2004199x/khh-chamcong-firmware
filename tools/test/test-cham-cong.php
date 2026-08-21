@@ -2639,6 +2639,54 @@ t( 'bốn màn mới đều được đăng ký vào menu',
 	strpos( $man, "'vhcc-quyen'" ) !== false && strpos( $man, "'vhcc-cham'" ) !== false
 	&& strpos( $man, "'vhcc-yeu-cau'" ) !== false && strpos( $man, "'vhcc-cf-luong'" ) !== false );
 t( 'và admin gọi menu_them để đăng ký', strpos( $ad_all, 'VHCC_Man::menu_them(' ) !== false );
+
+// ============================================================ 32. Bản cài lên hosting
+/* Bản .zip đi lên hosting là thứ NẰM DƯỚI wp-content/plugins/… và đọc được từ web bằng một địa chỉ
+   đoán ra được. Nên mục này canh hai điều: bản cài không mang theo thứ không cần, và không mang
+   theo bí mật nào. */
+$sh = file_get_contents( $goc . '/tools/build-plugin-zip.sh' );
+t( 'bản cài BỎ thư mục goc/ (1,3 MB bản gốc Code.gs + Index.html, không chạy gì)',
+	strpos( $sh, '/goc/*' ) !== false );
+t( 'bản cài BỎ thư mục apps-script/ (tệp dán tay + hai bản kê)',
+	strpos( $sh, '/apps-script/*' ) !== false );
+t( 'và nói rõ VÌ SAO bỏ, không chỉ bỏ',
+	strpos( $sh, 'ĐỌC ĐƯỢC TỪ WEB' ) !== false );
+t( 'kiểm cú pháp PHP TRƯỚC khi đóng gói (thà báo lỗi ở đây hơn trên hosting)',
+	strpos( $sh, 'php -l' ) !== false );
+
+/* Mọi tệp THẬT SỰ đi lên hosting phải sạch bí mật. Quét trực tiếp, không tin ghi chú. */
+$mau_cam = array( 'AKfycb', 'AIza', 'default-rtdb', 'firebaseio' );
+$loi_zip = array();
+$it = new RecursiveIteratorIterator( new RecursiveDirectoryIterator(
+	$goc . '/wordpress/vhcp-cham-cong', FilesystemIterator::SKIP_DOTS ) );
+$so_tep = 0;
+foreach ( $it as $f ) {
+	$duong = str_replace( '\\', '/', $f->getPathname() );
+	if ( strpos( $duong, '/goc/' ) !== false || strpos( $duong, '/apps-script/' ) !== false ) { continue; }
+	if ( ! $f->isFile() ) { continue; }
+	$so_tep++;
+	$noi = file_get_contents( $duong );
+	foreach ( $mau_cam as $m ) {
+		if ( false !== stripos( $noi, $m ) ) { $loi_zip[] = basename( $duong ) . ': ' . $m; }
+	}
+	/* Liên kết /exec THẬT (có mã triển khai) thì không được nằm trong bản cài — chữ gợi ý trong ô
+	   nhập có dạng `https://script.google.com/…/exec` với dấu ba chấm thì vô hại. */
+	if ( preg_match( '#/macros/s/[A-Za-z0-9_-]{20,}/exec#', $noi ) ) {
+		$loi_zip[] = basename( $duong ) . ': liên kết /exec thật';
+	}
+}
+t( 'quét được đủ tệp của bản cài', $so_tep > 10, $so_tep );
+t( 'KHÔNG tệp nào trong bản cài chứa bí mật', count( $loi_zip ) === 0, implode( ' | ', $loi_zip ) );
+/* `888888` được phép có mặt — nhưng CHỈ ở chỗ nó là PIN BỊ CHẶN, không phải PIN đang dùng. */
+$q_noi = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-quyen.php' );
+t( "'888888' trong bản cài chỉ nằm ở danh sách PIN bị chặn",
+	strpos( $q_noi, "const PIN_CAM" ) !== false
+	&& preg_match( "/PIN_ADMIN|pin_admin\s*=\s*'888888'/", $q_noi ) === 0 );
+/* Thư mục nào cũng phải có index.php im lặng — chặn liệt kê thư mục nếu máy chủ bật autoindex. */
+foreach ( array( '', '/includes', '/assets', '/assets/js' ) as $d ) {
+	t( "thư mục$d có index.php im lặng",
+		file_exists( $goc . '/wordpress/vhcp-cham-cong' . $d . '/index.php' ) );
+}
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

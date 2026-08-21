@@ -26,8 +26,15 @@ dong_goi() {
 
   mkdir -p "$OUT"
   rm -f "$ZIP"
+  # ⚠️ BỎ `goc/` và `apps-script/` ra khỏi bản cài. Hai thư mục đó KHÔNG chạy gì trên hosting:
+  #    `goc/` là bản gốc Code.gs + Index.html giữ để lập bản đồ nghiệp vụ (1,3 MB), `apps-script/`
+  #    là mấy tệp .gs để dán tay vào Apps Script cùng hai bản kê.
+  #    Để chúng trong plugin là chúng nằm dưới wp-content/plugins/… và ĐỌC ĐƯỢC TỪ WEB bằng một
+  #    địa chỉ đoán ra được — tức công bố toàn bộ cấu trúc bảng, danh sách PIN bị chặn và cách
+  #    tính lương của cả chuỗi, để đổi lấy đúng con số không. Ai cần thì lấy trong repo.
   ( cd "$(dirname "$SRC")" && zip -qr "$ZIP" "$(basename "$SRC")" \
-      -x '*/.git/*' -x '*/.DS_Store' -x '*/node_modules/*' )
+      -x '*/.git/*' -x '*/.DS_Store' -x '*/node_modules/*' \
+      -x "$(basename "$SRC")/goc/*" -x "$(basename "$SRC")/apps-script/*" )
 
   echo "Đã tạo: $ZIP  ($ten)"
   if command -v du >/dev/null 2>&1; then du -h "$ZIP"; fi
@@ -48,3 +55,6 @@ esac
 echo
 echo "Cài lên hosting: wp-admin → Plugin → Cài mới → Tải plugin lên → chọn file → Cài đặt → Kích hoạt."
 echo "Ba plugin cài độc lập, cài cái nào trước cũng được."
+echo
+echo "Trong bản cài KHÔNG có goc/ và apps-script/ — hai thư mục đó không chạy gì mà lại đọc được"
+echo "từ web. Mấy tệp .gs cần dán vào Apps Script thì lấy trong repo (hoặc bản gửi kèm)." 
