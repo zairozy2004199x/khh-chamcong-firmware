@@ -44,6 +44,35 @@ t( 'CauNoi.gs kiểm khoá WEB_KEY', strpos( $gs, 'WEB_KEY' ) !== false );
 t( 'CauNoi.gs có đường lấy giao diện', strpos( $gs, '__giaoDien' ) !== false );
 t( 'CauNoi.gs KHÔNG định nghĩa doGet (đè giao diện app gốc)', strpos( $gs, 'function doGet' ) === false );
 
+// Danh sách hàm khai trong CauNoi.gs phải KHỚP hàm có thật trong Code.gs. Gõ sai một chữ là
+// một tính năng chết — cầu nối báo lỗi rõ, nhưng chỉ báo lúc ai đó bấm đúng nút đó, có thể mấy
+// tuần sau. Đối chiếu ở đây thì biết ngay.
+$ds_ham_goc = array();
+foreach ( file( $goc . '/wordpress/vhcp-hop-dong/apps-script/ham-code-gs.txt' ) as $dong ) {
+	$dong = trim( $dong );
+	if ( $dong === '' || $dong[0] === '#' ) { continue; }
+	$ds_ham_goc[ $dong ] = 1;
+}
+t( 'đọc được danh sách hàm của Code.gs', count( $ds_ham_goc ) > 50, count( $ds_ham_goc ) );
+$thieu = array();
+foreach ( $fns as $ham ) {
+	if ( in_array( $ham, array( 'login', 'vhdLogout' ), true ) ) { continue; }   // hàm của plugin
+	if ( ! isset( $ds_ham_goc[ $ham ] ) ) { $thieu[] = $ham; }
+}
+teq( 'mọi hàm khai trong CauNoi.gs đều có thật trong Code.gs', array(), $thieu );
+
+// Chiều ngược: KHÔNG được mở cửa cho hàm phá dữ liệu. Mấy hàm này xoá/ghi đè cả tab, hoặc chạy
+// từ menu Sheets với hộp thoại riêng — cho gọi qua web là mở đường xoá sạch dữ liệu bằng một
+// request. Danh sách phải KHÔNG chứa chúng.
+$cam = array( 'xoaDuLieu3Tab', 'lamMoiTabChuan', 'taoTabDich', 'saveStaging', 'promoteStaging',
+	'importHcmFromSheet', 'clearAllCache', 'apiLuuKhoaClaude', 'apiTrangThaiKhoaClaude',
+	'apiThuGoiClaude', 'authorizeExtract' );
+$lot = array();
+foreach ( $cam as $ham ) {
+	if ( in_array( $ham, $fns, true ) ) { $lot[] = $ham; }
+}
+teq( 'hàm xoá/ghi đè cả tab KHÔNG được gọi qua web', array(), $lot );
+
 // ---------------------------------------------------------------- 2. Cầu nối
 teq( 'chưa khai /exec thì báo rõ', false, VHD_CauNoi::goi( 'getData' )['ok'] );
 t( 'thông báo chỉ đúng chỗ phải khai', strpos( VHD_CauNoi::goi( 'getData' )['error'], '/exec' ) !== false );

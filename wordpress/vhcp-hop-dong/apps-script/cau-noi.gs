@@ -98,13 +98,17 @@ function doPost(e) {
     // mà chết im thì rất lâu sau mới ai phát hiện.
     return cnTraVe({ ok: false, error: 'Hàm "' + fn + '" chưa có trong CN_CHO_PHEP của file CauNoi.gs' });
   }
-  if (typeof this[fn] !== 'function') {
-    return cnTraVe({ ok: false, error: 'Project này không có hàm "' + fn + '"' });
+  // Lấy hàm qua globalThis, KHÔNG qua `this`: trong runtime V8, `this` bên trong một hàm gọi
+  // thường có thể là undefined, lúc đó mọi lệnh đều báo "không có hàm" dù hàm nằm ngay đó.
+  var G = (typeof globalThis !== 'undefined') ? globalThis : this;
+  if (typeof G[fn] !== 'function') {
+    return cnTraVe({ ok: false, error: 'Project này không có hàm "' + fn + '" — dán CauNoi.gs vào ĐÚNG '
+      + 'project của app hợp đồng chưa? (cầu nối phải nằm cùng project mới gọi được hàm của app)' });
   }
 
   var args = Array.isArray(yc.args) ? yc.args : [];
   try {
-    return cnTraVe({ ok: true, data: this[fn].apply(null, args) });
+    return cnTraVe({ ok: true, data: G[fn].apply(null, args) });
   } catch (err) {
     // Trả nguyên văn lỗi để giao diện hiện đúng như khi chạy trong Apps Script
     return cnTraVe({ ok: false, error: String((err && err.message) ? err.message : err) });
@@ -115,6 +119,44 @@ function cnTraVe(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+/**
+ * ============================================================================
+ * 🔴 LỖ BẢO MẬT ĐANG CÓ SẴN TRONG Code.gs — VÁ SAU KHI TRANG WEB CHẠY ĐƯỢC
+ * ============================================================================
+ *
+ * `doGet(e)` của app hiện có nhánh này:
+ *
+ *     if (e && e.parameter && e.parameter.data === '1') {
+ *       return ContentService.createTextOutput(JSON.stringify(getData(fresh)))…
+ *     }
+ *
+ * Cộng với `appsscript.json` đang để `"access": "ANYONE_ANONYMOUS"`, nghĩa là:
+ * BẤT KỲ AI có link /exec, chỉ cần thêm `?data=1`, là tải về TOÀN BỘ hợp đồng —
+ * tên khách · MST · địa chỉ · SỐ TÀI KHOẢN NGÂN HÀNG · link file hợp đồng —
+ * KHÔNG cần đăng nhập, KHÔNG cần khoá. Chính ghi chú trong Code.gs đã nêu điều này.
+ *
+ * Trang /hop-dong/ trên WordPress KHÔNG dùng nhánh đó (nó gọi doPost có khoá), nên
+ * vá được mà không ảnh hưởng gì. VÁ SAU khi trang web chạy ổn — vá trước là tự khoá
+ * mình ra ngoài lúc còn đang thử.
+ *
+ * CÁCH VÁ: trong Code.gs, sửa nhánh đó thành đòi khoá:
+ *
+ *     if (e && e.parameter && e.parameter.data === '1') {
+ *       var khoaYc = String((e.parameter.key || ''));
+ *       var khoaThat = PropertiesService.getScriptProperties().getProperty('WEB_KEY') || '';
+ *       if (!khoaThat || khoaYc !== khoaThat) {
+ *         return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'Thiếu khoá' }))
+ *           .setMimeType(ContentService.MimeType.JSON);
+ *       }
+ *       var fresh = e.parameter.fresh === '1';
+ *       return ContentService.createTextOutput(JSON.stringify(getData(fresh)))
+ *         .setMimeType(ContentService.MimeType.JSON);
+ *     }
+ *
+ * Rồi Deploy → New version. Ai đang dùng `?data=1` ở đâu khác thì thêm `&key=<WEB_KEY>`.
+ * ============================================================================
+ */
 
 /**
  * SIẾT LẠI QUYỀN TRUY CẬP (nên làm sau khi trang web chạy được)

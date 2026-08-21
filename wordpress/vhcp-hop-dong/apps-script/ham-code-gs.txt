@@ -1,0 +1,117 @@
+# HÀM CÓ THẬT TRONG Code.gs CỦA APP HỢP ĐỒNG
+#
+# Chép từ Code.gs anh Thắng gửi ngày 21/08/2026 — chỉ TÊN HÀM, không có mã nguồn, không có khoá.
+# Dùng để phép thử `test-hop-dong.php` đối chiếu: mọi tên trong CN_CHO_PHEP (cau-noi.gs) phải có
+# trong danh sách này. Gõ sai một chữ trong CN_CHO_PHEP là một tính năng chết — cầu nối có báo lỗi
+# rõ, nhưng chỉ báo lúc anh bấm đúng nút đó, mà nút đó có thể mấy tuần mới dùng một lần.
+#
+# Sửa Code.gs (thêm/đổi tên hàm) thì cập nhật file này.
+# Dòng bắt đầu bằng # là ghi chú.
+
+# --- cửa vào của app (KHÔNG cho gọi qua cầu nối) ---
+doGet
+onOpen
+
+# --- dữ liệu & form ---
+getData
+getFormMeta
+getContractRow
+addContract
+updateContract
+apiChuyenTab
+
+# --- thiếu thông tin ---
+apiDsTruongKiem
+apiLuuTruongKiem
+apiCauHinhCanhBaoThieu
+apiBoiVangThieu
+apiSoatCot
+apiXemCotUrl
+apiDatTenCotUrl
+apiDsChuaBocTach
+
+# --- bóc tách PDF ---
+getExtractConfig
+listExtractModels
+getStagingData
+saveStaging
+promoteStaging
+extractToStaging
+extractOneForAdd
+extractFromDriveLink
+extractDriveFileToStaging
+apiDeXuatTuPdf
+apiGhiBoSung
+apiGhiDeLech
+apiBocTachNhieuDong
+apiDoThuMucPdf
+apiLayThuMucPdf
+apiLuuThuMucPdf
+apiThuMucCoDinh
+apiThuMucDaBoc
+apiLuuThuMucDaBoc
+apiHoanTacDonFile
+apiTachLinkStaging
+apiTachLinkAn
+apiTachLinkAnTatCa
+apiLocTrungHop
+apiChuyenStagingCu
+apiLapBangTraLink
+listPdfsInFolder
+unzipToFolder
+chuyenDoiLinkUrl
+GETLINK
+
+# --- tiền thuê theo tháng ---
+getTienThueThang
+getCoSoMap
+saveCoSoMap
+docTienThueTuScan
+ghiTienThueTuScan
+
+# --- gán gian hàng ---
+goiYGianHang
+apGoiYGianHang
+getVhcpSource
+setVhcpSource
+dsCoSoVHCP
+
+# --- cấu hình ---
+apiNguonDuLieu
+apiLuuCheDoDoc
+apiLuuTabBoQua
+apiCauHinhAI
+apiDsModelAI
+apiCauHinhToken
+apiNhanDangHoc
+
+# --- đồng bộ từ sheet nguồn (đã bỏ đường vào từ giao diện, giữ lại trong Code.gs) ---
+importHcmFromSheet
+listSourceTabs
+getHcmSource
+getSyncLog
+clearSyncLog
+apiThuDocLinkAn
+xoaDuLieu3Tab
+demDuLieuCacTab
+taoTabDich
+lamMoiTabChuan
+xemTruocLamMoiTabChuan
+clearAllCache
+learnCount
+authorizeExtract
+testAllCols
+
+# --- dán tay kết quả Gemini Workspace (chạy từ menu trong Sheets) ---
+apiPromptDayDuChoGeminiWorkspace
+apiXuLyDanKetQuaTay
+apiGhiTuDanTay
+apiTrangThaiKhoaClaude
+apiLuuKhoaClaude
+apiThuGoiClaude
+aiBoSungDongDangChon
+aiDocHangLoatTuDongChon
+aiChuyenDoiLinkTabHienTai
+aiXemPromptDayDu
+aiDanKetQuaTuDongChon
+aiNhapKhoaClaude
