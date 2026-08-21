@@ -440,6 +440,7 @@ class VHCP_Import {
 			'khongTien'  => isset( $dong_khong_tien ) ? $dong_khong_tien : 0,
 			'dongTieuDe' => $k['dongTieuDe'],
 			'cotDung'    => array_keys( $hd ),
+			'khopVoi'    => isset( $k['khopVoi'] ) ? $k['khopVoi'] : array(),
 			'cotThieu'   => $k['thieu'],
 			'cotLa'      => $k['la'],
 			'chuaCoCha'  => array_map( 'strval', array_keys( $chua_co_cha ) ),

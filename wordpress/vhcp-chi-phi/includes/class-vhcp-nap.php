@@ -236,9 +236,20 @@ class VHCP_Nap {
 			if ( ! isset( $hd[ $field ] ) ) { $thieu[] = $tens[0]; }
 		}
 
+		// Ghi lại TIÊU ĐỀ THẬT của cột đã khớp cho từng trường: nạp ra sai số thì nhìn
+		// bảng này là biết app đọc trường nào từ cột nào, khỏi đoán.
+		$tieu_de = (array) $rows[ $best ];
+		$khop_voi = array();
+		foreach ( $hd_all as $field => $cols ) {
+			$ten_cot = array();
+			foreach ( $cols as $ci ) { $ten_cot[] = isset( $tieu_de[ $ci ] ) ? trim( (string) $tieu_de[ $ci ] ) : ( 'cột ' . $ci ); }
+			$khop_voi[ $field ] = $ten_cot;
+		}
+
 		return array(
 			'hd'         => $hd,
 			'hdAll'      => $hd_all,
+			'khopVoi'    => $khop_voi,
 			'rows'       => array_slice( $rows, $best + 1 ),
 			'thieu'      => $thieu,
 			'la'         => $la,

@@ -27,6 +27,34 @@ class VHCP_DB {
 		return $wpdb->prefix . 'vhcp_' . $name;
 	}
 
+	/**
+	 * XÓA SẠCH DỮ LIỆU NGHIỆP VỤ, GIỮ CẤU HÌNH.
+	 *
+	 * Dùng khi nạp dữ liệu cũ bị sai và muốn làm lại từ đầu: xóa đơn, dòng chi, sổ chi
+	 * phí, dự án, marketing, công tác/setup, nhật ký — nhưng GIỮ cấu hình, người dùng,
+	 * danh mục loại chi phí và ma trận mã, vì đó là phần khai tay mất công nhất.
+	 *
+	 * @return array [bảng => số dòng đã xóa]
+	 */
+	public static function xoa_du_lieu() {
+		global $wpdb;
+		$bang = array( 'don', 'tamung', 'chiphi', 'so_chi', 'da_index', 'da_line',
+			'mk_don', 'mk_line', 'bp_index', 'bp_line', 'log' );
+		$out = array();
+		foreach ( $bang as $b ) {
+			$t = self::t( $b );
+			$n = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $t" );
+			$wpdb->query( "DELETE FROM $t" );
+			if ( $n ) { $out[ $b ] = $n; }
+		}
+		// meta của dự án (ngày duyệt, ghi nhận chi tiền) đi kèm dữ liệu nên xóa luôn
+		foreach ( array( 'daApp_', 'daPay_' ) as $p ) {
+			foreach ( VHCP_Meta::get_prefix( $p ) as $k => $v ) { VHCP_Meta::del( $k ); }
+		}
+		VHCP_Cfg::clear_cache();
+		return $out;
+	}
+
 	public static function install() {
 		global $wpdb;
 		require_once ABSPATH . 'wp-admin/includes/upgrade.php';

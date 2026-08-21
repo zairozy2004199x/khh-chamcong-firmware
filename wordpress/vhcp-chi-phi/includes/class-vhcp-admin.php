@@ -89,6 +89,16 @@ class VHCP_Admin {
 			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp' ), admin_url( 'admin.php' ) ) );
 			exit;
 		}
+		if ( $action === 'xoadl' ) {
+			$xn = isset( $_POST['vhcp_xacnhan'] ) ? trim( (string) wp_unslash( $_POST['vhcp_xacnhan'] ) ) : '';
+			if ( mb_strtoupper( $xn ) !== 'XOA' ) {
+				set_transient( 'vhcp_xoadl_' . get_current_user_id(), array( 'loi' => 'Chưa xóa — phải gõ đúng chữ XOA để xác nhận.' ), 60 );
+			} else {
+				set_transient( 'vhcp_xoadl_' . get_current_user_id(), array( 'ok' => VHCP_DB::xoa_du_lieu() ), 60 );
+			}
+			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp' ), admin_url( 'admin.php' ) ) );
+			exit;
+		}
 		if ( $action === 'mokhoa' ) {
 			$n = VHCP_Auth::mo_khoa();
 			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp', 'vhcp_msg' => 'mokhoa', 'vhcp_n' => $n ), admin_url( 'admin.php' ) ) );
@@ -150,6 +160,33 @@ class VHCP_Admin {
 		submit_button( 'Đổi tên miền trong link ảnh', 'secondary', 'submit', false );
 		echo '</form>';
 
+		$xd = get_transient( 'vhcp_xoadl_' . get_current_user_id() );
+		if ( $xd ) {
+			delete_transient( 'vhcp_xoadl_' . get_current_user_id() );
+			if ( ! empty( $xd['loi'] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( $xd['loi'] ) . '</p></div>';
+			} else {
+				$ds = (array) $xd['ok'];
+				$txt = array();
+				foreach ( $ds as $b => $n ) { $txt[] = $b . ': ' . (int) $n; }
+				echo '<div class="notice notice-success"><p>Đã xóa sạch dữ liệu nghiệp vụ'
+					. ( count( $txt ) ? ' — ' . esc_html( implode( ' · ', $txt ) ) : ' (vốn đã trống)' )
+					. '. Cấu hình, người dùng, danh mục loại chi phí và ma trận mã <b>vẫn còn</b>.</p></div>';
+			}
+		}
+
+		echo '<h2>Xóa sạch dữ liệu để nạp lại</h2>';
+		echo '<p>Xóa <b>đơn · dòng chi · sổ chi phí · dự án · marketing · công tác/setup · nhật ký</b>.'
+			. ' <b>Giữ</b> cấu hình, người dùng, danh mục loại chi phí và ma trận mã — phần khai tay mất công nhất.</p>';
+		echo '<p style="color:#b32d2e"><b>Không hoàn lại được.</b> Muốn chắc thì hPanel → phpMyAdmin → Export một file .sql trước.</p>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
+		wp_nonce_field( 'vhcp_xoadl' );
+		echo '<input type="hidden" name="vhcp_action" value="xoadl">';
+		echo '<table class="form-table"><tr><th scope="row">Gõ chữ <code>XOA</code> để xác nhận</th><td>'
+			. '<input name="vhcp_xacnhan" class="regular-text" placeholder="XOA" autocomplete="off"></td></tr></table>';
+		submit_button( 'Xóa sạch dữ liệu nghiệp vụ', 'delete', 'submit', false );
+		echo '</form>';
+
 		echo '<h2>Bị khóa vì nhập sai PIN?</h2>';
 		echo '<p>Nhập sai 10 lần thì app khóa theo địa chỉ mạng, tự mở sau 10 phút. Không muốn chờ thì bấm đây:</p>';
 		echo '<form method="post" action="' . esc_url( admin_url( 'admin.php?page=vhcp' ) ) . '">';
@@ -205,6 +242,9 @@ class VHCP_Admin {
 				foreach ( (array) $res['baoCao'] as $b ) {
 					$la = isset( $b['cotLa'] ) ? (array) $b['cotLa'] : array();
 					$mc = isset( $b['moCoi'] ) ? (array) $b['moCoi'] : array();
+					$kv = isset( $b['khopVoi'] ) ? (array) $b['khopVoi'] : array();
+					$kv_txt = array();
+					foreach ( $kv as $field => $cols ) { $kv_txt[] = $field . ' ← ' . implode( ' / ', (array) $cols ); }
 					$nhan = isset( $b['cachNhan'] ) ? $b['cachNhan'] : '';
 					if ( $nhan === 'tên cột' && isset( $b['cotKhop'] ) && $b['cotKhop'] !== '' ) { $nhan .= ' (' . (int) $b['cotKhop'] . ' cột)'; }
 					echo '<tr><td><code>' . esc_html( $b['tab'] ) . '</code></td>'
@@ -212,6 +252,7 @@ class VHCP_Admin {
 						. '<td>' . esc_html( $nhan !== '' ? $nhan : '—' ) . '</td>'
 						. '<td>' . esc_html( isset( $b['ketQua'] ) ? $b['ketQua'] : '' )
 						. ( ! empty( $b['dongDau'] ) ? '<br><small style="color:#777">dòng đầu: <code>' . esc_html( $b['dongDau'] ) . '</code></small>' : '' )
+						. ( count( $kv_txt ) ? '<br><small style="color:#777">đọc: ' . esc_html( implode( ' · ', $kv_txt ) ) . '</small>' : '' )
 						. '</td>'
 						. '<td>' . esc_html( count( $la ) ? implode( ' · ', $la ) : '—' ) . '</td>'
 						. '<td>' . esc_html( count( $mc ) ? implode( ' · ', $mc ) : '—' ) . '</td></tr>';

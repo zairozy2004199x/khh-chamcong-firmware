@@ -338,6 +338,7 @@ class VHCP_Sheet {
 			$mo['cotThieu'] = isset( $res['cotThieu'] ) ? $res['cotThieu'] : array();
 			$mo['cotLa']    = isset( $res['cotLa'] ) ? $res['cotLa'] : array();
 			$mo['moCoi']    = isset( $res['chuaCoCha'] ) ? $res['chuaCoCha'] : array();
+			$mo['khopVoi']  = isset( $res['khopVoi'] ) ? $res['khopVoi'] : array();
 			if ( ! empty( $res['themLoai'] ) ) { $mo['ketQua_them'] = (int) $res['themLoai']; }
 			if ( ! empty( $res['dongTong'] ) ) { $mo['dongTong'] = (int) $res['dongTong']; }
 			$mo['ketQua']   = 'nạp ' . $mo['napDuoc'] . ' dòng vào ' . self::ten_loai( $loai );
@@ -388,8 +389,11 @@ class VHCP_Sheet {
 			if ( $c === '' ) { continue; }
 			if ( $c === $k || strpos( $c, $k ) !== false || strpos( $k, $c ) !== false ) { $hit[] = (string) $x['ten']; }
 		}
+		// Bảng cơ sở có thể khai TRÙNG TÊN (2 dòng cùng tên) — đó vẫn là một cơ sở,
+		// không phải chuyện phải đi hỏi lại.
+		$hit = array_values( array_unique( $hit ) );
 		if ( count( $hit ) === 1 ) { return array( 'coso' => $hit[0], 'ghiChu' => 'cơ sở "' . $hit[0] . '" (dò từ tên tab)' ); }
-		if ( count( $hit ) > 1 ) { return array( 'coso' => '', 'ghiChu' => 'tên tab khớp ' . count( $hit ) . ' cơ sở (' . implode( ' · ', $hit ) . ') → không đoán, dòng sẽ chưa có mã' ); }
+		if ( count( $hit ) > 1 ) { return array( 'coso' => '', 'ghiChu' => 'tên tab khớp ' . count( $hit ) . ' cơ sở khác nhau (' . implode( ' · ', $hit ) . ') → không đoán, dòng sẽ chưa có mã' ); }
 		return array( 'coso' => '', 'ghiChu' => 'không tìm được cơ sở nào tên giống "' . $m . '" → dòng sẽ chưa có mã' );
 	}
 

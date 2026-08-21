@@ -1736,6 +1736,26 @@ teq( 'báo cáo có tổng tiền', 300000, VHCP_Util::num( $r_bc['tongTien'] ) 
 teq( 'đếm dòng ra 0đ (không tính dòng tổng hợp)', 1, (int) $r_bc['khongTien'] );
 teq( 'đếm dòng tổng hợp', 1, (int) $r_bc['dongTong'] );
 
+// ------------------------------- 40. XÓA SẠCH DỮ LIỆU NHƯNG GIỮ CẤU HÌNH
+$so_loai_truoc = count( VHCP_Cfg::cfg_static()['loaiChiPhi'] );
+$so_coso_truoc = count( VHCP_Cfg::cfg_static()['coso'] );
+$so_mx_truoc   = count( VHCP_Cfg::cfg_static()['tkNoMatrix'] );
+t( 'trước khi xóa: sổ chi phí có dữ liệu', VHCP_SoChi::list_chi( array() )['soDong'] > 0 );
+
+$xoa = VHCP_DB::xoa_du_lieu();
+t( 'xóa xong có báo số dòng từng bảng', is_array( $xoa ) && isset( $xoa['so_chi'] ) );
+teq( 'sổ chi phí sạch', 0, VHCP_SoChi::list_chi( array() )['soDong'] );
+teq( 'dự án sạch', 0, count( VHCP_DuAn::list_du_an()['items'] ) );
+teq( 'đơn vận hành sạch', 0, count( VHCP_Don::list_dons() ) );
+teq( 'đợt công tác sạch', 0, count( VHCP_BP::all_with_lines() ) );
+teq( 'đơn marketing sạch', 0, count( VHCP_MK::all_dons() ) );
+
+// Cấu hình phải còn nguyên — đó là phần khai tay mất công nhất
+teq( 'danh mục loại chi phí còn nguyên', $so_loai_truoc, count( VHCP_Cfg::cfg_static()['loaiChiPhi'] ) );
+teq( 'danh sách cơ sở còn nguyên', $so_coso_truoc, count( VHCP_Cfg::cfg_static()['coso'] ) );
+teq( 'ma trận mã còn nguyên', $so_mx_truoc, count( VHCP_Cfg::cfg_static()['tkNoMatrix'] ) );
+t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '2222' )['ok'] ) );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
