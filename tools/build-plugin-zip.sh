@@ -26,15 +26,22 @@ dong_goi() {
 
   mkdir -p "$OUT"
   rm -f "$ZIP"
-  # ⚠️ BỎ `goc/` và `apps-script/` ra khỏi bản cài. Hai thư mục đó KHÔNG chạy gì trên hosting:
-  #    `goc/` là bản gốc Code.gs + Index.html giữ để lập bản đồ nghiệp vụ (1,3 MB), `apps-script/`
-  #    là mấy tệp .gs để dán tay vào Apps Script cùng hai bản kê.
-  #    Để chúng trong plugin là chúng nằm dưới wp-content/plugins/… và ĐỌC ĐƯỢC TỪ WEB bằng một
-  #    địa chỉ đoán ra được — tức công bố toàn bộ cấu trúc bảng, danh sách PIN bị chặn và cách
-  #    tính lương của cả chuỗi, để đổi lấy đúng con số không. Ai cần thì lấy trong repo.
+  # ⚠️ BỎ `goc/` ra khỏi bản cài — bản gốc Code.gs + Index.html giữ để lập bản đồ nghiệp vụ
+  #    (1,3 MB), KHÔNG chạy gì trên hosting. Để nó trong plugin là nó nằm dưới
+  #    wp-content/plugins/… và ĐỌC ĐƯỢC TỪ WEB bằng một địa chỉ đoán ra được — tức công bố toàn
+  #    bộ cấu trúc bảng, danh sách PIN bị chặn và cách tính lương của cả chuỗi, để đổi lấy đúng
+  #    con số không. Ai cần thì lấy trong repo.
+  #
+  # 🔴 `apps-script/` thì PHẢI GIỮ, dù nó cũng chỉ để dán tay. Bản đầu bỏ luôn cả nó, và đó là
+  #    lỗi: `VHCC_Trang::ds_ham()` ĐỌC `apps-script/cau-noi.gs` lúc chạy để lấy danh sách hàm
+  #    giao diện, còn màn Cài đặt hiện nội dung file đó cho anh Thắng copy. Thiếu file thì trang
+  #    chấm công báo "CC_CHO_PHEP còn RỖNG" — một câu chỉ sai hướng hoàn toàn, vì bên Apps
+  #    Script danh sách vẫn đủ 23 hàm. Mấy tệp .gs này không chứa bí mật nào (khoá nằm trong
+  #    Script Properties và wp-config.php), nên đọc được từ web cũng không mất gì.
+  #    Mục 37 của bộ thử canh: mọi đường `VHCC_DIR . '…'` mã có đọc thì phải CÓ TRONG ZIP.
   ( cd "$(dirname "$SRC")" && zip -qr "$ZIP" "$(basename "$SRC")" \
       -x '*/.git/*' -x '*/.DS_Store' -x '*/node_modules/*' \
-      -x "$(basename "$SRC")/goc/*" -x "$(basename "$SRC")/apps-script/*" )
+      -x "$(basename "$SRC")/goc/*" )
 
   echo "Đã tạo: $ZIP  ($ten)"
   if command -v du >/dev/null 2>&1; then du -h "$ZIP"; fi

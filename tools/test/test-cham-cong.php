@@ -2647,8 +2647,13 @@ t( 'và admin gọi menu_them để đăng ký', strpos( $ad_all, 'VHCC_Man::men
 $sh = file_get_contents( $goc . '/tools/build-plugin-zip.sh' );
 t( 'bản cài BỎ thư mục goc/ (1,3 MB bản gốc Code.gs + Index.html, không chạy gì)',
 	strpos( $sh, '/goc/*' ) !== false );
-t( 'bản cài BỎ thư mục apps-script/ (tệp dán tay + hai bản kê)',
-	strpos( $sh, '/apps-script/*' ) !== false );
+/* ⚠️ ĐÃ LẬT LẠI. Phép thử này trước đây đòi bản cài BỎ `apps-script/` — tức là nó canh giữ
+   đúng cái lỗi: `VHCC_Trang::ds_ham()` đọc `apps-script/cau-noi.gs` lúc chạy, thiếu file thì
+   trang chấm công báo "CC_CHO_PHEP còn RỖNG" và chỉ người dùng đi sửa bên Apps Script — nơi
+   danh sách vẫn đủ 23 hàm. Một phép thử sai còn tệ hơn không có phép thử, vì nó chặn người
+   sửa. Giờ đòi ngược lại, và mục 37 canh cả hai chiều. */
+t( 'bản cài GIỮ apps-script/ vì mã đọc nó lúc chạy (xem mục 37)',
+	strpos( $sh, "-x \"\$(basename \"\$SRC\")/apps-script/*\"" ) === false );
 t( 'và nói rõ VÌ SAO bỏ, không chỉ bỏ',
 	strpos( $sh, 'ĐỌC ĐƯỢC TỪ WEB' ) !== false );
 t( 'kiểm cú pháp PHP TRƯỚC khi đóng gói (thà báo lỗi ở đây hơn trên hosting)',
@@ -3158,6 +3163,52 @@ t( 'và dừng trong vài lượt, không phải vài vạn lượt',
 	count( $GLOBALS['VHCP_DA_GET'] ) <= 6, count( $GLOBALS['VHCP_DA_GET'] ) . ' lượt GET' );
 
 $GLOBALS['VHD_POST'] = array(); $GLOBALS['VHCP_HTTP'] = array(); $GLOBALS['VHD_DA_GUI'] = array();
+
+// ================== 37. MỌI FILE MÃ ĐỌC LÚC CHẠY THÌ PHẢI CÓ TRONG BẢN CÀI
+/* 🔴 CA THẬT. Em bỏ `apps-script/` ra khỏi zip cho gọn và cho kín, nhưng KHÔNG rà lại xem mã
+   có đọc thư mục đó không. Nó có đọc: `VHCC_Trang::ds_ham()` đọc `apps-script/cau-noi.gs` để
+   biết giao diện được gọi những hàm nào, và màn Cài đặt hiện nội dung file đó để copy.
+   Hậu quả: trang chấm công báo "CC_CHO_PHEP còn RỖNG" trong khi "Thử cầu nối" báo 23 hàm —
+   hai câu không thể cùng đúng — và câu báo lỗi chỉ anh Thắng đi sửa đúng cái đang chạy tốt.
+
+   Phép thử này soi CẢ HAI chiều nên loại lỗi đó không quay lại được:
+   danh sách loại trừ của trình đóng gói phải khớp với những gì mã thật sự đọc. */
+$zip_ra = array();
+exec( 'cd ' . escapeshellarg( $goc ) . ' && bash tools/build-plugin-zip.sh cham-cong 2>&1', $zip_ra, $zip_ma );
+t( 'đóng gói được bản cài', $zip_ma === 0, implode( "\n", $zip_ra ) );
+
+$ds_zip = array();
+exec( 'unzip -Z1 ' . escapeshellarg( $goc . '/dist/vhcp-cham-cong.zip' ) . ' 2>/dev/null', $ds_zip );
+$trong_zip = array();
+foreach ( $ds_zip as $d ) { $trong_zip[ preg_replace( '#^vhcp-cham-cong/#', '', trim( $d ) ) ] = 1; }
+t( 'đọc được danh sách tệp trong zip', count( $trong_zip ) > 10, count( $trong_zip ) );
+
+/* Mọi đường `VHCC_DIR . '…'` trong mã — đó đúng là danh sách file plugin đọc lúc chạy. */
+$can = array();
+foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f ) {
+	if ( preg_match_all( "/VHCC_DIR\s*\.\s*'([^']+)'/", file_get_contents( $f ), $mm ) ) {
+		foreach ( $mm[1] as $x ) { $can[ $x ] = basename( $f ); }
+	}
+}
+t( 'có ít nhất một file được đọc lúc chạy (không thì phép thử này vô nghĩa)', count( $can ) > 0 );
+$thieu = array();
+foreach ( $can as $duong => $boi ) {
+	if ( ! isset( $trong_zip[ $duong ] ) ) { $thieu[] = $duong . ' (đọc ở ' . $boi . ')'; }
+}
+t( 'KHÔNG file nào mã đọc lúc chạy mà lại thiếu trong bản cài',
+	count( $thieu ) === 0, implode( ' | ', $thieu ) );
+
+/* `goc/` thì phải VẮNG — nó là bản gốc Code.gs, không chạy gì mà đọc được từ web. */
+$co_goc = 0;
+foreach ( array_keys( $trong_zip ) as $d ) { if ( strpos( $d, 'goc/' ) === 0 ) { $co_goc++; } }
+teq( 'thư mục goc/ vẫn bị loại khỏi bản cài', 0, $co_goc );
+
+/* Hai câu báo lỗi phải TÁCH RA: thiếu file trong bản cài ≠ chưa khai hàm bên Apps Script. */
+$tr2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang.php' );
+t( 'thiếu file .gs thì nói "BẢN CÀI THIẾU FILE", không nói CC_CHO_PHEP rỗng',
+	strpos( $tr2, 'BẢN CÀI THIẾU FILE' ) !== false );
+t( 'và nói rõ không phải người dùng làm sai', strpos( $tr2, 'KHÔNG phải anh làm' ) !== false );
+t( 'vẫn giữ câu cho ca thật sự rỗng', strpos( $tr2, 'CC_CHO_PHEP' ) !== false );
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

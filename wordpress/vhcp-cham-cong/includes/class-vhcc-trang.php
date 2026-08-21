@@ -55,9 +55,13 @@ class VHCC_Trang {
 	 * không có phương thức đó, bấm nút không xảy ra gì và cũng không báo lỗi. Nên chỉ có MỘT
 	 * nơi khai, ở file .gs mà anh phải dán sang Apps Script.
 	 */
+	/** Bản cài có thiếu apps-script/cau-noi.gs không — đặt trong ds_ham(), đọc ở render(). */
+	private static $thieu_file_gs = false;
+
 	public static function ds_ham() {
 		$file = VHCC_DIR . 'apps-script/cau-noi.gs';
 		$out  = array();
+		self::$thieu_file_gs = ! is_readable( $file );
 		if ( is_readable( $file ) ) {
 			$src = file_get_contents( $file );
 			if ( preg_match( '/CC_CHO_PHEP\s*=\s*\[(.*?)\]/s', $src, $m ) ) {
@@ -102,9 +106,20 @@ class VHCC_Trang {
 		$so_ham_app = count( array_diff( $ds, array( 'login', 'vhccLogout' ) ) );
 		if ( ! $so_ham_app ) {
 			status_header( 503 );
-			echo self::trang_loi( 'Danh sách hàm CC_CHO_PHEP trong CauNoiChamCong.gs còn RỖNG — '
-				. 'chưa khai hàm nào được gọi qua web, nên giao diện có tải được cũng không bấm được gì. '
-				. 'Gửi Index.html của app chấm công cho bên làm plugin để khai đúng danh sách.' );
+			/* ⚠️ HAI NGUYÊN NHÂN KHÁC HẲN NHAU, trước đây gộp thành một câu và chỉ sai hướng.
+			   Nếu thiếu file .gs trong bản cài thì bên Apps Script vẫn đủ hàm — bảo người ta đi
+			   khai lại CC_CHO_PHEP là bắt sửa đúng cái đang chạy tốt. Đã xảy ra thật: "Thử cầu
+			   nối" báo 23 hàm trong khi trang này báo RỖNG, hai câu không thể cùng đúng. */
+			if ( self::$thieu_file_gs ) {
+				echo self::trang_loi( 'BẢN CÀI THIẾU FILE — plugin không tìm thấy '
+					. '<code>apps-script/cau-noi.gs</code> trong thư mục của nó, mà nó cần file đó để '
+					. 'biết giao diện được gọi những hàm nào. Đây là lỗi đóng gói, KHÔNG phải anh làm '
+					. 'sai: bên Apps Script danh sách hàm vẫn đủ. Cài lại bản plugin mới nhất là xong.' );
+			} else {
+				echo self::trang_loi( 'Danh sách hàm CC_CHO_PHEP trong CauNoiChamCong.gs còn RỖNG — '
+					. 'chưa khai hàm nào được gọi qua web, nên giao diện có tải được cũng không bấm được gì. '
+					. 'Gửi Index.html của app chấm công cho bên làm plugin để khai đúng danh sách.' );
+			}
 			return;
 		}
 
