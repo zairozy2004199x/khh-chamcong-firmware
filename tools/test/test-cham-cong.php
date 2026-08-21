@@ -3476,6 +3476,38 @@ t( 'hàm xuất chốt quyền Admin/Quản lý', substr_count( $gs_cn, "u.role 
 $GLOBALS['VHD_POST'] = array();
 VHCC_Keo::xoa_tien_do();
 
+/* Câu "Phiên đăng nhập không hợp lệ" của app gốc phải được DỊCH LẠI. Nguyên văn nó đúng cho
+   người ngồi trước app gốc, nhưng ở đây không ai đăng nhập cả — cầu nối gọi máy-với-máy bằng
+   PIN admin trong wp-config.php. Ai đọc câu nguyên văn sẽ đi đăng nhập lại wp-admin, việc chẳng
+   liên quan gì. Anh Thắng đã mất một vòng đúng vì câu này. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 200, 'body' => wp_json_encode(
+	array( 'ok' => false, 'error' => 'Phiên đăng nhập không hợp lệ, hãy đăng nhập lại.' ) ) ) );
+$kq = VHCC_CauNoi::goi( 'getEmployees', array( '888888' ) );
+t( 'dịch lỗi phiên đăng nhập thành: app gốc không nhận PIN admin',
+	empty( $kq['ok'] ) && strpos( $kq['error'], 'VHCC_PIN_ADMIN' ) !== false, $kq );
+t( 'và nói rõ nó nằm ở wp-config.php, phải khớp sheet PhanQuyen',
+	strpos( $kq['error'], 'wp-config.php' ) !== false && strpos( $kq['error'], 'PhanQuyen' ) !== false );
+t( 'và nói rõ KHÔNG liên quan đăng nhập wp-admin (chống đi sai hướng)',
+	strpos( $kq['error'], 'Không liên quan' ) !== false );
+t( 'KHÔNG in PIN ra câu lỗi, chỉ nói độ dài',
+	strpos( $kq['error'], '888888' ) === false && strpos( $kq['error'], 'ký tự' ) !== false );
+/* Lỗi khác thì giữ NGUYÊN VĂN — dịch bừa là che mất câu thật của app gốc. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 200, 'body' => wp_json_encode(
+	array( 'ok' => false, 'error' => 'Không tìm thấy sheet chấm công cho cơ sở "XYZ".' ) ) ) );
+$kq = VHCC_CauNoi::goi( 'ccXuatChamCong', array( '1', 'XYZ', '08-2026' ) );
+teq( 'lỗi khác của app gốc thì giữ nguyên văn',
+	'Không tìm thấy sheet chấm công cho cơ sở "XYZ".', $kq['error'] );
+$GLOBALS['VHD_POST'] = array();
+
+/* Màn Cài đặt phải nói được PIN admin đã khai chưa — nếu không, câu lỗi trên không dẫn về đâu. */
+$ad2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+t( 'màn Cài đặt hiện trạng thái PIN admin', strpos( $ad2, 'PIN admin gọi app gốc' ) !== false );
+t( 'và phân biệt rõ với PIN đăng nhập trang chấm công và khoá cầu nối',
+	strpos( $ad2, 'KHÔNG phải PIN đăng nhập' ) !== false );
+ob_start(); VHCC_Admin::page(); $h_pin = ob_get_clean();
+t( 'màn Cài đặt KHÔNG in giá trị PIN admin ra',
+	strpos( $h_pin, (string) VHCC_May::pin() ) === false || '' === VHCC_May::pin() );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

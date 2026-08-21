@@ -193,7 +193,23 @@ class VHCC_CauNoi {
 			return array( 'ok' => false, 'error' => 'Không đọc được phản hồi của app chấm công (mã ' . $code . ').' );
 		}
 		if ( empty( $j['ok'] ) ) {
-			return array( 'ok' => false, 'error' => isset( $j['error'] ) ? (string) $j['error'] : 'Lỗi không rõ từ app chấm công' );
+			$loi = isset( $j['error'] ) ? (string) $j['error'] : 'Lỗi không rõ từ app chấm công';
+			/* 🔴 DỊCH LẠI MỘT CÂU CỦA APP GỐC.
+			   `_requireAuth` bên Apps Script ném "Phiên đăng nhập không hợp lệ, hãy đăng nhập
+			   lại." Câu đó đúng cho NGƯỜI đang ngồi trước app gốc, nhưng ở đây không có ai đăng
+			   nhập cả: cầu nối gọi máy-với-máy bằng PIN admin khai trong `wp-config.php`. Người
+			   đọc câu nguyên văn sẽ đi đăng nhập lại wp-admin — việc chẳng liên quan gì.
+			   Câu duy nhất đúng là: PIN đó app gốc không nhận. */
+			if ( false !== stripos( $loi, 'Phiên đăng nhập không hợp lệ' ) ) {
+				$loi = 'App gốc không nhận PIN admin mà plugin gửi sang. Đó là hằng '
+					. '<code>VHCC_PIN_ADMIN</code> trong <code>wp-config.php</code> — nó phải bằng ĐÚNG một '
+					. 'PIN đang có trong sheet <code>PhanQuyen</code> của app gốc, vai trò Admin. '
+					. ( '' === VHCC_May::pin()
+						? 'Hiện plugin CHƯA khai PIN nào.'
+						: 'Plugin đang gửi một PIN dài ' . strlen( VHCC_May::pin() ) . ' ký tự.' )
+					. ' (Không liên quan gì tới việc đăng nhập wp-admin hay PIN trang chấm công.)';
+			}
+			return array( 'ok' => false, 'error' => $loi );
 		}
 		return array( 'ok' => true, 'data' => isset( $j['data'] ) ? $j['data'] : null );
 	}

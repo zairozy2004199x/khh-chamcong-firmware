@@ -1282,6 +1282,23 @@ class VHCC_Admin {
 			. 'placeholder="https://script.google.com/…/exec">'
 			. '<p class="description">Lấy ở Apps Script → Deploy → Manage deployments → Web app URL.</p></td></tr>';
 
+		/* PIN admin: hiện TRẠNG THÁI, không hiện giá trị. Thiếu nó thì mọi việc gọi sang app gốc
+		   (kéo dữ liệu, màn Máy/OTA) đều chết bằng một câu của app gốc nói về "phiên đăng nhập" —
+		   câu đó không dẫn về đây được, nên phải nói ở đây. */
+		$pin_ad = VHCC_May::pin();
+		echo '<tr><th scope="row">PIN admin gọi app gốc</th><td>';
+		if ( '' === $pin_ad ) {
+			echo '<b style="color:#b32d2e">Chưa khai.</b> Thiếu nó thì không kéo được dữ liệu cũ và '
+				. 'màn Máy &amp; Firmware không gọi được gì.';
+		} else {
+			echo '<span style="color:#046b2d">✔️ Đã khai</span> (' . strlen( $pin_ad ) . ' ký tự'
+				. ( defined( 'VHCC_PIN_ADMIN' ) ? ', từ wp-config.php' : ', từ cơ sở dữ liệu' ) . ').';
+		}
+		echo '<p class="description">Khai trong <code>wp-config.php</code>: '
+			. '<code>define( \'VHCC_PIN_ADMIN\', \'…\' );</code> — phải bằng ĐÚNG một PIN vai trò '
+			. '<b>Admin</b> trong sheet <code>PhanQuyen</code> của app gốc. Đây KHÔNG phải PIN đăng nhập '
+			. 'trang chấm công, cũng không phải khoá cầu nối.</p></td></tr>';
+
 		echo '<tr><th scope="row">Khoá cầu nối (WEB_KEY)</th><td><code style="user-select:all">'
 			. esc_html( $khoa ) . '</code>'
 			. '<p class="description">Dán đúng chuỗi này vào Apps Script → Project Settings → Script Properties, '
