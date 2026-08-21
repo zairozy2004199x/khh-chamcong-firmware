@@ -399,6 +399,22 @@ Lệch với hệ cũ thì nhìn hai phần đó là biết thiếu ở đâu: t
 chưa nạp đủ (soi lại `TỔNG TIỀN` từng tab trên báo cáo Chỉ thử); thiếu bên **hạng mục** là
 bảng hạng mục của dự án chưa có dòng.
 
+### Số tiền ra nhỏ xíu: 564.538.680đ thành 5,65đ (bản 1.5.5)
+
+Google xuất file `.xlsx` ghi **số lớn theo dạng khoa học**: `564.538.680` nằm trong file là
+`5.6453868E8`. Bộ đọc số của app bỏ mọi ký tự không phải chữ số và dấu chấm — bỏ luôn chữ
+`E` — nên `5.6453868E8` thành `5.64538688`, tức **5,65đ**. Vài ví dụ đã gặp:
+
+| Trong bảng tính | Trong file .xlsx | App đọc ra (sai) |
+|---|---|---|
+| 564.538.680 | `5.6453868E8` | 5,65 |
+| 549.256.680 | `5.4925668E8` | 5,49 |
+| 10.800.000 | `1.08E7` | 1,09 |
+
+Nay app nhận dạng số khoa học trước mọi thứ khác (cả `5,6453868E8` kiểu dấu phẩy thập
+phân), nên đọc ra đúng số gốc. Đây là **đọc sai giá trị**, không phải đọc thiếu dòng — nạp
+lại là số về đúng, không cần sửa gì trong bảng tính.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |

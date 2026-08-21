@@ -1426,7 +1426,7 @@ $wb = VHCP_Sheet::tai_workbook( $SID_X );
 t( 'đọc được workbook .xlsx', isset( $wb['DA NHÀ MA BÀ RỊA'] ) );
 $rows_wb = $wb['DA NHÀ MA BÀ RỊA'];
 // 40 dòng đuôi chỉ có định dạng / công thức trả rỗng -> phải bị cắt, không thành 46 dòng
-teq( 'cắt đuôi rỗng, còn đúng 6 dòng', 6, count( $rows_wb ) );
+teq( 'cắt đuôi rỗng, còn đúng 7 dòng', 7, count( $rows_wb ) );
 teq( 'banner ở dòng 1', '🏗 SETUP LẮP ĐẶT: NHÀ MA BÀ RỊA', (string) $rows_wb[0][0] );
 teq( 'ô lỗi #REF! thành trống', '', (string) $rows_wb[1][4] );
 // Ô rỗng dạng thẻ tự đóng <c r="A2"/> KHÔNG được ăn giá trị của ô kế tiếp
@@ -1438,7 +1438,7 @@ teq( 'số đọc ra giá trị gốc', '825000.0000000001', (string) $rows_wb[5
 $k_wb = VHCP_Nap::khop( 'sochi', $rows_wb );
 t( 'nhờ vậy khớp được cột tiền', isset( $k_wb['hd']['so_tien'] ) );
 t( 'và cột dự toán', isset( $k_wb['hd']['du_toan'] ) );
-teq( 'chỉ còn 2 dòng dữ liệu thật (dòng trắng bị bỏ)', 2, count( $k_wb['rows'] ) );
+teq( 'chỉ còn 3 dòng dữ liệu thật (dòng trắng bị bỏ)', 3, count( $k_wb['rows'] ) );
 
 // Số thô của .xlsx có đuôi float: bỏ dấu chấm là thành số triệu tỉ. Đọc phải ra số thật.
 teq( 'số thô .xlsx không bị thổi phồng', 825000, round( VHCP_Util::doc_so( '825000.0000000001' ) ) );
@@ -1450,11 +1450,19 @@ teq( 'ô trống -> null', null, VHCP_Util::doc_so( '' ) );
 teq( 'ô rác -> null', null, VHCP_Util::doc_so( '#REF!' ) );
 teq( 'o_so lấy được số có đuôi float', '825000.0000000001', VHCP_Nap::o_so( $k_wb['rows'][1], $k_wb, 'so_tien' ) );
 
+// SỐ DẠNG KHOA HỌC của .xlsx: bỏ chữ E là 564.538.680đ thành 5,65đ — đúng lỗi đã gặp
+teq( 'số khoa học 5.6453868E8', 564538680, VHCP_Util::doc_so( '5.6453868E8' ) );
+teq( 'số khoa học 1.08E7', 10800000, VHCP_Util::doc_so( '1.08E7' ) );
+teq( 'số khoa học có dấu âm', -2500, VHCP_Util::doc_so( '-2.5E3' ) );
+teq( 'số khoa học dùng dấu phẩy thập phân', 564538680, VHCP_Util::doc_so( '5,6453868E8' ) );
+teq( 'đọc từ workbook cũng đúng', 549256680, round( VHCP_Util::doc_so( VHCP_Nap::o_so( $k_wb['rows'][2], $k_wb, 'so_tien' ) ) ) );
+
 $r_wb = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => true, 'tabs' => array( 'DA NHÀ MA BÀ RỊA' ) ) );
 teq( 'báo rõ đọc bằng file .xlsx', 'file .xlsx', $r_wb['cach'] );
 $bc_wb = $r_wb['baoCao'][0];
 t( 'dòng đọc: có so_tien', isset( $bc_wb['khopVoi']['so_tien'] ) );
-t( 'tổng tiền tính trước ra 825.000 (dòng tổng hợp về 0)', strpos( $bc_wb['ketQua'], '825.000' ) !== false );
+// 825.000 + 549.256.680 (số dạng khoa học 5.4925668E8) = 550.081.680
+t( 'tổng tiền tính trước cộng đủ cả số dạng khoa học', strpos( $bc_wb['ketQua'], '550.081.680' ) !== false );
 // Dự toán chỉ điền ở dòng hạng mục lớn -> tổng đúng 4.800.000, không cảnh báo cộng hai lần
 t( 'in trước cả TỔNG DỰ TOÁN', strpos( $bc_wb['ketQua'], 'TỔNG DỰ TOÁN 4.800.000đ' ) !== false );
 
@@ -1484,9 +1492,9 @@ t( 'không cảnh báo tải theo tên nữa', empty( $bc_wb['canhBao'] ) );
 
 // Nạp thật từ workbook: số phải vào đúng
 $r_wb2 = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => false, 'replace' => true, 'tabs' => array( 'DA NHÀ MA BÀ RỊA' ) ) );
-teq( 'nạp 2 dòng', 2, $r_wb2['tong'] );
+teq( 'nạp 3 dòng', 3, $r_wb2['tong'] );
 $sc_wb = VHCP_SoChi::list_chi( array( 'maDuAn' => 'NHÀ MA BÀ RỊA' ) );
-teq( 'tổng vào sổ chi phí đúng', 825000, VHCP_Util::num( $sc_wb['tong'] ) );
+teq( 'tổng vào sổ chi phí đúng', 550081680, round( VHCP_Util::num( $sc_wb['tong'] ) ) );
 $hom_wb = null;
 foreach ( $sc_wb['items'] as $x ) { if ( (string) $x['noiDung'] === 'Tủ Điện 24 tép' ) { $hom_wb = $x; } }
 teq( 'dòng con mang đúng số tiền', 825000, VHCP_Util::num( $hom_wb['soTien'] ) );
@@ -1531,7 +1539,7 @@ t( 'gõ thiếu chữ DA vẫn dò ra tab', ! empty( $r_thieu['success'] ) );
 $bc_thieu = $r_thieu['baoCao'][0];
 teq( 'và dùng đúng tên tab thật', 'DA NHÀ MA BÀ RỊA', $bc_thieu['tab'] );
 t( 'không rơi xuống đường tải theo tên', empty( $bc_thieu['canhBao'] ) );
-t( 'nên vẫn đọc ra tiền', strpos( $bc_thieu['ketQua'], '825.000' ) !== false );
+t( 'nên vẫn đọc ra tiền', strpos( $bc_thieu['ketQua'], '550.081.680' ) !== false );
 
 // Gõ tên tab không có thật: báo thẳng kèm danh sách tab, đừng nạp 0 dòng rồi im
 $r_sai = VHCP_Sheet::nap_ca_file( $SID_X, array( 'thu' => true, 'tabs' => array( 'TAB KHONG CO' ) ) );

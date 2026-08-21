@@ -97,6 +97,16 @@ class VHCP_Util {
 		$s   = str_replace( array( ' ', "\xc2\xa0", '₫', 'đ', 'VND' ), '', $s );
 		$neg = ( strpos( $s, '(' ) !== false && strpos( $s, ')' ) !== false ) || strpos( $s, '-' ) === 0;
 		$s   = str_replace( array( '(', ')', '+' ), '', $s );
+		// SỐ KIỂU KHOA HỌC của file .xlsx: Google xuất số lớn thành "5.6453868E8".
+		// Bộ đọc cũ bỏ mọi ký tự không phải chữ số/dấu chấm, tức bỏ luôn chữ E, nên
+		// 5.6453868E8 thành 5.64538688 — 564.538.680đ hiện ra 5,65đ. Nhận dạng trước
+		// mọi thứ khác vì chuỗi kiểu này không bao giờ là dấu nghìn.
+		if ( preg_match( '/^-?\d+(?:[.,]\d+)?[eE][+-]?\d+$/', $s ) ) {
+			$f = (float) str_replace( ',', '.', $s );
+			if ( $neg && $f > 0 ) { $f = -$f; }
+			return $f;
+		}
+
 		$has_dot   = strpos( $s, '.' ) !== false;
 		$has_comma = strpos( $s, ',' ) !== false;
 		if ( $has_dot && $has_comma ) {

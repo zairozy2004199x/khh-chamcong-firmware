@@ -23,6 +23,7 @@ $ss = array(
 	'Vật tư Khánh Thảo',                  // 8
 	'Tủ Điện 24 tép',                     // 9
 	'',                                   // 10 — công thức =IFERROR(...,"") trả rỗng
+	'Thi công hệ vách (trọn gói)',        // 11
 );
 
 $rows = array();
@@ -44,8 +45,14 @@ $rows[] = '<row r="6"><c r="A6" t="s"><v>9</v></c><c r="B6"><v>0</v></c>'
 	. '<c r="C6"><v>825000.0000000001</v></c><c r="D6"><v>1</v></c>'
 	. '<c r="E6"><v>825000</v></c><c r="F6"><v>825000.0000000001</v></c>'
 	. '<c r="G6" t="s"><v>8</v></c></row>';
+// Dòng con thứ hai: Google xuất SỐ LỚN thành dạng khoa học "5.4925668E8".
+// Bỏ chữ E là 549.256.680đ thành 5,49đ — đúng lỗi "lấy sai giá trị tiền".
+$rows[] = '<row r="7"><c r="A7" t="s"><v>11</v></c><c r="B7"><v>0</v></c>'
+	. '<c r="C7"><v>5.4925668E8</v></c><c r="D7"><v>1</v></c>'
+	. '<c r="E7"><v>5.4925668E8</v></c><c r="F7"><v>5.4925668E8</v></c>'
+	. '<c r="G7" t="s"><v>8</v></c></row>';
 // Đuôi bảng: 40 dòng chỉ có định dạng / công thức trả rỗng -> phải bị cắt hết
-for ( $r = 7; $r <= 46; $r++ ) {
+for ( $r = 8; $r <= 47; $r++ ) {
 	$rows[] = '<row r="' . $r . '" s="3" customFormat="1">'
 		. '<c r="A' . $r . '" s="3"/>'
 		. '<c r="B' . $r . '" s="3" t="s"><v>10</v></c>'
