@@ -228,6 +228,13 @@ function wpTinhTrang() {
  * ⚠️ Đây là phép đối THÔ và cố ý thô: nó chỉ nói HAI BÊN CÓ LỆCH KHÔNG, không nói lệch ở đâu.
  *    Lệch thì mở màn "Cổng nhận từ máy" bên WordPress đọc nhật ký — chỗ đó ghi từng ca bị bỏ và
  *    vì sao. Đừng tin một con số khớp là xong: khớp số mà lệch GIỜ vẫn sai lương.
+ *
+ * ⚠️ CHỈ ĐỐI LƯỢT CỦA MÁY. Từ khi chấm công online chạy thẳng trên web (anh Thắng chốt), lượt
+ *    online KHÔNG còn vào sheet nữa — nó vào thẳng MySQL. Nên MySQL có nhiều hơn sheet là ĐÚNG,
+ *    không phải lệch. Bên MySQL mỗi hàng có cột `nguon` ('may' / 'online' / 'hon-hop') để loại
+ *    phần online ra khi so; hàng đợi này vốn chỉ chứa lượt máy nên số của nó đã đúng vế cần so.
+ *    Hệ quả kèm theo, phải nhớ: với cơ sở đã bật chấm công online thì SHEET KHÔNG CÒN ĐỦ, lương
+ *    của cơ sở đó phải tính từ MySQL.
  */
 function wpDoiSoHang(coSo, thang) {
   var sh = _wpSheet_(), lr = sh.getLastRow(), d = { xong: 0, cho: 0, treo: 0 };

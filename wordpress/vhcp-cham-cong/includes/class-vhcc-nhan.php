@@ -238,7 +238,45 @@ class VHCC_Nhan {
 	 *               ô giờ ra còn TRỐNG (đã có giờ ra muộn hơn thì giữ nguyên, vì "muộn nhất trong
 	 *               ngày" mới đúng nghĩa ô đó).
 	 */
-	private static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64 ) {
+	/**
+	 * QUYẾT ĐỊNH thuần: cặp giờ đang có + một lượt mới -> nhánh nào, cặp mới là gì.
+	 *
+	 * Tách riêng khỏi phần ghi cơ sở dữ liệu vì đây là chỗ duy nhất quyết định TIỀN, nên nó phải
+	 * thử được trực tiếp bằng con số, không cần bảng, không cần HTTP.
+	 *
+	 * Dùng CHUNG cho cả đường máy và đường chấm công online, kể cả hàng ca đêm. Bên Apps Script
+	 * ca đêm phải có hàm ghi RIÊNG (`_ghiGioDem`) vì ô sheet giữ chuỗi 'HH:mm:ss' nên 06:00 luôn
+	 * "sớm hơn" 22:00 -> ca đêm bị đảo thành 16 tiếng ban ngày. Ở đây giờ là SỐ GIÂY, nên chỉ cần
+	 * trải phẳng trục (giờ sau nửa đêm + 86400) TRƯỚC khi vào hàm này là cùng một luật chạy đúng
+	 * cho cả hai. Một luật thay vì hai — chính điều Code.gs tự cảnh báo: hai bản tính giờ lệch
+	 * nhau là lệch tiền lương.
+	 */
+	public static function quyet_dinh_gio( $vao, $ra, $moi ) {
+		if ( $moi === $vao || $moi === $ra ) { return array( 'loai' => 'trung' ); }
+		if ( null === $vao ) {
+			return array( 'loai' => 'vao', 'vao' => $moi, 'anh_vao' => true );
+		}
+		if ( $moi >= $vao ) {
+			// Nằm trong khoảng đã phủ -> KHÔNG thu hẹp giờ ra.
+			if ( null !== $ra && $moi < $ra ) { return array( 'loai' => 'giua' ); }
+			return array( 'loai' => 'ra', 'ra' => $moi, 'anh_ra' => true );
+		}
+		/* Sớm hơn giờ vào -> thành giờ vào mới. Giờ vào CŨ chỉ tụt xuống làm giờ ra khi ô giờ ra
+		   còn TRỐNG: đã có giờ ra muộn hơn thì giữ nguyên, vì "muộn nhất trong ngày" mới đúng
+		   nghĩa ô đó. Ghi đè vô điều kiện là ca làm mất giờ ra thật (22:05) khi lượt sớm nhất
+		   tới sau cùng — rất hay gặp lúc nạp lại vì đầu đọc trả trang không theo thứ tự. */
+		$kq = array( 'loai' => 'daoThuTu', 'vao' => $moi, 'anh_vao' => true );
+		if ( null === $ra ) { $kq['ra'] = $vao; $kq['chuyen_anh_vao_sang_ra'] = true; }
+		return $kq;
+	}
+
+	/**
+	 * Ghi một lượt vào bảng chấm công.
+	 *
+	 * `$giay` phải là giờ ĐÃ trải phẳng nếu đây là hàng ca đêm — nơi gọi lo việc đó, xem
+	 * VHCC_Online::trai_phang(). `$ma_nv` nhận cả mã có hậu tố ('NV001-CD').
+	 */
+	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null ) {
 		global $wpdb;
 		$bang = VHCC_DB::t( 'cham_cong' );
 		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
@@ -250,7 +288,10 @@ class VHCC_Nhan {
 		$vao = ( $cu && null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
 		$ra  = ( $cu && null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
 
-		if ( $giay === $vao || $giay === $ra ) { return array( 'loai' => 'trung', 'anh' => 'khong-doi' ); }
+		$qd = self::quyet_dinh_gio( $vao, $ra, $giay );
+		if ( 'trung' === $qd['loai'] || 'giua' === $qd['loai'] ) {
+			return array( 'loai' => $qd['loai'], 'anh' => 'khong-doi' );
+		}
 
 		$anh_moi = '';
 		$ghi_anh = strlen( $anh_b64 ) > 100;
@@ -260,25 +301,13 @@ class VHCC_Nhan {
 			if ( '' === $anh_moi ) { $ghi_anh = false; }
 		}
 
-		$dat = array();
-		if ( null === $vao ) {
-			$loai = 'vao';
-			$dat['gio_vao_giay'] = $giay;
-			if ( $ghi_anh ) { $dat['anh_vao'] = $anh_moi; }
-		} elseif ( $giay >= $vao ) {
-			if ( null !== $ra && $giay < $ra ) { return array( 'loai' => 'giua', 'anh' => 'khong-doi' ); }
-			$loai = 'ra';
-			$dat['gio_ra_giay'] = $giay;
-			if ( $ghi_anh ) { $dat['anh_ra'] = $anh_moi; }
-		} else {
-			$loai = 'daoThuTu';
-			$dat['gio_vao_giay'] = $giay;
-			if ( $ghi_anh ) { $dat['anh_vao'] = $anh_moi; }
-			if ( null === $ra ) {
-				$dat['gio_ra_giay'] = $vao;                       // giờ vào cũ tụt xuống làm giờ ra
-				$dat['anh_ra']      = $cu ? (string) $cu['anh_vao'] : '';
-			}
-		}
+		$loai = $qd['loai'];
+		$dat  = array();
+		if ( array_key_exists( 'vao', $qd ) ) { $dat['gio_vao_giay'] = $qd['vao']; }
+		if ( array_key_exists( 'ra', $qd ) ) { $dat['gio_ra_giay'] = $qd['ra']; }
+		if ( $ghi_anh && ! empty( $qd['anh_vao'] ) ) { $dat['anh_vao'] = $anh_moi; }
+		if ( $ghi_anh && ! empty( $qd['anh_ra'] ) ) { $dat['anh_ra'] = $anh_moi; }
+		if ( ! empty( $qd['chuyen_anh_vao_sang_ra'] ) ) { $dat['anh_ra'] = $cu ? (string) $cu['anh_vao'] : ''; }
 
 		/* Ô "Thời gian trong ngày" của sheet: 'HH:mm' hoặc 'HH:mm HH:mm'. Tính lại từ cặp SAU khi
 		   đã đặt, chứ không chắp từ nhánh — chắp từ nhánh là chỗ dễ lệch nhất với bản gốc. */
@@ -288,7 +317,15 @@ class VHCC_Nhan {
 			? VHCC_DB::hhmm( $vao_moi )
 			: VHCC_DB::hhmm( $vao_moi ) . ' ' . VHCC_DB::hhmm( $ra_moi );
 
+		if ( null !== $ghi_chu && '' !== $ghi_chu ) { $dat['ghi_chu'] = $ghi_chu; }
 		if ( $cu ) {
+			/* Hàng đã có thì `nguon` chỉ được NỚI, không được ghi đè: một ngày có thể vừa có lượt
+			   máy vừa có lượt online, và `nguon` chính là thứ phép đối số hàng dùng để chỉ đếm
+			   lượt của MÁY. Ghi đè thành cái đến sau là mất dấu, rồi phép đối chiếu báo lệch mà
+			   không ai biết lệch vì đâu. */
+			if ( trim( (string) $cu['nguon'] ) !== '' && trim( (string) $cu['nguon'] ) !== $nguon ) {
+				$dat['nguon'] = 'hon-hop';
+			}
 			$ok = $wpdb->update( $bang, $dat, array( 'id' => (int) $cu['id'] ) );
 		} else {
 			$dat['coso']   = $coso;
@@ -296,7 +333,7 @@ class VHCC_Nhan {
 			$dat['ma_nv']  = $ma_goc;
 			$dat['hau_to'] = $hau_to;
 			$dat['ho_ten'] = $ho_ten;
-			$dat['nguon']  = 'may';
+			$dat['nguon']  = $nguon;
 			$dat['ghi_luc'] = current_time( 'mysql' );
 			$ok = $wpdb->insert( $bang, $dat );
 		}

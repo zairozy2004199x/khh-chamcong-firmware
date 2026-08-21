@@ -62,8 +62,17 @@ function __return_false() { return false; }
 function __return_true() { return true; }
 function status_header( $m ) { $GLOBALS['VHCP_MA_HTTP'] = (int) $m; }
 function nocache_headers() { return true; }
+/* Bài kiểm PHẢI đặt được "bây giờ": chấm công online lấy giờ ở MÁY CHỦ, nên không đặt được giờ
+   thì không thử nổi ca đêm, ân hạn tan làm, hay lượt 00:30 lùi về ngày hôm trước. */
+$GLOBALS['VHCP_GIAY_BAY_GIO'] = null;
+function vhcp_test_dat_gio( $chuoi ) {
+	$GLOBALS['VHCP_GIAY_BAY_GIO'] = ( null === $chuoi ) ? null : strtotime( $chuoi . ' UTC' );
+}
 function current_time( $dang = 'mysql', $gmt = 0 ) {
-	return 'mysql' === $dang ? gmdate( 'Y-m-d H:i:s' ) : time();
+	$t = null === $GLOBALS['VHCP_GIAY_BAY_GIO'] ? time() : $GLOBALS['VHCP_GIAY_BAY_GIO'];
+	if ( 'timestamp' === $dang || 'U' === $dang ) { return $t; }
+	if ( 'mysql' === $dang ) { return gmdate( 'Y-m-d H:i:s', $t ); }
+	return gmdate( $dang, $t );
 }
 /** Cổng nhận chấm công gài hook ở ưu tiên nào — bài kiểm cần đọc được con số đó. */
 function vhcp_test_uu_tien( $hook, $ten_ham ) {
@@ -305,7 +314,7 @@ function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
 	define( 'VHCC_URL', 'http://example.test/plugin-cham-cong/' );
-	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang', 'nhan' ) as $c ) {
+	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang', 'nhan', 'online' ) as $c ) {
 		require_once $dir . '/includes/class-vhcc-' . $c . '.php';
 	}
 }

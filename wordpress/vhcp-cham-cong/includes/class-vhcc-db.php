@@ -211,6 +211,7 @@ class VHCC_DB {
 			anh_ra VARCHAR(190) NOT NULL DEFAULT '',
 			chuan VARCHAR(190) NOT NULL DEFAULT '',
 			nguon VARCHAR(20) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			ghi_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY o (coso,ngay,ma_nv,hau_to),
