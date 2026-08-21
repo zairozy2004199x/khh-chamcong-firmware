@@ -31,6 +31,8 @@ thì dùng `https://<tên-miền>/?vhcp=app`.
 | Nhúng vào 1 trang WordPress | dán shortcode `[vhcp_app height="900"]` |
 | Nhúng vào trang tổng K&H | đặt `CHIPHI_URL = 'https://<tên-miền>/chi-phi/'` trong `AttendanceScript/Index.html` |
 | Đăng nhập một lần từ trang tổng | `https://<tên-miền>/chi-phi/?sso=<token>` |
+| **Mở thư viện hợp đồng** (hệ thống riêng) | `https://<tên-miền>/hop-dong/` (đổi được ở **Cài đặt**) |
+| Nhúng thư viện hợp đồng vào 1 trang | dán shortcode `[vhcp_hopdong height="900"]` |
 
 **SSO** dùng đúng thuật toán của app cũ — `base64url(payload).base64url(HMAC-SHA256)` — nên trang
 tổng **không phải sửa gì**: chỉ cần điền cùng chuỗi bí mật vào **Vận Hành Chi Phí → Cài đặt →
@@ -738,17 +740,33 @@ nhập. Đổi ô **Cơ sở** thì danh sách loại cập nhật theo — vì 
 Dòng đang sửa mà loại nay không còn trong danh mục thì **vẫn chọn được**, để không mất dữ liệu
 cũ.
 
-### 📄 Thư viện hợp đồng (bản 1.15.0)
+### 📄 Thư viện hợp đồng (bản 1.15.0 · tách thành hệ thống riêng ở bản 1.16.0)
 
-Tab mới **📄 Hợp đồng** — lưu hợp đồng và **bản scan ngay trên web**, kèm **đếm ngược hạn**.
+Lưu hợp đồng và **bản scan ngay trên web**, kèm **đếm ngược hạn**.
+
+**Đây là một hệ thống riêng, không phải một tab của app chi phí** (bản 1.15.0 làm dạng tab, bản
+1.16.0 tách ra):
+
+| | App chi phí | Thư viện hợp đồng |
+|---|---|---|
+| Đường dẫn | `/chi-phi/` | `/hop-dong/` |
+| Cổng đăng nhập | PIN riêng của trang | PIN riêng của trang |
+| Vào được | mọi vai trò | chỉ Kế toán · Quản lý · Admin |
+
+Hai trang **dùng chung một bộ mã PIN nhân sự** (khỏi phải cấp mật khẩu lần hai) và chung một bộ
+dữ liệu cơ sở, nhưng chạy độc lập: sửa app chi phí không ảnh hưởng thư viện hợp đồng, và người
+mở `/hop-dong/` không tải theo cả bộ giao diện chi phí. Trang hợp đồng chỉ gọi được **8 hàm**
+của riêng nó (khai ở `class-vhcp-hdapp.php`, có phép thử canh) — không mở đường sang dữ liệu đơn.
+
+Giao diện chung của hai trang lấy từ **một file CSS duy nhất** `assets/css/vhcp.css`, nên đổi
+màu/khoảng cách một chỗ là cả hai trang theo.
 
 **Một hợp đồng lưu:** Số HĐ · Tên HĐ · Đối tác/NCC · Cơ sở · Loại HĐ · Ngày ký · Ngày hết hạn
 · Giá trị · Trạng thái · Người phụ trách · Ghi chú · **nhiều file đính kèm** (PDF · ảnh · Word
 · Excel, tối đa 15MB mỗi file).
 
 **Nhắc hạn** — bốn ô đếm ở đầu trang: *đã hết hạn* · *còn ≤ 30 ngày* · *còn ≤ 90 ngày* · *tổng*.
-Mỗi dòng có nhãn màu (đỏ = hết hạn, cam = ≤30 ngày, vàng = ≤60, xanh = còn xa). **Tổng quan**
-cũng hiện một dòng nhắc khi có hợp đồng hết hạn hoặc còn ≤ 30 ngày, kèm 5 cái gần nhất.
+Mỗi dòng có nhãn màu (đỏ = hết hạn, cam = ≤30 ngày, vàng = ≤60, xanh = còn xa).
 
 Mấy ô đếm tính trên **toàn bộ** hợp đồng, không theo bộ lọc — lọc hẹp lại rồi tưởng hết việc thì
 mất ý nghĩa của việc nhắc.
@@ -756,7 +774,8 @@ mất ý nghĩa của việc nhắc.
 **Lọc & tìm:** theo hạn · cơ sở · đối tác, và gõ tìm theo số HĐ / tên / đối tác / ghi chú.
 
 **Quyền:** chỉ **Kế toán · Quản lý · Admin** — hợp đồng mang giá và điều khoản, không phải thứ
-để cả cơ sở đọc. Nhân viên không thấy tab, và cửa API trả **403** kể cả khi gọi thẳng.
+để cả cơ sở đọc. Nhân viên có nhập đúng PIN vào `/hop-dong/` cũng chỉ thấy màn *"Không có quyền
+xem hợp đồng"*, và cửa API trả **403** kể cả khi gọi thẳng.
 
 **Mấy chỗ đã lường trước:**
 
@@ -773,6 +792,10 @@ mất ý nghĩa của việc nhắc.
   liệu từ bảng tính, mà hợp đồng không đến từ đó.
 
 Bảng dữ liệu mới `vhcp_hopdong` (schema 1.4.0) — plugin tự tạo khi kích hoạt bản này.
+
+**Đường dẫn `/hop-dong/` báo 404 sau khi cập nhật?** Bình thường thì không: từ bản 1.16.0, hễ đổi
+phiên bản plugin là bảng đường dẫn tự nạp lại. Nếu vẫn 404 thì vào **Bảo trì → làm mới đường
+dẫn**, hoặc **Cài đặt → Lưu**.
 
 ## 5. Khác gì so với bản Apps Script
 
@@ -814,10 +837,12 @@ Toàn bộ nghiệp vụ được dịch nguyên văn, gồm những chỗ dễ 
 (dựng $wpdb tối giản trên SQLite):
 
 ```bash
-php tools/test/test-flows.php
+php tools/test/test-flows.php              # 824 phép thử (không cần WordPress — chạy trên SQLite)
+node tools/test/test-nhom-chi-phi.js       # 18 phép thử: loại chi phí thuộc nhóm nào
+node tools/test/test-trang-hopdong.js      # 29 phép thử: trang /hop-dong/ đứng riêng được
 ```
 
-300 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
+824 phép thử, gồm: vòng đời đơn (nháp → duyệt → cấp → thực chi → quyết toán → xuất MISA), trả lại
 đơn, "không dùng" tạm ứng, tách dòng sang cơ sở khác, bỏ tích CN↔NCC, dự án kỹ thuật (cộng trùng
 cha/con, xóa hạng mục lớn), Marketing, Công tác/Setup, tổng quan dòng tiền, vận hành theo tuần,
 báo cáo 1 gian, cả 4 luồng xuất MISA (kể cả nhánh fallback TK Có), cấu hình + hồi lại, phân quyền,
@@ -829,6 +854,12 @@ giữ đúng 141/64125 cũ), **tra theo mã** (1 mã ra nhiều mảng, lọc th
 dòng chưa gắn mã), **gán mã cho dòng cũ** (kỹ thuật suy theo loại dự án), **sổ chi phí** (gắn mã TK theo danh mục, TK Có theo hình thức chi, lọc theo mã tài khoản,
 chốt/bỏ chốt đã xuất, gán mã cho dòng cũ, nhập CSV) và **cửa API**: gọi thiếu token → 401, token bịa → 401, hàm lạ → 400, Nhân viên gọi `getUsers`
 hay `saveConfig` → 403, Quản lý gọi `deleteDonAdmin` → 403, đăng xuất rồi token hết hiệu lực.
+
+Thư viện hợp đồng có phần riêng: nhắc hạn theo mốc 30/60/90, chặn số HĐ trùng, chặn ngày hết hạn
+trước ngày ký, **sửa một ô không xoá các ô khác**, cửa API 403 với Nhân viên, và **trang
+`/hop-dong/` đứng một mình được** — `test-trang-hopdong.js` soi template: không còn dùng biến của
+app chi phí (`BOOT`, `showPage`, `CUR`), mọi lệnh gọi máy chủ đều nằm trong 8 hàm đã khai, và
+app chi phí đã sạch dấu vết tab hợp đồng.
 
 Hai phép thử cuối là lưới an toàn quan trọng nhất: **cả 92 hàm public của Code.gs cũ đều có trong
 bảng REST**, và **mọi hàm giao diện gọi đều tồn tại ở backend** — thiếu 1 hàm là bộ test đỏ ngay,
@@ -921,7 +952,8 @@ File `tools/deploy-hosting.env` đã nằm trong `.gitignore` — **không bao g
 
 | Hiện tượng | Xử lý |
 |---|---|
-| `/chi-phi/` báo 404 | **Bảo trì → làm mới đường dẫn**, hoặc vào **Cài đặt → Đường dẫn tĩnh → Lưu** |
+| `/chi-phi/` hoặc `/hop-dong/` báo 404 | **Bảo trì → làm mới đường dẫn**, hoặc vào **Cài đặt → Đường dẫn tĩnh → Lưu** |
+| Vào `/hop-dong/` hiện "Không có quyền xem hợp đồng" | Tài khoản đó là **Nhân viên** — thư viện hợp đồng chỉ dành cho Kế toán · Quản lý · Admin |
 | Vào app hiện lại cổng PIN liên tục | Token hết hạn/đã thu hồi — đăng nhập lại; kiểm tra trình duyệt không chặn `localStorage` |
 | Đính ảnh báo "Không ghi được file" | Sửa quyền ghi cho `wp-content/uploads` (thường 755) |
 | Tải MISA ra CSV thay vì Excel | Máy/hosting chặn CDN `cdnjs.cloudflare.com` — CSV là bản dự phòng sẵn có, dùng bình thường |

@@ -4,105 +4,6 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><base target="_top">
 <!--VHCP_HEAD-->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-  /* Bản WordPress: không còn Google Sheet nên ẩn 2 nút mở sheet */
-  #daOpenSheet,#bpOpenSheet{display:none !important}
-  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
-  body{background:#f1f5f9;color:#0f172a;font-size:13px}
-  /* CANH THẲNG HÀNG VỚI NỘI DUNG.
-     Thanh xanh trên cùng và các thanh trắng chạy hết bề rộng màn hình, còn thẻ nội dung
-     thì canh giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề trái mà thẻ
-     bên dưới lại thụt vào giữa, nhìn như lệch trang. Đệm hai bên của thanh được tính cho
-     bằng đúng lề của khối nội dung. */
-  .top{background:#0f766e;color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
-  .top h1{font-size:18px;display:flex;align-items:center;gap:8px}
-  .top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
-  .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-  select,input,textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
-  select:focus,input:focus,textarea:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
-  .btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
-  .btn:disabled{opacity:.5;cursor:not-allowed}
-  .b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
-  .b-g{background:#16a34a;color:#fff}.b-x{background:#f1f5f9;color:#334155}.b-d{background:#fee2e2;color:#dc2626}
-  .b-s{background:#e0f2fe;color:#0369a1}
-  /* BỀ RỘNG TRANG THEO MÁY.
-     Trước đây chốt 1250px: màn 24" thì bỏ trống hai bên gần 600px, còn điện thoại thì
-     lề 22px ăn mất chỗ của bảng. Nay giãn tới 1600px trên màn rộng và bóp lề lại trên
-     máy nhỏ. Các mốc dùng chung một hệ: 1200 · 900 · 820 · 560 · 420. */
-  .wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
-  .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
-  .ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
-  .ch h2{font-size:14px;font-weight:700}
-  .cb{padding:14px 16px}
-  .badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
-  .st-nhap{background:#f1f5f9;color:#475569}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
-  .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
-  @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
-  @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:560px){.grid{grid-template-columns:1fr}}
-  .fld{display:flex;flex-direction:column;gap:3px}
-  .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
-  .fld input,.fld select,.fld textarea{width:100%}
-  table{width:100%;border-collapse:collapse;min-width:920px}
-  thead th{background:#f8fafc;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #e2e8f0;white-space:nowrap}
-  tbody td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12.5px;vertical-align:middle}
-  tbody tr:hover{background:#f8fafc}
-  .tw{overflow-x:auto}
-  .money{text-align:right;font-family:Consolas,monospace;white-space:nowrap}
-  .pos{color:#166534;font-weight:700}.neg{color:#dc2626;font-weight:700}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:#f0fdfa;border:1px solid #99f6e4;color:#0f766e;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px}
-  .chip b{color:#0f172a}.chip span{cursor:pointer;color:#94a3b8;font-weight:700}
-  .empty{text-align:center;color:#94a3b8;padding:26px;font-size:13px}
-  #toast{position:fixed;top:14px;right:14px;z-index:2000;display:flex;flex-direction:column;gap:8px}
-  .t{background:#fff;border-left:4px solid #0f766e;border-radius:8px;padding:10px 15px;box-shadow:0 6px 20px rgba(0,0,0,.15);font-size:13px;min-width:220px}
-  .t.err{border-left-color:#ef4444}.t.warn{border-left-color:#f59e0b}
-  #lo{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:1500;align-items:center;justify-content:center}
-  #lo.show{display:flex}.spin{width:40px;height:40px;border:4px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
-  @keyframes sp{to{transform:rotate(360deg)}}
-  .hide{display:none}
-.csw{position:relative}
-.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
-.cs-list label:hover{background:#f1f5f9}
-
-  /* ---------- MÁY TÍNH BẢNG & ĐIỆN THOẠI ---------- */
-  @media(max-width:820px){
-    body{font-size:13.5px}                                  /* chữ to hơn chút cho dễ đọc */
-    .top{padding:12px 12px}
-    .top h1{font-size:16px}
-    .bar{padding:8px 10px}
-    .wrap{padding:12px 10px}
-    .ch{padding:10px 12px}
-    .cb{padding:12px 12px}
-    /* THANH TAB: 14 tab thì trên điện thoại xuống 4-5 dòng, đẩy nội dung tụt hẳn xuống.
-       Cho trượt ngang một dòng — quen tay hơn và giữ được chỗ cho nội dung. */
-    #tabbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-    #tabbar::-webkit-scrollbar{display:none}
-    #tabbar .btn{flex:0 0 auto}
-    /* Ô nhập cao hơn cho vừa đầu ngón tay */
-    select,input,textarea{padding:9px 10px;font-size:13.5px}
-    .btn{padding:9px 13px}
-    #toast{left:10px;right:10px}
-    .t{min-width:0}
-  }
-  @media(max-width:560px){
-    .wrap{padding:10px 8px}
-    .ch{padding:10px}
-    .cb{padding:10px}
-    .ch h2{font-size:13px}
-    /* Tiêu đề card và nút của nó xuống dòng riêng, khỏi chen nhau */
-    .ch{flex-direction:column;align-items:stretch}
-    .ch>div{display:flex;flex-wrap:wrap;gap:6px}
-  }
-  @media(max-width:420px){
-    .top>div:last-child{width:100%;justify-content:flex-end}
-    .btn{padding:8px 11px;font-size:12.5px}
-  }
-  /* Màn rất rộng: cho bảng dùng hết chỗ, khỏi phải trượt ngang vô ích */
-  @media(min-width:1700px){
-    .wrap{max-width:1800px}
-    .top,.bar{padding-left:max(22px, calc((100% - 1800px) / 2));padding-right:max(22px, calc((100% - 1800px) / 2))}
-  }
-</style>
 </head>
 <body>
   <!-- CỔNG ĐĂNG NHẬP PIN -->
@@ -142,7 +43,6 @@
     <button class="btn b-x" id="tab-tattoan" onclick="showPage('tattoan')">💰 Thừa/thiếu tuần</button>
     <button class="btn b-x" id="tab-xuat" onclick="showPage('xuat')">📤 Xuất MISA</button>
     <button class="btn b-x" id="tab-cauhinh" onclick="showPage('cauhinh')">⚙️ Cấu hình</button>
-    <button class="btn b-x" id="tab-hopdong" onclick="showPage('hopdong')">📄 Hợp đồng</button>
     <button class="btn b-x" id="tab-log" onclick="showPage('log')">📜 Nhật ký</button>
   </div>
 
@@ -174,7 +74,6 @@
       <div id="tqCards" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"><span style="color:#94a3b8;font-size:13px">Đang tải…</span></div>
       <!-- Nhắc hợp đồng sắp hết hạn: để hợp đồng hết hạn mà không ai biết là mất mặt bằng
            hoặc bị áp giá mới. Chỉ vai trò thấy được tab Hợp đồng mới thấy ô này. -->
-      <div id="tqHopDong" style="display:none;margin:0 14px 12px;padding:10px 14px;border-radius:10px;font-size:12.5px"></div>
       <div id="tqOpenRow" style="display:none;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:0 14px 12px">
         <div class="fld"><label>🏦 Số dư đầu kỳ (quỹ đầu tháng — seed cho Đối chiếu quỹ tuần đầu)</label><input id="tqOpenSo" type="number" placeholder="0" style="width:220px"></div>
         <button class="btn b-p" id="tqOpenSave" onclick="saveSoDuDauKy()">💾 Lưu số dư đầu kỳ</button>
@@ -1045,75 +944,6 @@
   </div>
   <!-- ============ TRANG: NHẬT KÝ HOẠT ĐỘNG ============ -->
   <!-- ============ TRANG: THƯ VIỆN HỢP ĐỒNG ============ -->
-  <div id="page-hopdong" class="wrap" style="display:none">
-    <div id="hdSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
-
-    <div class="card">
-      <div class="ch">
-        <h2>📄 <span id="hdFormTitle">Thêm hợp đồng</span></h2>
-        <div style="display:flex;gap:8px">
-          <button class="btn b-x" id="hdBtnHuy" onclick="hdResetForm()" style="display:none">✕ Hủy sửa</button>
-          <button class="btn b-g" onclick="hdSave()">💾 Lưu hợp đồng</button>
-        </div>
-      </div>
-      <div class="cb">
-        <div class="grid">
-          <div class="fld"><label>Số hợp đồng</label><input id="hd_so" placeholder="VD: HD-2026-014"></div>
-          <div class="fld" style="grid-column:span 2"><label>Tên hợp đồng *</label><input id="hd_ten" placeholder="VD: Thuê mặt bằng FUNZONE Vũng Tàu"></div>
-          <div class="fld"><label>Đối tác / NCC</label><input id="hd_dt" list="hd_dl_dt" placeholder="Tên đối tác"><datalist id="hd_dl_dt"></datalist></div>
-          <div class="fld"><label>Cơ sở</label><select id="hd_coso"></select></div>
-          <div class="fld"><label>Loại hợp đồng</label><input id="hd_loai" list="hd_dl_loai" placeholder="VD: Thuê mặt bằng"><datalist id="hd_dl_loai"></datalist></div>
-          <div class="fld"><label>Ngày ký</label><input id="hd_ky" type="date"></div>
-          <div class="fld"><label>Ngày hết hạn</label><input id="hd_het" type="date"></div>
-          <div class="fld"><label>Giá trị hợp đồng</label><input id="hd_gt" type="number" min="0" placeholder="0"></div>
-          <div class="fld"><label>Trạng thái</label><select id="hd_tt">
-            <option>Còn hiệu lực</option><option>Sắp hết hạn</option><option>Đã hết hạn</option>
-            <option>Đã thanh lý</option><option>Nháp / chờ ký</option></select></div>
-          <div class="fld"><label>Người phụ trách</label><input id="hd_pt" placeholder="Tên người theo dõi HĐ"></div>
-        </div>
-        <div class="fld" style="margin-top:10px"><label>Ghi chú</label><input id="hd_gc" placeholder="Điều khoản cần lưu ý, kỳ thanh toán…"></div>
-        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <button class="btn b-x" onclick="hdAttach()">📎 Đính file (PDF · ảnh · Word · Excel)</button>
-          <span style="font-size:11px;color:#94a3b8">Đính được nhiều file: bản scan, phụ lục, biên bản…</span>
-        </div>
-        <div id="hdFiles" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"></div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="ch">
-        <h2>📚 Thư viện hợp đồng (<span id="hdCount">0</span>)</h2>
-        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
-          <div class="fld"><label>Hạn</label><select id="hdfHan" onchange="loadHopDong()" style="min-width:150px">
-            <option value="">— Mọi hạn —</option>
-            <option value="hethan">Đã hết hạn</option>
-            <option value="con30">Còn ≤ 30 ngày</option>
-            <option value="con60">Còn ≤ 60 ngày</option>
-            <option value="con90">Còn ≤ 90 ngày</option>
-            <option value="khonghan">Không có hạn</option>
-          </select></div>
-          <div class="fld"><label>Cơ sở</label><select id="hdfCoso" onchange="loadHopDong()" style="min-width:150px"></select></div>
-          <div class="fld"><label>Đối tác</label><select id="hdfDoiTac" onchange="loadHopDong()" style="min-width:150px"></select></div>
-          <div class="fld"><label>Tìm</label><input id="hdfQ" placeholder="Số HĐ · tên · đối tác…" style="width:200px" oninput="hdTimCho()"></div>
-          <button class="btn b-x" onclick="hdXoaLoc()">✕ Bỏ lọc</button>
-          <button class="btn b-x" onclick="loadHopDong()">↻ Tải lại</button>
-        </div>
-      </div>
-      <div class="tw"><table style="min-width:1180px">
-        <thead><tr>
-          <th style="width:150px">Hạn</th><th style="width:120px">Số HĐ</th><th>Tên hợp đồng</th>
-          <th style="width:150px">Đối tác</th><th style="width:150px">Cơ sở</th><th style="width:120px">Loại</th>
-          <th style="width:95px">Ngày ký</th><th style="width:95px">Hết hạn</th>
-          <th style="text-align:right;width:120px">Giá trị</th><th style="width:120px">Trạng thái</th>
-          <th style="width:150px">File</th><th style="width:96px;text-align:center">Thao tác</th>
-        </tr></thead>
-        <tbody id="hdBody"></tbody>
-      </table>
-      <div class="empty" id="hdEmpty">Chưa có hợp đồng nào.</div></div>
-      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Chỉ <b>Kế toán · Quản lý · Admin</b> thấy tab này — hợp đồng mang giá và điều khoản (chặn cả ở máy chủ). Xóa hợp đồng <b>không</b> xóa file đã tải lên; đường dẫn file được ghi vào 📜 Nhật ký để còn tìm lại.</div>
-    </div>
-  </div>
-
   <div id="page-log" class="wrap" style="display:none">
     <div class="card">
       <div class="ch"><h2>📜 Nhật ký hoạt động</h2>
@@ -1371,13 +1201,13 @@
     // chi phí, chọn bằng ô "Chọn chi phí nào" ở mục 1 — khỏi nhảy qua nhảy lại 3 màn. Dữ
     // liệu cũ của 3 mảng GIỮ NGUYÊN, báo cáo và xuất MISA vẫn cộng đủ như trước.
     var BO_TAB={mkt:1,congtac:1,setup:1};
-    var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,hopdong:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
-              'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,hopdong:1,log:1},
+    var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
+              'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
               // Kế toán vào được Cấu hình: khai mã tài khoản / tên MISA / mã đơn vị là việc
               // của kế toán. Riêng dòng tài khoản Admin thì chỉ Admin sửa (chặn ở máy chủ).
-              'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:1,hopdong:1,log:0},
-              'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:0,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:1,hopdong:1,log:0},
-              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,gom:0,qt:0,tattoan:0,xuat:0,cauhinh:0,hopdong:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
+              'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
+              'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:0,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
+              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,gom:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
     if(role==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
       var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
       if(bp){ vis.duan=(bp==='Kỹ thuật')?1:0; vis.mkt=(bp==='Marketing')?1:0; vis.congtac=(bp==='Công tác')?1:0; vis.setup=(bp==='Setup')?1:0; }
@@ -1385,7 +1215,7 @@
       // tab Đơn chi phí — không thì họ không còn chỗ nào để nhập.
       vis.don=1; vis.sochi=1;
     }
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','hopdong','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
     var tqt=el('tab-qt'); if(tqt) tqt.textContent=(role==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
     var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý')?'inline-block':'none';
     el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
@@ -2079,10 +1909,10 @@
     CUR_PAGE=p;
     if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
     var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
-    ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','hopdong','log'].forEach(function(x){
+    ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
     });
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','hopdong','log'].forEach(function(x){
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var tb=el('tab-'+x); if(tb) tb.className='btn '+(x===p?'b-p':'b-x');
     });
     // Đơn theo tuần và đơn theo dự án là CÙNG một loại đơn, chỉ khác cái gom:
@@ -2109,184 +1939,7 @@
     if(p==='tattoan') loadTatToan();
     if(p==='xuat') loadXuat();
     if(p==='cauhinh') loadCfg();
-    if(p==='hopdong') loadHopDong();
   }
-  /** Thẻ nhắc hợp đồng sắp / đã hết hạn trên Tổng quan. */
-  function _tqNhacHopDong(){
-    var box=el('tqHopDong'); if(!box) return;
-    // Nhân viên không thấy hợp đồng -> khỏi gọi máy chủ cho tốn (máy chủ cũng trả 403)
-    var tab=el('tab-hopdong');
-    if(!tab || tab.style.display==='none'){ box.style.display='none'; return; }
-    google.script.run.withSuccessHandler(function(r){
-      if(!r||!r.success){ box.style.display='none'; return; }
-      var d=r.dem||{}, het=d.hetHan||0, ba=d.con30||0;
-      if(!het && !ba){ box.style.display='none'; return; }
-      var xau=het>0;
-      box.style.display='block';
-      box.style.background=xau?'#fef2f2':'#fff7ed';
-      box.style.border='1px solid '+(xau?'#fecaca':'#fed7aa');
-      box.style.color=xau?'#b91c1c':'#b45309';
-      var ds=(r.items||[]).filter(function(x){ var c=x.han&&x.han.conLai; return c!==null&&c<=30; }).slice(0,5);
-      box.innerHTML='📄 <b>Hợp đồng cần xử:</b> '
-        +(het?('<b>'+het+' đã hết hạn</b>'):'')+(het&&ba?' · ':'')+(ba?(ba+' còn ≤ 30 ngày'):'')
-        +(ds.length?('<div style="margin-top:5px;font-size:12px">'+ds.map(function(x){
-            return '• '+esc(x.ten)+(x.coso?(' ('+esc(x.coso)+')'):'')+' — '+esc((x.han&&x.han.nhan)||'');
-          }).join('<br>')+'</div>'):'')
-        +'<div style="margin-top:5px"><a href="#" onclick="showPage(\'hopdong\');return false" style="color:inherit;font-weight:700">Mở thư viện hợp đồng →</a></div>';
-    }).withFailureHandler(function(){ box.style.display='none'; }).listHopDong({ han:'' });
-  }
-
-  // ===================== 📄 THƯ VIỆN HỢP ĐỒNG =====================
-  // Chỉ Kế toán / Quản lý / Admin (máy chủ chặn lần nữa). Lưu hợp đồng + bản scan, và
-  // đếm ngược hạn để không để hợp đồng hết hạn mà không ai biết.
-  var HD_LIST=[], HD_FILES=[], HD_EDIT='', HD_TIMER=null;
-
-  function loadHopDong(){
-    var rec={ coso:_v('hdfCoso'), doiTac:_v('hdfDoiTac'), han:_v('hdfHan'), q:_v('hdfQ') };
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(!r||!r.success){ toast('err',(r&&r.error)||'Không tải được hợp đồng'); return; }
-      HD_LIST=r.items||[];
-      _hdFillLoc(r);
-      renderHopDong(r);
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listHopDong(rec);
-  }
-  function _v(id){ var e=el(id); return e?String(e.value||''):''; }
-  /** Gõ tìm thì chờ một nhịp mới gọi máy chủ, khỏi mỗi ký tự một request. */
-  function hdTimCho(){ if(HD_TIMER) clearTimeout(HD_TIMER); HD_TIMER=setTimeout(loadHopDong,350); }
-  function hdXoaLoc(){ ['hdfHan','hdfCoso','hdfDoiTac','hdfQ'].forEach(function(i){ if(el(i)) el(i).value=''; }); loadHopDong(); }
-
-  function _hdFillLoc(r){
-    function nap(id, ds, nhan){
-      var sel=el(id); if(!sel) return;
-      var cu=sel.value||'', co=(ds||[]).indexOf(cu)>=0;
-      sel.innerHTML='<option value="">'+nhan+'</option>'+(ds||[]).map(function(v){return '<option value="'+esc(v)+'"'+((co&&v===cu)?' selected':'')+'>'+esc(v)+'</option>';}).join('');
-      sel.value=co?cu:'';
-    }
-    nap('hdfCoso', (r.cosoList||[]).slice().sort(), '— Mọi cơ sở —');
-    nap('hdfDoiTac', (r.doiTacList||[]).slice().sort(), '— Mọi đối tác —');
-    // Ô nhập của form: cơ sở lấy từ cấu hình, đối tác/loại gợi ý từ chính dữ liệu đã có
-    var cs=el('hd_coso');
-    if(cs){ var cu=cs.value; cs.innerHTML='<option value="">—</option>'+(BOOT.coso||[]).map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join(''); cs.value=cu; }
-    if(el('hd_dl_dt')) el('hd_dl_dt').innerHTML=(r.doiTacList||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
-    if(el('hd_dl_loai')) el('hd_dl_loai').innerHTML=(r.loaiList||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
-  }
-
-  /** Màu theo tình trạng hạn — đọc bảng là thấy ngay cái nào phải xử. */
-  function _hdMauHan(ma){
-    if(ma==='hethan') return ['#fee2e2','#fecaca','#b91c1c'];
-    if(ma==='homnay') return ['#fee2e2','#fca5a5','#7f1d1d'];
-    if(ma==='con30')  return ['#fff7ed','#fed7aa','#b45309'];
-    if(ma==='con60')  return ['#fefce8','#fef08a','#854d0e'];
-    if(ma==='con90')  return ['#eff6ff','#bfdbfe','#1e40af'];
-    if(ma==='khonghan') return ['#f1f5f9','#cbd5e1','#475569'];
-    return ['#ecfdf5','#a7f3d0','#065f46'];
-  }
-  function renderHopDong(r){
-    var d=r.dem||{};
-    el('hdSummary').innerHTML=
-      _tqCard('#fee2e2','#fecaca','#b91c1c','⚠ Đã hết hạn', (d.hetHan||0)+' HĐ','cần gia hạn hoặc thanh lý')+
-      _tqCard('#fff7ed','#fed7aa','#b45309','Còn ≤ 30 ngày', (d.con30||0)+' HĐ',(d.homNay||0)?((d.homNay)+' HĐ hết hạn HÔM NAY'):'sắp tới hạn')+
-      _tqCard('#fefce8','#fef08a','#854d0e','Còn ≤ 90 ngày', (d.con90||0)+' HĐ','để chuẩn bị trước')+
-      _tqCard('#ecfdf5','#a7f3d0','#065f46','Tổng hợp đồng', (d.tong||0)+' HĐ','đang lọc thấy '+(r.soDong||0)+' · giá trị '+money(r.tongGiaTri)+'đ');
-
-    el('hdCount').textContent=(r.soDong||0)+((r.soDong!==d.tong)?(' / '+(d.tong||0)):'');
-    el('hdEmpty').style.display=(r.items||[]).length?'none':'block';
-    el('hdEmpty').textContent=(d.tong||0)?'Không có hợp đồng nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':'Chưa có hợp đồng nào.';
-
-    el('hdBody').innerHTML=(r.items||[]).map(function(x){
-      var m=_hdMauHan(x.han&&x.han.ma);
-      var files=(x.files||[]).map(function(f,i){
-        return '<a href="'+esc(f.url)+'" target="_blank" rel="noopener" title="'+esc(f.ten)+'" style="color:#0369a1;text-decoration:none">📎 '+(i+1)+'</a>';
-      }).join(' ');
-      return '<tr>'+
-        '<td><span style="display:inline-block;background:'+m[0]+';border:1px solid '+m[1]+';color:'+m[2]+';border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap">'+esc((x.han&&x.han.nhan)||'—')+'</span></td>'+
-        '<td><code>'+esc(x.soHD||'—')+'</code></td>'+
-        '<td><b>'+esc(x.ten||'')+'</b>'+(x.ghiChu?('<div style="font-size:11px;color:#94a3b8">'+esc(x.ghiChu)+'</div>'):'')+'</td>'+
-        '<td>'+esc(x.doiTac||'—')+'</td><td>'+esc(x.coso||'—')+'</td><td>'+esc(x.loaiHD||'—')+'</td>'+
-        '<td>'+esc(x.ngayKy||'—')+'</td><td>'+esc(x.ngayHet||'—')+'</td>'+
-        '<td class="money">'+(x.giaTri===''?'—':money(x.giaTri))+'</td>'+
-        '<td>'+esc(x.trangThai||'')+(x.nguoiPT?('<div style="font-size:11px;color:#94a3b8">'+esc(x.nguoiPT)+'</div>'):'')+'</td>'+
-        '<td>'+(files||'<span style="color:#94a3b8">—</span>')+'</td>'+
-        '<td style="text-align:center;white-space:nowrap">'+
-          '<button class="btn b-s" style="padding:4px 8px" onclick="hdEdit(\''+esc(x.id)+'\')" title="Sửa">✏️</button> '+
-          '<button class="btn b-d" style="padding:4px 8px" onclick="hdDel(\''+esc(x.id)+'\')" title="Xóa">🗑</button>'+
-        '</td></tr>';
-    }).join('');
-  }
-
-  function hdRenderFiles(){
-    var box=el('hdFiles'); if(!box) return;
-    box.innerHTML=HD_FILES.length?HD_FILES.map(function(f,i){
-      return '<span class="chip"><a href="'+esc(f.url)+'" target="_blank" rel="noopener" style="color:#0f766e;text-decoration:none">📎 '+esc(f.ten)+'</a><span onclick="hdDelFile('+i+')" title="Bỏ file này">✕</span></span>';
-    }).join(''):'<span style="font-size:11px;color:#94a3b8">Chưa đính file nào.</span>';
-  }
-  function hdDelFile(i){ HD_FILES.splice(i,1); hdRenderFiles(); }
-  function hdAttach(){
-    var inp=el('docFile'); inp.value='';
-    inp.onchange=function(){ var file=inp.files[0]; if(!file) return; loading(true);
-      var rd=new FileReader(); rd.onload=function(e){ var b64=e.target.result.split(',')[1];
-        google.script.run.withSuccessHandler(function(res){ loading(false);
-          if(res&&res.success){ HD_FILES.push({url:res.url, ten:file.name}); hdRenderFiles(); toast('ok','Đã đính '+file.name); }
-          else toast('err',(res&&res.error)||'Không tải được file');
-        }).withFailureHandler(function(er){loading(false);toast('err',er.message);})
-          .uploadHopDongFile({base64:b64, name:file.name, type:file.type}, 'HD');
-      }; rd.readAsDataURL(file);
-    }; inp.click();
-  }
-
-  function hdResetForm(){
-    HD_EDIT=''; HD_FILES=[];
-    ['hd_so','hd_ten','hd_dt','hd_loai','hd_ky','hd_het','hd_gt','hd_pt','hd_gc'].forEach(function(i){ if(el(i)) el(i).value=''; });
-    if(el('hd_coso')) el('hd_coso').value='';
-    if(el('hd_tt')) el('hd_tt').value='Còn hiệu lực';
-    el('hdFormTitle').textContent='Thêm hợp đồng';
-    if(el('hdBtnHuy')) el('hdBtnHuy').style.display='none';
-    hdRenderFiles();
-  }
-  function hdEdit(id){
-    var x=null; HD_LIST.forEach(function(h){ if(h.id===id) x=h; });
-    if(!x){ toast('warn','Không thấy hợp đồng này trong danh sách đang xem'); return; }
-    HD_EDIT=id; HD_FILES=(x.files||[]).slice();
-    el('hd_so').value=x.soHD||''; el('hd_ten').value=x.ten||'';
-    el('hd_dt').value=x.doiTac||''; el('hd_loai').value=x.loaiHD||'';
-    el('hd_coso').value=x.coso||'';
-    // Ô type=date cần yyyy-mm-dd, không nhận dd/MM/yyyy
-    el('hd_ky').value=x.ngayKySql||''; el('hd_het').value=x.ngayHetSql||'';
-    el('hd_gt').value=(x.giaTri===''?'':x.giaTri);
-    el('hd_tt').value=x.trangThai||'Còn hiệu lực';
-    el('hd_pt').value=x.nguoiPT||''; el('hd_gc').value=x.ghiChu||'';
-    el('hdFormTitle').textContent='Sửa hợp đồng: '+(x.soHD?(x.soHD+' · '):'')+(x.ten||'');
-    if(el('hdBtnHuy')) el('hdBtnHuy').style.display='inline-block';
-    hdRenderFiles();
-    try{ el('page-hopdong').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
-  }
-  function hdSave(){
-    var ten=String(el('hd_ten').value||'').trim();
-    if(!ten){ toast('warn','Nhập tên hợp đồng'); el('hd_ten').focus(); return; }
-    var rec={ id:HD_EDIT, soHD:el('hd_so').value, ten:ten, doiTac:el('hd_dt').value,
-      coso:el('hd_coso').value, loaiHD:el('hd_loai').value,
-      // Ô type=date trả yyyy-mm-dd; máy chủ đọc kiểu Việt Nam nên đổi sang dd/MM/yyyy
-      ngayKy:_dmy(el('hd_ky').value), ngayHet:_dmy(el('hd_het').value),
-      giaTri:el('hd_gt').value, trangThai:el('hd_tt').value,
-      nguoiPT:el('hd_pt').value, ghiChu:el('hd_gc').value, files:HD_FILES };
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.success){ toast('ok',HD_EDIT?'Đã cập nhật hợp đồng':'Đã thêm hợp đồng'); hdResetForm(); loadHopDong(); }
-      else toast('err',(r&&r.error)||'Không lưu được');
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).saveHopDong(rec,(CURUSER&&CURUSER.name)||'');
-  }
-  function hdDel(id){
-    var x=null; HD_LIST.forEach(function(h){ if(h.id===id) x=h; });
-    var ten=x?((x.soHD?x.soHD+' · ':'')+x.ten):id;
-    if(!confirm('Xóa hợp đồng "'+ten+'"?\n\nFile đã tải lên KHÔNG bị xóa khỏi ổ đĩa; đường dẫn được ghi vào Nhật ký để còn tìm lại.')) return;
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){ loading(false);
-      if(r&&r.success){ toast('ok','Đã xóa hợp đồng'); if(HD_EDIT===id) hdResetForm(); loadHopDong(); }
-      else toast('err',(r&&r.error)||'Không xóa được');
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).deleteHopDong(id,(CURUSER&&CURUSER.name)||'');
-  }
-
   // ===================== 📣 MARKETING — mỗi GIAN HÀNG/SỰ KIỆN = 1 ĐƠN (2 sheet chung: MK_Don + MK_Line) =====================
   var MK_LIST=[], MK_CUR=null, ML_EDIT=null;
   function loadMkt(){ _ensureLoaiCp(function(){ _reFillLoai('ml_loaicp', MK_CUR?MK_CUR.coso:'', 'ml_httt'); mlTkHint(); }); loading(true);
@@ -2614,7 +2267,6 @@
   }
   function loadTongQuan(){
     renderAcctInbox();
-    _tqNhacHopDong();
     var role=(CURUSER&&CURUSER.role)||'';
     var isNV=(role==='Nhân viên');
     var myCoso=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim();}).filter(Boolean);

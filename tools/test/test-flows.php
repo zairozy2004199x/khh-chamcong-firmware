@@ -2282,6 +2282,31 @@ t( 'file nằm trong thư mục HopDong', strpos( (string) $up['url'], '/HopDong
 t( 'tên file mang tiền tố mã HĐ', strpos( basename( (string) $up['url'] ), 'HD_TEST_' ) === 0, basename( (string) $up['url'] ) );
 t( 'file lạ bị chặn', empty( VHCP_HopDong::upload_file( array( 'base64' => base64_encode( 'x' ), 'name' => 'virus.exe' ) )['success'] ) );
 
+// ------------------------------- THƯ VIỆN HỢP ĐỒNG LÀ HỆ THỐNG RIÊNG (đường dẫn riêng)
+// Trang /hop-dong/ không gọi getBootstrap của app chi phí, nên danh sách cơ sở cho ô chọn
+// của form phải đi kèm ngay trong listHopDong — thiếu là form không chọn được cơ sở nào.
+$ds_hd = VHCP_HopDong::list_hd();
+t( 'listHopDong gửi kèm danh sách cơ sở của cấu hình', ! empty( $ds_hd['cosoCfg'] ) );
+t( 'cơ sở chưa có hợp đồng nào vẫn chọn được', in_array( 'FARM PHAN THIẾT', $ds_hd['cosoCfg'], true ), $ds_hd['cosoCfg'] );
+
+require_once dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-hdapp.php';
+teq( 'đường dẫn riêng mặc định', 'hop-dong', VHCP_HDApp::slug() );
+$GLOBALS['VHCP_OPT']['vhcp_slug_hd'] = 'thu-vien-hd';
+teq( 'đổi được đường dẫn trong Cài đặt', 'thu-vien-hd', VHCP_HDApp::slug() );
+$GLOBALS['VHCP_OPT']['vhcp_slug_hd'] = '';
+teq( 'để trống thì về mặc định', 'hop-dong', VHCP_HDApp::slug() );
+
+// Trang hợp đồng chỉ được gọi đúng mấy hàm của nó — không mở đường sang app chi phí.
+$map_api = VHCP_API::map();
+foreach ( VHCP_HDApp::FNS as $fn_hd ) {
+	t( 'hàm ' . $fn_hd . ' có thật trong API', isset( $map_api[ $fn_hd ] ) );
+}
+$ro_ri = array();
+foreach ( VHCP_HDApp::FNS as $fn_hd ) {
+	if ( ! preg_match( '/^(login|changePin|vhcpLogout)$/', $fn_hd ) && strpos( $fn_hd, 'HopDong' ) === false ) { $ro_ri[] = $fn_hd; }
+}
+teq( 'không lọt hàm nào của app chi phí sang trang hợp đồng', array(), $ro_ri );
+
 // ------------------------------- XIN TẠM ỨNG LÀ QUYỀN RIÊNG, KHÔNG DÍNH "SỬA SỐ"
 // Luồng chi phí cơ sở: lên đơn (NV) → xin tạm ứng (NV) → duyệt (QL) → cấp (KT) →
 // gửi quyết toán (NV) → quyết toán (KT). Nút gửi đơn của NV từng bị gác bởi quyền

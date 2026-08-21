@@ -1,0 +1,99 @@
+/* GIAO DIỆN DÙNG CHUNG cho các trang của plugin (app chi phí và thư viện hợp đồng).
+   Tách khỏi templates/*.html để hai trang luôn cùng một bộ style, sửa 1 chỗ ăn cả hai. */
+  /* Bản WordPress: không còn Google Sheet nên ẩn 2 nút mở sheet */
+  #daOpenSheet,#bpOpenSheet{display:none !important}
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Roboto,Arial,sans-serif}
+  body{background:#f1f5f9;color:#0f172a;font-size:13px}
+  /* CANH THẲNG HÀNG VỚI NỘI DUNG.
+     Thanh xanh trên cùng và các thanh trắng chạy hết bề rộng màn hình, còn thẻ nội dung
+     thì canh giữa trong 1600px — nên trên màn rộng, chữ ở thanh nằm sát lề trái mà thẻ
+     bên dưới lại thụt vào giữa, nhìn như lệch trang. Đệm hai bên của thanh được tính cho
+     bằng đúng lề của khối nội dung. */
+  .top{background:#0f766e;color:#fff;padding:14px max(22px, calc((100% - 1600px) / 2));display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+  .top h1{font-size:18px;display:flex;align-items:center;gap:8px}
+  .top .sub{font-size:11px;color:#a7f3d0;margin-top:2px}
+  .bar{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px max(22px, calc((100% - 1600px) / 2));display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  select,input,textarea{padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit}
+  select:focus,input:focus,textarea:focus{outline:none;border-color:#0f766e;box-shadow:0 0 0 3px rgba(15,118,110,.12)}
+  .btn{padding:8px 14px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
+  .b-g{background:#16a34a;color:#fff}.b-x{background:#f1f5f9;color:#334155}.b-d{background:#fee2e2;color:#dc2626}
+  .b-s{background:#e0f2fe;color:#0369a1}
+  /* BỀ RỘNG TRANG THEO MÁY.
+     Trước đây chốt 1250px: màn 24" thì bỏ trống hai bên gần 600px, còn điện thoại thì
+     lề 22px ăn mất chỗ của bảng. Nay giãn tới 1600px trên màn rộng và bóp lề lại trên
+     máy nhỏ. Các mốc dùng chung một hệ: 1200 · 900 · 820 · 560 · 420. */
+  .wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
+  .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
+  .ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  .ch h2{font-size:14px;font-weight:700}
+  .cb{padding:14px 16px}
+  .badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
+  .st-nhap{background:#f1f5f9;color:#475569}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
+  .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
+  .fld{display:flex;flex-direction:column;gap:3px}
+  .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
+  .fld input,.fld select,.fld textarea{width:100%}
+  table{width:100%;border-collapse:collapse;min-width:920px}
+  thead th{background:#f8fafc;color:#64748b;font-size:11px;font-weight:700;text-transform:uppercase;text-align:left;padding:9px 10px;border-bottom:1px solid #e2e8f0;white-space:nowrap}
+  tbody td{padding:8px 10px;border-bottom:1px solid #f1f5f9;font-size:12.5px;vertical-align:middle}
+  tbody tr:hover{background:#f8fafc}
+  .tw{overflow-x:auto}
+  .money{text-align:right;font-family:Consolas,monospace;white-space:nowrap}
+  .pos{color:#166534;font-weight:700}.neg{color:#dc2626;font-weight:700}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:#f0fdfa;border:1px solid #99f6e4;color:#0f766e;border-radius:20px;padding:4px 10px;font-size:12px;font-weight:600;margin:3px}
+  .chip b{color:#0f172a}.chip span{cursor:pointer;color:#94a3b8;font-weight:700}
+  .empty{text-align:center;color:#94a3b8;padding:26px;font-size:13px}
+  #toast{position:fixed;top:14px;right:14px;z-index:2000;display:flex;flex-direction:column;gap:8px}
+  .t{background:#fff;border-left:4px solid #0f766e;border-radius:8px;padding:10px 15px;box-shadow:0 6px 20px rgba(0,0,0,.15);font-size:13px;min-width:220px}
+  .t.err{border-left-color:#ef4444}.t.warn{border-left-color:#f59e0b}
+  #lo{display:none;position:fixed;inset:0;background:rgba(15,23,42,.35);z-index:1500;align-items:center;justify-content:center}
+  #lo.show{display:flex}.spin{width:40px;height:40px;border:4px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hide{display:none}
+.csw{position:relative}
+.cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
+.cs-list label:hover{background:#f1f5f9}
+
+  /* ---------- MÁY TÍNH BẢNG & ĐIỆN THOẠI ---------- */
+  @media(max-width:820px){
+    body{font-size:13.5px}                                  /* chữ to hơn chút cho dễ đọc */
+    .top{padding:12px 12px}
+    .top h1{font-size:16px}
+    .bar{padding:8px 10px}
+    .wrap{padding:12px 10px}
+    .ch{padding:10px 12px}
+    .cb{padding:12px 12px}
+    /* THANH TAB: 14 tab thì trên điện thoại xuống 4-5 dòng, đẩy nội dung tụt hẳn xuống.
+       Cho trượt ngang một dòng — quen tay hơn và giữ được chỗ cho nội dung. */
+    #tabbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    #tabbar::-webkit-scrollbar{display:none}
+    #tabbar .btn{flex:0 0 auto}
+    /* Ô nhập cao hơn cho vừa đầu ngón tay */
+    select,input,textarea{padding:9px 10px;font-size:13.5px}
+    .btn{padding:9px 13px}
+    #toast{left:10px;right:10px}
+    .t{min-width:0}
+  }
+  @media(max-width:560px){
+    .wrap{padding:10px 8px}
+    .ch{padding:10px}
+    .cb{padding:10px}
+    .ch h2{font-size:13px}
+    /* Tiêu đề card và nút của nó xuống dòng riêng, khỏi chen nhau */
+    .ch{flex-direction:column;align-items:stretch}
+    .ch>div{display:flex;flex-wrap:wrap;gap:6px}
+  }
+  @media(max-width:420px){
+    .top>div:last-child{width:100%;justify-content:flex-end}
+    .btn{padding:8px 11px;font-size:12.5px}
+  }
+  /* Màn rất rộng: cho bảng dùng hết chỗ, khỏi phải trượt ngang vô ích */
+  @media(min-width:1700px){
+    .wrap{max-width:1800px}
+    .top,.bar{padding-left:max(22px, calc((100% - 1800px) / 2));padding-right:max(22px, calc((100% - 1800px) / 2))}
+  }

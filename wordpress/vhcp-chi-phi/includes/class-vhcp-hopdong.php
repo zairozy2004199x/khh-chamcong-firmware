@@ -156,6 +156,16 @@ class VHCP_HopDong {
 			if ( trim( (string) $r['loai_hd'] ) !== '' ) { $lo[ (string) $r['loai_hd'] ] = 1; }
 		}
 
+		// Ô CHỌN CƠ SỞ CỦA FORM lấy từ cấu hình, không lấy từ hợp đồng đã có — cơ sở mới
+		// chưa có hợp đồng nào thì vẫn phải chọn được. Trang hợp đồng chạy riêng, không gọi
+		// getBootstrap của app chi phí, nên danh sách này gửi kèm luôn ở đây.
+		$coso_cfg = array();
+		$cfg      = VHCP_Cfg::get_config();
+		foreach ( $cfg['coso'] as $x ) {
+			$ten_cs = trim( (string) $x['ten'] );
+			if ( $ten_cs !== '' ) { $coso_cfg[] = $ten_cs; }
+		}
+
 		return VHCP_Util::ok( array(
 			'items'    => $items,
 			'soDong'   => count( $items ),
@@ -164,6 +174,7 @@ class VHCP_HopDong {
 			'cosoList' => array_keys( $cs ),
 			'doiTacList' => array_keys( $dt ),
 			'loaiList' => array_keys( $lo ),
+			'cosoCfg'  => $coso_cfg,
 		) );
 	}
 

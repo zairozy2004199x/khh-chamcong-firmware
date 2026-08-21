@@ -366,7 +366,7 @@ class VHCP_DB {
 		foreach ( $sql as $q ) { dbDelta( $q ); }
 
 		update_option( 'vhcp_db_version', self::SCHEMA_VERSION );
-		update_option( 'vhcp_flush_rewrite', 1 );   // để VHCP_App::init nạp lại đường dẫn /chi-phi/
+		update_option( 'vhcp_flush_rewrite', 1 );   // để vhcp_flush_rewrite() nạp lại /chi-phi/ và /hop-dong/
 		VHCP_Cfg::seed();
 	}
 

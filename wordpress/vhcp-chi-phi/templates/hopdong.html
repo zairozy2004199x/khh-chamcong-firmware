@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><base target="_top">
+<!--VHCP_HEAD-->
+</head>
+<body>
+  <!-- CỔNG ĐĂNG NHẬP PIN — dùng chung bộ PIN với app chi phí, nhưng đây là hệ thống riêng -->
+  <div id="gate" style="position:fixed;inset:0;background:#0f766e;z-index:3000;display:none;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:28px 30px;width:min(360px,92vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <div style="font-size:34px">📄</div>
+      <h2 style="font-size:18px;color:#0f766e;margin:6px 0 4px">Thư Viện Hợp Đồng</h2>
+      <div style="font-size:12px;color:#64748b;margin-bottom:16px">Nhập mã PIN (4–8 số) để đăng nhập</div>
+      <input id="gatePin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="••••" style="width:170px;text-align:center;font-size:26px;letter-spacing:10px;padding:10px" onkeydown="if(event.key==='Enter')doLogin()">
+      <div id="gateErr" style="color:#dc2626;font-size:12px;min-height:16px;margin:8px 0"></div>
+      <button class="btn b-p" onclick="doLogin()" style="width:170px">Đăng nhập</button>
+      <div style="font-size:11px;color:#94a3b8;margin-top:14px">Chỉ Kế toán · Quản lý · Admin vào được trang này.</div>
+    </div>
+  </div>
+
+  <!-- ĐĂNG NHẬP ĐƯỢC NHƯNG KHÔNG ĐỦ QUYỀN (Nhân viên) -->
+  <div id="khongQuyen" style="display:none;position:fixed;inset:0;background:#0f766e;z-index:2900;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:16px;padding:28px 30px;width:min(400px,92vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35)">
+      <div style="font-size:34px">🔒</div>
+      <h2 style="font-size:17px;color:#b91c1c;margin:6px 0 8px">Không có quyền xem hợp đồng</h2>
+      <div id="kqAi" style="font-size:12.5px;color:#64748b;margin-bottom:16px"></div>
+      <button class="btn b-x" onclick="logout()">← Đăng nhập bằng tài khoản khác</button>
+    </div>
+  </div>
+
+  <div id="main" style="display:none">
+    <div class="top">
+      <div>
+        <h1>📄 Thư Viện Hợp Đồng</h1>
+        <div class="sub">K&amp;H · lưu hợp đồng, bản scan và đếm ngược ngày hết hạn</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span id="whoami" style="font-size:12px;color:#a7f3d0"></span>
+        <button class="btn b-x" id="btnChangePin" onclick="openPinModal()">🔑 Đổi PIN</button>
+        <button class="btn b-x" id="btnLogout" onclick="logout()">Đăng xuất</button>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div id="hdSummary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px"></div>
+
+      <div class="card" id="hdForm">
+        <div class="ch">
+          <h2>📄 <span id="hdFormTitle">Thêm hợp đồng</span></h2>
+          <div style="display:flex;gap:8px">
+            <button class="btn b-x" id="hdBtnHuy" onclick="hdResetForm()" style="display:none">✕ Hủy sửa</button>
+            <button class="btn b-g" onclick="hdSave()">💾 Lưu hợp đồng</button>
+          </div>
+        </div>
+        <div class="cb">
+          <div class="grid">
+            <div class="fld"><label>Số hợp đồng</label><input id="hd_so" placeholder="VD: HD-2026-014"></div>
+            <div class="fld" style="grid-column:span 2"><label>Tên hợp đồng *</label><input id="hd_ten" placeholder="VD: Thuê mặt bằng FUNZONE Vũng Tàu"></div>
+            <div class="fld"><label>Đối tác / NCC</label><input id="hd_dt" list="hd_dl_dt" placeholder="Tên đối tác"><datalist id="hd_dl_dt"></datalist></div>
+            <div class="fld"><label>Cơ sở</label><select id="hd_coso"></select></div>
+            <div class="fld"><label>Loại hợp đồng</label><input id="hd_loai" list="hd_dl_loai" placeholder="VD: Thuê mặt bằng"><datalist id="hd_dl_loai"></datalist></div>
+            <div class="fld"><label>Ngày ký</label><input id="hd_ky" type="date"></div>
+            <div class="fld"><label>Ngày hết hạn</label><input id="hd_het" type="date"></div>
+            <div class="fld"><label>Giá trị hợp đồng</label><input id="hd_gt" type="number" min="0" placeholder="0"></div>
+            <div class="fld"><label>Trạng thái</label><select id="hd_tt">
+              <option>Còn hiệu lực</option><option>Sắp hết hạn</option><option>Đã hết hạn</option>
+              <option>Đã thanh lý</option><option>Nháp / chờ ký</option></select></div>
+            <div class="fld"><label>Người phụ trách</label><input id="hd_pt" placeholder="Tên người theo dõi HĐ"></div>
+          </div>
+          <div class="fld" style="margin-top:10px"><label>Ghi chú</label><input id="hd_gc" placeholder="Điều khoản cần lưu ý, kỳ thanh toán…"></div>
+          <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button class="btn b-x" onclick="hdAttach()">📎 Đính file (PDF · ảnh · Word · Excel)</button>
+            <span style="font-size:11px;color:#94a3b8">Đính được nhiều file: bản scan, phụ lục, biên bản…</span>
+          </div>
+          <div id="hdFiles" style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ch">
+          <h2>📚 Danh sách hợp đồng (<span id="hdCount">0</span>)</h2>
+          <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+            <div class="fld"><label>Hạn</label><select id="hdfHan" onchange="loadHopDong()" style="min-width:150px">
+              <option value="">— Mọi hạn —</option>
+              <option value="hethan">Đã hết hạn</option>
+              <option value="con30">Còn ≤ 30 ngày</option>
+              <option value="con60">Còn ≤ 60 ngày</option>
+              <option value="con90">Còn ≤ 90 ngày</option>
+              <option value="khonghan">Không có hạn</option>
+            </select></div>
+            <div class="fld"><label>Cơ sở</label><select id="hdfCoso" onchange="loadHopDong()" style="min-width:150px"></select></div>
+            <div class="fld"><label>Đối tác</label><select id="hdfDoiTac" onchange="loadHopDong()" style="min-width:150px"></select></div>
+            <div class="fld"><label>Tìm</label><input id="hdfQ" placeholder="Số HĐ · tên · đối tác…" style="width:200px" oninput="hdTimCho()"></div>
+            <button class="btn b-x" onclick="hdXoaLoc()">✕ Bỏ lọc</button>
+            <button class="btn b-x" onclick="loadHopDong()">↻ Tải lại</button>
+          </div>
+        </div>
+        <div class="tw"><table style="min-width:1180px">
+          <thead><tr>
+            <th style="width:150px">Hạn</th><th style="width:120px">Số HĐ</th><th>Tên hợp đồng</th>
+            <th style="width:150px">Đối tác</th><th style="width:150px">Cơ sở</th><th style="width:120px">Loại</th>
+            <th style="width:95px">Ngày ký</th><th style="width:95px">Hết hạn</th>
+            <th style="text-align:right;width:120px">Giá trị</th><th style="width:120px">Trạng thái</th>
+            <th style="width:150px">File</th><th style="width:96px;text-align:center">Thao tác</th>
+          </tr></thead>
+          <tbody id="hdBody"></tbody>
+        </table>
+        <div class="empty" id="hdEmpty">Chưa có hợp đồng nào.</div></div>
+        <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Trang này chạy riêng với app chi phí. Chỉ <b>Kế toán · Quản lý · Admin</b> vào được (chặn cả ở máy chủ). Xóa hợp đồng <b>không</b> xóa file đã tải lên; đường dẫn file được ghi vào nhật ký để còn tìm lại.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal đổi PIN -->
+  <div id="pinModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1960;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(400px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <h3 style="font-size:16px;margin-bottom:6px;color:#0f766e">🔑 Đổi mật khẩu (PIN)</h3>
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">PIN gồm 4–8 chữ số — dùng chung cho cả app chi phí.</div>
+      <div class="fld"><label>PIN hiện tại</label><input id="pinOld" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
+      <div class="fld" style="margin-top:8px"><label>PIN mới (4–8 số)</label><input id="pinNew" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
+      <div class="fld" style="margin-top:8px"><label>Nhập lại PIN mới</label><input id="pinNew2" type="password" maxlength="8" inputmode="numeric" autocomplete="off" style="width:100%"></div>
+      <div id="pinErr" style="color:#dc2626;font-size:12px;min-height:16px;margin-top:8px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn b-x" onclick="closePin()">Huỷ</button>
+        <button class="btn b-p" onclick="submitPin()">Đổi PIN</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="docFile" style="display:none">
+  <div id="toast"></div><div id="lo"><div class="spin"></div></div>
+
+<script>
+  var SSO_USER = (window.VHCP_CFG && window.VHCP_CFG.ssoUser) || null;
+  var CURUSER = null;
+
+  function el(id){return document.getElementById(id);}
+  function money(n){return (Number(n)||0).toLocaleString('vi-VN');}
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function _v(id){ var e=el(id); return e?String(e.value||''):''; }
+  function _dmy(v){ var p=String(v).split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):v; }
+  function loading(on){el('lo').classList.toggle('show',!!on);}
+  function toast(type,msg){
+    var box=el('toast');var d=document.createElement('div');
+    d.className='t '+(type==='err'?'err':type==='warn'?'warn':'');
+    msg=String(msg==null?'':msg);
+    var dai=msg.length>150, giu=(type==='err'&&dai);
+    if(dai){
+      d.textContent=msg.slice(0,150)+'…';
+      d.title='Bấm để xem đầy đủ'; d.style.cursor='pointer';
+      d.onclick=function(){
+        if(d.dataset.mo==='1'){ d.textContent=msg.slice(0,150)+'…'; d.dataset.mo=''; return; }
+        d.textContent=msg; d.dataset.mo='1';
+        try{ if(navigator.clipboard) navigator.clipboard.writeText(msg); }catch(e){}
+      };
+    } else { d.textContent=msg; }
+    box.appendChild(d);
+    if(!giu) setTimeout(function(){ if(d.parentNode) box.removeChild(d); }, type==='err'?7000:3200);
+  }
+  function _tqCard(bg,bd,fg,label,val,sub){
+    return '<div style="flex:1;min-width:190px;background:'+bg+';border:1px solid '+bd+';border-radius:10px;padding:12px 14px">'+
+      '<div style="font-size:12px;color:'+fg+'">'+label+'</div>'+
+      '<div style="font-size:22px;font-weight:800;color:'+fg+'">'+val+'</div>'+
+      (sub?'<div style="font-size:11px;color:'+fg+';opacity:.85;margin-top:2px">'+sub+'</div>':'')+'</div>';
+  }
+
+  // ===================== PHIÊN =====================
+  /** Hợp đồng mang giá và điều khoản: Nhân viên không được vào (máy chủ chặn lần nữa). */
+  function _duocVao(role){ return !!role && role!=='Nhân viên'; }
+
+  window.onload=initApp;
+  function initApp(){
+    if(SSO_USER && SSO_USER.role){
+      CURUSER=SSO_USER;
+      var cp=el('btnChangePin'); if(cp) cp.style.display='none';      // SSO không có PIN
+      var lo=el('btnLogout');    if(lo) lo.style.display='none';      // danh tính do trang tổng quản
+      onLoggedIn(); return;
+    }
+    var s=null; try{s=JSON.parse(sessionStorage.getItem('vhcp_user')||'null');}catch(e){}
+    if(s&&s.role){ CURUSER=s; onLoggedIn(); }
+    else moGate();
+  }
+  function moGate(){ el('gate').style.display='flex'; setTimeout(function(){el('gatePin').focus();},120); }
+  function doLogin(){
+    var pin=(el('gatePin').value||'').trim();
+    if(!/^\d{4,8}$/.test(pin)){ el('gateErr').textContent='PIN phải 4–8 số'; return; }
+    el('gateErr').textContent=''; loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.ok){
+        CURUSER={name:r.name,role:r.role,coso:r.coso,boPhan:r.boPhan||''};
+        try{sessionStorage.setItem('vhcp_user',JSON.stringify(CURUSER));}catch(e){}
+        el('gate').style.display='none'; onLoggedIn();
+      } else { el('gateErr').textContent=(r&&r.error)||'PIN không đúng'; el('gatePin').value=''; el('gatePin').focus(); }
+    }).withFailureHandler(function(e){loading(false);el('gateErr').textContent=e.message;}).login(pin);
+  }
+  function onLoggedIn(){
+    el('whoami').textContent=(CURUSER.name||'')+' · '+(CURUSER.role||'');
+    if(!_duocVao(CURUSER.role)){
+      el('main').style.display='none';
+      el('kqAi').textContent='Bạn đang đăng nhập là '+(CURUSER.name||'')+' ('+(CURUSER.role||'')+'). Thư viện hợp đồng chỉ dành cho Kế toán, Quản lý và Admin.';
+      el('khongQuyen').style.display='flex';
+      return;
+    }
+    el('khongQuyen').style.display='none';
+    el('main').style.display='block';
+    hdResetForm();
+    loadHopDong();
+  }
+  function logout(){
+    CURUSER=null;
+    try{sessionStorage.removeItem('vhcp_user');}catch(e){}
+    el('main').style.display='none'; el('khongQuyen').style.display='none';
+    el('gatePin').value=''; moGate();
+    // Token phiên & thu hồi ở máy chủ do gas-shim.js lo (nó bọc hàm logout này lúc tải trang).
+  }
+  function openPinModal(){ if(!CURUSER||!CURUSER.name){ toast('warn','Chưa đăng nhập'); return; }
+    el('pinOld').value=''; el('pinNew').value=''; el('pinNew2').value=''; el('pinErr').textContent='';
+    el('pinModal').style.display='flex'; setTimeout(function(){el('pinOld').focus();},100); }
+  function closePin(){ el('pinModal').style.display='none'; }
+  function submitPin(){
+    var o=String(el('pinOld').value||'').trim(), n=String(el('pinNew').value||'').trim(), n2=String(el('pinNew2').value||'').trim();
+    if(!/^\d{4,8}$/.test(o)){ el('pinErr').textContent='Nhập PIN hiện tại (4–8 số)'; return; }
+    if(!/^\d{4,8}$/.test(n)){ el('pinErr').textContent='PIN mới phải gồm 4–8 chữ số'; return; }
+    if(n!==n2){ el('pinErr').textContent='Nhập lại PIN mới chưa khớp'; return; }
+    if(n===o){ el('pinErr').textContent='PIN mới trùng PIN hiện tại'; return; }
+    el('pinErr').textContent=''; loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r&&r.success){ closePin(); toast('ok','Đã đổi mật khẩu — lần sau đăng nhập bằng PIN mới'); }
+      else el('pinErr').textContent=(r&&r.error)||'Lỗi';
+    }).withFailureHandler(function(e){loading(false); el('pinErr').textContent=e.message;}).changePin(CURUSER.name, o, n);
+  }
+
+  // ===================== 📄 THƯ VIỆN HỢP ĐỒNG =====================
+  var HD_LIST=[], HD_FILES=[], HD_EDIT='', HD_TIMER=null;
+
+  function loadHopDong(){
+    var rec={ coso:_v('hdfCoso'), doiTac:_v('hdfDoiTac'), han:_v('hdfHan'), q:_v('hdfQ') };
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Không tải được hợp đồng'); return; }
+      HD_LIST=r.items||[];
+      _hdFillLoc(r);
+      renderHopDong(r);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).listHopDong(rec);
+  }
+  /** Gõ tìm thì chờ một nhịp mới gọi máy chủ, khỏi mỗi ký tự một request. */
+  function hdTimCho(){ if(HD_TIMER) clearTimeout(HD_TIMER); HD_TIMER=setTimeout(loadHopDong,350); }
+  function hdXoaLoc(){ ['hdfHan','hdfCoso','hdfDoiTac','hdfQ'].forEach(function(i){ if(el(i)) el(i).value=''; }); loadHopDong(); }
+
+  function _hdFillLoc(r){
+    function nap(id, ds, nhan){
+      var sel=el(id); if(!sel) return;
+      var cu=sel.value||'', co=(ds||[]).indexOf(cu)>=0;
+      sel.innerHTML='<option value="">'+nhan+'</option>'+(ds||[]).map(function(v){return '<option value="'+esc(v)+'"'+((co&&v===cu)?' selected':'')+'>'+esc(v)+'</option>';}).join('');
+      sel.value=co?cu:'';
+    }
+    nap('hdfCoso', (r.cosoList||[]).slice().sort(), '— Mọi cơ sở —');
+    nap('hdfDoiTac', (r.doiTacList||[]).slice().sort(), '— Mọi đối tác —');
+    // Ô CHỌN CƠ SỞ của form lấy từ cấu hình (cosoCfg) — cơ sở mới chưa có hợp đồng nào
+    // thì vẫn phải chọn được; đối tác/loại gợi ý từ chính dữ liệu đã có.
+    var cs=el('hd_coso');
+    if(cs){ var cu=cs.value; cs.innerHTML='<option value="">—</option>'+(r.cosoCfg||[]).map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join(''); cs.value=cu; }
+    if(el('hd_dl_dt')) el('hd_dl_dt').innerHTML=(r.doiTacList||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
+    if(el('hd_dl_loai')) el('hd_dl_loai').innerHTML=(r.loaiList||[]).map(function(v){return '<option value="'+esc(v)+'">';}).join('');
+  }
+
+  /** Màu theo tình trạng hạn — đọc bảng là thấy ngay cái nào phải xử. */
+  function _hdMauHan(ma){
+    if(ma==='hethan') return ['#fee2e2','#fecaca','#b91c1c'];
+    if(ma==='homnay') return ['#fee2e2','#fca5a5','#7f1d1d'];
+    if(ma==='con30')  return ['#fff7ed','#fed7aa','#b45309'];
+    if(ma==='con60')  return ['#fefce8','#fef08a','#854d0e'];
+    if(ma==='con90')  return ['#eff6ff','#bfdbfe','#1e40af'];
+    if(ma==='khonghan') return ['#f1f5f9','#cbd5e1','#475569'];
+    return ['#ecfdf5','#a7f3d0','#065f46'];
+  }
+  function renderHopDong(r){
+    var d=r.dem||{};
+    el('hdSummary').innerHTML=
+      _tqCard('#fee2e2','#fecaca','#b91c1c','⚠ Đã hết hạn', (d.hetHan||0)+' HĐ','cần gia hạn hoặc thanh lý')+
+      _tqCard('#fff7ed','#fed7aa','#b45309','Còn ≤ 30 ngày', (d.con30||0)+' HĐ',(d.homNay||0)?((d.homNay)+' HĐ hết hạn HÔM NAY'):'sắp tới hạn')+
+      _tqCard('#fefce8','#fef08a','#854d0e','Còn ≤ 90 ngày', (d.con90||0)+' HĐ','để chuẩn bị trước')+
+      _tqCard('#ecfdf5','#a7f3d0','#065f46','Tổng hợp đồng', (d.tong||0)+' HĐ','đang lọc thấy '+(r.soDong||0)+' · giá trị '+money(r.tongGiaTri)+'đ');
+
+    el('hdCount').textContent=(r.soDong||0)+((r.soDong!==d.tong)?(' / '+(d.tong||0)):'');
+    el('hdEmpty').style.display=(r.items||[]).length?'none':'block';
+    el('hdEmpty').textContent=(d.tong||0)?'Không có hợp đồng nào khớp bộ lọc — bấm ✕ Bỏ lọc để xem hết.':'Chưa có hợp đồng nào.';
+
+    el('hdBody').innerHTML=(r.items||[]).map(function(x){
+      var m=_hdMauHan(x.han&&x.han.ma);
+      var files=(x.files||[]).map(function(f,i){
+        return '<a href="'+esc(f.url)+'" target="_blank" rel="noopener" title="'+esc(f.ten)+'" style="color:#0369a1;text-decoration:none">📎 '+(i+1)+'</a>';
+      }).join(' ');
+      return '<tr>'+
+        '<td><span style="display:inline-block;background:'+m[0]+';border:1px solid '+m[1]+';color:'+m[2]+';border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700;white-space:nowrap">'+esc((x.han&&x.han.nhan)||'—')+'</span></td>'+
+        '<td><code>'+esc(x.soHD||'—')+'</code></td>'+
+        '<td><b>'+esc(x.ten||'')+'</b>'+(x.ghiChu?('<div style="font-size:11px;color:#94a3b8">'+esc(x.ghiChu)+'</div>'):'')+'</td>'+
+        '<td>'+esc(x.doiTac||'—')+'</td><td>'+esc(x.coso||'—')+'</td><td>'+esc(x.loaiHD||'—')+'</td>'+
+        '<td>'+esc(x.ngayKy||'—')+'</td><td>'+esc(x.ngayHet||'—')+'</td>'+
+        '<td class="money">'+(x.giaTri===''?'—':money(x.giaTri))+'</td>'+
+        '<td>'+esc(x.trangThai||'')+(x.nguoiPT?('<div style="font-size:11px;color:#94a3b8">'+esc(x.nguoiPT)+'</div>'):'')+'</td>'+
+        '<td>'+(files||'<span style="color:#94a3b8">—</span>')+'</td>'+
+        '<td style="text-align:center;white-space:nowrap">'+
+          '<button class="btn b-s" style="padding:4px 8px" onclick="hdEdit(\''+esc(x.id)+'\')" title="Sửa">✏️</button> '+
+          '<button class="btn b-d" style="padding:4px 8px" onclick="hdDel(\''+esc(x.id)+'\')" title="Xóa">🗑</button>'+
+        '</td></tr>';
+    }).join('');
+  }
+
+  function hdRenderFiles(){
+    var box=el('hdFiles'); if(!box) return;
+    box.innerHTML=HD_FILES.length?HD_FILES.map(function(f,i){
+      return '<span class="chip"><a href="'+esc(f.url)+'" target="_blank" rel="noopener" style="color:#0f766e;text-decoration:none">📎 '+esc(f.ten)+'</a><span onclick="hdDelFile('+i+')" title="Bỏ file này">✕</span></span>';
+    }).join(''):'<span style="font-size:11px;color:#94a3b8">Chưa đính file nào.</span>';
+  }
+  function hdDelFile(i){ HD_FILES.splice(i,1); hdRenderFiles(); }
+  function hdAttach(){
+    var inp=el('docFile'); inp.value='';
+    inp.onchange=function(){ var file=inp.files[0]; if(!file) return; loading(true);
+      var rd=new FileReader(); rd.onload=function(e){ var b64=e.target.result.split(',')[1];
+        google.script.run.withSuccessHandler(function(res){ loading(false);
+          if(res&&res.success){ HD_FILES.push({url:res.url, ten:file.name}); hdRenderFiles(); toast('ok','Đã đính '+file.name); }
+          else toast('err',(res&&res.error)||'Không tải được file');
+        }).withFailureHandler(function(er){loading(false);toast('err',er.message);})
+          .uploadHopDongFile({base64:b64, name:file.name, type:file.type}, 'HD');
+      }; rd.readAsDataURL(file);
+    }; inp.click();
+  }
+
+  function hdResetForm(){
+    HD_EDIT=''; HD_FILES=[];
+    ['hd_so','hd_ten','hd_dt','hd_loai','hd_ky','hd_het','hd_gt','hd_pt','hd_gc'].forEach(function(i){ if(el(i)) el(i).value=''; });
+    if(el('hd_coso')) el('hd_coso').value='';
+    if(el('hd_tt')) el('hd_tt').value='Còn hiệu lực';
+    el('hdFormTitle').textContent='Thêm hợp đồng';
+    if(el('hdBtnHuy')) el('hdBtnHuy').style.display='none';
+    hdRenderFiles();
+  }
+  function hdEdit(id){
+    var x=null; HD_LIST.forEach(function(h){ if(h.id===id) x=h; });
+    if(!x){ toast('warn','Không thấy hợp đồng này trong danh sách đang xem'); return; }
+    HD_EDIT=id; HD_FILES=(x.files||[]).slice();
+    el('hd_so').value=x.soHD||''; el('hd_ten').value=x.ten||'';
+    el('hd_dt').value=x.doiTac||''; el('hd_loai').value=x.loaiHD||'';
+    el('hd_coso').value=x.coso||'';
+    // Ô type=date cần yyyy-mm-dd, không nhận dd/MM/yyyy
+    el('hd_ky').value=x.ngayKySql||''; el('hd_het').value=x.ngayHetSql||'';
+    el('hd_gt').value=(x.giaTri===''?'':x.giaTri);
+    el('hd_tt').value=x.trangThai||'Còn hiệu lực';
+    el('hd_pt').value=x.nguoiPT||''; el('hd_gc').value=x.ghiChu||'';
+    el('hdFormTitle').textContent='Sửa hợp đồng: '+(x.soHD?(x.soHD+' · '):'')+(x.ten||'');
+    if(el('hdBtnHuy')) el('hdBtnHuy').style.display='inline-block';
+    hdRenderFiles();
+    try{ el('hdForm').scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){}
+  }
+  function hdSave(){
+    var ten=String(el('hd_ten').value||'').trim();
+    if(!ten){ toast('warn','Nhập tên hợp đồng'); el('hd_ten').focus(); return; }
+    var rec={ id:HD_EDIT, soHD:el('hd_so').value, ten:ten, doiTac:el('hd_dt').value,
+      coso:el('hd_coso').value, loaiHD:el('hd_loai').value,
+      // Ô type=date trả yyyy-mm-dd; máy chủ đọc kiểu Việt Nam nên đổi sang dd/MM/yyyy
+      ngayKy:_dmy(el('hd_ky').value), ngayHet:_dmy(el('hd_het').value),
+      giaTri:el('hd_gt').value, trangThai:el('hd_tt').value,
+      nguoiPT:el('hd_pt').value, ghiChu:el('hd_gc').value, files:HD_FILES };
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ toast('ok',HD_EDIT?'Đã cập nhật hợp đồng':'Đã thêm hợp đồng'); hdResetForm(); loadHopDong(); }
+      else toast('err',(r&&r.error)||'Không lưu được');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).saveHopDong(rec,(CURUSER&&CURUSER.name)||'');
+  }
+  function hdDel(id){
+    var x=null; HD_LIST.forEach(function(h){ if(h.id===id) x=h; });
+    var ten=x?((x.soHD?x.soHD+' · ':'')+x.ten):id;
+    if(!confirm('Xóa hợp đồng "'+ten+'"?\n\nFile đã tải lên KHÔNG bị xóa khỏi ổ đĩa; đường dẫn được ghi vào nhật ký để còn tìm lại.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ toast('ok','Đã xóa hợp đồng'); if(HD_EDIT===id) hdResetForm(); loadHopDong(); }
+      else toast('err',(r&&r.error)||'Không xóa được');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).deleteHopDong(id,(CURUSER&&CURUSER.name)||'');
+  }
+</script>
+</body>
+</html>

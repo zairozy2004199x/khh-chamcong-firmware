@@ -19,7 +19,9 @@ foreach ( $tables as $t ) {
 	$wpdb->query( "DROP TABLE IF EXISTS `$name`" );
 }
 delete_option( 'vhcp_db_version' );
+delete_option( 'vhcp_ver' );
 delete_option( 'vhcp_slug' );
+delete_option( 'vhcp_slug_hd' );
 delete_option( 'vhcp_timezone' );
 delete_option( 'vhcp_sso_secret' );
 delete_option( 'vhcp_flush_rewrite' );

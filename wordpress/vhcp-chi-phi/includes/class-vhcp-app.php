@@ -27,11 +27,9 @@ class VHCP_App {
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhcp_app=1', 'top' );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'template_redirect', array( __CLASS__, 'maybe_render' ) );
-
-		if ( get_option( 'vhcp_flush_rewrite' ) ) {
-			delete_option( 'vhcp_flush_rewrite' );
-			flush_rewrite_rules( false );
-		}
+		// Nạp lại đường dẫn: xem vhcp_flush_rewrite() ở file chính — phải chạy SAU khi cả
+		// app chi phí và thư viện hợp đồng đều khai xong đường dẫn của mình, không thì lần
+		// nạp lại đó ghi thiếu một đường và trang kia trả 404.
 	}
 
 	public static function query_vars( $vars ) {
@@ -60,7 +58,7 @@ class VHCP_App {
 	}
 
 	/** Danh tính SSO từ trang tổng (nếu có ?sso=). */
-	private static function sso_user() {
+	public static function sso_user() {
 		if ( empty( $_GET['sso'] ) ) { return null; }
 		$tok   = sanitize_text_field( wp_unslash( $_GET['sso'] ) );
 		$ident = VHCP_Auth::verify_sso_token( $tok );
@@ -71,21 +69,31 @@ class VHCP_App {
 		return $u;
 	}
 
-	private static function head_block() {
+	/**
+	 * Khối <head> dùng chung cho mọi trang của plugin.
+	 *
+	 * @param string $tieu_de Tên hiện trên thẻ tiêu đề trình duyệt.
+	 * @param string $trang   URL nhận lệnh của ĐƯỜNG GỌI THỨ BA (chính trang đang mở).
+	 * @param array  $fns     Danh sách hàm giao diện được phép gọi (null = tất cả).
+	 */
+	public static function head_block( $tieu_de = 'Vận Hành Chi Phí', $trang = '', $fns = null ) {
 		$sso = self::sso_user();
+		if ( $trang === '' ) { $trang = add_query_arg( 'vhcp_api', '1', self::app_url() ); }
+		if ( $fns === null )  { $fns = array_keys( VHCP_API::map() ); }
 		$cfg = array(
 			'endpoint' => esc_url_raw( rest_url( 'vhcp/v1/call' ) ),
 			// Đường dự phòng khi hosting chặn /wp-json/ (giao diện tự chuyển)
 			'ajax'     => esc_url_raw( admin_url( 'admin-ajax.php' ) ),
-			// Đường dự phòng CUỐI: chính URL của app — Cloudflare chặn theo đường dẫn,
+			// Đường dự phòng CUỐI: chính URL của trang này — Cloudflare chặn theo đường dẫn,
 			// mà đường dẫn này người dùng vừa mở được nên không thể bị chặn.
-			'trang'    => esc_url_raw( add_query_arg( 'vhcp_api', '1', self::app_url() ) ),
-			'fns'      => array_keys( VHCP_API::map() ),
+			'trang'    => esc_url_raw( $trang ),
+			'fns'      => $fns,
 			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'], 'coso' => $sso['coso'] ) : null,
 			'ver'      => VHCP_VERSION,
 		);
 
-		$out  = '<title>Vận Hành Chi Phí</title>' . "\n";
+		$out  = '<title>' . esc_html( $tieu_de ) . '</title>' . "\n";
+		$out .= '<link rel="stylesheet" href="' . esc_url( VHCP_URL . 'assets/css/vhcp.css' ) . '?ver=' . rawurlencode( VHCP_VERSION ) . '">' . "\n";
 		$out .= '<script>window.VHCP_CFG=' . wp_json_encode( $cfg ) . ';';
 		if ( $sso && ! empty( $sso['token'] ) ) {
 			// Nạp sẵn token cho phiên SSO (ghi đè token cũ của máy này).
