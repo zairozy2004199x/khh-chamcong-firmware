@@ -145,6 +145,9 @@ class VHCP_Util {
 		$s = trim( (string) $v );
 		if ( $s === '' ) { return ''; }
 		if ( preg_match( '/^(-?\d+)\.0*$/', $s, $m ) ) { return $m[1]; }
+		// Mã có cả CHỮ cũng bị bảng tính thêm đuôi: "NV9.0" -> "NV9". Chỉ cắt khi phần thập
+		// phân toàn số 0 và phần trước không chứa dấu chấm nào — "1.5" hay "A.50" không đụng.
+		if ( preg_match( '/^([A-Za-z0-9_\-]+)\.0+$/', $s, $m2 ) ) { return $m2[1]; }
 		return $s;
 	}
 

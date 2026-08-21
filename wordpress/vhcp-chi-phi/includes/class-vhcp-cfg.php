@@ -334,19 +334,22 @@ class VHCP_Cfg {
 
 		foreach ( self::rows_of( $all, self::COSO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => $r[1], 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '' );
+			// MÃ SỐ bị bảng tính thêm đuôi ".0" ("64196.0", "6329.0"): mã đó không khớp hệ
+			// thống tài khoản và xuất MISA ra sai. Rửa ngay lúc ĐỌC nên dòng đã nạp lệch tự
+			// về đúng, khỏi phải sửa tay từng ô.
+			$out['coso'][] = array( 'ten' => $r[0], 'maDonVi' => VHCP_Util::ma_so( $r[1] ), 'phanLoaiLon' => $r[2], 'tenMisa' => $r[3], 'dongCua' => isset( $r[4] ) ? (string) $r[4] : '' );
 		}
 		foreach ( self::rows_of( $all, self::NHOM ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['nhom'][] = array( 'ten' => $r[0], 'loai' => ( $r[1] !== '' ? $r[1] : 'canhan' ), 'tkNo' => $r[2], 'boPhan' => $r[3] );
+			$out['nhom'][] = array( 'ten' => $r[0], 'loai' => ( $r[1] !== '' ? $r[1] : 'canhan' ), 'tkNo' => VHCP_Util::ma_so( $r[2] ), 'boPhan' => $r[3] );
 		}
 		foreach ( self::rows_of( $all, self::LOAI ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => $r[1], 'tkCo' => $r[2], 'maDt' => $r[3], 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '' );
+			$out['loaiChiPhi'][] = array( 'ten' => $r[0], 'tkNo' => VHCP_Util::ma_so( $r[1] ), 'tkCo' => VHCP_Util::ma_so( $r[2] ), 'maDt' => VHCP_Util::ma_so( $r[3] ), 'boPhan' => $r[4], 'note' => $r[5], 'tenMisa' => isset( $r[6] ) ? $r[6] : '', 'loaiTt' => isset( $r[7] ) ? $r[7] : '' );
 		}
 		foreach ( self::rows_of( $all, self::TKNO ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['tkNoMatrix'][] = array( 'nhom' => $r[0], 'pll' => $r[1], 'tkNo' => $r[2] );
+			$out['tkNoMatrix'][] = array( 'nhom' => $r[0], 'pll' => $r[1], 'tkNo' => VHCP_Util::ma_so( $r[2] ) );
 		}
 		foreach ( self::rows_of( $all, self::PL ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
@@ -459,7 +462,7 @@ class VHCP_Cfg {
 					$k0 = mb_strtolower( trim( $tn ) );
 					if ( isset( $dong_cu[ $k0 ] ) ) { $dc = $dong_cu[ $k0 ]; }
 				}
-				$rows[] = array( $tn, $g( $x, 'maDonVi' ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc );
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'maDonVi' ) ), $g( $x, 'phanLoaiLon' ), $g( $x, 'tenMisa' ), $dc );
 			}
 			self::write( self::COSO, $rows );
 		}
@@ -488,7 +491,7 @@ class VHCP_Cfg {
 					$k0 = mb_strtolower( trim( $tn ) );
 					if ( isset( $note_cu[ $k0 ] ) ) { $nt = $note_cu[ $k0 ]; }
 				}
-				$rows[] = array( $tn, $g( $x, 'tkNo' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
+				$rows[] = array( $tn, VHCP_Util::ma_so( $g( $x, 'tkNo' ) ), VHCP_Util::ma_so( $g( $x, 'tkCo' ) ), VHCP_Util::ma_so( $g( $x, 'maDt' ) ), $g( $x, 'boPhan' ), $nt, $g( $x, 'tenMisa' ), $g( $x, 'loaiTt' ) );
 			}
 			self::write( self::LOAI, $rows );
 		}
@@ -519,7 +522,7 @@ class VHCP_Cfg {
 		}
 		if ( isset( $cfg['tkNoMatrix'] ) && is_array( $cfg['tkNoMatrix'] ) ) {
 			$rows = array();
-			foreach ( $cfg['tkNoMatrix'] as $x ) { $x = (array) $x; $rows[] = array( $g( $x, 'nhom' ), $g( $x, 'pll' ), $g( $x, 'tkNo' ) ); }
+			foreach ( $cfg['tkNoMatrix'] as $x ) { $x = (array) $x; $rows[] = array( $g( $x, 'nhom' ), $g( $x, 'pll' ), VHCP_Util::ma_so( $g( $x, 'tkNo' ) ) ); }
 			self::write( self::TKNO, $rows );
 		}
 		if ( isset( $cfg['phanloai'] ) && is_array( $cfg['phanloai'] ) ) {

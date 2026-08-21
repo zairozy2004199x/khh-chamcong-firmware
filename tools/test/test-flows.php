@@ -2034,6 +2034,50 @@ t( 'người dùng còn đăng nhập được', ! empty( VHCP_Auth::login( '222
 
 // ---------------------------------------------------------------- kết quả
 echo "\n";
+// ------------------------------- MÃ SỐ MANG ĐUÔI ".0" TỪ BẢNG TÍNH
+// Bảng tính coi mã tài khoản là SỐ nên xuất ra "64196.0", "6329.0". Mã đó không khớp hệ
+// thống tài khoản và xuất MISA ra sai, mà nhìn bảng cấu hình vẫn thấy mã nằm đó.
+VHCP_Cfg::save_config( array(
+	'coso' => array(
+		array( 'ten' => 'GIAN ĐUÔI CHẤM', 'maDonVi' => '12345.0', 'phanLoaiLon' => 'FZ MN', 'tenMisa' => 'Gian đuôi chấm' ),
+	),
+	'loaiChiPhi' => array(
+		array( 'ten' => 'CP Đuôi Chấm', 'tkNo' => '64125.0', 'tkCo' => '331.0', 'maDt' => 'NV9.0', 'boPhan' => '', 'tenMisa' => '' ),
+	),
+	'tkNoMatrix' => array(
+		array( 'nhom' => 'CP Đuôi Chấm', 'pll' => 'FZ MN', 'tkNo' => '64196.0' ),
+	),
+) );
+$cf_dc = VHCP_Cfg::get_config();
+$cs_dc = null; $lo_dc = null;
+foreach ( $cf_dc['coso'] as $x ) { if ( $x['ten'] === 'GIAN ĐUÔI CHẤM' ) { $cs_dc = $x; } }
+foreach ( $cf_dc['loaiChiPhi'] as $x ) { if ( $x['ten'] === 'CP Đuôi Chấm' ) { $lo_dc = $x; } }
+teq( 'mã đơn vị bỏ đuôi .0', '12345', $cs_dc['maDonVi'] );
+teq( 'TK Nợ của loại bỏ đuôi .0', '64125', $lo_dc['tkNo'] );
+teq( 'TK Có bỏ đuôi .0', '331', $lo_dc['tkCo'] );
+teq( 'mã đối tượng bỏ đuôi .0', 'NV9', $lo_dc['maDt'] );
+$mx_dc = '';
+foreach ( $cf_dc['tkNoMatrix'] as $x ) { if ( $x['nhom'] === 'CP Đuôi Chấm' ) { $mx_dc = $x['tkNo']; } }
+teq( 'mã trong ma trận bỏ đuôi .0', '64196', $mx_dc );
+teq( 'và resolve ra mã sạch', '64196', VHCP_Cfg::resolve_tk( 'CP Đuôi Chấm', '', array(), 'GIAN ĐUÔI CHẤM' )['tk_no'] );
+
+// Dòng ĐÃ LƯU từ trước còn mang đuôi .0 thì lúc XUẤT MISA cũng phải ra mã sạch — không thì
+// phải đi sửa tay từng dòng cũ mới xuất được.
+$sc_dc = VHCP_SoChi::add( array(
+	'ngay' => $today, 'coso' => 'GIAN ĐUÔI CHẤM', 'loai' => 'CP Đuôi Chấm', 'noiDung' => 'Thử đuôi chấm',
+	'soTien' => 500000, 'hinhThuc' => 'Tạm ứng', 'tkNo' => '64196.0', 'tkCo' => '141.0', 'maDt' => 'NV9.0',
+), 'Test' );
+t( 'thêm được dòng mang mã đuôi .0', ! empty( $sc_dc['success'] ) );
+$ex_dc = VHCP_SoChi::export_misa( array() );
+$hang = null;
+foreach ( (array) $ex_dc['rows'] as $rw ) { if ( strpos( (string) $rw[4], 'Thử đuôi chấm' ) !== false || strpos( (string) $rw[3], 'Thử đuôi chấm' ) !== false ) { $hang = $rw; } }
+if ( $hang ) {
+	teq( 'xuất MISA: TK Nợ sạch đuôi', '64196', (string) $hang[5] );
+	teq( 'xuất MISA: TK Có sạch đuôi', '141', (string) $hang[6] );
+	teq( 'xuất MISA: mã đối tượng sạch đuôi', 'NV9', (string) $hang[8] );
+	teq( 'xuất MISA: mã đơn vị sạch đuôi', '12345', (string) $hang[9] );
+}
+
 // ------------------------------- ĐÓNG CỬA GIAN HÀNG THÌ HẾT LUÂN CHUYỂN BÙ TRỪ
 // Kế toán làm lệnh đóng gian là đã tất toán hết bằng tiền; còn trừ tiếp sang kỳ sau là trừ
 // hai lần một khoản.

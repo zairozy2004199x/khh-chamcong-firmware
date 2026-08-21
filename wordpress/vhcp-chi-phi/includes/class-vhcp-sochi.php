@@ -410,7 +410,7 @@ class VHCP_SoChi {
 			$gc    = trim( (string) $r['ghi_chu'] );
 			if ( $gc !== '' ) { $dg2 .= '_' . $gc; }
 
-			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tk_no, $tk_co, $so_tien, (string) $r['ma_dt'], $ma_dv );
+			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tk_no ), VHCP_Util::ma_so( $tk_co ), $so_tien, VHCP_Util::ma_so( (string) $r['ma_dt'] ), VHCP_Util::ma_so( $ma_dv ) );
 			$ids[]  = (string) $r['id'];
 		}
 

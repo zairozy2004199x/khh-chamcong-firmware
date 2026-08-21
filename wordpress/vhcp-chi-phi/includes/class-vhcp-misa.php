@@ -159,7 +159,7 @@ class VHCP_Misa {
 
 			$gk = $nhom_c !== '' ? $nhom_c : '(khác)';
 			if ( ! isset( $rows_by_nhom[ $gk ] ) ) { $rows_by_nhom[ $gk ] = array(); $nhom_order[] = $gk; }
-			$rows_by_nhom[ $gk ][] = array( $ngay, $ngay, '', $dg1, $dg2, $tk_no, $tk_co, $sotien, $ma_dt, $ma_dv );
+			$rows_by_nhom[ $gk ][] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tk_no ), VHCP_Util::ma_so( $tk_co ), $sotien, VHCP_Util::ma_so( $ma_dt ), VHCP_Util::ma_so( $ma_dv ) );
 		}
 
 		$rows = array();
@@ -239,7 +239,7 @@ class VHCP_Misa {
 				$tail = VHCP_Util::j( array( $noi_dung, $ghichu ) );
 				if ( $tail !== '' ) { $dg2 .= '_' . $tail; }
 
-				$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tk_no, $tk_co, $thuc_te, $ma_dt, $ma_dv );
+				$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tk_no ), VHCP_Util::ma_so( $tk_co ), $thuc_te, VHCP_Util::ma_so( $ma_dt ), VHCP_Util::ma_so( $ma_dv ) );
 				$used   = true;
 			}
 			if ( $used ) { $nda++; }
@@ -283,7 +283,7 @@ class VHCP_Misa {
 			$lc  = trim( (string) $r['loai_cp'] );
 			$dg1 = VHCP_Util::j( array( 'MKT', $lc !== '' ? VHCP_Cfg::ten_misa_loai( $lc ) : '', $d['ten'], $coso, $kenh, $d['ky'] ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 			$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( trim( $gc ) !== '' ? '_' . $gc : '' );
-			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tkm['tk_no'], $tkm['tk_co'], $tt, $tkm['ma_dt'], $ma_dv );
+			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tkm['tk_no'] ), VHCP_Util::ma_so( $tkm['tk_co'] ), $tt, VHCP_Util::ma_so( $tkm['ma_dt'] ), VHCP_Util::ma_so( $ma_dv ) );
 			$seen[ (string) $r['ma_don'] ] = 1;
 		}
 		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => count( $seen ), 'warn' => array_keys( $warn ), 'maDons' => array() );
@@ -321,7 +321,7 @@ class VHCP_Misa {
 				if ( $tkm['tk_no'] === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . trim( (string) $x['loai_cp'] ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 				$dg1 = VHCP_Util::j( array( $lo, $ten, $nguoi, $ky ) ) . ( $is_tt ? '_Trực tiếp NCC' : '_Tạm ứng NV' );
 				$dg2 = VHCP_Util::j( array( $nd, $ten_misa ) ) . ( $ghichu !== '' ? '_' . $ghichu : '' );
-				$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, $tkm['tk_no'], $tkm['tk_co'], $tt, $tkm['ma_dt'], $ma_dv );
+				$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tkm['tk_no'] ), VHCP_Util::ma_so( $tkm['tk_co'] ), $tt, VHCP_Util::ma_so( $tkm['ma_dt'] ), VHCP_Util::ma_so( $ma_dv ) );
 				$used   = true;
 			}
 			if ( $used ) { $ndot++; }

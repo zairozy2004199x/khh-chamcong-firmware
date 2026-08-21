@@ -629,6 +629,38 @@ nhập. Đơn cũ của gian vẫn xem được bình thường. Cần mở lạ
 Lệnh này chỉ **Kế toán / Quản lý / Admin** gọi được (chặn ở cửa API). Mọi lần đóng/mở đều
 vào **Nhật ký**.
 
+### Mã tài khoản mang đuôi ".0" (bản 1.12.0)
+
+Bảng tính coi mã tài khoản là **số**, nên xuất ra `64196.0`, `6329.0`, `12345.0`, `NV9.0`.
+Mã đó **không khớp** hệ thống tài khoản và xuất MISA ra sai — mà mở bảng cấu hình vẫn thấy
+mã nằm đó nên không ai nghĩ là lỗi. Nay app cắt đuôi `.0` ở cả bốn chỗ: **TK Nợ theo mảng ·
+TK Nợ/TK Có/mã đối tượng của loại chi phí · mã đơn vị của cơ sở**, cả khi **đọc** (dòng đã
+nạp lệch tự về đúng) và khi **lưu**. Dòng chi **đã lưu** từ trước còn mang đuôi thì lúc
+**xuất MISA** cũng được rửa, khỏi phải sửa tay từng dòng. Số thập phân thật (`1.5`) và mã
+kiểu `A.50` không bị đụng.
+
+### Bỏ 2 cột "TK Có" và "Mọi mảng" khỏi bảng ma trận
+
+- **TK Có** app tự lấy theo hình thức chi (Tạm ứng NV → **141** · Trực tiếp NCC → **331**),
+  không phải khai.
+- **Mọi mảng** (mã dùng chung) bỏ luôn: mã **luôn** theo mảng của cơ sở, để thêm một cột
+  dùng chung chỉ dẫn tới nhập hai chỗ rồi lệch nhau.
+
+Mảng của một dòng chi lấy theo **Phân loại lớn** của cơ sở (khai ở bảng 🏢 *Mã đơn vị theo
+Cơ sở*), nên cùng loại chi phí mà khác cơ sở thì khác mã — đúng như hệ thống tài khoản
+`641<mảng><hạng mục>`. **Giá trị đã lưu ở hai cột vừa bỏ KHÔNG mất**: lúc lưu bảng, app lấy
+lại từ dữ liệu cũ thay vì ghi rỗng lên.
+
+### Bỏ card "Mã đối tượng (NV / Nhà cung cấp)" khỏi Cấu hình
+
+Đối tượng của một dòng chi cá nhân **chính là nhân viên**, mà nhân viên đã có ô **Mã đối
+tượng** ngay trong bảng 🔐 *Người dùng & Phân quyền* — khai hai chỗ thì lệch nhau, và bảng cũ
+nạp từ bảng tính còn lẫn hàng trăm tên nhân viên trùng lặp không mã. Nay bỏ chỗ khai tay đó.
+
+Lúc xuất MISA, mã đối tượng vẫn ưu tiên lấy từ **bảng Người dùng** (vốn đã ưu tiên hơn bảng
+đối tượng từ trước). Dữ liệu `CH_DoiTuong` cũ **vẫn giữ** — còn dùng làm gợi ý tên khi nhập
+và làm mã dự phòng cho đối tượng NCC.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |
