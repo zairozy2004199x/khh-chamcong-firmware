@@ -1408,8 +1408,33 @@ t( 'đọc tự động tắc thì báo lỗi có hướng xử lý', empty( $tu
 $tay = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false, 'tabs' => array( 'VH_Index' ) ) );
 t( 'gõ tay tên tab thì nạp được', ! empty( $tay['success'] ) );
 teq( 'nạp đúng 1 dòng', 1, $tay['tong'] );
-teq( 'báo rõ lấy danh sách tab bằng cách nào', 'gõ tay', $tay['cach'] );
+t( 'báo rõ lấy danh sách tab bằng cách nào', strpos( $tay['cach'], 'gõ tay' ) === 0 );
 t( 'đơn nạp bằng tên tab gõ tay đã vào', ! empty( VHCP_Don::get_don( 'VH_taytab', false )['success'] ) );
+
+// Gõ tay tên tab thì VẪN phải tải bằng gid — tải theo tên (gviz) làm cột số mất tiêu đề
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => '{"name":"DA GIAN X","gid":"555"}',
+	// gviz (tải theo TÊN): Google đoán kiểu cột nên ô tiêu đề của cột số trả về RỖNG
+	'sheet=DA%20GIAN%20X' => "Nội dung hạng mục,,,Thuộc hạng mục lớn\nMón A,,,\n",
+	// export theo gid: nguyên bản, có đủ tiêu đề
+	'gid=555' => "Nội dung hạng mục,Chi phí thực tế,Số lượng,Thuộc hạng mục lớn\nMón A,700.000,1,\n",
+);
+$gid_tay = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => true, 'tabs' => array( 'DA GIAN X' ) ) );
+t( 'gõ tay tên tab vẫn dò được gid', strpos( $gid_tay['cach'], 'có gid cho 1/1' ) !== false );
+$bc_gid = $gid_tay['baoCao'][0];
+t( 'nhờ gid nên đọc được cột tiền', isset( $bc_gid['khopVoi']['so_tien'] ) );
+t( 'tổng tiền tính trước ra đúng', strpos( $bc_gid['ketQua'], '700.000' ) !== false );
+t( 'không còn cảnh báo tải theo tên', empty( $bc_gid['canhBao'] ) );
+
+// Không dò được gid -> phải cảnh báo, vì cột số có thể mất tiêu đề
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => '<html>trống</html>',
+	'/edit'     => '<html>trống</html>',
+	'sheet=DA%20GIAN%20Y' => "Nội dung hạng mục,,,Thuộc hạng mục lớn\nMón B,,,\n",
+);
+$khong_gid = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => true, 'tabs' => array( 'DA GIAN Y' ) ) );
+t( 'không dò được gid thì nói rõ', strpos( $khong_gid['cach'], 'KHÔNG dò được gid' ) !== false );
+t( 'và cảnh báo cột số có thể mất tiêu đề', ! empty( $khong_gid['baoCao'][0]['canhBao'] ) );
 
 // Đọc danh sách tab từ trang /edit khi htmlview tắc
 $GLOBALS['VHCP_HTTP'] = array(

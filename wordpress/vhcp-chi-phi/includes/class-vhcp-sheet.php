@@ -84,7 +84,7 @@ class VHCP_Sheet {
 			@unlink( $tmp );
 			if ( ! count( $ten ) ) { return array( 'loi' => 'file xlsx không có danh sách tab' ); }
 			$out = array();
-			foreach ( $ten as $x ) { $out[] = array( 'gid' => '', 'ten' => $x ); }   // không có gid -> tải theo tên
+			foreach ( $ten as $x ) { $out[] = array( 'gid' => '', 'ten' => $x ); }   // xlsx không kèm gid
 			return array( 'tabs' => $out );
 		}
 
@@ -214,10 +214,27 @@ class VHCP_Sheet {
 		}
 		$cach = 'gõ tay';
 		$tabs = array();
+		$lk   = self::liet_ke_tab( $id );   // luôn thử lấy danh sách để có GID
 		if ( count( $ten_tay ) ) {
-			foreach ( $ten_tay as $t ) { $tabs[] = array( 'gid' => '', 'ten' => $t ); }
+			// Gõ tay tên tab nhưng VẪN dò gid: tải theo gid mới đúng nguyên bản sheet.
+			// Tải theo TÊN (gviz) thì Google tự đoán kiểu cột, cột số sẽ trả ô tiêu đề
+			// thành RỖNG -> app không thấy cột tiền, nạp ra 0đ mà không có gì báo.
+			$gid_theo_ten = array();
+			foreach ( (array) ( isset( $lk['tabs'] ) ? $lk['tabs'] : array() ) as $x ) {
+				$gid_theo_ten[ VHCP_Nap::kh( $x['ten'] ) ] = array( 'gid' => $x['gid'], 'ten' => $x['ten'] );
+			}
+			foreach ( $ten_tay as $t ) {
+				$kk = VHCP_Nap::kh( $t );
+				if ( isset( $gid_theo_ten[ $kk ] ) && $gid_theo_ten[ $kk ]['gid'] !== '' ) {
+					$tabs[] = array( 'gid' => $gid_theo_ten[ $kk ]['gid'], 'ten' => $gid_theo_ten[ $kk ]['ten'] );
+				} else {
+					$tabs[] = array( 'gid' => '', 'ten' => $t );
+				}
+			}
+			$co_gid = 0;
+			foreach ( $tabs as $x ) { if ( $x['gid'] !== '' ) { $co_gid++; } }
+			$cach = 'gõ tay' . ( $co_gid ? ' (có gid cho ' . $co_gid . '/' . count( $tabs ) . ' tab)' : ' — KHÔNG dò được gid, phải tải theo tên' );
 		} else {
-			$lk = self::liet_ke_tab( $id );
 			if ( empty( $lk['tabs'] ) ) { return VHCP_Util::err( isset( $lk['loi'] ) ? $lk['loi'] : 'Không đọc được danh sách tab' ); }
 			$tabs = $lk['tabs'];
 			$cach = isset( $lk['cach'] ) ? $lk['cach'] : '';
@@ -227,6 +244,7 @@ class VHCP_Sheet {
 		$viec = array();
 		foreach ( $tabs as $tab ) {
 			$r = self::tai_tab( $id, $tab['gid'], $tab['ten'] );
+			$theo_ten = ( $tab['gid'] === '' );
 			if ( ! empty( $r['loi'] ) ) {
 				$viec[] = array( 'tab' => $tab['ten'], 'bo' => 'không tải được: ' . $r['loi'] );
 				continue;
@@ -254,7 +272,7 @@ class VHCP_Sheet {
 				$cach_nhan = 'tên cột';
 				$diem      = $doan['diem'];
 			}
-			$viec[] = array( 'tab' => $tab['ten'], 'loai' => $loai, 'cachNhan' => $cach_nhan, 'diem' => $diem, 'rows' => $rows, 'csv' => $r['body'] );
+			$viec[] = array( 'tab' => $tab['ten'], 'loai' => $loai, 'cachNhan' => $cach_nhan, 'diem' => $diem, 'rows' => $rows, 'csv' => $r['body'], 'theoTen' => $theo_ten );
 		}
 
 		// 2) Sắp thứ tự: cấu hình -> danh mục -> tạm ứng -> dòng chi -> nhật ký
@@ -274,6 +292,9 @@ class VHCP_Sheet {
 			}
 			$loai = $v['loai'];
 			$mo   = array( 'tab' => $v['tab'], 'bang' => self::ten_loai( $loai ), 'cachNhan' => $v['cachNhan'], 'cotKhop' => $v['diem'] );
+			// Tải theo TÊN tab (gviz) là Google tự đoán kiểu cột: ô tiêu đề của cột số bị
+			// trả về rỗng nên app mất luôn cột tiền. Cảnh báo ngay trên báo cáo.
+			if ( ! empty( $v['theoTen'] ) ) { $mo['canhBao'] = 'tải theo TÊN tab (không có gid) — cột số có thể mất tiêu đề, kiểm dòng "đọc:" xem có so_tien chưa'; }
 
 			if ( $thu ) {
 				$mo['ketQua'] = 'sẽ nạp vào ' . self::ten_loai( $loai ) . ' · ' . max( 0, count( $v['rows'] ) - 1 ) . ' dòng (trừ dòng tiêu đề)';

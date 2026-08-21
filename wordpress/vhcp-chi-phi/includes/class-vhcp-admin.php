@@ -253,6 +253,7 @@ class VHCP_Admin {
 						. '<td>' . esc_html( isset( $b['ketQua'] ) ? $b['ketQua'] : '' )
 						. ( ! empty( $b['dongDau'] ) ? '<br><small style="color:#777">dòng đầu: <code>' . esc_html( $b['dongDau'] ) . '</code></small>' : '' )
 						. ( count( $kv_txt ) ? '<br><small style="color:#777">đọc: ' . esc_html( implode( ' · ', $kv_txt ) ) . '</small>' : '' )
+						. ( ! empty( $b['canhBao'] ) ? '<br><small style="color:#b32d2e">⚠ ' . esc_html( $b['canhBao'] ) . '</small>' : '' )
 						. '</td>'
 						. '<td>' . esc_html( count( $la ) ? implode( ' · ', $la ) : '—' ) . '</td>'
 						. '<td>' . esc_html( count( $mc ) ? implode( ' · ', $mc ) : '—' ) . '</td></tr>';
