@@ -1726,6 +1726,16 @@ $dong_dau = null;
 foreach ( $ds_dau['items'] as $y ) { if ( (string) $y['ten'] === 'GIAN CÓ DẤU ĐẶC BIỆT' ) { $dong_dau = $y; } }
 teq( 'danh sách dự án cũng ra số cho tên có dấu', 1625000, VHCP_Util::num( $dong_dau['tongThucTe'] ) );
 
+// Báo cáo nạp phải tự nói ra TỔNG TIỀN và số dòng ra 0đ, để biết ngay là đọc sai cột
+$csv_bc = "Nội dung hạng mục,Chi phí thực tế,Thành tiền,Thuộc hạng mục lớn\n"
+	. "Nhóm A,0,0,\n"
+	. "Món 1,300.000,300.000,Nhóm A\n"
+	. "Món 2,,,Nhóm A\n";
+$r_bc = VHCP_Import::run( 'TD_SoChi', $csv_bc, array( 'ma' => 'BC1', 'coso' => 'FUNFEST SC VIVO' ) );
+teq( 'báo cáo có tổng tiền', 300000, VHCP_Util::num( $r_bc['tongTien'] ) );
+teq( 'đếm dòng ra 0đ (không tính dòng tổng hợp)', 1, (int) $r_bc['khongTien'] );
+teq( 'đếm dòng tổng hợp', 1, (int) $r_bc['dongTong'] );
+
 // ---------------------------------------------------------------- kết quả
 echo "\n";
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";

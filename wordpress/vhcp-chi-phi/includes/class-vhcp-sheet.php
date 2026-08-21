@@ -343,6 +343,10 @@ class VHCP_Sheet {
 			$mo['ketQua']   = 'nạp ' . $mo['napDuoc'] . ' dòng vào ' . self::ten_loai( $loai );
 			if ( ! empty( $mo['dongTong'] ) ) { $mo['ketQua'] .= ' · ' . (int) $mo['dongTong'] . ' dòng tổng hợp đưa về 0 để không đếm hai lần'; }
 			if ( ! empty( $mo['ketQua_them'] ) ) { $mo['ketQua'] .= ' · thêm ' . (int) $mo['ketQua_them'] . ' loại chi phí vào danh mục'; }
+			if ( isset( $res['tongTien'] ) ) {
+				$mo['ketQua'] .= ' · TỔNG TIỀN ' . number_format( (float) $res['tongTien'], 0, ',', '.' ) . 'đ';
+				if ( ! empty( $res['khongTien'] ) ) { $mo['ketQua'] .= ' · ' . (int) $res['khongTien'] . ' dòng ra 0đ (kiểm lại cột tiền!)'; }
+			}
 			if ( ! empty( $mo['coSo'] ) ) { $mo['ketQua'] .= ' · ' . $mo['coSo']; }
 			$tong          += $mo['napDuoc'];
 			$tong_bo       += $mo['boQua'];

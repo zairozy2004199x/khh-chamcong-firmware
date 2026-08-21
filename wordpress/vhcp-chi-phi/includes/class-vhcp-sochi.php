@@ -107,7 +107,7 @@ class VHCP_SoChi {
 		$data['id']         = VHCP_Util::uid( 'C' );
 		$data['tao_luc']    = VHCP_Util::now_sql();
 		$wpdb->insert( VHCP_DB::t( 'so_chi' ), $data );
-		return VHCP_Util::ok( array( 'id' => $data['id'], 'tkNo' => $data['tk_no'], 'tkCo' => $data['tk_co'] ) );
+		return VHCP_Util::ok( array( 'id' => $data['id'], 'tkNo' => $data['tk_no'], 'tkCo' => $data['tk_co'], 'soTien' => VHCP_Util::num( $data['so_tien'] ) ) );
 	}
 
 	public static function update( $id, $rec, $nguoi = '' ) {

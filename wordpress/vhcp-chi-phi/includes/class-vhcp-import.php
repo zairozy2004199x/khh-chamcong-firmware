@@ -372,7 +372,7 @@ class VHCP_Import {
 					$hm = $o( $r, 'hang_muc' );
 					if ( $hm !== '' ) { $la_hang_muc[ mb_strtolower( $hm ) ] = 1; }
 				}
-				$dong_tong = 0; $loai_suy_ra = 0; $loai_moi = array();
+				$dong_tong = 0; $loai_suy_ra = 0; $loai_moi = array(); $tong_tien = 0; $dong_khong_tien = 0;
 
 				foreach ( $k['rows'] as $r ) {
 					$loai = $o( $r, 'loai' );
@@ -414,6 +414,11 @@ class VHCP_Import {
 					if ( empty( $res['success'] ) ) { $skipped++; continue; }
 					if ( trim( (string) $res['tkNo'] ) === '' ) { $thieu_ma++; }
 					if ( isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ) { $dong_tong++; }
+					// Đếm luôn tổng tiền và số dòng ra 0 đồng: nạp xong mà tổng bằng 0 thì biết
+					// ngay là đọc sai cột tiền, khỏi phải soi từng dòng trên màn hình.
+					$tien_dong = VHCP_Util::num( isset( $res['soTien'] ) ? $res['soTien'] : 0 );
+					$tong_tien += $tien_dong;
+					if ( ! $tien_dong && ! isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ) { $dong_khong_tien++; }
 					$n++;
 				}
 				// Đưa các tên loại vừa gặp vào danh mục để còn khai mã được cho chúng
@@ -431,6 +436,8 @@ class VHCP_Import {
 			'dongTong'   => isset( $dong_tong ) ? $dong_tong : 0,
 			'loaiSuyRa'  => isset( $loai_suy_ra ) ? $loai_suy_ra : 0,
 			'themLoai'   => isset( $them_loai ) ? $them_loai : 0,
+			'tongTien'   => isset( $tong_tien ) ? $tong_tien : 0,
+			'khongTien'  => isset( $dong_khong_tien ) ? $dong_khong_tien : 0,
 			'dongTieuDe' => $k['dongTieuDe'],
 			'cotDung'    => array_keys( $hd ),
 			'cotThieu'   => $k['thieu'],
