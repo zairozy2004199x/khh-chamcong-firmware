@@ -188,6 +188,26 @@ VHCP_Cfg::save_config( array( 'users' => array(
 	array( 'ten' => 'Trần Quản Lý', 'pin' => '2222', 'vaiTro' => 'Quản lý', 'tkCo' => '3341', 'maDt' => 'NV_QL' ),
 ) ) );
 
+// PIN / mã số nạp từ bảng tính hay mang đuôi ".0" ("2222.0", "141.0"). PIN kiểu đó không
+// khớp luật 4–8 chữ số nên người đó KHÔNG đăng nhập được, mà bảng vẫn thấy PIN nằm đó.
+teq( 'bỏ đuôi .0 của mã số', '141', VHCP_Util::ma_so( '141.0' ) );
+teq( 'không cắt số thập phân thật', '1.5', VHCP_Util::ma_so( '1.5' ) );
+teq( 'PIN chỉ còn chữ số', '2222', VHCP_Util::pin_sach( '2222.0' ) );
+VHCP_Cfg::save_config( array( 'users' => array(
+	array( 'ten' => 'Admin', 'pin' => '1111', 'vaiTro' => 'Admin' ),
+	array( 'ten' => 'Kế Toán Đuôi Chấm', 'pin' => '3333.0', 'vaiTro' => 'Quản lý', 'tkCo' => '141.0', 'maDt' => 'NV0021' ),
+) ) );
+$lg_pin = VHCP_Auth::login( '3333' );
+t( 'PIN có đuôi .0 vẫn đăng nhập được', ! empty( $lg_pin['ok'] ) );
+$u_pin = null;
+foreach ( VHCP_Cfg::get_users() as $u ) { if ( $u['ten'] === 'Kế Toán Đuôi Chấm' ) { $u_pin = $u; } }
+teq( 'PIN lưu lại đã sạch', '3333', $u_pin['pin'] );
+teq( 'TK Có cũng bỏ đuôi .0', '141', $u_pin['tkCo'] );
+VHCP_Cfg::save_config( array( 'users' => array(
+	array( 'ten' => 'Admin', 'pin' => '1111', 'vaiTro' => 'Admin' ),
+	array( 'ten' => 'Trần Quản Lý', 'pin' => '2222', 'vaiTro' => 'Quản lý', 'tkCo' => '3341', 'maDt' => 'NV_QL' ),
+) ) );
+
 t( 'chốt đã xuất', ! empty( VHCP_Misa::mark_exported( array( $ma ), 'all' )['success'] ) );
 teq( 'trạng thái sau chốt xuất', 'Đã xuất MISA', VHCP_Don::don_row( $ma )['trang_thai'] );
 teq( 'xuất lại lần 2 không còn đơn nào', 0, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' )['count'] );

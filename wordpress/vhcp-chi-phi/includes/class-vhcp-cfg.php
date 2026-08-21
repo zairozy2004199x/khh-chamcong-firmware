@@ -298,7 +298,9 @@ class VHCP_Cfg {
 		$out['users'] = array();
 		foreach ( self::rows_of( $all, self::USER ) as $r ) {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
-			$out['users'][] = array( 'ten' => $r[0], 'pin' => (string) $r[1], 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => $r[4], 'maDt' => $r[5], 'boPhan' => $r[6] );
+			// Dòng cũ đã nạp lệch (PIN "2222.0") thì rửa ngay lúc ĐỌC, khỏi phải sửa tay
+			// từng người mới đăng nhập lại được.
+			$out['users'][] = array( 'ten' => $r[0], 'pin' => VHCP_Util::pin_sach( $r[1] ), 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => VHCP_Util::ma_so( $r[4] ), 'maDt' => VHCP_Util::ma_so( $r[5] ), 'boPhan' => $r[6] );
 		}
 
 		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
@@ -434,7 +436,17 @@ class VHCP_Cfg {
 			$rows = array();
 			foreach ( $cfg['users'] as $x ) {
 				$x = (array) $x;
-				$rows[] = array( $g( $x, 'ten' ), $g( $x, 'pin' ), ( $g( $x, 'vaiTro' ) !== '' ? $g( $x, 'vaiTro' ) : 'Nhân viên' ), $g( $x, 'coso' ), $g( $x, 'tkCo' ), $g( $x, 'maDt' ), $g( $x, 'boPhan' ) );
+				// PIN / TK Có / mã đối tượng là MÃ SỐ: bảng tính xuất ra "2222.0", "141.0".
+				// Rửa ngay lúc lưu, đừng để PIN mang dấu chấm rồi không ai đăng nhập được.
+				$rows[] = array(
+					$g( $x, 'ten' ),
+					VHCP_Util::pin_sach( $g( $x, 'pin' ) ),
+					( $g( $x, 'vaiTro' ) !== '' ? $g( $x, 'vaiTro' ) : 'Nhân viên' ),
+					$g( $x, 'coso' ),
+					VHCP_Util::ma_so( $g( $x, 'tkCo' ) ),
+					VHCP_Util::ma_so( $g( $x, 'maDt' ) ),
+					$g( $x, 'boPhan' )
+				);
 			}
 			self::write( self::USER, $rows );
 		}

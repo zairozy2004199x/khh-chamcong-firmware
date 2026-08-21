@@ -20,7 +20,11 @@
   .b-p{background:#0f766e;color:#fff}.b-p:hover{background:#0d5c56}
   .b-g{background:#16a34a;color:#fff}.b-x{background:#f1f5f9;color:#334155}.b-d{background:#fee2e2;color:#dc2626}
   .b-s{background:#e0f2fe;color:#0369a1}
-  .wrap{padding:16px 22px;max-width:1250px;margin:0 auto}
+  /* BỀ RỘNG TRANG THEO MÁY.
+     Trước đây chốt 1250px: màn 24" thì bỏ trống hai bên gần 600px, còn điện thoại thì
+     lề 22px ăn mất chỗ của bảng. Nay giãn tới 1600px trên màn rộng và bóp lề lại trên
+     máy nhỏ. Các mốc dùng chung một hệ: 1200 · 900 · 820 · 560 · 420. */
+  .wrap{padding:16px 22px;width:100%;max-width:1600px;margin:0 auto}
   .card{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);margin-bottom:16px;overflow:hidden}
   .ch{padding:12px 16px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
   .ch h2{font-size:14px;font-weight:700}
@@ -28,7 +32,9 @@
   .badge{padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700}
   .st-nhap{background:#f1f5f9;color:#475569}.st-cho{background:#fef9c3;color:#854d0e}.st-cap{background:#dbeafe;color:#1e40af}.st-duyet{background:#dcfce7;color:#166534}
   .grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  @media(max-width:1200px){.grid{grid-template-columns:repeat(3,1fr)}}
   @media(max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.grid{grid-template-columns:1fr}}
   .fld{display:flex;flex-direction:column;gap:3px}
   .fld label{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.4px}
   .fld input,.fld select,.fld textarea{width:100%}
@@ -52,6 +58,42 @@
 .csw{position:relative}
 .cs-pop{position:absolute;z-index:60;left:0;top:100%;margin-top:2px;width:260px;max-height:240px;overflow:auto;background:#fff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 30px rgba(15,23,42,.18)}
 .cs-list label:hover{background:#f1f5f9}
+
+  /* ---------- MÁY TÍNH BẢNG & ĐIỆN THOẠI ---------- */
+  @media(max-width:820px){
+    body{font-size:13.5px}                                  /* chữ to hơn chút cho dễ đọc */
+    .top{padding:12px 12px}
+    .top h1{font-size:16px}
+    .bar{padding:8px 10px}
+    .wrap{padding:12px 10px}
+    .ch{padding:10px 12px}
+    .cb{padding:12px 12px}
+    /* THANH TAB: 14 tab thì trên điện thoại xuống 4-5 dòng, đẩy nội dung tụt hẳn xuống.
+       Cho trượt ngang một dòng — quen tay hơn và giữ được chỗ cho nội dung. */
+    #tabbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+    #tabbar::-webkit-scrollbar{display:none}
+    #tabbar .btn{flex:0 0 auto}
+    /* Ô nhập cao hơn cho vừa đầu ngón tay */
+    select,input,textarea{padding:9px 10px;font-size:13.5px}
+    .btn{padding:9px 13px}
+    #toast{left:10px;right:10px}
+    .t{min-width:0}
+  }
+  @media(max-width:560px){
+    .wrap{padding:10px 8px}
+    .ch{padding:10px}
+    .cb{padding:10px}
+    .ch h2{font-size:13px}
+    /* Tiêu đề card và nút của nó xuống dòng riêng, khỏi chen nhau */
+    .ch{flex-direction:column;align-items:stretch}
+    .ch>div{display:flex;flex-wrap:wrap;gap:6px}
+  }
+  @media(max-width:420px){
+    .top>div:last-child{width:100%;justify-content:flex-end}
+    .btn{padding:8px 11px;font-size:12.5px}
+  }
+  /* Màn rất rộng: cho bảng dùng hết chỗ, khỏi phải trượt ngang vô ích */
+  @media(min-width:1700px){ .wrap{max-width:1800px} }
 </style>
 </head>
 <body>
@@ -77,7 +119,7 @@
     </div>
   </div>
 
-  <div class="bar" style="gap:6px">
+  <div class="bar" id="tabbar" style="gap:6px">
     <button class="btn b-x" id="tab-tongquan" onclick="showPage('tongquan')">📊 Tổng quan</button>
     <button class="btn b-x" id="tab-donchi" onclick="showDonChi()">📋 Đơn chi phí</button>
     <button class="btn b-x" id="tab-sochi" onclick="showPage('sochi')">💵 Sổ chi phí</button>
@@ -824,7 +866,11 @@
     </div>
     <div class="card" id="userCard">
       <div class="ch"><h2>🔐 Người dùng & Phân quyền (chỉ Admin)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
-      <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên</th><th>PIN (4–8 số)</th><th>Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th>Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:120px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
+      <!-- Cột TÊN phải có bề rộng riêng. Không khai thì trình duyệt chia phần còn lại cho
+           nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
+           Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
+           đủ chỗ mọi cột; hẹp hơn thì trượt ngang chứ không bóp. -->
+      <div class="tw"><table style="min-width:1060px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Vai trò: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ cơ sở của mình). Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
     <div class="card" id="ssoCard">

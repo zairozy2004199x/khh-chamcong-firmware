@@ -127,6 +127,31 @@ class VHCP_Util {
 		return $f;
 	}
 
+	/**
+	 * Bỏ đuôi ".0" của MÃ SỐ.
+	 *
+	 * Bảng tính coi PIN, TK Có, mã đơn vị là SỐ, nên khi xuất ra thì "2222" thành "2222.0"
+	 * và "141" thành "141.0". PIN kiểu đó không còn khớp luật 4–8 chữ số nữa: người đó
+	 * KHÔNG đăng nhập được, mà nhìn bảng thì vẫn thấy PIN nằm đó.
+	 *
+	 * Chỉ cắt khi phần thập phân toàn số 0 — "1.5" là số thật, không được cắt.
+	 */
+	public static function ma_so( $v ) {
+		$s = trim( (string) $v );
+		if ( $s === '' ) { return ''; }
+		if ( preg_match( '/^(-?\d+)\.0*$/', $s, $m ) ) { return $m[1]; }
+		return $s;
+	}
+
+	/**
+	 * PIN chỉ gồm chữ số — bảng tính hay trả về "2222.0", giữ nguyên là không đăng nhập được.
+	 * Phải cắt đuôi ".0" TRƯỚC khi bỏ ký tự lạ, không thì "2222.0" thành "22220" — vẫn sai,
+	 * mà lần này còn sai âm thầm vì trông vẫn giống một PIN hợp lệ.
+	 */
+	public static function pin_sach( $v ) {
+		return preg_replace( '/\D+/', '', self::ma_so( $v ) );
+	}
+
 	/** Số (0 nếu không phải số) — tương đương Number(x)||0. */
 	public static function num( $v ) {
 		if ( is_bool( $v ) ) { return $v ? 1 : 0; }

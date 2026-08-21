@@ -415,6 +415,28 @@ Nay app nhận dạng số khoa học trước mọi thứ khác (cả `5,645386
 phân), nên đọc ra đúng số gốc. Đây là **đọc sai giá trị**, không phải đọc thiếu dòng — nạp
 lại là số về đúng, không cần sửa gì trong bảng tính.
 
+### Bề rộng trang theo từng máy · cột Tên không còn bị bóp (bản 1.6.0)
+
+- **Màn rộng**: trang giãn tới 1600px (từ 1700px trở lên thì 1800px) thay vì chốt 1250px —
+  màn 24" không còn bỏ trống hai bên gần 600px, bảng nhiều cột đọc thẳng khỏi trượt.
+- **Điện thoại / máy tính bảng**: lề bóp lại (22px → 10px → 8px), chữ và ô nhập to hơn
+  chút cho vừa ngón tay, tiêu đề card và nút của nó xuống dòng riêng.
+- **Thanh 14 tab** trên điện thoại trước đây xuống 4–5 dòng, đẩy nội dung tụt hẳn; nay
+  **trượt ngang một dòng**.
+- **Lưới ô nhập** chia 6 → 3 → 2 → 1 cột theo bề rộng máy.
+- Mọi bảng đều nằm trong khung **trượt ngang**: máy hẹp thì kéo ngang, không bóp cột.
+- **Bảng Người dùng & Phân quyền**: cột *Tên* trước đây không khai bề rộng nên bị các cột
+  khai cứng và ô chọn Cơ sở lấy hết chỗ — còn một vạch, không đọc được tên ai. Nay mỗi cột
+  có bề rộng riêng, hẹp hơn thì bảng trượt ngang.
+
+### PIN mang đuôi ".0" thì không đăng nhập được
+
+Bảng tính coi PIN là **số**, nên xuất ra thành `2222.0`, `859624.0`; TK Có thành `141.0`.
+PIN kiểu đó không khớp luật 4–8 chữ số → người đó **không đăng nhập được**, mà mở bảng
+Người dùng vẫn thấy PIN nằm đó nên không ai nghĩ là lỗi. Nay app cắt đuôi `.0` cả khi
+**đọc** (dòng đã nạp lệch tự về đúng, khỏi sửa tay) và khi **lưu**. Số thập phân thật
+(`1.5`) không bị cắt.
+
 ## 5. Khác gì so với bản Apps Script
 
 | Việc | App cũ (Apps Script) | Bản WordPress |
