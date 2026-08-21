@@ -3779,6 +3779,54 @@ t( 'và nói rõ khi kéo được 0 giờ là do sheet trống',
 $_GET = array();
 VHCC_Keo::xoa_tien_do();
 
+// ========== 43. TRANG ĐĂNG NHẬP PHẢI NÓI ĐÚNG NGUỒN PIN, VÀ NHÃN `sheet` PHẢI ĐƯỢC GIẢI THÍCH
+/* Hai câu ghi cứng làm anh Thắng đi tìm sai chỗ hai lần:
+   · Ô PIN ghi "Dùng chung mã PIN với app Vận hành chi phí" kể cả khi đã chuyển sang danh sách
+     riêng — chỉ người ta đi tìm PIN ở app không liên quan.
+   · Bảng chấm công toàn nhãn `sheet` nên trông như chấm công online bị mất, trong khi lượt
+     online NẰM TRONG đó (app gốc ghi online vào đúng sheet CS_ bằng cùng một hàm). */
+$js_cn = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/assets/js/cau-noi.js' );
+t( 'chú thích dưới ô PIN không còn ghi cứng tên app chi phí',
+	strpos( $js_cn, "+ '<div style=\"font-size:11px;color:#94a3b8;margin-top:13px\">Dùng chung" ) === false );
+t( 'mà lấy theo nguồn đang dùng', strpos( $js_cn, 'chuThichNguon' ) !== false
+	&& strpos( $js_cn, "c.nguon === 'rieng'" ) !== false );
+t( '0 tài khoản vào được thì nói thẳng, kèm chỗ đi khai',
+	strpos( $js_cn, 'Chưa có tài khoản nào đăng nhập được' ) !== false
+	&& strpos( $js_cn, 'Chấm Công → Cài đặt' ) !== false );
+
+/* Cấu hình truyền sang trang phải mang đủ ba thứ đó — thiếu thì JS rơi về mặc định và câu sai
+   quay lại trong im lặng. */
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+VHCC_NguoiDung::luu( '', 'Người Vào Được', '246813', 'Admin', '' );
+$tr_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang.php' );
+foreach ( array( "'nguon'", "'soVao'", "'vaiTro'" ) as $k_cfg ) {
+	t( "cấu hình trang có $k_cfg", strpos( $tr_src, $k_cfg . '    =>' ) !== false
+		|| strpos( $tr_src, $k_cfg . '   =>' ) !== false || strpos( $tr_src, $k_cfg . '  =>' ) !== false
+		|| strpos( $tr_src, $k_cfg . ' =>' ) !== false );
+}
+/* ⚠️ TUYỆT ĐỐI không đưa PIN sang trình duyệt — đây là cấu hình chạy trong trang công khai.
+   ⚠️ Kiểm bằng cách VẼ THẬT rồi tìm chuỗi PIN, chứ không tìm chữ "pin" trong mã nguồn: bản đầu
+   làm thế và trượt oan, vì hàm đếm số tài khoản có ĐỌC `$x['pin']` — đọc để đếm thì không sao,
+   ĐƯA RA TRANG mới là hỏng. Phép thử phải soi cái đi ra, không soi cái đọc vào. */
+$rf_head = new ReflectionMethod( 'VHCC_Trang', 'khoi_head' );
+$rf_head->setAccessible( true );
+$html_head = (string) $rf_head->invoke( null );
+t( 'cấu hình trang KHÔNG mang chuỗi PIN nào ra trình duyệt',
+	strpos( $html_head, '246813' ) === false, $html_head );
+t( 'nhưng CÓ mang số tài khoản vào được', strpos( $html_head, '"soVao":1' ) !== false, $html_head );
+t( 'và mang đúng nguồn đang dùng', strpos( $html_head, '"nguon":"rieng"' ) !== false );
+
+/* Nhãn `sheet` phải được giải thích ngay tại bảng. */
+$man_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-man.php' );
+t( 'chú giải nói rõ nhãn sheet gồm CẢ lượt máy lẫn lượt online',
+	strpos( $man_src, 'CÓ CẢ lượt máy lẫn' ) !== false );
+t( 'và nói rõ vì sao không tách được',
+	strpos( $man_src, 'sheet không ghi lượt nào do máy' ) !== false );
+
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

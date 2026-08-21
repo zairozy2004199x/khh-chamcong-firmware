@@ -106,6 +106,22 @@
 		if ( dangMoGate ) { return; }
 		dangMoGate = true;
 
+		/* Chú thích dưới ô PIN — phải khớp NGUỒN đang dùng, không ghi cứng.
+		   Bản trước ghi cứng "Dùng chung mã PIN với app Vận hành chi phí"; chuyển sang danh sách
+		   riêng rồi thì câu đó chỉ người ta đi tìm PIN ở chỗ không liên quan. */
+		function chuThichNguon() {
+			var c = window.VHCC_CFG || {};
+			var vt = c.vaiTro || 'Kế toán · Quản lý · Admin';
+			if ( c.soVao === 0 ) {
+				return '<b style="color:#dc2626">Chưa có tài khoản nào đăng nhập được.</b><br>'
+					+ 'Quản trị vào wp-admin → Chấm Công → Cài đặt để khai.';
+			}
+			var nguon = ( c.nguon === 'rieng' )
+				? 'PIN do quản trị khai trong plugin Chấm Công.'
+				: 'Dùng chung mã PIN với app Vận hành chi phí.';
+			return nguon + '<br>Chỉ ' + vt + ' vào được.';
+		}
+
 		var wrap = document.createElement( 'div' );
 		wrap.id = 'vhdGate';
 		wrap.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0f172a;'
@@ -123,8 +139,7 @@
 			+ '<div id="vhdErr" style="color:#dc2626;font-size:12px;min-height:32px;margin:9px 0;line-height:1.4"></div>'
 			+ '<button id="vhdVao" style="width:170px;padding:9px;border:none;border-radius:8px;'
 			+ 'background:#1d4ed8;color:#fff;font-size:13px;font-weight:600;cursor:pointer">Đăng nhập</button>'
-			+ '<div style="font-size:11px;color:#94a3b8;margin-top:13px">Dùng chung mã PIN với app Vận hành chi phí.<br>'
-			+ 'Chỉ Kế toán · Quản lý · Admin vào được.</div></div>';
+			+ '<div style="font-size:11px;color:#94a3b8;margin-top:13px">' + chuThichNguon() + '</div></div>';
 		document.body.appendChild( wrap );
 
 		var oPin = document.getElementById( 'vhdPin' );

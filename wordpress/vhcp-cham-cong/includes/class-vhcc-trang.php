@@ -76,11 +76,29 @@ class VHCC_Trang {
 	}
 
 	private static function khoi_head() {
+		/* Dòng chú thích dưới ô PIN phải nói ĐÚNG nguồn đang dùng. Bản trước ghi cứng "Dùng
+		   chung mã PIN với app Vận hành chi phí" — sai hẳn khi đã chuyển sang danh sách riêng,
+		   và người gõ PIN sẽ đi tìm PIN ở đúng chỗ không liên quan.
+		   Cũng đưa SỐ TÀI KHOẢN vào được sang: 0 tài khoản mà chỉ báo "PIN không đúng" thì người
+		   gõ cứ thử mãi một thứ vốn không tồn tại. Con số này không lộ gì — nó không cho biết
+		   PIN nào, mà cứu được đúng cái vòng lặp đó. */
+		$nguon_pin = VHCC_Auth::nguon();
+		$so_vao    = 0;
+		$u_all     = VHCC_Auth::users();
+		if ( ! is_wp_error( $u_all ) ) {
+			$cho_vao = VHCC_Auth::vai_tro_vao();
+			foreach ( $u_all as $x ) {
+				if ( in_array( $x['vaiTro'], $cho_vao, true ) && '' !== $x['pin'] ) { $so_vao++; }
+			}
+		}
 		$cfg = array(
 			'endpoint' => esc_url_raw( rest_url( 'vhcc/v1/call' ) ),
 			'trang'    => esc_url_raw( add_query_arg( 'vhcc_api', '1', self::url() ) ),
 			'fns'      => self::ds_ham(),
 			'ver'      => VHCC_VERSION,
+			'nguon'    => $nguon_pin,
+			'soVao'    => $so_vao,
+			'vaiTro'   => implode( ' · ', VHCC_Auth::vai_tro_vao() ),
 		);
 		$out  = '<script>window.VHCC_CFG=' . wp_json_encode( $cfg ) . ';</script>' . "\n";
 		$out .= '<script src="' . esc_url( VHCC_URL . 'assets/js/cau-noi.js' ) . '?ver='

@@ -305,7 +305,14 @@ class VHCC_Man {
 				. '</td><td>' . esc_html( $r['den_ngay'] ) . '</td></tr>';
 		}
 		echo '</tbody></table>';
-		echo '<p><em>Nguồn <code>may</code> = máy đẩy · <code>online</code> = điện thoại · '
+		/* 🔴 NÓI RÕ VỀ NHÃN `sheet`. Chấm công online của app gốc ghi vào ĐÚNG sheet CS_ đó
+		   (`chamCongOnline` gọi `_ghiGioVaoRa`, cùng hàm với lượt máy), nên lượt online CÓ trong
+		   số liệu kéo về — chỉ là không tách ra được: sheet không ghi lượt đó do máy hay do điện
+		   thoại tạo. Không nói ra thì nhìn bảng toàn `sheet` sẽ tưởng chấm công online bị mất. */
+		echo '<p><em>Nguồn <code>sheet</code> = kéo từ Google Sheet về. Trong đó CÓ CẢ lượt máy lẫn '
+			. 'lượt chấm công online — sheet không ghi lượt nào do máy, lượt nào do điện thoại, nên '
+			. 'không tách được. Từ khi máy đẩy thẳng về web thì mới tách: '
+			. '<code>may</code> = máy đẩy · <code>online</code> = điện thoại · '
 			. '<code>hon-hop</code> = ngày có cả hai. Phép đối chiếu với sheet chỉ đếm lượt của MÁY.</em></p>';
 
 		if ( '' === $coso ) { echo '</div>'; return; }
