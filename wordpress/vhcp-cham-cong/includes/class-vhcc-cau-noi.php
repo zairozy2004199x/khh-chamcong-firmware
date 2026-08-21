@@ -201,13 +201,24 @@ class VHCC_CauNoi {
 			   đọc câu nguyên văn sẽ đi đăng nhập lại wp-admin — việc chẳng liên quan gì.
 			   Câu duy nhất đúng là: PIN đó app gốc không nhận. */
 			if ( false !== stripos( $loi, 'Phiên đăng nhập không hợp lệ' ) ) {
-				$loi = 'App gốc không nhận PIN admin mà plugin gửi sang. Đó là hằng '
-					. '<code>VHCC_PIN_ADMIN</code> trong <code>wp-config.php</code> — nó phải bằng ĐÚNG một '
-					. 'PIN đang có trong sheet <code>PhanQuyen</code> của app gốc, vai trò Admin. '
-					. ( '' === VHCC_May::pin()
-						? 'Hiện plugin CHƯA khai PIN nào.'
-						: 'Plugin đang gửi một PIN dài ' . strlen( VHCC_May::pin() ) . ' ký tự.' )
-					. ' (Không liên quan gì tới việc đăng nhập wp-admin hay PIN trang chấm công.)';
+				/* ⚠️ VĂN BẢN TRƠN, không thẻ HTML. Chỗ hiện câu này dùng esc_html — đúng, vì
+				   chuỗi lỗi có thể mang nguyên văn lời của app gốc, mà lời đó không được tin.
+				   Bản đầu em nhét <code> vào đây nên màn hình in ra đúng chữ "<code>". */
+				$pin_ad = VHCC_May::pin();
+				$loi = 'App gốc không nhận PIN admin mà plugin gửi sang. Đó là hằng VHCC_PIN_ADMIN '
+					. 'trong wp-config.php — nó phải bằng ĐÚNG một PIN đang có trong sheet PhanQuyen '
+					. 'của app gốc, vai trò Admin. ';
+				if ( '' === $pin_ad ) {
+					$loi .= 'Hiện plugin CHƯA khai PIN nào.';
+				} else {
+					$loi .= 'Plugin đang gửi một PIN dài ' . strlen( $pin_ad ) . ' ký tự.';
+					/* PIN của app gốc luôn là ĐÚNG 6 chữ số (`pin_hop_le`). Dài khác 6 là chắc chắn
+					   sai — nói luôn, khỏi phải đi dò sheet mới biết. */
+					if ( ! preg_match( '/^\d{6}$/', $pin_ad ) ) {
+						$loi .= ' PIN của app gốc luôn là ĐÚNG 6 CHỮ SỐ, nên giá trị đang khai chắc chắn sai.';
+					}
+				}
+				$loi .= ' (Không liên quan gì tới việc đăng nhập wp-admin hay PIN trang chấm công.)';
 			}
 			return array( 'ok' => false, 'error' => $loi );
 		}

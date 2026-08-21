@@ -3491,6 +3491,29 @@ t( 'và nói rõ KHÔNG liên quan đăng nhập wp-admin (chống đi sai hư�
 	strpos( $kq['error'], 'Không liên quan' ) !== false );
 t( 'KHÔNG in PIN ra câu lỗi, chỉ nói độ dài',
 	strpos( $kq['error'], '888888' ) === false && strpos( $kq['error'], 'ký tự' ) !== false );
+/* 🔴 CÂU LỖI PHẢI LÀ VĂN BẢN TRƠN. Chỗ hiện nó dùng esc_html — đúng, vì chuỗi lỗi có thể mang
+   nguyên văn lời của app gốc. Nhét thẻ vào đây là màn hình in ra đúng chữ "<code>". Đã xảy ra. */
+t( 'câu lỗi không chứa thẻ HTML (chỗ hiện nó thoát HTML)',
+	strpos( $kq['error'], '<' ) === false, $kq['error'] );
+/* PIN app gốc luôn ĐÚNG 6 chữ số — dài khác 6 thì nói luôn là chắc chắn sai. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 200, 'body' => wp_json_encode(
+	array( 'ok' => false, 'error' => 'Phiên đăng nhập không hợp lệ, hãy đăng nhập lại.' ) ) ) );
+update_option( 'vhcc_pin_admin', '12345678' );          // 8 ký tự — chắc chắn sai
+$kq8 = VHCC_CauNoi::goi( 'getEmployees', array( '12345678' ) );
+t( 'PIN dài khác 6 thì nói thẳng là chắc chắn sai',
+	strpos( $kq8['error'], 'ĐÚNG 6 CHỮ SỐ' ) !== false, $kq8['error'] );
+update_option( 'vhcc_pin_admin', '123457' );            // 6 số — có thể đúng, đừng khẳng định sai
+$kq6 = VHCC_CauNoi::goi( 'getEmployees', array( '123457' ) );
+t( 'PIN đúng 6 số thì KHÔNG khẳng định sai (chỉ là app gốc không nhận)',
+	strpos( $kq6['error'], 'chắc chắn sai' ) === false, $kq6['error'] );
+delete_option( 'vhcc_pin_admin' );
+
+/* 🔴 Màn hình phải IN RA câu kết quả của lệnh, không nuốt thành "Đã lưu.".
+   Lệnh kéo trả về số liệu (thêm bao nhiêu, còn bao nhiêu cặp phải bấm tiếp) — nuốt mất là
+   người bấm không biết lệnh đã làm gì, mà đó là toàn bộ giá trị của nút đó. */
+$ad3 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+teq( 'cả hai chỗ hiện kết quả đều in thong_bao khi có', 2,
+	substr_count( $ad3, "! empty( \$b['thong_bao'] ) ? \$b['thong_bao'] : 'Đã lưu.'" ) );
 /* Lỗi khác thì giữ NGUYÊN VĂN — dịch bừa là che mất câu thật của app gốc. */
 $GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 200, 'body' => wp_json_encode(
 	array( 'ok' => false, 'error' => 'Không tìm thấy sheet chấm công cho cơ sở "XYZ".' ) ) ) );

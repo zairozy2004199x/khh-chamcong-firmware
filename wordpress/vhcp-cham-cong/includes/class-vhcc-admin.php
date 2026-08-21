@@ -220,8 +220,15 @@ class VHCC_Admin {
 
 		echo '<div class="wrap"><h1>Nhân sự</h1>';
 		foreach ( $bao as $b ) {
-			if ( ! empty( $b['ok'] ) ) { echo '<div class="notice notice-success"><p>Đã lưu.</p></div>'; }
-			else { echo '<div class="notice notice-error"><p>' . esc_html( $b['error'] ) . '</p></div>'; }
+			/* ⚠️ IN `thong_bao` NẾU CÓ. Bản đầu luôn in đúng chữ "Đã lưu." nên mọi con số của
+			   lệnh kéo — thêm bao nhiêu, còn bao nhiêu cặp phải bấm tiếp — đều rơi mất, mà đó
+			   đúng là thứ duy nhất cho biết lệnh đã làm gì. */
+			if ( ! empty( $b['ok'] ) ) {
+				echo '<div class="notice notice-success"><p>'
+					. esc_html( ! empty( $b['thong_bao'] ) ? $b['thong_bao'] : 'Đã lưu.' ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-error"><p>' . esc_html( $b['error'] ) . '</p></div>';
+			}
 		}
 
 		$coso_loc = isset( $_GET['coso'] ) ? sanitize_text_field( wp_unslash( $_GET['coso'] ) ) : '';
@@ -573,8 +580,15 @@ class VHCC_Admin {
 
 		echo '<div class="wrap"><h1>Phân lịch làm</h1>';
 		foreach ( $bao as $b ) {
-			if ( ! empty( $b['ok'] ) ) { echo '<div class="notice notice-success"><p>Đã lưu.</p></div>'; }
-			else { echo '<div class="notice notice-error"><p>' . esc_html( $b['error'] ) . '</p></div>'; }
+			/* ⚠️ IN `thong_bao` NẾU CÓ. Bản đầu luôn in đúng chữ "Đã lưu." nên mọi con số của
+			   lệnh kéo — thêm bao nhiêu, còn bao nhiêu cặp phải bấm tiếp — đều rơi mất, mà đó
+			   đúng là thứ duy nhất cho biết lệnh đã làm gì. */
+			if ( ! empty( $b['ok'] ) ) {
+				echo '<div class="notice notice-success"><p>'
+					. esc_html( ! empty( $b['thong_bao'] ) ? $b['thong_bao'] : 'Đã lưu.' ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-error"><p>' . esc_html( $b['error'] ) . '</p></div>';
+			}
 		}
 		echo '<p><em>Lịch là <strong>dự định</strong>, chấm công là <strong>thực tế</strong>. Xếp '
 			. 'lịch KHÔNG ghi gì vào bảng chấm công — nếu ghi thì bảng lương sẽ thấy những ngày có '
