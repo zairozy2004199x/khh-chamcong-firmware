@@ -986,6 +986,43 @@ class VHCP_Cfg {
 		) );
 	}
 
+	/**
+	 * THÊM LOẠI CHI PHÍ CÒN THIẾU VÀO DANH MỤC (chỉ tên, chưa có mã).
+	 *
+	 * Nạp dữ liệu cũ sinh ra tên loại chi phí lấy từ chính bảng tính ("Nhân Công",
+	 * "Vật tư Khánh Thảo"…). Nếu không đưa vào danh mục thì chúng KHÔNG hiện ở bảng ma
+	 * trận lẫn ô chọn lúc nhập — nghĩa là không có cách nào khai mã cho chúng, và nút
+	 * "Gán mã cho dòng cũ" cũng chẳng có gì để dò. Vào danh mục rồi thì khai mã như
+	 * bình thường.
+	 *
+	 * @return int số loại vừa thêm
+	 */
+	public static function them_loai_neu_thieu( $tens ) {
+		$k  = function ( $v ) { return mb_strtolower( trim( (string) $v ) ); };
+		$co = array();
+		$rows = array();
+		foreach ( self::read( self::LOAI ) as $r ) {
+			$row = array_slice( array_values( (array) $r ), 0, 8 );
+			for ( $i = count( $row ); $i < 8; $i++ ) { $row[ $i ] = ''; }
+			if ( trim( (string) $row[0] ) === '' ) { continue; }
+			$co[ $k( $row[0] ) ] = 1;
+			$rows[] = $row;
+		}
+		$them = 0;
+		foreach ( (array) $tens as $t ) {
+			$t = trim( (string) $t );
+			if ( $t === '' || isset( $co[ $k( $t ) ] ) ) { continue; }
+			$co[ $k( $t ) ] = 1;
+			$rows[] = array( $t, '', '', '', '', '(nạp từ dữ liệu cũ)', '', '' );
+			$them++;
+		}
+		if ( $them ) {
+			self::write( self::LOAI, $rows );
+			self::clear_cache();
+		}
+		return $them;
+	}
+
 	/** Tên dùng cho diễn giải MISA của 1 loại chi phí (để trống = dùng chính tên loại). */
 	public static function ten_misa_loai( $loai ) {
 		$t = self::loai_tk( $loai );

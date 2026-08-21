@@ -1508,9 +1508,11 @@ t( 'tab dự án khớp được từ điển sổ chi phí', empty( $k_vivo['lo
 t( 'số tiền lấy từ cột "Chi phí thực tế"', isset( $k_vivo['hd']['so_tien'] ) );
 t( 'lấy được dự toán', isset( $k_vivo['hd']['du_toan'] ) );
 t( 'lấy được hạng mục lớn', isset( $k_vivo['hd']['hang_muc'] ) );
-t( 'cơ sở lấy từ cột "Bộ phận / Gian"', isset( $k_vivo['hd']['coso'] ) );
+t( 'KHÔNG lấy "Bộ phận / Gian" làm cơ sở', ! isset( $k_vivo['hd']['coso'] ) );
+t( 'nhưng vẫn đọc được cột bộ phận', isset( $k_vivo['hd']['bo_phan'] ) );
 
-$r_vivo = VHCP_Import::run( 'TD_SoChi', $da_vivo, array( 'replace' => true, 'ma' => 'FUNFEST SC VIVO' ) );
+// Cột "Bộ phận / Gian" của tab dự án ghi tổ/thầu, KHÔNG phải cơ sở -> cơ sở truyền riêng
+$r_vivo = VHCP_Import::run( 'TD_SoChi', $da_vivo, array( 'replace' => true, 'ma' => 'FUNFEST SC VIVO', 'coso' => 'FUNFEST SC VIVO' ) );
 teq( 'nạp 4 dòng vào sổ chi phí', 4, $r_vivo['inserted'] );
 
 $sc = VHCP_SoChi::list_chi( array( 'maDuAn' => 'FUNFEST SC VIVO' ) );
@@ -1541,13 +1543,57 @@ teq( 'hạng mục lớn của dòng con', 'Vật tư Khánh Thảo', (string) $
 // Cùng loại chi phí -> ra mã theo mảng của cơ sở, dù dòng thuộc dự án
 $dong_mavt = null;
 foreach ( $sc['items'] as $x ) { if ( (string) $x['loai'] === 'Nhân Công' ) { $dong_mavt = $x; } }
-t( 'dòng dự án vẫn ăn mã tài khoản như dòng chi cơ sở', $dong_mavt === null || (string) $dong_mavt['tkNo'] === '' || (string) $dong_mavt['tkNo'] === '64121' );
+teq( 'dòng dự án ăn mã theo mảng của cơ sở', '64121', (string) $dong_mavt['tkNo'] );
+teq( 'bộ phận/gian không thành cơ sở mà vào ghi chú', 'FUNFEST SC VIVO', (string) $dong_mavt['coso'] );
+t( 'giữ lại thông tin tổ/thầu trong ghi chú', strpos( (string) $dong_nc['ghiChu'], '[Thầu]' ) === 0 );
 
 // Dòng không thuộc dự án nào thì lọc "(khong)" ra được
 VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FUNFEST SC VIVO', 'loai' => 'Nhân Công', 'noiDung' => 'Chi lẻ', 'soTien' => 111000, 'hinhThuc' => 'Tạm ứng NV' ), 'NV A' );
 $sc_khong = VHCP_SoChi::list_chi( array( 'maDuAn' => '(khong)' ) );
 teq( 'lọc dòng không thuộc dự án', 1, $sc_khong['soDong'] );
 teq( 'đúng dòng chi lẻ', 'Chi lẻ', (string) $sc_khong['items'][0]['noiDung'] );
+
+// Loại chi phí suy ra từ dữ liệu cũ phải VÀO DANH MỤC, không thì không có cách nào khai mã
+$dm_ten = array();
+foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $x ) { $dm_ten[ mb_strtolower( trim( $x['ten'] ) ) ] = 1; }
+t( 'loại "Nhân Công" đã vào danh mục', isset( $dm_ten['nhân công'] ) );
+t( 'loại "Vật tư Khánh Thảo" đã vào danh mục', isset( $dm_ten['vật tư khánh thảo'] ) );
+t( 'có báo số loại vừa thêm', isset( $r_vivo['themLoai'] ) );
+// Tên loại chưa từng có -> phải được thêm vào danh mục
+$csv_moi = "Nội dung hạng mục,Chi phí thực tế,Thuộc hạng mục lớn\nSơn nước,500.000,Hoàn thiện mới\n";
+$r_moi = VHCP_Import::run( 'TD_SoChi', $csv_moi, array( 'ma' => 'FUNFEST SC VIVO', 'coso' => 'FUNFEST SC VIVO' ) );
+teq( 'thêm loại chưa từng có vào danh mục', 1, (int) $r_moi['themLoai'] );
+t( 'loại mới có mặt trong danh mục', VHCP_Cfg::loai_tk( 'Hoàn thiện mới' ) !== null );
+
+// Nạp lại lần nữa không sinh loại trùng
+$r_lai = VHCP_Import::run( 'TD_SoChi', $da_vivo, array( 'replace' => true, 'ma' => 'FUNFEST SC VIVO', 'coso' => 'FUNFEST SC VIVO' ) );
+teq( 'nạp lại không thêm loại trùng', 0, (int) $r_lai['themLoai'] );
+$dem_nc = 0;
+foreach ( VHCP_Cfg::cfg_static()['loaiChiPhi'] as $x ) { if ( mb_strtolower( trim( $x['ten'] ) ) === 'nhân công' ) { $dem_nc++; } }
+teq( 'danh mục chỉ có 1 dòng "Nhân Công"', 1, $dem_nc );
+
+// Khai mã cho loại vừa sinh -> bấm gán mã là các dòng cũ ăn mã ngay
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Nhân Công', 'tkNo' => '64121', 'cosos' => array( 'FUNFEST SC VIVO' ) ) );
+$gm2 = VHCP_SoChi::gan_ma_tai_khoan( false );
+$sc2 = VHCP_SoChi::list_chi( array( 'maDuAn' => 'FUNFEST SC VIVO' ) );
+$ma_nc = '';
+foreach ( $sc2['items'] as $x ) { if ( (string) $x['noiDung'] === 'Dọn kho ngày 29/7' ) { $ma_nc = (string) $x['tkNo']; } }
+teq( 'khai mã xong bấm gán là dòng cũ ăn mã', '64121', $ma_nc );
+
+// Dò cơ sở từ tên tab dự án: khớp 1 thì lấy, khớp nhiều hoặc không khớp thì để trống
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'EVENT FARM NHA TRANG', 'maDonVi' => 'EV_FNT', 'phanLoaiLon' => 'FARM MN', 'tenMisa' => '' ),
+	array( 'ten' => 'FUNFEST SC VIVO', 'maDonVi' => 'FF_VIVO', 'phanLoaiLon' => 'FZ MN', 'tenMisa' => '' ),
+	array( 'ten' => 'SNOW NHÀ TUYẾT TÂN PHÚ', 'maDonVi' => 'SN_TP', 'phanLoaiLon' => 'EVENT SNOW MN', 'tenMisa' => '' ),
+	array( 'ten' => 'SNOW NHÀ TUYẾT BÌNH DƯƠNG', 'maDonVi' => 'SN_BD', 'phanLoaiLon' => 'EVENT SNOW MN', 'tenMisa' => '' ),
+) ) );
+$ct1 = VHCP_Sheet::coso_cua_tab( 'DA FARM NHA TRANG (2)' );
+teq( 'tên tab khớp đúng 1 cơ sở thì lấy', 'EVENT FARM NHA TRANG', $ct1['coso'] );
+$ct2 = VHCP_Sheet::coso_cua_tab( 'DA FUNFEST SC VIVO' );
+teq( 'khớp chính xác', 'FUNFEST SC VIVO', $ct2['coso'] );
+$ct3 = VHCP_Sheet::coso_cua_tab( 'DA Chi phí co so (chung)' );
+teq( 'không khớp cơ sở nào thì để trống', '', $ct3['coso'] );
+t( 'và nói rõ vì sao', strpos( $ct3['ghiChu'], 'không tìm được' ) === 0 );
 
 // Xuất MISA của dòng dự án: mã dự án phải nằm trong diễn giải
 $xm = VHCP_SoChi::export_misa( 'all', 'chuaxuat' );

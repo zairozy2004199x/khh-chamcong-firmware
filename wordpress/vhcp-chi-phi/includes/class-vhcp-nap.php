@@ -148,7 +148,11 @@ class VHCP_Nap {
 			// ---- sổ chi phí phẳng
 			'sochi' => array(
 				'ngay'      => array( 'Ngày' ),
-				'coso'      => array( 'Cơ sở', 'Gian/Cơ sở', 'Bộ phận / Gian', 'Gian' ),
+				// KHÔNG nhận "Bộ phận / Gian" làm cơ sở: ở tab dự án cột đó ghi tổ/thầu
+				// ("Thầu", "Kỹ Thuật", "Ngoài") chứ không phải cơ sở, mà cơ sở mới quyết định
+				// mảng kinh doanh -> quyết định TK Nợ. Nhận sai là mọi dòng đều mất mã.
+				'coso'      => array( 'Cơ sở', 'Gian/Cơ sở' ),
+				'bo_phan'   => array( 'Bộ phận / Gian', 'Bộ phận', 'Gian' ),
 				'loai'      => array( 'Loại chi phí', 'Loại', 'Nhóm mặt hàng' ),
 				'noi_dung'  => array( 'Nội dung hạng mục', 'Nội dung', 'Hạng mục' ),
 				'ma_du_an'  => array( 'Mã dự án', 'Mã công trình', 'Thuộc dự án', 'Mã DA' ),

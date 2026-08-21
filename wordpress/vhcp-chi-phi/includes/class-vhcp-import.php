@@ -104,7 +104,7 @@ class VHCP_Import {
 	 * Nạp một tab bằng cách KHỚP TÊN TIÊU ĐỀ. Trả về báo cáo gồm cả cột app bỏ qua,
 	 * để không có dữ liệu nào âm thầm biến mất.
 	 */
-	private static function nap_theo_tieu_de( $bang, $rows, $replace, $ma_chon ) {
+	private static function nap_theo_tieu_de( $bang, $rows, $replace, $ma_chon, $coso_mac_dinh = '' ) {
 		global $wpdb;
 		$k = VHCP_Nap::khop( $bang, $rows );
 		if ( ! empty( $k['loi'] ) ) { return VHCP_Util::err( $k['loi'] ); }
@@ -372,24 +372,25 @@ class VHCP_Import {
 					$hm = $o( $r, 'hang_muc' );
 					if ( $hm !== '' ) { $la_hang_muc[ mb_strtolower( $hm ) ] = 1; }
 				}
-				$dong_tong = 0; $loai_suy_ra = 0;
+				$dong_tong = 0; $loai_suy_ra = 0; $loai_moi = array();
 
 				foreach ( $k['rows'] as $r ) {
 					$loai = $o( $r, 'loai' );
 					$nd   = $o( $r, 'noi_dung' );
-					if ( $loai === '' && $nd === '' ) { $skipped++; continue; }
+					if ( $loai === '' && $nd === '' ) { continue; }
 					// File không có cột "Loại chi phí" (tab dự án) -> lấy HẠNG MỤC LỚN làm loại,
 					// dòng hạng mục thì lấy chính tên nó. Đúng cách gom của bảng tính cũ.
 					if ( $loai === '' ) {
 						$loai = $o( $r, 'hang_muc' ) !== '' ? $o( $r, 'hang_muc' ) : $nd;
 						if ( $loai !== '' ) { $loai_suy_ra++; }
 					}
+					if ( $loai !== '' ) { $loai_moi[ $loai ] = 1; }
 					// Dòng của một dự án: mã dự án lấy từ cột trong file, không có thì lấy
 					// mã chọn ở ô "Dự án / Đợt nhận dòng" (bộ đọc Sheet truyền tên tab vào đây).
 					$mda = $o( $r, 'ma_du_an' ) !== '' ? $o( $r, 'ma_du_an' ) : $ma_chon;
 					$res = VHCP_SoChi::add( array(
 						'ngay'     => $o( $r, 'ngay' ),
-						'coso'     => $o( $r, 'coso' ),
+						'coso'     => ( $o( $r, 'coso' ) !== '' ? $o( $r, 'coso' ) : $coso_mac_dinh ),
 						'loai'     => $loai,
 						'noiDung'  => $nd,
 						'dvt'      => $o( $r, 'dvt' ),
@@ -400,7 +401,8 @@ class VHCP_Import {
 						'thueSuat' => self::n( $o( $r, 'thue_suat' ) ),
 						'vat'      => $o( $r, 'vat' ),
 						'doiTuong' => $o( $r, 'doi_tuong' ),
-						'ghiChu'   => $o( $r, 'ghi_chu' ),
+						// "Bộ phận / Gian" không phải cơ sở nên gộp vào ghi chú, không bỏ mất
+						'ghiChu'   => trim( ( $o( $r, 'bo_phan' ) !== '' ? '[' . $o( $r, 'bo_phan' ) . '] ' : '' ) . $o( $r, 'ghi_chu' ) ),
 						'anh'      => $o( $r, 'anh' ),
 						'maDuAn'   => $mda,
 						'hangMuc'  => $o( $r, 'hang_muc' ),
@@ -412,6 +414,8 @@ class VHCP_Import {
 					if ( isset( $la_hang_muc[ mb_strtolower( $nd ) ] ) ) { $dong_tong++; }
 					$n++;
 				}
+				// Đưa các tên loại vừa gặp vào danh mục để còn khai mã được cho chúng
+				$them_loai = VHCP_Cfg::them_loai_neu_thieu( array_keys( $loai_moi ) );
 				break;
 
 			default:
@@ -424,6 +428,7 @@ class VHCP_Import {
 			'thieuMa'    => $thieu_ma,
 			'dongTong'   => isset( $dong_tong ) ? $dong_tong : 0,
 			'loaiSuyRa'  => isset( $loai_suy_ra ) ? $loai_suy_ra : 0,
+			'themLoai'   => isset( $them_loai ) ? $them_loai : 0,
 			'dongTieuDe' => $k['dongTieuDe'],
 			'cotDung'    => array_keys( $hd ),
 			'cotThieu'   => $k['thieu'],
@@ -569,7 +574,8 @@ class VHCP_Import {
 
 		// ---- TỰ DÒ THEO TÊN TIÊU ĐỀ
 		if ( ! empty( $types[ $type ]['td'] ) ) {
-			return self::nap_theo_tieu_de( $types[ $type ]['td'], $rows_goc, $replace, $ma );
+			$cs_md = isset( $opts['coso'] ) ? trim( (string) $opts['coso'] ) : '';
+			return self::nap_theo_tieu_de( $types[ $type ]['td'], $rows_goc, $replace, $ma, $cs_md );
 		}
 
 		// ---- các bảng cấu hình CH_* : ghi thẳng dạng hàng JSON

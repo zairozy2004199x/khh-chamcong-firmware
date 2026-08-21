@@ -284,6 +284,8 @@ class VHCP_Sheet {
 						$mo['ketQua']   = 'sẽ nạp ' . count( $k['rows'] ) . ' dòng vào ' . self::ten_loai( $loai );
 						if ( self::la_tab_du_an( $v['tab'] ) ) {
 							$mo['ketQua'] .= ' · mã dự án "' . self::ma_du_an_tu_ten_tab( $v['tab'] ) . '" gắn vào từng dòng';
+							$ct = self::coso_cua_tab( $v['tab'] );
+							if ( $ct['ghiChu'] !== '' ) { $mo['ketQua'] .= ' · ' . $ct['ghiChu']; }
 						}
 						$mo['cotThieu'] = $k['thieu'];
 						$mo['cotLa']    = $k['la'];
@@ -313,8 +315,14 @@ class VHCP_Sheet {
 				self::tao_dot_con_thieu( $v['rows'], $tao );
 			}
 
+			$cs_tab = array( 'coso' => '', 'ghiChu' => '' );
+			if ( self::la_tab_du_an( $v['tab'] ) ) {
+				$cs_tab = self::coso_cua_tab( $v['tab'] );
+				if ( $cs_tab['ghiChu'] !== '' ) { $mo['coSo'] = $cs_tab['ghiChu']; }
+			}
 			$res = VHCP_Import::run( $loai, $v['csv'], array(
 				'ma'      => $ma_chon,
+				'coso'    => $cs_tab['coso'],
 				'replace' => ! empty( $opts['replace'] ),
 				'header'  => true,
 			) );
@@ -330,7 +338,12 @@ class VHCP_Sheet {
 			$mo['cotThieu'] = isset( $res['cotThieu'] ) ? $res['cotThieu'] : array();
 			$mo['cotLa']    = isset( $res['cotLa'] ) ? $res['cotLa'] : array();
 			$mo['moCoi']    = isset( $res['chuaCoCha'] ) ? $res['chuaCoCha'] : array();
+			if ( ! empty( $res['themLoai'] ) ) { $mo['ketQua_them'] = (int) $res['themLoai']; }
+			if ( ! empty( $res['dongTong'] ) ) { $mo['dongTong'] = (int) $res['dongTong']; }
 			$mo['ketQua']   = 'nạp ' . $mo['napDuoc'] . ' dòng vào ' . self::ten_loai( $loai );
+			if ( ! empty( $mo['dongTong'] ) ) { $mo['ketQua'] .= ' · ' . (int) $mo['dongTong'] . ' dòng tổng hợp đưa về 0 để không đếm hai lần'; }
+			if ( ! empty( $mo['ketQua_them'] ) ) { $mo['ketQua'] .= ' · thêm ' . (int) $mo['ketQua_them'] . ' loại chi phí vào danh mục'; }
+			if ( ! empty( $mo['coSo'] ) ) { $mo['ketQua'] .= ' · ' . $mo['coSo']; }
 			$tong          += $mo['napDuoc'];
 			$tong_bo       += $mo['boQua'];
 			$tong_thieu_ma += $mo['thieuMa'];
@@ -347,6 +360,33 @@ class VHCP_Sheet {
 			'thieuMa'  => $tong_thieu_ma,
 			'tuTao'    => array_values( $tao ),
 		) );
+	}
+
+	/**
+	 * CƠ SỞ CỦA MỘT TAB DỰ ÁN, dò từ tên tab.
+	 *
+	 * Dòng chi trong tab dự án phần lớn để trống cột cơ sở, mà không có cơ sở thì không
+	 * biết mảng kinh doanh nào -> không ra TK Nợ. Tên tab lại chính là nơi làm dự án
+	 * ("DA FARM NHA TRANG"), nên đối chiếu với danh sách cơ sở: khớp được thì lấy, khớp
+	 * nhiều hoặc không khớp thì để trống và báo lại — không đoán bừa.
+	 *
+	 * @return array [coso, ghiChu]
+	 */
+	public static function coso_cua_tab( $ten_tab ) {
+		$m = self::ma_du_an_tu_ten_tab( $ten_tab );
+		// Bỏ đuôi "(2)" do nhân bản tab — nó không thuộc tên cơ sở. Mã dự án vẫn giữ
+		// nguyên cả đuôi để còn truy được về đúng tab.
+		$k = VHCP_Nap::kh( preg_replace( '/\s*\(\d+\)\s*$/', '', $m ) );
+		if ( $k === '' ) { return array( 'coso' => '', 'ghiChu' => '' ); }
+		$hit = array();
+		foreach ( VHCP_Cfg::cfg_static()['coso'] as $x ) {
+			$c = VHCP_Nap::kh( $x['ten'] );
+			if ( $c === '' ) { continue; }
+			if ( $c === $k || strpos( $c, $k ) !== false || strpos( $k, $c ) !== false ) { $hit[] = (string) $x['ten']; }
+		}
+		if ( count( $hit ) === 1 ) { return array( 'coso' => $hit[0], 'ghiChu' => 'cơ sở "' . $hit[0] . '" (dò từ tên tab)' ); }
+		if ( count( $hit ) > 1 ) { return array( 'coso' => '', 'ghiChu' => 'tên tab khớp ' . count( $hit ) . ' cơ sở (' . implode( ' · ', $hit ) . ') → không đoán, dòng sẽ chưa có mã' ); }
+		return array( 'coso' => '', 'ghiChu' => 'không tìm được cơ sở nào tên giống "' . $m . '" → dòng sẽ chưa có mã' );
 	}
 
 	/** Tab này có phải tab của một dự án không (tên bắt đầu bằng "DA ")? */
