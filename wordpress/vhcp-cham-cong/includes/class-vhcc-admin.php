@@ -1202,6 +1202,60 @@ class VHCC_Admin {
 				}
 				echo '<p>Đang đọc được <b>' . count( $u ) . '</b> người, trong đó <b>' . $duoc
 					. '</b> người vào được hệ thống chấm công (' . esc_html( implode( ' · ', $duoc_vao ) ) . ').</p>';
+
+				/* AI VÀO ĐƯỢC, VÀ PIN DÀI MẤY SỐ.
+				 *
+				 * 🔴 Vì sao cần: gõ PIN bị chối thì màn đăng nhập chỉ nói "PIN không đúng hoặc chưa
+				 *    được cấp" — đúng nhưng vô dụng, vì không biết PIN nào mới đúng. Bảng này trả lời
+				 *    được câu đó mà KHÔNG in PIN ra: chỉ tên, vai trò và SỐ CHỮ SỐ. Biết PIN dài 6 số
+				 *    là đủ để loại ngay chuyện gõ 4 số.
+				 *
+				 * ⚠️ TUYỆT ĐỐI không in PIN. Đây là màn quản trị nhưng ảnh màn hình thì đi khắp nơi —
+				 *    đã mất một khoá cầu nối đúng vì một ảnh gửi qua chat.
+				 *
+				 * Và bắt luôn cái bẫy hay gặp nhất: PIN có số 0 ở đầu. Google Sheets coi `0123` là
+				 * SỐ nên lưu thành `123` — ba chữ số, dưới ngưỡng 4–8, nên không bao giờ đăng nhập
+				 * được, mà nhìn bảng cấu hình thì vẫn thấy "có PIN".
+				 */
+				$pin_hong = array();
+				$hang_vao = array();
+				foreach ( $u as $x ) {
+					$pin = (string) $x['pin'];
+					if ( $pin === '' || ! preg_match( '/^\d{4,8}$/', $pin ) ) {
+						$pin_hong[] = array( 'ten' => $x['ten'], 'vt' => $x['vaiTro'],
+							'vi' => ( $pin === '' ? 'chưa có PIN' : strlen( $pin ) . ' ký tự, không phải 4–8 chữ số' ) );
+					}
+					if ( in_array( $x['vaiTro'], $duoc_vao, true ) ) { $hang_vao[] = $x; }
+				}
+
+				if ( $hang_vao ) {
+					echo '<table class="widefat striped" style="max-width:620px;margin:8px 0"><thead><tr>'
+						. '<th>Vào được</th><th>Vai trò</th><th>Cơ sở</th><th>PIN dài</th></tr></thead><tbody>';
+					foreach ( $hang_vao as $x ) {
+						$pin = (string) $x['pin'];
+						$dai = ( $pin === '' ) ? '<span style="color:#b32d2e">chưa có</span>'
+							: ( preg_match( '/^\d{4,8}$/', $pin )
+								? strlen( $pin ) . ' số'
+								: '<span style="color:#b32d2e">' . strlen( $pin ) . ' ký tự — không dùng được</span>' );
+						echo '<tr><td><b>' . esc_html( $x['ten'] ) . '</b></td><td>' . esc_html( $x['vaiTro'] )
+							. '</td><td>' . esc_html( $x['coso'] ) . '</td><td>' . wp_kses_post( $dai ) . '</td></tr>';
+					}
+					echo '</tbody></table>';
+					echo '<p class="description">Bảng này KHÔNG in PIN — chỉ số chữ số, đủ để biết mình '
+						. 'đang gõ thiếu hay thừa. Sửa PIN ở tab ⚙️ Cấu hình của app chi phí.</p>';
+				}
+
+				if ( $pin_hong ) {
+					echo '<div class="notice notice-warning inline" style="margin:8px 0"><p><b>'
+						. count( $pin_hong ) . ' người có PIN KHÔNG DÙNG ĐƯỢC</b> (phải là 4–8 chữ số):</p><ul style="margin-left:18px;list-style:disc">';
+					foreach ( $pin_hong as $x ) {
+						echo '<li>' . esc_html( $x['ten'] ) . ' (' . esc_html( $x['vt'] ) . ') — '
+							. esc_html( $x['vi'] ) . '</li>';
+					}
+					echo '</ul><p>Hay gặp nhất: <b>PIN có số 0 ở đầu</b>. Google Sheets coi <code>0123</code> '
+						. 'là số nên lưu thành <code>123</code> — ba chữ số, không bao giờ đăng nhập được. '
+						. 'Cách chữa: đặt PIN không bắt đầu bằng 0, hoặc định dạng ô đó thành Văn bản.</p></div>';
+				}
 			}
 		}
 		echo '</td></tr>';

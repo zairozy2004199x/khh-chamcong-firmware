@@ -3210,6 +3210,64 @@ t( 'thiếu file .gs thì nói "BẢN CÀI THIẾU FILE", không nói CC_CHO_PHE
 t( 'và nói rõ không phải người dùng làm sai', strpos( $tr2, 'KHÔNG phải anh làm' ) !== false );
 t( 'vẫn giữ câu cho ca thật sự rỗng', strpos( $tr2, 'CC_CHO_PHEP' ) !== false );
 
+// ============================== 38. MÀN CÀI ĐẶT PHẢI TRẢ LỜI ĐƯỢC "GÕ PIN NÀO"
+/* Màn đăng nhập chỉ nói "PIN không đúng hoặc chưa được cấp" — đúng nhưng vô dụng, vì không
+   biết PIN nào mới đúng. Màn Cài đặt phải nói được: ai vào được, và PIN dài mấy số.
+   ⚠️ KHÔNG được in PIN. Ảnh màn hình đi khắp nơi — đã mất một khoá cầu nối đúng vì một ảnh. */
+vhcc_dung_bang();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+global $wpdb;
+$bang_cfg = $wpdb->prefix . 'vhcp_cfg';
+$wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
+$nguoi = array(
+	array( 'Bà Kế Toán',   '654321', 'Kế toán cá nhân', 'TUTU_BT' ),   // PIN 6 số, vào được
+	array( 'Anh Quản Lý',  '12345678', 'Quản lý',       '' ),          // PIN 8 số, vào được
+	array( 'Chị Số Không', '123',     'Kế toán NCC',    'TUTU_BT' ),   // 0123 bị Sheets xén -> 3 số
+	array( 'Em Nhân Viên', '4321',    'Nhân viên',      'TUTU_BT' ),   // đúng khuôn nhưng không đủ quyền
+	array( 'Bác Chưa Cấp', '',        'Quản lý',        '' ),          // chưa có PIN
+);
+$stt = 0;
+foreach ( $nguoi as $x ) {
+	$wpdb->insert( $bang_cfg, array( 'bang' => 'CH_NguoiDung', 'stt' => ++$stt,
+		'cols' => wp_json_encode( $x ) ) );
+}
+
+ob_start(); VHCC_Admin::page(); $h_cd = ob_get_clean();
+
+t( 'liệt kê người VÀO ĐƯỢC', strpos( $h_cd, 'Bà Kế Toán' ) !== false
+	&& strpos( $h_cd, 'Anh Quản Lý' ) !== false );
+t( 'KHÔNG liệt kê người không đủ quyền vào bảng đó',
+	strpos( $h_cd, 'Em Nhân Viên' ) === false );
+t( 'nói PIN dài mấy số', strpos( $h_cd, '6 số' ) !== false && strpos( $h_cd, '8 số' ) !== false );
+
+/* 🔴 Phép thử quan trọng nhất của mục này: TUYỆT ĐỐI không in PIN ra màn hình. */
+foreach ( array( '654321', '12345678', '4321' ) as $pin_that ) {
+	t( "màn Cài đặt KHÔNG in PIN $pin_that ra", strpos( $h_cd, $pin_that ) === false );
+}
+
+t( 'bắt được PIN bị xén còn 3 số (số 0 ở đầu)',
+	strpos( $h_cd, 'Chị Số Không' ) !== false && strpos( $h_cd, 'KHÔNG DÙNG ĐƯỢC' ) !== false );
+t( 'và giải thích đúng cái bẫy Google Sheets xén số 0',
+	strpos( $h_cd, 'số 0 ở đầu' ) !== false && strpos( $h_cd, 'Văn bản' ) !== false );
+t( 'bắt được người CHƯA CÓ PIN', strpos( $h_cd, 'Bác Chưa Cấp' ) !== false
+	&& strpos( $h_cd, 'chưa có PIN' ) !== false );
+
+/* Và cổng đăng nhập thật phải hành xử đúng y như bảng nói. */
+$kq = VHCC_Auth::login( '654321' );
+t( 'PIN 6 số của Kế toán: vào được', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '123' );
+t( 'PIN bị xén còn 3 số: bị chối vì sai khuôn',
+	empty( $kq['ok'] ) && strpos( $kq['error'], '4–8' ) !== false, $kq );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '4321' );
+t( 'PIN của Nhân viên: chối vì KHÔNG ĐỦ QUYỀN, không nói "PIN sai"',
+	empty( $kq['ok'] ) && strpos( $kq['error'], 'không được xem' ) !== false, $kq );
+VHCC_Auth::mo_khoa();
+
+$wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
