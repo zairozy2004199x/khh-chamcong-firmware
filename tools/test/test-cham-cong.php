@@ -3097,6 +3097,68 @@ $GLOBALS['VHCP_HTTP'] = array();
 delete_option( 'vhcc_exec_mien' );
 update_option( 'vhcc_exec_url', 'https://script.google.com/macros/s/' . $ID . '/exec' );
 
+// ================================== 36. CHUYỂN HƯỚNG CỦA APPS SCRIPT — POST rồi phải GET
+/* 🔴 CA THẬT, tốn cả buổi. `GET` vào /exec trả 200 kèm 570 KB giao diện, mà `POST` trả
+   `400 Bad Request`. Cùng địa chỉ, khác phương thức. Nguyên nhân: Apps Script trả 302 sang
+   `script.googleusercontent.com/macros/echo?...` — địa chỉ LẤY KẾT QUẢ, chỉ nhận GET. Trình
+   duyệt và cURL hạ POST xuống GET khi gặp 302; WordPress thì ĐI THEO MÀ GIỮ NGUYÊN POST, nên
+   Google chối. Vậy cầu nối phải tự đi theo chuyển hướng. */
+update_option( 'vhcc_exec_url', 'https://script.google.com/macros/s/' . $ID . '/exec' );
+update_option( 'vhcc_web_key', 'khoa-cau-noi-thu' );
+
+$DICH = 'https://script.googleusercontent.com/macros/echo?user_content_key=abc123';
+$GLOBALS['VHD_DA_GUI'] = array();
+$GLOBALS['VHD_POST'] = array(
+	'/macros/s/' => array( 'code' => 302, 'headers' => array( 'Location' => $DICH ), 'body' => '' ),
+	/* Nếu cầu nối POST sang địa chỉ lấy kết quả thì Google chối — mô phỏng đúng thế. */
+	'googleusercontent.com' => array( 'code' => 400, 'body' => 'Error 400 (Bad Request)!!1' ),
+);
+$GLOBALS['VHCP_HTTP'] = array(
+	'googleusercontent.com' => array( 'code' => 200, 'body' => '{"ok":true,"data":{"soHam":23}}' ),
+);
+$kq = VHCC_CauNoi::goi( '__ping' );
+t( 'gặp 302 thì tự GET sang Location và đọc được kết quả',
+	! empty( $kq['ok'] ) && isset( $kq['data']['soHam'] ) && 23 === $kq['data']['soHam'], $kq );
+t( 'POST đi với redirection = 0 (không nhờ WordPress đi theo)',
+	isset( $GLOBALS['VHD_DA_GUI'][0]['redirection'] ) && 0 === $GLOBALS['VHD_DA_GUI'][0]['redirection'],
+	isset( $GLOBALS['VHD_DA_GUI'][0]['redirection'] ) ? $GLOBALS['VHD_DA_GUI'][0]['redirection'] : 'không ghi' );
+teq( 'chỉ POST ĐÚNG MỘT LẦN — không POST lại vào địa chỉ lấy kết quả',
+	1, count( $GLOBALS['VHD_DA_GUI'] ) );
+
+/* 307/308 thì theo chuẩn HTTP là GIỮ POST. Apps Script không dùng, nhưng viết đúng thì rẻ. */
+$GLOBALS['VHD_DA_GUI'] = array();
+$GLOBALS['VHD_POST'] = array(
+	'/macros/s/'            => array( 'code' => 307, 'headers' => array( 'Location' => $DICH ), 'body' => '' ),
+	'googleusercontent.com' => array( 'code' => 200, 'body' => '{"ok":true,"data":"giu-post"}' ),
+);
+$GLOBALS['VHCP_HTTP'] = array();
+$kq = VHCC_CauNoi::goi( '__ping' );
+teq( '307 thì GIỮ POST (không hạ xuống GET)', 'giu-post', isset( $kq['data'] ) ? $kq['data'] : null );
+teq( 'và đúng là đã POST hai lần', 2, count( $GLOBALS['VHD_DA_GUI'] ) );
+
+/* Chuyển hướng mà không có Location thì dừng, đừng lặp vô hạn. */
+$GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 302, 'body' => 'khong co Location' ) );
+$GLOBALS['VHCP_HTTP'] = array();
+$kq = VHCC_CauNoi::goi( '__ping' );
+t( '302 mà thiếu Location thì dừng và báo lỗi, không treo', empty( $kq['ok'] ) );
+
+/* Vòng chuyển hướng phải có trần. */
+$GLOBALS['VHD_POST'] = array(
+	'/macros/s/'            => array( 'code' => 302, 'headers' => array( 'Location' => $DICH ), 'body' => '' ),
+);
+$GLOBALS['VHCP_HTTP'] = array(
+	'googleusercontent.com' => array( 'code' => 302, 'headers' => array( 'Location' => $DICH ), 'body' => '' ),
+);
+$GLOBALS['VHCP_DA_GET'] = array();
+$kq = VHCC_CauNoi::goi( '__ping' );
+t( 'chuyển hướng lòng vòng thì dừng và báo lỗi', empty( $kq['ok'] ) );
+/* Phải đo SỐ LƯỢT, không chỉ đòi "có dừng": 100.000 vòng thì cũng dừng. Phép phá bỏ trần
+   không bị bắt cho tới khi thêm phép đếm này. */
+t( 'và dừng trong vài lượt, không phải vài vạn lượt',
+	count( $GLOBALS['VHCP_DA_GET'] ) <= 6, count( $GLOBALS['VHCP_DA_GET'] ) . ' lượt GET' );
+
+$GLOBALS['VHD_POST'] = array(); $GLOBALS['VHCP_HTTP'] = array(); $GLOBALS['VHD_DA_GUI'] = array();
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

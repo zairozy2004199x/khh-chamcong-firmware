@@ -123,22 +123,53 @@ class VHCC_CauNoi {
 			return array( 'ok' => false, 'error' => 'Chưa có khoá cầu nối. Vào Cài đặt → Hệ thống chấm công để sinh khoá.' );
 		}
 
-		$r = wp_remote_post( $url, array(
-			'timeout'     => self::TIMEOUT,
-			'redirection' => 5,   // Apps Script luôn chuyển hướng sang googleusercontent.com
-			'headers'     => array( 'Content-Type' => 'text/plain;charset=UTF-8' ),
-			'body'        => wp_json_encode( array(
-				'key'  => $khoa,
-				'fn'   => (string) $fn,
-				'args' => array_values( (array) $args ),
-			) ),
+		/* 🔴 TỰ ĐI THEO CHUYỂN HƯỚNG, KHÔNG NHỜ WordPress — chỗ này đã tốn cả buổi.
+		 *
+		 * Apps Script trả 302 sang `script.googleusercontent.com/macros/echo?...`. Địa chỉ đó
+		 * chỉ nhận GET: nó là chỗ LẤY KẾT QUẢ, script đã chạy xong rồi. Để `redirection => 5`
+		 * thì WordPress đi theo mà GIỮ NGUYÊN phương thức POST, nên Google chối bằng
+		 * `400 Bad Request` — đúng cái lỗi anh Thắng gặp: `GET` vào /exec thì 200 và trả về
+		 * 570 KB giao diện, mà `POST` thì 400. Cùng một địa chỉ, khác phương thức.
+		 *
+		 * Trình duyệt và cURL hạ POST xuống GET khi gặp 302; WordPress thì không. Nên tự làm:
+		 * POST với `redirection => 0`, lấy `Location`, rồi GET sang đó.
+		 *
+		 * Firmware cũng phải làm đúng việc này (`HTTPC_DISABLE_FOLLOW_REDIRECTS` rồi GET tay,
+		 * xem esp32_hik_chamcong_full.ino) — cùng một nguyên nhân, ở hai nơi khác nhau.
+		 *
+		 * 307/308 thì giữ POST theo đúng chuẩn HTTP; Apps Script không dùng hai mã đó nhưng
+		 * viết cho đúng vẫn rẻ hơn là sau này gặp rồi ngồi đoán lần nữa.
+		 */
+		$than = wp_json_encode( array(
+			'key'  => $khoa,
+			'fn'   => (string) $fn,
+			'args' => array_values( (array) $args ),
 		) );
+		$dat_post = array(
+			'timeout'     => self::TIMEOUT,
+			'redirection' => 0,
+			'headers'     => array( 'Content-Type' => 'text/plain;charset=UTF-8' ),
+			'body'        => $than,
+		);
 
+		$r = wp_remote_post( $url, $dat_post );
 		if ( is_wp_error( $r ) ) {
 			return array( 'ok' => false, 'error' => 'Không gọi được app chấm công: ' . $r->get_error_message() );
 		}
 
 		$code = (int) wp_remote_retrieve_response_code( $r );
+		for ( $i = 0; $i < 5 && in_array( $code, array( 301, 302, 303, 307, 308 ), true ); $i++ ) {
+			$dich = trim( (string) wp_remote_retrieve_header( $r, 'location' ) );
+			if ( $dich === '' ) { break; }
+			$r = ( 307 === $code || 308 === $code )
+				? wp_remote_post( $dich, $dat_post )
+				: wp_remote_get( $dich, array( 'timeout' => self::TIMEOUT, 'redirection' => 0 ) );
+			if ( is_wp_error( $r ) ) {
+				return array( 'ok' => false, 'error' => 'Không lấy được kết quả từ app chấm công: '
+					. $r->get_error_message() );
+			}
+			$code = (int) wp_remote_retrieve_response_code( $r );
+		}
 		$body = (string) wp_remote_retrieve_body( $r );
 
 		// Apps Script trả trang HTML khi deploy sai quyền hoặc URL sai — nói rõ chứ đừng để

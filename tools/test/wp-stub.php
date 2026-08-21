@@ -141,7 +141,12 @@ class VHCP_Test_WP_Error {
 	public function __construct( $m ) { $this->msg = $m; }
 	public function get_error_message() { return $this->msg; }
 }
+$GLOBALS['VHCP_DA_GET'] = array();
 function wp_remote_get( $url, $args = array() ) {
+	/* Ghi lại lượt GET: có nó thì phép thử đếm được SỐ LƯỢT gọi, nhờ vậy "trần vòng chuyển
+	   hướng" mới kiểm được. Bản đầu chỉ đòi "có dừng" — mà 100.000 vòng thì cũng dừng, nên
+	   phép phá bỏ trần không bị bắt. */
+	$GLOBALS['VHCP_DA_GET'][] = $url;
 	foreach ( $GLOBALS['VHCP_HTTP'] as $k => $v ) {
 		if ( strpos( $url, $k ) !== false ) {
 			return is_array( $v ) ? $v : array( 'code' => 200, 'body' => (string) $v );
@@ -157,7 +162,13 @@ function wp_remote_get( $url, $args = array() ) {
 $GLOBALS['VHD_POST']   = array();
 $GLOBALS['VHD_DA_GUI'] = array();
 function wp_remote_post( $url, $args = array() ) {
-	$GLOBALS['VHD_DA_GUI'][] = array( 'url' => $url, 'body' => isset( $args['body'] ) ? $args['body'] : '' );
+	/* Ghi lại CẢ `redirection`: cầu nối phải POST với redirection=0 rồi tự GET sang Location.
+	   Không ghi lại thì không phép thử nào chứng minh được nó làm đúng chuyện đó. */
+	$GLOBALS['VHD_DA_GUI'][] = array(
+		'url'         => $url,
+		'body'        => isset( $args['body'] ) ? $args['body'] : '',
+		'redirection' => isset( $args['redirection'] ) ? $args['redirection'] : null,
+	);
 	foreach ( $GLOBALS['VHD_POST'] as $k => $v ) {
 		if ( strpos( $url, $k ) !== false ) {
 			if ( is_callable( $v ) ) { $v = call_user_func( $v, $args ); }
@@ -176,6 +187,15 @@ class WP_Error {
 	public function get_error_code() { return $this->code; }
 }
 function wp_remote_retrieve_response_code( $r ) { return isset( $r['code'] ) ? (int) $r['code'] : 200; }
+/** Header của phản hồi giả — khoá viết thường, giống WordPress thật. */
+function wp_remote_retrieve_header( $r, $ten ) {
+	$ten = strtolower( (string) $ten );
+	if ( ! isset( $r['headers'] ) || ! is_array( $r['headers'] ) ) { return ''; }
+	foreach ( $r['headers'] as $k => $v ) {
+		if ( strtolower( (string) $k ) === $ten ) { return $v; }
+	}
+	return '';
+}
 function wp_remote_retrieve_body( $r ) { return isset( $r['body'] ) ? (string) $r['body'] : ''; }
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
