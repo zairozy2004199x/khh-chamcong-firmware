@@ -19,7 +19,28 @@ class VHCC_CauNoi {
 	/** Lệnh nào cũng có thể chạy lâu: bóc tách 1 file PDF bằng AI mất 1–3 phút. */
 	const TIMEOUT = 300;
 
-	public static function url()  { return trim( (string) get_option( 'vhcc_exec_url', '' ) ); }
+	/**
+	 * Địa chỉ /exec — TỰ CHỮA nếu trong cơ sở dữ liệu đang là dạng gọi không được.
+	 *
+	 * 🔴 Bản đầu chỉ chuẩn hoá lúc BẤM LƯU. Sai: địa chỉ dạng `/a/macros/<tên miền>/` đã nằm
+	 *    trong cơ sở dữ liệu từ trước rồi, nên trang chấm công vẫn gọi bằng địa chỉ hỏng và
+	 *    vẫn báo `400 Bad Request` — cho tới khi có người tình cờ bấm Lưu. Mà người đọc trang
+	 *    lỗi thì không có lý do gì để đi bấm Lưu một biểu mẫu họ không sửa gì.
+	 *    Việc sửa được bằng máy thì đừng bắt người phải bấm.
+	 *
+	 * Ghi lại luôn giá trị đã sửa (nhiều nhất một lần) để màn Cài đặt hiện đúng cái đang dùng —
+	 * chứ không phải chỗ này gọi một địa chỉ mà màn hình khoe một địa chỉ khác.
+	 */
+	public static function url() {
+		$tho = trim( (string) get_option( 'vhcc_exec_url', '' ) );
+		if ( $tho === '' ) { return ''; }
+		$ch = self::chuan_hoa_url( $tho );
+		if ( $ch['url'] !== $tho ) { update_option( 'vhcc_exec_url', $ch['url'] ); }
+		return $ch['url'];
+	}
+
+	/** Giá trị THÔ đang nằm trong cơ sở dữ liệu — chỉ dùng để chẩn đoán, đừng gọi bằng nó. */
+	public static function url_tho() { return trim( (string) get_option( 'vhcc_exec_url', '' ) ); }
 
 	/**
 	 * CHUẨN HOÁ địa chỉ /exec, và nói rõ đã sửa gì.

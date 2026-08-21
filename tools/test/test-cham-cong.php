@@ -2962,6 +2962,26 @@ foreach ( array( 'wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs',
 		&& strpos( $noi, '\\&\\&' ) === false );
 }
 
+/* TỰ CHỮA: địa chỉ hỏng đã nằm trong cơ sở dữ liệu thì url() phải sửa ngay, không đợi bấm Lưu.
+   Bản đầu chỉ sửa lúc bấm Lưu — nên trang chấm công vẫn 400 mãi, mà người đọc trang lỗi thì
+   không có lý do gì đi bấm Lưu một biểu mẫu họ không sửa gì. */
+update_option( 'vhcc_exec_url', 'https://script.google.com/a/macros/khmatrix.com/s/' . $ID . '/exec' );
+teq( 'url() tự chữa địa chỉ đã lưu sai, không cần bấm Lưu',
+	'https://script.google.com/macros/s/' . $ID . '/exec', VHCC_CauNoi::url() );
+teq( 'và GHI LẠI giá trị đã sửa (màn Cài đặt phải hiện đúng cái đang dùng)',
+	'https://script.google.com/macros/s/' . $ID . '/exec', get_option( 'vhcc_exec_url' ) );
+teq( 'url_tho() đọc đúng giá trị trong cơ sở dữ liệu',
+	get_option( 'vhcc_exec_url' ), VHCC_CauNoi::url_tho() );
+
+/* Trang lỗi phải NÓI THẲNG nguyên nhân đã biết, không bắt dò danh sách 4 mục. */
+$tr = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang.php' );
+t( 'trang lỗi nhận ra dạng /a/macros/ và nói thẳng nguyên nhân',
+	strpos( $tr, '/a/macros/' ) !== false && strpos( $tr, 'Đã tìm ra nguyên nhân' ) !== false );
+t( 'và bảo tải lại trang, chứ không bảo đi kiểm lại địa chỉ',
+	strpos( $tr, 'Tải lại trang này một lần' ) !== false );
+t( 'trang lỗi soi CẢ giá trị thô — nếu chỉ soi cái đã chữa thì không bao giờ khớp',
+	strpos( $tr, 'VHCC_CauNoi::url_tho()' ) !== false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

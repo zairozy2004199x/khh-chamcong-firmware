@@ -135,6 +135,18 @@ class VHCC_Trang {
 		$h .= '<div style="background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:11px 13px;margin:14px 0">'
 			. esc_html( $loi ) . '</div>';
 		$h .= '<p><b>Địa chỉ /exec đang khai:</b> ' . ( $exec ? '<code>' . esc_html( $exec ) . '</code>' : '<i>chưa khai</i>' ) . '</p>';
+		/* Nguyên nhân đã BIẾT thì nói thẳng, đừng đưa danh sách 4 mục để người ta dò.
+		   Tới đây thì url() đã tự chữa xong, nên nếu còn thấy dạng này là địa chỉ vừa được sửa
+		   và chỉ cần tải lại trang — nói đúng câu đó, không nói "kiểm lại địa chỉ". */
+		if ( strpos( VHCC_CauNoi::url_tho(), '/a/macros/' ) !== false
+			|| strpos( (string) $exec, '/a/macros/' ) !== false ) {
+			$h .= '<div style="background:#fef9c3;border:1px solid #fde047;border-radius:8px;padding:11px 13px;margin:14px 0">'
+				. '<b>Đã tìm ra nguyên nhân.</b> Địa chỉ đang khai có đoạn <code>/a/macros/&lt;tên miền&gt;</code>. '
+				. 'Dạng đó buộc người gọi phải đăng nhập bằng tài khoản của tên miền, mà WordPress gọi '
+				. 'máy-với-máy nên Google chối bằng <code>400 Bad Request</code> — một câu không hề nhắc gì '
+				. 'tới đăng nhập. Plugin vừa tự bỏ đoạn đó. <b>Tải lại trang này một lần</b> là xong.'
+				. '</div>';
+		}
 		$h .= '<p>Kiểm theo thứ tự:</p><ol>';
 		$h .= '<li>Đã dán file <code>CauNoiChamCong.gs</code> vào project Apps Script của app chấm công chưa?</li>';
 		$h .= '<li>Script Properties đã có <code>WEB_KEY</code> đúng bằng khoá trong Cài đặt của plugin chưa?</li>';
