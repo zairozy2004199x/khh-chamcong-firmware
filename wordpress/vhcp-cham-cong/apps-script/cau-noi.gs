@@ -56,16 +56,50 @@
  * ============================================================================
  */
 
-/** Hàm giao diện được phép gọi qua cầu nối — CHỜ đối chiếu Index.html của app chấm công.
+/** Hàm giao diện được phép gọi qua cầu nối.
  *
- * ⚠️ Danh sách này đang RỖNG có chủ ý. Điền tên hàm mà giao diện thật gọi (lấy từ
- *    `google.script.run.<tên hàm>(…)` trong Index.html). Cầu nối TỪ CHỐI mọi tên không có
- *    trong đây và nói rõ tên nào bị từ chối, nên thiếu tên thì báo lỗi rõ ràng — KHÔNG chết im.
+ * ⚠️ Cầu nối TỪ CHỐI mọi tên không có trong đây và nói rõ tên nào bị từ chối, nên thiếu tên thì
+ *    báo lỗi rõ ràng — KHÔNG chết im.
  *
- * ⚠️ TUYỆT ĐỐI KHÔNG khai vào đây những hàm xoá/ghi đè cả sheet, hàm đồng bộ hàng loạt, hay
- *    hàm nạp lại firmware. Cho gọi qua web là mở đường phá dữ liệu chấm công bằng một request.
+ * ⚠️ TUYỆT ĐỐI KHÔNG khai vào đây hàm xoá/ghi đè cả sheet, hay hàm đồng bộ hàng loạt.
+ *
+ * ⚠️ 21/08/2026 — KHAI 22 HÀM MÁY + OTA, và phải giải thích vì sao, vì lời ghi chú cũ ở đây viết
+ *    "tuyệt đối không khai hàm nạp lại firmware".
+ *
+ *    Anh Thắng chốt: Firebase GIỮ NGUYÊN cho phần điều khiển máy, nhưng màn quản lý máy thì đưa
+ *    lên web. Cách rẻ nhất và ít chỗ hỏng nhất là để WordPress gọi 22 hàm này QUA CẦU NỐI, chứ
+ *    KHÔNG cho WordPress nói chuyện trực tiếp với Firebase:
+ *      · chỉ MỘT nơi ghi Firebase (Apps Script) -> không có hai người ghi tranh nhau;
+ *      · khoá Firebase KHÔNG phải sao thêm một bản sang wp-config;
+ *      · sheet `MayChamCong` vẫn là NGUỒN THẬT của "máy nào thuộc cơ sở nào" — mà đó chính là
+ *        thứ `doPost` đang dùng để ghi chấm công, nên không được có bản thứ hai đi lệch.
+ *
+ *    Ba hàm dưới đây NGUY, khai vào có chủ ý, và đã có hai lớp gác SẴN CÓ:
+ *      setOtaTarget / clearOtaTarget  — đẩy firmware cho CẢ CHUỖI máy
+ *      donKhoiTest                    — dọn khối "test" trong sheet cơ sở
+ *    Hai lớp: (1) cầu nối đòi WEB_KEY, khoá này nằm ở máy chủ, không bao giờ xuống trình duyệt;
+ *    (2) chính mấy hàm đó đã tự kiểm `u.isAdmin` bên trong Code.gs. Khai vào cầu nối KHÔNG nới
+ *    lỏng lớp thứ hai một chút nào.
+ *
+ *    ⚠️ Nhưng có một chỗ mà CẢ HAI lớp đó không che: LINK .BIN SAI DẠNG. Module 4G A7680C chết ở
+ *       khoảng 532 ký tự, mà link release của GitHub trả 302 rồi chuyển hướng dài 943 ký tự. Đẩy
+ *       một link như vậy là mọi máy 4G KHÔNG BAO GIỜ tải được, tức mất luôn đường sửa từ xa và
+ *       phải đi từng cửa hàng cắm USB. Nên phía WordPress kiểm dạng link TRƯỚC khi gọi
+ *       `setOtaTarget` — xem VHCC_May::ota_url_hop_le().
  */
 var CC_CHO_PHEP = [
+  /* --- Máy chấm công: ĐỌC --- */
+  'getDanhSachMay', 'getMachineStatus', 'getMachineRoster', 'chanDoanMay',
+  'getQueueMay', 'getHangDoiTaiLai', 'xemKhoiTest',
+  'getLuongMayTuDong', 'getGiaMayTuDong',
+  /* --- Máy chấm công: GHI trong phạm vi một máy --- */
+  'ganMayVaoCuaHang', 'boGanMay', 'luuSimMay', 'requestMachineScan',
+  'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai',
+  'setGiaMayTuDong',
+  /* --- Dọn khối "test" do gói thử đường truyền tạo ra (đụng sheet cơ sở -> Admin) --- */
+  'donKhoiTest',
+  /* --- Cập nhật firmware. NGUY: đẩy cho cả chuỗi. Xem khối ⚠️ ở trên. --- */
+  'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget'
 ];
 
 /** Tên file HTML của giao diện trong project này (doGet đang dùng file nào thì để tên đó). */

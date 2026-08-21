@@ -27,6 +27,8 @@ class VHCC_Admin {
 			'vhcc-nhan-su', array( __CLASS__, 'trang_nhan_su' ) );
 		add_submenu_page( 'vhcc', 'Phân lịch làm', 'Phân lịch làm', self::CAP,
 			'vhcc-lich', array( __CLASS__, 'trang_lich' ) );
+		add_submenu_page( 'vhcc', 'Máy & Firmware', 'Máy & Firmware', self::CAP,
+			'vhcc-may', array( __CLASS__, 'trang_may' ) );
 	}
 
 	/**
@@ -342,6 +344,191 @@ class VHCC_Admin {
 			echo '<button class="button button-link-delete">Xoá</button></form></td></tr>';
 		}
 		echo '</tbody></table></div>';
+	}
+
+	/**
+	 * MÁY CHẤM CÔNG + CẬP NHẬT FIRMWARE.
+	 *
+	 * Dữ liệu vẫn ở Firebase (anh Thắng chốt giữ nguyên) — màn này gọi Apps Script qua cầu nối,
+	 * WordPress không nói chuyện trực tiếp với Firebase. Xem class-vhcc-may.php.
+	 *
+	 * ⚠️ Phần ĐỐI CHIẾU để ĐẦU trang có chủ ý: đó là chỗ duy nhất phát hiện được ca "cùng một lượt
+	 *    bấm rơi vào hai cơ sở khác nhau", mà ca đó không có gì tự báo và chỉ lộ ra ở bảng lương
+	 *    cuối tháng. Để nó xuống dưới cùng là đúng thứ quan trọng nhất bị cuộn qua.
+	 */
+	public static function trang_may() {
+		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
+		$bao = array();
+		if ( isset( $_POST['vhcc_may'] ) ) {
+			check_admin_referer( 'vhcc_may' );
+			$viec = sanitize_text_field( wp_unslash( $_POST['vhcc_may'] ) );
+			if ( 'gan' === $viec ) {
+				$bao[] = VHCC_May::gan_may( (int) $_POST['hang'], wp_unslash( $_POST['coso'] ) );
+			} elseif ( 'bo_gan' === $viec ) {
+				$bao[] = VHCC_May::bo_gan( (int) $_POST['hang'] );
+			} elseif ( 'soi' === $viec ) {
+				$bao[] = VHCC_May::soi_lai_mysql();
+			} elseif ( 'sim' === $viec ) {
+				$bao[] = VHCC_May::luu_sim( (int) $_POST['hang'], wp_unslash( $_POST['sim'] ) );
+			} elseif ( 'quet' === $viec ) {
+				$bao[] = VHCC_May::yeu_cau_quet( wp_unslash( $_POST['tram'] ) );
+			} elseif ( 'ota' === $viec ) {
+				$bao[] = VHCC_May::dat_ota( wp_unslash( $_POST['ver'] ), wp_unslash( $_POST['url'] ),
+					wp_unslash( $_POST['xac_nhan'] ) );
+			} elseif ( 'go_ota' === $viec ) {
+				$bao[] = VHCC_May::go_ota();
+			}
+		}
+
+		echo '<div class="wrap"><h1>Máy chấm công &amp; Firmware</h1>';
+		foreach ( $bao as $b ) {
+			if ( ! empty( $b['ok'] ) ) {
+				$them = '';
+				if ( isset( $b['sua'] ) ) { $them = ' Sửa ' . (int) $b['sua'] . ' máy lệch, thêm '
+					. (int) $b['them'] . ' máy còn thiếu.'; }
+				echo '<div class="notice notice-success"><p>Xong.' . esc_html( $them ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-error"><p>' . esc_html( $b['error'] ) . '</p></div>';
+			}
+		}
+
+		/* ---- ĐỐI CHIẾU: chỗ quan trọng nhất, để trên cùng ---- */
+		echo '<h2>Đối chiếu máy → cơ sở</h2>';
+		$d = VHCC_May::doi_chieu();
+		if ( empty( $d['ok'] ) ) {
+			echo '<div class="notice notice-warning"><p>Chưa đối chiếu được: ' . esc_html( $d['error'] )
+				. '</p></div>';
+		} else {
+			echo '<p>Sheet <code>MayChamCong</code> có ' . (int) $d['soSheet'] . ' máy · bảng MySQL có '
+				. (int) $d['soMysql'] . ' máy.</p>';
+			if ( $d['lech'] ) {
+				echo '<div class="notice notice-error"><p><strong>' . count( $d['lech'] )
+					. ' máy đang LỆCH cơ sở giữa hai nơi.</strong> Trong lúc ghi song song, MỘT lượt bấm '
+					. 'đi qua cả hai đường — lệch nghĩa là cùng một lần bấm rơi vào HAI cơ sở khác nhau, '
+					. 'và không có gì tự báo. Bấm "Soi lại" để MySQL theo sheet.</p><ul>';
+				foreach ( $d['lech'] as $x ) {
+					echo '<li><code>' . esc_html( $x['serial'] ? $x['serial'] : $x['mac'] ) . '</code>: '
+						. 'sheet ghi <strong>' . esc_html( $x['sheet'] ) . '</strong> · MySQL ghi <strong>'
+						. esc_html( $x['mysql'] ) . '</strong></li>';
+				}
+				echo '</ul></div>';
+			} else {
+				echo '<p style="color:#046b2d">✔️ Không có máy nào lệch cơ sở.</p>';
+			}
+			if ( $d['thieu'] ) {
+				echo '<p><strong>' . count( $d['thieu'] ) . ' máy có trong sheet mà chưa có trong MySQL.'
+					. '</strong> Vô hại — cổng nhận giữ lượt bấm vào bảng "chờ gán" cho tới khi soi lại.</p>';
+			}
+			if ( $d['du'] ) {
+				echo '<p><strong>' . count( $d['du'] ) . ' máy có trong MySQL mà không có trong sheet.'
+					. '</strong> Có thể là máy vừa gửi lượt đầu mà sheet chưa kịp có dòng — hệ thống '
+					. 'KHÔNG tự xoá, vì xoá là mất chỗ gán.</p>';
+			}
+			echo '<form method="post"><input type="hidden" name="vhcc_may" value="soi" />';
+			wp_nonce_field( 'vhcc_may' );
+			echo '<p><button class="button button-primary">Soi lại (sheet → MySQL)</button> '
+				. '<em>Chỉ đi một chiều. Sheet là nguồn thật, vì đó là chỗ <code>doPost</code> đang '
+				. 'đọc để ghi chấm công.</em></p></form>';
+		}
+
+		/* ---- Danh sách máy ---- */
+		echo '<h2>Danh sách máy</h2>';
+		$m = VHCC_May::ds_may();
+		if ( empty( $m['ok'] ) ) {
+			echo '<div class="notice notice-warning"><p>' . esc_html( $m['error'] ) . '</p></div>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr><th>Hàng</th><th>Serial đầu đọc</th>'
+				. '<th>MAC bo</th><th>Cơ sở</th><th>Tên máy tự khai</th><th>Lần cuối thấy</th>'
+				. '<th>Ghi chú</th><th>Gán cơ sở</th></tr></thead><tbody>';
+			foreach ( (array) $m['data'] as $i => $x ) {
+				$hang = isset( $x['row'] ) ? (int) $x['row'] : ( $i + 2 );
+				echo '<tr><td>' . $hang . '</td>'
+					. '<td><code>' . esc_html( isset( $x['serial'] ) ? $x['serial'] : '' ) . '</code></td>'
+					. '<td><code>' . esc_html( isset( $x['mac'] ) ? $x['mac'] : '' ) . '</code></td>'
+					. '<td>' . esc_html( isset( $x['cuaHang'] ) ? $x['cuaHang'] : '' ) . '</td>'
+					. '<td>' . esc_html( isset( $x['tuKhai'] ) ? $x['tuKhai'] : '' ) . '</td>'
+					. '<td>' . esc_html( isset( $x['lanCuoi'] ) ? $x['lanCuoi'] : '' ) . '</td>'
+					. '<td>' . esc_html( isset( $x['ghiChu'] ) ? $x['ghiChu'] : '' ) . '</td>'
+					. '<td><form method="post" style="display:flex;gap:4px">'
+					. '<input type="hidden" name="vhcc_may" value="gan" />'
+					. '<input type="hidden" name="hang" value="' . $hang . '" />';
+				echo wp_nonce_field( 'vhcc_may', '_wpnonce', true, false );
+				echo '<select name="coso"><option value="">— chọn —</option>';
+				foreach ( VHCC_NhanSu::ds_coso() as $cs ) {
+					echo '<option value="' . esc_attr( $cs ) . '">' . esc_html( $cs ) . '</option>';
+				}
+				echo '</select><button class="button">Gán</button></form></td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<p><em>Cơ sở lấy theo <strong>mã thiết bị</strong>, không tin tên máy tự khai. Đổi '
+				. 'phần cứng thì hệ thống chỉ GHI DẤU vào cột Ghi chú, không tự sửa — "thay bo" và '
+				. '"mang bo sang cửa hàng khác" nhìn từ máy chủ giống hệt nhau.</em></p>';
+		}
+
+		/* ---- Lượt bấm chờ gán ---- */
+		global $wpdb;
+		$cg = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'cho_gan' )
+			. " WHERE da_chuyen='' ORDER BY nhan_luc DESC LIMIT 200" );
+		echo '<h2>Lượt bấm chờ gán (' . count( $cg ) . ')</h2>';
+		echo '<p>Máy chưa gán cơ sở vẫn được nhận và GIỮ lượt bấm ở đây — bỏ là mất công của người '
+			. 'thật chỉ vì cái máy chưa được khai. Gán cơ sở cho máy rồi soi lại là xong.</p>';
+		if ( $cg ) {
+			echo '<table class="widefat striped"><thead><tr><th>Nhận lúc</th><th>Serial</th><th>MAC</th>'
+				. '<th>Máy tự khai</th><th>Mã NV</th><th>Họ tên</th><th>Thời điểm</th></tr></thead><tbody>';
+			foreach ( $cg as $r ) {
+				echo '<tr><td>' . esc_html( $r['nhan_luc'] ) . '</td><td><code>'
+					. esc_html( $r['serial'] ) . '</code></td><td><code>' . esc_html( $r['mac'] )
+					. '</code></td><td>' . esc_html( $r['ten_tu_khai'] ) . '</td><td><code>'
+					. esc_html( $r['ma_nv'] ) . '</code></td><td>' . esc_html( $r['ho_ten'] )
+					. '</td><td>' . esc_html( $r['thoi_diem'] ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		/* ---- Firmware ---- */
+		echo '<h2>Cập nhật firmware</h2>';
+		$ota = VHCC_May::ota_dang_dat();
+		if ( ! empty( $ota['ok'] ) && is_array( $ota['data'] ) ) {
+			$o = $ota['data'];
+			$ver = isset( $o['ver'] ) ? (string) $o['ver'] : '';
+			echo '<p>Lệnh đang đặt: ' . ( '' !== $ver
+				? '<strong>' . esc_html( $ver ) . '</strong> · <code>'
+					. esc_html( isset( $o['url'] ) ? $o['url'] : '' ) . '</code>'
+				: '<em>không có</em>' ) . '</p>';
+		}
+		$fw = VHCC_May::fw_moi_nhat();
+		if ( ! empty( $fw['ok'] ) && is_array( $fw['data'] ) ) {
+			$f = $fw['data'];
+			if ( ! empty( $f['ver'] ) ) {
+				echo '<p>Bản mới nhất trên GitHub: <strong>' . esc_html( $f['ver'] ) . '</strong> · <code>'
+					. esc_html( isset( $f['url'] ) ? $f['url'] : '' ) . '</code></p>';
+			}
+			if ( ! empty( $f['error'] ) ) {
+				echo '<div class="notice notice-warning"><p>' . esc_html( $f['error'] ) . '</p></div>';
+			}
+			if ( ! empty( $f['chuaDu'] ) ) {
+				echo '<p><strong>Máy chưa đủ điều kiện nhận bản mới:</strong> '
+					. esc_html( implode( ', ', (array) $f['chuaDu'] ) ) . '</p>';
+			}
+		}
+		echo '<div class="notice notice-error"><p><strong>Đọc trước khi đẩy.</strong> Lệnh này nạp '
+			. 'firmware cho <strong>MỌI máy trong chuỗi</strong> trong vòng 5 phút. Link phải là link '
+			. '<code>raw</code> của nhánh <code>bin</code> — link <em>release</em> của GitHub trả HTTP 302 '
+			. 'rồi chuyển hướng dài ~943 ký tự, mà module 4G chết ở khoảng 532 ký tự: đẩy link đó là '
+			. 'mọi máy 4G KHÔNG BAO GIỜ tải được, tức mất luôn đường sửa từ xa và phải đi từng cửa hàng '
+			. 'cắm USB. Hệ thống sẽ chặn link sai dạng, nhưng đọc kỹ vẫn hơn.</p></div>';
+		echo '<form method="post"><input type="hidden" name="vhcc_may" value="ota" />';
+		wp_nonce_field( 'vhcc_may' );
+		echo '<table class="form-table">'
+			. self::o( 'ver', 'Phiên bản *', '' )
+			. self::o( 'url', 'Link .bin (raw, nhánh bin) *', '' )
+			. self::o( 'xac_nhan', 'Gõ đúng chữ DONG Y để xác nhận *', '' )
+			. '</table>';
+		echo '<p><button class="button button-primary">Đẩy cập nhật cho cả chuỗi</button></p></form>';
+		echo '<form method="post"><input type="hidden" name="vhcc_may" value="go_ota" />';
+		wp_nonce_field( 'vhcc_may' );
+		echo '<p><button class="button">Gỡ lệnh cập nhật</button></p></form>';
+		echo '</div>';
 	}
 
 	/**
