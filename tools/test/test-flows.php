@@ -1378,6 +1378,31 @@ $mocoi = array();
 foreach ( $khong['baoCao'] as $b ) { if ( ! empty( $b['moCoi'] ) ) { $mocoi = array_merge( $mocoi, (array) $b['moCoi'] ); } }
 t( 'tắt tự tạo thì báo dòng mồ côi', in_array( 'BP_khong_tao', $mocoi, true ) );
 
+// Gõ tay tên tab: bỏ hẳn bước đọc danh sách (đường dùng khi Google đổi giao diện)
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => array( 'code' => 200, 'body' => '<html>không có tên tab nào</html>' ),
+	'/edit'     => array( 'code' => 200, 'body' => '<html>cũng không có</html>' ),
+	'sheet=VH_Index' => "Mã đơn,Kỳ,Trạng thái,Người tạo\nVH_taytab,10/2026,Đang làm,Admin\n",
+);
+$tu_dong = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => true ) );
+t( 'đọc tự động tắc thì báo lỗi có hướng xử lý', empty( $tu_dong['success'] ) && strpos( $tu_dong['error'], 'gõ tay' ) !== false );
+
+$tay = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => false, 'tabs' => array( 'VH_Index' ) ) );
+t( 'gõ tay tên tab thì nạp được', ! empty( $tay['success'] ) );
+teq( 'nạp đúng 1 dòng', 1, $tay['tong'] );
+teq( 'báo rõ lấy danh sách tab bằng cách nào', 'gõ tay', $tay['cach'] );
+t( 'đơn nạp bằng tên tab gõ tay đã vào', ! empty( VHCP_Don::get_don( 'VH_taytab', false )['success'] ) );
+
+// Đọc danh sách tab từ trang /edit khi htmlview tắc
+$GLOBALS['VHCP_HTTP'] = array(
+	'/htmlview' => array( 'code' => 200, 'body' => '<html>trống</html>' ),
+	'/edit'     => array( 'code' => 200, 'body' => 'x {"gid":"777","name":"VH_Index"} y' ),
+	'gid=777'   => "Mã đơn,Kỳ,Trạng thái\nVH_tu_edit,11/2026,Đang làm\n",
+);
+$q_edit = VHCP_Sheet::nap_ca_file( $SID, array( 'thu' => true ) );
+t( 'đọc được danh sách tab từ trang edit', ! empty( $q_edit['success'] ) );
+teq( 'ghi lại đọc bằng đường nào', 'edit', $q_edit['cach'] );
+
 // Bảng tính chưa chia sẻ -> nói rõ, không nạp nửa vời
 $GLOBALS['VHCP_HTTP'] = array( '/htmlview' => array( 'code' => 200, 'body' => '<html><a href="https://accounts.google.com/signin">Sign in</a></html>' ) );
 $chua = VHCP_Sheet::nap_ca_file( $SID );

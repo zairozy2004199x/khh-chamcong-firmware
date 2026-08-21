@@ -45,33 +45,82 @@ class VHCP_Sheet {
 	}
 
 	/**
-	 * Liệt kê tab của bảng tính. Đọc trang htmlview rồi bóc tên tab + gid.
-	 * Không bóc được thì trả rỗng để phía gọi tự hỏi tên tab.
+	 * Liệt kê tab của bảng tính. Google đổi giao diện thường xuyên nên thử lần lượt
+	 * 3 đường, đường nào ra thì dùng; không ra thì phía gọi cho nhập tay tên tab.
+	 *
+	 * @return array ['tabs' => [ ['gid'=>, 'ten'=>], … ], 'cach' => tên cách đọc được,
+	 *                'loi' => nếu cả 3 đường đều tắc]
 	 */
 	public static function liet_ke_tab( $id ) {
-		$r = self::tai( 'https://docs.google.com/spreadsheets/d/' . $id . '/htmlview' );
-		if ( ! empty( $r['loi'] ) ) { return array( 'loi' => $r['loi'] ); }
-		$out = array();
+		$loi = array();
+		foreach ( array( 'htmlview', 'edit', 'xlsx' ) as $cach ) {
+			$r = self::liet_ke_bang( $id, $cach );
+			if ( ! empty( $r['tabs'] ) ) { return array( 'tabs' => $r['tabs'], 'cach' => $cach ); }
+			if ( ! empty( $r['loi'] ) ) { $loi[] = $cach . ': ' . $r['loi']; }
+		}
+		return array( 'tabs' => array(), 'loi' => 'Không đọc được danh sách tab (' . implode( ' · ', $loi ) . ').'
+			. ' Cách chắc chắn nhất: gõ tay tên các tab vào ô "Tên các tab" bên dưới, mỗi dòng một tên.' );
+	}
 
-		// Dạng 1: menu chuyển tab ở cuối trang htmlview
-		if ( preg_match_all( '#id=(?:"|\')sheet-button-(\d+)(?:"|\')[^>]*>([^<]{1,120})<#', $r['body'], $m, PREG_SET_ORDER ) ) {
+	private static function liet_ke_bang( $id, $cach ) {
+		$goc = 'https://docs.google.com/spreadsheets/d/' . $id;
+
+		if ( $cach === 'xlsx' ) {
+			if ( ! class_exists( 'ZipArchive' ) ) { return array( 'loi' => 'máy chủ không có ZipArchive' ); }
+			$r = self::tai( $goc . '/export?format=xlsx' );
+			if ( ! empty( $r['loi'] ) ) { return array( 'loi' => $r['loi'] ); }
+			$tmp = wp_tempnam( 'vhcp-sheet' );
+			if ( ! $tmp ) { return array( 'loi' => 'không tạo được file tạm' ); }
+			file_put_contents( $tmp, $r['body'] );
+			$zip = new ZipArchive();
+			$ten = array();
+			if ( $zip->open( $tmp ) === true ) {
+				$xml = $zip->getFromName( 'xl/workbook.xml' );
+				$zip->close();
+				if ( $xml && preg_match_all( '#<sheet[^>]*\sname="([^"]+)"#', $xml, $m ) ) {
+					foreach ( $m[1] as $x ) { $ten[] = html_entity_decode( $x, ENT_QUOTES, 'UTF-8' ); }
+				}
+			}
+			@unlink( $tmp );
+			if ( ! count( $ten ) ) { return array( 'loi' => 'file xlsx không có danh sách tab' ); }
+			$out = array();
+			foreach ( $ten as $x ) { $out[] = array( 'gid' => '', 'ten' => $x ); }   // không có gid -> tải theo tên
+			return array( 'tabs' => $out );
+		}
+
+		$r = self::tai( $cach === 'edit' ? $goc . '/edit' : $goc . '/htmlview' );
+		if ( ! empty( $r['loi'] ) ) { return array( 'loi' => $r['loi'] ); }
+		$body = $r['body'];
+		$out  = array();
+
+		// Menu chuyển tab của trang htmlview
+		if ( preg_match_all( '#id=(?:"|\')sheet-button-(\d+)(?:"|\')[^>]*>([^<]{1,120})<#', $body, $m, PREG_SET_ORDER ) ) {
 			foreach ( $m as $x ) { $out[] = array( 'gid' => $x[1], 'ten' => html_entity_decode( trim( $x[2] ), ENT_QUOTES, 'UTF-8' ) ); }
 		}
-		// Dạng 2: dữ liệu nhúng {"name":"VH_Index",...,"gid":"123"}
-		if ( ! count( $out ) && preg_match_all( '#\{"name":"((?:[^"\\\\]|\\\\.)+)"[^}]*?"gid":"(\d+)"#', $r['body'], $m2, PREG_SET_ORDER ) ) {
-			foreach ( $m2 as $x ) {
-				$ten = json_decode( '"' . $x[1] . '"' );
-				if ( $ten ) { $out[] = array( 'gid' => $x[2], 'ten' => $ten ); }
+		// Dữ liệu nhúng: {"name":"VH_Index", … "gid":"111"}  và cả thứ tự đảo lại
+		if ( ! count( $out ) ) {
+			foreach ( array(
+				'#"name":"((?:[^"\\\\]|\\\\.)+)"[^{}]{0,400}?"gid":"?(\d+)#',
+				'#"gid":"?(\d+)"?[^{}]{0,400}?"name":"((?:[^"\\\\]|\\\\.)+)"#',
+			) as $i => $re ) {
+				if ( ! preg_match_all( $re, $body, $mm, PREG_SET_ORDER ) ) { continue; }
+				foreach ( $mm as $x ) {
+					$ten = json_decode( '"' . ( $i === 0 ? $x[1] : $x[2] ) . '"' );
+					$gid = ( $i === 0 ? $x[2] : $x[1] );
+					if ( $ten !== null && $ten !== '' ) { $out[] = array( 'gid' => $gid, 'ten' => (string) $ten ); }
+				}
+				if ( count( $out ) ) { break; }
 			}
 		}
 
 		$seen = array(); $uniq = array();
 		foreach ( $out as $x ) {
-			$k = $x['gid'];
+			$k = $x['gid'] !== '' ? 'g' . $x['gid'] : 't' . VHCP_Nap::kh( $x['ten'] );
 			if ( isset( $seen[ $k ] ) ) { continue; }
 			$seen[ $k ] = 1;
 			$uniq[] = $x;
 		}
+		if ( ! count( $uniq ) ) { return array( 'loi' => 'không bóc được tên tab trong trang' ); }
 		return array( 'tabs' => $uniq );
 	}
 
@@ -100,19 +149,27 @@ class VHCP_Sheet {
 		$opts    = (array) $opts;
 		$thu     = ! empty( $opts['thu'] );
 		$tao_cha = ! isset( $opts['taoCha'] ) || ! empty( $opts['taoCha'] );
+		// Gõ tay tên tab thì dùng luôn, khỏi phải đọc danh sách (đường chắc chắn nhất)
 		$chi     = array();
+		$ten_tay = array();
 		foreach ( (array) ( isset( $opts['tabs'] ) ? $opts['tabs'] : array() ) as $t ) {
 			$t = trim( (string) $t );
-			if ( $t !== '' ) { $chi[ VHCP_Nap::kh( $t ) ] = 1; }
+			if ( $t !== '' ) { $ten_tay[] = $t; }
 		}
-
-		$lk = self::liet_ke_tab( $id );
-		if ( ! empty( $lk['loi'] ) ) { return VHCP_Util::err( $lk['loi'] ); }
-		if ( ! count( $lk['tabs'] ) ) { return VHCP_Util::err( 'Không đọc được danh sách tab — kiểm tra bảng tính đã chia sẻ bằng link chưa' ); }
+		$cach = 'gõ tay';
+		$tabs = array();
+		if ( count( $ten_tay ) ) {
+			foreach ( $ten_tay as $t ) { $tabs[] = array( 'gid' => '', 'ten' => $t ); }
+		} else {
+			$lk = self::liet_ke_tab( $id );
+			if ( empty( $lk['tabs'] ) ) { return VHCP_Util::err( isset( $lk['loi'] ) ? $lk['loi'] : 'Không đọc được danh sách tab' ); }
+			$tabs = $lk['tabs'];
+			$cach = isset( $lk['cach'] ) ? $lk['cach'] : '';
+		}
 
 		// 1) Tải từng tab, đoán bảng đích
 		$viec = array();
-		foreach ( $lk['tabs'] as $tab ) {
+		foreach ( $tabs as $tab ) {
 			if ( count( $chi ) && ! isset( $chi[ VHCP_Nap::kh( $tab['ten'] ) ] ) ) { continue; }
 			$r = self::tai_tab( $id, $tab['gid'], $tab['ten'] );
 			if ( ! empty( $r['loi'] ) ) {
@@ -204,7 +261,8 @@ class VHCP_Sheet {
 
 		return VHCP_Util::ok( array(
 			'thu'      => $thu ? 1 : 0,
-			'soTab'    => count( $lk['tabs'] ),
+			'cach'     => $cach,
+			'soTab'    => count( $tabs ),
 			'baoCao'   => $bc,
 			'tong'     => $tong,
 			'boQua'    => $tong_bo,

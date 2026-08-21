@@ -62,11 +62,19 @@ class VHCP_Admin {
 
 		if ( $action === 'sheet' ) {
 			$url = isset( $_POST['vhcp_url'] ) ? esc_url_raw( wp_unslash( $_POST['vhcp_url'] ) ) : '';
+			$tabs_txt = isset( $_POST['vhcp_tabs'] ) ? (string) wp_unslash( $_POST['vhcp_tabs'] ) : '';
+			$tabs     = array();
+			foreach ( preg_split( '/[\r\n]+/', $tabs_txt ) as $t ) {
+				$t = sanitize_text_field( $t );
+				if ( trim( $t ) !== '' ) { $tabs[] = trim( $t ); }
+			}
 			$res = VHCP_Sheet::nap_ca_file( $url, array(
 				'thu'     => ! empty( $_POST['vhcp_thu'] ),
 				'replace' => ! empty( $_POST['vhcp_replace'] ),
 				'taoCha'  => ! empty( $_POST['vhcp_taocha'] ),
+				'tabs'    => $tabs,
 			) );
+			set_transient( 'vhcp_sheet_tabs_' . get_current_user_id(), $tabs_txt, 3600 );
 			set_transient( 'vhcp_sheet_res_' . get_current_user_id(), $res, 120 );
 			set_transient( 'vhcp_sheet_url_' . get_current_user_id(), $url, 3600 );
 			wp_safe_redirect( add_query_arg( array( 'page' => 'vhcp-sheet' ), admin_url( 'admin.php' ) ) );
@@ -172,7 +180,8 @@ class VHCP_Admin {
 		$uid = get_current_user_id();
 		$res = get_transient( 'vhcp_sheet_res_' . $uid );
 		if ( $res ) { delete_transient( 'vhcp_sheet_res_' . $uid ); }
-		$url = (string) get_transient( 'vhcp_sheet_url_' . $uid );
+		$url  = (string) get_transient( 'vhcp_sheet_url_' . $uid );
+		$tabs = (string) get_transient( 'vhcp_sheet_tabs_' . $uid );
 
 		echo '<div class="wrap"><h1>Nạp cả bảng tính từ link Google Sheet</h1>';
 		echo '<p>Dán link bảng tính, plugin tự tải <b>mọi tab</b>, tự nhận tab nào là bảng gì (theo tên cột),'
@@ -186,7 +195,9 @@ class VHCP_Admin {
 			} else {
 				echo '<div class="notice ' . ( ! empty( $res['thu'] ) ? 'notice-info' : 'notice-success' ) . '"><p>'
 					. ( ! empty( $res['thu'] ) ? '<b>Chỉ thử — chưa ghi gì.</b> ' : '' )
-					. 'Đọc ' . (int) $res['soTab'] . ' tab · nạp <b>' . (int) $res['tong'] . '</b> dòng'
+					. 'Đọc ' . (int) $res['soTab'] . ' tab'
+					. ( ! empty( $res['cach'] ) ? ' (danh sách tab lấy bằng: ' . esc_html( $res['cach'] ) . ')' : '' )
+					. ' · nạp <b>' . (int) $res['tong'] . '</b> dòng'
 					. ' · bỏ qua ' . (int) $res['boQua'] . ' · chưa ra mã tài khoản ' . (int) $res['thieuMa'] . '</p></div>';
 
 				echo '<table class="widefat striped" style="max-width:1100px"><thead><tr><th>Tab</th><th>Nhận là</th>'
@@ -221,6 +232,10 @@ class VHCP_Admin {
 		echo '<input type="hidden" name="vhcp_action" value="sheet">';
 		echo '<table class="form-table"><tr><th scope="row">Link bảng tính</th><td>'
 			. '<input name="vhcp_url" class="large-text" value="' . esc_attr( $url ) . '" placeholder="https://docs.google.com/spreadsheets/d/…"></td></tr>';
+		echo '<tr><th scope="row">Tên các tab</th><td>'
+			. '<textarea name="vhcp_tabs" rows="6" class="large-text" placeholder="VH_Index&#10;VH_Line&#10;CT_ChiTiet&#10;DA SNOW NHÀ TUYẾT BÌNH DƯƠNG">' . esc_textarea( $tabs ) . '</textarea>'
+			. '<p class="description">Mỗi dòng một tên tab, <b>gõ đúng như trên bảng tính</b>. Để trống thì app tự đọc danh sách tab;'
+			. ' Google hay đổi giao diện nên đọc tự động có lúc tắc — khi đó gõ tay vào đây là chắc chắn nhất.</p></td></tr>';
 		echo '<tr><th scope="row">Chỉ thử</th><td><label><input type="checkbox" name="vhcp_thu" value="1" checked>'
 			. ' chỉ xem sẽ nạp gì, chưa ghi vào database</label></td></tr>';
 		echo '<tr><th scope="row">Xóa dữ liệu cũ</th><td><label><input type="checkbox" name="vhcp_replace" value="1">'

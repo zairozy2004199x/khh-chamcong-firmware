@@ -44,6 +44,8 @@ function esc_html( $s ) { return htmlspecialchars( (string) $s, ENT_QUOTES, 'UTF
 function esc_attr( $s ) { return esc_html( $s ); }
 function esc_url( $s ) { return (string) $s; }
 function esc_url_raw( $s ) { return (string) $s; }
+function esc_textarea( $s ) { return (string) $s; }
+function wp_tempnam( $p = '' ) { return tempnam( sys_get_temp_dir(), 'vhcp' ); }
 
 /**
  * Giả lập gọi mạng: bài kiểm không ra Internet, nên $GLOBALS['VHCP_HTTP'] đóng vai
