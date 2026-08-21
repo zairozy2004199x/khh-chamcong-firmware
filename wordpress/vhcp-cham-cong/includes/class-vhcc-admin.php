@@ -1176,7 +1176,12 @@ class VHCC_Admin {
 			. 'còn hiện bản cũ (plugin nhớ tạm giao diện 10 phút).</p>';
 
 		echo '<hr><h2>File cần dán sang Apps Script</h2>';
-		echo '<p>Mở project Apps Script của app chấm công → File → New → Script file, đặt tên <code>CauNoi</code>, '
+		/* ⚠️ Tên file phải khớp với mọi chỗ khác nhắc tới nó — phần đầu chính file cau-noi.gs và
+		   các câu báo lỗi đều nói `CauNoiChamCong.gs`. Trước đây chỗ này thiếu phần `ChamCong`
+		   nên cùng một file mà ba chỗ ba tên; anh Thắng đọc xong không biết đặt tên nào. Mục 34
+		   của bộ thử canh đúng việc này — và nó soát cả chú thích, nên ở đây không viết lại cái
+		   tên cũ thiếu chữ, kể cả để giải thích. */
+		echo '<p>Mở project Apps Script của app chấm công → File → New → Script file, đặt tên <code>CauNoiChamCong</code>, '
 			. 'dán toàn bộ nội dung file <code>apps-script/cau-noi.gs</code> trong plugin này. '
 			. 'Hướng dẫn từng bước nằm ngay đầu file đó.</p>';
 		$f = VHCC_DIR . 'apps-script/cau-noi.gs';

@@ -70,10 +70,35 @@ vẫn có thể trông như thành công.
 
 Nhờ nhánh này mà **nạp OTA là xong**, không phải gõ tay ở portal từng máy.
 
-### 1.5 · Apps Script — ghi song song
+### 1.5 · Apps Script — hai file cần dán
 
-1. Mở project Apps Script của app chấm công → **File → New → Script file**, tên
-   `GhiSongSongWP`, dán toàn bộ `wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs`.
+Cùng một project Apps Script của app chấm công, dán **hai** file, mỗi file một việc khác nhau:
+
+| File trong plugin | Đặt tên | Để làm gì |
+|---|---|---|
+| `apps-script/cau-noi.gs` | `CauNoiChamCong` | WordPress nhờ Apps Script làm 23 việc máy/OTA (Firebase) |
+| `apps-script/ghi-song-song.gs` | `GhiSongSongWP` | lượt máy bấm được sao thêm một bản sang MySQL |
+
+Hai file dùng **hai khoá khác nhau** trong Script Properties, đừng dán lẫn:
+
+| Thuộc tính | Bằng gì | Của file nào |
+|---|---|---|
+| `WEB_KEY` | khoá hiện ở trang **Chấm Công** (plugin tự sinh) | `CauNoiChamCong` |
+| `WP_KEY` | đúng `VHCC_KHOA_MAY` trong `wp-config.php` | `GhiSongSongWP` |
+| `WP_URL` | `https://khmatrix.com/cham-cong-may` | `GhiSongSongWP` |
+
+#### 1.5a · `CauNoiChamCong`
+
+1. **File → New → Script file**, tên `CauNoiChamCong`, dán toàn bộ `apps-script/cau-noi.gs`.
+   (Nội dung file hiện luôn ở cuối trang **Chấm Công**, copy ở đó cũng được.)
+2. Chèn **3 dòng** vào đầu hàm `doPost` đang có — hướng dẫn nằm ngay đầu file đó.
+3. **Project Settings → Script properties**: `WEB_KEY` = chuỗi ở trang Chấm Công.
+4. **Deploy → New version**, rồi về trang Chấm Công bấm **Thử cầu nối** → phải ra "Cầu nối sống".
+
+#### 1.5b · `GhiSongSongWP`
+
+1. **File → New → Script file**, tên `GhiSongSongWP`, dán toàn bộ
+   `wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs`.
 2. **Project Settings → Script properties**, thêm:
    - `WP_URL` = `https://khmatrix.com/cham-cong-may` (không dấu `/` cuối)
    - `WP_KEY` = đúng `VHCC_KHOA_MAY`

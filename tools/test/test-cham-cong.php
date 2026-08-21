@@ -2817,6 +2817,74 @@ exec( 'php ' . escapeshellarg( $goc . '/tools/test/kiem-tham-chieu.php' ) . ' 2>
 t( 'phép soát tham chiếu tĩnh: không chỗ nào gọi hằng/hàm không tồn tại',
 	$ma_soat === 0, implode( "\n      ", $ra_soat ) );
 
+// ================================================ 34. MỘT TÊN DUY NHẤT CHO MỖI THỨ PHẢI GÕ TAY
+/* Anh Thắng bắt được: cùng một file cầu nối mà trang Cài đặt bảo đặt tên `CauNoi`, phần đầu
+   file .gs bảo `CauNoiChamCong`, còn câu báo lỗi thì nói `CauNoiChamCong.gs`. Ba tên cho một
+   thứ, và đó là thứ NGƯỜI DÙNG PHẢI GÕ TAY — gõ tên khác là cầu nối không bao giờ nối được,
+   mà lỗi hiện ra lại là "chưa dán file", đúng cái anh vừa làm.
+
+   Mục này canh: mỗi thứ gõ tay chỉ có MỘT tên trong toàn bộ plugin + hướng dẫn. */
+$tep_soat = array();
+foreach ( array( 'includes/class-vhcc-admin.php', 'includes/class-vhcc-trang.php',
+	'includes/class-vhcc-cau-noi.php', 'includes/class-vhcc-api.php',
+	'apps-script/cau-noi.gs', 'apps-script/ghi-song-song.gs' ) as $x ) {
+	$tep_soat[ $x ] = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/' . $x );
+}
+$tep_soat['docs/CAI-LEN-HOSTINGER.md'] = file_get_contents( $goc . '/docs/CAI-LEN-HOSTINGER.md' );
+$het = implode( "\n", $tep_soat );
+
+/* Tên file cầu nối: chỉ `CauNoiChamCong`. `CauNoi` trơ trọi (không có chữ ChamCong theo sau)
+   là tên của app HỢP ĐỒNG — lẫn sang đây là sai. Bỏ qua `VHCC_CauNoi` vì đó là tên lớp PHP. */
+$le = array();
+foreach ( $tep_soat as $ten => $noi ) {
+	foreach ( explode( "\n", $noi ) as $i => $d ) {
+		$d_sach = str_replace( array( 'VHCC_CauNoi', 'class-vhcc-cau-noi', 'cau-noi.gs' ), '', $d );
+		if ( preg_match( '/\bCauNoi(?!ChamCong)/', $d_sach ) ) { $le[] = $ten . ':' . ( $i + 1 ); }
+	}
+}
+t( 'file cầu nối chỉ có MỘT tên: CauNoiChamCong', count( $le ) === 0, implode( ' | ', $le ) );
+
+/* Tên file ghi song song: chỉ `GhiSongSongWP`. */
+$le = array();
+foreach ( $tep_soat as $ten => $noi ) {
+	foreach ( explode( "\n", $noi ) as $i => $d ) {
+		$d_sach = str_replace( 'ghi-song-song.gs', '', $d );
+		if ( preg_match( '/\bGhiSongSong(?!WP)/', $d_sach ) ) { $le[] = $ten . ':' . ( $i + 1 ); }
+	}
+}
+t( 'file ghi song song chỉ có MỘT tên: GhiSongSongWP', count( $le ) === 0, implode( ' | ', $le ) );
+
+/* Trang Cài đặt và hướng dẫn phải nói ĐÚNG cái tên mà file .gs tự nhận. */
+t( 'phần đầu cau-noi.gs dặn đặt tên CauNoiChamCong',
+	strpos( $tep_soat['apps-script/cau-noi.gs'], '`CauNoiChamCong`' ) !== false );
+t( 'trang Cài đặt dặn ĐÚNG cái tên đó',
+	strpos( $tep_soat['includes/class-vhcc-admin.php'], '<code>CauNoiChamCong</code>' ) !== false );
+t( 'hướng dẫn cài cũng dặn đúng tên đó',
+	strpos( $tep_soat['docs/CAI-LEN-HOSTINGER.md'], '`CauNoiChamCong`' ) !== false );
+t( 'hướng dẫn cài có nhắc dán cau-noi.gs (trước đây thiếu hẳn bước này)',
+	strpos( $tep_soat['docs/CAI-LEN-HOSTINGER.md'], 'apps-script/cau-noi.gs' ) !== false );
+
+/* Plugin chấm công KHÔNG được tự gọi mình là app hợp đồng. Bốn câu báo lỗi đã từng như vậy —
+   chép từ plugin hợp đồng sang mà quên đổi tên, nên người đọc đi kiểm sai app. */
+$le = array();
+foreach ( array( 'includes/class-vhcc-cau-noi.php', 'includes/class-vhcc-trang.php',
+	'includes/class-vhcc-api.php' ) as $x ) {
+	foreach ( explode( "\n", $tep_soat[ $x ] ) as $i => $d ) {
+		/* Chỉ soát chữ đi RA MÀN HÌNH, không soát chú thích so sánh hai app. */
+		if ( preg_match( '/^\s*(\*|\/\/)/', $d ) ) { continue; }
+		if ( preg_match( '/(App|app|Dữ liệu|dữ liệu)\s+hợp đồng/u', $d ) ) { $le[] = $x . ':' . ( $i + 1 ); }
+	}
+}
+t( 'plugin chấm công không câu nào tự gọi mình là app hợp đồng',
+	count( $le ) === 0, implode( ' | ', $le ) );
+
+/* Hai khoá khác nhau, và hướng dẫn phải nói rõ cái nào của file nào — anh Thắng đã một lần
+   hiểu WEB_KEY là thứ mình phải tự đặt rồi dán vào WordPress (thực ra là chiều ngược lại). */
+$hd = $tep_soat['docs/CAI-LEN-HOSTINGER.md'];
+t( 'hướng dẫn phân biệt rõ WEB_KEY với WP_KEY',
+	strpos( $hd, '`WEB_KEY`' ) !== false && strpos( $hd, '`WP_KEY`' ) !== false
+	&& strpos( $hd, 'đừng dán lẫn' ) !== false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

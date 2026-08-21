@@ -69,14 +69,14 @@ class VHCC_CauNoi {
 		// giao diện nhận một cục HTML rồi báo "lỗi không rõ".
 		if ( $body !== '' && $body[0] !== '{' && $body[0] !== '[' ) {
 			if ( stripos( $body, 'accounts.google.com' ) !== false || stripos( $body, 'Sign in' ) !== false ) {
-				return array( 'ok' => false, 'error' => 'App hợp đồng đang đòi đăng nhập Google. '
+				return array( 'ok' => false, 'error' => 'App chấm công đang đòi đăng nhập Google. '
 					. 'Vào Apps Script → Deploy → Manage deployments, đặt "Who has access" = Anyone, rồi Deploy lại.' );
 			}
 			if ( stripos( $body, 'Script function not found' ) !== false || stripos( $body, 'doPost' ) !== false ) {
-				return array( 'ok' => false, 'error' => 'App hợp đồng chưa có hàm doPost — chưa dán file CauNoiChamCong.gs, '
+				return array( 'ok' => false, 'error' => 'App chấm công chưa có hàm doPost — chưa dán file CauNoiChamCong.gs, '
 					. 'hoặc dán rồi mà chưa Deploy → New version.' );
 			}
-			return array( 'ok' => false, 'error' => 'App hợp đồng trả về không phải JSON (mã ' . $code . '). '
+			return array( 'ok' => false, 'error' => 'App chấm công trả về không phải JSON (mã ' . $code . '). '
 				. 'Kiểm lại địa chỉ /exec và đã Deploy bản mới chưa. Đầu phản hồi: '
 				. mb_substr( wp_strip_all_tags( $body ), 0, 160 ) );
 		}
@@ -115,7 +115,7 @@ class VHCC_CauNoi {
 		if ( empty( $r['ok'] ) ) { return array( 'ok' => false, 'error' => $r['error'] ); }
 		$html = (string) $r['data'];
 		if ( trim( $html ) === '' ) {
-			return array( 'ok' => false, 'error' => 'App hợp đồng trả về giao diện rỗng — kiểm biến CN_FILE_GIAO_DIEN trong CauNoiChamCong.gs.' );
+			return array( 'ok' => false, 'error' => 'App chấm công trả về giao diện rỗng — kiểm biến CN_FILE_GIAO_DIEN trong CauNoiChamCong.gs.' );
 		}
 		set_transient( $key, $html, 600 );
 		return array( 'ok' => true, 'html' => $html, 'tuCache' => false );

@@ -141,8 +141,8 @@ class VHCC_Trang {
 		$h .= '<li>Đã <b>Deploy → New version</b> sau khi dán chưa? (dán mà không deploy thì bản đang chạy vẫn là bản cũ)</li>';
 		$h .= '<li>Vào <b>Cài đặt → Hệ thống chấm công</b> bấm <b>Thử cầu nối</b> để xem thông báo chi tiết.</li>';
 		$h .= '</ol>';
-		$h .= '<p style="color:#64748b;font-size:12.5px">Dữ liệu hợp đồng không bị ảnh hưởng — nó nằm trong Google Sheet, '
-			. 'app Apps Script vẫn mở được như trước.</p>';
+		$h .= '<p style="color:#64748b;font-size:12.5px">Giờ chấm công không bị ảnh hưởng — máy vẫn đẩy về '
+			. 'Google Sheet như trước, và app Apps Script vẫn mở được. Chỉ trang này chưa nối được.</p>';
 		$h .= '</div></body></html>';
 		return $h;
 	}
