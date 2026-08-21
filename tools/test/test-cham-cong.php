@@ -208,6 +208,51 @@ $du    = array_diff( $ds, $that );
 t( 'bản kê không thiếu hàm nào giao diện đang gọi', count( $thieu ) === 0, implode( ', ', $thieu ) );
 t( 'bản kê không kê thừa hàm giao diện không gọi', count( $du ) === 0, implode( ', ', $du ) );
 
+
+// ============================================================ 9. Code.gs gốc — bản BÔI ĐEN
+/* `goc/Code.gs` là não của app chấm công: 425 hàm, ba cách tính lương, bố cục sheet theo tháng.
+   Giữ trong repo để lập bản đồ nghiệp vụ khi port sang MySQL — nhưng repo CÔNG KHAI, nên bản
+   trong này là bản đã bôi đen. Phép thử canh hai chiều: chỗ giữ chỗ còn nguyên, và không có
+   ai dán bản thật (kèm khoá) lên nó. */
+$cgs = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/goc/Code.gs' );
+t( 'Code.gs có mặt và đủ dài (não của app, không phải bản rút gọn)', strlen( $cgs ) > 600000 );
+t( 'Code.gs còn đủ 5 chỗ giữ chỗ',
+	substr_count( $cgs, '<<ID_THU_MUC_GOC>>' ) > 0
+	&& substr_count( $cgs, '<<ID_THU_MUC_ANH_CHAM_CONG>>' ) > 0
+	&& substr_count( $cgs, '<<LINK_FIREBASE_RTDB>>' ) > 0
+	&& substr_count( $cgs, '<<ID_BANG_TINH>>' ) > 0
+	&& substr_count( $cgs, '<<PIN_ADMIN_MAC_DINH>>' ) > 0 );
+t( 'Code.gs KHÔNG chứa mã triển khai Apps Script (AKfycb…)', strpos( $cgs, 'AKfycb' ) === false );
+t( 'Code.gs KHÔNG chứa khoá API Google (AIza…)', strpos( $cgs, 'AIza' ) === false );
+t( 'Code.gs KHÔNG chứa liên kết triển khai thật',
+	stripos( $cgs, 'script.google.com' ) === false && strpos( $cgs, '/macros/s/' ) === false );
+/* Không dò chữ 'default-rtdb'/'firebaseio' trần: trong tệp có một biểu thức kiểm dạng FB_HOST
+   và một lời nhắc ở đầu tệp — cả hai đúng chỗ. Cái phải bắt là liên kết Firebase THẬT, tức
+   `https://<gì đó>.firebasedatabase.app` hoặc `.firebaseio.com` viết cứng trong mã. */
+$fb = preg_match_all( '#https://[A-Za-z0-9._-]+\.(?:firebasedatabase\.app|firebaseio\.com)#', $cgs, $mfb );
+t( 'Code.gs KHÔNG viết cứng liên kết Firebase thật', $fb === 0,
+	$fb ? implode( ', ', $mfb[0] ) : null );
+/* ID thư mục Drive / bảng tính: dạng chuỗi dài bắt đầu bằng chữ số. Chỉ còn một chuỗi được
+   phép — dòng dữ liệu VÍ DỤ trong hàm dựng sheet mẫu. */
+preg_match_all( '/[\'"]([0-9][A-Za-z0-9_-]{24,})[\'"]/', $cgs, $mid );
+$id_la = array_values( array_diff( array_unique( $mid[1] ), array( '1AbCdEfGhIjKlMnOpQrStUvWxYz012345' ) ) );
+t( 'Code.gs KHÔNG còn ID Drive / bảng tính thật', count( $id_la ) === 0, implode( ', ', $id_la ) );
+/* PIN admin mặc định đã thành chỗ giữ chỗ. `888888` vẫn còn — nhưng chỉ được nằm trong
+   PIN_CAM, tức danh sách PIN BỊ CHẶN, chứ không phải PIN đang dùng. */
+$so_888 = substr_count( $cgs, '888888' );
+t( "'888888' chỉ còn trong danh sách PIN bị chặn (thấy $so_888 lần)", $so_888 === 1 );
+t( 'PIN admin mặc định KHÔNG còn giá trị thật',
+	preg_match( '/ADMIN_PIN_MAC_DINH\s*=\s*[\'"](?!<<)/', $cgs ) === 0 );
+/* Bản kê 111 hàm là danh sách đối chiếu khi port. Mọi hàm trong đó phải có thật trong Code.gs —
+   nếu không, hoặc là kê sai tên, hoặc là Code.gs dán vào đây bị thiếu phần. */
+$thieu_gs = array();
+foreach ( $ds as $ten_ham ) {
+	if ( ! preg_match( '/\bfunction\s+' . preg_quote( $ten_ham, '/' ) . '\s*\(/', $cgs ) ) {
+		$thieu_gs[] = $ten_ham;
+	}
+}
+t( 'mọi hàm trong bản kê đều có thật trong Code.gs', count( $thieu_gs ) === 0,
+	implode( ', ', $thieu_gs ) );
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
