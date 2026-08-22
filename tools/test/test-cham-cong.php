@@ -3949,8 +3949,18 @@ update_option( 'vhcc_nguon_nguoidung', 'chung' );
    Mấy điều dưới đây là thứ sai một cái là cả chuỗi máy im lặng, nên phải luôn có trong hướng dẫn. */
 $hd_vnx = file_get_contents( $goc . '/docs/CAI-LEN-VIETNIX.md' );
 t( 'có hướng dẫn riêng cho Vietnix', strlen( $hd_vnx ) > 2000 );
+/* Nêu ĐÍCH DANH thứ hosting đang chạy, không nói chung chung "tường lửa": ảnh cPanel của Vietnix
+   cho thấy **Imunify360** và **LiteSpeed Web Cache**. Nói chung chung thì người đọc không biết
+   phải bấm vào đâu. */
 t( 'cảnh báo chặn bot cho đường /cham-cong-may',
-	strpos( $hd_vnx, 'ModSecurity' ) !== false && strpos( $hd_vnx, '/cham-cong-may' ) !== false );
+	strpos( $hd_vnx, 'Imunify360' ) !== false && strpos( $hd_vnx, '/cham-cong-may' ) !== false );
+t( 'và nói rõ vì sao Imunify360 coi máy chấm công là tấn công',
+	strpos( $hd_vnx, 'không cookie không JavaScript' ) !== false );
+/* Nhớ tạm trang chấm công là người này thấy màn hình người kia — nặng hơn cả chuyện chậm. */
+t( 'cấm nhớ tạm hai đường /cham-cong và /cham-cong-may',
+	strpos( $hd_vnx, 'LiteSpeed' ) !== false && strpos( $hd_vnx, 'Do Not Cache URIs' ) !== false );
+t( 'và nói rõ hậu quả: người này thấy màn hình của người kia',
+	strpos( $hd_vnx, 'thấy màn hình của người kia' ) !== false );
 t( 'nói rõ firmware KHÔNG báo khi bị chặn — đó là chỗ hỏng im lặng',
 	strpos( $hd_vnx, 'vẫn báo thành công' ) !== false );
 t( 'đòi HTTPS và nói rõ firmware từ chối http://',

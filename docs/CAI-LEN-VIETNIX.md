@@ -74,14 +74,23 @@ thì **không báo cho ai biết**: máy vẫn kêu bíp, vẫn báo thành côn
 
 Phải kiểm ba thứ:
 
-1. **ModSecurity** — cPanel → **ModSecurity**. Bật thì mở ticket nhờ Vietnix **loại trừ đường
-   `/cham-cong-may`** (họ phải làm ở tầng máy chủ, anh tự tắt trong cPanel không phải lúc nào
-   cũng đủ).
+1. **Imunify360** — cPanel → mục *Bảo Mật* → **Imunify360**. Đây là thứ Vietnix đang chạy (không
+   phải ModSecurity trần), và nó là **cái nguy hiểm nhất** cho máy chấm công: Imunify360 có tường
+   lửa ứng dụng + chấm điểm hành vi, và một máy POST đúng một địa chỉ, mỗi ngày mấy chục lần, từ
+   một dải IP 4G lạ, **không cookie không JavaScript** — đúng khuôn nó coi là tấn công.
+   Mở ticket nhờ Vietnix **cho `/cham-cong-may` đi qua Imunify360 và đưa IP máy vào danh sách
+   trắng** nếu máy chạy IP tĩnh. Anh tự tắt trong cPanel không đủ: phần chặn nằm ở tầng máy chủ.
 2. **Cloudflare** — nếu anh cho `khmatrix.com` chạy qua Cloudflare thì thêm một *WAF exception*
    cho `/cham-cong-may`, hoặc để tên miền ở chế độ **DNS only** (mây xám). Anh đã gặp đúng chuyện
    Cloudflare chặn ở app chi phí rồi.
 3. **Plugin bảo mật WordPress** (Wordfence, iThemes…) — đừng cài, hoặc cài thì phải cho
    `/cham-cong-may` đi qua.
+
+4. **LiteSpeed Web Cache** — máy chủ Vietnix chạy LiteSpeed, và plugin LiteSpeed Cache thường
+   được cài sẵn cùng WordPress. **Không được để nó nhớ tạm hai đường `/cham-cong` và
+   `/cham-cong-may`.** Trang chấm công là trang riêng từng người sau khi nhập PIN — nhớ tạm là
+   người này thấy màn hình của người kia. Vào **LiteSpeed Cache → Cache → Excludes**, thêm hai
+   đường đó vào *Do Not Cache URIs*.
 
 **Cách biết chắc:** sau khi cài xong, quẹt thử một thẻ ở máy thật rồi mở
 **Chấm Công → Cổng nhận từ máy** xem nhật ký có ghi lượt đó không. Đó là chỗ **duy nhất** nhìn
