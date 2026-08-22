@@ -1321,7 +1321,7 @@ t( 'và hỏi lại trước khi khởi động', strpos( $html_dk, 'Khởi đ�
       "Rảnh" còn tab kia nói "Đang chạy" — và người đọc không biết tin tab nào. */
 t( 'trạng thái ghế tính ở đúng một hàm',
 	substr_count( $html_dk, 'function trangThai(m)' ) === 1
-	&& substr_count( $html_dk, "'p-off','Mất kết nối'" ) === 1, $html_dk ? '' : '' );
+	&& substr_count( $html_dk, "'p-off',L('Mất kết nối'" ) === 1 );
 /* Đổi tab KHÔNG gọi lại máy chủ: đổi tab không phải đổi dữ liệu, và trên 4G mỗi lượt gọi thừa
    là một lần chờ. */
 t( 'đổi tab vẽ lại từ dữ liệu đang có, không gọi lại máy chủ',
@@ -2472,6 +2472,108 @@ teq( 'lâu không có tờ nào KHÔNG bị coi là hỏng', 4,
 	preg_match_all( '/g_tmLucTo/', $fw8 ) );
 t( 'và nó chỉ được ghi ở chỗ nhận tờ tiền',
 	preg_match_all( '/g_tmLucTo\s*=/', $fw8 ) === 2 );
+
+// ====================== GIAO DIỆN: NỀN ẢNH, TÊN HỆ THỐNG, HAI NGÔN NGỮ
+delete_option( 'vhg_anh_nen' );
+$web = vhg_web_html();
+
+/* Tên hệ thống khai MỘT chỗ, dùng cho cả thẻ tiêu đề lẫn màn đăng nhập lẫn dải đầu trang. */
+teq( 'tên hệ thống khai đúng một chỗ', 1,
+	preg_match_all( "/const TEN_HE_THONG\s*=/",
+		file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' ) ) );
+t( 'thẻ tiêu đề mang tên hệ thống',
+	strpos( $web, '<title>' . VHG_Trang::TEN_HE_THONG . '</title>' ) !== false );
+t( 'và trang không còn gõ cứng tên cũ', strpos( $web, 'Ghế massage — K&amp;H' ) === false );
+t( 'tên đẩy sang JS để màn đăng nhập cũng dùng', strpos( $web, 'window.VHG_TEN=' ) !== false );
+
+/* Chưa khai ảnh -> KHÔNG bật lớp ảnh, và phải có dải màu tự dựng thay thế. Nền trắng chữ trắng
+   là kiểu hỏng chỉ lộ ra khi ảnh không tải được — tức là đúng lúc đang ở ngoài đường trên 4G. */
+t( 'chưa khai ảnh thì không bật lớp ảnh', strpos( $web, 'class="co-anh"' ) === false );
+t( 'nhưng vẫn có nền tự dựng, không trắng trơn',
+	strpos( $web, 'linear-gradient(160deg,#12141f' ) !== false );
+
+update_option( 'vhg_anh_nen', 'https://khmatrix.com/wp-content/uploads/phong-ghe.jpg' );
+$web = vhg_web_html();
+t( 'khai ảnh thì bật lớp ảnh', strpos( $web, 'class="co-anh"' ) !== false );
+t( 'và ảnh đi vào biến CSS', strpos( $web, 'phong-ghe.jpg' ) !== false );
+
+/* 🔴 Chuỗi này đi THẲNG vào một thuộc tính style. Một dấu nháy hay dấu ngoặc lọt qua là chèn
+      được CSS tuỳ ý vào trang mọi nhân viên đang mở — mà ô nhập nằm trong wp-admin nên rất dễ
+      bị coi là "người nhà, khỏi lo". */
+update_option( 'vhg_anh_nen', 'https://a.com/x.jpg");}body{display:none}/*' );
+$web = vhg_web_html();
+/* Bám vào CHUỖI ĐỘC, không vào "display:none": trang vốn đã có `.hide-sm{display:none}` trong
+   media query, nên phép thử kia đạt/trượt vì lý do chẳng liên quan. */
+t( 'địa chỉ ảnh có ký tự phá CSS thì bỏ hẳn', strpos( $web, 'a.com/x.jpg' ) === false );
+t( 'không có mẩu CSS nào chui vào', strpos( $web, '}body{' ) === false );
+t( 'và không bật lớp ảnh', strpos( $web, 'class="co-anh"' ) === false );
+update_option( 'vhg_anh_nen', 'javascript:alert(1)' );
+$web = vhg_web_html();
+t( 'không nhận địa chỉ javascript:', strpos( $web, 'javascript:alert' ) === false );
+delete_option( 'vhg_anh_nen' );
+$web = vhg_web_html();
+
+// ---- hai ngôn ngữ
+t( 'có hàm dịch tại chỗ', strpos( $web, 'function L(vi, en)' ) !== false );
+t( 'có nút đổi VI/EN', strpos( $web, 'data-nn="en"' ) !== false && strpos( $web, 'data-nn="vi"' ) !== false );
+t( 'và nhớ lựa chọn giữa các lần mở', strpos( $web, "localStorage.setItem('vhg_nn'" ) !== false );
+/* Đổi ngôn ngữ KHÔNG được gọi lại máy chủ: đó là việc nằm trọn trong máy người ta, mà trang này
+   sống trên 4G ở trung tâm thương mại. */
+t( 'đổi ngôn ngữ vẽ lại tại chỗ, không gọi máy chủ',
+	preg_match( '/function datNN\(n\)\{.*?if \(D\) ve\(\);/s', $web ) === 1 );
+t( 'và không gọi tai() trong đó', preg_match( '/function datNN\(n\)\{[^}]*tai\(/s', $web ) !== 1 );
+
+/* ⚠️ TIỀN KHÔNG ĐỔI ĐỊNH DẠNG THEO NGÔN NGỮ. Đây là tiền Việt đếm trong két Việt; đổi dấu
+      chấm/phẩy theo kiểu tiếng Anh là mời người ta đọc 50.000 thành năm mươi. */
+teq( 'tiền luôn định dạng kiểu Việt Nam', 1, preg_match_all( "/toLocaleString\('vi-VN'\) \+ 'đ'/", $web ) );
+t( 'hàm tiền() không dính vào ngôn ngữ',
+	preg_match( "/function tien\(n\)\{[^}]*NN/", $web ) !== 1 );
+
+/* Câu giải thích lỗi cục tiền do MÁY CHỦ gửi, nên phải gửi cả hai bản trong một lượt. */
+foreach ( array( 'ket', 'lech', 'khoa', 'nhieu' ) as $ma_l ) {
+	$vi = VHG_May::loi_tien_chu( $ma_l );
+	$en = VHG_May::loi_tien_chu( $ma_l, 'en' );
+	t( 'lỗi "' . $ma_l . '" có bản tiếng Anh riêng', strlen( $en ) > 30 && $en !== $vi );
+}
+$trang_nn = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
+t( 'gửi cả hai bản trong một lượt, không gọi lại khi đổi ngôn ngữ',
+	strpos( $trang_nn, "'tm_chu_en'" ) !== false );
+
+/* Đồng hồ trên dải đầu lấy mốc từ GIỜ MÁY CHỦ rồi tự tích. Lấy giờ điện thoại thì nó lệch với
+   mọi con số khác trên trang — hai loại giờ cạnh nhau là mời người ta đối chiếu nhầm. */
+t( 'đồng hồ đầu trang chạy từng giây', strpos( $web, 'function chayDongHoTop()' ) !== false );
+t( 'và lấy mốc từ giờ máy chủ', preg_match( '/chayDongHoTop\(\)\{.*?D\.luc/s', $web ) === 1 );
+t( 'không lấy giờ điện thoại làm mốc',
+	preg_match( '/function chayDongHoTop\(\)\{.*?new Date\(\)/s', $web ) !== 1 );
+
+// ---- màn Cài đặt có ô khai ảnh
+ob_start(); VHG_Admin::trang_ngoai(); $h_nen = ob_get_clean();
+t( 'màn cài đặt có ô khai ảnh nền', strpos( $h_nen, 'name="anh_nen"' ) !== false );
+t( 'và nói rõ để trống thì không bị nền trắng', strpos( $h_nen, 'không</b> bị nền trắng' ) !== false );
+/* Trang mở trên 4G: một ảnh nền 5MB là mỗi lần mở mất mấy giây và tốn tiền của cửa hàng. */
+t( 'và nhắc chọn ảnh nhẹ', strpos( $h_nen, 'dưới 300KB' ) !== false );
+
+/* 🔴 BẤM LƯU PHẢI ĂN. Ô hiện ra mà nhánh lưu không nhận nó là đúng kiểu hỏng anh Thắng đã gặp
+      với ô tiền tố: *"bấm lưu mà sao nó không chèn vào"*. Ô nhìn thấy được không chứng minh
+      được gì cả — phải GỬI THẬT một lượt POST rồi đọc lại. */
+delete_option( 'vhg_anh_nen' );
+$_POST = array( 'vhg' => 'luu_trang', 'slug' => 'ghe', 'nguon' => 'rieng',
+	'vai_tro' => array( 'Admin' ), 'anh_nen' => 'https://khmatrix.com/uploads/phong.jpg' );
+ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
+$_POST = array();
+teq( '🔴 bấm Lưu thì ảnh nền vào thật', 'https://khmatrix.com/uploads/phong.jpg',
+	(string) get_option( 'vhg_anh_nen' ) );
+t( 'và trang ngoài dùng đúng ảnh vừa lưu',
+	strpos( vhg_web_html(), 'uploads/phong.jpg' ) !== false );
+
+/* Xoá trắng ô rồi lưu thì phải về nền tự dựng — không giữ lại ảnh cũ. Giữ lại là người ta xoá
+   mãi không được, rồi đi tìm cache trong khi lỗi nằm ở nhánh lưu. */
+$_POST = array( 'vhg' => 'luu_trang', 'slug' => 'ghe', 'nguon' => 'rieng',
+	'vai_tro' => array( 'Admin' ), 'anh_nen' => '' );
+ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
+$_POST = array();
+teq( 'xoá trắng ô thì bỏ ảnh thật', '', (string) get_option( 'vhg_anh_nen' ) );
+t( 'và trang về nền tự dựng', strpos( vhg_web_html(), 'class="co-anh"' ) === false );
 
 // ============================================================ kết
 if ( $truot ) {

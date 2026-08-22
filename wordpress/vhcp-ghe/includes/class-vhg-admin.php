@@ -1098,6 +1098,11 @@ class VHG_Admin {
 					if ( in_array( $x, VHG_Auth::VAI_TRO_TAT_CA, true ) ) { $vt[] = $x; }
 				}
 				update_option( 'vhg_vai_tro_vao', $vt );
+
+				/* Ảnh nền trang ngoài. `esc_url_raw` bỏ mọi thứ không phải URL; ô này rỗng thì
+				   trang rơi về dải màu tự dựng, KHÔNG phải nền trắng. */
+				$nen = esc_url_raw( trim( (string) wp_unslash( $_POST['anh_nen'] ) ) );
+				update_option( 'vhg_anh_nen', $nen );
 				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã lưu. Địa chỉ trang: ' . VHG_Trang::url() );
 			} elseif ( 'them_nd' === $viec ) {
 				$bao[] = self::them_nguoi_dung(
@@ -1139,6 +1144,18 @@ class VHG_Admin {
 		echo '<tr><th>Đường dẫn trang</th><td>' . esc_html( home_url( '/' ) )
 			. '<input name="slug" value="' . esc_attr( VHG_Trang::slug() ) . '" class="regular-text" /> /'
 			. '<p class="description">Mặc định <code>ghe</code>.</p></td></tr>';
+
+		/* Ảnh nền: dán ĐỊA CHỈ ảnh, không phải tải lên từ đây. Làm ô tải lên nghĩa là ôm luôn
+		   phần cắt cỡ, nén, và dọn ảnh cũ — trong khi Thư viện của WordPress đã làm đủ, và ảnh
+		   nằm đó thì còn thay được mà không đụng tới plugin này. */
+		echo '<tr><th>Ảnh nền trang ngoài</th><td>'
+			. '<input name="anh_nen" value="' . esc_attr( (string) get_option( 'vhg_anh_nen', '' ) )
+			. '" class="large-text" placeholder="https://khmatrix.com/wp-content/uploads/…/phong-ghe.jpg" />'
+			. '<p class="description">Vào <b>Thư viện</b> tải ảnh phòng ghế lên, mở ảnh ra rồi chép '
+			. 'ô <b>URL của tệp</b> dán vào đây. Ảnh được phủ một lớp tối để chữ còn đọc được, nên '
+			. 'ảnh sáng hay tối đều dùng được.<br>Để trống thì trang dùng dải màu tự dựng — '
+			. '<b>không</b> bị nền trắng.<br>Ảnh nền tải mỗi lần mở trang, mà nhân viên mở trên 4G: '
+			. 'nên chọn ảnh <b>dưới 300KB</b>, cỡ chừng 1600px là thừa đẹp.</p></td></tr>';
 
 		$nguon = VHG_Auth::nguon();
 		echo '<tr><th>Nguồn người dùng &amp; PIN</th><td>';

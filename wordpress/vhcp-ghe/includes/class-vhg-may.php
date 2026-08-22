@@ -79,14 +79,29 @@ class VHG_May {
 			. 'tiền, nhưng là dấu hiệu dây tín hiệu đi sát dây nguồn hoặc mát kém.',
 	);
 
+	/** Bản tiếng Anh, khai cùng chỗ với bản tiếng Việt — hai tệp là hai lần quên sửa một bên. */
+	const LOI_TIEN_EN = array(
+		'ket'   => 'Pulse line stuck low — the acceptor has hung, or its signal wire is shorted to '
+			. 'ground. Unplug the acceptor for 10 seconds and plug it back in; if it persists, '
+			. 'check the wire going to the pulse pin.',
+		'lech'  => 'Pulse count is off — one batch came to an amount not divisible by 10,000đ, so a '
+			. 'pulse was lost or added. MONEY IS BEING MISCOUNTED: reconcile the cash box now.',
+		'khoa'  => 'Credited while inhibited — the INHIBIT wire is loose or has the wrong polarity. '
+			. 'Cash reaches the box but the chair does not credit it, and no entry is recorded.',
+		'nhieu' => 'Noise on the pulse line — many false edges filtered out in one batch. It may not '
+			. 'have miscounted yet, but the signal wire is running too close to power, or the '
+			. 'ground is poor.',
+	);
+
 	public static function ma_loi_tien( $v ) {
 		$s = strtolower( trim( (string) $v ) );
 		return isset( self::LOI_TIEN[ $s ] ) ? $s : '';
 	}
 
-	public static function loi_tien_chu( $ma ) {
+	public static function loi_tien_chu( $ma, $nn = 'vi' ) {
 		$ma = self::ma_loi_tien( $ma );
-		return '' === $ma ? '' : self::LOI_TIEN[ $ma ];
+		if ( '' === $ma ) { return ''; }
+		return 'en' === $nn ? self::LOI_TIEN_EN[ $ma ] : self::LOI_TIEN[ $ma ];
 	}
 
 	/**
