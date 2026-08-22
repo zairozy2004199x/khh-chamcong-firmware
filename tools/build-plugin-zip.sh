@@ -5,6 +5,7 @@
 #   bash tools/build-plugin-zip.sh chi-phi    -> chỉ Vận Hành Chi Phí
 #   bash tools/build-plugin-zip.sh hop-dong   -> chỉ Thư Viện Hợp Đồng
 #   bash tools/build-plugin-zip.sh cham-cong  -> chỉ Chấm Công
+#   bash tools/build-plugin-zip.sh ghe        -> chỉ Ghế Massage
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,13 +53,15 @@ case "$CHON" in
   chi-phi)  dong_goi "Vận Hành Chi Phí" vhcp-chi-phi ;;
   hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
   cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
+  ghe)       dong_goi "Ghế Massage" vhcp-ghe ;;
   tatca)
     dong_goi "Trang Vận Hành K&H" vhcp-trang-chu
     dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
     dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong
     dong_goi "Chấm Công" vhcp-cham-cong
+    dong_goi "Ghế Massage" vhcp-ghe
     ;;
-  *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | tatca)"; exit 1 ;;
+  *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | ghe | tatca)"; exit 1 ;;
 esac
 
 echo

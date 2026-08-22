@@ -1,0 +1,268 @@
+<?php
+/**
+ * MÁY (GHẾ): cấu hình, cơ sở, hàng chờ chạy, nhịp sống, lệnh bật/tắt tay.
+ *
+ * =============================================================================================
+ * HAI THỨ RẤT DỄ LẪN, VÀ LẪN LÀ MẤT TIỀN
+ * =============================================================================================
+ *   `cho`  — KHÁCH ĐÃ TRẢ TIỀN, ghế chưa chạy. Sinh ra từ webhook. Ghế lấy về rồi chạy.
+ *   `lenh` — NGƯỜI BẤM TAY trên màn để cho chạy (khách kêu máy không nhận, đền bù…). KHÔNG có
+ *            tiền đi kèm.
+ * Gộp hai thứ này vào một bảng là cuối tháng không tách được "chạy vì có tiền" với "chạy vì
+ * được cho", tức không biết máy nào đang bị cho chạy chùa. Nên tách hẳn, và `lenh` bắt buộc ghi
+ * người đặt.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHG_May {
+
+	/** Quá bao lâu không có nhịp thì coi là máy đứt (giây). */
+	const HET_SONG = 120;
+
+	// ======================================================================= cơ sở
+
+	public static function ds_coso() {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'coso' ) . ' ORDER BY ten ASC' );
+	}
+
+	public static function luu_coso( $id, $ten ) {
+		global $wpdb;
+		$ten = trim( (string) $ten );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở.' ); }
+		$bang = VHG_DB::t( 'coso' );
+		if ( (int) $id > 0 ) {
+			$wpdb->update( $bang, array( 'ten' => $ten ), array( 'id' => (int) $id ) );
+			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã đổi tên cơ sở.' );
+		}
+		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
+		if ( $co ) { return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' ); }
+		$wpdb->insert( $bang, array( 'ten' => $ten ) );
+		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
+	}
+
+	/**
+	 * Xoá cơ sở. Máy đang gán vào đó KHÔNG bị xoá theo — chỉ thành "chưa gán".
+	 * ⚠️ Xoá máy theo là mất cấu hình giá/thời lượng/số tài khoản của những máy đang chạy thật,
+	 *    chỉ vì người ta gõ nhầm tên một cơ sở rồi muốn xoá đi làm lại.
+	 */
+	public static function xoa_coso( $id ) {
+		global $wpdb;
+		$id = (int) $id;
+		$so = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'may' ) . ' WHERE coso_id=%d', $id ) );
+		$wpdb->update( VHG_DB::t( 'may' ), array( 'coso_id' => 0 ), array( 'coso_id' => $id ) );
+		$wpdb->delete( VHG_DB::t( 'coso' ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cơ sở.'
+			. ( $so > 0 ? ' ' . $so . ' máy chuyển thành "chưa gán", KHÔNG bị xoá.' : '' ) );
+	}
+
+	// ======================================================================= máy
+
+	public static function ds_may() {
+		$may  = VHG_DB::t( 'may' );
+		$coso = VHG_DB::t( 'coso' );
+		$nhip = VHG_DB::t( 'nhip' );
+		$ds = VHG_DB::rows(
+			"SELECT m.*, c.ten AS coso_ten, n.trang_thai, n.nguon AS nhip_nguon, n.con_lai,"
+			. " n.fw, n.ip, n.luc AS nhip_luc FROM $may m"
+			. " LEFT JOIN $coso c ON c.id = m.coso_id"
+			. " LEFT JOIN $nhip n ON n.ma_may = m.ma"
+			. ' ORDER BY c.ten ASC, m.ma ASC' );
+		$gio = current_time( 'timestamp' );
+		foreach ( $ds as $i => $x ) {
+			$ds[ $i ]['coso_ten'] = (string) $x['coso_ten'];
+			$ds[ $i ]['con_song'] = self::con_song( isset( $x['nhip_luc'] ) ? $x['nhip_luc'] : '', $gio );
+			$ds[ $i ]['cho']      = self::so_cho( $x['ma'] );
+		}
+		return $ds;
+	}
+
+	/** Bản đồ mã máy -> thông tin, để tra nhanh khi tổng hợp doanh thu. */
+	public static function ds_may_theo_ma() {
+		$ra = array();
+		foreach ( self::ds_may() as $m ) {
+			$ra[ $m['ma'] ] = $m;
+			/* Tra được cả bằng TÊN KHAI: giao dịch của Tingo mang tên "AMTP 03" chứ không mang
+			   mã ghế, nên không có khoá này thì cơ sở của chúng luôn là "chưa gán". */
+			if ( '' !== (string) $m['ten_khai'] ) {
+				$ra[ VHG_Doc::chuan_ten( $m['ten_khai'] ) ] = $m;
+			}
+		}
+		return $ra;
+	}
+
+	public static function con_song( $luc, $bay_gio = null ) {
+		if ( '' === trim( (string) $luc ) ) { return false; }
+		$t = strtotime( $luc );
+		if ( ! $t ) { return false; }
+		if ( null === $bay_gio ) { $bay_gio = current_time( 'timestamp' ); }
+		return ( $bay_gio - $t ) <= self::HET_SONG;
+	}
+
+	public static function luu_may( $d ) {
+		global $wpdb;
+		$ma = trim( (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
+		/* Mã máy đi vào nội dung chuyển khoản mà khách gõ tay ("GHE3 T1ABC"). Dấu và khoảng
+		   trắng ở đó là khách gõ sai, gõ sai là tiền vào mà ghế không chạy. Chặn ngay lúc khai. */
+		if ( ! preg_match( '/^[A-Za-z0-9]{1,20}$/', $ma ) ) {
+			return array( 'ok' => false, 'error' => 'Mã máy chỉ được gồm chữ và số, không dấu, không '
+				. 'khoảng trắng (tối đa 20 ký tự). Mã này đi vào nội dung chuyển khoản khách gõ tay — '
+				. 'có dấu là khách gõ sai và ghế không chạy.' );
+		}
+		$hang = array(
+			'ma'       => $ma,
+			'coso_id'  => (int) ( isset( $d['coso_id'] ) ? $d['coso_id'] : 0 ),
+			'gia'      => max( 0, (int) ( isset( $d['gia'] ) ? $d['gia'] : 10000 ) ),
+			'phut'     => max( 1, (int) ( isset( $d['phut'] ) ? $d['phut'] : 6 ) ),
+			'so_tk'    => trim( (string) ( isset( $d['so_tk'] ) ? $d['so_tk'] : '' ) ),
+			'ten_tk'   => trim( (string) ( isset( $d['ten_tk'] ) ? $d['ten_tk'] : '' ) ),
+			'bank_bin' => trim( (string) ( isset( $d['bank_bin'] ) ? $d['bank_bin'] : '' ) ),
+			'ten_khai' => VHG_Doc::chuan_ten( isset( $d['ten_khai'] ) ? $d['ten_khai'] : '' ),
+			'cap_nhat' => current_time( 'mysql' ),
+		);
+		$bang = VHG_DB::t( 'may' );
+		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma ) );
+		if ( $co ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $co ) ); }
+		else { $wpdb->insert( $bang, $hang ); }
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu máy ' . $ma . '.' );
+	}
+
+	public static function xoa_may( $ma ) {
+		global $wpdb;
+		$wpdb->delete( VHG_DB::t( 'may' ), array( 'ma' => (string) $ma ) );
+		/* Doanh thu của máy đó KHÔNG xoá theo — tiền đã thu là chuyện đã xảy ra, xoá cấu hình
+		   máy không làm nó chưa xảy ra. */
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cấu hình máy ' . $ma
+			. '. Doanh thu đã ghi của máy này giữ nguyên.' );
+	}
+
+	public static function may( $ma ) {
+		global $wpdb;
+		return $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s LIMIT 1', (string) $ma ), ARRAY_A );
+	}
+
+	// ======================================================================= hàng chờ chạy
+
+	/** Tiền đã vào -> xếp cho ghế chạy. Cùng (máy, mã) tới hai lần thì chỉ một hàng. */
+	public static function xep_cho_chay( $ma_may, $ma_lenh, $so_tien, $ref, $noi_dung ) {
+		global $wpdb;
+		$bang = VHG_DB::t( 'cho' );
+		$co = $wpdb->get_var( $wpdb->prepare(
+			"SELECT id FROM $bang WHERE ma_may=%s AND ma_lenh=%s LIMIT 1", $ma_may, $ma_lenh ) );
+		if ( $co ) { return (int) $co; }
+		$wpdb->insert( $bang, array(
+			'ma_may' => (string) $ma_may, 'ma_lenh' => (string) $ma_lenh,
+			'so_tien' => (int) $so_tien, 'ref' => (string) $ref,
+			'noi_dung' => mb_substr( (string) $noi_dung, 0, 250 ),
+			'tao_luc' => current_time( 'mysql' ), 'nhan_luc' => null ) );
+		return (int) $wpdb->insert_id;
+	}
+
+	public static function so_cho( $ma_may ) {
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'cho' ) . ' WHERE ma_may=%s AND nhan_luc IS NULL', $ma_may ) );
+	}
+
+	public static function ds_cho( $chi_chua_nhan = true, $gioi_han = 200 ) {
+		$sql = 'SELECT * FROM ' . VHG_DB::t( 'cho' )
+			. ( $chi_chua_nhan ? ' WHERE nhan_luc IS NULL' : '' )
+			. ' ORDER BY id DESC LIMIT ' . (int) $gioi_han;
+		return VHG_DB::rows( $sql );
+	}
+
+	/**
+	 * Ghế hỏi "có ai trả tiền cho tôi chưa". Trả lượt CŨ NHẤT chưa nhận và đánh dấu đã nhận.
+	 *
+	 * ⚠️ ĐÁNH DẤU NGAY, KHÔNG chờ ghế báo chạy xong. Ghế mất điện giữa chừng thì khách mất lượt —
+	 *    nhưng KHÔNG đánh dấu thì ghế khởi động lại là chạy lại lượt cũ, và cứ thế mãi. Giữa "mất
+	 *    một lượt hiếm khi" và "một lượt chạy vô hạn", chọn cái thứ nhất; cái thứ hai còn làm
+	 *    hỏng cả bảng đối soát. Người ta bù tay bằng lệnh bật.
+	 */
+	public static function lay_luot( $ma_may ) {
+		global $wpdb;
+		$bang = VHG_DB::t( 'cho' );
+		$r = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE ma_may=%s AND nhan_luc IS NULL ORDER BY id ASC LIMIT 1",
+			(string) $ma_may ), ARRAY_A );
+		if ( ! $r ) { return null; }
+		$wpdb->update( $bang, array( 'nhan_luc' => current_time( 'mysql' ) ), array( 'id' => (int) $r['id'] ) );
+		return $r;
+	}
+
+	// ======================================================================= nhịp sống
+
+	public static function nhip( $ma_may, $d ) {
+		global $wpdb;
+		$ma_may = trim( (string) $ma_may );
+		if ( '' === $ma_may ) { return false; }
+		$bang = VHG_DB::t( 'nhip' );
+		$hang = array(
+			'ma_may'     => $ma_may,
+			'trang_thai' => mb_substr( (string) ( isset( $d['trang_thai'] ) ? $d['trang_thai'] : 'idle' ), 0, 20 ),
+			'nguon'      => mb_substr( (string) ( isset( $d['nguon'] ) ? $d['nguon'] : '' ), 0, 20 ),
+			'con_lai'    => (int) ( isset( $d['con_lai'] ) ? $d['con_lai'] : 0 ),
+			'ip'         => mb_substr( (string) ( isset( $d['ip'] ) ? $d['ip'] : '' ), 0, 60 ),
+			'fw'         => mb_substr( (string) ( isset( $d['fw'] ) ? $d['fw'] : '' ), 0, 40 ),
+			'luc'        => current_time( 'mysql' ),
+		);
+		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma_may=%s LIMIT 1", $ma_may ) );
+		if ( $co ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $co ) ); }
+		else { $wpdb->insert( $bang, $hang ); }
+		return true;
+	}
+
+	// ======================================================================= lệnh bật/tắt tay
+
+	/**
+	 * Đặt lệnh cho ghế. `$viec` = 'on' (chạy $phut phút) hoặc 'off' (tắt ngay).
+	 * ⚠️ BẮT BUỘC ghi người đặt — đây là đường cho không một lượt massage, xem khối ⚠️ đầu tệp.
+	 */
+	public static function dat_lenh( $ma_may, $viec, $phut, $nguoi, $ly_do = '' ) {
+		global $wpdb;
+		$ma_may = trim( (string) $ma_may );
+		if ( '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
+		if ( 'on' !== $viec && 'off' !== $viec ) {
+			return array( 'ok' => false, 'error' => 'Lệnh chỉ có thể là bật (on) hoặc tắt (off).' );
+		}
+		$nguoi = trim( (string) $nguoi );
+		if ( '' === $nguoi ) { return array( 'ok' => false, 'error' => 'Thiếu tên người đặt lệnh.' ); }
+		$phut = (int) $phut;
+		if ( 'on' === $viec ) {
+			$m = self::may( $ma_may );
+			if ( $phut <= 0 ) { $phut = $m ? (int) $m['phut'] : 6; }
+			/* Chặn trần: gõ nhầm 600 thay vì 6 là ghế chạy 10 tiếng và không ai ở đó để tắt. */
+			if ( $phut > 60 ) {
+				return array( 'ok' => false, 'error' => 'Tối đa 60 phút một lệnh. Gõ nhầm số 0 là '
+					. 'ghế chạy suốt đêm mà không ai ở đó để tắt.' );
+			}
+		}
+		$wpdb->insert( VHG_DB::t( 'lenh' ), array(
+			'ma_may' => $ma_may, 'viec' => $viec, 'phut' => $phut,
+			'nguoi' => mb_substr( $nguoi, 0, 190 ), 'ly_do' => mb_substr( (string) $ly_do, 0, 250 ),
+			'tao_luc' => current_time( 'mysql' ), 'gui_luc' => null ) );
+		return array( 'ok' => true, 'thong_bao' => 'on' === $viec
+			? 'Đã đặt lệnh cho máy ' . $ma_may . ' chạy ' . $phut . ' phút. Máy nhận trong ~10 giây.'
+			: 'Đã đặt lệnh TẮT máy ' . $ma_may . '.' );
+	}
+
+	/** Ghế lấy lệnh cũ nhất chưa gửi. Lấy xong đánh dấu đã gửi. */
+	public static function lay_lenh( $ma_may ) {
+		global $wpdb;
+		$bang = VHG_DB::t( 'lenh' );
+		$r = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE ma_may=%s AND gui_luc IS NULL ORDER BY id ASC LIMIT 1",
+			(string) $ma_may ), ARRAY_A );
+		if ( ! $r ) { return null; }
+		$wpdb->update( $bang, array( 'gui_luc' => current_time( 'mysql' ) ), array( 'id' => (int) $r['id'] ) );
+		return $r;
+	}
+
+	public static function ds_lenh( $gioi_han = 100 ) {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'lenh' )
+			. ' ORDER BY id DESC LIMIT ' . (int) $gioi_han );
+	}
+}

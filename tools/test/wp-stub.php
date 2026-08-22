@@ -302,13 +302,20 @@ class VHCP_Test_WPDB {
 
 	public function query( $sql ) { $this->q_count++; return $this->pdo->exec( $this->tr( $sql ) ); }
 
+	/* `$wpdb->insert_id` — WordPress thật CÓ thuộc tính này, và mã plugin dùng nó để lấy id vừa
+	   thêm. Bản stub đầu thiếu, nên mọi chỗ đọc `insert_id` nhận null mà chỉ cảnh báo chứ không
+	   hỏng — tức là im lặng trả về id 0. Đúng loại lỗi phép thử KHÔNG bắt được. */
+	public $insert_id = 0;
+
 	public function insert( $table, $data ) {
 		$cols = array_keys( $data );
 		$vals = array();
 		foreach ( $data as $v ) { $vals[] = ( $v === null ) ? 'NULL' : $this->quote( $v ); }
 		$sql = 'INSERT INTO ' . $table . ' (' . implode( ',', $cols ) . ') VALUES (' . implode( ',', $vals ) . ')';
 		$this->q_count++;
-		return $this->pdo->exec( $sql );
+		$r = $this->pdo->exec( $sql );
+		$this->insert_id = (int) $this->pdo->lastInsertId();
+		return $r;
 	}
 
 	public function update( $table, $data, $where ) {

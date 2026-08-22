@@ -18,7 +18,8 @@
  */
 
 $goc = dirname( __DIR__, 2 );
-$thu_muc = array( 'wordpress/vhcp-cham-cong', 'wordpress/vhcp-chi-phi', 'wordpress/vhcp-hop-dong' );
+$thu_muc = array( 'wordpress/vhcp-cham-cong', 'wordpress/vhcp-chi-phi', 'wordpress/vhcp-hop-dong',
+	'wordpress/vhcp-trang-chu', 'wordpress/vhcp-ghe' );
 
 /** Tất cả tệp .php dưới các thư mục trên. */
 function tep_php( $goc, $thu_muc ) {

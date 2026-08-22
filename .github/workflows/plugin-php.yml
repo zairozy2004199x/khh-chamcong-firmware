@@ -53,6 +53,9 @@ jobs:
       - name: Bộ thử hợp đồng
         run: php tools/test/test-hop-dong.php
 
+      - name: Bộ thử ghế massage
+        run: php tools/test/test-ghe.php
+
       - name: Bộ thử trang cổng
         run: php tools/test/test-trang-chu.php
 

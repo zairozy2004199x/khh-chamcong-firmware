@@ -37,7 +37,9 @@ teq( 'để trống thì về mặc định, KHÔNG để rỗng (rỗng là tra
 
 // ------------------------------------------------------- app CHƯA CÀI: không được đoán đường dẫn
 $ds = VHTC_Trang::ds_app();
-teq( 'liệt kê đúng 3 app', 3, count( $ds ) );
+/* Con số này sửa TAY mỗi lần thêm app — thêm một thẻ vào trang cổng là thêm một chỗ nhân viên
+   ngoài cơ sở bấm vào, nên phải là quyết định có ý thức chứ không phải phép thử tự chạy theo mã. */
+teq( 'liệt kê đúng 4 app', 4, count( $ds ) );
 foreach ( $ds as $a ) {
 	t( 'app "' . $a['ten'] . '" chưa cài -> co = false', false === $a['co'], $a );
 	teq( 'và KHÔNG dựng đường dẫn đoán cho ' . $a['ten'], '', $a['url'] );
@@ -45,7 +47,7 @@ foreach ( $ds as $a ) {
 
 ob_start(); VHTC_Trang::ve(); $h = ob_get_clean();
 t( 'chưa cài app nào thì trang vẫn vẽ được, không chết', strlen( $h ) > 300 );
-t( 'và nói rõ "chưa cài"', substr_count( $h, 'chưa cài' ) === 3, substr_count( $h, 'chưa cài' ) );
+t( 'và nói rõ "chưa cài"', substr_count( $h, 'chưa cài' ) === 4, substr_count( $h, 'chưa cài' ) );
 /* 🔴 Đây là phép thử chính: app chưa cài KHÔNG được là thẻ <a>. Một liên kết chết trông y hệt
    một liên kết sống cho tới lúc bấm vào — và người bấm là nhân viên ngoài cơ sở. */
 teq( 'không có thẻ <a> nào khi chưa cài app nào', 0, substr_count( $h, '<a class="the"' ) );
@@ -68,12 +70,23 @@ teq( 'và đường dẫn lấy TỪ CHÍNH app đó',
 teq( 'app chi phí cũng vậy',
 	'https://khmatrix.com/chi-phi/', $theo_ten['Vận Hành Chi Phí']['url'] );
 t( 'app hợp đồng chưa cài thì vẫn xám', false === $theo_ten['Thư Viện Hợp Đồng']['co'] );
+t( 'app ghế massage chưa cài thì cũng xám', false === $theo_ten['Ghế Massage']['co'] );
 
 ob_start(); VHTC_Trang::ve(); $h = ob_get_clean();
 teq( 'hai app đã cài -> đúng 2 thẻ <a>', 2, substr_count( $h, '<a class="the"' ) );
-teq( 'một app chưa cài -> đúng 1 chữ "chưa cài"', 1, substr_count( $h, 'chưa cài' ) );
+teq( 'hai app chưa cài -> đúng 2 chữ "chưa cài"', 2, substr_count( $h, 'chưa cài' ) );
 t( 'trang chứa đúng đường dẫn của app chấm công',
 	strpos( $h, 'https://khmatrix.com/cham-cong/' ) !== false );
+
+/* Ghế massage trỏ vào wp-admin chứ không phải trang công khai — cố ý, vì màn đó xem được doanh
+   thu và bật tắt được ghế. Chốt ở đây để ai đổi sang trang công khai phải nghĩ lại một lần.
+   ⚠️ Khai SAU khối vẽ ở trên: khai trước là số thẻ <a> đổi và mấy phép thử kia trượt oan. */
+eval( 'class VHG_Admin { public static function app_url() { return "https://khmatrix.com/wp-admin/admin.php?page=vhg"; } }' );
+$t2 = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $t2[ $a['ten'] ] = $a; }
+t( 'ghế massage đã cài -> co = true', true === $t2['Ghế Massage']['co'] );
+t( 'và trỏ vào wp-admin (không phải trang công khai)',
+	strpos( $t2['Ghế Massage']['url'], '/wp-admin/' ) !== false, $t2['Ghế Massage']['url'] );
 
 /* 🔴 KHÔNG ĐƯỢC GÕ CỨNG đường dẫn nào trong mã. Gõ cứng là hôm nào anh Thắng đổi đường dẫn bên
    app kia, trang cổng vẫn trỏ về đường cũ — bấm vào ra 404 mà không có gì báo. */

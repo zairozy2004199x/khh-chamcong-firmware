@@ -53,6 +53,15 @@ class VHTC_Trang {
 				'url'   => class_exists( 'VHCP_App' ) ? VHCP_App::app_url() : '',
 			),
 			array(
+				'ten'   => 'Ghế Massage',
+				'mo_ta' => 'Doanh thu QR theo cơ sở & máy, tình trạng ghế',
+				'icon'  => '💺',
+				'co'    => class_exists( 'VHG_Admin' ),
+				/* Khác ba app kia: màn này nằm trong wp-admin nên phải đăng nhập WordPress. Cố ý —
+				   nó xem được doanh thu và bật tắt được ghế. Xem ghi chú ở VHG_Admin::app_url(). */
+				'url'   => class_exists( 'VHG_Admin' ) ? VHG_Admin::app_url() : '',
+			),
+			array(
 				'ten'   => 'Thư Viện Hợp Đồng',
 				'mo_ta' => 'Hợp đồng, đối tác, ngày hết hiệu lực',
 				'icon'  => '📄',
