@@ -1493,6 +1493,32 @@ ob_start(); VHG_Admin::trang_may(); $h_tt2 = ob_get_clean();
 t( 'khai rồi thì hết cảnh báo', strpos( $h_tt2, 'Chưa khai tiền tố' ) === false );
 t( 'và hiện nội dung mẫu kèm số ký tự',
 	strpos( $h_tt2, 'SEVQR GHEAMTP01 K7M2P' ) !== false && strpos( $h_tt2, '/25 ký tự' ) !== false );
+
+/* 🔴 BẢNG ĐỌC NGƯỢC PHẢI ĐI QUA ĐÚNG HÀM MÀ ĐƯỜNG THẬT DÙNG.
+ *
+ * Anh Thắng: "bấm lưu mà sao nó không chèn vào mã qr dựng". Ô tiền tố đã lưu, dòng chú thích
+ * ngay trên đã hiện đúng — nhưng bảng đọc ngược vẫn ra "GHEMAU K7M2P", vì chỗ dựng mã mẫu gõ
+ * cứng chuỗi đó thay vì gọi noi_dung().
+ *
+ * Đây là LẦN THỨ BA bảng xem trước nói dối theo cùng một kiểu (trước đó: tỉ lệ gõ cứng 10000/6,
+ * rồi số tiền 0đ do dùng biến chưa khai). Nên phép thử này chốt CON ĐƯỜNG, không chỉ chốt kết
+ * quả: nội dung trong bảng phải BẰNG ĐÚNG cái noi_dung() trả về. */
+$nd_that = VHG_QR::noi_dung( 'MAU', 'K7M2P' );
+t( '🔴 nội dung trong bảng đọc ngược = đúng cái noi_dung() trả về',
+	strpos( $h_tt2, esc_html( $nd_that ) ) !== false, $nd_that );
+t( 'và KHÔNG còn chuỗi gõ cứng thiếu tiền tố',
+	preg_match( '/<td><code>GHEMAU K7M2P<\/code><\/td>/', $h_tt2 ) === 0, $h_tt2 ? '' : '' );
+/* Mã QR của SePay cũng phải mang tiền tố — nó là phép so sánh, so bằng dữ liệu khác nhau thì
+   so cái gì. */
+t( 'đường dẫn mã SePay cũng mang tiền tố',
+	strpos( $h_tt2, rawurlencode( $nd_that ) ) !== false
+	|| strpos( $h_tt2, str_replace( ' ', '+', $nd_that ) ) !== false, $h_tt2 ? '' : '' );
+
+/* Và soi thẳng mã nguồn: KHÔNG được gõ cứng chuỗi nội dung ở màn quản trị nữa. */
+$ad_nd = file_get_contents( VHG_DIR . 'includes/class-vhg-admin.php' );
+$ad_nd = preg_replace( '#/\*.*?\*/#s', '', $ad_nd );
+t( '⚠️ mã nguồn màn quản trị KHÔNG còn gõ cứng chuỗi "GHEMAU"',
+	strpos( $ad_nd, "'GHEMAU" ) === false, $ad_nd ? '' : '' );
 $_GET = array(); $_POST = array();
 
 // ---- firmware

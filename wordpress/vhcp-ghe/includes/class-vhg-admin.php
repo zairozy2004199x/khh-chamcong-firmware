@@ -587,7 +587,20 @@ class VHG_Admin {
 		 *    ngược ngay ở đây thì kiểm được TRƯỚC khi đi.
 		 * ================================================================================== */
 		if ( '' !== $tk_chung['so_tk'] && '' !== $tk_chung['bin'] ) {
-			$mau = VHG_QR::dung( $tk_chung['bin'], $tk_chung['so_tk'], (int) $tl_c['gia'], 'GHEMAU K7M2P' );
+			/* 🔴 GỌI ĐÚNG HÀM DỰNG NỘI DUNG, ĐỪNG GÕ CỨNG CHUỖI MẪU.
+			 *
+			 * Anh Thắng 22/08/2026: *"bấm lưu mà sao nó không chèn vào mã qr dựng"*. Ô tiền tố
+			 * đã lưu, dòng chú thích ngay trên đã hiện "SEVQR GHEAMTP01 K7M2P" — nhưng bảng đọc
+			 * ngược vẫn ra "GHEMAU K7M2P", vì chỗ này gõ cứng chuỗi đó thay vì gọi `noi_dung()`.
+			 *
+			 * Đây là LẦN THỨ BA bảng xem trước nói dối theo cùng một kiểu (trước đó: tỉ lệ gõ
+			 * cứng 10000/6, rồi số tiền 0đ do dùng biến chưa khai). Cùng một gốc: bảng xem
+			 * trước tự dựng lấy dữ liệu thay vì đi qua đúng con đường mà bản thật đi.
+			 *
+			 * Luật từ đây: mọi thứ bảng này hiện phải LẤY TỪ CÙNG MỘT HÀM mà đường thật dùng.
+			 * Có phép thử chốt điều đó, không chỉ chốt cái kết quả. */
+			$mau = VHG_QR::dung( $tk_chung['bin'], $tk_chung['so_tk'], (int) $tl_c['gia'],
+				VHG_QR::noi_dung( 'MAU', 'K7M2P' ) );
 			$doc = VHG_QR::doc( $mau );
 			$ten_nh = VHG_QR::ten_ngan_hang( $doc['bin'] );
 			echo '<h3>Mã QR sẽ dựng ra — đọc ngược để kiểm</h3>';
@@ -623,7 +636,7 @@ class VHG_Admin {
 				'acc'    => $tk_chung['so_tk'],
 				'bank'   => '' !== $ten_nh ? $ten_nh : $tk_chung['bin'],
 				'amount' => (int) $tl_c['gia'],
-				'des'    => 'GHEMAU K7M2P',
+				'des'    => VHG_QR::noi_dung( 'MAU', 'K7M2P' ),
 			) );
 			echo '<p><a class="button" href="' . esc_url( $u_sepay ) . '" target="_blank" rel="noopener">'
 				. 'Mở mã QR do SePay sinh (cùng tham số)</a> '
