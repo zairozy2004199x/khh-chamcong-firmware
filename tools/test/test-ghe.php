@@ -32,7 +32,7 @@ define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
 define( 'VHG_KHOA_WEBHOOK', 'khoa-webhook-thu-nghiem' );
 define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'nhap', 'cong', 'auth', 'trang' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -96,6 +96,31 @@ function vhg_web_html() {
 	$GLOBALS['VHCP_QVAR']['vhg_app'] = 1;
 	ob_start(); VHG_Trang::phuc_vu(); return ob_get_clean();
 }
+/** Một lượt trang bán mã gọi API. */
+function vhg_shop( $viec, $goi = array() ) {
+	$GLOBALS['VHG_THAN']       = json_encode( $goi );
+	$_SERVER['REQUEST_METHOD'] = 'POST';
+	$_SERVER['REQUEST_URI']    = '/' . VHG_Shop::slug();
+	$_GET  = array( 'api' => $viec );
+	if ( isset( $goi['ghe_url'] ) ) { $_GET['ghe'] = $goi['ghe_url']; }
+	$_POST = array();
+	$GLOBALS['VHCP_QVAR']['vhg_shop'] = 1;
+	ob_start(); VHG_Shop::phuc_vu(); $ra = ob_get_clean();
+	unset( $GLOBALS['VHCP_QVAR']['vhg_shop'] );
+	return json_decode( $ra, true );
+}
+/** Dựng trang bán mã (HTML). */
+function vhg_shop_html( $ghe = '' ) {
+	$_SERVER['REQUEST_METHOD'] = 'GET';
+	$_SERVER['REQUEST_URI']    = '/' . VHG_Shop::slug();
+	$_GET = array(); $_POST = array();
+	if ( '' !== $ghe ) { $_GET['ghe'] = $ghe; }
+	$GLOBALS['VHCP_QVAR']['vhg_shop'] = 1;
+	ob_start(); VHG_Shop::phuc_vu(); $ra = ob_get_clean();
+	unset( $GLOBALS['VHCP_QVAR']['vhg_shop'] );
+	return $ra;
+}
+
 /** Cấy một người vào danh sách riêng rồi lấy token. */
 function vhg_vao( $pin = '571394', $vai_tro = 'Admin' ) {
 	update_option( 'vhg_nguon_nguoidung', 'rieng' );
@@ -3014,6 +3039,229 @@ teq( 'còn một mã chưa dùng', 1, (int) $no['so_ma'] );
 /* Nợ tính theo MỆNH GIÁ: thứ mình nợ là lượt massage, không phải số tiền khách đã trả. */
 teq( 'nợ tính theo mệnh giá', 200000, (int) $no['tong'] );
 teq( 'và nhớ đã thu bao nhiêu', 160000, (int) $no['da_thu'] );
+
+// ====================== TRANG MINI BÁN MÃ (trang của KHÁCH)
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+delete_transient( 'vhg_shop_tra_' . md5( 'x' ) );
+delete_transient( 'vhg_shop_dung_' . md5( 'x' ) );
+
+$sg = vhg_shop( 'goi' );
+t( 'trang bán mã trả được bảng giá', ! empty( $sg['ok'] ) );
+$co100 = null;
+foreach ( $sg['goi'] as $g_ ) { if ( 100000 === (int) $g_['menh_gia'] ) { $co100 = $g_; } }
+teq( 'gói 100k hiện giá đã giảm', 85000, (int) $co100['gia_ban'] );
+teq( 'và hiện luôn phần trăm giảm', 15, (int) $co100['giam_pt'] );
+
+/* 🔴 KHÔNG có cổng PIN nhân viên — nhưng cũng KHÔNG đọc được gì của cửa hàng. */
+$sl_bo = vhg_shop( 'so_lieu' );
+t( 'trang khách KHÔNG gọi được việc của trang nhân viên', empty( $sl_bo['ok'] ) );
+
+$sd = vhg_shop( 'dat', array( 'sdt' => '0909123456', 'pin' => '2468',
+	'menh_gia' => 100000, 'so_luong' => 2 ) );
+t( 'đặt được đơn từ trang', ! empty( $sd['ok'] ), isset( $sd['error'] ) ? $sd['error'] : '' );
+teq( 'trang hiện đúng số phải trả', 170000, (int) $sd['phai_tra'] );
+t( 'và đưa số tài khoản để chuyển', '108878583951' === (string) $sd['so_tk'] );
+t( 'kèm nội dung chuyển khoản', strpos( (string) $sd['noi_dung'], 'MUA' ) !== false );
+
+$soi1 = vhg_shop( 'soi', array( 'ma_don' => $sd['ma_don'] ) );
+teq( 'chưa trả tiền thì chưa có mã', 0, (int) $soi1['xong'] );
+/* ⚠️ Việc `soi` KHÔNG được trả số điện thoại hay PIN băm: ai đoán trúng mã đơn là đọc được dữ
+      liệu của người khác. Chỉ trả "xong hay chưa" và bộ mã. */
+t( 'soi đơn không rò số điện thoại', ! isset( $soi1['sdt'] ) );
+t( 'và không rò PIN băm', ! isset( $soi1['pin_bam'] ) );
+
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 170000,
+	'content' => 'CT DEN:145T270 ' . $sd['noi_dung'], 'referenceCode' => 'FT-SHOP-1' ) );
+$soi2 = vhg_shop( 'soi', array( 'ma_don' => $sd['ma_don'] ) );
+teq( 'tiền về thì trang thấy xong', 1, (int) $soi2['xong'] );
+teq( 'và trả về 2 mã', 2, count( $soi2['ma'] ) );
+t( 'mã hiện ra có gạch cho dễ đọc', strpos( (string) $soi2['ma'][0], '-' ) !== false );
+
+// ---- tra mã từ trang
+$st = vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '2468' ) );
+teq( 'tra ra 2 mã chưa dùng', 2, count( $st['chua_dung'] ) );
+t( 'sai PIN thì không ra', empty( vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '1111' ) )['ok'] ) );
+
+// ---- dùng mã từ trang, cho đúng ghế trên tem
+$ma_shop = VHG_Ma::ma_sach( $st['chua_dung'][0]['ma'] );
+$sdung = vhg_shop( 'dung', array( 'ma' => $ma_shop, 'ma_may' => 'AMTP01' ) );
+t( 'dùng được mã từ trang', ! empty( $sdung['ok'] ), isset( $sdung['error'] ) ? $sdung['error'] : '' );
+/* 🔴 Vẫn KHÔNG cộng doanh thu — tiền đã ghi lúc bán. */
+teq( 'dùng mã không cộng thêm doanh thu', 170000, vhg_tong() );
+
+/* ⚠️ Ghế trên địa chỉ phải CÓ THẬT. Nhận bừa chuỗi trên URL là cho người ta dựng liên kết trỏ
+      tới "ghế" không tồn tại rồi tiêu mã của mình vào hư không. */
+$_GET = array( 'ghe' => 'KHONGCOGHENAY' );
+teq( 'ghế bịa trên địa chỉ bị bỏ', '', VHG_Shop::ghe_tu_dia_chi() );
+$_GET = array( 'ghe' => 'amtp01' );
+teq( 'ghế có thật thì nhận, không phân biệt hoa thường', 'AMTP01', VHG_Shop::ghe_tu_dia_chi() );
+$_GET = array();
+
+// ---- hãm thử ở ô tra mã
+/* 🔴 Số điện thoại là thứ đoán được. Không hãm thì một máy dò hết 10.000 PIN của một số trong
+      vài phút, và tiêu sạch mã của người ta. */
+delete_transient( 'vhg_shop_tra_' . md5( 'x' ) );
+$bi = false;
+for ( $i = 0; $i < 20; $i++ ) {
+	$r_ = vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '0000' ) );
+	if ( isset( $r_['error'] ) && strpos( $r_['error'], 'quá nhiều lần' ) !== false ) { $bi = true; break; }
+}
+t( '🔴 dò PIN nhiều lần thì bị hãm', $bi );
+/* Và hãm rồi thì PIN ĐÚNG cũng không lọt — nếu không, người dò chỉ việc thử tiếp. */
+t( 'hãm rồi thì PIN đúng cũng phải chờ',
+	empty( vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '2468' ) )['ok'] ) );
+delete_transient( 'vhg_shop_tra_' . md5( 'x' ) );
+
+// ---- trang HTML
+$sh = vhg_shop_html();
+t( 'trang bán mã dựng được', strpos( $sh, 'Mua mã giảm giá' ) !== false );
+t( 'có ba mục: mua / mã của tôi / dùng mã',
+	strpos( $sh, 'data-tab="mua"' ) !== false && strpos( $sh, 'data-tab="cua-toi"' ) !== false
+	&& strpos( $sh, 'data-tab="dung"' ) !== false );
+/* 🔴 KHÔNG dựng mã QR để khách quét: khách đang cầm ĐÚNG cái điện thoại hiện trang này, không
+      ai quét được mã QR trên màn hình của chính máy mình. */
+t( 'không vẽ mã QR cho khách tự quét', strpos( $sh, 'qrcode' ) === false
+	&& strpos( $sh, 'esp_qrcode' ) === false );
+t( 'thay vào đó có nút sao chép', strpos( $sh, 'data-chep=' ) !== false );
+/* ⚠️ BA PHÉP THỬ DƯỚI ĐÂY BÁM VÀO ĐÚNG LUẬT CSS/NHÁNH MÃ, KHÔNG BÁM VÀO MỘT CHUỖI CHUNG CHUNG.
+      Bản trước dò `line-through`, `execCommand`, `ck.nhan` — cả ba đều còn xuất hiện ở chỗ KHÁC
+      trong tệp (mã đã dùng cũng gạch ngang; `tayChep` vẫn định nghĩa dù không ai gọi; luật
+      `.ck.nhan .gt` vẫn còn), nên phép thử đạt trong khi thứ nó canh đã bị gỡ. */
+/* Sao chép phải có ĐƯỜNG LUI ĐƯỢC NỐI: `navigator.clipboard` chỉ chạy trên HTTPS và một số
+   trình duyệt. Hàm dự phòng còn nằm đó mà không ai gọi thì cũng như không có. */
+t( 'sao chép có đường lui, và đường lui được nối',
+	preg_match( '/\} else \{ tayChep\(txt, xong\); \}/', $sh ) === 1
+	&& preg_match( '/function tayChep\(txt, xong\)\{[^}]*execCommand/s', $sh ) === 1 );
+t( 'giá gốc của GÓI gạch ngang cho thấy phần được giảm',
+	strpos( $sh, '.g .cu{text-decoration:line-through' ) !== false );
+/* Nội dung chuyển khoản là thứ sai một ký tự là tiền lạc — phải nổi bật hơn hai ô kia. */
+t( 'ô nội dung chuyển khoản có luật tô riêng',
+	preg_match( '/\.ck\.nhan\{[^}]*border-color/', $sh ) === 1 );
+t( 'và ô nội dung chuyển khoản dùng đúng lớp đó',
+	strpos( $sh, "o_ck('Nội dung chuyển khoản', DON.noi_dung, DON.noi_dung, ' nhan')" ) !== false );
+$sh2 = vhg_shop_html( 'AMTP01' );
+t( 'tem mang mã ghế thì trang biết ghế nào', strpos( $sh2, '"AMTP01"' ) !== false );
+
+// ====================== Ô QUẢNG CÁO MÃ GIẢM GIÁ LUÂN PHIÊN TRÊN MÀN GHẾ
+/* Anh Thắng 23/08/2026: ô mệnh giá 100k luân phiên — 30 giây hiện gói, 30 giây hiện lời mời mua
+   mã giảm giá. Tem QR dán cứng cạnh thùng tiền, nên ô này chỉ MỜI chứ không vẽ mã. */
+delete_option( 'vhg_qc_o' ); delete_option( 'vhg_qc_giay' );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+/* ⚠️ MẶC ĐỊNH TẮT: chưa khai gì mà đã mời khách mua mã là mời họ tới một trang không giảm đồng
+      nào — mất lòng tin ngay lần đầu, và lần sau họ không quét nữa. */
+teq( 'chưa khai thì tắt', -1, (int) VHG_May::qc_ma()['o'] );
+
+update_option( 'vhg_qc_o', 1 );
+teq( 'khai ô 1 thì bật ô 1', 1, (int) VHG_May::qc_ma()['o'] );
+teq( 'mặc định 30 giây mỗi vế', 30, (int) VHG_May::qc_ma()['giay'] );
+teq( 'và mang theo mức giảm cao nhất', 15, (int) VHG_May::qc_ma()['giam'] );
+
+/* ⚠️ Ô phải NẰM TRONG SỐ Ô ĐANG CÓ. Khai ô số 9 là một ô quảng cáo không bao giờ xuất hiện, mà
+      trên web nhìn vẫn như đã bật — kiểu hỏng im lặng. */
+update_option( 'vhg_qc_o', 9 );
+teq( 'ô ngoài tầm thì coi như tắt', -1, (int) VHG_May::qc_ma()['o'] );
+
+/* 🔴 KHÔNG mời mua mã khi bảng giảm giá RỖNG. Mời khách tới trang bán hàng không giảm đồng nào
+      là lừa họ một lần rồi mất họ mãi. */
+update_option( 'vhg_qc_o', 1 );
+delete_option( 'vhg_ma_giam' );
+teq( 'không có giảm giá thì không mời', -1, (int) VHG_May::qc_ma()['o'] );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+
+/* Số giây phải nằm trong khoảng người đọc được: dưới 5 giây là chữ nhấp nháy, trên 5 phút thì
+   một trong hai vế coi như không tồn tại. */
+update_option( 'vhg_qc_giay', 1 );
+t( 'số giây quá ngắn bị nâng lên', VHG_May::qc_ma()['giay'] >= 5 );
+update_option( 'vhg_qc_giay', 99999 );
+t( 'quá dài bị hạ xuống', VHG_May::qc_ma()['giay'] <= 300 );
+update_option( 'vhg_qc_giay', 30 );
+
+// ---- ghế nhận được cấu hình đó
+$nh_qc = vhg_ghe( array( 'viec' => 'nhip', 'mac' => 'AA:BB:CC:DD:EE:01', 'trang_thai' => 'idle' ) );
+t( 'nhịp mang theo ô quảng cáo', isset( $nh_qc[1]['qcO'] ) );
+teq( 'đúng ô đã khai', 1, (int) $nh_qc[1]['qcO'] );
+teq( 'đúng số giây', 30, (int) $nh_qc[1]['qcGiay'] );
+teq( 'đúng mức giảm', 15, (int) $nh_qc[1]['qcGiam'] );
+
+// ---- firmware
+$fw11 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'ghế đọc được ô quảng cáo', strpos( $fw11, 'd.containsKey("qcO")' ) !== false );
+t( 'và có vế quảng cáo để vẽ', strpos( $fw11, 'void veTheQuangCao(int i)' ) !== false );
+t( 'vế đó mời quét tem cạnh thùng tiền', strpos( $fw11, 'QUET TEM CANH THUNG TIEN' ) !== false );
+t( 'và hiện mức giảm', strpos( $fw11, '"-" + String(QC_GIAM) + "%"' ) !== false );
+/* 🔴 VÙNG BẤM KHÔNG ĐỔI. Khách nhìn ô mình định bấm bỗng đổi thành chữ khác rồi bấm vào không ra
+      gì là hỏng nặng hơn hẳn cái nó chữa — nên vế quảng cáo chỉ thay nội dung, `PKG_BTN` giữ
+      nguyên và `startSession(i)` vẫn chạy như thường. */
+t( 'vế quảng cáo vẫn bấm được như gói thường',
+	preg_match( '/if\(i == QC_O && QC_O >= 0 && QC_GIAM > 0 && g_qcMat\)\{ veTheQuangCao\(i\); return; \}/', $fw11 ) === 1 );
+t( 'và nói rõ với khách là bấm được', strpos( $fw11, 'cham de mua goi nhu thuong' ) !== false );
+/* ⚠️ Chỉ vẽ lại ĐÚNG MỘT Ô. Một lượt fillScreen trên CYD mất ~90ms; cứ 30 giây chớp cả màn một
+      cái thì khách tưởng ghế lỗi. */
+t( 'luân phiên chỉ vẽ lại một ô, không vẽ lại cả màn',
+	preg_match( '/g_qcMat = !g_qcMat;\s*\n\s*if\(QC_O < PKG_N\) veTheGoi\(QC_O\);/', $fw11 ) === 1 );
+t( 'và không đụng tới screenDrawn',
+	preg_match( '/g_qcMat = !g_qcMat;[^}]*screenDrawn\s*=/s', $fw11 ) !== 1 );
+/* Tắt trên web thì ô về vế gói NGAY, đừng kẹt tới lượt luân phiên sau — người vừa tắt sẽ tưởng
+   lệnh không ăn. */
+t( 'tắt thì về vế gói ngay', strpos( $fw11, 'if(QC_O < 0){ g_qcMat = false; }' ) !== false );
+/* Và chỉ luân phiên khi ghế ĐANG RẢNH: màn chờ trả tiền và màn đếm ngược không có ô gói nào. */
+t( 'chỉ luân phiên lúc ghế rảnh',
+	preg_match( '/if\(QC_O >= 0 && QC_GIAM > 0 && CHAIR_ID\.length\(\) && !CHUA_GAN && duNhanTien\(\)\s*\n\s*&& screenDrawn/', $fw11 ) === 1 );
+
+// ---- màn Cài đặt: khai giảm giá + ô quảng cáo, và LƯU PHẢI ĂN
+delete_option( 'vhg_ma_giam' ); delete_option( 'vhg_qc_o' );
+ob_start(); VHG_Admin::trang_ngoai(); $h_ma = ob_get_clean();
+t( 'cài đặt có bảng giảm giá bán mã', strpos( $h_ma, 'Giảm giá khi mua mã trước' ) !== false );
+t( 'và ô mời mua mã trên màn ghế', strpos( $h_ma, 'Mời mua mã trên màn ghế' ) !== false );
+t( 'chỉ đường tới trang bán mã', strpos( $h_ma, VHG_Shop::url() ) !== false );
+/* Tem của TỪNG ghế phải khác nhau, không thì mục "Dùng mã" không biết chạy ghế nào. */
+t( 'và chỉ cách làm tem riêng cho từng ghế', strpos( $h_ma, 'AMTP01' ) !== false );
+
+/* 🔴 BẤM LƯU PHẢI ĂN — gửi THẬT một lượt POST rồi đọc lại, không tin vào ô hiện ra. */
+$_POST = array( 'vhg' => 'luu_trang', 'slug' => 'ghe', 'nguon' => 'rieng',
+	'vai_tro' => array( 'Admin' ), 'anh_nen' => '',
+	'giam' => array( '100000' => '15', '200000' => '25' ), 'qc_o' => '1', 'qc_giay' => '45' );
+ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
+$_POST = array();
+teq( 'lưu được mức giảm 100k', 15, VHG_Ma::giam_cua( 100000 ) );
+teq( 'và mức giảm 200k', 25, VHG_Ma::giam_cua( 200000 ) );
+teq( 'lưu được ô quảng cáo', 1, (int) VHG_May::qc_ma()['o'] );
+teq( 'và số giây mỗi vế', 45, (int) VHG_May::qc_ma()['giay'] );
+
+/* Để trống ô quảng cáo = TẮT, không phải "ô số 0".
+   ⚠️ VẪN GIỮ BẢNG GIẢM GIÁ trong lượt lưu này. Xoá luôn bảng giảm giá thì `qc_ma()` trả -1 vì
+      "không có giảm nào", và phép thử đạt mà không hề chạm tới nhánh "ô để trống" — đúng chỗ nó
+      định canh. Hai nhánh cùng ra -1 nên phải tách chúng ra mới thử được từng cái. */
+$_POST = array( 'vhg' => 'luu_trang', 'slug' => 'ghe', 'nguon' => 'rieng',
+	'vai_tro' => array( 'Admin' ), 'anh_nen' => '',
+	'giam' => array( '100000' => '15' ), 'qc_o' => '', 'qc_giay' => '30' );
+ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
+$_POST = array();
+teq( 'vẫn còn giảm giá', 15, VHG_Ma::giam_cua( 100000 ) );
+teq( '🔴 nhưng ô để trống là TẮT, không phải ô số 0', -1, (int) VHG_May::qc_ma()['o'] );
+
+/* Và nhánh còn lại: có ô nhưng KHÔNG có giảm giá thì cũng tắt. */
+$_POST = array( 'vhg' => 'luu_trang', 'slug' => 'ghe', 'nguon' => 'rieng',
+	'vai_tro' => array( 'Admin' ), 'anh_nen' => '', 'giam' => array(), 'qc_o' => '1', 'qc_giay' => '30' );
+ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
+$_POST = array();
+teq( 'xoá trắng bảng giảm giá thì hết giảm', 0, VHG_Ma::giam_cua( 100000 ) );
+teq( 'và có ô nhưng không có giảm thì cũng tắt', -1, (int) VHG_May::qc_ma()['o'] );
+
+/* Khoản NỢ hiện ra ở đúng chỗ người ta quyết định giảm bao nhiêu. */
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+$don_no = VHG_Ma::dat_don( '0977000111', '4321', 100000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T271 ' . VHG_QR::noi_dung_mua( $don_no['ma_don'] ),
+	'referenceCode' => 'FT-NO-1' ) );
+ob_start(); VHG_Admin::trang_ngoai(); $h_no = ob_get_clean();
+t( 'cài đặt hiện khoản đang nợ khách', strpos( $h_no, 'Đang nợ khách' ) !== false );
+t( 'và nói rõ vì sao nó chỉ cộng lên', strpos( $h_no, 'không hết hạn' ) !== false );
 
 // ============================================================ kết
 if ( $truot ) {

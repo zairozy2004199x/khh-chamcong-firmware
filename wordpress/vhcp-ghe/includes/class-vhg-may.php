@@ -57,6 +57,39 @@ class VHG_May {
 			. ( $so > 0 ? ' ' . $so . ' máy chuyển thành "chưa gán", KHÔNG bị xoá.' : '' ) );
 	}
 
+	// ======================================================================= ô quảng cáo mã
+
+	/**
+	 * Ô nào trên màn ghế luân phiên hiện lời mời mua mã giảm giá, và mỗi vế bao lâu.
+	 *
+	 * 🔴 Anh Thắng 23/08/2026: *"nó sẽ hiện đè chỗ mệnh giá 100k — 100k hiện 30s, mã giảm giá
+	 *    hiện 30s, luân phiên"*. Tem QR thì dán cứng cạnh thùng tiền, nên ô này chỉ MỜI, không
+	 *    vẽ mã.
+	 *
+	 * ⚠️ MẶC ĐỊNH TẮT. Chưa khai bảng giảm giá mà đã mời khách mua mã là mời họ tới một trang bán
+	 *    hàng không giảm đồng nào — mất lòng tin ngay lần đầu, và lần sau họ không quét nữa.
+	 * ⚠️ Ô phải NẰM TRONG SỐ Ô ĐANG CÓ. Khai ô số 4 trong khi ghế chỉ hiện 3 gói là một ô quảng
+	 *    cáo không bao giờ xuất hiện, mà trên web nhìn vẫn như đã bật.
+	 */
+	public static function qc_ma() {
+		$o = get_option( 'vhg_qc_o' );
+		/* ⚠️ `get_option` trả `false` khi CHƯA KHAI, và `(int) false` là 0 — tức là bật ô đầu
+		   tiên thay vì tắt. Đúng ngược lại điều mình muốn, và ngược một cách im lặng: cửa hàng
+		   chưa khai gì đã tự mời khách mua mã. Phải xét cả `false`. */
+		$o = ( false === $o || null === $o || '' === $o ) ? -1 : (int) $o;
+		$giay = (int) get_option( 'vhg_qc_giay', 30 );
+		/* 5..300: dưới 5 giây là chữ nhấp nháy không ai đọc kịp; trên 5 phút thì một trong hai
+		   vế coi như không tồn tại. */
+		$giay = max( 5, min( 300, $giay ) );
+		$n = count( self::menh_gia() );
+		if ( $o < 0 || $o >= $n ) { return array( 'o' => -1, 'giay' => $giay, 'giam' => 0 ); }
+		/* Giảm cao nhất trong bảng — đó là con số đáng đưa lên màn. Không có giảm nào thì tắt. */
+		$giam = 0;
+		foreach ( VHG_Ma::bang_giam() as $pt ) { if ( (int) $pt > $giam ) { $giam = (int) $pt; } }
+		if ( $giam <= 0 ) { return array( 'o' => -1, 'giay' => $giay, 'giam' => 0 ); }
+		return array( 'o' => $o, 'giay' => $giay, 'giam' => $giam );
+	}
+
 	// ======================================================================= nhật ký bật từ xa
 
 	/**

@@ -356,6 +356,11 @@ class VHG_Cong {
 			   lúc khách bấm chọn gói, nên nó phải biết chuỗi này — thiếu là SePay không thấy
 			   giao dịch, và không có gì báo. Xem VHG_May::tien_to_nd(). */
 			'tienTo'  => VHG_May::tien_to_nd(),
+			/* Ô quảng cáo mã giảm giá luân phiên. `qcO = -1` là tắt — ghế đời cũ không đọc ô này
+			   thì cứ hiện gói như thường, không hỏng gì. */
+			'qcO'     => (int) VHG_May::qc_ma()['o'],
+			'qcGiay'  => (int) VHG_May::qc_ma()['giay'],
+			'qcGiam'  => (int) VHG_May::qc_ma()['giam'],
 			'maMay'   => $ma_may,
 			/* Mã bắt đầu bằng '?' = ghế cắm điện rồi nhưng CHƯA ai gán mã cho nó. Ghế hiện chữ
 			   đó lên màn để người đi lắp biết mình còn thiếu một bước, thay vì đứng nhìn màn

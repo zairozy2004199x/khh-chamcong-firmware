@@ -1142,6 +1142,20 @@ class VHG_Admin {
 				   trang rơi về dải màu tự dựng, KHÔNG phải nền trắng. */
 				$nen = esc_url_raw( trim( (string) wp_unslash( $_POST['anh_nen'] ) ) );
 				update_option( 'vhg_anh_nen', $nen );
+
+				/* Bảng giảm giá bán mã trước, theo từng mệnh giá. Khai một ô rỗng = không giảm. */
+				$gi = array();
+				foreach ( (array) ( isset( $_POST['giam'] ) ? $_POST['giam'] : array() ) as $mg => $pt ) {
+					$mg = (int) $mg; $pt = (int) $pt;
+					if ( $mg > 0 && $pt > 0 ) { $gi[ $mg ] = min( 70, $pt ); }
+				}
+				update_option( 'vhg_ma_giam', $gi );
+				/* Ô quảng cáo: rỗng = tắt. Xem VHG_May::qc_ma() — `false`/rỗng phải ra -1, không
+				   phải 0, nếu không thì "chưa khai" thành "bật ô đầu tiên". */
+				$qo = isset( $_POST['qc_o'] ) ? trim( (string) wp_unslash( $_POST['qc_o'] ) ) : '';
+				update_option( 'vhg_qc_o', '' === $qo ? '' : (int) $qo );
+				$qg = isset( $_POST['qc_giay'] ) ? (int) $_POST['qc_giay'] : 30;
+				update_option( 'vhg_qc_giay', max( 5, min( 300, $qg ) ) );
 				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã lưu. Địa chỉ trang: ' . VHG_Trang::url() );
 			} elseif ( 'them_nd' === $viec ) {
 				$bao[] = self::them_nguoi_dung(
@@ -1187,6 +1201,54 @@ class VHG_Admin {
 		/* Ảnh nền: dán ĐỊA CHỈ ảnh, không phải tải lên từ đây. Làm ô tải lên nghĩa là ôm luôn
 		   phần cắt cỡ, nén, và dọn ảnh cũ — trong khi Thư viện của WordPress đã làm đủ, và ảnh
 		   nằm đó thì còn thay được mà không đụng tới plugin này. */
+		/* ===== BÁN MÃ TRƯỚC ============================================================== */
+		echo '<tr><th>Giảm giá khi mua mã trước</th><td>';
+		echo '<p class="description" style="margin-top:0">Khách mua mã hôm nay với giá đã giảm, '
+			. 'dùng hôm khác, ở <b>bất kỳ ghế nào</b>. Để trống hoặc 0 là <b>không bán</b> mệnh giá đó.</p>';
+		$giam_ht = VHG_Ma::bang_giam();
+		echo '<table class="widefat striped" style="max-width:520px"><thead><tr><th>Mệnh giá</th>'
+			. '<th>Giảm (%)</th><th>Khách trả</th></tr></thead><tbody>';
+		foreach ( VHG_May::menh_gia() as $g_ ) {
+			$mg_ = (int) $g_['tien'];
+			$pt_ = isset( $giam_ht[ $mg_ ] ) ? (int) $giam_ht[ $mg_ ] : 0;
+			echo '<tr><td>' . esc_html( self::tien( $mg_ ) ) . '</td>'
+				. '<td><input type="number" min="0" max="70" name="giam[' . $mg_ . ']" value="'
+				. $pt_ . '" style="width:80px" /></td>'
+				. '<td><b>' . esc_html( self::tien( VHG_Ma::gia_ban( $mg_ ) ) ) . '</b></td></tr>';
+		}
+		echo '</tbody></table>';
+		/* 🔴 Khoản NỢ. Mã không hết hạn nên con số này chỉ cộng lên và không bao giờ tự đóng.
+		   Hiện ngay cạnh ô khai giảm giá: đó là chỗ người ta quyết định giảm bao nhiêu. */
+		$no_ = VHG_Ma::tien_no();
+		if ( $no_['so_ma'] > 0 ) {
+			echo '<p class="description" style="margin-top:8px"><b style="color:#b32d2e">Đang nợ khách '
+				. esc_html( self::tien( $no_['tong'] ) ) . '</b> — ' . (int) $no_['so_ma']
+				. ' mã đã bán mà chưa dùng (đã thu ' . esc_html( self::tien( $no_['da_thu'] ) )
+				. '). Mã <b>không hết hạn</b>, nên con số này chỉ cộng lên: mỗi mã chưa dùng là một '
+				. 'lượt massage còn nợ khách.</p>';
+		}
+		echo '<p class="description" style="margin-top:8px">Trang bán mã cho khách: '
+			. '<a href="' . esc_url( VHG_Shop::url() ) . '" target="_blank">'
+			. esc_html( VHG_Shop::url() ) . '</a><br>'
+			. 'Tem dán ở từng ghế thì thêm mã ghế vào cuối, ví dụ <code>'
+			. esc_html( VHG_Shop::url( 'AMTP01' ) ) . '</code> — khách quét tem ghế nào thì mục '
+			. '<b>Dùng mã</b> tự chạy đúng ghế đó.</p></td></tr>';
+
+		echo '<tr><th>Mời mua mã trên màn ghế</th><td>';
+		$qc_ = VHG_May::qc_ma();
+		$qc_o_tho = get_option( 'vhg_qc_o' );
+		echo '<label>Ô số <input type="number" min="0" max="3" name="qc_o" value="'
+			. ( ( false === $qc_o_tho || '' === $qc_o_tho ) ? '' : (int) $qc_o_tho )
+			. '" style="width:70px" placeholder="tắt" /></label> '
+			. '<label style="margin-left:14px">Mỗi vế <input type="number" min="5" max="300" '
+			. 'name="qc_giay" value="' . (int) $qc_["giay"] . '" style="width:80px" /> giây</label>';
+		echo '<p class="description">Ô đó trên màn ghế sẽ <b>luân phiên</b>: một lúc hiện gói như '
+			. 'thường, một lúc hiện lời mời mua mã giảm giá. Ô đánh số từ <b>0</b> (trên trái), '
+			. '1 (trên phải), 2 (dưới trái), 3 (dưới phải) — anh Thắng muốn ô 100.000đ thì điền số '
+			. 'của ô đó.<br><b>Để trống là tắt.</b> Chưa khai giảm giá thì cũng tự tắt: mời khách '
+			. 'tới một trang không giảm đồng nào là mất lòng tin ngay lần đầu.<br>'
+			. 'Vế quảng cáo <b>vẫn bấm được</b> — chạm vào là mua gói đó như thường.</p></td></tr>';
+
 		echo '<tr><th>Ảnh nền trang ngoài</th><td>'
 			. '<input name="anh_nen" value="' . esc_attr( (string) get_option( 'vhg_anh_nen', '' ) )
 			. '" class="large-text" placeholder="https://khmatrix.com/wp-content/uploads/…/phong-ghe.jpg" />'

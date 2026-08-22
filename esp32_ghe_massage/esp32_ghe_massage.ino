@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-23a (nho cau hinh, cho san, bao loi L70)"
+#define FW_VERSION "ghe-massage 2026-08-23b (o moi mua ma giam gia)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -107,6 +107,22 @@ int    PKG_PHUT[PKG_MAX] = { 0, 0, 0, 0 };   // 0 = tính theo tỉ lệ quy đ�
 String PKG_MOTA[PKG_MAX] = { "KHOI DONG & THU GIAN NHE", "SAU & PHUC HOI",
                              "TRI LIEU & GIAM DAU", "DANG CAP & QUA TANG" };
 int    PKG_VIP[PKG_MAX]  = { 0, 0, 0, 1 };
+/* ============================================================================================
+ * Ô QUẢNG CÁO MÃ GIẢM GIÁ, LUÂN PHIÊN.
+ *
+ * Một ô gói luân phiên hai vế: mấy chục giây hiện gói như thường, mấy chục giây hiện lời mời
+ * mua mã giảm giá. Tem QR dán cứng cạnh thùng tiền, nên ô này chỉ MỜI chứ không vẽ mã.
+ *
+ * ⚠️ VẾ QUẢNG CÁO VẪN PHẢI BẤM ĐƯỢC, và bấm vào là mở gói đó như thường. Khách nhìn thấy ô mình
+ *    định bấm bỗng đổi thành chữ khác rồi bấm vào không ra gì là hỏng nặng hơn hẳn cái nó chữa.
+ * ⚠️ KHÔNG luân phiên khi đang chờ trả tiền hay đang chạy: hai màn đó không có ô gói nào.
+ * -1 = tắt. Ghế chưa nhận được cấu hình thì cứ hiện gói, không tự bịa ra khuyến mãi.
+ * ============================================================================================ */
+int QC_O    = -1;
+int QC_GIAY = 30;
+int QC_GIAM = 0;
+bool g_qcMat = false;          // đang hiện vế quảng cáo hay vế gói
+unsigned long g_qcLuc = 0;
 
 /* Số tiền kiểu Việt: 200000 -> "200.000d". Tấm bảng giá treo tường ghi đủ số chứ không viết
    tắt "200k", và khách đối chiếu bảng với màn ghế bằng mắt — hai chỗ ghi khác kiểu là một
@@ -633,7 +649,33 @@ Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,12
 
 /* Một thẻ gói. Tách hẳn ra vì drawIdle() vốn đã dài, mà đây là phần duy nhất người ta sẽ còn
    sửa đi sửa lại — mỗi lần anh Thắng đổi bảng giá là đụng đúng hàm này. */
+/* Vế QUẢNG CÁO của ô luân phiên. Cùng khung, cùng vị trí, cùng vùng bấm — chỉ đổi nội dung.
+   Nền vàng để nó bật hẳn khỏi ba ô kia: khách phải nhận ra có gì đó khác ở đây. */
+void veTheQuangCao(int i){
+  Btn b  = PKG_BTN[i];
+  int cx = b.x + b.w / 2;
+
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, COL_VIP);
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG);
+  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG);
+
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(COL_VANG, COL_VIP);
+  tft.drawString("MUA MA GIAM GIA", cx, b.y + 12, 1);
+  tft.setTextColor(TFT_WHITE, COL_VIP);
+  tft.setTextSize(2);
+  tft.drawString("-" + String(QC_GIAM) + "%", cx, b.y + 26, 4);
+  tft.setTextSize(1);
+  tft.setTextColor(0xE71C, COL_VIP);
+  tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 60, 1);
+  /* Nói rõ vẫn bấm được vào đây để mua gói như thường — nếu không, ô này trông như một tấm biển
+     quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm. */
+  tft.drawString("(cham de mua goi nhu thuong)", cx, b.y + 71, 1);
+}
+
 void veTheGoi(int i){
+  /* Tới lượt vế quảng cáo thì vẽ vế đó. Vùng bấm KHÔNG đổi, nên chạm vào vẫn mở đúng gói này. */
+  if(i == QC_O && QC_O >= 0 && QC_GIAM > 0 && g_qcMat){ veTheQuangCao(i); return; }
   Btn  b    = PKG_BTN[i];
   bool vip  = (PKG_VIP[i] != 0);
   int  cx   = b.x + b.w / 2;
@@ -1079,6 +1121,15 @@ void guiNhip(){
      xét độ dài như mấy ô trên — ô kia rỗng nghĩa là "máy chủ chưa khai, giữ cái đang có", còn
      ô này rỗng là một lựa chọn hợp lệ. */
   if(d.containsKey("tienTo")) ND_TIEN_TO = String((const char*)(d["tienTo"] | ""));
+  if(d.containsKey("qcO")){
+    QC_O    = (int)(d["qcO"]    | -1);
+    QC_GIAY = (int)(d["qcGiay"] | 30);
+    QC_GIAM = (int)(d["qcGiam"] | 0);
+    if(QC_GIAY < 5) QC_GIAY = 5;
+    /* Tắt quảng cáo thì đưa ô về vế gói NGAY, đừng để nó kẹt ở vế quảng cáo tới lượt luân phiên
+       sau — người vừa tắt trên web sẽ tưởng lệnh không ăn. */
+    if(QC_O < 0){ g_qcMat = false; }
+  }
   /* Mệnh giá do web khai. Nhận vào CHỈ KHI đọc được ít nhất một giá trị hợp lệ — mảng rỗng hay
      gói lỗi mà nhận là màn ghế không còn nút nào bấm được, tức đường QR chết hẳn ở cửa hàng đó
      mà máy chủ vẫn thấy ghế gửi nhịp bình thường. Giữ bộ đang dùng còn hơn. */
@@ -1550,6 +1601,15 @@ void loop(){
     static unsigned long veLai=0;
     if((CHUA_GAN || CHAIR_ID.length()==0 || !duNhanTien()) && millis()-veLai > 5000){
       veLai=millis(); screenDrawn=false; }
+
+    /* Luân phiên ô quảng cáo. CHỈ vẽ lại ĐÚNG MỘT Ô, không vẽ lại cả màn: một lượt fillScreen
+       trên CYD mất ~90ms, và cứ 30 giây chớp cả màn hình một cái thì khách tưởng ghế lỗi. */
+    if(QC_O >= 0 && QC_GIAM > 0 && CHAIR_ID.length() && !CHUA_GAN && duNhanTien()
+       && screenDrawn && millis() - g_qcLuc > (unsigned long)QC_GIAY * 1000UL){
+      g_qcLuc = millis();
+      g_qcMat = !g_qcMat;
+      if(QC_O < PKG_N) veTheGoi(QC_O);
+    }
   }
   else if(state==ST_WAIT_PAY){
     if(!screenDrawn){ drawQRScreen(); screenDrawn=true; }
