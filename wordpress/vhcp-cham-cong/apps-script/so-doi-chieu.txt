@@ -7,7 +7,8 @@
 #
 # Ba trạng thái:
 #   MYSQL <Lớp::hàm>   viết lại trên MySQL, dữ liệu ở Hostinger
-#   CAUNOI             gọi Apps Script qua cầu nối (Firebase / sheet vẫn là nguồn thật)
+#   CAUNOI             gọi Apps Script qua cầu nối — CHỈ CÒN việc NẠP DỮ LIỆU CŨ TỪ SHEET, là việc
+#                      tạm, bỏ được ngay khi nạp xong. Từ 22/08/2026 đường máy KHÔNG còn ở đây nữa.
 #   KHONGCAN <lý do>   KHÔNG cần trên MySQL — phải ghi rõ lý do, không được để trống
 #
 # ⚠️ KHONGCAN không phải "chưa làm". Đó là những hàm CHỈ TỒN TẠI VÌ SHEET: tạo sheet, chuẩn hoá
@@ -38,7 +39,7 @@ requestAttPhoto         KHONGCAN không lấy ảnh chấm công nữa nên khô
 toMauCoVaoSheet         KHONGCAN tô màu Ô trong sheet; ở MySQL chính cái cờ LÀ dữ liệu, không cần tô gì
 getNoCheckinWarning     MYSQL VHCC_Cham::canh_bao_thieu_gio_ra
 xuatPdfChamCong         MYSQL VHCC_Pdf::trang_in
-requestBackfill         CAUNOI
+requestBackfill         MYSQL VHCC_May::tai_lai
 
 ## ---- Phân lịch làm ----
 getWorkSchedule         MYSQL VHCC_Lich::ds_lich
@@ -117,28 +118,30 @@ duyetYeuCauNV           MYSQL VHCC_YeuCau::duyet
 tuChoiYeuCauNV          MYSQL VHCC_YeuCau::tu_choi
 demYeuCauNVCho          MYSQL VHCC_YeuCau::dem_cho
 
-## ---- Máy chấm công + firmware (qua cầu nối) ----
+## ---- Máy chấm công + firmware (CHẠY THẲNG TRÊN HOST từ 22/08/2026) ----
+## Trước đây cả khối này là CAUNOI: WordPress gọi Apps Script, Apps Script ghi Firebase. Anh Thắng
+## chốt bỏ Google hẳn, nên nay hàng đợi lệnh, nhịp sống và OTA nằm trên chính MySQL của website.
 addFromMachine          MYSQL VHCC_Nhan::phuc_vu
-demMayChuaGan           MYSQL VHCC_May::doi_chieu
-getDanhSachMay          CAUNOI
-getMachineStatus        CAUNOI
-getMachineRoster        CAUNOI
-ganMayVaoCuaHang        CAUNOI
-boGanMay                CAUNOI
-requestMachineScan      CAUNOI
-chanDoanMay             CAUNOI
-getQueueMay             CAUNOI
-xoaLenhQueue            CAUNOI
-getHangDoiTaiLai        CAUNOI
-xoaLenhTaiLai           CAUNOI
-dungTaiLai              CAUNOI
-luuSimMay               CAUNOI
-getLuongMayTuDong       CAUNOI
-getGiaMayTuDong         CAUNOI
-setGiaMayTuDong         CAUNOI
-xemKhoiTest             CAUNOI
-donKhoiTest             CAUNOI
-getFwMoiNhat            CAUNOI
-getOtaTarget            CAUNOI
-setOtaTarget            CAUNOI
-clearOtaTarget          CAUNOI
+demMayChuaGan           MYSQL VHCC_May::ds_may
+getDanhSachMay          MYSQL VHCC_May::ds_may
+getMachineStatus        MYSQL VHCC_May::ds_may
+getMachineRoster        MYSQL VHCC_May::roster
+ganMayVaoCuaHang        MYSQL VHCC_May::gan_may
+boGanMay                MYSQL VHCC_May::bo_gan
+requestMachineScan      MYSQL VHCC_May::yeu_cau_quet
+chanDoanMay             MYSQL VHCC_May::chan_doan
+getQueueMay             MYSQL VHCC_May::ds_lenh
+xoaLenhQueue            MYSQL VHCC_May::xoa_lenh
+getHangDoiTaiLai        MYSQL VHCC_May::ds_lenh
+xoaLenhTaiLai           MYSQL VHCC_May::xoa_lenh
+dungTaiLai              MYSQL VHCC_May::dung_tai_lai
+luuSimMay               MYSQL VHCC_May::luu_sim
+getLuongMayTuDong       KHONGCAN cua giao dien goc tren Apps Script, WordPress chua bao gio goi; man may o day khong co phan gia/luong theo may
+getGiaMayTuDong         KHONGCAN cua giao dien goc tren Apps Script, WordPress chua bao gio goi; man may o day khong co phan gia/luong theo may
+setGiaMayTuDong         KHONGCAN cua giao dien goc tren Apps Script, WordPress chua bao gio goi; man may o day khong co phan gia/luong theo may
+xemKhoiTest             KHONGCAN don khoi thang ten "test" TRONG SHEET do goi thu duong truyen tao ra; khong con sheet, va cong nhan da chan goi TEST4G truoc khi ghi
+donKhoiTest             KHONGCAN don khoi thang ten "test" TRONG SHEET do goi thu duong truyen tao ra; khong con sheet, va cong nhan da chan goi TEST4G truoc khi ghi
+getFwMoiNhat            MYSQL VHCC_May::fw_dang_chay
+getOtaTarget            MYSQL VHCC_May::ota_dang_dat
+setOtaTarget            MYSQL VHCC_May::dat_ota
+clearOtaTarget          MYSQL VHCC_May::go_ota

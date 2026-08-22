@@ -65,5 +65,6 @@ echo
 echo "Cài lên hosting: wp-admin → Plugin → Cài mới → Tải plugin lên → chọn file → Cài đặt → Kích hoạt."
 echo "Các plugin cài độc lập, cài cái nào trước cũng được."
 echo
-echo "Trong bản cài KHÔNG có goc/ và apps-script/ — hai thư mục đó không chạy gì mà lại đọc được"
-echo "từ web. Mấy tệp .gs cần dán vào Apps Script thì lấy trong repo (hoặc bản gửi kèm)." 
+echo "Bản cài KHÔNG có goc/ (mã gốc để tra cứu, không chạy gì)."
+echo "apps-script/ thì CÓ, và phải có: plugin đọc cau-noi.gs lúc chạy để biết cầu nối cho gọi hàm nào."
+echo "Bỏ nó ra khỏi bản cài là trang chấm công báo \"CC_CHO_PHEP còn RỖNG\" — đã xảy ra một lần." 

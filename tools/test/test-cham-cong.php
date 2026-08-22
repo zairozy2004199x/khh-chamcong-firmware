@@ -78,25 +78,33 @@ $fns = VHCC_Trang::ds_ham();
 $ham_app = array_values( array_diff( $fns, array( 'login', 'vhccLogout' ) ) );
 t( 'vẫn có login', in_array( 'login', $fns, true ) );
 
-/* Danh sách cho phép của cầu nối nay có 22 hàm máy + OTA (anh Thắng: Firebase giữ nguyên, chỉ
-   đưa MÀN lên web). Chốt cứng cả danh sách: thêm tên vào đây là mở thêm một cửa gọi được từ web,
-   nên phải sửa phép thử — tức phải nghĩ một lần nữa. */
-$MAY_22 = array(
+/* 🔴 22/08/2026 — DANH SÁCH CHO PHÉP RÚT TỪ 27 XUỐNG 4.
+   Cả khối 23 hàm máy + OTA đã chuyển sang chạy thẳng trên host, không đi qua cầu nối nữa. Phép
+   thử này ĐỔI THEO, và đổi theo hướng CHẶT HƠN: trước cho phép 27 tên, nay chỉ 4.
+
+   Vì sao đáng canh: `setOtaTarget` đẩy firmware cho CẢ CHUỖI — ai gọi được nó là nạp được phần
+   mềm tuỳ ý vào 26 máy. Còn tên nó trong danh sách thì con đường đó vẫn mở dù không ai dùng.
+
+   Bốn hàm còn lại đều CHỈ ĐỌC và đều là việc TẠM: nạp dữ liệu cũ từ Sheet sang. Nạp xong thì
+   danh sách này về 0 và cầu nối không còn lý do tồn tại.
+
+   Con số ở đây phải sửa TAY mỗi lần thêm hàm — mỗi hàm khai vào cầu nối là một cửa mới mở ra cho
+   web, nên phải là quyết định có ý thức, không phải phép thử tự chạy theo mã. */
+$DOC_THEM = array( 'getEmployees', 'ccDsCoSoXuat', 'ccXuatChamCong', 'ccXuatPhanQuyen' );
+teq( 'cầu nối chỉ còn khai 4 hàm đọc để nạp dữ liệu cũ', 4, count( $ham_app ) );
+sort( $ham_app );
+$mong = $DOC_THEM; sort( $mong );
+teq( 'và đúng danh sách đó, không thừa không thiếu', $mong, $ham_app );
+/* Hàm máy/OTA KHÔNG được còn tên nào trong cầu nối — chúng chạy trên host rồi. */
+$MAY_CU = array(
 	'getDanhSachMay', 'getMachineStatus', 'getMachineRoster', 'chanDoanMay',
 	'getQueueMay', 'getHangDoiTaiLai', 'xemKhoiTest', 'getLuongMayTuDong', 'getGiaMayTuDong',
 	'ganMayVaoCuaHang', 'boGanMay', 'luuSimMay', 'requestMachineScan',
 	'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai', 'setGiaMayTuDong', 'donKhoiTest', 'requestBackfill',
 	'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget' );
-/* 🔴 Thêm 22/08/2026: BA hàm CHỈ ĐỌC để kéo dữ liệu cũ sang MySQL (anh Thắng chọn "đường B"
-   thay vì dán tay). `getEmployees` là hàm của app; `ccDsCoSoXuat` và `ccXuatChamCong` định
-   nghĩa trong chính cau-noi.gs.
-   Con số ở đây phải sửa TAY mỗi lần thêm hàm — mỗi hàm khai vào cầu nối là một cửa mới mở ra
-   cho web, nên phải là quyết định có ý thức, không phải phép thử tự chạy theo mã. */
-$DOC_THEM = array( 'getEmployees', 'ccDsCoSoXuat', 'ccXuatChamCong', 'ccXuatPhanQuyen' );
-teq( 'cầu nối khai đúng 27 hàm (23 máy/OTA + 4 hàm đọc)', 27, count( $ham_app ) );
-sort( $ham_app );
-$mong = array_merge( $MAY_22, $DOC_THEM ); sort( $mong );
-teq( 'và đúng danh sách đó, không thừa không thiếu', $mong, $ham_app );
+$con_sot = array_intersect( $MAY_CU, $ham_app );
+t( 'KHÔNG còn hàm máy/OTA nào trong cầu nối (nhất là setOtaTarget)',
+	count( $con_sot ) === 0, implode( ', ', $con_sot ) );
 teq( 'không khai trùng tên', count( $ham_app ), count( array_unique( $ham_app ) ) );
 
 /* ⚠️ Mấy hàm dưới đây TUYỆT ĐỐI không được khai vào cầu nối. Đây là loại đụng HÀNG LOẠT hoặc
@@ -324,7 +332,7 @@ $so_do = VHCC_DB::bang();
 /* 20 bảng, không phải 19: khối ghi chú số 14 trong class-vhcc-db.php gom hai bảng (lịch công
    việc + xin đổi lịch) vì chúng là một nghiệp vụ. Con số này chốt cứng để ai thêm bảng mới thì
    phải sửa phép thử — tức là phải nghĩ một lần nữa xem bảng đó có thật cần không. */
-t( 'sơ đồ có đủ 20 bảng', count( $so_do ) === 20, count( $so_do ) );
+t( 'sơ đồ có đủ 23 bảng', count( $so_do ) === 23, count( $so_do ) );
 
 foreach ( $so_do as $ten => $than ) {
 	$dong = array_values( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) );
@@ -1707,21 +1715,33 @@ t( 'màn phân lịch nói rõ lịch là dự định, chấm công là thực 
 	strpos( $than_lc, 'dự định' ) !== false && strpos( $than_lc, 'thực tế' ) !== false );
 t( 'màn phân lịch giải thích vì sao khoá có CA', strpos( $than_lc, '(cơ sở, ngày, mã NV, ca)' ) !== false );
 
-// ============================================================ 21. Máy chấm công + OTA
-/* Firebase giữ nguyên. Lớp này KHÔNG nói chuyện trực tiếp với Firebase — nó gọi Apps Script qua
-   cầu nối, để chỉ MỘT nơi ghi Firebase và khoá Firebase không phải sao thêm một bản. */
-$than_may = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-may.php' );
-t( 'lớp máy KHÔNG gọi Firebase trực tiếp',
-	stripos( $than_may, 'firebasedatabase' ) === false && stripos( $than_may, 'firebaseio' ) === false
+// ============================================================ 21. Máy chấm công + OTA — CHẠY THẲNG TRÊN HOST
+/* 22/08/2026: bỏ Firebase và bỏ Apps Script khỏi đường máy. Bài kiểm ở đây ĐỔI HẲN luật canh:
+   trước canh "mọi lượt phải đi qua cầu nối", nay canh ngược lại — KHÔNG được còn lượt nào đi ra
+   ngoài. Đây không phải nới lỏng: điều kiện chặt hơn (không gọi ra ngoài) thay cho điều kiện cũ. */
+$than_may  = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-may.php' );
+$than_mcong = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-may-cong.php' );
+t( 'lớp máy KHÔNG gọi Firebase',
+	stripos( $than_may, 'firebasedatabase' ) === false && stripos( $than_may, 'firebaseio' ) === false );
+t( 'lớp máy KHÔNG gọi ra ngoài (không cầu nối, không HTTP)',
+	strpos( $than_may, 'VHCC_CauNoi::goi' ) === false
 	&& strpos( $than_may, 'wp_remote_get' ) === false && strpos( $than_may, 'wp_remote_post' ) === false );
-t( 'mọi lượt đi qua cầu nối', strpos( $than_may, 'VHCC_CauNoi::goi' ) !== false );
+t( 'cổng máy cũng KHÔNG gọi ra ngoài',
+	strpos( $than_mcong, 'wp_remote' ) === false && strpos( $than_mcong, 'VHCC_CauNoi' ) === false );
 t( 'và KHÔNG chứa khoá Firebase nào', stripos( $than_may, 'FB_SECRET' ) === false
-	&& stripos( $than_may, 'VHCC_FB' ) === false );
+	&& stripos( $than_mcong, 'FB_SECRET' ) === false );
+/* Hai nơi cùng tính "khoá máy" là sớm muộn lệch nhau -> lệnh đặt một nơi, máy hỏi một nẻo, hàng
+   đợi im lặng rỗng mãi mà không ai biết vì sao. Chỉ MỘT định nghĩa. */
+t( 'khoá máy chỉ định nghĩa MỘT chỗ', substr_count( $than_may, 'strtolower( trim( (string) $serial ) )' ) === 0
+	&& strpos( $than_may, 'VHCC_MayCong::khoa' ) !== false );
+teq( 'khoá máy = serial viết thường', 'sn-a', VHCC_MayCong::khoa( 'SN-A', 'AA:BB' ) );
+teq( 'không có serial thì mới lấy MAC', 'aa:bb', VHCC_MayCong::khoa( '', 'AA:BB' ) );
+teq( 'không có gì thì rỗng (không bịa)', '', VHCC_MayCong::khoa( '  ', '' ) );
 
-/* ---- 21a. LINK OTA: chỗ hai lớp gác kia không che ----
-   Cầu nối kiểm khoá, Apps Script kiểm quyền Admin — nhưng không ai kiểm cái link. Module 4G
-   A7680C chết ở ~532 ký tự, mà link release GitHub trả 302 rồi chuyển hướng dài ~943 ký tự. Đẩy
-   một link như vậy là MẤT LUÔN đường sửa từ xa của cả chuỗi: phải đi 26 cửa hàng cắm USB. */
+/* ---- 21a. LINK OTA: nay là lớp gác DUY NHẤT ----
+   Trước còn Apps Script kiểm quyền Admin ở giữa. Module 4G A7680C chết ở ~532 ký tự, mà link
+   release GitHub trả 302 rồi chuyển hướng dài ~943 ký tự. Đẩy một link như vậy là MẤT LUÔN đường
+   sửa từ xa của cả chuỗi: phải đi 26 cửa hàng cắm USB. */
 teq( 'link raw nhánh bin: nhận', '',
 	VHCC_May::ota_url_hop_le( 'https://raw.githubusercontent.com/chu/repo/bin/fw.bin' ) );
 $e = VHCC_May::ota_url_hop_le( 'https://github.com/chu/repo/releases/download/v1/fw.bin' );
@@ -1734,91 +1754,259 @@ $dai = 'https://x.test/' . str_repeat( 'a', 400 ) . '.bin';
 $e2 = VHCC_May::ota_url_hop_le( $dai );
 t( 'link quá dài: từ chối và nói con số', '' !== $e2 && stripos( $e2, '532' ) !== false, $e2 );
 
-/* Lệnh đẩy firmware cho CẢ CHUỖI phải đòi xác nhận đúng chữ — không ai bấm nhầm được. */
-$r = VHCC_May::dat_ota( '2026-08-21', 'https://raw.githubusercontent.com/c/r/bin/fw.bin', '' );
-t( 'thiếu xác nhận: KHÔNG đẩy', empty( $r['ok'] ) && stripos( $r['error'], 'DONG Y' ) !== false, $r['error'] );
-$r = VHCC_May::dat_ota( '2026-08-21', 'https://raw.githubusercontent.com/c/r/bin/fw.bin', 'dong y' );
+// ---- 21b. Bảng máy, nhịp sống, gán cơ sở ----
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-A', 'mac' => 'AA', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-B', 'mac' => 'BB', 'cua_hang' => '' ) );
+$id_a = (int) $wpdb->get_var( "SELECT id FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-A'" );
+$id_b = (int) $wpdb->get_var( "SELECT id FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-B'" );
+
+$m = VHCC_May::ds_may();
+teq( 'danh sách máy đọc thẳng MySQL, không cần PIN', true, ! empty( $m['ok'] ) );
+teq( 'máy CHƯA gửi nhịp lần nào VẪN hiện ra (LEFT JOIN)', 2, count( $m['data'] ) );
+t( 'và bị đánh dấu là đứt', empty( $m['data'][0]['con_song'] ) && empty( $m['data'][1]['con_song'] ) );
+
+/* Ngưỡng "còn sống" là phép thuần — thử bằng con số, vì báo nhầm thì người ta chạy tới cửa hàng
+   vô ích, còn bỏ sót thì cả ngày không ai biết một cơ sở đang không chấm công được. */
+$moc = strtotime( '2026-08-22 10:00:00' );
+t( 'nhịp 1 phút trước: còn sống', VHCC_May::con_song( '2026-08-22 09:59:00', $moc ) );
+t( 'nhịp đúng ngưỡng 5 phút: còn sống', VHCC_May::con_song( '2026-08-22 09:55:00', $moc ) );
+t( 'nhịp 6 phút trước: ĐỨT', ! VHCC_May::con_song( '2026-08-22 09:54:00', $moc ) );
+t( 'chưa có nhịp nào: ĐỨT (không coi là sống)', ! VHCC_May::con_song( '', $moc ) );
+
+/* Gán cơ sở: lượt bấm đang nằm chờ phải TỰ vào bảng chấm công. Không tự chuyển thì người ta phải
+   gõ tay lại từng lượt — và lượt bấm là công của người thật. */
+$wpdb->insert( VHCC_DB::t( 'cho_gan' ), array( 'nhan_luc' => '2026-08-20 08:00:00',
+	'serial' => 'SN-B', 'mac' => 'BB', 'ma_nv' => 'NV900', 'ho_ten' => 'Chờ Gán',
+	'thoi_diem' => '2026-08-20 08:00:00', 'da_chuyen' => '' ) );
+$wpdb->insert( VHCC_DB::t( 'cho_gan' ), array( 'nhan_luc' => '2026-08-20 17:30:00',
+	'serial' => 'SN-B', 'mac' => 'BB', 'ma_nv' => 'NV900', 'ho_ten' => 'Chờ Gán',
+	'thoi_diem' => '2026-08-20 17:30:00', 'da_chuyen' => '' ) );
+$r = VHCC_May::gan_may( $id_b, 'POSH_HCM' );
+t( 'gán máy: xong', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+teq( 'bảng máy đã đổi cơ sở', 'POSH_HCM',
+	$wpdb->get_var( "SELECT cua_hang FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-B'" ) );
+$cc = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='NV900'", ARRAY_A );
+t( 'lượt bấm chờ gán đã vào bảng chấm công', null !== $cc );
+teq( 'và HAI lượt gộp thành một cặp vào/ra', array( 8 * 3600, 17 * 3600 + 1800 ),
+	array( (int) $cc['gio_vao_giay'], (int) $cc['gio_ra_giay'] ) );
+teq( 'hàng chờ gán được đánh dấu đã chuyển', 0, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'cho_gan' ) . " WHERE da_chuyen=''" ) );
+/* Gán lại lần nữa không được nhân đôi: đi qua đúng `ghi_gio` nên chỉ nới, không đẻ hàng mới. */
+VHCC_May::gan_may( $id_b, 'POSH_HCM' );
+teq( 'gán lại không đẻ thêm hàng chấm công', 1, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='NV900'" ) );
+$r = VHCC_May::gan_may( $id_b, '' );
+t( 'gán mà thiếu cơ sở: chặn', empty( $r['ok'] ) );
+$r = VHCC_May::gan_may( 99999, 'POSH_HCM' );
+t( 'gán máy không có thật: chặn, không tạo bừa', empty( $r['ok'] ) );
+
+// ---- 21c. HÀNG ĐỢI LỆNH nằm trên host ----
+$r = VHCC_May::yeu_cau_quet( $id_a );
+t( 'đặt được lệnh quét', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$op1 = $r['opId'];
+teq( 'máy đó có 1 lệnh đang chờ', 1, VHCC_MayCong::so_lenh_cho( 'sn-a' ) );
+teq( 'máy KHÁC không thấy lệnh của nó', 0, VHCC_MayCong::so_lenh_cho( 'sn-b' ) );
+
+$l = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'SN-A' ) );
+teq( 'máy lấy đúng lệnh của mình', $op1, $l['opId'] );
+teq( 'và đúng tên việc', 'scan', $l['action'] );
+/* Tên trường phải giữ ĐÚNG như firmware đang đọc — đổi là phải OTA cả chuỗi mới chạy lại được. */
+foreach ( array( 'opId', 'action', 'employeeNo', 'name', 'pin', 'gender', 'hasPhoto', 'date',
+	'time', 'which', 'startTime', 'endTime', 'bfImage' ) as $khoa_fw ) {
+	t( 'gói lệnh có trường ' . $khoa_fw . ' đúng tên firmware đang đọc', array_key_exists( $khoa_fw, $l ) );
+}
+/* 🔴 Đã gửi mà chưa báo xong thì VẪN phải gửi lại: "đã gửi" không có nghĩa là "máy nhận được".
+   Đây đúng là ca 4G rớt giữa chừng — trên Firebase máy phải tự xoá và xoá hỏng là lệnh nằm lại
+   chặn sạch hàng phía sau. */
+$l2 = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'SN-A' ) );
+teq( 'lấy lại lần nữa: VẪN ra lệnh đó (chưa báo xong)', $op1, $l2['opId'] );
+$x = VHCC_MayCong::bao_xong( array( 'opId' => $op1, 'ketQua' => 'quét 12 người' ) );
+teq( 'báo xong: ghi được', 1, (int) $x['daGhi'] );
+$l3 = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'SN-A' ) );
+t( 'sau khi báo xong: hàng đợi rỗng', ! empty( $l3['empty'] ) );
+teq( 'lệnh xong KHÔNG bị xoá — hàng đợi cũng là nhật ký', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'queue' ) . " WHERE op_id=%s", $op1 ) ) );
+teq( 'và giữ lại kết quả máy báo về', 'quét 12 người', $wpdb->get_var( $wpdb->prepare(
+	"SELECT ket_qua FROM " . VHCC_DB::t( 'queue' ) . " WHERE op_id=%s", $op1 ) ) );
+t( 'máy không khai serial/mac: không được phát lệnh của ai cả',
+	! empty( VHCC_MayCong::lay_lenh( array() )['empty'] ) );
+
+/* Lệnh xếp theo thứ tự đặt — lệnh cũ nhất ra trước, mỗi lượt MỘT lệnh (gói phải < ~1KB cho 4G). */
+$o1 = VHCC_May::dat_lenh( 'sn-a', 'add', array( 'ma_nv' => 'NV1' ) );
+$o2 = VHCC_May::dat_lenh( 'sn-a', 'add', array( 'ma_nv' => 'NV2' ) );
+$la = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'SN-A' ) );
+teq( 'lệnh cũ nhất ra trước', 'NV1', $la['employeeNo'] );
+teq( 'mỗi lượt chỉ MỘT lệnh', 2, VHCC_MayCong::so_lenh_cho( 'sn-a' ) );
+/* Mã op sinh ở máy chủ và không được trùng: firmware giữ sổ `opDone` theo chuỗi này, trùng mã là
+   lệnh mới bị bỏ vì máy tưởng đã làm rồi. */
+t( 'mã op không trùng nhau', $o1['opId'] !== $o2['opId'] );
+
+$r = VHCC_May::xoa_lenh( $o2['opId'] );
+t( 'xoá được lệnh CHƯA gửi', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$r = VHCC_May::xoa_lenh( $o1['opId'] );
+t( 'lệnh ĐÃ xuống máy: KHÔNG xoá, và nói rõ vì sao',
+	empty( $r['ok'] ) && stripos( $r['error'], 'đã xuống máy' ) !== false, $r['error'] );
+$r = VHCC_May::xoa_lenh( 'khong-co-that' );
+t( 'xoá lệnh không có thật: báo lỗi chứ không im', empty( $r['ok'] ) );
+
+// ---- 21d. Tải lại: chặn khoảng quá rộng ----
+$r = VHCC_May::tai_lai( $id_a, '2026-08-01', '2026-08-10' );
+t( 'đặt được lệnh tải lại', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+$q = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE op_id=%s",
+	$r['opId'] ), ARRAY_A );
+teq( 'khoảng ghi kèm giờ đầu ngày', '2026-08-01 00:00:00', $q['tu_gio'] );
+teq( 'và giờ cuối ngày — thiếu là mất trọn ngày cuối', '2026-08-10 23:59:59', $q['den_gio'] );
+$r = VHCC_May::tai_lai( $id_a, '2026-01-01', '2026-08-10' );
+t( 'khoảng quá rộng: chặn và nói con số ngày',
+	empty( $r['ok'] ) && stripos( $r['error'], '31 ngày' ) !== false, $r['error'] );
+$r = VHCC_May::tai_lai( $id_a, '2026-08-10', '2026-08-01' );
+t( 'ngày kết thúc sớm hơn ngày bắt đầu: chặn', empty( $r['ok'] ) );
+$r = VHCC_May::tai_lai( $id_a, '10/08/2026', '2026-08-11' );
+t( 'ngày sai khuôn: chặn', empty( $r['ok'] ) );
+
+/* Cờ DỪNG đọc một lần là hết — để lại thì lần tải lại sau bị dừng ngay lúc vừa bắt đầu. */
+VHCC_May::dung_tai_lai( $id_a );
+teq( 'máy hỏi: có lệnh dừng', 1, VHCC_MayCong::hoi_dung( array( 'hikSerial' => 'SN-A' ) )['dung'] );
+teq( 'hỏi lần nữa: cờ đã tiêu', 0, VHCC_MayCong::hoi_dung( array( 'hikSerial' => 'SN-A' ) )['dung'] );
+
+// ---- 21e. NHỊP SỐNG ----
+$n = VHCC_MayCong::nhip( array( 'hikSerial' => 'SN-A', 'macAddress' => 'AA', 'stationName' => 'TUTU_BT',
+	'fw' => '2026-08-20', 'duong' => '4g', 'song' => '21', 'heap' => 130000, 'soTong' => 4021 ) );
+teq( 'nhịp trả về đúng cơ sở của máy', 'TUTU_BT', $n['coSo'] );
+teq( 'bảng nhịp có đúng MỘT hàng cho máy đó', 1, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'may_nhip' ) . " WHERE tram='sn-a'" ) );
+VHCC_MayCong::nhip( array( 'hikSerial' => 'SN-A', 'macAddress' => 'AA', 'fw' => '2026-08-21' ) );
+teq( 'nhịp thứ hai ĐÈ lên, không cộng dồn', 1, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'may_nhip' ) . " WHERE tram='sn-a'" ) );
+teq( 'và giữ bản firmware mới nhất', '2026-08-21', $wpdb->get_var(
+	"SELECT fw FROM " . VHCC_DB::t( 'may_nhip' ) . " WHERE tram='sn-a'" ) );
+teq( 'nhịp báo còn lệnh đang chờ', 1, VHCC_MayCong::nhip( array( 'hikSerial' => 'SN-A' ) )['coLenh'] );
+$n2 = VHCC_MayCong::nhip( array( 'hikSerial' => 'SN-LA', 'macAddress' => 'ZZ', 'stationName' => 'CHUA_DAT_TEN' ) );
+teq( 'máy lạ: KHÔNG bịa cơ sở', '', $n2['coSo'] );
+teq( 'mà báo là chờ gán', 1, $n2['choGan'] );
+t( 'máy lạ vẫn tự hiện ra trong bảng máy để còn gán được', null !== $wpdb->get_var(
+	"SELECT id FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-LA'" ) );
+$n3 = VHCC_MayCong::nhip( array( 'macAddress' => '' ) );
+t( 'nhịp không có serial lẫn mac: bỏ qua, không ghi hàng rác',
+	! empty( $n3['boQua'] ) );
+
+// ---- 21f. OTA đặt trên host ----
+$r = VHCC_May::dat_ota( '2026-08-22', 'https://raw.githubusercontent.com/c/r/bin/fw.bin', '' );
+t( 'đẩy CẢ CHUỖI mà thiếu xác nhận: KHÔNG đẩy',
+	empty( $r['ok'] ) && stripos( $r['error'], 'DONG Y' ) !== false, $r['error'] );
+$r = VHCC_May::dat_ota( '2026-08-22', 'https://raw.githubusercontent.com/c/r/bin/fw.bin', 'dong y' );
 t( 'xác nhận sai chữ (chữ thường): KHÔNG đẩy', empty( $r['ok'] ) );
-/* Xác nhận ĐÚNG mà link SAI thì vẫn phải chặn — thứ tự kiểm không được để link lọt. */
-$r = VHCC_May::dat_ota( '2026-08-21', 'https://github.com/c/r/releases/download/v1/fw.bin', 'DONG Y' );
-t( 'xác nhận đúng mà link release: VẪN chặn', empty( $r['ok'] ) && stripos( $r['error'], '302' ) !== false, $r['error'] );
+$r = VHCC_May::dat_ota( '2026-08-22', 'https://github.com/c/r/releases/download/v1/fw.bin', 'DONG Y' );
+t( 'xác nhận đúng mà link release: VẪN chặn', empty( $r['ok'] ) && stripos( $r['error'], '302' ) !== false );
 $r = VHCC_May::dat_ota( '', 'https://raw.githubusercontent.com/c/r/bin/fw.bin', 'DONG Y' );
 t( 'thiếu số phiên bản: chặn', empty( $r['ok'] ) );
-/* Chưa khai PIN admin thì nói rõ, không gọi bừa. */
-delete_option( 'vhcc_pin_admin' );
-$r = VHCC_May::ds_may();
-t( 'chưa khai PIN admin: báo rõ chứ không gọi bừa',
-	empty( $r['ok'] ) && stripos( $r['error'], 'PIN admin' ) !== false, $r['error'] );
+/* Đặt cho MỘT máy thì KHÔNG đòi gõ xác nhận — bắt gõ là người ta ngại thử rồi đẩy thẳng cả
+   chuỗi, đúng thứ cần tránh. Bản hỏng đẩy cả chuỗi thì không còn đường gọi về. */
+$r = VHCC_May::dat_ota( '2026-08-22', 'https://raw.githubusercontent.com/c/r/bin/fw.bin', '', $id_a );
+t( 'đặt riêng cho một máy: không cần xác nhận', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+teq( 'máy đó nhận bản riêng', '2026-08-22', VHCC_MayCong::ota_cho( 'sn-a' )['ver'] );
+teq( 'máy khác KHÔNG nhận gì', '', VHCC_MayCong::ota_cho( 'sn-b' )['ver'] );
+t( 'máy đang chạy đúng bản đó: KHÔNG bảo nạp lại (nếu không là nạp vòng vô tận)',
+	'' === VHCC_MayCong::ota_cho( 'sn-a', '2026-08-22' )['ver'] );
+VHCC_May::dat_ota( '2026-08-23', 'https://raw.githubusercontent.com/c/r/bin/moi.bin', 'DONG Y' );
+teq( 'đặt cả chuỗi: máy chưa có bản riêng thì theo bản chung', '2026-08-23',
+	VHCC_MayCong::ota_cho( 'sn-b' )['ver'] );
+teq( 'máy CÓ bản riêng thì bản riêng thắng', '2026-08-22', VHCC_MayCong::ota_cho( 'sn-a' )['ver'] );
+VHCC_May::go_ota( $id_a );
+teq( 'gỡ bản riêng: máy đó quay về bản chung', '2026-08-23', VHCC_MayCong::ota_cho( 'sn-a' )['ver'] );
+VHCC_May::go_ota();
+teq( 'gỡ bản chung: không còn lệnh nạp nào', '', VHCC_MayCong::ota_cho( 'sn-a' )['ver'] );
+/* Nhịp phải chở luôn lệnh OTA — bốn lượt gọi mỗi phút × 26 máy là 4G nghẽn. */
+VHCC_May::dat_ota( '2026-08-24', 'https://raw.githubusercontent.com/c/r/bin/x.bin', 'DONG Y' );
+$n4 = VHCC_MayCong::nhip( array( 'hikSerial' => 'SN-A', 'fw' => '2026-08-01' ) );
+teq( 'nhịp chở luôn bản OTA đang đặt', '2026-08-24', $n4['otaVer'] );
+t( 'và chở luôn link', strpos( $n4['otaUrl'], '/bin/x.bin' ) !== false );
+VHCC_May::go_ota();
 
-/* ---- 21b. CHỐNG LỆCH giữa sheet và MySQL ----
-   Đây là chỗ nguy do CHÍNH việc này sinh ra: có hai nơi trả lời "máy này thuộc cơ sở nào", và
-   trong giai đoạn ghi song song thì MỘT lượt bấm đi qua cả hai. Hai nơi khác nhau = cùng một lần
-   bấm rơi vào hai cơ sở, không có gì báo. */
+// ---- 21g. Sổ mặt trong máy: chỗ người nghỉ việc vẫn chấm công được ----
+VHCC_MayCong::nhan_roster( array( 'hikSerial' => 'SN-A', 'dau' => 1, 'ds' => array(
+	array( 'ma' => 'NV1', 'ten' => 'Người Một', 'anh' => true ),
+	array( 'ma' => 'NV2', 'ten' => 'Người Hai', 'anh' => true ),
+	array( 'ma' => 'NVCU', 'ten' => 'Người Đã Nghỉ', 'anh' => true ),
+) ) );
+teq( 'nhận đủ sổ mặt', 3, count( VHCC_May::roster( $id_a )['data'] ) );
+VHCC_MayCong::nhan_roster( array( 'hikSerial' => 'SN-A', 'dau' => 1, 'ds' => array(
+	array( 'ma' => 'NV1', 'ten' => 'Người Một' ) ) ) );
+teq( 'quét lại (dau=1) thì XOÁ sổ cũ, không trộn hai lần quét', 1,
+	count( VHCC_May::roster( $id_a )['data'] ) );
+
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV1', 'ho_ten' => 'Người Một',
+	'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NVCU', 'ho_ten' => 'Người Đã Nghỉ',
+	'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đã nghỉ việc' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NVMOI', 'ho_ten' => 'Người Mới',
+	'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_MayCong::nhan_roster( array( 'hikSerial' => 'SN-A', 'dau' => 1, 'ds' => array(
+	array( 'ma' => 'NV1', 'ten' => 'Người Một' ),
+	array( 'ma' => 'NVCU', 'ten' => 'Người Đã Nghỉ' ),
+	array( 'ma' => 'NVLA', 'ten' => 'Không Có Hồ Sơ' ),
+) ) );
+$dc = VHCC_May::doi_chieu_roster( $id_a );
+$ma_thua = array();
+foreach ( $dc['thua'] as $x ) { $ma_thua[] = $x['ma']; }
+sort( $ma_thua );
+teq( 'chỉ ra mặt CÒN trong máy mà web không cho phép nữa', array( 'NVCU', 'NVLA' ), $ma_thua );
+teq( 'và người có hồ sơ mà chưa có mặt trong máy', 'NVMOI', $dc['thieu'][0]['ma'] );
+t( 'nói rõ vì sao từng người bị coi là thừa',
+	stripos( implode( ' ', array_column( $dc['thua'], 'vi_sao' ) ), 'nghỉ' ) !== false );
+
+// ---- 21h. Ảnh máy trích theo yêu cầu ----
+VHCC_MayCong::nhan_anh_trich( array( 'hikSerial' => 'SN-A', 'opId' => 'gp-1', 'employeeNo' => 'NV1',
+	'date' => '2026-08-20', 'time' => '08:00:00', 'which' => 'vao', 'anh' => 'BASE64...' ) );
+teq( 'ảnh trích được giữ lại', 1, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'anh_trich' ) . " WHERE ma_nv='NV1'" ) );
+t( 'gói không có ảnh: bỏ qua, không ghi hàng rỗng',
+	! empty( VHCC_MayCong::nhan_anh_trich( array( 'hikSerial' => 'SN-A' ) )['boQua'] ) );
+
+// ---- 21i. Ảnh của lệnh thêm mặt đi lượt RIÊNG, không kèm vào gói lệnh ----
+$oa = VHCC_May::dat_lenh( 'sn-b', 'add', array( 'ma_nv' => 'NV5', 'co_anh' => 1,
+	'anh_b64' => str_repeat( 'x', 5000 ) ) );
+$lb = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'SN-B' ) );
+t( 'gói lệnh KHÔNG kèm ảnh (module 4G đọc được ~1KB một lượt)',
+	strlen( wp_json_encode( $lb ) ) < 1000 );
+teq( 'nhưng có cờ báo là có ảnh', true, $lb['hasPhoto'] );
+teq( 'ảnh lấy bằng lượt riêng', 5000, strlen( VHCC_MayCong::anh_cua_lenh( array( 'opId' => $oa['opId'] ) )['anh'] ) );
+VHCC_MayCong::bao_xong( array( 'opId' => $oa['opId'] ) );
+teq( 'báo xong thì XOÁ ảnh — nặng mà không dùng vào việc gì nữa', '',
+	(string) $wpdb->get_var( $wpdb->prepare( "SELECT anh_b64 FROM " . VHCC_DB::t( 'queue' )
+		. " WHERE op_id=%s", $oa['opId'] ) ) );
+
+// ---- 21j. GÓI "viec" ĐI QUA CỔNG THẬT ----
+/* Đây là chỗ dễ hỏng nhất của việc gộp chung đường: gói `viec` KHÔNG phải lượt chấm công, để nó
+   chạy tiếp xuống phần đọc giờ là sinh ra "GIO_SAI_KHUON" đầy nhật ký và che mất lỗi thật. */
 vhcc_dung_bang();
-update_option( 'vhcc_pin_admin', '999999' );
-update_option( 'vhcc_exec_url', 'https://script.google.com/macros/s/ABC/exec' );
-update_option( 'vhcc_web_key', 'k' );
-// MySQL đang có 3 máy; sheet sẽ trả về khác đi để lộ đủ ba loại lệch.
-$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-A', 'mac' => 'AA', 'cua_hang' => 'TUTU_BT' ) );
-$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-B', 'mac' => 'BB', 'cua_hang' => 'POSH_HCM' ) );
-$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-CU', 'mac' => 'CC', 'cua_hang' => 'CS_CU' ) );
-/* ⚠️ ĐẶT LẠI cả mảng, đừng THÊM khoá: mục 3 đã đăng ký khoá '/exec', mà wp_remote_post trả về
-   khoá KHỚP MỘT PHẦN ĐẦU TIÊN nó gặp — thêm khoá mới thì khoá cũ vẫn thắng và mock này không bao
-   giờ chạy. Mất một lượt chẩn đoán ở đúng chỗ này. */
-$GLOBALS['VHD_POST'] = array( 'script.google.com' => function ( $args ) {
-	$y = json_decode( $args['body'], true );
-	if ( 'getDanhSachMay' === $y['fn'] ) {
-		return array( 'code' => 200, 'body' => wp_json_encode( array( 'ok' => true, 'data' => array(
-			array( 'serial' => 'SN-A', 'mac' => 'AA', 'cuaHang' => 'TUTU_BT' ),      // khớp
-			array( 'serial' => 'SN-B', 'mac' => 'BB', 'cuaHang' => 'CS_JP_BT' ),     // LỆCH cơ sở
-			array( 'serial' => 'SN-MOI', 'mac' => 'DD', 'cuaHang' => 'TUTU_BT' ),    // thiếu ở MySQL
-		) ) ) );
-	}
-	return array( 'code' => 200, 'body' => wp_json_encode( array( 'ok' => true, 'data' => true ) ) );
-} );
-$d = VHCC_May::doi_chieu();
-t( 'đối chiếu chạy được', ! empty( $d['ok'] ), isset( $d['error'] ) ? $d['error'] : '' );
-teq( 'tách đúng máy LỆCH cơ sở (ca NGUY)', 1, count( $d['lech'] ) );
-teq( 'và nói rõ hai bên đang ghi cơ sở nào', array( 'JP_BT', 'POSH_HCM' ),
-	array( $d['lech'][0]['sheet'], $d['lech'][0]['mysql'] ) );
-teq( 'tách đúng máy THIẾU ở MySQL (vô hại, cổng nhận giữ vào cho_gan)', 1, count( $d['thieu'] ) );
-teq( 'tách đúng máy THỪA ở MySQL', 1, count( $d['du'] ) );
-t( 'ba nhóm KHÔNG bị gộp lẫn (ba cách xử khác nhau hẳn)',
-	'SN-MOI' === $d['thieu'][0]['serial'] && 'SN-CU' === $d['du'][0]['serial'] );
+delete_option( 'vhcc_nhat_ky_may' );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-0001', 'mac' => 'AA:BB:CC:DD:EE:01',
+	'cua_hang' => 'TUTU_BT' ) );
+list( $ma_http, $than ) = vhcc_may_gui( array( 'viec' => 'nhip', 'hikSerial' => 'SN-0001',
+	'macAddress' => 'AA:BB:CC:DD:EE:01', 'fw' => '2026-08-22' ) );
+teq( 'gói nhịp qua cổng: 200', 200, $ma_http );
+teq( 'và trả SUCCESS (firmware chỉ tìm đúng chuỗi đó)', 'SUCCESS', $than['status'] );
+teq( 'nhịp được ghi', 1, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'may_nhip' ) . " WHERE tram='sn-0001'" ) );
+teq( 'gói viec KHÔNG rơi xuống phần chấm công', 0, (int) $wpdb->get_var(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+$nk = get_option( 'vhcc_nhat_ky_may', array() );
+teq( 'và KHÔNG đẻ dòng nhật ký "giờ sai khuôn"', 0, count( $nk ) );
+/* Khoá vẫn phải đúng — gộp chung đường không được kéo theo việc nới cửa. */
+list( $ma_sai ) = vhcc_may_gui( array( 'viec' => 'nhip', 'hikSerial' => 'SN-0001' ), 'khoa-bay' );
+teq( 'gói viec mà sai khoá: 401, không làm gì cả', 401, $ma_sai );
+teq( 'sai khoá thì không ghi nhịp nào thêm', 1, (int) $wpdb->get_var(
+	"SELECT COUNT(*) FROM " . VHCC_DB::t( 'may_nhip' ) . " WHERE tram='sn-0001'" ) );
+/* Lượt chấm công thật vẫn phải chạy y như cũ sau khi chèn nhánh `viec` vào giữa. */
+list( $ma_cc ) = vhcc_may_gui( vhcc_goi( 'NV77', '2026-08-22 08:00:00' ) );
+teq( 'lượt chấm công thật vẫn qua cổng bình thường', 200, $ma_cc );
+t( 'và được ghi vào bảng', null !== vhcc_hang( 'TUTU_BT', '2026-08-22', 'NV77' ) );
 
-/* Soi lại: chỉ đi MỘT CHIỀU sheet -> MySQL. */
-$k = VHCC_May::soi_lai_mysql();
-teq( 'soi lại: sửa 1 máy lệch', 1, $k['sua'] );
-teq( 'và thêm 1 máy còn thiếu', 1, $k['them'] );
-$sau = $wpdb->get_var( "SELECT cua_hang FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-B'" );
-teq( 'MySQL đã theo sheet', 'JP_BT', $sau );
-/* Máy THỪA thì KHÔNG xoá: có thể là máy vừa gửi lượt đầu mà sheet chưa kịp có dòng. Xoá là mất
-   chỗ gán. */
-t( 'máy thừa KHÔNG bị xoá, chỉ báo ra',
-	null !== $wpdb->get_var( "SELECT id FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-CU'" ) );
-$d2 = VHCC_May::doi_chieu();
-teq( 'sau khi soi: hết lệch', 0, count( $d2['lech'] ) );
-teq( 'hết thiếu', 0, count( $d2['thieu'] ) );
-
-/* ---- 21c. Gán máy: SHEET TRƯỚC, sheet trượt thì KHÔNG chạm MySQL ---- */
-$truoc = $wpdb->get_var( "SELECT cua_hang FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-A'" );
-$GLOBALS['VHD_POST'] = array( 'script.google.com' => function ( $args ) {
-	$y = json_decode( $args['body'], true );
-	if ( 'ganMayVaoCuaHang' === $y['fn'] ) {
-		return array( 'code' => 200, 'body' => wp_json_encode( array( 'ok' => false, 'error' => 'sheet bị khoá' ) ) );
-	}
-	return array( 'code' => 200, 'body' => wp_json_encode( array( 'ok' => true, 'data' => array() ) ) );
-} );
-$r = VHCC_May::gan_may( 2, 'CO_SO_MOI' );
-t( 'sheet ghi trượt: gán trả về thất bại', empty( $r['ok'] ) );
-teq( 'và MySQL KHÔNG bị đổi (thà cả hai đều cũ còn hơn hai bên lệch)', $truoc,
-	$wpdb->get_var( "SELECT cua_hang FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-A'" ) );
-t( 'gán máy KHÔNG có nhánh nào ghi MySQL trước khi sheet xong',
-	strpos( $than_may, "if ( empty( \$r['ok'] ) ) { return \$r; }               // sheet trượt -> KHÔNG chạm MySQL" ) !== false
-	|| preg_match( "/ganMayVaoCuaHang.*\n.*if \( empty\( \\\$r\['ok'\] \) \) \{ return \\\$r; \}/", $than_may ) === 1 );
-/* Và KHÔNG bao giờ ghi ngược MySQL -> sheet. */
-t( 'soi lại chỉ đi một chiều sheet -> MySQL, không ghi ngược',
-	strpos( $than_may, 'KHÔNG bao giờ ghi ngược MySQL -> sheet' ) !== false );
+// ---- 21k. Việc lạ: KHÔNG bắt máy đẩy lại vô hạn ----
+t( 'việc máy chủ chưa biết: bỏ qua chứ không báo lỗi (firmware cũ hơn máy chủ là chuyện thường)',
+	! empty( VHCC_MayCong::phuc_vu( 'viec-tu-ban-sau', array() )['boQua'] ) );
 
 // ============================================================ 22. Màn máy: mỏng, không tự tính
 $ad4 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
@@ -1827,21 +2015,30 @@ $i_m2 = strpos( $ad4, 'public static function trang_in()', $i_m );
 $than_tm = substr( $ad4, $i_m, $i_m2 - $i_m );
 t( 'màn máy gác quyền', strpos( $than_tm, 'current_user_can( self::CAP )' ) !== false );
 t( 'màn máy có nonce', strpos( $than_tm, 'check_admin_referer' ) !== false );
-t( 'màn máy KHÔNG gọi Firebase trực tiếp',
-	stripos( $than_tm, 'firebase' ) === false && strpos( $than_tm, 'wp_remote' ) === false );
+/* Canh LỜI GỌI chứ không canh CHỮ: màn có nhắc Firebase trong câu giải thích "trước kia hàng
+   đợi nằm ở đâu", mà câu đó đáng giữ. Cấm cả chữ là ép xoá lời giải thích để qua bài kiểm. */
+t( 'màn máy KHÔNG gọi Firebase, không gọi ra ngoài',
+	stripos( $than_tm, 'firebaseio' ) === false && stripos( $than_tm, 'firebasedatabase' ) === false
+	&& stripos( $than_tm, '.json?auth' ) === false && strpos( $than_tm, 'wp_remote' ) === false
+	&& strpos( $than_tm, 'VHCC_CauNoi' ) === false );
 t( 'mọi việc đi qua lớp VHCC_May', strpos( $than_tm, 'VHCC_May::' ) !== false );
-/* Đối chiếu phải ở ĐẦU trang: đó là chỗ duy nhất phát hiện ca "một lượt bấm rơi vào hai cơ sở",
-   mà ca đó không tự báo và chỉ lộ ở bảng lương cuối tháng. Để xuống dưới là bị cuộn qua. */
-$i_doi = strpos( $than_tm, 'Đối chiếu máy' );
+t( 'màn máy KHÔNG tự viết câu SQL nào', stripos( $than_tm, 'SELECT * FROM ' . VHCC_DB::t( 'queue' ) ) === false
+	&& strpos( $than_tm, '$wpdb->update' ) === false && strpos( $than_tm, '$wpdb->insert' ) === false );
+/* Máy MẤT NHỊP để TRÊN CÙNG: cửa hàng đó đang không chấm công lên được mà không ai biết. Để nó
+   xuống dưới là đúng thứ quan trọng nhất bị cuộn qua. */
+$i_dut = strpos( $than_tm, 'không gửi nhịp' );
 $i_ds  = strpos( $than_tm, 'Danh sách máy' );
 $i_fw  = strpos( $than_tm, 'Cập nhật firmware' );
-t( 'phần Đối chiếu nằm TRƯỚC danh sách máy và trước firmware',
-	$i_doi !== false && $i_doi < $i_ds && $i_doi < $i_fw );
+t( 'phần máy mất nhịp nằm TRƯỚC danh sách máy và trước firmware',
+	$i_dut !== false && $i_dut < $i_ds && $i_dut < $i_fw );
 t( 'màn máy cảnh báo rõ hậu quả của link release (302 / 943 / 532 ký tự)',
 	strpos( $than_tm, '302' ) !== false && strpos( $than_tm, '532' ) !== false );
 t( 'ô xác nhận DONG Y có trên màn', strpos( $than_tm, 'DONG Y' ) !== false );
-/* Màn KHÔNG tự xoá máy thừa — chỉ báo. Xoá là mất chỗ gán của máy vừa gửi lượt đầu. */
-t( 'màn máy không có nút xoá máy thừa', stripos( $than_tm, 'xoa_may' ) === false );
+t( 'màn máy mời thử MỘT máy trước khi đẩy cả chuỗi', stripos( $than_tm, 'thử một máy trước' ) !== false );
+t( 'màn máy nói rõ lượt bấm chờ gán tự vào bảng khi gán cơ sở',
+	stripos( $than_tm, 'tự vào' ) !== false );
+/* Màn KHÔNG có nút xoá máy — xoá là mất chỗ gán của máy vừa gửi lượt đầu. */
+t( 'màn máy không có nút xoá máy', stripos( $than_tm, 'xoa_may' ) === false );
 
 // ============================================================ 23. Sổ đối chiếu 111 hàm
 /* Bản kê nói CÓ GÌ PHẢI PORT; sổ đối chiếu nói ĐÃ PORT TỚI ĐÂU. Không có mục này thì "còn lại mấy
@@ -3488,6 +3685,9 @@ VHCC_Keo::xoa_tien_do();
    liên quan gì. Anh Thắng đã mất một vòng đúng vì câu này. */
 $GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 200, 'body' => wp_json_encode(
 	array( 'ok' => false, 'error' => 'Phiên đăng nhập không hợp lệ, hãy đăng nhập lại.' ) ) ) );
+/* Tự khai PIN ở đây. Trước kia mục này ăn ké PIN mà mục 21 để lại — mục 21 nay không đụng PIN
+   admin nữa (đường máy bỏ Apps Script), và bài kiểm dựa vào thứ tự chạy là bài kiểm hỏng lặng lẽ. */
+update_option( 'vhcc_pin_admin', '888888' );
 $kq = VHCC_CauNoi::goi( 'getEmployees', array( '888888' ) );
 t( 'dịch lỗi phiên đăng nhập thành: app gốc không nhận PIN admin',
 	empty( $kq['ok'] ) && strpos( $kq['error'], 'VHCC_PIN_ADMIN' ) !== false, $kq );
@@ -3518,8 +3718,10 @@ delete_option( 'vhcc_pin_admin' );
    Lệnh kéo trả về số liệu (thêm bao nhiêu, còn bao nhiêu cặp phải bấm tiếp) — nuốt mất là
    người bấm không biết lệnh đã làm gì, mà đó là toàn bộ giá trị của nút đó. */
 $ad3 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
-teq( 'cả hai chỗ hiện kết quả đều in thong_bao khi có', 2,
+teq( 'cả BA chỗ hiện kết quả đều in thong_bao khi có (nhân sự · kéo · ve_bao dùng chung)', 3,
 	substr_count( $ad3, "! empty( \$b['thong_bao'] ) ? \$b['thong_bao'] : 'Đã lưu.'" ) );
+t( 'màn máy dùng chung bộ hiện kết quả, không tự vẽ lại',
+	strpos( $ad3, 'self::ve_bao( $bao )' ) !== false );
 /* Lỗi khác thì giữ NGUYÊN VĂN — dịch bừa là che mất câu thật của app gốc. */
 $GLOBALS['VHD_POST'] = array( '/macros/s/' => array( 'code' => 200, 'body' => wp_json_encode(
 	array( 'ok' => false, 'error' => 'Không tìm thấy sheet chấm công cho cơ sở "XYZ".' ) ) ) );

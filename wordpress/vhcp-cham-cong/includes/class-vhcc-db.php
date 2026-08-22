@@ -336,7 +336,20 @@ class VHCC_DB {
 			KEY da_chuyen (da_chuyen),
 			KEY nhan_luc (nhan_luc)";
 
-		/* ===== 13. HÀNG ĐỢI ĐẨY ẢNH / LỆNH MÁY (sheet Queue) ================================= */
+		/* ===== 13. HÀNG ĐỢI LỆNH GỬI XUỐNG MÁY ==============================================
+		   Trước 22/08/2026 hàng đợi thật nằm trên Firebase (`/queue/<tên máy>`), bảng này chỉ là
+		   bản chép của sheet `Queue`. Từ bản 2.0.0 hệ thống chạy THẲNG trên host: bảng này LÀ
+		   hàng đợi, máy hỏi thẳng WordPress, không còn Firebase và không còn Apps Script.
+
+		   `tram` là KHOÁ MÁY chuẩn (serial viết thường; máy chưa có serial thì lấy mac), KHÔNG
+		   phải tên máy tự khai. Firebase khoá theo tên tự khai — mà tên đó gõ ở portal 192.168.4.1
+		   nên hai máy đặt trùng tên là ăn chung hàng đợi, một lệnh thêm nhân viên chạy sang cửa
+		   hàng khác. Serial thì máy không tự bịa ra được. `ten_tram` chỉ để hiện cho người đọc.
+
+		   `anh_b64` giữ ảnh khuôn mặt của lệnh thêm/sửa. Trước kia ảnh nằm ở `/photo/...` trên
+		   Firebase và máy lấy bằng lượt gọi thứ hai; nay máy vẫn lấy bằng lượt thứ hai (việc
+		   `anh_lenh`) chứ KHÔNG kèm vào lượt lấy lệnh: gói lệnh phải nhỏ hơn ~1KB cho module 4G
+		   đọc nổi, mà ảnh thì vài chục KB. */
 		$b['queue'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			op_id VARCHAR(40) NOT NULL,
@@ -349,9 +362,77 @@ class VHCC_DB {
 			trang_thai VARCHAR(30) NOT NULL DEFAULT '',
 			tao_luc DATETIME NULL,
 			ket_qua TEXT NULL,
+			tram VARCHAR(120) NOT NULL DEFAULT '',
+			ten_tram VARCHAR(190) NOT NULL DEFAULT '',
+			gioi_tinh VARCHAR(20) NOT NULL DEFAULT '',
+			co_anh TINYINT(1) NOT NULL DEFAULT 0,
+			anh_b64 LONGTEXT NULL,
+			ngay VARCHAR(20) NOT NULL DEFAULT '',
+			gio VARCHAR(20) NOT NULL DEFAULT '',
+			ben VARCHAR(10) NOT NULL DEFAULT '',
+			tu_gio VARCHAR(30) NOT NULL DEFAULT '',
+			den_gio VARCHAR(30) NOT NULL DEFAULT '',
+			kem_anh TINYINT(1) NOT NULL DEFAULT 0,
+			nguoi_dat VARCHAR(190) NOT NULL DEFAULT '',
+			gui_luc DATETIME NULL,
+			xong_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY op_id (op_id),
-			KEY tra (cua_hang,trang_thai)";
+			KEY tra (cua_hang,trang_thai),
+			KEY hang (tram,trang_thai,id)";
+
+		/* ===== 13b. NHỊP SỐNG CỦA MÁY (thay `/status` trên Firebase) =========================
+		   Mỗi máy đẩy một nhịp mỗi 60 giây. MỘT hàng cho MỘT máy — đè lên, không cộng dồn: đây
+		   là "máy còn sống không", không phải nhật ký. Muốn nhật ký thì đọc `nhat_ky_may`.
+		   `luc` là mốc duy nhất để nói máy mất tích: quá 5 phút không có nhịp = đứt. */
+		$b['may_nhip'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tram VARCHAR(120) NOT NULL,
+			ten_tram VARCHAR(190) NOT NULL DEFAULT '',
+			serial VARCHAR(120) NOT NULL DEFAULT '',
+			mac VARCHAR(40) NOT NULL DEFAULT '',
+			cua_hang VARCHAR(120) NOT NULL DEFAULT '',
+			fw VARCHAR(40) NOT NULL DEFAULT '',
+			duong VARCHAR(20) NOT NULL DEFAULT '',
+			ip VARCHAR(60) NOT NULL DEFAULT '',
+			song VARCHAR(20) NOT NULL DEFAULT '',
+			heap INT NOT NULL DEFAULT 0,
+			hik VARCHAR(40) NOT NULL DEFAULT '',
+			so_tong BIGINT(20) NOT NULL DEFAULT -1,
+			luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY tram (tram),
+			KEY luc (luc)";
+
+		/* ===== 13c. SỔ NHÂN VIÊN ĐANG NẰM TRONG ĐẦU ĐỌC (thay `/roster`) =====================
+		   Máy quét xong đẩy lên đây. Dùng để đối chiếu "hồ sơ trên web" với "mặt trong máy" —
+		   người nghỉ việc mà mặt còn trong máy thì vẫn chấm công được. */
+		$b['may_roster'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tram VARCHAR(120) NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			co_anh TINYINT(1) NOT NULL DEFAULT 0,
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY o (tram,ma_nv),
+			KEY tram (tram)";
+
+		/* ===== 13d. ẢNH MÁY TRÍCH THEO YÊU CẦU (thay `/photoresp`) ===========================
+		   Ảnh gốc của một lượt bấm, lấy về khi có nghi vấn chấm hộ. Nặng nên KHÔNG lấy sẵn. */
+		$b['anh_trich'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tram VARCHAR(120) NOT NULL DEFAULT '',
+			op_id VARCHAR(40) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ngay VARCHAR(20) NOT NULL DEFAULT '',
+			gio VARCHAR(20) NOT NULL DEFAULT '',
+			ben VARCHAR(10) NOT NULL DEFAULT '',
+			anh LONGTEXT NULL,
+			luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY nguoi (ma_nv,ngay),
+			KEY op (op_id)";
 
 		/* ===== 14. LỊCH CÔNG VIỆC + XIN ĐỔI LỊCH (LichCongViec, DoiLichCV) =================== */
 		$b['lich_cv'] = "

@@ -165,6 +165,18 @@ class VHCC_Nhan {
 			return;
 		}
 
+		/* --- VIỆC KHÁC CỦA MÁY: nhịp sống, lấy lệnh, báo xong, OTA, roster… -------------------
+		   Từ bản 2.0.0 những việc này chạy thẳng trên host thay vì qua Firebase. Chúng đi CHUNG
+		   đường và CHUNG khoá với chấm công — xem đầu class-vhcc-may-cong.php để biết vì sao
+		   không mở đường riêng.
+		   Đặt SAU khối kiểm khoá và TRƯỚC phần đọc lượt bấm: gói có `viec` KHÔNG phải lượt chấm
+		   công, để nó chạy tiếp xuống dưới là sinh ra cảnh "GIO_SAI_KHUON" đầy nhật ký. */
+		if ( isset( $d['viec'] ) && '' !== trim( (string) $d['viec'] ) ) {
+			$kq = VHCC_MayCong::phuc_vu( $d['viec'], $d );
+			self::xong( is_array( $kq ) ? $kq : array() );
+			return;
+		}
+
 		$ma_nv   = isset( $d['employeeNo'] ) ? trim( (string) $d['employeeNo'] ) : '';
 		$ho_ten  = isset( $d['name'] ) ? trim( (string) $d['name'] ) : '';
 		$luc     = isset( $d['time'] ) ? trim( (string) $d['time'] ) : '';

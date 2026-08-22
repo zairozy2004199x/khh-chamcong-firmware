@@ -88,31 +88,31 @@
  *       `setOtaTarget` — xem VHCC_May::ota_url_hop_le().
  */
 var CC_CHO_PHEP = [
-  /* --- Máy chấm công: ĐỌC --- */
-  'getDanhSachMay', 'getMachineStatus', 'getMachineRoster', 'chanDoanMay',
-  'getQueueMay', 'getHangDoiTaiLai', 'xemKhoiTest',
-  'getLuongMayTuDong', 'getGiaMayTuDong',
-  /* --- Máy chấm công: GHI trong phạm vi một máy --- */
-  'ganMayVaoCuaHang', 'boGanMay', 'luuSimMay', 'requestMachineScan',
-  /* Bảo máy ĐỌC LẠI sổ chấm công của đầu đọc trong một khoảng — lệnh của MÁY, không phải dữ liệu
-     của web, nên không có gì để viết lại trên MySQL. */
-  'requestBackfill',
-  'xoaLenhQueue', 'xoaLenhTaiLai', 'dungTaiLai',
-  'setGiaMayTuDong',
-  /* --- Dọn khối "test" do gói thử đường truyền tạo ra (đụng sheet cơ sở -> Admin) --- */
-  'donKhoiTest',
-  /* --- Cập nhật firmware. NGUY: đẩy cho cả chuỗi. Xem khối ⚠️ ở trên. --- */
-  'getFwMoiNhat', 'getOtaTarget', 'setOtaTarget', 'clearOtaTarget',
-  /* --- Nạp hồ sơ nhân sự một chiều: sheet NhanVien -> MySQL. CHỈ ĐỌC. ---
-     Thêm 22/08/2026. Trước đó nhân sự phải dán tay từ Sheet sang, mà 21+ người trải nhiều cơ sở
-     thì dán tay là chép sai vài ô rồi bảng lương lệch mà không biết lệch ở đâu.
-     ⚠️ MỘT CHIỀU. Không có hàm GHI nhân sự nào ở đây: sheet `NhanVien` vẫn là nguồn thật, WordPress
-        chỉ sao lại. Mở đường ghi hai chiều là sớm muộn hai bên đè nhau và không ai biết bên nào đúng.
+  /* =========================================================================================
+     22/08/2026 — DANH SÁCH NÀY VỪA RÚT TỪ 27 XUỐNG 4.
+     =========================================================================================
+     Trước đây 23 hàm máy chấm công + OTA đi qua đây: WordPress gọi Apps Script, Apps Script ghi
+     Firebase. Anh Thắng chốt cho cả hệ thống chạy thẳng trên host, kể cả đường máy — nên 23 hàm
+     đó nay là câu SQL trên chính website (xem class-vhcc-may.php + class-vhcc-may-cong.php) và
+     KHÔNG còn đi qua cầu nối.
+
+     Rút chúng ra không phải để cho gọn. `setOtaTarget` đẩy firmware cho CẢ CHUỖI: ai gọi được nó
+     là nạp được phần mềm tuỳ ý vào 26 máy. Còn khai ở đây thì con đường đó vẫn mở, dù không ai
+     dùng nữa — mà cửa không ai canh là cửa dễ quên nhất.
+
+     ⚠️ BỐN HÀM CÒN LẠI ĐỀU CHỈ ĐỌC, và đều là việc TẠM: nạp dữ liệu cũ từ Sheet sang. Nạp xong
+        thì xoá luôn khối này, và cầu nối không còn lý do tồn tại.
+     ========================================================================================= */
+
+  /* Hồ sơ nhân sự: sheet NhanVien -> MySQL. CHỈ ĐỌC.
+     ⚠️ MỘT CHIỀU. Không có hàm GHI nhân sự nào ở đây: trong lúc còn nạp, sheet `NhanVien` vẫn là
+        nguồn thật và WordPress chỉ sao lại. Mở đường ghi hai chiều là sớm muộn hai bên đè nhau và
+        không ai biết bên nào đúng.
      ⚠️ Hàm này TỰ LỌC theo quyền của PIN gọi nó (`getEmployees` xét `_canStation`, và ẩn lương/ngân
         hàng với cửa hàng trưởng). Nên PIN dùng để gọi quyết định kéo được bao nhiêu người — cầu nối
         gọi bằng PIN admin, tức kéo đủ. */
   'getEmployees',
-  /* --- Nạp chấm công CŨ một chiều: sheet CS_<cơ sở> -> MySQL. CHỈ ĐỌC. ---
+  /* Chấm công cũ: sheet CS_<cơ sở> -> MySQL. CHỈ ĐỌC.
      Hai hàm này định nghĩa ở CUỐI file này (không nằm trong Code.gs), và chúng gọi lại đúng
      `_bangCongTho` mà bảng lương của app đang dùng — khỏi sinh ra cách đọc sheet thứ hai. */
   'ccDsCoSoXuat', 'ccXuatChamCong',

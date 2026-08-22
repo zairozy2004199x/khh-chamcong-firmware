@@ -141,6 +141,24 @@ class VHCC_Admin {
 		return $ra;
 	}
 
+	/**
+	 * Vẽ kết quả của một lệnh vừa chạy.
+	 *
+	 * ⚠️ IN `thong_bao` NẾU CÓ. In cứng chữ "Đã lưu." là mọi con số của lệnh — đặt được mấy lệnh,
+	 *    chuyển được mấy lượt bấm — rơi mất, mà đó đúng là thứ duy nhất cho biết lệnh đã làm gì.
+	 */
+	public static function ve_bao( $ds ) {
+		foreach ( (array) $ds as $b ) {
+			if ( ! empty( $b['ok'] ) ) {
+				echo '<div class="notice notice-success"><p>'
+					. esc_html( ! empty( $b['thong_bao'] ) ? $b['thong_bao'] : 'Đã lưu.' ) . '</p></div>';
+			} else {
+				echo '<div class="notice notice-error"><p>'
+					. esc_html( isset( $b['error'] ) ? $b['error'] : 'Không chạy được lệnh.' ) . '</p></div>';
+			}
+		}
+	}
+
 	/** Ô nhập một dòng cho bảng hồ sơ. */
 	public static function o( $ten, $nhan, $gt, $kieu = 'text' ) {
 		return '<tr><th style="width:190px">' . esc_html( $nhan ) . '</th><td><input type="'
@@ -764,12 +782,14 @@ class VHCC_Admin {
 	/**
 	 * MÁY CHẤM CÔNG + CẬP NHẬT FIRMWARE.
 	 *
-	 * Dữ liệu vẫn ở Firebase (anh Thắng chốt giữ nguyên) — màn này gọi Apps Script qua cầu nối,
-	 * WordPress không nói chuyện trực tiếp với Firebase. Xem class-vhcc-may.php.
+	 * Từ bản 2.0.0 màn này KHÔNG gọi đi đâu cả: hàng đợi lệnh, nhịp sống, OTA đều nằm trên chính
+	 * MySQL của website. Xem class-vhcc-may.php và class-vhcc-may-cong.php.
 	 *
-	 * ⚠️ Phần ĐỐI CHIẾU để ĐẦU trang có chủ ý: đó là chỗ duy nhất phát hiện được ca "cùng một lượt
-	 *    bấm rơi vào hai cơ sở khác nhau", mà ca đó không có gì tự báo và chỉ lộ ra ở bảng lương
-	 *    cuối tháng. Để nó xuống dưới cùng là đúng thứ quan trọng nhất bị cuộn qua.
+	 * ⚠️ Thứ tự trên màn có chủ ý — thứ im lặng hỏng để TRÊN:
+	 *    1. máy mất nhịp  — cửa hàng đang không chấm công được mà không ai biết;
+	 *    2. lượt bấm chờ gán — công của người thật đang nằm chờ;
+	 *    3. hàng đợi lệnh — lệnh không xuống được máy thì mặt không vào máy;
+	 *    4. firmware — việc chủ động, làm khi muốn.
 	 */
 	public static function trang_may() {
 		if ( ! current_user_can( self::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
@@ -777,116 +797,186 @@ class VHCC_Admin {
 		if ( isset( $_POST['vhcc_may'] ) ) {
 			check_admin_referer( 'vhcc_may' );
 			$viec = sanitize_text_field( wp_unslash( $_POST['vhcc_may'] ) );
+			$id   = isset( $_POST['may_id'] ) ? (int) $_POST['may_id'] : 0;
 			if ( 'gan' === $viec ) {
-				$bao[] = VHCC_May::gan_may( (int) $_POST['hang'], wp_unslash( $_POST['coso'] ) );
+				$bao[] = VHCC_May::gan_may( $id, wp_unslash( $_POST['coso'] ) );
 			} elseif ( 'bo_gan' === $viec ) {
-				$bao[] = VHCC_May::bo_gan( (int) $_POST['hang'] );
-			} elseif ( 'soi' === $viec ) {
-				$bao[] = VHCC_May::soi_lai_mysql();
+				$bao[] = VHCC_May::bo_gan( $id );
 			} elseif ( 'sim' === $viec ) {
-				$bao[] = VHCC_May::luu_sim( (int) $_POST['hang'], wp_unslash( $_POST['sim'] ) );
+				$bao[] = VHCC_May::luu_sim( $id, wp_unslash( $_POST['sim'] ) );
 			} elseif ( 'quet' === $viec ) {
-				$bao[] = VHCC_May::yeu_cau_quet( wp_unslash( $_POST['tram'] ) );
+				$bao[] = VHCC_May::yeu_cau_quet( $id );
+			} elseif ( 'tai_lai' === $viec ) {
+				$bao[] = VHCC_May::tai_lai( $id, wp_unslash( $_POST['tu'] ), wp_unslash( $_POST['den'] ),
+					isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '' );
+			} elseif ( 'dung_tai_lai' === $viec ) {
+				$bao[] = VHCC_May::dung_tai_lai( $id );
+			} elseif ( 'xoa_lenh' === $viec ) {
+				$bao[] = VHCC_May::xoa_lenh( wp_unslash( $_POST['op_id'] ) );
 			} elseif ( 'ota' === $viec ) {
 				$bao[] = VHCC_May::dat_ota( wp_unslash( $_POST['ver'] ), wp_unslash( $_POST['url'] ),
-					wp_unslash( $_POST['xac_nhan'] ) );
+					wp_unslash( $_POST['xac_nhan'] ), 0 );
+			} elseif ( 'ota_may' === $viec ) {
+				$bao[] = VHCC_May::dat_ota( wp_unslash( $_POST['ver'] ), wp_unslash( $_POST['url'] ), '', $id );
 			} elseif ( 'go_ota' === $viec ) {
-				$bao[] = VHCC_May::go_ota();
+				$bao[] = VHCC_May::go_ota( $id );
 			}
 		}
 
 		echo '<div class="wrap"><h1>Máy chấm công &amp; Firmware</h1>';
-		foreach ( $bao as $b ) {
-			if ( ! empty( $b['ok'] ) ) {
-				$them = '';
-				if ( isset( $b['sua'] ) ) { $them = ' Sửa ' . (int) $b['sua'] . ' máy lệch, thêm '
-					. (int) $b['them'] . ' máy còn thiếu.'; }
-				echo '<div class="notice notice-success"><p>Xong.' . esc_html( $them ) . '</p></div>';
-			} else {
-				echo '<div class="notice notice-error"><p>' . esc_html( $b['error'] ) . '</p></div>';
-			}
-		}
+		self::ve_bao( $bao );
 
-		/* ---- ĐỐI CHIẾU: chỗ quan trọng nhất, để trên cùng ---- */
-		echo '<h2>Đối chiếu máy → cơ sở</h2>';
-		$d = VHCC_May::doi_chieu();
-		if ( empty( $d['ok'] ) ) {
-			echo '<div class="notice notice-warning"><p>Chưa đối chiếu được: ' . esc_html( $d['error'] )
-				. '</p></div>';
-		} else {
-			echo '<p>Sheet <code>MayChamCong</code> có ' . (int) $d['soSheet'] . ' máy · bảng MySQL có '
-				. (int) $d['soMysql'] . ' máy.</p>';
-			if ( $d['lech'] ) {
-				echo '<div class="notice notice-error"><p><strong>' . count( $d['lech'] )
-					. ' máy đang LỆCH cơ sở giữa hai nơi.</strong> Trong lúc ghi song song, MỘT lượt bấm '
-					. 'đi qua cả hai đường — lệch nghĩa là cùng một lần bấm rơi vào HAI cơ sở khác nhau, '
-					. 'và không có gì tự báo. Bấm "Soi lại" để MySQL theo sheet.</p><ul>';
-				foreach ( $d['lech'] as $x ) {
-					echo '<li><code>' . esc_html( $x['serial'] ? $x['serial'] : $x['mac'] ) . '</code>: '
-						. 'sheet ghi <strong>' . esc_html( $x['sheet'] ) . '</strong> · MySQL ghi <strong>'
-						. esc_html( $x['mysql'] ) . '</strong></li>';
-				}
-				echo '</ul></div>';
-			} else {
-				echo '<p style="color:#046b2d">✔️ Không có máy nào lệch cơ sở.</p>';
+		$m  = VHCC_May::ds_may();
+		$ds = ! empty( $m['ok'] ) ? (array) $m['data'] : array();
+
+		/* ---- 1. Máy mất nhịp: để TRÊN CÙNG ---- */
+		$dut = array();
+		foreach ( $ds as $x ) { if ( empty( $x['song'] ) ) { $dut[] = $x; } }
+		if ( $dut ) {
+			echo '<div class="notice notice-error"><p><strong>' . count( $dut ) . ' máy không gửi nhịp '
+				. 'quá ' . (int) ( VHCC_MayCong::HET_SONG / 60 ) . ' phút.</strong> Máy đứt thì cửa hàng '
+				. 'đó đang KHÔNG chấm công lên được — mà lượt bấm vẫn nằm trong đầu đọc, nên lấy lại '
+				. 'được bằng lệnh "Tải lại" sau khi máy sống. Kiểm điện, mạng, và SIM còn tiền không.</p><ul>';
+			foreach ( $dut as $x ) {
+				echo '<li><strong>' . esc_html( $x['cua_hang'] ? $x['cua_hang'] : '(chưa gán cơ sở)' )
+					. '</strong> · <code>' . esc_html( $x['serial'] ? $x['serial'] : $x['mac'] ) . '</code> · '
+					. ( trim( (string) $x['nhip_luc'] ) !== ''
+						? 'nhịp cuối ' . esc_html( $x['nhip_luc'] )
+						: 'chưa gửi nhịp nào bao giờ' ) . '</li>';
 			}
-			if ( $d['thieu'] ) {
-				echo '<p><strong>' . count( $d['thieu'] ) . ' máy có trong sheet mà chưa có trong MySQL.'
-					. '</strong> Vô hại — cổng nhận giữ lượt bấm vào bảng "chờ gán" cho tới khi soi lại.</p>';
-			}
-			if ( $d['du'] ) {
-				echo '<p><strong>' . count( $d['du'] ) . ' máy có trong MySQL mà không có trong sheet.'
-					. '</strong> Có thể là máy vừa gửi lượt đầu mà sheet chưa kịp có dòng — hệ thống '
-					. 'KHÔNG tự xoá, vì xoá là mất chỗ gán.</p>';
-			}
-			echo '<form method="post"><input type="hidden" name="vhcc_may" value="soi" />';
-			wp_nonce_field( 'vhcc_may' );
-			echo '<p><button class="button button-primary">Soi lại (sheet → MySQL)</button> '
-				. '<em>Chỉ đi một chiều. Sheet là nguồn thật, vì đó là chỗ <code>doPost</code> đang '
-				. 'đọc để ghi chấm công.</em></p></form>';
+			echo '</ul></div>';
+		} elseif ( $ds ) {
+			echo '<p style="color:#046b2d">✔️ Cả ' . count( $ds ) . ' máy đều đang gửi nhịp.</p>';
 		}
 
 		/* ---- Danh sách máy ---- */
 		echo '<h2>Danh sách máy</h2>';
-		$m = VHCC_May::ds_may();
-		if ( empty( $m['ok'] ) ) {
-			echo '<div class="notice notice-warning"><p>' . esc_html( $m['error'] ) . '</p></div>';
+		if ( ! $ds ) {
+			echo '<div class="notice notice-warning"><p>Chưa có máy nào. Máy tự hiện ra ở đây ngay lượt '
+				. 'đầu tiên nó gửi nhịp hoặc gửi lượt chấm công — không phải khai tay.</p></div>';
 		} else {
-			echo '<table class="widefat striped"><thead><tr><th>Hàng</th><th>Serial đầu đọc</th>'
-				. '<th>MAC bo</th><th>Cơ sở</th><th>Tên máy tự khai</th><th>Lần cuối thấy</th>'
-				. '<th>Ghi chú</th><th>Gán cơ sở</th></tr></thead><tbody>';
-			foreach ( (array) $m['data'] as $i => $x ) {
-				$hang = isset( $x['row'] ) ? (int) $x['row'] : ( $i + 2 );
-				echo '<tr><td>' . $hang . '</td>'
-					. '<td><code>' . esc_html( isset( $x['serial'] ) ? $x['serial'] : '' ) . '</code></td>'
-					. '<td><code>' . esc_html( isset( $x['mac'] ) ? $x['mac'] : '' ) . '</code></td>'
-					. '<td>' . esc_html( isset( $x['cuaHang'] ) ? $x['cuaHang'] : '' ) . '</td>'
-					. '<td>' . esc_html( isset( $x['tuKhai'] ) ? $x['tuKhai'] : '' ) . '</td>'
-					. '<td>' . esc_html( isset( $x['lanCuoi'] ) ? $x['lanCuoi'] : '' ) . '</td>'
-					. '<td>' . esc_html( isset( $x['ghiChu'] ) ? $x['ghiChu'] : '' ) . '</td>'
-					. '<td><form method="post" style="display:flex;gap:4px">'
-					. '<input type="hidden" name="vhcc_may" value="gan" />'
-					. '<input type="hidden" name="hang" value="' . $hang . '" />';
+			echo '<table class="widefat striped"><thead><tr><th>Cơ sở</th><th>Serial đầu đọc</th>'
+				. '<th>MAC bo</th><th>Nhịp cuối</th><th>Bản firmware</th><th>Đường</th><th>Chờ</th>'
+				. '<th>Việc</th></tr></thead><tbody>';
+			foreach ( $ds as $x ) {
+				$idm = (int) $x['id'];
+				echo '<tr><td>' . ( $x['cua_hang']
+						? esc_html( $x['cua_hang'] )
+						: '<span style="color:#b32d2e">(chưa gán)</span>' ) . '</td>'
+					. '<td><code>' . esc_html( $x['serial'] ) . '</code></td>'
+					. '<td><code>' . esc_html( $x['mac'] ) . '</code></td>'
+					. '<td>' . ( ! empty( $x['con_song'] ) ? '🟢 ' : '🔴 ' ) . esc_html( (string) $x['nhip_luc'] ) . '</td>'
+					. '<td>' . esc_html( (string) $x['fw'] ) . '</td>'
+					. '<td>' . esc_html( trim( $x['duong'] . ' ' . $x['ip'] . ' ' . $x['song'] ) ) . '</td>'
+					. '<td>' . (int) $x['cho'] . '</td>'
+					. '<td>';
+				echo '<form method="post" style="display:flex;gap:4px;flex-wrap:wrap">';
 				echo wp_nonce_field( 'vhcc_may', '_wpnonce', true, false );
-				echo '<select name="coso"><option value="">— chọn —</option>';
+				echo '<input type="hidden" name="may_id" value="' . $idm . '" />';
+				echo '<select name="coso"><option value="">— chọn cơ sở —</option>';
 				foreach ( VHCC_NhanSu::ds_coso() as $cs ) {
-					echo '<option value="' . esc_attr( $cs ) . '">' . esc_html( $cs ) . '</option>';
+					echo '<option value="' . esc_attr( $cs ) . '"' . selected( $cs, $x['cua_hang'], false )
+						. '>' . esc_html( $cs ) . '</option>';
 				}
-				echo '</select><button class="button">Gán</button></form></td></tr>';
+				echo '</select>';
+				echo '<button class="button" name="vhcc_may" value="gan">Gán</button>';
+				echo '<button class="button" name="vhcc_may" value="quet">Quét sổ máy</button>';
+				echo '<button class="button" name="vhcc_may" value="dung_tai_lai">Dừng tải lại</button>';
+				echo '</form>';
+				echo '</td></tr>';
 			}
 			echo '</tbody></table>';
 			echo '<p><em>Cơ sở lấy theo <strong>mã thiết bị</strong>, không tin tên máy tự khai. Đổi '
-				. 'phần cứng thì hệ thống chỉ GHI DẤU vào cột Ghi chú, không tự sửa — "thay bo" và '
-				. '"mang bo sang cửa hàng khác" nhìn từ máy chủ giống hệt nhau.</em></p>';
+				. 'phần cứng thì hệ thống chỉ GHI DẤU vào cột ghi chú, không tự sửa — "thay bo" và '
+				. '"mang bo sang cửa hàng khác" nhìn từ máy chủ giống hệt nhau, đoán sai là chấm công '
+				. 'cửa hàng mới chảy vào cơ sở cũ.</em></p>';
+
+			/* ---- Tải lại sổ chấm công từ một máy ---- */
+			echo '<h3>Tải lại sổ chấm công từ đầu đọc</h3>';
+			echo '<p>Dùng khi máy vừa sống lại sau một đợt mất mạng: lượt bấm còn nằm trong đầu đọc, '
+				. 'lệnh này bảo máy đọc lại và đẩy lên. Ghi lại bao nhiêu lần cũng ra một kết quả — '
+				. 'ô giờ vào/ra chỉ được nới rộng, không bao giờ bị thu hẹp.</p>';
+			echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
+			wp_nonce_field( 'vhcc_may' );
+			echo '<label>Máy <select name="may_id">';
+			foreach ( $ds as $x ) {
+				echo '<option value="' . (int) $x['id'] . '">'
+					. esc_html( ( $x['cua_hang'] ? $x['cua_hang'] : '(chưa gán)' ) . ' — '
+						. ( $x['serial'] ? $x['serial'] : $x['mac'] ) ) . '</option>';
+			}
+			echo '</select></label>';
+			echo '<label>Từ ngày <input type="date" name="tu" required /></label>';
+			echo '<label>Đến ngày <input type="date" name="den" required /></label>';
+			echo '<label>Chỉ một mã NV <input type="text" name="ma_nv" placeholder="để trống = tất cả" /></label>';
+			echo '<button class="button button-primary" name="vhcc_may" value="tai_lai">Tải lại</button>';
+			echo '</form><p><em>Tối đa 31 ngày mỗi đợt: máy đẩy từng lượt qua 4G nên khoảng rộng làm '
+				. 'nghẽn đường truyền hàng giờ.</em></p>';
 		}
 
-		/* ---- Lượt bấm chờ gán ---- */
-		global $wpdb;
+		/* ---- Sổ mặt trong máy: chỗ người đã nghỉ vẫn chấm công được ---- */
+		$xem = isset( $_GET['soma'] ) ? (int) $_GET['soma'] : 0;
+		if ( $ds ) {
+			echo '<h3>Sổ mặt đang nằm trong đầu đọc</h3>';
+			echo '<p><strong>Người nghỉ việc mà mặt còn trong máy thì VẪN chấm công được</strong>, và '
+				. 'bảng lương vẫn tính — không có gì tự báo, vì mỗi bên đều thấy mình đúng. Bấm "Quét sổ '
+				. 'máy" ở bảng trên rồi chờ khoảng một phút, sau đó xem ở đây.</p>';
+			echo '<form method="get"><input type="hidden" name="page" value="'
+				. esc_attr( isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : 'vhcc-may' )
+				. '" /><select name="soma">';
+			foreach ( $ds as $x ) {
+				echo '<option value="' . (int) $x['id'] . '"' . selected( $xem, (int) $x['id'], false ) . '>'
+					. esc_html( ( $x['cua_hang'] ? $x['cua_hang'] : '(chưa gán)' ) . ' — '
+						. ( $x['serial'] ? $x['serial'] : $x['mac'] ) ) . '</option>';
+			}
+			echo '</select> <button class="button">Xem sổ máy này</button></form>';
+		}
+		if ( $xem > 0 ) {
+			$so = VHCC_May::roster( $xem );
+			$dc = VHCC_May::doi_chieu_roster( $xem );
+			if ( empty( $so['ok'] ) ) {
+				echo '<div class="notice notice-error"><p>' . esc_html( $so['error'] ) . '</p></div>';
+			} elseif ( ! $so['data'] ) {
+				echo '<p><em>Máy này chưa đẩy sổ mặt lên lần nào. Bấm "Quét sổ máy" ở bảng trên.</em></p>';
+			} else {
+				echo '<p>Trong máy có <strong>' . (int) $dc['soMay'] . '</strong> mặt · hồ sơ cơ sở '
+					. esc_html( $dc['coso'] ) . ' có <strong>' . (int) $dc['soWeb'] . '</strong> người.</p>';
+				if ( $dc['thua'] ) {
+					echo '<div class="notice notice-error"><p><strong>' . count( $dc['thua'] )
+						. ' mặt còn trong máy mà hồ sơ không cho phép nữa</strong> — những người này vẫn '
+						. 'chấm công được:</p><ul>';
+					foreach ( $dc['thua'] as $x ) {
+						echo '<li><code>' . esc_html( $x['ma'] ) . '</code> ' . esc_html( $x['ten'] )
+							. ' — ' . esc_html( $x['vi_sao'] ) . '</li>';
+					}
+					echo '</ul></div>';
+				} else {
+					echo '<p style="color:#046b2d">✔️ Không có mặt nào thừa trong máy.</p>';
+				}
+				if ( $dc['thieu'] ) {
+					echo '<p><strong>' . count( $dc['thieu'] ) . ' người có hồ sơ mà chưa có mặt trong máy'
+						. '</strong> (người mới chưa lấy mặt): ';
+					$ten = array();
+					foreach ( $dc['thieu'] as $x ) { $ten[] = $x['ma'] . ' ' . $x['ten']; }
+					echo esc_html( implode( ' · ', $ten ) ) . '</p>';
+				}
+				echo '<table class="widefat striped"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+					. '<th>Có ảnh mặt</th><th>Quét lúc</th></tr></thead><tbody>';
+				foreach ( $so['data'] as $r ) {
+					echo '<tr><td><code>' . esc_html( $r['ma_nv'] ) . '</code></td><td>'
+						. esc_html( $r['ho_ten'] ) . '</td><td>' . ( (int) $r['co_anh'] ? '✔️' : '—' )
+						. '</td><td>' . esc_html( (string) $r['cap_nhat'] ) . '</td></tr>';
+				}
+				echo '</tbody></table>';
+			}
+		}
+
+		/* ---- 2. Lượt bấm chờ gán ---- */
 		$cg = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'cho_gan' )
 			. " WHERE da_chuyen='' ORDER BY nhan_luc DESC LIMIT 200" );
 		echo '<h2>Lượt bấm chờ gán (' . count( $cg ) . ')</h2>';
 		echo '<p>Máy chưa gán cơ sở vẫn được nhận và GIỮ lượt bấm ở đây — bỏ là mất công của người '
-			. 'thật chỉ vì cái máy chưa được khai. Gán cơ sở cho máy rồi soi lại là xong.</p>';
+			. 'thật chỉ vì cái máy chưa được khai. <strong>Gán cơ sở cho máy là các lượt này tự vào '
+			. 'bảng chấm công</strong>, không phải gõ tay lại.</p>';
 		if ( $cg ) {
 			echo '<table class="widefat striped"><thead><tr><th>Nhận lúc</th><th>Serial</th><th>MAC</th>'
 				. '<th>Máy tự khai</th><th>Mã NV</th><th>Họ tên</th><th>Thời điểm</th></tr></thead><tbody>';
@@ -900,49 +990,86 @@ class VHCC_Admin {
 			echo '</tbody></table>';
 		}
 
-		/* ---- Firmware ---- */
+		/* ---- 3. Hàng đợi lệnh ---- */
+		$lenh = VHCC_May::ds_lenh( '', false, 100 );
+		echo '<h2>Lệnh đang chờ xuống máy (' . count( $lenh ) . ')</h2>';
+		echo '<p>Hàng đợi này nằm trên chính website — trước 22/08/2026 nó nằm trên Firebase. Lệnh đã '
+			. 'gửi mà máy chưa báo xong thì <strong>vẫn được gửi lại</strong>: "đã gửi" không có nghĩa '
+			. 'là "máy nhận được", nhất là trên 4G. Firmware có sổ riêng nên nhận lại lệnh cũ thì nó '
+			. 'tự bỏ, không có chuyện thêm hai lần một người.</p>';
+		if ( ! $lenh ) {
+			echo '<p><em>Không có lệnh nào đang chờ.</em></p>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr><th>Đặt lúc</th><th>Lệnh</th><th>Máy</th>'
+				. '<th>Nhân viên</th><th>Khoảng</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
+			foreach ( $lenh as $q ) {
+				echo '<tr><td>' . esc_html( (string) $q['tao_luc'] ) . '</td>'
+					. '<td><code>' . esc_html( $q['action'] ) . '</code></td>'
+					. '<td>' . esc_html( $q['cua_hang'] ? $q['cua_hang'] : $q['tram'] ) . '</td>'
+					. '<td>' . esc_html( trim( $q['ma_nv'] . ' ' . $q['ho_ten'] ) ) . '</td>'
+					. '<td>' . esc_html( trim( $q['tu_gio'] . ' → ' . $q['den_gio'], ' →' ) ) . '</td>'
+					. '<td>' . ( VHCC_MayCong::GUI === $q['trang_thai']
+						? 'đã gửi ' . esc_html( (string) $q['gui_luc'] ) : 'đang chờ' ) . '</td>'
+					. '<td><form method="post">';
+				echo wp_nonce_field( 'vhcc_may', '_wpnonce', true, false );
+				echo '<input type="hidden" name="op_id" value="' . esc_attr( $q['op_id'] ) . '" />'
+					. '<button class="button button-small" name="vhcc_may" value="xoa_lenh">Xoá</button>'
+					. '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		/* ---- 4. Firmware ---- */
 		echo '<h2>Cập nhật firmware</h2>';
 		$ota = VHCC_May::ota_dang_dat();
-		if ( ! empty( $ota['ok'] ) && is_array( $ota['data'] ) ) {
-			$o = $ota['data'];
-			$ver = isset( $o['ver'] ) ? (string) $o['ver'] : '';
-			echo '<p>Lệnh đang đặt: ' . ( '' !== $ver
-				? '<strong>' . esc_html( $ver ) . '</strong> · <code>'
-					. esc_html( isset( $o['url'] ) ? $o['url'] : '' ) . '</code>'
-				: '<em>không có</em>' ) . '</p>';
-		}
-		$fw = VHCC_May::fw_moi_nhat();
-		if ( ! empty( $fw['ok'] ) && is_array( $fw['data'] ) ) {
-			$f = $fw['data'];
-			if ( ! empty( $f['ver'] ) ) {
-				echo '<p>Bản mới nhất trên GitHub: <strong>' . esc_html( $f['ver'] ) . '</strong> · <code>'
-					. esc_html( isset( $f['url'] ) ? $f['url'] : '' ) . '</code></p>';
+		$o   = $ota['data'];
+		echo '<p>Lệnh đang đặt cho cả chuỗi: ' . ( '' !== $o['ver']
+			? '<strong>' . esc_html( $o['ver'] ) . '</strong> · <code>' . esc_html( $o['url'] ) . '</code>'
+				. ( $o['luc'] ? ' · đặt lúc ' . esc_html( $o['luc'] ) : '' )
+			: '<em>không có</em>' ) . '</p>';
+
+		$fw = VHCC_May::fw_dang_chay();
+		if ( ! empty( $fw['data'] ) ) {
+			echo '<p>Máy đang chạy: ';
+			$phan = array();
+			foreach ( $fw['data'] as $f ) {
+				$phan[] = '<strong>' . esc_html( $f['ver'] ) . '</strong> (' . (int) $f['so'] . ' máy)';
 			}
-			if ( ! empty( $f['error'] ) ) {
-				echo '<div class="notice notice-warning"><p>' . esc_html( $f['error'] ) . '</p></div>';
-			}
-			if ( ! empty( $f['chuaDu'] ) ) {
-				echo '<p><strong>Máy chưa đủ điều kiện nhận bản mới:</strong> '
-					. esc_html( implode( ', ', (array) $f['chuaDu'] ) ) . '</p>';
+			echo implode( ' · ', $phan ) . '</p>';
+			if ( count( $fw['data'] ) > 1 ) {
+				echo '<p><em>Nhiều bản cùng chạy là bình thường ngay sau một lượt đẩy — máy nhận trong '
+					. 'vòng 60 giây rồi tải và khởi động lại. Còn lệch sau vài giờ thì máy đó không tải '
+					. 'được: xem lại link .bin và SIM của nó.</em></p>';
 			}
 		}
+
 		echo '<div class="notice notice-error"><p><strong>Đọc trước khi đẩy.</strong> Lệnh này nạp '
-			. 'firmware cho <strong>MỌI máy trong chuỗi</strong> trong vòng 5 phút. Link phải là link '
+			. 'firmware cho <strong>MỌI máy trong chuỗi</strong>. Link phải là link '
 			. '<code>raw</code> của nhánh <code>bin</code> — link <em>release</em> của GitHub trả HTTP 302 '
 			. 'rồi chuyển hướng dài ~943 ký tự, mà module 4G chết ở khoảng 532 ký tự: đẩy link đó là '
 			. 'mọi máy 4G KHÔNG BAO GIỜ tải được, tức mất luôn đường sửa từ xa và phải đi từng cửa hàng '
-			. 'cắm USB. Hệ thống sẽ chặn link sai dạng, nhưng đọc kỹ vẫn hơn.</p></div>';
-		echo '<form method="post"><input type="hidden" name="vhcc_may" value="ota" />';
+			. 'cắm USB. Hệ thống chặn link sai dạng, nhưng <strong>hãy thử một máy trước</strong> — '
+			. 'bản hỏng đẩy cho cả chuỗi thì không còn đường gọi về.</p></div>';
+
+		echo '<form method="post">';
 		wp_nonce_field( 'vhcc_may' );
 		echo '<table class="form-table">'
 			. self::o( 'ver', 'Phiên bản *', '' )
-			. self::o( 'url', 'Link .bin (raw, nhánh bin) *', '' )
-			. self::o( 'xac_nhan', 'Gõ đúng chữ DONG Y để xác nhận *', '' )
+			. self::o( 'url', 'Link .bin (raw, nhánh bin) *', '' );
+		if ( $ds ) {
+			echo '<tr><th scope="row">Thử riêng một máy</th><td><select name="may_id">';
+			foreach ( $ds as $x ) {
+				echo '<option value="' . (int) $x['id'] . '">'
+					. esc_html( ( $x['cua_hang'] ? $x['cua_hang'] : '(chưa gán)' ) . ' — '
+						. ( $x['serial'] ? $x['serial'] : $x['mac'] ) ) . '</option>';
+			}
+			echo '</select> <button class="button" name="vhcc_may" value="ota_may">Đặt riêng cho máy này</button>'
+				. '<p class="description">Không cần gõ xác nhận — đây chính là bước nên làm trước.</p></td></tr>';
+		}
+		echo self::o( 'xac_nhan', 'Gõ đúng chữ DONG Y để đẩy cả chuỗi', '' )
 			. '</table>';
-		echo '<p><button class="button button-primary">Đẩy cập nhật cho cả chuỗi</button></p></form>';
-		echo '<form method="post"><input type="hidden" name="vhcc_may" value="go_ota" />';
-		wp_nonce_field( 'vhcc_may' );
-		echo '<p><button class="button">Gỡ lệnh cập nhật</button></p></form>';
+		echo '<p><button class="button button-primary" name="vhcc_may" value="ota">Đẩy cập nhật cho cả chuỗi</button> '
+			. '<button class="button" name="vhcc_may" value="go_ota">Gỡ lệnh cập nhật của cả chuỗi</button></p></form>';
 		echo '</div>';
 	}
 
