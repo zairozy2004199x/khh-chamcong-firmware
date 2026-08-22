@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22e (tien to noi dung CK tu web)"
+#define FW_VERSION "ghe-massage 2026-08-22f (man in dung noi dung trong QR)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -208,6 +208,13 @@ long    payAmount = 0;
 int     payMinutes = 0;
 long    g_runTotalVnd = 0;
 String  qrPayload = "";
+/* Nội dung chuyển khoản THẬT của lượt này — dựng MỘT LẦN trong startSession().
+   ⚠️ MÀN PHẢI IN ĐÚNG BIẾN NÀY, tuyệt đối không ráp lại chuỗi lần thứ hai để hiển thị.
+      Ráp hai lần là hai chỗ lệch nhau lúc nào không hay: bản trước màn in
+      "GHEAMTP01 FFPL45" trong khi mã QR mang "SEVQR GHEAMTP01 FFPL45" — khách nào gõ
+      tay theo dòng chữ trên màn là chuyển đúng số tiền vào đúng tài khoản mà SePay
+      không thấy, ghế không chạy, và không ai hiểu vì sao. */
+String  payND = "";
 unsigned long waitUntil = 0;
 unsigned long lastPayPoll = 0;
 unsigned long runUntil = 0;
@@ -612,9 +619,9 @@ void drawQRScreen(){
      thì khách gõ tay đúng chuỗi này, và không có nó thì tiền vào mà ghế không chạy. */
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(COL_MO, COL_BG);
-  tft.drawString("Quet bang ung dung Ngan hang hoac Vi dien tu", 160, 200, 1);
+  tft.drawString("Quet bang ung dung Ngan hang hoac Vi dien tu", 160, 199, 1);
   tft.setTextColor(COL_VANG, COL_BG);
-  tft.drawString("Noi dung: GHE" + CHAIR_ID + " " + payCode, 160, 212, 1);
+  tft.drawString("Noi dung: " + payND, 160, 210, 1);
 
   /* Nút huỷ nhỏ, góc trái dưới: nó KHÔNG phải việc chính của màn này. Để to ở giữa như bản cũ
      là mời khách bấm nhầm ngay lúc vừa quét xong. */
@@ -623,12 +630,21 @@ void drawQRScreen(){
   tft.setTextColor(COL_MO, COL_KHUNG);
   tft.drawString("CHAM DE HUY", 48, 230, 1);
 }
+/* Đồng hồ chờ trả — HÀNG DƯỚI CÙNG, bên phải nút huỷ, nền tối như nền màn.
+   ⚠️ HAI CHỖ DỄ HỎNG, đã hỏng cả hai cùng lúc ở bản trước:
+      1. Đặt trong khoảng y 170–195 là chồng lên dòng "Quet bang ung dung…" và dòng nội dung —
+         chữ đè chữ, đọc thành một đám mực. Vùng này CHỈ có mã QR và hai dòng chữ đó.
+      2. Lấy nền TFT_WHITE cho vừa ô mã QR: ô trắng chỉ rộng tới x=242, mà setTextPadding kéo
+         vệt nền tới tận mép phải — thành một mảng trắng lòi ra giữa nền tối.
+   Nút huỷ chiếm x 6–90, nên hàng này bắt đầu từ x=100. */
 void drawWaitCountdown(int secLeft){
-  tft.setTextDatum(TL_DATUM); tft.setTextPadding(150);
-  tft.setTextColor(TFT_RED, TFT_WHITE);
-  tft.drawString("Cho tra: " + String(secLeft) + "s", 190, 172, 2);
-  tft.setTextColor(netUp() ? 0x0320 : TFT_RED, TFT_WHITE);
-  tft.drawString(netUp() ? "Dang kiem tra..." : "MAT MANG - cho lai", 190, 192, 1);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(TFT_RED, COL_BG);
+  tft.setTextPadding(96);
+  tft.drawString("Cho tra: " + String(secLeft) + "s", 100, 222, 2);
+  tft.setTextColor(netUp() ? 0x0660 : TFT_RED, COL_BG);
+  tft.setTextPadding(116);
+  tft.drawString(netUp() ? "Dang kiem tra..." : "MAT MANG - cho lai", 198, 226, 1);
   tft.setTextPadding(0);
 }
 /* Gói đang chạy — để in tên lên màn đếm ngược. `-1` = không rõ (tiền mặt, hoặc lệnh từ web). */
@@ -885,11 +901,11 @@ void startSession(int idx){
   genCode(payCode);
   /* Tiền tố đứng TRƯỚC: ngân hàng nào cắt bớt nội dung thì cắt từ cuối, mà mất tiền tố là mất
      cả lượt (SePay không thấy), còn mất mã lượt thì trên web vẫn gán tay được. */
-  String addInfo = (ND_TIEN_TO.length() ? ND_TIEN_TO + " " : "") + "GHE" + CHAIR_ID + " " + payCode;
-  qrPayload  = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, addInfo);
+  payND      = (ND_TIEN_TO.length() ? ND_TIEN_TO + " " : "") + "GHE" + CHAIR_ID + " " + payCode;
+  qrPayload  = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, payND);
   waitUntil  = millis() + (unsigned long)PAY_WINDOW_S*1000UL;
   lastPayPoll = 0; lastShownSec = -1;
-  Serial.println("[PAY] Phiên " + addInfo + " = " + String(payAmount) + "d, " + String(payMinutes) + "'");
+  Serial.println("[PAY] Phiên " + payND + " = " + String(payAmount) + "d, " + String(payMinutes) + "'");
   g_paidAmount = 0;
   state = ST_WAIT_PAY; screenDrawn=false; g_statusDirty=true;
   g_payWaiting = true;

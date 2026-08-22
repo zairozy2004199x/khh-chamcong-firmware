@@ -2184,8 +2184,13 @@ t( 'mã QR có vùng lặng trắng quanh nó', strpos( $fw3, 'vùng lặng' ) !
 /* Và cỡ ô tính theo KÍCH THƯỚC THẬT của mã: chuỗi VietQR dài ngắn khác nhau tuỳ tên tài khoản
    và mã lượt, cố định 3 pixel/ô là có ngày mã tràn khỏi màn. */
 t( 'cỡ ô tính theo kích thước thật của mã', strpos( $fw3, 'VUNG / (size + 2)' ) !== false );
-t( 'màn QR vẫn in mã lượt để khách gõ tay được',
-	strpos( $fw3, '"Noi dung: GHE"' ) !== false );
+/* Mã lượt PHẢI hiện ra: app ngân hàng nào không tự điền nội dung thì khách gõ tay đúng chuỗi
+   này, không có nó thì tiền vào mà ghế không chạy. Nhưng in bằng cách RÁP LẠI chuỗi ngay tại
+   màn thì đúng là lỗi vừa phải sửa — nên phép thử này bám vào BIẾN, không bám vào công thức. */
+t( 'màn QR vẫn in nội dung để khách gõ tay được',
+	strpos( $fw3, 'drawString("Noi dung: " + payND' ) !== false );
+t( 'và nội dung đó có mã lượt trong nó',
+	preg_match( '/payND\s*=[^;]*payCode;/', $fw3 ) === 1 );
 
 t( 'màn đang chạy có tiêu đề của bảng thiết kế',
 	strpos( $fw3, 'PHIEN TRI LIEU DANG DIEN RA' ) !== false );
@@ -2215,6 +2220,50 @@ t( 'số phút tính ở ĐÚNG MỘT hàm', substr_count( $fw2, 'int phutGoi(in
 t( 'và mọi nơi đều gọi hàm đó', substr_count( $fw2, 'phutGoi(' ) >= 3 );
 t( 'bộ đệm JSON nới cho tên gói',
 	preg_match( '/StaticJsonDocument<(\d+)> d;/', $fw2, $m2 ) === 1 && (int) $m2[1] >= 1024 );
+
+// ---- màn QR: chữ trên màn PHẢI là đúng chuỗi nằm trong mã QR
+$fw6 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+/* 🔴 LỖI ĐÃ XẢY RA BỐN LẦN THEO ĐÚNG MỘT KIỂU: một chỗ dựng chuỗi thật, một chỗ khác ráp lại
+      chuỗi để hiển thị. Ba lần trước ở bảng xem trước trong wp-admin, lần thứ tư ở đây — màn
+      ghế in "GHEAMTP01 FFPL45" trong khi mã QR mang "SEVQR GHEAMTP01 FFPL45". Khách nào gõ tay
+      theo dòng chữ trên màn (app ngân hàng không tự điền nội dung thì phải gõ) là chuyển đúng
+      tiền vào đúng tài khoản mà SePay không thấy — ghế không chạy, tiền không mất, nhưng cũng
+      không ai tìm ra nó ở đâu.
+      Nên chặn ở gốc: công thức nội dung được phép xuất hiện ĐÚNG MỘT LẦN trong cả tệp. */
+t( 'nội dung chuyển khoản dựng đúng một chỗ',
+	substr_count( $fw6, '"GHE" + CHAIR_ID + " " + payCode' ) === 1 );
+t( 'và chỗ đó có kèm tiền tố', preg_match(
+	'/payND\s*=\s*\(ND_TIEN_TO\.length\(\)\s*\?\s*ND_TIEN_TO\s*\+\s*" "\s*:\s*""\)\s*\+\s*"GHE"/', $fw6 ) === 1 );
+t( 'mã QR lấy đúng biến đó',
+	strpos( $fw6, 'buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, payND)' ) !== false );
+t( 'và màn cũng in đúng biến đó, không ráp lại',
+	strpos( $fw6, 'drawString("Noi dung: " + payND' ) !== false );
+
+/* Hàng đồng hồ "Cho tra: 91s" nằm ĐÈ LÊN hai dòng chữ dưới mã QR ở bản trước. Vùng y 195–217
+   dành riêng cho dòng hướng dẫn và dòng nội dung; đồng hồ phải xuống hàng dưới cùng. */
+$than_dh = '';
+if ( preg_match( '/void drawWaitCountdown\(int secLeft\)\{(.*?)\n\}/s', $fw6, $m_dh ) ) {
+	$than_dh = $m_dh[1];
+}
+t( 'tìm được thân hàm đồng hồ chờ trả', '' !== $than_dh );
+$y_dh = array();
+if ( preg_match_all( '/drawString\([^;]*?,\s*(\d+)\s*,\s*(\d+)\s*,\s*\d+\s*\)/', $than_dh, $m_y ) ) {
+	$y_dh = array_map( 'intval', $m_y[2] );
+}
+t( 'đồng hồ có vẽ chữ', count( $y_dh ) >= 2 );
+t( 'và không dòng nào lấn vào vùng hai dòng chữ dưới mã QR',
+	count( $y_dh ) >= 2 && min( $y_dh ) >= 218 );
+/* Ô trắng của mã QR chỉ rộng tới x=242. Lấy nền TFT_WHITE rồi setTextPadding kéo vệt nền tới
+   mép phải là thò ra một mảng trắng giữa nền tối — nhìn như màn hỏng. */
+t( 'đồng hồ không mượn nền trắng của ô mã QR', strpos( $than_dh, 'TFT_WHITE' ) === false );
+
+/* Hai dòng chữ dưới mã QR phải nằm TRÊN hàng đồng hồ, không thì lại chồng theo chiều ngược. */
+foreach ( array( 'Quet bang ung dung', 'Noi dung: ' ) as $chu_qr ) {
+	$ok_y = preg_match( '/drawString\("' . preg_quote( $chu_qr, '/' )
+		. '[^;]*?,\s*\d+\s*,\s*(\d+)\s*,\s*\d+\s*\)/', $fw6, $m_q ) === 1
+		&& (int) $m_q[1] <= 217;
+	t( 'dòng "' . $chu_qr . '" nằm trên hàng đồng hồ', $ok_y );
+}
 
 // ============================================================ kết
 if ( $truot ) {
