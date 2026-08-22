@@ -57,6 +57,51 @@ class VHG_May {
 			. ( $so > 0 ? ' ' . $so . ' máy chuyển thành "chưa gán", KHÔNG bị xoá.' : '' ) );
 	}
 
+	// ======================================================================= cục nhận tiền
+
+	/**
+	 * Các mã lỗi cục nhận tiền mà ghế được phép khai. Kèm câu người đứng quầy đọc là hiểu phải
+	 * làm gì — "lỗi E03" thì ai cũng chịu.
+	 *
+	 * ⚠️ CHỈ NHẬN MÃ TRONG DANH SÁCH NÀY. Ghế nói gì cũng ghi vào cột là mở đường cho một chuỗi
+	 *    lạ chui thẳng vào màn quản trị; mà cổng máy chỉ có một khoá chung, ai biết khoá là gửi
+	 *    được. Mã lạ -> coi như không có lỗi, và điều đó AN TOÀN: bỏ sót một cảnh báo còn hơn
+	 *    tin một cảnh báo bịa.
+	 */
+	const LOI_TIEN = array(
+		'ket'   => 'Đường xung kẹt ở mức thấp — cục nhận tiền treo, hoặc dây tín hiệu chạm mát. '
+			. 'Rút điện cục tiền 10 giây rồi cắm lại; còn nữa thì kiểm tra dây về chân xung.',
+		'lech'  => 'Đếm xung lệch — một đợt tiền ra số không chia hết cho 10.000đ, tức là mất '
+			. 'hoặc thừa xung. TIỀN ĐANG ĐẾM SAI: đối chiếu két với sổ ngay.',
+		'khoa'  => 'Đã khoá mà vẫn nhận tiền — dây INHIBIT tuột hoặc sai cực. Tiền vào két mà ghế '
+			. 'không tính giờ, và trên sổ sẽ không có dòng nào.',
+		'nhieu' => 'Nhiễu trên đường xung — nhiều cạnh giả bị lọc trong một đợt. Chưa chắc đã sai '
+			. 'tiền, nhưng là dấu hiệu dây tín hiệu đi sát dây nguồn hoặc mát kém.',
+	);
+
+	public static function ma_loi_tien( $v ) {
+		$s = strtolower( trim( (string) $v ) );
+		return isset( self::LOI_TIEN[ $s ] ) ? $s : '';
+	}
+
+	public static function loi_tien_chu( $ma ) {
+		$ma = self::ma_loi_tien( $ma );
+		return '' === $ma ? '' : self::LOI_TIEN[ $ma ];
+	}
+
+	/**
+	 * Ghế khai TUỔI (bao nhiêu giây trước) -> máy chủ đổi ra giờ tuyệt đối của mình.
+	 * `-1` (hoặc số âm) = chưa từng xảy ra, trả về null chứ không phải "vừa xong".
+	 */
+	public static function luc_tu_tuoi( $giay ) {
+		$g = (int) $giay;
+		if ( $g < 0 ) { return null; }
+		/* Chặn trên 1 năm: ghế chạy lâu thì millis() rất lớn, mà một con số vượt tầm DATETIME
+		   làm hỏng cả hàng nhịp — mất luôn thứ quan trọng hơn vì một cái mốc chỉ để tham khảo. */
+		if ( $g > 31536000 ) { return null; }
+		return gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - $g );
+	}
+
 	// ======================================================================= máy
 
 	public static function ds_may() {
@@ -65,7 +110,8 @@ class VHG_May {
 		$nhip = VHG_DB::t( 'nhip' );
 		$ds = VHG_DB::rows(
 			"SELECT m.*, c.ten AS coso_ten, n.trang_thai, n.nguon AS nhip_nguon, n.con_lai,"
-			. " n.fw, n.ip, n.nd_tien_to, n.tre_ms, n.luc AS nhip_luc FROM $may m"
+			. " n.fw, n.ip, n.nd_tien_to, n.tre_ms, n.tm_loi, n.tm_cuoi, n.tm_lan,"
+			. " n.tm_luc, n.tm_to, n.luc AS nhip_luc FROM $may m"
 			. " LEFT JOIN $coso c ON c.id = m.coso_id"
 			. " LEFT JOIN $nhip n ON n.ma_may = m.ma"
 			. ' ORDER BY c.ten ASC, m.ma ASC' );
@@ -776,6 +822,14 @@ class VHG_May {
 			   độ lỏng, hoặc từ chối cả hàng ở chế độ chặt — mất luôn nhịp vì một con số chỉ để
 			   chỉnh đồng hồ. Ghế mất mạng lâu có thể gửi lên con số rất lớn. */
 			'tre_ms'     => max( 0, min( 65535, (int) ( isset( $d['tre'] ) ? $d['tre'] : 0 ) ) ),
+			'tm_loi'     => self::ma_loi_tien( isset( $d['tm_loi'] ) ? $d['tm_loi'] : '' ),
+			'tm_cuoi'    => self::ma_loi_tien( isset( $d['tm_cuoi'] ) ? $d['tm_cuoi'] : '' ),
+			'tm_lan'     => max( 0, min( 65535, (int) ( isset( $d['tm_lan'] ) ? $d['tm_lan'] : 0 ) ) ),
+			/* Ghế đếm bằng millis() của chính nó, không có đồng hồ thật — nên nó khai TUỔI
+			   (bao nhiêu giây trước), còn máy chủ đổi ra giờ tuyệt đối theo đồng hồ của mình.
+			   Đây là cách duy nhất đúng khi hai bên không chung đồng hồ. */
+			'tm_luc'     => self::luc_tu_tuoi( isset( $d['tm_giay'] ) ? $d['tm_giay'] : -1 ),
+			'tm_to'      => self::luc_tu_tuoi( isset( $d['tm_to'] ) ? $d['tm_to'] : -1 ),
 			'ip'         => mb_substr( (string) ( isset( $d['ip'] ) ? $d['ip'] : '' ), 0, 60 ),
 			'nd_tien_to' => mb_substr( trim( (string) ( isset( $d['nd'] ) ? $d['nd'] : '' ) ), 0, 20 ),
 			/* 80, KHỚP VỚI CỘT. Cắt 40 ở đây là cách hỏng âm thầm: chuỗi phiên bản

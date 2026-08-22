@@ -2354,6 +2354,125 @@ t( 'nhưng không dày tới mức bị chặn', $poll >= 500, $poll );
 t( 'ghế đo thời gian mỗi lượt gọi', strpos( $fw7, 'g_rttMs = millis() - t0' ) !== false );
 t( 'và gửi kèm trong nhịp', strpos( $fw7, '",\"tre\":" + String(g_rttMs)' ) !== false );
 
+// ====================== CỤC NHẬN TIỀN ICT L70 BÁO HỎNG
+/* Chỉ có ĐÚNG MỘT dây tín hiệu về ESP32 (đường xung) và một dây khoá đi ra. Bốn thứ dưới đây là
+   tất cả những gì suy ra được từ hai sợi dây đó — và cả bốn đều là tiền đếm sai hoặc tiền vào
+   mà ghế không chạy. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'idle', 'tm_loi' => 'ket', 'tm_cuoi' => 'ket',
+	'tm_lan' => 3, 'tm_giay' => 40, 'tm_to' => 900 ) );
+$m = null;
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( 'lỗi đang diễn ra được giữ lại', 'ket', (string) $m['tm_loi'] );
+teq( 'và đếm được đã mấy lần', 3, (int) $m['tm_lan'] );
+/* Ghế đếm bằng millis() của chính nó, không có đồng hồ thật -> nó khai TUỔI, máy chủ đổi ra giờ
+   tuyệt đối của mình. Đây là cách duy nhất đúng khi hai bên không chung đồng hồ. */
+$cach = current_time( 'timestamp' ) - strtotime( (string) $m['tm_luc'] );
+t( 'tuổi đổi thành giờ tuyệt đối của máy chủ', abs( $cach - 40 ) <= 2, $cach );
+$cach_to = current_time( 'timestamp' ) - strtotime( (string) $m['tm_to'] );
+t( 'tờ tiền gần nhất cũng vậy', abs( $cach_to - 900 ) <= 2, $cach_to );
+
+/* Người đứng quầy không tra bảng mã — mà họ mới là người phải chạy ra xem cái máy. */
+foreach ( array( 'ket', 'lech', 'khoa', 'nhieu' ) as $ma_l ) {
+	t( 'mã "' . $ma_l . '" có câu người đọc là hiểu',
+		strlen( VHG_May::loi_tien_chu( $ma_l ) ) > 30 );
+}
+
+/* 🔴 CHỈ NHẬN MÃ TRONG DANH SÁCH. Cổng máy chỉ có một khoá chung, ai biết khoá là gửi được —
+      ghi thẳng chuỗi ghế khai vào cột là mở đường cho một chuỗi lạ chui vào màn quản trị.
+      Mã lạ -> coi như không có lỗi, và thế là AN TOÀN: bỏ sót một cảnh báo còn hơn tin một
+      cảnh báo bịa. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'idle',
+	'tm_loi' => '<script>alert(1)</script>', 'tm_cuoi' => 'bia-dat' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( 'mã lạ bị bỏ, không ghi vào cột', '', (string) $m['tm_loi'] );
+teq( 'kể cả ở cột lỗi cũ', '', (string) $m['tm_cuoi'] );
+teq( 'và loi_tien_chu cũng không trả gì', '', VHG_May::loi_tien_chu( 'bia-dat' ) );
+
+/* `-1` = CHƯA TỪNG xảy ra. Đổi thành "vừa xong" là bịa ra một lần hỏng chưa hề có. */
+teq( 'chưa từng hỏng thì không có mốc giờ', null, VHG_May::luc_tu_tuoi( -1 ) );
+t( 'tuổi vô lý (quá 1 năm) cũng bỏ', null === VHG_May::luc_tu_tuoi( 99999999 ) );
+t( 'tuổi hợp lệ thì có mốc', null !== VHG_May::luc_tu_tuoi( 10 ) );
+
+/* Cổng máy phải chuyển tiếp đủ NĂM ô. Quên một ô là cả nhánh trên câm mà không ai biết. */
+$cong_tm = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-cong.php' );
+foreach ( array( 'tm_loi', 'tm_cuoi', 'tm_lan', 'tm_giay', 'tm_to' ) as $o ) {
+	t( 'cổng máy chuyển tiếp ' . $o,
+		preg_match( "/'" . $o . "'\s*=>\s*isset\(\s*\\\$d\['" . $o . "'\]\s*\)/", $cong_tm ) === 1 );
+}
+
+// ---- màn quản trị nói ra, và nói đúng loại
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'idle', 'tm_loi' => 'lech', 'tm_cuoi' => 'lech',
+	'tm_lan' => 1, 'tm_giay' => 30, 'tm_to' => 60 ) );
+ob_start(); VHG_Admin::trang_may(); $html_tm = ob_get_clean();
+t( 'màn quản trị báo cục nhận tiền lỗi', strpos( $html_tm, 'Cục nhận tiền báo lỗi' ) !== false );
+t( 'và nói rõ đang hỏng chứ không phải chuyện cũ', strpos( $html_tm, 'ĐANG HỎNG' ) !== false );
+t( 'kèm việc phải làm', strpos( $html_tm, 'TIỀN ĐANG ĐẾM SAI' ) !== false );
+
+/* ⚠️ Lỗi ĐÃ QUA và lỗi ĐANG diễn ra phải hiện khác nhau. Gộp lại thì một lần kẹt ba giây hồi
+      sáng nằm đó báo đỏ cả ngày, và ghế đang thật sự kẹt lúc này lẫn vào đám cũ. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'idle', 'tm_loi' => '', 'tm_cuoi' => 'lech',
+	'tm_lan' => 1, 'tm_giay' => 3600, 'tm_to' => 60 ) );
+ob_start(); VHG_Admin::trang_may(); $html_tm = ob_get_clean();
+t( 'hết lỗi thì vẫn còn dấu vết', strpos( $html_tm, 'Cục nhận tiền báo lỗi' ) !== false );
+t( 'nhưng KHÔNG còn báo đang hỏng', strpos( $html_tm, 'ĐANG HỎNG' ) === false );
+
+/* Chưa bao giờ lỗi thì đừng hiện gì cả. Bảng thường trực là bảng người ta thôi đọc. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'idle', 'tm_loi' => '', 'tm_cuoi' => '' ) );
+ob_start(); VHG_Admin::trang_may(); $html_tm = ob_get_clean();
+t( 'chưa lỗi bao giờ thì im lặng', strpos( $html_tm, 'Cục nhận tiền báo lỗi' ) === false );
+
+// ---- trang ngoài /ghe: người đứng quầy mới là người chạy ra xem máy
+$trang_php = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
+t( 'trang ngoài gửi kèm tình trạng cục tiền', strpos( $trang_php, "'tm'      => (string) \$m['tm_loi']" ) !== false );
+t( 'và gửi cả câu giải thích, không bắt tra mã', strpos( $trang_php, "'tm_chu'" ) !== false );
+t( 'thẻ ghế hiện cảnh báo cục tiền', strpos( $trang_php, 'Cục nhận tiền đang hỏng' ) !== false );
+t( 'phân biệt đang hỏng với đã hỏng lúc trước',
+	strpos( $trang_php, 'Cục nhận tiền đã hỏng lúc trước' ) !== false );
+
+// ---- firmware
+$fw8 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'ghế đếm cạnh nhiễu bị chống nảy loại', strpos( $fw8, 'g_tmNhieu = g_tmNhieu + 1' ) !== false );
+/* ⚠️ Đếm chẩn đoán KHÔNG được trộn vào đếm tiền: một phép đếm để dò lỗi mà cộng thành doanh
+      thu là kiểu sai tệ nhất có thể có ở đây. */
+t( 'nhưng KHÔNG cộng vào số xung tiền',
+	preg_match( '/g_tmNhieu\s*=\s*g_tmNhieu\s*\+\s*1;\s*\n?\s*\}/', $fw8 ) === 1 );
+t( 'ghế biết mình đang khoá máy nhận tiền', strpos( $fw8, 'g_tmDangKhoa = CASH_INHIBIT_ENABLE && !en' ) !== false );
+/* Không có dây khoá thì không bao giờ được coi là "đang khoá", nếu không MỌI tờ tiền hợp lệ
+   đều bị báo thành "nhận tiền khi đã khoá". */
+t( 'không có dây khoá thì không tự nhận là đang khoá',
+	strpos( $fw8, 'g_tmDangKhoa = !en;' ) === false );
+t( 'ghế nhìn đường xung xem có kẹt không', strpos( $fw8, 'digitalRead(CASH_PULSE_PIN) == LOW' ) !== false );
+t( 'và có gọi phép kiểm đó trong vòng lặp', preg_match( '/^\s*kiemCucTien\(\);/m', $fw8 ) === 1 );
+t( 'kiểm bội số mệnh giá', strpos( $fw8, '(amount % CASH_BOI_SO) != 0' ) !== false );
+/* 🔴 Phép kiểm phải đứng TRƯỚC đường thoát `minutes<=0`: đợt tiền nhỏ hơn một phút vẫn có thể
+      là đợt đếm sai, và đó chính là đợt cần báo nhất. */
+$vt_kiem = strpos( $fw8, '(amount % CASH_BOI_SO) != 0' );
+$vt_thoat = strpos( $fw8, 'if(minutes<=0) return;' );
+t( 'và đứng TRƯỚC mọi đường thoát', $vt_kiem !== false && $vt_thoat !== false && $vt_kiem < $vt_thoat );
+t( 'lỗi làm ghế đẩy nhịp ngay, không đợi 30 giây',
+	preg_match( '/void ghiLoiTien\([^)]*\)\{.*?g_statusDirty\s*=\s*true;/s', $fw8 ) === 1 );
+/* Lỗi ĐANG diễn ra và sự việc ĐÃ QUA phải tách: treo cờ "đang hỏng" cho chuyện đã qua thì cờ
+   không bao giờ hạ, và nó che mất lỗi thật sự đến ngay sau đó. */
+t( 'tách lỗi đang diễn ra khỏi chuyện đã qua', strpos( $fw8, 'bool dangDienRa' ) !== false );
+t( 'kẹt thì tự hết khi đường xung nhả',
+	preg_match( '/strcmp\(g_tmLoi,\s*"ket"\)\s*==\s*0\)\{\s*g_tmLoi\[0\]\s*=\s*0;/', $fw8 ) === 1 );
+t( 'ghế gửi tình trạng cục tiền lên nhịp', strpos( $fw8, '",\"tm_loi\":\""' ) !== false );
+/* ⚠️ KHÔNG suy ra "hỏng" từ việc lâu không có tờ nào: cả ngày không ai trả tiền mặt là chuyện
+      bình thường, báo hỏng vì thế là dạy người ta bỏ qua cảnh báo. */
+/* `g_tmLucTo` chỉ được dùng ở ĐÚNG BA chỗ: khai báo, ghi lúc nhận tờ, và đọc để gửi lên nhịp (chỗ cuối nhắc tên hai lần).
+   Đếm cả bốn lần nhắc tên chứ không dò một hình dạng cụ thể — phép thử trước dò `ghiLoiTien(...g_tmLucTo...)`
+   và trượt ngay khi biến đứng ở vế điều kiện thay vì trong tham số. Cách đếm này chặn MỌI cách
+   biến nó thành cờ báo lỗi, kể cả cách chưa nghĩ ra. */
+teq( 'lâu không có tờ nào KHÔNG bị coi là hỏng', 4,
+	preg_match_all( '/g_tmLucTo/', $fw8 ) );
+t( 'và nó chỉ được ghi ở chỗ nhận tờ tiền',
+	preg_match_all( '/g_tmLucTo\s*=/', $fw8 ) === 2 );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

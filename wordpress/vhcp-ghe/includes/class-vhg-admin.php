@@ -55,6 +55,21 @@ class VHG_Admin {
 		}
 	}
 
+	/**
+	 * Giờ đọc được cho người: "22/08 14:46".
+	 *
+	 * ⚠️ KHÔNG đổi múi giờ ở đây. Chuỗi trong bảng đã là giờ của site (`current_time('mysql')`),
+	 *    mà WordPress đặt múi giờ PHP về UTC — nên `strtotime` + `gmdate` đưa lại đúng con số
+	 *    đã lưu. Thêm một phép đổi múi nữa là lệch 7 tiếng, và lệch đúng theo kiểu trông vẫn
+	 *    như một cái giờ thật.
+	 */
+	private static function gio( $s ) {
+		$s = trim( (string) $s );
+		if ( '' === $s || 0 === strpos( $s, '0000-00-00' ) ) { return ''; }
+		$t = strtotime( $s );
+		return false === $t ? $s : gmdate( 'd/m H:i', $t );
+	}
+
 	public static function tien( $n ) {
 		return number_format( (int) $n, 0, ',', '.' ) . 'đ';
 	}
@@ -758,6 +773,7 @@ class VHG_Admin {
 		$co_im = false;
 		$canh_dai = array();
 		$lech_nd  = array();
+		$loi_tien = array();
 		foreach ( $may as $m ) {
 			$qr    = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
 			$tk_m  = VHG_May::nhan_tien_cua( $m );
@@ -772,6 +788,16 @@ class VHG_Admin {
 				&& (string) $m['nd_tien_to'] !== VHG_May::tien_to_nd() ) {
 				$lech_nd[] = array( 'ma' => $m['ma'], 'ghe' => (string) $m['nd_tien_to'],
 					'fw' => (string) $m['fw'] );
+			}
+			/* 🔴 CỤC NHẬN TIỀN. Gom cả lỗi ĐANG diễn ra lẫn lỗi ĐÃ QUA, nhưng đánh dấu rõ cái nào
+			   là cái nào — hai việc khác hẳn: một cái là chạy ra sửa ngay, một cái là đối chiếu
+			   sổ sách. Ghế mất kết nối vẫn hiện, khác với cảnh báo firmware ở dưới: firmware
+			   thì "chưa nạp" là chuyện của web, còn tiền đếm sai là tiền đã mất rồi. */
+			if ( '' !== (string) $m['tm_loi'] || '' !== (string) $m['tm_cuoi'] ) {
+				$loi_tien[] = array( 'ma' => $m['ma'], 'coso' => (string) $m['coso_ten'],
+					'dang' => (string) $m['tm_loi'], 'cuoi' => (string) $m['tm_cuoi'],
+					'lan' => (int) $m['tm_lan'], 'luc' => (string) $m['tm_luc'],
+					'to' => (string) $m['tm_to'] );
 			}
 			$tl_m     = VHG_May::ty_le_cua( $m );
 			$rieng_tl = ( (int) $m['gia'] > 0 || (int) $m['phut'] > 0 );
@@ -808,6 +834,39 @@ class VHG_Admin {
 
 		/* Chỉ dẫn hiện ra ĐÚNG LÚC có ghế đang im. Bảng "nhịp cuối" nói ghế đang ở ca nào; khối
 		   này nói ca đó thì đi làm gì. Hiện thường trực là người ta thôi đọc. */
+		if ( $loi_tien ) {
+			/* Ghế nào ĐANG hỏng thì lên đầu: đó là ghế phải chạy ra xem ngay. */
+			usort( $loi_tien, function ( $a, $b ) {
+				$x = ( '' !== $a['dang'] ) ? 0 : 1;
+				$y = ( '' !== $b['dang'] ) ? 0 : 1;
+				return $x === $y ? strcmp( $a['ma'], $b['ma'] ) : $x - $y;
+			} );
+			$co_dang = false;
+			foreach ( $loi_tien as $l ) { if ( '' !== $l['dang'] ) { $co_dang = true; } }
+			echo '<div class="notice notice-' . ( $co_dang ? 'error' : 'warning' ) . ' inline">'
+				. '<p><b>Cục nhận tiền báo lỗi</b> — ghế tự phát hiện, không phải ai nhập tay.</p>'
+				. '<table class="widefat striped" style="max-width:900px;margin:6px 0"><thead><tr>'
+				. '<th>Ghế</th><th>Tình trạng</th><th>Việc phải làm</th><th>Số lần</th>'
+				. '<th>Lần cuối</th><th>Tờ gần nhất</th></tr></thead><tbody>';
+			foreach ( $loi_tien as $l ) {
+				$ma_l = '' !== $l['dang'] ? $l['dang'] : $l['cuoi'];
+				echo '<tr><td><strong>' . esc_html( $l['ma'] ) . '</strong>'
+					. ( '' !== $l['coso'] ? '<br><span class="description">' . esc_html( $l['coso'] )
+						. '</span>' : '' ) . '</td>'
+					. '<td>' . ( '' !== $l['dang']
+						? '<span style="color:#b32d2e;font-weight:600">● ĐANG HỎNG</span>'
+						: '<span style="color:#8a6d00">○ đã hết, còn dấu vết</span>' ) . '</td>'
+					. '<td>' . esc_html( VHG_May::loi_tien_chu( $ma_l ) ) . '</td>'
+					. '<td>' . (int) $l['lan'] . '</td>'
+					. '<td>' . esc_html( '' !== $l['luc'] ? self::gio( $l['luc'] ) : '—' ) . '</td>'
+					/* "Tờ gần nhất" là SỐ LIỆU, không phải lỗi: cả ngày không ai trả tiền mặt là
+					   chuyện bình thường. Để cạnh đây vì khi ĐÃ có lỗi thì nó nói lỗi bắt đầu từ
+					   bao giờ — máy nuốt tiền từ trưa thì cột này đứng im từ trưa. */
+					. '<td>' . esc_html( '' !== $l['to'] ? self::gio( $l['to'] ) : 'chưa lần nào' )
+					. '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
 		if ( $lech_nd ) {
 			echo '<div class="notice notice-error inline"><p><b>Ghế chưa nhận được tiền tố nội dung '
 				. '— nạp lại firmware bằng USB.</b></p>'

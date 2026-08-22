@@ -166,7 +166,15 @@ class VHG_DB {
 		   `tre_ms` = lượt gọi TRƯỚC của ghế mất bao nhiêu mili giây. Ghế tính `con_lai` rồi mới
 		   đi gọi; máy chủ đóng dấu `luc` lúc NHẬN. Cả quãng bắt tay TLS + đẩy gói nằm giữa hai
 		   mốc đó, nên `con_lai` già hơn `luc` đúng bằng nửa quãng đi — và phép trừ tuổi dữ liệu
-		   không nhìn thấy phần này. Đó là 4-5 giây lệch giữa đồng hồ trên ghế và trên web. */
+		   không nhìn thấy phần này. Đó là 4-5 giây lệch giữa đồng hồ trên ghế và trên web.
+
+		   `tm_*` = cục nhận tiền ICT L70. `tm_loi` là lỗi ĐANG diễn ra ngay lúc ghế gửi nhịp
+		   (rỗng = đang bình thường); `tm_cuoi` + `tm_lan` + `tm_luc` là chuyện ĐÃ QUA. Hai thứ
+		   khác nhau và phải để riêng: gộp lại thì một lần kẹt ba giây hồi sáng cứ nằm đó báo đỏ
+		   cả ngày, còn ghế đang thật sự kẹt lúc này thì lẫn vào đám cũ không ai nhìn ra.
+
+		   `tm_to` = lần cuối nhận được một tờ tiền hợp lệ. Là SỐ LIỆU để nhìn, KHÔNG phải cờ
+		   báo lỗi: cả ngày không ai trả tiền mặt là chuyện bình thường ở nhiều cửa hàng. */
 		$b['nhip'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_may VARCHAR(40) NOT NULL,
@@ -177,6 +185,11 @@ class VHG_DB {
 			fw VARCHAR(80) NOT NULL DEFAULT '',
 			nd_tien_to VARCHAR(20) NOT NULL DEFAULT '',
 			tre_ms SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+			tm_loi VARCHAR(12) NOT NULL DEFAULT '',
+			tm_cuoi VARCHAR(12) NOT NULL DEFAULT '',
+			tm_lan SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+			tm_luc DATETIME NULL,
+			tm_to DATETIME NULL,
 			luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_may (ma_may),

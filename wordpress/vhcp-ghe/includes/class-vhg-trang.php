@@ -209,6 +209,12 @@ class VHG_Trang {
 				'cho'     => (int) $m['cho'],
 				'gia'     => (int) VHG_May::ty_le_cua( $m )['gia'],
 				'phut'    => (int) VHG_May::ty_le_cua( $m )['phut'],
+				/* Cục nhận tiền: gửi CẢ mã lẫn câu giải thích. Người đứng quầy không tra bảng mã
+				   — mà đây lại đúng là người phải chạy ra xem cái máy. */
+				'tm'      => (string) $m['tm_loi'],
+				'tm_cu'   => (string) $m['tm_cuoi'],
+				'tm_chu'  => VHG_May::loi_tien_chu( '' !== (string) $m['tm_loi']
+					? $m['tm_loi'] : $m['tm_cuoi'] ),
 			);
 		}
 		/* Ghế đang chờ gán mã + danh sách cơ sở: gửi kèm luôn trong lượt số liệu, không thêm
@@ -321,6 +327,12 @@ tr:last-child td{border-bottom:0}
 .ghe-ma{font-size:17px;font-weight:700}
 .ghe-cs{font-size:12px;color:#8d93c4;margin-bottom:10px}
 .ghe-dh{font-size:27px;font-weight:700;color:#f0b429;margin:6px 0 2px}
+.ghe-tien-loi{margin:8px 0;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.45}
+.ghe-tien-loi div{font-weight:400;margin-top:3px;opacity:.92}
+.ghe-tien-loi.dang{background:rgba(220,60,50,.16);border:1px solid rgba(220,60,50,.5);
+  color:#ffb4ae;font-weight:700}
+.ghe-tien-loi.cu{background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.4);
+  color:#f0c76b;font-weight:600}
 .ghe-nut{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:11px}
 .ghe-nut button{padding:9px 6px;font-size:13px}
 .b-bat{background:#12351f;border-color:#2f6b45;color:#8ff0b0}
@@ -650,6 +662,15 @@ function veDieuKhien(){
       + '<div class="ghe-dau"><span class="ghe-ma">' + esc(m.ma) + '</span>'
       + '<span class="pill ' + p[0] + '">' + p[1] + '</span></div>'
       + '<div class="ghe-cs">' + esc(m.coso || '(chưa gán cơ sở)') + '</div>';
+
+    /* 🔴 CỤC NHẬN TIỀN HỎNG — nằm ngay trên thẻ ghế, không giấu trong wp-admin. Người phải chạy
+       ra xem cái máy là người đứng quầy, mà họ không có tài khoản WordPress. Nói luôn PHẢI LÀM
+       GÌ chứ không phải một cái mã lỗi: "lỗi ket" thì ai cũng chịu. */
+    if (m.tm) {
+      h += '<div class="ghe-tien-loi dang">⚠ Cục nhận tiền đang hỏng<div>' + esc(m.tm_chu) + '</div></div>';
+    } else if (m.tm_cu) {
+      h += '<div class="ghe-tien-loi cu">Cục nhận tiền đã hỏng lúc trước<div>' + esc(m.tm_chu) + '</div></div>';
+    }
 
     /* Số đếm ngược to: đó là thứ người đứng cạnh ghế nhìn để biết còn bao lâu. */
     if (m.tt === 'running' && m.song) {

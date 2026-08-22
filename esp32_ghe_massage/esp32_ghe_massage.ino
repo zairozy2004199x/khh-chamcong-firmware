@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22g (giu kenh HTTPS, bot tre)"
+#define FW_VERSION "ghe-massage 2026-08-22h (bao loi cuc nhan tien L70)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -155,6 +155,19 @@ const unsigned long CASH_BATCH_GAP_MS = 400;   // im lặng >400ms = một tờ/
 #define INHIBIT_PIN        22
 #define INHIBIT_ACTIVE_HIGH true
 
+/* --- Tự phát hiện cục nhận tiền ICT L70 hỏng -----------------------------------------------
+   Chỉ có ĐÚNG MỘT dây tín hiệu về ESP32 (đường xung) và một dây khoá đi ra. Nên đừng hứa hẹn
+   "chẩn đoán cục tiền": bốn thứ dưới đây là tất cả những gì suy ra được từ hai sợi dây đó, và
+   cả bốn đều là chuyện tiền đếm sai hoặc tiền vào mà ghế không chạy.
+
+   ⚠️ KHÔNG suy ra "cục tiền hỏng" từ việc LÂU KHÔNG CÓ TỜ NÀO. Cả ngày không ai trả tiền mặt là
+      chuyện bình thường ở nhiều cửa hàng; báo hỏng vì thế là dạy người ta bỏ qua cảnh báo. Ghế
+      vẫn khai "lần cuối nhận tờ là bao giờ" để trên web tự nhìn, nhưng đó là SỐ LIỆU, không
+      phải BÁO LỖI. */
+#define CASH_KET_MS       2500   // đường xung nằm ở mức thấp liên tục quá lâu = treo/chập dây
+#define CASH_BOI_SO       10000  // mọi mệnh giá VN từ 10.000 lên đều chia hết cho 10.000
+#define CASH_NHIEU_NGUONG 6      // số cạnh bị chống nảy loại trong một đợt -> coi là nhiễu
+
 // --- Mạng ---
 const bool  USE_4G   = true;
 const char* WIFI_SSID = SEC_WIFI_SSID;
@@ -249,10 +262,69 @@ volatile bool g_coLenh = false;       // máy chủ báo có lệnh đang chờ
 
 volatile uint32_t g_cashPulses = 0;
 volatile unsigned long g_lastPulseMs = 0;
+/* Đếm riêng cho phần phát hiện hỏng. Tách khỏi `g_cashPulses` vì con số kia là TIỀN — trộn
+   vào là có ngày một phép đếm để chẩn đoán lại cộng thành doanh thu. */
+volatile uint32_t g_tmNhieu      = 0;   // cạnh bị chống nảy loại — nhiễu trên đường xung
+volatile uint32_t g_tmXungKhiKhoa = 0;  // xung tới TRONG LÚC đã khoá máy nhận tiền
+volatile bool     g_tmDangKhoa   = false;
+char          g_tmLoi[10]     = "";     // lỗi ĐANG diễn ra ngay lúc này ("" = đang bình thường)
+char          g_tmLoiCuoi[10] = "";     // lỗi gần nhất TỪNG thấy, kể cả đã hết
+uint16_t      g_tmLan         = 0;      // đã thấy lỗi bao nhiêu lần kể từ lúc khởi động
+unsigned long g_tmLucLoi      = 0;      // millis lúc thấy lỗi gần nhất (0 = chưa lần nào)
+unsigned long g_tmLucTo       = 0;      // millis lúc nhận tờ tiền hợp lệ gần nhất
+
 void IRAM_ATTR onCashPulse(){
   static unsigned long lastEdgeMs = 0;
   unsigned long now = millis();
-  if(now - lastEdgeMs >= CASH_DEBOUNCE_MS){ g_cashPulses = g_cashPulses + 1; lastEdgeMs = now; }
+  if(now - lastEdgeMs >= CASH_DEBOUNCE_MS){
+    g_cashPulses = g_cashPulses + 1; lastEdgeMs = now;
+    if(g_tmDangKhoa) g_tmXungKhiKhoa = g_tmXungKhiKhoa + 1;
+  } else {
+    /* Cạnh bị chống nảy loại. Đường xung sạch thì con số này đứng yên ở 0 suốt đời; nó nhích
+       lên là dây đang bắt nhiễu, mà nhiễu trên đường xung nghĩa là TIỀN ĐẾM SAI. */
+    g_tmNhieu = g_tmNhieu + 1;
+  }
+}
+
+/**
+ * Ghi một lỗi của cục nhận tiền.
+ * @param dangDienRa  true = hỏng NGAY LÚC NÀY và còn nhìn thấy được (dây kẹt). false = một sự
+ *                    việc vừa xảy ra xong (đếm lệch, nhận tiền khi đã khoá) — không có gì để
+ *                    "còn đang" cả, nên chỉ vào sổ chứ không treo cờ.
+ *
+ * ⚠️ Hai loại này phải TÁCH. Treo cờ "đang hỏng" cho một sự việc đã qua thì cờ không bao giờ hạ,
+ *    và nó che mất lỗi thật sự đang diễn ra ngay sau đó.
+ */
+void ghiLoiTien(const char* ma, bool dangDienRa){
+  if(dangDienRa && strcmp(g_tmLoi, ma) == 0) return;   // vẫn đúng lỗi đang treo, đừng đếm lại
+  strncpy(g_tmLoiCuoi, ma, sizeof(g_tmLoiCuoi)-1); g_tmLoiCuoi[sizeof(g_tmLoiCuoi)-1] = 0;
+  if(g_tmLan < 65000) g_tmLan++;
+  g_tmLucLoi = millis();
+  if(dangDienRa){ strncpy(g_tmLoi, ma, sizeof(g_tmLoi)-1); g_tmLoi[sizeof(g_tmLoi)-1] = 0; }
+  /* Đẩy nhịp NGAY. Chờ hết 30 giây mới báo là nửa phút cửa hàng không biết máy đang nuốt tiền. */
+  g_statusDirty = true;
+  Serial.printf("[TIEN] %s: %s\n", dangDienRa ? "DANG LOI" : "vua xay ra", ma);
+}
+
+/** Gọi mỗi vòng loop(): nhìn đường xung xem có đang kẹt không. */
+void kiemCucTien(){
+  if(!CASH_ENABLE || USE_MDB) return;
+  static unsigned long thapTu = 0;
+  /* Nghỉ thì đường xung ở mức CAO (INPUT_PULLUP). Một xung tiền dài chừng 50-100ms; nằm ở mức
+     thấp mấy giây liền là cục tiền treo, transistor ra chập, hoặc dây đứt chạm mát. */
+  if(digitalRead(CASH_PULSE_PIN) == LOW){
+    if(thapTu == 0) thapTu = millis();
+    else if(millis() - thapTu > CASH_KET_MS) ghiLoiTien("ket", true);
+  } else {
+    thapTu = 0;
+    if(strcmp(g_tmLoi, "ket") == 0){ g_tmLoi[0] = 0; g_statusDirty = true;
+      Serial.println("[TIEN] duong xung da nha, het ket"); }
+  }
+  uint32_t k;
+  noInterrupts(); k = g_tmXungKhiKhoa; g_tmXungKhiKhoa = 0; interrupts();
+  /* Đã bảo "đừng nhận nữa" mà vẫn có xung: dây INHIBIT tuột, sai cực, hoặc cục tiền lờ đi.
+     Tiền vào két mà ghế không tính — đúng kiểu thất thoát không ai lần ra. */
+  if(k > 0) ghiLoiTien("khoa", false);
 }
 /* Tiền mặt CHỜ ghi sổ. Nhân UI cộng vào, netTask đẩy lên máy chủ.
    ⚠️ `g_cashRef` là mã ỔN ĐỊNH của đợt đang chờ: netTask có thể phải gửi lại vài lần khi mạng
@@ -785,6 +857,9 @@ bool inBtn(Btn b, int x, int y){ return x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y
 // ======================= Relay + khoá máy nhận tiền =======================
 void relaySet(bool on){ digitalWrite(RELAY_PIN, (on == RELAY_ACTIVE_HIGH) ? HIGH : LOW); }
 void setAcceptorEnabled(bool en){
+  /* CASH_INHIBIT_ENABLE tắt = KHÔNG có dây khoá nào cả, nên không bao giờ được coi là "đang
+     khoá" — nếu không, mọi tờ tiền hợp lệ đều bị báo thành "nhận tiền khi đã khoá". */
+  g_tmDangKhoa = CASH_INHIBIT_ENABLE && !en;
   if(!CASH_INHIBIT_ENABLE) return;
   digitalWrite(INHIBIT_PIN, ((en ? 0 : 1) == (INHIBIT_ACTIVE_HIGH ? 1 : 0)) ? HIGH : LOW);
 }
@@ -813,6 +888,10 @@ void guiNhip(){
      thiếu tiền tố, và tiền vẫn biến mất y như cũ. */
   String r = wpGoi("nhip", String("\"trang_thai\":\"") + st + "\",\"nguon\":\"" + src
     + "\",\"con_lai\":" + String(conLai) + ",\"tre\":" + String(g_rttMs)
+    + ",\"tm_loi\":\"" + String(g_tmLoi) + "\",\"tm_cuoi\":\"" + String(g_tmLoiCuoi)
+    + "\",\"tm_lan\":" + String(g_tmLan)
+    + ",\"tm_giay\":" + String(g_tmLucLoi ? (long)((millis()-g_tmLucLoi)/1000) : -1L)
+    + ",\"tm_to\":"   + String(g_tmLucTo  ? (long)((millis()-g_tmLucTo )/1000) : -1L)
     + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
     + "\",\"fw\":\"" FW_VERSION "\"");
   lastNhipMs = millis(); g_statusDirty = false;
@@ -994,10 +1073,21 @@ void startRunning(int minutes){
 void checkCash(){
   if(!CASH_ENABLE || g_cashPulses==0) return;
   if(millis()-g_lastPulseMs < CASH_BATCH_GAP_MS) return;
-  noInterrupts(); uint32_t p=g_cashPulses; g_cashPulses=0; interrupts();
+  noInterrupts(); uint32_t p=g_cashPulses; g_cashPulses=0;
+  uint32_t nhieu=g_tmNhieu; g_tmNhieu=0; interrupts();
   long amount = (long)p * CASH_VND_PER_PULSE;
   int minutes = (PRICE_VND>0) ? (int)((amount * (long)MINUTES) / PRICE_VND) : 0;
   Serial.printf("[CASH] %u xung = %ld d -> %d phut\n", (unsigned)p, amount, minutes);
+
+  /* ⚠️ HAI PHÉP KIỂM NÀY ĐỨNG TRƯỚC MỌI ĐƯỜNG THOÁT. Đợt tiền nhỏ hơn một phút thì hàm này
+     `return` ngay ở dòng dưới — mà đợt đó vẫn có thể là đợt đếm sai, và đó chính là đợt cần
+     báo nhất. Đặt phép kiểm sau chỗ thoát là chỉ bắt được lỗi khi mọi thứ đang suôn sẻ. */
+  if(nhieu >= CASH_NHIEU_NGUONG) ghiLoiTien("nhieu", false);
+  /* Mọi mệnh giá VN từ 10.000 lên đều chia hết cho 10.000. Số tiền một đợt KHÔNG chia hết là
+     đã mất hoặc thừa xung — tức là đếm sai tiền của khách, dù tổng nhìn vẫn "có vẻ hợp lý". */
+  if(amount > 0 && (amount % CASH_BOI_SO) != 0) ghiLoiTien("lech", false);
+  else if(amount > 0) g_tmLucTo = millis();
+
   if(minutes<=0) return;
   if(state==ST_RUNNING){ runUntil += (unsigned long)minutes*60000UL; g_statusDirty=true; Serial.println("[CASH] cong them gio (dang chay)"); }
   else { g_srcCode='c'; startRunning(minutes); }
@@ -1254,6 +1344,7 @@ void setup(){
 /* ===== NHÂN 1 (loop): CHỈ GIAO DIỆN — không có lệnh 4G nào, nên màn không bao giờ đơ ===== */
 void loop(){
   { static uint32_t _pc=0; uint32_t c=g_cashPulses; if(c!=_pc){ _pc=c; g_lastPulseMs=millis(); } }
+  kiemCucTien();
   checkCash();
   mdbTask();
 
