@@ -495,26 +495,35 @@ class VHG_Admin {
 			. 'một thẻ. Gói tích <b>VVIP</b> được vẽ nền vàng và có nhãn ở góc, như tấm bảng giá.</p>';
 
 		echo '<h2>Máy (ghế) — ' . count( $may ) . ' máy</h2>';
-		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Cơ sở</th>'
-			. '<th>Tỉ lệ quy đổi</th><th>Tài khoản nhận</th><th>Tên trên sao kê</th><th>QR</th>'
+		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Nhịp cuối</th>'
+			. '<th>Cơ sở</th><th>Tỉ lệ quy đổi</th><th>Tài khoản nhận</th><th>QR</th>'
 			. '<th></th></tr></thead><tbody>';
 		if ( ! $may ) { echo '<tr><td colspan="8"><em>Chưa khai máy nào. Cắm ghế lên là nó tự hiện ở '
 			. 'mục <b>Ghế chờ gán mã</b> phía trên.</em></td></tr>'; }
+		$co_im = false;
 		foreach ( $may as $m ) {
 			$qr    = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
 			$tk_m  = VHG_May::nhan_tien_cua( $m );
+			if ( empty( $m['con_song'] ) ) { $co_im = true; }
 			$rieng = '' !== trim( (string) $m['so_tk'] ) || '' !== trim( (string) $m['bank_bin'] );
 			echo '<tr><td><strong>' . esc_html( $m['ma'] ) . '</strong></td>'
 				/* MAC là thứ ghế dùng để nhận ra chính nó. Hiện ra để còn đối chiếu khi một ghế
 				   "không thấy đâu" — MAC rỗng nghĩa là dòng này khai tay và CHƯA gắn với ghế nào. */
 				. '<td>' . ( '' !== (string) $m['mac'] ? '<code>' . esc_html( $m['mac'] ) . '</code>'
 					: '<span style="color:#b32d2e" title="Dòng này khai tay, chưa ghế nào nhận">chưa gắn ghế</span>' ) . '</td>'
+				/* 🔴 NHỊP CUỐI — cột quan trọng nhất khi ghế "không nhận". Ba ca đi sửa ở ba nơi
+				   khác hẳn nhau, nên phải nói rõ đang ở ca nào chứ không gộp thành "mất kết nối". */
+				. '<td>' . ( ! empty( $m['con_song'] )
+					? '<span style="color:#046b2d">● ' . esc_html( $m['nhip_chu'] ) . '</span>'
+					: '<span style="color:#b32d2e">● ' . esc_html( $m['nhip_chu'] ) . '</span>' )
+				. ( '' !== (string) $m['fw']
+					? '<br><span class="description">' . esc_html( $m['ip'] ) . ' · '
+						. esc_html( $m['fw'] ) . '</span>' : '' ) . '</td>'
 				. '<td>' . esc_html( $m['coso_ten'] ? $m['coso_ten'] : '(chưa gán)' ) . '</td>'
 				. '<td>' . esc_html( self::tien( $m['gia'] ) ) . ' = ' . (int) $m['phut'] . ' phút</td>'
 				. '<td><code>' . esc_html( $tk_m['so_tk'] ) . '</code> · ' . esc_html( $tk_m['bin'] )
 				. ( $rieng ? '<br><span class="description">khai riêng</span>'
 					: '<br><span class="description">dùng chung</span>' ) . '</td>'
-				. '<td>' . esc_html( $m['ten_khai'] ) . '</td>'
 				. '<td>' . ( ! empty( $qr['ok'] )
 					? '<code style="font-size:10px;word-break:break-all">' . esc_html( substr( $qr['chuoi'], 0, 40 ) ) . '…</code>'
 					: '<span style="color:#b32d2e">' . esc_html( $qr['error'] ) . '</span>' ) . '</td>'
@@ -524,6 +533,23 @@ class VHG_Admin {
 				. '<button class="button button-small" name="vhg" value="xoa_may">Xoá</button></form></td></tr>';
 		}
 		echo '</tbody></table>';
+
+		/* Chỉ dẫn hiện ra ĐÚNG LÚC có ghế đang im. Bảng "nhịp cuối" nói ghế đang ở ca nào; khối
+		   này nói ca đó thì đi làm gì. Hiện thường trực là người ta thôi đọc. */
+		if ( $co_im ) {
+			echo '<div class="notice notice-warning inline"><p><b>Có ghế không gửi nhịp.</b> Ba ca, '
+				. 'ba chỗ sửa khác nhau:</p><ol style="margin-left:20px;list-style:decimal">'
+				. '<li><b>“chưa bao giờ gửi nhịp”</b> — ghế chưa từng nói chuyện với website. Kiểm: '
+				. 'đã nạp firmware mới bằng USB chưa; trong <code>secrets.h</code> địa chỉ web có '
+				. 'đúng <code>' . esc_html( home_url( '/' ) ) . '</code> không; khoá máy có khớp '
+				. '<code>VHG_KHOA_MAY</code> trong <code>wp-config.php</code> không.</li>'
+				. '<li><b>“im từ vài phút trước”</b> — mạng chập. Đợi một lượt nhịp (~30 giây) rồi '
+				. 'tải lại trang.</li>'
+				. '<li><b>“im từ vài giờ/ngày trước”</b> — ghế mất điện, rớt 4G, hoặc treo. Thử '
+				. '<b>Khởi động lại</b> ở tab Điều khiển của trang ngoài; không lên thì phải tới nơi.</li>'
+				. '</ol><p>Ghế mất nhịp thì <b>khách vẫn quét được tem QR dán trên ghế, tiền vẫn vào, '
+				. 'nhưng ghế không chạy</b> — nên đây là việc gấp, không phải việc để mai.</p></div>';
+		}
 
 		echo '<h3>Thêm / sửa máy</h3><form method="post">';
 		wp_nonce_field( 'vhg' );

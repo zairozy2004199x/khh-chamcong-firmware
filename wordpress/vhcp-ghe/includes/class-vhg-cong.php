@@ -203,8 +203,32 @@ class VHG_Cong {
 
 		/* Ghế khai MAC, máy chủ nói nó là ghế số mấy. Một bản .bin dùng cho mọi ghế — xem ghi
 		   chú ở cột `mac` trong class-vhg-db.php. `ma_may` gửi thẳng vẫn nhận, cho ca thử tay. */
-		$ma_may = trim( (string) ( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) );
-		if ( '' === $ma_may && ! empty( $d['mac'] ) ) { $ma_may = VHG_May::ghi_nhan( $d['mac'] ); }
+		/* ==========================================================================================
+		 * 🔴 MAC LÀ DANH TÍNH. LỜI GHẾ TỰ KHAI CHỈ LÀ PHƯƠNG ÁN CUỐI.
+		 *
+		 * Bản trước tin `ma_may` ghế gửi lên, chỉ tra MAC khi ô đó rỗng. Sai, và sai theo kiểu TỰ
+		 * KHOÁ CHÍNH NÓ — anh Thắng gặp ngày 22/08/2026: *"máy QR cứ báo chưa được gán mã"*.
+		 *
+		 *   1. Ghế cắm điện, chưa ai gán -> máy chủ cấp mã tạm `?0D9858`, ghế nhớ mã đó.
+		 *   2. Người ta gán mã thật `AMTP01` trên web. Dòng đổi tên, MAC giữ nguyên.
+		 *   3. Ghế vẫn khai `ma_may=?0D9858` — nó chưa biết mình đã đổi tên.
+		 *   4. Máy chủ tin lời khai đó, tra `?0D9858` -> KHÔNG CÒN. Trả `chuaGan=1`.
+		 *   5. Ghế hiện "GHE CHUA DUOC GAN MA", và vì nó vẫn khai mã cũ nên bước 4 lặp lại MÃI MÃI.
+		 *
+		 * Cái vòng đó không có đường ra: nạp lại firmware cũng không, vì mã tạm được cấp lại y hệt
+		 * (nó sinh từ chính MAC). Chỉ có xoá dòng trong cơ sở dữ liệu mới thoát.
+		 *
+		 * MAC thì ngược lại: ghế không tự đặt được, không đổi khi đổi tên, và luôn đúng. Tra MAC
+		 * trước là bước 4 trả về `AMTP01` và ghế học lại tên mới ngay ở lượt nhịp kế tiếp.
+		 *
+		 * ⚠️ Đây đúng bài học đã ghi ở đường máy chấm công: danh tính theo SỐ MÁY/MAC, không theo
+		 *    cái tên máy tự khai. Ở đó hai máy trùng tên thì dùng chung hàng đợi; ở đây một ghế
+		 *    tự khoá mình. Cùng một gốc: tin một thứ mà thiết bị tự đặt được.
+		 * ========================================================================================== */
+		$ma_may = '';
+		if ( ! empty( $d['mac'] ) ) { $ma_may = VHG_May::ghi_nhan( $d['mac'] ); }
+		/* Không có MAC (ca thử tay bằng curl, hoặc firmware quá cũ) thì mới nhận lời tự khai. */
+		if ( '' === $ma_may ) { $ma_may = trim( (string) ( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) ); }
 		if ( '' === $ma_may ) {
 			self::tra( 200, array( 'ok' => false, 'error' => 'Thieu ma_may va mac.' ) );
 			return;

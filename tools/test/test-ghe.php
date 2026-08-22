@@ -1173,6 +1173,71 @@ t( 'bộ đệm JSON đã nới cho mảng mệnh giá',
 
 $_GET = array(); $_POST = array();
 
+// ====================== 🔴 GHẾ TỰ KHOÁ CHÍNH NÓ: "MÁY QR CỨ BÁO CHƯA ĐƯỢC GÁN MÃ"
+/* Anh Thắng 22/08/2026. Dựng lại đúng năm bước của cái vòng đó:
+ *   1. Ghế cắm điện, chưa ai gán -> máy chủ cấp mã tạm `?xxxxxx`, ghế NHỚ mã đó.
+ *   2. Người ta gán mã thật trên web. Dòng đổi tên, MAC giữ nguyên.
+ *   3. Ghế vẫn khai mã cũ — nó chưa biết mình đã đổi tên.
+ *   4. Máy chủ tin lời khai, tra mã cũ -> không còn -> trả "chưa gán".
+ *   5. Ghế hiện "CHUA DUOC GAN MA", vẫn khai mã cũ, bước 4 lặp lại MÃI MÃI.
+ * Vòng đó không có đường ra: nạp lại firmware cũng không, vì mã tạm sinh từ chính MAC nên
+ * được cấp lại y hệt. Chỉ xoá dòng trong cơ sở dữ liệu mới thoát. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+$MAC_T = '24:0A:C4:0D:98:58';
+
+$tam_k = VHG_May::ghi_nhan( $MAC_T );                       // bước 1
+list( , $n1 ) = vhg_ghe( array( 'mac' => $MAC_T, 'ma_may' => $tam_k, 'viec' => 'nhip' ) );
+teq( 'lúc chưa gán: máy chủ báo chưa gán', 1, $n1['chuaGan'] );
+teq( 'và trả về đúng mã tạm', $tam_k, $n1['maMay'] );
+
+VHG_May::gan_ma( $tam_k, 'AMTP01' );                        // bước 2
+
+/* 🔴 BƯỚC 3 — ĐÂY LÀ CA HỎNG. Ghế vẫn khai mã CŨ, vì nó chưa biết mình đã đổi tên. */
+list( , $n2 ) = vhg_ghe( array( 'mac' => $MAC_T, 'ma_may' => $tam_k, 'viec' => 'nhip' ) );
+teq( '🔴 ghế khai mã CŨ -> máy chủ vẫn phải trả mã MỚI', 'AMTP01', $n2['maMay'] );
+teq( '🔴 và KHÔNG được báo "chưa gán" nữa', 0, $n2['chuaGan'] );
+teq( 'ghế đã khai thì có cấu hình đi kèm', 1, $n2['khai'] );
+t( 'kèm tài khoản để vẽ QR', '888815678' === $n2['soTk'] );
+
+/* Lượt sau ghế đã học tên mới — vẫn phải đúng. */
+list( , $n3 ) = vhg_ghe( array( 'mac' => $MAC_T, 'ma_may' => 'AMTP01', 'viec' => 'nhip' ) );
+teq( 'lượt sau ghế khai mã mới: vẫn đúng', 'AMTP01', $n3['maMay'] );
+teq( 'và không đẻ thêm dòng chờ gán nào', 0, count( VHG_May::chua_gan() ) );
+
+/* ⚠️ MAC PHẢI THẮNG cả khi ghế khai một mã CÓ THẬT nhưng của ghế KHÁC. Ghế không tự đặt được
+      MAC; còn `ma_may` thì bất kỳ ai gửi POST cũng khai được. Tin lời khai là mở đường cho một
+      ghế nhận lượt đã trả tiền của ghế bên cạnh. */
+VHG_May::luu_may( array( 'ma' => 'AMTP09', 'coso_id' => 0, 'gia' => 50000, 'phut' => 15,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:09' ) );
+list( , $n4 ) = vhg_ghe( array( 'mac' => $MAC_T, 'ma_may' => 'AMTP09', 'viec' => 'nhip' ) );
+teq( '🔴 khai mã của ghế KHÁC cũng không ăn thua — MAC quyết định', 'AMTP01', $n4['maMay'] );
+
+/* Không có MAC (thử tay bằng curl, hoặc firmware quá cũ) thì mới nhận lời tự khai. */
+list( , $n5 ) = vhg_ghe( array( 'ma_may' => 'AMTP09', 'viec' => 'nhip' ) );
+teq( 'không gửi MAC thì mới tin lời tự khai', 'AMTP09', $n5['maMay'] );
+list( $ma6, $n6 ) = vhg_ghe( array( 'viec' => 'nhip' ) );
+t( 'không MAC, không mã -> chối rõ ràng', empty( $n6['ok'] ), $n6 );
+
+/* MAC gõ đủ kiểu vẫn ra đúng ghế — ghế gửi chữ hoa có hai chấm, nhưng đừng phụ thuộc vào đó. */
+foreach ( array( '24:0a:c4:0d:98:58', '24-0A-C4-0D-98-58', '240AC40D9858' ) as $dang_mac ) {
+	list( , $nx ) = vhg_ghe( array( 'mac' => $dang_mac, 'viec' => 'nhip' ) );
+	teq( "MAC dạng \"$dang_mac\" vẫn ra đúng ghế", 'AMTP01', $nx['maMay'] );
+}
+
+/* Và tiền đã trả cho mã cũ vẫn về đúng ghế sau khi đổi tên — kiểm lại từ đầu đường tiền. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+$tam_k2 = VHG_May::ghi_nhan( $MAC_T );
+VHG_Thu::thu_tien_mat( $tam_k2, 50000, 'Chị quầy' );
+VHG_May::xep_cho_chay( $tam_k2, 'ABCDE', 50000, 'khoa-1', '' );
+VHG_May::gan_ma( $tam_k2, 'AMTP01' );
+list( , $n7 ) = vhg_ghe( array( 'mac' => $MAC_T, 'ma_may' => $tam_k2, 'viec' => 'nhip' ) );
+teq( 'ghế khai mã cũ vẫn thấy lượt đã trả tiền của mình', 1, $n7['coTien'] );
+list( , $l7 ) = vhg_ghe( array( 'mac' => $MAC_T, 'ma_may' => $tam_k2, 'viec' => 'luot' ) );
+teq( 'và lấy được đúng lượt đó', 1, $l7['co'] );
+teq( 'đúng số tiền', 50000, $l7['so_tien'] );
+
 // ============================================ TAB ĐIỀU KHIỂN + KHỞI ĐỘNG LẠI TỪ XA
 /* Ghế ở 26 cửa hàng, không ai ở đó để rút điện. Khởi động lại từ xa là cách duy nhất dựng lại
    một con ghế treo mà không phải chạy tới nơi. */

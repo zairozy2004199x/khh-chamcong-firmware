@@ -72,8 +72,11 @@ class VHG_May {
 		$gio = current_time( 'timestamp' );
 		foreach ( $ds as $i => $x ) {
 			$ds[ $i ]['coso_ten'] = (string) $x['coso_ten'];
-			$ds[ $i ]['con_song'] = self::con_song( isset( $x['nhip_luc'] ) ? $x['nhip_luc'] : '', $gio );
-			$ds[ $i ]['cho']      = self::so_cho( $x['ma'] );
+			$tt = self::tinh_trang_nhip( isset( $x['nhip_luc'] ) ? $x['nhip_luc'] : '', $gio );
+			$ds[ $i ]['con_song']     = $tt['song'];
+			$ds[ $i ]['chua_bao_gio'] = $tt['chua_bao_gio'];
+			$ds[ $i ]['nhip_chu']     = $tt['chu'];
+			$ds[ $i ]['cho']          = self::so_cho( $x['ma'] );
 		}
 		return $ds;
 	}
@@ -90,6 +93,49 @@ class VHG_May {
 			}
 		}
 		return $ra;
+	}
+
+	/**
+	 * Ghế này đang thế nào, NÓI BẰNG CÂU NGƯỜI ĐỌC ĐƯỢC.
+	 *
+	 * 🔴 Anh Thắng 22/08/2026: *"đã add, nhưng máy chưa nhận"*. Màn hình lúc đó chỉ nói "Mất kết
+	 *    nối" — đúng, nhưng vô dụng, vì nó gộp BA ca đi sửa ở ba nơi khác hẳn:
+	 *      · CHƯA BAO GIỜ gửi nhịp  -> ghế chưa nạp firmware mới, hoặc nạp rồi mà sai địa chỉ
+	 *                                  web / sai khoá. Đi kiểm cổng USB và secrets.h.
+	 *      · Gửi rồi, vừa mới im    -> mạng chập. Đợi một lượt nhịp (~30 giây) rồi xem lại.
+	 *      · Gửi rồi, im đã lâu     -> ghế mất điện, rớt 4G, hoặc treo. Đi tới nơi.
+	 *    Ba câu đó khác nhau ở chỗ NGƯỜI ĐỌC PHẢI LÀM GÌ TIẾP. Gộp làm một là bắt người ta đoán.
+	 *
+	 * @return array [ 'song' => bool, 'chua_bao_gio' => bool, 'giay' => int|null, 'chu' => string ]
+	 */
+	public static function tinh_trang_nhip( $luc, $bay_gio = null ) {
+		$luc = trim( (string) $luc );
+		if ( null === $bay_gio ) { $bay_gio = current_time( 'timestamp' ); }
+		if ( '' === $luc ) {
+			return array( 'song' => false, 'chua_bao_gio' => true, 'giay' => null,
+				'chu' => 'chưa bao giờ gửi nhịp' );
+		}
+		$t = strtotime( $luc );
+		if ( ! $t ) {
+			return array( 'song' => false, 'chua_bao_gio' => true, 'giay' => null,
+				'chu' => 'chưa bao giờ gửi nhịp' );
+		}
+		$giay = max( 0, (int) ( $bay_gio - $t ) );
+		if ( $giay <= self::HET_SONG ) {
+			return array( 'song' => true, 'chua_bao_gio' => false, 'giay' => $giay,
+				'chu' => 'đang sống · ' . self::truoc_day( $giay ) );
+		}
+		return array( 'song' => false, 'chua_bao_gio' => false, 'giay' => $giay,
+			'chu' => 'im từ ' . self::truoc_day( $giay ) );
+	}
+
+	/** "12 giây trước" / "5 phút trước" / "3 giờ trước" / "2 ngày trước". */
+	public static function truoc_day( $giay ) {
+		$giay = max( 0, (int) $giay );
+		if ( $giay < 60 )    { return $giay . ' giây trước'; }
+		if ( $giay < 3600 )  { return (int) floor( $giay / 60 ) . ' phút trước'; }
+		if ( $giay < 86400 ) { return (int) floor( $giay / 3600 ) . ' giờ trước'; }
+		return (int) floor( $giay / 86400 ) . ' ngày trước';
 	}
 
 	public static function con_song( $luc, $bay_gio = null ) {
