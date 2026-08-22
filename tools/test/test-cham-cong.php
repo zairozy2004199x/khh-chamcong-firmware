@@ -208,11 +208,55 @@ teq( 'login là hàm công khai', 200, goi_cc( 'login', array( '0000' ) )['statu
 $json = json_encode( goi_cc( 'layBangCong', array(), $tok_cc ), JSON_UNESCAPED_UNICODE );
 t( 'khoá cầu nối không lọt xuống trình duyệt', strpos( $json, $khoa ) === false );
 
-// ============================================================ 6. Không đụng vào firmware
+// ============================================================ 6. Firmware: một đường duy nhất
+/* 🔴 MỤC NÀY ĐỔI HẲN 22/08/2026. Trước đây nó canh "đừng đụng vào firmware": firmware gọi
+   /macros/s/<id>/exec, và KHÔNG được có địa chỉ WordPress nào. Anh Thắng chốt cho cả hệ thống
+   chạy thẳng trên host nên luật đó lật ngược — nay canh điều ngược lại, và canh chặt hơn. */
 $ino = file_get_contents( $goc . '/esp32_hik_chamcong_full/esp32_hik_chamcong_full.ino' );
-t( 'firmware vẫn gọi /macros/s/<id>/exec như cũ', strpos( $ino, '/macros/s/' ) !== false );
-t( 'firmware KHÔNG bị thêm địa chỉ WordPress nào', strpos( $ino, 'vhcc' ) === false
-	&& stripos( $ino, 'wp-json' ) === false );
+/* Chỉ soi MÃ, bỏ hết chú thích: cả tệp đầy lời giải thích "trước kia gọi /exec, nay bỏ" — mà
+   mấy lời đó đáng giữ. Cấm cả chữ trong chú thích là ép xoá lịch sử để qua bài kiểm. */
+$ino_ma = preg_replace( '#/\*.*?\*/#s', '', $ino );
+$ino_ma = preg_replace( '#//[^\n]*#', '', $ino_ma );
+t( 'firmware KHÔNG còn gọi Apps Script (/macros/s/…/exec)',
+	strpos( $ino_ma, '/macros/s/' ) === false );
+/* KHÔNG cấm cả chữ "firebasedatabase": `wpUrlHopLe()` phải NHẮC nó để TỪ CHỐI link Firebase cũ
+   bị dán nhầm vào ô website — cấm chữ là ép gỡ đúng cái lưới đang che. Cấm LỜI GỌI. */
+t( 'firmware KHÔNG còn đọc/ghi Firebase',
+	strpos( $ino_ma, 'FB_HOST' ) === false && strpos( $ino_ma, 'FB_SECRET' ) === false
+	&& strpos( $ino_ma, 'fbAuthParam' ) === false && strpos( $ino_ma, '.json?auth' ) === false
+	&& stripos( $ino_ma, 'firebaseio' ) === false );
+t( 'nhưng VẪN từ chối link Firebase cũ bị dán nhầm vào ô website',
+	strpos( $ino_ma, '.firebasedatabase.app' ) !== false );
+t( 'và không còn mang token web app',
+	strpos( $ino_ma, 'EMP_TOKEN' ) === false && strpos( $ino_ma, 'SEC_EMP_TOKEN' ) === false );
+/* Đường của máy phải trỏ đúng cổng nhận, và cổng đó là hằng trong plugin — hai bên lệch nhau
+   một chữ là máy đẩy ra 404 mà log trông như lỗi mạng. */
+t( 'firmware đẩy vào đúng đường ' . VHCC_Nhan::DUONG,
+	strpos( $ino, '/' . VHCC_Nhan::DUONG ) !== false );
+/* Soi trong MÃ, không phải trong chú thích: bản đầu của phép thử này soi cả tệp, mà cả hai
+   chuỗi đều có mặt trong lời giải thích — nên gỡ sạch header đi bài kiểm vẫn xanh. Đã thử phá
+   và bắt được đúng lỗ đó. */
+/* Soi TRONG THÂN `wpGoi` — cửa duy nhất ra ngoài. Bản đầu soi cả tệp, mà chuỗi khoá cũng có
+   mặt ở `fetchPhotoDecoded`, nên gỡ khoá khỏi `wpGoi` mà bài kiểm vẫn xanh. Đã thử phá và bắt
+   được đúng lỗ đó. Gỡ khoá khỏi cửa đó = MỌI lượt chấm công của máy 4G bị trả 401. */
+$i_wg  = strpos( $ino_ma, 'String wpGoi(const String& body, bool docThan){' );
+$i_wg2 = strpos( $ino_ma, 'String wpViec(', $i_wg );
+$than_wg = ( false !== $i_wg && false !== $i_wg2 ) ? substr( $ino_ma, $i_wg, $i_wg2 - $i_wg ) : '';
+t( 'tìm được thân hàm wpGoi để soi', strlen( $than_wg ) > 300 );
+t( 'firmware gửi khoá máy trong header', strpos( $than_wg, 'X-VHCC-Key' ) !== false );
+t( 'và gửi cả trong thân JSON (đường 4G không đặt được header tuỳ ý)',
+	strpos( $than_wg, '\\"key\\":' ) !== false && strpos( $than_wg, 'wp_key' ) !== false );
+t( 'màn/portal gọi đúng tên hằng VHCC_KHOA_MAY để người đọc biết khai ở đâu',
+	strpos( $ino, 'VHCC_KHOA_MAY' ) !== false );
+/* Bản .bin do CI build nằm ở chỗ tải công khai — KHÔNG được chứa link hay khoá thật. */
+t( 'firmware KHÔNG ghi cứng link hay khoá thật (chỉ placeholder)',
+	strpos( $ino, 'khmatrix' ) === false && strpos( $ino, 'AKfycb' ) === false );
+$ci_h = file_get_contents( $goc . '/esp32_hik_chamcong_full/ci/secrets.ci.h' );
+t( 'secrets của CI vẫn toàn placeholder',
+	substr_count( $ci_h, '"__CHUA_CAU_HINH__"' ) === substr_count( $ci_h, '#define SEC_' ) );
+t( 'và không còn khai khoá Firebase / token web app nào',
+	strpos( $ci_h, 'SEC_FB_SECRET' ) === false && strpos( $ci_h, 'SEC_EMP_TOKEN' ) === false
+	&& strpos( $ci_h, 'SEC_EXEC_URL' ) === false && strpos( $ci_h, 'SEC_FB_HOST' ) === false );
 
 // ============================================================ 7. Bản gốc lưu trong repo CÔNG KHAI
 /* Hai tệp `goc/` là giao diện thật anh Thắng dán vào. Repo này công khai, nên phép thử dưới đây
@@ -4206,4 +4250,4 @@ if ( count( $truot ) ) {
 	echo "ĐẠT: $dat\n";
 	exit( 1 );
 }
-echo "ĐẠT: $dat phép thử — plugin Chấm Công nối đúng, không chạm đường của máy.\n";
+echo "ĐẠT: $dat phép thử — chấm công chạy thẳng trên host, máy nói chuyện với đúng một nơi.\n";

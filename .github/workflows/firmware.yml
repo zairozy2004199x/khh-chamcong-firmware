@@ -122,7 +122,10 @@ jobs:
           [ "$PCT" -ge 90 ] && echo "::warning::.bin da dung $PCT% phan vung app - sap het cho."
           # Chan lo bi mat: neu .bin lot bat ky dau vet nao thi DUNG, khong phat hanh.
           fail=0
-          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio'; do
+          # Ba mau dau la di san Apps Script/Firebase (da bo 22/08/2026) — GIU lai lam luoi:
+          # ai lo tay dan link cu vao secrets.h thi van bi chan. 'khmatrix' la ten mien that
+          # cua website, khong duoc nam trong ban .bin cong khai.
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio' 'khmatrix'; do
             if grep -aqF "$pat" "$BIN"; then echo "::error::.bin CO chua '$pat' - khong duoc phat hanh cong khai"; fail=1; fi
           done
           [ "$fail" = "0" ] || exit 1
@@ -265,7 +268,7 @@ jobs:
           echo "May tram .bin: $SZ / $APP_MAX byte ($(( SZ * 100 / APP_MAX ))%)"
           [ "$SZ" -le "$APP_MAX" ] || { echo "::error::.bin may tram qua co phan vung app"; exit 1; }
           # Ban nay cung phai sach bi mat (may tram lay tu NVS)
-          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong'; do
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'khmatrix'; do
             if grep -aqF "$pat" "$BIN"; then echo "::error::.bin may tram CO chua '$pat'"; exit 1; fi
           done
           echo "OK: .bin may tram sach bi mat va vua phan vung."

@@ -100,11 +100,13 @@ String g_theTraLoi = "";                   // máy trả lời gì (để hiện
 
 /* Khoá trong token.txt  ->  tham số /savecfg của máy chấm công.
    Chỉ gửi khoá NÀO CÓ trong thẻ; khoá khác trong máy giữ nguyên. */
+/* 🔴 22/08/2026 — máy chấm công bỏ Apps Script và Firebase, nên bốn khoá cũ (`token`, `exec`,
+   `fb`, `fbsec`) KHÔNG còn ô nào bên máy để nhận. Gửi chúng đi thì máy bỏ qua lặng lẽ — mà
+   "lặng lẽ" ở đây nghĩa là nhân viên cầm thẻ cũ đi nạp cả ngày, màn báo xong, còn máy thì
+   không nhận được link mới. Nên GỠ khỏi bảng: khoá lạ đã có sẵn đường báo "khoa la, bo qua". */
 struct { const char* khoaThe; const char* argMay; } MAP_THE[] = {
-  {"token",   "cTok"  },   // EMP_TOKEN
-  {"exec",    "cExec" },   // link web app /macros/s/<id>/exec  (may TU CHOI dang /a/macros/)
-  {"fb",      "cFb"   },   // host Firebase
-  {"fbsec",   "cFbSec"},   // Firebase database secret
+  {"wp",      "cWp"   },   // link website https://<ten mien>/cham-cong-may (KHONG co / o cuoi)
+  {"wpkey",   "cWpKey"},   // khoa may — phai khop VHCC_KHOA_MAY trong wp-config.php
   {"hikip",   "cHikIp"},   // IP đầu đọc Hikvision trong LAN, vd 192.168.4.50
   {"hikuser", "cHikU" }, {"hikpass", "cHikP"},
   {"otauser", "cOtaU" }, {"otapass", "cOtaP"},
@@ -127,12 +129,11 @@ bool theIpHopLe(const String& v){
 }
 /* Trả "" nếu dùng được, ngược lại là lý do NGẮN để in ra màn 320px. */
 String theViSaoLoai(const String& k, String& v){
-  if (k == "exec"){
-    if (v.indexOf("/macros/s/") < 0) return "exec phai dang /macros/s/";
-  } else if (k == "fb"){
-    while (v.endsWith("/")) v.remove(v.length()-1);          // dán từ Console hay dính "/"
-    if (!v.startsWith("https://") || v.indexOf(".firebasedatabase.app") <= 0)
-      return "fb phai https:// va .firebasedatabase.app";
+  if (k == "wp"){
+    while (v.endsWith("/")) v.remove(v.length()-1);          // dán từ trình duyệt hay dính "/"
+    if (!v.startsWith("https://")) return "wp phai bat dau https://";
+    if (v.indexOf("/macros/") >= 0) return "day la link Apps Script cu";
+    if (v.indexOf('.', 8) < 0)      return "wp thieu ten mien";
   } else if (k == "hikip"){
     if (!theIpHopLe(v)) return "hikip phai dang 192.168.4.50";
   } else if (k == "appass"){
@@ -216,7 +217,10 @@ void docTokenTuThe(){
     }
 
     String k, v; int e = d.indexOf('=');
-    if (e < 0){ k = "token"; v = d; }               // dạng CŨ: cả dòng là token -> vẫn chạy
+    /* Dạng CŨ: cả dòng là token web app. Khoá đó không còn ô nào bên máy nhận, nên gán vào
+       "token" là gán vào một khoá đã gỡ -> dòng bị loại và BÁO RA. Im lặng bỏ qua thì nhân
+       viên cầm thẻ cũ đi nạp cả ngày mà không có gì tới máy. */
+    if (e < 0){ k = "token"; v = d; }
     else { k = d.substring(0, e); v = d.substring(e + 1); k.trim(); k.toLowerCase(); v.trim(); }
     if (!v.length()) continue;
 

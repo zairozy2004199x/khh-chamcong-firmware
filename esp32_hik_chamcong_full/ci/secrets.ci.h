@@ -16,13 +16,8 @@
 #define SEC_HIK_PASS      "__CHUA_CAU_HINH__"
 #define SEC_OTA_USER      "__CHUA_CAU_HINH__"
 #define SEC_OTA_PASS      "__CHUA_CAU_HINH__"
-#define SEC_EMP_TOKEN     "__CHUA_CAU_HINH__"
-#define SEC_FB_SECRET     "__CHUA_CAU_HINH__"
-// 2 link cũng phải placeholder: bản .bin công khai không được lộ link web app / Firebase.
-// Máy đã di trú thì lấy từ NVS; chip trắng thì khai ở portal 192.168.4.1.
-#define SEC_EXEC_URL      "__CHUA_CAU_HINH__"
-#define SEC_FB_HOST       "__CHUA_CAU_HINH__"
-// Đường THỨ HAI (WordPress) — cũng placeholder, và ở đây thì KHÔNG cần khai bao giờ:
-// máy nhận link + khoá qua Firebase /cfg/wp ngay sau khi nạp OTA. Xem khối "ĐƯỜNG THỨ HAI" trong .ino.
+// Đường DUY NHẤT (website) — cũng placeholder: link và khoá máy không được nằm trong bản .bin
+// công khai. Máy đã chạy thì lấy từ NVS (OTA không ghi đè NVS); chip trắng thì khai ở portal
+// 192.168.4.1. Xem khối "MỘT ĐƯỜNG DUY NHẤT: WORDPRESS" trong .ino.
 #define SEC_WP_URL        "__CHUA_CAU_HINH__"
 #define SEC_WP_KEY        "__CHUA_CAU_HINH__"

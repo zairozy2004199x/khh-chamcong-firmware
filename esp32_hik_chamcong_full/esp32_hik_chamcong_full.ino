@@ -31,16 +31,16 @@
 #define LOAD_FONT6
 // ======================= CẤU HÌNH =======================
 /* ⚠️ FW_VERSION bị nhồi NGUYÊN VĂN vào JSON của heartbeat (hbSend) và vào HTML portal.
-   Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> Firebase trả 400, mất heartbeat,
+   Bản 31b từng để dấu nháy kép trong đây -> thân JSON hỏng -> máy chủ trả 400, mất nhịp sống,
    web app báo máy offline dù máy đang chạy. ĐỪNG dùng " \ hay ký tự điều khiển trong chuỗi này.
    Chỗ ghi JSON nay cũng đã escape (jsonEscMin_), nhưng giữ chuỗi sạch vẫn là tuyến phòng thứ nhất. */
-#define FW_VERSION "2026-08-07e (luot bu chi day gio VAO + gio RA - bo het luot o giua)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
+#define FW_VERSION "2026-08-22a (chay thang tren host - bo Apps Script va Firebase)"  // đổi mỗi lần sửa -> nhìn boot log biết bản nào đang chạy
 
 // ---- BÍ MẬT: nằm ở secrets.h (KHÔNG commit — .gitignore có mẫu `secrets.*`) ----
 // Chưa có file thì copy secrets.example.h -> secrets.h rồi điền. Build BÁO LỖI nếu thiếu,
 // cố ý: thà không build được còn hơn nạp firmware bằng mật khẩu mẫu.
 // ⚠️ Các giá trị CŨ đã từng nằm trong repo nên coi như ĐÃ LỘ (git giữ lịch sử vĩnh viễn).
-//    Tách file KHÔNG tự làm chúng an toàn — phải ĐỔI Firebase secret + EMP_TOKEN + mật khẩu Hikvision.
+//    Tách file KHÔNG tự làm chúng an toàn — phải ĐỔI khoá máy (VHCC_KHOA_MAY) + mật khẩu Hikvision.
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
 #endif
@@ -51,12 +51,10 @@
    khai báo thì nó THÔI tự sinh. Đặt khai báo ở giữa file là mọi chỗ dùng phía TRÊN nó
    mất khai báo -> build đỏ. Đã bị đúng lỗi này: `bool netUp();` đặt ở dòng ~640 làm
    drawNetStatus() (dòng 238) báo "'netUp' was not declared in this scope". */
-/* Giá trị "chưa khai" dùng chung cho mọi khoá cấu hình. PHẢI đứng trước SEC_EXEC_URL /
-   SEC_FB_HOST ở dưới — macro chỉ nở ra lúc DÙNG, nên định nghĩa sau là lỗi compile. */
+/* Giá trị "chưa khai" dùng chung cho mọi khoá cấu hình. PHẢI đứng trước SEC_WP_URL /
+   SEC_WP_URL ở dưới — macro chỉ nở ra lúc DÙNG, nên định nghĩa sau là lỗi compile. */
 #define CFG_PLACEHOLDER "__CHUA_CAU_HINH__"
 
-String empGet(const String& query);
-String urlEncodeMin(const String& s);
 bool   netUp();
 
 // WiFi cửa hàng MẶC ĐỊNH (dùng khi flash lần đầu / chưa lưu cấu hình). Đổi tại portal 192.168.4.1.
@@ -97,28 +95,42 @@ unsigned long lastWhoAmIMs = 0;
 const char* OTA_USER = SEC_OTA_USER;          // tài khoản đăng nhập trang cập nhật firmware /update
 const char* OTA_PASS = SEC_OTA_PASS;    // ĐỔI mật khẩu này nếu muốn; trang /update yêu cầu đăng nhập
 
-// ⚠️ 30/07/2026 — deployment ĐÃ ĐỔI một lần. Bài học: `clasp deploy -i <id cũ>` báo
-// "Requested entity was not found" nghĩa là id đó gắn với script CŨ, không phải script đang chạy.
-// (scriptId + deployment id thật ghi ở LINKS-VA-ID.md của repo nội bộ — cố ý KHÔNG để ở đây.)
-// doGet + doPost nằm chung 1 web app, nên máy và dashboard dùng cùng một link /exec.
-// ⚠️ PHẢI dùng dạng  /macros/s/<id>/exec  — KHÔNG dùng  /a/macros/<tên miền>/s/<id>/exec :
-// dạng có tên miền là link cho người đã đăng nhập Workspace, thiết bị gọi ẩn danh sẽ bị chặn.
-// ⚠️ Sửa file này KHÔNG tự lên máy — phải nạp lại qua Arduino IDE hoặc đẩy .bin qua tab "Cập nhật FW".
-// ⚠️ 31/07/2026 — LINK THẬT ĐÃ GỠ KHỎI MÃ NGUỒN. Mã này nằm ở repo firmware CÔNG KHAI
-//    (khh-chamcong-firmware) để CI tự build; để link thật ở đây là công khai luôn địa chỉ
-//    web app + Firebase của công ty. Link thật giờ CHỈ nằm ở 2 chỗ:
-//      1) secrets.h trên máy anh (đã .gitignore) — dùng khi nạp USB;
-//      2) NVS của từng máy đã chạy bản 2026-07-30c trở lên — OTA không ghi đè.
-//    Chip trắng nạp bản CI thì khai ở portal 192.168.4.1 (ô "Link web app /exec").
-#ifndef SEC_EXEC_URL
-  #define SEC_EXEC_URL CFG_PLACEHOLDER
-#endif
-/* ⚠️ 31/07/2026 — CHẶN NGAY LÚC BIÊN DỊCH cái bẫy đã làm mất cả buổi.
-   Dạng /a/macros/<tên miền>/s/<id>/exec là link cho người ĐÃ ĐĂNG NHẬP Workspace.
-   Thiết bị gọi ẩn danh bị chặn: trước bản 31b thì Google trả 404, từ 31b thì
-   execUrlHopLe() loại link -> máy không có link -> module trả 713. Cả hai đều chỉ hiện
-   ra lúc chạy ngoài hiện trường. Nay sai là KHÔNG BUILD ĐƯỢC, đọc thẳng câu dưới đây.
-   (constexpr nên tính được lúc biên dịch; đã kiểm 7 phép bằng g++ -std=c++17.) */
+/* ===========================================================================================
+ *  MỘT ĐƯỜNG DUY NHẤT: WORDPRESS  (22/08/2026)
+ * -------------------------------------------------------------------------------------------
+ *  Anh Thắng: *"hệ thống chạy hết trực tiếp trên host luôn, cả đường máy chấm công"*, và
+ *  *"làm chuẩn 1 website, chứ không liên quan gì đến google sheet nữa"*.
+ *
+ *  Trước bản này máy nói chuyện với BA nơi:
+ *      Apps Script /exec   -> đẩy lượt chấm công vào sheet
+ *      Firebase RTDB       -> nhận lệnh NV, nhịp sống, OTA, sổ mặt, ảnh
+ *      Apps Script ?whoami -> hỏi mình thuộc cửa hàng nào
+ *  Nay CHỈ CÒN `wp_url` — một địa chỉ, một khoá, một cách hiểu chữ "xong".
+ *
+ *  Ba cái được:
+ *    · không còn khoá Firebase trong firmware. Khoá đó có quyền admin: ai cầm được nó là ĐẨY
+ *      ĐƯỢC FIRMWARE TUỲ Ý vào cả 26 máy. Nay firmware không mang nó nữa;
+ *    · không còn chuyện ba nơi trả lời khác nhau câu "máy này thuộc cửa hàng nào";
+ *    · mất mạng Google thì máy vẫn chạy.
+ *
+ *  Cái mất, nói thẳng: website thành ĐIỂM CHẾT DUY NHẤT. Host sập là máy không nhận lệnh và
+ *  không OTA được. Nhưng lượt chấm công KHÔNG mất: nó nằm trong sổ của đầu đọc, lấy lại được
+ *  bằng lệnh "Tải lại" sau khi host sống. Và trước đây Apps Script sập cũng đã mất rồi, nên
+ *  đây không phải một điểm chết mới.
+ *
+ *  ⚠️ LIÊN KẾT + KHOÁ KHÔNG NẰM TRONG BẢN .BIN. Bản .bin do CI build được đặt ở chỗ tải công
+ *     khai nên không được chứa bí mật nào — SEC_WP_* ở ci/secrets.ci.h là placeholder.
+ *     Máy lấy hai giá trị này theo thứ tự: NVS -> secrets.h (nạp USB) -> portal 192.168.4.1.
+ *
+ *  🔴 THỨ TỰ DI TRÚ — LÀM ĐÚNG THỨ TỰ NÀY, KHÔNG ĐẢO:
+ *       1. đặt /cfg/wp trên Firebase = link + khoá MỚI của host, chờ ~5 phút cho máy nhận;
+ *       2. kiểm trên web: máy đã gửi lượt chấm công vào MySQL chưa;
+ *       3. RỒI MỚI đẩy bản firmware này.
+ *     Đảo thứ tự là máy lên bản mới mà trong NVS chưa có link WordPress -> nó không còn đường
+ *     nào để hỏi, vì Firebase đã bị gỡ khỏi chính bản vừa nạp. Lúc đó phải tới tận nơi, mở
+ *     portal 192.168.4.1 và gõ tay. Anh Thắng đã biết và chấp nhận rủi ro này
+ *     (*"nếu máy mất liên kết thì đợi nạp lại ota thôi"*) — nhưng biết trước vẫn hơn.
+ * =========================================================================================== */
 constexpr bool _cxTim(const char* h, const char* n){
   for (int i = 0; h[i]; i++){
     int j = 0;
@@ -127,45 +139,14 @@ constexpr bool _cxTim(const char* h, const char* n){
   }
   return false;
 }
-static_assert(!_cxTim(SEC_EXEC_URL, "/a/macros/"),
-  "SEC_EXEC_URL dang /a/macros/<ten mien>/s/<id>/exec la link Workspace — thiet bi goi an danh SE BI CHAN. "
-  "Doi sang dang https://script.google.com/macros/s/<id>/exec (bo phan /a/macros/<ten mien>).");
-static_assert(_cxTim(SEC_EXEC_URL, "__CHUA_CAU_HINH") || _cxTim(SEC_EXEC_URL, "/macros/s/"),
-  "SEC_EXEC_URL phai co /macros/s/ va ket thuc /exec. Lay link o web app: Trien khai > Quan ly ban trien khai.");
-const char* google_script_url = SEC_EXEC_URL;
-
-/* ===========================================================================================
- *  ĐƯỜNG THỨ HAI: WORDPRESS  (chạy SONG SONG với /exec, không thay nó)
- * -------------------------------------------------------------------------------------------
- *  Anh Thắng: *"để sẵn liên kết wed, để có nhân viên đi nhờ nạp luôn, còn máy nào chưa nạp
- *  được thì vẫn chạy qua sscript. chạy song song 2 đường"*.
- *
- *  Nên máy nạp bản này đẩy MỖI LƯỢT CHẤM CÔNG vào CẢ HAI nơi:
- *      · Apps Script /exec  -> vào sheet (như xưa, KHÔNG đổi gì)
- *      · WordPress          -> vào MySQL trực tiếp
- *  Máy CHƯA nạp thì chỉ đi đường /exec, và Apps Script tự chuyển tiếp sang WordPress bằng hàng
- *  đợi (xem wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs). Hai đường cùng tồn tại,
- *  không có mốc "phải nạp xong hết mới chạy được".
- *
- *  ⚠️ ĐẨY HAI NƠI KHÔNG SINH CÔNG ĐÔI. Cổng WordPress ghi theo luật [sớm nhất, muộn nhất] và
- *     chỉ NỚI RỘNG, không bao giờ THU HẸP; lượt trùng bị trả 'trung' và không đụng gì. Nên một
- *     lượt tới hai lần (một lần trực tiếp, một lần qua hàng đợi) vẫn ra đúng một cặp giờ. Đây
- *     chính là lý do luật đó phải đúng — nếu nó không idempotent thì chạy song song là sai công.
- *
- *  ⚠️ LIÊN KẾT + KHOÁ KHÔNG NẰM TRONG BẢN .BIN. Bản .bin do CI build được đặt ở chỗ tải công
- *     khai, nên nó không được chứa bí mật nào — SEC_WP_* ở ci/secrets.ci.h là placeholder.
- *     Máy lấy hai giá trị này theo thứ tự: NVS -> secrets.h (nạp USB) -> Firebase /cfg/wp.
- *     Nhờ đường Firebase mà "nạp OTA là xong": khỏi gõ tay ở portal từng máy. Máy vốn đã đọc
- *     Firebase để nhận lệnh OTA, nên đây không phải một cửa tin cậy mới.
- * =========================================================================================== */
 #ifndef SEC_WP_URL
   #define SEC_WP_URL CFG_PLACEHOLDER
 #endif
 #ifndef SEC_WP_KEY
   #define SEC_WP_KEY CFG_PLACEHOLDER
 #endif
-/* Chặn lúc BIÊN DỊCH cái lỗi dán lẫn hai link — dán link /exec vào ô WordPress thì máy đẩy
-   hai lần vào cùng Apps Script và KHÔNG có lượt nào tới MySQL, mà log thì trông như thành công. */
+/* Chặn LÚC BIÊN DỊCH cái lỗi dán nhầm link Apps Script vào ô WordPress. Trước đây có hai ô nên
+   dán lẫn là chuyện thường; nay chỉ còn một ô, nhưng người quen tay vẫn dán link cũ vào. */
 static_assert(!_cxTim(SEC_WP_URL, "/macros/"),
   "SEC_WP_URL dang chua /macros/ — day la link Apps Script, khong phai link WordPress. "
   "Phai la dang https://<ten mien>/cham-cong-may (khong co dau / o cuoi).");
@@ -174,21 +155,8 @@ static_assert(_cxTim(SEC_WP_URL, "__CHUA_CAU_HINH") || _cxTim(SEC_WP_URL, "https
 const char* wp_url = SEC_WP_URL;
 const char* wp_key = SEC_WP_KEY;
 
-// --- Đồng bộ nhân viên: DÙNG CHUNG web dashboard chấm công (cùng /exec) ---
-// doGet của dashboard đã xử lý action=pending/photo/ack. Token phải khớp EMP_TOKEN trong Code.gs.
-const char* emp_script_url = google_script_url;
-const char* EMP_TOKEN      = SEC_EMP_TOKEN;
-
-// --- Firebase Realtime DB: nguồn ĐỌC lệnh NV cho ESP (URL NGẮN, KHÔNG redirect -> đọc được qua 4G) ---
-// Vì sao: đọc kết quả Apps Script qua 4G bị chặn (redirect googleusercontent ~468 ký tự > giới hạn dòng AT).
-// Tạo tại console.firebase.google.com > Build > Realtime Database. ĐIỀN 2 dòng dưới sau khi tạo:
-const bool  USE_FIREBASE  = true;   // true = ESP đọc lệnh NV từ Firebase (bắt buộc khi chạy 4G)
-#ifndef SEC_FB_HOST        // như SEC_EXEC_URL ở trên: host thật đã gỡ, lấy từ secrets.h / NVS / portal
-  #define SEC_FB_HOST CFG_PLACEHOLDER
-#endif
-const char* FB_HOST       = SEC_FB_HOST;   // URL database (KHÔNG có "/" ở cuối)
-const char* FB_SECRET     = SEC_FB_SECRET;   // Database secret (quyền admin, bỏ qua rule). Để "REPLACE..." = KHÔNG gửi auth (rule mở)
-const bool  FB_SYNC_PHOTO = true;   // Phase 2: đồng bộ ảnh khuôn mặt (đọc /photo từ Firebase, ghi mặt vào Hikvision)
+/* Đồng bộ ảnh khuôn mặt: máy lấy ảnh của lệnh thêm/sửa rồi ghi mặt vào đầu đọc. */
+const bool  DONG_BO_ANH = true;
 
 
 #define BL_PIN 21          // Đèn nền CYD (không đặt tên TFT_BL để tránh trùng User_Setup)
@@ -211,9 +179,9 @@ const char* FDID_STR            = "1";         // face lib mặc định trên t
 const char* FACE_LIB_TYPE       = "blackFD";   // thư viện mặt chuẩn (KHÔNG phải blacklist)
 // --- Chống mất dữ liệu + heartbeat online (Đợt 1) ---
 const char* FAR_FUTURE                  = "2037-12-31T23:59:59+07:00";   // endTime = "đến hiện tại" cho backfill
-const unsigned long HB_INTERVAL_MS      = 60000;      // gửi heartbeat online lên Firebase mỗi 60s
+const unsigned long HB_INTERVAL_MS      = 60000;      // gửi nhịp sống lên website mỗi 60s
 const unsigned long SAFETY_BACKFILL_MS  = 1800000;    // định kỳ bù lượt sót mỗi 30 phút (lưới an toàn)
-const unsigned long OTA_CHECK_MS        = 300000;     // kiểm tra firmware mới (Firebase /ota) mỗi 5 phút
+const unsigned long OTA_CHECK_MS        = 300000;     // xét bản firmware mà nhịp sống chở về, mỗi 5 phút
 // ========================================================
 
 TFT_eSPI tft = TFT_eSPI();
@@ -224,11 +192,11 @@ unsigned long statusUntil = 0;      // thời điểm quay lại màn chờ
 Preferences prefs;
 
 /* ===========================================================================
- *  BÍ MẬT + 2 LINK: LẤY TỪ Preferences (NVS), giá trị compile chỉ là DỰ PHÒNG
+ *  BÍ MẬT + LINK: LẤY TỪ Preferences (NVS), giá trị compile chỉ là DỰ PHÒNG
  * ---------------------------------------------------------------------------
- *  Vì sao: file .bin compile từ secrets.h chứa mật khẩu Hikvision, EMP_TOKEN và
- *  Firebase database secret (quyền admin — ai có nó ĐẨY ĐƯỢC FIRMWARE TUỲ Ý vào
- *  mọi máy). Muốn CI tự build rồi để .bin ở chỗ tải công khai được (để bấm cập
+ *  Vì sao: file .bin compile từ secrets.h chứa mật khẩu Hikvision và KHOÁ MÁY —
+ *  ai có khoá máy là ghi được chấm công cho bất kỳ ai, bất kỳ ngày nào, ở mọi
+ *  cơ sở. Muốn CI tự build rồi để .bin ở chỗ tải công khai được (để bấm cập
  *  nhật từ xa) thì .bin BẮT BUỘC không được chứa mấy thứ đó.
  *
  *  Cách làm: mỗi giá trị đọc từ NVS trước; NVS chưa có mà bản compile có giá trị
@@ -237,21 +205,21 @@ Preferences prefs;
  *  vẫn chạy bình thường — không phải tới từng máy khai lại.
  *
  *  ⚠️ Máy CHƯA từng chạy bản này mà nhận bản CI thì mất cấu hình -> phải nạp USB
- *     hoặc khai tay ở portal. Web app có chặn/cảnh báo theo phiên bản heartbeat.
+ *     hoặc khai tay ở portal. Màn máy trên web hiện bản firmware từng máy để soi.
  * =========================================================================== */
-// CFG_PLACEHOLDER đã định nghĩa ở ĐẦU FILE (SEC_EXEC_URL/SEC_FB_HOST dùng tới nó từ dòng ~100).
+// CFG_PLACEHOLDER đã định nghĩa ở ĐẦU FILE (SEC_WP_URL/SEC_WP_KEY dùng tới nó từ dòng ~100).
 // Giữ giá trị thật ở String toàn cục (sống suốt đời chương trình) rồi trỏ các con trỏ cũ vào .c_str()
-String _cfgHikUser, _cfgHikPass, _cfgApPass, _cfgOtaUser, _cfgOtaPass,
-       _cfgEmpTok, _cfgFbSec, _cfgExecUrl, _cfgFbHost, _cfgHikIp,
+String _cfgHikUser, _cfgHikPass, _cfgApPass, _cfgOtaUser, _cfgOtaPass, _cfgHikIp,
        _cfgWpUrl, _cfgWpKey;
 bool   g_chuaCauHinh = false;      // thiếu giá trị bắt buộc -> hiện rõ trên màn hình, không chết im
 
 /* ⚠️ PHẢI bắt cả GIÁ TRỊ MẪU của secrets.example.h, không chỉ "__CHUA_CAU_HINH".
-   Đã trả giá thật 31/07/2026: secrets.h còn nguyên `SEC_EMP_TOKEN "TOKEN_WEB_APP"` và
-   `SEC_FB_SECRET "FIREBASE_DATABASE_SECRET"`. Hai chuỗi đó KHÔNG bị coi là placeholder nên
-   được CHÉP THẲNG VÀO NVS như giá trị thật -> máy gửi `&token=TOKEN_WEB_APP` (bad_token) và
-   `?auth=FIREBASE_DATABASE_SECRET` (403), mà log thì báo `empTok=có fbSec=có` nên soi mãi
-   không ra. Tệ hơn: một khi đã vào NVS thì sửa secrets.h cũng vô ích, NVS thắng. */
+   Đã trả giá thật 31/07/2026: secrets.h còn nguyên mấy chuỗi mẫu của secrets.example.h. Chúng
+   KHÔNG bị coi là placeholder nên được CHÉP THẲNG VÀO NVS như giá trị thật -> máy gửi khoá mẫu
+   và bị từ chối, mà log thì báo "có" nên soi mãi không ra. Tệ hơn: một khi đã vào NVS thì sửa
+   secrets.h cũng vô ích, NVS thắng.
+   ⚠️ Danh sách MAU dưới đây GIỮ NGUYÊN cả mấy chuỗi của Apps Script/Firebase dù hai thứ đó đã
+      gỡ: máy nào từng bị chép chuỗi mẫu vào NVS thì nay đọc lên vẫn phải bị loại. */
 bool cfgLaPlaceholder(const String& v){
   if (v.length() == 0) return true;
   if (v.startsWith("__CHUA_CAU_HINH") || v.startsWith("REPLACE")) return true;
@@ -273,53 +241,25 @@ bool cfgLaPlaceholder(const String& v){
   if (!coChuSo) return true;
   return false;
 }
-/* Link /exec phải dạng  /macros/s/<id>/exec.
-   Dạng /a/macros/<tên miền>/s/… là link cho người ĐÃ ĐĂNG NHẬP Workspace — thiết bị gọi ẩn danh
-   bị chặn. Còn id sai (VD DIEN_ID) thì Google trả 404. Cả hai trước đây im lặng: máy cứ đẩy, cứ
-   thất bại, log chỉ có mã số. Nay sai dạng = coi như CHƯA CẤU HÌNH và nói rõ sai chỗ nào. */
-bool execUrlHopLe(const String& u){
-  if (u.length() == 0)              return false;
-  if (u.indexOf("/a/macros/") >= 0) return false;
-  if (u.indexOf("/macros/s/") < 0)  return false;
-  if (!u.endsWith("/exec"))         return false;
-  return true;
-}
-/**
- * Link Firebase RTDB có đúng dạng không — cùng ý với _fbHost() bên web app.
- * ⚠️ CỐ Ý chỉ nhận ".firebasedatabase.app", KHÔNG nhận dạng cũ "<ten>.firebaseio.com":
- *    CI quét file .bin tìm mẫu 'firebaseio' để chặn lộ link ra bản tải công khai, nên
- *    viết chuỗi đó vào firmware là CI đỏ — và đó là CI làm đúng việc của nó, đừng nới ra.
- *    Database của mình là dạng .firebasedatabase.app nên không mất gì. Web app thì vẫn
- *    nhận cả 2 dạng (Apps Script không bị quét, giữ đường lùi ở đó là được).
- */
-/**
- * Link cổng nhận chấm công của WordPress có dùng được không.
- *
- * ⚠️ TUYỆT ĐỐI KHÔNG được có dấu "/" ở cuối. Firmware KHÔNG đi theo chuyển hướng (xem
- *    HTTPC_DISABLE_FOLLOW_REDIRECTS ở hàm gửi): WordPress chuyển hướng để thêm/bỏ dấu gạch là
- *    máy gọi lại bằng GET, MẤT trọn thân POST — mà thân POST chính là lượt chấm công. Tệ hơn:
- *    trang WordPress trả về có thể tình cờ chứa chữ "SUCCESS" nên máy báo đồng bộ thành công
- *    trong khi không có gì được ghi. Nên chặn ngay ở đây, đừng để ra hiện trường mới biết.
- * ⚠️ Loại luôn link có "/macros/": đó là link Apps Script bị dán lẫn ô.
- */
+/* ⛔ `execUrlHopLe()` và `fbHostHopLe()` — ĐÃ GỠ 22/08/2026 cùng với Apps Script và Firebase.
+
+   `wpUrlHopLe()` dưới đây nay là hàm kiểm dạng DUY NHẤT, nên nó gánh nặng hơn hẳn: hồi chạy
+   song song, dán sai ô này thì vẫn còn đường /exec đỡ cho; nay dán sai là máy KHÔNG đẩy được
+   một lượt nào. Phép thử của nó ở tools/test/fw/kiem-link.cpp — chạy bằng g++, không cần máy. */
 bool wpUrlHopLe(const String& u){
   if (u.length() == 0)             return false;
   if (!u.startsWith("https://"))   return false;   // cổng từ chối HTTP thường
-  if (u.endsWith("/"))             return false;   // xem khối ⚠️ ở trên
-  if (u.indexOf("/macros/") >= 0)  return false;   // dán lẫn link Apps Script
+  /* Dấu / ở cuối: WordPress chuyển hướng để bỏ/thêm nó, mà máy KHÔNG đi theo chuyển hướng —
+     đi theo là gọi lại bằng GET và mất trọn thân POST, tức mất lượt chấm công. */
+  if (u.endsWith("/"))             return false;
+  if (u.indexOf("/macros/") >= 0)  return false;   // dán lẫn link Apps Script cũ
+  if (u.indexOf(".firebasedatabase.app") > 0) return false;   // dán lẫn link Firebase cũ
   if (u.indexOf('.', 8) < 0)       return false;   // phải có tên miền thật
   return u.length() > 12;
-}
-bool fbHostHopLe(const String& u){
-  if (!u.startsWith("https://")) return false;
-  if (u.endsWith("/"))           return false;
-  return u.indexOf(".firebasedatabase.app") > 0;
 }
 /** Giá trị này DÙNG ĐƯỢC không. Hai khoá là link nên còn phải đúng dạng, không chỉ "khác mẫu". */
 bool cfgDungDuoc(const char* khoa, const String& v){
   if (cfgLaPlaceholder(v)) return false;
-  if (strcmp(khoa, "execUrl") == 0) return execUrlHopLe(v);
-  if (strcmp(khoa, "fbHost")  == 0) return fbHostHopLe(v);
   if (strcmp(khoa, "wpUrl")   == 0) return wpUrlHopLe(v);
   return true;
 }
@@ -343,8 +283,8 @@ String cfgLay(const char* khoa, const char* biencompile){
     return c;
   }
   if (v.length()){
-    // Chỉ 2 khoá này KHÔNG phải bí mật nên mới in ra được — in bí mật là hớ.
-    bool khoe = (strcmp(khoa,"execUrl") == 0 || strcmp(khoa,"fbHost") == 0);
+    // Chỉ khoá LINK không phải bí mật nên mới in ra được — in khoá máy là hớ.
+    bool khoe = (strcmp(khoa,"wpUrl") == 0);
     Serial.printf("[CFG] ⚠️ '%s': ca trong may va secrets.h deu khong dung duoc%s%s\n",
                   khoa, khoe ? " — dang luu: " : "", khoe ? v.c_str() : "");
   }
@@ -380,10 +320,6 @@ void napCauHinh(){
   _cfgApPass  = cfgLay("apPass",   SEC_AP_PASS);
   _cfgOtaUser = cfgLay("otaUser",  SEC_OTA_USER);
   _cfgOtaPass = cfgLay("otaPass",  SEC_OTA_PASS);
-  _cfgEmpTok  = cfgLay("empTok",   SEC_EMP_TOKEN);
-  _cfgFbSec   = cfgLay("fbSec",    SEC_FB_SECRET);
-  _cfgExecUrl = cfgLay("execUrl",  google_script_url);
-  _cfgFbHost  = cfgLay("fbHost",   FB_HOST);
   _cfgWpUrl   = cfgLay("wpUrl",    wp_url);
   _cfgWpKey   = cfgLay("wpKey",    wp_key);
   if (_cfgHikIp.length() == 0) _cfgHikIp = HIK_IP_MAC_DINH;   // trống là mọi lệnh ISAPI đi vào "http:///…"
@@ -391,38 +327,26 @@ void napCauHinh(){
   hik_user = _cfgHikUser.c_str();  hik_pass = _cfgHikPass.c_str();
   AP_PASS  = _cfgApPass.c_str();
   OTA_USER = _cfgOtaUser.c_str();  OTA_PASS = _cfgOtaPass.c_str();
-  EMP_TOKEN = _cfgEmpTok.c_str();  FB_SECRET = _cfgFbSec.c_str();
-  google_script_url = _cfgExecUrl.c_str();  emp_script_url = _cfgExecUrl.c_str();
-  FB_HOST = _cfgFbHost.c_str();
   wp_url = _cfgWpUrl.c_str();  wp_key = _cfgWpKey.c_str();
-  /* ⚠️ Đường WordPress THIẾU thì KHÔNG tính là "chưa cấu hình". Máy vẫn chạy đủ bằng đường
-     /exec như xưa; bắt nó báo lỗi đỏ vì thiếu một đường CHƯA bắt buộc là làm người đi lắp máy
-     tưởng máy hỏng rồi đi mò. Trạng thái đường thứ hai in riêng ở dòng dưới. */
-  // FB_SECRET được phép trống (rule Firebase mở thì gọi không kèm auth) -> KHÔNG tính là thiếu.
-  bool _urlXau = !execUrlHopLe(_cfgExecUrl);
-  g_chuaCauHinh = _urlXau || (_cfgFbHost.length() == 0) ||
-                  (_cfgEmpTok.length()  == 0) || (_cfgHikPass.length() == 0) ||
-                  (_cfgOtaPass.length() == 0);
+  /* 🔴 ĐƯỜNG WORDPRESS NAY LÀ ĐƯỜNG DUY NHẤT — thiếu nó là máy KHÔNG đẩy được chấm công.
+     Trước bản này nó là "đường thứ hai" nên thiếu cũng không sao, và dòng log cũ nói đúng như
+     vậy. Giữ nguyên câu đó sau khi gỡ Apps Script là nói dối người đang đi lắp máy. */
+  bool _urlXau = !wpUrlHopLe(_cfgWpUrl);
+  g_chuaCauHinh = _urlXau || (_cfgWpKey.length() == 0) ||
+                  (_cfgHikPass.length() == 0) || (_cfgOtaPass.length() == 0);
   Serial.printf("[CFG] IP dau doc = %s%s\n", hik_ip,
                 (_cfgHikIp == String(HIK_IP_MAC_DINH)) ? " (mac dinh)" : " (khai o portal)");
-  Serial.printf("[CFG] exec=%s fbHost=%s empTok=%s hikPass=%s otaPass=%s apPass=%s fbSec=%s\n",
-    _cfgExecUrl.length()?"có":"THIẾU", _cfgFbHost.length()?"có":"THIẾU", _cfgEmpTok.length()?"có":"THIẾU",
-    _cfgHikPass.length()?"có":"THIẾU", _cfgOtaPass.length()?"có":"THIẾU", _cfgApPass.length()?"có":"THIẾU",
-    _cfgFbSec.length()?"có":"(trống - gọi Firebase không auth)");
-  Serial.printf("[CFG] duong 2 (WordPress): %s\n",
-    (wpUrlHopLe(_cfgWpUrl) && _cfgWpKey.length()) ? "CO -> day ca 2 noi"
-      : (_cfgWpUrl.length() ? "LINK/KHOA CHUA DUNG -> tam thoi chi day /exec"
-                            : "chua khai -> chi day /exec (binh thuong)"));
-  // Nói RÕ sai chỗ nào. Trước đây chỉ có một câu chung nên vẫn phải đi mò từng thứ.
+  Serial.printf("[CFG] wpUrl=%s wpKey=%s hikPass=%s otaPass=%s apPass=%s\n",
+    _cfgWpUrl.length()?"có":"THIẾU", _cfgWpKey.length()?"có":"THIẾU",
+    _cfgHikPass.length()?"có":"THIẾU", _cfgOtaPass.length()?"có":"THIẾU", _cfgApPass.length()?"có":"THIẾU");
   if (_urlXau) {
-    Serial.println("[CFG] 🔴 LINK WEB APP SAI DẠNG — máy sẽ KHÔNG đẩy được chấm công.");
-    Serial.println("        Đang có: " + (_cfgExecUrl.length() ? _cfgExecUrl : String("(trống)")));
-    Serial.println("        Phải là: https://script.google.com/macros/s/<id>/exec");
-    if (_cfgExecUrl.indexOf("/a/macros/") >= 0)
-      Serial.println("        ⚠️ Dạng /a/macros/<tên miền>/… chỉ dùng được khi đã đăng nhập Workspace — bỏ phần đó đi.");
+    Serial.println("[CFG] 🔴 LINK WEBSITE SAI DẠNG — máy sẽ KHÔNG đẩy được chấm công.");
+    Serial.println("        Đang có: " + (_cfgWpUrl.length() ? _cfgWpUrl : String("(trống)")));
+    Serial.println("        Phải là: https://<tên miền>/cham-cong-may  (không có dấu / ở cuối)");
+    if (_cfgWpUrl.indexOf("/macros/") >= 0)
+      Serial.println("        ⚠️ Đây là link Apps Script cũ. Hệ thống đã chuyển hẳn sang website, link đó không dùng nữa.");
   }
-  if (_cfgEmpTok.length() == 0) Serial.println("[CFG] 🔴 THIẾU token web app (EMP_TOKEN) — whoami và đồng bộ nhân viên sẽ bị chặn.");
-  if (_cfgFbSec.length() == 0)  Serial.println("[CFG] 🟠 Chưa có Firebase secret — mất OTA từ xa / heartbeat. Chấm công VẪN chạy.");
+  if (_cfgWpKey.length() == 0) Serial.println("[CFG] 🔴 THIẾU khoá máy — cổng nhận trả 401 và mọi lượt chấm công rơi.");
   if (g_chuaCauHinh) Serial.println("[CFG] ⚠️ CHƯA CẤU HÌNH ĐỦ — vào AP \"CHAM_CONG\" @192.168.4.1 để khai, hoặc nạp USB bản có secrets.h thật.");
 }
 /** Che bí mật khi hiện lên portal: 4 ký tự đầu + độ dài. KHÔNG in giá trị thật. */
@@ -881,249 +805,141 @@ int fetchImageRaw(String picUrl, uint8_t** out) {
   return idx;
 }
 
-// ---------- Đẩy Google Sheets ----------
-bool net4gHttpPost(const String& url, const String& body);   // forward decl (định nghĩa ở khối 4G bên dưới)
-/* Khai báo trước: pushEventToGoogle gọi wpDayLuot mà hàm đó định nghĩa NGAY DƯỚI nó. Arduino tự
-   sinh prototype nên thường vẫn build được, nhưng nó sinh theo heuristic và đã có tiền lệ hỏng
-   khi hàm nằm sau macro/#if — khai tay thì không phụ thuộc vào đó nữa. */
-bool wpDayLuot(const String& body);
-// LƯU Ý: hàm này NHẬN QUYỀN SỞ HỮU imageB64 và sẽ free nó (sau khi copy vào body).
-// Caller KHÔNG được free lại.
-bool pushEventToGoogle(String empNo, String name, String eventTime, char* imageB64, int imageB64Len) {
-  String body;
-  body.reserve(imageB64Len + 400);
-  body  = "{\"macAddress\":\""  + macBo() + "\",";
-  body += "\"hikSerial\":\""    + HIK_SERIAL + "\",";     // server ghép mã này -> cửa hàng (khoá chính)
-  body += "\"hikModel\":\""     + HIK_MODEL  + "\",";
-  body += "\"stationName\":\""  + String(STATION_NAME) + "\",";
-  body += "\"employeeNo\":\""   + empNo + "\",";
-  body += "\"name\":\""         + name + "\",";
-  body += "\"time\":\""         + eventTime + "\",";
-  body += "\"image\":\"";
-  if (imageB64Len > 0) body += imageB64;   // nối trực tiếp C-string, không tạo thêm String base64
-  body += "\"}";
-  // Đã copy base64 vào body -> GIẢI PHÓNG buffer base64 NGAY, TRƯỚC khi mở TLS.
-  // TLS handshake cần ~40KB RAM liền mạch; còn giữ buffer base64 sẽ thiếu -> lỗi HTTP -1.
-  if (imageB64) { free(imageB64); imageB64 = NULL; }
+// ---------- Đẩy lượt chấm công lên WordPress ----------
+String wpGoi(const String& body, bool docThan);              // forward decl (định nghĩa ngay dưới)
+/* Mấy hàm 4G + tiện ích định nghĩa ở CUỐI file mà `wpGoi` gọi tới. Khai tay chứ không trông vào
+   prototype Arduino tự sinh: nó sinh theo heuristic và đã có tiền lệ hỏng khi hàm nằm sau macro. */
+int    net4gPostOpen(const String& url, const String& body, int* datalen);
+int    net4gReadStart(int want);
+String atWait(const char* token, unsigned long to);
+String jsonEscMin_(const String& s);
 
-  /* BẢN GỌN (KHÔNG kèm ảnh) — dùng cho CẢ HAI chỗ:
-       · đường 4G: né giới hạn AT+HTTPDATA;
-       · đường WordPress: anh Thắng chốt không cần ảnh, chỉ cần giờ chấm công.
-     Dựng một lần ở đây thay vì dựng hai lần: hai bản chuỗi cho cùng một lượt là sớm muộn lệch
-     nhau, mà lệch ở đây là hai nơi ghi hai lượt khác nhau cho cùng một lần bấm. */
-  String slimBody = String("{\"macAddress\":\"") + macBo()
+/**
+ * ĐẨY MỘT LƯỢT CHẤM CÔNG.
+ *
+ * Trước 22/08/2026 hàm này đẩy vào Apps Script rồi đẩy thêm một bản sang WordPress. Nay chỉ còn
+ * MỘT nơi, nên cũng chỉ còn MỘT bản chuỗi — trước có hai bản cho cùng một lượt, mà hai bản là
+ * sớm muộn lệch nhau và lệch ở đây nghĩa là hai nơi ghi hai lượt khác nhau cho cùng một lần bấm.
+ *
+ * ⚠️ KHÔNG KÈM ẢNH. Anh Thắng chốt *"ảnh driver không cần lấy qua đâu, có giờ chấm công là được
+ *    rồi"*, mà ảnh base64 là gần hết gói. Vẫn NHẬN con trỏ ảnh vì nơi gọi đã đọc ảnh về rồi —
+ *    và giải phóng nó NGAY, TRƯỚC khi mở TLS: bắt tay TLS cần ~40KB RAM liền mạch, còn giữ
+ *    buffer base64 là thiếu RAM rồi lỗi HTTP -1, trông y như lỗi mạng.
+ *
+ * LƯU Ý: hàm này NHẬN QUYỀN SỞ HỮU imageB64 và sẽ free nó. Caller KHÔNG được free lại.
+ */
+bool pushEvent(String empNo, String name, String eventTime, char* imageB64, int imageB64Len) {
+  if (imageB64) { free(imageB64); imageB64 = NULL; }
+  (void) imageB64Len;
+
+  String body = String("{\"macAddress\":\"") + macBo()
               + "\",\"hikSerial\":\"" + HIK_SERIAL + "\",\"hikModel\":\"" + HIK_MODEL
               + "\",\"stationName\":\"" + String(STATION_NAME)
-              + "\",\"employeeNo\":\"" + empNo + "\",\"name\":\"" + name + "\",\"time\":\"" + eventTime + "\",\"image\":\"\"}";
+              + "\",\"employeeNo\":\"" + empNo + "\",\"name\":\"" + name
+              + "\",\"time\":\"" + eventTime + "\",\"image\":\"\"}";
 
-  // 4G: đẩy qua LỆNH AT HTTP của module (không PPP).
-  // Chấm công chỉ cần Mã NV + tên + giờ; ảnh mặt đã enroll sẵn trong máy nên không cần đẩy qua 4G.
+  for (int lan = 1; lan <= 3; lan++) {
+    Serial.printf("   -> [WP] gui luot (lan %d, %d byte, heap %d)...\n", lan, body.length(), ESP.getFreeHeap());
+    String ra = wpGoi(body, true);
+    /* CÙNG luật với cổng nhận: 200 + thân có chữ "SUCCESS". `wpGoi` trả "" khi không 200, nên
+       ở đây chỉ còn phải soi chữ. Khác đi là máy tưởng xong trong khi lượt chưa vào bảng. */
+    if (ra.indexOf("SUCCESS") >= 0) { Serial.println("   ✔️ DA GHI MySQL"); return true; }
+    delay(1200);
+  }
+  Serial.println("   ❌ Gui WordPress that bai sau 3 lan -> giu lai trong so dau doc, lay lai bang lenh Tai lai.");
+  return false;
+}
+
+/**
+ * MỘT CỬA DUY NHẤT ĐỂ NÓI CHUYỆN VỚI WORDPRESS.
+ *
+ * Mọi thứ máy cần — đẩy chấm công, nhịp sống, lấy lệnh, báo xong, sổ mặt, ảnh — đều là một lượt
+ * POST JSON vào `wp_url` kèm khoá. Một hàm chứ không rải mỗi nơi một kiểu: rải ra là sớm muộn
+ * có chỗ quên chống chuyển hướng, và chỗ đó im lặng mất dữ liệu.
+ *
+ * 🔴 KHOÁ ĐI TRONG THÂN JSON, KHÔNG PHẢI HEADER. Đường 4G gửi bằng lệnh AT (`AT+HTTPDATA`), mà
+ *    đặt header tuỳ ý qua AT thì tuỳ đời module — có module không có `USERDATA`, có module cắt
+ *    header dài. Cổng nhận đọc được khoá ở CẢ HAI chỗ (`X-VHCC-Key` hoặc trường `key`), nên
+ *    dùng thân là một đường chạy được trên cả WiFi lẫn 4G. Vẫn gửi kèm header ở đường WiFi.
+ *
+ * 🔴 KHÔNG ĐI THEO CHUYỂN HƯỚNG. Gặp 30x là coi như THẤT BẠI và nói rõ link sai — chứ không gọi
+ *    lại bằng GET rồi mất trọn thân POST mà vẫn thấy chữ "SUCCESS" trong trang trả về và tưởng
+ *    đã ghi. Đây là cái bẫy riêng của WordPress mà Apps Script không có.
+ *
+ * `docThan=false` khi chỉ cần biết thành/bại (đỡ một lượt HTTPREAD trên 4G, mỗi lượt ~2 giây).
+ * Trả "" nếu hỏng; trả thân trả về nếu 200 (và `docThan`), hoặc "SUCCESS" nếu 200 mà không đọc.
+ */
+String wpGoi(const String& body, bool docThan){
+  if (!wpUrlHopLe(String(wp_url)) || strlen(wp_key) == 0) return "";
+  if (!netUp()) return "";
+
+  /* Nhét khoá vào thân. Chèn ngay sau dấu { đầu tiên để khỏi phải phân tích JSON — thân nào ở
+     đây cũng do chính firmware dựng nên chắc chắn mở bằng '{'. */
+  String than = body;
+  if (than.length() > 1 && than.charAt(0) == '{') {
+    than = "{\"key\":\"" + String(wp_key) + "\"," + than.substring(1);
+  }
+
   if (USE_4G) {
-    String slim = slimBody;
-    for (int a = 1; a <= 3; a++) {
-      Serial.printf("   -> [4G HTTP] gửi Google (lần %d, %d byte, heap %d)...\n", a, slim.length(), ESP.getFreeHeap());
-      if (net4gHttpPost(google_script_url, slim)) {
-        Serial.println("   ✔️ ĐỒNG BỘ (4G HTTP, không kèm ảnh)!");
-        /* Máy 4G KHÔNG đẩy đường WordPress: gói phải đi qua lệnh AT, hai lượt AT mỗi lần chấm
-           công là làm chậm hẳn cái đang chạy được. Lượt của máy này vẫn tới MySQL — qua hàng đợi
-           của Apps Script. Chỉ chậm hơn một phút. */
-        return true;
-      }
-      delay(1500);
+    int dl = 0, st = net4gPostOpen(String(wp_url), than, &dl);
+    if (st != 200) {
+      Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
+      if (st == 401) Serial.println("   ⚠️ [WP] 401 — sai khoa may (phai khop VHCC_KHOA_MAY o wp-config.php).");
+      else if (st == 301 || st == 302 || st == 307 || st == 308)
+        Serial.printf("   ⚠️ [WP] %d CHUYEN HUONG — link sai (dau / o cuoi? sai ten mien?).\n", st);
+      else if (st) Serial.printf("   ⚠️ [WP] 4G status=%d\n", st);
+      return "";
     }
-    Serial.println("   ⚠️ 4G HTTP thất bại sau 3 lần"); return false;
+    if (!docThan || dl <= 0) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return "SUCCESS"; }
+    int n = net4gReadStart(dl); String ra = "";
+    if (n > 0) { ra.reserve(n + 4); int got = 0; unsigned long t0 = millis();
+      while (got < n && millis()-t0 < 12000) { while (Serial2.available() && got < n){ ra += (char)Serial2.read(); got++; t0=millis(); } delay(1); } }
+    atWait("OK",2000); Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
+    return ra;
   }
 
-  for (int attempt = 1; attempt <= 3; attempt++) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
-    http.begin(client, google_script_url);
-    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    const char* loc[] = {"Location"};
-    http.collectHeaders(loc, 1);
-    http.addHeader("Content-Type", "application/json");
-    http.setTimeout(30000);
-
-    Serial.printf("   -> Gửi Google (lần %d, ảnh %d byte, heap %d)...\n",
-                  attempt, imageB64Len, ESP.getFreeHeap());
-    int code = http.POST(body);
-
-    if (code == 301 || code == 302 || code == 307) {
-      String location = http.header("Location");
-      http.end();
-      if (location.length() > 0) {
-        http.begin(client, location);
-        http.setTimeout(30000);
-        code = http.GET();
-      }
-    }
-
-    String resp = http.getString();
-    Serial.print("   -> Mã HTTP: "); Serial.print(code);
-    Serial.print(" | Phản hồi: "); Serial.println(resp);
-    http.end();
-
-    if (code == 200 && resp.indexOf("SUCCESS") >= 0) {
-      Serial.println("   ✔️ ĐỒNG BỘ THÀNH CÔNG!");
-      /* ĐƯỜNG THỨ HAI. Gửi BẢN GỌN (không kèm ảnh): anh Thắng chốt "ảnh driver không cần lấy
-         qua đâu, có giờ chấm công là được rồi", mà ảnh base64 là gần hết gói.
-         ⚠️ BỎ HẲN giá trị trả về. Lượt này ĐÃ vào sheet; WordPress hỏng thì hàng đợi của Apps
-            Script vẫn đưa nó sang. Để nó đổi kết quả ở đây là một đường MỚI làm hỏng đường
-            ĐANG CHẠY TỐT — máy sẽ đẩy lại vào Apps Script cho một lượt vốn đã xong. */
-      (void) wpDayLuot(slimBody);
-      return true;
-    }
-    Serial.printf("   ⚠️ Lỗi (mã %d), thử lại %d/3...\n", code, attempt);
-    delay(800);
-  }
-  Serial.println("   ❌ Gửi Google thất bại sau 3 lần.");
-  return false;
-}
-
-/**
- * ĐẨY MỘT LƯỢT SANG WORDPRESS — đường thứ hai, chạy song song với /exec.
- *
- * ⚠️ HÀM NÀY KHÔNG ĐƯỢC ẢNH HƯỞNG KẾT QUẢ CỦA ĐƯỜNG /exec. Nơi gọi bỏ hẳn giá trị trả về:
- *    lượt chấm công đã vào sheet rồi, và Apps Script còn chuyển tiếp bằng hàng đợi nữa. Để
- *    WordPress hỏng làm máy coi cả lượt là thất bại thì máy đẩy lại vào Apps Script -> trùng
- *    lượt, và tệ hơn là một đường mới hỏng làm hỏng đường đang chạy tốt.
- *
- * ⚠️ KHÔNG đi theo chuyển hướng (như đường /exec). Gặp 30x là coi như THẤT BẠI và nói rõ link
- *    sai — chứ không phải gọi lại bằng GET rồi mất thân POST mà vẫn tưởng xong.
- *
- * Chỉ trả true khi HTTP 200 và thân có chữ "SUCCESS" — CÙNG luật đường /exec đang dùng, để hai
- * đường không bao giờ hiểu khác nhau về chữ "xong".
- */
-bool wpDayLuot(const String& body){
-  if (!wpUrlHopLe(String(wp_url)) || strlen(wp_key) == 0) return false;   // chưa khai -> lặng lẽ bỏ
-  if (!netUp()) return false;
-
-  /* Đường 4G dùng lệnh AT, gói phải GỌN. Đường này chỉ đi khi có WiFi; máy 4G vẫn đủ đường
-     /exec + hàng đợi nên không mất lượt nào. Cố đẩy qua AT nữa là hai lần AT mỗi lượt chấm
-     công, chậm hẳn cái đang chạy được để thêm một cái chưa cần. */
-  if (USE_4G) return false;
-
-  for (int lan = 1; lan <= 2; lan++) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    HTTPClient http;
-    http.begin(client, wp_url);
-    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("X-VHCC-Key", wp_key);
-    http.setTimeout(15000);
-    int code = http.POST(body);
-    String resp = http.getString();
-    http.end();
-
-    if (code == 200 && resp.indexOf("SUCCESS") >= 0) {
-      Serial.println("   ✔️ [WP] da ghi MySQL");
-      return true;
-    }
-    if (code == 301 || code == 302 || code == 307 || code == 308) {
-      Serial.printf("   ⚠️ [WP] HTTP %d CHUYEN HUONG — link wpUrl sai (dau / o cuoi? sai ten mien?). "
-                    "May KHONG di theo chuyen huong nen luot nay khong vao MySQL.\n", code);
-      return false;                      // sai cấu hình thì thử lại cũng vậy
-    }
-    if (code == 401) {
-      Serial.println("   ⚠️ [WP] HTTP 401 — sai khoa wpKey (phai khop VHCC_KHOA_MAY o wp-config.php).");
-      return false;                      // sai khoá thì thử lại cũng vậy
-    }
-    Serial.printf("   ⚠️ [WP] loi HTTP %d (lan %d/2)\n", code, lan);
-    delay(500);
-  }
-  return false;
-}
-
-/**
- * NHẬN LIÊN KẾT + KHOÁ WORDPRESS QUA FIREBASE — để "nạp OTA là xong".
- *
- * Đọc `/cfg/wp.json` = {"url":"https://…/cham-cong-may","key":"…"} rồi lưu vào NVS.
- * Vì sao đi đường này chứ không gõ ở portal: bản .bin công khai không được chứa bí mật, mà bắt
- * người đi nạp gõ tay link + khoá ở 192.168.4.1 cho từng máy là vừa lâu vừa dễ gõ sai một ký tự
- * rồi không ai biết. Máy vốn ĐÃ đọc Firebase để nhận lệnh OTA — mà OTA thì mạnh hơn hẳn (nạp
- * được firmware bất kỳ) — nên đây không phải một cửa tin cậy mới mở ra.
- *
- * ⚠️ Chỉ GHI khi giá trị mới DÙNG ĐƯỢC và KHÁC cái đang có. Ghi NVS mỗi 5 phút là mài flash;
- *    và ghi một link rác vào NVS thì nó thắng cả secrets.h ở lượt khởi động sau.
- * ⚠️ KHÔNG in khoá ra Serial. Log máy chấm công bị đọc bởi nhiều người hơn số người được biết khoá.
- */
-void wpNhanCauHinh(){
-  if (!netUp() || String(FB_HOST).length() == 0) return;
-  String body = httpGetBody(String(FB_HOST) + "/cfg/wp.json" + fbAuthParam());
-  body.trim();
-  if (body.length() == 0 || body == "null") return;
-  DynamicJsonDocument d(512);
-  if (deserializeJson(d, body)) return;
-  String u = d["url"] | "";
-  String k = d["key"] | "";
-  u.trim(); k.trim();
-
-  if (wpUrlHopLe(u) && u != _cfgWpUrl) {
-    prefs.putString("wpUrl", u);
-    _cfgWpUrl = u; wp_url = _cfgWpUrl.c_str();
-    Serial.println("[WP] nhan link tu Firebase: " + u);
-  } else if (u.length() && !wpUrlHopLe(u)) {
-    Serial.println("[WP] ⚠️ link trong Firebase SAI DANG, bo qua: " + u);
-  }
-  if (k.length() && !cfgLaPlaceholder(k) && k != _cfgWpKey) {
-    prefs.putString("wpKey", k);
-    _cfgWpKey = k; wp_key = _cfgWpKey.c_str();
-    Serial.println("[WP] nhan khoa tu Firebase (da luu, khong in ra)");
-  }
-}
-
-// =======================================================================
-// ============  ĐỒNG BỘ NHÂN VIÊN: WEB APP -> ESP32 -> HIKVISION  ========
-// =======================================================================
-
-// ---- Dựng header Digest từ các tham số đã tách ----
-String digestHeaderFrom(const String& realm, const String& nonce, const String& qop,
-                        const String& opaque, const String& method, const String& uri) {
-  String cnonce = "0a4f113b";
-  String nc     = "00000001";
-  String HA1 = getMD5(String(hik_user) + ":" + realm + ":" + String(hik_pass));
-  String HA2 = getMD5(method + ":" + uri);
-  String response = getMD5(HA1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + qop + ":" + HA2);
-  String h = "Digest username=\"" + String(hik_user) + "\", realm=\"" + realm +
-             "\", nonce=\"" + nonce + "\", uri=\"" + uri + "\", qop=" + qop +
-             ", nc=" + nc + ", cnonce=\"" + cnonce + "\", response=\"" + response + "\"";
-  if (opaque.length()) h += ", opaque=\"" + opaque + "\"";
-  return h;
-}
-
-String buildDigestAuth(const String& method, const String& uri, const String& authReq) {
-  return digestHeaderFrom(extractParam(authReq, "realm"), extractParam(authReq, "nonce"),
-                          extractParam(authReq, "qop"),   extractParam(authReq, "opaque"),
-                          method, uri);
-}
-
-// Lấy 1 "challenge" Digest (nonce...) từ 1 endpoint nhẹ — dùng cho POST multipart bằng WiFiClient thô.
-bool getDigestChallenge(String& realm, String& nonce, String& qop, String& opaque) {
+  WiFiClientSecure client; client.setInsecure();
   HTTPClient http;
-  String url = "http://" + String(hik_ip) + "/ISAPI/System/deviceInfo?format=json";
-  http.begin(url); http.setTimeout(6000);
-  const char* hk[] = {"WWW-Authenticate"}; http.collectHeaders(hk, 1);
-  int code = http.GET();
-  bool ok = false;
-  if (code == 401) {
-    String a = http.header("WWW-Authenticate");
-    realm  = extractParam(a, "realm");  nonce  = extractParam(a, "nonce");
-    qop    = extractParam(a, "qop");    opaque = extractParam(a, "opaque");
-    ok = nonce.length() > 0;
-  }
+  http.begin(client, wp_url);
+  http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("X-VHCC-Key", wp_key);
+  http.setTimeout(20000);
+  int code = http.POST(than);
+  String ra = (code == 200) ? http.getString() : "";
   http.end();
-  return ok;
+  if (code != 200) {
+    if (code == 401) Serial.println("   ⚠️ [WP] 401 — sai khoa may (phai khop VHCC_KHOA_MAY o wp-config.php).");
+    else if (code == 301 || code == 302 || code == 307 || code == 308)
+      Serial.printf("   ⚠️ [WP] %d CHUYEN HUONG — link sai (dau / o cuoi? sai ten mien?). "
+                    "May KHONG di theo chuyen huong nen luot nay khong vao MySQL.\n", code);
+    else Serial.printf("   ⚠️ [WP] loi HTTP %d\n", code);
+    return "";
+  }
+  return docThan ? ra : String("SUCCESS");
 }
 
-int hikSend_(HTTPClient& http, const String& method, const String& payload) {
-  if (method == "GET") return http.GET();
-  return http.sendRequest(method.c_str(), (uint8_t*)payload.c_str(), payload.length());
+/** Một việc của máy: dựng thân `{"viec":…, "hikSerial":…, "macAddress":…, …}` rồi gọi. */
+String wpViec(const String& viec, const String& them, bool docThan){
+  String b = "{\"viec\":\"" + viec + "\",\"hikSerial\":\"" + jsonEscMin_(HIK_SERIAL)
+           + "\",\"macAddress\":\"" + jsonEscMin_(macBo())
+           + "\",\"stationName\":\"" + jsonEscMin_(STATION_NAME)
+           + "\",\"hikModel\":\"" + jsonEscMin_(HIK_MODEL) + "\"";
+  if (them.length()) b += "," + them;
+  b += "}";
+  return wpGoi(b, docThan);
 }
 
-// GET/POST/PUT JSON tới máy (Digest). Trả body; *outCode = mã HTTP.
-/* ===========================================================================
+/* ⛔ `wpNhanCauHinh()` — ĐÃ GỠ 22/08/2026.
+   Hàm này đọc `/cfg/wp` trên Firebase để tự nhận link + khoá WordPress, nhờ đó "nạp OTA là
+   xong" mà khỏi gõ tay ở portal từng máy. Nay không còn Firebase nên nó cũng không còn.
+
+   Máy lấy link + khoá theo thứ tự: NVS -> secrets.h (nạp USB) -> portal 192.168.4.1.
+   Máy đang chạy thì trong NVS ĐÃ có sẵn hai giá trị đó (chính hàm này ghi vào, trước khi bị
+   gỡ) — nên bản này lên là chạy tiếp. Chip trắng thì gõ ở portal.
+   🔴 Vì vậy thứ tự di trú ở đầu tệp KHÔNG được đảo: đặt /cfg/wp trước, đẩy firmware sau. */
+
+/* ===========================================================================/* ===========================================================================
  *  MÃ HTTP CỦA LƯỢT ISAPI GẦN NHẤT — để web nói ĐÚNG nguyên nhân
  * ---------------------------------------------------------------------------
  *  🔴 03/08 (bản j) — LỖI CỦA BẢN i: em lấy `HIK_SERIAL.length()` làm dấu hiệu "đọc được đầu
@@ -1280,93 +1096,35 @@ void docThongTinDauDoc() {
   Serial.println("[MÃ MÁY] serial đầu đọc: " + HIK_SERIAL + (HIK_MODEL.length() ? ("  (" + HIK_MODEL + ")") : ""));
 }
 
-/* ---- Hỏi FIREBASE "tôi ở cửa hàng nào?" (đường CHÍNH từ bản 2026-07-31f) ----
-   Vì sao không hỏi qua ?action=whoami nữa: qua 4G, Apps Script trả 302 sang
-   googleusercontent với URL ~532 ký tự — VƯỢT giới hạn dòng lệnh AT của module A7680C
-   (hạn chế đã ghi ở QuanLyNhanVien/Code.gs:31). Đo được ngoài hiện trường: hop1 trả 706,
-   thử lại ra 302, hết 3 hop -> status=0. Hậu quả: máy giữ tên CHUA_DAT_TEN, web app xếp
-   lệnh vào /queue/<tên thật> mà máy đọc /queue/CHUA_DAT_TEN -> MỌI lệnh điều khiển từ xa
-   nằm im và KHÔNG báo lỗi.
-   Firebase không có redirect nên qua 4G được — đã đo: status=200.
-   Khoá là MAC bo (bỏ ':', chữ HOA) vì MAC luôn có, còn serial đầu đọc thì rỗng khi
-   đầu đọc mất mạng — đúng ca đang xảy ra. */
-String httpGetBody(const String& url);   // forward decl (định nghĩa ở khối Firebase bên dưới)
-String fbAuthParam();                    // forward decl
-String macKeyFb(){
-  String k = macBo(); k.toUpperCase();
-  String o = "";
-  for (unsigned i = 0; i < k.length(); i++){
-    char c = k.charAt(i);
-    if ((c>='0'&&c<='9') || (c>='A'&&c<='Z')) o += c;
-  }
-  return o;
-}
-bool hoiCuaHangFirebase(){
-  if (!netUp()) return false;
-  if (!fbHostHopLe(String(FB_HOST))) return false;          // chưa khai Firebase thì đừng gọi
-  String k = macKeyFb();
-  if (k.length() == 0) return false;
-  String body = httpGetBody(String(FB_HOST) + "/may/" + k + "/station.json" + fbAuthParam());
-  body.trim();
-  if (body.length() == 0 || body == "null") {
-    Serial.println("[CƠ SỞ] Firebase chưa có bản đồ cho máy này (/may/" + k + ") -> giữ '" + STATION_NAME + "'");
-    return false;
-  }
-  // Firebase trả chuỗi JSON có dấu nháy: "VP_KH-HCM"
-  if (body.startsWith("\"") && body.endsWith("\"") && body.length() >= 2)
-    body = body.substring(1, body.length()-1);
-  body.trim();
-  if (body.length() == 0) return false;
-  // Chỉ nhận tên hợp lệ — đừng để một node Firebase bị sửa tay làm máy ghi vào đường rác.
-  for (unsigned i = 0; i < body.length(); i++){
-    char c = body.charAt(i);
-    bool okc = (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-';
-    if (!okc){ Serial.println("[CƠ SỞ] ⚠️ Tên từ Firebase có ký tự lạ -> bỏ qua: '" + body + "'"); return false; }
-  }
-  STATION_TU_SERVER = true;
-  if (body != STATION_NAME){
-    Serial.println("[CƠ SỞ] Firebase: máy này thuộc '" + body + "' (trước là '" + STATION_NAME + "') -> ghi nhớ");
-    STATION_NAME = body;
-    prefs.putString("station", body);
-  } else {
-    Serial.println("[CƠ SỞ] Firebase xác nhận: '" + STATION_NAME + "'");
-  }
-  return true;
-}
-
 /* ---- Hỏi server "tôi ở cửa hàng nào?" ----
-   Cần TÊN cửa hàng vì mọi đường Firebase đều mang tên đó (/queue/<trạm>, /hb/<trạm>,
-   /roster/<trạm>, /photo/<trạm>) — không thể để server tự suy hết.
-   Mất mạng / server chưa gán -> GIỮ NGUYÊN tên đang nhớ, KHÔNG xoá trắng. */
-/**
- * Cửa ngõ DUY NHẤT để biết tên cửa hàng: Firebase trước, ?action=whoami là ĐƯỜNG LÙI.
- * Một định nghĩa duy nhất, để sau này khỏi có chỗ gọi Firebase chỗ gọi /exec rồi lệch nhau.
- */
-bool hoiCuaHang();                       // forward decl (định nghĩa ngay dưới)
-bool hoiCuaHangGop(){
-  if (hoiCuaHangFirebase()) return true;
-  Serial.println("[CƠ SỞ] Firebase không trả lời -> thử đường cũ ?action=whoami (qua 4G hay bị chặn)");
-  return hoiCuaHang();
-}
+   Vẫn cần TÊN cửa hàng: nó hiện trên màn hình máy và đi kèm mọi lượt chấm công để người xem log
+   biết máy nào. Nhưng nay tên KHÔNG còn là khoá của bất cứ thứ gì — hàng đợi lệnh, nhịp sống,
+   OTA đều khoá theo SERIAL đầu đọc. Tên hai máy trùng nhau không còn làm lệnh chạy sang cửa
+   hàng khác nữa (trước kia Firebase khoá theo tên nên có).
+
+   Mất mạng / server chưa gán -> GIỮ NGUYÊN tên đang nhớ, KHÔNG xoá trắng: xoá là màn hình máy
+   hiện "CHUA_DAT_TEN" trong khi nó vẫn đang chấm công đúng cơ sở. */
 bool hoiCuaHang() {
   if (!netUp()) return false;
-  String q = "action=whoami&serial=" + urlEncodeMin(HIK_SERIAL)
-           + "&mac="     + urlEncodeMin(macBo())
-           + "&station=" + urlEncodeMin(STATION_NAME)
-           + "&model="   + urlEncodeMin(HIK_MODEL);
-  String r = empGet(q);
+  String r = wpViec("toi_la_ai", "", true);
   if (r.length() == 0) { Serial.println("[CƠ SỞ] Không hỏi được server -> giữ '" + STATION_NAME + "'"); return false; }
   StaticJsonDocument<384> d;
-  if (deserializeJson(d, r)) { Serial.println("[CƠ SỞ] parse whoami lỗi -> giữ '" + STATION_NAME + "'"); return false; }
-  if (d["choGan"] | false) {
+  if (deserializeJson(d, r)) { Serial.println("[CƠ SỞ] parse trả lời lỗi -> giữ '" + STATION_NAME + "'"); return false; }
+  if ((int)(d["choGan"] | 0) == 1) {
     STATION_TU_SERVER = false;
-    Serial.println("[CƠ SỞ] ⚠️ MÁY CHƯA ĐƯỢC GÁN CỬA HÀNG. Vào web app > tab 'Máy chấm công' rồi gán cửa hàng cho máy này.");
+    Serial.println("[CƠ SỞ] ⚠️ MÁY CHƯA ĐƯỢC GÁN CƠ SỞ. Vào wp-admin > Chấm Công > Máy chấm công rồi gán cơ sở cho máy này.");
     Serial.println("        serial=" + HIK_SERIAL + "  mac=" + macBo());
-    Serial.println("        Chấm công vẫn được giữ ở server (sheet ChamCongChoGan), gán xong sẽ tự chuyển về.");
+    Serial.println("        Chấm công VẪN được giữ ở máy chủ (bảng chờ gán), gán xong là tự vào bảng chấm công.");
     return false;
   }
-  String st = String((const char*)(d["station"] | "")); st.trim();
-  if (!(d["ok"] | false) || st.length() == 0) { Serial.println("[CƠ SỞ] server không trả tên -> giữ '" + STATION_NAME + "'"); return false; }
+  String st = String((const char*)(d["coSo"] | "")); st.trim();
+  if (st.length() == 0) { Serial.println("[CƠ SỞ] server không trả tên -> giữ '" + STATION_NAME + "'"); return false; }
+  /* Chỉ nhận tên hợp lệ — một ô cơ sở bị gõ ký tự lạ không được biến thành tên trạm. */
+  for (unsigned i = 0; i < st.length(); i++){
+    char c = st.charAt(i);
+    bool okc = (c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-';
+    if (!okc){ Serial.println("[CƠ SỞ] ⚠️ Tên cơ sở có ký tự lạ -> bỏ qua: '" + st + "'"); return false; }
+  }
   STATION_TU_SERVER = true;
   if (st != STATION_NAME) {
     Serial.println("[CƠ SỞ] Server gán máy này vào '" + st + "' (trước là '" + STATION_NAME + "') -> ghi nhớ");
@@ -1376,160 +1134,144 @@ bool hoiCuaHang() {
   return true;
 }
 
-// ---- Gọi web app nhân viên (HTTPS GET, có follow redirect + token) ----
-String empGet(const String& query) {
-  if (USE_4G) {                                             // 4G: GET qua AT-HTTP + follow 302
-    String url = String(emp_script_url) + "?" + query + "&token=" + EMP_TOKEN;
-    int dl = 0, st = net4gGetOpen(url, &dl);
-    if (st != 200) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-      Serial.printf("[NV] empGet '%s' 4G status=%d\n", query.c_str(), st); return ""; }
-    int n = net4gReadStart(dl); String body = "";
-    if (n > 0) { body.reserve(n + 4); int got = 0; unsigned long t0 = millis();
-      while (got < n && millis()-t0 < 10000) { while (Serial2.available() && got < n){ body += (char)Serial2.read(); got++; t0=millis(); } delay(1); } }
-    atWait("OK",2000); Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-    Serial.printf("[NV] empGet '%s' 4G len=%d\n", query.c_str(), (int)body.length());
-    return body;
-  }
-  for (int attempt = 1; attempt <= 2; attempt++) {
-    WiFiClientSecure client; client.setInsecure();
-    HTTPClient http;
-    String url = String(emp_script_url) + "?" + query + "&token=" + EMP_TOKEN;
-    http.begin(client, url);
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-    http.setTimeout(20000);
-    int code = http.GET();
-    String body = (code == 200) ? http.getString() : "";
-    http.end();
-    if (code == 200) return body;
-    Serial.printf("[NV] empGet '%s' HTTP %d (lần %d)\n", query.c_str(), code, attempt);
-    delay(500);
-  }
-  return "";
-}
-
-String urlEncodeMin(const String& s) {
-  String o = "";
-  for (size_t i = 0; i < s.length(); i++) {
-    char c = s[i];
-    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
-        c == '-' || c == '_' || c == '.') o += c;
-    else { char b[4]; sprintf(b, "%%%02X", (uint8_t)c); o += b; }
-  }
-  return o;
-}
+/* ⛔ `urlEncodeMin()` — ĐÃ GỠ 22/08/2026. Nó sinh ra để ghép tham số vào URL của Apps Script
+   (`?action=…&token=…`). Nay mọi thứ đi trong THÂN JSON của một lượt POST, không còn tham số
+   URL nào để mã hoá. */
 
 int b64val(int c) {
   if (c >= 'A' && c <= 'Z') return c - 'A';
   if (c >= 'a' && c <= 'z') return c - 'a' + 26;
   if (c >= '0' && c <= '9') return c - '0' + 52;
-  if (c == '+' || c == '-') return 62;   // '-' = base64url (Firebase lưu base64url)
+  if (c == '+' || c == '-') return 62;   // nhận cả base64url ('-' và '_') cho chắc
   if (c == '/' || c == '_') return 63;   // '_' = base64url
   return -1;
 }
 
-// Tải ảnh base64 từ web app rồi GIẢI MÃ TRỰC TIẾP (streaming) ra JPEG trong buffer malloc.
-// Không giữ chuỗi base64 to -> tiết kiệm RAM. Trả độ dài JPEG, *out = buffer (caller free).
-// Lỗi: -1 hết RAM, -2 HTTP != 200, -3 dữ liệu không phải base64 (vd body "ERR:...").
-int fetchPhotoDecoded(const String& opId, uint8_t** out) {
-  *out = NULL;
-  if (USE_4G) {                                             // 4G: GET ảnh từ Firebase /photo, đọc THEO CHUNK 1KB (module giới hạn mỗi lần đọc) + giải mã dồn
-    String url = String(FB_HOST) + "/photo/" + STATION_NAME + "/" + opId + ".json" + fbAuthParam();
-    int dl = 0, st = net4gGetOpen(url, &dl);
-    if (st != 200) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-      Serial.printf("[NV] photo 4G status=%d\n", st); return -2; }
-    if (dl <= 10) {                                          // "null"/rỗng = không có ảnh -> báo 0 (không lỗi), thêm NV khỏi mặt
-      Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-      Serial.printf("[NV] photo 4G: không có ảnh (dl=%d)\n", dl); return 0;
-    }
-    uint8_t* buf = (uint8_t*)malloc(MAX_FACE_BYTES);
-    if (!buf) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); Serial.println("[NV] Hết RAM cấp buffer ảnh."); return -1; }
-    uint8_t chunk[1024];
-    int outIdx = 0, quad[4], qn = 0, start = 0; bool err = false, done = false;
-    while (start < dl && !err && !done) {
-      int want = (dl - start > 1024) ? 1024 : (dl - start);
-      int got = net4gReadChunk(start, want, chunk);
-      if (got <= 0) break;                                   // hết/lỗi
-      start += got;
-      for (int i = 0; i < got && !err && !done; i++) {
-        char c = (char)chunk[i];
-        if (c=='\r'||c=='\n'||c==' '||c=='\t'||c=='"') continue;   // bỏ khoảng trắng + dấu " bọc chuỗi JSON
-        if (c=='=') { done = true; break; }
-        int v = b64val(c); if (v < 0) { err = true; break; }
-        quad[qn++] = v;
-        if (qn == 4) {
-          if (outIdx + 3 <= MAX_FACE_BYTES) {
-            buf[outIdx++] = (quad[0]<<2)|(quad[1]>>4);
-            buf[outIdx++] = ((quad[1]&0xF)<<4)|(quad[2]>>2);
-            buf[outIdx++] = ((quad[2]&0x3)<<6)|quad[3];
-          } else err = true;
-          qn = 0;
-        }
+/* ⚠️ `nap()`/`chot()` là HÀM THÀNH VIÊN chứ không phải hàm tự do, và đó là cố ý: Arduino tự
+   sinh prototype cho MỌI hàm tự do rồi chèn lên đầu tệp — chèn trước cả định nghĩa struct này,
+   nên một hàm tự do nhận `AnhGiaiMa&` là build đỏ với câu lỗi chẳng liên quan gì. Hàm thành
+   viên không bị sinh prototype. */
+struct AnhGiaiMa {
+  uint8_t* buf; int outIdx; int quad[4]; int qn;
+  bool err, done, batDau; int mocI;
+  static const char* moc(){ return "anh\":\""; }
+
+  void nap(const uint8_t* p, int n){
+    const char* M = moc();
+    for (int i = 0; i < n && !err && !done; i++) {
+      char c = (char)p[i];
+      if (!batDau) {                                  // còn đang dò mốc `anh":"`
+        if (c == M[mocI]) { mocI++; if (M[mocI] == 0) batDau = true; }
+        else mocI = (c == M[0]) ? 1 : 0;              // lệch thì thử lại từ đầu VỚI chính ký tự này
+        continue;
       }
-    }
-    if (!err) {
-      if (qn == 2)      { buf[outIdx++] = (quad[0]<<2)|(quad[1]>>4); }
-      else if (qn == 3) { buf[outIdx++] = (quad[0]<<2)|(quad[1]>>4);
-                          buf[outIdx++] = ((quad[1]&0xF)<<4)|(quad[2]>>2); }
-    }
-    Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-    Serial.printf("[NV] Ảnh giải mã %d byte (4G chunk, dl=%d, heap=%d)\n", outIdx, dl, ESP.getFreeHeap());
-    if (err || outIdx <= 0) { free(buf); return -3; }
-    *out = buf; return outIdx;
-  }
-  uint8_t* buf = (uint8_t*)malloc(MAX_FACE_BYTES);
-  if (!buf) { Serial.println("[NV] Hết RAM cấp buffer ảnh."); return -1; }
-  int outIdx = 0;
-
-  WiFiClientSecure client; client.setInsecure();
-  HTTPClient http;
-  String url = String(emp_script_url) + "?action=photo&opId=" + opId + "&token=" + EMP_TOKEN;
-  http.begin(client, url);
-  http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
-  http.setTimeout(20000);
-  int code = http.GET();
-  if (code != 200) { Serial.printf("[NV] photo HTTP %d\n", code); http.end(); free(buf); return -2; }
-
-  WiFiClient* stream = http.getStreamPtr();
-  int quad[4], qn = 0; bool err = false, done = false;
-  uint8_t tmp[256];
-  unsigned long t0 = millis();
-  while (true) {
-    int avail = stream->available();
-    if (avail <= 0) {
-      if (!http.connected()) break;
-      if (millis() - t0 > 4000) break;
-      delay(1); continue;
-    }
-    int r = stream->readBytes(tmp, avail > (int)sizeof(tmp) ? (int)sizeof(tmp) : avail);
-    t0 = millis();
-    for (int i = 0; i < r && !err && !done; i++) {
-      char c = tmp[i];
-      if (c == '\r' || c == '\n' || c == ' ' || c == '\t') continue;
-      if (c == '=') { done = true; break; }
+      if (c == '"') { done = true; break; }           // hết chuỗi ảnh
+      if (c=='\r'||c=='\n'||c==' '||c=='\t') continue;
+      if (c == '=') { done = true; break; }           // đệm cuối base64
       int v = b64val(c);
-      if (v < 0) { err = true; break; }     // ký tự lạ -> đây là body lỗi, không phải base64
+      if (v < 0) { err = true; break; }
       quad[qn++] = v;
       if (qn == 4) {
         if (outIdx + 3 <= MAX_FACE_BYTES) {
-          buf[outIdx++] = (quad[0] << 2) | (quad[1] >> 4);
-          buf[outIdx++] = ((quad[1] & 0xF) << 4) | (quad[2] >> 2);
-          buf[outIdx++] = ((quad[2] & 0x3) << 6) | quad[3];
+          buf[outIdx++] = (quad[0]<<2)|(quad[1]>>4);
+          buf[outIdx++] = ((quad[1]&0xF)<<4)|(quad[2]>>2);
+          buf[outIdx++] = ((quad[2]&0x3)<<6)|quad[3];
         } else err = true;
         qn = 0;
       }
     }
-    if (err || done) break;
   }
-  http.end();
+  void chot(){
+    if (err) return;
+    if (qn == 2)      { buf[outIdx++] = (quad[0]<<2)|(quad[1]>>4); }
+    else if (qn == 3) { buf[outIdx++] = (quad[0]<<2)|(quad[1]>>4);
+                        buf[outIdx++] = ((quad[1]&0xF)<<4)|(quad[2]>>2); }
+  }
+};
 
-  if (!err) {
-    if (qn == 2)      { buf[outIdx++] = (quad[0] << 2) | (quad[1] >> 4); }
-    else if (qn == 3) { buf[outIdx++] = (quad[0] << 2) | (quad[1] >> 4);
-                        buf[outIdx++] = ((quad[1] & 0xF) << 4) | (quad[2] >> 2); }
+/**
+ * TẢI ẢNH KHUÔN MẶT CỦA MỘT LỆNH rồi GIẢI MÃ THẲNG ra JPEG trong buffer malloc.
+ *
+ * Streaming, không giữ chuỗi base64 to: ảnh mặt cỡ 40-70KB base64, mà bắt tay TLS đã cần ~40KB
+ * RAM liền mạch — giữ cả hai là hết RAM rồi lỗi HTTP -1, trông y như lỗi mạng.
+ *
+ * 🔴 MỘT BỘ GIẢI MÃ DUY NHẤT cho cả hai đường. Bản trước có HAI bản chép của cùng một vòng
+ *    base64 (một cho 4G đọc theo chunk, một cho WiFi đọc theo stream). Hai bản của cùng một
+ *    thuật toán là sớm muộn sửa một bên quên bên kia, và lỗi đó chỉ hiện ra ở một loại máy.
+ *
+ * ⚠️ Máy chủ trả JSON `{"status":"SUCCESS","anh":"<base64>"}`, không phải base64 trơn. Nên bộ
+ *    giải mã phải BỎ QUA cho tới khi gặp mốc `anh":"` rồi mới bắt đầu — nếu không nó lấy luôn
+ *    mấy chữ `status`, `SUCCESS` làm dữ liệu base64 (chúng đều là ký tự base64 hợp lệ!) và ảnh
+ *    ra rác mà không có lỗi nào. Kết thúc ở dấu `"` đóng chuỗi.
+ *
+ * Trả độ dài JPEG (0 = không có ảnh, không phải lỗi), *out = buffer (caller free).
+ * Lỗi: -1 hết RAM, -2 gọi hỏng, -3 dữ liệu không phải base64.
+ */
+int fetchPhotoDecoded(const String& opId, uint8_t** out) {
+  *out = NULL;
+  if (!wpUrlHopLe(String(wp_url)) || strlen(wp_key) == 0) return -2;
+  String than = "{\"key\":\"" + String(wp_key) + "\",\"viec\":\"anh_lenh\",\"opId\":\""
+              + jsonEscMin_(opId) + "\"}";
+
+  uint8_t* buf = (uint8_t*)malloc(MAX_FACE_BYTES);
+  if (!buf) { Serial.println("[NV] Hết RAM cấp buffer ảnh."); return -1; }
+  AnhGiaiMa g = { buf, 0, {0,0,0,0}, 0, false, false, false, 0 };
+
+  if (USE_4G) {                    // 4G: đọc THEO CHUNK 1KB (module giới hạn mỗi lần đọc)
+    int dl = 0, st = net4gPostOpen(String(wp_url), than, &dl);
+    if (st != 200) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
+      Serial.printf("[NV] anh 4G status=%d\n", st); free(buf); return -2; }
+    /* Thân ngắn = `{"status":"SUCCESS","anh":""}` -> KHÔNG có ảnh. Trả 0 (không phải lỗi):
+       thêm nhân viên KHÔNG kèm mặt vẫn là việc làm được, đừng biến nó thành thất bại. */
+    if (dl <= 40) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
+      Serial.printf("[NV] khong co anh cho lenh nay (dl=%d)\n", dl); free(buf); return 0; }
+    uint8_t chunk[1024];
+    int start = 0;
+    while (start < dl && !g.err && !g.done) {
+      int want = (dl - start > 1024) ? 1024 : (dl - start);
+      int got = net4gReadChunk(start, want, chunk);
+      if (got <= 0) break;
+      start += got;
+      g.nap(chunk, got);
+    }
+    g.chot();
+    Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
+    Serial.printf("[NV] Ảnh giải mã %d byte (4G chunk, dl=%d, heap=%d)\n", g.outIdx, dl, ESP.getFreeHeap());
+  } else {
+    WiFiClientSecure client; client.setInsecure();
+    HTTPClient http;
+    http.begin(client, wp_url);
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    http.addHeader("Content-Type", "application/json");
+    http.addHeader("X-VHCC-Key", wp_key);
+    http.setTimeout(25000);
+    int code = http.POST(than);
+    if (code != 200) { Serial.printf("[NV] anh HTTP %d\n", code); http.end(); free(buf); return -2; }
+    WiFiClient* stream = http.getStreamPtr();
+    uint8_t tmp[256];
+    unsigned long t0 = millis();
+    while (!g.err && !g.done) {
+      int avail = stream->available();
+      if (avail <= 0) {
+        if (!http.connected()) break;
+        if (millis() - t0 > 4000) break;
+        delay(1); continue;
+      }
+      int r = stream->readBytes(tmp, avail > (int)sizeof(tmp) ? (int)sizeof(tmp) : avail);
+      t0 = millis();
+      g.nap(tmp, r);
+    }
+    http.end();
+    g.chot();
+    Serial.printf("[NV] Ảnh giải mã %d byte (heap=%d)\n", g.outIdx, ESP.getFreeHeap());
   }
-  Serial.printf("[NV] Ảnh giải mã %d byte (heap=%d)\n", outIdx, ESP.getFreeHeap());
-  if (err || outIdx <= 0) { free(buf); return -3; }
-  *out = buf; return outIdx;
+
+  /* Không gặp mốc `anh":"` = máy chủ trả một thân khác hẳn (lỗi, chuyển hướng, trang chặn của
+     tường lửa). Nói riêng ra chứ đừng gộp vào "dữ liệu không phải base64" — hai ca này sửa
+     khác nhau hoàn toàn. */
+  if (!g.batDau) { free(buf); Serial.println("[NV] Tra ve khong co truong anh -> khong co anh cho lenh nay."); return 0; }
+  if (g.err || g.outIdx <= 0) { free(buf); return -3; }
+  *out = buf; return g.outIdx;
 }
 
 // Xóa ảnh mặt cũ của 1 FPID (best-effort, để ghi đè sạch)
@@ -1716,7 +1458,7 @@ int jsonInt_(const String& s, const String& key){
 }
 
 // QUÉT: đọc danh sách NV (UserInfo/Search) + tập FPID có ảnh (FDSearch) trên máy
-// -> ghi {mã:{n:tên, f:0/1}} lên Firebase /roster/<STATION>
+// -> đẩy theo trang lên website (việc `roster`)
 void hikScanRoster(){
   Serial.println("[SCAN] Đọc danh sách + ảnh từ máy Hikvision...");
   // 1) FDSearch -> tập FPID (mã NV) đã có khuôn mặt. Quét THẲNG chuỗi tìm "FPID" (không phụ thuộc cấu trúc JSON).
@@ -1745,8 +1487,13 @@ void hikScanRoster(){
     }
     Serial.println("[SCAN][DBG] faceSet=" + faceSet);
   }
-  // 2) UserInfo/Search -> roster {mã:{n:tên, f:0/1}}
-  String roster = "{"; bool first = true;
+  /* 2) UserInfo/Search -> đẩy LÊN THEO TRANG.
+     Trước đây gom cả sổ thành một chuỗi rồi PUT một lần lên Firebase. Máy 200 người là chuỗi
+     ~10KB — vượt xa cái module 4G nuốt nổi trong một lượt AT, và hỏng thì mất trọn sổ. Nay mỗi
+     trang 20 người là một lượt: hỏng một trang thì chỉ thiếu trang đó, và lần quét sau bù lại.
+     ⚠️ `dau=1` chỉ ở trang ĐẦU — nó bảo máy chủ xoá sổ cũ. Đặt ở trang cuối thì 4G rớt giữa
+        chừng là sổ có lẫn cả người đã xoá lẫn người mới: sai mà nhìn như đúng. */
+  String trang = ""; bool first = true; int soTrang = 0, dayOk = 0;
   int pos = 0, total = -1, count = 0; const int PAGE = 20;
   StaticJsonDocument<256> filter;
   filter["UserInfoSearch"]["numOfMatches"] = true;
@@ -1770,145 +1517,74 @@ void hikScanRoster(){
       if (emp.length() == 0) continue;
       String nm = String((const char*)(u["name"] | ""));
       int f = (faceSet.indexOf("," + emp + ",") >= 0) ? 1 : 0;
-      if (!first) roster += ",";
-      roster += "\"" + jsonEscMin_(emp) + "\":{\"n\":\"" + jsonEscMin_(nm) + "\",\"f\":" + String(f) + "}";
+      if (!first) trang += ",";
+      trang += "{\"ma\":\"" + jsonEscMin_(emp) + "\",\"ten\":\"" + jsonEscMin_(nm)
+             + "\",\"anh\":" + String(f ? "true" : "false") + "}";
       first = false; count++;
+    }
+    if (trang.length()) {
+      String r = wpViec("roster", String("\"dau\":") + (soTrang == 0 ? "1" : "0") + ",\"ds\":[" + trang + "]", false);
+      if (r.length()) dayOk++;
+      else Serial.printf("[SCAN] ⚠️ Day trang %d HONG -> so tren web se thieu %d nguoi\n", soTrang, (int)0);
+      soTrang++; trang = ""; first = true;
     }
     pos += numMatches;
     if (numMatches < PAGE || numMatches == 0 || (total >= 0 && pos >= total)) break;
   }
-  roster += "}";
-  Serial.printf("[SCAN] %d NV trên máy (total=%d), đang ghi Firebase...\n", count, total);
-  String url = String(FB_HOST) + "/roster/" + STATION_NAME + ".json" + fbAuthParam();
-  bool ok = net4gHttpPut(url, roster);
-  Serial.printf("[SCAN] Ghi /roster: %s\n", ok ? "OK" : "FAIL");
+  Serial.printf("[SCAN] %d NV trên máy (total=%d), đẩy %d/%d trang lên website.\n",
+                count, total, dayOk, soTrang);
 }
 
-// ---- Firebase: đọc lệnh NV (URL NGẮN, KHÔNG redirect -> chạy được qua 4G) ----
-String g_doneOps[8]; int g_doneIdx = 0;                        // nhớ opId đã xử lý (tránh chạy lại trước khi Apps Script kịp xóa)
+// ---- Hàng đợi lệnh: hỏi thẳng WordPress ----
+String g_doneOps[8]; int g_doneIdx = 0;                        // nhớ opId đã xử lý (tránh làm hai lần)
 bool opDone(const String& op){ for(int i=0;i<8;i++) if(g_doneOps[i]==op) return true; return false; }
 void opMarkDone(const String& op){ g_doneOps[g_doneIdx]=op; g_doneIdx=(g_doneIdx+1)&7; }
 
-// GET body 1 URL (4G AT-HTTP; hoặc WiFi khi !USE_4G). Trả "" nếu không 200.
-String httpGetBody(const String& url){
-  if (USE_4G){
-    int dl=0, st=net4gGetOpen(url,&dl);
-    if(st!=200){ Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); if(st) Serial.printf("[FB] GET status=%d\n",st); return ""; }
-    int n=net4gReadStart(dl); String body="";
-    if(n>0){ body.reserve(n+4); int got=0; unsigned long t0=millis();
-      while(got<n && millis()-t0<12000){ while(Serial2.available()&&got<n){ body+=(char)Serial2.read(); got++; t0=millis(); } delay(1);} }
-    atWait("OK",2000); Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-    return body;
+bool wpBaoXong(const String& opId, const String& ketQua);      // khai trước: wpLayLenh gọi tới
+
+/**
+ * Lấy MỘT lệnh đang chờ. Trả JSON phẳng {opId,action,employeeNo,…} — ĐÚNG tên trường mà
+ * `checkEmployeeQueue` bên dưới đang đọc. Trả "" nghĩa là không có gì.
+ *
+ * 🔴 LỆNH ĐÃ XỬ LÝ MÀ MÁY CHỦ VẪN PHÁT LẠI = lượt "báo xong" trước đó rớt giữa đường (chuyện
+ *    thường trên 4G). Báo xong LẦN NỮA rồi thôi vòng này. Bản Firebase cũ mắc đúng chỗ này:
+ *    nó chỉ `continue`, mà URL đọc có `limitToFirst=1` nên vòng lặp chỉ có một lượt -> hàm trả
+ *    "rỗng" -> lệnh nằm ở ĐẦU hàng và chặn sạch mọi lệnh phía sau. Máy vẫn báo online, vẫn chấm
+ *    công (chấm công đi đường khác) nên nhìn hệt như "máy hỏng". Mất cả tối 03/08/2026.
+ */
+String wpLayLenh(){
+  String r = wpViec("lenh", "", true);
+  r.trim();
+  if (r.length() == 0) return "";
+  StaticJsonDocument<1024> d;
+  if (deserializeJson(d, r)) { Serial.println("[NV] parse lenh loi"); return ""; }
+  if (d["empty"] | false) return "";
+  String op = String((const char*)(d["opId"] | ""));
+  if (op.length() == 0) return "";
+  if (opDone(op)) {
+    Serial.println("[NV] Lenh da xu ly ma may chu con phat lai -> bao xong lan nua: " + op);
+    wpBaoXong(op, "da xu ly tu truoc");
+    return "";
   }
-  WiFiClientSecure c; c.setInsecure(); HTTPClient h; h.begin(c,url);
-  h.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS); h.setTimeout(15000);
-  int code=h.GET(); String b=(code==200)?h.getString():""; h.end(); return b;
+  return r;
 }
 
-// ?auth=<secret> nếu đã điền secret; rỗng nếu còn "REPLACE..." (rule đang mở). Auth SAI sẽ bị Firebase từ chối kể cả rule mở.
-String fbAuthParam(){ String s = FB_SECRET; if(s.length()==0 || s.startsWith("REPLACE")) return ""; return "?auth=" + s; }
-
-bool fbDelete(const String& opId);   // khai trước: fbGetPending phải xóa lại được lệnh đã xử lý mà còn nằm lại
-// Firebase: lấy 1 lệnh pending (bỏ opId vừa xử lý). Trả JSON {opId,action,...} chuẩn cho checkEmployeeQueue, "" nếu rỗng.
-String fbGetPending(){
-  // CHỈ lấy 1 lệnh cũ nhất (orderBy $key + limitToFirst=1) -> response ~125 byte, tránh giới hạn đọc ~1KB của module 4G
-  String url = String(FB_HOST) + "/queue/" + STATION_NAME + ".json?orderBy=%22%24key%22&limitToFirst=1";
-  String sec = FB_SECRET; if (!(sec.length()==0 || sec.startsWith("REPLACE"))) url += "&auth=" + sec;
-  String body = httpGetBody(url); body.trim();
-  if(body.length()==0 || body=="null") return "";             // hàng đợi rỗng
-  DynamicJsonDocument d(2048);
-  if(deserializeJson(d, body)){ Serial.println("[FB] parse queue loi"); return ""; }
-  JsonObject root = d.as<JsonObject>();
-  if(root.containsKey("error")){ Serial.println("[FB] Firebase error: " + body.substring(0, 90)); return ""; }  // vd Permission denied / auth sai
-  for(JsonPair kv : root){
-    String opId = kv.key().c_str();
-    /* 🔴 03/08/2026 — LỆNH ĐÃ XỬ LÝ MÀ VẪN CÒN TRÊN FIREBASE = LỆNH XÓA TRƯỚC ĐÓ THẤT BẠI.
-       Bản cũ chỉ `continue`. Nhưng URL đọc có `limitToFirst=1` nên `root` chỉ chứa MỘT khóa ->
-       vòng lặp chỉ có một lượt -> `continue` là hết vòng, hàm trả "" = "hàng đợi rỗng".
-       Lệnh đó nằm ở ĐẦU hàng nên MỌI lệnh phía sau không bao giờ tới. Máy vẫn báo online, vẫn
-       chấm công (chấm công đi đường khác) nên nhìn hệt như "máy hỏng".
-       `fbDelete` xóa hỏng là chuyện thường trên 4G (HTTPACTION=3 rớt giữa) mà bản cũ KHÔNG
-       kiểm kết quả -> kẹt vĩnh viễn cho tới khi có người xóa tay trên web.
-       Nay: xóa LẠI ở đây. Tự thoát được, không cần ai can thiệp. */
-    if(opDone(opId)){
-      Serial.println("[FB] Lenh da xu ly con nam lai -> xoa lai: " + opId);
-      if(!fbDelete(opId)) Serial.println("[FB] Xoa lai VAN HONG -> vong sau thu nua");
-      continue;
-    }
-    JsonObject c = kv.value().as<JsonObject>();
-    DynamicJsonDocument o(1024);
-    o["opId"]       = opId;
-    o["action"]     = (const char*)(c["action"]     | "");
-    o["employeeNo"] = (const char*)(c["employeeNo"] | "");
-    o["name"]       = (const char*)(c["name"]       | "");
-    o["pin"]        = (const char*)(c["pin"]        | "");
-    o["gender"]     = (const char*)(c["gender"]     | "");
-    o["hasPhoto"]   = FB_SYNC_PHOTO && (bool)(c["hasPhoto"] | false);
-    o["date"]       = (const char*)(c["date"]  | "");   // cho lệnh getphoto (trích ảnh)
-    o["time"]       = (const char*)(c["time"]  | "");
-    o["which"]      = (const char*)(c["which"] | "");
-    o["startTime"]  = (const char*)(c["startTime"] | "");   // lệnh backfill (Tải lại) cho máy 4G
-    o["endTime"]    = (const char*)(c["endTime"]   | "");
-    o["bfImage"]    = (bool)(c["image"] | false);
-    String out; serializeJson(o, out); return out;
-  }
-  return "";
-}
-
-// DELETE 1 URL qua AT-HTTP (HTTPACTION=3). true nếu 2xx.
-bool net4gHttpDelete(const String& url){
-  Serial2.print("AT+HTTPTERM\r\n"); delay(120); while(Serial2.available()) Serial2.read();
-  Serial2.print("AT+HTTPINIT\r\n"); atWait("OK",6000);
-  Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
-  Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n"); atWait("OK",3000);
-  Serial2.print("AT+HTTPACTION=3\r\n");                          // 3 = DELETE
-  String r=atWait("+HTTPACTION:",25000);
-  int p=r.indexOf("+HTTPACTION:"), code=0;
-  if(p>=0){ int c1=r.indexOf(',',p), c2=(c1>=0)?r.indexOf(',',c1+1):-1; if(c1>=0&&c2>=0) code=r.substring(c1+1,c2).toInt(); }
-  Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-  Serial.printf("   [FB DEL] status=%d\n", code);
-  return (code>=200 && code<300);
-}
-
-/* Xóa 1 lệnh khỏi Firebase (đã xử lý xong) để ESP khỏi đọc lại — xóa cả /queue lẫn /photo cho gọn.
- * 🔴 TRẢ VỀ true/false: xóa /queue hỏng là lệnh nằm lại ở ĐẦU hàng và chặn sạch phía sau
- *    (xem khối ghi chú trong fbGetPending). Bản cũ trả void nên không chỗ nào biết mà báo.
- *    Chỉ tính theo /queue — /photo xóa hỏng thì chỉ tốn dung lượng, không kẹt gì. */
-bool fbDelete(const String& opId){
-  String qurl = String(FB_HOST) + "/queue/" + STATION_NAME + "/" + opId + ".json" + fbAuthParam();
-  String purl = String(FB_HOST) + "/photo/" + STATION_NAME + "/" + opId + ".json" + fbAuthParam();
-  bool ok = false;
-  if (USE_4G) { ok = net4gHttpDelete(qurl); net4gHttpDelete(purl); }
-  else {
-    WiFiClientSecure c; c.setInsecure(); HTTPClient h;
-    h.begin(c, qurl); int code = h.sendRequest("DELETE"); h.end();
-    ok = (code >= 200 && code < 300);
-    h.begin(c, purl); h.sendRequest("DELETE"); h.end();
-  }
-  if (!ok) Serial.println("[FB] XOA LENH HONG: " + opId + " (lenh se nam lai o dau hang)");
+/** Báo máy chủ đã xử lý xong một lệnh — thay lượt DELETE lên Firebase. */
+bool wpBaoXong(const String& opId, const String& ketQua){
+  String r = wpViec("xong", "\"opId\":\"" + jsonEscMin_(opId) + "\",\"ketQua\":\"" + jsonEscMin_(ketQua) + "\"", false);
+  bool ok = (r.length() > 0);
+  if (!ok) Serial.println("[NV] BAO XONG HONG: " + opId + " (may chu se phat lai lenh nay)");
   return ok;
 }
 
-// PUT 1 body JSON lên Firebase — dùng được CẢ 4G (AT-HTTP) LẪN WiFi (HTTPS trực tiếp).
-bool fbHttpPut(const String& url, const String& body){
-  if (USE_4G) return net4gHttpPut(url, body);
-  WiFiClientSecure c; c.setInsecure();
-  HTTPClient h; h.begin(c, url);
-  h.setTimeout(20000);
-  h.addHeader("Content-Type", "application/json");
-  int code = h.sendRequest("PUT", (uint8_t*)body.c_str(), body.length());
-  h.end();
-  return (code >= 200 && code < 300);
-}
-
-// ===== TRÍCH ẢNH CHẤM CÔNG THEO YÊU CẦU (chống gian lận) =====
-// Tìm sự kiện chấm công trên máy theo (mã NV + khung giờ ±120s), tải ảnh khuôn mặt,
-// rồi ĐẨY base64 lên Firebase /photoresp/<station>/<opId> để dashboard đọc & hiện thumbnail.
-// which ('in'/'out') chỉ để log; đã lọc theo giờ nên không cần dùng để chọn.
 void handleGetPhoto(const String& opId, const String& emp, const String& date,
                     const String& tstr, const String& which){
-  String respUrl = String(FB_HOST) + "/photoresp/" + STATION_NAME + "/" + opId + ".json" + fbAuthParam();
-  if (date.length() < 10 || tstr.length() < 8) { fbHttpPut(respUrl, "{\"err\":\"thieu ngay/gio\"}"); return; }
+  /* Gửi kết quả về bằng chính lượt "báo xong": lỗi thì nằm ở cột kết quả của lệnh, ảnh thì đi
+     việc `anh_tra`. Trước đây ghi vào /photoresp trên Firebase và web phải tự dọn. */
+  String taLa = "\"opId\":\"" + jsonEscMin_(opId) + "\",\"employeeNo\":\"" + jsonEscMin_(emp)
+              + "\",\"date\":\"" + jsonEscMin_(date) + "\",\"time\":\"" + jsonEscMin_(tstr)
+              + "\",\"which\":\"" + jsonEscMin_(which) + "\"";
+  if (date.length() < 10 || tstr.length() < 8) { wpBaoXong(opId, "thieu ngay/gio"); return; }
 
   // 1) Khung giờ ±120s quanh giờ chấm công (clamp trong cùng ngày)
   long tgt = tstr.substring(0,2).toInt()*3600L + tstr.substring(3,5).toInt()*60L + tstr.substring(6,8).toInt();
@@ -1952,30 +1628,31 @@ void handleGetPhoto(const String& opId, const String& emp, const String& date,
   }
   if (pic.length() < 5) {
     Serial.println("[TRICH] Không tìm thấy sự kiện có ảnh (máy có thể đã xóa ảnh cũ)");
-    fbHttpPut(respUrl, "{\"err\":\"khong tim thay anh (may co the da xoa anh cu)\"}");
+    wpBaoXong(opId, "khong tim thay anh (may co the da xoa anh cu)");
     return;
   }
 
-  // 3) Tải ảnh -> base64 -> đẩy Firebase
+  // 3) Tải ảnh -> base64 -> đẩy lên website
   uint8_t* jpeg = NULL;
   int jlen = fetchImageRaw(pic, &jpeg);
-  if (jlen <= 0) { if (jpeg) free(jpeg); fbHttpPut(respUrl, "{\"err\":\"tai anh tu may that bai\"}"); return; }
+  if (jlen <= 0) { if (jpeg) free(jpeg); wpBaoXong(opId, "tai anh tu dau doc that bai"); return; }
   char* b64 = NULL;
   int b64len = base64Encode(jpeg, jlen, &b64);
   free(jpeg);
-  if (b64len <= 0 || !b64) { if (b64) free(b64); fbHttpPut(respUrl, "{\"err\":\"het RAM khi encode anh\"}"); return; }
-  String body; body.reserve(b64len + 20);
-  body = "{\"img\":\""; body += b64; body += "\"}";
+  if (b64len <= 0 || !b64) { if (b64) free(b64); wpBaoXong(opId, "het RAM khi encode anh"); return; }
+  String body; body.reserve(b64len + 400);
+  body = "{\"viec\":\"anh_tra\",\"hikSerial\":\"" + jsonEscMin_(HIK_SERIAL)
+       + "\",\"macAddress\":\"" + jsonEscMin_(macBo()) + "\"," + taLa + ",\"anh\":\"";
+  body += b64; body += "\"}";
   free(b64);
-  bool ok = fbHttpPut(respUrl, body);
+  bool ok = (wpGoi(body, false).length() > 0);
   Serial.printf("[TRICH] Đẩy ảnh %d byte b64 -> %s\n", b64len, ok ? "OK" : "FAIL");
-  if (!ok) fbHttpPut(respUrl, "{\"err\":\"day anh len firebase that bai (anh co the qua lon cho 4G)\"}");
+  wpBaoXong(opId, ok ? "da tra anh" : "day anh len website that bai (anh co the qua lon cho 4G)");
 }
 
-// Poll hàng đợi nhân viên, xử lý 1 lệnh rồi xóa khỏi Firebase (ack)
+// Poll hàng đợi nhân viên, xử lý 1 lệnh rồi báo xong cho website (ack)
 void checkEmployeeQueue() {
-  String resp = USE_FIREBASE ? fbGetPending()
-                             : empGet("action=pending&station=" + urlEncodeMin(String(STATION_NAME)));
+  String resp = wpLayLenh();
   if (resp.length() == 0) return;
   StaticJsonDocument<1024> d;
   if (deserializeJson(d, resp)) { Serial.println("[NV] parse pending lỗi"); return; }
@@ -1987,28 +1664,28 @@ void checkEmployeeQueue() {
   String name   = d["name"]       | "";
   String pin    = d["pin"]        | "";
   String gender = d["gender"]     | "";
-  bool hasPhoto = d["hasPhoto"]   | false;
+  bool hasPhoto = DONG_BO_ANH && (bool)(d["hasPhoto"] | false);
   String date   = d["date"]       | "";                              // cho lệnh getphoto
   String tstr   = d["time"]        | "";
   String which  = d["which"]       | "";
   String bfStart = d["startTime"]  | "";                             // lệnh backfill (Tải lại)
   String bfEnd   = d["endTime"]    | "";
   bool   bfImage = d["bfImage"]    | false;
-  /* 🔴 Lệnh KHÔNG có `action` là rác (web ghi dở, bản web cũ, hay ai sửa tay trên Firebase).
+  /* 🔴 Lệnh KHÔNG có `action` là rác (web ghi dở, hay ai sửa tay trong bảng).
      Bản cũ chỉ `return` -> nó nằm mãi ở ĐẦU hàng và chặn sạch phía sau, y hệt ca 03/08. Có opId
      thì xoá được, nên xoá; không có opId thì mới đành thôi. */
   if (opId.length() == 0) { Serial.println("[NV] Lenh khong co opId -> bo qua"); return; }
   if (action.length() == 0) {
     Serial.println("[NV] Lenh rac (thieu action) -> xoa: " + opId);
-    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);
+    opMarkDone(opId); wpBaoXong(opId, "");
     return;
   }
 
-  if (action == "scan") {                                            // QUÉT: đọc danh sách NV từ máy -> Firebase /roster
+  if (action == "scan") {                                            // QUÉT: đọc danh sách NV từ đầu đọc -> đẩy lên website
     Serial.printf("[NV] Lệnh quét máy (%s)\n", opId.c_str());
     showSync("scan", "may cham cong");
     hikScanRoster();
-    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);
+    opMarkDone(opId); wpBaoXong(opId, "");
     statusUntil = millis() + 4000;
     return;
   }
@@ -2018,14 +1695,14 @@ void checkEmployeeQueue() {
                   opId.c_str(), emp.c_str(), date.c_str(), tstr.c_str(), which.c_str());
     showSync("trich anh", emp);
     handleGetPhoto(opId, emp, date, tstr, which);
-    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);              // xóa /queue (không đụng /photoresp - server tự xóa sau khi đọc)
+    opMarkDone(opId); wpBaoXong(opId, "");              // xóa /queue (không đụng /photoresp - server tự xóa sau khi đọc)
     statusUntil = millis() + 3000;
     return;
   }
 
-  if (action == "backfill") {                                        // Dashboard "Tải lại từ máy" -> máy 4G nhận qua Firebase
+  if (action == "backfill") {                                        // Màn máy "Tải lại" -> máy nhận qua hàng đợi
     Serial.printf("[TẢI LẠI] %s: %s..%s emp=%s\n", opId.c_str(), bfStart.c_str(), bfEnd.c_str(), emp.c_str());
-    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);              // xóa lệnh TRƯỚC (backfill lâu -> tránh chạy lại)
+    opMarkDone(opId); wpBaoXong(opId, "");              // xóa lệnh TRƯỚC (backfill lâu -> tránh chạy lại)
     if (bfStart.length() >= 10 && bfEnd.length() >= 10) {
       showBackfillProgress(0);
       int p = backfillRange(bfStart, bfEnd, bfImage && !USE_4G, emp);   // 4G: chỉ giờ
@@ -2037,7 +1714,7 @@ void checkEmployeeQueue() {
 
   if (action != "add" && action != "edit" && action != "delete") {   // lệnh lạ (vd op-test 'ping') -> dọn, khỏi tạo user rác
     Serial.printf("[NV] Bỏ qua lệnh lạ '%s' (%s)\n", action.c_str(), opId.c_str());
-    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);
+    opMarkDone(opId); wpBaoXong(opId, "");
     return;
   }
 
@@ -2056,7 +1733,7 @@ void checkEmployeeQueue() {
                   ESP.getFreeHeap(), MIN_HEAP_FOR_PHOTO);
     if (soHoan < HOAN_TOI_DA) return;         // không ack -> xử lý lại vòng sau khi RAM rảnh
     Serial.println("[NV] Hoãn quá lâu -> BỎ lệnh này để thông hàng đợi: " + opId);
-    opMarkDone(opId); if (USE_FIREBASE) fbDelete(opId);
+    opMarkDone(opId); wpBaoXong(opId, "");
     opHoan = ""; soHoan = 0;
     return;
   }
@@ -2070,10 +1747,9 @@ void checkEmployeeQueue() {
   bool ok = processOp(action, emp, name, pin, gender, hasPhoto, opId, msg);
   Serial.printf("[NV] Kết quả %s: %s | %s\n", opId.c_str(), ok ? "DONE" : "FAIL", msg.c_str());
   opMarkDone(opId);
-  // XÓA lệnh khỏi Firebase DÙ done hay fail: limitToFirst chỉ lấy lệnh đầu, để lệnh fail lại sẽ KẸT queue.
+  // BÁO XONG DÙ done hay fail: máy chủ chỉ phát lệnh cũ nhất, để lệnh fail nằm lại là KẸT cả hàng.
   // (Fail đã in ở dòng trên; muốn thử lại thì thêm/sửa NV lại trên web.)
-  if (USE_FIREBASE) fbDelete(opId);
-  else empGet("action=ack&opId=" + opId + "&status=" + String(ok ? "done" : "fail") + "&msg=" + urlEncodeMin(msg));
+  wpBaoXong(opId, (ok ? String("ok ") : String("HONG ")) + msg);
   statusUntil = millis() + 4000;   // giữ màn báo ngắn rồi về màn chờ
 }
 
@@ -2152,16 +1828,16 @@ String chuanGioDauDoc(String t){
 /* Khai trước: `hbSend` định nghĩa ở DƯỚI `backfillRange` mà vòng bù phải gọi nó. Arduino tự sinh
    prototype được, nhưng dựa vào thứ đó là mỗi lần đổi chỗ hàm lại hồi hộp — khai thẳng cho chắc. */
 void hbSend();
+/* Máy chủ trả {"dung":1} MỘT LẦN rồi tự tiêu cờ — nên `bfXoaCoDung()` không còn việc gì và đã
+   gỡ. Trước kia cờ nằm trên Firebase và CẢ HAI bên phải xoá; một bên sót là mọi lượt bù sau đều
+   chết câm. Cờ tiêu ngay lúc đọc thì không còn ai phải nhớ xoá. */
 bool bfXinDung(){
-  String url = String(FB_HOST) + "/stop/" + STATION_NAME + ".json" + fbAuthParam();
-  String b = httpGetBody(url); b.trim();
+  String r = wpViec("dung", "", true);
   // "" = không đọc được (mất mạng/lỗi) -> KHÔNG coi là xin dừng. Đọc hỏng mà dừng bù là mất dữ liệu.
-  return (b.length() > 0 && b != "null");
-}
-void bfXoaCoDung(){
-  String url = String(FB_HOST) + "/stop/" + STATION_NAME + ".json" + fbAuthParam();
-  if (USE_4G) net4gHttpDelete(url);
-  else { WiFiClientSecure c; c.setInsecure(); HTTPClient h; h.begin(c, url); h.sendRequest("DELETE"); h.end(); }
+  if (r.length() == 0) return false;
+  StaticJsonDocument<192> d;
+  if (deserializeJson(d, r)) return false;
+  return ((int)(d["dung"] | 0) == 1);
 }
 /* Máy CÓ ĐANG chạy lượt bù hay không — heartbeat mang lên để web phân biệt "đang bận" với "chết".
    Không có cái này thì web nhìn hàng đợi đứng im là kết luận ĐƠ, trong khi máy đang làm việc tử tế. */
@@ -2215,7 +1891,7 @@ static bool bfGomThem(const String& emp, const String& ten, const String& ngay, 
 }
 
 // Bù lịch sử theo khoảng thời gian (phân trang toàn bộ log Hikvision).
-// Google TỰ chống trùng (bỏ giờ đã ghi) nên chạy lại an toàn. 4G: pushEventToGoogle tự gửi slim (không ảnh).
+// Google TỰ chống trùng (bỏ giờ đã ghi) nên chạy lại an toàn. 4G và WiFi đều gửi bản gọn (không ảnh).
 int backfillRange(String startISO, String endISO, bool withImage, String empFilter) {
   int pos = 0, pushed = 0, seen = 0; const int PAGE = 20;
   bfGomXoa();
@@ -2236,7 +1912,7 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
        một vòng ISAPI + 20 lượt POST nữa. */
     if (bfXinDung()) {
       Serial.println("[BÙ] Web xin DỪNG -> thoát (đã đẩy " + String(pushed) + " lượt).");
-      bfXoaCoDung(); break;
+      /* cờ dừng tự tiêu ở máy chủ ngay lúc đọc — không phải xoá */ break;
     }
     /* Heartbeat NGAY TRONG vòng bù. Trước đây `loop()` đứng im suốt lượt bù nên máy đang chạy
        tử tế mà web đọc ra "mất tín hiệu / hàng đợi ĐƠ" — anh Thắng thấy nghẽn là ở đây. */
@@ -2266,12 +1942,12 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
         continue;
       }
       char* imgB64 = NULL; int imgB64Len = 0;
-      if (!USE_4G && withImage && pic.length() > 5) {   // 4G: bỏ ảnh (pushEventToGoogle cũng tự bỏ)
+      if (!USE_4G && withImage && pic.length() > 5) {   // 4G: bỏ ảnh (pushEvent cũng tự bỏ)
         uint8_t* jpeg = NULL; int jl = fetchImageRaw(pic, &jpeg);
         if (jl > 0) imgB64Len = base64Encode(jpeg, jl, &imgB64);
         if (jpeg) free(jpeg);
       }
-      bool ok = pushEventToGoogle(emp, name, eventTime, imgB64, imgB64Len); imgB64 = NULL;
+      bool ok = pushEvent(emp, name, eventTime, imgB64, imgB64Len); imgB64 = NULL;
       if (ok) { pushed++; rememberSync(eventTime); g_buDaDay = pushed; }
       if (seen % 3 == 0) showBackfillProgress(pushed);
       delay(50);
@@ -2292,14 +1968,14 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
     Serial.println("[BÙ] ⚠️ Vượt sức chứa bảng gom — phần dư đã đẩy thẳng từng lượt (chậm nhưng không sót).");
   for (int i = 0; i < g_bfGomN; i++){
     if (!netUp()) { Serial.println("[BÙ] Mất mạng khi đang đẩy phần gom."); break; }
-    if (bfXinDung()) { Serial.println("[BÙ] Web xin DỪNG giữa lúc đẩy."); bfXoaCoDung(); break; }
+    if (bfXinDung()) { Serial.println("[BÙ] Web xin DỪNG giữa lúc đẩy."); /* cờ dừng tự tiêu ở máy chủ ngay lúc đọc — không phải xoá */ break; }
     if (millis() - lastHbMs >= HB_INTERVAL_MS) { lastHbMs = millis(); hbSend(); }
     String ngay = String(g_bfGom[i].ngay), emp = String(g_bfGom[i].emp), ten = String(g_bfGom[i].ten);
     String gio[2] = { String(g_bfGom[i].som), String(g_bfGom[i].muon) };
     int soGio = (gio[0] == gio[1]) ? 1 : 2;
     for (int k = 0; k < soGio; k++){
       String t = ngay + " " + gio[k];
-      if (pushEventToGoogle(emp, ten, t, NULL, 0)) { pushed++; rememberSync(t); g_buDaDay = pushed; }
+      if (pushEvent(emp, ten, t, NULL, 0)) { pushed++; rememberSync(t); g_buDaDay = pushed; }
       delay(50);
     }
     showBackfillProgress(pushed);
@@ -2312,7 +1988,7 @@ int backfillRange(String startISO, String endISO, bool withImage, String empFilt
   return pushed;
 }
 
-// ② Heartbeat online: ghi mốc thời gian (Firebase server timestamp) lên /hb/<trạm> mỗi 60s -> dashboard biết máy online.
+// ② Nhịp sống: đẩy lên website mỗi 60s -> màn máy biết máy nào còn sống, và nhịp chở luôn lệnh OTA về.
 /* ===========================================================================
  *  AI ĐANG NỐI VÀO AP CỦA ESP32 — và ở IP nào
  * ---------------------------------------------------------------------------
@@ -2373,20 +2049,25 @@ String apDoIpMoCong80(){
   return out;
 }
 
+/* Bản OTA máy chủ đang đặt cho máy này — nhịp sống chở về, `checkOtaUpdate` tiêu thụ. */
+String g_otaVer = "", g_otaUrl = "";
+
 void hbSend() {
   if (!netUp()) return;
-  String url = String(FB_HOST) + "/hb/" + STATION_NAME + ".json" + fbAuthParam();
-  /* Kèm CHẨN ĐOÁN ĐẦU ĐỌC. Thêm ~70 byte mỗi 60 giây — không đáng gì so với cái bắt tay TLS
-     của chính lượt PUT này, mà đổi lại là khỏi phải ra cửa hàng để biết máy có với tới đầu đọc. */
+  /* Kèm CHẨN ĐOÁN ĐẦU ĐỌC. Thêm ~70 byte mỗi 60 giây — không đáng gì so với chính cái bắt tay
+     TLS của lượt này, mà đổi lại là khỏi ra cửa hàng để biết máy có với tới đầu đọc. */
   /* `hikOk` = ISAPI CÓ trả lời trong 10 phút gần đây, KHÔNG phải "có serial" (xem ghi chú ở
      `hikRequest`). Kèm `hikHttp` để web nói đúng nguyên nhân thay vì chỉ "không đọc được". */
   bool ispiSong = (g_hikOkLuc && (millis() - g_hikOkLuc) < 600000UL);
-  String cd = ",\"hikIp\":\"" + String(hik_ip) + "\""
+  // ⚠️ PHẢI escape: FW_VERSION là chuỗi người viết tay, có 1 dấu nháy là JSON hỏng.
+  String cd = "\"fw\":\"" + jsonEscMin_(String(FW_VERSION)) + "\""
+            + ",\"duong\":\"" + String(USE_4G ? "4g" : "wifi") + "\""
+            + ",\"ip\":\""    + (USE_4G ? String("") : WiFi.localIP().toString()) + "\""
+            + ",\"heap\":"    + String((long)ESP.getFreeHeap())
+            + ",\"hik\":\""   + String(g_hikHttp) + "\""
+            + ",\"hikIp\":\"" + String(hik_ip) + "\""
             + ",\"hikOk\":"   + String((ispiSong || HIK_SERIAL.length()) ? 1 : 0)
-            + ",\"hikHttp\":" + String(g_hikHttp)
-            + ",\"hikSn\":\"" + jsonEscMin_(HIK_SERIAL) + "\""
-            + ",\"hikModel\":\"" + jsonEscMin_(HIK_MODEL) + "\""
-            + ",\"soTu\":\""   + jsonEscMin_(g_soTu) + "\""
+            + ",\"soTu\":\""  + jsonEscMin_(g_soTu) + "\""
             + ",\"soTong\":"  + String(g_soTong)
             + ",\"soSo\":"    + String(g_soSo)
             + ",\"soChot\":\"" + String(g_soChot) + "\""
@@ -2395,29 +2076,37 @@ void hbSend() {
             + ",\"apIp\":\""  + apDoIpMoCong80() + "\""
             /* Đang chạy lượt bù hay không. Web CẦN số này để đừng báo "hàng đợi ĐƠ" trong khi
                máy đang làm việc — lúc bù thì `loop()` không quay nên hàng đợi đứng im là ĐÚNG. */
-            + ",\"dangBu\":" + String(g_dangBu ? 1 : 0)
+            + ",\"dangBu\":"  + String(g_dangBu ? 1 : 0)
             + ",\"buDaDay\":" + String(g_buDaDay)
             + ",\"buNgay\":\"" + jsonEscMin_(g_buNgay) + "\""
-            /* 🔴 07/08/2026 — MAC trong heartbeat. Máy CHƯA GÁN cửa hàng thì tên trạm là
-               "CHUA_DAT_TEN", nên heartbeat của MỌI máy chưa gán rơi chung vào /hb/CHUA_DAT_TEN
-               và đè lên nhau — web không tài nào biết nhịp đó là của máy nào, đành báo "máy chưa
-               gửi heartbeat" cho tất cả. Anh Thắng: *"thêm thiết bị mới, giờ nó không hiện thiết
-               bị online"*. MAC là thứ duy nhất phân biệt được máy trước khi nó có tên. */
-            + ",\"mac\":\"" + jsonEscMin_(macBo()) + "\""
-            /* 🔴 07/08/2026, anh Thắng: *"máy lấy địa chỉ mac sai 22:F8 nhưng trên máy trạm thấy
-               là 22:F9"*. KHÔNG bên nào sai — MỘT con ESP32 có NHIỀU địa chỉ MAC sinh từ một MAC
-               gốc: WiFi STA = gốc, softAP = gốc **+1** ở nhóm cuối, Bluetooth = +2.
-                 · máy chấm công khai `macBo()` = MAC **STA** -> F8, đó là cái nằm trong Sheet;
-                 · máy trạm dò WiFi nên chỉ thấy **BSSID** = MAC của **AP** -> F9.
-               Máy trạm không có cách nào biết MAC STA (nó chỉ quét sóng). Nên chính máy phải khai
-               LUÔN CẢ HAI, để web đối chiếu được với cái anh đang cầm trên tay. */
+            /* MAC AP: máy trạm dò WiFi chỉ thấy BSSID = MAC của AP = MAC gốc **+1** ở nhóm cuối,
+               nên số anh Thắng đọc trên máy trạm luôn lệch 1 với MAC trong bảng. Khai cả hai. */
             + ",\"macAp\":\"" + jsonEscMin_(WiFi.softAPmacAddress()) + "\""
             /* Múi giờ ĐẦU ĐỌC đang đóng vào lượt chấm công. Đầu đọc mới xuất xưởng để GMT+08 thì
                mọi lượt ghi SỚM HƠN 1 tiếng — sai lương mà không ai thấy. Đẩy lên để web kêu. */
             + ",\"tzDoc\":\"" + jsonEscMin_(g_tzDoc) + "\"";
-  // ⚠️ PHẢI escape: FW_VERSION là chuỗi người viết tay, có 1 dấu nháy là JSON hỏng và
-  //    Firebase trả 400 — mất heartbeat MÀ KHÔNG mất chấm công, nên rất dễ tưởng máy chết mạng.
-  fbHttpPut(url, "{\"t\":{\".sv\":\"timestamp\"},\"fw\":\"" + jsonEscMin_(String(FW_VERSION)) + "\"" + cd + "}");
+
+  String r = wpViec("nhip", cd, true);
+  if (r.length() == 0) return;
+  StaticJsonDocument<512> d;
+  if (deserializeJson(d, r)) return;
+
+  /* MỘT lượt nhịp trả lời luôn bốn câu — trước đây là bốn lượt gọi riêng (nhịp, whoami, OTA,
+     cờ dừng). Trên 4G mỗi lượt AT-HTTP mất 3-6 giây; bốn lượt mỗi phút × 26 máy là nghẽn. */
+  String cs = String((const char*)(d["coSo"] | "")); cs.trim();
+  if (cs.length() && cs != STATION_NAME) {
+    bool sach = true;
+    for (unsigned i = 0; i < cs.length(); i++){
+      char c = cs.charAt(i);
+      if (!((c>='0'&&c<='9')||(c>='a'&&c<='z')||(c>='A'&&c<='Z')||c=='_'||c=='-')) { sach = false; break; }
+    }
+    if (sach) {
+      Serial.println("[CƠ SỞ] nhip: may nay thuoc '" + cs + "' (truoc la '" + STATION_NAME + "')");
+      STATION_NAME = cs; STATION_TU_SERVER = true; prefs.putString("station", cs);
+    }
+  }
+  g_otaVer = String((const char*)(d["otaVer"] | ""));
+  g_otaUrl = String((const char*)(d["otaUrl"] | ""));
 }
 
 // ===== OTA TỪ XA: tải firmware .bin từ URL (GitHub) rồi ghi flash =====
@@ -2472,18 +2161,20 @@ bool otaDownloadAndFlash(const String& url){
   }
 }
 
-// Đọc Firebase /ota = {"ver":"...","url":"..."}; nếu ver khác bản đã áp -> tải + flash + khởi động lại.
+// Bản đích do nhịp sống chở về; khác bản đang chạy -> tải + flash + khởi động lại.
+/**
+ * NẠP FIRMWARE MỚI.
+ *
+ * Không còn hỏi riêng một lượt: bản đích do NHỊP SỐNG chở về (`g_otaVer`/`g_otaUrl`), và máy chủ
+ * đã tự so với bản máy đang chạy nên trả rỗng khi không có gì mới. Bớt một lượt gọi mỗi 5 phút
+ * trên 4G, và bớt một chỗ để hai bên hiểu khác nhau về "bản mới".
+ */
 void checkOtaUpdate(){
   if (!netUp()) return;
-  String body = httpGetBody(String(FB_HOST) + "/ota.json" + fbAuthParam());
-  body.trim();
-  if (body.length() == 0 || body == "null") return;
-  DynamicJsonDocument d(768);
-  if (deserializeJson(d, body)) return;
-  String ver = d["ver"] | "";
-  String furl = d["url"] | "";
+  String ver = g_otaVer, furl = g_otaUrl;
   if (ver.length() == 0 || furl.length() == 0) return;
-  if (ver == prefs.getString("otaVer", "")) return;   // đã áp bản này rồi
+  if (ver == String(FW_VERSION)) return;               // đang chạy đúng bản đó rồi
+  if (ver == prefs.getString("otaVer", "")) return;    // đã áp bản này rồi
   if (ver == g_otaTriedVer) return;                    // đã thử (lỗi) trong phiên này -> chờ reboot / bản mới hơn
   g_otaTriedVer = ver;
   Serial.println("[OTA] Có bản mới: " + ver + " (đang chạy: " FW_VERSION ")");
@@ -2698,8 +2389,8 @@ void checkNewAcsEvents() {
 
     /* CHỈ ghi vòng nhớ + đẩy mốc đồng bộ khi gửi THÀNH CÔNG -> mất mạng/đẩy lỗi KHÔNG mất lượt
        (vòng sau `eventTime >= mocDau` mà chưa có trong vòng nhớ nên được thử lại). */
-    bool ok = pushEventToGoogle(emp, name, eventTime, imgB64, imgB64Len);
-    imgB64 = NULL;   // quyền sở hữu đã chuyển cho pushEventToGoogle
+    bool ok = pushEvent(emp, name, eventTime, imgB64, imgB64Len);
+    imgB64 = NULL;   // quyền sở hữu đã chuyển cho pushEvent
     if (ok) { lastEmp = emp; lastEmpSec = evSec;
               ghiDaDay(emp, eventTime); rememberSync(eventTime); }
     else { stop = true; Serial.printf("[GIỮ] serial %ld gửi lỗi -> thử lại vòng sau (không mất lượt)\n", sn); }
@@ -2813,11 +2504,11 @@ bool net4gDiag(){
   Serial.println("[4G] ==================");
   return (reg.indexOf(",1")>=0 || reg.indexOf(",5")>=0);      // đã đăng ký mạng?
 }
-// Đẩy 1 JSON lên URL bằng LỆNH AT HTTP của module (không cần PPP). Apps Script trả 302 = đã nhận.
 /**
- * URL để IN RA LOG: che token, giữ nguyên phần còn lại.
- * Link web app và link Firebase KHÔNG phải bí mật, mà che đi thì hết đường chẩn đoán —
- * đã mất công vì portal che link. Riêng ?token= / ?auth= thì phải che.
+ * URL để IN RA LOG: che phần bí mật nếu có, giữ nguyên phần còn lại.
+ * Link KHÔNG phải bí mật, mà che đi thì hết đường chẩn đoán — đã mất công vì portal che link.
+ * (Khoá máy nay đi trong THÂN JSON chứ không trong URL, nên URL không còn gì phải che; hai
+ * nhánh dưới giữ lại cho ca gọi tay bằng URL có tham số.)
  */
 String urlDeIn(const String& u){
   String o = u;
@@ -2839,10 +2530,10 @@ bool atDatUrl(const String& url, const char* nhan){
      gọi AT+HTTPPARA="URL","" và module đáp 7xx. Nhìn log chỉ thấy "status=713", không ai
      đoán được là do CHƯA KHAI LINK. Một câu tiếng người ở đây tiết kiệm được cả buổi. */
   if (!url.startsWith("http")) {
-    Serial.printf("   [%s] 🔴 CHUA CO LINK — may chua duoc khai link web app / Firebase.\n", nhan);
+    Serial.printf("   [%s] 🔴 CHUA CO LINK — may chua duoc khai link website.\n", nhan);
     Serial.println("        Vao http://192.168.4.1 (WiFi CHAM_CONG) khai o muc cau hinh,");
-    Serial.println("        hoac sua SEC_EXEC_URL / SEC_FB_HOST trong secrets.h roi nap lai.");
-    Serial.println("        Link web app phai dang: https://script.google.com/macros/s/<id>/exec");
+    Serial.println("        hoac sua SEC_WP_URL / SEC_WP_KEY trong secrets.h roi nap lai.");
+    Serial.println("        Link phai dang: https://<ten mien>/cham-cong-may (khong co / o cuoi)");
     return false;
   }
   Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(url); Serial2.print("\"\r\n");
@@ -2859,55 +2550,11 @@ void inHttpAction(const String& r, const char* nhan){
   String t = r; t.replace("\r"," "); t.replace("\n"," "); t.trim();
   Serial.printf("   [%s] module tra: '%s'\n", nhan, t.c_str());
 }
-bool net4gHttpPost(const String& url, const String& body){
-  if(!g_4gReady) return false;
-  while(Serial2.available()) Serial2.read();
-  Serial2.print("AT+HTTPTERM\r\n"); delay(150); while(Serial2.available()) Serial2.read();  // dọn phiên cũ
-  Serial2.print("AT+HTTPINIT\r\n"); String ri=atWait("OK",6000); ri.replace("\r"," ");ri.replace("\n"," ");ri.trim(); Serial.println("   [HTTPINIT] "+ri);
-  Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
-  if (!atDatUrl(url, "4G HTTP")) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return false; }
-  Serial2.print("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n"); atWait("OK",2000);
-  Serial2.print("AT+HTTPDATA="); Serial2.print(body.length()); Serial2.print(",30000\r\n");
-  String rd=atWait("DOWNLOAD",6000); rd.replace("\r"," ");rd.replace("\n"," ");rd.trim(); Serial.println("   [HTTPDATA] "+rd);
-  if (rd.indexOf("DOWNLOAD")<0){ Serial2.print("AT+HTTPTERM\r\n"); Serial.println("   [4G HTTP] khong vao DOWNLOAD"); return false; }
-  Serial2.print(body); atWait("OK",30000);                    // nạp body rồi chờ OK
-  Serial2.print("AT+HTTPACTION=1\r\n");                        // 1 = POST
-  String r = atWait("+HTTPACTION:",40000);                    // vd: +HTTPACTION: 1,200,17
-  int code=0, p=r.indexOf("+HTTPACTION:");
-  if(p>=0){ int c1=r.indexOf(',',p); int c2=(c1>=0)?r.indexOf(',',c1+1):-1; if(c1>=0&&c2>=0) code=r.substring(c1+1,c2).toInt(); }
-  Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-  Serial.printf("   [4G HTTP] status=%d\n", code);
-  // 7xx KHÔNG phải mã HTTP — đó là lỗi nội bộ của module (request chưa tới server).
-  // In nguyên văn để đối chiếu sổ tay AT, chứ một con số trơ thì không tra được.
-  if (code >= 600) { inHttpAction(r, "4G HTTP"); Serial.println("   ⚠️ 7xx la loi CUA MODULE, khong phai server tra ve."); }
-  return (code==200||code==301||code==302||code==303||code==307);   // 2xx hoặc redirect Apps Script = đã nhận
-}
-// PUT 1 body JSON lên URL (Firebase set/overwrite). Trả true nếu 2xx.
-bool net4gHttpPut(const String& url, const String& body){
-  if(!g_4gReady) return false;
-  while(Serial2.available()) Serial2.read();
-  Serial2.print("AT+HTTPTERM\r\n"); delay(150); while(Serial2.available()) Serial2.read();
-  Serial2.print("AT+HTTPINIT\r\n"); atWait("OK",6000);
-  Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
-  if (!atDatUrl(url, "4G PUT")) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return false; }
-  Serial2.print("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n"); atWait("OK",2000);
-  // 9600 baud CHẬM: ảnh to (base64 ~40-70KB) cần ~60-90s để gửi hết qua UART.
-  // Cửa sổ nhận data phải đủ dài theo kích thước, trần 120s (giới hạn AT+HTTPDATA của module).
-  long dwin = (body.length() > 6000) ? 120000L : 30000L;
-  Serial2.print("AT+HTTPDATA="); Serial2.print(body.length()); Serial2.print(","); Serial2.print(dwin); Serial2.print("\r\n");
-  String rd=atWait("DOWNLOAD",6000);
-  if (rd.indexOf("DOWNLOAD")<0){ Serial2.print("AT+HTTPTERM\r\n"); Serial.println("   [4G PUT] khong vao DOWNLOAD"); return false; }
-  Serial2.print(body); atWait("OK",dwin);                      // print(body) chặn tới khi gửi hết ở baud; chờ OK trong cửa sổ dwin
-  Serial2.print("AT+HTTPACTION=4\r\n");                        // 4 = PUT
-  String r = atWait("+HTTPACTION:",40000);
-  int code=0, p=r.indexOf("+HTTPACTION:");
-  if(p>=0){ int c1=r.indexOf(',',p); int c2=(c1>=0)?r.indexOf(',',c1+1):-1; if(c1>=0&&c2>=0) code=r.substring(c1+1,c2).toInt(); }
-  Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
-  Serial.printf("   [4G PUT] status=%d\n", code);
-  if (code >= 600) inHttpAction(r, "4G PUT");
-  if (code == 400) Serial.println("   ⚠️ 400 = Firebase tu choi THAN JSON (sai cu phap), khong phai sai auth.");
-  return (code>=200 && code<300);
-}
+/* ⛔ `net4gHttpPost()` và `net4gHttpPut()` — ĐÃ GỠ 22/08/2026.
+   Cả hai HTTPTERM ngay sau ACTION nên vứt luôn thân trả về: đủ dùng hồi chỉ cần biết "Apps
+   Script đã nhận" và "Firebase đã ghi", nhưng nay máy phải ĐỌC câu trả lời của website (lệnh
+   đang chờ, bản OTA, ảnh khuôn mặt). `net4gPostOpen()` ở dưới làm việc đó và GIỮ phiên. */
+
 // GET qua AT-HTTP: mở phiên + ACTION=0 + tự follow 302 (Apps Script). Trả status, gán *datalen (byte body 200).
 // KHÔNG HTTPTERM khi thành công — để caller HTTPREAD đọc body ngay.
 int net4gGetOpen(String url, int* datalen){
@@ -2941,6 +2588,38 @@ int net4gGetOpen(String url, int* datalen){
   }
   return 0;
 }
+/* POST qua AT-HTTP và GIỮ PHIÊN để đọc thân trả về — anh em sinh đôi của `net4gGetOpen`.
+   Vì sao phải có: `net4gHttpPost` cũ HTTPTERM ngay sau ACTION nên vứt luôn thân trả về. Hồi còn
+   Apps Script thì không sao (chỉ cần biết 200), nhưng nay máy phải ĐỌC câu trả lời — lệnh đang
+   chờ, bản OTA, ảnh khuôn mặt đều nằm trong thân đó.
+   KHÔNG tự đi theo 302: cổng nhận chấm công không bao giờ được chuyển hướng, và đi theo bằng
+   GET là mất trọn thân POST. Gặp 30x thì trả thẳng mã đó lên cho nơi gọi kêu. */
+int net4gPostOpen(const String& url, const String& body, int* datalen){
+  if(datalen) *datalen=0;
+  if(!g_4gReady) return 0;
+  while(Serial2.available()) Serial2.read();
+  Serial2.print("AT+HTTPTERM\r\n"); delay(150); while(Serial2.available()) Serial2.read();
+  Serial2.print("AT+HTTPINIT\r\n"); atWait("OK",6000);
+  Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
+  if (!atDatUrl(url, "4G POST")) { Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500); return 0; }
+  Serial2.print("AT+HTTPPARA=\"CONTENT\",\"application/json\"\r\n"); atWait("OK",2000);
+  long dwin = (body.length() > 6000) ? 120000L : 30000L;
+  Serial2.print("AT+HTTPDATA="); Serial2.print(body.length()); Serial2.print(","); Serial2.print(dwin); Serial2.print("\r\n");
+  String rd=atWait("DOWNLOAD",6000);
+  if (rd.indexOf("DOWNLOAD")<0){ Serial2.print("AT+HTTPTERM\r\n"); Serial.println("   [4G POST] khong vao DOWNLOAD"); return 0; }
+  Serial2.print(body); atWait("OK",dwin);
+  Serial2.print("AT+HTTPACTION=1\r\n");                        // 1 = POST
+  String r = atWait("+HTTPACTION:",40000);
+  int status=0, dl=0, p=r.indexOf("+HTTPACTION:");
+  if(p>=0){ int c1=r.indexOf(',',p), c2=(c1>=0)?r.indexOf(',',c1+1):-1;
+            if(c1>=0&&c2>=0){ status=r.substring(c1+1,c2).toInt(); dl=r.substring(c2+1).toInt(); } }
+  Serial.printf("   [4G POST] status=%d len=%d\n", status, dl);
+  if (status >= 600) { inHttpAction(r, "4G POST"); Serial.println("   ⚠️ 7xx la loi CUA MODULE, khong phai server tra ve."); }
+  if (status != 200) { return status; }                        // nơi gọi tự HTTPTERM
+  if(datalen) *datalen=dl;
+  return 200;                                                  // GIỮ phiên cho HTTPREAD
+}
+
 // Gửi HTTPREAD, ĐỌC TRỰC TIẾP Serial2 (không qua atWait vì atWait hút cả data),
 // tiêu thụ đúng dòng header "+HTTPREAD: ...<len>\n" -> Serial2 dừng NGAY ở đầu data. Trả len. -1 lỗi.
 int net4gReadStart(int want){
@@ -3068,10 +2747,13 @@ bool net4gConnect(){
          `findOrCreateDateBlock` TẠO THẬT một khối tháng tên "test" trong sheet cơ sở.
          Nay gắn cờ `selftest:true` để máy chủ trả lời mà KHÔNG ghi gì. Máy chủ cũng đã chặn thêm
          theo khuôn ngày giờ (bảo vệ mọi máy còn chạy bản cũ) — hai lớp, vì một lớp là còn lọt. */
-      String tb = String("{\"selftest\":true,\"macAddress\":\"") + macBo() + "\",\"stationName\":\"" + String(STATION_NAME) + "\",\"employeeNo\":\"TEST4G\",\"name\":\"AT-HTTP test\",\"time\":\"test\",\"image\":\"\"}";
-      Serial.println("[4G] === TEST: đẩy thử 1 gói lên Google ===");
-      bool tok = net4gHttpPost(google_script_url, tb);
-      Serial.println(tok ? "[4G] ✔️ TEST OK — đường 4G → Google CHẠY!" : "[4G] ✖ TEST chưa được — xem 'status=' phía trên");
+      String tb = String("{\"selftest\":true,\"macAddress\":\"") + macBo()
+                + "\",\"hikSerial\":\"" + HIK_SERIAL
+                + "\",\"stationName\":\"" + String(STATION_NAME)
+                + "\",\"employeeNo\":\"TEST4G\",\"name\":\"AT-HTTP test\",\"time\":\"test\",\"image\":\"\"}";
+      Serial.println("[4G] === TEST: đẩy thử 1 gói lên website ===");
+      bool tok = (wpGoi(tb, false).length() > 0);
+      Serial.println(tok ? "[4G] ✔️ TEST OK — đường 4G → website CHẠY!" : "[4G] ✖ TEST chưa được — xem 'status=' phía trên");
     }
     return true;
   }
@@ -3116,25 +2798,22 @@ void handleRoot(){
   h += "<div class='card' " + String(g_chuaCauHinh ? "style='border:2px solid #ef4444'" : "") + "><h2>"
        + String(g_chuaCauHinh ? "⚠️ MÁY CHƯA CẤU HÌNH ĐỦ" : "🔐 Cấu hình máy") + "</h2>";
   h += "<div class='muted'>Bản firmware do CI build KHÔNG chứa bí mật (cố ý, để file .bin đặt chỗ tải "
-       "công khai được mà không lộ Firebase secret). Máy lấy bí mật từ bộ nhớ trong — <b>cập nhật firmware "
+       "công khai được mà không lộ khoá nào). Máy lấy bí mật từ bộ nhớ trong — <b>cập nhật firmware "
        "KHÔNG làm mất</b>. Bỏ trống ô nào là <b>giữ nguyên</b> giá trị đang có.</div>";
-  /* ⚠️ HAI LINK HIỆN NGUYÊN VĂN, cố ý. Trước đây che bằng cfgChe() nên chỉ thấy 4 ký tự đầu —
-     mà 4 ký tự đầu của mọi link đều là "http", tức là che xong thì KHÔNG CÒN CÁCH NÀO biết máy
-     đang giữ link đúng hay link cũ. Đã trả giá: máy đẩy chấm công ra 404 mà soi mãi không ra.
-     Link không phải bí mật (đã có token gác đường /exec, và Firebase có secret riêng), còn portal
-     thì nằm sau mật khẩu AP. Token/secret/mật khẩu vẫn che như cũ. */
-  h += "<div class='muted'>Đang có:<br>link web app <b style='word-break:break-all'>"
-       + (_cfgExecUrl.length() ? _cfgExecUrl : String("(trống)")) + "</b><br>link Firebase <b style='word-break:break-all'>"
-       + (_cfgFbHost.length() ? _cfgFbHost : String("(trống)"))
-       + "</b><br>token web app <b>" + cfgChe(_cfgEmpTok) + "</b> · Firebase secret <b>" + cfgChe(_cfgFbSec)
+  /* ⚠️ LINK HIỆN NGUYÊN VĂN, cố ý. Trước đây che bằng cfgChe() nên chỉ thấy 4 ký tự đầu — mà 4
+     ký tự đầu của mọi link đều là "http", tức là che xong thì KHÔNG CÒN CÁCH NÀO biết máy đang
+     giữ link đúng hay link cũ. Đã trả giá: máy đẩy chấm công ra 404 mà soi mãi không ra.
+     Link không phải bí mật (cổng còn đòi khoá riêng), còn portal thì nằm sau mật khẩu AP.
+     KHOÁ MÁY vẫn che như cũ — ai đọc được nó là ghi được chấm công cho bất kỳ ai. */
+  h += "<div class='muted'>Đang có:<br>link website <b style='word-break:break-all'>"
+       + (_cfgWpUrl.length() ? _cfgWpUrl : String("(trống)"))
+       + "</b><br>khoá máy <b>" + cfgChe(_cfgWpKey)
        + "</b> · mật khẩu Hikvision <b>" + cfgChe(_cfgHikPass) + "</b> · mật khẩu /update <b>" + cfgChe(_cfgOtaPass)
        + "</b> · mật khẩu AP <b>" + cfgChe(_cfgApPass)
        + "</b><br>IP đầu đọc <b>" + _cfgHikIp + "</b>"
        + ((_cfgHikIp == String(HIK_IP_MAC_DINH)) ? " (mặc định)" : " (đã khai)") + "</div>";
-  h += "<input id='cExec'  placeholder='Link web app /exec (dạng /macros/s/…/exec)'>";
-  h += "<input id='cFb'    placeholder='Link Firebase RTDB (không có / ở cuối)'>";
-  h += "<input id='cTok'   placeholder='Token web app (EMP_TOKEN)'>";
-  h += "<input id='cFbSec' placeholder='Firebase database secret (để trống = gọi không auth)'>";
+  h += "<input id='cWp'    placeholder='Link website (https://…/cham-cong-may, KHÔNG có / ở cuối)'>";
+  h += "<input id='cWpKey' placeholder='Khoá máy (VHCC_KHOA_MAY trong wp-config.php)'>";
   h += "<input id='cHikIp' placeholder='IP đầu đọc Hikvision (mặc định " + String(HIK_IP_MAC_DINH) + ")'>";
   h += "<input id='cHikU'  placeholder='Tài khoản Hikvision (mặc định admin)'>";
   h += "<input id='cHikP'  placeholder='Mật khẩu Hikvision'>";
@@ -3172,7 +2851,7 @@ void handleRoot(){
   h += "fetch('/addemp',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'no='+encodeURIComponent(no)+'&name='+encodeURIComponent(nm)+'&pin='+encodeURIComponent(pin)}).then(r=>r.text()).then(t=>{g('amsg').textContent=t;g('no').value='';g('nm').value='';g('pin').value='';loadEmp();});}";
   h += "function delEmp(no){if(!confirm('Xóa nhân viên '+no+'?'))return;fetch('/delemp',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'no='+encodeURIComponent(no)}).then(r=>r.text()).then(t=>{alert(t);loadEmp();});}";
   h += "function saveWifi(){let s=g('ss').value.trim();if(!s){alert('Nhập SSID');return;}fetch('/savewifi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:'ssid='+encodeURIComponent(s)+'&pass='+encodeURIComponent(g('pw').value)}).then(r=>r.text()).then(t=>alert(t));}";
-  h += "function saveCfg(){let f=['cExec','cFb','cTok','cFbSec','cHikIp','cHikU','cHikP','cOtaU','cOtaP','cApP'];"
+  h += "function saveCfg(){let f=['cWp','cWpKey','cHikIp','cHikU','cHikP','cOtaU','cOtaP','cApP'];"
        "let b=[],co=0;f.forEach(function(k){let v=g(k).value.trim();if(v!==''){co++;b.push(k+'='+encodeURIComponent(v));}});"
        "if(!co){alert('Chua nhap o nao. Bo trong = giu nguyen.');return;}"
        "if(!confirm('Luu cau hinh vao bo nho trong va khoi dong lai?'))return;"
@@ -3265,10 +2944,10 @@ bool ipHopLe(const String& v){
 }
 
 /* Khai bí mật + 2 link vào NVS. Ô nào KHÔNG gửi lên thì GIỮ NGUYÊN — cố ý, để sửa 1 mật
-   khẩu không phải gõ lại cả 9 ô (gõ lại là dịp làm sai). NVS sống qua OTA. */
+   khẩu không phải gõ lại cả 8 ô (gõ lại là dịp làm sai). NVS sống qua OTA. */
 void handleSaveCfg(){
   struct { const char* arg; const char* khoa; } m[] = {
-    {"cExec","execUrl"}, {"cFb","fbHost"}, {"cTok","empTok"}, {"cFbSec","fbSec"},
+    {"cWp","wpUrl"}, {"cWpKey","wpKey"},
     {"cHikIp","hikIp"},
     {"cHikU","hikUser"}, {"cHikP","hikPass"}, {"cOtaU","otaUser"}, {"cOtaP","otaPass"}, {"cApP","apPass"}
   };
@@ -3281,12 +2960,12 @@ void handleSaveCfg(){
     /* IP sai dạng thì MỌI lệnh ISAPI im lặng thất bại — chặn ngay lúc lưu, đừng để máy chạy
        cả tuần rồi mới thấy "chấm công không lên". Chỉ nhận 4 số 0..255. */
     if (String(m[i].khoa) == "hikIp" && !ipHopLe(v)) { loi += "IP dau doc phai dang 192.168.4.50. "; continue; }
-    if (String(m[i].khoa) == "execUrl" && v.indexOf("/macros/s/") < 0)
-      { loi += "Link web app phai dang /macros/s/<id>/exec. "; continue; }
-    if (String(m[i].khoa) == "fbHost") {
-      while (v.endsWith("/")) v.remove(v.length()-1);          // dan tu Console hay dinh "/"
-      // Câu này KHÔNG được chứa mẫu CI đang quét ('default-rtdb'), nên tả bằng lời.
-      if (!fbHostHopLe(v)) { loi += "Link Firebase phai bat dau https:// va ket thuc .firebasedatabase.app "; continue; }
+    if (String(m[i].khoa) == "wpUrl") {
+      while (v.endsWith("/")) v.remove(v.length()-1);          // dan tu trinh duyet hay dinh "/"
+      if (!wpUrlHopLe(v)) {
+        loi += "Link website phai dang https://<ten mien>/cham-cong-may (khong co / o cuoi). ";
+        continue;
+      }
     }
     prefs.putString(m[i].khoa, v); n++;
   }
@@ -3401,10 +3080,10 @@ void setup() {
     bool wok = connectSTA(20000);
     Serial.println(wok ? ("\n✔️ WiFi cửa hàng: " + WiFi.localIP().toString()) : "\n✖ Chưa nối WiFi cửa hàng — vào 192.168.4.1 để cấu hình");
   }
-  // MÃ THIẾT BỊ -> hỏi server tên cơ sở. Làm TRƯỚC khi in "Cơ sở" và trước phần bù dữ liệu,
-  // vì mọi đường Firebase (/queue, /hb, /roster, /photo) đều mang tên cơ sở.
+  // MÃ THIẾT BỊ -> hỏi server tên cơ sở. Làm TRƯỚC khi in "Cơ sở" và trước phần bù dữ liệu:
+  // tên cơ sở đi kèm mọi lượt chấm công, và hiện trên màn hình máy.
   docThongTinDauDoc();
-  hoiCuaHangGop();
+  hoiCuaHang();
   lastWhoAmIMs = millis();
   Serial.print("-> Cơ sở: "); Serial.print(STATION_NAME);
   Serial.println(STATION_TU_SERVER ? "  (server gán theo mã máy)" : "  (bản nhớ trong máy — server chưa gán hoặc chưa hỏi được)");
@@ -3480,15 +3159,10 @@ void loop() {
   if (!webBusy && netUp() && millis() - lastWhoAmIMs >= WHOAMI_CHU_KY_MS) {
     lastWhoAmIMs = millis();
     if (HIK_SERIAL.length() == 0) docThongTinDauDoc();
-    hoiCuaHangGop();
+    hoiCuaHang();
   }
 
-  /* Nhận link + khoá WordPress từ Firebase, CÙNG NHỊP với lượt kiểm OTA (5 phút). Cùng nhịp vì
-     cùng một chuyến đọc Firebase, và vì hai thứ này đi đôi: nạp OTA xong là có cấu hình ngay,
-     khỏi ai phải gõ tay ở portal từng máy. */
-  wpNhanCauHinh();
-
-  // ③ OTA từ xa: kiểm tra firmware mới trên Firebase /ota mỗi 5 phút (tải + flash khi có bản mới)
+  // ③ OTA từ xa: xét bản mà nhịp sống chở về, mỗi 5 phút (tải + flash khi có bản mới)
   if (!webBusy && netUp() && millis() - lastOtaCheck >= OTA_CHECK_MS) {
     lastOtaCheck = millis();
     checkOtaUpdate();
