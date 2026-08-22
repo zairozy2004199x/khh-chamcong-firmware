@@ -283,12 +283,15 @@ class VHG_Cong {
 		) );
 		$m  = VHG_May::may( $ma_may );
 		$tk = VHG_May::nhan_tien_cua( $m ? $m : array() );
+		/* Tỉ lệ THỰC DÙNG: ô riêng của ghế nếu có, không thì ô chung. Ghế không cần biết cái
+		   nào từ đâu — nó chỉ cần một cặp số để quy tiền ra phút. */
+		$tl = VHG_May::ty_le_cua( $m ? $m : array() );
 		self::tra( 200, array(
 			'ok'      => true,
 			'coTien'  => VHG_May::so_cho( $ma_may ) > 0 ? 1 : 0,
 			'coLenh'  => self::co_lenh( $ma_may ) ? 1 : 0,
-			'gia'     => $m ? (int) $m['gia'] : 0,
-			'phut'    => $m ? (int) $m['phut'] : 0,
+			'gia'     => (int) $tl['gia'],
+			'phut'    => (int) $tl['phut'],
 			/* Tài khoản THỰC DÙNG: ô riêng của ghế nếu có, không thì ô chung. Ghế không cần
 			   biết cái nào từ đâu — nó chỉ cần đúng ba chuỗi để vẽ mã QR. */
 			'soTk'    => $tk['so_tk'],
@@ -298,8 +301,7 @@ class VHG_Cong {
 			   giá không phải mang USB đi 26 cửa hàng — ghế không có OTA, nên đó là chuyến đi thật.
 			   Tên bỏ dấu ở ĐÂY chứ không ở ghế: font màn ghế không vẽ được dấu tiếng Việt, và mọi
 			   thứ sửa được bằng máy chủ thì phải sửa ở máy chủ. */
-			'goi'     => VHG_May::menh_gia_cho_ghe(
-				$m ? (int) $m['gia'] : 10000, $m ? (int) $m['phut'] : 6 ),
+			'goi'     => VHG_May::menh_gia_cho_ghe( (int) $tl['gia'], (int) $tl['phut'] ),
 			'maMay'   => $ma_may,
 			/* Mã bắt đầu bằng '?' = ghế cắm điện rồi nhưng CHƯA ai gán mã cho nó. Ghế hiện chữ
 			   đó lên màn để người đi lắp biết mình còn thiếu một bước, thay vì đứng nhìn màn
@@ -311,7 +313,7 @@ class VHG_Cong {
 
 	private static function phut_cua( $ma_may ) {
 		$m = VHG_May::may( $ma_may );
-		return $m ? (int) $m['phut'] : 6;
+		return (int) VHG_May::ty_le_cua( $m ? $m : array() )['phut'];
 	}
 
 	private static function co_lenh( $ma_may ) {

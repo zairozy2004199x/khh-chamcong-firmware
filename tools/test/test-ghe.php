@@ -1178,7 +1178,14 @@ t( 'và nói rõ thường không cần gõ tay', strpos( $h_my, 'Thường khô
 t( '🔴 nhãn KHÔNG còn là "Giá một lượt" — nó là tỉ lệ quy đổi, không phải một mệnh giá',
 	strpos( $h_my, 'Giá một lượt' ) === false );
 t( 'mà là "Tỉ lệ quy đổi"', strpos( $h_my, 'Tỉ lệ quy đổi' ) !== false );
-t( 'và in thẳng bảng quy đổi tiền -> phút', strpos( $h_my, '→ 30 phút' ) !== false, $h_my );
+/* Tỉ lệ quy đổi giờ khai CHUNG, ngay trên bảng gói — không còn chôn trong ô "Thêm/sửa máy". */
+t( 'ô tỉ lệ quy đổi nằm ngay trên bảng gói',
+	strpos( $h_my, 'Tỉ lệ quy đổi (dùng chung' ) !== false
+	&& strpos( $h_my, 'name="gia_c"' ) !== false );
+t( 'và nói rõ số phút bốn gói tính theo cặp số này',
+	strpos( $h_my, 'tính theo cặp số này' ) !== false );
+t( 'ô của từng máy thành NGOẠI LỆ, để trống là dùng chung',
+	strpos( $h_my, 'Tỉ lệ riêng (tuỳ chọn)' ) !== false );
 t( 'bảng máy hiện MAC để đối chiếu', strpos( $h_my, '<th>MAC</th>' ) !== false );
 t( 'nói rõ ghế TỰ hiện ra khi cắm điện', strpos( $h_my, 'tự hiện' ) !== false );
 teq( 'màn không lồng <form>', 1, vhg_do_sau_form( $h_my )['max'] );
@@ -1439,6 +1446,99 @@ t( 'khớp thì báo xanh, không báo đỏ',
 	&& strpos( $h_tk2, 'khớp với số bên gửi báo' ) !== false );
 $_GET = array(); $_POST = array();
 delete_option( 'vhg_tk_ben_gui' );
+
+// ====================== 🔴 ĐỒNG HỒ WEB CHẬM HƠN GHẾ ĐÚNG BẰNG TUỔI CỦA DỮ LIỆU
+/* Anh Thắng 22/08/2026: *"bấm thử điều khiển ghế thì lệch 12s — thời gian máy QR nhanh hơn
+   11s"*. Không phải cố ý chừa thời gian cho khách lên ghế; đó là tuổi của dữ liệu.
+
+   Ghế gửi nhịp 30 giây một lần. Nó nói "còn 300 giây" lúc 21:46:00. Web hỏi lúc 21:46:11 và
+   nhận đúng con số 300 đó — nhưng ghế đã chạy thêm 11 giây. Web tự trừ mỗi giây từ 300 nên
+   chậm hơn ghế đúng 11 giây, cho tới lượt nhịp sau. Trung bình lệch NỬA chu kỳ nhịp. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+
+/* Ghế báo còn 300 giây, và lượt nhịp đó tới cách đây 11 giây. */
+global $wpdb;
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr' ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 11 ), 'AMTP01' ) );
+
+$m = null;
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( '🔴 trừ đi tuổi của dữ liệu: 300 - 11', 289, (int) $m['con_lai'] );
+teq( 'và nói rõ dữ liệu già bao nhiêu giây', 11, (int) $m['nhip_giay'] );
+t( 'ghế vẫn được coi là đang sống', ! empty( $m['con_song'] ) );
+
+/* ⚠️ CHỈ trừ khi ghế ĐANG CHẠY. Ghế rảnh thì con_lai vốn là 0. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'idle', 'con_lai' => 300, 'nguon' => '' ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 11 ), 'AMTP01' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( 'ghế rảnh thì không trừ gì cả', 300, (int) $m['con_lai'] );
+
+/* ⚠️ KHÔNG trừ tiếp khi ghế MẤT KẾT NỐI: con số nào cũng vô nghĩa, mà một đồng hồ chạy lùi
+      trông như thật là tệ hơn — nó nói ghế vẫn đang chạy trong khi không ai biết. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr' ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 3600 ), 'AMTP01' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( 'mất kết nối thì giữ nguyên con số, không trừ tiếp', 300, (int) $m['con_lai'] );
+teq( 'và báo mất kết nối', false, ! empty( $m['con_song'] ) );
+
+/* Không bao giờ trả số âm: nhịp cũ hơn cả số giây còn lại là ghế đã chạy xong từ lâu. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 5, 'nguon' => 'qr' ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 60 ), 'AMTP01' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+t( 'không bao giờ ra số âm', (int) $m['con_lai'] >= 0, $m['con_lai'] );
+
+// ====================== TỈ LỆ QUY ĐỔI KHAI CHUNG
+/* Anh Thắng: *"không điều chỉnh được loại mệnh giá à"*. Bốn gói thì khai được, nhưng SỐ PHÚT
+   của chúng do tỉ lệ quyết định — mà tỉ lệ nằm tận ô "Thêm/sửa máy", tách khỏi chỗ khai gói và
+   phải lưu lại từng máy một. */
+delete_option( 'vhg_gia' ); delete_option( 'vhg_phut' );
+teq( 'mặc định theo bảng giá đang dùng: 50.000đ = 15 phút',
+	array( 'gia' => 50000, 'phut' => 15 ), VHG_May::ty_le_chung() );
+t( 'lưu được tỉ lệ chung', ! empty( VHG_May::luu_ty_le( 100000, 30 )['ok'] ) );
+teq( 'và đọc lại đúng', array( 'gia' => 100000, 'phut' => 30 ), VHG_May::ty_le_chung() );
+teq( 'tỉ lệ vô lý thì chối', false, VHG_May::luu_ty_le( 500, 15 )['ok'] );
+teq( 'số phút vô lý cũng chối', false, VHG_May::luu_ty_le( 50000, 0 )['ok'] );
+VHG_May::luu_ty_le( 50000, 15 );
+
+/* Ghế để 0 = dùng chung; khai >0 = ngoại lệ. */
+teq( 'ghế để trống thì dùng tỉ lệ chung',
+	array( 'gia' => 50000, 'phut' => 15 ), VHG_May::ty_le_cua( array( 'gia' => 0, 'phut' => 0 ) ) );
+teq( 'ghế khai riêng thì đè lên chung',
+	array( 'gia' => 20000, 'phut' => 5 ), VHG_May::ty_le_cua( array( 'gia' => 20000, 'phut' => 5 ) ) );
+
+/* Ghế khai từ bản cũ đều mang tỉ lệ riêng (bản cũ không có ô chung) — đổi ô chung mà chúng
+   không theo, và không có gì trên màn nói vì sao. Nên có nút gỡ, và màn phải NÓI RA. */
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+ob_start(); VHG_Admin::trang_may(); $h_tl = ob_get_clean();
+t( 'màn NÓI RA có ghế đang khai tỉ lệ riêng', strpos( $h_tl, 'đang khai tỉ lệ RIÊNG' ) !== false );
+t( 'và có nút cho tất cả dùng chung', strpos( $h_tl, 'bo_rieng' ) !== false );
+t( '🔴 bảng xem trước dùng tỉ lệ THẬT, không phải số gõ cứng',
+	strpos( $h_tl, 'với tỉ lệ 50.000đ = 15 phút' ) !== false, $h_tl ? '' : '' );
+
+$r = VHG_May::bo_ty_le_rieng();
+t( 'gỡ được tỉ lệ riêng', ! empty( $r['ok'] ), $r );
+teq( 'ghế đó theo tỉ lệ chung ngay',
+	array( 'gia' => 50000, 'phut' => 15 ), VHG_May::ty_le_cua( VHG_May::may( 'AMTP02' ) ) );
+
+/* Và nhịp gửi xuống ghế đúng tỉ lệ chung + số phút gói tính theo đó. */
+VHG_May::luu_menh_gia( array(
+	array( 'tien' => 50000,  'ten' => 'Gói cơ bản' ),
+	array( 'tien' => 200000, 'ten' => 'Gói thượng hạng', 'vip' => 1 ) ) );
+list( , $n_tl ) = vhg_ghe( array( 'mac' => 'AA:BB:CC:DD:EE:02', 'viec' => 'nhip' ) );
+teq( 'nhịp trả tỉ lệ chung', 50000, $n_tl['gia'] );
+teq( 'và số phút quy đổi chung', 15, $n_tl['phut'] );
+teq( '🔴 gói 200.000đ ra 60 phút, đúng bảng giá', 60, $n_tl['goi'][1]['p'] );
+$_GET = array(); $_POST = array();
 
 // ============================================ BẢNG CHỐT CA THU TIỀN
 /* 🔴 Bản trước bấm "Thu tiền mặt" là hỏi "ghi 10.000đ?" rồi ghi luôn. Sai với việc thật: người

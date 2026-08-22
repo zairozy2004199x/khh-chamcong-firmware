@@ -170,7 +170,7 @@ class VHG_Trang {
 			if ( ! $m ) { self::tra( array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma . '.' ) ); return; }
 			self::tra( array( 'ok' => true, 'ma_may' => $ma,
 				'coso' => (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ),
-				'gia'  => (int) $m['gia'],
+				'gia'  => (int) VHG_May::ty_le_cua( $m )['gia'],
 				'hom_nay' => VHG_Thu::tong_may( $ma, 'today' ),
 				'tuan'    => VHG_Thu::tong_may( $ma, 'week' ),
 				'thang'   => VHG_Thu::tong_may( $ma, 'month' ),
@@ -207,8 +207,8 @@ class VHG_Trang {
 				'tt'      => (string) $m['trang_thai'],
 				'con_lai' => (int) $m['con_lai'],
 				'cho'     => (int) $m['cho'],
-				'gia'     => (int) $m['gia'],
-				'phut'    => (int) $m['phut'],
+				'gia'     => (int) VHG_May::ty_le_cua( $m )['gia'],
+				'phut'    => (int) VHG_May::ty_le_cua( $m )['phut'],
 			);
 		}
 		/* Ghế đang chờ gán mã + danh sách cơ sở: gửi kèm luôn trong lượt số liệu, không thêm

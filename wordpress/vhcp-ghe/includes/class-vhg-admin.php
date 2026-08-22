@@ -316,6 +316,10 @@ class VHG_Admin {
 			} elseif ( 'nhan_tien' === $viec ) {
 				$bao[] = VHG_May::luu_nhan_tien( wp_unslash( $_POST['bin'] ),
 					wp_unslash( $_POST['so_tk'] ), wp_unslash( $_POST['ten_tk'] ) );
+			} elseif ( 'ty_le' === $viec ) {
+				$bao[] = VHG_May::luu_ty_le( wp_unslash( $_POST['gia_c'] ), wp_unslash( $_POST['phut_c'] ) );
+			} elseif ( 'bo_rieng' === $viec ) {
+				$bao[] = VHG_May::bo_ty_le_rieng();
 			} elseif ( 'menh_gia' === $viec ) {
 				$ten  = isset( $_POST['mg_ten'] ) ? (array) wp_unslash( $_POST['mg_ten'] ) : array();
 				$tien = isset( $_POST['mg_tien'] ) ? (array) wp_unslash( $_POST['mg_tien'] ) : array();
@@ -459,6 +463,36 @@ class VHG_Admin {
 			. esc_attr( $tk_chung['ten_tk'] ) . '" class="regular-text" /></td></tr>';
 		echo '</table><p><button class="button button-primary" name="vhg" value="nhan_tien">Lưu tài khoản</button></p></form>';
 
+		/* ---- Tỉ lệ quy đổi: khai chung, ĐẶT NGAY TRÊN bảng gói ----
+		 * 🔴 Trước đây tỉ lệ nằm tận ô "Thêm / sửa máy", tách khỏi chỗ khai gói và phải lưu lại
+		 *    từng máy một. Nên nhìn bảng gói thì tưởng đã khai xong, mà số phút vẫn là số cũ —
+		 *    đúng chỗ anh Thắng vướng: *"không điều chỉnh được loại mệnh giá à"*. Số phút của
+		 *    bốn gói do CẶP SỐ NÀY quyết định, nên nó phải nằm ngay đây. */
+		$tl_c = VHG_May::ty_le_chung();
+		echo '<h2>Tỉ lệ quy đổi (dùng chung cả hệ thống)</h2>';
+		echo '<p><em>Bao nhiêu tiền ra bao nhiêu phút. <b>Số phút của bốn gói dưới đây tính theo cặp '
+			. 'số này</b> — đổi một lần là cả bốn gói theo.</em></p>';
+		echo '<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+		wp_nonce_field( 'vhg' );
+		echo '<input type="number" name="gia_c" min="1000" step="1000" value="' . (int) $tl_c['gia']
+			. '" style="width:120px" /> đ = '
+			. '<input type="number" name="phut_c" min="1" max="240" value="' . (int) $tl_c['phut']
+			. '" style="width:80px" /> phút '
+			. '<button class="button button-primary" name="vhg" value="ty_le">Lưu tỉ lệ</button></form>';
+
+		/* Ghế khai từ bản cũ đều mang tỉ lệ riêng (bản cũ không có ô chung), nên đổi ô chung mà
+		   chúng không theo — và không có gì trên màn nói vì sao. Nói ra, kèm nút gỡ. */
+		$so_rieng = 0;
+		foreach ( $may as $m_r ) { if ( (int) $m_r['gia'] > 0 || (int) $m_r['phut'] > 0 ) { $so_rieng++; } }
+		if ( $so_rieng ) {
+			echo '<div class="notice notice-warning inline"><p><b>' . (int) $so_rieng . ' ghế đang khai '
+				. 'tỉ lệ RIÊNG</b> nên KHÔNG theo ô chung ở trên. Ghế khai từ bản cũ đều thế, vì bản cũ '
+				. 'không có ô chung.</p>'
+				. '<form method="post">' . wp_nonce_field( 'vhg', '_wpnonce', true, false )
+				. '<button class="button" name="vhg" value="bo_rieng">Cho tất cả dùng tỉ lệ chung</button>'
+				. '</form></div>';
+		}
+
 		/* ---- Gói trên màn ghế ---- */
 		$mg = VHG_May::menh_gia();
 		echo '<h2>Gói trên màn ghế</h2>';
@@ -496,8 +530,13 @@ class VHG_Admin {
 		/* Xem trước ĐÚNG như ghế sẽ hiện: đã bỏ dấu, đã tính ra phút. Một bảng xem trước bằng
 		   chính dữ liệu sắp gửi đi là cách duy nhất thấy trước "GOI PHO BIEN" trông thế nào,
 		   thay vì đi tới tận cửa hàng mới biết tên bị cắt cụt. */
-		$xem = VHG_May::menh_gia_cho_ghe( 10000, 6 );
-		echo '<h3>Ghế sẽ hiện (với tỉ lệ 10.000đ = 6 phút)</h3>';
+		/* 🔴 XEM TRƯỚC PHẢI DÙNG TỈ LỆ THẬT. Bản trước gọi cứng `(10000, 6)` nên in ra một bảng
+		   số phút KHÔNG phải số ghế sẽ chạy — anh Thắng khai 50k/100k/150k/200k mà bảng nói
+		   30/60/90/120 phút, trong khi bảng giá là 15/30/45/60. Một bảng "xem trước" nói sai còn
+		   hại hơn không có bảng nào: người ta tin nó rồi thôi không đi kiểm. */
+		$xem = VHG_May::menh_gia_cho_ghe( (int) $tl_c['gia'], (int) $tl_c['phut'] );
+		echo '<h3>Ghế sẽ hiện (với tỉ lệ ' . esc_html( self::tien( $tl_c['gia'] ) ) . ' = '
+			. (int) $tl_c['phut'] . ' phút)</h3>';
 		echo '<table class="widefat striped" style="max-width:560px"><thead><tr><th>Tên trên màn ghế</th>'
 			. '<th>Mô tả trên màn ghế</th><th>Số tiền</th><th>Phút</th></tr></thead><tbody>';
 		foreach ( $xem as $x ) {
@@ -523,6 +562,8 @@ class VHG_Admin {
 			$qr    = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
 			$tk_m  = VHG_May::nhan_tien_cua( $m );
 			if ( empty( $m['con_song'] ) ) { $co_im = true; }
+			$tl_m     = VHG_May::ty_le_cua( $m );
+			$rieng_tl = ( (int) $m['gia'] > 0 || (int) $m['phut'] > 0 );
 			$rieng = '' !== trim( (string) $m['so_tk'] ) || '' !== trim( (string) $m['bank_bin'] );
 			echo '<tr><td><strong>' . esc_html( $m['ma'] ) . '</strong></td>'
 				/* MAC là thứ ghế dùng để nhận ra chính nó. Hiện ra để còn đối chiếu khi một ghế
@@ -538,7 +579,9 @@ class VHG_Admin {
 					? '<br><span class="description">' . esc_html( $m['ip'] ) . ' · '
 						. esc_html( $m['fw'] ) . '</span>' : '' ) . '</td>'
 				. '<td>' . esc_html( $m['coso_ten'] ? $m['coso_ten'] : '(chưa gán)' ) . '</td>'
-				. '<td>' . esc_html( self::tien( $m['gia'] ) ) . ' = ' . (int) $m['phut'] . ' phút</td>'
+				. '<td>' . esc_html( self::tien( $tl_m['gia'] ) ) . ' = ' . (int) $tl_m['phut'] . ' phút'
+				. ( $rieng_tl ? '<br><span class="description">khai riêng</span>'
+					: '<br><span class="description">dùng chung</span>' ) . '</td>'
 				. '<td><code>' . esc_html( $tk_m['so_tk'] ) . '</code> · ' . esc_html( $tk_m['bin'] )
 				. ( $rieng ? '<br><span class="description">khai riêng</span>'
 					: '<br><span class="description">dùng chung</span>' ) . '</td>'
@@ -596,18 +639,12 @@ class VHG_Admin {
 		   `phút = tiền × phút / giá`. Nhãn cũ ghi "Giá một lượt" làm anh Thắng tưởng ghế chỉ có
 		   một mệnh giá, trong khi màn ghế có bốn nút. Nên đổi nhãn, và in thẳng bảng quy đổi ra
 		   — một bảng số cụ thể nói rõ hơn mọi câu giải thích. */
-		echo '<tr><th>Tỉ lệ quy đổi</th><td>'
-			. '<input type="number" name="gia" value="10000" min="1000" step="1000" style="width:110px" /> đ '
-			. '= <input type="number" name="phut" value="6" min="1" max="60" style="width:70px" /> phút';
-		$bang_qd = '';
-		foreach ( VHG_May::menh_gia() as $g ) {
-			$bang_qd .= '<tr><td>' . esc_html( self::tien( $g['tien'] ) ) . '</td><td>→ '
-				. (int) VHG_May::phut_goi( $g, 10000, 6 ) . ' phút</td></tr>';
-		}
-		echo '<p class="description">Đây <b>không phải giá một lượt</b> — ghế có ' . count( VHG_May::menh_gia() )
-			. ' mệnh giá để khách chọn, và số phút tính theo tỉ lệ này.<br>Với 10.000đ = 6 phút thì:</p>'
-			. '<table class="widefat striped" style="max-width:240px;margin-top:4px"><tbody>' . $bang_qd
-			. '</tbody></table></td></tr>';
+		echo '<tr><th>Tỉ lệ riêng (tuỳ chọn)</th><td>'
+			. '<input type="number" name="gia" value="" min="0" step="1000" style="width:110px" placeholder="0 = chung" /> đ '
+			. '= <input type="number" name="phut" value="" min="0" max="240" style="width:70px" placeholder="0" /> phút'
+			. '<p class="description"><b>Để trống là đúng trong hầu hết trường hợp</b> — ghế dùng tỉ lệ '
+			. 'chung khai ở trên (' . esc_html( self::tien( $tl_c['gia'] ) ) . ' = ' . (int) $tl_c['phut']
+			. ' phút). Chỉ điền khi ghế này cố ý chạy tỉ lệ khác.</p></td></tr>';
 		echo '<tr><th>Tài khoản riêng (tuỳ chọn)</th><td>'
 			. '<input type="text" name="so_tk" class="regular-text code" placeholder="số TK — trống = dùng chung" />'
 			. ' <input type="text" name="bank_bin" style="width:110px" placeholder="BIN" />'

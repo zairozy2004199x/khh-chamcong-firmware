@@ -73,6 +73,32 @@ class VHG_May {
 		foreach ( $ds as $i => $x ) {
 			$ds[ $i ]['coso_ten'] = (string) $x['coso_ten'];
 			$tt = self::tinh_trang_nhip( isset( $x['nhip_luc'] ) ? $x['nhip_luc'] : '', $gio );
+			/* ==================================================================================
+			 * SỐ GIÂY CÒN LẠI PHẢI TRỪ ĐI TUỔI CỦA CHÍNH CON SỐ ĐÓ.
+			 *
+			 * 🔴 Anh Thắng 22/08/2026: *"bấm thử điều khiển ghế thì lệch 12s — thời gian máy QR
+			 *    nhanh hơn 11s"*. Không phải cố ý chừa thời gian cho khách lên ghế; đó là tuổi
+			 *    của dữ liệu.
+			 *
+			 *    Ghế gửi nhịp 30 giây một lần. Nó nói "còn 300 giây" lúc 21:46:00. Web hỏi lúc
+			 *    21:46:11 và nhận đúng con số 300 đó — nhưng ghế đã chạy thêm 11 giây rồi. Web
+			 *    tự trừ mỗi giây từ 300, nên nó chậm hơn ghế đúng 11 giây, mãi mãi, cho tới lượt
+			 *    nhịp sau. Trung bình lệch nửa chu kỳ nhịp = 15 giây.
+			 *
+			 * Máy chủ biết nhịp đó tới lúc nào, nên trừ được. Sửa ở ĐÂY chứ không bắt ghế gửi
+			 * nhịp dày hơn: ghế chạy 4G, mỗi lượt nhịp là tiền, và 26 ghế × mỗi 5 giây là một
+			 * khoản không nhỏ cho một con số chỉ để nhìn.
+			 *
+			 * ⚠️ Chỉ trừ khi ghế ĐANG CHẠY. Ghế rảnh thì `con_lai` vốn là 0; ghế mất kết nối thì
+			 *    con số nào cũng vô nghĩa — trừ tiếp chỉ tạo ra một đồng hồ chạy lùi trông như
+			 *    thật, mà thật ra không ai biết ghế còn chạy hay không.
+			 * ================================================================================== */
+			$con = (int) ( isset( $x['con_lai'] ) ? $x['con_lai'] : 0 );
+			if ( $tt['song'] && 'running' === (string) $x['trang_thai'] && null !== $tt['giay'] ) {
+				$con = max( 0, $con - (int) $tt['giay'] );
+			}
+			$ds[ $i ]['con_lai']      = $con;
+			$ds[ $i ]['nhip_giay']    = $tt['giay'];
 			$ds[ $i ]['con_song']     = $tt['song'];
 			$ds[ $i ]['chua_bao_gio'] = $tt['chua_bao_gio'];
 			$ds[ $i ]['nhip_chu']     = $tt['chu'];
@@ -304,6 +330,69 @@ class VHG_May {
 		);
 	}
 
+	/**
+	 * TỈ LỆ QUY ĐỔI CHUNG — bao nhiêu tiền ra bao nhiêu phút.
+	 *
+	 * 🔴 Anh Thắng 22/08/2026: *"không điều chỉnh được loại mệnh giá à"*. Bốn gói thì khai được,
+	 *    nhưng SỐ PHÚT của chúng lại do tỉ lệ quyết định — mà tỉ lệ nằm tận ô "Thêm / sửa máy",
+	 *    tách khỏi chỗ khai gói và phải lưu lại từng máy một. Nên nhìn bảng gói thì tưởng đã
+	 *    khai xong, mà số phút vẫn là số cũ.
+	 *
+	 *    Tệ hơn: bảng xem trước lúc đó gọi cứng `menh_gia_cho_ghe(10000, 6)` — nó in ra một
+	 *    bảng số phút KHÔNG phải số ghế sẽ chạy. Một bảng "xem trước" nói sai còn hại hơn không
+	 *    có bảng nào, vì người ta tin nó rồi thôi không đi kiểm.
+	 *
+	 * Nên tỉ lệ đi cùng đường với tài khoản nhận tiền: khai MỘT LẦN, ghế nào cần khác mới khai
+	 * riêng. `gia`/`phut` của máy bằng 0 = dùng chung.
+	 */
+	const GIA_MAC_DINH  = 50000;
+	const PHUT_MAC_DINH = 15;
+
+	public static function ty_le_chung() {
+		$gia  = (int) get_option( 'vhg_gia', 0 );
+		$phut = (int) get_option( 'vhg_phut', 0 );
+		return array(
+			'gia'  => $gia > 0 ? $gia : self::GIA_MAC_DINH,
+			'phut' => $phut > 0 ? $phut : self::PHUT_MAC_DINH,
+		);
+	}
+
+	/** Tỉ lệ THỰC DÙNG của một ghế: ô riêng nếu có (>0), không thì ô chung. */
+	public static function ty_le_cua( $m ) {
+		$c = self::ty_le_chung();
+		$m = (array) $m;
+		$gia  = isset( $m['gia'] ) ? (int) $m['gia'] : 0;
+		$phut = isset( $m['phut'] ) ? (int) $m['phut'] : 0;
+		return array(
+			'gia'  => $gia > 0 ? $gia : $c['gia'],
+			'phut' => $phut > 0 ? $phut : $c['phut'],
+		);
+	}
+
+	public static function luu_ty_le( $gia, $phut ) {
+		$gia  = (int) preg_replace( '/\D+/', '', (string) $gia );
+		$phut = (int) preg_replace( '/\D+/', '', (string) $phut );
+		if ( $gia < 1000 )              { return array( 'ok' => false, 'error' => 'Số tiền quy đổi phải từ 1.000đ.' ); }
+		if ( $phut < 1 || $phut > 240 ) { return array( 'ok' => false, 'error' => 'Số phút quy đổi phải từ 1 đến 240.' ); }
+		update_option( 'vhg_gia', $gia );
+		update_option( 'vhg_phut', $phut );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu tỉ lệ ' . number_format( $gia, 0, ',', '.' )
+			. 'đ = ' . $phut . ' phút. Ghế lấy về ở lượt nhịp kế tiếp (~30 giây).' );
+	}
+
+	/**
+	 * Bỏ hết tỉ lệ khai riêng của từng ghế, cho tất cả dùng chung.
+	 * Có nút này vì những ghế khai từ bản cũ đều mang tỉ lệ riêng (bản cũ không có ô chung), nên
+	 * đổi ô chung mà chúng không theo — và không có gì trên màn nói vì sao.
+	 */
+	public static function bo_ty_le_rieng() {
+		global $wpdb;
+		$n = (int) $wpdb->query( 'UPDATE ' . VHG_DB::t( 'may' ) . ' SET gia=0, phut=0 WHERE gia>0 OR phut>0' );
+		return array( 'ok' => true, 'thong_bao' => $n
+			? 'Đã cho ' . $n . ' ghế dùng tỉ lệ chung.'
+			: 'Tất cả ghế vốn đã dùng tỉ lệ chung.' );
+	}
+
 	/** Tài khoản THỰC DÙNG của một ghế: ô riêng nếu có, không thì ô chung. */
 	public static function nhan_tien_cua( $m ) {
 		$c = self::nhan_tien_chung();
@@ -439,8 +528,10 @@ class VHG_May {
 			'ma'       => $ma,
 			'mac'      => self::chuan_mac( isset( $d['mac'] ) ? $d['mac'] : '' ),
 			'coso_id'  => (int) ( isset( $d['coso_id'] ) ? $d['coso_id'] : 0 ),
-			'gia'      => max( 0, (int) ( isset( $d['gia'] ) ? $d['gia'] : 10000 ) ),
-			'phut'     => max( 1, (int) ( isset( $d['phut'] ) ? $d['phut'] : 6 ) ),
+			/* 0 = DÙNG CHUNG (xem ty_le_cua). Không ép về mặc định nữa: ép là mọi ghế thành
+			   "khai riêng" và ô chung mất tác dụng ngay lúc khai máy đầu tiên. */
+			'gia'      => max( 0, (int) ( isset( $d['gia'] ) ? $d['gia'] : 0 ) ),
+			'phut'     => max( 0, (int) ( isset( $d['phut'] ) ? $d['phut'] : 0 ) ),
 			'so_tk'    => trim( (string) ( isset( $d['so_tk'] ) ? $d['so_tk'] : '' ) ),
 			'ten_tk'   => trim( (string) ( isset( $d['ten_tk'] ) ? $d['ten_tk'] : '' ) ),
 			'bank_bin' => trim( (string) ( isset( $d['bank_bin'] ) ? $d['bank_bin'] : '' ) ),

@@ -87,8 +87,11 @@ class VHG_QR {
 		}
 		$ma_lenh = '' !== $ma_lenh ? $ma_lenh : self::ma_luot();
 		$nd = 'GHE' . $m['ma'] . ' ' . $ma_lenh;
-		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], (int) $m['gia'], $nd ),
-			'noi_dung' => $nd, 'so_tien' => (int) $m['gia'], 'ma_lenh' => $ma_lenh );
+		/* Số tiền của chuỗi mẫu = tỉ lệ THỰC DÙNG của ghế (riêng nếu có, không thì chung).
+		   Lấy thẳng cột `gia` là ghế dùng chung ra số 0, và một mã QR 0 đồng thì quét ra lỗi. */
+		$tl = VHG_May::ty_le_cua( $m );
+		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], (int) $tl['gia'], $nd ),
+			'noi_dung' => $nd, 'so_tien' => (int) $tl['gia'], 'ma_lenh' => $ma_lenh );
 	}
 
 	/**
