@@ -296,7 +296,15 @@ jobs:
           name: thonap-${{ github.sha }}
           path: upbuild/esp32_ota_updater.ino.bin
 
+      # 🔴 22/08/2026 — GÁC BẰNG `if: main`, VÀ ĐÂY LÀ CHỖ EM ĐÃ QUÊN.
+      #    Lúc mở workflow cho chạy trên mọi nhánh, em gác ba bước phát hành của việc `build`
+      #    nhưng BỎ SÓT bước này của việc `updater`. Hậu quả có thật: bốn bản máy trạm được
+      #    phát hành từ nhánh làm việc, và `latest-tram.json` — thứ máy trạm đọc để tự cập nhật
+      #    — bị trỏ sang một bản chưa ai duyệt. Nhánh thì còn có bản .ino máy chính KHÔNG biên
+      #    dịch nổi, mà việc `updater` chạy độc lập nên vẫn phát hành như thường.
+      #    Bài học: mở cổng ở một chỗ thì phải rà HẾT các chỗ có cửa, không chỉ chỗ đang sửa.
       - name: Phat hanh ban may tram
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUB: ${{ github.repository }}
