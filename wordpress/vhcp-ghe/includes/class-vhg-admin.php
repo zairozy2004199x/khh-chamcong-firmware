@@ -1165,7 +1165,9 @@ class VHG_Admin {
 		foreach ( $may as $m ) {
 			$ma = (string) $m['ma'];
 			if ( '' === $ma || '?' === $ma[0] ) { continue; }
-			$u = VHG_Shop::url_ngan( $ma );
+			/* Tem in dùng địa chỉ ĐẦY ĐỦ (có https://): giấy thì không thiếu chỗ, mà có scheme
+			   thì mọi máy quét đều mở được ngay, khỏi phụ thuộc máy có tự đoán ra là link hay không. */
+			$u = VHG_Shop::url_ghe( $ma );
 			/* Mức sửa lỗi M cho tem in: cao hơn L nên chịu được vết xước, mờ mực, cong giấy —
 			   tem sống trên tay vịn ghế nhiều năm. Mã trên màn ghế thì dùng L vì ở đó từng module
 			   là quý, còn giấy thì không thiếu chỗ. */
@@ -1335,6 +1337,7 @@ class VHG_Admin {
 			if ( '' !== (string) $m_q['ma'] && '?' !== $m_q['ma'][0] ) { $ma_dau = $m_q['ma']; break; }
 		}
 		if ( '' !== $ma_dau ) {
+			/* Ô trên màn ghế thì dùng bản bỏ scheme — 58 pixel không chứa nổi bản đầy đủ. */
 			$u_ngan = VHG_Shop::url_ngan( $ma_dau );
 			$qr_o   = VHG_Ma::qr_o_goi( $u_ngan );
 			$xau    = ( (int) $qr_o['px'] < 2 );

@@ -180,9 +180,15 @@ class VHG_Ma {
 	 *    Nên màn quản trị phải hiện con số, và kêu lên khi nó xuống 1.
 	 *
 	 * Sức chứa dưới đây là của ECC mức L (thấp nhất = chứa nhiều nhất), theo hai chế độ:
-	 *   · alphanumeric — chuỗi CHỈ gồm 0-9 A-Z và ` $%*+-./:` — đặc hơn, và đó là lý do
-	 *     `VHG_Shop::url_ngan()` viết hoa toàn bộ và dùng dạng thư mục.
-	 *   · byte — mọi chuỗi khác.
+	 *   · alphanumeric — chuỗi CHỈ gồm 0-9 A-Z và ` $%*+-./:` — đặc hơn.
+	 *   · byte — mọi chuỗi khác. Địa chỉ thật (`khmatrix.com/mua-ma/?ghe=AMTP01`) rơi vào ĐÂY:
+	 *     có chữ thường, có `?` và `=`. Sức chứa byte của version 2 là 32 ký tự, mà địa chỉ dài
+	 *     31 — sát mép. Đó là lý do `VHG_Shop::url_ngan()` cắt `https://`: bỏ 8 ký tự đó là
+	 *     chuỗi tụt từ version 3 (29×29, 1 px/module) xuống version 2 (25×25, 2 px/module).
+	 *
+	 *     ĐÃ THỬ viết hoa toàn bộ cho vào chế độ alphanumeric — VÔ ÍCH ở độ dài này (vẫn
+	 *     25×25, vẫn 2 px/module) mà lại làm HỎNG địa chỉ: đường dẫn WordPress phân biệt hoa
+	 *     thường, `/MUA-MA/` ra trang 404. Đừng làm lại.
 	 */
 	const QR_VUNG_PX = 58;
 

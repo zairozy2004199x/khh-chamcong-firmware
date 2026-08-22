@@ -44,25 +44,46 @@ class VHG_Shop {
 	}
 
 	/**
-	 * Địa chỉ NGẮN NHẤT có thể — để mã QR ghế tự vẽ trên màn còn quét được.
+	 * Địa chỉ ĐẦY ĐỦ của một ghế — dùng cho TEM IN. Đây là dạng đã chạy thật trên khmatrix.com.
 	 *
-	 * 🔴 Ô gói trên màn ghế chỉ chừa được 58 pixel cho mã QR. Số module của mã phụ thuộc ĐỘ DÀI
-	 *    chuỗi, nên địa chỉ dài là mã tự rơi xuống 1 pixel mỗi module — nhìn vẫn "có mã QR" mà
-	 *    gần như không điện thoại nào quét nổi.
+	 * 🔴 Dạng tham số `?ghe=` chứ KHÔNG phải dạng thư mục `/mua-ma/AMTP01`. Anh Thắng thử
+	 *    23/08/2026: `/MUA-MA/AMTP01` nhảy ra trang "Không tìm thấy trang", còn
+	 *    `/mua-ma/?ghe=AMTP01` vào đúng trang.
 	 *
-	 * ⚠️ BỎ "https://" và VIẾT HOA. Bỏ scheme cắt 8 ký tự; viết hoa cho chuỗi rơi vào chế độ
-	 *    ALPHANUMERIC của QR (đặc hơn chế độ byte). Hầu hết máy quét nhận chuỗi không scheme là
-	 *    địa chỉ web.
-	 * ⚠️ Dạng THƯ MỤC (`/m/AMTP01`) chứ không phải tham số (`?g=AMTP01`): `?` và `=` không nằm
-	 *    trong bộ ký tự alphanumeric của QR, một ký tự lạ là cả chuỗi rơi về chế độ byte.
+	 *    Hai lý do, và cả hai đều là lỗi của bản trước:
+	 *      · Luật đường dẫn của WordPress PHÂN BIỆT HOA THƯỜNG. Em viết hoa cả địa chỉ cho mã QR
+	 *        nhỏ lại, nhưng `/MUA-MA/` thì không khớp luật `mua-ma` nào cả.
+	 *      · Luật dạng thư mục là luật MỚI, chỉ có hiệu lực sau khi WordPress nạp lại bảng đường
+	 *        dẫn. Dạng `?ghe=` thì không cần luật nào — nó chạy ngay, ở mọi cấu hình.
+	 *
+	 *    Tem dán lên ghế nhiều năm. Nó phải mang dạng CHẮC CHẮN CHẠY, không phải dạng ngắn nhất.
+	 *
+	 * ⚠️ Và viết hoa hoá ra CHẲNG LỢI GÌ ở độ dài này: `KHMATRIX.COM/MUA-MA/AMTP01` với
+	 *    `khmatrix.com/mua-ma/AMTP01` đều ra mã 25×25. Em đã đánh đổi tính đúng đắn lấy một cái
+	 *    lợi bằng không.
+	 */
+	public static function url_ghe( $ma_may ) {
+		$m = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $ma_may ) );
+		if ( '' === $m ) { return ''; }
+		return add_query_arg( 'ghe', $m, self::url() );
+	}
+
+	/**
+	 * Cùng địa chỉ đó nhưng BỎ "https://" — chỉ dùng cho mã QR ghế tự vẽ trên màn.
+	 *
+	 * 🔴 Ô gói trên màn ghế chỉ chừa 58 pixel. Có scheme thì chuỗi dài 39 ký tự -> mã 29×29 ->
+	 *    1 pixel mỗi module, gần như không máy nào quét nổi. Bỏ scheme còn 31 ký tự -> 25×25 ->
+	 *    2 pixel mỗi module. Đó là toàn bộ lý do tồn tại của hàm này.
+	 *
+	 * ⚠️ GIỮ NGUYÊN HOA THƯỜNG của đường dẫn. Viết hoa không làm mã nhỏ hơn ở độ dài này, mà
+	 *    lại làm đường dẫn không khớp — đúng lỗi vừa sửa.
+	 * ⚠️ Đường dẫn phải là dạng đã chạy thật (`?ghe=`), y như tem in. Hai nơi hai dạng khác nhau
+	 *    là một nơi sẽ chết mà nơi kia vẫn chạy, nên không ai phát hiện.
 	 */
 	public static function url_ngan( $ma_may ) {
-		$m = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $ma_may ) );
-		if ( ! get_option( 'permalink_structure' ) || '' === $m ) { return ''; }
-		$goc = (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST );
-		$goc = preg_replace( '/^www\./i', '', $goc );
-		if ( '' === $goc ) { return ''; }
-		return strtoupper( $goc . '/' . self::slug() . '/' . $m );
+		$u = self::url_ghe( $ma_may );
+		if ( '' === $u ) { return ''; }
+		return preg_replace( '#^https?://#i', '', $u );
 	}
 
 	public static function init() {

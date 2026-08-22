@@ -361,8 +361,9 @@ class VHG_Cong {
 			'qcO'     => (int) VHG_May::qc_ma()['o'],
 			'qcGiay'  => (int) VHG_May::qc_ma()['giay'],
 			'qcGiam'  => (int) VHG_May::qc_ma()['giam'],
-			/* Địa chỉ để ghế TỰ VẼ mã QR vào ô quảng cáo. Ngắn hết mức (không scheme, viết hoa,
-			   dạng thư mục) vì ô gói chỉ cao 84px — xem VHG_Shop::url_ngan(). Rỗng thì ghế vẽ
+			/* Địa chỉ để ghế TỰ VẼ mã QR vào ô quảng cáo. Cắt `https://` cho ngắn — chỉ vậy
+			   thôi, KHÔNG viết hoa và KHÔNG đổi dạng đường dẫn (đường dẫn WordPress phân biệt
+			   hoa thường) — vì ô gói chỉ cao 84px; xem VHG_Shop::url_ngan(). Rỗng thì ghế vẽ
 			   lời mời bằng chữ, KHÔNG vẽ một mã QR dẫn đi đâu không rõ. */
 			'qcUrl'   => VHG_Shop::url_ngan( $ma_may ),
 			'maMay'   => $ma_may,

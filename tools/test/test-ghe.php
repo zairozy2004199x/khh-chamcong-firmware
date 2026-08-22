@@ -3635,14 +3635,34 @@ $u_ng = VHG_Shop::url_ngan( 'AMTP01' );
 t( 'có dựng được địa chỉ ngắn', '' !== $u_ng, $u_ng );
 /* 🔴 Ô gói chỉ chừa 58px cho mã. Ba thứ dưới đây là ba cách chuỗi tự dài ra, và mỗi lần dài là
       mã tự rơi xuống ít pixel hơn mỗi module. */
-t( 'bỏ scheme https://', strpos( $u_ng, 'http' ) === false );
-t( 'viết HOA toàn bộ (cho vào chế độ alphanumeric, đặc hơn)', $u_ng === strtoupper( $u_ng ) );
-t( 'dạng thư mục chứ không phải tham số', strpos( $u_ng, '?' ) === false
-	&& strpos( $u_ng, '=' ) === false );
-t( 'và mang đúng mã ghế', substr( $u_ng, -6 ) === 'AMTP01' );
+/* ===== 🔴 LỖI 23/08/2026: TEM IN RA DẪN VÀO TRANG "KHÔNG TÌM THẤY TRANG" ====================
+ * Em viết HOA cả địa chỉ để mã QR nhỏ lại, và dùng dạng thư mục `/mua-ma/AMTP01`. Hai chỗ sai:
+ *   · Luật đường dẫn của WordPress PHÂN BIỆT HOA THƯỜNG — `/MUA-MA/` không khớp `mua-ma` nào cả.
+ *   · Dạng thư mục là luật MỚI, chỉ chạy sau khi WordPress nạp lại bảng đường dẫn.
+ * Anh Thắng thử: `/MUA-MA/AMTP01` ra trang 404, `/mua-ma/?ghe=AMTP01` vào đúng trang.
+ *
+ * Và viết hoa hoá ra CHẲNG LỢI GÌ: hai dạng đều ra mã 25×25. Đánh đổi tính đúng đắn lấy số không.
+ *
+ * Nên phép thử nay canh ngược lại: đường dẫn phải GIỮ NGUYÊN hoa thường, và phải là dạng đã chạy
+ * thật. Chỉ mã ghế mới viết hoa — mã ghế nằm trong THAM SỐ, không nằm trong đường dẫn. */
+t( 'bỏ scheme https:// (cho mã QR trên màn ghế nhỏ lại)', strpos( $u_ng, 'http' ) === false );
+$u_day = VHG_Shop::url_ghe( 'AMTP01' );
+t( 'tem in dùng địa chỉ ĐẦY ĐỦ có https://', 0 === strpos( $u_day, 'http' ) );
+t( '🔴 dùng dạng ?ghe= — dạng đã chạy thật', strpos( $u_day, '?ghe=' ) !== false
+	|| strpos( $u_day, '&ghe=' ) !== false );
+/* 🔴 Chốt chính: đường dẫn KHÔNG được viết hoa. Đây là thứ đã làm tem dẫn vào trang 404. */
+$duong_ng = (string) wp_parse_url( $u_day, PHP_URL_PATH );
+teq( '🔴 đường dẫn giữ nguyên hoa thường, không viết hoa',
+	strtolower( $duong_ng ), $duong_ng );
+t( 'và đường dẫn khớp đúng slug đã khai',
+	strpos( $duong_ng, VHG_Shop::slug() ) !== false, $duong_ng );
+t( 'mã ghế thì viết hoa, và nằm trong tham số', strpos( $u_day, 'ghe=AMTP01' ) !== false );
+/* Hai nơi phải dùng CÙNG một dạng: khác dạng thì một nơi chết mà nơi kia vẫn chạy, nên không ai
+   phát hiện cho tới khi khách kêu. */
+teq( 'bản ngắn chỉ khác bản đầy đủ ở mỗi scheme',
+	preg_replace( '#^https?://#i', '', $u_day ), $u_ng );
 
 $qro = VHG_Ma::qr_o_goi( $u_ng );
-t( 'chuỗi rơi vào chế độ alphanumeric', ! empty( $qro['alnum'] ), $u_ng );
 /* 🔴 CON SỐ quyết định: 2 pixel mỗi module là quét được ở khoảng cách gần, 1 là gần như không
       máy nào quét nổi — mà nhìn trên màn thì VẪN THẤY "có mã QR". Kiểu hỏng không kêu. */
 t( '🔴 mã QR đủ to để quét (>=2 px/module)', (int) $qro['px'] >= 2, $qro['chu'] );
@@ -3811,12 +3831,12 @@ teq( '🔴 sửa lỗi khớp từng byte với ví dụ của bản đặc tả
 /* Bộ đọc đi ngược đúng những bước dễ sai nhất. Một lỗi ở bất kỳ bước nào của bộ vẽ là chuỗi đọc
    ra khác chuỗi ban đầu. */
 $mau_qr = array(
-	'KHMATRIX.COM/MUA-MA/AMTP01',      // đúng thứ tem sẽ mang
-	'KHMATRIX.COM/M/AMTP01',
-	'HELLO WORLD',                     // alphanumeric ngắn
-	'Ghe massage POSH - tem dan',      // có chữ thường -> chế độ byte
-	'https://khmatrix.com/mua-ma/AMTP01',
-	'0',                               // ngắn nhất có thể
+	'https://khmatrix.com/mua-ma/?ghe=AMTP01',   // đúng thứ TEM DÁN sẽ mang
+	'khmatrix.com/mua-ma/?ghe=AMTP01',           // đúng thứ Ô GÓI TRÊN GHẾ sẽ mang
+	'HELLO WORLD',                               // alphanumeric ngắn
+	'Ghe massage POSH - tem dan',                // có chữ thường -> chế độ byte
+	'KHMATRIX.COM/MUA-MA/AMTP01',                // dạng cũ (đã bỏ) — bộ vẽ vẫn phải dựng đúng
+	'0',                                         // ngắn nhất có thể
 );
 foreach ( $mau_qr as $t_qr ) {
 	foreach ( array( 'L', 'M', 'Q', 'H' ) as $muc_qr ) {
