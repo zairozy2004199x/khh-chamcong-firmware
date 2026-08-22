@@ -939,7 +939,51 @@ String wpViec(const String& viec, const String& them, bool docThan){
    gỡ) — nên bản này lên là chạy tiếp. Chip trắng thì gõ ở portal.
    🔴 Vì vậy thứ tự di trú ở đầu tệp KHÔNG được đảo: đặt /cfg/wp trước, đẩy firmware sau. */
 
-/* ===========================================================================/* ===========================================================================
+/* ===========================================================================// ---- Dựng header Digest từ các tham số đã tách ----
+String digestHeaderFrom(const String& realm, const String& nonce, const String& qop,
+                        const String& opaque, const String& method, const String& uri) {
+  String cnonce = "0a4f113b";
+  String nc     = "00000001";
+  String HA1 = getMD5(String(hik_user) + ":" + realm + ":" + String(hik_pass));
+  String HA2 = getMD5(method + ":" + uri);
+  String response = getMD5(HA1 + ":" + nonce + ":" + nc + ":" + cnonce + ":" + qop + ":" + HA2);
+  String h = "Digest username=\"" + String(hik_user) + "\", realm=\"" + realm +
+             "\", nonce=\"" + nonce + "\", uri=\"" + uri + "\", qop=" + qop +
+             ", nc=" + nc + ", cnonce=\"" + cnonce + "\", response=\"" + response + "\"";
+  if (opaque.length()) h += ", opaque=\"" + opaque + "\"";
+  return h;
+}
+
+String buildDigestAuth(const String& method, const String& uri, const String& authReq) {
+  return digestHeaderFrom(extractParam(authReq, "realm"), extractParam(authReq, "nonce"),
+                          extractParam(authReq, "qop"),   extractParam(authReq, "opaque"),
+                          method, uri);
+}
+
+// Lấy 1 "challenge" Digest (nonce...) từ 1 endpoint nhẹ — dùng cho POST multipart bằng WiFiClient thô.
+bool getDigestChallenge(String& realm, String& nonce, String& qop, String& opaque) {
+  HTTPClient http;
+  String url = "http://" + String(hik_ip) + "/ISAPI/System/deviceInfo?format=json";
+  http.begin(url); http.setTimeout(6000);
+  const char* hk[] = {"WWW-Authenticate"}; http.collectHeaders(hk, 1);
+  int code = http.GET();
+  bool ok = false;
+  if (code == 401) {
+    String a = http.header("WWW-Authenticate");
+    realm  = extractParam(a, "realm");  nonce  = extractParam(a, "nonce");
+    qop    = extractParam(a, "qop");    opaque = extractParam(a, "opaque");
+    ok = nonce.length() > 0;
+  }
+  http.end();
+  return ok;
+}
+
+int hikSend_(HTTPClient& http, const String& method, const String& payload) {
+  if (method == "GET") return http.GET();
+  return http.sendRequest(method.c_str(), (uint8_t*)payload.c_str(), payload.length());
+}
+
+/* ===========================================================================
  *  MÃ HTTP CỦA LƯỢT ISAPI GẦN NHẤT — để web nói ĐÚNG nguyên nhân
  * ---------------------------------------------------------------------------
  *  🔴 03/08 (bản j) — LỖI CỦA BẢN i: em lấy `HIK_SERIAL.length()` làm dấu hiệu "đọc được đầu
@@ -2693,13 +2737,16 @@ static time_t utcToEpoch(int Y,int M,int D,int h,int m,int s){
   long days = era*146097 + doe - 719468;
   return (time_t)days*86400L + h*3600L + m*60L + s;
 }
-// FALLBACK khi NITZ không có: lấy giờ từ header "Date:" của response Google (UTC) -> set đồng hồ.
-// Mọi response HTTP (kể cả 302) đều có Date -> chỉ cần HTTPHEAD, khỏi đọc body/khỏi follow redirect.
+/* FALLBACK khi NITZ không có: lấy giờ từ header "Date:" của response (UTC) -> set đồng hồ.
+   Mọi response HTTP đều có Date -> chỉ cần HTTPHEAD, khỏi đọc body.
+   Hỏi CHÍNH website của mình thay vì Google: một địa chỉ ít hơn để phải khai, và cổng nhận trả
+   405 cho GET — vẫn đủ header Date, mà 405 còn xác nhận luôn là đường tới cổng thông. */
 bool syncTimeHttpDate(){
   Serial2.print("AT+HTTPTERM\r\n"); delay(120); while(Serial2.available()) Serial2.read();
   Serial2.print("AT+HTTPINIT\r\n"); atWait("OK",6000);
   Serial2.print("AT+HTTPPARA=\"CID\",1\r\n"); atWait("OK",2000);
-  Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(google_script_url); Serial2.print("\"\r\n"); atWait("OK",3000);
+  if (!wpUrlHopLe(String(wp_url))) { Serial.println("[4G] chua co link website -> khong lay duoc gio"); return false; }
+  Serial2.print("AT+HTTPPARA=\"URL\",\""); Serial2.print(wp_url); Serial2.print("\"\r\n"); atWait("OK",3000);
   Serial2.print("AT+HTTPACTION=0\r\n"); atWait("+HTTPACTION:",25000);
   Serial2.print("AT+HTTPHEAD\r\n"); String h=atWait("OK",6000);
   Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
