@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22f (man in dung noi dung trong QR)"
+#define FW_VERSION "ghe-massage 2026-08-22g (giu kenh HTTPS, bot tre)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -127,7 +127,11 @@ int phutGoi(int i){
 }
 
 const int PAY_WINDOW_S   = 150;    // chờ khách trả (giây) rồi hủy QR
-const unsigned long PAY_POLL_MS  = 2000;   // chu kỳ hỏi máy chủ khi đang chờ trả
+/* Chu kỳ hỏi máy chủ khi đang chờ trả. 800 chứ không 2000: kênh HTTPS nay GIỮ MỞ (xem wpGoi)
+   nên một lượt hỏi chỉ còn ~150ms thay vì ~1,5s bắt tay TLS — hỏi dày hơn không còn tốn gì.
+   Đừng hạ xuống dưới ~500: mỗi lượt vẫn là một request PHP, mà host này đã có tiền sử bị
+   Imunify360 chặn vì gõ cửa quá dày. */
+const unsigned long PAY_POLL_MS  = 800;
 const unsigned long PAY_GRACE_MS = 20000;  // sau khi HỦY vẫn theo dõi ~20s: tiền tới trễ vẫn chạy
 const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
 
@@ -215,6 +219,14 @@ String  qrPayload = "";
       tay theo dòng chữ trên màn là chuyển đúng số tiền vào đúng tài khoản mà SePay
       không thấy, ghế không chạy, và không ai hiểu vì sao. */
 String  payND = "";
+/* Một lượt gọi máy chủ mất bao lâu (ms) — ĐO ĐỂ TRỪ, không phải để xem chơi.
+   Ghế tính "còn bao nhiêu giây" TRƯỚC khi gọi, máy chủ đóng dấu giờ LÚC NHẬN. Cả quãng bắt tay
+   TLS + đẩy gói nằm gọn giữa hai mốc đó, nên con số ghế gửi luôn LỚN HƠN sự thật đúng bằng
+   quãng ấy — và phép trừ tuổi dữ liệu bên máy chủ không nhìn thấy nó. Đúng chỗ sinh ra khoảng
+   lệch 4-5 giây giữa đồng hồ trên ghế và đồng hồ trên web. */
+unsigned long g_rttMs = 0;
+/* Đang cần hỏi dày (chờ khách trả) thì giữ kênh HTTPS mở giữa các lượt. */
+volatile bool g_giuKenh = false;
 unsigned long waitUntil = 0;
 unsigned long lastPayPoll = 0;
 unsigned long runUntil = 0;
@@ -422,13 +434,62 @@ String wpGoi(const String& viec, const String& them){
     atWait("OK",2000); Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
     return ra;
   }
-  WiFiClientSecure c; c.setInsecure();
-  HTTPClient h; h.begin(c, wp_url);
-  h.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-  h.addHeader("Content-Type","application/json");
-  h.addHeader("X-VHG-Key", wp_key);
-  h.setTimeout(20000);
-  int code=h.POST(body); String ra=(code==200)?h.getString():""; h.end();
+  /* ==========================================================================================
+   * KÊNH HTTPS GIỮ MỞ GIỮA CÁC LƯỢT GỌI.
+   *
+   * 🔴 Bản trước dựng `WiFiClientSecure` NGAY TRONG HÀM. Biến cục bộ nên hết hàm là nó bị huỷ,
+   *    kéo theo cả socket — nghĩa là MỖI lượt gọi phải bắt tay TLS lại từ đầu. Trên ESP32 một
+   *    lượt bắt tay mất 1-2 giây. Hai chỗ trả giá:
+   *      · Chờ khách trả: mỗi lượt hỏi "có tiền chưa" gánh thêm 1-2s -> quét xong 5-6s ghế mới chạy.
+   *      · Nhịp sống: ghế tính `con_lai` rồi mới bắt tay, máy chủ đóng dấu giờ lúc nhận -> con số
+   *        gửi lên đã già 1-2 giây ngay lúc sinh ra, và web hiển thị chậm hơn ghế đúng chừng đó.
+   *
+   * Để `static` + `setReuse(true)` là dùng lại đúng một socket: lượt sau chỉ còn ~150ms.
+   *
+   * ⚠️ KHÔNG gọi `begin()` lại mỗi lượt. `begin()` đặt lại tiêu đề VÀ ngắt kết nối đang có —
+   *    tức là vẫn bắt tay lại, chỉ khác là mình tưởng đã sửa xong.
+   * ⚠️ PHẢI ĐỌC HẾT THÂN TRẢ LỜI kể cả khi mã không phải 200. Bỏ dở là còn byte nằm lại trong
+   *    socket, lượt sau đọc trúng phần thừa của lượt trước và JSON hỏng — kiểu lỗi chỉ hiện ra
+   *    khi máy chủ trả lỗi, tức là đúng lúc đang rối nhất.
+   * ⚠️ HỎNG THÌ QUAY VỀ CÁCH CŨ. Có host cắt keep-alive; ba lượt gãy liên tiếp là thôi giữ kênh
+   *    hẳn, chậm còn hơn chết.
+   * ========================================================================================== */
+  static WiFiClientSecure c;
+  static HTTPClient h;
+  static bool daMo = false;
+  static int  gayLienTiep = 0;
+  static bool thoiGiuKenh = false;
+
+  unsigned long t0 = millis();
+  if(!daMo){
+    c.setInsecure();
+    h.begin(c, wp_url);
+    h.setReuse(!thoiGiuKenh);
+    h.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    h.addHeader("Content-Type","application/json");
+    h.addHeader("X-VHG-Key", wp_key);
+    h.setTimeout(20000);
+    daMo = true;
+  }
+  int code = h.POST(body);
+  String than = h.getString();          // đọc hết, kể cả khi lỗi
+  String ra   = (code==200) ? than : "";
+  g_rttMs = millis() - t0;
+
+  if(code <= 0){
+    /* Kết nối gãy: dẹp hẳn để lượt sau bắt tay lại từ đầu. */
+    h.end(); c.stop(); daMo = false;
+    if(++gayLienTiep >= 3 && !thoiGiuKenh){
+      thoiGiuKenh = true;
+      Serial.println("[WP] keep-alive gay 3 lan -> thoi giu kenh, ve cach cu (cham hon).");
+    }
+  } else {
+    gayLienTiep = 0;
+    /* Hết đợt hỏi dày thì trả lại ~40KB bộ nhớ TLS. Nhịp 30 giây một lượt thì host đã đóng
+       socket từ lâu, giữ cũng không nhanh hơn được. */
+    if(!g_giuKenh || thoiGiuKenh){ h.end(); c.stop(); daMo = false; }
+  }
+
   if(code==401) Serial.println("[WP] 401 — sai khoa may.");
   else if(code==301||code==302||code==307||code==308) Serial.printf("[WP] %d CHUYEN HUONG — link sai.\n", code);
   return ra;
@@ -743,11 +804,16 @@ void guiNhip(){
   const char* st = (state==ST_RUNNING) ? "running" : (state==ST_WAIT_PAY ? "wait_pay" : "idle");
   const char* src = (g_srcCode=='q') ? "qr" : (g_srcCode=='c' ? "cash" : (g_srcCode=='r' ? "remote" : ""));
   long conLai = (state==ST_RUNNING) ? ((long)(runUntil - millis())/1000) : 0; if(conLai<0) conLai=0;
+  /* `tre` = lượt gọi trước mất bao nhiêu ms. Máy chủ trừ nửa quãng đó khỏi `con_lai`: con số
+     trên được tính Ở ĐÂY, còn dấu giờ thì đóng lúc gói tin TỚI NƠI — nửa quãng đi là phần
+     máy chủ không tự thấy được. Giữ kênh HTTPS mở làm quãng này còn ~150ms, nên phần trừ chỉ
+     là cái lưới đỡ cho đường 4G (mỗi lượt AT-HTTP 3-6 giây, không keep-alive được). */
   /* Báo ngược TIỀN TỐ ghế đang thật sự dùng. Không có nó thì từ web không cách nào biết ghế đã
      nạp firmware mới chưa — người ta sửa ô trên web rồi tưởng xong, mà ghế vẫn dựng nội dung
      thiếu tiền tố, và tiền vẫn biến mất y như cũ. */
   String r = wpGoi("nhip", String("\"trang_thai\":\"") + st + "\",\"nguon\":\"" + src
-    + "\",\"con_lai\":" + String(conLai) + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
+    + "\",\"con_lai\":" + String(conLai) + ",\"tre\":" + String(g_rttMs)
+    + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
     + "\",\"fw\":\"" FW_VERSION "\"");
   lastNhipMs = millis(); g_statusDirty = false;
   if(r.length()==0) return;
@@ -1263,6 +1329,10 @@ void netTask(void*){
   Serial.println("[NET] task mang chay tren core 0");
   for(;;){
     bool dangCho = (g_watchPayUntil > 0 && millis() < g_watchPayUntil);
+    /* MỘT NƠI DUY NHẤT quyết định có giữ kênh HTTPS hay không, suy thẳng từ "đang chờ trả".
+       Bật/tắt bằng tay ở startSession/startRunning/nút huỷ là ba chỗ phải nhớ, và chỗ nào quên
+       thì hoặc mất tốc độ, hoặc ôm 40KB bộ nhớ TLS suốt ngày mà không ai biết vì sao hết RAM. */
+    g_giuKenh = dangCho;
 
     if(!dangCho && USE_4G && g_4gReady && millis()-lastRegCheck > 30000UL){
       lastRegCheck = millis();

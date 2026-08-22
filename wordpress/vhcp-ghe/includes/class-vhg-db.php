@@ -161,7 +161,12 @@ class VHG_DB {
 		   ⚠️ Lời giải thích để NGOÀI chuỗi SQL: nhét khối chú thích vào giữa danh sách cột thì
 		      dbDelta không đọc nổi, và dấu nháy kép trong đó còn làm hỏng luôn chuỗi PHP.
 		      (Viết chính câu này cũng vừa dính bẫy: một dấu đóng chú thích nằm lọt trong lời
-		      giải thích là nó tự đóng khối sớm, và PHP báo lỗi ở một dòng chẳng liên quan.) */
+		      giải thích là nó tự đóng khối sớm, và PHP báo lỗi ở một dòng chẳng liên quan.)
+
+		   `tre_ms` = lượt gọi TRƯỚC của ghế mất bao nhiêu mili giây. Ghế tính `con_lai` rồi mới
+		   đi gọi; máy chủ đóng dấu `luc` lúc NHẬN. Cả quãng bắt tay TLS + đẩy gói nằm giữa hai
+		   mốc đó, nên `con_lai` già hơn `luc` đúng bằng nửa quãng đi — và phép trừ tuổi dữ liệu
+		   không nhìn thấy phần này. Đó là 4-5 giây lệch giữa đồng hồ trên ghế và trên web. */
 		$b['nhip'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_may VARCHAR(40) NOT NULL,
@@ -171,6 +176,7 @@ class VHG_DB {
 			ip VARCHAR(60) NOT NULL DEFAULT '',
 			fw VARCHAR(80) NOT NULL DEFAULT '',
 			nd_tien_to VARCHAR(20) NOT NULL DEFAULT '',
+			tre_ms SMALLINT UNSIGNED NOT NULL DEFAULT 0,
 			luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_may (ma_may),

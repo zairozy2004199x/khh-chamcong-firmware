@@ -281,6 +281,7 @@ class VHG_Cong {
 			'trang_thai' => isset( $d['trang_thai'] ) ? $d['trang_thai'] : 'idle',
 			'nguon'      => isset( $d['nguon'] ) ? $d['nguon'] : '',
 			'con_lai'    => isset( $d['con_lai'] ) ? $d['con_lai'] : 0,
+			'tre'        => isset( $d['tre'] ) ? $d['tre'] : 0,
 			'ip'         => isset( $d['ip'] ) ? $d['ip'] : '',
 			'fw'         => isset( $d['fw'] ) ? $d['fw'] : '',
 			'nd'         => isset( $d['nd'] ) ? $d['nd'] : '',

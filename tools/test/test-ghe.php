@@ -1826,6 +1826,51 @@ foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } 
 teq( 'mất kết nối thì giữ nguyên con số, không trừ tiếp', 300, (int) $m['con_lai'] );
 teq( 'và báo mất kết nối', false, ! empty( $m['con_song'] ) );
 
+/* ⚠️ NỬA QUÃNG ĐI — phần máy chủ KHÔNG tự thấy được.
+      Ghế tính "còn bao nhiêu giây" TRƯỚC khi gọi; máy chủ đóng dấu `luc` LÚC NHẬN. Cả quãng bắt
+      tay TLS + đẩy gói nằm gọn giữa hai mốc đó, nên con số ghế gửi đã già ngay lúc sinh ra, mà
+      phép trừ tuổi dữ liệu ở trên bắt đầu đếm từ `luc` nên không đụng tới phần này. Đúng chỗ
+      sinh ra lệch 4-5 giây giữa đồng hồ trên ghế và đồng hồ trên web (anh Thắng 22/08/2026).
+      Ghế tự khai `tre` = lượt gọi trước mất bao nhiêu ms; trừ NỬA vì đó là cả đi lẫn về. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr',
+	'tre' => 4000 ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 11 ), 'AMTP01' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( '🔴 trừ cả nửa quãng đi: 300 - 11 - 2', 287, (int) $m['con_lai'] );
+
+/* Kênh HTTPS giữ mở thì quãng này còn ~150ms — dưới một giây, tức là biến mất khỏi đồng hồ. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr',
+	'tre' => 150 ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 11 ), 'AMTP01' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( 'kênh nhanh thì gần như không phải trừ', 300 - 11, (int) $m['con_lai'] );
+
+/* Ghế firmware CŨ không gửi `tre`. Phải chạy y như trước, không được lệch thêm. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr' ) );
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 11 ), 'AMTP01' ) );
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m = $x; } }
+teq( 'firmware cũ không gửi tre thì y như cũ', 289, (int) $m['con_lai'] );
+
+/* Cột là SMALLINT UNSIGNED. Ghế mất mạng lâu gửi lên con số rất lớn: chặn ở PHP chứ không để
+   MySQL xử — chế độ chặt thì nó TỪ CHỐI CẢ HÀNG, mất luôn nhịp vì một số chỉ để chỉnh đồng hồ. */
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr',
+	'tre' => 9999999 ) );
+$tre_luu = (int) $wpdb->get_var( 'SELECT tre_ms FROM ' . VHG_DB::t( 'nhip' ) . " WHERE ma_may='AMTP01'" );
+teq( 'chặn tre trong tầm của cột', 65535, $tre_luu );
+VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 300, 'nguon' => 'qr',
+	'tre' => -50 ) );
+$tre_luu = (int) $wpdb->get_var( 'SELECT tre_ms FROM ' . VHG_DB::t( 'nhip' ) . " WHERE ma_may='AMTP01'" );
+teq( 'và không nhận số âm', 0, $tre_luu );
+
+/* Cổng máy phải CHUYỂN TIẾP `tre` xuống. Quên một chỗ này là cả nhánh trên vô dụng mà không
+   phép thử nào ở tầng dưới hé ra. */
+$cong_php = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-cong.php' );
+t( 'cổng máy chuyển tiếp tre xuống nhịp',
+	preg_match( "/'tre'\s*=>\s*isset\(\s*\\\$d\['tre'\]\s*\)/", $cong_php ) === 1 );
+
 /* Không bao giờ trả số âm: nhịp cũ hơn cả số giây còn lại là ghế đã chạy xong từ lâu. */
 VHG_May::nhip( 'AMTP01', array( 'trang_thai' => 'running', 'con_lai' => 5, 'nguon' => 'qr' ) );
 $wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
@@ -2264,6 +2309,50 @@ foreach ( array( 'Quet bang ung dung', 'Noi dung: ' ) as $chu_qr ) {
 		&& (int) $m_q[1] <= 217;
 	t( 'dòng "' . $chu_qr . '" nằm trên hàng đồng hồ', $ok_y );
 }
+
+// ---- firmware: kênh HTTPS giữ mở, để quét xong ghế chạy ngay
+$fw7 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+/* 🔴 Bản trước dựng WiFiClientSecure NGAY TRONG HÀM. Biến cục bộ, hết hàm là socket chết theo,
+      nên MỖI lượt gọi phải bắt tay TLS lại — 1-2 giây trên ESP32. Trả giá ở hai chỗ: quét xong
+      5-6 giây ghế mới chạy, và `con_lai` già đúng chừng đó ngay lúc sinh ra. */
+t( 'kênh HTTPS dùng lại, không dựng mới mỗi lượt',
+	preg_match( '/static\s+WiFiClientSecure\s+c;/', $fw7 ) === 1 );
+t( 'và không còn biến cục bộ dựng lại mỗi lượt',
+	preg_match( '/^\s*WiFiClientSecure\s+c;\s*c\.setInsecure/m', $fw7 ) !== 1 );
+t( 'có bật dùng lại kết nối', strpos( $fw7, 'h.setReuse(' ) !== false );
+/* ⚠️ begin() đặt lại tiêu đề VÀ ngắt kết nối đang có. Gọi lại mỗi lượt là vẫn bắt tay lại,
+      chỉ khác là mình tưởng đã sửa xong. */
+t( 'begin() chỉ gọi một lần', substr_count( $fw7, 'h.begin(c, wp_url)' ) === 1 );
+/* ⚠️ Đọc hết thân trả lời KỂ CẢ khi lỗi: bỏ dở là byte thừa nằm lại trong socket, lượt sau đọc
+      trúng phần thừa của lượt trước -> JSON hỏng đúng lúc máy chủ đang trả lỗi. */
+t( 'đọc hết thân trả lời kể cả khi mã lỗi',
+	preg_match( '/String\s+than\s*=\s*h\.getString\(\);/', $fw7 ) === 1
+	&& preg_match( '/String\s+ra\s*=\s*\(code==200\)\s*\?\s*than\s*:/', $fw7 ) === 1 );
+/* Có host cắt keep-alive. Gãy liên tiếp thì phải thôi giữ kênh, chậm còn hơn chết. */
+t( 'gãy liên tiếp thì quay về cách cũ', strpos( $fw7, 'thoiGiuKenh' ) !== false );
+t( 'và dựng lại kết nối khi gãy',
+	preg_match( '/if\(code\s*<=\s*0\)\{[^}]*daMo\s*=\s*false;/s', $fw7 ) === 1 );
+/* Giữ kênh chỉ trong đợt hỏi dày. Ôm ~40KB bộ nhớ TLS suốt ngày cho một lượt nhịp 30 giây là
+   đổi RAM lấy con số không. */
+t( 'chỉ giữ kênh trong lúc chờ khách trả',
+	preg_match( '/g_giuKenh\s*=\s*dangCho;/', $fw7 ) === 1 );
+/* Đúng MỘT chỗ gán (không tính dòng khai báo): bật/tắt bằng tay ở startSession, startRunning
+   và nút huỷ là ba chỗ phải nhớ — chỗ nào quên thì hoặc mất tốc độ, hoặc ôm 40KB bộ nhớ TLS
+   suốt ngày mà không ai lần ra vì sao hết RAM. */
+t( 'và bật/tắt ở ĐÚNG MỘT nơi',
+	preg_match_all( '/^\s*g_giuKenh\s*=/m', $fw7 ) === 1 );
+t( 'không còn thì trả lại bộ nhớ TLS',
+	preg_match( '/if\(!g_giuKenh[^)]*\)\{[^}]*c\.stop\(\)/s', $fw7 ) === 1 );
+
+/* Hỏi tiền dày hơn — nhưng đừng dày quá: mỗi lượt là một request PHP, host này đã có tiền sử
+   bị Imunify360 chặn vì gõ cửa quá dày. */
+$poll = preg_match( '/PAY_POLL_MS\s*=\s*(\d+)/', $fw7, $m_pp ) === 1 ? (int) $m_pp[1] : -1;
+t( 'chu kỳ hỏi tiền nhanh hơn hẳn', $poll > 0 && $poll <= 1000, $poll );
+t( 'nhưng không dày tới mức bị chặn', $poll >= 500, $poll );
+
+/* Ghế phải KHAI quãng đi, không thì máy chủ không có gì để trừ. */
+t( 'ghế đo thời gian mỗi lượt gọi', strpos( $fw7, 'g_rttMs = millis() - t0' ) !== false );
+t( 'và gửi kèm trong nhịp', strpos( $fw7, '",\"tre\":" + String(g_rttMs)' ) !== false );
 
 // ============================================================ kết
 if ( $truot ) {

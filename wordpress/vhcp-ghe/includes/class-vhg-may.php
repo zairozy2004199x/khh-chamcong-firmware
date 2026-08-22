@@ -65,7 +65,7 @@ class VHG_May {
 		$nhip = VHG_DB::t( 'nhip' );
 		$ds = VHG_DB::rows(
 			"SELECT m.*, c.ten AS coso_ten, n.trang_thai, n.nguon AS nhip_nguon, n.con_lai,"
-			. " n.fw, n.ip, n.nd_tien_to, n.luc AS nhip_luc FROM $may m"
+			. " n.fw, n.ip, n.nd_tien_to, n.tre_ms, n.luc AS nhip_luc FROM $may m"
 			. " LEFT JOIN $coso c ON c.id = m.coso_id"
 			. " LEFT JOIN $nhip n ON n.ma_may = m.ma"
 			. ' ORDER BY c.ten ASC, m.ma ASC' );
@@ -95,7 +95,13 @@ class VHG_May {
 			 * ================================================================================== */
 			$con = (int) ( isset( $x['con_lai'] ) ? $x['con_lai'] : 0 );
 			if ( $tt['song'] && 'running' === (string) $x['trang_thai'] && null !== $tt['giay'] ) {
-				$con = max( 0, $con - (int) $tt['giay'] );
+				/* Trừ HAI phần, hai nguồn khác nhau:
+				   · tuổi của nhịp: từ lúc máy chủ nhận tới bây giờ — máy chủ tự biết.
+				   · nửa quãng đi: ghế tính con số TRƯỚC khi gọi, dấu giờ đóng LÚC NHẬN. Máy chủ
+				     không thấy quãng này, nên ghế phải tự khai (`tre_ms` = lượt trước mất bao lâu).
+				     Nửa chứ không trọn: `tre_ms` là cả đi lẫn về, chỉ chiều đi mới nằm giữa hai mốc. */
+				$con = max( 0, $con - (int) $tt['giay']
+					- (int) round( (int) ( isset( $x['tre_ms'] ) ? $x['tre_ms'] : 0 ) / 2000 ) );
 			}
 			$ds[ $i ]['con_lai']      = $con;
 			$ds[ $i ]['nhip_giay']    = $tt['giay'];
@@ -766,6 +772,10 @@ class VHG_May {
 			'trang_thai' => mb_substr( (string) ( isset( $d['trang_thai'] ) ? $d['trang_thai'] : 'idle' ), 0, 20 ),
 			'nguon'      => mb_substr( (string) ( isset( $d['nguon'] ) ? $d['nguon'] : '' ), 0, 20 ),
 			'con_lai'    => (int) ( isset( $d['con_lai'] ) ? $d['con_lai'] : 0 ),
+			/* Chặn trên 65535 vì cột là SMALLINT UNSIGNED: quá tầm thì MySQL cắt về 65535 ở chế
+			   độ lỏng, hoặc từ chối cả hàng ở chế độ chặt — mất luôn nhịp vì một con số chỉ để
+			   chỉnh đồng hồ. Ghế mất mạng lâu có thể gửi lên con số rất lớn. */
+			'tre_ms'     => max( 0, min( 65535, (int) ( isset( $d['tre'] ) ? $d['tre'] : 0 ) ) ),
 			'ip'         => mb_substr( (string) ( isset( $d['ip'] ) ? $d['ip'] : '' ), 0, 60 ),
 			'nd_tien_to' => mb_substr( trim( (string) ( isset( $d['nd'] ) ? $d['nd'] : '' ) ), 0, 20 ),
 			/* 80, KHỚP VỚI CỘT. Cắt 40 ở đây là cách hỏng âm thầm: chuỗi phiên bản
