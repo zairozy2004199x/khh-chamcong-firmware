@@ -89,6 +89,32 @@ class VHCC_Auth {
 	}
 
 	/**
+	 * PIN sạch — CẮT ĐUÔI ".0" TRƯỚC KHI bỏ ký tự lạ.
+	 *
+	 * 🔴 Đây là lỗi đã làm KHÔNG AI đăng nhập được trang chấm công, dù nhìn màn Cài đặt vẫn
+	 *    thấy "có PIN". Google Sheets coi PIN là SỐ, nên xuất ra `246810` thành `"246810.0"`.
+	 *    Chuỗi đó dài 8 KÝ TỰ nhưng không khớp luật 4–8 CHỮ SỐ -> `login()` chối ngay từ dòng
+	 *    đầu, và bảng ở màn Cài đặt in "8 ký tự — không dùng được".
+	 *
+	 *    App chi phí đã rửa chỗ này từ lâu (VHCP_Util::pin_sach). Cổng bên đây đọc THẲNG cột
+	 *    JSON của bảng `vhcp_cfg` nên đi vòng qua phép rửa đó — hai nơi đọc cùng một dữ liệu,
+	 *    một nơi rửa, một nơi không. Rửa ngay lúc ĐỌC ở cả ba nguồn, đừng bắt anh Thắng sửa
+	 *    tay 21 dòng người dùng.
+	 *
+	 * ⚠️ THỨ TỰ HAI PHÉP LÀ QUAN TRỌNG. Bỏ ký tự lạ trước thì `"246810.0"` thành `"2468100"` —
+	 *    bảy chữ số, vẫn khớp luật 4–8, nên KHÔNG báo lỗi ở đâu cả, chỉ là không ai gõ trúng.
+	 *    Sai âm thầm còn tệ hơn sai ồn ào.
+	 *
+	 * Không đụng số 0 đứng đầu: `"0123"` giữ nguyên `"0123"`, vì đó là PIN thật của người ta.
+	 */
+	public static function pin_sach( $v ) {
+		$s = trim( (string) $v );
+		if ( '' === $s ) { return ''; }
+		if ( preg_match( '/^(\d+)\.0*$/', $s, $m ) ) { $s = $m[1]; }
+		return preg_replace( '/\D+/', '', $s );
+	}
+
+	/**
 	 * Danh sách người dùng: [ ['ten','pin','vaiTro','coso'], … ]
 	 *
 	 * @return array|WP_Error
@@ -107,7 +133,7 @@ class VHCC_Auth {
 				$vt_pq = strtoupper( trim( (string) $r['vai_tro'] ) );
 				$ra_pq[] = array(
 					'ten'    => trim( (string) $r['ho_ten'] ),
-					'pin'    => $pin_pq,
+					'pin'    => self::pin_sach( $pin_pq ),
 					/* Vai trò lạ -> 'Nhân viên' (bậc thấp nhất). KHÔNG đoán lên cao: đoán nhầm
 					   lên Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả. */
 					'vaiTro' => isset( self::BAN_DO_VAI_TRO[ $vt_pq ] ) ? self::BAN_DO_VAI_TRO[ $vt_pq ] : 'Nhân viên',
@@ -125,7 +151,7 @@ class VHCC_Auth {
 				if ( trim( (string) ( isset( $u['ten'] ) ? $u['ten'] : '' ) ) === '' ) { continue; }
 				$out[] = array(
 					'ten'    => (string) $u['ten'],
-					'pin'    => (string) ( isset( $u['pin'] ) ? $u['pin'] : '' ),
+					'pin'    => self::pin_sach( isset( $u['pin'] ) ? $u['pin'] : '' ),
 					'vaiTro' => (string) ( isset( $u['vaiTro'] ) ? $u['vaiTro'] : 'Kế toán cá nhân' ),
 					'coso'   => (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ),
 				);
@@ -152,7 +178,7 @@ class VHCC_Auth {
 			if ( $ten === '' ) { continue; }
 			$out[] = array(
 				'ten'    => $ten,
-				'pin'    => isset( $a[1] ) ? trim( (string) $a[1] ) : '',
+				'pin'    => isset( $a[1] ) ? self::pin_sach( $a[1] ) : '',
 				'vaiTro' => isset( $a[2] ) ? trim( (string) $a[2] ) : '',
 				'coso'   => isset( $a[3] ) ? trim( (string) $a[3] ) : '',
 			);

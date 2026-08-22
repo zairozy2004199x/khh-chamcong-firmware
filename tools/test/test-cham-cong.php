@@ -3512,6 +3512,65 @@ VHCC_Auth::mo_khoa();
 
 $wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
 
+/* ============ 38b. ĐUÔI ".0" CỦA BẢNG TÍNH — LỖI ĐÃ KHOÁ CỬA TOÀN BỘ NGƯỜI DÙNG THẬT
+ *
+ * 🔴 Ảnh màn Cài đặt trên khmatrix.com ngày 22/08/2026: Admin "8 ký tự — không dùng được",
+ *    Kế toán "6 ký tự — không dùng được". KHÔNG AI đăng nhập được trang chấm công, mà nhìn
+ *    vào thì vẫn thấy "có PIN".
+ *
+ *    Vì sao: Google Sheets coi PIN là SỐ, nên `571394` xuất ra thành `"571394.0"` — tám KÝ TỰ
+ *    nhưng không phải tám CHỮ SỐ. App chi phí rửa chỗ này từ lâu (VHCP_Util::pin_sach) nhưng
+ *    cổng chấm công đọc THẲNG cột JSON của bảng `vhcp_cfg`, đi vòng qua phép rửa đó. Hai nơi
+ *    đọc cùng một dữ liệu, một nơi rửa, một nơi không — và nơi không rửa là CỔNG ĐĂNG NHẬP.
+ */
+$wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
+$stt = 0;
+foreach ( array(
+	array( 'Anh Đuôi Chấm',  '571394.0', 'Admin',           'TUTU_BT' ),   // 8 ký tự -> 6 số
+	array( 'Chị Đuôi Chấm',  '4471.0',   'Kế toán cá nhân', 'TUTU_BT' ),   // 6 ký tự -> 4 số
+) as $x ) {
+	$wpdb->insert( $bang_cfg, array( 'bang' => 'CH_NguoiDung', 'stt' => ++$stt,
+		'cols' => wp_json_encode( $x ) ) );
+}
+
+$u_do = VHCC_Auth::users();
+$pin_do = array();
+foreach ( $u_do as $x ) { $pin_do[ $x['ten'] ] = $x['pin']; }
+teq( 'rửa đuôi ".0" lúc ĐỌC người dùng (8 ký tự -> 6 số)', '571394', $pin_do['Anh Đuôi Chấm'] );
+teq( 'rửa đuôi ".0" lúc ĐỌC người dùng (6 ký tự -> 4 số)', '4471', $pin_do['Chị Đuôi Chấm'] );
+
+/* ⚠️ BẪY THỨ TỰ. Nếu bỏ ký tự lạ TRƯỚC rồi mới cắt đuôi thì `"571394.0"` thành `"5713940"` —
+   BẢY chữ số, vẫn khớp luật 4–8, nên không báo lỗi ở đâu cả, chỉ là không ai gõ trúng. Sai âm
+   thầm còn tệ hơn sai ồn ào, nên phép thử này phải nêu đích danh con số sai. */
+t( 'KHÔNG được nuốt dấu chấm thành chữ số', $pin_do['Anh Đuôi Chấm'] !== '5713940' );
+teq( 'rửa thẳng: cắt đuôi trước, bỏ ký tự lạ sau', '571394', VHCC_Auth::pin_sach( '571394.0' ) );
+teq( 'đuôi nhiều số 0 cũng cắt', '4471', VHCC_Auth::pin_sach( '4471.000' ) );
+teq( 'giữ nguyên số 0 ĐỨNG ĐẦU — đó là PIN thật của người ta', '0123', VHCC_Auth::pin_sach( '0123' ) );
+teq( 'PIN sạch sẵn thì không đụng', '654321', VHCC_Auth::pin_sach( '654321' ) );
+teq( 'trống vẫn là trống', '', VHCC_Auth::pin_sach( '' ) );
+
+/* Và cổng thật phải mở — đây mới là thứ anh Thắng cần. */
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '571394' );
+t( 'Admin có PIN dính đuôi ".0" VẪN ĐĂNG NHẬP ĐƯỢC', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+
+/* Bảng ở màn Cài đặt cũng phải hết đỏ — nếu còn "không dùng được" thì người đọc vẫn tưởng
+   mình phải đi sửa tay 21 dòng. */
+ob_start(); VHCC_Admin::page(); $h_do = ob_get_clean();
+t( 'màn Cài đặt hết báo "không dùng được" cho PIN dính đuôi',
+	strpos( $h_do, 'không dùng được' ) === false, $h_do );
+t( 'và vẫn KHÔNG in PIN ra', strpos( $h_do, '571394' ) === false );
+
+$wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
+
+/* Đường KÉO HỒ SƠ từ app gốc dính đúng bẫy đó: `pin_may` đẩy xuống máy chấm công mà mang đuôi
+   ".0" là nhân viên gõ mãi không mở được cửa. */
+teq( 'kéo hồ sơ cũng rửa PIN máy', '1234', VHCC_Auth::pin_sach( '1234.0' ) );
+$src_keo = file_get_contents( VHCC_DIR . 'includes/class-vhcc-keo.php' );
+t( 'đường kéo hồ sơ có gọi phép rửa PIN',
+	strpos( $src_keo, 'pin_sach' ) !== false && strpos( $src_keo, '\'pin_may\' === $cot' ) !== false );
+
 /* PIN đã bị LỘ thì phải chặn, dù nó không "dễ đoán". `888888` và `859624` đều đã ra ngoài
    trong quá trình làm việc này (một cái là PIN mặc định của app gốc, một cái hiện trong ảnh
    màn hình gửi qua chat). Một mật khẩu đã ra ngoài thì mạnh hay yếu không còn nghĩa gì. */

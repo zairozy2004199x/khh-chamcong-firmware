@@ -117,6 +117,11 @@ class VHCC_Keo {
 					/* Dùng lại đúng bộ đọc số tiền của nhân sự — `13.000.000` là mười ba triệu,
 					   không phải mười ba. Viết lại phép đọc số ở đây là mời đúng cái lỗi đó về. */
 					$v = VHCC_NhanSu::so_tien( $v );
+				} elseif ( 'pin_may' === $cot || 'pin_dang_nhap' === $cot ) {
+					/* Bảng tính coi PIN là SỐ nên `1234` về đây thành `"1234.0"`. PIN máy kiểu đó
+					   đẩy xuống máy chấm công là nhân viên gõ mãi không mở được cửa, mà nhìn hồ
+					   sơ vẫn thấy PIN nằm đó. Rửa ngay lúc kéo về. */
+					$v = VHCC_Auth::pin_sach( $v );
 				} else {
 					$v = trim( (string) $v );
 				}
