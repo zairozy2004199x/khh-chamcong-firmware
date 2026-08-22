@@ -53,6 +53,9 @@ jobs:
       - name: Bộ thử hợp đồng
         run: php tools/test/test-hop-dong.php
 
+      - name: Bộ thử trang cổng
+        run: php tools/test/test-trang-chu.php
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

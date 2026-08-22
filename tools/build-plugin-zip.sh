@@ -48,20 +48,22 @@ dong_goi() {
 }
 
 case "$CHON" in
+  trang-chu) dong_goi "Trang Vận Hành K&H" vhcp-trang-chu ;;
   chi-phi)  dong_goi "Vận Hành Chi Phí" vhcp-chi-phi ;;
   hop-dong) dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong ;;
   cham-cong) dong_goi "Chấm Công" vhcp-cham-cong ;;
   tatca)
+    dong_goi "Trang Vận Hành K&H" vhcp-trang-chu
     dong_goi "Vận Hành Chi Phí" vhcp-chi-phi
     dong_goi "Thư Viện Hợp Đồng" vhcp-hop-dong
     dong_goi "Chấm Công" vhcp-cham-cong
     ;;
-  *) echo "Tham số không hiểu: $CHON (chi-phi | hop-dong | cham-cong | tatca)"; exit 1 ;;
+  *) echo "Tham số không hiểu: $CHON (trang-chu | chi-phi | hop-dong | cham-cong | tatca)"; exit 1 ;;
 esac
 
 echo
 echo "Cài lên hosting: wp-admin → Plugin → Cài mới → Tải plugin lên → chọn file → Cài đặt → Kích hoạt."
-echo "Ba plugin cài độc lập, cài cái nào trước cũng được."
+echo "Các plugin cài độc lập, cài cái nào trước cũng được."
 echo
 echo "Trong bản cài KHÔNG có goc/ và apps-script/ — hai thư mục đó không chạy gì mà lại đọc được"
 echo "từ web. Mấy tệp .gs cần dán vào Apps Script thì lấy trong repo (hoặc bản gửi kèm)." 
