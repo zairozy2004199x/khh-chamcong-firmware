@@ -1490,6 +1490,19 @@ t( 'có bảng tra theo câu app ngân hàng báo',
 	strpos( $h_qr, 'Vấn tin bị timeout' ) !== false
 	&& strpos( $h_qr, 'BIN không khớp ngân hàng phát hành' ) !== false );
 t( 'và dặn DỪNG khi hiện tên lạ', strpos( $h_qr, 'DỪNG NGAY' ) !== false );
+/* 🔴 PHÉP TÁCH HAI CA. Bốn lần quét thử, bốn lỗi khác nhau từ app ngân hàng — tới đây đoán tiếp
+      là vô ích: không có cách nào biết lỗi ở CHUỖI MÌNH DỰNG hay ở CHÍNH cái VA đó. SePay có bộ
+      sinh mã riêng, ăn cùng bốn tham số; quét mã của họ là tách được. */
+t( 'có đường dẫn tới mã QR do chính SePay sinh, cùng tham số',
+	strpos( $h_qr, 'qr.sepay.vn/img' ) !== false && strpos( $h_qr, '96247POSH' ) !== false );
+t( 'và nói rõ so ra thì kết luận được gì',
+	strpos( $h_qr, 'Cả hai cùng hỏng' ) !== false
+	&& strpos( $h_qr, 'không sửa được bằng mã' ) !== false );
+/* ⚠️ Chỉ là ĐƯỜNG DẪN, KHÔNG nhúng ảnh: nhúng là mỗi lần mở màn này lại gửi số tài khoản của
+      mình sang một máy chủ khác, không ai bấm gì cả. */
+t( 'chỉ là đường dẫn, KHÔNG nhúng ảnh từ máy chủ ngoài',
+	preg_match( '/<img[^>]+qr\.sepay\.vn/', $h_qr ) === 0 );
+t( 'có tra cả mã lỗi 096', strpos( $h_qr, 'Lỗi hệ thống nhà cung cấp' ) !== false );
 
 /* BIN lạ thì màn phải nói "không có trong bảng mã Napas", đừng im lặng. */
 VHG_May::luu_nhan_tien( '999999', '96247POSH', 'K&H' );

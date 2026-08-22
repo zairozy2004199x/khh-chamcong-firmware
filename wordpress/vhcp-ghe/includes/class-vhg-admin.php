@@ -510,6 +510,37 @@ class VHG_Admin {
 					? '<span style="color:#046b2d">✔️ đúng</span>'
 					: '<span style="color:#b32d2e">✘ SAI — mọi app ngân hàng sẽ từ chối</span>' ) . '</td></tr>'
 				. '</tbody></table>';
+			/* ==============================================================================
+			 * SO VỚI MÃ DO CHÍNH SEPAY SINH RA.
+			 *
+			 * 🔴 Ngày 22/08/2026 anh Thắng quét thử bốn lần, bốn lỗi khác nhau từ app ngân hàng
+			 *    (174 sai khuôn, 199 không tra được, 096 lỗi hệ thống nhà cung cấp). Tới đây thì
+			 *    đoán tiếp là vô ích: không có cách nào biết lỗi ở CHUỖI MÌNH DỰNG hay ở CHÍNH
+			 *    CÁI VA/ngân hàng đó.
+			 *
+			 *    SePay có bộ sinh mã QR của riêng họ, ăn cùng bốn tham số. Quét mã của họ:
+			 *      · Họ chạy, mình không  -> lỗi ở phép dựng của mình. Sửa ở đây.
+			 *      · Cả hai cùng hỏng     -> VA hoặc ngân hàng phát hành chưa nhận chuyển khoản
+			 *                                từ ngoài. Việc phải hỏi SePay, không sửa được bằng mã.
+			 *    Một phép thử tách được hai ca đó đáng giá hơn mười lần đoán.
+			 *
+			 * ⚠️ Chỉ là ĐƯỜNG DẪN để anh Thắng tự mở, KHÔNG nhúng ảnh vào trang quản trị: nhúng
+			 *    là mỗi lần mở màn này lại gửi số tài khoản của mình sang một máy chủ khác.
+			 * ============================================================================== */
+			$u_sepay = 'https://qr.sepay.vn/img?' . http_build_query( array(
+				'acc'    => $tk_chung['so_tk'],
+				'bank'   => '' !== $ten_nh ? $ten_nh : $tk_chung['bin'],
+				'amount' => (int) $tl_c['gia'],
+				'des'    => 'GHEMAU K7M2P',
+			) );
+			echo '<p><a class="button" href="' . esc_url( $u_sepay ) . '" target="_blank" rel="noopener">'
+				. 'Mở mã QR do SePay sinh (cùng tham số)</a> '
+				. '<span class="description">— quét mã đó bằng app ngân hàng để tách hai ca.</span></p>';
+			echo '<p class="description"><b>Quét mã của SePay rồi so:</b><br>'
+				. '· <b>Mã SePay CHẠY, mã của mình hỏng</b> — lỗi ở phép dựng chuỗi bên này, báo em.<br>'
+				. '· <b>Cả hai cùng hỏng</b> — VA hoặc ngân hàng phát hành chưa nhận chuyển khoản từ '
+				. 'ngân hàng khác. Đây là việc phải hỏi SePay, <b>không sửa được bằng mã</b>.</p>';
+
 			echo '<p class="description"><b>App ngân hàng báo gì thì đọc thế nấy:</b><br>'
 				. '· <b>“Định dạng tài khoản không hợp lệ”</b> — số tài khoản/VA sai khuôn của ngân '
 				. 'hàng đó. Đếm lại từng chữ số, và xem có phải đang điền tài khoản gốc thay vì VA không.<br>'
@@ -519,7 +550,10 @@ class VHG_Admin {
 				. ', tài khoản/VA phải do ĐÚNG ngân hàng đó phát hành.<br>'
 				. '· <b>Hiện tên chủ tài khoản của mình</b> — mã đúng, nhưng đang trỏ vào tài khoản '
 				. 'GỐC. SePay theo dõi VA, nên tiền về túi mình mà hệ thống không thấy.<br>'
-				. '· <b>Hiện tên lạ</b> — <b>DỪNG NGAY</b>, đừng chuyển. Sai số tài khoản.</p>';
+				. '· <b>Hiện tên lạ</b> — <b>DỪNG NGAY</b>, đừng chuyển. Sai số tài khoản.<br>'
+				. '· <b>“Lỗi hệ thống nhà cung cấp dịch vụ”</b> — ngân hàng nhận trả lời nhưng từ '
+				. 'chối. Mã của mình đã tới được đúng nơi; vướng nằm ở phía VA. Quét thử mã SePay ở '
+				. 'trên để chắc.</p>';
 		}
 
 		/* ---- Tỉ lệ quy đổi: khai chung, ĐẶT NGAY TRÊN bảng gói ----
