@@ -66,6 +66,26 @@ class VHCC_CauNoi {
 		$sua = array();
 		if ( $url === '' ) { return array( 'url' => '', 'sua' => $sua ); }
 
+		/* 🔴 DÁN NHẦM LINK BẢNG TÍNH. Anh Thắng ngày 22/08/2026 dán vào đây địa chỉ
+		 *    `docs.google.com/spreadsheets/d/…/edit` — tức là link cái SHEET, không phải link
+		 *    app. Nhầm rất dễ hiểu: cả hai đều là "link của app chấm công" trong đầu người
+		 *    dùng, và ô này không hề nói cái nào sai.
+		 *
+		 *    Không chữa được bằng máy — từ ID bảng tính KHÔNG suy ra được ID bản triển khai,
+		 *    đó là hai thứ khác hẳn nhau. Nên phải nói thẳng, và nói rõ đi đâu lấy cái đúng.
+		 *    Im lặng nhận vào thì trang chấm công trả về một trang HTML của Google và báo một
+		 *    lỗi chẳng liên quan gì tới chuyện dán nhầm ô. */
+		if ( preg_match( '#^https://docs\.google\.com/spreadsheets/#i', $url ) ) {
+			$sua[] = '🔴 <b>Đây là địa chỉ BẢNG TÍNH, không phải địa chỉ app.</b> Ô này cần địa chỉ '
+				. 'kết thúc bằng <code>/exec</code> trên <code>script.google.com</code>. Lấy ở: mở bảng '
+				. 'tính → <b>Tiện ích mở rộng → Apps Script</b> → <b>Deploy → Manage deployments</b> → '
+				. 'chép <b>Web app URL</b>. Từ ID bảng tính không suy ra được địa chỉ app, nên plugin '
+				. 'không tự sửa hộ được.';
+		} elseif ( $url !== '' && ! preg_match( '#^https://script\.google\.com/#i', $url ) ) {
+			$sua[] = '⚠️ Địa chỉ này không nằm trên <code>script.google.com</code>. Ô này chỉ nhận '
+				. 'địa chỉ <b>Web app URL</b> của Apps Script (kết thúc bằng <code>/exec</code>).';
+		}
+
 		$mien = '';
 		if ( preg_match( '#^(https://script\.google\.com)/a/macros/([^/]+)(/s/.+)$#', $url, $m ) ) {
 			$url   = $m[1] . '/macros' . $m[3];

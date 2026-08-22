@@ -3187,6 +3187,45 @@ teq( 'chuỗi rác thì để nguyên, không ném lỗi', 'ba la bla', $r['url'
 $la = 'https://vidu.test/a/macros/abc.com/s/XYZ/exec';
 teq( 'không cắt địa chỉ ngoài script.google.com', $la, VHCC_CauNoi::chuan_hoa_url( $la )['url'] );
 
+/* ============ DÁN NHẦM LINK BẢNG TÍNH VÀO Ô ĐỊA CHỈ APP
+ *
+ * 🔴 Anh Thắng ngày 22/08/2026 dán `docs.google.com/spreadsheets/d/…/edit` vào ô "/exec".
+ *    Nhầm rất dễ hiểu — trong đầu người dùng thì cả hai đều là "link của app chấm công", mà
+ *    ô này không hề nói cái nào sai. Im lặng nhận vào thì trang chấm công gọi đúng cái link
+ *    đó, Google trả về một trang HTML, và lỗi hiện ra chẳng liên quan gì tới chuyện dán nhầm.
+ *
+ * KHÔNG chữa được bằng máy: từ ID bảng tính không suy ra được ID bản triển khai. Nên phép thử
+ * này đòi lời nhắn phải chỉ ĐÚNG ĐƯỜNG đi lấy cái đúng, chứ không chỉ nói "sai rồi".
+ */
+$sheet = 'https://docs.google.com/spreadsheets/d/1rvcvO6ixS8dvGVGs3AhrR7Rk7s/edit?gid=209#gid=209';
+$r_sh  = VHCC_CauNoi::chuan_hoa_url( $sheet );
+$noi   = implode( ' ', $r_sh['sua'] );
+t( 'nhận ra link BẢNG TÍNH và kêu lên', count( $r_sh['sua'] ) > 0, $r_sh );
+t( 'nói rõ đây là địa chỉ bảng tính', strpos( $noi, 'BẢNG TÍNH' ) !== false, $noi );
+t( 'chỉ đúng đường đi lấy cái đúng (Manage deployments)',
+	strpos( $noi, 'Manage deployments' ) !== false && strpos( $noi, 'Apps Script' ) !== false, $noi );
+t( 'nói luôn là plugin KHÔNG tự sửa hộ được', strpos( $noi, 'không tự sửa' ) !== false, $noi );
+teq( 'nhưng KHÔNG bịa ra địa chỉ khác — giữ nguyên cái đã dán', $sheet, $r_sh['url'] );
+
+/* Tên miền lạ nói chung cũng phải kêu — nhưng bằng câu nhẹ hơn, vì có thể là chỗ khác thật. */
+$r_la = VHCC_CauNoi::chuan_hoa_url( 'https://vidu.test/s/XYZ/exec' );
+t( 'địa chỉ ngoài script.google.com thì cảnh báo', count( $r_la['sua'] ) > 0, $r_la );
+t( 'và câu đó nhắc đúng script.google.com',
+	strpos( implode( ' ', $r_la['sua'] ), 'script.google.com' ) !== false );
+
+/* ⚠️ Đừng kêu oan. Ba dạng địa chỉ ĐÚNG dưới đây phải im lặng về chuyện tên miền. */
+foreach ( array(
+	'địa chỉ đúng'          => $dung,
+	'dạng Workspace'        => 'https://script.google.com/a/macros/khmatrix.com/s/' . $ID . '/exec',
+	'có dấu / ở cuối'       => $dung . '/',
+) as $ten_ca => $u_ok ) {
+	$sua_ok = implode( ' ', VHCC_CauNoi::chuan_hoa_url( $u_ok )['sua'] );
+	t( "$ten_ca: KHÔNG bị kêu là sai tên miền",
+		strpos( $sua_ok, 'BẢNG TÍNH' ) === false
+		&& strpos( $sua_ok, 'không nằm trên' ) === false, $sua_ok );
+}
+teq( 'địa chỉ rỗng thì không kêu gì cả', array(), VHCC_CauNoi::chuan_hoa_url( '' )['sua'] );
+
 /* Trang Cài đặt phải THẬT SỰ gọi hàm này lúc lưu, và phải hiện lời giải thích ra. */
 $ad = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
 t( 'lúc lưu Cài đặt có chuẩn hoá địa chỉ',
@@ -4045,6 +4084,101 @@ VHCC_NguoiDung::luu( '', 'Chỉ Nhân Viên', '468024', 'Nhân viên', '' );
 ob_start(); VHCC_Admin::page(); $h_nd2 = ob_get_clean();
 t( 'có người mà không ai vào được thì báo rõ',
 	strpos( $h_nd2, 'KHÔNG AI vào được' ) !== false );
+
+delete_option( 'vhcc_nguoidung' );
+
+/* ============ 41b. KHÔNG MÀN NÀO ĐƯỢC LỒNG <form> TRONG <form>
+ *
+ * 🔴 Anh Thắng ngày 22/08/2026: *"mỗi lần khai đường link, nó cứ bắt nhập họ tên phía dưới,
+ *    nó chả liên quan gì cả"*. Đúng là chả liên quan — ô "Họ tên" của khối THÊM NGƯỜI mang
+ *    `required`, nằm trong một <form> lồng bên trong form cài đặt. HTML không cho lồng, và
+ *    trình duyệt KHÔNG báo lỗi: nó lặng lẽ vứt thẻ <form> con đi rồi gộp ô nhập vào form cha.
+ *    Kết quả là bấm "Lưu cài đặt" thì trình duyệt đòi điền một ô ở tận cuối trang.
+ *
+ *    Nặng hơn (chưa kịp xảy ra vì `required` chặn trước): ô ẩn `vhcc_nd=xoa` của từng dòng
+ *    người dùng cũng bị gộp vào form cài đặt, mà `vhcc_nd` được xử TRƯỚC `vhcc_action` — mỗi
+ *    lần Lưu cài đặt là chạy kèm một lượt xoá người dùng.
+ *
+ * Nên phép thử này KHÔNG chỉ soi màn Cài đặt: nó dựng MỌI màn quản trị rồi đếm độ sâu <form>.
+ * Đây là kiểu lỗi mắt thường không thấy và trình duyệt không kêu, phải để máy canh.
+ */
+function vhcc_do_sau_form( $html ) {
+	// Bỏ phần chú thích HTML để chuỗi "<form" trong chú thích không bị tính.
+	$html = preg_replace( '/<!--.*?-->/s', '', (string) $html );
+	preg_match_all( '/<\s*(\/?)form\b/i', $html, $m );
+	$sau = 0; $max = 0;
+	foreach ( $m[1] as $dong ) {
+		if ( '/' === $dong ) { $sau--; } else { $sau++; if ( $sau > $max ) { $max = $sau; } }
+	}
+	return array( 'max' => $max, 'con_thua' => $sau );
+}
+
+/* Tự thử phép đếm trước đã — một phép kiểm mà sai thì nó ru ngủ chứ không bảo vệ ai. */
+teq( 'phép đếm: hai form nối tiếp là sâu 1',
+	1, vhcc_do_sau_form( '<form></form><form></form>' )['max'] );
+teq( 'phép đếm: form lồng form là sâu 2',
+	2, vhcc_do_sau_form( '<form><form></form></form>' )['max'] );
+teq( 'phép đếm: bỏ qua chữ "<form" nằm trong chú thích HTML',
+	1, vhcc_do_sau_form( '<!-- <form> --><form></form>' )['max'] );
+teq( 'phép đếm: thiếu thẻ đóng thì lòi ra', 1, vhcc_do_sau_form( '<form>' )['con_thua'] );
+
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$man_qt = array(
+	'Cài đặt'            => array( 'VHCC_Admin', 'page' ),
+	'Cổng nhận từ máy'   => array( 'VHCC_Admin', 'trang_cong_may' ),
+	'Bảng công & Lương'  => array( 'VHCC_Admin', 'trang_luong' ),
+	'In bảng chấm công'  => array( 'VHCC_Admin', 'trang_in' ),
+	'Nhân sự'            => array( 'VHCC_Admin', 'trang_nhan_su' ),
+	'Phân lịch làm'      => array( 'VHCC_Admin', 'trang_lich' ),
+	'Máy & Firmware'     => array( 'VHCC_Admin', 'trang_may' ),
+);
+foreach ( $man_qt as $ten_man => $goi ) {
+	ob_start(); call_user_func( $goi ); $h_man = ob_get_clean();
+	$ds_form = vhcc_do_sau_form( $h_man );
+	t( "màn $ten_man: KHÔNG lồng <form> trong <form>", $ds_form['max'] <= 1,
+		'sâu nhất ' . $ds_form['max'] );
+	teq( "màn $ten_man: đóng đủ thẻ </form>", 0, $ds_form['con_thua'] );
+}
+
+/* Và soi kỹ đúng ca đã hỏng: màn Cài đặt với danh sách riêng CÓ NGƯỜI (nên có cả nút Xoá từng
+   dòng lẫn khối Thêm người) — đây là lúc trước kia có tới ba form lồng nhau. */
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+delete_option( 'vhcc_nguoidung' );
+VHCC_NguoiDung::luu( '', 'Chị Một', '357913', 'Kế toán cá nhân', 'TUTU_BT' );
+VHCC_NguoiDung::luu( '', 'Chị Hai', '468025', 'Quản lý', 'TUTU_BT' );
+ob_start(); VHCC_Admin::page(); $h_lf = ob_get_clean();
+$sau_lf = vhcc_do_sau_form( $h_lf );
+teq( 'màn Cài đặt có 2 người: vẫn phẳng, không lồng', 1, $sau_lf['max'] );
+teq( 'và đóng đủ thẻ', 0, $sau_lf['con_thua'] );
+
+/* Ô `required` PHẢI trỏ về form của chính nó, không thì lại chặn nút Lưu cài đặt. */
+t( 'ô Họ tên trỏ về form thêm người',
+	preg_match( '/<input[^>]*name="ten"[^>]*form="vhcc-them-nd"/', $h_lf ) === 1
+	|| preg_match( '/<input[^>]*form="vhcc-them-nd"[^>]*name="ten"/', $h_lf ) === 1, $h_lf );
+t( 'nút Thêm người cũng trỏ về form đó',
+	preg_match( '/<button[^>]*form="vhcc-them-nd"[^>]*>Thêm người/', $h_lf ) === 1 );
+t( 'mỗi nút Xoá trỏ về form xoá riêng của dòng đó',
+	preg_match_all( '/<button[^>]*form="vhcc-xoa-nd-[^"]+"/', $h_lf ) === 2 );
+
+/* 🔴 Luật cốt lõi: KHÔNG ô ẩn nào của việc thêm/xoá người được nằm trong form cài đặt.
+   Đây mới là thứ ngăn "bấm Lưu là xoá mất một người". */
+$vi_luu   = strpos( $h_lf, 'name="vhcc_action" value="luu"' );
+$vi_dong  = strpos( $h_lf, '</form>', $vi_luu );
+$than_luu = substr( $h_lf, $vi_luu, $vi_dong - $vi_luu );
+/* Ô nào mang `form="…"` thì thuộc về form KIA, dù nằm giữa hai thẻ của form cài đặt — đó chính
+   là điều thuộc tính `form` của HTML5 làm. Bỏ chúng ra rồi mới xét phần còn lại: phần còn lại
+   mới thật sự là ô của form cài đặt. */
+$con_lai = preg_replace( '/<(?:input|button|select|textarea)\b[^>]*\bform="[^"]+"[^>]*>/i', '', $than_luu );
+t( 'trong form cài đặt KHÔNG có ô ẩn vhcc_nd', strpos( $con_lai, 'vhcc_nd' ) === false );
+t( 'trong form cài đặt KHÔNG còn ô required nào của việc khác',
+	strpos( $con_lai, 'required' ) === false, $con_lai );
+
+/* Và mọi `form="…"` phải trỏ tới một <form id="…"> CÓ THẬT. Trỏ hụt thì trình duyệt coi ô đó
+   không thuộc form nào — bấm nút không gửi gì cả, im lặng, không báo lỗi. */
+preg_match_all( '/\bform="([^"]+)"/', $h_lf, $m_ft );
+preg_match_all( '/<form[^>]*\bid="([^"]+)"/', $h_lf, $m_fid );
+$thieu_f = array_values( array_diff( array_unique( $m_ft[1] ), $m_fid[1] ) );
+teq( 'mọi thuộc tính form="…" đều trỏ tới một <form id> có thật', array(), $thieu_f );
 
 delete_option( 'vhcc_nguoidung' );
 update_option( 'vhcc_nguon_nguoidung', 'chung' );

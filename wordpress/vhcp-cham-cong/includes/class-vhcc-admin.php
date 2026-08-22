@@ -1497,6 +1497,26 @@ class VHCC_Admin {
 			. 'Hợp đồng vẫn nằm trong Google Sheet và toàn bộ nghiệp vụ vẫn ở app Apps Script. '
 			. 'WordPress chỉ lo cổng PIN, giữ khoá bí mật và phục vụ giao diện gốc.</p></div>';
 
+		/* ============================================================================
+		 * 🔴 KHÔNG BAO GIỜ ĐƯỢC LỒNG <form> TRONG <form>.
+		 *
+		 * HTML không cho phép, và trình duyệt KHÔNG báo lỗi — nó lặng lẽ VỨT thẻ <form>
+		 * bên trong đi, rồi gán hết ô nhập của form con vào form CHA. Hậu quả thật, anh
+		 * Thắng gặp ngày 22/08/2026: bấm "Lưu cài đặt" để khai đường dẫn app thì trình
+		 * duyệt hiện "Please fill out this field" ở ô "Họ tên" tận cuối trang — ô chẳng
+		 * liên quan gì, chỉ vì nó mang `required` và đã bị gộp vào form cài đặt.
+		 *
+		 * Còn một hậu quả nặng hơn, chưa kịp xảy ra vì `required` chặn trước: ô ẩn
+		 * `vhcc_nd=xoa` của từng dòng người dùng cũng bị gộp vào, mà `vhcc_nd` được xử
+		 * TRƯỚC `vhcc_action` — nghĩa là mỗi lần Lưu cài đặt là chạy luôn một lượt
+		 * xoá/thêm người dùng, với ô ẩn của dòng CUỐI CÙNG thắng.
+		 *
+		 * Cách chữa: form con nằm RIÊNG, đặt sau `</form>` của form cài đặt; nút bấm và
+		 * ô nhập nằm đúng chỗ cũ trên màn hình nhưng trỏ về form của mình bằng thuộc
+		 * tính `form="…"` của HTML5. Nhìn y hệt, mà không còn lồng nhau.
+		 * ============================================================================ */
+		$form_roi = '';
+
 		echo '<form method="post">';
 		wp_nonce_field( 'vhcc_luu' );
 		echo '<input type="hidden" name="vhcc_action" value="luu">';
@@ -1582,29 +1602,33 @@ class VHCC_Admin {
 						. '</td><td>' . esc_html( $u_r['coso'] ) . '</td>'
 						/* ⚠️ CHỈ SỐ CHỮ SỐ. Không bao giờ in PIN — ảnh màn hình đi khắp nơi. */
 						. '<td>' . strlen( $u_r['pin'] ) . ' số</td><td>';
-					echo '<form method="post" style="display:inline">';
-					wp_nonce_field( 'vhcc_nd' );
-					echo '<input type="hidden" name="vhcc_nd" value="xoa" />';
-					echo '<input type="hidden" name="id" value="' . esc_attr( $u_r['id'] ) . '" />';
-					echo '<button class="button button-small">Xoá</button></form></td></tr>';
+					$id_f = 'vhcc-xoa-nd-' . preg_replace( '/[^A-Za-z0-9_\-]/', '', (string) $u_r['id'] );
+					$form_roi .= '<form method="post" id="' . esc_attr( $id_f ) . '">'
+						. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false )
+						. '<input type="hidden" name="vhcc_nd" value="xoa" />'
+						. '<input type="hidden" name="id" value="' . esc_attr( $u_r['id'] ) . '" />'
+						. '</form>';
+					echo '<button class="button button-small" form="' . esc_attr( $id_f ) . '">Xoá</button>'
+						. '</td></tr>';
 				}
 				echo '</tbody></table>';
 			}
 
-			echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:8px 0">';
-			wp_nonce_field( 'vhcc_nd' );
-			echo '<input type="hidden" name="vhcc_nd" value="luu" />';
-			echo '<label>Họ tên<br><input name="ten" required style="width:190px" /></label>';
-			echo '<label>PIN (4–8 số)<br><input name="pin" inputmode="numeric" required style="width:120px" /></label>';
-			echo '<label>Vai trò<br><select name="vai_tro">';
+			$form_roi .= '<form method="post" id="vhcc-them-nd">'
+				. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false )
+				. '<input type="hidden" name="vhcc_nd" value="luu" /></form>';
+			echo '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:8px 0">';
+			echo '<label>Họ tên<br><input name="ten" form="vhcc-them-nd" required style="width:190px" /></label>';
+			echo '<label>PIN (4–8 số)<br><input name="pin" form="vhcc-them-nd" inputmode="numeric" required style="width:120px" /></label>';
+			echo '<label>Vai trò<br><select name="vai_tro" form="vhcc-them-nd">';
 			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_r ) {
 				echo '<option value="' . esc_attr( $vt_r ) . '"' . selected( $vt_r, 'Admin', false ) . '>'
 					. esc_html( $vt_r ) . ( in_array( $vt_r, $cho_r, true ) ? '' : ' — không vào được' )
 					. '</option>';
 			}
 			echo '</select></label>';
-			echo '<label>Cơ sở<br><input name="coso" style="width:160px" placeholder="trống = cả chuỗi" /></label>';
-			echo '<button class="button button-primary">Thêm người</button></form>';
+			echo '<label>Cơ sở<br><input name="coso" form="vhcc-them-nd" style="width:160px" placeholder="trống = cả chuỗi" /></label>';
+			echo '<button class="button button-primary" form="vhcc-them-nd">Thêm người</button></div>';
 			echo '<p class="description">Bảng không in PIN, chỉ in số chữ số. Quên PIN thì xoá dòng đó '
 				. 'rồi thêm lại. PIN quá dễ đoán hoặc đã bị lộ sẽ bị chặn.</p>';
 		}
@@ -1726,6 +1750,8 @@ class VHCC_Admin {
 		echo '</tbody></table>';
 		submit_button( 'Lưu cài đặt' );
 		echo '</form>';
+		/* Form con nằm ở đây, NGOÀI form cài đặt — xem lời giải thích ở chỗ khai $form_roi. */
+		echo $form_roi;   // phpcs:ignore WordPress.Security.EscapeOutput -- đã thoát từng mảnh ở trên
 
 		echo '<hr><h2>Bảo trì</h2><p>';
 		foreach ( array(
