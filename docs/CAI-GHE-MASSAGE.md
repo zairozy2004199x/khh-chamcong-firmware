@@ -77,21 +77,59 @@ Màn đối soát có nút **Bật / Tắt** từng ghế. Đây là **cho khôn
 bắt buộc ghi ai bấm và lúc nào — cuối tháng còn giải thích được vì sao một ghế chạy nhiều hơn số
 tiền thu. Tối đa **60 phút** một lệnh: gõ nhầm số 0 là ghế chạy suốt đêm mà không ai ở đó để tắt.
 
-## 7. Còn phải làm: firmware của ghế
+## 7. Firmware của ghế
 
-Plugin đã sẵn sàng, **firmware ESP32 của ghế thì chưa** — mã nguồn của nó không nằm trong repo
-này. Ghế cần đổi ba chỗ:
+Đã chuyển xong: `esp32_ghe_massage/`. Ghế nay chỉ nói chuyện với website.
 
-| việc | gọi gì |
-|---|---|
-| báo còn sống, hỏi giá/phút | POST `/ghe-may` `{"key":…,"ma_may":"3","viec":"nhip","trang_thai":"idle"}` |
-| lấy lượt đã trả tiền | POST `{"viec":"luot"}` → `{"co":1,"ma_lenh":"T1ABC","phut":6}` |
-| lấy lệnh bật/tắt tay | POST `{"viec":"lenh"}` → `{"co":1,"viec":"on","phut":6}` |
+### 🔴 Việc phải làm NGAY, không chờ nạp firmware
 
-Nhịp trả về `coTien` và `coLenh` để ghế chỉ phải gọi thêm khi **thật sự có việc** — ghế đặt ở cửa
-hàng, phần lớn thời gian là rảnh.
+Bản firmware cũ có **Firebase database secret ghi thẳng trong mã nguồn**:
 
-⚠️ **Lượt được đánh dấu "đã nhận" ngay lúc phát, không chờ ghế báo chạy xong.** Ghế mất điện giữa
-chừng thì khách mất lượt — nhưng nếu không đánh dấu, ghế khởi động lại là chạy lại lượt cũ, và cứ
-thế mãi. Giữa "mất một lượt hiếm khi" và "một lượt chạy vô hạn", chọn cái thứ nhất; cái thứ hai
-còn làm hỏng cả bảng đối soát. Bù tay bằng nút **Bật**.
+```
+FB_SECRET = "C1hH…"   (đã gỡ khỏi repo, nhưng nó từng nằm trong file anh gửi)
+```
+
+Khoá đó có **quyền admin trên cả project Firebase** — đọc/ghi/xoá được mọi thứ, kể cả nhánh của
+hệ thống khác dùng chung project đó. Vào **Firebase Console → Project settings → Service accounts
+→ Database secrets** và **vô hiệu nó**. Bản mới không dùng Firebase nữa nên vô hiệu xong là hết
+chuyện. Đổi luôn mật khẩu WiFi `KHHCM` — nó cũng nằm trong file đó.
+
+### Một bản .bin cho mọi ghế
+
+Bản cũ nạp cứng `CHAIR_ID` lúc biên dịch → mỗi ghế một file .bin, và cập nhật từ xa mất hết ý
+nghĩa. Nay **ghế khai MAC, máy chủ nói nó là ghế số mấy**.
+
+Ghế mới cắm điện sẽ:
+1. hiện **"GHE CHUA DUOC GAN MA"** kèm MAC ngay trên màn;
+2. tự hiện ra trong **Máy & cơ sở** với mã tạm bắt đầu bằng `?`;
+3. anh gán mã thật (kèm MAC) → ghế nhận trong ~30 giây và nhớ vào bộ nhớ trong.
+
+### Ghế hỏi gì
+
+| việc | gọi | trả về |
+|---|---|---|
+| nhịp sống + lấy cấu hình | `{"viec":"nhip","mac":…,"trang_thai":…}` | `maMay, chuaGan, gia, phut, soTk, bin, coTien, coLenh` |
+| lấy lượt đã trả tiền | `{"viec":"luot"}` | `{"co":1,"so_tien":20000,"phut":6}` |
+| lấy lệnh bật/tắt | `{"viec":"lenh"}` | `{"co":1,"viec":"on","phut":6}` |
+| báo sổ tiền mặt | `{"viec":"tien_mat","so_tien":…,"ref":…}` | `{"ok":true}` |
+
+Nhịp gộp **bốn câu hỏi vào một lượt** (trước là bốn lượt Firebase riêng). Trên 4G mỗi lượt
+AT-HTTP mất 3-6 giây — đó là khác biệt giữa "ghế phản ứng trong 2 giây" và "10 giây".
+
+### Ba chỗ giữ nguyên vì chúng đúng
+
+- **Tiền mặt KHÔNG chờ máy chủ.** Máy đếm tiền đã xác thực tờ tiền → ghế chạy ngay, ghi sổ sau.
+  Mất mạng thì ghế vẫn phục vụ được. Lượt ghi sổ mang mã ổn định nên gửi lại không cộng đôi.
+- **Ân hạn 20 giây sau khi huỷ.** Khách bấm huỷ rồi tiền mới về — ghế vẫn chạy. Khách đã trả tiền
+  thì phải được massage.
+- **Hai nhân tách bạch.** Mạng chạy nhân 0, màn hình + cảm ứng + đếm ngược chạy nhân 1. Lệnh 4G
+  chặn 5 giây không làm đơ màn.
+
+### Đổi số tài khoản không phải nạp lại firmware
+
+`soTk` / `bin` / `gia` / `phut` đều lấy từ máy chủ trong lượt nhịp. Sửa trên web là mọi ghế theo
+trong khoảng một phút.
+
+⚠️ Ghế **chưa có đường cập nhật từ xa** (không đọc `/ota` như máy chấm công) — lần này phải nạp
+USB. CI vẫn biên dịch mỗi lần đẩy và để sẵn file .bin trong artifact.
+

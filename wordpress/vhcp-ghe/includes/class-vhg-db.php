@@ -52,9 +52,15 @@ class VHG_DB {
 		   `so_tk` là số tài khoản/VA nhận tiền của riêng máy đó. Mỗi máy một VA thì đối soát
 		   không cần đọc nội dung; nhưng nhiều máy dùng chung một TK cũng chạy được, lúc đó nội
 		   dung CK là thứ duy nhất phân biệt. */
+		/* `mac` là DANH TÍNH PHẦN CỨNG của bo ESP32 trong ghế đó.
+		   Vì sao cần: bản .bin do CI build là MỘT bản dùng cho MỌI ghế (nó nằm ở chỗ tải công
+		   khai, không được chứa gì riêng của ghế nào). Nếu mã ghế phải nạp cứng lúc biên dịch thì
+		   mỗi ghế một bản .bin, và cập nhật từ xa mất hết ý nghĩa. Nên ghế tự khai MAC, còn bảng
+		   này nói MAC đó là ghế số mấy — sửa trên web, không phải nạp lại firmware. */
 		$b['may'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma VARCHAR(40) NOT NULL,
+			mac VARCHAR(40) NOT NULL DEFAULT '',
 			coso_id BIGINT(20) NOT NULL DEFAULT 0,
 			gia INT NOT NULL DEFAULT 10000,
 			phut INT NOT NULL DEFAULT 6,
@@ -66,6 +72,7 @@ class VHG_DB {
 			cap_nhat DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma (ma),
+			KEY mac (mac),
 			KEY coso_id (coso_id)";
 
 		/* ===== 3. DOANH THU ================================================================

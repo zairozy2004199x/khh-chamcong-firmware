@@ -113,6 +113,7 @@ class VHG_May {
 		}
 		$hang = array(
 			'ma'       => $ma,
+			'mac'      => strtoupper( trim( (string) ( isset( $d['mac'] ) ? $d['mac'] : '' ) ) ),
 			'coso_id'  => (int) ( isset( $d['coso_id'] ) ? $d['coso_id'] : 0 ),
 			'gia'      => max( 0, (int) ( isset( $d['gia'] ) ? $d['gia'] : 10000 ) ),
 			'phut'     => max( 1, (int) ( isset( $d['phut'] ) ? $d['phut'] : 6 ) ),
@@ -123,7 +124,16 @@ class VHG_May {
 			'cap_nhat' => current_time( 'mysql' ),
 		);
 		$bang = VHG_DB::t( 'may' );
+		/* MAC rỗng thì đừng ghi đè MAC đang có — người sửa giá không nên vô tình cắt đứt liên
+		   kết giữa ghế thật và dòng cấu hình của nó. */
+		if ( '' === $hang['mac'] ) { unset( $hang['mac'] ); }
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma ) );
+		/* Gán mã thật cho một ghế đang chờ: tìm theo MAC rồi ĐỔI mã của chính dòng đó, chứ không
+		   tạo dòng mới — tạo mới là ghế cũ nằm lại mãi trong danh sách chờ gán. */
+		if ( ! $co && isset( $hang['mac'] ) ) {
+			$cu_mac = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE mac=%s LIMIT 1", $hang['mac'] ) );
+			if ( $cu_mac ) { $co = $cu_mac; }
+		}
 		if ( $co ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $co ) ); }
 		else { $wpdb->insert( $bang, $hang ); }
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu máy ' . $ma . '.' );
@@ -136,6 +146,48 @@ class VHG_May {
 		   máy không làm nó chưa xảy ra. */
 		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cấu hình máy ' . $ma
 			. '. Doanh thu đã ghi của máy này giữ nguyên.' );
+	}
+
+	/**
+	 * Ghế nào mang MAC này. Trả mảng dòng `may`, hoặc null.
+	 *
+	 * ⚠️ KHÔNG tự gán mã ghế cho MAC lạ. Ghế chưa khai thì nó hiện ra trong danh sách "chờ gán"
+	 *    để người ta gán tay. Đoán bừa là hai ghế cùng nhận một mã, và tiền của ghế này chạy ghế
+	 *    kia — mà nhìn từ máy chủ thì không có gì bất thường cả.
+	 */
+	public static function theo_mac( $mac ) {
+		global $wpdb;
+		$mac = strtoupper( trim( (string) $mac ) );
+		if ( '' === $mac ) { return null; }
+		return $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'may' ) . ' WHERE mac=%s LIMIT 1', $mac ), ARRAY_A );
+	}
+
+	/**
+	 * Ghi nhận một ghế đang gọi tới. Trả mã ghế ('' nếu chưa được gán).
+	 * MAC lạ -> tạo một dòng CHỜ GÁN (mã rỗng) để nó hiện lên web, chứ không im lặng bỏ qua:
+	 * ghế cắm điện mà không hiện ở đâu cả thì người đi lắp không biết mình sai chỗ nào.
+	 */
+	public static function ghi_nhan( $mac ) {
+		global $wpdb;
+		$mac = strtoupper( trim( (string) $mac ) );
+		if ( '' === $mac ) { return ''; }
+		$m = self::theo_mac( $mac );
+		if ( $m ) { return (string) $m['ma']; }
+		$bang = VHG_DB::t( 'may' );
+		/* Mã tạm mang chính MAC: cột `ma` là UNIQUE nên không để rỗng được cho nhiều ghế. Dấu
+		   hiệu "chưa gán" là mã bắt đầu bằng `?` — người ta thấy ngay trên màn. */
+		$tam = '?' . substr( preg_replace( '/[^0-9A-F]/', '', $mac ), -6 );
+		if ( ! $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $tam ) ) ) {
+			$wpdb->insert( $bang, array( 'ma' => $tam, 'mac' => $mac, 'gia' => 10000, 'phut' => 6,
+				'ghi_chu' => 'ghế tự hiện ra khi cắm điện — chưa gán mã', 'cap_nhat' => current_time( 'mysql' ) ) );
+		}
+		return $tam;
+	}
+
+	/** Ghế chưa được gán mã thật (mã còn bắt đầu bằng '?'). */
+	public static function chua_gan() {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'may' ) . " WHERE ma LIKE '?%' ORDER BY id ASC" );
 	}
 
 	public static function may( $ma ) {

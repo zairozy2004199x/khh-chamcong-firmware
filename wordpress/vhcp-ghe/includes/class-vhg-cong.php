@@ -201,9 +201,12 @@ class VHG_Cong {
 			return;
 		}
 
+		/* Ghế khai MAC, máy chủ nói nó là ghế số mấy. Một bản .bin dùng cho mọi ghế — xem ghi
+		   chú ở cột `mac` trong class-vhg-db.php. `ma_may` gửi thẳng vẫn nhận, cho ca thử tay. */
 		$ma_may = trim( (string) ( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) );
+		if ( '' === $ma_may && ! empty( $d['mac'] ) ) { $ma_may = VHG_May::ghi_nhan( $d['mac'] ); }
 		if ( '' === $ma_may ) {
-			self::tra( 200, array( 'ok' => false, 'error' => 'Thieu ma_may.' ) );
+			self::tra( 200, array( 'ok' => false, 'error' => 'Thieu ma_may va mac.' ) );
 			return;
 		}
 		$viec = strtolower( trim( (string) ( isset( $d['viec'] ) ? $d['viec'] : 'nhip' ) ) );
@@ -224,6 +227,24 @@ class VHG_Cong {
 			return;
 		}
 
+		if ( 'tien_mat' === $viec ) {
+			/* Ghế báo vừa nuốt tiền mặt. Máy đếm tiền đã xác thực tờ tiền rồi nên ghế CHẠY NGAY,
+			   không chờ máy chủ trả lời — lượt này chỉ là ghi sổ. Vì vậy nó phải chịu được việc
+			   gửi lại: ghế mất mạng lúc đó thì nó giữ lại và đẩy sau, có khi đẩy hai lần.
+			   `ref` do ghế sinh và ỔN ĐỊNH theo lượt, nên gửi lại không cộng đôi. */
+			$r = VHG_Thu::ghi( array(
+				'ref'      => isset( $d['ref'] ) ? $d['ref'] : '',
+				'so_tien'  => isset( $d['so_tien'] ) ? $d['so_tien'] : 0,
+				'nguon'    => VHG_Thu::TIEN_MAT,
+				'ma_may'   => $ma_may,
+				'noi_dung' => 'Ghế nhận tiền mặt',
+			) );
+			self::tra( 200, array( 'ok' => ! empty( $r['ok'] ),
+				'moi' => ! empty( $r['moi'] ) ? 1 : 0,
+				'error' => isset( $r['error'] ) ? $r['error'] : '' ) );
+			return;
+		}
+
 		/* nhip (mặc định) */
 		VHG_May::nhip( $ma_may, array(
 			'trang_thai' => isset( $d['trang_thai'] ) ? $d['trang_thai'] : 'idle',
@@ -240,6 +261,13 @@ class VHG_Cong {
 			'gia'     => $m ? (int) $m['gia'] : 0,
 			'phut'    => $m ? (int) $m['phut'] : 0,
 			'soTk'    => $m ? (string) $m['so_tk'] : '',
+			'bin'     => $m ? (string) $m['bank_bin'] : '',
+			'tenTk'   => $m ? (string) $m['ten_tk'] : '',
+			'maMay'   => $ma_may,
+			/* Mã bắt đầu bằng '?' = ghế cắm điện rồi nhưng CHƯA ai gán mã cho nó. Ghế hiện chữ
+			   đó lên màn để người đi lắp biết mình còn thiếu một bước, thay vì đứng nhìn màn
+			   trống rồi đoán. */
+			'chuaGan' => ( '' !== $ma_may && '?' === $ma_may[0] ) ? 1 : 0,
 			'khai'    => $m ? 1 : 0,
 		) );
 	}

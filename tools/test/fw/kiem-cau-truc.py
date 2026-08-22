@@ -29,6 +29,7 @@ GOC = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..')
 TEP = [
     'esp32_hik_chamcong_full/esp32_hik_chamcong_full.ino',
     'esp32_ota_updater/esp32_ota_updater.ino',
+    'esp32_ghe_massage/esp32_ghe_massage.ino',
 ]
 
 # Dòng trông như MỘT ĐỊNH NGHĨA HÀM ở mức tệp: bắt đầu từ cột 0, có ngoặc, kết thúc bằng '{'.
@@ -120,6 +121,11 @@ for ten_tep in TEP:
         'settimeofday', 'strlcpy', 'mbedtls_base64_encode',
         # Từ khoá C++ lọt vào vì `DINH_NGHIA` cố ý rộng — xem ghi chú ở đó.
         'while', 'switch', 'return', 'catch', 'sizeof', 'static_assert',
+        # Arduino / ESP-IDF / FreeRTOS — tên của thư viện, không phải hàm của tệp này.
+        'attachInterrupt', 'digitalPinToInterrupt', 'detachInterrupt', 'esp_random',
+        'noInterrupts', 'interrupts', 'strncpy', 'vTaskDelay', 'pdMS_TO_TICKS',
+        'portENTER_CRITICAL', 'portEXIT_CRITICAL', 'xTaskCreatePinnedToCore',
+        'esp_qrcode_generate', 'esp_qrcode_get_module', 'esp_qrcode_get_size',
     }
     thieu = sorted(x for x in goi if x not in khai and x not in BO_QUA)
     t('%s: không gọi hàm nào không có định nghĩa' % nhan, not thieu,

@@ -283,6 +283,70 @@ teq( 'ghế sai khoá: 401', 401, $m401 );
 t( 'khoá webhook và khoá máy là hai chuỗi khác nhau',
 	VHG_Cong::khoa( 'VHG_KHOA_WEBHOOK' ) !== VHG_Cong::khoa( 'VHG_KHOA_MAY' ) );
 
+// ---- Ghế báo đã nhận TIỀN MẶT ----
+vhg_dung_bang();
+VHG_May::luu_may( array( 'ma' => '3', 'gia' => 10000, 'phut' => 6 ) );
+list( , $tm ) = vhg_ghe( array( 'ma_may' => '3', 'viec' => 'tien_mat',
+	'so_tien' => 20000, 'ref' => 'cash-3-1000' ) );
+t( 'ghế báo tiền mặt: ghi được', ! empty( $tm['ok'] ), $tm );
+teq( 'vào doanh thu', 20000, vhg_tong() );
+teq( 'ghi đúng nguồn tiền mặt', 'cash', $wpdb->get_var( 'SELECT nguon FROM ' . VHG_DB::t( 'thu' ) ) );
+/* 🔴 Ghế CHẠY NGAY khi máy đếm tiền xác thực tờ tiền, không chờ máy chủ. Nên lượt báo sổ này
+   phải chịu được gửi lại: ghế mất mạng lúc đó thì nó giữ và đẩy sau, có khi đẩy hai lần. */
+vhg_ghe( array( 'ma_may' => '3', 'viec' => 'tien_mat', 'so_tien' => 20000, 'ref' => 'cash-3-1000' ) );
+vhg_ghe( array( 'ma_may' => '3', 'viec' => 'tien_mat', 'so_tien' => 20000, 'ref' => 'cash-3-1000' ) );
+teq( 'ghế gửi lại 2 lần nữa: VẪN 1 giao dịch', 1, vhg_dem_thu() );
+teq( 'và tổng KHÔNG đổi', 20000, vhg_tong() );
+list( , $tm2 ) = vhg_ghe( array( 'ma_may' => '3', 'viec' => 'tien_mat', 'so_tien' => 0 ) );
+t( 'báo 0 đồng: chặn', empty( $tm2['ok'] ) );
+
+// ---- nhịp trả đủ thứ ghế cần để tự dựng chuỗi VietQR ----
+VHG_May::luu_may( array( 'ma' => '3', 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '96247POSH', 'bank_bin' => '970418', 'ten_tk' => 'NGUYEN VAN A' ) );
+list( , $n3 ) = vhg_ghe( array( 'ma_may' => '3', 'viec' => 'nhip' ) );
+teq( 'nhịp trả số tài khoản', '96247POSH', $n3['soTk'] );
+teq( 'nhịp trả mã ngân hàng', '970418', $n3['bin'] );
+/* Ghế tự dựng chuỗi QR từ ba giá trị này -> đổi số tài khoản trên web là ghế theo trong ~5 phút,
+   KHÔNG phải nạp lại firmware từng ghế. */
+teq( 'và tên tài khoản', 'NGUYEN VAN A', $n3['tenTk'] );
+teq( 'máy chưa khai: báo rõ để ghế biết mà kêu', 0,
+	vhg_ghe( array( 'ma_may' => 'CHUA_KHAI', 'viec' => 'nhip' ) )[1]['khai'] );
+
+// ---- Một bản .bin cho MỌI ghế: máy chủ nói ghế nào theo MAC ----
+vhg_dung_bang();
+list( , $la ) = vhg_ghe( array( 'mac' => 'AA:BB:CC:00:11:22', 'viec' => 'nhip' ) );
+t( 'ghế lạ cắm điện: vẫn trả lời, không im lặng bỏ qua', ! empty( $la['ok'] ), $la );
+teq( 'và báo là CHƯA GÁN để người đi lắp biết còn thiếu một bước', 1, $la['chuaGan'] );
+teq( 'ghế tự hiện ra trong danh sách chờ gán', 1, count( VHG_May::chua_gan() ) );
+$tam = VHG_May::chua_gan()[0]['ma'];
+t( 'mã tạm bắt đầu bằng ? để nhìn là biết', '?' === $tam[0], $tam );
+/* Cắm lại nhiều lần KHÔNG được đẻ thêm dòng — nếu không thì danh sách chờ gán đầy rác và
+   người ta không biết gán cái nào. */
+vhg_ghe( array( 'mac' => 'AA:BB:CC:00:11:22', 'viec' => 'nhip' ) );
+vhg_ghe( array( 'mac' => 'AA:BB:CC:00:11:22', 'viec' => 'nhip' ) );
+teq( 'cắm lại 2 lần: VẪN 1 dòng chờ gán', 1, count( VHG_May::chua_gan() ) );
+
+/* Gán mã thật: phải ĐỔI chính dòng đó, không tạo dòng mới — tạo mới là ghế cũ nằm lại mãi
+   trong danh sách chờ gán và người ta gán đi gán lại không hết. */
+VHG_May::luu_may( array( 'ma' => '7', 'mac' => 'AA:BB:CC:00:11:22', 'gia' => 10000, 'phut' => 6 ) );
+teq( 'gán xong: hết ghế chờ gán', 0, count( VHG_May::chua_gan() ) );
+teq( 'và chỉ có 1 máy trong bảng', 1, count( VHG_May::ds_may() ) );
+list( , $sau ) = vhg_ghe( array( 'mac' => 'AA:BB:CC:00:11:22', 'viec' => 'nhip' ) );
+teq( 'ghế đó nay nhận đúng mã đã gán', '7', $sau['maMay'] );
+teq( 'và hết cờ chưa gán', 0, $sau['chuaGan'] );
+/* MAC viết thường vẫn phải ra đúng ghế đó — không thì cắm lại sau khi đổi firmware là ghế
+   thành "lạ" và nằm chờ gán lần nữa. */
+teq( 'MAC viết thường vẫn tra ra đúng ghế', '7',
+	vhg_ghe( array( 'mac' => 'aa:bb:cc:00:11:22', 'viec' => 'nhip' ) )[1]['maMay'] );
+/* Sửa giá mà không gửi MAC thì KHÔNG được cắt đứt liên kết ghế thật <-> dòng cấu hình. */
+VHG_May::luu_may( array( 'ma' => '7', 'gia' => 20000, 'phut' => 6 ) );
+teq( 'sửa giá không kèm MAC: liên kết MAC giữ nguyên', '7',
+	vhg_ghe( array( 'mac' => 'AA:BB:CC:00:11:22', 'viec' => 'nhip' ) )[1]['maMay'] );
+teq( 'và giá mới có hiệu lực', 20000,
+	vhg_ghe( array( 'mac' => 'AA:BB:CC:00:11:22', 'viec' => 'nhip' ) )[1]['gia'] );
+t( 'không có cả ma_may lẫn mac: từ chối tử tế',
+	empty( vhg_ghe( array( 'viec' => 'nhip' ) )[1]['ok'] ) );
+
 // ============================================================ 9. Lệnh bật/tắt tay
 vhg_dung_bang();
 VHG_May::luu_may( array( 'ma' => '3', 'gia' => 20000, 'phut' => 6 ) );

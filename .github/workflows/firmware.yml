@@ -24,11 +24,15 @@ on:
     paths:
       - 'esp32_hik_chamcong_full/**'
       - 'esp32_ota_updater/**'
+      - 'esp32_ghe_massage/**'
+      - 'tools/test/fw/**'
       - '.github/workflows/firmware.yml'
   pull_request:
     paths:
       - 'esp32_hik_chamcong_full/**'
       - 'esp32_ota_updater/**'
+      - 'esp32_ghe_massage/**'
+      - 'tools/test/fw/**'
       - '.github/workflows/firmware.yml'
   workflow_dispatch:
 
@@ -226,6 +230,76 @@ jobs:
             --notes "Tro toi ban moi nhat. Web app doc file nay." \
             || gh release upload latest "out/latest.json" --repo "$PUB" --clobber
           echo "Da phat hanh $VER"
+
+  # Ghế massage: CHỈ kiểm biên dịch, KHÔNG phát hành.
+  # Ghế chưa có đường cập nhật từ xa (không đọc /ota như máy chấm công) nên phát hành .bin công
+  # khai cho nó chẳng ai tải — nạp bằng USB. Nhưng VẪN phải compile: bản này vừa gỡ Firebase và
+  # động vào toàn bộ đường mạng, mà sai một chỗ là ghế cắm điện lên rồi đứng im.
+  ghe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cai arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 1.4.0
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Cache core + thu vien
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: acli-esp32-${{ env.CORE_VER }}-v3
+
+      - name: Cai core ESP32 + thu vien
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@${CORE_VER}
+          arduino-cli lib install "ArduinoJson@7.2.0" "TFT_eSPI@2.5.43" "XPT2046_Touchscreen@1.4.0"
+
+      - name: Cau hinh man CYD + secrets placeholder
+        run: |
+          set -e
+          LIB=$(find "$HOME/Arduino/libraries" -maxdepth 1 -type d -name 'TFT_eSPI*' | head -1)
+          [ -n "$LIB" ] || { echo "KHONG thay thu vien TFT_eSPI"; exit 1; }
+          cp esp32_hik_chamcong_full/ci/User_Setup.h "$LIB/User_Setup.h"
+          cp esp32_ghe_massage/ci/secrets.ci.h esp32_ghe_massage/secrets.h
+
+      - name: Soi cau truc .ino
+        run: python3 tools/test/fw/kiem-cau-truc.py
+
+      - name: Compile ghe massage
+        run: |
+          set -e
+          if ! arduino-cli compile --fqbn "$FQBN" --warnings default \
+                 --build-path "$PWD/ghebuild" esp32_ghe_massage 2>&1 | tee ghe.log; then
+            echo "===== CHI CAC DONG LOI ====="
+            grep -nE 'error:|Error during build|exceeds|undefined reference|No such file' ghe.log | head -40
+            echo "===== HET ====="
+            exit 1
+          fi
+          BIN="ghebuild/esp32_ghe_massage.ino.bin"
+          [ -f "$BIN" ] || { echo "KHONG co file .bin"; ls -la ghebuild/ | head; exit 1; }
+          SZ=$(stat -c%s "$BIN")
+          echo "Ghe .bin: $SZ / $APP_MAX byte ($(( SZ * 100 / APP_MAX ))%)"
+          [ "$SZ" -le "$APP_MAX" ] || { echo "::error::.bin ghe qua co phan vung app"; exit 1; }
+          # Ban nay cung phai sach bi mat — no tung chua Firebase secret ghi thang trong ma.
+          for pat in 'default-rtdb' 'firebaseio' 'databaseio' 'khmatrix' 'AKfycb'; do
+            if grep -aqF "$pat" "$BIN"; then echo "::error::.bin ghe CO chua '$pat'"; exit 1; fi
+          done
+          echo "OK: .bin ghe sach bi mat va vua phan vung."
+
+      - name: Luu file ghe
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghe-${{ github.sha }}
+          path: ghebuild/esp32_ghe_massage.ino.bin
 
   # Máy trạm ("thợ nạp"): CHỈ kiểm biên dịch, không phát hành.
   # Sketch này trước 30/07/2026 CHƯA TỪNG được compile kiểm lần nào.
