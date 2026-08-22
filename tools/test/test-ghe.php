@@ -3884,6 +3884,72 @@ t( 'chưa bật đường dẫn tĩnh thì KHÔNG in tem chết', strpos( $h_tem
 t( 'và chỉ đúng chỗ phải bật', strpos( $h_tem0, 'options-permalink.php' ) !== false );
 update_option( 'permalink_structure', '/%postname%/' );
 
+// ====================== MÃ QR TRÊN TRANG MUA MÃ (quét, hoặc tải ảnh rồi chọn từ thư viện)
+/* ⚠️ Em từng bỏ mã QR khỏi trang này với lý do "khách đang cầm chính cái máy hiện trang, không
+      ai quét được màn hình của mình". Suy luận đó THIẾU: app ngân hàng Việt Nam đều cho chọn ảnh
+      QR từ thư viện — khách tải ảnh, mở app, chọn ảnh, quét được bình thường. Chưa kể người thứ
+      hai chĩa máy vào màn là quét luôn. */
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' ); delete_option( 'vhg_ma_cho_ngay' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+
+$dq2 = vhg_shop( 'dat', array( 'sdt' => '0909888777', 'pin' => '1234',
+	'menh_gia' => 100000, 'so_luong' => 1 ) );
+t( 'đặt được đơn', ! empty( $dq2['ok'] ) );
+t( '🔴 đơn có kèm mã QR', ! empty( $dq2['qr'] ) && count( $dq2['qr'] ) >= 21 );
+
+/* 🔴 MÃ QR PHẢI LÀ ĐÚNG CHUỖI VIETQR CỦA ĐƠN NÀY. Vẽ ra một mã trông như thật mà nội dung khác
+      là tiền của khách đi lạc — đúng kiểu lỗi "bảng xem trước nói dối" đã gặp bốn lần trước đó.
+      Nên đọc ngược mã QR vừa dựng rồi so với chuỗi VietQR dựng độc lập. */
+$o_don = array();
+foreach ( $dq2['qr'] as $hang_ ) {
+	$o_don[] = array_map( 'intval', str_split( $hang_ ) );
+}
+$chuoi_doc = VHG_QRVe::doc( $o_don );
+$qr_that   = VHG_QR::cho_don_mua( $dq2['ma_don'], (int) $dq2['phai_tra'] );
+teq( '🔴 đọc ngược mã QR ra ĐÚNG chuỗi VietQR của đơn', (string) $qr_that['chuoi'], $chuoi_doc );
+/* Và chuỗi đó phải mang đúng nội dung mà webhook sẽ đọc để phát mã. */
+t( 'chuỗi mang đúng nội dung chuyển khoản của đơn',
+	strpos( $chuoi_doc, (string) $dq2['noi_dung'] ) !== false );
+/* Số tiền trong mã QR phải đúng số phải trả — sai là khách chuyển thiếu và không nhận được mã. */
+$giai = VHG_QR::doc( $chuoi_doc );
+/* ⚠️ Tách trường NỘI DUNG ra trước rồi mới đọc mã đơn — đúng đường đi thật: ngân hàng bóc trường
+      62.08 khỏi mã QR rồi gửi mình mỗi phần nội dung, chứ không gửi cả chuỗi QR thô.
+      Đọc thẳng từ chuỗi thô thì trượt, vì ngay sau mã đơn là mấy chữ số của trường kiểm tra —
+      và `don_mua()` cố ý từ chối khớp khi mã đơn dính liền chữ số khác. */
+teq( 'đọc ngược nội dung ra đúng mã đơn', $dq2['ma_don'],
+	VHG_Doc::don_mua( (string) $giai['noi_dung'] ) );
+teq( 'và nội dung trong mã QR đúng chuỗi webhook sẽ nhận',
+	(string) $dq2['noi_dung'], (string) $giai['noi_dung'] );
+teq( 'số tiền trong mã QR đúng số phải trả', (int) $dq2['phai_tra'], (int) $giai['so_tien'] );
+teq( 'và vào đúng tài khoản nhận', '108878583951', (string) $giai['so_tk'] );
+
+/* Chưa khai tài khoản nhận thì KHÔNG dựng mã QR — cùng chốt với QR của ghế. */
+VHG_May::luu_nhan_tien( '', '', '' );
+$dq3 = vhg_shop( 'dat', array( 'sdt' => '0909888666', 'pin' => '1234',
+	'menh_gia' => 100000, 'so_luong' => 1 ) );
+t( 'chưa khai tài khoản thì không bán được', empty( $dq3['ok'] ) );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+
+// ---- trang vẽ và cho tải ảnh
+$sh_qr = vhg_shop_html();
+t( 'trang có vẽ mã QR lên canvas', strpos( $sh_qr, 'function veQR(hang, o, px)' ) !== false );
+/* 🔴 CANVAS chứ không SVG: canvas xuất ra PNG được, mà thư viện ảnh của điện thoại chỉ hiện ảnh
+      raster — tải về một tệp SVG thì app ngân hàng không thấy đâu mà chọn. */
+t( 'và tải về được dạng PNG', strpos( $sh_qr, "toDataURL('image/png')" ) !== false );
+t( 'nút tải ảnh có tên rõ ràng', strpos( $sh_qr, 'Tải ảnh mã QR' ) !== false );
+/* ⚠️ Vùng lặng 4 ô và nền trắng kín — thiếu một trong hai là nhiều máy quét không nhận ra mã. */
+t( 'canvas chừa vùng lặng 4 ô', strpos( $sh_qr, 'lang = 4' ) !== false );
+t( 'và tô nền trắng kín', strpos( $sh_qr, "c.fillStyle = '#fff'; c.fillRect(0, 0, tong, tong)" ) !== false );
+/* Trình duyệt chặn tải thì phải NÓI RA và chỉ đường khác, đừng để nút bấm không làm gì. */
+t( 'chặn tải thì chỉ đường chụp màn hình', strpos( $sh_qr, 'chụp màn hình mã QR này' ) !== false );
+/* Và phần chép tay VẪN CÒN — hai đường cho hai kiểu khách. */
+t( 'vẫn giữ phần chép tay cho ai muốn gõ', strpos( $sh_qr, 'Hoặc chuyển tay' ) !== false );
+t( 'và vẫn có nút chép nội dung', strpos( $sh_qr, 'data-chep=' ) !== false );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

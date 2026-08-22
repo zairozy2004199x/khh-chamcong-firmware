@@ -568,6 +568,20 @@ class VHG_QRVe {
 		return '';
 	}
 
+	/**
+	 * Ma trận -> mảng chuỗi '0'/'1', mỗi chuỗi một hàng. Dạng gọn để gửi xuống trình duyệt rồi
+	 * vẽ lên canvas — nhẹ hơn hẳn SVG, và canvas thì XUẤT RA PNG ĐƯỢC.
+	 *
+	 * 🔴 Vì sao cần PNG chứ không chỉ SVG: khách tải ảnh mã QR về máy rồi mở app ngân hàng, chọn
+	 *    "quét từ thư viện ảnh". Thư viện ảnh của điện thoại KHÔNG hiện tệp SVG — tải về một tệp
+	 *    không nhìn thấy trong thư viện thì coi như chưa tải.
+	 */
+	public static function hang( $o ) {
+		$ra = array();
+		foreach ( (array) $o as $hang ) { $ra[] = implode( '', array_map( 'intval', $hang ) ); }
+		return $ra;
+	}
+
 	// ===================================================================== xuất SVG
 
 	/**

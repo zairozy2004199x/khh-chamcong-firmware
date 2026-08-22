@@ -9,10 +9,13 @@
  *    Bắt đăng nhập là mất khách ngay ở bước đầu. Bù lại: trang này KHÔNG đọc được doanh thu,
  *    KHÔNG bật/tắt được ghế, và mọi thứ nó làm đều phải trả tiền trước.
  *
- * 2. 🔴 KHÔNG DỰNG MÃ QR ĐỂ KHÁCH QUÉT. Khách đang cầm ĐÚNG cái điện thoại hiện trang này —
- *    không ai quét được mã QR trên màn hình của chính máy mình. Nên thay vì mã QR, trang đưa
- *    thẳng số tài khoản, số tiền và nội dung chuyển khoản, mỗi thứ một nút SAO CHÉP.
- *    Bản trước của thiết kế này định vẽ mã QR; nghĩ kỹ thì đó là một mã không ai quét được.
+ * 2. CÓ CẢ MÃ QR LẪN CHỮ CHÉP TAY — hai đường, vì khách dùng hai kiểu khác nhau.
+ *    ⚠️ Em từng bỏ mã QR với lý do "khách đang cầm chính cái máy hiện trang này, không ai quét
+ *       được màn hình của mình". Suy luận đó THIẾU: app ngân hàng Việt Nam đều cho **chọn ảnh QR
+ *       từ thư viện**. Khách bấm tải ảnh, mở app, chọn ảnh — quét được bình thường. Chưa kể
+ *       người thứ hai (nhân viên, người đi cùng) chĩa máy vào màn là quét luôn.
+ *    Nên có nút TẢI ẢNH QR, và ảnh phải là PNG: thư viện ảnh của điện thoại không hiện tệp SVG,
+ *    tải về một tệp không nhìn thấy trong thư viện thì coi như chưa tải.
  *
  * 3. NỘI DUNG CHUYỂN KHOẢN LÀ THỨ DUY NHẤT NỐI TIỀN VỚI ĐƠN. Gõ sai một ký tự là tiền vào tài
  *    khoản mà không ai biết của đơn nào. Nên nó phải to, có nút sao chép, và có câu cảnh báo
@@ -171,6 +174,12 @@ class VHG_Shop {
 			$r['ten_tk']   = $tk['ten_tk'];
 			$r['bin']      = $tk['bin'];
 			$r['noi_dung'] = VHG_QR::noi_dung_mua( $r['ma_don'] );
+			/* Mã QR VietQR cho chính đơn này. Mức sửa lỗi L: chuỗi VietQR dài ~125 ký tự, mức L
+			   cho ra 37x37 module thay vì 41x41 — vẽ trên màn điện thoại thì mỗi module to hơn,
+			   mà mã hiện trên màn không phải chịu vết xước như tem in. */
+			$qr_don = VHG_QR::cho_don_mua( $r['ma_don'], (int) $r['phai_tra'] );
+			$r['qr'] = ! empty( $qr_don['ok'] )
+				? VHG_QRVe::hang( VHG_QRVe::ma_tran( $qr_don['chuoi'], 'L' ) ) : array();
 			self::tra( $r );
 			return;
 		}
@@ -348,6 +357,12 @@ button.chinh:disabled{opacity:.5;cursor:not-allowed}
 .ck.nhan{border-color:rgba(240,180,41,.5);background:rgba(45,38,18,.6)}
 .ck.nhan .gt{color:#f0b429}
 .cho{text-align:center;padding:16px;color:#f0b429;font-weight:600}
+/* Ô mã QR: nền TRẮNG kín, bo góc nhẹ. Không tô nền tối phía sau mã — bộ dò cần tương phản
+   trắng-đen, đặt mã lên nền tối là mất vùng lặng dù có chừa chỗ. */
+.qr-hop{background:#fff;border-radius:14px;padding:10px;margin:2px 0 10px;text-align:center}
+.qr-hop canvas{max-width:100%;height:auto;display:block;margin:0 auto;image-rendering:pixelated}
+.qr-nut{display:flex;gap:8px;justify-content:center;margin-bottom:2px}
+.qr-nut button{padding:11px 18px}
 
 /* --- Mã đã phát --- */
 .ma{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:9px 0;
@@ -493,8 +508,19 @@ function veMua(){
 }
 
 function veTraTien(){
-  var h = '<div class="card"><h2>Chuyển khoản để nhận mã</h2>'
-    + '<p class="mut" style="margin:0 0 12px">Mở app ngân hàng và chuyển đúng số tiền, '
+  var h = '<div class="card"><h2>Chuyển khoản để nhận mã</h2>';
+  /* MÃ QR TRƯỚC, chữ chép tay sau. Quét (hoặc chọn ảnh từ thư viện) nhanh và không gõ nhầm được;
+     phần chữ là đường dự phòng cho ai muốn gõ tay. */
+  if (DON.qr && DON.qr.length) {
+    h += '<div class="qr-hop"><canvas id="qr-canvas"></canvas></div>'
+      + '<div class="qr-nut">'
+      + '<button id="qr-tai">⬇ Tải ảnh mã QR</button>'
+      + '</div>'
+      + '<p class="mut" style="margin:6px 0 14px;text-align:center">Quét bằng app ngân hàng. '
+      + 'Đang xem trên chính máy này thì bấm <b>Tải ảnh mã QR</b>, rồi trong app ngân hàng chọn '
+      + '<b>quét từ thư viện ảnh</b>.</p>';
+  }
+  h += '<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, '
     + '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>'
     + o_ck('Ngân hàng / Số tài khoản', DON.so_tk, DON.so_tk, '')
     + (DON.ten_tk ? '<div class="mut" style="margin:-4px 0 8px 2px">' + esc(DON.ten_tk) + '</div>' : '')
@@ -506,6 +532,23 @@ function veTraTien(){
     + '<button id="huy" style="width:100%">Đổi gói khác</button>'
     + '<div class="err" id="e"></div></div>';
   return h;
+}
+
+/* Vẽ ma trận lên canvas. Canvas chứ không phải SVG vì canvas XUẤT RA PNG ĐƯỢC — và thư viện ảnh
+   của điện thoại chỉ hiện ảnh raster, tải về một tệp SVG thì app ngân hàng không thấy đâu mà chọn.
+   ⚠️ VÙNG LẶNG 4 Ô mỗi bên, và nền TRẮNG kín. Thiếu một trong hai là nhiều máy quét không nhận ra
+      mã — kiểu hỏng chỉ lộ ở một số máy, tức là lộ ở khách chứ không lộ lúc mình thử. */
+function veQR(hang, o, px){
+  var n = hang.length, lang = 4, tong = (n + lang * 2) * px;
+  o.width = tong; o.height = tong;
+  var c = o.getContext('2d');
+  c.fillStyle = '#fff'; c.fillRect(0, 0, tong, tong);
+  c.fillStyle = '#000';
+  for (var y = 0; y < n; y++) {
+    for (var x = 0; x < n; x++) {
+      if (hang[y].charAt(x) === '1') c.fillRect((x + lang) * px, (y + lang) * px, px, px);
+    }
+  }
 }
 
 function o_ck(nhan, hien, chep_, lop){
@@ -628,6 +671,26 @@ function noi(){
         DON = r; ve(); soiDon();
       });
   };
+
+  var qc = document.getElementById('qr-canvas');
+  if (qc && DON && DON.qr && DON.qr.length) {
+    /* 8 px mỗi module: mã 37x37 ra 360px — vừa màn điện thoại, và đủ to để app ngân hàng đọc
+       được cả khi khách chụp lại màn hình thay vì tải ảnh. */
+    veQR(DON.qr, qc, 8);
+    var tai = document.getElementById('qr-tai');
+    if (tai) tai.onclick = function(){
+      try {
+        var a = document.createElement('a');
+        a.href = qc.toDataURL('image/png');
+        a.download = 'QR-mua-ma-' + (DON.ma_don || '') + '.png';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      } catch (er) {
+        /* Trình duyệt chặn tải thì nói ra và chỉ đường khác, đừng để nút bấm không làm gì. */
+        alert('Máy không cho tải ảnh. Anh/chị chụp màn hình mã QR này, rồi trong app ngân hàng '
+          + 'chọn "quét từ thư viện ảnh".');
+      }
+    };
+  }
 
   var huy = document.getElementById('huy');
   if (huy) huy.onclick = function(){ DON = null; if (hen) { clearTimeout(hen); hen = null; } ve(); };
