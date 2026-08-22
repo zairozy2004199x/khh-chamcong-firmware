@@ -56,10 +56,14 @@ class VHTC_Trang {
 				'ten'   => 'Ghế Massage',
 				'mo_ta' => 'Doanh thu QR theo cơ sở & máy, tình trạng ghế',
 				'icon'  => '💺',
-				'co'    => class_exists( 'VHG_Admin' ),
-				/* Khác ba app kia: màn này nằm trong wp-admin nên phải đăng nhập WordPress. Cố ý —
-				   nó xem được doanh thu và bật tắt được ghế. Xem ghi chú ở VHG_Admin::app_url(). */
-				'url'   => class_exists( 'VHG_Admin' ) ? VHG_Admin::app_url() : '',
+				'co'    => class_exists( 'VHG_Trang' ) || class_exists( 'VHG_Admin' ),
+				/* Trỏ về TRANG NGOÀI `/ghe` (mở bằng PIN), không về wp-admin. Nhân viên đứng quầy
+				   không có tài khoản WordPress, và cũng không nên có — cấp tài khoản cho 26 cửa
+				   hàng là cấp luôn đường vào phần quản trị website.
+				   Bản cũ (vhcp-ghe < 1.1.0) chưa có trang ngoài nên vẫn rơi về wp-admin: liên kết
+				   dẫn tới màn đăng nhập còn hơn liên kết chết. */
+				'url'   => class_exists( 'VHG_Trang' ) ? VHG_Trang::url()
+					: ( class_exists( 'VHG_Admin' ) ? VHG_Admin::app_url() : '' ),
 			),
 			array(
 				'ten'   => 'Thư Viện Hợp Đồng',

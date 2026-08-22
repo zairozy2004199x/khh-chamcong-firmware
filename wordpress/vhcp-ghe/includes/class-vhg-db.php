@@ -75,6 +75,24 @@ class VHG_DB {
 			KEY mac (mac),
 			KEY coso_id (coso_id)";
 
+		/* ===== 2b. PHIÊN ĐĂNG NHẬP TRANG NGOÀI ===============================================
+		   Trang `/ghe` cho nhân viên cửa hàng xem trên điện thoại — họ KHÔNG có tài khoản
+		   WordPress, nên phải có cổng PIN riêng.
+
+		   ⚠️ Phiên RIÊNG với plugin chấm công, dù dùng chung danh sách người. Hai hệ thống riêng
+		      thì thu hồi phiên bên này không được kéo bên kia xuống theo — mà đây là màn có
+		      DOANH THU, khả năng phải đá một người ra gấp là có thật. */
+		$b['phien'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			token CHAR(64) NOT NULL,
+			ten VARCHAR(190) NOT NULL DEFAULT '',
+			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			het_han DATETIME NOT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY token (token),
+			KEY het_han (het_han)";
+
 		/* ===== 3. DOANH THU ================================================================
 		   🔴 `ref` UNIQUE là RÀNG BUỘC QUAN TRỌNG NHẤT CỦA CẢ PLUGIN. Xem khối đầu tệp.
 

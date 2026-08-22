@@ -32,7 +32,7 @@ define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
 define( 'VHG_KHOA_WEBHOOK', 'khoa-webhook-thu-nghiem' );
 define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'nhap', 'cong' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'nhap', 'cong', 'auth', 'trang' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -77,6 +77,48 @@ function vhg_ghe( $goi, $khoa = 'khoa-may-thu-nghiem' ) {
 	ob_start(); VHG_Cong::phuc_vu(); $ra = ob_get_clean();
 	return array( $GLOBALS['VHCP_MA_HTTP'], json_decode( $ra, true ) );
 }
+/** Một lượt trang ngoài `/ghe` gọi API. Trả thân JSON đã giải. */
+function vhg_web( $viec, $goi = array() ) {
+	$GLOBALS['VHG_THAN']       = json_encode( $goi );
+	$_SERVER['REQUEST_METHOD'] = 'POST';
+	$_SERVER['REQUEST_URI']    = '/' . VHG_Trang::slug();
+	$_GET  = array( 'api' => $viec );
+	$_POST = array();
+	$GLOBALS['VHCP_QVAR']['vhg_app'] = 1;
+	ob_start(); VHG_Trang::phuc_vu(); $ra = ob_get_clean();
+	return json_decode( $ra, true );
+}
+/** Dựng trang (HTML), không gọi API. */
+function vhg_web_html() {
+	$_SERVER['REQUEST_METHOD'] = 'GET';
+	$_SERVER['REQUEST_URI']    = '/' . VHG_Trang::slug();
+	$_GET = array(); $_POST = array();
+	$GLOBALS['VHCP_QVAR']['vhg_app'] = 1;
+	ob_start(); VHG_Trang::phuc_vu(); return ob_get_clean();
+}
+/** Cấy một người vào danh sách riêng rồi lấy token. */
+function vhg_vao( $pin = '571394', $vai_tro = 'Admin' ) {
+	update_option( 'vhg_nguon_nguoidung', 'rieng' );
+	update_option( 'vhg_nguoidung', array(
+		array( 'ten' => 'Anh Thắng', 'pin' => $pin, 'vaiTro' => $vai_tro, 'coso' => '' ) ) );
+	VHG_Auth::mo_khoa();
+	$r = vhg_web( 'login', array( 'pin' => $pin ) );
+	return isset( $r['token'] ) ? $r['token'] : '';
+}
+
+/* Độ sâu <form>. HTML không cho lồng form, và trình duyệt KHÔNG báo lỗi — nó lặng lẽ vứt thẻ
+   con đi rồi gộp ô nhập vào form cha, nên một ô `required` ở cuối trang chặn nút Lưu ở đầu
+   trang. Lỗi mắt thường không thấy, phải để máy canh. */
+function vhg_do_sau_form( $html ) {
+	$html = preg_replace( '/<!--.*?-->/s', '', (string) $html );
+	preg_match_all( '/<\s*(\/?)form\b/i', $html, $m );
+	$sau = 0; $max = 0;
+	foreach ( $m[1] as $d ) {
+		if ( '/' === $d ) { $sau--; } else { $sau++; if ( $sau > $max ) { $max = $sau; } }
+	}
+	return array( 'max' => $max, 'con_thua' => $sau );
+}
+
 function vhg_dem_thu() {
 	global $wpdb;
 	return (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'thu' ) );
@@ -88,7 +130,7 @@ function vhg_tong() {
 
 // ============================================================ 1. Sơ đồ bảng
 $so_do = VHG_DB::bang();
-teq( 'sơ đồ có đủ 8 bảng', 8, count( $so_do ) );
+teq( 'sơ đồ có đủ 9 bảng', 9, count( $so_do ) );
 t( 'bảng doanh thu khoá DUY NHẤT theo mã tham chiếu — đây là ràng buộc chống đếm hai lần',
 	strpos( $so_do['thu'], 'UNIQUE KEY ref (ref)' ) !== false );
 t( 'bảng nhật ký có cột giữ THÂN THÔ (bên gửi đổi tên trường mà không báo)',
@@ -508,12 +550,18 @@ $ad = file_get_contents( VHG_DIR . 'includes/class-vhg-admin.php' );
 t( 'màn gác quyền', substr_count( $ad, 'current_user_can( self::CAP )' ) >= 1 );
 t( 'màn có nonce', strpos( $ad, 'check_admin_referer' ) !== false );
 t( 'màn KHÔNG tự viết câu SQL nào', strpos( $ad, '$wpdb->' ) === false );
-/* Soi MÃ chứ không soi chữ: khối chú thích đầu tệp có nhắc `DASHBOARD_PIN` để nói rõ bản cũ đã
-   sai ở đâu — câu đó đáng giữ. Cấm cả chữ là ép xoá lời giải thích để qua bài kiểm. */
+/* Soi MÃ chứ không soi chữ: khối chú thích có nhắc PIN để nói rõ bản cũ sai ở đâu — câu đó đáng
+   giữ. Cấm cả chữ là ép xoá lời giải thích để qua bài kiểm. */
 $ad_ma = preg_replace( '#/\*.*?\*/#s', '', $ad );
 $ad_ma = preg_replace( '#//[^\n]*#', '', $ad_ma );
-t( 'màn KHÔNG có PIN riêng trong mã (wp-admin đã gác)',
-	stripos( $ad_ma, 'PIN' ) === false, $ad_ma ? '' : '' );
+/* 🔴 Từ bản 1.1.0 màn quản trị CÓ khai PIN (cho trang ngoài, nơi nhân viên không có tài khoản
+   WordPress). Nên luật cũ "không được nhắc chữ PIN" hết đúng, và thay bằng luật thật sự quan
+   trọng: KHÔNG BAO GIỜ IN PIN RA MÀN HÌNH, chỉ in SỐ CHỮ SỐ. Ảnh màn hình đi khắp nơi — trong
+   chính dự án này đã mất một khoá cầu nối và một khoá webhook vì ảnh gửi qua chat. */
+t( 'màn quản trị KHÔNG in PIN ra, chỉ in số chữ số',
+	strpos( $ad_ma, "strlen( \$x['pin'] ) . ' số'" ) !== false
+	&& preg_match( "/echo[^;\n]*esc_html\\(\\s*\\\$x\\['pin'\\]/", $ad_ma ) === 0, $ad_ma );
+t( 'và ô thêm người vẫn ép PIN 4–8 số', strpos( $ad, '4–8 số' ) !== false );
 /* Ghế mất nhịp để TRÊN CÙNG: ghế đứt mà khách vẫn quét được tem QR trên ghế nghĩa là TIỀN VÀO
    MÀ GHẾ KHÔNG CHẠY — người ta đứng ở quầy cãi nhau ngay lúc đó. */
 $i_dut = strpos( $ad, 'không gửi nhịp' );
@@ -645,6 +693,200 @@ t( '⚠️ đúng giờ Việt Nam thì IM — cảnh báo kêu oan là người
 	strpos( $h_ds2, 'không phải giờ Việt Nam' ) === false );
 unset( $GLOBALS['VHCP_OPT']['timezone_string'] );
 $_GET = array();
+
+// ============================================ TRANG NGOÀI /ghe
+/* Nhân viên đứng quầy KHÔNG có tài khoản WordPress — và không nên có, vì cấp tài khoản cho 26
+   cửa hàng là cấp luôn đường vào phần quản trị website. Nên trang này có cổng PIN riêng. Phần
+   dưới soi đúng cái cổng đó, vì đằng sau nó là toàn bộ doanh thu. */
+vhg_dung_bang();
+delete_option( 'vhg_vai_tro_vao' );
+
+teq( 'đường dẫn mặc định là /ghe', 'ghe', VHG_Trang::slug() );
+update_option( 'vhg_slug', 'ghe-massage' );
+teq( 'đổi được đường dẫn', 'ghe-massage', VHG_Trang::slug() );
+update_option( 'vhg_slug', 'ghe' );
+
+// ---- rửa đuôi ".0", đúng lỗi đã khoá cửa trang chấm công ngày 22/08/2026
+teq( 'rửa đuôi ".0": cắt đuôi TRƯỚC, bỏ ký tự lạ SAU', '571394', VHG_Auth::pin_sach( '571394.0' ) );
+t( 'KHÔNG được nuốt dấu chấm thành chữ số', VHG_Auth::pin_sach( '571394.0' ) !== '5713940' );
+teq( 'giữ nguyên số 0 đứng đầu', '0123', VHG_Auth::pin_sach( '0123' ) );
+
+// ---- cổng PIN
+$tok = vhg_vao( '571394', 'Admin' );
+t( 'đăng nhập được bằng PIN', preg_match( '/^[0-9a-f]{64}$/', (string) $tok ) === 1, $tok );
+
+VHG_Auth::mo_khoa();
+$r = vhg_web( 'login', array( 'pin' => '999999' ) );
+teq( 'PIN sai thì chối', false, $r['ok'] );
+t( 'và KHÔNG phát token', empty( $r['token'] ) );
+VHG_Auth::mo_khoa();
+$r = vhg_web( 'login', array( 'pin' => '12' ) );
+t( 'PIN sai khuôn bị chối ngay, chưa kịp so', strpos( $r['error'], '4–8' ) !== false, $r );
+VHG_Auth::mo_khoa();
+
+/* 🔴 Không có token thì KHÔNG được trả một con số nào. Đây là toàn bộ doanh thu. */
+foreach ( array( 'so_lieu', 'bat', 'tat', 'tien_mat', 'logout' ) as $v ) {
+	$r = vhg_web( $v, array() );
+	teq( "việc '$v' không token -> chối", false, $r['ok'] );
+	teq( "và chối bằng MÃ het_phien để giao diện phân biệt được", 'het_phien', $r['ma'] );
+	t( "việc '$v' không token KHÔNG rò số liệu", ! isset( $r['tong'] ) && ! isset( $r['gd'] ) );
+}
+$r = vhg_web( 'so_lieu', array( 'token' => str_repeat( 'a', 64 ) ) );
+teq( 'token bịa cũng chối', false, $r['ok'] );
+$r = vhg_web( 'so_lieu', array( 'token' => 'khong-phai-hex' ) );
+teq( 'token sai khuôn cũng chối', false, $r['ok'] );
+
+// ---- vai trò: PIN đúng nhưng không đủ quyền
+VHG_Auth::mo_khoa();
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Em Nhân Viên', 'pin' => '446688', 'vaiTro' => 'Nhân viên', 'coso' => '' ) ) );
+$r = vhg_web( 'login', array( 'pin' => '446688' ) );
+teq( 'Nhân viên KHÔNG vào được (mặc định hẹp)', false, $r['ok'] );
+t( '⚠️ và nói "không được xem", KHÔNG nói "PIN sai" — nói sai thì người ta gõ lại tới lúc tự khoá',
+	strpos( $r['error'], 'không được xem' ) !== false, $r['error'] );
+
+t( 'Cửa hàng trưởng mặc định VÀO ĐƯỢC — người đứng quầy chính là người cần biết ghế nào đứng',
+	in_array( 'Cửa hàng trưởng', VHG_Auth::VAI_TRO_MAC_DINH, true ) );
+update_option( 'vhg_vai_tro_vao', array() );
+teq( 'bỏ tích hết thì về MẶC ĐỊNH, không khoá sạch',
+	VHG_Auth::VAI_TRO_MAC_DINH, VHG_Auth::vai_tro_vao() );
+update_option( 'vhg_vai_tro_vao', array( 'Giám đốc' ) );
+teq( 'toàn vai trò lạ cũng về mặc định', VHG_Auth::VAI_TRO_MAC_DINH, VHG_Auth::vai_tro_vao() );
+delete_option( 'vhg_vai_tro_vao' );
+
+/* 🔴 THU QUYỀN PHẢI ĂN NGAY VỚI PHIÊN ĐANG MỞ. Phiên sống 30 ngày; nếu chỉ xét vai trò lúc phát
+      token thì bỏ một vai trò khỏi danh sách mà người đó vẫn xem doanh thu thêm một tháng —
+      phép "đóng cửa" không đóng gì cả. */
+VHG_Auth::mo_khoa();
+$tok_ct = vhg_vao( '553311', 'Cửa hàng trưởng' );
+t( 'Cửa hàng trưởng vào được', ! empty( vhg_web( 'so_lieu', array( 'token' => $tok_ct ) )['ok'] ) );
+update_option( 'vhg_vai_tro_vao', array( 'Admin' ) );
+$r = vhg_web( 'so_lieu', array( 'token' => $tok_ct ) );
+teq( 'bỏ vai trò đó khỏi danh sách -> phiên ĐANG MỞ mất hiệu lực ngay', false, $r['ok'] );
+delete_option( 'vhg_vai_tro_vao' );
+
+// ---- số liệu
+vhg_dung_bang();
+$tok = vhg_vao();
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '888815678', 'ten_tk' => 'K&H', 'bank_bin' => '970418', 'ten_khai' => '' ) );
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 AAAAA', 'referenceCode' => 'web-1',
+	'transactionDate' => '2026-08-22 20:08:26' ) );
+$r = vhg_web( 'so_lieu', array( 'token' => $tok, 'ky' => 'all' ) );
+t( 'lấy được số liệu', ! empty( $r['ok'] ), $r );
+teq( 'tổng doanh thu đúng', 20000, $r['tong']['tong'] );
+teq( 'có ghế trong danh sách', 'AMTP01', $r['may'][0]['ma'] );
+teq( 'lượt đã trả mà ghế chưa nhận hiện ra', 1, count( $r['cho'] ) );
+teq( 'giao dịch hiện ra', 1, count( $r['gd'] ) );
+teq( 'biết mình là ai', 'Anh Thắng', $r['ai']['name'] );
+/* Một lượt gọi ra ĐỦ màn: trên 4G ở trung tâm thương mại, bốn lượt gọi là bốn cơ hội hỏng và
+   một màn hiện nửa vời — doanh thu có mà tình trạng ghế trống. */
+foreach ( array( 'tong', 'may', 'cho', 'gd', 'ai', 'luc' ) as $k ) {
+	t( "một lượt gọi trả đủ phần '$k'", isset( $r[ $k ] ) );
+}
+$r = vhg_web( 'so_lieu', array( 'token' => $tok, 'ky' => 'ba-la-bla' ) );
+teq( 'kỳ rác thì về "hôm nay", không ném lỗi', 'today', $r['ky'] );
+
+// ---- bật tay: chữ ký phải là người cầm phiên, không lấy từ gói gửi lên
+$r = vhg_web( 'bat', array( 'token' => $tok, 'ma_may' => 'AMTP01', 'phut' => 6,
+	'ly_do' => 'khách phàn nàn', 'nguoi' => 'Ai Đó Khác' ) );
+t( 'bật được ghế', ! empty( $r['ok'] ), $r );
+$lenh = VHG_May::ds_lenh( 5 );
+teq( '🔴 ghi TÊN NGƯỜI CẦM PHIÊN, không lấy tên từ gói gửi lên', 'Anh Thắng', $lenh[0]['nguoi'] );
+t( 'và giữ lý do', strpos( (string) $lenh[0]['ly_do'], 'khách phàn nàn' ) !== false );
+
+// ---- thu tiền mặt
+$truoc = VHG_Thu::tong_hop( 'all' )['tien_mat'];
+vhg_web( 'tien_mat', array( 'token' => $tok, 'ma_may' => 'AMTP01', 'so_tien' => 50000 ) );
+teq( 'thu tiền mặt vào sổ', $truoc + 50000, VHG_Thu::tong_hop( 'all' )['tien_mat'] );
+
+// ---- thoát
+vhg_web( 'logout', array( 'token' => $tok ) );
+teq( 'thoát rồi thì token hết hiệu lực', false, vhg_web( 'so_lieu', array( 'token' => $tok ) )['ok'] );
+
+// ---- HTML
+$html = vhg_web_html();
+t( 'dựng được trang', strpos( $html, '<!doctype html>' ) === 0 );
+t( 'có ô PIN', strpos( $html, 'id="pin"' ) !== false );
+t( 'hợp với điện thoại', strpos( $html, 'width=device-width' ) !== false );
+/* 🔴 Trang tự chứa: cả hệ thống ghế đã rời hẳn Google, đi vòng qua Apps Script là dựng lại đúng
+      cái phụ thuộc vừa gỡ. Không gọi ra ngoài lượt nào. */
+foreach ( array( 'script.google.com', 'firebaseio', 'googleapis', 'cdn.', 'unpkg', 'jsdelivr' ) as $ngoai ) {
+	t( "trang KHÔNG gọi ra $ngoai", stripos( $html, $ngoai ) === false );
+}
+t( 'không nạp file ngoài nào', preg_match( '/<(script|link)[^>]+(src|href)=["\']https?:/i', $html ) === 0 );
+
+/* ⚠️ CHẶN BẤM HAI LẦN. Trên 4G một lượt bấm có thể mất 3 giây không thấy gì, và phản xạ là bấm
+      lại. Với "Thu tiền mặt" thì bấm hai lần là GHI HAI LẦN — tiền thật vào sổ gấp đôi. */
+$js = $html;
+t( 'giao diện có khoá chống bấm hai lần', strpos( $js, 'if (ban) return' ) !== false );
+t( 'và khoá bằng cách vô hiệu nút cho tới khi máy chủ trả lời',
+	strpos( $js, 'b.disabled = true' ) !== false );
+t( 'bật tay có hỏi lý do', strpos( $js, 'CHO KHÔNG một lượt' ) !== false );
+
+/* 🔴 Máy chủ trả rác (tường lửa hosting chèn trang chặn) KHÔNG được thành "hết phiên" — đá người
+      ta ra rồi họ gõ lại PIN và gặp đúng lỗi đó, vòng vô tận mà không ai hiểu vì sao. */
+t( 'trả lời không đọc được thì báo lỗi mạng, KHÔNG đá ra màn PIN',
+	strpos( $js, 'tường lửa' ) !== false );
+t( 'chỉ mã het_phien mới đá ra màn PIN', strpos( $js, "r.ma === 'het_phien'" ) !== false );
+
+// ---- không chuyển hướng: trang này người ta lưu vào màn hình chính điện thoại
+$src_tr = file_get_contents( VHG_DIR . 'includes/class-vhg-trang.php' );
+t( 'chặn chuyển hướng chuẩn hoá đường dẫn',
+	strpos( $src_tr, "redirect_canonical" ) !== false );
+t( 'và gài ở parse_request (sớm), không đợi template_redirect',
+	strpos( $src_tr, "'parse_request', array( __CLASS__, 'chan_chuyen_huong' ), 0" ) !== false );
+
+$src_boot = file_get_contents( VHG_DIR . 'vhcp-ghe.php' );
+t( '🔴 trang gài ở init ưu tiên 4 — TRƯỚC lượt nạp lại luật đường dẫn ở 99',
+	preg_match( "/VHG_Trang', 'init' \), 4 \)/", $src_boot ) === 1 );
+
+// ---- màn cài đặt trang ngoài
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+update_option( 'vhg_nguon_nguoidung', 'rieng' );
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Anh Thắng', 'pin' => '571394', 'vaiTro' => 'Admin', 'coso' => '' ) ) );
+$_GET = array(); $_POST = array();
+update_option( 'permalink_structure', '/%postname%/' );
+ob_start(); VHG_Admin::trang_ngoai(); $h_tn = ob_get_clean();
+t( 'màn cài đặt dựng được', strpos( $h_tn, 'Trang ngoài' ) !== false );
+t( 'hiện địa chỉ trang', strpos( $h_tn, '/ghe' ) !== false );
+t( 'permalink đẹp thì KHÔNG kêu oan', strpos( $h_tn, 'Plain' ) === false );
+
+/* 🔴 Permalinks kiểu "Plain" thì luật đường dẫn không chạy và `/ghe` trả 404. Triệu chứng
+   (404) không hề gợi tới nguyên nhân (một ô cài đặt ở màn khác hẳn của WordPress), nên màn
+   hình phải nói ra — không thì người ta đi sửa plugin, sửa .htaccess, sửa mọi thứ trừ chỗ đúng. */
+delete_option( 'permalink_structure' );
+ob_start(); VHG_Admin::trang_ngoai(); $h_pl = ob_get_clean();
+t( 'permalink "Plain" thì kêu lên', strpos( $h_pl, 'Plain' ) !== false, $h_pl );
+t( 'và chỉ đúng chỗ sửa', strpos( $h_pl, 'options-permalink.php' ) !== false );
+t( 'nhắc luôn hai cổng máy cũng cần thứ đó', strpos( $h_pl, 'ghe-tien' ) !== false );
+update_option( 'permalink_structure', '/%postname%/' );
+t( 'liệt kê ai vào được', strpos( $h_tn, 'Anh Thắng' ) !== false );
+t( '🔴 KHÔNG in PIN ra màn hình', strpos( $h_tn, '571394' ) === false, $h_tn );
+t( 'chỉ in số chữ số', strpos( $h_tn, '6 số' ) !== false );
+t( 'form con không lồng trong form cài đặt',
+	vhg_do_sau_form( $h_tn )['max'] <= 1, vhg_do_sau_form( $h_tn )['max'] );
+
+// ---- chặn PIN trùng: hai người cùng PIN thì người thứ hai vào nhầm quyền người khác, im lặng
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Anh Thắng', 'pin' => '571394', 'vaiTro' => 'Admin', 'coso' => '' ) ) );
+$_POST = array( 'vhg' => 'them_nd', 'ten' => 'Chị Hai', 'pin' => '571394',
+	'vai_tro_moi' => 'Quản lý', 'coso' => '' );
+ob_start(); VHG_Admin::trang_ngoai(); $h_tr = ob_get_clean();
+t( '🔴 chặn PIN trùng', strpos( $h_tr, 'đã có người dùng' ) !== false, $h_tr );
+teq( 'và KHÔNG thêm vào danh sách', 1, count( (array) get_option( 'vhg_nguoidung' ) ) );
+
+foreach ( array( '111111', '123456', '000000' ) as $de ) {
+	$_POST = array( 'vhg' => 'them_nd', 'ten' => 'Ai Đó', 'pin' => $de,
+		'vai_tro_moi' => 'Quản lý', 'coso' => '' );
+	ob_start(); VHG_Admin::trang_ngoai(); $h_de = ob_get_clean();
+	t( "chặn PIN quá dễ đoán $de", strpos( $h_de, 'dễ đoán' ) !== false );
+}
+$_POST = array(); $_GET = array();
+delete_option( 'vhg_nguoidung' );
+update_option( 'vhg_nguon_nguoidung', 'chung' );
 
 // ============================================================ kết
 if ( $truot ) {

@@ -78,15 +78,26 @@ teq( 'hai app chưa cài -> đúng 2 chữ "chưa cài"', 2, substr_count( $h, '
 t( 'trang chứa đúng đường dẫn của app chấm công',
 	strpos( $h, 'https://khmatrix.com/cham-cong/' ) !== false );
 
-/* Ghế massage trỏ vào wp-admin chứ không phải trang công khai — cố ý, vì màn đó xem được doanh
-   thu và bật tắt được ghế. Chốt ở đây để ai đổi sang trang công khai phải nghĩ lại một lần.
+/* Ghế massage: bản < 1.1.0 CHƯA có trang ngoài nên chỉ còn wp-admin. Liên kết dẫn tới màn đăng
+   nhập vẫn hơn liên kết chết, nên vẫn trỏ — nhưng ca có trang ngoài mới là ca đúng, thử ngay
+   dưới đây.
    ⚠️ Khai SAU khối vẽ ở trên: khai trước là số thẻ <a> đổi và mấy phép thử kia trượt oan. */
 eval( 'class VHG_Admin { public static function app_url() { return "https://khmatrix.com/wp-admin/admin.php?page=vhg"; } }' );
 $t2 = array();
 foreach ( VHTC_Trang::ds_app() as $a ) { $t2[ $a['ten'] ] = $a; }
 t( 'ghế massage đã cài -> co = true', true === $t2['Ghế Massage']['co'] );
-t( 'và trỏ vào wp-admin (không phải trang công khai)',
+t( 'bản cũ chưa có trang ngoài thì tạm trỏ wp-admin, không để liên kết chết',
 	strpos( $t2['Ghế Massage']['url'], '/wp-admin/' ) !== false, $t2['Ghế Massage']['url'] );
+
+/* 🔴 CÓ TRANG NGOÀI THÌ PHẢI TRỎ VÀO ĐÓ, không trỏ wp-admin.
+   Nhân viên đứng quầy không có tài khoản WordPress — và không nên có, vì cấp tài khoản cho 26
+   cửa hàng là cấp luôn đường vào phần quản trị website. Trỏ vào wp-admin là đưa họ tới một màn
+   đăng nhập họ không bao giờ qua được, mà trông y hệt một liên kết sống. */
+eval( 'class VHG_Trang { public static function url() { return "https://khmatrix.com/ghe/"; } }' );
+$t3 = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $t3[ $a['ten'] ] = $a; }
+teq( 'có trang ngoài thì trỏ vào trang ngoài', 'https://khmatrix.com/ghe/', $t3['Ghế Massage']['url'] );
+t( 'và KHÔNG còn trỏ wp-admin', strpos( $t3['Ghế Massage']['url'], '/wp-admin/' ) === false );
 
 /* 🔴 KHÔNG ĐƯỢC GÕ CỨNG đường dẫn nào trong mã. Gõ cứng là hôm nào anh Thắng đổi đường dẫn bên
    app kia, trang cổng vẫn trỏ về đường cũ — bấm vào ra 404 mà không có gì báo. */

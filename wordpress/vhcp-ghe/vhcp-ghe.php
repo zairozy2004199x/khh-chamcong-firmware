@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '1.1.0' );
+define( 'VHG_VERSION', '1.2.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -46,6 +46,8 @@ require_once VHG_DIR . 'includes/class-vhg-thu.php';
 require_once VHG_DIR . 'includes/class-vhg-qr.php';
 require_once VHG_DIR . 'includes/class-vhg-nhap.php';
 require_once VHG_DIR . 'includes/class-vhg-cong.php';
+require_once VHG_DIR . 'includes/class-vhg-auth.php';
+require_once VHG_DIR . 'includes/class-vhg-trang.php';
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
 
 register_activation_hook( __FILE__, array( 'VHG_DB', 'install' ) );
@@ -62,6 +64,10 @@ function vhg_maybe_upgrade() {
 /* Cổng gài SỚM (ưu tiên 4) — trước lượt nạp lại luật đường dẫn (99). Đường của tiền là đường
    mà một lượt bị chuyển hướng đồng nghĩa MẤT doanh thu; xem class-vhg-cong.php. */
 add_action( 'init', array( 'VHG_Cong', 'init' ), 4 );
+/* Trang ngoài gài cùng ưu tiên 4: nó cũng khai luật đường dẫn, nên phải xong TRƯỚC lượt nạp
+   lại ở 99. Gài sau 99 thì luật vừa khai chưa nằm trong bản đã nạp — trang trả 404 cho tới
+   lần lưu Permalinks kế tiếp, mà không ai nghĩ tới việc đi lưu một trang mình không sửa. */
+add_action( 'init', array( 'VHG_Trang', 'init' ), 4 );
 add_action( 'init', 'vhg_flush_rewrite', 99 );
 function vhg_flush_rewrite() {
 	if ( get_option( 'vhg_flush_rewrite' ) ) {

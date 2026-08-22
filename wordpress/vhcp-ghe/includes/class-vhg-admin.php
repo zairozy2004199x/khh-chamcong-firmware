@@ -34,6 +34,7 @@ class VHG_Admin {
 		add_submenu_page( 'vhg', 'Đối soát doanh thu', 'Đối soát doanh thu', self::CAP, 'vhg', array( __CLASS__, 'trang_thu' ) );
 		add_submenu_page( 'vhg', 'Máy & cơ sở', 'Máy & cơ sở', self::CAP, 'vhg-may', array( __CLASS__, 'trang_may' ) );
 		add_submenu_page( 'vhg', 'Nhận tiền & nhật ký', 'Nhận tiền & nhật ký', self::CAP, 'vhg-cong', array( __CLASS__, 'trang_cong' ) );
+		add_submenu_page( 'vhg', 'Trang ngoài & PIN', 'Trang ngoài & PIN', self::CAP, 'vhg-trang', array( __CLASS__, 'trang_ngoai' ) );
 	}
 
 	// ======================================================================= tiện ích chung
@@ -500,4 +501,197 @@ class VHG_Admin {
 			. '<em>Không ảnh hưởng doanh thu đã ghi.</em></p></form>';
 		echo '</div>';
 	}
+
+	// ======================================================================= 4. TRANG NGOÀI & PIN
+
+	/**
+	 * Khai đường dẫn trang ngoài, ai vào được, và danh sách PIN riêng khi không dùng chung.
+	 *
+	 * ⚠️ MÀN NÀY KHÔNG BAO GIỜ IN PIN — chỉ in SỐ CHỮ SỐ. Ảnh màn hình đi khắp nơi; trong chính
+	 *    dự án này đã mất một khoá cầu nối và một khoá webhook vì ảnh gửi qua chat.
+	 */
+	public static function trang_ngoai() {
+		self::gac();
+		$bao = array();
+		if ( isset( $_POST['vhg'] ) ) {
+			check_admin_referer( 'vhg' );
+			$viec = sanitize_text_field( wp_unslash( $_POST['vhg'] ) );
+			if ( 'luu_trang' === $viec ) {
+				$slug = sanitize_title( wp_unslash( $_POST['slug'] ) );
+				if ( '' === $slug ) { $slug = 'ghe'; }
+				if ( get_option( 'vhg_slug' ) !== $slug ) { update_option( 'vhg_flush_rewrite', 1 ); }
+				update_option( 'vhg_slug', $slug );
+
+				$nguon = sanitize_text_field( wp_unslash( $_POST['nguon'] ) );
+				update_option( 'vhg_nguon_nguoidung', 'rieng' === $nguon ? 'rieng' : 'chung' );
+
+				$vt = array();
+				foreach ( (array) ( isset( $_POST['vai_tro'] ) ? $_POST['vai_tro'] : array() ) as $x ) {
+					$x = sanitize_text_field( wp_unslash( $x ) );
+					if ( in_array( $x, VHG_Auth::VAI_TRO_TAT_CA, true ) ) { $vt[] = $x; }
+				}
+				update_option( 'vhg_vai_tro_vao', $vt );
+				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã lưu. Địa chỉ trang: ' . VHG_Trang::url() );
+			} elseif ( 'them_nd' === $viec ) {
+				$bao[] = self::them_nguoi_dung(
+					wp_unslash( $_POST['ten'] ), wp_unslash( $_POST['pin'] ),
+					wp_unslash( $_POST['vai_tro_moi'] ), wp_unslash( $_POST['coso'] ) );
+			} elseif ( 'xoa_nd' === $viec ) {
+				$ds = (array) get_option( 'vhg_nguoidung' );
+				unset( $ds[ (int) $_POST['i'] ] );
+				update_option( 'vhg_nguoidung', array_values( $ds ) );
+				$bao[] = array( 'ok' => true, 'thong_bao' => 'Đã xoá.' );
+			}
+		}
+
+		echo '<div class="wrap"><h1>Trang ngoài &amp; PIN</h1>';
+		self::ve_bao( $bao );
+		echo '<p>Trang cho nhân viên cửa hàng mở trên điện thoại — xem doanh thu, biết ghế nào đang '
+			. 'đứng, thu tiền mặt. <b>Không cần tài khoản WordPress</b>, chỉ cần PIN.</p>';
+		echo '<p><a class="button button-primary" href="' . esc_url( VHG_Trang::url() ) . '" target="_blank">'
+			. esc_html( VHG_Trang::url() ) . '</a></p>';
+		/* 🔴 Permalinks kiểu "Plain" thì luật đường dẫn KHÔNG chạy — `/ghe` trả 404, và trang chỉ
+		   mở được bằng địa chỉ `?vhg=app` xấu và khó đọc cho người phải gõ trên điện thoại. Nói
+		   ra ở đây, vì triệu chứng (404) không hề gợi tới nguyên nhân (một ô cài đặt của
+		   WordPress ở màn khác hẳn). */
+		if ( ! get_option( 'permalink_structure' ) ) {
+			echo '<div class="notice notice-warning inline"><p><b>WordPress đang để đường dẫn kiểu '
+				. '“Plain”</b> nên <code>/' . esc_html( VHG_Trang::slug() ) . '</code> sẽ trả 404. '
+				. 'Vào <a href="' . esc_url( admin_url( 'options-permalink.php' ) ) . '">Settings → '
+				. 'Permalinks</a> chọn <b>Post name</b> rồi Lưu. Hai cổng máy '
+				. '(<code>/ghe-tien</code>, <code>/ghe-may</code>) cũng cần đúng thứ đó.</p></div>';
+		}
+
+		/* Một khối form DUY NHẤT cho phần cài đặt. Các form con (thêm/xoá người) dựng RIÊNG ở
+		   dưới, KHÔNG lồng — xem bài học ở class-vhcc-admin.php: <form> lồng <form> thì trình
+		   duyệt lặng lẽ gộp ô nhập vào form cha, và một ô `required` ở cuối trang chặn luôn
+		   nút Lưu ở đầu trang. */
+		echo '<form method="post">';
+		wp_nonce_field( 'vhg' );
+		echo '<table class="form-table">';
+		echo '<tr><th>Đường dẫn trang</th><td>' . esc_html( home_url( '/' ) )
+			. '<input name="slug" value="' . esc_attr( VHG_Trang::slug() ) . '" class="regular-text" /> /'
+			. '<p class="description">Mặc định <code>ghe</code>.</p></td></tr>';
+
+		$nguon = VHG_Auth::nguon();
+		echo '<tr><th>Nguồn người dùng &amp; PIN</th><td>';
+		echo '<label><input type="radio" name="nguon" value="chung"' . checked( 'chung', $nguon, false )
+			. ' /> Dùng chung với plugin <b>Vận hành chi phí</b> (khuyến nghị)</label><br>';
+		echo '<label><input type="radio" name="nguon" value="rieng"' . checked( 'rieng', $nguon, false )
+			. ' /> Danh sách riêng của plugin này</label>';
+		if ( 'chung' === $nguon && ! VHG_Auth::co_bang_chung() ) {
+			echo '<p style="color:#b32d2e"><b>Không thấy bảng của plugin Vận hành chi phí</b> — '
+				. 'chưa ai đăng nhập được. Chuyển sang danh sách riêng, hoặc cài plugin đó.</p>';
+		}
+		echo '</td></tr>';
+
+		$cho = VHG_Auth::vai_tro_vao();
+		echo '<tr><th>Vai trò vào được</th><td>';
+		foreach ( VHG_Auth::VAI_TRO_TAT_CA as $vt ) {
+			echo '<label style="margin-right:14px"><input type="checkbox" name="vai_tro[]" value="'
+				. esc_attr( $vt ) . '"' . checked( true, in_array( $vt, $cho, true ), false ) . ' /> '
+				. esc_html( $vt ) . '</label>';
+		}
+		echo '<p class="description">Bỏ hết dấu tích = quay về mặc định, KHÔNG phải khoá sạch — '
+			. 'rỗng là không ai vào được, kể cả Admin, và không có đường tự mở lại ngoài cơ sở dữ liệu.'
+			. '<br>Cửa hàng trưởng mặc định VÀO ĐƯỢC màn này (khác plugin chấm công): người đứng quầy '
+			. 'chính là người cần biết ghế nào đang đứng.</p></td></tr>';
+		echo '</table><p><button class="button button-primary" name="vhg" value="luu_trang">Lưu</button></p></form>';
+
+		/* ---- Ai vào được, PIN dài mấy số ---- */
+		$u = VHG_Auth::users();
+		if ( is_wp_error( $u ) ) {
+			echo '<div class="notice notice-error"><p>' . esc_html( $u->get_error_message() ) . '</p></div>';
+			$u = array();
+		}
+		$vao = array();
+		foreach ( $u as $x ) { if ( in_array( $x['vaiTro'], $cho, true ) ) { $vao[] = $x; } }
+		echo '<h2>Ai vào được (' . count( $vao ) . '/' . count( $u ) . ')</h2>';
+		if ( ! $vao ) {
+			echo '<div class="notice notice-warning inline"><p><b>Chưa ai đăng nhập được trang ngoài.</b> '
+				. 'Tích thêm vai trò ở trên, hoặc thêm người vào danh sách riêng bên dưới.</p></div>';
+		} else {
+			echo '<table class="widefat striped" style="max-width:620px"><thead><tr><th>Tên</th>'
+				. '<th>Vai trò</th><th>Cơ sở</th><th>PIN dài</th></tr></thead><tbody>';
+			foreach ( $vao as $x ) {
+				/* ⚠️ CHỈ SỐ CHỮ SỐ, không bao giờ in PIN. */
+				$dai = '' === $x['pin'] ? '<span style="color:#b32d2e">chưa có</span>'
+					: ( preg_match( '/^\d{4,8}$/', $x['pin'] )
+						? strlen( $x['pin'] ) . ' số'
+						: '<span style="color:#b32d2e">' . strlen( $x['pin'] ) . ' ký tự — không dùng được</span>' );
+				echo '<tr><td><b>' . esc_html( $x['ten'] ) . '</b></td><td>' . esc_html( $x['vaiTro'] )
+					. '</td><td>' . esc_html( $x['coso'] ) . '</td><td>' . wp_kses_post( $dai ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<p class="description">Bảng này <b>không in PIN</b> — chỉ số chữ số, đủ để biết mình '
+				. 'đang gõ thiếu hay thừa.</p>';
+		}
+
+		/* ---- Danh sách riêng ---- */
+		if ( 'rieng' === $nguon ) {
+			$ds = (array) get_option( 'vhg_nguoidung' );
+			echo '<h2>Danh sách riêng</h2>';
+			if ( $ds ) {
+				echo '<table class="widefat striped" style="max-width:620px"><thead><tr><th>Tên</th>'
+					. '<th>Vai trò</th><th>Cơ sở</th><th>PIN dài</th><th></th></tr></thead><tbody>';
+				foreach ( $ds as $i => $x ) {
+					$x = (array) $x;
+					echo '<tr><td><b>' . esc_html( isset( $x['ten'] ) ? $x['ten'] : '' ) . '</b></td>'
+						. '<td>' . esc_html( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' ) . '</td>'
+						. '<td>' . esc_html( isset( $x['coso'] ) ? $x['coso'] : '' ) . '</td>'
+						. '<td>' . strlen( (string) ( isset( $x['pin'] ) ? $x['pin'] : '' ) ) . ' số</td>'
+						. '<td><form method="post">' . wp_nonce_field( 'vhg', '_wpnonce', true, false )
+						. '<input type="hidden" name="i" value="' . (int) $i . '" />'
+						. '<button class="button button-small" name="vhg" value="xoa_nd">Xoá</button>'
+						. '</form></td></tr>';
+				}
+				echo '</tbody></table>';
+			}
+			echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin:10px 0">';
+			wp_nonce_field( 'vhg' );
+			echo '<label>Họ tên<br><input name="ten" required style="width:180px" /></label>';
+			echo '<label>PIN (4–8 số)<br><input name="pin" inputmode="numeric" required style="width:110px" /></label>';
+			echo '<label>Vai trò<br><select name="vai_tro_moi">';
+			foreach ( VHG_Auth::VAI_TRO_TAT_CA as $vt ) {
+				echo '<option value="' . esc_attr( $vt ) . '"' . selected( $vt, 'Cửa hàng trưởng', false ) . '>'
+					. esc_html( $vt ) . ( in_array( $vt, $cho, true ) ? '' : ' — không vào được' ) . '</option>';
+			}
+			echo '</select></label>';
+			echo '<label>Cơ sở<br><input name="coso" style="width:150px" placeholder="trống = cả chuỗi" /></label>';
+			echo '<button class="button button-primary" name="vhg" value="them_nd">Thêm người</button></form>';
+			echo '<p class="description">Quên PIN thì xoá dòng đó rồi thêm lại — màn này không in PIN ra.</p>';
+		}
+		echo '</div>';
+	}
+
+	/**
+	 * Thêm một người vào danh sách riêng.
+	 * ⚠️ CHẶN PIN TRÙNG. Hai người cùng PIN thì `login()` khớp người ĐẦU TIÊN trong danh sách —
+	 *    người thứ hai gõ đúng PIN của mình mà vào nhầm quyền của người khác, im lặng.
+	 */
+	private static function them_nguoi_dung( $ten, $pin, $vai_tro, $coso ) {
+		$ten = trim( (string) $ten );
+		$pin = VHG_Auth::pin_sach( $pin );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu họ tên.' ); }
+		if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) {
+			return array( 'ok' => false, 'error' => 'PIN phải gồm 4–8 chữ số.' );
+		}
+		/* PIN quá dễ đoán là mở cửa doanh thu 26 cửa hàng cho một lượt thử tay. */
+		if ( preg_match( '/^(\d)\1+$/', $pin ) || false !== strpos( '01234567890', $pin )
+			|| false !== strpos( '09876543210', $pin ) ) {
+			return array( 'ok' => false, 'error' => 'PIN quá dễ đoán — chọn PIN khác.' );
+		}
+		$ds = (array) get_option( 'vhg_nguoidung' );
+		foreach ( $ds as $x ) {
+			$x = (array) $x;
+			if ( (string) ( isset( $x['pin'] ) ? $x['pin'] : '' ) === $pin ) {
+				return array( 'ok' => false, 'error' => 'PIN này đã có người dùng — chọn PIN khác.' );
+			}
+		}
+		$vt = in_array( (string) $vai_tro, VHG_Auth::VAI_TRO_TAT_CA, true ) ? (string) $vai_tro : 'Cửa hàng trưởng';
+		$ds[] = array( 'ten' => $ten, 'pin' => $pin, 'vaiTro' => $vt, 'coso' => trim( (string) $coso ) );
+		update_option( 'vhg_nguoidung', array_values( $ds ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ' . $ten . '.' );
+	}
+
 }

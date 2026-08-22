@@ -205,7 +205,23 @@ function wp_remote_retrieve_body( $r ) { return isset( $r['body'] ) ? (string) $
 function wp_parse_url( $u, $c = -1 ) { return parse_url( $u, $c ); }
 function rest_url( $p = '' ) { return 'http://example.test/wp-json/' . ltrim( $p, '/' ); }
 function home_url( $p = '/' ) { return 'http://example.test' . $p; }
-function add_query_arg() { return ''; }
+/* Bản giả CŨ trả '' — vô hại cho tới lúc có màn hình in ra địa chỉ dựng bằng hàm này, rồi phép
+   thử báo "không hiện địa chỉ" mà mã nguồn thì đúng. Một hàm giả trả rỗng là một phép thử tự
+   nói dối, nên dựng cho đúng: add_query_arg( $mang, $url ) và add_query_arg( $k, $v, $url ). */
+function add_query_arg( $a = null, $b = null, $c = null ) {
+	if ( is_array( $a ) ) { $them = $a; $url = ( null === $b ? '' : (string) $b ); }
+	else { $them = array( (string) $a => $b ); $url = ( null === $c ? '' : (string) $c ); }
+	$p = explode( '#', $url, 2 );
+	$frag = isset( $p[1] ) ? '#' . $p[1] : '';
+	$q = explode( '?', $p[0], 2 );
+	$cu = array();
+	if ( isset( $q[1] ) && '' !== $q[1] ) { parse_str( $q[1], $cu ); }
+	foreach ( $them as $k => $v ) {
+		if ( null === $v || false === $v ) { unset( $cu[ $k ] ); } else { $cu[ $k ] = $v; }
+	}
+	$chuoi = http_build_query( $cu );
+	return $q[0] . ( '' !== $chuoi ? '?' . $chuoi : '' ) . $frag;
+}
 function plugin_dir_path( $f ) { return dirname( $f ) . '/'; }
 function plugin_dir_url( $f ) { return 'http://example.test/wp-content/plugins/vhcp-chi-phi/'; }
 
