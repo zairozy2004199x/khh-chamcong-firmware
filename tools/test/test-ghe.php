@@ -1412,6 +1412,91 @@ teq( 'nói rõ bên gửi báo số nào', '8888815678', $dc['ben_gui'] );
 VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
 teq( 'sửa đúng thì khớp', true, VHG_May::doi_chieu_tk()['khop'] );
 
+// ====================== ĐỌC NGƯỢC MÃ QR
+/* 🔴 Anh Thắng quét thử ba lần, ba lỗi khác nhau từ app ngân hàng: "sai định dạng tài khoản
+      (174)", rồi "vấn tin bị timeout (199)". Mỗi lần chỉ biết là HỎNG, không biết trong mã có
+      gì — mà chuỗi QR là 130 ký tự dính liền. Mỗi lượt thử là một lượt chuyển tiền thật và một
+      chuyến ra chỗ để ghế. */
+$chuoi_m = VHG_QR::dung( '970448', '96247POSH', 50000, 'GHEAMTP01 K7M2P' );
+$d_m = VHG_QR::doc( $chuoi_m );
+t( 'đọc ngược được mã vừa dựng', ! empty( $d_m['ok'] ), $d_m );
+teq( 'ra đúng BIN', '970448', $d_m['bin'] );
+teq( 'ra đúng số tài khoản/VA (giữ nguyên chữ)', '96247POSH', $d_m['so_tk'] );
+teq( 'ra đúng số tiền', 50000, $d_m['so_tien'] );
+teq( 'ra đúng nội dung', 'GHEAMTP01 K7M2P', $d_m['noi_dung'] );
+teq( 'và CRC đúng', true, $d_m['crc_dung'] );
+
+/* Đọc ngược phải khớp với chính phép dựng ở MỌI ca — nếu không thì một trong hai sai, và
+   không có cách nào biết bên nào. */
+foreach ( array(
+	array( '970418', '8888815678',   20000,  'GHEA 1' ),
+	array( '970436', '0011001234567', 200000, 'GHEAMTP04 ZZZZZ' ),
+	array( '970422', '96247POSH',    0,      '' ),
+) as $ca ) {
+	$c = VHG_QR::dung( $ca[0], $ca[1], $ca[2], $ca[3] );
+	$d = VHG_QR::doc( $c );
+	teq( "dựng rồi đọc lại ra đúng BIN {$ca[0]}", $ca[0], $d['bin'] );
+	teq( "…và đúng tài khoản {$ca[1]}", $ca[1], $d['so_tk'] );
+	teq( "…và đúng số tiền {$ca[2]}", $ca[2], $d['so_tien'] );
+	teq( "…và CRC đúng", true, $d['crc_dung'] );
+}
+
+/* 🔴 CRC SAI PHẢI BỊ BẮT. Chuỗi sai CRC thì mọi app ngân hàng đều từ chối — nhưng đó là lỗi
+      của phép DỰNG, không phải của số tài khoản. Hai ca đi sửa ở hai nơi khác hẳn. */
+$hong = substr( $chuoi_m, 0, -4 ) . '0000';
+teq( 'CRC sai thì bắt được', false, VHG_QR::doc( $hong )['crc_dung'] );
+/* …nhưng vẫn đọc ra được các trường, để còn nói người ta biết trong mã có gì. */
+teq( 'và vẫn đọc ra số tài khoản để chẩn đoán', '96247POSH', VHG_QR::doc( $hong )['so_tk'] );
+
+/* Chuỗi rác thì nói KHÔNG ĐỌC ĐƯỢC, đừng trả bừa vài trường trông như thật. */
+foreach ( array( '', 'ba la bla', '0002', '00020101021238' ) as $rac ) {
+	$d = VHG_QR::doc( $rac );
+	teq( "chuỗi rác \"$rac\" -> không ok", false, $d['ok'] );
+	t( 'và có câu lỗi', '' !== $d['loi'] );
+}
+/* 🔴 CA HIỂM NHẤT: chuỗi bị cắt cụt NGAY GIỮA số tài khoản. Ô `01` khai dài 9 (`96247POSH`)
+      nhưng chuỗi chỉ còn 5 ký tự. Nếu bộ đọc "cố đọc nốt" thì nó trả về `96247` — một chuỗi
+      trông y như một số tài khoản thật, và người đọc màn hình sẽ đi đối chiếu con số đó với
+      ngân hàng rồi không hiểu vì sao không khớp.
+      Phải DỪNG và trả rỗng: "không đọc được" là câu đúng, `96247` là câu bịa. */
+$cut = substr( $chuoi_m, 0, strpos( $chuoi_m, '96247POSH' ) + 5 );
+$d_cut = VHG_QR::doc( $cut );
+teq( 'cắt cụt giữa số tài khoản -> KHÔNG bịa ra một số ngắn hơn', '', $d_cut['so_tk'] );
+t( 'và nói không đọc được', empty( $d_cut['ok'] ) && '' !== $d_cut['loi'] );
+t( '⚠️ tuyệt đối không được trả về "96247"', '96247' !== $d_cut['so_tk'] );
+
+$lech = '00020101021238990010A0000007270123000697044801099624';
+t( 'độ dài TLV vượt quá chuỗi -> dừng, không bịa trường',
+	'' === VHG_QR::doc( $lech )['so_tk'] );
+
+teq( 'tên ngân hàng theo BIN', 'OCB', VHG_QR::ten_ngan_hang( '970448' ) );
+teq( 'BIDV', 'BIDV', VHG_QR::ten_ngan_hang( '970418' ) );
+/* Không có trong bảng thì trả RỖNG — thà nói "không rõ" còn hơn đoán tên một ngân hàng, vì
+   người đọc sẽ tin cái tên đó và thôi không đi kiểm. */
+teq( 'BIN lạ thì trả rỗng, không đoán', '', VHG_QR::ten_ngan_hang( '999999' ) );
+
+// ---- màn quản trị hiện bảng đọc ngược
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970448', '96247POSH', 'K&H' );
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+ob_start(); VHG_Admin::trang_may(); $h_qr = ob_get_clean();
+t( 'màn hiện bảng đọc ngược mã QR', strpos( $h_qr, 'đọc ngược để kiểm' ) !== false );
+t( 'hiện tên ngân hàng theo BIN', strpos( $h_qr, 'OCB' ) !== false );
+t( 'hiện số VA', strpos( $h_qr, '96247POSH' ) !== false );
+t( 'và xác nhận CRC', strpos( $h_qr, 'Mã kiểm (CRC)' ) !== false );
+/* Bảng tra triệu chứng: mỗi câu app ngân hàng báo ứng với một chỗ sửa khác nhau. */
+t( 'có bảng tra theo câu app ngân hàng báo',
+	strpos( $h_qr, 'Vấn tin bị timeout' ) !== false
+	&& strpos( $h_qr, 'BIN không khớp ngân hàng phát hành' ) !== false );
+t( 'và dặn DỪNG khi hiện tên lạ', strpos( $h_qr, 'DỪNG NGAY' ) !== false );
+
+/* BIN lạ thì màn phải nói "không có trong bảng mã Napas", đừng im lặng. */
+VHG_May::luu_nhan_tien( '999999', '96247POSH', 'K&H' );
+ob_start(); VHG_Admin::trang_may(); $h_qr2 = ob_get_clean();
+t( 'BIN lạ thì màn kêu lên', strpos( $h_qr2, 'không có trong bảng mã Napas' ) !== false );
+$_GET = array(); $_POST = array();
+
 /* ============ 🔴 TÀI KHOẢN ẢO (VA) — TIỀN VỀ TÚI MÌNH MÀ HỆ THỐNG MÙ VỚI NÓ
  *
  * Anh Thắng 22/08/2026: quét thử, ngân hàng trừ tiền bình thường, app hiện đúng tên chủ tài

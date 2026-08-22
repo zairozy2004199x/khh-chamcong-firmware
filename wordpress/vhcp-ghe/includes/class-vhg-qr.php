@@ -51,6 +51,101 @@ class VHG_QR {
 	}
 
 	/**
+	 * Tên ngân hàng theo mã BIN của Napas.
+	 *
+	 * Chỉ liệt kê những ngân hàng thật sự dùng trong hệ thống này, kể cả ngân hàng phát hành
+	 * tài khoản ảo. Không có trong bảng thì trả rỗng — thà nói "không rõ" còn hơn đoán tên một
+	 * ngân hàng, vì người đọc sẽ tin cái tên đó và thôi không đi kiểm.
+	 */
+	const NGAN_HANG = array(
+		'970418' => 'BIDV',        '970436' => 'Vietcombank', '970415' => 'VietinBank',
+		'970422' => 'MB',          '970407' => 'Techcombank', '970416' => 'ACB',
+		'970448' => 'OCB',         '970432' => 'VPBank',      '970405' => 'Agribank',
+		'970423' => 'TPBank',      '970443' => 'SHB',         '970441' => 'VIB',
+		'970426' => 'MSB',         '970429' => 'SCB',         '970403' => 'Sacombank',
+		'970431' => 'Eximbank',    '970437' => 'HDBank',      '970454' => 'VietCapitalBank',
+		'970400' => 'SaigonBank',  '970419' => 'NCB',         '970428' => 'NamABank',
+	);
+
+	public static function ten_ngan_hang( $bin ) {
+		$bin = preg_replace( '/\D+/', '', (string) $bin );
+		return isset( self::NGAN_HANG[ $bin ] ) ? self::NGAN_HANG[ $bin ] : '';
+	}
+
+	/**
+	 * ĐỌC NGƯỢC một chuỗi VietQR ra từng trường.
+	 *
+	 * 🔴 Vì sao cần. Ngày 22/08/2026 anh Thắng quét thử ba lần, ba lỗi khác nhau từ app BIDV:
+	 *    "sai định dạng tài khoản (174)", rồi "vấn tin bị timeout (199)". Mỗi lần chỉ biết là
+	 *    HỎNG, không biết trong mã có gì. Mà chuỗi QR là 130 ký tự dính liền — nhìn bằng mắt
+	 *    thì không đọc ra nổi số tài khoản nằm ở đâu, chứ đừng nói đối chiếu.
+	 *
+	 *    Mỗi lượt thử như vậy là một lượt chuyển tiền thật và một chuyến ra chỗ để ghế. Đọc
+	 *    ngược ngay trên màn quản trị thì kiểm được TRƯỚC khi đi.
+	 *
+	 * ⚠️ Kiểm luôn CRC. Chuỗi sai CRC thì mọi app ngân hàng đều từ chối, và đó là lỗi của phép
+	 *    dựng chứ không phải của số tài khoản — hai ca đi sửa ở hai nơi khác hẳn.
+	 *
+	 * @return array [ 'ok', 'bin', 'so_tk', 'so_tien', 'noi_dung', 'crc_dung', 'loai', 'loi' ]
+	 */
+	public static function doc( $chuoi ) {
+		$s  = trim( (string) $chuoi );
+		$ra = array( 'ok' => false, 'bin' => '', 'so_tk' => '', 'so_tien' => 0,
+			'noi_dung' => '', 'crc_dung' => false, 'loai' => '', 'loi' => '' );
+		if ( strlen( $s ) < 8 ) { $ra['loi'] = 'Chuỗi quá ngắn.'; return $ra; }
+
+		/* CRC: bốn ký tự cuối, tính trên toàn bộ phần trước KỂ CẢ "6304". */
+		$than = substr( $s, 0, -4 );
+		$ra['crc_dung'] = ( strtoupper( substr( $s, -4 ) ) === self::crc16( $than ) );
+
+		$cay = self::tach_tlv( $s );
+		if ( ! $cay ) { $ra['loi'] = 'Không đọc được cấu trúc TLV.'; return $ra; }
+
+		$ra['loai']     = isset( $cay['01'] ) ? $cay['01'] : '';
+		$ra['so_tien']  = isset( $cay['54'] ) ? (int) $cay['54'] : 0;
+		if ( isset( $cay['62'] ) ) {
+			$c62 = self::tach_tlv( $cay['62'], false );
+			$ra['noi_dung'] = isset( $c62['08'] ) ? $c62['08'] : '';
+		}
+		if ( isset( $cay['38'] ) ) {
+			$c38 = self::tach_tlv( $cay['38'], false );
+			if ( isset( $c38['01'] ) ) {
+				$ben = self::tach_tlv( $c38['01'], false );
+				$ra['bin']   = isset( $ben['00'] ) ? $ben['00'] : '';
+				$ra['so_tk'] = isset( $ben['01'] ) ? $ben['01'] : '';
+			}
+		}
+		$ra['ok'] = ( '' !== $ra['bin'] && '' !== $ra['so_tk'] );
+		if ( ! $ra['ok'] ) { $ra['loi'] = 'Không thấy mã ngân hàng hoặc số tài khoản trong mã.'; }
+		return $ra;
+	}
+
+	/**
+	 * Tách một chuỗi TLV thành [ mã => giá trị ].
+	 * `$bo_crc` = bỏ bốn ký tự CRC ở cuối (chỉ đúng với chuỗi ngoài cùng).
+	 *
+	 * ⚠️ Chuỗi hỏng thì DỪNG và trả về những gì đọc được, đừng chạy tiếp: độ dài sai một ký tự
+	 *    là mọi trường sau đó lệch hết, và những giá trị lệch đó trông vẫn như dữ liệu thật.
+	 */
+	private static function tach_tlv( $s, $bo_crc = true ) {
+		$s = (string) $s;
+		if ( $bo_crc && strlen( $s ) > 4 ) { $s = substr( $s, 0, -4 ); }
+		$ra = array();
+		$i  = 0;
+		$n  = strlen( $s );
+		while ( $i + 4 <= $n ) {
+			$ma  = substr( $s, $i, 2 );
+			$dai = substr( $s, $i + 2, 2 );
+			if ( ! ctype_digit( $ma ) || ! ctype_digit( $dai ) ) { break; }
+			$dai = (int) $dai;
+			if ( $i + 4 + $dai > $n ) { break; }
+			$ra[ $ma ] = substr( $s, $i + 4, $dai );
+			$i += 4 + $dai;
+		}
+		return $ra;
+	}
+
+	/**
 	 * Chuỗi QR cho một ghế, kèm mã lượt.
 	 *
 	 * ⚠️ Nội dung phải đúng khuôn `GHE<mã ghế> <mã lượt>` — đó là thứ `VHG_Doc::ghe_va_ma()` đọc

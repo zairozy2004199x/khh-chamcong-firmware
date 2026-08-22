@@ -483,6 +483,45 @@ class VHG_Admin {
 			. esc_attr( $tk_chung['ten_tk'] ) . '" class="regular-text" /></td></tr>';
 		echo '</table><p><button class="button button-primary" name="vhg" value="nhan_tien">Lưu tài khoản</button></p></form>';
 
+		/* ==================================================================================
+		 * ĐỌC NGƯỢC MÃ QR RA TỪNG TRƯỜNG.
+		 *
+		 * 🔴 Anh Thắng quét thử ba lần, ba lỗi khác nhau từ app ngân hàng: "sai định dạng tài
+		 *    khoản (174)", rồi "vấn tin bị timeout (199)". Mỗi lần chỉ biết là HỎNG, không biết
+		 *    trong mã có gì — mà chuỗi QR là 130 ký tự dính liền, nhìn bằng mắt không đọc ra nổi
+		 *    số tài khoản nằm ở đâu.
+		 *
+		 *    Mỗi lượt thử như vậy là một lượt chuyển tiền thật và một chuyến ra chỗ để ghế. Đọc
+		 *    ngược ngay ở đây thì kiểm được TRƯỚC khi đi.
+		 * ================================================================================== */
+		if ( '' !== $tk_chung['so_tk'] && '' !== $tk_chung['bin'] ) {
+			$mau = VHG_QR::dung( $tk_chung['bin'], $tk_chung['so_tk'], (int) $tl_c['gia'], 'GHEMAU K7M2P' );
+			$doc = VHG_QR::doc( $mau );
+			$ten_nh = VHG_QR::ten_ngan_hang( $doc['bin'] );
+			echo '<h3>Mã QR sẽ dựng ra — đọc ngược để kiểm</h3>';
+			echo '<table class="widefat striped" style="max-width:560px"><tbody>'
+				. '<tr><td>Ngân hàng (BIN)</td><td><code>' . esc_html( $doc['bin'] ) . '</code> '
+				. ( '' !== $ten_nh ? '<b>' . esc_html( $ten_nh ) . '</b>'
+					: '<span style="color:#b32d2e">không có trong bảng mã Napas — kiểm lại</span>' ) . '</td></tr>'
+				. '<tr><td>Số tài khoản / VA</td><td><code>' . esc_html( $doc['so_tk'] ) . '</code></td></tr>'
+				. '<tr><td>Số tiền</td><td>' . esc_html( self::tien( $doc['so_tien'] ) ) . '</td></tr>'
+				. '<tr><td>Nội dung</td><td><code>' . esc_html( $doc['noi_dung'] ) . '</code></td></tr>'
+				. '<tr><td>Mã kiểm (CRC)</td><td>' . ( $doc['crc_dung']
+					? '<span style="color:#046b2d">✔️ đúng</span>'
+					: '<span style="color:#b32d2e">✘ SAI — mọi app ngân hàng sẽ từ chối</span>' ) . '</td></tr>'
+				. '</tbody></table>';
+			echo '<p class="description"><b>App ngân hàng báo gì thì đọc thế nấy:</b><br>'
+				. '· <b>“Định dạng tài khoản không hợp lệ”</b> — số tài khoản/VA sai khuôn của ngân '
+				. 'hàng đó. Đếm lại từng chữ số, và xem có phải đang điền tài khoản gốc thay vì VA không.<br>'
+				. '· <b>“Vấn tin bị timeout”</b> — khuôn đã đúng nhưng ngân hàng KHÔNG TRA ĐƯỢC tài '
+				. 'khoản. Gần như luôn là <b>BIN không khớp ngân hàng phát hành</b>: mã đang trỏ vào '
+				. ( '' !== $ten_nh ? esc_html( $ten_nh ) : 'một ngân hàng không rõ' )
+				. ', tài khoản/VA phải do ĐÚNG ngân hàng đó phát hành.<br>'
+				. '· <b>Hiện tên chủ tài khoản của mình</b> — mã đúng, nhưng đang trỏ vào tài khoản '
+				. 'GỐC. SePay theo dõi VA, nên tiền về túi mình mà hệ thống không thấy.<br>'
+				. '· <b>Hiện tên lạ</b> — <b>DỪNG NGAY</b>, đừng chuyển. Sai số tài khoản.</p>';
+		}
+
 		/* ---- Tỉ lệ quy đổi: khai chung, ĐẶT NGAY TRÊN bảng gói ----
 		 * 🔴 Trước đây tỉ lệ nằm tận ô "Thêm / sửa máy", tách khỏi chỗ khai gói và phải lưu lại
 		 *    từng máy một. Nên nhìn bảng gói thì tưởng đã khai xong, mà số phút vẫn là số cũ —
