@@ -888,6 +888,203 @@ $_POST = array(); $_GET = array();
 delete_option( 'vhg_nguoidung' );
 update_option( 'vhg_nguon_nguoidung', 'chung' );
 
+// ============================================ TÀI KHOẢN NHẬN TIỀN KHAI MỘT LẦN
+/* 🔴 Anh Thắng: *"liên kết qua sepay và vietqr mà liên quan gì đến số tk"*. Số tài khoản vẫn cần
+      — mã QR phải nói tiền đi về đâu, SePay chỉ BÁO TIN tiền đã về. Nhưng bắt khai lại cho từng
+      ghế là sai: 26 ghế là 26 lần gõ cùng một con số, và đổi tài khoản là sửa đúng 26 chỗ —
+      sót một chỗ thì tiền ghế đó chảy về tài khoản cũ, âm thầm. */
+vhg_dung_bang();
+delete_option( 'vhg_bin' ); delete_option( 'vhg_so_tk' ); delete_option( 'vhg_ten_tk' );
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H POSH' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '' ) );
+$tk = VHG_May::nhan_tien_cua( VHG_May::may( 'AMTP01' ) );
+teq( 'ghế không khai riêng thì dùng tài khoản chung', '888815678', $tk['so_tk'] );
+teq( 'BIN cũng lấy từ chung', '970418', $tk['bin'] );
+teq( 'tên tài khoản cũng vậy', 'K&H POSH', $tk['ten_tk'] );
+
+$qr = VHG_QR::cho_ghe( 'AMTP01', 'MAU' );
+t( 'dựng được QR chỉ với tài khoản chung', ! empty( $qr['ok'] ), $qr );
+t( 'và chuỗi QR mang đúng số tài khoản chung', strpos( $qr['chuoi'], '888815678' ) !== false );
+
+/* Ô riêng của ghế vẫn là NGOẠI LỆ hợp lệ — ghế đặt ở điểm có tài khoản riêng. */
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '999999999', 'ten_tk' => 'Riêng', 'bank_bin' => '970436', 'ten_khai' => '' ) );
+$tk2 = VHG_May::nhan_tien_cua( VHG_May::may( 'AMTP02' ) );
+teq( 'khai riêng thì ĐÈ lên chung (số TK)', '999999999', $tk2['so_tk'] );
+teq( 'khai riêng thì đè lên chung (BIN)', '970436', $tk2['bin'] );
+teq( 'nhưng ghế kia KHÔNG bị ảnh hưởng', '888815678',
+	VHG_May::nhan_tien_cua( VHG_May::may( 'AMTP01' ) )['so_tk'] );
+
+/* Đổi tài khoản chung một lần là mọi ghế theo — đây mới là điều cần. */
+VHG_May::luu_nhan_tien( '970422', '777777777', 'Mới' );
+teq( 'đổi một chỗ, ghế dùng chung theo ngay', '777777777',
+	VHG_May::nhan_tien_cua( VHG_May::may( 'AMTP01' ) )['so_tk'] );
+teq( 'ghế khai riêng KHÔNG bị đổi theo', '999999999',
+	VHG_May::nhan_tien_cua( VHG_May::may( 'AMTP02' ) )['so_tk'] );
+
+$r = VHG_May::luu_nhan_tien( '97041', '888815678', 'x' );
+teq( 'BIN không đủ 6 số thì chối — sai BIN là tiền về ngân hàng khác', false, $r['ok'] );
+t( 'và nói rõ phải 6 chữ số', strpos( $r['error'], '6 chữ số' ) !== false );
+
+/* Chưa khai gì thì QR phải CHỐI kèm câu chỉ đúng chỗ khai — không dựng ra một QR rỗng. */
+delete_option( 'vhg_bin' ); delete_option( 'vhg_so_tk' );
+$qr0 = VHG_QR::cho_ghe( 'AMTP01', 'MAU' );
+teq( 'chưa khai tài khoản thì KHÔNG dựng QR', false, ! empty( $qr0['ok'] ) );
+t( 'và chỉ đúng chỗ khai', strpos( $qr0['error'], 'dùng chung' ) !== false, $qr0['error'] );
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+
+// ============================================ MỆNH GIÁ KHAI TỪ WEB
+/* Ghế KHÔNG CÓ OTA — khai cứng trong firmware nghĩa là đổi mệnh giá phải mang USB đi 26 cửa hàng. */
+delete_option( 'vhg_menh_gia' );
+teq( 'mặc định là 4 mệnh giá quen thuộc',
+	array( 20000, 50000, 100000, 200000 ), VHG_May::menh_gia() );
+t( 'lưu được bộ mới', ! empty( VHG_May::luu_menh_gia( array( 10000, 30000 ) )['ok'] ) );
+teq( 'và đọc lại đúng', array( 10000, 30000 ), VHG_May::menh_gia() );
+teq( 'tự sắp tăng dần', array( 5000, 20000, 50000 ),
+	VHG_May::luu_menh_gia( array( 50000, 5000, 20000 ) ) ? VHG_May::menh_gia() : array() );
+VHG_May::luu_menh_gia( array( 20000, 20000, 50000 ) );
+teq( 'bỏ trùng', array( 20000, 50000 ), VHG_May::menh_gia() );
+$r = VHG_May::luu_menh_gia( array( '', 0, 'abc' ) );
+teq( 'toàn rác thì CHỐI, không lưu bộ rỗng', false, $r['ok'] );
+teq( 'và giữ nguyên bộ cũ', array( 20000, 50000 ), VHG_May::menh_gia() );
+$r = VHG_May::luu_menh_gia( array( 10000, 20000, 30000, 40000, 50000 ) );
+teq( 'quá 4 nút thì chối — màn ghế chỉ có 4 ô', false, $r['ok'] );
+/* 🔴 Bộ rỗng trong cơ sở dữ liệu KHÔNG được thành màn ghế không có nút nào: đó là đường QR chết
+      hẳn ở 26 cửa hàng mà máy chủ vẫn thấy ghế gửi nhịp bình thường. */
+update_option( 'vhg_menh_gia', array() );
+teq( 'cơ sở dữ liệu rỗng -> vẫn trả bộ mặc định',
+	array( 20000, 50000, 100000, 200000 ), VHG_May::menh_gia() );
+update_option( 'vhg_menh_gia', 'hỏng' );
+teq( 'cơ sở dữ liệu hỏng -> vẫn trả bộ mặc định',
+	array( 20000, 50000, 100000, 200000 ), VHG_May::menh_gia() );
+update_option( 'vhg_menh_gia', array( 1, 2, 3, 4, 5, 6 ) );
+t( 'giá trị vô lý bị loại và cắt còn tối đa 4', count( VHG_May::menh_gia() ) <= 4 );
+delete_option( 'vhg_menh_gia' );
+
+/* Ghế lấy mệnh giá + tài khoản qua NHỊP, không nạp lại firmware. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+VHG_May::luu_menh_gia( array( 20000, 50000 ) );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+list( , $n ) = vhg_ghe( array( 'ma_may' => 'AMTP01', 'viec' => 'nhip', 'trang_thai' => 'idle' ) );
+teq( 'nhịp trả mệnh giá xuống ghế', array( 20000, 50000 ), $n['goi'] );
+teq( 'nhịp trả số tài khoản chung', '888815678', $n['soTk'] );
+teq( 'nhịp trả BIN chung', '970418', $n['bin'] );
+
+// ============================================ GÁN MÃ CHO GHẾ TỰ DÒ RA
+/* Ghế nhận nhau với máy chủ bằng MAC. Cắm điện là tự hiện ra với mã tạm `?xxxxxx`. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+$tam = VHG_May::ghi_nhan( 'AA:BB:CC:DD:98:58' );
+t( 'ghế lạ tự hiện ra với mã tạm bắt đầu bằng "?"', '?' === $tam[0], $tam );
+teq( 'và nằm trong danh sách chờ gán', 1, count( VHG_May::chua_gan() ) );
+teq( 'hỏi lại cùng MAC KHÔNG đẻ dòng thứ hai', $tam, VHG_May::ghi_nhan( 'AA:BB:CC:DD:98:58' ) );
+teq( 'vẫn đúng một dòng chờ', 1, count( VHG_May::chua_gan() ) );
+
+/* 🔴 GHẾ CHƯA GÁN MÃ KHÔNG ĐƯỢC DỰNG QR. Mã tạm có dấu `?`, mà phép đọc ngược khớp `GHE` rồi
+      đòi ngay chữ-hoặc-số nên gặp `?` là trượt. Dựng bừa nghĩa là: khách quét, tiền VÀO THẬT,
+      máy chủ không biết của ghế nào, ghế không bao giờ chạy. */
+$qr_tam = VHG_QR::cho_ghe( $tam, 'MAU' );
+teq( 'ghế chưa gán mã thì KHÔNG dựng QR', false, ! empty( $qr_tam['ok'] ) );
+t( 'và nói rõ phải gán mã trước', strpos( $qr_tam['error'], 'chưa được gán mã' ) !== false, $qr_tam );
+teq( 'phép đọc ngược đúng là không đọc nổi mã tạm',
+	array( '', '' ), VHG_Doc::ghe_va_ma( 'GHE' . $tam . ' AAAAA' ) );
+
+/* Tiền vẫn có thể vào trước khi gán mã — thu tiền mặt tại quầy lúc ghế vừa cắm điện. */
+VHG_Thu::thu_tien_mat( $tam, 20000, 'Chị quầy' );
+VHG_May::xep_cho_chay( $tam, 'AAAAA', 20000, 'gan-1', 'tiền mặt' );
+
+$cs = VHG_May::luu_coso( 0, 'Aeon Tân Phú' );
+$id_cs = 0;
+foreach ( VHG_May::ds_coso() as $c ) { if ( 'Aeon Tân Phú' === $c['ten'] ) { $id_cs = (int) $c['id']; } }
+t( 'tạo được cơ sở', $id_cs > 0 );
+
+$r = VHG_May::gan_ma( $tam, 'AMTP01', $id_cs );
+t( 'gán mã được', ! empty( $r['ok'] ), $r );
+teq( 'hết nằm trong danh sách chờ', 0, count( VHG_May::chua_gan() ) );
+$m = VHG_May::may( 'AMTP01' );
+t( 'ghế mang mã mới', $m !== null );
+teq( '🔴 GIỮ NGUYÊN MAC — mất MAC là ghế thật không nhận ra dòng này nữa',
+	'AA:BB:CC:DD:98:58', $m['mac'] );
+teq( 'và gán luôn cơ sở trong cùng một lượt', $id_cs, (int) $m['coso_id'] );
+teq( 'ghế hỏi bằng MAC ra ĐÚNG mã mới', 'AMTP01', VHG_May::ghi_nhan( 'AA:BB:CC:DD:98:58' ) );
+teq( 'không đẻ thêm dòng chờ nào', 0, count( VHG_May::chua_gan() ) );
+
+/* 🔴 LỊCH SỬ PHẢI ĐI THEO. Đổi mỗi bảng `may` thì lượt khách ĐÃ TRẢ TIỀN mà ghế chưa nhận nằm
+      lại dưới mã cũ; ghế hỏi bằng mã mới nên không bao giờ thấy — khách trả tiền xong ghế không
+      chạy, và không có gì trên màn hình nói vì sao. */
+teq( 'lượt đang chờ đi theo mã mới', 1, VHG_May::so_cho( 'AMTP01' ) );
+$gd = VHG_Thu::ds( 'all' );
+teq( 'doanh thu cũng đi theo mã mới', 'AMTP01', $gd[0]['ma_may'] );
+t( 'và gán xong thì QR dựng được', ! empty( VHG_QR::cho_ghe( 'AMTP01', 'MAU' )['ok'] ) );
+teq( 'tổng tiền KHÔNG đổi', 20000, VHG_Thu::tong_hop( 'all' )['tong'] );
+
+/* Không cho hai ghế trùng mã: trùng là tiền của ghế này chạy ghế kia. */
+$tam2 = VHG_May::ghi_nhan( 'AA:BB:CC:DD:98:59' );
+$r = VHG_May::gan_ma( $tam2, 'AMTP01' );
+teq( '🔴 chối mã đã có ghế khác dùng', false, $r['ok'] );
+t( 'và nói rõ hậu quả', strpos( $r['error'], 'chạy ghế kia' ) !== false, $r['error'] );
+$r = VHG_May::gan_ma( $tam2, 'AM TP 02' );
+teq( 'chối mã có khoảng trắng — khách gõ tay mã này', false, $r['ok'] );
+$r = VHG_May::gan_ma( $tam2, 'Ghế02' );
+teq( 'chối mã có dấu', false, $r['ok'] );
+$r = VHG_May::gan_ma( 'khong-co', 'AMTP09' );
+teq( 'chối mã cũ không tồn tại', false, $r['ok'] );
+t( 'gán mã hợp lệ thì được', ! empty( VHG_May::gan_ma( $tam2, 'AMTP02' )['ok'] ) );
+
+// ---- màn Máy & cơ sở
+/* ⚠️ DỰNG MÀN KHI ĐANG CÓ GHẾ CHỜ. Bản trước chỉ dựng lúc danh sách chờ RỖNG, nên cả nhánh vẽ
+   bảng chờ gán chưa hề chạy lần nào — và nó có một lỗi thật (gọi esc_sql) chỉ lộ ra khi một
+   phép đột biến vô tình làm sinh ra một ghế chờ. Một nhánh không bao giờ chạy là một nhánh
+   không được thử, dù bảng điểm vẫn xanh. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+VHG_May::ghi_nhan( 'AA:BB:CC:DD:98:77' );
+teq( 'có đúng một ghế đang chờ để dựng màn', 1, count( VHG_May::chua_gan() ) );
+ob_start(); VHG_Admin::trang_may(); $h_my = ob_get_clean();
+t( 'màn có mục ghế chờ gán', strpos( $h_my, 'Ghế chờ gán mã' ) !== false );
+t( 'bảng chờ gán hiện MAC của ghế', strpos( $h_my, 'AA:BB:CC:DD:98:77' ) !== false, $h_my );
+t( 'và có ô chọn cơ sở ngay tại dòng đó', strpos( $h_my, 'chưa gán cơ sở' ) !== false );
+t( 'nhắc đặt mã NGẮN vì khách gõ tay', strpos( $h_my, 'đặt ngắn' ) !== false );
+VHG_May::xoa_may( VHG_May::chua_gan()[0]['ma'] );
+t( 'màn có ô tài khoản dùng chung', strpos( $h_my, 'dùng chung cả hệ thống' ) !== false );
+t( 'màn có ô mệnh giá', strpos( $h_my, 'Mệnh giá trên màn ghế' ) !== false );
+t( '🔴 nhãn KHÔNG còn là "Giá một lượt" — nó là tỉ lệ quy đổi, không phải một mệnh giá',
+	strpos( $h_my, 'Giá một lượt' ) === false );
+t( 'mà là "Tỉ lệ quy đổi"', strpos( $h_my, 'Tỉ lệ quy đổi' ) !== false );
+t( 'và in thẳng bảng quy đổi tiền -> phút', strpos( $h_my, '→ 12 phút' ) !== false, $h_my );
+t( 'bảng máy hiện MAC để đối chiếu', strpos( $h_my, '<th>MAC</th>' ) !== false );
+t( 'nói rõ ghế TỰ hiện ra khi cắm điện', strpos( $h_my, 'tự hiện' ) !== false );
+teq( 'màn không lồng <form>', 1, vhg_do_sau_form( $h_my )['max'] );
+teq( 'và đóng đủ thẻ', 0, vhg_do_sau_form( $h_my )['con_thua'] );
+
+/* Chưa khai tài khoản thì phải báo đỏ: ghế không vẽ được QR, không thu được đồng nào qua QR. */
+delete_option( 'vhg_so_tk' ); delete_option( 'vhg_bin' );
+ob_start(); VHG_Admin::trang_may(); $h_m0 = ob_get_clean();
+t( 'chưa khai tài khoản thì màn báo đỏ', strpos( $h_m0, 'Chưa khai tài khoản' ) !== false );
+t( 'và nói rõ tiền mặt vẫn chạy', strpos( $h_m0, 'Tiền mặt vẫn chạy' ) !== false );
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+
+// ---- firmware nhận mệnh giá từ nhịp
+$fw = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'firmware đọc mệnh giá từ gói nhịp', strpos( $fw, 'd["goi"]' ) !== false );
+t( '⚠️ và CHỈ nhận khi có ít nhất một giá trị hợp lệ (n > 0)',
+	strpos( $fw, 'if(n > 0)' ) !== false );
+t( 'mảng mệnh giá không còn là const — máy chủ đè lên được',
+	preg_match( '/^\s*long\s+PKG_AMT\[PKG_MAX\]/m', $fw ) === 1 );
+t( 'PKG_MAX cố định 4 (số ô vẽ được trên màn)',
+	preg_match( '/const int PKG_MAX = 4;/', $fw ) === 1 );
+t( 'nút bấm cấp phát theo PKG_MAX, không theo PKG_N',
+	strpos( $fw, 'Btn PKG_BTN[PKG_MAX]' ) !== false );
+/* 🔴 Gói nhịp to thêm mảng `goi`. Bộ đệm chật thì deserializeJson trả lỗi và hàm THOÁT NGAY —
+      ghế mất luôn cả giá, tài khoản lẫn lệnh, mà màn hình không có gì báo. */
+t( 'bộ đệm JSON đã nới cho mảng mệnh giá',
+	preg_match( '/StaticJsonDocument<(\d+)> d;/', $fw, $mm ) === 1 && (int) $mm[1] >= 768, $fw ? '' : '' );
+
+$_GET = array(); $_POST = array();
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

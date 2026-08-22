@@ -100,6 +100,141 @@ class VHG_May {
 		return ( $bay_gio - $t ) <= self::HET_SONG;
 	}
 
+	/**
+	 * MỆNH GIÁ khách bấm trên màn ghế. Khai ở WEB, không nạp cứng vào firmware.
+	 *
+	 * 🔴 Anh Thắng ngày 22/08/2026: *"có nhiều mệnh giá quét trên máy qr để chọn mà"*. Đúng —
+	 *    ghế có bốn nút. Nhưng bản đầu bốn con số đó nằm CỨNG trong firmware, nên đổi giá là
+	 *    phải mang USB đi 26 cửa hàng. Ghế lại không có OTA, nên đó là chuyến đi thật.
+	 *
+	 * ⚠️ `gia`/`phut` KHÔNG phải một mệnh giá — chúng là TỈ LỆ QUY ĐỔI. Ghế tính
+	 *    `phút = tiền × phut / gia`, nên 10.000đ=6′ thì bấm 50.000đ ra 30 phút. Nhãn cũ ghi
+	 *    "Giá một lượt" là sai, và làm người đọc tưởng ghế chỉ có một mệnh giá.
+	 */
+	const MENH_GIA_MAC_DINH = array( 20000, 50000, 100000, 200000 );
+
+	public static function menh_gia() {
+		$ds = get_option( 'vhg_menh_gia' );
+		if ( ! is_array( $ds ) ) { return self::MENH_GIA_MAC_DINH; }
+		$ra = array();
+		foreach ( $ds as $v ) {
+			$v = (int) $v;
+			if ( $v >= 1000 && ! in_array( $v, $ra, true ) ) { $ra[] = $v; }
+		}
+		sort( $ra );
+		/* Rỗng thì về mặc định, KHÔNG để rỗng: ghế không còn nút nào để bấm, tức là đường QR
+		   chết hẳn ở 26 cửa hàng mà máy chủ vẫn báo mọi thứ bình thường. */
+		if ( ! $ra ) { return self::MENH_GIA_MAC_DINH; }
+		/* Màn ghế chỉ có BỐN ô. Nhiều hơn là những ô sau không vẽ ra được — cắt ở đây để cái
+		   người ta thấy trên web đúng bằng cái ghế hiện. */
+		return array_slice( $ra, 0, 4 );
+	}
+
+	public static function luu_menh_gia( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $v ) {
+			$v = (int) preg_replace( '/\D+/', '', (string) $v );
+			if ( $v >= 1000 ) { $ra[] = $v; }
+		}
+		$ra = array_values( array_unique( $ra ) );
+		sort( $ra );
+		if ( ! $ra ) { return array( 'ok' => false, 'error' => 'Phải có ít nhất một mệnh giá từ 1.000đ.' ); }
+		if ( count( $ra ) > 4 ) { return array( 'ok' => false, 'error' => 'Màn ghế chỉ có 4 ô — khai tối đa 4 mệnh giá.' ); }
+		update_option( 'vhg_menh_gia', $ra );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu ' . count( $ra ) . ' mệnh giá. '
+			. 'Ghế lấy về ở lượt nhịp kế tiếp (~30 giây).' );
+	}
+
+	/**
+	 * TÀI KHOẢN NHẬN TIỀN — khai MỘT LẦN cho cả hệ thống, từng ghế chỉ khai khi cần khác.
+	 *
+	 * 🔴 Anh Thắng: *"liên kết qua sepay và vietqr mà liên quan gì đến số tk"*. Số tài khoản vẫn
+	 *    cần — mã QR phải nói tiền đi về đâu, SePay chỉ BÁO TIN tiền đã về. Nhưng bắt khai lại
+	 *    cho từng ghế là thiết kế sai: 26 ghế là 26 lần gõ lại cùng một con số, và đổi tài khoản
+	 *    là phải sửa đúng 26 chỗ — sót một chỗ thì tiền của ghế đó chảy về tài khoản cũ, âm thầm.
+	 *
+	 * Ô của từng ghế giữ lại làm NGOẠI LỆ (ghế đặt ở điểm có tài khoản riêng). Rỗng = dùng chung.
+	 */
+	public static function nhan_tien_chung() {
+		return array(
+			'bin'    => trim( (string) get_option( 'vhg_bin', '' ) ),
+			'so_tk'  => trim( (string) get_option( 'vhg_so_tk', '' ) ),
+			'ten_tk' => trim( (string) get_option( 'vhg_ten_tk', '' ) ),
+		);
+	}
+
+	/** Tài khoản THỰC DÙNG của một ghế: ô riêng nếu có, không thì ô chung. */
+	public static function nhan_tien_cua( $m ) {
+		$c = self::nhan_tien_chung();
+		$m = (array) $m;
+		/* Bản đồ ô-của-ghế -> ô-chung. Tên cột khác tên khoá (`bank_bin` vs `bin`), nên viết ra
+		   một chỗ chứ đừng lặp ba lần — lặp là chỗ thứ ba gõ nhầm và ghế đó âm thầm dùng tài
+		   khoản rỗng. */
+		$ra = array();
+		foreach ( array( 'bin' => 'bank_bin', 'so_tk' => 'so_tk', 'ten_tk' => 'ten_tk' ) as $khoa => $cot ) {
+			$rieng   = isset( $m[ $cot ] ) ? trim( (string) $m[ $cot ] ) : '';
+			$ra[ $khoa ] = '' !== $rieng ? $rieng : $c[ $khoa ];
+		}
+		return $ra;
+	}
+
+	public static function luu_nhan_tien( $bin, $so_tk, $ten_tk ) {
+		$bin   = preg_replace( '/\D+/', '', (string) $bin );
+		$so_tk = trim( (string) $so_tk );
+		if ( '' !== $bin && ! preg_match( '/^\d{6}$/', $bin ) ) {
+			return array( 'ok' => false, 'error' => 'Mã ngân hàng (BIN) phải đúng 6 chữ số. VD 970418 = BIDV.' );
+		}
+		update_option( 'vhg_bin', $bin );
+		update_option( 'vhg_so_tk', $so_tk );
+		update_option( 'vhg_ten_tk', trim( (string) $ten_tk ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu tài khoản nhận tiền chung. '
+			. 'Ghế lấy về ở lượt nhịp kế tiếp (~30 giây), không phải nạp lại firmware.' );
+	}
+
+	/**
+	 * GÁN MÃ THẬT cho một ghế đã tự hiện ra (mã còn bắt đầu bằng '?').
+	 *
+	 * 🔴 Đổi mã KHÔNG chỉ là đổi một ô. `ma` là khoá mà doanh thu, hàng chờ, nhịp và lệnh đều
+	 *    trỏ tới. Đổi mỗi bảng `may` thì lịch sử của ghế đó mồ côi: lượt khách ĐÃ TRẢ TIỀN mà
+	 *    ghế chưa nhận sẽ nằm lại dưới mã cũ, ghế hỏi bằng mã mới nên không bao giờ thấy —
+	 *    khách trả tiền xong ghế không chạy, và không có gì trên màn hình nói vì sao.
+	 *    Nên dời TẤT CẢ trong cùng một lượt.
+	 */
+	public static function gan_ma( $ma_cu, $ma_moi, $coso_id = null ) {
+		global $wpdb;
+		$ma_cu  = trim( (string) $ma_cu );
+		$ma_moi = trim( (string) $ma_moi );
+		if ( '' === $ma_cu || '' === $ma_moi ) { return array( 'ok' => false, 'error' => 'Thiếu mã.' ); }
+		if ( ! preg_match( '/^[A-Za-z0-9]{1,20}$/', $ma_moi ) ) {
+			return array( 'ok' => false, 'error' => 'Mã mới chỉ được gồm chữ và số, không dấu, không '
+				. 'khoảng trắng. Mã này đi vào nội dung chuyển khoản khách gõ tay.' );
+		}
+		if ( $ma_cu === $ma_moi ) { return array( 'ok' => true, 'thong_bao' => 'Mã không đổi.' ); }
+		$bang = VHG_DB::t( 'may' );
+		if ( ! $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma_cu ) ) ) {
+			return array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma_cu . '.' );
+		}
+		if ( $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma=%s LIMIT 1", $ma_moi ) ) ) {
+			return array( 'ok' => false, 'error' => 'Mã ' . $ma_moi . ' đã có ghế khác dùng. '
+				. 'Hai ghế cùng mã là tiền của ghế này chạy ghế kia.' );
+		}
+		$dat = array( 'ma' => $ma_moi, 'cap_nhat' => current_time( 'mysql' ) );
+		/* Gán cơ sở CÙNG LÚC với gán mã. Người đi lắp ghế biết nó đang ở đâu ngay lúc đó; bắt
+		   quay lại một màn khác để chọn cơ sở là bước dễ quên nhất, mà quên thì doanh thu ghế
+		   đó rơi vào ô "(chưa gán)" và bảng theo cơ sở sai âm thầm. */
+		if ( null !== $coso_id ) { $dat['coso_id'] = (int) $coso_id; }
+		$wpdb->update( $bang, $dat, array( 'ma' => $ma_cu ) );
+		/* Dời hết những gì trỏ tới mã cũ. `thu` để CUỐI: nó là sổ tiền, và nếu có gì hỏng giữa
+		   chừng thì thà sổ tiền còn nguyên mã cũ (đối soát tay được) hơn là hàng chờ mồ côi. */
+		$dem = 0;
+		foreach ( array( 'cho', 'nhip', 'lenh', 'thu' ) as $b ) {
+			$dem += (int) $wpdb->query( $wpdb->prepare(
+				'UPDATE ' . VHG_DB::t( $b ) . ' SET ma_may=%s WHERE ma_may=%s', $ma_moi, $ma_cu ) );
+		}
+		return array( 'ok' => true, 'thong_bao' => 'Đã gán mã ' . $ma_moi . ' cho ghế ' . $ma_cu
+			. ' và dời ' . $dem . ' dòng lịch sử sang mã mới.' );
+	}
+
 	public static function luu_may( $d ) {
 		global $wpdb;
 		$ma = trim( (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) );
@@ -187,7 +322,32 @@ class VHG_May {
 
 	/** Ghế chưa được gán mã thật (mã còn bắt đầu bằng '?'). */
 	public static function chua_gan() {
-		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'may' ) . " WHERE ma LIKE '?%' ORDER BY id ASC" );
+		$ds = VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'may' ) . " WHERE ma LIKE '?%' ORDER BY id ASC" );
+		/* Kèm luôn nhịp cuối: màn hình cần biết ghế này còn sống không TRƯỚC khi người ta gán mã
+		   cho nó. Gán mã cho một ghế đã tháo đi là để lại một dòng cấu hình không bao giờ dùng.
+		   Truy vấn để ở ĐÂY chứ không ở màn hình — màn hình không được tự viết SQL, và luật đó
+		   có phép thử canh. */
+		foreach ( $ds as $i => $x ) {
+			$n = self::nhip_cua( $x['ma'] );
+			$ds[ $i ]['nhip_luc'] = $n['luc'];
+			$ds[ $i ]['fw']       = $n['fw'];
+			$ds[ $i ]['ip']       = $n['ip'];
+			$ds[ $i ]['con_song'] = self::con_song( $n['luc'] );
+		}
+		return $ds;
+	}
+
+	/** Nhịp cuối của một ghế. Luôn trả đủ ba khoá, kể cả khi ghế chưa gửi nhịp lần nào. */
+	public static function nhip_cua( $ma_may ) {
+		global $wpdb;
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT luc, fw, ip FROM ' . VHG_DB::t( 'nhip' ) . ' WHERE ma_may=%s LIMIT 1',
+			(string) $ma_may ), ARRAY_A );
+		return array(
+			'luc' => $r ? (string) $r['luc'] : '',
+			'fw'  => $r ? (string) $r['fw'] : '',
+			'ip'  => $r ? (string) $r['ip'] : '',
+		);
 	}
 
 	public static function may( $ma ) {

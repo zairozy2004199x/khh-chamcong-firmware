@@ -59,15 +59,35 @@ class VHG_QR {
 	public static function cho_ghe( $ma_may, $ma_lenh = '' ) {
 		$m = VHG_May::may( $ma_may );
 		if ( ! $m ) { return array( 'ok' => false, 'error' => 'Chưa khai máy ' . $ma_may . '.' ); }
-		if ( '' === trim( (string) $m['so_tk'] ) ) {
-			return array( 'ok' => false, 'error' => 'Máy ' . $ma_may . ' chưa khai số tài khoản/VA nhận tiền.' );
+		/* 🔴 GHẾ CHƯA GÁN MÃ THÌ KHÔNG DỰNG QR ĐƯỢC — và phải nói ra, không được dựng bừa.
+		 *
+		 * Mã tạm bắt đầu bằng `?`, nên nội dung sẽ là `GHE?DD9858 K7M2P`. Phép đọc ngược
+		 * (`VHG_Doc::ghe_va_ma`) khớp `GHE` rồi đòi ngay chữ-hoặc-số, gặp `?` là trượt — trả về
+		 * rỗng. Nghĩa là: khách quét, tiền VÀO THẬT, mà máy chủ không biết của ghế nào và ghế
+		 * không bao giờ chạy. Tiền không mất (vẫn vào sổ) nhưng khách đứng đó không được massage.
+		 *
+		 * Firmware đã chặn ở đầu kia (màn hiện "GHE CHUA DUOC GAN MA", không cho bấm chọn gói),
+		 * nhưng máy chủ KHÔNG được dựa vào đó: một bản firmware cũ, hay chính bảng quản trị gọi
+		 * hàm này để xem trước, là lại có một chuỗi QR hỏng trông y như thật. */
+		if ( '' !== (string) $m['ma'] && '?' === $m['ma'][0] ) {
+			return array( 'ok' => false, 'error' => 'Ghế này chưa được gán mã (' . $m['ma'] . '). '
+				. 'Gán mã ở mục "Ghế chờ gán mã" rồi mới có QR — mã tạm không đọc ngược được khi '
+				. 'tiền về.' );
 		}
-		if ( '' === trim( (string) $m['bank_bin'] ) ) {
-			return array( 'ok' => false, 'error' => 'Máy ' . $ma_may . ' chưa khai mã ngân hàng (BIN).' );
+		/* Tài khoản nhận tiền khai MỘT LẦN cho cả hệ thống; ô của từng ghế chỉ là ngoại lệ.
+		   Xem VHG_May::nhan_tien_cua(). */
+		$tk = VHG_May::nhan_tien_cua( $m );
+		if ( '' === $tk['so_tk'] ) {
+			return array( 'ok' => false, 'error' => 'Chưa khai số tài khoản/VA nhận tiền — khai một lần '
+				. 'ở mục "Tài khoản nhận tiền (dùng chung)" trong màn Máy & cơ sở.' );
+		}
+		if ( '' === $tk['bin'] ) {
+			return array( 'ok' => false, 'error' => 'Chưa khai mã ngân hàng (BIN) — khai một lần ở mục '
+				. '"Tài khoản nhận tiền (dùng chung)" trong màn Máy & cơ sở.' );
 		}
 		$ma_lenh = '' !== $ma_lenh ? $ma_lenh : self::ma_luot();
 		$nd = 'GHE' . $m['ma'] . ' ' . $ma_lenh;
-		return array( 'ok' => true, 'chuoi' => self::dung( $m['bank_bin'], $m['so_tk'], (int) $m['gia'], $nd ),
+		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], (int) $m['gia'], $nd ),
 			'noi_dung' => $nd, 'so_tien' => (int) $m['gia'], 'ma_lenh' => $ma_lenh );
 	}
 

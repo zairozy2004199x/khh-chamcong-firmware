@@ -309,6 +309,14 @@ class VHG_Admin {
 					'bank_bin' => wp_unslash( $_POST['bank_bin'] ), 'ten_khai' => wp_unslash( $_POST['ten_khai'] ) ) );
 			} elseif ( 'xoa_may' === $viec ) {
 				$bao[] = VHG_May::xoa_may( wp_unslash( $_POST['ma'] ) );
+			} elseif ( 'gan_ma' === $viec ) {
+				$bao[] = VHG_May::gan_ma( wp_unslash( $_POST['ma_cu'] ), wp_unslash( $_POST['ma_moi'] ),
+					isset( $_POST['coso_id'] ) ? (int) $_POST['coso_id'] : null );
+			} elseif ( 'nhan_tien' === $viec ) {
+				$bao[] = VHG_May::luu_nhan_tien( wp_unslash( $_POST['bin'] ),
+					wp_unslash( $_POST['so_tk'] ), wp_unslash( $_POST['ten_tk'] ) );
+			} elseif ( 'menh_gia' === $viec ) {
+				$bao[] = VHG_May::luu_menh_gia( isset( $_POST['mg'] ) ? (array) $_POST['mg'] : array() );
 			}
 		}
 
@@ -339,17 +347,118 @@ class VHG_Admin {
 		echo '<p><em>Xoá cơ sở KHÔNG xoá máy trong đó — máy chỉ thành "chưa gán". Xoá theo là mất '
 			. 'cấu hình giá/số tài khoản của những máy đang chạy thật.</em></p>';
 
+		/* =====================================================================================
+		 * GHẾ CHỜ GÁN — ĐẶT NGAY DƯỚI CƠ SỞ, TRÊN BẢNG MÁY.
+		 *
+		 * 🔴 Ghế nhận nhau với máy chủ bằng ĐỊA CHỈ MAC, không bằng mã. Cắm điện là nó tự hiện ra
+		 *    đây với mã tạm `?xxxxxx`. Người đi lắp chỉ cần gán mã thật + cơ sở, KHÔNG phải gõ
+		 *    MAC — gõ tay 12 ký tự hex là gõ sai.
+		 *
+		 * ⚠️ Đây là chỗ anh Thắng vướng ngày 22/08/2026: khai tay một dòng mang chính MAC làm mã.
+		 *    Dòng đó KHÔNG gắn với con ghế nào (cột `mac` rỗng), nên khi ghế cắm điện nó vẫn đẻ ra
+		 *    một dòng thứ hai — hai dòng cho một cái ghế, và cái đang chạy thật là dòng kia.
+		 * ===================================================================================== */
+		$cho_gan = VHG_May::chua_gan();
+		echo '<h2>Ghế chờ gán mã (' . count( $cho_gan ) . ')</h2>';
+		/* Câu này ở CẢ HAI trạng thái, không riêng lúc danh sách rỗng: nó trả lời câu hỏi
+		   "sao tôi không khai được máy" — mà người ta hỏi câu đó ngay khi ĐANG nhìn thấy một
+		   dòng chờ và không biết nó ở đâu ra. */
+		echo '<p><em>Ghế <b>tự hiện ra đây khi cắm điện và nối được mạng</b> — không phải khai tay. '
+			. 'Máy chủ nhận ra ghế bằng địa chỉ MAC, nên không ai phải gõ 12 ký tự hex.</em></p>';
+		if ( ! $cho_gan ) {
+			echo '<p><em>Không có ghế nào đang chờ. Chưa thấy ghế nào thì kiểm: ghế đã cắm chưa, có '
+				. 'wifi/4G chưa, và đã nạp firmware trỏ về <code>' . esc_html( home_url( '/' ) )
+				. '</code> chưa.</em></p>';
+		} else {
+			echo '<table class="widefat striped"><thead><tr><th>MAC (ghế tự khai)</th><th>Mã tạm</th>'
+				. '<th>Nhịp cuối</th><th>Gán mã thật + cơ sở</th></tr></thead><tbody>';
+			foreach ( $cho_gan as $g ) {
+				echo '<tr><td><code>' . esc_html( $g['mac'] ) . '</code></td>'
+					. '<td><code>' . esc_html( $g['ma'] ) . '</code></td>'
+					. '<td>' . esc_html( $g['nhip_luc'] )
+					. ( ! empty( $g['con_song'] ) ? ' <span style="color:#046b2d">● đang sống</span>'
+						: ' <span style="color:#b32d2e">● mất kết nối</span>' )
+					. '<br><span class="description">' . esc_html( $g['ip'] ) . ' · ' . esc_html( $g['fw'] )
+					. '</span></td><td>';
+				echo '<form method="post" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
+				echo wp_nonce_field( 'vhg', '_wpnonce', true, false );
+				echo '<input type="hidden" name="ma_cu" value="' . esc_attr( $g['ma'] ) . '" />';
+				echo '<input type="text" name="ma_moi" required pattern="[A-Za-z0-9]{1,20}" '
+					. 'placeholder="VD: AMTP01" style="width:130px" />';
+				echo '<select name="coso_id"><option value="0">— chưa gán cơ sở —</option>';
+				foreach ( $coso as $c ) {
+					echo '<option value="' . (int) $c['id'] . '">' . esc_html( $c['ten'] ) . '</option>';
+				}
+				echo '</select>';
+				echo '<button class="button button-primary" name="vhg" value="gan_ma">Gán</button>';
+				echo '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<p><em>Mã đi vào nội dung chuyển khoản khách gõ tay (<code>GHE&lt;mã&gt; &lt;mã lượt&gt;</code>) '
+				. '— <b>đặt ngắn</b>. <code>AMTP01</code> cho ra <code>GHEAMTP01 K7M2P</code> (15 ký tự); '
+				. 'lấy MAC làm mã cho ra 21 ký tự, gõ sai một ký tự là tiền vào mà ghế không chạy.<br>'
+				. 'Gán mã sẽ dời luôn doanh thu và lượt đang chờ của ghế đó sang mã mới — không mất gì.</em></p>';
+		}
+
+		/* ---- Tài khoản nhận tiền: KHAI MỘT LẦN ---- */
+		$tk_chung = VHG_May::nhan_tien_chung();
+		echo '<h2>Tài khoản nhận tiền (dùng chung cả hệ thống)</h2>';
+		echo '<p><em>Ghế <b>tự vẽ mã QR</b> trên màn của nó, nên nó phải biết tiền đi về đâu. SePay chỉ '
+			. 'BÁO TIN tiền đã về, không quyết định tiền đi đâu — nên vẫn cần ba ô này.<br>'
+			. 'Khai <b>một lần</b>, mọi ghế lấy về trong ~30 giây. Không phải nạp lại firmware.</em></p>';
+		if ( '' === $tk_chung['so_tk'] || '' === $tk_chung['bin'] ) {
+			echo '<div class="notice notice-error inline"><p><b>Chưa khai tài khoản nhận tiền.</b> '
+				. 'Ghế sẽ không vẽ được mã QR — khách không quét được, không thu được đồng nào qua QR. '
+				. '(Tiền mặt vẫn chạy.)</p></div>';
+		}
+		echo '<form method="post"><table class="form-table">';
+		wp_nonce_field( 'vhg' );
+		echo '<tr><th>Số TK / VA nhận tiền</th><td><input name="so_tk" value="'
+			. esc_attr( $tk_chung['so_tk'] ) . '" class="regular-text code" /></td></tr>';
+		echo '<tr><th>Mã ngân hàng (BIN)</th><td><input name="bin" value="'
+			. esc_attr( $tk_chung['bin'] ) . '" style="width:120px" placeholder="970418" />'
+			. '<p class="description">Napas BIN, 6 chữ số. 970418 = BIDV · 970436 = Vietcombank · '
+			. '970415 = VietinBank · 970422 = MB · 970407 = Techcombank · 970416 = ACB.<br>'
+			. '<b>Sai BIN là QR quét ra ngân hàng khác và tiền không về tài khoản của mình.</b></p></td></tr>';
+		echo '<tr><th>Tên tài khoản</th><td><input name="ten_tk" value="'
+			. esc_attr( $tk_chung['ten_tk'] ) . '" class="regular-text" /></td></tr>';
+		echo '</table><p><button class="button button-primary" name="vhg" value="nhan_tien">Lưu tài khoản</button></p></form>';
+
+		/* ---- Mệnh giá ---- */
+		$mg = VHG_May::menh_gia();
+		echo '<h2>Mệnh giá trên màn ghế</h2>';
+		echo '<p><em>Bốn nút khách bấm để chọn. Khai ở đây thì ghế lấy về trong ~30 giây — '
+			. '<b>ghế không có OTA</b>, nên nếu khai cứng trong firmware thì đổi giá là phải mang USB '
+			. 'đi từng cửa hàng.</em></p>';
+		echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
+		wp_nonce_field( 'vhg' );
+		for ( $i = 0; $i < 4; $i++ ) {
+			echo '<label>Nút ' . ( $i + 1 ) . '<br><input type="number" name="mg[]" min="1000" step="1000" '
+				. 'value="' . ( isset( $mg[ $i ] ) ? (int) $mg[ $i ] : '' ) . '" style="width:110px" /></label>';
+		}
+		echo '<button class="button button-primary" name="vhg" value="menh_gia">Lưu mệnh giá</button></form>';
+		echo '<p class="description">Để trống một ô = bỏ nút đó. Ít nhất một nút, tối đa bốn.</p>';
+
 		echo '<h2>Máy (ghế) — ' . count( $may ) . ' máy</h2>';
-		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>Cơ sở</th><th>Giá</th><th>Phút</th>'
-			. '<th>Số TK/VA</th><th>Ngân hàng (BIN)</th><th>Tên trên sao kê</th><th>QR</th><th></th></tr></thead><tbody>';
-		if ( ! $may ) { echo '<tr><td colspan="9"><em>Chưa khai máy nào.</em></td></tr>'; }
+		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Cơ sở</th>'
+			. '<th>Tỉ lệ quy đổi</th><th>Tài khoản nhận</th><th>Tên trên sao kê</th><th>QR</th>'
+			. '<th></th></tr></thead><tbody>';
+		if ( ! $may ) { echo '<tr><td colspan="8"><em>Chưa khai máy nào. Cắm ghế lên là nó tự hiện ở '
+			. 'mục <b>Ghế chờ gán mã</b> phía trên.</em></td></tr>'; }
 		foreach ( $may as $m ) {
-			$qr = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
+			$qr    = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
+			$tk_m  = VHG_May::nhan_tien_cua( $m );
+			$rieng = '' !== trim( (string) $m['so_tk'] ) || '' !== trim( (string) $m['bank_bin'] );
 			echo '<tr><td><strong>' . esc_html( $m['ma'] ) . '</strong></td>'
+				/* MAC là thứ ghế dùng để nhận ra chính nó. Hiện ra để còn đối chiếu khi một ghế
+				   "không thấy đâu" — MAC rỗng nghĩa là dòng này khai tay và CHƯA gắn với ghế nào. */
+				. '<td>' . ( '' !== (string) $m['mac'] ? '<code>' . esc_html( $m['mac'] ) . '</code>'
+					: '<span style="color:#b32d2e" title="Dòng này khai tay, chưa ghế nào nhận">chưa gắn ghế</span>' ) . '</td>'
 				. '<td>' . esc_html( $m['coso_ten'] ? $m['coso_ten'] : '(chưa gán)' ) . '</td>'
-				. '<td>' . esc_html( self::tien( $m['gia'] ) ) . '</td><td>' . (int) $m['phut'] . '</td>'
-				. '<td><code>' . esc_html( $m['so_tk'] ) . '</code></td>'
-				. '<td>' . esc_html( $m['bank_bin'] ) . '</td>'
+				. '<td>' . esc_html( self::tien( $m['gia'] ) ) . ' = ' . (int) $m['phut'] . ' phút</td>'
+				. '<td><code>' . esc_html( $tk_m['so_tk'] ) . '</code> · ' . esc_html( $tk_m['bin'] )
+				. ( $rieng ? '<br><span class="description">khai riêng</span>'
+					: '<br><span class="description">dùng chung</span>' ) . '</td>'
 				. '<td>' . esc_html( $m['ten_khai'] ) . '</td>'
 				. '<td>' . ( ! empty( $qr['ok'] )
 					? '<code style="font-size:10px;word-break:break-all">' . esc_html( substr( $qr['chuoi'], 0, 40 ) ) . '…</code>'
@@ -373,13 +482,28 @@ class VHG_Admin {
 			echo '<option value="' . (int) $c['id'] . '">' . esc_html( $c['ten'] ) . '</option>';
 		}
 		echo '</select></td></tr>';
-		echo '<tr><th>Giá một lượt (đ)</th><td><input type="number" name="gia" value="10000" min="1000" step="1000" /></td></tr>';
-		echo '<tr><th>Thời lượng (phút)</th><td><input type="number" name="phut" value="6" min="1" max="60" /></td></tr>';
-		echo '<tr><th>Số TK / VA nhận tiền</th><td><input type="text" name="so_tk" class="regular-text" /></td></tr>';
-		echo '<tr><th>Tên tài khoản</th><td><input type="text" name="ten_tk" class="regular-text" /></td></tr>';
-		echo '<tr><th>Mã ngân hàng (BIN)</th><td><input type="text" name="bank_bin" value="970418" style="width:120px" />'
-			. '<p class="description">Napas BIN. 970418 = BIDV. Sai BIN là QR quét ra ngân hàng khác và tiền '
-			. 'không về tài khoản của mình.</p></td></tr>';
+		/* 🔴 KHÔNG PHẢI "GIÁ MỘT LƯỢT". Hai ô này là TỈ LỆ QUY ĐỔI: ghế tính
+		   `phút = tiền × phút / giá`. Nhãn cũ ghi "Giá một lượt" làm anh Thắng tưởng ghế chỉ có
+		   một mệnh giá, trong khi màn ghế có bốn nút. Nên đổi nhãn, và in thẳng bảng quy đổi ra
+		   — một bảng số cụ thể nói rõ hơn mọi câu giải thích. */
+		echo '<tr><th>Tỉ lệ quy đổi</th><td>'
+			. '<input type="number" name="gia" value="10000" min="1000" step="1000" style="width:110px" /> đ '
+			. '= <input type="number" name="phut" value="6" min="1" max="60" style="width:70px" /> phút';
+		$bang_qd = '';
+		foreach ( VHG_May::menh_gia() as $g ) {
+			$bang_qd .= '<tr><td>' . esc_html( self::tien( $g ) ) . '</td><td>→ '
+				. (int) floor( $g * 6 / 10000 ) . ' phút</td></tr>';
+		}
+		echo '<p class="description">Đây <b>không phải giá một lượt</b> — ghế có ' . count( VHG_May::menh_gia() )
+			. ' mệnh giá để khách chọn, và số phút tính theo tỉ lệ này.<br>Với 10.000đ = 6 phút thì:</p>'
+			. '<table class="widefat striped" style="max-width:240px;margin-top:4px"><tbody>' . $bang_qd
+			. '</tbody></table></td></tr>';
+		echo '<tr><th>Tài khoản riêng (tuỳ chọn)</th><td>'
+			. '<input type="text" name="so_tk" class="regular-text code" placeholder="số TK — trống = dùng chung" />'
+			. ' <input type="text" name="bank_bin" style="width:110px" placeholder="BIN" />'
+			. ' <input type="text" name="ten_tk" style="width:180px" placeholder="tên TK" />'
+			. '<p class="description"><b>Để trống cả ba là đúng trong hầu hết trường hợp</b> — ghế dùng '
+			. 'tài khoản chung khai ở trên. Chỉ điền khi ghế này nhận tiền vào một tài khoản khác.</p></td></tr>';
 		echo '<tr><th>Tên trên sao kê</th><td><input type="text" name="ten_khai" class="regular-text" placeholder="VD: AMTP 03" />'
 			. '<p class="description">Tên máy như Tingo/VietQR ghi trong sao kê. Khai đúng thì doanh thu nhập '
 			. 'từ Excel tự gộp vào đúng máy này.</p></td></tr>';

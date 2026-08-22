@@ -253,16 +253,22 @@ class VHG_Cong {
 			'ip'         => isset( $d['ip'] ) ? $d['ip'] : '',
 			'fw'         => isset( $d['fw'] ) ? $d['fw'] : '',
 		) );
-		$m = VHG_May::may( $ma_may );
+		$m  = VHG_May::may( $ma_may );
+		$tk = VHG_May::nhan_tien_cua( $m ? $m : array() );
 		self::tra( 200, array(
 			'ok'      => true,
 			'coTien'  => VHG_May::so_cho( $ma_may ) > 0 ? 1 : 0,
 			'coLenh'  => self::co_lenh( $ma_may ) ? 1 : 0,
 			'gia'     => $m ? (int) $m['gia'] : 0,
 			'phut'    => $m ? (int) $m['phut'] : 0,
-			'soTk'    => $m ? (string) $m['so_tk'] : '',
-			'bin'     => $m ? (string) $m['bank_bin'] : '',
-			'tenTk'   => $m ? (string) $m['ten_tk'] : '',
+			/* Tài khoản THỰC DÙNG: ô riêng của ghế nếu có, không thì ô chung. Ghế không cần
+			   biết cái nào từ đâu — nó chỉ cần đúng ba chuỗi để vẽ mã QR. */
+			'soTk'    => $tk['so_tk'],
+			'bin'     => $tk['bin'],
+			'tenTk'   => $tk['ten_tk'],
+			/* MỆNH GIÁ bốn nút trên màn ghế. Khai ở web nên đổi giá không phải mang USB đi 26
+			   cửa hàng — ghế không có OTA, nên đó là chuyến đi thật. */
+			'goi'     => array_values( VHG_May::menh_gia() ),
 			'maMay'   => $ma_may,
 			/* Mã bắt đầu bằng '?' = ghế cắm điện rồi nhưng CHƯA ai gán mã cho nó. Ghế hiện chữ
 			   đó lên màn để người đi lắp biết mình còn thiếu một bước, thay vì đứng nhìn màn

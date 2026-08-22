@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22a (chay thang tren host - bo Firebase)"
+#define FW_VERSION "ghe-massage 2026-08-22b (menh gia + tai khoan lay tu web)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -79,8 +79,17 @@ String ACCOUNT_NAME = "";
 // --- Giá mặc định (máy chủ đè lên trong lượt nhịp) ---
 long PRICE_VND  = 10000;
 int  MINUTES    = 6;
-const int  PKG_N = 4;
-const long PKG_AMT[PKG_N] = { 20000, 50000, 100000, 200000 };
+/* MỆNH GIÁ — máy chủ đè lên trong lượt nhịp. Bốn con số dưới đây chỉ là bản dự phòng dùng khi
+   ghế chưa hỏi được máy chủ lần nào (vừa cắm điện, mạng chưa lên).
+
+   🔴 KHÔNG khai cứng nữa. Ghế này KHÔNG CÓ OTA — khai cứng nghĩa là đổi mệnh giá phải mang USB
+      đi 26 cửa hàng. Khai ở web thì ghế lấy về trong ~30 giây.
+
+   ⚠️ `PKG_N` là số nút ĐANG dùng, thay đổi được; `PKG_MAX` là số ô vẽ được trên màn, cố định 4.
+      Trộn hai cái này là vẽ ra ngoài mảng. */
+const int PKG_MAX = 4;
+int  PKG_N = 4;
+long PKG_AMT[PKG_MAX] = { 20000, 50000, 100000, 200000 };
 
 const int PAY_WINDOW_S   = 150;    // chờ khách trả (giây) rồi hủy QR
 const unsigned long PAY_POLL_MS  = 2000;   // chu kỳ hỏi máy chủ khi đang chờ trả
@@ -407,7 +416,7 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 #define COL_BG    TFT_BLACK
 #define COL_ACC   0x05BF
 
-Btn PKG_BTN[PKG_N] = { {14,56,142,74}, {164,56,142,74}, {14,136,142,74}, {164,136,142,74} };
+Btn PKG_BTN[PKG_MAX] = { {14,56,142,74}, {164,56,142,74}, {14,136,142,74}, {164,136,142,74} };
 
 void drawIdle(){
   tft.fillScreen(COL_BG);
@@ -525,7 +534,10 @@ void guiNhip(){
     + "\",\"con_lai\":" + String(conLai) + ",\"fw\":\"" FW_VERSION "\"");
   lastNhipMs = millis(); g_statusDirty = false;
   if(r.length()==0) return;
-  StaticJsonDocument<512> d;
+  /* 768 chứ không 512: gói nhịp giờ mang thêm mảng `goi` (4 mệnh giá). Tràn bộ đệm thì
+     `deserializeJson` trả lỗi và HÀM THOÁT NGAY — ghế mất luôn cả giá, tài khoản lẫn lệnh, mà
+     màn hình không có gì báo. Một con số chật ở đây làm chết cả lượt nhịp. */
+  StaticJsonDocument<768> d;
   if(deserializeJson(d, r)) return;
   String ma = String((const char*)(d["maMay"] | ""));
   if(ma.length()){ CHAIR_ID = ma; }
@@ -538,6 +550,18 @@ void guiNhip(){
   String tk = String((const char*)(d["soTk"] | "")); if(tk.length()) ACCOUNT_NO = tk;
   String bin= String((const char*)(d["bin"]  | "")); if(bin.length()) BANK_BIN = bin;
   String tn = String((const char*)(d["tenTk"]| "")); if(tn.length()) ACCOUNT_NAME = tn;
+  /* Mệnh giá do web khai. Nhận vào CHỈ KHI đọc được ít nhất một giá trị hợp lệ — mảng rỗng hay
+     gói lỗi mà nhận là màn ghế không còn nút nào bấm được, tức đường QR chết hẳn ở cửa hàng đó
+     mà máy chủ vẫn thấy ghế gửi nhịp bình thường. Giữ bộ đang dùng còn hơn. */
+  JsonArrayConst goi = d["goi"];
+  if(!goi.isNull()){
+    long tam[PKG_MAX]; int n = 0;
+    for(JsonVariantConst v : goi){
+      long a = v.as<long>();
+      if(a >= 1000 && n < PKG_MAX) tam[n++] = a;
+    }
+    if(n > 0){ for(int i=0;i<n;i++) PKG_AMT[i] = tam[i]; PKG_N = n; g_statusDirty = true; }
+  }
   g_coLenh = ((int)(d["coLenh"] | 0) == 1);
   if(((int)(d["coTien"] | 0) == 1) && g_paidAmount == 0){
     /* Máy chủ báo có tiền chờ mà ghế đang rảnh (khách trả sau khi màn đã tắt QR) — vẫn lấy về
