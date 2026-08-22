@@ -1412,6 +1412,99 @@ teq( 'nói rõ bên gửi báo số nào', '8888815678', $dc['ben_gui'] );
 VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
 teq( 'sửa đúng thì khớp', true, VHG_May::doi_chieu_tk()['khop'] );
 
+// ====================== 🔴 TIỀN TỐ BẮT BUỘC TRONG NỘI DUNG — MẮT XÍCH IM LẶNG NHẤT
+/* Tìm ra 22/08/2026 trên chính trang Tạo QR của SePay:
+     "SEVQR — VietinBank cá nhân/hộ kinh doanh BẮT BUỘC nội dung CK phải chứa `sevqr` để định
+      tuyến giao dịch qua SePay."
+
+   Không có chuỗi đó thì tiền vẫn vào tài khoản, ngân hàng vẫn báo THÀNH CÔNG, nhưng SePay
+   KHÔNG BAO GIỜ THẤY — không webhook, ghế không chạy, và trong sổ của mình không có MỘT DÒNG
+   NÀO, kể cả dòng "có gói lạ bắn tới". Không có gì để đi tìm.
+
+   Đúng cái đã xảy ra: lượt 2.000đ quét từ trang SePay (có SEVQR) thì về; lượt 10.000đ quét mã
+   của plugin (nội dung "GHEMAU K7M2P", không có SEVQR) thì biến mất không dấu vết. */
+delete_option( 'vhg_tien_to_nd' );
+teq( 'mặc định KHÔNG có tiền tố — ngân hàng khác thường không đòi',
+	'GHEAMTP01 K7M2P', VHG_QR::noi_dung( 'AMTP01', 'K7M2P' ) );
+
+t( 'lưu được tiền tố', ! empty( VHG_May::luu_tien_to_nd( 'SEVQR' )['ok'] ) );
+teq( '🔴 tiền tố đứng TRƯỚC mã ghế', 'SEVQR GHEAMTP01 K7M2P',
+	VHG_QR::noi_dung( 'AMTP01', 'K7M2P' ) );
+/* Đứng trước vì ngân hàng nào cắt bớt nội dung thì cắt TỪ CUỐI: mất tiền tố là mất cả lượt
+   (SePay không thấy), còn mất mã lượt thì trên web vẫn gán tay được. */
+t( 'và chuỗi bắt đầu bằng tiền tố, không phải kết thúc',
+	strpos( VHG_QR::noi_dung( 'AMTP01', 'K7M2P' ), 'SEVQR' ) === 0 );
+
+teq( 'viết thường cũng về chữ hoa', 'SEVQR',
+	VHG_May::luu_tien_to_nd( 'sevqr' ) ? VHG_May::tien_to_nd() : '' );
+/* Chỉ chữ và số: nội dung chuyển khoản đi qua nhiều hệ thống, dấu và ký tự lạ là chỗ bị cắt
+   hoặc bị đổi mà không ai báo. */
+VHG_May::luu_tien_to_nd( 'SE-VQR 01' );
+teq( 'bỏ dấu cách và ký tự lạ', 'SEVQR01', VHG_May::tien_to_nd() );
+teq( 'tiền tố quá dài thì chối', false, VHG_May::luu_tien_to_nd( 'ABCDEFGHIJK' )['ok'] );
+VHG_May::luu_tien_to_nd( '' );
+teq( 'bỏ trống được — ngân hàng khác không cần', '', VHG_May::tien_to_nd() );
+
+/* ⚠️ VietQR chỉ cho 25 ký tự ở ô nội dung. Dài hơn là ngân hàng cắt, và cắt ở đâu thì tuỳ
+      ngân hàng — phải nói ra TRƯỚC khi ai đó đặt mã ghế 20 ký tự. */
+VHG_May::luu_tien_to_nd( 'SEVQR' );
+teq( 'mã ghế ngắn thì không cảnh báo', '', VHG_QR::canh_bao_dai( 'AMTP01' ) );
+$cb = VHG_QR::canh_bao_dai( 'AMTP0123456789012345' );
+t( 'mã ghế dài thì cảnh báo', '' !== $cb, $cb );
+t( 'và nói rõ vượt bao nhiêu', strpos( $cb, '25' ) !== false );
+
+/* Chuỗi QR thật phải mang tiền tố, và đọc ngược vẫn ra đúng mã ghế. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_tien_to_nd( 'SEVQR' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+$qr_t = VHG_QR::cho_ghe( 'AMTP01', 'K7M2P' );
+t( 'dựng được QR', ! empty( $qr_t['ok'] ), $qr_t );
+teq( '🔴 chuỗi QR mang tiền tố', 'SEVQR GHEAMTP01 K7M2P', VHG_QR::doc( $qr_t['chuoi'] )['noi_dung'] );
+
+/* Và tiền về với nội dung ĐÓ vẫn khớp đúng ghế — tiền tố không được làm hỏng phép đọc ngược. */
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'CT DEN:145T26811LG6HQZL SEVQR GHEAMTP01 K7M2P', 'referenceCode' => 'tt-1',
+	'accountNumber' => '108878583951' ) );
+teq( 'tiền về khớp đúng ghế dù có cả tiền tố lẫn tiền tố của ngân hàng',
+	'AMTP01', VHG_Thu::ds( 'all' )[0]['ma_may'] );
+teq( 'và ghế được xếp chạy', 1, VHG_May::so_cho( 'AMTP01' ) );
+
+/* Ghế phải NHẬN được tiền tố qua nhịp — nó tự dựng nội dung lúc khách bấm chọn gói. */
+list( , $n_tt ) = vhg_ghe( array( 'mac' => 'AA:BB:CC:DD:EE:01', 'viec' => 'nhip' ) );
+teq( 'nhịp gửi tiền tố xuống ghế', 'SEVQR', $n_tt['tienTo'] );
+VHG_May::luu_tien_to_nd( '' );
+list( , $n_tt2 ) = vhg_ghe( array( 'mac' => 'AA:BB:CC:DD:EE:01', 'viec' => 'nhip' ) );
+teq( 'bỏ tiền tố thì nhịp gửi chuỗi rỗng, không bỏ hẳn khoá', '', $n_tt2['tienTo'] );
+t( 'khoá vẫn có mặt để ghế biết là "bỏ đi", không phải "chưa khai"',
+	array_key_exists( 'tienTo', $n_tt2 ) );
+
+// ---- màn quản trị
+VHG_May::luu_tien_to_nd( '' );
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+ob_start(); VHG_Admin::trang_may(); $h_tt = ob_get_clean();
+t( 'chưa khai tiền tố thì màn cảnh báo', strpos( $h_tt, 'Chưa khai tiền tố' ) !== false );
+t( 'và nói rõ hậu quả im lặng', strpos( $h_tt, 'không bao giờ thấy' ) !== false );
+t( 'chỉ đúng chỗ xem trên SePay', strpos( $h_tt, 'Tạo QR' ) !== false );
+VHG_May::luu_tien_to_nd( 'SEVQR' );
+ob_start(); VHG_Admin::trang_may(); $h_tt2 = ob_get_clean();
+t( 'khai rồi thì hết cảnh báo', strpos( $h_tt2, 'Chưa khai tiền tố' ) === false );
+t( 'và hiện nội dung mẫu kèm số ký tự',
+	strpos( $h_tt2, 'SEVQR GHEAMTP01 K7M2P' ) !== false && strpos( $h_tt2, '/25 ký tự' ) !== false );
+$_GET = array(); $_POST = array();
+
+// ---- firmware
+$fw5 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'firmware nhận tiền tố từ nhịp', strpos( $fw5, 'ND_TIEN_TO' ) !== false );
+t( 'và ghép vào TRƯỚC mã ghế',
+	preg_match( '/ND_TIEN_TO \+ " " : ""\)\s*\+\s*"GHE"/', $fw5 ) === 1, $fw5 ? '' : '' );
+/* ⚠️ Nhận CẢ CHUỖI RỖNG: bỏ tiền tố trên web thì ghế phải bỏ theo. Xét độ dài như mấy ô kia
+      là bỏ tiền tố xong ghế vẫn dùng chuỗi cũ mãi mãi. */
+t( 'nhận cả chuỗi rỗng (bỏ tiền tố trên web thì ghế bỏ theo)',
+	strpos( $fw5, 'd.containsKey("tienTo")' ) !== false );
+
 // ====================== ĐỌC NGƯỢC MÃ QR
 /* 🔴 Anh Thắng quét thử ba lần, ba lỗi khác nhau từ app ngân hàng: "sai định dạng tài khoản
       (174)", rồi "vấn tin bị timeout (199)". Mỗi lần chỉ biết là HỎNG, không biết trong mã có

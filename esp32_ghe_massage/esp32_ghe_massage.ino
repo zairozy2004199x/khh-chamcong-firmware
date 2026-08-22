@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22d (3 man moi, ve lai khi gan ma, reboot tu xa)"
+#define FW_VERSION "ghe-massage 2026-08-22e (tien to noi dung CK tu web)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -75,6 +75,12 @@ bool   CHUA_GAN = false;     // máy chủ báo ghế này chưa ai gán mã
 String BANK_BIN     = "";
 String ACCOUNT_NO   = "";
 String ACCOUNT_NAME = "";
+/* 🔴 TIỀN TỐ BẮT BUỘC TRONG NỘI DUNG CHUYỂN KHOẢN — máy chủ gửi xuống trong lượt nhịp.
+   SePay: "VietinBank cá nhân/hộ kinh doanh BẮT BUỘC nội dung CK phải chứa `sevqr` để định
+   tuyến giao dịch qua SePay". Thiếu chuỗi này thì tiền vẫn vào tài khoản, ngân hàng vẫn báo
+   thành công, mà SePay KHÔNG BAO GIỜ THẤY — không webhook, ghế không chạy, và không có gì
+   trên đời báo cho ai biết. Để rỗng khi ngân hàng không đòi. */
+String ND_TIEN_TO   = "";
 
 // --- Giá mặc định (máy chủ đè lên trong lượt nhịp) ---
 long PRICE_VND  = 10000;
@@ -766,6 +772,10 @@ void guiNhip(){
   String tk = String((const char*)(d["soTk"] | "")); if(tk.length()) ACCOUNT_NO = tk;
   String bin= String((const char*)(d["bin"]  | "")); if(bin.length()) BANK_BIN = bin;
   String tn = String((const char*)(d["tenTk"]| "")); if(tn.length()) ACCOUNT_NAME = tn;
+  /* Nhận CẢ CHUỖI RỖNG: bỏ tiền tố trên web thì ghế phải bỏ theo. Dùng `containsKey` chứ đừng
+     xét độ dài như mấy ô trên — ô kia rỗng nghĩa là "máy chủ chưa khai, giữ cái đang có", còn
+     ô này rỗng là một lựa chọn hợp lệ. */
+  if(d.containsKey("tienTo")) ND_TIEN_TO = String((const char*)(d["tienTo"] | ""));
   /* Mệnh giá do web khai. Nhận vào CHỈ KHI đọc được ít nhất một giá trị hợp lệ — mảng rỗng hay
      gói lỗi mà nhận là màn ghế không còn nút nào bấm được, tức đường QR chết hẳn ở cửa hàng đó
      mà máy chủ vẫn thấy ghế gửi nhịp bình thường. Giữ bộ đang dùng còn hơn. */
@@ -869,7 +879,9 @@ void startSession(int idx){
   payMinutes    = phutGoi(idx);
   g_goiDangChay = idx;   // để màn đếm ngược in đúng tên gói khách vừa chọn
   genCode(payCode);
-  String addInfo = "GHE" + CHAIR_ID + " " + payCode;
+  /* Tiền tố đứng TRƯỚC: ngân hàng nào cắt bớt nội dung thì cắt từ cuối, mà mất tiền tố là mất
+     cả lượt (SePay không thấy), còn mất mã lượt thì trên web vẫn gán tay được. */
+  String addInfo = (ND_TIEN_TO.length() ? ND_TIEN_TO + " " : "") + "GHE" + CHAIR_ID + " " + payCode;
   qrPayload  = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, addInfo);
   waitUntil  = millis() + (unsigned long)PAY_WINDOW_S*1000UL;
   lastPayPoll = 0; lastShownSec = -1;

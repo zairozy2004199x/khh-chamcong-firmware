@@ -181,12 +181,38 @@ class VHG_QR {
 				. '"Tài khoản nhận tiền (dùng chung)" trong màn Máy & cơ sở.' );
 		}
 		$ma_lenh = '' !== $ma_lenh ? $ma_lenh : self::ma_luot();
-		$nd = 'GHE' . $m['ma'] . ' ' . $ma_lenh;
+		$nd = self::noi_dung( $m['ma'], $ma_lenh );
 		/* Số tiền của chuỗi mẫu = tỉ lệ THỰC DÙNG của ghế (riêng nếu có, không thì chung).
 		   Lấy thẳng cột `gia` là ghế dùng chung ra số 0, và một mã QR 0 đồng thì quét ra lỗi. */
 		$tl = VHG_May::ty_le_cua( $m );
 		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], (int) $tl['gia'], $nd ),
 			'noi_dung' => $nd, 'so_tien' => (int) $tl['gia'], 'ma_lenh' => $ma_lenh );
+	}
+
+	/**
+	 * Nội dung chuyển khoản của một lượt: `<tiền tố> GHE<ghế> <mã lượt>`.
+	 *
+	 * Tiền tố đứng TRƯỚC. Ngân hàng nào cắt bớt nội dung thì cắt từ cuối, mà tiền tố là thứ
+	 * quyết định SePay có THẤY giao dịch hay không — mất nó là mất cả lượt (không có webhook,
+	 * không có dòng nào trong sổ), còn mất mã lượt thì vẫn gán tay được.
+	 *
+	 * ⚠️ VietQR chỉ cho 25 ký tự ở ô nội dung. Dài hơn là ngân hàng cắt, và cắt ở đâu thì tuỳ
+	 *    ngân hàng — nên `canh_bao_dai()` phải nói ra TRƯỚC khi ai đó đặt mã ghế 20 ký tự.
+	 */
+	const ND_TOI_DA = 25;
+
+	public static function noi_dung( $ma_may, $ma_lenh ) {
+		$t = VHG_May::tien_to_nd();
+		return ( '' !== $t ? $t . ' ' : '' ) . 'GHE' . $ma_may . ' ' . $ma_lenh;
+	}
+
+	/** Nội dung có vượt 25 ký tự không — trả câu cảnh báo, hoặc rỗng nếu vừa. */
+	public static function canh_bao_dai( $ma_may ) {
+		$nd  = self::noi_dung( $ma_may, 'K7M2P' );
+		$dai = strlen( $nd );
+		if ( $dai <= self::ND_TOI_DA ) { return ''; }
+		return 'Nội dung chuyển khoản dài ' . $dai . ' ký tự, vượt giới hạn ' . self::ND_TOI_DA
+			. ' của VietQR ("' . $nd . '"). Ngân hàng sẽ cắt bớt — đặt mã ghế ngắn hơn, hoặc bỏ bớt tiền tố.';
 	}
 
 	/**

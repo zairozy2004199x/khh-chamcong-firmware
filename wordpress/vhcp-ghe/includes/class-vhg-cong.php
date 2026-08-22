@@ -305,6 +305,10 @@ class VHG_Cong {
 			   Tên bỏ dấu ở ĐÂY chứ không ở ghế: font màn ghế không vẽ được dấu tiếng Việt, và mọi
 			   thứ sửa được bằng máy chủ thì phải sửa ở máy chủ. */
 			'goi'     => VHG_May::menh_gia_cho_ghe( (int) $tl['gia'], (int) $tl['phut'] ),
+			/* Tiền tố bắt buộc trong nội dung chuyển khoản (VD "SEVQR"). Ghế TỰ dựng nội dung
+			   lúc khách bấm chọn gói, nên nó phải biết chuỗi này — thiếu là SePay không thấy
+			   giao dịch, và không có gì báo. Xem VHG_May::tien_to_nd(). */
+			'tienTo'  => VHG_May::tien_to_nd(),
 			'maMay'   => $ma_may,
 			/* Mã bắt đầu bằng '?' = ghế cắm điện rồi nhưng CHƯA ai gán mã cho nó. Ghế hiện chữ
 			   đó lên màn để người đi lắp biết mình còn thiếu một bước, thay vì đứng nhìn màn

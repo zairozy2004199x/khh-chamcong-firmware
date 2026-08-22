@@ -460,6 +460,45 @@ class VHG_May {
 			'luc' => is_array( $g ) && isset( $g['luc'] ) ? (string) $g['luc'] : '' );
 	}
 
+	/**
+	 * TIỀN TỐ BẮT BUỘC TRONG NỘI DUNG CHUYỂN KHOẢN.
+	 *
+	 * 🔴 MẮT XÍCH CUỐI CÙNG, tìm ra 22/08/2026 trên chính trang Tạo QR của SePay:
+	 *
+	 *      "SEVQR — VietinBank cá nhân/hộ kinh doanh BẮT BUỘC nội dung CK phải chứa `sevqr`
+	 *       để định tuyến giao dịch qua SePay."
+	 *
+	 *    Không có chuỗi đó thì tiền vẫn vào tài khoản, ngân hàng vẫn báo thành công, nhưng
+	 *    SePay KHÔNG BAO GIỜ THẤY — nên không có webhook, và ghế không chạy. Đúng cái đã xảy
+	 *    ra: lượt 2.000đ quét từ trang SePay (có SEVQR) thì về, lượt 10.000đ quét chỗ khác
+	 *    (không có SEVQR) thì biến mất không dấu vết.
+	 *
+	 *    Đây là kiểu hỏng tệ nhất trong cả hệ thống: KHÔNG AI BÁO GÌ CẢ. Khách trả tiền xong,
+	 *    ngân hàng nói "thành công", ghế đứng im, và trong sổ của mình không có một dòng nào —
+	 *    kể cả dòng "có gói lạ bắn tới". Không có gì để đi tìm.
+	 *
+	 * ⚠️ Tiền tố tuỳ NGÂN HÀNG và tuỳ LOẠI tài khoản, nên KHÔNG gán cứng "SEVQR" trong mã:
+	 *    tài khoản doanh nghiệp, hay ngân hàng khác, có thể không cần — mà thừa một chuỗi lạ
+	 *    trong nội dung là tốn chỗ của mã lượt (VietQR chỉ cho 25 ký tự).
+	 */
+	public static function tien_to_nd() {
+		return trim( (string) get_option( 'vhg_tien_to_nd', '' ) );
+	}
+
+	public static function luu_tien_to_nd( $v ) {
+		/* Chỉ chữ và số: nội dung chuyển khoản đi qua nhiều hệ thống, dấu và ký tự lạ là chỗ
+		   bị cắt hoặc bị đổi mà không ai báo. */
+		$v = strtoupper( preg_replace( '/[^0-9A-Za-z]/', '', (string) $v ) );
+		if ( strlen( $v ) > 10 ) {
+			return array( 'ok' => false, 'error' => 'Tiền tố tối đa 10 ký tự — nội dung chuyển khoản '
+				. 'chỉ có 25 chỗ, để dành cho mã ghế và mã lượt.' );
+		}
+		update_option( 'vhg_tien_to_nd', $v );
+		return array( 'ok' => true, 'thong_bao' => '' === $v
+			? 'Đã bỏ tiền tố nội dung chuyển khoản.'
+			: 'Đã đặt tiền tố "' . $v . '". Ghế lấy về ở lượt nhịp kế tiếp (~30 giây).' );
+	}
+
 	public static function luu_nhan_tien( $bin, $so_tk, $ten_tk ) {
 		$bin   = preg_replace( '/\D+/', '', (string) $bin );
 		$so_tk = trim( (string) $so_tk );

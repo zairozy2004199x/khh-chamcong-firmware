@@ -362,6 +362,8 @@ class VHG_Admin {
 				$bao[] = VHG_May::luu_ty_le( wp_unslash( $_POST['gia_c'] ), wp_unslash( $_POST['phut_c'] ) );
 			} elseif ( 'bo_rieng' === $viec ) {
 				$bao[] = VHG_May::bo_ty_le_rieng();
+			} elseif ( 'tien_to' === $viec ) {
+				$bao[] = VHG_May::luu_tien_to_nd( wp_unslash( $_POST['tien_to_nd'] ) );
 			} elseif ( 'menh_gia' === $viec ) {
 				$ten  = isset( $_POST['mg_ten'] ) ? (array) wp_unslash( $_POST['mg_ten'] ) : array();
 				$tien = isset( $_POST['mg_tien'] ) ? (array) wp_unslash( $_POST['mg_tien'] ) : array();
@@ -541,6 +543,39 @@ class VHG_Admin {
 		echo '</table><p><button class="button button-primary" name="vhg" value="nhan_tien">Lưu tài khoản</button></p></form>';
 
 		/* ==================================================================================
+		 * 🔴 TIỀN TỐ BẮT BUỘC TRONG NỘI DUNG — MẮT XÍCH IM LẶNG NHẤT CỦA CẢ HỆ THỐNG.
+		 *
+		 * Tìm ra 22/08/2026 trên chính trang Tạo QR của SePay:
+		 *   "SEVQR — VietinBank cá nhân/hộ kinh doanh BẮT BUỘC nội dung CK phải chứa `sevqr`
+		 *    để định tuyến giao dịch qua SePay."
+		 *
+		 * Không có chuỗi đó thì tiền vẫn vào tài khoản, ngân hàng vẫn báo thành công, nhưng
+		 * SePay KHÔNG BAO GIỜ THẤY — không webhook, ghế không chạy, và trong sổ của mình không
+		 * có MỘT DÒNG NÀO, kể cả dòng "có gói lạ bắn tới". Không có gì để đi tìm.
+		 * ================================================================================== */
+		$tien_to = VHG_May::tien_to_nd();
+		echo '<h3>Tiền tố bắt buộc trong nội dung chuyển khoản</h3>';
+		echo '<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+		wp_nonce_field( 'vhg' );
+		echo '<input type="text" name="tien_to_nd" value="' . esc_attr( $tien_to ) . '" '
+			. 'style="width:130px" placeholder="VD: SEVQR" /> '
+			. '<button class="button button-primary" name="vhg" value="tien_to">Lưu tiền tố</button></form>';
+		if ( '' === $tien_to ) {
+			echo '<div class="notice notice-warning inline"><p><b>Chưa khai tiền tố.</b> '
+				. 'Với <b>VietinBank tài khoản cá nhân / hộ kinh doanh</b>, SePay bắt buộc nội dung '
+				. 'chuyển khoản phải chứa <code>SEVQR</code> mới định tuyến được giao dịch.<br>'
+				. 'Thiếu nó thì <b>tiền vẫn vào tài khoản và ngân hàng vẫn báo thành công, nhưng SePay '
+				. 'không bao giờ thấy</b> — không webhook, ghế không chạy, và trong sổ này không có một '
+				. 'dòng nào để đi tìm. Đây là mắt xích im lặng nhất của cả hệ thống.<br>'
+				. 'Xem ở trang SePay → <b>Tạo QR</b>, dòng chữ đỏ cạnh ô "Nội dung chuyển khoản".</p></div>';
+		}
+		$nd_mau = VHG_QR::noi_dung( 'AMTP01', 'K7M2P' );
+		echo '<p class="description">Nội dung một lượt sẽ là: <code>' . esc_html( $nd_mau ) . '</code> ('
+			. strlen( $nd_mau ) . '/' . VHG_QR::ND_TOI_DA . ' ký tự).<br>'
+			. 'Ngân hàng khác hoặc tài khoản doanh nghiệp thường KHÔNG cần — để trống. Thừa một chuỗi '
+			. 'lạ là tốn chỗ của mã lượt.</p>';
+
+		/* ==================================================================================
 		 * ĐỌC NGƯỢC MÃ QR RA TỪNG TRƯỜNG.
 		 *
 		 * 🔴 Anh Thắng quét thử ba lần, ba lỗi khác nhau từ app ngân hàng: "sai định dạng tài
@@ -708,10 +743,13 @@ class VHG_Admin {
 		if ( ! $may ) { echo '<tr><td colspan="8"><em>Chưa khai máy nào. Cắm ghế lên là nó tự hiện ở '
 			. 'mục <b>Ghế chờ gán mã</b> phía trên.</em></td></tr>'; }
 		$co_im = false;
+		$canh_dai = array();
 		foreach ( $may as $m ) {
 			$qr    = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
 			$tk_m  = VHG_May::nhan_tien_cua( $m );
 			if ( empty( $m['con_song'] ) ) { $co_im = true; }
+			$cb_dai = VHG_QR::canh_bao_dai( $m['ma'] );
+			if ( '' !== $cb_dai ) { $canh_dai[] = $cb_dai; }
 			$tl_m     = VHG_May::ty_le_cua( $m );
 			$rieng_tl = ( (int) $m['gia'] > 0 || (int) $m['phut'] > 0 );
 			$rieng = '' !== trim( (string) $m['so_tk'] ) || '' !== trim( (string) $m['bank_bin'] );
@@ -747,6 +785,12 @@ class VHG_Admin {
 
 		/* Chỉ dẫn hiện ra ĐÚNG LÚC có ghế đang im. Bảng "nhịp cuối" nói ghế đang ở ca nào; khối
 		   này nói ca đó thì đi làm gì. Hiện thường trực là người ta thôi đọc. */
+		if ( $canh_dai ) {
+			echo '<div class="notice notice-error inline"><p><b>Nội dung chuyển khoản quá dài:</b></p><ul '
+				. 'style="margin-left:18px;list-style:disc">';
+			foreach ( array_unique( $canh_dai ) as $c_d ) { echo '<li>' . esc_html( $c_d ) . '</li>'; }
+			echo '</ul></div>';
+		}
 		if ( $co_im ) {
 			echo '<div class="notice notice-warning inline"><p><b>Có ghế không gửi nhịp.</b> Ba ca, '
 				. 'ba chỗ sửa khác nhau:</p><ol style="margin-left:20px;list-style:decimal">'
