@@ -1339,6 +1339,74 @@ t( 'nhưng chỉ vẽ lại khi ghế đang RẢNH, không xoá màn QR dưới 
 t( 'vòng vẽ lại 5 giây của màn "chưa gán" vẫn còn',
 	preg_match( '/CHUA_GAN \|\| CHAIR_ID\.length\(\)==0\) && millis\(\)-veLai > 5000/', $fw4 ) === 1 );
 
+// ============================================ BẢNG CHỐT CA THU TIỀN
+/* 🔴 Bản trước bấm "Thu tiền mặt" là hỏi "ghi 10.000đ?" rồi ghi luôn. Sai với việc thật: người
+      đi thu tiền mở ngăn ghế ra, đếm được một xấp, và cần biết HỆ THỐNG NGHĨ là bao nhiêu để
+      đối chiếu. Không có con số đó thì họ gõ đại số mình đếm được, và chênh lệch — nếu có —
+      không bao giờ lộ ra. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+$tok_c = vhg_vao( '571394', 'Admin' );
+VHG_May::luu_coso( 0, 'Aeon Tân Phú' );
+$id_c = 0;
+foreach ( VHG_May::ds_coso() as $c ) { if ( 'Aeon Tân Phú' === $c['ten'] ) { $id_c = (int) $c['id']; } }
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => $id_c, 'gia' => 50000, 'phut' => 15,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => $id_c, 'gia' => 50000, 'phut' => 15,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+
+vhg_ban( array( 'transferAmount' => 100000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 AAAAA', 'referenceCode' => 'c-1' ) );
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 BBBBB', 'referenceCode' => 'c-2' ) );
+VHG_Thu::thu_tien_mat( 'AMTP01', 200000, 'Chị quầy' );
+/* Ghế KHÁC, cùng cơ sở — số của nó KHÔNG được lẫn vào bảng chốt ca của ghế này. */
+vhg_ban( array( 'transferAmount' => 999000, 'transferType' => 'in',
+	'content' => 'GHEAMTP02 CCCCC', 'referenceCode' => 'c-3' ) );
+
+$r = vhg_web( 'so_may', array( 'token' => $tok_c, 'ma_may' => 'AMTP01' ) );
+t( 'lấy được số liệu ghế', ! empty( $r['ok'] ), $r );
+teq( 'tiền mặt của riêng ghế đó', 200000, $r['thang']['tien_mat'] );
+teq( 'QR của riêng ghế đó', 150000, $r['thang']['qr'] );
+teq( 'tổng tháng', 350000, $r['thang']['tong'] );
+teq( 'số lượt', 3, $r['thang']['so_luot'] );
+teq( '🔴 KHÔNG lẫn tiền của ghế bên cạnh', 999000, VHG_Thu::tong_may( 'AMTP02', 'month' )['qr'] );
+teq( 'nói rõ ghế này ở cơ sở nào — người đi thu đi nhiều cơ sở một buổi',
+	'Aeon Tân Phú', $r['coso'] );
+foreach ( array( 'hom_nay', 'tuan', 'thang', 'tat_ca' ) as $k ) {
+	t( "có sẵn kỳ '$k' để khỏi gọi lại", isset( $r[ $k ]['tong'] ) );
+}
+
+/* ⚠️ Dòng ĐÃ HUỶ không được cộng vào — sót chỗ này là màn chốt ca nói một số, bảng đối soát
+      nói số khác, và người đang đếm tiền không biết tin cái nào. */
+VHG_Thu::huy( 'c-1', 'ghi nhầm' );
+$r2 = vhg_web( 'so_may', array( 'token' => $tok_c, 'ma_may' => 'AMTP01' ) );
+teq( 'huỷ một dòng thì bảng chốt ca giảm theo', 50000, $r2['thang']['qr'] );
+teq( 'và khớp đúng với bảng đối soát', VHG_Thu::tong_hop( 'month' )['qr'] - 999000, $r2['thang']['qr'] );
+
+$r3 = vhg_web( 'so_may', array( 'token' => $tok_c, 'ma_may' => 'KHONG-CO' ) );
+teq( 'ghế không có thì chối', false, $r3['ok'] );
+$r4 = vhg_web( 'so_may', array( 'ma_may' => 'AMTP01' ) );
+teq( 'không token thì chối — đây là số tiền', false, $r4['ok'] );
+t( 'và KHÔNG rò số liệu', ! isset( $r4['thang'] ) );
+
+// ---- giao diện
+$html_c = vhg_web_html();
+t( 'bấm Thu tiền mặt mở bảng chốt ca, không ghi thẳng',
+	strpos( $html_c, 'function moChotCa(ma)' ) !== false
+	&& strpos( $html_c, "goi('so_may'" ) !== false );
+t( 'bảng hiện tiền mặt, QR và tổng tháng', strpos( $html_c, 'TỔNG THÁNG NÀY' ) !== false );
+t( 'có bàn phím số cho màn cảm ứng', strpos( $html_c, 'data-phim=' ) !== false );
+/* ⚠️ Nói thẳng đây là GHI SỔ, không phải mở ngăn tiền: người bấm tưởng nó mở khoá ghế thì họ
+      bấm rồi đứng đợi, và bấm lại — mỗi lần bấm là một dòng doanh thu. */
+t( 'nói rõ nút này chỉ GHI SỔ, không mở ngăn tiền',
+	strpos( $html_c, 'không mở ngăn tiền' ) !== false );
+t( 'và nhắc bấm một lần thôi', strpos( $html_c, 'Bấm một lần thôi' ) !== false );
+t( 'không cho xác nhận khi chưa nhập tiền',
+	strpos( $html_c, 'Chưa nhập số tiền mặt' ) !== false );
+/* Khoá chống bấm hai lần vẫn phải bao lấy đường này. */
+t( 'vẫn đi qua khoá chống bấm hai lần', strpos( $html_c, "lam('tien_mat'" ) !== false );
+
 // ============================================ MAC: MỘT DẠNG DUY NHẤT
 /* 🔴 Anh Thắng 22/08/2026: *"không có chỗ nhập mac, chỉ có mã"*. Dòng khai tay không có MAC là
       dòng KHÔNG GẮN VỚI GHẾ NÀO — ghế cắm điện lên đẻ ra dòng thứ hai, và dòng chạy thật là

@@ -158,6 +158,26 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'so_may' === $viec ) {
+			/* Số liệu MỘT ghế cho màn chốt ca. Gọi riêng chứ không nhét vào lượt `so_lieu`: nó
+			   chỉ cần khi người ta bấm Thu tiền mặt, mà `so_lieu` chạy mỗi lần tải trang. */
+			$ma = trim( (string) ( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) );
+			/* `ds_may_theo_ma()` chứ không `may()`: chỉ bản này mới kèm tên cơ sở (có JOIN). Màn
+			   chốt ca phải nói rõ đang đếm tiền của ghế nào Ở ĐÂU — người đi thu tiền đi nhiều
+			   cơ sở trong một buổi. */
+			$bd = VHG_May::ds_may_theo_ma();
+			$m  = isset( $bd[ $ma ] ) ? $bd[ $ma ] : null;
+			if ( ! $m ) { self::tra( array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma . '.' ) ); return; }
+			self::tra( array( 'ok' => true, 'ma_may' => $ma,
+				'coso' => (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ),
+				'gia'  => (int) $m['gia'],
+				'hom_nay' => VHG_Thu::tong_may( $ma, 'today' ),
+				'tuan'    => VHG_Thu::tong_may( $ma, 'week' ),
+				'thang'   => VHG_Thu::tong_may( $ma, 'month' ),
+				'tat_ca'  => VHG_Thu::tong_may( $ma, 'all' ) ) );
+			return;
+		}
+
 		if ( 'tien_mat' === $viec ) {
 			self::tra( VHG_Thu::thu_tien_mat(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
@@ -309,6 +329,29 @@ tr:last-child td{border-bottom:0}
 .ghe-hang{display:flex;gap:6px;align-items:center;margin-top:8px}
 .ghe-hang input{width:70px}
 .ghe-hang label{font-size:11px;color:#8d93c4}
+/* --- Bảng chốt ca thu tiền --- */
+.man{position:fixed;inset:0;background:rgba(8,10,22,.82);display:flex;align-items:center;
+  justify-content:center;padding:14px;z-index:50;overflow:auto}
+.hop{background:#1e2240;border:1px solid #3a4170;border-radius:14px;
+  padding:18px;max-width:440px;width:100%}
+.hop h3{margin:0 0 2px;font-size:18px}
+.hop .cs{font-size:12px;color:#8d93c4;margin-bottom:14px}
+.so-hang{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;
+  border-bottom:1px solid #252a4b}
+.so-hang:last-of-type{border-bottom:0}
+.so-hang .nh{font-size:13px;color:#8d93c4}
+.so-hang .gt{font-size:16px;font-weight:700}
+.so-hang.to{border-top:1px solid #3a4170;margin-top:6px;padding-top:12px}
+.so-hang.to .nh{color:#e8ebff;font-weight:600}
+.so-hang.to .gt{font-size:21px;color:#f0b429}
+.o-thu{margin:14px 0 8px}
+.o-thu input{font-size:23px;text-align:right;padding:11px 13px;font-weight:700}
+.phim{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}
+.phim button{padding:13px 0;font-size:17px}
+.hop-nut{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.hop-nut button{padding:12px 0}
+.canh{background:#3a1418;border:1px solid #7c2732;border-radius:9px;padding:9px 11px;
+  font-size:12px;color:#ff8087;margin-top:10px}
 .act input{width:66px;padding:5px 7px}
 .act select{font:inherit;border-radius:8px;border:1px solid #343a63;background:#151831;color:#e8ebff;padding:5px 7px;max-width:130px}
 .note code{background:#151831;padding:1px 5px;border-radius:5px}
@@ -595,6 +638,96 @@ function bang(ten, cot, hang){
   return h + '</table></div>';
 }
 
+/* ============================================================================================
+ * BẢNG CHỐT CA THU TIỀN.
+ *
+ * 🔴 Bản trước bấm "Thu tiền mặt" là hỏi "ghi 10.000đ?" rồi ghi luôn. Sai với việc thật: người
+ *    đi thu tiền mở ngăn ghế ra, đếm được một xấp, và cần biết HỆ THỐNG NGHĨ là bao nhiêu để
+ *    đối chiếu. Không có con số đó thì họ gõ đại số mình đếm được, và chênh lệch — nếu có —
+ *    không bao giờ lộ ra.
+ *
+ * Nên: hiện số liệu TRƯỚC, nhập tiền SAU. Và hiện cả QR lẫn tổng tháng, vì câu hỏi thật lúc
+ * đứng ở cửa hàng là "ghế này tháng này ra bao nhiêu", không phải "hôm nay bao nhiêu".
+ * ============================================================================================ */
+var CHOT = null;   // { ma_may, so } — bảng đang mở
+
+function moChotCa(ma){
+  if (ban) return;
+  goi('so_may', { ma_may: ma }, function(r){
+    if (!r.ok) { alert(r.error || 'Không lấy được số liệu ghế.'); return; }
+    CHOT = { ma: ma, so: r, go: '' };
+    veChotCa();
+  });
+}
+
+function hangSo(nhan, gt, lop){
+  return '<div class="so-hang' + (lop||'') + '"><span class="nh">' + nhan + '</span>'
+    + '<span class="gt">' + gt + '</span></div>';
+}
+
+function veChotCa(){
+  var r = CHOT.so, cu = document.getElementById('man-chot');
+  if (cu) cu.remove();
+  var d = document.createElement('div');
+  d.className = 'man'; d.id = 'man-chot';
+  d.innerHTML = '<div class="hop">'
+    + '<h3>Thu tiền mặt — ' + esc(CHOT.ma) + '</h3>'
+    + '<div class="cs">' + esc(r.coso || '(chưa gán cơ sở)') + '</div>'
+    + hangSo('Tiền mặt hôm nay', tien(r.hom_nay.tien_mat))
+    + hangSo('Chuyển khoản (QR) hôm nay', tien(r.hom_nay.qr))
+    + hangSo('Tổng hôm nay · ' + r.hom_nay.so_luot + ' lượt', tien(r.hom_nay.tong))
+    + hangSo('Tiền mặt tháng này', tien(r.thang.tien_mat))
+    + hangSo('Chuyển khoản (QR) tháng này', tien(r.thang.qr))
+    + hangSo('TỔNG THÁNG NÀY · ' + r.thang.so_luot + ' lượt', tien(r.thang.tong), ' to')
+    + '<div class="o-thu"><label class="mut">Số tiền mặt đã đếm được</label>'
+    + '<input id="chot-tien" type="text" inputmode="numeric" value="' + esc(CHOT.go) + '" placeholder="0"></div>'
+    + '<div class="phim">'
+    + ['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(function(k){
+        return '<button data-phim="' + k + '">' + k + '</button>'; }).join('')
+    + '</div>'
+    /* ⚠️ Nói thẳng: đây là GHI SỔ, không phải mở ngăn tiền. Người bấm tưởng nó mở khoá ghế thì
+       họ bấm rồi đứng đợi, và bấm lại — mỗi lần bấm là một dòng doanh thu. */
+    + '<div class="canh">Nút này <b>ghi sổ</b> số tiền mặt đã thu, không mở ngăn tiền của ghế. '
+    + 'Bấm một lần thôi — mỗi lần bấm là một dòng doanh thu.</div>'
+    + '<div class="hop-nut">'
+    + '<button id="chot-huy" class="ghost">Thoát</button>'
+    + '<button id="chot-ok" class="on">Xác nhận thu</button>'
+    + '</div></div>';
+  document.body.appendChild(d);
+
+  var o = document.getElementById('chot-tien');
+  [].forEach.call(d.querySelectorAll('[data-phim]'), function(b){
+    b.onclick = function(){
+      var k = b.getAttribute('data-phim');
+      var v = (o.value || '').replace(/\D/g, '');
+      if (k === '⌫') v = v.slice(0, -1); else v = (v + k).slice(0, 12);
+      CHOT.go = v;
+      o.value = v ? Number(v).toLocaleString('vi-VN') : '';
+    };
+  });
+  o.addEventListener('input', function(){
+    var v = (o.value || '').replace(/\D/g, '').slice(0, 12);
+    CHOT.go = v;
+    o.value = v ? Number(v).toLocaleString('vi-VN') : '';
+  });
+  document.getElementById('chot-huy').onclick = dongChotCa;
+  d.onclick = function(ev){ if (ev.target === d) dongChotCa(); };
+  document.getElementById('chot-ok').onclick = function(){
+    var v = Number((o.value || '').replace(/\D/g, '')) || 0;
+    if (v <= 0) { alert('Chưa nhập số tiền mặt đã đếm được.'); o.focus(); return; }
+    if (!confirm('Ghi ' + v.toLocaleString('vi-VN') + 'đ tiền mặt cho ghế ' + CHOT.ma + '?')) return;
+    dongChotCa();
+    lam('tien_mat', { ma_may: CHOT.ma, so_tien: v });
+  };
+  o.focus();
+}
+
+function dongChotCa(){
+  var d = document.getElementById('man-chot');
+  if (d) d.remove();
+  CHOT = null;
+}
+
 function noi(){
   document.getElementById('lam-moi').onclick = tai;
   document.getElementById('thoat').onclick = function(){
@@ -666,9 +799,7 @@ function noi(){
     };
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
-    b.onclick = function(){ var m = b.getAttribute('data-mat'), v = so('data-tien', m);
-      if (!confirm('Ghi ' + Number(v).toLocaleString('vi-VN') + 'đ tiền mặt cho ghế ' + m + '?')) return;
-      lam('tien_mat', { ma_may: m, so_tien: v }); };
+    b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
   });
 }
 

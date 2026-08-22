@@ -247,6 +247,37 @@ class VHG_Thu {
 		return '';
 	}
 
+	/**
+	 * Tổng của MỘT ghế trong một kỳ: số lượt, QR, tiền mặt, tổng.
+	 *
+	 * Cộng bằng SQL chứ không kéo hết giao dịch về rồi cộng trong PHP: màn chốt ca hỏi bốn kỳ
+	 * cho một ghế, mà "tất cả" của một ghế chạy cả năm là hàng chục nghìn dòng. Kéo về để cộng
+	 * là mỗi lần bấm Thu tiền mặt lại đợi vài giây — đúng lúc người ta đang đứng đếm tiền.
+	 *
+	 * ⚠️ Bỏ dòng đã huỷ (`huy=0`), y như `ds()`. Sót chỗ này là màn chốt ca nói một số, bảng đối
+	 *    soát nói số khác, và người đếm tiền không biết tin cái nào.
+	 */
+	public static function tong_may( $ma_may, $ky = 'today' ) {
+		global $wpdb;
+		$ma_may = trim( (string) $ma_may );
+		$ra = array( 'so_luot' => 0, 'qr' => 0, 'tien_mat' => 0, 'tong' => 0 );
+		if ( '' === $ma_may ) { return $ra; }
+		$bang = VHG_DB::t( 'thu' );
+		$tu   = self::dau_ky( $ky );
+		$sql  = "SELECT nguon, COUNT(*) AS n, COALESCE(SUM(so_tien),0) AS t FROM $bang"
+			. ' WHERE huy=0 AND ma_may=%s';
+		$tham = array( $ma_may );
+		if ( '' !== $tu ) { $sql .= ' AND luc >= %s'; $tham[] = $tu; }
+		$sql .= ' GROUP BY nguon';
+		foreach ( VHG_DB::rows( $wpdb->prepare( $sql, $tham ) ) as $r ) {
+			$t = (int) $r['t'];
+			$ra['so_luot'] += (int) $r['n'];
+			$ra['tong']    += $t;
+			if ( self::TIEN_MAT === $r['nguon'] ) { $ra['tien_mat'] += $t; } else { $ra['qr'] += $t; }
+		}
+		return $ra;
+	}
+
 	/** Danh sách giao dịch trong kỳ. */
 	public static function ds( $ky = 'today', $gioi_han = 500 ) {
 		global $wpdb;
