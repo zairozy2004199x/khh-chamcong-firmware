@@ -65,7 +65,7 @@ class VHG_May {
 		$nhip = VHG_DB::t( 'nhip' );
 		$ds = VHG_DB::rows(
 			"SELECT m.*, c.ten AS coso_ten, n.trang_thai, n.nguon AS nhip_nguon, n.con_lai,"
-			. " n.fw, n.ip, n.luc AS nhip_luc FROM $may m"
+			. " n.fw, n.ip, n.nd_tien_to, n.luc AS nhip_luc FROM $may m"
 			. " LEFT JOIN $coso c ON c.id = m.coso_id"
 			. " LEFT JOIN $nhip n ON n.ma_may = m.ma"
 			. ' ORDER BY c.ten ASC, m.ma ASC' );
@@ -689,12 +689,13 @@ class VHG_May {
 	public static function nhip_cua( $ma_may ) {
 		global $wpdb;
 		$r = $wpdb->get_row( $wpdb->prepare(
-			'SELECT luc, fw, ip FROM ' . VHG_DB::t( 'nhip' ) . ' WHERE ma_may=%s LIMIT 1',
+			'SELECT luc, fw, ip, nd_tien_to FROM ' . VHG_DB::t( 'nhip' ) . ' WHERE ma_may=%s LIMIT 1',
 			(string) $ma_may ), ARRAY_A );
 		return array(
 			'luc' => $r ? (string) $r['luc'] : '',
 			'fw'  => $r ? (string) $r['fw'] : '',
 			'ip'  => $r ? (string) $r['ip'] : '',
+			'nd_tien_to' => $r ? (string) $r['nd_tien_to'] : '',
 		);
 	}
 
@@ -766,7 +767,11 @@ class VHG_May {
 			'nguon'      => mb_substr( (string) ( isset( $d['nguon'] ) ? $d['nguon'] : '' ), 0, 20 ),
 			'con_lai'    => (int) ( isset( $d['con_lai'] ) ? $d['con_lai'] : 0 ),
 			'ip'         => mb_substr( (string) ( isset( $d['ip'] ) ? $d['ip'] : '' ), 0, 60 ),
-			'fw'         => mb_substr( (string) ( isset( $d['fw'] ) ? $d['fw'] : '' ), 0, 40 ),
+			'nd_tien_to' => mb_substr( trim( (string) ( isset( $d['nd'] ) ? $d['nd'] : '' ) ), 0, 20 ),
+			/* 80, KHỚP VỚI CỘT. Cắt 40 ở đây là cách hỏng âm thầm: chuỗi phiên bản
+			   "ghe-massage 2026-08-22e (tien to noi dung CK tu web)" dài 51 ký tự, cắt xong
+			   thành nửa câu, và màn đối chiếu firmware chỉ đó nói ghế đang chạy bản nào. */
+			'fw'         => mb_substr( (string) ( isset( $d['fw'] ) ? $d['fw'] : '' ), 0, 80 ),
 			'luc'        => current_time( 'mysql' ),
 		);
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma_may=%s LIMIT 1", $ma_may ) );

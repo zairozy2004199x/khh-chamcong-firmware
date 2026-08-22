@@ -1471,6 +1471,55 @@ teq( 'tiền về khớp đúng ghế dù có cả tiền tố lẫn tiền tố
 	'AMTP01', VHG_Thu::ds( 'all' )[0]['ma_may'] );
 teq( 'và ghế được xếp chạy', 1, VHG_May::so_cho( 'AMTP01' ) );
 
+/* ============ 🔴 GHẾ ĐÃ NẠP FIRMWARE MỚI CHƯA — phải NHÌN THẤY được từ web
+ *
+ * Anh Thắng 22/08/2026: *"bên esp qr vẫn chưa thêm tiền tố"*. Đúng, vì ghế chưa nạp firmware
+ * mới — nhưng từ web KHÔNG CÓ CÁCH NÀO biết điều đó. Người ta sửa ô tiền tố, thấy bảng xem
+ * trước đúng, rồi tưởng xong; còn ghế vẫn dựng nội dung thiếu tiền tố và tiền vẫn biến mất
+ * không dấu vết y như trước.
+ *
+ * Cách duy nhất: ghế TỰ KHAI tiền tố nó đang dùng, mỗi lượt nhịp. Rồi web đối chiếu.
+ */
+VHG_May::luu_tien_to_nd( 'SEVQR' );
+vhg_ghe( array( 'mac' => 'AA:BB:CC:DD:EE:01', 'viec' => 'nhip', 'nd' => 'SEVQR',
+	'fw' => 'ghe-massage 2026-08-22e (tien to noi dung CK tu web)' ) );
+$m_nd = null;
+foreach ( VHG_May::ds_may() as $x ) { if ( 'AMTP01' === $x['ma'] ) { $m_nd = $x; } }
+teq( 'ghế khai lên tiền tố nó đang dùng', 'SEVQR', $m_nd['nd_tien_to'] );
+/* ⚠️ Chuỗi phiên bản firmware dài hơn 40 ký tự — cột phải đủ rộng, không thì mất đúng phần
+      nói bản đó khác bản trước chỗ nào, mà đó là lý do duy nhất người ta đọc cột này. */
+teq( 'và giữ trọn chuỗi phiên bản, không cắt cụt',
+	'ghe-massage 2026-08-22e (tien to noi dung CK tu web)', $m_nd['fw'] );
+
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+ob_start(); VHG_Admin::trang_may(); $h_kh = ob_get_clean();
+t( 'ghế đã nạp đúng thì KHÔNG kêu',
+	strpos( $h_kh, 'Ghế chưa nhận được tiền tố' ) === false );
+
+/* Ghế còn firmware CŨ: nó không gửi `nd` nên ô đó rỗng, trong khi web khai SEVQR. */
+vhg_ghe( array( 'mac' => 'AA:BB:CC:DD:EE:01', 'viec' => 'nhip',
+	'fw' => 'ghe-massage 2026-08-22a (chay thang tren host)' ) );
+ob_start(); VHG_Admin::trang_may(); $h_kh2 = ob_get_clean();
+t( '🔴 ghế còn firmware cũ thì màn KÊU LÊN',
+	strpos( $h_kh2, 'Ghế chưa nhận được tiền tố' ) !== false, $h_kh2 ? '' : '' );
+t( 'hiện cả hai bên để so: web khai gì, ghế đang dùng gì',
+	strpos( $h_kh2, 'Web khai' ) !== false && strpos( $h_kh2, 'Ghế đang dùng' ) !== false );
+t( 'và chỉ rõ phải cắm USB nạp lại, ghế không có OTA',
+	strpos( $h_kh2, 'không có OTA' ) !== false );
+t( 'kèm bản firmware ghế đang chạy để biết đang ở đời nào',
+	strpos( $h_kh2, '2026-08-22a' ) !== false );
+
+/* ⚠️ Ghế MẤT KẾT NỐI thì đừng kêu: nó không gửi nhịp nên ô kia rỗng vì không có tin, chứ không
+      phải vì firmware cũ. Kêu ở đó là bắt người ta đi nạp lại một con ghế đang tắt điện. */
+global $wpdb;
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'nhip' ) . ' SET luc=%s WHERE ma_may=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 7200 ), 'AMTP01' ) );
+ob_start(); VHG_Admin::trang_may(); $h_kh3 = ob_get_clean();
+t( 'ghế mất kết nối thì KHÔNG kêu thiếu tiền tố',
+	strpos( $h_kh3, 'Ghế chưa nhận được tiền tố' ) === false );
+$_GET = array(); $_POST = array();
+
 /* Ghế phải NHẬN được tiền tố qua nhịp — nó tự dựng nội dung lúc khách bấm chọn gói. */
 list( , $n_tt ) = vhg_ghe( array( 'mac' => 'AA:BB:CC:DD:EE:01', 'viec' => 'nhip' ) );
 teq( 'nhịp gửi tiền tố xuống ghế', 'SEVQR', $n_tt['tienTo'] );

@@ -283,6 +283,7 @@ class VHG_Cong {
 			'con_lai'    => isset( $d['con_lai'] ) ? $d['con_lai'] : 0,
 			'ip'         => isset( $d['ip'] ) ? $d['ip'] : '',
 			'fw'         => isset( $d['fw'] ) ? $d['fw'] : '',
+			'nd'         => isset( $d['nd'] ) ? $d['nd'] : '',
 		) );
 		$m  = VHG_May::may( $ma_may );
 		$tk = VHG_May::nhan_tien_cua( $m ? $m : array() );

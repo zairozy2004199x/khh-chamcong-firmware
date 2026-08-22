@@ -727,8 +727,12 @@ void guiNhip(){
   const char* st = (state==ST_RUNNING) ? "running" : (state==ST_WAIT_PAY ? "wait_pay" : "idle");
   const char* src = (g_srcCode=='q') ? "qr" : (g_srcCode=='c' ? "cash" : (g_srcCode=='r' ? "remote" : ""));
   long conLai = (state==ST_RUNNING) ? ((long)(runUntil - millis())/1000) : 0; if(conLai<0) conLai=0;
+  /* Báo ngược TIỀN TỐ ghế đang thật sự dùng. Không có nó thì từ web không cách nào biết ghế đã
+     nạp firmware mới chưa — người ta sửa ô trên web rồi tưởng xong, mà ghế vẫn dựng nội dung
+     thiếu tiền tố, và tiền vẫn biến mất y như cũ. */
   String r = wpGoi("nhip", String("\"trang_thai\":\"") + st + "\",\"nguon\":\"" + src
-    + "\",\"con_lai\":" + String(conLai) + ",\"fw\":\"" FW_VERSION "\"");
+    + "\",\"con_lai\":" + String(conLai) + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
+    + "\",\"fw\":\"" FW_VERSION "\"");
   lastNhipMs = millis(); g_statusDirty = false;
   if(r.length()==0) return;
   /* 1536 chứ không 512: gói nhịp mang thêm bốn gói {t,n,p} — mỗi gói một cái tên tới 18 ký tự.

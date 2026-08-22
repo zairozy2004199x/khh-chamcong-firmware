@@ -757,12 +757,22 @@ class VHG_Admin {
 			. 'mục <b>Ghế chờ gán mã</b> phía trên.</em></td></tr>'; }
 		$co_im = false;
 		$canh_dai = array();
+		$lech_nd  = array();
 		foreach ( $may as $m ) {
 			$qr    = VHG_QR::cho_ghe( $m['ma'], 'MAU' );
 			$tk_m  = VHG_May::nhan_tien_cua( $m );
 			if ( empty( $m['con_song'] ) ) { $co_im = true; }
 			$cb_dai = VHG_QR::canh_bao_dai( $m['ma'] );
 			if ( '' !== $cb_dai ) { $canh_dai[] = $cb_dai; }
+			/* 🔴 GHẾ ĐÃ NẠP FIRMWARE MỚI CHƯA — nhìn từ web không có cách nào biết, trừ khi ghế
+			   TỰ KHAI. Ghế còn firmware cũ thì không hiểu ô "tiền tố" nên vẫn dựng nội dung
+			   thiếu nó, và tiền vẫn biến mất y như trước. Người ta sửa ô trên web, thấy bảng
+			   xem trước đúng, rồi tưởng xong. */
+			if ( ! empty( $m['con_song'] )
+				&& (string) $m['nd_tien_to'] !== VHG_May::tien_to_nd() ) {
+				$lech_nd[] = array( 'ma' => $m['ma'], 'ghe' => (string) $m['nd_tien_to'],
+					'fw' => (string) $m['fw'] );
+			}
 			$tl_m     = VHG_May::ty_le_cua( $m );
 			$rieng_tl = ( (int) $m['gia'] > 0 || (int) $m['phut'] > 0 );
 			$rieng = '' !== trim( (string) $m['so_tk'] ) || '' !== trim( (string) $m['bank_bin'] );
@@ -798,6 +808,26 @@ class VHG_Admin {
 
 		/* Chỉ dẫn hiện ra ĐÚNG LÚC có ghế đang im. Bảng "nhịp cuối" nói ghế đang ở ca nào; khối
 		   này nói ca đó thì đi làm gì. Hiện thường trực là người ta thôi đọc. */
+		if ( $lech_nd ) {
+			echo '<div class="notice notice-error inline"><p><b>Ghế chưa nhận được tiền tố nội dung '
+				. '— nạp lại firmware bằng USB.</b></p>'
+				. '<table class="widefat striped" style="max-width:640px;margin:6px 0"><thead><tr>'
+				. '<th>Ghế</th><th>Web khai</th><th>Ghế đang dùng</th><th>Firmware ghế</th>'
+				. '</tr></thead><tbody>';
+			foreach ( $lech_nd as $l ) {
+				echo '<tr><td><b>' . esc_html( $l['ma'] ) . '</b></td>'
+					. '<td><code>' . esc_html( VHG_May::tien_to_nd() ) . '</code></td>'
+					. '<td>' . ( '' === $l['ghe']
+						? '<span style="color:#b32d2e">(trống)</span>'
+						: '<code>' . esc_html( $l['ghe'] ) . '</code>' ) . '</td>'
+					. '<td><span class="description">' . esc_html( $l['fw'] ) . '</span></td></tr>';
+			}
+			echo '</tbody></table>'
+				. '<p>Ghế <b>tự dựng nội dung chuyển khoản</b> lúc khách bấm chọn gói, nên nó phải biết '
+				. 'chuỗi này. Bản firmware cũ không hiểu ô tiền tố — sửa trên web bao nhiêu lần cũng '
+				. 'không tới được ghế, và <b>tiền vẫn biến mất không dấu vết</b> y như trước.</p>'
+				. '<p>Ghế <b>không có OTA</b>: phải cắm USB nạp lại. Bảng này hết dòng nào là ghế đó xong.</p></div>';
+		}
 		if ( $canh_dai ) {
 			echo '<div class="notice notice-error inline"><p><b>Nội dung chuyển khoản quá dài:</b></p><ul '
 				. 'style="margin-left:18px;list-style:disc">';

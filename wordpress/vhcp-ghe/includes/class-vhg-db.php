@@ -149,6 +149,19 @@ class VHG_DB {
 
 		/* ===== 5. NHỊP SỐNG CỦA GHẾ ========================================================
 		   Một hàng một máy, ĐÈ lên — đây là "máy còn sống không", không phải nhật ký. */
+		/* `fw` để 80 chứ không 40: chuỗi phiên bản firmware có cả ngày và câu mô tả ngắn, dài
+		   quá 50 ký tự. Cắt cụt ở 40 là mất đúng phần nói bản đó khác bản trước chỗ nào — mà đó
+		   là lý do duy nhất người ta đọc cột này.
+
+		   `nd_tien_to` = tiền tố nội dung GHẾ ĐANG THẬT SỰ DÙNG, ghế tự khai lên mỗi lượt nhịp.
+		   Đối chứng cho ô khai trên web: ghế còn nạp firmware cũ thì không biết tiền tố, mà từ
+		   web không có cách nào nhìn ra điều đó — người ta sửa ô trên web rồi tưởng xong, còn
+		   ghế vẫn dựng nội dung thiếu tiền tố và tiền vẫn biến mất y như cũ.
+
+		   ⚠️ Lời giải thích để NGOÀI chuỗi SQL: nhét khối chú thích vào giữa danh sách cột thì
+		      dbDelta không đọc nổi, và dấu nháy kép trong đó còn làm hỏng luôn chuỗi PHP.
+		      (Viết chính câu này cũng vừa dính bẫy: một dấu đóng chú thích nằm lọt trong lời
+		      giải thích là nó tự đóng khối sớm, và PHP báo lỗi ở một dòng chẳng liên quan.) */
 		$b['nhip'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_may VARCHAR(40) NOT NULL,
@@ -156,7 +169,8 @@ class VHG_DB {
 			nguon VARCHAR(20) NOT NULL DEFAULT '',
 			con_lai INT NOT NULL DEFAULT 0,
 			ip VARCHAR(60) NOT NULL DEFAULT '',
-			fw VARCHAR(40) NOT NULL DEFAULT '',
+			fw VARCHAR(80) NOT NULL DEFAULT '',
+			nd_tien_to VARCHAR(20) NOT NULL DEFAULT '',
 			luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_may (ma_may),
