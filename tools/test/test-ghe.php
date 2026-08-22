@@ -521,6 +521,131 @@ $i_kpi = strpos( $ad, 'Tổng doanh thu' );
 t( 'cảnh báo ghế mất nhịp nằm TRƯỚC bảng số liệu', $i_dut !== false && $i_kpi !== false && $i_dut < $i_kpi );
 t( 'màn nói rõ bật tay là cho không một lượt', stripos( $ad, 'cho không một lượt' ) !== false );
 
+// ====================================== GÓI THỬ CỦA SEPAY KHÔNG PHẢI TIỀN
+/* 🔴 Ngày 22/08/2026 anh Thắng bấm nút "Gửi thử" trên trang SePay để kiểm webhook. Gói thử đó
+      có `transferAmount` hẳn hoi nên nó đẻ ra một dòng doanh thu 10.000đ KHÔNG HỀ TỒN TẠI. Ai
+      bấm thử lại là thêm một dòng nữa — mỗi dòng là một lần sổ lệch với sao kê ngân hàng. */
+vhg_dung_bang();
+list( $ma_t, $than_t ) = vhg_ban( array(
+	'gateway' => 'BIDV', 'transferAmount' => 10000, 'transferType' => 'in',
+	'content' => 'SEPAY TEST WEBHOOK', 'referenceCode' => 'thu-nghiem-1' ) );
+teq( 'gói thử vẫn được nhận 200 (bên gửi không tắt webhook)', 200, $ma_t );
+teq( 'nhưng KHÔNG vào sổ tiền', 0, VHG_Thu::tong_hop( 'all' )['tong'] );
+teq( 'và KHÔNG đẻ ra giao dịch nào', 0, count( VHG_Thu::ds( 'all' ) ) );
+$lg_t = VHG_Nhat_Ky::ds( 5 );
+t( 'vẫn ghi nhật ký — đó chính là thứ nút Gửi thử dùng để kiểm', count( $lg_t ) > 0 );
+t( 'và nói rõ vì sao không vào sổ',
+	false !== stripos( (string) $lg_t[0]['ghi_chu'], 'THỬ' ), $lg_t[0]['ghi_chu'] );
+
+/* ⚠️ ĐỪNG BẮT NHẦM TIỀN THẬT. Khách chuyển khoản mà nội dung có chứa cụm đó là TIỀN THẬT — bắt
+      theo `strpos` là mất tiền thật, tệ hơn hẳn cái nó chữa. */
+vhg_dung_bang();
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'TT SEPAY TEST WEBHOOK 20K', 'referenceCode' => 'that-1' ) );
+teq( 'nội dung CHỨA cụm đó nhưng là tiền thật -> vẫn vào sổ', 20000, VHG_Thu::tong_hop( 'all' )['tong'] );
+vhg_dung_bang();
+vhg_ban( array( 'transferAmount' => 30000, 'transferType' => 'in',
+	'content' => '  sepay test webhook  ', 'referenceCode' => 'thu-nghiem-2' ) );
+teq( 'đúng nguyên văn (thường/hoa, thừa khoảng trắng) -> vẫn chặn', 0, VHG_Thu::tong_hop( 'all' )['tong'] );
+
+// ====================================== GIỜ LẤY THEO BÊN GỬI, KHÔNG THEO MÁY CHỦ
+/* 🔴 SePay ghi 20:08:26, website ghi 13:08:29 — lệch đúng 7 tiếng vì WordPress mặc định chạy
+      giờ UTC. Đối soát với sao kê thành mò kim, và mốc "Hôm nay" cắt sai ngày. */
+vhg_dung_bang();
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 TEST1', 'referenceCode' => 'gio-1',
+	'transactionDate' => '2026-08-22 20:08:26' ) );
+$g1 = VHG_Thu::ds( 'all' );
+teq( 'ghi ĐÚNG giờ bên gửi, không phải giờ máy chủ', '2026-08-22 20:08:26', $g1[0]['luc'] );
+
+vhg_dung_bang();
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 TEST2', 'referenceCode' => 'gio-2',
+	'transactionDate' => '22/08/2026 20:08' ) );
+teq( 'đọc được cả kiểu ngày dd/mm/yyyy', '2026-08-22 20:08:00', VHG_Thu::ds( 'all' )[0]['luc'] );
+
+vhg_dung_bang();
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 TEST3', 'referenceCode' => 'gio-3' ) );
+t( 'bên gửi không kèm giờ thì mới lấy giờ máy chủ',
+	'' !== (string) VHG_Thu::ds( 'all' )[0]['luc'] );
+vhg_dung_bang();
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 TEST4', 'referenceCode' => 'gio-4',
+	'transactionDate' => 'ba la bla' ) );
+t( 'giờ rác thì bỏ qua, KHÔNG ghi ngày 0000-00-00',
+	strpos( (string) VHG_Thu::ds( 'all' )[0]['luc'], '0000' ) === false,
+	VHG_Thu::ds( 'all' )[0]['luc'] );
+
+// ====================================== HUỶ GIAO DỊCH: ĐÁNH DẤU, KHÔNG XOÁ
+vhg_dung_bang();
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '888815678', 'ten_tk' => 'K&H', 'bank_bin' => '970418', 'ten_khai' => 'AMTP 01' ) );
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 K7M2P', 'referenceCode' => 'huy-1' ) );
+teq( 'trước khi huỷ: có trong doanh thu', 20000, VHG_Thu::tong_hop( 'all' )['tong'] );
+teq( 'và ghế có một lượt chờ chạy', 1, VHG_May::so_cho( 'AMTP01' ) );
+
+$rh = VHG_Thu::huy( 'huy-1', 'ghi nhầm' );
+t( 'huỷ được', ! empty( $rh['ok'] ), $rh );
+teq( 'huỷ xong KHÔNG còn cộng vào doanh thu', 0, VHG_Thu::tong_hop( 'all' )['tong'] );
+teq( 'và không còn trong danh sách giao dịch', 0, count( VHG_Thu::ds( 'all' ) ) );
+teq( '🔴 gỡ luôn lượt CHƯA CHẠY — huỷ tiền mà ghế vẫn chạy là cho không một lượt',
+	0, VHG_May::so_cho( 'AMTP01' ) );
+
+/* 🔴 LUẬT QUAN TRỌNG NHẤT CỦA PHÉP HUỶ: dòng vẫn còn trong bảng, vì `ref` UNIQUE là thứ DUY
+      NHẤT chặn cộng đôi. Xoá dòng đi thì đúng giao dịch ấy bắn lại là vào sổ như khoản mới —
+      phép "sửa sổ" tự mở lại đúng cái lỗ nó vừa vá. */
+$dh = VHG_Thu::ds_huy();
+teq( 'dòng vẫn nằm trong cơ sở dữ liệu', 1, count( $dh ) );
+teq( 'kèm lý do huỷ', 'ghi nhầm', $dh[0]['huy_ly_do'] );
+teq( 'và giữ nguyên số tiền để còn đối soát', 20000, (int) $dh[0]['so_tien'] );
+
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 K7M2P', 'referenceCode' => 'huy-1' ) );
+teq( '🔴 bắn lại đúng giao dịch đã huỷ: KHÔNG sống lại thành khoản mới',
+	0, VHG_Thu::tong_hop( 'all' )['tong'] );
+teq( 'vẫn đúng một dòng, không đẻ thêm', 1, count( VHG_Thu::ds_huy() ) );
+
+$rb = VHG_Thu::bo_huy( 'huy-1' );
+t( 'bỏ huỷ được — huỷ nhầm phải lùi được', ! empty( $rb['ok'] ), $rb );
+teq( 'bỏ huỷ xong tiền trở lại sổ', 20000, VHG_Thu::tong_hop( 'all' )['tong'] );
+teq( 'và không còn trong danh sách đã huỷ', 0, count( VHG_Thu::ds_huy() ) );
+
+t( 'huỷ mã không có thì báo lỗi, không im lặng',
+	empty( VHG_Thu::huy( 'khong-co-ma-nay' )['ok'] ) );
+t( 'huỷ hai lần không hỏng', ! empty( VHG_Thu::huy( 'huy-1' )['ok'] )
+	&& ! empty( VHG_Thu::huy( 'huy-1' )['ok'] ) );
+teq( 'huỷ hai lần vẫn chỉ một dòng', 1, count( VHG_Thu::ds_huy() ) );
+
+/* Lượt ghế ĐÃ NHẬN thì đừng gỡ — ghế chạy rồi, xoá dấu vết đi là sổ nói dối. */
+vhg_dung_bang();
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 10000, 'phut' => 6,
+	'so_tk' => '888815678', 'ten_tk' => 'K&H', 'bank_bin' => '970418', 'ten_khai' => '' ) );
+vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 DACHAY', 'referenceCode' => 'huy-2' ) );
+VHG_May::lay_luot( 'AMTP01' );          // ghế nhận và chạy
+VHG_Thu::huy( 'huy-2', 'thử' );
+teq( 'lượt ghế ĐÃ CHẠY vẫn nằm trong sổ lượt', 1, count( VHG_May::ds_cho( false ) ) );
+
+// ====================================== MÀN ĐỐI SOÁT DỰNG ĐƯỢC, VÀ KÊU KHI SAI MÚI GIỜ
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$GLOBALS['VHCP_OPT']['timezone_string'] = 'UTC';
+$_GET = array( 'ky' => 'all' );
+ob_start(); VHG_Admin::trang_thu(); $h_ds = ob_get_clean();
+t( 'màn đối soát dựng được', strpos( $h_ds, 'Đối soát doanh thu' ) !== false );
+t( '🔴 múi giờ UTC thì PHẢI kêu — lệch 7 tiếng so với sao kê',
+	strpos( $h_ds, 'không phải giờ Việt Nam' ) !== false, $h_ds );
+t( 'và chỉ đúng chỗ sửa', strpos( $h_ds, 'Ho Chi Minh' ) !== false );
+t( 'có nút huỷ từng giao dịch', strpos( $h_ds, 'huy_gd' ) !== false );
+
+$GLOBALS['VHCP_OPT']['timezone_string'] = 'Asia/Ho_Chi_Minh';
+ob_start(); VHG_Admin::trang_thu(); $h_ds2 = ob_get_clean();
+t( '⚠️ đúng giờ Việt Nam thì IM — cảnh báo kêu oan là người ta học cách bỏ qua nó',
+	strpos( $h_ds2, 'không phải giờ Việt Nam' ) === false );
+unset( $GLOBALS['VHCP_OPT']['timezone_string'] );
+$_GET = array();
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

@@ -83,7 +83,13 @@ class VHG_DB {
 		   máy sau bằng bản đồ máy (bảng `ban_do`).
 
 		   `ten_khai` giữ NGUYÊN VĂN tên máy đọc được từ nội dung/cột của bên gửi, chưa chuẩn hoá
-		   — để còn đối chiếu khi bản đồ máy sai. */
+		   — để còn đối chiếu khi bản đồ máy sai.
+
+		   🔴 `huy` — ĐÁNH DẤU, KHÔNG XOÁ. Ghi nhầm thì phải gỡ được khỏi báo cáo, nhưng gỡ bằng
+		   DELETE là hỏng cả hai đường: (1) mất chỗ duy nhất trả lời "sao hôm đó lệch 10.000đ",
+		   (2) `ref` là UNIQUE và cũng là thứ chặn cộng đôi — xoá dòng đi thì đúng giao dịch đó
+		   bắn lại lần sau lại vào sổ như mới. Đánh dấu thì `ref` còn nguyên, chặn vẫn còn, và
+		   dòng vẫn nằm đó cho người đối soát nhìn thấy kèm lý do. */
 		$b['thu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ref VARCHAR(120) NOT NULL,
@@ -97,9 +103,12 @@ class VHG_DB {
 			vvb VARCHAR(60) NOT NULL DEFAULT '',
 			ma_ch VARCHAR(60) NOT NULL DEFAULT '',
 			ghi_luc DATETIME NULL,
+			huy TINYINT(1) NOT NULL DEFAULT 0,
+			huy_ly_do VARCHAR(190) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ref (ref),
 			KEY luc (luc),
+			KEY huy (huy,luc),
 			KEY may (ma_may,luc),
 			KEY nguon (nguon,luc)";
 

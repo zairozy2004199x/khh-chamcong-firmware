@@ -82,6 +82,13 @@ class VHG_Doc {
 		$ten = (string) self::lay( $nhanh, array( 'storeName', 'shopName', 'merchantName',
 			'tenCuaHang', 'tenCH', 'store', 'terminal', 'terminalName', 'posName', 'maCuaHang' ) );
 		$huong = strtolower( (string) self::lay( $nhanh, array( 'transferType', 'type', 'direction' ) ) );
+		/* GIỜ CỦA BÊN GỬI. SePay gửi `transactionDate` ("2026-08-22 20:08:26" — giờ Việt Nam).
+		   Lấy được thì dùng, vì đó là giờ trên sao kê ngân hàng, tức giờ người ta đối soát. Giờ
+		   máy chủ chỉ là phương án cuối: WordPress mặc định chạy múi giờ UTC, lệch 7 tiếng so
+		   với sao kê, và không ai nhìn ra điều đó cho tới lúc phải khớp từng dòng. */
+		$luc = VHG_Doc::ngay( (string) self::lay( $nhanh, array( 'transactionDate', 'transaction_date',
+			'transTime', 'transactionTime', 'when', 'payDate', 'paidAt', 'createdAt', 'created_at',
+			'thoiGian', 'ngayGiaoDich' ) ) );
 
 		/* Gói RỖNG HẲN thì đừng đẻ ra một giao dịch 0 đồng.
 		   ⚠️ Bản Apps Script luôn `push` ở nhánh này, nên MỌI request lạ (bot dò đường, lượt kiểm
@@ -94,6 +101,7 @@ class VHG_Doc {
 			'noi_dung' => $nd,
 			'ref'      => $ref,
 			'ten_khai' => $ten,
+			'luc'      => $luc,
 			'tien_ra'  => ( 'out' === $huong || 'debit' === $huong || $tien < 0 ),
 		);
 		return $ra;

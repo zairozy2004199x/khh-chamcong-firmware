@@ -404,3 +404,17 @@ function vhd_test_boot( $dir ) {
 		require_once $dir . '/includes/class-vhd-' . $c . '.php';
 	}
 }
+
+/* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này
+   để phép thử dựng được cả hai ca: đúng giờ Việt Nam, và ca UTC mà máy chủ mới cài hay dính. */
+function wp_timezone() {
+	$s = get_option( 'timezone_string' );
+	if ( is_string( $s ) && '' !== $s ) { return new DateTimeZone( $s ); }
+	$o = (float) get_option( 'gmt_offset', 0 );
+	$dau = $o < 0 ? '-' : '+';
+	$o = abs( $o );
+	return new DateTimeZone( sprintf( '%s%02d:%02d', $dau, (int) $o, (int) round( ( $o - (int) $o ) * 60 ) ) );
+}
+if ( ! function_exists( 'sanitize_key' ) ) {
+	function sanitize_key( $k ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $k ) ); }
+}

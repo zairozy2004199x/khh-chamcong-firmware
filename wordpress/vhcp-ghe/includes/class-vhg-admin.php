@@ -94,11 +94,16 @@ class VHG_Admin {
 					isset( $_POST['ly_do'] ) ? wp_unslash( $_POST['ly_do'] ) : '' );
 			} elseif ( 'tat' === $viec ) {
 				$bao[] = VHG_May::dat_lenh( wp_unslash( $_POST['ma_may'] ), 'off', 0, $nguoi, '' );
+			} elseif ( 'huy_gd' === $viec ) {
+				$bao[] = VHG_Thu::huy( wp_unslash( $_POST['ref'] ), 'gỡ tay bởi ' . $nguoi );
+			} elseif ( 'bo_huy_gd' === $viec ) {
+				$bao[] = VHG_Thu::bo_huy( wp_unslash( $_POST['ref'] ) );
 			}
 		}
 
 		echo '<div class="wrap"><h1>Đối soát doanh thu ghế massage</h1>';
 		self::ve_bao( $bao );
+		self::canh_bao_mui_gio();
 		$ky = self::chon_ky( 'vhg' );
 		$t = VHG_Thu::tong_hop( $ky );
 
@@ -210,18 +215,76 @@ class VHG_Admin {
 
 		/* ---- Giao dịch gần đây ---- */
 		echo '<h2>Giao dịch gần đây</h2><table class="widefat striped"><thead><tr><th>Thời gian</th>'
-			. '<th>Máy</th><th>Nguồn</th><th>Số tiền</th><th>Nội dung</th><th>Mã tham chiếu</th></tr></thead><tbody>';
+			. '<th>Máy</th><th>Nguồn</th><th>Số tiền</th><th>Nội dung</th><th>Mã tham chiếu</th>'
+			. '<th></th></tr></thead><tbody>';
 		$ds = VHG_Thu::ds( $ky, 100 );
-		if ( ! $ds ) { echo '<tr><td colspan="6"><em>Chưa có giao dịch kỳ này.</em></td></tr>'; }
+		if ( ! $ds ) { echo '<tr><td colspan="7"><em>Chưa có giao dịch kỳ này.</em></td></tr>'; }
 		foreach ( $ds as $r ) {
 			$ten = '' !== $r['ma_may'] ? $r['ma_may'] : ( '' !== $r['ten_khai'] ? $r['ten_khai'] : '—' );
 			echo '<tr><td>' . esc_html( $r['luc'] ) . '</td><td>' . esc_html( $ten ) . '</td>'
 				. '<td>' . esc_html( VHG_Thu::TIEN_MAT === $r['nguon'] ? 'Tiền mặt' : strtoupper( $r['nguon'] ) )
 				. '</td><td>' . esc_html( self::tien( $r['so_tien'] ) ) . '</td>'
 				. '<td>' . esc_html( $r['noi_dung'] ) . '</td>'
-				. '<td><code>' . esc_html( $r['ref'] ) . '</code></td></tr>';
+				. '<td><code>' . esc_html( $r['ref'] ) . '</code></td>'
+				. '<td><form method="post" onsubmit="return confirm(\'Gỡ giao dịch này khỏi báo cáo? '
+				. 'Dòng vẫn được giữ lại, bỏ huỷ được.\')">'
+				. wp_nonce_field( 'vhg', '_wpnonce', true, false )
+				. '<input type="hidden" name="ref" value="' . esc_attr( $r['ref'] ) . '" />'
+				. '<button class="button button-small" name="vhg" value="huy_gd">Huỷ</button>'
+				. '</form></td></tr>';
 		}
-		echo '</tbody></table></div>';
+		echo '</tbody></table>';
+
+		/* ---- Đã huỷ: có huỷ thì phải xem lại được, không thì huỷ thành mất tăm ---- */
+		$dh = VHG_Thu::ds_huy( 100 );
+		if ( $dh ) {
+			echo '<h2>Đã gỡ khỏi báo cáo (' . count( $dh ) . ')</h2>';
+			echo '<p><em>Những dòng này KHÔNG cộng vào doanh thu, nhưng vẫn nằm trong cơ sở dữ liệu — '
+				. 'vừa để trả lời câu "sao hôm đó lệch", vừa để cùng giao dịch ấy bắn lại lần nữa không '
+				. 'vào sổ như một khoản mới.</em></p>';
+			echo '<table class="widefat striped"><thead><tr><th>Thời gian</th><th>Số tiền</th>'
+				. '<th>Nội dung</th><th>Lý do</th><th>Mã tham chiếu</th><th></th></tr></thead><tbody>';
+			foreach ( $dh as $r ) {
+				echo '<tr><td>' . esc_html( $r['luc'] ) . '</td>'
+					. '<td>' . esc_html( self::tien( $r['so_tien'] ) ) . '</td>'
+					. '<td>' . esc_html( $r['noi_dung'] ) . '</td>'
+					. '<td>' . esc_html( $r['huy_ly_do'] ) . '</td>'
+					. '<td><code>' . esc_html( $r['ref'] ) . '</code></td>'
+					. '<td><form method="post">'
+					. wp_nonce_field( 'vhg', '_wpnonce', true, false )
+					. '<input type="hidden" name="ref" value="' . esc_attr( $r['ref'] ) . '" />'
+					. '<button class="button button-small" name="vhg" value="bo_huy_gd">Đưa lại vào sổ</button>'
+					. '</form></td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+		echo '</div>';
+	}
+
+	/**
+	 * MÚI GIỜ CỦA WEBSITE PHẢI LÀ GIỜ VIỆT NAM.
+	 *
+	 * 🔴 Ngày 22/08/2026: SePay ghi giao dịch lúc 20:08:26, website ghi 13:08:29 — lệch đúng 7
+	 *    tiếng, vì WordPress mới cài mặc định chạy giờ UTC. Hai hậu quả:
+	 *      · Đối soát với sao kê ngân hàng thành mò kim: cùng một giao dịch, hai giờ khác nhau.
+	 *      · Báo cáo "Hôm nay" cắt sai ngày. Lượt lúc 0h–7h sáng rơi về ngày HÔM TRƯỚC, nên chốt
+	 *        ca đêm ra số khác chốt sổ ngân hàng, mà không có gì trên màn hình nói vì sao.
+	 *
+	 * Từ bản này giao dịch qua webhook ưu tiên lấy giờ của BÊN GỬI, nên phần lớn đã đúng dù máy
+	 * chủ sai. Nhưng tiền mặt và giao dịch không kèm giờ vẫn lấy giờ máy chủ — nên vẫn phải sửa,
+	 * và màn hình phải nói ra chứ không để người dùng tự phát hiện bằng cách so từng dòng.
+	 */
+	private static function canh_bao_mui_gio() {
+		$lech = (int) ( wp_timezone()->getOffset( new DateTime( 'now', new DateTimeZone( 'UTC' ) ) ) );
+		if ( 7 * 3600 === $lech ) { return; }
+		$gio = round( $lech / 3600, 1 );
+		echo '<div class="notice notice-warning"><p><b>Múi giờ của website đang là UTC'
+			. esc_html( ( $gio >= 0 ? '+' : '' ) . $gio ) . ', không phải giờ Việt Nam (UTC+7).</b> '
+			. 'Giao dịch tiền mặt và mọi mốc "Hôm nay / Tuần này" sẽ lệch '
+			. esc_html( (string) abs( 7 - $gio ) ) . ' tiếng so với sao kê ngân hàng.</p>'
+			. '<p>Sửa ở <a href="' . esc_url( admin_url( 'options-general.php' ) ) . '">Settings → General → '
+			. 'Timezone</a>, chọn <code>Ho Chi Minh</code>. Sửa xong thì các dòng CŨ vẫn giữ giờ cũ — '
+			. 'chỉ dòng mới mới đúng.</p></div>';
 	}
 
 	// ======================================================================= 2. MÁY & CƠ SỞ

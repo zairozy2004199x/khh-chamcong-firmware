@@ -100,6 +100,23 @@ class VHG_Thu {
 		$ten  = VHG_Doc::ten_may( $nd );
 		if ( '' === $ten && ! empty( $ev['ten_khai'] ) ) { $ten = VHG_Doc::chuan_ten( $ev['ten_khai'] ); }
 
+		/* 🔴 GÓI THỬ CỦA SEPAY KHÔNG PHẢI TIỀN.
+		 *
+		 * Nút "Gửi thử" trên trang SePay bắn một gói y như thật, có `transferAmount` hẳn hoi —
+		 * ngày 22/08/2026 nó đẻ ra một dòng doanh thu 10.000đ không hề tồn tại. Ai bấm thử lại
+		 * là thêm một dòng nữa, mà mỗi dòng là một lần sổ sách lệch với sao kê ngân hàng.
+		 *
+		 * Vẫn GHI NHẬT KÝ như mọi lượt khác — người khai webhook cần thấy gói thử đã tới nơi,
+		 * đó chính là mục đích của nút Gửi thử. Chỉ không vào sổ tiền.
+		 *
+		 * ⚠️ Nhận diện bằng nội dung ĐÚNG NGUYÊN VĂN, không dùng `strpos`. Khách chuyển khoản
+		 *    ghi "TT SEPAY TEST WEBHOOK 20K" là tiền thật — khớp một phần rồi bỏ qua là MẤT
+		 *    TIỀN THẬT, tệ hơn hẳn cái nó chữa. */
+		if ( 'SEPAY TEST WEBHOOK' === strtoupper( trim( $nd ) ) ) {
+			return array( 'ok' => true, 'bo_qua' => true, 'ten_khai' => '',
+				'ghi_chu' => 'gói THỬ của SePay — cổng nhận được, nhưng KHÔNG ghi vào sổ tiền' );
+		}
+
 		if ( ! empty( $ev['tien_ra'] ) || $tien <= 0 ) {
 			return array( 'ok' => true, 'bo_qua' => true,
 				'ghi_chu' => ! empty( $ev['tien_ra'] ) ? 'tiền ra — không phải doanh thu' : 'số tiền = 0',
@@ -110,6 +127,10 @@ class VHG_Thu {
 		$kq = self::ghi( array(
 			'ref' => $ev['ref'], 'so_tien' => $tien, 'noi_dung' => $nd, 'nguon' => $nguon,
 			'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh, 'ten_khai' => $ten,
+			/* Giờ của BÊN GỬI, không phải giờ máy chủ. Máy chủ đặt sai múi giờ là mọi giao dịch
+			   lệch đúng bằng chênh lệch đó, và đối soát với sao kê ngân hàng thành mò kim. Bên
+			   gửi không kèm giờ thì `ghi()` mới lấy giờ máy chủ. */
+			'luc' => isset( $ev['luc'] ) ? $ev['luc'] : '',
 		) );
 		if ( empty( $kq['ok'] ) ) { return $kq; }
 
@@ -120,6 +141,62 @@ class VHG_Thu {
 		}
 		return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
 			'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh, 'ten_khai' => $ten, 'so_tien' => $tien );
+	}
+
+	/**
+	 * HUỶ một giao dịch đã ghi — ĐÁNH DẤU, KHÔNG XOÁ.
+	 *
+	 * 🔴 Vì sao không DELETE, dù DELETE ngắn hơn ba dòng:
+	 *    1. `ref` là UNIQUE, và đó là thứ DUY NHẤT chặn cộng đôi. Xoá dòng đi thì đúng giao dịch
+	 *       ấy bắn lại (webhook thử lại, hoặc nhập lại file Excel) sẽ vào sổ như một khoản mới.
+	 *       Nghĩa là phép "sửa sổ" tự mở lại đúng cái lỗ nó vừa vá.
+	 *    2. Mất chỗ duy nhất trả lời câu "sao hôm đó lệch 10.000đ". Dòng còn nằm đó kèm lý do
+	 *       thì người đối soát đọc một cái là xong.
+	 *
+	 * Gỡ luôn lượt CHƯA CHẠY trong hàng chờ: huỷ tiền mà vẫn để ghế chạy là cho không một lượt.
+	 * Lượt ghế ĐÃ NHẬN thì để nguyên — ghế chạy rồi, xoá dấu vết đi là sổ nói dối.
+	 */
+	public static function huy( $ref, $ly_do = '' ) {
+		global $wpdb;
+		$ref = trim( (string) $ref );
+		if ( '' === $ref ) { return array( 'ok' => false, 'error' => 'Thiếu mã tham chiếu.' ); }
+		$bang = VHG_DB::t( 'thu' );
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE ref=%s LIMIT 1", $ref ), ARRAY_A );
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không thấy giao dịch ' . $ref . '.' ); }
+		if ( (int) $r['huy'] === 1 ) {
+			return array( 'ok' => true, 'thong_bao' => 'Giao dịch này đã huỷ từ trước.' );
+		}
+		$wpdb->update( $bang, array( 'huy' => 1,
+			'huy_ly_do' => mb_substr( (string) $ly_do, 0, 190 ) ), array( 'id' => (int) $r['id'] ) );
+
+		$go = $wpdb->query( $wpdb->prepare(
+			'DELETE FROM ' . VHG_DB::t( 'cho' ) . ' WHERE ref=%s AND nhan_luc IS NULL', $ref ) );
+
+		return array( 'ok' => true, 'so_tien' => (int) $r['so_tien'], 'go_cho' => (int) $go,
+			'thong_bao' => 'Đã huỷ giao dịch ' . self::tien_ngan( $r['so_tien'] ) . ' (' . $ref . ')'
+				. ( $go > 0 ? ' và gỡ ' . (int) $go . ' lượt chưa chạy khỏi hàng chờ.' : '.' ) );
+	}
+
+	/** Bỏ huỷ — huỷ nhầm thì phải lùi được, không thì người ta ngại bấm và để rác trong sổ. */
+	public static function bo_huy( $ref ) {
+		global $wpdb;
+		$ref = trim( (string) $ref );
+		if ( '' === $ref ) { return array( 'ok' => false, 'error' => 'Thiếu mã tham chiếu.' ); }
+		$n = $wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'thu' )
+			. " SET huy=0, huy_ly_do='' WHERE ref=%s", $ref ) );
+		return $n
+			? array( 'ok' => true, 'thong_bao' => 'Đã đưa giao dịch ' . $ref . ' trở lại sổ.' )
+			: array( 'ok' => false, 'error' => 'Không thấy giao dịch ' . $ref . '.' );
+	}
+
+	/** Danh sách giao dịch ĐÃ HUỶ — có huỷ thì phải xem lại được, không thì huỷ thành mất tăm. */
+	public static function ds_huy( $gioi_han = 200 ) {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'thu' )
+			. ' WHERE huy=1 ORDER BY luc DESC, id DESC LIMIT ' . (int) $gioi_han );
+	}
+
+	private static function tien_ngan( $v ) {
+		return number_format( (float) $v, 0, ',', '.' ) . 'đ';
 	}
 
 	/** Thu tiền mặt tại quầy — người bấm trên màn, không qua ngân hàng. */
@@ -161,8 +238,11 @@ class VHG_Thu {
 	public static function ds( $ky = 'today', $gioi_han = 500 ) {
 		global $wpdb;
 		$tu = self::dau_ky( $ky );
-		$sql = 'SELECT * FROM ' . VHG_DB::t( 'thu' );
-		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' WHERE luc >= %s', $tu ); }
+		/* `huy=0` LỌC Ở ĐÂY, không ở từng nơi gọi. `ds()` là cửa duy nhất mọi báo cáo đi qua
+		   (`tong_hop` gọi lại chính nó), nên lọc một chỗ là cả hệ thống theo. Lọc rải rác từng
+		   nơi thì thêm một màn mới là quên một chỗ, và chỗ quên đó cộng tiền đã huỷ vào doanh thu. */
+		$sql = 'SELECT * FROM ' . VHG_DB::t( 'thu' ) . ' WHERE huy=0';
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND luc >= %s', $tu ); }
 		$sql .= ' ORDER BY luc DESC, id DESC LIMIT ' . (int) $gioi_han;
 		return VHG_DB::rows( $sql );
 	}
