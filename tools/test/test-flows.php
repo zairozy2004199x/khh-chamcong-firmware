@@ -2236,6 +2236,51 @@ foreach ( VHCP_Cfg::get_config()['loaiChiPhi'] as $x ) { $ten_sau[] = $x['ten'];
 t( 'loại rác đã đi', ! in_array( 'Cấp Mạng VNPT', $ten_sau, true ) );
 t( 'loại đã khai mã thì GIỮ LẠI', in_array( 'Nhân Công', $ten_sau, true ) );
 
+// ================== HƯỚNG DẪN CÀI PHẢI KHỚP MÃ (anh Thắng cài chi phí trước, 22/08/2026)
+/* Hướng dẫn viết một đằng mã chạy một nẻo là kiểu sai tệ nhất: người làm theo đúng từng chữ mà
+   vẫn hỏng, rồi đi tìm lỗi ở chỗ không có lỗi. Mấy giá trị dưới đây là thứ người dùng GÕ THEO
+   hướng dẫn, nên phải khoá lại. */
+$goc_hd = dirname( dirname( __DIR__ ) ) . '/khh-chamcong-firmware';
+if ( ! is_dir( $goc_hd ) ) { $goc_hd = dirname( dirname( __DIR__ ) ); }
+$hd_cp   = file_get_contents( $goc_hd . '/docs/CAI-CHI-PHI.md' );
+/* ⚠️ So cụm chữ trong tài liệu thì phải GỘP KHOẢNG TRẮNG trước: văn bản Markdown xuống dòng
+   giữa câu, nên "…có đường\nliên kết…" không khớp với cùng câu đó viết liền. Bản đầu so thẳng
+   và trượt oan — tài liệu đúng, phép so mới sai. */
+$hd_cp_1dong = preg_replace( '/\s+/u', ' ', $hd_cp );
+$ma_app  = file_get_contents( $goc_hd . '/wordpress/vhcp-chi-phi/includes/class-vhcp-app.php' );
+$ma_ad   = file_get_contents( $goc_hd . '/wordpress/vhcp-chi-phi/includes/class-vhcp-admin.php' );
+$ma_sh   = file_get_contents( $goc_hd . '/wordpress/vhcp-chi-phi/includes/class-vhcp-sheet.php' );
+
+t( 'có hướng dẫn cài riêng cho app chi phí', strlen( $hd_cp ) > 1500 );
+t( 'đường dẫn mặc định trong hướng dẫn khớp mã (chi-phi)',
+	strpos( $hd_cp_1dong, '`chi-phi`' ) !== false && strpos( $ma_app, "'chi-phi'" ) !== false );
+t( 'múi giờ mặc định trong hướng dẫn khớp mã (Asia/Bangkok)',
+	strpos( $hd_cp_1dong, 'Asia/Bangkok' ) !== false && strpos( $ma_ad, "'Asia/Bangkok'" ) !== false );
+t( 'hướng dẫn dặn chia sẻ bảng tính đúng câu plugin sẽ báo',
+	strpos( $hd_cp_1dong, 'Bất kỳ ai có đường liên kết' ) !== false
+	&& strpos( $ma_sh, 'Bất kỳ ai có đường liên kết' ) !== false );
+/* 🔴 App này KHÔNG cần hằng nào trong wp-config.php — khác hẳn app chấm công. Nói sai chỗ này
+   là anh Thắng đi thêm hai bước thừa, hoặc tệ hơn: tưởng thiếu khoá nên đi tìm khoá. */
+$hang_cp = array();
+foreach ( glob( $goc_hd . '/wordpress/vhcp-chi-phi/includes/*.php' ) as $f_cp ) {
+	if ( preg_match_all( "/defined\(\s*'(VHCP_[A-Z_]+)'/", file_get_contents( $f_cp ), $m_cp ) ) {
+		foreach ( $m_cp[1] as $h_cp ) {
+			if ( ! in_array( $h_cp, array( 'VHCP_DIR', 'VHCP_URL', 'VHCP_VERSION', 'VHCP_FILE' ), true ) ) {
+				$hang_cp[] = $h_cp;
+			}
+		}
+	}
+}
+t( 'app chi phí không đòi hằng nào trong wp-config.php — đúng như hướng dẫn nói',
+	count( $hang_cp ) === 0, implode( ', ', array_unique( $hang_cp ) ) );
+t( 'và hướng dẫn nói rõ điều đó',
+	strpos( $hd_cp_1dong, 'KHÔNG cần khoá nào trong `wp-config.php`' ) !== false );
+/* Bộ nạp khớp theo TÊN CỘT, không theo thứ tự — hướng dẫn nói vậy thì mã phải vậy. */
+t( 'bộ nạp khớp theo tên cột (không theo thứ tự), đúng như hướng dẫn',
+	strpos( $hd_cp_1dong, 'khớp theo TÊN CỘT' ) !== false
+	&& strpos( file_get_contents( $goc_hd . '/wordpress/vhcp-chi-phi/includes/class-vhcp-nap.php' ),
+		'NẠP THEO TÊN TIÊU ĐỀ' ) !== false );
+
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {
 	echo 'HỎNG: ' . count( $GLOBALS['T_NG'] ) . "\n";
