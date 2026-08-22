@@ -810,6 +810,13 @@ $html = vhg_web_html();
 t( 'dựng được trang', strpos( $html, '<!doctype html>' ) === 0 );
 t( 'có ô PIN', strpos( $html, 'id="pin"' ) !== false );
 t( 'hợp với điện thoại', strpos( $html, 'width=device-width' ) !== false );
+/* Và hợp với MÀN MÁY TÍNH. Bản đầu bó vào một cột giữa, hai bên bỏ trống hơn nửa màn — mà
+   người ngồi văn phòng đối soát cuối ngày lại dùng đúng màn đó. */
+t( 'có bố cục riêng cho màn rộng', strpos( $html, '@media(min-width:1100px)' ) !== false );
+t( 'hai bảng tổng hợp nằm cạnh nhau trên màn rộng',
+	strpos( $html, '.doi{display:grid' ) !== false && strpos( $html, '<div class="doi">' ) !== false );
+t( 'nhưng trên điện thoại vẫn xếp dọc như cũ',
+	strpos( $html, '@media(max-width:560px)' ) !== false );
 /* 🔴 Trang tự chứa: cả hệ thống ghế đã rời hẳn Google, đi vòng qua Apps Script là dựng lại đúng
       cái phụ thuộc vừa gỡ. Không gọi ra ngoài lượt nào. */
 foreach ( array( 'script.google.com', 'firebaseio', 'googleapis', 'cdn.', 'unpkg', 'jsdelivr' ) as $ngoai ) {
@@ -1004,9 +1011,32 @@ VHG_May::luu_menh_gia( array(
 	array( 'tien' => 50000,  'ten' => 'Gói cơ bản',   'phut' => 0 ),
 	array( 'tien' => 100000, 'ten' => 'Gói phổ biến', 'phut' => 0 ) ) );
 $cg = VHG_May::menh_gia_cho_ghe( 50000, 15 );
-teq( 'gói cho ghế: khoá ngắn t/n/p', array( 't', 'n', 'p' ), array_keys( $cg[0] ) );
+/* Khoá MỘT CHỮ vì gói nhịp đi qua 4G và ghế giải mã trong bộ đệm cố định — tên khoá dài là
+   tốn đúng chỗ mà một cái tên gói cần. */
+teq( 'gói cho ghế: khoá ngắn t/n/p/m/v', array( 't', 'n', 'p', 'm', 'v' ), array_keys( $cg[0] ) );
 teq( 'tên đã bỏ dấu', 'GOI PHO BIEN', $cg[1]['n'] );
 teq( 'phút đã tính sẵn — ghế khỏi tính lại và khỏi lệch với cái nó hiện', 30, $cg[1]['p'] );
+
+// ---- mô tả và nhãn VVIP, theo đúng tấm bảng giá anh Thắng thiết kế
+delete_option( 'vhg_menh_gia' );
+$mac_dinh = VHG_May::menh_gia();
+teq( 'gói mặc định có mô tả', 'Sâu & phục hồi', $mac_dinh[1]['mo_ta'] );
+teq( 'và gói đắt nhất được đánh dấu VVIP', 1, $mac_dinh[3]['vip'] );
+teq( 'ba gói còn lại thì không', array( 0, 0, 0 ),
+	array( $mac_dinh[0]['vip'], $mac_dinh[1]['vip'], $mac_dinh[2]['vip'] ) );
+
+VHG_May::luu_menh_gia( array(
+	array( 'tien' => 50000,  'ten' => 'Gói cơ bản',      'mo_ta' => 'Khởi động & thư giãn nhẹ' ),
+	array( 'tien' => 200000, 'ten' => 'Gói thượng hạng', 'mo_ta' => 'Đẳng cấp & quà tặng', 'vip' => 1 ) ) );
+$cg2 = VHG_May::menh_gia_cho_ghe( 50000, 15 );
+teq( 'mô tả cũng bỏ dấu trước khi xuống ghế', 'KHOI DONG & THU GIAN NHE', $cg2[0]['m'] );
+teq( 'nhãn VVIP đi xuống ghế', 1, $cg2[1]['v'] );
+teq( 'gói thường thì không', 0, $cg2[0]['v'] );
+/* Mô tả dài hơn tên vì nó nằm một dòng riêng dưới đáy thẻ: 24 ký tự là bề ngang thẻ 150px. */
+t( 'mô tả cắt ở 24 ký tự cho vừa bề ngang thẻ',
+	mb_strlen( VHG_May::bo_dau_hoa( str_repeat( 'A', 60 ), 24 ) ) === 24 );
+t( 'tên cắt ngắn hơn, 16 ký tự',
+	mb_strlen( VHG_May::bo_dau_hoa( str_repeat( 'A', 60 ), 16 ) ) === 16 );
 
 /* Ghế lấy gói + tài khoản qua NHỊP, không nạp lại firmware. */
 vhg_dung_bang();
@@ -1143,6 +1173,107 @@ t( 'bộ đệm JSON đã nới cho mảng mệnh giá',
 
 $_GET = array(); $_POST = array();
 
+// ============================================ TAB ĐIỀU KHIỂN + KHỞI ĐỘNG LẠI TỪ XA
+/* Ghế ở 26 cửa hàng, không ai ở đó để rút điện. Khởi động lại từ xa là cách duy nhất dựng lại
+   một con ghế treo mà không phải chạy tới nơi. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+$tok_dk = vhg_vao( '571394', 'Admin' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 50000, 'phut' => 15,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+
+$r = vhg_web( 'khoi_dong_lai', array( 'token' => $tok_dk, 'ma_may' => 'AMTP01' ) );
+t( 'đặt được lệnh khởi động lại từ trang ngoài', ! empty( $r['ok'] ), $r );
+$l = VHG_May::ds_lenh( 3 );
+teq( 'lệnh ghi đúng loại', 'reboot', $l[0]['viec'] );
+teq( '🔴 ghi TÊN NGƯỜI CẦM PHIÊN, không lấy từ gói gửi lên', 'Anh Thắng', $l[0]['nguoi'] );
+list( , $lg ) = vhg_ghe( array( 'ma_may' => 'AMTP01', 'viec' => 'lenh' ) );
+teq( 'ghế lấy được lệnh đó', 'reboot', $lg['viec'] );
+/* Người bấm phải được nói trước là ghế KHÔNG khởi động ngay: nó chờ hết lượt khách đang chạy. */
+t( 'câu báo nói rõ ghế mất ~30 giây mới gửi nhịp lại',
+	strpos( $r['thong_bao'], '30 giây' ) !== false, $r );
+
+$r = VHG_May::dat_lenh( 'AMTP01', 'ba-la-bla', 0, 'Anh Thắng' );
+teq( 'lệnh lạ thì chối', false, $r['ok'] );
+t( 'và liệt kê đúng ba lệnh có thật', strpos( $r['error'], 'reboot' ) !== false );
+
+/* Không token thì KHÔNG được khởi động lại ghế của người khác. */
+$r = vhg_web( 'khoi_dong_lai', array( 'ma_may' => 'AMTP01' ) );
+teq( 'không token thì chối', false, $r['ok'] );
+teq( 'và chối bằng mã het_phien', 'het_phien', $r['ma'] );
+
+// ---- giao diện tab
+$html_dk = vhg_web_html();
+t( 'có thanh tab chính', strpos( $html_dk, 'data-tab="dieu-khien"' ) !== false );
+t( 'tab điều khiển vẽ THẺ từng ghế, không phải hàng bảng',
+	strpos( $html_dk, 'ghe-luoi' ) !== false && strpos( $html_dk, 'function veDieuKhien()' ) !== false );
+t( 'có nút khởi động lại', strpos( $html_dk, 'data-kd=' ) !== false );
+t( 'và hỏi lại trước khi khởi động', strpos( $html_dk, 'Khởi động lại ghế' ) !== false );
+/* ⚠️ Trạng thái ghế khai MỘT chỗ: hai tab cùng hiện nó, khai hai nơi là sớm muộn một tab nói
+      "Rảnh" còn tab kia nói "Đang chạy" — và người đọc không biết tin tab nào. */
+t( 'trạng thái ghế tính ở đúng một hàm',
+	substr_count( $html_dk, 'function trangThai(m)' ) === 1
+	&& substr_count( $html_dk, "'p-off','Mất kết nối'" ) === 1, $html_dk ? '' : '' );
+/* Đổi tab KHÔNG gọi lại máy chủ: đổi tab không phải đổi dữ liệu, và trên 4G mỗi lượt gọi thừa
+   là một lần chờ. */
+t( 'đổi tab vẽ lại từ dữ liệu đang có, không gọi lại máy chủ',
+	preg_match( '/localStorage\.setItem\(.vhg_tab.[^;]*;\s*\/\*[^*]*\*\/\s*ve\(\);/s', $html_dk ) === 1
+	|| strpos( $html_dk, "ve();\n    };\n  });" ) !== false );
+
+// ---- firmware: khởi động lại KHÔNG cắt ngang lượt khách
+$fw4 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'firmware hiểu lệnh reboot', strpos( $fw4, 'viec == "reboot"' ) !== false );
+/* 🔴 KHÔNG khởi động ngay. Khách đang nằm trên ghế và đã trả tiền thì khởi động lại là cắt mất
+      lượt của họ, mà tiền đã vào sổ rồi — không dựng lại được. */
+t( 'đánh dấu chờ, không gọi ESP.restart() ngay trong checkRemoteCmd',
+	strpos( $fw4, 'g_rebootCho = true' ) !== false );
+$i_cmd = strpos( $fw4, 'void checkRemoteCmd()' );
+$i_end = strpos( $fw4, '}', strpos( $fw4, 'g_rebootCho = true' ) );
+t( 'trong checkRemoteCmd KHÔNG có ESP.restart()',
+	strpos( substr( $fw4, $i_cmd, $i_end - $i_cmd ), 'ESP.restart' ) === false );
+t( 'chỉ khởi động lại khi ghế RẢNH',
+	preg_match( '/state==ST_IDLE\)\{.{0,400}g_rebootCho.{0,600}ESP\.restart/s', $fw4 ) === 1 );
+/* Nói ra trên màn trước khi tắt: người đứng cạnh ghế thấy nó tối đi mà không có lý do thì
+   tưởng ghế hỏng và đi tháo dây. */
+t( 'và nói ra trên màn trước khi tắt', strpos( $fw4, 'DANG KHOI DONG LAI' ) !== false );
+
+/* ============ 🔴 GÁN MÃ XONG MÀ MÀN GHẾ KHÔNG ĐỔI — lỗi anh Thắng gặp 22/08/2026
+ *
+ * *"đã gán, nhưng trên máy chưa hiện hệ thống bấm chọn quét"*.
+ *
+ * Ghế chưa gán mã thì vòng lặp vẽ lại màn mỗi 5 giây (để dòng MAC và trạng thái 4G cập nhật cho
+ * người đang đứng lắp). Nhưng điều kiện của vòng đó LÀ `CHUA_GAN` — nên đúng khoảnh khắc máy chủ
+ * báo "đã gán rồi", vòng vẽ lại tắt, mà lần vẽ cuối cùng vẫn là trang "GHE CHUA DUOC GAN MA".
+ * Màn đứng nguyên ở đó CHO TỚI KHI TẮT NGUỒN.
+ *
+ * Người đi lắp thấy web báo gán xong, ghế thì không nhúc nhích — không có gì trên màn nói vì sao.
+ * Đúng kiểu lỗi làm người ta tháo ghế ra kiểm tra dây.
+ *
+ * Không dựng được màn TFT trong phép thử, nên soi cấu trúc: lượt nhịp phải NHỚ cái đang hiện,
+ * so với cái vừa nhận, và bắt vẽ lại khi khác.
+ */
+foreach ( array(
+	'mã ghế'      => 'cu_id != CHAIR_ID',
+	'cờ chưa gán' => 'cu_gan != CHUA_GAN',
+	'giá'         => 'cu_gia != PRICE_VND',
+	'số phút'     => 'cu_phut != MINUTES',
+	'số gói'      => 'cu_n != PKG_N',
+	'gói đầu'     => 'cu_amt0 != PKG_AMT[0]',
+	'tên gói đầu' => 'cu_ten0 != PKG_TEN[0]',
+) as $ten_th => $dieu_kien ) {
+	t( "nhịp so lại $ten_th để biết có phải vẽ lại màn không",
+		strpos( $fw4, $dieu_kien ) !== false, $dieu_kien );
+}
+t( '🔴 và ĐẶT LẠI cờ vẽ khi có gì đổi — đây là dòng đã thiếu',
+	preg_match( '/cu_id != CHAIR_ID.{0,700}screenDrawn = false;/s', $fw4 ) === 1 );
+/* ⚠️ CHỈ khi đang rảnh. Đang chờ khách trả tiền mà xoá màn là mã QR biến mất ngay dưới tay
+      người đang quét; đang chạy mà xoá là mất luôn số đếm ngược. */
+t( 'nhưng chỉ vẽ lại khi ghế đang RẢNH, không xoá màn QR dưới tay khách',
+	preg_match( '/if\(state == ST_IDLE\) screenDrawn = false;/', $fw4 ) === 1 );
+/* Và vòng vẽ lại mỗi 5 giây của màn "chưa gán" vẫn còn — nó phục vụ người đang đứng lắp máy. */
+t( 'vòng vẽ lại 5 giây của màn "chưa gán" vẫn còn',
+	preg_match( '/CHUA_GAN \|\| CHAIR_ID\.length\(\)==0\) && millis\(\)-veLai > 5000/', $fw4 ) === 1 );
+
 // ============================================ MAC: MỘT DẠNG DUY NHẤT
 /* 🔴 Anh Thắng 22/08/2026: *"không có chỗ nhập mac, chỉ có mã"*. Dòng khai tay không có MAC là
       dòng KHÔNG GẮN VỚI GHẾ NÀO — ghế cắm điện lên đẻ ra dòng thứ hai, và dòng chạy thật là
@@ -1269,6 +1400,47 @@ t( 'có ô chọn cơ sở ngay tại dòng đó', strpos( $html_g, 'data-gcs=' 
    đứng nhìn không biết chuyện gì. */
 t( 'chặn mã sai khuôn ngay trên máy, trước khi gửi đi',
 	strpos( $html_g, '/^[A-Za-z0-9]{1,20}$/' ) !== false );
+
+// ---- ba màn của ghế, dựng theo tấm bảng giá anh Thắng thiết kế
+/* Không dựng được màn TFT trong phép thử, nên soi những thứ SAI ÂM THẦM: một font chưa được
+   nạp thì màn trống trơn, một mã QR thiếu vùng lặng thì chỉ vài dòng điện thoại không quét
+   được, một màn vẽ lại cả nền mỗi giây thì chạm màn hình trễ thấy rõ. Ba lỗi đó đều KHÔNG
+   hiện ra khi đọc mã. */
+$fw3 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'màn chọn gói có dải tiêu đề như bảng giá',
+	strpos( $fw3, 'CHAO MUNG QUY KHACH' ) !== false );
+t( 'và dải chân mời quét mã', strpos( $fw3, 'QUET MA QR DE THANH TOAN' ) !== false );
+t( 'thẻ VVIP vẽ khác thẻ thường', strpos( $fw3, 'PKG_VIP[i] != 0' ) !== false );
+t( 'số tiền in đủ kiểu Việt (200.000d), không viết tắt "200k"',
+	strpos( $fw3, 'String tienVN(long v)' ) !== false
+	&& preg_match( '/drawString\(String\(amt\/1000\)/', $fw3 ) === 0 );
+
+t( 'màn QR có tiêu đề của bảng thiết kế',
+	strpos( $fw3, 'MA QR DE THANH TOAN & BAT DAU PHIEN MASSAGE' ) !== false );
+/* 🔴 Mã QR phải nằm trên nền TRẮNG kể cả VÙNG LẶNG hai bên. Thiếu vùng lặng là nhiều điện
+      thoại không nhận ra mã — kiểu hỏng chỉ lộ ở một số máy, nên rất khó lần ra. */
+t( 'mã QR có vùng lặng trắng quanh nó', strpos( $fw3, 'vùng lặng' ) !== false );
+/* Và cỡ ô tính theo KÍCH THƯỚC THẬT của mã: chuỗi VietQR dài ngắn khác nhau tuỳ tên tài khoản
+   và mã lượt, cố định 3 pixel/ô là có ngày mã tràn khỏi màn. */
+t( 'cỡ ô tính theo kích thước thật của mã', strpos( $fw3, 'VUNG / (size + 2)' ) !== false );
+t( 'màn QR vẫn in mã lượt để khách gõ tay được',
+	strpos( $fw3, '"Noi dung: GHE"' ) !== false );
+
+t( 'màn đang chạy có tiêu đề của bảng thiết kế',
+	strpos( $fw3, 'PHIEN TRI LIEU DANG DIEN RA' ) !== false );
+t( 'và nói tổng thời gian + tên gói, không chỉ con số đếm ngược',
+	strpos( $fw3, '"TONG: "' ) !== false );
+/* ⚠️ CHỈ VẼ NỀN MỘT LẦN. fillScreen trên CYD mất ~90ms; làm mỗi giây là màn nháy và chạm màn
+      hình trễ thấy rõ. */
+t( 'màn đếm ngược chỉ vẽ nền một lần', strpos( $fw3, 'if(!screenDrawn){' ) !== false );
+/* setTextPadding xoá đúng vệt chữ cũ — thiếu nó thì "10:00" -> "9:59" để lại một chữ số mồ
+   côi và người ta đọc ra một con số không tồn tại. */
+t( 'và xoá sạch vệt chữ cũ mỗi giây', strpos( $fw3, 'setTextPadding(tft.textWidth("88:88"' ) !== false );
+/* 🔴 Font 6 chứ không font 7: font 6 là font bản gốc đã dùng và chắc chắn được nạp trong
+      User_Setup của bo CYD này. Đổi sang một font chưa bật là màn TRỐNG TRƠN — mà lúc đó ghế
+      đang chạy và khách đang nhìn. */
+t( 'dùng font đã chắc chắn được nạp cho số đếm ngược',
+	preg_match( '/drawString\(b, 160, 96, 6\)/', $fw3 ) === 1 );
 
 // ---- firmware nhận GÓI có tên
 $fw2 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );

@@ -115,10 +115,10 @@ class VHG_May {
 
 	/* Bảng giá anh Thắng dựng (ảnh 22/08/2026). Đúng tỉ lệ 50.000đ = 15 phút cho cả bốn gói. */
 	const MENH_GIA_MAC_DINH = array(
-		array( 'tien' => 50000,  'ten' => 'Gói cơ bản',      'phut' => 0 ),
-		array( 'tien' => 100000, 'ten' => 'Gói phổ biến',    'phut' => 0 ),
-		array( 'tien' => 150000, 'ten' => 'Gói chuyên sâu',  'phut' => 0 ),
-		array( 'tien' => 200000, 'ten' => 'Gói thượng hạng', 'phut' => 0 ),
+		array( 'tien' => 50000,  'ten' => 'Gói cơ bản',      'phut' => 0, 'mo_ta' => 'Khởi động & thư giãn nhẹ', 'vip' => 0 ),
+		array( 'tien' => 100000, 'ten' => 'Gói phổ biến',    'phut' => 0, 'mo_ta' => 'Sâu & phục hồi',           'vip' => 0 ),
+		array( 'tien' => 150000, 'ten' => 'Gói chuyên sâu',  'phut' => 0, 'mo_ta' => 'Trị liệu & giảm đau',      'vip' => 0 ),
+		array( 'tien' => 200000, 'ten' => 'Gói thượng hạng', 'phut' => 0, 'mo_ta' => 'Đẳng cấp & quà tặng',      'vip' => 1 ),
 	);
 
 	/**
@@ -141,9 +141,11 @@ class VHG_May {
 			if ( $tien < 1000 || isset( $thay[ $tien ] ) ) { continue; }
 			$thay[ $tien ] = 1;
 			$ra[] = array(
-				'tien' => $tien,
-				'ten'  => trim( (string) ( isset( $hang['ten'] ) ? $hang['ten'] : '' ) ),
-				'phut' => max( 0, (int) ( isset( $hang['phut'] ) ? $hang['phut'] : 0 ) ),
+				'tien'  => $tien,
+				'ten'   => trim( (string) ( isset( $hang['ten'] ) ? $hang['ten'] : '' ) ),
+				'phut'  => max( 0, (int) ( isset( $hang['phut'] ) ? $hang['phut'] : 0 ) ),
+				'mo_ta' => trim( (string) ( isset( $hang['mo_ta'] ) ? $hang['mo_ta'] : '' ) ),
+				'vip'   => empty( $hang['vip'] ) ? 0 : 1,
 			);
 		}
 		usort( $ra, function ( $a, $b ) { return $a['tien'] - $b['tien']; } );
@@ -177,9 +179,11 @@ class VHG_May {
 			}
 			$thay[ $tien ] = 1;
 			$ra[] = array(
-				'tien' => $tien,
-				'ten'  => mb_substr( trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) ), 0, 30 ),
-				'phut' => max( 0, min( 240, (int) ( isset( $v['phut'] ) ? $v['phut'] : 0 ) ) ),
+				'tien'  => $tien,
+				'ten'   => mb_substr( trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) ), 0, 30 ),
+				'phut'  => max( 0, min( 240, (int) ( isset( $v['phut'] ) ? $v['phut'] : 0 ) ) ),
+				'mo_ta' => mb_substr( trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ), 0, 40 ),
+				'vip'   => empty( $v['vip'] ) ? 0 : 1,
 			);
 		}
 		usort( $ra, function ( $a, $b ) { return $a['tien'] - $b['tien']; } );
@@ -208,15 +212,19 @@ class VHG_May {
 		foreach ( self::menh_gia() as $g ) {
 			$ra[] = array(
 				't' => (int) $g['tien'],
-				'n' => self::bo_dau_hoa( $g['ten'] ),
+				'n' => self::bo_dau_hoa( $g['ten'], 16 ),
 				'p' => self::phut_goi( $g, $gia_quy_doi, $phut_quy_doi ),
+				/* Mô tả dài hơn tên: nó nằm trên một dòng riêng dưới đáy thẻ, font nhỏ nhất.
+				   24 ký tự là bề ngang một thẻ 148px ở font 1. */
+				'm' => self::bo_dau_hoa( $g['mo_ta'], 24 ),
+				'v' => (int) $g['vip'],
 			);
 		}
 		return $ra;
 	}
 
 	/** Bỏ dấu, viết hoa, cắt cho vừa bề ngang một ô trên màn ghế. */
-	public static function bo_dau_hoa( $s ) {
+	public static function bo_dau_hoa( $s, $dai = 18 ) {
 		$s = mb_strtolower( trim( (string) $s ), 'UTF-8' );
 		$cap = array(
 			'a' => 'áàảãạăắằẳẵặâấầẩẫậ', 'e' => 'éèẻẽẹêếềểễệ', 'i' => 'íìỉĩị',
@@ -229,7 +237,7 @@ class VHG_May {
 		   vì màn sẽ vẽ ra ô vuông và người ta tưởng ghế hỏng. */
 		$s = preg_replace( '/[^\x20-\x7E]/', '', $s );
 		$s = trim( preg_replace( '/\s+/', ' ', $s ) );
-		return mb_strtoupper( mb_substr( $s, 0, 18 ), 'UTF-8' );
+		return mb_strtoupper( mb_substr( $s, 0, max( 1, (int) $dai ) ), 'UTF-8' );
 	}
 
 	/**
@@ -549,8 +557,9 @@ class VHG_May {
 		global $wpdb;
 		$ma_may = trim( (string) $ma_may );
 		if ( '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
-		if ( 'on' !== $viec && 'off' !== $viec ) {
-			return array( 'ok' => false, 'error' => 'Lệnh chỉ có thể là bật (on) hoặc tắt (off).' );
+		if ( ! in_array( $viec, array( 'on', 'off', 'reboot' ), true ) ) {
+			return array( 'ok' => false, 'error' => 'Lệnh chỉ có thể là bật (on), tắt (off) '
+				. 'hoặc khởi động lại (reboot).' );
 		}
 		$nguoi = trim( (string) $nguoi );
 		if ( '' === $nguoi ) { return array( 'ok' => false, 'error' => 'Thiếu tên người đặt lệnh.' ); }
@@ -568,9 +577,15 @@ class VHG_May {
 			'ma_may' => $ma_may, 'viec' => $viec, 'phut' => $phut,
 			'nguoi' => mb_substr( $nguoi, 0, 190 ), 'ly_do' => mb_substr( (string) $ly_do, 0, 250 ),
 			'tao_luc' => current_time( 'mysql' ), 'gui_luc' => null ) );
-		return array( 'ok' => true, 'thong_bao' => 'on' === $viec
-			? 'Đã đặt lệnh cho máy ' . $ma_may . ' chạy ' . $phut . ' phút. Máy nhận trong ~10 giây.'
-			: 'Đã đặt lệnh TẮT máy ' . $ma_may . '.' );
+		if ( 'on' === $viec ) {
+			return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh cho máy ' . $ma_may . ' chạy '
+				. $phut . ' phút. Máy nhận trong ~10 giây.' );
+		}
+		if ( 'reboot' === $viec ) {
+			return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh KHỞI ĐỘNG LẠI máy ' . $ma_may
+				. '. Máy nhận trong ~10 giây rồi tự khởi động, mất khoảng 30 giây mới gửi nhịp lại.' );
+		}
+		return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh TẮT máy ' . $ma_may . '.' );
 	}
 
 	/** Ghế lấy lệnh cũ nhất chưa gửi. Lấy xong đánh dấu đã gửi. */

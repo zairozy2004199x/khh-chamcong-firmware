@@ -320,11 +320,18 @@ class VHG_Admin {
 				$ten  = isset( $_POST['mg_ten'] ) ? (array) wp_unslash( $_POST['mg_ten'] ) : array();
 				$tien = isset( $_POST['mg_tien'] ) ? (array) wp_unslash( $_POST['mg_tien'] ) : array();
 				$ph   = isset( $_POST['mg_phut'] ) ? (array) wp_unslash( $_POST['mg_phut'] ) : array();
+				$mo  = isset( $_POST['mg_mota'] ) ? (array) wp_unslash( $_POST['mg_mota'] ) : array();
+				/* Ô tích gửi về CHỈ SỐ của dòng, không gửi về theo thứ tự — ô không tích thì
+				   trình duyệt bỏ hẳn khỏi gói POST, nên đếm theo thứ tự là lệch ngay từ dòng
+				   đầu tiên không tích. */
+				$vip = isset( $_POST['mg_vip'] ) ? array_map( 'intval', (array) $_POST['mg_vip'] ) : array();
 				$goi  = array();
 				foreach ( $tien as $i => $v ) {
 					$goi[] = array( 'tien' => $v,
-						'ten'  => isset( $ten[ $i ] ) ? sanitize_text_field( $ten[ $i ] ) : '',
-						'phut' => isset( $ph[ $i ] ) ? (int) $ph[ $i ] : 0 );
+						'ten'   => isset( $ten[ $i ] ) ? sanitize_text_field( $ten[ $i ] ) : '',
+						'mo_ta' => isset( $mo[ $i ] ) ? sanitize_text_field( $mo[ $i ] ) : '',
+						'phut'  => isset( $ph[ $i ] ) ? (int) $ph[ $i ] : 0,
+						'vip'   => in_array( (int) $i, $vip, true ) ? 1 : 0 );
 				}
 				$bao[] = VHG_May::luu_menh_gia( $goi );
 			}
@@ -440,18 +447,24 @@ class VHG_Admin {
 		echo '<p><em>Bốn nút khách bấm để chọn. Khai ở đây thì ghế lấy về trong ~30 giây — '
 			. '<b>ghế không có OTA</b>, nên nếu khai cứng trong firmware thì đổi giá là phải mang USB '
 			. 'đi từng cửa hàng.</em></p>';
-		echo '<form method="post"><table class="widefat striped" style="max-width:640px"><thead><tr>'
-			. '<th>Nút</th><th>Tên gói</th><th>Số tiền</th><th>Số phút</th></tr></thead><tbody>';
+		echo '<form method="post"><table class="widefat striped" style="max-width:900px"><thead><tr>'
+			. '<th>Nút</th><th>Tên gói</th><th>Mô tả một dòng</th><th>Số tiền</th><th>Số phút</th>'
+			. '<th>VVIP</th></tr></thead><tbody>';
 		wp_nonce_field( 'vhg' );
 		for ( $i = 0; $i < VHG_May::SO_O_MAN_GHE; $i++ ) {
-			$g = isset( $mg[ $i ] ) ? $mg[ $i ] : array( 'tien' => '', 'ten' => '', 'phut' => 0 );
+			$g = isset( $mg[ $i ] ) ? $mg[ $i ]
+				: array( 'tien' => '', 'ten' => '', 'phut' => 0, 'mo_ta' => '', 'vip' => 0 );
 			echo '<tr><td>' . ( $i + 1 ) . '</td>'
 				. '<td><input name="mg_ten[]" value="' . esc_attr( $g['ten'] ) . '" '
 				. 'placeholder="VD: Gói phổ biến" style="width:100%" /></td>'
+				. '<td><input name="mg_mota[]" value="' . esc_attr( $g['mo_ta'] ) . '" '
+				. 'placeholder="VD: Sâu &amp; phục hồi" style="width:100%" /></td>'
 				. '<td><input type="number" name="mg_tien[]" min="1000" step="1000" value="'
 				. ( '' === $g['tien'] ? '' : (int) $g['tien'] ) . '" style="width:110px" /></td>'
 				. '<td><input type="number" name="mg_phut[]" min="0" max="240" value="'
 				. ( empty( $g['phut'] ) ? '' : (int) $g['phut'] ) . '" style="width:80px" placeholder="tự tính" /></td>'
+				. '<td style="text-align:center"><input type="checkbox" name="mg_vip[]" value="' . $i . '"'
+				. checked( true, ! empty( $g['vip'] ), false ) . ' /></td>'
 				. '</tr>';
 		}
 		echo '</tbody></table><p><button class="button button-primary" name="vhg" value="menh_gia">'
@@ -467,14 +480,19 @@ class VHG_Admin {
 		   thay vì đi tới tận cửa hàng mới biết tên bị cắt cụt. */
 		$xem = VHG_May::menh_gia_cho_ghe( 10000, 6 );
 		echo '<h3>Ghế sẽ hiện (với tỉ lệ 10.000đ = 6 phút)</h3>';
-		echo '<table class="widefat striped" style="max-width:420px"><thead><tr><th>Tên trên màn ghế</th>'
-			. '<th>Số tiền</th><th>Phút</th></tr></thead><tbody>';
+		echo '<table class="widefat striped" style="max-width:560px"><thead><tr><th>Tên trên màn ghế</th>'
+			. '<th>Mô tả trên màn ghế</th><th>Số tiền</th><th>Phút</th></tr></thead><tbody>';
 		foreach ( $xem as $x ) {
-			echo '<tr><td><code>' . esc_html( '' !== $x['n'] ? $x['n'] : '(không tên)' ) . '</code></td>'
+			echo '<tr><td><code>' . esc_html( '' !== $x['n'] ? $x['n'] : '(không tên)' ) . '</code>'
+				. ( $x['v'] ? ' <b style="color:#996800">VVIP</b>' : '' ) . '</td>'
+				. '<td><code>' . esc_html( $x['m'] ) . '</code></td>'
 				. '<td>' . esc_html( self::tien( $x['t'] ) ) . '</td>'
 				. '<td>' . (int) $x['p'] . ' phút</td></tr>';
 		}
 		echo '</tbody></table>';
+		echo '<p class="description">Chữ trên màn ghế <b>không dấu và viết hoa</b> — font của màn '
+			. 'không vẽ được dấu tiếng Việt. Tên cắt còn 16 ký tự, mô tả 24 ký tự cho vừa bề ngang '
+			. 'một thẻ. Gói tích <b>VVIP</b> được vẽ nền vàng và có nhãn ở góc, như tấm bảng giá.</p>';
 
 		echo '<h2>Máy (ghế) — ' . count( $may ) . ' máy</h2>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Cơ sở</th>'

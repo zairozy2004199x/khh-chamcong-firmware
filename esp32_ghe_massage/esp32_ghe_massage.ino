@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22c (goi co ten, lay tu web)"
+#define FW_VERSION "ghe-massage 2026-08-22d (3 man moi, ve lai khi gan ma, reboot tu xa)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -92,6 +92,23 @@ int    PKG_N = 4;
 long   PKG_AMT[PKG_MAX]  = { 50000, 100000, 150000, 200000 };
 String PKG_TEN[PKG_MAX]  = { "GOI CO BAN", "GOI PHO BIEN", "GOI CHUYEN SAU", "GOI THUONG HANG" };
 int    PKG_PHUT[PKG_MAX] = { 0, 0, 0, 0 };   // 0 = tính theo tỉ lệ quy đổi
+String PKG_MOTA[PKG_MAX] = { "KHOI DONG & THU GIAN NHE", "SAU & PHUC HOI",
+                             "TRI LIEU & GIAM DAU", "DANG CAP & QUA TANG" };
+int    PKG_VIP[PKG_MAX]  = { 0, 0, 0, 1 };
+
+/* Số tiền kiểu Việt: 200000 -> "200.000d". Tấm bảng giá treo tường ghi đủ số chứ không viết
+   tắt "200k", và khách đối chiếu bảng với màn ghế bằng mắt — hai chỗ ghi khác kiểu là một
+   khoảnh khắc ngờ vực ngay lúc sắp trả tiền. */
+String tienVN(long v){
+  String s = String(v), r = "";
+  int n = s.length();
+  for(int i=0;i<n;i++){
+    r += s[i];
+    int con = n - 1 - i;
+    if(con > 0 && con % 3 == 0) r += '.';
+  }
+  return r + "d";
+}
 
 /* Số phút của một gói: khai cứng nếu máy chủ có gửi, không thì tính theo tỉ lệ quy đổi.
    MỘT chỗ tính duy nhất — trước đây phép này chép ở bốn nơi (vẽ nút, mở phiên, nhận tiền mặt,
@@ -177,6 +194,8 @@ int  g_simTx = SIM_TX_PIN, g_simRx = SIM_RX_PIN; long g_simBaud = 115200;
 enum State { ST_IDLE, ST_WAIT_PAY, ST_RUNNING };
 State state = ST_IDLE;
 bool  screenDrawn = false;
+/* Web đã bấm "khởi động lại", đang chờ ghế rảnh. Xem checkRemoteCmd(). */
+volatile bool g_rebootCho = false;
 
 char    payCode[8] = "";
 long    payAmount = 0;
@@ -425,10 +444,75 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 }
 
 // ======================= Màn hình =======================
-#define COL_BG    TFT_BLACK
-#define COL_ACC   0x05BF
+/* ============================================================================================
+ * BẢNG MÀU — dựng theo tấm bảng giá anh Thắng thiết kế (nâu rất tối + vàng đồng + thẻ kem).
+ *
+ * 🔴 BA GIỚI HẠN CỦA PHẦN CỨNG, ghi ở đây để lần sau khỏi hỏi lại:
+ *    1. Màn 320×240, KHÔNG phải màn ngang 16:9 như tấm bảng treo tường. Bốn thẻ xếp một hàng
+ *       ngang thì mỗi thẻ chỉ còn 76px — không đủ cho một con số tiền. Nên xếp 2×2.
+ *    2. Font dựng sẵn của TFT_eSPI KHÔNG có dấu tiếng Việt. Chữ đã được máy chủ bỏ dấu trước
+ *       khi gửi xuống (xem VHG_May::bo_dau_hoa) — ở đây chỉ vẽ, không xử lý chữ.
+ *    3. Không có hình minh hoạ. Vẽ được bằng bitmap nhưng bốn tấm ảnh màu ăn hết vài trăm KB
+ *       flash, mà chỗ đó đang để dành cho phần MDB và bộ mã QR. Thay bằng một dải màu ở đầu
+ *       thẻ để mắt phân biệt được các gói.
+ * ============================================================================================ */
+#define COL_BG    0x1060   // nền nâu rất tối
+#define COL_KHUNG 0x20A1   // khung/ô chìm
+#define COL_VANG  0xDD28   // vàng đồng — chữ nhấn
+#define COL_VANG2 0x8B24   // vàng tối — viền, chữ phụ
+#define COL_KEM   0xF75B   // nền thẻ
+#define COL_CHU   0x28E1   // chữ trên nền kem
+#define COL_MO    0x9C4E   // chữ phụ, mờ
+#define COL_VIP   0x7AA3   // nền thẻ VVIP
+#define COL_ACC   COL_VANG // tên cũ, còn dùng ở màn "chưa gán mã"
 
-Btn PKG_BTN[PKG_MAX] = { {14,56,142,74}, {164,56,142,74}, {14,136,142,74}, {164,136,142,74} };
+/* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
+Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,122,150,84} };
+
+/* Một thẻ gói. Tách hẳn ra vì drawIdle() vốn đã dài, mà đây là phần duy nhất người ta sẽ còn
+   sửa đi sửa lại — mỗi lần anh Thắng đổi bảng giá là đụng đúng hàm này. */
+void veTheGoi(int i){
+  Btn  b    = PKG_BTN[i];
+  bool vip  = (PKG_VIP[i] != 0);
+  int  cx   = b.x + b.w / 2;
+  uint16_t nen  = vip ? COL_VIP : COL_KEM;
+  uint16_t chu  = vip ? COL_VANG : COL_CHU;
+  uint16_t phu  = vip ? 0xE71C : COL_MO;
+
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, nen);
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, vip ? COL_VANG : COL_VANG2);
+  /* Dải màu ở đầu thẻ thay cho hình minh hoạ: đủ để mắt phân biệt bốn gói mà không tốn flash. */
+  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, vip ? COL_VANG : COL_VANG2);
+
+  tft.setTextDatum(TC_DATUM);
+  /* Tên gói. Máy chủ đã cắt còn 16 ký tự cho vừa 150px ở font 1. */
+  tft.setTextColor(chu, nen);
+  tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 12, 1);
+
+  /* Số phút ngay dưới tên — đúng thứ tự trên tấm bảng giá. */
+  tft.setTextColor(phu, nen);
+  tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 24, 1);
+
+  /* SỐ TIỀN to nhất: đó là thứ khách quyết định. Font 4 cao 26px, "200.000d" rộng ~112px nên
+     vừa trong 150px. Dùng dấu chấm nghìn kiểu Việt, không viết tắt "200k" — tấm bảng giá ghi
+     đủ số, và khách đối chiếu bảng treo tường với màn ghế bằng mắt. */
+  tft.setTextColor(chu, nen);
+  tft.drawString(tienVN(PKG_AMT[i]), cx, b.y + 38, 4);
+
+  /* Mô tả một dòng, dưới cùng. Rỗng thì bỏ trống chứ đừng bịa chữ. */
+  if(PKG_MOTA[i].length()){
+    tft.setTextColor(phu, nen);
+    tft.drawString(PKG_MOTA[i], cx, b.y + b.h - 14, 1);
+  }
+  if(vip){
+    /* Nhãn VVIP ở góc phải trên, như tấm bảng giá. */
+    tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_VANG);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(COL_CHU, COL_VANG);
+    tft.drawString("VVIP", b.x + b.w - 23, b.y + 1, 1);
+    tft.setTextDatum(TC_DATUM);
+  }
+}
 
 void drawIdle(){
   tft.fillScreen(COL_BG);
@@ -447,56 +531,91 @@ void drawIdle(){
     tft.drawString(netUp()?"4G ON":"4G -- (chua hoi duoc may chu)", 160, 200, 2);
     return;
   }
-  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("GHE MASSAGE " + CHAIR_ID, 160, 8, 4);
-  tft.setTextColor(TFT_WHITE, COL_BG); tft.drawString("Chon so tien:", 160, 38, 2);
-  for(int i=0;i<PKG_N;i++){
-    long amt = PKG_AMT[i];
-    int mins = phutGoi(i);
-    Btn b = PKG_BTN[i]; int cx = b.x + b.w/2, cy = b.y + b.h/2;
-    tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, 0x02B5);
-    tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_ACC);
-    tft.setTextDatum(MC_DATUM);
-    /* Tên gói ở TRÊN, nhỏ; số tiền to ở giữa; số phút ở dưới. Số tiền là thứ khách quyết định
-       nên nó to nhất — tên gói chỉ để phân biệt, và ô rộng 142px nên font 1 mới đủ chỗ. */
-    if(PKG_TEN[i].length()){
-      tft.setTextColor(0xCE40, 0x02B5);
-      tft.drawString(PKG_TEN[i], cx, b.y + 11, 1);
-      tft.setTextColor(COL_ACC, 0x02B5);   tft.drawString(String(amt/1000) + "k",  cx, cy + 2, 4);
-      tft.setTextColor(TFT_WHITE, 0x02B5); tft.drawString(String(mins) + " phut", cx, b.y + b.h - 12, 2);
-    } else {
-      tft.setTextColor(COL_ACC, 0x02B5);   tft.drawString(String(amt/1000) + "k",  cx, cy - 14, 4);
-      tft.setTextColor(TFT_WHITE, 0x02B5); tft.drawString(String(mins) + " phut", cx, cy + 16, 2);
-    }
-  }
-  tft.setTextDatum(BC_DATUM);
-  tft.setTextColor(0xCE40, COL_BG); tft.drawString("K&H  -  POSH massage", 160, 224, 2);
-  tft.setTextColor(netUp()?TFT_GREEN:TFT_RED, COL_BG);
-  tft.drawString(netUp()?"4G ON":"4G --", 160, 238, 1);
+  /* Dải tiêu đề. Mã ghế nằm ở góc phải, nhỏ: khách không cần nó, nhưng người đi sửa thì cần
+     và không phải mò vào web mới biết mình đang đứng trước con ghế nào. */
+  tft.fillRect(0, 0, 320, 28, COL_KHUNG);
+  tft.drawFastHLine(0, 28, 320, COL_VANG2);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_VANG, COL_KHUNG);
+  tft.drawString("CHAO MUNG QUY KHACH  -  MASSAGE GHE CAO CAP", 160, 13, 1);
+
+  for(int i=0;i<PKG_N;i++) veTheGoi(i);
+
+  /* Dải chân: câu mời quét mã. Đây là câu duy nhất nói cho khách biết PHẢI LÀM GÌ, nên nó nằm
+     trên dải riêng chứ không lẫn vào chữ nhỏ. */
+  tft.fillRect(0, 210, 320, 30, COL_KHUNG);
+  tft.drawFastHLine(0, 210, 320, COL_VANG2);
+  tft.setTextColor(COL_VANG, COL_KHUNG);
+  tft.drawString("CHON GOI  >  QUET MA QR DE THANH TOAN & BAT DAU", 160, 222, 1);
+
+  /* Trạng thái mạng ở góc phải, nhỏ nhất: khách không cần, nhân viên cần. Mất mạng thì đường
+     QR không chạy — nói ra ở đây để không ai phải đoán. */
+  tft.setTextDatum(TR_DATUM);
+  tft.setTextColor(netUp() ? 0x0660 : 0xF800, COL_KHUNG);
+  tft.drawString(netUp() ? CHAIR_ID : (CHAIR_ID + " - MAT MANG"), 314, 9, 1);
 }
 
+/* Vùng vẽ mã QR — callback của esp_qrcode không nhận tham số riêng nên phải để ở đây.
+   Tính theo KÍCH THƯỚC THẬT của mã: chuỗi VietQR dài ngắn khác nhau tuỳ tên tài khoản và mã
+   lượt, nên số ô đổi theo. Cố định 3 pixel/ô là có ngày mã tràn khỏi màn và khách quét mãi
+   không ra — mà nhìn thì vẫn thấy "có mã QR". */
+static int g_qrX0 = 0, g_qrY0 = 0, g_qrO = 0, g_qrPx = 3;
+
 static void qrDrawCb(esp_qrcode_handle_t qr){
-  int size = esp_qrcode_get_size(qr), px = QR_PX, x0 = 16, y0 = 40;
+  int size = esp_qrcode_get_size(qr);
+  if(size <= 0) return;
+  const int VUNG = 150;                 // cạnh ô trắng chừa cho mã, đã trừ viền
+  int px = VUNG / (size + 2);           // +2 = vùng lặng hai bên, bắt buộc để quét được
+  if(px < 1) px = 1;
+  if(px > 4) px = 4;
+  g_qrPx = px; g_qrO = size;
+  int canh = size * px;
+  g_qrX0 = 160 - canh / 2;
+  g_qrY0 = 40 + (VUNG - canh) / 2;
+  /* Nền trắng phải phủ CẢ vùng lặng, không chỉ vùng có ô đen. Thiếu vùng lặng là nhiều điện
+     thoại không nhận ra mã, và đó là kiểu hỏng chỉ lộ ra ở một số máy. */
+  tft.fillRect(g_qrX0 - 2*px, g_qrY0 - 2*px, canh + 4*px, canh + 4*px, TFT_WHITE);
   for(int y=0;y<size;y++) for(int x=0;x<size;x++)
-    if(esp_qrcode_get_module(qr, x, y)) tft.fillRect(x0+x*px, y0+y*px, px, px, TFT_BLACK);
+    if(esp_qrcode_get_module(qr, x, y))
+      tft.fillRect(g_qrX0 + x*px, g_qrY0 + y*px, px, px, TFT_BLACK);
 }
+
 void drawQRScreen(){
-  tft.fillScreen(TFT_WHITE);
+  tft.fillScreen(COL_BG);
+
+  /* Dải tiêu đề */
+  tft.fillRect(0, 0, 320, 30, COL_KHUNG);
+  tft.drawFastHLine(0, 30, 320, COL_VANG2);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_VANG, COL_KHUNG);
+  tft.drawString("MA QR DE THANH TOAN & BAT DAU PHIEN MASSAGE", 160, 10, 1);
+  tft.setTextColor(COL_KEM, COL_KHUNG);
+  tft.drawString(tienVN(payAmount) + "   -   " + String(payMinutes) + " PHUT", 160, 22, 1);
+
+  /* Ô trắng cho mã QR. Vẽ TRƯỚC khi sinh mã: callback vẽ đè lên đúng chỗ này. */
+  tft.fillRoundRect(78, 36, 164, 158, 8, TFT_WHITE);
+  tft.drawRoundRect(78, 36, 164, 158, 8, COL_VANG);
+
   esp_qrcode_config_t qcfg = ESP_QRCODE_CONFIG_DEFAULT();
   qcfg.display_func       = qrDrawCb;
   qcfg.max_qrcode_version = 11;
   qcfg.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;
   esp_qrcode_generate(&qcfg, qrPayload.c_str());
-  int rx = 190;
-  tft.setTextDatum(TL_DATUM);
-  tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  tft.drawString("QUET DE TRA", rx, 20, 4);
-  tft.drawString(String(payAmount/1000) + "k = " + String(payMinutes) + "'", rx, 60, 4);
-  tft.drawString(ACCOUNT_NO, rx, 100, 2);
-  tft.setTextColor(0x8410, TFT_WHITE);
-  tft.drawString("Ma: GHE" + CHAIR_ID + " " + payCode, rx, 140, 1);
-  tft.fillRoundRect(100, 205, 120, 30, 6, 0xF9A6);
-  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_WHITE, 0xF9A6);
-  tft.drawString("CHAM DE HUY", 160, 220, 2);
+
+  /* Câu hướng dẫn + mã lượt. Mã lượt phải HIỆN RA: app ngân hàng nào không tự điền nội dung
+     thì khách gõ tay đúng chuỗi này, và không có nó thì tiền vào mà ghế không chạy. */
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_MO, COL_BG);
+  tft.drawString("Quet bang ung dung Ngan hang hoac Vi dien tu", 160, 200, 1);
+  tft.setTextColor(COL_VANG, COL_BG);
+  tft.drawString("Noi dung: GHE" + CHAIR_ID + " " + payCode, 160, 212, 1);
+
+  /* Nút huỷ nhỏ, góc trái dưới: nó KHÔNG phải việc chính của màn này. Để to ở giữa như bản cũ
+     là mời khách bấm nhầm ngay lúc vừa quét xong. */
+  tft.fillRoundRect(6, 222, 84, 16, 5, COL_KHUNG);
+  tft.drawRoundRect(6, 222, 84, 16, 5, COL_VANG2);
+  tft.setTextColor(COL_MO, COL_KHUNG);
+  tft.drawString("CHAM DE HUY", 48, 230, 1);
 }
 void drawWaitCountdown(int secLeft){
   tft.setTextDatum(TL_DATUM); tft.setTextPadding(150);
@@ -506,15 +625,66 @@ void drawWaitCountdown(int secLeft){
   tft.drawString(netUp() ? "Dang kiem tra..." : "MAT MANG - cho lai", 190, 192, 1);
   tft.setTextPadding(0);
 }
+/* Gói đang chạy — để in tên lên màn đếm ngược. `-1` = không rõ (tiền mặt, hoặc lệnh từ web). */
+int g_goiDangChay = -1;
+
 void drawRunning(int secLeft){
-  if(!screenDrawn){ tft.fillScreen(0x0400); screenDrawn=true;
-    tft.setTextDatum(TC_DATUM); tft.setTextColor(TFT_WHITE, 0x0400);
-    tft.drawString("GHE DANG CHAY", 160, 30, 4); }
-  int mm=secLeft/60, ss=secLeft%60;
-  char b[8]; snprintf(b,sizeof(b),"%02d:%02d",mm,ss);
-  tft.setTextDatum(MC_DATUM); tft.setTextColor(TFT_WHITE, 0x0400);
-  tft.setTextPadding(tft.textWidth("88:88",6));
-  tft.drawString(b, 160, 130, 6);
+  /* CHỈ VẼ NỀN MỘT LẦN. Vẽ lại cả màn mỗi giây thì màn nháy, và trên CYD một lượt fillScreen
+     mất ~90ms — mỗi giây mất chừng đó là chạm màn hình trễ thấy rõ. */
+  if(!screenDrawn){
+    screenDrawn = true;
+    tft.fillScreen(COL_BG);
+
+    tft.fillRect(0, 0, 320, 30, COL_KHUNG);
+    tft.drawFastHLine(0, 30, 320, COL_VANG2);
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(COL_MO, COL_KHUNG);
+    tft.drawString("HE THONG GHE MASSAGE CAO CAP", 160, 9, 1);
+    tft.setTextColor(COL_VANG, COL_KHUNG);
+    tft.drawString("PHIEN TRI LIEU DANG DIEN RA", 160, 21, 1);
+
+    /* Ô đếm ngược */
+    tft.fillRoundRect(20, 40, 280, 108, 8, COL_KHUNG);
+    tft.drawRoundRect(20, 40, 280, 108, 8, COL_VANG2);
+    tft.setTextColor(COL_MO, COL_KHUNG);
+    tft.drawString("SO PHUT CON LAI", 160, 52, 1);
+
+    /* Tổng thời gian + tên gói: khách nhìn 15:30 mà không biết mình mua gói mấy phút thì con
+       số đó không nói lên điều gì. */
+    String duoi = "TONG: " + String(payMinutes) + " PHUT";
+    if(g_goiDangChay >= 0 && g_goiDangChay < PKG_N && PKG_TEN[g_goiDangChay].length()){
+      duoi += "  -  " + PKG_TEN[g_goiDangChay];
+    }
+    tft.setTextColor(COL_KEM, COL_KHUNG);
+    tft.drawString(duoi, 160, 136, 1);
+
+    /* Dải trạng thái dưới */
+    tft.fillRoundRect(20, 156, 280, 44, 8, COL_KHUNG);
+    tft.drawRoundRect(20, 156, 280, 44, 8, COL_VANG2);
+    tft.fillCircle(42, 178, 8, 0x0660);
+    tft.drawCircle(42, 178, 11, COL_VANG2);
+    tft.setTextDatum(ML_DATUM);
+    tft.setTextColor(COL_VANG, COL_KHUNG);
+    tft.drawString("PHIEN MASSAGE DANG CHAY", 60, 170, 1);
+    tft.setTextColor(COL_MO, COL_KHUNG);
+    tft.drawString("Xin hay thu gian va tan huong dich vu.", 60, 186, 1);
+
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(COL_MO, COL_BG);
+    tft.drawString(String("Ghe ") + CHAIR_ID + "   -   K&H", 160, 220, 1);
+  }
+
+  int mm = secLeft/60, ss = secLeft%60;
+  char b[8]; snprintf(b, sizeof(b), "%02d:%02d", mm, ss);
+  tft.setTextDatum(MC_DATUM);
+  /* setTextPadding: xoá đúng vệt chữ cũ. Không có nó thì "10:00" -> "9:59" để lại một chữ số
+     mồ côi trên màn, và người ta đọc ra một con số không tồn tại. */
+  tft.setTextColor(COL_VANG, COL_KHUNG);
+  /* Font 6 (48px) chứ không font 7: font 6 là font bản gốc đã dùng và chắc chắn được nạp
+     trong User_Setup của bo CYD này. Đổi sang một font chưa bật là màn trống trơn — mà lúc đó
+     ghế đang chạy và khách đang nhìn. */
+  tft.setTextPadding(tft.textWidth("88:88", 6));
+  tft.drawString(b, 160, 96, 6);
   tft.setTextPadding(0);
 }
 
@@ -561,6 +731,30 @@ void guiNhip(){
      netTask có 10240 byte ngăn xếp nên 1536 nằm gọn. */
   StaticJsonDocument<1536> d;
   if(deserializeJson(d, r)) return;
+  /* ==========================================================================================
+   * NHỚ LẠI NHỮNG GÌ ĐANG HIỆN TRÊN MÀN, ĐỂ BIẾT CÓ PHẢI VẼ LẠI KHÔNG.
+   *
+   * 🔴 LỖI THẬT, anh Thắng 22/08/2026: *"đã gán, nhưng trên máy chưa hiện hệ thống bấm chọn"*.
+   *    Ghế chưa gán mã thì vòng lặp vẽ lại màn mỗi 5 giây (để dòng MAC và trạng thái 4G cập
+   *    nhật cho người đang đứng lắp). Nhưng điều kiện của vòng đó LÀ `CHUA_GAN` — nên đúng
+   *    khoảnh khắc máy chủ báo "đã gán rồi", vòng vẽ lại tắt, mà lần vẽ cuối cùng vẫn là trang
+   *    "GHE CHUA DUOC GAN MA". Màn đứng nguyên ở đó CHO TỚI KHI TẮT NGUỒN.
+   *
+   *    Người đi lắp thì thấy web báo gán xong, ghế thì không nhúc nhích — và không có gì trên
+   *    màn nói vì sao. Đây đúng kiểu lỗi làm người ta tháo ghế ra kiểm tra dây.
+   *
+   * Nên: so cái vừa nhận với cái đang hiện, khác thì bắt vẽ lại. Không chỉ mã ghế — giá, số
+   * phút và cả bốn gói đều nằm trên màn, đổi ở web mà màn không đổi là hai nơi nói hai giá
+   * khác nhau, và khách đọc màn ghế chứ không đọc web.
+   * ========================================================================================== */
+  String   cu_id   = CHAIR_ID;
+  bool     cu_gan  = CHUA_GAN;
+  long     cu_gia  = PRICE_VND;
+  int      cu_phut = MINUTES;
+  int      cu_n    = PKG_N;
+  long     cu_amt0 = PKG_AMT[0];
+  String   cu_ten0 = PKG_TEN[0];
+
   String ma = String((const char*)(d["maMay"] | ""));
   if(ma.length()){ CHAIR_ID = ma; }
   CHUA_GAN = ((int)(d["chuaGan"] | 0) == 1);
@@ -577,27 +771,44 @@ void guiNhip(){
      mà máy chủ vẫn thấy ghế gửi nhịp bình thường. Giữ bộ đang dùng còn hơn. */
   JsonArrayConst goi = d["goi"];
   if(!goi.isNull()){
-    long   tt[PKG_MAX]; String tn[PKG_MAX]; int tp[PKG_MAX]; int n = 0;
+    long   tt[PKG_MAX]; String tn[PKG_MAX]; int tp[PKG_MAX];
+    String tm[PKG_MAX]; int tv[PKG_MAX]; int n = 0;
     for(JsonVariantConst v : goi){
       if(n >= PKG_MAX) break;
       /* Nhận CẢ HAI dạng: số trơn (bản máy chủ 1.3.0) và {t,n,p} (từ 1.4.0). Ghế nạp bằng USB
          nên trong nhà sẽ có lẫn hai đời firmware và hai đời plugin trong nhiều tuần — bên nào
          cũng phải chịu được bên kia, không thì một cửa hàng nào đó im lặng mất hết nút bấm. */
-      long a; String nm = ""; int ph = 0;
+      long a; String nm = "", mt = ""; int ph = 0, vp = 0;
       if(v.is<JsonObjectConst>()){
         a  = (long)(v["t"] | 0);
         nm = String((const char*)(v["n"] | ""));
         ph = (int)(v["p"] | 0);
+        mt = String((const char*)(v["m"] | ""));
+        vp = (int)(v["v"] | 0);
       } else {
         a = v.as<long>();
       }
-      if(a >= 1000){ tt[n] = a; tn[n] = nm; tp[n] = ph; n++; }
+      if(a >= 1000){ tt[n] = a; tn[n] = nm; tp[n] = ph; tm[n] = mt; tv[n] = vp; n++; }
     }
     if(n > 0){
-      for(int i=0;i<n;i++){ PKG_AMT[i] = tt[i]; PKG_TEN[i] = tn[i]; PKG_PHUT[i] = tp[i]; }
+      for(int i=0;i<n;i++){
+        PKG_AMT[i] = tt[i]; PKG_TEN[i] = tn[i]; PKG_PHUT[i] = tp[i];
+        PKG_MOTA[i] = tm[i]; PKG_VIP[i] = tv[i];
+      }
       PKG_N = n; g_statusDirty = true;
     }
   }
+  /* Có gì trên màn đổi không? So SAU khi đã nhận hết, trước khi xử lệnh. */
+  if(cu_id != CHAIR_ID || cu_gan != CHUA_GAN || cu_gia != PRICE_VND || cu_phut != MINUTES
+     || cu_n != PKG_N || cu_amt0 != PKG_AMT[0] || cu_ten0 != PKG_TEN[0]){
+    /* CHỈ khi đang rảnh. Đang chờ khách trả tiền mà xoá màn là mã QR biến mất ngay dưới tay
+       người đang quét; đang chạy mà xoá là mất luôn số đếm ngược. Hai màn đó tự vẽ lại khi
+       quay về rảnh. */
+    if(state == ST_IDLE) screenDrawn = false;
+    g_statusDirty = true;
+    Serial.println("[UI] cau hinh doi -> ve lai man");
+  }
+
   g_coLenh = ((int)(d["coLenh"] | 0) == 1);
   if(((int)(d["coTien"] | 0) == 1) && g_paidAmount == 0){
     /* Máy chủ báo có tiền chờ mà ghế đang rảnh (khách trả sau khi màn đã tắt QR) — vẫn lấy về
@@ -627,6 +838,18 @@ void checkRemoteCmd(){
   int phut = (int)(d["phut"] | 0);
   if(viec == "on"){ g_remoteStartMin = (phut>0 ? phut : MINUTES); Serial.printf("[CMD] web MO may %d phut\n", g_remoteStartMin); }
   else if(viec == "off"){ g_remoteStop = true; Serial.println("[CMD] web TAT may"); }
+  else if(viec == "reboot"){
+    /* 🔴 KHỞI ĐỘNG LẠI TỪ XA — nhưng KHÔNG cắt ngang một lượt khách đang massage.
+     *
+     * Ghế ở 26 cửa hàng, không ai ở đó để rút điện; đây là cách duy nhất dựng lại một con ghế
+     * treo mà không phải chạy tới nơi. Nhưng nếu khách đang nằm trên ghế và đã trả tiền thì
+     * khởi động lại là cắt mất lượt của họ, và tiền thì đã vào sổ rồi — không dựng lại được.
+     *
+     * Nên: đánh dấu, rồi VÒNG LẶP CHÍNH khởi động lại lúc ghế rảnh. Chờ lâu nhất bằng đúng
+     * một lượt massage. Người bấm ở web đã được nói trước điều này. */
+    g_rebootCho = true;
+    Serial.println("[CMD] web doi KHOI DONG LAI - se chay khi ghe ranh");
+  }
 }
 
 /** Báo sổ tiền mặt. Gửi lại được: máy chủ ghi theo `ref`, xem ghi chú ở g_cashRef. */
@@ -642,8 +865,9 @@ void genCode(char* out){
   out[6] = 0;
 }
 void startSession(int idx){
-  payAmount  = PKG_AMT[idx];
-  payMinutes = phutGoi(idx);
+  payAmount     = PKG_AMT[idx];
+  payMinutes    = phutGoi(idx);
+  g_goiDangChay = idx;   // để màn đếm ngược in đúng tên gói khách vừa chọn
   genCode(payCode);
   String addInfo = "GHE" + CHAIR_ID + " " + payCode;
   qrPayload  = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, addInfo);
@@ -957,6 +1181,19 @@ void loop(){
   }
 
   if(state==ST_IDLE){
+    /* Khởi động lại theo lệnh web — chỉ khi RẢNH, xem checkRemoteCmd(). Nói ra trên màn trước
+       khi tắt: người đứng cạnh ghế thấy nó tối đi mà không có lý do thì tưởng ghế hỏng. */
+    if(g_rebootCho){
+      tft.fillScreen(COL_BG);
+      tft.setTextDatum(MC_DATUM);
+      tft.setTextColor(COL_VANG, COL_BG);
+      tft.drawString("DANG KHOI DONG LAI...", 160, 110, 4);
+      tft.setTextColor(COL_MO, COL_BG);
+      tft.drawString("Lenh tu he thong quan ly", 160, 140, 2);
+      Serial.println("[CMD] khoi dong lai NGAY BAY GIO");
+      delay(1200);
+      ESP.restart();
+    }
     if(!screenDrawn){ drawIdle(); screenDrawn=true; }
     int x,y;
     if(getTouch(x,y) && !CHUA_GAN && CHAIR_ID.length()){

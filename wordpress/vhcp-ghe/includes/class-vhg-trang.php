@@ -125,10 +125,10 @@ class VHG_Trang {
 			return;
 		}
 
-		if ( 'bat' === $viec || 'tat' === $viec ) {
+		if ( 'bat' === $viec || 'tat' === $viec || 'khoi_dong_lai' === $viec ) {
 			$r = VHG_May::dat_lenh(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
-				'bat' === $viec ? 'on' : 'off',
+				'bat' === $viec ? 'on' : ( 'tat' === $viec ? 'off' : 'reboot' ),
 				isset( $d['phut'] ) ? $d['phut'] : 0,
 				/* Ghi TÊN NGƯỜI ĐANG CẦM PHIÊN, không lấy tên từ gói gửi lên. Luật 3: bật tay là
 				   cho không một lượt, nên chữ ký phải là thứ người bấm không tự khai được. */
@@ -250,7 +250,7 @@ class VHG_Trang {
 		return <<<'CSS'
 *{box-sizing:border-box}
 body{margin:0;background:#171a2e;color:#e8ebff;font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-.wrap{max-width:1000px;margin:0 auto;padding:14px}
+.wrap{max-width:1180px;margin:0 auto;padding:14px}
 h1{font-size:19px;margin:0}
 h1 small{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#8d93c4;font-weight:400;margin-top:3px}
 .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
@@ -287,11 +287,64 @@ tr:last-child td{border-bottom:0}
 .login input{text-align:center;letter-spacing:.5em;font-size:21px;margin:16px 0 10px}
 .err{color:#ff8087;font-size:13px;min-height:19px;margin-top:8px}
 .act{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+/* --- Tab chính --- */
+.nav{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid #2c3157;padding-bottom:10px}
+.nav button{border-radius:9px 9px 0 0}
+/* --- Thẻ ghế (tab Điều khiển) ---
+   Bảng hợp cho đối soát (so số theo cột), nhưng KHÔNG hợp cho điều khiển: người bấm đang đứng
+   cạnh một con ghế cụ thể và cần thấy đúng nó, to và rõ, chứ không dò theo hàng. */
+.ghe-luoi{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px}
+.ghe{background:#1e2240;border:1px solid #2c3157;border-radius:12px;padding:14px}
+.ghe.dut{border-color:#7c2732}
+.ghe.chay{border-color:#6b551a}
+.ghe-dau{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.ghe-ma{font-size:17px;font-weight:700}
+.ghe-cs{font-size:12px;color:#8d93c4;margin-bottom:10px}
+.ghe-dh{font-size:27px;font-weight:700;color:#f0b429;margin:6px 0 2px}
+.ghe-nut{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:11px}
+.ghe-nut button{padding:9px 6px;font-size:13px}
+.b-bat{background:#12351f;border-color:#2f6b45;color:#8ff0b0}
+.b-tat{background:#3a1418;border-color:#7c2732;color:#ff8087}
+.b-kd{background:#111f3d;border-color:#2b4a80;color:#9ecbff}
+.ghe-hang{display:flex;gap:6px;align-items:center;margin-top:8px}
+.ghe-hang input{width:70px}
+.ghe-hang label{font-size:11px;color:#8d93c4}
 .act input{width:66px;padding:5px 7px}
 .act select{font:inherit;border-radius:8px;border:1px solid #343a63;background:#151831;color:#e8ebff;padding:5px 7px;max-width:130px}
 .note code{background:#151831;padding:1px 5px;border-radius:5px}
 .act button{padding:5px 10px;font-size:12px}
 @media(max-width:560px){.hide-sm{display:none}.wrap{padding:10px}}
+
+/* ============================================================================================
+ * MÀN MÁY TÍNH. Bản đầu chỉ ngắm điện thoại nên trên màn rộng nó bó vào một cột giữa, hai bên
+ * bỏ trống hơn nửa màn hình — mà người ngồi văn phòng đối soát cuối ngày lại dùng đúng màn đó.
+ *
+ * Không chỉ nới bề ngang: xếp "Theo cơ sở" và "Theo ghế" NẰM CẠNH NHAU. Hai bảng đó là hai
+ * cách nhìn cùng một số tiền, đặt cạnh nhau thì so được bằng mắt; xếp dọc thì phải cuộn qua
+ * lại và người ta thôi không so nữa.
+ * ============================================================================================ */
+@media(min-width:1100px){
+  .wrap{max-width:1400px;padding:20px 26px}
+  body{font-size:15.5px}
+  h1{font-size:22px}
+  .kpis{gap:14px}
+  .kpi{padding:14px 18px}
+  .kpi .vl{font-size:25px}
+  .card{padding:16px 18px}
+  .card h2{font-size:15px}
+  table{font-size:14px}
+  td{padding:10px 10px 10px 0}
+  /* Hai bảng tổng hợp nằm cạnh nhau */
+  .doi{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start}
+  .doi .card{margin-bottom:0}
+  /* Ô nhập trong cột "Việc" đang dính sát nhau ở màn rộng — cho chúng thở */
+  .act{gap:8px}
+  .act input{width:78px}
+}
+@media(min-width:1500px){
+  .wrap{max-width:1560px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+}
 CSS;
 	}
 
@@ -299,6 +352,10 @@ CSS;
 		return <<<'JS'
 (function(){
 var API = window.VHG_API, TOK = null, KY = 'today', D = null, ban = false;
+/* Tab đang mở. Nhớ lại giữa các lần tải: người đang điều khiển ghế bấm ↻ mà bị đá về tab đối
+   soát là mỗi lượt bấm mất thêm một cú bấm nữa. */
+var TAB = 'doi-soat';
+try { TAB = localStorage.getItem('vhg_tab') || 'doi-soat'; } catch(e) {}
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
 
 var app = document.getElementById('app');
@@ -367,10 +424,17 @@ function ve(){
     + '<button id="lam-moi" class="ghost">↻</button>'
     + '<button id="thoat" class="ghost">Thoát</button></div>';
 
-  h += '<div class="tabs">';
-  [['today','Hôm nay'],['week','Tuần này'],['month','Tháng này'],['year','Năm nay'],['all','Tất cả']]
-    .forEach(function(k){ h += '<button data-ky="' + k[0] + '"' + (KY===k[0]?' class="on"':'') + '>' + k[1] + '</button>'; });
-  h += '</div>';
+  h += '<div class="nav">'
+    + '<button data-tab="doi-soat"' + (TAB==='doi-soat'?' class="on"':'') + '>📊 Đối soát</button>'
+    + '<button data-tab="dieu-khien"' + (TAB==='dieu-khien'?' class="on"':'') + '>🎛 Điều khiển ghế</button>'
+    + '</div>';
+
+  if (TAB === 'doi-soat') {
+    h += '<div class="tabs">';
+    [['today','Hôm nay'],['week','Tuần này'],['month','Tháng này'],['year','Năm nay'],['all','Tất cả']]
+      .forEach(function(k){ h += '<button data-ky="' + k[0] + '"' + (KY===k[0]?' class="on"':'') + '>' + k[1] + '</button>'; });
+    h += '</div>';
+  }
 
   /* GHẾ CHỜ GÁN — trên cùng luôn, trên cả cảnh báo mất kết nối.
      Ghế vừa cắm điện xong là thứ người đang đứng cạnh nó cần thấy đầu tiên; và chừng nào chưa
@@ -411,6 +475,8 @@ function ve(){
       + '</table></div>';
   }
 
+  if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
+
   h += '<div class="kpis">'
     + kpi('Tổng doanh thu', tien(t.tong), t.so_luot + ' lượt', 'a')
     + kpi('Chuyển khoản (QR)', tien(t.qr), t.qr_luot + ' lượt', 'b')
@@ -418,39 +484,30 @@ function ve(){
     + kpi('Đang chờ ghế nhận', String(D.cho.length), 'đã trả, chưa chạy', 'd')
     + '</div>';
 
-  // --- tình trạng ghế
+  // --- tình trạng ghế: chỉ LIỆT KÊ ở tab đối soát; bấm nút thì sang tab Điều khiển
   h += '<div class="card"><h2>Tình trạng ghế</h2><table><tr><th>Ghế</th><th class="hide-sm">Cơ sở</th>'
-    + '<th>Trạng thái</th><th class="hide-sm">Còn lại</th><th class="r">Việc</th></tr>';
-  if (!D.may.length) h += '<tr><td colspan="5" class="mut">Chưa khai ghế nào.</td></tr>';
+    + '<th>Trạng thái</th><th class="r">Còn lại</th></tr>';
+  if (!D.may.length) h += '<tr><td colspan="4" class="mut">Chưa khai ghế nào.</td></tr>';
   D.may.forEach(function(m){
-    var p = !m.song ? ['p-off','Mất kết nối']
-      : m.tt === 'running' ? ['p-run','Đang chạy']
-      : m.tt === 'wait_pay' ? ['p-wait','Chờ trả tiền'] : ['p-ok','Rảnh'];
+    var p = trangThai(m);
     h += '<tr><td><b>' + esc(m.ma) + '</b></td>'
       + '<td class="hide-sm">' + esc(m.coso || '(chưa gán)') + '</td>'
       + '<td><span class="pill ' + p[0] + '">' + p[1] + '</span></td>'
-      + '<td class="hide-sm">' + (m.tt === 'running' && m.song ? mmss(m.con_lai) : '') + '</td>'
-      + '<td class="r"><div class="act" style="justify-content:flex-end">'
-      + '<input type="number" min="1" max="60" value="' + m.phut + '" data-phut="' + esc(m.ma) + '">'
-      + '<button data-bat="' + esc(m.ma) + '">Bật</button>'
-      + '<button data-tat="' + esc(m.ma) + '">Tắt</button>'
-      + '<input type="number" min="1000" step="1000" value="' + m.gia + '" data-tien="' + esc(m.ma) + '" style="width:84px">'
-      + '<button data-mat="' + esc(m.ma) + '">Thu mặt</button>'
-      + '</div></td></tr>';
+      + '<td class="r">' + (m.tt === 'running' && m.song ? mmss(m.con_lai) : '') + '</td></tr>';
   });
-  h += '</table><p class="mut" style="margin:9px 0 0">Bật tay là <b>cho không một lượt</b> — hệ thống '
-    + 'ghi lại ai bấm và lúc nào, để cuối tháng còn giải thích được vì sao một ghế chạy nhiều hơn '
-    + 'số tiền thu.</p></div>';
+  h += '</table><p class="mut" style="margin:9px 0 0">Bật/tắt ghế ở tab '
+    + '<b>🎛 Điều khiển ghế</b>.</p></div>';
 
-  // --- theo cơ sở
+  /* Hai bảng tổng hợp trong một khối: trên màn rộng chúng nằm cạnh nhau (xem .doi trong CSS),
+     trên điện thoại vẫn xếp dọc như cũ. */
+  h += '<div class="doi">';
   h += bang('Theo cơ sở', ['Cơ sở','Lượt','QR','Tiền mặt','Tổng'],
     Object.keys(t.theo_coso).map(function(k){ var c = t.theo_coso[k];
       return ['<b>' + esc(c.coso) + '</b>', c.so_luot, tien(c.qr), tien(c.tien_mat), '<b>' + tien(c.tong) + '</b>']; }));
-
-  // --- theo máy
   h += bang('Theo ghế', ['Ghế','Cơ sở','Lượt','QR','Tiền mặt','Tổng'],
     Object.keys(t.theo_may).map(function(k){ var m = t.theo_may[k];
       return ['<b>' + esc(m.may) + '</b>', esc(m.coso), m.so_luot, tien(m.qr), tien(m.tien_mat), '<b>' + tien(m.tong) + '</b>']; }));
+  h += '</div>';
 
   // --- giao dịch
   h += bang('Giao dịch gần đây', ['Thời gian','Ghế','Nguồn','Nội dung','Số tiền'],
@@ -463,6 +520,64 @@ function ve(){
   h += '</div>';
   app.innerHTML = h;
   noi();
+}
+
+/* Trạng thái một ghế -> [lớp CSS, chữ]. MỘT chỗ duy nhất: hai tab cùng hiện trạng thái này,
+   khai hai nơi là sớm muộn một tab nói "Rảnh" còn tab kia nói "Đang chạy". */
+function trangThai(m){
+  if (!m.song)              return ['p-off','Mất kết nối'];
+  if (m.tt === 'running')   return ['p-run','Đang chạy'];
+  if (m.tt === 'wait_pay')  return ['p-wait','Chờ trả tiền'];
+  return ['p-ok','Rảnh'];
+}
+
+/* TAB ĐIỀU KHIỂN — mỗi ghế một thẻ, không phải một hàng bảng.
+   Người bấm đang đứng cạnh một con ghế cụ thể và cần thấy đúng nó, to và rõ; dò theo hàng
+   trong bảng là nguồn của việc bấm nhầm sang ghế bên cạnh. */
+function veDieuKhien(){
+  if (!D.may.length) {
+    return '<div class="card"><h2>Điều khiển ghế</h2><p class="mut">Chưa khai ghế nào. '
+      + 'Cắm ghế lên là nó tự hiện ở khối <b>Ghế vừa nối mạng</b> trong tab Đối soát.</p></div>';
+  }
+  var h = '<div class="card"><h2>Điều khiển ghế — ' + D.may.length + ' ghế</h2>'
+    + '<p class="mut" style="margin:0 0 12px">Bật tay là <b>cho không một lượt</b> — hệ thống ghi '
+    + 'lại ai bấm và lúc nào, để cuối tháng còn giải thích được vì sao một ghế chạy nhiều hơn số '
+    + 'tiền thu.</p><div class="ghe-luoi">';
+
+  D.may.forEach(function(m){
+    var p = trangThai(m);
+    var lop = !m.song ? ' dut' : (m.tt === 'running' ? ' chay' : '');
+    h += '<div class="ghe' + lop + '">'
+      + '<div class="ghe-dau"><span class="ghe-ma">' + esc(m.ma) + '</span>'
+      + '<span class="pill ' + p[0] + '">' + p[1] + '</span></div>'
+      + '<div class="ghe-cs">' + esc(m.coso || '(chưa gán cơ sở)') + '</div>';
+
+    /* Số đếm ngược to: đó là thứ người đứng cạnh ghế nhìn để biết còn bao lâu. */
+    if (m.tt === 'running' && m.song) {
+      h += '<div class="ghe-dh">' + mmss(m.con_lai) + '</div><div class="mut">còn lại</div>';
+    } else if (!m.song) {
+      h += '<div class="mut" style="margin:8px 0">Ghế không gửi nhịp. Khách vẫn quét được tem QR '
+        + 'trên ghế, <b>tiền vẫn vào nhưng ghế không chạy</b>.</div>';
+    } else if (m.cho > 0) {
+      h += '<div class="mut" style="margin:8px 0">' + m.cho + ' lượt đã trả tiền đang chờ ghế nhận.</div>';
+    } else {
+      h += '<div class="mut" style="margin:8px 0">Sẵn sàng · ' + tien(m.gia) + ' = ' + m.phut + ' phút</div>';
+    }
+
+    h += '<div class="ghe-hang"><label>Số phút</label>'
+      + '<input type="number" min="1" max="60" value="' + m.phut + '" data-phut="' + esc(m.ma) + '">'
+      + '<label>Tiền mặt</label>'
+      + '<input type="number" min="1000" step="1000" value="' + m.gia + '" data-tien="' + esc(m.ma) + '">'
+      + '</div>';
+
+    h += '<div class="ghe-nut">'
+      + '<button class="b-bat" data-bat="' + esc(m.ma) + '">▶ Bật</button>'
+      + '<button class="b-tat" data-tat="' + esc(m.ma) + '">■ Tắt</button>'
+      + '<button data-mat="' + esc(m.ma) + '">💵 Thu tiền mặt</button>'
+      + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ Khởi động lại</button>'
+      + '</div></div>';
+  });
+  return h + '</div></div>';
 }
 
 function kpi(lb, vl, sb, m){
@@ -487,6 +602,24 @@ function noi(){
   };
   [].forEach.call(document.querySelectorAll('[data-ky]'), function(b){
     b.onclick = function(){ KY = b.getAttribute('data-ky'); tai(); };
+  });
+  [].forEach.call(document.querySelectorAll('[data-tab]'), function(b){
+    b.onclick = function(){
+      TAB = b.getAttribute('data-tab');
+      try { localStorage.setItem('vhg_tab', TAB); } catch(e) {}
+      /* Vẽ lại từ dữ liệu ĐANG CÓ, không gọi lại máy chủ: đổi tab không phải đổi dữ liệu, và
+         trên 4G mỗi lượt gọi thừa là một lần chờ. */
+      ve();
+    };
+  });
+  [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
+    b.onclick = function(){
+      var m = b.getAttribute('data-kd');
+      if (!confirm('Khởi động lại ghế ' + m + '?\n\nGhế sẽ tự khởi động khi đang RẢNH — nếu có '
+        + 'khách đang massage thì nó chờ hết lượt rồi mới khởi động, không cắt ngang.\n'
+        + 'Sau khi khởi động, ghế mất khoảng 30 giây mới gửi nhịp lại.')) return;
+      lam('khoi_dong_lai', { ma_may: m });
+    };
   });
   function so(attr, ma){
     var el = document.querySelector('[' + attr + '="' + ma + '"]');
