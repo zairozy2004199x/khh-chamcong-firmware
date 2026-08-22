@@ -108,6 +108,8 @@ class VHG_Thu {
 		 * máy ("AMTP 03") chứ không mang mã ghế. Đường webhook của mình luôn có mã ghế trong nội
 		 * dung, nên ở đây suy thêm là chỉ tạo ra rác. */
 		list( $ma_may, $ma_lenh ) = VHG_Doc::ghe_va_ma( $nd );
+		/* Đơn mua mã trước: nội dung là "MUA<mã đơn>", không có ghế nào cả. */
+		$ma_don = VHG_Doc::don_mua( $nd );
 		$ten = '';
 		if ( '' === $ma_may ) {
 			$ten = VHG_Doc::ten_may( $nd );
@@ -151,6 +153,22 @@ class VHG_Thu {
 		   chưa gắn được máy — đối soát tay sau, đừng bỏ. */
 		if ( '' !== $ma_may && '' !== $ma_lenh ) {
 			VHG_May::xep_cho_chay( $ma_may, $ma_lenh, $tien, $kq['ref'], $nd );
+		}
+
+		/* ĐƠN MUA MÃ TRƯỚC. Tiền về -> phát mã cho đúng số điện thoại đã chốt lúc đặt đơn.
+		   ⚠️ Đặt SAU `ghi()`: dòng doanh thu phải vào sổ trước, rồi mã mới được phát. Ngược lại
+		      thì có mã trong tay khách mà sổ chưa có tiền, và một lượt gãy giữa chừng để lại
+		      đúng cảnh đó vĩnh viễn.
+		   ⚠️ `phat_ma` tự chịu được gọi lại — webhook bắn lại là chuyện bình thường, và mỗi lượt
+		      bắn lại mà phát thêm mã là cho không hàng trăm nghìn đồng. */
+		if ( '' !== $ma_don ) {
+			$pm = VHG_Ma::phat_ma( $ma_don, $kq['ref'] );
+			if ( ! empty( $pm['ok'] ) ) {
+				return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
+					'ma_may' => '', 'ma_lenh' => '', 'ten_khai' => $ten, 'so_tien' => $tien,
+					'don_ma' => $ma_don, 'ma_phat' => $pm['ma'],
+					'ghi_chu' => 'đơn mua mã ' . $ma_don . ' — phát ' . count( $pm['ma'] ) . ' mã' );
+			}
 		}
 		return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
 			'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh, 'ten_khai' => $ten, 'so_tien' => $tien );

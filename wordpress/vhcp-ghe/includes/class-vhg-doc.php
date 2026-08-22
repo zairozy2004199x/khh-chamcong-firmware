@@ -214,6 +214,23 @@ class VHG_Doc {
 	}
 
 	/**
+	 * Nội dung của một đơn MUA MÃ -> mã đơn. Rỗng nếu không phải đơn mua mã.
+	 *
+	 * ⚠️ ĐÒI RANH GIỚI TỪ trước "MUA". Không có nó thì `GHEAMUA…` hay tên người "THANH MUA" cũng
+	 *    khớp, và một lượt tiền của ghế bị đem đi phát mã. Ngân hàng chèn "CT DEN:<mã> " vào đầu
+	 *    nên chuỗi tới nơi luôn có khoảng trắng trước phần mình dựng.
+	 * ⚠️ Và mã đơn phải ĐÚNG 6 ký tự trong bảng chữ mình sinh — nới ra là mọi chuỗi hoa sau chữ
+	 *    MUA đều thành "mã đơn", rồi tra không thấy và lượt tiền đó rơi vào im lặng.
+	 */
+	public static function don_mua( $noi_dung ) {
+		$s = mb_strtoupper( (string) $noi_dung, 'UTF-8' );
+		if ( preg_match( '/(?:^|[^A-Z0-9])MUA\s*([A-Z0-9]{6})(?![A-Z0-9])/u', $s, $m ) ) {
+			return $m[1];
+		}
+		return '';
+	}
+
+	/**
 	 * Ngày kiểu Tingo "dd-MM-yyyy HH:mm:ss" hoặc "dd/MM/yyyy HH:mm" -> "yyyy-mm-dd HH:ii:ss".
 	 * ⚠️ KHÔNG đoán bừa: chuỗi không đúng khuôn thì trả rỗng để nơi gọi lấy giờ máy chủ. Đoán sai
 	 *    ngày là giao dịch rơi sang tháng khác, và bảng đối soát tháng đó sai mà không ai thấy.

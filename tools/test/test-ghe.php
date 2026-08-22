@@ -32,7 +32,7 @@ define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
 define( 'VHG_KHOA_WEBHOOK', 'khoa-webhook-thu-nghiem' );
 define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'nhap', 'cong', 'auth', 'trang' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'nhap', 'cong', 'auth', 'trang' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -130,7 +130,16 @@ function vhg_tong() {
 
 // ============================================================ 1. Sơ đồ bảng
 $so_do = VHG_DB::bang();
-teq( 'sơ đồ có đủ 9 bảng', 9, count( $so_do ) );
+teq( 'sơ đồ có đủ 11 bảng', 11, count( $so_do ) );
+/* 🔴 `ma` UNIQUE là TOÀN BỘ hàng rào chống dùng một mã hai lần. Mất nó thì cùng một mã chạy ghế
+      bao nhiêu lần cũng được, và mình không có cách nào biết. */
+t( 'bảng mã khoá DUY NHẤT theo mã', strpos( $so_do['ma'], 'UNIQUE KEY ma (ma)' ) !== false );
+t( 'và đơn mua khoá duy nhất theo mã đơn',
+	strpos( $so_do['don_ma'], 'UNIQUE KEY ma_don (ma_don)' ) !== false );
+/* ⚠️ KHÔNG lưu PIN thô. Số điện thoại là thứ người khác đoán ra được, mà biết số là tra ra mã
+      của người ta — nên PIN phải là băm, không phải chuỗi đọc được. */
+t( 'PIN lưu dạng băm, cột đủ rộng cho bcrypt',
+	strpos( $so_do['ma'], 'pin_bam VARCHAR(255)' ) !== false );
 t( 'bảng doanh thu khoá DUY NHẤT theo mã tham chiếu — đây là ràng buộc chống đếm hai lần',
 	strpos( $so_do['thu'], 'UNIQUE KEY ref (ref)' ) !== false );
 t( 'bảng nhật ký có cột giữ THÂN THÔ (bên gửi đổi tên trường mà không báo)',
@@ -2848,6 +2857,163 @@ t( 'và kêu lên khi nghi cộng đôi', strpos( $web_t, 'cộng đôi' ) !== f
    theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
 t( 'ba tab báo cáo đều chọn được kỳ',
 	strpos( $web_t, "TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat'" ) !== false );
+
+// ====================== BÁN MÃ TRƯỚC (mua hôm nay, dùng hôm khác)
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+/* Trả mệnh giá về bộ mặc định: khối phép thử trước đó có sửa `vhg_menh_gia`, và một khối phụ
+   thuộc vào rác của khối khác là khối sẽ hỏng vì lý do chẳng liên quan. */
+delete_option( 'vhg_menh_gia' );
+update_option( 'vhg_ma_giam', array( 100000 => 15, 200000 => 20 ) );
+
+// ---- mã sinh ra phải GÕ ĐƯỢC
+/* 🔴 Khách đọc mã từ ảnh chụp rồi gõ tay. Một mã có O cạnh 0, hay 1 cạnh I, là một cuộc cãi nhau
+      ở quầy — và người thua luôn là khách. */
+foreach ( array( '0', 'O', '1', 'I', 'L', 'S', '5', '2', 'Z' ) as $xau ) {
+	t( 'bảng chữ sinh mã không có "' . $xau . '"', strpos( VHG_Ma::CHU, $xau ) === false );
+}
+$m1 = VHG_Ma::sinh_ma();
+teq( 'mã dài đúng 8', 8, strlen( $m1 ) );
+teq( 'hiện ra có gạch cho dễ đọc', substr( $m1, 0, 4 ) . '-' . substr( $m1, 4 ), VHG_Ma::ma_dep( $m1 ) );
+teq( 'khách gõ có gạch vẫn nhận', $m1, VHG_Ma::ma_sach( VHG_Ma::ma_dep( $m1 ) ) );
+teq( 'gõ thường vẫn nhận', $m1, VHG_Ma::ma_sach( strtolower( $m1 ) ) );
+
+// ---- số điện thoại: MỘT cách chuẩn hoá cho cả lúc bán lẫn lúc tra
+/* 🔴 Mua gõ "0909 123 456", hôm sau tra gõ "+84909123456" — cùng một người. Hai nơi chuẩn hoá
+      khác nhau là hệ thống nói "không có mã nào" trong khi khách đã trả tiền rồi. */
+foreach ( array( '0909 123 456', '+84909123456', '84909123456', '0909-123-456' ) as $kieu ) {
+	teq( 'số "' . $kieu . '" về cùng một dạng', '0909123456', VHG_Ma::sdt_sach( $kieu ) );
+}
+t( 'số quá ngắn thì loại', ! VHG_Ma::sdt_hop_le( '0909' ) );
+t( 'PIN 4 số mới nhận', VHG_Ma::pin_hop_le( '1234' ) && ! VHG_Ma::pin_hop_le( '123' )
+	&& ! VHG_Ma::pin_hop_le( '12a4' ) );
+
+// ---- giá bán sau giảm
+teq( 'giảm 15% của 100k', 85000, VHG_Ma::gia_ban( 100000 ) );
+teq( 'giảm 20% của 200k', 160000, VHG_Ma::gia_ban( 200000 ) );
+teq( 'mệnh giá chưa khai giảm thì bán đúng giá', 50000, VHG_Ma::gia_ban( 50000 ) );
+/* ⚠️ Gõ nhầm một số 0 thành "giảm 900%" là bán mã với giá âm. Chặn ở tầng đọc cấu hình. */
+update_option( 'vhg_ma_giam', array( 100000 => 900 ) );
+t( 'giảm quá tay bị chặn lại', VHG_Ma::giam_cua( 100000 ) <= 70 );
+t( 'và giá bán không bao giờ về 0', VHG_Ma::gia_ban( 100000 ) > 0 );
+update_option( 'vhg_ma_giam', array( 100000 => -5 ) );
+teq( 'giảm âm thì coi như không giảm', 0, VHG_Ma::giam_cua( 100000 ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15, 200000 => 20 ) );
+
+// ---- đặt đơn -> trả tiền -> phát mã
+$don = VHG_Ma::dat_don( '0909123456', '2468', 100000, 2 );
+t( 'đặt được đơn', ! empty( $don['ok'] ), isset( $don['error'] ) ? $don['error'] : '' );
+teq( 'phải trả = giá đã giảm × số lượng', 170000, (int) $don['phai_tra'] );
+/* ⚠️ Chỉ bán mệnh giá ĐANG khai. Nhận con số khách gửi lên là mở đường mua mã 1.000.000đ với
+      giá 1.000đ bằng cách sửa gói tin. */
+t( 'mệnh giá lạ thì từ chối', empty( VHG_Ma::dat_don( '0909123456', '2468', 999000, 1 )['ok'] ) );
+t( 'PIN sai khuôn thì từ chối', empty( VHG_Ma::dat_don( '0909123456', '12', 100000, 1 )['ok'] ) );
+
+$nd_mua = VHG_QR::noi_dung_mua( $don['ma_don'] );
+teq( 'đọc ngược ra đúng mã đơn', $don['ma_don'], VHG_Doc::don_mua( 'CT DEN:145T268 ' . $nd_mua ) );
+/* ⚠️ Đòi ranh giới trước "MUA": không có nó thì tên người "THANH MUA ABCDEF" cũng khớp, và một
+      lượt tiền của ghế bị đem đi phát mã. */
+teq( 'chuỗi dính liền KHÔNG khớp', '', VHG_Doc::don_mua( 'GHEAMUAABCDEF' ) );
+teq( 'và nội dung của ghế cũng không khớp', '', VHG_Doc::don_mua( 'SEVQR GHEAMTP01 K7M2PQ' ) );
+
+$goi_mua = array( 'transferType' => 'in', 'transferAmount' => 170000,
+	'content' => 'CT DEN:145T268 ' . $nd_mua, 'referenceCode' => 'FT-MUA-1' );
+vhg_ban( $goi_mua );
+/* Đọc kết quả tra mã một cách CHỊU ĐƯỢC THẤT BẠI: tra hỏng thì trả mảng rỗng chứ đừng để
+   `count(null)` làm vỡ cả bộ thử. Một phép thử vỡ bằng lỗi chí mạng thì không ai đọc được nó
+   vỡ vì cái gì — mà đó đúng là lúc cần đọc nhất. */
+function vhg_ma_cua( $r, $o ) {
+	return ( is_array( $r ) && isset( $r[ $o ] ) && is_array( $r[ $o ] ) ) ? $r[ $o ] : array();
+}
+$sau = VHG_Ma::tra( '0909123456', '2468' );
+t( 'tiền về thì phát mã', ! empty( $sau['ok'] ), isset( $sau['error'] ) ? $sau['error'] : '' );
+teq( 'phát đúng 2 mã', 2, count( vhg_ma_cua( $sau, 'chua_dung' ) ) );
+$m_dau = vhg_ma_cua( $sau, 'chua_dung' );
+teq( 'mã mang đúng mệnh giá', 100000, (int) ( isset( $m_dau[0] ) ? $m_dau[0]['menh_gia'] : 0 ) );
+teq( 'và nhớ giá khách đã trả', 85000, (int) ( isset( $m_dau[0] ) ? $m_dau[0]['gia_ban'] : 0 ) );
+/* 🔴 Doanh thu ghi LÚC BÁN, đúng số tiền thật vào két — không phải mệnh giá. */
+teq( 'doanh thu đúng số tiền thật vào két', 170000, vhg_tong() );
+
+/* 🔴 Webhook bắn lại là chuyện bình thường. Mỗi lượt bắn lại mà phát thêm mã là cho không hàng
+      trăm nghìn đồng. */
+vhg_ban( $goi_mua );
+teq( 'bắn lại KHÔNG phát thêm mã', 2,
+	count( vhg_ma_cua( VHG_Ma::tra( '0909123456', '2468' ), 'chua_dung' ) ) );
+teq( 'và không cộng đôi doanh thu', 170000, vhg_tong() );
+
+// ---- tra mã: số điện thoại KHÔNG phải mật khẩu
+/* 🔴 Người khác đoán ra số, nhìn thấy lúc khách gõ, hoặc thử vài số quen. Chỉ hỏi số là ai cũng
+      tiêu được mã của người khác. */
+t( 'đúng số nhưng sai PIN thì KHÔNG ra mã', empty( VHG_Ma::tra( '0909123456', '9999' )['ok'] ) );
+/* ⚠️ Cùng một câu báo lỗi cho "không có số này" và "sai PIN": nói rõ là xác nhận giúp người dò
+      rằng họ đã tìm đúng người, việc còn lại chỉ là thử 10.000 lần. */
+teq( 'hai ca sai báo giống hệt nhau',
+	VHG_Ma::tra( '0909123456', '9999' )['error'], VHG_Ma::tra( '0987654321', '1111' )['error'] );
+t( 'PIN không lưu dạng đọc được', ! $wpdb->get_var( 'SELECT id FROM ' . VHG_DB::t( 'ma' )
+	. " WHERE pin_bam='2468'" ) );
+
+// ---- dùng mã
+$ma_1 = isset( $m_dau[0] ) ? VHG_Ma::ma_sach( $m_dau[0]['ma'] ) : 'KHONGCO1';
+$dung = VHG_Ma::dung( $ma_1, 'AMTP01' );
+t( 'dùng được mã', ! empty( $dung['ok'] ), isset( $dung['error'] ) ? $dung['error'] : '' );
+/* 🔴 KHÔNG ghi thêm đồng doanh thu nào — tiền đã vào sổ hôm khách MUA. Ghi lần nữa là cùng một
+      khoản đếm hai lần, và bảng đối soát nói dối theo hướng có lợi cho mình. */
+teq( '🔴 dùng mã KHÔNG cộng thêm doanh thu', 170000, vhg_tong() );
+/* Nhưng ghế phải chạy, và chạy theo MỆNH GIÁ chứ không phải giá bán. */
+$cho_1 = VHG_May::ds_cho( true, 20 );
+$thay = null;
+foreach ( $cho_1 as $c_ ) { if ( 0 === strpos( (string) $c_['ma_lenh'], 'MA' ) ) { $thay = $c_; } }
+t( 'ghế được xếp lượt chạy', null !== $thay );
+teq( 'chạy theo MỆNH GIÁ, không phải giá bán', 100000, (int) $thay['so_tien'] );
+
+/* 🔴 Một mã = một lượt. Dùng lại là cho không. */
+t( 'dùng lại lần hai bị từ chối', empty( VHG_Ma::dung( $ma_1, 'AMTP02' )['ok'] ) );
+
+/* 🔴 VÀ LỚP THỨ HAI: câu UPDATE phải mang điều kiện `dung_luc IS NULL`.
+ *
+ *    Phép thử ở trên chỉ chạm tới lớp thứ nhất — cái `if` đọc dòng ra rồi mới quyết. Lớp ấy chặn
+ *    được người gõ lại mã sau vài giây, nhưng KHÔNG chặn được hai người gõ cùng một mã trong
+ *    cùng một khoảnh khắc: cả hai cùng đọc thấy "chưa dùng", cả hai cùng ghi, và hai ghế cùng
+ *    chạy. Trọng tài duy nhất là cơ sở dữ liệu — chỉ một câu UPDATE đụng được vào hàng.
+ *
+ *    Không dựng được cảnh đua thật trong bộ thử một luồng này, nên bám vào chính câu lệnh. Nói
+ *    thẳng ra đây rằng phép thử này kiểm MÃ NGUỒN chứ không kiểm hành vi — để lần sau không ai
+ *    tưởng nó đã chứng minh điều nó không chứng minh. */
+$ma_src = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-ma.php' );
+t( 'câu UPDATE tự nó chặn dùng hai lần',
+	strpos( $ma_src, 'WHERE ma=%s AND dung_luc IS NULL AND huy=0' ) !== false );
+t( 'và không đụng được dòng nào thì TỪ CHỐI, không chạy tiếp',
+	preg_match( '/if \( ! \$n \) \{.*?return array\( .ok. => false/s', $ma_src ) === 1 );
+t( 'mã bịa thì từ chối', empty( VHG_Ma::dung( 'AAAABBBB', 'AMTP01' )['ok'] ) );
+$ma_2 = isset( $m_dau[1] ) ? VHG_Ma::ma_sach( $m_dau[1]['ma'] ) : 'KHONGCO2';
+t( 'ghế không có thật thì từ chối', empty( VHG_Ma::dung( $ma_2, 'KHONGCO' )['ok'] ) );
+/* Mã dùng được ở BẤT KỲ ghế nào — mã mua ở đâu chạy ở đó là mất nửa giá trị của việc bán trước. */
+t( 'mã dùng được ở ghế khác', ! empty( VHG_Ma::dung( $ma_2, 'AMTP02' )['ok'] ) );
+
+$sau2 = VHG_Ma::tra( '0909123456', '2468' );
+teq( 'hết mã chưa dùng', 0, count( vhg_ma_cua( $sau2, 'chua_dung' ) ) );
+$da_ = vhg_ma_cua( $sau2, 'da_dung' );
+teq( 'và hai mã nằm ở mục đã dùng', 2, count( $da_ ) );
+t( 'nhớ mã dùng ở ghế nào', isset( $da_[0] )
+	&& ( 'AMTP01' === $da_[0]['dung_may'] || 'AMTP02' === $da_[0]['dung_may'] ) );
+
+// ---- tiền đang nợ khách
+/* 🔴 Mã KHÔNG hết hạn (anh Thắng chốt), nên con số này chỉ cộng lên và không bao giờ tự đóng.
+      Mỗi mã chưa dùng là một lượt massage mình còn nợ. Không hiện ra là sẽ có ngày bất ngờ. */
+teq( 'dùng hết rồi thì không nợ gì', 0, VHG_Ma::tien_no()['tong'] );
+$don2 = VHG_Ma::dat_don( '0911222333', '1357', 200000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 160000,
+	'content' => 'CT DEN:145T269 ' . VHG_QR::noi_dung_mua( $don2['ma_don'] ),
+	'referenceCode' => 'FT-MUA-2' ) );
+$no = VHG_Ma::tien_no();
+teq( 'còn một mã chưa dùng', 1, (int) $no['so_ma'] );
+/* Nợ tính theo MỆNH GIÁ: thứ mình nợ là lượt massage, không phải số tiền khách đã trả. */
+teq( 'nợ tính theo mệnh giá', 200000, (int) $no['tong'] );
+teq( 'và nhớ đã thu bao nhiêu', 160000, (int) $no['da_thu'] );
 
 // ============================================================ kết
 if ( $truot ) {

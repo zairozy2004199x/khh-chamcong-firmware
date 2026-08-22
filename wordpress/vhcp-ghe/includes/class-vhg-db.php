@@ -247,6 +247,62 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			UNIQUE KEY khoa (khoa)";
 
+		/* ===== 9. MÃ MUA TRƯỚC ==============================================================
+		   Khách mua mã hôm nay (giá đã giảm), dùng hôm khác, ở BẤT KỲ ghế nào.
+
+		   🔴 `ma` là UNIQUE và đó là toàn bộ hàng rào chống dùng hai lần. `dung_luc` khác NULL là
+		      đã dùng; đánh dấu chứ KHÔNG xoá — xoá dòng đi thì mã ấy dùng lại được, và mình mất
+		      luôn chỗ duy nhất trả lời "hôm đó ghế chạy vì cái gì".
+
+		   `pin_bam` là băm bcrypt, KHÔNG lưu PIN thô. PIN 4 số thì không gian rất nhỏ, nhưng nó
+		   canh cho một thứ có thật: số điện thoại của khách là thứ người khác đoán ra được, mà
+		   biết số là tra ra mã của người ta. Băm + hãm thử ở tầng trên.
+
+		   `gia_ban` khác `menh_gia` là chỗ giảm giá nằm: mua 100.000đ với giá 85.000đ thì doanh
+		   thu ghi 85.000đ (tiền thật vào két), còn ghế chạy theo 100.000đ. Giữ cả hai con số vì
+		   cuối tháng phải giải thích được vì sao ghế chạy nhiều hơn tiền thu. */
+		$b['ma'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma VARCHAR(20) NOT NULL,
+			sdt VARCHAR(20) NOT NULL DEFAULT '',
+			pin_bam VARCHAR(255) NOT NULL DEFAULT '',
+			menh_gia BIGINT(20) NOT NULL DEFAULT 0,
+			gia_ban BIGINT(20) NOT NULL DEFAULT 0,
+			giam_pt INT NOT NULL DEFAULT 0,
+			ref_ban VARCHAR(120) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			dung_luc DATETIME NULL,
+			dung_may VARCHAR(40) NOT NULL DEFAULT '',
+			huy TINYINT(1) NOT NULL DEFAULT 0,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma (ma),
+			KEY nguoi (sdt,dung_luc),
+			KEY ban (tao_luc)";
+
+		/* ===== 10. ĐƠN MUA MÃ ĐANG CHỜ TRẢ TIỀN ============================================
+		   Khách bấm mua -> tạo đơn -> quét QR trả tiền -> webhook khớp `MUA<mã đơn>` -> phát mã.
+
+		   ⚠️ ĐƠN PHẢI CÓ TRƯỚC KHI CÓ TIỀN. Không thể phát mã ngay lúc bấm mua (chưa trả tiền),
+		      cũng không thể chờ tiền rồi mới hỏi số điện thoại (lúc đó khách đã đi khỏi trang).
+		      Nên số điện thoại, PIN, mệnh giá và giá bán được CHỐT ở đây, và webhook chỉ việc
+		      tra ra rồi phát. Giá chốt lúc đặt đơn, không tính lại lúc tiền về: đổi bảng giảm
+		      giá giữa chừng mà tính lại là khách trả một đằng nhận một nẻo. */
+		$b['don_ma'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_don VARCHAR(20) NOT NULL,
+			sdt VARCHAR(20) NOT NULL DEFAULT '',
+			pin_bam VARCHAR(255) NOT NULL DEFAULT '',
+			menh_gia BIGINT(20) NOT NULL DEFAULT 0,
+			gia_ban BIGINT(20) NOT NULL DEFAULT 0,
+			giam_pt INT NOT NULL DEFAULT 0,
+			so_luong INT NOT NULL DEFAULT 1,
+			phai_tra BIGINT(20) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			xong_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_don (ma_don),
+			KEY cho (xong_luc,tao_luc)";
+
 		return $b;
 	}
 

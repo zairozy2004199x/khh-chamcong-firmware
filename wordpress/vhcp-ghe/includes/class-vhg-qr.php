@@ -206,6 +206,34 @@ class VHG_QR {
 		return ( '' !== $t ? $t . ' ' : '' ) . 'GHE' . $ma_may . ' ' . $ma_lenh;
 	}
 
+	/**
+	 * Nội dung chuyển khoản của một ĐƠN MUA MÃ TRƯỚC: "<tiền tố> MUA<mã đơn>".
+	 * Ngắn hơn hẳn nội dung của ghế nên không lo trần 25 ký tự — "SEVQR MUAK7M2PQ" là 15.
+	 */
+	public static function noi_dung_mua( $ma_don ) {
+		$t = VHG_May::tien_to_nd();
+		return ( '' !== $t ? $t . ' ' : '' ) . VHG_Ma::ND_MUA . strtoupper( trim( (string) $ma_don ) );
+	}
+
+	/**
+	 * QR trả tiền cho một đơn mua mã. Dùng chung tài khoản nhận của hệ thống.
+	 * ⚠️ Đi qua đúng `nhan_tien_cua()` như QR của ghế, nên chốt "chưa khai tài khoản thì không
+	 *    dựng QR" áp dụng luôn — không có đường tắt nào dựng ra một mã QR không nhận được tiền.
+	 */
+	public static function cho_don_mua( $ma_don, $so_tien ) {
+		$tk = VHG_May::nhan_tien_cua( array() );
+		if ( '' === $tk['so_tk'] || '' === $tk['bin'] ) {
+			return array( 'ok' => false, 'error' => 'Chưa khai tài khoản nhận tiền — vào Ghế Massage '
+				. '→ Máy &amp; cơ sở để khai.' );
+		}
+		$tien = (int) $so_tien;
+		if ( $tien <= 0 ) { return array( 'ok' => false, 'error' => 'Số tiền phải lớn hơn 0.' ); }
+		$nd = self::noi_dung_mua( $ma_don );
+		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], $tien, $nd ),
+			'noi_dung' => $nd, 'so_tien' => $tien, 'so_tk' => $tk['so_tk'],
+			'ten_tk' => $tk['ten_tk'], 'bin' => $tk['bin'] );
+	}
+
 	/** Nội dung có vượt 25 ký tự không — trả câu cảnh báo, hoặc rỗng nếu vừa. */
 	public static function canh_bao_dai( $ma_may ) {
 		$nd  = self::noi_dung( $ma_may, 'K7M2P' );

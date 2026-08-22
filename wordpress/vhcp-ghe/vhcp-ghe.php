@@ -44,6 +44,7 @@ require_once VHG_DIR . 'includes/class-vhg-doc.php';
 require_once VHG_DIR . 'includes/class-vhg-may.php';
 require_once VHG_DIR . 'includes/class-vhg-thu.php';
 require_once VHG_DIR . 'includes/class-vhg-qr.php';
+require_once VHG_DIR . 'includes/class-vhg-ma.php';
 require_once VHG_DIR . 'includes/class-vhg-nhap.php';
 require_once VHG_DIR . 'includes/class-vhg-cong.php';
 require_once VHG_DIR . 'includes/class-vhg-auth.php';
