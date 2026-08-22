@@ -40,14 +40,40 @@ class VHG_Shop {
 		return '' !== $m ? add_query_arg( 'ghe', $m, $u ) : $u;
 	}
 
+	/**
+	 * Địa chỉ NGẮN NHẤT có thể — để mã QR ghế tự vẽ trên màn còn quét được.
+	 *
+	 * 🔴 Ô gói trên màn ghế chỉ chừa được 58 pixel cho mã QR. Số module của mã phụ thuộc ĐỘ DÀI
+	 *    chuỗi, nên địa chỉ dài là mã tự rơi xuống 1 pixel mỗi module — nhìn vẫn "có mã QR" mà
+	 *    gần như không điện thoại nào quét nổi.
+	 *
+	 * ⚠️ BỎ "https://" và VIẾT HOA. Bỏ scheme cắt 8 ký tự; viết hoa cho chuỗi rơi vào chế độ
+	 *    ALPHANUMERIC của QR (đặc hơn chế độ byte). Hầu hết máy quét nhận chuỗi không scheme là
+	 *    địa chỉ web.
+	 * ⚠️ Dạng THƯ MỤC (`/m/AMTP01`) chứ không phải tham số (`?g=AMTP01`): `?` và `=` không nằm
+	 *    trong bộ ký tự alphanumeric của QR, một ký tự lạ là cả chuỗi rơi về chế độ byte.
+	 */
+	public static function url_ngan( $ma_may ) {
+		$m = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', (string) $ma_may ) );
+		if ( ! get_option( 'permalink_structure' ) || '' === $m ) { return ''; }
+		$goc = (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+		$goc = preg_replace( '/^www\./i', '', $goc );
+		if ( '' === $goc ) { return ''; }
+		return strtoupper( $goc . '/' . self::slug() . '/' . $m );
+	}
+
 	public static function init() {
+		/* Dạng thư mục `/<slug>/<mã ghế>` — cho mã QR trên màn ghế ngắn hết mức. Khai TRƯỚC luật
+		   không có mã ghế: WordPress lấy luật khớp đầu tiên. */
+		add_rewrite_rule( '^' . self::slug() . '/([A-Za-z0-9]{1,20})/?$',
+			'index.php?vhg_shop=1&vhg_ghe=$matches[1]', 'top' );
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhg_shop=1', 'top' );
 		add_filter( 'query_vars', array( __CLASS__, 'query_vars' ) );
 		add_action( 'parse_request', array( __CLASS__, 'chan_chuyen_huong' ), 0 );
 		add_action( 'template_redirect', array( __CLASS__, 'phuc_vu' ), 0 );
 	}
 
-	public static function query_vars( $v ) { $v[] = 'vhg_shop'; return $v; }
+	public static function query_vars( $v ) { $v[] = 'vhg_shop'; $v[] = 'vhg_ghe'; return $v; }
 
 	private static function la_trang() {
 		if ( 1 === (int) get_query_var( 'vhg_shop' ) ) { return true; }
@@ -55,7 +81,10 @@ class VHG_Shop {
 		$d = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
 		$d = trim( (string) parse_url( $d, PHP_URL_PATH ), '/' );
 		$s = self::slug();
-		return $d === $s || substr( $d, - ( strlen( $s ) + 1 ) ) === '/' . $s;
+		if ( $d === $s || substr( $d, - ( strlen( $s ) + 1 ) ) === '/' . $s ) { return true; }
+		/* Dạng `/<slug>/<mã ghế>`. Xét cả ở đây chứ không chỉ dựa vào luật đường dẫn: luật chưa
+		   được nạp lại là trang trả 404, mà mã QR thì đã in lên tem dán ở ghế rồi. */
+		return (bool) preg_match( '#(^|/)' . preg_quote( $s, '#' ) . '/[A-Za-z0-9]{1,20}/?$#', $d );
 	}
 
 	/* Cùng lý do với trang nhân viên: một lượt bị chuyển hướng là mất trọn thân POST. */
@@ -115,9 +144,12 @@ class VHG_Shop {
 		$viec = preg_replace( '/[^a-z_]/', '', strtolower( $viec ) );
 
 		if ( 'goi' === $viec ) {
+			/* ⚠️ KHÔNG gửi danh sách ghế xuống trang khách. Ghế do CÁI TEM quyết định; đưa ra một
+			   danh sách là mời dựng lại đúng cái ô chọn vừa bỏ — và nó cũng phơi toàn bộ mã ghế
+			   của hệ thống ra một trang không cần đăng nhập. */
 			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia(),
 				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
-				'ghe' => self::ghe_tu_dia_chi( $d ), 'ds_ghe' => self::ds_ghe() ) );
+				'ghe' => self::ghe_tu_dia_chi( $d ) ) );
 			return;
 		}
 
@@ -126,7 +158,8 @@ class VHG_Shop {
 				isset( $d['sdt'] ) ? $d['sdt'] : '',
 				isset( $d['pin'] ) ? $d['pin'] : '',
 				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
-				isset( $d['so_luong'] ) ? $d['so_luong'] : 1 );
+				isset( $d['so_luong'] ) ? $d['so_luong'] : 1,
+				isset( $d['cc'] ) ? $d['cc'] : '' );
 			if ( empty( $r['ok'] ) ) { self::tra( $r ); return; }
 			$tk = VHG_May::nhan_tien_cua( array() );
 			if ( '' === $tk['so_tk'] ) {
@@ -169,6 +202,24 @@ class VHG_Shop {
 			return;
 		}
 
+		if ( 'lay_lai_pin' === $viec ) {
+			/* 🔴 HÃM CHẶT HƠN HẲN ô tra mã: đây là đường ĐỔI PIN, canh bằng bốn số cuối căn cước —
+			   chỉ 10.000 tổ hợp. Không hãm thì dò hết trong vài phút và toàn bộ mã của người ta
+			   đổi chủ. 5 lượt mỗi 10 phút: đủ cho người gõ nhầm, quá hẹp cho máy dò (10.000 tổ
+			   hợp với nhịp này là hơn hai tuần). */
+			if ( (int) get_transient( self::khoa_key( 'lay' ) ) >= 5 ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Thử quá nhiều lần — chờ 10 phút, hoặc nhờ nhân viên tra giúp.' ) );
+				return;
+			}
+			self::dem( 'lay' );
+			self::tra( VHG_Ma::lay_lai_pin(
+				isset( $d['sdt'] ) ? $d['sdt'] : '',
+				isset( $d['cc'] ) ? $d['cc'] : '',
+				isset( $d['pin'] ) ? $d['pin'] : '' ) );
+			return;
+		}
+
 		if ( 'dung' === $viec ) {
 			if ( self::bi_khoa( 'dung' ) ) {
 				self::tra( array( 'ok' => false,
@@ -192,22 +243,25 @@ class VHG_Shop {
 	 */
 	public static function ghe_tu_dia_chi( $d = array() ) {
 		$g = '';
-		if ( isset( $_GET['ghe'] ) ) { $g = sanitize_text_field( wp_unslash( $_GET['ghe'] ) ); }
+		/* Ba dạng, cùng một ý: `/mua-ma/AMTP01` (ngắn nhất, cho mã QR trên màn ghế), `?ghe=AMTP01`
+		   (tem in đời đầu), và trong thân gói (lượt gọi API). */
+		$qv = (string) get_query_var( 'vhg_ghe' );
+		if ( '' !== $qv ) { $g = $qv; }
+		if ( '' === $g ) {
+			$duong = isset( $_SERVER['REQUEST_URI'] ) ? (string) $_SERVER['REQUEST_URI'] : '';
+			$duong = trim( (string) parse_url( $duong, PHP_URL_PATH ), '/' );
+			if ( preg_match( '#(?:^|/)' . preg_quote( self::slug(), '#' )
+					. '/([A-Za-z0-9]{1,20})/?$#', $duong, $m_d ) ) {
+				$g = $m_d[1];
+			}
+		}
+		if ( '' === $g && isset( $_GET['ghe'] ) ) { $g = sanitize_text_field( wp_unslash( $_GET['ghe'] ) ); }
 		if ( '' === $g && isset( $d['ghe'] ) ) { $g = sanitize_text_field( (string) $d['ghe'] ); }
 		$g = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', $g ) );
 		if ( '' === $g || ! VHG_May::may( $g ) ) { return ''; }
 		return $g;
 	}
 
-	/** Danh sách ghế để khách tự chọn khi tem không mang mã ghế. */
-	public static function ds_ghe() {
-		$ra = array();
-		foreach ( VHG_May::ds_may() as $m ) {
-			if ( '' === (string) $m['ma'] || '?' === $m['ma'][0] ) { continue; }
-			$ra[] = array( 'ma' => (string) $m['ma'], 'coso' => (string) $m['coso_ten'] );
-		}
-		return $ra;
-	}
 
 
 	private static function css() {
@@ -423,6 +477,13 @@ function veMua(){
        không hiểu để làm gì thì gõ bừa, rồi hôm sau không tra được mã đã mua. */
     + '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>'
     + '<input id="pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
+    /* Căn cước KHÔNG bắt buộc, và nói rõ chỉ giữ 4 số cuối. Bắt buộc căn cước để mua một lượt
+       massage 85.000đ là mất khách ngay bước đầu; còn giấu chuyện chỉ giữ 4 số cuối thì khách
+       ngại khai, mà đó lại đúng là thứ làm họ yên tâm. */
+    + '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>'
+    + '<input id="cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">'
+    + '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>, phần còn lại '
+    + 'không được ghi lại ở đâu cả.</div>'
     + '<label>Số lượng</label>'
     + '<input id="sl" type="number" min="1" max="10" value="' + SL + '">'
     + '<div id="tong" class="mut" style="margin:12px 0 4px"></div>'
@@ -458,36 +519,71 @@ function o_ck(nhan, hien, chep_, lop){
 function veCuaToi(){
   return '<div class="card"><h2>Mã của tôi</h2>'
     + '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>'
+    /* 🔴 QUÊN PIN LÀ CHUYỆN SẼ XẢY RA, không phải nếu. Khách đặt PIN một lần rồi ba tuần sau mới
+       quay lại. Không nói trước lối ra thì họ gõ mười lần, bị hãm, rồi bỏ đi — mang theo cái mã
+       đã trả tiền.
+       ⚠️ KHÔNG làm chức năng "quên PIN" tự phục hồi trên trang này: thứ duy nhất trang biết về
+          khách là số điện thoại, mà số điện thoại thì người khác đoán được. Tự đặt lại PIN bằng
+          một thứ đoán được là gỡ đúng cái khoá vừa lắp. Nhân viên tra hộ mới là lối đúng — họ
+          nhìn thấy mặt khách. */
+    + '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra '
+    + 'được bằng số điện thoại và đọc mã giúp anh/chị.</p>'
     + '<label>Số điện thoại</label>'
     + '<input id="t-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
     + '<label>PIN 4 số</label>'
     + '<input id="t-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
     + '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>'
-    + '<div class="err" id="e"></div><div id="kq"></div></div>';
+    + '<div class="err" id="e"></div><div id="kq"></div></div>'
+    /* Ô lấy lại PIN để RIÊNG một khối, dưới khối tra: người nhớ PIN không phải nhìn thấy nó. */
+    + '<div class="card"><h2>Quên PIN?</h2>'
+    + '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới '
+    + 'được. Không khai thì gọi nhân viên — nhân viên tra bằng số điện thoại.</p>'
+    + '<label>Số điện thoại</label>'
+    + '<input id="q-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
+    + '<label>Số căn cước (đã khai lúc mua)</label>'
+    + '<input id="q-cc" type="tel" inputmode="numeric" autocomplete="off">'
+    + '<label>PIN mới (4 số)</label>'
+    + '<input id="q-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
+    + '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>'
+    + '<div class="err" id="q-e"></div></div>';
 }
 
 // ------------------------------------------------------------------ dùng mã
+/* ============================================================================================
+ * DÙNG MÃ — GHẾ DO CÁI TEM QUYẾT ĐỊNH, KHÔNG DO KHÁCH CHỌN.
+ *
+ * 🔴 Anh Thắng 23/08/2026: *"khách hàng rất dễ chọn lộn ghế, vì số lượng ghế rất nhiều"*. Đúng.
+ *    Bản trước đưa ra ô chọn liệt kê mọi ghế trong hệ thống — với 26 ghế thì đó là một cái bẫy:
+ *    khách chọn lộn là mã của họ chạy cho GHẾ NGƯỜI KHÁC. Mất mã, mất cả buổi, và không ai
+ *    chứng minh được chuyện gì vừa xảy ra.
+ *
+ *    Cái tem dán trên ghế đã mang mã ghế đó rồi. Quét tem = đã nói "tôi đang ngồi ghế này",
+ *    chính xác hơn mọi ô chọn. Nên: KHÔNG còn ô chọn ghế. Không biết ghế thì KHÔNG cho dùng mã.
+ *
+ * ⚠️ TỪ CHỐI chứ đừng đoán. Đoán một ghế "gần đúng" là cho không một lượt ở ghế sai, trong khi
+ *    khách thật vẫn ngồi đó chờ. Chặn ở đây rồi chỉ họ đi quét tem là đường ngắn nhất về chỗ đúng.
+ * ============================================================================================ */
 function veDung(){
-  var h = '<div class="card"><h2>Dùng mã cho ghế</h2>';
-  if (GHE) {
-    h += '<p class="mut" style="margin:0 0 10px">Mã sẽ chạy cho ghế <b style="color:#f0b429">'
-      + esc(GHE) + '</b> — chính là ghế anh/chị đang ngồi.</p>';
-  } else {
-    /* Tem không mang mã ghế thì PHẢI hỏi. Đoán bừa một ghế là cho ghế người khác chạy bằng mã
-       của khách này — mất mã, mất cả buổi. */
-    h += '<p class="mut" style="margin:0 0 10px">Chọn đúng ghế đang ngồi. '
-      + 'Mã ghế in trên góc màn hình ghế.</p><label>Ghế</label><select id="d-ghe">'
-      + '<option value="">— chọn ghế —</option>'
-      + ((D && D.ds_ghe) || []).map(function(g){
-          return '<option value="' + esc(g.ma) + '">' + esc(g.ma)
-            + (g.coso ? ' · ' + esc(g.coso) : '') + '</option>'; }).join('')
-      + '</select>';
+  if (!GHE) {
+    return '<div class="card"><h2>Dùng mã cho ghế</h2>'
+      + '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>'
+      + '<div style="margin-top:6px;line-height:1.5">Hãy <b>quét mã QR dán trên chính cái ghế '
+      + 'anh/chị đang ngồi</b> — mã đó cho hệ thống biết đúng ghế, khỏi phải chọn.</div></div>'
+      + '<p class="mut">Trang này cố ý <b>không</b> cho chọn ghế từ danh sách: chọn lộn là mã '
+      + 'chạy cho người khác, mà mã thì mất rồi. Tem trên ghế mờ hay bong thì gọi nhân viên — '
+      + 'nhân viên chạy mã giúp được.</p>'
+      + '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>'
+      + '</div>';
   }
-  h += '<label>Mã giảm giá</label>'
+  return '<div class="card"><h2>Dùng mã cho ghế</h2>'
+    + '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>'
+    + '<div class="gt">' + esc(GHE) + '</div></div></div>'
+    + '<p class="mut" style="margin:6px 0 0">Đúng ghế này thì nhập mã. Không đúng thì quét lại mã '
+    + 'QR trên ghế mình đang ngồi.</p>'
+    + '<label>Mã giảm giá</label>'
     + '<input id="d-ma" placeholder="ABCD-EFGH" autocapitalize="characters" autocomplete="off">'
     + '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>'
     + '<div class="err" id="e"></div><div id="kq"></div></div>';
-  return h;
 }
 
 // ------------------------------------------------------------------ nối nút
@@ -523,7 +619,8 @@ function noi(){
     if (!/^\d{4}$/.test(pin)) { e.textContent = 'PIN phải gồm đúng 4 chữ số.'; return; }
     if (ban) return;
     ban = true; mua.disabled = true; e.textContent = 'Đang tạo đơn…';
-    goi('dat', { sdt: sdt, pin: pin, menh_gia: D.goi[CHON].menh_gia,
+    goi('dat', { sdt: sdt, pin: pin, cc: (document.getElementById('cc')||{}).value || '',
+                 menh_gia: D.goi[CHON].menh_gia,
                  so_luong: Math.max(1, Math.min(10, Number(document.getElementById('sl').value)||1)) },
       function(r){
         ban = false; mua.disabled = false;
@@ -541,7 +638,13 @@ function noi(){
     kq.innerHTML = ''; e.textContent = 'Đang tra…';
     goi('tra', { sdt: document.getElementById('t-sdt').value,
                  pin: document.getElementById('t-pin').value }, function(r){
-      if (!r.ok) { e.textContent = r.error || 'Không tìm thấy.'; return; }
+      if (!r.ok) {
+        /* Tra không ra thì đưa luôn LỐI RA, đừng để khách đứng đó gõ lại tới lúc bị hãm. */
+        e.innerHTML = esc(r.error || 'Không tìm thấy.')
+          + '<br><span class="mut">Sai PIN hay quên PIN đều ra câu này. '
+          + 'Gọi nhân viên, đọc số điện thoại — nhân viên tra được mã giúp anh/chị.</span>';
+        return;
+      }
       e.textContent = '';
       var h = '';
       if (!r.chua_dung.length) h += '<p class="mut">Không còn mã nào chưa dùng.</p>';
@@ -565,11 +668,27 @@ function noi(){
     });
   };
 
+  var qok = document.getElementById('q-ok');
+  if (qok) qok.onclick = function(){
+    var e = document.getElementById('q-e');
+    if (ban) return;
+    ban = true; qok.disabled = true; e.textContent = 'Đang kiểm…';
+    goi('lay_lai_pin', { sdt: document.getElementById('q-sdt').value,
+                         cc:  document.getElementById('q-cc').value,
+                         pin: document.getElementById('q-pin').value }, function(r){
+      ban = false; qok.disabled = false;
+      if (!r.ok) { e.textContent = r.error || 'Không đặt lại được.'; return; }
+      e.innerHTML = '<span style="color:#8ff0b0">' + esc(r.thong_bao) + '</span>';
+    });
+  };
+
   var dok = document.getElementById('d-ok');
   if (dok) dok.onclick = function(){
     var e = document.getElementById('e'), kq = document.getElementById('kq');
-    var g = GHE || ((document.getElementById('d-ghe')||{}).value || '');
-    if (!g) { e.textContent = 'Chọn ghế đang ngồi trước nhé.'; return; }
+    /* Ghế CHỈ đến từ cái tem. Không có thì đã không có nút này để bấm (xem veDung), nhưng vẫn
+       chặn lần nữa ở đây — nút biến mất là chuyện của giao diện, còn đây là chuyện của tiền. */
+    var g = GHE;
+    if (!g) { e.textContent = 'Chưa biết ghế nào — quét mã QR trên ghế đang ngồi giúp em.'; return; }
     if (ban) return;
     ban = true; dok.disabled = true; e.textContent = 'Đang kiểm mã…';
     goi('dung', { ma: document.getElementById('d-ma').value, ma_may: g }, function(r){

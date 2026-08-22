@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-23b (o moi mua ma giam gia)"
+#define FW_VERSION "ghe-massage 2026-08-23c (QR mua ma tren o goi)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -72,6 +72,9 @@ struct Btn { int x, y, w, h; };
    trót lọt — viết thẳng ra đây thì không phụ thuộc vào chuyện đó nữa. */
 bool duNhanTien();
 void veManChuaCoTk();
+/* Ô quảng cáo vẽ mã QR trước chỗ định nghĩa bộ vẽ. Khai ra đây cho khỏi phụ thuộc vào việc
+   Arduino tự sinh nguyên mẫu — nó chỉ tự sinh được khi phân tích trót lọt. */
+static void qrDatVung(int x, int y, int w, int h, int pxToiDa);
 
 String CHAIR_ID = "";        // máy chủ gán; rỗng = chưa hỏi được
 bool   CHUA_GAN = false;     // máy chủ báo ghế này chưa ai gán mã
@@ -123,6 +126,10 @@ int QC_GIAY = 30;
 int QC_GIAM = 0;
 bool g_qcMat = false;          // đang hiện vế quảng cáo hay vế gói
 unsigned long g_qcLuc = 0;
+/* Địa chỉ trang bán mã, để ghế TỰ VẼ mã QR vào ô quảng cáo. Rỗng = chỉ vẽ lời mời bằng chữ.
+   ⚠️ RỖNG THÌ KHÔNG VẼ MÃ. Một mã QR dẫn đi đâu không rõ còn tệ hơn không có mã: khách quét,
+      không ra gì, và lần sau họ không quét nữa — kể cả cái tem thật dán cạnh thùng tiền. */
+String QC_URL = "";
 
 /* Số tiền kiểu Việt: 200000 -> "200.000d". Tấm bảng giá treo tường ghi đủ số chứ không viết
    tắt "200k", và khách đối chiếu bảng với màn ghế bằng mắt — hai chỗ ghi khác kiểu là một
@@ -661,16 +668,50 @@ void veTheQuangCao(int i){
 
   tft.setTextDatum(TC_DATUM);
   tft.setTextColor(COL_VANG, COL_VIP);
-  tft.drawString("MUA MA GIAM GIA", cx, b.y + 12, 1);
-  tft.setTextColor(TFT_WHITE, COL_VIP);
-  tft.setTextSize(2);
-  tft.drawString("-" + String(QC_GIAM) + "%", cx, b.y + 26, 4);
-  tft.setTextSize(1);
-  tft.setTextColor(0xE71C, COL_VIP);
-  tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 60, 1);
-  /* Nói rõ vẫn bấm được vào đây để mua gói như thường — nếu không, ô này trông như một tấm biển
-     quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm. */
-  tft.drawString("(cham de mua goi nhu thuong)", cx, b.y + 71, 1);
+  tft.drawString("MUA MA GIAM GIA -" + String(QC_GIAM) + "%", cx, b.y + 10, 1);
+
+  if(QC_URL.length()){
+    /* ============================================================================================
+     * MÃ QR NGAY TRONG Ô GÓI.
+     *
+     * 🔴 Ô cao 84px. Trừ dải màu và hai dòng chữ, còn ~58px cho mã QR. Với địa chỉ ngắn
+     *    ("KHMATRIX.COM/M/AMTP01" = 21 ký tự, chế độ alphanumeric) mã ra 21x21 module; cộng vùng
+     *    lặng là 25, nên 58/25 = 2 px/module.
+     *
+     *    2 px/module là RANH GIỚI quét được. Máy chủ đã làm mọi thứ để chuỗi ngắn nhất có thể
+     *    (bỏ scheme, viết hoa, dạng thư mục — xem VHG_Shop::url_ngan). Dài hơn nữa là mã tự rơi
+     *    xuống 1 px/module và gần như không máy nào quét nổi — nên vẫn phải có tem in dán cạnh
+     *    thùng tiền làm đường chắc chắn; mã trên màn là đường TIỆN, không phải đường duy nhất.
+     *
+     * ⚠️ NỀN TRẮNG PHỦ CẢ VÙNG LẶNG. Vẽ mã đen lên nền vàng của thẻ là không máy nào quét được:
+     *    bộ dò cần tương phản trắng-đen, và cần vùng lặng trắng quanh mã.
+     * ============================================================================================ */
+    int vungH = 58, vungY = b.y + 20;
+    tft.fillRect(cx - vungH/2 - 2, vungY - 2, vungH + 4, vungH + 4, TFT_WHITE);
+    qrDatVung(cx - vungH/2, vungY, vungH, vungH, 3);
+    esp_qrcode_config_t qc = ESP_QRCODE_CONFIG_DEFAULT();
+    qc.display_func       = qrDrawCb;
+    /* Trần version 4: quá đó là module nhỏ hơn 2px, tức là một mã nhìn có mà quét không ra.
+       Chuỗi dài quá thì `esp_qrcode_generate` báo lỗi và callback không chạy — ô còn lại nền
+       trắng trơn, và dòng chữ dưới vẫn mời quét tem. Thà trắng còn hơn một mã QR chết. */
+    qc.max_qrcode_version = 4;
+    qc.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;
+    esp_qrcode_generate(&qc, QC_URL.c_str());
+
+    tft.setTextDatum(TC_DATUM);
+    tft.setTextColor(0xE71C, COL_VIP);
+    tft.drawString("QUET DE MUA - hoac tem canh thung tien", cx, b.y + 82, 1);
+  } else {
+    tft.setTextColor(TFT_WHITE, COL_VIP);
+    tft.setTextSize(2);
+    tft.drawString("-" + String(QC_GIAM) + "%", cx, b.y + 26, 4);
+    tft.setTextSize(1);
+    tft.setTextColor(0xE71C, COL_VIP);
+    tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 60, 1);
+    /* Nói rõ vẫn bấm được vào đây để mua gói như thường — nếu không, ô này trông như một tấm
+       biển quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm. */
+    tft.drawString("(cham de mua goi nhu thuong)", cx, b.y + 71, 1);
+  }
 }
 
 void veTheGoi(int i){
@@ -796,18 +837,31 @@ void drawIdle(){
    lượt, nên số ô đổi theo. Cố định 3 pixel/ô là có ngày mã tràn khỏi màn và khách quét mãi
    không ra — mà nhìn thì vẫn thấy "có mã QR". */
 static int g_qrX0 = 0, g_qrY0 = 0, g_qrO = 0, g_qrPx = 3;
+/* Vùng đích của lượt vẽ mã QR sắp tới. Callback của esp_qrcode không nhận tham số riêng, nên
+   đặt vùng vào đây TRƯỚC khi gọi `esp_qrcode_generate`.
+   Mặc định là ô trắng giữa màn thanh toán; ô quảng cáo đặt lại trước khi gọi. */
+static int g_qrVungX = 160 - 75, g_qrVungY = 40, g_qrVungW = 150, g_qrVungH = 150;
+static int g_qrPxToiDa = 4;
+
+static void qrDatVung(int x, int y, int w, int h, int pxToiDa){
+  g_qrVungX = x; g_qrVungY = y; g_qrVungW = w; g_qrVungH = h; g_qrPxToiDa = pxToiDa;
+}
 
 static void qrDrawCb(esp_qrcode_handle_t qr){
   int size = esp_qrcode_get_size(qr);
   if(size <= 0) return;
-  const int VUNG = 150;                 // cạnh ô trắng chừa cho mã, đã trừ viền
-  int px = VUNG / (size + 2);           // +2 = vùng lặng hai bên, bắt buộc để quét được
+  /* Cỡ ô tính theo CHIỀU NGẮN HƠN của vùng. Lấy chiều rộng thôi là mã tràn xuống dưới ở ô
+     quảng cáo (150 rộng × 84 cao) — mà tràn thì phần bị cắt không quét được, và nhìn vẫn
+     "có mã QR". */
+  int canhVung = (g_qrVungW < g_qrVungH) ? g_qrVungW : g_qrVungH;
+  int px = canhVung / (size + 4);       // +4 = vùng lặng 2 module mỗi bên, bắt buộc để quét được
   if(px < 1) px = 1;
-  if(px > 4) px = 4;
+  if(px > g_qrPxToiDa) px = g_qrPxToiDa;
   g_qrPx = px; g_qrO = size;
   int canh = size * px;
-  g_qrX0 = 160 - canh / 2;
-  g_qrY0 = 40 + (VUNG - canh) / 2;
+  g_qrX0 = g_qrVungX + (g_qrVungW - canh) / 2;
+  g_qrY0 = g_qrVungY + (g_qrVungH - canh) / 2;
+  Serial.printf("[QR] %d module, %d px/module trong vung %dx%d\n", size, px, g_qrVungW, g_qrVungH);
   /* Nền trắng phải phủ CẢ vùng lặng, không chỉ vùng có ô đen. Thiếu vùng lặng là nhiều điện
      thoại không nhận ra mã, và đó là kiểu hỏng chỉ lộ ra ở một số máy. */
   tft.fillRect(g_qrX0 - 2*px, g_qrY0 - 2*px, canh + 4*px, canh + 4*px, TFT_WHITE);
@@ -832,6 +886,8 @@ void drawQRScreen(){
   tft.fillRoundRect(78, 36, 164, 158, 8, TFT_WHITE);
   tft.drawRoundRect(78, 36, 164, 158, 8, COL_VANG);
 
+  /* Vùng của màn thanh toán: ô trắng 164x158 ở giữa, trừ viền còn 150x150. */
+  qrDatVung(160 - 75, 40, 150, 150, 4);
   esp_qrcode_config_t qcfg = ESP_QRCODE_CONFIG_DEFAULT();
   qcfg.display_func       = qrDrawCb;
   qcfg.max_qrcode_version = 11;
@@ -1125,6 +1181,7 @@ void guiNhip(){
     QC_O    = (int)(d["qcO"]    | -1);
     QC_GIAY = (int)(d["qcGiay"] | 30);
     QC_GIAM = (int)(d["qcGiam"] | 0);
+    QC_URL  = String((const char*)(d["qcUrl"] | ""));
     if(QC_GIAY < 5) QC_GIAY = 5;
     /* Tắt quảng cáo thì đưa ô về vế gói NGAY, đừng để nó kẹt ở vế quảng cáo tới lượt luân phiên
        sau — người vừa tắt trên web sẽ tưởng lệnh không ăn. */

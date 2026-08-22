@@ -254,6 +254,13 @@ class VHG_DB {
 		      đã dùng; đánh dấu chứ KHÔNG xoá — xoá dòng đi thì mã ấy dùng lại được, và mình mất
 		      luôn chỗ duy nhất trả lời "hôm đó ghế chạy vì cái gì".
 
+		   `cc_bam` là băm của **BỐN SỐ CUỐI** căn cước, KHÔNG PHẢI cả số. Khách nhập cả số, hệ
+		   thống lấy bốn số cuối rồi vứt phần còn lại — không ghi, không log, không đi đâu cả.
+		   🔴 Vì sao không lưu cả số: một bảng ghép "số điện thoại + căn cước đầy đủ" bị lộ thì
+		      thiệt hại lớn hơn hẳn việc lộ mã giảm giá massage, và đó là dữ liệu Nghị định
+		      13/2023 bắt phải bảo vệ chặt. Bốn số cuối đủ để phân biệt hai người ở quầy, mà tự
+		      nó KHÔNG tra ngược ra ai — đúng mức cần cho việc này, không hơn.
+
 		   `pin_bam` là băm bcrypt, KHÔNG lưu PIN thô. PIN 4 số thì không gian rất nhỏ, nhưng nó
 		   canh cho một thứ có thật: số điện thoại của khách là thứ người khác đoán ra được, mà
 		   biết số là tra ra mã của người ta. Băm + hãm thử ở tầng trên.
@@ -266,6 +273,7 @@ class VHG_DB {
 			ma VARCHAR(20) NOT NULL,
 			sdt VARCHAR(20) NOT NULL DEFAULT '',
 			pin_bam VARCHAR(255) NOT NULL DEFAULT '',
+			cc_bam VARCHAR(255) NOT NULL DEFAULT '',
 			menh_gia BIGINT(20) NOT NULL DEFAULT 0,
 			gia_ban BIGINT(20) NOT NULL DEFAULT 0,
 			giam_pt INT NOT NULL DEFAULT 0,
@@ -296,6 +304,7 @@ class VHG_DB {
 			ma_don VARCHAR(20) NOT NULL,
 			sdt VARCHAR(20) NOT NULL DEFAULT '',
 			pin_bam VARCHAR(255) NOT NULL DEFAULT '',
+			cc_bam VARCHAR(255) NOT NULL DEFAULT '',
 			menh_gia BIGINT(20) NOT NULL DEFAULT 0,
 			gia_ban BIGINT(20) NOT NULL DEFAULT 0,
 			giam_pt INT NOT NULL DEFAULT 0,

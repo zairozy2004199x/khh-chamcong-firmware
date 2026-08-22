@@ -32,7 +32,7 @@ define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
 define( 'VHG_KHOA_WEBHOOK', 'khoa-webhook-thu-nghiem' );
 define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -2275,7 +2275,14 @@ t( 'màn QR có tiêu đề của bảng thiết kế',
 t( 'mã QR có vùng lặng trắng quanh nó', strpos( $fw3, 'vùng lặng' ) !== false );
 /* Và cỡ ô tính theo KÍCH THƯỚC THẬT của mã: chuỗi VietQR dài ngắn khác nhau tuỳ tên tài khoản
    và mã lượt, cố định 3 pixel/ô là có ngày mã tràn khỏi màn. */
-t( 'cỡ ô tính theo kích thước thật của mã', strpos( $fw3, 'VUNG / (size + 2)' ) !== false );
+t( 'cỡ ô tính theo kích thước thật của mã', strpos( $fw3, 'canhVung / (size + 4)' ) !== false );
+/* ⚠️ Và tính theo CHIỀU NGẮN HƠN của vùng. Bộ vẽ nay dùng chung cho hai chỗ: ô trắng vuông giữa
+      màn thanh toán, và ô gói 150 rộng × 84 cao ở màn chờ. Lấy chiều rộng thôi là mã tràn xuống
+      dưới ở ô gói — mà phần bị cắt thì không quét được, và nhìn vẫn "có mã QR". */
+t( 'và theo chiều NGẮN HƠN của vùng, không phải chiều rộng',
+	strpos( $fw3, 'canhVung = (g_qrVungW < g_qrVungH) ? g_qrVungW : g_qrVungH' ) !== false );
+t( 'vùng đích đặt trước mỗi lượt vẽ, không gắn cứng',
+	substr_count( $fw3, 'qrDatVung(' ) >= 3 );
 /* Mã lượt PHẢI hiện ra: app ngân hàng nào không tự điền nội dung thì khách gõ tay đúng chuỗi
    này, không có nó thì tiền vào mà ghế không chạy. Nhưng in bằng cách RÁP LẠI chuỗi ngay tại
    màn thì đúng là lỗi vừa phải sửa — nên phép thử này bám vào BIẾN, không bám vào công thức. */
@@ -3613,6 +3620,269 @@ ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
 $_POST = array();
 teq( 'bấm Lưu thì số ngày vào thật', 7, VHG_Ma::cho_ngay_mac_dinh() );
 delete_option( 'vhg_ma_cho_ngay' );
+
+// ====================== MÃ QR TRÊN Ô GÓI: GHẾ DO TEM QUYẾT ĐỊNH, KHÔNG DO KHÁCH CHỌN
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' );
+update_option( 'permalink_structure', '/%postname%/' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+
+// ---- địa chỉ ngắn cho mã QR
+$u_ng = VHG_Shop::url_ngan( 'AMTP01' );
+t( 'có dựng được địa chỉ ngắn', '' !== $u_ng, $u_ng );
+/* 🔴 Ô gói chỉ chừa 58px cho mã. Ba thứ dưới đây là ba cách chuỗi tự dài ra, và mỗi lần dài là
+      mã tự rơi xuống ít pixel hơn mỗi module. */
+t( 'bỏ scheme https://', strpos( $u_ng, 'http' ) === false );
+t( 'viết HOA toàn bộ (cho vào chế độ alphanumeric, đặc hơn)', $u_ng === strtoupper( $u_ng ) );
+t( 'dạng thư mục chứ không phải tham số', strpos( $u_ng, '?' ) === false
+	&& strpos( $u_ng, '=' ) === false );
+t( 'và mang đúng mã ghế', substr( $u_ng, -6 ) === 'AMTP01' );
+
+$qro = VHG_Ma::qr_o_goi( $u_ng );
+t( 'chuỗi rơi vào chế độ alphanumeric', ! empty( $qro['alnum'] ), $u_ng );
+/* 🔴 CON SỐ quyết định: 2 pixel mỗi module là quét được ở khoảng cách gần, 1 là gần như không
+      máy nào quét nổi — mà nhìn trên màn thì VẪN THẤY "có mã QR". Kiểu hỏng không kêu. */
+t( '🔴 mã QR đủ to để quét (>=2 px/module)', (int) $qro['px'] >= 2, $qro['chu'] );
+/* Địa chỉ dài kiểu cũ thì KHÔNG đủ to — đó là lý do phải có `url_ngan()`. */
+$qro_dai = VHG_Ma::qr_o_goi( 'https://khmatrix.com/mua-ma?ghe=AMTP01' );
+t( 'địa chỉ dài kiểu cũ thì quá nhỏ', (int) $qro_dai['px'] < 2, $qro_dai['chu'] );
+t( 'và màn quản trị kêu lên', strpos( (string) $qro_dai['chu'], 'QUÁ NHỎ' ) !== false );
+/* Chuỗi dài quá tầm thì nói thẳng là không vẽ được, đừng trả một con số vô nghĩa. */
+$qro_qua = VHG_Ma::qr_o_goi( str_repeat( 'A', 200 ) );
+teq( 'chuỗi quá dài thì không vẽ được mã', 0, (int) $qro_qua['px'] );
+
+// ---- ghế nhận được địa chỉ đó
+update_option( 'vhg_qc_o', 1 );
+$nh_u = vhg_ghe( array( 'viec' => 'nhip', 'mac' => 'AA:BB:CC:DD:EE:01', 'trang_thai' => 'idle' ) );
+teq( 'nhịp mang theo địa chỉ mã QR', $u_ng, (string) $nh_u[1]['qcUrl'] );
+
+// ---- quét tem dạng thư mục
+$_SERVER['REQUEST_URI'] = '/' . VHG_Shop::slug() . '/AMTP01';
+$_GET = array();
+teq( 'quét tem /mua-ma/AMTP01 thì biết đúng ghế', 'AMTP01', VHG_Shop::ghe_tu_dia_chi() );
+$_SERVER['REQUEST_URI'] = '/' . VHG_Shop::slug() . '/amtp01';
+teq( 'không phân biệt hoa thường', 'AMTP01', VHG_Shop::ghe_tu_dia_chi() );
+$_SERVER['REQUEST_URI'] = '/' . VHG_Shop::slug() . '/KHONGCOGHE';
+teq( 'ghế bịa trên tem vẫn bị bỏ', '', VHG_Shop::ghe_tu_dia_chi() );
+$_SERVER['REQUEST_URI'] = '/' . VHG_Shop::slug();
+$_GET = array();
+
+// ---- 🔴 KHÔNG CÒN Ô CHỌN GHẾ
+/* Anh Thắng 23/08/2026: *"khách hàng rất dễ chọn lộn ghế, vì số lượng ghế rất nhiều"*. Chọn lộn
+   là mã của khách chạy cho GHẾ NGƯỜI KHÁC — mất mã, mất cả buổi, và không ai chứng minh được. */
+$sh_ch = vhg_shop_html();
+t( '🔴 trang khách KHÔNG còn ô chọn ghế', strpos( $sh_ch, '<select' ) === false );
+t( 'và không còn dựng danh sách ghế', strpos( $sh_ch, 'ds_ghe' ) === false );
+/* Không biết ghế thì TỪ CHỐI và chỉ đường, chứ không đoán. */
+t( 'không biết ghế thì mời quét tem trên ghế',
+	strpos( $sh_ch, 'quét mã QR dán trên chính cái ghế' ) !== false );
+/* Bám vào MỘT mẩu liền mạch: câu này nằm trên hai dòng nguồn JS nối bằng dấu +, nên chuỗi đầy
+   đủ không hề liền nhau trong tệp gửi ra. */
+t( 'và nói rõ vì sao cố ý không cho chọn',
+	strpos( $sh_ch, 'cố ý <b>không</b> cho chọn ghế từ danh sách' ) !== false );
+t( 'vẫn mua thêm mã được, vì mua không cần biết ghế',
+	strpos( $sh_ch, 'mua thì không cần biết ghế' ) !== false );
+/* ⚠️ Và cổng API cũng KHÔNG phơi danh sách ghế ra trang không cần đăng nhập. */
+t( 'API bảng giá không kèm danh sách ghế', ! isset( vhg_shop( 'goi' )['ds_ghe'] ) );
+
+$sh_co = vhg_shop_html( 'AMTP01' );
+t( 'quét tem tại ghế thì hiện thẳng tên ghế', strpos( $sh_co, 'Ghế đang ngồi' ) !== false );
+
+// ---- firmware vẽ mã QR trong ô gói
+$fw12 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'ghế đọc được địa chỉ mã QR', strpos( $fw12, 'QC_URL  = String((const char*)(d["qcUrl"]' ) !== false );
+t( 'và vẽ mã QR trong ô quảng cáo', strpos( $fw12, 'esp_qrcode_generate(&qc, QC_URL.c_str())' ) !== false );
+/* 🔴 KHÔNG có địa chỉ thì KHÔNG vẽ mã. Một mã QR dẫn đi đâu không rõ còn tệ hơn không có mã:
+      khách quét không ra, và lần sau họ không quét nữa — kể cả cái tem thật dán cạnh thùng tiền. */
+t( 'rỗng thì rơi về lời mời bằng chữ, không vẽ mã bừa',
+	preg_match( '/if\(QC_URL\.length\(\)\)\{.*?\}\s*else\s*\{.*?QUET TEM CANH THUNG TIEN/s', $fw12 ) === 1 );
+/* ⚠️ Nền trắng phủ cả vùng lặng: vẽ mã đen lên nền vàng của thẻ là không máy nào quét được. */
+t( 'mã QR có nền trắng phủ cả vùng lặng',
+	preg_match( '/fillRect\(cx - vungH\/2 - 2, vungY - 2, vungH \+ 4, vungH \+ 4, TFT_WHITE\)/', $fw12 ) === 1 );
+/* Trần version 4: quá đó là module nhỏ hơn 2px — thà không vẽ còn hơn vẽ một mã chết. */
+t( 'chặn trần version để không vẽ mã quá nhỏ',
+	strpos( $fw12, 'qc.max_qrcode_version = 4;' ) !== false );
+delete_option( 'vhg_qc_o' );
+
+// ====================== QUÊN PIN: LẤY LẠI BẰNG SỐ ĐIỆN THOẠI + CĂN CƯỚC
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' ); delete_option( 'vhg_ma_cho_ngay' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+foreach ( array( 'tra', 'lay', 'dung' ) as $k_ ) { delete_transient( 'vhg_shop_' . $k_ . '_' . md5( 'x' ) ); }
+
+/* 🔴 CHỈ GIỮ BỐN SỐ CUỐI. Khách nhập cả số, phần còn lại bị vứt ngay — không ghi, không log.
+      Một bảng ghép "số điện thoại + căn cước đầy đủ" bị lộ thì thiệt hại lớn hơn hẳn lộ mã
+      giảm giá massage, mà mình chỉ cần phân biệt hai người ở quầy chứ không cần định danh ai. */
+teq( 'lấy đúng bốn số cuối', '6789', VHG_Ma::cc4( '079123456789' ) );
+teq( 'bỏ dấu cách và gạch', '6789', VHG_Ma::cc4( '079 1234 56789' ) );
+teq( 'quá ngắn thì bỏ', '', VHG_Ma::cc4( '123' ) );
+
+$dcc = VHG_Ma::dat_don( '0909333444', '1111', 100000, 1, '079123456789' );
+t( 'mua có khai căn cước', ! empty( $dcc['ok'] ) );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T310 ' . VHG_QR::noi_dung_mua( $dcc['ma_don'] ), 'referenceCode' => 'FT-CC-1' ) );
+
+/* 🔴 CẢ SỐ CĂN CƯỚC KHÔNG ĐƯỢC NẰM Ở ĐÂU TRONG BẢNG. */
+global $wpdb;
+foreach ( array( 'ma', 'don_ma' ) as $b_ ) {
+	$dong = VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( $b_ ) );
+	$het = wp_json_encode( $dong );
+	t( 'bảng ' . $b_ . ' KHÔNG chứa số căn cước đầy đủ', strpos( $het, '079123456789' ) === false );
+	t( 'và cũng không chứa bốn số cuối dạng đọc được',
+		strpos( $het, '"6789"' ) === false );
+}
+
+// ---- lấy lại PIN
+t( 'sai căn cước thì không đổi được PIN',
+	empty( VHG_Ma::lay_lai_pin( '0909333444', '000000000000', '2222' )['ok'] ) );
+t( 'PIN mới sai khuôn thì từ chối',
+	empty( VHG_Ma::lay_lai_pin( '0909333444', '079123456789', '22' )['ok'] ) );
+$ll = VHG_Ma::lay_lai_pin( '0909333444', '079123456789', '2222' );
+t( 'đúng căn cước thì đặt được PIN mới', ! empty( $ll['ok'] ), isset( $ll['error'] ) ? $ll['error'] : '' );
+t( 'PIN cũ hết dùng được', empty( VHG_Ma::tra( '0909333444', '1111' )['ok'] ) );
+teq( 'PIN mới tra ra mã', 1, count( VHG_Ma::tra( '0909333444', '2222' )['chua_dung'] ) );
+/* Chỉ cần bốn số cuối, nên nhập số khác nhưng trùng bốn số cuối vẫn qua — đó là bản chất của
+   việc chỉ giữ bốn số, và phải nói rõ chứ không giả vờ là nó mạnh hơn thế. */
+t( 'trùng bốn số cuối là qua được', ! empty( VHG_Ma::lay_lai_pin( '0909333444', '999999996789', '3333' )['ok'] ) );
+
+/* ⚠️ Mã KHÔNG khai căn cước thì `cc_bam` rỗng, và rỗng KHÔNG được khớp với bất cứ thứ gì —
+      nếu không thì một chuỗi rỗng mở được mọi mã cũ. */
+$dk0 = VHG_Ma::dat_don( '0909333555', '4444', 100000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T311 ' . VHG_QR::noi_dung_mua( $dk0['ma_don'] ), 'referenceCode' => 'FT-CC-2' ) );
+t( '🔴 mã không khai căn cước thì KHÔNG lấy lại PIN được',
+	empty( VHG_Ma::lay_lai_pin( '0909333555', '079123456789', '5555' )['ok'] ) );
+teq( 'và PIN cũ của nó vẫn nguyên', 1, count( VHG_Ma::tra( '0909333555', '4444' )['chua_dung'] ) );
+t( 'câu báo lỗi chỉ đường sang nhân viên',
+	strpos( (string) VHG_Ma::lay_lai_pin( '0909333555', '079123456789', '5555' )['error'],
+		'nhân viên' ) !== false );
+
+// ---- hãm thử: bốn số cuối chỉ có 10.000 tổ hợp
+/* 🔴 Đây là đường ĐỔI PIN canh bằng một mật khẩu yếu. Không hãm thì dò hết trong vài phút và
+      toàn bộ mã của người ta đổi chủ. */
+delete_transient( 'vhg_shop_lay_' . md5( 'x' ) );
+$bi_lay = false;
+for ( $i = 0; $i < 12; $i++ ) {
+	$r_ = vhg_shop( 'lay_lai_pin', array( 'sdt' => '0909333444', 'cc' => '000000000000', 'pin' => '9999' ) );
+	if ( isset( $r_['error'] ) && strpos( $r_['error'], 'quá nhiều lần' ) !== false ) { $bi_lay = true; break; }
+}
+t( '🔴 dò căn cước nhiều lần thì bị hãm', $bi_lay );
+/* Và hãm chặt HƠN ô tra mã thường: 10.000 tổ hợp bốn số ít hơn hẳn không gian PIN + số điện thoại. */
+$src_sh = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-shop.php' );
+t( 'hãm đường lấy lại PIN chặt hơn ô tra mã',
+	preg_match( "/get_transient\( self::khoa_key\( 'lay' \) \) >= (\d+)/", $src_sh, $m_l ) === 1
+	&& (int) $m_l[1] < 15 );
+delete_transient( 'vhg_shop_lay_' . md5( 'x' ) );
+
+// ---- trang khách
+$sh_cc = vhg_shop_html();
+t( 'ô căn cước KHÔNG bắt buộc', strpos( $sh_cc, 'không bắt buộc</b>, chỉ để lấy lại PIN' ) !== false );
+t( 'và nói rõ chỉ lưu 4 số cuối', strpos( $sh_cc, 'chỉ lưu 4 số cuối' ) !== false );
+t( 'có khối Quên PIN riêng', strpos( $sh_cc, 'Quên PIN?' ) !== false );
+t( 'và vẫn chỉ đường sang nhân viên cho người không khai căn cước',
+	strpos( $sh_cc, 'gọi nhân viên' ) !== false );
+
+// ====================== BỘ VẼ MÃ QR TỰ VIẾT — PHẢI TỰ CHỨNG MINH
+/* 🔴 Tự viết bộ vẽ QR thì "chắc là quét được" chỉ là một lời chúc. Tem in ra dán lên 26 cái ghế
+      nhiều năm; sai một bước là cả loạt tem chết mà không ai biết cho tới khi khách kêu.
+      Ba lớp chứng minh, mỗi lớp bắt một loại lỗi khác nhau. */
+
+// --- Lớp 1: số học Reed-Solomon, đối chiếu bộ hệ số ĐÃ CÔNG BỐ trong bản đặc tả
+/* Tính chứ không chép bảng — chép bảng là chép cả lỗi gõ. Nhưng phải đối chiếu với bộ đã công
+   bố, không thì tự tính sai rồi tự tin là đúng. */
+teq( 'đa thức sinh 7 codeword khớp bản đặc tả',
+	array( 1, 127, 122, 154, 164, 11, 68, 117 ), VHG_QRVe::da_thuc_sinh( 7 ) );
+teq( 'đa thức sinh 10 codeword khớp bản đặc tả',
+	array( 1, 216, 194, 159, 111, 199, 94, 95, 113, 157, 193 ), VHG_QRVe::da_thuc_sinh( 10 ) );
+/* Ví dụ "01234567" version 1-M của bản đặc tả: 16 codeword dữ liệu -> 10 codeword sửa lỗi. */
+$du_chuan = array( 0b00010000, 0b00100000, 0b00001100, 0b01010110, 0b01100001, 0b10000000,
+	0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11, 0xEC, 0x11 );
+teq( '🔴 sửa lỗi khớp từng byte với ví dụ của bản đặc tả',
+	array( 0xA5, 0x24, 0xD4, 0xC1, 0xED, 0x36, 0xC7, 0x87, 0x2C, 0x55 ),
+	VHG_QRVe::ecc( $du_chuan, 10 ) );
+
+// --- Lớp 2: đọc ngược. Bắt lỗi đặt bit, mặt nạ, xen kẽ khối, chế độ mã hoá
+/* Bộ đọc đi ngược đúng những bước dễ sai nhất. Một lỗi ở bất kỳ bước nào của bộ vẽ là chuỗi đọc
+   ra khác chuỗi ban đầu. */
+$mau_qr = array(
+	'KHMATRIX.COM/MUA-MA/AMTP01',      // đúng thứ tem sẽ mang
+	'KHMATRIX.COM/M/AMTP01',
+	'HELLO WORLD',                     // alphanumeric ngắn
+	'Ghe massage POSH - tem dan',      // có chữ thường -> chế độ byte
+	'https://khmatrix.com/mua-ma/AMTP01',
+	'0',                               // ngắn nhất có thể
+);
+foreach ( $mau_qr as $t_qr ) {
+	foreach ( array( 'L', 'M', 'Q', 'H' ) as $muc_qr ) {
+		$o_qr = VHG_QRVe::ma_tran( $t_qr, $muc_qr );
+		t( 'dựng được mã [' . $muc_qr . '] "' . substr( $t_qr, 0, 22 ) . '"', ! empty( $o_qr ) );
+		if ( $o_qr ) {
+			teq( 'và đọc ngược đúng [' . $muc_qr . '] "' . substr( $t_qr, 0, 22 ) . '"',
+				$t_qr, VHG_QRVe::doc( $o_qr ) );
+		}
+	}
+}
+
+// --- Lớp 3: hình cố định phải đúng chỗ, không thì không máy nào tìm ra mã
+$o_k = VHG_QRVe::ma_tran( 'KHMATRIX.COM/MUA-MA/AMTP01', 'M' );
+$n_k = count( $o_k );
+teq( 'cạnh ma trận đúng công thức version', 0, ( $n_k - 17 ) % 4 );
+/* Ba ô định vị: viền ngoài đen, vành trắng, lõi đen. Sai là máy quét không tìm ra mã. */
+foreach ( array( array( 0, 0 ), array( $n_k - 7, 0 ), array( 0, $n_k - 7 ) ) as $g_k ) {
+	list( $gx, $gy ) = $g_k;
+	$ok_k = 1 === $o_k[ $gy ][ $gx ] && 1 === $o_k[ $gy ][ $gx + 6 ]
+		&& 0 === $o_k[ $gy + 1 ][ $gx + 1 ] && 1 === $o_k[ $gy + 3 ][ $gx + 3 ];
+	t( 'ô định vị ở (' . $gx . ',' . $gy . ') đúng hình', $ok_k );
+}
+/* Dải nhịp: đen-trắng xen kẽ, là thước đo cỡ module của máy quét. */
+$nhip_ok = true;
+for ( $i = 8; $i < $n_k - 8; $i++ ) {
+	if ( $o_k[6][ $i ] !== ( 0 === $i % 2 ? 1 : 0 ) ) { $nhip_ok = false; }
+	if ( $o_k[ $i ][6] !== ( 0 === $i % 2 ? 1 : 0 ) ) { $nhip_ok = false; }
+}
+t( 'hai dải nhịp xen kẽ đúng', $nhip_ok );
+teq( 'ô tối cố định đúng chỗ', 1, $o_k[ $n_k - 8 ][8] );
+
+/* Quá tầm thì TRẢ RỖNG, không trả một ma trận "gần đúng" — tem in ra mà không quét được thì tệ
+   hơn hẳn việc chưa in tem nào. */
+teq( 'chuỗi quá dài thì trả rỗng', array(), VHG_QRVe::ma_tran( str_repeat( 'A', 700 ), 'H' ) );
+teq( 'chuỗi rỗng thì trả rỗng', array(), VHG_QRVe::ma_tran( '', 'M' ) );
+teq( 'mức sửa lỗi lạ thì trả rỗng', array(), VHG_QRVe::ma_tran( 'ABC', 'X' ) );
+
+// --- SVG
+$svg_k = VHG_QRVe::svg( $o_k, 190 );
+t( 'xuất được SVG', strpos( $svg_k, '<svg' ) === 0 );
+/* ⚠️ VÙNG LẶNG 4 Ô mỗi bên. Cắt bớt cho "gọn" là nhiều máy quét không nhận ra mã — kiểu hỏng chỉ
+      lộ ở một số máy, tức là sau khi đã dán tem lên 26 cái ghế. */
+t( 'SVG chừa vùng lặng 4 ô mỗi bên',
+	strpos( $svg_k, 'viewBox="0 0 ' . ( $n_k + 8 ) . ' ' . ( $n_k + 8 ) . '"' ) !== false );
+t( 'và có nền trắng', strpos( $svg_k, 'fill="#fff"' ) !== false );
+teq( 'ma trận rỗng thì không ra SVG', '', VHG_QRVe::svg( array() ) );
+
+// --- trang in tem
+vhg_dung_bang();
+update_option( 'permalink_structure', '/%postname%/' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+ob_start(); VHG_Admin::trang_tem(); $h_tem = ob_get_clean();
+t( 'có trang in tem', strpos( $h_tem, 'Tem QR dán lên ghế' ) !== false );
+t( 'tem mang mã ghế', strpos( $h_tem, 'AMTP01' ) !== false );
+t( 'và có mã QR thật trong đó', strpos( $h_tem, '<svg' ) !== false );
+t( 'in được bằng một nút', strpos( $h_tem, 'window.print()' ) !== false );
+/* Dán nhầm ghế là mã của khách chạy sai ghế — phải nói ra, không để trong đầu người in. */
+t( 'nhắc dán đúng ghế', strpos( $h_tem, 'Dán <b>đúng ghế</b>' ) !== false );
+/* Chưa bật đường dẫn tĩnh thì địa chỉ ngắn không chạy — nói ra chứ đừng in tem chết. */
+delete_option( 'permalink_structure' );
+ob_start(); VHG_Admin::trang_tem(); $h_tem0 = ob_get_clean();
+t( 'chưa bật đường dẫn tĩnh thì KHÔNG in tem chết', strpos( $h_tem0, '<svg' ) === false );
+t( 'và chỉ đúng chỗ phải bật', strpos( $h_tem0, 'options-permalink.php' ) !== false );
+update_option( 'permalink_structure', '/%postname%/' );
 
 // ============================================================ kết
 if ( $truot ) {

@@ -35,6 +35,7 @@ class VHG_Admin {
 		add_submenu_page( 'vhg', 'Máy & cơ sở', 'Máy & cơ sở', self::CAP, 'vhg-may', array( __CLASS__, 'trang_may' ) );
 		add_submenu_page( 'vhg', 'Nhận tiền & nhật ký', 'Nhận tiền & nhật ký', self::CAP, 'vhg-cong', array( __CLASS__, 'trang_cong' ) );
 		add_submenu_page( 'vhg', 'Trang ngoài & PIN', 'Trang ngoài & PIN', self::CAP, 'vhg-trang', array( __CLASS__, 'trang_ngoai' ) );
+		add_submenu_page( 'vhg', 'Tem QR dán ghế', 'Tem QR dán ghế', self::CAP, 'vhg-tem', array( __CLASS__, 'trang_tem' ) );
 	}
 
 	// ======================================================================= tiện ích chung
@@ -1116,6 +1117,77 @@ class VHG_Admin {
 	 * ⚠️ MÀN NÀY KHÔNG BAO GIỜ IN PIN — chỉ in SỐ CHỮ SỐ. Ảnh màn hình đi khắp nơi; trong chính
 	 *    dự án này đã mất một khoá cầu nối và một khoá webhook vì ảnh gửi qua chat.
 	 */
+	/**
+	 * TRANG IN TEM QR — mỗi ghế một tấm, dán lên chính ghế đó.
+	 *
+	 * 🔴 Vì sao tem phải do HỆ THỐNG in ra, không phải chủ tự vào một trang tạo QR nào đó gõ tay:
+	 *    gõ nhầm một ký tự trong địa chỉ là cả một cửa hàng dán tem dẫn đi đâu không rõ, và
+	 *    không ai phát hiện cho tới khi khách kêu. Ở đây địa chỉ do chính hệ thống dựng, đúng
+	 *    cái mà mục "Dùng mã" sẽ đọc.
+	 *
+	 * ⚠️ IN RA GIẤY thì to bao nhiêu cũng được — khác hẳn mã trên màn ghế vốn bị bó trong 58px.
+	 *    Nên tem in là đường CHẮC CHẮN, mã trên màn là đường TIỆN.
+	 */
+	public static function trang_tem() {
+		self::gac();
+		$may = VHG_May::ds_may();
+		echo '<div class="wrap"><h1>Tem QR dán lên ghế</h1>';
+		if ( ! get_option( 'permalink_structure' ) ) {
+			echo '<div class="notice notice-error inline"><p><b>Chưa bật Đường dẫn tĩnh.</b> '
+				. 'Địa chỉ ngắn cho tem chỉ chạy khi WordPress dùng đường dẫn đẹp. '
+				. 'Vào <a href="' . esc_url( admin_url( 'options-permalink.php' ) ) . '">Cài đặt → '
+				. 'Đường dẫn tĩnh</a>, chọn <b>Tên bài viết</b> rồi Lưu.</p></div></div>';
+			return;
+		}
+		echo '<p>Mỗi ghế một tem, mang <b>đúng mã ghế đó</b>. Khách quét tem nào là hệ thống biết '
+			. 'họ đang ngồi ghế đó — khỏi phải chọn từ danh sách, khỏi chọn lộn.</p>'
+			. '<p class="description">In ra, cắt theo khung, dán lên tay vịn hoặc cạnh thùng tiền. '
+			. 'Dán <b>đúng ghế</b>: tem AMTP01 mà dán lên ghế khác thì mã của khách chạy sai ghế.</p>'
+			. '<p><button class="button button-primary" onclick="window.print()">In trang này</button></p>';
+
+		if ( ! $may ) {
+			echo '<p><em>Chưa khai ghế nào.</em></p></div>';
+			return;
+		}
+
+		echo '<style>@media print{.vhg-an{display:none!important}#adminmenumain,#wpadminbar,'
+			. '#wpfooter,.notice{display:none!important}#wpcontent{margin-left:0!important}'
+			. '.vhg-tem{break-inside:avoid;page-break-inside:avoid}}'
+			. '.vhg-luoi{display:flex;flex-wrap:wrap;gap:14px;margin-top:16px}'
+			. '.vhg-tem{width:230px;border:1px dashed #999;border-radius:10px;padding:12px;'
+			. 'text-align:center;background:#fff}'
+			. '.vhg-tem .ma{font-size:22px;font-weight:800;letter-spacing:.06em;margin-top:6px}'
+			. '.vhg-tem .cs{font-size:12px;color:#555}'
+			. '.vhg-tem .moi{font-size:13px;font-weight:600;margin-bottom:6px}'
+			. '.vhg-tem .dc{font-size:10px;color:#666;word-break:break-all;margin-top:6px}</style>';
+		echo '<div class="vhg-luoi">';
+		$hong = array();
+		foreach ( $may as $m ) {
+			$ma = (string) $m['ma'];
+			if ( '' === $ma || '?' === $ma[0] ) { continue; }
+			$u = VHG_Shop::url_ngan( $ma );
+			/* Mức sửa lỗi M cho tem in: cao hơn L nên chịu được vết xước, mờ mực, cong giấy —
+			   tem sống trên tay vịn ghế nhiều năm. Mã trên màn ghế thì dùng L vì ở đó từng module
+			   là quý, còn giấy thì không thiếu chỗ. */
+			$o = VHG_QRVe::ma_tran( $u, 'M' );
+			if ( ! $o ) { $hong[] = $ma; continue; }
+			echo '<div class="vhg-tem"><div class="moi">Mua mã giảm giá</div>'
+				. VHG_QRVe::svg( $o, 190 )
+				. '<div class="ma">' . esc_html( $ma ) . '</div>'
+				. '<div class="cs">' . esc_html( $m['coso_ten'] ? $m['coso_ten'] : '' ) . '</div>'
+				. '<div class="dc">' . esc_html( $u ) . '</div></div>';
+		}
+		echo '</div>';
+		/* 🔴 Ghế nào không dựng được tem thì NÓI RA. Im lặng bỏ qua là chủ in ra thiếu vài tấm mà
+		   không biết, rồi vài cái ghế đứng đó không ai quét được. */
+		if ( $hong ) {
+			echo '<div class="notice notice-error inline vhg-an"><p><b>Không dựng được tem cho: '
+				. esc_html( implode( ', ', $hong ) ) . '</b> — mã ghế quá dài. Đặt lại mã ngắn hơn '
+				. '(dưới 12 ký tự) ở màn Máy &amp; cơ sở.</p></div>';
+		}
+		echo '</div>';
+	}
+
 	public static function trang_ngoai() {
 		self::gac();
 		$bao = array();
@@ -1254,6 +1326,33 @@ class VHG_Admin {
 			. '" style="width:70px" placeholder="tắt" /></label> '
 			. '<label style="margin-left:14px">Mỗi vế <input type="number" min="5" max="300" '
 			. 'name="qc_giay" value="' . (int) $qc_["giay"] . '" style="width:80px" /> giây</label>';
+		/* 🔴 Hiện CON SỐ, không hiện lời hứa. Mã QR trong ô gói chỉ được 58px; địa chỉ dài thêm
+		   vài ký tự là mã rơi xuống 1 pixel mỗi module — nhìn vẫn "có mã QR" mà không máy nào
+		   quét nổi, và không ai báo cho cửa hàng. */
+		$may_qr = VHG_May::ds_may();
+		$ma_dau = '';
+		foreach ( $may_qr as $m_q ) {
+			if ( '' !== (string) $m_q['ma'] && '?' !== $m_q['ma'][0] ) { $ma_dau = $m_q['ma']; break; }
+		}
+		if ( '' !== $ma_dau ) {
+			$u_ngan = VHG_Shop::url_ngan( $ma_dau );
+			$qr_o   = VHG_Ma::qr_o_goi( $u_ngan );
+			$xau    = ( (int) $qr_o['px'] < 2 );
+			echo '<p class="description" style="margin-top:8px">Mã QR ghế tự vẽ trong ô đó dẫn tới '
+				. '<code>' . esc_html( '' !== $u_ngan ? $u_ngan : '(chưa có — cần bật Đường dẫn tĩnh)' )
+				. '</code><br>' . ( $xau ? '<b style="color:#b32d2e">' : '' )
+				. esc_html( $qr_o['chu'] ) . ( $xau ? '</b>' : '' );
+			if ( '' !== $u_ngan ) {
+				echo '<br>Địa chỉ dài ' . (int) $qr_o['dai'] . ' ký tự'
+					. ( ! empty( $qr_o['alnum'] ) ? '' : ' (có ký tự thường/lạ nên mã đặc hơn — '
+						. 'nên để đường dẫn chỉ gồm chữ và số)' ) . '. '
+					. 'Muốn mã to hơn thì đặt <b>đường dẫn trang bán mã</b> ngắn lại, ví dụ '
+					. '<code>m</code> thay cho <code>mua-ma</code>.';
+			}
+			echo '<br><b>Tem in dán cạnh thùng tiền vẫn nên có</b>: in ra thì to bao nhiêu cũng '
+				. 'được, còn mã trên màn ghế bị giới hạn bởi kích thước ô — nó là đường tiện, '
+				. 'không phải đường duy nhất.</p>';
+		}
 		echo '<p class="description">Ô đó trên màn ghế sẽ <b>luân phiên</b>: một lúc hiện gói như '
 			. 'thường, một lúc hiện lời mời mua mã giảm giá. Ô đánh số từ <b>0</b> (trên trái), '
 			. '1 (trên phải), 2 (dưới trái), 3 (dưới phải) — anh Thắng muốn ô 100.000đ thì điền số '

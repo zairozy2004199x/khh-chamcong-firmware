@@ -66,6 +66,36 @@ class VHG_Ma {
 		return (bool) preg_match( '/^\d{4}$/', trim( (string) $v ) );
 	}
 
+	/**
+	 * BỐN SỐ CUỐI căn cước — thứ DUY NHẤT của căn cước mà hệ thống này giữ.
+	 *
+	 * 🔴 Khách nhập cả số, hàm này lấy bốn số cuối rồi VỨT phần còn lại ngay tại đây. Không ghi,
+	 *    không log, không truyền đi đâu. Một bảng ghép "số điện thoại + căn cước đầy đủ" bị lộ thì
+	 *    thiệt hại lớn hơn hẳn lộ mã giảm giá massage — mà mình chỉ cần phân biệt hai người ở
+	 *    quầy, không cần định danh ai.
+	 *
+	 * ⚠️ Bốn số cuối là MẬT KHẨU YẾU: ai nhìn thấy thẻ căn cước là biết. Nó chỉ dùng để LẤY LẠI
+	 *    PIN, và đường đó phải bị hãm chặt (xem VHG_Shop). Đừng bao giờ để nó thay được PIN ở
+	 *    đường tra mã thường.
+	 */
+	public static function cc4( $v ) {
+		$s = preg_replace( '/\D+/', '', (string) $v );
+		if ( strlen( $s ) < 4 ) { return ''; }
+		return substr( $s, -4 );
+	}
+
+	public static function bam_cc( $v ) {
+		$c = self::cc4( $v );
+		return '' === $c ? '' : password_hash( $c, PASSWORD_DEFAULT );
+	}
+
+	public static function cc_dung( $v, $bam ) {
+		$c = self::cc4( $v );
+		$b = (string) $bam;
+		if ( '' === $c || '' === $b ) { return false; }
+		return password_verify( $c, $b );
+	}
+
 	/** Băm PIN. bcrypt chứ không md5/sha: PIN 4 số thì bảng tra sẵn dựng trong vài giây. */
 	public static function bam_pin( $pin ) {
 		return password_hash( trim( (string) $pin ), PASSWORD_DEFAULT );
@@ -134,6 +164,51 @@ class VHG_Ma {
 			);
 		}
 		return $ra;
+	}
+
+	// ===================================================================== cỡ mã QR trên màn ghế
+
+	/**
+	 * MÃ QR TRONG Ô GÓI TRÊN MÀN GHẾ VẼ RA ĐƯỢC BAO NHIÊU PIXEL MỖI MODULE.
+	 *
+	 * 🔴 Vì sao phải tính ra con số này thay vì "chắc là được": ô gói cao 84px, trừ dải màu và
+	 *    hai dòng chữ còn 58px cho mã. Số module của mã phụ thuộc ĐỘ DÀI chuỗi, nên một địa chỉ
+	 *    dài thêm vài ký tự là mã tự rơi từ 2 px/module xuống 1 — và 1 px/module thì gần như
+	 *    không điện thoại nào quét nổi, trong khi trên màn NHÌN VẪN THẤY "có mã QR".
+	 *
+	 *    Kiểu hỏng đó không kêu: khách quét không ra, bỏ đi, và không ai báo cho cửa hàng.
+	 *    Nên màn quản trị phải hiện con số, và kêu lên khi nó xuống 1.
+	 *
+	 * Sức chứa dưới đây là của ECC mức L (thấp nhất = chứa nhiều nhất), theo hai chế độ:
+	 *   · alphanumeric — chuỗi CHỈ gồm 0-9 A-Z và ` $%*+-./:` — đặc hơn, và đó là lý do
+	 *     `VHG_Shop::url_ngan()` viết hoa toàn bộ và dùng dạng thư mục.
+	 *   · byte — mọi chuỗi khác.
+	 */
+	const QR_VUNG_PX = 58;
+
+	public static function qr_o_goi( $url ) {
+		$u = (string) $url;
+		$n = strlen( $u );
+		if ( 0 === $n ) { return array( 'dai' => 0, 'module' => 0, 'px' => 0, 'chu' => '' ); }
+		$alnum = (bool) preg_match( '#^[0-9A-Z $%*+\-./:]+$#', $u );
+		/* [version => sức chứa] tới version 4; quá đó firmware không nhận (module nhỏ hơn 2px). */
+		$suc = $alnum ? array( 1 => 25, 2 => 47, 3 => 77, 4 => 114 )
+			: array( 1 => 17, 2 => 32, 3 => 53, 4 => 78 );
+		$ver = 0;
+		foreach ( $suc as $v => $c ) { if ( $n <= $c ) { $ver = $v; break; } }
+		if ( 0 === $ver ) {
+			return array( 'dai' => $n, 'module' => 0, 'px' => 0, 'alnum' => $alnum,
+				'chu' => 'Địa chỉ dài ' . $n . ' ký tự — quá dài, ghế sẽ KHÔNG vẽ được mã QR.' );
+		}
+		$module = 17 + 4 * $ver;
+		$px = (int) floor( self::QR_VUNG_PX / ( $module + 4 ) );   // +4 = vùng lặng 2 module mỗi bên
+		$chu = $module . '×' . $module . ' module, ' . $px . ' pixel mỗi module';
+		if ( $px >= 2 ) {
+			$chu .= ' — quét được ở khoảng cách gần.';
+		} else {
+			$chu .= ' — QUÁ NHỎ, phần lớn điện thoại sẽ không quét nổi.';
+		}
+		return array( 'dai' => $n, 'module' => $module, 'px' => $px, 'alnum' => $alnum, 'chu' => $chu );
 	}
 
 	// ===================================================================== thời gian chờ
@@ -229,7 +304,7 @@ class VHG_Ma {
 	 * ⚠️ GIÁ CHỐT Ở ĐÂY, không tính lại lúc tiền về. Đổi bảng giảm giá giữa chừng mà tính lại là
 	 *    khách trả một đằng nhận một nẻo — và bên thiệt luôn là khách, vì họ đã chuyển tiền rồi.
 	 */
-	public static function dat_don( $sdt, $pin, $menh_gia, $so_luong ) {
+	public static function dat_don( $sdt, $pin, $menh_gia, $so_luong, $cc = '' ) {
 		global $wpdb;
 		$sdt = self::sdt_sach( $sdt );
 		if ( ! self::sdt_hop_le( $sdt ) ) {
@@ -261,6 +336,10 @@ class VHG_Ma {
 		$cho = self::cho_ngay_mac_dinh();
 		$wpdb->insert( $t, array(
 			'ma_don' => $don, 'sdt' => $sdt, 'pin_bam' => self::bam_pin( $pin ),
+			/* Rỗng nếu khách không khai — KHÔNG bắt buộc. Bắt buộc căn cước để mua một lượt
+			   massage 85.000đ là mất khách ngay ở bước đầu, mà thứ nhận lại chỉ là một đường
+			   lấy lại PIN. Ai muốn có đường đó thì khai. */
+			'cc_bam' => self::bam_cc( $cc ),
 			'menh_gia' => $mg, 'gia_ban' => $gia, 'giam_pt' => self::giam_cua( $mg ),
 			'cho_ngay' => $cho, 'so_luong' => $sl, 'phai_tra' => $gia * $sl,
 			'tao_luc' => current_time( 'mysql' ), 'xong_luc' => null ) );
@@ -311,6 +390,7 @@ class VHG_Ma {
 				/* Chép từ ĐƠN sang MÃ, không đọc lại cấu hình: đơn đã chốt điều kiện lúc khách
 				   bấm mua, và giữa lúc đó với lúc tiền về chủ có thể đã đổi cài đặt. */
 				'cho_ngay' => (int) ( isset( $d['cho_ngay'] ) ? $d['cho_ngay'] : 0 ),
+				'cc_bam' => (string) ( isset( $d['cc_bam'] ) ? $d['cc_bam'] : '' ),
 				/* Nối mã về đúng dòng doanh thu đã trả tiền cho nó. Không có sợi dây này thì
 				   câu "mã này khách trả bao nhiêu, hôm nào" không trả lời được. */
 				'ref_ban' => (string) ( '' !== $ref_ban ? $ref_ban : 'don-' . $d['ma_don'] ),
@@ -382,6 +462,46 @@ class VHG_Ma {
 		if ( ! $chua && ! $roi && ! $bo ) { return $loi; }
 		return array( 'ok' => true, 'sdt' => $s, 'chua_dung' => $chua, 'da_dung' => $roi,
 			'da_huy' => $bo );
+	}
+
+	/**
+	 * LẤY LẠI PIN bằng số điện thoại + căn cước.
+	 *
+	 * 🔴 Đây là đường thứ hai đi tới mã của khách, canh bằng một mật khẩu YẾU (ai nhìn thấy thẻ
+	 *    căn cước là biết bốn số cuối). Nên nó chỉ được phép:
+	 *      · ĐẶT LẠI PIN, không phải đọc PIN cũ — PIN lưu dạng băm, đọc ra là không thể, mà cũng
+	 *        không nên: PIN cũ có thể khách dùng cho việc khác.
+	 *      · Đi qua HÃM THỬ chặt ở tầng gọi. Không hãm thì 10.000 tổ hợp bốn số dò hết trong vài
+	 *        phút, và toàn bộ mã của người ta đổi chủ.
+	 *
+	 * ⚠️ Chỉ đổi PIN của những mã CHÍNH SỐ ĐIỆN THOẠI ĐÓ có khai căn cước. Mã khai lúc chưa có ô
+	 *    căn cước thì `cc_bam` rỗng, và rỗng KHÔNG khớp với bất cứ thứ gì — không thì một chuỗi
+	 *    rỗng mở được mọi mã cũ.
+	 */
+	public static function lay_lai_pin( $sdt, $cc, $pin_moi ) {
+		global $wpdb;
+		$s = self::sdt_sach( $sdt );
+		$loi = array( 'ok' => false,
+			'error' => 'Số điện thoại hoặc số căn cước chưa đúng. Nếu lúc mua không khai căn cước '
+				. 'thì nhờ nhân viên tra giúp.' );
+		if ( ! self::sdt_hop_le( $s ) || '' === self::cc4( $cc ) ) { return $loi; }
+		if ( ! self::pin_hop_le( $pin_moi ) ) {
+			return array( 'ok' => false, 'error' => 'PIN mới phải gồm đúng 4 chữ số.' );
+		}
+		$hang = VHG_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'ma' ) . " WHERE sdt=%s AND cc_bam<>'' ORDER BY id DESC LIMIT 200", $s ) );
+		$khop = array();
+		foreach ( $hang as $h ) {
+			if ( self::cc_dung( $cc, $h['cc_bam'] ) ) { $khop[] = $h; }
+		}
+		if ( ! $khop ) { return $loi; }
+		$bam = self::bam_pin( $pin_moi );
+		foreach ( $khop as $h ) {
+			$wpdb->update( VHG_DB::t( 'ma' ), array( 'pin_bam' => $bam ), array( 'id' => (int) $h['id'] ) );
+		}
+		return array( 'ok' => true, 'so_ma' => count( $khop ),
+			'thong_bao' => 'Đã đặt PIN mới cho ' . count( $khop ) . ' mã. Vào mục "Mã của tôi" và '
+				. 'nhập PIN mới để xem.' );
 	}
 
 	// ===================================================================== dùng mã
