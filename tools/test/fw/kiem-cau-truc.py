@@ -140,6 +140,27 @@ for ten_tep in TEP:
     #    trước — đây đúng là chỗ C++ tự nó cũng nhập nhằng. Phân biệt bằng THAM SỐ: khai báo
     #    hàm thì mỗi tham số là "kiểu + tên" nên CÓ khoảng trắng (hoặc rỗng hẳn), còn dựng đối
     #    tượng thì tham số là hằng số trơn. Đơn giản mà đủ cho tệp này.
+    # 5) Kiểu TỰ ĐỊNH NGHĨA dùng trong chữ ký HÀM TỰ DO phải khai TRƯỚC hàm đầu tiên của tệp.
+    #    Arduino sinh prototype cho mọi hàm tự do rồi chèn hết vào ngay trước hàm ĐẦU TIÊN nó
+    #    thấy. Struct khai sau điểm đó thì prototype nằm trước định nghĩa struct -> build đỏ với
+    #    câu "'X' was not declared in this scope", chỉ vào dòng chẳng liên quan gì.
+    #    Đã vướng HAI LẦN: `AnhGiaiMa` (máy chấm công) và `Btn` (ghế) — lần sau bắt ở đây.
+    ham_dau = None
+    for m in re.finditer(r'^(?!\s)(?:[A-Za-z_][\w:<>*&\s]*?)\b(\w+)\s*\([^;{}]*\)\s*\{', ma, re.M):
+        ham_dau = m.start(); break
+    kieu_muon = []
+    if ham_dau is not None:
+        for m in re.finditer(r'^\s*(?:struct|class)\s+(\w+)\s*\{', ma, re.M):
+            if m.start() <= ham_dau: continue                 # khai trước hàm đầu tiên -> an toàn
+            ten_kieu = m.group(1)
+            # có hàm TỰ DO nào nhận kiểu này làm tham số không?
+            if re.search(r'^(?!\s)(?:[A-Za-z_][\w:<>*&\s]*?)\b\w+\s*\([^;{}]*\b' + ten_kieu + r'\b[^;{}]*\)\s*\{',
+                         ma, re.M):
+                kieu_muon.append(ten_kieu)
+    t('%s: kiểu tự định nghĩa dùng trong hàm tự do được khai TRƯỚC hàm đầu tiên' % nhan,
+      not kieu_muon,
+      'khai muộn nên Arduino sinh prototype trước định nghĩa: ' + ', '.join(kieu_muon))
+
     truoc = set()
     for ten_ham, tham_so in re.findall(
             r'^(?!\s)(?:[A-Za-z_][\w:<>*&\s]*?)\b(\w+)\s*\(([^;{}]*)\)\s*;', ma, re.M):

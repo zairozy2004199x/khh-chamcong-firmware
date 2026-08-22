@@ -53,6 +53,16 @@
 #endif
 #include "secrets.h"
 
+/* 🔴 `Btn` PHẢI KHAI Ở ĐÂY — TRƯỚC HÀM ĐẦU TIÊN CỦA TỆP. ĐỪNG DỜI XUỐNG DƯỚI.
+   Arduino tự sinh prototype cho MỌI hàm tự do rồi chèn hết vào ngay trước hàm ĐẦU TIÊN nó thấy.
+   Struct khai sau điểm đó thì prototype `bool inBtn(Btn, int, int)` nằm TRƯỚC định nghĩa struct
+   -> build đỏ với câu "'Btn' was not declared in this scope", chỉ vào dòng chẳng liên quan gì.
+   Bản gốc đã ghi đúng cảnh báo này; em vẫn vướng lại vì chèn `_cxTim()` lên trên nó — tức là
+   ĐẨY hàm đầu tiên lên sớm hơn cả struct. Nay struct nằm trên cùng thì không đẩy gì lên trên
+   được nữa. (Cách khác: cho `inBtn` thành hàm thành viên của struct — hàm thành viên không bị
+   sinh prototype. Xem `AnhGiaiMa` bên máy chấm công.) */
+struct Btn { int x, y, w, h; };
+
 // ============================ CẤU HÌNH ============================
 /* ⚠️ KHÔNG CÒN `CHAIR_ID` NẠP CỨNG. Ghế khai MAC, máy chủ trả về mã ghế trong lượt nhịp đầu
    tiên. Ghế chưa được gán thì máy chủ trả cờ `chuaGan` và ghế hiện chữ lên màn — người đi lắp
@@ -81,7 +91,12 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
 #define RELAY_PIN          17
 #define RELAY_ACTIVE_HIGH  true
 
-// --- Nhận TIỀN MẶT bằng PULSE (12V) ---
+// --- Nhận TIỀN MẶT: chọn MỘT trong hai đường ---
+/* Hai đường KHÔNG chạy cùng lúc được — chúng dùng chung GPIO27. Xem khối MDB ở dưới và
+   static_assert chặn ngay lúc biên dịch.
+     PULSE (12V) : máy gạt DIP sang chế độ xung, mỗi tờ ra N xung. Đang dùng.
+     MDB         : bus MDB 9-bit. Máy phải ở chế độ MDB và hết lỗi cảm biến. */
+#define USE_MDB            false
 #define CASH_ENABLE        true
 #define CASH_PULSE_PIN     27
 #define CASH_VND_PER_PULSE 5000    // 1 xung = ? đồng — theo DIP xung của máy đếm tiền
@@ -166,14 +181,13 @@ volatile int  g_remoteStartMin = 0;
 volatile bool g_remoteStop = false;
 volatile bool g_coLenh = false;       // máy chủ báo có lệnh đang chờ
 
-struct Btn { int x, y, w, h; };
 
 volatile uint32_t g_cashPulses = 0;
 volatile unsigned long g_lastPulseMs = 0;
 void IRAM_ATTR onCashPulse(){
   static unsigned long lastEdgeMs = 0;
   unsigned long now = millis();
-  if(now - lastEdgeMs >= CASH_DEBOUNCE_MS){ g_cashPulses++; lastEdgeMs = now; }
+  if(now - lastEdgeMs >= CASH_DEBOUNCE_MS){ g_cashPulses = g_cashPulses + 1; lastEdgeMs = now; }
 }
 /* Tiền mặt CHỜ ghi sổ. Nhân UI cộng vào, netTask đẩy lên máy chủ.
    ⚠️ `g_cashRef` là mã ỔN ĐỊNH của đợt đang chờ: netTask có thể phải gửi lại vài lần khi mạng
@@ -260,7 +274,8 @@ bool net4gConnect(){
 }
 void net4gMarkOk(){ g_netFails = 0; }
 void net4gMarkFail(){
-  if(++g_netFails >= 3){
+  g_netFails = g_netFails + 1;      // ++ trên biến volatile: C++20 bỏ, viết rõ ra cho khỏi cảnh báo
+  if(g_netFails >= 3){
     Serial.println("[4G] 3 lan HTTP that bai -> danh dau ROT MANG, se ket noi lai");
     g_4gReady = false; g_netFails = 0;
   }
@@ -614,6 +629,206 @@ void checkCash(){
   g_runTotalVnd += amount; updateAcceptor();
 }
 
+
+/* ===========================================================================================
+ *  MDB — nhận tiền mặt qua bus MDB (soft-UART 9 bit, bit-bang)
+ * -------------------------------------------------------------------------------------------
+ *  Bo QR_TOUCH_EXT (congnghechi.vn), chân đã xác nhận theo guide bo:
+ *      bo "MDB TX" -> GPIO35 = ESP NHẬN (RX). GPIO35 chỉ-input nên đúng là RX.
+ *      bo "MDB RX" -> GPIO27 = ESP GỬI (TX).
+ *      GND P11 nối chung GND ESP.
+ *  MDB: 9600 baud, 9 bit (bit thứ 9 = MODE: 1=địa chỉ/lệnh, 0=data), 1 stop.
+ *  Firmware TỰ DÒ cực tính RX (đo mức đường lúc rảnh) và TỰ ĐẢO thử TX khi máy im — khỏi chỉnh
+ *  tay, vì đúng/sai cực tính nhìn từ ngoài giống hệt nhau: cả hai đều là "máy không trả lời".
+ *
+ *  ⚠️ ĐIỀU KIỆN để chạy: máy phải (1) ở chế độ MDB (DIP SW2+SW3 ON), (2) HẾT lỗi cảm biến
+ *     (đèn XANH, không nháy đỏ), (3) có nguồn bus MDB. Thiếu một trong ba thì máy im, và im vì
+ *     lý do nào cũng giống nhau — nên log in cả cực tính đang thử để còn lần ra.
+ *
+ *  🔴 MDB VÀ ĐẾM XUNG KHÔNG CHẠY CÙNG LÚC ĐƯỢC: cả hai đều dùng GPIO27. Bật cả hai là chân đó
+ *     vừa là OUTPUT (MDB gửi) vừa gắn ngắt FALLING (đếm xung) — ghế sẽ tự đếm chính tín hiệu
+ *     mình phát ra thành tiền khách nạp. Chặn ngay lúc biên dịch, xem static_assert dưới.
+ *
+ *  ⚠️ `mdbTask()` chạy trên NHÂN UI và có lúc chặn tới ~150ms (chờ máy trả lời) kèm
+ *     `noInterrupts()` từng byte. Với `USE_MDB=false` (mặc định) thì không tốn gì. Bật lên mà
+ *     thấy đồng hồ đếm ngược giật thì chuyển khối này sang netTask — nhưng lúc đó phải khoá
+ *     `state`/`runUntil` vì hai nhân cùng chạm.
+ * =========================================================================================== */
+#define MDB_TX_PIN   27
+#define MDB_RX_PIN   35
+#define MDB_BIT_US   104      // 1/9600 = 104.17us (chỉnh nếu lệch)
+#define MDB_DEBUG    true     // in RAW từng byte 9-bit nhận được — để soi máy có trả lời không
+#define MDB_INVERT_TX true    // cực tính GỬI ban đầu; firmware tự đảo thử nếu máy không trả lời
+
+static_assert(!(USE_MDB && CASH_ENABLE),
+  "USE_MDB va CASH_ENABLE cung dung GPIO27 — bat ca hai la ghe tu dem tin hieu minh phat ra "
+  "thanh tien khach nap. Chon MOT: may MDB thi CASH_ENABLE=false, may xung thi USE_MDB=false.");
+
+static bool g_rxInv = false;
+static bool g_txInv = MDB_INVERT_TX;
+static int  mdbFails = 0;
+#define MDB_A_RESET  0x30     // địa chỉ bill validator (0x30) | lệnh
+#define MDB_A_SETUP  0x31
+#define MDB_A_POLL   0x33
+#define MDB_A_BILL   0x34     // BILL TYPE (enable)
+
+static uint8_t mdbBuf[40]; static int mdbN = 0;
+static long   mdbScale = 1;               // scaling factor (từ SETUP)
+static uint8_t mdbCredit[16];             // hệ số giá trị mỗi loại bill
+static int    mdbState = 0;               // 0=reset 1=setup 2=enable 3=poll
+static unsigned long mdbLastPoll = 0, mdbLastStep = 0;
+
+// mức vật lý cho 1 bit LOGIC khi GỬI: logic1 = idle/mark, logic0 = start
+static inline int mdbPhysTx(int logicBit){ return g_txInv ? !logicBit : logicBit; }
+
+// gửi 1 byte 9-bit: start(0) + 9 data (LSB trước, bit8 = mode) + stop(1)
+void IRAM_ATTR mdbTx9(uint16_t v){
+  noInterrupts();
+  digitalWrite(MDB_TX_PIN, mdbPhysTx(0)); delayMicroseconds(MDB_BIT_US);
+  for(int i=0;i<9;i++){ digitalWrite(MDB_TX_PIN, mdbPhysTx((v>>i)&1)); delayMicroseconds(MDB_BIT_US); }
+  digitalWrite(MDB_TX_PIN, mdbPhysTx(1)); delayMicroseconds(MDB_BIT_US);
+  interrupts();
+}
+// đọc 1 byte 9-bit; trả 0..511 (bit8 = mode), -1 nếu quá hạn
+int IRAM_ATTR mdbRx9(unsigned long toMs){
+  unsigned long t0 = millis();
+  int idlePhys = g_rxInv ? LOW : HIGH;
+  while(digitalRead(MDB_RX_PIN) == idlePhys){ if(millis()-t0 > toMs) return -1; }
+  noInterrupts();
+  delayMicroseconds(MDB_BIT_US + MDB_BIT_US/2);      // tới GIỮA bit data đầu
+  uint16_t v = 0;
+  for(int i=0;i<9;i++){ int r = digitalRead(MDB_RX_PIN); int logic = g_rxInv ? !r : r; if(logic) v |= (1<<i); delayMicroseconds(MDB_BIT_US); }
+  interrupts();
+  return v;
+}
+/* TỰ DÒ cực tính RX: đo mức đường lúc RẢNH. Idle phải là MARK (logic 1). Đường rảnh ở mức THẤP
+   nghĩa là tín hiệu đảo. Nếu đo ra CẢ HAI mức lẫn lộn thì đường đang thả nổi hoặc thiếu GND
+   chung — nói thẳng ra, vì ca đó dò kiểu gì cũng sai. */
+void mdbAutoDetectRx(){
+  int hi=0, lo=0;
+  for(int i=0;i<300;i++){ if(digitalRead(MDB_RX_PIN)) hi++; else lo++; delayMicroseconds(40); }
+  g_rxInv = (lo > hi);
+  Serial.printf("[MDB] auto RX: hi=%d lo=%d -> invertRX=%s%s\n", hi, lo, g_rxInv?"true":"false",
+                (hi>30 && lo>30) ? "  (!! duong dao dong ~ nhieu/tha noi -> kiem day/GND)" : "");
+}
+// gửi block lệnh: addr/cmd (mode=1) + data (mode=0) + checksum (mode=0)
+static void mdbSend(uint8_t cmd, const uint8_t* d, int n){
+  uint16_t chk = cmd; mdbTx9(0x100 | cmd);
+  for(int i=0;i<n;i++){ mdbTx9(d[i]); chk += d[i]; }
+  mdbTx9(chk & 0xFF);
+}
+// đọc phản hồi. -2 quá hạn, -1 sai checksum, 0=ACK, 255=NAK, >0 = số byte data
+static int mdbResp(unsigned long toMs){
+  mdbN = 0; unsigned long t0 = millis();
+  while(millis()-t0 < toMs){
+    int b = mdbRx9(60); if(b < 0) continue;
+    if(MDB_DEBUG) Serial.printf(" rx=%03X", b);
+    uint8_t v = b & 0xFF;
+    if(b & 0x100){                                   // byte có MODE=1 = byte cuối
+      if(mdbN==0){ if(v==0x00) return 0; if(v==0xFF) return 255; }
+      uint16_t s=0; for(int i=0;i<mdbN;i++) s += mdbBuf[i];
+      if((s & 0xFF) != v) return -1;
+      mdbTx9(0x000);                                 // ACK
+      return mdbN;
+    } else if(mdbN < (int)sizeof(mdbBuf)) mdbBuf[mdbN++] = v;
+  }
+  return -2;
+}
+
+void mdbInit(){
+  if(!USE_MDB) return;
+  pinMode(MDB_TX_PIN, OUTPUT); digitalWrite(MDB_TX_PIN, mdbPhysTx(1));
+  pinMode(MDB_RX_PIN, INPUT);
+  mdbState = 0; mdbLastStep = 0;
+  Serial.printf("[MDB] init TX=%d RX=%d @9600 9-bit\n", MDB_TX_PIN, MDB_RX_PIN);
+  mdbAutoDetectRx();
+}
+
+/* Máy MDB báo đã nuốt một tờ -> chạy/cộng giờ ghế, rồi xếp vào hàng chờ ghi sổ.
+   Dùng CHUNG `g_pendingCashLog` + `g_cashRef` với đường đếm xung: một chỗ ghi sổ duy nhất, nên
+   không thể có chuyện hai đường ghi ra hai kiểu. */
+static void mdbCreditVnd(long vnd){
+  if(vnd <= 0) return;
+  int minutes = (PRICE_VND>0) ? (int)((vnd*(long)MINUTES)/PRICE_VND) : 0;
+  Serial.printf("[MDB] +%ld d -> %d phut\n", vnd, minutes);
+  if(minutes <= 0) return;
+  if(state==ST_RUNNING){ runUntil += (unsigned long)minutes*60000UL; g_statusDirty=true; Serial.println("[MDB] +gio (dang chay)"); }
+  else { g_srcCode='c'; startRunning(minutes); }
+  portENTER_CRITICAL(&g_mux);
+  g_pendingCashLog += vnd;
+  /* ⚠️ PHẢI có mã ổn định cho đợt này. Để rỗng thì máy chủ tự sinh mã từ (giờ + tiền + nội
+     dung) — mà giờ thì đổi mỗi giây, nên netTask gửi lại vì mạng chập chờn là đẻ ra một dòng
+     doanh thu MỚI. Cùng lý do với đường đếm xung, xem checkCash(). */
+  if(g_cashRef[0] == 0){
+    snprintf(g_cashRef, sizeof(g_cashRef), "mdb-%s-%lu",
+      CHAIR_ID.length()?CHAIR_ID.c_str():"?", (unsigned long)millis());
+  }
+  portEXIT_CRITICAL(&g_mux);
+  g_runTotalVnd += vnd; updateAcceptor();
+}
+
+// Gọi mỗi vòng loop(). Chu trình: RESET -> SETUP -> BILL TYPE(enable) -> POLL lặp.
+void mdbTask(){
+  if(!USE_MDB) return;
+  if(millis()-mdbLastStep < 60) return;
+  mdbLastStep = millis();
+
+  if(mdbState==0){                          // RESET
+    mdbAutoDetectRx();                       // dò lại (phòng máy lên nguồn sau ESP)
+    Serial.println("[MDB] RESET");
+    mdbSend(MDB_A_RESET, NULL, 0);
+    int r = mdbResp(250);
+    Serial.printf("[MDB] reset resp=%d\n", r);
+    mdbState = 1; return;
+  }
+  if(mdbState==1){                          // SETUP (đọc cấu hình + bảng giá bill)
+    mdbSend(MDB_A_SETUP, NULL, 0);
+    int r = mdbResp(350);
+    if(r > 10){
+      mdbScale = ((long)mdbBuf[3]<<8) | mdbBuf[4];
+      for(int i=0;i<16 && (11+i)<mdbN;i++) mdbCredit[i] = mdbBuf[11+i];
+      Serial.printf("[MDB] SETUP ok feature=%d scale=%ld\n", mdbBuf[0], mdbScale);
+      Serial.print("[MDB] gia bill:"); for(int i=0;i<7;i++) Serial.printf(" t%d=%ld", i, (long)mdbCredit[i]*mdbScale); Serial.println();
+      mdbFails = 0; mdbState = 2;
+    } else {
+      Serial.printf("[MDB] SETUP fail=%d -> reset\n", r); mdbState = 0;
+      if(++mdbFails % 4 == 0){               // máy im lâu -> tự đảo thử cực tính TX
+        g_txInv = !g_txInv; digitalWrite(MDB_TX_PIN, mdbPhysTx(1));
+        Serial.printf("[MDB] >> tu dao cuc tinh TX -> invertTX=%s\n", g_txInv ? "true" : "false");
+      }
+      delay(400);
+    }
+    return;
+  }
+  if(mdbState==2){                          // BILL TYPE: nhận mọi mệnh giá, không escrow
+    uint8_t d[4] = {0xFF,0xFF, 0x00,0x00};
+    mdbSend(MDB_A_BILL, d, 4);
+    int r = mdbResp(200);
+    Serial.printf("[MDB] ENABLE resp=%d\n", r);
+    mdbState = 3; return;
+  }
+  if(mdbState==3){                          // POLL định kỳ
+    if(millis()-mdbLastPoll < 150) return;
+    mdbLastPoll = millis();
+    mdbSend(MDB_A_POLL, NULL, 0);
+    int r = mdbResp(150);
+    if(r > 0){
+      for(int i=0;i<mdbN;i++){
+        uint8_t z = mdbBuf[i];
+        if(z & 0x80){                        // sự kiện bill: 1 rrr tttt
+          uint8_t routing = (z>>4)&0x07, type = z & 0x0F;
+          long val = (long)mdbCredit[type]*mdbScale;
+          Serial.printf("[MDB] BILL routing=%d type=%d val=%ld\n", routing, type, val);
+          if(routing==0 || routing==1) mdbCreditVnd(val);   // 0=đã vào khay, 1=escrow
+        } else {
+          Serial.printf("[MDB] status 0x%02X\n", z);
+          if(z==0x06){ Serial.println("[MDB] (Just Reset) -> setup lai"); mdbState=1; }
+        }
+      }
+    } else if(r == -1) Serial.println("[MDB] poll checksum sai");
+  }
+}
+
 // ======================= SETUP / LOOP =======================
 void netTask(void*);
 
@@ -626,6 +841,7 @@ void setup(){
     attachInterrupt(digitalPinToInterrupt(CASH_PULSE_PIN), onCashPulse, FALLING); }
   if(CASH_INHIBIT_ENABLE){ pinMode(INHIBIT_PIN, OUTPUT); }
   setAcceptorEnabled(true);
+  mdbInit();
 
   prefs.begin("ghe", false);
   CHAIR_ID = prefs.getString("chair", "");   // nhớ mã ghế máy chủ đã gán, để mất mạng vẫn hiện đúng
@@ -657,6 +873,7 @@ void setup(){
 void loop(){
   { static uint32_t _pc=0; uint32_t c=g_cashPulses; if(c!=_pc){ _pc=c; g_lastPulseMs=millis(); } }
   checkCash();
+  mdbTask();
 
   if(g_remoteStop){ g_remoteStop=false;
     if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false;
