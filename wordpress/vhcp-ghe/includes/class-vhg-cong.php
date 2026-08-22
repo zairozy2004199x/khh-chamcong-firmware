@@ -306,7 +306,9 @@ class VHG_Cong {
 				'so_tien'  => isset( $d['so_tien'] ) ? $d['so_tien'] : 0,
 				'nguon'    => VHG_Thu::TIEN_MAT,
 				'ma_may'   => $ma_may,
-				'noi_dung' => 'Ghế nhận tiền mặt',
+				/* Hằng chứ không gõ tay: đây là thứ DUY NHẤT phân biệt "ghế nuốt tờ tiền" với
+				   "người đi thu đếm được" ở tab Thu tiền. Lệch một dấu cách là phân loại sai. */
+				'noi_dung' => VHG_Thu::ND_GHE_NUOT,
 			) );
 			self::tra( 200, array( 'ok' => ! empty( $r['ok'] ),
 				'moi' => ! empty( $r['moi'] ) ? 1 : 0,

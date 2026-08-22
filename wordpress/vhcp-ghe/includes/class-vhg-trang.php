@@ -243,6 +243,7 @@ class VHG_Trang {
 		   phải giải thích được bằng con số, không bằng trí nhớ. Kèm tổng THÁNG bất kể đang xem kỳ
 		   nào — câu hỏi thật lúc đối chiếu luôn là "tháng này bao nhiêu". */
 		$bat_ky    = VHG_May::tong_lenh( $ky );
+		$bat_may   = VHG_May::tong_lenh_may( $ky );
 		$bat_thang = VHG_May::tong_lenh( 'month' );
 		$bat_ngay  = VHG_May::tong_lenh_ngay( $ky );
 		$bat_ds    = array();
@@ -274,7 +275,11 @@ class VHG_Trang {
 			'may' => $may, 'cho' => $cho, 'gd' => $gd,
 			'choGan' => $cho_gan, 'coso' => $ds_coso,
 			'bat' => array( 'ky' => $bat_ky, 'thang' => $bat_thang,
-				'ngay' => $bat_ngay, 'ds' => $bat_ds ),
+				'ngay' => $bat_ngay, 'may' => $bat_may, 'ds' => $bat_ds ),
+			/* Tab Thu tiền: tách hai đường tiền mặt (ghế nuốt / người thu) — xem khối giải thích
+			   trên VHG_Thu::ND_GHE_NUOT. Gửi kèm trong lượt này, không thêm lượt gọi. */
+			'thu' => array( 'ds' => VHG_Thu::ds_tien_mat( $ky, 80 ),
+				'may' => array_values( VHG_Thu::theo_may_tien_mat( $ky ) ) ),
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
@@ -687,11 +692,17 @@ function ve(){
   h += '<div class="nav">'
     + '<button data-tab="doi-soat"' + (TAB==='doi-soat'?' class="on"':'') + '>📊 '
       + L('Đối soát','Reconciliation') + '</button>'
+    + '<button data-tab="thu-tien"' + (TAB==='thu-tien'?' class="on"':'') + '>💵 '
+      + L('Thu tiền','Cash collection') + '</button>'
+    + '<button data-tab="kich-hoat"' + (TAB==='kich-hoat'?' class="on"':'') + '>⚡ '
+      + L('Kích hoạt ghế','Chair activation') + '</button>'
     + '<button data-tab="dieu-khien"' + (TAB==='dieu-khien'?' class="on"':'') + '>🎛 '
       + L('Điều khiển ghế','Chair control') + '</button>'
     + '</div>';
 
-  if (TAB === 'doi-soat') {
+  /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
+     ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
+  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat') {
     h += '<div class="tabs">';
     [['today',L('Hôm nay','Today')],['week',L('Tuần này','This week')],['month',L('Tháng này','This month')],
      ['year',L('Năm nay','This year')],['all',L('Tất cả','All time')]]
@@ -750,6 +761,8 @@ function ve(){
   }
 
   if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
 
   h += '<div class="kpis">'
     + kpi(L('Tổng doanh thu','Total revenue'), tien(t.tong), t.so_luot + ' ' + L('lượt','sessions'), 'a')
@@ -788,10 +801,6 @@ function ve(){
     Object.keys(t.theo_may).map(function(k){ var m = t.theo_may[k];
       return ['<b>' + esc(m.may) + '</b>', esc(m.coso), m.so_luot, tien(m.qr), tien(m.tien_mat), '<b>' + tien(m.tong) + '</b>']; }));
   h += '</div>';
-
-  /* NHẬT KÝ BẬT TỪ XA. Đặt TRƯỚC bảng giao dịch: bảng giao dịch nói tiền vào, bảng này nói
-     tiền KHÔNG vào mà ghế vẫn chạy — và đó mới là phần cuối tháng phải giải thích. */
-  h += veNhatKyBat();
 
   // --- giao dịch
   h += bang(L('Giao dịch gần đây','Recent transactions'),
@@ -891,21 +900,90 @@ function veDieuKhien(){
   return h + '</div></div>';
 }
 
-/* Nhật ký bật ghế từ xa: tổng kỳ đang xem, tổng THÁNG, gộp theo ngày, rồi từng lượt.
-   Tổng tháng hiện bất kể đang xem kỳ nào — câu hỏi thật lúc đối chiếu luôn là "tháng này bao
-   nhiêu", và bắt người ta bấm đổi kỳ rồi nhớ con số là cách chắc chắn để nhớ nhầm. */
-function veNhatKyBat(){
-  var b = D.bat || { ky:{so_lan:0,tong_phut:0,so_ghe:0}, thang:{so_lan:0,tong_phut:0}, ngay:[], ds:[] };
-  var h = '<div class="card"><h2>' + L('Nhật ký bật ghế từ xa','Remote start log') + '</h2>'
-    + '<p class="mut" style="margin:0 0 10px">'
-    + L('Mỗi lần bấm Bật là <b>cho không một lượt</b>: ghế chạy, điện tốn, mà sổ doanh thu không '
-        + 'có đồng nào. Bảng này để cuối tháng còn giải thích được chênh lệch giữa số lượt ghế '
-        + 'chạy và số lượt thu tiền.',
-        'Every Start press is <b>a free session</b>: the chair runs, power is spent, and the '
-        + 'revenue book shows nothing. This table is how you explain, at month end, the gap '
-        + 'between sessions run and sessions paid.') + '</p>';
+/* ============================================================================================
+ * TAB THU TIỀN.
+ *
+ * 🔴 CÓ HAI ĐƯỜNG TIỀN MẶT, VÀ BẢNG DOANH THU KHÔNG PHÂN BIỆT ĐƯỢC CHÚNG:
+ *      · "Ghế nuốt"  — khách nhét tờ tiền vào máy, ghế chạy ngay. Tiền còn nằm trong ghế.
+ *      · "Người thu" — người đi thu mở ngăn, đếm được bao nhiêu ghi bấy nhiêu.
+ *    Ghế có cục nhận tiền chạy tốt MÀ người thu vẫn bấm "Thu tiền mặt" là CỘNG ĐÔI: cùng một
+ *    xấp tiền vào sổ hai lần. Doanh thu tháng phồng lên mà không ai thấy, vì hai dòng nhìn
+ *    giống hệt nhau trong bảng giao dịch.
+ *
+ *    Không cấm — có ghế không lắp cục nhận tiền, ở đó nút bấm tay là đường DUY NHẤT. Nên tab này
+ *    tách hai loại ra và KÊU LÊN khi một ghế có cả hai trong cùng kỳ.
+ * ============================================================================================ */
+function veThuTien(){
+  var t = (D.thu || { ds: [], may: [] });
+  var mat_ghe = 0, mat_ng = 0, qr = 0, lan = 0, canh = [];
+  t.may.forEach(function(m){
+    mat_ghe += m.mat_ghe; mat_ng += m.mat_nguoi; qr += m.qr; lan += m.so_lan_thu;
+    if (m.cong_doi) canh.push(m.may);
+  });
 
-  h += '<div class="kpis" style="margin-bottom:12px">'
+  var h = '';
+  if (canh.length) {
+    h += '<div class="warn"><b>' + canh.length + ' '
+      + L('ghế có CẢ hai đường tiền mặt trong kỳ này','chairs took cash through BOTH paths this period')
+      + '</b> — ' + esc(canh.join(', ')) + '. '
+      + L('Ghế vừa tự nuốt tiền, vừa có người bấm "Thu tiền mặt". Nếu đó là cùng một xấp tiền thì '
+          + 'doanh thu đang <b>cộng đôi</b>. Ghế mới lắp cục nhận tiền giữa kỳ thì bình thường — '
+          + 'soi bảng dưới rồi huỷ dòng thừa ở tab Đối soát.',
+          'The chair swallowed notes itself AND someone pressed "Collect cash". If that is the same '
+          + 'pile of money, revenue is <b>double counted</b>. It is normal if the acceptor was '
+          + 'fitted mid-period — check the table below and cancel the extra rows in Reconciliation.')
+      + '</div>';
+  }
+
+  h += '<div class="kpis">'
+    + kpi(L('Ghế tự nuốt tiền','Chair took notes'), tien(mat_ghe),
+        L('khách nhét vào máy','customer inserted'), 'c')
+    + kpi(L('Người đi thu ghi sổ','Recorded by staff'), tien(mat_ng),
+        lan + ' ' + L('lần bấm thu','collections'), 'a')
+    + kpi(L('Chuyển khoản (QR)','Bank transfer (QR)'), tien(qr), '', 'b')
+    + kpi(L('Tổng kỳ này','Period total'), tien(mat_ghe + mat_ng + qr), '', 'd')
+    + '</div>';
+
+  h += '<div class="card"><h2>' + L('Theo ghế','By chair') + '</h2><table><tr><th>'
+    + L('Ghế','Chair') + '</th><th class="hide-sm">' + L('Cơ sở','Branch') + '</th>'
+    + '<th class="r">' + L('Ghế nuốt','Acceptor') + '</th><th class="r">'
+    + L('Người thu','Staff') + '</th><th class="r">QR</th><th class="r">'
+    + L('Tổng','Total') + '</th></tr>';
+  if (!t.may.length) h += '<tr><td colspan="6" class="mut">'
+    + L('Chưa có đồng nào trong kỳ này.','No money in this period.') + '</td></tr>';
+  t.may.forEach(function(m){
+    h += '<tr><td><b>' + esc(m.may) + '</b>'
+      + (m.cong_doi ? ' <span class="pill p-off">' + L('cần soi','check') + '</span>' : '') + '</td>'
+      + '<td class="hide-sm">' + esc(m.coso || '—') + '</td>'
+      + '<td class="r">' + tien(m.mat_ghe) + '</td>'
+      + '<td class="r">' + tien(m.mat_nguoi) + '</td>'
+      + '<td class="r">' + tien(m.qr) + '</td>'
+      + '<td class="r"><b>' + tien(m.tong) + '</b></td></tr>';
+  });
+  h += '</table></div>';
+
+  h += '<div class="card"><h2>' + L('Từng lượt tiền mặt','Every cash entry') + '</h2><table><tr><th>'
+    + L('Lúc','Time') + '</th><th>' + L('Ghế','Chair') + '</th><th>' + L('Kiểu','Kind') + '</th>'
+    + '<th class="hide-sm">' + L('Ai thu','Collected by') + '</th><th class="r">'
+    + L('Số tiền','Amount') + '</th></tr>';
+  if (!t.ds.length) h += '<tr><td colspan="5" class="mut">'
+    + L('Chưa có lượt tiền mặt nào.','No cash entries yet.') + '</td></tr>';
+  t.ds.forEach(function(r){
+    var ng = r.kieu === 'nguoi';
+    h += '<tr><td>' + esc(r.luc) + '</td><td><b>' + esc(r.ma_may || '—') + '</b></td>'
+      + '<td><span class="pill ' + (ng ? 'p-run' : 'p-ok') + '">'
+        + (ng ? L('người thu','staff') : L('ghế nuốt','acceptor')) + '</span></td>'
+      + '<td class="hide-sm">' + esc(r.nguoi || '—') + '</td>'
+      + '<td class="r">' + tien(r.so_tien) + '</td></tr>';
+  });
+  return h + '</table></div>';
+}
+
+/* TAB KÍCH HOẠT GHẾ — ghế nào đã bật tay, mấy lần, tổng bao lâu, và vì sao. */
+function veKichHoat(){
+  var b = D.bat || { ky:{so_lan:0,tong_phut:0,so_ghe:0}, thang:{so_lan:0,tong_phut:0},
+                     ngay:[], may:[], ds:[] };
+  var h = '<div class="kpis">'
     + kpi(L('Kỳ đang xem','Selected period'), String(b.ky.so_lan) + ' ' + L('lần','times'),
         b.ky.tong_phut + ' ' + L('phút · trên','min · across') + ' ' + b.ky.so_ghe + ' '
         + L('ghế','chairs'), 'a')
@@ -913,38 +991,57 @@ function veNhatKyBat(){
         b.thang.tong_phut + ' ' + L('phút','min'), 'd')
     + '</div>';
 
-  if (!b.ngay.length) {
-    return h + '<p class="mut">' + L('Chưa ai bật ghế từ xa trong kỳ này.',
-      'Nobody started a chair remotely in this period.') + '</p></div>';
-  }
-
-  h += '<table><tr><th>' + L('Ngày','Day') + '</th><th class="r">' + L('Số lần','Times')
-    + '</th><th class="r">' + L('Tổng phút','Total minutes') + '</th></tr>';
-  b.ngay.forEach(function(n){
-    h += '<tr><td>' + esc(n.ngay) + '</td><td class="r">' + n.so_lan + '</td>'
-      + '<td class="r"><b>' + n.tong_phut + '</b></td></tr>';
+  h += '<div class="card"><h2>' + L('Ghế đã kích hoạt','Chairs activated') + '</h2>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Mỗi lần bấm Bật là <b>cho không một lượt</b>: ghế chạy, điện tốn, mà sổ doanh thu không '
+        + 'có đồng nào. Một ghế đứng đầu bảng tháng này qua tháng khác thì hoặc nó hỏng thật, '
+        + 'hoặc có người đang quen tay — cả hai đều đáng biết.',
+        'Every Start press is <b>a free session</b>: the chair runs, power is spent, and the revenue '
+        + 'book shows nothing. A chair that tops this table month after month is either genuinely '
+        + 'faulty or someone has got into the habit — both are worth knowing.') + '</p>';
+  h += '<table><tr><th>' + L('Ghế','Chair') + '</th><th class="hide-sm">' + L('Cơ sở','Branch')
+    + '</th><th class="r">' + L('Số lần','Times') + '</th><th class="r">'
+    + L('Tổng phút','Total minutes') + '</th><th class="r hide-sm">' + L('Lần cuối','Last')
+    + '</th></tr>';
+  if (!b.may.length) h += '<tr><td colspan="5" class="mut">'
+    + L('Chưa ghế nào được bật tay trong kỳ này.','No chair was started by hand in this period.')
+    + '</td></tr>';
+  b.may.forEach(function(m){
+    h += '<tr><td><b>' + esc(m.ma) + '</b></td><td class="hide-sm">' + esc(m.coso || '—') + '</td>'
+      + '<td class="r">' + m.so_lan + '</td><td class="r"><b>' + m.tong_phut + '</b></td>'
+      + '<td class="r hide-sm"><span class="mut">' + esc(m.lan_cuoi || '—') + '</span></td></tr>';
   });
-  h += '</table>';
+  h += '</table></div>';
 
-  if (b.ds.length) {
-    h += '<table style="margin-top:12px"><tr><th>' + L('Lúc','Time') + '</th><th>'
-      + L('Ghế','Chair') + '</th><th class="hide-sm">' + L('Ai bấm','Pressed by') + '</th>'
-      + '<th class="hide-sm">' + L('Lý do','Reason') + '</th><th class="r">'
-      + L('Phút','Min') + '</th></tr>';
-    b.ds.forEach(function(l){
-      /* Lệnh ghế CHƯA LẤY phải hiện khác: người đọc cần phân biệt "đã chạy" với "sẽ chạy khi
-         ghế lên mạng" — hai thứ đó khác nhau khi đang đứng đối chiếu với sổ. */
-      h += '<tr><td>' + esc(l.luc)
-        + (l.da_gui ? '' : '<br><span class="pill p-wait">' + L('ghế chưa lấy','not picked up')
-            + '</span>') + '</td>'
-        + '<td><b>' + esc(l.ma) + '</b></td>'
-        + '<td class="hide-sm">' + esc(l.nguoi || '—') + '</td>'
-        + '<td class="hide-sm"><span class="mut">' + esc(l.ly_do || '—') + '</span></td>'
-        + '<td class="r">' + l.phut + '</td></tr>';
+  if (b.ngay.length) {
+    h += '<div class="card"><h2>' + L('Theo ngày','By day') + '</h2><table><tr><th>'
+      + L('Ngày','Day') + '</th><th class="r">' + L('Số lần','Times') + '</th><th class="r">'
+      + L('Tổng phút','Total minutes') + '</th></tr>';
+    b.ngay.forEach(function(n){
+      h += '<tr><td>' + esc(n.ngay) + '</td><td class="r">' + n.so_lan + '</td>'
+        + '<td class="r"><b>' + n.tong_phut + '</b></td></tr>';
     });
-    h += '</table>';
+    h += '</table></div>';
   }
-  return h + '</div>';
+
+  h += '<div class="card"><h2>' + L('Nhật ký kích hoạt','Activation log') + '</h2><table><tr><th>'
+    + L('Lúc','Time') + '</th><th>' + L('Ghế','Chair') + '</th><th class="hide-sm">'
+    + L('Ai bấm','Pressed by') + '</th><th>' + L('Lý do','Reason') + '</th><th class="r">'
+    + L('Phút','Min') + '</th></tr>';
+  if (!b.ds.length) h += '<tr><td colspan="5" class="mut">'
+    + L('Chưa có lượt nào.','Nothing yet.') + '</td></tr>';
+  b.ds.forEach(function(l){
+    /* Lệnh ghế CHƯA LẤY phải hiện khác: "đã chạy" và "sẽ chạy khi ghế lên mạng" là hai thứ khác
+       nhau khi đang đứng đối chiếu với sổ. */
+    h += '<tr><td>' + esc(l.luc)
+      + (l.da_gui ? '' : '<br><span class="pill p-wait">' + L('ghế chưa lấy','not picked up')
+          + '</span>') + '</td>'
+      + '<td><b>' + esc(l.ma) + '</b></td>'
+      + '<td class="hide-sm">' + esc(l.nguoi || '—') + '</td>'
+      + '<td>' + esc(l.ly_do || '—') + '</td>'
+      + '<td class="r">' + l.phut + '</td></tr>';
+  });
+  return h + '</table></div>';
 }
 
 function kpi(lb, vl, sb, m){

@@ -267,6 +267,93 @@ class VHG_Thu {
 			. " WHERE huy=0 AND ma_may='' ORDER BY luc DESC, id DESC LIMIT " . (int) $gioi_han );
 	}
 
+	/* ==========================================================================================
+	 * HAI ĐƯỜNG TIỀN MẶT — KHAI NHÃN Ở MỘT CHỖ.
+	 *
+	 * Ghế nuốt tờ tiền thì cổng máy ghi một dòng; người đứng quầy bấm "Thu tiền mặt" thì màn
+	 * ngoài ghi một dòng nữa. Cả hai đều là `nguon = TIEN_MAT`, nên nhìn vào bảng doanh thu KHÔNG
+	 * phân biệt được — mà chúng là hai việc khác hẳn nhau:
+	 *   · "Ghế nhận tiền mặt"  = khách vừa nhét tiền vào máy, ghế chạy ngay. Tiền còn trong ghế.
+	 *   · "Thu tiền mặt · <ai>" = người đi thu mở ngăn, đếm được bao nhiêu thì ghi bấy nhiêu.
+	 *
+	 * 🔴 GHẾ CÓ CỤC NHẬN TIỀN CHẠY TỐT MÀ NGƯỜI THU VẪN BẤM "THU TIỀN MẶT" LÀ CỘNG ĐÔI: cùng một
+	 *    xấp tiền vào sổ hai lần, một lần lúc khách nhét, một lần lúc người ta đếm. Doanh thu
+	 *    tháng phồng lên mà không ai thấy, vì hai dòng nhìn giống hệt nhau.
+	 *
+	 *    Không chặn ở đây — có ghế không lắp cục nhận tiền, và ở đó nút bấm tay là đường DUY NHẤT.
+	 *    Nên thay vì cấm, HIỆN RA: tab Thu tiền tách hai loại và kêu lên khi một ghế có cả hai
+	 *    trong cùng một kỳ.
+	 *
+	 * ⚠️ Hai hằng này là thứ DUY NHẤT phân biệt hai loại. Gõ tay chuỗi ở nơi ghi rồi gõ lại ở nơi
+	 *    đọc là sớm muộn lệch nhau một dấu cách, và lúc đó phép phân loại im lặng trả về sai loại.
+	 * ========================================================================================== */
+	const ND_GHE_NUOT = 'Ghế nhận tiền mặt';
+	const ND_THU_TAY  = 'Thu tiền mặt · ';
+
+	/** Một dòng tiền mặt là loại nào: 'ghe' (ghế nuốt) | 'nguoi' (người thu) | '' (không rõ). */
+	public static function kieu_tien_mat( $noi_dung ) {
+		$nd = trim( (string) $noi_dung );
+		if ( self::ND_GHE_NUOT === $nd ) { return 'ghe'; }
+		if ( 0 === strpos( $nd, self::ND_THU_TAY ) ) { return 'nguoi'; }
+		return '';
+	}
+
+	/** Ai bấm thu — lấy từ chính dòng ghi, không đoán. Rỗng nếu không phải dòng thu tay. */
+	public static function nguoi_thu( $noi_dung ) {
+		$nd = trim( (string) $noi_dung );
+		if ( 0 !== strpos( $nd, self::ND_THU_TAY ) ) { return ''; }
+		return trim( substr( $nd, strlen( self::ND_THU_TAY ) ) );
+	}
+
+	/**
+	 * Mọi lượt tiền mặt trong kỳ, đã tách loại — nguồn của tab "Thu tiền".
+	 */
+	public static function ds_tien_mat( $ky = 'today', $gioi_han = 200 ) {
+		$ra = array();
+		foreach ( self::ds( $ky, 100000 ) as $r ) {
+			if ( self::TIEN_MAT !== $r['nguon'] ) { continue; }
+			$ra[] = array(
+				'luc'     => (string) $r['luc'],
+				'ma_may'  => (string) $r['ma_may'],
+				'so_tien' => (int) $r['so_tien'],
+				'kieu'    => self::kieu_tien_mat( $r['noi_dung'] ),
+				'nguoi'   => self::nguoi_thu( $r['noi_dung'] ),
+			);
+			if ( count( $ra ) >= $gioi_han ) { break; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Theo ghế: tiền mặt ghế nuốt, tiền mặt người thu, QR, tổng — và cờ CỘNG ĐÔI.
+	 *
+	 * Cờ bật khi một ghế có CẢ hai loại tiền mặt trong cùng kỳ. Không phải lúc nào cũng sai (ghế
+	 * mới lắp cục nhận tiền giữa kỳ chẳng hạn), nên gọi là "cần soi" chứ không gọi là lỗi.
+	 */
+	public static function theo_may_tien_mat( $ky = 'today' ) {
+		$ra  = array();
+		$may = VHG_May::ds_may_theo_ma();
+		foreach ( self::ds( $ky, 100000 ) as $r ) {
+			$ten = '' !== $r['ma_may'] ? $r['ma_may']
+				: ( '' !== $r['ten_khai'] ? $r['ten_khai'] : '(chưa rõ máy)' );
+			if ( ! isset( $ra[ $ten ] ) ) {
+				$ra[ $ten ] = array( 'may' => $ten, 'coso' => self::coso_cua( $r, $may ),
+					'mat_ghe' => 0, 'mat_nguoi' => 0, 'qr' => 0, 'tong' => 0,
+					'so_lan_thu' => 0, 'cong_doi' => false );
+			}
+			$tien = (int) $r['so_tien'];
+			$ra[ $ten ]['tong'] += $tien;
+			if ( self::TIEN_MAT !== $r['nguon'] ) { $ra[ $ten ]['qr'] += $tien; continue; }
+			$k = self::kieu_tien_mat( $r['noi_dung'] );
+			if ( 'nguoi' === $k ) { $ra[ $ten ]['mat_nguoi'] += $tien; $ra[ $ten ]['so_lan_thu']++; }
+			else { $ra[ $ten ]['mat_ghe'] += $tien; }
+		}
+		foreach ( $ra as $k => $v ) {
+			$ra[ $k ]['cong_doi'] = ( $v['mat_ghe'] > 0 && $v['mat_nguoi'] > 0 );
+		}
+		return $ra;
+	}
+
 	/** Thu tiền mặt tại quầy — người bấm trên màn, không qua ngân hàng. */
 	public static function thu_tien_mat( $ma_may, $so_tien, $nguoi ) {
 		$ma_may = trim( (string) $ma_may );
@@ -277,7 +364,7 @@ class VHG_Thu {
 		return self::ghi( array(
 			'ref' => 'mat-' . $ma_may . '-' . strtotime( $luc ) . '-' . $so_tien,
 			'luc' => $luc, 'so_tien' => $so_tien, 'nguon' => self::TIEN_MAT,
-			'ma_may' => $ma_may, 'noi_dung' => 'Thu tiền mặt · ' . $nguoi,
+			'ma_may' => $ma_may, 'noi_dung' => self::ND_THU_TAY . $nguoi,
 		) );
 	}
 

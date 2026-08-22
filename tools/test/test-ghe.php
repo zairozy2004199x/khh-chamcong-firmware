@@ -2763,13 +2763,91 @@ t( 'liệt kê ai bấm', strpos( $h_bat, 'Chị Hai' ) !== false );
 t( 'và phân biệt lệnh ghế chưa lấy', strpos( $h_bat, 'chưa lấy' ) !== false );
 
 $web_b = vhg_web_html();
-t( 'trang có khối nhật ký bật', strpos( $web_b, 'function veNhatKyBat()' ) !== false );
-t( 'và có gọi vẽ nó', preg_match( '/h \+= veNhatKyBat\(\);/', $web_b ) === 1 );
-t( 'nhật ký bật có bản tiếng Anh', strpos( $web_b, "'Remote start log'" ) !== false );
-/* Đặt TRƯỚC bảng giao dịch: bảng giao dịch nói tiền VÀO, bảng này nói tiền KHÔNG vào mà ghế vẫn
-   chạy — và đó mới là phần cuối tháng phải giải thích. */
-t( 'đứng trước bảng giao dịch',
-	strpos( $web_b, 'h += veNhatKyBat();' ) < strpos( $web_b, "'Giao dịch gần đây'" ) );
+t( 'trang có tab Kích hoạt ghế', strpos( $web_b, 'function veKichHoat()' ) !== false );
+t( 'và có nút mở tab đó', strpos( $web_b, 'data-tab="kich-hoat"' ) !== false );
+/* ⚠️ Bám vào THÂN HÀM, không vào tiêu đề bảng. Phép thử chỉ dò tiêu đề vẫn đạt khi cột "lý do"
+      bị bỏ hẳn — mà lý do chính là thứ anh Thắng yêu cầu đích danh: không có nó thì nhật ký chỉ
+      nói "ai đó bật ghế", tức là không giải thích được gì. */
+$than_kh = '';
+if ( preg_match( '/function veKichHoat\(\)\{(.*?)\n\}/s', $web_b, $m_kh ) ) { $than_kh = $m_kh[1]; }
+t( 'tìm được thân hàm tab Kích hoạt', '' !== $than_kh );
+t( 'tab đó có nhật ký kèm lý do', strpos( $than_kh, "L('Nhật ký kích hoạt','Activation log')" ) !== false );
+foreach ( array( 'l.ly_do', 'l.nguoi', 'l.phut', 'l.ma', 'l.luc' ) as $o_kh ) {
+	t( 'nhật ký in ra "' . $o_kh . '"', strpos( $than_kh, $o_kh ) !== false );
+}
+/* Và bảng gộp theo ghế phải in đủ số lần lẫn tổng phút — anh Thắng hỏi cả hai. */
+foreach ( array( 'm.so_lan', 'm.tong_phut', 'm.lan_cuoi' ) as $o_kh ) {
+	t( 'bảng theo ghế in ra "' . $o_kh . '"', strpos( $than_kh, $o_kh ) !== false );
+}
+t( 'và bảng ghế nào bật mấy lần', strpos( $web_b, "L('Ghế đã kích hoạt','Chairs activated')" ) !== false );
+/* ⚠️ Mã chết là mã nói dối: `veNhatKyBat` đã chuyển thành tab riêng, để lại bản cũ là lần sau
+      có người sửa nhầm vào bản không ai gọi. */
+t( 'không còn hàm cũ nằm lại', strpos( $web_b, 'veNhatKyBat' ) === false );
+
+// ====================== TAB THU TIỀN: HAI ĐƯỜNG TIỀN MẶT
+/* 🔴 Ghế nuốt tờ tiền thì cổng máy ghi một dòng; người đứng quầy bấm "Thu tiền mặt" thì màn
+      ngoài ghi một dòng nữa. Cả hai đều `nguon = cash`, nhìn vào bảng doanh thu KHÔNG phân biệt
+      được — mà ghế có cục nhận tiền chạy tốt mà người thu vẫn bấm là CỘNG ĐÔI cùng một xấp tiền. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+
+/* AMTP01: ghế tự nuốt 50k, RỒI người thu lại ghi 50k nữa -> nghi cộng đôi. */
+vhg_ghe( array( 'viec' => 'tien_mat', 'mac' => 'AA:BB:CC:DD:EE:01',
+	'so_tien' => 50000, 'ref' => 'cash-AMTP01-1' ) );
+VHG_Thu::thu_tien_mat( 'AMTP01', 50000, 'Chị Hai' );
+/* AMTP02: CHỈ có người thu (ghế không lắp cục nhận tiền) -> bình thường, không kêu. */
+VHG_Thu::thu_tien_mat( 'AMTP02', 30000, 'Anh Ba' );
+
+teq( 'nhận ra dòng ghế nuốt', 'ghe', VHG_Thu::kieu_tien_mat( VHG_Thu::ND_GHE_NUOT ) );
+teq( 'nhận ra dòng người thu', 'nguoi', VHG_Thu::kieu_tien_mat( VHG_Thu::ND_THU_TAY . 'Chị Hai' ) );
+teq( 'và lấy được tên người thu', 'Chị Hai', VHG_Thu::nguoi_thu( VHG_Thu::ND_THU_TAY . 'Chị Hai' ) );
+/* Dòng lạ (nhập Excel, đời cũ) KHÔNG được đoán bừa thành một trong hai loại. */
+teq( 'dòng lạ thì không đoán bừa', '', VHG_Thu::kieu_tien_mat( 'tiền mặt gì đó' ) );
+teq( 'và không bịa ra người thu', '', VHG_Thu::nguoi_thu( 'Ghế nhận tiền mặt' ) );
+
+$tm = VHG_Thu::theo_may_tien_mat( 'today' );
+teq( 'AMTP01 có tiền ghế nuốt', 50000, (int) $tm['AMTP01']['mat_ghe'] );
+teq( 'và có tiền người thu', 50000, (int) $tm['AMTP01']['mat_nguoi'] );
+t( '🔴 kêu lên vì nghi cộng đôi', ! empty( $tm['AMTP01']['cong_doi'] ) );
+/* ⚠️ Ghế chỉ có MỘT đường thì KHÔNG kêu. Kêu cả những ghế bình thường là dạy người ta bỏ qua
+      cảnh báo, và lúc đó cảnh báo thật cũng chìm theo. */
+teq( 'AMTP02 chỉ có người thu', 30000, (int) $tm['AMTP02']['mat_nguoi'] );
+teq( 'không có tiền ghế nuốt', 0, (int) $tm['AMTP02']['mat_ghe'] );
+t( 'nên KHÔNG kêu', empty( $tm['AMTP02']['cong_doi'] ) );
+
+$ds_tm = VHG_Thu::ds_tien_mat( 'today', 50 );
+teq( 'liệt kê đủ ba lượt tiền mặt', 3, count( $ds_tm ) );
+$co_ghe = 0; $co_ng = 0;
+foreach ( $ds_tm as $r_ ) { if ( 'ghe' === $r_['kieu'] ) { $co_ghe++; } if ( 'nguoi' === $r_['kieu'] ) { $co_ng++; } }
+teq( 'một lượt ghế nuốt', 1, $co_ghe );
+teq( 'hai lượt người thu', 2, $co_ng );
+/* Tiền QR KHÔNG được lọt vào danh sách tiền mặt — tab này để đối chiếu két, không phải sổ tổng. */
+VHG_Thu::nhan( 'sepay', array( 'ref' => 'qr-1', 'so_tien' => 20000,
+	'noi_dung' => 'SEVQR GHEAMTP01 ABC123', 'luc' => '' ) );
+teq( 'QR không lọt vào danh sách tiền mặt', 3, count( VHG_Thu::ds_tien_mat( 'today', 50 ) ) );
+teq( 'nhưng vẫn vào cột QR của ghế', 20000,
+	(int) VHG_Thu::theo_may_tien_mat( 'today' )['AMTP01']['qr'] );
+
+// ---- hai tab hiện ra trên trang
+$tok_t = vhg_vao();
+$sl_t  = vhg_web( 'so_lieu', array( 'token' => $tok_t, 'ky' => 'today' ) );
+t( 'trang ngoài gửi kèm số liệu thu tiền', isset( $sl_t['thu'] ) );
+teq( 'đủ ba lượt', 3, count( $sl_t['thu']['ds'] ) );
+$web_t = vhg_web_html();
+t( 'có tab Thu tiền', strpos( $web_t, 'data-tab="thu-tien"' ) !== false );
+t( 'và hàm vẽ nó', strpos( $web_t, 'function veThuTien()' ) !== false );
+t( 'tách rõ ghế nuốt với người thu',
+	strpos( $web_t, "L('ghế nuốt','acceptor')" ) !== false
+	&& strpos( $web_t, "L('người thu','staff')" ) !== false );
+t( 'và kêu lên khi nghi cộng đôi', strpos( $web_t, 'cộng đôi' ) !== false );
+/* Bộ chọn kỳ phải hiện ở cả ba tab báo cáo; tab Điều khiển thì không — ở đó không có con số nào
+   theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
+t( 'ba tab báo cáo đều chọn được kỳ',
+	strpos( $web_t, "TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat'" ) !== false );
 
 // ============================================================ kết
 if ( $truot ) {

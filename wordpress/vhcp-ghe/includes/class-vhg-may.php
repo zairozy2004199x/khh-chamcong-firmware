@@ -108,6 +108,33 @@ class VHG_May {
 		return $ra;
 	}
 
+	/**
+	 * Gộp theo GHẾ: ghế nào đã kích hoạt tay, mấy lần, tổng bao nhiêu phút, lần gần nhất khi nào.
+	 *
+	 * Đây là câu hỏi đầu tiên lúc đối chiếu: "ghế nào hay được bật không?". Một ghế lên đầu bảng
+	 * tháng này qua tháng khác thì hoặc nó hỏng thật, hoặc có người đang quen tay — hai chuyện
+	 * đều đáng biết, và không chuyện nào lộ ra từ bảng gộp theo ngày.
+	 */
+	public static function tong_lenh_may( $ky = 'month' ) {
+		global $wpdb;
+		$t  = VHG_DB::t( 'lenh' );
+		$tu = VHG_Thu::dau_ky( $ky );
+		$sql = "SELECT ma_may, COUNT(*) AS so_lan, SUM(phut) AS tong_phut, MAX(tao_luc) AS lan_cuoi"
+			. " FROM $t WHERE viec='on'";
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+		$sql .= ' GROUP BY ma_may ORDER BY so_lan DESC, tong_phut DESC LIMIT 200';
+		$ra  = array();
+		$may = self::ds_may_theo_ma();
+		foreach ( VHG_DB::rows( $sql ) as $r ) {
+			$m = (string) $r['ma_may'];
+			$ra[] = array( 'ma' => $m,
+				'coso' => isset( $may[ $m ] ) ? (string) $may[ $m ]['coso_ten'] : '',
+				'so_lan' => (int) $r['so_lan'], 'tong_phut' => (int) $r['tong_phut'],
+				'lan_cuoi' => (string) $r['lan_cuoi'] );
+		}
+		return $ra;
+	}
+
 	/** Tổng gọn của một kỳ: bao nhiêu lần, bao nhiêu phút, trên mấy ghế. */
 	public static function tong_lenh( $ky = 'month' ) {
 		global $wpdb;
