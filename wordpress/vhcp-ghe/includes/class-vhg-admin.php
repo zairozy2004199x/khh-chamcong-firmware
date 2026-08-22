@@ -423,6 +423,12 @@ class VHG_Admin {
 
 		/* ---- Tài khoản nhận tiền: KHAI MỘT LẦN ---- */
 		$tk_chung = VHG_May::nhan_tien_chung();
+		/* 🔴 KHAI Ở ĐÂY, KHÔNG PHẢI Ở DƯỚI. Bản trước khai `$tl_c` tận khối "Tỉ lệ quy đổi" nằm
+		   BÊN DƯỚI, nên chỗ dựng mã QR mẫu ở trên nhận `null` -> số tiền 0đ. Và QR 0 đồng là
+		   LOẠI QR KHÁC HẲN (tĩnh, ô `01` = "11" thay vì "12") — nghĩa là bảng "xem trước" đang
+		   xem trước một thứ không phải cái ghế dựng ra. Đúng cái lỗi mà bảng này sinh ra để
+		   tránh, và nó lọt vào chính bảng đó. */
+		$tl_c = VHG_May::ty_le_chung();
 		echo '<h2>Tài khoản nhận tiền (dùng chung cả hệ thống)</h2>';
 		echo '<p><em>Ghế <b>tự vẽ mã QR</b> trên màn của nó, nên nó phải biết tiền đi về đâu. SePay chỉ '
 			. 'BÁO TIN tiền đã về, không quyết định tiền đi đâu — nên vẫn cần ba ô này.<br>'
@@ -556,12 +562,11 @@ class VHG_Admin {
 				. 'trên để chắc.</p>';
 		}
 
-		/* ---- Tỉ lệ quy đổi: khai chung, ĐẶT NGAY TRÊN bảng gói ----
+		/* ---- Tỉ lệ quy đổi: khai chung, ĐẶT NGAY TRÊN bảng gói ---- ($tl_c khai ở đầu hàm)
 		 * 🔴 Trước đây tỉ lệ nằm tận ô "Thêm / sửa máy", tách khỏi chỗ khai gói và phải lưu lại
 		 *    từng máy một. Nên nhìn bảng gói thì tưởng đã khai xong, mà số phút vẫn là số cũ —
 		 *    đúng chỗ anh Thắng vướng: *"không điều chỉnh được loại mệnh giá à"*. Số phút của
 		 *    bốn gói do CẶP SỐ NÀY quyết định, nên nó phải nằm ngay đây. */
-		$tl_c = VHG_May::ty_le_chung();
 		echo '<h2>Tỉ lệ quy đổi (dùng chung cả hệ thống)</h2>';
 		echo '<p><em>Bao nhiêu tiền ra bao nhiêu phút. <b>Số phút của bốn gói dưới đây tính theo cặp '
 			. 'số này</b> — đổi một lần là cả bốn gói theo.</em></p>';

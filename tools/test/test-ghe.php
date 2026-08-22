@@ -1485,6 +1485,17 @@ t( 'màn hiện bảng đọc ngược mã QR', strpos( $h_qr, 'đọc ngược 
 t( 'hiện tên ngân hàng theo BIN', strpos( $h_qr, 'OCB' ) !== false );
 t( 'hiện số VA', strpos( $h_qr, '96247POSH' ) !== false );
 t( 'và xác nhận CRC', strpos( $h_qr, 'Mã kiểm (CRC)' ) !== false );
+/* 🔴 XEM TRƯỚC PHẢI CÙNG LOẠI QR VỚI CÁI GHẾ DỰNG. Bản trước dùng biến tỉ lệ khai ở BÊN DƯỚI
+      nên nhận null -> số tiền 0đ, mà QR 0 đồng là loại TĨNH (ô `01` = "11") chứ không phải QR
+      một lần có số tiền ("12"). Bảng "xem trước" khi đó xem trước một thứ không phải cái ghế
+      dựng ra — đúng cái lỗi mà bảng này sinh ra để tránh. */
+t( 'mã mẫu KHÔNG phải 0 đồng', strpos( $h_qr, '<td>0đ</td>' ) === false, $h_qr ? '' : '' );
+$mau_kt = VHG_QR::dung( '970448', '96247POSH', VHG_May::ty_le_chung()['gia'], 'GHEMAU K7M2P' );
+$d_kt   = VHG_QR::doc( $mau_kt );
+t( 'số tiền mẫu lấy đúng tỉ lệ chung', $d_kt['so_tien'] === VHG_May::ty_le_chung()['gia'] );
+teq( 'và là QR MỘT LẦN có số tiền, cùng loại ghế dựng', '12', $d_kt['loai'] );
+teq( 'QR không số tiền thì là loại tĩnh — khác hẳn', '11',
+	VHG_QR::doc( VHG_QR::dung( '970448', '96247POSH', 0, 'x' ) )['loai'] );
 /* Bảng tra triệu chứng: mỗi câu app ngân hàng báo ứng với một chỗ sửa khác nhau. */
 t( 'có bảng tra theo câu app ngân hàng báo',
 	strpos( $h_qr, 'Vấn tin bị timeout' ) !== false
