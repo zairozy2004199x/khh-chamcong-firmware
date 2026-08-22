@@ -721,9 +721,13 @@ class VHG_Admin {
 			$g = isset( $mg[ $i ] ) ? $mg[ $i ]
 				: array( 'tien' => '', 'ten' => '', 'phut' => 0, 'mo_ta' => '', 'vip' => 0 );
 			echo '<tr><td>' . ( $i + 1 ) . '</td>'
+				/* maxlength khớp đúng VHG_May::CHU_VUA_O — nói giới hạn NGAY LÚC GÕ, chứ đừng để
+				   anh Thắng gõ xong, bấm lưu, rồi mới thấy chữ bị cắt cụt mà không biết vì sao. */
 				. '<td><input name="mg_ten[]" value="' . esc_attr( $g['ten'] ) . '" '
+				. 'maxlength="' . (int) VHG_May::CHU_VUA_O . '" '
 				. 'placeholder="VD: Gói phổ biến" style="width:100%" /></td>'
 				. '<td><input name="mg_mota[]" value="' . esc_attr( $g['mo_ta'] ) . '" '
+				. 'maxlength="' . (int) VHG_May::CHU_VUA_O . '" '
 				. 'placeholder="VD: Sâu &amp; phục hồi" style="width:100%" /></td>'
 				. '<td><input type="number" name="mg_tien[]" min="1000" step="1000" value="'
 				. ( '' === $g['tien'] ? '' : (int) $g['tien'] ) . '" style="width:110px" /></td>'

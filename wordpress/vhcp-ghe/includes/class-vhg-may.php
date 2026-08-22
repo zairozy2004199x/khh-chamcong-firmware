@@ -430,6 +430,22 @@ class VHG_May {
 		return (int) floor( (int) $goi['tien'] * (int) $phut_quy_doi / $gia );
 	}
 
+	/* ============================================================================================
+	 * 🔴 CHỮ DÀI QUÁ Ô THÌ TRÀN RA NGOÀI, VÀ PHẦN TRÀN KHÔNG AI XOÁ ĐƯỢC.
+	 *
+	 * Ô gói trên màn ghế rộng 150px, font 1 ăn 6px mỗi ký tự -> vừa đúng 25 ký tự. Cắt ở 24 để
+	 * chừa mép. Trước đây cắt ở 30 (tên) và 40 (mô tả) — tức là cho phép chuỗi 180px và 240px
+	 * nằm trong ô 150px.
+	 *
+	 * Vì sao tràn lại KHÔNG TỰ HẾT: ô luân phiên vẽ lại bằng cách tô đúng hình chữ nhật 150×84
+	 * của nó. Phần chữ đã vẽ RA NGOÀI hình đó thì nét tô không chạm tới, nên nó nằm lại trên màn
+	 * cho tới lần vẽ toàn màn kế tiếp. Anh Thắng chụp được đúng kiểu này 23/08/2026: một dòng chữ
+	 * của vế quảng cáo còn nằm đè lên dòng mô tả và dải chữ dưới cùng khi ô đã quay về mệnh giá.
+	 *
+	 * Chưa lộ ra chỉ vì tên đang gõ ngắn. Gõ một cái tên 30 ký tự là dính ngay.
+	 * ============================================================================================ */
+	const CHU_VUA_O = 24;
+
 	public static function luu_menh_gia( $ds ) {
 		$ra   = array();
 		$thay = array();
@@ -444,9 +460,9 @@ class VHG_May {
 			$thay[ $tien ] = 1;
 			$ra[] = array(
 				'tien'  => $tien,
-				'ten'   => mb_substr( trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) ), 0, 30 ),
+				'ten'   => mb_substr( trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) ), 0, self::CHU_VUA_O ),
 				'phut'  => max( 0, min( 240, (int) ( isset( $v['phut'] ) ? $v['phut'] : 0 ) ) ),
-				'mo_ta' => mb_substr( trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ), 0, 40 ),
+				'mo_ta' => mb_substr( trim( (string) ( isset( $v['mo_ta'] ) ? $v['mo_ta'] : '' ) ), 0, self::CHU_VUA_O ),
 				'vip'   => empty( $v['vip'] ) ? 0 : 1,
 			);
 		}

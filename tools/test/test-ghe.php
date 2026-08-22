@@ -2665,8 +2665,18 @@ t( 'startSession từ chối khi chưa biết tài khoản',
 $vt_chot = strpos( $fw9, 'if(!duNhanTien()){' );
 $vt_dung = strpos( $fw9, 'qrPayload  = buildVietQR(' );
 t( 'và từ chối TRƯỚC khi dựng mã', $vt_chot !== false && $vt_dung !== false && $vt_chot < $vt_dung );
+/* ⚠️ Canh Ý, đừng canh CHỮ TRONG CHÚ THÍCH. Bản trước canh "…return; } /* Dải tiêu đề" — rồi
+      chính em sửa chú thích đó khi vá chỗ tiêu đề đè mã ghế, và phép thử gãy dù mã vẫn đúng.
+      Ý cần canh là: chốt đứng TRƯỚC mọi thứ drawIdle() vẽ ra, chứ không phải chú thích tên gì. */
 t( 'màn chờ cũng không mời chọn gói khi chưa có tài khoản',
-	preg_match( '/if\(!duNhanTien\(\)\)\{\s*veManChuaCoTk\(\);\s*return;\s*\}\s*\/\* Dải tiêu đề/s', $fw9 ) === 1 );
+	preg_match( '/if\(!duNhanTien\(\)\)\{\s*veManChuaCoTk\(\);\s*return;\s*\}/s', $fw9 ) === 1 );
+$vt_tuchoi = strpos( $fw9, 'veManChuaCoTk();' );
+$vt_tieude = strpos( $fw9, 'fillRect(0, 0, 320, 28, COL_KHUNG)' );   // nét vẽ đầu tiên của màn chờ
+$vt_vongo  = strpos( $fw9, 'for(int i=0;i<PKG_N;i++) veTheGoi(i);' );
+t( '🔴 và chốt đó đứng TRƯỚC mọi nét vẽ của màn chờ',
+	false !== $vt_tuchoi && false !== $vt_tieude && $vt_tuchoi < $vt_tieude );
+t( 'trước cả vòng vẽ bốn thẻ gói',
+	false !== $vt_vongo && $vt_tuchoi < $vt_vongo );
 t( 'có màn báo riêng cho tình huống đó', strpos( $fw9, 'TAM NGUNG NHAN QR' ) !== false );
 /* Nói cho khách việc khách làm được (trả tiền mặt), nói cho nhân viên việc nhân viên làm được. */
 t( 'và mời khách trả tiền mặt thay vì đứng chờ', strpos( $fw9, 'tra TIEN MAT' ) !== false );
@@ -4023,6 +4033,113 @@ t( 'chặn tải thì chỉ đường chụp màn hình', strpos( $sh_qr, 'chụ
 t( 'vẫn giữ phần chép tay cho ai muốn gõ', strpos( $sh_qr, 'Hoặc chuyển tay' ) !== false );
 t( 'và vẫn có nút chép nội dung', strpos( $sh_qr, 'data-chep=' ) !== false );
 
+/* ================================================================================================
+ * 🔴 CHỮ TRÀN RA NGOÀI Ô THÌ KHÔNG AI XOÁ ĐƯỢC NỮA
+ *
+ * Anh Thắng 23/08/2026, ảnh chụp màn ghế: dòng "QUET DE MUA - hoac tem canh thung tien" vẫn nằm
+ * đó ĐÈ LÊN dòng mô tả và dải chữ dưới cùng, ngay lúc ô đang hiện mệnh giá — *"Nó lệch hàng"*.
+ *
+ * Gốc không phải vẽ nhầm lượt. Gốc là dòng đó dài 228px trong ô rộng 150 (font 1 = 6px/ký tự),
+ * và đặt ở y = b.y + 82 trong ô cao 84 — nên nó tràn 39px mỗi bên và 6px xuống dưới. Lượt luân
+ * phiên sau, `veTheGoi()` tô lại đúng hình chữ nhật 150×84 của ô — TÔ LẠI KHÔNG CHẠM TỚI phần
+ * đã vẽ ra ngoài. Vệt chữ đó nằm lại trên màn cho tới lần `drawIdle()` kế tiếp.
+ *
+ * Đây là một LỚP lỗi, không phải một lỗi: mọi chuỗi vẽ trong ô đều có thể dài quá mà không ai
+ * biết, vì trên màn nó chỉ trông như "chữ hơi lệch". Đã dính ba lần trong cùng bản này (dòng
+ * QUET DE MUA, dòng "(cham de mua goi nhu thuong)" tràn 9px, và dải tiêu đề đè mã ghế 11px).
+ *
+ * Nên phép thử ĐO chứ không đọc: bóc thân hai hàm vẽ ô, lấy mọi chuỗi font 1 vẽ trong đó, và
+ * bắt chúng vừa cả chiều ngang lẫn chiều dọc của ô.
+ * ============================================================================================= */
+$ino_v = (string) file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+
+/* Bóc thân một hàm C++ bằng cách đếm ngoặc nhọn — đủ dùng vì các hàm này không có chuỗi nào
+   chứa ngoặc nhọn lẻ. */
+$than_ham = function ( $ma, $ten ) {
+	$vt = strpos( $ma, 'void ' . $ten . '(' );
+	if ( false === $vt ) { return ''; }
+	$mo = strpos( $ma, '{', $vt );
+	if ( false === $mo ) { return ''; }
+	$sau = 0;
+	for ( $i = $mo; $i < strlen( $ma ); $i++ ) {
+		if ( '{' === $ma[ $i ] ) { $sau++; }
+		if ( '}' === $ma[ $i ] ) { $sau--; if ( 0 === $sau ) { return substr( $ma, $mo, $i - $mo + 1 ); } }
+	}
+	return '';
+};
+
+const O_RONG_PX = 150;   // PKG_BTN: {8,34,150,84}
+const O_CAO_PX  = 84;
+const F1_RONG   = 6;     // font 1 (GLCD 5x7) ăn 6px mỗi ký tự ở size 1
+const F1_CAO    = 8;
+
+foreach ( array( 'veTheQuangCao', 'veTheGoi' ) as $ten_ham ) {
+	$than = $than_ham( $ino_v, $ten_ham );
+	t( 'bóc được thân hàm ' . $ten_ham . '()', '' !== $than );
+	/* Chỉ soi chuỗi vẽ CĂN GIỮA Ô (`, cx,`) — nhãn VVIP cố tình vẽ nhô lên trên mép ô nên nó
+	   không đi qua cx, và nó là ngoại lệ có chủ đích. */
+	$so_cho = preg_match_all( '/drawString\(\s*"((?:[^"\\\\]|\\\\.)*)"\s*,\s*cx\s*,\s*b\.y \+ (\d+)\s*,\s*1\s*\)/',
+		$than, $cac_cho, PREG_SET_ORDER );
+	/* ⚠️ veTheGoi() KHÔNG có chuỗi cứng nào — chữ trong ô gói là biến do MÁY CHỦ gửi xuống
+	      (PKG_TEN, PKG_MOTA). Nên ở đây chỉ đòi bóc được thân hàm; chiều dài của chúng canh ở
+	      khối "máy chủ cắt chữ" ngay dưới, vì đó mới là nơi quyết định. */
+	foreach ( $cac_cho as $cho ) {
+		$chuoi = $cho[1];
+		$doc_y = (int) $cho[2];
+		$rong  = strlen( $chuoi ) * F1_RONG;
+		t( '🔴 [' . $ten_ham . '] "' . $chuoi . '" vừa CHIỀU NGANG ô',
+			$rong <= O_RONG_PX - 4,
+			$rong . 'px trong ô ' . O_RONG_PX . 'px — tràn ' . max( 0, $rong - O_RONG_PX ) . 'px, phần tràn KHÔNG xoá được' );
+		t( '🔴 [' . $ten_ham . '] "' . $chuoi . '" vừa CHIỀU DỌC ô',
+			$doc_y + F1_CAO <= O_CAO_PX,
+			'đáy chữ ở ' . ( $doc_y + F1_CAO ) . 'px trong ô cao ' . O_CAO_PX . 'px' );
+	}
+}
+
+/* ---- 🔴 Chữ do MÁY CHỦ gửi xuống cũng phải vừa ô. Đây mới là chỗ dễ vỡ nhất, vì nó do anh
+        Thắng gõ trong màn quản trị chứ không nằm trong mã. Trước bản này máy chủ cho tên 30 ký
+        tự (180px) và mô tả 40 ký tự (240px) vào một ô rộng 150px — chưa lộ chỉ vì tên đang gõ
+        ngắn. Và chú thích trong firmware lại ghi "đã cắt còn 16 ký tự": ba con số, không con
+        nào khớp con nào. */
+$suc_o = (int) floor( O_RONG_PX / F1_RONG );      // 150 / 6 = 25 ký tự
+t( '🔴 máy chủ cắt tên gói + mô tả cho VỪA Ô, không rộng hơn',
+	VHG_May::CHU_VUA_O <= $suc_o,
+	'cắt ở ' . VHG_May::CHU_VUA_O . ' ký tự = ' . ( VHG_May::CHU_VUA_O * F1_RONG ) . 'px, ô chứa được ' . $suc_o );
+t( 'và không cắt ngắn đến mức vô dụng', VHG_May::CHU_VUA_O >= 18 );
+/* Cắt THẬT chứ không phải chỉ khai hằng số. */
+$luu_dai = VHG_May::luu_menh_gia( array(
+	array( 'tien' => 10000, 'phut' => 6, 'vip' => 0,
+		'ten' => str_repeat( 'T', 60 ), 'mo_ta' => str_repeat( 'M', 60 ) ),
+) );
+t( 'lưu được bảng giá có chữ dài', ! empty( $luu_dai['ok'] ), isset( $luu_dai['error'] ) ? $luu_dai['error'] : '' );
+$mg_dai = get_option( 'vhg_menh_gia' );
+teq( '🔴 tên gói bị cắt đúng bằng sức chứa của ô',
+	VHG_May::CHU_VUA_O, mb_strlen( (string) $mg_dai[0]['ten'] ) );
+teq( '🔴 mô tả cũng vậy', VHG_May::CHU_VUA_O, mb_strlen( (string) $mg_dai[0]['mo_ta'] ) );
+/* Và ô nhập phải NÓI RA giới hạn lúc gõ, đừng để anh Thắng gõ xong mới thấy chữ cụt. */
+ob_start(); VHG_Admin::trang_may(); $adm_mg = ob_get_clean();
+t( 'ô nhập tên gói khai maxlength khớp giới hạn',
+	substr_count( (string) $adm_mg, 'maxlength="' . VHG_May::CHU_VUA_O . '"' ) >= 2 );
+
+/* ---- Dải tiêu đề: mã ghế dài bao nhiêu cũng không được để tiêu đề đè lên.
+   Trước đây tiêu đề căn cứng x=160 nên tự nó đã chồng 11px, và chồng 77px lúc mất mạng — đúng
+   chữ "MAT MANG" là thứ nhân viên cần đọc nhất. Nay phải ĐO rồi mới xếp. */
+$than_idle = $than_ham( $ino_v, 'drawIdle' );
+t( 'bóc được thân hàm drawIdle()', '' !== $than_idle );
+t( '🔴 dải tiêu đề ĐO chiều rộng phần bên phải thay vì đoán',
+	strpos( $than_idle, 'tft.textWidth(chuPhai, 1)' ) !== false );
+t( 'và chọn mức tiêu đề theo chỗ thật sự còn lại',
+	preg_match( '/textWidth\(TIEU_DE\[k\], 1\)\s*<=\s*mepPhai/', $than_idle ) === 1 );
+t( '🔴 không còn vẽ tiêu đề căn cứng giữa màn (x=160)',
+	preg_match( '/drawString\("CHAO MUNG[^"]*",\s*160\s*,/', $than_idle ) !== 1 );
+/* Mức ngắn nhất phải vừa kể cả khi mã ghế dài hết cỡ VÀ đang mất mạng. */
+$ma_dai   = str_repeat( 'X', 20 );                    // luật đường dẫn cho tối đa 20 ký tự
+$rong_phai = strlen( $ma_dai . ' - MAT MANG' ) * F1_RONG;
+$cho_con  = 314 - $rong_phai - 8 - 6;
+t( '🔴 mức tiêu đề ngắn nhất vẫn vừa khi mã ghế dài nhất + MAT MANG',
+	strlen( 'MASSAGE' ) * F1_RONG <= $cho_con,
+	'còn ' . $cho_con . 'px cho tiêu đề' );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
@@ -4031,3 +4148,4 @@ if ( $truot ) {
 	exit( 1 );
 }
 echo "ĐẠT: $dat phép thử — đường tiền không đếm hai lần, không mất gói nào.\n";
+

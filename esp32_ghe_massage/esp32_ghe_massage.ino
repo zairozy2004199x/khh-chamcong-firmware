@@ -753,8 +753,10 @@ void veTheQuangCao(int i){
     tft.setTextColor(COL_VIP_MO, COL_VIP);
     tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 60, 1);
     /* Nói rõ vẫn bấm được vào đây để mua gói như thường — nếu không, ô này trông như một tấm
-       biển quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm. */
-    tft.drawString("(cham de mua goi nhu thuong)", cx, b.y + 71, 1);
+       biển quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm.
+       🔴 Câu cũ "(cham de mua goi nhu thuong)" dài 168px trong ô rộng 150 — tràn 9px mỗi bên,
+          mà phần tràn nằm NGOÀI ô nên lượt luân phiên sau vẽ lại ô KHÔNG xoá được nó. */
+    tft.drawString("(cham vao de mua goi)", cx, b.y + 71, 1);
   }
 }
 
@@ -776,7 +778,9 @@ void veTheGoi(int i){
   tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG2);
 
   tft.setTextDatum(TC_DATUM);
-  /* Tên gói. Máy chủ đã cắt còn 16 ký tự cho vừa 150px ở font 1. */
+  /* Tên gói. Máy chủ cắt còn VHG_May::CHU_VUA_O ký tự cho vừa 150px ở font 1 (6px/ký tự).
+     🔴 Chú thích cũ ghi "16 ký tự" — con số đó không có thật ở đâu cả: máy chủ hồi đó cắt ở 30,
+        tức là cho qua một chuỗi 180px trong ô 150px. Đừng chép số vào đây nữa. */
   tft.setTextColor(chu, nen);
   tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 12, 1);
 
@@ -856,13 +860,48 @@ void drawIdle(){
     veManChuaCoTk();
     return;
   }
-  /* Dải tiêu đề. Mã ghế nằm ở góc phải, nhỏ: khách không cần nó, nhưng người đi sửa thì cần
-     và không phải mò vào web mới biết mình đang đứng trước con ghế nào. */
+  /* ============================================================================================
+   * DẢI TIÊU ĐỀ. Mã ghế nằm ở góc phải, nhỏ: khách không cần nó, nhưng người đi sửa thì cần và
+   * không phải mò vào web mới biết mình đang đứng trước con ghế nào.
+   *
+   * 🔴 TRƯỚC ĐÂY HAI CHỮ ĐÈ LÊN NHAU. Tiêu đề căn giữa x=160 dài 258px nên chạy tới x=289, còn
+   *    mã ghế căn phải x=314 bắt đầu từ x=278 — chồng 11px. Anh Thắng chụp được: dải trên cùng
+   *    hiện ra "…GHE CAO CHMTP01".
+   *
+   *    Và lúc MẤT MẠNG thì tệ hơn nhiều: chuỗi thành "AMTP01 - MAT MANG" (102px, bắt đầu từ
+   *    x=212) nên chồng 77px — tức là đúng cái chữ "MAT MANG", thứ nhân viên cần đọc nhất, bị
+   *    tiêu đề đè nát.
+   *
+   * ⚠️ Nên KHÔNG đoán chiều rộng nữa. Vẽ phần bên phải TRƯỚC, ĐO nó bằng `textWidth()`, rồi mới
+   *    căn tiêu đề vào phần còn lại. Mã ghế dài bao nhiêu cũng không đè được nữa.
+   * ============================================================================================ */
   tft.fillRect(0, 0, 320, 28, COL_KHUNG);
   tft.drawFastHLine(0, 28, 320, COL_VANG2);
-  tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(COL_VANG, COL_KHUNG);
-  tft.drawString("CHAO MUNG QUY KHACH  -  MASSAGE GHE CAO CAP", 160, 13, 1);
+
+  String chuPhai = netUp() ? CHAIR_ID : (CHAIR_ID + " - MAT MANG");
+  tft.setTextDatum(TR_DATUM);
+  tft.setTextColor(netUp() ? 0x0660 : 0xF800, COL_KHUNG);
+  tft.drawString(chuPhai, 314, 9, 1);
+
+  /* Chỗ còn lại cho tiêu đề, chừa 8px khe để hai bên không dính nhau. */
+  int mepPhai = 314 - tft.textWidth(chuPhai, 1) - 8;
+  /* Bốn mức, dài xuống ngắn: lấy mức ĐẦU TIÊN vừa chỗ. Cắt cụt giữa chừng chữ thì đọc còn khó
+     hiểu hơn là mất hẳn vế đầu, nên thà rụng cả cụm. Mức cuối luôn vừa ở mọi mã ghế hợp lệ. */
+  static const char* TIEU_DE[] = {
+    "CHAO MUNG QUY KHACH  -  MASSAGE GHE CAO CAP",
+    "CHAO MUNG  -  MASSAGE GHE CAO CAP",
+    "MASSAGE GHE CAO CAP",
+    "MASSAGE"
+  };
+  String tieu = "";
+  for(unsigned k = 0; k < sizeof(TIEU_DE)/sizeof(TIEU_DE[0]); k++){
+    if(tft.textWidth(TIEU_DE[k], 1) <= mepPhai - 6){ tieu = TIEU_DE[k]; break; }
+  }
+  if(tieu.length()){
+    tft.setTextDatum(MC_DATUM);
+    tft.setTextColor(COL_VANG, COL_KHUNG);
+    tft.drawString(tieu, (6 + mepPhai) / 2, 13, 1);
+  }
 
   for(int i=0;i<PKG_N;i++) veTheGoi(i);
 
@@ -873,11 +912,8 @@ void drawIdle(){
   tft.setTextColor(COL_VANG, COL_KHUNG);
   tft.drawString("CHON GOI  >  QUET MA QR DE THANH TOAN & BAT DAU", 160, 222, 1);
 
-  /* Trạng thái mạng ở góc phải, nhỏ nhất: khách không cần, nhân viên cần. Mất mạng thì đường
-     QR không chạy — nói ra ở đây để không ai phải đoán. */
-  tft.setTextDatum(TR_DATUM);
-  tft.setTextColor(netUp() ? 0x0660 : 0xF800, COL_KHUNG);
-  tft.drawString(netUp() ? CHAIR_ID : (CHAIR_ID + " - MAT MANG"), 314, 9, 1);
+  /* Mã ghế + trạng thái mạng đã vẽ ở ĐẦU hàm, trước tiêu đề — vì tiêu đề phải đo nó mới biết
+     căn vào đâu. Đừng chuyển xuống lại đây. */
 }
 
 /* Vùng vẽ mã QR — callback của esp_qrcode không nhận tham số riêng nên phải để ở đây.
