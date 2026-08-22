@@ -190,7 +190,13 @@ class VHG_Ma {
 	 *     25×25, vẫn 2 px/module) mà lại làm HỎNG địa chỉ: đường dẫn WordPress phân biệt hoa
 	 *     thường, `/MUA-MA/` ra trang 404. Đừng làm lại.
 	 */
-	const QR_VUNG_PX = 58;
+	/* 🔴 SOI GƯƠNG `int vungH` trong veTheQuangCao() của esp32_ghe_massage.ino. Đây là con số
+	   PHP dùng để kêu "QUÁ NHỎ" trên màn quản trị — lệch với ghế thật là màn báo về một cỡ mã
+	   không tồn tại, tức là báo yên tâm trong khi ghế đang vẽ mã không quét nổi (hoặc ngược lại).
+	   Hai ngôn ngữ khác nhau nên không có gì tự ràng: phép thử ở test-ghe.php ĐỌC tệp .ino và
+	   bắt hai con số phải bằng nhau. Đổi một bên thì bộ thử gãy ngay, đúng ý.
+	   23/08/2026: 58 -> 70 sau khi bỏ hai hàng chữ kẹp trên dưới mã. */
+	const QR_VUNG_PX = 70;
 
 	public static function qr_o_goi( $url ) {
 		$u = (string) $url;

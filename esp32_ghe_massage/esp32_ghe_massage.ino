@@ -647,8 +647,38 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 #define COL_VANG2 0x8B24   // vàng tối — viền, chữ phụ
 #define COL_KEM   0xF75B   // nền thẻ
 #define COL_CHU   0x28E1   // chữ trên nền kem
-#define COL_MO    0x9C4E   // chữ phụ, mờ
-#define COL_VIP   0x7AA3   // nền thẻ VVIP
+#define COL_MO    0x9C4E   // chữ phụ, mờ — dùng trên nền TỐI (COL_BG, COL_KHUNG)
+/* ============================================================================================
+ * 🔴 THẺ VVIP TRƯỚC ĐÂY GẦN NHƯ KHÔNG ĐỌC ĐƯỢC.
+ *
+ * Anh Thắng 23/08/2026, nhìn ghế thật: *"chữ nhạt màu mà nền nhạt màu nên không thấy được"*.
+ * Đo ra thì đúng, và còn ngược đời — trên thẻ VVIP chữ GIÁ mờ hơn cả chữ phụ:
+ *
+ *      giá trên ba thẻ thường  COL_CHU / COL_KEM   14,16:1   đọc thoải mái
+ *      giá trên thẻ VVIP       COL_VANG / 0x7AA3    3,05:1   ← chưa bằng một phần tư
+ *      chữ phụ trên thẻ VVIP   0xE71C  / 0x7AA3     5,23:1   ← lại rõ hơn chữ chính
+ *
+ * Gốc là nền VVIP cũ (0x7AA3) là màu ĐỒNG TỐI, mà chữ đặt lên lại là VÀNG — hai màu cùng độ
+ * sáng thì mắt không tách ra được, dù trên bảng màu nhìn chúng rất khác nhau.
+ *
+ * Nay thẻ VVIP đọc y như ba thẻ kia: nền VÀNG SÁNG, chữ TỐI. Vàng đủ đậm để mắt phân biệt
+ * ngay với nền kem của ba thẻ thường (lệch hẳn ở kênh lam: 140 so với 222).
+ *
+ * ⚠️ Màu chọn theo tương phản đo được, và đo ở CẢ HAI CHIỀU — vì ảnh chụp màn ghế cho thấy
+ *    tấm nền đang render ĐẢO MÀU so với thiết kế (nền lẽ ra nâu rất tối thì hiện ra trắng),
+ *    mà cấu hình đó nằm trong User_Setup của TFT_eSPI, không nằm trong tệp này. Nên mọi màu
+ *    dưới đây phải đọc được dù tấm nền có đảo hay không:
+ *
+ *                              bình thường   nếu đảo màu
+ *      COL_CHU trên COL_VIP      12,24:1       10,72:1
+ *      COL_VIP_MO trên COL_VIP    5,49:1        6,26:1
+ *      COL_VANG2 trên COL_VIP     3,87:1        4,90:1   (viền + dải màu)
+ *
+ *    Viền vẫn để COL_VANG như cũ thì chỉ còn 1,60:1 — tức là biến mất trên nền vàng.
+ * ============================================================================================ */
+#define COL_VIP    0xF6D1  // nền thẻ VVIP — vàng SÁNG (cũ 0x7AA3 đồng tối, không đọc nổi)
+#define COL_VIP_MO 0x6A83  // chữ phụ trên thẻ VVIP
+#define COL_MO_KEM 0x7B6B  // chữ phụ trên nền KEM sáng — COL_MO ở đây chỉ được 2,84:1
 #define COL_ACC   COL_VANG // tên cũ, còn dùng ở màn "chưa gán mã"
 
 /* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
@@ -663,50 +693,64 @@ void veTheQuangCao(int i){
   int cx = b.x + b.w / 2;
 
   tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, COL_VIP);
-  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG);
-  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG);
+  /* Viền và dải màu phải là COL_VANG2 (vàng tối), không phải COL_VANG: trên nền vàng sáng thì
+     COL_VANG chỉ còn 1,60:1 — nhìn như không có viền. */
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG2);
+  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG2);
 
   tft.setTextDatum(TC_DATUM);
-  tft.setTextColor(COL_VANG, COL_VIP);
-  tft.drawString("MUA MA GIAM GIA -" + String(QC_GIAM) + "%", cx, b.y + 10, 1);
+
+  /* Đã vẽ được mã QR chưa. Chưa thì rơi xuống vế chữ ở dưới — xem chỗ gán. */
+  bool veXong = false;
 
   if(QC_URL.length()){
     /* ============================================================================================
-     * MÃ QR NGAY TRONG Ô GÓI.
+     * MÃ QR CHIẾM GẦN TRỌN Ô, KHÔNG CÒN CHỮ NÀO.
      *
-     * 🔴 Ô cao 84px. Trừ dải màu và hai dòng chữ, còn ~58px cho mã QR. Với địa chỉ ngắn
-     *    ("KHMATRIX.COM/M/AMTP01" = 21 ký tự, chế độ alphanumeric) mã ra 21x21 module; cộng vùng
-     *    lặng là 25, nên 58/25 = 2 px/module.
+     * Anh Thắng 23/08/2026, nhìn ô thật trên màn: *"2 hàng chữ nhỏ ẩn đi"* — hai hàng font 1
+     * kẹp trên dưới mã ("MUA MA GIAM GIA -x%" và "QUET DE MUA - hoac tem canh thung tien").
      *
-     *    2 px/module là RANH GIỚI quét được. Máy chủ đã làm mọi thứ để chuỗi ngắn nhất có thể
-     *    (bỏ scheme, viết hoa, dạng thư mục — xem VHG_Shop::url_ngan). Dài hơn nữa là mã tự rơi
-     *    xuống 1 px/module và gần như không máy nào quét nổi — nên vẫn phải có tem in dán cạnh
-     *    thùng tiền làm đường chắc chắn; mã trên màn là đường TIỆN, không phải đường duy nhất.
+     * 🔴 VÀ ĐÓ LÀ ĐÚNG, không chỉ vì gọn mắt. Hai hàng đó ăn 26px chiều cao, mà chiều cao
+     *    là thứ QUYẾT ĐỊNH mã có quét được hay không — ô rộng 150 nhưng chỉ cao 84, nên mã
+     *    luôn bị chiều cao bó.
      *
-     * ⚠️ NỀN TRẮNG PHỦ CẢ VÙNG LẶNG. Vẽ mã đen lên nền vàng của thẻ là không máy nào quét được:
-     *    bộ dò cần tương phản trắng-đen, và cần vùng lặng trắng quanh mã.
+     *      vùng 58px (cũ, còn chữ)   vùng 70px (nay)
+     *        version 2 (25 module)   2 px/module        2 px/module
+     *        version 3 (29 module)   1 px/module   →    2 px/module   ← chỗ ăn tiền
+     *
+     *    Địa chỉ nay là 31 ký tự (`khmatrix.com/mua-ma/?ghe=AMTP01`, chế độ byte) — version 2,
+     *    sát mép 32. Thêm một ký tự vào mã ghế hay tên miền là rơi sang version 3, và ở vùng
+     *    58px thì version 3 xuống 1 px/module = gần như không điện thoại nào quét nổi, trong khi
+     *    trên màn NHÌN VẪN THẤY "có mã QR". Bỏ hai hàng chữ là mua được cả khoảng đệm đó.
+     *
+     * ⚠️ NỀN TRẮNG PHỦ CẢ VÙNG LẶNG. Vẽ mã đen lên nền thẻ là không máy nào quét được: bộ dò
+     *    cần tương phản trắng-đen, và cần vùng lặng trắng quanh mã.
      * ============================================================================================ */
-    int vungH = 58, vungY = b.y + 20;
+    int vungH = 70, vungY = b.y + 10;
     tft.fillRect(cx - vungH/2 - 2, vungY - 2, vungH + 4, vungH + 4, TFT_WHITE);
     qrDatVung(cx - vungH/2, vungY, vungH, vungH, 3);
     esp_qrcode_config_t qc = ESP_QRCODE_CONFIG_DEFAULT();
     qc.display_func       = qrDrawCb;
-    /* Trần version 4: quá đó là module nhỏ hơn 2px, tức là một mã nhìn có mà quét không ra.
-       Chuỗi dài quá thì `esp_qrcode_generate` báo lỗi và callback không chạy — ô còn lại nền
-       trắng trơn, và dòng chữ dưới vẫn mời quét tem. Thà trắng còn hơn một mã QR chết. */
+    /* Trần version 4: quá đó là module nhỏ hơn 2px, tức là một mã nhìn có mà quét không ra. */
     qc.max_qrcode_version = 4;
     qc.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;
-    esp_qrcode_generate(&qc, QC_URL.c_str());
+    veXong = (esp_qrcode_generate(&qc, QC_URL.c_str()) == ESP_OK);
 
-    tft.setTextDatum(TC_DATUM);
-    tft.setTextColor(0xE71C, COL_VIP);
-    tft.drawString("QUET DE MUA - hoac tem canh thung tien", cx, b.y + 82, 1);
-  } else {
-    tft.setTextColor(TFT_WHITE, COL_VIP);
+    /* 🔴 Chuỗi dài quá trần thì `esp_qrcode_generate` báo lỗi và callback KHÔNG chạy. Trước
+       đây ô còn lại mảng trắng trơn nhưng dòng chữ dưới vẫn mời quét tem, nên vẫn còn lối đi.
+       Nay không còn dòng chữ nào — mảng trắng trơn là một ô CÂM, khách nhìn không hiểu gì.
+       Nên xoá mảng trắng đi và rơi xuống vế chữ như khi không có địa chỉ. */
+    if(!veXong) tft.fillRect(cx - vungH/2 - 2, vungY - 2, vungH + 4, vungH + 4, COL_VIP);
+  }
+
+  if(!veXong){
+    tft.setTextColor(COL_CHU, COL_VIP);
+    tft.drawString("MUA MA GIAM GIA -" + String(QC_GIAM) + "%", cx, b.y + 10, 1);
+    /* Chữ TỐI trên nền vàng sáng. Để TFT_WHITE như cũ là chữ tan hẳn vào nền. */
     tft.setTextSize(2);
     tft.drawString("-" + String(QC_GIAM) + "%", cx, b.y + 26, 4);
     tft.setTextSize(1);
-    tft.setTextColor(0xE71C, COL_VIP);
+    tft.setTextColor(COL_VIP_MO, COL_VIP);
     tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 60, 1);
     /* Nói rõ vẫn bấm được vào đây để mua gói như thường — nếu không, ô này trông như một tấm
        biển quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm. */
@@ -721,13 +765,15 @@ void veTheGoi(int i){
   bool vip  = (PKG_VIP[i] != 0);
   int  cx   = b.x + b.w / 2;
   uint16_t nen  = vip ? COL_VIP : COL_KEM;
-  uint16_t chu  = vip ? COL_VANG : COL_CHU;
-  uint16_t phu  = vip ? 0xE71C : COL_MO;
+  /* Chữ chính TỐI trên cả hai kiểu thẻ. Trước đây thẻ VVIP dùng COL_VANG trên nền đồng tối —
+     đó đúng là chỗ anh Thắng bảo "không thấy được". */
+  uint16_t chu  = COL_CHU;
+  uint16_t phu  = vip ? COL_VIP_MO : COL_MO_KEM;
 
   tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, nen);
-  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, vip ? COL_VANG : COL_VANG2);
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG2);
   /* Dải màu ở đầu thẻ thay cho hình minh hoạ: đủ để mắt phân biệt bốn gói mà không tốn flash. */
-  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, vip ? COL_VANG : COL_VANG2);
+  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG2);
 
   tft.setTextDatum(TC_DATUM);
   /* Tên gói. Máy chủ đã cắt còn 16 ký tự cho vừa 150px ở font 1. */
@@ -751,9 +797,11 @@ void veTheGoi(int i){
   }
   if(vip){
     /* Nhãn VVIP ở góc phải trên, như tấm bảng giá. */
-    tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_VANG);
+    /* Nhãn cũng đổi sang COL_VANG2: nhãn COL_VANG nằm trên thẻ vàng sáng thì chỉ 1,60:1,
+       tức là cái nhãn biến mất đúng ở thẻ duy nhất cần nó. */
+    tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_VANG2);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_CHU, COL_VANG);
+    tft.setTextColor(COL_KEM, COL_VANG2);
     tft.drawString("VVIP", b.x + b.w - 23, b.y + 1, 1);
     tft.setTextDatum(TC_DATUM);
   }

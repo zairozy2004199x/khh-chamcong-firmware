@@ -3666,13 +3666,55 @@ $qro = VHG_Ma::qr_o_goi( $u_ng );
 /* 🔴 CON SỐ quyết định: 2 pixel mỗi module là quét được ở khoảng cách gần, 1 là gần như không
       máy nào quét nổi — mà nhìn trên màn thì VẪN THẤY "có mã QR". Kiểu hỏng không kêu. */
 t( '🔴 mã QR đủ to để quét (>=2 px/module)', (int) $qro['px'] >= 2, $qro['chu'] );
-/* Địa chỉ dài kiểu cũ thì KHÔNG đủ to — đó là lý do phải có `url_ngan()`. */
-$qro_dai = VHG_Ma::qr_o_goi( 'https://khmatrix.com/mua-ma?ghe=AMTP01' );
-t( 'địa chỉ dài kiểu cũ thì quá nhỏ', (int) $qro_dai['px'] < 2, $qro_dai['chu'] );
-t( 'và màn quản trị kêu lên', strpos( (string) $qro_dai['chu'], 'QUÁ NHỎ' ) !== false );
+/* ===== KHOẢNG ĐỆM MUA ĐƯỢC KHI BỎ HAI HÀNG CHỮ (23/08/2026) ================================
+ * Bỏ hai hàng chữ kẹp trên dưới mã trong ô quảng cáo -> vùng vẽ 58px lên 70px. Cái đó KHÔNG
+ * làm địa chỉ hiện tại to thêm (vẫn 2 px/module), mà mua lấy KHOẢNG ĐỆM: version 3 trước đây
+ * rơi xuống 1 px/module, nay vẫn giữ được 2.
+ *
+ * Đây mới là chỗ ăn tiền, vì địa chỉ đang 31 ký tự mà trần version 2 là 32 — thêm một ký tự
+ * vào mã ghế hay tên miền là sang version 3. Trước bản này, đúng một ký tự đó đủ làm mã trên
+ * MỌI ghế thành không quét nổi, mà nhìn màn vẫn thấy "có mã QR". */
+$qro_v3 = VHG_Ma::qr_o_goi( 'https://khmatrix.com/mua-ma?ghe=AMTP01' );   // 38 ký tự -> version 3
+t( '🔴 version 3 nay vẫn đủ to — đây là khoảng đệm vừa mua được',
+	(int) $qro_v3['px'] >= 2, $qro_v3['chu'] );
+/* Nhưng vẫn CÓ trần, và trần đó phải kêu lên chứ không im lặng trả một con số đẹp. */
+/* ⚠️ Chữ THƯỜNG. 'A' nằm trong bảng chữ alphanumeric của QR (đặc hơn nhiều), nên 60 chữ 'A'
+   vẫn chỉ là version 3 — phép thử tưởng canh trần mà thật ra canh hụt. */
+$qro_v4 = VHG_Ma::qr_o_goi( str_repeat( 'a', 60 ) );                      // 60 ký tự -> version 4
+t( 'quá version 3 thì vẫn quá nhỏ', (int) $qro_v4['px'] < 2, $qro_v4['chu'] );
+t( 'và màn quản trị kêu lên', strpos( (string) $qro_v4['chu'], 'QUÁ NHỎ' ) !== false );
 /* Chuỗi dài quá tầm thì nói thẳng là không vẽ được, đừng trả một con số vô nghĩa. */
 $qro_qua = VHG_Ma::qr_o_goi( str_repeat( 'A', 200 ) );
 teq( 'chuỗi quá dài thì không vẽ được mã', 0, (int) $qro_qua['px'] );
+
+/* ===== 🔴 CHỐT: HAI CON SỐ Ở HAI NGÔN NGỮ PHẢI BẰNG NHAU =================================
+ * `VHG_Ma::QR_VUNG_PX` (PHP) chỉ là BẢN SAO của `int vungH` trong veTheQuangCao() bên .ino.
+ * PHP dùng nó để kêu "QUÁ NHỎ" trên màn quản trị. Lệch nhau thì màn quản trị báo về một cỡ
+ * mã KHÔNG TỒN TẠI — báo yên tâm trong khi ghế đang vẽ mã không ai quét nổi. Không có gì tự
+ * ràng hai bên, nên phép thử này đọc thẳng tệp firmware ra mà đối chiếu. */
+$fw_qr = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'đọc được tệp firmware để đối chiếu', false !== $fw_qr && '' !== $fw_qr );
+$khop_vung = array();
+t( 'tìm thấy vùng vẽ mã QR trong veTheQuangCao()',
+	1 === preg_match( '/int\s+vungH\s*=\s*(\d+)\s*,\s*vungY/', (string) $fw_qr, $khop_vung ) );
+teq( '🔴 vùng vẽ bên firmware KHỚP hằng số QR_VUNG_PX bên PHP',
+	(int) VHG_Ma::QR_VUNG_PX, (int) $khop_vung[1] );
+/* Và hai hàng chữ anh Thắng bảo ẩn thì phải ẩn THẬT — còn dòng nào là vùng 70px kia sai.
+   ⚠️ Phải canh LỆNH VẼ `drawString("QUET DE MUA`, chứ không phải canh chuỗi đó có xuất hiện
+      trong tệp hay không: chú thích ngay trên chỗ sửa có NHẮC LẠI chuỗi cũ để giải thích, nên
+      canh trần trụi là phép thử tự hỏng vì chính lời giải thích của mình. Đã dính đúng lần này. */
+t( '🔴 vế mã QR không còn LỆNH VẼ hàng chữ "QUET DE MUA"',
+	strpos( (string) $fw_qr, 'drawString("QUET DE MUA' ) === false );
+/* Hàng "MUA MA GIAM GIA" thì KHÔNG xoá hẳn — vế chữ (khi không vẽ được mã) vẫn cần nó, vì lúc
+   đó nó là dòng duy nhất nói ô này là gì. Nó chỉ không được nằm KẸP TRÊN MÃ nữa.
+   ⚠️ Canh bằng VỊ TRÍ chứ đừng canh bằng "có xuất hiện sau esp_qrcode_generate hay không":
+      vế chữ nằm sau lệnh vẽ mã trong tệp, nên kiểu canh đó bắt nhầm chính vế chữ hợp lệ. */
+teq( 'chỉ còn ĐÚNG MỘT chỗ vẽ hàng "MUA MA GIAM GIA"',
+	1, substr_count( (string) $fw_qr, 'drawString("MUA MA GIAM GIA' ) );
+$vt_roi = strpos( (string) $fw_qr, 'if(!veXong){' );
+$vt_hang = strpos( (string) $fw_qr, 'drawString("MUA MA GIAM GIA' );
+t( '🔴 hàng đó nằm TRONG vế chữ, không kẹp phía trên mã QR',
+	false !== $vt_roi && false !== $vt_hang && $vt_hang > $vt_roi );
 
 // ---- ghế nhận được địa chỉ đó
 update_option( 'vhg_qc_o', 1 );
@@ -3717,8 +3759,19 @@ t( 'ghế đọc được địa chỉ mã QR', strpos( $fw12, 'QC_URL  = String
 t( 'và vẽ mã QR trong ô quảng cáo', strpos( $fw12, 'esp_qrcode_generate(&qc, QC_URL.c_str())' ) !== false );
 /* 🔴 KHÔNG có địa chỉ thì KHÔNG vẽ mã. Một mã QR dẫn đi đâu không rõ còn tệ hơn không có mã:
       khách quét không ra, và lần sau họ không quét nữa — kể cả cái tem thật dán cạnh thùng tiền. */
-t( 'rỗng thì rơi về lời mời bằng chữ, không vẽ mã bừa',
-	preg_match( '/if\(QC_URL\.length\(\)\)\{.*?\}\s*else\s*\{.*?QUET TEM CANH THUNG TIEN/s', $fw12 ) === 1 );
+/* 23/08/2026 nhánh này mạnh thêm một bậc. Trước: chỉ khi QC_URL RỖNG mới rơi về vế chữ; nếu
+   địa chỉ có mà dài quá trần thì `esp_qrcode_generate` báo lỗi, callback không chạy, ô còn lại
+   mảng trắng trơn — hồi đó vẫn còn dòng chữ dưới mã nên khách còn lối đi. Nay hai dòng chữ đó
+   đã bỏ, mảng trắng trơn thành một ô CÂM. Nên vế chữ phải chạy cho CẢ HAI trường hợp: không có
+   địa chỉ, VÀ có địa chỉ nhưng vẽ không nổi. */
+t( 'có chốt "đã vẽ được mã chưa" thay cho if/else cụt',
+	strpos( $fw12, 'bool veXong = false;' ) !== false );
+t( '🔴 chốt đó lấy đúng kết quả của esp_qrcode_generate',
+	strpos( $fw12, 'veXong = (esp_qrcode_generate(&qc, QC_URL.c_str()) == ESP_OK);' ) !== false );
+t( '🔴 vẽ không nổi thì xoá mảng trắng đi, không để lại ô câm',
+	preg_match( '/if\(!veXong\)\s*tft\.fillRect\(cx - vungH\/2 - 2, vungY - 2, vungH \+ 4, vungH \+ 4, COL_VIP\)/', $fw12 ) === 1 );
+t( 'rỗng HOẶC vẽ hỏng thì đều rơi về lời mời bằng chữ, không vẽ mã bừa',
+	preg_match( '/if\(!veXong\)\{.*?QUET TEM CANH THUNG TIEN/s', $fw12 ) === 1 );
 /* ⚠️ Nền trắng phủ cả vùng lặng: vẽ mã đen lên nền vàng của thẻ là không máy nào quét được. */
 t( 'mã QR có nền trắng phủ cả vùng lặng',
 	preg_match( '/fillRect\(cx - vungH\/2 - 2, vungY - 2, vungH \+ 4, vungH \+ 4, TFT_WHITE\)/', $fw12 ) === 1 );

@@ -1125,7 +1125,9 @@ class VHG_Admin {
 	 *    không ai phát hiện cho tới khi khách kêu. Ở đây địa chỉ do chính hệ thống dựng, đúng
 	 *    cái mà mục "Dùng mã" sẽ đọc.
 	 *
-	 * ⚠️ IN RA GIẤY thì to bao nhiêu cũng được — khác hẳn mã trên màn ghế vốn bị bó trong 58px.
+	 * ⚠️ IN RA GIẤY thì to bao nhiêu cũng được — khác hẳn mã trên màn ghế vốn bị bó trong đúng
+	 *    `VHG_Ma::QR_VUNG_PX` pixel. Đừng chép con số đó vào đây thành chữ: nó đã đổi một lần
+	 *    (58 -> 70 ngày 23/08/2026) và mọi chỗ chép tay đều thành sai.
 	 *    Nên tem in là đường CHẮC CHẮN, mã trên màn là đường TIỆN.
 	 */
 	public static function trang_tem() {
@@ -1328,7 +1330,7 @@ class VHG_Admin {
 			. '" style="width:70px" placeholder="tắt" /></label> '
 			. '<label style="margin-left:14px">Mỗi vế <input type="number" min="5" max="300" '
 			. 'name="qc_giay" value="' . (int) $qc_["giay"] . '" style="width:80px" /> giây</label>';
-		/* 🔴 Hiện CON SỐ, không hiện lời hứa. Mã QR trong ô gói chỉ được 58px; địa chỉ dài thêm
+		/* 🔴 Hiện CON SỐ, không hiện lời hứa. Mã QR trong ô gói chỉ được VHG_Ma::QR_VUNG_PX px; địa chỉ dài thêm
 		   vài ký tự là mã rơi xuống 1 pixel mỗi module — nhìn vẫn "có mã QR" mà không máy nào
 		   quét nổi, và không ai báo cho cửa hàng. */
 		$may_qr = VHG_May::ds_may();
