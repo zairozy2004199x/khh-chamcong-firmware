@@ -99,6 +99,9 @@ class VHG_Admin {
 				$bao[] = VHG_Thu::huy( wp_unslash( $_POST['ref'] ), 'gỡ tay bởi ' . $nguoi );
 			} elseif ( 'bo_huy_gd' === $viec ) {
 				$bao[] = VHG_Thu::bo_huy( wp_unslash( $_POST['ref'] ) );
+			} elseif ( 'gan_may_gd' === $viec ) {
+				$bao[] = VHG_Thu::gan_may( wp_unslash( $_POST['ref'] ),
+					wp_unslash( $_POST['ma_may'] ), $nguoi );
 			}
 		}
 
@@ -235,6 +238,45 @@ class VHG_Admin {
 				. '</form></td></tr>';
 		}
 		echo '</tbody></table>';
+
+		/* ==================================================================================
+		 * TIỀN ĐÃ VÀO MÀ CHƯA GẮN ĐƯỢC GHẾ NÀO.
+		 *
+		 * 🔴 Ca thật, 22/08/2026 22:25: tiền về tài khoản, SePay thấy, webhook bắn về đúng nơi —
+		 *    mà ghế không chạy, vì nội dung chuyển khoản do ngân hàng tự sinh
+		 *    (`CT DEN:145T26811LG6HQZL SEVQR …`) không mang `GHE<ghế> <mã lượt>`.
+		 *
+		 *    Ca này KHÔNG hiếm: khách gõ tay nội dung mà gõ sai, app ngân hàng cắt bớt nội dung,
+		 *    hoặc khách quét nhầm tem của ghế bên cạnh. Lúc đó tiền đã vào sổ và khách đang đứng
+		 *    đó. Trước đây cách duy nhất là bấm "Bật tay" — nhưng bấm thế thì sổ ghi CHO KHÔNG
+		 *    một lượt, tức là nói mình tặng khách trong khi khách đã trả tiền. Sai cả hai đầu.
+		 * ================================================================================== */
+		$chua_ro = VHG_Thu::ds_chua_ro( 30 );
+		if ( $chua_ro ) {
+			echo '<h2>Tiền đã vào mà chưa rõ ghế (' . count( $chua_ro ) . ')</h2>';
+			echo '<p><em>Nội dung chuyển khoản không mang <code>GHE&lt;mã ghế&gt; &lt;mã lượt&gt;</code> nên '
+				. 'máy chủ không biết của ghế nào. <b>Tiền vẫn nằm nguyên trong sổ</b> — chọn ghế rồi bấm '
+				. 'Gán là ghế chạy, và doanh thu ghi đúng ghế đó chứ không thành "cho không một lượt".</em></p>';
+			echo '<table class="widefat striped"><thead><tr><th>Thời gian</th><th>Số tiền</th>'
+				. '<th>Nội dung</th><th>Mã tham chiếu</th><th>Gán cho ghế</th></tr></thead><tbody>';
+			foreach ( $chua_ro as $r ) {
+				echo '<tr><td>' . esc_html( $r['luc'] ) . '</td>'
+					. '<td><b>' . esc_html( self::tien( $r['so_tien'] ) ) . '</b></td>'
+					. '<td><code style="font-size:11px">' . esc_html( $r['noi_dung'] ) . '</code></td>'
+					. '<td><code style="font-size:11px">' . esc_html( $r['ref'] ) . '</code></td>'
+					. '<td><form method="post" style="display:flex;gap:6px;align-items:center">'
+					. wp_nonce_field( 'vhg', '_wpnonce', true, false )
+					. '<input type="hidden" name="ref" value="' . esc_attr( $r['ref'] ) . '" />'
+					. '<select name="ma_may" required><option value="">— chọn ghế —</option>';
+				foreach ( VHG_May::ds_may() as $m_c ) {
+					echo '<option value="' . esc_attr( $m_c['ma'] ) . '">' . esc_html( $m_c['ma'] )
+						. ( '' !== $m_c['coso_ten'] ? ' · ' . esc_html( $m_c['coso_ten'] ) : '' ) . '</option>';
+				}
+				echo '</select><button class="button button-primary" name="vhg" value="gan_may_gd">'
+					. 'Gán &amp; cho chạy</button></form></td></tr>';
+			}
+			echo '</tbody></table>';
+		}
 
 		/* ---- Đã huỷ: có huỷ thì phải xem lại được, không thì huỷ thành mất tăm ---- */
 		$dh = VHG_Thu::ds_huy( 100 );

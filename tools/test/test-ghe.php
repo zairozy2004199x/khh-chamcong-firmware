@@ -1711,6 +1711,94 @@ teq( 'và số phút quy đổi chung', 15, $n_tl['phut'] );
 teq( '🔴 gói 200.000đ ra 60 phút, đúng bảng giá', 60, $n_tl['goi'][1]['p'] );
 $_GET = array(); $_POST = array();
 
+// ====================== 🔴 TIỀN VÀO MÀ NỘI DUNG KHÔNG MANG MÃ GHẾ
+/* Ca thật 22/08/2026 22:25: tiền về tài khoản, SePay thấy, webhook bắn về đúng nơi — mà ghế
+   không chạy, vì nội dung do NGÂN HÀNG tự sinh: "CT DEN:145T26811LG6HQZL SEVQR …", không mang
+   `GHE<ghế> <mã lượt>`.
+
+   Ca này không hiếm: khách gõ tay nội dung mà gõ sai, app ngân hàng cắt bớt nội dung, hoặc
+   khách quét nhầm tem của ghế bên cạnh. Lúc đó tiền đã vào sổ và khách đang đứng đó. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+
+vhg_ban( array( 'transferAmount' => 2000, 'transferType' => 'in',
+	'content' => 'CT DEN:145T26811LG6HQZL SEVQR', 'referenceCode' => '145T26811LG6HQZL',
+	'accountNumber' => '108878583951' ) );
+teq( '🔴 tiền VẪN vào sổ dù không rõ ghế — đây là chỗ không được mất', 2000,
+	VHG_Thu::tong_hop( 'all' )['tong'] );
+$cr = VHG_Thu::ds_chua_ro();
+teq( 'và nằm trong danh sách "chưa rõ ghế"', 1, count( $cr ) );
+teq( 'giữ nguyên nội dung gốc để còn đối chiếu',
+	'CT DEN:145T26811LG6HQZL SEVQR', $cr[0]['noi_dung'] );
+teq( 'ghế chưa có lượt nào chờ', 0, VHG_May::so_cho( 'AMTP01' ) );
+
+$r = VHG_Thu::gan_may( '145T26811LG6HQZL', 'AMTP01', 'Anh Thắng' );
+t( 'gán tay được', ! empty( $r['ok'] ), $r );
+teq( '🔴 và ghế được xếp cho chạy', 1, VHG_May::so_cho( 'AMTP01' ) );
+$gd_g = VHG_Thu::ds( 'all' );
+teq( 'doanh thu ghi ĐÚNG ghế đó', 'AMTP01', $gd_g[0]['ma_may'] );
+teq( 'tổng tiền KHÔNG đổi — gán chứ không cộng thêm', 2000, VHG_Thu::tong_hop( 'all' )['tong'] );
+teq( 'hết nằm trong danh sách chưa rõ', 0, count( VHG_Thu::ds_chua_ro() ) );
+
+/* 🔴 BẤM HAI LẦN KHÔNG ĐƯỢC ĐẺ HAI LƯỢT CHẠY. Mã lượt sinh ỔN ĐỊNH theo `ref`, không ngẫu
+      nhiên — ngẫu nhiên là mỗi lần bấm một lượt massage miễn phí. */
+$r2 = VHG_Thu::gan_may( '145T26811LG6HQZL', 'AMTP01', 'Anh Thắng' );
+teq( 'gán lần hai: chối vì đã có ghế', false, $r2['ok'] );
+teq( 'và vẫn đúng MỘT lượt chờ', 1, VHG_May::so_cho( 'AMTP01' ) );
+
+/* ⚠️ KHÔNG cho đổi ghế của giao dịch đã khớp: dời doanh thu từ ghế này sang ghế kia bằng vài
+      cú bấm là chuyện không ai thấy. */
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+$r3 = VHG_Thu::gan_may( '145T26811LG6HQZL', 'AMTP02' );
+teq( '🔴 chối đổi sang ghế khác', false, $r3['ok'] );
+t( 'và nói rõ vì sao', strpos( $r3['error'], 'không ai thấy' ) !== false, $r3['error'] );
+teq( 'doanh thu vẫn ở ghế cũ', 'AMTP01', VHG_Thu::ds( 'all' )[0]['ma_may'] );
+
+t( 'gán cho ghế không có thì chối',
+	empty( VHG_Thu::gan_may( '145T26811LG6HQZL', 'KHONG-CO' )['ok'] ) );
+t( 'gán giao dịch không có thì chối', empty( VHG_Thu::gan_may( 'khong-co-ref', 'AMTP01' )['ok'] ) );
+
+/* Giao dịch ĐÃ HUỶ thì không gán được — huỷ rồi mà vẫn cho ghế chạy là cho không một lượt. */
+vhg_ban( array( 'transferAmount' => 5000, 'transferType' => 'in',
+	'content' => 'CT DEN:XYZ SEVQR', 'referenceCode' => 'huy-gan-1',
+	'accountNumber' => '108878583951' ) );
+VHG_Thu::huy( 'huy-gan-1', 'ghi nhầm' );
+$r4 = VHG_Thu::gan_may( 'huy-gan-1', 'AMTP01' );
+teq( 'giao dịch đã huỷ thì không gán được', false, $r4['ok'] );
+t( 'và nhắc bỏ huỷ trước', strpos( $r4['error'], 'bỏ huỷ' ) !== false );
+
+/* Nội dung CÓ mã ghế thì tự khớp, khỏi gán tay — đường thường vẫn phải chạy. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'K&H' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'CT DEN:145T26811LG6HQZL SEVQR GHEAMTP01 K7M2P', 'referenceCode' => 'tu-khop-1',
+	'accountNumber' => '108878583951' ) );
+teq( '🔴 mã ghế nằm SAU tiền tố của ngân hàng: vẫn khớp được',
+	'AMTP01', VHG_Thu::ds( 'all' )[0]['ma_may'] );
+teq( 'và ghế được xếp chạy ngay, khỏi gán tay', 1, VHG_May::so_cho( 'AMTP01' ) );
+teq( 'nên không nằm trong danh sách chưa rõ', 0, count( VHG_Thu::ds_chua_ro() ) );
+
+// ---- màn quản trị
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array( 'ky' => 'all' ); $_POST = array();
+vhg_ban( array( 'transferAmount' => 3000, 'transferType' => 'in',
+	'content' => 'CT DEN:ABC SEVQR', 'referenceCode' => 'man-1',
+	'accountNumber' => '108878583951' ) );
+ob_start(); VHG_Admin::trang_thu(); $h_cr = ob_get_clean();
+t( 'màn có mục tiền chưa rõ ghế', strpos( $h_cr, 'chưa rõ ghế' ) !== false );
+t( 'có ô chọn ghế để gán', strpos( $h_cr, 'gan_may_gd' ) !== false );
+t( 'nói rõ tiền vẫn nằm nguyên trong sổ',
+	strpos( $h_cr, 'Tiền vẫn nằm nguyên trong sổ' ) !== false );
+/* Nói rõ khác gì với "Bật tay": bật tay ghi CHO KHÔNG một lượt, gán ghi ĐÚNG doanh thu. */
+t( 'và nói rõ khác gì với bật tay',
+	strpos( $h_cr, 'cho không một lượt' ) !== false );
+$_GET = array(); $_POST = array();
+
 // ============================================ BẢNG CHỐT CA THU TIỀN
 /* 🔴 Bản trước bấm "Thu tiền mặt" là hỏi "ghi 10.000đ?" rồi ghi luôn. Sai với việc thật: người
       đi thu tiền mở ngăn ghế ra, đếm được một xấp, và cần biết HỆ THỐNG NGHĨ là bao nhiêu để

@@ -212,6 +212,61 @@ class VHG_Thu {
 		return number_format( (float) $v, 0, ',', '.' ) . 'đ';
 	}
 
+	/**
+	 * GÁN TAY một giao dịch cho ghế, và cho ghế chạy.
+	 *
+	 * 🔴 Ca thật, 22/08/2026 22:25: tiền về tài khoản, SePay thấy, webhook bắn về đúng nơi — mà
+	 *    ghế không chạy, vì nội dung chuyển khoản ngân hàng tự sinh (`CT DEN:145T26811LG6HQZL
+	 *    SEVQR …`) không mang `GHE<ghế> <mã lượt>`.
+	 *
+	 *    Ca này KHÔNG hiếm: khách gõ tay nội dung mà gõ sai, app ngân hàng cắt bớt nội dung, hoặc
+	 *    khách quét nhầm tem của ghế bên cạnh. Lúc đó tiền đã vào sổ, khách đứng đó, và cách duy
+	 *    nhất trước đây là bấm "Bật tay" — nhưng bấm thế thì hệ thống ghi là CHO KHÔNG một lượt,
+	 *    tức là sổ nói mình tặng khách một lượt trong khi khách đã trả tiền. Sai cả hai đầu.
+	 *
+	 * Phép này gắn đúng đồng tiền đó vào đúng cái ghế, rồi mới cho chạy — sổ nói đúng chuyện đã
+	 * xảy ra.
+	 *
+	 * ⚠️ CHỈ gán được giao dịch CHƯA có máy. Đổi máy của một giao dịch đã khớp là mở đường cho
+	 *    việc dời doanh thu từ ghế này sang ghế kia bằng vài cú bấm, và không ai thấy.
+	 */
+	public static function gan_may( $ref, $ma_may, $nguoi = '' ) {
+		global $wpdb;
+		$ref    = trim( (string) $ref );
+		$ma_may = trim( (string) $ma_may );
+		if ( '' === $ref || '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã tham chiếu hoặc mã ghế.' ); }
+		if ( ! VHG_May::may( $ma_may ) ) {
+			return array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma_may . '.' );
+		}
+		$bang = VHG_DB::t( 'thu' );
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE ref=%s LIMIT 1", $ref ), ARRAY_A );
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không thấy giao dịch ' . $ref . '.' ); }
+		if ( (int) $r['huy'] === 1 ) {
+			return array( 'ok' => false, 'error' => 'Giao dịch này đã huỷ — bỏ huỷ trước rồi mới gán.' );
+		}
+		if ( '' !== trim( (string) $r['ma_may'] ) ) {
+			return array( 'ok' => false, 'error' => 'Giao dịch này đã thuộc ghế ' . $r['ma_may']
+				. '. Không đổi được — dời doanh thu giữa hai ghế bằng vài cú bấm là chuyện không ai thấy.' );
+		}
+
+		/* Mã lượt ỔN ĐỊNH theo `ref`, không ngẫu nhiên: bấm hai lần thì `xep_cho_chay` thấy cùng
+		   (máy, mã lượt) nên chỉ xếp MỘT hàng. Ngẫu nhiên là mỗi lần bấm một lượt chạy mới. */
+		$ma_lenh = 'TAY' . strtoupper( substr( md5( $ref ), 0, 5 ) );
+		$wpdb->update( $bang, array( 'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh ), array( 'id' => (int) $r['id'] ) );
+		VHG_May::xep_cho_chay( $ma_may, $ma_lenh, (int) $r['so_tien'], $ref,
+			'gán tay' . ( '' !== $nguoi ? ' bởi ' . $nguoi : '' ) );
+
+		return array( 'ok' => true, 'ma_lenh' => $ma_lenh,
+			'thong_bao' => 'Đã gán ' . self::tien_ngan( $r['so_tien'] ) . ' cho ghế ' . $ma_may
+				. ' và xếp cho ghế chạy. Ghế nhận trong ~10 giây.' );
+	}
+
+	/** Giao dịch CHƯA gắn được ghế nào — chỗ để soi khi "tiền vào mà ghế không chạy". */
+	public static function ds_chua_ro( $gioi_han = 50 ) {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'thu' )
+			. " WHERE huy=0 AND ma_may='' ORDER BY luc DESC, id DESC LIMIT " . (int) $gioi_han );
+	}
+
 	/** Thu tiền mặt tại quầy — người bấm trên màn, không qua ngân hàng. */
 	public static function thu_tien_mat( $ma_may, $so_tien, $nguoi ) {
 		$ma_may = trim( (string) $ma_may );
