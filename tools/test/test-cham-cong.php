@@ -2841,7 +2841,7 @@ foreach ( array( 'includes/class-vhcc-admin.php', 'includes/class-vhcc-trang.php
 	'apps-script/cau-noi.gs', 'apps-script/ghi-song-song.gs' ) as $x ) {
 	$tep_soat[ $x ] = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/' . $x );
 }
-$tep_soat['docs/CAI-LEN-HOSTINGER.md'] = file_get_contents( $goc . '/docs/CAI-LEN-HOSTINGER.md' );
+$tep_soat['docs/CAI-LEN-HOSTING.md'] = file_get_contents( $goc . '/docs/CAI-LEN-HOSTING.md' );
 $het = implode( "\n", $tep_soat );
 
 /* Tên file cầu nối: chỉ `CauNoiChamCong`. `CauNoi` trơ trọi (không có chữ ChamCong theo sau)
@@ -2871,9 +2871,9 @@ t( 'phần đầu cau-noi.gs dặn đặt tên CauNoiChamCong',
 t( 'trang Cài đặt dặn ĐÚNG cái tên đó',
 	strpos( $tep_soat['includes/class-vhcc-admin.php'], '<code>CauNoiChamCong</code>' ) !== false );
 t( 'hướng dẫn cài cũng dặn đúng tên đó',
-	strpos( $tep_soat['docs/CAI-LEN-HOSTINGER.md'], '`CauNoiChamCong`' ) !== false );
+	strpos( $tep_soat['docs/CAI-LEN-HOSTING.md'], '`CauNoiChamCong`' ) !== false );
 t( 'hướng dẫn cài có nhắc dán cau-noi.gs (trước đây thiếu hẳn bước này)',
-	strpos( $tep_soat['docs/CAI-LEN-HOSTINGER.md'], 'apps-script/cau-noi.gs' ) !== false );
+	strpos( $tep_soat['docs/CAI-LEN-HOSTING.md'], 'apps-script/cau-noi.gs' ) !== false );
 
 /* Plugin chấm công KHÔNG được tự gọi mình là app hợp đồng. Bốn câu báo lỗi đã từng như vậy —
    chép từ plugin hợp đồng sang mà quên đổi tên, nên người đọc đi kiểm sai app. */
@@ -2891,7 +2891,7 @@ t( 'plugin chấm công không câu nào tự gọi mình là app hợp đồng'
 
 /* Hai khoá khác nhau, và hướng dẫn phải nói rõ cái nào của file nào — anh Thắng đã một lần
    hiểu WEB_KEY là thứ mình phải tự đặt rồi dán vào WordPress (thực ra là chiều ngược lại). */
-$hd = $tep_soat['docs/CAI-LEN-HOSTINGER.md'];
+$hd = $tep_soat['docs/CAI-LEN-HOSTING.md'];
 t( 'hướng dẫn phân biệt rõ WEB_KEY với WP_KEY',
 	strpos( $hd, '`WEB_KEY`' ) !== false && strpos( $hd, '`WP_KEY`' ) !== false
 	&& strpos( $hd, 'đừng dán lẫn' ) !== false );
@@ -2966,7 +2966,7 @@ t( 'và mốc nhận dạng được: dòng ngay trên JSON.parse',
 /* Dòng phải chèn KHÔNG được có dấu \ thoát — copy vào Apps Script là sai cú pháp ngay.
    Anh Thắng phát hiện chỗ đang đọc tự thêm `\&\&`; file gốc phải sạch để không góp thêm. */
 foreach ( array( 'wordpress/vhcp-cham-cong/apps-script/ghi-song-song.gs',
-	'docs/CAI-LEN-HOSTINGER.md' ) as $x ) {
+	'docs/CAI-LEN-HOSTING.md' ) as $x ) {
 	$noi = file_get_contents( $goc . '/' . $x );
 	t( "$x: dòng wpXepHang dùng && sạch, không có dấu \\ thoát",
 		strpos( $noi, 'wpXepHang(e && e.postData' ) !== false
@@ -3944,6 +3944,49 @@ t( 'chưa dán ccXuatPhanQuyen thì nói rõ tên hàm',
 
 $GLOBALS['VHD_POST'] = array();
 update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
+/* Hướng dẫn cài phải theo kịp thực tế: 22/08/2026 Hostinger sập, chuyển sang Vietnix (cPanel).
+   Mấy điều dưới đây là thứ sai một cái là cả chuỗi máy im lặng, nên phải luôn có trong hướng dẫn. */
+$hd_vnx = file_get_contents( $goc . '/docs/CAI-LEN-VIETNIX.md' );
+t( 'có hướng dẫn riêng cho Vietnix', strlen( $hd_vnx ) > 2000 );
+t( 'cảnh báo chặn bot cho đường /cham-cong-may',
+	strpos( $hd_vnx, 'ModSecurity' ) !== false && strpos( $hd_vnx, '/cham-cong-may' ) !== false );
+t( 'nói rõ firmware KHÔNG báo khi bị chặn — đó là chỗ hỏng im lặng',
+	strpos( $hd_vnx, 'vẫn báo thành công' ) !== false );
+t( 'đòi HTTPS và nói rõ firmware từ chối http://',
+	strpos( $hd_vnx, 'từ chối địa chỉ' ) !== false );
+t( 'đòi post_max_size đủ lớn cho ảnh mặt', strpos( $hd_vnx, 'post_max_size' ) !== false );
+t( 'dặn cài WordPress ở THƯ MỤC GỐC, không thư mục con',
+	strpos( $hd_vnx, 'để trống ô thư mục con' ) !== false );
+t( 'liệt kê ĐỦ bốn chỗ phải sửa khi đổi khoá',
+	strpos( $hd_vnx, 'cfg/wp/key' ) !== false && strpos( $hd_vnx, 'cfg/wp/url' ) !== false
+	&& strpos( $hd_vnx, 'WP_KEY' ) !== false && strpos( $hd_vnx, 'WEB_KEY' ) !== false );
+t( 'nói rõ giữ tên miền thì KHÔNG phải nạp lại firmware',
+	strpos( $hd_vnx, 'không phải nạp lại firmware' ) !== false );
+t( 'bảng kiểm cuối có dòng QUẸT THẺ THẬT — sáu dòng kia chỉ là nhìn màn hình',
+	strpos( $hd_vnx, 'quẹt thẻ thật' ) !== false || strpos( $hd_vnx, 'Quẹt thẻ thật' ) !== false );
+t( 'dặn lấy bản sao lưu cơ sở dữ liệu trước, và trấn an nếu không lấy được',
+	strpos( $hd_vnx, 'Export' ) !== false && strpos( $hd_vnx, 'không mất gì' ) !== false );
+/* Tên tệp hướng dẫn chung không còn gắn với một nhà cung cấp. */
+t( 'hướng dẫn chung đã đổi tên trung tính',
+	file_exists( $goc . '/docs/CAI-LEN-HOSTING.md' )
+	&& ! file_exists( $goc . '/docs/CAI-LEN-HOSTINGER.md' ) );
+t( 'và trỏ sang phần riêng của Vietnix',
+	strpos( file_get_contents( $goc . '/docs/CAI-LEN-HOSTING.md' ), 'CAI-LEN-VIETNIX.md' ) !== false );
+/* Mã của plugin không được nhắc đích danh nhà cung cấp nào — đổi nhà là câu đó thành sai. */
+$nhac_ncc = array();
+foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f ) {
+	foreach ( explode( "\n", file_get_contents( $f ) ) as $i => $d ) {
+		if ( ! preg_match( '/Hostinger|Vietnix/i', $d ) ) { continue; }
+		/* Được phép nhắc tên nhà cung cấp khi đang TRÍCH NGUYÊN VĂN lời anh Thắng hoặc đang kể
+		   lại lịch sử quyết định — đó là ghi chép, không phải mã chạy theo nhà cung cấp. Cấm là
+		   cấm câu hướng dẫn kiểu "vào hPanel của Hostinger mà chỉnh", vì đổi nhà là câu đó sai. */
+		if ( false !== strpos( $d, '*"' ) || false !== strpos( $d, 'chuyển sang' ) ) { continue; }
+		$nhac_ncc[] = basename( $f ) . ':' . ( $i + 1 );
+	}
+}
+t( 'mã plugin không có câu HƯỚNG DẪN nào gắn với một nhà cung cấp',
+	count( $nhac_ncc ) === 0, implode( ', ', $nhac_ncc ) );
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

@@ -6,7 +6,7 @@
  * VÌ SAO LÀ "TRANG IN" MÀ KHÔNG PHẢI TỆP .PDF
  * =============================================================================================
  * Bên Apps Script, `Utilities.newBlob(html).getAs('application/pdf')` dùng bộ chuyển HTML→PDF của
- * Google. WordPress trên Hostinger KHÔNG có thứ tương đương, và cài một thư viện PDF cho PHP trên
+ * Google. WordPress trên hosting chia sẻ KHÔNG có thứ tương đương, và cài một thư viện PDF cho PHP trên
  * hosting chia sẻ là thêm một chỗ hỏng mà lúc hỏng thì không in được bảng công.
  *
  * Nên trang này là HTML in khổ A4: bấm Ctrl+P (hay "Chia sẻ → In" trên điện thoại) rồi chọn "Lưu

@@ -142,7 +142,7 @@ class VHCC_Nhan {
 		if ( $dai_khai > 0 && strlen( $tho ) < $dai_khai ) {
 			self::ghi_loi( 'THAN_BI_CAT', 'Content-Length khai ' . $dai_khai . ' byte, nhận được '
 				. strlen( $tho ) . ' byte — gần như chắc là post_max_size / upload_max_filesize quá nhỏ '
-				. 'cho ảnh mặt. MẤT lượt bấm này. Nâng post_max_size trong PHP của Hostinger.' );
+				. 'cho ảnh mặt. MẤT lượt bấm này. Nâng post_max_size trong cài đặt PHP của hosting.' );
 			self::loi( 'Than yeu cau bi cat (post_max_size?) - MAT luot bam nay.', 413 );
 			return;
 		}

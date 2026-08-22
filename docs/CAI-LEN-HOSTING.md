@@ -1,4 +1,9 @@
-# Cài lên Hostinger — làm theo đúng thứ tự
+# Cài lên hosting — làm theo đúng thứ tự
+
+> **Đổi nhà cung cấp 22/08/2026.** Hostinger sập, anh Thắng chuyển sang **Vietnix**. Phần thao
+> tác trong bảng điều khiển (File Manager, PHP, cơ sở dữ liệu) khác nhau ở mỗi nhà — xem
+> [CAI-LEN-VIETNIX.md](CAI-LEN-VIETNIX.md). Còn mọi thứ trong tệp này là của WordPress và của
+> plugin, nhà nào cũng vậy.
 
 Làm sai thứ tự thì **mất chấm công**, nên đọc hết mục 1 trước khi bấm gì.
 

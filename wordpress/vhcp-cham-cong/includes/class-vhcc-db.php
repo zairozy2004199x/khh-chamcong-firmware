@@ -1,10 +1,14 @@
 <?php
 /**
- * Bảng MySQL của app Chấm công — dữ liệu Ở TRÊN HOSTINGER.
+ * Bảng MySQL của app Chấm công — dữ liệu Ở TRÊN HOSTING, không ở Google Sheet.
  *
  * Anh Thắng chốt: *"app chấm công là anh lưu trữ tiếp trên hostinger luôn"* + *"nên không cần
  * cầu nối"*. Khác app Hợp đồng (dữ liệu vẫn ở Sheet, WordPress chỉ chuyển tiếp): ở đây MySQL là
  * nguồn sự thật, không có bản sao nào bên Sheet để lệch.
+ *
+ * (Câu chốt trên nhắc tên nhà cung cấp cũ vì lúc đó đang ở đó; 22/08/2026 chuyển sang Vietnix.
+ *  Quyết định thì không đổi: dữ liệu nằm ở MySQL của hosting, nhà nào cũng vậy. Mã trong plugin
+ *  KHÔNG được ghi cứng tên nhà cung cấp — đổi nhà là câu đó thành sai, và có phép thử canh.)
  *
  * ⚠️ CẦU NỐI CHƯA BỎ. Máy Hikvision ngoài cơ sở vẫn đang POST vào /exec của Apps Script và vẫn
  *    đọc Firebase trực tiếp (firmware có 45 chỗ dùng OTA, 12 chỗ đọc /queue). Bỏ cầu nối trước
