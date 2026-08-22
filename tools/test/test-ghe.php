@@ -1567,10 +1567,15 @@ teq( 'khai một số không phải cả hai: báo lệch', false, VHG_May::doi_
 $GLOBALS['VHCP_CO_QUYEN'] = true;
 $_GET = array(); $_POST = array();
 ob_start(); VHG_Admin::trang_may(); $h_va = ob_get_clean();
-t( 'màn dặn điền SỐ VA, không phải số tài khoản ngân hàng',
-	strpos( $h_va, 'Điền SỐ VA của SePay' ) !== false );
-t( 'và nói rõ hậu quả: tiền về túi mình nhưng ghế không chạy',
-	strpos( $h_va, 'hệ thống không thấy, và ghế không chạy' ) !== false );
+/* ⚠️ ĐỪNG KHẲNG ĐỊNH PHẢI DÙNG VA. Bản trước ghi cứng "điền SỐ VA, không phải số tài khoản" —
+      suy đoán, và suy đoán sai: nhật ký cho thấy lượt 20.000đ chuyển vào SỐ TÀI KHOẢN THƯỜNG đã
+      hiện trong SePay và đã bắn webhook về. Một câu hướng dẫn ghi cứng trong màn hình còn nguy
+      hơn một câu nói miệng — nó ở lại mãi và người sau đọc sẽ tin. */
+t( 'màn KHÔNG khẳng định phải dùng VA', strpos( $h_va, 'Điền SỐ VA của SePay' ) === false );
+t( 'mà chỉ cách tự kiểm bằng bằng chứng: xem lượt đã chạy được ghi số nào',
+	strpos( $h_va, 'tìm một lượt đã về thành công' ) !== false, $h_va ? '' : '' );
+t( 'và vẫn nhắc BIN phải khớp ngân hàng phát hành VA',
+	strpos( $h_va, 'phát hành VA' ) !== false );
 t( 'nhắc BIN phải là ngân hàng PHÁT HÀNH VA',
 	strpos( $h_va, 'ngân hàng phát hành VA' ) !== false );
 t( 'khi lệch thì hiện luôn VA mà bên gửi báo',

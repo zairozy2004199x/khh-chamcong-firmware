@@ -470,11 +470,20 @@ class VHG_Admin {
 			   Tiền không mất — nó nằm đúng trong tài khoản của mình — nhưng hệ thống mù với nó,
 			   nên khách trả tiền xong đứng đó mà ghế không chạy. Ghi ra đây vì nhìn hai chuỗi số
 			   thì không có gì gợi ý cái nào đúng. */
-			. '<p class="description">⚠️ <b>Điền SỐ VA của SePay, không phải số tài khoản ngân hàng.</b> '
-			. 'SePay chỉ báo về những giao dịch vào VA mà nó theo dõi; tiền chuyển thẳng vào tài '
-			. 'khoản gốc thì vẫn về túi mình nhưng <b>hệ thống không thấy, và ghế không chạy</b>.<br>'
-			. 'Lấy ở trang SePay → <b>Tài khoản ảo (VA)</b> → cột <b>Số VA</b>. VA có thể có chữ '
-			. '(VD <code>96247POSH</code>) — điền nguyên văn.</p></td></tr>';
+			/* ⚠️ ĐỪNG KHẲNG ĐỊNH PHẢI DÙNG VA. Bản trước ghi cứng "điền SỐ VA, không phải số tài
+			   khoản" — suy đoán, và suy đoán sai. Bằng chứng ngược lại có sẵn ngay trong nhật ký:
+			   lượt 20.000đ ngày 22/08/2026 chuyển vào SỐ TÀI KHOẢN THƯỜNG đã hiện trong SePay và
+			   đã bắn webhook về đây. Nghĩa là SePay theo dõi cả tài khoản gốc.
+
+			   Một câu hướng dẫn ghi cứng bên trong màn hình còn nguy hơn một câu nói miệng: nó
+			   ở lại mãi và người sau đọc sẽ tin. Nên nói theo BẰNG CHỨNG: dùng số nào đã từng có
+			   giao dịch chạy được. */
+			. '<p class="description">Điền số mà <b>SePay thật sự nhìn thấy</b> — có thể là số tài '
+			. 'khoản ngân hàng, cũng có thể là số VA. Cách chắc nhất: mở trang SePay → '
+			. '<b>Giao dịch</b>, tìm một lượt đã về thành công, xem lượt đó ghi số nào thì điền số đó.<br>'
+			. 'Nếu chưa có lượt nào: thử số tài khoản ngân hàng trước (ngân hàng nào cũng tra được), '
+			. 'rồi mới thử VA. VA có thể có chữ (VD <code>96247POSH</code>) — điền nguyên văn, và BIN '
+			. 'phải là ngân hàng <b>phát hành VA</b> chứ không phải ngân hàng mình quen dùng.</p></td></tr>';
 		echo '<tr><th>Mã ngân hàng (BIN)</th><td><input name="bin" value="'
 			. esc_attr( $tk_chung['bin'] ) . '" style="width:120px" placeholder="970418" />'
 			. '<p class="description">Napas BIN, 6 chữ số. 970418 = BIDV · 970436 = Vietcombank · '
@@ -554,8 +563,9 @@ class VHG_Admin {
 				. 'khoản. Gần như luôn là <b>BIN không khớp ngân hàng phát hành</b>: mã đang trỏ vào '
 				. ( '' !== $ten_nh ? esc_html( $ten_nh ) : 'một ngân hàng không rõ' )
 				. ', tài khoản/VA phải do ĐÚNG ngân hàng đó phát hành.<br>'
-				. '· <b>Hiện tên chủ tài khoản của mình</b> — mã đúng, nhưng đang trỏ vào tài khoản '
-				. 'GỐC. SePay theo dõi VA, nên tiền về túi mình mà hệ thống không thấy.<br>'
+				. '· <b>Hiện tên chủ tài khoản của mình</b> — mã ĐÚNG, chuyển được. Sau khi chuyển, '
+				. 'xem trang SePay có hiện lượt đó không: có thì xong; không thì SePay chưa theo dõi '
+				. 'số này, đổi sang số khác (VA hoặc tài khoản gốc, tuỳ cái nào SePay thấy).<br>'
 				. '· <b>Hiện tên lạ</b> — <b>DỪNG NGAY</b>, đừng chuyển. Sai số tài khoản.<br>'
 				. '· <b>“Lỗi hệ thống nhà cung cấp dịch vụ”</b> — ngân hàng nhận trả lời nhưng từ '
 				. 'chối. Mã của mình đã tới được đúng nơi; vướng nằm ở phía VA. Quét thử mã SePay ở '
