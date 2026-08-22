@@ -14,9 +14,18 @@
 #    trong (NVS); OTA không ghi đè NVS. Máy chưa qua bước đó mà nhận bản CI thì mất cấu hình.
 name: Build firmware ESP32
 
+# 🔴 22/08/2026 — CHẠY TRÊN MỌI NHÁNH, KHÔNG CHỈ main.
+#   Trước đây chỉ `branches: [main]`, nên một thay đổi firmware lớn nằm trên nhánh làm việc
+#   KHÔNG được compile lần nào cho tới khi gộp vào main. Đúng lúc cần nhất — bản gỡ Apps Script
+#   và Firebase động vào 30 chỗ trong .ino — thì lưới này lại không giăng.
+#   Nay: nhánh nào cũng BIÊN DỊCH; chỉ main mới PHÁT HÀNH. Xem `if:` ở ba bước cuối.
 on:
   push:
-    branches: [main]
+    paths:
+      - 'esp32_hik_chamcong_full/**'
+      - 'esp32_ota_updater/**'
+      - '.github/workflows/firmware.yml'
+  pull_request:
     paths:
       - 'esp32_hik_chamcong_full/**'
       - 'esp32_ota_updater/**'
@@ -136,6 +145,9 @@ jobs:
           echo "VER=$VER" >> $GITHUB_ENV
           echo "SZ=$SZ"   >> $GITHUB_ENV
 
+      # KHÔNG gán `if: main` cho bước này: bản build từ nhánh làm việc chính là thứ cần tải về
+      # nạp USB thử MỘT máy trước khi gộp. Artifact là file riêng của CI, không phải bản phát
+      # hành công khai — hai bước dưới mới là phát hành, và hai bước đó thì chỉ main.
       - name: Luu file de tai tay (du phong)
         uses: actions/upload-artifact@v4
         with:
@@ -150,6 +162,7 @@ jobs:
       #    De history khong phinh (moi ban .bin ~1,2 MB), day len nhanh 'bin' bang commit MO COI
       #    roi force-push: nhanh do luon chi co DUNG 1 commit, khong tich luy.
       - name: Day .bin len nhanh 'bin' (de co link raw, khong redirect)
+        if: github.ref == 'refs/heads/main'
         env:
           PUB: ${{ github.repository }}
         run: |
@@ -185,6 +198,7 @@ jobs:
           echo "RAW=$RAW" >> $GITHUB_ENV
 
       - name: Phat hanh ban moi
+        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUB: ${{ github.repository }}
