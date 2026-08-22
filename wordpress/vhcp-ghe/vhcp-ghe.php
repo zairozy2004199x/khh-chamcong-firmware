@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           1.18.0
+ * Version:           1.19.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '1.18.0' );
+define( 'VHG_VERSION', '1.19.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -70,6 +70,11 @@ add_action( 'init', array( 'VHG_Cong', 'init' ), 4 );
    lại ở 99. Gài sau 99 thì luật vừa khai chưa nằm trong bản đã nạp — trang trả 404 cho tới
    lần lưu Permalinks kế tiếp, mà không ai nghĩ tới việc đi lưu một trang mình không sửa. */
 add_action( 'init', array( 'VHG_Trang', 'init' ), 4 );
+/* Trang bán mã cho khách — cũng khai luật đường dẫn, nên cũng phải gài ở ưu tiên 4.
+   🔴 Quên dòng này là `/mua-ma` trả 404, mà KHÔNG có gì báo lỗi ở đâu cả: lớp vẫn nạp, hàm vẫn
+      gọi được từ phép thử, chỉ là WordPress không bao giờ hỏi tới nó. Đúng chuyện đã xảy ra
+      23/08/2026. Phép thử `kiem_gai_trang` bên dưới canh chỗ này. */
+add_action( 'init', array( 'VHG_Shop', 'init' ), 4 );
 add_action( 'init', 'vhg_flush_rewrite', 99 );
 function vhg_flush_rewrite() {
 	if ( get_option( 'vhg_flush_rewrite' ) ) {

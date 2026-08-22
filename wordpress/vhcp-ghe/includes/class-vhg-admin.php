@@ -1150,6 +1150,8 @@ class VHG_Admin {
 					if ( $mg > 0 && $pt > 0 ) { $gi[ $mg ] = min( 70, $pt ); }
 				}
 				update_option( 'vhg_ma_giam', $gi );
+				update_option( 'vhg_ma_cho_ngay',
+					max( 0, min( 365, isset( $_POST['ma_cho_ngay'] ) ? (int) $_POST['ma_cho_ngay'] : 5 ) ) );
 				/* Ô quảng cáo: rỗng = tắt. Xem VHG_May::qc_ma() — `false`/rỗng phải ra -1, không
 				   phải 0, nếu không thì "chưa khai" thành "bật ô đầu tiên". */
 				$qo = isset( $_POST['qc_o'] ) ? trim( (string) wp_unslash( $_POST['qc_o'] ) ) : '';
@@ -1217,6 +1219,16 @@ class VHG_Admin {
 				. '<td><b>' . esc_html( self::tien( VHG_Ma::gia_ban( $mg_ ) ) ) . '</b></td></tr>';
 		}
 		echo '</tbody></table>';
+		/* 🔴 Chốt chống mua-xong-dùng-liền. Không có nó thì bảng giá sập: ai cũng mua mã rẻ rồi
+		   quét ngay thay vì trả giá gốc tại ghế. */
+		echo '<p style="margin-top:10px"><label>Mã dùng được sau '
+			. '<input type="number" min="0" max="365" name="ma_cho_ngay" value="'
+			. (int) VHG_Ma::cho_ngay_mac_dinh() . '" style="width:70px" /> ngày kể từ lúc mua</label></p>';
+		echo '<p class="description">Giảm giá là để đổi lấy việc khách <b>trả tiền trước</b>. '
+			. 'Không có thời gian chờ thì khách đứng ngay cạnh ghế cũng mua mã rẻ rồi quét luôn — '
+			. 'và không ai trả giá gốc tại ghế nữa.<br>'
+			. '<b>0 = cho dùng ngay.</b> Số ngày được <b>đóng băng vào từng mã lúc bán</b>: đổi ô này '
+			. 'không áp ngược cho mã đã bán, vì đó là điều kiện khách đã trả tiền để nhận.</p>';
 		/* 🔴 Khoản NỢ. Mã không hết hạn nên con số này chỉ cộng lên và không bao giờ tự đóng.
 		   Hiện ngay cạnh ô khai giảm giá: đó là chỗ người ta quyết định giảm bao nhiêu. */
 		$no_ = VHG_Ma::tien_no();

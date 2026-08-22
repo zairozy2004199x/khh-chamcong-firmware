@@ -109,6 +109,19 @@ function vhg_shop( $viec, $goi = array() ) {
 	unset( $GLOBALS['VHCP_QVAR']['vhg_shop'] );
 	return json_decode( $ra, true );
 }
+/**
+ * Lùi ngày mua của MỌI mã đang có, để vượt qua chốt "chờ N ngày mới dùng được".
+ *
+ * ⚠️ Lùi ngày chứ KHÔNG tắt chốt. Tắt chốt là các phép thử ở dưới chạy trên một hệ thống khác
+ *    với hệ thống thật, và cái chốt ấy sẽ không bao giờ được đi qua trong phép thử — đúng chỗ
+ *    dễ hỏng nhất lại thành chỗ không ai thử.
+ */
+function vhg_ma_lui_ngay( $ngay = 30 ) {
+	global $wpdb;
+	$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'ma' ) . ' SET tao_luc=%s',
+		gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - $ngay * 86400 ) ) );
+}
+
 /** Dựng trang bán mã (HTML). */
 function vhg_shop_html( $ghe = '' ) {
 	$_SERVER['REQUEST_METHOD'] = 'GET';
@@ -2982,6 +2995,9 @@ t( 'PIN không lưu dạng đọc được', ! $wpdb->get_var( 'SELECT id FROM '
 	. " WHERE pin_bam='2468'" ) );
 
 // ---- dùng mã
+/* Mã mua trước phải chờ 5 ngày mới dùng được (chốt chống mua-xong-dùng-liền). Lùi ngày mua để
+   thử đường dùng thật; phép thử riêng cho chính cái chốt nằm ở khối dưới. */
+vhg_ma_lui_ngay();
 $ma_1 = isset( $m_dau[0] ) ? VHG_Ma::ma_sach( $m_dau[0]['ma'] ) : 'KHONGCO1';
 $dung = VHG_Ma::dung( $ma_1, 'AMTP01' );
 t( 'dùng được mã', ! empty( $dung['ok'] ), isset( $dung['error'] ) ? $dung['error'] : '' );
@@ -3034,6 +3050,7 @@ $don2 = VHG_Ma::dat_don( '0911222333', '1357', 200000, 1 );
 vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 160000,
 	'content' => 'CT DEN:145T269 ' . VHG_QR::noi_dung_mua( $don2['ma_don'] ),
 	'referenceCode' => 'FT-MUA-2' ) );
+vhg_ma_lui_ngay();
 $no = VHG_Ma::tien_no();
 teq( 'còn một mã chưa dùng', 1, (int) $no['so_ma'] );
 /* Nợ tính theo MỆNH GIÁ: thứ mình nợ là lượt massage, không phải số tiền khách đã trả. */
@@ -3088,6 +3105,7 @@ teq( 'tra ra 2 mã chưa dùng', 2, count( $st['chua_dung'] ) );
 t( 'sai PIN thì không ra', empty( vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '1111' ) )['ok'] ) );
 
 // ---- dùng mã từ trang, cho đúng ghế trên tem
+vhg_ma_lui_ngay();
 $ma_shop = VHG_Ma::ma_sach( $st['chua_dung'][0]['ma'] );
 $sdung = vhg_shop( 'dung', array( 'ma' => $ma_shop, 'ma_may' => 'AMTP01' ) );
 t( 'dùng được mã từ trang', ! empty( $sdung['ok'] ), isset( $sdung['error'] ) ? $sdung['error'] : '' );
@@ -3262,6 +3280,339 @@ vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
 ob_start(); VHG_Admin::trang_ngoai(); $h_no = ob_get_clean();
 t( 'cài đặt hiện khoản đang nợ khách', strpos( $h_no, 'Đang nợ khách' ) !== false );
 t( 'và nói rõ vì sao nó chỉ cộng lên', strpos( $h_no, 'không hết hạn' ) !== false );
+
+// ====================== TAB QUẢN LÝ MÃ (màn của nhân viên)
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+
+$dq = VHG_Ma::dat_don( '0909111222', '2468', 100000, 2 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 170000,
+	'content' => 'CT DEN:145T280 ' . VHG_QR::noi_dung_mua( $dq['ma_don'] ), 'referenceCode' => 'FT-Q-1' ) );
+
+// ---- nhân viên tra hộ khách QUÊN PIN
+/* Cảnh thật ở quầy: khách mua tuần trước, quên PIN, đứng đó với cái ghế trống. Không có đường
+   này thì nhân viên hoặc bó tay, hoặc bật ghế cho không — và lượt cho không ấy chẳng ai nối
+   lại được với mã đã bán. */
+$tq = VHG_Ma::tra_nhan_vien( '0909111222' );
+t( 'nhân viên tra được bằng số điện thoại', ! empty( $tq['ok'] ) );
+teq( 'thấy đủ 2 mã', 2, count( $tq['ds'] ) );
+/* 🔴 KHÔNG bao giờ đưa PIN băm ra ngoài, kể cả cho nhân viên. */
+t( 'không kèm PIN băm', ! isset( $tq['ds'][0]['pin_bam'] ) );
+t( 'số điện thoại sai khuôn thì từ chối', empty( VHG_Ma::tra_nhan_vien( '090' )['ok'] ) );
+
+/* 🔴 Đường bỏ qua PIN này CHỈ được nằm ở trang nhân viên. Trang của khách gọi tới là biến "cần
+      số điện thoại VÀ PIN" thành "chỉ cần số điện thoại" — gỡ đúng cái khoá vừa lắp. */
+$shop_src = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-shop.php' );
+$ma_src2  = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-ma.php' );
+/* ⚠️ Bám vào TÊN HÀM, và chặn cả cách lách bằng một hàm bọc: `tra_nhan_vien_shop()` gọi lại
+      `tra_nhan_vien()` thì chuỗi vẫn khác đi, nên phải đếm cả các hàm CÔNG KHAI nào trong lớp
+      `VHG_Ma` bỏ qua PIN. Đúng một hàm được phép làm việc đó. */
+t( '🔴 trang của khách KHÔNG gọi đường bỏ qua PIN',
+	strpos( $shop_src, 'tra_nhan_vien' ) === false );
+teq( 'và chỉ có ĐÚNG MỘT hàm bỏ qua PIN trong lớp mã', 1,
+	preg_match_all( '/public static function tra_nhan_vien\w*\(/', $ma_src2 ) );
+t( 'còn trang nhân viên thì có',
+	strpos( file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' ),
+		'VHG_Ma::tra_nhan_vien' ) !== false );
+
+// ---- huỷ mã
+$ma_q = VHG_Ma::ma_sach( $tq['ds'][0]['ma'] );
+/* Bắt ghi LÝ DO: không có lý do thì cuối tháng không ai giải thích được mã đi đâu. */
+t( 'huỷ mà không ghi lý do thì từ chối', empty( VHG_Ma::huy( $ma_q, '', 'Chị Hai' )['ok'] ) );
+$hq = VHG_Ma::huy( $ma_q, 'khách chuyển nhầm hai lần', 'Chị Hai' );
+t( 'huỷ được mã chưa dùng', ! empty( $hq['ok'] ) );
+/* ⚠️ Nói thẳng là tiền KHÔNG tự hoàn — người bấm phải biết mình vừa làm gì và CHƯA làm gì. */
+t( 'và nói rõ tiền không tự hoàn', strpos( (string) $hq['thong_bao'], 'KHÔNG tự hoàn' ) !== false );
+/* 🔴 HAI LỚP, như chỗ dùng-hai-lần. Cái `if` đọc trước chặn người gõ lại sau vài giây; điều
+      kiện `huy=0` ngay trong câu UPDATE mới chặn được lúc một người bấm Huỷ đúng khoảnh khắc
+      người kia gõ mã. Phép thử tuần tự chỉ chạm được lớp trước, nên lớp sau bám vào mã nguồn —
+      và nói rõ ra đây rằng nó kiểm mã nguồn, không kiểm hành vi. */
+t( 'mã đã huỷ thì không dùng được nữa', empty( VHG_Ma::dung( $ma_q, 'AMTP01' )['ok'] ) );
+t( 'và câu UPDATE tự nó cũng loại mã đã huỷ',
+	strpos( $ma_src2, 'AND dung_luc IS NULL AND huy=0' ) !== false );
+t( 'lớp đọc trước vẫn còn nguyên',
+	strpos( $ma_src2, "if ( (int) \$h['huy'] )   { return array( 'ok' => false" ) !== false );
+/* Huỷ KHÔNG xoá dòng — `ma` UNIQUE là hàng rào chống sinh lại đúng mã đó. */
+global $wpdb;
+teq( 'huỷ là ĐÁNH DẤU, không xoá dòng', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHG_DB::t( 'ma' ) . ' WHERE ma=%s', $ma_q ) ) );
+t( 'và giữ lại lý do lẫn người huỷ', 'Chị Hai' === (string) $wpdb->get_var( $wpdb->prepare(
+	'SELECT huy_ai FROM ' . VHG_DB::t( 'ma' ) . ' WHERE ma=%s', $ma_q ) ) );
+
+/* 🔴 KHÔNG huỷ được mã ĐÃ DÙNG: ghế đã chạy rồi, đánh dấu huỷ lúc này là sổ nói dối theo hướng
+      có lợi cho mình. */
+$ma_q2 = VHG_Ma::ma_sach( $tq['ds'][1]['ma'] );
+vhg_ma_lui_ngay();
+VHG_Ma::dung( $ma_q2, 'AMTP01' );
+$hq2 = VHG_Ma::huy( $ma_q2, 'thử huỷ', 'Chị Hai' );
+t( 'mã đã dùng thì KHÔNG huỷ được', empty( $hq2['ok'] ) );
+t( 'và chỉ đúng chỗ phải sửa', strpos( (string) $hq2['error'], 'Đối soát' ) !== false );
+
+/* Mã đã huỷ không còn tính vào khoản nợ — nó không còn là lượt mình nợ ai. */
+teq( 'huỷ rồi thì hết nợ', 0, (int) VHG_Ma::tien_no()['so_ma'] );
+
+/* Khách tra mã của mình VẪN THẤY mã đã huỷ. Lọc bỏ thì mã biến mất không dấu vết và khách nghĩ
+   mình nhớ nhầm số điện thoại — thà hiện ra kèm chữ "đã huỷ", họ còn biết phải hỏi ai. */
+$tk = VHG_Ma::tra( '0909111222', '2468' );
+teq( 'khách vẫn thấy mã đã huỷ', 1, count( $tk['da_huy'] ) );
+t( 'nhưng khách không thấy PIN băm của chính mình', ! isset( $tk['da_huy'][0]['pin_bam'] ) );
+
+// ---- quyền huỷ
+/* 🔴 Huỷ mã là quyết định về TIỀN: khách đã trả rồi. Người đứng quầy không nên tự quyết. */
+/* ⚠️ Cấy CẢ HAI người trong MỘT lượt. `vhg_vao()` ghi đè cả danh sách, nên gọi nó lần thứ hai
+      là phiên của người thứ nhất mất quyền ngay — rồi phép thử hỏng vì lý do chẳng liên quan tới
+      thứ nó đang canh. */
+update_option( 'vhg_nguon_nguoidung', 'rieng' );
+/* Khối phép thử cài đặt ở trên có lưu `vai_tro` chỉ còn Admin. Trả về mặc định, không thì Cửa
+   hàng trưởng không đăng nhập nổi và phép thử quyền hạn ở dưới hỏng vì lý do chẳng liên quan. */
+delete_option( 'vhg_vai_tro_vao' );
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Anh Thắng', 'pin' => '571394', 'vaiTro' => 'Admin', 'coso' => '' ),
+	array( 'ten' => 'Chị Hai',   'pin' => '222333', 'vaiTro' => 'Cửa hàng trưởng', 'coso' => '' ) ) );
+VHG_Auth::mo_khoa();
+$tok_ch = vhg_web( 'login', array( 'pin' => '222333' ) )['token'];
+$tok_ad = vhg_web( 'login', array( 'pin' => '571394' ) )['token'];
+$r_ch = vhg_web( 'ma_huy', array( 'token' => $tok_ch, 'ma' => 'AAAABBBB', 'ly_do' => 'thử' ) );
+t( '🔴 cửa hàng trưởng KHÔNG huỷ được mã', empty( $r_ch['ok'] ) );
+t( 'và nói rõ ai mới huỷ được', strpos( (string) $r_ch['error'], 'Quản lý' ) !== false );
+$sl_ma = vhg_web( 'so_lieu', array( 'token' => $tok_ad, 'ky' => 'today' ) );
+teq( 'admin thì có quyền huỷ', 1, (int) $sl_ma['ma']['quyen_huy'] );
+$sl_ch = vhg_web( 'so_lieu', array( 'token' => $tok_ch, 'ky' => 'today' ) );
+teq( 'cửa hàng trưởng thì không', 0, (int) $sl_ch['ma']['quyen_huy'] );
+
+// ---- tab hiện ra
+t( 'số liệu mang theo mục mã', isset( $sl_ma['ma']['no'] ) && isset( $sl_ma['ma']['ds'] ) );
+t( 'và danh sách mã không rò PIN băm', ! isset( $sl_ma['ma']['ds'][0]['pin_bam'] ) );
+$web_ma = vhg_web_html();
+t( 'trang có tab Mã giảm giá', strpos( $web_ma, 'data-tab="ma"' ) !== false );
+t( 'và hàm vẽ nó', strpos( $web_ma, 'function veMa()' ) !== false );
+t( 'tab có ô tra hộ khách quên PIN', strpos( $web_ma, 'Khách quên PIN — tra hộ' ) !== false );
+t( 'có ô ĐANG NỢ KHÁCH', strpos( $web_ma, 'ĐANG NỢ KHÁCH' ) !== false );
+t( 'và nút huỷ mã', strpos( $web_ma, 'data-mahuy=' ) !== false );
+/* Nút huỷ CHỈ hiện cho mã còn dùng được — mã đã dùng thì ghế chạy rồi. */
+t( 'nút huỷ chỉ hiện cho mã còn dùng được',
+	strpos( $web_ma, '(!m.huy && !m.dung_luc)' ) !== false );
+t( 'tab mã có bản tiếng Anh', strpos( $web_ma, "'Discount codes'" ) !== false );
+
+// ====================== 🔴 MỌI LỚP KHAI LUẬT ĐƯỜNG DẪN PHẢI ĐƯỢC GÀI VÀO WORDPRESS
+/* 23/08/2026: `VHG_Shop` khai `add_rewrite_rule` đàng hoàng, nhưng dòng `add_action('init', …)`
+ * trong tệp plugin KHÔNG BAO GIỜ được thêm — lệnh sửa tệp của em không khớp và im lặng bỏ qua.
+ *
+ * Hậu quả: `/mua-ma` trả 404, mà không có gì báo lỗi ở đâu cả. Lớp vẫn nạp, hàm vẫn gọi được từ
+ * phép thử (phép thử gọi thẳng `VHG_Shop::phuc_vu()`, bỏ qua hẳn tầng hook), chỉ là WordPress
+ * không bao giờ hỏi tới nó. Phép thử cũ xanh hết trong khi trang chết hẳn.
+ *
+ * Nên canh ở tầng ĐÚNG: quét mọi lớp có `add_rewrite_rule`, rồi đòi tệp plugin phải gài lớp đó.
+ * Viết theo kiểu QUÉT chứ không liệt kê tên: thêm một trang mới mà quên gài thì phép thử này tự
+ * bắt, khỏi phải nhớ quay lại sửa nó. */
+$plugin_php = file_get_contents( VHG_DIR . 'vhcp-ghe.php' );
+$thieu_gai  = array();
+$co_luat    = 0;
+foreach ( glob( VHG_DIR . 'includes/class-vhg-*.php' ) as $tep ) {
+	$ma_tep = file_get_contents( $tep );
+	if ( false === strpos( $ma_tep, 'add_rewrite_rule' ) ) { continue; }
+	if ( ! preg_match( '/^class\s+(VHG_\w+)/m', $ma_tep, $m_lop ) ) { continue; }
+	$co_luat++;
+	$lop = $m_lop[1];
+	/* Phải có `add_action( 'init', array( '<Lớp>', 'init' ), … )` trong tệp plugin. */
+	if ( ! preg_match( "/add_action\(\s*'init',\s*array\(\s*'" . preg_quote( $lop, '/' )
+			. "',\s*'init'\s*\)/", $plugin_php ) ) {
+		$thieu_gai[] = $lop;
+	}
+	/* ⚠️ VÀ PHẢI Ở ƯU TIÊN 4 — trước lượt nạp lại luật ở 99. Gài sau 99 thì luật vừa khai chưa
+	   nằm trong bản đã nạp, trang trả 404 tới lần lưu Permalinks kế tiếp, mà không ai nghĩ tới
+	   việc đi lưu một trang mình không sửa. */
+	t( $lop . ' gài ở ưu tiên 4, trước lượt nạp lại luật',
+		preg_match( "/add_action\(\s*'init',\s*array\(\s*'" . preg_quote( $lop, '/' )
+			. "',\s*'init'\s*\),\s*4\s*\)/", $plugin_php ) === 1 );
+}
+t( 'có quét được lớp nào khai luật đường dẫn', $co_luat >= 2, $co_luat );
+teq( '🔴 không lớp nào khai luật mà quên gài vào WordPress', '', implode( ', ', $thieu_gai ) );
+
+/* Và mỗi lớp đó phải nằm trong danh sách nạp tệp — khai hook cho một lớp chưa `require` là lỗi
+   chí mạng ngay khi WordPress chạy `init`. */
+foreach ( glob( VHG_DIR . 'includes/class-vhg-*.php' ) as $tep ) {
+	$ten_tep = basename( $tep );
+	t( 'tệp ' . $ten_tep . ' được nạp trong plugin',
+		strpos( $plugin_php, "includes/" . $ten_tep ) !== false );
+}
+
+/* Đổi phiên bản plugin thì phải NẠP LẠI luật đường dẫn — thêm trang mới mà không nạp lại là
+   trang 404 cho tới khi ai đó vào lưu Permalinks. */
+t( 'nâng cấp phiên bản thì hẹn nạp lại luật đường dẫn',
+	preg_match( "/get_option\(\s*'vhg_ver'\s*\)\s*!==\s*VHG_VERSION.*?update_option\(\s*'vhg_flush_rewrite'/s",
+		$plugin_php ) === 1 );
+
+// ====================== HAI TRANG, HAI MÀN HÌNH, CHẠY SONG SONG
+/* Anh Thắng 23/08/2026: *"khách quét thì trang điện thoại cho dễ dùng, còn quản lý là trang máy
+ * tính, chạy song song"*.
+ *
+ * Đây không phải chuyện thẩm mỹ mà là chuyện KHÁC NGƯỜI DÙNG, KHÁC VIỆC, KHÁC RỦI RO:
+ *   · Trang khách: một cột hẹp, ngón tay bấm, KHÔNG có cổng PIN, không đọc được đồng doanh thu nào.
+ *   · Trang quản lý: nhiều cột, chuột và bàn phím, sau cổng PIN, thấy toàn bộ tiền.
+ * Gộp hai thứ đó vào một trang là sớm muộn một nút của quản lý lọt sang màn của khách. */
+$sh_css = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-shop.php' );
+$tr_css = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
+
+t( 'trang khách bó hẹp một cột cho điện thoại',
+	preg_match( '/\.wrap\{max-width:(\d+)px/', $sh_css, $m_s ) === 1 && (int) $m_s[1] <= 640 );
+t( 'trang quản lý rộng cho màn máy tính',
+	preg_match( '/\.wrap\{max-width:(\d+)px/', $tr_css, $m_t ) === 1 && (int) $m_t[1] >= 1000 );
+t( 'và trang quản lý có bố cục riêng cho màn rộng',
+	strpos( $tr_css, '@media(min-width:1100px)' ) !== false );
+/* Hai đường dẫn tách hẳn — không phải hai chế độ của cùng một trang. */
+t( 'hai đường dẫn khác nhau', VHG_Shop::slug() !== VHG_Trang::slug() );
+t( 'và hai lớp khác nhau', strpos( $sh_css, 'class VHG_Shop' ) !== false );
+
+/* 🔴 RANH GIỚI QUYỀN. Trang khách không được có bất kỳ việc nào của trang quản lý. */
+foreach ( array( 'so_lieu', 'ma_huy', 'ma_tra', 'bat', 'tat', 'khoi_dong_lai', 'tien_mat', 'gan_ma' )
+	as $viec_ql ) {
+	$r_cam = vhg_shop( $viec_ql, array() );
+	t( 'trang khách KHÔNG làm được việc "' . $viec_ql . '"', empty( $r_cam['ok'] ) );
+}
+/* Và trang khách không cầm token phiên nhân viên — nó không có khái niệm phiên. */
+t( 'trang khách không đụng tới phiên nhân viên',
+	strpos( $sh_css, 'VHG_Auth' ) === false );
+
+// ====================== DÙNG MÃ ≠ KÍCH HOẠT CHO KHÔNG
+/* Anh Thắng 23/08/2026: *"nó giống kiểu kích hoạt từ xa… khách quét mã tại máy đó thì nhận code
+ * và dùng thôi"*. Giống ở chỗ ghế cũng được lệnh chạy từ xa. KHÁC ở chỗ TIỀN.
+ *
+ * 🔴 Nhật ký "Kích hoạt ghế" là sổ ghi những lượt CHO KHÔNG — thứ cuối tháng phải giải thích vì
+ *    sao ghế chạy nhiều hơn tiền thu. Lượt dùng mã thì khách ĐÃ TRẢ TIỀN hôm mua. Để nó lẫn vào
+ *    đó là thổi phồng con số "cho không" bằng chính những lượt có tiền, và bảng giải thích trở
+ *    thành bảng cần được giải thích. */
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+
+$dk = VHG_Ma::dat_don( '0909777888', '5566', 100000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T290 ' . VHG_QR::noi_dung_mua( $dk['ma_don'] ), 'referenceCode' => 'FT-K-1' ) );
+$mk = VHG_Ma::ma_sach( VHG_Ma::tra( '0909777888', '5566' )['chua_dung'][0]['ma'] );
+
+teq( 'trước khi dùng mã, chưa có lượt cho không nào', 0, (int) VHG_May::tong_lenh( 'month' )['so_lan'] );
+vhg_ma_lui_ngay();
+$rk = VHG_Ma::dung( $mk, 'AMTP01' );
+t( 'dùng được mã', ! empty( $rk['ok'] ) );
+teq( '🔴 dùng mã KHÔNG vào nhật ký cho không', 0, (int) VHG_May::tong_lenh( 'month' )['so_lan'] );
+/* Nhưng ghế vẫn nhận được lệnh chạy — qua HÀNG CHỜ, đúng đường của một lượt đã trả tiền. */
+$cho_k = VHG_May::so_cho( 'AMTP01' );
+t( 'nhưng ghế vẫn có lượt chờ chạy', $cho_k >= 1, $cho_k );
+/* Và ghế lấy về đúng số phút của MỆNH GIÁ, không phải giá bán. */
+$lay = VHG_May::lay_luot( 'AMTP01' );
+teq( 'ghế chạy theo mệnh giá', 100000, (int) $lay['so_tien'] );
+
+// ---- luồng thật: quét tem TẠI GHẾ -> nhập mã -> ghế đó chạy
+/* Tem của từng ghế mang mã ghế đó, nên trang tự biết chạy ghế nào — khách không phải chọn. */
+$dk2 = VHG_Ma::dat_don( '0909777888', '5566', 100000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T291 ' . VHG_QR::noi_dung_mua( $dk2['ma_don'] ), 'referenceCode' => 'FT-K-2' ) );
+$mk2 = VHG_Ma::ma_sach( VHG_Ma::tra( '0909777888', '5566' )['chua_dung'][0]['ma'] );
+vhg_ma_lui_ngay();
+$sh_ghe = vhg_shop_html( 'AMTP01' );
+t( 'quét tem tại ghế thì trang biết ghế nào', strpos( $sh_ghe, '"AMTP01"' ) !== false );
+$rd = vhg_shop( 'dung', array( 'ma' => $mk2, 'ma_may' => 'AMTP01' ) );
+t( 'nhập mã ngay trên trang là ghế chạy', ! empty( $rd['ok'] ), isset( $rd['error'] ) ? $rd['error'] : '' );
+t( 'và nói rõ ghế nào sắp chạy', strpos( (string) $rd['thong_bao'], 'AMTP01' ) !== false );
+teq( 'vẫn không cộng thêm doanh thu', 170000, vhg_tong() );
+
+// ====================== CHỐT "MUA XONG KHÔNG DÙNG LIỀN"
+/* 🔴 Anh Thắng 23/08/2026: *"để tránh gian lận mua xong dùng liền, mã đó chỉ được dùng sau 5
+ *    ngày"*. Không có chốt này thì BẢNG GIÁ SẬP: khách đứng ngay cạnh ghế, mở điện thoại mua mã
+ *    100.000đ với giá 85.000đ, quét xong dùng luôn — và không ai trả 100.000đ tại ghế nữa. Giảm
+ *    giá là để đổi lấy việc khách TRẢ TIỀN TRƯỚC; trả trước mà dùng ngay thì không đổi được gì. */
+vhg_dung_bang();
+delete_option( 'vhg_menh_gia' );
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
+delete_option( 'vhg_ma_cho_ngay' );
+teq( 'mặc định chờ 5 ngày', 5, VHG_Ma::cho_ngay_mac_dinh() );
+
+$dc = VHG_Ma::dat_don( '0909555666', '7788', 100000, 1 );
+teq( 'đơn chốt luôn số ngày chờ', 5, (int) $dc['cho_ngay'] );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T300 ' . VHG_QR::noi_dung_mua( $dc['ma_don'] ), 'referenceCode' => 'FT-C-1' ) );
+$mc = VHG_Ma::ma_sach( VHG_Ma::tra( '0909555666', '7788' )['chua_dung'][0]['ma'] );
+
+$rc = VHG_Ma::dung( $mc, 'AMTP01' );
+t( '🔴 mua xong dùng liền thì BỊ CHẶN', empty( $rc['ok'] ) );
+/* Nói rõ NGÀY GIỜ dùng được — khách cần biết quay lại lúc nào, không cần biết mình vừa sai. */
+t( 'và nói rõ dùng được từ lúc nào', strpos( (string) $rc['error'], 'dùng được từ' ) !== false );
+/* "còn 5 ngày" hay "còn 4 ngày 23 giờ" đều đúng — tuỳ vài giây chênh lúc chạy. Bám vào chữ
+   "còn … ngày" chứ đừng bám vào con số, không thì phép thử hỏng lúc nửa đêm mà chẳng vì cái gì. */
+t( 'kèm còn bao lâu nữa', preg_match( '/còn \d+ ngày/u', (string) $rc['error'] ) === 1, $rc['error'] );
+t( 'và nói rõ vì sao có chốt này', strpos( (string) $rc['error'], 'giá đã giảm' ) !== false );
+/* Bị chặn thì mã VẪN CÒN NGUYÊN — không được đánh dấu đã dùng. */
+teq( 'bị chặn thì mã vẫn còn dùng được sau này', 1,
+	count( VHG_Ma::tra( '0909555666', '7788' )['chua_dung'] ) );
+teq( 'và ghế KHÔNG được xếp lượt chạy', 0, VHG_May::so_cho( 'AMTP01' ) );
+
+/* Qua hạn thì dùng được. */
+global $wpdb;
+$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'ma' ) . ' SET tao_luc=%s WHERE ma=%s',
+	gmdate( 'Y-m-d H:i:s', current_time( 'timestamp' ) - 6 * 86400 ), $mc ) );
+t( 'qua 5 ngày thì dùng được', ! empty( VHG_Ma::dung( $mc, 'AMTP01' )['ok'] ) );
+
+/* ⚠️ SỐ NGÀY ĐÓNG BĂNG VÀO TỪNG MÃ LÚC BÁN. Đổi cài đặt giữa chừng mà áp ngược cho mã đã bán là
+      đổi điều kiện của một món khách đã trả tiền để nhận. */
+update_option( 'vhg_ma_cho_ngay', 0 );
+$d0 = VHG_Ma::dat_don( '0909555777', '1122', 100000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T301 ' . VHG_QR::noi_dung_mua( $d0['ma_don'] ), 'referenceCode' => 'FT-C-2' ) );
+$m0 = VHG_Ma::ma_sach( VHG_Ma::tra( '0909555777', '1122' )['chua_dung'][0]['ma'] );
+t( 'khai 0 ngày thì mua xong dùng ngay được', ! empty( VHG_Ma::dung( $m0, 'AMTP01' )['ok'] ) );
+
+/* Giờ đổi cài đặt lên 30 ngày — mã CŨ (chốt 5 ngày, đã quá hạn) phải KHÔNG bị khoá lại. */
+$d5 = VHG_Ma::dat_don( '0909555888', '3344', 100000, 1 );
+vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 85000,
+	'content' => 'CT DEN:145T302 ' . VHG_QR::noi_dung_mua( $d5['ma_don'] ), 'referenceCode' => 'FT-C-3' ) );
+$m5 = VHG_Ma::ma_sach( VHG_Ma::tra( '0909555888', '3344' )['chua_dung'][0]['ma'] );
+update_option( 'vhg_ma_cho_ngay', 30 );
+t( '🔴 đổi cài đặt KHÔNG áp ngược cho mã đã bán', ! empty( VHG_Ma::dung( $m5, 'AMTP01' )['ok'] ) );
+delete_option( 'vhg_ma_cho_ngay' );
+
+/* Trần 365: gõ nhầm một số 0 thành "chờ 3650 ngày" là mã coi như mất. */
+update_option( 'vhg_ma_cho_ngay', 99999 );
+t( 'số ngày quá tay bị chặn', VHG_Ma::cho_ngay_mac_dinh() <= 365 );
+update_option( 'vhg_ma_cho_ngay', -5 );
+teq( 'số ngày âm thì coi như 0', 0, VHG_Ma::cho_ngay_mac_dinh() );
+delete_option( 'vhg_ma_cho_ngay' );
+
+// ---- nói TRƯỚC khi khách trả tiền
+/* 🔴 Đây là thứ dễ làm khách thấy mình bị gạt nhất nếu chỉ hiện ra lúc đã trả xong rồi quét
+      không được. Phải nói to, ở màn chọn gói, TRƯỚC khi có nút trả tiền. */
+$sh_cho = vhg_shop_html();
+t( 'trang khách nói điều kiện chờ trước khi trả tiền',
+	strpos( $sh_cho, 'Mã dùng được sau ' ) !== false );
+t( 'và nói rõ vì sao', strpos( $sh_cho, 'điều kiện của giá đã giảm' ) !== false );
+t( 'kèm lối thoát cho khách cần dùng ngay',
+	strpos( $sh_cho, 'trả thẳng tại ghế với giá gốc' ) !== false );
+teq( 'API bảng giá mang theo số ngày chờ', 5, (int) vhg_shop( 'goi' )['cho_ngay'] );
+/* Mã chưa tới hạn hiện MỐC dùng được, không hiện "còn dùng được". */
+t( 'mã chưa tới hạn hiện mốc dùng được', strpos( $sh_cho, 'dùng được từ ' ) !== false );
+
+// ---- màn Cài đặt
+ob_start(); VHG_Admin::trang_ngoai(); $h_cho = ob_get_clean();
+t( 'cài đặt có ô khai số ngày chờ', strpos( $h_cho, 'name="ma_cho_ngay"' ) !== false );
+t( 'và nói rõ vì sao cần nó', strpos( $h_cho, 'không ai trả giá gốc tại ghế nữa' ) !== false );
+t( 'và nói rõ nó đóng băng vào từng mã', strpos( $h_cho, 'đóng băng vào từng mã' ) !== false );
+$_POST = array( 'vhg' => 'luu_trang', 'slug' => 'ghe', 'nguon' => 'rieng',
+	'vai_tro' => array( 'Admin' ), 'anh_nen' => '', 'giam' => array( '100000' => '15' ),
+	'qc_o' => '', 'qc_giay' => '30', 'ma_cho_ngay' => '7' );
+ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
+$_POST = array();
+teq( 'bấm Lưu thì số ngày vào thật', 7, VHG_Ma::cho_ngay_mac_dinh() );
+delete_option( 'vhg_ma_cho_ngay' );
 
 // ============================================================ kết
 if ( $truot ) {

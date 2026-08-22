@@ -116,6 +116,7 @@ class VHG_Shop {
 
 		if ( 'goi' === $viec ) {
 			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia(),
+				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
 				'ghe' => self::ghe_tu_dia_chi( $d ), 'ds_ghe' => self::ds_ghe() ) );
 			return;
 		}
@@ -383,9 +384,22 @@ function veMua(){
   var max = 0;
   D.goi.forEach(function(g){ if (g.giam_pt > max) max = g.giam_pt; });
   var h = '';
+  var cho = (D.cho_ngay || 0);
   if (max > 0) {
-    h += '<div class="deal"><b>Giảm tới ' + max + '%</b>'
-      + '<div>Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào</div></div>';
+    h += '<div class="deal"><b>Giảm tới ' + max + '%</b><div>'
+      + (cho > 0
+          ? 'Mua trước, dùng sau <b>' + cho + ' ngày</b> — ở bất kỳ ghế nào, không hết hạn'
+          : 'Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào')
+      + '</div></div>';
+  }
+  /* 🔴 NÓI ĐIỀU KIỆN CHỜ TRƯỚC KHI KHÁCH TRẢ TIỀN, và nói to. Đây là thứ dễ làm khách thấy mình
+     bị gạt nhất nếu chỉ hiện ra lúc họ đã trả xong rồi quét không được. Giảm giá là để đổi lấy
+     việc trả tiền trước — đổi được cái gì thì phải nói rõ từ đầu. */
+  if (cho > 0) {
+    h += '<div class="card" style="border-color:rgba(240,180,41,.45)">'
+      + '<b style="color:#f0b429">⏳ Mã dùng được sau ' + cho + ' ngày kể từ lúc mua.</b>'
+      + '<div class="mut" style="margin-top:5px">Đây là điều kiện của giá đã giảm: mua trước thì '
+      + 'rẻ hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế với giá gốc.</div></div>';
   }
 
   h += '<div class="goi">';
@@ -532,8 +546,13 @@ function noi(){
       var h = '';
       if (!r.chua_dung.length) h += '<p class="mut">Không còn mã nào chưa dùng.</p>';
       r.chua_dung.forEach(function(m){
-        h += '<div class="ma"><div><div class="m">' + esc(m.ma) + '</div>'
-          + '<div class="g">' + tien(m.menh_gia) + ' · còn dùng được</div></div>'
+        /* Mã chưa tới hạn hiện MỐC DÙNG ĐƯỢC, không hiện "còn dùng được" — khách cần biết quay
+           lại lúc nào, chứ nhìn thấy "còn dùng được" rồi ra ghế quét không ăn là tệ nhất. */
+        var chua = (m.con_cho || 0) > 0;
+        h += '<div class="ma' + (chua ? ' het' : '') + '"><div><div class="m">' + esc(m.ma) + '</div>'
+          + '<div class="g">' + tien(m.menh_gia) + ' · '
+          + (chua ? '⏳ dùng được từ ' + esc(String(m.dung_tu).slice(0,16)) : 'còn dùng được')
+          + '</div></div>'
           + '<button data-chep="' + esc(m.ma) + '">Chép</button></div>';
       });
       r.da_dung.forEach(function(m){
@@ -581,7 +600,10 @@ function xongDon(ds){
   var h = '<div class="wrap">' + dau()
     + '<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>'
     + '<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. '
-    + 'Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.</div>';
+    + 'Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.'
+    + ((D && D.cho_ngay > 0)
+        ? '<br><b>⏳ Dùng được sau ' + D.cho_ngay + ' ngày kể từ bây giờ.</b>' : '')
+    + '</div>';
   (ds || []).forEach(function(m){
     h += '<div class="ma"><div><div class="m">' + esc(m) + '</div>'
       + '<div class="g">chụp lại màn hình này giúp em</div></div>'

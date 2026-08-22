@@ -136,6 +136,54 @@ class VHG_Ma {
 		return $ra;
 	}
 
+	// ===================================================================== thời gian chờ
+
+	/**
+	 * SỐ NGÀY PHẢI CHỜ TRƯỚC KHI DÙNG ĐƯỢC MÃ.
+	 *
+	 * 🔴 Vì sao phải có (anh Thắng 23/08/2026): không có nó thì bảng giá sập. Khách đứng ngay
+	 *    cạnh ghế, mở điện thoại mua mã 100.000đ với giá 85.000đ, quét xong dùng luôn — vậy thì
+	 *    không ai trả 100.000đ tại ghế nữa, và toàn bộ mệnh giá tự động rơi xuống giá đã giảm.
+	 *    Giảm giá là để đổi lấy việc khách TRẢ TIỀN TRƯỚC; trả trước mà dùng ngay thì không có gì
+	 *    được đổi cả.
+	 *
+	 * ⚠️ ĐÓNG BĂNG VÀO TỪNG MÃ LÚC BÁN, không đọc lại lúc dùng. Cùng lý do với giá: đổi cấu hình
+	 *    giữa chừng mà áp ngược cho mã đã bán là đổi điều kiện của một món khách đã trả tiền.
+	 *    Khách mua lúc quy định 5 ngày thì mãi mãi là 5 ngày, dù hôm sau chủ đổi thành 30.
+	 */
+	public static function cho_ngay_mac_dinh() {
+		$n = get_option( 'vhg_ma_cho_ngay' );
+		if ( false === $n || '' === $n || null === $n ) { return 5; }
+		/* 0 = cho dùng ngay (chủ tự chịu). Trần 365: quá đó thì gần như chắc chắn là gõ nhầm. */
+		return max( 0, min( 365, (int) $n ) );
+	}
+
+	/** Mốc giờ mã bắt đầu dùng được. Rỗng nếu không phải chờ. */
+	public static function dung_duoc_tu( $tao_luc, $cho_ngay ) {
+		$n = (int) $cho_ngay;
+		if ( $n <= 0 ) { return ''; }
+		$t = strtotime( (string) $tao_luc );
+		if ( ! $t ) { return ''; }
+		return gmdate( 'Y-m-d H:i:s', $t + $n * 86400 );
+	}
+
+	/** "còn 4 ngày 3 giờ" — câu người đọc là hiểu, không phải một con số giây. */
+	public static function doc_con_cho( $giay ) {
+		$g = max( 0, (int) $giay );
+		$ngay = (int) floor( $g / 86400 );
+		$gio  = (int) floor( ( $g % 86400 ) / 3600 );
+		if ( $ngay > 0 ) { return $ngay . ' ngày' . ( $gio > 0 ? ' ' . $gio . ' giờ' : '' ); }
+		if ( $gio > 0 )  { return $gio . ' giờ'; }
+		return max( 1, (int) ceil( $g / 60 ) ) . ' phút';
+	}
+
+	/** Còn phải chờ bao nhiêu giây nữa. 0 = dùng được rồi. */
+	public static function con_cho( $tao_luc, $cho_ngay ) {
+		$moc = self::dung_duoc_tu( $tao_luc, $cho_ngay );
+		if ( '' === $moc ) { return 0; }
+		return max( 0, strtotime( $moc ) - current_time( 'timestamp' ) );
+	}
+
 	// ===================================================================== sinh mã
 
 	/**
@@ -210,14 +258,15 @@ class VHG_Ma {
 		}
 		if ( '' === $don ) { return array( 'ok' => false, 'error' => 'Không sinh được mã đơn, thử lại.' ); }
 
+		$cho = self::cho_ngay_mac_dinh();
 		$wpdb->insert( $t, array(
 			'ma_don' => $don, 'sdt' => $sdt, 'pin_bam' => self::bam_pin( $pin ),
 			'menh_gia' => $mg, 'gia_ban' => $gia, 'giam_pt' => self::giam_cua( $mg ),
-			'so_luong' => $sl, 'phai_tra' => $gia * $sl,
+			'cho_ngay' => $cho, 'so_luong' => $sl, 'phai_tra' => $gia * $sl,
 			'tao_luc' => current_time( 'mysql' ), 'xong_luc' => null ) );
 		return array( 'ok' => true, 'ma_don' => $don, 'phai_tra' => $gia * $sl,
 			'gia_ban' => $gia, 'menh_gia' => $mg, 'so_luong' => $sl,
-			'giam_pt' => self::giam_cua( $mg ) );
+			'giam_pt' => self::giam_cua( $mg ), 'cho_ngay' => $cho );
 	}
 
 	public static function don( $ma_don ) {
@@ -259,6 +308,9 @@ class VHG_Ma {
 				'ma' => $m, 'sdt' => (string) $d['sdt'], 'pin_bam' => (string) $d['pin_bam'],
 				'menh_gia' => (int) $d['menh_gia'], 'gia_ban' => (int) $d['gia_ban'],
 				'giam_pt' => (int) $d['giam_pt'],
+				/* Chép từ ĐƠN sang MÃ, không đọc lại cấu hình: đơn đã chốt điều kiện lúc khách
+				   bấm mua, và giữa lúc đó với lúc tiền về chủ có thể đã đổi cài đặt. */
+				'cho_ngay' => (int) ( isset( $d['cho_ngay'] ) ? $d['cho_ngay'] : 0 ),
 				/* Nối mã về đúng dòng doanh thu đã trả tiền cho nó. Không có sợi dây này thì
 				   câu "mã này khách trả bao nhiêu, hôm nào" không trả lời được. */
 				'ref_ban' => (string) ( '' !== $ref_ban ? $ref_ban : 'don-' . $d['ma_don'] ),
@@ -309,29 +361,27 @@ class VHG_Ma {
 		$loi = array( 'ok' => false, 'error' => 'Không tìm thấy mã nào cho số điện thoại và PIN này.' );
 		if ( ! self::sdt_hop_le( $s ) || ! self::pin_hop_le( $pin ) ) { return $loi; }
 
+		/* Lấy CẢ mã đã huỷ. Lọc bỏ thì mã khách mua bị huỷ sẽ biến mất không dấu vết, và khách
+		   đứng đó nghĩ mình nhớ nhầm số điện thoại. Thà hiện ra kèm chữ "đã huỷ" — họ còn biết
+		   phải hỏi ai. */
 		$hang = VHG_DB::rows( $wpdb->prepare(
-			'SELECT * FROM ' . VHG_DB::t( 'ma' ) . ' WHERE sdt=%s AND huy=0 ORDER BY id DESC LIMIT 200', $s ) );
+			'SELECT * FROM ' . VHG_DB::t( 'ma' ) . ' WHERE sdt=%s ORDER BY id DESC LIMIT 200', $s ) );
 		if ( ! $hang ) { return $loi; }
 
 		/* PIN băm riêng từng mã (khách có thể đặt PIN khác nhau ở hai lần mua). Khớp được dòng
 		   nào thì trả dòng đó — không lấy PIN của dòng đầu làm chuẩn cho cả danh sách. */
-		$chua = array(); $roi = array();
+		$chua = array(); $roi = array(); $bo = array();
 		foreach ( $hang as $h ) {
 			if ( ! self::pin_dung( $pin, $h['pin_bam'] ) ) { continue; }
-			$m = array(
-				'ma'       => self::ma_dep( $h['ma'] ),
-				'menh_gia' => (int) $h['menh_gia'],
-				'gia_ban'  => (int) $h['gia_ban'],
-				'giam_pt'  => (int) $h['giam_pt'],
-				'tao_luc'  => (string) $h['tao_luc'],
-				'dung_luc' => (string) $h['dung_luc'],
-				'dung_may' => (string) $h['dung_may'],
-			);
-			if ( '' === (string) $h['dung_luc'] || null === $h['dung_luc'] ) { $chua[] = $m; }
+			$m = self::hang_ra( $h );
+			unset( $m['sdt'] );   // khách đã biết số của mình, đưa lại chỉ tổ nhân bản dữ liệu
+			if ( (int) $h['huy'] ) { $bo[] = $m; }
+			elseif ( '' === (string) $h['dung_luc'] || null === $h['dung_luc'] ) { $chua[] = $m; }
 			else { $roi[] = $m; }
 		}
-		if ( ! $chua && ! $roi ) { return $loi; }
-		return array( 'ok' => true, 'sdt' => $s, 'chua_dung' => $chua, 'da_dung' => $roi );
+		if ( ! $chua && ! $roi && ! $bo ) { return $loi; }
+		return array( 'ok' => true, 'sdt' => $s, 'chua_dung' => $chua, 'da_dung' => $roi,
+			'da_huy' => $bo );
 	}
 
 	// ===================================================================== dùng mã
@@ -366,6 +416,18 @@ class VHG_Ma {
 			return array( 'ok' => false, 'error' => 'Mã này đã dùng lúc ' . $h['dung_luc']
 				. ( '' !== (string) $h['dung_may'] ? ' ở ghế ' . $h['dung_may'] : '' ) . '.' );
 		}
+		/* 🔴 CHƯA TỚI HẠN DÙNG. Giảm giá là để đổi lấy việc khách trả tiền TRƯỚC; mua xong dùng
+		   ngay thì không có gì được đổi, và mọi mệnh giá tự rơi xuống giá đã giảm.
+		   Nói rõ NGÀY GIỜ dùng được, không nói "chưa tới hạn" trơn — khách cần biết quay lại lúc
+		   nào, chứ không cần biết mình vừa sai. */
+		$con = self::con_cho( $h['tao_luc'], isset( $h['cho_ngay'] ) ? $h['cho_ngay'] : 0 );
+		if ( $con > 0 ) {
+			$moc = self::dung_duoc_tu( $h['tao_luc'], $h['cho_ngay'] );
+			return array( 'ok' => false, 'con_cho' => $con, 'dung_duoc_tu' => $moc,
+				'error' => 'Mã này dùng được từ ' . gmdate( 'H:i \n\g\à\y d/m/Y', strtotime( $moc ) )
+					. ' (còn ' . self::doc_con_cho( $con ) . '). Mã mua trước có ' . (int) $h['cho_ngay']
+					. ' ngày chờ — đó là điều kiện của giá đã giảm.' );
+		}
 
 		$luc = current_time( 'mysql' );
 		$n = $wpdb->query( $wpdb->prepare(
@@ -386,6 +448,88 @@ class VHG_Ma {
 			'menh_gia' => (int) $h['menh_gia'],
 			'thong_bao' => 'Đã nhận mã ' . self::ma_dep( $m ) . ' — ghế ' . $may
 				. ' sẽ chạy trong ít giây.' );
+	}
+
+	// ===================================================================== nhân viên tra & huỷ
+
+	/**
+	 * Nhân viên tra mã hộ khách QUÊN PIN — chỉ cần số điện thoại.
+	 *
+	 * ⚠️ HÀM NÀY KHÔNG ĐƯỢC GỌI TỪ TRANG CỦA KHÁCH. Nó bỏ qua PIN, nên đường duy nhất tới đây
+	 *    phải là trang `/ghe` — nơi đã qua cổng PIN nhân viên. Gọi từ trang khách là biến "cần
+	 *    số điện thoại VÀ PIN" thành "chỉ cần số điện thoại", tức là gỡ đúng cái khoá vừa lắp.
+	 *
+	 * Có hàm này vì cảnh thật ở quầy: khách mua tuần trước, quên PIN, đứng đó với cái ghế trống.
+	 * Không có đường này thì nhân viên hoặc bó tay, hoặc bật ghế cho không — và lượt cho không ấy
+	 * chẳng ai nối lại được với mã đã bán.
+	 */
+	public static function tra_nhan_vien( $sdt ) {
+		global $wpdb;
+		$s = self::sdt_sach( $sdt );
+		if ( ! self::sdt_hop_le( $s ) ) {
+			return array( 'ok' => false, 'error' => 'Số điện thoại chưa đúng.' );
+		}
+		$hang = VHG_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'ma' ) . ' WHERE sdt=%s ORDER BY id DESC LIMIT 100', $s ) );
+		$ra = array();
+		foreach ( $hang as $h ) { $ra[] = self::hang_ra( $h ); }
+		return array( 'ok' => true, 'sdt' => $s, 'ds' => $ra );
+	}
+
+	/** Một hàng mã -> dạng đưa ra màn. KHÔNG bao giờ kèm `pin_bam`. */
+	private static function hang_ra( $h ) {
+		return array(
+			'ma'       => self::ma_dep( $h['ma'] ),
+			'sdt'      => (string) $h['sdt'],
+			'menh_gia' => (int) $h['menh_gia'],
+			'gia_ban'  => (int) $h['gia_ban'],
+			'giam_pt'  => (int) $h['giam_pt'],
+			'tao_luc'  => (string) $h['tao_luc'],
+			'cho_ngay' => (int) ( isset( $h['cho_ngay'] ) ? $h['cho_ngay'] : 0 ),
+			/* Mốc dùng được tính SẴN ở đây. Để màn tự tính là hai nơi cùng làm một phép, và sớm
+			   muộn màn nói một đằng phép chặn nói một nẻo. */
+			'dung_tu'  => self::dung_duoc_tu( $h['tao_luc'], isset( $h['cho_ngay'] ) ? $h['cho_ngay'] : 0 ),
+			'con_cho'  => self::con_cho( $h['tao_luc'], isset( $h['cho_ngay'] ) ? $h['cho_ngay'] : 0 ),
+			'dung_luc' => (string) $h['dung_luc'],
+			'dung_may' => (string) $h['dung_may'],
+			'huy'      => (int) $h['huy'] ? 1 : 0,
+			'huy_luc'  => (string) ( isset( $h['huy_luc'] ) ? $h['huy_luc'] : '' ),
+			'huy_ly_do' => (string) ( isset( $h['huy_ly_do'] ) ? $h['huy_ly_do'] : '' ),
+			'huy_ai'   => (string) ( isset( $h['huy_ai'] ) ? $h['huy_ai'] : '' ),
+		);
+	}
+
+	/**
+	 * HUỶ một mã — ĐÁNH DẤU, KHÔNG XOÁ. Cùng lý do với `VHG_Thu::huy()`:
+	 *   1. `ma` là UNIQUE và đó là hàng rào chống dùng hai lần. Xoá dòng đi là mã ấy sinh lại
+	 *      được, và phép "sửa" tự mở lại đúng cái lỗ nó vừa vá.
+	 *   2. Mất chỗ duy nhất trả lời câu "sao mã này biến mất".
+	 *
+	 * ⚠️ KHÔNG huỷ được mã ĐÃ DÙNG. Ghế đã chạy rồi; đánh dấu huỷ lúc này là sổ nói dối theo
+	 *    hướng có lợi cho mình. Muốn sửa doanh thu thì huỷ chính DÒNG TIỀN ở tab Đối soát.
+	 * ⚠️ Huỷ mã KHÔNG tự hoàn tiền. Tiền đã vào sổ hôm bán; hoàn hay không là việc người ta làm
+	 *    ở ngân hàng, và phải huỷ dòng doanh thu riêng. Nói rõ ở câu trả về.
+	 */
+	public static function huy( $ma, $ly_do, $ai ) {
+		global $wpdb;
+		$m = self::ma_sach( $ma );
+		if ( '' === $m ) { return array( 'ok' => false, 'error' => 'Chưa nhập mã.' ); }
+		$ly = trim( (string) $ly_do );
+		if ( '' === $ly ) {
+			return array( 'ok' => false, 'error' => 'Phải ghi lý do huỷ — để cuối tháng còn giải thích.' );
+		}
+		$t = VHG_DB::t( 'ma' );
+		$h = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE ma=%s LIMIT 1", $m ), ARRAY_A );
+		if ( ! $h ) { return array( 'ok' => false, 'error' => 'Mã không đúng.' ); }
+		if ( ! empty( $h['dung_luc'] ) ) {
+			return array( 'ok' => false, 'error' => 'Mã này đã dùng lúc ' . $h['dung_luc']
+				. ' — ghế đã chạy rồi, không huỷ được. Muốn sửa doanh thu thì huỷ dòng tiền ở tab Đối soát.' );
+		}
+		if ( (int) $h['huy'] ) { return array( 'ok' => true, 'thong_bao' => 'Mã này đã huỷ từ trước.' ); }
+		$wpdb->update( $t, array( 'huy' => 1, 'huy_luc' => current_time( 'mysql' ),
+			'huy_ly_do' => mb_substr( $ly, 0, 250 ), 'huy_ai' => (string) $ai ), array( 'ma' => $m ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã huỷ mã ' . self::ma_dep( $m )
+			. '. Tiền đã thu KHÔNG tự hoàn — hoàn ở ngân hàng, và huỷ dòng tiền ở tab Đối soát nếu cần.' );
 	}
 
 	// ===================================================================== số liệu
@@ -411,14 +555,16 @@ class VHG_Ma {
 			'da_thu' => (int) ( $r ? $r['da_thu'] : 0 ) );
 	}
 
-	/** Mã trong một kỳ, để đối soát. */
+	/** Mã trong một kỳ, để đối soát. Dạng đã chuẩn hoá — KHÔNG kèm `pin_bam`. */
 	public static function ds( $ky = 'month', $gioi_han = 300 ) {
 		global $wpdb;
 		$tu  = VHG_Thu::dau_ky( $ky );
 		$sql = 'SELECT * FROM ' . VHG_DB::t( 'ma' ) . ' WHERE 1=1';
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
 		$sql .= ' ORDER BY id DESC LIMIT ' . (int) $gioi_han;
-		return VHG_DB::rows( $sql );
+		$ra = array();
+		foreach ( VHG_DB::rows( $sql ) as $h ) { $ra[] = self::hang_ra( $h ); }
+		return $ra;
 	}
 
 	/** Tổng của một kỳ: bán mấy mã, thu bao nhiêu, đã dùng mấy. */

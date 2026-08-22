@@ -163,6 +163,34 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'ma_tra' === $viec ) {
+			/* Nhân viên tra hộ khách QUÊN PIN — chỉ cần số điện thoại.
+			   ⚠️ Đường này bỏ qua PIN, nên nó CHỈ được nằm ở đây: trang `/ghe` đã qua cổng PIN
+			      nhân viên. Trang của khách không có việc này, và không được có. */
+			self::tra( VHG_Ma::tra_nhan_vien( isset( $d['sdt'] ) ? $d['sdt'] : '' ) );
+			return;
+		}
+
+		if ( 'ma_huy' === $viec ) {
+			/* 🔴 Huỷ mã là quyết định về TIỀN: khách đã trả rồi. Chỉ Admin và Quản lý — người
+			   đứng quầy không nên tự quyết chuyện hoàn/không hoàn, và nếu có quyết thì cũng
+			   không ai biết để hỏi lại. */
+			if ( ! in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Chỉ Admin hoặc Quản lý mới huỷ được mã đã bán.' ) );
+				return;
+			}
+			$r = VHG_Ma::huy( isset( $d['ma'] ) ? $d['ma'] : '',
+				isset( $d['ly_do'] ) ? $d['ly_do'] : '', $ai['name'] );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
+					. ' huỷ mã ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' )
+					. ' — ' . (string) ( isset( $d['ly_do'] ) ? $d['ly_do'] : '' ) ) );
+			}
+			self::tra( $r );
+			return;
+		}
+
 		if ( 'so_may' === $viec ) {
 			/* Số liệu MỘT ghế cho màn chốt ca. Gọi riêng chứ không nhét vào lượt `so_lieu`: nó
 			   chỉ cần khi người ta bấm Thu tiền mặt, mà `so_lieu` chạy mỗi lần tải trang. */
@@ -280,6 +308,10 @@ class VHG_Trang {
 			   trên VHG_Thu::ND_GHE_NUOT. Gửi kèm trong lượt này, không thêm lượt gọi. */
 			'thu' => array( 'ds' => VHG_Thu::ds_tien_mat( $ky, 80 ),
 				'may' => array_values( VHG_Thu::theo_may_tien_mat( $ky ) ) ),
+			/* Mã mua trước: tổng kỳ + khoản đang NỢ (mã không hết hạn nên nó chỉ cộng lên). */
+			'ma' => array( 'tong' => VHG_Ma::tong( $ky ), 'no' => VHG_Ma::tien_no(),
+				'ds' => VHG_Ma::ds( $ky, 120 ), 'quyen_huy' =>
+					in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ? 1 : 0 ),
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
@@ -696,13 +728,15 @@ function ve(){
       + L('Thu tiền','Cash collection') + '</button>'
     + '<button data-tab="kich-hoat"' + (TAB==='kich-hoat'?' class="on"':'') + '>⚡ '
       + L('Kích hoạt ghế','Chair activation') + '</button>'
+    + '<button data-tab="ma"' + (TAB==='ma'?' class="on"':'') + '>🎁 '
+      + L('Mã giảm giá','Discount codes') + '</button>'
     + '<button data-tab="dieu-khien"' + (TAB==='dieu-khien'?' class="on"':'') + '>🎛 '
       + L('Điều khiển ghế','Chair control') + '</button>'
     + '</div>';
 
   /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
      ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
-  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat') {
+  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat' || TAB === 'ma') {
     h += '<div class="tabs">';
     [['today',L('Hôm nay','Today')],['week',L('Tuần này','This week')],['month',L('Tháng này','This month')],
      ['year',L('Năm nay','This year')],['all',L('Tất cả','All time')]]
@@ -763,6 +797,7 @@ function ve(){
   if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
 
   h += '<div class="kpis">'
     + kpi(L('Tổng doanh thu','Total revenue'), tien(t.tong), t.so_luot + ' ' + L('lượt','sessions'), 'a')
@@ -977,6 +1012,86 @@ function veThuTien(){
       + '<td class="r">' + tien(r.so_tien) + '</td></tr>';
   });
   return h + '</table></div>';
+}
+
+/* ============================================================================================
+ * TAB MÃ GIẢM GIÁ — quản lý mã đã bán.
+ *
+ * Bốn câu hỏi thật ở quầy, theo đúng thứ tự người ta hỏi:
+ *   1. "Kỳ này bán được bao nhiêu mã, thu bao nhiêu?"  -> ô tổng
+ *   2. "Đang nợ khách bao nhiêu?"                       -> ô nợ, tô riêng
+ *   3. "Khách này quên PIN, còn mã nào không?"          -> ô tra theo số điện thoại
+ *   4. "Mã này sao lại không dùng được?"                -> bảng, có cột đã dùng / đã huỷ
+ * ============================================================================================ */
+var MA_TRA = null;   // kết quả tra theo số điện thoại (null = chưa tra)
+
+function veMa(){
+  var M = D.ma || { tong:{ban:0,thu:0,menh:0,da_dung:0}, no:{so_ma:0,tong:0,da_thu:0}, ds:[], quyen_huy:0 };
+  var h = '<div class="kpis">'
+    + kpi(L('Bán trong kỳ','Sold this period'), String(M.tong.ban) + ' ' + L('mã','codes'),
+        tien(M.tong.thu) + ' ' + L('đã thu','collected'), 'a')
+    + kpi(L('Đã dùng','Redeemed'), String(M.tong.da_dung) + ' ' + L('mã','codes'), '', 'c')
+    /* Khoản NỢ tô riêng: mã không hết hạn nên con số này chỉ cộng lên và không bao giờ tự đóng.
+       Mỗi mã chưa dùng là một lượt massage còn nợ khách. */
+    + kpi(L('ĐANG NỢ KHÁCH','OWED TO CUSTOMERS'), tien(M.no.tong),
+        M.no.so_ma + ' ' + L('mã chưa dùng','unused codes'), 'd')
+    + '</div>';
+
+  h += '<div class="card"><h2>' + L('Khách quên PIN — tra hộ','Customer forgot PIN — look up')
+    + '</h2><p class="mut" style="margin:0 0 10px">'
+    + L('Nhập số điện thoại khách mua. Chỉ nhân viên tra được kiểu này — trang của khách vẫn '
+        + 'phải có PIN.',
+        'Enter the phone number the customer bought with. Only staff can look up this way — the '
+        + 'customer page still requires the PIN.') + '</p>'
+    + '<div class="act"><input id="ma-sdt" placeholder="0909 123 456" style="max-width:220px">'
+    + '<button id="ma-tra" class="on">' + L('Tra','Look up') + '</button></div>'
+    + '<div class="err" id="ma-e"></div>';
+  if (MA_TRA) {
+    if (!MA_TRA.ds.length) {
+      h += '<p class="mut" style="margin-top:10px">'
+        + L('Số này chưa mua mã nào.','No codes for this number.') + '</p>';
+    } else {
+      h += bangMa(MA_TRA.ds, M.quyen_huy, true);
+    }
+  }
+  h += '</div>';
+
+  h += '<div class="card"><h2>' + L('Mã đã bán trong kỳ','Codes sold this period') + '</h2>'
+    + (M.ds.length ? bangMa(M.ds, M.quyen_huy, false)
+        : '<p class="mut">' + L('Chưa bán mã nào trong kỳ này.','No codes sold in this period.')
+          + '</p>')
+    + '</div>';
+  return h;
+}
+
+function bangMa(ds, quyen, hien_sdt){
+  var h = '<table style="margin-top:8px"><tr><th>' + L('Mã','Code') + '</th>'
+    + (hien_sdt ? '' : '<th class="hide-sm">' + L('Số ĐT','Phone') + '</th>')
+    + '<th class="r">' + L('Mệnh giá','Value') + '</th><th class="r hide-sm">'
+    + L('Khách trả','Paid') + '</th><th>' + L('Tình trạng','Status') + '</th>'
+    + (quyen ? '<th></th>' : '') + '</tr>';
+  ds.forEach(function(m){
+    var tt, lop;
+    if (m.huy)           { tt = L('đã huỷ','cancelled') + (m.huy_ly_do ? ' · ' + esc(m.huy_ly_do) : ''); lop = 'p-off'; }
+    else if (m.dung_luc) { tt = L('đã dùng','used') + ' ' + esc(m.dung_luc)
+                              + (m.dung_may ? ' · ' + esc(m.dung_may) : ''); lop = 'p-wait'; }
+    else                 { tt = L('còn dùng được','usable'); lop = 'p-ok'; }
+    h += '<tr><td><b style="font-variant-numeric:tabular-nums">' + esc(m.ma) + '</b>'
+      + '<br><span class="mut">' + esc(m.tao_luc) + '</span></td>'
+      + (hien_sdt ? '' : '<td class="hide-sm">' + esc(m.sdt) + '</td>')
+      + '<td class="r">' + tien(m.menh_gia) + '</td>'
+      + '<td class="r hide-sm">' + tien(m.gia_ban)
+        + (m.giam_pt ? '<br><span class="mut">-' + m.giam_pt + '%</span>' : '') + '</td>'
+      + '<td><span class="pill ' + lop + '">' + tt + '</span></td>';
+    /* Nút huỷ CHỈ hiện cho mã còn dùng được. Mã đã dùng thì ghế chạy rồi — đánh dấu huỷ lúc đó
+       là sổ nói dối theo hướng có lợi cho mình. */
+    if (quyen) {
+      h += '<td class="r">' + ( (!m.huy && !m.dung_luc)
+        ? '<button data-mahuy="' + esc(m.ma) + '">' + L('Huỷ','Cancel') + '</button>' : '' ) + '</td>';
+    }
+    h += '</tr>';
+  });
+  return h + '</table>';
 }
 
 /* TAB KÍCH HOẠT GHẾ — ghế nào đã bật tay, mấy lần, tổng bao lâu, và vì sao. */
@@ -1261,6 +1376,29 @@ function noi(){
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
+  });
+
+  var mtra = document.getElementById('ma-tra');
+  if (mtra) mtra.onclick = function(){
+    var e = document.getElementById('ma-e');
+    e.textContent = L('Đang tra…','Looking up…');
+    goi('ma_tra', { sdt: document.getElementById('ma-sdt').value }, function(r){
+      if (!r.ok) { e.textContent = r.error || L('Không tra được.','Lookup failed.'); MA_TRA = null; return; }
+      e.textContent = ''; MA_TRA = r; ve();
+    });
+  };
+  [].forEach.call(document.querySelectorAll('[data-mahuy]'), function(b){
+    b.onclick = function(){
+      var m = b.getAttribute('data-mahuy');
+      /* Bắt ghi LÝ DO, và nói thẳng là tiền KHÔNG tự hoàn — người bấm phải biết mình vừa làm
+         gì và chưa làm gì. */
+      var ly = prompt(L('Huỷ mã ' + m + '?\n\nTiền đã thu KHÔNG tự hoàn — hoàn ở ngân hàng, và '
+          + 'huỷ dòng tiền ở tab Đối soát nếu cần.\nLý do huỷ:',
+        'Cancel code ' + m + '?\n\nThe money collected is NOT refunded automatically — refund at '
+          + 'the bank, and cancel the revenue row in Reconciliation if needed.\nReason:'));
+      if (ly === null) return;
+      lam('ma_huy', { ma: m, ly_do: ly });
+    };
   });
 }
 
