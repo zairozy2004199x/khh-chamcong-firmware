@@ -3633,7 +3633,7 @@ update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
 // ---- địa chỉ ngắn cho mã QR
 $u_ng = VHG_Shop::url_ngan( 'AMTP01' );
 t( 'có dựng được địa chỉ ngắn', '' !== $u_ng, $u_ng );
-/* 🔴 Ô gói chỉ chừa 58px cho mã. Ba thứ dưới đây là ba cách chuỗi tự dài ra, và mỗi lần dài là
+/* 🔴 Ô gói chỉ chừa VHG_Ma::QR_VUNG_PX px cho mã. Ba thứ dưới đây là ba cách chuỗi tự dài ra, và mỗi lần dài là
       mã tự rơi xuống ít pixel hơn mỗi module. */
 /* ===== 🔴 LỖI 23/08/2026: TEM IN RA DẪN VÀO TRANG "KHÔNG TÌM THẤY TRANG" ====================
  * Em viết HOA cả địa chỉ để mã QR nhỏ lại, và dùng dạng thư mục `/mua-ma/AMTP01`. Hai chỗ sai:

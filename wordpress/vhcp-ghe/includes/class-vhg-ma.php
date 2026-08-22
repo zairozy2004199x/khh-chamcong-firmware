@@ -172,7 +172,7 @@ class VHG_Ma {
 	 * MÃ QR TRONG Ô GÓI TRÊN MÀN GHẾ VẼ RA ĐƯỢC BAO NHIÊU PIXEL MỖI MODULE.
 	 *
 	 * 🔴 Vì sao phải tính ra con số này thay vì "chắc là được": ô gói cao 84px, trừ dải màu và
-	 *    hai dòng chữ còn 58px cho mã. Số module của mã phụ thuộc ĐỘ DÀI chuỗi, nên một địa chỉ
+	 *    dải màu còn QR_VUNG_PX pixel cho mã (23/08/2026 bỏ hai dòng chữ kẹp trên dưới: 58 -> 70). Số module của mã phụ thuộc ĐỘ DÀI chuỗi, nên một địa chỉ
 	 *    dài thêm vài ký tự là mã tự rơi từ 2 px/module xuống 1 — và 1 px/module thì gần như
 	 *    không điện thoại nào quét nổi, trong khi trên màn NHÌN VẪN THẤY "có mã QR".
 	 *

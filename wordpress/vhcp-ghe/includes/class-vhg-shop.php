@@ -71,9 +71,9 @@ class VHG_Shop {
 	/**
 	 * Cùng địa chỉ đó nhưng BỎ "https://" — chỉ dùng cho mã QR ghế tự vẽ trên màn.
 	 *
-	 * 🔴 Ô gói trên màn ghế chỉ chừa 58 pixel. Có scheme thì chuỗi dài 39 ký tự -> mã 29×29 ->
-	 *    1 pixel mỗi module, gần như không máy nào quét nổi. Bỏ scheme còn 31 ký tự -> 25×25 ->
-	 *    2 pixel mỗi module. Đó là toàn bộ lý do tồn tại của hàm này.
+	 * 🔴 Ô gói trên màn ghế chỉ chừa `VHG_Ma::QR_VUNG_PX` pixel. Có scheme thì chuỗi dài 39 ký tự
+	 *    -> mã 29×29; bỏ scheme còn 31 ký tự -> 25×25. Đó là toàn bộ lý do tồn tại của hàm này.
+	 *    (Đừng chép số pixel vào đây thành chữ — nó đã đổi một lần, 58 -> 70.)
 	 *
 	 * ⚠️ GIỮ NGUYÊN HOA THƯỜNG của đường dẫn. Viết hoa không làm mã nhỏ hơn ở độ dài này, mà
 	 *    lại làm đường dẫn không khớp — đúng lỗi vừa sửa.

@@ -1339,7 +1339,7 @@ class VHG_Admin {
 			if ( '' !== (string) $m_q['ma'] && '?' !== $m_q['ma'][0] ) { $ma_dau = $m_q['ma']; break; }
 		}
 		if ( '' !== $ma_dau ) {
-			/* Ô trên màn ghế thì dùng bản bỏ scheme — 58 pixel không chứa nổi bản đầy đủ. */
+			/* Ô trên màn ghế thì dùng bản bỏ scheme — vùng vẽ trên màn không chứa nổi bản đầy đủ. */
 			$u_ngan = VHG_Shop::url_ngan( $ma_dau );
 			$qr_o   = VHG_Ma::qr_o_goi( $u_ngan );
 			$xau    = ( (int) $qr_o['px'] < 2 );
