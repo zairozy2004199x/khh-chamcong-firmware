@@ -304,6 +304,7 @@ class VHG_Admin {
 			} elseif ( 'may' === $viec ) {
 				$bao[] = VHG_May::luu_may( array(
 					'ma' => wp_unslash( $_POST['ma'] ), 'coso_id' => (int) $_POST['coso_id'],
+					'mac' => isset( $_POST['mac'] ) ? wp_unslash( $_POST['mac'] ) : '',
 					'gia' => wp_unslash( $_POST['gia'] ), 'phut' => wp_unslash( $_POST['phut'] ),
 					'so_tk' => wp_unslash( $_POST['so_tk'] ), 'ten_tk' => wp_unslash( $_POST['ten_tk'] ),
 					'bank_bin' => wp_unslash( $_POST['bank_bin'] ), 'ten_khai' => wp_unslash( $_POST['ten_khai'] ) ) );
@@ -316,7 +317,16 @@ class VHG_Admin {
 				$bao[] = VHG_May::luu_nhan_tien( wp_unslash( $_POST['bin'] ),
 					wp_unslash( $_POST['so_tk'] ), wp_unslash( $_POST['ten_tk'] ) );
 			} elseif ( 'menh_gia' === $viec ) {
-				$bao[] = VHG_May::luu_menh_gia( isset( $_POST['mg'] ) ? (array) $_POST['mg'] : array() );
+				$ten  = isset( $_POST['mg_ten'] ) ? (array) wp_unslash( $_POST['mg_ten'] ) : array();
+				$tien = isset( $_POST['mg_tien'] ) ? (array) wp_unslash( $_POST['mg_tien'] ) : array();
+				$ph   = isset( $_POST['mg_phut'] ) ? (array) wp_unslash( $_POST['mg_phut'] ) : array();
+				$goi  = array();
+				foreach ( $tien as $i => $v ) {
+					$goi[] = array( 'tien' => $v,
+						'ten'  => isset( $ten[ $i ] ) ? sanitize_text_field( $ten[ $i ] ) : '',
+						'phut' => isset( $ph[ $i ] ) ? (int) $ph[ $i ] : 0 );
+				}
+				$bao[] = VHG_May::luu_menh_gia( $goi );
 			}
 		}
 
@@ -424,20 +434,47 @@ class VHG_Admin {
 			. esc_attr( $tk_chung['ten_tk'] ) . '" class="regular-text" /></td></tr>';
 		echo '</table><p><button class="button button-primary" name="vhg" value="nhan_tien">Lưu tài khoản</button></p></form>';
 
-		/* ---- Mệnh giá ---- */
+		/* ---- Gói trên màn ghế ---- */
 		$mg = VHG_May::menh_gia();
-		echo '<h2>Mệnh giá trên màn ghế</h2>';
+		echo '<h2>Gói trên màn ghế</h2>';
 		echo '<p><em>Bốn nút khách bấm để chọn. Khai ở đây thì ghế lấy về trong ~30 giây — '
 			. '<b>ghế không có OTA</b>, nên nếu khai cứng trong firmware thì đổi giá là phải mang USB '
 			. 'đi từng cửa hàng.</em></p>';
-		echo '<form method="post" style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
+		echo '<form method="post"><table class="widefat striped" style="max-width:640px"><thead><tr>'
+			. '<th>Nút</th><th>Tên gói</th><th>Số tiền</th><th>Số phút</th></tr></thead><tbody>';
 		wp_nonce_field( 'vhg' );
-		for ( $i = 0; $i < 4; $i++ ) {
-			echo '<label>Nút ' . ( $i + 1 ) . '<br><input type="number" name="mg[]" min="1000" step="1000" '
-				. 'value="' . ( isset( $mg[ $i ] ) ? (int) $mg[ $i ] : '' ) . '" style="width:110px" /></label>';
+		for ( $i = 0; $i < VHG_May::SO_O_MAN_GHE; $i++ ) {
+			$g = isset( $mg[ $i ] ) ? $mg[ $i ] : array( 'tien' => '', 'ten' => '', 'phut' => 0 );
+			echo '<tr><td>' . ( $i + 1 ) . '</td>'
+				. '<td><input name="mg_ten[]" value="' . esc_attr( $g['ten'] ) . '" '
+				. 'placeholder="VD: Gói phổ biến" style="width:100%" /></td>'
+				. '<td><input type="number" name="mg_tien[]" min="1000" step="1000" value="'
+				. ( '' === $g['tien'] ? '' : (int) $g['tien'] ) . '" style="width:110px" /></td>'
+				. '<td><input type="number" name="mg_phut[]" min="0" max="240" value="'
+				. ( empty( $g['phut'] ) ? '' : (int) $g['phut'] ) . '" style="width:80px" placeholder="tự tính" /></td>'
+				. '</tr>';
 		}
-		echo '<button class="button button-primary" name="vhg" value="menh_gia">Lưu mệnh giá</button></form>';
-		echo '<p class="description">Để trống một ô = bỏ nút đó. Ít nhất một nút, tối đa bốn.</p>';
+		echo '</tbody></table><p><button class="button button-primary" name="vhg" value="menh_gia">'
+			. 'Lưu gói</button></p></form>';
+		echo '<p class="description"><b>Số phút để trống là đúng trong hầu hết trường hợp</b> — ghế tự '
+			. 'tính theo tỉ lệ quy đổi, nên đổi tỉ lệ một lần là cả bốn gói theo. Chỉ điền số phút khi '
+			. 'gói đó <b>cố ý</b> không theo tỉ lệ (gói khuyến mãi, gói kèm quà).<br>'
+			. 'Bỏ trống số tiền = bỏ nút đó. Tên gói có dấu vẫn khai bình thường — máy chủ tự bỏ dấu '
+			. 'khi gửi xuống ghế, vì font màn ghế không vẽ được dấu tiếng Việt.</p>';
+
+		/* Xem trước ĐÚNG như ghế sẽ hiện: đã bỏ dấu, đã tính ra phút. Một bảng xem trước bằng
+		   chính dữ liệu sắp gửi đi là cách duy nhất thấy trước "GOI PHO BIEN" trông thế nào,
+		   thay vì đi tới tận cửa hàng mới biết tên bị cắt cụt. */
+		$xem = VHG_May::menh_gia_cho_ghe( 10000, 6 );
+		echo '<h3>Ghế sẽ hiện (với tỉ lệ 10.000đ = 6 phút)</h3>';
+		echo '<table class="widefat striped" style="max-width:420px"><thead><tr><th>Tên trên màn ghế</th>'
+			. '<th>Số tiền</th><th>Phút</th></tr></thead><tbody>';
+		foreach ( $xem as $x ) {
+			echo '<tr><td><code>' . esc_html( '' !== $x['n'] ? $x['n'] : '(không tên)' ) . '</code></td>'
+				. '<td>' . esc_html( self::tien( $x['t'] ) ) . '</td>'
+				. '<td>' . (int) $x['p'] . ' phút</td></tr>';
+		}
+		echo '</tbody></table>';
 
 		echo '<h2>Máy (ghế) — ' . count( $may ) . ' máy</h2>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Cơ sở</th>'
@@ -482,6 +519,17 @@ class VHG_Admin {
 			echo '<option value="' . (int) $c['id'] . '">' . esc_html( $c['ten'] ) . '</option>';
 		}
 		echo '</select></td></tr>';
+		/* 🔴 Ô MAC — anh Thắng 22/08/2026: *"không có chỗ nhập mac, chỉ có mã"*. Đúng, và dòng
+		   khai tay không có MAC là dòng KHÔNG GẮN VỚI GHẾ NÀO: ghế cắm điện lên sẽ đẻ ra một
+		   dòng thứ hai, và dòng đang chạy thật là dòng kia.
+		   Nhưng cách đúng vẫn là để ghế tự hiện ra rồi bấm Gán — nên ô này nói thẳng điều đó. */
+		echo '<tr><th>Địa chỉ MAC</th><td><input type="text" name="mac" class="regular-text code" '
+			. 'placeholder="AA:BB:CC:DD:EE:FF — để trống nếu chưa biết" />'
+			. '<p class="description"><b>Thường không cần gõ.</b> Cắm ghế lên là nó tự hiện ở mục '
+			. '<b>Ghế chờ gán mã</b> phía trên, bấm Gán là xong — khỏi gõ 12 ký tự hex.<br>'
+			. 'Chỉ gõ tay khi ghế chưa nối được mạng mà anh muốn khai trước. Gõ sai một ký tự là '
+			. 'ghế thật không nhận ra dòng này, và nó sẽ hiện ra như một ghế mới.<br>'
+			. 'Để trống khi <b>sửa</b> một máy đã có thì MAC cũ được giữ nguyên, không bị xoá.</p></td></tr>';
 		/* 🔴 KHÔNG PHẢI "GIÁ MỘT LƯỢT". Hai ô này là TỈ LỆ QUY ĐỔI: ghế tính
 		   `phút = tiền × phút / giá`. Nhãn cũ ghi "Giá một lượt" làm anh Thắng tưởng ghế chỉ có
 		   một mệnh giá, trong khi màn ghế có bốn nút. Nên đổi nhãn, và in thẳng bảng quy đổi ra
@@ -491,8 +539,8 @@ class VHG_Admin {
 			. '= <input type="number" name="phut" value="6" min="1" max="60" style="width:70px" /> phút';
 		$bang_qd = '';
 		foreach ( VHG_May::menh_gia() as $g ) {
-			$bang_qd .= '<tr><td>' . esc_html( self::tien( $g ) ) . '</td><td>→ '
-				. (int) floor( $g * 6 / 10000 ) . ' phút</td></tr>';
+			$bang_qd .= '<tr><td>' . esc_html( self::tien( $g['tien'] ) ) . '</td><td>→ '
+				. (int) VHG_May::phut_goi( $g, 10000, 6 ) . ' phút</td></tr>';
 		}
 		echo '<p class="description">Đây <b>không phải giá một lượt</b> — ghế có ' . count( VHG_May::menh_gia() )
 			. ' mệnh giá để khách chọn, và số phút tính theo tỉ lệ này.<br>Với 10.000đ = 6 phút thì:</p>'

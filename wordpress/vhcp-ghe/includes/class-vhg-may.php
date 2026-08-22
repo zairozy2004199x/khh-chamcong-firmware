@@ -111,38 +111,125 @@ class VHG_May {
 	 *    `phút = tiền × phut / gia`, nên 10.000đ=6′ thì bấm 50.000đ ra 30 phút. Nhãn cũ ghi
 	 *    "Giá một lượt" là sai, và làm người đọc tưởng ghế chỉ có một mệnh giá.
 	 */
-	const MENH_GIA_MAC_DINH = array( 20000, 50000, 100000, 200000 );
+	const SO_O_MAN_GHE = 4;   // màn ghế 320×240 vẽ được đúng bốn ô
 
+	/* Bảng giá anh Thắng dựng (ảnh 22/08/2026). Đúng tỉ lệ 50.000đ = 15 phút cho cả bốn gói. */
+	const MENH_GIA_MAC_DINH = array(
+		array( 'tien' => 50000,  'ten' => 'Gói cơ bản',      'phut' => 0 ),
+		array( 'tien' => 100000, 'ten' => 'Gói phổ biến',    'phut' => 0 ),
+		array( 'tien' => 150000, 'ten' => 'Gói chuyên sâu',  'phut' => 0 ),
+		array( 'tien' => 200000, 'ten' => 'Gói thượng hạng', 'phut' => 0 ),
+	);
+
+	/**
+	 * Bốn gói trên màn ghế: [ ['tien','ten','phut'], … ]
+	 *
+	 * `phut = 0` nghĩa là TÍNH THEO TỈ LỆ QUY ĐỔI của ghế. Để 0 là cách đúng trong hầu hết
+	 * trường hợp: đổi tỉ lệ một lần thì cả bốn gói theo, không phải sửa bốn ô rồi lệch một ô.
+	 * Chỉ khai số phút cụ thể khi gói đó CỐ Ý không theo tỉ lệ (gói khuyến mãi, gói kèm quà).
+	 */
 	public static function menh_gia() {
 		$ds = get_option( 'vhg_menh_gia' );
 		if ( ! is_array( $ds ) ) { return self::MENH_GIA_MAC_DINH; }
-		$ra = array();
+		$ra   = array();
+		$thay = array();
 		foreach ( $ds as $v ) {
-			$v = (int) $v;
-			if ( $v >= 1000 && ! in_array( $v, $ra, true ) ) { $ra[] = $v; }
+			/* Bản 1.3.0 lưu một mảng SỐ trơn. Đọc được cả hai dạng — nếu không thì nâng cấp
+			   plugin là bốn gói đang chạy biến mất và ghế về bộ mặc định, âm thầm. */
+			$hang = is_array( $v ) ? $v : array( 'tien' => $v, 'ten' => '', 'phut' => 0 );
+			$tien = (int) ( isset( $hang['tien'] ) ? $hang['tien'] : 0 );
+			if ( $tien < 1000 || isset( $thay[ $tien ] ) ) { continue; }
+			$thay[ $tien ] = 1;
+			$ra[] = array(
+				'tien' => $tien,
+				'ten'  => trim( (string) ( isset( $hang['ten'] ) ? $hang['ten'] : '' ) ),
+				'phut' => max( 0, (int) ( isset( $hang['phut'] ) ? $hang['phut'] : 0 ) ),
+			);
 		}
-		sort( $ra );
+		usort( $ra, function ( $a, $b ) { return $a['tien'] - $b['tien']; } );
 		/* Rỗng thì về mặc định, KHÔNG để rỗng: ghế không còn nút nào để bấm, tức là đường QR
 		   chết hẳn ở 26 cửa hàng mà máy chủ vẫn báo mọi thứ bình thường. */
 		if ( ! $ra ) { return self::MENH_GIA_MAC_DINH; }
 		/* Màn ghế chỉ có BỐN ô. Nhiều hơn là những ô sau không vẽ ra được — cắt ở đây để cái
 		   người ta thấy trên web đúng bằng cái ghế hiện. */
-		return array_slice( $ra, 0, 4 );
+		return array_slice( $ra, 0, self::SO_O_MAN_GHE );
+	}
+
+	/** Số phút thực của một gói với một ghế: khai cứng nếu có, không thì theo tỉ lệ quy đổi. */
+	public static function phut_goi( $goi, $gia_quy_doi, $phut_quy_doi ) {
+		$goi = (array) $goi;
+		if ( ! empty( $goi['phut'] ) ) { return (int) $goi['phut']; }
+		$gia = (int) $gia_quy_doi;
+		if ( $gia <= 0 ) { return 0; }
+		return (int) floor( (int) $goi['tien'] * (int) $phut_quy_doi / $gia );
 	}
 
 	public static function luu_menh_gia( $ds ) {
-		$ra = array();
+		$ra   = array();
+		$thay = array();
 		foreach ( (array) $ds as $v ) {
-			$v = (int) preg_replace( '/\D+/', '', (string) $v );
-			if ( $v >= 1000 ) { $ra[] = $v; }
+			$v    = (array) $v;
+			$tien = (int) preg_replace( '/\D+/', '', (string) ( isset( $v['tien'] ) ? $v['tien'] : '' ) );
+			if ( $tien < 1000 ) { continue; }
+			if ( isset( $thay[ $tien ] ) ) {
+				return array( 'ok' => false, 'error' => 'Hai gói cùng số tiền ' . number_format( $tien, 0, ',', '.' )
+					. 'đ. Khách bấm hai nút giống hệt nhau thì không biết mình chọn gì.' );
+			}
+			$thay[ $tien ] = 1;
+			$ra[] = array(
+				'tien' => $tien,
+				'ten'  => mb_substr( trim( (string) ( isset( $v['ten'] ) ? $v['ten'] : '' ) ), 0, 30 ),
+				'phut' => max( 0, min( 240, (int) ( isset( $v['phut'] ) ? $v['phut'] : 0 ) ) ),
+			);
 		}
-		$ra = array_values( array_unique( $ra ) );
-		sort( $ra );
-		if ( ! $ra ) { return array( 'ok' => false, 'error' => 'Phải có ít nhất một mệnh giá từ 1.000đ.' ); }
-		if ( count( $ra ) > 4 ) { return array( 'ok' => false, 'error' => 'Màn ghế chỉ có 4 ô — khai tối đa 4 mệnh giá.' ); }
+		usort( $ra, function ( $a, $b ) { return $a['tien'] - $b['tien']; } );
+		if ( ! $ra ) { return array( 'ok' => false, 'error' => 'Phải có ít nhất một gói từ 1.000đ.' ); }
+		if ( count( $ra ) > self::SO_O_MAN_GHE ) {
+			return array( 'ok' => false, 'error' => 'Màn ghế chỉ có ' . self::SO_O_MAN_GHE
+				. ' ô — khai tối đa ' . self::SO_O_MAN_GHE . ' gói.' );
+		}
 		update_option( 'vhg_menh_gia', $ra );
-		return array( 'ok' => true, 'thong_bao' => 'Đã lưu ' . count( $ra ) . ' mệnh giá. '
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu ' . count( $ra ) . ' gói. '
 			. 'Ghế lấy về ở lượt nhịp kế tiếp (~30 giây).' );
+	}
+
+	/**
+	 * Bốn gói ở dạng ghế đọc được: khoá ngắn, và TÊN ĐÃ BỎ DẤU.
+	 *
+	 * 🔴 Font của màn ghế (TFT_eSPI) KHÔNG vẽ được dấu tiếng Việt — "Gói phổ biến" hiện ra
+	 *    thành một hàng ô vuông. Bỏ dấu ở MÁY CHỦ chứ không ở ghế: ghế không có OTA, nên mọi
+	 *    thứ sửa được bằng máy chủ thì phải sửa ở máy chủ.
+	 *
+	 * ⚠️ Khoá một chữ (`t`,`n`,`p`) vì gói nhịp đi qua 4G và ghế giải mã trong bộ đệm cố định.
+	 *    Tên khoá dài là tốn đúng chỗ mà một cái tên gói cần.
+	 */
+	public static function menh_gia_cho_ghe( $gia_quy_doi, $phut_quy_doi ) {
+		$ra = array();
+		foreach ( self::menh_gia() as $g ) {
+			$ra[] = array(
+				't' => (int) $g['tien'],
+				'n' => self::bo_dau_hoa( $g['ten'] ),
+				'p' => self::phut_goi( $g, $gia_quy_doi, $phut_quy_doi ),
+			);
+		}
+		return $ra;
+	}
+
+	/** Bỏ dấu, viết hoa, cắt cho vừa bề ngang một ô trên màn ghế. */
+	public static function bo_dau_hoa( $s ) {
+		$s = mb_strtolower( trim( (string) $s ), 'UTF-8' );
+		$cap = array(
+			'a' => 'áàảãạăắằẳẵặâấầẩẫậ', 'e' => 'éèẻẽẹêếềểễệ', 'i' => 'íìỉĩị',
+			'o' => 'óòỏõọôốồổỗộơớờởỡợ', 'u' => 'úùủũụưứừửữự', 'y' => 'ýỳỷỹỵ', 'd' => 'đ',
+		);
+		foreach ( $cap as $tron => $co ) {
+			$s = str_replace( preg_split( '//u', $co, -1, PREG_SPLIT_NO_EMPTY ), $tron, $s );
+		}
+		/* Còn ký tự ngoài ASCII nghĩa là bảng trên thiếu chữ đó — BỎ ĐI chứ đừng gửi xuống ghế,
+		   vì màn sẽ vẽ ra ô vuông và người ta tưởng ghế hỏng. */
+		$s = preg_replace( '/[^\x20-\x7E]/', '', $s );
+		$s = trim( preg_replace( '/\s+/', ' ', $s ) );
+		return mb_strtoupper( mb_substr( $s, 0, 18 ), 'UTF-8' );
 	}
 
 	/**
@@ -246,9 +333,16 @@ class VHG_May {
 				. 'khoảng trắng (tối đa 20 ký tự). Mã này đi vào nội dung chuyển khoản khách gõ tay — '
 				. 'có dấu là khách gõ sai và ghế không chạy.' );
 		}
+		$mac_go = trim( (string) ( isset( $d['mac'] ) ? $d['mac'] : '' ) );
+		if ( '' !== $mac_go && '' === self::chuan_mac( $mac_go ) ) {
+			/* Im lặng bỏ qua một MAC gõ sai là tệ nhất: người ta tưởng đã gắn ghế, còn ghế thật
+			   thì vẫn hiện ra như một ghế mới ở danh sách chờ. */
+			return array( 'ok' => false, 'error' => 'Địa chỉ MAC không đúng khuôn — phải là 12 ký tự '
+				. '0-9/A-F, ví dụ AA:BB:CC:DD:EE:FF. Đang nhận: "' . esc_html( $mac_go ) . '".' );
+		}
 		$hang = array(
 			'ma'       => $ma,
-			'mac'      => strtoupper( trim( (string) ( isset( $d['mac'] ) ? $d['mac'] : '' ) ) ),
+			'mac'      => self::chuan_mac( isset( $d['mac'] ) ? $d['mac'] : '' ),
 			'coso_id'  => (int) ( isset( $d['coso_id'] ) ? $d['coso_id'] : 0 ),
 			'gia'      => max( 0, (int) ( isset( $d['gia'] ) ? $d['gia'] : 10000 ) ),
 			'phut'     => max( 1, (int) ( isset( $d['phut'] ) ? $d['phut'] : 6 ) ),
@@ -290,9 +384,27 @@ class VHG_May {
 	 *    để người ta gán tay. Đoán bừa là hai ghế cùng nhận một mã, và tiền của ghế này chạy ghế
 	 *    kia — mà nhìn từ máy chủ thì không có gì bất thường cả.
 	 */
+	/**
+	 * MAC về ĐÚNG MỘT DẠNG: `AA:BB:CC:DD:EE:FF`.
+	 *
+	 * 🔴 Ghế gửi lên dạng có hai chấm và chữ hoa (`snprintf("%02X:...")`). Người gõ tay thì gõ
+	 *    đủ kiểu: thường, gạch ngang, hoặc dính liền không dấu. Không chuẩn hoá thì cùng một
+	 *    con ghế mà bảng có hai dòng — dòng khai tay không bao giờ khớp, và ghế hiện ra như một
+	 *    ghế mới. Chuẩn hoá ở MỘT chỗ, dùng cho cả đường ghế gửi lên lẫn đường người gõ vào.
+	 *
+	 * Chuỗi không phải MAC -> trả RỖNG, không trả bừa: một MAC nửa vời còn tệ hơn không có MAC,
+	 * vì nó trông như đã gắn ghế.
+	 */
+	public static function chuan_mac( $mac ) {
+		$s = strtoupper( preg_replace( '/[^0-9A-Fa-f]/', '', (string) $mac ) );
+		if ( 12 !== strlen( $s ) ) { return ''; }
+		return implode( ':', str_split( $s, 2 ) );
+	}
+
 	public static function theo_mac( $mac ) {
 		global $wpdb;
-		$mac = strtoupper( trim( (string) $mac ) );
+		$mac = self::chuan_mac( $mac );
+		if ( '' === $mac ) { return null; }
 		if ( '' === $mac ) { return null; }
 		return $wpdb->get_row( $wpdb->prepare(
 			'SELECT * FROM ' . VHG_DB::t( 'may' ) . ' WHERE mac=%s LIMIT 1', $mac ), ARRAY_A );
@@ -305,7 +417,7 @@ class VHG_May {
 	 */
 	public static function ghi_nhan( $mac ) {
 		global $wpdb;
-		$mac = strtoupper( trim( (string) $mac ) );
+		$mac = self::chuan_mac( $mac );
 		if ( '' === $mac ) { return ''; }
 		$m = self::theo_mac( $mac );
 		if ( $m ) { return (string) $m['ma']; }

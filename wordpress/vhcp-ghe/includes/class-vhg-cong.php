@@ -266,9 +266,12 @@ class VHG_Cong {
 			'soTk'    => $tk['so_tk'],
 			'bin'     => $tk['bin'],
 			'tenTk'   => $tk['ten_tk'],
-			/* MỆNH GIÁ bốn nút trên màn ghế. Khai ở web nên đổi giá không phải mang USB đi 26
-			   cửa hàng — ghế không có OTA, nên đó là chuyến đi thật. */
-			'goi'     => array_values( VHG_May::menh_gia() ),
+			/* BỐN GÓI trên màn ghế: {t: tiền, n: tên đã bỏ dấu, p: số phút}. Khai ở web nên đổi
+			   giá không phải mang USB đi 26 cửa hàng — ghế không có OTA, nên đó là chuyến đi thật.
+			   Tên bỏ dấu ở ĐÂY chứ không ở ghế: font màn ghế không vẽ được dấu tiếng Việt, và mọi
+			   thứ sửa được bằng máy chủ thì phải sửa ở máy chủ. */
+			'goi'     => VHG_May::menh_gia_cho_ghe(
+				$m ? (int) $m['gia'] : 10000, $m ? (int) $m['phut'] : 6 ),
 			'maMay'   => $ma_may,
 			/* Mã bắt đầu bằng '?' = ghế cắm điện rồi nhưng CHƯA ai gán mã cho nó. Ghế hiện chữ
 			   đó lên màn để người đi lắp biết mình còn thiếu một bước, thay vì đứng nhìn màn

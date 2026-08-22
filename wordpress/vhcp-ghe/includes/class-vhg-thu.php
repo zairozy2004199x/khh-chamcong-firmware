@@ -97,8 +97,22 @@ class VHG_Thu {
 	public static function nhan( $nguon, $ev ) {
 		$tien = (int) $ev['so_tien'];
 		$nd   = (string) $ev['noi_dung'];
-		$ten  = VHG_Doc::ten_may( $nd );
-		if ( '' === $ten && ! empty( $ev['ten_khai'] ) ) { $ten = VHG_Doc::chuan_ten( $ev['ten_khai'] ); }
+
+		/* 🔴 NỘI DUNG ĐÃ KHỚP `GHE<ghế> <mã>` THÌ ĐỪNG SUY RA "TÊN MÁY" TỪ CHÍNH NÓ NỮA.
+		 *
+		 * Ảnh trang ngoài ngày 22/08/2026: bảng "Theo cơ sở" mọc ra một dòng tên
+		 * `GHEAMTP01 TEST` — đó không phải cơ sở nào cả, mà là nội dung chuyển khoản bị đem đi
+		 * đoán tên máy rồi đoán tiếp thành tên cơ sở. Ghế đã biết chắc là AMTP01 rồi.
+		 *
+		 * `ten_khai` chỉ có nghĩa cho đường NHẬP EXCEL của Tingo/VietQR, nơi giao dịch mang tên
+		 * máy ("AMTP 03") chứ không mang mã ghế. Đường webhook của mình luôn có mã ghế trong nội
+		 * dung, nên ở đây suy thêm là chỉ tạo ra rác. */
+		list( $ma_may, $ma_lenh ) = VHG_Doc::ghe_va_ma( $nd );
+		$ten = '';
+		if ( '' === $ma_may ) {
+			$ten = VHG_Doc::ten_may( $nd );
+			if ( '' === $ten && ! empty( $ev['ten_khai'] ) ) { $ten = VHG_Doc::chuan_ten( $ev['ten_khai'] ); }
+		}
 
 		/* 🔴 GÓI THỬ CỦA SEPAY KHÔNG PHẢI TIỀN.
 		 *
@@ -123,7 +137,6 @@ class VHG_Thu {
 				'ten_khai' => $ten );
 		}
 
-		list( $ma_may, $ma_lenh ) = VHG_Doc::ghe_va_ma( $nd );
 		$kq = self::ghi( array(
 			'ref' => $ev['ref'], 'so_tien' => $tien, 'noi_dung' => $nd, 'nguon' => $nguon,
 			'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh, 'ten_khai' => $ten,
@@ -298,18 +311,48 @@ class VHG_Thu {
 	}
 
 	/** Cơ sở của một giao dịch: bảng máy trước, đoán từ tên sau. */
+	/**
+	 * Cơ sở của một giao dịch.
+	 *
+	 * 🔴 KHÔNG BAO GIỜ BỊA RA MỘT CƠ SỞ KHÔNG TỒN TẠI. Bản trước đoán tên cơ sở bằng cách cắt
+	 *    số ở cuối tên máy, và nhận BẤT KỲ chuỗi nào ra. Kết quả trên màn hình thật: hai dòng
+	 *    "cơ sở" tên `GHEAMTP01 TEST` và `SEPAY TEST WEBHOOK`. Một bảng đối soát mọc ra những
+	 *    cơ sở không có thật là bảng không dùng được — người đọc không phân biệt nổi đâu là cơ
+	 *    sở quên khai, đâu là rác.
+	 *
+	 * Phép đoán vẫn giữ (đường nhập Excel của Tingo mang tên máy "AMTP 03" chứ không mang mã
+	 * ghế), nhưng CHỈ nhận khi tên đoán ra TRÙNG một cơ sở đã khai. Đoán trúng thì gộp đúng;
+	 * đoán trượt thì nói "chưa gán" — câu đó đúng và làm được gì đó với nó.
+	 */
 	private static function coso_cua( $r, $may ) {
 		$ma = (string) $r['ma_may'];
 		if ( '' !== $ma && isset( $may[ $ma ] ) && '' !== $may[ $ma ]['coso_ten'] ) {
 			return $may[ $ma ]['coso_ten'];
 		}
+		/* Ghế đã khai mà chưa gán cơ sở -> DỪNG. Đừng quay sang đoán từ nội dung chuyển khoản:
+		   ghế đã biết chắc rồi, đoán thêm chỉ ra rác. */
+		if ( '' !== $ma && isset( $may[ $ma ] ) ) { return '(chưa gán cơ sở)'; }
+
 		$ten = (string) $r['ten_khai'];
 		if ( '' !== $ten ) {
 			$k = VHG_Doc::chuan_ten( $ten );
 			if ( isset( $may[ $k ] ) && '' !== $may[ $k ]['coso_ten'] ) { return $may[ $k ]['coso_ten']; }
 			$doan = VHG_Doc::coso_tu_ten( $ten );
-			if ( '' !== $doan ) { return $doan; }
+			if ( '' !== $doan ) {
+				$that = self::coso_da_khai( $doan );
+				if ( '' !== $that ) { return $that; }
+			}
 		}
 		return '(chưa gán cơ sở)';
+	}
+
+	/** Tên cơ sở ĐÃ KHAI trùng với chuỗi này (bỏ dấu, không phân biệt hoa thường), hoặc rỗng. */
+	private static function coso_da_khai( $ten ) {
+		$k = VHG_May::bo_dau_hoa( $ten );
+		if ( '' === $k ) { return ''; }
+		foreach ( VHG_May::ds_coso() as $c ) {
+			if ( VHG_May::bo_dau_hoa( $c['ten'] ) === $k ) { return (string) $c['ten']; }
+		}
+		return '';
 	}
 }

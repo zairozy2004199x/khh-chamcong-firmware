@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22b (menh gia + tai khoan lay tu web)"
+#define FW_VERSION "ghe-massage 2026-08-22c (goi co ten, lay tu web)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -88,8 +88,20 @@ int  MINUTES    = 6;
    ⚠️ `PKG_N` là số nút ĐANG dùng, thay đổi được; `PKG_MAX` là số ô vẽ được trên màn, cố định 4.
       Trộn hai cái này là vẽ ra ngoài mảng. */
 const int PKG_MAX = 4;
-int  PKG_N = 4;
-long PKG_AMT[PKG_MAX] = { 20000, 50000, 100000, 200000 };
+int    PKG_N = 4;
+long   PKG_AMT[PKG_MAX]  = { 50000, 100000, 150000, 200000 };
+String PKG_TEN[PKG_MAX]  = { "GOI CO BAN", "GOI PHO BIEN", "GOI CHUYEN SAU", "GOI THUONG HANG" };
+int    PKG_PHUT[PKG_MAX] = { 0, 0, 0, 0 };   // 0 = tính theo tỉ lệ quy đổi
+
+/* Số phút của một gói: khai cứng nếu máy chủ có gửi, không thì tính theo tỉ lệ quy đổi.
+   MỘT chỗ tính duy nhất — trước đây phép này chép ở bốn nơi (vẽ nút, mở phiên, nhận tiền mặt,
+   nhận tiền trễ) và chỉ cần một nơi quên là ghế chạy sai số phút so với cái nó vừa hiện ra. */
+int phutGoi(int i){
+  if(i < 0 || i >= PKG_N) return 0;
+  if(PKG_PHUT[i] > 0)     return PKG_PHUT[i];
+  if(PRICE_VND <= 0)      return 0;
+  return (int)(PKG_AMT[i] * (long)MINUTES / PRICE_VND);
+}
 
 const int PAY_WINDOW_S   = 150;    // chờ khách trả (giây) rồi hủy QR
 const unsigned long PAY_POLL_MS  = 2000;   // chu kỳ hỏi máy chủ khi đang chờ trả
@@ -439,13 +451,22 @@ void drawIdle(){
   tft.setTextColor(TFT_WHITE, COL_BG); tft.drawString("Chon so tien:", 160, 38, 2);
   for(int i=0;i<PKG_N;i++){
     long amt = PKG_AMT[i];
-    int mins = (PRICE_VND>0) ? (int)(amt * (long)MINUTES / PRICE_VND) : 0;
+    int mins = phutGoi(i);
     Btn b = PKG_BTN[i]; int cx = b.x + b.w/2, cy = b.y + b.h/2;
     tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, 0x02B5);
     tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_ACC);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_ACC, 0x02B5);   tft.drawString(String(amt/1000) + "k",  cx, cy - 14, 4);
-    tft.setTextColor(TFT_WHITE, 0x02B5); tft.drawString(String(mins) + " phut", cx, cy + 16, 2);
+    /* Tên gói ở TRÊN, nhỏ; số tiền to ở giữa; số phút ở dưới. Số tiền là thứ khách quyết định
+       nên nó to nhất — tên gói chỉ để phân biệt, và ô rộng 142px nên font 1 mới đủ chỗ. */
+    if(PKG_TEN[i].length()){
+      tft.setTextColor(0xCE40, 0x02B5);
+      tft.drawString(PKG_TEN[i], cx, b.y + 11, 1);
+      tft.setTextColor(COL_ACC, 0x02B5);   tft.drawString(String(amt/1000) + "k",  cx, cy + 2, 4);
+      tft.setTextColor(TFT_WHITE, 0x02B5); tft.drawString(String(mins) + " phut", cx, b.y + b.h - 12, 2);
+    } else {
+      tft.setTextColor(COL_ACC, 0x02B5);   tft.drawString(String(amt/1000) + "k",  cx, cy - 14, 4);
+      tft.setTextColor(TFT_WHITE, 0x02B5); tft.drawString(String(mins) + " phut", cx, cy + 16, 2);
+    }
   }
   tft.setTextDatum(BC_DATUM);
   tft.setTextColor(0xCE40, COL_BG); tft.drawString("K&H  -  POSH massage", 160, 224, 2);
@@ -534,10 +555,11 @@ void guiNhip(){
     + "\",\"con_lai\":" + String(conLai) + ",\"fw\":\"" FW_VERSION "\"");
   lastNhipMs = millis(); g_statusDirty = false;
   if(r.length()==0) return;
-  /* 768 chứ không 512: gói nhịp giờ mang thêm mảng `goi` (4 mệnh giá). Tràn bộ đệm thì
-     `deserializeJson` trả lỗi và HÀM THOÁT NGAY — ghế mất luôn cả giá, tài khoản lẫn lệnh, mà
-     màn hình không có gì báo. Một con số chật ở đây làm chết cả lượt nhịp. */
-  StaticJsonDocument<768> d;
+  /* 1536 chứ không 512: gói nhịp mang thêm bốn gói {t,n,p} — mỗi gói một cái tên tới 18 ký tự.
+     Tràn bộ đệm thì `deserializeJson` trả lỗi và HÀM THOÁT NGAY: ghế mất luôn cả giá, tài khoản
+     lẫn lệnh, mà màn hình không có gì báo. Một con số chật ở đây làm chết cả lượt nhịp.
+     netTask có 10240 byte ngăn xếp nên 1536 nằm gọn. */
+  StaticJsonDocument<1536> d;
   if(deserializeJson(d, r)) return;
   String ma = String((const char*)(d["maMay"] | ""));
   if(ma.length()){ CHAIR_ID = ma; }
@@ -555,12 +577,26 @@ void guiNhip(){
      mà máy chủ vẫn thấy ghế gửi nhịp bình thường. Giữ bộ đang dùng còn hơn. */
   JsonArrayConst goi = d["goi"];
   if(!goi.isNull()){
-    long tam[PKG_MAX]; int n = 0;
+    long   tt[PKG_MAX]; String tn[PKG_MAX]; int tp[PKG_MAX]; int n = 0;
     for(JsonVariantConst v : goi){
-      long a = v.as<long>();
-      if(a >= 1000 && n < PKG_MAX) tam[n++] = a;
+      if(n >= PKG_MAX) break;
+      /* Nhận CẢ HAI dạng: số trơn (bản máy chủ 1.3.0) và {t,n,p} (từ 1.4.0). Ghế nạp bằng USB
+         nên trong nhà sẽ có lẫn hai đời firmware và hai đời plugin trong nhiều tuần — bên nào
+         cũng phải chịu được bên kia, không thì một cửa hàng nào đó im lặng mất hết nút bấm. */
+      long a; String nm = ""; int ph = 0;
+      if(v.is<JsonObjectConst>()){
+        a  = (long)(v["t"] | 0);
+        nm = String((const char*)(v["n"] | ""));
+        ph = (int)(v["p"] | 0);
+      } else {
+        a = v.as<long>();
+      }
+      if(a >= 1000){ tt[n] = a; tn[n] = nm; tp[n] = ph; n++; }
     }
-    if(n > 0){ for(int i=0;i<n;i++) PKG_AMT[i] = tam[i]; PKG_N = n; g_statusDirty = true; }
+    if(n > 0){
+      for(int i=0;i<n;i++){ PKG_AMT[i] = tt[i]; PKG_TEN[i] = tn[i]; PKG_PHUT[i] = tp[i]; }
+      PKG_N = n; g_statusDirty = true;
+    }
   }
   g_coLenh = ((int)(d["coLenh"] | 0) == 1);
   if(((int)(d["coTien"] | 0) == 1) && g_paidAmount == 0){
@@ -607,7 +643,7 @@ void genCode(char* out){
 }
 void startSession(int idx){
   payAmount  = PKG_AMT[idx];
-  payMinutes = (PRICE_VND>0) ? (int)(payAmount * (long)MINUTES / PRICE_VND) : 0;
+  payMinutes = phutGoi(idx);
   genCode(payCode);
   String addInfo = "GHE" + CHAIR_ID + " " + payCode;
   qrPayload  = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, addInfo);

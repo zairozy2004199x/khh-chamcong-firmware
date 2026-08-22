@@ -138,6 +138,26 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'gan_ma' === $viec ) {
+			/* 🔴 Gán ghế NGAY TRÊN ĐIỆN THOẠI. Người đi lắp ghế ở Aeon Tân Phú cầm cái điện
+			 *    thoại, không cầm wp-admin. Bắt họ nhắn về văn phòng nhờ ai đó vào wp-admin gán
+			 *    hộ là thêm một vòng chờ, và trong lúc chờ thì ghế đứng đó không thu được đồng nào.
+			 *
+			 * ⚠️ Ghi TÊN NGƯỜI CẦM PHIÊN vào nhật ký, không lấy tên từ gói gửi lên: gán mã là
+			 *    đổi khoá của một dòng doanh thu, phải biết ai làm. */
+			$r = VHG_May::gan_ma(
+				isset( $d['ma_cu'] ) ? $d['ma_cu'] : '',
+				isset( $d['ma_moi'] ) ? $d['ma_moi'] : '',
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : null );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' gán mã ghế: ' . (string) ( isset( $d['ma_cu'] ) ? $d['ma_cu'] : '' )
+					. ' -> ' . (string) ( isset( $d['ma_moi'] ) ? $d['ma_moi'] : '' ) ) );
+			}
+			self::tra( $r );
+			return;
+		}
+
 		if ( 'tien_mat' === $viec ) {
 			self::tra( VHG_Thu::thu_tien_mat(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
@@ -171,6 +191,17 @@ class VHG_Trang {
 				'phut'    => (int) $m['phut'],
 			);
 		}
+		/* Ghế đang chờ gán mã + danh sách cơ sở: gửi kèm luôn trong lượt số liệu, không thêm
+		   lượt gọi. Xem ghi chú "một lượt gọi ra đủ màn" ở dưới. */
+		$cho_gan = array();
+		foreach ( VHG_May::chua_gan() as $g ) {
+			$cho_gan[] = array( 'ma' => $g['ma'], 'mac' => $g['mac'],
+				'song' => ! empty( $g['con_song'] ), 'luc' => (string) $g['nhip_luc'] );
+		}
+		$ds_coso = array();
+		foreach ( VHG_May::ds_coso() as $c ) {
+			$ds_coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'] );
+		}
 		$cho = array();
 		foreach ( VHG_May::ds_cho( true, 50 ) as $c ) {
 			$cho[] = array( 'luc' => $c['tao_luc'], 'ma_may' => $c['ma_may'],
@@ -188,6 +219,7 @@ class VHG_Trang {
 		}
 		return array( 'ok' => true, 'ky' => $ky, 'ai' => $ai, 'tong' => $t,
 			'may' => $may, 'cho' => $cho, 'gd' => $gd,
+			'choGan' => $cho_gan, 'coso' => $ds_coso,
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
@@ -256,6 +288,8 @@ tr:last-child td{border-bottom:0}
 .err{color:#ff8087;font-size:13px;min-height:19px;margin-top:8px}
 .act{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .act input{width:66px;padding:5px 7px}
+.act select{font:inherit;border-radius:8px;border:1px solid #343a63;background:#151831;color:#e8ebff;padding:5px 7px;max-width:130px}
+.note code{background:#151831;padding:1px 5px;border-radius:5px}
 .act button{padding:5px 10px;font-size:12px}
 @media(max-width:560px){.hide-sm{display:none}.wrap{padding:10px}}
 CSS;
@@ -337,6 +371,28 @@ function ve(){
   [['today','Hôm nay'],['week','Tuần này'],['month','Tháng này'],['year','Năm nay'],['all','Tất cả']]
     .forEach(function(k){ h += '<button data-ky="' + k[0] + '"' + (KY===k[0]?' class="on"':'') + '>' + k[1] + '</button>'; });
   h += '</div>';
+
+  /* GHẾ CHỜ GÁN — trên cùng luôn, trên cả cảnh báo mất kết nối.
+     Ghế vừa cắm điện xong là thứ người đang đứng cạnh nó cần thấy đầu tiên; và chừng nào chưa
+     gán mã thì nó KHÔNG vẽ được QR, tức là không thu được đồng nào. */
+  if (D.choGan && D.choGan.length) {
+    h += '<div class="note"><b>' + D.choGan.length + ' ghế vừa nối mạng, chưa có mã</b> — '
+      + 'ghế chưa gán mã thì không hiện được QR. Đặt mã ngắn (VD <code>AMTP01</code>): mã này đi '
+      + 'vào nội dung chuyển khoản khách gõ tay.'
+      + '<table style="margin-top:8px"><tr><th>MAC</th><th class="hide-sm">Tình trạng</th>'
+      + '<th class="r">Gán mã + cơ sở</th></tr>'
+      + D.choGan.map(function(g, i){
+          return '<tr><td><code>' + esc(g.mac) + '</code><br><span class="mut">' + esc(g.ma) + '</span></td>'
+            + '<td class="hide-sm"><span class="pill ' + (g.song?'p-ok':'p-off') + '">'
+            + (g.song?'đang sống':'mất kết nối') + '</span></td>'
+            + '<td class="r"><div class="act" style="justify-content:flex-end">'
+            + '<input type="text" placeholder="AMTP01" data-gma="' + esc(g.ma) + '" style="width:96px">'
+            + '<select data-gcs="' + esc(g.ma) + '"><option value="0">— cơ sở —</option>'
+            + (D.coso||[]).map(function(c){
+                return '<option value="' + c.id + '">' + esc(c.ten) + '</option>'; }).join('')
+            + '</select><button data-gan="' + esc(g.ma) + '">Gán</button></div></td></tr>'; }).join('')
+      + '</table></div>';
+  }
 
   /* LUẬT 2: hỏng để TRÊN CÙNG, trên cả con số doanh thu. */
   var dut = D.may.filter(function(m){ return !m.song; });
@@ -459,6 +515,22 @@ function noi(){
     b.onclick = function(){ var m = b.getAttribute('data-tat');
       if (!confirm('Tắt ghế ' + m + ' ngay?')) return;
       lam('tat', { ma_may: m }); };
+  });
+  [].forEach.call(document.querySelectorAll('[data-gan]'), function(b){
+    b.onclick = function(){
+      var cu = b.getAttribute('data-gan');
+      var o  = document.querySelector('[data-gma="' + cu + '"]');
+      var cs = document.querySelector('[data-gcs="' + cu + '"]');
+      var moi = (o && o.value || '').trim();
+      if (!moi) { alert('Chưa nhập mã ghế.'); if (o) o.focus(); return; }
+      /* Chặn ngay trên máy: mã đi vào nội dung chuyển khoản khách GÕ TAY, có dấu hay khoảng
+         trắng là khách gõ sai và ghế không chạy. Máy chủ cũng chặn — chặn hai lớp vì câu báo
+         lỗi ở đây tới ngay, còn đi một vòng máy chủ thì trên 4G là vài giây đứng nhìn. */
+      if (!/^[A-Za-z0-9]{1,20}$/.test(moi)) {
+        alert('Mã chỉ được gồm chữ và số, không dấu, không khoảng trắng.'); return;
+      }
+      lam('gan_ma', { ma_cu: cu, ma_moi: moi, coso_id: cs ? cs.value : 0 });
+    };
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
     b.onclick = function(){ var m = b.getAttribute('data-mat'), v = so('data-tien', m);
