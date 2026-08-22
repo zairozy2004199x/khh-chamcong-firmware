@@ -88,8 +88,19 @@ class VHG_Doc {
 		   với sao kê, và không ai nhìn ra điều đó cho tới lúc phải khớp từng dòng. */
 		/* SỐ TÀI KHOẢN NHẬN, theo lời BÊN GỬI. Đây là SỰ THẬT ĐỐI CHỨNG duy nhất cho ô "tài
 		   khoản nhận tiền" khai tay ở màn quản trị — xem VHG_May::doi_chieu_tk(). */
+		/* 🔴 TÁCH RIÊNG SỐ TÀI KHOẢN VÀ TÀI KHOẢN ẢO (VA). Bản trước gộp làm một danh sách nên
+		 *    `accountNumber` luôn thắng và VA bị vứt — mất đúng thông tin cần để trả lời câu
+		 *    "mã QR phải trỏ vào cái nào".
+		 *
+		 *    Ngày 22/08/2026 anh Thắng quét thử: ngân hàng trừ tiền bình thường, SePay KHÔNG
+		 *    thấy giao dịch nào. Firmware gốc của hệ thống cũ trỏ vào VA (`96247POSH`), còn mã
+		 *    QR mới trỏ vào số tài khoản thường — hai đích khác nhau, và chỉ một trong hai là
+		 *    cái SePay theo dõi. Không tách hai ô này thì không có cách nào thấy điều đó. */
 		$tk_nhan = trim( (string) self::lay( $nhanh, array( 'accountNumber', 'account_number',
-			'subAccount', 'sub_account', 'accountNo', 'soTaiKhoan', 'stk' ) ) );
+			'accountNo', 'soTaiKhoan', 'stk' ) ) );
+		$tk_ao   = trim( (string) self::lay( $nhanh, array( 'subAccount', 'sub_account',
+			'virtualAccount', 'va', 'taiKhoanAo' ) ) );
+		if ( '' === $tk_nhan ) { $tk_nhan = $tk_ao; }
 		$luc = VHG_Doc::ngay( (string) self::lay( $nhanh, array( 'transactionDate', 'transaction_date',
 			'transTime', 'transactionTime', 'when', 'payDate', 'paidAt', 'createdAt', 'created_at',
 			'thoiGian', 'ngayGiaoDich' ) ) );
@@ -106,6 +117,7 @@ class VHG_Doc {
 			'ref'      => $ref,
 			'ten_khai' => $ten,
 			'tk_nhan'  => $tk_nhan,
+			'tk_ao'    => $tk_ao,
 			'luc'      => $luc,
 			'tien_ra'  => ( 'out' === $huong || 'debit' === $huong || $tien < 0 ),
 		);

@@ -1412,6 +1412,63 @@ teq( 'nói rõ bên gửi báo số nào', '8888815678', $dc['ben_gui'] );
 VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
 teq( 'sửa đúng thì khớp', true, VHG_May::doi_chieu_tk()['khop'] );
 
+/* ============ 🔴 TÀI KHOẢN ẢO (VA) — TIỀN VỀ TÚI MÌNH MÀ HỆ THỐNG MÙ VỚI NÓ
+ *
+ * Anh Thắng 22/08/2026: quét thử, ngân hàng trừ tiền bình thường, app hiện đúng tên chủ tài
+ * khoản — mà SePay KHÔNG thấy giao dịch nào và ghế không chạy.
+ *
+ * Vì tiền vào TÀI KHOẢN GỐC, còn SePay theo dõi TÀI KHOẢN ẢO. Tiền không mất, nó nằm đúng
+ * trong tài khoản của mình; nhưng hệ thống mù với nó, nên khách trả tiền xong đứng đó mà ghế
+ * không chạy — kiểu hỏng tệ nhất, vì sổ sách vẫn đúng và không ai biết đi tìm ở đâu.
+ */
+$va_sepay = '96247POSH';
+
+/* Bộ đọc phải TÁCH RIÊNG hai ô. Bản trước gộp một danh sách nên `accountNumber` luôn thắng và
+   VA bị vứt — mất đúng thông tin cần để trả lời "mã QR phải trỏ vào cái nào". */
+$ev_va = VHG_Doc::tach( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 AAAAA', 'referenceCode' => 'va-1',
+	'accountNumber' => '8888815678', 'subAccount' => $va_sepay ) );
+teq( 'đọc được số tài khoản gốc', '8888815678', $ev_va[0]['tk_nhan'] );
+teq( '🔴 và đọc RIÊNG được tài khoản ảo', $va_sepay, $ev_va[0]['tk_ao'] );
+
+vhg_dung_bang();
+delete_option( 'vhg_tk_ben_gui' );
+VHG_May::luu_nhan_tien( '970448', $va_sepay, 'K&H' );      // khai VA, đúng cách
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 AAAAA', 'referenceCode' => 'va-2',
+	'accountNumber' => '8888815678', 'subAccount' => $va_sepay ) );
+$dc_va = VHG_May::doi_chieu_tk();
+teq( '🔴 khai VA thì KHỚP, dù số tài khoản gốc khác hẳn', true, $dc_va['khop'] );
+teq( 'và nhớ luôn VA để hiện ra cho người khai', $va_sepay, $dc_va['va'] );
+
+/* ⚠️ VA CÓ CHỮ. Bản trước so bằng cách bỏ hết chữ cái, nên `96247POSH` thành `96247` rồi so với
+      `8888815678` — báo đỏ oan cho đúng cấu hình chạy được. Một cảnh báo oan là một cảnh báo
+      bị bỏ qua mãi về sau. */
+t( 'VA có chữ không bị cắt mất khi so', strpos( $va_sepay, 'POSH' ) !== false
+	&& true === VHG_May::doi_chieu_tk()['khop'] );
+
+/* Khai tài khoản GỐC trong khi SePay báo VA -> vẫn khớp (cả hai đều là đích hợp lệ, miễn SePay
+   thấy). Chỉ khai một số KHÔNG PHẢI cả hai mới là sai. */
+VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
+teq( 'khai tài khoản gốc mà SePay có báo số đó: vẫn khớp', true, VHG_May::doi_chieu_tk()['khop'] );
+VHG_May::luu_nhan_tien( '970418', '1111111111', 'K&H' );
+teq( 'khai một số không phải cả hai: báo lệch', false, VHG_May::doi_chieu_tk()['khop'] );
+
+/* Màn khai phải NÓI RA điều này — nhìn hai chuỗi số thì không có gì gợi ý cái nào đúng. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+ob_start(); VHG_Admin::trang_may(); $h_va = ob_get_clean();
+t( 'màn dặn điền SỐ VA, không phải số tài khoản ngân hàng',
+	strpos( $h_va, 'Điền SỐ VA của SePay' ) !== false );
+t( 'và nói rõ hậu quả: tiền về túi mình nhưng ghế không chạy',
+	strpos( $h_va, 'hệ thống không thấy, và ghế không chạy' ) !== false );
+t( 'nhắc BIN phải là ngân hàng PHÁT HÀNH VA',
+	strpos( $h_va, 'ngân hàng phát hành VA' ) !== false );
+t( 'khi lệch thì hiện luôn VA mà bên gửi báo',
+	strpos( $h_va, 'Tài khoản ảo (VA) bên gửi báo' ) !== false, $h_va ? '' : '' );
+$_GET = array(); $_POST = array();
+VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
+
 /* ⚠️ KHÔNG KÊU OAN vì cách viết. Bên gửi có khi trả "888 881 5678" — khác cách viết không phải
       khác tài khoản, và kêu oan một lần là lần sau người ta bỏ qua cảnh báo thật. */
 vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',

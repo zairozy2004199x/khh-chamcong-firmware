@@ -441,6 +441,10 @@ class VHG_Admin {
 				. '<tr><td>Đang khai ở đây</td><td><code>' . esc_html( $tk_chung['so_tk'] ) . '</code></td></tr>'
 				. '<tr><td>Bên gửi (SePay) báo</td><td><code>' . esc_html( $dc['ben_gui'] ) . '</code>'
 				. ' <span class="description">' . esc_html( $dc['luc'] ) . '</span></td></tr>'
+				. ( '' !== (string) $dc['va']
+					? '<tr><td>Tài khoản ảo (VA) bên gửi báo</td><td><code>' . esc_html( $dc['va'] )
+						. '</code> <span class="description">thường ĐÂY mới là số cần điền ở trên</span></td></tr>'
+					: '' )
 				. '</tbody></table>'
 				. '<p>Một trong hai sai. Sai ở ô này thì <b>mã QR trên 26 cái ghế đều hỏng</b> — mà nó '
 				. 'vẫn dựng ra được, vẫn trông như thật, chỉ tới lúc có khách đứng quét mới lộ. '
@@ -453,11 +457,27 @@ class VHG_Admin {
 		echo '<form method="post"><table class="form-table">';
 		wp_nonce_field( 'vhg' );
 		echo '<tr><th>Số TK / VA nhận tiền</th><td><input name="so_tk" value="'
-			. esc_attr( $tk_chung['so_tk'] ) . '" class="regular-text code" /></td></tr>';
+			. esc_attr( $tk_chung['so_tk'] ) . '" class="regular-text code" />'
+			/* 🔴 BÀI HỌC NGÀY 22/08/2026. Anh Thắng quét thử: ngân hàng trừ tiền bình thường,
+			   app hiện đúng tên chủ tài khoản, mà SePay KHÔNG thấy giao dịch nào và ghế không
+			   chạy. Vì tiền vào TÀI KHOẢN GỐC, còn SePay theo dõi TÀI KHOẢN ẢO (VA).
+			   Tiền không mất — nó nằm đúng trong tài khoản của mình — nhưng hệ thống mù với nó,
+			   nên khách trả tiền xong đứng đó mà ghế không chạy. Ghi ra đây vì nhìn hai chuỗi số
+			   thì không có gì gợi ý cái nào đúng. */
+			. '<p class="description">⚠️ <b>Điền SỐ VA của SePay, không phải số tài khoản ngân hàng.</b> '
+			. 'SePay chỉ báo về những giao dịch vào VA mà nó theo dõi; tiền chuyển thẳng vào tài '
+			. 'khoản gốc thì vẫn về túi mình nhưng <b>hệ thống không thấy, và ghế không chạy</b>.<br>'
+			. 'Lấy ở trang SePay → <b>Tài khoản ảo (VA)</b> → cột <b>Số VA</b>. VA có thể có chữ '
+			. '(VD <code>96247POSH</code>) — điền nguyên văn.</p></td></tr>';
 		echo '<tr><th>Mã ngân hàng (BIN)</th><td><input name="bin" value="'
 			. esc_attr( $tk_chung['bin'] ) . '" style="width:120px" placeholder="970418" />'
 			. '<p class="description">Napas BIN, 6 chữ số. 970418 = BIDV · 970436 = Vietcombank · '
-			. '970415 = VietinBank · 970422 = MB · 970407 = Techcombank · 970416 = ACB.<br>'
+			. '970415 = VietinBank · 970422 = MB · 970407 = Techcombank · 970416 = ACB · '
+			. '970448 = OCB.<br>'
+			/* BIN phải là ngân hàng PHÁT HÀNH VA, không phải ngân hàng mình quen dùng. VA do
+			   SePay mở qua một ngân hàng đối tác, và ngân hàng đó có khi khác hẳn. */
+			. '⚠️ Nếu ô trên điền VA thì BIN phải là <b>ngân hàng phát hành VA đó</b> — xem ở '
+			. 'trang SePay, bấm vào số VA. Ngân hàng phát hành VA có thể khác ngân hàng mình quen dùng.<br>'
 			. '<b>Sai BIN là QR quét ra ngân hàng khác và tiền không về tài khoản của mình.</b></p></td></tr>';
 		echo '<tr><th>Tên tài khoản</th><td><input name="ten_tk" value="'
 			. esc_attr( $tk_chung['ten_tk'] ) . '" class="regular-text" /></td></tr>';

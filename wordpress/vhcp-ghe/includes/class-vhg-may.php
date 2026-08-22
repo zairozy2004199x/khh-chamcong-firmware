@@ -424,10 +424,11 @@ class VHG_May {
 	 *    miễn phí: mỗi lượt webhook, SePay nói rõ tiền vừa vào TÀI KHOẢN NÀO. Nếu số đó khác số
 	 *    đang khai thì một trong hai sai — và đó là câu duy nhất đáng nói ra.
 	 */
-	public static function nho_tk_ben_gui( $so_tk ) {
+	public static function nho_tk_ben_gui( $so_tk, $tk_ao = '' ) {
 		$so_tk = trim( (string) $so_tk );
 		if ( '' === $so_tk ) { return; }
-		update_option( 'vhg_tk_ben_gui', array( 'so' => $so_tk, 'luc' => current_time( 'mysql' ) ) );
+		update_option( 'vhg_tk_ben_gui', array( 'so' => $so_tk,
+			'va' => trim( (string) $tk_ao ), 'luc' => current_time( 'mysql' ) ) );
 	}
 
 	/**
@@ -438,14 +439,24 @@ class VHG_May {
 		$g = get_option( 'vhg_tk_ben_gui' );
 		$ben_gui = is_array( $g ) && isset( $g['so'] ) ? trim( (string) $g['so'] ) : '';
 		if ( '' === $ben_gui ) {
-			return array( 'co' => false, 'khop' => true, 'ben_gui' => '', 'luc' => '' );
+			return array( 'co' => false, 'khop' => true, 'ben_gui' => '', 'va' => '', 'luc' => '' );
 		}
 		$khai = self::nhan_tien_chung();
-		/* So bằng CHỮ SỐ: bên gửi có khi trả "8888815678", có khi "888 881 5678". Khác cách viết
-		   không phải khác tài khoản, và kêu oan một lần là lần sau người ta bỏ qua cảnh báo thật. */
-		$a = preg_replace( '/\D+/', '', $khai['so_tk'] );
-		$b = preg_replace( '/\D+/', '', $ben_gui );
-		return array( 'co' => true, 'khop' => ( '' !== $a && $a === $b ), 'ben_gui' => $ben_gui,
+		/* So bằng CHỮ VÀ SỐ, không chỉ chữ số.
+		 *
+		 * 🔴 Bản trước bỏ hết chữ cái. Tài khoản ảo của SePay là chuỗi CÓ CHỮ (`96247POSH`), nên
+		 *    khai VA vào đây là nó biến thành `96247` rồi so với `8888815678` — báo đỏ oan cho
+		 *    đúng cấu hình chạy được. Chỉ bỏ dấu cách và gạch: bên gửi có khi trả
+		 *    "888 881 5678", khác cách viết không phải khác tài khoản. */
+		$a = strtoupper( preg_replace( '/[^0-9A-Za-z]/', '', (string) $khai['so_tk'] ) );
+		$b = strtoupper( preg_replace( '/[^0-9A-Za-z]/', '', $ben_gui ) );
+		$va = is_array( $g ) && isset( $g['va'] ) ? trim( (string) $g['va'] ) : '';
+		/* Khớp NẾU trùng số tài khoản HOẶC trùng tài khoản ảo: mã QR trỏ vào cái nào cũng được,
+		   miễn là cái SePay đang theo dõi. Chỉ đòi trùng đúng một ô là báo đỏ oan cho cấu hình
+		   đang chạy tốt — và một cảnh báo oan là một cảnh báo bị bỏ qua mãi về sau. */
+		$c = strtoupper( preg_replace( '/[^0-9A-Za-z]/', '', $va ) );
+		$khop = ( '' !== $a && $a === $b ) || ( '' !== $c && $c === $a );
+		return array( 'co' => true, 'khop' => $khop, 'ben_gui' => $ben_gui, 'va' => $va,
 			'luc' => is_array( $g ) && isset( $g['luc'] ) ? (string) $g['luc'] : '' );
 	}
 
