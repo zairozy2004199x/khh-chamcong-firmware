@@ -813,6 +813,42 @@ t( 'hợp với điện thoại', strpos( $html, 'width=device-width' ) !== fals
 /* Và hợp với MÀN MÁY TÍNH. Bản đầu bó vào một cột giữa, hai bên bỏ trống hơn nửa màn — mà
    người ngồi văn phòng đối soát cuối ngày lại dùng đúng màn đó. */
 t( 'có bố cục riêng cho màn rộng', strpos( $html, '@media(min-width:1100px)' ) !== false );
+
+/* ============ 🔴 TRANG PHẢI TỰ CẬP NHẬT
+ *
+ * Anh Thắng 22/08/2026: *"bấm điều khiển máy chạy, nhưng trên web thời gian chưa chạy"*. Trang
+ * chỉ tải khi mở hoặc khi bấm ↻. Người đứng cạnh ghế bấm Bật, ghế chạy thật, web vẫn nói
+ * "Rảnh" — họ tưởng lệnh không ăn nên bấm lần nữa, mà mỗi lần bấm Bật là CHO KHÔNG một lượt.
+ */
+t( 'trang tự hỏi lại máy chủ theo nhịp', strpos( $html, 'function henLai()' ) !== false );
+/* ⚠️ KHAI HÀM CHƯA ĐỦ — PHẢI CÓ AI GỌI NÓ. Phép thử bản đầu chỉ soi hàm có tồn tại, nên phép
+   đột biến "xoá hai dòng gọi trong noi()" đi lọt: trang lại đứng im y như cũ mà bảng điểm vẫn
+   xanh. Một hàm không ai gọi là một hàm không chạy. */
+t( '🔴 và THẬT SỰ được gọi mỗi lần vẽ lại trang',
+	preg_match( '/function noi\(\)\{\s*henLai\(\);\s*chayDongHo\(\);/', $html ) === 1, $html ? '' : '' );
+/* Hai nhịp khác nhau, cố ý: người đang đứng chờ ghế phản hồi cần 5 giây; bảng tiền không đổi
+   từng giây mà trang này mở suốt ngày trên 4G. */
+t( 'tab điều khiển nhanh hơn tab đối soát',
+	preg_match( "/'dieu-khien':\s*(\d+).*?'doi-soat':\s*(\d+)/s", $html, $m_nh ) === 1
+	&& (int) $m_nh[1] < (int) $m_nh[2], $html ? '' : '' );
+/* ⚠️ KHÔNG hỏi khi đang mở bảng chốt ca — vẽ lại là xoá mất số người ta đang gõ. */
+t( 'không tự tải lại khi đang mở bảng chốt ca hoặc đang chờ lệnh',
+	strpos( $html, 'if (ban || CHOT || document.hidden)' ) !== false );
+t( 'và huỷ lượt hẹn cũ trước khi hẹn mới — không thì mỗi lần vẽ lại thêm một đồng hồ',
+	strpos( $html, 'if (hen) { clearTimeout(hen); hen = null; }' ) !== false );
+/* Số đếm ngược tự trừ mỗi giây giữa hai lượt hỏi: một con số đứng im là dấu hiệu ghế treo,
+   đừng để giao diện tự tạo ra dấu hiệu đó. */
+t( 'số đếm ngược chạy tại chỗ mỗi giây', strpos( $html, 'function chayDongHo()' ) !== false );
+t( 'và chỉ đụng vào chữ của con số, không vẽ lại cả trang',
+	strpos( $html, "o.textContent = mmss(m.con_lai)" ) !== false );
+t( 'hết giờ thì hỏi lại NGAY, không đợi hết nhịp',
+	strpos( $html, 'clearInterval(demGiay); demGiay = null; if (!ban && !CHOT) tai(true);' ) !== false );
+t( 'mở lại trang sau khi khoá màn thì hỏi ngay',
+	strpos( $html, "visibilitychange" ) !== false );
+/* Ghế vẽ "04:57" (snprintf "%02d:%02d"). Web phải y hệt — cùng một con số ra hai kiểu là chỗ
+   người đối chiếu bằng mắt dừng lại tự hỏi hai bên có nói cùng một thứ không. */
+t( 'đồng hồ web cùng khuôn mm:ss với màn ghế',
+	strpos( $html, "String(Math.floor(s/60)).padStart(2,'0')" ) !== false );
 t( 'hai bảng tổng hợp nằm cạnh nhau trên màn rộng',
 	strpos( $html, '.doi{display:grid' ) !== false && strpos( $html, '<div class="doi">' ) !== false );
 t( 'nhưng trên điện thoại vẫn xếp dọc như cũ',
@@ -1338,6 +1374,71 @@ t( 'nhưng chỉ vẽ lại khi ghế đang RẢNH, không xoá màn QR dưới 
 /* Và vòng vẽ lại mỗi 5 giây của màn "chưa gán" vẫn còn — nó phục vụ người đang đứng lắp máy. */
 t( 'vòng vẽ lại 5 giây của màn "chưa gán" vẫn còn',
 	preg_match( '/CHUA_GAN \|\| CHAIR_ID\.length\(\)==0\) && millis\(\)-veLai > 5000/', $fw4 ) === 1 );
+
+// ====================== 🔴 SỐ TÀI KHOẢN GÕ THIẾU MỘT CHỮ SỐ
+/* Anh Thắng 22/08/2026 quét thử mã QR bằng app BIDV: *"Định dạng tài khoản định danh không hợp
+   lệ (174)"*. Nguyên nhân: ô số tài khoản khai tay thiếu MỘT chữ số — `888815678` thay vì
+   `8888815678`.
+
+   Một chữ số. Không có gì trên màn hình sai cả: mã QR vẫn dựng ra, vẫn trông như thật, vẫn dán
+   được lên 26 cái ghế. Chỉ tới lúc có khách đứng quét mới lộ.
+
+   Không kiểm được bằng luật chữ số — mỗi ngân hàng một khuôn. Nhưng có một sự thật đối chứng
+   miễn phí: mỗi lượt webhook, SePay nói rõ tiền vừa vào TÀI KHOẢN NÀO. */
+vhg_dung_bang();
+delete_option( 'vhg_tk_ben_gui' );
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );      // thiếu một số 8
+$dc = VHG_May::doi_chieu_tk();
+teq( 'chưa có lượt nào bắn tới thì chưa đối chiếu được', false, $dc['co'] );
+t( 'và KHÔNG kêu oan lúc đó', ! empty( $dc['khop'] ) );
+
+/* Một lượt SePay thật, kèm số tài khoản đúng. */
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 AAAAA', 'referenceCode' => 'tk-1',
+	'accountNumber' => '8888815678' ) );
+$dc = VHG_May::doi_chieu_tk();
+teq( 'đã thấy số bên gửi báo', true, $dc['co'] );
+teq( '🔴 và phát hiện lệch', false, $dc['khop'] );
+teq( 'nói rõ bên gửi báo số nào', '8888815678', $dc['ben_gui'] );
+
+/* Sửa cho đúng thì hết kêu. */
+VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
+teq( 'sửa đúng thì khớp', true, VHG_May::doi_chieu_tk()['khop'] );
+
+/* ⚠️ KHÔNG KÊU OAN vì cách viết. Bên gửi có khi trả "888 881 5678" — khác cách viết không phải
+      khác tài khoản, và kêu oan một lần là lần sau người ta bỏ qua cảnh báo thật. */
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 BBBBB', 'referenceCode' => 'tk-2',
+	'accountNumber' => '888 881 5678' ) );
+teq( 'khác cách viết thì vẫn coi là khớp', true, VHG_May::doi_chieu_tk()['khop'] );
+vhg_ban( array( 'transferAmount' => 50000, 'transferType' => 'in',
+	'content' => 'GHEAMTP01 CCCCC', 'referenceCode' => 'tk-3' ) );
+teq( 'gói không kèm số tài khoản thì GIỮ số đã biết, không xoá',
+	'888 881 5678', VHG_May::doi_chieu_tk()['ben_gui'] );
+
+/* Đổi sang một tài khoản khác hẳn -> phải kêu lại. */
+VHG_May::luu_nhan_tien( '970418', '1234567890', 'K&H' );
+teq( 'khai sang tài khoản khác thì kêu lại', false, VHG_May::doi_chieu_tk()['khop'] );
+
+// ---- màn quản trị nói ra
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+ob_start(); VHG_Admin::trang_may(); $h_tk = ob_get_clean();
+t( 'màn báo đỏ khi lệch', strpos( $h_tk, 'KHÁC số mà bên gửi báo' ) !== false, $h_tk ? '' : '' );
+t( 'hiện CẢ HAI số để so bằng mắt',
+	strpos( $h_tk, '1234567890' ) !== false && strpos( $h_tk, '888 881 5678' ) !== false );
+t( 'và nói rõ hậu quả: 26 ghế đều hỏng mà nhìn vẫn như thật',
+	strpos( $h_tk, '26 cái ghế đều hỏng' ) !== false );
+t( 'nhắc đúng triệu chứng app ngân hàng báo',
+	strpos( $h_tk, 'định dạng tài khoản không hợp lệ' ) !== false );
+
+VHG_May::luu_nhan_tien( '970418', '8888815678', 'K&H' );
+ob_start(); VHG_Admin::trang_may(); $h_tk2 = ob_get_clean();
+t( 'khớp thì báo xanh, không báo đỏ',
+	strpos( $h_tk2, 'KHÁC số mà bên gửi báo' ) === false
+	&& strpos( $h_tk2, 'khớp với số bên gửi báo' ) !== false );
+$_GET = array(); $_POST = array();
+delete_option( 'vhg_tk_ben_gui' );
 
 // ============================================ BẢNG CHỐT CA THU TIỀN
 /* 🔴 Bản trước bấm "Thu tiền mặt" là hỏi "ghi 10.000đ?" rồi ghi luôn. Sai với việc thật: người

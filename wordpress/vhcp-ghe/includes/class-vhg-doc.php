@@ -86,6 +86,10 @@ class VHG_Doc {
 		   Lấy được thì dùng, vì đó là giờ trên sao kê ngân hàng, tức giờ người ta đối soát. Giờ
 		   máy chủ chỉ là phương án cuối: WordPress mặc định chạy múi giờ UTC, lệch 7 tiếng so
 		   với sao kê, và không ai nhìn ra điều đó cho tới lúc phải khớp từng dòng. */
+		/* SỐ TÀI KHOẢN NHẬN, theo lời BÊN GỬI. Đây là SỰ THẬT ĐỐI CHỨNG duy nhất cho ô "tài
+		   khoản nhận tiền" khai tay ở màn quản trị — xem VHG_May::doi_chieu_tk(). */
+		$tk_nhan = trim( (string) self::lay( $nhanh, array( 'accountNumber', 'account_number',
+			'subAccount', 'sub_account', 'accountNo', 'soTaiKhoan', 'stk' ) ) );
 		$luc = VHG_Doc::ngay( (string) self::lay( $nhanh, array( 'transactionDate', 'transaction_date',
 			'transTime', 'transactionTime', 'when', 'payDate', 'paidAt', 'createdAt', 'created_at',
 			'thoiGian', 'ngayGiaoDich' ) ) );
@@ -101,6 +105,7 @@ class VHG_Doc {
 			'noi_dung' => $nd,
 			'ref'      => $ref,
 			'ten_khai' => $ten,
+			'tk_nhan'  => $tk_nhan,
 			'luc'      => $luc,
 			'tien_ra'  => ( 'out' === $huong || 'debit' === $huong || $tien < 0 ),
 		);

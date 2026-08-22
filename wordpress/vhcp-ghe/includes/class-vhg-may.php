@@ -319,6 +319,47 @@ class VHG_May {
 		return $ra;
 	}
 
+	/**
+	 * Nhớ số tài khoản mà BÊN GỬI báo là đã nhận tiền.
+	 *
+	 * 🔴 VÌ SAO CẦN. Ngày 22/08/2026 anh Thắng quét thử mã QR bằng app BIDV và bị chối: *"Định
+	 *    dạng tài khoản định danh không hợp lệ (174)"*. Nguyên nhân: ô số tài khoản khai tay
+	 *    thiếu MỘT chữ số — `888815678` thay vì `8888815678`.
+	 *
+	 *    Một chữ số. Không có gì trên màn hình sai cả: mã QR vẫn dựng ra, vẫn trông như thật,
+	 *    vẫn dán được lên 26 cái ghế. Chỉ tới lúc có khách đứng quét mới lộ — và lúc đó thì đã
+	 *    mất một buổi bán hàng ở 26 cửa hàng.
+	 *
+	 *    Không có cách nào kiểm số tài khoản bằng luật chữ số: mỗi ngân hàng một khuôn, BIDV còn
+	 *    có mấy loại tài khoản định danh dài ngắn khác nhau. NHƯNG mình có một sự thật đối chứng
+	 *    miễn phí: mỗi lượt webhook, SePay nói rõ tiền vừa vào TÀI KHOẢN NÀO. Nếu số đó khác số
+	 *    đang khai thì một trong hai sai — và đó là câu duy nhất đáng nói ra.
+	 */
+	public static function nho_tk_ben_gui( $so_tk ) {
+		$so_tk = trim( (string) $so_tk );
+		if ( '' === $so_tk ) { return; }
+		update_option( 'vhg_tk_ben_gui', array( 'so' => $so_tk, 'luc' => current_time( 'mysql' ) ) );
+	}
+
+	/**
+	 * Số đang khai có khớp số bên gửi báo không.
+	 * @return array [ 'co' => bool đã từng thấy, 'khop' => bool, 'ben_gui' => string, 'luc' => string ]
+	 */
+	public static function doi_chieu_tk() {
+		$g = get_option( 'vhg_tk_ben_gui' );
+		$ben_gui = is_array( $g ) && isset( $g['so'] ) ? trim( (string) $g['so'] ) : '';
+		if ( '' === $ben_gui ) {
+			return array( 'co' => false, 'khop' => true, 'ben_gui' => '', 'luc' => '' );
+		}
+		$khai = self::nhan_tien_chung();
+		/* So bằng CHỮ SỐ: bên gửi có khi trả "8888815678", có khi "888 881 5678". Khác cách viết
+		   không phải khác tài khoản, và kêu oan một lần là lần sau người ta bỏ qua cảnh báo thật. */
+		$a = preg_replace( '/\D+/', '', $khai['so_tk'] );
+		$b = preg_replace( '/\D+/', '', $ben_gui );
+		return array( 'co' => true, 'khop' => ( '' !== $a && $a === $b ), 'ben_gui' => $ben_gui,
+			'luc' => is_array( $g ) && isset( $g['luc'] ) ? (string) $g['luc'] : '' );
+	}
+
 	public static function luu_nhan_tien( $bin, $so_tk, $ten_tk ) {
 		$bin   = preg_replace( '/\D+/', '', (string) $bin );
 		$so_tk = trim( (string) $so_tk );

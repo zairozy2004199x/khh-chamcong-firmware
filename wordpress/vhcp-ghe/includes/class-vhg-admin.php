@@ -428,6 +428,24 @@ class VHG_Admin {
 				. 'Ghế sẽ không vẽ được mã QR — khách không quét được, không thu được đồng nào qua QR. '
 				. '(Tiền mặt vẫn chạy.)</p></div>';
 		}
+		/* 🔴 ĐỐI CHIẾU VỚI SỰ THẬT. Xem khối giải thích ở VHG_May::nho_tk_ben_gui(). */
+		$dc = VHG_May::doi_chieu_tk();
+		if ( $dc['co'] && ! $dc['khop'] ) {
+			echo '<div class="notice notice-error inline"><p><b>Số tài khoản đang khai KHÁC số mà '
+				. 'bên gửi báo đã nhận tiền.</b></p>'
+				. '<table class="widefat striped" style="max-width:420px;margin:6px 0"><tbody>'
+				. '<tr><td>Đang khai ở đây</td><td><code>' . esc_html( $tk_chung['so_tk'] ) . '</code></td></tr>'
+				. '<tr><td>Bên gửi (SePay) báo</td><td><code>' . esc_html( $dc['ben_gui'] ) . '</code>'
+				. ' <span class="description">' . esc_html( $dc['luc'] ) . '</span></td></tr>'
+				. '</tbody></table>'
+				. '<p>Một trong hai sai. Sai ở ô này thì <b>mã QR trên 26 cái ghế đều hỏng</b> — mà nó '
+				. 'vẫn dựng ra được, vẫn trông như thật, chỉ tới lúc có khách đứng quét mới lộ. '
+				. 'Thiếu hoặc thừa <b>một chữ số</b> là đủ để app ngân hàng báo '
+				. '“định dạng tài khoản không hợp lệ”.</p></div>';
+		} elseif ( $dc['co'] ) {
+			echo '<p><span style="color:#046b2d">✔️ Số tài khoản khớp với số bên gửi báo</span> '
+				. '<span class="description">(lượt gần nhất ' . esc_html( $dc['luc'] ) . ')</span></p>';
+		}
 		echo '<form method="post"><table class="form-table">';
 		wp_nonce_field( 'vhg' );
 		echo '<tr><th>Số TK / VA nhận tiền</th><td><input name="so_tk" value="'

@@ -399,14 +399,36 @@ var API = window.VHG_API, TOK = null, KY = 'today', D = null, ban = false;
    soát là mỗi lượt bấm mất thêm một cú bấm nữa. */
 var TAB = 'doi-soat';
 try { TAB = localStorage.getItem('vhg_tab') || 'doi-soat'; } catch(e) {}
+
+/* ============================================================================================
+ * TỰ CẬP NHẬT.
+ *
+ * 🔴 Anh Thắng 22/08/2026: *"bấm điều khiển máy chạy, nhưng trên web thời gian chưa chạy"*. Đúng
+ *    — trang chỉ tải khi mở hoặc khi bấm ↻. Người đứng cạnh ghế bấm Bật, ghế chạy thật, nhưng
+ *    web vẫn nói "Rảnh"; họ tưởng lệnh không ăn nên bấm lần nữa — mà mỗi lần bấm Bật là CHO
+ *    KHÔNG một lượt nữa.
+ *
+ * Hai nhịp khác nhau, cố ý:
+ *   · Tab ĐIỀU KHIỂN 5 giây — người đang đứng đó chờ ghế phản hồi.
+ *   · Tab ĐỐI SOÁT 30 giây — số tiền không đổi từng giây, mà trang này mở suốt ngày trên 4G.
+ *
+ * Và số đếm ngược tự trừ MỖI GIÂY giữa hai lượt hỏi, chứ không đứng im rồi nhảy 5 giây một
+ * lần: một con số đứng im là dấu hiệu ghế treo, đừng để giao diện tự tạo ra dấu hiệu đó.
+ * ============================================================================================ */
+var NHIP_MS = { 'dieu-khien': 5000, 'doi-soat': 30000 };
+var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
 
 var app = document.getElementById('app');
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + 'đ'; }
-function mmss(s){ s=Math.max(0,Number(s)||0); var m=Math.floor(s/60);
-  return m + ':' + String(s%60).padStart(2,'0'); }
+/* mm:ss có số 0 ở đầu — ĐÚNG KIỂU MÀN GHẾ VẼ (`snprintf("%02d:%02d")`). Ghế hiện "04:57" mà
+   web hiện "4:57" thì cùng một con số ra hai kiểu, và người đối chiếu bằng mắt sẽ dừng lại một
+   nhịp để tự hỏi hai chỗ có nói cùng một thứ không. Chiều rộng cố định còn đỡ nhảy chữ khi
+   đếm qua mốc 10 phút. */
+function mmss(s){ s=Math.max(0,Number(s)||0);
+  return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
 
 function goi(viec, d, xong){
   d = d || {}; d.token = TOK;
@@ -450,11 +472,45 @@ function veLogin(loi){
 }
 
 // ------------------------------------------------------------------ màn chính
-function tai(){
+function tai(im){
   goi('so_lieu', { ky: KY }, function(r){
-    if (!r.ok) { veLogin(r.error || ''); return; }
+    if (!r.ok) { if (!im) veLogin(r.error || ''); return; }
     D = r; ve();
   });
+}
+
+/* Hẹn lượt hỏi kế tiếp. Luôn huỷ lượt cũ trước: không thì mỗi lần vẽ lại là thêm một đồng hồ,
+   và sau mươi phút trang tự hỏi máy chủ vài chục lần một giây. */
+function henLai(){
+  if (hen) { clearTimeout(hen); hen = null; }
+  if (!TOK) return;
+  hen = setTimeout(function(){
+    /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
+       xoá mất số họ đang gõ), hoặc trang đang ẩn (điện thoại trong túi — hỏi cũng không ai đọc,
+       chỉ tốn 4G). */
+    if (ban || CHOT || document.hidden) { henLai(); return; }
+    tai(true);
+  }, NHIP_MS[TAB] || 30000);
+}
+
+/* Đồng hồ đếm ngược chạy TẠI CHỖ giữa hai lượt hỏi. Chỉ đụng vào phần chữ của con số, không
+   vẽ lại cả trang — vẽ lại mỗi giây là mất luôn ô đang gõ dở và nút đang bấm. */
+function chayDongHo(){
+  if (demGiay) { clearInterval(demGiay); demGiay = null; }
+  if (TAB !== 'dieu-khien' || !D) return;
+  demGiay = setInterval(function(){
+    if (!D || document.hidden) return;
+    var co = false;
+    D.may.forEach(function(m){
+      if (m.tt !== 'running' || !m.song) return;
+      if (m.con_lai > 0) { m.con_lai--; co = true; }
+      var o = document.querySelector('[data-dh="' + m.ma + '"]');
+      if (o) o.textContent = mmss(m.con_lai);
+    });
+    /* Hết giờ tại chỗ thì hỏi lại ngay, đừng đợi hết nhịp 5 giây: lúc đó trạng thái ghế vừa
+       đổi và đó chính là thứ người ta đang chờ xem. */
+    if (!co) { clearInterval(demGiay); demGiay = null; if (!ban && !CHOT) tai(true); }
+  }, 1000);
 }
 
 function ve(){
@@ -597,7 +653,8 @@ function veDieuKhien(){
 
     /* Số đếm ngược to: đó là thứ người đứng cạnh ghế nhìn để biết còn bao lâu. */
     if (m.tt === 'running' && m.song) {
-      h += '<div class="ghe-dh">' + mmss(m.con_lai) + '</div><div class="mut">còn lại</div>';
+      h += '<div class="ghe-dh" data-dh="' + esc(m.ma) + '">' + mmss(m.con_lai)
+        + '</div><div class="mut">còn lại</div>';
     } else if (!m.song) {
       h += '<div class="mut" style="margin:8px 0">Ghế không gửi nhịp. Khách vẫn quét được tem QR '
         + 'trên ghế, <b>tiền vẫn vào nhưng ghế không chạy</b>.</div>';
@@ -729,7 +786,9 @@ function dongChotCa(){
 }
 
 function noi(){
-  document.getElementById('lam-moi').onclick = tai;
+  henLai();
+  chayDongHo();
+  document.getElementById('lam-moi').onclick = function(){ tai(); };
   document.getElementById('thoat').onclick = function(){
     goi('logout', {}, function(){ TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){} veLogin(''); });
   };
@@ -802,6 +861,12 @@ function noi(){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
   });
 }
+
+/* Mở lại trang sau khi khoá màn: hỏi NGAY chứ đừng đợi hết nhịp. Người ta mở ra là để xem
+   ngay bây giờ, không phải để nhìn số liệu của 30 giây trước. */
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden && TOK && !ban && !CHOT) tai(true);
+});
 
 if (TOK) tai(); else veLogin('');
 })();

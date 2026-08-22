@@ -147,6 +147,10 @@ class VHG_Cong {
 
 		$kq = array();
 		foreach ( $ds as $ev ) {
+			/* Nhớ số tài khoản bên gửi báo — sự thật đối chứng cho ô khai tay. Nhớ TRƯỚC khi ghi
+			   sổ: gói không đọc nổi số tiền vẫn có thể nói đúng tài khoản, và đó vẫn là thông tin
+			   dùng được. Xem VHG_May::doi_chieu_tk(). */
+			if ( ! empty( $ev['tk_nhan'] ) ) { VHG_May::nho_tk_ben_gui( $ev['tk_nhan'] ); }
 			$r = VHG_Thu::nhan( $nguon, $ev );
 			VHG_Nhat_Ky::ghi( array(
 				'nguon'    => $nguon,
