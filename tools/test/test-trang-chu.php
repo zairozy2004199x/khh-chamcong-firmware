@@ -121,6 +121,45 @@ t( 'nạp lại luật SAU khi luật đã khai (init ưu tiên 99, khai ở 5)'
 	strpos( $chinh, "array( 'VHTC_Trang', 'init' ), 5" ) !== false
 	&& strpos( $chinh, '}, 99 );' ) !== false );
 
+// ------------------------------------------------------------ dùng làm trang chủ
+/* 🔴 Chiếm trang chủ là việc dễ hỏng nhất trong cả plugin này: chiếm quá tay thì MỌI trang của
+   site thành trang cổng, người dùng không còn đường đi tiếp, mà lỗi đó không báo gì. Nên phép
+   thử ở đây đi theo hai chiều: bật thì phải chiếm ĐÚNG trang chủ, và KHÔNG chiếm gì khác. */
+
+delete_option( 'vhtc_trang_chu' );
+$GLOBALS['VHCP_QVAR'] = array();
+$_GET = array();
+$GLOBALS['VHCP_LA_ADMIN'] = false;
+
+$GLOBALS['VHCP_LA_TRANG_CHU'] = true;
+t( 'CHƯA bật: ở trang chủ vẫn KHÔNG chiếm', false === VHTC_Trang::nen_ve() );
+
+update_option( 'vhtc_trang_chu', 1 );
+t( 'bật rồi: ở trang chủ thì chiếm', true === VHTC_Trang::nen_ve() );
+
+$GLOBALS['VHCP_LA_TRANG_CHU'] = false;
+t( 'nhưng KHÔNG chiếm trang khác (đây là chốt quan trọng nhất)', false === VHTC_Trang::nen_ve() );
+
+/* wp-admin phải luôn còn đường vào — bật nhầm mà khoá mất wp-admin thì không có đường lùi. */
+$GLOBALS['VHCP_LA_TRANG_CHU'] = true;
+$GLOBALS['VHCP_LA_ADMIN']     = true;
+t( 'KHÔNG bao giờ chiếm trang trong wp-admin', false === VHTC_Trang::nen_ve() );
+$GLOBALS['VHCP_LA_ADMIN'] = false;
+
+/* Đường dẫn riêng vẫn chạy song song, bật hay tắt cũng vậy. */
+$GLOBALS['VHCP_LA_TRANG_CHU'] = false;
+$GLOBALS['VHCP_QVAR'] = array( 'vhtc_app' => 1 );
+t( 'đường /van-hanh vẫn chạy khi đã bật trang chủ', true === VHTC_Trang::nen_ve() );
+delete_option( 'vhtc_trang_chu' );
+t( 'và vẫn chạy khi TẮT trang chủ', true === VHTC_Trang::nen_ve() );
+$GLOBALS['VHCP_QVAR'] = array();
+
+/* Màn Cài đặt phải nói rõ bật nhầm thì lùi được — sợ không lùi được thì không ai dám bấm. */
+$ad_ma2 = file_get_contents( VHTC_DIR . 'includes/class-vhtc-admin.php' );
+t( 'màn Cài đặt có ô "Dùng làm trang chủ"', strpos( $ad_ma2, 'Dùng làm trang chủ' ) !== false );
+t( 'và trấn an rằng bật nhầm vẫn vào được wp-admin để tắt',
+	strpos( $ad_ma2, 'Bật nhầm không sao' ) !== false );
+
 if ( count( $truot ) ) {
 	echo 'HỎNG: ' . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

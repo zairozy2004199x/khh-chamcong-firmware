@@ -62,8 +62,35 @@ class VHTC_Trang {
 		);
 	}
 
+	/** Có đang bật "dùng làm trang chủ" không. */
+	public static function lam_trang_chu() { return (bool) get_option( 'vhtc_trang_chu' ); }
+
+	/**
+	 * Quyết định có vẽ trang cổng cho yêu cầu này không.
+	 *
+	 * ⚠️ CHỈ chiếm ĐÚNG trang chủ, không chiếm gì khác. `is_front_page()` là chốt duy nhất —
+	 *    thiếu nó thì mọi trang của site đều biến thành trang cổng, kể cả trang của app khác,
+	 *    và người dùng không còn đường nào đi tiếp.
+	 *
+	 * ⚠️ `template_redirect` KHÔNG chạy trong wp-admin và không chạy cho REST. Nên bật nhầm cũng
+	 *    không bao giờ khoá được anh Thắng ra khỏi wp-admin — luôn còn đường vào để tắt lại.
+	 *    Đây là lý do móc ở đây chứ không móc sớm hơn.
+	 */
+	/**
+	 * QUYẾT ĐỊNH: yêu cầu này có phải trang cổng không.
+	 *
+	 * Tách riêng khỏi phần vẽ vì phần vẽ kết thúc bằng `exit` — mà `exit` thì không phép thử nào
+	 * chạy qua được. Phần đáng thử ở đây là QUYẾT ĐỊNH (chiếm cái gì, không chiếm cái gì), nên
+	 * nó phải gọi được mà không giết cả bài kiểm.
+	 */
+	public static function nen_ve() {
+		if ( get_query_var( 'vhtc_app' ) || isset( $_GET['vhtc'] ) ) { return true; }
+		return self::lam_trang_chu() && ! is_admin() && is_front_page();
+	}
+
 	public static function co_phai_trang_nay() {
-		if ( ! get_query_var( 'vhtc_app' ) && ! isset( $_GET['vhtc'] ) ) { return; }
+		if ( ! self::nen_ve() ) { return; }
+		status_header( 200 );
 		self::ve();
 		exit;
 	}

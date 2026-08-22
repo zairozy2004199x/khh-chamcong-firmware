@@ -25,6 +25,8 @@ class VHTC_Admin {
 		$ten = isset( $_POST['vhtc_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['vhtc_ten'] ) ) : '';
 		update_option( 'vhtc_ten', $ten !== '' ? $ten : 'Vận Hành K&H' );
 
+		update_option( 'vhtc_trang_chu', empty( $_POST['vhtc_trang_chu'] ) ? 0 : 1 );
+
 		$slug_cu  = VHTC_Trang::slug();
 		$slug_moi = isset( $_POST['vhtc_slug'] ) ? sanitize_title( wp_unslash( $_POST['vhtc_slug'] ) ) : '';
 		update_option( 'vhtc_slug', $slug_moi !== '' ? $slug_moi : 'van-hanh' );
@@ -58,6 +60,16 @@ class VHTC_Admin {
 			. esc_html( home_url( '/' ) ) . '<input name="vhtc_slug" id="vhtc_slug" value="'
 			. esc_attr( VHTC_Trang::slug() ) . '" class="regular-text"> /'
 			. '<p class="description">Mặc định <code>van-hanh</code>.</p></td></tr>';
+		echo '<tr><th scope="row">Dùng làm trang chủ</th><td>'
+			. '<label><input type="checkbox" name="vhtc_trang_chu" value="1"'
+			. checked( VHTC_Trang::lam_trang_chu(), true, false ) . '> Vào '
+			. esc_html( home_url( '/' ) ) . ' là ra thẳng trang này</label>'
+			. '<p class="description">Bật thì trang chủ của site thành trang cổng. '
+			. 'Đường dẫn <code>/' . esc_html( VHTC_Trang::slug() ) . '</code> vẫn dùng được như cũ.<br>'
+			/* Câu này để anh Thắng khỏi sợ bật rồi không lùi được — nỗi sợ đó làm người ta không
+			   dám bấm, rồi tính năng nằm đó không ai dùng. */
+			. '<b>Bật nhầm không sao:</b> wp-admin không bị ảnh hưởng, vào lại đây bỏ tích là xong.</p>'
+			. '</td></tr>';
 		echo '</tbody></table>';
 		submit_button( 'Lưu' );
 		echo '</form>';

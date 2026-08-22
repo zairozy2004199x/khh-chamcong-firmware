@@ -3,7 +3,7 @@
  * Plugin Name:       Trang Vận Hành K&H
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Một trang duy nhất để vào mọi app của K&H — chấm công, chi phí, hợp đồng. Đường dẫn lấy thẳng từ chính mấy app đó nên đổi đường dẫn bên kia thì bên này tự theo.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -22,7 +22,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHTC_VERSION', '1.0.0' );
+define( 'VHTC_VERSION', '1.1.0' );
 define( 'VHTC_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once VHTC_DIR . 'includes/class-vhtc-trang.php';

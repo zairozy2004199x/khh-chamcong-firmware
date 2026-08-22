@@ -135,6 +135,11 @@ function wp_tempnam( $p = '' ) { return tempnam( sys_get_temp_dir(), 'vhcp' ); }
  */
 $GLOBALS['VHCP_HTTP'] = array();
 $GLOBALS['VHCP_MENU'] = array();
+/* Trang chủ / khu quản trị — để phép thử dựng được cảnh "đang ở trang chủ" và "đang ở wp-admin". */
+$GLOBALS['VHCP_LA_TRANG_CHU'] = false;
+$GLOBALS['VHCP_LA_ADMIN']     = false;
+function is_front_page() { return ! empty( $GLOBALS['VHCP_LA_TRANG_CHU'] ); }
+function is_admin() { return ! empty( $GLOBALS['VHCP_LA_ADMIN'] ); }
 function is_wp_error( $x ) { return ( $x instanceof VHCP_Test_WP_Error ) || ( $x instanceof WP_Error ); }
 class VHCP_Test_WP_Error {
 	private $msg;
