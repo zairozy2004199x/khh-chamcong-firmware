@@ -32,6 +32,14 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHG_Cong {
 
+	/** Trần cứng số giây giữ một câu hỏi "có tiền chưa" lại. Xem khối giải thích ở việc `luot`.
+	    5 giây: đủ để nuốt trọn khoảng đợi của một nhịp, mà vẫn ngắn hơn nhiều so với thời gian
+	    chạy tối đa của PHP trên hosting chung, và ngắn hơn hẳn hạn 20 giây bên ghế. */
+	const CHO_TOI_DA  = 5;
+	/** Dò lại mỗi 250ms. Dày hơn thì tốn truy vấn mà mắt người không phân biệt nổi; thưa hơn thì
+	    chính nó thành khoảng đợi mới. */
+	const CHO_NHIP_US = 250000;
+
 	const DUONG_TIEN = 'ghe-tien';    // ngân hàng / SePay / VietQR / Tingo bắn vào đây
 	const DUONG_MAY  = 'ghe-may';     // ESP32 của ghế hỏi ở đây
 
@@ -243,7 +251,37 @@ class VHG_Cong {
 		$viec = strtolower( trim( (string) ( isset( $d['viec'] ) ? $d['viec'] : 'nhip' ) ) );
 
 		if ( 'luot' === $viec ) {
-			$r = VHG_May::lay_luot( $ma_may );
+			/* ==================================================================================
+			 * GIỮ CÂU HỎI LẠI MỘT LÁT THAY VÌ TRẢ "CHƯA CÓ" NGAY.
+			 *
+			 * 🔴 Anh Thắng đo 22/08/2026: quét xong mất 8 giây ghế mới chạy — 4 giây cho tiền đi
+			 *    từ ngân hàng qua SePay về web, 4 giây nữa cho ghế phát hiện ra.
+			 *
+			 *    Bốn giây đầu là của SePay, mình không rút được. Bốn giây sau là của mình, và nó
+			 *    sinh ra chỉ vì ghế HỎI THEO NHỊP: tiền về đúng lúc ghế vừa hỏi xong thì phải đợi
+			 *    trọn một nhịp nữa. Hỏi dày hơn chỉ thu ngắn khoảng đợi chứ không xoá được nó,
+			 *    mà mỗi lượt hỏi là một request PHP — host này đã bị Imunify360 chặn vì gõ cửa
+			 *    quá dày.
+			 *
+			 * Nên đảo cách làm: ghế hỏi MỘT lần rồi CHỜ SẴN Ở ĐÂY. Webhook ghi tiền vào bảng lúc
+			 * nào là vòng lặp này thấy ngay lúc đó — khoảng đợi còn đúng một nhịp dò 250ms.
+			 *
+			 * ⚠️ CHỈ CHỜ KHI GHẾ XIN. Firmware cũ không gửi `cho` nên vẫn trả lời ngay như trước;
+			 *    tự ý giữ request của ghế cũ lại là làm chậm chính thứ đang định làm nhanh.
+			 * ⚠️ CÓ TRẦN CỨNG. Mỗi lượt chờ chiếm một tiến trình PHP của hosting chung. Chỉ ghế
+			 *    ĐANG mở màn QR mới xin chờ (cùng lắm vài ghế một lúc), nhưng trần vẫn phải là
+			 *    trần cứng ở đây chứ không tin vào con số ghế gửi lên.
+			 * ⚠️ NGẮT KẾT NỐI THÌ THÔI. Ghế rút điện giữa chừng mà vòng lặp cứ chạy hết 5 giây là
+			 *    giữ không công một tiến trình PHP.
+			 * ================================================================================== */
+			$cho = max( 0, min( self::CHO_TOI_DA, (int) ( isset( $d['cho'] ) ? $d['cho'] : 0 ) ) );
+			$het = microtime( true ) + $cho;
+			$r   = VHG_May::lay_luot( $ma_may );
+			while ( ! $r && microtime( true ) < $het ) {
+				if ( connection_aborted() ) { return; }
+				usleep( self::CHO_NHIP_US );
+				$r = VHG_May::lay_luot( $ma_may );
+			}
 			self::tra( 200, $r
 				? array( 'ok' => true, 'co' => 1, 'ma_lenh' => $r['ma_lenh'],
 					'so_tien' => (int) $r['so_tien'], 'phut' => self::phut_cua( $ma_may ) )

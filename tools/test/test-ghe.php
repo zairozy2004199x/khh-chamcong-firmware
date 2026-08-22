@@ -1380,7 +1380,7 @@ t( 'nhưng chỉ vẽ lại khi ghế đang RẢNH, không xoá màn QR dưới 
 	preg_match( '/if\(state == ST_IDLE\) screenDrawn = false;/', $fw4 ) === 1 );
 /* Và vòng vẽ lại mỗi 5 giây của màn "chưa gán" vẫn còn — nó phục vụ người đang đứng lắp máy. */
 t( 'vòng vẽ lại 5 giây của màn "chưa gán" vẫn còn',
-	preg_match( '/CHUA_GAN \|\| CHAIR_ID\.length\(\)==0\) && millis\(\)-veLai > 5000/', $fw4 ) === 1 );
+	preg_match( '/CHUA_GAN \|\| CHAIR_ID\.length\(\)==0 \|\| !duNhanTien\(\)\) && millis\(\)-veLai > 5000/', $fw4 ) === 1 );
 
 // ====================== 🔴 SỐ TÀI KHOẢN GÕ THIẾU MỘT CHỮ SỐ
 /* Anh Thắng 22/08/2026 quét thử mã QR bằng app BIDV: *"Định dạng tài khoản định danh không hợp
@@ -2574,6 +2574,202 @@ ob_start(); VHG_Admin::trang_ngoai(); ob_get_clean();
 $_POST = array();
 teq( 'xoá trắng ô thì bỏ ảnh thật', '', (string) get_option( 'vhg_anh_nen' ) );
 t( 'và trang về nền tự dựng', strpos( vhg_web_html(), 'class="co-anh"' ) === false );
+
+// ====================== GHẾ MẤT MẠNG KHÔNG ĐƯỢC DỰNG QR BẰNG TÀI KHOẢN RỖNG
+/* 🔴 LỖI 22/08/2026 23:31 — anh Thắng quét mã trên ghế, tiền KHÔNG tới SePay, không tới đâu cả.
+ *
+ *    Số tài khoản, mã ngân hàng, tiền tố nội dung, giá và các gói CHỈ nạp từ lượt nhịp, không
+ *    ghi vào flash. Ghế khởi động lại lúc chưa hỏi được máy chủ thì `ACCOUNT_NO`/`BANK_BIN` là
+ *    chuỗi rỗng — mà `buildVietQR` vẫn dựng ra một mã VietQR ĐÚNG CHUẨN với ngân hàng rỗng và
+ *    tài khoản rỗng. Màn nhìn không khác gì bình thường: vẫn bốn gói, vẫn mã QR, vẫn dòng nội
+ *    dung. Khách quét, chuyển tiền, tiền không tới tài khoản nào.
+ *
+ *    `CHAIR_ID` thì đã nhớ vào flash từ lâu — thiếu đúng phần nhận tiền. */
+$fw9 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+
+foreach ( array( 'tk', 'bin', 'tienTo' ) as $o_ ) {
+	t( 'ghế nhớ "' . $o_ . '" vào flash',
+		strpos( $fw9, 'prefs.putString("' . $o_ . '"' ) !== false );
+}
+t( 'nhớ cả giá và số phút', strpos( $fw9, 'prefs.putLong  ("gia"' ) !== false
+	&& strpos( $fw9, 'prefs.putInt   ("phut"' ) !== false );
+t( 'và nhớ cả các gói', strpos( $fw9, 'prefs.putInt   ("pkgN"' ) !== false );
+/* ⚠️ Phải bám vào LỜI GỌI THẬT. Phép thử trước dò "prefs.begin … docCauHinh();" và vẫn đạt khi
+      dòng gọi bị chú thích lại — chuỗi vẫn nằm đó, chỉ là không chạy nữa. Dòng bắt đầu bằng
+      khoảng trắng rồi tới tên hàm thì chú thích `//` không lọt qua được. */
+teq( 'đọc lại lúc khởi động', 1, preg_match_all( '/^\s*docCauHinh\(\);/m', $fw9 ) );
+t( 'và đọc SAU khi đã mở được flash',
+	preg_match( '/prefs\.begin\("ghe".*?^\s*docCauHinh\(\);/ms', $fw9 ) === 1 );
+
+/* 🔴 CHỐT: không có tài khoản thì không có mã QR. Không ngoại lệ. */
+t( 'có chốt "đủ điều kiện nhận tiền"',
+	preg_match( '/bool duNhanTien\(\)\{\s*return ACCOUNT_NO\.length\(\) > 0 && BANK_BIN\.length\(\) > 0;/', $fw9 ) === 1 );
+t( 'startSession từ chối khi chưa biết tài khoản',
+	preg_match( '/void startSession\(int idx\)\{\s*(?:\/\*.*?\*\/\s*)?if\(!duNhanTien\(\)\)\{/s', $fw9 ) === 1 );
+/* ⚠️ Chốt phải đứng TRƯỚC chỗ dựng mã. Đứng sau thì mã đã dựng xong rồi mới từ chối — và chỉ
+      cần một đường vẽ nào đó chạm tới `qrPayload` là mã hỏng lại hiện lên. */
+$vt_chot = strpos( $fw9, 'if(!duNhanTien()){' );
+$vt_dung = strpos( $fw9, 'qrPayload  = buildVietQR(' );
+t( 'và từ chối TRƯỚC khi dựng mã', $vt_chot !== false && $vt_dung !== false && $vt_chot < $vt_dung );
+t( 'màn chờ cũng không mời chọn gói khi chưa có tài khoản',
+	preg_match( '/if\(!duNhanTien\(\)\)\{\s*veManChuaCoTk\(\);\s*return;\s*\}\s*\/\* Dải tiêu đề/s', $fw9 ) === 1 );
+t( 'có màn báo riêng cho tình huống đó', strpos( $fw9, 'TAM NGUNG NHAN QR' ) !== false );
+/* Nói cho khách việc khách làm được (trả tiền mặt), nói cho nhân viên việc nhân viên làm được. */
+t( 'và mời khách trả tiền mặt thay vì đứng chờ', strpos( $fw9, 'tra TIEN MAT' ) !== false );
+t( 'màn đó tự vẽ lại để biến mất khi lấy được cấu hình',
+	strpos( $fw9, 'CHAIR_ID.length()==0 || !duNhanTien()' ) !== false );
+
+/* ⚠️ `docCauHinh` KHÔNG được bịa ra một tài khoản mặc định. Chuỗi rỗng chính là thứ kích hoạt
+      chốt trên; nhét một giá trị vào cho "đỡ rỗng" là gỡ mất cái chốt mà không ai nhận ra. */
+t( 'đọc flash không bịa tài khoản mặc định',
+	preg_match( '/prefs\.getString\("tk",\s*""\)/', $fw9 ) === 1
+	&& preg_match( '/prefs\.getString\("bin",\s*""\)/', $fw9 ) === 1 );
+
+/* Ghi flash CHỈ khi cấu hình đổi. Ghi mỗi lượt nhịp là 30 giây một lần ghi NVS, ngày gần ba
+   nghìn lượt — hao chip mà chẳng được gì. */
+t( 'chỉ ghi flash khi cấu hình đổi',
+	preg_match( '/if\(cu_ky != kyCauHinh\(\)\)\{ luuCauHinh\(\);/', $fw9 ) === 1 );
+t( 'và ghi NGAY lượt đó, không đợi lượt sau',
+	substr_count( $fw9, 'luuCauHinh();' ) === 1 );
+
+/* Máy chủ đã chặn sẵn phía nó — giữ nguyên, đừng để ai gỡ. Hai đầu cùng chặn vì firmware cũ
+   vẫn còn chạy ngoài cửa hàng nhiều tuần. */
+$qr_tk = VHG_QR::cho_ghe( 'AMTP01', 'MAU' );
+VHG_May::luu_nhan_tien( '', '', '' );
+$qr_r = VHG_QR::cho_ghe( 'AMTP01', 'MAU' );
+t( 'máy chủ cũng không dựng QR khi chưa khai tài khoản', empty( $qr_r['ok'] ) );
+t( 'và nói rõ phải khai ở đâu', strpos( (string) $qr_r['error'], 'Tài khoản nhận tiền' ) !== false
+	|| strpos( (string) $qr_r['error'], 'tài khoản' ) !== false );
+
+// ====================== CHỜ SẴN Ở MÁY CHỦ THAY VÌ HỎI THEO NHỊP
+/* 🔴 Anh Thắng đo 22/08/2026: quét xong mất 8 giây ghế mới chạy — 4 giây cho tiền đi từ ngân
+      hàng qua SePay về web (của SePay, mình không rút được), 4 giây nữa cho ghế phát hiện ra.
+      Bốn giây sau là của mình, và nó sinh ra chỉ vì ghế HỎI THEO NHỊP: tiền về ngay sau lúc ghế
+      vừa hỏi xong thì phải đợi trọn một nhịp nữa. */
+$cong_cho = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-cong.php' );
+t( 'cổng máy giữ câu hỏi lại thay vì trả "chưa có" ngay',
+	preg_match( '/while \( ! \$r && microtime\( true \) < \$het \)/', $cong_cho ) === 1 );
+/* ⚠️ CHỈ CHỜ KHI GHẾ XIN. Firmware cũ không gửi `cho`; tự ý giữ request của nó lại là làm chậm
+      chính thứ đang định làm nhanh. */
+t( 'chỉ chờ khi ghế xin', strpos( $cong_cho, "isset( \$d['cho'] ) ? \$d['cho'] : 0" ) !== false );
+teq( 'firmware cũ (không gửi cho) thì không bị giữ', 0,
+	(int) preg_match( '/\$cho = max\( 0, min\( self::CHO_TOI_DA, \(int\) \( isset\( \$d\[.cho.\] \) \? \$d\[.cho.\] : [1-9]/', $cong_cho ) );
+/* ⚠️ TRẦN CỨNG Ở MÁY CHỦ, không tin con số ghế gửi lên: mỗi lượt chờ chiếm một tiến trình PHP
+      của hosting chung. */
+t( 'có trần cứng ở máy chủ', preg_match( '/const CHO_TOI_DA\s*=\s*([1-9])\s*;/', $cong_cho, $m_ct ) === 1
+	&& (int) $m_ct[1] <= 5 );
+t( 'và ghế không tự nâng trần được', strpos( $cong_cho, 'min( self::CHO_TOI_DA' ) !== false );
+/* ⚠️ Ghế rút điện giữa chừng mà vòng lặp cứ chạy hết là giữ không công một tiến trình PHP. */
+t( 'ngắt kết nối thì thôi chờ', strpos( $cong_cho, 'connection_aborted()' ) !== false );
+
+$fw10 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'ghế có xin chờ khi hỏi tiền', strpos( $fw10, 'wpGoi("luot", "\"cho\":4")' ) !== false );
+
+/* 🔴 LƯỢT CHỜ KHÔNG PHẢI ĐỘ TRỄ ĐƯỜNG TRUYỀN.
+      `g_rttMs` dùng để trừ nửa quãng đi khỏi `con_lai`. Lượt `luot` nay xin giữ tới 4 giây, nên
+      nó mất 4 giây là chuyện bình thường. Đo lẫn vào là đồng hồ trên web tự lùi 2 giây sau mỗi
+      lượt khách trả tiền — một phép sửa lệch giờ tự tạo ra lệch giờ. */
+teq( 'chỉ đo quãng đi ở lượt nhịp', 2, preg_match_all( '/if\(viec == "nhip"\) g_rttMs = millis\(\) - t0;/', $fw10 ) );
+t( 'và không đo vô điều kiện ở đâu cả',
+	preg_match( '/^\s*g_rttMs = millis\(\) - t0;/m', $fw10 ) !== 1 );
+
+/* 🔴 GHẾ NÀY CHẠY 4G. Cả khối keep-alive HTTPS nằm ở nhánh WiFi, không bao giờ chạy tới. Đo giờ
+      chỉ ở nhánh WiFi là đúng con ghế cần đo nhất lại không đo được gì, và phép trừ lệch đồng hồ
+      im lặng thành vô tác dụng. */
+t( 'nhánh 4G cũng đo quãng đi',
+	preg_match( '/if\(USE_4G\)\{.*?if\(viec == "nhip"\) g_rttMs = millis\(\) - t0;\s*return ra;/s', $fw10 ) === 1 );
+t( 'và mốc giờ bấm TRƯỚC khi rẽ nhánh',
+	preg_match( '/unsigned long t0 = millis\(\);\s*\n\s*if\(USE_4G\)\{/', $fw10 ) === 1 );
+/* 4G chờ tới 40 giây cho một lượt HTTP, nên lượt giữ 4 giây bên máy chủ vẫn nằm gọn trong hạn. */
+t( 'hạn chờ HTTP của 4G rộng hơn hẳn lượt giữ',
+	preg_match( '/atWait\("\+HTTPACTION:",(\d+)\)/', $fw10, $m_h ) === 1 && (int) $m_h[1] >= 20000 );
+
+// ====================== NHẬT KÝ BẬT GHẾ TỪ XA (để đối chiếu sau này)
+/* 🔴 Mỗi lần bấm Bật là CHO KHÔNG một lượt massage: ghế chạy, điện tốn, khách được phục vụ, mà
+      sổ doanh thu không có đồng nào. Cuối tháng nhìn "ghế chạy 180 lượt, thu 140 lượt" thì 40
+      lượt kia phải giải thích được bằng CON SỐ, không bằng trí nhớ. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+
+VHG_May::dat_lenh( 'AMTP01', 'on',  10, 'Chị Hai', 'khách phàn nàn ghế rung' );
+VHG_May::dat_lenh( 'AMTP02', 'on',  15, 'Anh Ba',  'chạy thử sau khi sửa' );
+VHG_May::dat_lenh( 'AMTP01', 'off',  0, 'Chị Hai', 'tắt sớm' );
+
+$tg = VHG_May::tong_lenh( 'month' );
+teq( 'đếm đúng số lần bật', 2, (int) $tg['so_lan'] );
+teq( 'và tổng số phút đã cho không', 25, (int) $tg['tong_phut'] );
+teq( 'trên mấy ghế', 2, (int) $tg['so_ghe'] );
+/* ⚠️ Lệnh TẮT không cho ai cái gì cả. Gộp vào là thổi phồng con số "cho không" bằng chính những
+      lần người ta tắt ghế đi — và bảng đối chiếu nói dối theo hướng có lợi cho mình. */
+$ds_b = VHG_May::ds_lenh_bat( 'month', 50 );
+teq( 'nhật ký chỉ có lệnh BẬT', 2, count( $ds_b ) );
+foreach ( $ds_b as $l_ ) { teq( 'không lẫn lệnh tắt', 'on', (string) $l_['viec'] ); }
+t( 'giữ được ai bấm', 'Chị Hai' === $ds_b[1]['nguoi'] || 'Chị Hai' === $ds_b[0]['nguoi'] );
+t( 'và giữ lý do', strpos( $ds_b[1]['ly_do'] . $ds_b[0]['ly_do'], 'khách phàn nàn' ) !== false );
+
+$ng = VHG_May::tong_lenh_ngay( 'month' );
+t( 'gộp được theo ngày', count( $ng ) >= 1 );
+teq( 'ngày hôm nay đủ cả hai lượt', 2, (int) $ng[0]['so_lan'] );
+teq( 'và đủ số phút', 25, (int) $ng[0]['tong_phut'] );
+
+/* ⚠️ ĐẾM CẢ LỆNH GHẾ CHƯA LẤY. `gui_luc` rỗng nghĩa là ghế đang mất mạng, nhưng người bấm đã
+      bấm rồi và ghế sẽ chạy khi lên mạng. Lọc bỏ là nhật ký nói ít hơn sự thật đúng vào những
+      ngày mạng chập chờn — tức đúng những ngày cần tra nhất. */
+global $wpdb;
+$chua_gui = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'lenh' )
+	. " WHERE viec='on' AND (gui_luc IS NULL OR gui_luc='')" );
+t( 'có lệnh ghế chưa lấy trong dữ liệu thử', $chua_gui > 0, $chua_gui );
+teq( 'và vẫn được đếm', 2, (int) VHG_May::tong_lenh( 'month' )['so_lan'] );
+
+// ---- hiện ra trên trang ngoài
+$tok_b = vhg_vao();
+$sl_b  = vhg_web( 'so_lieu', array( 'token' => $tok_b, 'ky' => 'month' ) );
+t( 'trang ngoài gửi kèm nhật ký bật', isset( $sl_b['bat'] ) );
+teq( 'đúng số lần', 2, (int) $sl_b['bat']['ky']['so_lan'] );
+/* Tổng THÁNG hiện bất kể đang xem kỳ nào — câu hỏi thật lúc đối chiếu luôn là "tháng này bao
+   nhiêu", mà bắt người ta bấm đổi kỳ rồi nhớ con số là cách chắc chắn để nhớ nhầm.
+   ⚠️ Phải có một lượt ở NGÀY KHÁC trong tháng, không thì `today` và `month` ra cùng một số và
+      phép thử đạt vì dữ liệu chứ không vì mã đúng — đúng lỗi vừa lọt qua đột biến. */
+$hom_qua = current_time( 'timestamp' ) - 86400;
+$cung_thang = gmdate( 'Y-m', $hom_qua ) === gmdate( 'Y-m', current_time( 'timestamp' ) );
+if ( $cung_thang ) {
+	VHG_May::dat_lenh( 'AMTP01', 'on', 7, 'Chị Hai', 'hôm qua' );
+	$wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'lenh' ) . ' SET tao_luc=%s'
+		. " WHERE ly_do='hôm qua'", gmdate( 'Y-m-d H:i:s', $hom_qua ) ) );
+	teq( 'kỳ "hôm nay" không đếm lượt hôm qua', 2, (int) VHG_May::tong_lenh( 'today' )['so_lan'] );
+	teq( 'kỳ "tháng này" thì có', 3, (int) VHG_May::tong_lenh( 'month' )['so_lan'] );
+	$sl_h = vhg_web( 'so_lieu', array( 'token' => $tok_b, 'ky' => 'today' ) );
+	teq( 'đang xem hôm nay, kỳ đếm 2', 2, (int) $sl_h['bat']['ky']['so_lan'] );
+	teq( '🔴 nhưng tổng tháng vẫn đủ 3', 3, (int) $sl_h['bat']['thang']['so_lan'] );
+	$wpdb->query( 'DELETE FROM ' . VHG_DB::t( 'lenh' ) . " WHERE ly_do='hôm qua'" );
+}
+/* Và chặn thẳng ở mã nguồn, để phép thử còn đứng vững cả vào ngày mùng 1 — hôm đó trong tháng
+   không có ngày nào sớm hơn hôm nay để dựng dữ liệu phân biệt. */
+$trang_bat = file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
+t( 'tổng tháng hỏi đúng kỳ "month", không theo kỳ đang xem',
+	strpos( $trang_bat, "\$bat_thang = VHG_May::tong_lenh( 'month' );" ) !== false );
+t( 'và phân biệt lệnh ghế chưa lấy', isset( $sl_b['bat']['ds'][0]['da_gui'] ) );
+
+// ---- và hiện ra trong wp-admin (nơi người đi tra thật sự ngồi)
+ob_start(); VHG_Admin::trang_may(); $h_bat = ob_get_clean();
+t( 'wp-admin có khối bật ghế từ xa', strpos( $h_bat, 'Bật ghế từ xa — tháng này' ) !== false );
+t( 'nói rõ đây là lượt chạy KHÔNG có tiền',
+	strpos( $h_bat, 'sổ doanh thu không có đồng nào' ) !== false );
+t( 'liệt kê ai bấm', strpos( $h_bat, 'Chị Hai' ) !== false );
+t( 'và phân biệt lệnh ghế chưa lấy', strpos( $h_bat, 'chưa lấy' ) !== false );
+
+$web_b = vhg_web_html();
+t( 'trang có khối nhật ký bật', strpos( $web_b, 'function veNhatKyBat()' ) !== false );
+t( 'và có gọi vẽ nó', preg_match( '/h \+= veNhatKyBat\(\);/', $web_b ) === 1 );
+t( 'nhật ký bật có bản tiếng Anh', strpos( $web_b, "'Remote start log'" ) !== false );
+/* Đặt TRƯỚC bảng giao dịch: bảng giao dịch nói tiền VÀO, bảng này nói tiền KHÔNG vào mà ghế vẫn
+   chạy — và đó mới là phần cuối tháng phải giải thích. */
+t( 'đứng trước bảng giao dịch',
+	strpos( $web_b, 'h += veNhatKyBat();' ) < strpos( $web_b, "'Giao dịch gần đây'" ) );
 
 // ============================================================ kết
 if ( $truot ) {

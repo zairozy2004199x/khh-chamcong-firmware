@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-22h (bao loi cuc nhan tien L70)"
+#define FW_VERSION "ghe-massage 2026-08-23a (nho cau hinh, cho san, bao loi L70)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -67,6 +67,12 @@ struct Btn { int x, y, w, h; };
 /* ⚠️ KHÔNG CÒN `CHAIR_ID` NẠP CỨNG. Ghế khai MAC, máy chủ trả về mã ghế trong lượt nhịp đầu
    tiên. Ghế chưa được gán thì máy chủ trả cờ `chuaGan` và ghế hiện chữ lên màn — người đi lắp
    biết ngay còn thiếu một bước, thay vì đứng nhìn màn trống rồi đoán. */
+/* Khai báo trước: `drawIdle()` và `startSession()` gọi hai hàm này, mà chúng định nghĩa ở tận
+   khối cấu hình phía dưới. Arduino tự sinh nguyên mẫu, nhưng chỉ tự sinh được khi nó phân tích
+   trót lọt — viết thẳng ra đây thì không phụ thuộc vào chuyện đó nữa. */
+bool duNhanTien();
+void veManChuaCoTk();
+
 String CHAIR_ID = "";        // máy chủ gán; rỗng = chưa hỏi được
 bool   CHUA_GAN = false;     // máy chủ báo ghế này chưa ai gán mã
 
@@ -492,6 +498,11 @@ String wpGoi(const String& viec, const String& them){
   if(them.length()) body += "," + them;
   body += "}";
 
+  /* Bấm giờ TRƯỚC khi rẽ nhánh. Ghế chạy 4G thì cả khối keep-alive ở dưới không bao giờ được
+     chạy tới — đo giờ chỉ ở nhánh WiFi là đúng con ghế cần đo nhất lại không đo được gì, và
+     phép trừ lệch đồng hồ trên web im lặng trở thành vô tác dụng. */
+  unsigned long t0 = millis();
+
   if(USE_4G){
     int dl=0, st=net4gPostOpen(String(wp_url), body, &dl);
     if(st!=200){
@@ -504,6 +515,7 @@ String wpGoi(const String& viec, const String& them){
     if(n>0){ ra.reserve(n+4); int got=0; unsigned long t0=millis();
       while(got<n && millis()-t0<12000){ while(Serial2.available()&&got<n){ ra+=(char)Serial2.read(); got++; t0=millis(); } delay(1);} }
     atWait("OK",2000); Serial2.print("AT+HTTPTERM\r\n"); atWait("OK",1500);
+    if(viec == "nhip") g_rttMs = millis() - t0;
     return ra;
   }
   /* ==========================================================================================
@@ -532,7 +544,6 @@ String wpGoi(const String& viec, const String& them){
   static int  gayLienTiep = 0;
   static bool thoiGiuKenh = false;
 
-  unsigned long t0 = millis();
   if(!daMo){
     c.setInsecure();
     h.begin(c, wp_url);
@@ -546,7 +557,12 @@ String wpGoi(const String& viec, const String& them){
   int code = h.POST(body);
   String than = h.getString();          // đọc hết, kể cả khi lỗi
   String ra   = (code==200) ? than : "";
-  g_rttMs = millis() - t0;
+  /* ⚠️ CHỈ ĐO LƯỢT `nhip`. `g_rttMs` dùng để trừ nửa quãng đi khỏi `con_lai`, mà `con_lai` được
+     tính ngay trước lượt `nhip` — nên chỉ lượt ấy mới nói đúng quãng cần trừ.
+     Lượt `luot` nay XIN MÁY CHỦ GIỮ LẠI tới 4 giây, nên nó mất 4 giây là chuyện bình thường và
+     hoàn toàn không phải độ trễ đường truyền. Đo lẫn vào là đồng hồ trên web tự lùi 2 giây sau
+     mỗi lượt khách trả tiền — một phép sửa lệch giờ tự tạo ra lệch giờ. */
+  if(viec == "nhip") g_rttMs = millis() - t0;
 
   if(code <= 0){
     /* Kết nối gãy: dẹp hẳn để lượt sau bắt tay lại từ đầu. */
@@ -660,6 +676,29 @@ void veTheGoi(int i){
   }
 }
 
+/**
+ * Màn "chưa lấy được tài khoản nhận".
+ *
+ * Nói cho NHÂN VIÊN, không phải cho khách: khách không làm gì được với thông tin này. Nên câu
+ * đầu là câu khách cần ("tạm thời trả tiền mặt"), phần dưới là thứ nhân viên cần để sửa.
+ */
+void veManChuaCoTk(){
+  tft.fillScreen(COL_BG);
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(TFT_YELLOW, COL_BG);
+  tft.drawString("TAM NGUNG NHAN QR", 160, 40, 4);
+  tft.setTextColor(TFT_WHITE, COL_BG);
+  tft.drawString("Quy khach vui long tra TIEN MAT", 160, 82, 2);
+  tft.drawString("hoac bao nhan vien. Xin loi quy khach.", 160, 104, 2);
+  tft.setTextColor(COL_MO, COL_BG);
+  tft.drawString("Ghe chua lay duoc so tai khoan nhan tien", 160, 140, 1);
+  tft.drawString("-> can noi mang de hoi may chu MOT lan", 160, 154, 1);
+  tft.setTextColor(COL_ACC, COL_BG);
+  tft.drawString(CHAIR_ID.length() ? CHAIR_ID : macBo(), 160, 176, 2);
+  tft.setTextColor(netUp() ? 0x0660 : 0xF800, COL_BG);
+  tft.drawString(netUp() ? "Dang co mang - cho lay cau hinh..." : "MAT MANG", 160, 202, 2);
+}
+
 void drawIdle(){
   tft.fillScreen(COL_BG);
   tft.setTextDatum(TC_DATUM);
@@ -675,6 +714,15 @@ void drawIdle(){
     tft.drawString(macBo(), 160, 152, 2);
     tft.setTextColor(netUp()?TFT_GREEN:TFT_RED, COL_BG);
     tft.drawString(netUp()?"4G ON":"4G -- (chua hoi duoc may chu)", 160, 200, 2);
+    return;
+  }
+  /* 🔴 CHƯA BIẾT TÀI KHOẢN NHẬN thì đừng mời khách chọn gói. Bốn cái thẻ gói nhìn y như bình
+     thường mà bấm vào lại không ra mã được — thà nói thẳng ngay từ màn chờ, và nói cho NHÂN VIÊN
+     chứ không phải cho khách, vì đây là việc của nhân viên.
+     Đặt SAU khối "chưa gán mã" ở trên: ghế chưa gán mã thì lỗi đó là lỗi gốc, nói một chuyện
+     một lúc thôi. */
+  if(!duNhanTien()){
+    veManChuaCoTk();
     return;
   }
   /* Dải tiêu đề. Mã ghế nằm ở góc phải, nhỏ: khách không cần nó, nhưng người đi sửa thì cần
@@ -870,6 +918,92 @@ void updateAcceptor(){
 }
 
 // ======================= Nhịp sống: gộp bốn câu hỏi vào MỘT lượt =======================
+/* ============================================================================================
+ * NHỚ CẤU HÌNH VÀO FLASH.
+ *
+ * 🔴 LỖI 22/08/2026, 23:31 — anh Thắng quét mã trên ghế, tiền KHÔNG tới SePay, không tới đâu cả.
+ *
+ *    Số tài khoản nhận, mã ngân hàng, tiền tố nội dung, giá và các gói CHỈ được nạp từ lượt nhịp.
+ *    Không ghi vào flash. Nên ghế khởi động lại (nạp USB xong, mất điện, hay chỉ là reset) mà
+ *    lúc đó chưa hỏi được máy chủ thì `ACCOUNT_NO` và `BANK_BIN` là CHUỖI RỖNG — và `buildVietQR`
+ *    vẫn dựng ra một mã VietQR đúng chuẩn với ngân hàng rỗng, tài khoản rỗng.
+ *
+ *    Nhìn màn ghế thì KHÔNG THẤY GÌ KHÁC THƯỜNG: vẫn bốn gói, vẫn mã QR đen trắng, vẫn dòng nội
+ *    dung. Khách quét, chuyển tiền, và tiền không tới tài khoản nào. Đây là kiểu hỏng đắt nhất
+ *    trong cả hệ thống — nó không kêu, và nó nhằm đúng vào tiền của khách.
+ *
+ *    `CHAIR_ID` thì đã nhớ vào flash từ lâu, ngay dòng comment cạnh nó còn ghi "để mất mạng vẫn
+ *    hiện đúng". Thiếu đúng phần còn lại, mà phần còn lại mới là phần nhận tiền.
+ *
+ * Nên: nhớ TẤT CẢ những gì cần để đứng một mình mà thu tiền cho đúng. Ghế mất mạng ba ngày vẫn
+ * phải thu đúng vào đúng tài khoản, đúng giá, đúng tiền tố.
+ * ============================================================================================ */
+/** Chữ ký gọn của cấu hình — chỉ để so "có đổi không", không để đọc ngược ra. */
+String kyCauHinh(){
+  String k = ACCOUNT_NO + "|" + BANK_BIN + "|" + ACCOUNT_NAME + "|" + ND_TIEN_TO + "|"
+           + String(PRICE_VND) + "|" + String(MINUTES) + "|" + String(PKG_N);
+  for(int i=0;i<PKG_N && i<PKG_MAX;i++){
+    k += "|" + String(PKG_AMT[i]) + "," + PKG_TEN[i] + "," + String(PKG_PHUT[i]) + ","
+       + PKG_MOTA[i] + "," + String(PKG_VIP[i]);
+  }
+  return k;
+}
+
+void luuCauHinh(){
+  prefs.putString("tk",    ACCOUNT_NO);
+  prefs.putString("bin",   BANK_BIN);
+  prefs.putString("tenTk", ACCOUNT_NAME);
+  prefs.putString("tienTo", ND_TIEN_TO);
+  prefs.putLong  ("gia",   PRICE_VND);
+  prefs.putInt   ("phut",  MINUTES);
+  prefs.putInt   ("pkgN",  PKG_N);
+  for(int i=0;i<PKG_N && i<PKG_MAX;i++){
+    char k[12];
+    snprintf(k,sizeof(k),"p%dt",i); prefs.putLong  (k, PKG_AMT[i]);
+    snprintf(k,sizeof(k),"p%dn",i); prefs.putString(k, PKG_TEN[i]);
+    snprintf(k,sizeof(k),"p%dp",i); prefs.putInt   (k, PKG_PHUT[i]);
+    snprintf(k,sizeof(k),"p%dm",i); prefs.putString(k, PKG_MOTA[i]);
+    snprintf(k,sizeof(k),"p%dv",i); prefs.putInt   (k, PKG_VIP[i]);
+  }
+}
+
+void docCauHinh(){
+  /* ⚠️ Chỉ nhận giá trị KHÁC RỖNG. Ghế chưa từng nói chuyện với máy chủ thì flash rỗng, và lúc
+     đó phải để `ACCOUNT_NO` rỗng THẬT — chính chuỗi rỗng ấy là thứ chặn không cho hiện mã QR
+     (xem `duNhanTien`). Nhận bừa một giá trị mặc định vào đây là gỡ mất cái chốt đó. */
+  String v;
+  v = prefs.getString("tk",     ""); if(v.length()) ACCOUNT_NO   = v;
+  v = prefs.getString("bin",    ""); if(v.length()) BANK_BIN     = v;
+  v = prefs.getString("tenTk",  ""); if(v.length()) ACCOUNT_NAME = v;
+  /* Tiền tố thì nhận cả chuỗi rỗng — rỗng là một lựa chọn hợp lệ trên web, y như lúc đọc nhịp. */
+  if(prefs.isKey("tienTo")) ND_TIEN_TO = prefs.getString("tienTo", "");
+  long g = prefs.getLong("gia", 0);  if(g > 0) PRICE_VND = g;
+  int  p = prefs.getInt ("phut", 0); if(p > 0) MINUTES   = p;
+  int  n = prefs.getInt ("pkgN", 0);
+  if(n > 0 && n <= PKG_MAX){
+    PKG_N = n;
+    for(int i=0;i<n;i++){
+      char k[12];
+      snprintf(k,sizeof(k),"p%dt",i); PKG_AMT[i]  = prefs.getLong  (k, PKG_AMT[i]);
+      snprintf(k,sizeof(k),"p%dn",i); PKG_TEN[i]  = prefs.getString(k, PKG_TEN[i]);
+      snprintf(k,sizeof(k),"p%dp",i); PKG_PHUT[i] = prefs.getInt   (k, PKG_PHUT[i]);
+      snprintf(k,sizeof(k),"p%dm",i); PKG_MOTA[i] = prefs.getString(k, PKG_MOTA[i]);
+      snprintf(k,sizeof(k),"p%dv",i); PKG_VIP[i]  = prefs.getInt   (k, PKG_VIP[i]);
+    }
+  }
+  Serial.printf("[CFG] tu flash: tk=%s bin=%s tienTo=%s gia=%ld/%dp goi=%d\n",
+    ACCOUNT_NO.c_str(), BANK_BIN.c_str(), ND_TIEN_TO.c_str(), PRICE_VND, MINUTES, PKG_N);
+}
+
+/**
+ * ĐỦ ĐIỀU KIỆN NHẬN TIỀN CHƯA — chốt chặn cuối trước khi vẽ bất kỳ mã QR nào.
+ *
+ * 🔴 KHÔNG CÓ TÀI KHOẢN THÌ KHÔNG CÓ MÃ QR. Không có ngoại lệ, không có "cứ hiện đi rồi tính".
+ *    Một mã QR không nhận được tiền mà vẫn hiện lên màn là đang mời khách trả tiền vào hư không,
+ *    và cả hai bên đều không biết cho tới khi quá muộn.
+ */
+bool duNhanTien(){ return ACCOUNT_NO.length() > 0 && BANK_BIN.length() > 0; }
+
 /**
  * Một lượt nhịp trả lời luôn: mã ghế của mình, giá/phút/số tài khoản, có tiền chờ không, có lệnh
  * bật/tắt không. Trước đây là bốn lượt gọi Firebase riêng (config, status, pay, cmd). Trên 4G mỗi
@@ -925,6 +1059,10 @@ void guiNhip(){
   int      cu_n    = PKG_N;
   long     cu_amt0 = PKG_AMT[0];
   String   cu_ten0 = PKG_TEN[0];
+  /* Chữ ký của TOÀN BỘ phần phải nhớ vào flash. Rộng hơn hẳn mấy biến `cu_*` ở trên: chúng để
+     biết có cần VẼ LẠI MÀN không, còn cái này để biết có cần GHI FLASH không. Ghi mỗi lượt nhịp
+     là 30 giây một lần ghi NVS, ngày hai nghìn tám trăm lượt — hao chip mà chẳng để làm gì. */
+  String   cu_ky   = kyCauHinh();
 
   String ma = String((const char*)(d["maMay"] | ""));
   if(ma.length()){ CHAIR_ID = ma; }
@@ -984,6 +1122,11 @@ void guiNhip(){
     Serial.println("[UI] cau hinh doi -> ve lai man");
   }
 
+  /* Cấu hình đổi -> ghi flash NGAY, đừng đợi lượt sau. Giữa hai lượt nhịp là 30 giây, và ghế
+     có thể mất điện đúng trong 30 giây đó — mất điện rồi lên lại mà chưa kịp ghi là quay về
+     đúng cảnh tài khoản rỗng. */
+  if(cu_ky != kyCauHinh()){ luuCauHinh(); Serial.println("[CFG] cau hinh doi -> da ghi vao flash"); }
+
   g_coLenh = ((int)(d["coLenh"] | 0) == 1);
   if(((int)(d["coTien"] | 0) == 1) && g_paidAmount == 0){
     /* Máy chủ báo có tiền chờ mà ghế đang rảnh (khách trả sau khi màn đã tắt QR) — vẫn lấy về
@@ -994,7 +1137,11 @@ void guiNhip(){
 
 /** Hỏi máy chủ có lượt nào đã trả tiền chưa. Trả số tiền (0 = chưa). */
 long checkPaid(){
-  String r = wpGoi("luot", "");
+  /* `cho` = xin máy chủ GIỮ câu hỏi này lại tối đa mấy giây thay vì trả "chưa có" ngay. Tiền về
+     lúc nào máy chủ trả lời lúc đó, nên khoảng đợi không còn phụ thuộc vào nhịp hỏi của ghế.
+     Máy chủ có trần cứng riêng, con số này chỉ là mong muốn. Bản plugin cũ không hiểu ô này thì
+     bỏ qua và trả lời ngay — vẫn chạy y như trước. */
+  String r = wpGoi("luot", "\"cho\":4");
   if(r.length()==0) return 0;
   StaticJsonDocument<384> d;
   if(deserializeJson(d, r)) return 0;
@@ -1040,6 +1187,14 @@ void genCode(char* out){
   out[6] = 0;
 }
 void startSession(int idx){
+  /* 🔴 CHỐT CUỐI. Chưa biết tài khoản nhận thì KHÔNG mở phiên, không dựng mã, không hiện gì cả.
+     Chặn ở đây chứ không chỉ ở chỗ vẽ: mọi đường vào màn QR đều đi qua hàm này, nên một chốt ở
+     đây là chốt cho tất cả — thêm một đường vào mới sau này cũng tự được chặn. */
+  if(!duNhanTien()){
+    Serial.println("[PAY] TU CHOI mo phien: chua biet tai khoan nhan (chua hoi duoc may chu lan nao)");
+    veManChuaCoTk();
+    return;
+  }
   payAmount     = PKG_AMT[idx];
   payMinutes    = phutGoi(idx);
   g_goiDangChay = idx;   // để màn đếm ngược in đúng tên gói khách vừa chọn
@@ -1317,6 +1472,7 @@ void setup(){
 
   prefs.begin("ghe", false);
   CHAIR_ID = prefs.getString("chair", "");   // nhớ mã ghế máy chủ đã gán, để mất mạng vẫn hiện đúng
+  docCauHinh();                              // và nhớ luôn phần NHẬN TIỀN — xem khối trên luuCauHinh()
 
   tft.init(); tft.setRotation(1); tft.fillScreen(COL_BG);
   tft.setTextDatum(MC_DATUM);
@@ -1388,10 +1544,12 @@ void loop(){
     if(getTouch(x,y) && !CHUA_GAN && CHAIR_ID.length()){
       for(int i=0;i<PKG_N;i++) if(inBtn(PKG_BTN[i],x,y)){ startSession(i); delay(250); return; }
     }
-    /* Ghế chưa gán mã thì vẽ lại màn mỗi 5s — để dòng "4G ON" và mã MAC cập nhật cho người đang
-       đứng lắp máy nhìn. */
+    /* Ghế chưa gán mã HOẶC chưa có tài khoản thì vẽ lại màn mỗi 5s — để dòng trạng thái mạng
+       cập nhật cho người đang đứng lắp máy nhìn, và để màn tự biến mất ngay khi lấy được cấu
+       hình chứ không phải chờ ai chạm vào. */
     static unsigned long veLai=0;
-    if((CHUA_GAN || CHAIR_ID.length()==0) && millis()-veLai > 5000){ veLai=millis(); screenDrawn=false; }
+    if((CHUA_GAN || CHAIR_ID.length()==0 || !duNhanTien()) && millis()-veLai > 5000){
+      veLai=millis(); screenDrawn=false; }
   }
   else if(state==ST_WAIT_PAY){
     if(!screenDrawn){ drawQRScreen(); screenDrawn=true; }

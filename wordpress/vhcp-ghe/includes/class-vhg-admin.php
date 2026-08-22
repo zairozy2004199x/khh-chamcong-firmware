@@ -764,6 +764,45 @@ class VHG_Admin {
 			. 'không vẽ được dấu tiếng Việt. Tên cắt còn 16 ký tự, mô tả 24 ký tự cho vừa bề ngang '
 			. 'một thẻ. Gói tích <b>VVIP</b> được vẽ nền vàng và có nhãn ở góc, như tấm bảng giá.</p>';
 
+		/* ===== NHẬT KÝ BẬT TỪ XA =========================================================
+		   Mỗi lần bấm Bật là CHO KHÔNG một lượt massage. Cuối tháng nhìn "ghế chạy 180 lượt,
+		   thu 140" thì 40 lượt kia phải giải thích được bằng con số, không bằng trí nhớ.
+		   Để ở đây, ngay trên bảng máy: người mở màn này là người đi tra, không phải khách. */
+		$bat_th = VHG_May::tong_lenh( 'month' );
+		echo '<h2>Bật ghế từ xa — tháng này</h2>';
+		echo '<p><b>' . (int) $bat_th['so_lan'] . ' lần</b>, tổng <b>' . (int) $bat_th['tong_phut']
+			. ' phút</b>, trên ' . (int) $bat_th['so_ghe'] . ' ghế. '
+			. '<em>Đây là số lượt ghế chạy mà sổ doanh thu không có đồng nào — dùng để giải thích '
+			. 'chênh lệch giữa số lượt chạy và số lượt thu tiền.</em></p>';
+		$bat_ng = VHG_May::tong_lenh_ngay( 'month' );
+		if ( ! $bat_ng ) {
+			echo '<p><em>Tháng này chưa ai bật ghế từ xa.</em></p>';
+		} else {
+			echo '<table class="widefat striped" style="max-width:560px"><thead><tr><th>Ngày</th>'
+				. '<th>Số lần</th><th>Tổng phút</th></tr></thead><tbody>';
+			foreach ( $bat_ng as $b_ ) {
+				echo '<tr><td>' . esc_html( $b_['ngay'] ) . '</td><td>' . (int) $b_['so_lan']
+					. '</td><td><strong>' . (int) $b_['tong_phut'] . '</strong></td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<table class="widefat striped" style="margin-top:10px"><thead><tr><th>Lúc</th>'
+				. '<th>Ghế</th><th>Ai bấm</th><th>Lý do</th><th>Phút</th><th>Ghế đã lấy lệnh</th>'
+				. '</tr></thead><tbody>';
+			foreach ( VHG_May::ds_lenh_bat( 'month', 100 ) as $l_ ) {
+				/* Cột cuối phân biệt "đã chạy" với "sẽ chạy khi ghế lên mạng" — hai thứ khác nhau
+				   khi đang đứng đối chiếu với sổ. */
+				$da_ = '' !== trim( (string) $l_['gui_luc'] );
+				echo '<tr><td>' . esc_html( self::gio( $l_['tao_luc'] ) ) . '</td>'
+					. '<td><strong>' . esc_html( $l_['ma_may'] ) . '</strong></td>'
+					. '<td>' . esc_html( $l_['nguoi'] ? $l_['nguoi'] : '—' ) . '</td>'
+					. '<td>' . esc_html( $l_['ly_do'] ? $l_['ly_do'] : '—' ) . '</td>'
+					. '<td>' . (int) $l_['phut'] . '</td>'
+					. '<td>' . ( $da_ ? esc_html( self::gio( $l_['gui_luc'] ) )
+						: '<span style="color:#8a6d00">chưa lấy</span>' ) . '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
 		echo '<h2>Máy (ghế) — ' . count( $may ) . ' máy</h2>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Nhịp cuối</th>'
 			. '<th>Cơ sở</th><th>Tỉ lệ quy đổi</th><th>Tài khoản nhận</th><th>QR</th>'

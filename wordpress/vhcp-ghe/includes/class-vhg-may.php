@@ -57,6 +57,71 @@ class VHG_May {
 			. ( $so > 0 ? ' ' . $so . ' máy chuyển thành "chưa gán", KHÔNG bị xoá.' : '' ) );
 	}
 
+	// ======================================================================= nhật ký bật từ xa
+
+	/**
+	 * NHẬT KÝ BẬT GHẾ TỪ XA — để đối chiếu sau này.
+	 *
+	 * 🔴 Vì sao đây là bảng phải có, chứ không phải "tính năng thêm cho đẹp":
+	 *    Mỗi lần bấm Bật là CHO KHÔNG một lượt massage. Ghế chạy, điện tốn, khách được phục vụ,
+	 *    mà sổ doanh thu không có đồng nào. Cuối tháng nhìn "ghế AMTP01 chạy 180 lượt, thu 140
+	 *    lượt" thì 40 lượt kia phải giải thích được — bằng con số, không bằng trí nhớ.
+	 *
+	 * ⚠️ Đếm cả lệnh CHƯA GỬI XUỐNG GHẾ. `gui_luc` rỗng nghĩa là ghế chưa lấy (đang mất mạng),
+	 *    nhưng người bấm thì đã bấm rồi và ghế sẽ chạy khi lên mạng. Lọc bỏ nó đi là nhật ký nói
+	 *    ít hơn sự thật đúng vào những ngày mạng chập chờn — tức là đúng những ngày cần tra nhất.
+	 * ⚠️ CHỈ đếm `viec='on'`. Lệnh `off` không cho ai cái gì cả; gộp vào là thổi phồng con số
+	 *    "cho không" bằng những lần người ta tắt ghế đi.
+	 */
+	/* Tên là `ds_lenh_bat` chứ không `ds_lenh`: đã có sẵn `ds_lenh()` liệt kê MỌI lệnh cho màn
+	   gỡ rối. Hai hàm hai việc, và trùng tên thì PHP báo lỗi ngay — nhưng nếu chỉ khác tham số
+	   thì người đọc sau này mới là người phải đoán. */
+	public static function ds_lenh_bat( $ky = 'month', $gioi_han = 500 ) {
+		global $wpdb;
+		$t  = VHG_DB::t( 'lenh' );
+		$tu = VHG_Thu::dau_ky( $ky );
+		$sql = "SELECT * FROM $t WHERE viec='on'";
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+		$sql .= ' ORDER BY tao_luc DESC, id DESC LIMIT ' . (int) $gioi_han;
+		return VHG_DB::rows( $sql );
+	}
+
+	/**
+	 * Gộp theo NGÀY: mỗi ngày bật mấy lần, tổng bao nhiêu phút.
+	 *
+	 * Gộp bằng SQL chứ không kéo hết về rồi cộng trong PHP: bảng này chỉ có thêm, không bao giờ
+	 * bớt, nên "cả năm" của 26 ghế là con số lớn dần mãi — và màn đối soát mở suốt ngày trên 4G.
+	 */
+	public static function tong_lenh_ngay( $ky = 'month' ) {
+		global $wpdb;
+		$t  = VHG_DB::t( 'lenh' );
+		$tu = VHG_Thu::dau_ky( $ky );
+		$sql = "SELECT DATE(tao_luc) AS ngay, COUNT(*) AS so_lan, SUM(phut) AS tong_phut"
+			. " FROM $t WHERE viec='on'";
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+		$sql .= ' GROUP BY DATE(tao_luc) ORDER BY ngay DESC LIMIT 400';
+		$ra = array();
+		foreach ( VHG_DB::rows( $sql ) as $r ) {
+			$ra[] = array( 'ngay' => (string) $r['ngay'], 'so_lan' => (int) $r['so_lan'],
+				'tong_phut' => (int) $r['tong_phut'] );
+		}
+		return $ra;
+	}
+
+	/** Tổng gọn của một kỳ: bao nhiêu lần, bao nhiêu phút, trên mấy ghế. */
+	public static function tong_lenh( $ky = 'month' ) {
+		global $wpdb;
+		$t  = VHG_DB::t( 'lenh' );
+		$tu = VHG_Thu::dau_ky( $ky );
+		$sql = "SELECT COUNT(*) AS so_lan, SUM(phut) AS tong_phut, COUNT(DISTINCT ma_may) AS so_ghe"
+			. " FROM $t WHERE viec='on'";
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+		$r = $wpdb->get_row( $sql, ARRAY_A );
+		return array( 'so_lan' => (int) ( $r ? $r['so_lan'] : 0 ),
+			'tong_phut' => (int) ( $r ? $r['tong_phut'] : 0 ),
+			'so_ghe' => (int) ( $r ? $r['so_ghe'] : 0 ) );
+	}
+
 	// ======================================================================= cục nhận tiền
 
 	/**
