@@ -939,7 +939,7 @@ String wpViec(const String& viec, const String& them, bool docThan){
    gỡ) — nên bản này lên là chạy tiếp. Chip trắng thì gõ ở portal.
    🔴 Vì vậy thứ tự di trú ở đầu tệp KHÔNG được đảo: đặt /cfg/wp trước, đẩy firmware sau. */
 
-/* ===========================================================================// ---- Dựng header Digest từ các tham số đã tách ----
+// ---- Dựng header Digest từ các tham số đã tách ----
 String digestHeaderFrom(const String& realm, const String& nonce, const String& qop,
                         const String& opaque, const String& method, const String& uri) {
   String cnonce = "0a4f113b";

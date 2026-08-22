@@ -83,6 +83,9 @@ jobs:
           cp "$SKETCH/ci/User_Setup.h" "$LIB/User_Setup.h"
           echo "Da ap User_Setup.h cho $LIB"
 
+      - name: Soi cau truc .ino (ham bi cat mat / bi chu thich nuot)
+        run: python3 tools/test/fw/kiem-cau-truc.py
+
       - name: Kiem ham kiem dang link (g++, khong can Arduino)
         run: |
           set -e
