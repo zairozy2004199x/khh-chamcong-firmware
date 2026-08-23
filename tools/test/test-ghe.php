@@ -49,7 +49,7 @@ define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
       chép tay nên nó TRÔI khỏi danh sách thật của plugin — phép thử ở mục "nạp đủ lớp" dưới
       canh đúng chuyện đó. Thêm lớp mới mà quên đây là lỗi "Class not found" giữa lúc chạy, và
       nó chỉ lộ ra ở đúng phép thử chạm tới lớp đó. */
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'chan', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -4588,7 +4588,10 @@ t( '🔴 trang nhớ số điện thoại cho lần sau', strpos( $sh_v, "localS
 t( '🔴 nhưng KHÔNG ghi PIN vào máy khách',
 	strpos( $sh_v, "setItem('vhg_pin'" ) === false
 	&& preg_match( '/localStorage\.setItem\([^)]*pin/i', $sh_v ) !== 1 );
-t( 'kèm ô xem số dư ở tab Của tôi', strpos( $sh_v, "id=\"v-xem\"" ) !== false );
+/* ⚠️ Ô xem số dư ĐÃ GỘP vào ô tra chung của tab "Của tôi" (anh Thắng 23/08/2026: *"cùng 1 ví
+      mà, sao lại ra 2 lần đăng nhập"*). Nay canh cái ô GỘP, không canh cái ô cũ đã bỏ. */
+t( 'kèm ô tra chung ở tab Của tôi (ví + mã cùng một lần nhập)',
+	strpos( $sh_v, "id=\"t-xem\"" ) !== false && strpos( $sh_v, "id=\"v-xem\"" ) === false );
 /* Hạn chờ phải nói TRƯỚC khi khách trả tiền, y như bên mã. */
 t( '🔴 nói hạn chờ của số dư trước khi khách trả tiền',
 	strpos( $sh_v, 'Số dư nạp dùng được sau' ) !== false );
@@ -5012,6 +5015,13 @@ foreach ( array( 'en', 'zh', 'ru' ) as $nn_ ) {
 	$sot_ = array();
 	foreach ( $khoa_nn as $k_ => $x_ ) { if ( ! isset( $co_[ $k_ ] ) ) { $sot_[] = $k_; } }
 	teq( '🔴 [' . $nn_ . '] không sót câu nào chưa dịch', array(), $sot_ );
+	/* 🔴 VÀ MẶT KIA: không có bản dịch MỒ CÔI — khoá còn trong từ điển mà mã không còn dùng.
+	   Rác này không làm hỏng gì ngay, nên nó nằm lại mãi: nó phình trang gửi cho mỗi khách,
+	   và tệ hơn là nó làm mọi phép đếm "còn bao nhiêu chỗ dùng chuỗi này" ra sai — đã dính
+	   đúng một lần khi gộp hai ô đăng nhập làm một. */
+	$mo_coi_ = array();
+	foreach ( $co_ as $k_ => $x_ ) { if ( ! isset( $khoa_nn[ $k_ ] ) ) { $mo_coi_[] = $k_; } }
+	teq( '🔴 [' . $nn_ . '] không có bản dịch mồ côi', array(), $mo_coi_ );
 	/* Và bản dịch không được để nguyên tiếng Việt — sót kiểu đó thì phép thử trên không thấy. */
 	$nguyen_ = 0;
 	preg_match_all( "/^    '((?:[^'\\\\]|\\\\.)*)': '((?:[^'\\\\]|\\\\.)*)'/m", $than_, $m3_, PREG_SET_ORDER );
@@ -5034,6 +5044,216 @@ t( 'đoán ngôn ngữ theo trình duyệt', strpos( $html_nn, 'navigator.langua
 /* 🔴 Và tiếng Việt vẫn nguyên vẹn: L() rơi về khoá, nên câu tiếng Việt phải CÒN NGUYÊN trong trang. */
 t( '🔴 tiếng Việt vẫn còn nguyên trong trang', strpos( $html_nn, 'Ghế đang ngồi' ) !== false );
 t( 'và câu mời quét tem vẫn còn', strpos( $html_nn, 'quét mã QR dán trên chính cái ghế' ) !== false );
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 23/08/2026 — TRẢ TIỀN THÊM MÀ THỜI GIAN BỊ CẮT NGẮN LẠI
+ *
+ * Anh Thắng: *"Anh bấm nhiều lệnh, tiền vẫn trừ, nhưng số phút không được cộng"*.
+ *
+ * `startRunning()` GHI ĐÈ `runUntil` thay vì cộng. Ghế đang chạy còn 30 phút mà nhận thêm gói
+ * 6 phút thì thành ĐÚNG 6 PHÚT — khách vừa trả thêm tiền vừa MẤT 24 phút đã trả trước đó.
+ * Không phải "không được cộng", mà là bị TRỪ.
+ *
+ * ⚠️ Đường TIỀN MẶT vốn cộng đúng (`runUntil += ...` viết tay trong checkCash), nên chỉ mình
+ *    nó đúng còn MỌI đường khác đều sai: QR, tiêu ví, dùng mã, và cả bấm gói trên màn ghế.
+ *    Một luật đúng nằm ở chỗ GỌI thay vì nằm trong hàm ĐƯỢC GỌI thì nó chỉ đúng ở đúng chỗ đó.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$fw_cong = (string) file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BÓC CHÚ THÍCH KHỎI MÃ C++ TRƯỚC KHI SOI — Y NHƯ ĐÃ LÀM VỚI PHP.
+ *
+ * Hôm nay đúng BỐN lần một phép thử "mã KHÔNG được chứa X" tự hỏng vì chú thích ngay cạnh chỗ
+ * sửa nhắc lại X để giải thích vì sao không dùng nó:
+ *   "QUET DE MUA" · "MUA MA GIAM GIA" · "VHG_Thu::ghi()" · và lần này là "relaySet"/"state"
+ *   trong câu *"Không đụng relaySet, state, screenDrawn"*.
+ *
+ * Chú thích càng viết kỹ thì càng dễ chứa đúng chuỗi đang bị cấm — tức là phép thử phạt đúng
+ * cái nết tốt. Vá lẻ từng lần chỉ đẩy sang lần sau.
+ *
+ * ⚠️ KHÔNG dùng regex trần `//.*` — nó ăn luôn phần sau của `"https://..."` trong chuỗi. Phải
+ *    đi qua từng ký tự và biết lúc nào mình đang ở TRONG một chuỗi.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function vhg_bo_chu_thich_cpp( $ma ) {
+	$ra = '';
+	$n  = strlen( $ma );
+	$trong_chuoi = false;
+	$dau_chuoi   = '';
+	for ( $i = 0; $i < $n; $i++ ) {
+		$c  = $ma[ $i ];
+		$c2 = $i + 1 < $n ? $ma[ $i + 1 ] : '';
+		if ( $trong_chuoi ) {
+			$ra .= $c;
+			if ( '\\' === $c && '' !== $c2 ) { $ra .= $c2; $i++; continue; }
+			if ( $c === $dau_chuoi ) { $trong_chuoi = false; }
+			continue;
+		}
+		if ( '"' === $c || "'" === $c ) { $trong_chuoi = true; $dau_chuoi = $c; $ra .= $c; continue; }
+		if ( '/' === $c && '/' === $c2 ) {
+			while ( $i < $n && "
+" !== $ma[ $i ] ) { $i++; }
+			$ra .= "
+";
+			continue;
+		}
+		if ( '/' === $c && '*' === $c2 ) {
+			$i += 2;
+			while ( $i + 1 < $n && ! ( '*' === $ma[ $i ] && '/' === $ma[ $i + 1 ] ) ) { $i++; }
+			$i++;
+			$ra .= ' ';
+			continue;
+		}
+		$ra .= $c;
+	}
+	return $ra;
+}
+$fw_chay = vhg_bo_chu_thich_cpp( $fw_cong );   // chỉ còn MÃ CHẠY
+/* Tự kiểm bộ bóc: chuỗi chỉ có trong chú thích phải biến mất, mã thật và chuỗi trong ngoặc kép
+   phải còn nguyên. */
+t( 'bộ bóc chú thích C++ ăn đúng phần chú thích',
+	strpos( $fw_cong, 'đang có người nằm trên đó' ) !== false
+	&& strpos( $fw_chay, 'đang có người nằm trên đó' ) === false );
+t( 'và giữ nguyên mã chạy', strpos( $fw_chay, 'void startRunning(int minutes){' ) !== false );
+t( '🔴 và KHÔNG cắt nhầm chuỗi có "//" trong ngoặc kép',
+	strpos( $fw_chay, 'https://' ) !== false );
+
+t( '🔴 đang chạy thì CỘNG THÊM giờ, không ghi đè',
+	preg_match( '/if\(state == ST_RUNNING\)\{\s*runUntil \+= \(unsigned long\)minutes\*60000UL;/', $fw_cong ) === 1 );
+t( 'và luật đó nằm TRONG startRunning, không nằm ở chỗ gọi',
+	preg_match( '/void startRunning\(int minutes\)\{.{0,900}?state == ST_RUNNING.{0,200}?runUntil \+=/s', $fw_cong ) === 1 );
+/* Cộng thêm thì KHÔNG được đụng vào rơ-le hay trạng thái: ghế đang chạy, đang có người nằm. */
+/* Bóc riêng nhánh "đang chạy" ra rồi soi — regex lồng nhau kiểu `(?:(?!x).)*` đọc không ra và
+   sai thì không ai biết sai ở đâu. */
+/* ⚠️ NEO VÀO `startRunning` TRƯỚC. `if(state == ST_RUNNING){` xuất hiện ở nhiều nơi trong tệp;
+      lấy lần đầu tiên là soi nhầm một hàm khác hoàn toàn, và phép thử báo sai một chỗ đang đúng. */
+$vt_sr = strpos( $fw_chay, 'void startRunning(int minutes){' );
+t( 'tìm được hàm startRunning', false !== $vt_sr );
+$vt_ct = false !== $vt_sr ? strpos( $fw_chay, 'if(state == ST_RUNNING){', $vt_sr ) : false;
+$nhanh_ct = false !== $vt_ct
+	? substr( $fw_chay, $vt_ct, strpos( $fw_chay, 'return;', $vt_ct ) - $vt_ct ) : '';
+t( 'bóc được nhánh cộng thêm giờ', '' !== $nhanh_ct );
+t( '🔴 lúc cộng thêm KHÔNG bật lại rơ-le', strpos( $nhanh_ct, 'relaySet' ) === false );
+/* ⚠️ `'state ='` là chuỗi con của `'state =='` — mà nhánh này MỞ ĐẦU bằng `if(state == ...)`.
+      Canh bằng strpos là phép thử luôn báo sai. Phải đòi dấu `=` KHÔNG theo sau bởi `=`. */
+t( 'và KHÔNG đặt lại trạng thái',
+	preg_match( '/\bstate\s*=\s*[^=]/', $nhanh_ct ) !== 1 );
+t( 'nhưng CÓ báo màn vẽ lại số đếm', strpos( $nhanh_ct, 'g_statusDirty = true' ) !== false );
+/* Và checkCash BỎ vế cộng tay — hai nơi cùng một luật là lý do các đường khác sai suốt. */
+t( '🔴 checkCash không còn tự cộng giờ nữa',
+	strpos( $fw_cong, '[CASH] cong them gio (dang chay)' ) === false );
+t( 'mà gọi thẳng startRunning', preg_match( '/if\(state != ST_RUNNING\) \{ g_srcCode = \x27c\x27; \}\s*startRunning\(minutes\);/', $fw_cong ) === 1 );
+
+/* 🔴 LỆNH TỪ WEB CŨNG PHẢI CỘNG DỒN. Mỗi lượt gọi chỉ lấy về MỘT lệnh; bấm ba cái thì có ba
+      lệnh trong hàng chờ. Gán đè là lệnh thứ hai về trước khi vòng lặp chính kịp tiêu lệnh thứ
+      nhất thì lệnh thứ nhất mất hẳn — tiền đã trừ, phút không bao giờ tới. */
+t( '🔴 lệnh bật từ web cộng dồn, không gán đè',
+	strpos( $fw_cong, 'g_remoteStartMin += (phut>0 ? phut : MINUTES)' ) !== false );
+t( 'và không còn chỗ nào gán đè nó',
+	preg_match( '/g_remoteStartMin = \(phut/', $fw_cong ) !== 1 );
+
+// ---- lời dặn ngồi lên ghế + đếm ngược
+$sh_dan = vhg_shop_html( 'AMTP01' );
+t( '🔴 có lời dặn NGỒI LÊN GHẾ', strpos( $sh_dan, 'NGỒI LÊN GHẾ' ) !== false );
+/* Lời dặn phải đứng TRƯỚC các thẻ gói — sau các thẻ thì khách đã bấm xong mới đọc tới. */
+$vt_dan = strpos( $sh_dan, 'NGỒI LÊN GHẾ' );
+$vt_the = strpos( $sh_dan, 'data-tieu=' );
+t( '🔴 và đứng TRƯỚC các thẻ gói', false !== $vt_dan && false !== $vt_the && $vt_dan < $vt_the );
+t( 'có màn đếm ngược', strpos( $sh_dan, "class=\"dem\"" ) !== false );
+teq( 'đếm từ 5', 5, (int) ( preg_match( '/var con = (\d+), nhip = null;/', $sh_dan, $m_d ) ? $m_d[1] : 0 ) );
+/* 🔴 LỆNH GỬI NGAY, ĐẾM CHẠY SONG SONG. Đếm xong mới gửi là cộng thêm 5 giây vào đúng cái độ
+      trễ đã đi cắt từng giây cả tháng. Canh bằng THỨ TỰ: `goi('tieu'...)` phải đứng SAU chỗ
+      dựng đồng hồ, chứ không nằm trong hàm gọi lại của nó. */
+$vt_nhip = strpos( $sh_dan, 'nhip = setInterval(' );
+$vt_goi  = strpos( $sh_dan, "goi('tieu'," );
+t( '🔴 lệnh gửi NGAY, không chờ đếm xong', false !== $vt_nhip && false !== $vt_goi && $vt_goi > $vt_nhip );
+t( 'và đếm hỏng giữa chừng thì dừng đồng hồ, không nói dối khách',
+	preg_match( '/if \(!r\.ok\) \{\s*\/\*.*?\*\/\s*if \(nhip\) \{ clearInterval\(nhip\); nhip = null; \}/s', $sh_dan ) === 1 );
+
+// ---- chân trang pháp lý
+$c_chan = VHG_Chan::thong_tin();
+teq( 'điền sẵn mã số thuế', '0106924989', (string) $c_chan['mst'] );
+t( 'và tên công ty', strpos( (string) $c_chan['ten'], 'K&H' ) !== false );
+t( 'mặc định là HIỆN', ! empty( $c_chan['hien'] ) );
+$html_chan = VHG_Chan::html();
+t( 'dựng được chân trang', '' !== $html_chan );
+t( 'có mã số thuế', strpos( $html_chan, '0106924989' ) !== false );
+t( 'có tên quốc tế cho khách nước ngoài',
+	strpos( $html_chan, 'K&amp;H SERVICES AND ENTERTAINMENT' ) !== false );
+t( 'điện thoại bấm gọi được ngay', strpos( $html_chan, 'href="tel:' ) !== false );
+t( 'có danh sách chi nhánh', strpos( $html_chan, 'Nha Trang' ) !== false );
+/* 🔴 MỘT NƠI DỰNG, HAI TRANG DÙNG — chép ra hai bản là kiểu lỗi đã cắn dự án này năm lần
+      trong một ngày. */
+t( '🔴 chân trang có mặt ở trang KHÁCH', strpos( $sh_dan, '0106924989' ) !== false );
+t( '🔴 và ở trang NHÂN VIÊN', strpos( vhg_web_html(), '0106924989' ) !== false );
+/* 🔴 CẢ HAI TRANG GỌI CHUNG MỘT HÀM. Chép ra hai bản là kiểu lỗi đã cắn dự án này năm lần
+      trong một ngày: sửa một nơi, quên nơi kia, và nơi quên thì im lặng nói sai.
+   ⚠️ Canh "có gọi", đừng canh "gọi đúng N lần": chú thích cạnh chỗ gọi có nhắc tên hàm, và
+      đếm số lần là phép thử gãy vì chính lời giải thích — đã dính ba lần hôm nay. */
+foreach ( array( 'shop', 'trang' ) as $tep_c ) {
+	$ma_c = (string) file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-' . $tep_c . '.php' );
+	t( 'trang ' . $tep_c . ' gọi VHG_Chan::html()',
+		preg_match( '/\.\s*VHG_Chan::html\(\)/', $ma_c ) === 1 );
+	/* Và KHÔNG tự dựng chân trang riêng. */
+	t( 'và không tự dựng chân trang riêng', strpos( $ma_c, 'vhg-chan-in' ) === false );
+}
+/* Sửa được, không nhét cứng: địa chỉ công ty đổi thì không phải sửa mã rồi cài lại plugin. */
+VHG_Chan::luu( array( 'ten' => 'CÔNG TY THỬ', 'mst' => '999', 'hien' => 1,
+	'dia_chi' => 'Đâu đó', 'dai_dien' => '', 'dien_thoai' => '', 'email' => '',
+	'ten_qt' => '', 'ngay_hd' => '', 'co_quan' => '', 'chi_nhanh' => '' ) );
+t( '🔴 sửa được từ màn quản trị', strpos( VHG_Chan::html(), 'CÔNG TY THỬ' ) !== false );
+t( 'và ô để trống thì GIỮ trống, không bị mặc định lấp vào',
+	strpos( VHG_Chan::html(), 'K&amp;H SERVICES' ) === false );
+/* Tắt được hẳn. */
+VHG_Chan::luu( array( 'ten' => 'CÔNG TY THỬ', 'hien' => 0 ) );
+teq( 'tắt thì không dựng gì cả', '', VHG_Chan::html() );
+delete_option( 'vhg_chan' );
+t( 'xoá khai báo thì về mặc định', strpos( VHG_Chan::html(), '0106924989' ) !== false );
+
+
+
+/* ---- 🔴 MỘT LẦN NHẬP, RA CẢ VÍ LẪN MÃ
+   Anh Thắng 23/08/2026: *"cùng 1 ví mà, sao lại ra 2 lần đăng nhập"*. Tab "Của tôi" có hai ô
+   nhập số điện thoại + PIN chồng nhau — cùng số, cùng PIN, cho hai thứ mà với khách là MỘT
+   tài khoản. */
+$sh_ct = vhg_shop_html( 'AMTP01' );
+teq( '🔴 chỉ còn ĐÚNG MỘT ô nhập số điện thoại ở tab Của tôi',
+	1, substr_count( $sh_ct, 'id="t-sdt"' ) );
+t( 'và không còn ô nhập thứ hai', strpos( $sh_ct, 'id="v-sdt"' ) === false );
+/* ⚠️ Đếm trong CẢ TRANG là đếm luôn cả từ điển bốn thứ tiếng (mỗi bản dịch cũng chứa chuỗi
+      `id="t-xem"`). Canh cái nút thì canh ở chỗ DỰNG nút, không canh ở chỗ dịch nó. */
+t( 'chỉ còn một nút tra', strpos( $sh_ct, 'id="v-xem"' ) === false );
+$vt_ve_ct  = strpos( $sh_ct, 'function veCuaToi(){' );
+$vt_nut_ct = false !== $vt_ve_ct ? strpos( $sh_ct, 'id="t-xem"', $vt_ve_ct ) : false;
+t( 'và nút đó nằm trong hàm dựng tab Của tôi',
+	false !== $vt_ve_ct && false !== $vt_nut_ct );
+/* ⚠️ GỘP Ở CỔNG, không gộp ở trang: gọi hai lượt API rồi ghép ở trình duyệt thì ăn HAI lần
+      hãm thử, và một lượt hỏng là màn hiện nửa vời. */
+t( '🔴 trang gọi MỘT lượt `cua_toi`, không gọi hai lượt',
+	strpos( $sh_ct, "goi('cua_toi'," ) !== false );
+t( 'và không còn gọi riêng lượt tra mã', strpos( $sh_ct, "goi('tra'," ) === false );
+
+$GLOBALS['VHCP_TR'] = array();
+$ct_kq = vhg_shop( 'cua_toi', array( 'sdt' => '0909777111', 'pin' => '1234' ) );
+t( 'tra được bằng một lượt', ! empty( $ct_kq['ok'] ), isset( $ct_kq['error'] ) ? $ct_kq['error'] : '' );
+t( 'ra số dư ví', ! empty( $ct_kq['co_vi'] ) && isset( $ct_kq['so_du'] ) );
+t( 'và ra cả danh sách mã', isset( $ct_kq['chua_dung'] ) );
+/* 🔴 Có ví mà chưa mua mã lẻ bao giờ vẫn là một lượt tra THÀNH CÔNG — trả `ok=false` vì một vế
+      trống là đuổi khách đi đúng lúc họ đang tìm tiền của mình. */
+teq( 'ví có tiền nhưng chưa mua mã lẻ vẫn tra được', 0, count( (array) $ct_kq['chua_dung'] ) );
+$GLOBALS['VHCP_TR'] = array();
+$ct_sai = vhg_shop( 'cua_toi', array( 'sdt' => '0909777111', 'pin' => '0000' ) );
+t( 'sai PIN thì từ chối', empty( $ct_sai['ok'] ) );
+t( 'và không rò chuỗi băm PIN', strpos( wp_json_encode( $ct_kq ), 'pin_bam' ) === false );
+/* Một lượt gọi = một lần hãm thử, không phải hai. */
+$GLOBALS['VHCP_TR'] = array();
+vhg_shop( 'cua_toi', array( 'sdt' => '0909777111', 'pin' => '1234' ) );
+$dem_ham = 0;
+foreach ( (array) $GLOBALS['VHCP_TR'] as $k_h => $v_h ) {
+	if ( strpos( (string) $k_h, 'vhg_shop_tra_' ) === 0 ) { $dem_ham = (int) $v_h; }
+}
+teq( '🔴 một lượt gọi chỉ ăn MỘT lần hãm thử', 1, $dem_ham );
 
 
 // ============================================================ kết

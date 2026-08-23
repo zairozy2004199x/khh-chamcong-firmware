@@ -128,6 +128,60 @@ class VHG_Admin {
 			. 'bao giờ âm.</p>';
 	}
 
+	/**
+	 * Ô khai CHÂN TRANG PHÁP LÝ.
+	 *
+	 * Anh Thắng 23/08/2026: *"cuối trang bổ sung nội dung này cho uy tín"*.
+	 *
+	 * 🔴 KHAI ĐƯỢC, KHÔNG NHÉT CỨNG. Địa chỉ công ty đổi, người đại diện đổi, số điện thoại đổi
+	 *    — nhét cứng là mỗi lần đổi phải sửa mã rồi cài lại plugin cho một dòng chữ, và trong
+	 *    lúc chờ thì trang đang nói SAI thông tin pháp lý của chính mình, đúng chỗ đặt ra để
+	 *    tạo tin cậy.
+	 */
+	public static function khoi_chan() {
+		$c = VHG_Chan::thong_tin();
+		echo '<h2>Chân trang (thông tin công ty)</h2>';
+		echo '<p class="description">Hiện ở cuối <b>trang khách</b> (/' . esc_html( VHG_Shop::slug() )
+			. ') và <b>trang nhân viên</b> (/' . esc_html( VHG_Trang::slug() ) . '). '
+			. 'Khách chuyển tiền cho một cái mã QR thì họ cần biết mình đang trả cho ai.</p>';
+		echo '<form method="post" style="max-width:900px">';
+		wp_nonce_field( 'vhg' );
+		echo '<p><label><input type="checkbox" name="chan_hien" value="1"'
+			. ( ! empty( $c['hien'] ) ? ' checked' : '' ) . ' /> <b>Hiện chân trang</b></label></p>';
+		echo '<table class="form-table"><tbody>';
+		$nhan = array(
+			'ten'        => 'Tên công ty',
+			'ten_qt'     => 'Tên quốc tế',
+			'mst'        => 'Mã số thuế',
+			'dia_chi'    => 'Địa chỉ',
+			'dai_dien'   => 'Người đại diện',
+			'dien_thoai' => 'Điện thoại',
+			'email'      => 'Email',
+			'ngay_hd'    => 'Hoạt động từ',
+			'co_quan'    => 'Cơ quan quản lý thuế',
+		);
+		foreach ( $nhan as $k => $v ) {
+			echo '<tr><th scope="row">' . esc_html( $v ) . '</th><td>'
+				. '<input name="chan_' . esc_attr( $k ) . '" value="' . esc_attr( $c[ $k ] ) . '" '
+				. 'class="regular-text" style="width:100%;max-width:560px" /></td></tr>';
+		}
+		echo '<tr><th scope="row">Chi nhánh</th><td>'
+			. '<textarea name="chan_chi_nhanh" rows="6" style="width:100%;max-width:560px">'
+			. esc_textarea( $c['chi_nhanh'] ) . '</textarea>'
+			. '<p class="description">Mỗi dòng một chi nhánh.</p></td></tr>';
+		echo '</tbody></table>';
+		echo '<p><button class="button button-primary" name="vhg" value="chan">Lưu chân trang</button></p>';
+		echo '</form>';
+		/* Xem trước NGAY TẠI ĐÂY bằng chính hàm dựng thật — chứ đừng dựng một bản xem trước
+		   riêng. Hai bản dựng là có ngày bản xem trước nói một đằng, trang thật hiện một nẻo. */
+		$xem_chan = VHG_Chan::html();
+		if ( '' !== $xem_chan ) {
+			echo '<h3>Xem trước</h3>';
+			echo '<div style="background:#1b1a17;border-radius:8px;max-width:900px;overflow:hidden">'
+				. '<style>' . VHG_Chan::css() . '</style>' . $xem_chan . '</div>';
+		}
+	}
+
 	/** Tên người đang thao tác — để ghi vào sổ ví. Mọi lượt chỉnh tay phải có tên, không thì
 	    ba tháng sau không ai giải thích được dòng "+500.000đ" ấy là của ai. */
 	public static function ai() {
@@ -525,6 +579,14 @@ class VHG_Admin {
 						'nhan' => isset( $gn_h[ $i ] ) ? $gn_h[ $i ] : 0 );
 				}
 				$bao[] = VHG_Vi::luu_goi_nap( $gn_d );
+			} elseif ( 'chan' === $viec ) {
+				$ch = array( 'hien' => isset( $_POST['chan_hien'] ) ? 1 : 0 );
+				foreach ( array_keys( VHG_Chan::mac_dinh() ) as $k_ch ) {
+					if ( 'hien' === $k_ch ) { continue; }
+					$ch[ $k_ch ] = isset( $_POST[ 'chan_' . $k_ch ] )
+						? sanitize_textarea_field( wp_unslash( $_POST[ 'chan_' . $k_ch ] ) ) : '';
+				}
+				$bao[] = VHG_Chan::luu( $ch );
 			} elseif ( 'ban_ma' === $viec ) {
 				update_option( 'vhg_ban_ma', empty( $_POST['ban_ma_bat'] ) ? 0 : 1 );
 				$bao[] = array( 'ok' => true, 'thong_bao' => empty( $_POST['ban_ma_bat'] )
@@ -890,6 +952,7 @@ class VHG_Admin {
 			. 'khi gửi xuống ghế, vì font màn ghế không vẽ được dấu tiếng Việt.</p>';
 
 		self::khoi_vi();
+		self::khoi_chan();
 
 		/* Xem trước ĐÚNG như ghế sẽ hiện: đã bỏ dấu, đã tính ra phút. Một bảng xem trước bằng
 		   chính dữ liệu sắp gửi đi là cách duy nhất thấy trước "GOI PHO BIEN" trông thế nào,

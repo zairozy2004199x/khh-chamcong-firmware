@@ -398,11 +398,14 @@ class VHG_Trang {
 			. '<title>' . esc_html( self::TEN_HE_THONG ) . '</title>'
 			/* Người đứng quầy lưu trang này vào màn hình chính điện thoại. */
 			. '<meta name="theme-color" content="#12141f">'
-			. '<style>' . self::css() . '</style></head><body' . $lop . $bien_nen . '>'
+			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien_nen . '>'
 			. '<div id="app"></div>'
 			. '<script>window.VHG_API=' . wp_json_encode( $api ) . ';'
 				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';</script>'
 			. '<script>' . self::js() . '</script>'
+			/* Chân trang pháp lý — DỰNG Ở MÁY CHỦ, ngoài `#app`. Nằm trong JS thì JS hỏng là
+			   thông tin công ty biến mất; xem VHG_Chan::html(). */
+			. VHG_Chan::html()
 			. '</body></html>';
 	}
 
@@ -1161,22 +1164,47 @@ function veMa(){
         in đủ số là biến bảng tiền thành danh bạ khách hàng, bôi đen là chép được cả nghìn số. */
   if (V.ds.length) {
     h += '<div class="card"><h2>' + L('Ví khách còn tiền','Wallets with balance') + '</h2>'
+      /* ══════════════════════════════════════════════════════════════════════════════════
+       * 🔴 THỨ TỰ CỘT LÀ MỘT PHÉP TÍNH, VÀ PHẢI ĐỌC RA ĐƯỢC.
+       *
+       * Anh Thắng 23/08/2026: *"Số tiền đang chờ và số tiền đã tiêu cộng lại sai với số đã
+       * nạp"*. Con số KHÔNG sai — 30.000 + 120.000 + 90.000 = 240.000, khớp đúng. Anh cộng
+       * hai cột và thiếu cột thứ ba.
+       *
+       * Nhưng đó là lỗi của cái bảng, không phải của người đọc. Bảng cũ xếp "Đã nạp" nằm GIỮA
+       * "Đang chờ" và "Đã tiêu" — đặt một con số TỔNG vào giữa hai số HẠNG thì mắt tự nối hai
+       * cái cạnh nhau lại rồi so với nó, và tất nhiên là lệch.
+       *
+       * Nay tổng đứng TRƯỚC, và tiêu đề mang luôn dấu `=` `+` `+`. Đọc từ trái sang là ra
+       * đúng phép tính, không phải đoán.
+       * ═════════════════════════════════════════════════════════════════════════════════════ */
       + '<table><thead><tr><th>' + L('Số điện thoại','Phone') + '</th>'
-      + '<th>' + L('Tiêu được','Available') + '</th>'
-      + '<th>' + L('Đang chờ','On hold') + '</th>'
       + '<th>' + L('Đã nạp','Topped up') + '</th>'
-      + '<th>' + L('Đã tiêu','Spent') + '</th>'
+      + '<th>= ' + L('Tiêu được','Available') + '</th>'
+      + '<th>+ ' + L('Đang chờ','On hold') + '</th>'
+      + '<th>+ ' + L('Đã tiêu','Spent') + '</th>'
       + '<th>' + L('Tình trạng','Status') + '</th></tr></thead><tbody>';
     V.ds.forEach(function(v){
+      /* 🔴 TỰ KIỂM NGAY TRÊN BẢNG. Ba số hạng phải cộng đúng bằng tổng; lệch là có chuyện với
+         tiền của khách, và phải HIỆN RA chứ không phải để ai đó tình cờ nhẩm ra. */
+      var lech = (v.so_du_dung + v.so_du_cho + v.da_tieu) - v.da_nap;
       h += '<tr><td>' + esc(v.sdt_che) + '</td>'
-        + '<td><b>' + tien(v.so_du_dung) + '</b></td>'
+        + '<td><b>' + tien(v.da_nap) + '</b>'
+        + (lech !== 0 ? '<br><b style="color:#ff6b6b">' + L('lệch ','off by ') + tien(lech) + '</b>' : '')
+        + '</td>'
+        + '<td>' + tien(v.so_du_dung) + '</td>'
         + '<td>' + (v.so_du_cho > 0 ? tien(v.so_du_cho) : '—') + '</td>'
-        + '<td>' + tien(v.da_nap) + '</td>'
         + '<td>' + tien(v.da_tieu) + '</td>'
         + '<td>' + (v.khoa ? '<b style="color:#ff6b6b">' + L('ĐANG KHOÁ','LOCKED') + '</b>'
                            : '<span class="mut">' + L('bình thường','normal') + '</span>') + '</td></tr>';
     });
-    h += '</tbody></table></div>';
+    h += '</tbody></table>'
+      + '<p class="mut" style="margin:8px 0 0">'
+      + L('<b>Đã nạp</b> = tổng mọi khoản CỘNG vào ví (gồm cả hoàn tiền và chỉnh tay), '
+          + 'nên nó luôn bằng <b>tiêu được + đang chờ + đã tiêu</b>. Lệch là có chuyện — bảng sẽ báo đỏ.',
+          '<b>Topped up</b> = every credit to the wallet (including refunds and manual adjustments), '
+          + 'so it always equals <b>available + on hold + spent</b>. Any mismatch is flagged in red.')
+      + '</p></div>';
   }
 
   h += '<div class="card"><h2>' + L('Mã đã bán trong kỳ','Codes sold this period') + '</h2>'

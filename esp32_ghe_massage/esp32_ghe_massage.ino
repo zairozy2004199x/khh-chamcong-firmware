@@ -1350,7 +1350,11 @@ void checkRemoteCmd(){
   if((int)(d["co"] | 0) != 1) return;
   String viec = String((const char*)(d["viec"] | ""));
   int phut = (int)(d["phut"] | 0);
-  if(viec == "on"){ g_remoteStartMin = (phut>0 ? phut : MINUTES); Serial.printf("[CMD] web MO may %d phut\n", g_remoteStartMin); }
+  /* ⚠️ CỘNG DỒN, không gán đè. Mỗi lượt gọi chỉ lấy về MỘT lệnh; anh Thắng bấm ba cái thì có
+     ba lệnh nằm trong hàng chờ. Gán đè là lệnh thứ hai về trước khi vòng lặp chính kịp tiêu
+     lệnh thứ nhất thì lệnh thứ nhất mất hẳn — tiền đã trừ, phút thì không bao giờ tới. */
+  if(viec == "on"){ g_remoteStartMin += (phut>0 ? phut : MINUTES);
+    Serial.printf("[CMD] web MO may +%d phut (cho: %d)\n", (phut>0?phut:MINUTES), g_remoteStartMin); }
   else if(viec == "off"){ g_remoteStop = true; Serial.println("[CMD] web TAT may"); }
   else if(viec == "reboot"){
     /* 🔴 KHỞI ĐỘNG LẠI TỪ XA — nhưng KHÔNG cắt ngang một lượt khách đang massage.
@@ -1403,8 +1407,37 @@ void startSession(int idx){
   g_payWaiting = true;
   g_watchPayUntil = waitUntil + PAY_GRACE_MS;
 }
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LỖI 23/08/2026 — TRẢ TIỀN THÊM MÀ THỜI GIAN BỊ CẮT NGẮN LẠI
+ *
+ * Anh Thắng: *"Anh bấm nhiều lệnh, tiền vẫn trừ, nhưng số phút không được cộng"*.
+ *
+ * Bản cũ GHI ĐÈ `runUntil`, không cộng. Nên ghế đang chạy còn 30 phút mà nhận thêm một gói
+ * 6 phút thì thành ĐÚNG 6 PHÚT — khách vừa trả thêm tiền và vừa MẤT 24 phút đã trả trước đó.
+ * Không phải "không được cộng", mà là bị TRỪ.
+ *
+ * ⚠️ Đường TIỀN MẶT vốn đã cộng đúng (`runUntil += ...` trong checkCash), nên chỉ mình nó
+ *    đúng còn MỌI đường khác đều sai: QR, tiêu ví, dùng mã, và cả bấm gói trên chính màn ghế.
+ *    Một luật đúng nằm ở chỗ gọi thay vì nằm trong hàm được gọi thì nó chỉ đúng ở đúng chỗ đó.
+ *    Nên nay luật nằm ở ĐÂY, và checkCash bỏ vế cộng tay đi.
+ *
+ * Cộng KHÔNG chặn trần: chặn trần là lấy mất thời gian khách đã trả tiền, mà đó đúng là thứ
+ * hàm này vừa được sửa để không làm nữa.
+ * ════════════════════════════════════════════════════════════════════════════════════════════ */
 void startRunning(int minutes){
+  if(minutes <= 0) return;
   g_payWaiting = false; g_watchPayUntil = 0;
+
+  if(state == ST_RUNNING){
+    runUntil += (unsigned long)minutes*60000UL;
+    /* Không đụng `relaySet`, `state`, `screenDrawn`: ghế đang chạy, đang có người nằm trên đó.
+       Chỉ báo màn vẽ lại con số đếm ngược cho khớp. */
+    lastShownSec = -1; g_statusDirty = true;
+    Serial.printf("[RUN] cong them %d phut (dang chay, con %ld giay)\n",
+      minutes, (long)((runUntil - millis())/1000));
+    return;
+  }
+
   runUntil = millis() + (unsigned long)minutes*60000UL;
   relaySet(true);
   Serial.printf("[RUN] Ghế chạy %d phút\n", minutes);
@@ -1436,8 +1469,10 @@ void checkCash(){
   else if(amount > 0) g_tmLucTo = millis();
 
   if(minutes<=0) return;
-  if(state==ST_RUNNING){ runUntil += (unsigned long)minutes*60000UL; g_statusDirty=true; Serial.println("[CASH] cong them gio (dang chay)"); }
-  else { g_srcCode='c'; startRunning(minutes); }
+  /* Vế "đang chạy thì cộng thêm" ĐÃ CHUYỂN VÀO `startRunning()` — xem chú thích ở đó. Giữ lại
+     ở đây là hai nơi cùng một luật, và đó chính là lý do các đường khác sai suốt. */
+  if(state != ST_RUNNING) { g_srcCode = 'c'; }
+  startRunning(minutes);
   portENTER_CRITICAL(&g_mux);
   g_pendingCashLog += amount;
   if(g_cashRef[0] == 0){

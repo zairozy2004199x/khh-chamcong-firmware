@@ -283,7 +283,52 @@ class VHG_Shop {
 			return;
 		}
 
-		/* Khách tra số dư ví. Hãm y như ô tra mã: số điện thoại là thứ đoán được. */
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * MỘT LẦN NHẬP, RA CẢ VÍ LẪN MÃ.
+		 *
+		 * Anh Thắng 23/08/2026: *"cùng 1 ví mà, sao lại ra 2 lần đăng nhập"*. Đúng. Tab "Của
+		 * tôi" có hai ô nhập số điện thoại + PIN nằm chồng nhau, cùng một số, cùng một PIN —
+		 * khách gõ hai lần cho hai thứ mà với họ là MỘT tài khoản.
+		 *
+		 * ⚠️ GỘP Ở CỔNG, không phải gộp ở trang. Gọi hai lượt API rồi ghép lại ở trình duyệt thì
+		 *    ăn HAI lần hãm thử, và một lượt hỏng là màn hiện nửa vời. Một lượt gọi, một lần
+		 *    hãm, một kết quả.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'cua_toi' === $viec ) {
+			if ( self::bi_khoa( 'tra' ) ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi tra lại, hoặc nhờ nhân viên.' ) );
+				return;
+			}
+			self::dem( 'tra' );
+			$sdt_c = isset( $d['sdt'] ) ? $d['sdt'] : '';
+			$pin_c = isset( $d['pin'] ) ? $d['pin'] : '';
+			$v_c   = VHG_Vi::vi( $sdt_c );
+			$co_vi = $v_c && VHG_Ma::pin_dung( $pin_c, (string) $v_c['pin_bam'] );
+			$ma_c  = VHG_Ma::tra( $sdt_c, $pin_c );
+			/* 🔴 Sai PIN ở CẢ HAI thì mới là sai. Có ví mà chưa mua mã lẻ bao giờ (hoặc ngược
+			   lại) vẫn là một lượt tra THÀNH CÔNG — trả `ok=false` vì một vế trống là đuổi
+			   khách đi đúng lúc họ đang tìm tiền của mình. */
+			if ( ! $co_vi && empty( $ma_c['ok'] ) ) {
+				self::tra( array( 'ok' => false, 'error' => 'Số điện thoại hoặc PIN chưa đúng.' ) );
+				return;
+			}
+			self::tra( array(
+				'ok'        => true,
+				'co_vi'     => $co_vi ? 1 : 0,
+				'so_du'     => $co_vi ? VHG_Vi::so_du( $sdt_c ) : null,
+				'so'        => $co_vi ? VHG_Vi::ds_so( $sdt_c, 20 ) : array(),
+				'chua_dung' => isset( $ma_c['chua_dung'] ) ? $ma_c['chua_dung'] : array(),
+				'da_dung'   => isset( $ma_c['da_dung'] ) ? $ma_c['da_dung'] : array(),
+				'da_huy'    => isset( $ma_c['da_huy'] ) ? $ma_c['da_huy'] : array(),
+				'ghe'       => self::ghe_tu_dia_chi( $d ),
+			) );
+			return;
+		}
+
+		/* Khách tra số dư ví. Hãm y như ô tra mã: số điện thoại là thứ đoán được.
+		   ⚠️ CÒN DÙNG: tab "Dùng tại ghế" mở ví bằng lượt này, và ở đó khách KHÔNG cần danh
+		      sách mã — gọi `cua_toi` ở đó là kéo về một đống dữ liệu không dùng tới. */
 		if ( 'vi' === $viec ) {
 			if ( self::bi_khoa( 'tra' ) ) {
 				self::tra( array( 'ok' => false,
@@ -428,6 +473,16 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 /* Gói vượt quá số dư: làm mờ và BỎ HẲN con trỏ bấm. Chỉ làm mờ mà vẫn bấm được là khách bấm,
    chờ, rồi nhận một câu lỗi về điều trang đã biết từ trước. */
 .g.het{opacity:.42;cursor:not-allowed}
+/* Lời dặn ngồi lên ghế: viền vàng, đứng ngay TRÊN các thẻ gói. Không để chữ mờ — đây là câu
+   duy nhất ngăn khách bấm xong rồi mới đứng dậy đi tìm ghế. */
+.dan{border:1px solid rgba(240,180,41,.5);background:rgba(240,180,41,.09);border-radius:12px;
+  padding:11px 13px;margin:0 0 12px;color:#f0b429;font-weight:700;line-height:1.5}
+.dan-p{color:#cfc3a6;font-weight:400;margin-top:5px;font-size:13px}
+/* Đếm ngược: con số to hết cỡ — khách đang xoay người ngồi xuống, mắt không nhìn thẳng vào màn. */
+.dem{text-align:center;padding:18px 10px;margin-top:12px;border-radius:14px;
+  background:rgba(240,180,41,.10);border:1px solid rgba(240,180,41,.45)}
+.dem-so{font-size:64px;line-height:1;font-weight:800;color:#f0b429}
+.dem-chu{margin-top:8px;color:#e8dcc4;font-weight:700}
 /* Ô chọn ngôn ngữ: nhỏ, nằm trên cùng, không tranh chỗ với nội dung. Nút đang chọn tô vàng như
    mọi nút "đang bật" khác của hệ thống — cùng một quy ước thì khỏi phải học lại. */
 .nn{display:flex;gap:6px;justify-content:center;margin:0 0 10px;flex-wrap:wrap}
@@ -522,6 +577,13 @@ var API = window.VHG_SHOP, GHE = window.VHG_GHE || '', TEN = window.VHG_TEN || '
 /* Từ điển. Khoá = câu tiếng Việt; thiếu bản dịch thì rơi về tiếng Việt, không ra mã lạ. */
 var TU = {
   en: {
+    'Của tôi': 'My account',
+    'Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.': 'Enter your phone number and PIN — shows both your wallet balance and your codes.',
+    'Xem của tôi': 'Show my account',
+    'Số này chưa mua mã lẻ nào — chỉ có ví.': 'No individual codes for this number — wallet only.',
+    '⚠️ Vui lòng NGỒI LÊN GHẾ trước khi bấm chọn gói.': '⚠️ Please SIT ON THE CHAIR before tapping a package.',
+    'Bấm xong màn đếm 5 giây rồi ghế chạy. Lệnh đã gửi ngay từ lúc bấm, nên tới 0 là ghế chạy luôn.': 'After you tap, a 5-second countdown runs and then the chair starts. The command is sent the moment you tap, so at 0 it starts immediately.',
+    'Ghế sắp chạy — mời anh/chị ngồi lên ghế': 'Chair starting — please take your seat',
     ' (được thêm ': ' (bonus ',
     ' giờ': ' h',
     ' ngày': ' d',
@@ -556,14 +618,10 @@ var TU = {
     '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>': '<button id="q-ok" style="width:100%;margin-top:14px">Set new PIN</button>',
     '<button id="qr-tai">⬇ Tải ảnh mã QR</button>': '<button id="qr-tai">⬇ Save QR image</button>',
     '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>': '<button id="t-mo" class="chinh" style="margin-top:14px">Open wallet</button>',
-    '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>': '<button id="t-xem" class="chinh" style="margin-top:14px">Show my codes</button>',
-    '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>': '<button id="v-xem" class="chinh" style="margin-top:14px">Show balance</button>',
     '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">Buy more</button></div></div>',
     '<div class="card"><h2>Dùng mã cho ghế</h2>': '<div class="card"><h2>Use a code at this chair</h2>',
     '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>': '<div class="card"><h2>Or use a discount code</h2>',
-    '<div class="card"><h2>Mã của tôi</h2>': '<div class="card"><h2>My codes</h2>',
     '<div class="card"><h2>Quên PIN?</h2>': '<div class="card"><h2>Forgot PIN?</h2>',
-    '<div class="card"><h2>Số dư ví</h2>': '<div class="card"><h2>Wallet balance</h2>',
     '<div class="card"><h2>Thông tin nhận mã</h2>': '<div class="card"><h2>Where to send your code</h2>',
     '<div class="card"><h2>Trả bằng số dư ví</h2>': '<div class="card"><h2>Pay with wallet balance</h2>',
     '<div class="card"><h2>Ví của anh/chị</h2>': '<div class="card"><h2>Your wallet</h2>',
@@ -572,7 +630,6 @@ var TU = {
     '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>': '<div class="card"><p class="mut">Top-up packages are not on sale yet.</p></div>',
     '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>': '<div class="card"><p class="mut">Loading prices…</p></div>',
     '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>': '<div class="cho" id="cho">⏳ Waiting for payment…</div>',
-    '<div class="cho">⏳ Đang trừ tiền…</div>': '<div class="cho">⏳ Deducting…</div>',
     '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>': '<div class="ck nhan" style="display:block"><div class="nh">Chair not identified</div>',
     '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>': '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Your chair</div>',
     '<div class="deal"><b>Giảm tới ': '<div class="deal"><b>Up to ',
@@ -607,8 +664,6 @@ var TU = {
     '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>': '<label>Set a 4-digit PIN — to look up your codes later</label>',
     '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ': '<p class="mut" style="margin:-4px 0 10px">Forgot your PIN? <b>Ask staff</b> — they ',
     '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ': '<p class="mut" style="margin:0 0 10px"><b>Tap a package</b> — we deduct from your balance ',
-    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>': '<p class="mut" style="margin:0 0 10px">Enter the wallet phone number and PIN.</p>',
-    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>': '<p class="mut" style="margin:0 0 10px">Enter the phone number and PIN you set when buying.</p>',
     '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ': '<p class="mut" style="margin:0 0 10px">Enter your phone number and PIN to see your balance and ',
     '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ': '<p class="mut" style="margin:0 0 10px">If you gave an ID number when buying, you can set a new PIN yourself. ',
     '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ': '<p class="mut" style="margin:0 0 10px">The balance is tied to your <b>phone number</b>. Next visit, ',
@@ -675,6 +730,13 @@ var TU = {
     '✓ Đã chép': '✓ Copied'
   },
   zh: {
+    'Của tôi': '我的',
+    'Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.': '输入手机号和密码 — 同时显示钱包余额与已购优惠码。',
+    'Xem của tôi': '查看我的',
+    'Số này chưa mua mã lẻ nào — chỉ có ví.': '此号码没有单独的优惠码 — 仅有钱包。',
+    '⚠️ Vui lòng NGỒI LÊN GHẾ trước khi bấm chọn gói.': '⚠️ 请先坐到按摩椅上，再点击套餐。',
+    'Bấm xong màn đếm 5 giây rồi ghế chạy. Lệnh đã gửi ngay từ lúc bấm, nên tới 0 là ghế chạy luôn.': '点击后倒计时5秒，按摩椅随即启动。指令在点击时已发出，因此归零即刻运行。',
+    'Ghế sắp chạy — mời anh/chị ngồi lên ghế': '按摩椅即将启动 — 请就座',
     ' (được thêm ': '（赠送 ',
     ' giờ': ' 小时',
     ' ngày': ' 天',
@@ -709,14 +771,10 @@ var TU = {
     '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>': '<button id="q-ok" style="width:100%;margin-top:14px">设置新密码</button>',
     '<button id="qr-tai">⬇ Tải ảnh mã QR</button>': '<button id="qr-tai">⬇ 保存二维码</button>',
     '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>': '<button id="t-mo" class="chinh" style="margin-top:14px">打开钱包</button>',
-    '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>': '<button id="t-xem" class="chinh" style="margin-top:14px">查看我的优惠码</button>',
-    '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>': '<button id="v-xem" class="chinh" style="margin-top:14px">查看余额</button>',
     '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">继续购买</button></div></div>',
     '<div class="card"><h2>Dùng mã cho ghế</h2>': '<div class="card"><h2>在此按摩椅使用优惠码</h2>',
     '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>': '<div class="card"><h2>或使用优惠码</h2>',
-    '<div class="card"><h2>Mã của tôi</h2>': '<div class="card"><h2>我的优惠码</h2>',
     '<div class="card"><h2>Quên PIN?</h2>': '<div class="card"><h2>忘记密码？</h2>',
-    '<div class="card"><h2>Số dư ví</h2>': '<div class="card"><h2>钱包余额</h2>',
     '<div class="card"><h2>Thông tin nhận mã</h2>': '<div class="card"><h2>接收优惠码的信息</h2>',
     '<div class="card"><h2>Trả bằng số dư ví</h2>': '<div class="card"><h2>使用钱包余额支付</h2>',
     '<div class="card"><h2>Ví của anh/chị</h2>': '<div class="card"><h2>您的钱包</h2>',
@@ -725,7 +783,6 @@ var TU = {
     '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>': '<div class="card"><p class="mut">目前未开放充值套餐。</p></div>',
     '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>': '<div class="card"><p class="mut">正在加载价目表…</p></div>',
     '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>': '<div class="cho" id="cho">⏳ 等待到账…</div>',
-    '<div class="cho">⏳ Đang trừ tiền…</div>': '<div class="cho">⏳ 正在扣款…</div>',
     '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>': '<div class="ck nhan" style="display:block"><div class="nh">未识别按摩椅</div>',
     '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>': '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">您所坐的按摩椅</div>',
     '<div class="deal"><b>Giảm tới ': '<div class="deal"><b>最高优惠 ',
@@ -760,8 +817,6 @@ var TU = {
     '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>': '<label>设置4位密码 — 以便日后查询优惠码</label>',
     '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ': '<p class="mut" style="margin:-4px 0 10px">忘记密码？<b>请联系工作人员</b> — 他们',
     '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ': '<p class="mut" style="margin:0 0 10px"><b>点击套餐</b> — 系统直接从余额扣款，',
-    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>': '<p class="mut" style="margin:0 0 10px">请输入钱包的手机号和密码。</p>',
-    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>': '<p class="mut" style="margin:0 0 10px">请输入购买时填写的手机号和密码。</p>',
     '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ': '<p class="mut" style="margin:0 0 10px">输入手机号和密码以查看余额及',
     '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ': '<p class="mut" style="margin:0 0 10px">若购买时填写了身份证号，可自行设置新密码。',
     '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ': '<p class="mut" style="margin:0 0 10px">余额与<b>手机号</b>绑定。下次到店，',
@@ -828,6 +883,13 @@ var TU = {
     '✓ Đã chép': '✓ 已复制'
   },
   ru: {
+    'Của tôi': 'Мои',
+    'Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.': 'Введите номер телефона и PIN — покажем баланс кошелька и ваши коды.',
+    'Xem của tôi': 'Показать мои',
+    'Số này chưa mua mã lẻ nào — chỉ có ví.': 'Для этого номера нет отдельных кодов — только кошелёк.',
+    '⚠️ Vui lòng NGỒI LÊN GHẾ trước khi bấm chọn gói.': '⚠️ Пожалуйста, СЯДЬТЕ В КРЕСЛО перед выбором пакета.',
+    'Bấm xong màn đếm 5 giây rồi ghế chạy. Lệnh đã gửi ngay từ lúc bấm, nên tới 0 là ghế chạy luôn.': 'После нажатия идёт отсчёт 5 секунд, затем кресло запускается. Команда отправляется сразу при нажатии, поэтому на 0 кресло стартует немедленно.',
+    'Ghế sắp chạy — mời anh/chị ngồi lên ghế': 'Кресло запускается — пожалуйста, садитесь',
     ' (được thêm ': ' (бонус ',
     ' giờ': ' ч',
     ' ngày': ' дн',
@@ -862,14 +924,10 @@ var TU = {
     '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>': '<button id="q-ok" style="width:100%;margin-top:14px">Задать новый PIN</button>',
     '<button id="qr-tai">⬇ Tải ảnh mã QR</button>': '<button id="qr-tai">⬇ Скачать QR</button>',
     '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>': '<button id="t-mo" class="chinh" style="margin-top:14px">Открыть кошелёк</button>',
-    '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>': '<button id="t-xem" class="chinh" style="margin-top:14px">Показать мои коды</button>',
-    '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>': '<button id="v-xem" class="chinh" style="margin-top:14px">Показать баланс</button>',
     '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">Купить ещё</button></div></div>',
     '<div class="card"><h2>Dùng mã cho ghế</h2>': '<div class="card"><h2>Использовать код у кресла</h2>',
     '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>': '<div class="card"><h2>Или используйте промокод</h2>',
-    '<div class="card"><h2>Mã của tôi</h2>': '<div class="card"><h2>Мои коды</h2>',
     '<div class="card"><h2>Quên PIN?</h2>': '<div class="card"><h2>Забыли PIN?</h2>',
-    '<div class="card"><h2>Số dư ví</h2>': '<div class="card"><h2>Баланс кошелька</h2>',
     '<div class="card"><h2>Thông tin nhận mã</h2>': '<div class="card"><h2>Данные для получения кода</h2>',
     '<div class="card"><h2>Trả bằng số dư ví</h2>': '<div class="card"><h2>Оплата с кошелька</h2>',
     '<div class="card"><h2>Ví của anh/chị</h2>': '<div class="card"><h2>Ваш кошелёк</h2>',
@@ -878,7 +936,6 @@ var TU = {
     '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>': '<div class="card"><p class="mut">Пакеты пополнения пока не продаются.</p></div>',
     '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>': '<div class="card"><p class="mut">Загрузка цен…</p></div>',
     '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>': '<div class="cho" id="cho">⏳ Ожидаем поступление…</div>',
-    '<div class="cho">⏳ Đang trừ tiền…</div>': '<div class="cho">⏳ Списание…</div>',
     '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>': '<div class="ck nhan" style="display:block"><div class="nh">Кресло не определено</div>',
     '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>': '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ваше кресло</div>',
     '<div class="deal"><b>Giảm tới ': '<div class="deal"><b>Скидка до ',
@@ -913,8 +970,6 @@ var TU = {
     '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>': '<label>Задайте PIN из 4 цифр — чтобы позже найти свои коды</label>',
     '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ': '<p class="mut" style="margin:-4px 0 10px">Забыли PIN? <b>Обратитесь к персоналу</b> — ',
     '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ': '<p class="mut" style="margin:0 0 10px"><b>Нажмите пакет</b> — сумма спишется с баланса ',
-    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>': '<p class="mut" style="margin:0 0 10px">Введите номер телефона и PIN кошелька.</p>',
-    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>': '<p class="mut" style="margin:0 0 10px">Введите номер телефона и PIN, заданные при покупке.</p>',
     '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ': '<p class="mut" style="margin:0 0 10px">Введите номер телефона и PIN, чтобы увидеть баланс и ',
     '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ': '<p class="mut" style="margin:0 0 10px">Если при покупке указали номер документа, можно задать новый PIN. ',
     '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ': '<p class="mut" style="margin:0 0 10px">Баланс привязан к <b>номеру телефона</b>. В следующий раз ',
@@ -1299,35 +1354,32 @@ function o_ck(nhan, hien, chep_, lop){
 
 // ------------------------------------------------------------------ mã của tôi
 function veCuaToi(){
-  /* Ví ĐỨNG TRƯỚC mã: ai đã nạp thì số dư là thứ họ mở trang này để xem. Chỉ hiện khi cửa hàng
-     có bán gói nạp — chưa bán mà vẫn hiện là bày ra một ô không ai dùng được. */
-  var hv = '';
-  if (D && D.goi_nap && D.goi_nap.length) {
-    hv = L('<div class="card"><h2>Số dư ví</h2>')
-      + L('<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>')
-      + L('<label>Số điện thoại</label>')
-      + '<input id="v-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
-      + L('<label>PIN 4 số</label>')
-      + '<input id="v-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-      + L('<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>')
-      + '<div class="err" id="v-e"></div><div id="v-kq"></div></div>';
-  }
-  return hv + L('<div class="card"><h2>Mã của tôi</h2>')
-    + L('<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>')
-    /* 🔴 QUÊN PIN LÀ CHUYỆN SẼ XẢY RA, không phải nếu. Khách đặt PIN một lần rồi ba tuần sau mới
-       quay lại. Không nói trước lối ra thì họ gõ mười lần, bị hãm, rồi bỏ đi — mang theo cái mã
-       đã trả tiền.
-       ⚠️ KHÔNG làm chức năng "quên PIN" tự phục hồi trên trang này: thứ duy nhất trang biết về
-          khách là số điện thoại, mà số điện thoại thì người khác đoán được. Tự đặt lại PIN bằng
-          một thứ đoán được là gỡ đúng cái khoá vừa lắp. Nhân viên tra hộ mới là lối đúng — họ
-          nhìn thấy mặt khách. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * MỘT Ô NHẬP CHO CẢ VÍ LẪN MÃ.
+   *
+   * Anh Thắng 23/08/2026: *"cùng 1 ví mà, sao lại ra 2 lần đăng nhập"*. Bản trước có hai thẻ
+   * chồng nhau, mỗi thẻ một ô số điện thoại + một ô PIN — cùng số, cùng PIN, cho hai thứ mà với
+   * khách là MỘT tài khoản. Gõ hai lần cho một việc là lỗi thiết kế, không phải tính năng.
+   *
+   * 🔴 QUÊN PIN LÀ CHUYỆN SẼ XẢY RA, không phải nếu. Khách đặt PIN một lần rồi ba tuần sau mới
+   *    quay lại. Không nói trước lối ra thì họ gõ mười lần, bị hãm, rồi bỏ đi — mang theo cả số
+   *    dư lẫn mã đã trả tiền.
+   *
+   * ⚠️ KHÔNG làm "quên PIN" tự phục hồi bằng mỗi số điện thoại: số đó người khác đoán được. Tự
+   *    đặt lại PIN bằng một thứ đoán được là gỡ đúng cái khoá vừa lắp. Đường căn cước ở khối
+   *    dưới, và nhân viên tra hộ — họ nhìn thấy mặt khách.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  return '<div class="card"><h2>' + L('Của tôi') + '</h2>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.') + '</p>'
     + L('<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ')
     + L('được bằng số điện thoại và đọc mã giúp anh/chị.</p>')
     + L('<label>Số điện thoại</label>')
-    + '<input id="t-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
+    + '<input id="t-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456" value="'
+    + esc(nhoSdt()) + '">'
     + L('<label>PIN 4 số</label>')
     + '<input id="t-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-    + L('<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>')
+    + '<button id="t-xem" class="chinh" style="margin-top:14px">' + L('Xem của tôi') + '</button>'
     + '<div class="err" id="e"></div><div id="kq"></div></div>'
     /* Ô lấy lại PIN để RIÊNG một khối, dưới khối tra: người nhớ PIN không phải nhìn thấy nó. */
     + L('<div class="card"><h2>Quên PIN?</h2>')
@@ -1411,6 +1463,13 @@ function veDung(){
               + (sd.con_cho > 0 ? L(' — dùng được sau ') + docCho(sd.con_cho) : '')
             : '')
         + '</div>'
+        /* 🔴 LỜI DẶN ĐỨNG TRƯỚC CÁC THẺ, KHÔNG ĐỨNG SAU.
+           Anh Thắng 23/08/2026: *"bổ sung hướng dẫn, trước khi chọn gói. Vui lòng ngồi lên ghế"*.
+           Đặt sau các thẻ là khách đã bấm xong mới đọc tới — lúc đó lời dặn thành lời trách. */
+        + '<div class="dan">' + L('⚠️ Vui lòng NGỒI LÊN GHẾ trước khi bấm chọn gói.')
+        + '<div class="dan-p">'
+        + L('Bấm xong màn đếm 5 giây rồi ghế chạy. Lệnh đã gửi ngay từ lúc bấm, nên tới 0 là ghế chạy luôn.')
+        + '</div></div>'
         + L('<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ')
         + L('và ghế chạy ngay.</p>')
         + '<div class="goi">';
@@ -1565,13 +1624,41 @@ function noi(){
       if (ban || !VI) return;
       var mg = Number(b.getAttribute('data-tieu'));
       var e = document.getElementById('t-e'), kq = document.getElementById('t-kq');
-      ban = true; e.textContent = ''; kq.innerHTML = L('<div class="cho">⏳ Đang trừ tiền…</div>');
+      ban = true; e.textContent = '';
+      /* ══════════════════════════════════════════════════════════════════════════════════════
+       * ĐẾM NGƯỢC 5 → 0.
+       *
+       * Anh Thắng: *"Nếu lỡ bấm đếm 5-4-3-2-1-0 mới chạy ghế, thì lúc này trước 5s hệ thống đã
+       * gửi sẵn lệnh, sau 0 là ghế chạy luôn"*.
+       *
+       * 🔴 LỆNH GỬI NGAY LÚC BẤM, ĐẾM NGƯỢC CHẠY SONG SONG — không phải đếm xong mới gửi.
+       *    Ghế mất 2-4 giây để lấy lệnh về. Đếm xong mới gửi là cộng thêm 5 giây nữa vào đúng
+       *    cái độ trễ mà cả tháng qua mình đi cắt từng giây. Đếm song song thì 5 giây ấy KHÔNG
+       *    mất gì: nó vừa che quãng chờ có thật, vừa cho khách kịp ngồi lên ghế.
+       *
+       * ⚠️ ĐÂY KHÔNG PHẢI NÚT HUỶ, và không được vẽ ra như nút huỷ. Tới 0 là ghế chạy, dù khách
+       *    có bấm gì hay không — tiền đã trừ từ lúc bấm rồi.
+       * ═════════════════════════════════════════════════════════════════════════════════════ */
+      var con = 5, nhip = null;
+      var veDem = function(){
+        kq.innerHTML = '<div class="dem"><div class="dem-so">' + con + '</div>'
+          + '<div class="dem-chu">' + L('Ghế sắp chạy — mời anh/chị ngồi lên ghế') + '</div></div>';
+      };
+      veDem();
+      nhip = setInterval(function(){
+        con--;
+        if (con >= 0) veDem();
+        if (con <= 0) { clearInterval(nhip); nhip = null; }
+      }, 1000);
       /* ⚠️ GỬI THẲNG mã ghế trong thân gói, y như lượt `dung` vẫn làm — đừng để máy chủ tự dò
          lại từ địa chỉ. Trang ĐÃ BIẾT ghế rồi; bắt máy chủ suy lại là thêm một chỗ hỏng được,
          và nó đã hỏng thật. Địa chỉ API nay cũng mang ghế, nên đây là lớp thứ hai. */
       goi('tieu', { sdt: VI.sdt || nhoSdt(), pin: VI.pin, menh_gia: mg, ma_may: GHE }, function(r){
         ban = false;
         if (!r.ok) {
+          /* Hỏng thì DỪNG ĐẾM NGAY. Để con số tiếp tục chạy về 0 trong khi ghế sẽ không chạy
+             là nói dối khách bằng một cái đồng hồ. */
+          if (nhip) { clearInterval(nhip); nhip = null; }
           kq.innerHTML = '';
           e.textContent = r.error || L('Không chạy được.');
           /* Số dư có thể vừa đổi (tiêu ở ghế khác) — tra lại để thẻ mờ đúng thực tế. */
@@ -1579,12 +1666,17 @@ function noi(){
           return;
         }
         VI.so_du = r.so_du;
-        kq.innerHTML = '<div class="ok" style="margin-top:12px">' + esc(r.thong_bao) + '</div>';
-        /* Vẽ lại để số dư và các thẻ mờ khớp ngay, nhưng GIỮ lại câu báo vừa hiện. */
-        var giu = kq.innerHTML;
-        ve();
-        var kq2 = document.getElementById('t-kq');
-        if (kq2) kq2.innerHTML = giu;
+        /* Máy chủ trả lời TRƯỚC khi đếm xong thì chờ nốt — con số đang chạy là lời hứa với
+           khách, cắt ngang nó là họ chưa kịp ngồi xuống. */
+        var xong = function(){
+          kq.innerHTML = '<div class="ok" style="margin-top:12px">' + esc(r.thong_bao) + '</div>';
+          /* Vẽ lại để số dư và các thẻ mờ khớp ngay, nhưng GIỮ lại câu báo vừa hiện. */
+          var giu = kq.innerHTML;
+          ve();
+          var kq2 = document.getElementById('t-kq');
+          if (kq2) kq2.innerHTML = giu;
+        };
+        if (con > 0) { setTimeout(xong, con * 1000 + 200); } else { xong(); }
       });
     };
   });
@@ -1641,7 +1733,10 @@ function noi(){
   if (xem) xem.onclick = function(){
     var e = document.getElementById('e'), kq = document.getElementById('kq');
     kq.innerHTML = ''; e.textContent = L('Đang tra…');
-    goi('tra', { sdt: document.getElementById('t-sdt').value,
+    var sdt_ct = document.getElementById('t-sdt').value;
+    /* MỘT lượt gọi cho cả ví lẫn mã — xem việc `cua_toi` bên máy chủ. Gọi hai lượt rồi ghép
+       lại ở đây thì ăn HAI lần hãm thử, và một lượt hỏng là màn hiện nửa vời. */
+    goi('cua_toi', { sdt: sdt_ct,
                  pin: document.getElementById('t-pin').value }, function(r){
       if (!r.ok) {
         /* Tra không ra thì đưa luôn LỐI RA, đừng để khách đứng đó gõ lại tới lúc bị hãm. */
@@ -1651,8 +1746,19 @@ function noi(){
         return;
       }
       e.textContent = '';
+      nhoSdt(sdt_ct);
       var h = '';
-      if (!r.chua_dung.length) h += L('<p class="mut">Không còn mã nào chưa dùng.</p>');
+      /* SỐ DƯ TRƯỚC, mã sau: ai đã nạp thì số dư là thứ họ mở trang này để xem. */
+      if (r.co_vi) {
+        VI = { so_du: r.so_du, so: r.so, sdt: sdt_ct };
+        h += veSoDu(r);
+      }
+      if (r.co_vi && !r.chua_dung.length && !r.da_dung.length) {
+        h += '<p class="mut" style="margin-top:12px">'
+          + L('Số này chưa mua mã lẻ nào — chỉ có ví.') + '</p>';
+      } else if (!r.chua_dung.length) {
+        h += L('<p class="mut">Không còn mã nào chưa dùng.</p>');
+      }
       r.chua_dung.forEach(function(m){
         /* Mã chưa tới hạn hiện MỐC DÙNG ĐƯỢC, không hiện "còn dùng được" — khách cần biết quay
            lại lúc nào, chứ nhìn thấy "còn dùng được" rồi ra ghế quét không ăn là tệ nhất. */
@@ -1786,7 +1892,7 @@ JS;
 			. '<meta name="viewport" content="width=device-width,initial-scale=1">'
 			. '<title>Mua mã giảm giá — ' . esc_html( VHG_Trang::TEN_NGAN ) . '</title>'
 			. '<meta name="theme-color" content="#12141f">'
-			. '<style>' . self::css() . '</style></head><body' . $lop . $bien . '>'
+			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien . '>'
 			. '<div id="app"></div>'
 			/* ══════════════════════════════════════════════════════════════════════════════
 			 * 🔴 ĐỊA CHỈ API PHẢI MANG THEO MÃ GHẾ.
@@ -1808,6 +1914,7 @@ JS;
 			. 'window.VHG_GHE=' . wp_json_encode( self::ghe_tu_dia_chi() ) . ';'
 			. 'window.VHG_TEN=' . wp_json_encode( VHG_Trang::TEN_NGAN ) . ';</script>'
 			. '<script>' . self::js() . '</script>'
+			. VHG_Chan::html()
 			. '</body></html>';
 	}
 }
