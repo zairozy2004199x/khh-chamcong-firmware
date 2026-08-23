@@ -208,7 +208,12 @@
                loại chi phí, nên khai thêm mảng ở Cấu hình là ô này tự có thêm. -->
           <div class="fld" style="grid-column:1 / -1"><label>Chọn chi phí nào *</label>
             <div id="f_nhomCp" style="display:flex;gap:6px;flex-wrap:wrap"></div></div>
-          <div class="fld"><label>Loại chi phí * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select></div>
+          <div class="fld"><label>Loại chi phí * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select>
+            <!-- KHÔNG ẨN IM LẶNG. Ô này lọc 4 lớp (đã khai mã cho mảng của cơ sở · đúng nút
+                 "Chọn chi phí nào" · đúng bộ phận người đăng nhập · đúng phân loại TT). Ô rỗng
+                 mà không nói gì thì người dùng chỉ thấy "app hỏng" — đã xảy ra hai lần trong
+                 một ngày: mở đơn lần đầu (chưa chọn cơ sở) và khai loại chỉ cho 1/7 mảng. -->
+            <div id="f_nhomVi" style="font-size:11px;margin-top:3px"></div></div>
           <div class="fld"><label>Nội dung *</label><input id="f_nd" list="dl_nd" oninput="onNoiDung()" autocomplete="off" placeholder="VD: Nước bình 20L"><datalist id="dl_nd"></datalist></div>
           <div class="fld"><label>ĐVT</label><input id="f_dvt" placeholder="Cái, kg..."></div>
           <div class="fld"><label>Số lượng *</label><input id="f_sl" type="number" min="0" step="any" placeholder="Bắt buộc" oninput="calcTT()"></div>
@@ -1192,6 +1197,7 @@
     el('f_nhom').value=(cur && names.indexOf(cur)>=0)?cur:'';
     fillNoiDungList(el('f_nhom').value);
     showTkNhom();
+    _veLoaiCpVi('f_nhomVi', coso, '', loaiOf(el('f_pltt').value));
   }
   // Chọn Phân loại (Cá nhân/NCC) trước -> lọc Nhóm mặt hàng + Đối tượng theo loại đó
   function onPlttChange(){ var pltt=el('f_pltt').value; fillNhom(''); updateDoiTuongUI(pltt); }
@@ -1450,11 +1456,22 @@
       var dongRoi={}; (BOOT.cosoDong||[]).forEach(function(c){ dongRoi[String(c).trim().toLowerCase()]=1; });
       cosoOpts=(cosoOpts||[]).filter(function(c){ return !dongRoi[String(c).trim().toLowerCase()]; });
       el('tuCoso').innerHTML=opts(cosoOpts); el('f_coso').innerHTML=opts(cosoOpts);
+      // CHỌN SẴN CƠ SỞ KHI CHỈ CÓ MỘT LỰA CHỌN.
+      // Mã tài khoản khai theo MẢNG của cơ sở, nên chưa chọn cơ sở thì ô "Loại chi phí"
+      // gần như rỗng — mở đơn lần đầu trông y như app hỏng. Ai chỉ phụ trách 1 cơ sở thì
+      // khỏi phải chọn. Nhiều cơ sở thì không đoán hộ, nhưng dòng chú thích dưới ô Loại
+      // chi phí sẽ nói rõ "⬆ Chọn CƠ SỞ trước".
       if(isNV&&myCoso.length) el('f_coso').value=myCoso[0];
+      else if((cosoOpts||[]).length===1) el('f_coso').value=cosoOpts[0];
       // Vừa dựng lại ô chọn -> khóa lại theo cơ sở đã chốt của đơn đang mở, không thì
       // boot() chạy sau openDon() là mở lại đủ cơ sở, hết khóa mà không ai thấy.
       if(typeof _khoaCoSo==='function') _khoaCoSo();
-      el('f_pltt').innerHTML=opts(BOOT.phanloai,'—'); fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
+      // renderNhomCp() TRƯỚC fillNhom(): nó là chỗ chốt NHOM_CP (nút đang chọn ở "Chọn chi
+      // phí nào"), mà fillNhom lọc theo đúng biến đó. Chạy ngược thứ tự thì lần dựng đầu
+      // lọc bằng giá trị chưa chốt — ô rỗng, bấm qua lại một nút mới hiện.
+      el('f_pltt').innerHTML=opts(BOOT.phanloai,'—');
+      if(typeof renderNhomCp==='function') renderNhomCp();
+      fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
       var dons=(b.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; });
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
         return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
@@ -3351,6 +3368,46 @@
     sel.value=(cuOld===undefined||cuOld===null)?'':cuOld;
     moLoaiNhanh({selId:selId, coso:coso, hinhThuc:hinhThuc||''});
     return true;
+  }
+  /**
+   * VÌ SAO Ô "LOẠI CHI PHÍ" ÍT / RỖNG — nói ra, đừng ẩn im lặng.
+   *
+   * Đếm từng lý do trên CHÍNH danh mục đang có, thay vì đoán. Trả {chu, mau, thieuMa}.
+   */
+  function _loaiCpVi(coso, hinhThuc, loaiTtEx){
+    var tong=(BOOT.loaiChiPhi||[]).length;
+    var hien=_loaiCpList(coso, hinhThuc, loaiTtEx).length;
+    if(!tong) return {chu:'Danh mục loại chi phí đang trống — khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh.', mau:'#dc2626'};
+    // Chưa chọn cơ sở: mã tài khoản khai theo MẢNG của cơ sở, nên chưa biết cơ sở thì
+    // gần như không loại nào đủ điều kiện hiện. Đây là cảnh "mở đơn lần đầu".
+    if(!String(coso||'').trim()){
+      return {chu:'⬆ Chọn CƠ SỞ trước — mã tài khoản khai theo mảng kinh doanh của cơ sở.', mau:'#b45309'};
+    }
+    var mang=_mangCua(coso);
+    var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
+    var nMa=0, nBp=0, nNhom=0;
+    (BOOT.loaiChiPhi||[]).forEach(function(x){
+      var b=String(x.boPhan||'').trim();
+      if(!_tkNoCua(x.ten, coso) && !_tkNoList(x.ten, coso).length){ nMa++; return; }
+      if(NHOM_CP && _khoaNhom(x.boPhan, x.ten)!==NHOM_CP){ nNhom++; return; }
+      if(bp && b && b!==bp){ nBp++; return; }
+    });
+    var ly=[];
+    if(nMa)  ly.push(nMa+' chưa khai mã cho mảng <b>'+esc(mang||'(cơ sở chưa khai mảng)')+'</b>');
+    if(nNhom) ly.push(nNhom+' thuộc nút khác ở "Chọn chi phí nào"');
+    if(nBp)  ly.push(nBp+' thuộc bộ phận khác');
+    if(!hien){
+      return {chu:'Không có loại nào dùng được ở đây' + (ly.length?(' — '+ly.join(' · ')):'')
+        + '. Bấm <b>＋ Thêm loại chi phí mới…</b> trong ô trên để khai ngay.', mau:'#dc2626', thieuMa:nMa};
+    }
+    if(!ly.length) return {chu:'', mau:''};
+    return {chu:'Đang hiện '+hien+'/'+tong+' loại · ẩn: '+ly.join(' · ')+'.', mau:'#94a3b8', thieuMa:nMa};
+  }
+  function _veLoaiCpVi(id, coso, hinhThuc, loaiTtEx){
+    var d=el(id); if(!d) return;
+    var v=_loaiCpVi(coso, hinhThuc, loaiTtEx);
+    d.innerHTML=v.chu; d.style.color=v.mau||'#94a3b8';
+    d.style.display=v.chu?'':'none';
   }
   function _reFillLoai(selId, coso, httId){
     var ch=_selLoai(selId);
