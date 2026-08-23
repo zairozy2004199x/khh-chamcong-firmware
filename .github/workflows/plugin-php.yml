@@ -63,6 +63,13 @@ jobs:
         with:
           node-version: '20'
 
+      # 🔴 BẤM THẬT VÀO TRANG, không canh chuỗi trong mã.
+      #    Ngày 23/08/2026 nút "Chốt ca" gọi vào một hàm khai lộn phạm vi: mã CÓ trong nguồn nên
+      #    mọi phép thử canh chuỗi đều xanh, mà bấm thì không có gì xảy ra. Phép thử này nạp
+      #    đoạn JS vào Node với một DOM giả rồi bấm đúng cái nút đó.
+      - name: Bấm thử trang ghế (JS chạy thật)
+        run: node tools/test/bam-thu-trang-ghe.js wordpress/vhcp-ghe/includes/class-vhg-trang.php
+
       - name: Bộ thử Apps Script (ghi song song, nhóm chi phí)
         run: |
           set -e

@@ -773,6 +773,12 @@ class VHG_Trang {
 			. '<style>' . self::css() . VHG_Chan::css() . '</style></head><body' . $lop . $bien_nen . '>'
 			. '<div id="app"></div>'
 			. '<script>window.VHG_API=' . wp_json_encode( $api ) . ';'
+				/* 🔴 SỐ BẢN ĐANG CHẠY, ĐƯA THẲNG RA TRANG.
+				   Nửa số lần "vẫn không chạy" là máy chủ còn chạy bản cũ — cài đè xong mà trình
+				   duyệt giữ bản JS trong bộ nhớ đệm, hoặc plugin chưa kích hoạt lại. Không hiện
+				   số bản thì câu đó phải hỏi vòng qua ảnh chụp và phỏng đoán; hiện ra thì nhìn
+				   một giây là biết. */
+				. 'window.VHG_BAN=' . wp_json_encode( defined( 'VHG_VERSION' ) ? VHG_VERSION : '?' ) . ';'
 				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';</script>'
 			. '<script>' . self::js() . '</script>'
 			/* Chân trang pháp lý — DỰNG Ở MÁY CHỦ, ngoài `#app`. Nằm trong JS thì JS hỏng là
@@ -920,6 +926,11 @@ tr:last-child td{border-bottom:0}
    người đọc không biết ô tích nào thuộc câu hỏi nào, và tích nhầm nhóm là cấp nhầm quyền. */
 /* Ô chỉ số trên thẻ ghế. Hai con số phải ĐỌC ĐƯỢC TỪ XA — người ta cầm điện thoại một tay,
    tay kia đang giữ ngăn tiền, và mắt thì đang nhìn qua nhìn lại giữa màn máy đếm và màn này. */
+/* Dải báo lỗi. Đỏ, dính đầu trang, không cuộn mất — người dùng phải thấy nó mà không phải tìm. */
+/* Số bản: nhỏ, mờ, cạnh đồng hồ — không tranh chỗ với số liệu, nhưng luôn đọc được. */
+.ban-top{font-size:11px;color:#7f7768;letter-spacing:.04em;padding:0 4px}
+.bao-loi{position:sticky;top:0;z-index:99;padding:10px 14px;background:#5b1418;color:#ffd7d7;
+  font-size:13px;line-height:1.5;border-bottom:1px solid #8a2026}
 .cs-hop{margin:8px 0 2px;padding:9px 11px;border-radius:10px;
   background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28)}
 .cs-hop.chua{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
@@ -1005,6 +1016,54 @@ CSS;
 		return <<<'JS'
 (function(){
 var API = window.VHG_API, TOK = null, KY = 'today', D = null, ban = false;
+var BAN_APP = window.VHG_BAN || '?';
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 LỖI JAVASCRIPT PHẢI HIỆN RA MÀN, KHÔNG ĐƯỢC NUỐT IM.
+ *
+ * Anh Thắng 23/08/2026, hai lần liền: *"chưa chốt ca được phải không, chưa thấy ghi nhận"*, rồi
+ * *"chốt ca vẫn không thấy phản hồi gì"*.
+ *
+ * Lần đầu là lỗi thật (`lam` khai lộn phạm vi). Nhưng cái làm mất cả buổi không phải bản thân
+ * lỗi đó — mà là việc nó KHÔNG NÓI GÌ CẢ. Trình duyệt ghi vào console rồi thôi; người đứng ở
+ * cửa hàng không mở console, nên với họ nút bấm chỉ đơn giản là "không ăn". Không có manh mối
+ * nào để gửi cho người sửa, và người sửa thì chỉ còn cách đoán.
+ *
+ * Nên: mọi lỗi chưa bắt được đều hiện thành một dải đỏ ở đầu trang, kèm câu lỗi, tệp và dòng.
+ * Chụp màn hình gửi đi là đủ để sửa — không phải đoán lần thứ ba.
+ *
+ * ⚠️ Kèm SỐ BẢN. Nửa số lần "vẫn không chạy" là máy chủ còn đang chạy bản cũ. Hiện số bản ngay
+ *    trên dải lỗi và ở đầu trang thì câu đó trả lời được trong một giây, không phải hỏi vòng.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function baoLoi(chu){
+  try {
+    var o = document.getElementById('bao-loi');
+    if (!o) {
+      o = document.createElement('div');
+      o.id = 'bao-loi';
+      o.className = 'bao-loi';
+      document.body.insertBefore(o, document.body.firstChild);
+    }
+    o.textContent = '⚠️ Lỗi trên trang (bản ' + BAN_APP + '): ' + chu
+      + ' — chụp màn hình này gửi cho kỹ thuật giúp em.';
+  } catch (e) { /* hết đường rồi thì thôi, đừng để chính chỗ báo lỗi ném lỗi */ }
+}
+window.onerror = function(chu, tep, dong){
+  baoLoi(String(chu) + ' (' + String(tep).split('/').pop() + ':' + dong + ')');
+  return false;   // vẫn để trình duyệt ghi vào console cho người biết mở console
+};
+window.addEventListener('unhandledrejection', function(e){
+  baoLoi('Lượt gọi hỏng: ' + ((e && e.reason && e.reason.message) || e.reason || '?'));
+});
+
+/* Bọc một hàm xử lý bấm: ném lỗi thì HIỆN RA, chứ không im. `window.onerror` bắt được lỗi ném
+   thẳng, nhưng bọc ở đây thì câu báo nói rõ đang bấm cái gì. */
+function bam(ten, f){
+  return function(){
+    try { return f.apply(this, arguments); }
+    catch (e) { baoLoi(ten + ' — ' + (e && e.message ? e.message : e)); }
+  };
+}
 var TEN_HT = window.VHG_TEN || 'POSH Massage';
 /* Tab đang mở. Nhớ lại giữa các lần tải: người đang điều khiển ghế bấm ↻ mà bị đá về tab đối
    soát là mỗi lượt bấm mất thêm một cú bấm nữa. */
@@ -1189,6 +1248,8 @@ function ve(){
        giờ điện thoại: điện thoại nhân viên hay lệch, mà mọi con số khác trên trang này đều theo
        giờ máy chủ — hai loại giờ cạnh nhau là mời người ta đối chiếu nhầm. */
     + '<span class="dh-top" id="dh-top">' + esc(D.luc) + '</span>'
+    + '<span class="ban-top" title="' + L('Bản plugin đang chạy','Running plugin version') + '">v'
+      + esc(BAN_APP) + '</span>'
     + nutNN()
     + '<button id="lam-moi" class="ghost" title="' + L('Tải lại','Refresh') + '">↻</button>'
     + '<button id="thoat" class="ghost">' + L('Thoát','Sign out') + '</button></div>';
@@ -2494,7 +2555,7 @@ function veChotCa(){
 
   document.getElementById('chot-huy').onclick = dongChotCa;
   d.onclick = function(ev){ if (ev.target === d) dongChotCa(); };
-  document.getElementById('chot-ok').onclick = function(){
+  document.getElementById('chot-ok').onclick = bam('Chốt ca', function(){
     var cs  = Number(doc_so(oCs)) || 0;
     var dem = Number(doc_so(oTi)) || 0;
     var gc  = (document.getElementById('chot-gc').value || '').trim();
@@ -2511,7 +2572,7 @@ function veChotCa(){
     var ma = CHOT.ma;
     dongChotCa();
     lam('chot_luu', { ma_may: ma, chi_so: cs, tien_dem: dem, ghi_chu: gc });
-  };
+  });
   oCs.focus();
 }
 
@@ -2666,14 +2727,14 @@ function noi(){
    *    mười lần rồi tưởng máy hỏng.
    * ═════════════════════════════════════════════════════════════════════════════════════════ */
   var quetMo = document.getElementById('quet-mo');
-  if (quetMo) quetMo.onclick = function(){ moQuet(); };
+  if (quetMo) quetMo.onclick = bam('Quét QR', function(){ moQuet(); });
   var quetDi = document.getElementById('quet-di');
-  if (quetDi) quetDi.onclick = function(){
+  if (quetDi) quetDi.onclick = bam('Mở bảng chốt ca', function(){
     var o = document.getElementById('quet-tay');
     var ma = ((o && o.value) || '').trim().toUpperCase();
     if (!ma) { bcQuet(L('Gõ mã ghế, hoặc bấm nút quét ở trên.','Type a chair code, or tap scan above.')); return; }
     moChotCa(ma);
-  };
+  });
   var qt_ = document.getElementById('quet-tay');
   if (qt_) qt_.onkeydown = function(ev){ if (ev.key === 'Enter') quetDi.click(); };
 
