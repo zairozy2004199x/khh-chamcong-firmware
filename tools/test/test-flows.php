@@ -990,6 +990,43 @@ $still_141 = 0;
 foreach ( $exk3['rows'] as $r ) { if ( $r[5] === '141' && mb_strpos( $r[3], 'TÀU BÌNH TÂN' ) !== false ) { $still_141++; } }
 teq( 'xuất MISA kỹ thuật: không còn dòng mã cũ ở dự án đã gán', 0, $still_141 );
 
+// ---------------------------------------------------------------- KHAI 1 LOẠI CHO NHIỀU MẢNG
+// "Chi phí cơ sở" thì mảng nào cũng dùng. Bắt khai lại 7 lần, mỗi lần phải mở một đơn ở
+// cơ sở thuộc mảng đó, là không làm nổi — nên popup khai nhanh cho tích nhiều mảng.
+$coso_goc_nm = VHCP_Cfg::cfg_static()['coso'];   // trả lại y nguyên ở cuối khối này
+VHCP_Cfg::save_config( array( 'coso' => array(
+	array( 'ten' => 'FARM PHAN THIẾT', 'maDonVi' => 'FARM_PT', 'phanLoaiLon' => 'FARM MN', 'tenMisa' => 'Farm PT' ),
+	array( 'ten' => 'TÀU ESTELLA',     'maDonVi' => 'TAU_ES',  'phanLoaiLon' => 'TUTU MN', 'tenMisa' => 'Tàu Estella' ),
+	array( 'ten' => 'VR SORA',         'maDonVi' => 'VR_S',    'phanLoaiLon' => 'EVENT VR MN', 'tenMisa' => 'VR Sora' ),
+) ) );
+$r_nm = VHCP_Cfg::khai_cho_coso( array(
+	'ten' => 'Chi phí điện nước', 'tkNo' => '64127',
+	'mangs' => array( 'FARM MN', 'TUTU MN', 'EVENT VR MN' ),
+	'boPhan' => 'Cơ sở',
+) );
+t( 'khai 1 loại cho 3 mảng cùng lúc', ! empty( $r_nm['success'] ), $r_nm );
+teq( 'mảng FARM MN nhận mã',     '64127', VHCP_Cfg::tkno_mx( 'Chi phí điện nước', 'FARM PHAN THIẾT' ) );
+teq( 'mảng TUTU MN nhận mã',     '64127', VHCP_Cfg::tkno_mx( 'Chi phí điện nước', 'TÀU ESTELLA' ) );
+teq( 'mảng EVENT VR MN nhận mã', '64127', VHCP_Cfg::tkno_mx( 'Chi phí điện nước', 'VR SORA' ) );
+// Khai theo MẢNG chứ không theo từng cơ sở -> cơ sở mở SAU cũng dùng được ngay, khỏi khai lại.
+$cs_moi = VHCP_Cfg::cfg_static()['coso'];
+$cs_moi[] = array( 'ten' => 'FARM NHA TRANG', 'maDonVi' => 'FARM_NT', 'phanLoaiLon' => 'FARM MN', 'tenMisa' => 'Farm NT' );
+VHCP_Cfg::save_config( array( 'coso' => $cs_moi ) );
+teq( 'cơ sở mở SAU, cùng mảng -> dùng được luôn', '64127', VHCP_Cfg::tkno_mx( 'Chi phí điện nước', 'FARM NHA TRANG' ) );
+// Mảng KHÔNG tích thì không được ăn theo — tích 3 mảng nghĩa là đúng 3 mảng đó.
+VHCP_Cfg::save_config( array( 'coso' => array_merge( VHCP_Cfg::cfg_static()['coso'], array(
+	array( 'ten' => 'FZ VŨNG TÀU', 'maDonVi' => 'FZ_VT', 'phanLoaiLon' => 'FZ MN', 'tenMisa' => 'FZ VT' ),
+) ) ) );
+teq( 'mảng KHÔNG tích thì không có mã', '', VHCP_Cfg::tkno_mx( 'Chi phí điện nước', 'FZ VŨNG TÀU' ) );
+// Khai riêng 1 cơ sở vẫn phải chạy (dòng đặc thù)
+$r_r = VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí lặn vệ sinh', 'tkNo' => '64129', 'coso' => 'TÀU ESTELLA', 'rieng' => true ) );
+t( 'khai riêng cho 1 cơ sở vẫn chạy', ! empty( $r_r['success'] ), $r_r );
+teq( 'cơ sở đó có mã',        '64129', VHCP_Cfg::tkno_mx( 'Chi phí lặn vệ sinh', 'TÀU ESTELLA' ) );
+teq( 'cơ sở khác cùng mảng KHÔNG ăn theo', '', VHCP_Cfg::tkno_mx( 'Chi phí lặn vệ sinh', 'FARM PHAN THIẾT' ) );
+t( 'khai mà không tích mảng lẫn cơ sở -> bị chặn',
+	empty( VHCP_Cfg::khai_cho_coso( array( 'ten' => 'X', 'tkNo' => '6428' ) )['success'] ) );
+VHCP_Cfg::save_config( array( 'coso' => $coso_goc_nm ) );   // trả danh mục cơ sở cho các phép thử sau
+
 // ---------------------------------------------------------------- SỐ LƯỢNG LÀ BẮT BUỘC
 // Dòng có ĐƠN GIÁ mà bỏ trống SỐ LƯỢNG thì thành tiền ra 0: tạm ứng xin thiếu đúng bằng
 // số đó, mà nhìn bảng không thấy sai chỗ nào — số 0 trông y như dòng chưa điền.

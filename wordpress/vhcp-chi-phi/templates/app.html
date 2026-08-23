@@ -955,9 +955,26 @@
         <input id="lnTk" list="lnTkList" placeholder="VD: 64127" inputmode="numeric" oninput="lnTkDoi()" style="width:100%">
         <datalist id="lnTkList"></datalist>
         <span id="lnTkTen" style="font-size:11px;color:#64748b"></span></div>
+      <!-- ÁP CHO: CHỌN ĐƯỢC NHIỀU MẢNG.
+           Bản đầu chỉ đưa ra mảng của cơ sở đang chọn — mà một loại chi phí như "Chi phí
+           cơ sở" thì mảng nào cũng dùng. Bắt khai lại 7 lần, mỗi lần phải mở một đơn ở cơ
+           sở thuộc mảng đó, là không làm nổi. -->
       <div class="fld" style="margin-bottom:10px"><label>Áp cho</label>
-        <select id="lnPham" style="width:100%"></select>
-        <span style="font-size:11px;color:#94a3b8">Áp cho cả mảng thì cơ sở mở sau này cũng dùng được luôn, khỏi khai lại.</span></div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px">
+          <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:#334155;cursor:pointer">
+            <input type="radio" name="lnPham" value="mang" checked onchange="lnPhamDoi()"> Theo mảng kinh doanh</label>
+          <label style="display:flex;gap:5px;align-items:center;font-size:12.5px;font-weight:400;text-transform:none;letter-spacing:0;color:#334155;cursor:pointer">
+            <input type="radio" name="lnPham" value="coso" onchange="lnPhamDoi()"> <span id="lnPhamCoso">Chỉ riêng cơ sở này</span></label>
+        </div>
+        <div id="lnMangHop" style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;max-height:190px;overflow:auto">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+            <button type="button" class="btn b-x" onclick="lnTickMang(1)" style="padding:2px 8px;font-size:11px">Chọn tất cả</button>
+            <button type="button" class="btn b-x" onclick="lnTickMang(0)" style="padding:2px 8px;font-size:11px">Bỏ chọn</button>
+            <span id="lnMangDem" style="font-size:11px;color:#64748b"></span>
+          </div>
+          <div id="lnMangDs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px"></div>
+        </div>
+        <span style="font-size:11px;color:#94a3b8">Khai theo mảng thì mọi cơ sở cùng mảng dùng được luôn — kể cả cơ sở mở sau này.</span></div>
       <div class="fld" style="margin-bottom:10px"><label>Nhóm — quyết định loại này nằm ở nút nào ở mục "Chọn chi phí nào"</label>
         <select id="lnBoPhan" style="width:100%">
           <option value="Cơ sở">🏢 Chi phí cơ sở</option>
@@ -3213,6 +3230,31 @@
   // kế toán là chuyện khác hẳn việc nhập đơn.
   var LN_CTX=null;   // {selId|'f_nhom', coso, sauKhiXong}
   function _duocKhaiLoai(){ return coCauHinh(); }
+  /** Mọi MẢNG KINH DOANH đang khai (lấy từ cột "Phân loại lớn" của danh mục cơ sở). */
+  function _dsMang(){
+    var m={}, pll=BOOT.cosoPll||{};
+    Object.keys(pll).forEach(function(k){ var v=String(pll[k]||'').trim(); if(v) m[v]=1; });
+    return Object.keys(m).sort(function(a,b){ return a.localeCompare(b,'vi'); });
+  }
+  function _lnPham(){
+    var r=document.querySelector('input[name=lnPham]:checked');
+    return r?r.value:'mang';
+  }
+  function _lnMangDaTick(){
+    return [].slice.call(document.querySelectorAll('.lnMang:checked')).map(function(c){ return c.value; });
+  }
+  function lnPhamDoi(){
+    var theoMang=(_lnPham()==='mang');
+    el('lnMangHop').style.display=theoMang?'':'none';
+  }
+  function lnTickMang(on){
+    [].slice.call(document.querySelectorAll('.lnMang')).forEach(function(c){ c.checked=!!on; });
+    lnDemMang();
+  }
+  function lnDemMang(){
+    var n=_lnMangDaTick().length, t=document.querySelectorAll('.lnMang').length;
+    el('lnMangDem').textContent=n?('đã chọn '+n+'/'+t+' mảng'):('chưa chọn mảng nào — có '+t+' mảng');
+  }
   function moLoaiNhanh(ctx){
     if(!_duocKhaiLoai()){ toast('warn','Chỉ Quản lý / Kế toán khai được loại chi phí. Nhờ kế toán khai ở ⚙️ Cấu hình.'); return; }
     LN_CTX=ctx||{};
@@ -3222,12 +3264,17 @@
     // Gợi ý số tài khoản từ hệ thống tài khoản của kế toán
     var ds=(TKCHART&&TKCHART.length)?TKCHART:((BOOT.taiKhoan)||[]);
     el('lnTkList').innerHTML=ds.map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+' — '+esc(x.ten||'')+'</option>'; }).join('');
-    // Phạm vi áp mã: cả mảng (nên chọn) hay riêng cơ sở này
-    var op='';
-    if(mang) op+='<option value="mang">Cả mảng '+esc(mang)+' — mọi cơ sở cùng mảng</option>';
-    if(coso) op+='<option value="coso">Chỉ riêng cơ sở '+esc(coso)+'</option>';
-    if(!op) op='<option value="">— chọn cơ sở trước đã —</option>';
-    el('lnPham').innerHTML=op;
+    // Phạm vi áp mã: tích các MẢNG (mặc định tích mảng của cơ sở đang chọn), hoặc riêng cơ sở
+    var ds=_dsMang();
+    el('lnMangDs').innerHTML=ds.map(function(m,i){
+      var tick=(mang && m.toLowerCase()===mang.toLowerCase())?' checked':'';
+      return '<label style="display:flex;gap:6px;align-items:center;font-size:12.5px;color:#334155;cursor:pointer">'
+        +'<input type="checkbox" class="lnMang" value="'+esc(m)+'"'+tick+' onchange="lnDemMang()"> '+esc(m)+'</label>';
+    }).join('')||'<span style="font-size:12px;color:#94a3b8">Chưa khai mảng kinh doanh cho cơ sở nào — khai ở ⚙️ Cấu hình → 🏢 Mã đơn vị theo Cơ sở (cột Phân loại lớn).</span>';
+    el('lnPhamCoso').textContent=coso?('Chỉ riêng cơ sở '+coso):'Chỉ riêng cơ sở này';
+    var rd=document.querySelectorAll('input[name=lnPham]');
+    rd[0].checked=true; rd[1].checked=false; rd[1].disabled=!coso;
+    lnPhamDoi(); lnDemMang();
     // Nhóm mặc định = nút đang chọn ở "Chọn chi phí nào"
     var bp=(LN_CTX.boPhan!==undefined)?LN_CTX.boPhan
       : (NHOM_CP==='Kỹ thuật'?'Kỹ thuật':(NHOM_CP==='Marketing'?'Marketing':'Cơ sở'));
@@ -3254,10 +3301,16 @@
       return;
     }
     var coso=(LN_CTX&&LN_CTX.coso)||'';
-    var pham=el('lnPham').value;
-    if(!pham){ _lnLoi('Chọn cơ sở ở trên trước rồi khai loại chi phí'); return; }
+    var pham=_lnPham();
     var rec={ ten:ten, tkNo:tk, boPhan:el('lnBoPhan').value, tenMisa:el('lnTenMisa').value.trim() };
-    if(pham==='mang') rec.mangs=[_mangCua(coso)]; else { rec.coso=coso; rec.rieng=true; }
+    if(pham==='coso'){
+      if(!coso){ _lnLoi('Chọn cơ sở ở trên trước rồi khai loại chi phí'); return; }
+      rec.coso=coso; rec.rieng=true;
+    } else {
+      var ms=_lnMangDaTick();
+      if(!ms.length){ _lnLoi('Tích ít nhất một mảng kinh doanh (hoặc chọn "Chỉ riêng cơ sở này")'); return; }
+      rec.mangs=ms;
+    }
     loading(true);
     google.script.run.withSuccessHandler(function(r){
       if(!r||!r.success){ loading(false); _lnLoi((r&&r.error)||'Không khai được'); return; }

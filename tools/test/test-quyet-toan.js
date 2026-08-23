@@ -128,6 +128,31 @@ t('nạp lại danh mục sau khi khai (không thì ô chọn vẫn thiếu cái
 t('chặn khai TK Nợ bằng 141/331 ngay tại popup',
   /tk\.indexOf\('141'\)===0 \|\| tk\.indexOf\('331'\)===0/.test(HTML));
 
+// Ô "Áp cho": phải liệt kê MỌI mảng, không chỉ mảng của cơ sở đang chọn.
+// "Chi phí cơ sở" thì mảng nào cũng dùng — bắt khai lại 7 lần, mỗi lần phải mở một đơn ở
+// cơ sở thuộc mảng đó, là không làm nổi.
+global.BOOT = { cosoPll: {
+  'farm phan thiết':'FARM MN', 'farm nha trang':'FARM MN', 'tàu estella':'TUTU MN',
+  'vr sora':'EVENT VR MN', 'fz vũng tàu':'FZ MN', 'ghost hn':'EVENT GHOST MN',
+  'snow hn':'EVENT SNOW MN', 'fz event':'EVENT FZ MN', 'chưa khai':'' } };
+const dsMang = new Function('BOOT', layHam('_dsMang') + '; return _dsMang;')(global.BOOT);
+const MANG = dsMang();
+teq('liệt kê đủ 7 mảng, mỗi mảng một lần', 7, MANG.length);
+t('có đủ tên các mảng thật',
+  ['EVENT FZ MN','EVENT GHOST MN','EVENT SNOW MN','EVENT VR MN','FARM MN','FZ MN','TUTU MN']
+    .every(m => MANG.indexOf(m) >= 0), MANG);
+t('cơ sở chưa khai mảng thì không sinh ra mảng rỗng', MANG.indexOf('') < 0, MANG);
+t('sắp theo bảng chữ cái', JSON.stringify(MANG) === JSON.stringify(MANG.slice().sort((a,b)=>a.localeCompare(b,'vi'))), MANG);
+t('ô Áp cho dựng danh sách TÍCH NHIỀU MẢNG, không phải ô chọn một',
+  /class="lnMang"/.test(HTML) && /id="lnMangDs"/.test(HTML));
+// Soi mỗi _dsMang() là chưa đủ: popup có thể vẫn dựng từ một mảng duy nhất mà phép thử
+// vẫn xanh (đã thử làm hỏng đúng kiểu đó và nó lọt). Phải soi CHỖ DÙNG.
+t('popup DỰNG danh sách bằng _dsMang() (không phải chỉ mảng của cơ sở đang chọn)',
+  /function moLoaiNhanh\([\s\S]*?var ds=_dsMang\(\);[\s\S]*?el\('lnMangDs'\)\.innerHTML=ds\.map/.test(HTML));
+t('có nút Chọn tất cả / Bỏ chọn', /lnTickMang\(1\)/.test(HTML) && /lnTickMang\(0\)/.test(HTML));
+t('gửi lên máy chủ đúng danh sách đã tích', /rec\.mangs=ms;/.test(HTML));
+t('không tích mảng nào thì báo, không lặng lẽ khai hụt', /Tích ít nhất một mảng kinh doanh/.test(HTML));
+
 // ---------------------------------------------------------------- 7. bỏ tab Sổ chi phí
 t('tab Sổ chi phí đã nghỉ', /var BO_TAB=\{[^}]*sochi:1/.test(HTML));
 // Ẩn tab mà bỏ luôn đường xuất là chôn sống chứng từ chưa xuất MISA — đúng cái bẫy đã
