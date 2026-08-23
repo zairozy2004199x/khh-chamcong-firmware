@@ -78,7 +78,7 @@ class VHCC_Auth {
 	 */
 	public static function nguon() {
 		$n = get_option( 'vhcc_nguon_nguoidung' );
-		return in_array( $n, array( 'rieng', 'app' ), true ) ? $n : 'chung';
+		return in_array( $n, array( 'rieng', 'app', 'ho_so' ), true ) ? $n : 'chung';
 	}
 
 	/** Bảng cấu hình của plugin Vận hành chi phí có tồn tại không? */
@@ -130,6 +130,32 @@ class VHCC_Auth {
 	 */
 	public static function users_cua( $nguon ) {
 		global $wpdb;
+
+		/* Nguồn 'ho_so': đọc THẲNG hồ sơ Nhân sự — cột `pin_dang_nhap` + `vai_tro`.
+		   🔴 Vì sao có nguồn này: trước đó khai PIN trong hồ sơ xong VẪN không đăng nhập được,
+		      phải nhớ bấm thêm "Nạp tài khoản" để chép sang một danh sách thứ hai. Anh Thắng
+		      vấp đúng chỗ đó nhiều lần — *"vẫn chưa đăng nhập bằng pin"*. Hai bản danh sách cho
+		      cùng một việc thì sớm muộn lệch nhau, và cái lệch đó im lặng. Đọc thẳng hồ sơ thì
+		      sửa ở đâu là có hiệu lực ở đó, không còn bước chép. */
+		if ( 'ho_so' === $nguon ) {
+			$bang_hs = VHCC_DB::t( 'nhan_vien' );
+			$ra_hs   = array();
+			foreach ( VHCC_DB::rows( "SELECT ho_ten, pin_dang_nhap, vai_tro, chuc_vu, cua_hang"
+				. " FROM $bang_hs WHERE pin_dang_nhap <> ''" ) as $r ) {
+				$ten_hs = trim( (string) $r['ho_ten'] );
+				if ( '' === $ten_hs ) { continue; }
+				/* Vai trò lạ / chưa khai -> 'Nhân viên', bậc THẤP NHẤT. KHÔNG đoán lên cao: đoán
+				   nhầm lên Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả. */
+				$vt_hs = VHCC_NguoiDung::vai_tro_biet( $r['vai_tro'] );
+				$ra_hs[] = array(
+					'ten'    => $ten_hs,
+					'pin'    => self::pin_sach( $r['pin_dang_nhap'] ),
+					'vaiTro' => '' !== $vt_hs ? $vt_hs : 'Nhân viên',
+					'coso'   => trim( (string) $r['cua_hang'] ),
+				);
+			}
+			return $ra_hs;
+		}
 
 		/* Nguồn 'app': đọc thẳng bảng `phan_quyen` — bản sao sổ PhanQuyen của app gốc, kéo về
 		   bằng nút ở màn Phân quyền & PIN. */

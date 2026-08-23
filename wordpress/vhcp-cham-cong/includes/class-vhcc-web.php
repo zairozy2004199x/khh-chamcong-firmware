@@ -182,6 +182,59 @@ class VHCC_Web {
 				. 'nạp lại hồ sơ đúng mã là khớp lại như cũ.' ) );
 		}
 
+		if ( 'doi_nguon' === $viec ) {
+			if ( 'Admin' !== $toi['role'] ) {
+				return array( array( 'loi' => 'Chỉ Admin mới đổi được nguồn người dùng.' ) );
+			}
+			$ng = isset( $_POST['nguon'] ) ? sanitize_text_field( wp_unslash( $_POST['nguon'] ) ) : '';
+			if ( ! in_array( $ng, array( 'ho_so', 'rieng', 'chung', 'app' ), true ) ) {
+				return array( array( 'loi' => 'Nguồn không hợp lệ.' ) );
+			}
+			/* 🔴 KHÔNG cho tự khoá mình ra ngoài. Đổi sang một nguồn KHÔNG AI vào được thì lần
+			   sau hết phiên là không còn đường nào mở lại ngoài wp-admin — đúng vòng tròn vừa
+			   gỡ xong. Đếm TRƯỚC khi đổi, chối nếu bằng 0. */
+			$thu = VHCC_Auth::users_cua( $ng );
+			$dem = 0;
+			if ( ! is_wp_error( $thu ) ) {
+				$cho = VHCC_Auth::vai_tro_vao();
+				foreach ( $thu as $x ) {
+					if ( '' !== $x['pin'] && in_array( $x['vaiTro'], $cho, true ) ) { $dem++; }
+				}
+			}
+			if ( ! $dem ) {
+				return array( array( 'loi' => 'Không đổi. Nguồn đó hiện KHÔNG AI đăng nhập được — '
+					. 'đổi sang là tự khoá mình ra ngoài, hết phiên là không còn đường nào mở lại. '
+					. 'Khai PIN và Vai trò cho ít nhất một người trước đã.' ) );
+			}
+			update_option( 'vhcc_nguon_nguoidung', $ng );
+			return array( array( 'xong' => 'Cổng đăng nhập giờ đọc: ' . $ng . ' — ' . $dem
+				. ' người đăng nhập được.' ) );
+		}
+
+		if ( 'luu_nhiem_vu' === $viec ) {
+			update_option( self::O_NHIEM_VU,
+				isset( $_POST['ds_nv'] ) ? (string) wp_unslash( $_POST['ds_nv'] ) : '', false );
+			return array( array( 'xong' => 'Đã lưu danh sách Nhiệm vụ — '
+				. count( self::ds_nhiem_vu() ) . ' mục.' ) );
+		}
+
+		if ( 'doi_ma' === $viec ) {
+			if ( 'Admin' !== $toi['role'] ) {
+				return array( array( 'loi' => 'Chỉ Admin mới đổi được Mã NV.' ) );
+			}
+			$r = VHCC_NhanSu::doi_ma(
+				isset( $_POST['ma_cu'] ) ? wp_unslash( $_POST['ma_cu'] ) : '',
+				isset( $_POST['ma_moi'] ) ? wp_unslash( $_POST['ma_moi'] ) : '' );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			if ( ! empty( $r['khong_doi'] ) ) {
+				return array( array( 'loi' => 'Mã mới trùng mã cũ — không đổi gì.' ) );
+			}
+			$keo = array();
+			foreach ( (array) $r['bang'] as $t => $n ) { $keo[] = $t . ': ' . (int) $n; }
+			return array( array( 'xong' => 'Đã đổi ' . $r['cu'] . ' → ' . $r['moi'] . '. '
+				. ( $keo ? 'Kéo theo — ' . implode( ' · ', $keo ) . '.' : 'Người này chưa có hàng nào ở bảng khác.' ) ) );
+		}
+
 		if ( 'sua_hs' === $viec ) {
 			$r = self::luu_ho_so();
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
@@ -295,9 +348,32 @@ class VHCC_Web {
 
 		$co = $wpdb->get_var( $wpdb->prepare(
 			'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma ) );
+		$ghi['cap_nhat'] = current_time( 'mysql' );
 		if ( $co ) { $wpdb->update( VHCC_DB::t( 'nhan_vien' ), $ghi, array( 'ma_nv' => $ma ) ); }
 		else { $ghi['ma_nv'] = $ma; $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi ); }
-		return array( 'ok' => true, 'thong_bao' => ( $co ? 'Đã lưu hồ sơ ' : 'Đã thêm hồ sơ ' ) . $ma . '.' );
+
+		/* 🔴 NÓI RÕ ĐÃ LÀM GÌ VỚI PIN. Anh Thắng: *"bấm lưu pin, có ghi đã lưu hồ sơ, nhưng
+		   không thấy pin đâu"*. PIN CÓ được lưu — chỉ là ô không bao giờ hiện nó ra (cố ý), nên
+		   câu "Đã lưu hồ sơ" trống rỗng đọc y như chưa lưu được. Kể đích danh việc đã làm. */
+		$them_loi = '';
+		if ( isset( $ghi['pin_dang_nhap'] ) ) {
+			$them_loi = ( '' === $ghi['pin_dang_nhap'] )
+				? ' Đã XOÁ PIN đăng nhập — người này không đăng nhập được nữa.'
+				: ' Đã đặt PIN đăng nhập MỚI (' . strlen( $ghi['pin_dang_nhap'] ) . ' số). '
+					. 'Ô PIN cố ý không hiện PIN ra, chỉ báo "đang có N số" ở dưới ô — '
+					. 'trang này chạy ngoài internet, in PIN ra là một ảnh chụp mất sạch mật khẩu cả chuỗi.';
+		}
+		if ( ! empty( $ghi['vai_tro'] ) ) {
+			$them_loi .= ' Vai trò: ' . $ghi['vai_tro'] . '.';
+			if ( ! in_array( $ghi['vai_tro'], VHCC_Auth::vai_tro_vao(), true ) ) {
+				$them_loi .= ' ⚠️ Vai trò này KHÔNG vào được trang chấm công.';
+			}
+		}
+		if ( '' !== $them_loi ) {
+			$them_loi .= ' Nhớ bấm "Nạp tài khoản" ở ô 🔑 bên trên thì thay đổi mới có hiệu lực ở cổng đăng nhập.';
+		}
+		return array( 'ok' => true,
+			'thong_bao' => ( $co ? 'Đã lưu hồ sơ ' : 'Đã thêm hồ sơ ' ) . $ma . '.' . $them_loi );
 	}
 
 	// ======================================================================= vẽ
@@ -317,7 +393,9 @@ class VHCC_Web {
 			. '*{box-sizing:border-box}'
 			. 'body{margin:0;font:15px/1.6 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;'
 			. 'background:var(--nen);color:var(--chu)}'
-			. '.bo{max-width:1180px;margin:0 auto;padding:16px}'
+			/* Dùng hết bề ngang màn hình. Bảng hồ sơ có 9 cột; ép vào 1180px là cột nào cũng
+			   chật, chữ xuống dòng, và mỗi hàng cao gấp ba. */
+			. '.bo{max-width:1760px;margin:0 auto;padding:16px 20px}'
 			. 'header{background:var(--the);border-bottom:1px solid var(--vien);position:sticky;top:0;z-index:5}'
 			. 'header .bo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px}'
 			. 'h1{font-size:17px;margin:0;flex:1}'
@@ -341,6 +419,13 @@ class VHCC_Web {
 			. 'th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--vien);vertical-align:top}'
 			. 'th{background:#f8fafc;font-size:12.5px;color:var(--mo);white-space:nowrap}'
 			. '.cuon{overflow-x:auto;-webkit-overflow-scrolling:touch}'
+			/* Cột Mã NV DÍNH BÊN TRÁI. Bảng rộng hơn màn hình nên phải cuộn ngang; không ghim
+			   cột mã lại thì cuộn sang phải là mất luôn thứ cho biết đang sửa hồ sơ của AI. */
+			. '.cuon td:first-child,.cuon th:first-child{position:sticky;left:0;z-index:2;'
+			. 'background:var(--the);box-shadow:1px 0 0 var(--vien)}'
+			. '.cuon th:first-child{background:#f8fafc}'
+			. '.cuon td:last-child{white-space:nowrap}'
+			. '.cuon input,.cuon select{padding:6px 8px}'
 			. '.bao{border-radius:9px;padding:11px 13px;margin:0 0 12px;border:1px solid}'
 			. '.bao.ok{background:#f0fdf4;border-color:#bbf7d0}'
 			. '.bao.loi{background:#fef2f2;border-color:#fecaca}'
@@ -462,6 +547,20 @@ class VHCC_Web {
 		echo '<div class="bo">';
 
 		foreach ( (array) $bao as $b ) { self::ve_bao( $b ); }
+
+		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
+		if ( '' !== $sua ) {
+			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
+			$b_hs = VHCC_DB::t( 'nhan_vien' );
+			echo self::goi_y( 'dl_ch', "SELECT DISTINCT cua_hang AS v FROM $b_hs WHERE cua_hang<>''" );
+			echo self::goi_y( 'dl_cv', "SELECT DISTINCT chuc_vu  AS v FROM $b_hs WHERE chuc_vu<>''" );
+			echo self::goi_y( 'dl_nv', "SELECT DISTINCT nhiem_vu AS v FROM $b_hs WHERE nhiem_vu<>''", true,
+				array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) );
+			echo self::goi_y( 'dl_cp', "SELECT DISTINCT coso_phu AS v FROM $b_hs WHERE coso_phu<>''", true );
+			self::the_sua_ho_so( $ky, $sua, $la );
+			echo '</div></body></html>';
+			return;
+		}
 
 		self::the_nap_csv( $ky, $tong );
 		self::the_tai_khoan( $ky, $la );
@@ -601,10 +700,53 @@ class VHCC_Web {
 	private static function the_tai_khoan( $ky, $la_admin ) {
 		$kho = VHCC_NguoiDung::do_kho_cu();
 		$ds  = VHCC_NguoiDung::ds();
+		$vao_ht = 0;
+		$u_ht   = VHCC_Auth::users();
+		if ( ! is_wp_error( $u_ht ) ) {
+			$cho_ht = VHCC_Auth::vai_tro_vao();
+			foreach ( $u_ht as $x ) {
+				if ( '' !== $x['pin'] && in_array( $x['vaiTro'], $cho_ht, true ) ) { $vao_ht++; }
+			}
+		}
+		$nguon_ht = VHCC_Auth::nguon();
+		$nhan_ng  = array(
+			'ho_so' => 'Hồ sơ Nhân sự (đọc thẳng cột PIN đăng nhập)',
+			'rieng' => 'Danh sách riêng của plugin',
+			'chung' => 'Bảng người dùng của Vận Hành Chi Phí',
+			'app'   => 'Sổ Phân quyền của app gốc',
+		);
+
 		echo '<div class="the"><h2>🔑 Tài khoản đăng nhập</h2>';
+		echo '<p class="mo">Cổng <code>/cham-cong</code> đang đọc: <b>'
+			. esc_html( isset( $nhan_ng[ $nguon_ht ] ) ? $nhan_ng[ $nguon_ht ] : $nguon_ht ) . '</b> — '
+			. '<b>' . (int) $vao_ht . '</b> người đăng nhập được.</p>';
+
+		/* 🔴 CHUYỂN NGUỒN NGAY TẠI ĐÂY. Anh Thắng khai PIN trong hồ sơ rồi vẫn *"chưa đăng nhập
+		   bằng pin"* — vì cổng đang đọc một danh sách KHÁC, và muốn PIN có hiệu lực thì phải
+		   nhớ bấm thêm "Nạp tài khoản" để chép sang. Hai bản danh sách cho cùng một việc thì
+		   sớm muộn lệch nhau, và cái lệch đó im lặng. Đọc thẳng hồ sơ là hết bước chép. */
+		if ( 'ho_so' !== $nguon_ht ) {
+			echo '<div class="bao canh"><b>PIN khai trong hồ sơ bên dưới hiện CHƯA có hiệu lực</b> ở '
+				. 'cổng đăng nhập, vì cổng đang đọc một danh sách khác. Bấm nút dưới để cổng đọc '
+				. 'thẳng hồ sơ — sửa ở đâu có hiệu lực ngay ở đó.'
+				. '<form method="post" style="margin-top:8px">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="nguon" value="ho_so">'
+				. '<button class="chinh" name="viec" value="doi_nguon">Cho cổng đọc thẳng Hồ sơ Nhân sự ('
+				. (int) $kho['ho_so']['vao'] . ' người vào được)</button></form></div>';
+		} else {
+			echo '<div class="bao ok">Cổng đăng nhập đọc THẲNG hồ sơ — khai PIN và Vai trò ở bảng '
+				. 'bên dưới là có hiệu lực ngay, không phải nạp thêm bước nào.'
+				. '<form method="post" style="margin-top:8px">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="nguon" value="rieng">'
+				. '<button name="viec" value="doi_nguon">Quay về danh sách riêng</button></form></div>';
+		}
+
 		echo '<p class="mo">Danh sách riêng đang có <b>' . count( $ds ) . '</b> người, trong đó <b>'
 			. VHCC_NguoiDung::so_vao_duoc( $ds ) . '</b> người đăng nhập được. '
-			. 'Hồ sơ Nhân sự có <b>' . (int) $kho['ho_so']['co'] . '</b> người khai PIN đăng nhập.</p>';
+			. 'Hồ sơ Nhân sự có <b>' . (int) $kho['ho_so']['co'] . '</b> người khai PIN đăng nhập, '
+			. '<b>' . (int) $kho['ho_so']['vao'] . '</b> người trong đó vào được.</p>';
 
 		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 		echo '<div class="hang">';
@@ -687,12 +829,15 @@ class VHCC_Web {
 		   một giá trị MỚI khi cần. <select> thuần thì khai một chức vụ mới là phải sửa mã. */
 		echo self::goi_y( 'dl_ch', "SELECT DISTINCT cua_hang AS v FROM $bang WHERE cua_hang<>''" );
 		echo self::goi_y( 'dl_cv', "SELECT DISTINCT chuc_vu  AS v FROM $bang WHERE chuc_vu<>''" );
-		/* Anh Thắng: *"Nhiệm vụ: Nhân Viên, Admin, Cửa Hàng Trưởng, Kế Toán"* — bốn giá trị này
-		   luôn có trong danh sách xổ ra, kể cả khi chưa hồ sơ nào dùng tới. Chúng chỉ là GỢI Ý,
-		   không phải danh sách đóng: ô Nhiệm vụ vẫn gõ được "JP Aeon Mall Tân Phú" như cũ.
-		   ⚠️ Nhiệm vụ KHÔNG phải vai trò đăng nhập — vai trò có ô <select> riêng ở cột bên. */
-		echo self::goi_y( 'dl_nv', "SELECT DISTINCT nhiem_vu AS v FROM $bang WHERE nhiem_vu<>''", true,
-			array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) );
+		/* 🔴 NHIỆM VỤ KHÔNG TỰ GOM TỪ DỮ LIỆU NỮA. Gom tự động thì cột Nhiệm vụ của sổ cũ đang
+		   chứa lẫn TÊN CƠ SỞ ("JP Aeon Mall Tân Phú", "JP VINCOM 3/2"), và chúng trôi hết vào
+		   danh sách xổ ra — anh Thắng: *"1 cái đầu với 3 cái cuối là nhiệm vụ, còn mấy cái khác
+		   không phải"*. Một danh sách gợi ý mà 2/3 là rác thì tệ hơn không có: nó mời người ta
+		   bấm nhầm.
+
+		   Nên danh sách này do NGƯỜI KHAI, sửa ngay trên trang. Em không đoán thay — đoán sai
+		   một mục là 240 lần bấm nhầm. */
+		echo self::goi_y( 'dl_nv', '', false, self::ds_nhiem_vu() );
 		echo self::goi_y( 'dl_cp', "SELECT DISTINCT coso_phu AS v FROM $bang WHERE coso_phu<>''", true );
 
 		echo '<div class="cuon"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Cửa hàng</th>'
@@ -729,12 +874,12 @@ class VHCC_Web {
 			echo '<td><input form="' . $id . '" name="pin_dang_nhap" inputmode="numeric" '
 				. 'autocomplete="off" placeholder="' . ( $co_pin ? 'giữ nguyên' : 'chưa có' ) . '" '
 				. 'style="width:96px">';
-			echo '<div class="mo" style="font-size:11.5px;margin-top:2px">'
+			echo '<div class="mo" style="font-size:11.5px;margin-top:2px;white-space:nowrap">'
 				. ( $co_pin
-					? 'đang có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số &nbsp;'
+					? 'có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số · '
 						. '<label style="display:inline;color:var(--do)"><input form="' . $id . '" '
 						. 'type="checkbox" name="xoa_pin" value="1" style="vertical-align:-1px"> xoá</label>'
-					: '<span style="color:var(--do)">chưa đăng nhập được</span>' )
+					: '<span style="color:var(--do)">chưa có</span>' )
 				. '</div></td>';
 			echo '<td><button form="' . $id . '">Lưu</button> '
 				. '<a class="nut" href="' . esc_url( add_query_arg( 'sua', $r['ma_nv'], self::url() ) )
@@ -745,8 +890,19 @@ class VHCC_Web {
 				. '<input type="hidden" name="ma_nv" value="' . esc_attr( $r['ma_nv'] ) . '"></form>';
 		}
 		echo '</tbody></table></div>';
+		echo '<details style="margin-top:10px"><summary class="mo" style="cursor:pointer">'
+			. 'Sửa danh sách <b>Nhiệm vụ</b> xổ ra (' . count( self::ds_nhiem_vu() ) . ' mục)</summary>';
+		echo '<form method="post" style="margin-top:8px">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<textarea name="ds_nv" rows="6" style="width:320px;font-family:ui-monospace,monospace">'
+			. esc_textarea( implode( "\n", self::ds_nhiem_vu() ) ) . '</textarea><br>'
+			. '<button name="viec" value="luu_nhiem_vu" style="margin-top:6px">Lưu danh sách</button>'
+			. '<p class="mo">Mỗi dòng một mục. Danh sách này KHÔNG tự gom từ dữ liệu — cột Nhiệm vụ '
+			. 'của sổ cũ đang lẫn tên cơ sở, gom vào là danh sách toàn rác và mời bấm nhầm.</p>'
+			. '</form></details>';
+
 		echo '<p class="mo">Bốn ô <b>Cửa hàng · Cơ sở phụ · Chức vụ · Nhiệm vụ</b> xổ ra danh sách '
-			. 'đang dùng — bấm chọn cho khỏi gõ sai dấu, nhưng vẫn gõ được giá trị mới. '
+			. 'gợi ý — bấm chọn cho khỏi gõ sai dấu, nhưng vẫn gõ được giá trị mới. '
 			. 'Hiện tối đa 100 dòng — lọc theo cơ sở hoặc gõ ô Tìm để thu hẹp. '
 			. '<b>Ô PIN để trống = giữ nguyên PIN cũ</b>; gõ 4–8 chữ số để đổi; tích <b>xoá</b> để bỏ hẳn. '
 			. 'PIN cũ KHÔNG được điền sẵn vào ô — đổ 240 PIN ra màn hình là một ảnh chụp mất sạch mật khẩu cả chuỗi. '
@@ -765,8 +921,8 @@ class VHCC_Web {
 	 */
 	private static function goi_y( $id, $sql, $tach = false, $luon_co = array() ) {
 		$ds = array();
-		foreach ( (array) $luon_co as $v ) { $ds[ $v ] = 1; }
-		foreach ( VHCC_DB::rows( $sql ) as $x ) {
+		foreach ( (array) $luon_co as $v ) { if ( '' !== trim( (string) $v ) ) { $ds[ trim( $v ) ] = 1; } }
+		foreach ( ( '' === $sql ? array() : VHCC_DB::rows( $sql ) ) as $x ) {
 			$v = trim( (string) $x['v'] );
 			if ( '' === $v ) { continue; }
 			foreach ( $tach ? explode( ',', $v ) : array( $v ) as $m ) {
@@ -778,6 +934,134 @@ class VHCC_Web {
 		$h = '<datalist id="' . esc_attr( $id ) . '">';
 		foreach ( array_keys( $ds ) as $v ) { $h .= '<option value="' . esc_attr( $v ) . '">'; }
 		return $h . '</datalist>';
+	}
+
+	/**
+	 * MÀN SỬA ĐỦ MỘT HỒ SƠ — và là chỗ DUY NHẤT đổi được Mã NV.
+	 *
+	 * Anh Thắng: *"bổ sửa thông tin nhân sự"* và *"Admin có quyền sửa luôn mã nhân viên lại cho
+	 * chuẩn nhé"*.
+	 *
+	 * ⚠️ Đổi mã KHÔNG để ở bảng danh sách. Ở đó mỗi dòng là một ô nhỏ giữa 240 dòng, gõ nhầm
+	 *    một ký tự rồi bấm Lưu là xong — mà đây là việc kéo theo cả lịch sử chấm công. Đưa vào
+	 *    màn riêng, có ô xác nhận, và nói trước nó sẽ động vào bao nhiêu hàng.
+	 */
+	const O_NHIEM_VU = 'vhcc_ds_nhiem_vu';
+
+	/**
+	 * DANH SÁCH NHIỆM VỤ — do người khai, không đoán từ dữ liệu.
+	 *
+	 * Mặc định là đúng bốn mục anh Thắng chốt lần cuối: *"1 cái đầu với 3 cái cuối là nhiệm vụ"*
+	 * — Admin · Kế Toán · Nhân Viên · Thu Tiền. Thiếu mục nào thì thêm ngay trên trang, một
+	 * dòng một mục.
+	 */
+	public static function ds_nhiem_vu() {
+		$tho = get_option( self::O_NHIEM_VU );
+		if ( ! is_string( $tho ) || '' === trim( $tho ) ) {
+			return array( 'Admin', 'Kế Toán', 'Nhân Viên', 'Thu Tiền' );
+		}
+		$ra = array();
+		foreach ( preg_split( '/\r\n|\r|\n/', $tho ) as $d ) {
+			$d = trim( $d );
+			if ( '' !== $d && ! in_array( $d, $ra, true ) ) { $ra[] = $d; }
+		}
+		return $ra;
+	}
+
+	private static function the_sua_ho_so( $ky, $ma, $la_admin ) {
+		global $wpdb;
+		$them_moi = ( '+' === $ma );
+		$r = $them_moi ? array() : VHCC_NhanSu::ho_so( $ma );
+		if ( ! $them_moi && ! $r ) {
+			echo '<div class="bao loi">Không thấy hồ sơ mang mã ' . esc_html( $ma ) . '.</div>';
+			return;
+		}
+		$g = function ( $c ) use ( $r ) { return isset( $r[ $c ] ) ? (string) $r[ $c ] : ''; };
+
+		echo '<div class="the"><h2>' . ( $them_moi ? '➕ Hồ sơ mới' : '✏️ Sửa hồ sơ '
+			. esc_html( $ma ) . ' — ' . esc_html( $g( 'ho_ten' ) ) ) . '</h2>';
+		echo '<p><a class="nut" href="' . esc_url( self::url() ) . '">← Về danh sách</a></p>';
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<input type="hidden" name="viec" value="sua_hs">';
+		if ( $them_moi ) {
+			echo '<div class="luoi"><label>Mã NV <b style="color:var(--do)">*</b>'
+				. '<input name="ma_nv" required style="width:100%"></label>'
+				. '<label>Họ tên<input name="ho_ten" style="width:100%"></label></div>';
+		} else {
+			echo '<input type="hidden" name="ma_nv" value="' . esc_attr( $ma ) . '">';
+			echo '<div class="luoi"><label>Họ tên<input name="ho_ten" value="'
+				. esc_attr( $g( 'ho_ten' ) ) . '" style="width:100%"></label></div>';
+		}
+
+		foreach ( self::NHOM_SUA as $nhom => $cot_ds ) {
+			echo '<h3 style="font-size:13.5px;color:var(--mo);margin:16px 0 6px;'
+				. 'border-top:1px solid var(--vien);padding-top:12px">' . esc_html( $nhom ) . '</h3>';
+			echo '<div class="luoi">';
+			foreach ( $cot_ds as $c => $nhan ) {
+				echo '<label>' . esc_html( $nhan );
+				if ( 'vai_tro' === $c ) {
+					echo '<select name="vai_tro" style="width:100%">';
+					echo '<option value=""' . selected( '', $g( 'vai_tro' ), false ) . '>— chưa khai —</option>';
+					foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt ) {
+						echo '<option value="' . esc_attr( $vt ) . '"' . selected( $vt, $g( 'vai_tro' ), false )
+							. '>' . esc_html( $vt )
+							. ( in_array( $vt, VHCC_Auth::vai_tro_vao(), true ) ? '' : ' (không vào được)' )
+							. '</option>';
+					}
+					echo '</select>';
+				} elseif ( 'pin_dang_nhap' === $c || 'pin_may' === $c ) {
+					/* ⚠️ KHÔNG điền sẵn PIN cũ, kể cả ở màn sửa từng người. Trống = giữ nguyên. */
+					$co = ( '' !== trim( $g( $c ) ) );
+					echo '<input name="' . esc_attr( $c ) . '" inputmode="numeric" autocomplete="off" '
+						. 'placeholder="' . ( $co ? 'để trống = giữ nguyên' : 'chưa có' ) . '" style="width:100%">';
+					if ( $co && 'pin_dang_nhap' === $c ) {
+						echo '<span class="mo" style="font-size:12px">đang có ' . strlen( $g( $c ) )
+							. ' số &nbsp;<label style="display:inline;color:var(--do)">'
+							. '<input type="checkbox" name="xoa_pin" value="1"> xoá hẳn</label></span>';
+					}
+				} elseif ( in_array( $c, VHCC_NapCsv::COT_NGAY, true ) ) {
+					echo '<input type="date" name="' . esc_attr( $c ) . '" value="'
+						. esc_attr( $g( $c ) ) . '" style="width:100%">';
+				} else {
+					$dl = array( 'cua_hang' => 'dl_ch', 'chuc_vu' => 'dl_cv',
+						'nhiem_vu' => 'dl_nv', 'coso_phu' => 'dl_cp' );
+					echo '<input name="' . esc_attr( $c ) . '" value="' . esc_attr( $g( $c ) ) . '"'
+						. ( isset( $dl[ $c ] ) ? ' list="' . $dl[ $c ] . '"' : '' ) . ' style="width:100%">';
+				}
+				echo '</label>';
+			}
+			echo '</div>';
+		}
+		echo '<p style="margin-top:16px"><button class="chinh">Lưu hồ sơ</button></p></form>';
+
+		/* ---- Đổi mã: việc riêng, chỉ Admin, có xác nhận ---- */
+		if ( ! $them_moi && $la_admin ) {
+			$dem = 0;
+			foreach ( VHCC_NhanSu::bang_theo_ma() as $ten => $cot_ds ) {
+				$t = VHCC_DB::t( $ten );
+				foreach ( $cot_ds as $cot ) {
+					$dem += (int) $wpdb->get_var( $wpdb->prepare(
+						"SELECT COUNT(*) FROM $t WHERE $cot=%s", $ma ) );
+				}
+			}
+			echo '<div style="border-top:2px solid #fecaca;margin-top:20px;padding-top:14px">';
+			echo '<h3 style="font-size:14px;margin:0 0 4px;color:var(--do)">Đổi Mã NV</h3>';
+			echo '<p class="mo">Mã nhân viên là thứ NỐI hồ sơ với chấm công, lương, lịch làm, yêu cầu '
+				. 'và sổ mặt trong máy. Đổi mã ở đây sẽ <b>kéo theo cả ' . (int) $dem . ' hàng</b> đang '
+				. 'mang mã <code>' . esc_html( $ma ) . '</code> sang mã mới — không hàng nào rơi lại.</p>';
+			echo '<p class="mo">Không đổi được sang một mã <b>đã có người</b>: gộp hai mã là trộn công '
+				. 'của hai người vào một, và sau đó không phân biệt được hàng nào vốn của ai.</p>';
+			echo '<form method="post" class="hang">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. '<input type="hidden" name="viec" value="doi_ma">'
+				. '<input type="hidden" name="ma_cu" value="' . esc_attr( $ma ) . '">'
+				. '<div><label for="mm">Mã mới</label>'
+				. '<input id="mm" name="ma_moi" required style="width:210px" placeholder="' . esc_attr( $ma ) . '"></div>'
+				. '<button class="nguy">Đổi mã và kéo theo ' . (int) $dem . ' hàng</button></form>';
+			echo '</div>';
+		}
+		echo '</div>';
 	}
 
 	private static function the_xoa_het( $ky, $tong ) {

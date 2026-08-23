@@ -157,6 +157,85 @@ class VHCC_NhanSu {
 	}
 
 	/** Cơ sở đã biết: gộp từ bảng máy, bảng chấm công và hồ sơ — không tự tạo cơ sở nào. */
+	/**
+	 * MỌI BẢNG ĐANG TRỎ TỚI MÃ NHÂN VIÊN — dò từ CHÍNH sơ đồ bảng, không gõ tay danh sách.
+	 *
+	 * 🔴 Gõ tay là sớm muộn thiếu. Thêm một bảng mới có cột `ma_nv` mà quên khai ở đây thì đổi
+	 *    mã sẽ bỏ sót đúng bảng đó — dữ liệu của người ta rơi ra ngoài, không có gì báo, và chỉ
+	 *    lộ ra ở bảng lương cuối tháng. Đọc sơ đồ thì bảng mới tự có mặt.
+	 *
+	 * `ma_song_song` khai riêng vì nó gọi hai cột là `ma_a`/`ma_b` chứ không phải `ma_nv`.
+	 */
+	public static function bang_theo_ma() {
+		$ra = array();
+		foreach ( VHCC_DB::bang() as $ten => $than ) {
+			if ( 'nhan_vien' === $ten ) { continue; }          // chính nó, xử riêng
+			foreach ( array( 'ma_nv', 'ma_a', 'ma_b' ) as $cot ) {
+				if ( preg_match( '/^\s*' . $cot . '\s+VARCHAR/mi', $than ) ) { $ra[ $ten ][] = $cot; }
+			}
+		}
+		return $ra;
+	}
+
+	/**
+	 * ĐỔI MÃ NHÂN VIÊN — và KÉO THEO mọi hàng đang trỏ tới mã cũ.
+	 *
+	 * Anh Thắng: *"Admin có quyền sửa luôn mã nhân viên lại cho chuẩn nhé"*. Được, nhưng phải
+	 * làm cho tới: mã nhân viên là thứ NỐI hồ sơ với chấm công, lương, lịch làm, yêu cầu, sổ
+	 * mặt trong máy. Đổi mỗi ở bảng hồ sơ là toàn bộ lịch sử của người đó rơi ra ngoài — bảng
+	 * công trống trơn, mà không có gì báo.
+	 *
+	 * 🔴 CHẶN GHI ĐÈ LÊN MÃ ĐANG CÓ NGƯỜI. Đổi A -> B khi B đã tồn tại là trộn công của hai
+	 *    người vào một, và KHÔNG có đường lùi: sau đó không phân biệt được hàng nào vốn của ai.
+	 *    Đây đúng là cảnh báo màn Nhân sự trong wp-admin vẫn in ra, giờ thành một cái chặn thật.
+	 *
+	 * @return array ['ok', 'bang' => [tên bảng => số hàng đã kéo theo]]
+	 */
+	public static function doi_ma( $cu, $moi ) {
+		global $wpdb;
+		$cu  = trim( (string) $cu );
+		$moi = trim( (string) $moi );
+
+		if ( '' === $cu || '' === $moi ) {
+			return array( 'ok' => false, 'error' => 'Thiếu mã cũ hoặc mã mới.' );
+		}
+		if ( $cu === $moi ) { return array( 'ok' => true, 'bang' => array(), 'khong_doi' => true ); }
+		/* Mã đi vào URL, tên file, và cột khoá của mọi bảng. Giữ khuôn hẹp còn hơn xử lý ký tự
+		   lạ ở mười chỗ khác nhau. */
+		if ( ! preg_match( '/^[A-Za-z0-9_.\-]{1,40}$/', $moi ) ) {
+			return array( 'ok' => false, 'error' => 'Mã mới chỉ được gồm chữ, số, gạch dưới, gạch nối '
+				. 'và dấu chấm, tối đa 40 ký tự. Đã nhập: "' . $moi . '".' );
+		}
+		$bang_nv = VHCC_DB::t( 'nhan_vien' );
+		$co_cu   = $wpdb->get_var( $wpdb->prepare( "SELECT ma_nv FROM $bang_nv WHERE ma_nv=%s", $cu ) );
+		if ( ! $co_cu ) {
+			return array( 'ok' => false, 'error' => 'Không thấy hồ sơ mang mã ' . $cu . '.' );
+		}
+		$co_moi = $wpdb->get_var( $wpdb->prepare( "SELECT ho_ten FROM $bang_nv WHERE ma_nv=%s", $moi ) );
+		if ( null !== $co_moi ) {
+			return array( 'ok' => false, 'error' => 'Mã ' . $moi . ' đã là của ' . $co_moi
+				. '. Đổi sang mã đang có người là TRỘN công của hai người vào một, và không có '
+				. 'đường lùi — sau đó không phân biệt được hàng nào vốn của ai. Chọn mã khác.' );
+		}
+
+		/* Kéo các bảng phụ TRƯỚC, hồ sơ SAU. Nửa chừng hỏng thì mấy hàng đã kéo trỏ vào một mã
+		   chưa có hồ sơ — vẫn tìm lại được bằng chính mã đó. Làm ngược lại thì hồ sơ mang mã mới
+		   còn lịch sử nằm ở mã cũ, và không còn gì nối hai đầu. */
+		$dem = array();
+		foreach ( self::bang_theo_ma() as $ten => $cot_ds ) {
+			$t = VHCC_DB::t( $ten );
+			foreach ( $cot_ds as $cot ) {
+				$n = $wpdb->query( $wpdb->prepare(
+					"UPDATE $t SET $cot=%s WHERE $cot=%s", $moi, $cu ) );
+				if ( $n > 0 ) { $dem[ $ten ] = ( isset( $dem[ $ten ] ) ? $dem[ $ten ] : 0 ) + (int) $n; }
+			}
+		}
+		$wpdb->update( $bang_nv, array( 'ma_nv' => $moi, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma_nv' => $cu ) );
+
+		return array( 'ok' => true, 'bang' => $dem, 'cu' => $cu, 'moi' => $moi );
+	}
+
 	public static function ds_coso() {
 		global $wpdb;
 		$ds = array();

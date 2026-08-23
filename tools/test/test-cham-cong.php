@@ -3957,7 +3957,41 @@ $auth_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-
    `phan_quyen`" — để chặn dính nhau NGẦM. Giờ có nguồn 'app' đọc đúng bảng đó, nhưng phải là
    LỰA CHỌN CÓ Ý THỨC: chọn ở màn Cài đặt. Nên bất biến mới mạnh hơn và kiểm bằng HÀNH VI:
    nguồn 'chung'/'rieng' thì PIN trong `phan_quyen` PHẢI bị chối. */
-t( 'đường đăng nhập KHÔNG đọc bảng nhan_vien', strpos( $auth_src, 'nhan_vien' ) === false );
+/* ⚠️ SIẾT LẠI LẦN HAI, VẪN KHÔNG NỚI. Trước đây bất biến là "đường đăng nhập không bao giờ đụng
+   `nhan_vien`". Nay có nguồn 'ho_so' đọc đúng bảng đó — vì khai PIN trong hồ sơ rồi vẫn phải nhớ
+   bấm "Nạp tài khoản" để chép sang một danh sách thứ hai, và anh Thắng vấp đúng chỗ đó nhiều
+   lần. Hai bản danh sách cho cùng một việc thì sớm muộn lệch nhau, và cái lệch đó im lặng.
+
+   Nhưng nó phải là LỰA CHỌN CÓ Ý THỨC, y như nguồn 'app'. Nên bất biến chuyển sang kiểm bằng
+   HÀNH VI, và mạnh hơn bản cũ: nguồn 'chung'/'rieng' thì PIN trong `nhan_vien` PHẢI bị chối. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'HS_THU', 'ho_ten' => 'Anh Hồ Sơ',
+	'pin_dang_nhap' => '135791', 'vai_tro' => 'Admin', 'cua_hang' => 'TUTU_BT' ) );
+foreach ( array( 'chung', 'rieng' ) as $ng_thu ) {
+	update_option( 'vhcc_nguon_nguoidung', $ng_thu );
+	VHCC_Auth::mo_khoa();
+	$kq_hs = VHCC_Auth::login( '135791' );
+	t( "nguồn '$ng_thu': PIN nằm trong HỒ SƠ NHÂN SỰ thì KHÔNG đăng nhập được",
+		empty( $kq_hs['ok'] ), $kq_hs );
+	VHCC_Auth::mo_khoa();
+}
+/* Chỉ khi CHỌN nguồn 'ho_so' thì mới vào được — và vào đúng vai trò khai trong hồ sơ. */
+update_option( 'vhcc_nguon_nguoidung', 'ho_so' );
+VHCC_Auth::mo_khoa();
+$kq_hs = VHCC_Auth::login( '135791' );
+t( "chọn nguồn 'ho_so' thì PIN trong hồ sơ vào được ngay, khỏi bước chép",
+	! empty( $kq_hs['ok'] ), $kq_hs );
+teq( 'và đúng vai trò khai trong hồ sơ', 'Admin', isset( $kq_hs['role'] ) ? $kq_hs['role'] : null );
+teq( 'đúng cơ sở', 'TUTU_BT', isset( $kq_hs['coso'] ) ? $kq_hs['coso'] : null );
+VHCC_Auth::mo_khoa();
+/* 🔴 Hồ sơ CHƯA khai vai trò -> 'Nhân viên', bậc THẤP NHẤT, KHÔNG đoán lên cao. Đoán nhầm lên
+   Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => '' ), array( 'ma_nv' => 'HS_THU' ) );
+VHCC_Auth::mo_khoa();
+$kq_hs = VHCC_Auth::login( '135791' );
+t( 'hồ sơ chưa khai vai trò thì KHÔNG được đoán lên cao', empty( $kq_hs['ok'] ), $kq_hs );
+VHCC_Auth::mo_khoa();
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='HS_THU'" );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
 t( 'đường đăng nhập đọc đúng nguồn người dùng (vhcp_cfg / CH_NguoiDung)',
 	strpos( $auth_src, 'CH_NguoiDung' ) !== false );
 
@@ -5050,10 +5084,25 @@ foreach ( array( 'dl_ch' => 'cua_hang', 'dl_cv' => 'chuc_vu', 'dl_nv' => 'nhiem_
 		strpos( $h_w, 'id="' . $dl . '"' ) !== false
 		&& preg_match( '/name="' . $o_ten . '"[^>]*list="' . $dl . '"/', $h_w ) === 1, $h_w );
 }
-foreach ( array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) as $g ) {
-	t( "danh sách Nhiệm vụ luôn có \"$g\"",
+/* 🔴 DANH SÁCH NHIỆM VỤ DO NGƯỜI KHAI, KHÔNG GOM TỪ DỮ LIỆU. Gom tự động thì cột Nhiệm vụ của
+   sổ cũ đang lẫn TÊN CƠ SỞ ("JP Aeon Mall Tân Phú", "JP VINCOM 3/2") và chúng trôi hết vào danh
+   sách xổ ra — anh Thắng: *"1 cái đầu với 3 cái cuối là nhiệm vụ, còn mấy cái khác không phải"*.
+   Một danh sách gợi ý mà 2/3 là rác thì tệ hơn không có: nó mời người ta bấm nhầm. */
+foreach ( array( 'Admin', 'Kế Toán', 'Nhân Viên', 'Thu Tiền' ) as $g ) {
+	t( "danh sách Nhiệm vụ có \"$g\"",
 		strpos( $h_w, '<option value="' . $g . '">' ) !== false, $h_w );
 }
+$wpdb->query( "UPDATE " . VHCC_DB::t( 'nhan_vien' ) . " SET nhiem_vu='JP Aeon Mall Tân Phú'" );
+$h_nv = vhcc_web( '246813' );
+t( 'tên cơ sở trong cột Nhiệm vụ KHÔNG trôi vào danh sách xổ ra',
+	strpos( $h_nv, '<option value="JP Aeon Mall Tân Phú">' ) === false, $h_nv );
+$wpdb->query( "UPDATE " . VHCC_DB::t( 'nhan_vien' ) . " SET nhiem_vu=''" );
+/* Và anh Thắng sửa được danh sách đó ngay trên trang, không phải nhờ em sửa mã. */
+t( 'có ô sửa danh sách Nhiệm vụ ngay trên trang', strpos( $h_w, 'name="ds_nv"' ) !== false );
+update_option( VHCC_Web::O_NHIEM_VU, "Trực Ghế\nThu Tiền\n\nTrực Ghế\n" );
+teq( 'sửa xong thì danh sách theo đúng cái đã khai', array( 'Trực Ghế', 'Thu Tiền' ),
+	VHCC_Web::ds_nhiem_vu() );
+delete_option( VHCC_Web::O_NHIEM_VU );
 
 /* --- Lưu PIN --- */
 function vhcc_luu_hs( $tok, $post ) {
@@ -5124,6 +5173,109 @@ t( 'người CHƯA khai vai trò thì được đếm ra để màn hình hỏi'
 teq( 'chức vụ "Khu vui chơi" không bị nhận nhầm thành vai trò', '',
 	VHCC_NguoiDung::vai_tro_biet( 'Khu vui chơi' ) );
 teq( 'và "Máy tự động" cũng vậy', '', VHCC_NguoiDung::vai_tro_biet( 'Máy tự động' ) );
+
+/* ---- 47e. ĐỔI MÃ NHÂN VIÊN — phải KÉO THEO cả lịch sử ---- */
+/* Anh Thắng: *"Admin có quyền sửa luôn mã nhân viên lại cho chuẩn nhé"*. Được, nhưng mã nhân
+   viên là thứ NỐI hồ sơ với chấm công, lương, lịch làm, yêu cầu, sổ mặt trong máy. Đổi mỗi ở
+   bảng hồ sơ là toàn bộ lịch sử của người đó rơi ra ngoài — bảng công trống trơn, không báo gì. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CU01', 'ho_ten' => 'Anh Đổi Mã',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '135791' ) );
+foreach ( array( '2026-08-01', '2026-08-02', '2026-08-03' ) as $n_cc ) {
+	$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => $n_cc,
+		'ma_nv' => 'CU01', 'hau_to' => '', 'ho_ten' => 'Anh Đổi Mã' ) );
+}
+$wpdb->insert( VHCC_DB::t( 'ma_song_song' ), array( 'ma_a' => 'CU01', 'ma_b' => 'KHAC01' ) );
+
+/* Bảng nào có cột mã phải được DÒ TỪ SƠ ĐỒ, không gõ tay — gõ tay là sớm muộn thiếu, và bảng
+   thiếu đó âm thầm rơi lại ở mã cũ. */
+$b_ma = VHCC_NhanSu::bang_theo_ma();
+t( 'dò được bảng cham_cong theo mã', isset( $b_ma['cham_cong'] ) );
+t( 'dò được cả ma_song_song với hai cột ma_a/ma_b',
+	isset( $b_ma['ma_song_song'] ) && in_array( 'ma_a', $b_ma['ma_song_song'], true )
+	&& in_array( 'ma_b', $b_ma['ma_song_song'], true ), $b_ma );
+t( 'và KHÔNG kể chính bảng nhan_vien vào', ! isset( $b_ma['nhan_vien'] ) );
+t( 'dò ra nhiều bảng, không phải một hai cái', count( $b_ma ) >= 8, count( $b_ma ) );
+
+$r = VHCC_NhanSu::doi_ma( 'CU01', 'MOI01' );
+t( 'đổi mã chạy được', ! empty( $r['ok'] ), $r );
+teq( 'hồ sơ mang mã mới', 1, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MOI01'" ) ) );
+teq( 'không còn hồ sơ nào ở mã cũ', 0, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='CU01'" ) ) );
+/* 🔴 ĐÂY MỚI LÀ PHÉP THỬ ĐÁNG GIÁ: lịch sử chấm công phải đi theo. */
+teq( 'cả 3 hàng chấm công đi theo mã mới', 3, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='MOI01'" ) ) );
+teq( 'không hàng chấm công nào rơi lại ở mã cũ', 0, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='CU01'" ) ) );
+teq( 'ma_song_song cũng đi theo', 1, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'ma_song_song' ) . " WHERE ma_a='MOI01'" ) ) );
+t( 'và báo lại đã kéo theo bảng nào bao nhiêu hàng',
+	isset( $r['bang']['cham_cong'] ) && 3 === $r['bang']['cham_cong'], $r['bang'] );
+
+/* 🔴 CHẶN GHI ĐÈ LÊN MÃ ĐANG CÓ NGƯỜI — trộn công hai người vào một, và KHÔNG có đường lùi:
+   sau đó không phân biệt được hàng nào vốn của ai. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'MOI02', 'ho_ten' => 'Người Khác' ) );
+$r = VHCC_NhanSu::doi_ma( 'MOI01', 'MOI02' );
+t( 'chối đổi sang mã ĐANG CÓ NGƯỜI, và nói rõ của ai',
+	empty( $r['ok'] ) && strpos( $r['error'], 'Người Khác' ) !== false, $r );
+teq( 'và không hàng nào bị động vào', 3, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='MOI01'" ) ) );
+$r = VHCC_NhanSu::doi_ma( 'MOI01', 'mã có dấu!' );
+t( 'chối mã sai khuôn', empty( $r['ok'] ) && strpos( $r['error'], 'chữ, số' ) !== false, $r );
+$r = VHCC_NhanSu::doi_ma( 'KHONG_CO', 'GI_DO' );
+t( 'chối mã cũ không tồn tại', empty( $r['ok'] ), $r );
+
+/* Ngoài web: chỉ Admin đổi được mã. */
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+VHCC_NguoiDung::luu( '', 'Chị Quản Lý', '357913', 'Quản lý', 'TUTU_BT' );
+VHCC_Auth::mo_khoa();
+$kq_ql = VHCC_Auth::login( '357913' );
+VHCC_Auth::mo_khoa();
+$_COOKIE[ VHCC_Web::COOKIE ] = $kq_ql['token'];
+$_POST = array( 'viec' => 'doi_ma', 'ky' => VHCC_Web::chu_ky( $kq_ql['token'] ),
+	'ma_cu' => 'MOI01', 'ma_moi' => 'QL_DOI' );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+t( 'Quản lý KHÔNG đổi được Mã NV', strpos( $h_w, 'Chỉ Admin' ) !== false );
+teq( 'và mã vẫn nguyên', 1, count( VHCC_DB::rows(
+	'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MOI01'" ) ) );
+$_POST = array(); $_COOKIE = array();
+
+/* Màn Sửa đủ: có ô đổi mã, và nói trước sẽ động vào bao nhiêu hàng. */
+$h_w = vhcc_web( '246813', array(), array( 'sua' => 'MOI01' ) );
+t( 'màn Sửa đủ mở được', strpos( $h_w, 'Sửa hồ sơ MOI01' ) !== false, $h_w );
+t( 'có ô đổi Mã NV', strpos( $h_w, 'name="ma_moi"' ) !== false );
+t( 'và nói TRƯỚC sẽ kéo theo bao nhiêu hàng', strpos( $h_w, 'kéo theo cả 4 hàng' ) !== false, $h_w );
+t( 'có đủ mấy nhóm ô của hồ sơ', strpos( $h_w, 'Lương' ) !== false
+	&& strpos( $h_w, 'Đăng nhập' ) !== false && strpos( $h_w, 'Cá nhân' ) !== false );
+t( 'màn đó cũng KHÔNG in PIN ra', strpos( $h_w, 'value="135791"' ) === false );
+
+/* 🔴 KHÔNG CHO TỰ KHOÁ MÌNH RA NGOÀI. Đổi sang một nguồn không ai vào được thì hết phiên là
+   không còn đường nào mở lại ngoài wp-admin — đúng vòng tròn vừa gỡ xong. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE pin_dang_nhap<>''" );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+VHCC_Auth::mo_khoa();
+$tok_dn = VHCC_Auth::login( '246813' )['token'];
+VHCC_Auth::mo_khoa();
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_dn;
+$_POST = array( 'viec' => 'doi_nguon', 'nguon' => 'ho_so', 'ky' => VHCC_Web::chu_ky( $tok_dn ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+teq( 'không cho đổi sang nguồn KHÔNG AI vào được', 'rieng', VHCC_Auth::nguon() );
+t( 'và nói rõ vì sao: đổi là tự khoá mình ra ngoài',
+	strpos( $h_w, 'tự khoá mình ra ngoài' ) !== false, $h_w );
+/* Có người vào được thì đổi bình thường. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DN01', 'ho_ten' => 'Anh Vào Được',
+	'pin_dang_nhap' => '135791', 'vai_tro' => 'Admin' ) );
+$_POST = array( 'viec' => 'doi_nguon', 'nguon' => 'ho_so', 'ky' => VHCC_Web::chu_ky( $tok_dn ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+teq( 'có người vào được thì đổi nguồn bình thường', 'ho_so', VHCC_Auth::nguon() );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+$_POST = array(); $_COOKIE = array();
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'ma_song_song' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) );
+VHCC_NapCsv::nap( "Mã NV,Họ tên,Cửa hàng,CCCD,PIN đăng nhập\nW1,Nguyễn Thu Hiền,JP_HCM,049304007231,170412\n", false );
 
 /* Dọn lại đúng trạng thái mục 47 dựng ra, cho mấy mục sau không đọc nhầm. */
 global $wpdb;

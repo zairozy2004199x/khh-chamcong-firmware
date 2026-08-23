@@ -1703,7 +1703,7 @@ class VHCC_Admin {
 			set_transient( 'vhcc_sua_url_' . get_current_user_id(), $ch['sua'], 120 );
 
 			$nguon = isset( $_POST['vhcc_nguon'] ) ? sanitize_text_field( wp_unslash( $_POST['vhcc_nguon'] ) ) : 'chung';
-			if ( ! in_array( $nguon, array( 'chung', 'rieng', 'app' ), true ) ) { $nguon = 'chung'; }
+			if ( ! in_array( $nguon, array( 'chung', 'rieng', 'app', 'ho_so' ), true ) ) { $nguon = 'chung'; }
 			update_option( 'vhcc_nguon_nguoidung', $nguon );
 
 			$vt = array();
@@ -1952,6 +1952,9 @@ class VHCC_Admin {
 		   đăng nhập được"* — ai cũng có PIN, nhưng PIN đó nằm ở sổ PhanQuyen của app gốc. Kéo sổ
 		   đó về rồi đọc thẳng nó là khỏi cấp PIN lần thứ hai cho mấy chục người. */
 		$so_pq = (int) $GLOBALS['wpdb']->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+		echo '<label><input type="radio" name="vhcc_nguon" value="ho_so"' . checked( $nguon, 'ho_so', false ) . '> '
+			. '<b>Hồ sơ Nhân sự</b> — đọc THẲNG cột "PIN đăng nhập" và "Vai trò" của hồ sơ '
+			. '(khuyến nghị: sửa ở đâu có hiệu lực ngay ở đó, không phải nạp sang danh sách thứ hai)</label><br>';
 		echo '<label><input type="radio" name="vhcc_nguon" value="app"' . checked( $nguon, 'app', false ) . '> '
 			. '<b>Phân quyền của app gốc</b> — dùng đúng PIN mọi người đang đăng nhập app cũ ('
 			. $so_pq . ' dòng đã kéo về)</label>';
