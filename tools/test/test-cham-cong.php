@@ -4384,6 +4384,159 @@ t( 'chưa dán ccXuatPhanQuyen thì nói rõ tên hàm',
 $GLOBALS['VHD_POST'] = array();
 update_option( 'vhcc_nguon_nguoidung', 'chung' );
 
+// ============ 45. CÀI XONG PHẢI CÓ MỘT ĐƯỜNG VÀO — không thì trang đứng ở cổng PIN vĩnh viễn
+/* Anh Thắng cài xong bản 2.0.x: *"chưa đăng nhập được"*. Trang chấm công báo "Chưa có tài khoản
+   nào đăng nhập được" và KHÔNG có đường nào tự mở. Vì nguồn mặc định là "dùng chung với Vận Hành
+   Chi Phí", mà bên đó có thể không còn ai mang vai trò nằm trong danh sách được vào — cài đúng,
+   dữ liệu đúng, mà vẫn tắc. Mục này canh cái van cứu đó, và canh cả những chỗ nó DỄ THÀNH LỖ
+   HỔNG: PIN cố định, PIN in ra trang công khai, tài khoản mọc lại sau khi bị xoá. */
+vhcc_dung_bang();
+$wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon',
+	'vhcc_nguoidung', 'vhcc_vai_tro_vao' ) as $_o ) { delete_option( $_o ); }
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
+/* Đúng tình huống của anh Thắng: nguồn 'chung', bảng CH_NguoiDung không ai vào được. */
+$_u_truoc = VHCC_Auth::users();
+teq( 'trước khi gieo: không ai đăng nhập được', 0,
+	is_wp_error( $_u_truoc ) ? 0 : count( $_u_truoc ) );
+
+t( 'gieo tài khoản lần đầu', VHCC_NguoiDung::gieo_lan_dau() === true );
+$pin_ld = VHCC_NguoiDung::pin_lan_dau();
+t( 'có PIN lần đầu để quản trị đọc', preg_match( '/^\d{6}$/', $pin_ld ) === 1, $pin_ld );
+teq( 'PIN đó tự nó hợp lệ (không rơi vào danh sách bị chặn)', '', VHCC_Quyen::pin_hop_le( $pin_ld ) );
+t( 'PIN KHÔNG nằm trong danh sách PIN đã lộ/dễ đoán',
+	! in_array( $pin_ld, VHCC_Quyen::PIN_CAM, true ), $pin_ld );
+
+/* 🔴 Phép thử đáng giá nhất: ĐĂNG NHẬP THẬT bằng PIN vừa gieo. Khai một tài khoản mà vẫn không
+   vào được thì cả mục này vô nghĩa. */
+VHCC_Auth::mo_khoa();
+$kq_ld = VHCC_Auth::login( $pin_ld );
+t( 'đăng nhập THẬT được bằng PIN lần đầu', ! empty( $kq_ld['ok'] ), $kq_ld );
+teq( 'và vào với vai trò Admin', 'Admin', isset( $kq_ld['role'] ) ? $kq_ld['role'] : null );
+VHCC_Auth::mo_khoa();
+
+/* Nguồn phải chuyển sang "danh sách riêng" — để 'chung' thì cổng vẫn đọc bảng bên kia và PIN vừa
+   khai vẫn không vào được. Nhưng đổi cấu hình sau lưng người dùng thì PHẢI kể lại. */
+teq( 'nguồn người dùng chuyển sang danh sách riêng', 'rieng', VHCC_Auth::nguon() );
+teq( 'và ghi lại nguồn cũ để màn Cài đặt nói ra', 'chung', VHCC_NguoiDung::gieo_doi_nguon() );
+teq( 'chỉ khai ĐÚNG MỘT tài khoản', 1, count( VHCC_NguoiDung::ds() ) );
+teq( 'và tài khoản đó vào được', 1, VHCC_NguoiDung::so_vao_duoc() );
+
+/* Chạy lại (mỗi lần nâng cấp phiên bản là một lần gọi) — KHÔNG được khai thêm. */
+t( 'nâng cấp lần sau KHÔNG gieo lại', VHCC_NguoiDung::gieo_lan_dau() === false );
+teq( 'vẫn đúng một tài khoản', 1, count( VHCC_NguoiDung::ds() ) );
+
+/* 🔴 Quản trị XOÁ tài khoản mặc định đi thì nó phải chết hẳn. Mọc lại sau mỗi lần nâng cấp là
+   một PIN admin quay lại mà không ai biết — dọn mãi không xong. */
+VHCC_NguoiDung::luu( '', 'Anh Thắng Thật', '246813', 'Admin', '' );
+$_ds_ld = VHCC_NguoiDung::ds();
+$_id_ld = '';
+foreach ( $_ds_ld as $_u ) { if ( 'Admin' === $_u['vaiTro'] && 'Admin' === $_u['ten'] ) { $_id_ld = $_u['id']; } }
+t( 'tìm được tài khoản mặc định để xoá', '' !== $_id_ld );
+$_r = VHCC_NguoiDung::xoa( $_id_ld );
+t( 'xoá được tài khoản mặc định', ! empty( $_r['ok'] ), $_r );
+VHCC_NguoiDung::gieo_lan_dau();
+$_ten_con = array();
+foreach ( VHCC_NguoiDung::ds() as $_u ) { $_ten_con[] = $_u['ten']; }
+t( 'xoá rồi thì KHÔNG mọc lại ở lần nâng cấp sau',
+	! in_array( 'Admin', $_ten_con, true ), $_ten_con );
+
+/* "Tôi đã ghi lại" phải xoá HẲN khỏi cơ sở dữ liệu — để nằm đó mãi là một PIN admin còn dùng
+   được nằm sẵn trong bảng options. */
+VHCC_NguoiDung::quen_pin_lan_dau();
+teq( 'bấm "đã ghi lại" thì PIN biến mất khỏi cơ sở dữ liệu', '', VHCC_NguoiDung::pin_lan_dau() );
+teq( 'và cả ghi chú đổi nguồn cũng dọn theo', '', VHCC_NguoiDung::gieo_doi_nguon() );
+
+/* 🔴 QUẢN TRỊ ĐỔI NGUỒN NGƯỢC LẠI THÌ PHẢI ĐƯỢC YÊN. Van cứu chạy đúng MỘT LẦN; không có cờ đó
+   thì mỗi lần nâng cấp plugin lại thấy "nguồn chung không ai vào được" -> gieo tiếp, lật nguồn về
+   'rieng' lần nữa. Người dùng chọn một đằng, plugin sửa lại một nẻo, và không có gì báo. */
+update_option( 'vhcc_nguon_nguoidung', 'chung' );   // quản trị cố ý chọn lại nguồn chung
+VHCC_NguoiDung::gieo_lan_dau();                     // một lần nâng cấp nữa
+teq( 'nâng cấp sau KHÔNG lật ngược lựa chọn nguồn của quản trị', 'chung', VHCC_Auth::nguon() );
+teq( 'và không khai thêm tài khoản nào', 1, count( VHCC_NguoiDung::ds() ) );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+
+/* Đã có người vào được thì ĐỪNG mở thêm cửa. */
+foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon' ) as $_o ) { delete_option( $_o ); }
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+update_option( 'vhcc_nguoidung', array( array( 'id' => 'x1', 'ten' => 'Chị Kế Toán',
+	'pin' => '357913', 'vaiTro' => 'Kế toán cá nhân', 'coso' => 'TUTU_BT' ) ) );
+t( 'đã có người vào được thì KHÔNG gieo', VHCC_NguoiDung::gieo_lan_dau() === false );
+teq( 'không thêm tài khoản nào', 1, count( VHCC_NguoiDung::ds() ) );
+teq( 'và không có PIN nào hiện ra ở wp-admin', '', VHCC_NguoiDung::pin_lan_dau() );
+
+/* PIN sinh NGẪU NHIÊN, không phải một hằng số ai đọc mã cũng biết. */
+$_pin_nhieu = array();
+for ( $_i = 0; $_i < 8; $_i++ ) {
+	foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon', 'vhcc_nguoidung' ) as $_o ) {
+		delete_option( $_o );
+	}
+	VHCC_NguoiDung::gieo_lan_dau();
+	$_pin_nhieu[] = VHCC_NguoiDung::pin_lan_dau();
+}
+t( 'PIN lần đầu là ngẫu nhiên, không phải hằng số trong mã',
+	count( array_unique( $_pin_nhieu ) ) > 1, $_pin_nhieu );
+
+/* 🔴 PIN CHỈ ĐƯỢC HIỆN TRONG wp-admin. Ảnh chụp trang công khai đi khắp nơi — chính dự án này
+   đã mất một khoá cầu nối vì một ảnh gửi qua chat. */
+$_ro_ri = array();
+foreach ( array_merge(
+	glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ),
+	glob( $goc . '/wordpress/vhcp-cham-cong/assets/js/*.js' ),
+	glob( $goc . '/wordpress/vhcp-cham-cong/templates/*' ) ) as $_f ) {
+	if ( 'class-vhcc-admin.php' === basename( $_f ) )     { continue; }   // wp-admin: được phép
+	if ( 'class-vhcc-nguoi-dung.php' === basename( $_f ) ) { continue; }   // nơi khai ra nó
+	if ( ! is_file( $_f ) ) { continue; }
+	if ( strpos( file_get_contents( $_f ), 'pin_lan_dau' ) !== false ) { $_ro_ri[] = basename( $_f ); }
+}
+t( 'PIN lần đầu không lọt sang trang công khai', count( $_ro_ri ) === 0, $_ro_ri );
+
+/* Màn Cài đặt phải hiện PIN, kèm nút xoá, và kể rõ là nó đã đổi nguồn người dùng. */
+foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon', 'vhcc_nguoidung' ) as $_o ) {
+	delete_option( $_o );
+}
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+VHCC_NguoiDung::gieo_lan_dau();
+$pin_ld2 = VHCC_NguoiDung::pin_lan_dau();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Admin::page(); $h_ld = ob_get_clean();
+t( 'màn Cài đặt hiện PIN lần đầu', strpos( $h_ld, $pin_ld2 ) !== false );
+t( 'kèm nút "tôi đã ghi lại" để xoá đi',
+	strpos( $h_ld, 'quen_pin_lan_dau' ) !== false );
+t( 'và dặn đổi PIN ngay', strpos( $h_ld, 'đổi PIN ngay' ) !== false );
+t( 'nói thẳng là plugin đã đổi nguồn người dùng',
+	strpos( $h_ld, 'Nguồn người dùng</b> từ' ) !== false );
+t( 'và trấn an rằng danh sách cũ không mất',
+	strpos( $h_ld, 'không mất gì' ) !== false );
+
+/* Nút đó phải ĂN THẬT, và chỉ ăn với người có quyền quản trị. */
+$_POST = array( 'vhcc_viec' => 'quen_pin_lan_dau' );
+$GLOBALS['VHCP_CO_QUYEN'] = false;
+VHCC_Admin::handle_post();
+t( 'người KHÔNG có quyền quản trị bấm thì không ăn gì', '' !== VHCC_NguoiDung::pin_lan_dau() );
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+VHCC_Admin::handle_post();
+teq( 'quản trị bấm thì PIN bị xoá hẳn', '', VHCC_NguoiDung::pin_lan_dau() );
+$_POST = array();
+
+/* Van cứu phải ĐƯỢC GỌI lúc nâng cấp, không thì viết ra để đó. */
+$_boot = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
+t( 'nâng cấp phiên bản có gọi gieo_lan_dau',
+	preg_match( '/vhcc_maybe_upgrade.*gieo_lan_dau/s', $_boot ) === 1 );
+
+/* ⚠️ Và nó KHÔNG được nằm trong tệp đường đăng nhập — xem mục 40: tệp đó không được mang danh
+   sách PIN cấm, mà gieo_lan_dau thì phải gọi tới danh sách đó. */
+t( 'van cứu nằm ngoài đường đăng nhập',
+	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-auth.php' ),
+		'gieo_lan_dau' ) === false );
+
+/* Dọn về trạng thái cũ cho các mục sau. */
+foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon', 'vhcc_nguoidung' ) as $_o ) {
+	delete_option( $_o );
+}
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
 /* Hướng dẫn cài phải theo kịp thực tế: 22/08/2026 Hostinger sập, chuyển sang Vietnix (cPanel).
    Mấy điều dưới đây là thứ sai một cái là cả chuỗi máy im lặng, nên phải luôn có trong hướng dẫn. */
 $hd_vnx = file_get_contents( $goc . '/docs/CAI-LEN-VIETNIX.md' );

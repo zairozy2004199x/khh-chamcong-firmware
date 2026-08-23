@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           2.0.2
+ * Version:           2.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -17,19 +17,24 @@
  * tách smart-chip link, tính tiền thuê theo tháng, học gán gian hàng. Viết lại bằng PHP là
  * vừa mất hàng tuần vừa chắc chắn lệch nghiệp vụ ở những chỗ không ai kịp phát hiện.
  *
- * Nên plugin chỉ làm 3 việc:
- *   1. CỔNG PIN  — dùng chung tài khoản với app Vận hành chi phí (đọc bảng người dùng của nó).
- *   2. LẤY GIAO DIỆN GỐC từ chính project Apps Script rồi phục vụ tại /cham-cong/.
- *   3. CHUYỂN TIẾP mọi lệnh google.script.run sang /exec của app đó, kèm khoá bí mật —
- *      khoá nằm ở máy chủ, không bao giờ xuống trình duyệt.
+ * ⚠️ ĐOẠN TRÊN LÀ LỊCH SỬ, KHÔNG CÒN ĐÚNG VỚI BẢN NÀY. Giữ lại vì nó giải thích vì sao mã
+ * còn thư mục `apps-script/`. Nay anh Thắng chốt: *"hệ thống thiết lập độc lập, không chạy qua
+ * app script nữa"*. Thực tế hiện giờ:
  *
- * Mọi logic nghiệp vụ vẫn ở Code.gs. Sửa app: sửa Code.gs rồi Deploy → New version.
+ *   1. CỔNG PIN — nguồn người dùng chọn được: danh sách RIÊNG của plugin (đứng một mình),
+ *      dùng chung với app Vận hành chi phí, hoặc bản sao sổ PhanQuyen của app gốc.
+ *   2. NGHIỆP VỤ CHẤM CÔNG nằm trong PHP + MySQL của chính website: chấm công, nhân sự, lịch,
+ *      lương, yêu cầu, máy chấm công, hàng đợi lệnh, OTA.
+ *   3. MÁY CHẤM CÔNG nói thẳng với /cham-cong-may. Không Firebase.
+ *
+ * Cầu nối Apps Script CÒN LẠI ĐÚNG MỘT VIỆC: KÉO DỮ LIỆU CŨ TỪ SHEET VỀ (một chiều, xem
+ * VHCC_Keo). Không hàm nào ghi ngược lên sheet. Kéo xong hết thì gỡ luôn cũng được.
  * ---------------------------------------------------------------------------
  */
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '2.0.2' );
+define( 'VHCC_VERSION', '2.1.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -61,6 +66,7 @@ add_action( 'plugins_loaded', 'vhcc_maybe_upgrade' );
 function vhcc_maybe_upgrade() {
 	if ( get_option( 'vhcc_ver' ) !== VHCC_VERSION ) {
 		VHCC_DB::install();
+		VHCC_NguoiDung::gieo_lan_dau();   // cài xong phải có ĐƯỜNG VÀO, không thì đứng ở cổng PIN
 		update_option( 'vhcc_ver', VHCC_VERSION );
 		update_option( 'vhcc_flush_rewrite', 1 );
 	}

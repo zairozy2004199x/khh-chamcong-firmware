@@ -29,6 +29,75 @@ class VHCC_NguoiDung {
 	 */
 	public static function pin_bi_cam() { return VHCC_Quyen::PIN_CAM; }
 
+	/**
+	 * MỘT TÀI KHOẢN ĐỂ VÀO ĐƯỢC LẦN ĐẦU.
+	 *
+	 * Cài xong mà chưa khai ai thì trang chấm công đứng ở cổng PIN với dòng "Chưa có tài
+	 * khoản nào đăng nhập được" — đúng thứ anh Thắng gặp. Nguồn mặc định là "dùng chung với
+	 * Vận Hành Chi Phí", mà bên đó vai trò còn có "Cửa hàng trưởng", "Hotline"… nên có thể
+	 * không còn ai lọt vào danh sách được vào. Kết quả: cài đúng, dữ liệu đúng, mà không có
+	 * đường vào.
+	 *
+	 * Chạy ĐÚNG MỘT LẦN (cờ vhcc_da_gieo): quản trị xoá tài khoản này đi là xoá hẳn, không
+	 * mọc lại — không thì dọn tài khoản mặc định thành việc làm mãi không xong.
+	 *
+	 * 🔴 PIN SINH NGẪU NHIÊN, KHÔNG PHẢI 1111, và KHÔNG in ra trang công khai — chỉ hiện
+	 *    trong wp-admin → Chấm Công → Cài đặt. Ảnh chụp màn hình đi khắp nơi; trong chính
+	 *    dự án này đã mất một khoá cầu nối vì một ảnh gửi qua chat.
+	 *
+	 * ⚠️ ĐẶT Ở ĐÂY, KHÔNG ĐẶT TRONG class-vhcc-auth.php. Tệp đó là ĐƯỜNG ĐĂNG NHẬP; danh
+	 *    sách PIN cấm không được có mặt ở đó, kẻo có ngày ai đó lỡ đem nó ra chặn lúc đăng
+	 *    nhập — khoá người ta ra khỏi hệ thống của chính họ bằng một PIN họ đang dùng thật.
+	 *    Có phép thử ghim đúng điều này.
+	 */
+	public static function gieo_lan_dau() {
+		if ( get_option( 'vhcc_da_gieo' ) ) { return false; }
+		update_option( 'vhcc_da_gieo', 1 );
+
+		// Đã có người vào được rồi thì thôi, đừng mở thêm cửa.
+		$dang_co = VHCC_Auth::users();
+		if ( ! is_wp_error( $dang_co ) ) {
+			$cho = VHCC_Auth::vai_tro_vao();
+			foreach ( $dang_co as $u ) {
+				if ( '' !== $u['pin'] && in_array( $u['vaiTro'], $cho, true ) ) { return false; }
+			}
+		}
+
+		$pin = '';
+		for ( $i = 0; $i < 6; $i++ ) { $pin .= (string) wp_rand( 0, 9 ); }
+		while ( '' !== VHCC_Quyen::pin_hop_le( $pin ) ) {   // trúng PIN cấm thì bốc lại
+			$pin = '';
+			for ( $i = 0; $i < 6; $i++ ) { $pin .= (string) wp_rand( 0, 9 ); }
+		}
+
+		/* Đổi nguồn sang "danh sách riêng" — vì tài khoản vừa khai nằm ở danh sách riêng, để
+		   nguồn 'chung' thì cổng vẫn đọc bảng của Vận Hành Chi Phí và PIN mới vẫn không vào
+		   được. GHI LẠI nguồn cũ: màn Cài đặt phải nói thẳng là plugin đã đổi, và đổi ngược
+		   chỉ là một cái nút radio — danh sách bên Vận Hành Chi Phí KHÔNG mất gì. */
+		$nguon_cu = VHCC_Auth::nguon();
+		if ( 'rieng' !== $nguon_cu ) {
+			update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+			update_option( 'vhcc_gieo_doi_nguon', $nguon_cu );
+		}
+
+		$ds   = (array) get_option( self::O );
+		$ds[] = array( 'id' => md5( 'admin-lan-dau' ), 'ten' => 'Admin', 'pin' => $pin,
+			'vaiTro' => 'Admin', 'coso' => '' );
+		update_option( self::O, $ds );
+		update_option( 'vhcc_pin_lan_dau', $pin );          // để wp-admin hiện một lần
+		return true;
+	}
+
+	/** Nguồn người dùng TRƯỚC lúc gieo, '' nếu không phải đổi. Chỉ để màn Cài đặt kể lại. */
+	public static function gieo_doi_nguon() { return (string) get_option( 'vhcc_gieo_doi_nguon' ); }
+
+	/** PIN lần đầu (chỉ wp-admin đọc); '' khi quản trị đã bấm "tôi ghi lại rồi". */
+	public static function pin_lan_dau() { return (string) get_option( 'vhcc_pin_lan_dau' ); }
+	public static function quen_pin_lan_dau() {
+		delete_option( 'vhcc_pin_lan_dau' );
+		delete_option( 'vhcc_gieo_doi_nguon' );
+	}
+
 	/** Danh sách đã chuẩn hoá: [ ['id','ten','pin','vaiTro','coso'], … ] */
 	public static function ds() {
 		$tho = get_option( self::O );

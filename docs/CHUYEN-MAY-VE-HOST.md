@@ -61,7 +61,16 @@ Anh Thắng đã biết và chấp nhận rủi ro này (*"nếu máy mất liê
 nhưng làm đúng thứ tự thì không phải dùng tới.
 
 **Bước 1 — website sẵn sàng.**
-- Cài `vhcp-cham-cong.zip` 2.0.0, Kích hoạt (tạo/nới 23 bảng).
+- Cài `vhcp-cham-cong.zip` (2.1.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
+- **Lấy PIN đăng nhập lần đầu.** Vào **wp-admin → Chấm Công → Cài đặt**: nếu chưa có ai đăng
+  nhập được, plugin tự khai một tài khoản **Admin** và in PIN 6 số của nó **ở đúng trang đó,
+  đúng một lần**. Ghi lại, rồi bấm *"Tôi đã ghi lại — ẩn đi"* để xoá PIN khỏi cơ sở dữ liệu, rồi
+  **đổi PIN ngay** ở mục "Danh sách riêng".
+  - PIN này **không bao giờ in ra trang `/cham-cong`** — chỉ wp-admin thấy được.
+  - Lúc khai, plugin cũng chuyển **Nguồn người dùng** sang *danh sách riêng* (nếu đang để
+    *dùng chung với Vận Hành Chi Phí*), vì tài khoản mới nằm ở danh sách riêng. Trang Cài đặt
+    nói rõ việc này; danh sách cũ **không mất gì**, chọn lại ô đó là quay về.
+  - Chạy **đúng một lần**. Xoá tài khoản đó đi là nó chết hẳn, nâng cấp sau không mọc lại.
 - `wp-config.php` có `VHCC_KHOA_MAY` (chuỗi ngẫu nhiên ≥ 32 ký tự) và `VHCC_PIN_ADMIN`.
 - Mở thử `https://<tên miền>/cham-cong-may` bằng trình duyệt: phải ra
   `{"status":"ERROR","message":"Cong nay chi nhan POST."}` với mã 405. Ra trang 404 của

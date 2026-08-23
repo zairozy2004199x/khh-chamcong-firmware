@@ -1321,6 +1321,14 @@ class VHCC_Admin {
 	}
 
 	public static function handle_post() {
+		/* "Tôi đã ghi lại PIN lần đầu" -> xoá HẲN khỏi cơ sở dữ liệu. Để nó nằm đó mãi thì
+		   một PIN Admin còn dùng được nằm sẵn trong bảng options, ai đọc được database là
+		   vào thẳng. */
+		if ( isset( $_POST['vhcc_viec'] ) && 'quen_pin_lan_dau' === $_POST['vhcc_viec']
+			&& current_user_can( self::CAP ) ) {
+			VHCC_NguoiDung::quen_pin_lan_dau();
+		}
+
 		/* Danh sách người dùng riêng — xử TRƯỚC lúc vẽ, nhờ vậy bảng vẽ ra là bảng sau khi sửa. */
 		if ( isset( $_POST['vhcc_nd'] ) && current_user_can( self::CAP ) ) {
 			check_admin_referer( 'vhcc_nd' );
@@ -1553,6 +1561,32 @@ class VHCC_Admin {
 			. '<p class="description">Dán đúng chuỗi này vào Apps Script → Project Settings → Script Properties, '
 			. 'tên thuộc tính <code>WEB_KEY</code>. Đây là thứ duy nhất chặn người lạ ghi vào sheet chấm công — '
 			. 'đừng dán vào chỗ nào khác.</p></td></tr>';
+
+		/* PIN LẦN ĐẦU — chỉ hiện Ở ĐÂY, không bao giờ ở trang công khai.
+		   Cài xong mà chưa có ai vào được thì trang chấm công đứng ở cổng PIN, không đường
+		   nào mở. Plugin tự khai một Admin lúc cài; đây là chỗ DUY NHẤT đọc được PIN đó, và
+		   quản trị bấm "đã ghi lại" là xoá hẳn khỏi cơ sở dữ liệu. */
+		$pin_ld = VHCC_NguoiDung::pin_lan_dau();
+		if ( '' !== $pin_ld ) {
+			/* Lúc gieo, nguồn phải chuyển sang "danh sách riêng", không thì PIN vừa khai vẫn
+			   không vào được. Nói thẳng ra ở đây: giấu một thay đổi cấu hình là cách chắc nhất
+			   để nửa năm sau không ai hiểu vì sao danh sách người dùng "biến mất". */
+			$doi_nguon = '';
+			$ng_cu     = VHCC_NguoiDung::gieo_doi_nguon();
+			if ( '' !== $ng_cu ) {
+				$doi_nguon = '<p class="description">Lúc khai, plugin đã chuyển <b>Nguồn người dùng</b> từ "'
+					. esc_html( 'chung' === $ng_cu ? 'dùng chung với Vận hành chi phí' : 'sổ PhanQuyen của app gốc' )
+					. '" sang <b>danh sách riêng</b> — vì tài khoản trên nằm ở danh sách riêng. '
+					. 'Danh sách cũ <b>không mất gì</b>: chọn lại ô bên dưới là quay về ngay.</p>';
+			}
+			echo '<tr><th scope="row" style="color:#b91c1c">⚠ PIN đăng nhập lần đầu</th><td>'
+				. '<code style="user-select:all;font-size:20px;letter-spacing:3px">' . esc_html( $pin_ld ) . '</code>'
+				. ' &nbsp; <button type="submit" name="vhcc_viec" value="quen_pin_lan_dau" class="button">Tôi đã ghi lại — ẩn đi</button>'
+				. '<p class="description">Tài khoản <b>Admin</b> plugin tự khai lúc cài, để có đường vào trang chấm công. '
+				. '<b>Ghi lại rồi đổi PIN ngay</b> ở phần "Danh sách riêng" bên dưới. '
+				. 'Đây là chỗ duy nhất xem được — trang chấm công KHÔNG bao giờ in PIN ra.</p>'
+				. $doi_nguon . '</td></tr>';
+		}
 
 		echo '<tr><th scope="row">Nguồn người dùng &amp; PIN</th><td>';
 		echo '<label><input type="radio" name="vhcc_nguon" value="chung"' . checked( $nguon, 'chung', false ) . '> '
