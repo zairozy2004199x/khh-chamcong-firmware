@@ -42,11 +42,19 @@ viết lại dòng nào. Một cổng thứ hai là một bộ luật thứ hai 
 
 ## Lấy file cài (.apk)
 
-Đẩy mã lên là GitHub tự dựng — xem `.github/workflows/android.yml`.
+Đẩy mã lên là GitHub tự dựng — xem `.github/workflows/android.yml`. Không cần cài gì trên máy.
 
-* **Nhánh làm việc**: vào tab **Actions** → lần chạy mới nhất → mục **Artifacts** → tải
-  `khh-thu-tien-apk`.
-* **Nhánh main**: file nằm sẵn ở mục **Releases**, thẻ `apk-thu-tien`.
+**Cách nhanh nhất — tải thẳng trên điện thoại:** vào mục **Releases** của kho.
+
+| Nhánh | Thẻ phát hành |
+|---|---|
+| `main` | `apk-thu-tien` |
+| nhánh làm việc | `apk-thu-tien-thu` (đánh dấu *pre-release*) |
+
+Bấm vào tệp `.apk` trong phần **Assets** là tải về máy luôn.
+
+**Cách thứ hai:** tab **Actions** → lần chạy mới nhất → mục **Artifacts**. Đường này tải về một
+tệp `.zip` và phải đăng nhập GitHub — dùng khi cần bản của một lần chạy cũ.
 
 Bản này **ký bằng khoá gỡ lỗi**: cài được ngay, chạy đầy đủ, nhưng không cập nhật đè lên bản ký
 bằng khoá khác được. Đủ cho giai đoạn dùng nội bộ.
@@ -60,18 +68,31 @@ bằng khoá khác được. Đủ cho giai đoạn dùng nội bộ.
 
 ---
 
-## Dựng thử trên máy mình
+## Mở bằng Android Studio
 
-Cần Android SDK và JDK 17.
+1. **File → Open** → chọn thư mục **`android_thu_tien`** (đúng thư mục này, *không phải* thư mục
+   gốc của kho — gốc kho không phải dự án Gradle nên Android Studio sẽ không hiểu).
+2. Chờ **Gradle Sync** chạy xong. Lần đầu tải phụ thuộc mất vài phút.
+3. Máy hỏi thiếu **SDK Platform 34** thì bấm cài — dự án khai `compileSdk = 34`.
+4. Đóng gói: **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+   Xong, bấm **locate** ở ô thông báo, hoặc mở thẳng:
+   `android_thu_tien/app/build/outputs/apk/debug/app-debug.apk`
+
+Chạy thẳng lên máy cắm dây thì bấm nút ▶ **Run** — nhanh hơn đóng gói rồi cài tay.
+
+### Hoặc dòng lệnh (không cần mở Android Studio)
+
+Cần **JDK 17** và Android SDK.
 
 ```bash
 cd android_thu_tien
-gradle assembleDebug          # hoặc ./gradlew nếu bạn tự tạo wrapper
+./gradlew assembleDebug        # Windows: gradlew.bat assembleDebug
 # -> app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Kho này **không giữ tệp `gradle-wrapper.jar`** — một tệp nhị phân không ai đọc được là một tệp
-không ai kiểm được. CI cài Gradle qua `gradle/actions/setup-gradle`.
+Kho có sẵn **Gradle wrapper** (`gradlew` + `gradle/wrapper/gradle-wrapper.jar`, Gradle 8.7). CI
+dùng đúng cái wrapper đó, nên máy CI và máy bạn dựng ra cùng một thứ — cài Gradle bản rời ở một
+trong hai nơi là mở đường cho câu "trên máy em chạy được".
 
 ---
 

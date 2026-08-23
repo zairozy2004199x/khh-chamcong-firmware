@@ -38,15 +38,15 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # Không dùng gradle wrapper: kho này không giữ tệp .jar nhị phân nào, và một tệp jar
-      # không ai đọc được là một tệp không ai kiểm được.
-      - uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '8.7'
+      # 🔴 DÙNG GRADLE WRAPPER, không cài Gradle rời.
+      #    Android Studio gần như bắt buộc phải có wrapper để mở được dự án; và khi CI dùng đúng
+      #    cái wrapper đó thì máy CI với máy anh Thắng dựng ra CÙNG MỘT THỨ. Cài bản rời ở CI là
+      #    hai bản Gradle khác nhau — rồi một hôm "trên máy em chạy được".
+      - uses: gradle/actions/setup-gradle@v4
 
       - name: Dựng APK
         working-directory: android_thu_tien
-        run: gradle --no-daemon assembleDebug
+        run: ./gradlew --no-daemon assembleDebug
 
       - name: Đặt tên theo số bản
         id: ten
@@ -64,12 +64,16 @@ jobs:
           path: ${{ steps.ten.outputs.tep }}
           retention-days: 30
 
-      # Chỉ main mới phát hành ra chỗ tải công khai — nhánh làm việc thì chỉ cần biết nó DỰNG ĐƯỢC.
-      - name: Phát hành (chỉ main)
-        if: github.ref == 'refs/heads/main'
+      # 🔴 PHÁT HÀNH CẢ TỪ NHÁNH LÀM VIỆC — nhưng đánh dấu là BẢN THỬ.
+      #    Artifacts của Actions chỉ tải được khi đã đăng nhập GitHub, và tải về là một tệp .zip
+      #    phải giải nén — trên điện thoại của nhân viên thì cả hai đều là ngõ cụt. Releases cho
+      #    một đường dẫn thẳng tới tệp .apk, bấm là cài.
+      #    Nhánh làm việc ra thẻ riêng và gắn cờ `prerelease`, nên nó không đội lốt bản chính.
+      - name: Phát hành để tải thẳng
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: apk-thu-tien
+          tag_name: ${{ github.ref == 'refs/heads/main' && 'apk-thu-tien' || 'apk-thu-tien-thu' }}
+          prerelease: ${{ github.ref != 'refs/heads/main' }}
           name: App thu tiền ${{ steps.ten.outputs.ban }}
           files: ${{ steps.ten.outputs.tep }}
           body: |
