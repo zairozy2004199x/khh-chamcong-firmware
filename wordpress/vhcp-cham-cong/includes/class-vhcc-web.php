@@ -134,6 +134,10 @@ class VHCC_Web {
 
 	private static function ve( $url ) {
 		wp_safe_redirect( $url );
+		/* Bài kiểm chạy trong CÙNG một tiến trình; `exit` ở đây là giết luôn cả bài kiểm, nên
+		   không phép thử nào chạm được vào đường chuyển hướng. Một cái mối hẹp, có tên, hơn là
+		   để cả đường đăng nhập không ai thử. */
+		if ( defined( 'VHCC_TEST' ) ) { return; }
 		exit;
 	}
 
@@ -310,7 +314,36 @@ class VHCC_Web {
 			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}';
 	}
 
+	/**
+	 * ĐƯỜNG VÀO BẰNG QUYỀN QUẢN TRỊ WORDPRESS — gỡ thế bí "không PIN nào vào được".
+	 *
+	 * 🔴 Thế bí có thật, anh Thắng gặp ngay: muốn nạp tài khoản đăng nhập thì phải vào trang
+	 *    này; muốn vào trang này thì phải có tài khoản đăng nhập. Vòng tròn, và không có đường
+	 *    nào tự mở.
+	 *
+	 * ⚠️ ĐÂY KHÔNG PHẢI NỚI QUYỀN. Người bấm được nút này là người đang đăng nhập WordPress với
+	 *    quyền `manage_options` — tức là người sửa được cả website, cài/gỡ được chính plugin
+	 *    này, và đọc thẳng được bảng người dùng trong database. Quyền đó đã CAO HƠN một PIN
+	 *    Admin của chấm công. Bắt họ đi vòng qua PIN không thêm một lớp an toàn nào, chỉ thêm
+	 *    một vòng tròn không lối ra.
+	 *
+	 * ⚠️ Vẫn qua nonce: không có nonce thì một trang khác dụ được quản trị viên bấm vào là mở
+	 *    sẵn một phiên chấm công.
+	 */
+	private static function vao_bang_wp() {
+		if ( ! is_user_logged_in() || ! current_user_can( VHCC_Admin::CAP ) ) { return false; }
+		if ( ! isset( $_POST['vao_wp'] ) ) { return false; }
+		check_admin_referer( 'vhcc_vao_wp' );
+		$u   = wp_get_current_user();
+		$ten = ( $u && ! empty( $u->display_name ) ) ? (string) $u->display_name : 'Quản trị WordPress';
+		$tok = VHCC_Auth::phat_token( $ten, 'Admin', '' );
+		self::dat_cookie( $tok );
+		self::ve( self::url() );
+		return true;
+	}
+
 	private static function trang_dang_nhap() {
+		self::vao_bang_wp();
 		$loi = '';
 		if ( isset( $_POST['pin'] ) ) {
 			$kq = VHCC_Auth::login( (string) wp_unslash( $_POST['pin'] ) );
@@ -333,6 +366,39 @@ class VHCC_Web {
 		echo '<h2>Quản trị Chấm Công</h2>';
 		echo '<p class="mo">Đăng nhập bằng PIN chấm công. Chỉ <b>Admin</b> và <b>Quản lý</b> vào được.</p>';
 		if ( '' !== $loi ) { echo '<div class="bao loi">' . esc_html( $loi ) . '</div>'; }
+
+		/* CHƯA AI ĐĂNG NHẬP ĐƯỢC thì nói thẳng ra, kèm đường vào — đừng để người ta gõ PIN mãi
+		   vào một danh sách vốn rỗng. */
+		$vao = 0;
+		$u_all = VHCC_Auth::users();
+		if ( ! is_wp_error( $u_all ) ) {
+			$cho = VHCC_Auth::vai_tro_vao();
+			foreach ( $u_all as $x ) {
+				if ( '' !== $x['pin'] && in_array( $x['vaiTro'], $cho, true ) ) { $vao++; }
+			}
+		}
+		$la_qt = ( is_user_logged_in() && current_user_can( VHCC_Admin::CAP ) );
+
+		if ( ! $vao ) {
+			echo '<div class="bao canh"><b>Chưa có tài khoản nào đăng nhập được.</b> '
+				. 'Nguồn người dùng đang đặt là <b>' . esc_html( VHCC_Auth::nguon() ) . '</b>, và trong đó '
+				. 'không ai vừa có PIN vừa mang vai trò được vào ('
+				. esc_html( implode( ' · ', VHCC_Auth::vai_tro_vao() ) ) . ').'
+				. ( $la_qt ? ' Bấm nút bên dưới để vào bằng chính quyền quản trị WordPress của anh.' : '' )
+				. '</div>';
+		}
+
+		/* Đang đăng nhập WordPress với quyền quản trị -> vào thẳng. Xem vao_bang_wp() vì sao. */
+		if ( $la_qt ) {
+			echo '<form method="post" style="margin:0 0 14px">';
+			wp_nonce_field( 'vhcc_vao_wp' );
+			echo '<button class="chinh" name="vao_wp" value="1" style="width:100%">'
+				. 'Vào bằng tài khoản WordPress</button>';
+			echo '<p class="mo" style="text-align:center;margin:6px 0 0">Anh đang đăng nhập '
+				. 'wp-admin ở trình duyệt này — quyền đó đã cao hơn một PIN Admin.</p></form>';
+			echo '<hr style="border:0;border-top:1px solid var(--vien);margin:0 0 14px">';
+		}
+
 		echo '<form method="post"><label for="pin">PIN</label>'
 			. '<input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" '
 			. 'autofocus required style="width:100%;font-size:19px;letter-spacing:3px;text-align:center">'

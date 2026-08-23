@@ -445,3 +445,10 @@ if ( ! function_exists( 'wp_safe_redirect' ) ) {
 }
 if ( ! function_exists( 'add_rewrite_rule' ) ) { function add_rewrite_rule() {} }
 if ( ! function_exists( 'nocache_headers' ) ) { function nocache_headers() {} }
+
+if ( ! function_exists( 'is_user_logged_in' ) ) {
+	function is_user_logged_in() { return ! empty( $GLOBALS['VHCP_DANG_NHAP_WP'] ); }
+}
+if ( ! function_exists( 'wp_get_current_user' ) ) {
+	function wp_get_current_user() { return (object) array( 'display_name' => 'admin' ); }
+}

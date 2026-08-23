@@ -61,7 +61,7 @@ Anh Thắng đã biết và chấp nhận rủi ro này (*"nếu máy mất liê
 nhưng làm đúng thứ tự thì không phải dùng tới.
 
 **Bước 1 — website sẵn sàng.**
-- Cài `vhcp-cham-cong.zip` (2.4.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
+- Cài `vhcp-cham-cong.zip` (2.4.1 trở lên), Kích hoạt (tạo/nới 23 bảng).
 - **Đăng nhập lần đầu — PIN nằm ở DỮ LIỆU CŨ, không phải cấp lại.** Vào **wp-admin → Chấm
   Công → Cài đặt**. Lúc cài, nếu chưa ai đăng nhập được, plugin đi tìm sổ PIN cũ trước:
   1. **Nạp sổ Phân quyền của app gốc** (nếu đã kéo về) sang *danh sách riêng*, **giữ nguyên
@@ -79,7 +79,12 @@ nhưng làm đúng thứ tự thì không phải dùng tới.
 
 - **🌐 Trang quản trị NGOÀI WEB — `https://<tên miền>/quan-tri-cham-cong`.** Anh Thắng:
   *"mọi việc anh thao tác trên web giao diện bên ngoài hết, không làm bên trong wp-admin"*.
-  Đăng nhập bằng **PIN chấm công**, không cần tài khoản WordPress. Chỉ **Admin** và **Quản lý**
+  Đăng nhập bằng **PIN chấm công**, không cần tài khoản WordPress.
+  - **Lần đầu chưa ai có PIN?** Mở trang này trong trình duyệt **đang đăng nhập wp-admin** →
+    bấm **"Vào bằng tài khoản WordPress"**. Quyền `manage_options` sửa được cả website và đọc
+    thẳng được bảng người dùng, nên nó đã cao hơn một PIN Admin — đi vòng qua PIN không thêm
+    lớp an toàn nào, chỉ tạo một vòng tròn không lối ra. Vào rồi thì bấm **Khai Admin** để có
+    PIN dùng lâu dài. Chỉ **Admin** và **Quản lý**
   vào được — hồ sơ có CCCD, số tài khoản, lương. Làm được:
   - **Nạp .csv hồ sơ nhân viên**, kèm **Xem trước** liệt kê **từng ô: *đang là* → *sẽ thành***.
     Đọc sai cột là thấy ngay ở bảng đó, **trước khi** ghi đè. Luôn bấm Xem trước trước.

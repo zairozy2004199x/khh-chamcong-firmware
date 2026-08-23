@@ -5085,6 +5085,62 @@ ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
 t( 'Quản lý KHÔNG khai được tài khoản Admin', strpos( $h_w, 'Chỉ Admin' ) !== false );
 $_POST = array(); $_COOKIE = array();
 
+/* ---- 47c. ĐƯỜNG VÀO BẰNG QUYỀN QUẢN TRỊ WORDPRESS ---- */
+/* 🔴 THẾ BÍ CÓ THẬT, anh Thắng gặp ngay: *"không có pin nào vào được"*. Muốn nạp tài khoản
+   đăng nhập thì phải vào trang này; muốn vào trang này thì phải có tài khoản đăng nhập. Vòng
+   tròn, không có đường nào tự mở.
+
+   Người đang đăng nhập wp-admin với quyền `manage_options` sửa được cả website, gỡ được chính
+   plugin này, đọc thẳng được bảng người dùng trong database — quyền đó ĐÃ CAO HƠN một PIN Admin
+   của chấm công. Bắt họ đi vòng qua PIN không thêm lớp an toàn nào, chỉ thêm một vòng tròn. */
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+$GLOBALS['VHCP_DANG_NHAP_WP'] = false;
+$GLOBALS['VHCP_CO_QUYEN']     = false;
+$h_w = vhcc_web();
+t( 'chưa ai vào được thì NÓI THẲNG ra, đừng để gõ PIN mãi vào danh sách rỗng',
+	strpos( $h_w, 'Chưa có tài khoản nào đăng nhập được' ) !== false, $h_w );
+t( 'khách lạ KHÔNG thấy nút vào bằng WordPress', strpos( $h_w, 'name="vao_wp"' ) === false );
+
+/* Đăng nhập WordPress nhưng KHÔNG có quyền quản trị -> vẫn không có nút. */
+$GLOBALS['VHCP_DANG_NHAP_WP'] = true;
+$GLOBALS['VHCP_CO_QUYEN']     = false;
+$h_w = vhcc_web();
+t( 'đăng nhập WordPress mà không có quyền quản trị thì cũng KHÔNG có nút',
+	strpos( $h_w, 'name="vao_wp"' ) === false );
+
+/* Có quyền quản trị -> có nút, và bấm vào là vào được. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$h_w = vhcc_web();
+t( 'quản trị WordPress thấy nút vào thẳng', strpos( $h_w, 'name="vao_wp"' ) !== false );
+t( 'và nói rõ vì sao được vào', strpos( $h_w, 'cao hơn một PIN Admin' ) !== false );
+
+$so_phien = count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'session' ) ) );
+$_POST = array( 'vao_wp' => '1' ); $_COOKIE = array(); $_GET = array();
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+teq( 'bấm nút là phát một phiên mới', $so_phien + 1,
+	count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'session' ) ) ) );
+$phien = VHCC_DB::rows( 'SELECT ten, vai_tro FROM ' . VHCC_DB::t( 'session' ) . ' ORDER BY id DESC' );
+teq( 'phiên đó là Admin', 'Admin', $phien[0]['vai_tro'] );
+t( 'và mang tên tài khoản WordPress để nhật ký truy được', '' !== $phien[0]['ten'], $phien[0] );
+$_POST = array();
+
+/* 🔴 KHÔNG có quyền quản trị mà POST thẳng vào thì KHÔNG được phát phiên nào. */
+$GLOBALS['VHCP_CO_QUYEN'] = false;
+$so_phien = count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'session' ) ) );
+$_POST = array( 'vao_wp' => '1' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+teq( 'POST thẳng mà không có quyền thì KHÔNG phát phiên nào', $so_phien,
+	count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'session' ) ) ) );
+$_POST = array();
+$GLOBALS['VHCP_DANG_NHAP_WP'] = false;
+
+/* Có người vào được rồi thì thôi kêu "chưa ai đăng nhập được". */
+VHCC_NguoiDung::luu( '', 'Anh Admin', '246813', 'Admin', '' );
+$h_w = vhcc_web();
+t( 'có người vào được thì thôi kêu nữa',
+	strpos( $h_w, 'Chưa có tài khoản nào đăng nhập được' ) === false );
+
 /* Cổng /cham-cong và trang quản trị dùng HAI đường dẫn khác nhau — không đè lên nhau. */
 t( 'trang quản trị có đường dẫn riêng', VHCC_Web::slug() !== VHCC_Trang::slug() );
 
