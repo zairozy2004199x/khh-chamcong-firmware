@@ -71,6 +71,85 @@ void inHex(uint8_t b){
   Serial.print(h[b >> 4]); Serial.print(h[b & 0x0F]); Serial.print(' ');
 }
 
+/* =============================================================================================
+ *  NHẬN DẠNG GIAO THỨC — chạy ngay trên byte vừa nghe được, không bắt anh Thắng đọc hex.
+ *
+ *  Mỗi lượt qua lại giữa hai bên tốn cả buổi, nên một lần nạp phải trả lời được hết. Ba họ giao
+ *  thức dưới đây có DẤU VÂN TAY khác hẳn nhau, kiểm bằng máy chắc hơn nhìn mắt nhiều.
+ * ============================================================================================= */
+
+#define BO_DEM 512
+uint8_t  g_bo[BO_DEM];
+uint16_t g_soBo = 0;
+
+void gomByte(uint8_t b){ if(g_soBo < BO_DEM) g_bo[g_soBo++] = b; }
+
+/* --- ccTalk ---------------------------------------------------------------------------------
+   Khung: [đích][số byte data][nguồn][mã lệnh][data...][checksum]
+   Dấu vân tay KHÔNG THỂ NHẦM: TỔNG TẤT CẢ byte trong khung chia hết cho 256.
+   Một khung trùng ngẫu nhiên thì có thể; ba khung liên tiếp cùng khớp thì không. */
+int doCcTalk(){
+  int khop = 0;
+  for(uint16_t i = 0; i + 4 < g_soBo; i++){
+    uint8_t len = g_bo[i + 1];
+    uint16_t tong_dai = (uint16_t)len + 5;
+    if(len > 32 || i + tong_dai > g_soBo) continue;
+    uint8_t tong = 0;
+    for(uint16_t j = 0; j < tong_dai; j++) tong += g_bo[i + j];
+    if(tong == 0){ khop++; i += tong_dai - 1; }
+  }
+  return khop;
+}
+
+/* --- ICT RS232 ------------------------------------------------------------------------------
+   Cục ICT ở chế độ nối tiếp bắn MỘT byte cho mỗi sự việc, không khung không checksum, và bo
+   ghế thường im lặng hoàn toàn (chỉ nghe). Dấu hiệu: byte lẻ tẻ, cách nhau xa, không thành cụm.
+
+   ⚠️ KHÔNG khẳng định "đúng là ICT" từ dấu hiệu này — nó chỉ nói "KHÔNG phải ccTalk và KHÔNG
+      phải bus có khung". Bảng byte cụ thể vẫn phải soi từ hex thật. Nói quá lên là dẫn tới viết
+      firmware theo một giả định chưa ai kiểm. */
+int doLeTe(uint32_t so_byte, uint32_t so_khung){
+  if(so_khung == 0) return 0;
+  return (so_byte / so_khung) <= 2 ? 1 : 0;   // mỗi "khung" chỉ 1-2 byte = bắn lẻ
+}
+
+/* --- MDB 9-bit ------------------------------------------------------------------------------
+   MDB là 9600 baud nhưng 9 BIT — UART thường của ESP32 không đọc nổi. Nên đọc bằng tay: canh
+   giữa mỗi bit, lấy đủ 9 bit + bit chẵn lẻ.
+
+   🔴 Đọc ở đây CHỈ ĐỌC. Không có digitalWrite nào trong khối này, và chân 35 vốn không đẩy ra
+      được — hai lớp, vì đây là bus của máy đang chạy tiền khách. */
+#define MDB_BIT_US 104        // 1/9600 = 104.17us
+
+int ngheMdb(uint32_t ms){
+  pinMode(CHAN_NGHE, INPUT);
+  uint32_t het = millis() + ms;
+  int so_khung = 0, so_byte = 0, so_dia_chi = 0;
+
+  Serial.println();
+  Serial.printf("=== NGHE KIỂU MDB 9-BIT (%lu giây) ===\n", (unsigned long)(ms / 1000));
+
+  while(millis() < het){
+    if(digitalRead(CHAN_NGHE) != 0){ continue; }        // chờ bit start (mức thấp)
+    delayMicroseconds(MDB_BIT_US + MDB_BIT_US / 2);     // nhảy qua start, canh giữa bit 0
+    uint16_t v = 0;
+    for(int i = 0; i < 9; i++){
+      if(digitalRead(CHAN_NGHE)) v |= (1 << i);
+      delayMicroseconds(MDB_BIT_US);
+    }
+    /* Bit thứ 9 bật = byte ĐỊA CHỈ (mở đầu một khung MDB). Đây là dấu vân tay của MDB: UART
+       thường không bao giờ sinh ra được cái bit đó. */
+    bool la_dia_chi = (v & 0x100) != 0;
+    if(la_dia_chi){ Serial.println(); Serial.print("  [ĐC] "); so_khung++; so_dia_chi++; }
+    inHex((uint8_t)(v & 0xFF));
+    so_byte++;
+    if(so_byte > 400) break;
+  }
+  Serial.println();
+  Serial.printf("  -> %d byte, %d byte địa chỉ (bit 9 bật)\n", so_byte, so_dia_chi);
+  return so_dia_chi;
+}
+
 void nghe(int idx){
   uint32_t toc = TOC_DO[idx];
   bang[idx].toc_do = toc; bang[idx].so_byte = 0; bang[idx].so_khung = 0; bang[idx].byte_la = 0;
@@ -93,6 +172,7 @@ void nghe(int idx){
       }
       if(dem_dong == 0){ Serial.print("  "); }
       inHex(b);
+      if(toc == 9600) gomByte(b);   // chỉ gom ở 9600: ccTalk và MDB đều ở tốc độ này
       bang[idx].so_byte++;
       if(b >= 0x80) bang[idx].byte_la++;
       cuoi = bay_gio; dang = true;
@@ -144,6 +224,22 @@ void ketLuan(){
   }
 
   Serial.printf("TỐC ĐỘ NHIỀU KHẢ NĂNG NHẤT: %lu baud\n", (unsigned long)bang[tot].toc_do);
+
+  /* --- Nhận dạng họ giao thức --- */
+  int cc = doCcTalk();
+  Serial.println();
+  if(cc >= 3){
+    Serial.printf(">>> ccTalk — %d khung có checksum ĐÚNG (tổng byte chia hết 256).\n", cc);
+    Serial.println(">>> Khung ccTalk: [đích][số data][nguồn][mã lệnh][data...][checksum].");
+    Serial.println(">>> Đây là kết luận CHẮC: ba khung liên tiếp khớp checksum không thể trùng ngẫu nhiên.");
+  } else if(doLeTe(bang[tot].so_byte, bang[tot].so_khung)){
+    Serial.println(">>> KHÔNG phải ccTalk. Byte bắn LẺ TẺ, không thành khung —");
+    Serial.println(">>> hợp với kiểu 'mỗi sự việc một byte' (ICT RS232 và vài hãng khác).");
+    Serial.println(">>> Chưa khẳng định được là hãng nào: bảng byte phải soi từ hex ở trên.");
+  } else {
+    Serial.println(">>> Có khung nhưng KHÔNG khớp checksum ccTalk — giao thức riêng của hãng.");
+    Serial.println(">>> Phần hex ở trên là thứ duy nhất lần ra được. Gửi nguyên về.");
+  }
   Serial.println();
   Serial.println("Bảng đầy đủ:");
   for(int i = 0; i < SO_TOC_DO; i++){
@@ -171,7 +267,18 @@ void setup(){
   for(int i = 0; i < SO_TOC_DO; i++) nghe(i);
 
   detachInterrupt(digitalPinToInterrupt(CHAN_NGHE));
+
+  /* MDB là 9 BIT — UART thường ở trên đọc không ra. Nghe thêm kiểu MDB để một lần nạp là kết
+     luận được, khỏi phải nạp lại lần hai. */
+  int mdb = ngheMdb(5000);
+
   ketLuan();
+  if(mdb >= 2){
+    Serial.println();
+    Serial.printf(">>> CÓ %d BYTE ĐỊA CHỈ MDB (bit thứ 9 bật).\n", mdb);
+    Serial.println(">>> Bo ghế nói MDB. UART thường đọc không ra là ĐÚNG, không phải sai tốc độ.");
+    Serial.println(">>> Firmware ghế đã có sẵn khối MDB — nhưng ở vai CHỦ; sẽ viết thêm vai TỚ.");
+  }
 }
 
 void loop(){ delay(1000); }
