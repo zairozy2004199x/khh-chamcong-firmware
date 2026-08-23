@@ -38,7 +38,6 @@
     <button class="btn b-x" id="tab-vhtuan" onclick="showPage('vhtuan')">📅 Vận hành tuần</button>
     <button class="btn b-x" id="tab-trama" onclick="showPage('trama')">🔎 Tra theo mã</button>
     <button class="btn b-x" id="tab-duyet" onclick="showPage('duyet')">✅ Duyệt tạm ứng</button>
-    <button class="btn b-x" id="tab-gom" onclick="showPage('gom')">📥 Gom hóa đơn</button>
     <button class="btn b-x" id="tab-qt" onclick="showPage('qt')">🧾 Quyết toán</button>
     <button class="btn b-x" id="tab-tattoan" onclick="showPage('tattoan')">💰 Thừa/thiếu tuần</button>
     <button class="btn b-x" id="tab-xuat" onclick="showPage('xuat')">📤 Xuất MISA</button>
@@ -671,59 +670,27 @@
   </div>
 
   <!-- ============ TRANG: QUẢN LÝ GOM HÓA ĐƠN ============ -->
-  <div id="page-gom" class="wrap" style="display:none">
-    <div id="gomTongLH" style="margin-bottom:12px;padding:12px 16px;border-radius:12px;font-size:14px"></div>
-
-    <!-- A) Đã gửi — chờ quản lý gom -->
-    <div class="card">
-      <div class="ch">
-        <h2>📥 Đã gửi hóa đơn — chờ gom đẩy kế toán</h2>
-        <button class="btn b-x" onclick="loadGom()">↻ Tải lại</button>
-      </div>
-      <div id="gomBatchBar" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;margin:0 0 10px">
-        <b id="gomSelInfo">Đã chọn 0 đơn</b>
-        <span>Tổng tạm ứng: <b id="gomSelTotal" style="color:#1e40af">0đ</b></span>
-        <span style="flex:1"></span>
-        <button class="btn b-p" id="btnGomChon" onclick="doGomChon()">📤 Đẩy các đơn đã chọn cho kế toán</button>
-      </div>
-      <div class="tw">
-        <table>
-          <thead><tr><th style="width:32px;text-align:center"><input type="checkbox" id="gomChkAll" onchange="gomToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Ghi chú</th><th style="text-align:center">Xem</th></tr></thead>
-          <tbody id="gomBody"></tbody>
-        </table>
-        <div class="empty" id="gomEmpty">Chưa có đơn nào chờ gom.</div>
-      </div>
-    </div>
-
-    <!-- B) Đã cấp tiền nhưng CHƯA nộp hóa đơn (cảnh báo) -->
-    <div class="card">
-      <div class="ch"><h2>⏰ Đã cấp tạm ứng — CHƯA nộp hóa đơn</h2></div>
-      <div class="tw">
-        <table>
-          <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th>Ngày cấp tiền</th><th style="text-align:center">Nhắc</th></tr></thead>
-          <tbody id="gomChuaNopBody"></tbody>
-        </table>
-        <div class="empty" id="gomChuaNopEmpty">Không có đơn nào đang chờ nộp.</div>
-      </div>
-    </div>
-  </div>
-
   <!-- ============ TRANG: QUYẾT TOÁN ============ -->
   <div id="page-qt" class="wrap" style="display:none">
-    <div class="card">
+    <!-- HAI BẢNG RIÊNG, KHÔNG PHẢI MỘT Ô CHỌN.
+         Việc của kế toán ở màn này là DUYỆT đơn chờ; đơn đã xong chỉ để tra lại. Gộp vào
+         một bảng rồi lọc bằng dropdown thì mỗi lần vào phải chọn lại mới thấy việc của
+         mình. Tách hai bảng: việc cần làm nằm sẵn trên đầu màn hình.
+         Mỗi bảng 15 đơn/trang — dài hơn thì cuộn mãi không tới hàng tổng. -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <b style="font-size:15px">🧾 Quyết toán</b>
+      <span style="flex:1"></span>
+      <button class="btn b-p" id="qtXemBang" onclick="qtDoiXem('bang')">📋 Hai bảng</button>
+      <button class="btn b-x" id="qtXemTuan" onclick="qtDoiXem('tuan')" title="Xổ theo tuần/kỳ kèm hàng đối chiếu quỹ (dư kỳ trước → giải ngân thêm)">📅 Theo tuần / kỳ</button>
+      <button class="btn b-x" onclick="loadQT()">↻ Tải lại</button>
+    </div>
+
+    <div class="card" id="qtCardCho">
       <div class="ch">
-        <h2>🧾 Quyết toán <span style="font-size:11px;font-weight:400;color:#64748b">— chỉ đơn <b>Chờ quyết toán</b> &amp; <b>Đã quyết toán</b></span></h2>
-        <div style="display:flex;gap:8px;align-items:center">
-          <select id="qtFilter" onchange="renderQTList()">
-            <option value="all">Cả hai nhóm — chờ quyết toán &amp; đã quyết toán</option>
-            <option value="tuan">Theo tuần / kỳ — xổ theo tuần (mới nhất trước)</option>
-            <option value="Chờ quyết toán">Chờ quyết toán (kế toán xác nhận)</option>
-            <option value="Đã quyết toán">Đã quyết toán</option>
-          </select>
-          <button class="btn b-x" onclick="loadQT()">↻ Tải lại</button>
-        </div>
+        <h2>⏳ Chờ quyết toán <span style="font-size:11px;font-weight:400;color:#64748b">— kế toán xác nhận</span> <span class="badge st-cho" id="qtSoCho">0</span></h2>
+        <div style="font-size:12px;color:#475569" id="qtSumCho"></div>
       </div>
-      <div id="qtBatchBar" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin-bottom:10px">
+      <div id="qtBatchBar" style="display:none;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 14px;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;margin:10px 14px">
         <b id="qtSelInfo">Đã chọn 0 đơn</b>
         <span>Tổng thừa/thiếu: <b id="qtSelTotal" style="color:#166534">0đ</b></span>
         <span style="flex:1"></span>
@@ -732,6 +699,49 @@
       <div class="tw">
         <table>
           <thead><tr><th id="qtChkHead" style="width:32px;text-align:center;display:none"><input type="checkbox" id="qtChkAll" onchange="qtToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="qtBodyCho"></tbody>
+        </table>
+        <div class="empty" id="qtEmptyCho">Không còn đơn nào chờ quyết toán.</div>
+      </div>
+      <div id="qtPagerCho"></div>
+    </div>
+
+    <div class="card" id="qtCardXong">
+      <div class="ch">
+        <h2>✅ Đã quyết toán <span class="badge st-duyet" id="qtSoXong">0</span></h2>
+        <div style="font-size:12px;color:#475569" id="qtSumXong"></div>
+      </div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <tbody id="qtBodyXong"></tbody>
+        </table>
+        <div class="empty" id="qtEmptyXong">Chưa có đơn nào đã quyết toán.</div>
+      </div>
+      <div id="qtPagerXong"></div>
+    </div>
+
+    <!-- Giữ lại từ tab Gom cũ: DANH SÁCH NHẮC NỢ HÓA ĐƠN. Khâu gom bỏ rồi, nhưng "đã cầm
+         tiền mà chưa nộp hóa đơn" vẫn là việc phải theo — và đây mới là chỗ nó thuộc về,
+         cạnh hai bảng quyết toán. -->
+    <div class="card" id="qtCardChuaNop">
+      <div class="ch"><h2>⏰ Đã cấp tạm ứng — CHƯA nộp hóa đơn <span class="badge st-cap" id="qtSoChuaNop">0</span></h2>
+        <div style="font-size:12px;color:#475569" id="qtSumChuaNop"></div></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Kỳ / tuần</th><th>Cơ sở</th><th>Người lập</th><th style="text-align:right">Tạm ứng</th><th>Ngày cấp tiền</th><th style="text-align:center">Xem</th></tr></thead>
+          <tbody id="qtBodyChuaNop"></tbody>
+        </table>
+        <div class="empty" id="qtEmptyChuaNop">Không có đơn nào đang chờ nộp hóa đơn.</div>
+      </div>
+      <div id="qtPagerChuaNop"></div>
+    </div>
+
+    <div class="card" id="qtCardTuan" style="display:none">
+      <div class="ch"><h2>📅 Theo tuần / kỳ <span style="font-size:11px;font-weight:400;color:#64748b">— mới nhất trước, kèm đối chiếu quỹ</span></h2></div>
+      <div class="tw">
+        <table>
+          <thead><tr id="qtHeadTuan"><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtBody"></tbody>
         </table>
         <div class="empty" id="qtListEmpty">Không có đơn.</div>
@@ -1205,13 +1215,13 @@
     // chi phí, chọn bằng ô "Chọn chi phí nào" ở mục 1 — khỏi nhảy qua nhảy lại 3 màn. Dữ
     // liệu cũ của 3 mảng GIỮ NGUYÊN, báo cáo và xuất MISA vẫn cộng đủ như trước.
     var BO_TAB={mkt:1,congtac:1,setup:1};
-    var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
-              'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
+    var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
+              'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
               // Kế toán vào được Cấu hình: khai mã tài khoản / tên MISA / mã đơn vị là việc
               // của kế toán. Riêng dòng tài khoản Admin thì chỉ Admin sửa (chặn ở máy chủ).
-              'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
-              'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:0,gom:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
-              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,gom:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
+              'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
+              'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
+              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
     if(role==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
       var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
       if(bp){ vis.duan=(bp==='Kỹ thuật')?1:0; vis.mkt=(bp==='Marketing')?1:0; vis.congtac=(bp==='Công tác')?1:0; vis.setup=(bp==='Setup')?1:0; }
@@ -1219,9 +1229,12 @@
       // tab Đơn chi phí — không thì họ không còn chỗ nào để nhập.
       vis.don=1; vis.sochi=1;
     }
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
     var tqt=el('tab-qt'); if(tqt) tqt.textContent=(role==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
-    var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý')?'inline-block':'none';
+    // ADMIN CŨNG LÊN ĐƠN ĐƯỢC — để chạy thử trọn luồng (lên đơn → xin tạm ứng → cấp →
+    // chốt chi phí → kế toán duyệt → xuất MISA) mà không phải mượn tài khoản nhân viên.
+    // Trước đây nút này ẩn với Admin nên muốn thử một đơn là phải đăng nhập bằng người khác.
+    var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý'||role==='Admin')?'inline-block':'none';
     el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
   }
   function _myDons(){ var isNV=(CURUSER&&CURUSER.role==='Nhân viên'); return (BOOT.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; }); }
@@ -1330,7 +1343,7 @@
     if(el('btnBackList'))  el('btnBackList').style.display  = open?'inline-block':'none';
     var bp=el('btnBackPrev');
     if(bp){ if(open && _viewDonFrom){ bp.style.display='inline-block';
-        bp.textContent='← Quay lại '+({qt:'Quyết toán',gom:'Gom hóa đơn',duyet:'Duyệt tạm ứng'}[_viewDonFrom]||''); }
+        bp.textContent='← Quay lại '+({qt:'Quyết toán',duyet:'Duyệt tạm ứng'}[_viewDonFrom]||''); }
       else bp.style.display='none'; }
   }
   function backToList(){ el('donSel').value=''; openDon(''); }
@@ -1351,7 +1364,6 @@
     function show(tab,on){ var t=el('tab-'+tab); if(t&&on) t.style.display='inline-block'; }
     show('duyet', canDo('duyetTU')||canDo('capTU')||canDo('traDon'));
     // 3 tab Marketing / Công tác / Setup đã bỏ -> đừng mở lại theo phân quyền
-    show('gom',   canDo('gom'));
     show('qt',    canDo('xacNhanQT')||canDo('duyetNCC')||canDo('traDon'));
     show('xuat',  canDo('xuatMISA'));
   }
@@ -1469,7 +1481,6 @@
                 'Chờ duyệt tạm ứng':'⏳ chờ Quản lý/Kế toán duyệt tạm ứng',
                 'Chờ cấp tạm ứng':'✅ đã duyệt — chờ kế toán gửi (cấp) tiền tạm ứng',
                 'Đã cấp tạm ứng':'💰 đã cấp — nhập THỰC CHI cho hạng mục đã xin (không mua để 0); mua thêm ngoài dự kiến thì thêm ở mục PHÁT SINH; xong bấm Gửi hóa đơn cho kế toán (hoặc 🚫 Không dùng)',
-                'Chờ quản lý gom':'📥 đã gửi — chờ quản lý gom & đẩy cho kế toán',
                 'Chờ quyết toán':'⏳ chờ kế toán xác nhận quyết toán',
                 'Đã quyết toán':'🔒 đã quyết toán (khóa)',
                 'Đã xuất MISA':'🔒 đã xuất MISA (khóa)'}[st]||'';
@@ -1773,7 +1784,7 @@
   var QT={anh:''};
   function renderQT(){
     var st=CUR.don.trangThai;
-    var show=(st==='Chờ duyệt tạm ứng'||st==='Chờ cấp tạm ứng'||st==='Đã cấp tạm ứng'||st==='Chờ quản lý gom'||st==='Chờ quyết toán'||st==='Đã quyết toán'||st==='Đã xuất MISA');
+    var show=(st==='Chờ duyệt tạm ứng'||st==='Chờ cấp tạm ứng'||st==='Đã cấp tạm ứng'||st==='Chờ quyết toán'||st==='Đã quyết toán'||st==='Đã xuất MISA');
     el('qtCard').style.display=show?'block':'none'; if(!show) return;
     var editable=(st==='Đã cấp tạm ứng');
     var tongTU=(CUR.tongCN||{}).tamUng||0;
@@ -1822,7 +1833,6 @@
       else if(st==='Chờ cấp tạm ứng'){ h+='<span style="color:#854d0e">đã duyệt — chờ cấp tiền</span>'+duyetInfo;
         if(canDo('capTU')) h+=' <button class="btn b-g" onclick="doCapCur()">💵 Gửi (cấp) tạm ứng</button>'; }
       else if(st==='Đã cấp tạm ứng'){ h+='<span style="color:#1e40af">đã cấp tạm ứng — chờ NV mua & gửi hóa đơn</span>'+duyetInfo+capInfo; }
-      else if(st==='Chờ quản lý gom'){ h+='<span style="color:#854d0e">đã gửi — chờ quản lý gom & đẩy kế toán</span>'+duyetInfo+capInfo; }
       else if(st==='Chờ quyết toán'){ h+='<span style="color:#854d0e">chờ KT cá nhân xác nhận</span>'+duyetInfo+capInfo;
         if(canDo('xacNhanQT')) h+=' <button class="btn b-g" onclick="doQtCN()">✔ Xác nhận QT Cá nhân</button>'; }
       h+='</div>';
@@ -1913,10 +1923,10 @@
     CUR_PAGE=p;
     if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
     var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
-    ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
+    ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
     });
-    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','gom','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
+    ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var tb=el('tab-'+x); if(tb) tb.className='btn '+(x===p?'b-p':'b-x');
     });
     // Đơn theo tuần và đơn theo dự án là CÙNG một loại đơn, chỉ khác cái gom:
@@ -1938,7 +1948,6 @@
     if(p==='don') boot();
     if(p==='sochi') loadSoChi();
     if(p==='duyet') loadDuyet();
-    if(p==='gom') loadGom();
     if(p==='qt') loadQT();
     if(p==='tattoan') loadTatToan();
     if(p==='xuat') loadXuat();
@@ -3424,7 +3433,7 @@
   // ===================== QUYẾT TOÁN (danh sách) =====================
   function loadQT(){ boot(renderQTList); }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
-  var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quản lý gom','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
+  var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
   // Tổng Tạm ứng / Thực mua / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)
   function _qtSums(rows){
     var tu=0, mua=0, cl=0;
@@ -3494,55 +3503,147 @@
     el.setAttribute('data-open',open?'0':'1');
     var c=el.querySelector('.qtcaret'); if(c) c.textContent=open?'▸':'▾';
   }
+  // ---- HAI BẢNG + PHÂN TRANG ----
+  // 15 đơn/trang: vừa một màn hình, không phải cuộn mới tới hàng tổng. Hàng tổng ∑ luôn
+  // tính trên TOÀN BỘ nhóm chứ không phải trang đang xem — kế toán cần con số của cả
+  // nhóm, phân trang chỉ là chuyện hiển thị.
+  var QT_MOI_TRANG=15, QT_TRANG={cho:1, xong:1, chuanop:1}, QT_XEM='bang';
+  try{ if(localStorage.getItem('vhcp_qt_xem')==='tuan') QT_XEM='tuan'; }catch(e){}
+  function qtDoiXem(v){
+    QT_XEM=(v==='tuan')?'tuan':'bang';
+    try{ localStorage.setItem('vhcp_qt_xem', QT_XEM); }catch(e){}
+    renderQTList();
+  }
+  function qtTrang(khoa, t){
+    QT_TRANG[khoa]=Math.max(1, t);
+    renderQTList();
+    var c=el({cho:'qtCardCho', xong:'qtCardXong', chuanop:'qtCardChuaNop'}[khoa]);
+    if(c && c.scrollIntoView) c.scrollIntoView({block:'start'});
+  }
+  // Thanh chuyển trang. Dưới 1 trang thì không vẽ gì — thêm thanh rỗng chỉ tổ rối mắt.
+  function _qtPagerHtml(khoa, tong, trang, soTrang){
+    if(soTrang<=1) return '';
+    var tu=(trang-1)*QT_MOI_TRANG+1, den=Math.min(tong, trang*QT_MOI_TRANG);
+    var nut=function(t, chu, tat, dam){
+      if(tat) return '<button class="btn b-x" disabled style="opacity:.45">'+chu+'</button>';
+      return '<button class="btn '+(dam?'b-p':'b-x')+'" onclick="qtTrang(\''+khoa+'\','+t+')">'+chu+'</button>';
+    };
+    var so='';
+    if(soTrang<=9){ for(var i=1;i<=soTrang;i++) so+=nut(i, String(i), false, i===trang)+' '; }
+    else {
+      var ds=[1], k;
+      for(k=trang-2;k<=trang+2;k++) if(k>1&&k<soTrang) ds.push(k);
+      ds.push(soTrang);
+      var truoc=0;
+      ds.forEach(function(k){
+        if(k-truoc>1) so+='<span style="color:#94a3b8">…</span> ';
+        so+=nut(k, String(k), false, k===trang)+' '; truoc=k;
+      });
+    }
+    return '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid #f1f5f9">'
+      +'<span style="font-size:12px;color:#64748b">Đơn <b>'+tu+'–'+den+'</b> trên <b>'+tong+'</b></span>'
+      +'<span style="flex:1"></span>'
+      +nut(trang-1,'‹ Trước',trang<=1)+' '+so+nut(trang+1,'Sau ›',trang>=soTrang)
+      +'</div>';
+  }
+  // Vẽ MỘT bảng (chờ / đã xong). Trả về số đơn của cả nhóm.
+  function _qtVeBang(khoa, rows, canBatch){
+    var hoa=khoa==='cho'?'Cho':'Xong';
+    var COLS=canBatch?10:9;
+    var soTrang=Math.max(1, Math.ceil(rows.length/QT_MOI_TRANG));
+    if(QT_TRANG[khoa]>soTrang) QT_TRANG[khoa]=soTrang;
+    var trang=QT_TRANG[khoa];
+    var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
+    el('qtBody'+hoa).innerHTML=lat.map(function(d){ return _qtRowHtml(d, canBatch, COLS); }).join('');
+    el('qtEmpty'+hoa).style.display=rows.length?'none':'block';
+    el('qtSo'+hoa).textContent=rows.length+' đơn';
+    el('qtSum'+hoa).innerHTML=rows.length?_qtSumHtml(rows):'';
+    el('qtPager'+hoa).innerHTML=_qtPagerHtml(khoa, rows.length, trang, soTrang);
+    return rows.length;
+  }
+  // ĐÃ CẤP TIỀN — CHƯA NỘP HÓA ĐƠN. Không phải việc quyết toán, nhưng là tiền đang nằm
+  // ngoài mà chưa có chứng từ, nên để ngay cạnh hai bảng kia cho thấy.
+  // Sắp CŨ NHẤT LÊN TRƯỚC: đơn cầm tiền lâu nhất là đơn phải đòi trước.
+  function _qtVeChuaNop(){
+    if(!el('qtBodyChuaNop')) return;
+    var rows=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng'; });
+    rows.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });
+    var soTrang=Math.max(1, Math.ceil(rows.length/QT_MOI_TRANG));
+    if(QT_TRANG.chuanop>soTrang) QT_TRANG.chuanop=soTrang;
+    var trang=QT_TRANG.chuanop;
+    var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
+    el('qtBodyChuaNop').innerHTML=lat.map(function(d){
+      return '<tr><td>'+esc(d.ky||d.maDon)+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
+        '<td class="money">'+money(d.tamUng)+'</td><td style="font-size:12px;color:#64748b">'+esc(d.ngayCap||'—')+'</td>'+
+        '<td style="text-align:center"><button class="btn b-s" onclick="qtChuaNopDetail(\''+esc(d.maDon)+'\',this)">🔽 Chi tiết</button></td></tr>'+
+        '<tr id="qtcn-'+esc(d.maDon)+'" style="display:none"><td colspan="6" style="background:#f8fafc;padding:0"><div class="qtcn-wrap" style="padding:12px 16px"><span style="color:#94a3b8;font-size:12px">Đang tải…</span></div></td></tr>';
+    }).join('');
+    el('qtEmptyChuaNop').style.display=rows.length?'none':'block';
+    el('qtSoChuaNop').textContent=rows.length+' đơn';
+    var tu=0; rows.forEach(function(d){ tu+=Number(d.tamUng)||0; });
+    el('qtSumChuaNop').innerHTML=rows.length?('&#8721; Tạm ứng đang nằm ngoài: <b style="color:#b45309">'+money(tu)+'</b>'):'';
+    el('qtPagerChuaNop').innerHTML=_qtPagerHtml('chuanop', rows.length, trang, soTrang);
+  }
+  function qtChuaNopDetail(maDon, btn){
+    var row=el('qtcn-'+maDon); if(!row) return;
+    if(row.style.display!=='none'){ row.style.display='none'; if(btn) btn.textContent='🔽 Chi tiết'; return; }
+    row.style.display=''; if(btn) btn.textContent='🔼 Thu gọn';
+    var wrap=row.querySelector('.qtcn-wrap'); if(!wrap || wrap.getAttribute('data-loaded')==='1') return;
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||!r.success){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
+      wrap.innerHTML=_qtChuaNopDetailHtml(r); wrap.setAttribute('data-loaded','1');
+    }).withFailureHandler(function(e){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc(e.message)+'</span>'; }).getDon(maDon);
+  }
   function renderQTList(){
-    var f=el('qtFilter').value;
     var canBatch=canDo('xacNhanQT');   // ai được xác nhận quyết toán -> tích nhiều đơn duyệt 1 lần
     if(el('qtChkHead')) el('qtChkHead').style.display=canBatch?'':'none';
     // MÀN QUYẾT TOÁN CHỈ LO VIỆC QUYẾT TOÁN: chỉ hiện đơn "Chờ quyết toán" và "Đã quyết
-    // toán". Trước đây xổ hết mọi trạng thái (Nháp, chờ duyệt tạm ứng, chờ cấp…) nên kế
-    // toán phải lội qua mấy chục đơn chưa tới lượt mình. Đơn ở bước trước thì xem ở tab
-    // của bước đó (Duyệt tạm ứng), còn NV nhập thực mua thì làm ngay trong đơn của mình.
-    var COLS=canBatch?10:9, html='', total=0;   // +1 cột Cơ sở
+    // toán". Đơn ở bước trước thì xem ở tab của bước đó (Duyệt tạm ứng), còn NV nhập thực
+    // mua thì làm ngay trong đơn của mình.
     var all=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Chờ quyết toán' || d.trangThai==='Đã quyết toán'; });
-    if(f==='all'){
-      // XỔ TẤT CẢ theo trạng thái, nhóm sẵn (không phải chọn dropdown), sắp giai đoạn đầu -> cuối
-      var bySt={}; all.forEach(function(d){ (bySt[d.trangThai]=bySt[d.trangThai]||[]).push(d); });
-      var order=QT_ST_ORDER.filter(function(s){return bySt[s];});
-      Object.keys(bySt).forEach(function(s){ if(order.indexOf(s)<0) order.push(s); });   // trạng thái lạ -> cuối
-      order.forEach(function(s, gi){
-        var rows=bySt[s]; total+=rows.length; var gid='qg'+gi;
-        var openDefault=(s==='Chờ quyết toán');   // mặc định mở nhóm "Chờ quyết toán"; còn lại gập cho gọn — bấm để xổ
-        html+='<tr class="qtGrpHdr" data-open="'+(openDefault?'1':'0')+'" onclick="qtGroupToggle(\''+gid+'\',this)"><td colspan="'+COLS+'" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px"><span class="qtcaret" style="display:inline-block;width:14px">'+(openDefault?'▾':'▸')+'</span> <span class="badge '+stCls(s)+'">'+esc(s)+'</span> <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(bấm để xổ/gập)</span><div style="font-weight:600;font-size:12px;color:#475569;margin-top:4px">'+_qtSumHtml(rows)+'</div></td></tr>';
-        html+=rows.map(function(d){ return _qtRowHtml(d, canBatch, COLS, gid, !openDefault); }).join('');
-      });
-    } else if(f==='tuan'){
-      // XỔ THEO TUẦN / KỲ: gom mọi đơn theo kỳ, mới nhất trước; mỗi kỳ hiện ∑ (tạm ứng · thực mua · thừa/thiếu)
-      // + 1 HÀNG TỔNG "Đối chiếu quỹ": khả dụng = tạm ứng tuần này ± thừa/thiếu LŨY KẾ kỳ trước; thừa/thiếu tuần này = khả dụng − thực mua (mang sang kỳ sau)
-      var byKy={}; all.forEach(function(d){ var k=d.ky||'(không kỳ)'; (byKy[k]=byKy[k]||[]).push(d); });
-      var kAll=Object.keys(byKy);
-      var realAsc=kAll.filter(function(k){ return _kyVal(k)>=0; }).sort(function(a,b){ return _kyVal(a)-_kyVal(b); });   // cũ→mới, để cộng dồn số dư quỹ
-      var carryIn={}, hasPrev={}, isOpen={}, prevCl=null, _seed=Number(BOOT.soDuDauKy)||0;   // tuần đầu seed = số dư đầu kỳ (quỹ đầu tháng)
-      realAsc.forEach(function(k, _ix){
-        if(_ix===0){ carryIn[k]=_seed; hasPrev[k]=(_seed!==0); isOpen[k]=true; }
-        else { carryIn[k]=prevCl; hasPrev[k]=true; isOpen[k]=false; }
-        var s2=_qtSums(byKy[k]); prevCl=(s2.tu||0)-(s2.mua||0);   // thừa/thiếu kỳ này = tạm ứng − thực mua (mang sang kỳ sau)
-      });
-      var keys=kAll.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });   // hiển thị: mới nhất trước
-      keys.forEach(function(k, gi){
-        var rows=byKy[k]; total+=rows.length; var gid='qk'+gi; var s=_qtSums(rows);
-        html+='<tr class="qtGrpHdr" data-open="0" onclick="qtGroupToggle(\''+gid+'\',this)"><td colspan="'+COLS+'" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px"><span class="qtcaret" style="display:inline-block;width:14px">▸</span> 📅 <span>Tuần/kỳ '+esc(k)+'</span> <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(bấm để xổ/gập)</span><div style="font-weight:600;font-size:12px;color:#475569;margin-top:4px">'+_qtSumHtml(rows)+'</div></td></tr>';
-        if(_kyVal(k)>=0){ var _gn=(s.tu||0)-(carryIn[k]||0), _wst=(_gn<0)?'background:#fef2f2;border-left:4px solid #ef4444;color:#7f1d1d':'background:#fffbeb;border-left:4px solid #f59e0b;color:#78350f';
-          html+='<tr class="qkFlow"><td colspan="'+COLS+'" style="'+_wst+';padding:8px 10px;font-size:12px">'+_qtReconHtml(s.tu, s.mua, carryIn[k]||0, hasPrev[k], isOpen[k])+'</td></tr>'; }
-        html+=rows.map(function(d){ return _qtRowHtml(d, canBatch, COLS, gid, true); }).join('');
-      });
-    } else {
-      var list=all.filter(function(d){
-        return d.trangThai===f;   // 'all' và 'tuan' đi nhánh trên; ở đây chỉ lọc theo 1 trạng thái
-      });
-      total=list.length;
-      if(list.length) html+='<tr class="qtGrpHdr"><td colspan="'+COLS+'" style="background:#eef2ff;font-weight:600;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px;font-size:12px">Tổng '+list.length+' đơn · '+_qtSumHtml(list)+'</td></tr>';
-      html+=list.map(function(d){ return _qtRowHtml(d, canBatch, COLS); }).join('');
+    var tuan=(QT_XEM==='tuan');
+    if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
+    if(el('qtXemTuan')) el('qtXemTuan').className='btn '+(tuan?'b-p':'b-x');
+    if(el('qtCardCho'))  el('qtCardCho').style.display=tuan?'none':'';
+    if(el('qtCardXong')) el('qtCardXong').style.display=tuan?'none':'';
+    if(el('qtCardChuaNop')) el('qtCardChuaNop').style.display=tuan?'none':'';
+    if(el('qtCardTuan')) el('qtCardTuan').style.display=tuan?'':'none';
+
+    if(!tuan){
+      var cho=all.filter(function(d){ return d.trangThai==='Chờ quyết toán'; });
+      var xong=all.filter(function(d){ return d.trangThai==='Đã quyết toán'; });
+      // Chờ: kỳ CŨ nhất lên trước (đơn tồn lâu nhất phải xử trước).
+      // Đã xong: kỳ MỚI nhất lên trước (tra lại thì tìm cái vừa làm).
+      cho.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });
+      xong.sort(function(a,b){ return _kyVal(b.ky)-_kyVal(a.ky); });
+      _qtVeBang('cho', cho, canBatch);
+      _qtVeBang('xong', xong, false);   // đơn đã xong thì không tích duyệt nữa
+      _qtVeChuaNop();
+      if(el('qtChkAll')) el('qtChkAll').checked=false;
+      qtUpdateBar();
+      return;
     }
+
+    // XỔ THEO TUẦN / KỲ: gom mọi đơn theo kỳ, mới nhất trước; mỗi kỳ hiện ∑ (tạm ứng · thực mua · thừa/thiếu)
+    // + 1 HÀNG TỔNG "Đối chiếu quỹ": khả dụng = tạm ứng tuần này ± thừa/thiếu LŨY KẾ kỳ trước; thừa/thiếu tuần này = khả dụng − thực mua (mang sang kỳ sau)
+    var COLS=9, html='', total=0;
+    var byKy={}; all.forEach(function(d){ var k=d.ky||'(không kỳ)'; (byKy[k]=byKy[k]||[]).push(d); });
+    var kAll=Object.keys(byKy);
+    var realAsc=kAll.filter(function(k){ return _kyVal(k)>=0; }).sort(function(a,b){ return _kyVal(a)-_kyVal(b); });   // cũ→mới, để cộng dồn số dư quỹ
+    var carryIn={}, hasPrev={}, isOpen={}, prevCl=null, _seed=Number(BOOT.soDuDauKy)||0;   // tuần đầu seed = số dư đầu kỳ (quỹ đầu tháng)
+    realAsc.forEach(function(k, _ix){
+      if(_ix===0){ carryIn[k]=_seed; hasPrev[k]=(_seed!==0); isOpen[k]=true; }
+      else { carryIn[k]=prevCl; hasPrev[k]=true; isOpen[k]=false; }
+      var s2=_qtSums(byKy[k]); prevCl=(s2.tu||0)-(s2.mua||0);   // thừa/thiếu kỳ này = tạm ứng − thực mua (mang sang kỳ sau)
+    });
+    var keys=kAll.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });   // hiển thị: mới nhất trước
+    keys.forEach(function(k, gi){
+      var rows=byKy[k]; total+=rows.length; var gid='qk'+gi; var s=_qtSums(rows);
+      html+='<tr class="qtGrpHdr" data-open="0" onclick="qtGroupToggle(\''+gid+'\',this)"><td colspan="'+COLS+'" style="cursor:pointer;background:#eef2ff;font-weight:800;color:#3730a3;border-left:4px solid #6366f1;padding:9px 10px"><span class="qtcaret" style="display:inline-block;width:14px">▸</span> 📅 <span>Tuần/kỳ '+esc(k)+'</span> <span style="color:#64748b;font-weight:600">· '+rows.length+' đơn</span> <span style="color:#94a3b8;font-weight:400;font-size:11px">(bấm để xổ/gập)</span><div style="font-weight:600;font-size:12px;color:#475569;margin-top:4px">'+_qtSumHtml(rows)+'</div></td></tr>';
+      if(_kyVal(k)>=0){ var _gn=(s.tu||0)-(carryIn[k]||0), _wst=(_gn<0)?'background:#fef2f2;border-left:4px solid #ef4444;color:#7f1d1d':'background:#fffbeb;border-left:4px solid #f59e0b;color:#78350f';
+        html+='<tr class="qkFlow"><td colspan="'+COLS+'" style="'+_wst+';padding:8px 10px;font-size:12px">'+_qtReconHtml(s.tu, s.mua, carryIn[k]||0, hasPrev[k], isOpen[k])+'</td></tr>'; }
+      html+=rows.map(function(d){ return _qtRowHtml(d, false, COLS, gid, true); }).join('');
+    });
     el('qtBody').innerHTML=html;
     el('qtListEmpty').style.display=total?'none':'block';
     if(el('qtChkAll')) el('qtChkAll').checked=false;
@@ -3587,14 +3688,31 @@
     return h;
   }
   // Xổ ĐỦ chi tiết cả đơn theo TỪNG CƠ SỞ (1 lần, không phải bấm mở từng cơ sở) — cho check/gom
+  /**
+   * CHI TIẾT CHI PHÍ — MỘT CÂY PHÂN CẤP DUY NHẤT.
+   *
+   *   [Cơ sở — chỉ hiện khi đơn có TỪ 2 CƠ SỞ trở lên]
+   *     ▣ Loại chi phí: Chi phí cơ sở        (tổng của cả loại)
+   *        · danh sách chi phí đã xin
+   *        · ➕ chi phí con — mua thêm ngoài dự kiến, VẪN thuộc loại đó
+   *
+   * Trước đây chia "HẠNG MỤC ĐÃ XIN" và "PHÁT SINH" thành hai mục ngang hàng, mỗi mục
+   * lại gom theo loại — nên cùng một loại chi phí hiện ra HAI LẦN ở hai chỗ, cộng nhẩm
+   * mới ra tổng của loại đó. Nay loại chi phí là cấp trên, phát sinh nằm trong nó.
+   *
+   * Dải tên cơ sở cũng bỏ khi đơn chỉ có một cơ sở: bảng "Đã chi cá nhân — theo cơ sở"
+   * ngay phía trên đã nói đúng con số ấy rồi, lặp lại thành thừa.
+   */
   function _linesByCosoHtml(r){
     var lines=r.lines||[]; if(!lines.length) return '<div style="margin:12px 0 4px;color:#94a3b8;font-size:12px">Chưa có hạng mục nào.</div>';
     function eff(l){ var tm=(l.thucMua===''||l.thucMua==null)?null:Number(l.thucMua); return (tm==null)?(Number(l.thanhTien)||0):tm; }
-    function rowHtml(l){
+    function tong(L, f){ return L.reduce(function(x,l){ return x+f(l); },0); }
+    function rowHtml(l, con){
       var tm=(l.thucMua===''||l.thucMua==null)?null:Number(l.thucMua), e=eff(l);
-      var ps=l.phatSinh?'<span style="color:#b45309;font-size:10px;font-weight:700" title="Phát sinh">➕PS</span> ':'';
       var loai=(l.phanLoaiTT==='Nhà cung cấp'||l.cnXuLy===false)?'<span style="color:#b45309">🏢NCC</span>':'👤CN';
-      return '<tr><td>'+ps+esc(l.noiDung||'')+(l.ghiChu?'<div style="font-size:10px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
+      var dau=con?'<span style="color:#b45309;font-weight:700" title="Chi phí con — mua thêm ngoài dự kiến">+</span> ':'';
+      var lui=con?'padding-left:26px;background:#fffdf7':'';
+      return '<tr'+(con?' style="background:#fffdf7"':'')+'><td style="'+lui+'">'+dau+esc(l.noiDung||'')+(l.ghiChu?'<div style="font-size:10px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
         '<td style="text-align:center;font-size:11px;color:#64748b">'+esc(l.dvt||'')+'</td>'+
         '<td class="money">'+(l.soLuong?money(l.soLuong):'')+'</td>'+
         '<td class="money">'+(l.donGia?money(l.donGia):'')+'</td>'+
@@ -3603,31 +3721,38 @@
         '<td style="text-align:center;font-size:11px">'+loai+'</td>'+
         '<td style="text-align:center">'+(l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Xem ảnh chứng từ"><img src="'+esc(l.anh)+'" style="height:34px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'—')+'</td></tr>';
     }
-    // 1 mục (Đã xin / Phát sinh): gom theo Nhóm mặt hàng, mỗi nhóm 1 tổng phụ
-    function sectionHtml(title, color, bg, border, L){
-      if(!L.length) return '';
-      var groups={}; L.forEach(function(l){ var g=l.nhom||'(Chưa phân nhóm)'; (groups[g]=groups[g]||[]).push(l); });
-      var s='<div style="margin:8px 0 3px;font-weight:800;color:'+color+';background:'+bg+';border-left:4px solid '+border+';padding:6px 10px;font-size:12px">'+title+' ('+L.length+')</div>';
-      Object.keys(groups).forEach(function(g){
-        var rows=groups[g];
-        var sTT=rows.reduce(function(x,l){return x+(Number(l.thanhTien)||0);},0);
-        var sEff=rows.reduce(function(x,l){return x+eff(l);},0);
-        s+='<div style="margin:6px 0 2px;font-weight:600;color:#0f766e;font-size:12px;padding-left:6px">▪ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+rows.length+' dòng · dự kiến '+money(sTT)+'đ · thực chi '+money(sEff)+'đ</span></div>'+
-          '<div class="tw"><table><thead><tr><th>Nội dung</th><th style="text-align:center">ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực chi</th><th style="text-align:center">Loại</th><th style="text-align:center">Ảnh</th></tr></thead><tbody>'+
-          rows.map(rowHtml).join('')+'</tbody></table></div>';
-      });
-      return s;
+    var COT='<thead><tr><th>Nội dung</th><th style="text-align:center">ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực chi</th><th style="text-align:center">Loại</th><th style="text-align:center">Ảnh</th></tr></thead>';
+    // MỘT LOẠI CHI PHÍ = một khối: tiêu đề loại + danh sách + chi phí con của chính loại đó
+    function loaiHtml(ten, L){
+      var xin=L.filter(function(l){return !l.phatSinh;}), ps=L.filter(function(l){return !!l.phatSinh;});
+      var sTT=tong(L,function(l){return Number(l.thanhTien)||0;}), sEff=tong(L,eff);
+      var h='<div style="margin:10px 0 0;font-weight:800;color:#0369a1;background:#ecfeff;border-left:4px solid #0369a1;padding:7px 10px;font-size:12.5px">'
+        +'▣ Loại chi phí: '+esc(ten)
+        +' <span style="font-weight:400;color:#475569">· '+L.length+' dòng · dự kiến '+money(sTT)+'đ · thực chi <b>'+money(sEff)+'đ</b></span>'
+        +(ps.length?' <span style="font-weight:600;color:#b45309;font-size:11px">· trong đó '+ps.length+' chi phí con</span>':'')
+        +'</div>';
+      h+='<div class="tw"><table>'+COT+'<tbody>'+xin.map(function(l){return rowHtml(l,false);}).join('');
+      if(ps.length){
+        h+='<tr><td colspan="8" style="background:#fff7ed;color:#b45309;font-weight:700;font-size:11.5px;padding:5px 10px;border-left:4px solid #f59e0b">'
+          +'➕ Chi phí con — mua thêm ngoài dự kiến ('+ps.length+' dòng) · vẫn thuộc "'+esc(ten)+'"'
+          +' <span style="font-weight:400;color:#92400e">· thực chi '+money(tong(ps,eff))+'đ</span></td></tr>';
+        h+=ps.map(function(l){return rowHtml(l,true);}).join('');
+      }
+      return h+'</tbody></table></div>';
     }
+    // Cấp cơ sở chỉ dựng khi đơn CÓ TỪ 2 CƠ SỞ — một cơ sở thì thêm một dải nữa là thừa
     var byCs={}; lines.forEach(function(l){ var cs=l.coso||'(Chưa cơ sở)'; (byCs[cs]=byCs[cs]||[]).push(l); });
-    var h='<div style="font-weight:700;color:#334155;font-size:12.5px;margin:14px 0 6px">🧾 Chi tiết theo cơ sở (xổ đủ, nhìn 1 lần)</div>';
-    Object.keys(byCs).sort().forEach(function(cs){
+    var dsCs=Object.keys(byCs).sort(), nhieuCs=dsCs.length>1;
+    var h='<div style="font-weight:700;color:#334155;font-size:12.5px;margin:14px 0 6px">🧾 Chi tiết chi phí'
+      +(nhieuCs?' — theo cơ sở, rồi theo loại chi phí':' — theo loại chi phí')+'</div>';
+    dsCs.forEach(function(cs){
       var ls=byCs[cs];
-      var sTT=ls.reduce(function(s,l){return s+(Number(l.thanhTien)||0);},0);
-      var sEff=ls.reduce(function(s,l){return s+eff(l);},0);
-      var xinL=ls.filter(function(l){return !l.phatSinh;}), psL=ls.filter(function(l){return l.phatSinh;});
-      h+='<div style="margin:10px 0 3px;font-weight:700;color:#0f766e;border-left:3px solid #0f766e;padding-left:8px">▸ '+esc(cs)+' <span style="font-weight:400;color:#64748b">· dự kiến '+money(sTT)+'đ · thực chi '+money(sEff)+'đ</span></div>';
-      h+=sectionHtml('📋 HẠNG MỤC ĐÃ XIN','#0369a1','#ecfeff','#0369a1', xinL);
-      h+=sectionHtml('➕ PHÁT SINH — mua thêm ngoài dự kiến','#b45309','#fff7ed','#f59e0b', psL);
+      if(nhieuCs){
+        h+='<div style="margin:12px 0 3px;font-weight:700;color:#0f766e;border-left:3px solid #0f766e;padding-left:8px">🏢 '+esc(cs)
+          +' <span style="font-weight:400;color:#64748b">· dự kiến '+money(tong(ls,function(l){return Number(l.thanhTien)||0;}))+'đ · thực chi '+money(tong(ls,eff))+'đ</span></div>';
+      }
+      var byLoai={}; ls.forEach(function(l){ var g=l.nhom||'(Chưa chọn loại chi phí)'; (byLoai[g]=byLoai[g]||[]).push(l); });
+      Object.keys(byLoai).sort().forEach(function(g){ h+=loaiHtml(g, byLoai[g]); });
     });
     return h;
   }
@@ -3639,10 +3764,11 @@
     a+='<button class="btn b-x" onclick="viewDon(\''+esc(d.maDon)+'\')" title="Xem đầy đủ + từng dòng chi + đính hóa đơn">🧾 Mở trang đầy đủ</button>';
     return _reconTablesHtml(r)+_linesByCosoHtml(r)+'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'+a+'</div>';
   }
-  function _gomDetailHtml(r){
+  // Chi tiết của đơn ĐÃ CẤP TIỀN — CHƯA NỘP HÓA ĐƠN. Không có nút quyết toán ở đây
+  // (đơn chưa gửi lên), chỉ trả lại hoặc mở trang đầy đủ.
+  function _qtChuaNopDetailHtml(r){
     var d=r.don, st=d.trangThai, a='';
-    if(st==='Chờ quản lý gom' && canDo('gom')) a+='<button class="btn b-p" onclick="gomInlineDay(\''+esc(d.maDon)+'\')">📤 Đẩy đơn này cho kế toán</button> ';
-    if(canDo('traDon') && (st==='Chờ quản lý gom'||st==='Đã cấp tạm ứng')) a+='<button class="btn b-d" onclick="openTraModal(\''+esc(d.maDon)+'\',\'gom\')">↩ Trả lại</button> ';
+    if(canDo('traDon') && st==='Đã cấp tạm ứng') a+='<button class="btn b-d" onclick="openTraModal(\''+esc(d.maDon)+'\',\'qt\')">↩ Trả lại</button> ';
     a+='<button class="btn b-x" onclick="viewDon(\''+esc(d.maDon)+'\')" title="Xem đầy đủ + từng dòng chi + đính hóa đơn">🧾 Mở trang đầy đủ</button>';
     return _reconTablesHtml(r)+_linesByCosoHtml(r)+'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'+a+'</div>';
   }
@@ -3684,83 +3810,10 @@
   }
 
   // ===================== QUẢN LÝ GOM HÓA ĐƠN =====================
-  function loadGom(){ boot(renderGom); }
-  function renderGom(){
-    var dons=BOOT.dons||[];
-    _renderTongLH('gomTongLH');
-    // A) chờ gom (đã gửi hóa đơn)
-    var choGom=dons.filter(function(d){return d.trangThai==='Chờ quản lý gom';});
-    el('gomEmpty').style.display=choGom.length?'none':'block';
-    el('gomBody').innerHTML=choGom.map(function(d){
-      var cl=d.chenhLech>=0?'pos':'neg';
-      var kd=/\[Không dùng\]/.test(d.ghiChu||'');
-      var mua=(d.soThucMua===''||d.soThucMua==null)?d.thucChiCN:d.soThucMua;
-      return '<tr><td style="text-align:center"><input type="checkbox" class="gomChk" data-m="'+esc(d.maDon)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="gomUpdateBar()"></td>'+
-        '<td>'+esc(d.ky||d.maDon)+'</td>'+'<td>'+(d.coso?esc(d.coso):'<span style="color:#94a3b8">—</span>')+'</td>'+'<td>'+esc(d.nguoiLap||'')+'</td>'+
-        '<td class="money">'+money(d.tamUng)+'</td><td class="money">'+money(mua)+'</td>'+
-        '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
-        '<td>'+(kd?'<span style="color:#b45309;font-size:11px">🚫 Không dùng — hoàn toàn bộ</span>':'')+'</td>'+
-        '<td style="text-align:center"><button class="btn b-s" onclick="gomToggleDetail(\''+esc(d.maDon)+'\',this)">🔽 Chi tiết</button></td></tr>'+
-        '<tr id="gomd-'+esc(d.maDon)+'" style="display:none"><td colspan="8" style="background:#f8fafc;padding:0"><div class="gomd-wrap" style="padding:12px 16px"><span style="color:#94a3b8;font-size:12px">Đang tải…</span></div></td></tr>';
-    }).join('');
-    if(el('gomChkAll')) el('gomChkAll').checked=false;
-    gomUpdateBar();
-    // B) đã cấp tiền — CHƯA nộp hóa đơn (cảnh báo)
-    var chuaNop=dons.filter(function(d){return d.trangThai==='Đã cấp tạm ứng';});
-    el('gomChuaNopEmpty').style.display=chuaNop.length?'none':'block';
-    el('gomChuaNopBody').innerHTML=chuaNop.map(function(d){
-      return '<tr><td>'+esc(d.ky||d.maDon)+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
-        '<td class="money">'+money(d.tamUng)+'</td><td style="font-size:12px;color:#64748b">'+esc(d.ngayCap||'—')+'</td>'+
-        '<td style="text-align:center"><button class="btn b-s" onclick="gomToggleDetail(\''+esc(d.maDon)+'\',this)">🔽 Chi tiết</button></td></tr>'+
-        '<tr id="gomd-'+esc(d.maDon)+'" style="display:none"><td colspan="5" style="background:#f8fafc;padding:0"><div class="gomd-wrap" style="padding:12px 16px"><span style="color:#94a3b8;font-size:12px">Đang tải…</span></div></td></tr>';
-    }).join('');
-  }
-  // Xổ chi tiết đơn ngay tại chỗ ở tab Gom (từng cơ sở) — không nhảy trang
-  function gomToggleDetail(maDon, btn){
-    var row=el('gomd-'+maDon); if(!row) return;
-    if(row.style.display!=='none'){ row.style.display='none'; if(btn) btn.textContent='🔽 Chi tiết'; return; }
-    row.style.display=''; if(btn) btn.textContent='🔼 Thu gọn';
-    var wrap=row.querySelector('.gomd-wrap'); if(!wrap || wrap.getAttribute('data-loaded')==='1') return;
-    wrap.innerHTML='<span style="color:#94a3b8;font-size:12px">Đang tải…</span>';
-    google.script.run.withSuccessHandler(function(r){
-      if(!r||!r.success){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
-      wrap.innerHTML=_gomDetailHtml(r); wrap.setAttribute('data-loaded','1');
-    }).withFailureHandler(function(e){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc(e.message)+'</span>'; }).getDon(maDon);
-  }
-  function gomInlineDay(maDon){
-    if(!confirm('Đẩy đơn này cho kế toán duyệt chi phí?'))return;
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r&&r.success){ toast('ok','Đã đẩy cho kế toán'); loadGom(); }
-      else toast('err','Lỗi: '+((r&&r.errors&&r.errors.join('; '))||(r&&r.error)||'?'));
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).dayChoKeToan([maDon],(CURUSER&&CURUSER.name)||'');
-  }
-  function gomSelected(){ return [].slice.call(document.querySelectorAll('.gomChk:checked')); }
-  function gomToggleAll(cb){ [].slice.call(document.querySelectorAll('.gomChk')).forEach(function(c){ c.checked=cb.checked; }); gomUpdateBar(); }
-  function gomUpdateBar(){
-    var chks=gomSelected(), bar=el('gomBatchBar'); if(!bar) return;
-    if(!chks.length){ bar.style.display='none'; return; }
-    var total=0; chks.forEach(function(c){ total+=Number(c.getAttribute('data-tu'))||0; });
-    el('gomSelInfo').textContent='Đã chọn '+chks.length+' đơn';
-    el('gomSelTotal').textContent=money(total)+'đ';
-    if(el('btnGomChon')) el('btnGomChon').style.display=canDo('gom')?'':'none';
-    bar.style.display='flex';
-  }
-  function doGomChon(){
-    var ms=gomSelected().map(function(c){return c.getAttribute('data-m');}); if(!ms.length){toast('warn','Chưa chọn đơn');return;}
-    if(!confirm('Đẩy '+ms.length+' đơn cho kế toán duyệt chi phí?'))return;
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r.success) toast('ok','Đã đẩy '+r.pushed+' đơn cho kế toán');
-      else toast('err','Đẩy '+(r.pushed||0)+' đơn; lỗi: '+((r.errors||[]).join('; ')||'?'));
-      loadGom();
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).dayChoKeToan(ms,(CURUSER&&CURUSER.name)||'');
-  }
-
   // ===================== KẾ TOÁN DUYỆT =====================
   function _renderTongLH(id){
     var box=el(id); if(!box) return;
-    var LH=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quản lý gom','Chờ quyết toán'];
+    var LH=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán'];
     var lh=(BOOT.dons||[]).filter(function(d){return LH.indexOf(d.trangThai)>=0;});
     var tong=lh.reduce(function(s,d){return s+(Number(d.tamUng)||0);},0);
     var big=tong>=20000000;   // ngưỡng nhắc 20tr (chỉ đổi màu, không chặn)
@@ -3911,7 +3964,7 @@
       if(!r.success && !batch){toast('err',r.error);return;}
       _log('Trả lại đơn', batch?(TRA.target.join(', ')):TRA.target, ly||'');
       toast('ok', batch?('Đã trả '+r.returned+' đơn về NV'):('Đã trả lại đơn'+(r.target?' → '+r.target:''))); closeTra();
-      if(TRA.from==='don' && !batch){ boot(); openDon(TRA.target); } else if(TRA.from==='qt'){ loadQT(); } else if(TRA.from==='gom'){ loadGom(); } else loadDuyet();
+      if(TRA.from==='don' && !batch){ boot(); openDon(TRA.target); } else if(TRA.from==='qt'){ loadQT(); } else loadDuyet();
     };
     var eb=function(e){loading(false);toast('err',e.message);};
     if(batch) google.script.run.withSuccessHandler(cb).withFailureHandler(eb).traLaiDonNhieu(TRA.target,ly);

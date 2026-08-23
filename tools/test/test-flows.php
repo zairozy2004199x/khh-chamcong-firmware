@@ -570,7 +570,6 @@ $gas = array(
 	'createDon',
 	'createDuAn',
 	'createMkDon',
-	'dayChoKeToan',
 	'deleteBP',
 	'deleteBPLine',
 	'deleteDon',
@@ -647,10 +646,29 @@ $gas = array(
 	'xacNhanQuyetToanCN',
 	'xacNhanQuyetToanNCC',
 );
+/**
+ * HÀM CỦA APP CŨ ĐÃ CỐ Ý BỎ — ghi rõ ở đây, kèm lý do.
+ *
+ * Danh sách trên là để không ÂM THẦM đánh rơi hàm nào lúc dựng lại. Bỏ hàm thì phải là
+ * một quyết định có tên, không phải xóa khỏi danh sách cho phép thử xanh trở lại.
+ */
+$da_bo = array(
+	// Luồng thật: cấp tạm ứng xong thì NV bổ sung hóa đơn, chốt chi phí rồi gửi THẲNG cho
+	// kế toán. Khâu "quản lý gom rồi đẩy" chỉ là chặng dừng không ai làm gì. Đơn còn kẹt ở
+	// trạng thái cũ được VHCP_DB::bo_khau_gom() dời sang "Chờ quyết toán" lúc nâng cấp.
+	'dayChoKeToan' => 'bỏ khâu quản lý gom hóa đơn (1.21.0)',
+);
+foreach ( array_keys( $da_bo ) as $fn ) {
+	t( 'hàm đã bỏ thì phải bỏ HẲN, không còn nửa vời: ' . $fn, ! isset( $map[ $fn ] ), $fn );
+	t( 'và không nằm trong danh sách phải có: ' . $fn, ! in_array( $fn, $gas, true ), $fn );
+}
 $chua_co = array();
 foreach ( $gas as $fn ) { if ( ! isset( $map[ $fn ] ) ) { $chua_co[] = $fn; } }
-teq( 'đủ 100% hàm của app Apps Script cũ', array(), $chua_co );
-teq( 'số hàm cũ đã port', 92, count( $gas ) );
+teq( 'đủ 100% hàm của app Apps Script cũ (trừ phần đã cố ý bỏ)', array(), $chua_co );
+// 92 hàm của app cũ, trừ 1 hàm đã cố ý bỏ (xem $da_bo ở trên) = 91 hàm còn phải giữ.
+// Con số này chốt cứng để không ai lặng lẽ rút bớt một dòng khỏi danh sách trên.
+teq( 'số hàm cũ còn phải giữ', 92 - count( $da_bo ), count( $gas ) );
+teq( 'số hàm cũ đã cố ý bỏ', 1, count( $da_bo ) );
 
 // ---------------------------------------------------------------- 16. cửa API: phiên & vai trò
 function api( $fn, $args = array(), $token = '' ) {

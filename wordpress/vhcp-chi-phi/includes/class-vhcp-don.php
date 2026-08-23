@@ -882,6 +882,12 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * NV CHỐT CHI PHÍ -> GỬI THẲNG CHO KẾ TOÁN.
+	 *
+	 * Không còn chặng "Chờ quản lý gom" ở giữa: cấp tạm ứng xong thì NV bổ sung hóa đơn,
+	 * chốt chi phí và gửi luôn. Khâu gom chỉ là chỗ đơn nằm chờ, không thêm được gì.
+	 */
 	public static function gui_quyet_toan( $ma_don ) {
 		$_loi = self::loi_khong_phai_don_minh( $ma_don );
 		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
@@ -1007,7 +1013,7 @@ class VHCP_Don {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
 		$st     = (string) $d['trang_thai'];
-		$target = ( $st === 'Chờ quyết toán' || $st === 'Chờ quản lý gom' ) ? 'Đã cấp tạm ứng' : 'Nháp';
+		$target = ( $st === 'Chờ quyết toán' ) ? 'Đã cấp tạm ứng' : 'Nháp';
 		$data   = array( 'trang_thai' => $target );
 		if ( $ly_do ) {
 			$old = (string) $d['ghi_chu'];
@@ -1098,18 +1104,6 @@ class VHCP_Don {
 		if ( strpos( $old, '[Không dùng]' ) === false ) { $data['ghi_chu'] = '[Không dùng] ' . $old; }
 		self::upd_don( $ma_don, $data );
 		return VHCP_Util::ok();
-	}
-
-	public static function day_cho_ke_toan( $ma_dons, $nguoi = '' ) {
-		$ok = 0; $errs = array();
-		foreach ( (array) $ma_dons as $m ) {
-			$d = self::don_row( $m );
-			if ( ! $d ) { $errs[] = $m . ': không tìm thấy'; continue; }
-			if ( (string) $d['trang_thai'] !== 'Chờ quản lý gom' ) { $errs[] = $m . ': không ở "Chờ quản lý gom"'; continue; }
-			self::upd_don( $m, array( 'trang_thai' => 'Chờ quyết toán' ) );
-			$ok++;
-		}
-		return array( 'success' => count( $errs ) === 0, 'pushed' => $ok, 'errors' => $errs );
 	}
 
 	public static function xac_nhan_qt_cn_nhieu( $ma_dons, $nguoi ) {

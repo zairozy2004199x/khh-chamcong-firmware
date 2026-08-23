@@ -28,7 +28,7 @@ class VHCP_API {
 		$nguoi_duyet = array(
 			'duyetTamUng', 'capTamUng', 'duyetTamUngNhieu', 'capTamUngNhieu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
-			'xacNhanQtCnNhieu', 'dayChoKeToan', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
+			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
 			'setLineThucMua', 'setLineCN',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
@@ -184,7 +184,6 @@ class VHCP_API {
 			'capTamUngNhieu'        => array( 'VHCP_Don', 'cap_tam_ung_nhieu' ),
 			'traLaiDonNhieu'        => array( 'VHCP_Don', 'tra_lai_don_nhieu' ),
 			'khongDungTamUng'       => array( 'VHCP_Don', 'khong_dung_tam_ung' ),
-			'dayChoKeToan'          => array( 'VHCP_Don', 'day_cho_ke_toan' ),
 			'xacNhanQTCNNhieu'      => array( 'VHCP_Don', 'xac_nhan_qt_cn_nhieu' ),
 			'getSoDuDauKy'          => array( 'VHCP_Don', 'get_so_du_dau_ky' ),
 			'setSoDuDauKy'          => array( 'VHCP_Don', 'set_so_du_dau_ky' ),

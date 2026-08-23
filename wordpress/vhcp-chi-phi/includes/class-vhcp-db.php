@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.5.0';
+	const SCHEMA_VERSION = '1.6.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -340,9 +340,31 @@ class VHCP_DB {
 
 		foreach ( $sql as $q ) { dbDelta( $q ); }
 
+		self::bo_khau_gom();
+
 		update_option( 'vhcp_db_version', self::SCHEMA_VERSION );
 		update_option( 'vhcp_flush_rewrite', 1 );   // để vhcp_flush_rewrite() nạp lại /chi-phi/ và /hop-dong/
 		VHCP_Cfg::seed();
+	}
+
+	/**
+	 * BỎ KHÂU "QUẢN LÝ GOM HÓA ĐƠN".
+	 *
+	 * Luồng cũ: NV gửi -> "Chờ quản lý gom" -> quản lý đẩy -> "Chờ quyết toán" -> kế toán.
+	 * Thực tế chạy khác: cấp tạm ứng xong thì NV bổ sung hóa đơn, chốt chi phí rồi gửi
+	 * THẲNG cho kế toán — khâu gom chỉ là một chặng dừng không ai làm gì, đơn nằm đó chờ.
+	 *
+	 * Bỏ khâu đó thì phải dời NỐT các đơn đang mắc kẹt ở trạng thái này sang "Chờ quyết
+	 * toán", nếu không màn Gom mất đi mà đơn vẫn ở đó — không tab nào thấy, không ai duyệt
+	 * được nữa, tiền tạm ứng treo luôn.
+	 */
+	public static function bo_khau_gom() {
+		global $wpdb;
+		$t = self::t( 'don' );
+		if ( (string) $wpdb->get_var( "SHOW TABLES LIKE '$t'" ) !== $t ) { return 0; }
+		return (int) $wpdb->query( $wpdb->prepare(
+			"UPDATE $t SET trang_thai=%s WHERE trang_thai=%s", 'Chờ quyết toán', 'Chờ quản lý gom'
+		) );
 	}
 
 	/** SELECT trả mảng kết hợp. */
