@@ -692,8 +692,18 @@
          một bảng rồi lọc bằng dropdown thì mỗi lần vào phải chọn lại mới thấy việc của
          mình. Tách hai bảng: việc cần làm nằm sẵn trên đầu màn hình.
          Mỗi bảng 15 đơn/trang — dài hơn thì cuộn mãi không tới hàng tổng. -->
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-      <b style="font-size:15px">🧾 Quyết toán</b>
+    <div style="display:flex;align-items:flex-end;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <b style="font-size:15px;padding-bottom:6px">🧾 Quyết toán</b>
+      <!-- LỌC THÁNG / TUẦN / CƠ SỞ — cùng bộ với tab Duyệt tạm ứng (_napLocDon).
+           Kế toán đối chiếu theo TUẦN với từng cơ sở; không có ô lọc thì phải lật từng
+           trang bảng để nhặt đơn của một tuần. Lọc áp cho CẢ BA bảng của trang. -->
+      <div class="fld" style="min-width:150px"><label>Tháng</label>
+        <select id="qtThang" onchange="renderQTList()"></select></div>
+      <div class="fld" style="min-width:170px"><label>Tuần / kỳ</label>
+        <select id="qtKy" onchange="renderQTList()"></select></div>
+      <div class="fld" style="min-width:165px"><label>Cơ sở</label>
+        <select id="qtCoso" onchange="renderQTList()"></select></div>
+      <button class="btn b-x" onclick="qtXoaLoc()" title="Bỏ lọc tháng / tuần / cơ sở">✕ Bỏ lọc</button>
       <span style="flex:1"></span>
       <button class="btn b-p" id="qtXemBang" onclick="qtDoiXem('bang')">📋 Hai bảng</button>
       <button class="btn b-x" id="qtXemTuan" onclick="qtDoiXem('tuan')" title="Xổ theo tuần/kỳ kèm hàng đối chiếu quỹ (dư kỳ trước → giải ngân thêm)">📅 Theo tuần / kỳ</button>
@@ -3918,9 +3928,18 @@
   // ĐÃ CẤP TIỀN — CHƯA NỘP HÓA ĐƠN. Không phải việc quyết toán, nhưng là tiền đang nằm
   // ngoài mà chưa có chứng từ, nên để ngay cạnh hai bảng kia cho thấy.
   // Sắp CŨ NHẤT LÊN TRƯỚC: đơn cầm tiền lâu nhất là đơn phải đòi trước.
+  /** Một đơn có lọt bộ lọc tháng / tuần / cơ sở của màn Quyết toán không. */
+  function _qtLoc(d){
+    var fT=el('qtThang')?el('qtThang').value:'', fK=el('qtKy')?el('qtKy').value:'', fC=el('qtCoso')?el('qtCoso').value:'';
+    if(fT && _thangCuaKy(d.ky)!==fT) return false;
+    if(fK && String(d.ky||'')!==fK) return false;
+    if(fC && String(d.coso||'')!==fC) return false;
+    return true;
+  }
+  function qtXoaLoc(){ ['qtThang','qtKy','qtCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderQTList(); }
   function _qtVeChuaNop(){
     if(!el('qtBodyChuaNop')) return;
-    var rows=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng'; });
+    var rows=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Đã cấp tạm ứng' && _qtLoc(d); });
     rows.sort(function(a,b){ return _kyVal(a.ky)-_kyVal(b.ky); });
     var soTrang=Math.max(1, Math.ceil(rows.length/QT_MOI_TRANG));
     if(QT_TRANG.chuanop>soTrang) QT_TRANG.chuanop=soTrang;
@@ -3954,7 +3973,12 @@
     // MÀN QUYẾT TOÁN CHỈ LO VIỆC QUYẾT TOÁN: chỉ hiện đơn "Chờ quyết toán" và "Đã quyết
     // toán". Đơn ở bước trước thì xem ở tab của bước đó (Duyệt tạm ứng), còn NV nhập thực
     // mua thì làm ngay trong đơn của mình.
-    var all=(BOOT.dons||[]).filter(function(d){ return d.trangThai==='Chờ quyết toán' || d.trangThai==='Đã quyết toán'; });
+    // Ô lọc dựng từ TOÀN BỘ đơn của màn này (chờ + đã + đang cầm tiền), không phải từ
+    // danh sách đã lọc — không thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
+    var moiDon=(BOOT.dons||[]).filter(function(d){
+      return d.trangThai==='Chờ quyết toán'||d.trangThai==='Đã quyết toán'||d.trangThai==='Đã cấp tạm ứng'; });
+    _napLocDon(moiDon, 'qtThang', 'qtKy', 'qtCoso');
+    var all=(BOOT.dons||[]).filter(function(d){ return _qtLoc(d) && (d.trangThai==='Chờ quyết toán' || d.trangThai==='Đã quyết toán'); });
     var tuan=(QT_XEM==='tuan');
     if(el('qtXemBang')) el('qtXemBang').className='btn '+(tuan?'b-x':'b-p');
     if(el('qtXemTuan')) el('qtXemTuan').className='btn '+(tuan?'b-p':'b-x');

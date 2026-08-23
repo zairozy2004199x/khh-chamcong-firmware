@@ -219,6 +219,21 @@ t('Tổng quan đưa đơn "Chờ quyết toán" sang tab Quyết toán, không 
 t('gỡ dòng chết "→ xử lý ở tab Quyết toán" trong bảng Duyệt',
   !/→ xử lý ở tab 🧾 Quyết toán/.test(HTML));
 
+// ---------------------------------------------------------------- 11. lọc tháng/tuần/cơ sở
+// Kế toán đối chiếu theo TUẦN với từng cơ sở. Tab Duyệt tạm ứng có bộ lọc này từ lâu,
+// màn Quyết toán thì không — phải lật từng trang bảng để nhặt đơn của một tuần.
+t('màn Quyết toán có đủ 3 ô lọc',
+  /id="qtThang"/.test(HTML) && /id="qtKy"/.test(HTML) && /id="qtCoso"/.test(HTML));
+t('có nút Bỏ lọc', /onclick="qtXoaLoc\(\)"/.test(HTML) && /function qtXoaLoc\(\)/.test(HTML));
+t('dùng CHUNG bộ dựng ô lọc với tab Duyệt tạm ứng (không chép luật lọc ra bản thứ hai)',
+  /_napLocDon\(moiDon, 'qtThang', 'qtKy', 'qtCoso'\)/.test(HTML));
+// Dựng ô lọc từ danh sách ĐÃ LỌC thì chọn một tuần xong là mất luôn các tuần khác khỏi ô.
+t('ô lọc dựng từ TOÀN BỘ đơn của màn, không phải từ danh sách đã lọc',
+  /var moiDon=\(BOOT\.dons\|\|\[\]\)\.filter[\s\S]{0,220}?_napLocDon\(moiDon/.test(HTML));
+t('lọc áp cho bảng Chờ và Đã quyết toán', /_qtLoc\(d\) && \(d\.trangThai==='Chờ quyết toán'/.test(HTML));
+t('và áp cho cả bảng "chưa nộp hóa đơn"', /d\.trangThai==='Đã cấp tạm ứng' && _qtLoc\(d\)/.test(HTML));
+t('lọc theo đúng 3 tiêu chí', /_thangCuaKy\(d\.ky\)!==fT/.test(HTML) && /String\(d\.ky\|\|''\)!==fK/.test(HTML) && /String\(d\.coso\|\|''\)!==fC/.test(HTML));
+
 // ---------------------------------------------------------------- kết
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');
