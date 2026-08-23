@@ -623,6 +623,8 @@ class VHG_Admin {
 				$bao[] = VHG_May::bo_ty_le_rieng();
 			} elseif ( 'tien_to' === $viec ) {
 				$bao[] = VHG_May::luu_tien_to_nd( wp_unslash( $_POST['tien_to_nd'] ) );
+			} elseif ( 'chot_don_vi' === $viec ) {
+				$bao[] = VHG_Quy::luu_don_vi( wp_unslash( $_POST['chot_don_vi'] ) );
 			} elseif ( 'menh_gia' === $viec ) {
 				$ten  = isset( $_POST['mg_ten'] ) ? (array) wp_unslash( $_POST['mg_ten'] ) : array();
 				$tien = isset( $_POST['mg_tien'] ) ? (array) wp_unslash( $_POST['mg_tien'] ) : array();
@@ -871,6 +873,33 @@ class VHG_Admin {
 				. 'dòng nào để đi tìm. Đây là mắt xích im lặng nhất của cả hệ thống.<br>'
 				. 'Xem ở trang SePay → <b>Tạo QR</b>, dòng chữ đỏ cạnh ô "Nội dung chuyển khoản".</p></div>';
 		}
+		/* ==================================================================================
+		 * CHỈ SỐ MÀN ĐẾM CỦA MÁY TIỀN MẶT.
+		 *
+		 * Anh Thắng 23/08/2026: *"trên máy có 1 màn hình đếm tiền mặt nữa, nên nhập vào để trừ
+		 * chỉ số cho ngày hôm sau"*.
+		 *
+		 * 🔴 KHAI SAI CON SỐ NÀY LÀ MỌI LƯỢT CHỐT CA SAI THEO CÙNG MỘT HỆ SỐ — và nó sai một
+		 *    cách rất giống thật: bảng vẫn đầy số, vẫn cộng ra tổng, chỉ là lệch gấp mấy lần.
+		 *    Màn đếm mỗi hãng hiển thị một kiểu (số tờ / số xung / thẳng số tiền), nên phải đi
+		 *    ra tận nơi nhét thử một tờ rồi xem màn nhảy bao nhiêu, đừng đoán.
+		 * ================================================================================== */
+		$dv = VHG_Quy::don_vi();
+		echo '<h3>Chỉ số màn đếm tiền mặt (dùng cho chốt ca)</h3>';
+		echo '<form method="post" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+		wp_nonce_field( 'vhg' );
+		echo 'Mỗi <b>1 đơn vị</b> trên màn đếm = <input type="number" name="chot_don_vi" min="1" '
+			. 'step="1000" value="' . (int) $dv . '" style="width:120px" /> đ '
+			. '<button class="button button-primary" name="vhg" value="chot_don_vi">Lưu</button></form>';
+		echo '<p class="description">Nhân viên chốt ca nhập chỉ số đọc trên màn máy đếm; hệ thống lấy '
+			. '<b>chỉ số lần này trừ chỉ số lần trước</b>, nhân với con số trên, ra số tiền máy đếm '
+			. 'nói nó đã nuốt — rồi so với tiền đếm được trong ngăn và với sổ.<br>'
+			. '<b>Cách kiểm:</b> nhét một tờ ' . esc_html( self::tien( $dv ) ) . ' vào máy và xem màn '
+			. 'đếm nhảy đúng <b>1</b> đơn vị hay không. Nhảy 2 thì khai lại một nửa, nhảy '
+			. '5.000 thì màn đó đang hiện thẳng số tiền — khai <b>1</b>.<br>'
+			. 'Firmware đang để <code>CASH_VND_PER_PULSE 5000</code> (1 xung = 5.000đ, theo DIP của '
+			. 'cục nhận tiền); mặc định ở đây lấy đúng con số đó.</p>';
+
 		$nd_mau = VHG_QR::noi_dung( 'AMTP01', 'K7M2P' );
 		echo '<p class="description">Nội dung một lượt sẽ là: <code>' . esc_html( $nd_mau ) . '</code> ('
 			. strlen( $nd_mau ) . '/' . VHG_QR::ND_TOI_DA . ' ký tự).<br>'

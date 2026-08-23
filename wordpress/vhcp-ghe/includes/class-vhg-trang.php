@@ -273,6 +273,62 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * QUỸ TIỀN MẶT — CHỐT CA THEO GHẾ, VÀ NỘP TIỀN VỀ QUẦY.
+		 *
+		 * Anh Thắng 23/08/2026: *"Mở ứng dụng tới quét QR tại máy. Bấm thu tiền (chốt ca, dữ liệu
+		 * chốt ca). Nhập số tiền mặt, chỉ số máy tiền mặt"*.
+		 *
+		 * ⚠️ TÊN NGƯỜI LẤY TỪ PHIÊN, KHÔNG NHẬN TỪ GÓI TIN — cả ba việc dưới đây. Nhận từ gói tin
+		 *    là ai cũng chốt hộ, nộp hộ, xoá nợ tiền mặt hộ người khác.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'chot_xem' === $viec ) {
+			self::tra( VHG_Quy::truoc_khi_chot( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) );
+			return;
+		}
+
+		if ( 'chot_luu' === $viec ) {
+			self::tra( VHG_Quy::chot(
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
+				isset( $d['chi_so'] ) ? $d['chi_so'] : 0,
+				isset( $d['tien_dem'] ) ? $d['tien_dem'] : 0,
+				(string) $ai['name'],
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+			return;
+		}
+
+		if ( 'quy_toi' === $viec ) {
+			self::tra( array( 'ok' => true, 'cam' => VHG_Quy::dang_cam( (string) $ai['name'] ) ) );
+			return;
+		}
+
+		if ( 'nop_tao' === $viec ) {
+			self::tra( VHG_Quy::nop( (string) $ai['name'],
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+			return;
+		}
+
+		/* 🔴 XÁC NHẬN ĐÃ NHẬN TIỀN LÀ QUYẾT ĐỊNH VỀ TIỀN — chỉ Admin và Quản lý.
+		   Người đứng quầy tự xác nhận lượt nộp của chính mình thì cái sổ này không còn nói được
+		   gì cả: nó chỉ ghi lại điều người nộp muốn nó ghi. Huỷ lượt nộp cũng vậy. */
+		if ( 'nop_nhan' === $viec || 'nop_huy' === $viec ) {
+			if ( ! in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Chỉ Admin hoặc Quản lý mới xác nhận được tiền nộp.' ) );
+				return;
+			}
+			if ( 'nop_huy' === $viec ) {
+				self::tra( VHG_Quy::huy_nop( isset( $d['id'] ) ? (int) $d['id'] : 0 ) );
+				return;
+			}
+			self::tra( VHG_Quy::nhan(
+				isset( $d['id'] ) ? (int) $d['id'] : 0,
+				isset( $d['so_tien_nhan'] ) ? (int) $d['so_tien_nhan'] : 0,
+				(string) $ai['name'],
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+			return;
+		}
+
 		self::tra( array( 'ok' => false, 'error' => 'Việc không rõ: ' . $viec ) );
 	}
 
@@ -362,6 +418,20 @@ class VHG_Trang {
 			   trên VHG_Thu::ND_GHE_NUOT. Gửi kèm trong lượt này, không thêm lượt gọi. */
 			'thu' => array( 'ds' => VHG_Thu::ds_tien_mat( $ky, 80 ),
 				'may' => array_values( VHG_Thu::theo_may_tien_mat( $ky ) ) ),
+			/* Tab Quỹ: chốt ca theo ghế + tiền đang trên tay + lượt nộp chờ xác nhận.
+			   ⚠️ `toi` là tiền trên tay CỦA CHÍNH NGƯỜI ĐANG ĐĂNG NHẬP, tính từ tên trong phiên
+			      — nó là con số họ phải nộp, nên không được lấy từ đâu khác. */
+			'quy' => array(
+				'tong'    => VHG_Quy::tong( $ky ),
+				'toi'     => VHG_Quy::dang_cam( (string) $ai['name'] ),
+				'cam'     => VHG_Quy::ai_dang_cam(),
+				'cho'     => VHG_Quy::nop_cho( 50 ),
+				'chot'    => VHG_Quy::ds_chot( $ky, 120 ),
+				'nop'     => VHG_Quy::ds_nop( $ky, 80 ),
+				'nguoi'   => VHG_Quy::theo_nguoi( $ky ),
+				'don_vi'  => VHG_Quy::don_vi(),
+				'toi_la'  => (string) $ai['name'],
+				'quyen_nhan' => in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ? 1 : 0 ),
 			/* Mã mua trước: tổng kỳ + khoản đang NỢ (mã không hết hạn nên nó chỉ cộng lên). */
 			'ma' => array( 'tong' => VHG_Ma::tong( $ky ), 'no' => VHG_Ma::tien_no(),
 				'ds' => VHG_Ma::ds( $ky, 120 ), 'quyen_huy' =>
@@ -856,6 +926,8 @@ function ve(){
       + L('Đối soát','Reconciliation') + '</button>'
     + '<button data-tab="thu-tien"' + (TAB==='thu-tien'?' class="on"':'') + '>💵 '
       + L('Thu tiền','Cash collection') + '</button>'
+    + '<button data-tab="quy"' + (TAB==='quy'?' class="on"':'') + '>🧾 '
+      + L('Quỹ &amp; nộp tiền','Cash float') + '</button>'
     + '<button data-tab="kich-hoat"' + (TAB==='kich-hoat'?' class="on"':'') + '>⚡ '
       + L('Kích hoạt ghế','Chair activation') + '</button>'
     + '<button data-tab="ma"' + (TAB==='ma'?' class="on"':'') + '>🎁 '
@@ -866,7 +938,7 @@ function ve(){
 
   /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
      ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
-  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat' || TAB === 'ma') {
+  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'quy' || TAB === 'kich-hoat' || TAB === 'ma') {
     h += '<div class="tabs">';
     [['today',L('Hôm nay','Today')],['week',L('Tuần này','This week')],['month',L('Tháng này','This month')],
      ['year',L('Năm nay','This year')],['all',L('Tất cả','All time')]]
@@ -926,6 +998,7 @@ function ve(){
 
   if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
 
@@ -1083,7 +1156,9 @@ function veDieuKhien(){
     h += '<div class="ghe-nut">'
       + '<button class="b-bat" data-bat="' + esc(m.ma) + '">▶ ' + L('Bật','Start') + '</button>'
       + '<button class="b-tat" data-tat="' + esc(m.ma) + '">■ ' + L('Tắt','Stop') + '</button>'
-      + '<button data-mat="' + esc(m.ma) + '">💵 ' + L('Thu tiền mặt','Collect cash') + '</button>'
+      /* Tên nút phải nói đúng việc: nó KHÔNG ghi doanh thu nữa, nó chốt ngăn tiền. Giữ tên cũ
+         là người bấm vẫn tưởng mình đang ghi một lượt bán hàng. */
+      + '<button data-mat="' + esc(m.ma) + '">🧾 ' + L('Chốt ca / thu ngăn','Close shift') + '</button>'
       + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ ' + L('Khởi động lại','Reboot') + '</button>'
       + '</div></div>';
   });
@@ -1103,6 +1178,164 @@ function veDieuKhien(){
  *    Không cấm — có ghế không lắp cục nhận tiền, ở đó nút bấm tay là đường DUY NHẤT. Nên tab này
  *    tách hai loại ra và KÊU LÊN khi một ghế có cả hai trong cùng kỳ.
  * ============================================================================================ */
+/* ============================================================================================
+ * TAB QUỸ & NỘP TIỀN.
+ *
+ * Anh Thắng 23/08/2026: *"giờ đến phần thu tiền của nhân viên"*, và *"nhập số tiền mặt, chỉ số
+ * máy tiền mặt — trên máy có 1 màn hình đếm tiền mặt nữa, nên nhập vào để trừ chỉ số cho ngày
+ * hôm sau"*.
+ *
+ * 🔴 THỨ TỰ CÁC KHỐI ĐI THEO THỨ TỰ VIỆC LÀM, KHÔNG THEO THỨ TỰ SỐ LIỆU:
+ *      1. "Tôi đang cầm bao nhiêu" + nút Nộp        -> việc của người vừa đi thu về.
+ *      2. Lượt nộp chờ xác nhận                     -> việc của quản lý, và nó CHẶN người kia.
+ *      3. Ai đang cầm bao nhiêu                     -> câu hỏi mỗi sáng.
+ *      4. Lượt chốt ca + lệch                       -> chỗ đi tìm khi con số không khớp.
+ *      5. Báo cáo theo người                        -> cuối kỳ.
+ *
+ * ⚠️ Ô LỆCH TÔ ĐỎ CHỈ KHI KHÁC 0. Tô đỏ cả cột là mắt bỏ qua cả cột.
+ * ============================================================================================ */
+function veQuy(){
+  var q = (D.quy || null);
+  if (!q) return '<div class="card"><p class="mut">'
+    + L('Chưa có số liệu quỹ.','No cash-float data.') + '</p></div>';
+
+  var h = '<div class="kpis">'
+    + kpi(L('Đang trên tay nhân viên','Held by staff'), tien(q.tong.tren_tay),
+        L('chưa nộp về quầy','not handed in yet'), q.tong.tren_tay > 0 ? 'c' : 'd')
+    + kpi(L('Chờ xác nhận','Awaiting confirmation'), tien(q.tong.cho_xac_nhan),
+        q.tong.so_cho + ' ' + L('lượt nộp','hand-ins'), q.tong.so_cho > 0 ? 'a' : 'd')
+    + kpi(L('Đã chốt trong kỳ','Collected this period'), tien(q.tong.chot_ky), '', 'b')
+    + kpi(L('Sổ thiếu so với máy đếm','Missing vs meter'), tien(q.tong.lech_may),
+        L('ghế nuốt mà không báo về được','swallowed but never reported'),
+        q.tong.lech_may > 0 ? 'c' : 'd')
+    + '</div>';
+
+  /* ---- 1. TÔI ĐANG CẦM BAO NHIÊU ---------------------------------------------------------- */
+  var toi = q.toi || { tong: 0, tu_ghe: 0, tu_quay: 0, so_dong: 0 };
+  h += '<div class="card"><h2>' + L('Tôi đang cầm','I am holding') + ' — ' + esc(q.toi_la) + '</h2>';
+  if (toi.tong > 0) {
+    h += '<div class="so-hang to"><span class="nh">' + L('Tổng phải nộp','Total to hand in')
+      + '</span><span class="gt">' + tien(toi.tong) + '</span></div>'
+      + hangSo(L('Lấy từ ngăn ghế','From chair cash boxes'), tien(toi.tu_ghe))
+      + hangSo(L('Khách trả tại quầy','Paid at the counter'), tien(toi.tu_quay))
+      + '<div class="act" style="margin-top:12px">'
+      + '<input id="nop-gc" type="text" placeholder="'
+      + L('ghi chú (không bắt buộc)','note (optional)') + '" style="flex:1">'
+      + '<button id="nop-ok" class="on">' + L('Nộp về quầy','Hand in') + '</button></div>'
+      /* ⚠️ Nói rõ nộp là nộp HẾT, không nộp một phần. Nộp một phần thì con số "đang cầm" thành
+         thứ người nộp tự chọn, và cái sổ này thôi không kiểm được gì nữa. */
+      + '<div class="canh" style="margin-top:10px">'
+      + L('Bấm Nộp là nộp <b>toàn bộ</b> ' + tien(toi.tong) + ' đang cầm (' + toi.so_dong
+          + ' lượt). Quản lý đếm lại rồi xác nhận — con số hai bên đều được giữ trong sổ.',
+          'Handing in covers <b>all</b> ' + tien(toi.tong) + ' you hold (' + toi.so_dong
+          + ' entries). A manager counts it and confirms; both figures stay on the record.')
+      + '</div>';
+  } else {
+    h += '<p class="mut">' + L('Không cầm đồng nào chưa nộp.','Nothing outstanding.') + '</p>';
+  }
+  h += '<div class="err" id="nop-e"></div></div>';
+
+  /* ---- 2. CHỜ XÁC NHẬN -------------------------------------------------------------------- */
+  if ((q.cho || []).length) {
+    h += '<div class="card"><h2>' + L('Lượt nộp chờ xác nhận','Hand-ins awaiting confirmation')
+      + '</h2>';
+    if (!q.quyen_nhan) {
+      h += '<p class="mut">' + L('Chỉ Admin hoặc Quản lý mới xác nhận được.',
+                                 'Only an Admin or Manager can confirm these.') + '</p>';
+    }
+    h += '<table><tr><th>' + L('Lúc','Time') + '</th><th>' + L('Ai nộp','From') + '</th>'
+      + '<th class="r">' + L('Sổ ghi','On record') + '</th><th class="r">'
+      + L('Đếm lại được','Counted') + '</th></tr>';
+    q.cho.forEach(function(n){
+      h += '<tr><td>' + esc(n.tao_luc) + '</td><td><b>' + esc(n.nguoi) + '</b>'
+        + (n.ghi_chu ? '<br><span class="mut">' + esc(n.ghi_chu) + '</span>' : '') + '</td>'
+        + '<td class="r"><b>' + tien(n.so_tien) + '</b><br><span class="mut">'
+        + n.so_dong + ' ' + L('lượt','entries') + '</span></td>'
+        + '<td class="r">';
+      if (q.quyen_nhan) {
+        h += '<div class="act" style="justify-content:flex-end">'
+          + '<input type="text" inputmode="numeric" data-nhan-so="' + n.id + '" value="'
+          + esc(String(n.so_tien)) + '" style="width:110px;text-align:right">'
+          + '<button data-nhan="' + n.id + '" class="on">' + L('Đã nhận','Received') + '</button>'
+          + '<button data-nophuy="' + n.id + '" class="ghost">' + L('Huỷ','Cancel') + '</button>'
+          + '</div>';
+      } else { h += '<span class="mut">—</span>'; }
+      h += '</td></tr>';
+    });
+    h += '</table></div>';
+  }
+
+  /* ---- 3. AI ĐANG CẦM --------------------------------------------------------------------- */
+  h += '<div class="card"><h2>' + L('Ai đang cầm tiền','Who is holding cash') + '</h2><table><tr><th>'
+    + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
+    + '<th class="r">' + L('Tại quầy','Counter') + '</th><th class="r">'
+    + L('Tổng','Total') + '</th></tr>';
+  if (!(q.cam || []).length) h += '<tr><td colspan="4" class="mut">'
+    + L('Không ai đang cầm tiền chưa nộp.','Nobody is holding uncollected cash.') + '</td></tr>';
+  (q.cam || []).forEach(function(c){
+    h += '<tr><td><b>' + esc(c.nguoi) + '</b></td>'
+      + '<td class="r">' + tien(c.tu_ghe) + '</td><td class="r">' + tien(c.tu_quay) + '</td>'
+      + '<td class="r"><b>' + tien(c.tong) + '</b></td></tr>';
+  });
+  h += '</table></div>';
+
+  /* ---- 4. LƯỢT CHỐT CA -------------------------------------------------------------------- */
+  h += '<div class="card"><h2>' + L('Lượt chốt ca','Shift closings') + '</h2>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Mỗi đơn vị trên màn đếm của máy tiền mặt = <b>' + tien(q.don_vi) + '</b>. '
+        + 'Khai lại ở wp-admin → Ghế Massage → Máy &amp; cơ sở.',
+        'One unit on the note counter display = <b>' + tien(q.don_vi) + '</b>. '
+        + 'Change it in wp-admin → Massage Chairs → Machines &amp; branches.')
+    + '</p><table><tr><th>' + L('Lúc','Time') + '</th><th>' + L('Ghế','Chair') + '</th>'
+    + '<th class="hide-sm">' + L('Ai chốt','By') + '</th>'
+    + '<th class="r">' + L('Chỉ số','Meter') + '</th>'
+    + '<th class="r">' + L('Máy đếm','Meter says') + '</th>'
+    + '<th class="r">' + L('Sổ ghi','On record') + '</th>'
+    + '<th class="r">' + L('Đếm được','Counted') + '</th></tr>';
+  if (!(q.chot || []).length) h += '<tr><td colspan="7" class="mut">'
+    + L('Chưa có lượt chốt nào trong kỳ này.','No closings in this period.') + '</td></tr>';
+  (q.chot || []).forEach(function(c){
+    var do_dem = c.lech_dem !== 0, do_may = c.lech_may !== 0;
+    h += '<tr><td>' + esc(c.tao_luc) + '</td><td><b>' + esc(c.ma_may) + '</b>'
+      + (c.lan_dau ? ' <span class="pill p-run">' + L('lần đầu','first') + '</span>' : '')
+      + '</td><td class="hide-sm">' + esc(c.nguoi) + '</td>'
+      + '<td class="r"><span class="mut">' + esc(String(c.chi_so_truoc)) + ' →</span> '
+        + esc(String(c.chi_so)) + '</td>'
+      + '<td class="r">' + (c.lan_dau ? '—' : tien(c.theo_may)) + '</td>'
+      + '<td class="r"' + (do_may ? ' style="color:#ff8087"' : '') + '>' + tien(c.theo_he_thong) + '</td>'
+      + '<td class="r"' + (do_dem ? ' style="color:#ff8087"' : '') + '><b>' + tien(c.tien_dem) + '</b></td>'
+      + '</tr>';
+    if (c.canh_bao) {
+      h += '<tr><td colspan="7" class="mut" style="color:#ffb86b;padding-top:0">⚠️ '
+        + esc(c.canh_bao) + (c.ghi_chu ? ' · ' + esc(c.ghi_chu) : '') + '</td></tr>';
+    }
+  });
+  h += '</table></div>';
+
+  /* ---- 5. THEO NGƯỜI ---------------------------------------------------------------------- */
+  h += '<div class="card"><h2>' + L('Theo người thu','By collector') + '</h2><table><tr><th>'
+    + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
+    + '<th class="r">' + L('Tại quầy','Counter') + '</th>'
+    + '<th class="r">' + L('Đã nộp','Handed in') + '</th>'
+    + '<th class="r">' + L('Còn cầm','Still holding') + '</th>'
+    + '<th class="r hide-sm">' + L('Lệch ngăn','Box diff') + '</th>'
+    + '<th class="r hide-sm">' + L('Lệch nộp','Hand-in diff') + '</th></tr>';
+  if (!(q.nguoi || []).length) h += '<tr><td colspan="7" class="mut">'
+    + L('Chưa có ai thu tiền trong kỳ này.','Nobody collected cash in this period.') + '</td></tr>';
+  (q.nguoi || []).forEach(function(n){
+    h += '<tr><td><b>' + esc(n.nguoi) + '</b></td>'
+      + '<td class="r">' + tien(n.tu_ghe) + '</td><td class="r">' + tien(n.tu_quay) + '</td>'
+      + '<td class="r">' + tien(n.da_nop) + '</td>'
+      + '<td class="r"' + (n.dang_cam > 0 ? ' style="color:#ffb86b"' : '') + '><b>'
+        + tien(n.dang_cam) + '</b></td>'
+      + '<td class="r hide-sm"' + (n.lech_dem !== 0 ? ' style="color:#ff8087"' : '') + '>'
+        + tien(n.lech_dem) + '</td>'
+      + '<td class="r hide-sm"' + (n.lech_nop !== 0 ? ' style="color:#ff8087"' : '') + '>'
+        + tien(n.lech_nop) + '</td></tr>';
+  });
+  return h + '</table></div>';
+}
+
 function veThuTien(){
   var t = (D.thu || { ds: [], may: [] });
   var mat_ghe = 0, mat_ng = 0, qr = 0, lan = 0, canh = [];
@@ -1437,24 +1670,40 @@ function bang(ten, cot, hang){
 }
 
 /* ============================================================================================
- * BẢNG CHỐT CA THU TIỀN.
+ * BẢNG CHỐT CA — MỞ NGĂN GHẾ, ĐỌC CHỈ SỐ, ĐẾM TIỀN.
  *
- * 🔴 Bản trước bấm "Thu tiền mặt" là hỏi "ghi 10.000đ?" rồi ghi luôn. Sai với việc thật: người
- *    đi thu tiền mở ngăn ghế ra, đếm được một xấp, và cần biết HỆ THỐNG NGHĨ là bao nhiêu để
- *    đối chiếu. Không có con số đó thì họ gõ đại số mình đếm được, và chênh lệch — nếu có —
- *    không bao giờ lộ ra.
+ * Anh Thắng 23/08/2026: *"Mở ứng dụng tới quét QR tại máy. Bấm thu tiền (chốt ca, dữ liệu chốt
+ * ca). Nhập số tiền mặt, chỉ số máy tiền mặt — trên máy có 1 màn hình đếm tiền mặt nữa, nên nhập
+ * vào để trừ chỉ số cho ngày hôm sau."*
  *
- * Nên: hiện số liệu TRƯỚC, nhập tiền SAU. Và hiện cả QR lẫn tổng tháng, vì câu hỏi thật lúc
- * đứng ở cửa hàng là "ghế này tháng này ra bao nhiêu", không phải "hôm nay bao nhiêu".
- * ============================================================================================ */
-var CHOT = null;   // { ma_may, so } — bảng đang mở
+ * ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BẢN TRƯỚC GHI LƯỢT NÀY THÀNH DOANH THU — VÀ ĐÓ LÀ CỘNG ĐÔI.
+ *
+ *    Tiền trong ngăn ghế ĐÃ vào sổ từ lúc ghế nuốt từng tờ (đường `ND_GHE_NUOT`). Người đi thu
+ *    mở ngăn ra đếm lại chính xấp tiền ấy — đó là một lần CHUYỂN TAY, không phải một lần bán
+ *    hàng. Ghi nó thành doanh thu là cùng một xấp tiền vào sổ hai lần, đúng cái mà tab Thu tiền
+ *    phải kêu lên mỗi kỳ ("ghế có CẢ hai đường tiền mặt").
+ *
+ *    Nay lượt này đi vào bảng `chot`: không đụng doanh thu, chỉ ghi ba con số để đối chiếu và
+ *    cộng vào TIỀN TRÊN TAY người vừa chốt. Cảnh báo cộng đôi ở tab Thu tiền vì vậy sẽ tự vơi.
+ *
+ * 🔴 HAI Ô NHẬP, KHÔNG PHẢI MỘT — và ô CHỈ SỐ đứng trước.
+ *    Chỉ số đọc trên màn máy đếm là thứ phải nhìn TRƯỚC khi thò tay vào ngăn: mở ngăn ra rồi,
+ *    đếm xong rồi, thì không ai quay lại đọc màn nữa. Thứ tự trên màn hình là thứ tự tay làm.
+ * ════════════════════════════════════════════════════════════════════════════════════════════ */
+var CHOT = null;   // { ma, so, xem, go, gocs } — bảng đang mở
 
 function moChotCa(ma){
   if (ban) return;
+  /* Hai lượt hỏi, một lượt mở màn: `so_may` cho số liệu doanh thu của ghế, `chot_xem` cho mốc
+     chỉ số lần trước. Thiếu cái thứ hai thì người ta gõ chỉ số mới mà không có gì đối chiếu. */
   goi('so_may', { ma_may: ma }, function(r){
     if (!r.ok) { alert(r.error || L('Không lấy được số liệu ghế.','Could not load chair figures.')); return; }
-    CHOT = { ma: ma, so: r, go: '' };
-    veChotCa();
+    goi('chot_xem', { ma_may: ma }, function(x){
+      if (!x.ok) { alert(x.error || L('Không lấy được mốc chốt ca.','Could not load the closing baseline.')); return; }
+      CHOT = { ma: ma, so: r, xem: x, go: '', gocs: '' };
+      veChotCa();
+    });
   });
 }
 
@@ -1463,69 +1712,133 @@ function hangSo(nhan, gt, lop){
     + '<span class="gt">' + gt + '</span></div>';
 }
 
+/* Bàn phím số dùng chung cho cả hai ô — ô nào đang được chọn thì gõ vào ô đó. */
+function banPhimSo(){
+  return '<div class="phim">'
+    + ['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(function(k){
+        return '<button data-phim="' + k + '">' + k + '</button>'; }).join('')
+    + '</div>';
+}
+
 function veChotCa(){
-  var r = CHOT.so, cu = document.getElementById('man-chot');
+  var r = CHOT.so, x = CHOT.xem, cu = document.getElementById('man-chot');
   if (cu) cu.remove();
   var d = document.createElement('div');
   d.className = 'man'; d.id = 'man-chot';
+
   d.innerHTML = '<div class="hop">'
-    + '<h3>' + L('Thu tiền mặt','Collect cash') + ' — ' + esc(CHOT.ma) + '</h3>'
+    + '<h3>' + L('Chốt ca','Close shift') + ' — ' + esc(CHOT.ma) + '</h3>'
     + '<div class="cs">' + esc(r.coso || L('(chưa gán cơ sở)','(no branch)')) + '</div>'
-    + hangSo(L('Tiền mặt hôm nay','Cash today'), tien(r.hom_nay.tien_mat))
-    + hangSo(L('Chuyển khoản (QR) hôm nay','Bank transfer (QR) today'), tien(r.hom_nay.qr))
-    + hangSo(L('Tổng hôm nay','Total today') + ' · ' + r.hom_nay.so_luot + ' '
-        + L('lượt','sessions'), tien(r.hom_nay.tong))
-    + hangSo(L('Tiền mặt tháng này','Cash this month'), tien(r.thang.tien_mat))
-    + hangSo(L('Chuyển khoản (QR) tháng này','Bank transfer (QR) this month'), tien(r.thang.qr))
-    + hangSo(L('TỔNG THÁNG NÀY','TOTAL THIS MONTH') + ' · ' + r.thang.so_luot + ' '
+
+    /* ---- MỐC LẦN TRƯỚC. Đây là con số người ta đối chiếu, nên nó đứng trên cùng. ---- */
+    + (x.lan_dau
+        ? '<div class="canh">' + L('Ghế này <b>chưa chốt lần nào</b>. Lần này chỉ ghi lại chỉ số '
+            + 'làm mốc; từ kỳ sau mới trừ ra được số tiền máy đếm đã nuốt.',
+            'This chair has <b>never been closed</b>. This entry only records the baseline meter '
+            + 'reading; from next time the difference becomes meaningful.') + '</div>'
+        : hangSo(L('Chỉ số lần chốt trước','Meter at last closing'),
+            Number(x.chi_so_truoc).toLocaleString('vi-VN')
+            + (x.chot_truoc_luc ? ' <span class="mut">· ' + esc(String(x.chot_truoc_luc).slice(0,16))
+                + (x.chot_truoc_ai ? ' · ' + esc(x.chot_truoc_ai) : '') + '</span>' : '')))
+    + hangSo(L('Sổ ghi nhận từ lần chốt trước','On record since last closing'), tien(x.theo_he_thong))
+    + hangSo(L('Tổng tháng này','Total this month') + ' · ' + r.thang.so_luot + ' '
         + L('lượt','sessions'), tien(r.thang.tong), ' to')
+
+    /* ---- Ô 1: CHỈ SỐ. Đọc trên màn máy đếm TRƯỚC khi mở ngăn. ---- */
     + '<div class="o-thu"><label class="mut">'
-    + L('Số tiền mặt đã đếm được','Cash counted') + '</label>'
-    + '<input id="chot-tien" type="text" inputmode="numeric" value="' + esc(CHOT.go) + '" placeholder="0"></div>'
-    + '<div class="phim">'
-    + ['1','2','3','4','5','6','7','8','9','000','0','⌫'].map(function(k){
-        return '<button data-phim="' + k + '">' + k + '</button>'; }).join('')
-    + '</div>'
-    /* ⚠️ Nói thẳng: đây là GHI SỔ, không phải mở ngăn tiền. Người bấm tưởng nó mở khoá ghế thì
-       họ bấm rồi đứng đợi, và bấm lại — mỗi lần bấm là một dòng doanh thu. */
+    + L('① Chỉ số trên màn máy đếm tiền','① Reading on the note counter')
+    + '</label><input id="chot-cs" type="text" inputmode="numeric" value="'
+    + esc(CHOT.gocs ? Number(CHOT.gocs).toLocaleString('vi-VN') : '') + '" placeholder="0"></div>'
+
+    /* ---- Ô 2: TIỀN ĐẾM ĐƯỢC. ---- */
+    + '<div class="o-thu"><label class="mut">'
+    + L('② Tiền mặt đếm được trong ngăn','② Cash counted in the box') + '</label>'
+    + '<input id="chot-tien" type="text" inputmode="numeric" value="'
+    + esc(CHOT.go ? Number(CHOT.go).toLocaleString('vi-VN') : '') + '" placeholder="0"></div>'
+    + banPhimSo()
+    + '<div class="o-thu"><input id="chot-gc" type="text" placeholder="'
+    + L('ghi chú — bắt buộc nếu vừa thay cục nhận tiền','note — required if the acceptor was replaced')
+    + '"></div>'
+
+    /* ⚠️ Nói thẳng hai điều người bấm hay hiểu nhầm: nút này KHÔNG mở ngăn, và nó KHÔNG cộng
+       doanh thu. Bản trước thiếu vế thứ hai nên ai cũng tưởng bấm nhiều lần là mất tiền. */
     + '<div class="canh">'
-    + L('Nút này <b>ghi sổ</b> số tiền mặt đã thu, không mở ngăn tiền của ghế. Bấm một lần thôi — '
-        + 'mỗi lần bấm là một dòng doanh thu.',
-        'This button <b>records</b> the cash you collected; it does not open the chair\'s cash box. '
-        + 'Press it once — every press is another revenue entry.') + '</div>'
+    + L('Nút này <b>ghi sổ chốt ca</b>: nó không mở ngăn tiền, và <b>không cộng doanh thu</b> — '
+        + 'tiền trong ngăn đã vào sổ từ lúc ghế nuốt. Số tiền đếm được sẽ tính vào phần '
+        + '<b>anh/chị đang cầm</b> cho tới khi nộp về quầy.',
+        'This <b>records a shift closing</b>: it does not open the cash box, and it does '
+        + '<b>not add revenue</b> — that money entered the books when the chair swallowed it. '
+        + 'The counted cash goes onto <b>what you are holding</b> until you hand it in.')
+    + '</div>'
     + '<div class="hop-nut">'
     + '<button id="chot-huy" class="ghost">' + L('Thoát','Cancel') + '</button>'
-    + '<button id="chot-ok" class="on">' + L('Xác nhận thu','Confirm') + '</button>'
+    + '<button id="chot-ok" class="on">' + L('Chốt ca','Close shift') + '</button>'
     + '</div></div>';
   document.body.appendChild(d);
 
-  var o = document.getElementById('chot-tien');
+  var oCs = document.getElementById('chot-cs');
+  var oTi = document.getElementById('chot-tien');
+  var dang = oCs;                       // ô đang được gõ vào
+  oCs.addEventListener('focus', function(){ dang = oCs; });
+  oTi.addEventListener('focus', function(){ dang = oTi; });
+
+  var doc_so = function (o) { return (o.value || '').replace(/\D/g, ''); };
+  var ghi_so = function (o, v) {
+    o.value = v ? Number(v).toLocaleString('vi-VN') : '';
+    if (o === oCs) { CHOT.gocs = v; } else { CHOT.go = v; }
+  };
+
   [].forEach.call(d.querySelectorAll('[data-phim]'), function(b){
     b.onclick = function(){
       var k = b.getAttribute('data-phim');
-      var v = (o.value || '').replace(/\D/g, '');
+      var v = doc_so(dang);
       if (k === '⌫') v = v.slice(0, -1); else v = (v + k).slice(0, 12);
-      CHOT.go = v;
-      o.value = v ? Number(v).toLocaleString('vi-VN') : '';
+      ghi_so(dang, v);
+      /* Gõ vào ô chỉ số thì con số "máy đếm nói đã nuốt" phải đổi theo ngay — đó là thứ cho
+         người đứng đó biết mình vừa gõ nhầm một chữ số, TRƯỚC khi bấm chốt. */
+      if (dang === oCs) veLaiDuKien();
     };
   });
-  o.addEventListener('input', function(){
-    var v = (o.value || '').replace(/\D/g, '').slice(0, 12);
-    CHOT.go = v;
-    o.value = v ? Number(v).toLocaleString('vi-VN') : '';
+  [oCs, oTi].forEach(function(o){
+    o.addEventListener('input', function(){
+      ghi_so(o, doc_so(o).slice(0, 12));
+      if (o === oCs) veLaiDuKien();
+    });
   });
+
+  function veLaiDuKien(){
+    var cu2 = d.querySelector('.du-kien');
+    var v = Math.max(0, (Number(CHOT.gocs) || 0) - x.chi_so_truoc) * x.don_vi;
+    if (cu2) cu2.remove();
+    if (x.lan_dau || v <= 0) return;
+    var e = document.createElement('div');
+    e.className = 'so-hang du-kien';
+    e.innerHTML = '<span class="nh">' + L('→ Máy đếm nói đã nuốt','→ Meter says it took')
+      + '</span><span class="gt">' + tien(v) + '</span>';
+    oCs.parentNode.parentNode.insertBefore(e, oCs.parentNode.nextSibling);
+  }
+
   document.getElementById('chot-huy').onclick = dongChotCa;
   d.onclick = function(ev){ if (ev.target === d) dongChotCa(); };
   document.getElementById('chot-ok').onclick = function(){
-    var v = Number((o.value || '').replace(/\D/g, '')) || 0;
-    if (v <= 0) { alert(L('Chưa nhập số tiền mặt đã đếm được.','Enter the cash amount you counted.'));
-      o.focus(); return; }
-    if (!confirm(L('Ghi ' + v.toLocaleString('vi-VN') + 'đ tiền mặt cho ghế ' + CHOT.ma + '?',
-        'Record ' + v.toLocaleString('vi-VN') + 'đ cash for chair ' + CHOT.ma + '?'))) return;
+    var cs  = Number(doc_so(oCs)) || 0;
+    var dem = Number(doc_so(oTi)) || 0;
+    var gc  = (document.getElementById('chot-gc').value || '').trim();
+    if (cs <= 0) {
+      alert(L('Chưa nhập chỉ số trên màn máy đếm tiền.','Enter the reading on the note counter.'));
+      oCs.focus(); return;
+    }
+    /* Đếm được 0đ là chuyện CÓ THẬT (ca không ai dùng tiền mặt), nên không chặn — chỉ hỏi lại,
+       vì nó cũng rất giống với "quên chưa gõ". */
+    if (dem <= 0 && !confirm(L('Ngăn ghế ' + CHOT.ma + ' không có đồng nào?',
+        'No cash at all in chair ' + CHOT.ma + '?'))) { oTi.focus(); return; }
+    /* ⚠️ Chép mã ghế ra biến cục bộ TRƯỚC khi đóng màn: `dongChotCa()` đặt `CHOT = null`, nên
+       đọc `CHOT.ma` sau đó là ném lỗi ngay giữa lượt ghi sổ. */
+    var ma = CHOT.ma;
     dongChotCa();
-    lam('tien_mat', { ma_may: CHOT.ma, so_tien: v });
+    lam('chot_luu', { ma_may: ma, chi_so: cs, tien_dem: dem, ghi_chu: gc });
   };
-  o.focus();
+  oCs.focus();
 }
 
 function dongChotCa(){
@@ -1637,6 +1950,41 @@ function noi(){
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
+  });
+
+  /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
+     ⚠️ Hỏi lại TRƯỚC khi nộp, và nói rõ con số. Nộp là nộp hết, và sau đó chỉ quản lý mới gỡ
+        ra được — một cú bấm nhầm ở đây là người nộp phải đi tìm quản lý. */
+  var nopOk = document.getElementById('nop-ok');
+  if (nopOk) nopOk.onclick = function(){
+    if (ban) return;
+    var q = (D.quy && D.quy.toi) ? D.quy.toi : { tong: 0 };
+    if (!confirm(L('Nộp toàn bộ ' + tien(q.tong) + ' đang cầm về quầy?',
+                   'Hand in all ' + tien(q.tong) + ' you are holding?'))) return;
+    var gc = (document.getElementById('nop-gc') || {}).value || '';
+    lam('nop_tao', { ghi_chu: gc });
+  };
+
+  /* ---- QUỸ: quản lý xác nhận đã nhận ---------------------------------------------------
+     🔴 Số tiền nhận lấy từ ô CẠNH ĐÚNG DÒNG ĐÓ, không lấy từ một ô chung. Bảng này có nhiều
+        dòng, và một ô chung là xác nhận nhầm số của người khác. */
+  [].forEach.call(document.querySelectorAll('[data-nhan]'), function(b){
+    b.onclick = function(){
+      if (ban) return;
+      var id = Number(b.getAttribute('data-nhan'));
+      var o  = document.querySelector('[data-nhan-so="' + id + '"]');
+      var v  = Number(((o && o.value) || '').replace(/\D/g, '')) || 0;
+      if (!confirm(L('Xác nhận đã nhận ' + tien(v) + '?','Confirm receipt of ' + tien(v) + '?'))) return;
+      lam('nop_nhan', { id: id, so_tien_nhan: v });
+    };
+  });
+  [].forEach.call(document.querySelectorAll('[data-nophuy]'), function(b){
+    b.onclick = function(){
+      if (ban) return;
+      if (!confirm(L('Huỷ lượt nộp này? Tiền quay lại tay người nộp.',
+                     'Cancel this hand-in? The cash returns to the person who submitted it.'))) return;
+      lam('nop_huy', { id: Number(b.getAttribute('data-nophuy')) });
+    };
   });
 
   /* 🔴 TRAO QUÀ: bấm xong TẢI LẠI danh sách, kể cả khi hỏng. Hỏng ở đây gần như luôn có nghĩa

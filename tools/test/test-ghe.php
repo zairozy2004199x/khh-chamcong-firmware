@@ -49,7 +49,7 @@ define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
       chép tay nên nó TRÔI khỏi danh sách thật của plugin — phép thử ở mục "nạp đủ lớp" dưới
       canh đúng chuyện đó. Thêm lớp mới mà quên đây là lỗi "Class not found" giữa lúc chạy, và
       nó chỉ lộ ra ở đúng phép thử chạm tới lớp đó. */
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'chan', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'quy', 'chan', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -223,13 +223,16 @@ function vhg_tong() {
 
 // ============================================================ 1. Sơ đồ bảng
 $so_do = VHG_DB::bang();
-teq( 'sơ đồ có đủ 14 bảng', 14, count( $so_do ) );
-/* 🔴 Hai bảng của VÍ phải có mặt. Con số 13 ở trên đổi theo mỗi lần thêm bảng, nên nó không
-      nói được BẢNG NÀO thiếu — mà thiếu đúng bảng tiền thì plugin cài xong vẫn chạy, chỉ là
-      mọi lượt nạp ném lỗi vào đúng lúc khách vừa chuyển khoản. */
-foreach ( array( 'vi', 'vi_so' ) as $b_ ) {
+teq( 'sơ đồ có đủ 16 bảng', 16, dem( $so_do ) );
+/* 🔴 Các bảng TIỀN phải có mặt, gọi đúng tên. Con số ở trên đổi theo mỗi lần thêm bảng, nên nó
+      không nói được BẢNG NÀO thiếu — mà thiếu đúng bảng tiền thì plugin cài xong vẫn chạy, chỉ
+      là mọi lượt nạp ném lỗi vào đúng lúc khách vừa chuyển khoản. */
+foreach ( array( 'vi', 'vi_so', 'chot', 'nop' ) as $b_ ) {
 	t( 'có bảng ' . $b_, isset( $so_do[ $b_ ] ) );
 }
+/* Cột liên kết lượt nộp phải nằm trên bảng `thu` — thiếu nó thì tiền quầy không nộp được, mà
+   chốt ca thì vẫn nộp được, nên nửa số tiền trên tay biến mất khỏi bảng "ai đang cầm". */
+t( '🔴 bảng thu có cột nop_id', strpos( (string) $so_do['thu'], 'nop_id' ) !== false );
 t( '🔴 ví khoá DUY NHẤT theo số điện thoại — hai ví cùng số là tiền chia làm đôi',
 	strpos( (string) $so_do['vi'], 'UNIQUE KEY sdt (sdt)' ) !== false );
 /* Đơn phải mang được cả hai kiểu hàng, không thì webhook không biết rẽ đâu. */
@@ -2187,11 +2190,27 @@ t( 'có bàn phím số cho màn cảm ứng', strpos( $html_c, 'data-phim=' ) !
       bấm rồi đứng đợi, và bấm lại — mỗi lần bấm là một dòng doanh thu. */
 t( 'nói rõ nút này chỉ GHI SỔ, không mở ngăn tiền',
 	strpos( $html_c, 'không mở ngăn tiền' ) !== false );
-t( 'và nhắc bấm một lần thôi', strpos( $html_c, 'Bấm một lần thôi' ) !== false );
-t( 'không cho xác nhận khi chưa nhập tiền',
-	strpos( $html_c, 'Chưa nhập số tiền mặt' ) !== false );
+/* 🔴 VÀ NÓI THẲNG NÓ KHÔNG CỘNG DOANH THU.
+   Đây là vế bản trước THIẾU, và chính chỗ thiếu đó sinh ra lỗi cộng đôi: người bấm tưởng mình
+   đang ghi một lượt bán hàng nên ngại bấm, hoặc bấm rồi lại bấm. Tiền trong ngăn đã vào sổ từ
+   lúc ghế nuốt từng tờ. */
+t( '🔴 nói rõ chốt ca KHÔNG cộng doanh thu',
+	strpos( $html_c, 'không cộng doanh thu' ) !== false );
+t( 'và nói tiền đếm được sẽ tính vào phần đang cầm',
+	strpos( $html_c, 'anh/chị đang cầm' ) !== false );
+t( 'không cho chốt khi chưa nhập chỉ số',
+	strpos( $html_c, 'Chưa nhập chỉ số trên màn máy đếm tiền' ) !== false );
+/* Hai ô nhập, và ô CHỈ SỐ đứng trước ô tiền — thứ tự trên màn là thứ tự tay làm: đọc màn máy
+   đếm trước khi thò tay vào ngăn, vì mở ngăn ra rồi thì không ai quay lại đọc màn nữa. */
+$vt_o_cs = strpos( $html_c, "id=\"chot-cs\"" );
+$vt_o_ti = strpos( $html_c, "id=\"chot-tien\"" );
+t( '🔴 ô chỉ số đứng TRƯỚC ô tiền đếm được',
+	false !== $vt_o_cs && false !== $vt_o_ti && $vt_o_cs < $vt_o_ti );
 /* Khoá chống bấm hai lần vẫn phải bao lấy đường này. */
-t( 'vẫn đi qua khoá chống bấm hai lần', strpos( $html_c, "lam('tien_mat'" ) !== false );
+t( 'vẫn đi qua khoá chống bấm hai lần', strpos( $html_c, "lam('chot_luu'" ) !== false );
+/* 🔴 VÀ ĐƯỜNG CHỐT CA KHÔNG ĐƯỢC GỌI `tien_mat` NỮA — đó chính là đường ghi doanh thu. */
+t( '🔴 chốt ca không còn ghi doanh thu qua tien_mat',
+	strpos( $html_c, "lam('tien_mat'" ) === false );
 
 // ============================================ MAC: MỘT DẠNG DUY NHẤT
 /* 🔴 Anh Thắng 22/08/2026: *"không có chỗ nhập mac, chỉ có mã"*. Dòng khai tay không có MAC là
@@ -2976,8 +2995,8 @@ t( 'tách rõ ghế nuốt với người thu',
 t( 'và kêu lên khi nghi cộng đôi', strpos( $web_t, 'cộng đôi' ) !== false );
 /* Bộ chọn kỳ phải hiện ở cả ba tab báo cáo; tab Điều khiển thì không — ở đó không có con số nào
    theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
-t( 'ba tab báo cáo đều chọn được kỳ',
-	strpos( $web_t, "TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'kich-hoat'" ) !== false );
+t( 'các tab báo cáo đều chọn được kỳ',
+	strpos( $web_t, "TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'quy' || TAB === 'kich-hoat'" ) !== false );
 
 // ====================== BÁN MÃ TRƯỚC (mua hôm nay, dùng hôm khác)
 vhg_dung_bang();
@@ -5812,6 +5831,307 @@ t( '🔴 có hỏi lại trước khi trừ tiền người khác',
 t( 'và nói rõ khối này KHÁC nút Bật (bật là cho không)',
 	strpos( $html_nv, 'Không cần PIN của khách' ) !== false );
 
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * QUỸ TIỀN MẶT — CHỐT CA THEO CHỈ SỐ MÁY ĐẾM, VÀ NỘP TIỀN VỀ QUẦY
+ *
+ * Anh Thắng 23/08/2026: *"Mở ứng dụng tới quét QR tại máy. Bấm thu tiền (chốt ca, dữ liệu chốt
+ * ca). Nhập số tiền mặt, chỉ số máy tiền mặt — trên máy có 1 màn hình đếm tiền mặt nữa, nên nhập
+ * vào để trừ chỉ số cho ngày hôm sau."*
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+VHG_May::luu_may( array( 'ma' => 'AMTP02', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:02' ) );
+VHG_Quy::luu_don_vi( 5000 );
+teq( 'mỗi đơn vị chỉ số mặc định = 5.000đ (bằng CASH_VND_PER_PULSE của firmware)',
+	5000, VHG_Quy::don_vi() );
+t( '🔴 đơn vị 0 đồng thì từ chối — mọi con số theo_may sẽ ra 0 mà không ai thấy',
+	empty( VHG_Quy::luu_don_vi( 0 )['ok'] ) );
+
+// ---- lần chốt ĐẦU TIÊN của một ghế: chỉ đặt mốc, không tính lệch
+$xem1 = VHG_Quy::truoc_khi_chot( 'AMTP01' );
+t( 'ghế chưa chốt bao giờ thì báo là lần đầu', ! empty( $xem1['ok'] ) && 1 === (int) $xem1['lan_dau'] );
+teq( 'và mốc chỉ số là 0', 0, (int) $xem1['chi_so_truoc'] );
+t( '🔴 ghế không có thật thì không chốt được',
+	empty( VHG_Quy::truoc_khi_chot( 'KHONG-CO' )['ok'] ) );
+
+$c1 = VHG_Quy::chot( 'AMTP01', 1000, 250000, 'Thắng' );
+t( 'chốt lần đầu được', ! empty( $c1['ok'] ), isset( $c1['error'] ) ? $c1['error'] : '' );
+teq( '🔴 lần đầu KHÔNG tính "máy đếm nói đã nuốt"', 0, (int) $c1['theo_may'] );
+teq( 'và không tính lệch ngăn', 0, (int) $c1['lech_dem'] );
+teq( 'nhưng vẫn nhận đủ tiền đếm được', 250000, (int) $c1['tien_dem'] );
+t( 'và nói rõ đây là lần đầu', strpos( (string) $c1['thong_bao'], 'ĐẦU TIÊN' ) !== false );
+
+/* 🔴 CHỐT CA KHÔNG PHẢI DOANH THU. Tiền trong ngăn đã vào sổ từ lúc ghế nuốt từng tờ; ghi lại
+   lần nữa là cộng đôi — đúng cái lỗi bản trước mắc phải. */
+$dt_truoc_chot = vhg_tong();
+VHG_Quy::chot( 'AMTP02', 500, 100000, 'Thắng' );
+teq( '🔴 chốt ca KHÔNG cộng một đồng doanh thu nào', $dt_truoc_chot, vhg_tong() );
+
+// ---- lần chốt THỨ HAI: ba con số phải khớp
+/* Ghế báo về 4 lượt × 5.000đ = 20.000đ trong quãng giữa hai lần chốt. */
+for ( $i = 1; $i <= 4; $i++ ) {
+	VHG_Thu::ghi( array( 'ref' => 'nuot-' . $i, 'so_tien' => 5000,
+		'nguon' => VHG_Thu::TIEN_MAT, 'ma_may' => 'AMTP01',
+		'noi_dung' => VHG_Thu::ND_GHE_NUOT ) );
+}
+$xem2 = VHG_Quy::truoc_khi_chot( 'AMTP01' );
+teq( 'lần sau thì mốc là chỉ số lần trước', 1000, (int) $xem2['chi_so_truoc'] );
+teq( '🔴 và sổ ghi nhận đúng 20.000đ từ lần chốt trước', 20000, (int) $xem2['theo_he_thong'] );
+
+/* Chỉ số nhảy 1000 -> 1004 = 4 đơn vị × 5.000đ = 20.000đ. Đếm được đúng 20.000đ. Khớp cả ba. */
+$c2 = VHG_Quy::chot( 'AMTP01', 1004, 20000, 'Thắng' );
+teq( 'máy đếm nói đã nuốt 20.000đ', 20000, (int) $c2['theo_may'] );
+teq( 'sổ cũng ghi 20.000đ', 20000, (int) $c2['theo_he_thong'] );
+teq( '🔴 khớp cả ba thì không lệch ngăn', 0, (int) $c2['lech_dem'] );
+teq( 'và không lệch máy', 0, (int) $c2['lech_may'] );
+teq( 'không có gì để cảnh báo', '', (string) $c2['canh_bao'] );
+
+// ---- NGĂN THIẾU TIỀN: máy nói 20.000đ, đếm được 15.000đ
+for ( $i = 5; $i <= 8; $i++ ) {
+	VHG_Thu::ghi( array( 'ref' => 'nuot-' . $i, 'so_tien' => 5000,
+		'nguon' => VHG_Thu::TIEN_MAT, 'ma_may' => 'AMTP01', 'noi_dung' => VHG_Thu::ND_GHE_NUOT ) );
+}
+$c3 = VHG_Quy::chot( 'AMTP01', 1008, 15000, 'Thắng' );
+teq( '🔴 ngăn thiếu 5.000đ so với máy đếm', -5000, (int) $c3['lech_dem'] );
+teq( 'nhưng máy và sổ vẫn khớp nhau', 0, (int) $c3['lech_may'] );
+t( 'và nói rõ NGĂN THIẾU, không nói chung chung',
+	strpos( (string) $c3['canh_bao'], 'Ngăn THIẾU' ) !== false );
+
+// ---- SỔ THIẾU: ghế nuốt 4 tờ nhưng chỉ báo về được 2 (mất mạng giữa chừng)
+for ( $i = 9; $i <= 10; $i++ ) {
+	VHG_Thu::ghi( array( 'ref' => 'nuot-' . $i, 'so_tien' => 5000,
+		'nguon' => VHG_Thu::TIEN_MAT, 'ma_may' => 'AMTP01', 'noi_dung' => VHG_Thu::ND_GHE_NUOT ) );
+}
+$c4 = VHG_Quy::chot( 'AMTP01', 1012, 20000, 'Thắng' );
+teq( 'máy đếm nói 20.000đ', 20000, (int) $c4['theo_may'] );
+teq( 'sổ chỉ ghi 10.000đ', 10000, (int) $c4['theo_he_thong'] );
+teq( '🔴 sổ đang THIẾU 10.000đ doanh thu', 10000, (int) $c4['lech_may'] );
+teq( 'ngăn thì đủ tiền', 0, (int) $c4['lech_dem'] );
+t( '🔴 và nói thẳng là doanh thu đang thiếu trong sổ',
+	strpos( (string) $c4['canh_bao'], 'doanh thu đang THIẾU' ) !== false );
+/* 🔴 HAI KIỂU LỆCH KHÔNG ĐƯỢC GỘP. Gộp thành một "chênh lệch" là mất đúng thông tin để biết
+   phải đi hỏi ai — người giữ ngăn, hay người sửa máy. */
+t( '🔴 hai con lệch là hai cột riêng, không phải một',
+	isset( $c4['lech_dem'] ) && isset( $c4['lech_may'] ) );
+
+/* ---- 🔴 QUÃNG CẮT BẰNG SỐ DÒNG, KHÔNG BẰNG ĐỒNG HỒ.
+   Bản đầu cắt bằng `luc > <giờ chốt trước>` và nó sai ngay: ghế nuốt tiền trong CÙNG MỘT GIÂY
+   với lượt bấm chốt thì `>` bỏ mất dòng đó, còn `>=` thì đếm nó hai lần. Ngoài đời chuyện này
+   xảy ra thật — người thu đứng ngay cạnh ghế. Phép thử chạy trong vài mili giây nên MỌI dòng ở
+   đây đều cùng một giây, tức là nó dựng lại đúng cảnh xấu nhất.
+   Canh bằng một câu duy nhất: cộng `theo_he_thong` của mọi lượt chốt một ghế phải bằng ĐÚNG tổng
+   tiền ghế đó báo về — không sót một đồng, không đếm đồng nào hai lần. */
+$tong_bao = 0;
+foreach ( VHG_Thu::ds( 'all', 1000 ) as $r_ ) {
+	if ( 'AMTP01' === (string) $r_['ma_may'] && VHG_Thu::TIEN_MAT === (string) $r_['nguon']
+		&& VHG_Thu::ND_GHE_NUOT === (string) $r_['noi_dung'] && ! (int) $r_['huy'] ) {
+		$tong_bao += (int) $r_['so_tien'];
+	}
+}
+$tong_chot = 0;
+foreach ( VHG_Quy::ds_chot( 'all', 500 ) as $c_ ) {
+	if ( 'AMTP01' === (string) $c_['ma_may'] ) { $tong_chot += (int) $c_['theo_he_thong']; }
+}
+teq( '🔴 các quãng chốt phủ kín sổ, không sót không lặp', $tong_bao, $tong_chot );
+/* Và các quãng phải NỐI ĐUÔI nhau: `tu_id` của lượt sau đúng bằng `den_id` của lượt trước. Hở
+   một khoảng là tiền rơi vào giữa hai kỳ và không bao giờ được đối chiếu. */
+$noi_duoi = true; $truoc_den = null;
+$ds_c1 = array();
+foreach ( VHG_Quy::ds_chot( 'all', 500 ) as $c_ ) {
+	if ( 'AMTP01' === (string) $c_['ma_may'] ) { $ds_c1[] = $c_; }
+}
+$ds_c1 = array_reverse( $ds_c1 );          // ds_chot trả mới nhất trước
+foreach ( $ds_c1 as $c_ ) {
+	if ( null !== $truoc_den && (int) $c_['tu_id'] !== $truoc_den ) { $noi_duoi = false; }
+	$truoc_den = (int) $c_['den_id'];
+}
+t( '🔴 quãng sau nối đúng đuôi quãng trước', $noi_duoi );
+
+// ---- máy đếm KHÔNG chạy lùi
+$c5 = VHG_Quy::chot( 'AMTP01', 900, 10000, 'Thắng' );
+t( '🔴 chỉ số nhỏ hơn lần trước thì chặn lại', empty( $c5['ok'] ) );
+t( 'và nói rõ vì sao', strpos( (string) $c5['error'], 'không chạy lùi' ) !== false );
+$c6 = VHG_Quy::chot( 'AMTP01', 900, 10000, 'Thắng', 'vừa thay cục nhận tiền mới' );
+t( '⚠️ có ghi chú thì cho qua — thay cục nhận tiền là chuyện có thật',
+	! empty( $c6['ok'] ), isset( $c6['error'] ) ? $c6['error'] : '' );
+
+// ---- tên người chốt là BẮT BUỘC
+t( '🔴 không có tên người chốt thì từ chối',
+	empty( VHG_Quy::chot( 'AMTP01', 2000, 10000, '' )['ok'] ) );
+t( 'và số âm cũng từ chối',
+	empty( VHG_Quy::chot( 'AMTP01', 2000, -1, 'Thắng' )['ok'] ) );
+
+/* ⚠️ Đơn vị chỉ số CHÉP LẠI vào từng dòng chốt. Khai lại đơn vị sau này không được làm đổi con
+   số của những lượt đã chốt — sổ phải giữ nguyên cái đã ghi. */
+$truoc_dv = (int) VHG_Quy::mot_chot( (int) $c4['id'] )['theo_may'];
+VHG_Quy::luu_don_vi( 10000 );
+teq( '🔴 đổi đơn vị KHÔNG làm đổi con số của lượt đã chốt',
+	$truoc_dv, (int) VHG_Quy::mot_chot( (int) $c4['id'] )['theo_may'] );
+VHG_Quy::luu_don_vi( 5000 );
+
+// ---- TIỀN TRÊN TAY
+$cam_t = VHG_Quy::dang_cam( 'Thắng' );
+teq( 'tiền trên tay cộng đủ mọi lượt chốt chưa nộp',
+	250000 + 100000 + 20000 + 15000 + 20000 + 10000, (int) $cam_t['tu_ghe'] );
+teq( 'và chưa có đồng nào từ quầy', 0, (int) $cam_t['tu_quay'] );
+
+/* Khách trả tiền mặt tại quầy: cái này VỪA là doanh thu VỪA là tiền trên tay. */
+$dt_truoc_quay = vhg_tong();
+VHG_Thu::thu_tien_mat( 'AMTP01', 50000, 'Thắng' );
+teq( '🔴 thu tiền tại quầy thì CÓ cộng doanh thu', $dt_truoc_quay + 50000, vhg_tong() );
+$cam_t2 = VHG_Quy::dang_cam( 'Thắng' );
+teq( 'và cộng luôn vào tiền trên tay', 50000, (int) $cam_t2['tu_quay'] );
+
+/* 🔴 Dòng đã HUỶ thì không phải nộp — huỷ nghĩa là lượt đó không có thật. */
+VHG_Thu::thu_tien_mat( 'AMTP01', 70000, 'Thắng' );
+$ds_tm = VHG_Thu::ds( 'all', 500 );
+$ref_huy = '';
+foreach ( $ds_tm as $r_ ) {
+	if ( 70000 === (int) $r_['so_tien'] && VHG_Thu::TIEN_MAT === (string) $r_['nguon'] ) {
+		$ref_huy = (string) $r_['ref'];
+	}
+}
+t( 'tìm được lượt vừa thu để huỷ', '' !== $ref_huy );
+VHG_Thu::huy( $ref_huy, 'ghi nhầm' );
+teq( '🔴 lượt đã huỷ KHÔNG còn nằm trong tiền phải nộp',
+	50000, (int) VHG_Quy::dang_cam( 'Thắng' )['tu_quay'] );
+
+// ---- người khác không dính gì tới tiền của người này
+VHG_Quy::chot( 'AMTP02', 600, 30000, 'Hoa' );
+teq( 'Hoa cầm riêng phần của Hoa', 30000, (int) VHG_Quy::dang_cam( 'Hoa' )['tong'] );
+$ds_cam = VHG_Quy::ai_dang_cam();
+teq( 'bảng "ai đang cầm" có đúng hai người', 2, dem( $ds_cam ) );
+teq( '🔴 và xếp người cầm nhiều nhất lên trước', 'Thắng', (string) $ds_cam[0]['nguoi'] );
+
+// ---- NỘP TIỀN VỀ QUẦY
+$tong_thang = (int) VHG_Quy::dang_cam( 'Thắng' )['tong'];
+$n1 = VHG_Quy::nop( 'Thắng' );
+t( 'nộp được', ! empty( $n1['ok'] ), isset( $n1['error'] ) ? $n1['error'] : '' );
+teq( '🔴 số tiền nộp bằng đúng tổng đang cầm', $tong_thang, (int) $n1['so_tien'] );
+teq( '🔴 nộp xong thì không còn cầm đồng nào', 0, (int) VHG_Quy::dang_cam( 'Thắng' )['tong'] );
+teq( 'nhưng tiền của Hoa thì không đụng tới', 30000, (int) VHG_Quy::dang_cam( 'Hoa' )['tong'] );
+
+/* 🔴 BẤM NỘP LẦN HAI KHÔNG ĐƯỢC ĐẺ RA MỘT LƯỢT NỘP THỨ HAI CÙNG SỐ TIỀN.
+   Đây là chốt `UPDATE ... WHERE nop_id=0`: lượt thứ hai gắn được 0 dòng, và một lượt nộp 0 đồng
+   phải bị xoá chứ không được nằm lại trong bảng chờ xác nhận. */
+$n2 = VHG_Quy::nop( 'Thắng' );
+t( '🔴 bấm nộp lần hai thì bị chặn', empty( $n2['ok'] ) );
+t( 'và nói rõ là đang không cầm đồng nào', strpos( (string) $n2['error'], 'không cầm đồng nào' ) !== false );
+teq( '⚠️ và KHÔNG để lại một lượt nộp rỗng trong bảng chờ', 1, dem( VHG_Quy::nop_cho( 50 ) ) );
+
+t( '🔴 không có tên người nộp thì từ chối', empty( VHG_Quy::nop( '' )['ok'] ) );
+
+// ---- QUẢN LÝ XÁC NHẬN
+$cho1 = VHG_Quy::nop_cho( 50 );
+teq( 'có đúng một lượt chờ xác nhận', 1, dem( $cho1 ) );
+$id_n = (int) $cho1[0]['id'];
+$nh1 = VHG_Quy::nhan( $id_n, $tong_thang, 'Quản lý A' );
+t( 'xác nhận được', ! empty( $nh1['ok'] ), isset( $nh1['error'] ) ? $nh1['error'] : '' );
+teq( 'nhận đủ thì không lệch', 0, (int) $nh1['lech'] );
+/* 🔴 Hai quản lý cùng bấm thì chỉ MỘT người xác nhận được. */
+$nh2 = VHG_Quy::nhan( $id_n, $tong_thang, 'Quản lý B' );
+t( '🔴 xác nhận lần hai bị chặn', empty( $nh2['ok'] ) );
+teq( 'xác nhận xong thì rời khỏi bảng chờ', 0, dem( VHG_Quy::nop_cho( 50 ) ) );
+
+/* 🔴 GIỮ CẢ HAI CON SỐ khi lệch — ghi đè con này lên con kia là xoá mất bằng chứng. */
+VHG_Quy::chot( 'AMTP02', 700, 40000, 'Hoa' );
+$n3 = VHG_Quy::nop( 'Hoa' );
+$id_h = (int) $n3['id'];
+$nh3  = VHG_Quy::nhan( $id_h, 60000, 'Quản lý A' );
+teq( 'sổ ghi 70.000đ', 70000, (int) $nh3['so_tien'] );
+teq( 'người nhận đếm được 60.000đ', 60000, (int) $nh3['so_tien_nhan'] );
+teq( '🔴 và lệch 10.000đ được ghi lại, không bị làm phẳng', -10000, (int) $nh3['lech'] );
+t( 'câu báo nói rõ THIẾU bao nhiêu', strpos( (string) $nh3['thong_bao'], 'THIẾU' ) !== false );
+
+// ---- HUỶ LƯỢT NỘP CHƯA XÁC NHẬN -> tiền quay lại tay người nộp
+VHG_Quy::chot( 'AMTP02', 800, 25000, 'Hoa' );
+$n4 = VHG_Quy::nop( 'Hoa' );
+teq( 'Hoa nộp 25.000đ', 25000, (int) $n4['so_tien'] );
+teq( 'và không còn cầm gì', 0, (int) VHG_Quy::dang_cam( 'Hoa' )['tong'] );
+$h1 = VHG_Quy::huy_nop( (int) $n4['id'] );
+t( 'huỷ được lượt chưa xác nhận', ! empty( $h1['ok'] ), isset( $h1['error'] ) ? $h1['error'] : '' );
+teq( '🔴 huỷ xong thì tiền quay lại tay người nộp', 25000, (int) VHG_Quy::dang_cam( 'Hoa' )['tong'] );
+/* 🔴 Đã xác nhận rồi thì KHÔNG huỷ được: tiền đã chuyển tay thật. */
+t( '🔴 lượt ĐÃ xác nhận thì không huỷ được', empty( VHG_Quy::huy_nop( $id_h )['ok'] ) );
+
+// ---- BÁO CÁO THEO NGƯỜI
+$bc = VHG_Quy::theo_nguoi( 'all' );
+$bc_th = null; $bc_hoa = null;
+foreach ( $bc as $b_ ) {
+	if ( 'Thắng' === (string) $b_['nguoi'] ) { $bc_th = $b_; }
+	if ( 'Hoa' === (string) $b_['nguoi'] ) { $bc_hoa = $b_; }
+}
+t( 'báo cáo có cả hai người', $bc_th && $bc_hoa );
+teq( 'Thắng đã nộp đủ, không còn cầm gì', 0, (int) $bc_th['dang_cam'] );
+teq( 'và tiền quầy của Thắng là 50.000đ (đã trừ lượt huỷ)', 50000, (int) $bc_th['tu_quay'] );
+teq( 'Hoa còn cầm 25.000đ', 25000, (int) $bc_hoa['dang_cam'] );
+teq( '🔴 và lệch nộp của Hoa hiện ra trong báo cáo', -10000, (int) $bc_hoa['lech_nop'] );
+
+// ---- CỔNG /ghe
+$tok_q = vhg_vao( '112233', 'Admin' );
+$q_xem = vhg_web( 'chot_xem', array( 'ma_may' => 'AMTP01', 'token' => $tok_q ) );
+t( 'xem được mốc chốt ca qua cổng', ! empty( $q_xem['ok'] ) );
+$q_luu = vhg_web( 'chot_luu', array( 'ma_may' => 'AMTP01', 'chi_so' => 3000,
+	'tien_dem' => 5000, 'token' => $tok_q ) );
+t( 'chốt được qua cổng', ! empty( $q_luu['ok'] ), isset( $q_luu['error'] ) ? $q_luu['error'] : '' );
+/* 🔴 TÊN NGƯỜI CHỐT LẤY TỪ PHIÊN, KHÔNG NHẬN TỪ GÓI TIN. Nhận từ gói tin là ai cũng chốt hộ,
+   nộp hộ, và xoá nợ tiền mặt hộ người khác. */
+$q_gia = vhg_web( 'chot_luu', array( 'ma_may' => 'AMTP01', 'chi_so' => 3001,
+	'tien_dem' => 5000, 'nguoi' => 'Người Khác', 'token' => $tok_q ) );
+t( '🔴 gửi kèm tên người khác cũng không đổi được người chốt',
+	! empty( $q_gia['ok'] ) && 'Người Khác' !== (string) $q_gia['nguoi'] );
+$src_tr = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' ) );
+t( '⚠️ và cổng không đọc $d[\'nguoi\'] ở đâu cả', strpos( $src_tr, "\$d['nguoi']" ) === false );
+
+$q_toi = vhg_web( 'quy_toi', array( 'token' => $tok_q ) );
+t( 'xem được tiền mình đang cầm', ! empty( $q_toi['ok'] ) && isset( $q_toi['cam']['tong'] ) );
+$q_nop = vhg_web( 'nop_tao', array( 'token' => $tok_q ) );
+t( 'nộp được qua cổng', ! empty( $q_nop['ok'] ), isset( $q_nop['error'] ) ? $q_nop['error'] : '' );
+
+/* 🔴 XÁC NHẬN ĐÃ NHẬN TIỀN CHỈ DÀNH CHO Admin / Quản lý.
+   Người đứng quầy tự xác nhận lượt nộp của chính mình thì cái sổ này chỉ ghi lại điều người nộp
+   muốn nó ghi. */
+$tok_q2 = vhg_vao( '445566', 'Nhân viên' );
+$q_nhan_nv = vhg_web( 'nop_nhan', array( 'id' => (int) $q_nop['id'],
+	'so_tien_nhan' => 1000, 'token' => $tok_q2 ) );
+t( '🔴 nhân viên thường KHÔNG xác nhận được tiền nộp', empty( $q_nhan_nv['ok'] ) );
+t( 'và huỷ lượt nộp cũng không',
+	empty( vhg_web( 'nop_huy', array( 'id' => (int) $q_nop['id'], 'token' => $tok_q2 ) )['ok'] ) );
+t( 'Admin thì được', ! empty( vhg_web( 'nop_nhan', array( 'id' => (int) $q_nop['id'],
+	'so_tien_nhan' => (int) $q_nop['so_tien'], 'token' => $tok_q ) )['ok'] ) );
+
+/* ⚠️ Trang KHÁCH tuyệt đối không được chạm tới quỹ. */
+$sh_q = vhg_shop_html( 'AMTP01' );
+t( '🔴 trang khách không có việc nào của quỹ',
+	strpos( $sh_q, 'chot_luu' ) === false && strpos( $sh_q, 'nop_tao' ) === false );
+
+// ---- giao diện tab Quỹ
+$html_q = vhg_web_html();
+t( 'có tab Quỹ & nộp tiền', strpos( $html_q, 'data-tab="quy"' ) !== false );
+t( 'có khối "tôi đang cầm"', strpos( $html_q, "L('Tôi đang cầm','I am holding')" ) !== false );
+t( 'có nút nộp', strpos( $html_q, 'id="nop-ok"' ) !== false );
+t( 'có bảng ai đang cầm tiền', strpos( $html_q, "L('Ai đang cầm tiền','Who is holding cash')" ) !== false );
+t( 'có bảng theo người thu', strpos( $html_q, "L('Theo người thu','By collector')" ) !== false );
+/* 🔴 Hỏi lại trước khi nộp — nộp là nộp HẾT, và sau đó chỉ quản lý mới gỡ ra được. */
+t( '🔴 có hỏi lại trước khi nộp',
+	preg_match( "/if \(!confirm\(.{0,500}?lam\('nop_tao'/s", $html_q ) === 1 );
+t( 'và hỏi lại trước khi xác nhận đã nhận',
+	preg_match( "/if \(!confirm\(.{0,200}?lam\('nop_nhan'/s", $html_q ) === 1 );
+/* 🔴 Ô nhập số tiền nhận phải gắn ĐÚNG DÒNG, không dùng một ô chung cho cả bảng. */
+t( '🔴 ô số tiền nhận gắn theo từng dòng', strpos( $html_q, 'data-nhan-so="' ) !== false );
+t( 'và nút đọc đúng ô của dòng mình',
+	strpos( $html_q, "querySelector('[data-nhan-so=\"' + id + '\"]')" ) !== false );
+
+// ---- màn quản trị khai đơn vị chỉ số
+ob_start(); VHG_Admin::trang_may(); $adm_q = ob_get_clean();
+t( 'màn quản trị có ô khai đơn vị chỉ số', strpos( $adm_q, 'name="chot_don_vi"' ) !== false );
+t( '⚠️ và chỉ cách đi kiểm bằng một tờ tiền thật',
+	strpos( $adm_q, 'nhét một tờ' ) !== false );
 
 // ============================================================ kết
 if ( $truot ) {

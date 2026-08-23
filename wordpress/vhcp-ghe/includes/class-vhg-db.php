@@ -108,6 +108,10 @@ class VHG_DB {
 		   (2) `ref` là UNIQUE và cũng là thứ chặn cộng đôi — xoá dòng đi thì đúng giao dịch đó
 		   bắn lại lần sau lại vào sổ như mới. Đánh dấu thì `ref` còn nguyên, chặn vẫn còn, và
 		   dòng vẫn nằm đó cho người đối soát nhìn thấy kèm lý do. */
+		/* ⚠️ `nop_id` — lượt thu tiền mặt tại quầy này đã được NỘP về quỹ trong lượt nộp nào.
+		      0 = tiền còn trên tay người thu. Đây là cột LIÊN KẾT, không phải cột tiền: số tiền
+		      vẫn nằm ở `so_tien` và không ai được sửa nó khi nộp. Xem VHG_Quy.
+		   ⚠️ Dòng đã HUỶ thì không tính vào tiền trên tay — huỷ nghĩa là lượt đó không có thật. */
 		$b['thu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ref VARCHAR(120) NOT NULL,
@@ -123,8 +127,10 @@ class VHG_DB {
 			ghi_luc DATETIME NULL,
 			huy TINYINT(1) NOT NULL DEFAULT 0,
 			huy_ly_do VARCHAR(190) NOT NULL DEFAULT '',
+			nop_id BIGINT(20) NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ref (ref),
+			KEY nop (nop_id),
 			KEY luc (luc),
 			KEY huy (huy,luc),
 			KEY may (ma_may,luc),
@@ -421,6 +427,91 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			KEY nguoi (sdt,nhan_luc),
 			KEY cho (nhan_luc,tao_luc)";
+
+		/* ===== 14. CHỐT CA THEO GHẾ — ĐỌC CHỈ SỐ MÁY ĐẾM TIỀN ==============================
+		   Anh Thắng 23/08/2026: *"Mở ứng dụng tới quét QR tại máy. Bấm thu tiền (chốt ca, dữ
+		   liệu chốt ca). Nhập số tiền mặt, chỉ số máy tiền mặt — trên máy có 1 màn hình đếm tiền
+		   mặt nữa, nên nhập vào để trừ chỉ số cho ngày hôm sau"*.
+
+		   🔴 BA CON SỐ CHO CÙNG MỘT XẤP TIỀN, VÀ CHÚNG PHẢI KHỚP NHAU.
+		      · `theo_may`      = (chỉ số lần này − chỉ số lần trước) × đồng mỗi đơn vị.
+		                          Máy đếm tiền tự nói nó đã nuốt bao nhiêu. Đây là con số KHÔNG
+		                          phụ thuộc vào ESP32, vào mạng, vào điện — nó nằm trong phần
+		                          cứng của cục nhận tiền.
+		      · `theo_he_thong` = tổng các lượt ghế BÁO VỀ máy chủ trong cùng quãng đó.
+		      · `tien_dem`      = tiền mặt người thu đếm được thật trong ngăn.
+
+		   Hai kiểu lệch, hai nguyên nhân KHÁC HẲN nhau — nên tách thành hai cột chứ không gộp:
+		      · `lech_dem` (đếm ≠ máy)        -> thiếu/thừa tiền trong ngăn. Chuyện của NGƯỜI.
+		      · `lech_may` (máy ≠ hệ thống)   -> ghế nuốt tiền mà không báo được về (mất mạng,
+		                                        mất điện giữa chừng, ESP32 sót xung). Chuyện của
+		                                        MÁY, và là doanh thu đang thiếu trong sổ.
+		      Gộp hai con số này lại thành một "chênh lệch" là mất đúng thông tin để đi sửa.
+
+		   🔴 QUÃNG THỜI GIAN ĐÁNH DẤU BẰNG **SỐ DÒNG**, KHÔNG BẰNG ĐỒNG HỒ.
+		      `tu_id`/`den_id` là khoảng id trên bảng `thu` mà lượt chốt này bao trùm. Cắt theo
+		      `luc > <giờ chốt trước>` nghe hợp lý hơn, nhưng nó hỏng ở đúng hai chỗ:
+		        · Hai lượt rơi vào CÙNG MỘT GIÂY thì `>` bỏ mất dòng, còn `>=` thì đếm nó hai lần.
+		          Ghế nuốt tờ tiền ngay lúc người thu bấm chốt là chuyện xảy ra thật.
+		        · Giờ máy chủ đang lệch múi (site chạy UTC, lệch 7 tiếng) — đã cắn hệ này rồi. Bất
+		          kỳ phép cắt nào dựa vào đồng hồ đều đi theo cái lệch đó.
+		      Số dòng thì không có hai chuyện ấy: mỗi đồng nằm trong đúng một quãng, không sót,
+		      không lặp.
+
+		   ⚠️ `chi_so_truoc` CHÉP LẠI chứ không tra ngược mỗi lần đọc. Ghế bị thay cục nhận tiền,
+		      hay ai đó xoá một dòng chốt, thì tra ngược cho ra một con số khác với con số người
+		      đứng đó đã nhìn thấy và đã ký. Sổ phải giữ nguyên cái đã ghi. */
+		$b['chot'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			nguoi VARCHAR(190) NOT NULL DEFAULT '',
+			chi_so BIGINT(20) NOT NULL DEFAULT 0,
+			chi_so_truoc BIGINT(20) NOT NULL DEFAULT 0,
+			don_vi BIGINT(20) NOT NULL DEFAULT 0,
+			theo_may BIGINT(20) NOT NULL DEFAULT 0,
+			theo_he_thong BIGINT(20) NOT NULL DEFAULT 0,
+			tien_dem BIGINT(20) NOT NULL DEFAULT 0,
+			lech_dem BIGINT(20) NOT NULL DEFAULT 0,
+			lech_may BIGINT(20) NOT NULL DEFAULT 0,
+			lan_dau TINYINT(1) NOT NULL DEFAULT 0,
+			tu_id BIGINT(20) NOT NULL DEFAULT 0,
+			den_id BIGINT(20) NOT NULL DEFAULT 0,
+			tu_luc DATETIME NULL,
+			tao_luc DATETIME NULL,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			nop_id BIGINT(20) NOT NULL DEFAULT 0,
+			PRIMARY KEY  (id),
+			KEY may (ma_may,id),
+			KEY nguoi (nguoi,nop_id),
+			KEY nop (nop_id)";
+
+		/* ===== 15. NỘP TIỀN VỀ QUỸ =========================================================
+		   Tiền trong tay người thu là tiền của cửa hàng đang nằm ở chỗ không ai nhìn thấy. Bảng
+		   này là chỗ nó chuyển tay, và là chỗ DUY NHẤT trả lời được câu "ai đang cầm bao nhiêu".
+
+		   🔴 HAI CON SỐ, KHÔNG PHẢI MỘT.
+		      · `so_tien`     = tổng các dòng ĐÃ GẮN vào lượt nộp này. Máy tự cộng, không ai gõ.
+		      · `so_tien_nhan`= người nhận đếm lại được bao nhiêu. Người nhận gõ.
+		      Bằng nhau là xong. Lệch là có chuyện, và phải thấy được CẢ HAI con số mới biết lệch
+		      bao nhiêu — ghi đè một con số lên con số kia là xoá mất bằng chứng.
+
+		   ⚠️ `so_tien` tính SAU khi gắn dòng, từ chính những dòng gắn được — không cộng trước
+		      rồi gắn sau. Hai người cùng bấm nộp một lúc thì người thứ hai gắn được 0 dòng, và
+		      một lượt nộp 0 đồng phải bị từ chối chứ không được ghi vào sổ. */
+		$b['nop'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			nguoi VARCHAR(190) NOT NULL DEFAULT '',
+			so_tien BIGINT(20) NOT NULL DEFAULT 0,
+			so_tien_nhan BIGINT(20) NOT NULL DEFAULT 0,
+			so_dong INT NOT NULL DEFAULT 0,
+			trang_thai VARCHAR(10) NOT NULL DEFAULT 'cho',
+			tao_luc DATETIME NULL,
+			nhan_luc DATETIME NULL,
+			nhan_ai VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY nguoi (nguoi,trang_thai),
+			KEY cho (trang_thai,tao_luc)";
 
 		return $b;
 	}
