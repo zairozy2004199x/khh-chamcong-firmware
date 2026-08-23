@@ -102,6 +102,24 @@ t('chỉ có 1 cơ sở thì chọn sẵn (khỏi phải bấm mới thấy lo�
 t('ô Loại chi phí có chỗ hiện lời giải thích', /id="f_nhomVi"/.test(HTML));
 t('fillNhom có vẽ lời giải thích đó', /_veLoaiCpVi\('f_nhomVi'/.test(HTML));
 
+// ---------------------------------------------------------------- 6. bảng dòng chi
+const CSS = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/assets/css/vhcp.css'), 'utf8');
+// Cột "Cơ sở": một đơn = một cơ sở (máy chủ chặn ở loi_khac_coso), đã chốt ở đầu form.
+t('ẩn cột Cơ sở bằng LỚP CSS (đầu bảng + mọi dòng cùng lúc)',
+  /#lineTable\.anCoso \.colCoso\{display:none\}/.test(CSS));
+t('đầu bảng và ô của dòng dùng CHUNG một lớp', (HTML.match(/class="colCoso"/g) || []).length >= 1 && /'<td class="colCoso"'/.test(HTML));
+// Bỏ ô ở dòng mà giữ ô ở đầu bảng là cả bảng trượt cột -> colspan phải giữ nguyên 13.
+t('giữ nguyên 13 ô, không đổi colspan theo trạng thái', /var COLS=13, html='';/.test(HTML));
+// Đơn cũ trộn cơ sở thì KHÔNG được giấu — ẩn đi là giấu mất một sai lệch có thật.
+t('đơn trộn cơ sở thì cột hiện lại', /classList\[lechCs\?'remove':'add'\]\('anCoso'\)/.test(HTML));
+t('và dòng lệch cơ sở bị tô đỏ', /Dòng này khác cơ sở của đơn/.test(HTML));
+t('phát hiện lệch theo cả 2 cách (nhiều cơ sở, hoặc khác cơ sở của đơn)',
+  /var lechCs=\(dsCs\.length>1\)\|\|\(csDon!==''&&dsCs\.length===1&&dsCs\[0\]!==csDon\);/.test(HTML));
+// Ảnh: máy chủ vốn cho đính khi Nháp, chỉ giao diện không bày ra.
+t('đính ảnh được ngay khi đơn còn Nháp (không đợi cấp tạm ứng)',
+  /if\(!\(o\.canThucChi\|\|o\.canEditRow\)\) return xem\|\|'—';/.test(HTML));
+t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', /<img src="'\+esc\(l\.anh\)\+'" style="height:28px/.test(HTML));
+
 // ---------------------------------------------------------------- kết
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');

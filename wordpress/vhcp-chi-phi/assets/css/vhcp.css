@@ -110,3 +110,9 @@
   .card.xo.dong > .ch h2::before{transform:rotate(-90deg)}
   .card.xo.dong > .ch{border-bottom:none}
   .card.xo.dong > .ch ~ *{display:none !important}
+
+  /* Cột "Cơ sở" của bảng dòng chi: một đơn = một cơ sở, đã chốt ở đầu form nên lặp lại ở
+     từng dòng chỉ ăn chỗ. Ẩn CẢ CỘT bằng lớp này (đầu bảng + mọi dòng cùng lúc) thay vì
+     bỏ ô ở dòng — bỏ lệch nhau là cả bảng trượt cột. Đơn cũ còn trộn cơ sở thì JS gỡ lớp
+     này ra để cột hiện lại, kèm tô đỏ dòng lệch. */
+  #lineTable.anCoso .colCoso{display:none}

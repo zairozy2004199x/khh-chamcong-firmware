@@ -236,8 +236,8 @@
     <div class="card">
       <div class="ch"><h2>Các dòng đã nhập (<span id="lineCount">0</span>)</h2></div>
       <div class="tw">
-        <table>
-          <thead><tr><th>Cơ sở</th><th>Ngày</th><th>Nội dung</th><th>ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right" title="Số thực trả — để trống = bằng Thành tiền; nhập nếu khác (vd kèm ship/phụ phí)">Thực mua</th><th style="text-align:right">Thuế</th><th>TT</th><th style="text-align:center" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">Cá nhân</th><th>Ảnh</th><th style="text-align:center">Sửa</th></tr></thead>
+        <table id="lineTable">
+          <thead><tr><th class="colCoso">Cơ sở</th><th>Ngày</th><th>Nội dung</th><th>ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right" title="Số thực trả — để trống = bằng Thành tiền; nhập nếu khác (vd kèm ship/phụ phí)">Thực mua</th><th style="text-align:right">Thuế</th><th>TT</th><th style="text-align:center" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">Cá nhân</th><th>Ảnh</th><th style="text-align:center">Sửa</th></tr></thead>
           <tbody id="lineBody"></tbody>
         </table>
         <div class="empty" id="lineEmpty">Chưa có dòng chi nào. Thêm ở mục 2 phía trên.</div>
@@ -1772,6 +1772,17 @@
     // Ở "Nháp" mọi dòng là hạng mục xin (kể cả dòng phát sinh còn sót do đơn bị trả về) -> gộp hết vào mục ĐÃ XIN
     var xinL = stNhap ? L : L.filter(function(l){return !l.phatSinh;});
     var psL  = stNhap ? [] : L.filter(function(l){return l.phatSinh;});
+    // CỘT "CƠ SỞ" — BỎ ĐI KHI MỌI DÒNG CÙNG CƠ SỞ CỦA ĐƠN (gần như luôn luôn).
+    // Một đơn = một cơ sở (máy chủ chặn ở loi_khac_coso), cơ sở đã chốt ngay đầu form, nên
+    // lặp lại ở từng dòng chỉ ăn chỗ. NHƯNG dữ liệu cũ có thể còn đơn trộn cơ sở: lúc đó
+    // PHẢI hiện lại cột và tô đỏ dòng lệch — ẩn đi là giấu mất một sai lệch có thật.
+    var csDon=String((CUR&&CUR.don&&CUR.don.coso)||'').trim();
+    var csSet={}; L.forEach(function(l){ var c=String(l.coso||'').trim(); if(c) csSet[c]=1; });
+    var dsCs=Object.keys(csSet);
+    var lechCs=(dsCs.length>1)||(csDon!==''&&dsCs.length===1&&dsCs[0]!==csDon);
+    // Ẩn bằng LỚP CSS chứ không bỏ hẳn ô: bỏ ô ở dòng mà vẫn giữ ô ở đầu bảng là lệch cột
+    // ngay. Giữ nguyên 13 ô, chỉ tắt hiển thị cả cột — đầu bảng và dòng luôn khớp nhau.
+    if(el('lineTable')) el('lineTable').classList[lechCs?'remove':'add']('anCoso');
     var COLS=13, html='';
     // ---- Mục HẠNG MỤC ĐÃ XIN (khóa danh mục sau khi cấp; đơn bị trả lại thì mở khóa để NV sửa) ----
     var xinLbl = stNhap ? 'nhập/sửa được'
@@ -1779,12 +1790,12 @@
       : stCap ? '✏ sửa nội dung được · nhập Thực chi (không mua để 0)'
       : 'đã khóa';
     html+='<tr><td colspan="'+COLS+'" style="background:#ecfeff;font-weight:800;color:#0369a1;border-left:4px solid #0369a1;padding:8px 10px">📋 HẠNG MỤC ĐÃ XIN ('+xinL.length+') <span style="font-weight:400;color:#64748b">· '+xinLbl+'</span></td></tr>';
-    html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:xinUnlock&&sd, canSplit:(xinUnlock&&sd)||ktEdit, canFlag:canFlag, COLS:COLS});
+    html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:xinUnlock&&sd, canSplit:(xinUnlock&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
     if(!xinL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có hạng mục xin —</td></tr>';
     // ---- Mục PHÁT SINH (mua thêm ngoài dự kiến) ----
     if(psL.length || stCap){
       html+='<tr><td colspan="'+COLS+'" style="background:#fff7ed;font-weight:800;color:#b45309;border-left:4px solid #f59e0b;padding:8px 10px">➕ PHÁT SINH — mua thêm ngoài dự kiến ('+psL.length+') <span style="font-weight:400;color:#64748b">· để quản lý / kế toán biết là phát sinh</span></td></tr>';
-      html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:(stCap||stNhap)&&sd, canDelRow:(stCap||stNhap)&&sd, canSplit:((stCap||stNhap)&&sd)||ktEdit, canFlag:canFlag, COLS:COLS});
+      html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:(stCap||stNhap)&&sd, canDelRow:(stCap||stNhap)&&sd, canSplit:((stCap||stNhap)&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
       if(!psL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có phát sinh (thêm ở form phía trên) —</td></tr>';
     }
     b.innerHTML=html;
@@ -1806,7 +1817,8 @@
       html+=rows.map(function(l){
         var moved=(l.phanLoaiTT!=='Nhà cung cấp' && l.cnXuLy===false);   // dòng cá nhân đã chuyển sang NCC
         return '<tr'+(moved?' style="opacity:.6;background:#fff7ed"':'')+'>'+
-          '<td>'+esc(l.coso)+'</td><td>'+esc(l.ngay)+'</td>'+
+          '<td class="colCoso"'+((o.csDon&&String(l.coso||'').trim()!==o.csDon)?' style="color:#b91c1c;font-weight:700" title="Dòng này khác cơ sở của đơn"':'')+'>'+esc(l.coso)+'</td>'+
+          '<td>'+esc(l.ngay)+'</td>'+
           '<td>'+esc(l.noiDung)+(l.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
           '<td>'+esc(l.dvt)+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td>'+
           '<td class="money"><b>'+money(l.thanhTien)+'</b></td>'+
@@ -1820,9 +1832,16 @@
               : (o.canFlag
                   ? '<input type="checkbox" '+(l.cnXuLy!==false?'checked':'')+' onchange="toggleLineCN(\''+l.id+'\',this.checked)" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">'+(l.cnXuLy===false?' <span style="font-size:10px;color:#b45309" title="Bấm tích lại để nhận về cá nhân">→NCC</span>':'')
                   : (l.cnXuLy!==false?'<span title="Kế toán cá nhân xử lý">👤</span>':'<span title="Đã chuyển kế toán NCC" style="color:#b45309">🏢</span>')))+'</td>'+
-          '<td style="text-align:center;white-space:nowrap">'+(o.canThucChi
-             ? (l.anh?'<a href="'+esc(l.anh)+'" target="_blank" style="text-decoration:none">📎</a> ':'')+'<button class="btn b-x" style="padding:2px 7px" onclick="attachLineAnh(\''+l.id+'\')" title="'+(l.anh?'Đổi hóa đơn dòng này':'Đính hóa đơn dòng này')+'">'+(l.anh?'✎':'📎')+'</button>'
-             : (l.anh?'<a href="'+esc(l.anh)+'" target="_blank" style="text-decoration:none">📎</a>':'—'))+'</td>'+
+          // ẢNH ĐÍNH ĐƯỢC NGAY TỪ LÚC NHẬP, không đợi tới khi cấp tạm ứng.
+          // Trước đây nút này chỉ hiện khi được nhập Thực chi, nên ở trạng thái Nháp cột Ảnh
+          // là một dấu "—" chết: người nhập cầm hóa đơn trên tay mà không có chỗ đính. Máy
+          // chủ (set_line_anh) vốn đã cho đính khi Nháp — chỉ giao diện không bày ra.
+          // Hiện ảnh nhỏ luôn: nhìn một cái biết dòng nào đã có chứng từ.
+          '<td style="text-align:center;white-space:nowrap">'+(function(){
+             var xem=l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Xem chứng từ"><img src="'+esc(l.anh)+'" style="height:28px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'';
+             if(!(o.canThucChi||o.canEditRow)) return xem||'—';
+             return xem+' <button class="btn b-x" style="padding:2px 7px" onclick="attachLineAnh(\''+l.id+'\')" title="'+(l.anh?'Đổi ảnh chứng từ dòng này':'Đính ảnh chứng từ dòng này')+'">'+(l.anh?'✎':'📎')+'</button>';
+           })()+'</td>'+
           '<td style="text-align:center;white-space:nowrap">'+
             (o.canEditRow?'<button class="btn b-x" onclick="editLine(\''+l.id+'\')" title="Sửa nội dung dòng">✏</button> ':'')+
             (o.canDelRow?'<button class="btn b-d" onclick="delLine(\''+l.id+'\')" title="Xóa dòng">🗑</button> ':'')+
