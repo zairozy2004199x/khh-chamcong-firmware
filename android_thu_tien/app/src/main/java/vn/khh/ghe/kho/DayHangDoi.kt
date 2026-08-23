@@ -30,40 +30,51 @@ import vn.khh.ghe.mang.MangHong
  */
 class DayHangDoi(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
 
-    override suspend fun doWork(): Result {
-        val luu = Luu(applicationContext)
-        if (!luu.daVao()) return Result.success()
-
-        val hd = HangDoi(applicationContext)
-        val api = Api(luu.diaChi)
-        for (l in hd.doc()) {
-            try {
-                val tl = api.goi(l.viec, l.thanJson(), luu.token)
-                if (tl.optBoolean("ok", false)) {
-                    hd.xoa(l.id)
-                    continue
-                }
-                /* Hết phiên: KHÔNG bỏ lượt đi. Người dùng đăng nhập lại là đẩy được ngay, mà bỏ
-                   đi là mất luôn một lượt chốt ca có thật. Dừng cả vòng — mọi lượt sau cũng sẽ
-                   vấp đúng chỗ này. */
-                if (tl.optString("ma") == "het_phien") {
-                    hd.ghiHong(l.id, "Phiên đã hết — đăng nhập lại rồi lượt này tự gửi đi.")
-                    return Result.retry()
-                }
-                /* Máy chủ từ chối có lý do (mệnh giá lạ, ghế khác cơ sở, chỉ số chạy lùi...).
-                   Gửi lại không đổi được gì. */
-                hd.ghiHong(l.id, tl.optString("error", "Máy chủ từ chối lượt này."))
-                hd.xoa(l.id)
-            } catch (e: MangHong) {
-                hd.ghiHong(l.id, e.loi)
-                return Result.retry()
-            }
-        }
-        return Result.success()
-    }
+    override suspend fun doWork(): Result =
+        if (dayMotLuot(applicationContext)) Result.success() else Result.retry()
 
     companion object {
         private const val TEN = "day_hang_doi"
+
+        /**
+         * Đẩy hết hàng đợi. Trả `true` nếu không còn gì kẹt vì mạng.
+         *
+         * ⚠️ TÁCH RA KHỎI `doWork()` để nút "Gửi ngay" trên màn Quỹ dùng CHUNG. Chép ra hai bản
+         *    là hai bộ luật cho cùng một việc đụng tới tiền — rồi một hôm sửa chỗ này quên chỗ
+         *    kia, và nút bấm tay ghi hai lần trong khi bộ tự động thì không.
+         */
+        suspend fun dayMotLuot(ctx: Context): Boolean {
+            val luu = Luu(ctx)
+            if (!luu.daVao()) return true
+
+            val hd = HangDoi(ctx)
+            val api = Api(luu.diaChi)
+            for (l in hd.doc()) {
+                try {
+                    val tl = api.goi(l.viec, l.thanJson(), luu.token)
+                    if (tl.optBoolean("ok", false)) {
+                        hd.xoa(l.id)
+                        continue
+                    }
+                    /* Hết phiên: KHÔNG bỏ lượt đi. Người dùng đăng nhập lại là đẩy được ngay, mà
+                       bỏ đi là mất luôn một lượt chốt ca có thật. Dừng cả vòng — mọi lượt sau
+                       cũng sẽ vấp đúng chỗ này. */
+                    if (tl.optString("ma") == "het_phien") {
+                        hd.ghiHong(l.id, "Phiên đã hết — đăng nhập lại rồi lượt này tự gửi đi.")
+                        return false
+                    }
+                    /* Máy chủ từ chối CÓ LÝ DO (ghế khác cơ sở, chỉ số chạy lùi…). Gửi lại không
+                       đổi được gì, nên bỏ khỏi hàng đợi — nhưng ghi lại câu lỗi trước đã, để còn
+                       hiện cho người dùng biết lượt đó đã mất vì sao. */
+                    hd.ghiHong(l.id, tl.optString("error", "Máy chủ từ chối lượt này."))
+                    hd.xoa(l.id)
+                } catch (e: MangHong) {
+                    hd.ghiHong(l.id, e.loi)
+                    return false
+                }
+            }
+            return true
+        }
 
         /**
          * Hẹn đẩy. Gọi được nhiều lần — `KEEP` giữ lượt đang chờ thay vì xếp thêm lượt mới.

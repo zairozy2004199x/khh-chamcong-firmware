@@ -1,0 +1,80 @@
+# Tự dựng APK cho app thu tiền của nhân viên.
+#
+# VÌ SAO CÓ TỆP NÀY
+#   Dựng APK cần Android SDK — thứ không có trên máy người viết mã, và cũng không nên bắt anh
+#   Thắng cài. Máy chạy của GitHub có sẵn; đẩy mã lên là có tệp .apk tải về, không phải chờ ai.
+#
+# 🔴 BẢN NÀY KÝ BẰNG KHOÁ GỠ LỖI (debug). Cài được ngay, chạy đầy đủ, nhưng KHÔNG cập nhật đè
+#    lên bản ký bằng khoá khác được — muốn đổi sang khoá thật thì phải gỡ app cũ rồi cài lại.
+#    Đủ cho giai đoạn này: app dùng nội bộ, phát qua đường dẫn tải chứ không qua CH Play.
+#
+# ⚠️ Máy nhân viên phải BẬT "cài từ nguồn không rõ" cho trình duyệt hoặc app quản lý tệp.
+name: Dựng APK thu tiền
+
+on:
+  push:
+    paths:
+      - 'android_thu_tien/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Soi cấu trúc TRƯỚC khi dựng: nó chạy trong hai giây và bắt được ngoặc lệch, trùng tên
+      # lớp/hàm, và những chốt về tiền bị gỡ mất. Dựng APK mất vài phút — đừng chờ vài phút để
+      # biết một dấu ngoặc thiếu.
+      - name: Soi cấu trúc mã Kotlin
+        run: python3 tools/test/kiem-app-android.py
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Không dùng gradle wrapper: kho này không giữ tệp .jar nhị phân nào, và một tệp jar
+      # không ai đọc được là một tệp không ai kiểm được.
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+
+      - name: Dựng APK
+        working-directory: android_thu_tien
+        run: gradle --no-daemon assembleDebug
+
+      - name: Đặt tên theo số bản
+        id: ten
+        working-directory: android_thu_tien
+        run: |
+          set -e
+          BAN=$(grep -o 'versionName = "[^"]*"' app/build.gradle.kts | head -1 | cut -d'"' -f2)
+          cp app/build/outputs/apk/debug/app-debug.apk "khh-thu-tien-$BAN.apk"
+          echo "ban=$BAN" >> "$GITHUB_OUTPUT"
+          echo "tep=android_thu_tien/khh-thu-tien-$BAN.apk" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: khh-thu-tien-apk
+          path: ${{ steps.ten.outputs.tep }}
+          retention-days: 30
+
+      # Chỉ main mới phát hành ra chỗ tải công khai — nhánh làm việc thì chỉ cần biết nó DỰNG ĐƯỢC.
+      - name: Phát hành (chỉ main)
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-thu-tien
+          name: App thu tiền ${{ steps.ten.outputs.ban }}
+          files: ${{ steps.ten.outputs.tep }}
+          body: |
+            App Android cho nhân viên thu tiền: quét QR trên ghế, chốt ca (chỉ số máy đếm +
+            tiền đếm được), nộp tiền về quầy.
+
+            Cài: tải tệp .apk, mở ra, cho phép "cài từ nguồn không rõ" nếu máy hỏi.
+            Lần đầu mở app: nhập địa chỉ máy chủ (khmatrix.com) và PIN của trang /ghe.
