@@ -11,7 +11,7 @@ là dừng cả tuần chờ hàng.*
 | # | Món | SL | Giá ước | Để làm gì |
 |---|---|---|---|---|
 | 1 | **ESP32 DevKit V1** (WROOM-32, 30 chân) | 2 | 100k/con | Con test. Mua 2: cháy một con lúc dò là còn con kia, khỏi dừng. **Không cần CYD.** |
-| 2 | **Bộ phân tích logic 8 kênh USB** (bản sao Saleae) | 1 | ~100k | Xem mục B — món đáng tiền nhất trong cả danh sách. |
+| 2 | **USB Logic Analyzer 24MHz 8CH** (chip CY7C68013A) | 1 | 80–150k | Xem mục B — món đáng tiền nhất. Shopee có chỗ hét 240k; đúng loại nhưng gấp đôi mặt bằng. |
 | 3 | **Module cách ly ADUM1201** | 3 | 50k/cái | UART hai chiều với bo ghế. Mua 3: 1 test, 1 lắp thật, 1 dự phòng. |
 | 4 | **B0505S-1W** (DC-DC cách ly 5V→5V) | 3 | 20k/cái | Nguồn cho phía bo ghế. **Thiếu món này là cách ly giả** — xem `CACH-LY-BO-GHE.md` mục 3. |
 | 5 | **PC817** rời | 10 | 3k/con | Đường xung tiền L70. Rẻ, hay cháy, mua dư. |
@@ -40,7 +40,32 @@ Phần mềm dùng **PulseView (sigrok)** — miễn phí, có sẵn bộ giải
 nó tự in ra byte. Với việc "đoán sai một byte là ghế cộng tiền sai" thì đây là món bảo hiểm
 rẻ nhất.
 
-**⚠️ Bộ phân tích logic chịu tối đa 5V. Đường 12V phải chia áp trước, xem mục D.**
+### 🔴 Ba cái bẫy của con máy này — đọc trước khi cắm
+
+**1. CHỊU TỐI ĐA 5V, và KHÔNG có mạch bảo vệ đầu vào.**
+Cắm thẳng vào đường 12V là chết máy ngay — và nếu chết lan sang cổng USB của laptop thì còn
+phiền hơn cái máy 100k. Đo áp trước, chia áp theo bảng mục D. Không có ngoại lệ.
+
+**2. Chân `PWR` — KHÔNG NỐI GÌ VÀO.**
+Đó là chân cấp nguồn RA. Nối vào bo ghế là đấu đối đầu hai nguồn với nhau. Dò chỉ cần đúng
+hai sợi: **CH1** và **GND**.
+
+**3. Windows phải cài driver bằng Zadig, không thì PulseView KHÔNG THẤY MÁY.**
+Cắm vào, Windows nhận nhầm thành thiết bị khác. Chạy **Zadig** → chọn đúng thiết bị trong danh
+sách → cài **WinUSB** → cắm lại. Đây là chỗ ai cũng vấp lần đầu và tưởng máy hỏng, trả hàng
+oan. Linux không cần bước này.
+
+### Cách dùng, gọn
+
+1. Cài **PulseView** (bộ sigrok) — miễn phí, có bản Windows.
+2. Cắm máy, Windows thì làm bước Zadig ở trên.
+3. PulseView → chọn thiết bị **fx2lafw** → đặt lấy mẫu **1 MHz**, thời lượng **10 giây**.
+4. Kẹp **CH1** vào TX của bo ghế (qua bộ chia nếu >3.3V), **GND** vào mát bo ghế.
+5. Bấm **Run**, bật ghế, chờ hết 10 giây.
+6. Chuột phải lên kênh → **Add protocol decoder** → **UART**. Nó tự in ra byte.
+   Không ra byte thì đổi baud trong ô cài đặt của bộ giải mã, hoặc đo bề rộng một bit hẹp nhất
+   rồi lấy `1 / bề_rộng` ra baud.
+7. Chụp màn hình gửi về, kèm phần byte giải mã được.
 
 Bản ESP32 vẫn giữ — dùng để kiểm chéo, và để dò tại cửa hàng khi không mang laptop.
 
