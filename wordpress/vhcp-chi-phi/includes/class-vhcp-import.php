@@ -498,6 +498,9 @@ class VHCP_Import {
 	private static function dt( $v ) {
 		$s = trim( (string) $v );
 		if ( $s === '' ) { return null; }
+		// Sê-ri bảng tính giữ được CẢ GIỜ ở phần thập phân — dùng luôn, đừng để mất giờ.
+		$sr = VHCP_Util::seri( $s );
+		if ( $sr !== null ) { return $sr[0] . ' ' . $sr[1]; }
 		if ( preg_match( '#^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?#', $s, $m ) ) {
 			return sprintf( '%s-%s-%s %02d:%02d:%02d', $m[1], $m[2], $m[3], $m[4], $m[5], isset( $m[6] ) ? $m[6] : 0 );
 		}

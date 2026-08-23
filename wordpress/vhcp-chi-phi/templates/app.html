@@ -2002,10 +2002,15 @@
              // đơn đã quyết toán / đã xuất MISA — khoá luôn thì không đường nào sửa.
              var admNgay=(CURUSER&&CURUSER.role==='Admin');
              if(!(o.canEditRow||o.canThucChi||admNgay)) return (xau?'<b style="color:#b91c1c" title="Năm vô lý">'+esc(l.ngay)+'</b>':esc(l.ngay));
-             return '<input type="date" value="'+esc(_ymd(l.ngay))+'" onchange="saveLineNgay(\''+l.id+'\',this.value)"'
-               +' style="padding:4px 5px;'+(xau?'border-color:#dc2626;background:#fef2f2':'')+'"'
-               +' title="'+(xau?'Năm vô lý — sửa lại rồi Enter':'Sửa ngày ngay tại đây')+'">'
-               +(xau?'<div style="font-size:10px;color:#b91c1c;font-weight:700">'+esc(l.ngay)+'</div>':'');
+             // GÕ TAY dd/mm/yyyy, KHÔNG dùng <input type="date">.
+             // Trình duyệt vẽ ô type=date theo NGÔN NGỮ CỦA MÁY — máy anh Thắng ra 08/22/4625
+             // (tháng trước ngày) trong khi cả app dùng 22/08/2026. Cấu hình ngày của
+             // WordPress KHÔNG đụng được tới ô đó. Ở bảng sửa hàng loạt thì thống nhất một
+             // kiểu quan trọng hơn cái lịch bấm sẵn, nên ô này là ô chữ.
+             return '<input type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy"'
+               +' value="'+esc(l.ngay||'')+'" onchange="saveLineNgay(\''+l.id+'\',this.value)"'
+               +' style="width:104px;text-align:center;padding:4px 5px;'+(xau?'border-color:#dc2626;background:#fef2f2;color:#b91c1c;font-weight:700':'')+'"'
+               +' title="'+(xau?'Năm vô lý — gõ lại theo kiểu ngày/tháng/năm':'Sửa ngày ngay tại đây — kiểu ngày/tháng/năm')+'">';
            })()+'</td>'+
           '<td>'+esc(l.noiDung)+(l.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
           '<td>'+esc(l.dvt)+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td>'+

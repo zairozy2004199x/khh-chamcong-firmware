@@ -77,6 +77,36 @@ class VHCP_Util {
 	 * Đọc chuỗi ngày người dùng gửi lên ('dd/MM/yyyy', 'yyyy-mm-dd', 'dd-mm-yyyy') → 'Y-m-d'.
 	 * Không đọc được → null (ô trống).
 	 */
+	/**
+	 * SỐ SÊ-RI CỦA BẢNG TÍNH -> [ngày, giờ].
+	 *
+	 * Google Sheets / Excel lưu ngày giờ là SỐ NGÀY kể từ 30/12/1899; phần thập phân là
+	 * phần của ngày ("46232.6543" = 29/07/2026 15:42). Xuất CSV mà ô đó chưa định dạng
+	 * ngày thì ra đúng con số đó.
+	 *
+	 * ⚠️ PHẢI NHẬN CẢ PHẦN THẬP PHÂN KHÁC 0. Bản vá đầu chỉ nhận ".0" nên mọi cột GIỜ
+	 *    (nhật ký, tạo lúc, ngày duyệt…) vẫn rơi xuống strtotime() — nó đọc 4 chữ số đầu
+	 *    thành NĂM, ra "04/01/6294". Đúng cái lỗi vừa sửa, chỉ khác cột.
+	 *
+	 * Khoảng 20000–60000 là 1954–2064: đủ rộng cho mọi ngày có thật của sổ sách, mà không
+	 * nuốt nhầm số 4 chữ số (năm) hay số nhỏ.
+	 *
+	 * @return array|null [ 'Y-m-d', 'H:i:s' ]
+	 */
+	public static function seri( $v ) {
+		$s = trim( (string) $v );
+		if ( ! preg_match( '#^(\d{5})(?:[.,](\d+))?$#', $s, $m ) ) { return null; }
+		$n = (int) $m[1];
+		if ( $n < 20000 || $n > 60000 ) { return null; }
+		$giay = 0;
+		if ( isset( $m[2] ) && $m[2] !== '' ) {
+			$giay = (int) round( (float) ( '0.' . $m[2] ) * 86400 );
+			if ( $giay >= 86400 ) { $giay = 86399; }
+		}
+		$ts = ( $n - 25569 ) * 86400;   // 25569 = 01/01/1970 tính theo gốc bảng tính
+		return array( gmdate( 'Y-m-d', $ts ), gmdate( 'H:i:s', $giay ) );
+	}
+
 	public static function parse_date( $v ) {
 		if ( $v === null || $v === '' ) { return null; }
 		if ( $v instanceof DateTimeInterface ) { return $v->format( 'Y-m-d' ); }
@@ -92,12 +122,8 @@ class VHCP_Util {
 		//
 		// Khoảng 20000–60000 là 1954–2064 — đủ rộng cho mọi ngày có thật của sổ sách, mà
 		// vẫn không nuốt nhầm số 4 chữ số (năm) hay số nhỏ.
-		if ( preg_match( '#^(\d{5})(?:\.0+)?$#', $s, $m ) ) {
-			$n = (int) $m[1];
-			if ( $n >= 20000 && $n <= 60000 ) {
-				return gmdate( 'Y-m-d', ( $n - 25569 ) * 86400 );   // 25569 = 01/01/1970 tính theo gốc bảng tính
-			}
-		}
+		$sr = self::seri( $s );
+		if ( $sr !== null ) { return $sr[0]; }
 
 		// Năm phải là năm THẬT. "4621-08-23" là rác do sê-ri bảng tính sinh ra (xem trên);
 		// nhận nó vào là chép nguyên cái sai xuống cơ sở dữ liệu.

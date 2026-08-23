@@ -1117,6 +1117,16 @@ $sr1 = VHCP_Don::sua_ngay_hong( 'seri', 0, true, $m_sr1 );
 teq( 'kỳ 1 ngày -> ra đúng ngày thật', '16/07/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_sr1 )['ngay'] ) );
 teq( 'và KHÔNG bị đánh dấu ước lượng', 0, $sr1['uocLuong'] );
 
+// SÊ-RI CÓ GIỜ: phần thập phân là phần của ngày. Bản vá đầu chỉ nhận ".0" nên mọi cột
+// GIỜ (nhật ký, tạo lúc, ngày duyệt) vẫn hỏng — ra "04/01/6294" trong Nhật ký.
+teq( 'sê-ri kèm giờ đọc ra đúng ngày', '2026-07-29', VHCP_Util::parse_date( '46232.6543' ) );
+teq( 'và giữ được cả GIỜ', array( '2026-07-29', '15:42:12' ), VHCP_Util::seri( '46232.6543' ) );
+teq( 'sê-ri .75 = 18 giờ', array( '2026-07-10', '18:00:00' ), VHCP_Util::seri( '46213.75' ) );
+teq( 'sê-ri không thập phân thì 0 giờ', array( '2026-07-29', '00:00:00' ), VHCP_Util::seri( '46232' ) );
+teq( 'dấu phẩy thập phân (máy Việt) cũng đọc được', '2026-07-29', VHCP_Util::parse_date( '46232,6543' ) );
+teq( 'số ngoài khoảng sê-ri thì không nhận', null, VHCP_Util::seri( '62943.5' ) );
+teq( 'năm 4 chữ số không phải sê-ri', null, VHCP_Util::seri( '2026' ) );
+
 // --- CỘT KỲ CŨNG BỊ GHI BẰNG SÊ-RI ("46204.0") ---
 // Kỳ hỏng kéo theo: đơn không lọc được theo tháng/tuần ở MỌI màn (đây là lý do "tháng 7
 // không thấy đơn nào"), và cũng không suy ra được ngày cho dòng chi của đơn đó.

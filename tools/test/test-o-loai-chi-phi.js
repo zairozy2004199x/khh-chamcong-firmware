@@ -132,6 +132,11 @@ teq('giữ đúng năm vô lý để ô ngày hiện ra', '4625-08-22', _ymd('22
 t('bắt được năm vô lý', _voLy('22/08/4625') && _voLy('22/08/1899'));
 t('ngày thường thì không báo', !_voLy('22/08/2026') && !_voLy(''));
 t('ô NGÀY của dòng sửa được tại chỗ', /onchange="saveLineNgay\(/.test(HTML));
+// Trình duyệt vẽ <input type="date"> theo NGÔN NGỮ CỦA MÁY (08/22/4625) — cấu hình ngày
+// của WordPress không đụng được tới nó. Trong bảng thì thống nhất một kiểu quan trọng hơn.
+t('ô ngày trong bảng là ô CHỮ dd/mm/yyyy, không phải type=date',
+  /placeholder="dd\/mm\/yyyy"[\s\S]{0,90}?onchange="saveLineNgay/.test(HTML));
+t('và hiện đúng giá trị dd/mm/yyyy đang lưu', /value="'\+esc\(l\.ngay\|\|''\)\+'" onchange="saveLineNgay/.test(HTML));
 t('gọi đúng cổng máy chủ', /\.setLineNgay\(id, val\)/.test(HTML));
 t('năm vô lý được tô đỏ giữa bảng', /border-color:#dc2626;background:#fef2f2/.test(HTML));
 // Trình duyệt vẽ ô type=date theo ngôn ngữ máy (08/23/2026) còn cả app dùng 23/08/2026.
@@ -159,7 +164,12 @@ const DON = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/clas
 const UTIL= fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-util.php'), 'utf8');
 const API2= fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-api.php'), 'utf8');
 // Gốc bệnh: bảng tính xuất ô ngày ra SỐ SÊ-RI; bộ đọc cũ hiểu 4 chữ số đầu thành NĂM.
-t('bịt cửa vào: parse_date đọc được số sê-ri', /\^\(\\d\{5\}\)\(\?:\\\.0\+\)\?\$/.test(UTIL) && /25569/.test(UTIL));
+t('sê-ri kèm GIỜ cũng được nhận (nhật ký, tạo lúc…) — bản vá đầu chỉ nhận ".0"',
+  /\[\.,\]\(\\d\+\)/.test(UTIL) && /public static function seri\(/.test(UTIL));
+t('bộ nạp dùng luôn GIỜ của sê-ri, không làm mất giờ',
+  /VHCP_Util::seri\( \$s \)/.test(fs.readFileSync(path.join(GOC,'wordpress/vhcp-chi-phi/includes/class-vhcp-import.php'),'utf8')));
+t('bịt cửa vào: parse_date đọc được số sê-ri',
+  /\$sr = self::seri\( \$s \);/.test(UTIL) && /25569/.test(UTIL));
 t('và chặn strtotime bịa ra năm ngoài 2000–2100', /\$y < 2000 \|\| \$y > 2100/.test(UTIL));
 t('Admin sửa được ngày ở MỌI trạng thái đơn', /\$la_admin = \( VHCP_Auth::vai_tro\(\) === 'Admin' \)/.test(DON));
 t('ô ngày mở cho Admin ở mọi trạng thái', /var admNgay=\(CURUSER&&CURUSER\.role==='Admin'\)/.test(HTML));
