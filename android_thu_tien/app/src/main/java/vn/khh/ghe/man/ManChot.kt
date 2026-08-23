@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
 import vn.khh.ghe.CHU
 import vn.khh.ghe.DO
 import vn.khh.ghe.Kho
+import vn.khh.ghe.NEN
 import vn.khh.ghe.VANG
 
 /**
@@ -57,7 +59,21 @@ fun ManChot() {
     val dem = tienDem.toIntOrNull() ?: 0
     val lech = if (g.lanDau || cs <= 0) 0 else dem - duKien
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 10.dp)) {
+    /* ══════════════════════════════════════════════════════════════════════════════════════════
+     * 🔴 NÚT "CHỐT CA" PHẢI LUÔN NHÌN THẤY, KHÔNG ĐƯỢC CUỘN MẤT.
+     *
+     * Anh Thắng 23/08/2026: *"này chỉ thấy nhập chỉ số và tiền mặt, vậy bấm chốt qr có được chốt
+     * luôn không"* — anh ấy KHÔNG THẤY cái nút, vì nó nằm dưới đáy màn cuộn.
+     *
+     * Bản trước để cả màn trong một khối cuộn, nút nằm cuối cùng. Trên màn điện thoại, sau khi
+     * bàn phím số bật lên thì phần nhìn thấy còn chưa tới nửa màn — nút bị đẩy xuống dưới, và
+     * người dùng kết luận là "màn này chỉ để nhập số, chắc phải bấm ở đâu khác".
+     *
+     * Nay: phần số liệu cuộn được (`weight(1f)`), còn hàng nút NẰM NGOÀI khối cuộn nên nó dính
+     * đáy màn. Việc chính của một màn không bao giờ được nằm ngoài tầm mắt.
+     * ═════════════════════════════════════════════════════════════════════════════════════════ */
+    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 10.dp)) {
 
         The {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -130,22 +146,34 @@ fun ManChot() {
             + "cho tới khi nộp về quầy.", VANG)
 
         Canh(Kho.loi)
+        Cach(10)
+    }
 
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+    /* Hàng nút DÍNH ĐÁY MÀN — nằm ngoài khối cuộn ở trên. */
+    Row(
+        Modifier.fillMaxWidth().background(NEN).padding(horizontal = 14.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OutlinedButton(
+            onClick = { Kho.gheDangChot = null; Kho.xoaBao(); Kho.manDangMo = Kho.Man.QUY },
+            modifier = Modifier.weight(1f)
+        ) { Text("Thoát") }
+        Button(
+            onClick = { pv.launch { Kho.chot(cs, dem, ghiChu) } },
+            enabled = !Kho.dangBan && cs > 0,
+            modifier = Modifier.weight(2f)
         ) {
-            OutlinedButton(
-                onClick = { Kho.gheDangChot = null; Kho.xoaBao(); Kho.manDangMo = Kho.Man.QUY },
-                modifier = Modifier.weight(1f)
-            ) { Text("Thoát") }
-            Button(
-                onClick = { pv.launch { Kho.chot(cs, dem, ghiChu) } },
-                enabled = !Kho.dangBan && cs > 0,
-                modifier = Modifier.weight(2f)
-            ) { Text(if (Kho.dangBan) "Đang ghi…" else "Chốt ca", fontSize = 17.sp,
-                fontWeight = FontWeight.Bold) }
+            /* Chữ trên nút nói rõ nó GHI SỔ, không phải "lưu nháp" — và khi chưa gõ chỉ số thì
+               nói luôn vì sao nút mờ, thay vì để người ta bấm rồi tự hỏi. */
+            Text(
+                when {
+                    Kho.dangBan -> "Đang ghi…"
+                    cs <= 0 -> "Nhập chỉ số ở ô ①"
+                    else -> "Chốt ca — ghi vào sổ"
+                },
+                fontSize = 16.sp, fontWeight = FontWeight.Bold
+            )
         }
-        Cach(20)
+    }
     }
 }
