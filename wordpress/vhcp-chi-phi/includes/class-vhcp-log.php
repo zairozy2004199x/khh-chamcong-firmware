@@ -29,8 +29,17 @@ class VHCP_Log {
 		$rows = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $t ORDER BY id DESC LIMIT %d", $limit ), ARRAY_A );
 		$items = array();
 		foreach ( (array) $rows as $r ) {
+			// THỜI ĐIỂM SAI THÌ NÓI LÀ KHÔNG BIẾT, ĐỪNG HIỆN NGÀY BỊA.
+			//
+			// Nhật ký cũ nạp vào có cột thời điểm là SỐ SÊ-RI bảng tính; bộ đọc cũ nghiền nó
+			// thành "04/01/6294" hoặc để trống. Thời điểm thật KHÔNG khôi phục được (sê-ri
+			// đã mất), nên hiện "—" là trung thực; hiện 6294 là nói sai — mà nhật ký chính
+			// là chỗ người ta tra khi cần biết ai làm gì lúc nào.
+			$tg = VHCP_Util::fmt_dt( $r['tg'] );
+			if ( $tg !== '' && VHCP_Util::ngay_vo_ly( substr( $tg, 0, 10 ) ) ) { $tg = ''; }
 			$items[] = array(
-				'tg'       => VHCP_Util::fmt_dt( $r['tg'] ),
+				'tg'       => $tg,
+				'tgHong'   => ( $tg === '' && trim( (string) $r['tg'] ) !== '' ) ? 1 : 0,
 				'nguoi'    => $r['nguoi'],
 				'vaiTro'   => $r['vai_tro'],
 				'hanhDong' => $r['hanh_dong'],

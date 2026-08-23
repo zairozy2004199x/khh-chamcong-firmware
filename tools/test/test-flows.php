@@ -1127,6 +1127,27 @@ teq( 'dấu phẩy thập phân (máy Việt) cũng đọc được', '2026-07-2
 teq( 'số ngoài khoảng sê-ri thì không nhận', null, VHCP_Util::seri( '62943.5' ) );
 teq( 'năm 4 chữ số không phải sê-ri', null, VHCP_Util::seri( '2026' ) );
 
+// NHẬT KÝ: thời điểm sai thì NÓI LÀ KHÔNG BIẾT, đừng hiện ngày bịa.
+// Nhật ký cũ nạp vào có cột thời điểm là sê-ri; thời điểm thật KHÔNG khôi phục được. Hiện
+// "04/01/6294" là nói sai — mà nhật ký chính là chỗ tra ai làm gì lúc nào.
+VHCP_Log::log_action( array( 'actor' => 'Admin', 'role' => 'Admin', 'action' => 'Thử', 'target' => 'X', 'detail' => '' ) );
+$t_log = VHCP_DB::t( 'log' );
+$id_log = (string) $wpdb->get_var( "SELECT id FROM $t_log ORDER BY id DESC LIMIT 1" );
+$wpdb->update( $t_log, array( 'tg' => '6294-01-04 00:00:00' ), array( 'id' => $id_log ) );
+$lg = VHCP_Log::get_log( array( 'limit' => 50 ) );
+$hit_lg = null;
+foreach ( $lg['items'] as $x ) { if ( $x['hanhDong'] === 'Thử' ) { $hit_lg = $x; } }
+t( 'đọc ra dòng nhật ký vừa bơm', $hit_lg !== null, $lg );
+teq( 'thời điểm vô lý -> KHÔNG hiện ngày bịa', '', $hit_lg['tg'] );
+teq( 'và đánh dấu là hỏng để giao diện nói rõ', 1, $hit_lg['tgHong'] );
+// Dòng bình thường vẫn hiện đủ ngày giờ
+$wpdb->update( $t_log, array( 'tg' => '2026-08-23 15:51:29' ), array( 'id' => $id_log ) );
+$lg2 = VHCP_Log::get_log( array( 'limit' => 50 ) );
+$hit2 = null;
+foreach ( $lg2['items'] as $x ) { if ( $x['hanhDong'] === 'Thử' ) { $hit2 = $x; } }
+teq( 'thời điểm thường vẫn hiện đủ', '23/08/2026 15:51:29', $hit2['tg'] );
+teq( 'và không bị đánh dấu hỏng', 0, $hit2['tgHong'] );
+
 // --- CỘT KỲ CŨNG BỊ GHI BẰNG SÊ-RI ("46204.0") ---
 // Kỳ hỏng kéo theo: đơn không lọc được theo tháng/tuần ở MỌI màn (đây là lý do "tháng 7
 // không thấy đơn nào"), và cũng không suy ra được ngày cho dòng chi của đơn đó.

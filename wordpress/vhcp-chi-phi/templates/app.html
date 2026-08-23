@@ -1164,7 +1164,9 @@
     var items=LOG_ITEMS.filter(function(x){ return !q || (x.nguoi+' '+x.vaiTro+' '+x.hanhDong+' '+x.doiTuong+' '+x.chiTiet).toLowerCase().indexOf(q)>=0; });
     if(el('logEmpty')) el('logEmpty').style.display=items.length?'none':'block';
     el('logBody').innerHTML=items.map(function(x){
-      return '<tr><td style="white-space:nowrap;font-size:12px;color:#64748b">'+esc(x.tg)+'</td><td>'+esc(x.nguoi)+(x.vaiTro?'<div style="font-size:10px;color:#94a3b8">'+esc(x.vaiTro)+'</div>':'')+'</td><td>'+esc(x.hanhDong)+'</td><td style="font-size:12px">'+esc(x.doiTuong)+'</td><td style="font-size:12px;color:#475569">'+esc(x.chiTiet)+'</td></tr>';
+      // Không có thời điểm thì nói rõ vì sao, đừng để ô trống trơn cho người ta đoán.
+      var _tg=x.tg?esc(x.tg):'<span style="color:#b45309" title="Dòng nạp từ nhật ký cũ — cột thời điểm là số sê-ri bảng tính, thời điểm thật không khôi phục được">— không rõ</span>';
+      return '<tr><td style="white-space:nowrap;font-size:12px;color:#64748b">'+_tg+'</td><td>'+esc(x.nguoi)+(x.vaiTro?'<div style="font-size:10px;color:#94a3b8">'+esc(x.vaiTro)+'</div>':'')+'</td><td>'+esc(x.hanhDong)+'</td><td style="font-size:12px">'+esc(x.doiTuong)+'</td><td style="font-size:12px;color:#475569">'+esc(x.chiTiet)+'</td></tr>';
     }).join('');
   }
   // Lọc nhóm mặt hàng theo phân loại TT (NCC / cá nhân)
