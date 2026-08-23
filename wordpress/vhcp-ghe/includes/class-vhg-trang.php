@@ -191,6 +191,14 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'qua_trao' === $viec ) {
+			/* Trao quà là một hành động có hậu quả (một phần quà chỉ trao được một lần), nhưng
+			   KHÔNG phải quyết định về tiền như huỷ mã — người đứng quầy trao được. */
+			self::tra( VHG_Vi::trao_qua(
+				isset( $d['id'] ) ? (int) $d['id'] : 0, (string) $ai['ten'] ) );
+			return;
+		}
+
 		if ( 'ma_huy' === $viec ) {
 			/* 🔴 Huỷ mã là quyết định về TIỀN: khách đã trả rồi. Chỉ Admin và Quản lý — người
 			   đứng quầy không nên tự quyết chuyện hoàn/không hoàn, và nếu có quyết thì cũng
@@ -341,6 +349,10 @@ class VHG_Trang {
 			      trả. Hai con số phải đứng CẠNH NHAU thì mới ra được tổng nợ thật. */
 			'vi' => array( 'no' => VHG_Vi::tong_no(), 'ds' => self::vi_gon( VHG_Vi::ds_vi( 60 ) ),
 				'co_ban' => VHG_Vi::goi_nap() ? 1 : 0 ),
+			/* Quà chờ trao — việc CÓ THẬT của người đứng quầy, nên nó phải nằm trên màn họ mở
+			   cả ca chứ không nằm trong wp-admin. Số điện thoại che ngay từ máy chủ. */
+			'qua' => array( 'cho' => self::qua_gon( VHG_Vi::qua_cho_trao( 40 ) ),
+				'tong' => VHG_Vi::tong_qua(), 'bat' => VHG_Vi::tich_cf()['bat'] ? 1 : 0 ),
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
@@ -358,6 +370,21 @@ class VHG_Trang {
 	 *
 	 * Bốn số cuối vẫn còn — đủ để nhân viên đối chiếu với khách đang đứng trước mặt.
 	 */
+	/** Quà chờ trao, đã che số điện thoại — cùng lý do với `vi_gon()`. */
+	private static function qua_gon( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $q ) {
+			$ra[] = array(
+				'id'      => (int) $q['id'],
+				'sdt_che' => VHG_Ma::sdt_che( isset( $q['sdt'] ) ? $q['sdt'] : '' ),
+				'ghi_chu' => (string) ( isset( $q['ghi_chu'] ) ? $q['ghi_chu'] : '' ),
+				'moc'     => (int) ( isset( $q['moc'] ) ? $q['moc'] : 0 ),
+				'tao_luc' => (string) ( isset( $q['tao_luc'] ) ? $q['tao_luc'] : '' ),
+			);
+		}
+		return $ra;
+	}
+
 	private static function vi_gon( $ds ) {
 		$ra = array();
 		foreach ( (array) $ds as $v ) {
@@ -1159,6 +1186,33 @@ function veMa(){
   }
   h += '</div>';
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * QUÀ CHỜ TRAO — ĐỨNG TRƯỚC BẢNG VÍ.
+   *
+   * Đây là VIỆC PHẢI LÀM của người đang đứng quầy, còn bảng ví là số liệu để tra. Việc phải làm
+   * thì đứng trước; số liệu để tra thì đứng sau.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var Q = D.qua || { cho:[], tong:{so:0,tien:0,cho:0}, bat:0 };
+  if (Q.cho.length) {
+    h += '<div class="card"><h2>🎁 ' + L('Quà chờ trao','Gifts to hand over')
+      + ' (' + Q.cho.length + ')</h2>'
+      + '<p class="mut" style="margin:0 0 10px">'
+      + L('Khách đọc số điện thoại — đối chiếu bốn số cuối rồi bấm Đã trao.',
+          'The customer gives their phone number — match the last 4 digits, then tap Handed over.')
+      + '</p><table><thead><tr><th>' + L('Số điện thoại','Phone') + '</th>'
+      + '<th>' + L('Phần quà','Gift') + '</th>'
+      + '<th>' + L('Đủ mốc lúc','Earned at') + '</th><th></th></tr></thead><tbody>';
+    Q.cho.forEach(function(q){
+      h += '<tr><td><b>' + esc(q.sdt_che) + '</b></td>'
+        + '<td>' + esc(q.ghi_chu || L('Quà tri ân','Loyalty gift'))
+        + ' <span class="mut">(' + Lf2(L('đủ {0} lượt','{0} stamps'), q.moc) + ')</span></td>'
+        + '<td class="mut">' + esc(String(q.tao_luc).slice(0,16)) + '</td>'
+        + '<td><button class="on" data-trao="' + q.id + '">'
+        + L('Đã trao','Handed over') + '</button></td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+
   /* Danh sách ví còn tiền — nợ nằm ở đâu, ai giữ nhiều nhất.
      ⚠️ Số điện thoại đã CHE từ máy chủ (VHG_Ma::sdt_che). Màn này nhân viên ca nào cũng mở;
         in đủ số là biến bảng tiền thành danh bạ khách hàng, bôi đen là chép được cả nghìn số. */
@@ -1527,6 +1581,20 @@ function noi(){
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
+  });
+
+  /* 🔴 TRAO QUÀ: bấm xong TẢI LẠI danh sách, kể cả khi hỏng. Hỏng ở đây gần như luôn có nghĩa
+     là người khác vừa trao xong phần quà đó — danh sách trên màn này đã cũ, giữ nguyên nó là
+     nhân viên bấm tiếp vào những dòng không còn tồn tại. */
+  [].forEach.call(document.querySelectorAll('[data-trao]'), function(b){
+    b.onclick = function(){
+      if (b.disabled) return;
+      b.disabled = true; b.textContent = L('Đang ghi…','Saving…');
+      goi('qua_trao', { id: Number(b.getAttribute('data-trao')) }, function(r){
+        if (!r.ok) { alert(r.error || L('Không ghi được.','Could not save.')); }
+        tai(true);
+      });
+    };
   });
 
   var mtra = document.getElementById('ma-tra');

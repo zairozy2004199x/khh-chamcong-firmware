@@ -129,6 +129,69 @@ class VHG_Admin {
 	}
 
 	/**
+	 * Ô khai TÍCH LƯỢT ƯU ĐÃI.
+	 *
+	 * Anh Thắng 23/08/2026: *"10k 1 lượt tích"*, *"sau 10 lượt, khách được ưu đãi tặng quà"*.
+	 *
+	 * 🔴 HIỆN CHI PHÍ CỦA CHƯƠNG TRÌNH NGAY CẠNH Ô KHAI, cùng lý do với khoản nợ ví: người đang
+	 *    ngồi hạ mốc từ 10 xuống 5 phải nhìn thấy mình đã phát bao nhiêu quà và còn nợ bao nhiêu
+	 *    phần chưa trao, TRƯỚC khi gõ con số mới.
+	 */
+	public static function khoi_tich() {
+		$cf = VHG_Vi::tich_cf();
+		$tq = VHG_Vi::tong_qua();
+		echo '<h2>Tích lượt ưu đãi</h2>';
+		echo '<p class="description">Khách tiêu tiền TỪ VÍ tại ghế thì được tích lượt. '
+			. 'Trả QR hay tiền mặt trực tiếp thì <b>không</b> tích — hệ thống không biết đó là ai.</p>';
+
+		$mau_q = $tq['cho'] > 0 ? '#b32d2e' : '#666';
+		echo '<div style="border-left:4px solid ' . esc_attr( $mau_q ) . ';background:#fff;'
+			. 'padding:10px 14px;max-width:900px;margin:0 0 14px">'
+			. '<b>Đã phát ' . (int) $tq['so'] . ' phần thưởng</b>'
+			. ( $tq['tien'] > 0 ? ' · đã cộng vào ví ' . esc_html( self::tien( $tq['tien'] ) ) : '' )
+			. ' · <span style="color:' . esc_attr( $mau_q ) . '"><b>' . (int) $tq['cho']
+			. ' phần quà chưa trao</b></span>'
+			. '<div class="description" style="margin-top:4px">Hạ mốc xuống là quà phát nhanh hơn — '
+			. 'và cả hai con số trên cùng lớn theo.</div></div>';
+
+		echo '<form method="post" style="max-width:900px">';
+		wp_nonce_field( 'vhg' );
+		echo '<p><label><input type="checkbox" name="tich_bat" value="1"'
+			. ( ! empty( $cf['bat'] ) ? ' checked' : '' ) . ' /> <b>Bật tích lượt</b></label></p>';
+		echo '<table class="form-table"><tbody>';
+		echo '<tr><th scope="row">Mỗi lượt tích</th><td>'
+			. '<input type="number" name="tich_moi_luot" min="1000" step="1000" value="'
+			. (int) $cf['moi_luot'] . '" style="width:140px" /> đ tiêu tại ghế'
+			. '<p class="description">Tiêu 50.000đ với mức 10.000đ = 5 lượt. Quy đổi làm tròn xuống.</p>'
+			. '</td></tr>';
+		echo '<tr><th scope="row">Mốc thưởng</th><td>'
+			. '<input type="number" name="tich_moc" min="2" max="100" value="'
+			. (int) $cf['moc'] . '" style="width:100px" /> lượt</td></tr>';
+		echo '<tr><th scope="row">Phần thưởng</th><td><select name="tich_kieu">';
+		foreach ( array(
+			'ca_hai' => 'Cả hai — cộng tiền vào ví VÀ tặng quà tại quầy',
+			'luot'   => 'Chỉ lượt miễn phí — cộng thẳng tiền vào ví',
+			'qua'    => 'Chỉ quà tại quầy — nhân viên trao tay',
+		) as $k => $v ) {
+			echo '<option value="' . esc_attr( $k ) . '"' . selected( $cf['kieu'], $k, false ) . '>'
+				. esc_html( $v ) . '</option>';
+		}
+		echo '</select></td></tr>';
+		echo '<tr><th scope="row">Trị giá lượt miễn phí</th><td>'
+			. '<input type="number" name="tich_gia_tri" min="0" step="1000" value="'
+			. (int) $cf['gia_tri'] . '" style="width:140px" /> đ'
+			. '<p class="description">Cộng thẳng vào ví khách, <b>không có hạn chờ</b> — quà mà bắt '
+			. 'chờ thêm 5 ngày thì thành phiền. Để 0 chỉ được khi chọn "Chỉ quà tại quầy".</p></td></tr>';
+		echo '<tr><th scope="row">Tên quà</th><td>'
+			. '<input name="tich_ten_qua" value="' . esc_attr( $cf['ten_qua'] ) . '" '
+			. 'class="regular-text" style="width:100%;max-width:420px" '
+			. 'placeholder="VD: Khăn bông K&amp;H" /></td></tr>';
+		echo '</tbody></table>';
+		echo '<p><button class="button button-primary" name="vhg" value="tich">Lưu tích lượt</button></p>';
+		echo '</form>';
+	}
+
+	/**
 	 * Ô khai CHÂN TRANG PHÁP LÝ.
 	 *
 	 * Anh Thắng 23/08/2026: *"cuối trang bổ sung nội dung này cho uy tín"*.
@@ -579,6 +642,15 @@ class VHG_Admin {
 						'nhan' => isset( $gn_h[ $i ] ) ? $gn_h[ $i ] : 0 );
 				}
 				$bao[] = VHG_Vi::luu_goi_nap( $gn_d );
+			} elseif ( 'tich' === $viec ) {
+				$bao[] = VHG_Vi::luu_tich_cf( array(
+					'bat'      => isset( $_POST['tich_bat'] ) ? 1 : 0,
+					'moi_luot' => isset( $_POST['tich_moi_luot'] ) ? wp_unslash( $_POST['tich_moi_luot'] ) : '',
+					'moc'      => isset( $_POST['tich_moc'] ) ? wp_unslash( $_POST['tich_moc'] ) : '',
+					'kieu'     => isset( $_POST['tich_kieu'] ) ? sanitize_text_field( wp_unslash( $_POST['tich_kieu'] ) ) : '',
+					'gia_tri'  => isset( $_POST['tich_gia_tri'] ) ? wp_unslash( $_POST['tich_gia_tri'] ) : '',
+					'ten_qua'  => isset( $_POST['tich_ten_qua'] ) ? sanitize_text_field( wp_unslash( $_POST['tich_ten_qua'] ) ) : '',
+				) );
 			} elseif ( 'chan' === $viec ) {
 				$ch = array( 'hien' => isset( $_POST['chan_hien'] ) ? 1 : 0 );
 				foreach ( array_keys( VHG_Chan::mac_dinh() ) as $k_ch ) {
@@ -952,6 +1024,7 @@ class VHG_Admin {
 			. 'khi gửi xuống ghế, vì font màn ghế không vẽ được dấu tiếng Việt.</p>';
 
 		self::khoi_vi();
+		self::khoi_tich();
 		self::khoi_chan();
 
 		/* Xem trước ĐÚNG như ghế sẽ hiện: đã bỏ dấu, đã tính ra phút. Một bảng xem trước bằng

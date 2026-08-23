@@ -352,6 +352,8 @@ class VHG_DB {
 			so_du_cho BIGINT(20) NOT NULL DEFAULT 0,
 			da_nap BIGINT(20) NOT NULL DEFAULT 0,
 			da_tieu BIGINT(20) NOT NULL DEFAULT 0,
+			tich INT NOT NULL DEFAULT 0,
+			tich_tong INT NOT NULL DEFAULT 0,
 			khoa TINYINT(1) NOT NULL DEFAULT 0,
 			tao_luc DATETIME NULL,
 			sua_luc DATETIME NULL,
@@ -387,6 +389,33 @@ class VHG_DB {
 			KEY nguoi (sdt,luc),
 			KEY chin (da_chin,dung_duoc_tu),
 			KEY moi (ref)";
+
+		/* ===== 13. QUÀ TÍCH LƯỢT ======================================================
+		   Anh Thắng 23/08/2026: *"sau 10 lượt, khách được ưu đãi tặng quà"*, và *"cả 2"* —
+		   vừa lượt miễn phí vừa quà tri ân.
+
+		   🔴 MỘT DÒNG CHO MỖI PHẦN QUÀ, không phải một con số đếm trên ví.
+		      Quà vật lý phải có người TRAO và có lúc trao. Giữ bằng một con số "còn 2 phần quà"
+		      thì không ai trả lời được *"phần quà tháng trước ai đưa, đưa lúc nào"* — mà đó
+		      chính là câu sẽ được hỏi khi có tranh cãi. Mỗi phần quà một dòng thì mở sổ ra đọc.
+
+		   ⚠️ `luot_da_cong` = phần thưởng KIỂU LƯỢT đã cộng vào ví hay chưa. Tách khỏi
+		      `nhan_luc` (lúc nhân viên trao quà vật lý): một phần quà "cả hai" có thể đã cộng
+		      tiền vào ví mà quà vật lý thì tuần sau khách mới ghé lấy. */
+		$b['vi_qua'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			sdt VARCHAR(20) NOT NULL,
+			kieu VARCHAR(10) NOT NULL DEFAULT '',
+			moc INT NOT NULL DEFAULT 0,
+			gia_tri BIGINT(20) NOT NULL DEFAULT 0,
+			luot_da_cong TINYINT(1) NOT NULL DEFAULT 0,
+			nhan_luc DATETIME NULL,
+			nhan_ai VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY nguoi (sdt,nhan_luc),
+			KEY cho (nhan_luc,tao_luc)";
 
 		return $b;
 	}

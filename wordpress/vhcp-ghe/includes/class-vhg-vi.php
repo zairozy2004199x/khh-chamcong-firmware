@@ -476,12 +476,227 @@ class VHG_Vi {
 				. ' chưa nhận được lệnh. Số dư đã hoàn lại, anh/chị thử lại giúp.' );
 		}
 
+		/* 🔴 TÍCH LƯỢT SAU KHI GHẾ ĐÃ NHẬN LỆNH, không phải lúc vừa trừ tiền. Xếp hàng chờ hỏng
+		   thì tiền đã hoàn, mà lượt tích thì không hoàn được — khách được một lượt tích cho một
+		   lượt massage không hề chạy, và mốc thưởng tới sớm hơn nó đáng ra phải tới. */
+		$tc = self::cong_tich( $s, $mg );
+
 		$sau = self::so_du( $s );
 		return array( 'ok' => true, 'ma_may' => $may, 'menh_gia' => $mg, 'so_so' => $id,
+			'tich' => self::tich( $s ), 'tich_them' => (int) $tc['them'], 'qua_moi' => (int) $tc['qua'],
 			'so_du' => $sau,
 			'thong_bao' => 'Đã trừ ' . number_format( $mg, 0, ',', '.' ) . 'đ — ghế ' . $may
 				. ' sẽ chạy trong ít giây. Số dư còn '
 				. number_format( $sau['dung'], 0, ',', '.' ) . 'đ.' );
+	}
+
+	// ═════════════════════════════════════════════════════════ tích lượt
+
+	/**
+	 * Cấu hình tích lượt.
+	 *
+	 * Anh Thắng 23/08/2026: *"10k 1 lượt tích (giá khác thì quy đổi theo 10/1)"*, *"tích vào sdt
+	 * của khách đang đăng nhập, đang gắn vào ví; ai không đăng nhập để thanh toán thì thôi"*,
+	 * *"sau 10 lượt, khách được ưu đãi tặng quà"*, và phần thưởng thì *"cả 2"*.
+	 */
+	public static function tich_cf() {
+		$o = get_option( 'vhg_tich' );
+		$o = is_array( $o ) ? $o : array();
+		/* Chưa khai bao giờ = TẮT. Khác với chân trang và bán mã lẻ (mặc định BẬT) vì hai cái
+		   kia đã chạy sẵn từ trước; tích lượt là thứ MỚI, và bật một chương trình khuyến mãi
+		   thay cho chủ cửa hàng là tự ý cho đi tiền của người ta. */
+		return array(
+			'bat'     => ! empty( $o['bat'] ),
+			/* Bao nhiêu tiền được một lượt tích. */
+			'moi_luot' => max( 1000, (int) ( isset( $o['moi_luot'] ) ? $o['moi_luot'] : 10000 ) ),
+			/* Đủ bao nhiêu lượt thì được thưởng. */
+			'moc'     => max( 2, min( 100, (int) ( isset( $o['moc'] ) ? $o['moc'] : 10 ) ) ),
+			/* 'luot' = cộng tiền vào ví · 'qua' = quà vật lý nhân viên trao · 'ca_hai' = cả hai. */
+			'kieu'    => in_array( ( isset( $o['kieu'] ) ? $o['kieu'] : '' ),
+				array( 'luot', 'qua', 'ca_hai' ), true ) ? $o['kieu'] : 'ca_hai',
+			/* Trị giá phần thưởng KIỂU LƯỢT (cộng thẳng vào ví). */
+			'gia_tri' => max( 0, (int) ( isset( $o['gia_tri'] ) ? $o['gia_tri'] : 10000 ) ),
+			'ten_qua' => (string) ( isset( $o['ten_qua'] ) ? $o['ten_qua'] : 'Quà tri ân' ),
+		);
+	}
+
+	public static function luu_tich_cf( $d ) {
+		$d  = (array) $d;
+		$cf = array(
+			'bat'      => empty( $d['bat'] ) ? 0 : 1,
+			'moi_luot' => (int) preg_replace( '/\D+/', '', (string) ( isset( $d['moi_luot'] ) ? $d['moi_luot'] : '' ) ),
+			'moc'      => (int) preg_replace( '/\D+/', '', (string) ( isset( $d['moc'] ) ? $d['moc'] : '' ) ),
+			'kieu'     => (string) ( isset( $d['kieu'] ) ? $d['kieu'] : 'ca_hai' ),
+			'gia_tri'  => (int) preg_replace( '/\D+/', '', (string) ( isset( $d['gia_tri'] ) ? $d['gia_tri'] : '' ) ),
+			'ten_qua'  => mb_substr( trim( (string) ( isset( $d['ten_qua'] ) ? $d['ten_qua'] : '' ) ), 0, 120 ),
+		);
+		if ( $cf['moi_luot'] < 1000 ) {
+			return array( 'ok' => false, 'error' => 'Mỗi lượt tích phải từ 1.000đ trở lên.' );
+		}
+		if ( $cf['moc'] < 2 || $cf['moc'] > 100 ) {
+			return array( 'ok' => false, 'error' => 'Mốc thưởng phải từ 2 đến 100 lượt.' );
+		}
+		if ( ! in_array( $cf['kieu'], array( 'luot', 'qua', 'ca_hai' ), true ) ) {
+			return array( 'ok' => false, 'error' => 'Kiểu thưởng không hợp lệ.' );
+		}
+		/* 🔴 Thưởng kiểu LƯỢT mà trị giá 0 là một phần thưởng RỖNG: khách đủ mốc, hệ thống báo
+		   "đã tặng", ví không nhích một đồng. Chặn ngay lúc khai. */
+		if ( 'qua' !== $cf['kieu'] && $cf['gia_tri'] < 1000 ) {
+			return array( 'ok' => false,
+				'error' => 'Thưởng kiểu "lượt miễn phí" phải có trị giá từ 1.000đ — '
+					. 'để 0 là khách đủ mốc mà ví không nhích đồng nào.' );
+		}
+		update_option( 'vhg_tich', $cf );
+		return array( 'ok' => true, 'thong_bao' => $cf['bat']
+			? 'Đã bật tích lượt: mỗi ' . number_format( $cf['moi_luot'], 0, ',', '.' ) . 'đ = 1 lượt, '
+				. 'đủ ' . $cf['moc'] . ' lượt được thưởng.'
+			: 'Đã lưu, và ĐANG TẮT — khách tiêu tiền sẽ không được tích lượt nào.' );
+	}
+
+	/**
+	 * Cộng lượt tích sau một lượt tiêu, và phát thưởng khi đủ mốc.
+	 *
+	 * 🔴 GỌI SAU KHI ĐÃ TRỪ TIỀN THÀNH CÔNG, không gọi trước. Tích trước rồi trừ tiền hỏng là
+	 *    khách được lượt tích cho một lượt massage không hề chạy.
+	 *
+	 * ⚠️ PHÁT THƯỞNG PHẢI AN TOÀN KHI HAI LƯỢT CHẠY CÙNG LÚC — phần thưởng là TIỀN. Trừ lượt
+	 *    bằng `UPDATE ... WHERE tich >= moc` rồi đọc số dòng đụng được: chỉ MỘT lượt gọi trừ
+	 *    được, và chỉ lượt đó mới phát quà. Đọc `tich` ra PHP rồi so sánh là hai ghế bấm cùng
+	 *    khoảnh khắc thì cả hai thấy đủ mốc, và khách được hai phần quà cho một mốc.
+	 */
+	public static function cong_tich( $sdt, $so_tien ) {
+		global $wpdb;
+		$cf = self::tich_cf();
+		if ( empty( $cf['bat'] ) ) { return array( 'them' => 0, 'qua' => 0 ); }
+		$s  = VHG_Ma::sdt_sach( $sdt );
+		$sl = (int) floor( (int) $so_tien / (int) $cf['moi_luot'] );
+		if ( '' === $s || $sl <= 0 ) { return array( 'them' => 0, 'qua' => 0 ); }
+
+		$tv = VHG_DB::t( 'vi' );
+		$wpdb->query( $wpdb->prepare(
+			"UPDATE $tv SET tich=tich+%d, tich_tong=tich_tong+%d, sua_luc=%s WHERE sdt=%s",
+			$sl, $sl, current_time( 'mysql' ), $s ) );
+
+		/* Một lượt tiêu lớn có thể vượt NHIỀU mốc cùng lúc (tiêu 200.000đ với mốc 10 lượt ×
+		   10.000đ = hai phần quà). Vòng lặp, mỗi vòng trừ đúng một mốc. Trần 20 vòng chỉ để
+		   một cấu hình gõ nhầm không treo máy chủ. */
+		$qua = 0;
+		for ( $i = 0; $i < 20; $i++ ) {
+			$n = $wpdb->query( $wpdb->prepare(
+				"UPDATE $tv SET tich=tich-%d WHERE sdt=%s AND tich>=%d",
+				(int) $cf['moc'], $s, (int) $cf['moc'] ) );
+			if ( ! $n ) { break; }
+			self::phat_qua( $s, $cf );
+			$qua++;
+		}
+		return array( 'them' => $sl, 'qua' => $qua );
+	}
+
+	/** Ghi một phần quà, và cộng tiền ngay nếu phần thưởng có vế "lượt miễn phí". */
+	protected static function phat_qua( $sdt, $cf ) {
+		global $wpdb;
+		$co_luot = ( 'qua' !== $cf['kieu'] );
+		$wpdb->insert( VHG_DB::t( 'vi_qua' ), array(
+			'sdt' => $sdt, 'kieu' => (string) $cf['kieu'], 'moc' => (int) $cf['moc'],
+			'gia_tri' => $co_luot ? (int) $cf['gia_tri'] : 0,
+			'luot_da_cong' => 0, 'nhan_luc' => null, 'nhan_ai' => '',
+			'ghi_chu' => (string) $cf['ten_qua'], 'tao_luc' => current_time( 'mysql' ) ) );
+		$id = (int) $wpdb->insert_id;
+		if ( ! $co_luot || (int) $cf['gia_tri'] <= 0 ) { return $id; }
+
+		/* 🔴 CỜ TRƯỚC, TIỀN SAU, và chỉ người lật được cờ mới cộng — y như `chin()`. Hàm này
+		   chạy trong một vòng lặp và có thể bị gọi lại; cộng trước rồi lật cờ là cộng hai lần. */
+		$n = $wpdb->query( $wpdb->prepare(
+			"UPDATE " . VHG_DB::t( 'vi_qua' ) . " SET luot_da_cong=1 WHERE id=%d AND luot_da_cong=0", $id ) );
+		if ( $n ) {
+			/* Quà tặng KHÔNG có hạn chờ: nó không phải khoản mua trước, nó là lời cảm ơn.
+			   Bắt khách chờ thêm 5 ngày để tiêu phần quà là biến quà thành phiền. */
+			self::ghi_so( $sdt, (int) $cf['gia_tri'], 'qua', 'qua-' . $id, '',
+				'Thưởng đủ ' . (int) $cf['moc'] . ' lượt tích' );
+		}
+		return $id;
+	}
+
+	/** Tình trạng tích lượt của một khách. */
+	public static function tich( $sdt ) {
+		$cf = self::tich_cf();
+		$v  = self::vi( $sdt );
+		$co = (int) ( $v ? $v['tich'] : 0 );
+		return array(
+			'bat'     => ! empty( $cf['bat'] ),
+			'co'      => $co,
+			'moc'     => (int) $cf['moc'],
+			'con'     => max( 0, (int) $cf['moc'] - $co ),
+			'tong'    => (int) ( $v ? $v['tich_tong'] : 0 ),
+			'moi_luot' => (int) $cf['moi_luot'],
+			'kieu'    => (string) $cf['kieu'],
+			'gia_tri' => (int) $cf['gia_tri'],
+			'ten_qua' => (string) $cf['ten_qua'],
+		);
+	}
+
+	/** Quà của một khách, mới nhất trước. */
+	public static function ds_qua( $sdt, $gioi_han = 30 ) {
+		global $wpdb;
+		$s = VHG_Ma::sdt_sach( $sdt );
+		if ( '' === $s ) { return array(); }
+		$t = VHG_DB::t( 'vi_qua' );
+		return VHG_DB::rows( $wpdb->prepare(
+			"SELECT * FROM $t WHERE sdt=%s ORDER BY id DESC LIMIT %d",
+			$s, max( 1, min( 200, (int) $gioi_han ) ) ) );
+	}
+
+	/**
+	 * Quà VẬT LÝ chưa trao — danh sách nhân viên cần nhìn.
+	 *
+	 * ⚠️ Chỉ những phần có vế quà vật lý. Thưởng kiểu "lượt" thuần đã cộng thẳng vào ví, không
+	 *    ai phải trao gì cả — để nó nằm trong danh sách chờ trao là tạo ra một việc không có
+	 *    thật, và một danh sách không bao giờ vơi thì người ta thôi không nhìn nữa.
+	 */
+	public static function qua_cho_trao( $gioi_han = 50 ) {
+		global $wpdb;
+		$t = VHG_DB::t( 'vi_qua' );
+		return VHG_DB::rows( $wpdb->prepare(
+			"SELECT * FROM $t WHERE nhan_luc IS NULL AND kieu<>'luot' ORDER BY id ASC LIMIT %d",
+			max( 1, min( 200, (int) $gioi_han ) ) ) );
+	}
+
+	/**
+	 * Nhân viên trao quà vật lý xong -> đánh dấu.
+	 *
+	 * 🔴 `WHERE nhan_luc IS NULL` là chốt chống trao hai lần: hai nhân viên cùng bấm thì chỉ
+	 *    một người đụng được dòng, người kia nhận 0 và được báo là đã có người trao rồi.
+	 */
+	public static function trao_qua( $id, $ai ) {
+		global $wpdb;
+		$t = VHG_DB::t( 'vi_qua' );
+		$q = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE id=%d LIMIT 1", (int) $id ), ARRAY_A );
+		if ( ! $q ) { return array( 'ok' => false, 'error' => 'Không thấy phần quà này.' ); }
+		if ( 'luot' === (string) $q['kieu'] ) {
+			return array( 'ok' => false,
+				'error' => 'Phần thưởng này là lượt miễn phí — đã cộng thẳng vào ví, không có gì để trao.' );
+		}
+		$n = $wpdb->query( $wpdb->prepare(
+			"UPDATE $t SET nhan_luc=%s, nhan_ai=%s WHERE id=%d AND nhan_luc IS NULL",
+			current_time( 'mysql' ), (string) $ai, (int) $id ) );
+		if ( ! $n ) {
+			return array( 'ok' => false, 'error' => 'Phần quà này vừa được người khác trao xong.' );
+		}
+		return array( 'ok' => true, 'thong_bao' => 'Đã ghi nhận trao quà cho '
+			. VHG_Ma::sdt_che( $q['sdt'] ) . '.' );
+	}
+
+	/** Tổng quà đã phát và còn phải trao — để nhìn ra chi phí của chương trình. */
+	public static function tong_qua() {
+		global $wpdb;
+		$t = VHG_DB::t( 'vi_qua' );
+		$r = $wpdb->get_row( "SELECT COUNT(*) n, COALESCE(SUM(gia_tri),0) tien,
+			SUM(CASE WHEN nhan_luc IS NULL AND kieu<>'luot' THEN 1 ELSE 0 END) cho FROM $t", ARRAY_A );
+		return array(
+			'so'   => (int) ( isset( $r['n'] ) ? $r['n'] : 0 ),
+			'tien' => (int) ( isset( $r['tien'] ) ? $r['tien'] : 0 ),
+			'cho'  => (int) ( isset( $r['cho'] ) ? $r['cho'] : 0 ),
+		);
 	}
 
 	// ═════════════════════════════════════════════════════════ nhân viên / quản trị

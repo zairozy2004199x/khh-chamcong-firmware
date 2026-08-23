@@ -143,6 +143,26 @@ class VHG_Shop {
 		set_transient( $k, (int) get_transient( $k ) + 1, 600 );
 	}
 
+	/**
+	 * 🔴 CHỈ ĐẾM LƯỢT HỎNG, và XOÁ SẠCH khi thành công.
+	 *
+	 * Anh Thắng 23/08/2026, đang ngồi trên ghế: *"tại sao bấm không chạy"* — màn báo *"Thử quá
+	 * nhiều lần, chờ 10 phút"*. Không phải ghế hỏng: anh vừa bị chính cái hãm thử của mình khoá.
+	 *
+	 * Bản trước đếm MỌI lượt gọi. Nhưng cái hãm này lắp ra để chặn MÁY DÒ PIN, mà một lượt
+	 * thành công thì đã chứng minh người gọi biết PIN rồi — đếm nó vào là phạt đúng khách thật.
+	 * Và phạt ở chỗ tệ nhất: khách đã trả tiền, đang ngồi trên ghế, mua thêm lượt thứ mười sáu
+	 * trong buổi thì bị khoá không cho tiêu tiền của chính mình.
+	 *
+	 * Nay: hỏng thì đếm, thành công thì XOÁ luôn bộ đếm. Máy dò PIN không bao giờ thành công
+	 * nên nó vẫn bị chặn sau 15 lượt như cũ; khách thật thì không bao giờ chạm tới con số đó.
+	 */
+	private static function dem_neu_hong( $viec, $kq ) {
+		if ( empty( $kq['ok'] ) ) { self::dem( $viec ); }
+		else { delete_transient( self::khoa_key( $viec ) ); }
+		return $kq;
+	}
+
 	// ===================================================================== API
 
 	private static function tra( $d ) {
@@ -246,9 +266,8 @@ class VHG_Shop {
 					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi tra lại, hoặc nhờ nhân viên.' ) );
 				return;
 			}
-			self::dem( 'tra' );
 			$r = VHG_Ma::tra( isset( $d['sdt'] ) ? $d['sdt'] : '', isset( $d['pin'] ) ? $d['pin'] : '' );
-			self::tra( $r );
+			self::tra( self::dem_neu_hong( 'tra', $r ) );
 			return;
 		}
 
@@ -262,11 +281,10 @@ class VHG_Shop {
 					'error' => 'Thử quá nhiều lần — chờ 10 phút, hoặc nhờ nhân viên tra giúp.' ) );
 				return;
 			}
-			self::dem( 'lay' );
-			self::tra( VHG_Ma::lay_lai_pin(
+			self::tra( self::dem_neu_hong( 'lay', VHG_Ma::lay_lai_pin(
 				isset( $d['sdt'] ) ? $d['sdt'] : '',
 				isset( $d['cc'] ) ? $d['cc'] : '',
-				isset( $d['pin'] ) ? $d['pin'] : '' ) );
+				isset( $d['pin'] ) ? $d['pin'] : '' ) ) );
 			return;
 		}
 
@@ -276,10 +294,9 @@ class VHG_Shop {
 					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi thử lại.' ) );
 				return;
 			}
-			self::dem( 'dung' );
-			self::tra( VHG_Ma::dung(
+			self::tra( self::dem_neu_hong( 'dung', VHG_Ma::dung(
 				isset( $d['ma'] ) ? $d['ma'] : '',
-				isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) );
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) ) );
 			return;
 		}
 
@@ -300,7 +317,6 @@ class VHG_Shop {
 					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi tra lại, hoặc nhờ nhân viên.' ) );
 				return;
 			}
-			self::dem( 'tra' );
 			$sdt_c = isset( $d['sdt'] ) ? $d['sdt'] : '';
 			$pin_c = isset( $d['pin'] ) ? $d['pin'] : '';
 			$v_c   = VHG_Vi::vi( $sdt_c );
@@ -310,13 +326,18 @@ class VHG_Shop {
 			   lại) vẫn là một lượt tra THÀNH CÔNG — trả `ok=false` vì một vế trống là đuổi
 			   khách đi đúng lúc họ đang tìm tiền của mình. */
 			if ( ! $co_vi && empty( $ma_c['ok'] ) ) {
+				self::dem( 'tra' );          // chỉ đếm lượt HỎNG — xem dem_neu_hong()
 				self::tra( array( 'ok' => false, 'error' => 'Số điện thoại hoặc PIN chưa đúng.' ) );
 				return;
 			}
+			delete_transient( self::khoa_key( 'tra' ) );   // đúng PIN thì xoá sạch bộ đếm
 			self::tra( array(
 				'ok'        => true,
 				'co_vi'     => $co_vi ? 1 : 0,
 				'so_du'     => $co_vi ? VHG_Vi::so_du( $sdt_c ) : null,
+				/* Tích lượt chỉ có nghĩa khi có ví — khách chưa nạp thì chưa tích được gì. */
+				'tich'      => $co_vi ? VHG_Vi::tich( $sdt_c ) : null,
+				'qua'       => $co_vi ? VHG_Vi::ds_qua( $sdt_c, 10 ) : array(),
 				'so'        => $co_vi ? VHG_Vi::ds_so( $sdt_c, 20 ) : array(),
 				'chua_dung' => isset( $ma_c['chua_dung'] ) ? $ma_c['chua_dung'] : array(),
 				'da_dung'   => isset( $ma_c['da_dung'] ) ? $ma_c['da_dung'] : array(),
@@ -335,18 +356,20 @@ class VHG_Shop {
 					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi tra lại, hoặc nhờ nhân viên.' ) );
 				return;
 			}
-			self::dem( 'tra' );
 			$sdt_ = isset( $d['sdt'] ) ? $d['sdt'] : '';
 			$pin_ = isset( $d['pin'] ) ? $d['pin'] : '';
 			$v_   = VHG_Vi::vi( $sdt_ );
 			/* ⚠️ MỘT CÂU LỖI cho cả "chưa có ví" lẫn "sai PIN" — nói tách ra là biến ô này
 			   thành máy dò xem số nào đã nạp tiền. */
 			if ( ! $v_ || ! VHG_Ma::pin_dung( $pin_, (string) $v_['pin_bam'] ) ) {
+				self::dem( 'tra' );          // chỉ đếm lượt HỎNG — xem dem_neu_hong()
 				self::tra( array( 'ok' => false, 'error' => 'Số điện thoại hoặc PIN chưa đúng.' ) );
 				return;
 			}
+			delete_transient( self::khoa_key( 'tra' ) );
 			$sd = VHG_Vi::so_du( $sdt_ );
-			self::tra( array( 'ok' => true, 'so_du' => $sd,
+			self::tra( array( 'ok' => true, 'so_du' => $sd, 'tich' => VHG_Vi::tich( $sdt_ ),
+				'qua' => VHG_Vi::ds_qua( $sdt_, 10 ),
 				'so' => VHG_Vi::ds_so( $sdt_, 20 ), 'ghe' => self::ghe_tu_dia_chi( $d ) ) );
 			return;
 		}
@@ -358,12 +381,11 @@ class VHG_Shop {
 					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi thử lại.' ) );
 				return;
 			}
-			self::dem( 'dung' );
-			self::tra( VHG_Vi::tieu(
+			self::tra( self::dem_neu_hong( 'dung', VHG_Vi::tieu(
 				isset( $d['sdt'] ) ? $d['sdt'] : '',
 				isset( $d['pin'] ) ? $d['pin'] : '',
 				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
-				self::ghe_tu_dia_chi( $d ) ) );
+				self::ghe_tu_dia_chi( $d ) ) ) );
 			return;
 		}
 
@@ -473,6 +495,18 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 /* Gói vượt quá số dư: làm mờ và BỎ HẲN con trỏ bấm. Chỉ làm mờ mà vẫn bấm được là khách bấm,
    chờ, rồi nhận một câu lỗi về điều trang đã biết từ trước. */
 .g.het{opacity:.42;cursor:not-allowed}
+/* Tích lượt: hàng ô vuông đầy dần. Nhìn cái là biết còn mấy ô, khỏi phải làm phép trừ. */
+.tich{margin-top:12px;padding:12px 13px;border-radius:12px;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12)}
+.tich-o{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.tich-o span{width:20px;height:20px;border-radius:6px;
+  background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16)}
+.tich-o span.on{background:#f0b429;border-color:#f0b429}
+.tich-chu{color:#e8dcc4;font-weight:700;font-size:13px}
+.tich-p{color:#a9a091;font-size:12.5px;margin-top:3px}
+.qua{margin-top:10px;padding:11px 13px;border-radius:12px;color:#231a06;font-weight:700;
+  background:#f0b429}
+.qua-p{font-weight:400;margin-top:4px;font-size:13px;color:#3a2c07}
 /* Lời dặn ngồi lên ghế: viền vàng, đứng ngay TRÊN các thẻ gói. Không để chữ mờ — đây là câu
    duy nhất ngăn khách bấm xong rồi mới đứng dậy đi tìm ghế. */
 .dan{border:1px solid rgba(240,180,41,.5);background:rgba(240,180,41,.09);border-radius:12px;
@@ -577,6 +611,11 @@ var API = window.VHG_SHOP, GHE = window.VHG_GHE || '', TEN = window.VHG_TEN || '
 /* Từ điển. Khoá = câu tiếng Việt; thiếu bản dịch thì rơi về tiếng Việt, không ra mã lạ. */
 var TU = {
   en: {
+    'Đã tích {0}/{1} lượt': '{0}/{1} stamps collected',
+    'còn {0} lượt nữa được thưởng': '{0} more to earn a reward',
+    'Mỗi {0} tiêu tại ghế = 1 lượt tích.': 'Every {0} spent at a chair = 1 stamp.',
+    'Anh/chị có {0} phần quà chưa nhận': 'You have {0} gift(s) waiting',
+    'Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.': 'Please come to the counter and give your phone number to collect it.',
     'Của tôi': 'My account',
     'Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.': 'Enter your phone number and PIN — shows both your wallet balance and your codes.',
     'Xem của tôi': 'Show my account',
@@ -730,6 +769,11 @@ var TU = {
     '✓ Đã chép': '✓ Copied'
   },
   zh: {
+    'Đã tích {0}/{1} lượt': '已集 {0}/{1} 次',
+    'còn {0} lượt nữa được thưởng': '再 {0} 次即可获赠',
+    'Mỗi {0} tiêu tại ghế = 1 lượt tích.': '在按摩椅消费每满 {0} = 1 次。',
+    'Anh/chị có {0} phần quà chưa nhận': '您有 {0} 份礼品待领取',
+    'Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.': '请到前台报手机号领取礼品。',
     'Của tôi': '我的',
     'Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.': '输入手机号和密码 — 同时显示钱包余额与已购优惠码。',
     'Xem của tôi': '查看我的',
@@ -883,6 +927,11 @@ var TU = {
     '✓ Đã chép': '✓ 已复制'
   },
   ru: {
+    'Đã tích {0}/{1} lượt': 'Собрано {0}/{1} отметок',
+    'còn {0} lượt nữa được thưởng': 'ещё {0} до подарка',
+    'Mỗi {0} tiêu tại ghế = 1 lượt tích.': 'Каждые {0}, потраченные у кресла = 1 отметка.',
+    'Anh/chị có {0} phần quà chưa nhận': 'Вас ждёт подарков: {0}',
+    'Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.': 'Подойдите к стойке и назовите номер телефона, чтобы получить подарок.',
     'Của tôi': 'Мои',
     'Nhập số điện thoại và PIN — hiện cả số dư ví lẫn mã đã mua.': 'Введите номер телефона и PIN — покажем баланс кошелька и ваши коды.',
     'Xem của tôi': 'Показать мои',
@@ -1505,6 +1554,25 @@ function veDung(){
 
 /* Khối hiện số dư — dùng ở tab "Của tôi". Hiện CẢ HAI cột: tiêu được và đang chờ. Gộp lại
    thành một con số là khách thấy có tiền mà ghế không chạy, rồi tưởng hệ thống nuốt tiền. */
+/* Thanh tích lượt — ô vuông đầy dần, không phải một con số.
+   🔴 Con số "7/10" bắt người ta làm phép trừ; hàng ô đầy dần thì nhìn cái là biết còn mấy ô.
+      Đây là thứ khách liếc qua trong lúc đang ngồi xuống ghế, không phải thứ họ ngồi đọc. */
+function veTich(t){
+  if (!t || !t.bat) return '';
+  var h = '<div class="tich"><div class="tich-o">';
+  for (var i = 0; i < t.moc; i++) {
+    h += '<span class="' + (i < t.co ? 'on' : '') + '"></span>';
+  }
+  h += '</div><div class="tich-chu">'
+    + Lf('Đã tích {0}/{1} lượt', t.co, t.moc);
+  if (t.con > 0) {
+    h += ' — ' + Lf('còn {0} lượt nữa được thưởng', t.con);
+  }
+  h += '</div><div class="tich-p">'
+    + Lf('Mỗi {0} tiêu tại ghế = 1 lượt tích.', tien(t.moi_luot)) + '</div></div>';
+  return h;
+}
+
 function veSoDu(r){
   var sd = r.so_du || {};
   var h = L('<div class="ok" style="margin-top:12px">Tiêu được ngay: ')
@@ -1515,6 +1583,14 @@ function veSoDu(r){
   }
   if (sd.khoa) h += L('<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>');
   h += '</div>';
+  h += veTich(r.tich);
+  /* Quà VẬT LÝ chưa nhận: nói rõ phải ra quầy lấy, đừng để khách tưởng nó tự vào ví. */
+  var qua_cho = (r.qua || []).filter(function(q){ return !q.nhan_luc && q.kieu !== 'luot'; });
+  if (qua_cho.length) {
+    h += '<div class="qua">🎁 ' + Lf('Anh/chị có {0} phần quà chưa nhận', qua_cho.length)
+      + '<div class="qua-p">' + L('Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.')
+      + '</div></div>';
+  }
   var so = r.so || [];
   if (so.length) {
     h += L('<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>');
