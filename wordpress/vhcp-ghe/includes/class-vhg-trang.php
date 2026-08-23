@@ -313,6 +313,29 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * CẤU HÌNH NHÂN SỰ NGAY TRÊN TRANG /ghe.
+		 *
+		 * Anh Thắng 23/08/2026: *"chưa thấy tab cấu hình trên wed"*.
+		 *
+		 * Màn khai người dùng vốn nằm trong wp-admin, mà anh Thắng điều hành cả hệ này từ trang
+		 * /ghe trên điện thoại. Bắt mở wp-admin trên điện thoại để thêm một người thu là việc sẽ
+		 * không ai làm — rồi cả nhà dùng chung một tài khoản, và toàn bộ phân quyền vừa dựng
+		 * thành số 0.
+		 *
+		 * 🔴 CHỈ ADMIN. Đây là chỗ CẤP PIN — cấp một PIN sai vai trò là cho người ta xem doanh
+		 *    thu cả chuỗi. Quản lý xem được doanh thu, nhưng không được tự cấp quyền cho ai.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 0 === strpos( $viec, 'ch_' ) ) {
+			if ( 'Admin' !== $ai['role'] ) {
+				self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+					'error' => 'Chỉ Admin mới đổi được cấu hình nhân sự.' ) );
+				return;
+			}
+			self::tra( self::cau_hinh( $viec, $d, $ai ) );
+			return;
+		}
+
 		if ( 'quy_toi' === $viec ) {
 			self::tra( array( 'ok' => true, 'cam' => VHG_Quy::dang_cam( (string) $ai['name'] ) ) );
 			return;
@@ -369,8 +392,8 @@ class VHG_Trang {
 		 *    chốt, và danh sách ghế (để biết ghế nào mất kết nối). Cắt tới mức không làm việc
 		 *    được thì họ sẽ đi mượn tài khoản quản lý — và lúc đó phân quyền thành số 0.
 		 * ═════════════════════════════════════════════════════════════════════════════════════ */
-		$qt = VHG_Auth::la_quan_tri( $ai['role'] );
-		if ( ! $qt ) { return self::so_lieu_nhan_vien( $ky, $ai ); }
+		$q = VHG_Auth::quyen_cua( $ai['role'] );
+		if ( empty( $q['quan_tri'] ) ) { return self::so_lieu_khong_quan_tri( $ky, $ai, $q ); }
 
 		$t   = VHG_Thu::tong_hop( $ky );
 		$may = array();
@@ -484,35 +507,142 @@ class VHG_Trang {
 			/* Bảng giá để nhân viên chọn gói khi tiêu ví hộ khách. Dùng CHUNG hàm với trang
 			   khách — hai nơi tính giá khác nhau là nhân viên đọc một đằng, khách một nẻo. */
 			'goi' => VHG_Ma::ds_menh_gia(),
-			'quyen' => array( 'quan_tri' => 1 ),
+			'quyen' => $q,
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
 	/**
-	 * Gói tin cho NGƯỜI THU — chỉ những gì họ cần để chốt ca và nộp tiền.
+	 * Số liệu và thao tác của tab Cấu hình. Mọi việc bắt đầu bằng `ch_`.
+	 *
+	 * ⚠️ KHÔNG BAO GIỜ GỬI PIN RA NGOÀI, kể cả cho Admin. Bảng chỉ nói PIN dài mấy số — đủ để
+	 *    biết mình đang gõ thiếu hay thừa. Quên PIN thì xoá người đó rồi thêm lại; in PIN ra màn
+	 *    là một ảnh chụp màn hình gửi nhầm nhóm chat và cả chuỗi mất doanh thu.
+	 */
+	private static function cau_hinh( $viec, $d, $ai ) {
+		if ( 'ch_xem' === $viec ) {
+			$ds = array();
+			foreach ( (array) get_option( 'vhg_nguoidung' ) as $i => $x ) {
+				$x = (array) $x;
+				$ds[] = array(
+					'i'      => (int) $i,
+					'ten'    => (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ),
+					'vai_tro' => (string) ( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' ),
+					'coso'   => (string) ( isset( $x['coso'] ) ? $x['coso'] : '' ),
+					'pin_dai' => strlen( (string) ( isset( $x['pin'] ) ? $x['pin'] : '' ) ),
+				);
+			}
+			$cs = array();
+			foreach ( VHG_May::ds_coso() as $c ) { $cs[] = (string) $c['ten']; }
+			return array( 'ok' => true,
+				'nguoi'      => $ds,
+				'coso'       => $cs,
+				'vai_tro'    => VHG_Auth::VAI_TRO_TAT_CA,
+				'vao'        => VHG_Auth::vai_tro_vao(),
+				'chot'       => VHG_Auth::vai_tro_chot(),
+				'giup'       => VHG_Auth::vai_tro_giup_khach(),
+				'nguon'      => (string) get_option( 'vhg_nguon_nguoidung', 'chung' ),
+				'don_vi'     => VHG_Quy::don_vi(),
+				'toi_la'     => (string) $ai['name'] );
+		}
+
+		if ( 'ch_them' === $viec ) {
+			/* Dùng CHUNG hàm với wp-admin. Chép ra bản thứ hai là hai bộ luật cho một việc —
+			   chỗ này quên chặn PIN trùng, chỗ kia quên chặn PIN dễ đoán. */
+			return VHG_Admin::them_nguoi_dung(
+				isset( $d['ten'] ) ? $d['ten'] : '',
+				isset( $d['pin'] ) ? $d['pin'] : '',
+				isset( $d['vai_tro'] ) ? $d['vai_tro'] : '',
+				isset( $d['coso'] ) ? $d['coso'] : '' );
+		}
+
+		if ( 'ch_xoa' === $viec ) {
+			$ds = array_values( (array) get_option( 'vhg_nguoidung' ) );
+			$i  = isset( $d['i'] ) ? (int) $d['i'] : -1;
+			if ( ! isset( $ds[ $i ] ) ) { return array( 'ok' => false, 'error' => 'Không thấy người này.' ); }
+			$x = (array) $ds[ $i ];
+			/* 🔴 KHÔNG XOÁ ĐƯỢC CHÍNH MÌNH. Xoá xong là mất phiên ngay lượt gọi sau, và nếu đó
+			   là Admin cuối cùng thì không còn đường nào vào lại ngoài cơ sở dữ liệu. */
+			if ( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) === (string) $ai['name'] ) {
+				return array( 'ok' => false, 'error' => 'Không xoá được chính mình.' );
+			}
+			$ten = (string) ( isset( $x['ten'] ) ? $x['ten'] : '' );
+			array_splice( $ds, $i, 1 );
+			update_option( 'vhg_nguoidung', array_values( $ds ) );
+			return array( 'ok' => true, 'thong_bao' => 'Đã xoá ' . $ten . '.' );
+		}
+
+		if ( 'ch_vai_tro' === $viec ) {
+			$loc = function ( $ds ) {
+				$ra = array();
+				foreach ( (array) $ds as $v ) {
+					$v = (string) $v;
+					if ( in_array( $v, VHG_Auth::VAI_TRO_TAT_CA, true ) && ! in_array( $v, $ra, true ) ) {
+						$ra[] = $v;
+					}
+				}
+				return $ra;
+			};
+			$vao  = $loc( isset( $d['vao'] ) ? $d['vao'] : array() );
+			$chot = $loc( isset( $d['chot'] ) ? $d['chot'] : array() );
+			$giup = $loc( isset( $d['giup'] ) ? $d['giup'] : array() );
+			/* 🔴 ADMIN LUÔN CÓ, ở cả ba danh sách. Lưu một danh sách thiếu Admin là tự khoá mình
+			   ra khỏi chính cái màn vừa dùng để lưu nó, và không có đường tự mở lại. */
+			$them_admin = function ( $ds ) {
+				if ( ! in_array( 'Admin', $ds, true ) ) { array_unshift( $ds, 'Admin' ); }
+				return $ds;
+			};
+			$vao  = $them_admin( $vao );
+			$chot = $them_admin( $chot );
+			$giup = $them_admin( $giup );
+			update_option( 'vhg_vai_tro_vao', $vao );
+			update_option( 'vhg_vai_tro_chot', $chot );
+			update_option( 'vhg_vai_tro_giup', $giup );
+			return array( 'ok' => true, 'thong_bao' => 'Đã lưu phân quyền.' );
+		}
+
+		if ( 'ch_don_vi' === $viec ) {
+			return VHG_Quy::luu_don_vi( isset( $d['don_vi'] ) ? $d['don_vi'] : 0 );
+		}
+
+		return array( 'ok' => false, 'error' => 'Việc cấu hình không rõ: ' . $viec );
+	}
+
+	/**
+	 * Gói tin cho người KHÔNG PHẢI QUẢN TRỊ — dựng theo BỘ QUYỀN, không phải theo một cái tên.
+	 *
+	 * Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên.
+	 * Nhân viên là các bạn thu tiền tại máy"*.
 	 *
 	 * 🔴 DỰNG RIÊNG, KHÔNG PHẢI `unset()` BỚT TỪ GÓI ĐẦY ĐỦ.
 	 *    `unset()` là danh sách những thứ PHẢI BỎ, và danh sách đó phải nhớ cập nhật mỗi lần
-	 *    thêm một khoá mới ở trên — quên một lần là rò một lần, im lặng. Dựng riêng thì danh
-	 *    sách là những thứ ĐƯỢC GỬI, và quên ở đây chỉ làm thiếu chứ không làm rò.
+	 *    thêm một khoá mới ở gói đầy đủ — quên một lần là rò một lần, im lặng. Dựng riêng thì
+	 *    danh sách là những thứ ĐƯỢC GỬI, và quên ở đây chỉ làm thiếu chứ không làm rò.
 	 *
-	 * ⚠️ Danh sách ghế gửi kèm nhưng ĐÃ BỎ giá và số phút: người thu cần biết ghế nào mất kết
-	 *    nối (ghế mất mạng thì lệch máy-với-sổ là bình thường, không phải mất tiền), nhưng không
-	 *    cần biết mỗi ghế thu bao nhiêu một lượt.
+	 * 🔴 VÀ DỰNG THEO QUYỀN, KHÔNG THEO VAI TRÒ. Một hàm `so_lieu_nhan_vien()` là đúng đúng một
+	 *    ngày — tới lúc có vai trò thứ ba (Hotline) thì phải đẻ thêm một hàm nữa, rồi hàm thứ tư.
+	 *    Hỏi `quyen_cua()` thì thêm vai trò mới chỉ là thêm một dòng khai, không đụng vào đây.
 	 */
-	private static function so_lieu_nhan_vien( $ky, $ai ) {
+	private static function so_lieu_khong_quan_tri( $ky, $ai, $q ) {
+		$toi = (string) $ai['name'];
+
+		/* Danh sách ghế: ai cũng cần, nhưng ĐÃ BỎ giá và số phút.
+		   · Người thu cần biết ghế nào mất kết nối — ghế mất mạng thì lệch máy-với-sổ là bình
+		     thường, không phải mất tiền.
+		   · Bạn Hotline cần đúng danh sách đó để bấm bật cho khách đang gọi tới. */
 		$may = array();
 		foreach ( VHG_May::ds_may() as $m ) {
 			$may[] = array(
-				'ma'   => $m['ma'],
-				'coso' => $m['coso_ten'] ? $m['coso_ten'] : '',
-				'song' => ! empty( $m['con_song'] ),
-				'tt'   => (string) $m['trang_thai'],
-				'tm'   => (string) $m['tm_loi'],
+				'ma'      => $m['ma'],
+				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
+				'song'    => ! empty( $m['con_song'] ),
+				'tt'      => (string) $m['trang_thai'],
+				'con_lai' => (int) $m['con_lai'],
+				'tm'      => (string) $m['tm_loi'],
 			);
 		}
-		$toi = (string) $ai['name'];
-		/* Chỉ lượt chốt CỦA CHÍNH MÌNH. Lượt của người khác là tiền của người khác. */
+
+		/* Quỹ: phần CỦA MÌNH thì ai cũng thấy. Phần của người khác chỉ người chốt doanh số mới
+		   thấy — đó đúng là việc của họ (nhận tiền và đối chiếu). */
 		$chot_toi = array();
 		foreach ( VHG_Quy::ds_chot( $ky, 200 ) as $c ) {
 			if ( (string) $c['nguoi'] === $toi ) { $chot_toi[] = $c; }
@@ -521,23 +651,43 @@ class VHG_Trang {
 		foreach ( VHG_Quy::ds_nop( $ky, 120 ) as $n ) {
 			if ( (string) $n['nguoi'] === $toi ) { $nop_toi[] = $n; }
 		}
-		return array( 'ok' => true, 'ky' => $ky, 'ai' => $ai,
+		$ke_toan = ! empty( $q['chot_doanh_so'] );
+		$quy = array(
+			'toi'    => VHG_Quy::dang_cam( $toi ),
+			'toi_la' => $toi,
+			'don_vi' => VHG_Quy::don_vi(),
+			/* Kế toán xem được MỌI lượt chốt: họ phải đối chiếu tiền nhận với lượt đã chốt. */
+			'chot'   => $ke_toan ? VHG_Quy::ds_chot( $ky, 120 ) : $chot_toi,
+			'nop'    => $ke_toan ? VHG_Quy::ds_nop( $ky, 80 ) : $nop_toi,
+			'cam'    => $ke_toan ? VHG_Quy::ai_dang_cam() : array(),
+			'cho'    => $ke_toan ? VHG_Quy::nop_cho( 50 ) : array(),
+			'nguoi'  => $ke_toan ? VHG_Quy::theo_nguoi( $ky ) : array(),
+			/* Rỗng chứ không thiếu khoá: giao diện đọc `q.tong.tren_tay` mà gặp `undefined` thì
+			   nổ giữa lúc vẽ, và người dùng nhìn thấy một trang trắng. */
+			'tong'   => $ke_toan ? VHG_Quy::tong( $ky )
+				: array( 'tren_tay' => 0, 'cho_xac_nhan' => 0, 'so_cho' => 0,
+					'chot_ky' => 0, 'lech_may' => 0, 'lech_dem' => 0 ),
+			'quyen_nhan' => $ke_toan ? 1 : 0,
+		);
+
+		$ra = array( 'ok' => true, 'ky' => $ky, 'ai' => $ai,
 			'may' => $may, 'cho' => array(), 'gd' => array(),
 			'choGan' => array(), 'coso' => array(),
-			'quy' => array(
-				'toi'    => VHG_Quy::dang_cam( $toi ),
-				'toi_la' => $toi,
-				'chot'   => $chot_toi,
-				'nop'    => $nop_toi,
-				'don_vi' => VHG_Quy::don_vi(),
-				/* Rỗng chứ không thiếu khoá: giao diện đọc `q.cam.length` mà gặp `undefined` thì
-				   nổ giữa lúc vẽ, và người thu nhìn thấy một trang trắng. */
-				'cam'    => array(), 'cho' => array(), 'nguoi' => array(),
-				'tong'   => array( 'tren_tay' => 0, 'cho_xac_nhan' => 0, 'so_cho' => 0,
-					'chot_ky' => 0, 'lech_may' => 0, 'lech_dem' => 0 ),
-				'quyen_nhan' => 0 ),
-			'quyen' => array( 'quan_tri' => 0 ),
+			'quy' => $quy, 'quyen' => $q,
 			'luc' => current_time( 'H:i:s' ) );
+
+		/* Bạn Hotline cần BẢNG GIÁ để chọn gói khi tiêu ví hộ khách, và danh sách lượt đã trả
+		   tiền mà ghế chưa nhận — đó chính là lý do khách gọi tới. Không kèm doanh thu. */
+		if ( ! empty( $q['giup_khach'] ) ) {
+			$ra['goi'] = VHG_Ma::ds_menh_gia();
+			$cho_ = array();
+			foreach ( VHG_May::ds_cho( true, 50 ) as $c ) {
+				$cho_[] = array( 'luc' => $c['tao_luc'], 'ma_may' => $c['ma_may'],
+					'so_tien' => (int) $c['so_tien'], 'ma_lenh' => $c['ma_lenh'] );
+			}
+			$ra['cho'] = $cho_;
+		}
+		return $ra;
 	}
 
 	/**
@@ -755,6 +905,14 @@ tr:last-child td{border-bottom:0}
 /* --- Bảng chốt ca thu tiền --- */
 /* Khung camera quét QR. Vuông, bo góc, và cao vừa đủ để cầm một tay trong lúc tay kia giữ
    ngăn tiền — cao hơn nữa thì nút Đóng tụt xuống dưới mép màn trên điện thoại nhỏ. */
+/* Nhóm ô tích phân quyền. Mỗi nhóm một khối có viền — ba nhóm nằm liền nhau không viền thì
+   người đọc không biết ô tích nào thuộc câu hỏi nào, và tích nhầm nhóm là cấp nhầm quyền. */
+.ph-nhom{padding:12px 13px;border-radius:12px;margin:0 0 10px;
+  background:rgba(10,12,22,.5);border:1px solid rgba(255,255,255,.1)}
+.ph-nhom .nh{color:#e8dcc4;font-weight:700;font-size:14px}
+.ph-o{display:flex;flex-wrap:wrap;gap:8px 16px}
+.ph-tick{display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer}
+.ph-tick.khoa{opacity:.6;cursor:not-allowed}
 .quet-hop{margin-top:12px}
 .quet-hop video{width:100%;max-height:280px;object-fit:cover;border-radius:12px;
   background:#000;border:1px solid rgba(255,255,255,.14)}
@@ -1020,23 +1178,29 @@ function ve(){
    *    Máy chủ cũng KHÔNG GỬI số liệu của các tab này cho người thu (xem `so_lieu_nhan_vien`),
    *    nên kể cả sửa JS trên máy mình thì các tab đó cũng rỗng.
    * ═════════════════════════════════════════════════════════════════════════════════════════ */
-  var QT = QUAN_TRI();
+  var QT = QUAN_TRI(), GK = GIUP_KHACH(), KT = CHOT_DS();
+  var TABS = [];
+  if (QT) TABS.push(['doi-soat', '📊 ' + L('Đối soát','Reconciliation')]);
+  if (QT) TABS.push(['thu-tien', '💵 ' + L('Thu tiền','Cash collection')]);
+  TABS.push(['quy', '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')]);
+  if (QT) TABS.push(['kich-hoat', '⚡ ' + L('Kích hoạt ghế','Chair activation')]);
+  if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
+  /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
+     Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
+     Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
+  if (GK) TABS.push(['dieu-khien', '🎛 ' + L('Điều khiển ghế','Chair control')]);
+  if (QT) TABS.push(['cau-hinh', '⚙️ ' + L('Cấu hình','Settings')]);
   h += '<div class="nav">'
-    + (QT ? '<button data-tab="doi-soat"' + (TAB==='doi-soat'?' class="on"':'') + '>📊 '
-      + L('Đối soát','Reconciliation') + '</button>' : '')
-    + (QT ? '<button data-tab="thu-tien"' + (TAB==='thu-tien'?' class="on"':'') + '>💵 '
-      + L('Thu tiền','Cash collection') + '</button>' : '')
-    + '<button data-tab="quy"' + (TAB==='quy'?' class="on"':'') + '>🧾 '
-      + L('Quỹ &amp; nộp tiền','Cash float') + '</button>'
-    + (QT ? '<button data-tab="kich-hoat"' + (TAB==='kich-hoat'?' class="on"':'') + '>⚡ '
-      + L('Kích hoạt ghế','Chair activation') + '</button>' : '')
-    + (QT ? '<button data-tab="ma"' + (TAB==='ma'?' class="on"':'') + '>🎁 '
-      + L('Mã giảm giá','Discount codes') + '</button>' : '')
-    + (QT ? '<button data-tab="dieu-khien"' + (TAB==='dieu-khien'?' class="on"':'') + '>🎛 '
-      + L('Điều khiển ghế','Chair control') + '</button>' : '')
+    + TABS.map(function(x){
+        return '<button data-tab="' + x[0] + '"' + (TAB===x[0]?' class="on"':'') + '>' + x[1] + '</button>';
+      }).join('')
     + '</div>';
-  /* Người thu chỉ có một tab — mở thẳng vào đó, đừng để họ nhìn một trang trống rồi tự đoán. */
-  if (!QT && TAB !== 'quy') { TAB = 'quy'; }
+  /* 🔴 TAB ĐANG CHỌN PHẢI NẰM TRONG DANH SÁCH ĐƯỢC PHÉP.
+     Người thu chỉ có một tab; bạn Hotline có hai. Để `TAB` trỏ vào một tab họ không có là màn
+     hình trắng — và họ sẽ tưởng app hỏng chứ không nghĩ là mình không đủ quyền. */
+  var co_tab = false;
+  TABS.forEach(function(x){ if (x[0] === TAB) co_tab = true; });
+  if (!co_tab) { TAB = TABS.length ? TABS[0][0] : 'quy'; }
 
   /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
      ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
@@ -1101,6 +1265,7 @@ function ve(){
   if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
 
@@ -1299,6 +1464,142 @@ function veDieuKhien(){
 /* Đọc quyền từ gói tin máy chủ vừa gửi. Hàm chứ không phải biến: `D` được thay mới mỗi lượt
    tải lại, và một biến chụp lúc dựng trang sẽ giữ nguyên quyền cũ sau khi đổi tài khoản. */
 function QUAN_TRI(){ return !!(D && D.quyen && D.quyen.quan_tri); }
+function GIUP_KHACH(){ return !!(D && D.quyen && D.quyen.giup_khach); }
+function CHOT_DS(){ return !!(D && D.quyen && D.quyen.chot_doanh_so); }
+
+/* ============================================================================================
+ * TAB CẤU HÌNH — QUẢN LÝ NHÂN SỰ NGAY TRÊN TRANG NÀY.
+ *
+ * Anh Thắng 23/08/2026: *"chưa thấy tab cấu hình trên wed"*, và trước đó *"bổ sung thêm phần
+ * cấu hình để quản lý nhân viên"*.
+ *
+ * 🔴 VÌ SAO KHÔNG ĐỂ NGUYÊN TRONG wp-admin.
+ *    Anh Thắng điều hành cả hệ này từ trang /ghe trên điện thoại. Bắt mở wp-admin trên điện
+ *    thoại để thêm một người thu là việc sẽ không ai làm — rồi cả nhà dùng chung một tài khoản,
+ *    và toàn bộ phân quyền vừa dựng thành số 0. Màn wp-admin VẪN CÒN, hai nơi gọi chung một
+ *    hàm (`VHG_Admin::them_nguoi_dung`), không chép luật ra hai bản.
+ *
+ * ⚠️ KHÔNG BAO GIỜ IN PIN RA MÀN, kể cả cho Admin — chỉ nói dài mấy số. Một ảnh chụp màn hình
+ *    gửi nhầm nhóm chat là cả chuỗi mất doanh thu.
+ * ============================================================================================ */
+var CH = null;   // số liệu cấu hình vừa tải
+
+function veCauHinh(){
+  if (!CH) {
+    goi('ch_xem', {}, function(r){
+      if (!r.ok) { alert(r.error || L('Không tải được cấu hình.','Could not load settings.')); return; }
+      CH = r; ve();
+    });
+    return '<div class="card"><p class="mut">' + L('Đang tải…','Loading…') + '</p></div>';
+  }
+
+  var h = '';
+  if (CH.nguon !== 'rieng') {
+    h += '<div class="warn"><b>' + L('Đang dùng danh sách người dùng của plugin Chi phí',
+        'Using the Expenses plugin user list') + '</b> — '
+      + L('thêm/xoá người ở đây sẽ <b>không có tác dụng</b>. Vào wp-admin → Ghế Massage → Trang '
+          + 'ngoài, chọn <b>Danh sách riêng của plugin này</b> trước.',
+          'adding or removing people here will have <b>no effect</b>. Go to wp-admin → Massage '
+          + 'Chairs → Public page and pick <b>this plugin\'s own list</b> first.') + '</div>';
+  }
+
+  /* ---- 1. NGƯỜI DÙNG ---------------------------------------------------------------------- */
+  h += '<div class="card"><h2>' + L('Nhân sự','People') + '</h2><table><tr><th>'
+    + L('Tên','Name') + '</th><th>' + L('Vai trò','Role') + '</th><th>' + L('Cơ sở','Branch')
+    + '</th><th class="hide-sm">PIN</th><th class="r"></th></tr>';
+  if (!(CH.nguoi || []).length) h += '<tr><td colspan="5" class="mut">'
+    + L('Chưa khai ai cả.','Nobody declared yet.') + '</td></tr>';
+  (CH.nguoi || []).forEach(function(n){
+    h += '<tr><td><b>' + esc(n.ten) + '</b></td><td>' + esc(n.vai_tro) + '</td>'
+      + '<td>' + esc(n.coso || L('cả chuỗi','all branches')) + '</td>'
+      + '<td class="hide-sm mut">' + n.pin_dai + ' ' + L('số','digits') + '</td>'
+      + '<td class="r">' + (n.ten === CH.toi_la ? '<span class="mut">' + L('bạn','you') + '</span>'
+          : '<button data-chxoa="' + n.i + '" class="ghost">' + L('Xoá','Remove') + '</button>')
+      + '</td></tr>';
+  });
+  h += '</table>';
+
+  h += '<h3 style="margin:16px 0 8px">' + L('Thêm người','Add a person') + '</h3>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<input id="ch-ten" type="text" placeholder="' + L('Họ tên','Full name') + '" style="flex:2;min-width:150px">'
+    + '<input id="ch-pin" type="tel" inputmode="numeric" placeholder="PIN 4–8 ' + L('số','digits')
+      + '" style="flex:1;min-width:110px">'
+    + '<select id="ch-vt" style="flex:1;min-width:130px">'
+    + (CH.vai_tro || []).map(function(v){
+        return '<option value="' + esc(v) + '"' + (v === 'Nhân viên' ? ' selected' : '') + '>'
+          + esc(v) + '</option>'; }).join('')
+    + '</select>'
+    + '<select id="ch-cs" style="flex:1;min-width:130px"><option value="">— '
+      + L('cả chuỗi','all branches') + ' —</option>'
+    + (CH.coso || []).map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('')
+    + '</select>'
+    + '<button id="ch-them" class="on">' + L('Thêm','Add') + '</button></div>'
+    /* Nói rõ CƠ SỞ quyết định gì — người khai không nhìn thấy hậu quả của ô này ở đâu khác. */
+    + '<p class="mut" style="margin-top:10px">'
+    + L('<b>Cơ sở</b> quyết định người đó chốt ca được ở đâu: gán cơ sở thì chỉ chốt được ghế của '
+        + 'cơ sở đó. Chốt nhầm ghế ở cơ sở khác không chỉ ghi sai sổ — nó <b>đóng mốc chỉ số</b> '
+        + 'của ghế đó, và người thu thật ở đấy hôm sau sẽ thấy quãng bị cắt mất.<br>'
+        + 'Quên PIN thì xoá người đó rồi thêm lại — màn này <b>không in PIN</b> ra bao giờ.',
+        '<b>Branch</b> decides which chairs that person can close: assign a branch and they can '
+        + 'only close chairs there. Closing the wrong chair does not just mis-record — it '
+        + '<b>seals the meter baseline</b> of that chair.<br>'
+        + 'Forgot a PIN? Remove the person and add them again — this screen never prints PINs.')
+    + '</p><div class="err" id="ch-e"></div></div>';
+
+  /* ---- 2. PHÂN QUYỀN ---------------------------------------------------------------------- */
+  var nhom = [
+    ['vao',  L('Đăng nhập được trang này','Can sign in here'),
+             L('Không tích = gõ đúng PIN vẫn không vào được.','Unticked = correct PIN still cannot enter.')],
+    ['giup', L('Giúp khách (bật ghế, tiêu ví hộ)','Help customers (start chairs, spend wallet)'),
+             L('Bạn trực Hotline: khách gọi tới vì ghế không chạy. Không thấy doanh thu.',
+               'The hotline staff: customers call because a chair will not start. No revenue access.')],
+    ['chot', L('Chốt doanh số (nhận tiền nhân viên nộp)','Close revenue (receive staff hand-ins)'),
+             L('Kế toán xuống nhận tiền. Không kèm quyền huỷ mã hay gán ghế.',
+               'The accountant receiving the cash. Does not include cancelling codes or assigning chairs.')]
+  ];
+  h += '<div class="card"><h2>' + L('Phân quyền','Permissions') + '</h2>';
+  nhom.forEach(function(g){
+    h += '<div class="ph-nhom"><div class="nh">' + g[1] + '</div>'
+      + '<div class="mut" style="margin:2px 0 8px">' + g[2] + '</div><div class="ph-o">';
+    (CH.vai_tro || []).forEach(function(v){
+      var co = (CH[g[0]] || []).indexOf(v) >= 0;
+      var la_admin = (v === 'Admin');
+      h += '<label class="ph-tick' + (la_admin ? ' khoa' : '') + '">'
+        + '<input type="checkbox" data-ph="' + g[0] + '" value="' + esc(v) + '"'
+        + (co ? ' checked' : '') + (la_admin ? ' disabled' : '') + '> ' + esc(v)
+        + (la_admin ? ' <span class="mut">(' + L('luôn có','always') + ')</span>' : '') + '</label>';
+    });
+    h += '</div></div>';
+  });
+  h += '<button id="ch-luu-vt" class="on" style="width:100%;margin-top:12px">'
+    + L('Lưu phân quyền','Save permissions') + '</button>'
+    /* ⚠️ Admin bị khoá ở cả ba nhóm — bỏ sót Admin là tự khoá mình ra khỏi chính màn này. */
+    + '<p class="mut" style="margin-top:8px">'
+    + L('Admin luôn có đủ ba quyền — bỏ sót là tự khoá mình ra khỏi chính màn này, và không có '
+        + 'đường tự mở lại ngoài cơ sở dữ liệu.',
+        'Admin always keeps all three — dropping it locks you out of this very screen, with no '
+        + 'way back except the database.')
+    + '</p><div class="err" id="ch-e2"></div></div>';
+
+  /* ---- 3. CHỈ SỐ MÁY ĐẾM ------------------------------------------------------------------ */
+  h += '<div class="card"><h2>' + L('Chỉ số máy đếm tiền','Note counter unit') + '</h2>'
+    + '<div class="act">' + L('Mỗi <b>1 đơn vị</b> trên màn đếm =','Each <b>1 unit</b> on the counter =')
+    + '<input id="ch-dv" type="tel" inputmode="numeric" value="' + esc(String(CH.don_vi))
+    + '" style="width:120px;text-align:right"> đ'
+    + '<button id="ch-luu-dv" class="on">' + L('Lưu','Save') + '</button></div>'
+    + '<p class="mut" style="margin-top:10px">'
+    + L('<b>Cách kiểm:</b> nhét một tờ ' + tien(CH.don_vi) + ' vào máy và xem màn đếm nhảy đúng '
+        + '<b>1</b> đơn vị hay không. Nhảy 2 thì khai lại một nửa; hiện thẳng số tiền thì khai '
+        + '<b>1</b>.<br>Khai sai là <b>mọi</b> lượt chốt ca sai theo cùng một hệ số — và nó sai '
+        + 'một cách rất giống thật: bảng vẫn đầy số, vẫn cộng ra tổng.',
+        '<b>How to check:</b> insert one ' + tien(CH.don_vi) + ' note and see whether the counter '
+        + 'advances by exactly <b>1</b>. If it jumps 2, halve the value; if it shows the amount '
+        + 'itself, enter <b>1</b>.<br>Get this wrong and <b>every</b> closing is wrong by the same '
+        + 'factor — and it looks entirely plausible.')
+    + '</p><div class="err" id="ch-e3"></div></div>';
+
+  return h;
+}
 
 function veQuy(){
   var q = (D.quy || null);
@@ -1403,7 +1704,7 @@ function veQuy(){
    *    không được xem thôi. Một bảng rỗng trông hệt như một sự thật, và đó là kiểu nói dối tệ
    *    nhất vì không ai nghi ngờ nó.
    */
-  if (QUAN_TRI()) {
+  if (QUAN_TRI() || CHOT_DS()) {
   h += '<div class="card"><h2>' + L('Ai đang cầm tiền','Who is holding cash') + '</h2><table><tr><th>'
     + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
     + '<th class="r">' + L('Tại quầy','Counter') + '</th><th class="r">'
@@ -1422,7 +1723,8 @@ function veQuy(){
   /* ---- 4. LƯỢT CHỐT CA — cả hai vai trò đều xem ------------------------------------------
      Người thu chỉ nhận về lượt của CHÍNH MÌNH; máy chủ đã lọc, giao diện không phải lọc lại. */
   h += '<div class="card"><h2>'
-    + (QUAN_TRI() ? L('Lượt chốt ca','Shift closings') : L('Lượt chốt ca của tôi','My shift closings'))
+    + ((QUAN_TRI() || CHOT_DS()) ? L('Lượt chốt ca','Shift closings')
+        : L('Lượt chốt ca của tôi','My shift closings'))
     + '</h2>'
     + '<p class="mut" style="margin:0 0 10px">'
     + L('Mỗi đơn vị trên màn đếm của máy tiền mặt = <b>' + tien(q.don_vi) + '</b>. '
@@ -1456,7 +1758,7 @@ function veQuy(){
   h += '</table></div>';
 
   /* ---- 5. THEO NGƯỜI — chỉ quản trị, cùng lý do với bảng 3. -------------------------------- */
-  if (!QUAN_TRI()) return h;
+  if (!QUAN_TRI() && !CHOT_DS()) return h;
   h += '<div class="card"><h2>' + L('Theo người thu','By collector') + '</h2><table><tr><th>'
     + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
     + '<th class="r">' + L('Tại quầy','Counter') + '</th>'
@@ -2214,6 +2516,55 @@ function noi(){
   };
   var qt_ = document.getElementById('quet-tay');
   if (qt_) qt_.onkeydown = function(ev){ if (ev.key === 'Enter') quetDi.click(); };
+
+  /* ---- CẤU HÌNH: thêm/xoá người, lưu phân quyền, lưu đơn vị chỉ số ----------------------
+     ⚠️ Sau mỗi lượt ghi phải XOÁ `CH` rồi tải lại — giữ bảng cũ trên màn là người khai vừa thêm
+        một người mà không thấy họ đâu, rồi thêm lần nữa. */
+  var chThem = document.getElementById('ch-them');
+  if (chThem) chThem.onclick = function(){
+    if (ban) return;
+    var e = document.getElementById('ch-e');
+    var ten = (document.getElementById('ch-ten').value || '').trim();
+    var pin = (document.getElementById('ch-pin').value || '').trim();
+    if (!ten) { e.textContent = L('Chưa nhập họ tên.','Enter a full name.'); return; }
+    if (!/^\d{4,8}$/.test(pin)) { e.textContent = L('PIN phải gồm 4–8 chữ số.','PIN must be 4–8 digits.'); return; }
+    e.textContent = '';
+    CH = null;
+    lam('ch_them', { ten: ten, pin: pin,
+      vai_tro: document.getElementById('ch-vt').value,
+      coso: document.getElementById('ch-cs').value });
+  };
+  [].forEach.call(document.querySelectorAll('[data-chxoa]'), function(b){
+    b.onclick = function(){
+      if (ban) return;
+      if (!confirm(L('Xoá người này? Họ sẽ không đăng nhập được nữa.',
+                     'Remove this person? They will no longer be able to sign in.'))) return;
+      CH = null;
+      lam('ch_xoa', { i: Number(b.getAttribute('data-chxoa')) });
+    };
+  });
+  var chVt = document.getElementById('ch-luu-vt');
+  if (chVt) chVt.onclick = function(){
+    if (ban) return;
+    var g = { vao: [], giup: [], chot: [] };
+    [].forEach.call(document.querySelectorAll('[data-ph]'), function(o){
+      if (o.checked) g[o.getAttribute('data-ph')].push(o.value);
+    });
+    CH = null;
+    lam('ch_vai_tro', g);
+  };
+  var chDv = document.getElementById('ch-luu-dv');
+  if (chDv) chDv.onclick = function(){
+    if (ban) return;
+    var v = Number((document.getElementById('ch-dv').value || '').replace(/\D/g, '')) || 0;
+    if (v <= 0) {
+      document.getElementById('ch-e3').textContent =
+        L('Mỗi đơn vị phải lớn hơn 0 đồng.','The unit must be greater than 0.');
+      return;
+    }
+    CH = null;
+    lam('ch_don_vi', { don_vi: v });
+  };
 
   var nopOk = document.getElementById('nop-ok');
   if (nopOk) nopOk.onclick = function(){

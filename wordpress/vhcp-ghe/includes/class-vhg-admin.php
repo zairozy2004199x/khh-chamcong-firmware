@@ -1843,10 +1843,14 @@ class VHG_Admin {
 
 	/**
 	 * Thêm một người vào danh sách riêng.
+	 *
+	 * ⚠️ CÔNG KHAI vì tab Cấu hình trên trang /ghe gọi CHUNG hàm này (xem `VHG_Trang::cau_hinh`).
+	 *    Chép ra bản thứ hai là hai bộ luật cho một việc — rồi chỗ này quên chặn PIN trùng, chỗ
+	 *    kia quên chặn PIN dễ đoán, và không ai thấy cho tới lúc hai người cùng một PIN.
 	 * ⚠️ CHẶN PIN TRÙNG. Hai người cùng PIN thì `login()` khớp người ĐẦU TIÊN trong danh sách —
 	 *    người thứ hai gõ đúng PIN của mình mà vào nhầm quyền của người khác, im lặng.
 	 */
-	private static function them_nguoi_dung( $ten, $pin, $vai_tro, $coso ) {
+	public static function them_nguoi_dung( $ten, $pin, $vai_tro, $coso ) {
 		$ten = trim( (string) $ten );
 		$pin = VHG_Auth::pin_sach( $pin );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu họ tên.' ); }

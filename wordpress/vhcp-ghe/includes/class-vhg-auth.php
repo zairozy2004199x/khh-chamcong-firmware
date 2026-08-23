@@ -43,10 +43,15 @@ class VHG_Auth {
 	   không vào được cửa. Họ vào rồi thì chỉ thấy đúng tab Quỹ — xem `VIEC_QUAN_TRI` và
 	   `VHG_Trang::so_lieu_nhan_vien()`. */
 	const VAI_TRO_MAC_DINH = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
-		'Cửa hàng trưởng', 'Nhân viên' );
+		'Cửa hàng trưởng', 'Hotline', 'Nhân viên' );
 
+	/* 🔴 'Hotline' — 23/08/2026. Anh Thắng: *"Đấy là bạn Hotline bật ghế cho khách chứ không
+	   phải nhân viên. Nhân viên là các bạn thu tiền tại máy"*.
+	   Hai việc khác hẳn nhau, và trước bản này không có vai trò nào cho việc thứ nhất: muốn bật
+	   ghế hộ khách là phải cấp quyền Quản lý — tức là cấp luôn quyền xem doanh thu cả chuỗi,
+	   huỷ mã khách đã trả tiền và gán mã ghế. */
 	const VAI_TRO_TAT_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
-		'Cửa hàng trưởng', 'Nhân viên' );
+		'Cửa hàng trưởng', 'Hotline', 'Nhân viên' );
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
 	 * PHÂN QUYỀN TRÊN CỔNG /ghe — MỘT DANH SÁCH DUY NHẤT.
@@ -79,16 +84,71 @@ class VHG_Auth {
 	 *   · so_may                    — số liệu doanh thu của một ghế theo ngày/tuần/tháng.
 	 */
 	const VIEC_QUAN_TRI = array(
-		'bat', 'tat', 'khoi_dong_lai',
 		'gan_ma',
-		'vi_tra_nv', 'vi_tieu_nv',
 		'ma_huy',
 		'so_may',
 	);
 
-	/* Việc chốt doanh số — quyền riêng, khai được. KHÔNG nằm trong `VIEC_QUAN_TRI` vì kế toán
-	   phải làm được mà không cần quyền Quản lý. */
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * BA NHÓM QUYỀN, KHÔNG PHẢI HAI — VÌ CÓ BA CÔNG VIỆC THẬT.
+	 *
+	 * Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên.
+	 * Nhân viên là các bạn thu tiền tại máy"*.
+	 *
+	 *   · GIÚP KHÁCH   — bạn trực Hotline: khách gọi tới vì ghế không chạy, vì bấm nhiều lần bị
+	 *                    hãm 10 phút. Cần bật ghế, tra ví, tiêu ví hộ. KHÔNG cần thấy doanh thu.
+	 *   · CHỐT DOANH SỐ— kế toán: nhận tiền nhân viên nộp về và xác nhận đủ.
+	 *   · QUẢN TRỊ     — khai ghế, huỷ mã khách đã trả tiền, xem doanh thu cả chuỗi.
+	 *
+	 * 🔴 GỘP LÀM MỘT LÀ CẤP THỪA QUYỀN. Trước bản này bật ghế nằm trong nhóm quản trị, nên muốn
+	 *    bạn Hotline bật ghế hộ khách là phải cấp cho họ quyền Quản lý — kèm theo đó là xem
+	 *    doanh thu 26 cửa hàng, huỷ mã khách đã trả tiền, và gán lại mã ghế. Không ai định cấp
+	 *    những thứ đó; nó đi kèm vì danh sách chỉ có một nhóm.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Việc của người GIÚP KHÁCH — bật ghế, và tiêu ví hộ khách. */
+	const VIEC_GIUP_KHACH = array(
+		'bat', 'tat', 'khoi_dong_lai',
+		'vi_tra_nv', 'vi_tieu_nv',
+	);
+
+	/** Việc CHỐT DOANH SỐ — kế toán làm được mà không cần quyền Quản lý. */
 	const VIEC_CHOT_DOANH_SO = array( 'nop_nhan', 'nop_huy' );
+
+	/**
+	 * Vai trò được giúp khách. Khai được, cùng lý do với `vai_tro_chot()`.
+	 * ⚠️ Admin và Quản lý LUÔN có: họ là người trực thay khi bạn Hotline nghỉ.
+	 */
+	public static function vai_tro_giup_khach() {
+		$ds = get_option( 'vhg_vai_tro_giup' );
+		$ra = array( 'Admin', 'Quản lý' );
+		if ( ! is_array( $ds ) ) { $ra[] = 'Hotline'; return $ra; }
+		foreach ( $ds as $v ) {
+			$v = (string) $v;
+			if ( in_array( $v, self::VAI_TRO_TAT_CA, true ) && ! in_array( $v, $ra, true ) ) {
+				$ra[] = $v;
+			}
+		}
+		return $ra;
+	}
+
+	public static function duoc_giup_khach( $vai_tro ) {
+		return in_array( (string) $vai_tro, self::vai_tro_giup_khach(), true );
+	}
+
+	/**
+	 * Bộ quyền của một vai trò — MỘT NƠI TRẢ LỜI, dùng cho cả cổng lẫn gói số liệu lẫn giao diện.
+	 *
+	 * ⚠️ Ba nơi tự suy ra quyền theo ba cách là ba cách suy sai khác nhau: cổng chặn, giao diện
+	 *    vẫn vẽ nút, và gói tin vẫn kèm số liệu. Hỏi chung một chỗ thì ba nơi không lệch được.
+	 */
+	public static function quyen_cua( $vai_tro ) {
+		return array(
+			'quan_tri'      => self::la_quan_tri( $vai_tro ) ? 1 : 0,
+			'giup_khach'    => self::duoc_giup_khach( $vai_tro ) ? 1 : 0,
+			'chot_doanh_so' => self::duoc_chot_doanh_so( $vai_tro ) ? 1 : 0,
+		);
+	}
 
 	public static function la_quan_tri( $vai_tro ) {
 		return in_array( (string) $vai_tro, self::QUAN_TRI, true );
@@ -129,10 +189,14 @@ class VHG_Auth {
 	}
 
 	public static function duoc_lam( $vai_tro, $viec ) {
-		if ( in_array( (string) $viec, self::VIEC_CHOT_DOANH_SO, true ) ) {
+		$v = (string) $viec;
+		if ( in_array( $v, self::VIEC_CHOT_DOANH_SO, true ) ) {
 			return self::duoc_chot_doanh_so( $vai_tro );
 		}
-		if ( ! in_array( (string) $viec, self::VIEC_QUAN_TRI, true ) ) { return true; }
+		if ( in_array( $v, self::VIEC_GIUP_KHACH, true ) ) {
+			return self::duoc_giup_khach( $vai_tro );
+		}
+		if ( ! in_array( $v, self::VIEC_QUAN_TRI, true ) ) { return true; }
 		return self::la_quan_tri( $vai_tro );
 	}
 
