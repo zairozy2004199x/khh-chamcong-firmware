@@ -856,10 +856,24 @@ teq( 'token sai khuôn cũng chối', false, $r['ok'] );
 VHG_Auth::mo_khoa();
 update_option( 'vhg_nguoidung', array(
 	array( 'ten' => 'Em Nhân Viên', 'pin' => '446688', 'vaiTro' => 'Nhân viên', 'coso' => '' ) ) );
+/* 🔴 23/08/2026 — 'Nhân viên' NAY VÀO ĐƯỢC. Anh Thắng: *"Nhân viên đăng nhập vẫn trang này,
+   nhưng chỉ hiện mỗi chốt ca"*. Vào được không có nghĩa là thấy được: gói số liệu của họ bị cắt
+   ở máy chủ và mọi việc của quản trị bị chặn ở cổng — xem khối phân quyền ở cuối tệp. */
 $r = vhg_web( 'login', array( 'pin' => '446688' ) );
-teq( 'Nhân viên KHÔNG vào được (mặc định hẹp)', false, $r['ok'] );
-t( '⚠️ và nói "không được xem", KHÔNG nói "PIN sai" — nói sai thì người ta gõ lại tới lúc tự khoá',
-	strpos( $r['error'], 'không được xem' ) !== false, $r['error'] );
+t( '🔴 Nhân viên VÀO ĐƯỢC (để chốt ca)', ! empty( $r['ok'] ),
+	isset( $r['error'] ) ? $r['error'] : '' );
+teq( 'và mang đúng vai trò', 'Nhân viên', (string) $r['role'] );
+
+/* Vai trò KHÔNG có trong danh sách cho vào thì phải nói "không được xem", KHÔNG nói "PIN sai" —
+   nói sai thì người ta gõ lại mười lần rồi tự khoá mình, và đi tìm một cái PIN vốn không tồn tại. */
+VHG_Auth::mo_khoa();
+update_option( 'vhg_vai_tro_vao', array( 'Admin' ) );
+$r_cam = vhg_web( 'login', array( 'pin' => '446688' ) );
+teq( 'bỏ vai trò khỏi danh sách thì không vào được', false, $r_cam['ok'] );
+t( '⚠️ và nói "không được xem", KHÔNG nói "PIN sai"',
+	strpos( (string) $r_cam['error'], 'không được xem' ) !== false, (string) $r_cam['error'] );
+delete_option( 'vhg_vai_tro_vao' );
+VHG_Auth::mo_khoa();
 
 t( 'Cửa hàng trưởng mặc định VÀO ĐƯỢC — người đứng quầy chính là người cần biết ghế nào đứng',
 	in_array( 'Cửa hàng trưởng', VHG_Auth::VAI_TRO_MAC_DINH, true ) );
@@ -3497,7 +3511,14 @@ t( 'và nói rõ ai mới huỷ được', strpos( (string) $r_ch['error'], 'Qu�
 $sl_ma = vhg_web( 'so_lieu', array( 'token' => $tok_ad, 'ky' => 'today' ) );
 teq( 'admin thì có quyền huỷ', 1, (int) $sl_ma['ma']['quyen_huy'] );
 $sl_ch = vhg_web( 'so_lieu', array( 'token' => $tok_ch, 'ky' => 'today' ) );
-teq( 'cửa hàng trưởng thì không', 0, (int) $sl_ch['ma']['quyen_huy'] );
+/* 🔴 KHÔNG PHẢI "CÓ MỤC MÃ NHƯNG CỜ HUỶ = 0" — MÀ LÀ KHÔNG CÓ MỤC MÃ NÀO CẢ.
+   Anh Thắng 23/08/2026 chốt: nhân viên không xem tổng doanh thu, không xem tiền của người khác.
+   Gửi đủ số liệu rồi để giao diện ẩn đi là không giấu được gì: mở tab Network trên chính điện
+   thoại của mình là thấy nguyên doanh thu cả hệ thống. Cắt từ máy chủ thì thứ không được xem
+   KHÔNG BAO GIỜ rời khỏi máy chủ. */
+t( '🔴 cửa hàng trưởng KHÔNG nhận mục mã trong gói tin', ! isset( $sl_ch['ma'] ) );
+teq( 'và được đánh dấu là không phải quản trị', 0, (int) $sl_ch['quyen']['quan_tri'] );
+teq( 'admin thì có', 1, (int) $sl_ma['quyen']['quan_tri'] );
 
 // ---- tab hiện ra
 t( 'số liệu mang theo mục mã', isset( $sl_ma['ma']['no'] ) && isset( $sl_ma['ma']['ds'] ) );
@@ -6132,6 +6153,292 @@ ob_start(); VHG_Admin::trang_may(); $adm_q = ob_get_clean();
 t( 'màn quản trị có ô khai đơn vị chỉ số', strpos( $adm_q, 'name="chot_don_vi"' ) !== false );
 t( '⚠️ và chỉ cách đi kiểm bằng một tờ tiền thật',
 	strpos( $adm_q, 'nhét một tờ' ) !== false );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * PHÂN QUYỀN NHÂN VIÊN / QUẢN LÝ TRÊN CỔNG /ghe
+ *
+ * Anh Thắng 23/08/2026: *"Vậy có phân quyền giữa tài khoản nhân viên và tài khoản quản lý chưa"*,
+ * rồi chốt: nhân viên KHÔNG xem tiền của người khác, KHÔNG xem tổng doanh thu, KHÔNG gán mã ghế,
+ * KHÔNG huỷ giao dịch, và KHÔNG bật/tắt ghế hay tiêu ví hộ khách.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+update_option( 'vhg_nguon_nguoidung', 'rieng' );
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Sếp',     'pin' => '571394', 'vaiTro' => 'Admin',     'coso' => '' ),
+	array( 'ten' => 'Chị Hoa', 'pin' => '222444', 'vaiTro' => 'Nhân viên', 'coso' => '' ) ) );
+/* 🔴 VAI TRÒ 'Nhân viên' PHẢI ĐĂNG NHẬP ĐƯỢC.
+   Anh Thắng 23/08/2026: *"Nhân viên đăng nhập vẫn trang này, nhưng chỉ hiện mỗi chốt ca"*.
+   Trước bản này `VAI_TRO_MAC_DINH` không có 'Nhân viên', nên toàn bộ phần chốt ca dựng cho họ
+   là dựng cho một người không vào được cửa. Phép thử này canh đúng chỗ đó. */
+delete_option( 'vhg_vai_tro_vao' );
+t( '🔴 mặc định cho vai trò Nhân viên đăng nhập',
+	in_array( 'Nhân viên', VHG_Auth::vai_tro_vao(), true ) );
+VHG_Auth::mo_khoa();
+$t_ad = vhg_web( 'login', array( 'pin' => '571394' ) )['token'];
+VHG_Auth::mo_khoa();
+$t_nv = vhg_web( 'login', array( 'pin' => '222444' ) )['token'];
+t( 'cả hai đăng nhập được', '' !== (string) $t_ad && '' !== (string) $t_nv );
+
+/* ---- 🔴 DANH SÁCH VIỆC CẤM NẰM MỘT CHỖ, VÀ CHỐT ĐẶT TRƯỚC MỌI NHÁNH.
+   Rải `if role` vào từng việc là kiểu lỗi chỉ lộ ở việc BỊ QUÊN — mà việc bị quên thì theo định
+   nghĩa không ai nghĩ tới lúc đọc lại. */
+$src_au = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-auth.php' ) );
+$src_tr2 = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' ) );
+t( '🔴 có một danh sách việc chỉ quản trị', strpos( $src_au, 'const VIEC_QUAN_TRI' ) !== false );
+t( 'và cổng gọi chốt chung đúng một lần', 1 === substr_count( $src_tr2, 'VHG_Auth::duoc_lam(' ) );
+/* ⚠️ Và KHÔNG còn chốt lẻ nào rải rác: hai chốt cho một luật là hai chỗ phải nhớ sửa, rồi một
+   hôm sửa một chỗ. */
+teq( '⚠️ không còn chốt vai trò rải rác trong cổng', 0,
+	substr_count( $src_tr2, "in_array( \$ai['role'], array( 'Admin', 'Quản lý' ), true ) ) {" ) );
+
+/* ---- 🔴 MỌI VIỆC CỦA CỔNG PHẢI ĐƯỢC QUYẾT ĐỊNH, KHÔNG ĐƯỢC RƠI VÀO MẶC ĐỊNH VÌ QUÊN.
+   Đếm các nhánh `'<viec>' === $viec` trong cổng, rồi đòi mỗi việc phải nằm trong MỘT trong hai
+   danh sách: cấm (VIEC_QUAN_TRI) hoặc cho phép (danh sách dưới, chép tay có chủ ý). Thêm việc
+   mới mà quên xếp nhóm là phép thử này đỏ ngay — chứ không phải im lặng cho ai cũng gọi được. */
+$viec_cong = array();
+if ( preg_match_all( "/'([a-z_]+)' === \\\$viec/", $src_tr2, $mv ) ) {
+	foreach ( $mv[1] as $v_ ) { $viec_cong[ $v_ ] = 1; }
+}
+t( 'bóc được danh sách việc của cổng', dem( $viec_cong ) >= 15, (string) dem( $viec_cong ) );
+$cho_phep_moi_nguoi = array(
+	'login', 'logout', 'so_lieu',      // vào ra, và số liệu (đã cắt theo vai trò ở máy chủ)
+	'ma_tra',                          // tra mã/ví của khách — việc ở quầy
+	'qua_trao',                        // trao quà tận tay — việc ở quầy
+	'tien_mat',                        // khách trả tiền mặt tại quầy
+	'chot_xem', 'chot_luu',            // chốt ca
+	'quy_toi', 'nop_tao',              // xem tiền mình cầm, và nộp
+);
+/* Chốt doanh số là quyền RIÊNG, khai được — kế toán làm được mà không cần quyền Quản lý.
+   Anh Thắng 23/08/2026: *"Để cấu hình tài khoản kế toán vào chốt doanh số sau khi nhân viên
+   thu tiền"*. */
+$cho_phep_moi_nguoi = array_merge( $cho_phep_moi_nguoi, VHG_Auth::VIEC_CHOT_DOANH_SO );
+$khong_xep = array();
+foreach ( array_keys( $viec_cong ) as $v_ ) {
+	if ( in_array( $v_, VHG_Auth::VIEC_QUAN_TRI, true ) ) { continue; }
+	if ( in_array( $v_, $cho_phep_moi_nguoi, true ) ) { continue; }
+	$khong_xep[] = $v_;
+}
+teq( '🔴 mọi việc của cổng đều đã được xếp nhóm quyền', array(), $khong_xep );
+
+/* ---- CẤM THÌ PHẢI CẤM THẬT, qua đúng cổng. */
+$cam = array(
+	'bat'           => array( 'ma_may' => 'AMTP01' ),
+	'tat'           => array( 'ma_may' => 'AMTP01' ),
+	'khoi_dong_lai' => array( 'ma_may' => 'AMTP01' ),
+	'gan_ma'        => array( 'ma_cu' => 'AMTP01', 'ma_moi' => 'XX01' ),
+	'vi_tra_nv'     => array( 'sdt' => '0909000111' ),
+	'vi_tieu_nv'    => array( 'sdt' => '0909000111', 'menh_gia' => 10000, 'ma_may' => 'AMTP01' ),
+	'ma_huy'        => array( 'ma' => 'AAAABBBB', 'ly_do' => 'thử' ),
+	'nop_nhan'      => array( 'id' => 1, 'so_tien_nhan' => 1000 ),
+	'nop_huy'       => array( 'id' => 1 ),
+	'so_may'        => array( 'ma_may' => 'AMTP01' ),
+);
+$lot = array();
+foreach ( $cam as $v_ => $goi_ ) {
+	$goi_['token'] = $t_nv;
+	$kq_ = vhg_web( $v_, $goi_ );
+	if ( ! empty( $kq_['ok'] ) ) { $lot[] = $v_; }
+}
+teq( '🔴 nhân viên bị chặn ở TẤT CẢ việc của quản trị', array(), $lot );
+$kq_bat = vhg_web( 'bat', array( 'ma_may' => 'AMTP01', 'token' => $t_nv ) );
+teq( 'và trả về mã máy đọc được, không phải câu chữ', 'khong_du_quyen', (string) $kq_bat['ma'] );
+t( 'kèm câu nói rõ đang là vai trò gì', strpos( (string) $kq_bat['error'], 'Nhân viên' ) !== false );
+
+/* ---- CHO PHÉP THÌ PHẢI LÀM ĐƯỢC THẬT. Cắt tới mức không làm việc được thì người thu sẽ đi
+   mượn tài khoản quản lý, và lúc đó phân quyền thành số 0. */
+$nv_xem = vhg_web( 'chot_xem', array( 'ma_may' => 'AMTP01', 'token' => $t_nv ) );
+t( '🔴 nhân viên xem được mốc chốt ca', ! empty( $nv_xem['ok'] ),
+	isset( $nv_xem['error'] ) ? $nv_xem['error'] : '' );
+t( '⚠️ và mốc đó tự đủ: có cơ sở, không phải gọi thêm so_may', isset( $nv_xem['coso'] ) );
+$nv_chot = vhg_web( 'chot_luu', array( 'ma_may' => 'AMTP01', 'chi_so' => 100,
+	'tien_dem' => 60000, 'token' => $t_nv ) );
+t( '🔴 nhân viên chốt ca được', ! empty( $nv_chot['ok'] ),
+	isset( $nv_chot['error'] ) ? $nv_chot['error'] : '' );
+teq( 'và lượt chốt mang đúng tên người đang đăng nhập', 'Chị Hoa', (string) $nv_chot['nguoi'] );
+$nv_nop = vhg_web( 'nop_tao', array( 'token' => $t_nv ) );
+t( '🔴 nhân viên nộp tiền được', ! empty( $nv_nop['ok'] ),
+	isset( $nv_nop['error'] ) ? $nv_nop['error'] : '' );
+
+/* ---- GÓI SỐ LIỆU CỦA NHÂN VIÊN: chỉ phần của mình, không có tiền người khác. */
+VHG_Quy::chot( 'AMTP01', 200, 90000, 'Người Khác' );
+$sl_nv = vhg_web( 'so_lieu', array( 'token' => $t_nv, 'ky' => 'all' ) );
+t( 'nhân viên vẫn lấy được số liệu', ! empty( $sl_nv['ok'] ) );
+foreach ( array( 'tong', 'gd', 'thu', 'ma', 'vi', 'qua', 'bat', 'goi', 'choGan' ) as $k_ ) {
+	t( '🔴 gói tin KHÔNG mang mục ' . $k_, empty( $sl_nv[ $k_ ] ) );
+}
+teq( '🔴 và bảng "ai đang cầm" rỗng với nhân viên', 0, dem( $sl_nv['quy']['cam'] ) );
+teq( 'báo cáo theo người cũng rỗng', 0, dem( $sl_nv['quy']['nguoi'] ) );
+teq( 'lượt chờ xác nhận cũng rỗng', 0, dem( $sl_nv['quy']['cho'] ) );
+/* ⚠️ Nhưng lượt chốt CỦA CHÍNH MÌNH thì phải thấy — không thì họ không kiểm được việc mình. */
+$co_minh = false; $co_nguoi_khac = false;
+foreach ( $sl_nv['quy']['chot'] as $c_ ) {
+	if ( 'Chị Hoa' === (string) $c_['nguoi'] ) { $co_minh = true; }
+	else { $co_nguoi_khac = true; }
+}
+t( '🔴 thấy lượt chốt của chính mình', $co_minh );
+t( '🔴 và KHÔNG thấy lượt của người khác', ! $co_nguoi_khac );
+teq( 'tiền đang cầm là của chính mình', 90000, (int) VHG_Quy::dang_cam( 'Người Khác' )['tong'] );
+
+/* ---- Admin thì vẫn thấy đủ. */
+$sl_ad = vhg_web( 'so_lieu', array( 'token' => $t_ad, 'ky' => 'all' ) );
+t( 'admin vẫn có mục doanh thu', isset( $sl_ad['tong'] ) );
+t( 'và thấy cả bảng ai đang cầm', dem( $sl_ad['quy']['cam'] ) > 0 );
+
+/* ---- Giao diện: nhân viên chỉ có một tab, và có lối vào chốt ca. */
+$html_pq = vhg_web_html();
+t( '🔴 tab chỉ hiện khi có quyền', strpos( $html_pq, "(QT ? '<button data-tab=\"doi-soat\"" ) !== false );
+t( 'và người thu được đưa thẳng vào tab Quỹ',
+	strpos( $html_pq, "if (!QT && TAB !== 'quy') { TAB = 'quy'; }" ) !== false );
+/* 🔴 Nút chốt ca vốn nằm ở tab Điều khiển ghế — tab mà người thu không còn có. Không đưa lối vào
+   sang tab Quỹ thì cả vai trò ấy mở app ra và không bấm được gì cả. */
+/* 🔴 QUÉT QR, KHÔNG PHẢI CHỌN TỪ DANH SÁCH.
+   Anh Thắng: *"Để chốt ca ghế nào thì quét QR ghế đó"*. Danh sách ghế là mời bấm nhầm — hai ghế
+   cạnh nhau tên chỉ khác một chữ số, mà chốt nhầm ghế thì ĐÓNG MỐC CHỈ SỐ của ghế kia. */
+t( '🔴 tab Quỹ mở camera quét tem ghế',
+	strpos( $html_pq, "id=\"quet-mo\"" ) !== false && strpos( $html_pq, 'BarcodeDetector' ) !== false );
+t( '⚠️ và LUÔN có đường gõ tay khi tem bong hoặc máy không có camera',
+	strpos( $html_pq, "id=\"quet-tay\"" ) !== false );
+t( '⚠️ tắt camera khi đóng khung quét', strpos( $html_pq, 't.stop()' ) !== false );
+t( '⚠️ và mở camera SAU, không phải camera trước',
+	strpos( $html_pq, "facingMode" ) !== false );
+/* Tem trên ghế mang ĐỊA CHỈ trang khách chứ không mang mã trần — dùng ké đúng cái tem khách
+   quét, không dán tem thứ hai. Nên phải bóc mã ghế ra khỏi đường dẫn. */
+t( '🔴 bóc được mã ghế từ địa chỉ trên tem', strpos( $html_pq, 'function maGheTuQR(' ) !== false );
+t( '⚠️ và màn chốt ca không gọi so_may khi không có quyền',
+	preg_match( "/if \(!QT2\) \{ CHOT = /", $html_pq ) === 1 );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * GÁN NHÂN VIÊN THEO CƠ SỞ, VÀ TÀI KHOẢN KẾ TOÁN CHỐT DOANH SỐ
+ *
+ * Anh Thắng 23/08/2026: *"bổ sung thêm phần cấu hình để quản lý nhân viên — Để gán nhân viên
+ * theo cơ sở · Để cấu hình tài khoản kế toán vào chốt doanh số sau khi nhân viên thu tiền ·
+ * Nhân viên đăng nhập vẫn trang này, nhưng chỉ hiện mỗi chốt ca. Để chốt ca ghế nào thì quét QR
+ * ghế đó."*
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+VHG_May::luu_coso( 0, 'Nha Trang' );
+VHG_May::luu_coso( 0, 'Hải Phòng' );
+$cs_ds = VHG_May::ds_coso();
+$cs_nt = 0; $cs_hp = 0;
+foreach ( $cs_ds as $c_ ) {
+	if ( 'Nha Trang' === (string) $c_['ten'] ) { $cs_nt = (int) $c_['id']; }
+	if ( 'Hải Phòng' === (string) $c_['ten'] ) { $cs_hp = (int) $c_['id']; }
+}
+t( 'dựng được hai cơ sở', $cs_nt > 0 && $cs_hp > 0 );
+VHG_May::luu_may( array( 'ma' => 'NT01', 'coso_id' => $cs_nt, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:11' ) );
+VHG_May::luu_may( array( 'ma' => 'HP01', 'coso_id' => $cs_hp, 'gia' => 0, 'phut' => 0,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:12' ) );
+
+/* ---- 🔴 GẮN CƠ SỞ THÌ CHỈ CHỐT ĐƯỢC GHẾ Ở CƠ SỞ ĐÓ.
+   Chốt nhầm ghế ở cơ sở khác không chỉ ghi sai sổ — nó ĐÓNG MỐC CHỈ SỐ của ghế đó, và người thu
+   thật ở đấy hôm sau sẽ thấy quãng bị cắt mất, tiền của họ tự nhiên hụt đúng phần bị chốt hộ. */
+$ok_nt = VHG_Quy::truoc_khi_chot( 'NT01', 'Nha Trang' );
+t( '🔴 người của Nha Trang xem được ghế Nha Trang', ! empty( $ok_nt['ok'] ),
+	isset( $ok_nt['error'] ) ? $ok_nt['error'] : '' );
+$cam_hp = VHG_Quy::truoc_khi_chot( 'HP01', 'Nha Trang' );
+t( '🔴 nhưng KHÔNG chốt được ghế Hải Phòng', empty( $cam_hp['ok'] ) );
+t( 'và nói rõ ghế thuộc cơ sở nào', strpos( (string) $cam_hp['error'], 'Hải Phòng' ) !== false );
+t( '⚠️ chặn cả ở hàm ghi, không chỉ ở hàm xem',
+	empty( VHG_Quy::chot( 'HP01', 10, 1000, 'Chị Hoa', '', '', 'Nha Trang' )['ok'] ) );
+/* Cơ sở RỖNG = đi cả chuỗi (quản lý vùng, Admin). */
+t( '⚠️ cơ sở rỗng thì chốt được mọi nơi',
+	! empty( VHG_Quy::truoc_khi_chot( 'HP01', '' )['ok'] ) );
+/* ⚠️ `null` là "nơi gọi không quan tâm" — KHÁC chuỗi rỗng. Gộp hai thứ đó làm một thì mọi lượt
+   gọi cũ vô tình thành "đi cả chuỗi", và chốt cơ sở im lặng biến mất. */
+t( '⚠️ null cũng qua, nhưng là đường khác hẳn',
+	! empty( VHG_Quy::truoc_khi_chot( 'HP01', null )['ok'] ) );
+
+/* ---- Qua đúng cổng: cơ sở lấy từ PHIÊN, không nhận từ gói tin. */
+update_option( 'vhg_nguon_nguoidung', 'rieng' );
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Sếp',      'pin' => '571394', 'vaiTro' => 'Admin',           'coso' => '' ),
+	array( 'ten' => 'Hoa NT',   'pin' => '333555', 'vaiTro' => 'Nhân viên',       'coso' => 'Nha Trang' ),
+	array( 'ten' => 'Kế Toán A','pin' => '444666', 'vaiTro' => 'Kế toán cá nhân', 'coso' => '' ) ) );
+delete_option( 'vhg_vai_tro_vao' );
+VHG_Auth::mo_khoa(); $tk_ad = vhg_web( 'login', array( 'pin' => '571394' ) )['token'];
+VHG_Auth::mo_khoa(); $tk_hoa = vhg_web( 'login', array( 'pin' => '333555' ) )['token'];
+VHG_Auth::mo_khoa(); $tk_kt = vhg_web( 'login', array( 'pin' => '444666' ) )['token'];
+t( 'ba tài khoản đều vào được', '' !== $tk_ad && '' !== $tk_hoa && '' !== $tk_kt );
+
+t( '🔴 Hoa chốt được ghế cơ sở mình',
+	! empty( vhg_web( 'chot_xem', array( 'ma_may' => 'NT01', 'token' => $tk_hoa ) )['ok'] ) );
+$web_lech = vhg_web( 'chot_xem', array( 'ma_may' => 'HP01', 'token' => $tk_hoa ) );
+t( '🔴 và bị chặn ở ghế cơ sở khác qua đúng cổng', empty( $web_lech['ok'] ) );
+/* 🔴 GỬI KÈM CƠ SỞ KHÁC TRONG GÓI TIN CŨNG KHÔNG QUA. Nhận cơ sở từ gói tin là chốt cơ sở thành
+   một dòng chữ trang trí — ai đọc được gói tin thì tự khai mình ở cơ sở nào. */
+$web_gian = vhg_web( 'chot_luu', array( 'ma_may' => 'HP01', 'chi_so' => 50, 'tien_dem' => 1000,
+	'coso' => 'Hải Phòng', 'coso_cua_toi' => 'Hải Phòng', 'token' => $tk_hoa ) );
+t( '🔴 khai cơ sở trong gói tin không qua được chốt', empty( $web_gian['ok'] ) );
+$src_tr3 = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' ) );
+t( '⚠️ và cổng không đọc cơ sở từ gói tin ở đâu cả',
+	strpos( $src_tr3, "\$d['coso']" ) === false );
+/* Admin không khai cơ sở -> chốt được mọi nơi. */
+t( 'Admin chốt được cả hai cơ sở',
+	! empty( vhg_web( 'chot_xem', array( 'ma_may' => 'HP01', 'token' => $tk_ad ) )['ok'] )
+	&& ! empty( vhg_web( 'chot_xem', array( 'ma_may' => 'NT01', 'token' => $tk_ad ) )['ok'] ) );
+
+/* ---- 🔴 KẾ TOÁN CHỐT DOANH SỐ, MÀ KHÔNG CÓ QUYỀN QUẢN LÝ.
+   Nhét việc này vào nhóm Quản lý thì muốn kế toán nhận tiền là phải cấp quyền Quản lý — tức là
+   cấp luôn quyền huỷ mã khách đã trả tiền, gán mã ghế, và tiêu ví khách không cần PIN. */
+delete_option( 'vhg_vai_tro_chot' );
+t( 'chưa khai thì mặc định Admin + Quản lý',
+	in_array( 'Quản lý', VHG_Auth::vai_tro_chot(), true )
+	&& ! in_array( 'Kế toán cá nhân', VHG_Auth::vai_tro_chot(), true ) );
+vhg_web( 'chot_luu', array( 'ma_may' => 'NT01', 'chi_so' => 90, 'tien_dem' => 45000, 'token' => $tk_hoa ) );
+$nop_hoa = vhg_web( 'nop_tao', array( 'token' => $tk_hoa ) );
+t( 'Hoa nộp được', ! empty( $nop_hoa['ok'] ), isset( $nop_hoa['error'] ) ? $nop_hoa['error'] : '' );
+$kt_cam = vhg_web( 'nop_nhan', array( 'id' => (int) $nop_hoa['id'], 'so_tien_nhan' => 45000,
+	'token' => $tk_kt ) );
+t( '🔴 chưa khai thì kế toán KHÔNG chốt được doanh số', empty( $kt_cam['ok'] ) );
+
+update_option( 'vhg_vai_tro_chot', array( 'Quản lý', 'Kế toán cá nhân' ) );
+t( '⚠️ Admin luôn nằm trong danh sách dù khai kiểu gì',
+	in_array( 'Admin', VHG_Auth::vai_tro_chot(), true ) );
+$kt_ok = vhg_web( 'nop_nhan', array( 'id' => (int) $nop_hoa['id'], 'so_tien_nhan' => 45000,
+	'token' => $tk_kt ) );
+t( '🔴 khai rồi thì kế toán chốt được', ! empty( $kt_ok['ok'] ),
+	isset( $kt_ok['error'] ) ? $kt_ok['error'] : '' );
+/* 🔴 NHƯNG KHÔNG KÈM THEO QUYỀN QUẢN LÝ. Đây là cả lý do tách quyền này ra. */
+$kt_lam_bay = array(
+	'ma_huy'     => array( 'ma' => 'AAAABBBB', 'ly_do' => 'thử' ),
+	'gan_ma'     => array( 'ma_cu' => 'NT01', 'ma_moi' => 'ZZ99' ),
+	'vi_tieu_nv' => array( 'sdt' => '0909000111', 'menh_gia' => 10000, 'ma_may' => 'NT01' ),
+	'bat'        => array( 'ma_may' => 'NT01' ),
+);
+$kt_lot = array();
+foreach ( $kt_lam_bay as $v_ => $g_ ) {
+	$g_['token'] = $tk_kt;
+	if ( ! empty( vhg_web( $v_, $g_ )['ok'] ) ) { $kt_lot[] = $v_; }
+}
+teq( '🔴 kế toán vẫn KHÔNG huỷ mã, gán ghế, tiêu ví hay bật ghế', array(), $kt_lot );
+/* Và nhân viên thì vẫn không chốt doanh số được, dù có khai kiểu gì. */
+t( '🔴 nhân viên không chốt doanh số được',
+	empty( vhg_web( 'nop_nhan', array( 'id' => (int) $nop_hoa['id'], 'so_tien_nhan' => 1,
+		'token' => $tk_hoa ) )['ok'] ) );
+
+/* ---- Màn quản trị: ô khai vai trò chốt, và ô CHỌN cơ sở (không gõ tay). */
+ob_start(); VHG_Admin::trang_ngoai(); $adm_ng = ob_get_clean();
+t( 'màn quản trị có ô khai vai trò chốt doanh số',
+	strpos( $adm_ng, 'name="vai_tro_chot[]"' ) !== false );
+t( '⚠️ ô Admin bị khoá vì luôn có', strpos( $adm_ng, 'disabled' ) !== false );
+/* 🔴 CƠ SỞ PHẢI LÀ Ô CHỌN. Gõ tay là "Nha Trang" với "Nha trang" thành hai cơ sở, và người thu
+   gõ lệch một dấu cách thì không chốt được ghế nào — mà câu lỗi lại nói "ghế thuộc cơ sở khác",
+   nghe như lỗi của cái ghế. */
+t( '🔴 cơ sở là ô CHỌN từ danh sách thật, không gõ tay',
+	strpos( $adm_ng, '<select name="coso">' ) !== false );
+t( 'và danh sách đó có cơ sở vừa dựng', strpos( $adm_ng, 'Nha Trang' ) !== false );
+t( '⚠️ có lựa chọn "cả chuỗi" cho quản lý vùng', strpos( $adm_ng, 'cả chuỗi' ) !== false );
+t( 'và nói rõ cơ sở quyết định chốt được ghế nào',
+	strpos( $adm_ng, 'chốt ca được ở đâu' ) !== false );
+t( '⚠️ nói rõ nhân viên chỉ thấy tab Quỹ', strpos( $adm_ng, 'Quỹ &amp; nộp tiền' ) !== false );
 
 // ============================================================ kết
 if ( $truot ) {

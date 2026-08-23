@@ -1536,6 +1536,13 @@ class VHG_Admin {
 					if ( in_array( $x, VHG_Auth::VAI_TRO_TAT_CA, true ) ) { $vt[] = $x; }
 				}
 				update_option( 'vhg_vai_tro_vao', $vt );
+				$vtc = isset( $_POST['vai_tro_chot'] ) ? (array) wp_unslash( $_POST['vai_tro_chot'] ) : array();
+				$vtc = array_values( array_filter( array_map( 'strval', $vtc ),
+					function ( $x ) { return in_array( $x, VHG_Auth::VAI_TRO_TAT_CA, true ); } ) );
+				/* Admin luôn có — ô đó `disabled` nên trình duyệt KHÔNG gửi nó lên, và không thêm
+				   lại ở đây thì mỗi lần bấm Lưu là Admin tự rơi khỏi danh sách chốt doanh số. */
+				if ( ! in_array( 'Admin', $vtc, true ) ) { array_unshift( $vtc, 'Admin' ); }
+				update_option( 'vhg_vai_tro_chot', $vtc );
 
 				/* Ảnh nền trang ngoài. `esc_url_raw` bỏ mọi thứ không phải URL; ô này rỗng thì
 				   trang rơi về dải màu tự dựng, KHÔNG phải nền trắng. */
@@ -1719,7 +1726,37 @@ class VHG_Admin {
 		echo '<p class="description">Bỏ hết dấu tích = quay về mặc định, KHÔNG phải khoá sạch — '
 			. 'rỗng là không ai vào được, kể cả Admin, và không có đường tự mở lại ngoài cơ sở dữ liệu.'
 			. '<br>Cửa hàng trưởng mặc định VÀO ĐƯỢC màn này (khác plugin chấm công): người đứng quầy '
-			. 'chính là người cần biết ghế nào đang đứng.</p></td></tr>';
+			. 'chính là người cần biết ghế nào đang đứng.'
+			. '<br><b>Nhân viên</b> cũng vào được, nhưng chỉ thấy đúng tab <b>Quỹ &amp; nộp tiền</b>: '
+			. 'quét QR trên ghế để chốt ca, và nộp tiền mình đang cầm. Không thấy doanh thu, không '
+			. 'thấy tiền của người khác, không điều khiển được ghế.</p></td></tr>';
+
+		/* ==================================================================================
+		 * AI ĐƯỢC CHỐT DOANH SỐ.
+		 *
+		 * Anh Thắng 23/08/2026: *"Để cấu hình tài khoản kế toán vào chốt doanh số sau khi nhân
+		 * viên thu tiền"*.
+		 *
+		 * 🔴 QUYỀN RIÊNG, KHÔNG PHẢI QUYỀN QUẢN LÝ. Nhét việc này vào nhóm Quản lý thì muốn kế
+		 *    toán nhận tiền là phải cấp cho kế toán quyền Quản lý — tức là cấp luôn quyền huỷ mã
+		 *    khách đã trả tiền, gán mã ghế, và tiêu ví của khách mà không cần PIN.
+		 * ================================================================================== */
+		$cho_chot = VHG_Auth::vai_tro_chot();
+		echo '<tr><th>Vai trò chốt doanh số</th><td>';
+		foreach ( VHG_Auth::VAI_TRO_TAT_CA as $vt ) {
+			$la_admin = ( 'Admin' === $vt );
+			echo '<label style="margin-right:14px"><input type="checkbox" name="vai_tro_chot[]" value="'
+				. esc_attr( $vt ) . '"' . checked( true, in_array( $vt, $cho_chot, true ), false )
+				. ( $la_admin ? ' disabled' : '' ) . ' /> ' . esc_html( $vt )
+				. ( $la_admin ? ' <i>(luôn có)</i>' : '' ) . '</label>';
+		}
+		echo '<p class="description">Đây là người <b>xác nhận đã nhận đủ tiền</b> nhân viên nộp về, '
+			. 'và <b>huỷ lượt nộp</b> khi ghi nhầm. Hai việc đó quyết định con số doanh thu tiền mặt '
+			. 'cuối cùng.<br>Tích thêm <b>Kế toán cá nhân</b> nếu kế toán là người xuống nhận tiền — '
+			. 'họ sẽ chốt được doanh số mà <b>không</b> có quyền huỷ mã, gán ghế hay tiêu ví khách.'
+			. '<br>Admin luôn nằm trong danh sách: bỏ sót thì không còn ai chốt được, và không có '
+			. 'đường tự mở lại ngoài cơ sở dữ liệu.</p></td></tr>';
+
 		echo '</table><p><button class="button button-primary" name="vhg" value="luu_trang">Lưu</button></p></form>';
 
 		/* ---- Ai vào được, PIN dài mấy số ---- */
@@ -1781,9 +1818,25 @@ class VHG_Admin {
 					. esc_html( $vt ) . ( in_array( $vt, $cho, true ) ? '' : ' — không vào được' ) . '</option>';
 			}
 			echo '</select></label>';
-			echo '<label>Cơ sở<br><input name="coso" style="width:150px" placeholder="trống = cả chuỗi" /></label>';
+			/* 🔴 CHỌN TỪ DANH SÁCH CƠ SỞ THẬT, KHÔNG GÕ TAY.
+			 *
+			 * Anh Thắng 23/08/2026: *"Để gán nhân viên theo cơ sở"*.
+			 *
+			 * Gõ tay là "Nha Trang" với "Nha trang" thành hai cơ sở khác nhau, và người thu gõ
+			 * lệch một dấu cách thì KHÔNG chốt được ghế nào cả — mà câu báo lỗi lại nói "ghế
+			 * thuộc cơ sở khác", nghe như lỗi của cái ghế. So khớp ở `VHG_Quy::truoc_khi_chot()`
+			 * là so ĐÚNG NGUYÊN VĂN tên cơ sở, nên chỗ khai phải là chỗ không gõ sai được. */
+			echo '<label>Cơ sở<br><select name="coso"><option value="">— cả chuỗi —</option>';
+			foreach ( VHG_May::ds_coso() as $c_ ) {
+				echo '<option value="' . esc_attr( $c_['ten'] ) . '">' . esc_html( $c_['ten'] ) . '</option>';
+			}
+			echo '</select></label>';
 			echo '<button class="button button-primary" name="vhg" value="them_nd">Thêm người</button></form>';
-			echo '<p class="description">Quên PIN thì xoá dòng đó rồi thêm lại — màn này không in PIN ra.</p>';
+			echo '<p class="description">Quên PIN thì xoá dòng đó rồi thêm lại — màn này không in PIN ra.'
+				. '<br><b>Cơ sở</b> quyết định người đó chốt ca được ở đâu: gán cơ sở thì chỉ chốt được '
+				. 'ghế của cơ sở đó; để <i>cả chuỗi</i> thì chốt được mọi ghế. Chốt nhầm ghế ở cơ sở '
+				. 'khác không chỉ ghi sai sổ — nó <b>đóng mốc chỉ số</b> của ghế đó, và người thu thật '
+				. 'ở đấy hôm sau sẽ thấy quãng bị cắt mất.</p>';
 		}
 		echo '</div>';
 	}

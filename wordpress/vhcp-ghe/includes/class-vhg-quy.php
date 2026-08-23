@@ -118,14 +118,44 @@ class VHG_Quy {
 	 *    đối chiếu, và một con số gõ nhầm một chữ số sẽ đi thẳng vào sổ rồi nằm đó mãi mãi —
 	 *    kỳ sau lại lấy chính nó làm mốc trừ.
 	 */
-	public static function truoc_khi_chot( $ma_may ) {
+	public static function truoc_khi_chot( $ma_may, $coso_cua_toi = null ) {
 		$m = strtoupper( trim( (string) $ma_may ) );
 		if ( '' === $m ) {
 			return array( 'ok' => false, 'error' => 'Chưa biết ghế nào — quét mã QR trên ghế giúp em.' );
 		}
-		if ( ! VHG_May::may( $m ) ) {
+		/* `ds_may_theo_ma()` chứ không `may()`: chỉ bản này mới kèm tên cơ sở (có JOIN). Màn chốt
+		   ca phải nói rõ đang đếm tiền của ghế nào Ở ĐÂU — người đi thu đi nhiều cơ sở một buổi,
+		   và hai cơ sở có thể đặt tên ghế na ná nhau. */
+		$bd = VHG_May::ds_may_theo_ma();
+		if ( ! isset( $bd[ $m ] ) ) {
 			return array( 'ok' => false, 'error' => 'Không thấy ghế ' . $m . ' trong hệ thống.' );
 		}
+		$may_ = $bd[ $m ];
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 NGƯỜI GẮN CƠ SỞ THÌ CHỈ CHỐT ĐƯỢC GHẾ Ở CƠ SỞ ĐÓ.
+		 *
+		 * Anh Thắng 23/08/2026: *"Để gán nhân viên theo cơ sở"*.
+		 *
+		 * Không có chốt này thì bất kỳ ai đăng nhập cũng chốt được ghế ở cơ sở khác — và một
+		 * lượt chốt nhầm không chỉ ghi sai sổ: nó ĐÓNG MỐC CHỈ SỐ của ghế đó. Người thu thật ở
+		 * cơ sở kia hôm sau chốt sẽ thấy quãng bị cắt mất, và số tiền của họ tự nhiên hụt đi
+		 * đúng phần người kia đã chốt hộ.
+		 *
+		 * ⚠️ Cơ sở RỖNG = đi được cả chuỗi, đúng như `VHG_Auth` vẫn hiểu. Quản lý vùng và Admin
+		 *    không khai cơ sở, và họ phải chốt được ở mọi nơi.
+		 * ⚠️ `null` nghĩa là NƠI GỌI KHÔNG QUAN TÂM (màn quản trị, phép thử). Khác hẳn chuỗi
+		 *    rỗng — gộp hai thứ đó làm một thì mọi lượt gọi cũ vô tình thành "đi cả chuỗi".
+		 * ═════════════════════════════════════════════════════════════════════════════════ */
+		if ( null !== $coso_cua_toi && '' !== trim( (string) $coso_cua_toi ) ) {
+			$cs_ghe = trim( (string) ( isset( $may_['coso_ten'] ) ? $may_['coso_ten'] : '' ) );
+			if ( $cs_ghe !== trim( (string) $coso_cua_toi ) ) {
+				return array( 'ok' => false, 'error' => 'Ghế ' . $m . ' thuộc cơ sở '
+					. ( '' !== $cs_ghe ? $cs_ghe : '(chưa gán)' ) . ', không phải cơ sở của anh/chị ('
+					. trim( (string) $coso_cua_toi ) . '). Báo quản lý nếu ghế này vừa chuyển về đây.' );
+			}
+		}
+
 		$tr = self::chot_truoc( $m );
 		/* 🔴 ĐÓNG MỐC TRƯỚC, RỒI MỚI CỘNG. Lấy `den_id` xong mới cộng trong khoảng
 		   (tu_id, den_id] thì một dòng rơi vào đúng lúc này sẽ nằm trọn trong kỳ SAU — không
@@ -135,6 +165,10 @@ class VHG_Quy {
 		return array(
 			'ok'            => true,
 			'ma_may'        => $m,
+			/* Gửi kèm cơ sở và tình trạng kết nối: màn chốt ca của người thu KHÔNG được gọi
+			   `so_may` nữa (việc đó nay chỉ quản trị làm được), nên nó phải tự đủ. */
+			'coso'          => (string) ( isset( $may_['coso_ten'] ) ? $may_['coso_ten'] : '' ),
+			'song'          => ! empty( $may_['con_song'] ) ? 1 : 0,
 			'lan_dau'       => $tr ? 0 : 1,
 			'chi_so_truoc'  => $tr ? (int) $tr['chi_so'] : 0,
 			'chot_truoc_luc' => $tr ? (string) $tr['tao_luc'] : '',
@@ -154,8 +188,34 @@ class VHG_Quy {
 	 * @param int    $tien_dem Tiền mặt đếm được thật trong ngăn.
 	 * @param string $nguoi   Ai chốt — lấy từ phiên đăng nhập, KHÔNG nhận từ gói tin.
 	 */
-	public static function chot( $ma_may, $chi_so, $tien_dem, $nguoi, $ghi_chu = '' ) {
+	public static function chot( $ma_may, $chi_so, $tien_dem, $nguoi, $ghi_chu = '', $ma_lan = '',
+		$coso_cua_toi = null ) {
 		global $wpdb;
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 GỬI LẠI THÌ TRẢ VỀ LƯỢT CŨ, KHÔNG GHI LƯỢT MỚI.
+		 *
+		 * App Android chốt ca ở chỗ sóng yếu. Nó gửi đi, chờ mãi không thấy trả lời (mà máy chủ
+		 * thì đã ghi xong rồi — chỉ có gói tin trả về là rơi), rồi gửi lại. Không có chốt này
+		 * thì lượt gửi lại thành một lần chốt thứ hai: chỉ số nhảy hai lần, tiền trên tay cộng
+		 * đôi, và người thu bỗng nợ gấp đôi số họ đang cầm.
+		 *
+		 * ⚠️ TRA TRƯỚC KHI GHI, và CHỐT THẬT nằm ở khoá UNIQUE dưới tầng SQL — tra rồi ghi là
+		 *    hai lượt gửi lại cùng lúc vẫn lọt qua khe giữa hai câu lệnh.
+		 * ═════════════════════════════════════════════════════════════════════════════════ */
+		$ml = mb_substr( trim( (string) $ma_lan ), 0, 40 );
+		if ( '' !== $ml ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				'SELECT * FROM ' . VHG_DB::t( 'chot' ) . ' WHERE ma_lan=%s LIMIT 1', $ml ), ARRAY_A );
+			if ( $cu ) {
+				$r_ = self::doc_chot( $cu );
+				$r_['ok'] = true;
+				$r_['lap_lai'] = 1;
+				$r_['thong_bao'] = 'Lượt chốt này đã ghi rồi — không ghi thêm lần nữa.';
+				$r_['dang_cam']  = self::dang_cam( (string) $cu['nguoi'] );
+				return $r_;
+			}
+		}
 
 		/* 🔴 TÊN NGƯỜI CHỐT LÀ BẮT BUỘC. Một lượt chuyển tay tiền mặt không tên là thứ không ai
 		   giải thích được khi kiểm quỹ thiếu — và người thu thì luôn biết mình là ai. */
@@ -164,7 +224,7 @@ class VHG_Quy {
 			return array( 'ok' => false, 'error' => 'Chưa biết ai đang chốt — không ghi sổ được.' );
 		}
 
-		$t_ = self::truoc_khi_chot( $ma_may );
+		$t_ = self::truoc_khi_chot( $ma_may, $coso_cua_toi );
 		if ( empty( $t_['ok'] ) ) { return $t_; }
 		$m = $t_['ma_may'];
 
@@ -211,9 +271,26 @@ class VHG_Quy {
 			'tao_luc' => $luc,
 			'ghi_chu' => mb_substr( trim( (string) $ghi_chu ), 0, 250 ),
 			'nop_id' => 0,
+			'ma_lan' => '' !== $ml ? $ml : null,
 		) );
 		$id = (int) $wpdb->insert_id;
-		if ( ! $id ) { return array( 'ok' => false, 'error' => 'Không ghi được lượt chốt, thử lại.' ); }
+		if ( ! $id ) {
+			/* Ghi trượt mà có mã lượt thì gần như chắc chắn là khoá UNIQUE vừa chặn một lượt gửi
+			   lại chạy song song — tra lại và trả về đúng lượt kia, đừng báo lỗi cho người đang
+			   đứng ở ghế. */
+			if ( '' !== $ml ) {
+				$cu2 = $wpdb->get_row( $wpdb->prepare(
+					'SELECT * FROM ' . VHG_DB::t( 'chot' ) . ' WHERE ma_lan=%s LIMIT 1', $ml ), ARRAY_A );
+				if ( $cu2 ) {
+					$r2 = self::doc_chot( $cu2 );
+					$r2['ok'] = true; $r2['lap_lai'] = 1;
+					$r2['thong_bao'] = 'Lượt chốt này đã ghi rồi — không ghi thêm lần nữa.';
+					$r2['dang_cam']  = self::dang_cam( (string) $cu2['nguoi'] );
+					return $r2;
+				}
+			}
+			return array( 'ok' => false, 'error' => 'Không ghi được lượt chốt, thử lại.' );
+		}
 
 		$r = self::mot_chot( $id );
 		$r['ok'] = true;
@@ -246,6 +323,7 @@ class VHG_Quy {
 			'tu_id' => (int) $r['tu_id'], 'den_id' => (int) $r['den_id'],
 			'tu_luc' => (string) $r['tu_luc'], 'tao_luc' => (string) $r['tao_luc'],
 			'ghi_chu' => (string) $r['ghi_chu'], 'nop_id' => (int) $r['nop_id'],
+			'lap_lai' => 0,
 			'canh_bao' => $ld ? '' : self::doc_lech( (int) $r['lech_dem'], (int) $r['lech_may'] ),
 		);
 	}
@@ -380,20 +458,47 @@ class VHG_Quy {
 	 * ⚠️ TÊN NGƯỜI NỘP LẤY TỪ PHIÊN ĐĂNG NHẬP, không nhận từ gói tin. Nhận từ gói tin là ai
 	 *    cũng nộp hộ được người khác, tức là ai cũng xoá được nợ tiền mặt của người khác.
 	 */
-	public static function nop( $nguoi, $ghi_chu = '' ) {
+	public static function nop( $nguoi, $ghi_chu = '', $ma_lan = '' ) {
 		global $wpdb;
 		$ai = trim( (string) $nguoi );
 		if ( '' === $ai ) {
 			return array( 'ok' => false, 'error' => 'Chưa biết ai đang nộp — không ghi sổ được.' );
 		}
 
+		/* 🔴 GỬI LẠI THÌ TRẢ VỀ LƯỢT CŨ — cùng lý do với `chot()`, xem chú thích ở đó.
+		   Ở đây còn nặng hơn: một lượt nộp gửi lại mà ghi thành hai lượt thì lượt thứ hai gắn
+		   được 0 dòng và bị xoá, nhưng app thì nhận về một câu lỗi "đang không cầm đồng nào" —
+		   người nộp đọc câu đó ngay sau khi vừa nộp xong sẽ tưởng tiền của mình bốc hơi. */
+		$ml = mb_substr( trim( (string) $ma_lan ), 0, 40 );
+		if ( '' !== $ml ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				'SELECT * FROM ' . VHG_DB::t( 'nop' ) . ' WHERE ma_lan=%s LIMIT 1', $ml ), ARRAY_A );
+			if ( $cu ) {
+				return array( 'ok' => true, 'id' => (int) $cu['id'], 'lap_lai' => 1,
+					'so_tien' => (int) $cu['so_tien'], 'so_dong' => (int) $cu['so_dong'],
+					'thong_bao' => 'Lượt nộp này đã ghi rồi — không ghi thêm lần nữa.' );
+			}
+		}
+
 		$luc = current_time( 'mysql' );
 		$wpdb->insert( VHG_DB::t( 'nop' ), array(
 			'nguoi' => $ai, 'so_tien' => 0, 'so_tien_nhan' => 0, 'so_dong' => 0,
 			'trang_thai' => 'cho', 'tao_luc' => $luc, 'nhan_luc' => null, 'nhan_ai' => '',
-			'ghi_chu' => mb_substr( trim( (string) $ghi_chu ), 0, 250 ) ) );
+			'ghi_chu' => mb_substr( trim( (string) $ghi_chu ), 0, 250 ),
+			'ma_lan' => '' !== $ml ? $ml : null ) );
 		$id = (int) $wpdb->insert_id;
-		if ( ! $id ) { return array( 'ok' => false, 'error' => 'Không mở được lượt nộp, thử lại.' ); }
+		if ( ! $id ) {
+			if ( '' !== $ml ) {
+				$cu2 = $wpdb->get_row( $wpdb->prepare(
+					'SELECT * FROM ' . VHG_DB::t( 'nop' ) . ' WHERE ma_lan=%s LIMIT 1', $ml ), ARRAY_A );
+				if ( $cu2 ) {
+					return array( 'ok' => true, 'id' => (int) $cu2['id'], 'lap_lai' => 1,
+						'so_tien' => (int) $cu2['so_tien'], 'so_dong' => (int) $cu2['so_dong'],
+						'thong_bao' => 'Lượt nộp này đã ghi rồi — không ghi thêm lần nữa.' );
+				}
+			}
+			return array( 'ok' => false, 'error' => 'Không mở được lượt nộp, thử lại.' );
+		}
 
 		$tc = VHG_DB::t( 'chot' );
 		$tt = VHG_DB::t( 'thu' );
@@ -420,7 +525,7 @@ class VHG_Quy {
 
 		$wpdb->update( VHG_DB::t( 'nop' ), array( 'so_tien' => $tong, 'so_dong' => $dong ),
 			array( 'id' => $id ) );
-		return array( 'ok' => true, 'id' => $id, 'so_tien' => $tong, 'so_dong' => $dong,
+		return array( 'ok' => true, 'id' => $id, 'so_tien' => $tong, 'so_dong' => $dong, 'lap_lai' => 0,
 			'thong_bao' => 'Đã nộp ' . number_format( $tong, 0, ',', '.' ) . 'đ (' . $dong
 				. ' lượt) — chờ quản lý xác nhận đã nhận đủ.' );
 	}

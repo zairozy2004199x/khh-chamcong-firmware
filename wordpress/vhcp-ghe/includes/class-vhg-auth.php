@@ -37,10 +37,104 @@ class VHG_Auth {
 	 * người cần biết ghế nào đang đứng, khách trả tiền rồi mà ghế chưa chạy. Bảng lương thì
 	 * không — nên hai plugin có hai danh sách khác nhau là ĐÚNG, không phải quên đồng bộ.
 	 */
-	const VAI_TRO_MAC_DINH = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Cửa hàng trưởng' );
+	/* 🔴 'Nhân viên' CÓ trong danh sách vào được, kể từ 23/08/2026.
+	   Anh Thắng: *"Nhân viên đăng nhập vẫn trang này, nhưng chỉ hiện mỗi chốt ca"*. Trước bản
+	   này vai trò đó không đăng nhập nổi, nên cả phần chốt ca dựng cho họ là dựng cho một người
+	   không vào được cửa. Họ vào rồi thì chỉ thấy đúng tab Quỹ — xem `VIEC_QUAN_TRI` và
+	   `VHG_Trang::so_lieu_nhan_vien()`. */
+	const VAI_TRO_MAC_DINH = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
+		'Cửa hàng trưởng', 'Nhân viên' );
 
 	const VAI_TRO_TAT_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
 		'Cửa hàng trưởng', 'Nhân viên' );
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * PHÂN QUYỀN TRÊN CỔNG /ghe — MỘT DANH SÁCH DUY NHẤT.
+	 *
+	 * Anh Thắng 23/08/2026: *"Vậy có phân quyền giữa tài khoản nhân viên và tài khoản quản lý
+	 * chưa"*, rồi chốt: nhân viên KHÔNG xem tiền của người khác, KHÔNG xem tổng doanh thu,
+	 * KHÔNG gán mã ghế, KHÔNG huỷ giao dịch, và KHÔNG bật/tắt ghế hay tiêu ví hộ khách.
+	 *
+	 * 🔴 DANH SÁCH NẰM MỘT CHỖ, VÀ CHỐT ĐẶT TRƯỚC MỌI NHÁNH XỬ LÝ.
+	 *    Rải `if role` vào từng việc là kiểu lỗi chỉ lộ ra ở việc BỊ QUÊN — mà việc bị quên thì
+	 *    theo định nghĩa không ai nghĩ tới lúc đọc lại. Thêm một việc mới vào cổng mà quên khai
+	 *    ở đây thì nó rơi vào nhóm "ai cũng làm được", nên danh sách này phải là thứ đọc được
+	 *    trong một màn hình — và có phép thử canh đúng chuyện đó.
+	 *
+	 * ⚠️ GIẤU NÚT KHÔNG PHẢI LÀ CHẶN. Giao diện ẩn tab đi cho gọn mắt, nhưng ai đọc được gói tin
+	 *    thì gọi thẳng cổng được. Chốt thật nằm ở đây, trước khi vào bất kỳ nhánh nào.
+	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Vai trò được làm mọi việc. */
+	const QUAN_TRI = array( 'Admin', 'Quản lý' );
+
+	/**
+	 * Việc CHỈ quản trị mới làm được. Mọi việc khác: ai đăng nhập cũng làm được.
+	 *
+	 *   · bật / tắt / khởi động lại — nút Bật cho ghế chạy KHÔNG tính tiền.
+	 *   · gán mã ghế                — khai ghế mới; gán sai là tiền chạy sang ghế khác.
+	 *   · vi_tra_nv / vi_tieu_nv    — xem số dư và tiêu ví của khách MÀ KHÔNG CẦN PIN của họ.
+	 *   · ma_huy                    — huỷ mã khách đã trả tiền.
+	 *   · nop_nhan / nop_huy        — xác nhận đã nhận tiền nộp; người nộp không tự xác nhận.
+	 *   · so_may                    — số liệu doanh thu của một ghế theo ngày/tuần/tháng.
+	 */
+	const VIEC_QUAN_TRI = array(
+		'bat', 'tat', 'khoi_dong_lai',
+		'gan_ma',
+		'vi_tra_nv', 'vi_tieu_nv',
+		'ma_huy',
+		'so_may',
+	);
+
+	/* Việc chốt doanh số — quyền riêng, khai được. KHÔNG nằm trong `VIEC_QUAN_TRI` vì kế toán
+	   phải làm được mà không cần quyền Quản lý. */
+	const VIEC_CHOT_DOANH_SO = array( 'nop_nhan', 'nop_huy' );
+
+	public static function la_quan_tri( $vai_tro ) {
+		return in_array( (string) $vai_tro, self::QUAN_TRI, true );
+	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * AI ĐƯỢC CHỐT DOANH SỐ (xác nhận đã nhận tiền nhân viên nộp).
+	 *
+	 * Anh Thắng 23/08/2026: *"Để cấu hình tài khoản kế toán vào chốt doanh số sau khi nhân viên
+	 * thu tiền"*.
+	 *
+	 * 🔴 KHAI ĐƯỢC, KHÔNG NHÉT CỨNG. Mỗi chuỗi tổ chức khác nhau: nơi thì quản lý cửa hàng nhận
+	 *    tiền, nơi thì kế toán xuống nhận, nơi thì cả hai. Nhét cứng "Admin + Quản lý" là hoặc
+	 *    kế toán không làm được việc của mình, hoặc phải cấp cho kế toán quyền Quản lý — tức là
+	 *    cấp luôn quyền huỷ mã, gán ghế và tiêu ví của khách.
+	 *
+	 * ⚠️ Admin LUÔN nằm trong danh sách, dù khai kiểu gì. Khai sót Admin là không còn ai chốt
+	 *    được doanh số, và không có đường nào tự mở lại ngoài cơ sở dữ liệu.
+	 */
+	public static function vai_tro_chot() {
+		$ds = get_option( 'vhg_vai_tro_chot' );
+		$ra = array( 'Admin' );
+		if ( is_array( $ds ) ) {
+			foreach ( $ds as $v ) {
+				$v = (string) $v;
+				if ( in_array( $v, self::VAI_TRO_TAT_CA, true ) && ! in_array( $v, $ra, true ) ) {
+					$ra[] = $v;
+				}
+			}
+		}
+		/* Chưa khai bao giờ = Admin + Quản lý, đúng như hệ đang chạy trước bản này. */
+		if ( 1 === count( $ra ) && ! is_array( $ds ) ) { $ra[] = 'Quản lý'; }
+		return $ra;
+	}
+
+	public static function duoc_chot_doanh_so( $vai_tro ) {
+		return in_array( (string) $vai_tro, self::vai_tro_chot(), true );
+	}
+
+	public static function duoc_lam( $vai_tro, $viec ) {
+		if ( in_array( (string) $viec, self::VIEC_CHOT_DOANH_SO, true ) ) {
+			return self::duoc_chot_doanh_so( $vai_tro );
+		}
+		if ( ! in_array( (string) $viec, self::VIEC_QUAN_TRI, true ) ) { return true; }
+		return self::la_quan_tri( $vai_tro );
+	}
 
 	public static function vai_tro_vao() {
 		$ds = get_option( 'vhg_vai_tro_vao' );

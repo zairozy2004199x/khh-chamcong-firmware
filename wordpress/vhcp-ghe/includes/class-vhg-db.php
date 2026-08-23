@@ -448,6 +448,13 @@ class VHG_DB {
 		                                        MÁY, và là doanh thu đang thiếu trong sổ.
 		      Gộp hai con số này lại thành một "chênh lệch" là mất đúng thông tin để đi sửa.
 
+		   🔴 `ma_lan` — MÃ LƯỢT DO ĐIỆN THOẠI SINH, ĐỂ GỬI LẠI KHÔNG GHI HAI LẦN.
+		      App Android chốt ca ở chỗ sóng yếu: gửi đi, chờ mãi không thấy trả lời, rồi gửi lại.
+		      Không có mã này thì mỗi lần gửi lại là một lượt chốt mới — chỉ số nhảy hai lần, tiền
+		      trên tay cộng đôi, và người thu bỗng nợ gấp đôi số họ đang cầm.
+		      Khoá UNIQUE nhận NULL nhiều lần (đúng luật MySQL), nên trang web gửi không kèm mã
+		      vẫn ghi được bình thường — chỉ app mới cần tới nó.
+
 		   🔴 QUÃNG THỜI GIAN ĐÁNH DẤU BẰNG **SỐ DÒNG**, KHÔNG BẰNG ĐỒNG HỒ.
 		      `tu_id`/`den_id` là khoảng id trên bảng `thu` mà lượt chốt này bao trùm. Cắt theo
 		      `luc > <giờ chốt trước>` nghe hợp lý hơn, nhưng nó hỏng ở đúng hai chỗ:
@@ -480,7 +487,9 @@ class VHG_DB {
 			tao_luc DATETIME NULL,
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			nop_id BIGINT(20) NOT NULL DEFAULT 0,
+			ma_lan VARCHAR(40) NULL DEFAULT NULL,
 			PRIMARY KEY  (id),
+			UNIQUE KEY ma_lan (ma_lan),
 			KEY may (ma_may,id),
 			KEY nguoi (nguoi,nop_id),
 			KEY nop (nop_id)";
@@ -509,7 +518,9 @@ class VHG_DB {
 			nhan_luc DATETIME NULL,
 			nhan_ai VARCHAR(190) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			ma_lan VARCHAR(40) NULL DEFAULT NULL,
 			PRIMARY KEY  (id),
+			UNIQUE KEY ma_lan (ma_lan),
 			KEY nguoi (nguoi,trang_thai),
 			KEY cho (trang_thai,tao_luc)";
 

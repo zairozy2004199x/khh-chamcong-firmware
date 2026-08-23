@@ -125,6 +125,21 @@ class VHG_Trang {
 
 		if ( 'logout' === $viec ) { self::tra( VHG_Auth::logout( $tok ) ); return; }
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 CHỐT PHÂN QUYỀN — MỘT CHỖ, TRƯỚC MỌI NHÁNH.
+		 *
+		 * Danh sách việc nằm ở `VHG_Auth::VIEC_QUAN_TRI`. Đặt chốt ở đây chứ không rải `if role`
+		 * vào từng nhánh: rải thì lỗi chỉ lộ ra ở việc BỊ QUÊN, mà việc bị quên thì theo định
+		 * nghĩa không ai nghĩ tới lúc đọc lại. Thêm việc mới mà quên khai là nó rơi vào nhóm
+		 * "ai cũng làm được" — nên phép thử canh đúng chuyện đó.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( ! VHG_Auth::duoc_lam( $ai['role'], $viec ) ) {
+			self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+				'error' => 'Việc này chỉ Admin hoặc Quản lý làm được. '
+					. 'Anh/chị đang đăng nhập với vai trò ' . $ai['role'] . '.' ) );
+			return;
+		}
+
 		if ( 'so_lieu' === $viec ) {
 			self::tra( self::so_lieu( isset( $d['ky'] ) ? $d['ky'] : 'today', $ai ) );
 			return;
@@ -228,12 +243,7 @@ class VHG_Trang {
 		if ( 'ma_huy' === $viec ) {
 			/* 🔴 Huỷ mã là quyết định về TIỀN: khách đã trả rồi. Chỉ Admin và Quản lý — người
 			   đứng quầy không nên tự quyết chuyện hoàn/không hoàn, và nếu có quyết thì cũng
-			   không ai biết để hỏi lại. */
-			if ( ! in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ) {
-				self::tra( array( 'ok' => false,
-					'error' => 'Chỉ Admin hoặc Quản lý mới huỷ được mã đã bán.' ) );
-				return;
-			}
+			   không ai biết để hỏi lại. Chốt nằm ở `VHG_Auth::VIEC_QUAN_TRI`, đã chặn ở đầu hàm. */
 			$r = VHG_Ma::huy( isset( $d['ma'] ) ? $d['ma'] : '',
 				isset( $d['ly_do'] ) ? $d['ly_do'] : '', $ai['name'] );
 			if ( ! empty( $r['ok'] ) ) {
@@ -283,7 +293,9 @@ class VHG_Trang {
 		 *    là ai cũng chốt hộ, nộp hộ, xoá nợ tiền mặt hộ người khác.
 		 * ═════════════════════════════════════════════════════════════════════════════════════ */
 		if ( 'chot_xem' === $viec ) {
-			self::tra( VHG_Quy::truoc_khi_chot( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ) );
+			/* Cơ sở lấy từ PHIÊN, không nhận từ gói tin — xem chú thích trong VHG_Quy. */
+			self::tra( VHG_Quy::truoc_khi_chot(
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '', (string) $ai['coso'] ) );
 			return;
 		}
 
@@ -293,7 +305,11 @@ class VHG_Trang {
 				isset( $d['chi_so'] ) ? $d['chi_so'] : 0,
 				isset( $d['tien_dem'] ) ? $d['tien_dem'] : 0,
 				(string) $ai['name'],
-				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '',
+				/* Mã lượt do ĐIỆN THOẠI sinh — app gửi lại khi sóng yếu thì không ghi hai lần.
+				   Trang web không gửi, và không cần: bấm hai lần trên web là hai lần cố ý. */
+				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '',
+				(string) $ai['coso'] ) );
 			return;
 		}
 
@@ -304,19 +320,17 @@ class VHG_Trang {
 
 		if ( 'nop_tao' === $viec ) {
 			self::tra( VHG_Quy::nop( (string) $ai['name'],
-				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '',
+				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '' ) );
 			return;
 		}
 
 		/* 🔴 XÁC NHẬN ĐÃ NHẬN TIỀN LÀ QUYẾT ĐỊNH VỀ TIỀN — chỉ Admin và Quản lý.
 		   Người đứng quầy tự xác nhận lượt nộp của chính mình thì cái sổ này không còn nói được
 		   gì cả: nó chỉ ghi lại điều người nộp muốn nó ghi. Huỷ lượt nộp cũng vậy. */
+		/* Hai việc này đã nằm trong `VIEC_QUAN_TRI` nên chốt chung ở đầu hàm đã chặn rồi —
+		   không kiểm lại lần nữa ở đây. Hai chốt cho một luật là hai chỗ phải nhớ sửa. */
 		if ( 'nop_nhan' === $viec || 'nop_huy' === $viec ) {
-			if ( ! in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ) {
-				self::tra( array( 'ok' => false,
-					'error' => 'Chỉ Admin hoặc Quản lý mới xác nhận được tiền nộp.' ) );
-				return;
-			}
 			if ( 'nop_huy' === $viec ) {
 				self::tra( VHG_Quy::huy_nop( isset( $d['id'] ) ? (int) $d['id'] : 0 ) );
 				return;
@@ -340,6 +354,24 @@ class VHG_Trang {
 	 */
 	private static function so_lieu( $ky, $ai ) {
 		$ky  = in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true ) ? $ky : 'today';
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * 🔴 NHÂN VIÊN NHẬN MỘT GÓI TIN KHÁC HẲN, KHÔNG PHẢI CÙNG GÓI RỒI GIẤU BỚT Ở GIAO DIỆN.
+		 *
+		 * Anh Thắng 23/08/2026 chốt: nhân viên không xem tiền của người khác, không xem tổng
+		 * doanh thu, không gán mã ghế, không điều khiển ghế.
+		 *
+		 * Gửi đủ rồi để JS ẩn đi là KHÔNG giấu được gì cả: mở tab Network trên chính điện thoại
+		 * của mình là thấy nguyên doanh thu cả hệ thống, tiền từng người đang cầm, số điện thoại
+		 * khách. Cắt ngay từ máy chủ thì thứ không được xem KHÔNG BAO GIỜ rời khỏi máy chủ.
+		 *
+		 * ⚠️ Người thu vẫn phải thấy ĐỦ để làm việc của mình: tiền mình đang cầm, lượt mình đã
+		 *    chốt, và danh sách ghế (để biết ghế nào mất kết nối). Cắt tới mức không làm việc
+		 *    được thì họ sẽ đi mượn tài khoản quản lý — và lúc đó phân quyền thành số 0.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		$qt = VHG_Auth::la_quan_tri( $ai['role'] );
+		if ( ! $qt ) { return self::so_lieu_nhan_vien( $ky, $ai ); }
+
 		$t   = VHG_Thu::tong_hop( $ky );
 		$may = array();
 		foreach ( VHG_May::ds_may() as $m ) {
@@ -452,6 +484,59 @@ class VHG_Trang {
 			/* Bảng giá để nhân viên chọn gói khi tiêu ví hộ khách. Dùng CHUNG hàm với trang
 			   khách — hai nơi tính giá khác nhau là nhân viên đọc một đằng, khách một nẻo. */
 			'goi' => VHG_Ma::ds_menh_gia(),
+			'quyen' => array( 'quan_tri' => 1 ),
+			'luc' => current_time( 'H:i:s' ) );
+	}
+
+	/**
+	 * Gói tin cho NGƯỜI THU — chỉ những gì họ cần để chốt ca và nộp tiền.
+	 *
+	 * 🔴 DỰNG RIÊNG, KHÔNG PHẢI `unset()` BỚT TỪ GÓI ĐẦY ĐỦ.
+	 *    `unset()` là danh sách những thứ PHẢI BỎ, và danh sách đó phải nhớ cập nhật mỗi lần
+	 *    thêm một khoá mới ở trên — quên một lần là rò một lần, im lặng. Dựng riêng thì danh
+	 *    sách là những thứ ĐƯỢC GỬI, và quên ở đây chỉ làm thiếu chứ không làm rò.
+	 *
+	 * ⚠️ Danh sách ghế gửi kèm nhưng ĐÃ BỎ giá và số phút: người thu cần biết ghế nào mất kết
+	 *    nối (ghế mất mạng thì lệch máy-với-sổ là bình thường, không phải mất tiền), nhưng không
+	 *    cần biết mỗi ghế thu bao nhiêu một lượt.
+	 */
+	private static function so_lieu_nhan_vien( $ky, $ai ) {
+		$may = array();
+		foreach ( VHG_May::ds_may() as $m ) {
+			$may[] = array(
+				'ma'   => $m['ma'],
+				'coso' => $m['coso_ten'] ? $m['coso_ten'] : '',
+				'song' => ! empty( $m['con_song'] ),
+				'tt'   => (string) $m['trang_thai'],
+				'tm'   => (string) $m['tm_loi'],
+			);
+		}
+		$toi = (string) $ai['name'];
+		/* Chỉ lượt chốt CỦA CHÍNH MÌNH. Lượt của người khác là tiền của người khác. */
+		$chot_toi = array();
+		foreach ( VHG_Quy::ds_chot( $ky, 200 ) as $c ) {
+			if ( (string) $c['nguoi'] === $toi ) { $chot_toi[] = $c; }
+		}
+		$nop_toi = array();
+		foreach ( VHG_Quy::ds_nop( $ky, 120 ) as $n ) {
+			if ( (string) $n['nguoi'] === $toi ) { $nop_toi[] = $n; }
+		}
+		return array( 'ok' => true, 'ky' => $ky, 'ai' => $ai,
+			'may' => $may, 'cho' => array(), 'gd' => array(),
+			'choGan' => array(), 'coso' => array(),
+			'quy' => array(
+				'toi'    => VHG_Quy::dang_cam( $toi ),
+				'toi_la' => $toi,
+				'chot'   => $chot_toi,
+				'nop'    => $nop_toi,
+				'don_vi' => VHG_Quy::don_vi(),
+				/* Rỗng chứ không thiếu khoá: giao diện đọc `q.cam.length` mà gặp `undefined` thì
+				   nổ giữa lúc vẽ, và người thu nhìn thấy một trang trắng. */
+				'cam'    => array(), 'cho' => array(), 'nguoi' => array(),
+				'tong'   => array( 'tren_tay' => 0, 'cho_xac_nhan' => 0, 'so_cho' => 0,
+					'chot_ky' => 0, 'lech_may' => 0, 'lech_dem' => 0 ),
+				'quyen_nhan' => 0 ),
+			'quyen' => array( 'quan_tri' => 0 ),
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
@@ -668,6 +753,12 @@ tr:last-child td{border-bottom:0}
 .ghe-hang input{width:70px}
 .ghe-hang label{font-size:11px;color:#a79a7d}
 /* --- Bảng chốt ca thu tiền --- */
+/* Khung camera quét QR. Vuông, bo góc, và cao vừa đủ để cầm một tay trong lúc tay kia giữ
+   ngăn tiền — cao hơn nữa thì nút Đóng tụt xuống dưới mép màn trên điện thoại nhỏ. */
+.quet-hop{margin-top:12px}
+.quet-hop video{width:100%;max-height:280px;object-fit:cover;border-radius:12px;
+  background:#000;border:1px solid rgba(255,255,255,.14)}
+.quet-hop button{width:100%;margin-top:8px}
 .man{position:fixed;inset:0;background:rgba(8,10,22,.82);display:flex;align-items:center;
   justify-content:center;padding:14px;z-index:50;overflow:auto}
 .hop{background:#1e2240;border:1px solid #3a4170;border-radius:14px;
@@ -921,20 +1012,31 @@ function ve(){
     + '<button id="lam-moi" class="ghost" title="' + L('Tải lại','Refresh') + '">↻</button>'
     + '<button id="thoat" class="ghost">' + L('Thoát','Sign out') + '</button></div>';
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * TAB HIỆN THEO QUYỀN.
+   *
+   * ⚠️ ĐÂY CHỈ LÀ DỌN MẮT, KHÔNG PHẢI CHỐT. Chốt thật nằm ở `VHG_Auth::VIEC_QUAN_TRI`, chặn ngay
+   *    đầu cổng — ai đọc được gói tin thì gọi thẳng cổng được, và giấu nút không cản nổi ai cả.
+   *    Máy chủ cũng KHÔNG GỬI số liệu của các tab này cho người thu (xem `so_lieu_nhan_vien`),
+   *    nên kể cả sửa JS trên máy mình thì các tab đó cũng rỗng.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var QT = QUAN_TRI();
   h += '<div class="nav">'
-    + '<button data-tab="doi-soat"' + (TAB==='doi-soat'?' class="on"':'') + '>📊 '
-      + L('Đối soát','Reconciliation') + '</button>'
-    + '<button data-tab="thu-tien"' + (TAB==='thu-tien'?' class="on"':'') + '>💵 '
-      + L('Thu tiền','Cash collection') + '</button>'
+    + (QT ? '<button data-tab="doi-soat"' + (TAB==='doi-soat'?' class="on"':'') + '>📊 '
+      + L('Đối soát','Reconciliation') + '</button>' : '')
+    + (QT ? '<button data-tab="thu-tien"' + (TAB==='thu-tien'?' class="on"':'') + '>💵 '
+      + L('Thu tiền','Cash collection') + '</button>' : '')
     + '<button data-tab="quy"' + (TAB==='quy'?' class="on"':'') + '>🧾 '
       + L('Quỹ &amp; nộp tiền','Cash float') + '</button>'
-    + '<button data-tab="kich-hoat"' + (TAB==='kich-hoat'?' class="on"':'') + '>⚡ '
-      + L('Kích hoạt ghế','Chair activation') + '</button>'
-    + '<button data-tab="ma"' + (TAB==='ma'?' class="on"':'') + '>🎁 '
-      + L('Mã giảm giá','Discount codes') + '</button>'
-    + '<button data-tab="dieu-khien"' + (TAB==='dieu-khien'?' class="on"':'') + '>🎛 '
-      + L('Điều khiển ghế','Chair control') + '</button>'
+    + (QT ? '<button data-tab="kich-hoat"' + (TAB==='kich-hoat'?' class="on"':'') + '>⚡ '
+      + L('Kích hoạt ghế','Chair activation') + '</button>' : '')
+    + (QT ? '<button data-tab="ma"' + (TAB==='ma'?' class="on"':'') + '>🎁 '
+      + L('Mã giảm giá','Discount codes') + '</button>' : '')
+    + (QT ? '<button data-tab="dieu-khien"' + (TAB==='dieu-khien'?' class="on"':'') + '>🎛 '
+      + L('Điều khiển ghế','Chair control') + '</button>' : '')
     + '</div>';
+  /* Người thu chỉ có một tab — mở thẳng vào đó, đừng để họ nhìn một trang trống rồi tự đoán. */
+  if (!QT && TAB !== 'quy') { TAB = 'quy'; }
 
   /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
      ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
@@ -949,7 +1051,7 @@ function ve(){
   /* GHẾ CHỜ GÁN — trên cùng luôn, trên cả cảnh báo mất kết nối.
      Ghế vừa cắm điện xong là thứ người đang đứng cạnh nó cần thấy đầu tiên; và chừng nào chưa
      gán mã thì nó KHÔNG vẽ được QR, tức là không thu được đồng nào. */
-  if (D.choGan && D.choGan.length) {
+  if (QT && D.choGan && D.choGan.length) {
     h += '<div class="note"><b>' + D.choGan.length + ' '
       + L('ghế vừa nối mạng, chưa có mã','chairs just came online with no code') + '</b> — '
       + L('ghế chưa gán mã thì không hiện được QR. Đặt mã ngắn (VD <code>AMTP01</code>): mã này đi '
@@ -1194,6 +1296,10 @@ function veDieuKhien(){
  *
  * ⚠️ Ô LỆCH TÔ ĐỎ CHỈ KHI KHÁC 0. Tô đỏ cả cột là mắt bỏ qua cả cột.
  * ============================================================================================ */
+/* Đọc quyền từ gói tin máy chủ vừa gửi. Hàm chứ không phải biến: `D` được thay mới mỗi lượt
+   tải lại, và một biến chụp lúc dựng trang sẽ giữ nguyên quyền cũ sau khi đổi tài khoản. */
+function QUAN_TRI(){ return !!(D && D.quyen && D.quyen.quan_tri); }
+
 function veQuy(){
   var q = (D.quy || null);
   if (!q) return '<div class="card"><p class="mut">'
@@ -1209,6 +1315,32 @@ function veQuy(){
         L('ghế nuốt mà không báo về được','swallowed but never reported'),
         q.tong.lech_may > 0 ? 'c' : 'd')
     + '</div>';
+
+  /* ---- 0. CHỐT CA — LỐI VÀO CHÍNH CỦA NGƯỜI THU -------------------------------------------
+   * 🔴 Người thu KHÔNG còn tab "Điều khiển ghế" (chỉ Admin/Quản lý), mà nút chốt ca vốn nằm ở
+   *    đó. Không đưa lối vào lên đây thì cả vai trò ấy mở app ra và không bấm được gì cả.
+   * ⚠️ Ghế mất kết nối vẫn chốt được, và phải nói ra: ghế mất mạng thì sổ ghi nhận thiếu so với
+   *    máy đếm là CHUYỆN BÌNH THƯỜNG, không phải mất tiền — người thu cần biết trước khi hoảng.
+   */
+  h += '<div class="card"><h2>' + L('Chốt ca — quét QR trên ghế','Close a shift — scan the chair QR')
+    + '</h2>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Mở ngăn ghế, đọc chỉ số trên màn máy đếm, đếm tiền — rồi <b>quét mã QR dán trên chính '
+        + 'cái ghế đó</b>.',
+        'Open the cash box, read the note counter, count the cash — then <b>scan the QR sticker '
+        + 'on that very chair</b>.')
+    + '</p>'
+    + '<button id="quet-mo" class="on" style="width:100%;padding:14px;font-size:16px">📷 '
+    + L('Quét mã QR trên ghế','Scan the chair QR') + '</button>'
+    /* ⚠️ LUÔN CÓ ĐƯỜNG GÕ TAY. Tem bong, tem mờ, máy không có camera, người dùng từ chối quyền
+       camera — bốn chuyện đều xảy ra thật, và không có lối thứ hai thì người thu đứng đó với
+       một ngăn tiền đã mở mà không ghi sổ được. */
+    + '<div class="act" style="margin-top:10px">'
+    + '<input id="quet-tay" type="text" placeholder="' + L('hoặc gõ mã ghế: AMTP01','or type the chair code')
+    + '" autocapitalize="characters" autocomplete="off" style="flex:1">'
+    + '<button id="quet-di">' + L('Chốt','Go') + '</button></div>'
+    + '<div class="err" id="quet-e"></div>'
+    + '<div id="quet-khung"></div></div>';
 
   /* ---- 1. TÔI ĐANG CẦM BAO NHIÊU ---------------------------------------------------------- */
   var toi = q.toi || { tong: 0, tu_ghe: 0, tu_quay: 0, so_dong: 0 };
@@ -1265,7 +1397,13 @@ function veQuy(){
     h += '</table></div>';
   }
 
-  /* ---- 3. AI ĐANG CẦM --------------------------------------------------------------------- */
+  /* ---- 3. AI ĐANG CẦM — CHỈ QUẢN TRỊ -------------------------------------------------------
+   * 🔴 Người thu không nhận số liệu này từ máy chủ (xem `so_lieu_nhan_vien`). Vẫn vẽ khung ra
+   *    thì bảng rỗng sẽ nói "không ai đang cầm tiền" — mà đó là NÓI SAI: có người cầm, họ chỉ
+   *    không được xem thôi. Một bảng rỗng trông hệt như một sự thật, và đó là kiểu nói dối tệ
+   *    nhất vì không ai nghi ngờ nó.
+   */
+  if (QUAN_TRI()) {
   h += '<div class="card"><h2>' + L('Ai đang cầm tiền','Who is holding cash') + '</h2><table><tr><th>'
     + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
     + '<th class="r">' + L('Tại quầy','Counter') + '</th><th class="r">'
@@ -1279,8 +1417,13 @@ function veQuy(){
   });
   h += '</table></div>';
 
-  /* ---- 4. LƯỢT CHỐT CA -------------------------------------------------------------------- */
-  h += '<div class="card"><h2>' + L('Lượt chốt ca','Shift closings') + '</h2>'
+  }
+
+  /* ---- 4. LƯỢT CHỐT CA — cả hai vai trò đều xem ------------------------------------------
+     Người thu chỉ nhận về lượt của CHÍNH MÌNH; máy chủ đã lọc, giao diện không phải lọc lại. */
+  h += '<div class="card"><h2>'
+    + (QUAN_TRI() ? L('Lượt chốt ca','Shift closings') : L('Lượt chốt ca của tôi','My shift closings'))
+    + '</h2>'
     + '<p class="mut" style="margin:0 0 10px">'
     + L('Mỗi đơn vị trên màn đếm của máy tiền mặt = <b>' + tien(q.don_vi) + '</b>. '
         + 'Khai lại ở wp-admin → Ghế Massage → Máy &amp; cơ sở.',
@@ -1312,7 +1455,8 @@ function veQuy(){
   });
   h += '</table></div>';
 
-  /* ---- 5. THEO NGƯỜI ---------------------------------------------------------------------- */
+  /* ---- 5. THEO NGƯỜI — chỉ quản trị, cùng lý do với bảng 3. -------------------------------- */
+  if (!QUAN_TRI()) return h;
   h += '<div class="card"><h2>' + L('Theo người thu','By collector') + '</h2><table><tr><th>'
     + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
     + '<th class="r">' + L('Tại quầy','Counter') + '</th>'
@@ -1693,15 +1837,100 @@ function bang(ten, cot, hang){
  * ════════════════════════════════════════════════════════════════════════════════════════════ */
 var CHOT = null;   // { ma, so, xem, go, gocs } — bảng đang mở
 
+function bcQuet(msg){
+  var e = document.getElementById('quet-e');
+  if (e) e.textContent = msg || '';
+}
+
+/* Bóc mã ghế ra khỏi thứ vừa quét được.
+   Tem trên ghế mang ĐỊA CHỈ TRANG KHÁCH (`https://…/mua-ma/AMTP01`), không mang mã trần — nó
+   là tem cho khách quét, và mình dùng ké đúng cái tem đó chứ không dán thêm tem thứ hai. Nên
+   phải bóc: lấy đoạn cuối đường dẫn, hoặc tham số `?ghe=`. */
+function maGheTuQR(txt){
+  var s = String(txt || '').trim();
+  if (!s) return '';
+  var m = s.match(/[?&]ghe=([A-Za-z0-9]+)/);
+  if (m) return m[1].toUpperCase();
+  /* Bỏ tham số và dấu / cuối, rồi lấy đoạn cuối. */
+  s = s.split('?')[0].split('#')[0].replace(/\/+$/, '');
+  var phan = s.split('/');
+  var cuoi = phan[phan.length - 1] || '';
+  return /^[A-Za-z0-9]{1,20}$/.test(cuoi) ? cuoi.toUpperCase() : '';
+}
+
+var QUET = null;   // { luong, video, det, hen } — phiên quét đang mở
+
+function dongQuet(){
+  if (!QUET) return;
+  if (QUET.hen) { clearInterval(QUET.hen); }
+  /* 🔴 TẮT CAMERA. Bỏ quên là đèn camera sáng suốt ca, máy nóng và pin tụt — và người thu sẽ
+     tắt hẳn app đi thay vì dùng nó. */
+  try { (QUET.luong.getTracks() || []).forEach(function(t){ t.stop(); }); } catch (e) {}
+  var k = document.getElementById('quet-khung');
+  if (k) k.innerHTML = '';
+  QUET = null;
+}
+
+function moQuet(){
+  if (QUET) { dongQuet(); return; }
+  if (typeof BarcodeDetector === 'undefined') {
+    bcQuet(L('Trình duyệt này không quét được mã QR — gõ mã ghế vào ô bên dưới giúp em. '
+             + '(Chrome trên Android thì quét được.)',
+             'This browser cannot scan QR codes — type the chair code below instead. '
+             + '(Chrome on Android can scan.)'));
+    var o1 = document.getElementById('quet-tay'); if (o1) o1.focus();
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    bcQuet(L('Không mở được camera trên trình duyệt này — gõ mã ghế giúp em.',
+             'Cannot open the camera in this browser — type the chair code instead.'));
+    return;
+  }
+  bcQuet('');
+  var k = document.getElementById('quet-khung');
+  k.innerHTML = '<div class="quet-hop"><video id="quet-vid" playsinline muted></video>'
+    + '<button id="quet-dong" class="ghost">' + L('Đóng camera','Close camera') + '</button></div>';
+  document.getElementById('quet-dong').onclick = dongQuet;
+
+  /* `facingMode: environment` = camera SAU. Không khai thì nhiều máy mở camera trước, và người
+     ta soi cái tem bằng mặt mình. */
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+    .then(function(luong){
+      var v = document.getElementById('quet-vid');
+      if (!v) { (luong.getTracks()||[]).forEach(function(t){ t.stop(); }); return; }
+      v.srcObject = luong; v.play();
+      var det = new BarcodeDetector({ formats: ['qr_code'] });
+      QUET = { luong: luong, video: v, det: det, hen: null };
+      QUET.hen = setInterval(function(){
+        if (!QUET) return;
+        QUET.det.detect(QUET.video).then(function(ds){
+          if (!QUET || !ds || !ds.length) return;
+          var ma = maGheTuQR(ds[0].rawValue);
+          if (!ma) { bcQuet(L('Mã này không phải tem ghế.','That is not a chair sticker.')); return; }
+          dongQuet();
+          moChotCa(ma);
+        }).catch(function(){ /* khung hình lỗi thì bỏ qua, khung sau quét tiếp */ });
+      }, 400);
+    })
+    .catch(function(){
+      bcQuet(L('Chưa được phép dùng camera — cho phép trong cài đặt trình duyệt, hoặc gõ mã ghế.',
+               'Camera permission denied — allow it in browser settings, or type the chair code.'));
+    });
+}
+
 function moChotCa(ma){
   if (ban) return;
-  /* Hai lượt hỏi, một lượt mở màn: `so_may` cho số liệu doanh thu của ghế, `chot_xem` cho mốc
-     chỉ số lần trước. Thiếu cái thứ hai thì người ta gõ chỉ số mới mà không có gì đối chiếu. */
-  goi('so_may', { ma_may: ma }, function(r){
-    if (!r.ok) { alert(r.error || L('Không lấy được số liệu ghế.','Could not load chair figures.')); return; }
-    goi('chot_xem', { ma_may: ma }, function(x){
-      if (!x.ok) { alert(x.error || L('Không lấy được mốc chốt ca.','Could not load the closing baseline.')); return; }
-      CHOT = { ma: ma, so: r, xem: x, go: '', gocs: '' };
+  /* 🔴 `chot_xem` LÀ BẮT BUỘC, `so_may` LÀ THÊM.
+     `chot_xem` mang mốc chỉ số lần trước, sổ ghi nhận từ lần đó, cơ sở và tình trạng kết nối —
+     tức là đủ để chốt ca. `so_may` chỉ thêm doanh thu tháng của ghế, và nó là việc CHỈ QUẢN TRỊ
+     làm được (xem VHG_Auth::VIEC_QUAN_TRI). Người thu gọi nó sẽ bị cổng từ chối, nên đừng gọi —
+     gọi rồi nuốt lỗi là màn chốt ca im lặng không mở ra, và người đứng ở ghế không hiểu vì sao. */
+  var QT2 = QUAN_TRI();
+  goi('chot_xem', { ma_may: ma }, function(x){
+    if (!x.ok) { alert(x.error || L('Không lấy được mốc chốt ca.','Could not load the closing baseline.')); return; }
+    if (!QT2) { CHOT = { ma: ma, so: null, xem: x, go: '', gocs: '' }; veChotCa(); return; }
+    goi('so_may', { ma_may: ma }, function(r){
+      CHOT = { ma: ma, so: (r && r.ok ? r : null), xem: x, go: '', gocs: '' };
       veChotCa();
     });
   });
@@ -1728,7 +1957,8 @@ function veChotCa(){
 
   d.innerHTML = '<div class="hop">'
     + '<h3>' + L('Chốt ca','Close shift') + ' — ' + esc(CHOT.ma) + '</h3>'
-    + '<div class="cs">' + esc(r.coso || L('(chưa gán cơ sở)','(no branch)')) + '</div>'
+    + '<div class="cs">' + esc(x.coso || L('(chưa gán cơ sở)','(no branch)'))
+      + (x.song ? '' : ' · ' + L('⚠️ ghế đang mất kết nối','⚠️ chair offline')) + '</div>'
 
     /* ---- MỐC LẦN TRƯỚC. Đây là con số người ta đối chiếu, nên nó đứng trên cùng. ---- */
     + (x.lan_dau
@@ -1741,8 +1971,11 @@ function veChotCa(){
             + (x.chot_truoc_luc ? ' <span class="mut">· ' + esc(String(x.chot_truoc_luc).slice(0,16))
                 + (x.chot_truoc_ai ? ' · ' + esc(x.chot_truoc_ai) : '') + '</span>' : '')))
     + hangSo(L('Sổ ghi nhận từ lần chốt trước','On record since last closing'), tien(x.theo_he_thong))
-    + hangSo(L('Tổng tháng này','Total this month') + ' · ' + r.thang.so_luot + ' '
-        + L('lượt','sessions'), tien(r.thang.tong), ' to')
+    /* Doanh thu tháng của ghế chỉ hiện cho quản trị — người thu không cần, và không được xem. */
+    + (r && r.thang
+        ? hangSo(L('Tổng tháng này','Total this month') + ' · ' + r.thang.so_luot + ' '
+            + L('lượt','sessions'), tien(r.thang.tong), ' to')
+        : '')
 
     /* ---- Ô 1: CHỈ SỐ. Đọc trên màn máy đếm TRƯỚC khi mở ngăn. ---- */
     + '<div class="o-thu"><label class="mut">'
@@ -1955,6 +2188,33 @@ function noi(){
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
      ⚠️ Hỏi lại TRƯỚC khi nộp, và nói rõ con số. Nộp là nộp hết, và sau đó chỉ quản lý mới gỡ
         ra được — một cú bấm nhầm ở đây là người nộp phải đi tìm quản lý. */
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * QUÉT QR TRÊN GHẾ ĐỂ CHỐT CA.
+   *
+   * Anh Thắng 23/08/2026: *"Nhân viên đăng nhập vẫn trang này, nhưng chỉ hiện mỗi chốt ca. Để
+   * chốt ca ghế nào thì quét QR ghế đó."*
+   *
+   * 🔴 QUÉT CHỨ KHÔNG CHỌN TỪ DANH SÁCH. Danh sách ghế là mời người ta bấm nhầm — hai ghế cạnh
+   *    nhau tên chỉ khác một chữ số, mà chốt nhầm ghế thì KHÔNG chỉ ghi sai sổ: nó đóng mốc chỉ
+   *    số của ghế kia, và người thu thật ở đó hôm sau sẽ thấy quãng bị cắt mất.
+   *    Quét cái tem dán trên chính cái ghế vừa mở ngăn thì không nhầm được.
+   *
+   * ⚠️ `BarcodeDetector` chỉ có trên Chrome/Android và vài trình duyệt khác. Không có thì nói
+   *    thẳng ra và chỉ sang ô gõ tay — đừng để nút bấm vào không phản ứng gì, người ta sẽ bấm
+   *    mười lần rồi tưởng máy hỏng.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var quetMo = document.getElementById('quet-mo');
+  if (quetMo) quetMo.onclick = function(){ moQuet(); };
+  var quetDi = document.getElementById('quet-di');
+  if (quetDi) quetDi.onclick = function(){
+    var o = document.getElementById('quet-tay');
+    var ma = ((o && o.value) || '').trim().toUpperCase();
+    if (!ma) { bcQuet(L('Gõ mã ghế, hoặc bấm nút quét ở trên.','Type a chair code, or tap scan above.')); return; }
+    moChotCa(ma);
+  };
+  var qt_ = document.getElementById('quet-tay');
+  if (qt_) qt_.onkeydown = function(ev){ if (ev.key === 'Enter') quetDi.click(); };
+
   var nopOk = document.getElementById('nop-ok');
   if (nopOk) nopOk.onclick = function(){
     if (ban) return;
