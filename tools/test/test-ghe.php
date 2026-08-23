@@ -3251,8 +3251,13 @@ t( 'giá gốc của GÓI gạch ngang cho thấy phần được giảm',
 /* Nội dung chuyển khoản là thứ sai một ký tự là tiền lạc — phải nổi bật hơn hai ô kia. */
 t( 'ô nội dung chuyển khoản có luật tô riêng',
 	preg_match( '/\.ck\.nhan\{[^}]*border-color/', $sh ) === 1 );
+/* ⚠️ Canh Ý, không canh nguyên văn một dòng mã: dòng này đã đổi hình khi mọi chuỗi tiếng Việt
+      được bọc `L(...)` cho bốn ngôn ngữ. Ý cần giữ là: đúng CÁI Ô nội dung chuyển khoản mang
+      lớp tô nổi ` nhan`, chứ không phải hai ô kia. */
 t( 'và ô nội dung chuyển khoản dùng đúng lớp đó',
-	strpos( $sh, "o_ck('Nội dung chuyển khoản', DON.noi_dung, DON.noi_dung, ' nhan')" ) !== false );
+	preg_match( "/o_ck\(\s*L?\(?'Nội dung chuyển khoản'\)?\s*,\s*DON\.noi_dung\s*,\s*DON\.noi_dung\s*,\s*' nhan'\s*\)/", $sh ) === 1 );
+/* Và hai ô kia thì KHÔNG được mang lớp đó — nổi bật cả ba là không ô nào nổi bật. */
+teq( 'chỉ đúng MỘT ô mang lớp tô nổi', 1, substr_count( $sh, "' nhan')" ) );
 $sh2 = vhg_shop_html( 'AMTP01' );
 t( 'tem mang mã ghế thì trang biết ghế nào', strpos( $sh2, '"AMTP01"' ) !== false );
 
@@ -4959,6 +4964,76 @@ t( '🔴 và có ô TỔNG NỢ gộp cả mã lẫn ví — nhìn riêng một 
 	strpos( $html_v, 'TỔNG NỢ KHÁCH' ) !== false );
 t( 'có bảng ví còn tiền', strpos( $html_v, 'Ví khách còn tiền' ) !== false );
 t( 'và bảng đó dùng số đã che', strpos( $html_v, 'esc(v.sdt_che)' ) !== false );
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * TRANG MUA — BỐN NGÔN NGỮ: VIỆT, ANH, TRUNG, NGA
+ *
+ * Anh Thắng 23/08/2026: *"trang mua vé dùng 4 ngôn ngữ: Việt, Anh, Trung Quốc, Nga"*.
+ *
+ * 🔴 KHOÁ TỪ ĐIỂN LÀ CHÍNH CÂU TIẾNG VIỆT. Thiếu bản dịch thì rơi về tiếng Việt — chữ vẫn đọc
+ *    được, không ra "mua.tieu_de" giữa trang đang có khách đứng trả tiền. Và câu lỗi máy chủ
+ *    trả về cũng là tiếng Việt, nên `L(r.error)` dịch được luôn mà không phải sửa gì bên PHP.
+ *
+ * Phép thử quan trọng nhất ở đây là phép QUÉT SÓT bên dưới: thêm một câu mới mà quên dịch thì
+ * bộ thử gãy ngay, kèm đúng câu bị sót. Không có nó thì trang cứ lặng lẽ pha tiếng Việt vào
+ * giữa tiếng Nga, và chỉ khách mới thấy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$js_nn = (string) file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-shop.php' );
+$vt_js = strpos( $js_nn, 'private static function js()' );
+$js_nn = substr( $js_nn, $vt_js, strpos( $js_nn, "\nJS;", $vt_js ) - $vt_js );
+
+t( 'có bộ chuyển ngữ L()', strpos( $js_nn, 'function L(s){' ) !== false );
+t( 'có bộ chèn số Lf()', strpos( $js_nn, 'function Lf(s){' ) !== false );
+t( 'có ô chọn ngôn ngữ', strpos( $js_nn, 'function veNgon(){' ) !== false );
+foreach ( array( 'vi', 'en', 'zh', 'ru' ) as $nn_ ) {
+	t( 'có ngôn ngữ ' . $nn_, preg_match( "/ma:'" . $nn_ . "'/", $js_nn ) === 1 );
+}
+/* 🔴 Tiếng Việt là ĐƯỜNG LUI, nên nó KHÔNG được nằm trong từ điển — nằm trong đó là một bản
+      sao thứ hai của mọi câu, và hai bản sao thì có ngày lệch nhau. */
+t( '🔴 tiếng Việt không có trong từ điển (nó là đường lui)',
+	preg_match( '/\bvi: \{/', $js_nn ) !== 1 );
+
+/* ---- QUÉT SÓT: mọi chuỗi đi qua L()/Lf() phải có đủ ba bản dịch */
+$khoa_nn = array();
+preg_match_all( "/(?<![A-Za-z0-9_])Lf?\('((?:[^'\\\\]|\\\\.)*)'/", $js_nn, $m_nn );
+foreach ( (array) $m_nn[1] as $k_ ) { $khoa_nn[ $k_ ] = 1; }
+t( 'quét được danh sách chuỗi cần dịch', count( $khoa_nn ) > 100, count( $khoa_nn ) . ' chuỗi' );
+
+foreach ( array( 'en', 'zh', 'ru' ) as $nn_ ) {
+	$vt_ = strpos( $js_nn, '  ' . $nn_ . ': {' );
+	t( 'có khối từ điển ' . $nn_, false !== $vt_ );
+	if ( false === $vt_ ) { continue; }
+	$than_ = substr( $js_nn, $vt_, strpos( $js_nn, "\n  }", $vt_ ) - $vt_ );
+	$co_ = array();
+	preg_match_all( "/^    '((?:[^'\\\\]|\\\\.)*)':/m", $than_, $m2_ );
+	foreach ( (array) $m2_[1] as $k_ ) { $co_[ $k_ ] = 1; }
+	$sot_ = array();
+	foreach ( $khoa_nn as $k_ => $x_ ) { if ( ! isset( $co_[ $k_ ] ) ) { $sot_[] = $k_; } }
+	teq( '🔴 [' . $nn_ . '] không sót câu nào chưa dịch', array(), $sot_ );
+	/* Và bản dịch không được để nguyên tiếng Việt — sót kiểu đó thì phép thử trên không thấy. */
+	$nguyen_ = 0;
+	preg_match_all( "/^    '((?:[^'\\\\]|\\\\.)*)': '((?:[^'\\\\]|\\\\.)*)'/m", $than_, $m3_, PREG_SET_ORDER );
+	foreach ( $m3_ as $c_ ) {
+		/* Bỏ qua câu chỉ gồm thẻ HTML và số — chúng giống nhau ở mọi thứ tiếng là chuyện thường. */
+		$chu_ = trim( preg_replace( '/<[^>]*>|[^\p{L}]+/u', ' ', $c_[1] ) );
+		if ( mb_strlen( $chu_ ) >= 8 && $c_[1] === $c_[2] ) { $nguyen_++; }
+	}
+	teq( '🔴 [' . $nn_ . '] không bản dịch nào để nguyên tiếng Việt', 0, $nguyen_ );
+}
+
+/* ---- trang dựng ra có ô chọn ngôn ngữ, và VẪN đúng tiếng Việt như trước */
+$html_nn = vhg_shop_html( 'AMTP01' );
+t( 'trang có ô chọn ngôn ngữ', strpos( $html_nn, 'class="nn"' ) !== false );
+t( 'và có nút tiếng Trung', strpos( $html_nn, '中文' ) !== false );
+t( 'và có nút tiếng Nga', strpos( $html_nn, 'Русский' ) !== false );
+t( 'nhớ lựa chọn trong máy khách', strpos( $html_nn, "localStorage.setItem('vhg_nn'" ) !== false );
+/* Đoán theo ngôn ngữ trình duyệt: khách Nga mở trang là thấy tiếng mình luôn. */
+t( 'đoán ngôn ngữ theo trình duyệt', strpos( $html_nn, 'navigator.language' ) !== false );
+/* 🔴 Và tiếng Việt vẫn nguyên vẹn: L() rơi về khoá, nên câu tiếng Việt phải CÒN NGUYÊN trong trang. */
+t( '🔴 tiếng Việt vẫn còn nguyên trong trang', strpos( $html_nn, 'Ghế đang ngồi' ) !== false );
+t( 'và câu mời quét tem vẫn còn', strpos( $html_nn, 'quét mã QR dán trên chính cái ghế' ) !== false );
 
 
 // ============================================================ kết

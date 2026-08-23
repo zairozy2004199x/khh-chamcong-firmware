@@ -428,6 +428,12 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 /* Gói vượt quá số dư: làm mờ và BỎ HẲN con trỏ bấm. Chỉ làm mờ mà vẫn bấm được là khách bấm,
    chờ, rồi nhận một câu lỗi về điều trang đã biết từ trước. */
 .g.het{opacity:.42;cursor:not-allowed}
+/* Ô chọn ngôn ngữ: nhỏ, nằm trên cùng, không tranh chỗ với nội dung. Nút đang chọn tô vàng như
+   mọi nút "đang bật" khác của hệ thống — cùng một quy ước thì khỏi phải học lại. */
+.nn{display:flex;gap:6px;justify-content:center;margin:0 0 10px;flex-wrap:wrap}
+.nn button{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#cfc3a6;
+  border-radius:999px;padding:5px 13px;font-size:13px;font-weight:700;cursor:pointer;line-height:1.2}
+.nn button.on{background:#f0b429;border-color:#f0b429;color:#231a06}
 .g .ten{font-weight:700;font-size:17px}
 .g .mo{font-size:12.5px;color:#9aa0c2;margin-top:2px}
 .g .gia{display:flex;align-items:baseline;gap:10px;margin-top:10px;flex-wrap:wrap}
@@ -496,6 +502,523 @@ CSS;
 		return <<<'JS'
 (function(){
 var API = window.VHG_SHOP, GHE = window.VHG_GHE || '', TEN = window.VHG_TEN || 'POSH Massage';
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * BỐN NGÔN NGỮ — Việt, Anh, Trung, Nga.
+ *
+ * Anh Thắng 23/08/2026: *"trang mua vé dùng 4 ngôn ngữ: Việt, Anh, Trung Quốc, Nga"*.
+ *
+ * 🔴 KHOÁ CỦA TỪ ĐIỂN LÀ CHÍNH CÂU TIẾNG VIỆT, không phải một mã như `mua.tieu_de`.
+ *    Hai cái lợi, và cái thứ hai mới quan trọng:
+ *      1. Thiếu bản dịch thì rơi về tiếng Việt — chữ vẫn đọc được, không ra "mua.tieu_de"
+ *         giữa trang đang có khách đứng trả tiền.
+ *      2. Câu lỗi MÁY CHỦ trả về cũng là tiếng Việt, nên `L(r.error)` dịch được luôn mà không
+ *         phải sửa gì bên PHP. Câu nào chưa có trong từ điển thì hiện nguyên tiếng Việt —
+ *         xấu, nhưng đúng, và khách vẫn gọi được nhân viên.
+ *
+ * ⚠️ Nhớ lựa chọn trong máy khách. Khách Nga ngồi xuống ghế thứ hai không phải chọn lại tiếng
+ *    Nga một lần nữa. Bọc try/catch vì trình duyệt ở chế độ riêng tư ném lỗi ở localStorage.
+ * ═══════════════════════════════════════════════════════════════════════════════════════ */
+/* Từ điển. Khoá = câu tiếng Việt; thiếu bản dịch thì rơi về tiếng Việt, không ra mã lạ. */
+var TU = {
+  en: {
+    ' (được thêm ': ' (bonus ',
+    ' giờ': ' h',
+    ' ngày': ' d',
+    ' ngày kể từ bây giờ.</b>': ' days from now.</b>',
+    ' ngày kể từ lúc mua.</b>': ' days after purchase.</b>',
+    ' ngày.</b>': ' days.</b>',
+    ' ngày</b> — ở bất kỳ ghế nào, không hết hạn': ' days</b> — at any chair, never expires',
+    ' phút': ' min',
+    ' phút</div>': ' min</div>',
+    ' · ghế ': ' · chair ',
+    ' đang trong hạn chờ': ' on hold',
+    ' đang trong hạn chờ</b>': ' on hold</b>',
+    ' — dùng được sau ': ' — available in ',
+    ' — nhận <b>': ' — receive <b>',
+    ' — tiết kiệm ': ' — you save ',
+    '">Chép</button></div>': '">Copy</button></div>',
+    '</b> vào ví': '</b> to wallet',
+    '</b> — nhận ': '</b> — receive ',
+    '</div><button id="t-thoat" style="width:100%;margin-top:6px">Đổi số điện thoại</button>': '</div><button id="t-thoat" style="width:100%;margin-top:6px">Use another number</button>',
+    '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>': '<b style="color:#f0b429">exact note</b> below. The code appears here as soon as payment lands.</p>',
+    '<b style="color:#f0b429">⏳ Mã dùng được sau ': '<b style="color:#f0b429">⏳ Code usable after ',
+    '<b style="color:#f0b429">⏳ Số dư nạp dùng được sau ': '<b style="color:#f0b429">⏳ Topped-up balance usable after ',
+    '<b>quét từ thư viện ảnh</b>.</p>': '<b>scan from photo library</b>.</p>',
+    '<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>': '<br><b>Wallet is locked — please ask staff.</b>',
+    '<br><b>⏳ Dùng được sau ': '<br><b>⏳ Available in ',
+    '<br><span class="mut">Sai PIN hay quên PIN đều ra câu này. ': '<br><span class="mut">Wrong or forgotten PIN both show this. ',
+    '<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>': '<br>To spend: <b>scan the QR on the chair</b>, then enter your phone number and PIN.</div>',
+    '<br>⏳ Đang trong hạn chờ: <b>': '<br>⏳ On hold: <b>',
+    '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>': '<button id="d-ok" class="chinh" style="margin-top:14px">Use code, start chair</button>',
+    '<button id="huy" style="width:100%">Đổi gói khác</button>': '<button id="huy" style="width:100%">Choose another package</button>',
+    '<button id="n-mua" class="chinh">Nạp ngay</button>': '<button id="n-mua" class="chinh">Top up now</button>',
+    '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>': '<button id="q-ok" style="width:100%;margin-top:14px">Set new PIN</button>',
+    '<button id="qr-tai">⬇ Tải ảnh mã QR</button>': '<button id="qr-tai">⬇ Save QR image</button>',
+    '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>': '<button id="t-mo" class="chinh" style="margin-top:14px">Open wallet</button>',
+    '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>': '<button id="t-xem" class="chinh" style="margin-top:14px">Show my codes</button>',
+    '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>': '<button id="v-xem" class="chinh" style="margin-top:14px">Show balance</button>',
+    '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">Buy more</button></div></div>',
+    '<div class="card"><h2>Dùng mã cho ghế</h2>': '<div class="card"><h2>Use a code at this chair</h2>',
+    '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>': '<div class="card"><h2>Or use a discount code</h2>',
+    '<div class="card"><h2>Mã của tôi</h2>': '<div class="card"><h2>My codes</h2>',
+    '<div class="card"><h2>Quên PIN?</h2>': '<div class="card"><h2>Forgot PIN?</h2>',
+    '<div class="card"><h2>Số dư ví</h2>': '<div class="card"><h2>Wallet balance</h2>',
+    '<div class="card"><h2>Thông tin nhận mã</h2>': '<div class="card"><h2>Where to send your code</h2>',
+    '<div class="card"><h2>Trả bằng số dư ví</h2>': '<div class="card"><h2>Pay with wallet balance</h2>',
+    '<div class="card"><h2>Ví của anh/chị</h2>': '<div class="card"><h2>Your wallet</h2>',
+    '<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>': '<div class="card"><h2>Payment received — here is your code</h2>',
+    '<div class="card"><h2>Đã nhận tiền — ví đã được cộng</h2>': '<div class="card"><h2>Payment received — wallet credited</h2>',
+    '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>': '<div class="card"><p class="mut">Top-up packages are not on sale yet.</p></div>',
+    '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>': '<div class="card"><p class="mut">Loading prices…</p></div>',
+    '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>': '<div class="cho" id="cho">⏳ Waiting for payment…</div>',
+    '<div class="cho">⏳ Đang trừ tiền…</div>': '<div class="cho">⏳ Deducting…</div>',
+    '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>': '<div class="ck nhan" style="display:block"><div class="nh">Chair not identified</div>',
+    '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>': '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Your chair</div>',
+    '<div class="deal"><b>Giảm tới ': '<div class="deal"><b>Up to ',
+    '<div class="deal"><b>Nạp càng nhiều, lợi càng lớn — tới ': '<div class="deal"><b>The more you top up, the more you get — up to ',
+    '<div class="g">chụp lại màn hình này giúp em</div></div>': '<div class="g">please screenshot this</div></div>',
+    '<div class="g">đã dùng ': '<div class="g">used ',
+    '<div class="mo" style="color:#b32d2e">chưa đủ số dư</div>': '<div class="mo" style="color:#b32d2e">not enough balance</div>',
+    '<div class="mo">được thêm ': '<div class="mo">bonus ',
+    '<div class="mut" style="margin-top:5px">Đây là điều kiện của giá đã giảm: mua trước thì ': '<div class="mut" style="margin-top:5px">This is the condition for the discount: buying ahead is ',
+    '<div class="mut" style="margin-top:5px">Đây là điều kiện của phần được tặng thêm: nạp ': '<div class="mut" style="margin-top:5px">This is the condition for the bonus: top up ',
+    '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>, phần còn lại ': '<div class="mut" style="margin:-4px 0 0">We <b>store only the last 4 digits</b>; the rest ',
+    '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>.</div>': '<div class="mut" style="margin:-4px 0 0">We <b>store only the last 4 digits</b>.</div>',
+    '<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>': '<div class="mut" style="margin:12px 0 6px"><b>Recent</b></div>',
+    '<div class="ok" style="margin-top:12px">Tiêu được ngay: ': '<div class="ok" style="margin-top:12px">Available now: ',
+    '<div class="ok" style="margin:0 0 12px">Số dư tiêu được: ': '<div class="ok" style="margin:0 0 12px">Available balance: ',
+    '<div class="ok" style="margin:0 0 12px">Trả <b>': '<div class="ok" style="margin:0 0 12px">Pay <b>',
+    '<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. ': '<div class="ok">Codes <b>never expire</b> and work at <b>any chair</b>. ',
+    '<div class="ok">Ví của anh/chị nay có <b style="color:#f0b429">': '<div class="ok">Your wallet now holds <b style="color:#f0b429">',
+    '<div class="ten">Nạp ': '<div class="ten">Top up ',
+    '<div style="margin-top:6px;line-height:1.5">Hãy <b>quét mã QR dán trên chính cái ghế ': '<div style="margin-top:6px;line-height:1.5">Please <b>scan the QR sticker on the very chair ',
+    '<div>Số dư dùng được ở <b>bất kỳ ghế nào</b>, tiêu lẻ từng lượt, không hết hạn</div></div>': '<div>Balance works at <b>any chair</b>, spend it session by session, never expires</div></div>',
+    '<input id="cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">': '<input id="cc" type="tel" inputmode="numeric" placeholder="can be left blank" autocomplete="off">',
+    '<input id="n-cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">': '<input id="n-cc" type="tel" inputmode="numeric" placeholder="can be left blank" autocomplete="off">',
+    '<label>Mã giảm giá</label>': '<label>Discount code</label>',
+    '<label>PIN 4 số — ví đã có thì nhập <b>đúng PIN cũ</b></label>': '<label>4-digit PIN — if the wallet exists, enter <b>the existing PIN</b></label>',
+    '<label>PIN 4 số</label>': '<label>4-digit PIN</label>',
+    '<label>PIN mới (4 số)</label>': '<label>New PIN (4 digits)</label>',
+    '<label>Số căn cước (đã khai lúc mua)</label>': '<label>ID number (as given at purchase)</label>',
+    '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>': '<label>ID number — <b>optional</b>, only to recover a forgotten PIN</label>',
+    '<label>Số lượng</label>': '<label>Quantity</label>',
+    '<label>Số điện thoại</label>': '<label>Phone number</label>',
+    '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>': '<label>Set a 4-digit PIN — to look up your codes later</label>',
+    '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ': '<p class="mut" style="margin:-4px 0 10px">Forgot your PIN? <b>Ask staff</b> — they ',
+    '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ': '<p class="mut" style="margin:0 0 10px"><b>Tap a package</b> — we deduct from your balance ',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>': '<p class="mut" style="margin:0 0 10px">Enter the wallet phone number and PIN.</p>',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>': '<p class="mut" style="margin:0 0 10px">Enter the phone number and PIN you set when buying.</p>',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ': '<p class="mut" style="margin:0 0 10px">Enter your phone number and PIN to see your balance and ',
+    '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ': '<p class="mut" style="margin:0 0 10px">If you gave an ID number when buying, you can set a new PIN yourself. ',
+    '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ': '<p class="mut" style="margin:0 0 10px">The balance is tied to your <b>phone number</b>. Next visit, ',
+    '<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, ': '<p class="mut" style="margin:0 0 12px">Or transfer manually: exact amount, ',
+    '<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế ': '<p class="mut" style="margin:6px 0 14px">Not this chair? Scan the QR again on the chair ',
+    '<p class="mut" style="margin:6px 0 14px;text-align:center">Quét bằng app ngân hàng. ': '<p class="mut" style="margin:6px 0 14px;text-align:center">Scan with your banking app. ',
+    '<p class="mut">Không còn mã nào chưa dùng.</p>': '<p class="mut">No unused codes left.</p>',
+    '<p class="mut">Trang này cố ý <b>không</b> cho chọn ghế từ danh sách: chọn lộn là mã ': '<p class="mut">This page deliberately does <b>not</b> let you pick a chair from a list: pick the wrong one and the code ',
+    '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>': '<p class="mut">You can still buy codes under <b>Buy code</b> — buying needs no chair.</p>',
+    '>Của tôi</button>': '>My account</button>',
+    '>Dùng tại ghế</button>': '>Use at chair</button>',
+    '>Mua mã</button>': '>Buy code</button>',
+    '>Nạp ví</button>': '>Top up</button>',
+    'Chuyển khoản để nhận mã': 'Transfer to get your code',
+    'Chuyển khoản để nạp ví': 'Transfer to top up',
+    'Chép dòng này:': 'Copy this:',
+    'Chưa biết ghế nào — quét mã QR trên ghế đang ngồi giúp em.': 'Chair unknown — please scan the QR on the chair you are in.',
+    'Chọn một gói nạp phía trên.': 'Pick a top-up package above.',
+    'Chọn một gói nạp trước nhé.': 'Please pick a top-up package.',
+    'Chọn một gói trước nhé.': 'Please pick a package first.',
+    'Gọi nhân viên, đọc số điện thoại — nhân viên tra được mã giúp anh/chị.</span>': 'Ask staff and give your phone number — they can look up your code.</span>',
+    'Không chạy được.': 'Could not start.',
+    'Không mở được ví.': 'Could not open wallet.',
+    'Không tra được.': 'Lookup failed.',
+    'Không tìm thấy.': 'Not found.',
+    'Không tạo được đơn nạp.': 'Could not create top-up.',
+    'Không tạo được đơn.': 'Could not create order.',
+    'Không đặt lại được.': 'Could not reset.',
+    'Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào': 'Buy today, use any time, at any chair',
+    'Mua mã giảm giá': 'Buy discount codes',
+    'Mua trước, dùng sau <b>': 'Buy now, use after <b>',
+    'Máy không cho tải ảnh. Anh/chị chụp màn hình mã QR này, rồi trong app ngân hàng ': 'Your device blocked the download. Please screenshot this QR, then in your banking app ',
+    'Mã không dùng được.': 'Code cannot be used.',
+    'Mạng đang chập chờn. Thử lại giúp em, hoặc gọi nhân viên.': 'Network is unstable. Please try again, or ask staff.',
+    'Ngân hàng / Số tài khoản': 'Bank / Account number',
+    'Nội dung chuyển khoản': 'Transfer note',
+    'PIN phải gồm đúng 4 chữ số.': 'PIN must be exactly 4 digits.',
+    'Phải trả: <b style="color:#f0b429;font-size:18px">': 'Total: <b style="color:#f0b429;font-size:18px">',
+    'Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.': 'Lost the code? Go to <b>My codes</b> and enter your phone number and PIN.',
+    'Số tiền': 'Amount',
+    'Trả: <b style="color:#f0b429;font-size:18px">': 'Pay: <b style="color:#f0b429;font-size:18px">',
+    'anh/chị đang ngồi</b> — mã đó cho hệ thống biết đúng ghế, khỏi phải chọn.</div></div>': 'you are sitting in</b> — that code tells us the exact chair, no picking needed.</div></div>',
+    'chạy cho người khác, mà mã thì mất rồi. Tem trên ghế mờ hay bong thì gọi nhân viên — ': 'runs for someone else, and the code is gone. If the sticker is faded or peeling, ask staff — ',
+    'chọn "quét từ thư viện ảnh".': 'choose "scan from photo library".',
+    'các gói bấm được.</p>': 'the packages you can tap.</p>',
+    'còn dùng được': 'still valid',
+    'không được ghi lại ở đâu cả.</div>': 'the rest is not stored anywhere.</div>',
+    'mình đang ngồi.</p>': 'you are sitting in.</p>',
+    'nhân viên chạy mã giúp được.</p>': 'staff can redeem the code for you.</p>',
+    'nhập lại số này và PIN là tiêu tiếp.</p>': 'enter this number and PIN to keep spending.</p>',
+    'rẻ hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế với giá gốc.</div></div>': 'cheaper, in exchange for waiting. Need it today? Pay right at the chair at full price.</div></div>',
+    'trước thì lợi hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế.</div></div>': 'ahead gets you more, in exchange for waiting. Need it today? Pay right at the chair.</div></div>',
+    'và ghế chạy ngay.</p>': 'and the chair starts.</p>',
+    'Đang kiểm mã…': 'Checking code…',
+    'Đang kiểm…': 'Checking…',
+    'Đang mở ví…': 'Opening wallet…',
+    'Đang tra…': 'Looking up…',
+    'Đang tạo đơn…': 'Creating order…',
+    'Đang xem trên chính máy này thì bấm <b>Tải ảnh mã QR</b>, rồi trong app ngân hàng chọn ': 'Viewing on this same phone? Tap <b>Save QR image</b>, then in your banking app choose ',
+    'đ': 'd',
+    'được bằng số điện thoại và đọc mã giúp anh/chị.</p>': 'can look it up by phone number and read the code to you.</p>',
+    'được. Không khai thì gọi nhân viên — nhân viên tra bằng số điện thoại.</p>': 'If not, ask staff — they can look it up by phone number.</p>',
+    '⏳ dùng được từ ': '⏳ valid from ',
+    '✓ Đã chép': '✓ Copied'
+  },
+  zh: {
+    ' (được thêm ': '（赠送 ',
+    ' giờ': ' 小时',
+    ' ngày': ' 天',
+    ' ngày kể từ bây giờ.</b>': ' 天后可用。</b>',
+    ' ngày kể từ lúc mua.</b>': ' 天后可用（自购买起）。</b>',
+    ' ngày.</b>': ' 天后。</b>',
+    ' ngày</b> — ở bất kỳ ghế nào, không hết hạn': ' 天</b> — 任意按摩椅可用，永不过期',
+    ' phút': ' 分钟',
+    ' phút</div>': ' 分钟</div>',
+    ' · ghế ': ' · 按摩椅 ',
+    ' đang trong hạn chờ': ' 处于等待期',
+    ' đang trong hạn chờ</b>': ' 处于等待期</b>',
+    ' — dùng được sau ': ' — ',
+    ' — nhận <b>': ' — 获得 <b>',
+    ' — tiết kiệm ': ' — 节省 ',
+    '">Chép</button></div>': '">复制</button></div>',
+    '</b> vào ví': '</b> 到钱包',
+    '</b> — nhận ': '</b> — 获得 ',
+    '</div><button id="t-thoat" style="width:100%;margin-top:6px">Đổi số điện thoại</button>': '</div><button id="t-thoat" style="width:100%;margin-top:6px">更换手机号</button>',
+    '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>': '<b style="color:#f0b429">备注准确</b>。到账后优惠码会立即显示在此。</p>',
+    '<b style="color:#f0b429">⏳ Mã dùng được sau ': '<b style="color:#f0b429">⏳ 优惠码可用时间：',
+    '<b style="color:#f0b429">⏳ Số dư nạp dùng được sau ': '<b style="color:#f0b429">⏳ 充值余额可用时间：',
+    '<b>quét từ thư viện ảnh</b>.</p>': '<b>从相册扫描</b>。</p>',
+    '<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>': '<br><b>钱包已锁定 — 请联系工作人员。</b>',
+    '<br><b>⏳ Dùng được sau ': '<br><b>⏳ ',
+    '<br><span class="mut">Sai PIN hay quên PIN đều ra câu này. ': '<br><span class="mut">密码错误或忘记密码都会显示此提示。',
+    '<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>': '<br>使用方法：<b>扫描椅子上的二维码</b>，输入手机号和密码。</div>',
+    '<br>⏳ Đang trong hạn chờ: <b>': '<br>⏳ 等待期中：<b>',
+    '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>': '<button id="d-ok" class="chinh" style="margin-top:14px">使用优惠码并启动</button>',
+    '<button id="huy" style="width:100%">Đổi gói khác</button>': '<button id="huy" style="width:100%">更换套餐</button>',
+    '<button id="n-mua" class="chinh">Nạp ngay</button>': '<button id="n-mua" class="chinh">立即充值</button>',
+    '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>': '<button id="q-ok" style="width:100%;margin-top:14px">设置新密码</button>',
+    '<button id="qr-tai">⬇ Tải ảnh mã QR</button>': '<button id="qr-tai">⬇ 保存二维码</button>',
+    '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>': '<button id="t-mo" class="chinh" style="margin-top:14px">打开钱包</button>',
+    '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>': '<button id="t-xem" class="chinh" style="margin-top:14px">查看我的优惠码</button>',
+    '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>': '<button id="v-xem" class="chinh" style="margin-top:14px">查看余额</button>',
+    '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">继续购买</button></div></div>',
+    '<div class="card"><h2>Dùng mã cho ghế</h2>': '<div class="card"><h2>在此按摩椅使用优惠码</h2>',
+    '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>': '<div class="card"><h2>或使用优惠码</h2>',
+    '<div class="card"><h2>Mã của tôi</h2>': '<div class="card"><h2>我的优惠码</h2>',
+    '<div class="card"><h2>Quên PIN?</h2>': '<div class="card"><h2>忘记密码？</h2>',
+    '<div class="card"><h2>Số dư ví</h2>': '<div class="card"><h2>钱包余额</h2>',
+    '<div class="card"><h2>Thông tin nhận mã</h2>': '<div class="card"><h2>接收优惠码的信息</h2>',
+    '<div class="card"><h2>Trả bằng số dư ví</h2>': '<div class="card"><h2>使用钱包余额支付</h2>',
+    '<div class="card"><h2>Ví của anh/chị</h2>': '<div class="card"><h2>您的钱包</h2>',
+    '<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>': '<div class="card"><h2>已收到款项 — 这是您的优惠码</h2>',
+    '<div class="card"><h2>Đã nhận tiền — ví đã được cộng</h2>': '<div class="card"><h2>已收到款项 — 钱包已充值</h2>',
+    '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>': '<div class="card"><p class="mut">目前未开放充值套餐。</p></div>',
+    '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>': '<div class="card"><p class="mut">正在加载价目表…</p></div>',
+    '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>': '<div class="cho" id="cho">⏳ 等待到账…</div>',
+    '<div class="cho">⏳ Đang trừ tiền…</div>': '<div class="cho">⏳ 正在扣款…</div>',
+    '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>': '<div class="ck nhan" style="display:block"><div class="nh">未识别按摩椅</div>',
+    '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>': '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">您所坐的按摩椅</div>',
+    '<div class="deal"><b>Giảm tới ': '<div class="deal"><b>最高优惠 ',
+    '<div class="deal"><b>Nạp càng nhiều, lợi càng lớn — tới ': '<div class="deal"><b>充值越多，赠送越多 — 最高 ',
+    '<div class="g">chụp lại màn hình này giúp em</div></div>': '<div class="g">请截图保存</div></div>',
+    '<div class="g">đã dùng ': '<div class="g">已使用 ',
+    '<div class="mo" style="color:#b32d2e">chưa đủ số dư</div>': '<div class="mo" style="color:#b32d2e">余额不足</div>',
+    '<div class="mo">được thêm ': '<div class="mo">赠送 ',
+    '<div class="mut" style="margin-top:5px">Đây là điều kiện của giá đã giảm: mua trước thì ': '<div class="mut" style="margin-top:5px">这是折扣的条件：提前购买',
+    '<div class="mut" style="margin-top:5px">Đây là điều kiện của phần được tặng thêm: nạp ': '<div class="mut" style="margin-top:5px">这是赠送金额的条件：',
+    '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>, phần còn lại ': '<div class="mut" style="margin:-4px 0 0">系统<b>仅保存后4位</b>，',
+    '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>.</div>': '<div class="mut" style="margin:-4px 0 0">系统<b>仅保存后4位</b>。</div>',
+    '<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>': '<div class="mut" style="margin:12px 0 6px"><b>最近记录</b></div>',
+    '<div class="ok" style="margin-top:12px">Tiêu được ngay: ': '<div class="ok" style="margin-top:12px">立即可用：',
+    '<div class="ok" style="margin:0 0 12px">Số dư tiêu được: ': '<div class="ok" style="margin:0 0 12px">可用余额：',
+    '<div class="ok" style="margin:0 0 12px">Trả <b>': '<div class="ok" style="margin:0 0 12px">支付 <b>',
+    '<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. ': '<div class="ok">优惠码<b>永不过期</b>，<b>任意按摩椅</b>均可使用。',
+    '<div class="ok">Ví của anh/chị nay có <b style="color:#f0b429">': '<div class="ok">您的钱包现有 <b style="color:#f0b429">',
+    '<div class="ten">Nạp ': '<div class="ten">充值 ',
+    '<div style="margin-top:6px;line-height:1.5">Hãy <b>quét mã QR dán trên chính cái ghế ': '<div style="margin-top:6px;line-height:1.5">请<b>扫描您所坐椅子上的二维码贴纸',
+    '<div>Số dư dùng được ở <b>bất kỳ ghế nào</b>, tiêu lẻ từng lượt, không hết hạn</div></div>': '<div>余额可在<b>任意按摩椅</b>使用，按次消费，永不过期</div></div>',
+    '<input id="cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">': '<input id="cc" type="tel" inputmode="numeric" placeholder="可留空" autocomplete="off">',
+    '<input id="n-cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">': '<input id="n-cc" type="tel" inputmode="numeric" placeholder="可留空" autocomplete="off">',
+    '<label>Mã giảm giá</label>': '<label>优惠码</label>',
+    '<label>PIN 4 số — ví đã có thì nhập <b>đúng PIN cũ</b></label>': '<label>4位密码 — 若钱包已存在，请输入<b>原密码</b></label>',
+    '<label>PIN 4 số</label>': '<label>4位密码</label>',
+    '<label>PIN mới (4 số)</label>': '<label>新密码（4位）</label>',
+    '<label>Số căn cước (đã khai lúc mua)</label>': '<label>身份证号（购买时填写的）</label>',
+    '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>': '<label>身份证号 — <b>非必填</b>，仅用于找回密码</label>',
+    '<label>Số lượng</label>': '<label>数量</label>',
+    '<label>Số điện thoại</label>': '<label>手机号码</label>',
+    '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>': '<label>设置4位密码 — 以便日后查询优惠码</label>',
+    '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ': '<p class="mut" style="margin:-4px 0 10px">忘记密码？<b>请联系工作人员</b> — 他们',
+    '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ': '<p class="mut" style="margin:0 0 10px"><b>点击套餐</b> — 系统直接从余额扣款，',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>': '<p class="mut" style="margin:0 0 10px">请输入钱包的手机号和密码。</p>',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>': '<p class="mut" style="margin:0 0 10px">请输入购买时填写的手机号和密码。</p>',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ': '<p class="mut" style="margin:0 0 10px">输入手机号和密码以查看余额及',
+    '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ': '<p class="mut" style="margin:0 0 10px">若购买时填写了身份证号，可自行设置新密码。',
+    '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ': '<p class="mut" style="margin:0 0 10px">余额与<b>手机号</b>绑定。下次到店，',
+    '<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, ': '<p class="mut" style="margin:0 0 12px">或手动转账：金额准确，',
+    '<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế ': '<p class="mut" style="margin:6px 0 14px">不是这张椅子？请重新扫描',
+    '<p class="mut" style="margin:6px 0 14px;text-align:center">Quét bằng app ngân hàng. ': '<p class="mut" style="margin:6px 0 14px;text-align:center">请用银行App扫描。',
+    '<p class="mut">Không còn mã nào chưa dùng.</p>': '<p class="mut">没有未使用的优惠码。</p>',
+    '<p class="mut">Trang này cố ý <b>không</b> cho chọn ghế từ danh sách: chọn lộn là mã ': '<p class="mut">本页面<b>故意</b>不提供椅子列表：选错了优惠码就会',
+    '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>': '<p class="mut">您仍可在<b>购买码</b>中购买 — 购买无需选择椅子。</p>',
+    '>Của tôi</button>': '>我的</button>',
+    '>Dùng tại ghế</button>': '>在椅上使用</button>',
+    '>Mua mã</button>': '>购买码</button>',
+    '>Nạp ví</button>': '>充值</button>',
+    'Chuyển khoản để nhận mã': '转账领取优惠码',
+    'Chuyển khoản để nạp ví': '转账充值',
+    'Chép dòng này:': '复制此内容：',
+    'Chưa biết ghế nào — quét mã QR trên ghế đang ngồi giúp em.': '未识别按摩椅 — 请扫描您所坐椅子上的二维码。',
+    'Chọn một gói nạp phía trên.': '请选择上方的充值套餐。',
+    'Chọn một gói nạp trước nhé.': '请先选择充值套餐。',
+    'Chọn một gói trước nhé.': '请先选择一个套餐。',
+    'Gọi nhân viên, đọc số điện thoại — nhân viên tra được mã giúp anh/chị.</span>': '请联系工作人员并提供手机号 — 他们可代为查询。</span>',
+    'Không chạy được.': '无法启动。',
+    'Không mở được ví.': '无法打开钱包。',
+    'Không tra được.': '查询失败。',
+    'Không tìm thấy.': '未找到。',
+    'Không tạo được đơn nạp.': '无法创建充值订单。',
+    'Không tạo được đơn.': '无法创建订单。',
+    'Không đặt lại được.': '无法重置。',
+    'Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào': '今日购买，随时在任意按摩椅使用',
+    'Mua mã giảm giá': '购买优惠码',
+    'Mua trước, dùng sau <b>': '先购买，<b>',
+    'Máy không cho tải ảnh. Anh/chị chụp màn hình mã QR này, rồi trong app ngân hàng ': '设备阻止了下载。请截图此二维码，然后在银行App中',
+    'Mã không dùng được.': '此码无法使用。',
+    'Mạng đang chập chờn. Thử lại giúp em, hoặc gọi nhân viên.': '网络不稳定。请重试，或联系工作人员。',
+    'Ngân hàng / Số tài khoản': '银行 / 账号',
+    'Nội dung chuyển khoản': '转账备注',
+    'PIN phải gồm đúng 4 chữ số.': '密码必须是4位数字。',
+    'Phải trả: <b style="color:#f0b429;font-size:18px">': '应付：<b style="color:#f0b429;font-size:18px">',
+    'Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.': '忘记优惠码？请进入<b>我的优惠码</b>，输入手机号和密码。',
+    'Số tiền': '金额',
+    'Trả: <b style="color:#f0b429;font-size:18px">': '支付：<b style="color:#f0b429;font-size:18px">',
+    'anh/chị đang ngồi</b> — mã đó cho hệ thống biết đúng ghế, khỏi phải chọn.</div></div>': '</b> — 二维码会告知系统正确的椅子，无需手动选择。</div></div>',
+    'chạy cho người khác, mà mã thì mất rồi. Tem trên ghế mờ hay bong thì gọi nhân viên — ': '为他人启动，而优惠码已作废。若贴纸模糊或脱落，请联系工作人员 — ',
+    'chọn "quét từ thư viện ảnh".': '选择"从相册扫描"。',
+    'các gói bấm được.</p>': '可点击的套餐。</p>',
+    'còn dùng được': '仍可使用',
+    'không được ghi lại ở đâu cả.</div>': '其余部分不会保存。</div>',
+    'mình đang ngồi.</p>': '您所坐的按摩椅上。</p>',
+    'nhân viên chạy mã giúp được.</p>': '工作人员可代为使用优惠码。</p>',
+    'nhập lại số này và PIN là tiêu tiếp.</p>': '再次输入此号码和密码即可继续使用。</p>',
+    'rẻ hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế với giá gốc.</div></div>': '更便宜，代价是需要等待。今天就要用？请在椅子上按原价付款。</div></div>',
+    'trước thì lợi hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế.</div></div>': '更划算，代价是需要等待。今天就要用？请直接在椅子上付款。</div></div>',
+    'và ghế chạy ngay.</p>': '按摩椅立即启动。</p>',
+    'Đang kiểm mã…': '正在验证码…',
+    'Đang kiểm…': '检查中…',
+    'Đang mở ví…': '正在打开钱包…',
+    'Đang tra…': '查询中…',
+    'Đang tạo đơn…': '正在创建订单…',
+    'Đang xem trên chính máy này thì bấm <b>Tải ảnh mã QR</b>, rồi trong app ngân hàng chọn ': '如果正用本机查看，请点击<b>保存二维码</b>，然后在银行App中选择',
+    'đ': '越盾',
+    'được bằng số điện thoại và đọc mã giúp anh/chị.</p>': '工作人员可用手机号查询并告知您优惠码。</p>',
+    'được. Không khai thì gọi nhân viên — nhân viên tra bằng số điện thoại.</p>': '若未填写，请联系工作人员 — 他们可用手机号查询。</p>',
+    '⏳ dùng được từ ': '⏳ 可用日期 ',
+    '✓ Đã chép': '✓ 已复制'
+  },
+  ru: {
+    ' (được thêm ': ' (бонус ',
+    ' giờ': ' ч',
+    ' ngày': ' дн',
+    ' ngày kể từ bây giờ.</b>': ' дн. с этого момента.</b>',
+    ' ngày kể từ lúc mua.</b>': ' дн. после покупки.</b>',
+    ' ngày.</b>': ' дн.</b>',
+    ' ngày</b> — ở bất kỳ ghế nào, không hết hạn': ' дн.</b> — в любом кресле, без срока',
+    ' phút': ' мин',
+    ' phút</div>': ' мин</div>',
+    ' · ghế ': ' · кресло ',
+    ' đang trong hạn chờ': ' на удержании',
+    ' đang trong hạn chờ</b>': ' на удержании</b>',
+    ' — dùng được sau ': ' — доступно через ',
+    ' — nhận <b>': ' — получите <b>',
+    ' — tiết kiệm ': ' — экономия ',
+    '">Chép</button></div>': '">Копировать</button></div>',
+    '</b> vào ví': '</b> в кошелёк',
+    '</b> — nhận ': '</b> — получите ',
+    '</div><button id="t-thoat" style="width:100%;margin-top:6px">Đổi số điện thoại</button>': '</div><button id="t-thoat" style="width:100%;margin-top:6px">Другой номер</button>',
+    '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>': '<b style="color:#f0b429">точное назначение</b> ниже. Код появится здесь сразу после зачисления.</p>',
+    '<b style="color:#f0b429">⏳ Mã dùng được sau ': '<b style="color:#f0b429">⏳ Код доступен через ',
+    '<b style="color:#f0b429">⏳ Số dư nạp dùng được sau ': '<b style="color:#f0b429">⏳ Баланс доступен через ',
+    '<b>quét từ thư viện ảnh</b>.</p>': '<b>сканировать из галереи</b>.</p>',
+    '<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>': '<br><b>Кошелёк заблокирован — обратитесь к персоналу.</b>',
+    '<br><b>⏳ Dùng được sau ': '<br><b>⏳ Доступно через ',
+    '<br><span class="mut">Sai PIN hay quên PIN đều ra câu này. ': '<br><span class="mut">Неверный или забытый PIN даёт то же сообщение. ',
+    '<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>': '<br>Чтобы потратить: <b>отсканируйте QR на кресле</b>, введите номер и PIN.</div>',
+    '<br>⏳ Đang trong hạn chờ: <b>': '<br>⏳ На удержании: <b>',
+    '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>': '<button id="d-ok" class="chinh" style="margin-top:14px">Применить код и запустить</button>',
+    '<button id="huy" style="width:100%">Đổi gói khác</button>': '<button id="huy" style="width:100%">Другой пакет</button>',
+    '<button id="n-mua" class="chinh">Nạp ngay</button>': '<button id="n-mua" class="chinh">Пополнить</button>',
+    '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>': '<button id="q-ok" style="width:100%;margin-top:14px">Задать новый PIN</button>',
+    '<button id="qr-tai">⬇ Tải ảnh mã QR</button>': '<button id="qr-tai">⬇ Скачать QR</button>',
+    '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>': '<button id="t-mo" class="chinh" style="margin-top:14px">Открыть кошелёк</button>',
+    '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>': '<button id="t-xem" class="chinh" style="margin-top:14px">Показать мои коды</button>',
+    '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>': '<button id="v-xem" class="chinh" style="margin-top:14px">Показать баланс</button>',
+    '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">Купить ещё</button></div></div>',
+    '<div class="card"><h2>Dùng mã cho ghế</h2>': '<div class="card"><h2>Использовать код у кресла</h2>',
+    '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>': '<div class="card"><h2>Или используйте промокод</h2>',
+    '<div class="card"><h2>Mã của tôi</h2>': '<div class="card"><h2>Мои коды</h2>',
+    '<div class="card"><h2>Quên PIN?</h2>': '<div class="card"><h2>Забыли PIN?</h2>',
+    '<div class="card"><h2>Số dư ví</h2>': '<div class="card"><h2>Баланс кошелька</h2>',
+    '<div class="card"><h2>Thông tin nhận mã</h2>': '<div class="card"><h2>Данные для получения кода</h2>',
+    '<div class="card"><h2>Trả bằng số dư ví</h2>': '<div class="card"><h2>Оплата с кошелька</h2>',
+    '<div class="card"><h2>Ví của anh/chị</h2>': '<div class="card"><h2>Ваш кошелёк</h2>',
+    '<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>': '<div class="card"><h2>Платёж получен — вот ваш код</h2>',
+    '<div class="card"><h2>Đã nhận tiền — ví đã được cộng</h2>': '<div class="card"><h2>Платёж получен — кошелёк пополнен</h2>',
+    '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>': '<div class="card"><p class="mut">Пакеты пополнения пока не продаются.</p></div>',
+    '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>': '<div class="card"><p class="mut">Загрузка цен…</p></div>',
+    '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>': '<div class="cho" id="cho">⏳ Ожидаем поступление…</div>',
+    '<div class="cho">⏳ Đang trừ tiền…</div>': '<div class="cho">⏳ Списание…</div>',
+    '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>': '<div class="ck nhan" style="display:block"><div class="nh">Кресло не определено</div>',
+    '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>': '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ваше кресло</div>',
+    '<div class="deal"><b>Giảm tới ': '<div class="deal"><b>Скидка до ',
+    '<div class="deal"><b>Nạp càng nhiều, lợi càng lớn — tới ': '<div class="deal"><b>Чем больше пополнение, тем больше бонус — до ',
+    '<div class="g">chụp lại màn hình này giúp em</div></div>': '<div class="g">сделайте скриншот</div></div>',
+    '<div class="g">đã dùng ': '<div class="g">использован ',
+    '<div class="mo" style="color:#b32d2e">chưa đủ số dư</div>': '<div class="mo" style="color:#b32d2e">недостаточно средств</div>',
+    '<div class="mo">được thêm ': '<div class="mo">бонус ',
+    '<div class="mut" style="margin-top:5px">Đây là điều kiện của giá đã giảm: mua trước thì ': '<div class="mut" style="margin-top:5px">Это условие скидки: покупка заранее ',
+    '<div class="mut" style="margin-top:5px">Đây là điều kiện của phần được tặng thêm: nạp ': '<div class="mut" style="margin-top:5px">Это условие бонуса: пополните ',
+    '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>, phần còn lại ': '<div class="mut" style="margin:-4px 0 0">Сохраняем <b>только последние 4 цифры</b>, ',
+    '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>.</div>': '<div class="mut" style="margin:-4px 0 0">Сохраняем <b>только последние 4 цифры</b>.</div>',
+    '<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>': '<div class="mut" style="margin:12px 0 6px"><b>Последние</b></div>',
+    '<div class="ok" style="margin-top:12px">Tiêu được ngay: ': '<div class="ok" style="margin-top:12px">Доступно сейчас: ',
+    '<div class="ok" style="margin:0 0 12px">Số dư tiêu được: ': '<div class="ok" style="margin:0 0 12px">Доступный баланс: ',
+    '<div class="ok" style="margin:0 0 12px">Trả <b>': '<div class="ok" style="margin:0 0 12px">Оплатите <b>',
+    '<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. ': '<div class="ok">Коды <b>не истекают</b> и работают в <b>любом кресле</b>. ',
+    '<div class="ok">Ví của anh/chị nay có <b style="color:#f0b429">': '<div class="ok">На вашем кошельке теперь <b style="color:#f0b429">',
+    '<div class="ten">Nạp ': '<div class="ten">Пополнить ',
+    '<div style="margin-top:6px;line-height:1.5">Hãy <b>quét mã QR dán trên chính cái ghế ': '<div style="margin-top:6px;line-height:1.5">Пожалуйста, <b>отсканируйте QR-наклейку на том кресле, ',
+    '<div>Số dư dùng được ở <b>bất kỳ ghế nào</b>, tiêu lẻ từng lượt, không hết hạn</div></div>': '<div>Баланс работает в <b>любом кресле</b>, тратится посеансно, без срока</div></div>',
+    '<input id="cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">': '<input id="cc" type="tel" inputmode="numeric" placeholder="можно не заполнять" autocomplete="off">',
+    '<input id="n-cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">': '<input id="n-cc" type="tel" inputmode="numeric" placeholder="можно не заполнять" autocomplete="off">',
+    '<label>Mã giảm giá</label>': '<label>Промокод</label>',
+    '<label>PIN 4 số — ví đã có thì nhập <b>đúng PIN cũ</b></label>': '<label>PIN из 4 цифр — для существующего кошелька введите <b>старый PIN</b></label>',
+    '<label>PIN 4 số</label>': '<label>PIN из 4 цифр</label>',
+    '<label>PIN mới (4 số)</label>': '<label>Новый PIN (4 цифры)</label>',
+    '<label>Số căn cước (đã khai lúc mua)</label>': '<label>Номер документа (как при покупке)</label>',
+    '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>': '<label>Номер документа — <b>необязательно</b>, только для восстановления PIN</label>',
+    '<label>Số lượng</label>': '<label>Количество</label>',
+    '<label>Số điện thoại</label>': '<label>Номер телефона</label>',
+    '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>': '<label>Задайте PIN из 4 цифр — чтобы позже найти свои коды</label>',
+    '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ': '<p class="mut" style="margin:-4px 0 10px">Забыли PIN? <b>Обратитесь к персоналу</b> — ',
+    '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ': '<p class="mut" style="margin:0 0 10px"><b>Нажмите пакет</b> — сумма спишется с баланса ',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>': '<p class="mut" style="margin:0 0 10px">Введите номер телефона и PIN кошелька.</p>',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>': '<p class="mut" style="margin:0 0 10px">Введите номер телефона и PIN, заданные при покупке.</p>',
+    '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ': '<p class="mut" style="margin:0 0 10px">Введите номер телефона и PIN, чтобы увидеть баланс и ',
+    '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ': '<p class="mut" style="margin:0 0 10px">Если при покупке указали номер документа, можно задать новый PIN. ',
+    '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ': '<p class="mut" style="margin:0 0 10px">Баланс привязан к <b>номеру телефона</b>. В следующий раз ',
+    '<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, ': '<p class="mut" style="margin:0 0 12px">Или переведите вручную: точная сумма, ',
+    '<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế ': '<p class="mut" style="margin:6px 0 14px">Не то кресло? Отсканируйте QR на кресле, ',
+    '<p class="mut" style="margin:6px 0 14px;text-align:center">Quét bằng app ngân hàng. ': '<p class="mut" style="margin:6px 0 14px;text-align:center">Отсканируйте банковским приложением. ',
+    '<p class="mut">Không còn mã nào chưa dùng.</p>': '<p class="mut">Неиспользованных кодов нет.</p>',
+    '<p class="mut">Trang này cố ý <b>không</b> cho chọn ghế từ danh sách: chọn lộn là mã ': '<p class="mut">Эта страница намеренно <b>не</b> даёт выбрать кресло из списка: ошибётесь — и код ',
+    '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>': '<p class="mut">Купить код можно в разделе <b>Промокод</b> — кресло не нужно.</p>',
+    '>Của tôi</button>': '>Мои</button>',
+    '>Dùng tại ghế</button>': '>У кресла</button>',
+    '>Mua mã</button>': '>Промокод</button>',
+    '>Nạp ví</button>': '>Пополнить</button>',
+    'Chuyển khoản để nhận mã': 'Перевод для получения кода',
+    'Chuyển khoản để nạp ví': 'Перевод для пополнения',
+    'Chép dòng này:': 'Скопируйте:',
+    'Chưa biết ghế nào — quét mã QR trên ghế đang ngồi giúp em.': 'Кресло не определено — отсканируйте QR на своём кресле.',
+    'Chọn một gói nạp phía trên.': 'Выберите пакет пополнения выше.',
+    'Chọn một gói nạp trước nhé.': 'Сначала выберите пакет пополнения.',
+    'Chọn một gói trước nhé.': 'Сначала выберите пакет.',
+    'Gọi nhân viên, đọc số điện thoại — nhân viên tra được mã giúp anh/chị.</span>': 'Обратитесь к персоналу с номером телефона — они найдут ваш код.</span>',
+    'Không chạy được.': 'Не удалось запустить.',
+    'Không mở được ví.': 'Не удалось открыть кошелёк.',
+    'Không tra được.': 'Не удалось найти.',
+    'Không tìm thấy.': 'Не найдено.',
+    'Không tạo được đơn nạp.': 'Не удалось создать пополнение.',
+    'Không tạo được đơn.': 'Не удалось создать заказ.',
+    'Không đặt lại được.': 'Не удалось сбросить.',
+    'Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào': 'Купите сегодня — используйте когда угодно и в любом кресле',
+    'Mua mã giảm giá': 'Купить промокод',
+    'Mua trước, dùng sau <b>': 'Купите сейчас, используйте через <b>',
+    'Máy không cho tải ảnh. Anh/chị chụp màn hình mã QR này, rồi trong app ngân hàng ': 'Устройство заблокировало скачивание. Сделайте скриншот QR, затем в банковском приложении ',
+    'Mã không dùng được.': 'Код недействителен.',
+    'Mạng đang chập chờn. Thử lại giúp em, hoặc gọi nhân viên.': 'Сеть нестабильна. Попробуйте снова или обратитесь к персоналу.',
+    'Ngân hàng / Số tài khoản': 'Банк / Номер счёта',
+    'Nội dung chuyển khoản': 'Назначение платежа',
+    'PIN phải gồm đúng 4 chữ số.': 'PIN должен состоять из 4 цифр.',
+    'Phải trả: <b style="color:#f0b429;font-size:18px">': 'Итого: <b style="color:#f0b429;font-size:18px">',
+    'Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.': 'Потеряли код? Откройте <b>Мои коды</b> и введите номер телефона и PIN.',
+    'Số tiền': 'Сумма',
+    'Trả: <b style="color:#f0b429;font-size:18px">': 'К оплате: <b style="color:#f0b429;font-size:18px">',
+    'anh/chị đang ngồi</b> — mã đó cho hệ thống biết đúng ghế, khỏi phải chọn.</div></div>': 'в котором вы сидите</b> — код сам сообщит нужное кресло.</div></div>',
+    'chạy cho người khác, mà mã thì mất rồi. Tem trên ghế mờ hay bong thì gọi nhân viên — ': 'запустит чужое кресло, а код пропадёт. Если наклейка стёрлась — обратитесь к персоналу: ',
+    'chọn "quét từ thư viện ảnh".': 'выберите «сканировать из галереи».',
+    'các gói bấm được.</p>': 'доступные пакеты.</p>',
+    'còn dùng được': 'ещё действует',
+    'không được ghi lại ở đâu cả.</div>': 'остальное нигде не хранится.</div>',
+    'mình đang ngồi.</p>': 'в котором вы сидите.</p>',
+    'nhân viên chạy mã giúp được.</p>': 'персонал активирует код за вас.</p>',
+    'nhập lại số này và PIN là tiêu tiếp.</p>': 'введите этот номер и PIN, чтобы продолжить.</p>',
+    'rẻ hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế với giá gốc.</div></div>': 'дешевле в обмен на ожидание. Нужно сегодня — платите у кресла по полной цене.</div></div>',
+    'trước thì lợi hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế.</div></div>': 'выгоднее в обмен на ожидание. Нужно сегодня — платите прямо у кресла.</div></div>',
+    'và ghế chạy ngay.</p>': 'и кресло сразу запустится.</p>',
+    'Đang kiểm mã…': 'Проверка кода…',
+    'Đang kiểm…': 'Проверка…',
+    'Đang mở ví…': 'Открываем кошелёк…',
+    'Đang tra…': 'Поиск…',
+    'Đang tạo đơn…': 'Создаём заказ…',
+    'Đang xem trên chính máy này thì bấm <b>Tải ảnh mã QR</b>, rồi trong app ngân hàng chọn ': 'Смотрите с этого же телефона? Нажмите <b>Скачать QR</b>, затем в банковском приложении выберите ',
+    'đ': '₫',
+    'được bằng số điện thoại và đọc mã giúp anh/chị.</p>': 'персонал найдёт код по номеру телефона.</p>',
+    'được. Không khai thì gọi nhân viên — nhân viên tra bằng số điện thoại.</p>': 'Если нет — обратитесь к персоналу, они найдут по номеру телефона.</p>',
+    '⏳ dùng được từ ': '⏳ доступно с ',
+    '✓ Đã chép': '✓ Скопировано'
+  }
+};
+
+var NGON = [
+  { ma:'vi', ten:'VI', du:'Tiếng Việt' },
+  { ma:'en', ten:'EN', du:'English' },
+  { ma:'zh', ten:'中文', du:'中文' },
+  { ma:'ru', ten:'RU', du:'Русский' }
+];
+var NN = 'vi';
+try { var _n = localStorage.getItem('vhg_nn'); if (_n && TU[_n]) NN = _n; } catch (e) {}
+/* Không nhớ gì thì đoán theo ngôn ngữ trình duyệt — khách Trung/Nga mở trang là thấy tiếng
+   mình luôn, khỏi phải tìm nút. Đoán sai thì họ bấm một cái là xong. */
+if (NN === 'vi') {
+  try {
+    var _t = (navigator.language || '').toLowerCase();
+    if (_t.indexOf('zh') === 0) NN = 'zh';
+    else if (_t.indexOf('ru') === 0) NN = 'ru';
+    else if (_t.indexOf('vi') !== 0 && _t) NN = 'en';
+  } catch (e) {}
+}
+function L(s){
+  if (NN === 'vi') return s;
+  var b = TU[NN];
+  return (b && Object.prototype.hasOwnProperty.call(b, s)) ? b[s] : s;
+}
+/* Câu có chèn số: dịch phần chữ rồi mới thay {0}, {1}… — dịch sau khi đã chèn số thì không
+   khoá nào khớp nữa. */
+function Lf(s){
+  var t = L(s), a = arguments;
+  return t.replace(/\{(\d)\}/g, function(_, i){ var v = a[Number(i) + 1]; return v === undefined ? '' : v; });
+}
+function veNgon(){
+  var h = '<div class="nn">';
+  NGON.forEach(function(g){
+    h += '<button data-nn="' + g.ma + '"' + (NN === g.ma ? ' class="on"' : '')
+      + ' title="' + esc(g.du) + '">' + esc(g.ten) + '</button>';
+  });
+  return h + '</div>';
+}
 var D = null, CHON = null, SL = 1, TAB = 'mua', DON = null, hen = null, ban = false;
 /* NAP = chỉ số gói nạp đang chọn; VI = số dư vừa tra được. Để riêng CHON của gói mã: hai luồng
    mua khác nhau, dùng chung một biến là chọn bên này lại sáng nút bên kia. */
@@ -521,14 +1044,14 @@ function nhoSdt(v){
 function docCho(giay){
   var g = Math.max(0, Number(giay) || 0);
   var ngay = Math.floor(g / 86400), gio = Math.floor((g % 86400) / 3600);
-  if (ngay > 0) return ngay + ' ngày' + (gio > 0 ? ' ' + gio + ' giờ' : '');
-  if (gio > 0)  return gio + ' giờ';
-  return Math.max(1, Math.ceil(g / 60)) + ' phút';
+  if (ngay > 0) return ngay + L(' ngày') + (gio > 0 ? ' ' + gio + L(' giờ') : '');
+  if (gio > 0)  return gio + L(' giờ');
+  return Math.max(1, Math.ceil(g / 60)) + L(' phút');
 }
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
-function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + 'đ'; }
+function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + L('đ'); }
 
 function goi(viec, d, xong){
   d = d || {};
@@ -541,7 +1064,7 @@ function goi(viec, d, xong){
     try { r = JSON.parse(x.responseText); } catch(e){}
     /* Máy chủ trả rác (tường lửa hosting chèn trang chặn) KHÔNG được thành một câu báo lỗi khó
        hiểu — khách đang định trả tiền, họ cần biết nên làm gì tiếp. */
-    if (!r) r = { ok:false, error:'Mạng đang chập chờn. Thử lại giúp em, hoặc gọi nhân viên.' };
+    if (!r) r = { ok:false, error:L('Mạng đang chập chờn. Thử lại giúp em, hoặc gọi nhân viên.') };
     xong(r);
   };
   x.send(JSON.stringify(d));
@@ -550,7 +1073,7 @@ function goi(viec, d, xong){
 /* Sao chép — có đường lui. `navigator.clipboard` chỉ chạy trên HTTPS và trên một số trình duyệt;
    không có đường lui thì nút bấm không làm gì cả và khách không hiểu vì sao. */
 function chep(txt, nut){
-  function xong(){ var cu = nut.textContent; nut.textContent = '✓ Đã chép';
+  function xong(){ var cu = nut.textContent; nut.textContent = L('✓ Đã chép');
     setTimeout(function(){ nut.textContent = cu; }, 1400); }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(txt).then(xong, function(){ tayChep(txt, xong); });
@@ -560,13 +1083,16 @@ function tayChep(txt, xong){
   var o = document.createElement('textarea');
   o.value = txt; o.style.position='fixed'; o.style.opacity='0';
   document.body.appendChild(o); o.select();
-  try { document.execCommand('copy'); xong(); } catch(e){ prompt('Chép dòng này:', txt); }
+  try { document.execCommand('copy'); xong(); } catch(e){ prompt(L('Chép dòng này:'), txt); }
   document.body.removeChild(o);
 }
 
 function dau(){
-  return '<div class="hero"><div class="o">🎁</div>'
-    + '<h1>Mua mã giảm giá</h1>'
+  /* Ô chọn ngôn ngữ ở TRÊN CÙNG, trước cả tiêu đề: khách không đọc được tiếng Việt thì thứ đầu
+     tiên họ cần là cái nút đổi tiếng, không phải cái tiêu đề họ không hiểu. */
+  return veNgon()
+    + '<div class="hero"><div class="o">🎁</div>'
+    + '<h1>' + L('Mua mã giảm giá') + '</h1>'
     + '<div class="sub">' + esc(TEN) + '</div></div>';
 }
 
@@ -576,10 +1102,10 @@ function tab(){
   var coNap = !!(D && D.goi_nap && D.goi_nap.length);
   var coMa  = !D || D.ban_ma !== 0;          // chưa tải xong thì cứ hiện, tránh tab nhấp nháy
   return '<div class="tabs">'
-    + (coNap ? '<button data-tab="nap"' + (TAB==='nap'?' class="on"':'') + '>Nạp ví</button>' : '')
-    + (coMa ? '<button data-tab="mua"' + (TAB==='mua'?' class="on"':'') + '>Mua mã</button>' : '')
-    + '<button data-tab="cua-toi"' + (TAB==='cua-toi'?' class="on"':'') + '>Của tôi</button>'
-    + '<button data-tab="dung"' + (TAB==='dung'?' class="on"':'') + '>Dùng tại ghế</button>'
+    + (coNap ? '<button data-tab="nap"' + (TAB==='nap'?' class="on"':'') + L('>Nạp ví</button>') : '')
+    + (coMa ? '<button data-tab="mua"' + (TAB==='mua'?' class="on"':'') + L('>Mua mã</button>') : '')
+    + '<button data-tab="cua-toi"' + (TAB==='cua-toi'?' class="on"':'') + L('>Của tôi</button>')
+    + '<button data-tab="dung"' + (TAB==='dung'?' class="on"':'') + L('>Dùng tại ghế</button>')
     + '</div>';
 }
 
@@ -608,43 +1134,43 @@ function ve(){
 function veNap(){
   if (DON) return veTraTien();
   if (!D || !D.goi_nap || !D.goi_nap.length) {
-    return '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>';
+    return L('<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>');
   }
   var cho = (D.cho_ngay || 0), h = '';
   var loiMax = 0;
   D.goi_nap.forEach(function(g){ if (g.loi_pt > loiMax) loiMax = g.loi_pt; });
-  h += '<div class="deal"><b>Nạp càng nhiều, lợi càng lớn — tới ' + loiMax + '%</b>'
-    + '<div>Số dư dùng được ở <b>bất kỳ ghế nào</b>, tiêu lẻ từng lượt, không hết hạn</div></div>';
+  h += L('<div class="deal"><b>Nạp càng nhiều, lợi càng lớn — tới ') + loiMax + '%</b>'
+    + L('<div>Số dư dùng được ở <b>bất kỳ ghế nào</b>, tiêu lẻ từng lượt, không hết hạn</div></div>');
   if (cho > 0) {
     h += '<div class="card" style="border-color:rgba(240,180,41,.45)">'
-      + '<b style="color:#f0b429">⏳ Số dư nạp dùng được sau ' + cho + ' ngày.</b>'
-      + '<div class="mut" style="margin-top:5px">Đây là điều kiện của phần được tặng thêm: nạp '
-      + 'trước thì lợi hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế.</div></div>';
+      + L('<b style="color:#f0b429">⏳ Số dư nạp dùng được sau ') + cho + L(' ngày.</b>')
+      + L('<div class="mut" style="margin-top:5px">Đây là điều kiện của phần được tặng thêm: nạp ')
+      + L('trước thì lợi hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế.</div></div>');
   }
   h += '<div class="goi">';
   D.goi_nap.forEach(function(g, i){
     h += '<div class="g' + (NAP === i ? ' chon' : '') + '" data-nap="' + i + '">'
       + '<span class="vip">+' + g.loi_pt + '%</span>'
-      + '<div class="ten">Nạp ' + tien(g.nap) + '</div>'
-      + '<div class="mo">được thêm ' + tien(g.them) + '</div>'
+      + L('<div class="ten">Nạp ') + tien(g.nap) + '</div>'
+      + L('<div class="mo">được thêm ') + tien(g.them) + '</div>'
       + '<div class="gia"><span class="moi">' + tien(g.nhan) + '</span>'
       + '<span class="cu">' + tien(g.nap) + '</span></div></div>';
   });
   h += '</div>';
-  h += '<div class="card"><h2>Ví của anh/chị</h2>'
-    + '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, '
-    + 'nhập lại số này và PIN là tiêu tiếp.</p>'
-    + '<label>Số điện thoại</label>'
+  h += L('<div class="card"><h2>Ví của anh/chị</h2>')
+    + L('<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, ')
+    + L('nhập lại số này và PIN là tiêu tiếp.</p>')
+    + L('<label>Số điện thoại</label>')
     + '<input id="n-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456" autocomplete="tel">'
     /* ⚠️ Ví ĐÃ CÓ thì đây là PIN CŨ, không phải PIN mới — nói rõ, không thì khách gõ một PIN
        khác rồi bị từ chối mà không hiểu vì sao. */
-    + '<label>PIN 4 số — ví đã có thì nhập <b>đúng PIN cũ</b></label>'
+    + L('<label>PIN 4 số — ví đã có thì nhập <b>đúng PIN cũ</b></label>')
     + '<input id="n-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-    + '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>'
-    + '<input id="n-cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">'
-    + '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>.</div>'
+    + L('<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>')
+    + L('<input id="n-cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">')
+    + L('<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>.</div>')
     + '<div id="n-tong" class="mut" style="margin:12px 0 4px"></div>'
-    + '<button id="n-mua" class="chinh">Nạp ngay</button>'
+    + L('<button id="n-mua" class="chinh">Nạp ngay</button>')
     + '<div class="err" id="e"></div></div>';
   return h;
 }
@@ -652,17 +1178,17 @@ function veNap(){
 // ------------------------------------------------------------------ mua
 function veMua(){
   if (DON) return veTraTien();
-  if (!D) return '<div class="card"><p class="mut">Đang tải bảng giá…</p></div>';
+  if (!D) return L('<div class="card"><p class="mut">Đang tải bảng giá…</p></div>');
 
   var max = 0;
   D.goi.forEach(function(g){ if (g.giam_pt > max) max = g.giam_pt; });
   var h = '';
   var cho = (D.cho_ngay || 0);
   if (max > 0) {
-    h += '<div class="deal"><b>Giảm tới ' + max + '%</b><div>'
+    h += L('<div class="deal"><b>Giảm tới ') + max + '%</b><div>'
       + (cho > 0
-          ? 'Mua trước, dùng sau <b>' + cho + ' ngày</b> — ở bất kỳ ghế nào, không hết hạn'
-          : 'Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào')
+          ? L('Mua trước, dùng sau <b>') + cho + L(' ngày</b> — ở bất kỳ ghế nào, không hết hạn')
+          : L('Mua hôm nay, dùng bất cứ lúc nào, ở bất kỳ ghế nào'))
       + '</div></div>';
   }
   /* 🔴 NÓI ĐIỀU KIỆN CHỜ TRƯỚC KHI KHÁCH TRẢ TIỀN, và nói to. Đây là thứ dễ làm khách thấy mình
@@ -670,9 +1196,9 @@ function veMua(){
      việc trả tiền trước — đổi được cái gì thì phải nói rõ từ đầu. */
   if (cho > 0) {
     h += '<div class="card" style="border-color:rgba(240,180,41,.45)">'
-      + '<b style="color:#f0b429">⏳ Mã dùng được sau ' + cho + ' ngày kể từ lúc mua.</b>'
-      + '<div class="mut" style="margin-top:5px">Đây là điều kiện của giá đã giảm: mua trước thì '
-      + 'rẻ hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế với giá gốc.</div></div>';
+      + L('<b style="color:#f0b429">⏳ Mã dùng được sau ') + cho + L(' ngày kể từ lúc mua.</b>')
+      + L('<div class="mut" style="margin-top:5px">Đây là điều kiện của giá đã giảm: mua trước thì ')
+      + L('rẻ hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế với giá gốc.</div></div>');
   }
 
   h += '<div class="goi">';
@@ -689,21 +1215,21 @@ function veMua(){
   });
   h += '</div>';
 
-  h += '<div class="card"><h2>Thông tin nhận mã</h2>'
-    + '<label>Số điện thoại</label>'
+  h += L('<div class="card"><h2>Thông tin nhận mã</h2>')
+    + L('<label>Số điện thoại</label>')
     + '<input id="sdt" type="tel" inputmode="numeric" placeholder="0909 123 456" autocomplete="tel">'
     /* PIN để lần sau tra lại mã. Nói rõ CÔNG DỤNG ngay cạnh ô, không nhét vào chữ nhỏ: khách
        không hiểu để làm gì thì gõ bừa, rồi hôm sau không tra được mã đã mua. */
-    + '<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>'
+    + L('<label>Đặt PIN 4 số — để lần sau tra lại mã của mình</label>')
     + '<input id="pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
     /* Căn cước KHÔNG bắt buộc, và nói rõ chỉ giữ 4 số cuối. Bắt buộc căn cước để mua một lượt
        massage 85.000đ là mất khách ngay bước đầu; còn giấu chuyện chỉ giữ 4 số cuối thì khách
        ngại khai, mà đó lại đúng là thứ làm họ yên tâm. */
-    + '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>'
-    + '<input id="cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">'
-    + '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>, phần còn lại '
-    + 'không được ghi lại ở đâu cả.</div>'
-    + '<label>Số lượng</label>'
+    + L('<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>')
+    + L('<input id="cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">')
+    + L('<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>, phần còn lại ')
+    + L('không được ghi lại ở đâu cả.</div>')
+    + L('<label>Số lượng</label>')
     + '<input id="sl" type="number" min="1" max="10" value="' + SL + '">'
     + '<div id="tong" class="mut" style="margin:12px 0 4px"></div>'
     + '<button id="mua" class="chinh">Mua ngay</button>'
@@ -714,35 +1240,35 @@ function veMua(){
 function veTraTien(){
   var laNap = (DON.loai === 'nap');
   var h = '<div class="card"><h2>'
-    + (laNap ? 'Chuyển khoản để nạp ví' : 'Chuyển khoản để nhận mã') + '</h2>';
+    + (laNap ? L('Chuyển khoản để nạp ví') : L('Chuyển khoản để nhận mã')) + '</h2>';
   /* Nhắc lại NHẬN ĐƯỢC BAO NHIÊU ngay trên mã QR. Khách đang ở bước rút ví ra trả tiền — đó
      đúng là lúc con số "được 120.000đ" cần đứng trước mắt, không phải lúc họ mới chọn gói. */
   if (laNap) {
-    h += '<div class="ok" style="margin:0 0 12px">Trả <b>' + tien(DON.phai_tra) + '</b> — nhận '
-      + '<b style="color:#f0b429">' + tien(DON.nhan_tien) + '</b> vào ví'
-      + (DON.them > 0 ? ' (được thêm ' + tien(DON.them) + ')' : '') + '.</div>';
+    h += L('<div class="ok" style="margin:0 0 12px">Trả <b>') + tien(DON.phai_tra) + L('</b> — nhận ')
+      + '<b style="color:#f0b429">' + tien(DON.nhan_tien) + L('</b> vào ví')
+      + (DON.them > 0 ? L(' (được thêm ') + tien(DON.them) + ')' : '') + '.</div>';
   }
   /* MÃ QR TRƯỚC, chữ chép tay sau. Quét (hoặc chọn ảnh từ thư viện) nhanh và không gõ nhầm được;
      phần chữ là đường dự phòng cho ai muốn gõ tay. */
   if (DON.qr && DON.qr.length) {
     h += '<div class="qr-hop"><canvas id="qr-canvas"></canvas></div>'
       + '<div class="qr-nut">'
-      + '<button id="qr-tai">⬇ Tải ảnh mã QR</button>'
+      + L('<button id="qr-tai">⬇ Tải ảnh mã QR</button>')
       + '</div>'
-      + '<p class="mut" style="margin:6px 0 14px;text-align:center">Quét bằng app ngân hàng. '
-      + 'Đang xem trên chính máy này thì bấm <b>Tải ảnh mã QR</b>, rồi trong app ngân hàng chọn '
-      + '<b>quét từ thư viện ảnh</b>.</p>';
+      + L('<p class="mut" style="margin:6px 0 14px;text-align:center">Quét bằng app ngân hàng. ')
+      + L('Đang xem trên chính máy này thì bấm <b>Tải ảnh mã QR</b>, rồi trong app ngân hàng chọn ')
+      + L('<b>quét từ thư viện ảnh</b>.</p>');
   }
-  h += '<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, '
-    + '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>'
-    + o_ck('Ngân hàng / Số tài khoản', DON.so_tk, DON.so_tk, '')
+  h += L('<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, ')
+    + L('<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>')
+    + o_ck(L('Ngân hàng / Số tài khoản'), DON.so_tk, DON.so_tk, '')
     + (DON.ten_tk ? '<div class="mut" style="margin:-4px 0 8px 2px">' + esc(DON.ten_tk) + '</div>' : '')
-    + o_ck('Số tiền', tien(DON.phai_tra), String(DON.phai_tra), '')
+    + o_ck(L('Số tiền'), tien(DON.phai_tra), String(DON.phai_tra), '')
     /* Ô nội dung tô vàng: đây là thứ sai một ký tự là tiền lạc, còn hai ô trên sai thì ngân hàng
        tự báo lỗi. Hai loại rủi ro khác hẳn nhau nên trông cũng phải khác nhau. */
-    + o_ck('Nội dung chuyển khoản', DON.noi_dung, DON.noi_dung, ' nhan')
-    + '<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>'
-    + '<button id="huy" style="width:100%">Đổi gói khác</button>'
+    + o_ck(L('Nội dung chuyển khoản'), DON.noi_dung, DON.noi_dung, ' nhan')
+    + L('<div class="cho" id="cho">⏳ Đang chờ tiền về…</div>')
+    + L('<button id="huy" style="width:100%">Đổi gói khác</button>')
     + '<div class="err" id="e"></div></div>';
   return h;
 }
@@ -768,7 +1294,7 @@ function o_ck(nhan, hien, chep_, lop){
   return '<div class="ck' + (lop||'') + '"><div style="flex:1;min-width:0">'
     + '<div class="nh">' + esc(nhan) + '</div>'
     + '<div class="gt' + (String(hien).length > 18 ? ' nho' : '') + '">' + esc(hien) + '</div></div>'
-    + '<button data-chep="' + esc(chep_) + '">Chép</button></div>';
+    + '<button data-chep="' + esc(chep_) + L('">Chép</button></div>');
 }
 
 // ------------------------------------------------------------------ mã của tôi
@@ -777,17 +1303,17 @@ function veCuaToi(){
      có bán gói nạp — chưa bán mà vẫn hiện là bày ra một ô không ai dùng được. */
   var hv = '';
   if (D && D.goi_nap && D.goi_nap.length) {
-    hv = '<div class="card"><h2>Số dư ví</h2>'
-      + '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>'
-      + '<label>Số điện thoại</label>'
+    hv = L('<div class="card"><h2>Số dư ví</h2>')
+      + L('<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>')
+      + L('<label>Số điện thoại</label>')
       + '<input id="v-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
-      + '<label>PIN 4 số</label>'
+      + L('<label>PIN 4 số</label>')
       + '<input id="v-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-      + '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>'
+      + L('<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>')
       + '<div class="err" id="v-e"></div><div id="v-kq"></div></div>';
   }
-  return hv + '<div class="card"><h2>Mã của tôi</h2>'
-    + '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>'
+  return hv + L('<div class="card"><h2>Mã của tôi</h2>')
+    + L('<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>')
     /* 🔴 QUÊN PIN LÀ CHUYỆN SẼ XẢY RA, không phải nếu. Khách đặt PIN một lần rồi ba tuần sau mới
        quay lại. Không nói trước lối ra thì họ gõ mười lần, bị hãm, rồi bỏ đi — mang theo cái mã
        đã trả tiền.
@@ -795,25 +1321,25 @@ function veCuaToi(){
           khách là số điện thoại, mà số điện thoại thì người khác đoán được. Tự đặt lại PIN bằng
           một thứ đoán được là gỡ đúng cái khoá vừa lắp. Nhân viên tra hộ mới là lối đúng — họ
           nhìn thấy mặt khách. */
-    + '<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra '
-    + 'được bằng số điện thoại và đọc mã giúp anh/chị.</p>'
-    + '<label>Số điện thoại</label>'
+    + L('<p class="mut" style="margin:-4px 0 10px">Quên PIN thì <b>gọi nhân viên</b> — nhân viên tra ')
+    + L('được bằng số điện thoại và đọc mã giúp anh/chị.</p>')
+    + L('<label>Số điện thoại</label>')
     + '<input id="t-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
-    + '<label>PIN 4 số</label>'
+    + L('<label>PIN 4 số</label>')
     + '<input id="t-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-    + '<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>'
+    + L('<button id="t-xem" class="chinh" style="margin-top:14px">Xem mã của tôi</button>')
     + '<div class="err" id="e"></div><div id="kq"></div></div>'
     /* Ô lấy lại PIN để RIÊNG một khối, dưới khối tra: người nhớ PIN không phải nhìn thấy nó. */
-    + '<div class="card"><h2>Quên PIN?</h2>'
-    + '<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới '
-    + 'được. Không khai thì gọi nhân viên — nhân viên tra bằng số điện thoại.</p>'
-    + '<label>Số điện thoại</label>'
+    + L('<div class="card"><h2>Quên PIN?</h2>')
+    + L('<p class="mut" style="margin:0 0 10px">Nếu lúc mua có khai số căn cước thì tự đặt PIN mới ')
+    + L('được. Không khai thì gọi nhân viên — nhân viên tra bằng số điện thoại.</p>')
+    + L('<label>Số điện thoại</label>')
     + '<input id="q-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
-    + '<label>Số căn cước (đã khai lúc mua)</label>'
+    + L('<label>Số căn cước (đã khai lúc mua)</label>')
     + '<input id="q-cc" type="tel" inputmode="numeric" autocomplete="off">'
-    + '<label>PIN mới (4 số)</label>'
+    + L('<label>PIN mới (4 số)</label>')
     + '<input id="q-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-    + '<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>'
+    + L('<button id="q-ok" style="width:100%;margin-top:14px">Đặt PIN mới</button>')
     + '<div class="err" id="q-e"></div></div>';
 }
 
@@ -834,22 +1360,22 @@ function veCuaToi(){
  * ============================================================================================ */
 function veDung(){
   if (!GHE) {
-    return '<div class="card"><h2>Dùng mã cho ghế</h2>'
-      + '<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>'
-      + '<div style="margin-top:6px;line-height:1.5">Hãy <b>quét mã QR dán trên chính cái ghế '
-      + 'anh/chị đang ngồi</b> — mã đó cho hệ thống biết đúng ghế, khỏi phải chọn.</div></div>'
-      + '<p class="mut">Trang này cố ý <b>không</b> cho chọn ghế từ danh sách: chọn lộn là mã '
-      + 'chạy cho người khác, mà mã thì mất rồi. Tem trên ghế mờ hay bong thì gọi nhân viên — '
-      + 'nhân viên chạy mã giúp được.</p>'
-      + '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>'
+    return L('<div class="card"><h2>Dùng mã cho ghế</h2>')
+      + L('<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>')
+      + L('<div style="margin-top:6px;line-height:1.5">Hãy <b>quét mã QR dán trên chính cái ghế ')
+      + L('anh/chị đang ngồi</b> — mã đó cho hệ thống biết đúng ghế, khỏi phải chọn.</div></div>')
+      + L('<p class="mut">Trang này cố ý <b>không</b> cho chọn ghế từ danh sách: chọn lộn là mã ')
+      + L('chạy cho người khác, mà mã thì mất rồi. Tem trên ghế mờ hay bong thì gọi nhân viên — ')
+      + L('nhân viên chạy mã giúp được.</p>')
+      + L('<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>')
       + '</div>';
   }
   /* ⚠️ Ghế hiện MỘT LẦN ở đầu trang, không lặp lại trong từng khối: khách chỉ cần biết "mình
      đang ở ghế nào" đúng một lần, lặp lại là nhiễu. */
-  var h = '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>'
+  var h = L('<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>')
     + '<div class="gt">' + esc(GHE) + '</div></div></div>'
-    + '<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế '
-    + 'mình đang ngồi.</p>';
+    + L('<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế ')
+    + L('mình đang ngồi.</p>');
 
   /* ══════════════════════════════════════════════════════════════════════════════════════════
    * TRẢ BẰNG SỐ DƯ — ĐỨNG TRƯỚC, VÀ LÀ THẺ BẤM.
@@ -865,28 +1391,28 @@ function veDung(){
    * 🔴 SỐ PHÚT LẤY THEO GHẾ NÀY, không phải tỉ lệ chung — xem VHG_Ma::ds_menh_gia($ma_may).
    * ══════════════════════════════════════════════════════════════════════════════════════════ */
   if (D && D.goi_nap && D.goi_nap.length) {
-    h += '<div class="card"><h2>Trả bằng số dư ví</h2>';
+    h += L('<div class="card"><h2>Trả bằng số dư ví</h2>');
     if (!VI) {
-      h += '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và '
-        + 'các gói bấm được.</p>'
-        + '<label>Số điện thoại</label>'
+      h += L('<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và ')
+        + L('các gói bấm được.</p>')
+        + L('<label>Số điện thoại</label>')
         + '<input id="t-vsdt" type="tel" inputmode="numeric" placeholder="0909 123 456" value="'
         + esc(nhoSdt()) + '">'
-        + '<label>PIN 4 số</label>'
+        + L('<label>PIN 4 số</label>')
         + '<input id="t-vpin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-        + '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>'
+        + L('<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>')
         + '<div class="err" id="t-e"></div>';
     } else {
       var sd = VI.so_du || {};
-      h += '<div class="ok" style="margin:0 0 12px">Số dư tiêu được: '
+      h += L('<div class="ok" style="margin:0 0 12px">Số dư tiêu được: ')
         + '<b style="color:#f0b429;font-size:18px">' + tien(sd.dung || 0) + '</b>'
         + (sd.cho > 0
-            ? '<br>⏳ ' + tien(sd.cho) + ' đang trong hạn chờ'
-              + (sd.con_cho > 0 ? ' — dùng được sau ' + docCho(sd.con_cho) : '')
+            ? '<br>⏳ ' + tien(sd.cho) + L(' đang trong hạn chờ')
+              + (sd.con_cho > 0 ? L(' — dùng được sau ') + docCho(sd.con_cho) : '')
             : '')
         + '</div>'
-        + '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư '
-        + 'và ghế chạy ngay.</p>'
+        + L('<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư ')
+        + L('và ghế chạy ngay.</p>')
         + '<div class="goi">';
       (D.goi || []).forEach(function(g){
         /* Gói quá số dư thì làm mờ và KHÔNG cho bấm — để bấm rồi báo lỗi là bắt khách phát hiện
@@ -896,12 +1422,12 @@ function veDung(){
           + '>'
           + (g.vip ? '<span class="vip">VVIP</span>' : '')
           + '<div class="ten">' + esc(g.ten || tien(g.menh_gia)) + '</div>'
-          + (g.phut > 0 ? '<div class="mo">' + g.phut + ' phút</div>' : '')
+          + (g.phut > 0 ? '<div class="mo">' + g.phut + L(' phút</div>') : '')
           + '<div class="gia"><span class="moi">' + tien(g.menh_gia) + '</span></div>'
-          + (du ? '' : '<div class="mo" style="color:#b32d2e">chưa đủ số dư</div>')
+          + (du ? '' : L('<div class="mo" style="color:#b32d2e">chưa đủ số dư</div>'))
           + '</div>';
       });
-      h += '</div><button id="t-thoat" style="width:100%;margin-top:6px">Đổi số điện thoại</button>'
+      h += L('</div><button id="t-thoat" style="width:100%;margin-top:6px">Đổi số điện thoại</button>')
         + '<div class="err" id="t-e"></div><div id="t-kq"></div>';
     }
     h += '</div>';
@@ -909,10 +1435,10 @@ function veDung(){
 
   /* Khối MÃ đứng sau, và chỉ hiện khi cửa hàng còn bán mã. Đã bán mã trước đây thì mã cũ vẫn
      dùng được — nên khối này CÒN kể cả khi đã tắt bán thêm. */
-  h += '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>'
-    + '<label>Mã giảm giá</label>'
+  h += L('<div class="card"><h2>Hoặc dùng mã giảm giá</h2>')
+    + L('<label>Mã giảm giá</label>')
     + '<input id="d-ma" placeholder="ABCD-EFGH" autocapitalize="characters" autocomplete="off">'
-    + '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>'
+    + L('<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>')
     + '<div class="err" id="e"></div><div id="kq"></div></div>';
 
   return h;
@@ -922,17 +1448,17 @@ function veDung(){
    thành một con số là khách thấy có tiền mà ghế không chạy, rồi tưởng hệ thống nuốt tiền. */
 function veSoDu(r){
   var sd = r.so_du || {};
-  var h = '<div class="ok" style="margin-top:12px">Tiêu được ngay: '
+  var h = L('<div class="ok" style="margin-top:12px">Tiêu được ngay: ')
     + '<b style="color:#f0b429;font-size:18px">' + tien(sd.dung || 0) + '</b>';
   if (sd.cho > 0) {
-    h += '<br>⏳ Đang trong hạn chờ: <b>' + tien(sd.cho) + '</b>'
-      + (sd.con_cho > 0 ? ' — dùng được sau ' + docCho(sd.con_cho) : '');
+    h += L('<br>⏳ Đang trong hạn chờ: <b>') + tien(sd.cho) + '</b>'
+      + (sd.con_cho > 0 ? L(' — dùng được sau ') + docCho(sd.con_cho) : '');
   }
-  if (sd.khoa) h += '<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>';
+  if (sd.khoa) h += L('<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>');
   h += '</div>';
   var so = r.so || [];
   if (so.length) {
-    h += '<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>';
+    h += L('<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>');
     so.forEach(function(d){
       var t = Number(d.thay_doi) || 0;
       if (!t) return;
@@ -951,11 +1477,18 @@ function tongTien(){
   if (!o || CHON === null || !D) { if (o) o.textContent = ''; return; }
   var g = D.goi[CHON];
   var n = Math.max(1, Math.min(10, Number((document.getElementById('sl')||{}).value) || 1));
-  o.innerHTML = 'Phải trả: <b style="color:#f0b429;font-size:18px">' + tien(g.gia_ban * n) + '</b>'
-    + (g.giam_pt > 0 ? ' — tiết kiệm ' + tien((g.menh_gia - g.gia_ban) * n) : '');
+  o.innerHTML = L('Phải trả: <b style="color:#f0b429;font-size:18px">') + tien(g.gia_ban * n) + '</b>'
+    + (g.giam_pt > 0 ? L(' — tiết kiệm ') + tien((g.menh_gia - g.gia_ban) * n) : '');
 }
 
 function noi(){
+  [].forEach.call(document.querySelectorAll('[data-nn]'), function(b){
+    b.onclick = function(){
+      NN = b.getAttribute('data-nn');
+      try { localStorage.setItem('vhg_nn', NN); } catch (e) {}
+      ve();
+    };
+  });
   [].forEach.call(document.querySelectorAll('[data-tab]'), function(b){
     b.onclick = function(){ TAB = b.getAttribute('data-tab'); ve(); };
   });
@@ -969,24 +1502,24 @@ function noi(){
   var nTong = document.getElementById('n-tong');
   if (nTong) {
     nTong.innerHTML = (NAP === null || !D.goi_nap[NAP])
-      ? 'Chọn một gói nạp phía trên.'
-      : 'Trả: <b style="color:#f0b429;font-size:18px">' + tien(D.goi_nap[NAP].nap) + '</b>'
-        + ' — nhận <b>' + tien(D.goi_nap[NAP].nhan) + '</b> vào ví';
+      ? L('Chọn một gói nạp phía trên.')
+      : L('Trả: <b style="color:#f0b429;font-size:18px">') + tien(D.goi_nap[NAP].nap) + '</b>'
+        + L(' — nhận <b>') + tien(D.goi_nap[NAP].nhan) + L('</b> vào ví');
   }
   var nMua = document.getElementById('n-mua');
   if (nMua) nMua.onclick = function(){
     var e = document.getElementById('e');
-    if (NAP === null) { e.textContent = 'Chọn một gói nạp trước nhé.'; return; }
+    if (NAP === null) { e.textContent = L('Chọn một gói nạp trước nhé.'); return; }
     var sdt = (document.getElementById('n-sdt').value || '').trim();
     var pin = (document.getElementById('n-pin').value || '').trim();
-    if (!/^\d{4}$/.test(pin)) { e.textContent = 'PIN phải gồm đúng 4 chữ số.'; return; }
+    if (!/^\d{4}$/.test(pin)) { e.textContent = L('PIN phải gồm đúng 4 chữ số.'); return; }
     if (ban) return;
-    ban = true; nMua.disabled = true; e.textContent = 'Đang tạo đơn…';
+    ban = true; nMua.disabled = true; e.textContent = L('Đang tạo đơn…');
     goi('dat_nap', { sdt: sdt, pin: pin, cc: (document.getElementById('n-cc')||{}).value || '',
                      nap: D.goi_nap[NAP].nap },
       function(r){
         ban = false; nMua.disabled = false;
-        if (!r.ok) { e.textContent = r.error || 'Không tạo được đơn nạp.'; return; }
+        if (!r.ok) { e.textContent = r.error || L('Không tạo được đơn nạp.'); return; }
         DON = r; ve(); soiDon();
       });
   };
@@ -997,10 +1530,10 @@ function noi(){
     var sdt = (document.getElementById('v-sdt').value || '').trim();
     var pin = (document.getElementById('v-pin').value || '').trim();
     if (ban) return;
-    ban = true; vXem.disabled = true; e.textContent = ''; kq.innerHTML = 'Đang tra…';
+    ban = true; vXem.disabled = true; e.textContent = ''; kq.innerHTML = L('Đang tra…');
     goi('vi', { sdt: sdt, pin: pin }, function(r){
       ban = false; vXem.disabled = false;
-      if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || 'Không tra được.'; return; }
+      if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || L('Không tra được.'); return; }
       VI = r; kq.innerHTML = veSoDu(r);
     });
   };
@@ -1012,12 +1545,12 @@ function noi(){
     var e = document.getElementById('t-e');
     var sdt = (document.getElementById('t-vsdt').value || '').trim();
     var pin = (document.getElementById('t-vpin').value || '').trim();
-    if (!/^\d{4}$/.test(pin)) { e.textContent = 'PIN phải gồm đúng 4 chữ số.'; return; }
+    if (!/^\d{4}$/.test(pin)) { e.textContent = L('PIN phải gồm đúng 4 chữ số.'); return; }
     if (ban) return;
-    ban = true; tMo.disabled = true; e.textContent = 'Đang mở ví…';
+    ban = true; tMo.disabled = true; e.textContent = L('Đang mở ví…');
     goi('vi', { sdt: sdt, pin: pin }, function(r){
       ban = false; tMo.disabled = false;
-      if (!r.ok) { e.textContent = r.error || 'Không mở được ví.'; return; }
+      if (!r.ok) { e.textContent = r.error || L('Không mở được ví.'); return; }
       nhoSdt(sdt); VI = r; VI.pin = pin; ve();
     });
   };
@@ -1032,7 +1565,7 @@ function noi(){
       if (ban || !VI) return;
       var mg = Number(b.getAttribute('data-tieu'));
       var e = document.getElementById('t-e'), kq = document.getElementById('t-kq');
-      ban = true; e.textContent = ''; kq.innerHTML = '<div class="cho">⏳ Đang trừ tiền…</div>';
+      ban = true; e.textContent = ''; kq.innerHTML = L('<div class="cho">⏳ Đang trừ tiền…</div>');
       /* ⚠️ GỬI THẲNG mã ghế trong thân gói, y như lượt `dung` vẫn làm — đừng để máy chủ tự dò
          lại từ địa chỉ. Trang ĐÃ BIẾT ghế rồi; bắt máy chủ suy lại là thêm một chỗ hỏng được,
          và nó đã hỏng thật. Địa chỉ API nay cũng mang ghế, nên đây là lớp thứ hai. */
@@ -1040,7 +1573,7 @@ function noi(){
         ban = false;
         if (!r.ok) {
           kq.innerHTML = '';
-          e.textContent = r.error || 'Không chạy được.';
+          e.textContent = r.error || L('Không chạy được.');
           /* Số dư có thể vừa đổi (tiêu ở ghế khác) — tra lại để thẻ mờ đúng thực tế. */
           if (r.so_du) { VI.so_du = r.so_du; ve(); }
           return;
@@ -1065,18 +1598,18 @@ function noi(){
   var mua = document.getElementById('mua');
   if (mua) mua.onclick = function(){
     var e = document.getElementById('e');
-    if (CHON === null) { e.textContent = 'Chọn một gói trước nhé.'; return; }
+    if (CHON === null) { e.textContent = L('Chọn một gói trước nhé.'); return; }
     var sdt = (document.getElementById('sdt').value || '').trim();
     var pin = (document.getElementById('pin').value || '').trim();
-    if (!/^\d{4}$/.test(pin)) { e.textContent = 'PIN phải gồm đúng 4 chữ số.'; return; }
+    if (!/^\d{4}$/.test(pin)) { e.textContent = L('PIN phải gồm đúng 4 chữ số.'); return; }
     if (ban) return;
-    ban = true; mua.disabled = true; e.textContent = 'Đang tạo đơn…';
+    ban = true; mua.disabled = true; e.textContent = L('Đang tạo đơn…');
     goi('dat', { sdt: sdt, pin: pin, cc: (document.getElementById('cc')||{}).value || '',
                  menh_gia: D.goi[CHON].menh_gia,
                  so_luong: Math.max(1, Math.min(10, Number(document.getElementById('sl').value)||1)) },
       function(r){
         ban = false; mua.disabled = false;
-        if (!r.ok) { e.textContent = r.error || 'Không tạo được đơn.'; return; }
+        if (!r.ok) { e.textContent = r.error || L('Không tạo được đơn.'); return; }
         DON = r; ve(); soiDon();
       });
   };
@@ -1095,8 +1628,8 @@ function noi(){
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
       } catch (er) {
         /* Trình duyệt chặn tải thì nói ra và chỉ đường khác, đừng để nút bấm không làm gì. */
-        alert('Máy không cho tải ảnh. Anh/chị chụp màn hình mã QR này, rồi trong app ngân hàng '
-          + 'chọn "quét từ thư viện ảnh".');
+        alert(L('Máy không cho tải ảnh. Anh/chị chụp màn hình mã QR này, rồi trong app ngân hàng ')
+          + L('chọn "quét từ thư viện ảnh".'));
       }
     };
   }
@@ -1107,33 +1640,33 @@ function noi(){
   var xem = document.getElementById('t-xem');
   if (xem) xem.onclick = function(){
     var e = document.getElementById('e'), kq = document.getElementById('kq');
-    kq.innerHTML = ''; e.textContent = 'Đang tra…';
+    kq.innerHTML = ''; e.textContent = L('Đang tra…');
     goi('tra', { sdt: document.getElementById('t-sdt').value,
                  pin: document.getElementById('t-pin').value }, function(r){
       if (!r.ok) {
         /* Tra không ra thì đưa luôn LỐI RA, đừng để khách đứng đó gõ lại tới lúc bị hãm. */
-        e.innerHTML = esc(r.error || 'Không tìm thấy.')
-          + '<br><span class="mut">Sai PIN hay quên PIN đều ra câu này. '
-          + 'Gọi nhân viên, đọc số điện thoại — nhân viên tra được mã giúp anh/chị.</span>';
+        e.innerHTML = esc(r.error || L('Không tìm thấy.'))
+          + L('<br><span class="mut">Sai PIN hay quên PIN đều ra câu này. ')
+          + L('Gọi nhân viên, đọc số điện thoại — nhân viên tra được mã giúp anh/chị.</span>');
         return;
       }
       e.textContent = '';
       var h = '';
-      if (!r.chua_dung.length) h += '<p class="mut">Không còn mã nào chưa dùng.</p>';
+      if (!r.chua_dung.length) h += L('<p class="mut">Không còn mã nào chưa dùng.</p>');
       r.chua_dung.forEach(function(m){
         /* Mã chưa tới hạn hiện MỐC DÙNG ĐƯỢC, không hiện "còn dùng được" — khách cần biết quay
            lại lúc nào, chứ nhìn thấy "còn dùng được" rồi ra ghế quét không ăn là tệ nhất. */
         var chua = (m.con_cho || 0) > 0;
         h += '<div class="ma' + (chua ? ' het' : '') + '"><div><div class="m">' + esc(m.ma) + '</div>'
           + '<div class="g">' + tien(m.menh_gia) + ' · '
-          + (chua ? '⏳ dùng được từ ' + esc(String(m.dung_tu).slice(0,16)) : 'còn dùng được')
+          + (chua ? L('⏳ dùng được từ ') + esc(String(m.dung_tu).slice(0,16)) : L('còn dùng được'))
           + '</div></div>'
-          + '<button data-chep="' + esc(m.ma) + '">Chép</button></div>';
+          + '<button data-chep="' + esc(m.ma) + L('">Chép</button></div>');
       });
       r.da_dung.forEach(function(m){
         h += '<div class="ma het"><div><div class="m">' + esc(m.ma) + '</div>'
-          + '<div class="g">đã dùng ' + esc(m.dung_luc)
-          + (m.dung_may ? ' · ghế ' + esc(m.dung_may) : '') + '</div></div></div>';
+          + L('<div class="g">đã dùng ') + esc(m.dung_luc)
+          + (m.dung_may ? L(' · ghế ') + esc(m.dung_may) : '') + '</div></div></div>';
       });
       kq.innerHTML = h;
       noi();
@@ -1144,12 +1677,12 @@ function noi(){
   if (qok) qok.onclick = function(){
     var e = document.getElementById('q-e');
     if (ban) return;
-    ban = true; qok.disabled = true; e.textContent = 'Đang kiểm…';
+    ban = true; qok.disabled = true; e.textContent = L('Đang kiểm…');
     goi('lay_lai_pin', { sdt: document.getElementById('q-sdt').value,
                          cc:  document.getElementById('q-cc').value,
                          pin: document.getElementById('q-pin').value }, function(r){
       ban = false; qok.disabled = false;
-      if (!r.ok) { e.textContent = r.error || 'Không đặt lại được.'; return; }
+      if (!r.ok) { e.textContent = r.error || L('Không đặt lại được.'); return; }
       e.innerHTML = '<span style="color:#8ff0b0">' + esc(r.thong_bao) + '</span>';
     });
   };
@@ -1160,12 +1693,12 @@ function noi(){
     /* Ghế CHỈ đến từ cái tem. Không có thì đã không có nút này để bấm (xem veDung), nhưng vẫn
        chặn lần nữa ở đây — nút biến mất là chuyện của giao diện, còn đây là chuyện của tiền. */
     var g = GHE;
-    if (!g) { e.textContent = 'Chưa biết ghế nào — quét mã QR trên ghế đang ngồi giúp em.'; return; }
+    if (!g) { e.textContent = L('Chưa biết ghế nào — quét mã QR trên ghế đang ngồi giúp em.'); return; }
     if (ban) return;
-    ban = true; dok.disabled = true; e.textContent = 'Đang kiểm mã…';
+    ban = true; dok.disabled = true; e.textContent = L('Đang kiểm mã…');
     goi('dung', { ma: document.getElementById('d-ma').value, ma_may: g }, function(r){
       ban = false; dok.disabled = false;
-      if (!r.ok) { e.textContent = r.error || 'Mã không dùng được.'; return; }
+      if (!r.ok) { e.textContent = r.error || L('Mã không dùng được.'); return; }
       e.textContent = '';
       kq.innerHTML = '<div class="ok"><b>Xong!</b><br>' + esc(r.thong_bao) + '</div>';
     });
@@ -1192,14 +1725,14 @@ function xongDon(ds, r){
      là khách tưởng nạp hỏng. */
   if (r && r.loai === 'nap') {
     var hn = '<div class="wrap">' + dau()
-      + '<div class="card"><h2>Đã nhận tiền — ví đã được cộng</h2>'
-      + '<div class="ok">Ví của anh/chị nay có <b style="color:#f0b429">'
+      + L('<div class="card"><h2>Đã nhận tiền — ví đã được cộng</h2>')
+      + L('<div class="ok">Ví của anh/chị nay có <b style="color:#f0b429">')
       + tien((r.so_du || 0) + (r.so_du_cho || 0)) + '</b>.'
       + (r.so_du_cho > 0
-          ? '<br><b>⏳ ' + tien(r.so_du_cho) + ' đang trong hạn chờ</b>'
-            + (r.con_cho > 0 ? ' — dùng được sau ' + docCho(r.con_cho) : '') + '.'
+          ? '<br><b>⏳ ' + tien(r.so_du_cho) + L(' đang trong hạn chờ</b>')
+            + (r.con_cho > 0 ? L(' — dùng được sau ') + docCho(r.con_cho) : '') + '.'
           : '')
-      + '<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>'
+      + L('<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>')
       + '<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>';
     app.innerHTML = hn;
     DON = null; NAP = null;
@@ -1207,18 +1740,18 @@ function xongDon(ds, r){
     return;
   }
   var h = '<div class="wrap">' + dau()
-    + '<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>'
-    + '<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. '
-    + 'Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.'
+    + L('<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>')
+    + L('<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. ')
+    + L('Quên mã thì vào mục <b>Mã của tôi</b>, nhập số điện thoại và PIN vừa đặt.')
     + ((D && D.cho_ngay > 0)
-        ? '<br><b>⏳ Dùng được sau ' + D.cho_ngay + ' ngày kể từ bây giờ.</b>' : '')
+        ? L('<br><b>⏳ Dùng được sau ') + D.cho_ngay + L(' ngày kể từ bây giờ.</b>') : '')
     + '</div>';
   (ds || []).forEach(function(m){
     h += '<div class="ma"><div><div class="m">' + esc(m) + '</div>'
-      + '<div class="g">chụp lại màn hình này giúp em</div></div>'
-      + '<button data-chep="' + esc(m) + '">Chép</button></div>';
+      + L('<div class="g">chụp lại màn hình này giúp em</div></div>')
+      + '<button data-chep="' + esc(m) + L('">Chép</button></div>');
   });
-  h += '<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>';
+  h += L('<button id="ve-dau" style="width:100%;margin-top:14px">Mua thêm</button></div></div>');
   app.innerHTML = h;
   DON = null;
   [].forEach.call(document.querySelectorAll('[data-chep]'), function(b){
