@@ -57,6 +57,20 @@ class VHG_Ma {
 		return $s;
 	}
 
+	/**
+	 * Số điện thoại để HIỆN RA và để GHI VÀO SỔ — che khúc giữa.
+	 *
+	 * ⚠️ Sổ ví và nhật ký nằm trong màn quản trị, mà màn đó nhân viên ca nào cũng mở. Ghi đủ số
+	 *    vào đó là biến sổ tiền thành một danh bạ khách hàng, xuất ra được bằng cách bôi đen.
+	 *    Che khúc giữa vẫn đủ để nhân viên đối chiếu với khách đang đứng trước mặt.
+	 */
+	public static function sdt_che( $v ) {
+		$s = self::sdt_sach( $v );
+		$n = strlen( $s );
+		if ( $n < 7 ) { return $s; }
+		return substr( $s, 0, 4 ) . str_repeat( '*', $n - 7 ) . substr( $s, -3 );
+	}
+
 	public static function sdt_hop_le( $v ) {
 		$s = self::sdt_sach( $v );
 		return (bool) preg_match( '/^0\d{8,10}$/', $s );

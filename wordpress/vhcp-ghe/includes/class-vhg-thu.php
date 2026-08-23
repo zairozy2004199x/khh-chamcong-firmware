@@ -162,12 +162,33 @@ class VHG_Thu {
 		   ⚠️ `phat_ma` tự chịu được gọi lại — webhook bắn lại là chuyện bình thường, và mỗi lượt
 		      bắn lại mà phát thêm mã là cho không hàng trăm nghìn đồng. */
 		if ( '' !== $ma_don ) {
-			$pm = VHG_Ma::phat_ma( $ma_don, $kq['ref'] );
-			if ( ! empty( $pm['ok'] ) ) {
-				return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
-					'ma_may' => '', 'ma_lenh' => '', 'ten_khai' => $ten, 'so_tien' => $tien,
-					'don_ma' => $ma_don, 'ma_phat' => $pm['ma'],
-					'ghi_chu' => 'đơn mua mã ' . $ma_don . ' — phát ' . count( $pm['ma'] ) . ' mã' );
+			/* 🔴 MỘT MÃ ĐƠN, HAI KIỂU HÀNG. Nội dung chuyển khoản chỉ mang "MUA<mã đơn>" —
+			   nó KHÔNG nói đơn đó mua mã hay nạp ví, và không nên nói: nội dung bị giới hạn
+			   25 ký tự, và thứ gì khách gõ tay được thì khách gõ sai được.
+			   Nên tra ra ĐƠN rồi hỏi chính nó. Đơn cũ không có cột `loai` thì đọc ra rỗng, và
+			   rỗng nghĩa là 'ma' — đúng như hệ thống chạy trước bản này. */
+			$don_ = VHG_Ma::don( $ma_don );
+			$loai_ = $don_ ? (string) ( isset( $don_['loai'] ) ? $don_['loai'] : '' ) : '';
+
+			if ( 'nap' === $loai_ ) {
+				/* ⚠️ Cùng luật với phát mã: `nap()` tự chịu được gọi lại, vì webhook bắn lại là
+				   chuyện bình thường — và mỗi lượt bắn lại mà cộng thêm là cho không tiền thật. */
+				$nv = VHG_Vi::nap( $ma_don, $kq['ref'] );
+				if ( ! empty( $nv['ok'] ) ) {
+					return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
+						'ma_may' => '', 'ma_lenh' => '', 'ten_khai' => $ten, 'so_tien' => $tien,
+						'don_ma' => $ma_don, 'nap_vi' => (int) $nv['nhan_tien'],
+						'ghi_chu' => 'đơn nạp ví ' . $ma_don . ' — cộng '
+							. number_format( (int) $nv['nhan_tien'], 0, ',', '.' ) . 'đ' );
+				}
+			} else {
+				$pm = VHG_Ma::phat_ma( $ma_don, $kq['ref'] );
+				if ( ! empty( $pm['ok'] ) ) {
+					return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
+						'ma_may' => '', 'ma_lenh' => '', 'ten_khai' => $ten, 'so_tien' => $tien,
+						'don_ma' => $ma_don, 'ma_phat' => $pm['ma'],
+						'ghi_chu' => 'đơn mua mã ' . $ma_don . ' — phát ' . count( $pm['ma'] ) . ' mã' );
+				}
 			}
 		}
 		return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],

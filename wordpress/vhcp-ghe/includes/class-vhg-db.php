@@ -299,6 +299,17 @@ class VHG_DB {
 		      Nên số điện thoại, PIN, mệnh giá và giá bán được CHỐT ở đây, và webhook chỉ việc
 		      tra ra rồi phát. Giá chốt lúc đặt đơn, không tính lại lúc tiền về: đổi bảng giảm
 		      giá giữa chừng mà tính lại là khách trả một đằng nhận một nẻo. */
+		/* 🔴 MỘT BẢNG ĐƠN CHO CẢ HAI KIỂU BÁN, không phải hai bảng — xem cột `loai` dưới đây.
+		     `loai = 'ma'`  -> trả tiền xong thì PHÁT MÃ  (VHG_Ma::phat_ma)
+		     `loai = 'nap'` -> trả tiền xong thì CỘNG VÍ  (VHG_Vi::nap)
+		   Tách hai bảng là phải tách luôn cả đường webhook, mà đường đó là chỗ tiền đi vào —
+		   chẻ đôi nó ra để lấy sự gọn gàng là đổi nhầm thứ.
+		   ⚠️ Đơn ĐẶT TRƯỚC bản này không có cột đó, đọc ra RỖNG — và rỗng phải hiểu là 'ma',
+		      đúng như hệ thống chạy trước đây. Đọc rỗng thành 'nap' là mọi đơn cũ chưa trả tiền
+		      biến thành đơn nạp, khách trả tiền xong không nhận được mã.
+		   ⚠️ MỌI CHÚ THÍCH PHẢI NẰM NGOÀI CHUỖI dưới đây. Nhét một khối chú thích PHP vào giữa
+		      chuỗi SQL là nó thành SQL chứ không thành chú thích, và `CREATE TABLE` gãy ngay lúc
+		      cài plugin. Đã dính đúng một lần lúc thêm cột `loai` này. */
 		$b['don_ma'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_don VARCHAR(20) NOT NULL,
@@ -311,11 +322,71 @@ class VHG_DB {
 			cho_ngay INT NOT NULL DEFAULT 0,
 			so_luong INT NOT NULL DEFAULT 1,
 			phai_tra BIGINT(20) NOT NULL DEFAULT 0,
+			loai VARCHAR(10) NOT NULL DEFAULT '',
+			nhan_tien BIGINT(20) NOT NULL DEFAULT 0,
 			tao_luc DATETIME NULL,
 			xong_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_don (ma_don),
 			KEY cho (xong_luc,tao_luc)";
+
+		/* ===== 11. VÍ — SỐ DƯ CỦA KHÁCH ====================================================
+		   Gói nạp: nạp 100k được 120k. Khoản chênh đó là KHUYẾN MÃI ĐÃ HỨA, và tiền khách đã
+		   trả rồi — nên số dư chưa tiêu là một khoản NỢ của cửa hàng, không phải doanh thu.
+		   Xem `VHG_Vi::tong_no()`; màn quản trị hiện nó ra để không ai tưởng đã ăn xong.
+
+		   🔴 HAI CỘT SỐ DƯ, KHÔNG PHẢI MỘT.
+		      · `so_du_dung` — tiêu được NGAY.
+		      · `so_du_cho`  — còn trong hạn chờ (mua trước 5 ngày mới dùng được).
+		      Gộp một cột là mất hẳn khả năng nói "anh có 120k nhưng 120k đó ngày mai mới tiêu
+		      được", mà đó đúng là câu khách sẽ hỏi.
+
+		   ⚠️ TIÊU TIỀN PHẢI QUA `UPDATE ... WHERE so_du_dung >= x`. Đọc số dư rồi trừ trong PHP
+		      là hai máy cùng bấm một lúc thì cùng đọc thấy đủ tiền, và ví âm. Xem `VHG_Vi::tru()`. */
+		$b['vi'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			sdt VARCHAR(20) NOT NULL,
+			pin_bam VARCHAR(255) NOT NULL DEFAULT '',
+			cc_bam VARCHAR(255) NOT NULL DEFAULT '',
+			so_du_dung BIGINT(20) NOT NULL DEFAULT 0,
+			so_du_cho BIGINT(20) NOT NULL DEFAULT 0,
+			da_nap BIGINT(20) NOT NULL DEFAULT 0,
+			da_tieu BIGINT(20) NOT NULL DEFAULT 0,
+			khoa TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY sdt (sdt),
+			KEY con (so_du_dung,so_du_cho)";
+
+		/* ===== 12. SỔ VÍ — MỌI THAY ĐỔI SỐ DƯ ĐỀU CÓ MỘT DÒNG =============================
+		   🔴 BẢNG NÀY MỚI LÀ LỜI GIẢI THÍCH, cột `so_du_dung` chỉ là con số hiện ra.
+
+		      Khách hỏi "sao em còn có 90k?" mà chỉ có một con số thì không ai trả lời được, và
+		      lúc đó cửa hàng phải chọn giữa mất khách hoặc cho không. Có sổ thì mở ra đọc: nạp
+		      120k ngày ấy, tiêu 10k ở ghế AMTP01 lúc ấy, tiêu 20k ở ghế kia lúc ấy.
+
+		   ⚠️ `da_chin = 0` là dòng nạp CÒN TRONG HẠN CHỜ. Tới hạn thì `VHG_Vi::chin()` lật cờ
+		      và chuyển tiền từ `so_du_cho` sang `so_du_dung`. Lật cờ bằng
+		      `UPDATE ... WHERE id=x AND da_chin=0` nên chỉ MỘT lượt gọi chuyển được tiền, dù
+		      có mười lượt chạy cùng lúc. */
+		$b['vi_so'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			sdt VARCHAR(20) NOT NULL,
+			thay_doi BIGINT(20) NOT NULL DEFAULT 0,
+			so_du_sau BIGINT(20) NOT NULL DEFAULT 0,
+			loai VARCHAR(20) NOT NULL DEFAULT '',
+			dung_duoc_tu DATETIME NULL,
+			da_chin TINYINT(1) NOT NULL DEFAULT 1,
+			ref VARCHAR(120) NOT NULL DEFAULT '',
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			ai VARCHAR(190) NOT NULL DEFAULT '',
+			luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY nguoi (sdt,luc),
+			KEY chin (da_chin,dung_duoc_tu),
+			KEY moi (ref)";
 
 		return $b;
 	}

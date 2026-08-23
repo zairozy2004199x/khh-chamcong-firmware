@@ -172,6 +172,7 @@ class VHG_Shop {
 			   danh sách là mời dựng lại đúng cái ô chọn vừa bỏ — và nó cũng phơi toàn bộ mã ghế
 			   của hệ thống ra một trang không cần đăng nhập. */
 			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia(),
+				'goi_nap' => VHG_Vi::goi_nap(),
 				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
 				'ghe' => self::ghe_tu_dia_chi( $d ) ) );
 			return;
@@ -184,24 +185,18 @@ class VHG_Shop {
 				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
 				isset( $d['so_luong'] ) ? $d['so_luong'] : 1,
 				isset( $d['cc'] ) ? $d['cc'] : '' );
-			if ( empty( $r['ok'] ) ) { self::tra( $r ); return; }
-			$tk = VHG_May::nhan_tien_cua( array() );
-			if ( '' === $tk['so_tk'] ) {
-				self::tra( array( 'ok' => false,
-					'error' => 'Cửa hàng chưa khai tài khoản nhận tiền — báo nhân viên giúp em.' ) );
-				return;
-			}
-			$r['so_tk']    = $tk['so_tk'];
-			$r['ten_tk']   = $tk['ten_tk'];
-			$r['bin']      = $tk['bin'];
-			$r['noi_dung'] = VHG_QR::noi_dung_mua( $r['ma_don'] );
-			/* Mã QR VietQR cho chính đơn này. Mức sửa lỗi L: chuỗi VietQR dài ~125 ký tự, mức L
-			   cho ra 37x37 module thay vì 41x41 — vẽ trên màn điện thoại thì mỗi module to hơn,
-			   mà mã hiện trên màn không phải chịu vết xước như tem in. */
-			$qr_don = VHG_QR::cho_don_mua( $r['ma_don'], (int) $r['phai_tra'] );
-			$r['qr'] = ! empty( $qr_don['ok'] )
-				? VHG_QRVe::hang( VHG_QRVe::ma_tran( $qr_don['chuoi'], 'L' ) ) : array();
-			self::tra( $r );
+			self::tra_don( $r );
+			return;
+		}
+
+		/* Gói NẠP VÍ. Cùng một đường trả tiền với mua mã lẻ — chỉ khác thứ nhận về. */
+		if ( 'dat_nap' === $viec ) {
+			$r = VHG_Vi::dat_don(
+				isset( $d['sdt'] ) ? $d['sdt'] : '',
+				isset( $d['pin'] ) ? $d['pin'] : '',
+				isset( $d['nap'] ) ? $d['nap'] : 0,
+				isset( $d['cc'] ) ? $d['cc'] : '' );
+			self::tra_don( $r );
 			return;
 		}
 
@@ -212,11 +207,23 @@ class VHG_Shop {
 			$don = VHG_Ma::don( isset( $d['ma_don'] ) ? $d['ma_don'] : '' );
 			if ( ! $don ) { self::tra( array( 'ok' => false, 'error' => 'Không thấy đơn này.' ) ); return; }
 			$xong = ! empty( $don['xong_luc'] );
-			$ma   = array();
+			$loai = (string) ( isset( $don['loai'] ) ? $don['loai'] : '' );
+			/* Đơn NẠP thì thứ khách chờ là SỐ DƯ, không phải bộ mã. Trả cả hai kiểu qua cùng một
+			   việc `soi` để trang chỉ phải hỏi một chỗ. */
+			if ( 'nap' === $loai ) {
+				$sd = $xong ? VHG_Vi::so_du( $don['sdt'] ) : null;
+				self::tra( array( 'ok' => true, 'xong' => $xong ? 1 : 0, 'loai' => 'nap',
+					'ma' => array(), 'nhan_tien' => (int) $don['nhan_tien'],
+					'so_du' => $sd ? (int) $sd['dung'] : 0,
+					'so_du_cho' => $sd ? (int) $sd['cho'] : 0,
+					'con_cho' => $sd ? (int) $sd['con_cho'] : 0 ) );
+				return;
+			}
+			$ma = array();
 			if ( $xong ) {
 				foreach ( VHG_Ma::ds_ma_cua_don( $don['ma_don'] ) as $m ) { $ma[] = VHG_Ma::ma_dep( $m ); }
 			}
-			self::tra( array( 'ok' => true, 'xong' => $xong ? 1 : 0, 'ma' => $ma ) );
+			self::tra( array( 'ok' => true, 'xong' => $xong ? 1 : 0, 'loai' => 'ma', 'ma' => $ma ) );
 			return;
 		}
 
@@ -263,7 +270,75 @@ class VHG_Shop {
 			return;
 		}
 
+		/* Khách tra số dư ví. Hãm y như ô tra mã: số điện thoại là thứ đoán được. */
+		if ( 'vi' === $viec ) {
+			if ( self::bi_khoa( 'tra' ) ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi tra lại, hoặc nhờ nhân viên.' ) );
+				return;
+			}
+			self::dem( 'tra' );
+			$sdt_ = isset( $d['sdt'] ) ? $d['sdt'] : '';
+			$pin_ = isset( $d['pin'] ) ? $d['pin'] : '';
+			$v_   = VHG_Vi::vi( $sdt_ );
+			/* ⚠️ MỘT CÂU LỖI cho cả "chưa có ví" lẫn "sai PIN" — nói tách ra là biến ô này
+			   thành máy dò xem số nào đã nạp tiền. */
+			if ( ! $v_ || ! VHG_Ma::pin_dung( $pin_, (string) $v_['pin_bam'] ) ) {
+				self::tra( array( 'ok' => false, 'error' => 'Số điện thoại hoặc PIN chưa đúng.' ) );
+				return;
+			}
+			$sd = VHG_Vi::so_du( $sdt_ );
+			self::tra( array( 'ok' => true, 'so_du' => $sd,
+				'so' => VHG_Vi::ds_so( $sdt_, 20 ), 'ghe' => self::ghe_tu_dia_chi( $d ) ) );
+			return;
+		}
+
+		/* Tiêu số dư tại ghế. Hãm chung rổ với `dung` — cùng là đường biến tiền thành lượt chạy. */
+		if ( 'tieu' === $viec ) {
+			if ( self::bi_khoa( 'dung' ) ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Thử quá nhiều lần — chờ 10 phút rồi thử lại.' ) );
+				return;
+			}
+			self::dem( 'dung' );
+			self::tra( VHG_Vi::tieu(
+				isset( $d['sdt'] ) ? $d['sdt'] : '',
+				isset( $d['pin'] ) ? $d['pin'] : '',
+				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
+				self::ghe_tu_dia_chi( $d ) ) );
+			return;
+		}
+
 		self::tra( array( 'ok' => false, 'error' => 'Việc không hợp lệ.' ) );
+	}
+
+	/**
+	 * Gắn tài khoản nhận tiền + nội dung + mã QR vào một đơn vừa đặt, rồi trả về.
+	 *
+	 * 🔴 DÙNG CHUNG cho đơn mua mã và đơn nạp ví. Hai chỗ cùng dựng một mã QR chuyển khoản là
+	 *    kiểu lỗi đã cắn dự án này bốn lần (nội dung chuyển khoản thiếu tiền tố SEVQR, địa chỉ
+	 *    tem viết hoa, cỡ vùng vẽ 58/70...): sửa một nơi, quên nơi kia, và nơi quên thì im lặng
+	 *    nhận tiền vào hư không.
+	 */
+	private static function tra_don( $r ) {
+		if ( empty( $r['ok'] ) ) { self::tra( $r ); return; }
+		$tk = VHG_May::nhan_tien_cua( array() );
+		if ( '' === $tk['so_tk'] ) {
+			self::tra( array( 'ok' => false,
+				'error' => 'Cửa hàng chưa khai tài khoản nhận tiền — báo nhân viên giúp em.' ) );
+			return;
+		}
+		$r['so_tk']    = $tk['so_tk'];
+		$r['ten_tk']   = $tk['ten_tk'];
+		$r['bin']      = $tk['bin'];
+		$r['noi_dung'] = VHG_QR::noi_dung_mua( $r['ma_don'] );
+		/* Mã QR VietQR cho chính đơn này. Mức sửa lỗi L: chuỗi VietQR dài ~125 ký tự, mức L
+		   cho ra 37x37 module thay vì 41x41 — vẽ trên màn điện thoại thì mỗi module to hơn,
+		   mà mã hiện trên màn không phải chịu vết xước như tem in. */
+		$qr_don = VHG_QR::cho_don_mua( $r['ma_don'], (int) $r['phai_tra'] );
+		$r['qr'] = ! empty( $qr_don['ok'] )
+			? VHG_QRVe::hang( VHG_QRVe::ma_tran( $qr_don['chuoi'], 'L' ) ) : array();
+		self::tra( $r );
 	}
 
 	/**
@@ -403,7 +478,20 @@ CSS;
 (function(){
 var API = window.VHG_SHOP, GHE = window.VHG_GHE || '', TEN = window.VHG_TEN || 'POSH Massage';
 var D = null, CHON = null, SL = 1, TAB = 'mua', DON = null, hen = null, ban = false;
+/* NAP = chỉ số gói nạp đang chọn; VI = số dư vừa tra được. Để riêng CHON của gói mã: hai luồng
+   mua khác nhau, dùng chung một biến là chọn bên này lại sáng nút bên kia. */
+var NAP = null, VI = null;
 var app = document.getElementById('app');
+
+/* "còn 4 ngày 3 giờ" — câu người đọc là hiểu. Cùng cách nói với VHG_Ma::doc_con_cho() bên máy
+   chủ; hai nơi nói khác nhau về cùng một khoảng thời gian là khách tưởng hệ thống mâu thuẫn. */
+function docCho(giay){
+  var g = Math.max(0, Number(giay) || 0);
+  var ngay = Math.floor(g / 86400), gio = Math.floor((g % 86400) / 3600);
+  if (ngay > 0) return ngay + ' ngày' + (gio > 0 ? ' ' + gio + ' giờ' : '');
+  if (gio > 0)  return gio + ' giờ';
+  return Math.max(1, Math.ceil(g / 60)) + ' phút';
+}
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -450,20 +538,81 @@ function dau(){
 }
 
 function tab(){
+  /* Tab "Nạp ví" chỉ hiện khi anh Thắng CÓ khai gói nạp. Chưa khai mà vẫn hiện là khách bấm
+     vào một trang trống — tệ hơn hẳn việc không có tab. */
+  var coNap = !!(D && D.goi_nap && D.goi_nap.length);
   return '<div class="tabs">'
+    + (coNap ? '<button data-tab="nap"' + (TAB==='nap'?' class="on"':'') + '>Nạp ví</button>' : '')
     + '<button data-tab="mua"' + (TAB==='mua'?' class="on"':'') + '>Mua mã</button>'
-    + '<button data-tab="cua-toi"' + (TAB==='cua-toi'?' class="on"':'') + '>Mã của tôi</button>'
-    + '<button data-tab="dung"' + (TAB==='dung'?' class="on"':'') + '>Dùng mã</button>'
+    + '<button data-tab="cua-toi"' + (TAB==='cua-toi'?' class="on"':'') + '>Của tôi</button>'
+    + '<button data-tab="dung"' + (TAB==='dung'?' class="on"':'') + '>Dùng tại ghế</button>'
     + '</div>';
 }
 
 function ve(){
   var h = '<div class="wrap">' + dau() + tab();
-  if (TAB === 'mua')      h += veMua();
+  if (TAB === 'nap')      h += veNap();
+  else if (TAB === 'mua') h += veMua();
   else if (TAB === 'cua-toi') h += veCuaToi();
   else                    h += veDung();
   app.innerHTML = h + '</div>';
   noi();
+}
+
+// ------------------------------------------------------------------ nạp ví
+/* ============================================================================================
+ * GÓI NẠP: NÓI "ĐƯỢC THÊM BAO NHIÊU", KHÔNG NÓI "GIẢM BAO NHIÊU %".
+ *
+ * Nạp 100k được 120k. Về số học đó là giảm 16,7% — nhưng không ai nghĩ theo hướng ấy. Khách
+ * nghĩ "bỏ ra 100 được 120", tức là LỢI 20. Hiện con số khách dùng để quyết định, không hiện
+ * con số đúng về mặt kế toán.
+ *
+ * 🔴 VÀ NÓI HẠN CHỜ TRƯỚC KHI HỌ TRẢ TIỀN. Tiền nạp có hạn chờ y như mã mua trước, cùng một lý
+ *    do. Chỉ hiện ra sau khi đã trả là khách thấy mình bị gạt — đúng lúc họ đang ngồi trên ghế
+ *    và ghế không chạy.
+ * ============================================================================================ */
+function veNap(){
+  if (DON) return veTraTien();
+  if (!D || !D.goi_nap || !D.goi_nap.length) {
+    return '<div class="card"><p class="mut">Hiện chưa mở bán gói nạp.</p></div>';
+  }
+  var cho = (D.cho_ngay || 0), h = '';
+  var loiMax = 0;
+  D.goi_nap.forEach(function(g){ if (g.loi_pt > loiMax) loiMax = g.loi_pt; });
+  h += '<div class="deal"><b>Nạp càng nhiều, lợi càng lớn — tới ' + loiMax + '%</b>'
+    + '<div>Số dư dùng được ở <b>bất kỳ ghế nào</b>, tiêu lẻ từng lượt, không hết hạn</div></div>';
+  if (cho > 0) {
+    h += '<div class="card" style="border-color:rgba(240,180,41,.45)">'
+      + '<b style="color:#f0b429">⏳ Số dư nạp dùng được sau ' + cho + ' ngày.</b>'
+      + '<div class="mut" style="margin-top:5px">Đây là điều kiện của phần được tặng thêm: nạp '
+      + 'trước thì lợi hơn, đổi lại là chờ. Cần dùng ngay hôm nay thì trả thẳng tại ghế.</div></div>';
+  }
+  h += '<div class="goi">';
+  D.goi_nap.forEach(function(g, i){
+    h += '<div class="g' + (NAP === i ? ' chon' : '') + '" data-nap="' + i + '">'
+      + '<span class="vip">+' + g.loi_pt + '%</span>'
+      + '<div class="ten">Nạp ' + tien(g.nap) + '</div>'
+      + '<div class="mo">được thêm ' + tien(g.them) + '</div>'
+      + '<div class="gia"><span class="moi">' + tien(g.nhan) + '</span>'
+      + '<span class="cu">' + tien(g.nap) + '</span></div></div>';
+  });
+  h += '</div>';
+  h += '<div class="card"><h2>Ví của anh/chị</h2>'
+    + '<p class="mut" style="margin:0 0 10px">Số dư gắn với <b>số điện thoại</b>. Lần sau tới, '
+    + 'nhập lại số này và PIN là tiêu tiếp.</p>'
+    + '<label>Số điện thoại</label>'
+    + '<input id="n-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456" autocomplete="tel">'
+    /* ⚠️ Ví ĐÃ CÓ thì đây là PIN CŨ, không phải PIN mới — nói rõ, không thì khách gõ một PIN
+       khác rồi bị từ chối mà không hiểu vì sao. */
+    + '<label>PIN 4 số — ví đã có thì nhập <b>đúng PIN cũ</b></label>'
+    + '<input id="n-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
+    + '<label>Số căn cước — <b>không bắt buộc</b>, chỉ để lấy lại PIN nếu quên</label>'
+    + '<input id="n-cc" type="tel" inputmode="numeric" placeholder="để trống cũng được" autocomplete="off">'
+    + '<div class="mut" style="margin:-4px 0 0">Hệ thống <b>chỉ lưu 4 số cuối</b>.</div>'
+    + '<div id="n-tong" class="mut" style="margin:12px 0 4px"></div>'
+    + '<button id="n-mua" class="chinh">Nạp ngay</button>'
+    + '<div class="err" id="e"></div></div>';
+  return h;
 }
 
 // ------------------------------------------------------------------ mua
@@ -529,7 +678,16 @@ function veMua(){
 }
 
 function veTraTien(){
-  var h = '<div class="card"><h2>Chuyển khoản để nhận mã</h2>';
+  var laNap = (DON.loai === 'nap');
+  var h = '<div class="card"><h2>'
+    + (laNap ? 'Chuyển khoản để nạp ví' : 'Chuyển khoản để nhận mã') + '</h2>';
+  /* Nhắc lại NHẬN ĐƯỢC BAO NHIÊU ngay trên mã QR. Khách đang ở bước rút ví ra trả tiền — đó
+     đúng là lúc con số "được 120.000đ" cần đứng trước mắt, không phải lúc họ mới chọn gói. */
+  if (laNap) {
+    h += '<div class="ok" style="margin:0 0 12px">Trả <b>' + tien(DON.phai_tra) + '</b> — nhận '
+      + '<b style="color:#f0b429">' + tien(DON.nhan_tien) + '</b> vào ví'
+      + (DON.them > 0 ? ' (được thêm ' + tien(DON.them) + ')' : '') + '.</div>';
+  }
   /* MÃ QR TRƯỚC, chữ chép tay sau. Quét (hoặc chọn ảnh từ thư viện) nhanh và không gõ nhầm được;
      phần chữ là đường dự phòng cho ai muốn gõ tay. */
   if (DON.qr && DON.qr.length) {
@@ -581,7 +739,20 @@ function o_ck(nhan, hien, chep_, lop){
 
 // ------------------------------------------------------------------ mã của tôi
 function veCuaToi(){
-  return '<div class="card"><h2>Mã của tôi</h2>'
+  /* Ví ĐỨNG TRƯỚC mã: ai đã nạp thì số dư là thứ họ mở trang này để xem. Chỉ hiện khi cửa hàng
+     có bán gói nạp — chưa bán mà vẫn hiện là bày ra một ô không ai dùng được. */
+  var hv = '';
+  if (D && D.goi_nap && D.goi_nap.length) {
+    hv = '<div class="card"><h2>Số dư ví</h2>'
+      + '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN của ví.</p>'
+      + '<label>Số điện thoại</label>'
+      + '<input id="v-sdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
+      + '<label>PIN 4 số</label>'
+      + '<input id="v-pin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
+      + '<button id="v-xem" class="chinh" style="margin-top:14px">Xem số dư</button>'
+      + '<div class="err" id="v-e"></div><div id="v-kq"></div></div>';
+  }
+  return hv + '<div class="card"><h2>Mã của tôi</h2>'
     + '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN đã đặt lúc mua.</p>'
     /* 🔴 QUÊN PIN LÀ CHUYỆN SẼ XẢY RA, không phải nếu. Khách đặt PIN một lần rồi ba tuần sau mới
        quay lại. Không nói trước lối ra thì họ gõ mười lần, bị hãm, rồi bỏ đi — mang theo cái mã
@@ -639,7 +810,7 @@ function veDung(){
       + '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>'
       + '</div>';
   }
-  return '<div class="card"><h2>Dùng mã cho ghế</h2>'
+  var h = '<div class="card"><h2>Dùng mã cho ghế</h2>'
     + '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>'
     + '<div class="gt">' + esc(GHE) + '</div></div></div>'
     + '<p class="mut" style="margin:6px 0 0">Đúng ghế này thì nhập mã. Không đúng thì quét lại mã '
@@ -648,6 +819,55 @@ function veDung(){
     + '<input id="d-ma" placeholder="ABCD-EFGH" autocapitalize="characters" autocomplete="off">'
     + '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>'
     + '<div class="err" id="e"></div><div id="kq"></div></div>';
+
+  /* Trả bằng SỐ DƯ — khối riêng, dưới khối mã. Hai đường trả tiền khác nhau thì để tách bạch:
+     gộp vào một biểu mẫu là khách gõ mã vào ô ví hoặc ngược lại, rồi nhận một câu lỗi khó hiểu. */
+  if (D && D.goi_nap && D.goi_nap.length) {
+    h += '<div class="card"><h2>Hoặc trả bằng số dư ví</h2>'
+      + '<p class="mut" style="margin:0 0 10px">Đã nạp ví thì không cần mã — nhập số điện thoại '
+      + 'và PIN, chọn gói, ghế chạy ngay.</p>'
+      + '<label>Chọn gói</label><select id="t-goi">'
+      + '<option value="">— chọn gói —</option>';
+    (D.goi || []).forEach(function(g){
+      h += '<option value="' + g.menh_gia + '">' + esc(g.ten || '') + ' · ' + tien(g.menh_gia)
+        + '</option>';
+    });
+    h += '</select>'
+      + '<label>Số điện thoại</label>'
+      + '<input id="t-vsdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
+      + '<label>PIN 4 số</label>'
+      + '<input id="t-vpin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
+      + '<button id="t-tieu" class="chinh" style="margin-top:14px">Trừ số dư, chạy ghế</button>'
+      + '</div>';
+  }
+  return h;
+}
+
+/* Khối hiện số dư — dùng ở tab "Của tôi". Hiện CẢ HAI cột: tiêu được và đang chờ. Gộp lại
+   thành một con số là khách thấy có tiền mà ghế không chạy, rồi tưởng hệ thống nuốt tiền. */
+function veSoDu(r){
+  var sd = r.so_du || {};
+  var h = '<div class="ok" style="margin-top:12px">Tiêu được ngay: '
+    + '<b style="color:#f0b429;font-size:18px">' + tien(sd.dung || 0) + '</b>';
+  if (sd.cho > 0) {
+    h += '<br>⏳ Đang trong hạn chờ: <b>' + tien(sd.cho) + '</b>'
+      + (sd.con_cho > 0 ? ' — dùng được sau ' + docCho(sd.con_cho) : '');
+  }
+  if (sd.khoa) h += '<br><b>Ví đang tạm khoá — anh/chị báo nhân viên giúp.</b>';
+  h += '</div>';
+  var so = r.so || [];
+  if (so.length) {
+    h += '<div class="mut" style="margin:12px 0 6px"><b>Gần đây</b></div>';
+    so.forEach(function(d){
+      var t = Number(d.thay_doi) || 0;
+      if (!t) return;
+      h += '<div class="ma"><div><div class="m" style="font-size:15px">'
+        + (t > 0 ? '+' : '') + tien(t) + '</div>'
+        + '<div class="g">' + esc(d.ghi_chu || d.loai) + ' · ' + esc(String(d.luc||'').substr(0,16))
+        + '</div></div></div>';
+    });
+  }
+  return h;
 }
 
 // ------------------------------------------------------------------ nối nút
@@ -667,6 +887,64 @@ function noi(){
   [].forEach.call(document.querySelectorAll('[data-goi]'), function(b){
     b.onclick = function(){ CHON = Number(b.getAttribute('data-goi')); ve(); };
   });
+  [].forEach.call(document.querySelectorAll('[data-nap]'), function(b){
+    b.onclick = function(){ NAP = Number(b.getAttribute('data-nap')); ve(); };
+  });
+
+  var nTong = document.getElementById('n-tong');
+  if (nTong) {
+    nTong.innerHTML = (NAP === null || !D.goi_nap[NAP])
+      ? 'Chọn một gói nạp phía trên.'
+      : 'Trả: <b style="color:#f0b429;font-size:18px">' + tien(D.goi_nap[NAP].nap) + '</b>'
+        + ' — nhận <b>' + tien(D.goi_nap[NAP].nhan) + '</b> vào ví';
+  }
+  var nMua = document.getElementById('n-mua');
+  if (nMua) nMua.onclick = function(){
+    var e = document.getElementById('e');
+    if (NAP === null) { e.textContent = 'Chọn một gói nạp trước nhé.'; return; }
+    var sdt = (document.getElementById('n-sdt').value || '').trim();
+    var pin = (document.getElementById('n-pin').value || '').trim();
+    if (!/^\d{4}$/.test(pin)) { e.textContent = 'PIN phải gồm đúng 4 chữ số.'; return; }
+    if (ban) return;
+    ban = true; nMua.disabled = true; e.textContent = 'Đang tạo đơn…';
+    goi('dat_nap', { sdt: sdt, pin: pin, cc: (document.getElementById('n-cc')||{}).value || '',
+                     nap: D.goi_nap[NAP].nap },
+      function(r){
+        ban = false; nMua.disabled = false;
+        if (!r.ok) { e.textContent = r.error || 'Không tạo được đơn nạp.'; return; }
+        DON = r; ve(); soiDon();
+      });
+  };
+
+  var vXem = document.getElementById('v-xem');
+  if (vXem) vXem.onclick = function(){
+    var e = document.getElementById('v-e'), kq = document.getElementById('v-kq');
+    var sdt = (document.getElementById('v-sdt').value || '').trim();
+    var pin = (document.getElementById('v-pin').value || '').trim();
+    if (ban) return;
+    ban = true; vXem.disabled = true; e.textContent = ''; kq.innerHTML = 'Đang tra…';
+    goi('vi', { sdt: sdt, pin: pin }, function(r){
+      ban = false; vXem.disabled = false;
+      if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || 'Không tra được.'; return; }
+      VI = r; kq.innerHTML = veSoDu(r);
+    });
+  };
+
+  var tOk = document.getElementById('t-tieu');
+  if (tOk) tOk.onclick = function(){
+    var e = document.getElementById('e'), kq = document.getElementById('kq');
+    var mg = Number((document.getElementById('t-goi')||{}).value || 0);
+    if (!mg) { e.textContent = 'Chọn gói muốn chạy.'; return; }
+    var sdt = (document.getElementById('t-vsdt').value || '').trim();
+    var pin = (document.getElementById('t-vpin').value || '').trim();
+    if (ban) return;
+    ban = true; tOk.disabled = true; e.textContent = ''; kq.innerHTML = 'Đang trừ tiền…';
+    goi('tieu', { sdt: sdt, pin: pin, menh_gia: mg }, function(r){
+      ban = false; tOk.disabled = false;
+      if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || 'Không chạy được.'; return; }
+      kq.innerHTML = '<div class="ok" style="margin-top:12px">' + esc(r.thong_bao) + '</div>';
+    });
+  };
   [].forEach.call(document.querySelectorAll('[data-chep]'), function(b){
     b.onclick = function(){ chep(b.getAttribute('data-chep'), b); };
   });
@@ -792,14 +1070,32 @@ function soiDon(){
   hen = setTimeout(function(){
     goi('soi', { ma_don: DON.ma_don }, function(r){
       if (!DON) return;
-      if (r.ok && r.xong) { xongDon(r.ma); return; }
+      if (r.ok && r.xong) { xongDon(r.ma, r); return; }
       soiDon();
     });
   }, 3000);
 }
 
-function xongDon(ds){
+function xongDon(ds, r){
   if (hen) { clearTimeout(hen); hen = null; }
+  /* Đơn NẠP: thứ khách chờ là SỐ DƯ, không phải bộ mã. Hiện nhầm một danh sách mã rỗng ở đây
+     là khách tưởng nạp hỏng. */
+  if (r && r.loai === 'nap') {
+    var hn = '<div class="wrap">' + dau()
+      + '<div class="card"><h2>Đã nhận tiền — ví đã được cộng</h2>'
+      + '<div class="ok">Ví của anh/chị nay có <b style="color:#f0b429">'
+      + tien((r.so_du || 0) + (r.so_du_cho || 0)) + '</b>.'
+      + (r.so_du_cho > 0
+          ? '<br><b>⏳ ' + tien(r.so_du_cho) + ' đang trong hạn chờ</b>'
+            + (r.con_cho > 0 ? ' — dùng được sau ' + docCho(r.con_cho) : '') + '.'
+          : '')
+      + '<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>'
+      + '<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>';
+    app.innerHTML = hn;
+    DON = null; NAP = null;
+    document.getElementById('ve-dau').onclick = function(){ TAB = 'cua-toi'; ve(); };
+    return;
+  }
   var h = '<div class="wrap">' + dau()
     + '<div class="card"><h2>Đã nhận tiền — mã của anh/chị đây</h2>'
     + '<div class="ok">Mã <b>không hết hạn</b>, dùng được ở <b>bất kỳ ghế nào</b>. '

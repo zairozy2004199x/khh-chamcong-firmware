@@ -19,6 +19,108 @@ class VHG_Admin {
 	const CAP = 'manage_options';
 
 	/**
+	 * KHỐI VÍ trên màn Máy & cơ sở: khai gói nạp, nhìn khoản nợ, tra một ví.
+	 *
+	 * 🔴 KHOẢN NỢ ĐỨNG NGAY CẠNH BẢNG GÓI NẠP, không giấu ở tab khác.
+	 *    Bán gói nạp thì tháng nào doanh thu cũng đẹp — tiền vào trước, dịch vụ trả sau. Con số
+	 *    duy nhất nói ra sự thật là "khách đã trả tiền nhưng chưa tiêu bao nhiêu", và nó phải
+	 *    nằm đúng chỗ người ta ngồi khai gói nạp, đúng lúc họ định nâng mức tặng thêm.
+	 */
+	public static function khoi_vi() {
+		$gn = VHG_Vi::goi_nap();
+		$no = VHG_Vi::tong_no();
+
+		echo '<h2>Gói nạp ví</h2>';
+		echo '<p class="description">Nạp trước, tiêu dần ở bất kỳ ghế nào. Khác với mã: số dư '
+			. '<b>tiêu lẻ từng lượt</b>, không phải một mã một lượt.</p>';
+
+		/* 🔴 NỢ TRƯỚC, BẢNG SAU. Người mở màn này để nâng mức tặng thêm phải nhìn thấy khoản nợ
+		   hiện tại TRƯỚC khi gõ con số mới. */
+		$mau = $no['tong'] > 0 ? '#b32d2e' : '#666';
+		echo '<div style="border-left:4px solid ' . esc_attr( $mau ) . ';background:#fff;'
+			. 'padding:10px 14px;max-width:900px;margin:0 0 14px">'
+			. '<b>Khách đã trả tiền nhưng chưa tiêu: <span style="color:' . esc_attr( $mau )
+			. ';font-size:16px">' . esc_html( self::tien( $no['tong'] ) ) . '</span></b>'
+			. ' <span class="description">(' . (int) $no['so_vi'] . ' ví'
+			. ( $no['cho'] > 0 ? ', trong đó ' . esc_html( self::tien( $no['cho'] ) )
+				. ' còn trong hạn chờ' : '' ) . ')</span>'
+			. '<div class="description" style="margin-top:4px">Đây là <b>khoản nợ</b>, không phải '
+			. 'doanh thu để dành: tiền đã vào tài khoản, nhưng dịch vụ thì chưa trả. Nâng mức tặng '
+			. 'thêm là nâng luôn con số này.</div></div>';
+
+		echo '<form method="post"><table class="widefat striped" style="max-width:640px"><thead><tr>'
+			. '<th>Khách trả</th><th>Khách nhận vào ví</th><th>Được thêm</th><th>Lợi</th>'
+			. '</tr></thead><tbody>';
+		wp_nonce_field( 'vhg' );
+		/* Luôn thừa một dòng trống để khai thêm mà không phải bấm "thêm dòng". */
+		$so_dong = max( 4, count( $gn ) + 1 );
+		for ( $i = 0; $i < $so_dong; $i++ ) {
+			$g = isset( $gn[ $i ] ) ? $gn[ $i ] : array( 'nap' => '', 'nhan' => '', 'them' => 0, 'loi_pt' => 0 );
+			echo '<tr><td><input type="number" name="gn_nap[]" min="1000" step="1000" value="'
+				. ( '' === $g['nap'] ? '' : (int) $g['nap'] ) . '" style="width:130px" /></td>'
+				. '<td><input type="number" name="gn_nhan[]" min="1000" step="1000" value="'
+				. ( '' === $g['nhan'] ? '' : (int) $g['nhan'] ) . '" style="width:130px" /></td>'
+				. '<td>' . ( $g['them'] > 0 ? esc_html( self::tien( $g['them'] ) ) : '—' ) . '</td>'
+				. '<td>' . ( $g['loi_pt'] > 0 ? '+' . (int) $g['loi_pt'] . '%' : '—' ) . '</td></tr>';
+		}
+		echo '</tbody></table><p><button class="button button-primary" name="vhg" value="goi_nap">'
+			. 'Lưu gói nạp</button></p></form>';
+		echo '<p class="description">Bỏ trống cả hai ô = bỏ gói đó. Khách nhận <b>phải ≥</b> khách '
+			. 'trả — nhận ít hơn thì khách lỗ, hệ thống từ chối lưu.<br>'
+			. 'Số dư nạp cũng có <b>hạn chờ</b> giống mã mua trước (đang đặt: '
+			. (int) VHG_Ma::cho_ngay_mac_dinh() . ' ngày), và dùng chung ô cài đặt đó.</p>';
+
+		/* Danh sách ví còn tiền: nợ nằm ở đâu, ai giữ nhiều nhất. */
+		$ds_vi = VHG_Vi::ds_vi( 30 );
+		if ( $ds_vi ) {
+			echo '<h3>Ví còn tiền (' . count( $ds_vi ) . ' nhiều nhất)</h3>';
+			echo '<table class="widefat striped" style="max-width:900px"><thead><tr>'
+				. '<th>Số điện thoại</th><th>Tiêu được</th><th>Đang chờ</th><th>Đã nạp</th>'
+				. '<th>Đã tiêu</th><th>Trạng thái</th></tr></thead><tbody>';
+			foreach ( $ds_vi as $v ) {
+				/* ⚠️ CHE SỐ ĐIỆN THOẠI. Màn này nhân viên ca nào cũng mở; in đủ số là biến bảng
+				   tiền thành danh bạ khách hàng, bôi đen là chép được cả nghìn số. */
+				echo '<tr><td>' . esc_html( VHG_Ma::sdt_che( $v['sdt'] ) ) . '</td>'
+					. '<td>' . esc_html( self::tien( (int) $v['so_du_dung'] ) ) . '</td>'
+					. '<td>' . ( (int) $v['so_du_cho'] > 0
+						? esc_html( self::tien( (int) $v['so_du_cho'] ) ) : '—' ) . '</td>'
+					. '<td>' . esc_html( self::tien( (int) $v['da_nap'] ) ) . '</td>'
+					. '<td>' . esc_html( self::tien( (int) $v['da_tieu'] ) ) . '</td>'
+					. '<td>' . ( ! empty( $v['khoa'] ) ? '<b style="color:#b32d2e">ĐANG KHOÁ</b>' : 'bình thường' )
+					. '</td></tr>';
+			}
+			echo '</tbody></table>';
+		}
+
+		/* Chỉnh tay + khoá. Để CUỐI khối và trong một form riêng: đây là đường đụng thẳng vào
+		   tiền của khách, không nên nằm lẫn với ô khai cấu hình. */
+		echo '<h3>Chỉnh ví một khách</h3>';
+		echo '<form method="post" style="max-width:900px">';
+		wp_nonce_field( 'vhg' );
+		echo '<p><label>Số điện thoại <input name="vi_sdt" style="width:160px" placeholder="0909123456" /></label> '
+			. '<label>Số tiền <input type="number" name="vi_tien" step="1000" style="width:130px" '
+			. 'placeholder="50000 hoặc -50000" /></label> '
+			. '<label>Lý do <input name="vi_ly_do" style="width:280px" placeholder="đền bù ghế hỏng giữa lượt" /></label></p>';
+		echo '<p><button class="button" name="vhg" value="vi_chinh">Cộng / trừ số dư</button> '
+			. '<button class="button" name="vhg" value="vi_khoa">Khoá ví</button> '
+			. '<button class="button" name="vhg" value="vi_mo">Mở khoá</button></p>';
+		echo '</form>';
+		echo '<p class="description"><b>Lý do là bắt buộc</b> khi cộng/trừ — một dòng "+500.000đ" '
+			. 'không lý do là thứ không ai giải thích được sau ba tháng, kể cả người vừa bấm. '
+			. 'Mọi thay đổi đều ghi vào sổ ví kèm tên người làm.<br>'
+			. 'Số âm để trừ (VD <code>-50000</code>). Trừ quá số dư thì hệ thống từ chối — ví không '
+			. 'bao giờ âm.</p>';
+	}
+
+	/** Tên người đang thao tác — để ghi vào sổ ví. Mọi lượt chỉnh tay phải có tên, không thì
+	    ba tháng sau không ai giải thích được dòng "+500.000đ" ấy là của ai. */
+	public static function ai() {
+		$u = function_exists( 'wp_get_current_user' ) ? wp_get_current_user() : null;
+		$t = $u && ! empty( $u->display_name ) ? (string) $u->display_name : '';
+		return '' !== $t ? $t : 'quản trị';
+	}
+
+	/**
 	 * Địa chỉ màn đối soát — Trang Vận Hành đọc hàm này để dựng thẻ.
 	 *
 	 * ⚠️ Trỏ vào wp-admin, KHÁC hai app kia (chúng có trang công khai gác bằng PIN riêng). Nghĩa
@@ -398,6 +500,27 @@ class VHG_Admin {
 						'vip'   => in_array( (int) $i, $vip, true ) ? 1 : 0 );
 				}
 				$bao[] = VHG_May::luu_menh_gia( $goi );
+			} elseif ( 'goi_nap' === $viec ) {
+				$gn_n = isset( $_POST['gn_nap'] ) ? (array) wp_unslash( $_POST['gn_nap'] ) : array();
+				$gn_h = isset( $_POST['gn_nhan'] ) ? (array) wp_unslash( $_POST['gn_nhan'] ) : array();
+				$gn_d = array();
+				foreach ( $gn_n as $i => $v ) {
+					$gn_d[] = array( 'nap' => $v,
+						'nhan' => isset( $gn_h[ $i ] ) ? $gn_h[ $i ] : 0 );
+				}
+				$bao[] = VHG_Vi::luu_goi_nap( $gn_d );
+			} elseif ( 'vi_chinh' === $viec ) {
+				$bao[] = VHG_Vi::chinh_tay(
+					isset( $_POST['vi_sdt'] ) ? wp_unslash( $_POST['vi_sdt'] ) : '',
+					isset( $_POST['vi_tien'] ) ? (int) $_POST['vi_tien'] : 0,
+					isset( $_POST['vi_ly_do'] ) ? sanitize_text_field( wp_unslash( $_POST['vi_ly_do'] ) ) : '',
+					self::ai() );
+			} elseif ( 'vi_khoa' === $viec || 'vi_mo' === $viec ) {
+				$bao[] = VHG_Vi::khoa(
+					isset( $_POST['vi_sdt'] ) ? wp_unslash( $_POST['vi_sdt'] ) : '',
+					'vi_khoa' === $viec,
+					isset( $_POST['vi_ly_do'] ) ? sanitize_text_field( wp_unslash( $_POST['vi_ly_do'] ) ) : '',
+					self::ai() );
 			}
 		}
 
@@ -744,6 +867,8 @@ class VHG_Admin {
 			. 'gói đó <b>cố ý</b> không theo tỉ lệ (gói khuyến mãi, gói kèm quà).<br>'
 			. 'Bỏ trống số tiền = bỏ nút đó. Tên gói có dấu vẫn khai bình thường — máy chủ tự bỏ dấu '
 			. 'khi gửi xuống ghế, vì font màn ghế không vẽ được dấu tiếng Việt.</p>';
+
+		self::khoi_vi();
 
 		/* Xem trước ĐÚNG như ghế sẽ hiện: đã bỏ dấu, đã tính ra phút. Một bảng xem trước bằng
 		   chính dữ liệu sắp gửi đi là cách duy nhất thấy trước "GOI PHO BIEN" trông thế nào,

@@ -32,7 +32,11 @@ define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
 define( 'VHG_KHOA_WEBHOOK', 'khoa-webhook-thu-nghiem' );
 define( 'VHG_KHOA_MAY', 'khoa-may-thu-nghiem' );
-foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
+/* ⚠️ THỨ TỰ CÓ NGHĨA: `vi` phải sau `ma` (VHG_Vi gọi VHG_Ma ngay từ hàm đầu). Danh sách này
+      chép tay nên nó TRÔI khỏi danh sách thật của plugin — phép thử ở mục "nạp đủ lớp" dưới
+      canh đúng chuyện đó. Thêm lớp mới mà quên đây là lỗi "Class not found" giữa lúc chạy, và
+      nó chỉ lộ ra ở đúng phép thử chạm tới lớp đó. */
+foreach ( array( 'db', 'doc', 'may', 'thu', 'qr', 'ma', 'vi', 'qrve', 'nhap', 'cong', 'auth', 'trang', 'shop' ) as $f ) {
 	require_once VHG_DIR . 'includes/class-vhg-' . $f . '.php';
 }
 require_once VHG_DIR . 'includes/class-vhg-admin.php';
@@ -168,7 +172,18 @@ function vhg_tong() {
 
 // ============================================================ 1. Sơ đồ bảng
 $so_do = VHG_DB::bang();
-teq( 'sơ đồ có đủ 11 bảng', 11, count( $so_do ) );
+teq( 'sơ đồ có đủ 13 bảng', 13, count( $so_do ) );
+/* 🔴 Hai bảng của VÍ phải có mặt. Con số 13 ở trên đổi theo mỗi lần thêm bảng, nên nó không
+      nói được BẢNG NÀO thiếu — mà thiếu đúng bảng tiền thì plugin cài xong vẫn chạy, chỉ là
+      mọi lượt nạp ném lỗi vào đúng lúc khách vừa chuyển khoản. */
+foreach ( array( 'vi', 'vi_so' ) as $b_ ) {
+	t( 'có bảng ' . $b_, isset( $so_do[ $b_ ] ) );
+}
+t( '🔴 ví khoá DUY NHẤT theo số điện thoại — hai ví cùng số là tiền chia làm đôi',
+	strpos( (string) $so_do['vi'], 'UNIQUE KEY sdt (sdt)' ) !== false );
+/* Đơn phải mang được cả hai kiểu hàng, không thì webhook không biết rẽ đâu. */
+t( 'đơn có cột loai để rẽ nhánh', strpos( (string) $so_do['don_ma'], 'loai VARCHAR' ) !== false );
+t( 'và cột nhan_tien để chốt số tiền nhận', strpos( (string) $so_do['don_ma'], 'nhan_tien' ) !== false );
 /* 🔴 `ma` UNIQUE là TOÀN BỘ hàng rào chống dùng một mã hai lần. Mất nó thì cùng một mã chạy ghế
       bao nhiêu lần cũng được, và mình không có cách nào biết. */
 t( 'bảng mã khoá DUY NHẤT theo mã', strpos( $so_do['ma'], 'UNIQUE KEY ma (ma)' ) !== false );
@@ -3746,8 +3761,22 @@ $_GET = array();
 /* Anh Thắng 23/08/2026: *"khách hàng rất dễ chọn lộn ghế, vì số lượng ghế rất nhiều"*. Chọn lộn
    là mã của khách chạy cho GHẾ NGƯỜI KHÁC — mất mã, mất cả buổi, và không ai chứng minh được. */
 $sh_ch = vhg_shop_html();
-t( '🔴 trang khách KHÔNG còn ô chọn ghế', strpos( $sh_ch, '<select' ) === false );
+/* ⚠️ Bản trước canh `strpos($sh_ch,'<select') === false` — tức là "trang không được có ô chọn
+      NÀO CẢ". Đó là một cái cọc thay cho ý thật, và cọc gãy ngay khi trang có thêm một ô chọn
+      HỢP LỆ (chọn GÓI để trả bằng số dư ví). Phép thử ấy sẽ ép người sau hoặc bỏ tính năng
+      đúng, hoặc gỡ phép thử — cả hai đều hỏng.
+      Ý thật là: KHÔNG có ô nào cho khách chọn GHẾ. Canh đúng ý đó. */
+$o_chon = array();
+preg_match_all( '/<select[^>]*id="([^"]*)"/i', $sh_ch, $o_chon );
+foreach ( (array) $o_chon[1] as $id_ ) {
+	t( '🔴 ô chọn "' . $id_ . '" không phải ô chọn ghế',
+		stripos( $id_, 'ghe' ) === false && stripos( $id_, 'may' ) === false );
+}
 t( 'và không còn dựng danh sách ghế', strpos( $sh_ch, 'ds_ghe' ) === false );
+/* Chốt chặn thật: mã ghế CÓ TRONG hệ thống mà lại xuất hiện trong trang khách nghĩa là trang
+   đang phơi danh sách ghế ra, dù dựng bằng cách nào. */
+t( '🔴 trang khách không mang mã ghế nào của hệ thống',
+	strpos( $sh_ch, 'AMTP01' ) === false );
 /* Không biết ghế thì TỪ CHỐI và chỉ đường, chứ không đoán. */
 t( 'không biết ghế thì mời quét tem trên ghế',
 	strpos( $sh_ch, 'quét mã QR dán trên chính cái ghế' ) !== false );
@@ -4139,6 +4168,399 @@ $cho_con  = 314 - $rong_phai - 8 - 6;
 t( '🔴 mức tiêu đề ngắn nhất vẫn vừa khi mã ghế dài nhất + MAT MANG',
 	strlen( 'MASSAGE' ) * F1_RONG <= $cho_con,
 	'còn ' . $cho_con . 'px cho tiêu đề' );
+
+
+/* ================================================================================================
+ * VÍ — GÓI NẠP VÀ SỐ DƯ
+ *
+ * Anh Thắng 23/08/2026: *"bán mã giảm giá theo gói nạp. Nạp 100k được 120k. Nạp 200 được 300k.
+ * Nạp 500 được 800k"*.
+ *
+ * 🔴 ĐÂY LÀ ĐƯỜNG TIỀN THỨ HAI. Bộ thử này canh bốn thứ, theo thứ tự nguy hiểm giảm dần:
+ *      1. ví KHÔNG BAO GIỜ âm, kể cả hai ghế bấm cùng một khoảnh khắc
+ *      2. doanh thu KHÔNG đếm hai lần (ghi lúc nạp, KHÔNG ghi lại lúc tiêu)
+ *      3. webhook bắn lại KHÔNG cộng thêm tiền
+ *      4. ai biết số điện thoại của khách KHÔNG chiếm được ví bằng cách nạp thêm 1.000đ
+ * ============================================================================================= */
+update_option( 'vhg_goi_nap', array() );
+/* ⚠️ Khối phép thử ngay trên vừa THAY bảng giá bằng một gói 10.000đ duy nhất (nó thử chuyện cắt
+      chữ dài). Khối này cần đủ mệnh giá, nên dựng lại bảng giá trước khi làm gì khác — chứ đừng
+      ngầm trông vào thứ khối khác để lại. */
+VHG_May::luu_menh_gia( array(
+	array( 'tien' => 10000,  'phut' => 6,  'ten' => 'GOI CO BAN',    'mo_ta' => 'Khoi dong',  'vip' => 0 ),
+	array( 'tien' => 50000,  'phut' => 30, 'ten' => 'GOI CHUYEN SAU','mo_ta' => 'Tri lieu',   'vip' => 0 ),
+	array( 'tien' => 100000, 'phut' => 60, 'ten' => 'GOI THUONG HANG','mo_ta' => 'Dang cap',  'vip' => 1 ),
+) );
+
+// ---- cấu hình gói nạp
+$gn_ok = VHG_Vi::luu_goi_nap( array(
+	array( 'nap' => 500000, 'nhan' => 800000 ),
+	array( 'nap' => 100000, 'nhan' => 120000 ),
+	array( 'nap' => 200000, 'nhan' => 300000 ),
+) );
+t( 'lưu được ba gói nạp', ! empty( $gn_ok['ok'] ), isset( $gn_ok['error'] ) ? $gn_ok['error'] : '' );
+$gn = VHG_Vi::goi_nap();
+teq( 'còn đúng ba gói', 3, count( $gn ) );
+teq( 'sắp theo số tiền nạp tăng dần', array( 100000, 200000, 500000 ),
+	array_map( function ( $g ) { return (int) $g['nap']; }, $gn ) );
+teq( 'nạp 100k thì được thêm 20k', 20000, (int) $gn[0]['them'] );
+/* Khách so sánh bằng "lợi bao nhiêu so với tiền bỏ ra", không phải "giảm bao nhiêu phần trăm".
+   Nạp 100k được 120k là LỢI 20%; nói "giảm 16,7%" thì đúng số học mà không ai hiểu. */
+teq( 'và lợi 20% so với tiền bỏ ra', 20, (int) $gn[0]['loi_pt'] );
+teq( 'nạp 500k lợi 60%', 60, (int) $gn[2]['loi_pt'] );
+
+/* 🔴 NHẬN ÍT HƠN NẠP là móc túi khách — chặn ngay lúc lưu, đừng để một lần gõ nhầm thành một
+      tuần bán hàng sai. */
+$gn_lo = VHG_Vi::luu_goi_nap( array( array( 'nap' => 100000, 'nhan' => 90000 ) ) );
+t( '🔴 từ chối gói cho nhận ít hơn nạp', empty( $gn_lo['ok'] ) );
+t( 'và nói rõ khách lỗ', strpos( (string) $gn_lo['error'], 'lỗ' ) !== false );
+$gn_trung = VHG_Vi::luu_goi_nap( array(
+	array( 'nap' => 100000, 'nhan' => 120000 ), array( 'nap' => 100000, 'nhan' => 130000 ) ) );
+t( 'từ chối hai gói cùng số tiền nạp', empty( $gn_trung['ok'] ) );
+$gn_to = VHG_Vi::luu_goi_nap( array( array( 'nap' => 99000000, 'nhan' => 99000000 ) ) );
+t( 'từ chối gói vượt trần', empty( $gn_to['ok'] ) );
+/* Dòng trống thì bỏ qua im lặng — bảng nhập luôn có mấy dòng chưa gõ. */
+$gn_trong = VHG_Vi::luu_goi_nap( array(
+	array( 'nap' => '', 'nhan' => '' ), array( 'nap' => 100000, 'nhan' => 120000 ) ) );
+t( 'dòng trống thì bỏ qua, không báo lỗi', ! empty( $gn_trong['ok'] ) );
+teq( 'và chỉ lưu dòng có gõ', 1, count( VHG_Vi::goi_nap() ) );
+/* Trả bảng về đủ ba gói cho các phép thử dưới. */
+VHG_Vi::luu_goi_nap( array(
+	array( 'nap' => 100000, 'nhan' => 120000 ),
+	array( 'nap' => 200000, 'nhan' => 300000 ),
+	array( 'nap' => 500000, 'nhan' => 800000 ) ) );
+
+// ---- đặt đơn nạp
+update_option( 'vhg_ma_cho_ngay', 5 );
+$vd = VHG_Vi::dat_don( '0909111222', '1234', 100000, '' );
+t( 'đặt được đơn nạp', ! empty( $vd['ok'] ), isset( $vd['error'] ) ? $vd['error'] : '' );
+teq( 'phải trả đúng số tiền nạp', 100000, (int) $vd['phai_tra'] );
+teq( 'nhận về đúng số tiền đã hứa', 120000, (int) $vd['nhan_tien'] );
+teq( 'và chốt hạn chờ 5 ngày', 5, (int) $vd['cho_ngay'] );
+t( 'từ chối gói nạp không có trong bảng',
+	empty( VHG_Vi::dat_don( '0909111222', '1234', 123000, '' )['ok'] ) );
+t( 'từ chối PIN không phải 4 chữ số',
+	empty( VHG_Vi::dat_don( '0909111222', '12', 100000, '' )['ok'] ) );
+t( 'từ chối số điện thoại sai',
+	empty( VHG_Vi::dat_don( '123', '1234', 100000, '' )['ok'] ) );
+
+// ---- tiền về -> cộng ví
+$vi_sdt = '0909111222';
+teq( 'chưa trả tiền thì chưa có ví', false, VHG_Vi::so_du( $vi_sdt )['co_vi'] );
+$vn = VHG_Vi::nap( $vd['ma_don'], 'ref-nap-1' );
+t( 'cộng ví được', ! empty( $vn['ok'] ), isset( $vn['error'] ) ? $vn['error'] : '' );
+$sd1 = VHG_Vi::so_du( $vi_sdt );
+teq( '🔴 tiền vào cột CHỜ, không tiêu được ngay', 0, (int) $sd1['dung'] );
+teq( 'và cột chờ đúng 120k', 120000, (int) $sd1['cho'] );
+teq( 'tổng vẫn là 120k', 120000, (int) $sd1['tong'] );
+t( 'có nói khi nào tiêu được', $sd1['con_cho'] > 0 );
+
+/* 🔴 WEBHOOK BẮN LẠI KHÔNG ĐƯỢC CỘNG THÊM. Bên gửi không nhận được phản hồi thì gửi tiếp —
+      chuyện bình thường, và mỗi lượt bắn lại mà cộng thêm là cho không tiền thật. */
+$vn2 = VHG_Vi::nap( $vd['ma_don'], 'ref-nap-1' );
+t( 'gọi lại thì báo lặp lại', ! empty( $vn2['lap_lai'] ) );
+teq( '🔴 và số dư KHÔNG nhích thêm đồng nào', 120000, (int) VHG_Vi::so_du( $vi_sdt )['tong'] );
+VHG_Vi::nap( $vd['ma_don'], 'ref-nap-1' );
+VHG_Vi::nap( $vd['ma_don'], 'ref-nap-1' );
+teq( 'gọi năm lần vẫn vậy', 120000, (int) VHG_Vi::so_du( $vi_sdt )['tong'] );
+
+// ---- hạn chờ chín
+/* Kéo mốc về quá khứ để thử chín, thay vì chờ năm ngày thật. */
+$wpdb->query( "UPDATE " . VHG_DB::t( 'vi_so' ) . " SET dung_duoc_tu='2020-01-01 00:00:00'
+	WHERE sdt='" . $vi_sdt . "' AND da_chin=0" );
+$chin1 = VHG_Vi::chin( $vi_sdt );
+teq( 'tới hạn thì chuyển đúng 120k sang tiêu được', 120000, (int) $chin1 );
+$sd2 = VHG_Vi::so_du( $vi_sdt );
+teq( 'tiêu được 120k', 120000, (int) $sd2['dung'] );
+teq( 'và không còn khoản chờ', 0, (int) $sd2['cho'] );
+/* 🔴 CHÍN HAI LẦN KHÔNG ĐƯỢC CỘNG HAI LẦN. Hàm này chạy mỗi lần đọc ví, nên nó chạy rất
+      nhiều lần — cộng thêm một lần thôi là ví tự đẻ tiền. */
+teq( '🔴 gọi chín lần nữa thì không chuyển gì thêm', 0, (int) VHG_Vi::chin( $vi_sdt ) );
+teq( 'và số dư đứng yên', 120000, (int) VHG_Vi::so_du( $vi_sdt )['tong'] );
+
+// ---- tiêu tại ghế
+$vt_sai = VHG_Vi::tieu( $vi_sdt, '9999', 10000, 'AMTP01' );
+t( 'sai PIN thì không tiêu được', empty( $vt_sai['ok'] ) );
+/* ⚠️ MỘT CÂU LỖI cho cả "chưa có ví" lẫn "sai PIN" — tách ra là biến ô này thành máy dò xem
+      số nào đã nạp tiền. */
+$vt_khong = VHG_Vi::tieu( '0909000000', '1234', 10000, 'AMTP01' );
+teq( '🔴 "chưa có ví" và "sai PIN" nói y hệt nhau',
+	(string) $vt_sai['error'], (string) $vt_khong['error'] );
+t( 'ghế không có thì từ chối',
+	empty( VHG_Vi::tieu( $vi_sdt, '1234', 10000, 'KHONGCO' )['ok'] ) );
+/* 🔴 Mệnh giá phải ĐANG KHAI. Nhận con số khách gửi lên là mở đường chạy lượt 100.000đ mà chỉ
+      trừ 1.000đ bằng cách sửa gói tin. */
+t( '🔴 mệnh giá bịa thì từ chối',
+	empty( VHG_Vi::tieu( $vi_sdt, '1234', 7777, 'AMTP01' )['ok'] ) );
+
+$vt = VHG_Vi::tieu( $vi_sdt, '1234', 10000, 'AMTP01' );
+t( 'tiêu được', ! empty( $vt['ok'] ), isset( $vt['error'] ) ? $vt['error'] : '' );
+teq( 'trừ đúng 10k', 110000, (int) VHG_Vi::so_du( $vi_sdt )['dung'] );
+/* ⚠️ Bản nháp của phép thử này viết `... || true` — tức là nó ĐẠT dù ghế không nhận được gì.
+      Một phép thử luôn đạt còn tệ hơn không có phép thử: nó chiếm chỗ và làm người đọc yên tâm.
+      Nay soi thẳng vào hàng chờ, đúng bảng ghế lấy lệnh về. */
+$cho_vi = VHG_DB::rows( "SELECT * FROM " . VHG_DB::t( 'cho' )
+	. " WHERE ma_may='AMTP01' AND ref LIKE 'vi-%' ORDER BY id DESC" );
+t( '🔴 ghế thật sự được xếp lệnh chạy', count( $cho_vi ) >= 1 );
+teq( 'và lệnh mang đúng số tiền của gói', 10000, (int) $cho_vi[0]['so_tien'] );
+/* Số dư trừ 10k thì ghế phải chạy lượt 10k — không phải lượt bằng số tiền khách từng NẠP. */
+t( 'nội dung lệnh nói rõ đây là tiêu ví',
+	strpos( (string) $cho_vi[0]['noi_dung'], 'ví' ) !== false );
+/* Và số điện thoại trong hàng chờ phải CHE — bảng này hiện trên màn quản trị. */
+t( '🔴 hàng chờ không mang đủ số điện thoại khách',
+	strpos( (string) $cho_vi[0]['noi_dung'], '0909111222' ) === false );
+
+/* 🔴 TIÊU HẾT RỒI THÌ KHÔNG TIÊU THÊM ĐƯỢC. Đây là chốt quan trọng nhất của cả tệp này. */
+$vt_het = VHG_Vi::tieu( $vi_sdt, '1234', 100000, 'AMTP01' );
+t( 'tiêu 100k khi còn 110k thì được', ! empty( $vt_het['ok'] ) );
+teq( 'còn lại 10k', 10000, (int) VHG_Vi::so_du( $vi_sdt )['dung'] );
+$vt_thieu = VHG_Vi::tieu( $vi_sdt, '1234', 100000, 'AMTP01' );
+t( '🔴 không đủ tiền thì TỪ CHỐI', empty( $vt_thieu['ok'] ) );
+t( 'và nói rõ còn bao nhiêu', strpos( (string) $vt_thieu['error'], '10.000' ) !== false );
+teq( '🔴 ví KHÔNG âm', 10000, (int) VHG_Vi::so_du( $vi_sdt )['dung'] );
+
+/* 🔴 CHỐT CHỐNG VÍ ÂM NẰM Ở TẦNG SQL, không phải ở tầng PHP.
+      Đọc số dư ra PHP rồi so sánh là hai máy cùng bấm thì CẢ HAI thấy đủ tiền. Phép thử chạy
+      tuần tự nên không dựng lại được cảnh đó — nên canh thẳng vào CÂU LỆNH: nó phải mang điều
+      kiện `so_du_dung>=%d` ngay trong UPDATE. */
+$src_vi = (string) file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-vi.php' );
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BÓC CHÚ THÍCH RA TRƯỚC KHI SOI MÃ NGUỒN.
+ *
+ * Ba lần trong đúng phiên làm việc hôm nay, một phép thử "mã nguồn KHÔNG được chứa X" tự hỏng
+ * vì chú thích ngay cạnh chỗ sửa có NHẮC LẠI X để giải thích vì sao không dùng nó:
+ *   · "QUET DE MUA"      — chú thích trích lại câu anh Thắng bảo ẩn
+ *   · "MUA MA GIAM GIA"  — chú thích kể lại bố cục cũ
+ *   · "VHG_Thu::ghi()"   — chú thích nói rõ vì sao KHÔNG gọi hàm đó
+ *
+ * Vá lẻ từng lần (đổi sang canh `drawString("X`, canh `X(`) chỉ đẩy vấn đề sang lần sau, vì
+ * chú thích càng viết kỹ thì càng dễ chứa đúng chuỗi đang bị cấm — tức là phép thử phạt đúng
+ * cái nết tốt.
+ *
+ * `token_get_all()` là bộ tách token của chính PHP, nên nó phân biệt được chú thích với chuỗi
+ * và với mã thật — kể cả `//` nằm trong "https://". Bóc bằng nó thì phép thử soi ĐÚNG mã chạy.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$bo_chu_thich = function ( $ma ) {
+	$ra = '';
+	foreach ( token_get_all( $ma ) as $tk ) {
+		if ( is_array( $tk ) ) {
+			if ( T_COMMENT === $tk[0] || T_DOC_COMMENT === $tk[0] ) { continue; }
+			$ra .= $tk[1];
+		} else {
+			$ra .= $tk;
+		}
+	}
+	return $ra;
+};
+$vi_chay = $bo_chu_thich( $src_vi );          // chỉ còn MÃ CHẠY, không còn chú thích
+/* Tự kiểm bộ bóc: chuỗi chỉ có trong chú thích phải biến mất, mã thật phải còn. */
+t( 'bộ bóc chú thích ăn đúng phần chú thích',
+	strpos( $src_vi, 'có chủ đích' ) !== false && strpos( $vi_chay, 'có chủ đích' ) === false );
+t( 'và giữ nguyên phần mã chạy', strpos( $vi_chay, 'function tieu(' ) !== false );
+t( '🔴 lệnh trừ tiền mang điều kiện đủ tiền NGAY TRONG SQL',
+	preg_match( '/UPDATE .{0,400}?SET so_du_dung=so_du_dung-%d.{0,300}?WHERE sdt=%s AND khoa=0 AND so_du_dung>=%d/s',
+		$vi_chay ) === 1 );
+t( 'và đọc số dòng đụng được để biết trừ có ăn không',
+	preg_match( '/\$n = \$wpdb->query\(.{0,600}?return \(bool\) \$n;/s', $vi_chay ) === 1 );
+/* Cờ chín cũng vậy: lật cờ TRƯỚC, và chỉ người lật được cờ mới cộng tiền. */
+t( '🔴 cờ chín lật bằng UPDATE có điều kiện, không phải đọc-rồi-ghi',
+	strpos( $vi_chay, 'UPDATE $ts SET da_chin=1 WHERE id=%d AND da_chin=0' ) !== false );
+
+// ---- 🔴 DOANH THU KHÔNG ĐẾM HAI LẦN
+/* Tiền thật vào tài khoản LÚC NẠP. Lúc khách tiêu, không có đồng nào chảy vào cửa hàng nữa —
+   ghi thêm một dòng doanh thu ở đó là đếm hai lần đúng khoản tiền ấy. */
+/* ⚠️ Canh LỆNH GỌI `VHG_Thu::ghi(`, đừng canh chuỗi 'VHG_Thu::ghi' trần trụi: chú thích đầu
+      tệp có NHẮC TÊN hàm đó để giải thích vì sao không gọi, nên canh trần là phép thử tự hỏng
+      vì chính lời giải thích của mình. Đây là lần thứ BA kiểu này dính trong phiên hôm nay —
+      hai lần trước ở chuỗi "QUET DE MUA" và "MUA MA GIAM GIA". */
+t( '🔴 tiêu ví KHÔNG gọi VHG_Thu::ghi — soi mã đã bóc chú thích',
+	strpos( $vi_chay, 'VHG_Thu::ghi' ) === false );
+/* Và lời giải thích thì phải CÒN — nó nằm trong chú thích, nên soi bản gốc. */
+t( 'nhưng có nói rõ vì sao ngay trong mã', strpos( $src_vi, 'đếm hai lần' ) !== false );
+
+// ---- nợ
+$no = VHG_Vi::tong_no();
+teq( 'tổng nợ đúng bằng số dư chưa tiêu', 10000, (int) $no['tong'] );
+teq( 'và đếm đúng một ví', 1, (int) $no['so_vi'] );
+
+// ---- sổ ví
+$so_vi = VHG_Vi::ds_so( $vi_sdt, 50 );
+t( 'sổ ví có đủ dòng nạp và các dòng tiêu', count( $so_vi ) >= 3 );
+$tong_so = 0;
+foreach ( $so_vi as $r ) { $tong_so += (int) $r['thay_doi']; }
+teq( '🔴 cộng dồn cả sổ ra đúng số dư đang có', 10000, $tong_so );
+
+// ---- 🔴 CHIẾM VÍ BẰNG CÁCH NẠP THÊM 1.000đ
+/* Ai cũng biết số điện thoại của khách. Không có chốt này thì họ đặt một đơn nạp kèm PIN mới,
+   trả tiền, và PIN ví bị ghi đè — rồi tiêu sạch số dư của người ta. */
+$cuop = VHG_Vi::dat_don( $vi_sdt, '5555', 100000, '' );
+t( '🔴 ví đã có mà PIN sai thì KHÔNG đặt được đơn nạp', empty( $cuop['ok'] ) );
+t( 'và chỉ đường lấy lại PIN', strpos( (string) $cuop['error'], 'PIN' ) !== false );
+$dung_pin = VHG_Vi::dat_don( $vi_sdt, '1234', 100000, '' );
+t( 'PIN đúng thì nạp thêm bình thường', ! empty( $dung_pin['ok'] ) );
+
+// ---- khoá ví
+$kv = VHG_Vi::khoa( $vi_sdt, true, 'nghi ngờ gian lận', 'thang' );
+t( 'khoá được ví', ! empty( $kv['ok'] ) );
+$vt_khoa = VHG_Vi::tieu( $vi_sdt, '1234', 10000, 'AMTP01' );
+t( '🔴 ví khoá thì không tiêu được', empty( $vt_khoa['ok'] ) );
+teq( 'và tiền vẫn còn nguyên', 10000, (int) VHG_Vi::so_du( $vi_sdt )['dung'] );
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 KHOÁ VÍ CHẶN Ở HAI TẦNG — và phép thử hành vi ở trên KHÔNG phân biệt được hai tầng đó.
+ *
+ * Thử đục từng tầng một thì thấy: bỏ tầng PHP, tầng SQL vẫn chặn; bỏ tầng SQL, tầng PHP vẫn
+ * chặn. Nên câu `empty($vt_khoa['ok'])` chỉ gãy khi MẤT CẢ HAI — nó không canh được tầng nào
+ * cả, dù nhìn thì tưởng có.
+ *
+ * Đó là phòng thủ chiều sâu thật, không phải thừa: tầng SQL là tầng KHÔNG THỂ đi vòng (mọi
+ * lượt trừ tiền đều phải qua đúng câu lệnh ấy), tầng PHP là tầng cho khách CÂU TRẢ LỜI đúng
+ * ("ví đang khoá") thay vì một câu khó hiểu ("số dư vừa thay đổi ở nơi khác").
+ *
+ * Nên canh riêng từng tầng, mỗi tầng một phép thử nói đúng thứ nó giữ.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 [tầng SQL] lệnh trừ tiền tự nó từ chối ví đang khoá',
+	strpos( $vi_chay, 'AND khoa=0 AND so_du_dung>=%d' ) !== false );
+t( '🔴 [tầng PHP] và khách được nói đúng lý do, không phải một câu khó hiểu',
+	strpos( (string) $vt_khoa['error'], 'khoá' ) !== false, (string) $vt_khoa['error'] );
+VHG_Vi::khoa( $vi_sdt, false, 'đã kiểm tra xong', 'thang' );
+t( 'mở khoá thì tiêu lại được',
+	! empty( VHG_Vi::tieu( $vi_sdt, '1234', 10000, 'AMTP01' )['ok'] ) );
+
+// ---- chỉnh tay
+t( '🔴 chỉnh số dư mà không ghi lý do thì từ chối',
+	empty( VHG_Vi::chinh_tay( $vi_sdt, 50000, '', 'thang' )['ok'] ) );
+$ct = VHG_Vi::chinh_tay( $vi_sdt, 50000, 'đền bù ghế hỏng giữa lượt', 'thang' );
+t( 'có lý do thì chỉnh được', ! empty( $ct['ok'] ) );
+teq( 'cộng đúng 50k', 50000, (int) VHG_Vi::so_du( $vi_sdt )['dung'] );
+t( '🔴 trừ tay quá số dư cũng bị chặn',
+	empty( VHG_Vi::chinh_tay( $vi_sdt, -999999, 'thử trừ lố', 'thang' )['ok'] ) );
+teq( 'ví vẫn không âm', 50000, (int) VHG_Vi::so_du( $vi_sdt )['dung'] );
+
+// ---- lấy lại PIN bằng căn cước
+$vi_cc = '0909333444';
+$dcc = VHG_Vi::dat_don( $vi_cc, '1111', 100000, '012345678901' );
+VHG_Vi::nap( $dcc['ma_don'], 'ref-cc' );
+t( 'ví không khai căn cước thì không lấy lại PIN qua mạng được',
+	empty( VHG_Vi::lay_lai_pin( $vi_sdt, '1234', '2222' )['ok'] ) );
+t( 'khai rồi + đúng bốn số cuối thì đổi được',
+	! empty( VHG_Vi::lay_lai_pin( $vi_cc, '8901', '2222' )['ok'] ) );
+t( 'sai bốn số cuối thì không',
+	empty( VHG_Vi::lay_lai_pin( $vi_cc, '0000', '3333' )['ok'] ) );
+$sd_cc = VHG_Vi::so_du( $vi_cc );
+teq( 'đổi PIN không đụng vào tiền', 120000, (int) $sd_cc['tong'] );
+
+// ---- webhook rẽ đúng nhánh
+$wd_nap = VHG_Vi::dat_don( '0909555666', '4321', 200000, '' );
+$wh = VHG_Thu::nhan( 'sepay', array( 'ref' => 'wh-nap-1', 'so_tien' => 200000,
+	'noi_dung' => 'SEVQR ' . VHG_QR::noi_dung_mua( $wd_nap['ma_don'] ), 'luc' => '' ) );
+t( 'webhook nhận đơn nạp', ! empty( $wh['ok'] ) );
+teq( '🔴 và cộng đúng 300k vào ví', 300000, (int) VHG_Vi::so_du( '0909555666' )['tong'] );
+t( 'nhật ký nói rõ đây là đơn nạp ví',
+	strpos( (string) ( isset( $wh['ghi_chu'] ) ? $wh['ghi_chu'] : '' ), 'nạp ví' ) !== false );
+/* Đơn MUA MÃ vẫn đi nhánh cũ — thêm nhánh nạp không được cướp đường của nhánh mã. */
+$wd_ma = VHG_Ma::dat_don( '0909777888', '1357', 100000, 1, '' );
+$wh2 = VHG_Thu::nhan( 'sepay', array( 'ref' => 'wh-ma-1', 'so_tien' => (int) $wd_ma['phai_tra'],
+	'noi_dung' => 'SEVQR ' . VHG_QR::noi_dung_mua( $wd_ma['ma_don'] ), 'luc' => '' ) );
+t( '🔴 đơn mua mã vẫn phát mã như cũ', ! empty( $wh2['ma_phat'] ) );
+teq( 'và KHÔNG cộng vào ví nào', false, VHG_Vi::so_du( '0909777888' )['co_vi'] );
+
+/* 🔴 ĐƠN CŨ không có cột `loai` (đặt trước bản này) phải vẫn PHÁT MÃ. Đọc rỗng thành 'nap' là
+      mọi đơn cũ chưa trả tiền biến thành đơn nạp, và khách trả tiền xong không nhận được mã. */
+$wd_cu = VHG_Ma::dat_don( '0909999000', '2468', 100000, 1, '' );
+$wpdb->query( "UPDATE " . VHG_DB::t( 'don_ma' ) . " SET loai='' WHERE ma_don='" . $wd_cu['ma_don'] . "'" );
+$wh3 = VHG_Thu::nhan( 'sepay', array( 'ref' => 'wh-cu-1', 'so_tien' => (int) $wd_cu['phai_tra'],
+	'noi_dung' => 'SEVQR ' . VHG_QR::noi_dung_mua( $wd_cu['ma_don'] ), 'luc' => '' ) );
+t( '🔴 đơn cũ không có cột loai vẫn phát mã', ! empty( $wh3['ma_phat'] ) );
+
+// ---- số điện thoại trong sổ phải che
+teq( 'số điện thoại hiện ra thì che khúc giữa', '0909***222', VHG_Ma::sdt_che( '0909111222' ) );
+t( 'và không hiện đủ số', strpos( VHG_Ma::sdt_che( '0909111222' ), '111' ) === false );
+
+
+/* ---- 🔴 BỘ THỬ PHẢI NẠP ĐỦ MỌI LỚP CỦA PLUGIN
+   Danh sách nạp ở đầu tệp này chép tay. Thêm một lớp vào plugin mà quên thêm vào đó thì bộ thử
+   chạy tới chỗ chạm lớp ấy mới ngã, kèm câu "Class not found" — và nếu chưa có phép thử nào
+   chạm tới thì nó KHÔNG ngã, mà lặng lẽ không thử gì cả. Đã dính đúng lúc thêm VHG_Vi. */
+$tep_nap = (string) file_get_contents( __FILE__ );
+$thieu_nap = array();
+foreach ( glob( VHG_DIR . 'includes/class-vhg-*.php' ) as $tep_ ) {
+	$ten_ = basename( $tep_, '.php' );                       // class-vhg-vi
+	$khoa_ = substr( $ten_, strlen( 'class-vhg-' ) );        // vi
+	if ( 'admin' === $khoa_ ) { continue; }                  // nạp riêng ở dòng dưới
+	if ( strpos( $tep_nap, "'" . $khoa_ . "'" ) === false ) { $thieu_nap[] = $khoa_; }
+}
+teq( '🔴 bộ thử nạp đủ mọi lớp của plugin', array(), $thieu_nap );
+
+
+// ---- trang khách: tab nạp ví + ô tiêu số dư
+VHG_Vi::luu_goi_nap( array(
+	array( 'nap' => 100000, 'nhan' => 120000 ),
+	array( 'nap' => 200000, 'nhan' => 300000 ),
+	array( 'nap' => 500000, 'nhan' => 800000 ) ) );
+$sh_v = vhg_shop_html( 'AMTP01' );
+t( 'trang khách có tab Nạp ví', strpos( $sh_v, "data-tab=\"nap\"" ) !== false );
+t( 'và có màn chọn gói nạp', strpos( $sh_v, 'data-nap=' ) !== false );
+/* 🔴 Con số khách dùng để quyết định là "ĐƯỢC THÊM bao nhiêu", không phải "giảm bao nhiêu %". */
+t( '🔴 nói "được thêm", không nói "giảm %"', strpos( $sh_v, 'được thêm' ) !== false );
+t( 'và có ô tiêu số dư ngay tại ghế', strpos( $sh_v, "id=\"t-tieu\"" ) !== false );
+t( 'kèm ô xem số dư ở tab Của tôi', strpos( $sh_v, "id=\"v-xem\"" ) !== false );
+/* Hạn chờ phải nói TRƯỚC khi khách trả tiền, y như bên mã. */
+t( '🔴 nói hạn chờ của số dư trước khi khách trả tiền',
+	strpos( $sh_v, 'Số dư nạp dùng được sau' ) !== false );
+/* PIN của ví đã có là PIN CŨ — không nói rõ thì khách gõ PIN mới rồi bị từ chối mà không hiểu. */
+t( 'nói rõ ví đã có thì nhập đúng PIN cũ', strpos( $sh_v, 'đúng PIN cũ' ) !== false );
+
+/* 🔴 CHƯA KHAI GÓI NẠP thì KHÔNG bày tab ra. Bày một tab dẫn vào trang trống còn tệ hơn không có.
+   ⚠️ KHÔNG canh được bằng cách xem HTML có chuỗi đó hay không: tab dựng bằng JS LÚC CHẠY, nên
+      mã JS nằm trong trang bất kể đã khai gói hay chưa. Bản nháp của phép thử này canh như vậy
+      và gãy ngay — đúng ra là nó ĐANG canh sai chỗ, không phải mã sai.
+      Thứ thật sự quyết định có hai: (a) điều kiện trong JS, (b) danh sách máy chủ gửi xuống. */
+update_option( 'vhg_goi_nap', array() );
+$sh_kn = vhg_shop_html( 'AMTP01' );
+t( '🔴 JS chỉ bày tab Nạp ví khi máy chủ có gửi gói nạp xuống',
+	strpos( $sh_kn, 'var coNap = !!(D && D.goi_nap && D.goi_nap.length);' ) !== false );
+t( 'và ô tiêu số dư cũng nấp sau đúng điều kiện đó',
+	preg_match( '/if \(D && D\.goi_nap && D\.goi_nap\.length\) \{\s*h \+= .{0,120}?Hoặc trả bằng số dư ví/s',
+		$sh_kn ) === 1 );
+teq( '🔴 chưa khai thì máy chủ gửi xuống danh sách RỖNG', 0,
+	count( (array) vhg_shop( 'goi' )['goi_nap'] ) );
+VHG_Vi::luu_goi_nap( array(
+	array( 'nap' => 100000, 'nhan' => 120000 ),
+	array( 'nap' => 200000, 'nhan' => 300000 ),
+	array( 'nap' => 500000, 'nhan' => 800000 ) ) );
+
+// ---- cổng API của ví
+$api_goi = vhg_shop( 'goi' );
+t( 'API bảng giá kèm luôn danh sách gói nạp', isset( $api_goi['goi_nap'] ) );
+teq( 'và đủ ba gói', 3, count( (array) $api_goi['goi_nap'] ) );
+/* ⚠️ Cổng tra ví phải nói MỘT CÂU LỖI cho cả "chưa có ví" lẫn "sai PIN". */
+$GLOBALS['VHCP_TR'] = array();                                   // xoá hãm thử của khối trước
+$api_v1 = vhg_shop( 'vi', array( 'sdt' => '0909111222', 'pin' => '0000' ) );
+$api_v2 = vhg_shop( 'vi', array( 'sdt' => '0900000000', 'pin' => '1234' ) );
+teq( '🔴 cổng ví: sai PIN và chưa có ví nói y hệt nhau',
+	(string) $api_v1['error'], (string) $api_v2['error'] );
+$api_v3 = vhg_shop( 'vi', array( 'sdt' => '0909111222', 'pin' => '1234' ) );
+t( 'PIN đúng thì trả về số dư', ! empty( $api_v3['ok'] ) && isset( $api_v3['so_du'] ) );
+t( 'kèm sổ gần đây', isset( $api_v3['so'] ) );
+/* 🔴 Cổng ví KHÔNG được trả về chuỗi băm PIN — đó là thứ chỉ máy chủ cần. */
+t( '🔴 cổng ví không phơi chuỗi băm PIN ra ngoài',
+	strpos( wp_json_encode( $api_v3 ), 'pin_bam' ) === false );
+
+// ---- màn quản trị
+ob_start(); VHG_Admin::trang_may(); $adm_v = ob_get_clean();
+t( 'màn quản trị có bảng khai gói nạp', strpos( $adm_v, 'name="gn_nap[]"' ) !== false );
+t( 'và ô khai số tiền khách nhận', strpos( $adm_v, 'name="gn_nhan[]"' ) !== false );
+/* 🔴 KHOẢN NỢ phải hiện ngay cạnh bảng gói nạp. Bán gói nạp thì tháng nào doanh thu cũng đẹp;
+      con số duy nhất nói ra sự thật là "khách đã trả nhưng chưa tiêu". */
+t( '🔴 hiện khoản nợ ngay tại chỗ khai gói nạp',
+	strpos( $adm_v, 'Khách đã trả tiền nhưng chưa tiêu' ) !== false );
+t( 'và gọi đúng tên nó là khoản nợ', strpos( $adm_v, 'khoản nợ' ) !== false );
+t( 'có đường chỉnh tay số dư', strpos( $adm_v, 'name="vi_ly_do"' ) !== false );
+t( 'và đường khoá ví', strpos( $adm_v, 'value="vi_khoa"' ) !== false );
+/* ⚠️ Màn này nhân viên ca nào cũng mở — số điện thoại phải CHE. */
+t( '🔴 danh sách ví che số điện thoại', strpos( $adm_v, '0909111222' ) === false );
+t( 'nhưng vẫn hiện đủ để đối chiếu', strpos( $adm_v, '0909' ) !== false );
+
 
 // ============================================================ kết
 if ( $truot ) {
