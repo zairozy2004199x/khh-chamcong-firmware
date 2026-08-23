@@ -4698,6 +4698,119 @@ t( '🔴 mã đã bán trước khi tắt VẪN dùng được', ! empty( $dung_
 update_option( 'vhg_ban_ma', 1 );
 
 
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 23/08/2026 — MỌI MÃ QR TRANG WEB SINH RA ĐỀU KHÔNG QUÉT ĐƯỢC
+ *
+ * Anh Thắng: *"giờ quét mã này không nhận"* (mã trả tiền của một đơn mua mã).
+ *
+ * 15 bit thông tin định dạng bị đặt SOI GƯƠNG: nửa bit thấp lẽ ra chạy DỌC cột 8 thì chạy
+ * NGANG hàng 8, và ngược lại. Giá trị 15 bit thì đúng — chỉ sai chỗ ngồi. Máy quét đọc ra một
+ * mức sửa lỗi và một mặt nạ SAI, gỡ mặt nạ sai, nhận về toàn rác, rồi lặng lẽ không nhận.
+ *
+ * Đo bằng một bộ GIẢI MÃ THẬT (zxing-cpp — chính thư viện nhiều app ngân hàng dùng):
+ *      trước khi sửa:  0/36 mã đọc được
+ *      sau khi sửa:   36/36
+ *
+ * ⚠️ VÀ BỘ THỬ CŨ BÁO SẠCH SUỐT THỜI GIAN ĐÓ.
+ *    Nó có ba lớp, mà lớp mạnh nhất là "vẽ ra rồi đọc ngược". Lớp ấy chỉ chứng minh được MỘT
+ *    điều: bộ đọc của mình hiểu bộ vẽ của mình. Hai bên cùng đọc/ghi thông tin định dạng ở
+ *    đúng những ô sai như nhau, nên vòng tròn khép kín một cách hoàn hảo.
+ *
+ *    Bài học không phải "viết thêm phép thử đọc ngược". Là: một bộ thử tự nói chuyện với chính
+ *    nó thì không bao giờ phát hiện được mình đang nói sai ngôn ngữ. Phải có MỘT MỐC NGOÀI.
+ *
+ * Nên nay có hai lớp nữa, và cả hai đều KHÔNG dùng bộ đọc của chính tệp này:
+ *   · Lớp 4 — đối chiếu từng ô với ma trận sinh bởi bộ mã hoá ĐỘC LẬP (đã được bộ giải mã thật
+ *     xác nhận trước khi cất vào repo).
+ *   · Lớp 5 — đọc 15 bit định dạng theo ĐÚNG TOẠ ĐỘ bản đặc tả, kiểm BCH, và bắt hai bản sao
+ *     phải khớp nhau. Lớp này bắt đúng kiểu lỗi vừa xảy ra mà không cần tệp mốc nào.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+// --- Lớp 4: đối chiếu với mốc ngoài
+$qr_chuoi_v = '00020101021238560010A0000007270126000697041501121088785839510208QRIBFTTA'
+	. '5303704540490005802VN62190815SEVQR MUA8C4GEM6304A1B4';
+$qr_mocv = array();
+foreach ( explode( "\n", (string) file_get_contents( $goc . '/tools/test/fixtures/qr-chuan-vietqr-L.txt' ) ) as $d_ ) {
+	$d_ = trim( $d_ );
+	if ( '' === $d_ || '#' === substr( $d_, 0, 1 ) ) { continue; }
+	$qr_mocv[] = $d_;
+}
+t( 'đọc được ma trận chuẩn từ tệp mốc', count( $qr_mocv ) > 0 );
+$qr_em = array();
+foreach ( VHG_QRVe::ma_tran( $qr_chuoi_v, 'L' ) as $h_ ) { $qr_em[] = implode( '', $h_ ); }
+teq( 'cỡ ma trận khớp mốc ngoài', count( $qr_mocv ), count( $qr_em ) );
+$qr_lech = 0;
+foreach ( $qr_em as $y_ => $h_ ) {
+	if ( ! isset( $qr_mocv[ $y_ ] ) ) { continue; }
+	for ( $x_ = 0; $x_ < strlen( $h_ ); $x_++ ) {
+		if ( $h_[ $x_ ] !== $qr_mocv[ $y_ ][ $x_ ] ) { $qr_lech++; }
+	}
+}
+teq( '🔴 KHỚP TỪNG Ô với bộ mã hoá độc lập — 0 ô lệch', 0, $qr_lech );
+
+// --- Lớp 5: thông tin định dạng nằm ĐÚNG toạ độ bản đặc tả
+/* Toạ độ (x,y) của 15 bit, theo ISO/IEC 18004. Bit 0 là bit thấp nhất.
+   Bản sao 1: bit 0..5 chạy DỌC cột 8 (y=0..5, nhảy ô nhịp y=6); bit 6 ở (8,7); bit 7 ở (8,8);
+              bit 8 ở (7,8); bit 9..14 chạy NGANG hàng 8 (x=5,4,3,2,1,0).
+   Bản sao 2: bit 0..7 chạy NGANG mép phải hàng 8; bit 8..14 chạy DỌC mép dưới cột 8. */
+$qr_o = VHG_QRVe::ma_tran( $qr_chuoi_v, 'L' );
+$qr_n = count( $qr_o );
+$vt1 = array( array( 8, 0 ), array( 8, 1 ), array( 8, 2 ), array( 8, 3 ), array( 8, 4 ),
+	array( 8, 5 ), array( 8, 7 ), array( 8, 8 ), array( 7, 8 ),
+	array( 5, 8 ), array( 4, 8 ), array( 3, 8 ), array( 2, 8 ), array( 1, 8 ), array( 0, 8 ) );
+$vt2 = array();
+for ( $i_ = 0; $i_ < 8; $i_++ )  { $vt2[] = array( $qr_n - 1 - $i_, 8 ); }
+for ( $i_ = 8; $i_ < 15; $i_++ ) { $vt2[] = array( 8, $qr_n - 15 + $i_ ); }
+
+$doc_dd = function ( $o, $vt ) {
+	$v = 0;
+	foreach ( $vt as $i => $xy ) { $v |= ( (int) $o[ $xy[1] ][ $xy[0] ] ) << $i; }
+	return $v;
+};
+$dd1 = $doc_dd( $qr_o, $vt1 );
+$dd2 = $doc_dd( $qr_o, $vt2 );
+teq( '🔴 hai bản sao thông tin định dạng khớp nhau', $dd1, $dd2 );
+
+/* BCH(15,5) phải chia hết sau khi bỏ mặt nạ cố định — đây là chốt độc lập hoàn toàn với mã
+   trong repo: nó chỉ dùng đa thức của bản đặc tả. */
+$bch_du = function ( $v ) {
+	$v ^= 0b101010000010010;
+	for ( $i = 14; $i >= 10; $i-- ) {
+		if ( $v & ( 1 << $i ) ) { $v ^= 0b10100110111 << ( $i - 10 ); }
+	}
+	return $v & 0x3FF;
+};
+teq( '🔴 15 bit định dạng qua được phép kiểm BCH của bản đặc tả', 0, $bch_du( $dd1 ) );
+/* Và nó phải nói ĐÚNG mức sửa lỗi đã yêu cầu. Đọc sai mức là máy quét gỡ mặt nạ sai. */
+$muc_bit = ( ( $dd1 ^ 0b101010000010010 ) >> 13 ) & 3;
+teq( '🔴 và nói đúng mức sửa lỗi L', 1, $muc_bit );
+
+/* Chốt cuối: cùng phép kiểm đó cho CẢ BỐN mức, ở nhiều chuỗi. Lỗi soi gương chỉ lộ ở một số
+   tổ hợp nếu chỉ thử một chuỗi — 15 bit của vài (mức, mặt nạ) tình cờ đối xứng. */
+$muc_so = array( 'L' => 1, 'M' => 0, 'Q' => 3, 'H' => 2 );
+foreach ( array( $qr_chuoi_v, 'khmatrix.com/mua-ma/?ghe=AMTP01', 'HELLO WORLD', '0' ) as $ct_ ) {
+	foreach ( $muc_so as $mc_ => $bit_ ) {
+		$oo = VHG_QRVe::ma_tran( $ct_, $mc_ );
+		if ( ! $oo ) { continue; }
+		$nn = count( $oo );
+		$v1 = array( array( 8, 0 ), array( 8, 1 ), array( 8, 2 ), array( 8, 3 ), array( 8, 4 ),
+			array( 8, 5 ), array( 8, 7 ), array( 8, 8 ), array( 7, 8 ),
+			array( 5, 8 ), array( 4, 8 ), array( 3, 8 ), array( 2, 8 ), array( 1, 8 ), array( 0, 8 ) );
+		$v2 = array();
+		for ( $i_ = 0; $i_ < 8; $i_++ )  { $v2[] = array( $nn - 1 - $i_, 8 ); }
+		for ( $i_ = 8; $i_ < 15; $i_++ ) { $v2[] = array( 8, $nn - 15 + $i_ ); }
+		$a1 = $doc_dd( $oo, $v1 );
+		$nhan = '[' . $mc_ . '] "' . substr( $ct_, 0, 18 ) . '"';
+		teq( 'BCH đúng ' . $nhan, 0, $bch_du( $a1 ) );
+		teq( 'đúng mức ' . $nhan, $bit_, ( ( $a1 ^ 0b101010000010010 ) >> 13 ) & 3 );
+		teq( 'hai bản sao khớp ' . $nhan, $a1, $doc_dd( $oo, $v2 ) );
+		/* Ô tối cố định phải còn nguyên — bản cũ suýt ghi đè nó bằng một bit định dạng. */
+		teq( 'ô tối cố định còn nguyên ' . $nhan, 1, (int) $oo[ $nn - 8 ][8] );
+	}
+}
+
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

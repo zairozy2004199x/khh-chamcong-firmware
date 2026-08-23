@@ -447,19 +447,42 @@ class VHG_QRVe {
 			$dd = self::bit_dinh_dang( $muc, $mn );
 			for ( $i = 0; $i < 15; $i++ ) {
 				$b = ( $dd >> $i ) & 1;
-				/* Bản sao 1: quanh ô định vị trên-trái. */
-				if ( $i < 6 )       { $o[8][ $i ] = $b; }
-				elseif ( 6 === $i ) { $o[8][7] = $b; }
-				elseif ( 7 === $i ) { $o[8][8] = $b; }
-				elseif ( 8 === $i ) { $o[7][8] = $b; }
-				else                { $o[ 14 - $i ][8] = $b; }
-				/* Bản sao 2: BẢY bit đầu chạy dọc ở góc dưới-trái (hàng n-1 lên n-7), TÁM bit sau
-				   chạy ngang ở góc trên-phải (cột n-8 tới n-1).
-				   ⚠️ Bảy chứ không tám. Lấy tám là bit thứ 8 rơi vào (8, n-8) — đúng chỗ Ô TỐI
-				      CỐ ĐỊNH, và ghi đè nó thành bit dữ liệu. Ô đó luôn phải đen; máy quét dùng
-				      nó để chốt hướng đọc thông tin định dạng. */
-				if ( $i < 7 ) { $o[ $n - 1 - $i ][8] = $b; }
-				else          { $o[8][ $n - 15 + $i ] = $b; }
+				/* ══════════════════════════════════════════════════════════════════════════
+				 * 🔴 LỖI 23/08/2026: 15 BIT NÀY BỊ ĐẶT SOI GƯƠNG — MÃ QR KHÔNG QUÉT ĐƯỢC.
+				 *
+				 * Anh Thắng: *"giờ quét mã này không nhận"*. Đem ma trận so từng ô với một bộ mã
+				 * hoá độc lập thì 1.353/1.369 ô KHỚP TUYỆT ĐỐI — chỉ 16 ô lệch, và cả 16 đều nằm
+				 * ở cột 8 hoặc hàng 8, tức là đúng vùng thông tin định dạng.
+				 *
+				 * Giá trị 15 bit thì ĐÚNG (mức L, mặt nạ 0 — cùng kết quả với bộ chuẩn). Sai ở
+				 * chỗ ĐẶT: bản cũ cho nửa bit thấp chạy NGANG hàng 8 và nửa bit cao chạy DỌC cột
+				 * 8, trong khi bản đặc tả quy định ngược lại. Đọc bit của bộ chuẩn theo thứ tự
+				 * của bản cũ thì ra đúng chuỗi bit của bản cũ ĐẢO NGƯỢC — dấu vân tay của một
+				 * lỗi soi gương.
+				 *
+				 * Hậu quả: máy quét đọc ra một mức sửa lỗi và một mặt nạ SAI, gỡ mặt nạ sai, và
+				 * nhận về toàn rác. Nó không báo "mã hỏng" — nó chỉ lặng lẽ không nhận.
+				 *
+				 * ⚠️ VÌ SAO BỘ ĐỌC CỦA CHÍNH TỆP NÀY KHÔNG BẮT ĐƯỢC. `doc()` đọc thông tin định
+				 *    dạng từ ĐÚNG NHỮNG Ô SAI đó, nên nó khớp với bộ vẽ một cách hoàn hảo. Phép
+				 *    thử đọc-ngược chỉ chứng minh "bộ đọc của tôi hiểu bộ vẽ của tôi" — nó KHÔNG
+				 *    chứng minh được gì về việc máy quét thật có hiểu hay không. Muốn biết điều
+				 *    đó thì phải so với một bộ mã hoá KHÁC, và nay bộ thử làm đúng vậy.
+				 * ══════════════════════════════════════════════════════════════════════════ */
+				/* Bản sao 1, quanh ô định vị trên-trái: bit thấp chạy DỌC cột 8 (từ trên xuống),
+				   bit cao chạy NGANG hàng 8 (từ phải sang trái). Ô nhịp (8,6) và (6,8) bị nhảy qua. */
+				if ( $i < 6 )       { $o[ $i ][8] = $b; }          // (x=8, y=i)
+				elseif ( 6 === $i ) { $o[7][8] = $b; }             // (x=8, y=7)
+				elseif ( 7 === $i ) { $o[8][8] = $b; }             // (8,8)
+				elseif ( 8 === $i ) { $o[8][7] = $b; }             // (x=7, y=8)
+				else                { $o[8][ 14 - $i ] = $b; }     // (x=14-i, y=8)
+				/* Bản sao 2: TÁM bit đầu chạy NGANG ở mép phải hàng 8 (cột n-1 lùi về n-8), BẢY
+				   bit sau chạy DỌC ở mép dưới cột 8 (hàng n-7 xuống n-1).
+				   ⚠️ Bảy chứ không tám ở vế sau. Lấy tám là bit đầu của vế đó rơi vào (8, n-8) —
+				      đúng chỗ Ô TỐI CỐ ĐỊNH, và ghi đè nó thành bit dữ liệu. Ô đó luôn phải đen;
+				      máy quét dùng nó để chốt hướng đọc thông tin định dạng. */
+				if ( $i < 8 ) { $o[8][ $n - 1 - $i ] = $b; }       // (x=n-1-i, y=8)
+				else          { $o[ $n - 15 + $i ][8] = $b; }      // (x=8, y=n-15+i)
 			}
 			$d = self::cham_diem( $o, $n );
 			if ( $d < $diem_tot ) { $diem_tot = $d; $tot = $o; $mn_tot = $mn; }
@@ -493,11 +516,16 @@ class VHG_QRVe {
 		/* Thông tin định dạng: đọc bản sao 1, XOR mặt nạ cố định. */
 		$dd = 0;
 		for ( $i = 0; $i < 15; $i++ ) {
-			if ( $i < 6 )       { $b = $o[8][ $i ]; }
-			elseif ( 6 === $i ) { $b = $o[8][7]; }
-			elseif ( 7 === $i ) { $b = $o[8][8]; }
-			elseif ( 8 === $i ) { $b = $o[7][8]; }
-			else                { $b = $o[ 14 - $i ][8]; }
+			/* ⚠️ PHẢI KHỚP CHÍNH XÁC toạ độ bên `ma_tran()` — và cả hai phải khớp BẢN ĐẶC TẢ.
+			   23/08/2026: hai bên cùng đọc/ghi ở những ô SOI GƯƠNG so với đặc tả, nên chúng khớp
+			   nhau hoàn hảo và phép thử đọc-ngược đạt 100% — trong khi máy quét thật không đọc
+			   nổi mã nào (0/36). Sửa một bên mà quên bên kia thì bộ thử gãy ngay, và đó là điều
+			   TỐT: nó buộc người sửa nhìn cả hai. */
+			if ( $i < 6 )       { $b = $o[ $i ][8]; }          // (x=8, y=i)
+			elseif ( 6 === $i ) { $b = $o[7][8]; }             // (x=8, y=7)
+			elseif ( 7 === $i ) { $b = $o[8][8]; }             // (8,8)
+			elseif ( 8 === $i ) { $b = $o[8][7]; }             // (x=7, y=8)
+			else                { $b = $o[8][ 14 - $i ]; }     // (x=14-i, y=8)
 			$dd |= ( $b & 1 ) << $i;
 		}
 		$dd ^= 0x5412;
