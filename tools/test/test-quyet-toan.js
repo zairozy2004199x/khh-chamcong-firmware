@@ -148,10 +148,14 @@ t('render() có điền vào chỗ đó', /str_replace\( '<!--VHCP_CHAN-->', sel
 // phải nhớ sửa hai nơi, và nơi quên thì im lặng nói sai.
 t('đọc từ VHG_Chan chứ không chép lại thông tin công ty', /VHG_Chan::html\(\)/.test(APP));
 t('KHÔNG có bản sao mã số thuế trong plugin chi phí', !/0106924989/.test(APP + HTML));
-t('chưa cài plugin Ghế thì để trống, không bịa', /if \( ! class_exists\( 'VHG_Chan' \) \) \{ return ''; \}/.test(APP));
-t('có bản màu nền sáng cho app chi phí (nền trắng, khác trang ghế nền tối)',
-  /function css_sang/.test(CHAN) && /VHG_Chan::css_sang\(\)/.test(APP));
-t('bản nền sáng dùng lại bố cục của css(), chỉ đổi màu', /return self::css\(\)/.test(CHAN));
+t('chưa cài plugin Ghế thì để trống, không bịa', /\) \) \{ return ''; \}/.test(APP) && /class_exists\( 'VHG_Chan' \)/.test(APP));
+// 23/08/2026: bản trước gọi thẳng một hàm VỪA THÊM bên plugin Ghế, chỉ gác class_exists.
+// Máy anh Thắng chạy Ghế bản cũ -> lớp CÓ, hàm KHÔNG -> trắng cả trang WordPress.
+t('gác TỪNG HÀM chứ không chỉ tên lớp (2 plugin cài độc lập, bản lệch nhau được)',
+  /! class_exists\( 'VHG_Chan' \) \|\| ! method_exists\( 'VHG_Chan', 'html' \)/.test(APP));
+t('lấy bố cục qua hàm css() cũng phải gác', /method_exists\( 'VHG_Chan', 'css' \) \? VHG_Chan::css\(\)/.test(APP));
+t('màu nền sáng thuộc về app chi phí, không đòi bản Ghế mới',
+  /function chan_css_sang/.test(APP) && !/css_sang/.test(CHAN));
 
 // ---------------------------------------------------------------- kết
 if (hong.length) {

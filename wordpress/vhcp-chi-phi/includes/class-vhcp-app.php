@@ -134,10 +134,34 @@ class VHCP_App {
 	 * bịa ra một bản thông tin pháp lý thứ hai không ai cập nhật.
 	 */
 	public static function chan_block() {
-		if ( ! class_exists( 'VHG_Chan' ) ) { return ''; }
+		// ⚠️ HAI PLUGIN CÀI ĐỘC LẬP -> DÒ TỪNG HÀM, KHÔNG DÒ MỖI TÊN LỚP.
+		//
+		// class_exists() chỉ nói "có plugin Ghế", KHÔNG nói "bản Ghế này có hàm mình định
+		// gọi". Bản trước gọi thẳng một hàm mới thêm bên Ghế: máy anh Thắng đang chạy Ghế
+		// bản cũ -> lớp CÓ, hàm KHÔNG -> lỗi nghiêm trọng, trắng cả trang WordPress. Cài
+		// hai plugin lệch bản là chuyện bình thường, nên chỗ nối phải chịu được điều đó.
+		if ( ! class_exists( 'VHG_Chan' ) || ! method_exists( 'VHG_Chan', 'html' ) ) { return ''; }
 		$h = VHG_Chan::html();
 		if ( '' === trim( (string) $h ) ) { return ''; }
-		return '<style>' . VHG_Chan::css_sang() . '</style>' . $h;
+		$css = method_exists( 'VHG_Chan', 'css' ) ? VHG_Chan::css() : '';
+		return '<style>' . $css . self::chan_css_sang() . '</style>' . $h;
+	}
+
+	/**
+	 * MÀU CHÂN TRANG TRÊN NỀN SÁNG — thuộc về TRANG NÀY, không phải plugin Ghế.
+	 *
+	 * Chân trang bên Ghế vẽ cho nền tối; app chi phí nền trắng. Bố cục vẫn lấy từ
+	 * VHG_Chan::css(), đây chỉ đè MÀU. Để màu ở đây là chỗ nối không còn phụ thuộc phiên
+	 * bản Ghế nữa — thông tin công ty (thứ phải một nguồn) vẫn đọc từ VHG_Chan như cũ.
+	 */
+	private static function chan_css_sang() {
+		return '.vhg-chan{border-top-color:#e2e8f0;color:#64748b}'
+			. '.vhg-chan .vhg-ten{color:#0f766e}'
+			. '.vhg-chan .vhg-qt{color:#94a3b8}'
+			. '.vhg-chan .vhg-cd span{color:#94a3b8}'
+			. '.vhg-chan .vhg-cn{color:#475569}'
+			. '.vhg-chan a{color:#0f766e}'
+			. '.vhg-ban-quyen{border-top-color:#eef2f7;color:#94a3b8}';
 	}
 
 	/** [vhcp_app height="900"] — nhúng app vào 1 trang WordPress bằng iframe. */

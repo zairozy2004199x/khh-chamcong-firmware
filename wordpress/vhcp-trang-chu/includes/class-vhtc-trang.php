@@ -37,40 +37,49 @@ class VHTC_Trang {
 	 *    trông y hệt một liên kết sống cho tới lúc bấm vào.
 	 */
 	public static function ds_app() {
+		/**
+		 * ⚠️ DÒ TỪNG HÀM, KHÔNG DÒ MỖI TÊN LỚP.
+		 *
+		 * 4 plugin cài ĐỘC LẬP nên bản có thể lệch nhau. class_exists() chỉ nói "có plugin
+		 * đó", KHÔNG nói "bản đó có hàm mình định gọi" — lớp CÓ mà hàm KHÔNG là lỗi nghiêm
+		 * trọng, trắng cả trang WordPress (đã xảy ra thật 23/08/2026 ở chân trang app chi
+		 * phí). Trang tổng này gọi sang cả 4 plugin nên là chỗ dễ dính nhất.
+		 */
+		$co = function ( $lop, $ham ) { return class_exists( $lop ) && method_exists( $lop, $ham ); };
 		return array(
 			array(
 				'ten'   => 'Chấm Công',
 				'mo_ta' => 'Bảng công, lương, nhân sự, lịch làm việc',
 				'icon'  => '🕐',
-				'co'    => class_exists( 'VHCC_Trang' ),
-				'url'   => class_exists( 'VHCC_Trang' ) ? VHCC_Trang::url() : '',
+				'co'    => $co( 'VHCC_Trang', 'url' ),
+				'url'   => $co( 'VHCC_Trang', 'url' ) ? VHCC_Trang::url() : '',
 			),
 			array(
 				'ten'   => 'Vận Hành Chi Phí',
 				'mo_ta' => 'Tạm ứng, chi phí cơ sở, dự án, quyết toán, xuất MISA',
 				'icon'  => '💰',
-				'co'    => class_exists( 'VHCP_App' ),
-				'url'   => class_exists( 'VHCP_App' ) ? VHCP_App::app_url() : '',
+				'co'    => $co( 'VHCP_App', 'app_url' ),
+				'url'   => $co( 'VHCP_App', 'app_url' ) ? VHCP_App::app_url() : '',
 			),
 			array(
 				'ten'   => 'Ghế Massage',
 				'mo_ta' => 'Doanh thu QR theo cơ sở & máy, tình trạng ghế',
 				'icon'  => '💺',
-				'co'    => class_exists( 'VHG_Trang' ) || class_exists( 'VHG_Admin' ),
+				'co'    => $co( 'VHG_Trang', 'url' ) || $co( 'VHG_Admin', 'app_url' ),
 				/* Trỏ về TRANG NGOÀI `/ghe` (mở bằng PIN), không về wp-admin. Nhân viên đứng quầy
 				   không có tài khoản WordPress, và cũng không nên có — cấp tài khoản cho 26 cửa
 				   hàng là cấp luôn đường vào phần quản trị website.
 				   Bản cũ (vhcp-ghe < 1.1.0) chưa có trang ngoài nên vẫn rơi về wp-admin: liên kết
 				   dẫn tới màn đăng nhập còn hơn liên kết chết. */
-				'url'   => class_exists( 'VHG_Trang' ) ? VHG_Trang::url()
-					: ( class_exists( 'VHG_Admin' ) ? VHG_Admin::app_url() : '' ),
+				'url'   => $co( 'VHG_Trang', 'url' ) ? VHG_Trang::url()
+					: ( $co( 'VHG_Admin', 'app_url' ) ? VHG_Admin::app_url() : '' ),
 			),
 			array(
 				'ten'   => 'Thư Viện Hợp Đồng',
 				'mo_ta' => 'Hợp đồng, đối tác, ngày hết hiệu lực',
 				'icon'  => '📄',
-				'co'    => class_exists( 'VHD_Trang' ),
-				'url'   => class_exists( 'VHD_Trang' ) ? VHD_Trang::url() : '',
+				'co'    => $co( 'VHD_Trang', 'url' ),
+				'url'   => $co( 'VHD_Trang', 'url' ) ? VHD_Trang::url() : '',
 			),
 		);
 	}

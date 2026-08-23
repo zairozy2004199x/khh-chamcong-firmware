@@ -178,22 +178,4 @@ class VHG_Chan {
 			. '@media(max-width:640px){.vhg-chan{font-size:12px;padding:16px 14px 22px}'
 			. '.vhg-chan-in{gap:14px}}';
 	}
-
-	/**
-	 * BẢN NỀN SÁNG — cho app Vận Hành Chi Phí (nền trắng/xám), khác hai trang ghế nền tối.
-	 *
-	 * ⚠️ Chỉ đổi MÀU, giữ nguyên bố cục của css(). Để chung một tệp với html() vì đây vẫn là
-	 *    chuyện "chân trang trông thế nào" — tách màu sang plugin khác là lại hai nơi giữ một
-	 *    sự thật, đúng kiểu lỗi mà chú thích đầu tệp này đang cảnh báo.
-	 */
-	public static function css_sang() {
-		return self::css()
-			. '.vhg-chan{border-top-color:#e2e8f0;color:#64748b}'
-			. '.vhg-chan .vhg-ten{color:#0f766e}'
-			. '.vhg-chan .vhg-qt{color:#94a3b8}'
-			. '.vhg-chan .vhg-cd span{color:#94a3b8}'
-			. '.vhg-chan .vhg-cn{color:#475569}'
-			. '.vhg-chan a{color:#0f766e}'
-			. '.vhg-ban-quyen{border-top-color:#eef2f7;color:#94a3b8}';
-	}
 }
