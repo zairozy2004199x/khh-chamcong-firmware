@@ -50,7 +50,6 @@ class VHCC_NapCsv {
 		'pindangnhap' => 'pin_dang_nhap', 'pin' => 'pin_dang_nhap', 'matkhau' => 'pin_dang_nhap',
 
 		'trangthaidongbo' => 'trang_thai_dong_bo', 'dongbo' => 'trang_thai_dong_bo',
-		'capnhat' => 'cap_nhat', 'lancapnhat' => 'cap_nhat',
 
 		'sdt' => 'sdt', 'sodienthoai' => 'sdt', 'dienthoai' => 'sdt', 'phone' => 'sdt',
 		'ngaysinh' => 'ngay_sinh', 'dob' => 'ngay_sinh',
@@ -58,9 +57,14 @@ class VHCC_NapCsv {
 		'cccd' => 'cccd', 'cmnd' => 'cccd', 'cccdcmnd' => 'cccd', 'socccd' => 'cccd',
 		'diachi' => 'dia_chi',
 		'nguoilienhekhan' => 'nguoi_lien_he_khan', 'lienhekhan' => 'nguoi_lien_he_khan',
-		'sdtkhan' => 'sdt_khan', 'dienthoaikhan' => 'sdt_khan',
+		'sdtkhan' => 'sdt_khan', 'dienthoaikhan' => 'sdt_khan', 'sdtkhancap' => 'sdt_khan',
+		'sodienthoaikhancap' => 'sdt_khan', 'dienthoaikhancap' => 'sdt_khan',
+		'lienhekhancap' => 'nguoi_lien_he_khan', 'nguoilienhekhancap' => 'nguoi_lien_he_khan',
 
-		'chucvu' => 'chuc_vu', 'vaitro' => 'chuc_vu', 'quyen' => 'chuc_vu',
+		'chucvu' => 'chuc_vu', 'congviec' => 'chuc_vu', 'bophan' => 'chuc_vu',
+		/* Vai trò ĐĂNG NHẬP, khác `chuc_vu` là công việc. Xem ghi chú ở class-vhcc-db.php. */
+		'vaitro' => 'vai_tro', 'quyen' => 'vai_tro', 'vaitrodangnhap' => 'vai_tro',
+		'phanquyen' => 'vai_tro',
 		'nhiemvu' => 'nhiem_vu',
 		'cosophu' => 'coso_phu', 'cuahangphu' => 'coso_phu',
 
@@ -70,14 +74,31 @@ class VHCC_NapCsv {
 		'luongcoban' => 'luong_co_ban', 'luong' => 'luong_co_ban',
 		'sotaikhoan' => 'so_tai_khoan', 'stk' => 'so_tai_khoan',
 		'nganhang' => 'ngan_hang',
-		'cccdfileid' => 'cccd_file_id', 'hopdongfileid' => 'hop_dong_file_id',
-		'anh' => 'photo_file_id', 'photofileid' => 'photo_file_id',
+		'cccdfileid' => 'cccd_file_id', 'anhcccd' => 'cccd_file_id', 'anhcccdfileid' => 'cccd_file_id',
+		'filecccd' => 'cccd_file_id',
+		'hopdongfileid' => 'hop_dong_file_id', 'anhhopdong' => 'hop_dong_file_id',
+		'filehopdong' => 'hop_dong_file_id', 'anhhopdongfileid' => 'hop_dong_file_id',
+		'anh' => 'photo_file_id', 'photofileid' => 'photo_file_id', 'anhchandung' => 'photo_file_id',
+		'anhnhanvien' => 'photo_file_id', 'anhfileid' => 'photo_file_id',
 	);
 
 	/** Cột kiểu ngày — phải quy về yyyy-mm-dd, không nhận ra thì để TRỐNG chứ không đoán. */
 	const COT_NGAY  = array( 'ngay_sinh', 'ngay_vao_lam' );
 	/** Cột kiểu ngày-giờ. */
 	const COT_GIO   = array( 'cap_nhat' );
+
+	/**
+	 * CỘT BỎ QUA CÓ CHỦ Ý — nhận ra nhưng KHÔNG nạp, và nói rõ ra chứ không im lặng.
+	 *
+	 * 🔴 `Cập nhật` của sheet là "sheet này đồng bộ lần cuối lúc nào", không phải dữ liệu của
+	 *    nhân viên. Nạp nó vào thì cột `cap_nhat` trên host thành một câu nói dối: nó phải trả
+	 *    lời "hồ sơ này sửa lần cuối lúc nào TRÊN HOST".
+	 *
+	 * 🔴 Và nó phá luôn bảng xem trước. Anh Thắng nạp thử: 240/240 dòng "đổi", mà đổi duy nhất
+	 *    một ô `cap_nhat` — 240 dòng nhiễu che sạch những ô đổi THẬT, đúng thứ bảng đó sinh ra
+	 *    để cho thấy. Bỏ nó đi thì còn lại toàn là thay đổi có nghĩa.
+	 */
+	const COT_BO_QUA = array( 'capnhat' => 'Cập nhật', 'lancapnhat' => 'Cập nhật' );
 	/** Cột kiểu số tiền. */
 	const COT_TIEN  = array( 'luong_co_ban' );
 
@@ -235,10 +256,11 @@ class VHCC_NapCsv {
 
 		/* Tiêu đề -> cột. Cột nào không nhận ra thì GIỮ TÊN LẠI để kể ra: anh Thắng bảo "lấy đủ
 		   luôn các cột", nên phải nói rõ cái nào KHÔNG lấy được, chứ không im lặng bỏ. */
-		$cot = array(); $la = array();
+		$cot = array(); $la = array(); $co_y = array();
 		foreach ( $o[0] as $i => $ten_cot ) {
 			$k = self::khoa( $ten_cot );
 			if ( '' === $k ) { continue; }
+			if ( isset( self::COT_BO_QUA[ $k ] ) ) { $co_y[] = trim( (string) $ten_cot ); continue; }
 			if ( isset( self::BAN_DO[ $k ] ) && ! in_array( self::BAN_DO[ $k ], $cot, true ) ) {
 				$cot[ $i ] = self::BAN_DO[ $k ];
 			} else {
@@ -277,6 +299,13 @@ class VHCC_NapCsv {
 				elseif ( in_array( $ten, self::COT_GIO, true ) )   { $x = self::gio( $v ); }
 				elseif ( in_array( $ten, self::COT_TIEN, true ) )  { $x = self::tien( $v ); }
 				elseif ( 'pin_dang_nhap' === $ten || 'pin_may' === $ten ) { $x = self::pin( $v ); }
+			elseif ( 'vai_tro' === $ten ) {
+				/* Vai trò lạ -> để TRỐNG, KHÔNG rơi về "Nhân viên". Trống thì màn hình còn hỏi
+				   được "sổ không ghi vai trò, đặt thành gì?"; rơi bừa về Nhân viên thì nó im
+				   lặng và không ai đăng nhập được. */
+				$x = VHCC_NguoiDung::vai_tro_biet( $v );
+				if ( '' === $x ) { continue; }
+			}
 				else { $x = $v; }
 				if ( null === $x ) { continue; }      // ngày không đọc được: để trống, KHÔNG đoán
 				$ghi[ $ten ] = $x;
@@ -322,15 +351,20 @@ class VHCC_NapCsv {
 				if ( $chi_xem ) { continue; }
 				$luu_cu = array();
 				foreach ( $khac as $c => $x ) { $luu_cu[ $c ] = $x['cu']; }
+				$luu_cu['cap_nhat'] = isset( $hien_co[ $ma ]['cap_nhat'] ) ? $hien_co[ $ma ]['cap_nhat'] : null;
 				$truoc[ $ma ] = $luu_cu;
 				$moi_ghi = array();
 				foreach ( $khac as $c => $x ) { $moi_ghi[ $c ] = $ghi[ $c ]; }
+				/* Đóng dấu giờ TẠI ĐÂY, không lấy từ sheet: cột này trả lời "hồ sơ sửa lần cuối
+				   lúc nào TRÊN HOST". */
+				$moi_ghi['cap_nhat'] = current_time( 'mysql' );
 				$wpdb->update( VHCC_DB::t( 'nhan_vien' ), $moi_ghi, array( 'ma_nv' => $ma ) );
 			} else {
 				$them++;
 				if ( count( $doi ) < 200 ) { $doi[ $ma ] = array( 'ten' => $ten_ng, 'moi' => 1 ); }
 				if ( $chi_xem ) { continue; }
 				$ma_them[] = $ma;
+				$ghi['cap_nhat'] = current_time( 'mysql' );
 				$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi );
 			}
 		}
@@ -355,6 +389,7 @@ class VHCC_NapCsv {
 
 		return array( 'ok' => true, 'them' => $them, 'sua' => $sua, 'bo' => $bo, 'canh' => $canh,
 			'lech' => $lech, 'coso' => $coso, 'cot' => array_values( $cot ), 'cot_la' => $la,
+			'cot_co_y' => $co_y,
 			'so_dong' => count( $o ) - 1, 'doi' => $doi );
 	}
 

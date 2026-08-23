@@ -471,7 +471,14 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
-t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS', count( $cot_thuc['nhan_vien'] ) === 27 ); // 26 + id
+t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro',
+	count( $cot_thuc['nhan_vien'] ) === 28 ); // 26 + id + vai_tro
+/* 🔴 `vai_tro` PHẢI LÀ CỘT RIÊNG, không dùng chung `chuc_vu`. `chuc_vu` là công việc ("Khu vui
+   chơi", "Máy tự động"); `vai_tro` là quyền trên trang web. Nhập nhèm hai thứ là nạp sổ nhân
+   viên xong CẢ SỔ rơi về "Nhân viên" và KHÔNG AI đăng nhập được — đúng thứ anh Thắng gặp. */
+t( 'nhan_vien có cột vai_tro RIÊNG, tách khỏi chuc_vu',
+	in_array( 'vai_tro', $cot_thuc['nhan_vien'], true )
+	&& in_array( 'chuc_vu', $cot_thuc['nhan_vien'], true ) );
 t( 'nhan_vien.luong_co_ban là DECIMAL (tiền), không FLOAT',
 	preg_match( '/luong_co_ban DECIMAL\(12,0\)/', $so_do['nhan_vien'] ) === 1 );
 t( 'nhat_ky_tra_pin KHÔNG có cột nào chứa PIN — nhật ký là chỗ rò rỉ dễ nhất',
@@ -4719,7 +4726,7 @@ teq( 'chưa ai đang có nên không sửa ai', 0, $r['sua'] );
 teq( 'XEM TRƯỚC thì KHÔNG ghi gì', 0, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
 
 /* "Lấy đủ luôn các cột" — phải nhận đủ 10 cột có tên, và KỂ TÊN cột không nhận ra. */
-foreach ( array( 'ma_nv', 'ho_ten', 'cua_hang', 'trang_thai_dong_bo', 'cap_nhat', 'cccd',
+foreach ( array( 'ma_nv', 'ho_ten', 'cua_hang', 'trang_thai_dong_bo', 'cccd',
 	'chuc_vu', 'nhiem_vu', 'coso_phu', 'pin_dang_nhap' ) as $c_mong ) {
 	t( "nhận cột $c_mong", in_array( $c_mong, (array) $r['cot'], true ), $r['cot'] );
 }
@@ -4737,7 +4744,25 @@ teq( 'chức vụ đúng', 'Máy tự động', $hs['chuc_vu'] );
 teq( 'nhiệm vụ đúng', 'JP Aeon Mall Tân Phú', $hs['nhiem_vu'] );
 teq( 'cơ sở phụ đúng', 'POSH_HCM', $hs['coso_phu'] );
 teq( 'PIN đăng nhập đúng', '170412', $hs['pin_dang_nhap'] );
-teq( 'ngày giờ cập nhật đúng', '2026-08-08 04:29:48', $hs['cap_nhat'] );
+/* 🔴 CỘT "Cập nhật" CỦA SHEET KHÔNG ĐƯỢC NẠP VÀO. Nó là "sheet đồng bộ lần cuối lúc nào", còn
+   cột `cap_nhat` trên host phải trả lời "hồ sơ này sửa lần cuối lúc nào TRÊN HOST" — nạp vào là
+   biến nó thành một câu nói dối.
+
+   Và nó phá luôn bảng xem trước: anh Thắng nạp thử ra 240/240 dòng "đổi", mà đổi duy nhất một ô
+   `cap_nhat` — 240 dòng nhiễu che sạch những ô đổi THẬT, đúng thứ bảng đó sinh ra để cho thấy. */
+t( 'KHÔNG nạp cột Cập nhật của sheet', ! in_array( 'cap_nhat', (array) $r['cot'], true ), $r['cot'] );
+t( 'nhưng nói rõ là bỏ có chủ ý, không im lặng',
+	in_array( 'Cập nhật', (array) $r['cot_co_y'], true ), $r['cot_co_y'] );
+t( 'và đóng dấu giờ của HOST vào hồ sơ vừa ghi', '' !== trim( (string) $hs['cap_nhat'] ), $hs['cap_nhat'] );
+t( 'giờ đó KHÔNG phải giờ trong sheet', '2026-08-08 04:29:48' !== $hs['cap_nhat'], $hs['cap_nhat'] );
+
+/* Mấy tên cột sổ thật của anh Thắng mà bản trước chưa nhận ra. */
+$r_cot = VHCC_NapCsv::nap( "Mã NV,Họ tên,SĐT khẩn cấp,Ảnh CCCD (fileId),Người liên hệ khẩn cấp\n"
+	. "CT1,Người Cột,0909111222,file-abc,Chị Hai\n", true );
+teq( 'nhận cột "SĐT khẩn cấp"', true, in_array( 'sdt_khan', (array) $r_cot['cot'], true ) );
+teq( 'nhận cột "Ảnh CCCD (fileId)"', true, in_array( 'cccd_file_id', (array) $r_cot['cot'], true ) );
+teq( 'nhận cột "Người liên hệ khẩn cấp"', true, in_array( 'nguoi_lien_he_khan', (array) $r_cot['cot'], true ) );
+teq( 'và không còn cột nào lạ', 0, count( (array) $r_cot['cot_la'] ) );
 
 /* 🔴 1. DẤU PHẨY TRONG Ô. `"FARM_PT, FZ_LTVT"` mà cắt bằng explode(',') là dòng đó lệch hết cột
    từ đó trở đi — PIN của người này rơi vào cột CCCD của người kia. */
@@ -5006,6 +5031,109 @@ t( 'chỉ cho biết PIN có mấy số', strpos( $h_w, '6 số' ) !== false );
 t( 'cũng không in PIN đăng nhập của chính người đang xem', strpos( $h_w, '246813' ) === false );
 /* Mã NV không sửa được ngoài web — đổi mã là sửa mọi hàng chấm công đã có của người đó. */
 t( 'KHÔNG cho sửa Mã NV', ! in_array( 'ma_nv', VHCC_Web::COT_SUA, true ) );
+
+/* ---- 47d. SỬA HỒ SƠ NGAY TRÊN BẢNG: PIN, VAI TRÒ, VÀ Ô CHO CHỌN ---- */
+/* Anh Thắng: *"hồ sơ nhân sự chưa có cột PIN"*, *"cột nhiệm vụ cũng chưa có để chị"*, *"chọn"*,
+   và *"Nhiệm vụ: Nhân Viên, Admin, Cửa Hàng Trưởng, Kế Toán"*. */
+$h_w = vhcc_web( '246813' );
+t( 'có Ô NHẬP PIN ngay tại dòng', strpos( $h_w, 'name="pin_dang_nhap"' ) !== false );
+t( 'nhưng KHÔNG điền sẵn PIN cũ vào ô', strpos( $h_w, 'value="170412"' ) === false, $h_w );
+t( 'có ô tích XOÁ PIN cho người đã có PIN', strpos( $h_w, 'name="xoa_pin"' ) !== false );
+t( 'có ô chọn VAI TRÒ ĐĂNG NHẬP riêng', strpos( $h_w, 'name="vai_tro"' ) !== false );
+t( 'vai trò là danh sách ĐÓNG (select), không phải ô gõ tự do',
+	preg_match( '/<select[^>]*name="vai_tro"/', $h_w ) === 1 );
+t( 'và nói rõ vai trò nào KHÔNG vào được', strpos( $h_w, '(không vào được)' ) !== false );
+/* Bốn ô cho CHỌN, nhưng vẫn gõ được giá trị mới -> datalist, không phải select. */
+foreach ( array( 'dl_ch' => 'cua_hang', 'dl_cv' => 'chuc_vu', 'dl_nv' => 'nhiem_vu',
+	'dl_cp' => 'coso_phu' ) as $dl => $o_ten ) {
+	t( "ô $o_ten xổ ra danh sách đang dùng",
+		strpos( $h_w, 'id="' . $dl . '"' ) !== false
+		&& preg_match( '/name="' . $o_ten . '"[^>]*list="' . $dl . '"/', $h_w ) === 1, $h_w );
+}
+foreach ( array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) as $g ) {
+	t( "danh sách Nhiệm vụ luôn có \"$g\"",
+		strpos( $h_w, '<option value="' . $g . '">' ) !== false, $h_w );
+}
+
+/* --- Lưu PIN --- */
+function vhcc_luu_hs( $tok, $post ) {
+	$_COOKIE[ VHCC_Web::COOKIE ] = $tok;
+	$_POST = array_merge( array( 'viec' => 'sua_hs', 'ky' => VHCC_Web::chu_ky( $tok ) ), $post );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_COOKIE = array();
+	return $h;
+}
+function vhcc_hs( $ma ) {
+	$r = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='" . $ma . "'" );
+	return $r ? $r[0] : null;
+}
+VHCC_Auth::mo_khoa();
+$tok_ad = VHCC_Auth::login( '246813' )['token'];
+VHCC_Auth::mo_khoa();
+
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'pin_dang_nhap' => '975310' ) );
+teq( 'gõ PIN mới thì đổi', '975310', vhcc_hs( 'W1' )['pin_dang_nhap'] );
+
+/* 🔴 Ô PIN TRỐNG = GIỮ NGUYÊN, không phải xoá. Ô này không bao giờ điền sẵn PIN cũ, nên "trống"
+   là trạng thái BÌNH THƯỜNG của nó — coi trống là xoá thì mỗi lần sửa tên là một người mất
+   đường đăng nhập, mà màn hình vẫn báo "Đã lưu". */
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'ho_ten' => 'Nguyễn Thu Hiền B', 'pin_dang_nhap' => '' ) );
+teq( 'để trống ô PIN thì GIỮ NGUYÊN PIN cũ', '975310', vhcc_hs( 'W1' )['pin_dang_nhap'] );
+teq( 'mà tên vẫn đổi được', 'Nguyễn Thu Hiền B', vhcc_hs( 'W1' )['ho_ten'] );
+
+/* Xoá PIN phải là việc CÓ Ý — tích ô. */
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'pin_dang_nhap' => '', 'xoa_pin' => '1' ) );
+teq( 'tích ô xoá thì mới bỏ PIN', '', vhcc_hs( 'W1' )['pin_dang_nhap'] );
+
+/* PIN sai khuôn thì CHỐI CẢ LƯỢT LƯU, không lưu nửa vời. */
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'pin_dang_nhap' => '975310' ) );
+$h_w = vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'ho_ten' => 'Tên Mới Toanh', 'pin_dang_nhap' => '12' ) );
+t( 'PIN sai khuôn thì báo rõ', strpos( $h_w, '4–8 CHỮ SỐ' ) !== false );
+teq( 'và KHÔNG lưu nửa vời (tên cũng không đổi)', 'Nguyễn Thu Hiền B', vhcc_hs( 'W1' )['ho_ten'] );
+
+/* 🔴 HAI NGƯỜI CÙNG PIN: cổng đăng nhập nhận người gặp trước, và nhật ký ghi tên người đó —
+   người kia làm gì cũng mang tên người này. */
+VHCC_NapCsv::nap( "Mã NV,Họ tên,PIN đăng nhập\nW9,Người Thứ Hai,468024\n", false );
+$h_w = vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W9', 'pin_dang_nhap' => '975310' ) );
+t( 'chối PIN trùng, và nói rõ trùng với AI',
+	strpos( $h_w, 'đã cấp cho' ) !== false && strpos( $h_w, 'Nguyễn Thu Hiền B' ) !== false, $h_w );
+teq( 'và KHÔNG ghi đè PIN của người thứ hai', '468024', vhcc_hs( 'W9' )['pin_dang_nhap'] );
+
+/* --- Vai trò --- */
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'vai_tro' => 'Quản lý' ) );
+teq( 'lưu được vai trò đăng nhập', 'Quản lý', vhcc_hs( 'W1' )['vai_tro'] );
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'vai_tro' => 'Sếp Tổng' ) );
+teq( 'vai trò LẠ thì bỏ hẳn, không ghi bừa', 'Quản lý', vhcc_hs( 'W1' )['vai_tro'] );
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'vai_tro' => '' ) );
+teq( 'nhưng để rỗng được (chưa khai là một trạng thái thật)', '', vhcc_hs( 'W1' )['vai_tro'] );
+
+/* 🔴 MẮT XÍCH CUỐI: khai vai trò trong hồ sơ -> nạp tài khoản -> đăng nhập được bằng PIN đó.
+   Trước bản này không có cột vai trò, nên cả sổ rơi về "Nhân viên" và KHÔNG AI đăng nhập được,
+   mà màn hình vẫn báo "đã nạp 240 người". */
+vhcc_luu_hs( $tok_ad, array( 'ma_nv' => 'W1', 'vai_tro' => 'Quản lý', 'pin_dang_nhap' => '975310' ) );
+delete_option( 'vhcc_nguoidung' );
+VHCC_NguoiDung::luu( '', 'Anh Admin', '246813', 'Admin', '' );
+$r = VHCC_NguoiDung::nap_tu_cu( 'ho_so', false );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '975310' );
+t( 'khai vai trò trong hồ sơ thì nạp xong ĐĂNG NHẬP ĐƯỢC ngay', ! empty( $kq['ok'] ), $kq );
+teq( 'và vào đúng vai trò đã khai', 'Quản lý', isset( $kq['role'] ) ? $kq['role'] : null );
+VHCC_Auth::mo_khoa();
+t( 'người CHƯA khai vai trò thì được đếm ra để màn hình hỏi', $r['vt_trong'] > 0, $r );
+/* Sổ nhân viên ghi Chức vụ "Khu vui chơi" — đó KHÔNG phải vai trò, không được nhận nhầm. */
+teq( 'chức vụ "Khu vui chơi" không bị nhận nhầm thành vai trò', '',
+	VHCC_NguoiDung::vai_tro_biet( 'Khu vui chơi' ) );
+teq( 'và "Máy tự động" cũng vậy', '', VHCC_NguoiDung::vai_tro_biet( 'Máy tự động' ) );
+
+/* Dọn lại đúng trạng thái mục 47 dựng ra, cho mấy mục sau không đọc nhầm. */
+global $wpdb;
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='W9'" );
+delete_option( 'vhcc_nguoidung' );
+VHCC_NguoiDung::luu( '', 'Anh Admin', '246813', 'Admin', '' );
+VHCC_NguoiDung::luu( '', 'Chị Quản Lý', '357913', 'Quản lý', 'TUTU_BT' );
+VHCC_NguoiDung::luu( '', 'Chị Kế Toán', '468024', 'Kế toán cá nhân', 'TUTU_BT' );
+teq( 'dọn xong còn đúng 1 hồ sơ', 1,
+	count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
 
 /* 🔴 CHỮ KÝ CHỐNG GIẢ MẠO. Không có chữ ký đúng thì không việc gì được chạy — kẻo một trang
    khác dụ anh Thắng bấm vào là xoá sạch hồ sơ của cả chuỗi. */

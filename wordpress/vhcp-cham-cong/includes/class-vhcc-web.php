@@ -248,16 +248,51 @@ class VHCC_Web {
 		global $wpdb;
 		$ma = isset( $_POST['ma_nv'] ) ? trim( (string) wp_unslash( $_POST['ma_nv'] ) ) : '';
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		$xoa_pin = ! empty( $_POST['xoa_pin'] );
 		$ghi = array();
 		foreach ( self::COT_SUA as $c ) {
 			if ( ! isset( $_POST[ $c ] ) ) { continue; }
 			$v = trim( (string) wp_unslash( $_POST[ $c ] ) );
 			if ( in_array( $c, VHCC_NapCsv::COT_TIEN, true ) )      { $ghi[ $c ] = VHCC_NapCsv::tien( $v ); }
 			elseif ( in_array( $c, VHCC_NapCsv::COT_NGAY, true ) )  { $ghi[ $c ] = VHCC_NapCsv::ngay( $v ); }
-			elseif ( 'pin_dang_nhap' === $c || 'pin_may' === $c )   { $ghi[ $c ] = VHCC_NapCsv::pin( $v ); }
-			else { $ghi[ $c ] = $v; }
+			elseif ( 'pin_dang_nhap' === $c || 'pin_may' === $c ) {
+				$p = VHCC_NapCsv::pin( $v );
+				/* 🔴 Ô PIN TRỐNG = GIỮ NGUYÊN, không phải xoá. Ô này không bao giờ điền sẵn PIN
+				   cũ (kẻo một ảnh chụp mất sạch mật khẩu cả chuỗi), nên "trống" là trạng thái
+				   BÌNH THƯỜNG của nó — coi trống là xoá thì mỗi lần sửa tên là một người mất
+				   đường đăng nhập, mà màn hình vẫn báo "Đã lưu". */
+				if ( '' === $p ) {
+					if ( 'pin_dang_nhap' === $c && $xoa_pin ) { $ghi[ $c ] = ''; }
+					continue;
+				}
+				if ( ! preg_match( '/^\d{4,8}$/', $p ) ) {
+					return array( 'ok' => false, 'error' => 'PIN phải là 4–8 CHỮ SỐ. Đã nhập: "'
+						. $p . '". Không lưu gì cả — sửa lại rồi bấm Lưu.' );
+				}
+				$ghi[ $c ] = $p;
+			} elseif ( 'vai_tro' === $c ) {
+				/* Rỗng = chưa khai, ghi được (đó là một trạng thái thật). Nhưng giá trị LẠ thì
+				   bỏ hẳn — ghi bừa một vai trò hệ thống không hiểu là người đó vừa không đăng
+				   nhập được, vừa nhìn như đã khai xong. */
+				if ( '' !== $v && ! in_array( $v, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { continue; }
+				$ghi[ $c ] = $v;
+			} else { $ghi[ $c ] = $v; }
 		}
 		if ( ! $ghi ) { return array( 'ok' => false, 'error' => 'Không có gì để lưu.' ); }
+		/* 🔴 HAI NGƯỜI CÙNG PIN thì cổng đăng nhập nhận người GẶP TRƯỚC, và nhật ký ghi tên
+		   người đó — người kia làm gì cũng mang tên người này. Chặn ngay lúc lưu, và nói ra
+		   trùng với AI. */
+		if ( ! empty( $ghi['pin_dang_nhap'] ) ) {
+			$trung = $wpdb->get_var( $wpdb->prepare(
+				'SELECT ho_ten FROM ' . VHCC_DB::t( 'nhan_vien' )
+				. ' WHERE pin_dang_nhap=%s AND ma_nv<>%s LIMIT 1', $ghi['pin_dang_nhap'], $ma ) );
+			if ( $trung ) {
+				return array( 'ok' => false, 'error' => 'PIN này đã cấp cho ' . $trung
+					. '. Hai người cùng PIN thì nhật ký không phân biệt được ai làm việc gì. '
+					. 'Không lưu gì cả — chọn PIN khác.' );
+			}
+		}
+
 		$co = $wpdb->get_var( $wpdb->prepare(
 			'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma ) );
 		if ( $co ) { $wpdb->update( VHCC_DB::t( 'nhan_vien' ), $ghi, array( 'ma_nv' => $ma ) ); }
@@ -298,6 +333,10 @@ class VHCC_Web {
 			. 'background:#fff;color:var(--chu);cursor:pointer}'
 			. 'button.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
 			. 'button.nguy{background:var(--do);border-color:var(--do);color:#fff}'
+			. '.nut{display:inline-block;font-size:14px;font-weight:600;padding:8px 12px;border-radius:7px;'
+			. 'border:1px solid #cbd5e1;background:#fff;color:var(--chu);text-decoration:none}'
+			. '.nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
+			. '.luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}'
 			. 'table{border-collapse:collapse;width:100%;font-size:13.5px}'
 			. 'th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--vien);vertical-align:top}'
 			. 'th{background:#f8fafc;font-size:12.5px;color:var(--mo);white-space:nowrap}'
@@ -630,40 +669,115 @@ class VHCC_Web {
 		echo '</select></div>';
 		echo '<div><label for="fq">Tìm</label><input id="fq" name="q" value="' . esc_attr( $tim )
 			. '" placeholder="mã / tên / SĐT / CCCD" style="width:200px"></div>';
-		echo '<button>Tìm</button></form>';
+		echo '<button>Tìm</button>';
+		echo '<a class="nut chinh" href="' . esc_url( add_query_arg( 'sua', '+', self::url() ) )
+			. '">+ Hồ sơ mới</a>';
+		echo '</form>';
 
 		if ( ! $rows ) {
 			echo '<p class="mo">Chưa có hồ sơ nào khớp. Nạp file .csv ở ô trên.</p></div>';
 			return;
 		}
+		/* 🔴 CHO CHỌN, ĐỪNG BẮT GÕ TAY. Anh Thắng: *"chọn"*. Chức vụ và Nhiệm vụ là hai ô mà
+		   BẢNG LƯƠNG đọc để quyết cách tính (nhóm "Máy tự động" tính khác, "Trực Ghế Posh - JP"
+		   tính theo GIỜ). Gõ tay qua 240 dòng là sớm muộn có "Khu vui choi" thiếu dấu, và người
+		   đó rơi ra khỏi nhóm mà không có gì báo — sai lệch chỉ lộ ra ở bảng lương cuối tháng.
+
+		   Dùng <datalist> chứ không <select>: nó vừa xổ ra danh sách đang có để bấm, vừa cho gõ
+		   một giá trị MỚI khi cần. <select> thuần thì khai một chức vụ mới là phải sửa mã. */
+		echo self::goi_y( 'dl_ch', "SELECT DISTINCT cua_hang AS v FROM $bang WHERE cua_hang<>''" );
+		echo self::goi_y( 'dl_cv', "SELECT DISTINCT chuc_vu  AS v FROM $bang WHERE chuc_vu<>''" );
+		/* Anh Thắng: *"Nhiệm vụ: Nhân Viên, Admin, Cửa Hàng Trưởng, Kế Toán"* — bốn giá trị này
+		   luôn có trong danh sách xổ ra, kể cả khi chưa hồ sơ nào dùng tới. Chúng chỉ là GỢI Ý,
+		   không phải danh sách đóng: ô Nhiệm vụ vẫn gõ được "JP Aeon Mall Tân Phú" như cũ.
+		   ⚠️ Nhiệm vụ KHÔNG phải vai trò đăng nhập — vai trò có ô <select> riêng ở cột bên. */
+		echo self::goi_y( 'dl_nv', "SELECT DISTINCT nhiem_vu AS v FROM $bang WHERE nhiem_vu<>''", true,
+			array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) );
+		echo self::goi_y( 'dl_cp', "SELECT DISTINCT coso_phu AS v FROM $bang WHERE coso_phu<>''", true );
+
 		echo '<div class="cuon"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Cửa hàng</th>'
-			. '<th>Cơ sở phụ</th><th>Chức vụ</th><th>Nhiệm vụ</th><th>PIN</th><th></th></tr></thead><tbody>';
+			. '<th>Cơ sở phụ</th><th>Chức vụ</th><th>Nhiệm vụ</th><th>Vai trò</th><th>PIN</th>'
+			. '<th></th></tr></thead><tbody>';
 		foreach ( $rows as $r ) {
 			$id = 'f' . md5( (string) $r['ma_nv'] );
 			echo '<tr><td><code>' . esc_html( $r['ma_nv'] ) . '</code></td>';
 			echo '<td><input form="' . $id . '" name="ho_ten" value="' . esc_attr( $r['ho_ten'] ) . '" style="width:170px"></td>';
-			echo '<td><input form="' . $id . '" name="cua_hang" value="' . esc_attr( $r['cua_hang'] ) . '" style="width:110px"></td>';
-			echo '<td><input form="' . $id . '" name="coso_phu" value="' . esc_attr( (string) $r['coso_phu'] ) . '" style="width:130px"></td>';
-			echo '<td><input form="' . $id . '" name="chuc_vu" value="' . esc_attr( $r['chuc_vu'] ) . '" style="width:120px"></td>';
-			echo '<td><input form="' . $id . '" name="nhiem_vu" value="' . esc_attr( $r['nhiem_vu'] ) . '" style="width:130px"></td>';
-			/* ⚠️ KHÔNG in PIN. Trang này chạy ngoài internet; ảnh chụp đi khắp nơi. Gõ vào ô trống
-			   là đổi; để trống là giữ nguyên — nên cột chỉ cho biết ĐÃ CÓ hay CHƯA. */
-			echo '<td>' . ( '' !== trim( (string) $r['pin_dang_nhap'] )
-				? '<span class="mo">' . strlen( (string) $r['pin_dang_nhap'] ) . ' số</span>'
-				: '<span style="color:var(--do)">chưa có</span>' ) . '</td>';
-			echo '<td><button form="' . $id . '">Lưu</button></td></tr>';
+			echo '<td><input form="' . $id . '" name="cua_hang" list="dl_ch" value="' . esc_attr( $r['cua_hang'] ) . '" style="width:120px"></td>';
+			echo '<td><input form="' . $id . '" name="coso_phu" list="dl_cp" value="' . esc_attr( (string) $r['coso_phu'] ) . '" style="width:140px"></td>';
+			echo '<td><input form="' . $id . '" name="chuc_vu" list="dl_cv" value="' . esc_attr( $r['chuc_vu'] ) . '" style="width:140px"></td>';
+			echo '<td><input form="' . $id . '" name="nhiem_vu" list="dl_nv" value="' . esc_attr( $r['nhiem_vu'] ) . '" style="width:150px"></td>';
+			/* Ô NHẬP PIN — nhưng KHÔNG BAO GIỜ điền sẵn PIN cũ vào đó. Trang này chạy ngoài
+			   internet; đổ 240 PIN ra màn hình là một ảnh chụp mất sạch mật khẩu cả chuỗi.
+			   Luật: ô TRỐNG = giữ nguyên PIN cũ. Muốn bỏ hẳn thì tích ô "xoá" bên cạnh — phải
+			   là một việc CÓ Ý, không phải hậu quả của việc để trống một ô. */
+			/* 🔴 VAI TRÒ ĐĂNG NHẬP — ô quyết định người này có vào được trang web hay không.
+			   Đây là <select>, KHÔNG phải ô gõ tự do như Chức vụ: danh sách vai trò là một tập
+			   ĐÓNG mà hệ thống phải hiểu từng giá trị. Gõ "Kế Toán" thay vì "Kế toán cá nhân"
+			   là người đó không đăng nhập được, mà không có gì báo. */
+			$vt_r = (string) $r['vai_tro'];
+			echo '<td><select form="' . $id . '" name="vai_tro" style="width:130px">';
+			echo '<option value=""' . selected( '', $vt_r, false ) . '>— chưa khai —</option>';
+			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_c ) {
+				echo '<option value="' . esc_attr( $vt_c ) . '"' . selected( $vt_c, $vt_r, false ) . '>'
+					. esc_html( $vt_c )
+					. ( in_array( $vt_c, VHCC_Auth::vai_tro_vao(), true ) ? '' : ' (không vào được)' )
+					. '</option>';
+			}
+			echo '</select></td>';
+
+			$co_pin = ( '' !== trim( (string) $r['pin_dang_nhap'] ) );
+			echo '<td><input form="' . $id . '" name="pin_dang_nhap" inputmode="numeric" '
+				. 'autocomplete="off" placeholder="' . ( $co_pin ? 'giữ nguyên' : 'chưa có' ) . '" '
+				. 'style="width:96px">';
+			echo '<div class="mo" style="font-size:11.5px;margin-top:2px">'
+				. ( $co_pin
+					? 'đang có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số &nbsp;'
+						. '<label style="display:inline;color:var(--do)"><input form="' . $id . '" '
+						. 'type="checkbox" name="xoa_pin" value="1" style="vertical-align:-1px"> xoá</label>'
+					: '<span style="color:var(--do)">chưa đăng nhập được</span>' )
+				. '</div></td>';
+			echo '<td><button form="' . $id . '">Lưu</button> '
+				. '<a class="nut" href="' . esc_url( add_query_arg( 'sua', $r['ma_nv'], self::url() ) )
+				. '">Sửa đủ</a></td></tr>';
 			$GLOBALS['VHCC_FORM_ROI'] .= '<form method="post" id="' . $id . '">'
 				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 				. '<input type="hidden" name="viec" value="sua_hs">'
 				. '<input type="hidden" name="ma_nv" value="' . esc_attr( $r['ma_nv'] ) . '"></form>';
 		}
 		echo '</tbody></table></div>';
-		echo '<p class="mo">Hiện tối đa 100 dòng — lọc theo cơ sở hoặc gõ ô Tìm để thu hẹp. '
-			. 'Cột PIN chỉ cho biết đã có hay chưa, không in ra. '
+		echo '<p class="mo">Bốn ô <b>Cửa hàng · Cơ sở phụ · Chức vụ · Nhiệm vụ</b> xổ ra danh sách '
+			. 'đang dùng — bấm chọn cho khỏi gõ sai dấu, nhưng vẫn gõ được giá trị mới. '
+			. 'Hiện tối đa 100 dòng — lọc theo cơ sở hoặc gõ ô Tìm để thu hẹp. '
+			. '<b>Ô PIN để trống = giữ nguyên PIN cũ</b>; gõ 4–8 chữ số để đổi; tích <b>xoá</b> để bỏ hẳn. '
+			. 'PIN cũ KHÔNG được điền sẵn vào ô — đổ 240 PIN ra màn hình là một ảnh chụp mất sạch mật khẩu cả chuỗi. '
+			. 'Đổi PIN ở đây rồi nhớ bấm <b>Nạp tài khoản</b> ở ô 🔑 bên trên thì người đó mới đăng nhập được. '
 			. '<b>Mã NV không sửa được ở đây</b>: đổi mã là sửa mọi hàng chấm công đã có của người đó.</p>';
 		echo '</div>';
 		echo $GLOBALS['VHCC_FORM_ROI'];
 		$GLOBALS['VHCC_FORM_ROI'] = '';
+	}
+
+	/**
+	 * Một <datalist> dựng từ CHÍNH dữ liệu đang có.
+	 *
+	 * @param bool $tach  ô nhiều giá trị cách nhau dấu phẩy (Nhiệm vụ, Cơ sở phụ) — tách ra
+	 *                    thành từng mục, không thì gợi ý cả cụm "FARM_PT, FZ_LTVT" là vô dụng.
+	 */
+	private static function goi_y( $id, $sql, $tach = false, $luon_co = array() ) {
+		$ds = array();
+		foreach ( (array) $luon_co as $v ) { $ds[ $v ] = 1; }
+		foreach ( VHCC_DB::rows( $sql ) as $x ) {
+			$v = trim( (string) $x['v'] );
+			if ( '' === $v ) { continue; }
+			foreach ( $tach ? explode( ',', $v ) : array( $v ) as $m ) {
+				$m = trim( $m );
+				if ( '' !== $m ) { $ds[ $m ] = 1; }
+			}
+		}
+		ksort( $ds );
+		$h = '<datalist id="' . esc_attr( $id ) . '">';
+		foreach ( array_keys( $ds ) as $v ) { $h .= '<option value="' . esc_attr( $v ) . '">'; }
+		return $h . '</datalist>';
 	}
 
 	private static function the_xoa_het( $ky, $tong ) {
@@ -680,8 +794,43 @@ class VHCC_Web {
 		echo '</div>';
 	}
 
+	/**
+	 * NHÃN + NHÓM cho màn sửa đủ. Thứ tự ở đây CHÍNH LÀ thứ tự hiện ra.
+	 *
+	 * Gom theo nhóm chứ không đổ một dãy 18 ô: hồ sơ nhân sự có bốn nhóm chẳng liên quan nhau
+	 * (nhận dạng · công việc · liên hệ · lương), trộn chung thì mỗi lần sửa một ô phải dò cả màn.
+	 */
+	const NHOM_SUA = array(
+		'Công việc'  => array(
+			'cua_hang'            => 'Cửa hàng chính',
+			'coso_phu'           => 'Cơ sở phụ (cách nhau dấu phẩy)',
+			'chuc_vu'            => 'Chức vụ',
+			'nhiem_vu'           => 'Nhiệm vụ (cách nhau dấu phẩy)',
+			'trang_thai_lam_viec' => 'Trạng thái làm việc',
+			'ngay_vao_lam'       => 'Ngày vào làm',
+			'loai_hop_dong'      => 'Loại hợp đồng',
+		),
+		'Cá nhân'    => array(
+			'ngay_sinh' => 'Ngày sinh',
+			'gioi_tinh' => 'Giới tính',
+			'cccd'      => 'CCCD',
+			'sdt'       => 'Số điện thoại',
+			'dia_chi'   => 'Địa chỉ',
+		),
+		'Lương'      => array(
+			'luong_co_ban' => 'Lương cơ bản',
+			'so_tai_khoan' => 'Số tài khoản',
+			'ngan_hang'    => 'Ngân hàng',
+		),
+		'Đăng nhập'  => array(
+			'vai_tro'       => 'Vai trò đăng nhập',
+			'pin_dang_nhap' => 'PIN đăng nhập trang web (4–8 số)',
+			'pin_may'       => 'PIN trên máy chấm công',
+		),
+	);
+
 	/** Các ô sửa được ngoài web. Cố ý KHÔNG cho sửa `ma_nv` — đổi mã là sửa mọi hàng chấm công. */
-	const COT_SUA = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'nhiem_vu',
+	const COT_SUA = array( 'ho_ten', 'cua_hang', 'coso_phu', 'chuc_vu', 'nhiem_vu', 'vai_tro',
 		'trang_thai_lam_viec', 'sdt', 'cccd', 'ngay_sinh', 'gioi_tinh', 'dia_chi',
 		'ngay_vao_lam', 'loai_hop_dong', 'luong_co_ban', 'so_tai_khoan', 'ngan_hang',
 		'pin_dang_nhap', 'pin_may' );

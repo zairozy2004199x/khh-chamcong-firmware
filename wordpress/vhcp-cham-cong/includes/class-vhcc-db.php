@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.0.0';
+	const SCHEMA_VERSION = '2.1.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -141,6 +141,10 @@ class VHCC_DB {
 		   Sheet phải thêm cột MỚI vào CUỐI vì vòng đọc/ghi dùng chỉ số `7 + k`. MySQL gọi theo
 		   TÊN cột nên ràng buộc đó biến mất — thêm cột ở đâu cũng được. Đây là chỗ Sheet bắt
 		   người ta cẩn thận mà MySQL không cần. */
+		/* `vai_tro` KHÁC HẲN `chuc_vu`. `chuc_vu` là công việc (Khu vui chơi, Máy tự động);
+		   `vai_tro` là quyền trên trang web: Admin, Quản lý, Kế toán cá nhân, Kế toán NCC,
+		   Cửa hàng trưởng, Nhân viên. Trước bản này chỉ có `chuc_vu`, nên nạp sổ nhân viên xong
+		   là CẢ SỔ rơi về Nhân viên và KHÔNG AI đăng nhập được, mà màn hình vẫn báo đã nạp đủ. */
 		$b['nhan_vien'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_nv VARCHAR(40) NOT NULL,
@@ -169,6 +173,7 @@ class VHCC_DB {
 			nhiem_vu VARCHAR(60) NOT NULL DEFAULT '',
 			coso_phu TEXT NULL,
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
+			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY cua_hang (cua_hang),

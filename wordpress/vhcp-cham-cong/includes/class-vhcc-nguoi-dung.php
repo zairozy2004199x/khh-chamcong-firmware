@@ -52,16 +52,19 @@ class VHCC_NguoiDung {
 	public static function doc_kho( $tu ) {
 		if ( 'ho_so' !== $tu ) { return VHCC_Auth::users_cua( (string) $tu ); }
 		$ra = array();
-		foreach ( VHCC_DB::rows( 'SELECT ho_ten, pin_dang_nhap, chuc_vu, cua_hang FROM '
+		foreach ( VHCC_DB::rows( 'SELECT ho_ten, pin_dang_nhap, vai_tro, chuc_vu, cua_hang FROM '
 			. VHCC_DB::t( 'nhan_vien' ) . " WHERE pin_dang_nhap <> ''" ) as $r ) {
 			$ra[] = array(
 				'ten'    => trim( (string) $r['ho_ten'] ),
 				'pin'    => VHCC_Auth::pin_sach( $r['pin_dang_nhap'] ),
-				/* `Chức vụ` của sheet nhân viên là chức vụ ("Máy tự động"), KHÔNG phải vai trò
-				   đăng nhập. Nhận ra thì dùng, không thì để rỗng — để chỗ gọi biết mà hỏi anh
-				   Thắng chọn vai trò, thay vì lặng lẽ đặt hết thành 'Nhân viên' rồi không ai
-				   đăng nhập được mà màn hình vẫn báo "đã nạp N người". */
-				'vaiTro' => self::vai_tro_biet( $r['chuc_vu'] ),
+				/* Cột `vai_tro` là chỗ ĐÚNG. `chuc_vu` chỉ để đỡ khi hồ sơ cũ chưa khai vai trò —
+				   nó là công việc ("Máy tự động", "Khu vui chơi"), không phải quyền, nên phần
+				   lớn sẽ không nhận ra và trả về rỗng. Rỗng là ĐÚNG Ý: chỗ gọi biết mà hỏi
+				   "sổ không ghi vai trò, đặt thành gì?", thay vì lặng lẽ đặt hết thành 'Nhân
+				   viên' rồi không ai đăng nhập được mà màn hình vẫn báo "đã nạp N người". */
+				'vaiTro' => ( '' !== self::vai_tro_biet( $r['vai_tro'] )
+					? self::vai_tro_biet( $r['vai_tro'] )
+					: self::vai_tro_biet( $r['chuc_vu'] ) ),
 				'coso'   => trim( (string) $r['cua_hang'] ),
 			);
 		}
