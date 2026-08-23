@@ -1061,6 +1061,85 @@ t( 'khai lại cùng mã 2 lần không sinh mã trùng',
 
 VHCP_Cfg::save_config( array( 'coso' => $coso_goc_nm ) );   // trả danh mục cơ sở cho các phép thử sau
 
+// ------------------------------------------------- SỐ SÊ-RI BẢNG TÍNH LÀM HỎNG NGÀY
+// GỐC CỦA 580 DÒNG "22/08/4621": ô ngày trong bảng tính xuất ra SỐ SÊ-RI ("46213.0" = số
+// ngày kể từ 30/12/1899). parse_date cũ rơi xuống strtotime(), nó đọc "4621" thành NĂM
+// rồi lấy ngày/tháng của hôm nhập -> ngày thật mất sạch.
+teq( 'sê-ri bảng tính đọc ra ngày thật', '2026-07-10', VHCP_Util::parse_date( '46213.0' ) );
+teq( 'sê-ri không có phần thập phân cũng đọc được', '2026-07-29', VHCP_Util::parse_date( '46232' ) );
+teq( 'sê-ri của năm ngoái', '2025-08-01', VHCP_Util::parse_date( '45870.0' ) );
+teq( 'ngày viết thường vẫn đọc như cũ', '2026-08-22', VHCP_Util::parse_date( '22/08/2026' ) );
+teq( 'và dạng ISO vẫn đọc như cũ', '2026-08-22', VHCP_Util::parse_date( '2026-08-22' ) );
+// Đừng nuốt nhầm: số 4 chữ số là NĂM, số nhỏ không phải ngày.
+teq( 'số 4 chữ số không bị hiểu thành sê-ri', null, VHCP_Util::parse_date( '2026' ) );
+teq( 'số quá nhỏ không phải sê-ri', null, VHCP_Util::parse_date( '12345' ) );
+// strtotime là chỗ dễ bịa nhất -> chặn năm ngoài 2000–2100
+teq( 'strtotime không được bịa ra năm ngoài 2000–2100', null, VHCP_Util::parse_date( '4621-08-23' ) );
+
+// --- KHÔI PHỤC ngày thật cho dòng ĐÃ hỏng ---
+// Năm 4621 nghĩa là sê-ri thuộc [46210…46219]; giao với KỲ của đơn thì còn đúng 1 ngày.
+// Chữ số cuối của sê-ri MẤT HẲN: năm 4621 -> 10 ngày ứng viên (07/07…16/07/2026). Một
+// TUẦN vẫn trùm 6 ngày trong số đó, nên đây chỉ thu hẹp về đúng tuần, KHÔNG khôi phục
+// chính xác. Phép thử ghim đúng sự thật đó, không giả vờ là chính xác.
+list( $ng_kp, $n_uv, $ds_uv ) = VHCP_Don::ngay_tu_nam_hong( 4621, 'T7/2026 (6/7-12/7/2026)' );
+teq( 'một tuần vẫn còn 6 ứng viên', 6, $n_uv );
+teq( 'nhiều ứng viên -> KHÔNG chọn bừa', '', $ng_kp );
+t( 'mọi ứng viên đều nằm trong kỳ', $ds_uv[0] >= '2026-07-06' && end( $ds_uv ) <= '2026-07-12', $ds_uv );
+// Kỳ nằm LỌT trong khoảng sê-ri thì mới còn đúng 1 ngày — lúc đó mới là ngày thật.
+list( $ng1, $uv1 ) = VHCP_Don::ngay_tu_nam_hong( 4621, 'T7/2026 (16/7-16/7/2026)' );
+teq( 'kỳ thu hẹp còn 1 ngày -> khôi phục chính xác', '2026-07-16', $ng1 );
+teq( 'và đúng 1 ứng viên', 1, $uv1 );
+list( $ng2, $uv2 ) = VHCP_Don::ngay_tu_nam_hong( 4621, 'T9/2026 (7/9-13/9/2026)' );
+teq( 'kỳ không khớp sê-ri -> KHÔNG đoán bừa', '', $ng2 );
+teq( 'và nói rõ là 0 ứng viên', 0, $uv2 );
+teq( 'năm bình thường thì không phải chuyện của hàm này', '', VHCP_Don::ngay_tu_nam_hong( 2026, 'T7/2026 (6/7-12/7/2026)' )[0] );
+teq( 'khoảng kỳ đọc đúng', array( '2026-08-10', '2026-08-16' ), VHCP_Don::khoang_ky( 'T8/2026 (10/8-16/8/2026)' ) );
+
+$m_sr = VHCP_Don::create_don( 'T7/2026 (6/7-12/7/2026)', 'NV A' )['maDon'];
+$id_sr = VHCP_Don::add_line( $m_sr, array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở',
+	'noiDung' => 'khăn lau', 'soLuong' => 1, 'donGia' => 246000, 'phanLoaiTT' => 'Thanh toán cá nhân' ) )['id'];
+$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'ngay' => '4621-08-23' ), array( 'id' => $id_sr ) );
+$xem_sr = VHCP_Don::sua_ngay_hong( 'seri', 0, false, $m_sr );
+teq( 'xem trước thì chưa đụng dữ liệu', '23/08/4621', VHCP_Util::fmt( VHCP_Don::line_row( $id_sr )['ngay'] ) );
+teq( 'nhiều ứng viên -> lùi về đầu kỳ', '06/07/2026', $xem_sr['items'][0]['moi'] );
+teq( 'và ĐÁNH DẤU là ước lượng, không trộn với dòng chắc chắn', 1, $xem_sr['items'][0]['uocLuong'] );
+teq( 'đếm riêng số dòng ước lượng', 1, $xem_sr['uocLuong'] );
+$sr = VHCP_Don::sua_ngay_hong( 'seri', 0, true, $m_sr );
+teq( 'sửa kiểu sê-ri: 1 dòng', 1, $sr['daSua'] );
+teq( 'ngày mới nằm đúng trong kỳ của đơn', '06/07/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_sr )['ngay'] ) );
+
+// Kỳ một ngày -> khôi phục CHÍNH XÁC, và không bị đánh dấu ước lượng
+$m_sr1 = VHCP_Don::create_don( 'T7/2026 (16/7-16/7/2026)', 'NV A' )['maDon'];
+$id_sr1 = VHCP_Don::add_line( $m_sr1, array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở',
+	'noiDung' => 'nước rửa chén', 'soLuong' => 1, 'donGia' => 211000, 'phanLoaiTT' => 'Thanh toán cá nhân' ) )['id'];
+$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'ngay' => '4621-08-23' ), array( 'id' => $id_sr1 ) );
+$sr1 = VHCP_Don::sua_ngay_hong( 'seri', 0, true, $m_sr1 );
+teq( 'kỳ 1 ngày -> ra đúng ngày thật', '16/07/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_sr1 )['ngay'] ) );
+teq( 'và KHÔNG bị đánh dấu ước lượng', 0, $sr1['uocLuong'] );
+
+// --- CỘT KỲ CŨNG BỊ GHI BẰNG SÊ-RI ("46204.0") ---
+// Kỳ hỏng kéo theo: đơn không lọc được theo tháng/tuần ở MỌI màn (đây là lý do "tháng 7
+// không thấy đơn nào"), và cũng không suy ra được ngày cho dòng chi của đơn đó.
+teq( 'nhãn kỳ dựng đúng tuần thứ 2 → chủ nhật', 'T7/2026 (6/7-12/7/2026)', VHCP_Don::nhan_ky( '2026-07-10' ) );
+teq( 'ngày chủ nhật vẫn thuộc tuần đó', 'T7/2026 (6/7-12/7/2026)', VHCP_Don::nhan_ky( '2026-07-12' ) );
+teq( 'ngày thứ 2 mở tuần mới', 'T7/2026 (13/7-19/7/2026)', VHCP_Don::nhan_ky( '2026-07-13' ) );
+$m_ky = VHCP_Don::create_don( '46204.0', 'NV A' )['maDon'];
+$xem_ky = VHCP_Don::sua_ky_hong( false );
+$hit_ky = null;
+foreach ( $xem_ky['items'] as $x ) { if ( $x['maDon'] === $m_ky ) { $hit_ky = $x; } }
+t( 'dò ra đơn có kỳ hỏng', $hit_ky !== null, $xem_ky );
+teq( 'xem trước: sê-ri 46204 = 01/07/2026', '01/07/2026', $hit_ky['ngay'] );
+teq( 'và kỳ mới là tuần chứa ngày đó', 'T7/2026 (29/6-5/7/2026)', $hit_ky['moi'] );
+teq( 'xem trước thì chưa đụng dữ liệu', '46204.0', VHCP_Don::don_row( $m_ky )['ky'] );
+$sk = VHCP_Don::sua_ky_hong( true );
+t( 'sửa kỳ: có sửa', $sk['daSua'] >= 1, $sk );
+teq( 'kỳ của đơn đã đúng', 'T7/2026 (29/6-5/7/2026)', VHCP_Don::don_row( $m_ky )['ky'] );
+teq( 'chạy lại thì không còn kỳ hỏng nào', 0, VHCP_Don::sua_ky_hong( false )['tong'] );
+// Đơn kỳ bình thường KHÔNG được đụng vào
+$m_ky2 = VHCP_Don::create_don( 'T8/2026 (10/8-16/8/2026)', 'NV A' )['maDon'];
+VHCP_Don::sua_ky_hong( true );
+teq( 'kỳ bình thường giữ nguyên', 'T8/2026 (10/8-16/8/2026)', VHCP_Don::don_row( $m_ky2 )['ky'] );
+
 // ---------------------------------------------------------------- SỬA NGÀY VÔ LÝ
 // Bảng xuất MISA ra "22/08/4625" lẫn "22/08/2026" trong CÙNG một đơn — vài dòng lẻ, sửa
 // tay từng dòng thì được, nhưng phải có cả đường sửa hàng loạt cho nhanh.

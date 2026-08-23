@@ -82,16 +82,45 @@ class VHCP_Util {
 		if ( $v instanceof DateTimeInterface ) { return $v->format( 'Y-m-d' ); }
 		$s = trim( (string) $v );
 		if ( $s === '' ) { return null; }
+
+		// 🔴 SỐ SÊ-RI CỦA BẢNG TÍNH ("46232.0") — PHẢI CHẶN Ở ĐÂY.
+		//
+		// Google Sheets / Excel lưu ngày là SỐ NGÀY kể từ 30/12/1899. Xuất ra CSV mà ô đó
+		// chưa định dạng ngày thì ra "46232.0". Rơi xuống strtotime() bên dưới thì nó đọc
+		// "4623" thành NĂM -> ra 23/08/4623. Đây chính là 580 dòng "22/08/4621" trong bảng
+		// xuất MISA: mỗi dòng mất luôn ngày thật, thay bằng ngày nhập liệu + một năm bịa.
+		//
+		// Khoảng 20000–60000 là 1954–2064 — đủ rộng cho mọi ngày có thật của sổ sách, mà
+		// vẫn không nuốt nhầm số 4 chữ số (năm) hay số nhỏ.
+		if ( preg_match( '#^(\d{5})(?:\.0+)?$#', $s, $m ) ) {
+			$n = (int) $m[1];
+			if ( $n >= 20000 && $n <= 60000 ) {
+				return gmdate( 'Y-m-d', ( $n - 25569 ) * 86400 );   // 25569 = 01/01/1970 tính theo gốc bảng tính
+			}
+		}
+
+		// Năm phải là năm THẬT. "4621-08-23" là rác do sê-ri bảng tính sinh ra (xem trên);
+		// nhận nó vào là chép nguyên cái sai xuống cơ sở dữ liệu.
+		$hop_le = function ( $y ) { return ( (int) $y >= 2000 && (int) $y <= 2100 ); };
 		if ( preg_match( '#^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})#', $s, $m ) ) {
-			return sprintf( '%04d-%02d-%02d', $m[1], $m[2], $m[3] );
+			return $hop_le( $m[1] ) ? sprintf( '%04d-%02d-%02d', $m[1], $m[2], $m[3] ) : null;
 		}
 		if ( preg_match( '#^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})#', $s, $m ) ) {
 			$y = (int) $m[3];
 			if ( $y < 100 ) { $y += 2000; }
-			return sprintf( '%04d-%02d-%02d', $y, $m[2], $m[1] );
+			return $hop_le( $y ) ? sprintf( '%04d-%02d-%02d', $y, $m[2], $m[1] ) : null;
 		}
+		// Số trơ trọi mà không phải sê-ri hợp lệ thì KHÔNG phải ngày — đừng để strtotime
+		// biến "2026" thành hôm nay.
+		if ( preg_match( '#^\d+(?:\.\d+)?$#', $s ) ) { return null; }
+		// strtotime() là chốt chặn cuối và là chỗ DỄ BỊA NHẤT: "46213.0" nó đọc thành năm
+		// 4621. Ngày ngoài 2000–2100 thì thà trả null để chỗ gọi báo lỗi, còn hơn ghi xuống
+		// một ngày không ai nhận ra là sai cho tới lúc xuất MISA.
 		$ts = strtotime( $s );
-		return $ts ? gmdate( 'Y-m-d', $ts ) : null;
+		if ( ! $ts ) { return null; }
+		$y = (int) gmdate( 'Y', $ts );
+		if ( $y < 2000 || $y > 2100 ) { return null; }
+		return gmdate( 'Y-m-d', $ts );
 	}
 
 	/**

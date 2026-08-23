@@ -835,9 +835,16 @@ class VHCP_Don {
 		global $wpdb;
 		$cur = self::line_row( $id );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
+		// ADMIN SỬA ĐƯỢC NGÀY Ở MỌI TRẠNG THÁI.
+		//
+		// Bình thường đơn đã quyết toán / đã xuất MISA thì khoá, vì số đã đi vào sổ. Nhưng
+		// đang có 580 dòng mang ngày hỏng ("22/08/4621") NẰM ĐÚNG trong đám đơn đã khoá đó —
+		// khoá luôn thì không đường nào sửa, mà tệp gửi MISA thì đang sai kỳ hạch toán.
+		// Người khác vẫn theo luật cũ.
 		$st = self::state( (string) $cur['ma_don'] );
-		if ( ! in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
-			return VHCP_Util::err( 'Đơn "' . $st . '" — không sửa ngày được nữa' );
+		$la_admin = ( VHCP_Auth::vai_tro() === 'Admin' );
+		if ( ! $la_admin && ! in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
+			return VHCP_Util::err( 'Đơn "' . $st . '" — không sửa ngày được nữa (nhờ Admin sửa)' );
 		}
 		$moi = VHCP_Util::parse_date( $ngay );
 		if ( ! $moi ) { return VHCP_Util::err( 'Ngày không đọc được: ' . $ngay ); }
@@ -858,38 +865,202 @@ class VHCP_Don {
 	 *    xem trước danh sách, rồi mới xác nhận. Giữ nguyên ngày/tháng vì đó là phần duy
 	 *    nhất còn tin được — đoán luôn cả ngày thì thành bịa.
 	 */
-	public static function sua_nam_vo_ly( $nam = 0, $ma_don = '' ) {
+	/**
+	 * NGÀY BẮT ĐẦU CỦA MỘT KỲ, đọc từ nhãn kỳ: "T8/2026 (10/8-16/8/2026)" -> 2026-08-10.
+	 * Không đọc được thì trả '' — thà bỏ qua còn hơn đoán bừa một ngày hạch toán.
+	 */
+	public static function ngay_dau_ky( $ky ) {
+		$s = trim( (string) $ky );
+		if ( preg_match( '#\((\d{1,2})/(\d{1,2})\s*-\s*(\d{1,2})/(\d{1,2})/(\d{4})\)#', $s, $m ) ) {
+			$d = (int) $m[1]; $mo = (int) $m[2]; $y = (int) $m[5];
+			if ( $mo > (int) $m[4] ) { $y--; }   // khoảng vắt qua năm mới
+			if ( checkdate( $mo, $d, $y ) ) { return sprintf( '%04d-%02d-%02d', $y, $mo, $d ); }
+		}
+		if ( preg_match( '#^T\s*(\d{1,2})\s*/\s*(\d{4})#iu', $s, $m ) ) {
+			$mo = (int) $m[1]; $y = (int) $m[2];
+			if ( $mo >= 1 && $mo <= 12 ) { return sprintf( '%04d-%02d-01', $y, $mo ); }
+		}
+		return '';
+	}
+
+	/**
+	 * KHÔI PHỤC NGÀY THẬT TỪ NĂM BỊ HỎNG.
+	 *
+	 * Nguồn gốc: ô ngày trong bảng tính xuất ra SỐ SÊ-RI ("46213.0" = số ngày kể từ
+	 * 30/12/1899). parse_date() cũ rơi xuống strtotime(), nó đọc "4621" thành NĂM rồi lấy
+	 * ngày/tháng của hôm nhập -> "23/08/4621". Tức là 4 chữ số đầu của sê-ri VẪN CÒN nằm
+	 * trong cột năm; chỉ mất chữ số cuối.
+	 *
+	 * Nên năm 4621 => sê-ri thuộc [46210 … 46219] => 10 ngày ứng viên: 07/07 … 16/07/2026.
+	 *
+	 * ⚠️ CHỮ SỐ CUỐI MẤT HẲN, KHÔNG DỰNG LẠI ĐƯỢC. Giao với KHOẢNG KỲ của đơn (một tuần)
+	 *    thì vẫn còn tới 6–7 ứng viên, nên đây KHÔNG phải phép khôi phục chính xác — nó chỉ
+	 *    thu hẹp về đúng TUẦN. Chỉ khi nào giao lại còn ĐÚNG MỘT ngày (kỳ nằm lọt trong
+	 *    khoảng sê-ri) thì mới là ngày thật.
+	 *
+	 *    MUỐN ĐÚNG TỪNG NGÀY thì NẠP LẠI từ bảng tính gốc — parse_date() nay đã đọc đúng
+	 *    số sê-ri, nạp lại là ra ngày thật.
+	 *
+	 * @return array [ngay, soUngVien, dsUngVien] — ngay chỉ khác '' khi CHỈ CÓ MỘT ứng viên
+	 */
+	public static function ngay_tu_nam_hong( $nam_hong, $ky ) {
+		$nam = (int) $nam_hong;
+		if ( $nam < 4000 || $nam > 6000 ) { return array( '', 0, array() ); }
+
+		list( $dau, $cuoi ) = self::khoang_ky( $ky );
+		$ung = array();
+		for ( $i = 0; $i <= 9; $i++ ) {
+			$seri = $nam * 10 + $i;
+			if ( $seri < 20000 || $seri > 60000 ) { continue; }
+			$d = gmdate( 'Y-m-d', ( $seri - 25569 ) * 86400 );
+			if ( $dau !== '' && ( $d < $dau || $d > $cuoi ) ) { continue; }
+			$ung[] = $d;
+		}
+		if ( count( $ung ) === 1 ) { return array( $ung[0], 1, $ung ); }
+		return array( '', count( $ung ), $ung );
+	}
+
+	/**
+	 * NHÃN KỲ CHUẨN của tuần chứa một ngày: "T7/2026 (6/7-12/7/2026)" (Thứ 2 → Chủ nhật).
+	 * Dùng để dựng lại cột KỲ cho đơn bị ghi bằng số sê-ri bảng tính ("46204.0").
+	 */
+	public static function nhan_ky( $ngay_iso ) {
+		$ts = strtotime( (string) $ngay_iso . ' 00:00:00 UTC' );
+		if ( ! $ts ) { return ''; }
+		$thu = (int) gmdate( 'N', $ts );                 // 1 = thứ 2
+		$d1  = $ts - ( $thu - 1 ) * 86400;
+		$d2  = $d1 + 6 * 86400;
+		return 'T' . (int) gmdate( 'n', $d2 ) . '/' . gmdate( 'Y', $d2 )
+			. ' (' . (int) gmdate( 'j', $d1 ) . '/' . (int) gmdate( 'n', $d1 )
+			. '-' . (int) gmdate( 'j', $d2 ) . '/' . (int) gmdate( 'n', $d2 ) . '/' . gmdate( 'Y', $d2 ) . ')';
+	}
+
+	/**
+	 * DỰNG LẠI CỘT KỲ CỦA ĐƠN BỊ GHI BẰNG SỐ SÊ-RI BẢNG TÍNH.
+	 *
+	 * Kỳ hỏng ("46204.0") kéo theo: đơn không lọc được theo tháng/tuần ở bất kỳ màn nào, và
+	 * cũng không suy ra được ngày cho các dòng chi của nó. Kỳ thì KHÔI PHỤC ĐƯỢC CHÍNH XÁC
+	 * vì sê-ri còn nguyên vẹn trong ô (chưa bị strtotime nghiền như cột ngày).
+	 *
+	 * $chot = false -> chỉ DÒ, trả danh sách xem trước.
+	 */
+	public static function sua_ky_hong( $chot = false ) {
 		global $wpdb;
-		$nam = (int) $nam;
-		if ( $nam && ( $nam < 2000 || $nam > 2100 ) ) { return VHCP_Util::err( 'Năm phải trong khoảng 2000–2100' ); }
+		$t = VHCP_DB::t( 'don' );
+		$ds = array(); $sua = 0;
+		foreach ( self::don_rows() as $d ) {
+			$ky = trim( (string) $d['ky'] );
+			if ( ! preg_match( '#^\d{5}(?:\.0+)?$#', $ky ) ) { continue; }
+			$iso = VHCP_Util::parse_date( $ky );
+			$moi = $iso ? self::nhan_ky( $iso ) : '';
+			$ds[] = array( 'maDon' => (string) $d['ma_don'], 'cu' => $ky,
+				'ngay' => $iso ? VHCP_Util::fmt( $iso ) : '', 'moi' => $moi );
+			if ( $chot && $moi !== '' ) {
+				$wpdb->update( $t, array( 'ky' => $moi ), array( 'ma_don' => (string) $d['ma_don'] ) );
+				$sua++;
+			}
+		}
+		return VHCP_Util::ok( array( 'items' => array_slice( $ds, 0, 400 ), 'tong' => count( $ds ), 'daSua' => $sua ) );
+	}
+
+	/** Khoảng ngày của một kỳ: "T8/2026 (10/8-16/8/2026)" -> ['2026-08-10','2026-08-16']. */
+	public static function khoang_ky( $ky ) {
+		$s = trim( (string) $ky );
+		if ( preg_match( '#\((\d{1,2})/(\d{1,2})\s*-\s*(\d{1,2})/(\d{1,2})/(\d{4})\)#', $s, $m ) ) {
+			$y2 = (int) $m[5]; $m1 = (int) $m[2]; $m2 = (int) $m[4];
+			$y1 = ( $m1 > $m2 ) ? $y2 - 1 : $y2;
+			if ( checkdate( $m1, (int) $m[1], $y1 ) && checkdate( $m2, (int) $m[3], $y2 ) ) {
+				return array( sprintf( '%04d-%02d-%02d', $y1, $m1, (int) $m[1] ),
+					sprintf( '%04d-%02d-%02d', $y2, $m2, (int) $m[3] ) );
+			}
+		}
+		if ( preg_match( '#^T\s*(\d{1,2})\s*/\s*(\d{4})#iu', $s, $m ) ) {
+			$mo = (int) $m[1]; $y = (int) $m[2];
+			if ( $mo >= 1 && $mo <= 12 ) {
+				return array( sprintf( '%04d-%02d-01', $y, $mo ),
+					sprintf( '%04d-%02d-%02d', $y, $mo, (int) gmdate( 't', gmmktime( 0, 0, 0, $mo, 1, $y ) ) ) );
+			}
+		}
+		return array( '', '' );
+	}
+
+	/**
+	 * DÒ / SỬA HÀNG LOẠT NGÀY HỎNG (VD "22/08/4621" — 580 dòng cùng một ngày).
+	 *
+	 * $cach:
+	 *   'ky'  — lấy NGÀY ĐẦU KỲ CỦA ĐƠN. Dùng khi cả ngày lẫn tháng đều không tin được:
+	 *           580 dòng mà cùng một ngày 22/08 trong khi đơn trải từ tháng 7 sang tháng 8
+	 *           thì ngày/tháng đó rõ ràng không phải ngày mua thật. Kỳ mới là thứ đúng.
+	 *   'nam' — GIỮ ngày và tháng, chỉ thay năm. Dùng khi chỉ mỗi năm sai.
+	 *
+	 * $chot = false -> chỉ DÒ và trả danh sách xem trước, KHÔNG đụng dữ liệu.
+	 *
+	 * ⚠️ Sửa số liệu kế toán nên không bao giờ tự chạy: phải Admin bấm, xem trước, xác nhận.
+	 */
+	public static function sua_ngay_hong( $cach = 'ky', $nam = 0, $chot = false, $ma_don = '' ) {
+		global $wpdb;
+		// Kỳ hỏng thì không suy ra được ngày cho dòng của đơn đó -> vá kỳ trước.
+		if ( $chot ) { self::sua_ky_hong( true ); }
+		$cach = in_array( $cach, array( 'nam', 'ky', 'seri' ), true ) ? $cach : 'seri';
+		$nam  = (int) $nam;
+		if ( $cach === 'nam' && $chot && ( $nam < 2000 || $nam > 2100 ) ) { return VHCP_Util::err( 'Năm phải trong khoảng 2000–2100' ); }
+
+		$ky_by = array();
+		foreach ( self::don_rows() as $d ) { $ky_by[ (string) $d['ma_don'] ] = (string) $d['ky']; }
 
 		$t   = VHCP_DB::t( 'chiphi' );
 		$sql = "SELECT id, ma_don, ngay, noi_dung FROM $t";
 		if ( trim( (string) $ma_don ) !== '' ) { $sql = $wpdb->prepare( "SELECT id, ma_don, ngay, noi_dung FROM $t WHERE ma_don=%s", $ma_don ); }
 
-		$ds = array(); $sua = 0;
+		$ds = array(); $sua = 0; $bo = 0; $uoc_n = 0;
 		foreach ( VHCP_DB::rows( $sql ) as $r ) {
 			$dmy = VHCP_Util::fmt( $r['ngay'] );
 			if ( ! VHCP_Util::ngay_vo_ly( $dmy ) ) { continue; }
-			$moi = '';
-			if ( preg_match( '#^(\d{4})-(\d{2})-(\d{2})#', (string) $r['ngay'], $m ) && $nam ) {
+			$m_don = (string) $r['ma_don'];
+			$ky    = isset( $ky_by[ $m_don ] ) ? $ky_by[ $m_don ] : '';
+			$moi   = '';
+			$ung = 0; $uoc = 0;
+			if ( $cach === 'seri' ) {
+				// Sê-ri thu hẹp về đúng TUẦN. Còn đúng 1 ứng viên -> đó là ngày thật. Còn
+				// nhiều -> lùi về ĐẦU KỲ và ĐÁNH DẤU là ước lượng, để bảng xem trước nói
+				// thẳng chỗ nào chắc chỗ nào không, chứ không trộn lẫn hai loại.
+				if ( preg_match( '#^(\d{4})-#', (string) $r['ngay'], $mm ) ) {
+					$kq  = self::ngay_tu_nam_hong( (int) $mm[1], $ky );
+					$moi = $kq[0]; $ung = $kq[1];
+					if ( $moi === '' && $ung > 1 ) { $moi = self::ngay_dau_ky( $ky ); $uoc = 1; }
+				}
+			} elseif ( $cach === 'ky' ) {
+				$moi = self::ngay_dau_ky( $ky );
+			} elseif ( preg_match( '#^(\d{4})-(\d{2})-(\d{2})#', (string) $r['ngay'], $m )
+				&& checkdate( (int) $m[2], (int) $m[3], $nam ) ) {
 				$moi = sprintf( '%04d-%02d-%02d', $nam, (int) $m[2], (int) $m[3] );
-				if ( ! checkdate( (int) $m[2], (int) $m[3], $nam ) ) { $moi = ''; }
 			}
+			if ( $moi === '' ) { $bo++; } elseif ( $uoc ) { $uoc_n++; }
 			$ds[] = array(
 				'id'      => (string) $r['id'],
-				'maDon'   => (string) $r['ma_don'],
+				'maDon'   => $m_don,
+				'ky'      => $ky,
 				'noiDung' => (string) $r['noi_dung'],
 				'cu'      => $dmy,
 				'tho'     => (string) $r['ngay'],
 				'moi'     => $moi !== '' ? VHCP_Util::fmt( $moi ) : '',
+				'ungVien' => $ung,
+				'uocLuong' => $uoc,
 			);
-			if ( $nam && $moi !== '' ) {
+			if ( $chot && $moi !== '' ) {
 				$wpdb->update( $t, array( 'ngay' => $moi ), array( 'id' => (string) $r['id'] ) );
 				$sua++;
 			}
 		}
-		return VHCP_Util::ok( array( 'items' => $ds, 'tong' => count( $ds ), 'daSua' => $sua, 'nam' => $nam ) );
+		return VHCP_Util::ok( array(
+			'items' => array_slice( $ds, 0, 400 ), 'tong' => count( $ds ),
+			'daSua' => $sua, 'boQua' => $bo, 'uocLuong' => $uoc_n, 'cach' => $cach, 'nam' => $nam, 'chot' => $chot ? 1 : 0,
+		) );
+	}
+
+	/** Giữ tên cũ cho nơi nào còn gọi: sửa theo NĂM. */
+	public static function sua_nam_vo_ly( $nam = 0, $ma_don = '' ) {
+		return self::sua_ngay_hong( 'nam', $nam, $nam > 0, $ma_don );
 	}
 
 	public static function set_line_anh( $id, $url ) {

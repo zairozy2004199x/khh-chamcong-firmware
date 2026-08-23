@@ -154,6 +154,25 @@ t('ô Thực mua tổng ở mục 3 cũng có dấu chấm (đồng bộ với �
   /el\('qtThucMua'\)\.value=money\(/.test(HTML) && /id="qtThucMua" type="text"/.test(HTML));
 t('và chỗ đọc nó ra để tính thì bỏ dấu chấm trước', /Number\(_tienSo\(el\('qtThucMua'\)\.value\)\)/.test(HTML));
 
+// ---------------------------------------------------------------- 8. sửa ngày/kỳ hỏng
+const DON = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-don.php'), 'utf8');
+const UTIL= fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-util.php'), 'utf8');
+const API2= fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-api.php'), 'utf8');
+// Gốc bệnh: bảng tính xuất ô ngày ra SỐ SÊ-RI; bộ đọc cũ hiểu 4 chữ số đầu thành NĂM.
+t('bịt cửa vào: parse_date đọc được số sê-ri', /\^\(\\d\{5\}\)\(\?:\\\.0\+\)\?\$/.test(UTIL) && /25569/.test(UTIL));
+t('và chặn strtotime bịa ra năm ngoài 2000–2100', /\$y < 2000 \|\| \$y > 2100/.test(UTIL));
+t('Admin sửa được ngày ở MỌI trạng thái đơn', /\$la_admin = \( VHCP_Auth::vai_tro\(\) === 'Admin' \)/.test(DON));
+t('ô ngày mở cho Admin ở mọi trạng thái', /var admNgay=\(CURUSER&&CURUSER\.role==='Admin'\)/.test(HTML));
+t('có bảng sửa hàng loạt, chỉ Admin', /id="ngayHongCard"/.test(HTML) && /el\('ngayHongCard'\)\.style\.display=_laAdmin\(\)/.test(HTML));
+t('máy chủ cũng chốt Admin cho lệnh sửa hàng loạt', /'suaNgayHong', 'suaKyHong'/.test(API2));
+t('luôn DÒ trước, chỉ sửa khi bấm xác nhận', /function doChotNgayHong\(\)[\s\S]{0,400}?confirm\(/.test(HTML));
+// Cột KỲ hỏng là lý do lọc theo tháng/tuần không thấy đơn.
+t('có đường vá cột KỲ', /function sua_ky_hong/.test(DON) && /function doDoKyHong\(\)/.test(HTML));
+t('vá kỳ TRƯỚC khi vá ngày (ngày suy theo kỳ)', /if \( \$chot \) \{ self::sua_ky_hong\( true \); \}/.test(DON));
+// Không được giả vờ là khôi phục chính xác khi thật ra chỉ về đúng tuần.
+t('nói rõ dòng nào chỉ "ước lượng"', /ước lượng — đúng tuần, chưa chắc đúng ngày/.test(HTML));
+t('và khuyên nạp lại từ bảng tính gốc để đúng từng ngày', /nạp lại từ bảng tính gốc/.test(HTML));
+
 // ---------------------------------------------------------------- kết
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');

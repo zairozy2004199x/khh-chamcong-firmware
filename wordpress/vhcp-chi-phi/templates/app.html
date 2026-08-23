@@ -865,6 +865,30 @@
       <div class="ch"><h2>🗂️ Bảo trì ảnh</h2><button class="btn b-p" onclick="doMigrateImages()">🗂️ Dời ảnh cũ về cây thư mục</button></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Dời ảnh cũ đang nằm ở thư mục gốc <b>AnhChiPhi_VanHanh</b> về đúng cây <b>Cơ sở / Người tạo đơn</b> (dựa theo mã đơn trong tên file). Bấm nhiều lần đến khi "đã dời = 0". Ảnh không suy được đơn sẽ được giữ nguyên.<div id="imgMaintMsg" style="margin-top:6px;color:#475569;font-size:12px"></div></div>
     </div>
+    <!-- SỬA NGÀY HỎNG HÀNG LOẠT — chỉ Admin. Đang có 580 dòng mang ngày "22/08/4621" nằm
+         rải khắp các đơn ĐÃ QUYẾT TOÁN, tức tệp gửi MISA đang sai kỳ hạch toán. Sửa tay
+         580 dòng thì không làm nổi. -->
+    <div class="card" id="ngayHongCard">
+      <div class="ch"><h2>🛠️ Sửa ngày / kỳ bị hỏng</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn b-x" onclick="doDoKyHong()">🔎 Dò kỳ hỏng</button>
+          <button class="btn b-x" onclick="doDoNgayHong()">🔎 Dò ngày hỏng</button>
+        </div></div>
+      <div style="padding:10px 14px;font-size:12px;color:#475569;line-height:1.7">
+        <b>Vì sao hỏng:</b> ô ngày trong bảng tính xuất ra <b>SỐ SÊ-RI</b> (<code>46213.0</code> = số ngày kể từ
+        30/12/1899). Bộ đọc cũ hiểu <code>4621</code> thành <b>năm</b> → ra <code>22/08/4621</code>. Bản này đã đọc
+        đúng sê-ri nên <b>dữ liệu nạp mới không hỏng nữa</b>.
+        <div style="margin-top:6px;padding:8px 10px;background:#fef9c3;color:#854d0e;border-radius:8px">
+          ⚠️ <b>Chữ số cuối của sê-ri đã mất</b> nên ngày cũ chỉ khôi phục về <b>đúng tuần</b>, không đúng từng ngày.
+          Muốn đúng từng ngày thì <b>nạp lại từ bảng tính gốc</b> — bản này đọc sê-ri đúng rồi.
+          Cột <b>KỲ</b> thì khôi phục <b>chính xác</b> được (sê-ri còn nguyên).
+        </div>
+        Luôn <b>Dò</b> để xem trước — <b>không sửa gì</b> cho tới khi bấm xác nhận.
+      </div>
+      <div id="kyHongKq" style="padding:0 14px 12px"></div>
+      <div id="ngayHongKq" style="padding:0 14px 12px"></div>
+    </div>
+
     <div class="card" id="quyenCard">
       <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doResetQuyen()" title="Đặt lại toàn bộ ma trận về mặc định. Dùng khi nạp bảng CH_Quyen cũ bị lệch cột làm một vai trò mất quyền (biểu hiện: nhập xong không thấy nút gửi).">↺ Đặt lại mặc định</button><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div></div>
       <div class="tw"><table style="min-width:640px"><thead id="quyenHead"></thead><tbody id="quyenBody"></tbody></table></div>
@@ -1727,6 +1751,94 @@
     var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
     d.textContent=m?('= '+m[3]+'/'+m[2]+'/'+m[1]+' (ngày/tháng/năm)'):'';
   }
+  // ---- SỬA NGÀY HỎNG HÀNG LOẠT (chỉ Admin) ----
+  // Luôn DÒ trước, hiện bảng xem trước, rồi mới cho bấm xác nhận. Sửa số liệu kế toán mà
+  // chạy thẳng không cho nhìn thì sai một phát là 580 dòng cùng sai.
+  var NGH=null, KYH=null;
+  function doDoKyHong(){ _chayKyHong(false); }
+  function _chayKyHong(chot){
+    if(!_laAdmin()){ toast('warn','Chỉ Admin sửa được kỳ hàng loạt'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      KYH=r; veKyHong();
+      if(chot){ _log('Sửa kỳ hỏng hàng loạt','', 'đã sửa '+r.daSua+' đơn'); toast('ok','Đã sửa kỳ cho '+r.daSua+' đơn'); boot(); }
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).suaKyHong(chot?1:0);
+  }
+  function veKyHong(){
+    var b=el('kyHongKq'); if(!b) return;
+    if(!KYH){ b.innerHTML=''; return; }
+    if(!KYH.tong){ b.innerHTML='<div style="padding:10px 12px;background:#dcfce7;color:#166534;border-radius:8px;font-size:12.5px">✓ Không còn đơn nào có kỳ hỏng.</div>'; return; }
+    var h='<div style="padding:10px 12px;background:#fef9c3;color:#854d0e;border-radius:8px;font-size:12.5px;margin-bottom:8px">'
+      +'⚠ <b>'+KYH.tong+' đơn</b> có kỳ ghi bằng số sê-ri — đây là lý do lọc theo tháng/tuần không thấy chúng.'
+      +' Kỳ khôi phục <b>chính xác</b> được.</div>'
+      +'<button class="btn b-d" onclick="doChotKyHong()" style="margin-bottom:8px">✔ Sửa kỳ cho '+KYH.tong+' đơn</button>'
+      +'<div class="tw" style="max-height:34vh;overflow:auto"><table><thead><tr><th>Đơn</th><th>Kỳ đang lưu</th><th>Là ngày</th><th>Kỳ sẽ ghi</th></tr></thead><tbody>'
+      +(KYH.items||[]).map(function(x){
+        return '<tr><td style="font-size:11px">'+esc(x.maDon)+'</td>'
+          +'<td style="color:#b91c1c;font-weight:700">'+esc(x.cu)+'</td><td>'+esc(x.ngay||'—')+'</td>'
+          +'<td>'+(x.moi?('<b style="color:#166534">'+esc(x.moi)+'</b>'):'<span style="color:#b91c1c">— không suy được —</span>')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+    b.innerHTML=h;
+  }
+  function doChotKyHong(){
+    if(!confirm('Sửa kỳ cho '+KYH.tong+' đơn?\n\nKỳ quyết định đơn nằm ở tuần/tháng nào. Xem kỹ cột "Kỳ sẽ ghi".')) return;
+    _chayKyHong(true);
+  }
+  function _laAdmin(){ return !!(CURUSER && CURUSER.role==='Admin'); }
+  function doDoNgayHong(){ _chayNgayHong('seri', 0, false); }
+  function _chayNgayHong(cach, nam, chot){
+    if(!_laAdmin()){ toast('warn','Chỉ Admin sửa được ngày hàng loạt'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      NGH=r; veNgayHong();
+      if(chot){ _log('Sửa ngày hỏng hàng loạt','', r.cach+' · đã sửa '+r.daSua+' dòng'); toast('ok','Đã sửa '+r.daSua+' dòng'+(r.boQua?(' · bỏ qua '+r.boQua+' dòng không suy được ngày'):'')); }
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).suaNgayHong(cach, nam, chot?1:0, '');
+  }
+  function veNgayHong(){
+    var b=el('ngayHongKq'); if(!b) return;
+    if(!NGH){ b.innerHTML=''; return; }
+    if(!NGH.tong){ b.innerHTML='<div style="padding:10px 12px;background:#dcfce7;color:#166534;border-radius:8px;font-size:12.5px">✓ Không còn dòng nào có ngày hỏng.</div>'; return; }
+    var nam=(new Date()).getFullYear();
+    var h='<div style="padding:10px 12px;background:#fef9c3;color:#854d0e;border-radius:8px;font-size:12.5px;margin-bottom:10px">'
+      +'⚠ <b>'+NGH.tong+' dòng</b> có ngày hỏng'+(NGH.chot?(' · vừa sửa <b>'+NGH.daSua+'</b>'):'')+'.'
+      +(NGH.uocLuong?(' <b>'+NGH.uocLuong+'</b> dòng chỉ về đúng <b>tuần</b> (chữ số cuối sê-ri đã mất).'):'')
+      +(NGH.boQua?(' <b>'+NGH.boQua+'</b> dòng không suy được ngày mới — phải sửa tay ở đơn.'):'')+'</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">'
+      +'<div class="fld"><label>Cách sửa</label><select id="nghCach" onchange="veNgayHong()" style="min-width:290px">'
+        +'<option value="seri"'+(NGH.cach==='seri'?' selected':'')+'>Suy từ SỐ SÊ-RI còn sót (nên chọn — về đúng tuần)</option>'
+        +'<option value="ky"'+(NGH.cach==='ky'?' selected':'')+'>Lấy NGÀY ĐẦU KỲ của đơn</option>'
+        +'<option value="nam"'+(NGH.cach==='nam'?' selected':'')+'>Giữ ngày/tháng, chỉ đổi NĂM</option>'
+      +'</select></div>'
+      +'<div class="fld" id="nghNamO"'+(NGH.cach==='nam'?'':' style="display:none"')+'><label>Năm</label>'
+        +'<input id="nghNam" type="number" min="2000" max="2100" value="'+(NGH.nam||nam)+'" style="width:110px"></div>'
+      +'<button class="btn b-x" onclick="doDoNgayHongLai()">🔎 Xem trước lại</button>'
+      +'<button class="btn b-d" onclick="doChotNgayHong()">✔ Sửa '+NGH.tong+' dòng</button>'
+      +'</div>';
+    h+='<div class="tw" style="max-height:44vh;overflow:auto"><table><thead><tr>'
+      +'<th>Đơn</th><th>Kỳ</th><th>Nội dung</th><th>Ngày đang lưu</th><th>Ngày sẽ ghi</th></tr></thead><tbody>'
+      +(NGH.items||[]).map(function(x){
+        return '<tr><td style="font-size:11px">'+esc(x.maDon)+'</td><td style="font-size:11px">'+esc(x.ky||'')+'</td>'
+          +'<td style="font-size:12px">'+esc(x.noiDung||'')+'</td>'
+          +'<td style="color:#b91c1c;font-weight:700">'+esc(x.cu)+'<div style="font-size:10px;font-weight:400;color:#94a3b8">'+esc(x.tho)+'</div></td>'
+          +'<td>'+(x.moi?('<b style="color:'+(x.uocLuong?'#b45309':'#166534')+'">'+esc(x.moi)+'</b>'+(x.uocLuong?'<div style="font-size:10px;color:#b45309">ước lượng — đúng tuần, chưa chắc đúng ngày</div>':'')):'<span style="color:#b91c1c">— không suy được, sửa tay —</span>')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+    if(NGH.tong>(NGH.items||[]).length) h+='<div style="font-size:11px;color:#94a3b8;padding-top:6px">Chỉ liệt kê '+(NGH.items||[]).length+' dòng đầu; bấm sửa là áp cho cả '+NGH.tong+' dòng.</div>';
+    b.innerHTML=h;
+  }
+  function _nghCach(){ return (el('nghCach')&&el('nghCach').value)||'seri'; }
+  function _nghNam(){ return Number((el('nghNam')&&el('nghNam').value)||0)||0; }
+  function doDoNgayHongLai(){
+    var c=_nghCach(); var o=el('nghNamO'); if(o) o.style.display=(c==='nam')?'':'none';
+    _chayNgayHong(c, _nghNam(), false);
+  }
+  function doChotNgayHong(){
+    var c=_nghCach(), n=_nghNam();
+    if(c==='nam' && (n<2000||n>2100)){ toast('warn','Nhập năm trong khoảng 2000–2100'); return; }
+    if(!confirm('Sửa ngày cho '+NGH.tong+' dòng?\n\nĐây là số liệu kế toán — ngày quyết định KỲ HẠCH TOÁN khi xuất MISA. Xem kỹ cột "Ngày sẽ ghi" trước khi đồng ý.')) return;
+    _chayNgayHong(c, n, true);
+  }
   function saveLineNgay(id, val){
     if(!val) return;
     loading(true);
@@ -1886,7 +1998,10 @@
           // Năm vô lý thì tô đỏ để nhìn ra ngay giữa bảng.
           '<td style="white-space:nowrap">'+(function(){
              var xau=_ngayVoLy(l.ngay);
-             if(!(o.canEditRow||o.canThucChi)) return (xau?'<b style="color:#b91c1c" title="Năm vô lý">'+esc(l.ngay)+'</b>':esc(l.ngay));
+             // ADMIN SỬA ĐƯỢC NGÀY Ở MỌI TRẠNG THÁI. 580 dòng ngày hỏng nằm đúng trong đám
+             // đơn đã quyết toán / đã xuất MISA — khoá luôn thì không đường nào sửa.
+             var admNgay=(CURUSER&&CURUSER.role==='Admin');
+             if(!(o.canEditRow||o.canThucChi||admNgay)) return (xau?'<b style="color:#b91c1c" title="Năm vô lý">'+esc(l.ngay)+'</b>':esc(l.ngay));
              return '<input type="date" value="'+esc(_ymd(l.ngay))+'" onchange="saveLineNgay(\''+l.id+'\',this.value)"'
                +' style="padding:4px 5px;'+(xau?'border-color:#dc2626;background:#fef2f2':'')+'"'
                +' title="'+(xau?'Năm vô lý — sửa lại rồi Enter':'Sửa ngày ngay tại đây')+'">'
@@ -4885,6 +5000,8 @@
     if(el('ssoCard'))  el('ssoCard').style.display=adm?'':'none';
     if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';
     if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }
+    // Sửa ngày hàng loạt là đụng thẳng kỳ hạch toán -> CHỈ Admin (máy chủ chặn lần nữa).
+    if(el('ngayHongCard')) el('ngayHongCard').style.display=_laAdmin()?'':'none';
     if(!el('cfgUserBody')) return;
     // Dòng vai trò Admin: chỉ Admin sửa được. Người khác vẫn thấy để biết ai là Admin,
     // nhưng ô bị khoá và không có nút xóa — máy chủ cũng chặn lần nữa, không tin giao diện.
