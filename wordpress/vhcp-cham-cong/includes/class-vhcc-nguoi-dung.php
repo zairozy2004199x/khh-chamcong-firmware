@@ -496,6 +496,50 @@ class VHCC_NguoiDung {
 		return 'gieo';
 	}
 
+	/**
+	 * KHAI MỘT TÀI KHOẢN ADMIN TOÀN QUYỀN, PIN sinh ngẫu nhiên.
+	 *
+	 * Anh Thắng: *"khai luôn tk admin để toàn quyền"*. Khác `mo_duong_vao()` ở chỗ đây là việc
+	 * CÓ NGƯỜI BẤM, làm được nhiều lần, không phụ thuộc cờ chạy-một-lần.
+	 *
+	 * 🔴 PIN trả về ĐÚNG MỘT LẦN cho chỗ gọi in ra, và KHÔNG lưu vào option nào. Lưu lại để
+	 *    "xem lại sau" là để một PIN Admin còn dùng được nằm sẵn trong cơ sở dữ liệu — ai đọc
+	 *    được database là vào thẳng. Quên thì khai cái mới, đừng dựng đường xem lại.
+	 */
+	public static function khai_admin( $ten = '' ) {
+		$ten = trim( (string) $ten );
+		if ( '' === $ten ) { $ten = 'Admin'; }
+		/* Trùng tên thì nối số — hai người cùng tên trong nhật ký là không phân biệt được ai. */
+		$dang_co = array();
+		foreach ( self::ds() as $u ) { $dang_co[ mb_strtolower( $u['ten'], 'UTF-8' ) ] = 1; }
+		if ( isset( $dang_co[ mb_strtolower( $ten, 'UTF-8' ) ] ) ) {
+			$i = 2;
+			while ( isset( $dang_co[ mb_strtolower( $ten . ' ' . $i, 'UTF-8' ) ] ) ) { $i++; }
+			$ten = $ten . ' ' . $i;
+		}
+
+		/* PIN phải chưa ai dùng — hai người cùng PIN thì nhật ký không biết ai làm việc gì. */
+		$dung_roi = array();
+		foreach ( self::ds() as $u ) { if ( '' !== $u['pin'] ) { $dung_roi[ $u['pin'] ] = 1; } }
+		$pin = '';
+		for ( $lan = 0; $lan < 200; $lan++ ) {
+			$thu = self::pin_ngau_nhien();
+			if ( ! isset( $dung_roi[ $thu ] ) ) { $pin = $thu; break; }
+		}
+		if ( '' === $pin ) {
+			return array( 'ok' => false, 'error' => 'Không bốc được PIN chưa ai dùng. '
+				. 'Danh sách đang quá dày PIN 6 số — xoá bớt tài khoản cũ rồi thử lại.' );
+		}
+
+		/* Nguồn phải là "danh sách riêng", không thì tài khoản vừa khai không đăng nhập được. */
+		self::doi_sang_rieng();
+		$ds   = (array) get_option( self::O );
+		$ds[] = array( 'id' => bin2hex( random_bytes( 8 ) ), 'ten' => $ten, 'pin' => $pin,
+			'vaiTro' => 'Admin', 'coso' => '' );
+		update_option( self::O, $ds, false );
+		return array( 'ok' => true, 'ten' => $ten, 'pin' => $pin );
+	}
+
 	/** PIN 6 số ngẫu nhiên, bốc lại nếu rơi vào danh sách bị chặn. */
 	protected static function pin_ngau_nhien() {
 		do {

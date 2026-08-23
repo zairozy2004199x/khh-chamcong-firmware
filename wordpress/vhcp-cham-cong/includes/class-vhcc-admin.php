@@ -1516,7 +1516,15 @@ class VHCC_Admin {
 	protected static function hop_nap_cu( &$form_roi ) {
 		$kho = VHCC_NguoiDung::do_kho_cu();
 
-		echo '<hr style="margin:18px 0"><h3 style="margin:0 0 6px">📥 Nạp người dùng từ dữ liệu cũ</h3>';
+		/* Anh Thắng: *"mọi việc anh thao tác trên web giao diện bên ngoài hết, không làm bên
+		   trong wp-admin"*. Nên chỗ này chỉ đường sang đó, đừng bắt anh tìm. */
+		echo '<hr style="margin:18px 0"><div class="notice notice-info inline" style="margin:8px 0"><p>'
+			. '<b>Làm ngoài web tiện hơn.</b> Trang <a href="' . esc_url( VHCC_Web::url() ) . '" target="_blank"><b>'
+			. esc_html( VHCC_Web::url() ) . '</b></a> làm được đủ việc dưới đây — nạp .csv, sửa hồ sơ, '
+			. 'khai tài khoản — mà <b>không cần tài khoản WordPress</b>, chỉ cần PIN chấm công của '
+			. 'Admin hoặc Quản lý. Ngoài đó còn có <b>xem trước từng ô đổi gì</b> và <b>nút hoàn tác</b>.'
+			. '</p></div>';
+		echo '<h3 style="margin:0 0 6px">📥 Nạp người dùng từ dữ liệu cũ</h3>';
 		echo '<p class="description" style="margin-bottom:10px">Giữ nguyên PIN mọi người đang dùng — '
 			. 'không phải cấp lại lần hai. Chỉ <b>thêm</b>, không sửa và không xoá ai đang có, nên '
 			. 'bấm hai lần cũng không nhân đôi danh sách.</p>';

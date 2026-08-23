@@ -259,6 +259,13 @@ class VHCC_NapCsv {
 		$them = 0; $sua = 0; $bo = array(); $canh = array(); $lech = 0;
 		$dai_pin = array();
 		$coso    = trim( (string) $coso );
+		/* TỪNG Ô ĐỔI GÌ — anh Thắng: *"nạp bên trong này sai hết dữ liệu"*. Một con số
+		   "cập nhật 240" không cho biết nó sắp làm gì; phải chỉ ra `cũ -> mới` của từng ô thì
+		   sai bản đồ cột mới lộ ra NGAY Ở BƯỚC XEM TRƯỚC, chứ không phải sau khi đã ghi đè. */
+		$doi = array();
+		/* Ảnh chụp giá trị CŨ để hoàn tác. Ghi đè 240 hồ sơ mà không có đường lùi thì một lần
+		   bấm nhầm là mất dữ liệu thật. */
+		$truoc = array(); $ma_them = array();
 
 		for ( $d = 1; $d < count( $o ); $d++ ) {
 			$h   = $o[ $d ];
@@ -298,14 +305,38 @@ class VHCC_NapCsv {
 				}
 			}
 
-			if ( isset( $hien_co[ $ma ] ) ) { $sua++; } else { $them++; }
-			if ( $chi_xem ) { continue; }
 			if ( isset( $hien_co[ $ma ] ) ) {
-				unset( $ghi['ma_nv'] );
-				if ( $ghi ) { $wpdb->update( VHCC_DB::t( 'nhan_vien' ), $ghi, array( 'ma_nv' => $ma ) ); }
+				/* Chỉ tính là SỬA khi thật sự có ô đổi giá trị. Nạp lại y hệt file cũ mà báo
+				   "cập nhật 240" thì con số đó vô nghĩa — và che mất lượt nạp thật sự đổi gì. */
+				$khac = array();
+				foreach ( $ghi as $c => $v ) {
+					if ( 'ma_nv' === $c ) { continue; }
+					$cu = isset( $hien_co[ $ma ][ $c ] ) ? (string) $hien_co[ $ma ][ $c ] : '';
+					if ( (string) $v === $cu ) { continue; }
+					if ( in_array( $c, self::COT_TIEN, true ) && (float) $v === (float) $cu ) { continue; }
+					$khac[ $c ] = array( 'cu' => $cu, 'moi' => (string) $v );
+				}
+				if ( ! $khac ) { continue; }
+				$sua++;
+				if ( count( $doi ) < 200 ) { $doi[ $ma ] = array( 'ten' => $ten_ng, 'o' => $khac ); }
+				if ( $chi_xem ) { continue; }
+				$luu_cu = array();
+				foreach ( $khac as $c => $x ) { $luu_cu[ $c ] = $x['cu']; }
+				$truoc[ $ma ] = $luu_cu;
+				$moi_ghi = array();
+				foreach ( $khac as $c => $x ) { $moi_ghi[ $c ] = $ghi[ $c ]; }
+				$wpdb->update( VHCC_DB::t( 'nhan_vien' ), $moi_ghi, array( 'ma_nv' => $ma ) );
 			} else {
+				$them++;
+				if ( count( $doi ) < 200 ) { $doi[ $ma ] = array( 'ten' => $ten_ng, 'moi' => 1 ); }
+				if ( $chi_xem ) { continue; }
+				$ma_them[] = $ma;
 				$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi );
 			}
+		}
+		if ( ! $chi_xem && ( $truoc || $ma_them ) ) {
+			update_option( self::O_LUI, array( 'luc' => current_time( 'mysql' ),
+				'truoc' => $truoc, 'them' => $ma_them ), false );
 		}
 
 		/* PIN ngắn hơn phần lớn = mất số 0 đầu. Chỉ so khi có đủ dòng để "phần lớn" có nghĩa. */
@@ -324,6 +355,42 @@ class VHCC_NapCsv {
 
 		return array( 'ok' => true, 'them' => $them, 'sua' => $sua, 'bo' => $bo, 'canh' => $canh,
 			'lech' => $lech, 'coso' => $coso, 'cot' => array_values( $cot ), 'cot_la' => $la,
-			'so_dong' => count( $o ) - 1 );
+			'so_dong' => count( $o ) - 1, 'doi' => $doi );
+	}
+
+	// ======================================================================= hoàn tác
+
+	const O_LUI = 'vhcc_nap_csv_lui';
+
+	/** Lượt nạp gần nhất còn hoàn tác được: ['luc','truoc','them'] — hoặc [] nếu không có. */
+	public static function co_lui() { return (array) get_option( self::O_LUI, array() ); }
+
+	/**
+	 * HOÀN TÁC LƯỢT NẠP GẦN NHẤT — trả từng ô về đúng giá trị cũ, xoá người mới thêm.
+	 *
+	 * 🔴 Chỉ trả lại NHỮNG Ô LƯỢT NẠP ĐÓ ĐỘNG VÀO. Không chép đè cả dòng: giữa lúc nạp và lúc
+	 *    hoàn tác có thể có người đã sửa tay ô khác, chép đè cả dòng là xoá luôn công sửa đó.
+	 *
+	 * ⚠️ CHỈ MỘT BƯỚC LÙI. Hoàn tác xong là xoá ảnh chụp — không có lùi hai lượt, và nói thẳng
+	 *    điều đó ra ở màn hình thay vì để người dùng tưởng lùi được mãi.
+	 */
+	public static function lui() {
+		global $wpdb;
+		$l = self::co_lui();
+		if ( empty( $l['truoc'] ) && empty( $l['them'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có lượt nạp nào để hoàn tác.' );
+		}
+		$ve = 0; $xoa = 0;
+		foreach ( (array) $l['truoc'] as $ma => $o_cu ) {
+			if ( ! is_array( $o_cu ) || ! $o_cu ) { continue; }
+			$wpdb->update( VHCC_DB::t( 'nhan_vien' ), $o_cu, array( 'ma_nv' => (string) $ma ) );
+			$ve++;
+		}
+		foreach ( (array) $l['them'] as $ma ) {
+			$wpdb->delete( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => (string) $ma ) );
+			$xoa++;
+		}
+		delete_option( self::O_LUI );
+		return array( 'ok' => true, 've' => $ve, 'xoa' => $xoa, 'luc' => isset( $l['luc'] ) ? $l['luc'] : '' );
 	}
 }

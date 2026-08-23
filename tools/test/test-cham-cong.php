@@ -4763,8 +4763,39 @@ teq( 'không xoá số điện thoại đang có', '0909123456', $hs['sdt'] );
 teq( 'ô CCCD BỎ TRỐNG trong file cũng không xoá CCCD đang có', '049304007231', $hs['cccd'] );
 teq( 'và là CẬP NHẬT chứ không thêm người thứ hai', 4,
 	count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
-teq( 'báo đúng là sửa 1', 1, $r['sua'] );
+/* Nạp lại y hệt thì KHÔNG tính là "cập nhật". Con số "cập nhật 240" mà thật ra không ô nào đổi
+   là con số vô nghĩa, và nó che mất lượt nạp thật sự đổi gì. */
+teq( 'nạp lại y hệt thì KHÔNG tính là sửa', 0, $r['sua'] );
 teq( 'không thêm ai', 0, $r['them'] );
+
+/* 🔴 XEM TRƯỚC PHẢI CHỈ RÕ TỪNG Ô ĐỔI GÌ. Anh Thắng: "nạp bên trong này sai hết dữ liệu" —
+   một con số "cập nhật 240" không cho biết nó sắp làm gì. Có `cũ -> mới` thì sai bản đồ cột
+   lộ ra NGAY Ở BƯỚC XEM TRƯỚC, chứ không phải sau khi đã ghi đè. */
+$r = VHCC_NapCsv::nap( "Mã NV,Họ tên,Cửa hàng,PIN đăng nhập\nMNNV2MTD0001,Nguyễn Thu Hiền,POSH_HCM,999888\n", true );
+teq( 'xem trước: có 1 hồ sơ đổi', 1, $r['sua'] );
+t( 'và chỉ rõ ô nào, cũ gì mới gì',
+	isset( $r['doi']['MNNV2MTD0001']['o']['cua_hang'] )
+	&& 'JP_HCM' === $r['doi']['MNNV2MTD0001']['o']['cua_hang']['cu']
+	&& 'POSH_HCM' === $r['doi']['MNNV2MTD0001']['o']['cua_hang']['moi'], $r['doi'] );
+t( 'ô KHÔNG đổi thì không kể vào',
+	! isset( $r['doi']['MNNV2MTD0001']['o']['ho_ten'] ), $r['doi'] );
+
+/* 🔴 HOÀN TÁC. Ghi đè 240 hồ sơ mà không có đường lùi thì một lần bấm nhầm là mất dữ liệu thật. */
+VHCC_NapCsv::nap( "Mã NV,Họ tên,Cửa hàng,PIN đăng nhập\nMNNV2MTD0001,Nguyễn Thu Hiền,POSH_HCM,999888\nZZ9,Người Mới Toanh,FARM_PT,111222\n", false );
+$hs = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MNNV2MTD0001'" );
+teq( 'nạp thật thì cửa hàng đã đổi', 'POSH_HCM', $hs[0]['cua_hang'] );
+teq( 'và có thêm người mới', 5, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+t( 'có lượt nạp để hoàn tác', ! empty( VHCC_NapCsv::co_lui() ) );
+$r = VHCC_NapCsv::lui();
+t( 'hoàn tác chạy được', ! empty( $r['ok'] ), $r );
+$hs = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MNNV2MTD0001'" );
+teq( 'cửa hàng trả về giá trị CŨ', 'JP_HCM', $hs[0]['cua_hang'] );
+teq( 'PIN cũng trả về giá trị CŨ', '170412', $hs[0]['pin_dang_nhap'] );
+teq( 'người mới thêm bị xoá đi', 4, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+/* 🔴 Hoàn tác chỉ trả lại NHỮNG Ô lượt nạp đó động vào — ô người ta sửa tay sau đó phải còn. */
+teq( 'ô KHÔNG thuộc lượt nạp thì giữ nguyên, không bị chép đè', '0909123456', $hs[0]['sdt'] );
+t( 'chỉ lùi được MỘT bước, lùi tiếp thì nói thẳng',
+	empty( VHCC_NapCsv::lui()['ok'] ) );
 
 /* 🔴 3. SỐ 0 Ở ĐẦU PIN. Sheets coi PIN là SỐ nên `013013` ra `13013`, `246813` ra `246813.0`.
    Đuôi .0 cắt được; số 0 đầu MẤT RỒI thì không dựng lại — chỉ dám CẢNH BÁO, không tự thêm vào. */
@@ -4887,6 +4918,175 @@ t( 'ô tải file trỏ về form RIÊNG, không nằm trong form Cài đặt',
 	preg_match( '/<input[^>]*name="tep"[^>]*form="vhcc-csv-nd"/', $h_csv ) === 1, $h_csv );
 t( 'và form riêng đó có enctype để gửi được file',
 	strpos( $h_csv, 'enctype="multipart/form-data" id="vhcc-csv-nd"' ) !== false );
+
+vhcc_dung_bang();
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
+// ============ 47. TRANG QUẢN TRỊ NGOÀI WEB — không phải vào wp-admin nữa
+/* Anh Thắng: *"cho ra web để dễ thao tác được không"* và *"mọi việc anh thao tác trên web giao
+   diện bên ngoài hết, không làm bên trong wp-admin"*.
+
+   wp-admin đòi một tài khoản WordPress. Quản lý cửa hàng không có, và cũng không nên có — tài
+   khoản wp-admin mở ra cả website chứ không riêng chấm công. Trang này gác bằng ĐÚNG cổng PIN
+   chấm công. Mục này canh cái cổng đó, vì mở nhầm là lộ CCCD và lương của cả chuỗi. */
+vhcc_dung_bang();
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+delete_option( 'vhcc_vai_tro_vao' );
+VHCC_NguoiDung::luu( '', 'Anh Admin', '246813', 'Admin', '' );
+VHCC_NguoiDung::luu( '', 'Chị Quản Lý', '357913', 'Quản lý', 'TUTU_BT' );
+VHCC_NguoiDung::luu( '', 'Chị Kế Toán', '468024', 'Kế toán cá nhân', 'TUTU_BT' );
+VHCC_NapCsv::nap( "Mã NV,Họ tên,Cửa hàng,CCCD,PIN đăng nhập\n"
+	. "W1,Nguyễn Thu Hiền,JP_HCM,049304007231,170412\n", false );
+
+function vhcc_web( $pin_vai_tro = null, $post = array(), $get = array() ) {
+	$_POST = $post; $_GET = $get; $_COOKIE = array();
+	if ( null !== $pin_vai_tro ) {
+		VHCC_Auth::mo_khoa();
+		$kq = VHCC_Auth::login( $pin_vai_tro );
+		if ( ! empty( $kq['ok'] ) ) { $_COOKIE[ VHCC_Web::COOKIE ] = $kq['token']; }
+		VHCC_Auth::mo_khoa();
+	}
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_GET = array(); $_COOKIE = array();
+	return $h;
+}
+
+/* 🔴 CHƯA ĐĂNG NHẬP thì chỉ được thấy ô PIN — không một mẩu hồ sơ nào. */
+$h_w = vhcc_web();
+t( 'chưa đăng nhập thì hiện ô PIN', strpos( $h_w, 'name="pin"' ) !== false );
+t( 'và KHÔNG lộ tên nhân viên nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
+t( 'không lộ CCCD', strpos( $h_w, '049304007231' ) === false );
+t( 'không lộ mã nhân viên', strpos( $h_w, 'W1' ) === false );
+t( 'trang quản trị chặn công cụ tìm kiếm', strpos( $h_w, 'noindex' ) !== false );
+
+/* 🔴 PIN ĐÚNG mà không đủ quyền: nói rõ lý do, KHÔNG báo "PIN sai" — báo sai thì người ta gõ
+   lại mười lần rồi tự khoá mình. */
+$h_w = vhcc_web( null, array( 'pin' => '468024' ) );
+t( 'Kế toán KHÔNG vào được trang quản trị', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
+t( 'và được nói rõ vì sao, không phải "PIN sai"',
+	strpos( $h_w, 'chỉ dành cho Admin và Quản lý' ) !== false, $h_w );
+$h_w = vhcc_web( null, array( 'pin' => '999999' ) );
+t( 'PIN sai thì vẫn ở màn đăng nhập', strpos( $h_w, 'name="pin"' ) !== false );
+
+/* 🔴 CHỐT THẬT NẰM Ở PHIÊN, KHÔNG PHẢI Ở FORM ĐĂNG NHẬP. Kế toán đăng nhập được cổng
+   /cham-cong (đúng thiết kế) nên họ CÓ token thật trong tay. Mang token đó sang trang quản trị
+   là phải bị chối — nếu chỉ gác ở form đăng nhập thì cái cổng này hở toang mà nhìn vẫn kín. */
+$h_w = vhcc_web( '468024' );
+t( 'Kế toán mang PHIÊN THẬT sang cũng bị chối', strpos( $h_w, 'name="pin"' ) !== false, $h_w );
+t( 'và không thấy hồ sơ nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
+VHCC_Auth::mo_khoa();
+$kq_kt = VHCC_Auth::login( '468024' );
+VHCC_Auth::mo_khoa();
+$_COOKIE[ VHCC_Web::COOKIE ] = $kq_kt['token'];
+t( 'phiên của Kế toán KHÔNG mở được trang quản trị', null === VHCC_Web::toi() );
+$_COOKIE = array();
+/* Nhưng chính token đó VẪN dùng được ở cổng /cham-cong — chốt này chỉ hẹp cho trang quản trị,
+   không được siết luôn cả hệ thống. */
+$u_kt = VHCC_Auth::user_by_token( $kq_kt['token'] );
+t( 'mà token đó vẫn hợp lệ ở cổng chấm công', is_array( $u_kt ) && 'Kế toán cá nhân' === $u_kt['role'], $u_kt );
+
+/* Quản lý và Admin vào được. */
+$h_w = vhcc_web( '357913' );
+t( 'Quản lý vào được', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
+t( 'nhưng KHÔNG thấy nút xoá sạch hồ sơ', strpos( $h_w, 'value="xoa_het"' ) === false );
+t( 'và không khai được Admin', strpos( $h_w, 'value="khai_admin"' ) === false );
+
+$h_w = vhcc_web( '246813' );
+t( 'Admin vào được', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
+t( 'có ô nạp file .csv ngay trên web', strpos( $h_w, 'name="tep"' ) !== false );
+t( 'có nút xem trước', strpos( $h_w, 'value="xem_csv"' ) !== false );
+t( 'có nút xoá sạch hồ sơ', strpos( $h_w, 'value="xoa_het"' ) !== false );
+t( 'có nút khai tài khoản Admin', strpos( $h_w, 'value="khai_admin"' ) !== false );
+t( 'có nút nạp tài khoản đăng nhập từ hồ sơ', strpos( $h_w, 'value="nap_tk"' ) !== false );
+/* 🔴 KHÔNG IN PIN. Trang này chạy ngoài internet, ảnh chụp đi khắp nơi. */
+t( 'KHÔNG in PIN của nhân viên ra', strpos( $h_w, '170412' ) === false, $h_w );
+t( 'chỉ cho biết PIN có mấy số', strpos( $h_w, '6 số' ) !== false );
+t( 'cũng không in PIN đăng nhập của chính người đang xem', strpos( $h_w, '246813' ) === false );
+/* Mã NV không sửa được ngoài web — đổi mã là sửa mọi hàng chấm công đã có của người đó. */
+t( 'KHÔNG cho sửa Mã NV', ! in_array( 'ma_nv', VHCC_Web::COT_SUA, true ) );
+
+/* 🔴 CHỮ KÝ CHỐNG GIẢ MẠO. Không có chữ ký đúng thì không việc gì được chạy — kẻo một trang
+   khác dụ anh Thắng bấm vào là xoá sạch hồ sơ của cả chuỗi. */
+$h_w = vhcc_web( '246813', array( 'viec' => 'xoa_het', 'xac_nhan' => 'XOA HET' ) );
+t( 'POST thiếu chữ ký thì KHÔNG làm gì', strpos( $h_w, 'biểu mẫu không hợp lệ' ) !== false );
+teq( 'và hồ sơ vẫn còn nguyên', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+$h_w = vhcc_web( '246813', array( 'viec' => 'xoa_het', 'xac_nhan' => 'XOA HET', 'ky' => 'chu-ky-bia' ) );
+t( 'chữ ký bịa cũng bị chối', strpos( $h_w, 'biểu mẫu không hợp lệ' ) !== false );
+teq( 'hồ sơ vẫn còn', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+
+/* Chữ ký buộc vào ĐÚNG token của phiên đó — token khác thì chữ ký khác. */
+t( 'chữ ký khác nhau theo từng phiên',
+	VHCC_Web::chu_ky( 'tok-a' ) !== VHCC_Web::chu_ky( 'tok-b' ) );
+
+/* Xoá sạch: phải gõ đúng chữ, và chỉ Admin. */
+VHCC_Auth::mo_khoa();
+$kq_ad = VHCC_Auth::login( '246813' );
+VHCC_Auth::mo_khoa();
+$ky_ad = VHCC_Web::chu_ky( $kq_ad['token'] );
+$_COOKIE[ VHCC_Web::COOKIE ] = $kq_ad['token'];
+$_POST = array( 'viec' => 'xoa_het', 'ky' => $ky_ad, 'xac_nhan' => 'xoa het' );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+t( 'gõ sai chữ xác nhận thì KHÔNG xoá', strpos( $h_w, 'XOA HET' ) !== false );
+teq( 'hồ sơ còn nguyên', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+$_POST = array( 'viec' => 'xoa_het', 'ky' => $ky_ad, 'xac_nhan' => 'XOA HET' );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+teq( 'gõ đúng thì xoá sạch hồ sơ', 0, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+t( 'và nói rõ lượt chấm công KHÔNG bị xoá theo',
+	strpos( $h_w, 'KHÔNG bị xoá' ) !== false, $h_w );
+$_POST = array(); $_COOKIE = array();
+
+/* Quản lý KHÔNG xoá được cả sổ nhân sự của chuỗi. */
+VHCC_NapCsv::nap( "Mã NV,Họ tên,PIN đăng nhập\nW2,Người Còn Lại,170412\n", false );
+VHCC_Auth::mo_khoa();
+$kq_ql = VHCC_Auth::login( '357913' );
+VHCC_Auth::mo_khoa();
+$_COOKIE[ VHCC_Web::COOKIE ] = $kq_ql['token'];
+$_POST = array( 'viec' => 'xoa_het', 'ky' => VHCC_Web::chu_ky( $kq_ql['token'] ), 'xac_nhan' => 'XOA HET' );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+t( 'Quản lý bấm xoá sạch thì bị chối', strpos( $h_w, 'Chỉ Admin' ) !== false );
+teq( 'và hồ sơ còn nguyên', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+$_POST = array(); $_COOKIE = array();
+
+/* ---- 47b. KHAI TÀI KHOẢN ADMIN TOÀN QUYỀN ---- */
+/* Anh Thắng: *"khai luôn tk admin để toàn quyền"*. */
+$so_truoc = count( VHCC_NguoiDung::ds() );
+$r = VHCC_NguoiDung::khai_admin( 'Anh Thắng' );
+t( 'khai được tài khoản Admin', ! empty( $r['ok'] ), $r );
+t( 'PIN 6 số', preg_match( '/^\d{6}$/', $r['pin'] ) === 1, $r['pin'] );
+teq( 'PIN đó tự nó hợp lệ', '', VHCC_Quyen::pin_hop_le( $r['pin'] ) );
+teq( 'danh sách thêm đúng 1 người', $so_truoc + 1, count( VHCC_NguoiDung::ds() ) );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( $r['pin'] );
+t( 'đăng nhập THẬT được bằng PIN vừa khai', ! empty( $kq['ok'] ), $kq );
+teq( 'với vai trò Admin', 'Admin', isset( $kq['role'] ) ? $kq['role'] : null );
+VHCC_Auth::mo_khoa();
+
+/* 🔴 PIN KHÔNG được lưu lại để "xem sau" — lưu là để một PIN Admin còn dùng được nằm sẵn trong
+   cơ sở dữ liệu, ai đọc được database là vào thẳng. */
+$do_option = wp_json_encode( $GLOBALS['VHCP_OPT'] );
+teq( 'PIN vừa khai KHÔNG nằm trong option nào ngoài danh sách người dùng', 1,
+	substr_count( $do_option, $r['pin'] ) );
+
+/* Khai lần hai: PIN khác, và tên tự nối số để nhật ký phân biệt được. */
+$r2 = VHCC_NguoiDung::khai_admin( 'Anh Thắng' );
+t( 'khai lần hai ra PIN KHÁC', $r2['pin'] !== $r['pin'] );
+t( 'và tên tự nối số cho khỏi trùng', $r2['ten'] !== $r['ten'], $r2['ten'] );
+/* Trùng PIN với người đang có là không được — nhật ký không phân biệt được ai làm việc gì. */
+$pins = array();
+foreach ( VHCC_NguoiDung::ds() as $u ) { if ( '' !== $u['pin'] ) { $pins[] = $u['pin']; } }
+teq( 'không ai trùng PIN với ai', count( $pins ), count( array_unique( $pins ) ) );
+
+/* Nút khai Admin ngoài web chỉ Admin bấm được. */
+$_COOKIE[ VHCC_Web::COOKIE ] = $kq_ql['token'];
+$_POST = array( 'viec' => 'khai_admin', 'ky' => VHCC_Web::chu_ky( $kq_ql['token'] ), 'ten' => 'Kẻ Lạ' );
+ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
+t( 'Quản lý KHÔNG khai được tài khoản Admin', strpos( $h_w, 'Chỉ Admin' ) !== false );
+$_POST = array(); $_COOKIE = array();
+
+/* Cổng /cham-cong và trang quản trị dùng HAI đường dẫn khác nhau — không đè lên nhau. */
+t( 'trang quản trị có đường dẫn riêng', VHCC_Web::slug() !== VHCC_Trang::slug() );
 
 vhcc_dung_bang();
 delete_option( 'vhcc_nguoidung' );

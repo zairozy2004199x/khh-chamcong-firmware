@@ -61,7 +61,7 @@ Anh Thắng đã biết và chấp nhận rủi ro này (*"nếu máy mất liê
 nhưng làm đúng thứ tự thì không phải dùng tới.
 
 **Bước 1 — website sẵn sàng.**
-- Cài `vhcp-cham-cong.zip` (2.3.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
+- Cài `vhcp-cham-cong.zip` (2.4.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
 - **Đăng nhập lần đầu — PIN nằm ở DỮ LIỆU CŨ, không phải cấp lại.** Vào **wp-admin → Chấm
   Công → Cài đặt**. Lúc cài, nếu chưa ai đăng nhập được, plugin đi tìm sổ PIN cũ trước:
   1. **Nạp sổ Phân quyền của app gốc** (nếu đã kéo về) sang *danh sách riêng*, **giữ nguyên
@@ -76,6 +76,23 @@ nhưng làm đúng thứ tự thì không phải dùng tới.
     bấm nút ở mục 📥.
   - Chạy **đúng một lần**. Xoá tài khoản đó đi là chết hẳn, nâng cấp sau không mọc lại; và nếu
     đổi nguồn ngược lại thì lần nâng cấp sau không lật lại lựa chọn đó.
+
+- **🌐 Trang quản trị NGOÀI WEB — `https://<tên miền>/quan-tri-cham-cong`.** Anh Thắng:
+  *"mọi việc anh thao tác trên web giao diện bên ngoài hết, không làm bên trong wp-admin"*.
+  Đăng nhập bằng **PIN chấm công**, không cần tài khoản WordPress. Chỉ **Admin** và **Quản lý**
+  vào được — hồ sơ có CCCD, số tài khoản, lương. Làm được:
+  - **Nạp .csv hồ sơ nhân viên**, kèm **Xem trước** liệt kê **từng ô: *đang là* → *sẽ thành***.
+    Đọc sai cột là thấy ngay ở bảng đó, **trước khi** ghi đè. Luôn bấm Xem trước trước.
+  - **↩ Hoàn tác** lượt nạp gần nhất — trả từng ô về giá trị cũ, xoá người mới thêm. Chỉ lùi
+    được **một** bước, và chỉ trả lại những ô lượt nạp đó động vào.
+  - **Sửa hồ sơ ngay trên bảng.** Mã NV cố ý không sửa được — đổi mã là sửa mọi hàng chấm công
+    đã có của người đó.
+  - **Khai tài khoản Admin toàn quyền** (chỉ Admin). PIN 6 số ngẫu nhiên, hiện **đúng một lần**,
+    không lưu chỗ nào để in lại.
+  - **🗑 Xoá sạch hồ sơ** để nạp lại từ đầu (chỉ Admin, phải gõ `XOA HET`). **Không hoàn tác
+    được.** Lượt chấm công, bảng lương, lịch làm **không** bị xoá — chúng gắn theo Mã NV, nạp
+    lại hồ sơ đúng mã là khớp lại như cũ.
+  - Trang **không in PIN** của ai ra, chỉ cho biết có mấy chữ số; và chặn công cụ tìm kiếm.
 
 - **📥 Nạp người dùng từ dữ liệu cũ** (wp-admin → Chấm Công → Cài đặt, khi đang dùng *danh
   sách riêng*). Hai đường, đều có **Xem trước** trước khi ghi:

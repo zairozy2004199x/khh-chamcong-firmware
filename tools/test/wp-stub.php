@@ -434,3 +434,14 @@ function wp_timezone() {
 if ( ! function_exists( 'sanitize_key' ) ) {
 	function sanitize_key( $k ) { return preg_replace( '/[^a-z0-9_\-]/', '', strtolower( (string) $k ) ); }
 }
+
+/* --- Trang quản trị ngoài web (VHCC_Web) --- */
+if ( ! function_exists( 'wp_salt' ) ) {
+	function wp_salt( $x = 'auth' ) { return 'muoi-thu-nghiem-' . $x; }
+}
+if ( ! function_exists( 'is_ssl' ) ) { function is_ssl() { return false; } }
+if ( ! function_exists( 'wp_safe_redirect' ) ) {
+	function wp_safe_redirect( $u ) { $GLOBALS['VHCP_CHUYEN'] = $u; return true; }
+}
+if ( ! function_exists( 'add_rewrite_rule' ) ) { function add_rewrite_rule() {} }
+if ( ! function_exists( 'nocache_headers' ) ) { function nocache_headers() {} }
