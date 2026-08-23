@@ -29,12 +29,47 @@ class VHCP_Misa {
 			return array( 'tk_no' => '141', 'tk_co' => $is_tt ? '331' : '64125', 'ma_dt' => '', 'legacy' => true );
 		}
 		$tk = VHCP_Cfg::resolve_tk( $loai_cp, $is_tt ? 'Trực tiếp' : 'Tạm ứng', array(
-			'tkNo' => $line_tk_no,
 			'tkCo' => trim( (string) $line_tk_co ),
 			'maDt' => trim( (string) $line_ma_dt ),
 		), $coso );
+		// TK Nợ đi theo LUẬT LÚC XUẤT (xem VHCP_Cfg::tkno_xuat) — chung với đơn vận hành
+		// và sổ chi phí, để 5 đường xuất không mỗi đường một kiểu.
+		$tk['tk_no'] = VHCP_Cfg::tkno_xuat( $loai_cp, $coso, $line_tk_no );
 		$tk['legacy'] = false;
 		return $tk;
+	}
+
+	/**
+	 * GOM CẢNH BÁO NGÀY VÔ LÝ.
+	 *
+	 * 169 dòng cùng dính một ngày hỏng thì in 169 dòng cảnh báo là ô vàng dài hơn cả bảng
+	 * xuất, không đọc được gì. Gom theo GIÁ TRỊ ngày, đếm số dòng, kể tên vài đơn đầu.
+	 *
+	 * In kèm GIÁ TRỊ THÔ đang nằm trong máy: "22/08/4622" là bản đã định dạng, nhìn nó
+	 * không biết trong cột ngày đang chứa cái gì. Ngày hỏng đồng loạt là lỗi lúc GHI chứ
+	 * không phải người nhập gõ sai từng dòng, nên phải nhìn được giá trị gốc mới truy ra.
+	 */
+	public static function gom_ngay_xau( &$xau, $dmy, $raw, $ma = '' ) {
+		if ( ! VHCP_Util::ngay_vo_ly( $dmy ) ) { return; }
+		$k = $dmy . '|' . (string) $raw;
+		if ( ! isset( $xau[ $k ] ) ) { $xau[ $k ] = array( 'dmy' => $dmy, 'raw' => (string) $raw, 'n' => 0, 'don' => array() ); }
+		$xau[ $k ]['n']++;
+		if ( trim( (string) $ma ) !== '' ) { $xau[ $k ]['don'][ (string) $ma ] = 1; }
+	}
+
+	/** Đổi bảng gom ở trên thành các câu cảnh báo. */
+	public static function warn_ngay_xau( $xau ) {
+		$out = array();
+		foreach ( $xau as $x ) {
+			$ds  = array_keys( $x['don'] );
+			$cau = 'Ngày vô lý "' . $x['dmy'] . '" — ' . $x['n'] . ' dòng';
+			if ( count( $ds ) ) {
+				$cau .= ' ở ' . count( $ds ) . ' đơn (' . implode( ', ', array_slice( $ds, 0, 5 ) ) . ( count( $ds ) > 5 ? ', …' : '' ) . ')';
+			}
+			$cau .= '. Giá trị đang lưu trong máy: "' . $x['raw'] . '". Sửa ngày của dòng chi rồi xuất lại.';
+			$out[] = $cau;
+		}
+		return $out;
 	}
 
 	/** _cleanNhom(): bỏ đuôi "- NCC" / "- Mua lẻ" khỏi tên nhóm. */
@@ -99,7 +134,7 @@ class VHCP_Misa {
 			);
 		}
 
-		$rows_by_nhom = array(); $nhom_order = array(); $warn = array(); $ndon = 0; $seen_don = array();
+		$rows_by_nhom = array(); $nhom_order = array(); $warn = array(); $ndon = 0; $seen_don = array(); $ngay_xau = array();
 		foreach ( $cp as $r ) {
 			$m = (string) $r['ma_don'];
 			if ( ! isset( $by_don[ $m ] ) ) { continue; }
@@ -131,12 +166,13 @@ class VHCP_Misa {
 			// tài khoản chi phí, xuất ra thành "Nợ 141 · Có 141".
 			$mx_k     = trim( $nhom ) . '|' . trim( (string) $pll );
 			$tk_dong  = trim( (string) ( isset( $r['tk_no'] ) ? $r['tk_no'] : '' ) );
-			$tk_no    = VHCP_Cfg::tkno_loai( $nhom, $coso );
+			$tk_no    = VHCP_Cfg::tkno_xuat( $nhom, $coso, $tk_dong );
 			$nhom_k   = mb_strtolower( VHCP_Cfg::bo_duoi_nhom( $nhom ) );
+			// Hai bảng cấu hình CŨ, chỉ còn dùng cho dữ liệu chưa chuyển sang danh mục loại
+			// chi phí. TK Nợ của CH_Nhom hầu hết là 141 nên phải lọc mã bên trả tiền ở đây.
 			if ( $tk_no === '' && ! empty( $m_loai[ mb_strtolower( trim( $nhom ) ) ] ) ) { $tk_no = $m_loai[ mb_strtolower( trim( $nhom ) ) ]; }
 			if ( $tk_no === '' && ! empty( $m_loai[ $nhom_k ] ) )                        { $tk_no = $m_loai[ $nhom_k ]; }
 			if ( $tk_no === '' && ! empty( $m_no_mx[ $mx_k ] ) )                         { $tk_no = $m_no_mx[ $mx_k ]; }
-			if ( $tk_no === '' && ! VHCP_Cfg::la_tk_ben_tra( $tk_dong ) )                { $tk_no = $tk_dong; }
 			if ( $tk_no === '' && ! empty( $m_no[ $nhom ] ) && ! VHCP_Cfg::la_tk_ben_tra( $m_no[ $nhom ] ) ) { $tk_no = $m_no[ $nhom ]; }
 			// TK Có = ai ứng tiền, không phải "chi phí gì": vẫn ưu tiên TK Có của người duyệt
 			// tạm ứng như cũ, rồi tới mã gắn trên dòng, rồi tới TK Có của phân loại.
@@ -155,7 +191,7 @@ class VHCP_Misa {
 
 			$ngay = VHCP_Util::fmt( $r['ngay'] );
 			if ( $ngay === '' ) { $ngay = $d['ngay']; }
-			if ( VHCP_Util::ngay_vo_ly( $ngay ) ) { $warn[ 'Ngày vô lý "' . $ngay . '" — đơn ' . $m . ' (' . $nd . '). Sửa ngày của dòng chi rồi xuất lại.' ] = 1; }
+			VHCP_Misa::gom_ngay_xau( $ngay_xau, $ngay, $r['ngay'], $m );
 			$nhom_c   = self::clean_nhom( $nhom );
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			$ten1     = $d['nguoiDuyet'];
@@ -170,7 +206,8 @@ class VHCP_Misa {
 		$rows = array();
 		foreach ( $nhom_order as $g ) { $rows = array_merge( $rows, $rows_by_nhom[ $g ] ); }
 
-		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon, 'warn' => array_keys( $warn ), 'maDons' => array_keys( $seen_don ) );
+		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndon,
+			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array_keys( $seen_don ) );
 	}
 
 	/** exportMisaKyThuat(): dự án Kỹ thuật đã duyệt / đã đóng + Chi phí cơ sở chung. */
@@ -187,7 +224,7 @@ class VHCP_Misa {
 		$pay_map = VHCP_DuAn::pay_map();
 		$app_map = VHCP_DuAn::approve_date_map();
 
-		$rows = array(); $warn = array(); $nda = 0;
+		$rows = array(); $warn = array(); $nda = 0; $ngay_xau = array();
 		foreach ( VHCP_DuAn::all_with_lines() as $r ) {
 			$st   = (string) $r['trang_thai'];
 			$loai = (string) $r['loai'];
@@ -197,6 +234,7 @@ class VHCP_Misa {
 			$pay    = isset( $pay_map[ $ma_da ] ) ? $pay_map[ $ma_da ] : array();
 			$ngay   = isset( $app_map[ $ma_da ] ) ? $app_map[ $ma_da ] : '';
 			if ( $ngay === '' ) { $ngay = VHCP_Util::fmt( $r['ngay_tao'] ); }
+			VHCP_Misa::gom_ngay_xau( $ngay_xau, $ngay, $r['ngay_tao'], $ma_da );
 			$ma_dv    = isset( $m_unit[ $ten_da ] ) ? $m_unit[ $ten_da ] : '';
 			$pll      = isset( $m_pll[ $ten_da ] ) ? $m_pll[ $ten_da ] : '';
 			$ten_misa = ! empty( $m_tm[ $ten_da ] ) ? $m_tm[ $ten_da ] : $ten_da;
@@ -249,7 +287,8 @@ class VHCP_Misa {
 			}
 			if ( $used ) { $nda++; }
 		}
-		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $nda, 'warn' => array_keys( $warn ), 'maDons' => array() );
+		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $nda,
+			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array() );
 	}
 
 	/** exportMisaMarketing(): mỗi khoản có thực chi = 1 dòng hạch toán. */
@@ -268,7 +307,7 @@ class VHCP_Misa {
 				'ngay'   => VHCP_Util::fmt( $r['ngay_tao'] ),
 			);
 		}
-		$rows = array(); $warn = array(); $seen = array();
+		$rows = array(); $warn = array(); $seen = array(); $ngay_xau = array();
 		foreach ( VHCP_MK::all_lines() as $r ) {
 			$tt = VHCP_Util::num( $r['thuc_te'] );
 			if ( ! $tt ) { continue; }
@@ -280,6 +319,7 @@ class VHCP_Misa {
 			$gc    = (string) $r['note'];
 			$ngay  = VHCP_Util::fmt( $r['ngay'] );
 			if ( $ngay === '' ) { $ngay = $d['ngay']; }
+			VHCP_Misa::gom_ngay_xau( $ngay_xau, $ngay, $r['ngay'], (string) $r['ma_don'] );
 			$ma_dv    = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			if ( $coso !== '' && ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso . ' (thêm ở ⚙️ Cấu hình cơ sở)' ] = 1; }
@@ -291,7 +331,8 @@ class VHCP_Misa {
 			$rows[] = array( $ngay, $ngay, '', $dg1, $dg2, VHCP_Util::ma_so( $tkm['tk_no'] ), VHCP_Util::ma_so( $tkm['tk_co'] ), $tt, VHCP_Util::ma_so( $tkm['ma_dt'] ), VHCP_Util::ma_so( $ma_dv ) );
 			$seen[ (string) $r['ma_don'] ] = 1;
 		}
-		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => count( $seen ), 'warn' => array_keys( $warn ), 'maDons' => array() );
+		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => count( $seen ),
+			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array() );
 	}
 
 	/** exportMisaBP(): Công tác / Setup. */
@@ -300,7 +341,7 @@ class VHCP_Misa {
 		$m_unit = array(); $m_tm = array();
 		foreach ( $cfg['coso'] as $x ) { $m_unit[ $x['ten'] ] = $x['maDonVi']; $m_tm[ $x['ten'] ] = $x['tenMisa']; }
 
-		$rows = array(); $warn = array(); $ndot = 0;
+		$rows = array(); $warn = array(); $ndot = 0; $ngay_xau = array();
 		foreach ( VHCP_BP::all_with_lines() as $r ) {
 			if ( $loai && $loai !== 'all' && (string) $r['loai'] !== $loai ) { continue; }
 			$lo       = (string) $r['loai'];
@@ -318,6 +359,7 @@ class VHCP_Misa {
 				$is_tt = ( trim( (string) $x['hinh_thuc'] ) === 'Trực tiếp' );
 				$ngay  = VHCP_Util::fmt( $x['ngay'] );
 				if ( $ngay === '' ) { $ngay = $ngay_dot; }
+				VHCP_Misa::gom_ngay_xau( $ngay_xau, $ngay, $x['ngay'], (string) $r['ma'] );
 				$ghichu   = trim( (string) $x['note'] );
 				$ma_dv    = isset( $m_unit[ $dia_diem ] ) ? $m_unit[ $dia_diem ] : '';
 				$ten_misa = ! empty( $m_tm[ $dia_diem ] ) ? $m_tm[ $dia_diem ] : $dia_diem;
@@ -331,7 +373,8 @@ class VHCP_Misa {
 			}
 			if ( $used ) { $ndot++; }
 		}
-		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndot, 'warn' => array_keys( $warn ), 'maDons' => array() );
+		return array( 'cols' => self::cols(), 'rows' => $rows, 'count' => count( $rows ), 'sodon' => $ndot,
+			'warn' => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ), 'maDons' => array() );
 	}
 
 	/** markExported(): chốt "đã xuất" theo bộ phận; đủ cả 2 -> "Đã xuất MISA". */

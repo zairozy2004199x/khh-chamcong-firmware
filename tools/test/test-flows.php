@@ -972,6 +972,47 @@ $still_141 = 0;
 foreach ( $exk3['rows'] as $r ) { if ( $r[5] === '141' && mb_strpos( $r[3], 'TÀU BÌNH TÂN' ) !== false ) { $still_141++; } }
 teq( 'xuất MISA kỹ thuật: không còn dòng mã cũ ở dự án đã gán', 0, $still_141 );
 
+// ---------------------------------------------------------------- 141 KHÔNG ĐƯỢC LỌT VÀO CỘT TK NỢ
+// Bơm mã tạm ứng vào MỌI dòng của MỌI mảng rồi xuất lại cả 5 đường. Đây chính là cảnh
+// anh Thắng gặp: bảng xuất ra "Nợ 141 · Có 141". Quét ở cuối tệp vì lúc này cả 5 mảng
+// đều đã có dữ liệu thật do các phần trên dựng ra.
+global $wpdb;
+foreach ( array( 'chiphi', 'so_chi', 'da_line', 'mk_line', 'bp_line' ) as $bg ) {
+	$tb = VHCP_DB::t( $bg );
+	$wpdb->query( "UPDATE $tb SET tk_no='141'" );
+}
+$cac_duong = array(
+	'đơn vận hành' => VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' ),
+	'sổ chi phí'   => VHCP_SoChi::export_misa( 'all', 'chuaxuat' ),
+	'kỹ thuật'     => VHCP_Misa::export_ky_thuat(),
+	'marketing'    => VHCP_Misa::export_marketing(),
+	'công tác'     => VHCP_Misa::export_bp( 'all' ),
+);
+foreach ( $cac_duong as $ten_duong => $kq ) {
+	$co_ben_tra = 0; $co_dong = count( $kq['rows'] );
+	foreach ( $kq['rows'] as $rw ) {
+		if ( VHCP_Cfg::la_tk_ben_tra( (string) $rw[5] ) ) { $co_ben_tra++; }
+	}
+	t( 'xuất "' . $ten_duong . '": có dòng để soi (phép thử không xanh nhờ bảng rỗng)', $co_dong > 0, $co_dong );
+	teq( 'xuất "' . $ten_duong . '": KHÔNG mã bên trả tiền ở cột TK Nợ', 0, $co_ben_tra );
+}
+
+// Cảnh báo NGÀY VÔ LÝ: gom theo giá trị, in kèm giá trị thô, đủ cho cả 5 đường.
+$tb_cp = VHCP_DB::t( 'chiphi' );
+$wpdb->query( "UPDATE $tb_cp SET ngay='4622-08-22'" );
+$w_ngay = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' )['warn'];
+$cau_ngay = '';
+foreach ( $w_ngay as $w ) { if ( strpos( $w, '4622' ) !== false ) { $cau_ngay = $w; } }
+t( 'cảnh báo ngày: có báo', $cau_ngay !== '', $w_ngay );
+t( 'cảnh báo ngày: GOM lại 1 câu, không phải mỗi dòng một câu',
+	count( array_filter( $w_ngay, function ( $w ) { return strpos( $w, 'Ngày vô lý' ) !== false; } ) ) === 1, $w_ngay );
+t( 'cảnh báo ngày: có đếm số dòng', preg_match( '/— \d+ dòng/u', $cau_ngay ) === 1, $cau_ngay );
+t( 'cảnh báo ngày: in kèm GIÁ TRỊ THÔ trong máy để truy nguồn',
+	strpos( $cau_ngay, 'Giá trị đang lưu trong máy: "4622-08-22"' ) !== false, $cau_ngay );
+t( 'cảnh báo ngày: kể tên đơn để mở ra sửa', strpos( $cau_ngay, 'đơn (' ) !== false, $cau_ngay );
+$wpdb->query( "UPDATE $tb_cp SET ngay='" . VHCP_Util::today_sql() . "'" );   // trả ngày lại cho các phép thử sau
+
+
 // ---------------------------------------------------------------- 22. NẠP DỮ LIỆU CŨ: mã tài khoản tự gán ngay khi nạp
 // (a) dòng chi của đơn — mã lấy theo cột "Nhóm mặt hàng"
 $csv_cp = "ID,Mã đơn,Cơ sở,Ngày,Phân loại TT,Đối tượng,Nhóm mặt hàng,Nội dung,ĐVT,Số lượng,Đơn giá,Thành tiền,Ghi chú,Ảnh,Tạo lúc,Thuế suất (%),Tiền thuế,Thực mua,CN xử lý,Phát sinh\n"
@@ -1113,6 +1154,29 @@ $sc_chung = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'TÀU ESTELLA', 
 teq( 'loại dùng chung -> mã cố định, mảng nào cũng đúng', '6427', $sc_chung['tkNo'] );
 $sc_ovr = VHCP_SoChi::add( array( 'ngay' => $today, 'coso' => 'FARM PHAN THIẾT', 'loai' => 'Chi phí khác', 'noiDung' => 'Đặc thù', 'soTien' => 100000, 'hinhThuc' => 'Tạm ứng NV', 'tkNo' => '6428' ), 'NV A' );
 teq( 'mã gõ tay trên dòng thắng ma trận', '6428', $sc_ovr['tkNo'] );
+
+// ---- MỘT LUẬT TK NỢ LÚC XUẤT, DÙNG CHUNG CHO CẢ 5 ĐƯỜNG (VHCP_Cfg::tkno_xuat) ----
+// Mã trên dòng chỉ giữ khi CÒN là mã danh mục cho phép ở loại đó; ngoài ra lấy mã hiện
+// hành của loại chi phí; mã của BÊN TRẢ TIỀN (141/331) không bao giờ được vào cột Nợ.
+// Khác hẳn LÚC NHẬP — lúc đó người nhập đang ngồi trước màn hình, gõ gì lấy nấy.
+teq( 'lúc xuất: mã 141 trên dòng bị bỏ, lấy mã của loại', '6427',
+	VHCP_Cfg::tkno_xuat( 'Chi phí dịch vụ mua ngoài', 'TÀU ESTELLA', '141' ) );
+teq( 'lúc xuất: mã 331 trên dòng cũng bị bỏ', '6427',
+	VHCP_Cfg::tkno_xuat( 'Chi phí dịch vụ mua ngoài', 'TÀU ESTELLA', '3311' ) );
+teq( 'lúc xuất: mã cũ đã lỗi thời -> lấy mã hiện hành', '6427',
+	VHCP_Cfg::tkno_xuat( 'Chi phí dịch vụ mua ngoài', 'TÀU ESTELLA', '9999' ) );
+teq( 'lúc xuất: mã người nhập chọn mà CÒN hợp lệ thì giữ', '64166',
+	VHCP_Cfg::tkno_xuat( 'Chi phí khác', 'FARM PHAN THIẾT', '64166' ) );
+teq( 'lúc xuất: cùng loại, cơ sở khác mảng -> mã của mảng đó', '64196',
+	VHCP_Cfg::tkno_xuat( 'Chi phí khác', 'VR SORA', '64166' ) );
+teq( 'lúc xuất: loại chưa khai mã ở đâu -> đành giữ mã trên dòng', '6428',
+	VHCP_Cfg::tkno_xuat( 'Loại chưa khai bao giờ', '', '6428' ) );
+teq( 'lúc xuất: không có gì thì trả rỗng để báo thiếu', '',
+	VHCP_Cfg::tkno_xuat( 'Loại chưa khai bao giờ', '', '141' ) );
+teq( 'lúc NHẬP thì mã gõ tay vẫn thắng (khác lúc xuất)', '6428',
+	VHCP_Cfg::resolve_tk( 'Chi phí khác', 'Tạm ứng NV', array( 'tkNo' => '6428' ), 'FARM PHAN THIẾT' )['tk_no'] );
+teq( 'lúc NHẬP: mã 141 vẫn bị chặn khỏi cột Nợ', '64166',
+	VHCP_Cfg::resolve_tk( 'Chi phí khác', 'Tạm ứng NV', array( 'tkNo' => '141' ), 'FARM PHAN THIẾT' )['tk_no'] );
 
 // ------------------------------- 26. GHÉP HỆ THỐNG TÀI KHOẢN VÀO DANH MỤC
 $csv_tk = "Số hiệu,Tên tài khoản,Tính chất\n"

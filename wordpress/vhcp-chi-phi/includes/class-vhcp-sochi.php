@@ -379,7 +379,7 @@ class VHCP_SoChi {
 		$m_unit = array(); $m_tm = array();
 		foreach ( $cfg['coso'] as $x ) { $m_unit[ $x['ten'] ] = $x['maDonVi']; $m_tm[ $x['ten'] ] = $x['tenMisa']; }
 
-		$rows = array(); $warn = array(); $ids = array();
+		$rows = array(); $warn = array(); $ids = array(); $ngay_xau = array();
 		foreach ( self::all_rows() as $r ) {
 			$da_xuat = ( VHCP_Util::fmt( $r['ngay_xuat'] ) !== '' );
 			if ( $mode === 'daxuat' ? ! $da_xuat : $da_xuat ) { continue; }
@@ -389,11 +389,16 @@ class VHCP_SoChi {
 
 			$coso  = (string) $r['coso'];
 			$loai  = (string) $r['loai'];
-			$tk_no = trim( (string) $r['tk_no'] );
+			// TK Nợ theo LUẬT LÚC XUẤT (VHCP_Cfg::tkno_xuat) — chung với 4 đường xuất kia:
+			// mã trên dòng chỉ giữ khi còn là mã danh mục cho phép ở loại đó, ngoài ra lấy mã
+			// hiện hành của loại chi phí. Trước đây lấy thẳng mã trên dòng nên kế toán đổi mã
+			// của một loại thì dòng cũ vẫn xuất ra mã cũ mà không ai thấy.
+			$tk_no = VHCP_Cfg::tkno_xuat( $loai, $coso, $r['tk_no'] );
 			$tk_co = trim( (string) $r['tk_co'] );
 			$ma_dv = isset( $m_unit[ $coso ] ) ? $m_unit[ $coso ] : '';
 			$tenm  = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			$ngay  = VHCP_Util::fmt( $r['ngay'] );
+			VHCP_Misa::gom_ngay_xau( $ngay_xau, $ngay, $r['ngay'], (string) $r['id'] );
 
 			if ( $tk_no === '' ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . ( $loai !== '' ? $loai : '(chưa chọn)' ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 			if ( $tk_co === '' ) { $warn[ 'Thiếu TK Có cho dòng: ' . ( $loai !== '' ? $loai : '(chưa chọn)' ) ] = 1; }
@@ -419,7 +424,7 @@ class VHCP_SoChi {
 			'rows'   => $rows,
 			'count'  => count( $rows ),
 			'sodon'  => count( $ids ),
-			'warn'   => array_keys( $warn ),
+			'warn'   => array_merge( array_keys( $warn ), VHCP_Misa::warn_ngay_xau( $ngay_xau ) ),
 			'maDons' => $ids,
 		);
 	}

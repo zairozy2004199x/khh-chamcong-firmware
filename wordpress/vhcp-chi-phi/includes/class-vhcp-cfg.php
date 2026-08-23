@@ -801,6 +801,31 @@ class VHCP_Cfg {
 		return ( $s !== '' && ( strpos( $s, '141' ) === 0 || strpos( $s, '331' ) === 0 ) );
 	}
 
+	/**
+	 * TK NỢ LÚC XUẤT MISA — luật CHẶT HƠN lúc nhập, và dùng chung cho CẢ 5 ĐƯỜNG XUẤT
+	 * (đơn vận hành · sổ chi phí · kỹ thuật · marketing · công tác/setup).
+	 *
+	 * Vì sao khác lúc nhập: mã nằm trên dòng lúc xuất KHÔNG còn chắc là người nhập gõ tay.
+	 * Phần lớn là bản sao chụp danh mục tại thời điểm nhập — kế toán đổi mã của loại chi
+	 * phí thì bản sao đó thành cũ; riêng đơn vận hành thì bản sao đó vốn mang sẵn 141 và
+	 * đè lên tài khoản chi phí, ra bút toán "Nợ 141 · Có 141".
+	 *
+	 * Nên: giữ mã trên dòng khi nó CÒN nằm trong các mã danh mục cho phép ở loại đó (ô ma
+	 * trận khai 2–3 mã thì người nhập chọn mã nào là chủ ý, phải giữ). Ngoài ra thì lấy mã
+	 * hiện hành của loại chi phí. Loại chưa khai mã ở đâu cả mới đành giữ mã trên dòng.
+	 * Không có gì thì trả '' để chỗ gọi BÁO THIẾU — không đoán.
+	 */
+	public static function tkno_xuat( $loai, $coso, $tk_dong ) {
+		$tay = trim( (string) $tk_dong );
+		if ( self::la_tk_ben_tra( $tay ) ) { $tay = ''; }
+		foreach ( self::ten_nhom_thu( $loai ) as $ten ) {
+			if ( $tay !== '' && self::ma_con_hop_le( $ten, $coso, $tay ) !== '' ) { return $tay; }
+		}
+		$tk = self::tkno_loai( $loai, $coso );
+		if ( $tk !== '' ) { return $tk; }
+		return $tay;
+	}
+
 	/** Các cơ sở cùng mảng với cơ sở đã chọn (dùng để báo "mã này áp cho những cơ sở nào"). */
 	public static function coso_cung_mang( $coso ) {
 		$pll = self::pll_of( $coso );
@@ -1315,9 +1340,14 @@ class VHCP_Cfg {
 		$ov = function ( $k ) use ( $override ) { return isset( $override[ $k ] ) ? trim( (string) $override[ $k ] ) : ''; };
 		$cat = self::loai_tk( $loai );
 
-		$tk_no = $ov( 'tkNo' );
-		if ( $tk_no === '' && trim( (string) $loai ) !== '' ) { $tk_no = self::tkno_mx( $loai, $coso ); }
-		if ( $tk_no === '' ) { $tk_no = $cat['tkNo']; }
+		// LÚC NHẬP: mã người nhập GÕ TAY thắng — họ đang ngồi trước màn hình và biết dòng
+		// này đặc thù. Chỉ chặn mã của BÊN TRẢ TIỀN (141/331): mã đó thuộc cột Có, lọt vào
+		// cột Nợ là bút toán vô nghĩa, không ai cố ý gõ vào đây cả.
+		// (Lúc XUẤT thì luật chặt hơn — xem tkno_xuat().)
+		$tay   = $ov( 'tkNo' );
+		if ( self::la_tk_ben_tra( $tay ) ) { $tay = ''; }
+		$tk_no = $tay;
+		if ( $tk_no === '' ) { $tk_no = self::tkno_loai( $loai, $coso ); }
 		$tk_co = $ov( 'tkCo' ) !== '' ? $ov( 'tkCo' ) : $cat['tkCo'];
 		$ma_dt = $ov( 'maDt' ) !== '' ? $ov( 'maDt' ) : $cat['maDt'];
 

@@ -146,6 +146,55 @@ t('Nhân viên KHÔNG được vào Cấu hình', !vaiJs.includes('Nhân viên')
 t('giao diện vẫn khoá dòng tài khoản Admin cho người khác',
   /var _laAdmin=\(CURUSER&&CURUSER\.role==='Admin'\)/.test(HTML) && /khoa=\(!_laAdmin && String\(u\.vaiTro\|\|''\)==='Admin'\)/.test(HTML));
 
+// ---------------------------------------------------------------- 7. ô cảnh báo xuất MISA
+// GẬP SẴN + TẮT ĐƯỢC. Xuất một lượt 169 dòng thì cảnh báo dài hơn cả bảng, đẩy bảng
+// xuống dưới màn hình — cái để giúp lại che mất việc chính.
+const kho2 = {};
+const W = { hien: '', html: '' };
+const nutBat = { style: { display: 'none' } };
+const oCanhBao = { style: { display: 'none' }, set innerHTML(v) { W.html = v; }, get innerHTML() { return W.html; } };
+const moiTruong = {
+  el: id => (id === 'xuatWarn' ? oCanhBao : (id === 'xuatWarnBtn' ? nutBat : null)),
+  localStorage: { getItem: k => (k in kho2 ? kho2[k] : null), setItem: (k, v) => { kho2[k] = String(v); } },
+  toast: () => {},
+  esc: v => String(v),
+};
+const nguonW = ['xuatWarnMo', 'xuatWarnTat', 'xuatWarnBat', 'renderXuatWarn'].map(layHam).join('\n')
+  + "\n  var XUAT_W_MO=false, XUAT_W_TAT=(localStorage.getItem('vhcp_tat_canhbao')==='1');"
+  + '\n  return { mo: xuatWarnMo, tat: xuatWarnTat, bat: xuatWarnBat, ve: renderXuatWarn };';
+function dungW(warn) {
+  global.XUAT = { warn: warn };
+  return new Function('el', 'localStorage', 'toast', 'esc', 'XUAT', nguonW)(
+    moiTruong.el, moiTruong.localStorage, moiTruong.toast, moiTruong.esc, global.XUAT);
+}
+const DS = Array.from({ length: 169 }, (_, i) => 'Ngày vô lý "22/08/4622" — đơn D_' + i + ' rất dài '.repeat(3));
+let Wm = dungW(DS);
+Wm.ve();
+t('có cảnh báo thì hiện ô', oCanhBao.style.display === 'block', oCanhBao.style.display);
+t('gập sẵn: chỉ một dòng tóm tắt, KHÔNG in cả 169 câu',
+  W.html.indexOf('169 cảnh báo') >= 0 && W.html.indexOf('D_168') < 0, W.html.length);
+t('gập sẵn: có mũi tên ▸', W.html.indexOf('▸') >= 0);
+Wm.mo();
+t('bấm vào: xổ ra đủ 169 câu', W.html.indexOf('D_168') >= 0 && W.html.indexOf('▾') >= 0, W.html.length);
+Wm.mo();
+t('bấm lần nữa: gập lại', W.html.indexOf('D_168') < 0);
+Wm.tat();
+t('bấm ✕ Tắt: ẩn hẳn ô cảnh báo', oCanhBao.style.display === 'none', oCanhBao.style.display);
+t('tắt rồi thì hiện nút 🔔 để bật lại', nutBat.style.display === 'inline-block', nutBat.style.display);
+t('lựa chọn tắt được nhớ lại', kho2['vhcp_tat_canhbao'] === '1', kho2);
+// mở lại trang: vẫn tắt
+Wm = dungW(DS);
+Wm.ve();
+t('mở lại trang: vẫn đang tắt', oCanhBao.style.display === 'none', oCanhBao.style.display);
+Wm.bat();
+t('bấm 🔔: hiện lại', oCanhBao.style.display === 'block' && nutBat.style.display === 'none');
+// không có cảnh báo thì không có gì cả
+Wm = dungW([]);
+Wm.ve();
+t('không có cảnh báo: ẩn ô lẫn nút 🔔',
+  oCanhBao.style.display === 'none' && nutBat.style.display === 'none');
+t('nút 🔔 có thật trong trang Xuất MISA', /id="xuatWarnBtn"[^>]*onclick="xuatWarnBat\(\)"/.test(HTML));
+
 // ---------------------------------------------------------------- kết
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');

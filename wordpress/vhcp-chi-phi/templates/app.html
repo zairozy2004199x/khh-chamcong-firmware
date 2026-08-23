@@ -790,6 +790,7 @@
           </select>
           <select id="xuatKy" onchange="callExport()"><option value="all">Tất cả kỳ</option></select>
           <button class="btn b-x" onclick="loadXuat()">↻ Tải lại</button>
+          <button class="btn b-x" id="xuatWarnBtn" style="display:none" onclick="xuatWarnBat()" title="Bật lại ô cảnh báo cấu hình">🔔 Hiện cảnh báo</button>
           <button class="btn b-g" onclick="downloadCSV()">⬇ Tải Excel & chốt đã xuất</button>
         </div>
       </div>
@@ -2870,9 +2871,41 @@
     el('xuatHead').innerHTML='<tr>'+(XUAT.cols||[]).map(function(c){return '<th style="white-space:nowrap">'+esc(c)+'</th>';}).join('')+'</tr>';
     el('xuatBody').innerHTML=(XUAT.rows||[]).map(function(r){return '<tr>'+r.map(function(v,i){
       var num=((XUAT.cols||[])[i]==='Số tiền'); return '<td'+(num?' class="money"':'')+' style="white-space:nowrap">'+(num?money(v):esc(v))+'</td>';}).join('')+'</tr>';}).join('');
-    var w=el('xuatWarn');
-    if(XUAT.warn&&XUAT.warn.length){ w.style.display='block'; w.innerHTML='⚠ Thiếu cấu hình (vào tab ⚙️ Cấu hình bổ sung để cột TK/Mã không trống):<br>• '+XUAT.warn.map(esc).join('<br>• '); }
-    else w.style.display='none';
+    renderXuatWarn();
+  }
+  // Ô CẢNH BÁO: GẬP SẴN, chỉ hiện MỘT DÒNG tóm tắt.
+  // Xuất một lượt vài trăm dòng thì cảnh báo dài hơn cả bảng, đẩy bảng xuống dưới màn
+  // hình — thành ra cái để giúp lại che mất việc chính. Nay mặc định chỉ một dòng, bấm
+  // mới xổ ra; "✕ Tắt" thì im hẳn cho tới khi bấm lại 🔔 ở thanh trên.
+  var XUAT_W_MO=false, XUAT_W_TAT=false;
+  try{ XUAT_W_TAT=(localStorage.getItem('vhcp_tat_canhbao')==='1'); }catch(e){}
+  function xuatWarnMo(){ XUAT_W_MO=!XUAT_W_MO; renderXuatWarn(); }
+  function xuatWarnTat(){
+    XUAT_W_TAT=true; XUAT_W_MO=false;
+    try{ localStorage.setItem('vhcp_tat_canhbao','1'); }catch(e){}
+    renderXuatWarn(); toast('ok','Đã tắt cảnh báo. Bật lại ở nút 🔔 cạnh nút Tải lại.');
+  }
+  function xuatWarnBat(){
+    XUAT_W_TAT=false;
+    try{ localStorage.setItem('vhcp_tat_canhbao','0'); }catch(e){}
+    renderXuatWarn();
+  }
+  function renderXuatWarn(){
+    var w=el('xuatWarn'), ds=(XUAT&&XUAT.warn)||[], nut=el('xuatWarnBtn');
+    if(nut) nut.style.display=(XUAT_W_TAT&&ds.length)?'inline-block':'none';
+    if(!ds.length||XUAT_W_TAT){ w.style.display='none'; return; }
+    w.style.display='block';
+    var dong='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;cursor:pointer" onclick="xuatWarnMo()">'
+      +'<b>'+(XUAT_W_MO?'▾':'▸')+' ⚠ '+ds.length+' cảnh báo cấu hình</b>'
+      +'<span style="color:#a16207">'+(XUAT_W_MO?'(bấm để gập lại)':esc(ds[0].slice(0,90)+(ds[0].length>90?'…':'')))+'</span>'
+      +'<span style="flex:1"></span>'
+      +'<button class="btn b-x" onclick="event.stopPropagation();xuatWarnTat()" title="Không hiện cảnh báo nữa">✕ Tắt</button>'
+      +'</div>';
+    if(XUAT_W_MO){
+      dong+='<div style="margin-top:8px;max-height:34vh;overflow:auto">Vào tab ⚙️ Cấu hình bổ sung để cột TK/Mã không trống:<br>• '
+        +ds.map(esc).join('<br>• ')+'</div>';
+    }
+    w.innerHTML=dong;
   }
   function downloadCSV(){   // giờ TẢI EXCEL (.xlsx); fallback CSV nếu thư viện chưa nạp
     if(!XUAT.rows||!XUAT.rows.length){toast('warn','Không có dữ liệu để tải');return;}
