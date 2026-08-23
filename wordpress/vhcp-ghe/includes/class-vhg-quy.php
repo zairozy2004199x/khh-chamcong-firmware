@@ -366,6 +366,43 @@ class VHG_Quy {
 		return $ra;
 	}
 
+	/**
+	 * LƯỢT CHỐT GẦN NHẤT CỦA TỪNG GHẾ — cho thẻ ghế ở màn điều khiển.
+	 *
+	 * Anh Thắng 23/08/2026: *"Hiện chỉ số máy — cũ và mới"*.
+	 *
+	 * 🔴 ĐỨNG CẠNH GHẾ MÀ SO ĐƯỢC NGAY. Người đi thu cầm điện thoại, nhìn màn máy đếm trên ghế,
+	 *    rồi nhìn thẻ ghế trên app: chỉ số hệ thống ghi lần trước là bao nhiêu, và chỉ số thật
+	 *    bây giờ là bao nhiêu. Chênh lệch giữa hai con số đó CHÍNH LÀ số tiền đang nằm trong
+	 *    ngăn — biết trước khi mở ngăn thì đếm xong là biết đủ hay thiếu ngay, không phải đợi
+	 *    tới lúc chốt mới thấy con số đỏ.
+	 *
+	 * ⚠️ MỘT LƯỢT HỎI CHO TẤT CẢ GHẾ, không hỏi từng ghế một. Màn điều khiển vẽ hàng chục thẻ;
+	 *    hỏi từng thẻ là hàng chục lượt truy vấn cho một màn hình tải lại mỗi mười giây.
+	 */
+	public static function chot_cuoi_theo_may() {
+		global $wpdb;
+		$t = VHG_DB::t( 'chot' );
+		/* Lấy id lớn nhất mỗi ghế rồi nối lại lấy cả dòng — `GROUP BY` trần trả về cột của một
+		   dòng bất kỳ trong nhóm, và "bất kỳ" ở đây là một chỉ số cũ hơn đang nằm im. */
+		$sql = "SELECT c.* FROM $t c
+			INNER JOIN ( SELECT ma_may, MAX(id) AS id_moi FROM $t GROUP BY ma_may ) m
+			ON c.id = m.id_moi";
+		$ra = array();
+		foreach ( VHG_DB::rows( $sql ) as $r ) {
+			$ra[ (string) $r['ma_may'] ] = array(
+				'chi_so'       => (int) $r['chi_so'],
+				'chi_so_truoc' => (int) $r['chi_so_truoc'],
+				'don_vi'       => (int) $r['don_vi'],
+				'tien_dem'     => (int) $r['tien_dem'],
+				'nguoi'        => (string) $r['nguoi'],
+				'tao_luc'      => (string) $r['tao_luc'],
+				'lan_dau'      => (int) $r['lan_dau'],
+			);
+		}
+		return $ra;
+	}
+
 	// ═════════════════════════════════════════════════════════════════ tiền trên tay
 
 	/**

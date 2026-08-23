@@ -396,9 +396,13 @@ class VHG_Trang {
 		if ( empty( $q['quan_tri'] ) ) { return self::so_lieu_khong_quan_tri( $ky, $ai, $q ); }
 
 		$t   = VHG_Thu::tong_hop( $ky );
+		/* Chỉ số máy đếm lần chốt gần nhất, MỘT lượt hỏi cho tất cả ghế — xem
+		   VHG_Quy::chot_cuoi_theo_may(). */
+		$cs_cuoi = VHG_Quy::chot_cuoi_theo_may();
 		$may = array();
 		foreach ( VHG_May::ds_may() as $m ) {
 			$may[] = array(
+				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
@@ -630,9 +634,13 @@ class VHG_Trang {
 		   · Người thu cần biết ghế nào mất kết nối — ghế mất mạng thì lệch máy-với-sổ là bình
 		     thường, không phải mất tiền.
 		   · Bạn Hotline cần đúng danh sách đó để bấm bật cho khách đang gọi tới. */
+		$cs_cuoi = VHG_Quy::chot_cuoi_theo_may();
 		$may = array();
 		foreach ( VHG_May::ds_may() as $m ) {
 			$may[] = array(
+				/* Người thu cũng cần chỉ số lần trước: đứng cạnh ghế, so với màn máy đếm là
+				   biết ngay ngăn đang có bao nhiêu — trước cả khi mở ngăn ra đếm. */
+				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
@@ -910,6 +918,18 @@ tr:last-child td{border-bottom:0}
    ngăn tiền — cao hơn nữa thì nút Đóng tụt xuống dưới mép màn trên điện thoại nhỏ. */
 /* Nhóm ô tích phân quyền. Mỗi nhóm một khối có viền — ba nhóm nằm liền nhau không viền thì
    người đọc không biết ô tích nào thuộc câu hỏi nào, và tích nhầm nhóm là cấp nhầm quyền. */
+/* Ô chỉ số trên thẻ ghế. Hai con số phải ĐỌC ĐƯỢC TỪ XA — người ta cầm điện thoại một tay,
+   tay kia đang giữ ngăn tiền, và mắt thì đang nhìn qua nhìn lại giữa màn máy đếm và màn này. */
+.cs-hop{margin:8px 0 2px;padding:9px 11px;border-radius:10px;
+  background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28)}
+.cs-hop.chua{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
+.cs-nh{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#a79a7d}
+.cs-so{display:flex;align-items:baseline;gap:8px;margin:2px 0 1px;
+  font-variant-numeric:tabular-nums}
+.cs-so .cu{font-size:16px;color:#8d8577}
+.cs-so .mui{font-size:14px;color:#8d8577}
+.cs-so .moi{font-size:22px;font-weight:800;color:#f0b429}
+.cs-p{font-size:11.5px;color:#9aa0c2}
 .ph-nhom{padding:12px 13px;border-radius:12px;margin:0 0 10px;
   background:rgba(10,12,22,.5);border:1px solid rgba(255,255,255,.1)}
 .ph-nhom .nh{color:#e8dcc4;font-weight:700;font-size:14px}
@@ -1415,6 +1435,43 @@ function veDieuKhien(){
     } else {
       h += '<div class="mut" style="margin:8px 0">' + L('Sẵn sàng','Ready') + ' · ' + tien(m.gia)
         + ' = ' + m.phut + ' ' + L('phút','min') + '</div>';
+    }
+
+    /* ══════════════════════════════════════════════════════════════════════════════════════
+     * CHỈ SỐ MÁY ĐẾM — CŨ VÀ MỚI, NGAY TRÊN THẺ GHẾ.
+     *
+     * Anh Thắng 23/08/2026: *"Hiện chỉ số máy — cũ và mới"*.
+     *
+     * 🔴 ĐỨNG CẠNH GHẾ MÀ SO ĐƯỢC NGAY. Người đi thu nhìn màn máy đếm trên ghế, rồi nhìn thẻ
+     *    này: hệ thống ghi lần trước là bao nhiêu. Hiệu hai con số CHÍNH LÀ số tiền đang nằm
+     *    trong ngăn — biết trước khi mở ngăn thì đếm xong là biết đủ hay thiếu ngay, không phải
+     *    đợi tới lúc bấm chốt mới thấy con số đỏ.
+     *
+     * ⚠️ "Cũ" là chỉ số của lần chốt TRƯỚC lần gần nhất, "mới" là lần gần nhất — đúng cặp mà
+     *    lần chốt gần nhất đã dùng để trừ ra tiền. Hiện một con số trần thì không ai biết nó là
+     *    mốc hay là số đã trừ rồi.
+     * ═════════════════════════════════════════════════════════════════════════════════════ */
+    if (m.chot) {
+      var c0 = m.chot;
+      h += '<div class="cs-hop">'
+        + '<div class="cs-nh">' + L('Chỉ số máy đếm','Note counter') + '</div>'
+        + '<div class="cs-so">'
+        + '<span class="cu">' + Number(c0.chi_so_truoc).toLocaleString('vi-VN') + '</span>'
+        + '<span class="mui">→</span>'
+        + '<span class="moi">' + Number(c0.chi_so).toLocaleString('vi-VN') + '</span>'
+        + '</div>'
+        + '<div class="cs-p">'
+        + (c0.lan_dau
+            ? L('lần chốt đầu tiên — chưa có mốc để trừ','first closing — no baseline yet')
+            : Lf('lần chốt gần nhất: {0} · {1} · {2}',
+                 tien(c0.tien_dem), esc(String(c0.tao_luc).slice(5, 16)), esc(c0.nguoi)))
+        + '</div></div>';
+    } else {
+      h += '<div class="cs-hop chua"><div class="cs-nh">' + L('Chỉ số máy đếm','Note counter')
+        + '</div><div class="cs-p">'
+        + L('ghế này <b>chưa chốt lần nào</b> — lần chốt đầu chỉ đặt mốc',
+            'never closed yet — the first closing only sets the baseline')
+        + '</div></div>';
     }
 
     h += '<div class="ghe-hang"><label>' + L('Số phút','Minutes') + '</label>'
@@ -2485,6 +2542,38 @@ function chayDongHoTop(){
   }, 1000);
 }
 
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * GỬI MỘT LỆNH GHI, RỒI TẢI LẠI MÀN.
+ *
+ * 🔴 LỖI 23/08/2026 — BẤM "CHỐT CA" KHÔNG CÓ GÌ XẢY RA.
+ *
+ *    Anh Thắng: *"chưa chốt ca được phải không, chưa thấy ghi nhận"*.
+ *
+ *    Hàm này trước đây khai BÊN TRONG `noi()`. Mà `veChotCa()` — hàm dựng bảng chốt ca — nằm ở
+ *    tầng ngoài, nên nó KHÔNG nhìn thấy `lam`. Bấm "Chốt ca" là JavaScript ném
+ *    `ReferenceError: lam is not defined` vào console rồi im: bảng đóng lại (vì `dongChotCa()`
+ *    chạy trước), không có lỗi nào hiện lên, và không có dòng nào vào sổ. Nhìn từ ngoài thì
+ *    giống hệt "bấm xong không thấy ghi nhận".
+ *
+ *    Hàm khai trong một hàm khác chỉ sống trong đúng hàm đó — kể cả khi nơi gọi nó được BẮT ĐẦU
+ *    từ bên trong hàm ấy. JavaScript đóng gói theo chỗ KHAI, không theo chỗ gọi.
+ *
+ * ⚠️ Nay khai ở tầng ngoài, cạnh `goi()` và `tai()` là hai thứ nó dùng. Và có phép thử quét mọi
+ *    hàm khai lồng bên trong, đòi chúng không được gọi từ hàm khác — xem `kiem_pham_vi_js()`
+ *    trong bộ thử.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function lam(viec, d){
+  if (ban) return;
+  ban = true;
+  [].forEach.call(document.querySelectorAll('button'), function(b){ b.disabled = true; });
+  goi(viec, d, function(r){
+    ban = false;
+    if (r && r.ok === false && r.error) alert(r.error);
+    else if (r && r.thong_bao) alert(r.thong_bao);
+    tai();
+  });
+}
+
 function noi(){
   henLai();
   chayDongHo();
@@ -2526,17 +2615,6 @@ function noi(){
   /* ⚠️ CHẶN BẤM HAI LẦN. Trên 4G một lượt bấm có thể mất 3 giây không thấy gì xảy ra, và phản
      xạ của mọi người là bấm lại. Với "Thu tiền mặt" thì bấm hai lần là GHI HAI LẦN — số tiền
      thật vào sổ gấp đôi. Khoá nút cho tới khi máy chủ trả lời. */
-  function lam(viec, d){
-    if (ban) return;
-    ban = true;
-    [].forEach.call(document.querySelectorAll('button'), function(b){ b.disabled = true; });
-    goi(viec, d, function(r){
-      ban = false;
-      if (r && r.ok === false && r.error) alert(r.error);
-      else if (r && r.thong_bao) alert(r.thong_bao);
-      tai();
-    });
-  }
   [].forEach.call(document.querySelectorAll('[data-bat]'), function(b){
     b.onclick = function(){ var m = b.getAttribute('data-bat');
       var ly = prompt(L('Bật ghế ' + m + ' — đây là CHO KHÔNG một lượt.\nLý do:',

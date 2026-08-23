@@ -6686,6 +6686,290 @@ t( '🔴 bảng nhân sự đánh dấu người không đăng nhập được',
 t( 'và chỉ thẳng sang khối cần tích',
 	strpos( $html_bc, 'Đăng nhập được trang này</b> ngay' ) !== false );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 PHẠM VI HÀM TRONG JAVASCRIPT — HÀM KHAI LỒNG KHÔNG ĐƯỢC GỌI TỪ HÀM KHÁC
+ *
+ * Anh Thắng 23/08/2026: *"chưa chốt ca được phải không, chưa thấy ghi nhận"*.
+ *
+ * Nguyên nhân: `lam()` khai BÊN TRONG `noi()`, mà `veChotCa()` ở tầng ngoài lại gọi nó. Bấm
+ * "Chốt ca" là JavaScript ném `ReferenceError` rồi im — bảng đóng lại (vì `dongChotCa()` chạy
+ * trước), không lỗi nào hiện lên, không dòng nào vào sổ. Nhìn từ ngoài giống hệt "bấm xong
+ * không thấy ghi nhận".
+ *
+ * 🔴 VÌ SAO KHÔNG PHÉP THỬ NÀO CŨ BẮT ĐƯỢC.
+ *    Mọi phép thử về giao diện đều canh CHUỖI trong mã nguồn: `strpos($html, "lam('chot_luu'")`.
+ *    Chuỗi đó CÓ trong mã — chỉ là nó không chạy được. Canh chuỗi thì không bao giờ thấy được
+ *    chuyện của phạm vi biến.
+ *
+ * Nên phép thử này ĐỌC CẤU TRÚC: bóc từng khối hàm ở tầng ngoài, tìm những hàm khai lồng bên
+ * trong, rồi soi xem tên đó có bị gọi ở khối khác không.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Bóc các khối hàm tầng ngoài của một đoạn JS: [ tên => [đầu, cuối] ].
+ * Đếm ngoặc nhọn, có bỏ qua ngoặc nằm trong chuỗi và trong chú thích.
+ */
+function vhg_khoi_ham_js( $js ) {
+	$ra  = array();
+	$n   = strlen( $js );
+	$i   = 0;
+	while ( $i < $n ) {
+		/* Hàm tầng ngoài = `function ten(` đứng ngay ĐẦU DÒNG (không thụt lề). */
+		if ( ( 0 === $i || "\n" === $js[ $i - 1 ] )
+			&& preg_match( '/^function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/', substr( $js, $i, 120 ), $m ) ) {
+			$ten = $m[1];
+			$j   = strpos( $js, '{', $i );
+			if ( false === $j ) { break; }
+			$sau = vhg_qua_khoi_js( $js, $j );
+			$ra[ $ten ] = array( $i, $sau );
+			$i = $sau;
+			continue;
+		}
+		$i++;
+	}
+	return $ra;
+}
+
+/**
+ * Từ vị trí `{`, nhảy tới ngay sau `}` khớp với nó. Bỏ qua chuỗi, chú thích VÀ BIỂU THỨC CHÍNH
+ * QUY.
+ *
+ * 🔴 BỎ QUÊN BIỂU THỨC CHÍNH QUY LÀ ĐẾM SAI NGOẶC. `/^\d{4,8}$/` có một dấu `{` — đếm nó vào là
+ *    mọi khối sau đó lệch, và bộ bóc dừng sớm. Trang nhân viên tình cờ cân bằng lại nên phép
+ *    thử vẫn xanh; trang khách thì bóc ra 6 hàm trong khi có 26. Một phép thử xanh vì may mắn
+ *    còn tệ hơn không có phép thử: nó nói rằng đã kiểm rồi.
+ *
+ * ⚠️ Phân biệt `/` mở biểu thức chính quy với `/` chia: xem ký tự CÓ NGHĨA đứng ngay trước. Sau
+ *    một toán tử hay dấu mở ngoặc thì `/` là biểu thức chính quy; sau một tên biến hay số thì
+ *    nó là phép chia.
+ */
+function vhg_qua_khoi_js( $js, $mo ) {
+	$n     = strlen( $js );
+	$sau   = 0;
+	$i     = $mo;
+	$truoc = '';   // ký tự có nghĩa gần nhất
+	while ( $i < $n ) {
+		$c = $js[ $i ];
+		if ( "'" === $c || '"' === $c || '`' === $c ) {
+			$dau = $c; $i++;
+			while ( $i < $n ) {
+				if ( '\\' === $js[ $i ] ) { $i += 2; continue; }
+				if ( $js[ $i ] === $dau ) { $i++; break; }
+				$i++;
+			}
+			$truoc = $dau;
+			continue;
+		}
+		if ( '/' === $c && $i + 1 < $n && '*' === $js[ $i + 1 ] ) {
+			$k = strpos( $js, '*/', $i + 2 );
+			$i = ( false === $k ) ? $n : $k + 2;
+			continue;
+		}
+		if ( '/' === $c && $i + 1 < $n && '/' === $js[ $i + 1 ] ) {
+			$k = strpos( $js, "\n", $i );
+			$i = ( false === $k ) ? $n : $k + 1;
+			continue;
+		}
+		if ( '/' === $c && ( '' === $truoc || false !== strpos( "(,=:[!&|?{};+-*%<>~^\n", $truoc ) ) ) {
+			$i++;
+			while ( $i < $n ) {
+				if ( '\\' === $js[ $i ] ) { $i += 2; continue; }
+				if ( '[' === $js[ $i ] ) {      // lớp ký tự: `/` bên trong KHÔNG đóng biểu thức
+					$i++;
+					while ( $i < $n && ']' !== $js[ $i ] ) {
+						if ( '\\' === $js[ $i ] ) { $i++; }
+						$i++;
+					}
+					$i++;
+					continue;
+				}
+				if ( '/' === $js[ $i ] ) { $i++; break; }
+				if ( "\n" === $js[ $i ] ) { break; }   // xuống dòng = không phải biểu thức
+				$i++;
+			}
+			while ( $i < $n && false !== strpos( 'gimsuyd', $js[ $i ] ) ) { $i++; }
+			$truoc = '/';
+			continue;
+		}
+		if ( '{' === $c ) { $sau++; }
+		if ( '}' === $c ) {
+			$sau--;
+			if ( 0 === $sau ) { return $i + 1; }
+		}
+		if ( '' !== trim( $c ) ) { $truoc = $c; }
+		elseif ( "\n" === $c ) { $truoc = "\n"; }
+		$i++;
+	}
+	return $n;
+}
+
+/**
+ * Bóc đoạn JS ra khỏi heredoc `<<<'JS' … JS;` của lớp trang.
+ * ⚠️ Đọc từ TỆP NGUỒN chứ không từ HTML đã dựng: HTML đã dựng cũng có đủ đoạn JS đó, nhưng lấy
+ *    từ nguồn thì số dòng khớp với chỗ người sửa mã đang nhìn.
+ */
+function vhg_js_cua( $tep ) {
+	$s = (string) file_get_contents( $tep );
+	$i = strpos( $s, "<<<'JS'" );
+	if ( false === $i ) { return ''; }
+	$i = strpos( $s, "\n", $i );
+	$j = strpos( $s, "\nJS;", $i );
+	return ( false === $j ) ? '' : substr( $s, $i + 1, $j - $i - 1 );
+}
+
+/**
+ * Gỡ chú thích JS.
+ *
+ * 🔴 PHẢI HIỂU BIỂU THỨC CHÍNH QUY, không chỉ hiểu chuỗi.
+ *    `.replace(/[&<>"]/g, …)` có một dấu `"` NẰM TRONG biểu thức chính quy. Bộ gỡ chỉ biết
+ *    chuỗi sẽ tưởng dấu đó mở một chuỗi, rồi nuốt tất cả cho tới dấu `"` tiếp theo — lệch pha
+ *    toàn bộ phần sau, và những khối chú thích ở đó không được gỡ. Đã dính đúng một lần: câu
+ *    *"…cho người thu (xem `so_lieu_nhan_vien`)"* trong một chú thích bị đọc thành lượt gọi
+ *    hàm `thu(`.
+ *
+ * ⚠️ Phân biệt `/` mở biểu thức chính quy với `/` chia bằng ký tự CÓ NGHĨA đứng trước — cùng
+ *    một luật với `vhg_qua_khoi_js()`.
+ */
+function vhg_bo_chu_thich_js( $js ) {
+	$ra = ''; $n = strlen( $js ); $i = 0; $truoc = '';
+	while ( $i < $n ) {
+		$c = $js[ $i ];
+		if ( "'" === $c || '"' === $c || '`' === $c ) {
+			$dau = $c; $ra .= $c; $i++;
+			while ( $i < $n ) {
+				$ra .= $js[ $i ];
+				if ( '\\' === $js[ $i ] ) { $i++; if ( $i < $n ) { $ra .= $js[ $i ]; $i++; } continue; }
+				if ( $js[ $i ] === $dau ) { $i++; break; }
+				$i++;
+			}
+			$truoc = $dau;
+			continue;
+		}
+		if ( '/' === $c && $i + 1 < $n && '*' === $js[ $i + 1 ] ) {
+			$k = strpos( $js, '*/', $i + 2 );
+			$i = ( false === $k ) ? $n : $k + 2;
+			$ra .= ' ';
+			continue;
+		}
+		if ( '/' === $c && $i + 1 < $n && '/' === $js[ $i + 1 ] ) {
+			$k = strpos( $js, "\n", $i );
+			$i = ( false === $k ) ? $n : $k;
+			continue;
+		}
+		if ( '/' === $c && ( '' === $truoc || false !== strpos( "(,=:[!&|?{};+-*%<>~^\n", $truoc ) ) ) {
+			$ra .= $c; $i++;
+			while ( $i < $n ) {
+				$ra .= $js[ $i ];
+				if ( '\\' === $js[ $i ] ) { $i++; if ( $i < $n ) { $ra .= $js[ $i ]; $i++; } continue; }
+				if ( '[' === $js[ $i ] ) {
+					$i++;
+					while ( $i < $n && ']' !== $js[ $i ] ) {
+						$ra .= $js[ $i ];
+						if ( '\\' === $js[ $i ] ) { $i++; $ra .= $js[ $i ]; }
+						$i++;
+					}
+					if ( $i < $n ) { $ra .= $js[ $i ]; $i++; }
+					continue;
+				}
+				if ( '/' === $js[ $i ] ) { $i++; break; }
+				if ( "\n" === $js[ $i ] ) { break; }
+				$i++;
+			}
+			while ( $i < $n && false !== strpos( 'gimsuyd', $js[ $i ] ) ) { $ra .= $js[ $i ]; $i++; }
+			$truoc = '/';
+			continue;
+		}
+		$ra .= $c;
+		if ( '' !== trim( $c ) ) { $truoc = $c; }
+		elseif ( "\n" === $c ) { $truoc = "\n"; }
+		$i++;
+	}
+	return $ra;
+}
+
+/**
+ * Soi phạm vi một đoạn JS: hàm khai LỒNG trong hàm này mà bị gọi ở hàm khác.
+ *
+ * ⚠️ BỎ QUA khi hàm gọi có một RÀNG BUỘC CỤC BỘ cùng tên — tham số (`function goi(viec, d, xong)`)
+ *    hay biến (`var xong = …`). Đó là hai cái tên khác nhau tình cờ giống nhau, và báo lên là
+ *    phép thử kêu oan. Phép thử hay kêu oan là phép thử người ta tắt đi.
+ */
+function vhg_soi_pham_vi_js( $js ) {
+	$js   = vhg_bo_chu_thich_js( $js );
+	$khoi = vhg_khoi_ham_js( $js );
+	$hong = array();
+	foreach ( $khoi as $ten_ngoai => $vt ) {
+		$than = substr( $js, $vt[0], $vt[1] - $vt[0] );
+		if ( ! preg_match_all( '/\n[ \t]+function\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/', $than, $mm ) ) {
+			continue;
+		}
+		foreach ( array_unique( $mm[1] ) as $ten_trong ) {
+			foreach ( $khoi as $ten_khac => $vt2 ) {
+				if ( $ten_khac === $ten_ngoai ) { continue; }
+				$than2 = substr( $js, $vt2[0], $vt2[1] - $vt2[0] );
+				if ( ! preg_match( '/\b' . preg_quote( $ten_trong, '/' ) . '\s*\(/', $than2 ) ) { continue; }
+				/* Có ràng buộc cục bộ cùng tên thì thôi. */
+				$tham_so = '';
+				if ( preg_match( '/^function\s+[A-Za-z0-9_$]+\s*\(([^)]*)\)/', $than2, $mt ) ) {
+					$tham_so = $mt[1];
+				}
+				$co_cuc_bo =
+					preg_match( '/\b' . preg_quote( $ten_trong, '/' ) . '\b/', $tham_so )
+					|| preg_match( '/\b(?:var|let|const)\s+' . preg_quote( $ten_trong, '/' ) . '\b/', $than2 )
+					|| preg_match( '/\n[ \t]+function\s+' . preg_quote( $ten_trong, '/' ) . '\s*\(/', $than2 )
+					|| preg_match( '/function\s*\([^)]*\b' . preg_quote( $ten_trong, '/' ) . '\b[^)]*\)/', $than2 );
+				if ( $co_cuc_bo ) { continue; }
+				$hong[] = $ten_khac . '() gọi ' . $ten_trong . '() — khai lồng trong ' . $ten_ngoai . '()';
+			}
+		}
+	}
+	return $hong;
+}
+
+$js_tr = vhg_js_cua( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-trang.php' );
+t( 'bóc được đoạn JS của trang nhân viên', strlen( $js_tr ) > 20000, (string) strlen( $js_tr ) );
+$khoi = vhg_khoi_ham_js( vhg_bo_chu_thich_js( $js_tr ) );
+/* 🔴 Con số này canh chính BỘ BÓC, không canh mã nguồn. Bộ bóc dừng sớm (đếm lệch ngoặc vì một
+   biểu thức chính quy chẳng hạn) thì nó vẫn trả về vài khối và mọi phép soi sau đó đều xanh —
+   xanh vì không nhìn thấy gì. Đã dính đúng một lần: trang khách bóc ra 6 hàm trong khi có 26. */
+teq( '🔴 bóc được ĐỦ hàm tầng ngoài của trang nhân viên',
+	substr_count( $js_tr, "\nfunction " ), dem( $khoi ) );
+t( '🔴 `lam` phải nằm ở TẦNG NGOÀI', isset( $khoi['lam'] ) );
+t( 'và `veChotCa` cũng vậy', isset( $khoi['veChotCa'] ) );
+teq( '🔴 không hàm nào gọi một hàm khai lồng trong hàm khác', array(),
+	vhg_soi_pham_vi_js( $js_tr ) );
+
+/* ⚠️ Và phép thử phải CHỨNG MINH nó bắt được lỗi thật, không phải luôn xanh.
+   Dựng lại đúng cảnh cũ (`lam` khai lồng trong `noi`) và đòi nó kêu lên. */
+teq( '🔴 và phép thử này BẮT ĐƯỢC lỗi thật (không phải luôn xanh)',
+	array( "veChotCa() gọi lam() — khai lồng trong noi()" ),
+	vhg_soi_pham_vi_js(
+		"function noi(){\n  function lam(v){ return v; }\n  lam(1);\n}\n"
+		. "function veChotCa(){\n  lam('chot_luu');\n}\n" ) );
+/* ⚠️ Và KHÔNG kêu oan khi tên trùng chỉ là tham số — đây là cảnh có thật ở trang khách. */
+teq( '⚠️ nhưng KHÔNG kêu oan khi tên trùng là tham số', array(),
+	vhg_soi_pham_vi_js(
+		"function chep(t){\n  function xong(){ return 1; }\n  xong();\n}\n"
+		. "function goi(v, d, xong){\n  xong(d);\n}\n" ) );
+
+/* ⚠️ ÁP CÙNG PHÉP THỬ CHO TRANG KHÁCH. Trang đó cũng là một ứng dụng một trang với hàng chục
+   hàm dựng màn, và cùng một cái bẫy. Ở đó hậu quả còn nặng hơn: khách bấm trả tiền mà không có
+   gì xảy ra. */
+$js_sh = vhg_js_cua( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-shop.php' );
+t( 'bóc được đoạn JS của trang khách', strlen( $js_sh ) > 10000, (string) strlen( $js_sh ) );
+teq( '🔴 bóc được ĐỦ hàm tầng ngoài của trang khách',
+	substr_count( $js_sh, "\nfunction " ),
+	dem( vhg_khoi_ham_js( vhg_bo_chu_thich_js( $js_sh ) ) ) );
+teq( '🔴 trang khách cũng không có hàm nào gọi lộn phạm vi', array(),
+	vhg_soi_pham_vi_js( $js_sh ) );
+
+/* Đoạn JS phải PHÂN TÍCH ĐƯỢC — dấu ngoặc lệch một cái là cả trang trắng. */
+$mo_nhon = 0;
+foreach ( $khoi as $ten => $vt ) {
+	if ( $vt[1] <= $vt[0] ) { $mo_nhon++; }
+}
+teq( '⚠️ mọi khối hàm đều đóng ngoặc đúng', 0, $mo_nhon );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
