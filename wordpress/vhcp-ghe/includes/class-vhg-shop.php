@@ -374,6 +374,9 @@ class VHG_Shop {
 			}
 		}
 		if ( '' === $g && isset( $_GET['ghe'] ) ) { $g = sanitize_text_field( wp_unslash( $_GET['ghe'] ) ); }
+		/* Thân gói dùng `ma_may` (như lượt `dung`) hoặc `ghe` — nhận cả hai, vì hai tên cho cùng
+		   một thứ đã tồn tại sẵn trong cổng này và đổi tên bây giờ là gãy lượt `dung`. */
+		if ( '' === $g && isset( $d['ma_may'] ) ) { $g = sanitize_text_field( (string) $d['ma_may'] ); }
 		if ( '' === $g && isset( $d['ghe'] ) ) { $g = sanitize_text_field( (string) $d['ghe'] ); }
 		$g = strtoupper( preg_replace( '/[^A-Za-z0-9]/', '', $g ) );
 		if ( '' === $g || ! VHG_May::may( $g ) ) { return ''; }
@@ -1030,7 +1033,10 @@ function noi(){
       var mg = Number(b.getAttribute('data-tieu'));
       var e = document.getElementById('t-e'), kq = document.getElementById('t-kq');
       ban = true; e.textContent = ''; kq.innerHTML = '<div class="cho">⏳ Đang trừ tiền…</div>';
-      goi('tieu', { sdt: VI.sdt || nhoSdt(), pin: VI.pin, menh_gia: mg }, function(r){
+      /* ⚠️ GỬI THẲNG mã ghế trong thân gói, y như lượt `dung` vẫn làm — đừng để máy chủ tự dò
+         lại từ địa chỉ. Trang ĐÃ BIẾT ghế rồi; bắt máy chủ suy lại là thêm một chỗ hỏng được,
+         và nó đã hỏng thật. Địa chỉ API nay cũng mang ghế, nên đây là lớp thứ hai. */
+      goi('tieu', { sdt: VI.sdt || nhoSdt(), pin: VI.pin, menh_gia: mg, ma_may: GHE }, function(r){
         ban = false;
         if (!r.ok) {
           kq.innerHTML = '';
@@ -1249,7 +1255,23 @@ JS;
 			. '<meta name="theme-color" content="#12141f">'
 			. '<style>' . self::css() . '</style></head><body' . $lop . $bien . '>'
 			. '<div id="app"></div>'
-			. '<script>window.VHG_SHOP=' . wp_json_encode( self::url() ) . ';'
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 ĐỊA CHỈ API PHẢI MANG THEO MÃ GHẾ.
+			 *
+			 * Anh Thắng 23/08/2026: *"quét QR tại ghế nó chọn luôn ghế đó, nhưng giờ chọn gói
+			 * nó báo chưa chọn ghế"*.
+			 *
+			 * Bản trước đưa `self::url()` — địa chỉ TRẦN, không tham số. Trang thì biết ghế
+			 * (`window.VHG_GHE` đúng, màn hiện "AMTP01"), nhưng mọi lượt gọi API lại đi tới một
+			 * địa chỉ KHÔNG mang ghế, nên máy chủ dò lại và không thấy gì.
+			 *
+			 * Hỏng HAI chỗ, không phải một:
+			 *   · `tieu` -> "Chưa biết dùng cho ghế nào" (chỗ anh Thắng thấy)
+			 *   · `goi`  -> số phút rơi về TỈ LỆ CHUNG ở mọi ghế — tức là bản vá "mệnh giá theo
+			 *     máy" hôm nay âm thầm không chạy. Chỗ này KHÔNG kêu lên: nó chỉ hiện một con
+			 *     số phút sai, và khách tin nó.
+			 * ══════════════════════════════════════════════════════════════════════════════ */
+			. '<script>window.VHG_SHOP=' . wp_json_encode( self::url( self::ghe_tu_dia_chi() ) ) . ';'
 			. 'window.VHG_GHE=' . wp_json_encode( self::ghe_tu_dia_chi() ) . ';'
 			. 'window.VHG_TEN=' . wp_json_encode( VHG_Trang::TEN_NGAN ) . ';</script>'
 			. '<script>' . self::js() . '</script>'

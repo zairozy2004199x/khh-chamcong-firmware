@@ -151,6 +151,44 @@ function vhg_shop_html( $ghe = '' ) {
 	return $ra;
 }
 
+/**
+ * 🔴 GỌI API ĐÚNG ĐƯỜNG TRÌNH DUYỆT ĐI.
+ *
+ * `vhg_shop()` ở trên nhận mã ghế qua khoá `ghe_url` — một lối tắt CHỈ CÓ TRONG BỘ THỬ. Trang
+ * thật thì không có lối đó: nó lấy địa chỉ API từ `window.VHG_SHOP` do máy chủ nhúng vào HTML,
+ * rồi POST tới đúng địa chỉ ấy.
+ *
+ * Ngày 23/08/2026 hai đường đó LỆCH NHAU, và lệch đúng chỗ chết người: máy chủ nhúng địa chỉ
+ * TRẦN (không mang mã ghế), nên mọi lượt gọi thật đều mất ngữ cảnh ghế —
+ *   · bấm gói để tiêu số dư -> "Chưa biết dùng cho ghế nào"
+ *   · bảng giá -> số phút rơi về tỉ lệ chung ở mọi ghế, và chỗ này KHÔNG kêu lên
+ * Bộ thử vẫn báo sạch, vì nó tự đưa mã ghế vào bằng lối tắt của riêng nó.
+ *
+ * Hàm này bỏ lối tắt: DỰNG TRANG trước, BÓC `window.VHG_SHOP` ra, rồi gọi API bằng đúng địa chỉ
+ * đó. Máy chủ quên nhúng mã ghế thì phép thử gãy ngay — đúng như phải thế.
+ */
+function vhg_shop_nhu_trang( $viec, $goi = array(), $ma_may = '' ) {
+	$html = vhg_shop_html( $ma_may );
+	$m = array();
+	if ( 1 !== preg_match( '/window\.VHG_SHOP=("(?:[^"\\\\]|\\\\.)*")/', $html, $m ) ) {
+		return array( 'ok' => false, 'error' => 'khong boc duoc window.VHG_SHOP tu trang' );
+	}
+	$dia_chi = json_decode( $m[1], true );
+	$truy = array();
+	parse_str( (string) wp_parse_url( (string) $dia_chi, PHP_URL_QUERY ), $truy );
+
+	$GLOBALS['VHG_THAN']       = json_encode( $goi );
+	$_SERVER['REQUEST_METHOD'] = 'POST';
+	$_SERVER['REQUEST_URI']    = (string) wp_parse_url( (string) $dia_chi, PHP_URL_PATH );
+	$_GET  = array_merge( $truy, array( 'api' => $viec ) );
+	$_POST = array();
+	$GLOBALS['VHCP_QVAR']['vhg_shop'] = 1;
+	ob_start(); VHG_Shop::phuc_vu(); $ra = ob_get_clean();
+	unset( $GLOBALS['VHCP_QVAR']['vhg_shop'] );
+	$_GET = array();
+	return json_decode( $ra, true );
+}
+
 /** Cấy một người vào danh sách riêng rồi lấy token. */
 function vhg_vao( $pin = '571394', $vai_tro = 'Admin' ) {
 	update_option( 'vhg_nguon_nguoidung', 'rieng' );
@@ -4809,6 +4847,118 @@ foreach ( array( $qr_chuoi_v, 'khmatrix.com/mua-ma/?ghe=AMTP01', 'HELLO WORLD', 
 		teq( 'ô tối cố định còn nguyên ' . $nhan, 1, (int) $oo[ $nn - 8 ][8] );
 	}
 }
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 23/08/2026 — TRANG BIẾT GHẾ NHƯNG KHÔNG NÓI CHO MÁY CHỦ
+ *
+ * Anh Thắng: *"quét QR tại ghế nó chọn luôn ghế đó, nhưng giờ chọn gói nó báo chưa chọn ghế"*.
+ *
+ * Máy chủ nhúng địa chỉ API TRẦN vào trang (`self::url()`, không tham số). Trang thì biết ghế
+ * — màn hiện đúng "AMTP01" — nhưng mọi lượt gọi API đi tới một địa chỉ không mang ghế, nên máy
+ * chủ dò lại và không thấy gì.
+ *
+ * Hỏng hai chỗ, và chỗ thứ hai TỆ HƠN vì nó không kêu lên:
+ *   · `tieu` -> "Chưa biết dùng cho ghế nào"          (kêu, anh Thắng thấy ngay)
+ *   · `goi`  -> số phút rơi về TỈ LỆ CHUNG ở mọi ghế  (im lặng, khách tin con số sai)
+ *
+ * ⚠️ VÌ SAO BỘ THỬ KHÔNG BẮT ĐƯỢC. `vhg_shop()` nhận mã ghế qua khoá `ghe_url` — một lối tắt
+ *    CHỈ CÓ TRONG BỘ THỬ. Nó tự đưa mã ghế vào `$_GET` rồi gọi API, tức là nó thử một đường mà
+ *    trang thật không bao giờ đi. Bộ thử và sản phẩm chạy trên hai con đường khác nhau.
+ *
+ *    Đây là họ hàng gần của lỗi mã QR sáng nay: cả hai đều là "phép thử tự dựng lấy thế giới
+ *    của nó rồi kiểm tra trong thế giới đó". Thuốc cũng giống nhau — bắt phép thử phải đi qua
+ *    đúng đường mà thứ thật đi.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+VHG_May::luu_ty_le( 10000, 6 );
+$wpdb->query( "UPDATE " . VHG_DB::t( 'may' ) . " SET gia=10000, phut=12 WHERE ma='AMTP02'" );
+VHG_May::luu_menh_gia( array(
+	array( 'tien' => 10000,  'phut' => 0, 'ten' => 'GOI CO BAN',     'mo_ta' => 'Khoi dong', 'vip' => 0 ),
+	array( 'tien' => 100000, 'phut' => 0, 'ten' => 'GOI THUONG HANG','mo_ta' => 'Dang cap',  'vip' => 1 ),
+) );
+
+// ---- gốc: địa chỉ API nhúng vào trang phải MANG THEO mã ghế
+$html_g = vhg_shop_html( 'AMTP01' );
+$m_g = array();
+t( 'trang có nhúng địa chỉ API', 1 === preg_match( '/window\.VHG_SHOP=("(?:[^"\\\\]|\\\\.)*")/', $html_g, $m_g ) );
+$api_url = (string) json_decode( $m_g[1], true );
+t( '🔴 địa chỉ API MANG THEO mã ghế — không mang là mọi lượt gọi mất ngữ cảnh',
+	strpos( $api_url, 'ghe=AMTP01' ) !== false, $api_url );
+
+// ---- ngọn 1: bấm gói tiêu số dư, đi đúng đường trình duyệt đi
+$vsdt = '0909777111';
+$dn_ = VHG_Vi::dat_don( $vsdt, '1234', 100000, '' );
+VHG_Vi::nap( $dn_['ma_don'], 'ref-ghe-1' );
+$wpdb->query( "UPDATE " . VHG_DB::t( 'vi_so' ) . " SET dung_duoc_tu='2020-01-01 00:00:00'
+	WHERE sdt='" . $vsdt . "' AND da_chin=0" );
+VHG_Vi::chin( $vsdt );
+$GLOBALS['VHCP_TR'] = array();
+$tv_ = vhg_shop_nhu_trang( 'tieu',
+	array( 'sdt' => $vsdt, 'pin' => '1234', 'menh_gia' => 10000, 'ma_may' => 'AMTP01' ), 'AMTP01' );
+t( '🔴 bấm gói tiêu số dư CHẠY ĐƯỢC theo đúng đường trang thật gọi',
+	! empty( $tv_['ok'] ), isset( $tv_['error'] ) ? $tv_['error'] : '' );
+t( 'và không còn câu "chưa biết dùng cho ghế nào"',
+	strpos( (string) ( isset( $tv_['error'] ) ? $tv_['error'] : '' ), 'ghế nào' ) === false );
+teq( 'trừ đúng 10k', 110000, (int) VHG_Vi::so_du( $vsdt )['dung'] );
+
+/* Trang KHÔNG biết ghế (mở thẳng /mua-ma, không qua tem) thì vẫn phải TỪ CHỐI — chốt cũ còn nguyên. */
+$GLOBALS['VHCP_TR'] = array();
+$tv_khong = vhg_shop_nhu_trang( 'tieu',
+	array( 'sdt' => $vsdt, 'pin' => '1234', 'menh_gia' => 10000 ), '' );
+t( '🔴 không qua tem thì VẪN từ chối, không đoán bừa một ghế', empty( $tv_khong['ok'] ) );
+
+// ---- ngọn 2: số phút — chỗ hỏng IM LẶNG
+$goi_a1 = vhg_shop_nhu_trang( 'goi', array(), 'AMTP01' );   // tỉ lệ chung: 10k = 6 phút
+$goi_a2 = vhg_shop_nhu_trang( 'goi', array(), 'AMTP02' );   // tỉ lệ riêng: 10k = 12 phút
+teq( 'cổng trả đúng ghế trên tem (AMTP01)', 'AMTP01', (string) $goi_a1['ghe'] );
+teq( 'cổng trả đúng ghế trên tem (AMTP02)', 'AMTP02', (string) $goi_a2['ghe'] );
+teq( 'số phút của AMTP01 theo tỉ lệ chung', 6, (int) $goi_a1['goi'][0]['phut'] );
+teq( '🔴 số phút của AMTP02 theo TỈ LỆ RIÊNG của nó — không phải tỉ lệ chung',
+	12, (int) $goi_a2['goi'][0]['phut'] );
+t( 'hai ghế ra hai con số khác nhau',
+	(int) $goi_a1['goi'][0]['phut'] !== (int) $goi_a2['goi'][0]['phut'] );
+
+
+
+/* ---- TRANG NHÂN VIÊN PHẢI THẤY SỐ DƯ VÍ
+   Anh Thắng 23/08/2026: *"trên wed cũng chưa có số dư của ví khách"*. Tab "Mã giảm giá" chỉ
+   hiện mã, trong khi ví cũng là tiền khách đã trả mà chưa tiêu — cùng một khoản nợ. */
+$vsdt2 = '0909777111';
+$tok_v = vhg_vao( '778899', 'Admin' );
+$web_v = vhg_web( 'so_lieu', array( 'ky' => 'all', 'token' => $tok_v ) );
+t( 'vào được trang nhân viên để soi ví', ! empty( $web_v['ok'] ),
+	isset( $web_v['error'] ) ? $web_v['error'] : '' );
+t( 'trang nhân viên nhận được dữ liệu ví', isset( $web_v['vi'] ) );
+t( 'kèm tổng nợ ví', isset( $web_v['vi']['no']['tong'] ) );
+t( '🔴 tổng nợ ví KHỚP con số lõi tính ra',
+	(int) $web_v['vi']['no']['tong'] === (int) VHG_Vi::tong_no()['tong'] );
+t( 'và kèm danh sách ví còn tiền', isset( $web_v['vi']['ds'] ) && count( $web_v['vi']['ds'] ) > 0 );
+
+/* 🔴 CHE SỐ ĐIỆN THOẠI Ở MÁY CHỦ, không phải chỉ ở giao diện.
+      Che ở giao diện là số đầy đủ vẫn nằm trong gói JSON — mở tab Network ra là thấy, và một
+      dòng trong bảng điều khiển trình duyệt là xuất được cả danh sách khách hàng. */
+$json_v = wp_json_encode( $web_v['vi'] );
+t( '🔴 gói tin KHÔNG mang số điện thoại đầy đủ', strpos( $json_v, $vsdt2 ) === false );
+t( 'nhưng vẫn đủ bốn số cuối để nhân viên đối chiếu',
+	strpos( $json_v, substr( $vsdt2, -3 ) ) !== false );
+t( 'và không mang chuỗi băm PIN của ai', strpos( $json_v, 'pin_bam' ) === false );
+
+/* Tra hộ khách quên PIN phải ra CẢ HAI — khách không nhớ mình mua mã hay nạp ví. */
+$tra_hai = vhg_web( 'ma_tra', array( 'sdt' => $vsdt2, 'token' => $tok_v ) );
+t( '🔴 tra một lần ra luôn số dư ví', ! empty( $tra_hai['ok'] ) && isset( $tra_hai['vi'] ) );
+teq( 'và đúng số dư', (int) VHG_Vi::so_du( $vsdt2 )['dung'], (int) $tra_hai['vi']['dung'] );
+/* Số chưa có gì thì nói rõ là chưa có gì, đừng báo lỗi. */
+$tra_khong = vhg_web( 'ma_tra', array( 'sdt' => '0900000001', 'token' => $tok_v ) );
+t( 'số chưa mua gì thì không có ví', ! isset( $tra_khong['vi'] ) );
+
+/* Giao diện có dựng khối ví. */
+$html_v = vhg_web_html();
+t( 'màn nhân viên có ô số dư ví khách', strpos( $html_v, 'SỐ DƯ VÍ KHÁCH' ) !== false );
+t( '🔴 và có ô TỔNG NỢ gộp cả mã lẫn ví — nhìn riêng một vế là thấy nửa sự thật',
+	strpos( $html_v, 'TỔNG NỢ KHÁCH' ) !== false );
+t( 'có bảng ví còn tiền', strpos( $html_v, 'Ví khách còn tiền' ) !== false );
+t( 'và bảng đó dùng số đã che', strpos( $html_v, 'esc(v.sdt_che)' ) !== false );
 
 
 // ============================================================ kết

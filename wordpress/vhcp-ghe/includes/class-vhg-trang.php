@@ -167,7 +167,27 @@ class VHG_Trang {
 			/* Nhân viên tra hộ khách QUÊN PIN — chỉ cần số điện thoại.
 			   ⚠️ Đường này bỏ qua PIN, nên nó CHỈ được nằm ở đây: trang `/ghe` đã qua cổng PIN
 			      nhân viên. Trang của khách không có việc này, và không được có. */
-			self::tra( VHG_Ma::tra_nhan_vien( isset( $d['sdt'] ) ? $d['sdt'] : '' ) );
+			$sdt_tra = isset( $d['sdt'] ) ? $d['sdt'] : '';
+			$kq_ma   = VHG_Ma::tra_nhan_vien( $sdt_tra );
+			/* 🔴 TRA MỘT LẦN, RA CẢ HAI. Khách đứng ở quầy nói "em có mua trước" — họ không nhớ
+			   mình mua MÃ hay nạp VÍ, và không có lý do gì phải nhớ. Bắt nhân viên tra hai chỗ
+			   là có ngày họ tra một chỗ, thấy trống, rồi nói với khách là "không có gì". */
+			$kq_vi = VHG_Vi::tra_nhan_vien( $sdt_tra );
+			if ( ! empty( $kq_vi['ok'] ) ) {
+				$kq_ma['vi'] = array(
+					'dung'    => (int) $kq_vi['so_du']['dung'],
+					'cho'     => (int) $kq_vi['so_du']['cho'],
+					'tong'    => (int) $kq_vi['so_du']['tong'],
+					'con_cho' => (int) $kq_vi['so_du']['con_cho'],
+					'khoa'    => empty( $kq_vi['so_du']['khoa'] ) ? 0 : 1,
+				);
+			}
+			/* Không có mã NHƯNG có ví thì vẫn là một lượt tra THÀNH CÔNG — đừng trả `ok=false`
+			   chỉ vì một trong hai vế trống. */
+			if ( empty( $kq_ma['ok'] ) && ! empty( $kq_vi['ok'] ) ) {
+				$kq_ma = array( 'ok' => true, 'ds' => array(), 'vi' => $kq_ma['vi'] );
+			}
+			self::tra( $kq_ma );
 			return;
 		}
 
@@ -312,7 +332,45 @@ class VHG_Trang {
 			'ma' => array( 'tong' => VHG_Ma::tong( $ky ), 'no' => VHG_Ma::tien_no(),
 				'ds' => VHG_Ma::ds( $ky, 120 ), 'quyen_huy' =>
 					in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ? 1 : 0 ),
+			/* 🔴 VÍ ĐI CÙNG MÃ, KHÔNG TÁCH RA TAB RIÊNG.
+			   Anh Thắng 23/08/2026: *"trên wed cũng chưa có số dư của ví khách"*.
+			   Hai thứ này cùng trả lời một câu hỏi của nhân viên đang đứng ở quầy: *"khách này
+			   còn gì chưa dùng?"* — tách hai tab là bắt họ nhớ khách mua kiểu nào trước khi tra,
+			   mà chính khách cũng không nhớ.
+			   ⚠️ `so_du` là NỢ, đúng như `VHG_Ma::tien_no()` bên trên: tiền đã thu, dịch vụ chưa
+			      trả. Hai con số phải đứng CẠNH NHAU thì mới ra được tổng nợ thật. */
+			'vi' => array( 'no' => VHG_Vi::tong_no(), 'ds' => self::vi_gon( VHG_Vi::ds_vi( 60 ) ),
+				'co_ban' => VHG_Vi::goi_nap() ? 1 : 0 ),
 			'luc' => current_time( 'H:i:s' ) );
+	}
+
+	/**
+	 * Rút gọn danh sách ví trước khi gửi ra trình duyệt.
+	 *
+	 * 🔴 CHE SỐ ĐIỆN THOẠI, VÀ CẮT LUÔN SỐ ĐẦY ĐỦ RA KHỎI GÓI TIN.
+	 *    Che ở giao diện là chưa đủ: số đầy đủ vẫn nằm trong gói JSON, và mở tab Network ra là
+	 *    thấy — hoặc chỉ cần một dòng trong bảng điều khiển trình duyệt là xuất được cả danh
+	 *    sách khách hàng. Phải cắt ở MÁY CHỦ, trước khi gửi.
+	 *
+	 * ⚠️ Cũng vì thế mà hàm này KHÔNG dùng chung với màn quản trị: màn kia chạy trong wp-admin,
+	 *    đã qua cổng đăng nhập của WordPress và có quyền cao hơn. Trang `/ghe` là màn nhân viên
+	 *    ca nào cũng mở, thường để nguyên trên một cái máy tính ở quầy.
+	 *
+	 * Bốn số cuối vẫn còn — đủ để nhân viên đối chiếu với khách đang đứng trước mặt.
+	 */
+	private static function vi_gon( $ds ) {
+		$ra = array();
+		foreach ( (array) $ds as $v ) {
+			$ra[] = array(
+				'sdt_che'    => VHG_Ma::sdt_che( isset( $v['sdt'] ) ? $v['sdt'] : '' ),
+				'so_du_dung' => (int) ( isset( $v['so_du_dung'] ) ? $v['so_du_dung'] : 0 ),
+				'so_du_cho'  => (int) ( isset( $v['so_du_cho'] ) ? $v['so_du_cho'] : 0 ),
+				'da_nap'     => (int) ( isset( $v['da_nap'] ) ? $v['da_nap'] : 0 ),
+				'da_tieu'    => (int) ( isset( $v['da_tieu'] ) ? $v['da_tieu'] : 0 ),
+				'khoa'       => empty( $v['khoa'] ) ? 0 : 1,
+			);
+		}
+		return $ra;
 	}
 
 	// =========================================================================================
@@ -611,6 +669,17 @@ var app = document.getElementById('app');
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 function tien(n){ return (Number(n)||0).toLocaleString('vi-VN') + 'đ'; }
+/* "còn 4 ngày 3 giờ" — câu người đọc là hiểu.
+   ⚠️ Nói GIỐNG HỆT ba nơi kia: VHG_Ma::doc_con_cho() bên máy chủ, và docCho() bên trang khách.
+      Cùng một khoảng thời gian mà ba nơi nói ba kiểu là nhân viên đọc một đằng, khách đọc một
+      nẻo, rồi cãi nhau xem ai đúng. */
+function docCho(giay){
+  var g = Math.max(0, Number(giay) || 0);
+  var ngay = Math.floor(g / 86400), gio = Math.floor((g % 86400) / 3600);
+  if (ngay > 0) return ngay + L(' ngày',' days') + (gio > 0 ? ' ' + gio + L(' giờ',' h') : '');
+  if (gio > 0)  return gio + L(' giờ',' hours');
+  return Math.max(1, Math.ceil(g / 60)) + L(' phút',' min');
+}
 /* mm:ss có số 0 ở đầu — ĐÚNG KIỂU MÀN GHẾ VẼ (`snprintf("%02d:%02d")`). Ghế hiện "04:57" mà
    web hiện "4:57" thì cùng một con số ra hai kiểu, và người đối chiếu bằng mắt sẽ dừng lại một
    nhịp để tự hỏi hai chỗ có nói cùng một thứ không. Chiều rộng cố định còn đỡ nhảy chữ khi
@@ -1037,6 +1106,23 @@ function veMa(){
         M.no.so_ma + ' ' + L('mã chưa dùng','unused codes'), 'd')
     + '</div>';
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * VÍ KHÁCH — đứng ngay dưới ô mã, không tách tab.
+   *
+   * 🔴 TỔNG NỢ THẬT = nợ mã + nợ ví. Nhìn riêng một vế là thấy một nửa sự thật, và cái nửa
+   *    thiếu luôn là nửa làm con số đẹp lên. Nên hiện luôn cả tổng.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var V = D.vi || { no:{dung:0,cho:0,tong:0,so_vi:0}, ds:[], co_ban:0 };
+  if (V.co_ban || V.no.tong > 0 || V.ds.length) {
+    h += '<div class="kpis">'
+      + kpi(L('SỐ DƯ VÍ KHÁCH','CUSTOMER WALLET BALANCE'), tien(V.no.tong),
+          V.no.so_vi + ' ' + L('ví','wallets')
+            + (V.no.cho > 0 ? ' · ' + tien(V.no.cho) + ' ' + L('đang chờ','on hold') : ''), 'd')
+      + kpi(L('TỔNG NỢ KHÁCH','TOTAL OWED'), tien(M.no.tong + V.no.tong),
+          L('mã chưa dùng + số dư ví','unused codes + wallet balance'), 'd')
+      + '</div>';
+  }
+
   h += '<div class="card"><h2>' + L('Khách quên PIN — tra hộ','Customer forgot PIN — look up')
     + '</h2><p class="mut" style="margin:0 0 10px">'
     + L('Nhập số điện thoại khách mua. Chỉ nhân viên tra được kiểu này — trang của khách vẫn '
@@ -1047,14 +1133,51 @@ function veMa(){
     + '<button id="ma-tra" class="on">' + L('Tra','Look up') + '</button></div>'
     + '<div class="err" id="ma-e"></div>';
   if (MA_TRA) {
+    /* Ví hiện TRƯỚC bảng mã: nếu khách có ví thì đó thường là thứ họ đang hỏi. */
+    if (MA_TRA.vi) {
+      h += '<div class="ok" style="margin-top:10px">'
+        + L('Số dư ví tiêu được: ','Wallet available: ') + '<b>' + tien(MA_TRA.vi.dung) + '</b>'
+        + (MA_TRA.vi.cho > 0
+            ? '<br>⏳ ' + tien(MA_TRA.vi.cho) + ' ' + L('đang trong hạn chờ','on hold')
+              + (MA_TRA.vi.con_cho > 0
+                  ? ' — ' + L('dùng được sau ','available in ') + docCho(MA_TRA.vi.con_cho) : '')
+            : '')
+        + (MA_TRA.vi.khoa ? '<br><b style="color:#ff6b6b">' + L('VÍ ĐANG KHOÁ','WALLET LOCKED') + '</b>' : '')
+        + '</div>';
+    }
     if (!MA_TRA.ds.length) {
       h += '<p class="mut" style="margin-top:10px">'
-        + L('Số này chưa mua mã nào.','No codes for this number.') + '</p>';
+        + (MA_TRA.vi ? L('Số này không có mã lẻ nào (chỉ có ví).','No individual codes (wallet only).')
+                     : L('Số này chưa mua mã, cũng chưa có ví.','No codes and no wallet for this number.'))
+        + '</p>';
     } else {
       h += bangMa(MA_TRA.ds, M.quyen_huy, true);
     }
   }
   h += '</div>';
+
+  /* Danh sách ví còn tiền — nợ nằm ở đâu, ai giữ nhiều nhất.
+     ⚠️ Số điện thoại đã CHE từ máy chủ (VHG_Ma::sdt_che). Màn này nhân viên ca nào cũng mở;
+        in đủ số là biến bảng tiền thành danh bạ khách hàng, bôi đen là chép được cả nghìn số. */
+  if (V.ds.length) {
+    h += '<div class="card"><h2>' + L('Ví khách còn tiền','Wallets with balance') + '</h2>'
+      + '<table><thead><tr><th>' + L('Số điện thoại','Phone') + '</th>'
+      + '<th>' + L('Tiêu được','Available') + '</th>'
+      + '<th>' + L('Đang chờ','On hold') + '</th>'
+      + '<th>' + L('Đã nạp','Topped up') + '</th>'
+      + '<th>' + L('Đã tiêu','Spent') + '</th>'
+      + '<th>' + L('Tình trạng','Status') + '</th></tr></thead><tbody>';
+    V.ds.forEach(function(v){
+      h += '<tr><td>' + esc(v.sdt_che) + '</td>'
+        + '<td><b>' + tien(v.so_du_dung) + '</b></td>'
+        + '<td>' + (v.so_du_cho > 0 ? tien(v.so_du_cho) : '—') + '</td>'
+        + '<td>' + tien(v.da_nap) + '</td>'
+        + '<td>' + tien(v.da_tieu) + '</td>'
+        + '<td>' + (v.khoa ? '<b style="color:#ff6b6b">' + L('ĐANG KHOÁ','LOCKED') + '</b>'
+                           : '<span class="mut">' + L('bình thường','normal') + '</span>') + '</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
 
   h += '<div class="card"><h2>' + L('Mã đã bán trong kỳ','Codes sold this period') + '</h2>'
     + (M.ds.length ? bangMa(M.ds, M.quyen_huy, false)
