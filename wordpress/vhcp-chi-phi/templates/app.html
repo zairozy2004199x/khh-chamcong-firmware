@@ -1841,6 +1841,13 @@
     if(!confirm('Sửa ngày cho '+NGH.tong+' dòng?\n\nĐây là số liệu kế toán — ngày quyết định KỲ HẠCH TOÁN khi xuất MISA. Xem kỹ cột "Ngày sẽ ghi" trước khi đồng ý.')) return;
     _chayNgayHong(c, n, true);
   }
+  function saveDonNgay(maDon, truong, val){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ _log('Sửa ngày của đơn', maDon, truong+' -> '+(r.ngay||'(trống)')); toast('ok','Đã sửa ngày của đơn'); loadQT(); }
+      else toast('err',(r&&r.error)||'Không sửa được');
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).setDonNgay(maDon, truong, val);
+  }
   function saveLineNgay(id, val){
     if(!val) return;
     loading(true);
@@ -4069,7 +4076,13 @@
     var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
     el('qtBodyChuaNop').innerHTML=lat.map(function(d){
       return '<tr><td>'+esc(d.ky||d.maDon)+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
-        '<td class="money">'+money(d.tamUng)+'</td><td style="font-size:12px;color:#64748b">'+esc(d.ngayCap||'—')+'</td>'+
+        // NGÀY CẤP TIỀN sửa được tại chỗ (Admin). Cột này là DATETIME nên số sê-ri bảng tính
+        // bị MySQL loại thẳng lúc nạp — mất hẳn, chỉ còn cách điền lại bằng tay.
+        '<td style="font-size:12px;color:#64748b;white-space:nowrap">'+((CURUSER&&CURUSER.role==='Admin')
+          ? '<input type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy" value="'+esc(d.ngayCap||'')+'"'
+            +' onchange="saveDonNgay(\''+esc(d.maDon)+'\',\'ngayCap\',this.value)" style="width:98px;text-align:center;padding:3px 4px'
+            +(d.ngayCap?'':';border-color:#f59e0b;background:#fffbeb')+'" title="Sửa ngày cấp tiền">'
+          : esc(d.ngayCap||'—'))+'</td>'+
         '<td style="text-align:center"><button class="btn b-s" onclick="qtChuaNopDetail(\''+esc(d.maDon)+'\',this)">🔽 Chi tiết</button></td></tr>'+
         '<tr id="qtcn-'+esc(d.maDon)+'" style="display:none"><td colspan="6" style="background:#f8fafc;padding:0"><div class="qtcn-wrap" style="padding:12px 16px"><span style="color:#94a3b8;font-size:12px">Đang tải…</span></div></td></tr>';
     }).join('');
@@ -4212,7 +4225,19 @@
       var loai=(l.phanLoaiTT==='Nhà cung cấp'||l.cnXuLy===false)?'<span style="color:#b45309">🏢NCC</span>':'👤CN';
       var dau=con?'<span style="color:#b45309;font-weight:700" title="Chi phí con — mua thêm ngoài dự kiến">+</span> ':'';
       var lui=con?'padding-left:26px;background:#fffdf7':'';
-      return '<tr'+(con?' style="background:#fffdf7"':'')+'><td style="'+lui+'">'+dau+esc(l.noiDung||'')+(l.ghiChu?'<div style="font-size:10px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
+      // CỘT NGÀY NGAY TRONG BẢNG CHI TIẾT — sửa được tại chỗ.
+      // Bảng này là chỗ kế toán soi đơn ở màn Quyết toán / Chưa nộp hóa đơn, mà nó KHÔNG
+      // có cột ngày: thấy đơn thiếu ngày cũng phải mở trang đầy đủ mới sửa được. Ngày
+      // quyết định kỳ hạch toán nên phải sửa được ngay chỗ đang nhìn.
+      var xauN=_ngayVoLy(l.ngay), suaN=(CURUSER&&CURUSER.role==='Admin');
+      var oNgay = suaN
+        ? '<input type="text" inputmode="numeric" maxlength="10" placeholder="dd/mm/yyyy" value="'+esc(l.ngay||'')+'"'
+          +' onchange="saveLineNgay(\''+l.id+'\',this.value)" style="width:98px;text-align:center;padding:3px 4px;'
+          +(xauN?'border-color:#dc2626;background:#fef2f2;color:#b91c1c;font-weight:700':'')+'"'
+          +' title="'+(xauN?'Ngày hỏng — gõ lại kiểu ngày/tháng/năm':'Sửa ngày ngay tại đây')+'">'
+        : (l.ngay ? (xauN?'<b style="color:#b91c1c" title="Ngày hỏng">'+esc(l.ngay)+'</b>':esc(l.ngay))
+                  : '<span style="color:#b91c1c;font-weight:700" title="Dòng chưa có ngày — Admin sửa được tại đây">— thiếu ngày</span>');
+      return '<tr'+(con?' style="background:#fffdf7"':'')+'><td style="white-space:nowrap">'+oNgay+'</td><td style="'+lui+'">'+dau+esc(l.noiDung||'')+(l.ghiChu?'<div style="font-size:10px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
         '<td style="text-align:center;font-size:11px;color:#64748b">'+esc(l.dvt||'')+'</td>'+
         '<td class="money">'+(l.soLuong?money(l.soLuong):'')+'</td>'+
         '<td class="money">'+(l.donGia?money(l.donGia):'')+'</td>'+
@@ -4221,7 +4246,7 @@
         '<td style="text-align:center;font-size:11px">'+loai+'</td>'+
         '<td style="text-align:center">'+(l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Xem ảnh chứng từ"><img src="'+esc(l.anh)+'" style="height:34px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'—')+'</td></tr>';
     }
-    var COT='<thead><tr><th>Nội dung</th><th style="text-align:center">ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực chi</th><th style="text-align:center">Loại</th><th style="text-align:center">Ảnh</th></tr></thead>';
+    var COT='<thead><tr><th style="width:104px">Ngày</th><th>Nội dung</th><th style="text-align:center">ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right">Thực chi</th><th style="text-align:center">Loại</th><th style="text-align:center">Ảnh</th></tr></thead>';
     // MỘT LOẠI CHI PHÍ = một khối: tiêu đề loại + danh sách + chi phí con của chính loại đó
     function loaiHtml(ten, L){
       var xin=L.filter(function(l){return !l.phatSinh;}), ps=L.filter(function(l){return !!l.phatSinh;});
@@ -4233,7 +4258,7 @@
         +'</div>';
       h+='<div class="tw"><table>'+COT+'<tbody>'+xin.map(function(l){return rowHtml(l,false);}).join('');
       if(ps.length){
-        h+='<tr><td colspan="8" style="background:#fff7ed;color:#b45309;font-weight:700;font-size:11.5px;padding:5px 10px;border-left:4px solid #f59e0b">'
+        h+='<tr><td colspan="9" style="background:#fff7ed;color:#b45309;font-weight:700;font-size:11.5px;padding:5px 10px;border-left:4px solid #f59e0b">'
           +'➕ Chi phí con — mua thêm ngoài dự kiến ('+ps.length+' dòng) · vẫn thuộc "'+esc(ten)+'"'
           +' <span style="font-weight:400;color:#92400e">· thực chi '+money(tong(ps,eff))+'đ</span></td></tr>';
         h+=ps.map(function(l){return rowHtml(l,true);}).join('');

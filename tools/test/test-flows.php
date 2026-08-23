@@ -1127,6 +1127,29 @@ teq( 'dấu phẩy thập phân (máy Việt) cũng đọc được', '2026-07-2
 teq( 'số ngoài khoảng sê-ri thì không nhận', null, VHCP_Util::seri( '62943.5' ) );
 teq( 'năm 4 chữ số không phải sê-ri', null, VHCP_Util::seri( '2026' ) );
 
+// NGÀY CỦA CHÍNH ĐƠN (tạo / duyệt / cấp tiền / quyết toán) là cột DATETIME, nên số sê-ri
+// bảng tính bị MySQL loại thẳng lúc nạp -> MẤT HẲN, không khôi phục được như cột kỳ.
+// Chỉ còn cách để Admin điền lại — mà ngày quyết toán còn là ngày dự phòng khi xuất MISA.
+$m_dn = VHCP_Don::create_don( 'T8/2026 (10/8-16/8/2026)', 'NV A' )['maDon'];
+// Đổi vai trò là ĐỔI TRẠNG THÁI TOÀN CỤC. Không trả lại nguyên trạng thì mọi phép thử
+// phía sau chạy dưới quyền Admin — chúng vẫn xanh, nhưng xanh vì được bỏ qua kiểm tra.
+$vt_cu = VHCP_Auth::vai_tro(); $ng_cu = VHCP_Auth::nguoi();
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$r_dn = VHCP_Don::set_don_ngay( $m_dn, 'ngayCap', '12/08/2026' );
+t( 'Admin điền được ngày cấp tiền', ! empty( $r_dn['success'] ), $r_dn );
+teq( 'ghi đúng ngày', '12/08/2026', VHCP_Util::fmt( VHCP_Don::don_row( $m_dn )['ngay_cap'] ) );
+t( 'xoá cho về trống cũng được', ! empty( VHCP_Don::set_don_ngay( $m_dn, 'ngayCap', '' )['success'] ) );
+teq( 'và đã về trống', '', VHCP_Util::fmt( VHCP_Don::don_row( $m_dn )['ngay_cap'] ) );
+t( 'ngày vô lý bị chặn', empty( VHCP_Don::set_don_ngay( $m_dn, 'ngayCap', '12/08/4621' )['success'] ) );
+t( 'cột lạ bị chặn', empty( VHCP_Don::set_don_ngay( $m_dn, 'ngayBaDao', '12/08/2026' )['success'] ) );
+t( 'sê-ri bảng tính điền vào cũng đọc được', ! empty( VHCP_Don::set_don_ngay( $m_dn, 'ngayQT', '46232.0' )['success'] ) );
+teq( 'và ra đúng ngày', '29/07/2026', VHCP_Util::fmt( VHCP_Don::don_row( $m_dn )['ngay_qt'] ) );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV A' );
+t( 'người khác KHÔNG sửa được ngày của đơn', empty( VHCP_Don::set_don_ngay( $m_dn, 'ngayCap', '12/08/2026' )['success'] ) );
+VHCP_Auth::dat_vai_tro( $vt_cu, $ng_cu );   // trả nguyên trạng cho các phép thử sau
+t( 'đã trả lại đúng vai trò trước đó', VHCP_Auth::vai_tro() === $vt_cu && VHCP_Auth::nguoi() === $ng_cu,
+	array( VHCP_Auth::vai_tro(), $vt_cu ) );
+
 // NHẬT KÝ: thời điểm sai thì NÓI LÀ KHÔNG BIẾT, đừng hiện ngày bịa.
 // Nhật ký cũ nạp vào có cột thời điểm là sê-ri; thời điểm thật KHÔNG khôi phục được. Hiện
 // "04/01/6294" là nói sai — mà nhật ký chính là chỗ tra ai làm gì lúc nào.

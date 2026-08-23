@@ -1063,6 +1063,40 @@ class VHCP_Don {
 		return self::sua_ngay_hong( 'nam', $nam, $nam > 0, $ma_don );
 	}
 
+	/**
+	 * SỬA NGÀY CỦA CHÍNH ĐƠN (ngày tạo / duyệt / cấp tiền / quyết toán) — CHỈ ADMIN.
+	 *
+	 * Mấy cột này là DATETIME, nên số sê-ri bảng tính bị MySQL loại thẳng lúc nạp: giá trị
+	 * MẤT HẲN, không khôi phục được như cột kỳ. Chỉ còn cách để người biết việc điền lại —
+	 * mà ngày quyết toán còn là ngày dự phòng khi xuất MISA, để trống là dòng chi không có
+	 * ngày nào cả.
+	 */
+	public static function set_don_ngay( $ma_don, $truong, $ngay ) {
+		if ( VHCP_Auth::vai_tro() !== 'Admin' ) { return VHCP_Util::err( 'Chỉ Admin sửa được ngày của đơn' ); }
+		$cot = array(
+			'ngayTao'   => 'ngay_tao',
+			'ngayDuyet' => 'ngay_duyet',
+			'ngayCap'   => 'ngay_cap',
+			'ngayQT'    => 'ngay_qt',
+		);
+		$k = (string) $truong;
+		if ( ! isset( $cot[ $k ] ) ) { return VHCP_Util::err( 'Không rõ cột ngày: ' . $k ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+
+		global $wpdb;
+		$s = trim( (string) $ngay );
+		if ( $s === '' ) {                      // xoá cho về trống là hợp lệ
+			$wpdb->update( VHCP_DB::t( 'don' ), array( $cot[ $k ] => null ), array( 'ma_don' => (string) $ma_don ) );
+			return VHCP_Util::ok( array( 'ngay' => '' ) );
+		}
+		$iso = VHCP_Util::parse_date( $s );
+		if ( ! $iso ) { return VHCP_Util::err( 'Ngày không đọc được: ' . $s ); }
+		if ( VHCP_Util::ngay_vo_ly( VHCP_Util::fmt( $iso ) ) ) { return VHCP_Util::err( 'Ngày vô lý: ' . VHCP_Util::fmt( $iso ) ); }
+		$wpdb->update( VHCP_DB::t( 'don' ), array( $cot[ $k ] => $iso . ' 00:00:00' ), array( 'ma_don' => (string) $ma_don ) );
+		return VHCP_Util::ok( array( 'ngay' => VHCP_Util::fmt( $iso ) ) );
+	}
+
 	public static function set_line_anh( $id, $url ) {
 		$_loi = self::loi_khong_phai_dong_minh( $id );
 		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }

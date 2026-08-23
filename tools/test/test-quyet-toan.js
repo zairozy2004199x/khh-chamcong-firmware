@@ -74,7 +74,13 @@ t('15 đơn mỗi trang', /var QT_MOI_TRANG=15\b/.test(HTML));
 // ---------------------------------------------------------------- 4. cây phân cấp chi phí
 global.esc = v => String(v == null ? '' : v);
 global.money = v => String(Number(v) || 0);
-const LBC = new Function('esc', 'money', layHam('_linesByCosoHtml') + '; return _linesByCosoHtml;')(global.esc, global.money);
+// Bảng chi tiết nay có CỘT NGÀY sửa tại chỗ -> cần _ngayVoLy và CURUSER. Nạp hàm thật
+// từ app.html thay vì viết bản giả, không thì phép thử soi một cái khác với cái đang chạy.
+function LBCvoi(user) {
+  return new Function('esc', 'money', 'CURUSER',
+    layHam('_ngayVoLy') + '\n' + layHam('_linesByCosoHtml') + '; return _linesByCosoHtml;')(global.esc, global.money, user);
+}
+const LBC = LBCvoi({ role: 'Kế toán cá nhân' });
 
 const mot = LBC({ lines: [
   { coso: 'ADV GO AN LẠC', nhom: 'Chi phí cơ sở', noiDung: 'khăn lau', thanhTien: 246000 },
@@ -161,6 +167,26 @@ t('và gửi cờ đó lên máy chủ', /them:\(el\('lnThem'\)&&el\('lnThem'\)\
 t('mở popup thì bỏ tích sẵn (khai lần sau không vô tình cộng dồn mã)',
   /if\(el\('lnThem'\)\) el\('lnThem'\)\.checked=false;/.test(HTML));
 t('nói rõ bỏ trống thì mã mới THAY mã cũ', /mã mới THAY mã cũ/.test(HTML));
+
+// Cột NGÀY trong bảng chi tiết — chỗ kế toán soi đơn ở màn Quyết toán / Chưa nộp hóa đơn.
+// Trước đây bảng này KHÔNG có cột ngày: thấy đơn thiếu ngày cũng phải mở trang đầy đủ.
+const ngayHtml = LBC({ lines: [
+  { coso: 'A', nhom: 'Chi phí cơ sở', noiDung: 'khăn lau', thanhTien: 1, ngay: '22/08/2026' },
+  { coso: 'A', nhom: 'Chi phí cơ sở', noiDung: 'giấy bạc', thanhTien: 1, ngay: '22/08/4625' },
+  { coso: 'A', nhom: 'Chi phí cơ sở', noiDung: 'chưa có ngày', thanhTien: 1 },
+] });
+t('bảng chi tiết CÓ cột Ngày', ngayHtml.indexOf('<th style="width:104px">Ngày</th>') >= 0, ngayHtml.slice(0, 300));
+t('hiện ngày của từng dòng', ngayHtml.indexOf('22/08/2026') >= 0);
+t('ngày hỏng bị tô đỏ', /color:#b91c1c[^>]*>22\/08\/4625/.test(ngayHtml) || ngayHtml.indexOf('Ngày hỏng') >= 0, ngayHtml);
+t('dòng chưa có ngày thì nói rõ "thiếu ngày", không để trống trơn', ngayHtml.indexOf('— thiếu ngày') >= 0, ngayHtml);
+t('người không phải Admin thì KHÔNG sửa được ở đây', ngayHtml.indexOf('saveLineNgay') < 0);
+const ngayAdm = LBCvoi({ role: 'Admin' })({ lines: [
+  { coso: 'A', nhom: 'Chi phí cơ sở', noiDung: 'giấy bạc', thanhTien: 1, ngay: '22/08/4625' },
+] });
+t('Admin sửa được ngày ngay trong bảng chi tiết', /onchange="saveLineNgay\(/.test(ngayAdm), ngayAdm);
+t('và ô đó là dd/mm/yyyy', ngayAdm.indexOf('placeholder="dd/mm/yyyy"') >= 0);
+t('ngày cấp tiền của ĐƠN cũng sửa được (cột DATETIME, sê-ri mất hẳn nên phải điền tay)',
+  /onchange="saveDonNgay\(/.test(HTML) && /function saveDonNgay\(/.test(HTML));
 
 // ---------------------------------------------------------------- 7. bỏ tab Sổ chi phí
 t('tab Sổ chi phí đã nghỉ', /var BO_TAB=\{[^}]*sochi:1/.test(HTML));

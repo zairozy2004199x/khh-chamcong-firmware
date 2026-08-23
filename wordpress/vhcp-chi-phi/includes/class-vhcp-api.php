@@ -23,7 +23,7 @@ class VHCP_API {
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
-		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong' );
+		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -169,6 +169,7 @@ class VHCP_API {
 			'setLineCN'             => array( 'VHCP_Don', 'set_line_cn' ),
 			'setLineAnh'            => array( 'VHCP_Don', 'set_line_anh' ),
 			'setLineNgay'           => array( 'VHCP_Don', 'set_line_ngay' ),
+			'setDonNgay'            => array( 'VHCP_Don', 'set_don_ngay' ),
 			'suaNamVoLy'            => array( 'VHCP_Don', 'sua_nam_vo_ly' ),
 			'suaNgayHong'           => array( 'VHCP_Don', 'sua_ngay_hong' ),
 			'suaKyHong'             => array( 'VHCP_Don', 'sua_ky_hong' ),
