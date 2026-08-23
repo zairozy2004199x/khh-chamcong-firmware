@@ -4695,6 +4695,204 @@ t( 'van cứu nằm ngoài đường đăng nhập',
 vhcc_don_mo_duong();
 $wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
 
+// ============ 46. NẠP .CSV SỔ NHÂN VIÊN — ĐỦ MỌI CỘT, KHÔNG QUA CẦU NỐI
+/* Anh Thắng gửi ảnh sổ nhân viên: *"cấu trúc trang nhân viên nó như này mà, nạp bằng .csv được
+   không"* → *"lấy đủ luôn nhé, các cột"*.
+
+   Sổ có: Mã NV · Họ tên · Cửa hàng · Trạng thái đồng bộ · Cập nhật · CCCD · Chức vụ · Nhiệm vụ ·
+   Cơ sở phụ · PIN đăng nhập — và MẤY NHÓM CỘT ĐANG THU GỌN. Bảng `nhan_vien` đã có đủ chỗ.
+
+   Mục này canh bốn chỗ sai là hỏng dữ liệu thật, cả bốn đều đã gặp trong dự án này. */
+vhcc_dung_bang();
+
+/* Đúng khuôn sổ của anh Thắng, kể cả cột trống của mấy nhóm đang thu gọn, và một cột lạ. */
+$csv_nv = "Mã NV,Họ tên,Cửa hàng,,,Trạng thái đồng bộ,Cập nhật,,CCCD,Chức vụ,Nhiệm vụ,Cơ sở phụ,PIN đăng nhập,Ghi chú nội bộ\n"
+	. "MNNV2MTD0001,Nguyễn Thu Hiền,JP_HCM,,,,2026-08-08 04:29:48,,049304007231,Máy tự động,JP Aeon Mall Tân Phú,POSH_HCM,170412,abc\n"
+	. "MNNV2MTD0003,Đinh Bùi Xuân Chiến,POSH_HCM,,,,2026-08-08 04:29:48,,051206000139,Máy tự động,,,782006,\n"
+	. "MNNV2MTD0006,Nguyễn Văn Bin,POSH_HCM,,,synced,2026-08-10 19:48:15,,060203003678,Máy tự động,,FARM_PT,635359,\n"
+	. "MNNV2MTD0025,NGUYỄN THI MAI ANH,POSH_HCM,,,,2026-08-08 04:29:48,,077192002977,Máy tự động,,\"FARM_PT, FZ_LTVT\",351604,\n";
+
+$r = VHCC_NapCsv::nap( $csv_nv, true );
+t( 'đọc được file .csv sổ nhân viên', ! empty( $r['ok'] ), $r );
+teq( 'xem trước: 4 người mới', 4, $r['them'] );
+teq( 'chưa ai đang có nên không sửa ai', 0, $r['sua'] );
+teq( 'XEM TRƯỚC thì KHÔNG ghi gì', 0, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+
+/* "Lấy đủ luôn các cột" — phải nhận đủ 10 cột có tên, và KỂ TÊN cột không nhận ra. */
+foreach ( array( 'ma_nv', 'ho_ten', 'cua_hang', 'trang_thai_dong_bo', 'cap_nhat', 'cccd',
+	'chuc_vu', 'nhiem_vu', 'coso_phu', 'pin_dang_nhap' ) as $c_mong ) {
+	t( "nhận cột $c_mong", in_array( $c_mong, (array) $r['cot'], true ), $r['cot'] );
+}
+t( 'và KỂ TÊN cột không nhận ra, không im lặng bỏ',
+	in_array( 'Ghi chú nội bộ', (array) $r['cot_la'], true ), $r['cot_la'] );
+
+$r = VHCC_NapCsv::nap( $csv_nv, false );
+teq( 'nạp thật 4 hồ sơ', 4, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+$hs = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MNNV2MTD0001'" );
+$hs = $hs[0];
+teq( 'họ tên có dấu vào đúng', 'Nguyễn Thu Hiền', $hs['ho_ten'] );
+teq( 'cửa hàng đúng', 'JP_HCM', $hs['cua_hang'] );
+teq( 'CCCD đúng', '049304007231', $hs['cccd'] );
+teq( 'chức vụ đúng', 'Máy tự động', $hs['chuc_vu'] );
+teq( 'nhiệm vụ đúng', 'JP Aeon Mall Tân Phú', $hs['nhiem_vu'] );
+teq( 'cơ sở phụ đúng', 'POSH_HCM', $hs['coso_phu'] );
+teq( 'PIN đăng nhập đúng', '170412', $hs['pin_dang_nhap'] );
+teq( 'ngày giờ cập nhật đúng', '2026-08-08 04:29:48', $hs['cap_nhat'] );
+
+/* 🔴 1. DẤU PHẨY TRONG Ô. `"FARM_PT, FZ_LTVT"` mà cắt bằng explode(',') là dòng đó lệch hết cột
+   từ đó trở đi — PIN của người này rơi vào cột CCCD của người kia. */
+$hs = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MNNV2MTD0025'" );
+$hs = $hs[0];
+teq( 'ô có DẤU PHẨY bên trong dấu nháy không làm lệch cột', 'FARM_PT, FZ_LTVT', $hs['coso_phu'] );
+teq( 'và PIN của dòng đó vẫn đúng', '351604', $hs['pin_dang_nhap'] );
+teq( 'CCCD cũng không bị đẩy sang cột khác', '077192002977', $hs['cccd'] );
+
+/* 🔴 2. Ô RỖNG KHÔNG ĐƯỢC GHI ĐÈ. Sheet của anh đang thu gọn nhiều nhóm cột; xuất ra một file
+   thiếu cột rồi nạp đè là xoá trắng CCCD, lương, số tài khoản mà màn hình vẫn báo "cập nhật". */
+global $wpdb;
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'so_tai_khoan' => '0123456789',
+	'luong_co_ban' => 8500000, 'sdt' => '0909123456' ), array( 'ma_nv' => 'MNNV2MTD0001' ) );
+$csv_thieu = "Mã NV,Họ tên,Cửa hàng,CCCD,PIN đăng nhập\n"
+	. "MNNV2MTD0001,Nguyễn Thu Hiền,JP_HCM,,170412\n";
+$r = VHCC_NapCsv::nap( $csv_thieu, false );
+$hs = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MNNV2MTD0001'" );
+$hs = $hs[0];
+teq( 'nạp file THIẾU CỘT không xoá số tài khoản đang có', '0123456789', $hs['so_tai_khoan'] );
+teq( 'không xoá lương đang có', 8500000, (int) $hs['luong_co_ban'] );
+teq( 'không xoá số điện thoại đang có', '0909123456', $hs['sdt'] );
+teq( 'ô CCCD BỎ TRỐNG trong file cũng không xoá CCCD đang có', '049304007231', $hs['cccd'] );
+teq( 'và là CẬP NHẬT chứ không thêm người thứ hai', 4,
+	count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
+teq( 'báo đúng là sửa 1', 1, $r['sua'] );
+teq( 'không thêm ai', 0, $r['them'] );
+
+/* 🔴 3. SỐ 0 Ở ĐẦU PIN. Sheets coi PIN là SỐ nên `013013` ra `13013`, `246813` ra `246813.0`.
+   Đuôi .0 cắt được; số 0 đầu MẤT RỒI thì không dựng lại — chỉ dám CẢNH BÁO, không tự thêm vào. */
+vhcc_dung_bang();
+$csv_pin = "Mã NV,Họ tên,PIN đăng nhập\n"
+	. "A1,Người Một,170412\nA2,Người Hai,250904\nA3,Người Ba,782006\n"
+	. "A4,Người Bốn,888999\nA5,Người Năm,150296\nA6,Người Sáu,13013\nA7,Người Bảy,246813.0\n";
+$r = VHCC_NapCsv::nap( $csv_pin, false );
+$hs = VHCC_DB::rows( 'SELECT ma_nv, pin_dang_nhap FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='A7'" );
+teq( 'cắt đuôi .0 của Sheets', '246813', $hs[0]['pin_dang_nhap'] );
+$hs = VHCC_DB::rows( 'SELECT ma_nv, pin_dang_nhap FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='A6'" );
+teq( 'PIN ngắn giữ NGUYÊN, KHÔNG tự thêm số 0 vào', '13013', $hs[0]['pin_dang_nhap'] );
+t( 'nhưng CẢNH BÁO là Sheets có thể đã cắt số 0 đầu',
+	strpos( implode( ' | ', (array) $r['canh'] ), 'số 0 ở đầu' ) !== false, $r['canh'] );
+
+/* 🔴 4. CCCD KHÔNG BAO GIỜ ĐƯỢC HIỂU NHẦM LÀ PIN. Nhầm một cái là số căn cước của người ta
+   thành mật khẩu đăng nhập. */
+vhcc_dung_bang();
+VHCC_NapCsv::nap( "Mã NV,Họ tên,CCCD,PIN đăng nhập\nB1,Người Tám,049304007231,170412\n", false );
+$hs = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='B1'" );
+teq( 'CCCD vào đúng cột CCCD', '049304007231', $hs[0]['cccd'] );
+teq( 'và PIN vào đúng cột PIN', '170412', $hs[0]['pin_dang_nhap'] );
+
+/* Ngày kiểu SÊ-RI của bảng tính. Đọc thẳng số đó như năm là ra năm 4623 — đúng lỗi đã làm cả
+   loạt đơn chi phí tháng 7 biến mất khỏi bộ lọc. */
+teq( 'sê-ri 46232.6543 ra đúng ngày', '2026-07-29', VHCC_NapCsv::ngay( '46232.6543' ) );
+teq( 'và kèm đúng giờ', '2026-07-29 15:42:12', VHCC_NapCsv::gio( '46232.6543' ) );
+t( 'số ngoài khoảng ngày hợp lý thì KHÔNG đoán bừa', null === VHCC_NapCsv::seri( '99999' ) );
+teq( 'ngày dd/mm/yyyy vẫn đọc được', '2026-07-29', VHCC_NapCsv::ngay( '29/07/2026' ) );
+t( 'ngày không đọc được thì để TRỐNG, không đoán', null === VHCC_NapCsv::ngay( 'hôm qua' ) );
+
+/* Tiền kiểu Việt. */
+teq( 'lương 8.500.000 đọc đúng', 8500000.0, VHCC_NapCsv::tien( '8.500.000' ) );
+teq( 'lương "8,500,000 đ" cũng đúng', 8500000.0, VHCC_NapCsv::tien( '8,500,000 đ' ) );
+
+/* Không có cột Mã NV thì CHỐI — không có khoá thì nạp lần hai là nhân đôi cả sổ. */
+$r = VHCC_NapCsv::nap( "Họ tên,PIN đăng nhập\nNgười Chín,170412\n", true );
+t( 'thiếu cột Mã NV thì chối và nói rõ vì sao',
+	empty( $r['ok'] ) && strpos( $r['error'], 'MÃ NV' ) !== false, $r );
+/* Dòng lẻ thiếu Mã NV thì kêu đích danh, không nuốt. */
+$r = VHCC_NapCsv::nap( "Mã NV,Họ tên,PIN đăng nhập\nC1,Người Mười,170412\n,Người Không Mã,250904\n", true );
+teq( 'chỉ nhận dòng có Mã NV', 1, $r['them'] );
+t( 'và kêu đích danh dòng thiếu mã',
+	strpos( implode( ' | ', (array) $r['bo'] ), 'Người Không Mã' ) !== false, $r['bo'] );
+
+/* Chỉ có tiêu đề, chưa có dòng nào -> chỉ đường tải .csv cho đúng. */
+$r = VHCC_NapCsv::nap( "Mã NV,Họ tên,PIN đăng nhập\n", true );
+t( 'file chỉ có tiêu đề thì chỉ đường tải .csv',
+	empty( $r['ok'] ) && strpos( $r['error'], '.csv' ) !== false, $r );
+
+/* Dán bằng TAB (Ctrl+C từ Sheets) cũng phải chạy, không chỉ dấu phẩy. */
+vhcc_dung_bang();
+$r = VHCC_NapCsv::nap( "Mã NV\tHọ tên\tPIN đăng nhập\nD1\tNgười TAB\t170412\n", false );
+teq( 'dán bằng TAB cũng nạp được', 1, $r['them'] );
+/* BOM của Excel không được dính vào tên cột đầu tiên. */
+$r = VHCC_NapCsv::nap( "\xEF\xBB\xBFMã NV,Họ tên,PIN đăng nhập\nE1,Người BOM,250904\n", false );
+teq( 'file có BOM của Excel vẫn nhận đúng cột đầu', 1, $r['them'] );
+
+/* Lọc riêng từng cơ sở khi nạp .csv. */
+vhcc_dung_bang();
+$csv_2cs = "Mã NV,Họ tên,Cửa hàng,PIN đăng nhập\n"
+	. "F1,Người JP,JP_HCM,170412\nF2,Người POSH,POSH_HCM,250904\nF3,Người POSH Hai,posh hcm,782006\n";
+$r = VHCC_NapCsv::nap( $csv_2cs, false, 'POSH_HCM' );
+teq( 'nạp riêng cơ sở POSH_HCM (kể cả gõ khác kiểu)', 2, $r['them'] );
+teq( 'và bỏ qua cơ sở khác', 1, $r['lech'] );
+
+/* ---- 46b. TỪ HỒ SƠ NHÂN SỰ -> TÀI KHOẢN ĐĂNG NHẬP ---- */
+/* Đây là mắt xích cuối: cột "PIN đăng nhập" trong hồ sơ phải thành tài khoản đăng nhập được. */
+vhcc_dung_bang();
+delete_option( 'vhcc_nguoidung' );
+delete_option( 'vhcc_vai_tro_vao' );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+VHCC_NapCsv::nap( $csv_nv, false );
+
+$kho = VHCC_NguoiDung::do_kho_cu();
+teq( 'kho "Hồ sơ Nhân sự" đếm đúng số người có PIN', 4, $kho['ho_so']['co'] );
+teq( 'nhưng 0 người vào được — sổ ghi "Máy tự động", không phải vai trò', 0, $kho['ho_so']['vao'] );
+
+/* 🔴 Không có ô "vai trò nếu sổ không ghi" thì cả sổ rơi về Nhân viên, nạp xong KHÔNG AI đăng
+   nhập được, mà màn hình vẫn báo "đã nạp 4 người". Đúng kiểu hỏng im lặng phải chặn. */
+$r = VHCC_NguoiDung::nap_tu_cu( 'ho_so', false, '', 'Quản lý' );
+teq( 'nạp 4 tài khoản từ hồ sơ', 4, $r['them'] );
+teq( 'và đếm được 4 dòng sổ không ghi vai trò', 4, $r['vt_trong'] );
+teq( 'đã đặt theo vai trò mình chọn', 'Quản lý', $r['vt_mac_dinh'] );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '170412' );
+t( 'đăng nhập được bằng ĐÚNG PIN trong cột "PIN đăng nhập"', ! empty( $kq['ok'] ), $kq );
+teq( 'đúng tên trong hồ sơ', 'Nguyễn Thu Hiền', isset( $kq['name'] ) ? $kq['name'] : null );
+teq( 'đúng cơ sở trong hồ sơ', 'JP_HCM', isset( $kq['coso'] ) ? $kq['coso'] : null );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '351604' );
+t( 'người ở dòng có dấu phẩy trong ô cũng đăng nhập được', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+
+/* Để mặc thì rơi về Nhân viên -> KHÔNG AI vào được; phải đếm ra để màn hình còn kêu lên. */
+delete_option( 'vhcc_nguoidung' );
+$r = VHCC_NguoiDung::nap_tu_cu( 'ho_so', false, '' );
+teq( 'để mặc vai trò thì rơi về Nhân viên', 'Nhân viên', $r['vt_mac_dinh'] );
+teq( 'và nạp xong KHÔNG AI vào được', 0, $r['vao'] );
+teq( 'nhưng con số đó được đếm ra để màn hình kêu lên', 4, $r['vt_trong'] );
+
+/* Nạp riêng một cơ sở từ hồ sơ. */
+delete_option( 'vhcc_nguoidung' );
+$r = VHCC_NguoiDung::nap_tu_cu( 'ho_so', false, 'JP_HCM', 'Quản lý' );
+teq( 'nạp riêng cơ sở JP_HCM từ hồ sơ', 1, $r['them'] );
+$cs = VHCC_NguoiDung::ds_coso_cu( 'ho_so' );
+t( 'liệt kê được cơ sở của hồ sơ để đổ vào ô chọn', isset( $cs['POSH_HCM'] ), array_keys( $cs ) );
+
+/* Màn Cài đặt phải có ô tải .csv, và ô đó KHÔNG được lồng trong form Cài đặt. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Admin::page(); $h_csv = ob_get_clean();
+t( 'màn Cài đặt có ô tải file .csv', strpos( $h_csv, 'name="tep"' ) !== false );
+t( 'và chỉ đúng đường xuất .csv trong Google Sheets',
+	strpos( $h_csv, 'phân tách bằng dấu phẩy' ) !== false );
+t( 'nói rõ ô trống KHÔNG ghi đè', strpos( $h_csv, 'Ô trống KHÔNG ghi đè' ) !== false );
+t( 'có ô chọn vai trò cho dòng sổ không ghi', strpos( $h_csv, 'name="vt"' ) !== false );
+/* 🔴 Ô required của việc tải file KHÔNG được rơi vào form Cài đặt — rơi vào là anh Thắng không
+   bấm Lưu được nữa nếu chưa chọn file. Đây là lỗi đã xảy ra thật lúc làm mục này. */
+t( 'ô tải file trỏ về form RIÊNG, không nằm trong form Cài đặt',
+	preg_match( '/<input[^>]*name="tep"[^>]*form="vhcc-csv-nd"/', $h_csv ) === 1, $h_csv );
+t( 'và form riêng đó có enctype để gửi được file',
+	strpos( $h_csv, 'enctype="multipart/form-data" id="vhcc-csv-nd"' ) !== false );
+
+vhcc_dung_bang();
+delete_option( 'vhcc_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+
+
 /* Hướng dẫn cài phải theo kịp thực tế: 22/08/2026 Hostinger sập, chuyển sang Vietnix (cPanel).
    Mấy điều dưới đây là thứ sai một cái là cả chuỗi máy im lặng, nên phải luôn có trong hướng dẫn. */
 $hd_vnx = file_get_contents( $goc . '/docs/CAI-LEN-VIETNIX.md' );

@@ -61,7 +61,7 @@ Anh Thắng đã biết và chấp nhận rủi ro này (*"nếu máy mất liê
 nhưng làm đúng thứ tự thì không phải dùng tới.
 
 **Bước 1 — website sẵn sàng.**
-- Cài `vhcp-cham-cong.zip` (2.2.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
+- Cài `vhcp-cham-cong.zip` (2.3.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
 - **Đăng nhập lần đầu — PIN nằm ở DỮ LIỆU CŨ, không phải cấp lại.** Vào **wp-admin → Chấm
   Công → Cài đặt**. Lúc cài, nếu chưa ai đăng nhập được, plugin đi tìm sổ PIN cũ trước:
   1. **Nạp sổ Phân quyền của app gốc** (nếu đã kéo về) sang *danh sách riêng*, **giữ nguyên
@@ -79,11 +79,25 @@ nhưng làm đúng thứ tự thì không phải dùng tới.
 
 - **📥 Nạp người dùng từ dữ liệu cũ** (wp-admin → Chấm Công → Cài đặt, khi đang dùng *danh
   sách riêng*). Hai đường, đều có **Xem trước** trước khi ghi:
-  - **Dán thẳng từ Google Sheets** — bôi đen cột **Họ tên** và **PIN** (kèm **Vai trò**,
-    **Cơ sở** nếu có) của **một cơ sở** → Ctrl+C → dán vào ô. Thứ tự cột nào cũng được, có hay
-    không có dòng tiêu đề đều được. Đường này **không cần cầu nối Apps Script còn sống**.
-  - **Nạp từ kho đã có trên host** — sổ Phân quyền đã kéo về, hoặc bảng của plugin chi phí;
-    chọn được **riêng từng cơ sở**, mỗi cơ sở hiện sẵn số người và số PIN dùng được.
+  - **Tải file `.csv` của sổ NHÂN VIÊN — lấy ĐỦ mọi cột.** Google Sheets → **File → Tải xuống
+    → Giá trị được phân tách bằng dấu phẩy (.csv)** → tải lên. Nhận đủ *Mã NV · Họ tên · Cửa
+    hàng · Trạng thái đồng bộ · Cập nhật · CCCD · Chức vụ · Nhiệm vụ · Cơ sở phụ · PIN đăng
+    nhập* và mọi cột hồ sơ khác; ghi thẳng vào hồ sơ **Nhân sự**. Thứ tự cột nào cũng được;
+    cột không nhận ra được **kể tên ra**, không im lặng bỏ. Nạp xong bấm nạp từ **Hồ sơ Nhân
+    sự** để cột *PIN đăng nhập* thành tài khoản đăng nhập.
+    - 🔴 **Ô trống KHÔNG ghi đè.** Sheet đang thu gọn nhiều nhóm cột — xuất thiếu cột rồi nạp
+      đè thì ô trống *không* xoá mất số tài khoản, lương, CCCD đang có. Khớp theo **Mã NV** nên
+      nạp lại là cập nhật, không nhân đôi.
+    - Ô có dấu phẩy bên trong (`"FARM_PT, FZ_LTVT"`) đọc đúng, không làm lệch cột.
+  - **Dán thẳng từ Google Sheets** — chỉ tài khoản đăng nhập: bôi đen cột **Họ tên** và **PIN**
+    (kèm **Vai trò**, **Cơ sở** nếu có) của **một cơ sở** → Ctrl+C → dán vào ô. Thứ tự cột nào
+    cũng được, có hay không có dòng tiêu đề đều được.
+  - **Nạp từ kho đã có trên host** — hồ sơ **Nhân sự** (chỗ file `.csv` đổ vào), sổ Phân quyền
+    đã kéo về, hoặc bảng của plugin chi phí; chọn được **riêng từng cơ sở**, mỗi cơ sở hiện sẵn
+    số người và số PIN dùng được.
+  - ⚠️ Sổ nhân viên ghi cột **Chức vụ** là *"Máy tự động"* — đó là chức vụ, **không phải vai
+    trò đăng nhập**. Nên có ô **Vai trò nếu sổ không ghi**: để mặc thì cả sổ thành *Nhân viên*
+    và **không ai đăng nhập được**. Màn hình đếm và kêu lên số dòng rơi vào trường hợp này.
   - Chỉ **thêm**, không sửa và không xoá ai — bấm hai lần không nhân đôi danh sách.
   - **Dòng hỏng được kêu đích danh** (PIN sai khuôn, chưa có PIN, trùng PIN với người khác).
     Nạp 26 cửa hàng mà im lặng bỏ 4 người thì cuối tháng 4 người đó không có công.

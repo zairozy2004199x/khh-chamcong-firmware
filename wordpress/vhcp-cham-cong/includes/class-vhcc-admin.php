@@ -1345,13 +1345,60 @@ class VHCC_Admin {
 	 * 🔴 PIN yếu/đã lộ thì VẪN NẠP (không thì khoá đúng người đang dùng nó ra ngoài) nhưng phải
 	 *    kêu tên để đi đổi.
 	 */
+	/** Kể lại một lượt nạp .csv hồ sơ nhân viên — kể cả cột KHÔNG lấy được. */
+	protected static function bao_csv( $r, $xem ) {
+		$them = (int) $r['them']; $sua = (int) $r['sua'];
+		echo '<div class="notice notice-' . ( $them + $sua ? 'success' : 'warning' ) . '"><p>';
+		echo $xem ? '<b>Xem trước — CHƯA ghi gì.</b> ' : '<b>Đã nạp hồ sơ.</b> ';
+		echo 'Đọc ' . (int) $r['so_dong'] . ' dòng: ';
+		echo $xem
+			? ( 'sẽ thêm <b>' . $them . '</b> người mới, cập nhật <b>' . $sua . '</b> người đã có.' )
+			: ( 'thêm <b>' . $them . '</b> người mới, cập nhật <b>' . $sua . '</b> người đã có.' );
+		if ( ! empty( $r['coso'] ) ) {
+			echo ' Chỉ nhận cơ sở <b>' . esc_html( $r['coso'] ) . '</b>';
+			if ( ! empty( $r['lech'] ) ) { echo ', bỏ qua ' . (int) $r['lech'] . ' người của cơ sở khác'; }
+			echo '.';
+		}
+		echo '</p>';
+		echo '<p style="margin:4px 0 0"><b>Cột lấy được:</b> '
+			. esc_html( implode( ' · ', (array) $r['cot'] ) ) . '</p>';
+		echo '</div>';
+
+		/* "Lấy đủ luôn các cột" — nên cột KHÔNG nhận ra phải kể tên, không im lặng bỏ. */
+		if ( ! empty( $r['cot_la'] ) ) {
+			echo '<div class="notice notice-warning"><p><b>' . count( (array) $r['cot_la'] )
+				. ' cột KHÔNG nhận ra, đã bỏ qua:</b> ' . esc_html( implode( ' · ', (array) $r['cot_la'] ) )
+				. '</p><p class="description">Đổi tên tiêu đề trong Sheet cho khớp (ví dụ '
+				. '<code>Số điện thoại</code>, <code>Ngày sinh</code>, <code>Lương cơ bản</code>) rồi tải lại, '
+				. 'hoặc báo em thêm tên gọi đó vào bản đồ cột.</p></div>';
+		}
+		if ( ! empty( $r['bo'] ) ) {
+			echo '<div class="notice notice-error"><p><b>' . count( (array) $r['bo'] )
+				. ' dòng KHÔNG nạp được:</b></p><ul style="margin:0 0 8px 18px;list-style:disc">';
+			foreach ( (array) $r['bo'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+			echo '</ul></div>';
+		}
+		if ( ! empty( $r['canh'] ) ) {
+			echo '<div class="notice notice-warning"><ul style="margin:8px 0 8px 18px;list-style:disc">';
+			foreach ( (array) $r['canh'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+			echo '</ul></div>';
+		}
+		if ( ! $xem && ( $them + $sua ) ) {
+			echo '<div class="notice notice-info"><p>Hồ sơ đã có. Giờ sang <b>Cách 3</b> → dòng '
+				. '<b>Hồ sơ Nhân sự trên host</b> → chọn cơ sở → <b>Nạp</b>, để cột '
+				. '<i>PIN đăng nhập</i> thành tài khoản đăng nhập được.</p></div>';
+		}
+	}
+
 	protected static function bao_nap( $r ) {
-		$xem = ( 'xem_dan' === $r['viec'] || 'xem_cu' === $r['viec'] );
+		$xem = ( 0 === strpos( (string) $r['viec'], 'xem_' ) );
 		if ( empty( $r['ok'] ) ) {
 			echo '<div class="notice notice-error"><p><b>Không nạp được.</b> '
-				. esc_html( isset( $r['error'] ) ? $r['error'] : 'Lỗi không rõ' ) . '</p></div>';
+				. wp_kses( isset( $r['error'] ) ? $r['error'] : 'Lỗi không rõ',
+					array( 'b' => array(), 'code' => array(), 'i' => array() ) ) . '</p></div>';
 			return;
 		}
+		if ( 'nap_csv' === $r['viec'] || 'xem_csv' === $r['viec'] ) { self::bao_csv( $r, $xem ); return; }
 		$so = (int) $r['them'];
 		echo '<div class="notice notice-' . ( $so ? 'success' : 'warning' ) . '"><p>';
 		echo $xem ? '<b>Xem trước — CHƯA ghi gì.</b> ' : '<b>Đã nạp.</b> ';
@@ -1376,11 +1423,94 @@ class VHCC_Admin {
 			foreach ( (array) $r['bo'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
 			echo '</ul></div>';
 		}
+		/* 🔴 Nạp xong mà KHÔNG AI vào được là hỏng im lặng — sổ ghi "Chức vụ: Máy tự động" chứ
+		   không ghi vai trò đăng nhập, nên cả sổ rơi về bậc thấp nhất. Phải nói thẳng. */
+		if ( ! empty( $r['vt_trong'] ) ) {
+			$het = empty( $r['vao'] );
+			echo '<div class="notice notice-' . ( $het ? 'error' : 'warning' ) . '"><p><b>'
+				. (int) $r['vt_trong'] . ' người sổ cũ KHÔNG ghi vai trò đăng nhập</b> — đã đặt thành <b>'
+				. esc_html( (string) $r['vt_mac_dinh'] ) . '</b>.';
+			if ( $het ) {
+				echo ' <b style="color:#b32d2e">Hiện KHÔNG AI đăng nhập được.</b> Chọn lại '
+					. '<i>Vai trò nếu sổ không ghi</i> rồi nạp lại, hoặc tích thêm vai trò ở mục '
+					. '<b>Vai trò vào được</b> bên dưới.';
+			}
+			echo '</p></div>';
+		}
 		if ( ! empty( $r['yeu'] ) ) {
 			echo '<div class="notice notice-warning"><p><b>' . count( (array) $r['yeu'] )
 				. ' người đang dùng PIN dễ đoán hoặc đã bị lộ</b> — vẫn nạp để họ đăng nhập được, '
 				. 'nhưng nên đổi sớm: ' . esc_html( implode( ' · ', (array) $r['yeu'] ) ) . '</p></div>';
 		}
+	}
+
+	/**
+	 * ĐỌC FILE .CSV VỪA TẢI LÊN — và chối mọi thứ không phải file văn bản.
+	 *
+	 * ⚠️ KHÔNG dùng wp_handle_upload / không lưu file vào uploads. File này chỉ cần đọc một lần
+	 *    rồi vứt; ghi nó xuống thư mục công khai là để lại một danh sách PIN + CCCD của cả chuỗi
+	 *    ở chỗ ai có link cũng tải được.
+	 * ⚠️ Chặn theo KÍCH THƯỚC trước khi đọc: một file lớn nạp vào bộ nhớ là giết cả trang admin.
+	 */
+	protected static function doc_csv_gui_len() {
+		if ( ! isset( $_FILES['tep'] ) || ! is_array( $_FILES['tep'] ) ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn file nào.' );
+		}
+		$f = $_FILES['tep'];
+		$loi = isset( $f['error'] ) ? (int) $f['error'] : UPLOAD_ERR_NO_FILE;
+		if ( UPLOAD_ERR_NO_FILE === $loi ) {
+			return array( 'ok' => false, 'error' => 'Chưa chọn file nào.' );
+		}
+		if ( UPLOAD_ERR_INI_SIZE === $loi || UPLOAD_ERR_FORM_SIZE === $loi ) {
+			return array( 'ok' => false, 'error' => 'File lớn hơn mức hosting cho tải lên. '
+				. 'Xuất riêng từng cơ sở rồi tải từng file — vừa nhẹ vừa dễ soi dòng hỏng.' );
+		}
+		if ( UPLOAD_ERR_OK !== $loi ) {
+			return array( 'ok' => false, 'error' => 'Tải file lên không xong (mã lỗi ' . $loi . ').' );
+		}
+		$duong = isset( $f['tmp_name'] ) ? (string) $f['tmp_name'] : '';
+		if ( '' === $duong || ! is_uploaded_file( $duong ) ) {
+			return array( 'ok' => false, 'error' => 'File tải lên không hợp lệ.' );
+		}
+		$co = (int) filesize( $duong );
+		if ( $co > 8 * 1024 * 1024 ) {
+			return array( 'ok' => false, 'error' => 'File lớn hơn 8 MB. Xuất riêng từng cơ sở rồi tải từng file.' );
+		}
+		$ten = isset( $f['name'] ) ? strtolower( (string) $f['name'] ) : '';
+		if ( ! preg_match( '/\.(csv|tsv|txt)$/', $ten ) ) {
+			return array( 'ok' => false, 'error' => 'Chỉ nhận file .csv / .tsv / .txt. '
+				. 'File .xlsx thì trong Google Sheets chọn File → Tải xuống → '
+				. '<b>Giá trị được phân tách bằng dấu phẩy (.csv)</b>.' );
+		}
+		$noi_dung = file_get_contents( $duong );
+		if ( false === $noi_dung || '' === trim( (string) $noi_dung ) ) {
+			return array( 'ok' => false, 'error' => 'File rỗng.' );
+		}
+		/* Sheets xuất UTF-8; Excel bản Việt hay xuất Windows-1258/1252. Đọc nhầm bảng mã thì tên
+		   người thành ký tự lạ mà vẫn "nạp thành công" — chuyển về UTF-8 ngay tại đây. */
+		if ( ! mb_check_encoding( $noi_dung, 'UTF-8' ) ) {
+			$noi_dung = mb_convert_encoding( $noi_dung, 'UTF-8', 'Windows-1258, Windows-1252, ISO-8859-1' );
+		}
+		return array( 'ok' => true, 'noi_dung' => (string) $noi_dung, 'ten' => $ten );
+	}
+
+	/**
+	 * Ô chọn VAI TRÒ MẶC ĐỊNH cho những dòng không đọc ra được vai trò.
+	 *
+	 * 🔴 Vì sao phải có: sổ nhân viên của anh Thắng có cột "Chức vụ" mang giá trị *"Máy tự động"*
+	 *    — đó là chức vụ, KHÔNG phải vai trò đăng nhập. Không có ô này thì cả sổ rơi về "Nhân
+	 *    viên", tức là nạp xong KHÔNG AI đăng nhập được, mà màn hình vẫn báo "đã nạp 26 người".
+	 *    Đúng kiểu hỏng im lặng phải chặn.
+	 */
+	protected static function o_vai_tro( $form ) {
+		$cho = VHCC_Auth::vai_tro_vao();
+		$h   = '<label>Vai trò nếu sổ không ghi<br><select name="vt" form="' . esc_attr( $form )
+			. '" style="max-width:200px">';
+		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt ) {
+			$h .= '<option value="' . esc_attr( $vt ) . '"' . selected( $vt, 'Nhân viên', false ) . '>'
+				. esc_html( $vt ) . ( in_array( $vt, $cho, true ) ? '' : ' — không vào được' ) . '</option>';
+		}
+		return $h . '</select></label>';
 	}
 
 	protected static function hop_nap_cu( &$form_roi ) {
@@ -1391,19 +1521,49 @@ class VHCC_Admin {
 			. 'không phải cấp lại lần hai. Chỉ <b>thêm</b>, không sửa và không xoá ai đang có, nên '
 			. 'bấm hai lần cũng không nhân đôi danh sách.</p>';
 
+		/* ---- Đường 0: TẢI FILE .CSV — đường chính cho cả sổ nhân viên ---- */
+		/* ⚠️ Thẻ <form> phải nằm NGOÀI form Cài đặt (gom vào $form_roi, in ra sau khi form kia
+		   đóng), còn ô thì trỏ về nó bằng thuộc tính form="…". Lồng <form> trong <form> là HTML
+		   sai: trình duyệt bỏ form trong, ô `required` của nó rơi vào form Cài đặt, và anh Thắng
+		   KHÔNG bấm Lưu được nữa nếu chưa chọn file. Có phép thử ghim đúng chỗ này. */
+		$form_roi .= '<form method="post" enctype="multipart/form-data" id="vhcc-csv-nd">'
+			. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false ) . '</form>';
+		echo '<div style="max-width:760px;border:2px solid #2271b1;border-radius:4px;padding:12px;margin-bottom:12px">';
+		echo '<b>Cách 1 — tải file .csv của sổ NHÂN VIÊN</b> '
+			. '<span class="description">(lấy ĐỦ mọi cột, ghi vào hồ sơ Nhân sự)</span>';
+		echo '<p class="description" style="margin:6px 0">Trong Google Sheets: <b>File → Tải xuống → '
+			. 'Giá trị được phân tách bằng dấu phẩy (.csv)</b>. Nhận đủ các cột '
+			. '<i>Mã NV · Họ tên · Cửa hàng · Trạng thái đồng bộ · Cập nhật · CCCD · Chức vụ · Nhiệm vụ · '
+			. 'Cơ sở phụ · PIN đăng nhập</i> và mọi cột hồ sơ khác. Thứ tự cột nào cũng được; '
+			. 'cột nào không nhận ra sẽ được <b>kể tên ra</b> chứ không lặng lẽ bỏ.</p>';
+		echo '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">';
+		echo '<label>File<br><input type="file" name="tep" form="vhcc-csv-nd" accept=".csv,.tsv,.txt" required /></label>';
+		echo '<label>Chỉ nhận cơ sở<br><input name="coso" form="vhcc-csv-nd" style="width:170px" placeholder="trống = nhận hết" /></label>';
+		echo '<button class="button" form="vhcc-csv-nd" name="vhcc_nd" value="xem_csv">Xem trước</button>';
+		echo '<button class="button button-primary" form="vhcc-csv-nd" name="vhcc_nd" value="nap_csv">Nạp vào hồ sơ</button>';
+		echo '</div>';
+		echo '<p class="description" style="margin:8px 0 0">🔴 <b>Ô trống KHÔNG ghi đè.</b> Sheet của anh '
+			. 'đang thu gọn nhiều nhóm cột — xuất thiếu cột rồi nạp đè thì ô trống sẽ <i>không</i> xoá '
+			. 'mất số tài khoản, lương, CCCD đang có. Chỉ ô CÓ giá trị mới được ghi. '
+			. 'Nạp lại nhiều lần thoải mái: khớp theo <b>Mã NV</b> nên là cập nhật, không nhân đôi.</p>';
+		echo '<p class="description" style="margin:4px 0 0">Nạp xong, sang <b>Cách 3</b> bấm nạp từ '
+			. '<b>Hồ sơ Nhân sự</b> để biến cột <i>PIN đăng nhập</i> thành tài khoản đăng nhập.</p>';
+		echo '</div>';
+
 		/* ---- Đường 1: dán từ Sheets ---- */
 		$form_roi .= '<form method="post" id="vhcc-dan-nd">'
 			. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false ) . '</form>';
 		echo '<div style="max-width:760px;border:1px solid #c3c4c7;border-radius:4px;padding:12px;margin-bottom:12px">';
-		echo '<b>Cách 1 — dán thẳng từ Google Sheets</b> <span class="description">(không cần cầu nối Apps Script)</span>';
+		echo '<b>Cách 2 — dán thẳng từ Google Sheets</b> <span class="description">(chỉ tài khoản đăng nhập: họ tên + PIN)</span>';
 		echo '<p class="description" style="margin:6px 0">Bôi đen các cột <b>Họ tên</b> và <b>PIN</b> '
 			. '(kèm <b>Vai trò</b>, <b>Cơ sở</b> nếu có) của <b>một cơ sở</b> trong Sheet → Ctrl+C → dán vào ô dưới. '
 			. 'Thứ tự cột nào cũng được, có hay không có dòng tiêu đề đều được.</p>';
 		echo '<textarea name="dan" form="vhcc-dan-nd" rows="6" style="width:100%;font-family:monospace" '
 			. 'placeholder="Họ và Tên&#9;PIN&#9;Vai trò&#9;Cơ sở&#10;Nguyễn Văn A&#9;246813&#9;Quản lý&#9;TUTU_BT"></textarea>';
 		echo '<div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">';
-		echo '<label>Chỉ nhận cơ sở<br><input name="coso" form="vhcc-dan-nd" style="width:180px" '
+		echo '<label>Chỉ nhận cơ sở<br><input name="coso" form="vhcc-dan-nd" style="width:170px" '
 			. 'placeholder="trống = nhận hết" /></label>';
+		echo self::o_vai_tro( 'vhcc-dan-nd' );
 		echo '<button class="button" form="vhcc-dan-nd" name="vhcc_nd" value="xem_dan">Xem trước</button>';
 		echo '<button class="button button-primary" form="vhcc-dan-nd" name="vhcc_nd" value="nap_dan">Nạp vào danh sách</button>';
 		echo '</div>';
@@ -1415,7 +1575,7 @@ class VHCC_Admin {
 
 		/* ---- Đường 2: kho đã có sẵn trên host ---- */
 		echo '<div style="max-width:760px;border:1px solid #c3c4c7;border-radius:4px;padding:12px">';
-		echo '<b>Cách 2 — nạp từ kho đã có trên host</b>';
+		echo '<b>Cách 3 — nạp tài khoản đăng nhập từ kho đã có trên host</b>';
 		echo '<table class="widefat striped" style="margin:8px 0"><thead><tr><th>Kho</th>'
 			. '<th style="width:90px">Có</th><th style="width:120px">Vào được</th>'
 			. '<th style="width:230px">Nạp riêng cơ sở</th><th style="width:170px"></th></tr></thead><tbody>';
@@ -1447,6 +1607,7 @@ class VHCC_Admin {
 			}
 			echo '</td><td>';
 			if ( $k['co'] ) {
+				echo self::o_vai_tro( $id ) . '<br>';
 				echo '<button class="button button-small" form="' . esc_attr( $id ) . '" name="vhcc_nd" value="xem_cu">Xem trước</button> '
 					. '<button class="button button-small button-primary" form="' . esc_attr( $id ) . '" name="vhcc_nd" value="nap_cu">Nạp</button>';
 			}
@@ -1482,6 +1643,13 @@ class VHCC_Admin {
 					isset( $_POST['coso'] ) ? wp_unslash( $_POST['coso'] ) : '' );
 			} elseif ( 'xoa' === $v_nd ) {
 				$r_nd = VHCC_NguoiDung::xoa( isset( $_POST['id'] ) ? wp_unslash( $_POST['id'] ) : '' );
+			} elseif ( 'nap_csv' === $v_nd || 'xem_csv' === $v_nd ) {
+				$r_nd = self::doc_csv_gui_len();
+				if ( ! empty( $r_nd['ok'] ) ) {
+					$r_nd = VHCC_NapCsv::nap( $r_nd['noi_dung'], 'xem_csv' === $v_nd,
+						isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '' );
+				}
+				$r_nd['viec'] = $v_nd;
 			} elseif ( 'nap_dan' === $v_nd || 'xem_dan' === $v_nd ) {
 				/* Dán từ Google Sheets. KHÔNG sanitize_text_field: hàm đó bóp xuống một dòng,
 				   mà cả bảng dán vào đây là NHIỀU DÒNG — bóp xong còn đúng một dòng và người
@@ -1489,13 +1657,15 @@ class VHCC_Admin {
 				$r_nd = VHCC_NguoiDung::nap_dan(
 					isset( $_POST['dan'] ) ? (string) wp_unslash( $_POST['dan'] ) : '',
 					'xem_dan' === $v_nd,
-					isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '' );
+					isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '',
+					isset( $_POST['vt'] ) ? sanitize_text_field( wp_unslash( $_POST['vt'] ) ) : '' );
 				$r_nd['viec'] = $v_nd;
 			} elseif ( 'nap_cu' === $v_nd || 'xem_cu' === $v_nd ) {
 				$r_nd = VHCC_NguoiDung::nap_tu_cu(
 					isset( $_POST['tu'] ) ? sanitize_text_field( wp_unslash( $_POST['tu'] ) ) : '',
 					'xem_cu' === $v_nd,
-					isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '' );
+					isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '',
+					isset( $_POST['vt'] ) ? sanitize_text_field( wp_unslash( $_POST['vt'] ) ) : '' );
 				$r_nd['viec'] = $v_nd;
 			} else {
 				$r_nd = array( 'ok' => false, 'error' => 'Việc không rõ.' );

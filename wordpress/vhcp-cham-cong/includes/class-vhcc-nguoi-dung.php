@@ -37,9 +37,36 @@ class VHCC_NguoiDung {
 	 * còn hai chỗ dưới đây chỉ là nơi NẠP MỘT LẦN từ dữ liệu cũ sang.
 	 */
 	const NGUON_CU = array(
+		'ho_so' => 'Hồ sơ Nhân sự trên host (cột PIN đăng nhập)',
 		'app'   => 'Sổ Phân quyền của app gốc (kéo từ Google Sheet về)',
 		'chung' => 'Bảng người dùng của plugin Vận Hành Chi Phí',
 	);
+
+	/**
+	 * Đọc một kho cũ. `ho_so` đọc thẳng bảng `nhan_vien` — chỗ file .csv nhân viên đổ vào.
+	 *
+	 * Vì sao tách riêng khỏi VHCC_Auth: hồ sơ nhân sự KHÔNG phải một nguồn đăng nhập. Nó là hồ
+	 * sơ; cổng PIN không đọc nó. Ở đây nó chỉ là chỗ để NẠP MỘT LẦN sang danh sách riêng, và
+	 * đúng như vậy thì xoá một người khỏi danh sách đăng nhập không làm mất hồ sơ của họ.
+	 */
+	public static function doc_kho( $tu ) {
+		if ( 'ho_so' !== $tu ) { return VHCC_Auth::users_cua( (string) $tu ); }
+		$ra = array();
+		foreach ( VHCC_DB::rows( 'SELECT ho_ten, pin_dang_nhap, chuc_vu, cua_hang FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . " WHERE pin_dang_nhap <> ''" ) as $r ) {
+			$ra[] = array(
+				'ten'    => trim( (string) $r['ho_ten'] ),
+				'pin'    => VHCC_Auth::pin_sach( $r['pin_dang_nhap'] ),
+				/* `Chức vụ` của sheet nhân viên là chức vụ ("Máy tự động"), KHÔNG phải vai trò
+				   đăng nhập. Nhận ra thì dùng, không thì để rỗng — để chỗ gọi biết mà hỏi anh
+				   Thắng chọn vai trò, thay vì lặng lẽ đặt hết thành 'Nhân viên' rồi không ai
+				   đăng nhập được mà màn hình vẫn báo "đã nạp N người". */
+				'vaiTro' => self::vai_tro_biet( $r['chuc_vu'] ),
+				'coso'   => trim( (string) $r['cua_hang'] ),
+			);
+		}
+		return $ra;
+	}
 
 	/** Có ai đăng nhập được với nguồn ĐANG CHỌN không? */
 	public static function co_ai_vao_duoc() {
@@ -63,7 +90,7 @@ class VHCC_NguoiDung {
 		$ra  = array();
 		$cho = VHCC_Auth::vai_tro_vao();
 		foreach ( array_keys( self::NGUON_CU ) as $tu ) {
-			$u = VHCC_Auth::users_cua( $tu );
+			$u = self::doc_kho( $tu );
 			if ( is_wp_error( $u ) ) {
 				$ra[ $tu ] = array( 'co' => 0, 'vao' => 0, 'loi' => $u->get_error_message() );
 				continue;
@@ -92,18 +119,18 @@ class VHCC_NguoiDung {
 	 * @param bool   $chi_xem  true = chỉ đếm, không ghi.
 	 * @param string $coso     rỗng = cả chuỗi; có tên = CHỈ cơ sở đó.
 	 */
-	public static function nap_tu_cu( $tu, $chi_xem = true, $coso = '' ) {
+	public static function nap_tu_cu( $tu, $chi_xem = true, $coso = '', $vt_mac_dinh = '' ) {
 		$tu = (string) $tu;
 		if ( ! isset( self::NGUON_CU[ $tu ] ) ) {
 			return array( 'ok' => false, 'error' => 'Không rõ nạp từ kho nào.' );
 		}
-		$u = VHCC_Auth::users_cua( $tu );
+		$u = self::doc_kho( $tu );
 		if ( is_wp_error( $u ) ) { return array( 'ok' => false, 'error' => $u->get_error_message() ); }
 		if ( ! count( $u ) ) {
 			return array( 'ok' => false, 'error' => self::NGUON_CU[ $tu ] . ' đang TRỐNG — không có gì để nạp.' );
 		}
 
-		return self::them_nhieu( $u, $chi_xem, $coso );
+		return self::them_nhieu( $u, $chi_xem, $coso, $vt_mac_dinh );
 	}
 
 	/**
@@ -123,7 +150,7 @@ class VHCC_NguoiDung {
 	 * @param bool   $chi_xem true = chỉ đếm, không ghi.
 	 * @param string $coso    rỗng = nhận hết; có tên = CHỈ cơ sở đó.
 	 */
-	public static function them_nhieu( $nguoi, $chi_xem = true, $coso = '' ) {
+	public static function them_nhieu( $nguoi, $chi_xem = true, $coso = '', $vt_mac_dinh = '' ) {
 		$ds     = self::ds();
 		$pin_co = array();
 		foreach ( $ds as $x ) { if ( '' !== $x['pin'] ) { $pin_co[ $x['pin'] ] = $x['ten']; } }
@@ -132,7 +159,11 @@ class VHCC_NguoiDung {
 		   nhanh"*. Kéo cả chuỗi mà một cửa hàng có dòng hỏng thì phải soi cả sổ mới biết hỏng ở
 		   đâu; kéo từng cơ sở thì mỗi lượt là một danh sách ngắn, sai chỗ nào thấy ngay. */
 		$coso = trim( (string) $coso );
-		$lech = 0; $them = 0; $bo = array(); $yeu = array(); $ten_moi = array();
+		/* Vai trò mặc định cho dòng KHÔNG đọc ra được vai trò. Để rỗng thì rơi về 'Nhân viên' —
+		   bậc thấp nhất, tức là nạp xong KHÔNG AI đăng nhập được. Đó là hỏng im lặng, nên phải
+		   ĐẾM lại và kể ra ở màn hình. */
+		if ( ! in_array( $vt_mac_dinh, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { $vt_mac_dinh = 'Nhân viên'; }
+		$lech = 0; $them = 0; $bo = array(); $yeu = array(); $ten_moi = array(); $vt_trong = 0;
 
 		foreach ( (array) $nguoi as $x ) {
 			$x   = (array) $x;
@@ -157,7 +188,7 @@ class VHCC_NguoiDung {
 				continue;
 			}
 			$vt = isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '';
-			if ( ! in_array( $vt, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { $vt = 'Nhân viên'; }
+			if ( ! in_array( $vt, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { $vt = $vt_mac_dinh; $vt_trong++; }
 			if ( '' !== self::pin_hop_le( $pin ) ) { $yeu[] = $ten; }
 			$pin_co[ $pin ] = $ten;
 			$ten_moi[]      = $ten;
@@ -168,7 +199,9 @@ class VHCC_NguoiDung {
 		}
 		if ( ! $chi_xem && $them ) { update_option( self::O, $ds, false ); }
 		return array( 'ok' => true, 'them' => $them, 'bo' => $bo, 'yeu' => $yeu, 'ten' => $ten_moi,
-			'tong' => count( (array) $nguoi ), 'coso' => $coso, 'lech' => $lech );
+			'tong' => count( (array) $nguoi ), 'coso' => $coso, 'lech' => $lech,
+			'vt_trong' => $vt_trong, 'vt_mac_dinh' => $vt_mac_dinh,
+			'vao' => self::so_vao_duoc( $chi_xem ? null : self::ds() ) );
 	}
 
 	/**
@@ -230,7 +263,7 @@ class VHCC_NguoiDung {
 	 *    lại cột trước khi dán là mời gõ tay lại từ đầu. Cột nào phần lớn là 4–8 chữ số thì đó
 	 *    là PIN; cột chữ dài nhất còn lại là họ tên.
 	 */
-	public static function nap_dan( $van_ban, $chi_xem = true, $coso = '' ) {
+	public static function nap_dan( $van_ban, $chi_xem = true, $coso = '', $vt_mac_dinh = '' ) {
 		$dong = preg_split( '/\r\n|\r|\n/', (string) $van_ban );
 		$o    = array();
 		foreach ( $dong as $d ) {
@@ -297,7 +330,7 @@ class VHCC_NguoiDung {
 				'coso'   => $cs,
 			);
 		}
-		$kq          = self::them_nhieu( $nguoi, $chi_xem, $coso );
+		$kq          = self::them_nhieu( $nguoi, $chi_xem, $coso, $vt_mac_dinh );
 		$kq['cot']   = $cot;
 		$kq['tieude'] = ( null !== $dau );
 		return $kq;
@@ -384,7 +417,7 @@ class VHCC_NguoiDung {
 	 * xong vẫn thiếu người mà không biết thiếu ai.
 	 */
 	public static function ds_coso_cu( $tu ) {
-		$u = VHCC_Auth::users_cua( (string) $tu );
+		$u = self::doc_kho( (string) $tu );
 		if ( is_wp_error( $u ) ) { return array(); }
 		$cho = VHCC_Auth::vai_tro_vao();
 		$ra  = array();
@@ -431,9 +464,17 @@ class VHCC_NguoiDung {
 
 		if ( self::co_ai_vao_duoc() ) { return ''; }
 
-		/* Bước 2 — đi tìm sổ PIN cũ TRƯỚC khi bịa ra PIN mới. */
-		$nap = self::nap_tu_cu( 'app', false );
-		if ( ! empty( $nap['ok'] ) && $nap['them'] > 0 ) {
+		/* Bước 2 — đi tìm sổ PIN cũ TRƯỚC khi bịa ra PIN mới. Hồ sơ Nhân sự trước (chỗ file .csv
+		   nhân viên đổ vào), rồi tới sổ Phân quyền của app gốc. */
+		$nap = array( 'ok' => true, 'them' => 0, 'yeu' => array(), 'bo' => array() );
+		foreach ( array( 'ho_so', 'app' ) as $tu_cu ) {
+			$thu = self::nap_tu_cu( $tu_cu, false );
+			if ( empty( $thu['ok'] ) ) { continue; }
+			$nap['them'] += (int) $thu['them'];
+			$nap['yeu']   = array_merge( $nap['yeu'], (array) $thu['yeu'] );
+			$nap['bo']    = array_merge( $nap['bo'], (array) $thu['bo'] );
+		}
+		if ( $nap['them'] > 0 ) {
 			self::doi_sang_rieng();
 			update_option( 'vhcc_mo_duong_nap', array( 'so' => (int) $nap['them'],
 				'yeu' => $nap['yeu'], 'bo' => $nap['bo'] ) );
