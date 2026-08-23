@@ -751,6 +751,56 @@ class VHCP_Cfg {
 		return ( count( $ds ) === 1 ) ? (string) $ds[0] : '';
 	}
 
+	/** Bỏ đuôi "- NCC" / "- Mua lẻ" khỏi tên nhóm chi phí (đuôi chỉ để lọc, không phải tên loại). */
+	public static function bo_duoi_nhom( $nhom ) {
+		$s = preg_replace( '/\s*-\s*NCC/iu', '', (string) $nhom );
+		$s = preg_replace( '/\s*-\s*Mua l\x{1EBB}/iu', '', $s );
+		$s = preg_replace( '/\s{2,}/u', ' ', $s );
+		return trim( $s );
+	}
+
+	/** Tên nhóm trên dòng chi có thể kèm đuôi -> thử cả dạng gốc lẫn dạng đã bỏ đuôi. */
+	public static function ten_nhom_thu( $nhom ) {
+		$raw = trim( (string) $nhom );
+		$sach = self::bo_duoi_nhom( $raw );
+		$out = array();
+		if ( $raw !== '' ) { $out[] = $raw; }
+		if ( $sach !== '' && $sach !== $raw ) { $out[] = $sach; }
+		return $out;
+	}
+
+	/**
+	 * TK NỢ CỦA MỘT LOẠI CHI PHÍ — đây là NGUỒN THẬT của cột TK Nợ khi xuất MISA.
+	 *
+	 * Nợ là "chi phí gì", nên phải tra ở danh mục loại chi phí, KHÔNG lấy mã tạm ứng
+	 * (141) hay công nợ (331) của bên trả tiền. Dò từ hẹp ra rộng: ma trận
+	 * [loại × mảng kinh doanh của cơ sở] trước (cùng loại mà khác mảng thì khác mã),
+	 * rồi mới tới mã cố định khai ở danh mục. Không có thì trả '' để chỗ gọi BÁO THIẾU
+	 * — không đoán, để không âm thầm hạch toán sai.
+	 */
+	public static function tkno_loai( $nhom, $coso = '' ) {
+		$ds = self::ten_nhom_thu( $nhom );
+		foreach ( $ds as $ten ) {
+			$tk = self::tkno_mx( $ten, $coso );
+			if ( $tk !== '' ) { return $tk; }
+		}
+		foreach ( $ds as $ten ) {
+			$tk = self::loai_tk( $ten )['tkNo'];
+			if ( trim( (string) $tk ) !== '' ) { return trim( (string) $tk ); }
+		}
+		return '';
+	}
+
+	/**
+	 * Mã này có phải TÀI KHOẢN CỦA BÊN TRẢ TIỀN không (141 tạm ứng / 331 phải trả NCC)?
+	 * Loại mã đó chỉ được nằm ở cột TK Có. Rơi vào cột TK Nợ là hạch toán sai
+	 * (bút toán ra "Nợ 141 · Có 141" — đúng thứ anh Thắng thấy trên bảng xuất).
+	 */
+	public static function la_tk_ben_tra( $tk ) {
+		$s = trim( (string) $tk );
+		return ( $s !== '' && ( strpos( $s, '141' ) === 0 || strpos( $s, '331' ) === 0 ) );
+	}
+
 	/** Các cơ sở cùng mảng với cơ sở đã chọn (dùng để báo "mã này áp cho những cơ sở nào"). */
 	public static function coso_cung_mang( $coso ) {
 		$pll = self::pll_of( $coso );

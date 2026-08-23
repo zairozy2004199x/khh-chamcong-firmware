@@ -97,3 +97,16 @@
     .wrap{max-width:1800px}
     .top,.bar{padding-left:max(22px, calc((100% - 1800px) / 2));padding-right:max(22px, calc((100% - 1800px) / 2))}
   }
+
+  /* ------------------------------------------------------------------
+     TRANG CẤU HÌNH DẠNG XỔ XUỐNG.
+     11 thẻ cấu hình mở hết một lượt thì phải cuộn cả màn hình mới thấy
+     bảng cần sửa. Gập lại: chỉ mở đúng phần đang khai. Trạng thái gập/mở
+     nhớ trong máy người dùng (localStorage) nên mở lại trang vẫn như cũ.
+     Bấm vào tiêu đề để gập/mở — các nút Lưu, Thêm… trong tiêu đề vẫn bấm
+     bình thường (JS bỏ qua click rơi vào nút/ô nhập). */
+  .card.xo > .ch{cursor:pointer;user-select:none}
+  .card.xo > .ch h2::before{content:'▾';display:inline-block;width:14px;color:#94a3b8;font-size:12px;transition:transform .12s}
+  .card.xo.dong > .ch h2::before{transform:rotate(-90deg)}
+  .card.xo.dong > .ch{border-bottom:none}
+  .card.xo.dong > .ch ~ *{display:none !important}

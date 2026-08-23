@@ -39,10 +39,7 @@ class VHCP_Misa {
 
 	/** _cleanNhom(): bỏ đuôi "- NCC" / "- Mua lẻ" khỏi tên nhóm. */
 	private static function clean_nhom( $nhom ) {
-		$s = preg_replace( '/\s*-\s*NCC/iu', '', (string) $nhom );
-		$s = preg_replace( '/\s*-\s*Mua lẻ/iu', '', $s );
-		$s = preg_replace( '/\s{2,}/u', ' ', $s );
-		return trim( $s );
+		return VHCP_Cfg::bo_duoi_nhom( $nhom );
 	}
 
 	/** exportMisa(): đơn vận hành. mode = chuaxuat|daxuat ; plF = all|cn|ncc. */
@@ -126,14 +123,21 @@ class VHCP_Misa {
 			$pll       = isset( $m_pll[ $coso ] ) ? $m_pll[ $coso ] : '';
 			$duyet_key = mb_strtolower( trim( (string) $d['nguoiDuyet'] ) );
 
-			// TK Nợ: ưu tiên MÃ ĐÃ GẮN TRÊN DÒNG (nhập sao xuất vậy, dò bằng mắt được),
-			// rồi tới danh mục loại chi phí, cuối cùng mới là ma trận/TK nhóm cho dữ liệu cũ.
-			$tk_no = trim( (string) ( isset( $r['tk_no'] ) ? $r['tk_no'] : '' ) );
-			$mx_k  = trim( $nhom ) . '|' . trim( (string) $pll );
-			if ( $tk_no !== '' )                     { /* dùng luôn mã trên dòng */ }
-			elseif ( ! empty( $m_loai[ mb_strtolower( trim( $nhom ) ) ] ) ) { $tk_no = $m_loai[ mb_strtolower( trim( $nhom ) ) ]; }
-			elseif ( ! empty( $m_no_mx[ $mx_k ] ) )  { $tk_no = $m_no_mx[ $mx_k ]; }
-			elseif ( ! empty( $m_no[ $nhom ] ) )     { $tk_no = $m_no[ $nhom ]; }
+			// TK NỢ = TÀI KHOẢN CỦA LOẠI CHI PHÍ. Nợ trả lời "chi phí gì", nên nguồn thật là
+			// danh mục loại chi phí (qua ma trận loại × mảng kinh doanh trước, vì cùng loại mà
+			// khác mảng thì khác mã). Mã đã gắn trên dòng CHỈ là bản sao chụp lúc nhập, không
+			// phải người nhập gõ tay -> lấy sau danh mục, và chỉ lấy khi không phải mã bên trả
+			// tiền. Trước đây mã trên dòng được ưu tiên, nên dòng cũ mang 141 (tạm ứng) đè lên
+			// tài khoản chi phí, xuất ra thành "Nợ 141 · Có 141".
+			$mx_k     = trim( $nhom ) . '|' . trim( (string) $pll );
+			$tk_dong  = trim( (string) ( isset( $r['tk_no'] ) ? $r['tk_no'] : '' ) );
+			$tk_no    = VHCP_Cfg::tkno_loai( $nhom, $coso );
+			$nhom_k   = mb_strtolower( VHCP_Cfg::bo_duoi_nhom( $nhom ) );
+			if ( $tk_no === '' && ! empty( $m_loai[ mb_strtolower( trim( $nhom ) ) ] ) ) { $tk_no = $m_loai[ mb_strtolower( trim( $nhom ) ) ]; }
+			if ( $tk_no === '' && ! empty( $m_loai[ $nhom_k ] ) )                        { $tk_no = $m_loai[ $nhom_k ]; }
+			if ( $tk_no === '' && ! empty( $m_no_mx[ $mx_k ] ) )                         { $tk_no = $m_no_mx[ $mx_k ]; }
+			if ( $tk_no === '' && ! VHCP_Cfg::la_tk_ben_tra( $tk_dong ) )                { $tk_no = $tk_dong; }
+			if ( $tk_no === '' && ! empty( $m_no[ $nhom ] ) && ! VHCP_Cfg::la_tk_ben_tra( $m_no[ $nhom ] ) ) { $tk_no = $m_no[ $nhom ]; }
 			// TK Có = ai ứng tiền, không phải "chi phí gì": vẫn ưu tiên TK Có của người duyệt
 			// tạm ứng như cũ, rồi tới mã gắn trên dòng, rồi tới TK Có của phân loại.
 			$tk_co = '';
@@ -145,12 +149,13 @@ class VHCP_Misa {
 			if ( ! empty( $m_dt_user[ $duyet_key ] ) )               { $ma_dt = $m_dt_user[ $duyet_key ]; }
 			elseif ( ! empty( $m_dt[ mb_strtolower( $dt ) ] ) )      { $ma_dt = $m_dt[ mb_strtolower( $dt ) ]; }
 
-			if ( ! $tk_no ) { $warn[ 'Thiếu TK Nợ (nhóm × phân loại): ' . $nhom . ' × ' . ( $pll !== '' ? $pll : '?' ) ] = 1; }
+			if ( ! $tk_no ) { $warn[ 'Thiếu TK Nợ cho loại chi phí: ' . VHCP_Cfg::bo_duoi_nhom( $nhom ) . ( $pll !== '' ? ' (mảng ' . $pll . ')' : '' ) . ' — khai ở ⚙️ Cấu hình → Loại chi phí' ] = 1; }
 			if ( ! $tk_co ) { $warn[ 'Thiếu TK Có cho người duyệt: ' . ( $d['nguoiDuyet'] !== '' ? $d['nguoiDuyet'] : '(trống)' ) ] = 1; }
 			if ( ! $ma_dv ) { $warn[ 'Thiếu Mã đơn vị cho cơ sở: ' . $coso ] = 1; }
 
 			$ngay = VHCP_Util::fmt( $r['ngay'] );
 			if ( $ngay === '' ) { $ngay = $d['ngay']; }
+			if ( VHCP_Util::ngay_vo_ly( $ngay ) ) { $warn[ 'Ngày vô lý "' . $ngay . '" — đơn ' . $m . ' (' . $nd . '). Sửa ngày của dòng chi rồi xuất lại.' ] = 1; }
 			$nhom_c   = self::clean_nhom( $nhom );
 			$ten_misa = ! empty( $m_tm[ $coso ] ) ? $m_tm[ $coso ] : $coso;
 			$ten1     = $d['nguoiDuyet'];

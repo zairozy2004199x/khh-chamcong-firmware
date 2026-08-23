@@ -225,6 +225,54 @@ foreach ( $ex['rows'] as $rw ) { $tk_no[ $rw[5] ] = 1; }
 t( 'MISA: TK Nợ lấy từ ma trận nhóm × phân loại lớn', isset( $tk_no['6421'] ) && isset( $tk_no['1561'] ), array_keys( $tk_no ) );
 teq( 'MISA: không còn cảnh báo thiếu cấu hình', array(), $ex['warn'] );
 
+// TK NỢ PHẢI LÀ TÀI KHOẢN CỦA LOẠI CHI PHÍ, KHÔNG PHẢI MÃ CŨ TRÊN DÒNG.
+// Dòng nhập từ thời chưa có danh mục loại chi phí mang sẵn tk_no = 141 (tạm ứng). Trước
+// đây mã trên dòng được ưu tiên nên bảng xuất ra "Nợ 141 · Có 141" — vô nghĩa, vì 141 là
+// tài khoản của BÊN TRẢ TIỀN, chỉ được đứng ở cột Có.
+global $wpdb;
+$t_cp = VHCP_DB::t( 'chiphi' );
+$n_bam = 0;
+foreach ( VHCP_Don::cp_rows() as $rr ) {
+	$wpdb->update( $t_cp, array( 'tk_no' => '141' ), array( 'id' => (string) $rr['id'] ) );
+	$n_bam++;
+}
+t( 'bối cảnh: đã bơm tk_no=141 vào mọi dòng chi', $n_bam >= 4, $n_bam );
+$ex141 = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' );
+$no141 = array();
+foreach ( $ex141['rows'] as $rw ) { $no141[ $rw[5] ] = 1; }
+t( 'MISA: mã 141 trên dòng KHÔNG được đè lên TK Nợ', ! isset( $no141['141'] ), array_keys( $no141 ) );
+t( 'MISA: TK Nợ vẫn lấy đúng theo loại chi phí', isset( $no141['6421'] ) && isset( $no141['1561'] ), array_keys( $no141 ) );
+teq( 'MISA: số dòng không đổi sau khi bơm mã cũ', $ex['count'], $ex141['count'] );
+
+// Nhóm còn đuôi "- NCC" / "- Mua lẻ" vẫn phải tra ra mã của loại chi phí (đuôi chỉ để lọc).
+$loai_goc = VHCP_Cfg::cfg_static()['loaiChiPhi'];
+$loai_tam = $loai_goc;
+$loai_tam[] = array( 'ten' => 'NVL đồ ăn', 'tkNo' => '6423', 'tkCo' => '', 'maDt' => '', 'boPhan' => '', 'note' => '', 'tenMisa' => '', 'loaiTt' => '' );
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => $loai_tam ) );
+teq( 'tkno_loai: bỏ đuôi "- Mua lẻ" rồi mới tra danh mục', '6423', VHCP_Cfg::tkno_loai( 'NVL đồ ăn - Mua lẻ', '' ) );
+teq( 'tkno_loai: ma trận theo cơ sở thắng danh mục', '6421', VHCP_Cfg::tkno_loai( 'NVL đồ ăn - Mua lẻ', 'FARM PHAN THIẾT' ) );
+teq( 'tkno_loai: chưa khai thì trả rỗng (không đoán)', '', VHCP_Cfg::tkno_loai( 'Nhóm chưa khai bao giờ', '' ) );
+t( 'la_tk_ben_tra: 141/331 là tài khoản bên trả tiền', VHCP_Cfg::la_tk_ben_tra( '141' ) && VHCP_Cfg::la_tk_ben_tra( '3311' ) );
+t( 'la_tk_ben_tra: tài khoản chi phí thì không', ! VHCP_Cfg::la_tk_ben_tra( '6421' ) && ! VHCP_Cfg::la_tk_ben_tra( '' ) );
+
+// NGÀY VÔ LÝ phải được báo trước khi tệp sang MISA (bảng xuất từng ra "22/08/4622").
+t( 'ngày vô lý: năm 4622', VHCP_Util::ngay_vo_ly( '22/08/4622' ) );
+t( 'ngày vô lý: 31/02', VHCP_Util::ngay_vo_ly( '31/02/2026' ) );
+t( 'ngày vô lý: năm 1899', VHCP_Util::ngay_vo_ly( '22/08/1899' ) );
+t( 'ngày thường thì KHÔNG báo', ! VHCP_Util::ngay_vo_ly( '22/08/2026' ) && ! VHCP_Util::ngay_vo_ly( '' ) );
+$id_ngay = null;
+foreach ( VHCP_Don::cp_rows() as $rr ) { $id_ngay = (string) $rr['id']; break; }
+$wpdb->update( $t_cp, array( 'ngay' => '4622-08-22' ), array( 'id' => $id_ngay ) );
+$ex_ng = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' );
+$co_bao = false;
+foreach ( $ex_ng['warn'] as $w ) { if ( strpos( $w, '4622' ) !== false ) { $co_bao = true; } }
+t( 'MISA: báo ngày vô lý ra ô cảnh báo', $co_bao, $ex_ng['warn'] );
+$wpdb->update( $t_cp, array( 'ngay' => VHCP_Util::today_sql() ), array( 'id' => $id_ngay ) );
+
+// trả lại danh mục + mã đúng cho các phép thử sau
+VHCP_Cfg::save_config( array( 'loaiChiPhi' => $loai_goc ) );
+VHCP_Don::gan_ma_tai_khoan( true );
+
 teq( 'MISA lọc NCC: chưa duyệt NCC thì không xuất', 0, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'ncc' )['count'] );
 t( 'kế toán NCC duyệt độc lập', ! empty( VHCP_Don::xac_nhan_quyet_toan_ncc( $ma_ncc, 'Phạm KT NCC' )['success'] ) );
 $exn = VHCP_Misa::export_misa( 'all', 'chuaxuat', 'ncc' );

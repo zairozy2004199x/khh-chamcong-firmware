@@ -804,12 +804,15 @@
 
   <!-- ============ TRANG: CẤU HÌNH ============ -->
   <div id="page-cauhinh" class="wrap" style="display:none">
-    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px">
+    <div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="flex:1;font-size:11px;color:#94a3b8">Bấm vào tiêu đề từng mục để xổ xuống / gập lại.</span>
+      <button class="btn b-x" onclick="xoTatCa(true)" title="Mở hết mọi mục cấu hình">▾ Mở tất cả</button>
+      <button class="btn b-x" onclick="xoTatCa(false)" title="Gập hết cho gọn trang">▸ Gập tất cả</button>
       <span style="font-size:11px;color:#94a3b8">Lỡ lưu nhầm?</span>
       <button class="btn b-x" onclick="undoCfg()" title="Khôi phục về nội dung ngay trước lần Lưu gần nhất">↩ Hồi lại lần lưu gần nhất</button>
     </div>
     <div class="card" id="userCard">
-      <div class="ch"><h2>🔐 Người dùng & Phân quyền (chỉ Admin)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
       <!-- Cột TÊN phải có bề rộng riêng. Không khai thì trình duyệt chia phần còn lại cho
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
@@ -818,12 +821,12 @@
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Vai trò: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ cơ sở của mình). Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
     <div class="card" id="ssoCard">
-      <div class="ch"><h2>🔗 Đăng nhập từ trang tổng (SSO — chỉ Admin)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addSsoRow()">＋ Thêm</button><button class="btn b-g" onclick="saveSso()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🔗 Đăng nhập từ trang tổng (SSO)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addSsoRow()">＋ Thêm</button><button class="btn b-g" onclick="saveSso()">💾 Lưu</button></div></div>
       <div class="tw"><table style="min-width:560px"><thead><tr><th>Email (ở trang tổng)</th><th>Vai trò Chi Phí</th><th>Cơ sở (cho NV)</th><th style="width:44px"></th></tr></thead><tbody id="ssoBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Người vào từ <b>Vận Hành K&H</b> được ánh xạ vai trò tự động: Admin→Admin · Quản lý→Quản lý · Cửa hàng trưởng→Nhân viên (theo cơ sở) · Kế toán→<b>Kế toán cá nhân</b> (mặc định). Muốn đổi (VD Kế toán → <b>Kế toán NCC</b>) hoặc gán cơ sở riêng: thêm 1 dòng khớp đúng <b>Email</b> — dòng này ưu tiên hơn mặc định.</div>
     </div>
     <div class="card" id="imgMaintCard">
-      <div class="ch"><h2>🗂️ Bảo trì ảnh (chỉ Admin)</h2><button class="btn b-p" onclick="doMigrateImages()">🗂️ Dời ảnh cũ về cây thư mục</button></div>
+      <div class="ch"><h2>🗂️ Bảo trì ảnh</h2><button class="btn b-p" onclick="doMigrateImages()">🗂️ Dời ảnh cũ về cây thư mục</button></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Dời ảnh cũ đang nằm ở thư mục gốc <b>AnhChiPhi_VanHanh</b> về đúng cây <b>Cơ sở / Người tạo đơn</b> (dựa theo mã đơn trong tên file). Bấm nhiều lần đến khi "đã dời = 0". Ảnh không suy được đơn sẽ được giữ nguyên.<div id="imgMaintMsg" style="margin-top:6px;color:#475569;font-size:12px"></div></div>
     </div>
     <div class="card" id="quyenCard">
@@ -3907,7 +3910,46 @@
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).undoConfig();
   }
   var TKCHART=[], TKNAME={};
-  function loadCfg(){ loading(true);
+  // ---- Trang cấu hình dạng XỔ XUỐNG ----
+  // Gập từng thẻ lại, mở đúng cái đang khai. Nhớ trạng thái theo tiêu đề thẻ, nên thêm
+  // bớt thẻ về sau không làm lệch trạng thái đã lưu của các thẻ còn lại.
+  function _xoKey(card){
+    var h=card.querySelector('.ch h2');
+    return 'vhcp_xo_'+((h?h.textContent:card.id||'').replace(/\s+/g,' ').trim().slice(0,60));
+  }
+  function _xoDat(card,mo){
+    if(mo) card.classList.remove('dong'); else card.classList.add('dong');
+    try{ localStorage.setItem(_xoKey(card), mo?'1':'0'); }catch(e){}
+  }
+  function xoTatCa(mo){
+    var pg=el('page-cauhinh'); if(!pg) return;
+    Array.prototype.forEach.call(pg.querySelectorAll('.card.xo'),function(c){ _xoDat(c,!!mo); });
+  }
+  var _XO_XONG=false;
+  function dungXoCauHinh(){
+    if(_XO_XONG) return; 
+    var pg=el('page-cauhinh'); if(!pg) return;
+    _XO_XONG=true;
+    Array.prototype.forEach.call(pg.querySelectorAll('.card'),function(card,i){
+      var ch=card.querySelector('.ch'); if(!ch) return;
+      card.classList.add('xo');
+      // Mặc định: gập hết, chỉ mở thẻ đầu. Đã từng bấm thì theo lựa chọn cũ.
+      var luu=null; try{ luu=localStorage.getItem(_xoKey(card)); }catch(e){}
+      if(luu===null) { if(i>0) card.classList.add('dong'); }
+      else if(luu==='0') card.classList.add('dong');
+      ch.addEventListener('click',function(ev){
+        // Nút / ô nhập trong tiêu đề vẫn làm việc của nó, không gập thẻ.
+        var t=ev.target;
+        while(t && t!==ch){
+          var tn=(t.tagName||'').toLowerCase();
+          if(tn==='button'||tn==='input'||tn==='select'||tn==='textarea'||tn==='a'||tn==='label') return;
+          t=t.parentNode;
+        }
+        _xoDat(card, card.classList.contains('dong'));
+      });
+    });
+  }
+  function loadCfg(){ loading(true); dungXoCauHinh();
     google.script.run.withSuccessHandler(function(c){ CFG=c||{};
       google.script.run.withSuccessHandler(function(t){
         TKCHART=(t&&t.taiKhoan)||[]; TKNAME={}; TKCHART.forEach(function(x){ TKNAME[String(x.ma)]=x.ten||''; });
@@ -4363,12 +4405,19 @@
     w.querySelector('.cs-btn').textContent=_csLabel(sels);
     w.querySelector('.cs-pop').style.display='none';
   }
+  // AI ĐƯỢC VÀO CẤU HÌNH — ĐÚNG DANH SÁCH MÁY CHỦ ĐANG CHO (VHCP_Api::required_roles).
+  // Trước đây giao diện chỉ mở cho Admin trong khi máy chủ vốn đã cho cả Quản lý và kế
+  // toán lưu cấu hình: kế toán khai mã tài khoản mà không thấy bảng để khai. Giữ MỘT
+  // danh sách ở đây để hai bên không lệch nhau nữa. Riêng DÒNG TÀI KHOẢN ADMIN vẫn chỉ
+  // Admin sửa (khoá ở dưới + chặn lại trong VHCP_Cfg::save_config).
+  var VAI_CAU_HINH=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC'];
+  function coCauHinh(){ return !!(CURUSER && VAI_CAU_HINH.indexOf(String(CURUSER.role||''))>=0); }
   function renderUsers(){
-    var adm=(CURUSER&&CURUSER.role==='Admin');
-    if(el('userCard')) el('userCard').style.display=adm?'':'none';   // chỉ Admin quản trị người dùng
-    if(el('ssoCard'))  el('ssoCard').style.display=adm?'':'none';    // chỉ Admin phân vai trò SSO
-    if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';   // chỉ Admin bảo trì ảnh
-    if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }   // chỉ Admin chỉnh phân quyền
+    var adm=coCauHinh();
+    if(el('userCard')) el('userCard').style.display=adm?'':'none';
+    if(el('ssoCard'))  el('ssoCard').style.display=adm?'':'none';
+    if(el('imgMaintCard')) el('imgMaintCard').style.display=adm?'':'none';
+    if(el('quyenCard')){ el('quyenCard').style.display=adm?'':'none'; if(adm) renderQuyen(); }
     if(!el('cfgUserBody')) return;
     // Dòng vai trò Admin: chỉ Admin sửa được. Người khác vẫn thấy để biết ai là Admin,
     // nhưng ô bị khoá và không có nút xóa — máy chủ cũng chặn lần nữa, không tin giao diện.
@@ -4396,7 +4445,7 @@
   }
   // ---- Ma trận phân quyền (Admin) ----
   function renderQuyen(){
-    if(!(CURUSER&&CURUSER.role==='Admin')) return;
+    if(!coCauHinh()) return;
     google.script.run.withSuccessHandler(function(cfg){
       var roles=(cfg&&cfg.roles)||[], acts=(cfg&&cfg.actions)||[];
       if(el('quyenHead')) el('quyenHead').innerHTML='<tr><th style="text-align:left;min-width:210px">Hành động</th>'+roles.map(function(r){return '<th style="text-align:center;font-size:12px">'+esc(r)+'</th>';}).join('')+'</tr>';

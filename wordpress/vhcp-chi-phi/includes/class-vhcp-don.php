@@ -599,7 +599,7 @@ class VHCP_Don {
 		// GẮN MÃ TÀI KHOẢN NGAY LÚC NHẬP: TK Nợ lấy theo LOẠI CHI PHÍ (danh mục), TK Có theo
 		// phân loại thanh toán. Nhờ vậy dò lại một dòng chỉ cần đọc cột mã, không phải chạy
 		// lại hàm dò ma trận. (Xuất MISA vẫn ưu tiên TK Có của người duyệt tạm ứng như cũ.)
-		$tk = self::tk_of_line( $get( 'nhom' ), $get( 'phanLoaiTT' ) );
+		$tk = self::tk_of_line( $get( 'nhom' ), $get( 'phanLoaiTT' ), $get( 'coso' ) );
 
 		return array(
 			'id'           => (string) $id,
@@ -628,9 +628,12 @@ class VHCP_Don {
 	}
 
 	/** Mã tài khoản của 1 dòng chi: TK Nợ theo loại chi phí, TK Có theo phân loại thanh toán. */
-	public static function tk_of_line( $nhom, $phan_loai_tt ) {
+	public static function tk_of_line( $nhom, $phan_loai_tt, $coso = '' ) {
 		$cat   = VHCP_Cfg::loai_tk( $nhom );
-		$tk_no = $cat['tkNo'];
+		// Nợ tra qua tkno_loai(): có ma trận [loại × mảng của cơ sở] và chịu được tên nhóm
+		// còn đuôi "- NCC" / "- Mua lẻ", nên dòng nhập theo tên nhóm vẫn ra đúng mã chi phí.
+		$tk_no = VHCP_Cfg::tkno_loai( $nhom, $coso );
+		if ( $tk_no === '' ) { $tk_no = $cat['tkNo']; }
 		$tk_co = $cat['tkCo'];
 		if ( $tk_co === '' ) {
 			$pl  = ( trim( (string) $phan_loai_tt ) === 'Nhà cung cấp' ) ? 'Nhà cung cấp' : 'Thanh toán cá nhân';
@@ -653,7 +656,7 @@ class VHCP_Don {
 		foreach ( self::cp_rows() as $r ) {
 			$thieu_ma = ( trim( (string) $r['tk_no'] ) === '' || trim( (string) $r['tk_co'] ) === '' );
 			if ( ! $all && ! $thieu_ma ) { continue; }
-			$tk = self::tk_of_line( $r['nhom'], $r['phan_loai_tt'] );
+			$tk = self::tk_of_line( $r['nhom'], $r['phan_loai_tt'], isset( $r['coso'] ) ? $r['coso'] : '' );
 			if ( $tk['tk_no'] === '' && trim( (string) $r['nhom'] ) !== '' ) { $thieu[ (string) $r['nhom'] ] = 1; }
 			if ( $tk['tk_no'] === (string) $r['tk_no'] && $tk['tk_co'] === (string) $r['tk_co'] ) { continue; }
 			$wpdb->update( $t, array( 'tk_no' => $tk['tk_no'], 'tk_co' => $tk['tk_co'] ), array( 'id' => (string) $r['id'] ) );
@@ -754,8 +757,10 @@ class VHCP_Don {
 
 		$data = self::line_data( $id, $ma_don, $rec );
 		$data['tao_luc'] = $cur['tao_luc'] ? $cur['tao_luc'] : VHCP_Util::now_sql();
-		// Danh mục chưa khai mã -> giữ mã cũ của dòng, không ghi rỗng lên.
-		if ( $data['tk_no'] === '' && trim( (string) $cur['tk_no'] ) !== '' ) { $data['tk_no'] = $cur['tk_no']; }
+		// Danh mục chưa khai mã -> giữ mã cũ của dòng, không ghi rỗng lên. Trừ mã của BÊN TRẢ
+		// TIỀN (141/331): đó là TK Có, giữ lại ở cột Nợ là bê nguyên lỗi cũ đi tiếp.
+		if ( $data['tk_no'] === '' && trim( (string) $cur['tk_no'] ) !== ''
+			&& ! VHCP_Cfg::la_tk_ben_tra( $cur['tk_no'] ) ) { $data['tk_no'] = $cur['tk_no']; }
 		if ( $data['tk_co'] === '' && trim( (string) $cur['tk_co'] ) !== '' ) { $data['tk_co'] = $cur['tk_co']; }
 		unset( $data['id'] );
 		$wpdb->update( VHCP_DB::t( 'chiphi' ), $data, array( 'id' => (string) $id ) );

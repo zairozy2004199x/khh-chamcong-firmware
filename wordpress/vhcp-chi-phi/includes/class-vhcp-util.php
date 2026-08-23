@@ -46,6 +46,22 @@ class VHCP_Util {
 		return $s;
 	}
 
+	/**
+	 * NGÀY CÓ VÔ LÝ KHÔNG (đã ở dạng dd/MM/yyyy)?
+	 *
+	 * Bảng xuất MISA từng ra ngày "22/08/4622": gõ nhầm năm lúc nhập / ô ngày của file
+	 * nạp vào bị lệch. Không tự sửa hộ — ngày là số liệu kế toán, đoán sai còn tệ hơn —
+	 * nhưng phải BÁO trước khi tệp đi sang MISA, chứ không để lọt xuống sổ.
+	 */
+	public static function ngay_vo_ly( $dmy ) {
+		$s = trim( (string) $dmy );
+		if ( $s === '' ) { return false; }
+		if ( ! preg_match( '#^(\d{1,2})/(\d{1,2})/(\d{4})$#', $s, $m ) ) { return true; }
+		$d = (int) $m[1]; $mo = (int) $m[2]; $y = (int) $m[3];
+		if ( $y < 2000 || $y > 2100 ) { return true; }
+		return ! checkdate( $mo, $d, $y );
+	}
+
 	/** Bản sao của _fmtDT(): 'dd/MM/yyyy HH:mm:ss'. */
 	public static function fmt_dt( $v ) {
 		if ( $v === null || $v === '' ) { return ''; }
