@@ -1061,6 +1061,42 @@ t( 'khai lại cùng mã 2 lần không sinh mã trùng',
 
 VHCP_Cfg::save_config( array( 'coso' => $coso_goc_nm ) );   // trả danh mục cơ sở cho các phép thử sau
 
+// ---------------------------------------------------------------- SỬA NGÀY VÔ LÝ
+// Bảng xuất MISA ra "22/08/4625" lẫn "22/08/2026" trong CÙNG một đơn — vài dòng lẻ, sửa
+// tay từng dòng thì được, nhưng phải có cả đường sửa hàng loạt cho nhanh.
+$m_ng = VHCP_Don::create_don( 'T9/2026', 'NV A' )['maDon'];
+$dong_ng = array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'cb 3 bọt tuyết',
+	'soLuong' => 1, 'donGia' => 140000, 'phanLoaiTT' => 'Thanh toán cá nhân' );
+$id_ng = VHCP_Don::add_line( $m_ng, $dong_ng )['id'];
+$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'ngay' => '4625-08-22' ), array( 'id' => $id_ng ) );
+
+// --- sửa TẠI CHỖ một dòng ---
+$r_ng = VHCP_Don::set_line_ngay( $id_ng, '22/08/2026' );
+t( 'sửa ngày tại chỗ chạy được', ! empty( $r_ng['success'] ), $r_ng );
+teq( 'ngày mới đúng', '22/08/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_ng )['ngay'] ) );
+t( 'sửa sang ngày vô lý thì bị chặn', empty( VHCP_Don::set_line_ngay( $id_ng, '22/08/4625' )['success'] ) );
+t( 'ngày không đọc được cũng bị chặn', empty( VHCP_Don::set_line_ngay( $id_ng, 'hôm qua' )['success'] ) );
+teq( 'bị chặn thì ngày cũ giữ nguyên', '22/08/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_ng )['ngay'] ) );
+
+// --- dò / sửa HÀNG LOẠT ---
+$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'ngay' => '4625-08-22' ), array( 'id' => $id_ng ) );
+$xem = VHCP_Don::sua_nam_vo_ly( 0, $m_ng );          // 0 = chỉ DÒ, không đụng dữ liệu
+t( 'dò ra dòng có năm vô lý', $xem['tong'] >= 1, $xem );
+teq( 'dò thì KHÔNG sửa gì', 0, $xem['daSua'] );
+teq( 'và dữ liệu chưa đổi', '22/08/4625', VHCP_Util::fmt( VHCP_Don::line_row( $id_ng )['ngay'] ) );
+t( 'xem trước có nói rõ đơn nào · dòng nào · ngày thô trong máy',
+	isset( $xem['items'][0]['maDon'] ) && isset( $xem['items'][0]['noiDung'] ) && $xem['items'][0]['tho'] === '4625-08-22', $xem['items'][0] );
+
+$sua = VHCP_Don::sua_nam_vo_ly( 2026, $m_ng );
+teq( 'sửa hàng loạt: 1 dòng', 1, $sua['daSua'] );
+teq( 'GIỮ nguyên ngày và tháng, chỉ thay năm', '22/08/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_ng )['ngay'] ) );
+teq( 'chạy lại thì không còn gì để sửa', 0, VHCP_Don::sua_nam_vo_ly( 0, $m_ng )['tong'] );
+t( 'năm ngoài 2000–2100 thì từ chối', empty( VHCP_Don::sua_nam_vo_ly( 1899, $m_ng )['success'] ) );
+// Không được đụng tới dòng có ngày ĐÚNG — sửa hàng loạt mà quét lan là hỏng cả sổ.
+$id_ok = VHCP_Don::add_line( $m_ng, array_merge( $dong_ng, array( 'noiDung' => 'khăn lau', 'ngay' => '20/08/2026' ) ) )['id'];
+VHCP_Don::sua_nam_vo_ly( 2026, $m_ng );
+teq( 'dòng ngày đúng KHÔNG bị đụng vào', '20/08/2026', VHCP_Util::fmt( VHCP_Don::line_row( $id_ok )['ngay'] ) );
+
 // ---------------------------------------------------------------- SỐ LƯỢNG LÀ BẮT BUỘC
 // Dòng có ĐƠN GIÁ mà bỏ trống SỐ LƯỢNG thì thành tiền ra 0: tạm ứng xin thiếu đúng bằng
 // số đó, mà nhìn bảng không thấy sai chỗ nào — số 0 trông y như dòng chưa điền.

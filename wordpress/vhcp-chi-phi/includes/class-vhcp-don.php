@@ -822,6 +822,76 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * SỬA NGÀY CỦA MỘT DÒNG NGAY TẠI CHỖ.
+	 *
+	 * Cùng luật trạng thái với set_line_anh: đang nhập / đã cấp tạm ứng / chờ quyết toán.
+	 * Đơn đã quyết toán hay đã xuất MISA thì KHÔNG cho sửa — số đã đi vào sổ.
+	 */
+	public static function set_line_ngay( $id, $ngay ) {
+		$_loi = self::loi_khong_phai_dong_minh( $id );
+		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
+
+		global $wpdb;
+		$cur = self::line_row( $id );
+		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
+		$st = self::state( (string) $cur['ma_don'] );
+		if ( ! in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
+			return VHCP_Util::err( 'Đơn "' . $st . '" — không sửa ngày được nữa' );
+		}
+		$moi = VHCP_Util::parse_date( $ngay );
+		if ( ! $moi ) { return VHCP_Util::err( 'Ngày không đọc được: ' . $ngay ); }
+		if ( VHCP_Util::ngay_vo_ly( VHCP_Util::fmt( $moi ) ) ) {
+			return VHCP_Util::err( 'Ngày vô lý: ' . VHCP_Util::fmt( $moi ) );
+		}
+		$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'ngay' => $moi ), array( 'id' => (string) $id ) );
+		return VHCP_Util::ok( array( 'ngay' => VHCP_Util::fmt( $moi ) ) );
+	}
+
+	/**
+	 * DÒ / SỬA HÀNG LOẠT NGÀY CÓ NĂM VÔ LÝ (VD "22/08/4625").
+	 *
+	 * $nam = 0 -> chỉ DÒ, trả danh sách để xem trước, không đụng dữ liệu.
+	 * $nam = 2026 -> giữ nguyên NGÀY và THÁNG, chỉ thay năm.
+	 *
+	 * ⚠️ Đây là sửa SỐ LIỆU KẾ TOÁN nên KHÔNG bao giờ tự chạy: phải người có quyền bấm,
+	 *    xem trước danh sách, rồi mới xác nhận. Giữ nguyên ngày/tháng vì đó là phần duy
+	 *    nhất còn tin được — đoán luôn cả ngày thì thành bịa.
+	 */
+	public static function sua_nam_vo_ly( $nam = 0, $ma_don = '' ) {
+		global $wpdb;
+		$nam = (int) $nam;
+		if ( $nam && ( $nam < 2000 || $nam > 2100 ) ) { return VHCP_Util::err( 'Năm phải trong khoảng 2000–2100' ); }
+
+		$t   = VHCP_DB::t( 'chiphi' );
+		$sql = "SELECT id, ma_don, ngay, noi_dung FROM $t";
+		if ( trim( (string) $ma_don ) !== '' ) { $sql = $wpdb->prepare( "SELECT id, ma_don, ngay, noi_dung FROM $t WHERE ma_don=%s", $ma_don ); }
+
+		$ds = array(); $sua = 0;
+		foreach ( VHCP_DB::rows( $sql ) as $r ) {
+			$dmy = VHCP_Util::fmt( $r['ngay'] );
+			if ( ! VHCP_Util::ngay_vo_ly( $dmy ) ) { continue; }
+			$moi = '';
+			if ( preg_match( '#^(\d{4})-(\d{2})-(\d{2})#', (string) $r['ngay'], $m ) && $nam ) {
+				$moi = sprintf( '%04d-%02d-%02d', $nam, (int) $m[2], (int) $m[3] );
+				if ( ! checkdate( (int) $m[2], (int) $m[3], $nam ) ) { $moi = ''; }
+			}
+			$ds[] = array(
+				'id'      => (string) $r['id'],
+				'maDon'   => (string) $r['ma_don'],
+				'noiDung' => (string) $r['noi_dung'],
+				'cu'      => $dmy,
+				'tho'     => (string) $r['ngay'],
+				'moi'     => $moi !== '' ? VHCP_Util::fmt( $moi ) : '',
+			);
+			if ( $nam && $moi !== '' ) {
+				$wpdb->update( $t, array( 'ngay' => $moi ), array( 'id' => (string) $r['id'] ) );
+				$sua++;
+			}
+		}
+		return VHCP_Util::ok( array( 'items' => $ds, 'tong' => count( $ds ), 'daSua' => $sua, 'nam' => $nam ) );
+	}
+
 	public static function set_line_anh( $id, $url ) {
 		$_loi = self::loi_khong_phai_dong_minh( $id );
 		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }

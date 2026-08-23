@@ -21,7 +21,9 @@ class VHCP_API {
 	 *  Admin/Quản lý thấy, nên người dùng không thấy khác gì.)
 	 */
 	private static function required_roles( $fn ) {
-		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi' );
+		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
+		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
+		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -166,6 +168,8 @@ class VHCP_API {
 			'setLineThucMua'        => array( 'VHCP_Don', 'set_line_thuc_mua' ),
 			'setLineCN'             => array( 'VHCP_Don', 'set_line_cn' ),
 			'setLineAnh'            => array( 'VHCP_Don', 'set_line_anh' ),
+			'setLineNgay'           => array( 'VHCP_Don', 'set_line_ngay' ),
+			'suaNamVoLy'            => array( 'VHCP_Don', 'sua_nam_vo_ly' ),
 			'deleteLine'            => array( 'VHCP_Don', 'delete_line' ),
 			'duplicateLine'         => array( 'VHCP_Don', 'duplicate_line' ),
 			'guiDuyetTamUng'        => array( 'VHCP_Don', 'gui_duyet_tam_ung' ),

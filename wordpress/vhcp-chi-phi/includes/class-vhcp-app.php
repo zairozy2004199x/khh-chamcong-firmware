@@ -155,7 +155,18 @@ class VHCP_App {
 	 * bản Ghế nữa — thông tin công ty (thứ phải một nguồn) vẫn đọc từ VHG_Chan như cũ.
 	 */
 	private static function chan_css_sang() {
-		return '.vhg-chan{border-top-color:#e2e8f0;color:#64748b}'
+		// CHÂN TRANG LUÔN NẰM DƯỚI ĐÁY.
+		//
+		// Nó là thẻ cuối của body, nên trang nào ít nội dung (VD tab Duyệt tạm ứng còn 1 đơn)
+		// thì nó dính ngay dưới bảng, treo lơ lửng giữa màn hình với một khoảng trắng to
+		// bên dưới — trông như trang bị đứt. Cách chuẩn: body xếp dọc cao tối thiểu bằng màn
+		// hình, chân trang tự ăn hết phần thừa (margin-top:auto). Nội dung dài hơn màn hình
+		// thì mọi thứ giữ nguyên như cũ.
+		//
+		// Hộp thoại đều position:fixed nên không bị xếp vào dòng chảy này.
+		return 'body{min-height:100vh;display:flex;flex-direction:column}'
+			. '.vhg-chan{margin-top:auto;width:100%}'
+			. '.vhg-chan{border-top-color:#e2e8f0;color:#64748b}'
 			. '.vhg-chan .vhg-ten{color:#0f766e}'
 			. '.vhg-chan .vhg-qt{color:#94a3b8}'
 			. '.vhg-chan .vhg-cd span{color:#94a3b8}'

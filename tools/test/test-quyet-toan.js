@@ -190,6 +190,34 @@ t('gác TỪNG HÀM chứ không chỉ tên lớp (2 plugin cài độc lập, b
 t('lấy bố cục qua hàm css() cũng phải gác', /method_exists\( 'VHG_Chan', 'css' \) \? VHG_Chan::css\(\)/.test(APP));
 t('màu nền sáng thuộc về app chi phí, không đòi bản Ghế mới',
   /function chan_css_sang/.test(APP) && !/css_sang/.test(CHAN));
+// Chân trang là thẻ cuối của body: trang ít nội dung thì nó dính ngay dưới bảng, treo lơ
+// lửng giữa màn hình với khoảng trắng to bên dưới — trông như trang bị đứt.
+t('chân trang luôn nằm dưới đáy trang',
+  /body\{min-height:100vh;display:flex;flex-direction:column\}/.test(APP)
+  && /\.vhg-chan\{margin-top:auto;width:100%\}/.test(APP));
+
+// ---------------------------------------------------------------- 10. mỗi khâu một tab
+// "Chờ quyết toán" / "Đã quyết toán" thuộc tab 🧾 Quyết toán. Để chúng ở tab Duyệt tạm ứng
+// thì cùng một đơn nằm hai chỗ, mà chỗ đó lại không làm được gì với nó.
+const mLoc = HTML.match(/<select id="duyetFilter"[\s\S]*?<\/select>/);
+t('tìm được ô lọc của tab Duyệt tạm ứng', !!mLoc);
+const LOC = mLoc ? mLoc[0] : '';
+t('bỏ "Chờ quyết toán" khỏi tab Duyệt tạm ứng', LOC.indexOf('Chờ quyết toán') < 0, LOC);
+t('bỏ "Đã quyết toán" khỏi tab Duyệt tạm ứng', LOC.indexOf('Đã quyết toán') < 0, LOC);
+t('vẫn còn đủ 3 khâu tạm ứng',
+  LOC.indexOf('Chờ duyệt tạm ứng') >= 0 && LOC.indexOf('Chờ cấp tạm ứng') >= 0 && LOC.indexOf('Đã cấp tạm ứng') >= 0, LOC);
+t('nhãn "Cần xử lý" thôi nhắc quyết toán', /Cần xử lý \(chờ duyệt \/ chờ gửi tiền\)/.test(LOC), LOC);
+// Bỏ khỏi ô chọn mà "Tất cả" vẫn kéo về là bỏ hụt.
+t('"Tất cả" cũng chỉ trong khâu tạm ứng',
+  /var KHAU_TU=\['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'\];/.test(HTML)
+  && /if\(KHAU_TU\.indexOf\(d\.trangThai\)<0\) return false;/.test(HTML));
+t('"Cần xử lý" = chờ duyệt + chờ gửi tiền, không còn quyết toán',
+  /if\(f==='cho'\) return \['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'\]\.indexOf/.test(HTML));
+// Cắt tab mà quên đường dẫn tới là tạo liên kết chết — đúng bẫy đã gặp ở khâu gom.
+t('Tổng quan đưa đơn "Chờ quyết toán" sang tab Quyết toán, không phải Duyệt',
+  /tab:\(d\.trangThai==='Chờ quyết toán'\?'qt':'duyet'\)/.test(HTML));
+t('gỡ dòng chết "→ xử lý ở tab Quyết toán" trong bảng Duyệt',
+  !/→ xử lý ở tab 🧾 Quyết toán/.test(HTML));
 
 // ---------------------------------------------------------------- kết
 if (hong.length) {

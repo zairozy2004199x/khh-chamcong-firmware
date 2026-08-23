@@ -120,6 +120,40 @@ t('đính ảnh được ngay khi đơn còn Nháp (không đợi cấp tạm �
   /if\(!\(o\.canThucChi\|\|o\.canEditRow\)\) return xem\|\|'—';/.test(HTML));
 t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', /<img src="'\+esc\(l\.anh\)\+'" style="height:28px/.test(HTML));
 
+// ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng
+// NGÀY sửa tại chỗ: đang có dòng mang năm vô lý ("22/08/4625"), bắt mở form sửa cả dòng
+// chỉ để đổi một chữ số là quá phiền.
+const _ymd = new Function(layHam('_ymd') + '; return _ymd;')();
+const _voLy = new Function(layHam('_ngayVoLy') + '; return _ngayVoLy;')();
+teq('đổi dd/MM/yyyy sang dạng ô ngày', '2026-08-22', _ymd('22/08/2026'));
+teq('nhận luôn dạng ISO sẵn', '2026-08-22', _ymd('2026-08-22'));
+teq('ngày rỗng thì trả rỗng', '', _ymd(''));
+teq('giữ đúng năm vô lý để ô ngày hiện ra', '4625-08-22', _ymd('22/08/4625'));
+t('bắt được năm vô lý', _voLy('22/08/4625') && _voLy('22/08/1899'));
+t('ngày thường thì không báo', !_voLy('22/08/2026') && !_voLy(''));
+t('ô NGÀY của dòng sửa được tại chỗ', /onchange="saveLineNgay\(/.test(HTML));
+t('gọi đúng cổng máy chủ', /\.setLineNgay\(id, val\)/.test(HTML));
+t('năm vô lý được tô đỏ giữa bảng', /border-color:#dc2626;background:#fef2f2/.test(HTML));
+// Trình duyệt vẽ ô type=date theo ngôn ngữ máy (08/23/2026) còn cả app dùng 23/08/2026.
+t('ghi rõ ngày đang hiểu theo kiểu Việt Nam', /\(ngày\/tháng\/năm\)/.test(HTML) && /id="f_ngayVi"/.test(HTML));
+
+// TIỀN: <input type="number"> không hiện được "246.000" — trình duyệt chỉ nhận số thuần.
+const _tienSo  = new Function(layHam('_tienSo') + '; return _tienSo;')();
+const _tienDep = new Function(layHam('_tienSo') + '\n' + layHam('_tienDep') + '; return _tienDep;')();
+teq('bỏ dấu chấm để lấy số thật', '246000', _tienSo('246.000'));
+teq('ô rỗng vẫn là rỗng (khác 0)', '', _tienSo(''));
+teq('gõ chữ lung tung thì bỏ', '', _tienSo('abc'));
+teq('hiện có dấu chấm nghìn', '246.000', _tienDep('246000'));
+teq('số đã đẹp thì giữ nguyên', '1.837.000', _tienDep('1.837.000'));
+t('ô tiền là type=text (number không hiện được dấu chấm)',
+  /<input type="text" inputmode="numeric" value="'\+\(\(l\.thucMua/.test(HTML));
+t('định dạng lúc RỜI ô, bỏ định dạng lúc VÀO ô (khỏi nhảy con trỏ)',
+  /onfocus="tienVao\(this\)" onblur="tienRa\(this\)"/.test(HTML));
+t('gửi lên máy chủ SỐ THẬT, không phải chuỗi có dấu chấm', /saveLineThucMua\(\\''\+l\.id\+'\\',_tienSo\(this\.value\)\)/.test(HTML));
+t('ô Thực mua tổng ở mục 3 cũng có dấu chấm (đồng bộ với ô Tạm ứng bên cạnh)',
+  /el\('qtThucMua'\)\.value=money\(/.test(HTML) && /id="qtThucMua" type="text"/.test(HTML));
+t('và chỗ đọc nó ra để tính thì bỏ dấu chấm trước', /Number\(_tienSo\(el\('qtThucMua'\)\.value\)\)/.test(HTML));
+
 // ---------------------------------------------------------------- kết
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');

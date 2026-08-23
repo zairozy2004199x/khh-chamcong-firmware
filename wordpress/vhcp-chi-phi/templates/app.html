@@ -199,7 +199,12 @@
         <div class="grid">
           <div class="fld"><label>Cơ sở *</label><select id="f_coso" onchange="_khoaCoSoHint();renderNhomCp();fillNhom(el('f_nhom')?el('f_nhom').value:'')"></select>
             <div id="cosoLock" style="font-size:11px;color:#b45309;margin-top:3px;display:none"></div></div>
-          <div class="fld"><label>Ngày</label><input id="f_ngay" type="date"></div>
+          <!-- Trình duyệt vẽ ô type=date theo NGÔN NGỮ CỦA MÁY: máy anh Thắng hiện 08/23/2026
+               (tháng trước ngày) trong khi cả app còn lại dùng 23/08/2026. Hai kiểu ngày cạnh
+               nhau là chỗ gõ nhầm. Không đổi được cách trình duyệt vẽ, nên ghi rõ bên dưới
+               ngày đang hiểu là ngày nào theo kiểu Việt Nam. -->
+          <div class="fld"><label>Ngày</label><input id="f_ngay" type="date" onchange="_veNgayVi()">
+            <div id="f_ngayVi" style="font-size:11px;color:#0f766e"></div></div>
           <div class="fld"><label>Phân loại (Cá nhân / NCC) *</label><select id="f_pltt" onchange="onPlttChange()"></select></div>
           <div class="fld"><label id="lblDoiTuong">Đối tượng (NV/NCC)</label><input id="f_dt" list="dl_dt" autocomplete="off" placeholder="Tên NV hoặc NCC"><datalist id="dl_dt"></datalist></div>
           <!-- CHỌN CHI PHÍ NÀO: mỗi mảng một ô riêng. Chọn mảng nào thì ô Loại chi phí chỉ
@@ -264,7 +269,10 @@
         <div id="qtCNBox">
         <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
           <div class="fld"><label>Tạm ứng (số đã duyệt)</label><input id="qtTU" disabled style="width:160px;font-weight:700"></div>
-          <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="number" disabled style="width:170px;font-weight:700"></div>
+          <!-- type=text: ô này chỉ để ĐỌC mà nằm cạnh "Tạm ứng 30.000.000" — để type=number
+               thì nó hiện 1837000 trong khi ô bên cạnh hiện 30.000.000, hai kiểu số cạnh nhau
+               trên cùng một hàng. Giá trị thật đọc qua _tienSo() nên không đổi gì phía sau. -->
+          <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:170px;font-weight:700;text-align:right"></div>
           <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:150px;font-weight:800;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;font-family:Consolas,monospace">—</div></div>
           <div class="fld"><label>Hóa đơn tổng (nếu cần)</label>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
@@ -644,14 +652,16 @@
           <div class="fld"><label>Tuần / kỳ</label><select id="dvKy" onchange="renderDuyet()" style="min-width:185px"></select></div>
           <div class="fld"><label>Cơ sở</label><select id="dvCoso" onchange="renderDuyet()" style="min-width:165px"></select></div>
           <button class="btn b-x" onclick="dvXoaLoc()" title="Bỏ lọc tháng / tuần / cơ sở">✕ Bỏ lọc</button>
+          <!-- TAB NÀY CHỈ LO KHÂU TẠM ỨNG: duyệt → gửi tiền → đang mua.
+               "Chờ quyết toán" và "Đã quyết toán" thuộc tab 🧾 Quyết toán — để ở đây thì
+               cùng một đơn nằm hai chỗ, mà chỗ này lại không làm được gì với nó (code cũ
+               còn phải in thêm dòng "→ xử lý ở tab Quyết toán" ngay cạnh). -->
           <select id="duyetFilter" onchange="renderDuyet()">
-            <option value="cho">Cần xử lý (chờ duyệt / quyết toán)</option>
+            <option value="cho">Cần xử lý (chờ duyệt / chờ gửi tiền)</option>
             <option value="Chờ duyệt tạm ứng">Chờ duyệt tạm ứng</option>
             <option value="Chờ cấp tạm ứng">Chờ cấp tạm ứng (gửi tiền)</option>
-            <option value="Chờ quyết toán">Chờ quyết toán</option>
             <option value="Đã cấp tạm ứng">Đã cấp tạm ứng (đang mua)</option>
-            <option value="Đã quyết toán">Đã quyết toán</option>
-            <option value="all">Tất cả</option>
+            <option value="all">Tất cả đơn ở khâu tạm ứng</option>
           </select>
           <button class="btn b-x" onclick="loadDuyet()">↻ Tải lại</button>
         </div>
@@ -1678,6 +1688,47 @@
       doiTuong:el('f_dt').value.trim(), nhom:el('f_nhom').value, noiDung:el('f_nd').value.trim(), dvt:el('f_dvt').value.trim(),
       soLuong:el('f_sl').value, donGia:el('f_dg').value, thanhTien:el('f_tt').value, thueSuat:el('f_thue').value, ghiChu:el('f_gc').value.trim(), anh:el('f_anh').value };
   }
+  /**
+   * Ô NHẬP TIỀN — HIỆN CÓ DẤU CHẤM NGHÌN, ĐÚNG NHƯ MỌI CHỖ KHÁC.
+   *
+   * `<input type="number">` KHÔNG hiện được "246.000": trình duyệt chỉ nhận số thuần, gán
+   * chuỗi có dấu chấm vào là ô rỗng luôn. Nên phải là type=text + inputmode=numeric.
+   *
+   * Định dạng lúc RỜI ô, bỏ định dạng lúc VÀO ô: gõ tới đâu chèn dấu chấm tới đó thì con
+   * trỏ nhảy lung tung, sửa một chữ số ở giữa thành cực hình trên điện thoại.
+   */
+  /** 'dd/MM/yyyy' -> 'yyyy-MM-dd' cho <input type="date">; đọc luôn dạng ISO sẵn. */
+  function _ymd(v){
+    var s=String(v||'').trim();
+    var m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s);
+    if(m) return m[3]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[1]).slice(-2);
+    m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+    return m?(m[1]+'-'+m[2]+'-'+m[3]):'';
+  }
+  /** Năm ngoài 2000–2100 (hoặc ngày không đọc được) — giống VHCP_Util::ngay_vo_ly bên máy chủ. */
+  function _ngayVoLy(v){
+    var s=String(v||'').trim(); if(!s) return false;
+    var m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s); if(!m) return true;
+    var y=+m[3]; return y<2000||y>2100;
+  }
+  function _veNgayVi(){
+    var d=el('f_ngayVi'); if(!d) return;
+    var v=String((el('f_ngay')&&el('f_ngay').value)||'');
+    var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    d.textContent=m?('= '+m[3]+'/'+m[2]+'/'+m[1]+' (ngày/tháng/năm)'):'';
+  }
+  function saveLineNgay(id, val){
+    if(!val) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){ _log('Sửa ngày dòng',(CUR&&CUR.don&&CUR.don.maDon)||'', 'id '+id+' -> '+(r.ngay||val)); toast('ok','Đã sửa ngày: '+(r.ngay||val)); openDon(CUR.don.maDon); }
+      else toast('err',(r&&r.error)||'Không sửa được ngày');
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).setLineNgay(id, val);
+  }
+  function _tienSo(v){ var s=String(v==null?'':v).replace(/[^0-9-]/g,''); return s===''||s==='-'?'':String(Number(s)); }
+  function _tienDep(v){ var n=_tienSo(v); return n===''?'':Number(n).toLocaleString('vi-VN'); }
+  function tienVao(o){ o.value=_tienSo(o.value); try{ o.select(); }catch(e){} }
+  function tienRa(o){ o.value=_tienDep(o.value); }
   function _dmy(v){ var p=String(v).split('-'); return p.length===3?(p[2]+'/'+p[1]+'/'+p[0]):v; }
   function saveLine(){
     if(_guardChi())return;
@@ -1704,6 +1755,7 @@
   function resetLineForm(){
     ['lineId','f_dt','f_nd','f_dvt','f_sl','f_dg','f_tt','f_thue','f_gc','f_anh'].forEach(function(i){el(i).value='';});
     var _t=new Date(); el('f_ngay').value=_t.getFullYear()+'-'+('0'+(_t.getMonth()+1)).slice(-2)+'-'+('0'+_t.getDate()).slice(-2);   // mặc định ngày nhập (hôm nay), sửa được
+    _veNgayVi();
     el('imgBtn').textContent='📎 Đính ảnh';
     el('f_pltt').value=''; renderNhomCp(); fillNhom(''); updateDoiTuongUI('');
     var _ps=(CUR&&CUR.don&&CUR.don.trangThai==='Đã cấp tạm ứng');
@@ -1725,6 +1777,7 @@
     el('f_dvt').value=l.dvt||''; el('f_sl').value=l.soLuong||''; el('f_dg').value=l.donGia||''; el('f_tt').value=l.thanhTien||''; el('f_thue').value=(l.thueSuat===''||l.thueSuat==null)?'':String(l.thueSuat);
     el('f_gc').value=l.ghiChu||''; el('f_anh').value=l.anh||''; el('imgBtn').textContent=l.anh?'✓ Đã đính ảnh':'📎 Đính ảnh';
     if(l.ngay){var p=String(l.ngay).split('/'); if(p.length===3)el('f_ngay').value=p[2]+'-'+p[1]+'-'+p[0];}
+    _veNgayVi();
     el('lineFormTitle').textContent='✏️ Sửa dòng chi'; el('editHint').textContent='Đang sửa 1 dòng';
     el('btnAdd').textContent='💾 Lưu thay đổi'; el('btnCancelEdit').classList.remove('hide');
     window.scrollTo(0,0);
@@ -1818,12 +1871,22 @@
         var moved=(l.phanLoaiTT!=='Nhà cung cấp' && l.cnXuLy===false);   // dòng cá nhân đã chuyển sang NCC
         return '<tr'+(moved?' style="opacity:.6;background:#fff7ed"':'')+'>'+
           '<td class="colCoso"'+((o.csDon&&String(l.coso||'').trim()!==o.csDon)?' style="color:#b91c1c;font-weight:700" title="Dòng này khác cơ sở của đơn"':'')+'>'+esc(l.coso)+'</td>'+
-          '<td>'+esc(l.ngay)+'</td>'+
+          // NGÀY SỬA TẠI CHỖ. Ngày quyết định kỳ hạch toán, mà đang có dòng mang năm vô lý
+          // ("22/08/4625") — bắt mở form sửa cả dòng chỉ để đổi một chữ số là quá phiền.
+          // Năm vô lý thì tô đỏ để nhìn ra ngay giữa bảng.
+          '<td style="white-space:nowrap">'+(function(){
+             var xau=_ngayVoLy(l.ngay);
+             if(!(o.canEditRow||o.canThucChi)) return (xau?'<b style="color:#b91c1c" title="Năm vô lý">'+esc(l.ngay)+'</b>':esc(l.ngay));
+             return '<input type="date" value="'+esc(_ymd(l.ngay))+'" onchange="saveLineNgay(\''+l.id+'\',this.value)"'
+               +' style="padding:4px 5px;'+(xau?'border-color:#dc2626;background:#fef2f2':'')+'"'
+               +' title="'+(xau?'Năm vô lý — sửa lại rồi Enter':'Sửa ngày ngay tại đây')+'">'
+               +(xau?'<div style="font-size:10px;color:#b91c1c;font-weight:700">'+esc(l.ngay)+'</div>':'');
+           })()+'</td>'+
           '<td>'+esc(l.noiDung)+(l.ghiChu?'<div style="font-size:11px;color:#94a3b8">'+esc(l.ghiChu)+'</div>':'')+'</td>'+
           '<td>'+esc(l.dvt)+'</td><td class="money">'+money(l.soLuong)+'</td><td class="money">'+money(l.donGia)+'</td>'+
           '<td class="money"><b>'+money(l.thanhTien)+'</b></td>'+
           '<td class="money">'+(o.canThucChi
-             ? '<input type="number" min="0" value="'+((l.thucMua===''||l.thucMua==null)?'':l.thucMua)+'" onchange="saveLineThucMua(\''+l.id+'\',this.value)" placeholder="='+money(l.thanhTien)+'" title="Thực chi — để trống = bằng Thành tiền; nhập nếu thực trả khác; 0 nếu không mua" style="width:112px;text-align:right;padding:5px 6px">'
+             ? '<input type="text" inputmode="numeric" value="'+((l.thucMua===''||l.thucMua==null)?'':money(l.thucMua))+'" onfocus="tienVao(this)" onblur="tienRa(this)" onchange="saveLineThucMua(\''+l.id+'\',_tienSo(this.value))" placeholder="='+money(l.thanhTien)+'" title="Thực chi — để trống = bằng Thành tiền; nhập nếu thực trả khác; 0 nếu không mua" style="width:112px;text-align:right;padding:5px 6px">'
              : ((l.thucMua===''||l.thucMua==null)?'<span style="color:#94a3b8" title="Bằng Thành tiền">= '+money(l.thanhTien)+'</span>':'<b>'+money(l.thucMua)+'</b>'))+'</td>'+
           '<td class="money">'+((l.thueSuat!==''&&l.thueSuat!=null)?money(l.tienThue)+'<div style="font-size:10px;color:#94a3b8">'+esc(l.thueSuat)+'%</div>':'—')+'</td>'+
           '<td style="font-size:11px">'+esc(l.phanLoaiTT||'')+(l.doiTuong?'<div style="color:#94a3b8">'+esc(l.doiTuong)+'</div>':'')+'</td>'+
@@ -1878,14 +1941,14 @@
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiDuyetTamUng(CUR.don.maDon);
   }
   function guiQT(){ if(!CUR)return;
-    if(!el('qtThucMua').value){toast('warn','Chưa có dòng đã mua — nhập ở bảng bên dưới (hoặc bấm 🚫 Không dùng)');return;}
+    if(!Number(_tienSo(el('qtThucMua').value))){toast('warn','Chưa có dòng đã mua — nhập ở bảng bên dưới (hoặc bấm 🚫 Không dùng)');return;}
     if(!el('qtHTTT').value){toast('warn','Chọn hình thức trả kế toán');return;}
     if(!confirm('Gửi hóa đơn thẳng cho kế toán quyết toán?'))return;
     loading(true);
-    var obj={soThucMua:el('qtThucMua').value, httt:el('qtHTTT').value, anhHoaDon:QT.anh};
+    var obj={soThucMua:_tienSo(el('qtThucMua').value), httt:el('qtHTTT').value, anhHoaDon:QT.anh};
     google.script.run.withSuccessHandler(function(r){
       if(!r.success){loading(false);toast('err',r.error);return;}
-      google.script.run.withSuccessHandler(function(r2){loading(false); if(r2.success){_log('Gửi hóa đơn cho kế toán', CUR.don.maDon, 'thực mua '+money(el('qtThucMua').value)+'đ · '+el('qtHTTT').value); toast('ok','Đã gửi cho kế toán');boot();openDon(CUR.don.maDon);} else toast('err',r2.error);})
+      google.script.run.withSuccessHandler(function(r2){loading(false); if(r2.success){_log('Gửi hóa đơn cho kế toán', CUR.don.maDon, 'thực mua '+money(_tienSo(el('qtThucMua').value))+'đ · '+el('qtHTTT').value); toast('ok','Đã gửi cho kế toán');boot();openDon(CUR.don.maDon);} else toast('err',r2.error);})
         .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiQuyetToan(CUR.don.maDon);
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).saveQuyetToan(CUR.don.maDon,obj);
   }
@@ -1905,7 +1968,7 @@
     var editable=(st==='Đã cấp tạm ứng');
     var tongTU=(CUR.tongCN||{}).tamUng||0;
     el('qtTU').value=money(tongTU);
-    el('qtThucMua').value=(CUR.tongCN||{}).thucChi||0; el('qtThucMua').disabled=true;   // model mới = tổng Thành tiền các dòng đã mua; model cũ = tổng cột Thực mua
+    el('qtThucMua').value=money((CUR.tongCN||{}).thucChi||0); el('qtThucMua').disabled=true;   // model mới = tổng Thành tiền các dòng đã mua; model cũ = tổng cột Thực mua
     if(el('qtHint')) el('qtHint').innerHTML=(CUR.tuMode==='new')
       ? '💡 <b>Tạm ứng = số đã duyệt</b> (cố định, khóa sau duyệt). NV nhập <b>từng dòng đã mua</b>; ô <b>Thực mua</b> để trống = bằng Thành tiền, nhập nếu thực trả khác (vd có ship). → <b>Còn lại = Tạm ứng − Tổng thực mua</b> (thừa: NV trả lại · thiếu: kế toán bù).'
       : '💡 Đơn không nhập tạm ứng theo cơ sở — <b>Thực mua = tổng thực chi các dòng</b> (đối chiếu khớp).';
@@ -1968,7 +2031,7 @@
     if(el('qtCard').style.display==='none') return;
     var st2=(CUR.don&&CUR.don.trangThai)||'';
     if(st2==='Chờ duyệt tạm ứng'){ var b0=el('qtResult'); if(b0){b0.style.background='#f1f5f9';b0.style.color='#334155';b0.textContent='Chưa mua — đang chờ duyệt tạm ứng';} if(el('qtConLai')){el('qtConLai').textContent='—';el('qtConLai').style.color='#334155';} if(el('qtQR'))el('qtQR').innerHTML=''; return; }
-    var tongTU=(CUR.tongCN||{}).tamUng||0, mua=parseFloat(el('qtThucMua').value)||0, cl=tongTU-mua;
+    var tongTU=(CUR.tongCN||{}).tamUng||0, mua=Number(_tienSo(el('qtThucMua').value))||0, cl=tongTU-mua;
     var box=el('qtResult');
     if(cl>0){ box.style.background='#dcfce7'; box.style.color='#166534'; box.textContent='Thừa '+money(cl)+'đ — NV trả lại kế toán'; }
     else if(cl<0){ box.style.background='#fee2e2'; box.style.color='#dc2626'; box.textContent='Thiếu '+money(-cl)+'đ — kế toán chi bù cho NV'; }
@@ -2009,7 +2072,7 @@
     }; inp.click();
   }
   function saveQT(){ if(!CUR)return; loading(true);
-    var obj={soThucMua:el('qtThucMua').value, httt:el('qtHTTT').value, anhHoaDon:QT.anh};
+    var obj={soThucMua:_tienSo(el('qtThucMua').value), httt:el('qtHTTT').value, anhHoaDon:QT.anh};
     google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã lưu nháp quyết toán');} else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).saveQuyetToan(CUR.don.maDon,obj);
   }
@@ -2378,7 +2441,11 @@
       var donPend=(BOOT.dons||[]).filter(function(d){ return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0; });
       google.script.run.withSuccessHandler(function(r){
         var rows=[];
-        donPend.forEach(function(d){ rows.push({module:'Đơn vận hành', icon:'📝', tab:'duyet', ma:d.maDon, ten:(d.ky||'')+' · '+(d.nguoiLap||''), phu:'', nguoi:d.nguoiLap||'', ngay:d.ky||'', soTien:Number(d.tamUng)||Number(d.thucChiCN)||0, trangThai:d.trangThai}); });
+        // Đưa về ĐÚNG TAB làm được việc đó. Tab Duyệt tạm ứng nay chỉ còn khâu tạm ứng, nên
+        // đơn "Chờ quyết toán" mà vẫn trỏ sang đó là bấm vào ra bảng rỗng — liên kết chết.
+        donPend.forEach(function(d){ rows.push({module:'Đơn vận hành', icon:'📝',
+          tab:(d.trangThai==='Chờ quyết toán'?'qt':'duyet'),
+          ma:d.maDon, ten:(d.ky||'')+' · '+(d.nguoiLap||''), phu:'', nguoi:d.nguoiLap||'', ngay:d.ky||'', soTien:Number(d.tamUng)||Number(d.thucChiCN)||0, trangThai:d.trangThai}); });
         ((r&&r.items)||[]).forEach(function(m){ rows.push(m); });
         if(!rows.length){ box.style.display='none'; return; }
         box.style.display='';
@@ -4115,13 +4182,17 @@
     var all=(BOOT.dons||[]);
     _napLocDon(all, 'dvThang', 'dvKy', 'dvCoso');
     var fT=el('dvThang')?el('dvThang').value:'', fK=el('dvKy')?el('dvKy').value:'', fC=el('dvCoso')?el('dvCoso').value:'';
+    // KHÂU TẠM ỨNG gồm đúng 3 trạng thái. Kể cả "Tất cả" cũng không kéo đơn của khâu sau
+    // về đây — không thì bỏ 2 dòng khỏi ô chọn mà chọn "Tất cả" là chúng quay lại ngay.
+    var KHAU_TU=['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng'];
     var list=all.filter(function(d){
       // Lọc cho gọn: tháng / tuần / cơ sở — ô nào trống là không lọc theo ô đó
       if(fT && _thangCuaKy(d.ky)!==fT) return false;
       if(fK && String(d.ky||'')!==fK) return false;
       if(fC && String(d.coso||'')!==fC) return false;
+      if(KHAU_TU.indexOf(d.trangThai)<0) return false;
       if(f==='all') return true;
-      if(f==='cho') return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Chờ quyết toán'].indexOf(d.trangThai)>=0;
+      if(f==='cho') return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'].indexOf(d.trangThai)>=0;
       return d.trangThai===f; });
     el('duyetEmpty').style.display=list.length?'none':'block';
     el('duyetBody').innerHTML=list.map(function(d){
@@ -4137,7 +4208,6 @@
         if(canDo('capTU')) a2+=' <button class="btn b-g" onclick="doCapTU(\''+d.maDon+'\')">💵 Gửi tạm ứng</button>';
         if(canDo('traDon')) a2+=' <button class="btn b-d" onclick="doTraLai(\''+d.maDon+'\')">↩ Trả lại</button>';
         act+= a2 || ' <span style="font-size:11px;color:#64748b">chờ kế toán gửi tiền</span>'; }
-      else if(st==='Chờ quyết toán') act+=' <span style="font-size:11px;color:#854d0e">→ xử lý ở tab 🧾 Quyết toán</span>';
       var info='';
       if(st==='Đã cấp tạm ứng'&&(d.nguoiDuyet||d.ngayDuyet)) info='<div style="font-size:10px;color:#94a3b8">cấp TƯ: '+esc(d.nguoiDuyet||'')+(d.ngayDuyet?' · '+esc(d.ngayDuyet):'')+'</div>';
       if(st==='Đã quyết toán') info='<div style="font-size:10px;color:#94a3b8">QT '+esc(d.ngayQT||'')+(d.xuLy?' · '+esc(d.xuLy):'')+'</div>';
