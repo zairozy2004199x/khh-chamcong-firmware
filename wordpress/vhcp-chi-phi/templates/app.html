@@ -975,6 +975,18 @@
           <div id="lnMangDs" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 10px"></div>
         </div>
         <span style="font-size:11px;color:#94a3b8">Khai theo mảng thì mọi cơ sở cùng mảng dùng được luôn — kể cả cơ sở mở sau này.</span></div>
+      <!-- MỘT LOẠI CHI PHÍ CÓ THỂ MANG NHIỀU TK NỢ, theo hai kiểu:
+             1) KHÁC MẢNG THÌ KHÁC MÃ — "Chi phí cơ sở" là 64166 ở FARM, 64126 ở FZ.
+                Đây là kiểu thường dùng: khai từng lần, mỗi lần tích mảng tương ứng.
+             2) CÙNG MỘT Ô (loại × mảng) MÀ NHIỀU MÃ — ô đánh dấu này. Lúc đó app KHÔNG
+                tự đoán mã nào: ô "Loại chi phí" tách ra thành từng dòng theo mã, kèm tên
+                tài khoản, để người nhập chỉ rõ. -->
+      <div class="fld" style="margin-bottom:10px">
+        <label style="display:flex;gap:7px;align-items:flex-start;font-weight:400;text-transform:none;letter-spacing:0;font-size:12.5px;color:#334155;cursor:pointer">
+          <input type="checkbox" id="lnThem" style="margin-top:2px">
+          <span><b>Thêm mã nữa</b> cho ô đang có (1 loại chi phí · nhiều TK Nợ) — không thay mã cũ.
+            <span style="color:#94a3b8">Bỏ trống thì mã mới THAY mã cũ ở các mảng đã tích.</span></span></label>
+      </div>
       <div class="fld" style="margin-bottom:10px"><label>Nhóm — quyết định loại này nằm ở nút nào ở mục "Chọn chi phí nào"</label>
         <select id="lnBoPhan" style="width:100%">
           <option value="Cơ sở">🏢 Chi phí cơ sở</option>
@@ -3261,6 +3273,7 @@
     var coso=LN_CTX.coso||'', mang=_mangCua(coso);
     el('lnTen').value=''; el('lnTk').value=''; el('lnTenMisa').value='';
     el('lnTkTen').textContent=''; el('lnLoi').style.display='none';
+    if(el('lnThem')) el('lnThem').checked=false;
     // Gợi ý số tài khoản từ hệ thống tài khoản của kế toán
     var ds=(TKCHART&&TKCHART.length)?TKCHART:((BOOT.taiKhoan)||[]);
     el('lnTkList').innerHTML=ds.map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+' — '+esc(x.ten||'')+'</option>'; }).join('');
@@ -3302,7 +3315,8 @@
     }
     var coso=(LN_CTX&&LN_CTX.coso)||'';
     var pham=_lnPham();
-    var rec={ ten:ten, tkNo:tk, boPhan:el('lnBoPhan').value, tenMisa:el('lnTenMisa').value.trim() };
+    var rec={ ten:ten, tkNo:tk, boPhan:el('lnBoPhan').value, tenMisa:el('lnTenMisa').value.trim(),
+              them:(el('lnThem')&&el('lnThem').checked)?1:0 };
     if(pham==='coso'){
       if(!coso){ _lnLoi('Chọn cơ sở ở trên trước rồi khai loại chi phí'); return; }
       rec.coso=coso; rec.rieng=true;

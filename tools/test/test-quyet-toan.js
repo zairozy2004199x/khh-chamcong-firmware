@@ -153,6 +153,15 @@ t('có nút Chọn tất cả / Bỏ chọn', /lnTickMang\(1\)/.test(HTML) && /l
 t('gửi lên máy chủ đúng danh sách đã tích', /rec\.mangs=ms;/.test(HTML));
 t('không tích mảng nào thì báo, không lặng lẽ khai hụt', /Tích ít nhất một mảng kinh doanh/.test(HTML));
 
+// MỘT LOẠI CHI PHÍ · NHIỀU TK NỢ — popup phải nói được cả hai kiểu:
+//   1) khác mảng thì khác mã  -> khai từng lần, mỗi lần tích mảng tương ứng
+//   2) cùng một ô mà nhiều mã -> ô đánh dấu "Thêm mã nữa"
+t('popup có ô đánh dấu "Thêm mã nữa" (1 loại · nhiều TK Nợ)', /id="lnThem"/.test(HTML));
+t('và gửi cờ đó lên máy chủ', /them:\(el\('lnThem'\)&&el\('lnThem'\)\.checked\)\?1:0/.test(HTML));
+t('mở popup thì bỏ tích sẵn (khai lần sau không vô tình cộng dồn mã)',
+  /if\(el\('lnThem'\)\) el\('lnThem'\)\.checked=false;/.test(HTML));
+t('nói rõ bỏ trống thì mã mới THAY mã cũ', /mã mới THAY mã cũ/.test(HTML));
+
 // ---------------------------------------------------------------- 7. bỏ tab Sổ chi phí
 t('tab Sổ chi phí đã nghỉ', /var BO_TAB=\{[^}]*sochi:1/.test(HTML));
 // Ẩn tab mà bỏ luôn đường xuất là chôn sống chứng từ chưa xuất MISA — đúng cái bẫy đã

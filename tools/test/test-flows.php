@@ -1025,6 +1025,40 @@ teq( 'cơ sở đó có mã',        '64129', VHCP_Cfg::tkno_mx( 'Chi phí lặn
 teq( 'cơ sở khác cùng mảng KHÔNG ăn theo', '', VHCP_Cfg::tkno_mx( 'Chi phí lặn vệ sinh', 'FARM PHAN THIẾT' ) );
 t( 'khai mà không tích mảng lẫn cơ sở -> bị chặn',
 	empty( VHCP_Cfg::khai_cho_coso( array( 'ten' => 'X', 'tkNo' => '6428' ) )['success'] ) );
+
+// ---- MỘT LOẠI CHI PHÍ · NHIỀU TK NỢ ----
+// Kiểu 1: KHÁC MẢNG THÌ KHÁC MÃ (bảng ma trận Loại × Mảng đang chạy thế này).
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí cơ sở A', 'tkNo' => '64166', 'mangs' => array( 'FARM MN' ) ) );
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí cơ sở A', 'tkNo' => '64106', 'mangs' => array( 'TUTU MN' ) ) );
+teq( 'cùng tên · mảng FARM ra mã FARM', '64166', VHCP_Cfg::tkno_mx( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' ) );
+teq( 'cùng tên · mảng TUTU ra mã TUTU', '64106', VHCP_Cfg::tkno_mx( 'Chi phí cơ sở A', 'TÀU ESTELLA' ) );
+t( 'khai mảng sau KHÔNG xoá mã của mảng trước', VHCP_Cfg::tkno_mx( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' ) === '64166' );
+
+// Kiểu 2: CÙNG MỘT Ô (loại × mảng) mà NHIỀU MÃ -> app không đoán, người nhập chỉ rõ.
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí cơ sở A', 'tkNo' => '64168', 'mangs' => array( 'FARM MN' ), 'them' => 1 ) );
+$ds_2 = VHCP_Cfg::tkno_mx_list( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' );
+teq( 'ô FARM giờ có 2 mã', 2, count( $ds_2 ) );
+t( 'giữ cả mã cũ lẫn mã mới', in_array( '64166', $ds_2, true ) && in_array( '64168', $ds_2, true ), $ds_2 );
+teq( 'ô 2 mã -> KHÔNG tự đoán, trả rỗng để người nhập chỉ rõ', '', VHCP_Cfg::tkno_mx( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' ) );
+teq( 'mảng khác không bị dính mã vừa thêm', '64106', VHCP_Cfg::tkno_mx( 'Chi phí cơ sở A', 'TÀU ESTELLA' ) );
+t( 'mã người nhập chọn trong 2 mã đó là hợp lệ',
+	VHCP_Cfg::ma_con_hop_le( 'Chi phí cơ sở A', 'FARM PHAN THIẾT', '64168' ) === '64168'
+	&& VHCP_Cfg::ma_con_hop_le( 'Chi phí cơ sở A', 'FARM PHAN THIẾT', '64166' ) === '64166' );
+t( 'mã ngoài danh sách thì KHÔNG hợp lệ', VHCP_Cfg::ma_con_hop_le( 'Chi phí cơ sở A', 'FARM PHAN THIẾT', '9999' ) === '' );
+// Lúc xuất MISA: mã người nhập đã chọn phải được GIỮ, vì ô khai 2 mã thì máy không chọn hộ được
+teq( 'xuất MISA giữ đúng mã người nhập đã chọn', '64168',
+	VHCP_Cfg::tkno_xuat( 'Chi phí cơ sở A', 'FARM PHAN THIẾT', '64168' ) );
+teq( 'và giữ mã kia nếu người nhập chọn mã kia', '64166',
+	VHCP_Cfg::tkno_xuat( 'Chi phí cơ sở A', 'FARM PHAN THIẾT', '64166' ) );
+
+// KHÔNG tích "thêm mã" thì mã mới THAY mã cũ — đây là cách sửa mã khai nhầm.
+VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí cơ sở A', 'tkNo' => '64167', 'mangs' => array( 'FARM MN' ) ) );
+teq( 'không tích "thêm" -> ô chỉ còn đúng 1 mã mới', array( '64167' ), VHCP_Cfg::tkno_mx_list( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' ) );
+t( 'khai lại cùng mã 2 lần không sinh mã trùng',
+	count( VHCP_Cfg::tkno_mx_list( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' ) ) === 1
+	&& ! empty( VHCP_Cfg::khai_cho_coso( array( 'ten' => 'Chi phí cơ sở A', 'tkNo' => '64167', 'mangs' => array( 'FARM MN' ), 'them' => 1 ) )['success'] )
+	&& count( VHCP_Cfg::tkno_mx_list( 'Chi phí cơ sở A', 'FARM PHAN THIẾT' ) ) === 1 );
+
 VHCP_Cfg::save_config( array( 'coso' => $coso_goc_nm ) );   // trả danh mục cơ sở cho các phép thử sau
 
 // ---------------------------------------------------------------- SỐ LƯỢNG LÀ BẮT BUỘC
