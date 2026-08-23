@@ -1087,6 +1087,32 @@ try { TAB = localStorage.getItem('vhg_tab') || 'doi-soat'; } catch(e) {}
 var NN = 'vi';
 try { NN = localStorage.getItem('vhg_nn') === 'en' ? 'en' : 'vi'; } catch(e) {}
 function L(vi, en){ return NN === 'en' ? en : vi; }
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * CÂU CÓ CHÈN SỐ.
+ *
+ * 🔴 LỖI 23/08/2026 — CẢ TRANG TRẮNG. Anh Thắng: *"chốt ca vẫn không thấy phản hồi gì"*, rồi dải
+ *    báo lỗi chỉ đúng thủ phạm: `Uncaught ReferenceError: Lf is not defined`.
+ *
+ *    `Lf` có ở TRANG KHÁCH (class-vhg-shop.php) chứ không có ở đây. Viết `Lf(...)` trong tệp này
+ *    là gọi một hàm không tồn tại — và vì nó nằm trong `veQuy()`, tức là trong lượt dựng màn,
+ *    nên lỗi ném ra trước cả khi `#app` có nội dung. Toàn trang trắng, chỉ còn chân trang (chân
+ *    trang dựng ở máy chủ nên nó sống sót — đúng lý do đặt nó ngoài JS).
+ *
+ *    Hai tệp có hai bộ dịch KHÁC HẲN NHAU: trang khách tra từ điển theo khoá tiếng Việt, trang
+ *    này thì nhận thẳng hai chuỗi `L(vi, en)`. Chép một dòng mã từ tệp kia sang là chép luôn giả
+ *    định của tệp kia.
+ *
+ * ⚠️ Tham số bắt đầu từ vị trí thứ BA (sau `vi` và `en`) — khác `Lf` của trang khách, nơi câu
+ *    tiếng Việt vừa là khoá vừa là bản dịch nên chỉ có một chuỗi.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+function Lf(vi, en){
+  var t = L(vi, en), a = arguments;
+  return String(t).replace(/\{(\d)\}/g, function(_, i){
+    var v = a[Number(i) + 2];
+    return v === undefined ? '' : v;
+  });
+}
 function nutNN(){
   return '<span class="nn">'
     + '<button data-nn="vi"' + (NN==='vi'?' class="on"':'') + '>VI</button>'
@@ -1524,7 +1550,7 @@ function veDieuKhien(){
         + '<div class="cs-p">'
         + (c0.lan_dau
             ? L('lần chốt đầu tiên — chưa có mốc để trừ','first closing — no baseline yet')
-            : Lf('lần chốt gần nhất: {0} · {1} · {2}',
+            : Lf('lần chốt gần nhất: {0} · {1} · {2}', 'last closing: {0} · {1} · {2}',
                  tien(c0.tien_dem), esc(String(c0.tao_luc).slice(5, 16)), esc(c0.nguoi)))
         + '</div></div>';
     } else {
@@ -1803,6 +1829,7 @@ function veQuy(){
     h += '<div class="card"><h2>' + L('Báo cáo ca','Shift report') + ' — ' + esc(q.toi_la) + '</h2>'
       + '<p class="mut" style="margin:0 0 10px">'
       + Lf('Từ {0}, đã chốt {1} ghế. Ca tính từ lần nộp gần nhất — chưa nộp thì vẫn là ca này.',
+           'Since {0}, {1} chairs closed. The shift runs from your last hand-in.',
            esc(String(ca.tu_luc).slice(0, 16)), ca.so_ghe)
       + '</p>'
       + '<div class="so-hang to"><span class="nh">' + L('Tiền đếm được từ ngăn ghế','Counted from chair boxes')
