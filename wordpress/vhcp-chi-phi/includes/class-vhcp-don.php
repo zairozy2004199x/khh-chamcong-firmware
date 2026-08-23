@@ -694,6 +694,33 @@ class VHCP_Don {
 			. ' Muốn nhập cho "' . $moi . '" thì tạo đơn mới.';
 	}
 
+	/**
+	 * SỐ LƯỢNG LÀ BẮT BUỘC KHI NHẬP HẠNG MỤC.
+	 *
+	 * Thành tiền = số lượng × đơn giá. Bỏ trống số lượng thì dòng có đơn giá 81.000 vẫn
+	 * ghi xuống THÀNH TIỀN 0: tạm ứng xin thiếu đúng bằng số đó, mà nhìn bảng không thấy
+	 * sai chỗ nào — số 0 trông y như một dòng chưa điền. Chặn ở máy chủ chứ không chỉ ở
+	 * giao diện: app trên máy nào cũng gọi được cổng này.
+	 *
+	 * Dòng gõ thẳng THÀNH TIỀN (không qua đơn giá) vẫn cho qua — đó là cách nhập hợp lệ.
+	 */
+	private static function loi_thieu_so_luong( $rec ) {
+		$rec = (array) $rec;
+		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };
+		$sl  = VHCP_Util::blank_or_num( $g( 'soLuong' ) );
+		if ( $sl !== null && $sl > 0 ) { return ''; }
+		$dg  = VHCP_Util::blank_or_num( $g( 'donGia' ) );
+		$tt  = VHCP_Util::blank_or_num( $g( 'thanhTien' ) );
+		// Không có đơn giá lẫn thành tiền -> dòng trống, để chỗ khác báo; ở đây chỉ lo
+		// đúng cảnh "có tiền mà không có số lượng".
+		if ( ( $dg === null || $dg <= 0 ) && ( $tt === null || $tt <= 0 ) ) { return ''; }
+		if ( $dg !== null && $dg > 0 ) {
+			return 'Thiếu SỐ LƯỢNG: đơn giá ' . number_format( $dg, 0, ',', '.' )
+				. 'đ mà số lượng trống thì thành tiền ra 0 — tạm ứng sẽ xin thiếu đúng số đó.';
+		}
+		return '';
+	}
+
 	public static function add_line( $ma_don, $rec ) {
 		$_loi = self::loi_khong_phai_don_minh( $ma_don );
 		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
@@ -714,6 +741,8 @@ class VHCP_Don {
 				return VHCP_Util::err( 'Cơ sở "' . $cs_moi . '" đã đóng cửa ngày ' . $nd . ' — không nhập chi phí mới cho gian đã đóng.' );
 			}
 		}
+		$loi_sl = self::loi_thieu_so_luong( $rec );
+		if ( $loi_sl !== '' ) { return VHCP_Util::err( $loi_sl ); }
 		$rec['phatSinh'] = $ps;
 		$id   = VHCP_Util::uid( 'L' );
 		$data = self::line_data( $id, $ma_don, $rec );
@@ -754,6 +783,9 @@ class VHCP_Don {
 		if ( ! array_key_exists( 'thucMua', $rec ) ) { $rec['thucMua'] = VHCP_Util::out_num( $cur['thuc_mua'] ); }
 		if ( ! array_key_exists( 'cnXuLy', $rec ) )  { $rec['cnXuLy']  = (int) $cur['cn_xu_ly']; }
 		$rec['phatSinh'] = $ps ? 1 : 0;
+
+		$loi_sl = self::loi_thieu_so_luong( $rec );
+		if ( $loi_sl !== '' ) { return VHCP_Util::err( $loi_sl ); }
 
 		$data = self::line_data( $id, $ma_don, $rec );
 		$data['tao_luc'] = $cur['tao_luc'] ? $cur['tao_luc'] : VHCP_Util::now_sql();

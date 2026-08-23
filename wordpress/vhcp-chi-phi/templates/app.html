@@ -211,7 +211,7 @@
           <div class="fld"><label>Loại chi phí * <span id="lblNhomTk" style="font-weight:700;font-family:Consolas,monospace"></span></label><select id="f_nhom" onchange="onNhomPick()"></select></div>
           <div class="fld"><label>Nội dung *</label><input id="f_nd" list="dl_nd" oninput="onNoiDung()" autocomplete="off" placeholder="VD: Nước bình 20L"><datalist id="dl_nd"></datalist></div>
           <div class="fld"><label>ĐVT</label><input id="f_dvt" placeholder="Cái, kg..."></div>
-          <div class="fld"><label>Số lượng</label><input id="f_sl" type="number" min="0" step="any" oninput="calcTT()"></div>
+          <div class="fld"><label>Số lượng *</label><input id="f_sl" type="number" min="0" step="any" placeholder="Bắt buộc" oninput="calcTT()"></div>
           <div class="fld"><label>Đơn giá</label><input id="f_dg" type="number" min="0" step="any" oninput="calcTT()"></div>
           <div class="fld"><label>Thành tiền</label><input id="f_tt" type="number" min="0" placeholder="tự tính"></div>
           <div class="fld"><label>Thuế %</label><select id="f_thue"><option value="">—</option><option value="0">0%</option><option value="5">5%</option><option value="8">8%</option><option value="10">10%</option></select></div>
@@ -942,6 +942,38 @@
     </div>
   </div>
 
+  <!-- POPUP KHAI NHANH LOẠI CHI PHÍ — mở thẳng từ ô "Loại chi phí" lúc đang nhập đơn.
+       Đang nhập dở mà thiếu loại thì phải bỏ đơn, sang tab Cấu hình, khai, rồi quay lại
+       nhập lại từ đầu. Khai ngay tại chỗ: gõ tên + số tài khoản là chọn được luôn. -->
+  <div id="loaiNhanhModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1950;align-items:center;justify-content:center">
+    <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(520px,94vw);box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:92vh;overflow:auto">
+      <h3 style="font-size:16px;margin-bottom:4px;color:#0f766e">＋ Thêm loại chi phí</h3>
+      <div style="font-size:11.5px;color:#64748b;margin-bottom:14px">Khai xong dùng được ngay ở đây, và hiện luôn trong ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh.</div>
+      <div class="fld" style="margin-bottom:10px"><label>Tên loại chi phí *</label>
+        <input id="lnTen" placeholder="VD: Chi phí điện nước" style="width:100%"></div>
+      <div class="fld" style="margin-bottom:10px"><label>TK Nợ — tài khoản chi phí *</label>
+        <input id="lnTk" list="lnTkList" placeholder="VD: 64127" inputmode="numeric" oninput="lnTkDoi()" style="width:100%">
+        <datalist id="lnTkList"></datalist>
+        <span id="lnTkTen" style="font-size:11px;color:#64748b"></span></div>
+      <div class="fld" style="margin-bottom:10px"><label>Áp cho</label>
+        <select id="lnPham" style="width:100%"></select>
+        <span style="font-size:11px;color:#94a3b8">Áp cho cả mảng thì cơ sở mở sau này cũng dùng được luôn, khỏi khai lại.</span></div>
+      <div class="fld" style="margin-bottom:10px"><label>Nhóm — quyết định loại này nằm ở nút nào ở mục "Chọn chi phí nào"</label>
+        <select id="lnBoPhan" style="width:100%">
+          <option value="Cơ sở">🏢 Chi phí cơ sở</option>
+          <option value="Kỹ thuật">🔧 Setup / Tháo dỡ</option>
+          <option value="Marketing">🔥 Marketing</option>
+        </select></div>
+      <div class="fld" style="margin-bottom:16px"><label>Tên xuất MISA (bỏ trống = lấy tên tài khoản)</label>
+        <input id="lnTenMisa" placeholder="Tuỳ chọn" style="width:100%"></div>
+      <div id="lnLoi" style="display:none;margin-bottom:10px;padding:8px 10px;background:#fee2e2;color:#b91c1c;border-radius:8px;font-size:12px"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn b-x" onclick="dongLoaiNhanh()">Huỷ</button>
+        <button class="btn b-g" onclick="luuLoaiNhanh()">💾 Khai &amp; chọn luôn</button>
+      </div>
+    </div>
+  </div>
+
   <!-- POPUP THÊM CƠ SỞ -->
   <div id="cosoModal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.4);z-index:1900;align-items:center;justify-content:center">
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(440px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
@@ -1127,7 +1159,7 @@
     var names=ds.map(function(x){ return String(x.ten||'').trim(); }).filter(Boolean);
     // Dòng đang sửa mà loại nay không còn trong danh mục -> vẫn để chọn được, khỏi mất dữ liệu
     if(cur && names.indexOf(cur)<0) names.push(cur);
-    el('f_nhom').innerHTML='<option value="">—</option>'+names.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
+    el('f_nhom').innerHTML='<option value="">—</option>'+names.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('')+_lnDongThem();
     el('f_nhom').value=(cur && names.indexOf(cur)>=0)?cur:'';
     fillNoiDungList(el('f_nhom').value);
     showTkNhom();
@@ -1152,7 +1184,11 @@
     var dl=el('dl_nd'); if(!dl) return;
     dl.innerHTML=PRODLIST.filter(function(p){ return !nhom || p.nhom===nhom; }).map(function(p){return '<option value="'+esc(p.ten)+'">';}).join('');
   }
-  function onNhomPick(){ fillNoiDungList(el('f_nhom').value); showTkNhom(); }
+  function onNhomPick(){
+    // Chọn "＋ Thêm loại chi phí mới…" -> mở popup khai nhanh, ô chọn trả về giá trị cũ
+    if(lnBatChon('f_nhom', el('f_coso')?el('f_coso').value:'', '', '')) return;
+    fillNoiDungList(el('f_nhom').value); showTkNhom();
+  }
   // Hiện mã tài khoản của loại chi phí đang chọn ngay cạnh ô Nhóm — dò bằng mắt, khỏi đoán
   function showTkNhom(){
     var lb=el('lblNhomTk'); if(!lb) return;
@@ -1211,10 +1247,16 @@
   function onLoggedIn(){ applyPerms(); showPage(defaultPageFor(CURUSER.role)); }   // showPage tự nạp dữ liệu cho từng tab (don→boot)
   function applyPerms(){
     var role=CURUSER.role;
-    // BỎ 3 TAB Marketing / Công tác / Setup: chi phí của 3 mảng đó nay nhập ngay trong đơn
-    // chi phí, chọn bằng ô "Chọn chi phí nào" ở mục 1 — khỏi nhảy qua nhảy lại 3 màn. Dữ
-    // liệu cũ của 3 mảng GIỮ NGUYÊN, báo cáo và xuất MISA vẫn cộng đủ như trước.
-    var BO_TAB={mkt:1,congtac:1,setup:1};
+    // TAB ĐÃ NGHỈ. Chi phí của Marketing / Công tác / Setup nay nhập ngay trong đơn chi
+    // phí, chọn bằng ô "Chọn chi phí nào" ở mục 1 — khỏi nhảy qua nhảy lại mấy màn.
+    // SỔ CHI PHÍ cũng nghỉ: mọi khoản chi đều đi qua ĐƠN chi phí, một đường duy nhất.
+    //
+    // CHỈ ẨN TAB, KHÔNG XÓA DỮ LIỆU. Dòng đã nhập ở sổ vẫn là chứng từ kế toán — nhiều
+    // dòng còn CHƯA XUẤT MISA. Nên:
+    //   · nguồn "💵 Sổ chi phí (nhập phẳng)" ở tab 📤 Xuất MISA GIỮ NGUYÊN, để xuất nốt;
+    //   · 📅 Vận hành theo tuần và 🔎 Tra theo mã tài khoản vẫn cộng đủ các dòng đó.
+    // Xóa hẳn dữ liệu là việc khác, phải nói rõ mới làm.
+    var BO_TAB={mkt:1,congtac:1,setup:1,sochi:1};
     var vis={ 'Admin':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},   // Admin xem hết mọi tab (giám sát) + toàn quyền Cấu hình/người dùng
               'Quản lý':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:1,xuat:1,cauhinh:1,log:1},
               // Kế toán vào được Cấu hình: khai mã tài khoản / tên MISA / mã đơn vị là việc
@@ -1597,6 +1639,15 @@
     if(!r.coso){toast('warn','Chọn cơ sở');return;}
     if(!r.nhom){toast('warn','Chọn nhóm mặt hàng');return;}
     if(!r.noiDung){toast('warn','Nhập nội dung');return;}
+    // SỐ LƯỢNG LÀ BẮT BUỘC.
+    // Thành tiền = số lượng × đơn giá. Bỏ trống số lượng thì dòng có đơn giá 81.000 vẫn ra
+    // THÀNH TIỀN 0 — tạm ứng xin thiếu đúng bằng số đó, mà nhìn bảng không thấy sai ở đâu.
+    if(String(r.soLuong||'').trim()===''||!(Number(r.soLuong)>0)){
+      toast('warn','Nhập SỐ LƯỢNG (lớn hơn 0) — thiếu số lượng thì thành tiền ra 0');
+      if(el('f_sl')){ el('f_sl').focus(); el('f_sl').style.borderColor='#dc2626'; }
+      return;
+    }
+    if(el('f_sl')) el('f_sl').style.borderColor='';
     var id=el('lineId').value;
     loading(true);
     var cb=function(res){loading(false); if(res.success){_log(id?'Sửa dòng':'Thêm dòng', CUR.don.maDon, (r.noiDung||'')+' · '+money(r.thanhTien||0)+'đ'); toast('ok',id?'Đã cập nhật':'Đã thêm dòng'); openDon(CUR.don.maDon);} else toast('err',res.error);};
@@ -3152,6 +3203,88 @@
       return !!row[mang];                                      // khai theo ma trận -> chỉ mảng nào có mã
     });
   }
+  // ===================== KHAI NHANH LOẠI CHI PHÍ NGAY TRONG Ô CHỌN =====================
+  // Ô "Loại chi phí" chỉ hiện loại ĐÃ KHAI MÃ cho mảng của cơ sở đang chọn, nên lúc mới
+  // dựng hệ thống nó ngắn — mà thiếu loại thì đang nhập đơn dở phải bỏ đấy, sang Cấu hình
+  // khai, rồi quay lại nhập lại. Nay khai ngay tại chỗ rồi chọn luôn.
+  //
+  // Chỉ mở cho vai trò được sửa cấu hình — ĐÚNG danh sách máy chủ đang cho
+  // (VHCP_Api::required_roles, khaiChiPhiChoCoSo). Nhân viên gõ thêm mã tài khoản vào sổ
+  // kế toán là chuyện khác hẳn việc nhập đơn.
+  var LN_CTX=null;   // {selId|'f_nhom', coso, sauKhiXong}
+  function _duocKhaiLoai(){ return coCauHinh(); }
+  function moLoaiNhanh(ctx){
+    if(!_duocKhaiLoai()){ toast('warn','Chỉ Quản lý / Kế toán khai được loại chi phí. Nhờ kế toán khai ở ⚙️ Cấu hình.'); return; }
+    LN_CTX=ctx||{};
+    var coso=LN_CTX.coso||'', mang=_mangCua(coso);
+    el('lnTen').value=''; el('lnTk').value=''; el('lnTenMisa').value='';
+    el('lnTkTen').textContent=''; el('lnLoi').style.display='none';
+    // Gợi ý số tài khoản từ hệ thống tài khoản của kế toán
+    var ds=(TKCHART&&TKCHART.length)?TKCHART:((BOOT.taiKhoan)||[]);
+    el('lnTkList').innerHTML=ds.map(function(x){ return '<option value="'+esc(x.ma)+'">'+esc(x.ma)+' — '+esc(x.ten||'')+'</option>'; }).join('');
+    // Phạm vi áp mã: cả mảng (nên chọn) hay riêng cơ sở này
+    var op='';
+    if(mang) op+='<option value="mang">Cả mảng '+esc(mang)+' — mọi cơ sở cùng mảng</option>';
+    if(coso) op+='<option value="coso">Chỉ riêng cơ sở '+esc(coso)+'</option>';
+    if(!op) op='<option value="">— chọn cơ sở trước đã —</option>';
+    el('lnPham').innerHTML=op;
+    // Nhóm mặc định = nút đang chọn ở "Chọn chi phí nào"
+    var bp=(LN_CTX.boPhan!==undefined)?LN_CTX.boPhan
+      : (NHOM_CP==='Kỹ thuật'?'Kỹ thuật':(NHOM_CP==='Marketing'?'Marketing':'Cơ sở'));
+    el('lnBoPhan').value=bp;
+    el('loaiNhanhModal').style.display='flex';
+    setTimeout(function(){ el('lnTen').focus(); },50);
+  }
+  function lnTkDoi(){
+    var ds=(TKCHART&&TKCHART.length)?TKCHART:((BOOT.taiKhoan)||[]);
+    var ma=el('lnTk').value.trim(), ten='';
+    ds.forEach(function(x){ if(String(x.ma)===ma) ten=x.ten||''; });
+    el('lnTkTen').textContent=ten?('= '+ten):(ma?'(mã này chưa có trong hệ thống tài khoản — vẫn khai được)':'');
+  }
+  function dongLoaiNhanh(){ el('loaiNhanhModal').style.display='none'; LN_CTX=null; }
+  function _lnLoi(chu){ var e=el('lnLoi'); e.textContent=chu; e.style.display='block'; }
+  function luuLoaiNhanh(){
+    var ten=el('lnTen').value.trim(), tk=el('lnTk').value.trim();
+    if(!ten){ _lnLoi('Nhập tên loại chi phí'); return; }
+    if(!/^\d{3,10}$/.test(tk)){ _lnLoi('TK Nợ phải là số tài khoản (VD 64127)'); return; }
+    // 141/331 là tài khoản của BÊN TRẢ TIỀN, thuộc cột Có. Chặn ngay ở đây, đừng để nó
+    // đi vào danh mục rồi mới lòi ra ở bảng xuất MISA thành "Nợ 141 · Có 141".
+    if(tk.indexOf('141')===0 || tk.indexOf('331')===0){
+      _lnLoi('TK '+tk+' là tài khoản của bên trả tiền (tạm ứng / phải trả NCC) — nó thuộc cột TK Có, không phải TK Nợ của loại chi phí.');
+      return;
+    }
+    var coso=(LN_CTX&&LN_CTX.coso)||'';
+    var pham=el('lnPham').value;
+    if(!pham){ _lnLoi('Chọn cơ sở ở trên trước rồi khai loại chi phí'); return; }
+    var rec={ ten:ten, tkNo:tk, boPhan:el('lnBoPhan').value, tenMisa:el('lnTenMisa').value.trim() };
+    if(pham==='mang') rec.mangs=[_mangCua(coso)]; else { rec.coso=coso; rec.rieng=true; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){
+      if(!r||!r.success){ loading(false); _lnLoi((r&&r.error)||'Không khai được'); return; }
+      // Nạp lại danh mục rồi dựng lại ô chọn — không nạp lại thì loại vừa khai chưa có
+      // trong BOOT, ô chọn vẫn thiếu đúng cái vừa thêm.
+      boot(function(){
+        loading(false); dongLoaiNhanh();
+        toast('ok','Đã khai "'+ten+'" · TK Nợ '+tk);
+        if(LN_CTX && LN_CTX.selId==='f_nhom'){ fillNhom(ten); }
+        else if(LN_CTX && LN_CTX.selId){ _fillLoaiCp(LN_CTX.selId, ten, coso, '', LN_CTX.hinhThuc||''); }
+        if(LN_CTX && typeof LN_CTX.sauKhiXong==='function') LN_CTX.sauKhiXong();
+      });
+    }).withFailureHandler(function(e){ loading(false); _lnLoi(e.message); })
+      .khaiChiPhiChoCoSo(rec);
+  }
+  // Chọn "＋ Thêm loại chi phí mới…" trong ô chọn -> mở popup, trả ô chọn về giá trị cũ
+  var LN_THEM='__them__';
+  function _lnDongThem(){
+    return _duocKhaiLoai() ? '<option value="'+LN_THEM+'" style="color:#0f766e;font-weight:700">＋ Thêm loại chi phí mới…</option>' : '';
+  }
+  function lnBatChon(selId, coso, cuOld, hinhThuc){
+    var sel=el(selId); if(!sel) return false;
+    if(sel.value!==LN_THEM) return false;
+    sel.value=(cuOld===undefined||cuOld===null)?'':cuOld;
+    moLoaiNhanh({selId:selId, coso:coso, hinhThuc:hinhThuc||''});
+    return true;
+  }
   function _reFillLoai(selId, coso, httId){
     var ch=_selLoai(selId);
     _fillLoaiCp(selId, ch.loai, coso, ch.tkNo, httId?String((el(httId)&&el(httId).value)||''):'');
@@ -3223,7 +3356,18 @@
   function _fillLoaiCp(selId, cur, coso, curTk, hinhThuc){
     var sel=el(selId); if(!sel) return;
     var ds=_loaiCpOpts(coso, cur, curTk, hinhThuc);
-    sel.innerHTML=_optsHtml(ds, cur, curTk, '— chưa gắn mã —');
+    sel.innerHTML=_optsHtml(ds, cur, curTk, '— chưa gắn mã —')+_lnDongThem();
+    // Nhớ lại lựa chọn cũ để trả về khi người dùng bấm "＋ Thêm loại chi phí mới…"
+    sel.setAttribute('data-cu', sel.value||'');
+    sel.setAttribute('data-coso', coso||'');
+    sel.setAttribute('data-htt', hinhThuc||'');
+    if(!sel.getAttribute('data-lngan')){
+      sel.setAttribute('data-lngan','1');
+      sel.addEventListener('change', function(){
+        lnBatChon(selId, sel.getAttribute('data-coso')||'', sel.getAttribute('data-cu')||'', sel.getAttribute('data-htt')||'');
+        sel.setAttribute('data-cu', sel.value||'');
+      });
+    }
     // Nói rõ có bao nhiêu loại đang bị ẩn vì chưa khai mã, khỏi tưởng mất dữ liệu
     var an=_soLoaiChuaMa(coso);
     sel.title=an?(an+' loại chưa khai mã nên chưa hiện ở đây — khai ở ⚙️ Cấu hình → 🧮 Loại chi phí × Mảng kinh doanh'):'';
@@ -4587,5 +4731,8 @@
     }
   }
 </script>
+<!-- Chân trang pháp lý — nội dung do plugin Ghế (VHG_Chan) dựng, sửa ở màn quản trị Ghế.
+     Xem VHCP_App::chan_block(): chưa cài plugin Ghế thì chỗ này để trống, không bịa. -->
+<!--VHCP_CHAN-->
 </body>
 </html>

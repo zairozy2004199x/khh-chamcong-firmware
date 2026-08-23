@@ -113,12 +113,31 @@ class VHCP_App {
 		}
 		$html = file_get_contents( $file );
 		$html = str_replace( '<!--VHCP_HEAD-->', self::head_block(), $html );
+		$html = str_replace( '<!--VHCP_CHAN-->', self::chan_block(), $html );
 
 		nocache_headers();
 		header( 'Content-Type: text/html; charset=UTF-8' );
 		// Để trang tổng K&H nhúng được bằng iframe: bỏ X-Frame-Options nếu theme/plugin khác đã đặt.
 		header_remove( 'X-Frame-Options' );
 		echo $html;
+	}
+
+	/**
+	 * CHÂN TRANG PHÁP LÝ — DỰNG BỞI PLUGIN GHẾ, KHÔNG CHÉP LẠI Ở ĐÂY.
+	 *
+	 * Tên công ty, mã số thuế, địa chỉ, người đại diện là MỘT sự thật. Chép sang plugin này
+	 * một bản nữa nghĩa là hôm nào đổi địa chỉ thì phải nhớ sửa hai chỗ — và chỗ quên thì im
+	 * lặng nói sai, đúng ở chỗ đặt ra để tạo tin cậy. Nên đọc thẳng từ VHG_Chan: sửa ở màn
+	 * quản trị Ghế một lần là cả trang khách, trang nhân viên lẫn app chi phí cùng đổi.
+	 *
+	 * Chưa cài (hoặc chưa bật) plugin Ghế thì KHÔNG dựng gì — thà thiếu chân trang còn hơn
+	 * bịa ra một bản thông tin pháp lý thứ hai không ai cập nhật.
+	 */
+	public static function chan_block() {
+		if ( ! class_exists( 'VHG_Chan' ) ) { return ''; }
+		$h = VHG_Chan::html();
+		if ( '' === trim( (string) $h ) ) { return ''; }
+		return '<style>' . VHG_Chan::css_sang() . '</style>' . $h;
 	}
 
 	/** [vhcp_app height="900"] — nhúng app vào 1 trang WordPress bằng iframe. */

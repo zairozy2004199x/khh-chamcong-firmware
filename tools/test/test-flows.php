@@ -990,6 +990,41 @@ $still_141 = 0;
 foreach ( $exk3['rows'] as $r ) { if ( $r[5] === '141' && mb_strpos( $r[3], 'TÀU BÌNH TÂN' ) !== false ) { $still_141++; } }
 teq( 'xuất MISA kỹ thuật: không còn dòng mã cũ ở dự án đã gán', 0, $still_141 );
 
+// ---------------------------------------------------------------- SỐ LƯỢNG LÀ BẮT BUỘC
+// Dòng có ĐƠN GIÁ mà bỏ trống SỐ LƯỢNG thì thành tiền ra 0: tạm ứng xin thiếu đúng bằng
+// số đó, mà nhìn bảng không thấy sai chỗ nào — số 0 trông y như dòng chưa điền.
+$m_sl = VHCP_Don::create_don( 'T9/2026', 'NV A' )['maDon'];
+$dong_thieu = array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Giấy in A4',
+	'donGia' => 81000, 'phanLoaiTT' => 'Thanh toán cá nhân' );
+$r_sl = VHCP_Don::add_line( $m_sl, $dong_thieu );
+t( 'thêm hạng mục có đơn giá mà THIẾU số lượng -> bị chặn', empty( $r_sl['success'] ), $r_sl );
+t( 'và báo rõ vì sao (nói cả con số đơn giá)',
+	isset( $r_sl['error'] ) && strpos( $r_sl['error'], 'SỐ LƯỢNG' ) !== false && strpos( $r_sl['error'], '81.000' ) !== false, $r_sl );
+teq( 'dòng hỏng KHÔNG được ghi xuống', 0, count( VHCP_Don::get_don( $m_sl, false )['lines'] ) );
+
+$dong_thieu['soLuong'] = 0;
+t( 'số lượng = 0 cũng bị chặn', empty( VHCP_Don::add_line( $m_sl, $dong_thieu )['success'] ) );
+$dong_thieu['soLuong'] = 2;
+$r_ok = VHCP_Don::add_line( $m_sl, $dong_thieu );
+t( 'có số lượng thì thêm được', ! empty( $r_ok['success'] ), $r_ok );
+$ls_sl = VHCP_Don::get_don( $m_sl, false )['lines'];
+teq( 'và thành tiền tính đúng 2 × 81.000', 162000, (float) $ls_sl[0]['thanhTien'] );
+
+// Gõ THẲNG thành tiền (không qua đơn giá) vẫn là cách nhập hợp lệ — không được chặn nhầm.
+$r_tt = VHCP_Don::add_line( $m_sl, array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở',
+	'noiDung' => 'Khoán trọn gói', 'thanhTien' => 500000, 'phanLoaiTT' => 'Thanh toán cá nhân' ) );
+t( 'gõ thẳng thành tiền, không đơn giá -> vẫn cho qua', ! empty( $r_tt['success'] ), $r_tt );
+// Dòng trống hẳn thì để chỗ khác lo, đây không phải việc của phép kiểm số lượng
+$r_trong = VHCP_Don::add_line( $m_sl, array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Chưa điền' ) );
+t( 'dòng chưa có tiền gì thì không bị phép kiểm này chặn', ! empty( $r_trong['success'] ), $r_trong );
+
+// Sửa dòng cũng phải chặn — nếu không thì thêm đúng rồi sửa cho trống là lọt.
+$id_sua = (string) $ls_sl[0]['id'];
+$r_sua = VHCP_Don::update_line( $id_sua, array( 'coso' => 'FARM PHAN THIẾT', 'nhom' => 'Chi phí cơ sở',
+	'noiDung' => 'Giấy in A4', 'donGia' => 81000, 'soLuong' => '', 'phanLoaiTT' => 'Thanh toán cá nhân' ) );
+t( 'SỬA dòng thành thiếu số lượng cũng bị chặn', empty( $r_sua['success'] ), $r_sua );
+teq( 'dòng cũ giữ nguyên số tiền sau khi sửa hỏng bị chặn', 162000, (float) VHCP_Don::line_row( $id_sua )['thanh_tien'] );
+
 // ---------------------------------------------------------------- 141 KHÔNG ĐƯỢC LỌT VÀO CỘT TK NỢ
 // Bơm mã tạm ứng vào MỌI dòng của MỌI mảng rồi xuất lại cả 5 đường. Đây chính là cảnh
 // anh Thắng gặp: bảng xuất ra "Nợ 141 · Có 141". Quét ở cuối tệp vì lúc này cả 5 mảng

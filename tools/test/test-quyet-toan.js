@@ -15,6 +15,8 @@ const HTML = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/templates/ap
 const DON  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-don.php'), 'utf8');
 const API  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-api.php'), 'utf8');
 const DB   = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-db.php'), 'utf8');
+const APP  = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-app.php'), 'utf8');
+const CHAN = fs.readFileSync(path.join(GOC, 'wordpress/vhcp-ghe/includes/class-vhg-chan.php'), 'utf8');
 
 let dat = 0; const hong = [];
 function t(ten, dieu, nhan) { if (dieu) { dat++; return; } hong.push(ten + (nhan === undefined ? '' : ' → nhận được: ' + JSON.stringify(nhan))); }
@@ -108,6 +110,48 @@ const dk = mNut ? mNut[1] : '';
 t('Admin lên đơn được (để chạy thử luồng)', dk.indexOf("role==='Admin'") >= 0, dk);
 t('Nhân viên và Quản lý vẫn lên đơn được', dk.indexOf("role==='Nhân viên'") >= 0 && dk.indexOf("role==='Quản lý'") >= 0, dk);
 t('Kế toán vẫn KHÔNG lên đơn', dk.indexOf('Kế toán') < 0, dk);
+
+// ---------------------------------------------------------------- 6. khai nhanh loại chi phí
+t('ô chọn loại có dòng "＋ Thêm loại chi phí mới…"', /＋ Thêm loại chi phí mới/.test(HTML));
+t('có popup khai nhanh', /id="loaiNhanhModal"/.test(HTML));
+t('gọi đúng cổng khai mã của máy chủ', /\.khaiChiPhiChoCoSo\(rec\)/.test(HTML));
+t('cổng đó máy chủ có mở', /'khaiChiPhiChoCoSo'/.test(API));
+// Nhân viên gõ thêm mã tài khoản vào sổ kế toán là chuyện khác hẳn việc nhập đơn.
+t('chỉ vai trò được sửa cấu hình mới thấy dòng thêm mới',
+  /function _duocKhaiLoai\(\)\{ return coCauHinh\(\); \}/.test(HTML)
+  && /_duocKhaiLoai\(\) \? '<option value="'\+LN_THEM/.test(HTML));
+t('ô chọn của ĐƠN cũng gắn dòng thêm mới', /names\.map\([\s\S]{0,120}?\)\.join\(''\)\+_lnDongThem\(\)/.test(HTML));
+t('bắt được lựa chọn "thêm mới" rồi trả ô chọn về giá trị cũ', /function lnBatChon\(/.test(HTML) && /sel\.value=\(cuOld===undefined/.test(HTML));
+t('nạp lại danh mục sau khi khai (không thì ô chọn vẫn thiếu cái vừa thêm)', /boot\(function\(\)\{[\s\S]{0,400}?fillNhom\(ten\)/.test(HTML));
+// 141/331 là tài khoản BÊN TRẢ TIỀN — chặn ngay lúc khai, đừng để nó chui vào danh mục
+// rồi mới lòi ra ở bảng xuất MISA thành "Nợ 141 · Có 141".
+t('chặn khai TK Nợ bằng 141/331 ngay tại popup',
+  /tk\.indexOf\('141'\)===0 \|\| tk\.indexOf\('331'\)===0/.test(HTML));
+
+// ---------------------------------------------------------------- 7. bỏ tab Sổ chi phí
+t('tab Sổ chi phí đã nghỉ', /var BO_TAB=\{[^}]*sochi:1/.test(HTML));
+// Ẩn tab mà bỏ luôn đường xuất là chôn sống chứng từ chưa xuất MISA — đúng cái bẫy đã
+// gặp ở khâu gom.
+t('vẫn xuất MISA được các dòng sổ chi phí cũ', /<option value="chi">💵 Sổ chi phí/.test(HTML));
+t('không xóa dữ liệu sổ chi phí', /id="page-sochi"/.test(HTML));
+
+// ---------------------------------------------------------------- 8. số lượng bắt buộc
+t('ô Số lượng đánh dấu bắt buộc', /<label>Số lượng \*<\/label>/.test(HTML));
+t('giao diện chặn khi thiếu số lượng', /Nhập SỐ LƯỢNG \(lớn hơn 0\)/.test(HTML));
+t('máy chủ chặn lại lần nữa (app trên máy nào cũng gọi được cổng)',
+  /function loi_thieu_so_luong/.test(DON) && (DON.match(/loi_thieu_so_luong\( \$rec \)/g) || []).length >= 2);
+
+// ---------------------------------------------------------------- 9. chân trang pháp lý
+t('trang app có chỗ dựng chân trang', /<!--VHCP_CHAN-->/.test(HTML));
+t('render() có điền vào chỗ đó', /str_replace\( '<!--VHCP_CHAN-->', self::chan_block\(\), \$html \)/.test(APP));
+// Tên công ty / MST / địa chỉ là MỘT sự thật. Chép sang plugin thứ hai là hôm đổi địa chỉ
+// phải nhớ sửa hai nơi, và nơi quên thì im lặng nói sai.
+t('đọc từ VHG_Chan chứ không chép lại thông tin công ty', /VHG_Chan::html\(\)/.test(APP));
+t('KHÔNG có bản sao mã số thuế trong plugin chi phí', !/0106924989/.test(APP + HTML));
+t('chưa cài plugin Ghế thì để trống, không bịa', /if \( ! class_exists\( 'VHG_Chan' \) \) \{ return ''; \}/.test(APP));
+t('có bản màu nền sáng cho app chi phí (nền trắng, khác trang ghế nền tối)',
+  /function css_sang/.test(CHAN) && /VHG_Chan::css_sang\(\)/.test(APP));
+t('bản nền sáng dùng lại bố cục của css(), chỉ đổi màu', /return self::css\(\)/.test(CHAN));
 
 // ---------------------------------------------------------------- kết
 if (hong.length) {
