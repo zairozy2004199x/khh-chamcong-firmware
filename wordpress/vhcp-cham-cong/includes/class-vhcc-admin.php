@@ -1320,6 +1320,146 @@ class VHCC_Admin {
 		echo '</div>';
 	}
 
+	/**
+	 * HỘP NẠP NGƯỜI DÙNG TỪ DỮ LIỆU CŨ.
+	 *
+	 * Anh Thắng: *"pin nằm ở dữ liệu cũ chứ"* và *"nếu dữ liệu lỗi, cho anh kéo riêng từng cơ sở
+	 * (bao gồm tên đăng nhập và pin) là dữ liệu chấm công cũ cho nhanh"*.
+	 *
+	 * Hai đường, cố ý để đường DÁN lên trước:
+	 *   1. **Dán thẳng từ Google Sheets** — không phụ thuộc cầu nối Apps Script còn sống hay
+	 *      không, và đúng nghĩa "riêng từng cơ sở" vì chỉ bôi đen cơ sở đó.
+	 *   2. **Nạp từ kho đã có trên host** — sổ Phân quyền đã kéo về, hoặc bảng của plugin chi
+	 *      phí. Nhanh hơn nếu kho đó còn đủ.
+	 *
+	 * Cả hai đều có **Xem trước** — nạp nhầm 26 cửa hàng vào một danh sách rồi dọn tay thì lâu
+	 * hơn nhiều so với bấm xem trước một cái.
+	 */
+	/**
+	 * KỂ LẠI MỘT LƯỢT NẠP — và kể luôn phần KHÔNG nạp được.
+	 *
+	 * 🔴 Chỗ này quan trọng hơn cái nút. Nạp 26 cửa hàng mà im lặng bỏ 4 người PIN hỏng thì cuối
+	 *    tháng 4 người đó không có công, và không ai dựng lại được vì màn hình đã báo "xong".
+	 *    Nên: bỏ ai, vì sao, KÊU ĐÍCH DANH.
+	 *
+	 * 🔴 PIN yếu/đã lộ thì VẪN NẠP (không thì khoá đúng người đang dùng nó ra ngoài) nhưng phải
+	 *    kêu tên để đi đổi.
+	 */
+	protected static function bao_nap( $r ) {
+		$xem = ( 'xem_dan' === $r['viec'] || 'xem_cu' === $r['viec'] );
+		if ( empty( $r['ok'] ) ) {
+			echo '<div class="notice notice-error"><p><b>Không nạp được.</b> '
+				. esc_html( isset( $r['error'] ) ? $r['error'] : 'Lỗi không rõ' ) . '</p></div>';
+			return;
+		}
+		$so = (int) $r['them'];
+		echo '<div class="notice notice-' . ( $so ? 'success' : 'warning' ) . '"><p>';
+		echo $xem ? '<b>Xem trước — CHƯA ghi gì.</b> ' : '<b>Đã nạp.</b> ';
+		echo $xem
+			? ( $so ? 'Sẽ thêm <b>' . $so . '</b> người.' : 'Không có ai mới để thêm.' )
+			: ( $so ? 'Thêm <b>' . $so . '</b> người.' : 'Không thêm ai — tất cả đã có trong danh sách rồi.' );
+		if ( ! empty( $r['coso'] ) ) {
+			echo ' Chỉ nhận cơ sở <b>' . esc_html( $r['coso'] ) . '</b>';
+			if ( ! empty( $r['lech'] ) ) { echo ', bỏ qua ' . (int) $r['lech'] . ' người của cơ sở khác'; }
+			echo '.';
+		}
+		echo '</p>';
+		if ( $so && ! empty( $r['ten'] ) ) {
+			echo '<p style="margin:4px 0 0">' . esc_html( implode( ' · ', array_slice( (array) $r['ten'], 0, 40 ) ) )
+				. ( count( (array) $r['ten'] ) > 40 ? ' …' : '' ) . '</p>';
+		}
+		echo '</div>';
+
+		if ( ! empty( $r['bo'] ) ) {
+			echo '<div class="notice notice-error"><p><b>' . count( (array) $r['bo'] )
+				. ' dòng KHÔNG nạp được</b> — mấy người này sẽ không đăng nhập được cho tới khi sửa:</p><ul style="margin:0 0 8px 18px;list-style:disc">';
+			foreach ( (array) $r['bo'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+			echo '</ul></div>';
+		}
+		if ( ! empty( $r['yeu'] ) ) {
+			echo '<div class="notice notice-warning"><p><b>' . count( (array) $r['yeu'] )
+				. ' người đang dùng PIN dễ đoán hoặc đã bị lộ</b> — vẫn nạp để họ đăng nhập được, '
+				. 'nhưng nên đổi sớm: ' . esc_html( implode( ' · ', (array) $r['yeu'] ) ) . '</p></div>';
+		}
+	}
+
+	protected static function hop_nap_cu( &$form_roi ) {
+		$kho = VHCC_NguoiDung::do_kho_cu();
+
+		echo '<hr style="margin:18px 0"><h3 style="margin:0 0 6px">📥 Nạp người dùng từ dữ liệu cũ</h3>';
+		echo '<p class="description" style="margin-bottom:10px">Giữ nguyên PIN mọi người đang dùng — '
+			. 'không phải cấp lại lần hai. Chỉ <b>thêm</b>, không sửa và không xoá ai đang có, nên '
+			. 'bấm hai lần cũng không nhân đôi danh sách.</p>';
+
+		/* ---- Đường 1: dán từ Sheets ---- */
+		$form_roi .= '<form method="post" id="vhcc-dan-nd">'
+			. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false ) . '</form>';
+		echo '<div style="max-width:760px;border:1px solid #c3c4c7;border-radius:4px;padding:12px;margin-bottom:12px">';
+		echo '<b>Cách 1 — dán thẳng từ Google Sheets</b> <span class="description">(không cần cầu nối Apps Script)</span>';
+		echo '<p class="description" style="margin:6px 0">Bôi đen các cột <b>Họ tên</b> và <b>PIN</b> '
+			. '(kèm <b>Vai trò</b>, <b>Cơ sở</b> nếu có) của <b>một cơ sở</b> trong Sheet → Ctrl+C → dán vào ô dưới. '
+			. 'Thứ tự cột nào cũng được, có hay không có dòng tiêu đề đều được.</p>';
+		echo '<textarea name="dan" form="vhcc-dan-nd" rows="6" style="width:100%;font-family:monospace" '
+			. 'placeholder="Họ và Tên&#9;PIN&#9;Vai trò&#9;Cơ sở&#10;Nguyễn Văn A&#9;246813&#9;Quản lý&#9;TUTU_BT"></textarea>';
+		echo '<div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px;flex-wrap:wrap">';
+		echo '<label>Chỉ nhận cơ sở<br><input name="coso" form="vhcc-dan-nd" style="width:180px" '
+			. 'placeholder="trống = nhận hết" /></label>';
+		echo '<button class="button" form="vhcc-dan-nd" name="vhcc_nd" value="xem_dan">Xem trước</button>';
+		echo '<button class="button button-primary" form="vhcc-dan-nd" name="vhcc_nd" value="nap_dan">Nạp vào danh sách</button>';
+		echo '</div>';
+		echo '<p class="description" style="margin:8px 0 0">⚠️ Google Sheets coi PIN là <b>số</b>, nên '
+			. '<code>0123</code> bị cắt thành <code>123</code> và <code>246813</code> có thể ra '
+			. '<code>246813.0</code>. Đuôi <code>.0</code> thì hệ thống tự cắt; còn số 0 ở đầu bị mất thì '
+			. 'phải định dạng cột đó thành <b>Văn bản</b> trong Sheet rồi chép lại.</p>';
+		echo '</div>';
+
+		/* ---- Đường 2: kho đã có sẵn trên host ---- */
+		echo '<div style="max-width:760px;border:1px solid #c3c4c7;border-radius:4px;padding:12px">';
+		echo '<b>Cách 2 — nạp từ kho đã có trên host</b>';
+		echo '<table class="widefat striped" style="margin:8px 0"><thead><tr><th>Kho</th>'
+			. '<th style="width:90px">Có</th><th style="width:120px">Vào được</th>'
+			. '<th style="width:230px">Nạp riêng cơ sở</th><th style="width:170px"></th></tr></thead><tbody>';
+		foreach ( VHCC_NguoiDung::NGUON_CU as $tu => $nhan ) {
+			$k  = isset( $kho[ $tu ] ) ? $kho[ $tu ] : array( 'co' => 0, 'vao' => 0, 'loi' => '' );
+			$id = 'vhcc-napcu-' . $tu;
+			$form_roi .= '<form method="post" id="' . esc_attr( $id ) . '">'
+				. wp_nonce_field( 'vhcc_nd', '_wpnonce', true, false )
+				. '<input type="hidden" name="tu" value="' . esc_attr( $tu ) . '" /></form>';
+			echo '<tr><td>' . esc_html( $nhan );
+			if ( '' !== $k['loi'] ) {
+				echo '<br><span style="color:#b32d2e">' . esc_html( $k['loi'] ) . '</span>';
+			}
+			echo '</td><td><b>' . (int) $k['co'] . '</b></td><td>';
+			echo ( $k['vao'] ? '<b>' . (int) $k['vao'] . '</b>' : '<span style="color:#b32d2e">0</span>' );
+			echo '</td><td>';
+			if ( $k['co'] ) {
+				echo '<select name="coso" form="' . esc_attr( $id ) . '" style="max-width:220px">';
+				echo '<option value="">— cả chuỗi (' . (int) $k['co'] . ' người) —</option>';
+				foreach ( VHCC_NguoiDung::ds_coso_cu( $tu ) as $cs => $dem ) {
+					echo '<option value="' . esc_attr( $cs ) . '">'
+						. esc_html( '' === $cs ? '(không khai cơ sở)' : $cs )
+						. ' — ' . (int) $dem['co'] . ' người, ' . (int) $dem['pin'] . ' có PIN dùng được'
+						. '</option>';
+				}
+				echo '</select>';
+			} else {
+				echo '<span class="description">—</span>';
+			}
+			echo '</td><td>';
+			if ( $k['co'] ) {
+				echo '<button class="button button-small" form="' . esc_attr( $id ) . '" name="vhcc_nd" value="xem_cu">Xem trước</button> '
+					. '<button class="button button-small button-primary" form="' . esc_attr( $id ) . '" name="vhcc_nd" value="nap_cu">Nạp</button>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table>';
+		echo '<p class="description">Cột <b>Vào được</b> đếm theo nhóm vai trò đang cho vào ('
+			. esc_html( implode( ' · ', VHCC_Auth::vai_tro_vao() ) ) . '). Kho có người mà '
+			. '<b>0 vào được</b> thì cứ nạp — nạp xong tích thêm vai trò ở mục <b>Vai trò vào được</b> '
+			. 'bên dưới là mọi người vào được ngay, khỏi gõ tay lại.</p>';
+		echo '</div>';
+	}
+
 	public static function handle_post() {
 		/* "Tôi đã ghi lại PIN lần đầu" -> xoá HẲN khỏi cơ sở dữ liệu. Để nó nằm đó mãi thì
 		   một PIN Admin còn dùng được nằm sẵn trong bảng options, ai đọc được database là
@@ -1342,6 +1482,21 @@ class VHCC_Admin {
 					isset( $_POST['coso'] ) ? wp_unslash( $_POST['coso'] ) : '' );
 			} elseif ( 'xoa' === $v_nd ) {
 				$r_nd = VHCC_NguoiDung::xoa( isset( $_POST['id'] ) ? wp_unslash( $_POST['id'] ) : '' );
+			} elseif ( 'nap_dan' === $v_nd || 'xem_dan' === $v_nd ) {
+				/* Dán từ Google Sheets. KHÔNG sanitize_text_field: hàm đó bóp xuống một dòng,
+				   mà cả bảng dán vào đây là NHIỀU DÒNG — bóp xong còn đúng một dòng và người
+				   dùng chỉ thấy "nạp được 1 người" mà không hiểu 25 người kia đi đâu. */
+				$r_nd = VHCC_NguoiDung::nap_dan(
+					isset( $_POST['dan'] ) ? (string) wp_unslash( $_POST['dan'] ) : '',
+					'xem_dan' === $v_nd,
+					isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '' );
+				$r_nd['viec'] = $v_nd;
+			} elseif ( 'nap_cu' === $v_nd || 'xem_cu' === $v_nd ) {
+				$r_nd = VHCC_NguoiDung::nap_tu_cu(
+					isset( $_POST['tu'] ) ? sanitize_text_field( wp_unslash( $_POST['tu'] ) ) : '',
+					'xem_cu' === $v_nd,
+					isset( $_POST['coso'] ) ? sanitize_text_field( wp_unslash( $_POST['coso'] ) ) : '' );
+				$r_nd['viec'] = $v_nd;
 			} else {
 				$r_nd = array( 'ok' => false, 'error' => 'Việc không rõ.' );
 			}
@@ -1442,7 +1597,9 @@ class VHCC_Admin {
 		if ( $msg === 'nd' ) {
 			$bao_nd = get_transient( 'vhcc_nd_' . get_current_user_id() );
 			delete_transient( 'vhcc_nd_' . get_current_user_id() );
-			if ( is_array( $bao_nd ) ) {
+			if ( is_array( $bao_nd ) && isset( $bao_nd['viec'] ) ) {
+				self::bao_nap( $bao_nd );
+			} elseif ( is_array( $bao_nd ) ) {
 				echo '<div class="notice notice-' . ( empty( $bao_nd['ok'] ) ? 'error' : 'success' ) . '"><p>'
 					. esc_html( empty( $bao_nd['ok'] )
 						? ( isset( $bao_nd['error'] ) ? $bao_nd['error'] : 'Lỗi không rõ' )
@@ -1566,6 +1723,24 @@ class VHCC_Admin {
 		   Cài xong mà chưa có ai vào được thì trang chấm công đứng ở cổng PIN, không đường
 		   nào mở. Plugin tự khai một Admin lúc cài; đây là chỗ DUY NHẤT đọc được PIN đó, và
 		   quản trị bấm "đã ghi lại" là xoá hẳn khỏi cơ sở dữ liệu. */
+		/* Nạp được sổ PIN cũ thì kể ra — đó mới là đường đúng, PIN bịa ra chỉ là đường cùng. */
+		$nap_ld = VHCC_NguoiDung::mo_duong_nap();
+		if ( ! empty( $nap_ld['so'] ) ) {
+			echo '<tr><th scope="row">📥 Đã nạp sổ PIN cũ</th><td>'
+				. 'Lúc cài, chưa ai đăng nhập được nên plugin đã nạp <b>' . (int) $nap_ld['so']
+				. '</b> người từ sổ Phân quyền của app gốc sang danh sách riêng — <b>giữ nguyên PIN '
+				. 'mọi người đang dùng</b>, không phải cấp lại lần hai.';
+			if ( ! empty( $nap_ld['bo'] ) ) {
+				echo '<p class="description" style="color:#b32d2e"><b>' . count( (array) $nap_ld['bo'] )
+					. ' dòng không nạp được:</b> ' . esc_html( implode( ' · ', (array) $nap_ld['bo'] ) ) . '</p>';
+			}
+			if ( ! empty( $nap_ld['yeu'] ) ) {
+				echo '<p class="description"><b>PIN nên đổi sớm (dễ đoán hoặc đã lộ):</b> '
+					. esc_html( implode( ' · ', (array) $nap_ld['yeu'] ) ) . '</p>';
+			}
+			echo '</td></tr>';
+		}
+
 		$pin_ld = VHCC_NguoiDung::pin_lan_dau();
 		if ( '' !== $pin_ld ) {
 			/* Lúc gieo, nguồn phải chuyển sang "danh sách riêng", không thì PIN vừa khai vẫn
@@ -1582,7 +1757,9 @@ class VHCC_Admin {
 			echo '<tr><th scope="row" style="color:#b91c1c">⚠ PIN đăng nhập lần đầu</th><td>'
 				. '<code style="user-select:all;font-size:20px;letter-spacing:3px">' . esc_html( $pin_ld ) . '</code>'
 				. ' &nbsp; <button type="submit" name="vhcc_viec" value="quen_pin_lan_dau" class="button">Tôi đã ghi lại — ẩn đi</button>'
-				. '<p class="description">Tài khoản <b>Admin</b> plugin tự khai lúc cài, để có đường vào trang chấm công. '
+				. '<p class="description">Lúc cài, <b>không tìm được sổ PIN cũ nào</b> (sổ Phân quyền chưa kéo về, '
+				. 'hoặc kéo về rồi mà không ai dùng được), nên plugin khai tạm một tài khoản <b>Admin</b> để có đường vào. '
+				. 'Vào được rồi thì <b>nạp sổ PIN cũ</b> ở mục 📥 bên dưới — mọi người đăng nhập bằng đúng PIN họ vẫn dùng. '
 				. '<b>Ghi lại rồi đổi PIN ngay</b> ở phần "Danh sách riêng" bên dưới. '
 				. 'Đây là chỗ duy nhất xem được — trang chấm công KHÔNG bao giờ in PIN ra.</p>'
 				. $doi_nguon . '</td></tr>';
@@ -1665,6 +1842,8 @@ class VHCC_Admin {
 			echo '<button class="button button-primary" form="vhcc-them-nd">Thêm người</button></div>';
 			echo '<p class="description">Bảng không in PIN, chỉ in số chữ số. Quên PIN thì xoá dòng đó '
 				. 'rồi thêm lại. PIN quá dễ đoán hoặc đã bị lộ sẽ bị chặn.</p>';
+
+			self::hop_nap_cu( $form_roi );
 		}
 		if ( $nguon === 'app' ) {
 			$ds_pq = VHCC_Auth::users();

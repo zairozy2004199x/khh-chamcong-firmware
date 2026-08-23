@@ -119,12 +119,21 @@ class VHCC_Auth {
 	 *
 	 * @return array|WP_Error
 	 */
-	public static function users() {
+	public static function users() { return self::users_cua( self::nguon() ); }
+
+	/**
+	 * Đọc MỘT kho người dùng ĐÍCH DANH, không phụ thuộc nguồn đang chọn.
+	 *
+	 * Tách ra để màn Cài đặt soi được CẢ BA kho cùng lúc: "PIN của mọi người đang nằm ở đâu"
+	 * là câu phải trả lời được TRƯỚC khi chọn nguồn, chứ không phải chọn xong mới biết kho đó
+	 * trống. Và để nạp sổ PIN cũ sang danh sách riêng mà không phải lật nguồn qua lại.
+	 */
+	public static function users_cua( $nguon ) {
 		global $wpdb;
 
 		/* Nguồn 'app': đọc thẳng bảng `phan_quyen` — bản sao sổ PhanQuyen của app gốc, kéo về
 		   bằng nút ở màn Phân quyền & PIN. */
-		if ( self::nguon() === 'app' ) {
+		if ( 'app' === $nguon ) {
 			$bang_pq = VHCC_DB::t( 'phan_quyen' );
 			$ra_pq   = array();
 			foreach ( VHCC_DB::rows( "SELECT pin, ho_ten, vai_tro, cua_hang FROM $bang_pq" ) as $r ) {
@@ -143,7 +152,7 @@ class VHCC_Auth {
 			return $ra_pq;
 		}
 
-		if ( self::nguon() === 'rieng' ) {
+		if ( 'rieng' === $nguon ) {
 			$ds  = get_option( 'vhcc_nguoidung' );
 			$out = array();
 			foreach ( (array) $ds as $u ) {

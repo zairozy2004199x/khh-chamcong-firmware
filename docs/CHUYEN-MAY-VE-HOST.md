@@ -61,17 +61,37 @@ Anh Thắng đã biết và chấp nhận rủi ro này (*"nếu máy mất liê
 nhưng làm đúng thứ tự thì không phải dùng tới.
 
 **Bước 1 — website sẵn sàng.**
-- Cài `vhcp-cham-cong.zip` (2.1.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
-- **Lấy PIN đăng nhập lần đầu.** Vào **wp-admin → Chấm Công → Cài đặt**: nếu chưa có ai đăng
-  nhập được, plugin tự khai một tài khoản **Admin** và in PIN 6 số của nó **ở đúng trang đó,
-  đúng một lần**. Ghi lại, rồi bấm *"Tôi đã ghi lại — ẩn đi"* để xoá PIN khỏi cơ sở dữ liệu, rồi
-  **đổi PIN ngay** ở mục "Danh sách riêng".
-  - PIN này **không bao giờ in ra trang `/cham-cong`** — chỉ wp-admin thấy được.
-  - Lúc khai, plugin cũng chuyển **Nguồn người dùng** sang *danh sách riêng* (nếu đang để
-    *dùng chung với Vận Hành Chi Phí*), vì tài khoản mới nằm ở danh sách riêng. Trang Cài đặt
-    nói rõ việc này; danh sách cũ **không mất gì**, chọn lại ô đó là quay về.
-  - Chạy **đúng một lần**. Xoá tài khoản đó đi là nó chết hẳn, nâng cấp sau không mọc lại.
-- `wp-config.php` có `VHCC_KHOA_MAY` (chuỗi ngẫu nhiên ≥ 32 ký tự) và `VHCC_PIN_ADMIN`.
+- Cài `vhcp-cham-cong.zip` (2.2.0 trở lên), Kích hoạt (tạo/nới 23 bảng).
+- **Đăng nhập lần đầu — PIN nằm ở DỮ LIỆU CŨ, không phải cấp lại.** Vào **wp-admin → Chấm
+  Công → Cài đặt**. Lúc cài, nếu chưa ai đăng nhập được, plugin đi tìm sổ PIN cũ trước:
+  1. **Nạp sổ Phân quyền của app gốc** (nếu đã kéo về) sang *danh sách riêng*, **giữ nguyên
+     PIN mọi người đang dùng**. Màn Cài đặt kể lại đã nạp bao nhiêu người.
+  2. **Chỉ khi không tìm được sổ nào** mới khai tạm một tài khoản **Admin** với PIN 6 số ngẫu
+     nhiên, in ở đúng trang đó, **đúng một lần**. Ghi lại → bấm *"Tôi đã ghi lại — ẩn đi"* →
+     vào được rồi thì nạp sổ PIN cũ ở mục 📥 bên dưới.
+  - PIN **không bao giờ in ra trang `/cham-cong`** — chỉ wp-admin thấy được.
+  - Plugin cũng chuyển **Nguồn người dùng** sang *danh sách riêng*. Trang Cài đặt nói rõ việc
+    này; danh sách cũ **không mất gì**, chọn lại ô đó là quay về.
+  - **Không** tự kéo người từ plugin Vận Hành Chi Phí — hai hệ thống tách nhau. Muốn nạp thì
+    bấm nút ở mục 📥.
+  - Chạy **đúng một lần**. Xoá tài khoản đó đi là chết hẳn, nâng cấp sau không mọc lại; và nếu
+    đổi nguồn ngược lại thì lần nâng cấp sau không lật lại lựa chọn đó.
+
+- **📥 Nạp người dùng từ dữ liệu cũ** (wp-admin → Chấm Công → Cài đặt, khi đang dùng *danh
+  sách riêng*). Hai đường, đều có **Xem trước** trước khi ghi:
+  - **Dán thẳng từ Google Sheets** — bôi đen cột **Họ tên** và **PIN** (kèm **Vai trò**,
+    **Cơ sở** nếu có) của **một cơ sở** → Ctrl+C → dán vào ô. Thứ tự cột nào cũng được, có hay
+    không có dòng tiêu đề đều được. Đường này **không cần cầu nối Apps Script còn sống**.
+  - **Nạp từ kho đã có trên host** — sổ Phân quyền đã kéo về, hoặc bảng của plugin chi phí;
+    chọn được **riêng từng cơ sở**, mỗi cơ sở hiện sẵn số người và số PIN dùng được.
+  - Chỉ **thêm**, không sửa và không xoá ai — bấm hai lần không nhân đôi danh sách.
+  - **Dòng hỏng được kêu đích danh** (PIN sai khuôn, chưa có PIN, trùng PIN với người khác).
+    Nạp 26 cửa hàng mà im lặng bỏ 4 người thì cuối tháng 4 người đó không có công.
+  - PIN dễ đoán / đã lộ thì **vẫn nạp** (chặn là khoá đúng người đang dùng nó ra ngoài) nhưng
+    được **kêu tên ra để đổi sớm**.
+  - ⚠️ Google Sheets coi PIN là **số**: `0123` bị cắt thành `123`, `246813` có thể ra
+    `246813.0`. Đuôi `.0` hệ thống tự cắt; số 0 ở đầu bị mất thì phải định dạng cột đó thành
+    **Văn bản** trong Sheet rồi chép lại.
 - Mở thử `https://<tên miền>/cham-cong-may` bằng trình duyệt: phải ra
   `{"status":"ERROR","message":"Cong nay chi nhan POST."}` với mã 405. Ra trang 404 của
   WordPress là **luật đường dẫn chưa nạp** — vào Cài đặt → Đường dẫn tĩnh bấm Lưu một lần.

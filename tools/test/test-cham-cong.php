@@ -4384,100 +4384,250 @@ t( 'chưa dán ccXuatPhanQuyen thì nói rõ tên hàm',
 $GLOBALS['VHD_POST'] = array();
 update_option( 'vhcc_nguon_nguoidung', 'chung' );
 
-// ============ 45. CÀI XONG PHẢI CÓ MỘT ĐƯỜNG VÀO — không thì trang đứng ở cổng PIN vĩnh viễn
+// ============ 45. CÀI XONG PHẢI CÓ MỘT ĐƯỜNG VÀO — và PIN phải lấy từ DỮ LIỆU CŨ
 /* Anh Thắng cài xong bản 2.0.x: *"chưa đăng nhập được"*. Trang chấm công báo "Chưa có tài khoản
-   nào đăng nhập được" và KHÔNG có đường nào tự mở. Vì nguồn mặc định là "dùng chung với Vận Hành
-   Chi Phí", mà bên đó có thể không còn ai mang vai trò nằm trong danh sách được vào — cài đúng,
-   dữ liệu đúng, mà vẫn tắc. Mục này canh cái van cứu đó, và canh cả những chỗ nó DỄ THÀNH LỖ
-   HỔNG: PIN cố định, PIN in ra trang công khai, tài khoản mọc lại sau khi bị xoá. */
+   nào đăng nhập được" và KHÔNG có đường nào tự mở ngoài sửa thẳng database.
+
+   Bản sửa đầu của em bịa ra một PIN mới. Anh Thắng chỉnh ngay: *"pin nằm ở dữ liệu cũ chứ"* —
+   đúng, mọi người ĐÃ CÓ PIN, chúng nằm ở sổ Phân quyền của app gốc. Bịa PIN mới là bắt cả chuỗi
+   26 cửa hàng cấp lại lần hai một thứ họ đang có. Nên thứ tự phải là: NẠP SỔ CŨ TRƯỚC, bịa PIN
+   chỉ là đường cùng. Và *"bên chi phí không liên quan gì chấm công, anh vẫn dùng danh sách
+   riêng"* — nên KHÔNG tự kéo người bên plugin chi phí sang. */
 vhcc_dung_bang();
 $wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
-foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon',
-	'vhcc_nguoidung', 'vhcc_vai_tro_vao' ) as $_o ) { delete_option( $_o ); }
-update_option( 'vhcc_nguon_nguoidung', 'chung' );
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+function vhcc_don_mo_duong() {
+	foreach ( array( 'vhcc_da_mo_duong', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon',
+		'vhcc_mo_duong_nap', 'vhcc_nguoidung', 'vhcc_vai_tro_vao' ) as $o ) { delete_option( $o ); }
+	update_option( 'vhcc_nguon_nguoidung', 'chung' );
+}
 
-/* Đúng tình huống của anh Thắng: nguồn 'chung', bảng CH_NguoiDung không ai vào được. */
-$_u_truoc = VHCC_Auth::users();
-teq( 'trước khi gieo: không ai đăng nhập được', 0,
-	is_wp_error( $_u_truoc ) ? 0 : count( $_u_truoc ) );
+/* ---- 45a. CÓ SỔ PIN CŨ -> NẠP, KHÔNG BỊA PIN MỚI ---- */
+vhcc_don_mo_duong();
+foreach ( array(
+	array( '246813', 'Anh Quản Lý',  'QUAN_LY',         'TUTU_BT' ),
+	array( '357913', 'Chị Kế Toán',  'KE_TOAN',         'TUTU_BT' ),
+	array( '468024', 'Em Nhân Viên', 'NHAN_VIEN',       'CS_FZ_ADV_AL' ),
+	array( '579135', 'Anh CHT',      'CUA_HANG_TRUONG', 'CS_FZ_ADV_AL' ),
+) as $r_pq ) {
+	$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => $r_pq[0], 'ho_ten' => $r_pq[1],
+		'vai_tro' => $r_pq[2], 'cua_hang' => $r_pq[3] ) );
+}
+teq( 'có sổ PIN cũ thì NẠP, không bịa PIN mới', 'nap', VHCC_NguoiDung::mo_duong_vao() );
+teq( 'KHÔNG hiện PIN lần đầu nào ở wp-admin', '', VHCC_NguoiDung::pin_lan_dau() );
+teq( 'nạp đủ 4 người của sổ cũ', 4, count( VHCC_NguoiDung::ds() ) );
+$_nap = VHCC_NguoiDung::mo_duong_nap();
+teq( 'và kể lại đã nạp bao nhiêu', 4, isset( $_nap['so'] ) ? $_nap['so'] : 0 );
 
-t( 'gieo tài khoản lần đầu', VHCC_NguoiDung::gieo_lan_dau() === true );
+/* 🔴 Phép thử đáng giá nhất: mọi người đăng nhập bằng ĐÚNG PIN CŨ của họ. */
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '246813' );
+t( 'anh Quản lý vào được bằng ĐÚNG PIN CŨ', ! empty( $kq['ok'] ), $kq );
+teq( 'đúng tên', 'Anh Quản Lý', isset( $kq['name'] ) ? $kq['name'] : null );
+teq( 'đúng vai trò (QUAN_LY -> Quản lý)', 'Quản lý', isset( $kq['role'] ) ? $kq['role'] : null );
+teq( 'đúng cơ sở', 'TUTU_BT', isset( $kq['coso'] ) ? $kq['coso'] : null );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '357913' );
+t( 'chị Kế toán cũng vào được bằng PIN cũ', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+/* Nhân viên / Cửa hàng trưởng vẫn NẠP (để có sẵn, chỉ cần tích vai trò là vào) nhưng CHƯA vào
+   được — chấm công là căn cứ tính lương, không mở rộng quyền thay anh Thắng. */
+$kq = VHCC_Auth::login( '468024' );
+t( 'nhân viên nạp về nhưng CHƯA vào được (đúng thiết kế)', empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+teq( 'nguồn chuyển sang danh sách riêng', 'rieng', VHCC_Auth::nguon() );
+teq( 'và ghi lại nguồn cũ để màn Cài đặt nói ra', 'chung', VHCC_NguoiDung::gieo_doi_nguon() );
+
+/* ---- 45b. KHÔNG CÓ SỔ CŨ -> mới bịa PIN, và đó là ĐƯỜNG CÙNG ---- */
+vhcc_don_mo_duong();
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+teq( 'không có sổ cũ thì mới khai tài khoản mới', 'gieo', VHCC_NguoiDung::mo_duong_vao() );
 $pin_ld = VHCC_NguoiDung::pin_lan_dau();
 t( 'có PIN lần đầu để quản trị đọc', preg_match( '/^\d{6}$/', $pin_ld ) === 1, $pin_ld );
 teq( 'PIN đó tự nó hợp lệ (không rơi vào danh sách bị chặn)', '', VHCC_Quyen::pin_hop_le( $pin_ld ) );
 t( 'PIN KHÔNG nằm trong danh sách PIN đã lộ/dễ đoán',
 	! in_array( $pin_ld, VHCC_Quyen::PIN_CAM, true ), $pin_ld );
-
-/* 🔴 Phép thử đáng giá nhất: ĐĂNG NHẬP THẬT bằng PIN vừa gieo. Khai một tài khoản mà vẫn không
-   vào được thì cả mục này vô nghĩa. */
 VHCC_Auth::mo_khoa();
 $kq_ld = VHCC_Auth::login( $pin_ld );
 t( 'đăng nhập THẬT được bằng PIN lần đầu', ! empty( $kq_ld['ok'] ), $kq_ld );
 teq( 'và vào với vai trò Admin', 'Admin', isset( $kq_ld['role'] ) ? $kq_ld['role'] : null );
 VHCC_Auth::mo_khoa();
-
-/* Nguồn phải chuyển sang "danh sách riêng" — để 'chung' thì cổng vẫn đọc bảng bên kia và PIN vừa
-   khai vẫn không vào được. Nhưng đổi cấu hình sau lưng người dùng thì PHẢI kể lại. */
-teq( 'nguồn người dùng chuyển sang danh sách riêng', 'rieng', VHCC_Auth::nguon() );
-teq( 'và ghi lại nguồn cũ để màn Cài đặt nói ra', 'chung', VHCC_NguoiDung::gieo_doi_nguon() );
 teq( 'chỉ khai ĐÚNG MỘT tài khoản', 1, count( VHCC_NguoiDung::ds() ) );
-teq( 'và tài khoản đó vào được', 1, VHCC_NguoiDung::so_vao_duoc() );
 
-/* Chạy lại (mỗi lần nâng cấp phiên bản là một lần gọi) — KHÔNG được khai thêm. */
-t( 'nâng cấp lần sau KHÔNG gieo lại', VHCC_NguoiDung::gieo_lan_dau() === false );
-teq( 'vẫn đúng một tài khoản', 1, count( VHCC_NguoiDung::ds() ) );
-
-/* 🔴 Quản trị XOÁ tài khoản mặc định đi thì nó phải chết hẳn. Mọc lại sau mỗi lần nâng cấp là
-   một PIN admin quay lại mà không ai biết — dọn mãi không xong. */
-VHCC_NguoiDung::luu( '', 'Anh Thắng Thật', '246813', 'Admin', '' );
-$_ds_ld = VHCC_NguoiDung::ds();
-$_id_ld = '';
-foreach ( $_ds_ld as $_u ) { if ( 'Admin' === $_u['vaiTro'] && 'Admin' === $_u['ten'] ) { $_id_ld = $_u['id']; } }
-t( 'tìm được tài khoản mặc định để xoá', '' !== $_id_ld );
-$_r = VHCC_NguoiDung::xoa( $_id_ld );
-t( 'xoá được tài khoản mặc định', ! empty( $_r['ok'] ), $_r );
-VHCC_NguoiDung::gieo_lan_dau();
-$_ten_con = array();
-foreach ( VHCC_NguoiDung::ds() as $_u ) { $_ten_con[] = $_u['ten']; }
-t( 'xoá rồi thì KHÔNG mọc lại ở lần nâng cấp sau',
-	! in_array( 'Admin', $_ten_con, true ), $_ten_con );
-
-/* "Tôi đã ghi lại" phải xoá HẲN khỏi cơ sở dữ liệu — để nằm đó mãi là một PIN admin còn dùng
-   được nằm sẵn trong bảng options. */
-VHCC_NguoiDung::quen_pin_lan_dau();
-teq( 'bấm "đã ghi lại" thì PIN biến mất khỏi cơ sở dữ liệu', '', VHCC_NguoiDung::pin_lan_dau() );
-teq( 'và cả ghi chú đổi nguồn cũng dọn theo', '', VHCC_NguoiDung::gieo_doi_nguon() );
-
-/* 🔴 QUẢN TRỊ ĐỔI NGUỒN NGƯỢC LẠI THÌ PHẢI ĐƯỢC YÊN. Van cứu chạy đúng MỘT LẦN; không có cờ đó
-   thì mỗi lần nâng cấp plugin lại thấy "nguồn chung không ai vào được" -> gieo tiếp, lật nguồn về
-   'rieng' lần nữa. Người dùng chọn một đằng, plugin sửa lại một nẻo, và không có gì báo. */
-update_option( 'vhcc_nguon_nguoidung', 'chung' );   // quản trị cố ý chọn lại nguồn chung
-VHCC_NguoiDung::gieo_lan_dau();                     // một lần nâng cấp nữa
-teq( 'nâng cấp sau KHÔNG lật ngược lựa chọn nguồn của quản trị', 'chung', VHCC_Auth::nguon() );
-teq( 'và không khai thêm tài khoản nào', 1, count( VHCC_NguoiDung::ds() ) );
-update_option( 'vhcc_nguon_nguoidung', 'rieng' );
-
-/* Đã có người vào được thì ĐỪNG mở thêm cửa. */
-foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon' ) as $_o ) { delete_option( $_o ); }
-update_option( 'vhcc_nguon_nguoidung', 'rieng' );
-update_option( 'vhcc_nguoidung', array( array( 'id' => 'x1', 'ten' => 'Chị Kế Toán',
-	'pin' => '357913', 'vaiTro' => 'Kế toán cá nhân', 'coso' => 'TUTU_BT' ) ) );
-t( 'đã có người vào được thì KHÔNG gieo', VHCC_NguoiDung::gieo_lan_dau() === false );
-teq( 'không thêm tài khoản nào', 1, count( VHCC_NguoiDung::ds() ) );
-teq( 'và không có PIN nào hiện ra ở wp-admin', '', VHCC_NguoiDung::pin_lan_dau() );
-
-/* PIN sinh NGẪU NHIÊN, không phải một hằng số ai đọc mã cũng biết. */
+/* PIN sinh NGẪU NHIÊN, không phải hằng số ai đọc mã cũng biết. */
 $_pin_nhieu = array();
-for ( $_i = 0; $_i < 8; $_i++ ) {
-	foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon', 'vhcc_nguoidung' ) as $_o ) {
-		delete_option( $_o );
-	}
-	VHCC_NguoiDung::gieo_lan_dau();
-	$_pin_nhieu[] = VHCC_NguoiDung::pin_lan_dau();
-}
+for ( $_i = 0; $_i < 8; $_i++ ) { vhcc_don_mo_duong(); VHCC_NguoiDung::mo_duong_vao();
+	$_pin_nhieu[] = VHCC_NguoiDung::pin_lan_dau(); }
 t( 'PIN lần đầu là ngẫu nhiên, không phải hằng số trong mã',
 	count( array_unique( $_pin_nhieu ) ) > 1, $_pin_nhieu );
 
+/* ---- 45c. SỔ CŨ CÓ NGƯỜI NHƯNG KHÔNG AI VÀO ĐƯỢC -> nạp XONG vẫn phải mở một đường ---- */
+vhcc_don_mo_duong();
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+foreach ( array( array( '468024', 'Em A', 'NHAN_VIEN' ), array( '579135', 'Anh B', 'CUA_HANG_TRUONG' ) ) as $r_pq ) {
+	$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => $r_pq[0], 'ho_ten' => $r_pq[1],
+		'vai_tro' => $r_pq[2], 'cua_hang' => 'TUTU_BT' ) );
+}
+teq( 'sổ cũ toàn vai trò không vào được thì vẫn phải khai một Admin', 'gieo', VHCC_NguoiDung::mo_duong_vao() );
+teq( 'nhưng người của sổ cũ VẪN được nạp về (2 + 1 Admin)', 3, count( VHCC_NguoiDung::ds() ) );
+$_nap = VHCC_NguoiDung::mo_duong_nap();
+teq( 'và vẫn kể lại đã nạp 2 người', 2, isset( $_nap['so'] ) ? $_nap['so'] : 0 );
+/* Tích thêm vai trò là 2 người kia vào được ngay, khỏi gõ tay lại. */
+update_option( 'vhcc_vai_tro_vao', array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' ) );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '468024' );
+t( 'tích thêm vai trò là người của sổ cũ vào được ngay', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+delete_option( 'vhcc_vai_tro_vao' );
+
+/* ---- 45d. KHÔNG TỰ KÉO NGƯỜI BÊN PLUGIN CHI PHÍ ---- */
+/* *"bên chi phí không liên quan gì chấm công"* — tự kéo sang là nối lại hai hệ thống anh đã
+   tách. Vẫn nạp được, nhưng phải do người bấm nút. */
+vhcc_don_mo_duong();
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+$wpdb->insert( $bang_cfg2, array( 'bang' => 'CH_NguoiDung', 'stt' => 1,
+	'cols' => wp_json_encode( array( 'Người Bên Chi Phí', '246813', 'Admin', 'TUTU_BT' ) ) ) );
+VHCC_NguoiDung::mo_duong_vao();
+$_ten = array();
+foreach ( VHCC_NguoiDung::ds() as $u ) { $_ten[] = $u['ten']; }
+t( 'KHÔNG tự kéo người bên plugin chi phí sang', ! in_array( 'Người Bên Chi Phí', $_ten, true ), $_ten );
+/* Nhưng bấm nút thì nạp được. */
+$r = VHCC_NguoiDung::nap_tu_cu( 'chung', false );
+t( 'bấm nút thì nạp được từ bảng chi phí', ! empty( $r['ok'] ) && 1 === $r['them'], $r );
+$wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+
+/* ---- 45e. CHẠY ĐÚNG MỘT LẦN, không lật ngược lựa chọn của quản trị ---- */
+t( 'nâng cấp lần sau KHÔNG làm gì nữa', '' === VHCC_NguoiDung::mo_duong_vao() );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );   // quản trị cố ý chọn lại nguồn chung
+VHCC_NguoiDung::mo_duong_vao();
+teq( 'nâng cấp sau KHÔNG lật ngược lựa chọn nguồn của quản trị', 'chung', VHCC_Auth::nguon() );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+
+/* ---- 45f. NẠP RIÊNG TỪNG CƠ SỞ ---- */
+/* Anh Thắng: *"nếu dữ liệu lỗi, cho anh kéo riêng từng cơ sở (bao gồm tên đăng nhập và pin) là
+   dữ liệu chấm công cũ cho nhanh"*. */
+vhcc_don_mo_duong();
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+update_option( 'vhcc_da_mo_duong', 1 );             // khỏi tự chạy, mục này thử tay
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+foreach ( array(
+	array( '246813', 'Anh Quản Lý',  'QUAN_LY', 'TUTU_BT' ),
+	array( '357913', 'Chị Kế Toán',  'KE_TOAN', 'tutu bt' ),      // cùng cửa hàng, gõ khác kiểu
+	array( '468024', 'Anh Cơ Sở Hai', 'QUAN_LY', 'CS_FZ_ADV_AL' ),
+) as $r_pq ) {
+	$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => $r_pq[0], 'ho_ten' => $r_pq[1],
+		'vai_tro' => $r_pq[2], 'cua_hang' => $r_pq[3] ) );
+}
+$r = VHCC_NguoiDung::nap_tu_cu( 'app', true, 'TUTU_BT' );
+teq( 'xem trước cơ sở TUTU_BT: 2 người', 2, $r['them'] );
+teq( 'và bỏ qua 1 người của cơ sở khác', 1, $r['lech'] );
+teq( 'XEM TRƯỚC thì KHÔNG ghi gì', 0, count( VHCC_NguoiDung::ds() ) );
+/* Tên cơ sở gõ khác kiểu vẫn phải khớp — sổ cũ gõ tay nên `TUTU_BT`, `tutu bt`, `TuTu-BT` là
+   cùng một cửa hàng. So bằng === thì kéo cơ sở nào cũng ra 0 người mà chỉ báo "không có ai". */
+t( 'so tên cơ sở bỏ qua hoa thường, gạch, khoảng trắng',
+	VHCC_NguoiDung::cung_coso( 'TuTu-BT', 'tutu bt' ) && VHCC_NguoiDung::cung_coso( ' TUTU_BT ', 'tutubt' ) );
+t( 'nhưng KHÔNG gộp hai cơ sở khác nhau', ! VHCC_NguoiDung::cung_coso( 'TUTU_BT', 'CS_FZ_ADV_AL' ) );
+t( 'và cơ sở rỗng không khớp bừa với ai', ! VHCC_NguoiDung::cung_coso( '', '' ) );
+
+$r = VHCC_NguoiDung::nap_tu_cu( 'app', false, 'TUTU_BT' );
+teq( 'nạp thật cơ sở TUTU_BT', 2, $r['them'] );
+teq( 'danh sách có đúng 2 người', 2, count( VHCC_NguoiDung::ds() ) );
+$r = VHCC_NguoiDung::nap_tu_cu( 'app', false, 'TUTU_BT' );
+teq( 'nạp lại lần hai KHÔNG nhân đôi', 0, $r['them'] );
+teq( 'vẫn 2 người', 2, count( VHCC_NguoiDung::ds() ) );
+$r = VHCC_NguoiDung::nap_tu_cu( 'app', false, 'CS_FZ_ADV_AL' );
+teq( 'nạp tiếp cơ sở thứ hai', 1, $r['them'] );
+teq( 'giờ đủ 3 người', 3, count( VHCC_NguoiDung::ds() ) );
+
+/* Bảng cơ sở để đổ vào ô chọn ở màn Cài đặt. */
+$_cs = VHCC_NguoiDung::ds_coso_cu( 'app' );
+teq( 'liệt kê được các cơ sở của sổ cũ', 3, count( $_cs ) );
+teq( 'đếm đúng số người của một cơ sở', 1, isset( $_cs['CS_FZ_ADV_AL']['co'] ) ? $_cs['CS_FZ_ADV_AL']['co'] : 0 );
+
+/* ---- 45g. DÁN THẲNG TỪ GOOGLE SHEETS — không cần cầu nối Apps Script ---- */
+delete_option( 'vhcc_nguoidung' );
+$_tab = "Họ và Tên\tPIN\tVai trò\tCửa hàng\n"
+	. "Nguyễn Văn A\t246813\tQUAN_LY\tTUTU_BT\n"
+	. "Trần Thị B\t357913\tKế toán cá nhân\tTUTU_BT\n"
+	. "Lê Văn C\t468024\tNHAN_VIEN\tCS_FZ_ADV_AL";
+$r = VHCC_NguoiDung::nap_dan( $_tab, true );
+teq( 'dán có tiêu đề: đọc được 3 người', 3, $r['them'] );
+t( 'nhận ra dòng tiêu đề', ! empty( $r['tieude'] ) );
+teq( 'XEM TRƯỚC không ghi gì', 0, count( VHCC_NguoiDung::ds() ) );
+$r = VHCC_NguoiDung::nap_dan( $_tab, false );
+teq( 'nạp thật 3 người', 3, count( VHCC_NguoiDung::ds() ) );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '246813' );
+t( 'người dán từ Sheet đăng nhập được ngay bằng PIN đó', ! empty( $kq['ok'] ), $kq );
+teq( 'và đúng vai trò đọc từ mã app gốc', 'Quản lý', isset( $kq['role'] ) ? $kq['role'] : null );
+VHCC_Auth::mo_khoa();
+$r = VHCC_NguoiDung::nap_dan( $_tab, false );
+teq( 'dán lại y hệt thì KHÔNG nhân đôi', 0, $r['them'] );
+
+/* Sổ Phân quyền để PIN ở CỘT ĐẦU, tên ở cột hai — thứ tự ngược với ví dụ trên. Bắt người ta sắp
+   lại cột trước khi dán là mời gõ tay lại từ đầu, nên phải tự đoán theo NỘI DUNG. */
+delete_option( 'vhcc_nguoidung' );
+$r = VHCC_NguoiDung::nap_dan( "246813\tNguyễn Văn A\tQUAN_LY\tTUTU_BT\n357913\tTrần Thị B\tKE_TOAN\tTUTU_BT", false );
+teq( 'PIN đứng TRƯỚC tên (kiểu sổ Phân quyền) vẫn đọc đúng', 2, $r['them'] );
+$_ten = array();
+foreach ( VHCC_NguoiDung::ds() as $u ) { $_ten[] = $u['ten']; }
+t( 'lấy đúng cột họ tên, không lấy nhầm cột PIN', in_array( 'Nguyễn Văn A', $_ten, true ), $_ten );
+
+/* Google Sheets coi PIN là SỐ: 246813 xuất ra "246813.0". Đây là lỗi ĐÃ làm không ai đăng nhập
+   được một lần rồi — cắt đuôi ngay lúc nhận. */
+delete_option( 'vhcc_nguoidung' );
+$r = VHCC_NguoiDung::nap_dan( "Nguyễn Văn A\t246813.0\tQUAN_LY\nTrần Thị B\t357913.00\tKE_TOAN", false );
+teq( 'PIN mang đuôi .0 của Sheets vẫn nạp được', 2, $r['them'] );
+VHCC_Auth::mo_khoa();
+$kq = VHCC_Auth::login( '246813' );
+t( 'và đăng nhập được bằng PIN đã cắt đuôi', ! empty( $kq['ok'] ), $kq );
+VHCC_Auth::mo_khoa();
+
+/* Dấu phẩy (người gõ tay) và lọc cơ sở khi dán. */
+delete_option( 'vhcc_nguoidung' );
+$r = VHCC_NguoiDung::nap_dan( "Nguyễn Văn A,246813,QUAN_LY,TUTU_BT\nLê Văn C,468024,QUAN_LY,CS_FZ_ADV_AL", false, 'tutu bt' );
+teq( 'dán bằng dấu phẩy, lọc riêng một cơ sở', 1, $r['them'] );
+teq( 'và bỏ qua cơ sở khác', 1, $r['lech'] );
+
+/* 🔴 DÒNG HỎNG PHẢI KÊU ĐÍCH DANH. Nạp 26 cửa hàng mà im lặng bỏ 4 người PIN hỏng thì cuối
+   tháng 4 người đó không có công, và không ai dựng lại được vì màn hình đã báo "xong". */
+delete_option( 'vhcc_nguoidung' );
+$r = VHCC_NguoiDung::nap_dan(
+	"Họ và Tên\tPIN\n"
+	. "Người Tốt\t246813\n"
+	. "Người PIN Ngắn\t123\n"
+	. "Người Không PIN\t\n"
+	. "Người PIN Trùng\t246813\n"
+	. "Người PIN Lộ\t859624", false );
+teq( 'chỉ nạp được người hợp lệ', 2, $r['them'] );   // Người Tốt + Người PIN Lộ
+teq( 'và kêu đích danh 3 dòng hỏng', 3, count( $r['bo'] ) );
+t( 'nói rõ ai PIN sai khuôn', strpos( implode( ' | ', $r['bo'] ), 'Người PIN Ngắn' ) !== false, $r['bo'] );
+t( 'nói rõ ai chưa có PIN', strpos( implode( ' | ', $r['bo'] ), 'Người Không PIN' ) !== false, $r['bo'] );
+t( 'nói rõ ai trùng PIN với người khác', strpos( implode( ' | ', $r['bo'] ), 'Người PIN Trùng' ) !== false, $r['bo'] );
+/* PIN đã lộ thì VẪN NẠP — chặn lúc nạp là khoá đúng người đang dùng nó ra khỏi hệ thống, mà màn
+   hình chỉ báo "bỏ qua N dòng". Nạp rồi KÊU TÊN để đi đổi. */
+t( 'PIN đã lộ vẫn nạp (không khoá người ta ra ngoài)',
+	strpos( implode( ' | ', $r['bo'] ), 'Người PIN Lộ' ) === false, $r['bo'] );
+t( 'nhưng kêu tên ra để đổi sớm', in_array( 'Người PIN Lộ', (array) $r['yeu'], true ), $r['yeu'] );
+
+/* Dán bậy thì nói rõ phải làm gì, đừng nuốt im lặng. */
+$r = VHCC_NguoiDung::nap_dan( '', true );
+t( 'dán rỗng thì chối và nói rõ', empty( $r['ok'] ) && strpos( $r['error'], 'Chưa dán' ) !== false, $r );
+$r = VHCC_NguoiDung::nap_dan( "Nguyễn Văn A\nTrần Thị B", true );
+t( 'thiếu cột PIN thì chỉ cách bôi đen cả hai cột',
+	empty( $r['ok'] ) && strpos( $r['error'], '2 cột' ) !== false, $r );
+$r = VHCC_NguoiDung::nap_dan( "Họ và Tên\tGhi chú\nNguyễn Văn A\txin nghỉ", true );
+t( 'không có cột nào là PIN thì nói rõ, và nhắc bẫy số 0 đầu của Sheets',
+	empty( $r['ok'] ) && strpos( $r['error'], 'PIN' ) !== false
+	&& strpos( $r['error'], '0123' ) !== false, $r );
+
+/* Vai trò lạ -> bậc THẤP NHẤT. Đoán nhầm lên Admin là mở toàn bộ bảng lương cho một dòng gõ sai. */
+teq( 'vai trò lạ về Nhân viên, KHÔNG đoán lên cao', 'Nhân viên', VHCC_NguoiDung::doc_vai_tro( 'Sếp Tổng' ) );
+teq( 'nhận mã hoa của app gốc', 'Quản lý', VHCC_NguoiDung::doc_vai_tro( 'QUAN_LY' ) );
+teq( 'nhận cả chữ tiếng Việt có dấu', 'Quản lý', VHCC_NguoiDung::doc_vai_tro( 'Quản lý' ) );
+teq( 'và viết liền không dấu', 'Cửa hàng trưởng', VHCC_NguoiDung::doc_vai_tro( 'cuahangtruong' ) );
+
+/* ---- 45h. NHỮNG CHỐT KHÔNG ĐƯỢC LỎNG ---- */
 /* 🔴 PIN CHỈ ĐƯỢC HIỆN TRONG wp-admin. Ảnh chụp trang công khai đi khắp nơi — chính dự án này
    đã mất một khoá cầu nối vì một ảnh gửi qua chat. */
 $_ro_ri = array();
@@ -4485,32 +4635,42 @@ foreach ( array_merge(
 	glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ),
 	glob( $goc . '/wordpress/vhcp-cham-cong/assets/js/*.js' ),
 	glob( $goc . '/wordpress/vhcp-cham-cong/templates/*' ) ) as $_f ) {
-	if ( 'class-vhcc-admin.php' === basename( $_f ) )     { continue; }   // wp-admin: được phép
+	if ( 'class-vhcc-admin.php' === basename( $_f ) )      { continue; }   // wp-admin: được phép
 	if ( 'class-vhcc-nguoi-dung.php' === basename( $_f ) ) { continue; }   // nơi khai ra nó
 	if ( ! is_file( $_f ) ) { continue; }
 	if ( strpos( file_get_contents( $_f ), 'pin_lan_dau' ) !== false ) { $_ro_ri[] = basename( $_f ); }
 }
 t( 'PIN lần đầu không lọt sang trang công khai', count( $_ro_ri ) === 0, $_ro_ri );
 
-/* Màn Cài đặt phải hiện PIN, kèm nút xoá, và kể rõ là nó đã đổi nguồn người dùng. */
-foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon', 'vhcc_nguoidung' ) as $_o ) {
-	delete_option( $_o );
-}
-update_option( 'vhcc_nguon_nguoidung', 'chung' );
-VHCC_NguoiDung::gieo_lan_dau();
+/* Màn Cài đặt: PIN + nút xoá + kể rõ đã đổi nguồn; và hộp nạp có đủ hai đường. */
+vhcc_don_mo_duong();
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
+VHCC_NguoiDung::mo_duong_vao();
 $pin_ld2 = VHCC_NguoiDung::pin_lan_dau();
 $GLOBALS['VHCP_CO_QUYEN'] = true;
 ob_start(); VHCC_Admin::page(); $h_ld = ob_get_clean();
 t( 'màn Cài đặt hiện PIN lần đầu', strpos( $h_ld, $pin_ld2 ) !== false );
-t( 'kèm nút "tôi đã ghi lại" để xoá đi',
-	strpos( $h_ld, 'quen_pin_lan_dau' ) !== false );
-t( 'và dặn đổi PIN ngay', strpos( $h_ld, 'đổi PIN ngay' ) !== false );
-t( 'nói thẳng là plugin đã đổi nguồn người dùng',
-	strpos( $h_ld, 'Nguồn người dùng</b> từ' ) !== false );
-t( 'và trấn an rằng danh sách cũ không mất',
-	strpos( $h_ld, 'không mất gì' ) !== false );
+t( 'kèm nút "tôi đã ghi lại" để xoá đi', strpos( $h_ld, 'quen_pin_lan_dau' ) !== false );
+t( 'và chỉ sang chỗ nạp sổ PIN cũ', strpos( $h_ld, 'nạp sổ PIN cũ' ) !== false );
+t( 'nói thẳng là plugin đã đổi nguồn người dùng', strpos( $h_ld, 'Nguồn người dùng</b> từ' ) !== false );
+t( 'và trấn an rằng danh sách cũ không mất', strpos( $h_ld, 'không mất gì' ) !== false );
+t( 'có hộp nạp từ dữ liệu cũ', strpos( $h_ld, 'Nạp người dùng từ dữ liệu cũ' ) !== false );
+t( 'có ô dán thẳng từ Google Sheets', strpos( $h_ld, 'name="dan"' ) !== false
+	&& strpos( $h_ld, 'dán thẳng từ Google Sheets' ) !== false );
+t( 'có nút xem trước cho ô dán', strpos( $h_ld, 'value="xem_dan"' ) !== false );
+/* Kho rỗng thì KHÔNG vẽ nút nạp — mời người ta bấm vào một cái trống rồi báo lỗi là vô ích. */
+t( 'kho cũ rỗng thì không mời bấm nút nạp', strpos( $h_ld, 'value="xem_cu"' ) === false );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '246813', 'ho_ten' => 'Anh Quản Lý',
+	'vai_tro' => 'QUAN_LY', 'cua_hang' => 'TUTU_BT' ) );
+ob_start(); VHCC_Admin::page(); $h_ld2 = ob_get_clean();
+t( 'kho cũ CÓ người thì hiện nút xem trước + nạp', strpos( $h_ld2, 'value="xem_cu"' ) !== false
+	&& strpos( $h_ld2, 'value="nap_cu"' ) !== false );
+t( 'và có ô chọn riêng từng cơ sở', strpos( $h_ld2, 'TUTU_BT' ) !== false
+	&& strpos( $h_ld2, 'cả chuỗi' ) !== false );
+t( 'ô đó nói luôn cơ sở đó có bao nhiêu PIN dùng được', strpos( $h_ld2, 'có PIN dùng được' ) !== false );
+t( 'và nhắc bẫy số 0 đầu / đuôi .0 của Sheets ngay tại ô dán', strpos( $h_ld, '246813.0' ) !== false );
 
-/* Nút đó phải ĂN THẬT, và chỉ ăn với người có quyền quản trị. */
+/* Nút "đã ghi lại" phải ĂN THẬT, và chỉ ăn với người có quyền quản trị. */
 $_POST = array( 'vhcc_viec' => 'quen_pin_lan_dau' );
 $GLOBALS['VHCP_CO_QUYEN'] = false;
 VHCC_Admin::handle_post();
@@ -4522,20 +4682,18 @@ $_POST = array();
 
 /* Van cứu phải ĐƯỢC GỌI lúc nâng cấp, không thì viết ra để đó. */
 $_boot = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
-t( 'nâng cấp phiên bản có gọi gieo_lan_dau',
-	preg_match( '/vhcc_maybe_upgrade.*gieo_lan_dau/s', $_boot ) === 1 );
+t( 'nâng cấp phiên bản có gọi mo_duong_vao',
+	preg_match( '/vhcc_maybe_upgrade.*mo_duong_vao/s', $_boot ) === 1 );
 
 /* ⚠️ Và nó KHÔNG được nằm trong tệp đường đăng nhập — xem mục 40: tệp đó không được mang danh
-   sách PIN cấm, mà gieo_lan_dau thì phải gọi tới danh sách đó. */
+   sách PIN cấm, mà mo_duong_vao thì phải gọi tới danh sách đó. */
 t( 'van cứu nằm ngoài đường đăng nhập',
 	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-auth.php' ),
-		'gieo_lan_dau' ) === false );
+		'mo_duong_vao' ) === false );
 
 /* Dọn về trạng thái cũ cho các mục sau. */
-foreach ( array( 'vhcc_da_gieo', 'vhcc_pin_lan_dau', 'vhcc_gieo_doi_nguon', 'vhcc_nguoidung' ) as $_o ) {
-	delete_option( $_o );
-}
-update_option( 'vhcc_nguon_nguoidung', 'chung' );
+vhcc_don_mo_duong();
+$wpdb->exec_raw( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) );
 
 /* Hướng dẫn cài phải theo kịp thực tế: 22/08/2026 Hostinger sập, chuyển sang Vietnix (cPanel).
    Mấy điều dưới đây là thứ sai một cái là cả chuỗi máy im lặng, nên phải luôn có trong hướng dẫn. */
