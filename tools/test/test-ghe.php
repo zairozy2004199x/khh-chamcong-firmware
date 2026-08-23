@@ -6609,6 +6609,83 @@ t( '⚠️ ghi xong thì tải lại bảng, không giữ bản cũ',
 t( '🔴 kêu lên khi danh sách người dùng nằm ở plugin khác',
 	strpos( $html_ch, "CH.nguon !== 'rieng'" ) !== false );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BÁO CÁO CA CỦA NGƯỜI THU
+ * Anh Thắng 23/08/2026: *"chưa thấy nhân viên chốt báo cáo ca. nhập chỉ số tiền mặt và chỉ số máy"*.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970415', '108878583951', 'HUYNH QUANG THANG' );
+foreach ( array( 'BC01', 'BC02' ) as $k_ => $m_ ) {
+	VHG_May::luu_may( array( 'ma' => $m_, 'coso_id' => 0, 'gia' => 0, 'phut' => 0,
+		'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '',
+		'mac' => 'AA:BB:CC:DD:FF:0' . $k_ ) );
+}
+VHG_Quy::luu_don_vi( 5000 );
+teq( 'chưa chốt gì thì báo cáo ca rỗng', 0, (int) VHG_Quy::bao_cao_ca( 'Chị Hoa' )['so_ghe'] );
+
+VHG_Quy::chot( 'BC01', 100, 50000, 'Chị Hoa' );   // lần đầu, đặt mốc
+VHG_Quy::chot( 'BC02', 200, 30000, 'Chị Hoa' );   // lần đầu, đặt mốc
+$bc1 = VHG_Quy::bao_cao_ca( 'Chị Hoa' );
+teq( '🔴 ca gom đủ số ghế đã chốt', 2, (int) $bc1['so_ghe'] );
+teq( 'và cộng đúng tiền đếm được', 80000, (int) $bc1['tien_dem'] );
+teq( '⚠️ liệt kê CẢ từng ghế, không chỉ con số tổng', 2, dem( $bc1['ds'] ) );
+t( 'kèm mốc bắt đầu ca', '' !== (string) $bc1['tu_luc'] );
+
+/* Tiền khách trả tại quầy cũng nằm trong ca — cùng một túi tiền. */
+VHG_Thu::thu_tien_mat( 'BC01', 20000, 'Chị Hoa' );
+$bc2 = VHG_Quy::bao_cao_ca( 'Chị Hoa' );
+teq( 'tiền quầy vào đúng ô riêng', 20000, (int) $bc2['tu_quay'] );
+teq( '🔴 và tổng ca khớp với tiền đang cầm',
+	(int) VHG_Quy::dang_cam( 'Chị Hoa' )['tong'], (int) $bc2['tong'] );
+
+/* 🔴 CA LÀ QUÃNG CHƯA NỘP, KHÔNG PHẢI "HÔM NAY".
+   Người thu đi một vòng nhiều ghế rồi nộp một lần; quãng đó mới là cái họ phải giải trình, và
+   nó vắt qua nửa đêm được. Nộp xong là ca mới bắt đầu từ số 0. */
+VHG_Quy::nop( 'Chị Hoa' );
+$bc3 = VHG_Quy::bao_cao_ca( 'Chị Hoa' );
+teq( '🔴 nộp xong thì ca mới bắt đầu từ 0 ghế', 0, (int) $bc3['so_ghe'] );
+teq( 'và 0 đồng', 0, (int) $bc3['tong'] );
+VHG_Quy::chot( 'BC01', 120, 100000, 'Chị Hoa' );   // 20 đơn vị × 5.000 = 100.000đ
+$bc4 = VHG_Quy::bao_cao_ca( 'Chị Hoa' );
+teq( 'ca mới chỉ có lượt mới', 1, (int) $bc4['so_ghe'] );
+teq( 'máy đếm nói đã nuốt 100.000đ', 100000, (int) $bc4['theo_may'] );
+teq( '⚠️ nhưng sổ không ghi nhận đồng nào — ghế chưa báo về', 0, (int) $bc4['theo_he_thong'] );
+teq( '🔴 nên ca báo sổ đang thiếu 100.000đ', 100000, (int) $bc4['lech_may'] );
+teq( 'ngăn thì đủ tiền', 0, (int) $bc4['lech_dem'] );
+
+/* Người khác không dính vào ca của người này. */
+VHG_Quy::chot( 'BC02', 220, 70000, 'Anh Nam' );
+teq( 'ca của Hoa không lẫn lượt của Nam', 1, (int) VHG_Quy::bao_cao_ca( 'Chị Hoa' )['so_ghe'] );
+teq( 'và ngược lại', 1, (int) VHG_Quy::bao_cao_ca( 'Anh Nam' )['so_ghe'] );
+teq( '⚠️ không có tên thì trả về rỗng, không nổ', 0, (int) VHG_Quy::bao_cao_ca( '' )['so_ghe'] );
+
+/* ---- Qua cổng: người thu nhận được báo cáo ca của chính mình. */
+update_option( 'vhg_nguon_nguoidung', 'rieng' );
+update_option( 'vhg_nguoidung', array(
+	array( 'ten' => 'Chị Hoa', 'pin' => '135791', 'vaiTro' => 'Nhân viên', 'coso' => '' ) ) );
+delete_option( 'vhg_vai_tro_vao' );
+VHG_Auth::mo_khoa();
+$tb = vhg_web( 'login', array( 'pin' => '135791' ) )['token'];
+$sl_bc = vhg_web( 'so_lieu', array( 'token' => $tb, 'ky' => 'all' ) );
+t( '🔴 gói tin của người thu mang báo cáo ca', isset( $sl_bc['quy']['ca'] ) );
+teq( 'đúng ca của chính họ', 1, (int) $sl_bc['quy']['ca']['so_ghe'] );
+$html_bc = vhg_web_html();
+t( 'trang có khối báo cáo ca', strpos( $html_bc, "L('Báo cáo ca','Shift report')" ) !== false );
+t( '⚠️ và bảng từng ghế trong ca', strpos( $html_bc, "L('Đếm được','Counted')" ) !== false );
+/* ⚠️ Hai con lệch chỉ hiện khi KHÁC 0 — hiện cả hai dòng 0đ mỗi ca là mắt bỏ qua cả hai. */
+t( '⚠️ dòng lệch chỉ hiện khi khác 0', strpos( $html_bc, 'ca.lech_dem !== 0' ) !== false );
+/* 🔴 Và nói rõ người thu ĐỪNG TỰ BÙ khi sổ thiếu so với máy đếm — đó là tiền chưa báo về được,
+   không phải tiền họ làm mất. */
+t( '🔴 dặn đừng tự bù khi sổ thiếu', strpos( $html_bc, 'đừng tự bù' ) !== false );
+
+/* ---- Bảng nhân sự phải nói ra ai đang KHÔNG đăng nhập được. Anh Thắng gặp đúng cảnh này:
+   người khai đủ tên, PIN, cơ sở, nằm ngay trong bảng, trông y như đã xong — mà gõ đúng PIN vẫn
+   bị đá ra, vì vai trò chưa được tích ở khối phân quyền bên dưới. */
+t( '🔴 bảng nhân sự đánh dấu người không đăng nhập được',
+	strpos( $html_bc, "L('không đăng nhập được','cannot sign in')" ) !== false );
+t( 'và chỉ thẳng sang khối cần tích',
+	strpos( $html_bc, 'Đăng nhập được trang này</b> ngay' ) !== false );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

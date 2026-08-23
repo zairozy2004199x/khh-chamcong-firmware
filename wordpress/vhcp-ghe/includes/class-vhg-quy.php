@@ -616,6 +616,50 @@ class VHG_Quy {
 			: $wpdb->prepare( "SELECT * FROM $t ORDER BY id DESC LIMIT %d", $gh ) );
 	}
 
+	/**
+	 * BÁO CÁO CA CỦA MỘT NGƯỜI — từ lần nộp gần nhất tới giờ.
+	 *
+	 * Anh Thắng 23/08/2026: *"chưa thấy nhân viên chốt báo cáo ca"*.
+	 *
+	 * 🔴 "CA" Ở ĐÂY LÀ QUÃNG CHƯA NỘP, KHÔNG PHẢI "HÔM NAY".
+	 *    Người thu đi một vòng nhiều ghế rồi nộp một lần. Quãng đó mới là cái họ phải giải trình,
+	 *    và nó có thể vắt qua nửa đêm (ca tối đóng cửa lúc 1 giờ sáng). Cắt theo ngày là ca đêm
+	 *    bị chẻ đôi, và cả hai nửa đều không khớp với xấp tiền trong tay.
+	 *
+	 * ⚠️ Trả về CẢ danh sách ghế đã chốt, không chỉ con số tổng. Lệch quỹ thì câu hỏi đầu tiên
+	 *    luôn là *"ghế nào"* — một con số tổng không trả lời được câu đó.
+	 */
+	public static function bao_cao_ca( $nguoi ) {
+		global $wpdb;
+		$ai = trim( (string) $nguoi );
+		$ra = array( 'nguoi' => $ai, 'so_ghe' => 0, 'tien_dem' => 0, 'theo_may' => 0,
+			'theo_he_thong' => 0, 'lech_dem' => 0, 'lech_may' => 0, 'tu_quay' => 0,
+			'tu_luc' => '', 'ds' => array() );
+		if ( '' === $ai ) { return $ra; }
+
+		$tc = VHG_DB::t( 'chot' );
+		foreach ( VHG_DB::rows( $wpdb->prepare(
+			"SELECT * FROM $tc WHERE nguoi=%s AND nop_id=0 ORDER BY id ASC", $ai ) ) as $r ) {
+			$c = self::doc_chot( $r );
+			$ra['ds'][]           = $c;
+			$ra['so_ghe']        += 1;
+			$ra['tien_dem']      += (int) $c['tien_dem'];
+			$ra['theo_may']      += (int) $c['theo_may'];
+			$ra['theo_he_thong'] += (int) $c['theo_he_thong'];
+			$ra['lech_dem']      += (int) $c['lech_dem'];
+			$ra['lech_may']      += (int) $c['lech_may'];
+			if ( '' === $ra['tu_luc'] ) { $ra['tu_luc'] = (string) $c['tao_luc']; }
+		}
+
+		$tt = VHG_DB::t( 'thu' );
+		$ra['tu_quay'] = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COALESCE(SUM(so_tien),0) FROM $tt
+			 WHERE nguon=%s AND noi_dung=%s AND huy=0 AND nop_id=0",
+			VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) );
+		$ra['tong'] = $ra['tien_dem'] + $ra['tu_quay'];
+		return $ra;
+	}
+
 	// ═════════════════════════════════════════════════════════════════ báo cáo theo người
 
 	/**

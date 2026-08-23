@@ -479,6 +479,7 @@ class VHG_Trang {
 			'quy' => array(
 				'tong'    => VHG_Quy::tong( $ky ),
 				'toi'     => VHG_Quy::dang_cam( (string) $ai['name'] ),
+				'ca'      => VHG_Quy::bao_cao_ca( (string) $ai['name'] ),
 				'cam'     => VHG_Quy::ai_dang_cam(),
 				'cho'     => VHG_Quy::nop_cho( 50 ),
 				'chot'    => VHG_Quy::ds_chot( $ky, 120 ),
@@ -654,6 +655,8 @@ class VHG_Trang {
 		$ke_toan = ! empty( $q['chot_doanh_so'] );
 		$quy = array(
 			'toi'    => VHG_Quy::dang_cam( $toi ),
+			/* Báo cáo ca: quãng CHƯA NỘP của chính người này — xem VHG_Quy::bao_cao_ca(). */
+			'ca'     => VHG_Quy::bao_cao_ca( $toi ),
 			'toi_la' => $toi,
 			'don_vi' => VHG_Quy::don_vi(),
 			/* Kế toán xem được MỌI lượt chốt: họ phải đối chiếu tiền nhận với lượt đã chốt. */
@@ -1509,8 +1512,22 @@ function veCauHinh(){
     + '</th><th class="hide-sm">PIN</th><th class="r"></th></tr>';
   if (!(CH.nguoi || []).length) h += '<tr><td colspan="5" class="mut">'
     + L('Chưa khai ai cả.','Nobody declared yet.') + '</td></tr>';
+  /* 🔴 NÓI THẲNG AI ĐANG KHÔNG VÀO ĐƯỢC.
+   *
+   * Anh Thắng 23/08/2026: *"chưa thấy nhân viên chốt báo cáo ca"* — và ảnh chụp cho thấy ô
+   * "Nhân viên" ở nhóm *Đăng nhập được trang này* chưa tích. Người đó đã khai đủ tên, PIN, cơ
+   * sở, nằm ngay trong bảng, trông y như đã xong — mà gõ đúng PIN vẫn bị đá ra.
+   *
+   * Bảng chỉ liệt kê tên và vai trò thì không ai nối được hai chỗ đó với nhau: danh sách người
+   * ở khối này, danh sách vai trò ở khối dưới. Nên đánh dấu NGAY TRÊN DÒNG người đó.
+   */
+  var ai_khong_vao = [];
   (CH.nguoi || []).forEach(function(n){
-    h += '<tr><td><b>' + esc(n.ten) + '</b></td><td>' + esc(n.vai_tro) + '</td>'
+    var vao = (CH.vao || []).indexOf(n.vai_tro) >= 0;
+    if (!vao) ai_khong_vao.push(n.ten);
+    h += '<tr><td><b>' + esc(n.ten) + '</b>'
+      + (vao ? '' : '<br><span class="pill p-off">' + L('không đăng nhập được','cannot sign in') + '</span>')
+      + '</td><td>' + esc(n.vai_tro) + '</td>'
       + '<td>' + esc(n.coso || L('cả chuỗi','all branches')) + '</td>'
       + '<td class="hide-sm mut">' + n.pin_dai + ' ' + L('số','digits') + '</td>'
       + '<td class="r">' + (n.ten === CH.toi_la ? '<span class="mut">' + L('bạn','you') + '</span>'
@@ -1518,6 +1535,16 @@ function veCauHinh(){
       + '</td></tr>';
   });
   h += '</table>';
+  if (ai_khong_vao.length) {
+    h += '<div class="warn" style="margin-top:10px"><b>' + ai_khong_vao.length + ' '
+      + L('người gõ đúng PIN vẫn không vào được','people cannot sign in even with the right PIN')
+      + '</b> — ' + esc(ai_khong_vao.join(', ')) + '. '
+      + L('Vai trò của họ chưa được tích ở khối <b>Phân quyền → Đăng nhập được trang này</b> ngay '
+          + 'bên dưới. Tích rồi bấm <b>Lưu phân quyền</b>.',
+          'Their role is not ticked under <b>Permissions → Can sign in here</b> below. '
+          + 'Tick it, then press <b>Save permissions</b>.')
+      + '</div>';
+  }
 
   h += '<h3 style="margin:16px 0 8px">' + L('Thêm người','Add a person') + '</h3>'
     + '<div class="act" style="flex-wrap:wrap">'
@@ -1643,7 +1670,62 @@ function veQuy(){
     + '<div class="err" id="quet-e"></div>'
     + '<div id="quet-khung"></div></div>';
 
-  /* ---- 1. TÔI ĐANG CẦM BAO NHIÊU ---------------------------------------------------------- */
+  /* ---- 1. BÁO CÁO CA + TÔI ĐANG CẦM -------------------------------------------------------
+   * Anh Thắng 23/08/2026: *"chưa thấy nhân viên chốt báo cáo ca"*.
+   *
+   * 🔴 "CA" LÀ QUÃNG CHƯA NỘP, KHÔNG PHẢI "HÔM NAY". Người thu đi một vòng nhiều ghế rồi nộp
+   *    một lần — quãng đó mới là cái họ phải giải trình, và nó vắt qua nửa đêm được (ca tối
+   *    đóng cửa lúc 1 giờ sáng). Cắt theo ngày là ca đêm bị chẻ đôi, và cả hai nửa đều không
+   *    khớp với xấp tiền đang cầm.
+   * ⚠️ Liệt kê CẢ TỪNG GHẾ, không chỉ con số tổng: lệch quỹ thì câu hỏi đầu tiên luôn là
+   *    "ghế nào", mà một con số tổng không trả lời được câu đó.
+   */
+  var ca = q.ca || null;
+  if (ca && ca.so_ghe > 0) {
+    h += '<div class="card"><h2>' + L('Báo cáo ca','Shift report') + ' — ' + esc(q.toi_la) + '</h2>'
+      + '<p class="mut" style="margin:0 0 10px">'
+      + Lf('Từ {0}, đã chốt {1} ghế. Ca tính từ lần nộp gần nhất — chưa nộp thì vẫn là ca này.',
+           esc(String(ca.tu_luc).slice(0, 16)), ca.so_ghe)
+      + '</p>'
+      + '<div class="so-hang to"><span class="nh">' + L('Tiền đếm được từ ngăn ghế','Counted from chair boxes')
+        + '</span><span class="gt">' + tien(ca.tien_dem) + '</span></div>'
+      + hangSo(L('Máy đếm nói đã nuốt','Meters say they took'), tien(ca.theo_may))
+      + hangSo(L('Sổ ghi nhận','On record'), tien(ca.theo_he_thong))
+      + (ca.tu_quay > 0 ? hangSo(L('Khách trả tại quầy','Paid at the counter'), tien(ca.tu_quay)) : '');
+    /* Hai con lệch chỉ hiện khi KHÁC 0 — hiện cả hai dòng 0đ mỗi ca là mắt bỏ qua cả hai. */
+    if (ca.lech_dem !== 0) {
+      h += '<div class="so-hang"><span class="nh" style="color:#ff8087">'
+        + (ca.lech_dem < 0 ? L('Ngăn THIẾU so với máy đếm','Boxes SHORT vs meters')
+                           : L('Ngăn THỪA so với máy đếm','Boxes OVER vs meters'))
+        + '</span><span class="gt" style="color:#ff8087">' + tien(Math.abs(ca.lech_dem))
+        + '</span></div>';
+    }
+    if (ca.lech_may !== 0) {
+      h += '<div class="so-hang"><span class="nh" style="color:#ffb86b">'
+        + L('Sổ thiếu so với máy đếm','Records short vs meters')
+        + '</span><span class="gt" style="color:#ffb86b">' + tien(Math.abs(ca.lech_may))
+        + '</span></div>'
+        + '<div class="mut" style="margin-top:4px">'
+        + L('Ghế nuốt tiền mà không báo về được (mất mạng, mất điện giữa chừng). Tiền vẫn trong '
+            + 'ngăn — báo quản lý để đối chiếu, đừng tự bù.',
+            'A chair took notes but could not report them (offline, power cut). The money is '
+            + 'still in the box — tell a manager, do not cover it yourself.') + '</div>';
+    }
+    h += '<table style="margin-top:12px"><tr><th>' + L('Ghế','Chair') + '</th>'
+      + '<th class="hide-sm">' + L('Lúc','Time') + '</th>'
+      + '<th class="r">' + L('Chỉ số','Meter') + '</th>'
+      + '<th class="r">' + L('Đếm được','Counted') + '</th></tr>';
+    (ca.ds || []).forEach(function(c){
+      h += '<tr><td><b>' + esc(c.ma_may) + '</b>'
+        + (c.lan_dau ? ' <span class="pill p-run">' + L('lần đầu','first') + '</span>' : '')
+        + '</td><td class="hide-sm mut">' + esc(String(c.tao_luc).slice(11, 16)) + '</td>'
+        + '<td class="r mut">' + esc(String(c.chi_so_truoc)) + ' → ' + esc(String(c.chi_so)) + '</td>'
+        + '<td class="r"' + (c.lech_dem !== 0 ? ' style="color:#ff8087"' : '') + '><b>'
+          + tien(c.tien_dem) + '</b></td></tr>';
+    });
+    h += '</table></div>';
+  }
+
   var toi = q.toi || { tong: 0, tu_ghe: 0, tu_quay: 0, so_dong: 0 };
   h += '<div class="card"><h2>' + L('Tôi đang cầm','I am holding') + ' — ' + esc(q.toi_la) + '</h2>';
   if (toi.tong > 0) {
