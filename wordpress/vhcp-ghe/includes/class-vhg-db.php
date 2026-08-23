@@ -304,6 +304,10 @@ class VHG_DB {
 		     `loai = 'nap'` -> trả tiền xong thì CỘNG VÍ  (VHG_Vi::nap)
 		   Tách hai bảng là phải tách luôn cả đường webhook, mà đường đó là chỗ tiền đi vào —
 		   chẻ đôi nó ra để lấy sự gọn gàng là đổi nhầm thứ.
+		   ⚠️ Ba giá trị: '' hoặc 'ma' = mua mã lẻ · 'nap' = nạp ví · 'ghe' = TRẢ THẲNG CHO MỘT
+		      LƯỢT GHẾ bằng chuyển khoản. Đơn 'ghe' mang thêm `ma_may`, và nội dung chuyển khoản
+		      của nó là "GHE<ghế> <mã đơn>" chứ không phải "MUA<mã đơn>" — nhờ vậy webhook cũ
+		      nhận ra nó là một lượt ghế và cho ghế chạy mà KHÔNG phải sửa gì ở đường tiền.
 		   ⚠️ Đơn ĐẶT TRƯỚC bản này không có cột đó, đọc ra RỖNG — và rỗng phải hiểu là 'ma',
 		      đúng như hệ thống chạy trước đây. Đọc rỗng thành 'nap' là mọi đơn cũ chưa trả tiền
 		      biến thành đơn nạp, khách trả tiền xong không nhận được mã.
@@ -323,6 +327,7 @@ class VHG_DB {
 			so_luong INT NOT NULL DEFAULT 1,
 			phai_tra BIGINT(20) NOT NULL DEFAULT 0,
 			loai VARCHAR(10) NOT NULL DEFAULT '',
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
 			nhan_tien BIGINT(20) NOT NULL DEFAULT 0,
 			tao_luc DATETIME NULL,
 			xong_luc DATETIME NULL,

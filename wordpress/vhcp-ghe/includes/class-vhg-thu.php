@@ -153,6 +153,27 @@ class VHG_Thu {
 		   chưa gắn được máy — đối soát tay sau, đừng bỏ. */
 		if ( '' !== $ma_may && '' !== $ma_lenh ) {
 			VHG_May::xep_cho_chay( $ma_may, $ma_lenh, $tien, $kq['ref'], $nd );
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * TÍCH LƯỢT ƯU ĐÃI — ĐẶT SAU `xep_cho_chay`, KHÔNG ĐẶT TRƯỚC.
+			 *
+			 * Anh Thắng 23/08/2026: *"Tích lượt qua quét QR tại máy luôn, chỉ có tiền mặt thì
+			 * không"*.
+			 *
+			 * 🔴 GHẾ CHẠY LÀ VIỆC KHÔNG ĐƯỢC CHỜ AI. Khách đang ngồi trên ghế, đã trả tiền, và
+			 *    đường tiền này vốn đã trễ vài giây vì phải đi qua ngân hàng — anh Thắng đo
+			 *    được *"QR nhận trễ 5s"*. Lượt tích thì chậm một nhịp cũng không ai thấy.
+			 *    Nên: cho ghế chạy trước, tính điểm sau.
+			 *
+			 * 🔴 KHÔNG ĐƯỢC LÀM GÃY LƯỢT TIỀN. Đây là cổng webhook: ném lỗi ở đây là SePay coi
+			 *    như gửi hỏng và bắn lại, mà `xep_cho_chay` ở trên đã chạy rồi. Nên `tich_don_ghe`
+			 *    trả về lý do chứ không ném, và không ai đọc giá trị trả về của nó ở đây cả —
+			 *    lượt tích hỏng thì im lặng, tiền và ghế vẫn nguyên.
+			 *
+			 * ⚠️ Đa số lượt tới đây KHÔNG phải đơn đặt từ trang web (khách quét thẳng QR trên
+			 *    màn ghế). `tich_don_ghe` tra không thấy thì trả 'không phải đơn' và thôi — đó
+			 *    là đường chạy BÌNH THƯỜNG, không phải lỗi.
+			 * ═════════════════════════════════════════════════════════════════════════════ */
+			VHG_Vi::tich_don_ghe( $ma_lenh, $ma_may, $tien );
 		}
 
 		/* ĐƠN MUA MÃ TRƯỚC. Tiền về -> phát mã cho đúng số điện thoại đã chốt lúc đặt đơn.

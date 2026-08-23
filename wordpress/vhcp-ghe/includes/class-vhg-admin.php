@@ -141,8 +141,15 @@ class VHG_Admin {
 		$cf = VHG_Vi::tich_cf();
 		$tq = VHG_Vi::tong_qua();
 		echo '<h2>Tích lượt ưu đãi</h2>';
-		echo '<p class="description">Khách tiêu tiền TỪ VÍ tại ghế thì được tích lượt. '
-			. 'Trả QR hay tiền mặt trực tiếp thì <b>không</b> tích — hệ thống không biết đó là ai.</p>';
+		/* 🔴 CÂU NÀY PHẢI ĐÚNG LUẬT ĐANG CHẠY. Bản trước ghi ngược hẳn (tiêu ví thì tích, trả QR
+		   thì không) — và người đọc nó là người quyết định bật hay tắt cả chương trình. Luật nay
+		   theo anh Thắng 23/08/2026: *"Tích lượt qua quét QR tại máy luôn, chỉ có tiền mặt thì
+		   không"*, và *"nạp ví thì nó có ưu đãi sẵn rồi"*. */
+		echo '<p class="description"><b>Chỉ đường CHUYỂN KHOẢN tại ghế mới tích lượt</b> — khách mở '
+			. 'trang từ tem QR trên ghế, đăng nhập ví, rồi chọn mệnh giá và trả bằng ngân hàng.<br>'
+			. 'Tiêu bằng SỐ DƯ VÍ thì <b>không</b> tích: tiền nạp đã được khuyến mãi một lần rồi.<br>'
+			. 'Tiền mặt, và QR quét thẳng trên màn hình ghế, cũng <b>không</b> tích — hai đường đó '
+			. 'không mang số điện thoại nên hệ thống không biết đó là ai.</p>';
 
 		$mau_q = $tq['cho'] > 0 ? '#b32d2e' : '#666';
 		echo '<div style="border-left:4px solid ' . esc_attr( $mau_q ) . ';background:#fff;'
@@ -161,8 +168,9 @@ class VHG_Admin {
 		echo '<table class="form-table"><tbody>';
 		echo '<tr><th scope="row">Mỗi lượt tích</th><td>'
 			. '<input type="number" name="tich_moi_luot" min="1000" step="1000" value="'
-			. (int) $cf['moi_luot'] . '" style="width:140px" /> đ tiêu tại ghế'
-			. '<p class="description">Tiêu 50.000đ với mức 10.000đ = 5 lượt. Quy đổi làm tròn xuống.</p>'
+			. (int) $cf['moi_luot'] . '" style="width:140px" /> đ chuyển khoản tại ghế'
+			. '<p class="description">Trả 50.000đ với mức 10.000đ = 5 lượt. Quy đổi làm tròn xuống, '
+			. 'và tính trên SỐ TIỀN THẬT nhận được chứ không tính trên mệnh giá khách chọn.</p>'
 			. '</td></tr>';
 		echo '<tr><th scope="row">Mốc thưởng</th><td>'
 			. '<input type="number" name="tich_moc" min="2" max="100" value="'

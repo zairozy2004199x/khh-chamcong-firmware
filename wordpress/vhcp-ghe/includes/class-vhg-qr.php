@@ -150,8 +150,14 @@ class VHG_QR {
 	 *
 	 * ⚠️ Nội dung phải đúng khuôn `GHE<mã ghế> <mã lượt>` — đó là thứ `VHG_Doc::ghe_va_ma()` đọc
 	 *    lại khi tiền về. Đổi khuôn ở một bên mà quên bên kia là tiền vào mà ghế không chạy.
+	 *
+	 * `$so_tien` = 0 nghĩa là "lấy tỉ lệ của ghế" (chuỗi mẫu trong màn quản trị). Trang web đặt
+	 * một lượt theo MỆNH GIÁ khách chọn thì truyền con số đó vào — cùng một khuôn nội dung, nên
+	 * webhook chạy ghế bằng ĐÚNG đoạn mã đang chạy cho QR trên màn ghế, không thêm nhánh nào ở
+	 * chỗ tiền đi vào. Khác biệt duy nhất: mình BIẾT TRƯỚC mã lượt đó của ai, và chỉ nhờ vậy mới
+	 * tích lượt ưu đãi được (xem VHG_Vi::dat_ghe / tich_don_ghe).
 	 */
-	public static function cho_ghe( $ma_may, $ma_lenh = '' ) {
+	public static function cho_ghe( $ma_may, $ma_lenh = '', $so_tien = 0 ) {
 		$m = VHG_May::may( $ma_may );
 		if ( ! $m ) { return array( 'ok' => false, 'error' => 'Chưa khai máy ' . $ma_may . '.' ); }
 		/* 🔴 GHẾ CHƯA GÁN MÃ THÌ KHÔNG DỰNG QR ĐƯỢC — và phải nói ra, không được dựng bừa.
@@ -182,11 +188,22 @@ class VHG_QR {
 		}
 		$ma_lenh = '' !== $ma_lenh ? $ma_lenh : self::ma_luot();
 		$nd = self::noi_dung( $m['ma'], $ma_lenh );
-		/* Số tiền của chuỗi mẫu = tỉ lệ THỰC DÙNG của ghế (riêng nếu có, không thì chung).
-		   Lấy thẳng cột `gia` là ghế dùng chung ra số 0, và một mã QR 0 đồng thì quét ra lỗi. */
-		$tl = VHG_May::ty_le_cua( $m );
-		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], (int) $tl['gia'], $nd ),
-			'noi_dung' => $nd, 'so_tien' => (int) $tl['gia'], 'ma_lenh' => $ma_lenh );
+		/* Số tiền: KHÁCH CHỌN MỆNH GIÁ thì lấy đúng con số đó (đơn `loai='ghe'` đặt từ trang
+		   web — xem VHG_Vi::dat_ghe). Không truyền thì rơi về tỉ lệ THỰC DÙNG của ghế (riêng
+		   nếu có, không thì chung) như chuỗi mẫu trong màn quản trị vẫn dùng.
+		   ⚠️ Lấy thẳng cột `gia` là ghế dùng chung ra số 0, và một mã QR 0 đồng thì quét ra lỗi. */
+		$tien = (int) $so_tien;
+		if ( $tien <= 0 ) {
+			$tl   = VHG_May::ty_le_cua( $m );
+			$tien = (int) $tl['gia'];
+		}
+		/* Trả kèm TÀI KHOẢN THẬT ĐÃ DÙNG để dựng chuỗi. Nơi gọi cần in số tài khoản ra cho ai
+		   muốn chuyển tay, và ghế này có thể đang dùng tài khoản riêng chứ không phải tài khoản
+		   chung — hỏi lại `nhan_tien_cua()` ở đầu kia là có ngày hai bên trả lời khác nhau, tức
+		   là mã QR một đằng còn dòng chữ bên dưới nó một nẻo. */
+		return array( 'ok' => true, 'chuoi' => self::dung( $tk['bin'], $tk['so_tk'], $tien, $nd ),
+			'noi_dung' => $nd, 'so_tien' => $tien, 'ma_lenh' => $ma_lenh,
+			'so_tk' => $tk['so_tk'], 'ten_tk' => $tk['ten_tk'], 'bin' => $tk['bin'] );
 	}
 
 	/**

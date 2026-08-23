@@ -199,6 +199,9 @@ class VHG_Shop {
 				'goi_nap' => VHG_Vi::goi_nap(),
 				'ban_ma'  => VHG_Ma::con_ban_ma() ? 1 : 0,
 				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
+				/* Chỉ CỜ BẬT/TẮT, không kèm mốc hay giá trị quà: trang chưa đăng nhập chỉ cần
+				   biết có chương trình hay không để mời chào. Số liệu chi tiết đi cùng ví. */
+				'tich_bat' => VHG_Vi::tich_cf()['bat'] ? 1 : 0,
 				'ghe' => $ghe_ ) );
 			return;
 		}
@@ -233,6 +236,24 @@ class VHG_Shop {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * TRẢ MỘT LƯỢT GHẾ BẰNG CHUYỂN KHOẢN — đường DUY NHẤT tích được lượt ưu đãi.
+		 *
+		 * Anh Thắng 23/08/2026: *"Tích lượt qua quét QR tại máy luôn, chỉ có tiền mặt thì không"*.
+		 * Xem chú thích dài ở `VHG_Vi::dat_ghe()` để biết vì sao QR trên màn ghế không tích được.
+		 *
+		 * ⚠️ Ghế lấy theo ĐÚNG luật của cả trang: thân gói trước, rồi tới địa chỉ. Đọc mỗi địa
+		 *    chỉ là lặp lại đúng lỗi ngày 23/08/2026 — trang biết ghế mà máy chủ thì không.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'dat_ghe' === $viec ) {
+			self::tra_don_ghe( VHG_Vi::dat_ghe(
+				self::ghe_tu_dia_chi( $d ),
+				isset( $d['menh_gia'] ) ? $d['menh_gia'] : 0,
+				isset( $d['sdt'] ) ? $d['sdt'] : '',
+				isset( $d['pin'] ) ? $d['pin'] : '' ) );
+			return;
+		}
+
 		/* Trang hỏi lại xem tiền về chưa. KHÔNG trả gì ngoài "xong hay chưa" + bộ mã: đơn mang
 		   số điện thoại và PIN băm của khách, đưa ra là rò dữ liệu người khác nếu ai đó đoán
 		   trúng mã đơn. */
@@ -250,6 +271,16 @@ class VHG_Shop {
 					'so_du' => $sd ? (int) $sd['dung'] : 0,
 					'so_du_cho' => $sd ? (int) $sd['cho'] : 0,
 					'con_cho' => $sd ? (int) $sd['con_cho'] : 0 ) );
+				return;
+			}
+			/* Đơn TRẢ MỘT LƯỢT GHẾ: khách không chờ mã nào cả, họ chờ CÁI GHẾ. Trả về tình
+			   trạng tích lượt để trang khoe ngay con dấu vừa được — đó là toàn bộ lý do khách
+			   chịu đăng nhập trước khi trả tiền. */
+			if ( 'ghe' === $loai ) {
+				self::tra( array( 'ok' => true, 'xong' => $xong ? 1 : 0, 'loai' => 'ghe',
+					'ma' => array(), 'ma_may' => (string) $don['ma_may'],
+					'tich' => ( $xong && '' !== (string) $don['sdt'] )
+						? VHG_Vi::tich( $don['sdt'] ) : null ) );
 				return;
 			}
 			$ma = array();
@@ -418,6 +449,22 @@ class VHG_Shop {
 		$qr_don = VHG_QR::cho_don_mua( $r['ma_don'], (int) $r['phai_tra'] );
 		$r['qr'] = ! empty( $qr_don['ok'] )
 			? VHG_QRVe::hang( VHG_QRVe::ma_tran( $qr_don['chuoi'], 'L' ) ) : array();
+		self::tra( $r );
+	}
+
+	/**
+	 * Gói tin trả về cho một đơn TRẢ LƯỢT GHẾ.
+	 *
+	 * ⚠️ KHÔNG dùng lại `tra_don()`: đơn ghế mang nội dung `GHE<ghế> <mã>` chứ không phải
+	 *    `MUA<mã đơn>`, và `VHG_Vi::dat_ghe()` đã dựng sẵn đúng chuỗi VietQR đó rồi. Cho nó đi
+	 *    qua `tra_don()` là chuỗi bị dựng lại theo khuôn MUA — khách trả tiền, webhook đọc ra
+	 *    một đơn mua mã, và cái ghế họ đang ngồi không bao giờ chạy.
+	 */
+	private static function tra_don_ghe( $r ) {
+		if ( empty( $r['ok'] ) ) { self::tra( $r ); return; }
+		/* Mức sửa lỗi L — cùng lý do với đơn mua mã: mã hiện trên màn, không chịu vết xước. */
+		$r['qr'] = VHG_QRVe::hang( VHG_QRVe::ma_tran( $r['chuoi_qr'], 'L' ) );
+		unset( $r['chuoi_qr'] );
 		self::tra( $r );
 	}
 
@@ -613,7 +660,25 @@ var TU = {
   en: {
     'Đã tích {0}/{1} lượt': '{0}/{1} stamps collected',
     'còn {0} lượt nữa được thưởng': '{0} more to earn a reward',
-    'Mỗi {0} tiêu tại ghế = 1 lượt tích.': 'Every {0} spent at a chair = 1 stamp.',
+    'Mỗi {0} trả bằng chuyển khoản tại ghế = 1 lượt tích.': 'Every {0} paid by bank transfer at a chair = 1 stamp.',
+    'Tiêu bằng số dư ví không tích lượt — tiền nạp đã được khuyến mãi sẵn rồi.': 'Paying from your wallet balance earns no stamps — top-ups already come with a bonus.',
+    '<div class="card"><h2>Hoặc trả bằng chuyển khoản</h2>': '<div class="card"><h2>Or pay by bank transfer</h2>',
+    '<p class="mut" style="margin:0 0 10px">Bấm một gói — hiện mã QR ngân hàng. Trả xong ': '<p class="mut" style="margin:0 0 10px">Tap a package — a bank QR code appears. Once paid, ',
+    '<b>ghế chạy ngay</b>, không phải chờ đếm.</p>': '<b>the chair starts right away</b> — no countdown to wait through.</p>',
+    '🎁 Trả bằng chuyển khoản ở đây được TÍCH LƯỢT vào ví của anh/chị.': '🎁 Paying by bank transfer here earns a STAMP on your wallet.',
+    '🎁 Trả bằng chuyển khoản được tích lượt ưu đãi — nhưng phải mở ví ở trên trước.': '🎁 Bank transfers earn loyalty stamps — but open your wallet above first.',
+    'Quét thẳng mã QR trên màn hình ghế thì hệ thống không biết ai trả, nên không tích được.': 'If you scan the QR code on the chair screen directly, the system cannot tell who paid, so no stamp is given.',
+    '<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">Done</button></div></div>',
+    'Đang dựng mã QR…': 'Creating the QR code…',
+    'Không đặt được lượt.': 'Could not start this session.',
+    'Chuyển khoản để chạy ghế {0}': 'Transfer to start chair {0}',
+    '⚠️ Vui lòng NGỒI LÊN GHẾ trước khi chuyển khoản.': '⚠️ Please SIT ON THE CHAIR before you transfer.',
+    'Trả xong ghế {0} chạy ngay trong vài giây — hệ thống gửi lệnh đúng lúc ngân hàng báo có tiền.': 'Once paid, chair {0} starts within seconds — the command goes out the moment the bank confirms the money.',
+    '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Ghế chạy ngay khi tiền về.</p>': '<b style="color:#f0b429">the exact reference</b> below. The chair starts as soon as the money arrives.</p>',
+    '<div class="card"><h2>Đã nhận tiền — ghế đang chạy</h2>': '<div class="card"><h2>Payment received — the chair is running</h2>',
+    'Ghế <b>{0}</b> chạy ngay bây giờ. Mời anh/chị ngồi thoải mái.': 'Chair <b>{0}</b> is starting now. Please make yourself comfortable.',
+    '<p class="mut" style="margin:12px 0 0">Lần sau mở ví trước khi trả thì lượt này ': '<p class="mut" style="margin:12px 0 0">Open your wallet before paying next time and this session ',
+    'được tính vào chương trình tích lượt.</p>': 'will count towards the loyalty programme.</p>',
     'Anh/chị có {0} phần quà chưa nhận': 'You have {0} gift(s) waiting',
     'Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.': 'Please come to the counter and give your phone number to collect it.',
     'Của tôi': 'My account',
@@ -771,7 +836,25 @@ var TU = {
   zh: {
     'Đã tích {0}/{1} lượt': '已集 {0}/{1} 次',
     'còn {0} lượt nữa được thưởng': '再 {0} 次即可获赠',
-    'Mỗi {0} tiêu tại ghế = 1 lượt tích.': '在按摩椅消费每满 {0} = 1 次。',
+    'Mỗi {0} trả bằng chuyển khoản tại ghế = 1 lượt tích.': '在按摩椅每以银行转账支付 {0} = 1 次。',
+    'Tiêu bằng số dư ví không tích lượt — tiền nạp đã được khuyến mãi sẵn rồi.': '使用钱包余额支付不累计次数——充值时已享受优惠。',
+    '<div class="card"><h2>Hoặc trả bằng chuyển khoản</h2>': '<div class="card"><h2>或使用银行转账支付</h2>',
+    '<p class="mut" style="margin:0 0 10px">Bấm một gói — hiện mã QR ngân hàng. Trả xong ': '<p class="mut" style="margin:0 0 10px">点击一个套餐——显示银行二维码。支付后，',
+    '<b>ghế chạy ngay</b>, không phải chờ đếm.</p>': '<b>按摩椅立即启动</b>，无需等待倒计时。</p>',
+    '🎁 Trả bằng chuyển khoản ở đây được TÍCH LƯỢT vào ví của anh/chị.': '🎁 在此使用银行转账支付，可为您的钱包累计一次。',
+    '🎁 Trả bằng chuyển khoản được tích lượt ưu đãi — nhưng phải mở ví ở trên trước.': '🎁 银行转账可累计优惠次数——但请先在上方打开钱包。',
+    'Quét thẳng mã QR trên màn hình ghế thì hệ thống không biết ai trả, nên không tích được.': '若直接扫描按摩椅屏幕上的二维码，系统无法识别付款人，因此无法累计。',
+    '<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">完成</button></div></div>',
+    'Đang dựng mã QR…': '正在生成二维码…',
+    'Không đặt được lượt.': '无法下单。',
+    'Chuyển khoản để chạy ghế {0}': '转账以启动按摩椅 {0}',
+    '⚠️ Vui lòng NGỒI LÊN GHẾ trước khi chuyển khoản.': '⚠️ 转账前请先坐上按摩椅。',
+    'Trả xong ghế {0} chạy ngay trong vài giây — hệ thống gửi lệnh đúng lúc ngân hàng báo có tiền.': '支付后按摩椅 {0} 数秒内启动——银行确认到账时系统即刻发出指令。',
+    '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Ghế chạy ngay khi tiền về.</p>': '<b style="color:#f0b429">准确的转账备注</b>。款项到账后按摩椅立即启动。</p>',
+    '<div class="card"><h2>Đã nhận tiền — ghế đang chạy</h2>': '<div class="card"><h2>已收到款项——按摩椅正在运行</h2>',
+    'Ghế <b>{0}</b> chạy ngay bây giờ. Mời anh/chị ngồi thoải mái.': '按摩椅 <b>{0}</b> 现在启动。请安心享受。',
+    '<p class="mut" style="margin:12px 0 0">Lần sau mở ví trước khi trả thì lượt này ': '<p class="mut" style="margin:12px 0 0">下次支付前先打开钱包，本次消费',
+    'được tính vào chương trình tích lượt.</p>': '即可计入优惠累计计划。</p>',
     'Anh/chị có {0} phần quà chưa nhận': '您有 {0} 份礼品待领取',
     'Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.': '请到前台报手机号领取礼品。',
     'Của tôi': '我的',
@@ -929,7 +1012,25 @@ var TU = {
   ru: {
     'Đã tích {0}/{1} lượt': 'Собрано {0}/{1} отметок',
     'còn {0} lượt nữa được thưởng': 'ещё {0} до подарка',
-    'Mỗi {0} tiêu tại ghế = 1 lượt tích.': 'Каждые {0}, потраченные у кресла = 1 отметка.',
+    'Mỗi {0} trả bằng chuyển khoản tại ghế = 1 lượt tích.': 'Каждые {0}, оплаченные банковским переводом у кресла = 1 отметка.',
+    'Tiêu bằng số dư ví không tích lượt — tiền nạp đã được khuyến mãi sẵn rồi.': 'Оплата с баланса кошелька не даёт отметок — при пополнении бонус уже начислен.',
+    '<div class="card"><h2>Hoặc trả bằng chuyển khoản</h2>': '<div class="card"><h2>Или оплатить банковским переводом</h2>',
+    '<p class="mut" style="margin:0 0 10px">Bấm một gói — hiện mã QR ngân hàng. Trả xong ': '<p class="mut" style="margin:0 0 10px">Нажмите пакет — появится банковский QR-код. После оплаты ',
+    '<b>ghế chạy ngay</b>, không phải chờ đếm.</p>': '<b>кресло запускается сразу</b> — ждать отсчёта не нужно.</p>',
+    '🎁 Trả bằng chuyển khoản ở đây được TÍCH LƯỢT vào ví của anh/chị.': '🎁 Оплата банковским переводом здесь даёт ОТМЕТКУ в вашем кошельке.',
+    '🎁 Trả bằng chuyển khoản được tích lượt ưu đãi — nhưng phải mở ví ở trên trước.': '🎁 Банковские переводы дают отметки лояльности — но сначала откройте кошелёк выше.',
+    'Quét thẳng mã QR trên màn hình ghế thì hệ thống không biết ai trả, nên không tích được.': 'Если сканировать QR-код прямо с экрана кресла, система не знает, кто заплатил, и отметка не начисляется.',
+    '<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>': '<button id="ve-dau" style="width:100%;margin-top:14px">Готово</button></div></div>',
+    'Đang dựng mã QR…': 'Создаём QR-код…',
+    'Không đặt được lượt.': 'Не удалось оформить сеанс.',
+    'Chuyển khoản để chạy ghế {0}': 'Перевод для запуска кресла {0}',
+    '⚠️ Vui lòng NGỒI LÊN GHẾ trước khi chuyển khoản.': '⚠️ Пожалуйста, СЯДЬТЕ В КРЕСЛО перед переводом.',
+    'Trả xong ghế {0} chạy ngay trong vài giây — hệ thống gửi lệnh đúng lúc ngân hàng báo có tiền.': 'После оплаты кресло {0} запускается за считаные секунды — команда уходит в момент подтверждения банком.',
+    '<b style="color:#f0b429">đúng nội dung</b> bên dưới. Ghế chạy ngay khi tiền về.</p>': '<b style="color:#f0b429">точное назначение платежа</b> ниже. Кресло запустится, как только придут деньги.</p>',
+    '<div class="card"><h2>Đã nhận tiền — ghế đang chạy</h2>': '<div class="card"><h2>Оплата получена — кресло работает</h2>',
+    'Ghế <b>{0}</b> chạy ngay bây giờ. Mời anh/chị ngồi thoải mái.': 'Кресло <b>{0}</b> запускается. Устраивайтесь поудобнее.',
+    '<p class="mut" style="margin:12px 0 0">Lần sau mở ví trước khi trả thì lượt này ': '<p class="mut" style="margin:12px 0 0">В следующий раз откройте кошелёк перед оплатой, и этот сеанс ',
+    'được tính vào chương trình tích lượt.</p>': 'будет учтён в программе лояльности.</p>',
     'Anh/chị có {0} phần quà chưa nhận': 'Вас ждёт подарков: {0}',
     'Mời anh/chị ra quầy, đọc số điện thoại để nhân viên trao quà.': 'Подойдите к стойке и назовите номер телефона, чтобы получить подарок.',
     'Của tôi': 'Мои',
@@ -1343,8 +1444,18 @@ function veMua(){
 
 function veTraTien(){
   var laNap = (DON.loai === 'nap');
+  var laGhe = (DON.loai === 'ghe');
   var h = '<div class="card"><h2>'
-    + (laNap ? L('Chuyển khoản để nạp ví') : L('Chuyển khoản để nhận mã')) + '</h2>';
+    + (laGhe ? Lf('Chuyển khoản để chạy ghế {0}', DON.ma_may)
+             : (laNap ? L('Chuyển khoản để nạp ví') : L('Chuyển khoản để nhận mã'))) + '</h2>';
+  /* 🔴 LỜI DẶN NGỒI LÊN GHẾ ĐỨNG NGAY ĐÂY, trước cả mã QR. Trả xong là ghế chạy trong vài giây,
+     không có đếm ngược nào để kịp đứng dậy đi chỗ khác. */
+  if (laGhe) {
+    h += '<div class="dan">' + L('⚠️ Vui lòng NGỒI LÊN GHẾ trước khi chuyển khoản.')
+      + '<div class="dan-p">'
+      + Lf('Trả xong ghế {0} chạy ngay trong vài giây — hệ thống gửi lệnh đúng lúc ngân hàng báo có tiền.', DON.ma_may)
+      + '</div></div>';
+  }
   /* Nhắc lại NHẬN ĐƯỢC BAO NHIÊU ngay trên mã QR. Khách đang ở bước rút ví ra trả tiền — đó
      đúng là lúc con số "được 120.000đ" cần đứng trước mắt, không phải lúc họ mới chọn gói. */
   if (laNap) {
@@ -1364,7 +1475,8 @@ function veTraTien(){
       + L('<b>quét từ thư viện ảnh</b>.</p>');
   }
   h += L('<p class="mut" style="margin:0 0 12px">Hoặc chuyển tay: đúng số tiền, ')
-    + L('<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>')
+    + (laGhe ? L('<b style="color:#f0b429">đúng nội dung</b> bên dưới. Ghế chạy ngay khi tiền về.</p>')
+             : L('<b style="color:#f0b429">đúng nội dung</b> bên dưới. Mã hiện ra ngay tại đây khi tiền về.</p>'))
     + o_ck(L('Ngân hàng / Số tài khoản'), DON.so_tk, DON.so_tk, '')
     + (DON.ten_tk ? '<div class="mut" style="margin:-4px 0 8px 2px">' + esc(DON.ten_tk) + '</div>' : '')
     + o_ck(L('Số tiền'), tien(DON.phai_tra), String(DON.phai_tra), '')
@@ -1460,6 +1572,10 @@ function veCuaToi(){
  *    khách thật vẫn ngồi đó chờ. Chặn ở đây rồi chỉ họ đi quét tem là đường ngắn nhất về chỗ đúng.
  * ============================================================================================ */
 function veDung(){
+  /* Đang có đơn TRẢ LƯỢT GHẾ chờ tiền về -> màn chuyển khoản chiếm cả tab, y như tab Nạp ví.
+     Để nó nằm lẫn giữa các thẻ gói là khách vừa nhìn mã QR vừa nhìn những nút bấm khác cho
+     cùng một việc — rồi bấm nhầm sang đường thứ hai và trả tiền hai lần. */
+  if (DON && DON.loai === 'ghe') return veTraTien();
   if (!GHE) {
     return L('<div class="card"><h2>Dùng mã cho ghế</h2>')
       + L('<div class="ck nhan" style="display:block"><div class="nh">Chưa biết ghế nào</div>')
@@ -1473,7 +1589,12 @@ function veDung(){
   }
   /* ⚠️ Ghế hiện MỘT LẦN ở đầu trang, không lặp lại trong từng khối: khách chỉ cần biết "mình
      đang ở ghế nào" đúng một lần, lặp lại là nhiễu. */
-  var h = L('<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>')
+  /* 🔴 Ô ĐẾM NGƯỢC ĐẶT NGAY ĐẦU TRANG, không nằm dưới các thẻ gói.
+     Anh Thắng 23/08/2026: *"đưa màn lên đầu trang nhé"* — ảnh cho thấy bấm xong thì con số đếm
+     hiện tuốt dưới đáy, khách phải CUỘN TÌM đúng lúc họ đang xoay người ngồi xuống ghế.
+     Để trống thì nó không chiếm chỗ gì; có đếm thì nó là thứ đầu tiên đập vào mắt. */
+  var h = '<div id="t-dem"></div>'
+    + L('<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>')
     + '<div class="gt">' + esc(GHE) + '</div></div></div>'
     + L('<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế ')
     + L('mình đang ngồi.</p>');
@@ -1541,6 +1662,46 @@ function veDung(){
     h += '</div>';
   }
 
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * TRẢ BẰNG CHUYỂN KHOẢN — và đây là đường DUY NHẤT tích được lượt ưu đãi.
+   *
+   * Anh Thắng 23/08/2026: *"truy cập trang · khách bấm chọn mệnh giá · app tự link nhảy sang ứng
+   * dụng ngân hàng và nhập qr thanh toán · khách thanh toán · hệ thống báo thành công · khách
+   * được 1 lượt tích · ghế chạy"*.
+   *
+   * 🔴 KHÔNG CÓ ĐẾM NGƯỢC Ở ĐƯỜNG NÀY. Anh Thắng: *"QR cũng nhận trễ 5s, chứ sau 5s mới gửi lệnh
+   *    thì thành 10s rồi"*. Tiền đi qua ngân hàng rồi qua webhook đã mất sẵn vài giây; ghế chạy
+   *    NGAY khi webhook chạm tới máy chủ (`VHG_May::xep_cho_chay` gọi thẳng trong lượt webhook).
+   *    Vẽ thêm một đồng hồ đếm 5 giây ở đây là cộng thêm 5 giây vào đúng cái độ trễ cả tháng qua
+   *    mình đi cắt từng giây — và cộng vào chỗ KHÁCH ĐÃ CHỜ RỒI, khác hẳn đường tiêu ví (ở đó 5
+   *    giây chạy SONG SONG với lệnh đã gửi, nên không mất gì).
+   *
+   * ⚠️ Khách CHƯA đăng nhập vẫn trả được. Chỉ là không có lượt tích — nói thẳng ra, đừng chặn.
+   *    Chặn người đang cầm điện thoại định trả tiền là đổi một lượt bán lấy một lượt tích.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  if (D && D.goi && D.goi.length) {
+    h += L('<div class="card"><h2>Hoặc trả bằng chuyển khoản</h2>')
+      + L('<p class="mut" style="margin:0 0 10px">Bấm một gói — hiện mã QR ngân hàng. Trả xong ')
+      + L('<b>ghế chạy ngay</b>, không phải chờ đếm.</p>');
+    if (D.tich_bat) {
+      h += '<div class="dan">'
+        + (VI ? L('🎁 Trả bằng chuyển khoản ở đây được TÍCH LƯỢT vào ví của anh/chị.')
+              : L('🎁 Trả bằng chuyển khoản được tích lượt ưu đãi — nhưng phải mở ví ở trên trước.'))
+        + '<div class="dan-p">'
+        + L('Quét thẳng mã QR trên màn hình ghế thì hệ thống không biết ai trả, nên không tích được.')
+        + '</div></div>';
+    }
+    h += '<div class="goi">';
+    (D.goi || []).forEach(function(g){
+      h += '<div class="g" data-ghetra="' + g.menh_gia + '">'
+        + (g.vip ? '<span class="vip">VVIP</span>' : '')
+        + '<div class="ten">' + esc(g.ten || tien(g.menh_gia)) + '</div>'
+        + (g.phut > 0 ? '<div class="mo">' + g.phut + L(' phút</div>') : '')
+        + '<div class="gia"><span class="moi">' + tien(g.menh_gia) + '</span></div></div>';
+    });
+    h += '</div><div class="err" id="tg-e"></div></div>';
+  }
+
   /* Khối MÃ đứng sau, và chỉ hiện khi cửa hàng còn bán mã. Đã bán mã trước đây thì mã cũ vẫn
      dùng được — nên khối này CÒN kể cả khi đã tắt bán thêm. */
   h += L('<div class="card"><h2>Hoặc dùng mã giảm giá</h2>')
@@ -1568,8 +1729,13 @@ function veTich(t){
   if (t.con > 0) {
     h += ' — ' + Lf('còn {0} lượt nữa được thưởng', t.con);
   }
+  /* 🔴 NÓI ĐÚNG ĐƯỜNG NÀO TÍCH ĐƯỢC. Câu cũ ghi "mỗi 10.000đ tiêu tại ghế" — sai kể từ bản
+     này: tiêu ví KHÔNG tích (tiền ví đã được khuyến mãi lúc nạp rồi), tiền mặt cũng không.
+     Một dòng luật sai ở đây là khách tiêu ba lượt rồi ra hỏi vì sao bộ đếm không nhúc nhích. */
   h += '</div><div class="tich-p">'
-    + Lf('Mỗi {0} tiêu tại ghế = 1 lượt tích.', tien(t.moi_luot)) + '</div></div>';
+    + Lf('Mỗi {0} trả bằng chuyển khoản tại ghế = 1 lượt tích.', tien(t.moi_luot))
+    + '<br>' + L('Tiêu bằng số dư ví không tích lượt — tiền nạp đã được khuyến mãi sẵn rồi.')
+    + '</div></div>';
   return h;
 }
 
@@ -1669,7 +1835,12 @@ function noi(){
     goi('vi', { sdt: sdt, pin: pin }, function(r){
       ban = false; vXem.disabled = false;
       if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || L('Không tra được.'); return; }
-      VI = r; kq.innerHTML = veSoDu(r);
+      /* 🔴 GIỮ LẠI PIN VÀ SỐ ĐIỆN THOẠI — xem chú thích dài ở chỗ dựng `VI` trong tab "Của tôi".
+         `VI` là thứ tab "Dùng tại ghế" nhìn vào để biết đã đăng nhập hay chưa; thiếu PIN thì tab
+         đó hiện đủ số dư và các thẻ bấm được, nhưng bấm vào là máy chủ trả "PIN chưa đúng" và
+         ĐẾM MỘT LƯỢT HỎNG — năm lần là khoá 10 phút đúng người vừa nhập đúng PIN. */
+      VI = r; VI.pin = pin; VI.sdt = VI.sdt || sdt;
+      kq.innerHTML = veSoDu(r);
     });
   };
 
@@ -1716,11 +1887,15 @@ function noi(){
        *    có bấm gì hay không — tiền đã trừ từ lúc bấm rồi.
        * ═════════════════════════════════════════════════════════════════════════════════════ */
       var con = 5, nhip = null;
+      var oDem = document.getElementById('t-dem') || kq;
       var veDem = function(){
-        kq.innerHTML = '<div class="dem"><div class="dem-so">' + con + '</div>'
+        oDem.innerHTML = '<div class="dem"><div class="dem-so">' + con + '</div>'
           + '<div class="dem-chu">' + L('Ghế sắp chạy — mời anh/chị ngồi lên ghế') + '</div></div>';
       };
       veDem();
+      /* Cuộn lên đầu NGAY, đừng để khách phải tìm. `try` vì vài trình duyệt cũ không nhận tham
+         số dạng đối tượng của `scrollTo`, và một lỗi ở đây làm chết luôn lượt bấm. */
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (e) { window.scrollTo(0, 0); }
       nhip = setInterval(function(){
         con--;
         if (con >= 0) veDem();
@@ -1735,7 +1910,7 @@ function noi(){
           /* Hỏng thì DỪNG ĐẾM NGAY. Để con số tiếp tục chạy về 0 trong khi ghế sẽ không chạy
              là nói dối khách bằng một cái đồng hồ. */
           if (nhip) { clearInterval(nhip); nhip = null; }
-          kq.innerHTML = '';
+          oDem.innerHTML = ''; kq.innerHTML = '';
           e.textContent = r.error || L('Không chạy được.');
           /* Số dư có thể vừa đổi (tiêu ở ghế khác) — tra lại để thẻ mờ đúng thực tế. */
           if (r.so_du) { VI.so_du = r.so_du; ve(); }
@@ -1745,14 +1920,38 @@ function noi(){
         /* Máy chủ trả lời TRƯỚC khi đếm xong thì chờ nốt — con số đang chạy là lời hứa với
            khách, cắt ngang nó là họ chưa kịp ngồi xuống. */
         var xong = function(){
-          kq.innerHTML = '<div class="ok" style="margin-top:12px">' + esc(r.thong_bao) + '</div>';
+          /* Câu báo thay chỗ con số đếm — vẫn ở ĐẦU TRANG, nơi khách đang nhìn. Đẩy nó xuống
+             cuối là bắt họ cuộn tìm lần thứ hai cho cùng một việc. */
+          var bao = '<div class="ok" style="margin:0 0 12px">' + esc(r.thong_bao) + '</div>';
+          oDem.innerHTML = bao;
           /* Vẽ lại để số dư và các thẻ mờ khớp ngay, nhưng GIỮ lại câu báo vừa hiện. */
-          var giu = kq.innerHTML;
           ve();
-          var kq2 = document.getElementById('t-kq');
-          if (kq2) kq2.innerHTML = giu;
+          var o2 = document.getElementById('t-dem');
+          if (o2) o2.innerHTML = bao;
         };
         if (con > 0) { setTimeout(xong, con * 1000 + 200); } else { xong(); }
+      });
+    };
+  });
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * BẤM MỘT GÓI -> ĐẶT LƯỢT -> HIỆN MÃ QR NGÂN HÀNG.
+   *
+   * ⚠️ Số điện thoại + PIN gửi kèm CHỈ KHI ĐÃ MỞ VÍ. Chưa mở thì gửi rỗng, và máy chủ hiểu là
+   *    "khách không đăng nhập" — vẫn đặt được lượt, chỉ không tích. Gửi bừa số nhớ trong máy
+   *    (`nhoSdt()`) mà không có PIN là máy chủ từ chối cả lượt, tức là chặn đúng người đang
+   *    định trả tiền.
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  [].forEach.call(document.querySelectorAll('[data-ghetra]'), function(b){
+    b.onclick = function(){
+      if (ban) return;
+      var e = document.getElementById('tg-e');
+      ban = true; if (e) e.textContent = L('Đang dựng mã QR…');
+      goi('dat_ghe', { menh_gia: Number(b.getAttribute('data-ghetra')), ma_may: GHE,
+                       sdt: (VI ? (VI.sdt || '') : ''), pin: (VI ? VI.pin : '') }, function(r){
+        ban = false;
+        if (!r.ok) { if (e) e.textContent = r.error || L('Không đặt được lượt.'); return; }
+        DON = r; ve(); soiDon();
+        try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (x) { window.scrollTo(0, 0); }
       });
     };
   });
@@ -1810,10 +2009,10 @@ function noi(){
     var e = document.getElementById('e'), kq = document.getElementById('kq');
     kq.innerHTML = ''; e.textContent = L('Đang tra…');
     var sdt_ct = document.getElementById('t-sdt').value;
+    var pin_ct = document.getElementById('t-pin').value;
     /* MỘT lượt gọi cho cả ví lẫn mã — xem việc `cua_toi` bên máy chủ. Gọi hai lượt rồi ghép
        lại ở đây thì ăn HAI lần hãm thử, và một lượt hỏng là màn hiện nửa vời. */
-    goi('cua_toi', { sdt: sdt_ct,
-                 pin: document.getElementById('t-pin').value }, function(r){
+    goi('cua_toi', { sdt: sdt_ct, pin: pin_ct }, function(r){
       if (!r.ok) {
         /* Tra không ra thì đưa luôn LỐI RA, đừng để khách đứng đó gõ lại tới lúc bị hãm. */
         e.innerHTML = esc(r.error || L('Không tìm thấy.'))
@@ -1826,7 +2025,25 @@ function noi(){
       var h = '';
       /* SỐ DƯ TRƯỚC, mã sau: ai đã nạp thì số dư là thứ họ mở trang này để xem. */
       if (r.co_vi) {
-        VI = { so_du: r.so_du, so: r.so, sdt: sdt_ct };
+        /* ══════════════════════════════════════════════════════════════════════════════════════
+         * 🔴 LỖI 23/08/2026 — MỞ VÍ Ở TAB "CỦA TÔI" RỒI SANG TAB GHẾ THÌ BẤM GÌ CŨNG KHÔNG CHẠY.
+         *
+         * Anh Thắng: *"tại sao bấm không chạy"*, rồi *"khách không biết bấm nhiều lần, dẫn đến
+         * khóa 10p"*.
+         *
+         * Bản trước dựng `VI` ở đây KHÔNG kèm `pin`. Nhưng `VI` là thứ tab "Dùng tại ghế" nhìn
+         * vào để quyết định đã đăng nhập hay chưa — nên tab đó hiện số dư, hiện các thẻ gói bấm
+         * được, mọi thứ trông như đã đăng nhập xong. Bấm một gói thì lượt `tieu` gửi lên
+         * `pin: undefined`, máy chủ trả "Số điện thoại hoặc PIN chưa đúng", VÀ ĐẾM MỘT LƯỢT HỎNG.
+         *
+         * Khách không hiểu vì sao (họ vừa nhập PIN đúng ở tab bên cạnh) nên bấm lại. Năm lần là
+         * hãm 10 phút — hãm chống máy dò PIN đem đi khoá đúng người đã nhập đúng PIN.
+         *
+         * ⚠️ Cùng một `VI` thì phải cùng một hình dạng, dù dựng ở đâu. Hai nơi dựng ra hai kiểu
+         *    đối tượng cho cùng một cái tên là kiểu lỗi không có phép thử nào bắt được từ xa —
+         *    mỗi nơi đọc nó đều đúng với bản mà nơi đó nghĩ tới.
+         * ═════════════════════════════════════════════════════════════════════════════════════ */
+        VI = { so_du: r.so_du, so: r.so, sdt: sdt_ct, pin: pin_ct, tich: r.tich };
         h += veSoDu(r);
       }
       if (r.co_vi && !r.chua_dung.length && !r.da_dung.length) {
@@ -1903,6 +2120,29 @@ function soiDon(){
 
 function xongDon(ds, r){
   if (hen) { clearTimeout(hen); hen = null; }
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * ĐƠN TRẢ LƯỢT GHẾ: thứ khách chờ là CÁI GHẾ, không phải mã và cũng không phải số dư.
+   *
+   * 🔴 KHÔNG ĐẾM NGƯỢC. Lệnh đã xuống ghế từ lúc webhook chạm máy chủ — tức là TRƯỚC cả lúc
+   *    trang này biết tin, vì trang chỉ hỏi lại mỗi 3 giây. Vẽ một đồng hồ 5 giây ở đây là bịa
+   *    ra một quãng chờ không có thật, sau khi khách đã chờ thật vài giây ở ngân hàng.
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  if (r && r.loai === 'ghe') {
+    var hg = '<div class="wrap">' + dau()
+      + L('<div class="card"><h2>Đã nhận tiền — ghế đang chạy</h2>')
+      + '<div class="ok">' + Lf('Ghế <b>{0}</b> chạy ngay bây giờ. Mời anh/chị ngồi thoải mái.', r.ma_may || GHE)
+      + '</div>'
+      + veTich(r.tich)
+      + ((!r.tich && D && D.tich_bat)
+          ? L('<p class="mut" style="margin:12px 0 0">Lần sau mở ví trước khi trả thì lượt này ')
+            + L('được tính vào chương trình tích lượt.</p>')
+          : '')
+      + L('<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>');
+    app.innerHTML = hg;
+    DON = null;
+    document.getElementById('ve-dau').onclick = function(){ TAB = 'dung'; ve(); };
+    return;
+  }
   /* Đơn NẠP: thứ khách chờ là SỐ DƯ, không phải bộ mã. Hiện nhầm một danh sách mã rỗng ở đây
      là khách tưởng nạp hỏng. */
   if (r && r.loai === 'nap') {
@@ -1915,7 +2155,7 @@ function xongDon(ds, r){
             + (r.con_cho > 0 ? L(' — dùng được sau ') + docCho(r.con_cho) : '') + '.'
           : '')
       + L('<br>Muốn tiêu: <b>quét mã QR dán trên ghế</b>, nhập số điện thoại và PIN.</div>')
-      + '<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>';
+      + L('<button id="ve-dau" style="width:100%;margin-top:14px">Xong</button></div></div>');
     app.innerHTML = hn;
     DON = null; NAP = null;
     document.getElementById('ve-dau').onclick = function(){ TAB = 'cua-toi'; ve(); };

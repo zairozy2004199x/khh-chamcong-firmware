@@ -191,11 +191,37 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * NHÂN VIÊN TIÊU VÍ HỘ KHÁCH.
+		 *
+		 * Anh Thắng 23/08/2026: *"khách không biết bấm nhiều lần, dẫn đến khóa 10p. Vậy nhân
+		 * viên có thể vào điều khiển ghế, nhập số điện thoại khách, hiện số dư và kích ghế giúp
+		 * luôn"*.
+		 *
+		 * ⚠️ Đường này BỎ QUA PIN của khách, nên nó CHỈ được nằm ở đây: trang `/ghe` đã qua cổng
+		 *    PIN nhân viên. Trang của khách không có việc này, và không được có.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'vi_tra_nv' === $viec ) {
+			self::tra( VHG_Vi::tra_nhan_vien( isset( $d['sdt'] ) ? $d['sdt'] : '' ) );
+			return;
+		}
+
+		if ( 'vi_tieu_nv' === $viec ) {
+			/* 🔴 Tên người bấm là BẮT BUỘC — xem VHG_Vi::tieu_nhan_vien(). Đây là tiêu tiền của
+			   khách mà không có PIN của họ; một dòng sổ không tên là một cửa hậu. */
+			self::tra( VHG_Vi::tieu_nhan_vien(
+				isset( $d['sdt'] ) ? $d['sdt'] : '',
+				isset( $d['menh_gia'] ) ? (int) $d['menh_gia'] : 0,
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
+				(string) $ai['name'] ) );
+			return;
+		}
+
 		if ( 'qua_trao' === $viec ) {
 			/* Trao quà là một hành động có hậu quả (một phần quà chỉ trao được một lần), nhưng
 			   KHÔNG phải quyết định về tiền như huỷ mã — người đứng quầy trao được. */
 			self::tra( VHG_Vi::trao_qua(
-				isset( $d['id'] ) ? (int) $d['id'] : 0, (string) $ai['ten'] ) );
+				isset( $d['id'] ) ? (int) $d['id'] : 0, (string) $ai['name'] ) );
 			return;
 		}
 
@@ -353,6 +379,9 @@ class VHG_Trang {
 			   cả ca chứ không nằm trong wp-admin. Số điện thoại che ngay từ máy chủ. */
 			'qua' => array( 'cho' => self::qua_gon( VHG_Vi::qua_cho_trao( 40 ) ),
 				'tong' => VHG_Vi::tong_qua(), 'bat' => VHG_Vi::tich_cf()['bat'] ? 1 : 0 ),
+			/* Bảng giá để nhân viên chọn gói khi tiêu ví hộ khách. Dùng CHUNG hàm với trang
+			   khách — hai nơi tính giá khác nhau là nhân viên đọc một đằng, khách một nẻo. */
+			'goi' => VHG_Ma::ds_menh_gia(),
 			'luc' => current_time( 'H:i:s' ) );
 	}
 
@@ -692,6 +721,8 @@ function datNN(n){
  * lần: một con số đứng im là dấu hiệu ghế treo, đừng để giao diện tự tạo ra dấu hiệu đó.
  * ============================================================================================ */
 var NHIP_MS = { 'dieu-khien': 5000, 'doi-soat': 30000 };
+/* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
+var NV_VI = null;
 var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
 
@@ -969,7 +1000,32 @@ function veDieuKhien(){
           'No chairs registered yet. Power one on and it appears by itself under '
           + '<b>Chairs just came online</b> in the Reconciliation tab.') + '</p></div>';
   }
-  var h = '<div class="card"><h2>' + L('Quản lý ghế · Điều khiển','Chair management · Control')
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * TIÊU VÍ HỘ KHÁCH — ĐỨNG TRƯỚC lưới ghế.
+   *
+   * Anh Thắng 23/08/2026: *"khách không biết bấm nhiều lần, dẫn đến khóa 10p. Vậy nhân viên có
+   * thể vào điều khiển ghế, nhập số điện thoại khách, hiện số dư và kích ghế giúp luôn"*.
+   *
+   * 🔴 KHÁC HẲN NÚT "BẬT" bên dưới: nút Bật là CHO KHÔNG một lượt, còn cái này TRỪ TIỀN của
+   *    khách. Hai việc nhìn giống nhau mà hậu quả ngược nhau, nên để hai khối riêng và nói rõ.
+   *
+   * ⚠️ Không hỏi PIN của khách — người bấm đã qua cổng PIN nhân viên. Đổi lại, MỌI lượt bấm ở
+   *    đây đều ghi tên người bấm vào sổ ví; xem VHG_Vi::tieu_nhan_vien().
+   * ═════════════════════════════════════════════════════════════════════════════════════════ */
+  var h = '<div class="card"><h2>' + L('Tiêu ví hộ khách','Spend a customer wallet') + '</h2>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Khách gõ nhầm PIN nhiều lần bị khoá 10 phút, hoặc không biết dùng — nhập số điện thoại '
+        + 'của họ, chọn ghế và gói, hệ thống trừ ví và chạy ghế luôn. <b>Không cần PIN của khách</b>, '
+        + 'nhưng mọi lượt bấm đều ghi tên anh/chị vào sổ ví.',
+        'If a customer is locked out or unsure how to use it — enter their phone number, pick a '
+        + 'chair and a package; the wallet is charged and the chair starts. <b>No customer PIN '
+        + 'needed</b>, but every press is logged against your name.')
+    + '</p>'
+    + '<div class="act"><input id="nv-sdt" placeholder="0909 123 456" style="max-width:200px">'
+    + '<button id="nv-tra" class="on">' + L('Xem số dư','Show balance') + '</button></div>'
+    + '<div class="err" id="nv-e"></div><div id="nv-kq"></div></div>';
+
+  h += '<div class="card"><h2>' + L('Quản lý ghế · Điều khiển','Chair management · Control')
     + ' — ' + D.may.length + ' ' + L('ghế','chairs') + '</h2>'
     + '<p class="mut" style="margin:0 0 12px">'
     + L('Bật tay là <b>cho không một lượt</b> — hệ thống ghi lại ai bấm và lúc nào, để cuối tháng '
@@ -1596,6 +1652,62 @@ function noi(){
       });
     };
   });
+
+  /* Tra ví hộ khách rồi vẽ ra các gói bấm được — cùng lối với trang khách, để nhân viên và
+     khách nhìn thấy cùng một thứ và không cãi nhau về con số. */
+  var nvTra = document.getElementById('nv-tra');
+  if (nvTra) nvTra.onclick = function(){
+    var e = document.getElementById('nv-e'), kq = document.getElementById('nv-kq');
+    var sdt = (document.getElementById('nv-sdt').value || '').trim();
+    e.textContent = ''; kq.innerHTML = L('Đang tra…','Looking up…');
+    goi('vi_tra_nv', { sdt: sdt }, function(r){
+      if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || L('Không tra được.','Lookup failed.'); return; }
+      NV_VI = { sdt: sdt, sd: r.so_du };
+      var sd = r.so_du || {};
+      var hh = '<div class="ok" style="margin-top:10px">'
+        + L('Số dư tiêu được: ','Available: ') + '<b>' + tien(sd.dung || 0) + '</b>'
+        + (sd.cho > 0 ? '<br>⏳ ' + tien(sd.cho) + ' ' + L('đang trong hạn chờ','on hold') : '')
+        + (sd.khoa ? '<br><b style="color:#ff6b6b">' + L('VÍ ĐANG KHOÁ','WALLET LOCKED') + '</b>' : '')
+        + '</div>';
+      /* Chọn ghế + gói. Ở đây PHẢI có ô chọn ghế: nhân viên đứng ở quầy, không quét tem nào cả. */
+      hh += '<div class="act" style="margin-top:10px"><select id="nv-ghe">';
+      (D.may || []).forEach(function(m){
+        hh += '<option value="' + esc(m.ma) + '">' + esc(m.ma)
+          + (m.coso ? ' · ' + esc(m.coso) : '') + '</option>';
+      });
+      hh += '</select><select id="nv-goi">';
+      (D.goi || []).forEach(function(g){
+        hh += '<option value="' + g.menh_gia + '"' + ((sd.dung || 0) < g.menh_gia ? ' disabled' : '')
+          + '>' + esc(g.ten || '') + ' · ' + tien(g.menh_gia)
+          + ((sd.dung || 0) < g.menh_gia ? ' — ' + L('chưa đủ số dư','not enough') : '') + '</option>';
+      });
+      hh += '</select><button id="nv-chay" class="on">'
+        + L('Trừ ví, chạy ghế','Charge & start') + '</button></div>';
+      kq.innerHTML = hh;
+      noi();
+    });
+  };
+
+  var nvChay = document.getElementById('nv-chay');
+  if (nvChay) nvChay.onclick = function(){
+    var e = document.getElementById('nv-e'), kq = document.getElementById('nv-kq');
+    if (!NV_VI) { e.textContent = L('Tra số dư trước đã.','Look up the balance first.'); return; }
+    var mg = Number((document.getElementById('nv-goi') || {}).value || 0);
+    var may = (document.getElementById('nv-ghe') || {}).value || '';
+    if (!mg || !may) { e.textContent = L('Chọn ghế và gói.','Pick a chair and a package.'); return; }
+    /* 🔴 HỎI LẠI MỘT CÂU. Đây là trừ tiền của NGƯỜI KHÁC mà không có PIN của họ — một cú bấm
+       nhầm ghế là khách mất tiền cho một cái ghế trống. Trang của khách thì không hỏi, vì ở đó
+       chính chủ bấm và đã ngồi sẵn trên ghế. */
+    if (!confirm(Lf2(L('Trừ {0} của ví này và chạy ghế ','Charge {0} from this wallet and start chair '), tien(mg)) + may + '?')) return;
+    nvChay.disabled = true; e.textContent = '';
+    goi('vi_tieu_nv', { sdt: NV_VI.sdt, menh_gia: mg, ma_may: may }, function(r){
+      nvChay.disabled = false;
+      if (!r.ok) { e.textContent = r.error || L('Không chạy được.','Could not start.'); return; }
+      kq.innerHTML = '<div class="ok" style="margin-top:10px">' + esc(r.thong_bao) + '</div>';
+      NV_VI = null;
+      tai(true);
+    });
+  };
 
   var mtra = document.getElementById('ma-tra');
   if (mtra) mtra.onclick = function(){

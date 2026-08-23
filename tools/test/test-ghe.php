@@ -5161,6 +5161,28 @@ $vt_dan = strpos( $sh_dan, 'NGỒI LÊN GHẾ' );
 $vt_the = strpos( $sh_dan, 'data-tieu=' );
 t( '🔴 và đứng TRƯỚC các thẻ gói', false !== $vt_dan && false !== $vt_the && $vt_dan < $vt_the );
 t( 'có màn đếm ngược', strpos( $sh_dan, "class=\"dem\"" ) !== false );
+/* 🔴 Ô ĐẾM PHẢI ĐỨNG ĐẦU TRANG. Anh Thắng 23/08/2026: *"đưa màn lên đầu trang nhé"* — bản
+      trước vẽ con số xuống dưới đáy, khách phải CUỘN TÌM đúng lúc đang xoay người ngồi xuống. */
+/* ⚠️ So vị trí trong CẢ TRANG là so nhầm: "Ghế đang ngồi" còn xuất hiện trong từ điển bốn thứ
+      tiếng, nằm tuốt phía trên. Phải cắt lấy thân hàm `veDung()` rồi mới so. Đây là lần thứ năm
+      hôm nay một phép thử bị chính phần khác của tệp đánh lừa. */
+$vt_vd_   = strpos( $sh_dan, 'function veDung(){' );
+$than_vd_ = false !== $vt_vd_
+	? substr( $sh_dan, $vt_vd_, strpos( $sh_dan, "\n// ---", $vt_vd_ ) - $vt_vd_ ) : '';
+t( 'cắt được thân hàm veDung()', '' !== $than_vd_ );
+$vt_odem = strpos( $than_vd_, "id=\"t-dem\"" );
+$vt_ghe_ = strpos( $than_vd_, 'Ghế đang ngồi' );
+t( '🔴 ô đếm nằm TRƯỚC cả dòng "Ghế đang ngồi"',
+	false !== $vt_odem && false !== $vt_ghe_ && $vt_odem < $vt_ghe_ );
+t( 'và đếm vẽ vào đúng ô đó, không vẽ xuống đáy',
+	strpos( $sh_dan, "var oDem = document.getElementById('t-dem')" ) !== false
+	&& strpos( $sh_dan, "oDem.innerHTML = '<div class=\"dem\">" ) !== false );
+t( '🔴 và trang tự cuộn lên đầu, không bắt khách tìm',
+	strpos( $sh_dan, 'window.scrollTo' ) !== false );
+/* Câu báo kết quả cũng ở lại đầu trang — đẩy nó xuống cuối là bắt cuộn tìm lần thứ hai cho
+   cùng một việc. */
+t( 'câu báo xong cũng hiện ở đầu trang',
+	preg_match( '/var bao = .{0,120}?oDem\.innerHTML = bao;/s', $sh_dan ) === 1 );
 teq( 'đếm từ 5', 5, (int) ( preg_match( '/var con = (\d+), nhip = null;/', $sh_dan, $m_d ) ? $m_d[1] : 0 ) );
 /* 🔴 LỆNH GỬI NGAY, ĐẾM CHẠY SONG SONG. Đếm xong mới gửi là cộng thêm 5 giây vào đúng cái độ
       trễ đã đi cắt từng giây cả tháng. Canh bằng THỨ TỰ: `goi('tieu'...)` phải đứng SAU chỗ
@@ -5326,7 +5348,30 @@ t( 'từ chối mỗi lượt dưới 1.000đ', empty( VHG_Vi::luu_tich_cf( arra
 VHG_Vi::luu_tich_cf( array( 'bat' => 1, 'moi_luot' => 10000, 'moc' => 10,
 	'kieu' => 'ca_hai', 'gia_tri' => 10000, 'ten_qua' => 'Quà tri ân' ) );
 
-// ---- tích theo tiền tiêu
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * TÍCH LƯỢT CHỈ ĐẾN TỪ ĐƯỜNG CHUYỂN KHOẢN TẠI GHẾ.
+ *
+ * Anh Thắng 23/08/2026: *"Tích lượt qua quét QR tại máy luôn, chỉ có tiền mặt thì không"*, và
+ * *"cái này chỉ áp dụng cho khách quét QR tại ghế, chứ khách nạp ví thì nó có ưu đãi sẵn rồi"*.
+ *
+ * 🔴 PHÉP THỬ ĐI QUA ĐÚNG ĐƯỜNG THẬT, không gọi thẳng `cong_tich()`. Đường thật là: trang đặt
+ *    lượt (`dat_ghe`) -> khách chuyển khoản -> webhook SePay (`VHG_Thu::nhan`) đọc nội dung
+ *    "GHE<ghế> <mã>" -> ghế chạy -> tích lượt. Gọi tắt vào giữa là phép thử tự nói chuyện với
+ *    chính nó: nó vẫn xanh khi nội dung chuyển khoản sai khuôn, mà đó đúng là chỗ hỏng được.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+$vhg_ref_ghe = 0;
+/** Một lượt trả tiền hoàn chỉnh tại ghế: đặt lượt trên trang, rồi tiền về qua webhook. */
+$tra_ghe = function ( $sdt, $pin, $mg, $may = 'AMTP01', $tien = null ) use ( &$vhg_ref_ghe ) {
+	$d = VHG_Vi::dat_ghe( $may, $mg, $sdt, $pin );
+	if ( empty( $d['ok'] ) ) { return $d; }
+	$vhg_ref_ghe++;
+	$w = VHG_Thu::nhan( 'sepay', array( 'ref' => 'ghe-tra-' . $vhg_ref_ghe,
+		'so_tien' => ( null === $tien ? (int) $d['phai_tra'] : (int) $tien ),
+		'noi_dung' => $d['noi_dung'] ) );
+	return array( 'ok' => ! empty( $w['ok'] ), 'don' => $d, 'wh' => $w );
+};
+
+// ---- tích theo tiền CHUYỂN KHOẢN tại ghế
 $ts = '0909888111';
 $dt_ = VHG_Vi::dat_don( $ts, '1234', 500000, '' );
 VHG_Vi::nap( $dt_['ma_don'], 'ref-tich' );
@@ -5334,25 +5379,40 @@ $wpdb->query( "UPDATE " . VHG_DB::t( 'vi_so' ) . " SET dung_duoc_tu='2020-01-01 
 	WHERE sdt='" . $ts . "' AND da_chin=0" );
 VHG_Vi::chin( $ts );
 teq( 'ví có 800k để tiêu', 800000, (int) VHG_Vi::so_du( $ts )['dung'] );
-teq( 'chưa tiêu thì chưa có lượt nào', 0, (int) VHG_Vi::tich( $ts )['co'] );
+teq( 'chưa trả lượt nào thì chưa có lượt tích', 0, (int) VHG_Vi::tich( $ts )['co'] );
 
-VHG_Vi::tieu( $ts, '1234', 10000, 'AMTP01' );
-teq( 'tiêu 10.000đ được 1 lượt', 1, (int) VHG_Vi::tich( $ts )['co'] );
-VHG_Vi::tieu( $ts, '1234', 50000, 'AMTP01' );
-teq( '🔴 tiêu 50.000đ được 5 lượt — quy đổi 10/1', 6, (int) VHG_Vi::tich( $ts )['co'] );
+/* 🔴 TIÊU VÍ KHÔNG TÍCH — tiền trong ví đã được khuyến mãi một lần lúc nạp rồi. */
+$tv_truoc = (int) VHG_Vi::tich( $ts )['co'];
+$tv_kq = VHG_Vi::tieu( $ts, '1234', 50000, 'AMTP01' );
+t( 'tiêu ví vẫn chạy ghế bình thường', ! empty( $tv_kq['ok'] ),
+	isset( $tv_kq['error'] ) ? $tv_kq['error'] : '' );
+teq( '🔴 nhưng tiêu ví KHÔNG được lượt tích nào', $tv_truoc, (int) VHG_Vi::tich( $ts )['co'] );
+teq( 'và gói tin trả về cũng nói thẳng là 0', 0, (int) $tv_kq['tich_them'] );
+
+/* Đường thật: chuyển khoản tại ghế. */
+$tg1 = $tra_ghe( $ts, '1234', 10000 );
+t( 'trả 10.000đ bằng chuyển khoản tại ghế', ! empty( $tg1['ok'] ),
+	isset( $tg1['error'] ) ? $tg1['error'] : '' );
+teq( 'được 1 lượt tích', 1, (int) VHG_Vi::tich( $ts )['co'] );
+$tra_ghe( $ts, '1234', 50000 );
+teq( '🔴 trả 50.000đ được 5 lượt — quy đổi 10/1', 6, (int) VHG_Vi::tich( $ts )['co'] );
 teq( 'còn 4 lượt nữa là tới mốc', 4, (int) VHG_Vi::tich( $ts )['con'] );
-teq( 'chưa đủ mốc thì chưa có quà', 0, count( VHG_Vi::ds_qua( $ts ) ) );
+teq( 'chưa đủ mốc thì chưa có quà', 0, dem( VHG_Vi::ds_qua( $ts ) ) );
+
+/* 🔴 VÀ GHẾ PHẢI CHẠY. Tích lượt mà ghế không chạy là đổi một lượt massage lấy một con dấu. */
+$cho_ghe_tich = VHG_May::so_cho( 'AMTP01' );
+t( '🔴 mỗi lượt chuyển khoản đều xếp cho ghế chạy', $cho_ghe_tich > 0 );
 
 // ---- đủ mốc thì phát quà
 $du_truoc = (int) VHG_Vi::so_du( $ts )['dung'];
-VHG_Vi::tieu( $ts, '1234', 50000, 'AMTP01' );          // +5 lượt -> 11, vượt mốc 10
+$tra_ghe( $ts, '1234', 50000 );                        // +5 lượt -> 11, vượt mốc 10
 $qua_ds = VHG_Vi::ds_qua( $ts );
-teq( '🔴 đủ 10 lượt thì phát ĐÚNG MỘT phần quà', 1, count( $qua_ds ) );
+teq( '🔴 đủ 10 lượt thì phát ĐÚNG MỘT phần quà', 1, dem( $qua_ds ) );
 teq( 'và lượt tích còn dư đúng 1', 1, (int) VHG_Vi::tich( $ts )['co'] );
 /* Kiểu "cả hai": vừa cộng tiền vào ví, vừa để lại một phần quà vật lý cho nhân viên trao. */
 teq( 'phần thưởng ghi đúng kiểu', 'ca_hai', (string) $qua_ds[0]['kieu'] );
-teq( '🔴 và cộng thẳng 10.000đ vào ví',
-	$du_truoc - 50000 + 10000, (int) VHG_Vi::so_du( $ts )['dung'] );
+/* ⚠️ Trả bằng CHUYỂN KHOẢN nên số dư ví KHÔNG bị trừ — chỉ có khoản thưởng cộng vào. */
+teq( '🔴 và cộng thẳng 10.000đ vào ví', $du_truoc + 10000, (int) VHG_Vi::so_du( $ts )['dung'] );
 teq( 'đánh dấu đã cộng tiền', 1, (int) $qua_ds[0]['luot_da_cong'] );
 t( 'nhưng quà vật lý thì CHƯA trao', null === $qua_ds[0]['nhan_luc'] );
 
@@ -5364,21 +5424,88 @@ foreach ( VHG_Vi::ds_so( $ts, 50 ) as $d_ ) {
 }
 t( '🔴 sổ ví có dòng giải thích khoản thưởng', $co_dong_qua );
 
-// ---- một lượt tiêu lớn vượt NHIỀU mốc
+/* ---- 🔴 WEBHOOK BẮN LẠI THÌ KHÔNG TÍCH THÊM.
+   SePay bắn lại là chuyện bình thường, và mỗi lượt bắn lại mà tích thêm là cho không phần quà. */
+$dl_ = VHG_Vi::dat_ghe( 'AMTP01', 10000, $ts, '1234' );
+$tr_ = (int) VHG_Vi::tich( $ts )['co'];
+VHG_Thu::nhan( 'sepay', array( 'ref' => 'ghe-lap-1', 'so_tien' => 10000, 'noi_dung' => $dl_['noi_dung'] ) );
+teq( 'lượt đầu tích 1', $tr_ + 1, (int) VHG_Vi::tich( $ts )['co'] );
+VHG_Thu::nhan( 'sepay', array( 'ref' => 'ghe-lap-2', 'so_tien' => 10000, 'noi_dung' => $dl_['noi_dung'] ) );
+teq( '🔴 bắn lại cùng mã lượt thì KHÔNG tích thêm', $tr_ + 1, (int) VHG_Vi::tich( $ts )['co'] );
+
+/* ---- 🔴 CHUYỂN THIẾU THÌ TÍCH THEO SỐ TIỀN THẬT, không theo mệnh giá đã đặt.
+   Không thì đặt lượt 100.000đ rồi chuyển 10.000đ là mua lượt tích giá rẻ. */
+$tr2_ = (int) VHG_Vi::tich( $ts )['co'];
+$tra_ghe( $ts, '1234', 100000, 'AMTP01', 10000 );
+teq( '🔴 đặt 100.000đ mà chuyển 10.000đ thì chỉ được 1 lượt', $tr2_ + 1, (int) VHG_Vi::tich( $ts )['co'] );
+
+/* ---- 🔴 KHÁCH KHÔNG ĐĂNG NHẬP: vẫn trả được, vẫn chạy ghế, chỉ là không tích cho ai.
+   Anh Thắng: *"ai không đăng nhập để thanh toán thì thôi"*. Chặn người đang định trả tiền lại
+   vì họ chưa lập ví là đổi một lượt bán lấy một lượt tích. */
+$kdn = VHG_Vi::dat_ghe( 'AMTP01', 10000, '', '' );
+t( '🔴 không khai số điện thoại vẫn đặt được lượt', ! empty( $kdn['ok'] ),
+	isset( $kdn['error'] ) ? $kdn['error'] : '' );
+$cho_kdn = VHG_May::so_cho( 'AMTP01' );
+VHG_Thu::nhan( 'sepay', array( 'ref' => 'ghe-kdn-1', 'so_tien' => 10000, 'noi_dung' => $kdn['noi_dung'] ) );
+t( 'và ghế vẫn chạy', VHG_May::so_cho( 'AMTP01' ) > $cho_kdn );
+
+/* ---- 🔴 QR TRÊN MÀN GHẾ (mã do chính cái ghế sinh ra) THÌ KHÔNG TÍCH CHO AI.
+   Đây là đường chạy BÌNH THƯỜNG chứ không phải lỗi — chuyển khoản không mang số điện thoại. */
+$tr3_ = (int) VHG_Vi::tich( $ts )['co'];
+$cho3_ = VHG_May::so_cho( 'AMTP01' );
+VHG_Thu::nhan( 'sepay', array( 'ref' => 'ghe-man-1', 'so_tien' => 50000,
+	'noi_dung' => 'GHEAMTP01 K7M2P' ) );
+t( '🔴 mã của màn ghế vẫn cho ghế chạy', VHG_May::so_cho( 'AMTP01' ) > $cho3_ );
+teq( 'nhưng không tích cho ai cả', $tr3_, (int) VHG_Vi::tich( $ts )['co'] );
+
+/* ---- 🔴 TIỀN MẶT KHÔNG TÍCH. Anh Thắng: *"chỉ có tiền mặt thì không"*.
+   Máy đếm tiền không biết khách là ai, và đường tiền mặt không đi qua `don_ma` bao giờ. */
+$src_thu_tm = (string) file_get_contents( $goc . '/wordpress/vhcp-ghe/includes/class-vhg-may.php' );
+t( '🔴 đường máy báo tiền mặt không gọi tích lượt',
+	strpos( $bo_chu_thich( $src_thu_tm ), 'tich_don_ghe' ) === false );
+
+/* ---- 🔴 MÃ LƯỢT CỦA GHẾ A MÀ NỘI DUNG MANG GHẾ B THÌ KHÔNG TÍCH. */
+$may_b = VHG_May::may( 'AMTP02' );
+if ( $may_b ) {
+	$dab = VHG_Vi::dat_ghe( 'AMTP01', 10000, $ts, '1234' );
+	$tr4_ = (int) VHG_Vi::tich( $ts )['co'];
+	$kq_lech = VHG_Vi::tich_don_ghe( $dab['ma_don'], 'AMTP02', 10000 );
+	t( '🔴 lệch ghế thì từ chối tích', empty( $kq_lech['ok'] ) );
+	teq( 'và bộ đếm không nhúc nhích', $tr4_, (int) VHG_Vi::tich( $ts )['co'] );
+}
+
+/* ---- 🔴 MỆNH GIÁ KHÔNG KHAI THÌ TỪ CHỐI.
+   Nhận con số khách gửi lên là mở đường trả 1.000đ cho gói 60 phút bằng cách sửa gói tin. */
+t( '🔴 mệnh giá lạ thì không đặt được lượt',
+	empty( VHG_Vi::dat_ghe( 'AMTP01', 1234, $ts, '1234' )['ok'] ) );
+t( 'ghế không có thật thì cũng không',
+	empty( VHG_Vi::dat_ghe( 'KHONG-CO', 10000, $ts, '1234' )['ok'] ) );
+t( '🔴 khai số điện thoại mà PIN sai thì từ chối cả lượt',
+	empty( VHG_Vi::dat_ghe( 'AMTP01', 10000, $ts, '9999' )['ok'] ) );
+
+/* ---- 🔴 NỘI DUNG CHUYỂN KHOẢN PHẢI ĐÚNG KHUÔN CỦA GHẾ, KHÔNG PHẢI KHUÔN "MUA".
+   Đây là chỗ toàn bộ việc này đứng hay đổ: sai khuôn thì tiền vào mà ghế không bao giờ chạy. */
+$dnd = VHG_Vi::dat_ghe( 'AMTP01', 10000, $ts, '1234' );
+list( $nd_may, $nd_ma ) = VHG_Doc::ghe_va_ma( $dnd['noi_dung'] );
+teq( '🔴 đọc ngược nội dung ra đúng ghế', 'AMTP01', $nd_may );
+teq( 'và đúng mã lượt', (string) $dnd['ma_don'], $nd_ma );
+teq( '⚠️ và KHÔNG bị đọc nhầm thành đơn mua mã', '', VHG_Doc::don_mua( $dnd['noi_dung'] ) );
+t( '⚠️ nội dung không vượt trần 25 ký tự của VietQR', strlen( $dnd['noi_dung'] ) <= VHG_QR::ND_TOI_DA,
+	$dnd['noi_dung'] );
+
+// ---- một lượt trả lớn vượt NHIỀU mốc
 $ts2 = '0909888222';
 $dt2 = VHG_Vi::dat_don( $ts2, '1234', 500000, '' );
 VHG_Vi::nap( $dt2['ma_don'], 'ref-tich2' );
-$wpdb->query( "UPDATE " . VHG_DB::t( 'vi_so' ) . " SET dung_duoc_tu='2020-01-01 00:00:00'
-	WHERE sdt='" . $ts2 . "' AND da_chin=0" );
 VHG_Vi::chin( $ts2 );
-/* Tiêu 100.000đ = 10 lượt = đúng một mốc. */
-VHG_Vi::tieu( $ts2, '1234', 100000, 'AMTP01' );
-teq( 'tiêu 100.000đ một phát ăn đúng một mốc', 1, count( VHG_Vi::ds_qua( $ts2 ) ) );
+/* Trả 100.000đ = 10 lượt = đúng một mốc. */
+$tra_ghe( $ts2, '1234', 100000 );
+teq( 'trả 100.000đ một phát ăn đúng một mốc', 1, dem( VHG_Vi::ds_qua( $ts2 ) ) );
 teq( 'và không còn dư lượt nào', 0, (int) VHG_Vi::tich( $ts2 )['co'] );
 
 // ---- trao quà vật lý
 $cho_trao = VHG_Vi::qua_cho_trao( 50 );
-t( 'có danh sách quà chờ trao', count( $cho_trao ) >= 2 );
+t( 'có danh sách quà chờ trao', dem( $cho_trao ) >= 2 );
 $id_q = (int) $cho_trao[0]['id'];
 $tr1 = VHG_Vi::trao_qua( $id_q, 'thang' );
 t( 'trao được', ! empty( $tr1['ok'] ), isset( $tr1['error'] ) ? $tr1['error'] : '' );
@@ -5387,22 +5514,20 @@ $tr2 = VHG_Vi::trao_qua( $id_q, 'nguoi-khac' );
 t( '🔴 trao lần hai thì bị chặn', empty( $tr2['ok'] ) );
 t( 'và nói rõ vừa có người trao', strpos( (string) $tr2['error'], 'vừa được' ) !== false );
 $con_lai_q = VHG_Vi::qua_cho_trao( 50 );
-t( 'đã trao thì rời khỏi danh sách chờ', count( $con_lai_q ) === count( $cho_trao ) - 1 );
+t( 'đã trao thì rời khỏi danh sách chờ', dem( $con_lai_q ) === dem( $cho_trao ) - 1 );
 
 /* Thưởng kiểu LƯỢT thuần thì KHÔNG có gì để trao — để nó nằm trong danh sách chờ là tạo ra
    một việc không có thật, và danh sách không bao giờ vơi thì người ta thôi không nhìn nữa. */
-VHG_Vi::luu_tich_cf( array( 'bat' => 1, 'moi_luot' => 10000, 'moc' => 2,
+VHG_Vi::luu_tich_cf( array( 'bat' => 1, 'moi_luot' => 5000, 'moc' => 2,
 	'kieu' => 'luot', 'gia_tri' => 10000, 'ten_qua' => '' ) );
 $ts3 = '0909888333';
 $dt3 = VHG_Vi::dat_don( $ts3, '1234', 200000, '' );
 VHG_Vi::nap( $dt3['ma_don'], 'ref-tich3' );
-$wpdb->query( "UPDATE " . VHG_DB::t( 'vi_so' ) . " SET dung_duoc_tu='2020-01-01 00:00:00'
-	WHERE sdt='" . $ts3 . "' AND da_chin=0" );
 VHG_Vi::chin( $ts3 );
 $truoc3 = (int) VHG_Vi::so_du( $ts3 )['dung'];
-VHG_Vi::tieu( $ts3, '1234', 20000, 'AMTP01' );        // 2 lượt -> đúng mốc
-teq( 'kiểu "lượt" cũng phát quà', 1, count( VHG_Vi::ds_qua( $ts3 ) ) );
-teq( 'và cộng tiền vào ví', $truoc3 - 20000 + 10000, (int) VHG_Vi::so_du( $ts3 )['dung'] );
+$tra_ghe( $ts3, '1234', 10000 );                       // 10.000đ / 5.000đ = 2 lượt -> đúng mốc
+teq( 'kiểu "lượt" cũng phát quà', 1, dem( VHG_Vi::ds_qua( $ts3 ) ) );
+teq( 'và cộng tiền vào ví', $truoc3 + 10000, (int) VHG_Vi::so_du( $ts3 )['dung'] );
 $cho3 = VHG_Vi::qua_cho_trao( 50 );
 $co_ts3 = false;
 foreach ( $cho3 as $q_ ) { if ( (string) $q_['sdt'] === $ts3 ) { $co_ts3 = true; } }
@@ -5414,8 +5539,8 @@ t( 'và trao tay nó thì bị từ chối',
 VHG_Vi::luu_tich_cf( array( 'bat' => 0, 'moi_luot' => 10000, 'moc' => 10,
 	'kieu' => 'ca_hai', 'gia_tri' => 10000 ) );
 $tich_truoc = (int) VHG_Vi::tich( $ts )['co'];
-VHG_Vi::tieu( $ts, '1234', 10000, 'AMTP01' );
-teq( '🔴 tắt thì tiêu tiền KHÔNG được tích lượt nào', $tich_truoc, (int) VHG_Vi::tich( $ts )['co'] );
+$tra_ghe( $ts, '1234', 10000 );
+teq( '🔴 tắt thì trả tiền KHÔNG được tích lượt nào', $tich_truoc, (int) VHG_Vi::tich( $ts )['co'] );
 VHG_Vi::luu_tich_cf( array( 'bat' => 1, 'moi_luot' => 10000, 'moc' => 10,
 	'kieu' => 'ca_hai', 'gia_tri' => 10000, 'ten_qua' => 'Quà tri ân' ) );
 
@@ -5433,14 +5558,103 @@ t( '🔴 cộng tiền thưởng cũng lật cờ TRƯỚC, cộng SAU',
 	preg_match( '/SET luot_da_cong=1 WHERE id=%d AND luot_da_cong=0.{0,200}?if \( \$n \) \{/s', $tich_chay ) === 1 );
 t( 'trao quà chống trao hai lần bằng WHERE nhan_luc IS NULL',
 	strpos( $tich_chay, 'WHERE id=%d AND nhan_luc IS NULL' ) !== false );
-/* Tích lượt phải gọi SAU khi ghế đã nhận lệnh — xếp hàng hỏng thì tiền đã hoàn, mà lượt tích
-   thì không hoàn được. */
-$vt_xep_t  = strpos( $tich_chay, 'VHG_May::xep_cho_chay' );
-$vt_tich_t = strpos( $tich_chay, 'self::cong_tich(' );
+/* 🔴 Ghi nhận lượt cũng lật cờ TRƯỚC rồi mới tích: webhook bắn lại là chuyện bình thường. */
+t( '🔴 ghi nhận lượt ghế lật cờ bằng WHERE xong_luc IS NULL',
+	strpos( $tich_chay, 'WHERE ma_don=%s AND xong_luc IS NULL' ) !== false );
+/* 🔴 Đường TIÊU VÍ không được gọi tích lượt nữa — xem luật ở đầu khối này. */
+$than_tieu = substr( $tich_chay, strpos( $tich_chay, 'protected static function tieu_loi' ) );
+$than_tieu = substr( $than_tieu, 0, strpos( $than_tieu, 'public static function' ) );
+t( '🔴 tiêu ví KHÔNG gọi cong_tich', strpos( $than_tieu, 'cong_tich' ) === false );
+/* Và ở đường chuyển khoản thì tích lượt phải đứng SAU khi ghế đã nhận lệnh — ghế chạy là việc
+   không được chờ ai, còn lượt tích chậm một nhịp thì không ai thấy. */
+$src_thu_t  = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-thu.php' ) );
+$vt_xep_t  = strpos( $src_thu_t, 'VHG_May::xep_cho_chay' );
+$vt_tich_t = strpos( $src_thu_t, 'VHG_Vi::tich_don_ghe' );
 t( '🔴 tích lượt gọi SAU khi ghế nhận lệnh',
 	false !== $vt_xep_t && false !== $vt_tich_t && $vt_tich_t > $vt_xep_t );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * TRANG KHÁCH: KHỐI "TRẢ BẰNG CHUYỂN KHOẢN" Ở TAB GHẾ.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+VHG_Vi::luu_tich_cf( array( 'bat' => 1, 'moi_luot' => 10000, 'moc' => 10,
+	'kieu' => 'ca_hai', 'gia_tri' => 10000, 'ten_qua' => 'Quà tri ân' ) );
+$sh_ck = vhg_shop_html( 'AMTP01' );
+t( 'tab ghế có khối trả bằng chuyển khoản', strpos( $sh_ck, 'Hoặc trả bằng chuyển khoản' ) !== false );
+t( 'và có thẻ gói bấm được', strpos( $sh_ck, 'data-ghetra' ) !== false );
+t( '🔴 nói thẳng vì sao quét QR trên màn ghế thì không tích được',
+	strpos( $sh_ck, 'hệ thống không biết ai trả' ) !== false );
 
+/* 🔴 ĐI ĐÚNG ĐƯỜNG TRÌNH DUYỆT ĐI — địa chỉ API phải mang theo ghế, không thì máy chủ hỏi
+   "chưa biết ghế nào" đúng như lỗi ngày 23/08/2026. */
+$web_ghe = vhg_shop_nhu_trang( 'dat_ghe', array( 'menh_gia' => 10000,
+	'sdt' => $ts, 'pin' => '1234' ), 'AMTP01' );
+t( '🔴 đặt được lượt ghế qua đúng địa chỉ trang nhúng', ! empty( $web_ghe['ok'] ),
+	isset( $web_ghe['error'] ) ? $web_ghe['error'] : '' );
+teq( 'và biết đúng ghế', 'AMTP01', (string) $web_ghe['ma_may'] );
+t( 'trả về ma trận QR vẽ được', ! empty( $web_ghe['qr'] ) && dem( $web_ghe['qr'] ) > 20 );
+t( '⚠️ và KHÔNG lộ chuỗi VietQR thô ra ngoài nữa', ! isset( $web_ghe['chuoi_qr'] ) );
+teq( 'số tiền phải trả đúng mệnh giá', 10000, (int) $web_ghe['phai_tra'] );
+/* Trang hỏi lại "tiền về chưa" bằng cùng một việc `soi` như đơn mua mã và đơn nạp. */
+$soi_ghe = vhg_shop_nhu_trang( 'soi', array( 'ma_don' => $web_ghe['ma_don'] ), 'AMTP01' );
+teq( 'soi biết đây là đơn ghế', 'ghe', (string) $soi_ghe['loai'] );
+teq( 'và chưa trả tiền thì chưa xong', 0, (int) $soi_ghe['xong'] );
+VHG_Thu::nhan( 'sepay', array( 'ref' => 'ghe-web-1', 'so_tien' => 10000,
+	'noi_dung' => $web_ghe['noi_dung'] ) );
+$soi_ghe2 = vhg_shop_nhu_trang( 'soi', array( 'ma_don' => $web_ghe['ma_don'] ), 'AMTP01' );
+teq( '🔴 tiền về thì soi báo xong', 1, (int) $soi_ghe2['xong'] );
+t( 'và trả kèm tình trạng tích lượt để khoe con dấu vừa được',
+	is_array( $soi_ghe2['tich'] ) && ! empty( $soi_ghe2['tich']['bat'] ) );
+
+/* ---- 🔴 KHÔNG CÓ ĐẾM NGƯỢC Ở ĐƯỜNG CHUYỂN KHOẢN.
+   Anh Thắng 23/08/2026: *"trong thời gian đếm 5S thì gửi lệnh luôn xuống máy, vì QR cũng nhận
+   trễ 5s, chứ sau 5s mới gửi lệnh thì thành 10s rồi"*.
+   Đường TIÊU VÍ vẫn có đếm ngược, nhưng nó chạy SONG SONG với lệnh đã gửi. Đường CHUYỂN KHOẢN
+   thì khách đã chờ thật vài giây ở ngân hàng rồi — thêm một đồng hồ nữa là cộng thẳng vào đó. */
+$js_shop = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-shop.php' ) );
+$than_xong = substr( $js_shop, strpos( $js_shop, 'function xongDon(' ) );
+$than_xong = substr( $than_xong, 0, strpos( $than_xong, "if (r && r.loai === 'nap')" ) );
+t( '🔴 màn "đã nhận tiền, ghế đang chạy" KHÔNG vẽ đếm ngược',
+	strpos( $than_xong, 'veDem' ) === false && strpos( $than_xong, 'setInterval' ) === false );
+/* Và ở đường tiêu ví thì lệnh vẫn phải GỬI NGAY LÚC BẤM, đếm ngược chạy song song — chứ không
+   phải đếm xong mới gửi. Canh thứ tự: `goi('tieu'` phải đứng SAU `setInterval` mở đồng hồ. */
+$than_tieu_js = substr( $js_shop, strpos( $js_shop, "[].forEach.call(document.querySelectorAll('[data-tieu]')" ) );
+$than_tieu_js = substr( $than_tieu_js, 0, 3000 );
+$vt_dh = strpos( $than_tieu_js, 'setInterval' );
+$vt_goi = strpos( $than_tieu_js, "goi('tieu'" );
+t( '🔴 tiêu ví: lệnh gửi ngay, đồng hồ chạy song song',
+	false !== $vt_dh && false !== $vt_goi && $vt_goi > $vt_dh );
+t( '⚠️ và KHÔNG có setTimeout nào bọc lượt gửi lệnh',
+	preg_match( "/setTimeout\([^)]{0,80}goi\('tieu'/", $than_tieu_js ) !== 1 );
+
+/* ---- 🔴 LỖI 23/08/2026: MỞ VÍ Ở TAB "CỦA TÔI" RỒI SANG TAB GHẾ THÌ BẤM GÌ CŨNG KHÔNG CHẠY.
+   `VI` dựng ở hai nơi phải có CÙNG HÌNH DẠNG. Thiếu `pin` là tab ghế gửi `pin: undefined`, máy
+   chủ trả "PIN chưa đúng" VÀ đếm một lượt hỏng — năm lần là khoá 10 phút đúng người đã nhập
+   đúng PIN. Đây là câu *"tại sao bấm không chạy"* của anh Thắng. */
+/* ⚠️ Quét MỌI phép gán cho `VI`, không chỉ dạng `VI = { … }`. Ba nơi dựng nó viết ba kiểu khác
+   nhau (`VI = r`, `VI = r; VI.pin = pin`, `VI = { … }`) — canh đúng một kiểu là hai kiểu kia
+   trôi đi im lặng, mà đó chính là cách lỗi này lọt qua lần đầu. */
+/* ⚠️ `$bo_chu_thich` chỉ gỡ chú thích PHP. Phần JS nằm trong một chuỗi heredoc nên chú thích
+   CỦA NÓ vẫn còn nguyên — và một chú thích có chữ "VI = số dư vừa tra được" thì khớp ngay cái
+   khuôn dưới đây. Gỡ nốt bằng bộ gỡ kiểu C (JS cùng cú pháp chú thích với C++). */
+$js_shop_sach = vhg_bo_chu_thich_cpp( $js_shop );
+$so_dung_vi = preg_match_all( '/\bVI = (?!null)(.{0,140})/s', $js_shop_sach, $mvi );
+t( 'tìm được các nơi dựng VI', $so_dung_vi >= 3, (string) $so_dung_vi );
+$thieu_pin = array();
+foreach ( (array) $mvi[1] as $doan ) {
+	if ( strpos( $doan, 'pin' ) === false ) { $thieu_pin[] = substr( $doan, 0, 60 ); }
+}
+teq( '🔴 mọi nơi dựng VI đều kèm PIN', array(), $thieu_pin );
+t( '⚠️ và lượt tra "của tôi" giữ lại PIN vừa nhập', strpos( $js_shop, 'var pin_ct =' ) !== false );
+
+/* ---- Câu luật tích lượt trên trang phải nói ĐÚNG đường nào tích được. */
+t( '🔴 trang không còn nói "tiêu tại ghế = 1 lượt tích"',
+	strpos( $js_shop, 'tiêu tại ghế = 1 lượt tích' ) === false );
+t( 'mà nói rõ là trả bằng chuyển khoản',
+	strpos( $js_shop, 'trả bằng chuyển khoản tại ghế = 1 lượt tích' ) !== false );
+t( '⚠️ và nói luôn vì sao tiêu ví không tích',
+	strpos( $js_shop, 'tiền nạp đã được khuyến mãi sẵn rồi' ) !== false );
 
 // ---- giao diện tích lượt
 VHG_Vi::luu_tich_cf( array( 'bat' => 1, 'moi_luot' => 10000, 'moc' => 10,
@@ -5463,6 +5677,15 @@ t( '🔴 nhưng KHÔNG rò số điện thoại đầy đủ của ai',
 // ---- màn quản trị
 ob_start(); VHG_Admin::trang_may(); $adm_t = ob_get_clean();
 t( 'màn quản trị có ô khai tích lượt', strpos( $adm_t, 'name="tich_moc"' ) !== false );
+/* 🔴 CÂU MÔ TẢ LUẬT Ở MÀN QUẢN TRỊ PHẢI ĐÚNG LUẬT ĐANG CHẠY.
+   Đây là câu người quyết định bật hay tắt cả chương trình đọc. Bản trước ghi NGƯỢC HẲN — "tiêu
+   tiền TỪ VÍ thì được tích, trả QR thì không" — và không phép thử nào bắt được, vì không ai
+   canh chữ. Một dòng mô tả sai không kêu lên bao giờ; nó chỉ làm người đọc quyết định sai. */
+t( '🔴 màn quản trị nói ĐÚNG là chỉ chuyển khoản mới tích',
+	strpos( $adm_t, 'Chỉ đường CHUYỂN KHOẢN tại ghế mới tích lượt' ) !== false );
+t( 'và nói rõ tiêu ví thì không', strpos( $adm_t, 'Tiêu bằng SỐ DƯ VÍ thì <b>không</b> tích' ) !== false );
+t( '⚠️ và không còn câu cũ nói ngược',
+	strpos( $adm_t, 'Khách tiêu tiền TỪ VÍ tại ghế thì được tích lượt' ) === false );
 t( 'chọn được kiểu thưởng', strpos( $adm_t, 'name="tich_kieu"' ) !== false );
 /* 🔴 Hiện CHI PHÍ ngay cạnh ô khai — người đang hạ mốc từ 10 xuống 5 phải thấy mình đã phát
       bao nhiêu quà TRƯỚC khi gõ con số mới. */
@@ -5496,6 +5719,98 @@ t( 'và nút Đã trao', strpos( $html_q, 'data-trao=' ) !== false );
 $vt_qua_ = strpos( $html_q, 'Quà chờ trao' );
 $vt_vi_  = strpos( $html_q, 'Ví khách còn tiền' );
 t( '🔴 quà chờ trao đứng TRƯỚC bảng ví', false !== $vt_qua_ && false !== $vt_vi_ && $vt_qua_ < $vt_vi_ );
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * NHÂN VIÊN TIÊU VÍ HỘ KHÁCH
+ *
+ * Anh Thắng 23/08/2026: *"khách không biết bấm nhiều lần, dẫn đến khóa 10p. Vậy nhân viên có
+ * thể vào điều khiển ghế, nhập số điện thoại khách, hiện số dư và kích ghế giúp luôn"*.
+ *
+ * 🔴 Đường này BỎ QUA PIN của khách. Thứ duy nhất giữ cho nó không thành cửa hậu vào ví của mọi
+ *    khách hàng là: (a) chỉ nằm ở trang /ghe đã qua cổng PIN nhân viên, và (b) MỌI lượt bấm đều
+ *    ghi tên người bấm vào sổ ví.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+$nv_sdt = '0909999777';
+$nv_don = VHG_Vi::dat_don( $nv_sdt, '4321', 200000, '' );
+VHG_Vi::nap( $nv_don['ma_don'], 'ref-nv' );
+$wpdb->query( "UPDATE " . VHG_DB::t( 'vi_so' ) . " SET dung_duoc_tu='2020-01-01 00:00:00'
+	WHERE sdt='" . $nv_sdt . "' AND da_chin=0" );
+VHG_Vi::chin( $nv_sdt );
+$nv_truoc = (int) VHG_Vi::so_du( $nv_sdt )['dung'];
+
+/* 🔴 BẮT BUỘC có tên người bấm — một dòng sổ không tên là một cửa hậu. */
+t( '🔴 không có tên người bấm thì TỪ CHỐI',
+	empty( VHG_Vi::tieu_nhan_vien( $nv_sdt, 10000, 'AMTP01', '' )['ok'] ) );
+
+$nv_kq = VHG_Vi::tieu_nhan_vien( $nv_sdt, 10000, 'AMTP01', 'Nhân viên A' );
+t( 'nhân viên tiêu hộ được, KHÔNG cần PIN của khách', ! empty( $nv_kq['ok'] ),
+	isset( $nv_kq['error'] ) ? $nv_kq['error'] : '' );
+teq( 'trừ đúng 10k', $nv_truoc - 10000, (int) VHG_Vi::so_du( $nv_sdt )['dung'] );
+/* 🔴 Sổ ví phải ghi RÕ là nhân viên bấm hộ, kèm tên. */
+$so_nv = VHG_Vi::ds_so( $nv_sdt, 10 );
+t( '🔴 sổ ví ghi tên người bấm', 'Nhân viên A' === (string) $so_nv[0]['ai'] );
+t( 'và nói rõ đây là lượt nhân viên bấm hộ',
+	strpos( (string) $so_nv[0]['ghi_chu'], 'nhân viên bấm hộ' ) !== false );
+/* Khách tự bấm thì KHÔNG có tên ai — để phân biệt được hai đường trong cùng một sổ. */
+VHG_Vi::tieu( $nv_sdt, '4321', 10000, 'AMTP01' );
+$so_kh = VHG_Vi::ds_so( $nv_sdt, 10 );
+teq( 'khách tự bấm thì sổ không mang tên nhân viên nào', '', (string) $so_kh[0]['ai'] );
+
+/* Số chưa có ví: đường NHÂN VIÊN nói thẳng được (người đứng quầy cần biết để bảo khách nạp),
+   khác đường KHÁCH vốn phải nói mập mờ để không thành máy dò. */
+$nv_khong = VHG_Vi::tieu_nhan_vien( '0900000009', 10000, 'AMTP01', 'Nhân viên A' );
+t( 'số chưa có ví thì báo rõ', empty( $nv_khong['ok'] )
+	&& strpos( (string) $nv_khong['error'], 'chưa có ví' ) !== false );
+$kh_khong = VHG_Vi::tieu( '0900000009', '1234', 10000, 'AMTP01' );
+t( '🔴 nhưng đường KHÁCH vẫn nói mập mờ — không thành máy dò',
+	strpos( (string) $kh_khong['error'], 'chưa có ví' ) === false );
+
+/* Ví khoá thì nhân viên cũng KHÔNG tiêu được — khoá là khoá. */
+VHG_Vi::khoa( $nv_sdt, true, 'thử', 'thang' );
+t( '🔴 ví khoá thì nhân viên cũng không tiêu được',
+	empty( VHG_Vi::tieu_nhan_vien( $nv_sdt, 10000, 'AMTP01', 'Nhân viên A' )['ok'] ) );
+VHG_Vi::khoa( $nv_sdt, false, 'xong', 'thang' );
+
+/* 🔴 MỘT LÕI, HAI CỬA — chép ra hai bản là kiểu lỗi đã cắn dự án này sáu lần trong một ngày,
+      và ở đây "nơi quên" sẽ là một trong hai đường TIÊU TIỀN CỦA KHÁCH. */
+$src_nv = $bo_chu_thich( (string) file_get_contents(
+	$goc . '/wordpress/vhcp-ghe/includes/class-vhg-vi.php' ) );
+teq( '🔴 chỉ có ĐÚNG MỘT lõi tiêu tiền', 1, substr_count( $src_nv, 'protected static function tieu_loi(' ) );
+t( 'đường khách gọi lõi đó', preg_match( '/function tieu\( \$sdt, \$pin, \$menh_gia, \$ma_may \) \{\s*return self::tieu_loi\(/', $src_nv ) === 1 );
+t( 'đường nhân viên cũng gọi lõi đó',
+	preg_match( '/function tieu_nhan_vien\(.{0,400}?return self::tieu_loi\(/s', $src_nv ) === 1 );
+/* Chốt trừ tiền vẫn nằm ở tầng SQL, dùng chung cho cả hai đường. */
+teq( 'và chỉ có MỘT chỗ trừ tiền', 1,
+	substr_count( $src_nv, 'SET so_du_dung=so_du_dung-%d' ) );
+
+// ---- cổng trang nhân viên
+$tok_nv = vhg_vao( '112233', 'Admin' );
+$web_nv = vhg_web( 'vi_tra_nv', array( 'sdt' => $nv_sdt, 'token' => $tok_nv ) );
+t( 'nhân viên tra được ví qua cổng /ghe', ! empty( $web_nv['ok'] ) );
+$web_nv2 = vhg_web( 'vi_tieu_nv', array( 'sdt' => $nv_sdt, 'menh_gia' => 10000,
+	'ma_may' => 'AMTP01', 'token' => $tok_nv ) );
+t( 'và tiêu hộ được qua cổng /ghe', ! empty( $web_nv2['ok'] ),
+	isset( $web_nv2['error'] ) ? $web_nv2['error'] : '' );
+/* ⚠️ Trang KHÁCH tuyệt đối không được có hai việc này. */
+$sh_nv = vhg_shop_html( 'AMTP01' );
+t( '🔴 trang khách KHÔNG có đường tiêu ví bỏ qua PIN',
+	strpos( $sh_nv, 'vi_tieu_nv' ) === false && strpos( $sh_nv, 'vi_tra_nv' ) === false );
+$GLOBALS['VHCP_TR'] = array();
+t( 'và cổng khách từ chối việc đó',
+	empty( vhg_shop( 'vi_tieu_nv', array( 'sdt' => $nv_sdt, 'menh_gia' => 10000 ) )['ok'] ) );
+
+// ---- giao diện
+$html_nv = vhg_web_html();
+t( 'tab điều khiển có ô tiêu ví hộ khách', strpos( $html_nv, 'id="nv-sdt"' ) !== false );
+t( 'và nút trừ ví chạy ghế', strpos( $html_nv, 'id="nv-chay"' ) !== false );
+/* 🔴 Hỏi lại một câu trước khi trừ tiền NGƯỜI KHÁC — bấm nhầm ghế là khách mất tiền cho một
+      cái ghế trống. */
+t( '🔴 có hỏi lại trước khi trừ tiền người khác',
+	preg_match( "/if \(!confirm\(.{0,200}?goi\('vi_tieu_nv'/s", $html_nv ) === 1 );
+t( 'và nói rõ khối này KHÁC nút Bật (bật là cho không)',
+	strpos( $html_nv, 'Không cần PIN của khách' ) !== false );
 
 
 // ============================================================ kết
