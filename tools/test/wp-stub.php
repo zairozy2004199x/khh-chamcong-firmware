@@ -452,3 +452,7 @@ if ( ! function_exists( 'is_user_logged_in' ) ) {
 if ( ! function_exists( 'wp_get_current_user' ) ) {
 	function wp_get_current_user() { return (object) array( 'display_name' => 'admin' ); }
 }
+
+if ( ! function_exists( 'remove_query_arg' ) ) {
+	function remove_query_arg( $k, $u = '' ) { return 'http://example.test/?vhcc_qt=1'; }
+}

@@ -5104,6 +5104,69 @@ teq( 'sửa xong thì danh sách theo đúng cái đã khai', array( 'Trực Gh�
 	VHCC_Web::ds_nhiem_vu() );
 delete_option( VHCC_Web::O_NHIEM_VU );
 
+/* 🔴 XEM PIN — TỪNG NGƯỜI MỘT, KHÔNG BAO GIỜ CẢ BẢNG.
+   Anh Thắng: *"sao lưu ok, nhưng chỗ ô pin vẫn trống"*. Anh cần đọc PIN để báo lại cho nhân
+   viên — việc thật. Nhưng in cả 240 PIN ra một màn hình thì một ảnh chụp là mất sạch mật khẩu
+   cả chuỗi; chính dự án này đã mất một khoá cầu nối vì một ảnh gửi qua chat. Nên: bấm ở ĐÚNG
+   dòng cần xem, và chỉ dòng đó hiện. */
+t( 'Admin có nút xem PIN từng dòng', strpos( $h_w, '👁' ) !== false, $h_w );
+
+/* 🔴 "AI CÓ PIN, AI CHƯA" phải NHÌN LƯỚT LÀ THẤY và LỌC RA ĐƯỢC. Anh Thắng: *"cần hiện để biết
+   ai có pin chưa"*. Soi 240 dòng chữ xám nhỏ để tìm người còn thiếu là việc không ai làm nổi —
+   mà bỏ sót một người thì tháng sau người đó không đăng nhập được, và cũng không ai biết vì sao. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv<>'W1'" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Quản lý' ), array( 'ma_nv' => 'W1' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'K1', 'ho_ten' => 'Chưa Có Pin',
+	'cua_hang' => 'JP_HCM', 'pin_dang_nhap' => '', 'vai_tro' => 'Quản lý' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'K2', 'ho_ten' => 'Có Pin Chưa Vai Trò',
+	'cua_hang' => 'JP_HCM', 'pin_dang_nhap' => '246813', 'vai_tro' => '' ) );
+
+$h_d = vhcc_web( '246813' );
+t( 'có bộ đếm ai vào được / ai chưa', strpos( $h_d, '1/3</b> người đăng nhập được' ) !== false, $h_d );
+t( 'đếm đúng số người CHƯA có PIN', strpos( $h_d, '<b>1</b> chưa có PIN' ) !== false, $h_d );
+t( 'và có đường bấm thẳng sang danh sách người chưa vào được',
+	strpos( $h_d, 'xem 2 người chưa vào được' ) !== false, $h_d );
+t( 'người có PIN hiện dấu ✔', strpos( $h_d, '✔ có 6 số' ) !== false );
+t( 'người CHƯA có PIN hiện dấu ✖ màu đỏ', strpos( $h_d, '✖ chưa có PIN' ) !== false );
+t( 'người chưa khai vai trò cũng hiện ✖', strpos( $h_d, '✖ chưa khai' ) !== false );
+
+/* Lọc ra đúng nhóm cần xử. */
+$h_l = vhcc_web( '246813', array(), array( 'loc' => 'chua_pin' ) );
+t( 'lọc "chưa có PIN" ra đúng người đó', strpos( $h_l, 'Chưa Có Pin' ) !== false
+	&& strpos( $h_l, 'Nguyễn Thu Hiền' ) === false, $h_l );
+$h_l = vhcc_web( '246813', array(), array( 'loc' => 'chua_vt' ) );
+t( 'lọc "chưa khai vai trò" ra đúng người đó', strpos( $h_l, 'Có Pin Chưa Vai Trò' ) !== false
+	&& strpos( $h_l, 'Chưa Có Pin' ) === false, $h_l );
+/* 🔴 Câu hỏi THẬT không phải "có PIN chưa" mà "VÀO ĐƯỢC chưa": thiếu PIN, HOẶC vai trò nằm
+   ngoài nhóm được vào — cả hai đều là không đăng nhập được. */
+$h_l = vhcc_web( '246813', array(), array( 'loc' => 'chua_vao' ) );
+t( 'lọc "chưa đăng nhập được" gom CẢ hai kiểu thiếu',
+	strpos( $h_l, 'Chưa Có Pin' ) !== false && strpos( $h_l, 'Có Pin Chưa Vai Trò' ) !== false
+	&& strpos( $h_l, 'Nguyễn Thu Hiền' ) === false, $h_l );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('K1','K2')" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => '' ), array( 'ma_nv' => 'W1' ) );
+/* 🔴 PHẢI CÓ HAI NGƯỜI CÓ PIN mới thử được điều đáng thử: bấm xem MỘT người thì người kia
+   VẪN PHẢI ẨN. Một người thì "hiện đúng người đó" và "hiện cả bảng" trông y hệt nhau, và phép
+   thử không phân biệt được — em đã vấp đúng chỗ này lúc phá mã. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'W8', 'ho_ten' => 'Người Kia',
+	'cua_hang' => 'JP_HCM', 'pin_dang_nhap' => '864209', 'vai_tro' => 'Quản lý' ) );
+$h_p = vhcc_web( '246813', array(), array( 'pin' => 'W1' ) );
+t( 'bấm xem thì PIN của ĐÚNG người đó hiện ra', strpos( $h_p, '170412' ) !== false, $h_p );
+t( '🔴 nhưng PIN người KHÁC vẫn ẩn — không lộ cả bảng',
+	strpos( $h_p, '864209' ) === false, $h_p );
+t( 'và có đường ẩn lại', strpos( $h_p, '>ẩn</a>' ) !== false );
+$h_p2 = vhcc_web( '246813' );
+t( 'không bấm gì thì KHÔNG PIN nào hiện',
+	strpos( $h_p2, '170412' ) === false && strpos( $h_p2, '864209' ) === false, $h_p2 );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='W8'" );
+/* Vẫn KHÔNG có nút "hiện hết" — đó mới là thứ một ảnh chụp lấy được cả chuỗi. */
+t( 'KHÔNG có nút hiện tất cả PIN', stripos( $h_w, 'hiện hết' ) === false
+	|| strpos( $h_w, 'Cố ý không có nút' ) !== false );
+/* Quản lý KHÔNG xem được PIN của người khác, dù gõ thẳng địa chỉ. */
+$h_p = vhcc_web( '357913', array(), array( 'pin' => 'W1' ) );
+t( 'Quản lý gõ thẳng địa chỉ cũng KHÔNG xem được PIN', strpos( $h_p, '170412' ) === false, $h_p );
+t( 'và Quản lý cũng không thấy nút xem', strpos( $h_p, '👁 xem' ) === false );
+
 /* --- Lưu PIN --- */
 function vhcc_luu_hs( $tok, $post ) {
 	$_COOKIE[ VHCC_Web::COOKIE ] = $tok;

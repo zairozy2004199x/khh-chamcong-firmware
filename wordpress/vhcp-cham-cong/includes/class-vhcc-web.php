@@ -433,6 +433,9 @@ class VHCC_Web {
 			. '.bao ul{margin:6px 0 0 18px;padding:0}'
 			. '.cu{color:var(--do);text-decoration:line-through}'
 			. '.moi{color:var(--luc);font-weight:600}'
+			. '.co{color:var(--luc);font-weight:600}.chua{color:var(--do);font-weight:600}'
+			. '.pin-ho{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;letter-spacing:2px;'
+			. 'user-select:all;background:#fef3c7;padding:1px 6px;border-radius:5px;color:var(--chu)}'
 			. '.pin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:4px;'
 			. 'user-select:all;background:#fffbeb;padding:6px 12px;border-radius:8px;display:inline-block}'
 			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}';
@@ -786,10 +789,34 @@ class VHCC_Web {
 	private static function the_ho_so( $ky, $toi ) {
 		global $wpdb;
 		$bang = VHCC_DB::t( 'nhan_vien' );
+		/* 🔴 XEM PIN — TỪNG NGƯỜI MỘT, KHÔNG BAO GIỜ CẢ BẢNG.
+		   Anh Thắng cần đọc PIN để báo lại cho nhân viên, đó là việc thật. Nhưng in cả 240 PIN
+		   ra một màn hình thì một ảnh chụp là mất sạch mật khẩu cả chuỗi — trong chính dự án này
+		   đã mất một khoá cầu nối vì một ảnh gửi qua chat. Nên: bấm 👁 ở ĐÚNG dòng cần xem, và
+		   chỉ dòng đó hiện. Chỉ Admin. Không lưu lại đâu cả. */
+		$xem_pin = isset( $_GET['pin'] ) ? sanitize_text_field( wp_unslash( $_GET['pin'] ) ) : '';
+		if ( '' !== $xem_pin && 'Admin' !== $toi['role'] ) { $xem_pin = ''; }
 		$cs   = isset( $_GET['cs'] ) ? sanitize_text_field( wp_unslash( $_GET['cs'] ) ) : '';
 		$tim  = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
 
+		/* 🔴 "AI CÓ PIN, AI CHƯA" PHẢI NHÌN LƯỚT LÀ THẤY, VÀ LỌC RA ĐƯỢC.
+		   Anh Thắng: *"cần hiện để biết ai có pin chưa"*. Soi 240 dòng chữ xám nhỏ để tìm người
+		   còn thiếu là việc không ai làm nổi — mà bỏ sót một người thì tháng sau người đó không
+		   đăng nhập được và cũng không ai biết vì sao. */
+		$loc = isset( $_GET['loc'] ) ? sanitize_text_field( wp_unslash( $_GET['loc'] ) ) : '';
+		$vao_duoc = VHCC_Auth::vai_tro_vao();
+
 		$dk = array(); $ts = array();
+		if ( 'chua_pin' === $loc )      { $dk[] = "pin_dang_nhap=''"; }
+		elseif ( 'co_pin' === $loc )    { $dk[] = "pin_dang_nhap<>''"; }
+		elseif ( 'chua_vt' === $loc )   { $dk[] = "vai_tro=''"; }
+		elseif ( 'chua_vao' === $loc )  {
+			/* "Chưa đăng nhập được" = thiếu PIN, HOẶC vai trò không nằm trong nhóm được vào.
+			   Đây mới là câu hỏi thật: không phải "có PIN chưa", mà "vào được chưa". */
+			$in = array();
+			foreach ( $vao_duoc as $v ) { $in[] = $wpdb->prepare( '%s', $v ); }
+			$dk[] = "( pin_dang_nhap='' OR vai_tro NOT IN (" . implode( ',', $in ) . ') )';
+		}
 		if ( '' !== $cs ) { $dk[] = 'cua_hang=%s'; $ts[] = $cs; }
 		if ( '' !== $tim ) {
 			$dk[] = '(ma_nv LIKE %s OR ho_ten LIKE %s OR sdt LIKE %s OR cccd LIKE %s)';
@@ -811,13 +838,46 @@ class VHCC_Web {
 		echo '</select></div>';
 		echo '<div><label for="fq">Tìm</label><input id="fq" name="q" value="' . esc_attr( $tim )
 			. '" placeholder="mã / tên / SĐT / CCCD" style="width:200px"></div>';
+		echo '<div><label for="fl">Trạng thái</label><select id="fl" name="loc">';
+		foreach ( array(
+			''         => '— tất cả —',
+			'chua_vao' => '⚠ CHƯA đăng nhập được',
+			'chua_pin' => '✖ chưa có PIN',
+			'chua_vt'  => '✖ chưa khai vai trò',
+			'co_pin'   => '✔ đã có PIN',
+		) as $k_l => $n_l ) {
+			echo '<option value="' . esc_attr( $k_l ) . '"' . selected( $k_l, $loc, false ) . '>'
+				. esc_html( $n_l ) . '</option>';
+		}
+		echo '</select></div>';
 		echo '<button>Tìm</button>';
 		echo '<a class="nut chinh" href="' . esc_url( add_query_arg( 'sua', '+', self::url() ) )
 			. '">+ Hồ sơ mới</a>';
 		echo '</form>';
 
+		/* Bộ đếm trên đầu bảng — con số này mới là thứ cho biết còn bao nhiêu việc phải làm. */
+		$in_vt = array();
+		foreach ( $vao_duoc as $v ) { $in_vt[] = $wpdb->prepare( '%s', $v ); }
+		$in_vt = implode( ',', $in_vt );
+		$tong_hs = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bang" );
+		$co_pin_hs = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bang WHERE pin_dang_nhap<>''" );
+		$vao_hs  = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM $bang WHERE pin_dang_nhap<>'' AND vai_tro IN ($in_vt)" );
+		$thieu   = $tong_hs - $vao_hs;
+		echo '<div class="bao ' . ( $thieu ? 'canh' : 'ok' ) . '" style="margin:10px 0">'
+			. '<b>' . $vao_hs . '/' . $tong_hs . '</b> người đăng nhập được'
+			. ' · <b>' . $co_pin_hs . '</b> có PIN'
+			. ' · <b>' . ( $tong_hs - $co_pin_hs ) . '</b> chưa có PIN';
+		if ( $thieu ) {
+			echo ' — <a href="' . esc_url( add_query_arg( array( 'loc' => 'chua_vao', 'cs' => $cs, 'q' => $tim ),
+				self::url() ) ) . '"><b>xem ' . $thieu . ' người chưa vào được</b></a>';
+		}
+		echo '</div>';
+
 		if ( ! $rows ) {
-			echo '<p class="mo">Chưa có hồ sơ nào khớp. Nạp file .csv ở ô trên.</p></div>';
+			echo '<p class="mo">Chưa có hồ sơ nào khớp bộ lọc đang chọn.'
+				. ( '' !== $loc ? ' <a href="' . esc_url( self::url() ) . '">Bỏ lọc</a>' : ' Nạp file .csv ở ô trên.' )
+				. '</p></div>';
 			return;
 		}
 		/* 🔴 CHO CHỌN, ĐỪNG BẮT GÕ TAY. Anh Thắng: *"chọn"*. Chức vụ và Nhiệm vụ là hai ô mà
@@ -860,8 +920,9 @@ class VHCC_Web {
 			   ĐÓNG mà hệ thống phải hiểu từng giá trị. Gõ "Kế Toán" thay vì "Kế toán cá nhân"
 			   là người đó không đăng nhập được, mà không có gì báo. */
 			$vt_r = (string) $r['vai_tro'];
-			echo '<td><select form="' . $id . '" name="vai_tro" style="width:130px">';
-			echo '<option value=""' . selected( '', $vt_r, false ) . '>— chưa khai —</option>';
+			echo '<td><select form="' . $id . '" name="vai_tro" style="width:130px'
+				. ( '' === $vt_r ? ';border-color:#fca5a5;background:#fef2f2' : '' ) . '">';
+			echo '<option value=""' . selected( '', $vt_r, false ) . '>✖ chưa khai</option>';
 			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_c ) {
 				echo '<option value="' . esc_attr( $vt_c ) . '"' . selected( $vt_c, $vt_r, false ) . '>'
 					. esc_html( $vt_c )
@@ -871,16 +932,25 @@ class VHCC_Web {
 			echo '</select></td>';
 
 			$co_pin = ( '' !== trim( (string) $r['pin_dang_nhap'] ) );
+			$dang_ho = ( $co_pin && $xem_pin === (string) $r['ma_nv'] );
 			echo '<td><input form="' . $id . '" name="pin_dang_nhap" inputmode="numeric" '
 				. 'autocomplete="off" placeholder="' . ( $co_pin ? 'giữ nguyên' : 'chưa có' ) . '" '
 				. 'style="width:96px">';
-			echo '<div class="mo" style="font-size:11.5px;margin-top:2px;white-space:nowrap">'
-				. ( $co_pin
-					? 'có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số · '
-						. '<label style="display:inline;color:var(--do)"><input form="' . $id . '" '
-						. 'type="checkbox" name="xoa_pin" value="1" style="vertical-align:-1px"> xoá</label>'
-					: '<span style="color:var(--do)">chưa có</span>' )
-				. '</div></td>';
+			echo '<div style="font-size:11.5px;margin-top:3px;white-space:nowrap">';
+			if ( $dang_ho ) {
+				echo '<b class="pin-ho">' . esc_html( $r['pin_dang_nhap'] ) . '</b> '
+					. '<a href="' . esc_url( remove_query_arg( 'pin' ) ) . '">ẩn</a>';
+			} elseif ( $co_pin ) {
+				echo '<span class="co">✔ có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số</span>';
+				if ( 'Admin' === $toi['role'] ) {
+					echo ' <a href="' . esc_url( add_query_arg( 'pin', $r['ma_nv'] ) ) . '">👁</a>';
+				}
+				echo ' <label style="display:inline;color:var(--do)"><input form="' . $id . '" '
+					. 'type="checkbox" name="xoa_pin" value="1" style="vertical-align:-1px"> xoá</label>';
+			} else {
+				echo '<span class="chua">✖ chưa có PIN</span>';
+			}
+			echo '</div></td>';
 			echo '<td><button form="' . $id . '">Lưu</button> '
 				. '<a class="nut" href="' . esc_url( add_query_arg( 'sua', $r['ma_nv'], self::url() ) )
 				. '">Sửa đủ</a></td></tr>';
@@ -901,6 +971,12 @@ class VHCC_Web {
 			. 'của sổ cũ đang lẫn tên cơ sở, gom vào là danh sách toàn rác và mời bấm nhầm.</p>'
 			. '</form></details>';
 
+		if ( 'Admin' === $toi['role'] ) {
+			echo '<p class="mo">Cần đọc PIN để báo cho nhân viên thì bấm <b>👁 xem</b> ở đúng dòng đó — '
+				. 'hiện <b>một người một lúc</b>, và chỉ Admin thấy nút này. Cố ý không có nút '
+				. '"hiện hết": in 240 PIN ra một màn hình thì một ảnh chụp là mất sạch mật khẩu cả '
+				. 'chuỗi. Sổ gốc trong Google Sheets vẫn có đủ PIN nếu anh cần tra hàng loạt.</p>';
+		}
 		echo '<p class="mo">Bốn ô <b>Cửa hàng · Cơ sở phụ · Chức vụ · Nhiệm vụ</b> xổ ra danh sách '
 			. 'gợi ý — bấm chọn cho khỏi gõ sai dấu, nhưng vẫn gõ được giá trị mới. '
 			. 'Hiện tối đa 100 dòng — lọc theo cơ sở hoặc gõ ô Tìm để thu hẹp. '
