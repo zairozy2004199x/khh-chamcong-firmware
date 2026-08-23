@@ -27,6 +27,19 @@ function teq( $ten, $mong, $thuc ) {
 	t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc );
 }
 
+/**
+ * Đếm KHÔNG CHẾT khi gặp dữ liệu sai hình dạng.
+ *
+ * 🔴 `count($r['ds'])` trần trụi là một quả mìn trong bộ thử: khi một thay đổi ở nơi khác làm
+ *    cổng trả về hình dạng khác, dòng đó KHÔNG báo "sai" — nó ném TypeError và làm CHẾT cả bộ
+ *    thử ngay tại chỗ, che mất hàng nghìn phép thử phía sau. Bộ thử chết giữa chừng khó lần ra
+ *    hơn hẳn bộ thử báo sai đúng chỗ.
+ *
+ *    Dính đúng lúc thử đục công tắc `con_ban_ma`: cổng từ chối đơn -> `soi` trả về hình dạng
+ *    lỗi -> `count(null)` -> chết ở phép thử thứ 300, và 1.100 phép thử sau đó không hề chạy.
+ */
+function dem( $x ) { return is_array( $x ) || $x instanceof Countable ? count( $x ) : 0; }
+
 define( 'VHG_TEST', 1 );
 define( 'VHG_VERSION', 'test' );
 define( 'VHG_DIR', $goc . '/wordpress/vhcp-ghe/' );
@@ -548,7 +561,7 @@ $b = VHG_Nhap::bang_tu_van_ban( "A\tB\tC\n1\t2\t3" );
 teq( 'dán từ Excel: tách bằng TAB', array( array( 'A', 'B', 'C' ), array( '1', '2', '3' ) ), $b );
 /* Tách bằng phẩy trước là ô "Nguyễn Văn A, Q1" vỡ thành hai cột và cả bảng lệch. */
 $b2 = VHG_Nhap::bang_tu_van_ban( "Tên\tĐịa chỉ\nA\tQuận 1, TPHCM" );
-teq( 'ô có dấu phẩy KHÔNG bị vỡ cột khi đã có TAB', 2, count( $b2[1] ) );
+teq( 'ô có dấu phẩy KHÔNG bị vỡ cột khi đã có TAB', 2, dem( $b2[1] ) );
 
 // ============================================================ 13. Dọn tiền ra bị tính nhầm
 vhg_dung_bang();
@@ -839,8 +852,8 @@ $r = vhg_web( 'so_lieu', array( 'token' => $tok, 'ky' => 'all' ) );
 t( 'lấy được số liệu', ! empty( $r['ok'] ), $r );
 teq( 'tổng doanh thu đúng', 20000, $r['tong']['tong'] );
 teq( 'có ghế trong danh sách', 'AMTP01', $r['may'][0]['ma'] );
-teq( 'lượt đã trả mà ghế chưa nhận hiện ra', 1, count( $r['cho'] ) );
-teq( 'giao dịch hiện ra', 1, count( $r['gd'] ) );
+teq( 'lượt đã trả mà ghế chưa nhận hiện ra', 1, dem( $r['cho'] ) );
+teq( 'giao dịch hiện ra', 1, dem( $r['gd'] ) );
 teq( 'biết mình là ai', 'Anh Thắng', $r['ai']['name'] );
 /* Một lượt gọi ra ĐỦ màn: trên 4G ở trung tâm thương mại, bốn lượt gọi là bốn cơ hội hỏng và
    một màn hiện nửa vời — doanh thu có mà tình trạng ghế trống. */
@@ -1145,7 +1158,7 @@ VHG_May::luu_menh_gia( array(
 VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 50000, 'phut' => 15,
 	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
 list( , $n ) = vhg_ghe( array( 'ma_may' => 'AMTP01', 'viec' => 'nhip', 'trang_thai' => 'idle' ) );
-teq( 'nhịp trả đủ hai gói', 2, count( $n['goi'] ) );
+teq( 'nhịp trả đủ hai gói', 2, dem( $n['goi'] ) );
 teq( 'kèm tên đã bỏ dấu', 'GOI CO BAN', $n['goi'][0]['n'] );
 teq( 'và số phút tính theo tỉ lệ CỦA CHÍNH GHẾ ĐÓ', 30, $n['goi'][1]['p'] );
 teq( 'nhịp trả số tài khoản chung', '888815678', $n['soTk'] );
@@ -2188,7 +2201,7 @@ VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 50000, 'phut
 vhg_ban( array( 'transferAmount' => 20000, 'transferType' => 'in',
 	'content' => 'GHEAMTP01 TEST1', 'referenceCode' => 'cs-1' ) );
 $t_cs = VHG_Thu::tong_hop( 'all' );
-teq( 'ghế đã khai mà chưa gán cơ sở -> đúng MỘT nhóm', 1, count( $t_cs['theo_coso'] ) );
+teq( 'ghế đã khai mà chưa gán cơ sở -> đúng MỘT nhóm', 1, dem( $t_cs['theo_coso'] ) );
 $ten_cs = array_column( $t_cs['theo_coso'], 'coso' );
 teq( '🔴 và nhóm đó là "(chưa gán cơ sở)", KHÔNG phải nội dung chuyển khoản',
 	array( '(chưa gán cơ sở)' ), $ten_cs );
@@ -2229,9 +2242,9 @@ $id_g = 0;
 foreach ( VHG_May::ds_coso() as $c ) { if ( 'Aeon Tân Phú' === $c['ten'] ) { $id_g = (int) $c['id']; } }
 
 $sl = vhg_web( 'so_lieu', array( 'token' => $tok_g, 'ky' => 'all' ) );
-teq( 'trang ngoài thấy ghế đang chờ gán', 1, count( $sl['choGan'] ) );
+teq( 'trang ngoài thấy ghế đang chờ gán', 1, dem( $sl['choGan'] ) );
 teq( 'kèm MAC để đối chiếu với nhãn dán trên ghế', 'AA:BB:CC:DD:12:34', $sl['choGan'][0]['mac'] );
-t( 'và kèm danh sách cơ sở để chọn ngay tại chỗ', count( $sl['coso'] ) >= 1, $sl['coso'] );
+t( 'và kèm danh sách cơ sở để chọn ngay tại chỗ', dem( $sl['coso'] ) >= 1, $sl['coso'] );
 /* Một lượt gọi ra đủ màn: trên 4G ở trung tâm thương mại, mỗi lượt gọi thêm là một cơ hội hỏng. */
 foreach ( array( 'tong', 'may', 'cho', 'gd', 'choGan', 'coso' ) as $k ) {
 	t( "vẫn chỉ MỘT lượt gọi, có sẵn phần '$k'", isset( $sl[ $k ] ) );
@@ -2915,7 +2928,7 @@ teq( 'nhưng vẫn vào cột QR của ghế', 20000,
 $tok_t = vhg_vao();
 $sl_t  = vhg_web( 'so_lieu', array( 'token' => $tok_t, 'ky' => 'today' ) );
 t( 'trang ngoài gửi kèm số liệu thu tiền', isset( $sl_t['thu'] ) );
-teq( 'đủ ba lượt', 3, count( $sl_t['thu']['ds'] ) );
+teq( 'đủ ba lượt', 3, dem( $sl_t['thu']['ds'] ) );
 $web_t = vhg_web_html();
 t( 'có tab Thu tiền', strpos( $web_t, 'data-tab="thu-tien"' ) !== false );
 t( 'và hàm vẽ nó', strpos( $web_t, 'function veThuTien()' ) !== false );
@@ -3127,13 +3140,21 @@ t( 'và không rò PIN băm', ! isset( $soi1['pin_bam'] ) );
 vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 170000,
 	'content' => 'CT DEN:145T270 ' . $sd['noi_dung'], 'referenceCode' => 'FT-SHOP-1' ) );
 $soi2 = vhg_shop( 'soi', array( 'ma_don' => $sd['ma_don'] ) );
-teq( 'tiền về thì trang thấy xong', 1, (int) $soi2['xong'] );
-teq( 'và trả về 2 mã', 2, count( $soi2['ma'] ) );
-t( 'mã hiện ra có gạch cho dễ đọc', strpos( (string) $soi2['ma'][0], '-' ) !== false );
+/* ⚠️ ĐỌC PHÒNG THỦ, đừng chọc thẳng vào khoá. Bản trước viết `count($soi2['ma'])` trần trụi —
+      và khi một thay đổi ở nơi khác làm cổng trả về hình dạng khác, dòng này KHÔNG báo "sai",
+      nó làm CHẾT cả bộ thử ngay tại đây, che mất hơn một nghìn phép thử phía sau. Một bộ thử
+      chết giữa chừng còn khó lần ra hơn một bộ thử báo sai đúng chỗ.
+      (Đã dính đúng lúc thử đục công tắc `con_ban_ma`: cổng từ chối đơn -> `soi` trả về hình
+      dạng lỗi -> `count(null)` -> chết.) */
+teq( 'tiền về thì trang thấy xong', 1, (int) ( isset( $soi2['xong'] ) ? $soi2['xong'] : 0 ) );
+$soi2_ma = isset( $soi2['ma'] ) && is_array( $soi2['ma'] ) ? $soi2['ma'] : array();
+teq( 'và trả về 2 mã', 2, count( $soi2_ma ) );
+t( 'mã hiện ra có gạch cho dễ đọc',
+	isset( $soi2_ma[0] ) && strpos( (string) $soi2_ma[0], '-' ) !== false );
 
 // ---- tra mã từ trang
 $st = vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '2468' ) );
-teq( 'tra ra 2 mã chưa dùng', 2, count( $st['chua_dung'] ) );
+teq( 'tra ra 2 mã chưa dùng', 2, dem( $st['chua_dung'] ) );
 t( 'sai PIN thì không ra', empty( vhg_shop( 'tra', array( 'sdt' => '0909123456', 'pin' => '1111' ) )['ok'] ) );
 
 // ---- dùng mã từ trang, cho đúng ghế trên tem
@@ -3331,7 +3352,7 @@ vhg_ban( array( 'transferType' => 'in', 'transferAmount' => 170000,
    lại được với mã đã bán. */
 $tq = VHG_Ma::tra_nhan_vien( '0909111222' );
 t( 'nhân viên tra được bằng số điện thoại', ! empty( $tq['ok'] ) );
-teq( 'thấy đủ 2 mã', 2, count( $tq['ds'] ) );
+teq( 'thấy đủ 2 mã', 2, dem( $tq['ds'] ) );
 /* 🔴 KHÔNG bao giờ đưa PIN băm ra ngoài, kể cả cho nhân viên. */
 t( 'không kèm PIN băm', ! isset( $tq['ds'][0]['pin_bam'] ) );
 t( 'số điện thoại sai khuôn thì từ chối', empty( VHG_Ma::tra_nhan_vien( '090' )['ok'] ) );
@@ -3390,7 +3411,7 @@ teq( 'huỷ rồi thì hết nợ', 0, (int) VHG_Ma::tien_no()['so_ma'] );
 /* Khách tra mã của mình VẪN THẤY mã đã huỷ. Lọc bỏ thì mã biến mất không dấu vết và khách nghĩ
    mình nhớ nhầm số điện thoại — thà hiện ra kèm chữ "đã huỷ", họ còn biết phải hỏi ai. */
 $tk = VHG_Ma::tra( '0909111222', '2468' );
-teq( 'khách vẫn thấy mã đã huỷ', 1, count( $tk['da_huy'] ) );
+teq( 'khách vẫn thấy mã đã huỷ', 1, dem( $tk['da_huy'] ) );
 t( 'nhưng khách không thấy PIN băm của chính mình', ! isset( $tk['da_huy'][0]['pin_bam'] ) );
 
 // ---- quyền huỷ
@@ -4011,7 +4032,7 @@ update_option( 'vhg_ma_giam', array( 100000 => 15 ) );
 $dq2 = vhg_shop( 'dat', array( 'sdt' => '0909888777', 'pin' => '1234',
 	'menh_gia' => 100000, 'so_luong' => 1 ) );
 t( 'đặt được đơn', ! empty( $dq2['ok'] ) );
-t( '🔴 đơn có kèm mã QR', ! empty( $dq2['qr'] ) && count( $dq2['qr'] ) >= 21 );
+t( '🔴 đơn có kèm mã QR', ! empty( $dq2['qr'] ) && dem( $dq2['qr'] ) >= 21 );
 
 /* 🔴 MÃ QR PHẢI LÀ ĐÚNG CHUỖI VIETQR CỦA ĐƠN NÀY. Vẽ ra một mã trông như thật mà nội dung khác
       là tiền của khách đi lạc — đúng kiểu lỗi "bảng xem trước nói dối" đã gặp bốn lần trước đó.
@@ -4502,7 +4523,28 @@ t( 'trang khách có tab Nạp ví', strpos( $sh_v, "data-tab=\"nap\"" ) !== fal
 t( 'và có màn chọn gói nạp', strpos( $sh_v, 'data-nap=' ) !== false );
 /* 🔴 Con số khách dùng để quyết định là "ĐƯỢC THÊM bao nhiêu", không phải "giảm bao nhiêu %". */
 t( '🔴 nói "được thêm", không nói "giảm %"', strpos( $sh_v, 'được thêm' ) !== false );
-t( 'và có ô tiêu số dư ngay tại ghế', strpos( $sh_v, "id=\"t-tieu\"" ) !== false );
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 TIÊU SỐ DƯ = BẤM MỘT THẺ, không phải mở một ô chọn.
+ *
+ * Anh Thắng 23/08/2026: *"Quét qr. cho gói sử dụng. Bấm. Hệ thống sẽ trừ thẳng tiền trong gói
+ * đang còn"*. Ba bước, không bước nào là "mở danh sách rồi cuộn tìm".
+ *
+ * Bản trước là `<select>` + hai ô nhập + một nút. Trên điện thoại, ô chọn là một cửa sổ bật lên
+ * che hết màn — khách phải rời khỏi thứ đang nhìn. Thẻ bấm thì thấy hết, chạm một cái là xong,
+ * và giống hệt màn hình trên chính cái ghế họ đang ngồi.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+t( '🔴 mở ví xong thì gói là THẺ BẤM', strpos( $sh_v, 'data-tieu=' ) !== false );
+t( 'và không còn ô chọn gói kiểu danh sách', strpos( $sh_v, 'id="t-goi"' ) === false );
+t( 'có ô mở ví bằng số điện thoại + PIN', strpos( $sh_v, 'id="t-mo"' ) !== false );
+/* Gói vượt số dư thì làm mờ và BỎ HẲN đường bấm — để bấm rồi mới báo lỗi là bắt khách phát
+   hiện điều mà trang đã biết trước. */
+t( 'gói vượt số dư thì làm mờ, không cho bấm', strpos( $sh_v, "'.g.het'" ) !== false
+	|| strpos( $sh_v, '.g.het{' ) !== false );
+/* 🔴 NHỚ SỐ ĐIỆN THOẠI, KHÔNG NHỚ PIN. Điện thoại để quên trên ghế là người cầm máy tiêu sạch ví. */
+t( '🔴 trang nhớ số điện thoại cho lần sau', strpos( $sh_v, "localStorage.setItem('vhg_sdt'" ) !== false );
+t( '🔴 nhưng KHÔNG ghi PIN vào máy khách',
+	strpos( $sh_v, "setItem('vhg_pin'" ) === false
+	&& preg_match( '/localStorage\.setItem\([^)]*pin/i', $sh_v ) !== 1 );
 t( 'kèm ô xem số dư ở tab Của tôi', strpos( $sh_v, "id=\"v-xem\"" ) !== false );
 /* Hạn chờ phải nói TRƯỚC khi khách trả tiền, y như bên mã. */
 t( '🔴 nói hạn chờ của số dư trước khi khách trả tiền',
@@ -4519,8 +4561,8 @@ update_option( 'vhg_goi_nap', array() );
 $sh_kn = vhg_shop_html( 'AMTP01' );
 t( '🔴 JS chỉ bày tab Nạp ví khi máy chủ có gửi gói nạp xuống',
 	strpos( $sh_kn, 'var coNap = !!(D && D.goi_nap && D.goi_nap.length);' ) !== false );
-t( 'và ô tiêu số dư cũng nấp sau đúng điều kiện đó',
-	preg_match( '/if \(D && D\.goi_nap && D\.goi_nap\.length\) \{\s*h \+= .{0,120}?Hoặc trả bằng số dư ví/s',
+t( 'và khối tiêu số dư cũng nấp sau đúng điều kiện đó',
+	preg_match( '/if \(D && D\.goi_nap && D\.goi_nap\.length\) \{\s*h \+= .{0,140}?Trả bằng số dư ví/s',
 		$sh_kn ) === 1 );
 teq( '🔴 chưa khai thì máy chủ gửi xuống danh sách RỖNG', 0,
 	count( (array) vhg_shop( 'goi' )['goi_nap'] ) );
@@ -4560,6 +4602,100 @@ t( 'và đường khoá ví', strpos( $adm_v, 'value="vi_khoa"' ) !== false );
 /* ⚠️ Màn này nhân viên ca nào cũng mở — số điện thoại phải CHE. */
 t( '🔴 danh sách ví che số điện thoại', strpos( $adm_v, '0909111222' ) === false );
 t( 'nhưng vẫn hiện đủ để đối chiếu', strpos( $adm_v, '0909' ) !== false );
+
+
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 "MỆNH GIÁ VẪN THEO MÁY" — SỐ PHÚT PHẢI THEO ĐÚNG GHẾ KHÁCH ĐANG NGỒI
+ *
+ * Anh Thắng 23/08/2026. Mỗi ghế có tỉ lệ quy đổi RIÊNG, nên cùng gói 10.000đ có ghế ra 6 phút,
+ * ghế khác ra 10 phút. Trang khách trả về bảng chung là hiện số phút của tỉ lệ chung — SAI ở
+ * mọi ghế có tỉ lệ riêng, và sai theo kiểu tệ nhất: khách tin con số đó, ngồi xuống, rồi ghế
+ * tắt sớm hơn họ tưởng. Con số sai còn tệ hơn không có con số nào.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+VHG_May::luu_ty_le( 10000, 6 );                                   // tỉ lệ CHUNG: 10k = 6 phút
+/* Dựng hẳn một ghế thứ hai cho phép thử này thay vì trông vào ghế khối khác để lại — khối
+   trên có thể xoá, đổi tên, hoặc chưa từng tạo AMTP02. */
+$wpdb->insert( VHG_DB::t( 'may' ), array(
+	'ma' => 'AMTP02', 'mac' => 'AA:BB:CC:DD:EE:02', 'coso_id' => 0,
+	'gia' => 10000, 'phut' => 12, 'cap_nhat' => current_time( 'mysql' ) ) );
+t( 'có ghế AMTP02 để thử tỉ lệ riêng', (bool) VHG_May::may( 'AMTP02' ) );
+
+$mg_chung = VHG_Ma::ds_menh_gia();
+$mg_a1    = VHG_Ma::ds_menh_gia( 'AMTP01' );                      // không khai riêng -> theo chung
+$mg_a2    = VHG_Ma::ds_menh_gia( 'AMTP02' );                      // khai riêng 10k = 12 phút
+
+t( 'bảng gói có kèm số phút', isset( $mg_chung[0]['phut'] ) );
+teq( 'ghế không khai riêng thì theo tỉ lệ chung',
+	(int) $mg_chung[0]['phut'], (int) $mg_a1[0]['phut'] );
+
+/* ⚠️ HAI KIỂU GÓI, và chúng cư xử KHÁC NHAU — bản nháp của phép thử này quên mất chuyện đó rồi
+      tưởng mã sai:
+        · gói BỎ TRỐNG số phút -> tính theo tỉ lệ của TỪNG GHẾ  (thứ anh Thắng nói)
+        · gói KHAI CỨNG số phút -> giữ nguyên ở MỌI GHẾ, có chủ đích (gói khuyến mãi, gói kèm quà)
+      Gói dựng ở trên khai cứng 6 phút, nên nó KHÔNG đổi theo ghế — đúng thiết kế. Canh cả hai. */
+teq( '🔴 gói KHAI CỨNG số phút thì mọi ghế như nhau — cố ý',
+	(int) $mg_a1[0]['phut'], (int) $mg_a2[0]['phut'] );
+
+/* Gói BỎ TRỐNG số phút mới là gói chạy theo tỉ lệ ghế. */
+VHG_May::luu_menh_gia( array(
+	array( 'tien' => 10000,  'phut' => 0, 'ten' => 'GOI CO BAN',     'mo_ta' => 'Khoi dong', 'vip' => 0 ),
+	array( 'tien' => 50000,  'phut' => 0, 'ten' => 'GOI CHUYEN SAU', 'mo_ta' => 'Tri lieu',  'vip' => 0 ),
+	array( 'tien' => 100000, 'phut' => 0, 'ten' => 'GOI THUONG HANG','mo_ta' => 'Dang cap',  'vip' => 1 ),
+) );
+$tr_a1 = VHG_Ma::ds_menh_gia( 'AMTP01' );
+$tr_a2 = VHG_Ma::ds_menh_gia( 'AMTP02' );
+teq( 'gói bỏ trống: ghế theo tỉ lệ chung ra 6 phút', 6, (int) $tr_a1[0]['phut'] );
+t( '🔴 gói bỏ trống: ghế khai tỉ lệ riêng ra số phút KHÁC hẳn',
+	(int) $tr_a2[0]['phut'] !== (int) $tr_a1[0]['phut'],
+	'AMTP01=' . (int) $tr_a1[0]['phut'] . ' phút, AMTP02=' . (int) $tr_a2[0]['phut'] . ' phút' );
+teq( 'và đúng gấp đôi vì tỉ lệ gấp đôi', 12, (int) $tr_a2[0]['phut'] );
+$mg_a2 = $tr_a2;
+/* Số phút trang khách hiện phải TRÙNG KHÍT con số ghế nhận qua nhịp — hai nơi tính khác nhau
+   là khách đọc một đằng, ghế chạy một nẻo, và không ai biết bên nào đúng. */
+$nh_p = vhg_ghe( array( 'viec' => 'nhip', 'mac' => 'AA:BB:CC:DD:EE:02', 'trang_thai' => 'idle' ) );
+if ( ! empty( $nh_p[1]['goi'] ) ) {
+	teq( '🔴 số phút trang khách TRÙNG con số ghế nhận qua nhịp',
+		(int) $nh_p[1]['goi'][0]['p'], (int) $mg_a2[0]['phut'] );
+}
+/* Và cổng của trang khách phải TRUYỀN mã ghế vào — không truyền thì mọi ghế ra số phút chung. */
+$_SERVER['REQUEST_URI'] = '/' . VHG_Shop::slug();
+$_GET = array( 'ghe' => 'AMTP02' );
+$api_p = vhg_shop( 'goi', array( 'ghe' => 'AMTP02' ) );
+teq( '🔴 cổng trang khách trả số phút của ĐÚNG ghế trên tem',
+	(int) $mg_a2[0]['phut'], (int) $api_p['goi'][0]['phut'] );
+$_GET = array();
+
+// ---- công tắc bán mã lẻ
+/* Anh Thắng: *"Thay vì khách mua mã code thì mua gói nạp"*. Nhưng ba mươi phút trước, khi được
+   hỏi thẳng, anh chọn "nằm cạnh". Hai câu không cùng hướng — nên đây là CÔNG TẮC, không phải
+   một lần xoá: xoá là mất cả nhánh đã chạy được, và mã của khách chưa dùng nằm trong đó. */
+delete_option( 'vhg_ban_ma' );
+t( '🔴 chưa khai thì MẶC ĐỊNH VẪN BÁN — cài bản mới không được tự tắt thứ đang chạy',
+	VHG_Ma::con_ban_ma() );
+update_option( 'vhg_ban_ma', 0 );
+t( 'tắt được', ! VHG_Ma::con_ban_ma() );
+$sh_tat = vhg_shop_html( 'AMTP01' );
+t( 'tắt rồi thì trang khách biết mà giấu tab Mua mã',
+	strpos( $sh_tat, 'var coMa  = !D || D.ban_ma !== 0;' ) !== false );
+teq( 'và cổng nói rõ đã tắt', 0, (int) vhg_shop( 'goi' )['ban_ma'] );
+/* 🔴 CHẶN CẢ Ở CỔNG, không chỉ giấu tab. Giấu tab mà cổng vẫn nhận là ai còn giữ link cũ vẫn
+      đặt được đơn — rồi trả tiền cho một thứ cửa hàng đã ngừng bán. */
+$dat_tat = vhg_shop( 'dat', array( 'sdt' => '0909222333', 'pin' => '1234',
+	'menh_gia' => 100000, 'so_luong' => 1 ) );
+t( '🔴 tắt rồi thì cổng TỪ CHỐI đơn mua mã', empty( $dat_tat['ok'] ) );
+t( 'và chỉ đường sang nạp ví', strpos( (string) $dat_tat['error'], 'Nạp ví' ) !== false );
+/* Nhưng mã ĐÃ BÁN vẫn phải dùng được — tắt là ngừng bán thêm, không phải huỷ hàng đã bán. */
+update_option( 'vhg_ban_ma', 1 );
+$dm = VHG_Ma::dat_don( '0909444555', '1234', 100000, 1, '' );
+VHG_Ma::phat_ma( $dm['ma_don'], 'ref-tat' );
+$ma_cu = VHG_Ma::ds_ma_cua_don( $dm['ma_don'] )[0];
+$wpdb->query( "UPDATE " . VHG_DB::t( 'ma' ) . " SET cho_ngay=0 WHERE ma='" . $ma_cu . "'" );
+update_option( 'vhg_ban_ma', 0 );
+$dung_cu = VHG_Ma::dung( $ma_cu, 'AMTP01' );
+t( '🔴 mã đã bán trước khi tắt VẪN dùng được', ! empty( $dung_cu['ok'] ),
+	isset( $dung_cu['error'] ) ? $dung_cu['error'] : '' );
+update_option( 'vhg_ban_ma', 1 );
 
 
 // ============================================================ kết

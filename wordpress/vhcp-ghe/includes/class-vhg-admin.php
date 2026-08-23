@@ -70,6 +70,22 @@ class VHG_Admin {
 			. 'Số dư nạp cũng có <b>hạn chờ</b> giống mã mua trước (đang đặt: '
 			. (int) VHG_Ma::cho_ngay_mac_dinh() . ' ngày), và dùng chung ô cài đặt đó.</p>';
 
+		/* ⚠️ CÔNG TẮC bán mã lẻ để NGAY DƯỚI bảng gói nạp — đó là nơi người ta vừa quyết định
+		   chuyển hẳn sang bán gói nạp, nên cũng là nơi họ tìm cách tắt cái cũ. */
+		$dang_ban = VHG_Ma::con_ban_ma();
+		echo '<h3>Bán mã lẻ</h3>';
+		echo '<form method="post" style="max-width:900px">';
+		wp_nonce_field( 'vhg' );
+		echo '<p><label><input type="checkbox" name="ban_ma_bat" value="1"'
+			. ( $dang_ban ? ' checked' : '' ) . ' /> <b>Còn bán mã lẻ</b> '
+			. '(khách mua từng mã một, dùng một lần)</label></p>';
+		echo '<p><button class="button" name="vhg" value="ban_ma">Lưu</button></p></form>';
+		echo '<p class="description">Bỏ tích = trang khách chỉ còn <b>Nạp ví</b>, và cổng cũng '
+			. 'từ chối đơn mua mã mới (không chỉ giấu tab — giấu tab mà cổng vẫn nhận là ai còn '
+			. 'giữ link cũ vẫn đặt được đơn rồi trả tiền cho thứ mình đã ngừng bán).<br>'
+			. '<b>Mã đã bán vẫn dùng được bình thường</b> — tắt là ngừng bán thêm, không phải '
+			. 'huỷ hàng đã bán.</p>';
+
 		/* Danh sách ví còn tiền: nợ nằm ở đâu, ai giữ nhiều nhất. */
 		$ds_vi = VHG_Vi::ds_vi( 30 );
 		if ( $ds_vi ) {
@@ -509,6 +525,11 @@ class VHG_Admin {
 						'nhan' => isset( $gn_h[ $i ] ) ? $gn_h[ $i ] : 0 );
 				}
 				$bao[] = VHG_Vi::luu_goi_nap( $gn_d );
+			} elseif ( 'ban_ma' === $viec ) {
+				update_option( 'vhg_ban_ma', empty( $_POST['ban_ma_bat'] ) ? 0 : 1 );
+				$bao[] = array( 'ok' => true, 'thong_bao' => empty( $_POST['ban_ma_bat'] )
+					? 'Đã NGỪNG bán mã lẻ. Mã đã bán vẫn dùng được bình thường.'
+					: 'Đã bật lại bán mã lẻ.' );
 			} elseif ( 'vi_chinh' === $viec ) {
 				$bao[] = VHG_Vi::chinh_tay(
 					isset( $_POST['vi_sdt'] ) ? wp_unslash( $_POST['vi_sdt'] ) : '',

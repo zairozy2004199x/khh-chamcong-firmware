@@ -171,14 +171,27 @@ class VHG_Shop {
 			/* ⚠️ KHÔNG gửi danh sách ghế xuống trang khách. Ghế do CÁI TEM quyết định; đưa ra một
 			   danh sách là mời dựng lại đúng cái ô chọn vừa bỏ — và nó cũng phơi toàn bộ mã ghế
 			   của hệ thống ra một trang không cần đăng nhập. */
-			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia(),
+			/* 🔴 TRUYỀN MÃ GHẾ VÀO. Số phút của mỗi gói theo TỈ LỆ RIÊNG của ghế đó — không
+			   truyền là mọi ghế đều hiện số phút của tỉ lệ chung, tức là sai ở mọi ghế có
+			   tỉ lệ riêng. Chưa biết ghế (màn mua) thì tỉ lệ chung là đúng. */
+			$ghe_ = self::ghe_tu_dia_chi( $d );
+			self::tra( array( 'ok' => true, 'goi' => VHG_Ma::ds_menh_gia( $ghe_ ),
 				'goi_nap' => VHG_Vi::goi_nap(),
+				'ban_ma'  => VHG_Ma::con_ban_ma() ? 1 : 0,
 				'cho_ngay' => VHG_Ma::cho_ngay_mac_dinh(),
-				'ghe' => self::ghe_tu_dia_chi( $d ) ) );
+				'ghe' => $ghe_ ) );
 			return;
 		}
 
 		if ( 'dat' === $viec ) {
+			/* ⚠️ Tắt bán mã lẻ thì phải chặn CẢ Ở CỔNG, không chỉ giấu tab. Giấu tab mà cổng
+			   vẫn nhận là ai còn giữ link cũ vẫn đặt được đơn — rồi trả tiền, rồi nhận mã cho
+			   một thứ cửa hàng đã ngừng bán. */
+			if ( ! VHG_Ma::con_ban_ma() ) {
+				self::tra( array( 'ok' => false,
+					'error' => 'Cửa hàng đã chuyển sang nạp ví — mời anh/chị dùng mục Nạp ví.' ) );
+				return;
+			}
 			$r = VHG_Ma::dat_don(
 				isset( $d['sdt'] ) ? $d['sdt'] : '',
 				isset( $d['pin'] ) ? $d['pin'] : '',
@@ -409,6 +422,9 @@ body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
 .g:hover{border-color:rgba(240,180,41,.45)}
 .g:active{transform:scale(.995)}
 .g.chon{border-color:#f0b429;background:rgba(45,38,18,.86)}
+/* Gói vượt quá số dư: làm mờ và BỎ HẲN con trỏ bấm. Chỉ làm mờ mà vẫn bấm được là khách bấm,
+   chờ, rồi nhận một câu lỗi về điều trang đã biết từ trước. */
+.g.het{opacity:.42;cursor:not-allowed}
 .g .ten{font-weight:700;font-size:17px}
 .g .mo{font-size:12.5px;color:#9aa0c2;margin-top:2px}
 .g .gia{display:flex;align-items:baseline;gap:10px;margin-top:10px;flex-wrap:wrap}
@@ -485,6 +501,20 @@ var app = document.getElementById('app');
 
 /* "còn 4 ngày 3 giờ" — câu người đọc là hiểu. Cùng cách nói với VHG_Ma::doc_con_cho() bên máy
    chủ; hai nơi nói khác nhau về cùng một khoảng thời gian là khách tưởng hệ thống mâu thuẫn. */
+/* Nhớ SỐ ĐIỆN THOẠI cho lần sau — và CHỈ số điện thoại.
+   🔴 KHÔNG nhớ PIN. Điện thoại để quên trên ghế, hoặc đưa cho bạn mượn quét, là người cầm máy
+      tiêu sạch ví. Nhớ số thì lần sau chỉ phải gõ 4 chữ số — nhanh gần bằng, mà mất máy thì
+      vẫn không mất tiền.
+   ⚠️ Bọc try/catch: trình duyệt ở chế độ riêng tư ném lỗi khi chạm localStorage, và một lỗi ở
+      đây làm chết cả trang chỉ vì một tiện ích nhỏ. */
+function nhoSdt(v){
+  try {
+    if (v === undefined) return localStorage.getItem('vhg_sdt') || '';
+    localStorage.setItem('vhg_sdt', String(v || ''));
+  } catch (e) {}
+  return '';
+}
+
 function docCho(giay){
   var g = Math.max(0, Number(giay) || 0);
   var ngay = Math.floor(g / 86400), gio = Math.floor((g % 86400) / 3600);
@@ -541,9 +571,10 @@ function tab(){
   /* Tab "Nạp ví" chỉ hiện khi anh Thắng CÓ khai gói nạp. Chưa khai mà vẫn hiện là khách bấm
      vào một trang trống — tệ hơn hẳn việc không có tab. */
   var coNap = !!(D && D.goi_nap && D.goi_nap.length);
+  var coMa  = !D || D.ban_ma !== 0;          // chưa tải xong thì cứ hiện, tránh tab nhấp nháy
   return '<div class="tabs">'
     + (coNap ? '<button data-tab="nap"' + (TAB==='nap'?' class="on"':'') + '>Nạp ví</button>' : '')
-    + '<button data-tab="mua"' + (TAB==='mua'?' class="on"':'') + '>Mua mã</button>'
+    + (coMa ? '<button data-tab="mua"' + (TAB==='mua'?' class="on"':'') + '>Mua mã</button>' : '')
     + '<button data-tab="cua-toi"' + (TAB==='cua-toi'?' class="on"':'') + '>Của tôi</button>'
     + '<button data-tab="dung"' + (TAB==='dung'?' class="on"':'') + '>Dùng tại ghế</button>'
     + '</div>';
@@ -810,36 +841,77 @@ function veDung(){
       + '<p class="mut">Vẫn mua thêm mã được ở mục <b>Mua mã</b> — mua thì không cần biết ghế.</p>'
       + '</div>';
   }
-  var h = '<div class="card"><h2>Dùng mã cho ghế</h2>'
-    + '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>'
+  /* ⚠️ Ghế hiện MỘT LẦN ở đầu trang, không lặp lại trong từng khối: khách chỉ cần biết "mình
+     đang ở ghế nào" đúng một lần, lặp lại là nhiễu. */
+  var h = '<div class="ck nhan"><div style="flex:1;min-width:0"><div class="nh">Ghế đang ngồi</div>'
     + '<div class="gt">' + esc(GHE) + '</div></div></div>'
-    + '<p class="mut" style="margin:6px 0 0">Đúng ghế này thì nhập mã. Không đúng thì quét lại mã '
-    + 'QR trên ghế mình đang ngồi.</p>'
+    + '<p class="mut" style="margin:6px 0 14px">Không đúng ghế này thì quét lại mã QR trên ghế '
+    + 'mình đang ngồi.</p>';
+
+  /* ══════════════════════════════════════════════════════════════════════════════════════════
+   * TRẢ BẰNG SỐ DƯ — ĐỨNG TRƯỚC, VÀ LÀ THẺ BẤM.
+   *
+   * Anh Thắng 23/08/2026: *"Quét qr. cho gói sử dụng. Bấm. Hệ thống sẽ trừ thẳng tiền trong gói
+   * đang còn"*. Ba bước, không có bước nào là "mở danh sách rồi cuộn tìm".
+   *
+   * Bản trước dùng một ô chọn `<select>` + hai ô nhập + một nút. Trên điện thoại, ô chọn là một
+   * cửa sổ bật lên che hết màn — khách phải rời khỏi thứ đang nhìn để chọn, rồi quay lại. Thẻ
+   * bấm thì thấy hết, chạm một cái là xong, và giống hệt màn hình trên chính cái ghế họ đang
+   * ngồi — đỡ phải học hai giao diện cho cùng một việc.
+   *
+   * 🔴 SỐ PHÚT LẤY THEO GHẾ NÀY, không phải tỉ lệ chung — xem VHG_Ma::ds_menh_gia($ma_may).
+   * ══════════════════════════════════════════════════════════════════════════════════════════ */
+  if (D && D.goi_nap && D.goi_nap.length) {
+    h += '<div class="card"><h2>Trả bằng số dư ví</h2>';
+    if (!VI) {
+      h += '<p class="mut" style="margin:0 0 10px">Nhập số điện thoại và PIN để thấy số dư và '
+        + 'các gói bấm được.</p>'
+        + '<label>Số điện thoại</label>'
+        + '<input id="t-vsdt" type="tel" inputmode="numeric" placeholder="0909 123 456" value="'
+        + esc(nhoSdt()) + '">'
+        + '<label>PIN 4 số</label>'
+        + '<input id="t-vpin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
+        + '<button id="t-mo" class="chinh" style="margin-top:14px">Mở ví</button>'
+        + '<div class="err" id="t-e"></div>';
+    } else {
+      var sd = VI.so_du || {};
+      h += '<div class="ok" style="margin:0 0 12px">Số dư tiêu được: '
+        + '<b style="color:#f0b429;font-size:18px">' + tien(sd.dung || 0) + '</b>'
+        + (sd.cho > 0
+            ? '<br>⏳ ' + tien(sd.cho) + ' đang trong hạn chờ'
+              + (sd.con_cho > 0 ? ' — dùng được sau ' + docCho(sd.con_cho) : '')
+            : '')
+        + '</div>'
+        + '<p class="mut" style="margin:0 0 10px"><b>Bấm một gói</b> — hệ thống trừ thẳng số dư '
+        + 'và ghế chạy ngay.</p>'
+        + '<div class="goi">';
+      (D.goi || []).forEach(function(g){
+        /* Gói quá số dư thì làm mờ và KHÔNG cho bấm — để bấm rồi báo lỗi là bắt khách phát hiện
+           điều mà trang đã biết trước. */
+        var du = (sd.dung || 0) >= g.menh_gia;
+        h += '<div class="g' + (du ? '' : ' het') + '"' + (du ? ' data-tieu="' + g.menh_gia + '"' : '')
+          + '>'
+          + (g.vip ? '<span class="vip">VVIP</span>' : '')
+          + '<div class="ten">' + esc(g.ten || tien(g.menh_gia)) + '</div>'
+          + (g.phut > 0 ? '<div class="mo">' + g.phut + ' phút</div>' : '')
+          + '<div class="gia"><span class="moi">' + tien(g.menh_gia) + '</span></div>'
+          + (du ? '' : '<div class="mo" style="color:#b32d2e">chưa đủ số dư</div>')
+          + '</div>';
+      });
+      h += '</div><button id="t-thoat" style="width:100%;margin-top:6px">Đổi số điện thoại</button>'
+        + '<div class="err" id="t-e"></div><div id="t-kq"></div>';
+    }
+    h += '</div>';
+  }
+
+  /* Khối MÃ đứng sau, và chỉ hiện khi cửa hàng còn bán mã. Đã bán mã trước đây thì mã cũ vẫn
+     dùng được — nên khối này CÒN kể cả khi đã tắt bán thêm. */
+  h += '<div class="card"><h2>Hoặc dùng mã giảm giá</h2>'
     + '<label>Mã giảm giá</label>'
     + '<input id="d-ma" placeholder="ABCD-EFGH" autocapitalize="characters" autocomplete="off">'
     + '<button id="d-ok" class="chinh" style="margin-top:14px">Dùng mã, chạy ghế</button>'
     + '<div class="err" id="e"></div><div id="kq"></div></div>';
 
-  /* Trả bằng SỐ DƯ — khối riêng, dưới khối mã. Hai đường trả tiền khác nhau thì để tách bạch:
-     gộp vào một biểu mẫu là khách gõ mã vào ô ví hoặc ngược lại, rồi nhận một câu lỗi khó hiểu. */
-  if (D && D.goi_nap && D.goi_nap.length) {
-    h += '<div class="card"><h2>Hoặc trả bằng số dư ví</h2>'
-      + '<p class="mut" style="margin:0 0 10px">Đã nạp ví thì không cần mã — nhập số điện thoại '
-      + 'và PIN, chọn gói, ghế chạy ngay.</p>'
-      + '<label>Chọn gói</label><select id="t-goi">'
-      + '<option value="">— chọn gói —</option>';
-    (D.goi || []).forEach(function(g){
-      h += '<option value="' + g.menh_gia + '">' + esc(g.ten || '') + ' · ' + tien(g.menh_gia)
-        + '</option>';
-    });
-    h += '</select>'
-      + '<label>Số điện thoại</label>'
-      + '<input id="t-vsdt" type="tel" inputmode="numeric" placeholder="0909 123 456">'
-      + '<label>PIN 4 số</label>'
-      + '<input id="t-vpin" type="tel" inputmode="numeric" maxlength="4" placeholder="1234">'
-      + '<button id="t-tieu" class="chinh" style="margin-top:14px">Trừ số dư, chạy ghế</button>'
-      + '</div>';
-  }
   return h;
 }
 
@@ -930,21 +1002,53 @@ function noi(){
     });
   };
 
-  var tOk = document.getElementById('t-tieu');
-  if (tOk) tOk.onclick = function(){
-    var e = document.getElementById('e'), kq = document.getElementById('kq');
-    var mg = Number((document.getElementById('t-goi')||{}).value || 0);
-    if (!mg) { e.textContent = 'Chọn gói muốn chạy.'; return; }
+  /* Mở ví: tra số dư rồi vẽ lại màn thành các thẻ bấm được. PIN giữ trong biến của trang cho
+     lượt bấm ngay sau đó — không ghi ra đâu cả, đóng trang là mất. */
+  var tMo = document.getElementById('t-mo');
+  if (tMo) tMo.onclick = function(){
+    var e = document.getElementById('t-e');
     var sdt = (document.getElementById('t-vsdt').value || '').trim();
     var pin = (document.getElementById('t-vpin').value || '').trim();
+    if (!/^\d{4}$/.test(pin)) { e.textContent = 'PIN phải gồm đúng 4 chữ số.'; return; }
     if (ban) return;
-    ban = true; tOk.disabled = true; e.textContent = ''; kq.innerHTML = 'Đang trừ tiền…';
-    goi('tieu', { sdt: sdt, pin: pin, menh_gia: mg }, function(r){
-      ban = false; tOk.disabled = false;
-      if (!r.ok) { kq.innerHTML = ''; e.textContent = r.error || 'Không chạy được.'; return; }
-      kq.innerHTML = '<div class="ok" style="margin-top:12px">' + esc(r.thong_bao) + '</div>';
+    ban = true; tMo.disabled = true; e.textContent = 'Đang mở ví…';
+    goi('vi', { sdt: sdt, pin: pin }, function(r){
+      ban = false; tMo.disabled = false;
+      if (!r.ok) { e.textContent = r.error || 'Không mở được ví.'; return; }
+      nhoSdt(sdt); VI = r; VI.pin = pin; ve();
     });
   };
+  var tThoat = document.getElementById('t-thoat');
+  if (tThoat) tThoat.onclick = function(){ VI = null; ve(); };
+
+  /* 🔴 BẤM MỘT THẺ LÀ CHẠY. Không có bước xác nhận: khách đã ngồi lên ghế, đã mở ví, đã nhìn
+     thấy số dư và giá — thêm một hộp "anh/chị chắc chưa?" chỉ làm chậm đúng thứ anh Thắng bảo
+     phải nhanh. Bấm nhầm thì mất một lượt, và một lượt vẫn chạy cho chính người đang ngồi đó. */
+  [].forEach.call(document.querySelectorAll('[data-tieu]'), function(b){
+    b.onclick = function(){
+      if (ban || !VI) return;
+      var mg = Number(b.getAttribute('data-tieu'));
+      var e = document.getElementById('t-e'), kq = document.getElementById('t-kq');
+      ban = true; e.textContent = ''; kq.innerHTML = '<div class="cho">⏳ Đang trừ tiền…</div>';
+      goi('tieu', { sdt: VI.sdt || nhoSdt(), pin: VI.pin, menh_gia: mg }, function(r){
+        ban = false;
+        if (!r.ok) {
+          kq.innerHTML = '';
+          e.textContent = r.error || 'Không chạy được.';
+          /* Số dư có thể vừa đổi (tiêu ở ghế khác) — tra lại để thẻ mờ đúng thực tế. */
+          if (r.so_du) { VI.so_du = r.so_du; ve(); }
+          return;
+        }
+        VI.so_du = r.so_du;
+        kq.innerHTML = '<div class="ok" style="margin-top:12px">' + esc(r.thong_bao) + '</div>';
+        /* Vẽ lại để số dư và các thẻ mờ khớp ngay, nhưng GIỮ lại câu báo vừa hiện. */
+        var giu = kq.innerHTML;
+        ve();
+        var kq2 = document.getElementById('t-kq');
+        if (kq2) kq2.innerHTML = giu;
+      });
+    };
+  });
   [].forEach.call(document.querySelectorAll('[data-chep]'), function(b){
     b.onclick = function(){ chep(b.getAttribute('data-chep'), b); };
   });

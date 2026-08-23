@@ -163,7 +163,44 @@ class VHG_Ma {
 	}
 
 	/** Các mệnh giá đang bán, kèm giá đã giảm — nguồn của trang bán mã. */
-	public static function ds_menh_gia() {
+	/**
+	 * Bảng gói cho trang khách.
+	 *
+	 * 🔴 SỐ PHÚT PHẢI THEO ĐÚNG CÁI GHẾ KHÁCH ĐANG NGỒI.
+	 *    Anh Thắng 23/08/2026: *"Mệnh giá vẫn theo máy"*. Mỗi ghế có tỉ lệ quy đổi RIÊNG
+	 *    (`VHG_May::ty_le_cua`), nên cùng gói 10.000đ có ghế ra 6 phút, ghế khác ra 10 phút.
+	 *
+	 *    Bản trước trả về bảng chung KHÔNG kèm số phút — khách chọn gói mà không biết mình mua
+	 *    bao nhiêu phút, và nếu sau này có hiện phút thì sẽ hiện phút của tỉ lệ chung, tức là
+	 *    SAI ở mọi ghế có tỉ lệ riêng. Con số sai còn tệ hơn không có con số: khách tin nó, ngồi
+	 *    xuống, rồi ghế tắt sớm hơn họ tưởng.
+	 *
+	 * @param string $ma_may Rỗng = dùng tỉ lệ chung (màn mua, chưa biết ghế nào).
+	 */
+	/**
+	 * Còn bán mã lẻ hay không.
+	 *
+	 * Anh Thắng 23/08/2026: *"Thay vì khách mua mã code thì mua gói nạp vào số điện thoại"*.
+	 * Nhưng ba mươi phút trước đó, khi được hỏi thẳng, anh chọn "nằm cạnh". Hai câu không cùng
+	 * hướng — nên đây là một CÔNG TẮC chứ không phải một lần xoá mã: xoá là mất luôn cả nhánh
+	 * đã chạy được, đã có phép thử, và đang có mã của khách chưa dùng nằm trong đó.
+	 *
+	 * ⚠️ MẶC ĐỊNH BẬT. Cài bản mới lên mà tính năng đang chạy tự tắt là một kiểu hỏng im lặng:
+	 *    khách vào trang thấy mất mục mình vẫn dùng, mà không ai bấm gì cả. Anh Thắng tắt khi
+	 *    anh muốn, và tắt xong thì mã đã bán vẫn dùng được như thường — chỉ ngừng bán thêm.
+	 */
+	public static function con_ban_ma() {
+		$o = get_option( 'vhg_ban_ma' );
+		/* `get_option` trả `false` khi CHƯA khai bao giờ — và chưa khai nghĩa là BẬT, không phải
+		   tắt. `(int) false === 0` nên so sánh kiểu số ở đây là mặc định thành tắt; đúng cái bẫy
+		   đã cắn ô quảng cáo ngày 23/08/2026. */
+		if ( false === $o || null === $o || '' === $o ) { return true; }
+		return (bool) (int) $o;
+	}
+
+	public static function ds_menh_gia( $ma_may = '' ) {
+		$m  = '' !== (string) $ma_may ? VHG_May::may( $ma_may ) : null;
+		$tl = VHG_May::ty_le_cua( $m ? $m : array() );
 		$ra = array();
 		foreach ( VHG_May::menh_gia() as $g ) {
 			$mg = (int) $g['tien'];
@@ -175,6 +212,8 @@ class VHG_Ma {
 				'vip'      => ! empty( $g['vip'] ),
 				'giam_pt'  => self::giam_cua( $mg ),
 				'gia_ban'  => self::gia_ban( $mg ),
+				/* Đúng con số ghế đó sẽ chạy — cùng công thức ghế dùng, không tính lại kiểu khác. */
+				'phut'     => VHG_May::phut_goi( $g, (int) $tl['gia'], (int) $tl['phut'] ),
 			);
 		}
 		return $ra;
