@@ -134,6 +134,13 @@ String QC_URL = "";
 /* Số tiền kiểu Việt: 200000 -> "200.000d". Tấm bảng giá treo tường ghi đủ số chứ không viết
    tắt "200k", và khách đối chiếu bảng với màn ghế bằng mắt — hai chỗ ghi khác kiểu là một
    khoảnh khắc ngờ vực ngay lúc sắp trả tiền. */
+/* Kiểu của bộ đọc khung ICT — khai TRƯỚC hàm đầu tiên của tệp. Arduino IDE tự sinh prototype
+   cho mọi hàm tự do rồi đặt lên đầu tệp; kiểu nào khai muộn hơn là prototype tham chiếu tới
+   một kiểu chưa tồn tại, và dịch hỏng ngay. g++ không bắt được vì nó không sinh prototype —
+   tools/test/fw/kiem-cau-truc.py canh đúng chỗ này, và vừa bắt được thật. */
+enum { ICT_KQ_KHONG = 0, ICT_KQ_TIEN, ICT_KQ_KET, ICT_KQ_HET, ICT_KQ_HUY };
+struct IctKhung { uint8_t buoc; uint8_t kenh; };
+
 String tienVN(long v){
   String s = String(v), r = "";
   int n = s.length();
@@ -227,6 +234,23 @@ const unsigned long CASH_BATCH_GAP_MS = 400;   // im lặng >400ms = một tờ/
 #define ICT_KET_THUC      0x10   // byte kết thúc
 #define ICT_NHA           0x29   // nhả tờ ra — khách đút vướng, KHÔNG có tiền
 #define ICT_HET           0x2F   // sẵn sàng lại (đã gỡ kẹt / xong một lượt)
+
+/* ĐỌC MỆNH GIÁ TỪ ĐƯỜNG ICT, thay cho đường đếm xung.
+   ICT nhả ra HAI đường khác nhau, và ghế đang nghe nhầm đường nghèo hơn:
+       đường xung   1 xung = một mức tiền cố định · hỏng thì im lặng · nhiễu là đếm sai
+       đường này    81 + mã kênh + 10 · có mệnh giá thật · có mã kẹt tờ
+   Bật cờ dưới là chuyển sang nghe đường tốt. Đường xung phải TẮT cùng lúc, không thì một tờ
+   tiền được cộng hai lần — có static_assert canh. */
+#define ICT_CONG_TIEN     false  // true = cộng tiền từ khung ICT thay cho đếm xung
+#define ICT_HAN_KHUNG_MS  4000   // quá hạn này mà chưa thấy byte kết thúc thì bỏ khung dở
+
+/* Kênh -> mệnh giá. Cả bốn đều đo bằng tờ thật 24/08/2026, không con nào suy ra.
+   Máy đổi công tắc mệnh giá thì sửa đúng bảng này, không phải sửa chỗ nào khác. */
+struct IctMenhGia { uint8_t kenh; long vnd; };
+
+static const IctMenhGia ICT_BANG_TIEN[] = {
+  { 1,  10000 }, { 2,  20000 }, { 3,  50000 }, { 4, 100000 },
+};
 
 // --- Mạng ---
 const bool  USE_4G   = true;
@@ -393,16 +417,98 @@ int ictXetByte(uint8_t b){
   return 0;
 }
 
-/** Gọi mỗi vòng loop(): đọc ICT, bật/tắt cờ kẹt tiền. */
+/* ——— ĐỌC KHUNG BÁO TIỀN CỦA ICT ———
+   Khung đủ:  81  (0x40+kênh)  10        -> CÓ tiền
+              81  (0x40+kênh)  29        -> đút vướng, ICT nhả ra: KHÔNG tiền
+              29  2F                     -> khách giựt lại / nhét giấy: KHÔNG tiền, KHÔNG có 81
+              25                         -> kẹt tờ
+              2F                         -> sẵn sàng lại
+
+   🔴 BYTE CUỐI mới quyết định có tiền hay không. Hai byte đầu của ca nhận và ca nhả giống HỆT
+   nhau. Cộng tiền ngay khi thấy 81 + mã kênh là cộng cho cả tờ bị nhả ra — khách không mất
+   đồng nào mà ghế vẫn chạy.
+
+   Tách thành hàm thuần để thử được bằng g++ — xem tools/test/fw/kiem-ict-khung.sh. */
+static long ictTienCuaKenh(uint8_t kenh){
+  for(unsigned i = 0; i < sizeof(ICT_BANG_TIEN)/sizeof(ICT_BANG_TIEN[0]); i++){
+    if(ICT_BANG_TIEN[i].kenh == kenh) return ICT_BANG_TIEN[i].vnd;
+  }
+  return 0;   // kênh lạ: KHÔNG đoán bừa. Máy đổi công tắc thì sửa bảng, đừng suy ra ở đây.
+}
+
+int ictNapByte(IctKhung* k, uint8_t b, long* tien){
+  *tien = 0;
+  /* Hai byte trạng thái đứng độc lập, đến lúc nào cũng có nghĩa như nhau — xét trước, và xoá
+     khung dở, vì chúng đánh dấu ICT vừa kết thúc một việc. */
+  if(b == ICT_KET){ k->buoc = 0; return ICT_KQ_KET; }
+  if(b == ICT_HET){ k->buoc = 0; return ICT_KQ_HET; }
+
+  /* BYTE MỞ ĐẦU = BẮT ĐẦU LẠI, ở BẤT KỲ bước nào — phải xét TRƯỚC mọi nhánh theo bước.
+     Không có nhánh này thì một byte 81 lạc — gai nhiễu, hoặc lần nạp trước bị ngắt giữa chừng
+     — nuốt mất tờ tiền THẬT ngay sau nó: 81 lạc đẩy máy sang bước 1, rồi 81 của tờ thật bị coi
+     là "mã kênh sai" nên vứt cả khung. Khách mất tiền, sổ không ghi gì. Hạn giờ 4 giây không
+     cứu được ca hai cái sát nhau. */
+  if(b == ICT_MO_DAU){ k->buoc = 1; return ICT_KQ_KHONG; }
+
+  if(k->buoc == 0){
+    /* 0x29 đứng một mình: khách nhét vào rồi giựt lại, hoặc nhét giấy. Đo được cả hai tình
+       huống, cùng một dấu vết. Không tiền, cũng không kẹt. */
+    if(b == ICT_NHA) return ICT_KQ_HUY;
+    return ICT_KQ_KHONG;                       // gai nhiễu hoặc byte lạ: bỏ
+  }
+  if(k->buoc == 1){
+    if(b >= 0x41 && b <= 0x4F){ k->kenh = (uint8_t)(b - 0x40); k->buoc = 2; return ICT_KQ_KHONG; }
+    k->buoc = 0; return ICT_KQ_KHONG;          // sau 81 mà không phải mã kênh -> khung hỏng
+  }
+  /* buoc == 2 */
+  k->buoc = 0;
+  if(b == ICT_KET_THUC){ *tien = ictTienCuaKenh(k->kenh); return ICT_KQ_TIEN; }
+  if(b == ICT_NHA) return ICT_KQ_HUY;
+  return ICT_KQ_KHONG;
+}
+
+static void congTienVao(long vnd, const char* nguon);   /* khai trước: định nghĩa nằm dưới,
+   cạnh khối MDB. Arduino IDE tự sinh prototype nên vẫn dịch, nhưng đó là may chứ không đúng. */
+
+/** Gọi mỗi vòng loop(): đọc ICT — cộng tiền theo mệnh giá, và bật/tắt cờ kẹt. */
 void ictNghe(){
   if(!NGHE_ICT) return;
+  static IctKhung khung = { 0, 0 };
+  static unsigned long khungTu = 0;
+
+  /* Bỏ khung dở quá hạn. Không có nhánh này thì một byte 81 lạc (gai nhiễu, hoặc lần nạp bị
+     ngắt giữa chừng) nằm lại trong máy trạng thái vô thời hạn — tới lần nạp sau, mã kênh của
+     tờ tiền thật ghép vào cái 81 cũ, và byte 81 mới bị coi là khung hỏng. Lệch một nhịp là
+     sai vĩnh viễn từ đó. */
+  if(khung.buoc && millis() - khungTu > ICT_HAN_KHUNG_MS){
+    Serial.printf("[ICT] bo khung do qua han (buoc %d)\n", khung.buoc);
+    khung.buoc = 0;
+  }
+
   while(IctBus.available()){
-    int v = ictXetByte(IctBus.read());
-    if(v > 0){
+    uint8_t b = (uint8_t) IctBus.read();
+    uint8_t truoc = khung.buoc;
+    long tien = 0;
+    int kq = ictNapByte(&khung, b, &tien);
+    if(!truoc && khung.buoc) khungTu = millis();      // vừa mở khung mới -> bấm giờ
+
+    if(kq == ICT_KQ_TIEN){
+      if(tien > 0){
+        Serial.printf("[ICT] nhan %ld d (kenh %d)\n", tien, khung.kenh);
+        if(ICT_CONG_TIEN) congTienVao(tien, "ict");
+      } else {
+        /* Kênh ngoài bảng. KHÔNG đoán bừa thành một mệnh giá nào — đoán sai là ghi sai doanh
+           thu, mà sai kiểu này không ai phát hiện ra cho tới lúc đối soát cuối tháng. */
+        Serial.printf("[ICT] kenh %d KHONG co trong bang menh gia — bo qua, sua ICT_BANG_TIEN\n",
+                      khung.kenh);
+      }
+    } else if(kq == ICT_KQ_KET){
       ghiLoiTien("ket", true);
-    } else if(v < 0 && strcmp(g_tmLoi, "ket") == 0){
-      g_tmLoi[0] = 0; g_statusDirty = true;
-      Serial.println("[ICT] het ket tien");
+    } else if(kq == ICT_KQ_HET || kq == ICT_KQ_HUY){
+      if(strcmp(g_tmLoi, "ket") == 0){
+        g_tmLoi[0] = 0; g_statusDirty = true;
+        Serial.println("[ICT] het ket tien");
+      }
     }
   }
 }
@@ -1590,6 +1696,13 @@ static_assert(!(USE_MDB && NGHE_ICT),
   "USE_MDB va NGHE_ICT cung dung GPIO35 lam chan nghe — bat ca hai thi hai khoi gianh nhau "
   "mot chan, doc ra rac. Chon MOT.");
 
+static_assert(!(ICT_CONG_TIEN && CASH_ENABLE),
+  "ICT_CONG_TIEN va CASH_ENABLE cung cong tien tu MOT cuc nhan tien, chi khac duong day: "
+  "khung 81/kenh/10 va xung dem. Bat ca hai la moi to tien duoc cong HAI LAN. Chon MOT.");
+
+static_assert(!(ICT_CONG_TIEN && !NGHE_ICT),
+  "ICT_CONG_TIEN can NGHE_ICT bat len — khong nghe thi lay dau ra khung de doc.");
+
 static_assert(!(USE_MDB && CASH_ENABLE),
   "USE_MDB va CASH_ENABLE cung dung GPIO27 — bat ca hai la ghe tu dem tin hieu minh phat ra "
   "thanh tien khach nap. Chon MOT: may MDB thi CASH_ENABLE=false, may xung thi USE_MDB=false.");
@@ -1677,12 +1790,12 @@ void mdbInit(){
 /* Máy MDB báo đã nuốt một tờ -> chạy/cộng giờ ghế, rồi xếp vào hàng chờ ghi sổ.
    Dùng CHUNG `g_pendingCashLog` + `g_cashRef` với đường đếm xung: một chỗ ghi sổ duy nhất, nên
    không thể có chuyện hai đường ghi ra hai kiểu. */
-static void mdbCreditVnd(long vnd){
+static void congTienVao(long vnd, const char* nguon){
   if(vnd <= 0) return;
   int minutes = (PRICE_VND>0) ? (int)((vnd*(long)MINUTES)/PRICE_VND) : 0;
-  Serial.printf("[MDB] +%ld d -> %d phut\n", vnd, minutes);
+  Serial.printf("[%s] +%ld d -> %d phut\n", nguon, vnd, minutes);
   if(minutes <= 0) return;
-  if(state==ST_RUNNING){ runUntil += (unsigned long)minutes*60000UL; g_statusDirty=true; Serial.println("[MDB] +gio (dang chay)"); }
+  if(state==ST_RUNNING){ runUntil += (unsigned long)minutes*60000UL; g_statusDirty=true; Serial.printf("[%s] +gio (dang chay)\n", nguon); }
   else { g_srcCode='c'; startRunning(minutes); }
   portENTER_CRITICAL(&g_mux);
   g_pendingCashLog += vnd;
@@ -1690,7 +1803,7 @@ static void mdbCreditVnd(long vnd){
      dung) — mà giờ thì đổi mỗi giây, nên netTask gửi lại vì mạng chập chờn là đẻ ra một dòng
      doanh thu MỚI. Cùng lý do với đường đếm xung, xem checkCash(). */
   if(g_cashRef[0] == 0){
-    snprintf(g_cashRef, sizeof(g_cashRef), "mdb-%s-%lu",
+    snprintf(g_cashRef, sizeof(g_cashRef), "%s-%s-%lu", nguon,
       CHAIR_ID.length()?CHAIR_ID.c_str():"?", (unsigned long)millis());
   }
   portEXIT_CRITICAL(&g_mux);
@@ -1777,7 +1890,7 @@ void mdbTask(){
           uint8_t routing = (z>>4)&0x07, type = z & 0x0F;
           long val = (long)mdbCredit[type]*mdbScale;
           Serial.printf("[MDB] BILL routing=%d type=%d val=%ld\n", routing, type, val);
-          if(routing==0 || routing==1) mdbCreditVnd(val);   // 0=đã vào khay, 1=escrow
+          if(routing==0 || routing==1) congTienVao(val, "mdb");   // 0=đã vào khay, 1=escrow
         } else {
           const char* ma = mdbMaLoi(z);
           Serial.printf("[MDB] status 0x%02X%s%s\n", z, ma ? " -> LOI: " : "", ma ? ma : "");
