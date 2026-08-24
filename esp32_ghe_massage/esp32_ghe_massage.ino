@@ -197,29 +197,36 @@ const unsigned long CASH_BATCH_GAP_MS = 400;   // im lặng >400ms = một tờ/
 #define CASH_BOI_SO       10000  // mọi mệnh giá VN từ 10.000 lên đều chia hết cho 10.000
 #define CASH_NHIEU_NGUONG 6      // số cạnh bị chống nảy loại trong một đợt -> coi là nhiễu
 
-/* --- NGHE CẢNH BÁO TỪ BO GHẾ -------------------------------------------------------------
+/* --- NGHE ICT: báo tiền và báo kẹt --------------------------------------------------------
    Bốn phép trên chỉ SUY từ một sợi dây xung, nên không tách được "kẹt tiền" khỏi "cả buổi
-   không ai nạp tiền". Bo ghế thì NÓI THẲNG: trên đường nó nói chuyện với cục nhận tiền, lúc
-   kẹt tờ nó phát khung 0xF8, lặp 15–25 giây một lần. Dò ra và xác nhận 24/08/2026 — xem
-   docs/GIAO-THUC-BO-GHE.md.
+   không ai nạp tiền". ICT thì NÓI THẲNG trên cổng nối tiếp của nó — dò xong 24/08/2026, xem
+   docs/GIAO-THUC-BO-GHE.md:
 
-   Đã loại trừ nhiễu bằng phép thử tách bạch: gỡ tờ kẹt ra thì 0xF8 HẾT HẲN. Chỗ này ban đầu
-   tưởng là gai, vì 0xF8 nằm cùng họ với 0xFF/0xFE mà gai hay sinh ra.
+        NHẬN được:  81  (0x40+kênh)  10     kênh 1=10k · 2=20k · 3=50k · 4=100k
+        NHẢ ra:     81  (0x40+kênh)  29     khách đút vướng, tờ trả lại — KHÔNG có tiền
+        kẹt tờ:     25
+        sẵn sàng:   2F
 
-   CHỈ NGHE. Không khai chân TX, nên dù mã có sai cũng không đẩy được gì vào bo ghế — đây là
-   bus của máy đang chạy tiền khách.
+   🔴 BYTE CUỐI MỚI QUYẾT ĐỊNH CÓ TIỀN HAY KHÔNG. Hai byte đầu giống hệt nhau ở cả hai ca, nên
+      cộng tiền ngay khi thấy 81 + mã kênh là mỗi lần khách đút hụt lại cộng một tờ không có
+      thật. Chỉ 0x10 mới là tiền đã vào.
 
-   Vì sao đọc được bằng UART phần cứng: khung của bo ghế là 11 bit (start + 8 data + 1 bit thứ
-   chín + stop). MDB gọi bit thứ chín là "mode bit", UART gọi là bit chẵn lẻ — trên dây hai cách
-   hiểu giống hệt nhau. 0xF8 có 5 bit 1, chẵn lẻ CHẴN ra 1, đúng bằng bit thứ chín đo được. Nên
-   SERIAL_8E1 đọc đúng nó, khỏi phải tự nhấp chân và khỏi chiếm CPU của vòng lặp chính. */
-#define NGHE_BO_GHE       true   // đặt false nếu chưa đấu dây nghe
-#define BO_GHE_RX_PIN     35     // chỉ-vào-được; trùng MDB_RX_PIN nhưng hai đường loại trừ nhau
-#define BO_GHE_BAUD       9600
-#define BO_GHE_KET        0xF8   // khung bo ghế phát khi kẹt tờ
-#define BO_GHE_KET_LAN    2      // cần thấy ngần này lần mới báo — một lần đơn lẻ vẫn có thể là gai
-#define BO_GHE_KET_CUA_MS 60000  // trong cửa sổ này
-#define BO_GHE_HET_MS     120000 // im ngần này thì coi như hết kẹt
+   ⚠️ ĐÃ BỎ hướng cũ (nghe bo ghế ở 9600 tìm 0xF8). Lý do:
+      · 0xF8 = 1111 1000 nằm đúng họ với 0xFF/0xFE mà GAI NHIỄU hay sinh ra — một xung xuống
+        ngắn làm mã tưởng có bit start rồi đọc tiếp toàn bit 1. Phải gom nhiều lần mới dám báo,
+        mà nhịp đo được lại không ổn định (mẻ đầu 15–25 giây, mẻ sau 297 giây).
+      · 0x25 = 0010 0101 có bit 0 xen giữa nên gai KHÔNG sinh ra được. Đọc một lần là tin được.
+      · Và nó ở cùng đường, cùng tốc độ với báo tiền — một chân lo cả hai việc.
+
+   CHỈ NGHE. Không khai chân TX, nên dù mã có sai cũng không đẩy được gì vào đường của ICT. */
+#define NGHE_ICT          true   // đặt false nếu chưa đấu dây nghe
+#define ICT_RX_PIN        35     // chỉ-vào-được; qua chia áp 1k/2k vì ICT chạy 5V
+#define ICT_BAUD          4800
+#define ICT_KET           0x25   // ICT báo kẹt tờ
+#define ICT_MO_DAU        0x81   // byte mở đầu một lần nạp tiền
+#define ICT_KET_THUC      0x10   // byte kết thúc
+#define ICT_NHA           0x29   // nhả tờ ra — khách đút vướng, KHÔNG có tiền
+#define ICT_HET           0x2F   // sẵn sàng lại (đã gỡ kẹt / xong một lượt)
 
 // --- Mạng ---
 const bool  USE_4G   = true;
@@ -359,55 +366,43 @@ void ghiLoiTien(const char* ma, bool dangDienRa){
   Serial.printf("[TIEN] %s: %s\n", dangDienRa ? "DANG LOI" : "vua xay ra", ma);
 }
 
-/* ---- NGHE BO GHẾ: bắt khung 0xF8 = kẹt tiền ---- */
-HardwareSerial BoGhe(1);          // Serial2 đã dành cho 4G, Serial0 cho cổng nạp
-static uint8_t       g_ketLan   = 0;         // số lần thấy 0xF8 trong cửa sổ hiện tại
-static unsigned long g_ketDau   = 0;         // mốc mở cửa sổ đếm
-static unsigned long g_ketCuoi  = 0;         // lần thấy gần nhất — để biết khi nào hết kẹt
+/* ---- NGHE ICT: 0x25 = kẹt tờ · 0x2F = đã gỡ ---- */
+HardwareSerial IctBus(1);         // Serial2 đã dành cho 4G, Serial0 cho cổng nạp
 
-void boGheInit(){
-  if(!NGHE_BO_GHE) return;
+void ictInit(){
+  if(!NGHE_ICT) return;
   /* TX = -1: KHÔNG khai chân đẩy ra. Một dòng này là toàn bộ lớp an toàn — không có chân TX
-     thì không đường nào lỡ tay nói vào bus của bo ghế. */
-  BoGhe.begin(BO_GHE_BAUD, SERIAL_8E1, BO_GHE_RX_PIN, -1);
-  Serial.printf("[BOGHE] nghe GPIO %d @%d 8E1 — bat khung %02X = ket tien\n",
-                BO_GHE_RX_PIN, BO_GHE_BAUD, BO_GHE_KET);
+     thì không đường nào lỡ tay nói vào đường của ICT. */
+  IctBus.begin(ICT_BAUD, SERIAL_8N1, ICT_RX_PIN, -1);
+  Serial.printf("[ICT] nghe GPIO %d @%d 8N1 — %02X ket, %02X het ket\n",
+                ICT_RX_PIN, ICT_BAUD, ICT_KET, ICT_HET);
 }
 
-/* Hai hàm dưới CỐ Ý tách khỏi phần đọc cổng: chúng là toàn bộ phần dễ sai (cửa sổ trượt,
-   ngưỡng, lúc nào coi là hết kẹt) và tách ra thì thử được bằng g++ trên máy, không cần ESP32
-   cũng không cần bo ghế. Xem tools/test/fw/kiem-ket-tien.sh. */
-
-/** Nhận một byte vừa đọc. Trả true khi đủ điều kiện BÁO kẹt tiền. */
-bool boGheDemKet(uint8_t b, unsigned long nay){
-  if(b != BO_GHE_KET) return false;
-  /* Cửa sổ trượt: quá hạn thì mở cửa sổ mới thay vì cộng dồn mãi. Cộng dồn thì hai gai cách
-     nhau nửa tiếng cũng thành "kẹt", mà báo động giả dạy người ta bỏ qua cảnh báo. */
-  if(g_ketLan == 0 || nay - g_ketDau > BO_GHE_KET_CUA_MS){ g_ketDau = nay; g_ketLan = 0; }
-  if(g_ketLan < 255) g_ketLan++;
-  g_ketCuoi = nay;
-  return (g_ketLan >= BO_GHE_KET_LAN);
+/* Tách riêng để thử được bằng g++ trên máy, không cần ESP32 cũng không cần ICT.
+   Xem tools/test/fw/kiem-ket-tien.sh.
+   Trả:  1 = vừa KẸT · -1 = vừa HẾT kẹt · 0 = byte khác, không đổi gì. */
+int ictXetByte(uint8_t b){
+  if(b == ICT_KET) return 1;
+  if(b == ICT_HET) return -1;
+  /* Máy vừa nuốt xong một tờ, hoặc vừa nhả một tờ ra — cả hai đều chứng tỏ nó đang cử động
+     bình thường, nên xoá cờ kẹt. Bắt thêm hai byte này để phòng ca ICT quên gửi 0x2F: thà xoá
+     cờ hơi sớm còn hơn web treo cảnh báo kẹt suốt trong khi máy vẫn ăn tiền.
+     0x29 đến một mình (không có 81 mở đầu) là ca khách giựt tiền lại hoặc nhét giấy — đo được
+     cả hai tình huống, cùng cho 29 rồi 2F. Không có tiền, cũng không kẹt: xoá cờ là đúng. */
+  if(b == ICT_KET_THUC || b == ICT_NHA) return -1;
+  return 0;
 }
 
-/** Trả true đúng MỘT lần, khi bo ghế đã im đủ lâu để coi là hết kẹt. */
-bool boGheHetKet(unsigned long nay){
-  if(!g_ketCuoi || nay - g_ketCuoi <= BO_GHE_HET_MS) return false;
-  g_ketCuoi = 0; g_ketLan = 0;
-  return true;
-}
-
-/** Gọi mỗi vòng loop(): đọc bo ghế, gom 0xF8 lại rồi mới báo. */
-void boGheNghe(){
-  if(!NGHE_BO_GHE) return;
-
-  while(BoGhe.available()){
-    if(boGheDemKet(BoGhe.read(), millis())) ghiLoiTien("ket", true);
-  }
-
-  if(boGheHetKet(millis())){
-    if(strcmp(g_tmLoi, "ket") == 0){
+/** Gọi mỗi vòng loop(): đọc ICT, bật/tắt cờ kẹt tiền. */
+void ictNghe(){
+  if(!NGHE_ICT) return;
+  while(IctBus.available()){
+    int v = ictXetByte(IctBus.read());
+    if(v > 0){
+      ghiLoiTien("ket", true);
+    } else if(v < 0 && strcmp(g_tmLoi, "ket") == 0){
       g_tmLoi[0] = 0; g_statusDirty = true;
-      Serial.println("[BOGHE] khong con 0xF8 — het ket tien");
+      Serial.println("[ICT] het ket tien");
     }
   }
 }
@@ -1591,8 +1586,8 @@ void checkCash(){
 #define MDB_DEBUG    true     // in RAW từng byte 9-bit nhận được — để soi máy có trả lời không
 #define MDB_INVERT_TX true    // cực tính GỬI ban đầu; firmware tự đảo thử nếu máy không trả lời
 
-static_assert(!(USE_MDB && NGHE_BO_GHE),
-  "USE_MDB va NGHE_BO_GHE cung dung GPIO35 lam chan nghe — bat ca hai thi hai khoi gianh nhau "
+static_assert(!(USE_MDB && NGHE_ICT),
+  "USE_MDB va NGHE_ICT cung dung GPIO35 lam chan nghe — bat ca hai thi hai khoi gianh nhau "
   "mot chan, doc ra rac. Chon MOT.");
 
 static_assert(!(USE_MDB && CASH_ENABLE),
@@ -1771,7 +1766,7 @@ void setup(){
   Serial.begin(115200); delay(200);
   Serial.println("\n\n=== " FW_VERSION " ===");
   pinMode(RELAY_PIN, OUTPUT); relaySet(false);
-  boGheInit();
+  ictInit();
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CASH_PULSE_PIN), onCashPulse, FALLING); }
@@ -1810,7 +1805,7 @@ void setup(){
 void loop(){
   { static uint32_t _pc=0; uint32_t c=g_cashPulses; if(c!=_pc){ _pc=c; g_lastPulseMs=millis(); } }
   kiemCucTien();
-  boGheNghe();
+  ictNghe();
   checkCash();
   mdbTask();
 

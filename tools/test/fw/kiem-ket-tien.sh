@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
-# Kiểm phép GOM 0xF8 -> báo kẹt tiền, bằng g++ — không cần ESP32, không cần bo ghế.
+# Kiểm phép ĐỌC BYTE CỦA ICT trong firmware ghế, bằng g++ — không cần ESP32, không cần máy thật.
 #
-# VÌ SAO CẦN
-# 0xF8 là bo ghế báo kẹt tờ (dò và xác nhận 24/08/2026). Nhưng nó nằm cùng họ với 0xFF/0xFE mà
-# gai nhiễu hay sinh ra, nên KHÔNG được báo ngay lần đầu: phải thấy đủ số lần trong một cửa sổ.
-# Hai chỗ dễ sai và đều im lặng:
-#   - cộng dồn thay vì cửa sổ TRƯỢT: hai gai cách nhau nửa tiếng cũng thành "kẹt"
-#   - quên xoá cờ khi bo ghế im lại: web báo kẹt mãi dù tờ đã gỡ
-# Báo động giả thì người ta học cách bỏ qua cảnh báo — tệ hơn không báo.
+# GIAO THỨC (dò 24/08/2026 bằng cách nạp tờ thật rồi đọc thẳng cổng ICT — xem docs/GIAO-THUC-BO-GHE.md)
+#     81  (0x40+kênh)  10     NHẬN được    kênh 1=10k · 2=20k · 3=50k · 4=100k
+#     81  (0x40+kênh)  29     NHẢ ra       khách đút vướng — KHÔNG có tiền
+#     29  2F                  khách giựt tiền lại, hoặc nhét giấy — KHÔNG có byte mở đầu
+#     25                      kẹt tờ
+#     2F                      sẵn sàng lại
+#
+# VÌ SAO CẦN PHÉP THỬ NÀY
+#   · 0x25 và 0x2F chỉ khác nhau vài bit; đảo nhầm là web báo kẹt khi máy đang chạy tốt, hoặc
+#     tệ hơn, im lặng khi máy đang nuốt tiền của khách.
+#   · 0x29 (nhả ra) rất dễ bị coi là "xong một lượt bình thường". Hai byte ĐẦU của ca nhận và
+#     ca nhả giống hệt nhau — chỉ byte cuối phân biệt.
+#   · 0x29 còn đến MỘT MÌNH, không có 81 mở đầu, khi khách giựt tờ lại hoặc nhét giấy. Lúc đó
+#     máy không kẹt và cũng không có tiền — nhận nhầm thành kẹt là web treo cảnh báo oan.
 #
 # Trích hàm TỪ CHÍNH .ino chứ không chép lại — chép là sớm muộn lệch với firmware đang chạy.
 #
@@ -22,19 +29,13 @@ python3 - "$INO" "$TMP/trich.inc" <<'PY'
 import io, re, sys
 s = io.open(sys.argv[1], encoding='utf-8').read()
 lay = []
-for ten in ('BO_GHE_KET', 'BO_GHE_KET_LAN', 'BO_GHE_KET_CUA_MS', 'BO_GHE_HET_MS'):
+for ten in ('ICT_KET', 'ICT_HET', 'ICT_NHA', 'ICT_MO_DAU', 'ICT_KET_THUC'):
     m = re.search(r'^#define\s+' + ten + r'\s+\S+', s, re.M)
     if not m: sys.exit('KHÔNG thấy #define %s trong .ino' % ten)
     lay.append(m.group(0).split('//')[0].rstrip())
-for ten in ('g_ketLan', 'g_ketDau', 'g_ketCuoi'):
-    # kiểu có thể nhiều từ ("unsigned long"), nên không dùng \w+ đơn
-    m = re.search(r'^static\s+[A-Za-z_][\w\s]*?\b' + ten + r'\s*=\s*[^;]*;', s, re.M)
-    if not m: sys.exit('KHÔNG thấy biến %s trong .ino' % ten)
-    lay.append(m.group(0))
-for ten in ('boGheDemKet', 'boGheHetKet'):
-    m = re.search(r'\n(bool ' + ten + r'\([^)]*\)\s*\{.*?\n\})', s, re.S)
-    if not m: sys.exit('KHÔNG thấy hàm %s trong .ino — đổi tên thì sửa luôn phép thử này.' % ten)
-    lay.append(m.group(1))
+m = re.search(r'\n(int ictXetByte\([^)]*\)\s*\{.*?\n\})', s, re.S)
+if not m: sys.exit('KHÔNG thấy hàm ictXetByte trong .ino — đổi tên thì sửa luôn phép thử này.')
+lay.append(m.group(1))
 io.open(sys.argv[2], 'w', encoding='utf-8').write('\n'.join(lay) + '\n')
 PY
 
@@ -44,54 +45,40 @@ cat > "$TMP/t.cpp" <<'CPP'
 #include "trich.inc"
 
 static int hong = 0;
-static void t(const char* ten, bool dieu) {
-  if (!dieu) { std::printf("  HỎNG %s\n", ten); hong++; }
+static void teq(const char* ten, int mong, int nhan) {
+  if (mong != nhan) { std::printf("  HỎNG %-46s mong %d, được %d\n", ten, mong, nhan); hong++; }
 }
-static void datLai() { g_ketLan = 0; g_ketDau = 0; g_ketCuoi = 0; }
 
 int main() {
-  const uint8_t KET = BO_GHE_KET, THUONG = 0x00, GAI = 0xFF;
+  //  1 = vừa KẸT · -1 = vừa HẾT kẹt · 0 = byte khác
+  teq("0x25 = kẹt tờ",                     1, ictXetByte(ICT_KET));
+  teq("0x2F = sẵn sàng lại",              -1, ictXetByte(ICT_HET));
+  teq("0x10 = nuốt xong -> máy vẫn chạy", -1, ictXetByte(ICT_KET_THUC));
+  teq("0x29 = nhả ra  -> máy vẫn chạy",   -1, ictXetByte(ICT_NHA));
 
-  // 1) MỘT lần 0xF8 thì CHƯA báo — có thể chỉ là gai
-  datLai();
-  t("một lần 0xF8 chưa báo", !boGheDemKet(KET, 1000));
+  // byte mở đầu và mã mệnh giá KHÔNG được đụng tới cờ kẹt
+  teq("0x81 mở đầu: không đổi gì",         0, ictXetByte(ICT_MO_DAU));
+  teq("0x41 (10k):  không đổi gì",         0, ictXetByte(0x41));
+  teq("0x42 (20k):  không đổi gì",         0, ictXetByte(0x42));
+  teq("0x43 (50k):  không đổi gì",         0, ictXetByte(0x43));
+  teq("0x44 (100k): không đổi gì",         0, ictXetByte(0x44));
 
-  // 2) đủ số lần trong cửa sổ thì BÁO
-  datLai();
-  boGheDemKet(KET, 1000);
-  t("đủ số lần trong cửa sổ thì báo", boGheDemKet(KET, 20000));
+  // gai nhiễu hay ra dạng toàn bit 1 — không được nhận nhầm thành lệnh nào
+  teq("gai 0xFF: không đổi gì",            0, ictXetByte(0xFF));
+  teq("gai 0xFE: không đổi gì",            0, ictXetByte(0xFE));
+  teq("gai 0xF8: không đổi gì",            0, ictXetByte(0xF8));
+  teq("0x00: không đổi gì",                0, ictXetByte(0x00));
 
-  // 3) byte khác không tính
-  datLai();
-  t("byte thường không tính", !boGheDemKet(THUONG, 1000));
-  t("gai 0xFF không tính", !boGheDemKet(GAI, 2000));
-  t("hai byte lạ rồi một 0xF8 vẫn chưa đủ", !boGheDemKet(KET, 3000));
+  // khách giựt tiền lại / nhét giấy: 29 rồi 2F, KHÔNG có 81 mở đầu. Đo được cả hai tình
+  // huống, cùng một dấu vết. Máy không kẹt -> tuyệt đối không được trả 1.
+  teq("giựt lại: 0x29 đứng một mình",     -1, ictXetByte(0x29));
+  teq("giựt lại: 0x2F theo sau",          -1, ictXetByte(0x2F));
 
-  // 4) CỬA SỔ TRƯỢT: hai lần cách nhau QUÁ XA thì không được cộng dồn
-  datLai();
-  boGheDemKet(KET, 1000);
-  t("hai lần cách quá cửa sổ thì KHÔNG báo",
-    !boGheDemKet(KET, 1000 + BO_GHE_KET_CUA_MS + 1));
-  // và lần đó phải mở cửa sổ MỚI, nên thêm một lần nữa trong cửa sổ mới là báo
-  t("nhưng mở cửa sổ mới, lần kế tiếp thì báo",
-    boGheDemKet(KET, 1000 + BO_GHE_KET_CUA_MS + 2));
+  // 0x25 và 0x2F chỉ khác vài bit — canh đúng chiều, đảo nhầm là báo ngược
+  if (ICT_KET == ICT_HET) { std::printf("  HỎNG kẹt và hết kẹt trùng mã\n"); hong++; }
+  teq("kẹt rồi hết: cờ đảo đúng chiều",   -1, ictXetByte(ICT_HET));
 
-  // 5) HẾT KẸT: im đủ lâu thì trả true đúng MỘT lần
-  datLai();
-  boGheDemKet(KET, 1000);
-  boGheDemKet(KET, 2000);
-  t("chưa im đủ lâu thì chưa coi là hết", !boGheHetKet(2000 + BO_GHE_HET_MS));
-  t("im đủ lâu thì báo hết", boGheHetKet(2000 + BO_GHE_HET_MS + 1));
-  t("và chỉ báo hết ĐÚNG MỘT LẦN", !boGheHetKet(2000 + BO_GHE_HET_MS + 2));
-
-  // 6) sau khi hết kẹt, bộ đếm phải sạch — không thì một 0xF8 lẻ sau đó báo kẹt ngay
-  t("sau khi hết, một lần 0xF8 chưa báo lại", !boGheDemKet(KET, 999999));
-
-  // 7) chưa từng thấy 0xF8 thì không bao giờ "hết kẹt"
-  datLai();
-  t("chưa kẹt thì không báo hết", !boGheHetKet(999999));
-
-  if (!hong) { std::printf("  gom 0xF8 -> kẹt tiền: SẠCH (11 phép)\n"); }
+  if (!hong) { std::printf("  đọc byte ICT: SẠCH (17 phép)\n"); }
   return hong ? 1 : 0;
 }
 CPP
@@ -100,22 +87,17 @@ cp "$TMP/trich.inc" "$TMP/trich.inc.bak"
 g++ -std=c++17 -I"$TMP" -o "$TMP/t" "$TMP/t.cpp"
 "$TMP/t"
 
-# ——— thử ngược: bẻ cửa sổ trượt thành cộng dồn, phép thử phải bắt được ———
-sed 's/if(g_ketLan == 0 || nay - g_ketDau > BO_GHE_KET_CUA_MS){ g_ketDau = nay; g_ketLan = 0; }//' \
-    "$TMP/trich.inc.bak" > "$TMP/trich.inc"
-g++ -std=c++17 -I"$TMP" -o "$TMP/t2" "$TMP/t.cpp"
-if "$TMP/t2" >/dev/null 2>&1; then
-  echo "  ⚠ PHÉP THỬ VÔ DỤNG: bỏ cửa sổ trượt mà vẫn báo sạch"; exit 1
-else
-  echo "  thử ngược: bỏ cửa sổ trượt → phép thử BẮT ĐƯỢC, tốt"
-fi
+thu_nguoc() {
+  local ten="$1" sed_lenh="$2"
+  sed "$sed_lenh" "$TMP/trich.inc.bak" > "$TMP/trich.inc"
+  g++ -std=c++17 -I"$TMP" -o "$TMP/tx" "$TMP/t.cpp" 2>/dev/null || { echo "  thử ngược ($ten): không dịch được -> coi như bắt được"; return; }
+  if "$TMP/tx" >/dev/null 2>&1; then
+    echo "  ⚠ PHÉP THỬ VÔ DỤNG: $ten mà vẫn báo sạch"; exit 1
+  else
+    echo "  thử ngược: $ten → BẮT ĐƯỢC, tốt"
+  fi
+}
 
-# ——— thử ngược 2: hạ ngưỡng xuống 1 lần (báo ngay từ gai đầu tiên) ———
-sed 's/#define BO_GHE_KET_LAN    2/#define BO_GHE_KET_LAN    1/' \
-    "$TMP/trich.inc.bak" > "$TMP/trich.inc"
-g++ -std=c++17 -I"$TMP" -o "$TMP/t3" "$TMP/t.cpp"
-if "$TMP/t3" >/dev/null 2>&1; then
-  echo "  ⚠ PHÉP THỬ VÔ DỤNG: hạ nguong ve 1 ma van bao sach"; exit 1
-else
-  echo "  thử ngược: hạ ngưỡng về 1 lần → phép thử BẮT ĐƯỢC, tốt"
-fi
+thu_nguoc "đảo kẹt/hết kẹt"          's/if(b == ICT_KET) return 1;/if(b == ICT_KET) return -1;/'
+thu_nguoc "coi 0x29 là không có gì"  's/if(b == ICT_KET_THUC || b == ICT_NHA) return -1;/if(b == ICT_KET_THUC) return -1;/'
+thu_nguoc "nhận nhầm gai 0xFF"       's/if(b == ICT_KET) return 1;/if(b == ICT_KET || b == 0xFF) return 1;/'

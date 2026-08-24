@@ -69,6 +69,15 @@ static void moCong(){
         50.000đ  →  81  43  10
        100.000đ  →  81  44  10
 
+   Các byte khác của ICT, đo cùng ngày:
+        81 (mã kênh) 29   khách đút vướng, NHẢ tờ ra — KHÔNG có tiền
+        29  2F            khách giựt tờ lại, hoặc nhét giấy — KHÔNG có byte 81 mở đầu
+        25                kẹt tờ
+        2F                sẵn sàng lại
+
+   🔴 Byte CUỐI mới quyết định có tiền hay không: 0x10 là đã nuốt, 0x29 là nhả ra. Hai byte đầu
+      giống hệt nhau ở cả hai ca. Bơm thì phải kết bằng 0x10.
+
    Byte đầu và byte cuối giống hệt nhau ở cả ba; chỉ byte GIỮA đổi, theo đúng cách ICT đánh số
    kênh mệnh giá: 0x40 + số kênh. Kênh 1 = 10k, 2 = 20k, 3 = 50k, 4 = 100k — cả bốn đều đo
    bằng tờ thật, không có con nào suy ra.

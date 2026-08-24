@@ -143,6 +143,38 @@ Nhịp cũng cố định:
 
 1,2 giây là lúc ICT kéo tờ tiền vào và xác nhận. Bơm mà bỏ nhịp này thì bo ghế có thể không nhận.
 
+### Bốn ca KHÔNG có tiền — đo 24/08/2026
+
+Ngoài ca nhận được tiền, ICT còn phát ra bốn kiểu dấu vết nữa. Ghi lại đủ vì chúng
+quyết định lúc nào ĐƯỢC bơm và lúc nào KHÔNG.
+
+```
+81  (0x40+kênh)  10        NHẬN được — CÓ tiền, bơm sang ghế
+81  (0x40+kênh)  29        đút vướng, ICT nhả tờ ra — KHÔNG tiền
+29  2F                     khách giựt lại / nhét giấy — KHÔNG tiền, KHÔNG có byte mở đầu
+25                         kẹt tờ
+2F                         sẵn sàng lại (gỡ xong kẹt, hoặc xong một lượt)
+```
+
+🔴 **Byte CUỐI mới quyết định có tiền hay không.** Hai dòng đầu bảng mở đầu giống hệt
+nhau — cùng `81`, cùng mã mệnh giá. Ai bơm ngay khi thấy `81 41` là cộng tiền cho cả
+tờ bị nhả ra. Phải chờ tới byte thứ ba: `10` = có, `29` = không.
+
+Ca thứ ba khác hẳn: **không có `81`, không có mã mệnh giá**. Hai tình huống đo riêng
+biệt đều cho đúng dấu vết này:
+
+| Việc khách làm | Log đọc được |
+|---|---|
+| nhét tờ vào rồi giựt lại | `29` → `2F` |
+| nhét giấy (không phải tiền) | `29` → `2F` |
+
+Giống nhau là đúng chứ không phải trùng hợp: cả hai lần ICT đều chưa kịp nhận diện
+mệnh giá nên không có gì để báo, chỉ nói "đã đẩy ra" rồi "sẵn sàng". Không cần tách
+hai ca — với ghế thì cả hai đều là *không có tiền*, xử lý y như nhau.
+
+Nhờ vậy quy tắc đọc gọn lại còn một câu: **chỉ bơm khi bắt được đủ bộ ba kết thúc
+bằng `10`.** Mọi thứ khác là không tiền.
+
 ### ⚠️ `0x02` ở các bản ghi trước là SAI
 
 Mấy bản ghi logic analyzer đầu cho ra một byte `0x02` cho mọi mệnh giá, và em đã suýt viết mã
