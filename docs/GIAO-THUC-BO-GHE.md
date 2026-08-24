@@ -163,6 +163,31 @@ Muốn vừa bơm vừa nghe lại thì hoặc hạ trở kéo lên xuống 1kΩ
 RX22 là chân VÀO trở kháng cao, có mạch thật bên trong ghế. Đáng ghi vì suốt buổi dò không có
 cách nào khác xác nhận được điều đó.
 
+### 🔴 KHÔNG CHEN VÀO GIỮA ĐƯỢC — cắt sợi nào cũng khoá
+
+Thử đủ, đêm 24/08/2026:
+
+| Đã thử | Kết quả |
+|---|---|
+| Cắt sợi B (ghế → ICT) | ICT nháy 2 đỏ |
+| Cắt sợi A (ICT → ghế) | ICT nháy 2 đỏ |
+| Cắt A, chen ESP32 vào, chuyển tiếp đúng byte | nháy đỏ · tờ tiền bị nhả ra, rồi kẹt |
+| Đảo chiều nói, thử cả hai chiều | không đổi |
+
+Byte chuyển tiếp **đúng** — log ghi rõ `81> 41> 10>`, dấu `>` là đã đẩy sang ghế. Nên không
+phải chuyện dữ liệu, không phải chuyện cực tính, không phải chuyện bộ lọc. Hệ ghế ↔ ICT đơn
+giản là **không chấp nhận có ai đứng giữa**.
+
+Hai kết luận trung gian trong đêm đó đều SAI và đã bị bác bằng thí nghiệm:
+- ~~"không được kẹp song song, phải cắt"~~ → ngược hẳn: kẹp song song chạy tốt
+- ~~"cắt riêng sợi A thì được"~~ → cắt sợi nào cũng khoá
+
+**Đường đi được, đã chứng minh trên máy thật: KẸP SONG SONG NGHE.** Không cắt, không đẩy ra.
+Xem mục "KẸP SONG SONG BẰNG 10k/20k CHẠY TỐT".
+
+Muốn ESP32 chạy ghế cho khách quét QR thì dùng **relay GPIO 17** như firmware vẫn làm — bo ghế
+không cần biết chuyện tiền nong. Bơm serial không giải quyết vấn đề nào đang tồn tại.
+
 ### Sợi B KHÔNG chở dữ liệu — nó là dây MỨC
 
 Kẹp nghe sợi B ở 9600 · 8E1, ba tình huống, đều không có gì:
@@ -210,7 +235,7 @@ phạm là sợi B.
 Khớp đúng cách bo hãng khác đấu, như chủ máy tả ngay từ đầu: *"rx22 trên ghế gắn vào esp32.
 tx22 gắn ict"* — sợi B chạy thẳng ghế ↔ ICT, chỉ sợi A đi vòng qua ESP32.
 
-**Quy tắc rút ra:** muốn chen vào giữa thì cắt **riêng sợi A**. Sợi B để nguyên, đừng đụng.
+~~**Quy tắc rút ra:** muốn chen vào giữa thì cắt riêng sợi A.~~ **SAI — đã bác, xem mục dưới.**
 
 ### ✅ KẸP SONG SONG BẰNG 10k/20k CHẠY TỐT — chốt 24/08/2026
 
