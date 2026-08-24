@@ -388,6 +388,17 @@ void loop() {
        cứ 20 ms một byte rác, đều tăm tắp theo chu kỳ 50 Hz. */
     if (!laByteIct(b)) {
       soRac++;
+      /* TỰ TẮT CHUYỂN TIẾP khi rác quá nhiều. Bộ lọc chặn được byte lạ, nhưng nhiễu bắn ra đủ
+         256 giá trị nên lâu lâu vẫn trúng vào bảng — và ba lần trúng đúng thứ tự 81 → mã kênh
+         → 10 là ghế cộng tiền khống. Đã thấy 81, 41, 42, 44, 10 lọt qua trong log 18:08.
+         Rác tới mức này thì chân nghe chắc chắn chưa nối vào ICT, nên chẳng có gì đáng chuyển
+         tiếp cả. Bơm tay bằng b10 vẫn chạy bình thường — chỉ chặn đường tự động. */
+      if (chuyenTiep && soRac > 500) {
+        chuyenTiep = false;
+        Serial.printf("%8lu ms  ⛔ TỰ TẮT chuyển tiếp: %lu byte rác, chân nghe chưa nối vào ICT.\n"
+                      "            Nhiễu trúng bảng ba lần đúng thứ tự là ghế cộng tiền khống.\n"
+                      "            Nối chân nghe xong thì gõ c để bật lại.\n", millis(), soRac);
+      }
       if (millis() - g_racBaoLuc > 3000) {
         g_racBaoLuc = millis();
         Serial.printf("%8lu ms  ⚠ %lu byte rác — chân nghe GPIO %d đang THẢ NỔI (nhiễu 50 Hz).\n"
