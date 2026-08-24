@@ -97,7 +97,7 @@ dây tín hiệu nên suy được rất ít, và không cách nào biết "kẹ
 Đòi **ít nhất 2 lần `F8` trong 60 giây** rồi mới báo. Một lần đơn lẻ vẫn có thể là gai — mà báo
 động giả thì người ta học cách bỏ qua cảnh báo, còn tệ hơn không báo.
 
-## LỜI GIẢI — ICT gửi một byte, 4800 baud (24/08/2026)
+## LỜI GIẢI — ICT gửi BA byte, 4800 baud (24/08/2026)
 
 Suốt buổi đi sai hướng vì tưởng ESP32 phải ĐÓNG VAI cục nhận tiền, tức phải trả lời cuộc bắt
 tay 9600 baud của bo ghế. Cách hãng khác làm thì khác hẳn:
@@ -112,41 +112,44 @@ ESP32     ──────────►  ghế RX22     (ESP32 bơm thêm)
 **ICT ở nguyên trong mạch.** Nó lo phần bắt tay. ESP32 chỉ chen vào giữa: nghe ICT rồi nói lại
 vào chân RX của ghế. Không cần biết `00 E0` nghĩa là gì.
 
-### Đo được
+### Khung báo tiền — đo bằng chính ESP32, không qua logic analyzer
 
-Bản ghi 1 MHz, nạp tờ 10k. Ba lần nạp cho ba cụm khớp nhau tới từng micro-giây:
+Nạp lần lượt ba mệnh giá rồi đọc thẳng byte ICT gửi ra:
 
-| Mức | Kéo dài | Là |
+```
+ 10.000đ  →  81  41  10
+ 50.000đ  →  81  43  10
+100.000đ  →  81  44  10
+```
+
+Byte đầu và byte cuối giống hệt ở cả ba; **chỉ byte GIỮA đổi**, theo đúng cách ICT đánh số kênh
+mệnh giá: `0x40 + số kênh`.
+
+| Tờ | Byte giữa | Kênh |
 |---|---|---|
-| thấp | **414 µs** | 2 bit — start + d0(0) |
-| cao | **207 µs** | 1 bit — d1(1) |
-| thấp | **1242 µs** | 6 bit — d2..d7 (0) |
-| cao | nghỉ | stop |
+| 10.000đ | `41` | 1 |
+| 20.000đ | `42`? | 2 — suy ra, **chưa thử tờ thật** |
+| 50.000đ | `43` | 3 |
+| 100.000đ | `44` | 4 |
 
-Mọi quãng đều là bội số nguyên của **207 µs**, và 207 µs là một bit ở **4800 baud**.
-Ghép lại: `0000 0010` = **`0x02`**.
+Nhịp cũng cố định:
 
 ```
-ICT gửi MỘT byte 0x02 ở 4800 baud 8N1 cực thuận khi nhận 10.000đ.
-Không khung, không checksum, không bắt tay.
+81              mở đầu
+0x40 + kênh     mệnh giá        ← 3 ms sau
+10              kết thúc        ← 1,2 giây sau
 ```
 
-Đó là chế độ RS232 của ICT: mỗi kênh tiền một mã byte.
+1,2 giây là lúc ICT kéo tờ tiền vào và xác nhận. Bơm mà bỏ nhịp này thì bo ghế có thể không nhận.
 
-### ⚠ Tờ 50k cũng cho `0x02` — y hệt tờ 10k
+### ⚠️ `0x02` ở các bản ghi trước là SAI
 
-Đo lại với tờ 50.000đ: `414 µs · 207 µs · 1242 µs`, không lệch một micro-giây, vẫn ra `0x02`.
-Một cụm duy nhất, không phải năm cụm.
+Mấy bản ghi logic analyzer đầu cho ra một byte `0x02` cho mọi mệnh giá, và em đã suýt viết mã
+theo đó. Sai: `0x02` là do đọc lệch khung ở một đường bên cạnh. Byte thật chưa bao giờ là `0x02`.
 
-**ICT đang báo cùng một mã cho cả hai mệnh giá** — nó không nói cho ghế biết tờ đó bao nhiêu tiền.
-
-Cần kiểm trên màn ghế: nạp 50k thì cộng bao nhiêu so với nạp 10k?
-
-- **Cộng như nhau** → chuyện tiền bạc, không phải kỹ thuật. Khách bỏ 50.000đ chỉ được số phút
-  của 10.000đ. Nguyên nhân thường là cấu hình kênh của ICT: DIP switch gạt sai, hoặc chưa khai
-  mệnh giá 50k vào kênh riêng nên mọi tờ rơi hết về kênh 2.
-- **Cộng đúng 50k** → bo ghế đếm cách khác; bắt lại lâu hơn 10 giây, có thể ICT gửi năm byte
-  `0x02` rải rác mà bản ghi chưa đủ dài để thấy hết.
+Chỗ này đáng nhớ vì nó trông rất thuyết phục: ba bản ghi độc lập đều cho `0x02`, 0 lỗi khung,
+bề rộng xung khớp bội số 207 µs. Nhưng ba lần đọc sai cùng một kiểu vẫn là sai. Thứ lật lại
+được là **đo từ phía khác** — để chính ESP32 đọc cổng, thay vì suy từ dạng sóng.
 
 ### Bài học về cách dò
 

@@ -61,9 +61,38 @@ static void moCong(){
                 (unsigned long) tocDo, tenKhung(kieuKhung), daoCuc ? "ĐẢO" : "thuận");
 }
 
-/* Mã kênh tiền của ICT. 0x02 = 10.000đ trên máy anh Thắng, đo ngày 24/08/2026.
-   Mệnh giá khác gần như chắc là mã khác — nạp một tờ rồi xem dòng "ICT:" in ra. */
-uint8_t maToTien = 0x02;
+/* ——— KHUNG BÁO TIỀN CỦA ICT ———
+   Dò xong 24/08/2026 bằng cách nạp lần lượt ba mệnh giá và đọc thẳng byte ICT gửi ra:
+
+        10.000đ  →  81  41  10
+        50.000đ  →  81  43  10
+       100.000đ  →  81  44  10
+
+   Byte đầu và byte cuối giống hệt nhau ở cả ba; chỉ byte GIỮA đổi, theo đúng cách ICT đánh số
+   kênh mệnh giá: 0x40 + số kênh. Kênh 1 = 10k, kênh 3 = 50k, kênh 4 = 100k.
+
+   Nhịp cũng cố định: byte giữa cách byte đầu 3 ms, byte cuối cách byte giữa 1,2 giây — đó là
+   lúc ICT kéo tờ tiền vào và xác nhận. Bơm mà bỏ nhịp này thì bo ghế có thể không nhận.
+
+   ⚠️ Bản trước gửi MỘT byte 0x02 — sai. 0x02 là do đọc lệch khung ở một đường bên cạnh khi
+      đo bằng logic analyzer; byte thật chưa bao giờ là 0x02. */
+static const uint8_t ICT_MO_DAU  = 0x81;
+static const uint8_t ICT_KET_THUC = 0x10;
+static const uint16_t ICT_TRE_MA_MS  = 3;      // mở đầu → mã kênh
+static const uint16_t ICT_TRE_HET_MS = 1200;   // mã kênh → kết thúc
+
+struct MenhGia { uint32_t tien; uint8_t kenh; };
+/* Kênh 2 suy ra từ dãy (nhiều khả năng 20.000đ) nhưng CHƯA thử tờ thật — đánh dấu để người
+   sau biết con số nào đo được, con số nào đoán. */
+static const MenhGia DS_MENH_GIA[] = {
+  { 10000,  1 },   // đo được
+  { 20000,  2 },   // suy ra, chưa thử
+  { 50000,  3 },   // đo được
+  { 100000, 4 },   // đo được
+};
+static const uint8_t SO_MENH_GIA = sizeof(DS_MENH_GIA) / sizeof(DS_MENH_GIA[0]);
+
+uint8_t maToTien = 0x41;   // mặc định kênh 1 = 10.000đ
 
 /* Chuyển tiếp ICT sang ghế. Bật thì ghế nhận tiền thật y như khi nối thẳng;
    tắt thì ESP32 nuốt hết, dùng để tách bạch lúc thử. */
@@ -71,6 +100,39 @@ bool chuyenTiep = true;
 
 uint32_t soNgheIct = 0, soBom = 0;
 
+
+/* ——— Bơm một tờ: ba byte, đúng nhịp ———
+   Dùng MÁY TRẠNG THÁI chứ không delay(1200). Bản thử thì delay cũng chạy, nhưng mã này sẽ
+   chép sang firmware ghế chính — ở đó chặn vòng lặp 1,2 giây là mất nhịp mạng, trễ quét QR,
+   và cảm ứng không phản hồi. Viết đúng ngay từ đây thì lúc chép sang khỏi phải sửa. */
+static uint8_t       g_bomBuoc = 0;    // 0 = rảnh · 1 = đã gửi mở đầu · 2 = đã gửi mã kênh
+static unsigned long g_bomMoc  = 0;
+static uint8_t       g_bomMa   = 0;
+
+void bomMotTo(uint8_t ma) {
+  if (g_bomBuoc) { Serial.println(F(">> đang bơm dở một tờ, chờ xong đã")); return; }
+  g_bomMa = ma;
+  Bus.write(ICT_MO_DAU);
+  g_bomBuoc = 1;
+  g_bomMoc  = millis();
+  Serial.printf("%8lu ms  BƠM: %02X …\n", millis(), ICT_MO_DAU);
+}
+
+/** Gọi mỗi vòng loop() — đẩy nốt các byte còn lại khi tới nhịp. */
+void bomTiep() {
+  if (!g_bomBuoc) { return; }
+  unsigned long nay = millis();
+  if (g_bomBuoc == 1 && nay - g_bomMoc >= ICT_TRE_MA_MS) {
+    Bus.write(g_bomMa);
+    g_bomBuoc = 2; g_bomMoc = nay;
+    Serial.printf("%8lu ms  BƠM: %02X (kênh %d)\n", nay, g_bomMa, g_bomMa - 0x40);
+  } else if (g_bomBuoc == 2 && nay - g_bomMoc >= ICT_TRE_HET_MS) {
+    Bus.write(ICT_KET_THUC);
+    g_bomBuoc = 0;
+    soBom++;
+    Serial.printf("%8lu ms  BƠM: %02X — xong một tờ\n", nay, ICT_KET_THUC);
+  }
+}
 
 void inTrangThai() {
   Serial.printf("[mã tờ tiền: %02X | %lu baud %s %s | chuyển tiếp: %s | nghe ICT %lu, đã bơm %lu]\n",
@@ -86,9 +148,24 @@ void docLenh() {
 
   char c = d.charAt(0);
   if (c == 'b') {
-    Bus.write(maToTien);
-    soBom++;
-    Serial.printf("%8lu ms  BƠM %02X vào ghế\n", millis(), maToTien);
+    /* bNNN: bơm theo MỆNH GIÁ (b10, b50, b100 — nghìn đồng). Chỉ "b" thì dùng mã đang đặt. */
+    String so = d.substring(1); so.trim();
+    if (so.length()) {
+      uint32_t ngan = (uint32_t) so.toInt();
+      uint8_t  kenh = 0;
+      for (uint8_t i = 0; i < SO_MENH_GIA; i++) {
+        if (DS_MENH_GIA[i].tien == ngan * 1000UL) { kenh = DS_MENH_GIA[i].kenh; break; }
+      }
+      if (!kenh) {
+        Serial.print(F(">> không có mệnh giá đó. Có:"));
+        for (uint8_t i = 0; i < SO_MENH_GIA; i++) { Serial.printf(" b%lu", (unsigned long) (DS_MENH_GIA[i].tien / 1000) ); }
+        Serial.println();
+        inTrangThai();
+        return;
+      }
+      maToTien = (uint8_t) (0x40 + kenh);
+    }
+    bomMotTo(maToTien);
   } else if (c == 'm') {
     maToTien = (uint8_t)strtol(d.substring(1).c_str(), nullptr, 16);
     Serial.printf(">> mã tờ tiền = %02X\n", maToTien);
@@ -111,7 +188,8 @@ void docLenh() {
     soNgheIct = soBom = 0;
     Serial.println(">> đã xoá bộ đếm");
   } else {
-    Serial.println(F("\n  b     bơm một tờ (gửi mã đang đặt)"));
+    Serial.println(F("\n  b10   bơm tờ 10.000đ  ·  b20 · b50 · b100"));
+    Serial.println(F("  b     bơm bằng mã đang đặt"));
     Serial.println(F("  mXX   đổi mã tờ tiền, hex 2 chữ số"));
     Serial.println(F("  p     đổi khung: 8N1 → 8E1 → 8O1"));
     Serial.println(F("  i     đảo cực tín hiệu"));
@@ -135,6 +213,7 @@ void setup() {
 
 void loop() {
   docLenh();
+  bomTiep();
 
   while (Bus.available()) {
     uint8_t b = Bus.read();
