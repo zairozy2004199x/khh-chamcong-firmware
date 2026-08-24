@@ -1593,11 +1593,29 @@
     });
   }
 
+  /* ĐƠN CŨ ĐÈ VÀO ĐƠN MỚI — vì phản hồi về không theo thứ tự gửi đi.
+     openDon() được gọi lại sau MỌI thao tác (lưu dòng, đổi ngày, tích ô, xóa dòng), và cả khi
+     đổi đơn trong ô chọn. Máy chủ trả về theo tốc độ xử lý, không theo thứ tự hỏi: hỏi đơn A
+     rồi hỏi đơn B, nếu A về sau thì nó ghi đè CUR và vẽ lại bảng bằng dòng của A — trong khi
+     ô chọn vẫn đang là B. Người dùng thấy "đơn tuần trước nhảy đè vào đơn tuần này".
+     Càng dễ dính khi mạng chập chờn hoặc bấm nhanh hai đơn liền nhau.
+     Cách chặn: đánh số từng lượt hỏi, phản hồi nào không phải lượt mới nhất thì bỏ. */
+  var _openSeq=0;
   function openDon(maDon){
+    _openSeq++;   // tăng cả khi bỏ chọn, để phản hồi đang bay về không dựng lại đơn vừa đóng
     if(!maDon){el('main').style.display='none';el('donBadge').innerHTML='';el('btnAction').style.display='none';CUR=null;renderDonList();_syncDonView();return;}
+    var _seq=_openSeq, _ma=String(maDon);
     loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false);
+    google.script.run.withSuccessHandler(function(r){
+      if(_seq!==_openSeq) return;   // lượt cũ về muộn — bỏ, đừng đè lên đơn đang xem
+      loading(false);
       if(!r.success){toast('err',r.error);return;}
+      /* Canh thêm bằng chính mã đơn trong phản hồi: số thứ tự chặn được lượt cũ, nhưng nếu
+         máy chủ trả nhầm đơn thì phải thấy ngay chứ không vẽ ra rồi để người dùng tự nghi. */
+      if(r.don && String(r.don.maDon)!==_ma){
+        toast('err','Máy chủ trả về đơn '+r.don.maDon+' trong khi đang mở '+_ma+' — không hiển thị.');
+        return;
+      }
       CUR=r; el('main').style.display='block';
       var st=r.don.trangThai;
       CUR.stNhap=(st==='Nháp'); CUR.stCap=(st==='Đã cấp tạm ứng');
@@ -1661,7 +1679,10 @@
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
       renderTU(); renderLines(); renderRecon(); renderQT(); setProducts(r.products); resetLineForm(); renderDonList(); _syncDonView();
       _khoaCoSo();
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getDon(maDon);
+    }).withFailureHandler(function(e){
+      if(_seq!==_openSeq) return;   // lỗi của lượt cũ cũng không được cướp màn hình
+      loading(false);toast('err',e.message);
+    }).getDon(maDon);
   }
 
   function renderTU(){
