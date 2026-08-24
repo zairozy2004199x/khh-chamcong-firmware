@@ -35,8 +35,31 @@
 #define CHAN_ICT   35        // chỉ-vào-được: không thể lỡ tay đẩy ngược vào ICT
 #define CHAN_GHE   26        // chân đẩy ra được
 
-/* 4800 baud 8N1 — đo được từ bản ghi, không phải đoán. */
-static const uint32_t TOC_DO = 4800;
+HardwareSerial Bus(1);       // RX = chân nghe ICT, TX = chân nói vào ghế
+
+/* 4800 baud — đo được từ bản ghi (đơn vị 207 µs = 1 bit), không phải đoán.
+   Nhưng KHUNG thì chưa chắc: 24/08/2026 chân nghe cho ra "81 41" cách nhau 3 ms trong khi
+   logic analyzer đo cùng lúc ở đường bên cạnh lại ra một byte sạch. Một khung vỡ thành hai
+   là dấu của sai khung hoặc sai cực, nên để đổi được bằng lệnh thay vì ghim cứng. */
+static uint32_t tocDo = 4800;
+static uint8_t  kieuKhung = 0;      // 0 = 8N1 · 1 = 8E1 · 2 = 8O1
+static bool     daoCuc = false;     // tín hiệu qua tầng đảo thì bật
+
+static uint32_t khungCua(uint8_t k){
+  return (k == 1) ? SERIAL_8E1 : (k == 2) ? SERIAL_8O1 : SERIAL_8N1;
+}
+static const char* tenKhung(uint8_t k){
+  return (k == 1) ? "8E1" : (k == 2) ? "8O1" : "8N1";
+}
+
+/* Mở lại cổng theo thiết lập hiện tại. ESP32 cho đảo cực ngay ở tầng UART (uart_set_line_inverse)
+   — khỏi phải tự nhấp chân, và đảo cả chiều nghe lẫn chiều nói cùng lúc. */
+static void moCong(){
+  Bus.end();
+  Bus.begin(tocDo, khungCua(kieuKhung), CHAN_ICT, CHAN_GHE, daoCuc);
+  Serial.printf(">> cổng: %lu baud %s · cực %s\n",
+                (unsigned long) tocDo, tenKhung(kieuKhung), daoCuc ? "ĐẢO" : "thuận");
+}
 
 /* Mã kênh tiền của ICT. 0x02 = 10.000đ trên máy anh Thắng, đo ngày 24/08/2026.
    Mệnh giá khác gần như chắc là mã khác — nạp một tờ rồi xem dòng "ICT:" in ra. */
@@ -48,11 +71,11 @@ bool chuyenTiep = true;
 
 uint32_t soNgheIct = 0, soBom = 0;
 
-HardwareSerial Bus(1);       // RX = chân nghe ICT, TX = chân nói vào ghế
 
 void inTrangThai() {
-  Serial.printf("[mã tờ tiền: %02X | chuyển tiếp: %s | nghe ICT %lu, đã bơm %lu]\n",
-                maToTien, chuyenTiep ? "BẬT" : "tắt", soNgheIct, soBom);
+  Serial.printf("[mã tờ tiền: %02X | %lu baud %s %s | chuyển tiếp: %s | nghe ICT %lu, đã bơm %lu]\n",
+                maToTien, (unsigned long) tocDo, tenKhung(kieuKhung), daoCuc ? "ĐẢO" : "thuận",
+                chuyenTiep ? "BẬT" : "tắt", soNgheIct, soBom);
 }
 
 void docLenh() {
@@ -69,6 +92,18 @@ void docLenh() {
   } else if (c == 'm') {
     maToTien = (uint8_t)strtol(d.substring(1).c_str(), nullptr, 16);
     Serial.printf(">> mã tờ tiền = %02X\n", maToTien);
+  } else if (c == 'p') {
+    kieuKhung = (uint8_t) ((kieuKhung + 1) % 3);
+    moCong();
+  } else if (c == 'i') {
+    daoCuc = !daoCuc;
+    moCong();
+  } else if (c == 'v') {
+    /* Đổi tốc độ để dò. 207 µs/bit ra đúng 4800, nhưng nếu khung vẫn vỡ thì đáng thử các
+       tốc độ lân cận — bộ tạo nhịp của ICT có thể lệch. */
+    uint32_t v = (uint32_t) d.substring(1).toInt();
+    if (v >= 1200 && v <= 115200) { tocDo = v; moCong(); }
+    else { Serial.println(">> tốc độ phải trong khoảng 1200..115200"); }
   } else if (c == 'c') {
     chuyenTiep = !chuyenTiep;
     Serial.printf(">> chuyển tiếp ICT → ghế: %s\n", chuyenTiep ? "BẬT" : "TẮT");
@@ -78,6 +113,9 @@ void docLenh() {
   } else {
     Serial.println(F("\n  b     bơm một tờ (gửi mã đang đặt)"));
     Serial.println(F("  mXX   đổi mã tờ tiền, hex 2 chữ số"));
+    Serial.println(F("  p     đổi khung: 8N1 → 8E1 → 8O1"));
+    Serial.println(F("  i     đảo cực tín hiệu"));
+    Serial.println(F("  vNNNN đổi tốc độ (vd v4800, v2400, v9600)"));
     Serial.println(F("  c     bật/tắt chuyển tiếp ICT → ghế"));
     Serial.println(F("  r     xoá bộ đếm\n"));
   }
@@ -87,11 +125,10 @@ void docLenh() {
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Bus.begin(TOC_DO, SERIAL_8N1, CHAN_ICT, CHAN_GHE);
+  moCong();
 
   Serial.println(F("\n=== bơm tiền vào ghế ==="));
-  Serial.printf("nghe ICT GPIO %d · nói vào ghế GPIO %d · %lu baud 8N1\n",
-                CHAN_ICT, CHAN_GHE, (unsigned long) TOC_DO);
+  Serial.printf("nghe ICT GPIO %d · nói vào ghế GPIO %d\n", CHAN_ICT, CHAN_GHE);
   Serial.println(F("Nạp một tờ tiền thật để xem mã của mệnh giá đó, rồi gõ 'b' để bơm lại."));
   inTrangThai();
 }
