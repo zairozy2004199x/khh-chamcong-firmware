@@ -80,6 +80,15 @@ static inline void choToi(uint32_t moc) {
  */
 int32_t docKhung(uint32_t hanChoUs) {
   uint32_t batDau = micros();
+
+  /* Phải chờ đường VỀ MỨC NGHỈ trước, rồi mới rình lúc nó XUỐNG.
+     Bỏ vòng đầu thì khi hàm được gọi lúc đường đang thấp, vòng dưới thoát ngay và mã tưởng
+     vừa bắt được bit start, trong khi thật ra đang đứng giữa một quãng thấp — đọc ra rác,
+     bit stop sai, lặp mỗi mili-giây. Đúng lỗi "KHUNG HỎNG" tràn màn hình 24/08/2026, cùng
+     gốc với "401 byte toàn 00" của bản nghe. */
+  while (digitalRead(CHAN_NGHE) == LOW) {
+    if (micros() - batDau > hanChoUs) { return -4; }   // -4 = đường kẹt ở mức thấp
+  }
   while (digitalRead(CHAN_NGHE) == HIGH) {
     if (micros() - batDau > hanChoUs) { return -1; }
   }
@@ -178,8 +187,21 @@ void loop() {
 
   int32_t k = docKhung(200000);      // chờ tối đa 200 ms rồi quay lại xem lệnh
   if (k < 0) {
-    if (k == -3) {
-      Serial.printf("%8lu ms  KHUNG HỎNG (bit stop sai)\n", millis());
+    /* Gộp lại, mỗi giây in một dòng. In từng khung hỏng thì màn hình tràn hàng nghìn dòng
+       giống hệt nhau, che mất byte thật — mà byte thật mới là thứ cần đọc. */
+    static uint32_t demHong = 0, demKet = 0, lanIn = 0;
+    if (k == -3) { demHong++; }
+    if (k == -4) { demKet++; }
+    if ((demHong || demKet) && millis() - lanIn > 1000) {
+      lanIn = millis();
+      if (demKet) {
+        Serial.printf("%8lu ms  ĐƯỜNG KẸT Ở MỨC THẤP (%lu lần/giây) — kiểm dây, cực, mát\n",
+                      millis(), demKet);
+      }
+      if (demHong) {
+        Serial.printf("%8lu ms  %lu khung hỏng/giây (bit stop sai)\n", millis(), demHong);
+      }
+      demHong = demKet = 0;
     }
     return;
   }
