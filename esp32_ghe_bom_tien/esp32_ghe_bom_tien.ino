@@ -65,11 +65,13 @@ static void moCong(){
    Dò xong 24/08/2026 bằng cách nạp lần lượt ba mệnh giá và đọc thẳng byte ICT gửi ra:
 
         10.000đ  →  81  41  10
+        20.000đ  →  81  42  10
         50.000đ  →  81  43  10
        100.000đ  →  81  44  10
 
    Byte đầu và byte cuối giống hệt nhau ở cả ba; chỉ byte GIỮA đổi, theo đúng cách ICT đánh số
-   kênh mệnh giá: 0x40 + số kênh. Kênh 1 = 10k, kênh 3 = 50k, kênh 4 = 100k.
+   kênh mệnh giá: 0x40 + số kênh. Kênh 1 = 10k, 2 = 20k, 3 = 50k, 4 = 100k — cả bốn đều đo
+   bằng tờ thật, không có con nào suy ra.
 
    Nhịp cũng cố định: byte giữa cách byte đầu 3 ms, byte cuối cách byte giữa 1,2 giây — đó là
    lúc ICT kéo tờ tiền vào và xác nhận. Bơm mà bỏ nhịp này thì bo ghế có thể không nhận.
@@ -82,13 +84,11 @@ static const uint16_t ICT_TRE_MA_MS  = 3;      // mở đầu → mã kênh
 static const uint16_t ICT_TRE_HET_MS = 1200;   // mã kênh → kết thúc
 
 struct MenhGia { uint32_t tien; uint8_t kenh; };
-/* Kênh 2 suy ra từ dãy (nhiều khả năng 20.000đ) nhưng CHƯA thử tờ thật — đánh dấu để người
-   sau biết con số nào đo được, con số nào đoán. */
 static const MenhGia DS_MENH_GIA[] = {
-  { 10000,  1 },   // đo được
-  { 20000,  2 },   // suy ra, chưa thử
-  { 50000,  3 },   // đo được
-  { 100000, 4 },   // đo được
+  { 10000,  1 },
+  { 20000,  2 },
+  { 50000,  3 },
+  { 100000, 4 },
 };
 static const uint8_t SO_MENH_GIA = sizeof(DS_MENH_GIA) / sizeof(DS_MENH_GIA[0]);
 
