@@ -42,6 +42,7 @@
  *   mXX      đổi mã tờ tiền, hex 2 chữ số
  *   p / i    đổi khung 8N1→8E1→8O1  ·  đảo cực cả hai chiều
  *   n        đảo RIÊNG chiều nói — bật khi chân nói đi qua transistor nâng mức 5V
+ *   f        bật/tắt bộ lọc byte — tắt khi dò máy lạ, in nguyên xi tất cả
  *   s        CHỈ NGHE — không khai chân đẩy ra nào; dùng khi kẹp vào hệ đang chạy tốt
  *   t        TỰ KIỂM: bơm rồi đọc lại chính mình, kết luận mạch đúng hay sai
  *   vNNNN    đổi tốc độ (mặc định v4800 — đúng như đo được)
@@ -72,6 +73,12 @@ static bool     daoCuc = false;     // đảo CẢ hai chiều (nghe + nói)
    thứ đang hoạt động. Tháo dây ở chân 26 vẫn là lớp bảo vệ chính, cái này là lớp thứ hai cho
    ca quên tháo. Bật/tắt bằng lệnh s. */
 static bool     chiNghe = false;
+
+/* BỘ LỌC BYTE. Bật thì chỉ byte có trong bảng ICT mới đi tiếp — sinh ra để chặn nhiễu đổ sang
+   ghế. Nhưng khi DÒ một máy lạ thì chính nó là thứ cản: bảng của mình dò từ ICT của ghế mình,
+   máy hãng khác nói khác là bị vứt sạch, và người dò chỉ thấy vài byte rời rạc rồi tưởng đường
+   hỏng. Tắt bằng lệnh f — in nguyên xi mọi byte, gọn theo hàng. */
+static bool     locByte = true;
 
 static bool     daoNoi = true;      /* MẶC ĐỊNH BẬT: đấu dây đã chốt là qua transistor NPN, mà
    transistor thì đảo tín hiệu — nên chiều đúng luôn là chiều đảo. Để mặc định tắt thì mỗi lần
@@ -330,6 +337,10 @@ void docLenh() {
   } else if (c == 'm') {
     maToTien = (uint8_t)strtol(d.substring(1).c_str(), nullptr, 16);
     Serial.printf(">> mã tờ tiền = %02X\n", maToTien);
+  } else if (c == 'f') {
+    locByte = !locByte;
+    Serial.printf("\n>> bộ lọc byte: %s\n", locByte ? "BẬT (chỉ byte trong bảng ICT)"
+                                                      : "TẮT — in nguyên xi mọi byte");
   } else if (c == 's') {
     chiNghe = !chiNghe;
     if (chiNghe) chuyenTiep = false;   // chỉ nghe thì không chuyển tiếp được, khỏi hiểu nhầm
@@ -366,6 +377,7 @@ void docLenh() {
     Serial.println(F("  p     đổi khung: 8N1 → 8E1 → 8O1"));
     Serial.println(F("  i     đảo cực CẢ hai chiều"));
     Serial.println(F("  n     đảo RIÊNG chiều nói — bật khi đi qua transistor nâng mức 5V"));
+    Serial.println(F("  f     bật/tắt bộ lọc byte — TẮT khi dò máy lạ, in nguyên xi tất cả"));
     Serial.println(F("  s     CHỈ NGHE / mở lại chiều nói — bật khi kẹp vào hệ ĐANG CHẠY TỐT"));
     Serial.println(F("  t     TỰ KIỂM: bơm một tờ rồi đọc lại chính mình (nối chân nghe vào"));
     Serial.println(F("        điểm ra của transistor qua chia áp) — biết ngay mạch đúng chưa"));
@@ -404,6 +416,19 @@ void loop() {
 
        GPIO 34-39 không có điện trở kéo bên trong, không cắm gì vào là hứng nhiễu điện lưới —
        cứ 20 ms một byte rác, đều tăm tắp theo chu kỳ 50 Hz. */
+    /* TẮT LỌC = in nguyên xi, gọn theo hàng. Đường im quá 150 ms thì xuống dòng và đóng mốc
+       giờ mới — nhìn là thấy ngay đâu là một cụm, đâu là khoảng nghỉ. Đó là thứ quan trọng
+       nhất khi dò một giao thức chưa biết: nhịp nói lên nhiều hơn giá trị từng byte. */
+    if (!locByte) {
+      static unsigned long lanCuoi = 0;
+      static uint8_t demHang = 0;
+      unsigned long nay = millis();
+      if (nay - lanCuoi > 150 || demHang >= 16) { Serial.printf("\n%8lu ms  ", nay); demHang = 0; }
+      lanCuoi = nay; demHang++; soNgheIct++;
+      Serial.printf("%02X ", b);
+      continue;
+    }
+
     if (!laByteIct(b)) {
       soRac++;
       /* TỰ TẮT CHUYỂN TIẾP khi rác quá nhiều. Bộ lọc chặn được byte lạ, nhưng nhiễu bắn ra đủ
