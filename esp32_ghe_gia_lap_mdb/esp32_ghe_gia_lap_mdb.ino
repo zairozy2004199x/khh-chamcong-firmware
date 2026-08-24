@@ -168,6 +168,7 @@ void inBangLenh() {
   Serial.println(F("  s     TỰ QUÉT khung đáp — mỗi lần bo ghế hỏi thì đáp một giá trị khác"));
   Serial.println(F("  wNNN  đặt trễ trước khi đáp, tính bằng µs (vd w200, w2000)"));
   Serial.println(F("  i     đảo cực (dùng khi đi qua mạch cách ly quang)"));
+  Serial.println(F("  m     ĐO MỨC chân nghe trong 1 giây — dây có thông không"));
   Serial.println(F("  r     xoá bộ đếm"));
   Serial.println(F("  ?     bảng lệnh này\n"));
 }
@@ -210,6 +211,27 @@ void docLenh() {
     daoCuc = !daoCuc;
     digitalWrite(CHAN_NOI, daoCuc ? LOW : HIGH);      // đặt lại mức nghỉ cho đúng cực mới
     Serial.printf(">> đảo cực: %s\n", daoCuc ? "BẬT (hợp mạch PC817 trần)" : "tắt (thuận)");
+  } else if (c == 'm') {
+    /* Đồng hồ đo ở điểm A và firmware có thể nói hai chuyện khác nhau — 24/08/2026 đo được
+       3,3V ở điểm A trong khi mã báo đường kẹt ở mức thấp. Lệnh này bỏ qua mọi suy đoán:
+       đọc thẳng chân trong 1 giây rồi báo tỷ lệ thời gian ở mức cao. */
+    uint32_t het = millis() + 1000, cao = 0, tong = 0;
+    while (millis() < het) {
+      if (digitalRead(CHAN_NGHE)) { cao++; }
+      tong++;
+    }
+    uint32_t pt = tong ? (cao * 100 / tong) : 0;
+    Serial.printf(">> GPIO %d ở mức CAO %lu%% thời gian (%lu lần đọc trong 1 giây)\n",
+                  CHAN_NGHE, pt, tong);
+    if (pt > 95) {
+      Serial.println(">>   → đường nghỉ ở mức cao, đúng như UART phải thế. Dây tốt.");
+    } else if (pt < 5) {
+      Serial.println(">>   → đường nằm THẤP. Đồng hồ đo 3,3V ở điểm A mà đây ra thế này thì");
+      Serial.println(">>     dây từ điểm A sang chân này chưa thông, hoặc đo nhầm điểm.");
+    } else {
+      Serial.println(">>   → đường đang nhấp nháy. Bo ghế kéo xuống rồi nhả, hoặc điện trở");
+      Serial.println(">>     kéo lên quá yếu — thử hạ 4,7 kΩ xuống 1 kΩ.");
+    }
   } else if (c == 'r') {
     soNghe = soDap = soLoiStop = 0;
     Serial.println(">> đã xoá bộ đếm");
