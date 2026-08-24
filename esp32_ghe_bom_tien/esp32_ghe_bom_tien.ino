@@ -138,6 +138,21 @@ uint8_t maToTien = 0x41;   // mặc định kênh 1 = 10.000đ
 bool chuyenTiep = true;
 
 uint32_t soNgheIct = 0, soBom = 0;
+/* Bảng byte thật của ICT, dò 24/08/2026 bằng tờ tiền thật:
+      81            mở đầu khung báo tiền
+      41..44        mệnh giá — kênh 1=10k · 2=20k · 3=50k · 4=100k
+      10            kết thúc: ĐÃ NUỐT, có tiền
+      29            nhả tờ ra / khách giựt lại: KHÔNG có tiền
+      25            kẹt tờ
+      2F            sẵn sàng lại
+   Byte lạ vẫn được IN ra để còn dò tiếp, nhưng không bao giờ được chuyển tiếp sang ghế. */
+static bool laByteIct(uint8_t b){
+  if (b == ICT_MO_DAU || b == ICT_KET_THUC) return true;
+  if (b >= 0x41 && b <= 0x44) return true;
+  if (b == 0x25 || b == 0x29 || b == 0x2F) return true;
+  return false;
+}
+
 static uint32_t soRac = 0;            // byte 00 do chân nghe thả nổi — đã vứt
 static unsigned long g_racBaoLuc = 0; // chặn nhịp báo, 3 giây một lần cho khỏi tràn màn hình
 
@@ -264,20 +279,19 @@ void loop() {
   while (Bus.available()) {
     uint8_t b = Bus.read();
 
-    /* 0x00 KHÔNG BAO GIỜ là byte thật của ICT — bảng đã dò đủ: 81 · 41..44 · 10 · 25 · 29 · 2F.
-       Nó là dấu của chân nghe THẢ NỔI: GPIO 34-39 không có điện trở kéo bên trong, không cắm gì
-       vào là hứng nhiễu điện lưới, mỗi chu kỳ 50 Hz vượt ngưỡng một lần thì UART tưởng có bit
-       start rồi đọc ra 00. Cứ 20 ms một byte, đều tăm tắp.
+    /* CHỈ CHO QUA BYTE CÓ TRONG BẢNG. Chặn từng con nhiễu một là đuổi mãi không hết: vứt 00
+       xong thì FF lọt, vứt FF xong sẽ tới FE, F8… Gai từ chân thả nổi ra được đủ hình thù.
+       Bảng ICT đã dò đủ nên lật ngược lại được: cái gì không có trong bảng thì không phải ICT.
 
-       Vứt thẳng, không đếm, không chuyển tiếp. Trước đây mỗi byte rác này được bơm nguyên vào
-       ghế — 50 byte vô nghĩa mỗi giây. */
-    if (b == 0x00) {
+       GPIO 34-39 không có điện trở kéo bên trong, không cắm gì vào là hứng nhiễu điện lưới —
+       cứ 20 ms một byte rác, đều tăm tắp theo chu kỳ 50 Hz. */
+    if (!laByteIct(b)) {
       soRac++;
       if (millis() - g_racBaoLuc > 3000) {
         g_racBaoLuc = millis();
-        Serial.printf("%8lu ms  ⚠ %lu byte 00 — chân nghe GPIO %d đang THẢ NỔI (nhiễu 50 Hz).\n"
-                      "            Cắm nó vào ICT qua chia áp, hoặc kéo lên 3V3 bằng trở 10k.\n"
-                      "            Đã vứt hết, không byte nào lọt sang ghế.\n",
+        Serial.printf("%8lu ms  ⚠ %lu byte rác — chân nghe GPIO %d đang THẢ NỔI (nhiễu 50 Hz).\n"
+                      "            Không byte nào lọt sang ghế. Cắm chân 35 vào ICT qua chia áp\n"
+                      "            thì hết; đang thử bơm thì kệ nó.\n",
                       millis(), soRac, CHAN_ICT);
       }
       continue;
