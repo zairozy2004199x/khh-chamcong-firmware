@@ -179,6 +179,7 @@ static unsigned long g_tuKiemMoc = 0;
 static uint8_t       g_vong[48];
 static uint8_t       g_soVong  = 0;
 static uint8_t       g_tuKiemMa = 0;
+static uint8_t       g_tuKiemLan = 0;   // 0 = chiều đang đặt · 1 = đã tự lật thử chiều kia
 
 void bomMotTo(uint8_t ma) {
   if (g_bomBuoc) { Serial.println(F(">> đang bơm dở một tờ, chờ xong đã")); return; }
@@ -215,6 +216,7 @@ void tuKiem(uint8_t ma) {
   while (Bus.available()) { Bus.read(); }     // vứt nhiễu đã đọng, khỏi lẫn vào kết quả
   g_soVong = 0;
   g_tuKiemMa = ma;
+  g_tuKiemLan = 0;
   g_tuKiem = true;
   g_tuKiemMoc = millis();
   Serial.printf("\n=== TỰ KIỂM === sẽ bơm %02X %02X %02X rồi đọc lại chính mình.\n"
@@ -248,13 +250,28 @@ void tuKiemTiep() {
     Serial.println(F("    ✓ ĐỌC LẠI ĐÚNG CẢ BA BYTE — mạch nâng mức và chiều đảo đều đúng."));
     Serial.println(F("      Tín hiệu ra tới dây là thật. Ghế không ăn thì lỗi ở phía ghế,"));
     Serial.println(F("      không phải ở mình: sai chân, hoặc ghế cần điều kiện khác.\n"));
+  } else if (g_tuKiemLan == 0) {
+    /* TỰ LẬT CHIỀU RỒI THỬ LẠI. Bắt người ngồi thử phải nhớ gõ n sau mỗi lần nạp là thiết kế
+       tồi — lần nạp nào cũng đặt lại về mặc định, và đúng chuyện đó vừa xảy ra lúc 18:12.
+       Máy tự thử được cả hai chiều trong ba giây thì không có lý do gì bắt người làm. */
+    daoNoi = !daoNoi;
+    Serial.printf("    … chưa ra. Tự lật chiều nói sang %s rồi thử lại.\n\n",
+                  daoNoi ? "ĐẢO (qua transistor)" : "thuận");
+    moCong();
+    while (Bus.available()) { Bus.read(); }
+    g_soVong = 0;
+    g_tuKiemLan = 1;
+    g_tuKiem = true;
+    g_tuKiemMoc = millis();
+    return;                      // chưa kết luận, chờ lượt hai
   } else if (!g_soVong) {
-    Serial.println(F("    ✗ KHÔNG đọc được gì. Chân nghe chưa nối vào điểm ra của transistor,"));
-    Serial.println(F("      hoặc tầng nâng mức không dẫn (thử lại chân B/C/E của transistor).\n"));
+    Serial.println(F("    ✗ KHÔNG đọc được gì, cả hai chiều. Chân nghe chưa nối vào điểm ra"));
+    Serial.println(F("      của transistor, hoặc tầng nâng mức không dẫn."));
+    Serial.println(F("      Kiểm chân B/C/E: 8050 là E–B–C, C1815 là E–C–B, hai con khác nhau.\n"));
   } else {
-    Serial.printf("    ✗ ĐỌC RA RÁC (khớp %d/3 byte). Sai chiều đảo hoặc sai mạch.\n", k);
-    Serial.println(F("      Gõ n để lật chiều nói rồi t lại. Đúng một trong hai chiều sẽ ra."));
-    Serial.println(F("      Toàn FF/FE là chân nghe đang thả nổi — chưa nối vào đâu cả.\n"));
+    Serial.printf("    ✗ ĐỌC RA RÁC ở CẢ HAI chiều (khớp %d/3 byte). Không phải chuyện chiều đảo.\n", k);
+    Serial.println(F("      Toàn FF/FE/00 là chân nghe thả nổi — chưa nối vào điểm ra thật."));
+    Serial.println(F("      Nối rồi mà vẫn rác thì soát chia áp 1k/2k và mát chung.\n"));
   }
   inTrangThai();
 }
