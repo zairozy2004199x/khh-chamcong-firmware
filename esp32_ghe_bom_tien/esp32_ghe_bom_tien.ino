@@ -191,8 +191,11 @@ void bomTiep() {
 }
 
 void inTrangThai() {
-  Serial.printf("[mã tờ tiền: %02X | %lu baud %s %s | chuyển tiếp: %s | nghe ICT %lu, đã bơm %lu]\n",
+  /* chiều nói PHẢI có trong dòng gọn này. Nó chỉ hiện lúc mở cổng thì người thử không biết
+     lệnh n đang bật hay tắt — gõ n chẵn số lần là về thuận mà nhìn dòng gọn không thấy. */
+  Serial.printf("[mã tờ tiền: %02X | %lu baud %s %s | nói: %s | chuyển tiếp: %s | nghe ICT %lu, đã bơm %lu]\n",
                 maToTien, (unsigned long) tocDo, tenKhung(kieuKhung), daoCuc ? "ĐẢO" : "thuận",
+                daoNoi ? "ĐẢO (transistor)" : "thuận",
                 chuyenTiep ? "BẬT" : "tắt", soNgheIct, soBom);
 }
 
