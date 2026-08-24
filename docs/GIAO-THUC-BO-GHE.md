@@ -163,6 +163,34 @@ Muốn vừa bơm vừa nghe lại thì hoặc hạ trở kéo lên xuống 1kΩ
 RX22 là chân VÀO trở kháng cao, có mạch thật bên trong ghế. Đáng ghi vì suốt buổi dò không có
 cách nào khác xác nhận được điều đó.
 
+### Bơm vào cổng 11 — phép thử sạch đầu tiên, và ghế không phản ứng
+
+Bo ghế có HAI cổng nối tiếp: `RX11/TX11` và `RX22/TX22`. ICT chiếm cổng 22; cổng 11 bỏ trống.
+Cắm ESP32 vào cổng 11 thì không tranh chấp với ai — ICT giữ nguyên cổng 22 và vẫn ăn tiền
+bình thường, không nháy đỏ lần nào.
+
+Thiết lập lúc thử, đã kiểm từng thông số trên dòng trạng thái:
+
+```
+4800 baud 8N1 · cực thuận · chiều nói thuận
+BƠM: 81 → 41 (kênh 1) → 10 — xong một tờ
+```
+
+**Màn ghế không nhúc nhích.**
+
+Đây là phép thử bơm SẠCH đầu tiên của cả buổi — mọi lần trước đều sai ít nhất một thông số,
+hay gặp nhất là `chiều nói ĐẢO` còn sót từ thời thiết kế có transistor. Nên mọi kết quả "bơm
+không được" trước đó đều KHÔNG tính.
+
+Còn lại hai khả năng, chưa phân biệt được:
+
+| Khả năng | Cách kiểm |
+|---|---|
+| Ghế không nhận ra mức 3,3V | Lắp transistor hoặc module chuyển mức, bơm lại |
+| Cổng 11 không phải cổng nhận tiền | Kẹp nghe TX11 rồi **tắt bật nguồn ghế**, xem có `00 E0` không |
+
+Cổng 11 im hoàn toàn khi nhét tiền vào cổng 22 — hai cổng độc lập, không soi gương nhau.
+
 ### 🔴 KHÔNG CHEN VÀO GIỮA ĐƯỢC — cắt sợi nào cũng khoá
 
 Thử đủ, đêm 24/08/2026:
