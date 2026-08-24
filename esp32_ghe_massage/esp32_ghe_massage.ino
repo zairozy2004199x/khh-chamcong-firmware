@@ -1697,6 +1697,34 @@ static void mdbCreditVnd(long vnd){
   g_runTotalVnd += vnd; updateAcceptor();
 }
 
+/* Đổi byte trạng thái MDB thành mã lỗi cho web. ĐÂY LÀ LÝ DO ĐỔI TỪ XUNG SANG MDB: đường xung
+   chỉ đếm được tiền, hỏng thì im lặng — kẹt tờ, hết giấy, mô-tơ chết đều không ai biết cho tới
+   lúc khách phàn nàn. MDB nói thẳng ra hỏng cái gì.
+
+   Trả NULL với mấy trạng thái thoáng qua: bận, vừa reset, khách rút tờ ra, máy từ chối tờ giả.
+   Mấy cái đó xảy ra hàng ngày trong lúc chạy bình thường — báo về web là chuông reo suốt ngày
+   rồi không ai thèm nhìn nữa, tệ hơn không báo.
+
+   Mã trả về dùng CHUNG với đường xung ("ket") để web khỏi phải biết ghế chạy kiểu nào.
+
+   Tách riêng để thử được bằng g++ — xem tools/test/fw/kiem-mdb-loi.sh. */
+const char* mdbMaLoi(uint8_t z){
+  switch(z){
+    case 0x01: return "motor";     // mô-tơ hỏng
+    case 0x02: return "cambien";   // cảm biến hỏng
+    case 0x04: return "rom";       // lỗi bộ nhớ máy
+    case 0x05: return "ket";       // KẸT TỜ — cùng mã với đường xung
+    case 0x08: return "hopmat";    // hộp đựng tiền rơi ra / chưa lắp
+    case 0x09: return "khoa";      // máy đang bị khoá, không nhận tờ nào
+    default:   return NULL;        // 03 bận · 06 vừa reset · 07 khách rút ra · 0B từ chối tờ
+  }
+}
+
+/* Trạng thái nào chứng tỏ máy vẫn cử động bình thường -> xoá cờ lỗi đang treo. */
+bool mdbLaBinhThuong(uint8_t z){
+  return (z == 0x03) || (z == 0x06) || (z == 0x07) || (z == 0x0B);
+}
+
 // Gọi mỗi vòng loop(). Chu trình: RESET -> SETUP -> BILL TYPE(enable) -> POLL lặp.
 void mdbTask(){
   if(!USE_MDB) return;
@@ -1751,7 +1779,16 @@ void mdbTask(){
           Serial.printf("[MDB] BILL routing=%d type=%d val=%ld\n", routing, type, val);
           if(routing==0 || routing==1) mdbCreditVnd(val);   // 0=đã vào khay, 1=escrow
         } else {
-          Serial.printf("[MDB] status 0x%02X\n", z);
+          const char* ma = mdbMaLoi(z);
+          Serial.printf("[MDB] status 0x%02X%s%s\n", z, ma ? " -> LOI: " : "", ma ? ma : "");
+          if(ma){
+            ghiLoiTien(ma, true);
+          } else if(mdbLaBinhThuong(z) && g_tmLoi[0]){
+            /* Máy vừa cử động bình thường trở lại -> gỡ cờ lỗi. Không gỡ thì web treo cảnh báo
+               mãi sau một lần kẹt, dù nhân viên đã gỡ xong từ lâu. */
+            g_tmLoi[0] = 0; g_statusDirty = true;
+            Serial.println("[MDB] may chay lai binh thuong -> xoa co loi");
+          }
           if(z==0x06){ Serial.println("[MDB] (Just Reset) -> setup lai"); mdbState=1; }
         }
       }
