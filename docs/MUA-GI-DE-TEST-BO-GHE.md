@@ -55,6 +55,27 @@ Cắm vào, Windows nhận nhầm thành thiết bị khác. Chạy **Zadig** �
 sách → cài **WinUSB** → cắm lại. Đây là chỗ ai cũng vấp lần đầu và tưởng máy hỏng, trả hàng
 oan. Linux không cần bước này.
 
+### Vướng lúc cài — hai lỗi ai cũng gặp
+
+**`MSVCR100.dll was not found`** — không phải máy hỏng. Đó là thư viện chạy của **Visual C++
+2010**; bản PulseView tải về được dịch bằng nó mà máy chưa có.
+
+- *Nhanh:* cài **Microsoft Visual C++ 2010 Redistributable (x86)** (`vcredist_x86.exe`) từ
+  microsoft.com. Cài bản **x86** trước kể cả khi Windows là 64-bit — PulseView thường là 32-bit.
+- *Chắc hơn:* gỡ bản đang có, tải từ **sigrok.org/wiki/Downloads** đúng bản **installer 32-bit
+  STATIC**. Chữ *static* là mấu chốt: mọi thư viện nằm trong file, không đòi dll nào.
+  Bản kèm theo shop bán máy hay là bản cũ, thiếu thư viện là chuyện thường.
+
+**PulseView không thấy thiết bị** — quay lại Zadig bấm *Reinstall Driver*, rút ra cắm lại.
+Dấu hiệu Zadig đã xong: hai ô Driver đều ghi **WinUSB**, và nút ghi *Reinstall* chứ không phải
+*Install*. `USB ID` phải là **0925 3881** — mã của Saleae Logic và các bản sao.
+
+**Vẫn vướng thì có hai đường vòng:**
+- **Saleae Logic 1.2.18** (mục phần mềm cũ trên trang Saleae) — máy này vốn là bản sao Saleae
+  nên chạy được với phần mềm chính chủ đời cũ. Một file cài, có sẵn bộ giải mã UART.
+- **Bỏ qua máy tính** — dùng `esp32_ghe_nghe_bo`, chỉ cần Serial Monitor của Arduino IDE.
+  Kém hơn ở chỗ không thấy dạng sóng, nhưng ĐỦ để trả lời câu hỏi chính: bo ghế nói giao thức gì.
+
 ### Cách dùng, gọn
 
 1. Cài **PulseView** (bộ sigrok) — miễn phí, có bản Windows.
