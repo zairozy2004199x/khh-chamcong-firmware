@@ -483,76 +483,159 @@ class VHCP_Don {
 	/**
 	 * BÙ TRỪ LUÂN CHUYỂN KỲ TRƯỚC — HỆ THỐNG TỰ TÍNH, nhân viên không nhập.
 	 *
-	 * Kỳ trước của CHÍNH người đó còn dư tiền thì kỳ này trừ đi, còn thiếu thì kỳ này bù
-	 * thêm. Để nhân viên tự gõ số này là mở đường cho cả sai sót lẫn gian: gõ dương thêm
-	 * là xin nhiều hơn phần đáng được ứng.
+	 * TRỤC LÀ QUẢN LÝ DUYỆT, KHÔNG PHẢI NGƯỜI LẬP ĐƠN (đổi 24/08/2026).
+	 * Cơ sở chỉ là nơi TẠO đơn. Người cầm sổ chi và mang số dư tạm ứng trên TK 141 là QUẢN LÝ
+	 * DUYỆT. Tiền thừa của từng gian có trả về kế toán, nhưng quản lý vẫn đang cần tiền nên
+	 * khoản đó được ghi nhận lại và chuyển sang tuần sau cho chính quản lý ấy. Vì vậy con số
+	 * tạm ứng và chi ra chốt THEO TUẦN CỦA QUẢN LÝ, gộp mọi đơn trong tuần đó — không phải
+	 * lấy chênh lệch của riêng một đơn hay riêng một người lập.
 	 *
-	 * chenhLech của đơn = tạm ứng − thực chi cá nhân: DƯƠNG là DƯ, ÂM là THIẾU. Bù trừ
-	 * mang dấu ngược lại: dư thì trừ (âm), thiếu thì bù (dương).
+	 * Bản cũ dò theo nguoi_lap và chỉ lấy MỘT đơn gần nhất. Sai hai đường: mỗi cơ sở một người
+	 * lập nên số dư của quản lý bị xé nhỏ theo từng người, và tuần nào quản lý duyệt nhiều đơn
+	 * thì chỉ một đơn được mang sang, phần còn lại rơi mất.
 	 *
-	 * Kỳ trước đã đánh dấu TẤT TOÁN nghĩa là đã thu/bù xong bằng tiền với kế toán, không
-	 * còn gì luân chuyển — về 0, không thì cộng hai lần.
+	 * chenhLech của đơn = tạm ứng − thực chi cá nhân: DƯƠNG là DƯ, ÂM là THIẾU. Bù trừ mang
+	 * dấu ngược lại: tuần trước dư thì tuần này trừ đi, thiếu thì tuần này bù thêm.
 	 *
-	 * @return array [ 'so', 'donTruoc', 'kyTruoc', 'chenhTruoc', 'lyDo' ]
+	 * Đơn đã đánh dấu TẤT TOÁN, hoặc thuộc cơ sở ĐÃ ĐÓNG CỬA, thì không góp vào tổng — đã
+	 * thu/bù xong bằng tiền, cộng tiếp là cộng hai lần.
+	 *
+	 * Đơn CHƯA DUYỆT thì chưa biết quản lý nào; lúc đó đoán theo quản lý gần nhất của cùng cơ
+	 * sở và ghi rõ là DỰ KIẾN. Số chốt lại khi đơn được duyệt thật.
+	 *
+	 * @return array [ 'so', 'quanLy', 'duKien', 'kyTruoc', 'soDon', 'chenhTruoc', 'boQua', 'lyDo' ]
 	 */
 	public static function bu_tru_tu_dong( $ma_don, $ds = null ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return array( 'so' => 0, 'lyDo' => 'không thấy đơn' ); }
-		$nguoi = trim( (string) $d['nguoi_lap'] );
-		if ( $nguoi === '' ) { return array( 'so' => 0, 'lyDo' => 'đơn chưa ghi người lập nên chưa dò được kỳ trước' ); }
 
 		if ( $ds === null ) { $ds = self::list_dons(); }
 		// list_dons() trả MỚI NHẤT TRƯỚC, nên phần tử phía sau là đơn cũ hơn.
-		$vi = -1;
-		foreach ( $ds as $i => $x ) { if ( (string) $x['maDon'] === (string) $ma_don ) { $vi = $i; break; } }
+		$vi = -1; $toi = null;
+		foreach ( $ds as $i => $x ) {
+			if ( (string) $x['maDon'] === (string) $ma_don ) { $vi = $i; $toi = $x; break; }
+		}
 		if ( $vi < 0 ) { return array( 'so' => 0, 'lyDo' => 'không thấy đơn trong danh sách' ); }
 
-		$truoc = null;
+		// ---- 1. QUẢN LÝ cầm TK 141 của đơn này ----
+		$ql      = trim( (string) $d['nguoi_duyet'] );
+		$du_kien = false;
+		if ( $ql === '' ) {
+			/* Chưa duyệt thì chưa có quản lý. Đoán theo quản lý gần nhất của CÙNG CƠ SỞ để
+			   người lập còn thấy con số dự kiến, nhưng phải nói rõ là dự kiến — số thật chốt
+			   lúc duyệt, và quản lý duyệt có thể là người khác. */
+			$cs_toi = self::tach_coso( (string) $toi['coso'] );
+			$n = count( $ds );
+			for ( $i = $vi + 1; $i < $n; $i++ ) {
+				$nd = trim( (string) $ds[ $i ]['nguoiDuyet'] );
+				if ( $nd === '' ) { continue; }
+				if ( array_intersect( $cs_toi, self::tach_coso( (string) $ds[ $i ]['coso'] ) ) ) {
+					$ql = $nd; $du_kien = true; break;
+				}
+			}
+			/* Đơn VỪA TẠO chưa có dòng nào nên chưa có cơ sở — đường trên không dò được gì.
+			   Lùi về người lập: lấy quản lý đã duyệt đơn gần nhất của chính người này. Người lập
+			   gắn với một cơ sở, cơ sở gắn với một quản lý, nên suy ra được. Vẫn là DỰ KIẾN. */
+			if ( $ql === '' ) {
+				$nl = trim( (string) $d['nguoi_lap'] );
+				if ( $nl !== '' ) {
+					for ( $i = $vi + 1; $i < $n; $i++ ) {
+						if ( trim( (string) $ds[ $i ]['nguoiLap'] ) !== $nl ) { continue; }
+						$nd = trim( (string) $ds[ $i ]['nguoiDuyet'] );
+						if ( $nd !== '' ) { $ql = $nd; $du_kien = true; break; }
+					}
+				}
+			}
+		}
+		if ( $ql === '' ) {
+			return array( 'so' => 0, 'duKien' => false, 'lyDo' => 'đơn chưa duyệt và chưa có kỳ nào trước của cơ sở này — chưa dò được quản lý giữ tạm ứng' );
+		}
+
+		// ---- 2. KỲ TRƯỚC của chính quản lý đó ----
+		$ky_nay   = (string) $toi['ky'];
+		$ky_truoc = '';
 		$n = count( $ds );
 		for ( $i = $vi + 1; $i < $n; $i++ ) {
-			if ( trim( (string) $ds[ $i ]['nguoiLap'] ) === $nguoi ) { $truoc = $ds[ $i ]; break; }
+			$x = $ds[ $i ];
+			if ( trim( (string) $x['nguoiDuyet'] ) !== $ql ) { continue; }
+			if ( (string) $x['ky'] === $ky_nay ) { continue; }   // cùng tuần thì không phải "kỳ trước"
+			$ky_truoc = (string) $x['ky'];
+			break;
 		}
-		if ( ! $truoc ) { return array( 'so' => 0, 'lyDo' => 'chưa có kỳ nào trước đó của ' . $nguoi ); }
-
-		$ky = (string) $truoc['ky'];
-
-		// ĐÓNG CỬA GIAN HÀNG LÀ HẾT LUÂN CHUYỂN. Kế toán làm lệnh đóng gian là đã tất toán
-		// hết bằng tiền với người ta; còn trừ tiếp sang kỳ sau là trừ hai lần một khoản.
-		$cs_truoc = trim( (string) $truoc['coso'] );
-		$ngay_dong = ( $cs_truoc !== '' ) ? VHCP_Cfg::coso_dong_cua( $cs_truoc ) : '';
-		if ( $ngay_dong !== '' ) {
+		if ( $ky_truoc === '' ) {
 			return array(
-				'so'       => 0,
-				'donTruoc' => (string) $truoc['maDon'],
-				'kyTruoc'  => $ky,
-				'coSoDong' => $cs_truoc,
-				'lyDo'     => 'cơ sở "' . $cs_truoc . '" đã đóng cửa ngày ' . $ngay_dong
-					. ' — kế toán đã tất toán khi đóng gian, không luân chuyển nữa',
+				'so'     => 0,
+				'quanLy' => $ql,
+				'duKien' => $du_kien,
+				'lyDo'   => 'chưa có tuần nào trước đó do ' . $ql . ' duyệt' . ( $du_kien ? ' (quản lý dự kiến)' : '' ),
 			);
 		}
 
-		if ( ! empty( $truoc['tatToan'] ) ) {
+		// ---- 3. GỘP CẢ TUẦN của quản lý đó ----
+		$tong = 0; $so_don = 0; $bo_qua = array();
+		foreach ( $ds as $x ) {
+			if ( (string) $x['ky'] !== $ky_truoc ) { continue; }
+			if ( trim( (string) $x['nguoiDuyet'] ) !== $ql ) { continue; }
+
+			if ( ! empty( $x['tatToan'] ) ) {
+				$bo_qua[] = (string) $x['maDon'] . ' (đã tất toán)';
+				continue;
+			}
+			$dong = '';
+			foreach ( self::tach_coso( (string) $x['coso'] ) as $cs ) {
+				$nd = VHCP_Cfg::coso_dong_cua( $cs );
+				if ( $nd !== '' ) { $dong = $cs . ' đóng ' . $nd; break; }
+			}
+			if ( $dong !== '' ) {
+				$bo_qua[] = (string) $x['maDon'] . ' (' . $dong . ')';
+				continue;
+			}
+
+			$tong += VHCP_Util::num( $x['chenhLech'] );
+			$so_don++;
+		}
+
+		if ( $so_don === 0 ) {
 			return array(
-				'so'       => 0,
-				'donTruoc' => (string) $truoc['maDon'],
-				'kyTruoc'  => $ky,
-				'lyDo'     => 'kỳ trước (' . $ky . ') đã tất toán xong với kế toán — không còn gì luân chuyển',
+				'so'      => 0,
+				'quanLy'  => $ql,
+				'duKien'  => $du_kien,
+				'kyTruoc' => $ky_truoc,
+				'soDon'   => 0,
+				'boQua'   => $bo_qua,
+				'lyDo'    => 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' đã tất toán hết — không còn gì luân chuyển'
+					. ( $bo_qua ? ' [' . implode( ' · ', $bo_qua ) . ']' : '' ),
 			);
 		}
 
-		$chenh = VHCP_Util::num( $truoc['chenhLech'] );
-		$so    = -$chenh;
-		if ( $so > 0 )      { $ly = 'kỳ trước (' . $ky . ') THIẾU ' . VHCP_Util::tien( $so ) . ' → kỳ này bù thêm'; }
-		elseif ( $so < 0 )  { $ly = 'kỳ trước (' . $ky . ') còn DƯ ' . VHCP_Util::tien( -$so ) . ' → kỳ này trừ đi'; }
-		else                { $ly = 'kỳ trước (' . $ky . ') vừa khớp — không phải bù trừ'; }
+		$so  = -$tong;   // tuần trước DƯ (chênh dương) → tuần này TRỪ; THIẾU → tuần này BÙ
+		$goi = $so_don . ' đơn';
+		if ( $so > 0 )     { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — THIẾU ' . VHCP_Util::tien( $so ) . ' → tuần này bù thêm'; }
+		elseif ( $so < 0 ) { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — còn DƯ ' . VHCP_Util::tien( -$so ) . ' → tuần này trừ đi'; }
+		else               { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — vừa khớp, không phải bù trừ'; }
+		if ( $du_kien ) { $ly .= ' · QUẢN LÝ DỰ KIẾN — chốt lại khi duyệt'; }
+		if ( $bo_qua )  { $ly .= ' · bỏ qua: ' . implode( ' · ', $bo_qua ); }
 
 		return array(
 			'so'         => $so,
-			'donTruoc'   => (string) $truoc['maDon'],
-			'kyTruoc'    => $ky,
-			'chenhTruoc' => $chenh,
+			'quanLy'     => $ql,
+			'duKien'     => $du_kien,
+			'kyTruoc'    => $ky_truoc,
+			'soDon'      => $so_don,
+			'chenhTruoc' => $tong,
+			'boQua'      => $bo_qua,
 			'lyDo'       => $ly,
 		);
+	}
+
+	/** Cột coso của list_dons() có thể ghép nhiều cơ sở ("A, B") — tách ra mới tra đóng cửa được. */
+	private static function tach_coso( $chuoi ) {
+		$ra = array();
+		foreach ( explode( ',', (string) $chuoi ) as $c ) {
+			$c = trim( $c );
+			if ( $c !== '' ) { $ra[] = $c; }
+		}
+		return $ra;
 	}
 
 	/** Ghi lại bù trừ tự tính (chỉ khi đơn còn ở "Nháp" — gửi duyệt rồi thì chốt số). */

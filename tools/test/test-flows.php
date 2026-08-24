@@ -203,7 +203,10 @@ $d2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
 $ma2 = $d2['maDon'];
 $g2  = VHCP_Don::get_don( $ma2 );
 teq( 'kỳ trước DƯ thì kỳ này trừ đi', -250000, VHCP_Util::num( $g2['don']['buTru'] ) );
-teq( 'chỉ ra đúng đơn kỳ trước', $ma, (string) $g2['don']['buTruAuto']['donTruoc'] );
+// Luật mới gộp CẢ TUẦN của quản lý, nên không còn khái niệm "một đơn kỳ trước".
+teq( 'bù trừ quy về QUẢN LÝ duyệt, không phải người lập', 'Trần Quản Lý', (string) $g2['don']['buTruAuto']['quanLy'] );
+teq( 'gộp đúng số đơn của tuần trước', 1, (int) $g2['don']['buTruAuto']['soDon'] );
+t( 'đơn chưa duyệt thì đánh dấu là quản lý DỰ KIẾN', ! empty( $g2['don']['buTruAuto']['duKien'] ), $g2['don']['buTruAuto'] );
 t( 'ghi rõ lý do là còn DƯ', strpos( (string) $g2['don']['buTruAuto']['lyDo'], 'DƯ' ) !== false, $g2['don']['buTruAuto']['lyDo'] );
 teq( 'số ghi thẳng vào đơn, không chờ giao diện', -250000, (float) VHCP_Don::don_row( $ma2 )['bu_tru'] );
 
@@ -2696,7 +2699,10 @@ t( 'ghi lại ngày đóng', VHCP_Cfg::coso_dong_cua( 'GIAN SẼ ĐÓNG' ) !== '
 t( 'tất toán luôn đơn còn treo của gian', (int) $dc['soDonTatToan'] >= 1, $dc );
 $g_c2 = VHCP_Don::get_don( $mc2 );
 teq( 'đóng gian rồi thì bù trừ về 0', 0, VHCP_Util::num( $g_c2['don']['buTru'] ) );
-t( 'và nói rõ vì đã đóng cửa', strpos( (string) $g_c2['don']['buTruAuto']['lyDo'], 'đã đóng cửa' ) !== false, $g_c2['don']['buTruAuto'] );
+t( 'và nói rõ đơn của gian đã đóng bị loại khỏi tổng',
+	strpos( (string) $g_c2['don']['buTruAuto']['lyDo'], 'GIAN SẼ ĐÓNG đóng' ) !== false
+	|| strpos( (string) $g_c2['don']['buTruAuto']['lyDo'], 'đã tất toán' ) !== false,
+	$g_c2['don']['buTruAuto'] );
 
 $them = VHCP_Don::add_line( $mc2, array( 'coso' => 'GIAN SẼ ĐÓNG', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Chi thêm', 'soLuong' => 1, 'donGia' => 1, 'thanhTien' => 1 ) );
 t( 'gian đã đóng thì không nhận chi mới', empty( $them['success'] ) );
@@ -2854,6 +2860,78 @@ t( 'bộ nạp khớp theo tên cột (không theo thứ tự), đúng như hư�
 	strpos( $hd_cp_1dong, 'khớp theo TÊN CỘT' ) !== false
 	&& strpos( file_get_contents( $goc_hd . '/wordpress/vhcp-chi-phi/includes/class-vhcp-nap.php' ),
 		'NẠP THEO TÊN TIÊU ĐỀ' ) !== false );
+
+/* ============ BÙ TRỪ GỘP CẢ TUẦN THEO QUẢN LÝ (24/08/2026) ============
+   Người cầm sổ chi và mang số dư TK 141 là QUẢN LÝ DUYỆT, không phải người lập đơn. Cơ sở chỉ
+   là nơi tạo đơn. Tiền thừa của từng gian có trả về kế toán, nhưng quản lý vẫn đang cần tiền
+   nên khoản đó ghi nhận lại và chuyển sang tuần sau cho chính quản lý ấy.
+
+   Luật cũ dò theo người lập và chỉ lấy MỘT đơn gần nhất — sai hai đường: số dư của quản lý bị
+   xé nhỏ theo từng người lập, và tuần nào quản lý duyệt nhiều đơn thì phần còn lại rơi mất.
+   Khối này dựng đúng tình huống đó: một quản lý, hai cơ sở, hai người lập, cùng một tuần.
+
+   Đặt ở CUỐI tệp: mỗi đơn dựng thêm đều chảy vào báo cáo và các phép đếm phía trên, chèn vào
+   giữa là làm hỏng chúng — đã dính một lần khi viết khối này. */
+$_ql   = 'Quản Lý Vùng ' . substr( md5( 'ql' ), 0, 4 );
+$_ky_a = 'T10/2026 (06/10-12/10/2026)';
+$_ky_b = 'T10/2026 (13/10-19/10/2026)';
+
+$_mk = array();
+foreach ( array( array( 'NV Bù Trừ Một', 'FARM PHAN THIẾT', 1000000, 700000 ),
+                 array( 'NV Bù Trừ Hai', 'TÀU TÂN PHÚ',      2000000, 2500000 ) ) as $_c ) {
+	$_m = VHCP_Don::create_don( $_ky_a, $_c[0] )['maDon'];
+	VHCP_Don::add_line( $_m, array( 'coso' => $_c[1], 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'Hàng tuần A', 'soLuong' => 1, 'donGia' => $_c[2], 'thanhTien' => $_c[2] ) );
+	VHCP_Don::gui_duyet_tam_ung( $_m );
+	VHCP_Don::duyet_tam_ung( $_m, $_ql, '' );
+	VHCP_Don::cap_tam_ung( $_m, 'Lê Kế Toán', 'Tiền mặt' );
+	VHCP_Don::set_line_thuc_mua( VHCP_Don::get_don( $_m )['lines'][0]['id'], $_c[3], 'Lê Kế Toán' );
+	$_mk[] = $_m;
+}
+
+/* Không ghim số cứng: bản thân hai đơn tuần A cũng mang bù trừ của riêng chúng, nên chênh lệch
+   thật phụ thuộc dữ liệu dựng phía trên. Đọc số thật rồi kiểm LUẬT GỘP — đó mới là thứ vừa đổi. */
+$_ch1 = VHCP_Util::num( VHCP_Don::get_don( $_mk[0] )['tongCN']['chenhLech'] );
+$_ch2 = VHCP_Util::num( VHCP_Don::get_don( $_mk[1] )['tongCN']['chenhLech'] );
+t( 'dựng được hai đơn khác dấu nhau', $_ch1 > 0 && $_ch2 < 0, array( $_ch1, $_ch2 ) );
+
+$_m_sau = VHCP_Don::create_don( $_ky_b, 'NV Bù Trừ Một' )['maDon'];
+VHCP_Don::add_line( $_m_sau, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'Hàng tuần B', 'soLuong' => 1, 'donGia' => 900000, 'thanhTien' => 900000 ) );
+$_bt = VHCP_Don::get_don( $_m_sau )['don']['buTruAuto'];
+teq( 'gộp đủ 2 đơn của quản lý trong tuần trước', 2, (int) $_bt['soDon'] );
+teq( 'tổng chênh = cộng cả hai đơn, không lấy mỗi đơn gần nhất', $_ch1 + $_ch2, VHCP_Util::num( $_bt['chenhTruoc'] ) );
+teq( 'bù trừ mang dấu ngược tổng chênh', -( $_ch1 + $_ch2 ), VHCP_Util::num( $_bt['so'] ) );
+teq( 'quy về đúng quản lý', $_ql, (string) $_bt['quanLy'] );
+teq( 'lấy đúng tuần trước', $_ky_a, (string) $_bt['kyTruoc'] );
+
+/* Quản lý KHÁC không ăn theo số dư của quản lý này — dù cùng cơ sở, cùng tuần. */
+$_m_ql2 = VHCP_Don::create_don( $_ky_b, 'NV Bù Trừ Một' )['maDon'];
+VHCP_Don::add_line( $_m_ql2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'Hàng tuần B2', 'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+VHCP_Don::gui_duyet_tam_ung( $_m_ql2 );
+VHCP_Don::duyet_tam_ung( $_m_ql2, 'Quản Lý Khác Hẳn', '' );
+$_bt2 = VHCP_Don::get_don( $_m_ql2 )['don']['buTruAuto'];
+teq( 'quản lý khác: không mang số dư của quản lý kia', 0, VHCP_Util::num( $_bt2['so'] ) );
+teq( 'và quy đúng về quản lý của chính đơn đó', 'Quản Lý Khác Hẳn', (string) $_bt2['quanLy'] );
+t( 'đơn đã duyệt thì KHÔNG còn là dự kiến', empty( $_bt2['duKien'] ), $_bt2 );
+
+/* Đơn CÙNG TUẦN của chính quản lý đó không được tính là "tuần trước" — tính vào thì bù trừ ăn
+   lên chính nó và con số chạy vòng, đúng hiện tượng anh Thắng gặp (2.616.000 lặp mãi).
+
+   Phải DUYỆT $_m_sau trước đã: nếu tuần B chưa có đơn nào do chính $_ql duyệt thì bỏ chốt
+   "cùng tuần" đi cũng chẳng đổi gì, và phép thử xanh trong khi mã sai — đã dính đúng vậy khi
+   viết khối này lần đầu. */
+VHCP_Don::gui_duyet_tam_ung( $_m_sau );
+VHCP_Don::duyet_tam_ung( $_m_sau, $_ql, '' );
+VHCP_Don::cap_tam_ung( $_m_sau, 'Lê Kế Toán', 'Tiền mặt' );
+VHCP_Don::set_line_thuc_mua( VHCP_Don::get_don( $_m_sau )['lines'][0]['id'], 100000, 'Lê Kế Toán' );
+t( 'tuần B giờ đã có đơn của chính quản lý đó', VHCP_Util::num( VHCP_Don::get_don( $_m_sau )['tongCN']['chenhLech'] ) != 0 );
+
+$_m_cung = VHCP_Don::create_don( $_ky_b, 'NV Bù Trừ Hai' )['maDon'];
+VHCP_Don::add_line( $_m_cung, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'Hàng tuần B3', 'soLuong' => 1, 'donGia' => 400000, 'thanhTien' => 400000 ) );
+VHCP_Don::gui_duyet_tam_ung( $_m_cung );
+VHCP_Don::duyet_tam_ung( $_m_cung, $_ql, '' );
+$_bt3 = VHCP_Don::get_don( $_m_cung )['don']['buTruAuto'];
+teq( 'vẫn lấy tuần A, không lấy đơn cùng tuần B', $_ky_a, (string) $_bt3['kyTruoc'] );
+teq( 'và ra cùng con số với đơn kia của quản lý', VHCP_Util::num( $_bt['so'] ), VHCP_Util::num( $_bt3['so'] ) );
 
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {

@@ -181,11 +181,11 @@
         </div>
         <div id="dpRow" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px;padding:10px;background:#fefce8;border:1px solid #fde68a;border-radius:8px">
           <div class="fld"><label>🛟 Tạm ứng dự phòng (phòng phát sinh — không bắt buộc)</label><input id="dpSo" type="number" min="0" placeholder="0" oninput="renderTU()" style="width:180px"></div>
-          <div class="fld"><label>🔄 Bù trừ luân chuyển kỳ trước <span style="font-weight:400;text-transform:none;letter-spacing:0">(hệ thống tự tính)</span></label>
-            <input id="buSo" type="text" readonly placeholder="0" style="width:230px;background:#f1f5f9;color:#334155;cursor:default" title="Hệ thống tự lấy phần dư / thiếu của kỳ trước — không nhập tay">
+          <div class="fld"><label>🔄 Bù trừ tuần trước của QUẢN LÝ <span style="font-weight:400;text-transform:none;letter-spacing:0">(hệ thống tự tính)</span></label>
+            <input id="buSo" type="text" readonly placeholder="0" style="width:230px;background:#f1f5f9;color:#334155;cursor:default" title="Gộp thừa/thiếu CẢ TUẦN TRƯỚC của quản lý duyệt đơn (người giữ tạm ứng TK 141) — không nhập tay">
             <div id="buWhy" style="font-size:11px;color:#64748b;margin-top:3px"></div></div>
           <button class="btn b-p" onclick="saveDuPhong()">💾 Lưu</button>
-          <span style="font-size:11px;color:#94a3b8;flex-basis:100%">Dự phòng không tiêu hết → thành "thừa" & hoàn khi quyết toán. Bù trừ = thừa/thiếu kỳ trước luân chuyển vào tạm ứng kỳ này (xem hàng <b>🧮 Đối chiếu quỹ</b> ở tab Quyết toán để lấy số).</span>
+          <span style="font-size:11px;color:#94a3b8;flex-basis:100%">Dự phòng không tiêu hết → thành "thừa" &amp; hoàn khi quyết toán. Bù trừ gộp thừa/thiếu <b>cả tuần trước của quản lý duyệt</b> — người giữ tạm ứng trên TK 141; cơ sở chỉ là nơi tạo đơn. Tiền thừa có trả về kế toán, nhưng quản lý vẫn cần tiền nên khoản đó chuyển sang tuần sau.</span>
         </div>
         <div id="tuChips"></div>
       </div>
@@ -1696,7 +1696,14 @@
     if(keys.length || dp>0 || bt){
       var chips=keys.sort().map(function(cs){ return '<span class="chip">'+esc(cs)+': <b>'+money(t[cs])+'đ</b></span>'; }).join('');
       if(dp>0) chips+='<span class="chip" style="background:#fef9c3">🛟 Dự phòng: <b>'+money(dp)+'đ</b></span>';
-      if(bt)   chips+='<span class="chip" style="background:'+(bt>0?'#dbeafe':'#fee2e2')+'">🔄 Bù trừ kỳ trước: <b>'+(bt>0?'+':'−')+money(Math.abs(bt))+'đ</b></span>';
+      if(bt){
+        /* Nói rõ bù trừ này của AI và gộp mấy đơn — con số đi từ tuần trước sang mà không ghi
+           nguồn thì người duyệt không có cách nào đối chiếu. */
+        var _a=(CUR.don&&CUR.don.buTruAuto)||{};
+        var _ai=_a.quanLy?(' · '+esc(_a.quanLy)+(_a.duKien?' (dự kiến)':'')):'';
+        var _sd=_a.soDon?(' · '+_a.soDon+' đơn tuần trước'):'';
+        chips+='<span class="chip" style="background:'+(bt>0?'#dbeafe':'#fee2e2')+'" title="'+esc(_a.lyDo||'')+'">🔄 Bù trừ tuần trước: <b>'+(bt>0?'+':'−')+money(Math.abs(bt))+'đ</b><span style="color:#64748b;font-weight:400">'+_ai+_sd+'</span></span>';
+      }
       var parts=[]; if(hangMuc>0)parts.push('hạng mục '+money(hangMuc)+'đ'); if(dp>0)parts.push('dự phòng '+money(dp)+'đ'); if(bt)parts.push('bù '+(bt>0?'+':'−')+money(Math.abs(bt))+'đ');
       var bd=(parts.length>1)?(' <span style="color:#94a3b8">('+parts.join(' + ')+')</span>'):'';
       el('tuChips').innerHTML=chips+'<div style="margin-top:6px;font-size:13px"><b>Tổng tạm ứng xin: '+money(tong)+'đ</b>'+bd+((CUR.tuMode==='new'&&duyet>0&&duyet!==tong)?(' · <span style="color:#0369a1">đã duyệt: '+money(duyet)+'đ</span>'):'')+'</div>';
