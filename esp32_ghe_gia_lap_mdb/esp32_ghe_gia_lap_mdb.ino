@@ -94,8 +94,14 @@ int32_t docKhung(uint32_t hanChoUs) {
   }
   uint32_t goc = micros();                       // sườn xuống = mép bit start
 
-  choToi(goc + mocGiua(0));
-  if (digitalRead(CHAN_NGHE) != LOW) { return -2; }   // gai nhiễu, không phải start
+  /* Kiểm bit start ở HAI điểm — 1/4 và 3/4 bề rộng bit — chứ không chỉ ở giữa.
+     Kiểm một điểm thì mọi gai dài hơn 52 µs đều lọt: mã tưởng có start, đọc tiếp thấy
+     đường đã về mức cao nên ra chín bit 1, tức "FF bit9=1". Đó là nguồn của màn hình đầy
+     FF hôm 24/08/2026. Bit start thật giữ mức thấp trọn 104 µs, nên hai điểm đều phải thấp. */
+  choToi(goc + (BIT_x100 / 400));                     // 1/4 bit
+  if (digitalRead(CHAN_NGHE) != LOW) { return -2; }
+  choToi(goc + (BIT_x100 * 3) / 400);                 // 3/4 bit
+  if (digitalRead(CHAN_NGHE) != LOW) { return -2; }
 
   uint16_t v = 0;
   for (uint8_t i = 0; i < SO_BIT_DU_LIEU; i++) {
@@ -206,9 +212,24 @@ void loop() {
     return;
   }
 
-  soNghe++;
   uint8_t  dl   = k & 0xFF;
   bool     bit9 = (k >> 8) & 1;
+
+  /* 0x1FF = chín bit 1 = đường chỉ xuống đúng một bit rồi lên lại. Không byte dữ liệu nào
+     có dạng đó; đây luôn là gai nhiễu lọt lưới. Đếm riêng, in gộp, đừng để nó lấp byte thật. */
+  if (k == 0x1FF) {
+    static uint32_t demGai = 0, lanInGai = 0;
+    demGai++;
+    if (millis() - lanInGai > 1000) {
+      lanInGai = millis();
+      Serial.printf("%8lu ms  %lu gai nhiễu/giây (FF bit9=1) — xem phần chống nhiễu\n",
+                    millis(), demGai);
+      demGai = 0;
+    }
+    return;
+  }
+
+  soNghe++;
 
   Serial.printf("%8lu ms  nghe: %02X  bit9=%d %s",
                 millis(), dl, bit9 ? 1 : 0,
