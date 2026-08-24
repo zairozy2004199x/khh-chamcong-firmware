@@ -81,8 +81,11 @@ static void moCong(){
   Bus.begin(tocDo, khungCua(kieuKhung), CHAN_ICT, CHAN_GHE, daoCuc);
   /* begin() chỉ nhận một cờ đảo cho cả hai chiều. Muốn đảo riêng chiều nói thì gọi thẳng
      xuống tầng dưới, sau khi cổng đã mở. Gọi với 0 để xoá khi tắt. */
-  if (daoNoi) uart_set_line_inverse(1, UART_SIGNAL_TXD_INV);
-  else if (!daoCuc) uart_set_line_inverse(1, 0);
+  /* UART_NUM_1 chứ không phải số 1: tham số này kiểu uart_port_t, truyền số trần là
+     trình dịch từ chối thẳng (invalid conversion from 'int' to 'uart_port_t'). Phải khớp
+     đúng cổng đã mở ở HardwareSerial Bus(1). */
+  if (daoNoi) uart_set_line_inverse(UART_NUM_1, UART_SIGNAL_TXD_INV);
+  else if (!daoCuc) uart_set_line_inverse(UART_NUM_1, UART_SIGNAL_INV_DISABLE);
   Serial.printf(">> cổng: %lu baud %s · cực %s · chiều nói %s\n",
                 (unsigned long) tocDo, tenKhung(kieuKhung),
                 daoCuc ? "ĐẢO" : "thuận", daoNoi ? "ĐẢO (qua transistor)" : "thuận");
