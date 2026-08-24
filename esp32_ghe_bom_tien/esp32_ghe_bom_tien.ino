@@ -8,15 +8,16 @@
  * Sai hướng. Cách hãng làm là để ICT nguyên trong mạch — nó lo phần bắt tay —
  * còn ESP32 chỉ chen vào giữa, nghe ICT rồi nói lại vào chân RX của ghế.
  *
- * ĐO ĐƯỢC GÌ (bản ghi 1 MHz, ba lần nạp tờ 10k cho ba cụm khớp nhau từng µs):
- *      thấp  414 µs  = 2 bit      →  start + d0(0)
- *      cao   207 µs  = 1 bit      →  d1(1)
- *      thấp 1242 µs  = 6 bit      →  d2..d7 (0)
- *      cao            nghỉ        →  stop
- *   207 µs là một bit ở 4800 baud. Ghép lại: 0000 0010 = 0x02.
+ * ĐO ĐƯỢC GÌ — bằng cách nạp tờ thật rồi để chính ESP32 đọc cổng ICT:
  *
- *      ICT gửi MỘT byte 0x02 ở 4800 baud 8N1 khi nhận 10.000đ.
- *      Không khung, không checksum, không bắt tay.
+ *      81  (0x40 + kênh)  10        ICT báo NHẬN được tiền, 4800 baud 8N1
+ *      kênh 1 = 10k · 2 = 20k · 3 = 50k · 4 = 100k
+ *
+ *   Ba byte, cách nhau 3 ms rồi 1,2 giây. Không checksum, không bắt tay.
+ *
+ *   ⚠ Các bản ghi logic analyzer đầu cho ra byte 0x02 cho MỌI mệnh giá — SAI, do đọc lệch
+ *     khung ở một đường bên cạnh. Byte thật chưa bao giờ là 0x02. Ba lần đọc sai cùng một
+ *     kiểu vẫn là sai; thứ lật lại được là đo từ phía khác. Xem docs/GIAO-THUC-BO-GHE.md.
  *
  * ĐẤU DÂY
  *   GPIO 35  ←  đường ICT nói ra      (nghe ICT báo tiền)
@@ -26,8 +27,11 @@
  *   ⚠ Đường ICT chạy 5V. GPIO 35 phải qua bộ chia áp 1k/2k như đã làm với TX22.
  *
  * GÕ LỆNH (Serial Monitor 115200, New Line)
- *   b        bơm một tờ — gửi mã đang đặt
- *   mXX      đổi mã tờ tiền, hex 2 chữ số (mặc định 02 = 10k)
+ *   b10      bơm tờ 10.000đ   ·  b20 · b50 · b100
+ *   b        bơm bằng mã đang đặt
+ *   mXX      đổi mã tờ tiền, hex 2 chữ số
+ *   p / i    đổi khung 8N1→8E1→8O1  ·  đảo cực tín hiệu
+ *   vNNNN    đổi tốc độ (mặc định v4800 — đúng như đo được)
  *   c        bật/tắt chuyển tiếp ICT → ghế
  *   r        xoá bộ đếm
  */
