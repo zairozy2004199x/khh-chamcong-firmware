@@ -69,6 +69,52 @@ phân biệt được.
 Cách phá vòng là cứ đáp thử rồi xem bo ghế nói gì tiếp — đó là việc của
 `esp32_ghe_gia_lap_mdb`.
 
+## LỜI GIẢI — ICT gửi một byte, 4800 baud (24/08/2026)
+
+Suốt buổi đi sai hướng vì tưởng ESP32 phải ĐÓNG VAI cục nhận tiền, tức phải trả lời cuộc bắt
+tay 9600 baud của bo ghế. Cách hãng khác làm thì khác hẳn:
+
+```
+ghế TX22  ──────────►  ICT          (ghế hỏi, ICT trả lời — ESP32 không dính gì)
+ICT       ──────────►  ghế          (ICT báo tiền)
+ICT       ──────────►  ESP32        (ESP32 nghe ICT)
+ESP32     ──────────►  ghế RX22     (ESP32 bơm thêm)
+```
+
+**ICT ở nguyên trong mạch.** Nó lo phần bắt tay. ESP32 chỉ chen vào giữa: nghe ICT rồi nói lại
+vào chân RX của ghế. Không cần biết `00 E0` nghĩa là gì.
+
+### Đo được
+
+Bản ghi 1 MHz, nạp tờ 10k. Ba lần nạp cho ba cụm khớp nhau tới từng micro-giây:
+
+| Mức | Kéo dài | Là |
+|---|---|---|
+| thấp | **414 µs** | 2 bit — start + d0(0) |
+| cao | **207 µs** | 1 bit — d1(1) |
+| thấp | **1242 µs** | 6 bit — d2..d7 (0) |
+| cao | nghỉ | stop |
+
+Mọi quãng đều là bội số nguyên của **207 µs**, và 207 µs là một bit ở **4800 baud**.
+Ghép lại: `0000 0010` = **`0x02`**.
+
+```
+ICT gửi MỘT byte 0x02 ở 4800 baud 8N1 cực thuận khi nhận 10.000đ.
+Không khung, không checksum, không bắt tay.
+```
+
+Đó là chế độ RS232 của ICT: mỗi kênh tiền một mã byte. Kênh 2 đang đặt cho tờ 10k.
+Mệnh giá khác sẽ là mã khác — nạp một tờ rồi đọc dòng `ICT:` mà `esp32_ghe_bom_tien` in ra.
+
+### Bài học về cách dò
+
+**Hỏi xem đã có bo nào chạy được chưa, TRƯỚC khi ngồi dò.** Anh Thắng có sẵn bo hãng khác đang
+chạy tốt; kẹp con dò vào đó là ra lời giải trong mười phút. Cả buổi mò tám giá trị đáp, năm mức
+trễ, hai cực tín hiệu — không cần thiết.
+
+**Cuộc bắt tay `00 E0` ở 9600 baud là chuyện giữa ghế và ICT**, không liên quan tới việc bơm
+tiền. Nó có thật, đã dò đúng, nhưng giải nó không đưa tới đâu cả.
+
 ## Bo ghế CÓ nghe thấy câu trả lời — chốt 24/08/2026
 
 Phép thử: chạy hai lượt giống hệt nhau, khác đúng một biến — ESP32 có đáp hay không.
