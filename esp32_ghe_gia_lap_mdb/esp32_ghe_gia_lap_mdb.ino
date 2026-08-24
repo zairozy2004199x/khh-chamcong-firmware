@@ -89,6 +89,7 @@ uint32_t treDapUs = 500;
    lần đổi trễ liên tiếp. Nên nhắc thẳng ra khi đã lâu không nghe thấy gì. */
 /* Bề rộng quãng thấp vừa đo được, để loop() báo ra. */
 uint32_t quangThapUs = 0;
+uint32_t lanHoiTruoc = 0;
 uint32_t lanNgheCuoi = 0;
 uint32_t lanNhac     = 0;
 
@@ -122,12 +123,19 @@ int32_t docKhung(uint32_t hanChoUs) {
      24/08/2026: mã cũ báo "ĐƯỜNG KẸT Ở MỨC THẤP — kiểm dây" và dắt đi sai hướng cả một lượt,
      trong khi lệnh 'm' đo được chân ở mức cao 100%. Sự thật là bo ghế CHỦ ĐỘNG kéo đường
      xuống vài giây rồi mới truyền — đó là một phần của giao thức, không phải hỏng dây. */
-  uint32_t batThap = 0;
+  /* CỘNG DỒN quãng thấp qua nhiều lượt gọi.
+     Bản đầu chỉ đo trong một lượt, mà hạn chờ 200 ms cắt quãng thấp thành từng khúc — nên
+     một quãng 8,2 giây in ra thành "199 ms", đúng bằng khúc cuối. Số dư đó vô nghĩa và suýt
+     dắt đi sai hướng lần nữa. Giữ mốc ngoài hàm thì đo được trọn quãng. */
+  static uint32_t batThap = 0;
   while (docChan() == LOW) {
     if (batThap == 0) { batThap = micros(); }
     if (micros() - batDau > hanChoUs) { return -4; }
   }
-  if (batThap) { quangThapUs = micros() - batThap; }
+  if (batThap) {
+    quangThapUs = micros() - batThap;
+    batThap = 0;
+  }
   while (docChan() == HIGH) {
     if (micros() - batDau > hanChoUs) { return -1; }
   }
@@ -297,10 +305,9 @@ void loop() {
     if (k == -4) { demKet++; }
     if ((demHong || demKet) && millis() - lanIn > 1000) {
       lanIn = millis();
-      if (demKet) {
-        Serial.printf("%8lu ms  bo ghế GIỮ ĐƯỜNG THẤP — hơn %lu ms liền (%lu lượt chờ)\n",
-                      millis(), demKet * 200, demKet);
-      }
+      /* Không in dòng riêng cho quãng thấp nữa — nó đã hiện ngay cạnh byte, kèm số đo
+         trọn vẹn. In cả hai chỗ thì màn hình đầy dòng lặp mà con số lại kém chính xác hơn. */
+      (void) demKet;
       if (demHong) {
         Serial.printf("%8lu ms  %lu khung hỏng/giây (bit stop sai)\n", millis(), demHong);
       }
@@ -338,6 +345,12 @@ void loop() {
     Serial.printf("  [trước đó đường thấp %lu ms]", quangThapUs / 1000);
     quangThapUs = 0;
   }
+  /* Nhịp giữa hai lần bo ghế mở miệng — thứ cần so giữa lượt CÓ đáp và lượt KHÔNG đáp.
+     Nếu hai lượt cho cùng một dãy số thì câu đáp của mình chẳng tác động gì. */
+  if (bit9 && lanHoiTruoc) {
+    Serial.printf("  [cách lần hỏi trước %lu ms]", millis() - lanHoiTruoc);
+  }
+  if (bit9) { lanHoiTruoc = millis(); }
 
   if (dapLai && (bit9 || !chiDapDiaChi)) {
     // MDB cho thiết bị tối đa 5 ms để trả lời. Nghỉ một nhịp cho bo ghế
