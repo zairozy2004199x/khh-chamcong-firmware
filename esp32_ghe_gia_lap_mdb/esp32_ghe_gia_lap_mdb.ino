@@ -84,6 +84,12 @@ uint8_t  viTriQuet = 0;
    đường, muộn quá thì nó đã bỏ cuộc. Để chỉnh được bằng lệnh thay vì ghim cứng. */
 uint32_t treDapUs = 500;
 
+/* Bo ghế chỉ hỏi lúc mới lên điện. Đổi khung đáp hay đổi trễ trong lúc nó đang im thì
+   KHÔNG thử được gì — 24/08/2026 mất năm phút vì chuyện này, bộ đếm đứng nguyên qua bốn
+   lần đổi trễ liên tiếp. Nên nhắc thẳng ra khi đã lâu không nghe thấy gì. */
+uint32_t lanNgheCuoi = 0;
+uint32_t lanNhac     = 0;
+
 // ————— chờ tới một mốc tuyệt đối, không dùng delay để khỏi trôi —————
 /* Mọi chỗ đọc chân đều đi qua đây, để bật đảo cực là ăn hết, không sót chỗ nào. */
 static inline int docChan() {
@@ -231,10 +237,25 @@ void setup() {
   Serial.println(F("Lần chạy đầu ĐANG TẮT đáp — chỉ nghe. Gõ 'd' để bật đáp."));
   inBangLenh();
   inTrangThai();
+  lanNgheCuoi = millis();
 }
 
 void loop() {
   docLenh();
+
+  /* Im quá 20 giây thì nhắc — kèm giá trị sắp thử, để biết đang dở tới đâu. */
+  if (millis() - lanNgheCuoi > 20000 && millis() - lanNhac > 20000) {
+    lanNhac = millis();
+    if (tuQuet) {
+      Serial.printf("%8lu ms  … bo ghế im %lu giây. TẮT BẬT ĐIỆN BO GHẾ để thử tiếp %03X "
+                    "(còn %u trong %u giá trị)\n",
+                    millis(), (millis() - lanNgheCuoi) / 1000,
+                    DS_DAP[viTriQuet], SO_DAP - viTriQuet, SO_DAP);
+    } else {
+      Serial.printf("%8lu ms  … bo ghế im %lu giây. TẮT BẬT ĐIỆN BO GHẾ để thử khung %03X\n",
+                    millis(), (millis() - lanNgheCuoi) / 1000, khungDap);
+    }
+  }
 
   int32_t k = docKhung(200000);      // chờ tối đa 200 ms rồi quay lại xem lệnh
   if (k < 0) {
@@ -275,6 +296,7 @@ void loop() {
   }
 
   soNghe++;
+  lanNgheCuoi = millis();
 
   Serial.printf("%8lu ms  nghe: %02X  bit9=%d %s",
                 millis(), dl, bit9 ? 1 : 0,
