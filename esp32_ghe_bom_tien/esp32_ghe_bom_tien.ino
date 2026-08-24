@@ -80,10 +80,12 @@ static bool     chiNghe = false;
    hỏng. Tắt bằng lệnh f — in nguyên xi mọi byte, gọn theo hàng. */
 static bool     locByte = true;
 
-static bool     daoNoi = true;      /* MẶC ĐỊNH BẬT: đấu dây đã chốt là qua transistor NPN, mà
-   transistor thì đảo tín hiệu — nên chiều đúng luôn là chiều đảo. Để mặc định tắt thì mỗi lần
-   nạp lại là đường nói nằm thấp suốt, và người ngồi thử phải nhớ gõ n. Đã vấp đúng vậy hai lần
-   trong một buổi. Nối thẳng không qua transistor thì gõ n một lần để tắt. */
+static bool     daoNoi = false;     /* MẶC ĐỊNH TẮT: đấu dây thực tế đang là NỐI THẲNG chân 26
+   vào ghế, không qua transistor. Trước đây để true vì thiết kế có transistor — và mỗi lần nạp
+   lại là chiều nói về ĐẢO, ghế nhận byte ngược bit nên không hiểu gì. Đã bẫy bốn lần trong một
+   buổi, nhắc ba lần vẫn lọt. Bắt người ngồi thử phải nhớ một bước sau mỗi lần nạp là thiết kế
+   tồi; mặc định phải khớp với cách đấu đang dùng.
+   Lắp transistor thì gõ n một lần để bật lại. */
 
 static uint32_t khungCua(uint8_t k){
   return (k == 1) ? SERIAL_8E1 : (k == 2) ? SERIAL_8O1 : SERIAL_8N1;
