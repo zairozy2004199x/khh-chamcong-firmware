@@ -61,12 +61,22 @@ static const uint8_t SO_BIT_DU_LIEU = 9;     // 8 data + bit thứ chín
 static const uint8_t BIT_STOP       = 10;    // vị trí bit stop trong khung
 
 // ————— trạng thái —————
+/* Mạch cách ly quang PC817 ĐẢO tín hiệu: LED sáng → transistor dẫn → đầu ra xuống thấp.
+   Module có tầng đảo bù lại thì ra thuận, module trần thì ra ngược. Không nhìn mạch mà biết
+   được, nên để đổi bằng lệnh 'i' — khỏi tháo dây đấu lại. */
+bool     daoCuc      = false;
 bool     dapLai      = false;   // lần chạy đầu chỉ nghe cho an toàn
 bool     chiDapDiaChi = true;   // chỉ trả lời khung có bit thứ chín bật
 uint16_t khungDap    = 0x000;   // ACK của MDB là 0x00 với bit thứ chín tắt
 uint32_t soNghe = 0, soDap = 0, soLoiStop = 0;
 
 // ————— chờ tới một mốc tuyệt đối, không dùng delay để khỏi trôi —————
+/* Mọi chỗ đọc chân đều đi qua đây, để bật đảo cực là ăn hết, không sót chỗ nào. */
+static inline int docChan() {
+  int m = digitalRead(CHAN_NGHE);
+  return daoCuc ? !m : m;
+}
+
 static inline void choToi(uint32_t moc) {
   while ((int32_t)(micros() - moc) < 0) { /* bận chờ, 104 µs nên không đáng ngại */ }
 }
@@ -86,10 +96,10 @@ int32_t docKhung(uint32_t hanChoUs) {
      vừa bắt được bit start, trong khi thật ra đang đứng giữa một quãng thấp — đọc ra rác,
      bit stop sai, lặp mỗi mili-giây. Đúng lỗi "KHUNG HỎNG" tràn màn hình 24/08/2026, cùng
      gốc với "401 byte toàn 00" của bản nghe. */
-  while (digitalRead(CHAN_NGHE) == LOW) {
+  while (docChan() == LOW) {
     if (micros() - batDau > hanChoUs) { return -4; }   // -4 = đường kẹt ở mức thấp
   }
-  while (digitalRead(CHAN_NGHE) == HIGH) {
+  while (docChan() == HIGH) {
     if (micros() - batDau > hanChoUs) { return -1; }
   }
   uint32_t goc = micros();                       // sườn xuống = mép bit start
@@ -99,18 +109,18 @@ int32_t docKhung(uint32_t hanChoUs) {
      đường đã về mức cao nên ra chín bit 1, tức "FF bit9=1". Đó là nguồn của màn hình đầy
      FF hôm 24/08/2026. Bit start thật giữ mức thấp trọn 104 µs, nên hai điểm đều phải thấp. */
   choToi(goc + (BIT_x100 / 400));                     // 1/4 bit
-  if (digitalRead(CHAN_NGHE) != LOW) { return -2; }
+  if (docChan() != LOW) { return -2; }
   choToi(goc + (BIT_x100 * 3) / 400);                 // 3/4 bit
-  if (digitalRead(CHAN_NGHE) != LOW) { return -2; }
+  if (docChan() != LOW) { return -2; }
 
   uint16_t v = 0;
   for (uint8_t i = 0; i < SO_BIT_DU_LIEU; i++) {
     choToi(goc + mocGiua(i + 1));
-    if (digitalRead(CHAN_NGHE)) { v |= (1 << i); }    // UART đẩy bit thấp ra trước
+    if (docChan()) { v |= (1 << i); }    // UART đẩy bit thấp ra trước
   }
 
   choToi(goc + mocGiua(BIT_STOP));
-  if (digitalRead(CHAN_NGHE) != HIGH) {
+  if (docChan() != HIGH) {
     soLoiStop++;
     return -3;
   }
@@ -120,13 +130,13 @@ int32_t docKhung(uint32_t hanChoUs) {
 // Đẩy một khung 11 bit ra CHAN_NOI.
 void guiKhung(uint16_t v) {
   uint32_t goc = micros();
-  digitalWrite(CHAN_NOI, LOW);                        // bit start
+  digitalWrite(CHAN_NOI, daoCuc ? HIGH : LOW);                        // bit start
   for (uint8_t i = 0; i < SO_BIT_DU_LIEU; i++) {
     choToi(goc + mocDau(i + 1));
-    digitalWrite(CHAN_NOI, (v >> i) & 1);
+    digitalWrite(CHAN_NOI, daoCuc ? !((v >> i) & 1) : ((v >> i) & 1));
   }
   choToi(goc + mocDau(BIT_STOP));
-  digitalWrite(CHAN_NOI, HIGH);                       // bit stop
+  digitalWrite(CHAN_NOI, daoCuc ? LOW : HIGH);                       // bit stop
   choToi(goc + mocDau(BIT_STOP + 1));                 // giữ đủ bề rộng bit stop
 }
 
@@ -140,8 +150,9 @@ void inBangLenh() {
 }
 
 void inTrangThai() {
-  Serial.printf("[đáp: %s | %s | khung đáp: %03X | nghe %lu, đáp %lu, stop hỏng %lu]\n",
+  Serial.printf("[đáp: %s | cực: %s | %s | khung đáp: %03X | nghe %lu, đáp %lu, stop hỏng %lu]\n",
                 dapLai ? "BẬT" : "tắt",
+                daoCuc ? "ĐẢO" : "thuận",
                 chiDapDiaChi ? "chỉ byte địa chỉ" : "mọi khung",
                 khungDap, soNghe, soDap, soLoiStop);
 }
@@ -159,6 +170,10 @@ void docLenh() {
   } else if (c == 't') {
     chiDapDiaChi = !chiDapDiaChi;
     Serial.printf(">> %s\n", chiDapDiaChi ? "chỉ đáp byte địa chỉ" : "đáp mọi khung");
+  } else if (c == 'i') {
+    daoCuc = !daoCuc;
+    digitalWrite(CHAN_NOI, daoCuc ? LOW : HIGH);      // đặt lại mức nghỉ cho đúng cực mới
+    Serial.printf(">> đảo cực: %s\n", daoCuc ? "BẬT (hợp mạch PC817 trần)" : "tắt (thuận)");
   } else if (c == 'r') {
     soNghe = soDap = soLoiStop = 0;
     Serial.println(">> đã xoá bộ đếm");
@@ -177,7 +192,7 @@ void setup() {
 
   pinMode(CHAN_NGHE, INPUT);
   pinMode(CHAN_NOI, OUTPUT);
-  digitalWrite(CHAN_NOI, HIGH);      // UART nghỉ ở mức cao
+  digitalWrite(CHAN_NOI, daoCuc ? LOW : HIGH);      // UART nghỉ ở mức cao
 
   Serial.println(F("\n=== giả lập cục nhận tiền cho BO GHẾ ==="));
   Serial.printf("nghe GPIO %d · nói GPIO %d · 9600 baud · 11 bit/khung\n",
