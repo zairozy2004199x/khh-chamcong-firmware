@@ -42,6 +42,7 @@
  *   mXX      đổi mã tờ tiền, hex 2 chữ số
  *   p / i    đổi khung 8N1→8E1→8O1  ·  đảo cực cả hai chiều
  *   n        đảo RIÊNG chiều nói — bật khi chân nói đi qua transistor nâng mức 5V
+ *   t        TỰ KIỂM: bơm rồi đọc lại chính mình, kết luận mạch đúng hay sai
  *   vNNNN    đổi tốc độ (mặc định v4800 — đúng như đo được)
  *   c        bật/tắt chuyển tiếp ICT → ghế
  *   r        xoá bộ đếm
@@ -165,6 +166,20 @@ static uint8_t       g_bomBuoc = 0;    // 0 = rảnh · 1 = đã gửi mở đ�
 static unsigned long g_bomMoc  = 0;
 static uint8_t       g_bomMa   = 0;
 
+/* ——— TỰ KIỂM (lệnh t) ———
+   Nối chân nghe vào ĐÚNG điểm ra của tầng nâng mức, rồi bơm một tờ và đọc lại chính mình.
+   Trả lời được câu "cái gì THẬT SỰ ra tới dây" mà không cần ghế hợp tác chút nào.
+
+   Trong lúc tự kiểm phải TẮT bộ lọc byte: bộ lọc sinh ra để chặn nhiễu đổ sang ghế, nhưng
+   nó cũng giấu luôn tiếng vọng sai — mà tiếng vọng sai chính là thứ cần nhìn. Lần thử
+   18:07 vấp đúng chỗ này: đọc về vài byte lọt bảng, cạnh 9877 byte bị vứt, nên không phân
+   biệt được tiếng vọng thật với nhiễu trúng số. */
+static bool          g_tuKiem   = false;
+static unsigned long g_tuKiemMoc = 0;
+static uint8_t       g_vong[48];
+static uint8_t       g_soVong  = 0;
+static uint8_t       g_tuKiemMa = 0;
+
 void bomMotTo(uint8_t ma) {
   if (g_bomBuoc) { Serial.println(F(">> đang bơm dở một tờ, chờ xong đã")); return; }
   g_bomMa = ma;
@@ -188,6 +203,60 @@ void bomTiep() {
     soBom++;
     Serial.printf("%8lu ms  BƠM: %02X — xong một tờ\n", nay, ICT_KET_THUC);
   }
+}
+
+void inTrangThai();   /* khai trước: tuKiemTiep() gọi nó mà nó nằm bên dưới. Arduino IDE tự
+                        sinh prototype nên vẫn dịch được, nhưng đó là MAY chứ không phải đúng —
+                        g++ từ chối thẳng, và phép dịch thử bắt được ngay. */
+
+/** Bắt đầu một lượt tự kiểm: dọn sạch bộ đệm vào, bơm một tờ, rồi thu mọi byte vọng về. */
+void tuKiem(uint8_t ma) {
+  if (g_bomBuoc) { Serial.println(F(">> đang bơm dở một tờ, chờ xong đã")); return; }
+  while (Bus.available()) { Bus.read(); }     // vứt nhiễu đã đọng, khỏi lẫn vào kết quả
+  g_soVong = 0;
+  g_tuKiemMa = ma;
+  g_tuKiem = true;
+  g_tuKiemMoc = millis();
+  Serial.printf("\n=== TỰ KIỂM === sẽ bơm %02X %02X %02X rồi đọc lại chính mình.\n"
+                "    Chân nghe phải nối vào ĐÚNG điểm ra của transistor (qua chia áp 1k/2k).\n",
+                ICT_MO_DAU, ma, ICT_KET_THUC);
+}
+
+/** Gọi mỗi vòng loop() khi đang tự kiểm: thu byte, và kết luận khi hết giờ. */
+void tuKiemTiep() {
+  if (!g_tuKiem) { return; }
+  while (Bus.available()) {
+    uint8_t b = (uint8_t) Bus.read();
+    if (g_soVong < sizeof(g_vong)) { g_vong[g_soVong++] = b; }
+  }
+  /* Bơm mất 1,2 giây; chờ thêm nửa giây cho byte cuối vọng về. */
+  if (millis() - g_tuKiemMoc < ICT_TRE_HET_MS + 500) { return; }
+  g_tuKiem = false;
+
+  Serial.printf("    mong đọc lại:  %02X %02X %02X\n", ICT_MO_DAU, g_tuKiemMa, ICT_KET_THUC);
+  Serial.print(F("    thật sự đọc:  "));
+  if (!g_soVong) { Serial.print(F("(không byte nào)")); }
+  for (uint8_t i = 0; i < g_soVong; i++) { Serial.printf(" %02X", g_vong[i]); }
+  Serial.println();
+
+  /* Khớp theo THỨ TỰ, cho phép nhiễu chen giữa — dây hở vẫn có thể lẫn gai vào. */
+  const uint8_t mong[3] = { ICT_MO_DAU, g_tuKiemMa, ICT_KET_THUC };
+  uint8_t k = 0;
+  for (uint8_t i = 0; i < g_soVong && k < 3; i++) { if (g_vong[i] == mong[k]) { k++; } }
+
+  if (k == 3) {
+    Serial.println(F("    ✓ ĐỌC LẠI ĐÚNG CẢ BA BYTE — mạch nâng mức và chiều đảo đều đúng."));
+    Serial.println(F("      Tín hiệu ra tới dây là thật. Ghế không ăn thì lỗi ở phía ghế,"));
+    Serial.println(F("      không phải ở mình: sai chân, hoặc ghế cần điều kiện khác.\n"));
+  } else if (!g_soVong) {
+    Serial.println(F("    ✗ KHÔNG đọc được gì. Chân nghe chưa nối vào điểm ra của transistor,"));
+    Serial.println(F("      hoặc tầng nâng mức không dẫn (thử lại chân B/C/E của transistor).\n"));
+  } else {
+    Serial.printf("    ✗ ĐỌC RA RÁC (khớp %d/3 byte). Sai chiều đảo hoặc sai mạch.\n", k);
+    Serial.println(F("      Gõ n để lật chiều nói rồi t lại. Đúng một trong hai chiều sẽ ra."));
+    Serial.println(F("      Toàn FF/FE là chân nghe đang thả nổi — chưa nối vào đâu cả.\n"));
+  }
+  inTrangThai();
 }
 
 void inTrangThai() {
@@ -228,6 +297,9 @@ void docLenh() {
   } else if (c == 'm') {
     maToTien = (uint8_t)strtol(d.substring(1).c_str(), nullptr, 16);
     Serial.printf(">> mã tờ tiền = %02X\n", maToTien);
+  } else if (c == 't') {
+    tuKiem(maToTien);
+    return;                       // đừng in trạng thái đè lên phần đầu bản tự kiểm
   } else if (c == 'n') {
     daoNoi = !daoNoi;
     if (daoNoi) daoCuc = false;   // hai thứ chồng nhau thì rối; chọn một
@@ -257,6 +329,8 @@ void docLenh() {
     Serial.println(F("  p     đổi khung: 8N1 → 8E1 → 8O1"));
     Serial.println(F("  i     đảo cực CẢ hai chiều"));
     Serial.println(F("  n     đảo RIÊNG chiều nói — bật khi đi qua transistor nâng mức 5V"));
+    Serial.println(F("  t     TỰ KIỂM: bơm một tờ rồi đọc lại chính mình (nối chân nghe vào"));
+    Serial.println(F("        điểm ra của transistor qua chia áp) — biết ngay mạch đúng chưa"));
     Serial.println(F("  vNNNN đổi tốc độ (vd v4800, v2400, v9600)"));
     Serial.println(F("  c     bật/tắt chuyển tiếp ICT → ghế"));
     Serial.println(F("  r     xoá bộ đếm\n"));
@@ -278,6 +352,10 @@ void setup() {
 void loop() {
   docLenh();
   bomTiep();
+
+  /* Đang tự kiểm thì tuKiemTiep() nuốt hết byte vào — không lọc, không chuyển tiếp, không in
+     từng dòng. Cả bản tự kiểm gói trong một khối, đọc một lần là hiểu. */
+  if (g_tuKiem) { tuKiemTiep(); return; }
 
   while (Bus.available()) {
     uint8_t b = Bus.read();
