@@ -1422,7 +1422,34 @@ class VHCP_Don {
 
 	/** deleteDonAdmin(): xóa vĩnh viễn, không xét trạng thái. */
 	public static function delete_don_admin( $ma_don ) {
-		if ( ! self::don_row( $ma_don ) ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+
+		/* GHI VẾT TRƯỚC KHI XÓA. Xóa một dòng lẻ bằng quyền Admin thì có nhật ký, mà xóa NGUYÊN
+		   ĐƠN — kể cả đơn đã xuất MISA — lại không, là ngược. Sau khi purge thì đơn, dòng chi
+		   phí, tạm ứng đều biến mất; nhật ký là bản sao duy nhất còn lại để đối chiếu về sau,
+		   nên phải chốt số ngay lúc này. */
+		global $wpdb;
+		$tcp  = VHCP_DB::t( 'chiphi' );
+		$sum  = $wpdb->get_row( $wpdb->prepare(
+			"SELECT COUNT(*) AS so, COALESCE(SUM(thanh_tien),0) AS tt, COALESCE(SUM(thuc_mua),0) AS tm FROM $tcp WHERE ma_don=%s",
+			(string) $ma_don
+		), ARRAY_A );
+		$so_dong = isset( $sum['so'] ) ? (int) $sum['so'] : 0;
+
+		VHCP_Log::log_action( array(
+			'actor'  => VHCP_Auth::vai_tro(),
+			'action' => 'Admin XÓA VĨNH VIỄN cả đơn',
+			'target' => (string) $ma_don,
+			'detail' => 'trạng thái: ' . (string) $d['trang_thai']
+				. ' · kỳ: ' . (string) $d['ky']
+				. ' · người lập: ' . (string) $d['nguoi_lap']
+				. ' · ' . $so_dong . ' dòng'
+				. ' · tổng thành tiền ' . VHCP_Util::out_num( isset( $sum['tt'] ) ? $sum['tt'] : 0 )
+				. ' · tổng thực mua ' . VHCP_Util::out_num( isset( $sum['tm'] ) ? $sum['tm'] : 0 )
+				. ' · tạm ứng duyệt ' . VHCP_Util::out_num( $d['tam_ung_duyet'] ),
+		) );
+
 		return self::purge_don( $ma_don );
 	}
 

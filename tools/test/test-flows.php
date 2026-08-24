@@ -143,6 +143,24 @@ $_n2 = count( VHCP_Log::get_log( array( 'limit' => 200 ) )['items'] );
 teq( 'xóa dòng phát sinh (trạng thái cho phép) KHÔNG ghi vết phá khóa', $_n1, $_n2 );
 
 VHCP_Auth::dat_vai_tro( $_vt_truoc );
+
+/* XÓA VĨNH VIỄN CẢ ĐƠN bằng quyền Admin cũng phải để lại vết — sau khi xóa thì đơn, dòng chi
+   phí và tạm ứng đều biến mất, nhật ký là bản sao duy nhất còn lại để đối chiếu. */
+$_ma_xoa = VHCP_Don::create_don( 'T9/2026 (01/9-07/9/2026)', 'Nguyễn Văn A' )['maDon'];
+VHCP_Don::add_line( $_ma_xoa, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'Đơn sắp bị xóa', 'soLuong' => 1, 'donGia' => 555000, 'thanhTien' => 555000 ) );
+VHCP_Auth::dat_vai_tro( 'Admin' );
+t( 'Admin xóa vĩnh viễn cả đơn', ! empty( VHCP_Don::delete_don_admin( $_ma_xoa )['success'] ) );
+t( 'đơn đã biến mất', null === VHCP_Don::don_row( $_ma_xoa ) );
+$_it2 = VHCP_Log::get_log( array( 'limit' => 200 ) )['items'];
+$_vet2 = false;
+foreach ( $_it2 as $_x ) {
+	if ( strpos( (string) $_x['hanhDong'], 'XÓA VĨNH VIỄN cả đơn' ) !== false
+		&& (string) $_x['doiTuong'] === $_ma_xoa
+		&& strpos( (string) $_x['chiTiet'], '1 dòng' ) !== false
+		&& preg_match( '/555[.,]?000/', (string) $_x['chiTiet'] ) ) { $_vet2 = true; break; }
+}
+t( 'xóa cả đơn có ghi nhật ký kèm số dòng và tổng tiền', $_vet2 );
+VHCP_Auth::dat_vai_tro( $_vt_truoc );
 $l4 = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Phát sinh', 'noiDung' => 'Mua thêm đá', 'thanhTien' => 50000 ) );
 
 // nhập thực chi
