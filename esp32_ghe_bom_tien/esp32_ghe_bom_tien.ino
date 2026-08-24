@@ -426,7 +426,11 @@ void loop() {
       unsigned long nay = millis();
       if (nay - lanCuoi > 150 || demHang >= 16) { Serial.printf("\n%8lu ms  ", nay); demHang = 0; }
       lanCuoi = nay; demHang++; soNgheIct++;
-      Serial.printf("%02X ", b);
+      /* VẪN PHẢI CHUYỂN TIẾP. Tắt lọc là để NHÌN, không phải để ngắt đường. Thiếu dòng này thì
+         bật f xong ghế không nhận được gì, và người thử tưởng đường bơm hỏng — trong khi lỗi
+         nằm ở đây. Đúng lúc ESP32 ngồi giữa thì ngắt đường là ghế mất luôn tiền mặt. */
+      if (chuyenTiep && !chiNghe) { Bus.write(b); }
+      Serial.printf("%02X%s ", b, (chuyenTiep && !chiNghe) ? ">" : "");
       continue;
     }
 
