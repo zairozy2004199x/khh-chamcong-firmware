@@ -69,6 +69,34 @@ phân biệt được.
 Cách phá vòng là cứ đáp thử rồi xem bo ghế nói gì tiếp — đó là việc của
 `esp32_ghe_gia_lap_mdb`.
 
+## `F8` = KẸT TIỀN — xác nhận 24/08/2026
+
+Trên đường 9600 baud (đường ghế ↔ ICT), khi cục nhận tiền bị kẹt tờ thì xuất hiện khung:
+
+```
+F8   bit thứ chín = 1
+```
+
+lặp lại khoảng **15–25 giây một lần**, xen giữa các cặp `00 E0` bình thường.
+
+**Đã loại trừ nhiễu bằng phép thử tách bạch:** gỡ tờ kẹt ra, để máy chạy bình thường → `F8`
+**hết hẳn**. Nên nó là tín hiệu thật, không phải gai.
+
+Chỗ này ban đầu em nghi là nhiễu, vì `F8` = `1111 1000` nằm đúng họ với `FF`/`FE` — những giá
+trị mà gai nhiễu hay sinh ra (xung xuống ngắn → mã tưởng có bit start → đọc tiếp toàn bit 1).
+Phân biệt được chỉ nhờ phép thử gỡ kẹt: nhiễu thì không quan tâm máy có kẹt hay không.
+
+### Vì sao đáng dùng
+
+Firmware ghế hiện phát hiện ICT hỏng bằng cách suy từ ĐƯỜNG XUNG (GPIO 27) — chỉ có một sợi
+dây tín hiệu nên suy được rất ít, và không cách nào biết "kẹt tiền" khác "không ai nạp tiền".
+`F8` là bo ghế NÓI THẲNG, không phải suy đoán.
+
+### Cách dùng cho chắc
+
+Đòi **ít nhất 2 lần `F8` trong 60 giây** rồi mới báo. Một lần đơn lẻ vẫn có thể là gai — mà báo
+động giả thì người ta học cách bỏ qua cảnh báo, còn tệ hơn không báo.
+
 ## LỜI GIẢI — ICT gửi một byte, 4800 baud (24/08/2026)
 
 Suốt buổi đi sai hướng vì tưởng ESP32 phải ĐÓNG VAI cục nhận tiền, tức phải trả lời cuộc bắt
