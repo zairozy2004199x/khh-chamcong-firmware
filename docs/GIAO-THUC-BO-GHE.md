@@ -69,6 +69,30 @@ phân biệt được.
 Cách phá vòng là cứ đáp thử rồi xem bo ghế nói gì tiếp — đó là việc của
 `esp32_ghe_gia_lap_mdb`.
 
+## Bo ghế CÓ nghe thấy câu trả lời — chốt 24/08/2026
+
+Phép thử: chạy hai lượt giống hệt nhau, khác đúng một biến — ESP32 có đáp hay không.
+
+| | Có đáp `000` | Không đáp |
+|---|---|---|
+| lần hỏi 2 cách lần 1 | **6.323 ms** | **273 ms** |
+| lần hỏi 3 | không có | **122 ms** sau lần 2 |
+| sau đó | im 240 giây | bỏ cuộc |
+
+Không được trả lời thì bo ghế hỏi dồn ba lần trong 400 ms rồi thôi. Được trả lời thì nó giãn
+nhịp ra 6,3 giây, hỏi thêm một lần, rồi im hẳn.
+
+**Kết luận: chiều nói thông.** Mức 3,3V của ESP32 đủ cho đầu vào 5V của bo ghế — không cần
+tầng nâng mức, không cần transistor.
+
+Cách phát hiện: đừng chỉ nhìn xem bo ghế có nói thêm BYTE mới không (suốt buổi nó chỉ nói
+`00 E0`). Nhìn **nhịp** giữa các lần hỏi — bo ghế đổi nhịp là bằng chứng nó đã nhận được gì đó,
+kể cả khi nội dung nó nói ra không đổi.
+
+Việc còn lại: bo ghế im 240 giây sau khi bắt tay — ngược hẳn với dáng hỏi dồn khi bị bỏ mặc.
+Nhiều khả năng nó đã coi cục nhận tiền là có mặt và đang nằm chờ báo có tiền. Chưa biết khung
+báo tiền trông thế nào.
+
 ## Mạch nối — chốt ngày 24/08/2026
 
 Chân TX22 của bo ghế chạy **mức 5V**, chân ESP32 chỉ chịu 3,3V. Ba điện trở:
