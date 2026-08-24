@@ -69,6 +69,52 @@ phân biệt được.
 Cách phá vòng là cứ đáp thử rồi xem bo ghế nói gì tiếp — đó là việc của
 `esp32_ghe_gia_lap_mdb`.
 
+## Mạch nối — chốt ngày 24/08/2026
+
+Chân TX22 của bo ghế chạy **mức 5V**, chân ESP32 chỉ chịu 3,3V. Ba điện trở:
+
+```
+        +5V (nguồn bo ghế)
+         |
+       [4,7 kΩ]        <- kéo lên, giữ đường sống lúc rảnh
+         |
+TX22 ----+--[1 kΩ]--+---------> GPIO 35
+                    |
+                 [2 kΩ]
+                    |
+RX22 <--------------+---------- GPIO 26   (đấu thẳng, KHÔNG chia áp)
+                    |
+GND  ---------------+---------- GND
+```
+
+| Trị số | Nối | Vì sao |
+|---|---|---|
+| 4,7 kΩ | +5V → TX22 | TX22 là kiểu **hở cực** — tự nó chỉ kéo xuống được. Thiếu con này thì đường nằm chết ở mức thấp; firmware báo `ĐƯỜNG KẸT Ở MỨC THẤP` 5–6 lần/giây (đúng bằng 1000 ms ÷ hạn chờ 200 ms, tức đường thấp *suốt*). Cục nhận tiền thật khi cắm vào sẽ cấp cái kéo lên này; tháo nó ra là đường mất chỗ dựa. |
+| 1 kΩ | TX22 → điểm A | nhánh trên bộ chia áp |
+| 2 kΩ | điểm A → GND | nhánh dưới; 5V × 2/(1+2) = 3,33V |
+
+**Đo trước khi cắm vào ESP32** (chưa nối dây sang GPIO 35): TX22 phải ~5V đứng yên,
+điểm A phải ~3,3V. Ra 5V ở điểm A = chưa nối 2 kΩ xuống mát. Ra 0V = chưa nối 1 kΩ lên TX22.
+
+**Chiều nói thì đấu thẳng.** ESP32 đẩy 3,3V, mạch logic 5V nhận mức cao từ ~2,0–2,5V nên đủ.
+Đừng chia áp chiều này — chia áp chỉ để hạ áp ở chiều vào.
+
+**Cặp 1k/2k chứ không phải 10k/20k.** Cùng ra 3,33V, nhưng trở kháng thấp hơn mười lần nên
+ăn nhiễu ít hơn hẳn. Trước khi đổi sang 1k/2k, firmware đếm `114737` khung hỏng; sau khi đổi
+còn `7`.
+
+### Cách ly quang — đã thử và bỏ
+
+Module **PC817** không dùng được ở đây, hai lý do:
+
+1. **Điện trở hạn dòng của module tính cho 12V.** Ở 5V, dòng qua LED dưới 1 mA, không đủ ngưỡng
+   sáng — đo được đầu ra phẳng lì ở mức cao suốt 10 giây trong khi đầu vào có tín hiệu sạch.
+2. **PC817 tắt mất ~18 µs**, tức 17% bề rộng một bit ở 9600 baud. Ngay cả khi cấp đủ dòng thì
+   sườn cũng méo tới mức bit stop rơi sai chỗ.
+
+Khi chạy thật thì dùng **6N137** (opto cho truyền dữ liệu, trễ dưới 1 µs) và **cấp nguồn riêng
+cho hai phía** — cách ly mà chung nguồn thì không cách ly được gì.
+
 ## Bẫy đã vấp, ghi lại để khỏi vấp lại
 
 **Decoder UART của PulseView mặc định 8 bit.** Với dữ liệu 9 bit thì nó KHÔNG THỂ
