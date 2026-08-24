@@ -1162,9 +1162,39 @@ class VHCP_Don {
 		$info = self::info( (string) $cur['ma_don'] );
 		$st   = $info['st'];
 		$xin_edit = ( $st === 'Nháp' ) || ( $st === 'Đã cấp tạm ứng' && $info['returned'] );
-		if ( ! $ps && ! $xin_edit ) { return VHCP_Util::err( 'Hạng mục đã xin không được xóa (để Thực chi = 0 nếu không mua; đơn bị trả lại mới mở khóa)' ); }
-		if ( $ps && $st !== 'Đã cấp tạm ứng' && $st !== 'Nháp' ) { return VHCP_Util::err( 'Dòng phát sinh chỉ xóa khi đơn "Nháp" hoặc "Đã cấp tạm ứng"' ); }
+
+		/* ADMIN XÓA ĐƯỢC DÒNG Ở MỌI TRẠNG THÁI.
+		   Dòng nhập lỗi — sai cơ sở, nhân đôi do đơn cũ đè vào, gõ nhầm nội dung — có thể lọt
+		   qua tới lúc đơn đã chốt. Khóa cứng theo trạng thái thì cách duy nhất còn lại là sửa
+		   thẳng trong cơ sở dữ liệu, việc đó không để lại vết và không ai kiểm được.
+		   Mở cho Admin, nhưng BẮT BUỘC ghi nhật ký kèm số tiền — xóa dòng là đổi số, khác hẳn
+		   chuyện đính thêm hóa đơn. */
+		$vt       = VHCP_Auth::vai_tro();
+		$la_admin = ( $vt === 'Admin' );
+
+		if ( ! $la_admin ) {
+			if ( ! $ps && ! $xin_edit ) { return VHCP_Util::err( 'Hạng mục đã xin không được xóa (để Thực chi = 0 nếu không mua; đơn bị trả lại mới mở khóa)' ); }
+			if ( $ps && $st !== 'Đã cấp tạm ứng' && $st !== 'Nháp' ) { return VHCP_Util::err( 'Dòng phát sinh chỉ xóa khi đơn "Nháp" hoặc "Đã cấp tạm ứng"' ); }
+		}
+
+		$binh_thuong = $ps ? in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng' ), true ) : $xin_edit;
+
 		$wpdb->delete( VHCP_DB::t( 'chiphi' ), array( 'id' => (string) $id ) );
+
+		/* Ghi vết khi Admin xóa ở trạng thái mà người khác không xóa được. Ghi cả nội dung và
+		   số tiền: sau khi xóa thì dòng không còn để tra lại, nhật ký là bản sao duy nhất. */
+		if ( $la_admin && ! $binh_thuong ) {
+			VHCP_Log::log_action( array(
+				'actor'  => $vt,
+				'action' => 'Admin xóa dòng (trạng thái đã khóa)',
+				'target' => (string) $cur['ma_don'],
+				'detail' => 'dòng ' . (string) $id . ' · trạng thái đơn: ' . $st
+					. ' · ' . ( $ps ? 'phát sinh' : 'hạng mục xin' )
+					. ' · ' . (string) $cur['noi_dung']
+					. ' · thành tiền ' . VHCP_Util::out_num( $cur['thanh_tien'] )
+					. ' · thực mua ' . VHCP_Util::out_num( $cur['thuc_mua'] ),
+			) );
+		}
 		return VHCP_Util::ok();
 	}
 

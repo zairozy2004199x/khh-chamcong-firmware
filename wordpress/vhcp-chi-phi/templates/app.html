@@ -1919,7 +1919,12 @@
     el('btnAdd').textContent='💾 Lưu thay đổi'; el('btnCancelEdit').classList.remove('hide');
     window.scrollTo(0,0);
   }
-  function delLine(id){ if(_guardChi())return; if(!confirm('Xoá dòng này?'))return; loading(true);
+  function delLine(id, admKhoa){
+    if(_guardChi())return;
+    var hoi = admKhoa
+      ? 'ĐƠN ĐANG Ở TRẠNG THÁI KHÓA.\n\nXóa dòng này là đổi số đã lên sổ. Việc xóa sẽ được ghi nhật ký kèm nội dung và số tiền.\n\nVẫn xóa?'
+      : 'Xoá dòng này?';
+    if(!confirm(hoi))return; loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){_log('Xóa dòng', (CUR&&CUR.don&&CUR.don.maDon)||'', 'id '+id); toast('ok','Đã xoá');openDon(CUR.don.maDon);} else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).deleteLine(id);
   }
@@ -1958,6 +1963,11 @@
     var ktEdit=(CUR&&CUR.don&&CUR.don.trangThai==='Chờ quyết toán')&&(canDo('xacNhanQT')||canDo('duyetNCC'));   // KT sửa thẳng số tiền khi chờ quyết toán
     var canTC=(stCap&&sd)||ktEdit;   // được nhập/sửa Thực chi
     var xinUnlock=(stNhap || (stCap && isReturned));   // hạng mục xin XÓA/tách được khi Nháp, hoặc khi đơn BỊ TRẢ LẠI
+    /* ADMIN XÓA ĐƯỢC DÒNG Ở MỌI TRẠNG THÁI. Dòng nhập lỗi — sai cơ sở, nhân đôi, gõ nhầm —
+       có thể lọt tới lúc đơn đã chốt; khóa cứng thì đường duy nhất còn lại là sửa thẳng cơ sở
+       dữ liệu, việc đó không để lại vết. Máy chủ (delete_line) mới là nơi gác thật và có ghi
+       nhật ký kèm số tiền — chỗ này chỉ bày nút ra. */
+    var admDel=(CURUSER&&CURUSER.role==='Admin');
     var xinEditContent=(stNhap || stCap)&&sd;           // SỬA NỘI DUNG hạng mục xin: khi Nháp hoặc Đã cấp (chỉnh cho khớp bill thực tế)
     // Ở "Nháp" mọi dòng là hạng mục xin (kể cả dòng phát sinh còn sót do đơn bị trả về) -> gộp hết vào mục ĐÃ XIN
     var xinL = stNhap ? L : L.filter(function(l){return !l.phatSinh;});
@@ -1980,12 +1990,12 @@
       : stCap ? '✏ sửa nội dung được · nhập Thực chi (không mua để 0)'
       : 'đã khóa';
     html+='<tr><td colspan="'+COLS+'" style="background:#ecfeff;font-weight:800;color:#0369a1;border-left:4px solid #0369a1;padding:8px 10px">📋 HẠNG MỤC ĐÃ XIN ('+xinL.length+') <span style="font-weight:400;color:#64748b">· '+xinLbl+'</span></td></tr>';
-    html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:xinUnlock&&sd, canSplit:(xinUnlock&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
+    html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:(xinUnlock&&sd)||admDel, admOnly:(!(xinUnlock&&sd))&&admDel, canSplit:(xinUnlock&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
     if(!xinL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có hạng mục xin —</td></tr>';
     // ---- Mục PHÁT SINH (mua thêm ngoài dự kiến) ----
     if(psL.length || stCap){
       html+='<tr><td colspan="'+COLS+'" style="background:#fff7ed;font-weight:800;color:#b45309;border-left:4px solid #f59e0b;padding:8px 10px">➕ PHÁT SINH — mua thêm ngoài dự kiến ('+psL.length+') <span style="font-weight:400;color:#64748b">· để quản lý / kế toán biết là phát sinh</span></td></tr>';
-      html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:(stCap||stNhap)&&sd, canDelRow:(stCap||stNhap)&&sd, canSplit:((stCap||stNhap)&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
+      html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:(stCap||stNhap)&&sd, canDelRow:((stCap||stNhap)&&sd)||admDel, admOnly:(!((stCap||stNhap)&&sd))&&admDel, canSplit:((stCap||stNhap)&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
       if(!psL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có phát sinh (thêm ở form phía trên) —</td></tr>';
     }
     b.innerHTML=html;
@@ -2061,7 +2071,14 @@
            })()+'</td>'+
           '<td style="text-align:center;white-space:nowrap">'+
             (o.canEditRow?'<button class="btn b-x" onclick="editLine(\''+l.id+'\')" title="Sửa nội dung dòng">✏</button> ':'')+
-            (o.canDelRow?'<button class="btn b-d" onclick="delLine(\''+l.id+'\')" title="Xóa dòng">🗑</button> ':'')+
+            (o.canDelRow?(function(){
+                /* Nút xóa của Admin ở trạng thái đã khóa phải TRÔNG KHÁC và hỏi khác. Xóa một
+                   dòng của đơn đã chốt là đổi số đã lên sổ — không được lẫn với xóa dòng nháp. */
+                var _khoa=!!o.admOnly;
+                return '<button class="btn b-d" onclick="delLine(\''+l.id+'\','+(_khoa?'1':'0')+')" title="'
+                  +(_khoa?'ADMIN xóa dòng dù đơn đã khóa — có ghi nhật ký':'Xóa dòng')+'">'
+                  +(_khoa?'🗑<sup style="font-size:9px">adm</sup>':'🗑')+'</button> ';
+              })():'')+
             (o.canSplit?'<button class="btn b-g" onclick="splitLine(\''+l.id+'\')" title="Tách chi phí sang cơ sở khác (nhân đôi dòng)">＋</button>':'')+
             ((!o.canEditRow&&!o.canDelRow&&!o.canSplit)?'🔒':'')+'</td>'+
         '</tr>';

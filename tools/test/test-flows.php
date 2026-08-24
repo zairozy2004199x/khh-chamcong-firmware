@@ -106,8 +106,43 @@ teq( 'trạng thái sau cấp', 'Đã cấp tạm ứng', VHCP_Don::don_row( $ma
 // sau khi cấp: thêm dòng = phát sinh, sửa/xóa hạng mục xin bị khóa đúng luật
 $l4 = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Phát sinh', 'noiDung' => 'Mua thêm đá', 'soLuong' => 1, 'donGia' => 50000, 'thanhTien' => 50000 ) );
 teq( 'dòng thêm sau khi cấp = phát sinh', 1, $l4['phatSinh'] );
+/* Canh chính phép thử: nếu vai trò lúc này là Admin thì phép "không xóa được" ở dưới sẽ
+   xanh vì lý do sai (Admin xóa được ở mọi trạng thái). Chốt vai trò thường trước đã. */
+$_vt_truoc = VHCP_Auth::vai_tro();
+VHCP_Auth::dat_vai_tro( 'Nhân viên' );
 t( 'không xóa được hạng mục xin sau khi cấp', empty( VHCP_Don::delete_line( $l1['id'] )['success'] ) );
 t( 'xóa được dòng phát sinh', ! empty( VHCP_Don::delete_line( $l4['id'] )['success'] ) );
+
+/* ADMIN XÓA ĐƯỢC DÒNG DÙ ĐƠN ĐÃ KHÓA — và phải để lại vết.
+   Dòng nhập lỗi lọt tới lúc đơn chốt thì Admin là đường sửa duy nhất còn lại; khóa cứng chỉ
+   đẩy người ta vào sửa thẳng cơ sở dữ liệu, chỗ đó không ai kiểm được. */
+$l_adm = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'DÒNG NHẬP LỖI', 'soLuong' => 1, 'donGia' => 777000, 'thanhTien' => 777000 ) );
+$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'phat_sinh' => 0 ), array( 'id' => $l_adm['id'] ) );   // ép thành hạng mục xin để chạm đúng nhánh bị khóa
+t( 'nhân viên KHÔNG xóa được dòng đó', empty( VHCP_Don::delete_line( $l_adm['id'] )['success'] ) );
+
+VHCP_Auth::dat_vai_tro( 'Admin' );
+$_log_truoc = count( VHCP_Log::get_log( array( 'limit' => 200 ) )['items'] );
+t( 'Admin XÓA ĐƯỢC dòng dù đơn đã cấp', ! empty( VHCP_Don::delete_line( $l_adm['id'] )['success'] ) );
+$_items = VHCP_Log::get_log( array( 'limit' => 200 ) )['items'];
+$_co_vet = false;
+foreach ( $_items as $_it ) {
+	// get_log trả về khóa hanhDong/chiTiet, KHÔNG phải action/detail (đó là khóa lúc GHI).
+	if ( strpos( (string) $_it['hanhDong'], 'Admin xóa dòng' ) !== false
+		&& strpos( (string) $_it['chiTiet'], 'DÒNG NHẬP LỖI' ) !== false
+		&& preg_match( '/777[.,]?000/', (string) $_it['chiTiet'] ) ) { $_co_vet = true; break; }
+}
+t( 'xóa bằng quyền Admin có ghi nhật ký kèm nội dung và số tiền', $_co_vet );
+t( 'dòng đã biến mất thật', null === VHCP_Don::line_row( $l_adm['id'] ) );
+
+/* Admin xóa dòng ở trạng thái BÌNH THƯỜNG thì KHÔNG ghi vết — nhật ký chỉ để dành cho lần
+   phá khóa. Ghi cả những lần thường là làm loãng, tra lại không thấy gì. */
+$l_th = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Phát sinh', 'noiDung' => 'PHÁT SINH THƯỜNG', 'thanhTien' => 11000 ) );
+$_n1 = count( VHCP_Log::get_log( array( 'limit' => 200 ) )['items'] );
+VHCP_Don::delete_line( $l_th['id'] );
+$_n2 = count( VHCP_Log::get_log( array( 'limit' => 200 ) )['items'] );
+teq( 'xóa dòng phát sinh (trạng thái cho phép) KHÔNG ghi vết phá khóa', $_n1, $_n2 );
+
+VHCP_Auth::dat_vai_tro( $_vt_truoc );
 $l4 = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Phát sinh', 'noiDung' => 'Mua thêm đá', 'thanhTien' => 50000 ) );
 
 // nhập thực chi
