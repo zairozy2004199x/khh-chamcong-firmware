@@ -19,12 +19,22 @@
  *     khung ở một đường bên cạnh. Byte thật chưa bao giờ là 0x02. Ba lần đọc sai cùng một
  *     kiểu vẫn là sai; thứ lật lại được là đo từ phía khác. Xem docs/GIAO-THUC-BO-GHE.md.
  *
- * ĐẤU DÂY
+ * ĐẤU DÂY — ESP32 CHEN VÀO GIỮA, không cắm song song
  *   GPIO 35  ←  đường ICT nói ra      (nghe ICT báo tiền)
  *   GPIO 26  →  chân RX22 của ghế     (nói vào ghế)
- *   GND      ↔  mát chung
+ *   GND      ↔  mát chung của cả ghế lẫn ICT
+ *
+ *   🔴 PHẢI RÚT đường ICT nói ra KHỎI chân RX22 trước. Nguyên bản nó cắm thẳng vào đó;
+ *      để nguyên rồi cắm thêm GPIO 26 vào cùng chân là hai con cùng lái một sợi dây —
+ *      ICT giữ mức cao, ESP32 kéo xuống thấp, dòng chạy thẳng giữa hai cổng đẩy. Nhẹ thì
+ *      tín hiệu ra rác, nặng thì chết cổng. Đường ICT phải đi VÒNG qua ESP32.
+ *
+ *      Ghế TX22 → ICT giữ nguyên, không đụng: cuộc bắt tay 9600 là chuyện riêng của hai đứa.
  *
  *   ⚠ Đường ICT chạy 5V. GPIO 35 phải qua bộ chia áp 1k/2k như đã làm với TX22.
+ *
+ *   Thử lần đầu thì gọn hơn nữa: chỉ cắm GPIO 26 + GND, để hở hẳn đường ICT. Tiền mặt tạm
+ *   không ăn, nhưng trả lời được câu duy nhất đang cần — ghế có nghe mình nói không.
  *
  * GÕ LỆNH (Serial Monitor 115200, New Line)
  *   b10      bơm tờ 10.000đ   ·  b20 · b50 · b100

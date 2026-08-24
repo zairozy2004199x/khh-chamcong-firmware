@@ -112,6 +112,24 @@ ESP32     ──────────►  ghế RX22     (ESP32 bơm thêm)
 **ICT ở nguyên trong mạch.** Nó lo phần bắt tay. ESP32 chỉ chen vào giữa: nghe ICT rồi nói lại
 vào chân RX của ghế. Không cần biết `00 E0` nghĩa là gì.
 
+### 🔴 Chen vào giữa, KHÔNG cắm song song
+
+Nguyên bản đường ICT nói ra cắm thẳng vào chân RX22 của ghế. Muốn ESP32 bơm được thì phải
+**rút sợi đó khỏi RX22** rồi cho nó đi vòng qua ESP32:
+
+```
+trước:   ICT ──────────────────────────► RX22
+sau:     ICT ──► ESP32 GPIO 35 ··· GPIO 26 ──► RX22
+```
+
+Để nguyên sợi cũ rồi cắm thêm GPIO 26 vào cùng chân là **hai cổng đẩy cùng lái một sợi dây**:
+ICT giữ mức cao, ESP32 kéo xuống thấp, dòng chạy thẳng giữa hai bên. Nhẹ thì tín hiệu ra rác,
+nặng thì chết cổng. Đây không phải chuyện lý thuyết — dễ vấp vì nhìn sơ đồ thì tưởng chỉ cần
+"thêm một dây".
+
+Đường **ghế TX22 → ICT giữ nguyên**, không đụng: cuộc bắt tay 9600 baud là chuyện riêng của
+hai đứa, ESP32 không chen vào.
+
 ### Khung báo tiền — đo bằng chính ESP32, không qua logic analyzer
 
 Nạp lần lượt ba mệnh giá rồi đọc thẳng byte ICT gửi ra:
