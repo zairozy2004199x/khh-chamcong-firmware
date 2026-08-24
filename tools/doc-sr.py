@@ -114,16 +114,27 @@ def do_kenh(bits, sr, ten):
     if uoc:
         print(f'  quãng ngắn nhất: {uoc*1e6:.2f} µs  → baud ước chừng {1/uoc:,.0f}')
 
-    if len(suon) < 20:
-        print('  quá ít sườn để là UART — nhiều khả năng là chân báo trạng thái')
+    if len(suon) < 2:
+        print('  quá ít sườn để giải mã')
         return
+    if len(suon) < 20:
+        print('  ít sườn — có thể chỉ là vài byte bắt tay, vẫn thử giải mã')
+
+    # Chỉ xét cửa sổ thật sự có sườn — quét cả bản ghi thì mỗi tổ hợp mất hàng phút,
+    # mà 99% mẫu là đường nằm im, không mang thông tin gì.
+    dau_w = max(0, suon[0] - int(0.002 * sr))
+    cuoi_w = min(len(bits), suon[-1] + int(0.005 * sr))
+    bits = bits[dau_w:cuoi_w]
+    goc_t = dau_w / sr
+    print(f'  xét cửa sổ {dau_w/sr*1e3:.1f} → {cuoi_w/sr*1e3:.1f} ms ({len(bits):,} mẫu)')
 
     bang = []
     for baud in TOC_DO:
-        for bd, cl in ((8, None), (8, 'even'), (8, 'odd'), (7, 'even'), (9, None)):
+        for bd, cl in ((9, None), (8, None), (8, 'even'), (8, 'odd'), (7, 'even')):
             byte, loi = giai_ma(bits, sr, baud, bd, cl)
             if byte:
-                bang.append((loi / max(len(byte), 1), -len(byte), baud, bd, cl, byte, loi))
+                # str(cl) vì None không so sánh được với chuỗi khi hai dòng bằng điểm
+                bang.append((loi, -len(byte), baud, bd, str(cl), cl, byte, loi))
     if not bang:
         print('  không giải mã được ở tốc độ nào')
         return
@@ -131,16 +142,24 @@ def do_kenh(bits, sr, ten):
     bang.sort()
     print('\n  Bảng xếp hạng (ít lỗi nhất lên trước):')
     print('   baud    bit  chẵn/lẻ   số byte   lỗi khung')
-    for ti_le, am_so, baud, bd, cl, byte, loi in bang[:6]:
+    for _, am_so, baud, bd, _, cl, byte, loi in bang[:6]:
         print(f'   {baud:>7}  {bd}    {str(cl):<7}  {-am_so:>6}   {loi:>6}')
 
-    _, _, baud, bd, cl, byte, loi = bang[0]
+    _, _, baud, bd, _, cl, byte, loi = bang[0]
     print(f'\n  → Chọn: {baud} baud, {bd} bit dữ liệu, chẵn/lẻ = {cl}, '
           f'{len(byte)} byte, {loi} lỗi khung')
+    if baud == 9600 and bd == 9 and loi == 0:
+        print('    ↑ 9600 baud + 9 bit + 0 lỗi = đúng thông số chuẩn MDB '
+              '(bit thứ 9 bật = byte địa chỉ, mở đầu một lệnh)')
     print('\n  Byte đọc được (thời điểm ms · hex):')
     dong = []
     for t, v in byte[:200]:
-        dong.append(f'{t*1e3:9.3f} {v:02X}')
+        tt = t + goc_t
+        if bd == 9:
+            c = '*' if v & 0x100 else ' '        # * = bit thứ 9 bật = byte địa chỉ
+            dong.append(f'{tt*1e3:9.3f} {c}{v & 0xFF:02X}')
+        else:
+            dong.append(f'{tt*1e3:9.3f} {v:02X}')
     for i in range(0, len(dong), 6):
         print('   ' + '   '.join(dong[i:i + 6]))
     if len(byte) > 200:

@@ -1,0 +1,108 @@
+# Giao thức bo ghế — những gì đã dò ra được
+
+Cập nhật 24/08/2026. Ghi lại để lần sau khỏi dò lại từ đầu.
+
+## Bối cảnh
+
+Trên ghế có một bo đọc chỉ số màn và điều khiển ghế. Hai chân RX/TX của nó vốn nối
+cục nhận tiền; sau khi chuyển sang ICT L70 giao tiếp xung với ESP32 thì hai chân đó
+bỏ không. Muốn ESP32 điều khiển bo ghế thì phải đóng vai cục nhận tiền — tức nói
+đúng thứ tiếng mà bo ghế chờ nghe.
+
+**Vai trò đảo so với khối MDB sẵn có trong firmware ghế.** Ở đó ESP32 là CHỦ, hỏi
+L70. Ở đây bo ghế là CHỦ, ESP32 phải làm TỚ và trả lời đúng nhịp.
+
+## Đã chốt
+
+Dò từ **bốn bản ghi độc lập**, hai tốc độ lấy mẫu khác nhau (1 MHz và 4 MHz), bằng
+`tools/doc-sr.py`:
+
+```
+9600 baud · 11 bit mỗi khung · cực thuận · nghỉ ở mức CAO
+khung = 1 start + 8 data + 1 bit thứ chín + 1 stop
+```
+
+Bằng chứng:
+
+| Bản ghi | Kết quả | Lỗi khung |
+|---|---|---|
+| 1 (4 MHz) | `000 1E0` | 0 |
+| 2 (4 MHz) | `000 1E0` | 1 |
+| 3 (4 MHz) | `000 1E0` | 0 |
+| 4 (1 MHz) | `000 1E0` | 0 |
+
+Thử **đảo cực** thì hỏng ở cả bốn bản → không có tầng đảo trên đường truyền.
+
+Bề rộng mọi xung đều là bội số nguyên của 104,17 µs (= 1 bit ở 9600):
+
+```
+1033 µs ÷ 104,17 = 9,92 ≈ 10 bit
+ 414 µs ÷ 104,17 = 3,97 ≈  4 bit
+ 620 µs ÷ 104,17 = 5,95 ≈  6 bit
+```
+
+Ba con số này lặp y hệt ở cả bốn bản, sai lệch dưới 1 µs.
+
+## Chưa phân biệt được — và vì sao không sao
+
+`9600 · 8 bit + chẵn (even)` và `9600 · 9 bit` cho **kết quả giống hệt nhau**, cùng
+0 lỗi. Không phải trùng hợp: trên dây chúng là một, cùng 11 bit. Chỉ khác cách gọi
+bit thứ chín — MDB gọi là *mode bit*, UART thường gọi là *bit chẵn lẻ*.
+
+Với hai byte hiện có thì chưa tách được, vì parity chẵn của `0xE0` tình cờ đúng
+bằng 1 — bằng chính giá trị mode bit. Cần một byte mà hai cách tính lệch nhau mới
+phân biệt được.
+
+**Không cản trở việc giả lập**: cứ đẩy/đọc đủ 11 bit là đúng cả hai đường.
+
+## Chưa biết
+
+- **Bo ghế mong nghe câu đáp nào.** Nó phát đúng hai khung lúc lên điện rồi im bặt —
+  hỏi một câu, không ai đáp, nên bỏ cuộc. Con ESP32 trên ghế không trả lời vì nó
+  giao tiếp bằng xung ở GPIO 27, không đụng đường UART này.
+- **`0xE0` nghĩa là gì.** Bit thứ chín bật → theo MDB là byte địa chỉ, mở đầu một
+  lệnh. Nhưng 0xE0 không nằm trong bảng địa chỉ MDB chuẩn (0x08 đổi xu, 0x10 nhận
+  tiền giấy, 0x30 thanh toán không tiền mặt), nên nhiều khả năng là địa chỉ riêng
+  của hãng ghế.
+
+Đang mắc vòng: *muốn biết đáp gì thì phải nghe thêm, muốn nghe thêm thì phải đáp*.
+Cách phá vòng là cứ đáp thử rồi xem bo ghế nói gì tiếp — đó là việc của
+`esp32_ghe_gia_lap_mdb`.
+
+## Bẫy đã vấp, ghi lại để khỏi vấp lại
+
+**Decoder UART của PulseView mặc định 8 bit.** Với dữ liệu 9 bit thì nó KHÔNG THỂ
+sạch ở bất kỳ baud nào. Cả buổi dò từ 115200 xuống 9600 đều bẩn chính vì chỗ này —
+dò đúng chỗ nhưng sai thước đo.
+
+**Hai decoder có thể đang đặt hai baud khác nhau.** Đổi baud trên màn chỉ đổi được
+cái đang chọn. Đã có lúc RX chạy 9600 còn TX chạy 115200, nên hàng trên và hàng dưới
+trong cùng một tấm ảnh giải mã theo hai chuẩn — không thể nào sạch cùng lúc.
+
+**Đo bề rộng xung bằng mắt trên ảnh chụp thì sai.** Một điểm ảnh ở thang 10 giây là
+2,47 µs; đo "xung hẹp nhất" dễ trúng vào một CỤM bit chứ không phải một bit đơn. Đã
+suýt chốt nhầm 115200 vì chuyện này. Cách chắc: xuất `.sr` rồi để máy dò.
+
+**Ở 1 MHz mà baud 115200 thì mỗi bit chỉ có 8,7 mẫu** — đủ nhưng không dư, decoder
+dễ trượt. Muốn chắc thì lấy mẫu ≥ 20 lần baud.
+
+**Kẹp đo tuột giữa các lần bắt.** Có bản mất tín hiệu ở ba kênh cùng lúc, kể cả nhịp
+lên điện — mà nhịp đó thì lần nào cũng phải có. Cố định dây, và luôn kiểm nhịp lên
+điện làm mốc: không thấy nó là dây có vấn đề, không phải bo im.
+
+## Công cụ
+
+```
+python3 tools/doc-sr.py bản-ghi.sr --kenh 0 1 2 3
+```
+
+Giải nén `.sr`, đếm sườn, đo bề rộng bit, thử 12 tốc độ × 5 kiểu khung (kể cả kiểu
+9 bit của MDB), xếp hạng theo số lỗi khung, in byte kèm mốc thời gian. Khung 9 bit
+được đánh dấu `*` ở byte có bit thứ chín bật.
+
+```
+bash tools/test/fw/kiem-nhip-mdb.sh
+```
+
+Canh phép tính mốc bit của bản giả lập — chỗ dễ sai nhất, vì 104,1667 µs không tròn
+và cộng dồn thì tới bit stop đã lệch.
