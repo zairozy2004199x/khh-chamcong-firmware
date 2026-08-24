@@ -177,7 +177,8 @@ static bool laByteIct(uint8_t b){
 }
 
 static uint32_t soRac = 0;            // byte 00 do chân nghe thả nổi — đã vứt
-static unsigned long g_racBaoLuc = 0; // chặn nhịp báo, 3 giây một lần cho khỏi tràn màn hình
+static unsigned long g_racBaoLuc = 0;
+static uint32_t g_racLuoc = 0;   // số rác ở lần báo trước — để tính được NHỊP, không chỉ tổng // chặn nhịp báo, 3 giây một lần cho khỏi tràn màn hình
 
 
 /* ——— Bơm một tờ: ba byte, đúng nhịp ———
@@ -447,11 +448,23 @@ void loop() {
                       "            Nối chân nghe xong thì gõ c để bật lại.\n", millis(), soRac);
       }
       if (millis() - g_racBaoLuc > 3000) {
+        /* BÁO THEO NHỊP, ĐỪNG KHẲNG ĐỊNH "THẢ NỔI". Chân thả nổi bắn ra hơn trăm byte mỗi
+           giây; vài chục byte một giây thì nhiều khả năng là DỮ LIỆU THẬT của một máy nói
+           khác bảng của mình — bộ lọc vứt rồi đếm nhầm thành rác. Nhãn đặt sai hại hơn không
+           đặt: tối nay đã có một nhãn dắt cả hai đi kiểm dây trong khi dây không sao. */
+        unsigned long dt = millis() - g_racBaoLuc;
+        unsigned long nhip = dt ? (soRac - g_racLuoc) * 1000UL / dt : 0;
         g_racBaoLuc = millis();
-        Serial.printf("%8lu ms  ⚠ %lu byte rác — chân nghe GPIO %d đang THẢ NỔI (nhiễu 50 Hz).\n"
-                      "            Không byte nào lọt sang ghế. Cắm chân 35 vào ICT qua chia áp\n"
-                      "            thì hết; đang thử bơm thì kệ nó.\n",
-                      millis(), soRac, CHAN_ICT);
+        g_racLuoc = soRac;
+        if (nhip > 100) {
+          Serial.printf("%8lu ms  ⚠ %lu byte/giây ngoài bảng — nhịp này là chân nghe THẢ NỔI.\n"
+                        "            Kiểm dây, chia áp, mát chung. Không byte nào lọt sang ghế.\n",
+                        millis(), nhip);
+        } else {
+          Serial.printf("%8lu ms  · %lu byte/giây ngoài bảng (tổng %lu) — nhịp thấp, nhiều khả\n"
+                        "            năng là DỮ LIỆU THẬT của máy nói khác bảng. Gõ f xem nguyên xi.\n",
+                        millis(), nhip, soRac);
+        }
       }
       continue;
     }
