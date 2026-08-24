@@ -70,6 +70,20 @@ bool     chiDapDiaChi = true;   // chỉ trả lời khung có bit thứ chín b
 uint16_t khungDap    = 0x000;   // ACK của MDB là 0x00 với bit thứ chín tắt
 uint32_t soNghe = 0, soDap = 0, soLoiStop = 0;
 
+/* ——— Tự quét khung đáp ———
+   Bo ghế chỉ mở miệng lúc mới lên điện, mỗi lần được vài khung. Thử tay thì mỗi giá trị tốn
+   một lần tắt-bật điện. Bật chế độ này thì mỗi lần nó hỏi, mình đáp một giá trị KHÁC trong
+   danh sách, nên một lần lên điện quét được nhiều giá trị.
+   Danh sách chọn theo các kiểu bắt tay hay gặp: báo nhận, dội lại địa chỉ, sẵn sàng, bận. */
+const uint16_t DS_DAP[] = { 0x000, 0x1E0, 0x0E0, 0x100, 0x0FF, 0x1FF, 0x001, 0x101 };
+const uint8_t  SO_DAP   = sizeof(DS_DAP) / sizeof(DS_DAP[0]);
+bool     tuQuet    = false;
+uint8_t  viTriQuet = 0;
+
+/* Bo ghế chờ trả lời trong bao lâu thì chưa biết. Đáp sớm quá là chen vào lúc nó chưa nhả
+   đường, muộn quá thì nó đã bỏ cuộc. Để chỉnh được bằng lệnh thay vì ghim cứng. */
+uint32_t treDapUs = 500;
+
 // ————— chờ tới một mốc tuyệt đối, không dùng delay để khỏi trôi —————
 /* Mọi chỗ đọc chân đều đi qua đây, để bật đảo cực là ăn hết, không sót chỗ nào. */
 static inline int docChan() {
@@ -145,16 +159,21 @@ void inBangLenh() {
   Serial.println(F("  d     bật/tắt đáp lại"));
   Serial.println(F("  aXXX  đặt khung đáp (hex 3 chữ số, vd a000 / a1FF)"));
   Serial.println(F("  t     đổi: chỉ đáp byte địa chỉ <-> đáp mọi khung"));
+  Serial.println(F("  s     TỰ QUÉT khung đáp — mỗi lần bo ghế hỏi thì đáp một giá trị khác"));
+  Serial.println(F("  wNNN  đặt trễ trước khi đáp, tính bằng µs (vd w200, w2000)"));
+  Serial.println(F("  i     đảo cực (dùng khi đi qua mạch cách ly quang)"));
   Serial.println(F("  r     xoá bộ đếm"));
   Serial.println(F("  ?     bảng lệnh này\n"));
 }
 
 void inTrangThai() {
-  Serial.printf("[đáp: %s | cực: %s | %s | khung đáp: %03X | nghe %lu, đáp %lu, stop hỏng %lu]\n",
+  Serial.printf("[đáp: %s | cực: %s | %s | %s %03X | trễ %lu µs | nghe %lu, đáp %lu, stop hỏng %lu]\n",
                 dapLai ? "BẬT" : "tắt",
                 daoCuc ? "ĐẢO" : "thuận",
                 chiDapDiaChi ? "chỉ byte địa chỉ" : "mọi khung",
-                khungDap, soNghe, soDap, soLoiStop);
+                tuQuet ? "TỰ QUÉT, đang ở" : "khung cố định",
+                tuQuet ? DS_DAP[viTriQuet] : khungDap,
+                treDapUs, soNghe, soDap, soLoiStop);
 }
 
 void docLenh() {
@@ -170,6 +189,17 @@ void docLenh() {
   } else if (c == 't') {
     chiDapDiaChi = !chiDapDiaChi;
     Serial.printf(">> %s\n", chiDapDiaChi ? "chỉ đáp byte địa chỉ" : "đáp mọi khung");
+  } else if (c == 's') {
+    tuQuet = !tuQuet;
+    viTriQuet = 0;
+    Serial.printf(">> tự quét khung đáp: %s", tuQuet ? "BẬT —" : "TẮT\n");
+    if (tuQuet) {
+      for (uint8_t i = 0; i < SO_DAP; i++) { Serial.printf(" %03X", DS_DAP[i]); }
+      Serial.println();
+    }
+  } else if (c == 'w') {
+    treDapUs = (uint32_t)d.substring(1).toInt();
+    Serial.printf(">> trễ trước khi đáp = %lu µs\n", treDapUs);
   } else if (c == 'i') {
     daoCuc = !daoCuc;
     digitalWrite(CHAN_NOI, daoCuc ? LOW : HIGH);      // đặt lại mức nghỉ cho đúng cực mới
@@ -253,10 +283,15 @@ void loop() {
   if (dapLai && (bit9 || !chiDapDiaChi)) {
     // MDB cho thiết bị tối đa 5 ms để trả lời. Nghỉ một nhịp cho bo ghế
     // kịp nhả đường rồi mới đẩy, không thì hai bên chồng lên nhau.
-    delayMicroseconds(500);
-    guiKhung(khungDap);
+    uint16_t gui = khungDap;
+    if (tuQuet) {
+      gui = DS_DAP[viTriQuet];
+      viTriQuet = (viTriQuet + 1) % SO_DAP;
+    }
+    delayMicroseconds(treDapUs);
+    guiKhung(gui);
     soDap++;
-    Serial.printf("   → đáp %03X", khungDap);
+    Serial.printf("   → đáp %03X%s", gui, tuQuet ? " [quét]" : "");
   }
   Serial.println();
 }
