@@ -87,6 +87,8 @@ uint32_t treDapUs = 500;
 /* Bo ghế chỉ hỏi lúc mới lên điện. Đổi khung đáp hay đổi trễ trong lúc nó đang im thì
    KHÔNG thử được gì — 24/08/2026 mất năm phút vì chuyện này, bộ đếm đứng nguyên qua bốn
    lần đổi trễ liên tiếp. Nên nhắc thẳng ra khi đã lâu không nghe thấy gì. */
+/* Bề rộng quãng thấp vừa đo được, để loop() báo ra. */
+uint32_t quangThapUs = 0;
 uint32_t lanNgheCuoi = 0;
 uint32_t lanNhac     = 0;
 
@@ -116,9 +118,16 @@ int32_t docKhung(uint32_t hanChoUs) {
      vừa bắt được bit start, trong khi thật ra đang đứng giữa một quãng thấp — đọc ra rác,
      bit stop sai, lặp mỗi mili-giây. Đúng lỗi "KHUNG HỎNG" tràn màn hình 24/08/2026, cùng
      gốc với "401 byte toàn 00" của bản nghe. */
+  /* Đo QUÃNG THẤP, đừng chỉ đếm số lần hết hạn.
+     24/08/2026: mã cũ báo "ĐƯỜNG KẸT Ở MỨC THẤP — kiểm dây" và dắt đi sai hướng cả một lượt,
+     trong khi lệnh 'm' đo được chân ở mức cao 100%. Sự thật là bo ghế CHỦ ĐỘNG kéo đường
+     xuống vài giây rồi mới truyền — đó là một phần của giao thức, không phải hỏng dây. */
+  uint32_t batThap = 0;
   while (docChan() == LOW) {
-    if (micros() - batDau > hanChoUs) { return -4; }   // -4 = đường kẹt ở mức thấp
+    if (batThap == 0) { batThap = micros(); }
+    if (micros() - batDau > hanChoUs) { return -4; }
   }
+  if (batThap) { quangThapUs = micros() - batThap; }
   while (docChan() == HIGH) {
     if (micros() - batDau > hanChoUs) { return -1; }
   }
@@ -227,7 +236,7 @@ void docLenh() {
       Serial.println(">>   → đường nghỉ ở mức cao, đúng như UART phải thế. Dây tốt.");
     } else if (pt < 5) {
       Serial.println(">>   → đường nằm THẤP. Đồng hồ đo 3,3V ở điểm A mà đây ra thế này thì");
-      Serial.println(">>     dây từ điểm A sang chân này chưa thông, hoặc đo nhầm điểm.");
+      Serial.println(">>     dây từ điểm A sang chân này chưa thông, hoặc bo ghế đang giữ đường thấp.");
     } else {
       Serial.println(">>   → đường đang nhấp nháy. Bo ghế kéo xuống rồi nhả, hoặc điện trở");
       Serial.println(">>     kéo lên quá yếu — thử hạ 4,7 kΩ xuống 1 kΩ.");
@@ -289,8 +298,8 @@ void loop() {
     if ((demHong || demKet) && millis() - lanIn > 1000) {
       lanIn = millis();
       if (demKet) {
-        Serial.printf("%8lu ms  ĐƯỜNG KẸT Ở MỨC THẤP (%lu lần/giây) — kiểm dây, cực, mát\n",
-                      millis(), demKet);
+        Serial.printf("%8lu ms  bo ghế GIỮ ĐƯỜNG THẤP — hơn %lu ms liền (%lu lượt chờ)\n",
+                      millis(), demKet * 200, demKet);
       }
       if (demHong) {
         Serial.printf("%8lu ms  %lu khung hỏng/giây (bit stop sai)\n", millis(), demHong);
@@ -323,6 +332,12 @@ void loop() {
   Serial.printf("%8lu ms  nghe: %02X  bit9=%d %s",
                 millis(), dl, bit9 ? 1 : 0,
                 bit9 ? "(byte địa chỉ)" : "");
+  /* Quãng thấp ngay trước khung này. Bit start chỉ rộng 104 µs; dài hơn nhiều là bo ghế
+     cố tình giữ đường — đo được thì mới biết nó giữ bao lâu và có đều không. */
+  if (quangThapUs > 1000) {
+    Serial.printf("  [trước đó đường thấp %lu ms]", quangThapUs / 1000);
+    quangThapUs = 0;
+  }
 
   if (dapLai && (bit9 || !chiDapDiaChi)) {
     // MDB cho thiết bị tối đa 5 ms để trả lời. Nghỉ một nhịp cho bo ghế
