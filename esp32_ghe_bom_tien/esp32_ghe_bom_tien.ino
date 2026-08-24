@@ -135,6 +135,8 @@ uint8_t maToTien = 0x41;   // mặc định kênh 1 = 10.000đ
 bool chuyenTiep = true;
 
 uint32_t soNgheIct = 0, soBom = 0;
+static uint32_t soRac = 0;            // byte 00 do chân nghe thả nổi — đã vứt
+static unsigned long g_racBaoLuc = 0; // chặn nhịp báo, 3 giây một lần cho khỏi tràn màn hình
 
 
 /* ——— Bơm một tờ: ba byte, đúng nhịp ———
@@ -258,6 +260,26 @@ void loop() {
 
   while (Bus.available()) {
     uint8_t b = Bus.read();
+
+    /* 0x00 KHÔNG BAO GIỜ là byte thật của ICT — bảng đã dò đủ: 81 · 41..44 · 10 · 25 · 29 · 2F.
+       Nó là dấu của chân nghe THẢ NỔI: GPIO 34-39 không có điện trở kéo bên trong, không cắm gì
+       vào là hứng nhiễu điện lưới, mỗi chu kỳ 50 Hz vượt ngưỡng một lần thì UART tưởng có bit
+       start rồi đọc ra 00. Cứ 20 ms một byte, đều tăm tắp.
+
+       Vứt thẳng, không đếm, không chuyển tiếp. Trước đây mỗi byte rác này được bơm nguyên vào
+       ghế — 50 byte vô nghĩa mỗi giây. */
+    if (b == 0x00) {
+      soRac++;
+      if (millis() - g_racBaoLuc > 3000) {
+        g_racBaoLuc = millis();
+        Serial.printf("%8lu ms  ⚠ %lu byte 00 — chân nghe GPIO %d đang THẢ NỔI (nhiễu 50 Hz).\n"
+                      "            Cắm nó vào ICT qua chia áp, hoặc kéo lên 3V3 bằng trở 10k.\n"
+                      "            Đã vứt hết, không byte nào lọt sang ghế.\n",
+                      millis(), soRac, CHAN_ICT);
+      }
+      continue;
+    }
+
     soNgheIct++;
     Serial.printf("%8lu ms  ICT: %02X", millis(), b);
     if (chuyenTiep) {
