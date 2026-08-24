@@ -393,7 +393,11 @@ void loop() {
          → 10 là ghế cộng tiền khống. Đã thấy 81, 41, 42, 44, 10 lọt qua trong log 18:08.
          Rác tới mức này thì chân nghe chắc chắn chưa nối vào ICT, nên chẳng có gì đáng chuyển
          tiếp cả. Bơm tay bằng b10 vẫn chạy bình thường — chỉ chặn đường tự động. */
-      if (chuyenTiep && soRac > 500) {
+      /* Chỉ tự cắt khi CHƯA HỀ nghe được byte ICT thật nào. Đấu xong mà lâu lâu dính một
+         gai nhiễu là chuyện thường; cắt đường tiền mặt vì mấy cái gai đó thì khách nhét tiền
+         vào ghế không chạy — hỏng nặng hơn nhiều so với thứ đang phòng. Có byte thật rồi tức
+         là dây đã nối đúng chỗ, không còn là ca "chân thả nổi" nữa. */
+      if (chuyenTiep && soRac > 500 && soNgheIct == 0) {
         chuyenTiep = false;
         Serial.printf("%8lu ms  ⛔ TỰ TẮT chuyển tiếp: %lu byte rác, chân nghe chưa nối vào ICT.\n"
                       "            Nhiễu trúng bảng ba lần đúng thứ tự là ghế cộng tiền khống.\n"
