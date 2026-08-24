@@ -40,11 +40,14 @@
  *   b10      bơm tờ 10.000đ   ·  b20 · b50 · b100
  *   b        bơm bằng mã đang đặt
  *   mXX      đổi mã tờ tiền, hex 2 chữ số
- *   p / i    đổi khung 8N1→8E1→8O1  ·  đảo cực tín hiệu
+ *   p / i    đổi khung 8N1→8E1→8O1  ·  đảo cực cả hai chiều
+ *   n        đảo RIÊNG chiều nói — bật khi chân nói đi qua transistor nâng mức 5V
  *   vNNNN    đổi tốc độ (mặc định v4800 — đúng như đo được)
  *   c        bật/tắt chuyển tiếp ICT → ghế
  *   r        xoá bộ đếm
  */
+
+#include <driver/uart.h>   // uart_set_line_inverse — đảo riêng chiều nói
 
 #define CHAN_ICT   35        // chỉ-vào-được: không thể lỡ tay đẩy ngược vào ICT
 #define CHAN_GHE   26        // chân đẩy ra được
@@ -57,7 +60,12 @@ HardwareSerial Bus(1);       // RX = chân nghe ICT, TX = chân nói vào ghế
    là dấu của sai khung hoặc sai cực, nên để đổi được bằng lệnh thay vì ghim cứng. */
 static uint32_t tocDo = 4800;
 static uint8_t  kieuKhung = 0;      // 0 = 8N1 · 1 = 8E1 · 2 = 8O1
-static bool     daoCuc = false;     // tín hiệu qua tầng đảo thì bật
+static bool     daoCuc = false;     // đảo CẢ hai chiều (nghe + nói)
+/* Đảo RIÊNG chiều nói. Cần khi chân nói đi qua tầng nâng mức bằng transistor NPN: transistor
+   đảo tín hiệu, nên phải đảo trước một lần cho hai lần đảo thành đúng chiều. Không dùng daoCuc
+   được, vì nó đảo luôn chiều nghe — mà chiều nghe vẫn cắm thẳng vào ICT, không qua transistor.
+   (Đảo daoCuc còn kéo theo lỗi gpio_pulldown_en trên chân 35 vì chân đó chỉ-vào-được.) */
+static bool     daoNoi = false;
 
 static uint32_t khungCua(uint8_t k){
   return (k == 1) ? SERIAL_8E1 : (k == 2) ? SERIAL_8O1 : SERIAL_8N1;
@@ -71,8 +79,13 @@ static const char* tenKhung(uint8_t k){
 static void moCong(){
   Bus.end();
   Bus.begin(tocDo, khungCua(kieuKhung), CHAN_ICT, CHAN_GHE, daoCuc);
-  Serial.printf(">> cổng: %lu baud %s · cực %s\n",
-                (unsigned long) tocDo, tenKhung(kieuKhung), daoCuc ? "ĐẢO" : "thuận");
+  /* begin() chỉ nhận một cờ đảo cho cả hai chiều. Muốn đảo riêng chiều nói thì gọi thẳng
+     xuống tầng dưới, sau khi cổng đã mở. Gọi với 0 để xoá khi tắt. */
+  if (daoNoi) uart_set_line_inverse(1, UART_SIGNAL_TXD_INV);
+  else if (!daoCuc) uart_set_line_inverse(1, 0);
+  Serial.printf(">> cổng: %lu baud %s · cực %s · chiều nói %s\n",
+                (unsigned long) tocDo, tenKhung(kieuKhung),
+                daoCuc ? "ĐẢO" : "thuận", daoNoi ? "ĐẢO (qua transistor)" : "thuận");
 }
 
 /* ——— KHUNG BÁO TIỀN CỦA ICT ———
@@ -192,6 +205,10 @@ void docLenh() {
   } else if (c == 'm') {
     maToTien = (uint8_t)strtol(d.substring(1).c_str(), nullptr, 16);
     Serial.printf(">> mã tờ tiền = %02X\n", maToTien);
+  } else if (c == 'n') {
+    daoNoi = !daoNoi;
+    if (daoNoi) daoCuc = false;   // hai thứ chồng nhau thì rối; chọn một
+    moCong();
   } else if (c == 'p') {
     kieuKhung = (uint8_t) ((kieuKhung + 1) % 3);
     moCong();
@@ -215,7 +232,8 @@ void docLenh() {
     Serial.println(F("  b     bơm bằng mã đang đặt"));
     Serial.println(F("  mXX   đổi mã tờ tiền, hex 2 chữ số"));
     Serial.println(F("  p     đổi khung: 8N1 → 8E1 → 8O1"));
-    Serial.println(F("  i     đảo cực tín hiệu"));
+    Serial.println(F("  i     đảo cực CẢ hai chiều"));
+    Serial.println(F("  n     đảo RIÊNG chiều nói — bật khi đi qua transistor nâng mức 5V"));
     Serial.println(F("  vNNNN đổi tốc độ (vd v4800, v2400, v9600)"));
     Serial.println(F("  c     bật/tắt chuyển tiếp ICT → ghế"));
     Serial.println(F("  r     xoá bộ đếm\n"));

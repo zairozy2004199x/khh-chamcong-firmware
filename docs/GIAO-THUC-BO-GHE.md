@@ -112,6 +112,34 @@ ESP32     ──────────►  ghế RX22     (ESP32 bơm thêm)
 **ICT ở nguyên trong mạch.** Nó lo phần bắt tay. ESP32 chỉ chen vào giữa: nghe ICT rồi nói lại
 vào chân RX của ghế. Không cần biết `00 E0` nghĩa là gì.
 
+### Ghế chạy 5V — ESP32 phải nâng mức mới nói vào được
+
+Đo chân RX22 lúc nghỉ: **~5V**. ESP32 chỉ đẩy ra 3,3V. Nếu ngưỡng "mức cao" của ghế nằm trên
+3,3V thì nó đọc đường của ESP32 là thấp suốt — không thấy bit start nào, im như không có ai nói.
+
+Đúng hiện tượng đo được 24/08/2026: bơm ra đủ ba byte `81 41 10` đúng nhịp, thử cả cực thuận
+lẫn cực đảo, mà màn ghế không nhúc nhích.
+
+Nâng mức bằng một transistor NPN:
+
+```
+   GPIO 26 ──[ 1k ]──┤ B
+                     │
+                  C1815          C ──┬──► RX22 của ghế
+                     │               │
+                     │            [ 4.7k ]
+                   E │               │
+                     │              +5V
+                    GND
+```
+
+Transistor **đảo tín hiệu**, nên phải đảo ngược lại một lần trong phần mềm cho hai lần đảo
+thành đúng chiều — lệnh `n` trong `esp32_ghe_bom_tien`.
+
+⚠ Dùng `n` chứ **không** dùng `i`. `i` đảo cả chiều nghe, mà chiều nghe (chân 35) vẫn cắm thẳng
+vào ICT chứ không qua transistor. `i` còn kéo theo lỗi `gpio_pulldown_en(123)` vì chân 35 là
+chân chỉ-vào-được, không có điện trở kéo xuống bên trong.
+
 ### 🔴 Chen vào giữa, KHÔNG cắm song song
 
 Nguyên bản đường ICT nói ra cắm thẳng vào chân RX22 của ghế. Muốn ESP32 bơm được thì phải
