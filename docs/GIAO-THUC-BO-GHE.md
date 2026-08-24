@@ -140,6 +140,29 @@ thành đúng chiều — lệnh `n` trong `esp32_ghe_bom_tien`.
 vào ICT chứ không qua transistor. `i` còn kéo theo lỗi `gpio_pulldown_en(123)` vì chân 35 là
 chân chỉ-vào-được, không có điện trở kéo xuống bên trong.
 
+### Bẫy: chia áp 1k/2k treo lên chân góp thì dìm chết mức cao
+
+Chia áp 1k/2k dùng để kẹp nghe đường ICT là đúng — ICT đẩy khoẻ, 3kΩ không dìm nổi nó.
+Nhưng treo đúng con đó lên **chân góp của transistor** thì khác hẳn: chân góp chỉ có trở kéo
+lên 10kΩ giữ, còn chia áp là 3kΩ xuống đất. Hai con chia nhau:
+
+```
+5V × 3k / (10k + 3k)  ≈  1,2V        ← không phải mức cao của ai cả
+```
+
+Đo được 2,18V rồi 3V trên đường đi gỡ dần. Bỏ hẳn chia áp ra thì chân góp lên đủ **5V**.
+
+Hệ quả: ghế không thấy mức cao, chân nghe cũng không thấy — nên bơm ra ba byte đẹp mà không
+ai nghe được, và phép tự kiểm cũng đọc ra rác ở cả hai chiều. Một con trở đặt sai chỗ giả
+được thành ba triệu chứng khác nhau.
+
+Muốn vừa bơm vừa nghe lại thì hoặc hạ trở kéo lên xuống 1kΩ, hoặc dùng chia áp trở kháng cao
+(10k/20k). Chỉ bơm thì bỏ hẳn chia áp là gọn nhất.
+
+**Bỏ chia áp mà chân góp vẫn lên đủ 5V trong khi dây sang RX22 còn nối** — đó là bằng chứng
+RX22 là chân VÀO trở kháng cao, có mạch thật bên trong ghế. Đáng ghi vì suốt buổi dò không có
+cách nào khác xác nhận được điều đó.
+
 ### 🔴 Chen vào giữa, KHÔNG cắm song song
 
 Nguyên bản đường ICT nói ra cắm thẳng vào chân RX22 của ghế. Muốn ESP32 bơm được thì phải

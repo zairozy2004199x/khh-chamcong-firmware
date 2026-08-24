@@ -66,7 +66,10 @@ static bool     daoCuc = false;     // đảo CẢ hai chiều (nghe + nói)
    đảo tín hiệu, nên phải đảo trước một lần cho hai lần đảo thành đúng chiều. Không dùng daoCuc
    được, vì nó đảo luôn chiều nghe — mà chiều nghe vẫn cắm thẳng vào ICT, không qua transistor.
    (Đảo daoCuc còn kéo theo lỗi gpio_pulldown_en trên chân 35 vì chân đó chỉ-vào-được.) */
-static bool     daoNoi = false;
+static bool     daoNoi = true;      /* MẶC ĐỊNH BẬT: đấu dây đã chốt là qua transistor NPN, mà
+   transistor thì đảo tín hiệu — nên chiều đúng luôn là chiều đảo. Để mặc định tắt thì mỗi lần
+   nạp lại là đường nói nằm thấp suốt, và người ngồi thử phải nhớ gõ n. Đã vấp đúng vậy hai lần
+   trong một buổi. Nối thẳng không qua transistor thì gõ n một lần để tắt. */
 
 static uint32_t khungCua(uint8_t k){
   return (k == 1) ? SERIAL_8E1 : (k == 2) ? SERIAL_8O1 : SERIAL_8N1;
