@@ -163,6 +163,27 @@ Muốn vừa bơm vừa nghe lại thì hoặc hạ trở kéo lên xuống 1kΩ
 RX22 là chân VÀO trở kháng cao, có mạch thật bên trong ghế. Đáng ghi vì suốt buổi dò không có
 cách nào khác xác nhận được điều đó.
 
+### 🔴 SỢI B LÀ DÂY NUÔI SỐNG ICT — không bao giờ được cắt
+
+Hai sợi giữa ghế và ICT, mỗi sợi có hai tên tuỳ đứng ở đầu nào:
+
+| Sợi | Phía ICT | Phía ghế | Chở gì | Tốc độ | Cắt được? |
+|---|---|---|---|---|---|
+| **A** | TX của ICT | RX22 của ghế | `81` + mã kênh + `10` | 4800 · 8N1 | có thể — chỗ chen vào |
+| **B** | RX của ICT | TX22 của ghế | `00 E0` | 9600 · 8E1 | **TUYỆT ĐỐI KHÔNG** |
+
+**Rút sợi B ra là ICT nháy 2 đỏ ngay** (mã "Inhibit on" — bị khoá, không nhận tờ nào). Ghế
+gửi lệnh cho phép nhận tiền qua sợi đó; mất lệnh là ICT tự khoá.
+
+Đây là thứ đã dắt cả buổi đi sai. Lúc thử cắt để chen ESP32 vào, **cả hai sợi cùng bị cách
+ly**, ICT khoá, và kết luận rút ra là "không được cắt gì cả" → bỏ luôn hướng bơm. Sai: thủ
+phạm là sợi B.
+
+Khớp đúng cách bo hãng khác đấu, như chủ máy tả ngay từ đầu: *"rx22 trên ghế gắn vào esp32.
+tx22 gắn ict"* — sợi B chạy thẳng ghế ↔ ICT, chỉ sợi A đi vòng qua ESP32.
+
+**Quy tắc rút ra:** muốn chen vào giữa thì cắt **riêng sợi A**. Sợi B để nguyên, đừng đụng.
+
 ### ✅ KẸP SONG SONG BẰNG 10k/20k CHẠY TỐT — chốt 24/08/2026
 
 Đọc sạch trên bo hãng khác đang chạy, **không cắt sợi nào, không phá gì**:
