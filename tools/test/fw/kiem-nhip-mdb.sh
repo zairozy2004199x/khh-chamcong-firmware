@@ -96,3 +96,14 @@ if "$TMP/t2" >/dev/null 2>&1; then
 else
   echo "  thử ngược: bẻ nhịp thành 104,00 µs → phép thử BẮT ĐƯỢC, tốt"
 fi
+
+# ——— chân nghe phải KHỚP giữa ba nơi, không thì đấu dây một kiểu chạy một kiểu ———
+n_giaLap=$(grep -oP '#define CHAN_NGHE\s+\K\d+' esp32_ghe_gia_lap_mdb/esp32_ghe_gia_lap_mdb.ino)
+n_nghe=$(grep -oP '#define CHAN_NGHE\s+\K\d+'    esp32_ghe_nghe_bo/esp32_ghe_nghe_bo.ino)
+n_chinh=$(grep -oP '#define MDB_RX_PIN\s+\K\d+'  esp32_ghe_massage/esp32_ghe_massage.ino)
+if [ "$n_giaLap" = "$n_nghe" ] && [ "$n_nghe" = "$n_chinh" ]; then
+  echo "  chân nghe khớp cả ba nơi: GPIO $n_giaLap"
+else
+  echo "  ⚠ CHÂN NGHE LỆCH — giả lập:$n_giaLap  dò:$n_nghe  firmware ghế:$n_chinh"
+  exit 1
+fi

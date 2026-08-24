@@ -106,3 +106,20 @@ bash tools/test/fw/kiem-nhip-mdb.sh
 
 Canh phép tính mốc bit của bản giả lập — chỗ dễ sai nhất, vì 104,1667 µs không tròn
 và cộng dồn thì tới bit stop đã lệch.
+
+## Chân dùng chung — cả ba nơi phải khớp
+
+| | nghe (bo ghế nói) | nói (mình nói) |
+|---|---|---|
+| `esp32_ghe_nghe_bo` (chỉ nghe) | **GPIO 35** | không có |
+| `esp32_ghe_gia_lap_mdb` | **GPIO 35** | GPIO 26 |
+| `esp32_ghe_massage` (firmware ghế) | **GPIO 35** (`MDB_RX_PIN`) | GPIO 27 (`MDB_TX_PIN`, đang tắt) |
+
+GPIO 35 là chân **chỉ-vào-được** — không có tầng đẩy ra, nên dù mã có sai thế nào cũng
+không thể đẩy ngược tín hiệu vào bo ghế. Đó là lớp an toàn vật lý, giữ nguyên ở cả ba bản.
+
+Bản giả lập nói ở **GPIO 26** chứ không phải 27, vì trên ghế chân 27 đang giữ xung tiền
+của ICT L70. Trên con ESP32 phụ thì không đụng, nhưng để cùng một con số cho khỏi nhầm
+lúc mang qua lại.
+
+`tools/test/fw/kiem-nhip-mdb.sh` canh cho ba nơi này luôn cùng một chân — sửa lệch là nó báo.

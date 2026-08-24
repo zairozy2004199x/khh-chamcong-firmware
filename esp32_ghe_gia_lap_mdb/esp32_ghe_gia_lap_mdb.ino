@@ -21,7 +21,7 @@
  * tự nhấp chân thừa sức chính xác.
  *
  * ĐẤU DÂY — đọc kỹ trước khi cắm:
- *   CHAN_NGHE (34)  ←  chân TX của bo ghế      (bo ghế nói, mình nghe)
+ *   CHAN_NGHE (35)  ←  chân TX của bo ghế      (bo ghế nói, mình nghe)
  *   CHAN_NOI  (26)  →  chân RX của bo ghế      (mình nói, bo ghế nghe)
  *   GND             ←→ mát bo ghế              (bắt buộc, không có thì đọc ra rác)
  *
@@ -41,7 +41,11 @@
  */
 
 // ————— chân —————
-#define CHAN_NGHE   34        // chỉ-vào-được: dù mã có sai cũng không thể đẩy ngược vào bo ghế
+// Chân nghe khớp với MDB_RX_PIN của firmware ghế chính và với bản dò esp32_ghe_nghe_bo —
+// ba nơi cùng một chân thì lúc chuyển qua lại khỏi phải đấu lại dây.
+#define CHAN_NGHE   35        // chỉ-vào-được: dù mã có sai cũng không thể đẩy ngược vào bo ghế
+// Không lấy 27 (MDB_TX_PIN của firmware chính) vì trên ghế chân đó đang giữ xung tiền L70.
+// 26 là chân dư, đẩy ra được, không đụng gì.
 #define CHAN_NOI    26        // chân đẩy ra được
 
 // ————— nhịp —————
