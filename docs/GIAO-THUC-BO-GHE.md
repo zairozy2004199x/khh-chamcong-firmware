@@ -163,6 +163,34 @@ Muốn vừa bơm vừa nghe lại thì hoặc hạ trở kéo lên xuống 1kΩ
 RX22 là chân VÀO trở kháng cao, có mạch thật bên trong ghế. Đáng ghi vì suốt buổi dò không có
 cách nào khác xác nhận được điều đó.
 
+### Sợi B KHÔNG chở dữ liệu — nó là dây MỨC
+
+Kẹp nghe sợi B ở 9600 · 8E1, ba tình huống, đều không có gì:
+
+| Tình huống | Đọc được |
+|---|---|
+| Rút điện rồi cắm lại | một byte rồi im |
+| Để yên hai phút | `0 byte/giây` |
+| **Nhét tiền, ghế chạy** | **vẫn không có gì** |
+
+Đường dữ liệu thật thì lúc có tiền phải nói gì đó. Không nói gì nghĩa là nó chỉ **giữ một mức
+điện áp** — ICT đọc mức đó để biết có được phép nhận tiền không. Rút ra là thả nổi, ICT hiểu
+là bị cấm rồi nháy 2 đỏ.
+
+Đúng kiểu chân **inhibit**, và firmware ghế cũng có sẵn một chân như vậy (`INHIBIT_PIN 22`).
+
+**Hệ quả — hướng bơm đi được:**
+
+```
+   ghế TX22 ─────────────────────► ICT          sợi B: dây MỨC, để nguyên, không đụng
+   ICT ──────────► ESP32 ────────► ghế RX22     sợi A: cắt, chen ESP32 vào
+```
+
+Toàn bộ chuyện tiền nong nằm trên sợi A. Sợi B chỉ cần **còn nối**, không cần chuyển tiếp gì.
+
+⚠️ Cái `00 E0` ở 9600 dò được hồi chiều là hai khung phát ra **một lần lúc lên điện**, không
+lặp lại. Nó có thật nhưng không phải nhịp giữ — đừng mất công bắt chước nó.
+
 ### 🔴 SỢI B LÀ DÂY NUÔI SỐNG ICT — không bao giờ được cắt
 
 Hai sợi giữa ghế và ICT, mỗi sợi có hai tên tuỳ đứng ở đầu nào:
