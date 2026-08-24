@@ -42,7 +42,15 @@ t('gửi quyết toán đi THẲNG sang "Chờ quyết toán"',
 t('CÓ phép dời đơn còn kẹt ở "Chờ quản lý gom" sang "Chờ quyết toán"',
   /function bo_khau_gom[\s\S]*?UPDATE \$t SET trang_thai=%s WHERE trang_thai=%s[\s\S]*?'Chờ quyết toán', 'Chờ quản lý gom'/.test(DB));
 t('phép dời đó có chạy khi nâng cấp', /self::bo_khau_gom\(\);/.test(DB));
-t('và SCHEMA_VERSION đã tăng để nâng cấp nổ ra', /SCHEMA_VERSION = '1\.6\.0'/.test(DB));
+/* ⚠️ ĐỪNG GHIM CỨNG MỘT SỐ. Bất biến ở đây là "sơ đồ bảng đã tăng phiên bản để lượt nâng cấp
+   NỔ RA và chạy bo_khau_gom", chứ không phải "phiên bản đúng bằng 1.6.0". Ghim cứng thì lần sau
+   thêm một cột (bản 1.7.0) là phép thử này vỡ — vỡ vì một thay đổi ĐÚNG, và người ta sửa phép
+   thử cho qua chứ không đọc nó nữa. Ghim NGƯỠNG: từ 1.6.0 trở lên. */
+(function(){
+  var m = /SCHEMA_VERSION = '(\d+)\.(\d+)\.(\d+)'/.exec(DB);
+  var du = !!m && (Number(m[1])*10000 + Number(m[2])*100 + Number(m[3])) >= 10600;
+  t('và SCHEMA_VERSION từ 1.6.0 trở lên, để lượt nâng cấp nổ ra', du, m ? m[0] : 'không thấy');
+})();
 t('danh sách nhắc "đã cấp tiền — chưa nộp hóa đơn" được giữ lại', /id="qtBodyChuaNop"/.test(HTML));
 
 // ---------------------------------------------------------------- 2. hai bảng

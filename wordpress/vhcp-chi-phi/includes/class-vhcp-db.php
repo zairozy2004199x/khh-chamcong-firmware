@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.6.0';
+	const SCHEMA_VERSION = '1.7.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -79,6 +79,7 @@ class VHCP_DB {
 			so_tien_thuc_mua DECIMAL(18,2) NULL,
 			hinh_thuc_tt VARCHAR(60) NOT NULL DEFAULT '',
 			hoa_don_qt TEXT NULL,
+			hoa_don_qt2 TEXT NULL,
 			ngay_xuat_cn DATETIME NULL,
 			nguoi_qt_ncc VARCHAR(120) NOT NULL DEFAULT '',
 			ngay_qt_ncc DATETIME NULL,

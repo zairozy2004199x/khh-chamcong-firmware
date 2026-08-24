@@ -322,6 +322,75 @@ teq( 'trạng thái sau chốt xuất', 'Đã xuất MISA', VHCP_Don::don_row( $
 teq( 'xuất lại lần 2 không còn đơn nào', 0, VHCP_Misa::export_misa( 'all', 'chuaxuat', 'all' )['count'] );
 teq( 'lọc mode đã xuất thì thấy lại', 4, VHCP_Misa::export_misa( 'all', 'daxuat', 'all' )['count'] );
 
+// ------------------------------------- 5b. ĐƠN ĐÃ CHỐT SỔ VẪN BỔ SUNG ĐƯỢC HÓA ĐƠN
+/* Anh Thắng: *"đối với đơn đã xuất MISA hoặc đã quyết toán, kế toán được phép bổ sung thêm hóa
+   đơn nếu thiếu hoặc sai"* và *"với 1 đơn cho phép upload 2 hóa đơn"*.
+
+   Hóa đơn giấy về sau ngày chốt sổ là chuyện thường, và hóa đơn SAI thì phải thay được — không
+   thì bộ chứng từ vĩnh viễn thiếu trong khi số tiền đã đúng rồi. Nhưng nới chỗ này là nới trên
+   một đơn ĐÃ SANG SỔ MISA, nên phải chặt: chỉ ẢNH, chỉ KẾ TOÁN, và có vết trong nhật ký. */
+$_dong_ma = VHCP_Don::get_don( $ma )['lines'];
+$_id_dong = $_dong_ma ? (string) $_dong_ma[0]['id'] : '';
+t( 'có dòng để thử đính hóa đơn', '' !== $_id_dong );
+teq( 'đơn đang ở trạng thái đã xuất MISA', 'Đã xuất MISA', VHCP_Don::don_row( $ma )['trang_thai'] );
+
+/* 🔴 NHÂN VIÊN KHÔNG ĐƯỢC SỜ vào đơn đã chốt sổ. */
+VHCP_Auth::dat_vai_tro( 'Nhân viên' );
+$_r = VHCP_Don::set_line_anh( $_id_dong, 'https://x/nv.jpg' );
+t( 'nhân viên KHÔNG đính được hóa đơn vào đơn đã chốt sổ', empty( $_r['success'] ), $_r );
+t( 'và được nói rõ vì sao, chứ không phải câu chung chung',
+	isset( $_r['error'] ) && strpos( $_r['error'], 'chỉ KẾ TOÁN' ) !== false, $_r );
+$_sau = VHCP_Don::line_row( $_id_dong );
+teq( 'ảnh dòng không hề đổi', '', (string) $_sau['anh'] );
+
+/* Kế toán thì được — đó là cả điểm của việc này. */
+foreach ( array( 'Kế toán cá nhân', 'Kế toán NCC', 'Admin' ) as $_vt_kt ) {
+	VHCP_Auth::dat_vai_tro( $_vt_kt );
+	$_r = VHCP_Don::set_line_anh( $_id_dong, 'https://x/' . rawurlencode( $_vt_kt ) . '.jpg' );
+	t( "$_vt_kt bổ sung được hóa đơn dòng khi đơn đã chốt sổ", ! empty( $_r['success'] ), $_r );
+}
+$_sau = VHCP_Don::line_row( $_id_dong );
+t( 'ảnh dòng đã ghi thật', strpos( (string) $_sau['anh'], 'https://x/' ) === 0, $_sau['anh'] );
+
+/* 🔴 CHỈ ẢNH — đường này không được đụng một con số nào. Đơn đã sang sổ MISA mà số đổi được là
+   hai bên sổ lệch nhau, và không ai biết vì bút toán đã xuất đi rồi. */
+$_truoc_tien = (string) $_sau['thanh_tien'];
+VHCP_Don::set_line_anh( $_id_dong, 'https://x/khac.jpg' );
+$_sau2 = VHCP_Don::line_row( $_id_dong );
+teq( 'thành tiền KHÔNG đổi theo', $_truoc_tien, (string) $_sau2['thanh_tien'] );
+teq( 'thực mua KHÔNG đổi theo', (string) $_sau['thuc_mua'], (string) $_sau2['thuc_mua'] );
+teq( 'mã tài khoản KHÔNG đổi theo', (string) $_sau['tk_no'], (string) $_sau2['tk_no'] );
+teq( 'trạng thái đơn vẫn là đã xuất MISA', 'Đã xuất MISA', VHCP_Don::don_row( $ma )['trang_thai'] );
+
+/* Đụng vào đơn đã chốt sổ thì PHẢI để lại vết — người đối chiếu sau này cần biết ai đổi, lúc nào. */
+$_nk = VHCP_Log::get_log( array( 'limit' => 200 ) )['items'];
+$_co_vet = false;
+foreach ( (array) $_nk as $_x ) {
+	if ( strpos( (string) $_x['hanhDong'], 'hóa đơn dòng (đơn đã chốt)' ) !== false ) { $_co_vet = true; }
+}
+t( 'có vết trong nhật ký khi đụng đơn đã chốt sổ', $_co_vet );
+
+/* --- HAI Ô HÓA ĐƠN CẤP ĐƠN --- */
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân' );
+$_r1 = VHCP_Don::set_hoa_don_qt( $ma, 'https://x/hd1.jpg', 'KT', 1 );
+$_r2 = VHCP_Don::set_hoa_don_qt( $ma, 'https://x/hd2.jpg', 'KT', 2 );
+t( 'đính được hóa đơn ô 1', ! empty( $_r1['success'] ), $_r1 );
+t( 'đính được hóa đơn ô 2', ! empty( $_r2['success'] ), $_r2 );
+$_d = VHCP_Don::get_don( $ma )['don'];
+teq( 'ô 1 giữ đúng ảnh của nó', 'https://x/hd1.jpg', (string) $_d['anhHoaDon'] );
+teq( 'ô 2 giữ đúng ảnh của nó', 'https://x/hd2.jpg', (string) $_d['anhHoaDon2'] );
+/* 🔴 Hai ô phải ĐỘC LẬP. Đính ô 2 mà đè mất ô 1 thì "hai hóa đơn" chỉ là cái tên. */
+VHCP_Don::set_hoa_don_qt( $ma, 'https://x/hd2-moi.jpg', 'KT', 2 );
+$_d = VHCP_Don::get_don( $ma )['don'];
+teq( 'đổi ô 2 KHÔNG đụng ô 1', 'https://x/hd1.jpg', (string) $_d['anhHoaDon'] );
+teq( 'và ô 2 nhận ảnh mới', 'https://x/hd2-moi.jpg', (string) $_d['anhHoaDon2'] );
+/* Số ô lạ thì về ô 1, không ghi bừa ra chỗ thứ ba. */
+VHCP_Don::set_hoa_don_qt( $ma, 'https://x/hd-la.jpg', 'KT', 9 );
+$_d = VHCP_Don::get_don( $ma )['don'];
+teq( 'số ô lạ về ô 1, không sinh ô thứ ba', 'https://x/hd-la.jpg', (string) $_d['anhHoaDon'] );
+teq( 'ô 2 vẫn nguyên', 'https://x/hd2-moi.jpg', (string) $_d['anhHoaDon2'] );
+VHCP_Auth::dat_vai_tro( 'Admin' );
+
 // ---------------------------------------------------------------- 6. chi phí kỹ thuật
 $da = VHCP_DuAn::create_du_an( 'Tháo dỡ', 'TÀU GÒ VẤP', 'Kỹ thuật viên' );
 $md = $da['maDA'];
@@ -437,10 +506,57 @@ t( 'đổi PIN thành công', ! empty( VHCP_Auth::change_pin( 'Admin', '1111', '
 t( 'PIN mới đăng nhập được', ! empty( VHCP_Auth::login( '4321' )['ok'] ) );
 t( 'PIN trùng người khác bị chặn', empty( VHCP_Auth::change_pin( 'Admin', '4321', '2222' )['success'] ) );
 
+// ------------------- 10b. SƠ ĐỒ BẢNG TRONG BỘ THỬ KHÔNG ĐƯỢC LỆCH KHỎI DDL THẬT
+/* 🔴 wp-stub.php giữ một BẢN SAO GÕ TAY của sơ đồ bảng (dịch sang SQLite). Thêm một cột vào
+   class-vhcp-db.php mà quên vá bản sao đó thì bài kiểm chạy trên một cái bảng KHÁC với bảng
+   thật — và nó không báo gì cho tới khi có câu UPDATE đụng đúng cột mới, lúc đó chết bằng một
+   lỗi SQL khó hiểu ở giữa bài kiểm. Vừa xảy ra đúng như vậy với cột `hoa_don_qt2`.
+
+   Đọc DDL THẬT từ mã nguồn, rút tên cột, đối chiếu với bản sao. KHÔNG so kiểu dữ liệu — hai bên
+   khác phương ngữ SQL — chỉ so DANH SÁCH CỘT, đúng thứ hay lệch thật. */
+$_stub_src = file_get_contents( __DIR__ . '/wp-stub.php' );
+$_db_src   = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-db.php' );
+$_thieu_cot = array();
+$_soat_bang = 0;
+if ( preg_match_all( '/CREATE TABLE " \. self::t\( \x27([a-z_]+)\x27 \) \. " \((.*?)\) \$c";/s', $_db_src, $_mm, PREG_SET_ORDER ) ) {
+	foreach ( $_mm as $_m ) {
+		$_ten_b = $_m[1];
+		/* Chỉ soát bảng nào bản sao CÓ khai — bảng bộ thử chưa dựng thì không lệch được. */
+		if ( ! preg_match( '/CREATE TABLE \{\$p\}' . preg_quote( $_ten_b, '/' ) . ' \((.*?)\)"/s', $_stub_src, $_ms ) ) {
+			continue;
+		}
+		$_soat_bang++;
+		foreach ( explode( "\n", $_m[2] ) as $_d ) {
+			$_d = trim( $_d );
+			if ( '' === $_d || 0 === strpos( $_d, '/*' ) || 0 === strpos( $_d, '*' ) || 0 === strpos( $_d, '//' ) ) { continue; }
+			if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/i', $_d ) ) { continue; }
+			/* ⚠️ Tên cột CÓ CHỮ SỐ (`hoa_don_qt2`). Biểu thức `[a-z_]+` bỏ sót đúng những cột
+			   như vậy — tức là phép soát im lặng bỏ qua đúng thứ nó sinh ra để bắt. Phép phá
+			   ngược mới lòi ra chỗ này. */
+			if ( ! preg_match( '/^([a-z_][a-z0-9_]*)\s+[A-Z]/', $_d, $_mc ) ) { continue; }
+			if ( ! preg_match( '/(^|[,(\s])' . preg_quote( $_mc[1], '/' ) . '\s/', $_ms[1] ) ) {
+				$_thieu_cot[] = $_ten_b . '.' . $_mc[1];
+			}
+		}
+	}
+}
+/* Soát được 0 bảng nghĩa là biểu thức tìm kiếm hỏng, không phải "mọi thứ đều khớp". Hai thứ đó
+   trông giống hệt nhau ở kết quả, mà một bên là an toàn còn một bên là phép soát chết lặng. */
+t( 'phép soát sơ đồ có thật sự đọc được DDL (không phải khớp vì đọc rỗng)', $_soat_bang >= 3, $_soat_bang );
+t( 'bản sao sơ đồ trong wp-stub.php không thiếu cột nào so với DDL thật',
+	count( $_thieu_cot ) === 0, implode( ' · ', $_thieu_cot ) );
+
 // ---------------------------------------------------------------- 11. nhật ký
 VHCP_Log::log_action( array( 'actor' => 'Admin', 'role' => 'Admin', 'action' => 'Thử nghiệm', 'target' => $ma, 'detail' => 'ghi chú' ) );
-$lg = VHCP_Log::get_log( array( 'limit' => 10 ) );
-teq( 'nhật ký ghi được', 1, count( $lg['items'] ) );
+$lg = VHCP_Log::get_log( array( 'limit' => 200 ) );
+/* ⚠️ TÌM ĐÚNG BẢN GHI VỪA VIẾT, đừng đếm TỔNG nhật ký. Đếm tổng thì thêm bất kỳ việc nào có ghi
+   nhật ký ở phần trên là phép thử này vỡ — vỡ vì một thay đổi ĐÚNG, đúng kiểu phép thử dạy người
+   ta bỏ qua nó. Tìm đích danh vừa chặt hơn vừa không vỡ oan. */
+$_thay_tn = false;
+foreach ( (array) $lg['items'] as $_x ) {
+	if ( 'Thử nghiệm' === $_x['hanhDong'] && 'ghi chú' === $_x['chiTiet'] ) { $_thay_tn = true; }
+}
+t( 'nhật ký ghi được', $_thay_tn );
 teq( 'nhật ký tìm theo từ khóa', 1, count( VHCP_Log::get_log( array( 'q' => 'thử' ) )['items'] ) );
 teq( 'nhật ký tìm từ không có', 0, count( VHCP_Log::get_log( array( 'q' => 'zzz' ) )['items'] ) );
 

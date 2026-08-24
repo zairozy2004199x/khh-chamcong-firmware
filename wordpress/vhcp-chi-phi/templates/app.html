@@ -274,10 +274,16 @@
                trên cùng một hàng. Giá trị thật đọc qua _tienSo() nên không đổi gì phía sau. -->
           <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:170px;font-weight:700;text-align:right"></div>
           <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:150px;font-weight:800;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;font-family:Consolas,monospace">—</div></div>
-          <div class="fld"><label>Hóa đơn tổng (nếu cần)</label>
-            <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn b-x" id="qtImgBtn" onclick="attachHoaDon()">📎 Đính hóa đơn</button>
-              <button class="btn b-s" id="qtImgXem" style="display:none">👁 Xem</button>
+          <!-- HAI Ô HÓA ĐƠN, CÓ TÊN. Anh Thắng: "với 1 đơn cho phép upload 2 hóa đơn".
+               Ô thứ hai sinh ra vì ô thứ nhất THIẾU hoặc SAI, nên đặt tên "bổ sung" chứ không
+               phải một danh sách vô danh — người đối chiếu sau này cần biết cái nào là bản bù. -->
+          <div class="fld"><label>Hóa đơn tổng (tối đa 2)</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+              <button class="btn b-x" id="qtImgBtn" onclick="attachHoaDon(1)">📎 Hóa đơn 1</button>
+              <button class="btn b-s" id="qtImgXem" style="display:none">👁</button>
+              <span style="color:#cbd5e1">|</span>
+              <button class="btn b-x" id="qtImgBtn2" onclick="attachHoaDon(2)">📎 Hóa đơn 2 (bổ sung)</button>
+              <button class="btn b-s" id="qtImgXem2" style="display:none">👁</button>
             </div>
             <div id="qtImgNote" style="font-size:11px;color:#64748b;margin-top:3px"></div></div>
           <div class="fld"><label>Hình thức trả kế toán</label>
@@ -2041,8 +2047,17 @@
           // Hiện ảnh nhỏ luôn: nhìn một cái biết dòng nào đã có chứng từ.
           '<td style="text-align:center;white-space:nowrap">'+(function(){
              var xem=l.anh?'<a href="'+esc(l.anh)+'" target="_blank" title="Xem chứng từ"><img src="'+esc(l.anh)+'" style="height:28px;border-radius:4px;vertical-align:middle" loading="lazy"></a>':'';
-             if(!(o.canThucChi||o.canEditRow)) return xem||'—';
-             return xem+' <button class="btn b-x" style="padding:2px 7px" onclick="attachLineAnh(\''+l.id+'\')" title="'+(l.anh?'Đổi ảnh chứng từ dòng này':'Đính ảnh chứng từ dòng này')+'">'+(l.anh?'✎':'📎')+'</button>';
+             /* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN.
+                Hóa đơn giấy về sau ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường;
+                khóa luôn cả ảnh là bộ chứng từ vĩnh viễn thiếu trong khi số tiền đã đúng.
+                Máy chủ (set_line_anh) mới là nơi gác thật — chỗ này chỉ bày nút ra. */
+             var _vt=(CURUSER&&CURUSER.role)||'';
+             var _kt=(_vt==='Kế toán cá nhân'||_vt==='Kế toán NCC'||_vt==='Admin');
+             var _chot=(CUR&&CUR.don&&(CUR.don.trangThai==='Đã quyết toán'||CUR.don.trangThai==='Đã xuất MISA'));
+             if(!(o.canThucChi||o.canEditRow) && !(_kt&&_chot)) return xem||'—';
+             var _tip=_chot?'Đơn đã chốt sổ — bổ sung/đổi hóa đơn, KHÔNG đụng số tiền'
+                           :(l.anh?'Đổi ảnh chứng từ dòng này':'Đính ảnh chứng từ dòng này');
+             return xem+' <button class="btn b-x" style="padding:2px 7px" onclick="attachLineAnh(\''+l.id+'\')" title="'+_tip+'">'+(l.anh?'✎':'📎')+'</button>';
            })()+'</td>'+
           '<td style="text-align:center;white-space:nowrap">'+
             (o.canEditRow?'<button class="btn b-x" onclick="editLine(\''+l.id+'\')" title="Sửa nội dung dòng">✏</button> ':'')+
@@ -2116,15 +2131,20 @@
     // ĐÍNH HÓA ĐƠN ĐƯỢC CẢ SAU KHI QUYẾT TOÁN. Hóa đơn giấy về sau ngày chi tiền là chuyện
     // thường: kế toán chi bù hôm nay, mai mới có hóa đơn đỏ. Trước đây quyết toán xong là
     // nút biến mất, không còn chỗ đính. Nút chỉ ghi ẢNH, không đụng số nào.
-    el('qtImgBtn').style.display='inline-block';
-    el('qtImgBtn').textContent=QT.anh?(editable?'✓ Đã đính hóa đơn':'✓ Xem hóa đơn')  : '📎 Đính hóa đơn';
-    el('qtImgBtn').onclick=attachHoaDon;
-    var _xemHd=el('qtImgXem');
-    if(_xemHd){
-      _xemHd.style.display=QT.anh?'inline-block':'none';
-      _xemHd.onclick=function(){ if(QT.anh) window.open(QT.anh,'_blank'); };
-    }
-    if(el('qtImgNote')) el('qtImgNote').textContent=editable?'' : 'Đơn đã chốt — đính thêm hóa đơn vẫn được, số tiền không đổi.';
+    QT.anh2=CUR.don.anhHoaDon2||'';
+    [[1,'qtImgBtn','qtImgXem',QT.anh,'Hóa đơn 1'],[2,'qtImgBtn2','qtImgXem2',QT.anh2,'Hóa đơn 2 (bổ sung)']]
+      .forEach(function(c){
+        var o=c[0], b=el(c[1]), x=el(c[2]), url=c[3], ten=c[4];
+        if(!b) return;
+        b.style.display='inline-block';
+        b.textContent=(url?'✓ ':'📎 ')+ten;
+        b.onclick=function(){ attachHoaDon(o); };
+        if(x){ x.style.display=url?'inline-block':'none';
+               x.onclick=function(){ if(url) window.open(url,'_blank'); }; }
+      });
+    if(el('qtImgNote')) el('qtImgNote').textContent=editable
+      ? 'Đính được 2 hóa đơn: ô 2 để bổ sung khi ô 1 thiếu hoặc sai.'
+      : 'Đơn đã chốt — kế toán vẫn bổ sung/đổi hóa đơn được, số tiền KHÔNG đổi.';
     var b=el('qtBtns'), role=(CURUSER&&CURUSER.role)||'', loai=_curLoai();
     var cnDone=!!(CUR.don.nguoiQT&&String(CUR.don.nguoiQT).trim()), nccDone=!!(CUR.don.nguoiQTNCC&&String(CUR.don.nguoiQTNCC).trim());
     if(el('qtCNBox')) el('qtCNBox').style.display=(role==='Kế toán NCC')?'none':'';   // KT NCC không xem phần cá nhân
@@ -2192,20 +2212,21 @@
       qrBox.innerHTML='<div style="font-size:12px;color:#64748b">Thiếu tiền — kế toán chuyển bù '+money(-cl)+'đ cho NV (theo TK của NV).</div>';
     }
   }
-  function attachHoaDon(){
+  function attachHoaDon(o){
+    o=(o===2)?2:1;
     var inp=el('hoaDonFile'); inp.value='';
     inp.onchange=function(){ var file=inp.files[0]; if(!file)return; loading(true);
       var rd=new FileReader(); rd.onload=function(e){ var b64=e.target.result.split(',')[1];
         google.script.run.withSuccessHandler(function(res){
           if(!res.success){loading(false);toast('err',res.error);return;}
-          QT.anh=res.url;
+          if(o===2) QT.anh2=res.url; else QT.anh=res.url;
           // GHI NGAY vào đơn. Đơn đã quyết toán thì không còn nút "Lưu nháp quyết toán"
           // nữa, để chờ nút đó là ảnh vừa tải lên bay mất mà không ai biết.
           google.script.run.withSuccessHandler(function(r2){loading(false);
-            if(r2&&r2.success){ toast('ok','Đã đính hóa đơn'); _log('Đính hóa đơn tổng', CUR.don.maDon, ''); openDon(CUR.don.maDon); }
+            if(r2&&r2.success){ toast('ok','Đã đính hóa đơn '+o); _log('Đính hóa đơn tổng '+o, CUR.don.maDon, ''); openDon(CUR.don.maDon); }
             else toast('err',(r2&&r2.error)||'Tải được ảnh nhưng chưa ghi vào đơn');
           }).withFailureHandler(function(e2){loading(false);toast('err',e2.message);})
-            .setHoaDonQT(CUR.don.maDon, res.url, (CURUSER&&CURUSER.name)||'');
+            .setHoaDonQT(CUR.don.maDon, res.url, (CURUSER&&CURUSER.name)||'', o);
         }).withFailureHandler(function(er){loading(false);toast('err',er.message);}).uploadImage({base64:b64,type:file.type},CUR.don.maDon);
       }; rd.readAsDataURL(file);
     }; inp.click();

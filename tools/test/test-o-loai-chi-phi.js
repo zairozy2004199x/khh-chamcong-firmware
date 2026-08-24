@@ -117,7 +117,21 @@ t('phát hiện lệch theo cả 2 cách (nhiều cơ sở, hoặc khác cơ s�
   /var lechCs=\(dsCs\.length>1\)\|\|\(csDon!==''&&dsCs\.length===1&&dsCs\[0\]!==csDon\);/.test(HTML));
 // Ảnh: máy chủ vốn cho đính khi Nháp, chỉ giao diện không bày ra.
 t('đính ảnh được ngay khi đơn còn Nháp (không đợi cấp tạm ứng)',
-  /if\(!\(o\.canThucChi\|\|o\.canEditRow\)\) return xem\|\|'—';/.test(HTML));
+  /if\(!\(o\.canThucChi\|\|o\.canEditRow\)/.test(HTML));
+/* 🔴 ĐƠN ĐÃ CHỐT SỔ VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng chỉ KẾ TOÁN. Hóa đơn giấy về sau
+   ngày chốt, hoặc hóa đơn sai phải thay, là chuyện thường; khóa luôn cả ảnh là bộ chứng từ
+   vĩnh viễn thiếu trong khi số tiền đã đúng rồi. */
+t('đơn đã chốt sổ: kế toán vẫn thấy nút đính hóa đơn',
+  /_kt&&_chot/.test(HTML) && /Đã quyết toán'\|\|CUR\.don\.trangThai==='Đã xuất MISA'/.test(HTML));
+t('và nút đó nói rõ là KHÔNG đụng số tiền',
+  /bổ sung\/đổi hóa đơn, KHÔNG đụng số tiền/.test(HTML));
+/* Máy chủ mới là nơi gác thật — giao diện chỉ bày nút. Nếu chỉ giấu nút mà máy chủ vẫn nhận
+   thì ai gọi thẳng API cũng sửa được đơn đã sang sổ MISA.
+   ⚠️ Đọc tệp tại chỗ: hằng DON khai mãi ở dưới, dùng trước là "Cannot access before
+      initialization" — lỗi của BÀI KIỂM trông y như lỗi của mã. */
+t('máy chủ mới là nơi gác, không phải giao diện',
+  /Đơn đã chốt sổ — chỉ KẾ TOÁN mới bổ sung/.test(
+    fs.readFileSync(path.join(GOC, 'wordpress/vhcp-chi-phi/includes/class-vhcp-don.php'), 'utf8')));
 t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', /<img src="'\+esc\(l\.anh\)\+'" style="height:28px/.test(HTML));
 
 // ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng

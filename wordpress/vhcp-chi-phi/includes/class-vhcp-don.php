@@ -230,6 +230,10 @@ class VHCP_Don {
 				'soThucMua'   => $mua_cn,
 				'httt'        => (string) $r['hinh_thuc_tt'],
 				'anhHoaDon'   => (string) $r['hoa_don_qt'],
+				/* Gác isset: cột này thêm ở bản 1.31.0. Site nâng cấp plugin xong mà bảng chưa kịp
+				   nới (dbDelta chạy ở lượt tải trang sau) thì đọc thẳng là cảnh báo tràn nhật ký
+				   lỗi, và trang trắng nếu WP_DEBUG bật. */
+				'anhHoaDon2'  => isset( $r['hoa_don_qt2'] ) ? (string) $r['hoa_don_qt2'] : '',
 				'nguoiQTNCC'  => (string) $r['nguoi_qt_ncc'],
 				'ngayQTNCC'   => VHCP_Util::fmt( $r['ngay_qt_ncc'] ),
 				'qtCN'        => ( (string) $r['nguoi_qt'] !== '' ),
@@ -331,6 +335,10 @@ class VHCP_Don {
 			'soThucMua'   => VHCP_Util::out_num( $r['so_tien_thuc_mua'] ),
 			'httt'        => (string) $r['hinh_thuc_tt'],
 			'anhHoaDon'   => (string) $r['hoa_don_qt'],
+				/* Gác isset: cột này thêm ở bản 1.31.0. Site nâng cấp plugin xong mà bảng chưa kịp
+				   nới (dbDelta chạy ở lượt tải trang sau) thì đọc thẳng là cảnh báo tràn nhật ký
+				   lỗi, và trang trắng nếu WP_DEBUG bật. */
+				'anhHoaDon2'  => isset( $r['hoa_don_qt2'] ) ? (string) $r['hoa_don_qt2'] : '',
 			'nguoiQTNCC'  => (string) $r['nguoi_qt_ncc'],
 			'ngayQTNCC'   => VHCP_Util::fmt( $r['ngay_qt_ncc'] ),
 			'tamUngDuyet' => VHCP_Util::out_num( $r['tam_ung_duyet'] ),
@@ -1105,10 +1113,41 @@ class VHCP_Don {
 		$cur = self::line_row( $id );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
 		$st = self::state( (string) $cur['ma_don'] );
-		if ( ! in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
-			return VHCP_Util::err( 'Chỉ đính hóa đơn khi đơn đang nhập / đã cấp tạm ứng / chờ quyết toán' );
+		$mo = array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' );
+
+		/* 🔴 ĐƠN ĐÃ CHỐT VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng CHỈ kế toán.
+		   Anh Thắng: *"đối với đơn đã xuất MISA hoặc đã quyết toán, kế toán được phép bổ sung
+		   thêm hóa đơn nếu thiếu hoặc sai"*.
+
+		   Hóa đơn giấy về sau ngày chốt sổ là chuyện thường, và hóa đơn SAI thì phải thay được
+		   — không thì bộ chứng từ vĩnh viễn thiếu, mà số tiền thì đã đúng rồi. Khóa cả ảnh lẫn
+		   số là khóa quá tay.
+
+		   ⚠️ CHỈ ẢNH. Đường này không đụng một con số nào — thành tiền, thực mua, mã tài khoản
+		      đều nằm ngoài. Đơn đã xuất MISA mà số đổi được là hai bên sổ lệch nhau mà không ai
+		      biết.
+		   ⚠️ CHỈ KẾ TOÁN (và Admin). Nhân viên nhập đơn không được sờ vào đơn đã chốt sổ. */
+		$vt = VHCP_Auth::vai_tro();
+		$la_ke_toan = in_array( $vt, array( 'Kế toán cá nhân', 'Kế toán NCC', 'Admin' ), true );
+		$da_chot    = in_array( $st, array( 'Đã quyết toán', 'Đã xuất MISA' ), true );
+
+		if ( ! in_array( $st, $mo, true ) && ! ( $la_ke_toan && $da_chot ) ) {
+			return VHCP_Util::err( $da_chot
+				? 'Đơn đã chốt sổ — chỉ KẾ TOÁN mới bổ sung/sửa được hóa đơn của dòng.'
+				: 'Chỉ đính hóa đơn khi đơn đang nhập / đã cấp tạm ứng / chờ quyết toán' );
 		}
 		$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'anh' => (string) $url ), array( 'id' => (string) $id ) );
+
+		/* Đụng vào đơn đã chốt sổ thì PHẢI để lại vết. Số không đổi, nhưng bộ chứng từ đã khác
+		   với lúc xuất MISA — người đối chiếu sau này cần biết ai đổi, lúc nào. */
+		if ( $da_chot ) {
+			VHCP_Log::log_action( array(
+				'actor'  => $vt,
+				'action' => ( trim( (string) $url ) === '' ? 'Bỏ hóa đơn dòng (đơn đã chốt)' : 'Bổ sung hóa đơn dòng (đơn đã chốt)' ),
+				'target' => (string) $cur['ma_don'],
+				'detail' => 'dòng ' . (string) $id . ' · trạng thái đơn: ' . $st,
+			) );
+		}
 		return VHCP_Util::ok();
 	}
 
@@ -1219,6 +1258,7 @@ class VHCP_Don {
 			'so_tien_thuc_mua' => VHCP_Util::blank_or_num( isset( $obj['soThucMua'] ) ? $obj['soThucMua'] : '' ),
 			'hinh_thuc_tt'     => isset( $obj['httt'] ) ? (string) $obj['httt'] : '',
 			'hoa_don_qt'       => isset( $obj['anhHoaDon'] ) ? (string) $obj['anhHoaDon'] : '',
+			'hoa_don_qt2'      => isset( $obj['anhHoaDon2'] ) ? (string) $obj['anhHoaDon2'] : '',
 		) );
 		return VHCP_Util::ok();
 	}
@@ -1231,21 +1271,27 @@ class VHCP_Don {
 	 * cả SỐ TIỀN), nên tách riêng đường chỉ ghi ẢNH: không đụng số nào, mọi trạng thái
 	 * đều đính được, và ghi nhật ký để còn truy ai đính lúc nào.
 	 */
-	public static function set_hoa_don_qt( $ma_don, $url, $nguoi = '' ) {
+	public static function set_hoa_don_qt( $ma_don, $url, $nguoi = '', $o = 1 ) {
 		$_loi = self::loi_khong_phai_don_minh( $ma_don );
 		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }
 
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
-		$u = trim( (string) $url );
-		self::upd_don( $ma_don, array( 'hoa_don_qt' => $u ) );
+		/* HAI Ô HÓA ĐƠN, không phải một danh sách dài. Anh Thắng: *"với 1 đơn cho phép upload
+		   2 hóa đơn"*. Hai ô CÓ TÊN — "Hóa đơn 1" và "Hóa đơn 2 (bổ sung)" — nói đúng nghiệp
+		   vụ hơn một danh sách vô danh: cái thứ hai sinh ra vì cái thứ nhất THIẾU hoặc SAI, và
+		   người xem sau này cần biết cái nào là bản bổ sung. */
+		$o   = ( (int) $o === 2 ) ? 2 : 1;
+		$cot = ( 2 === $o ) ? 'hoa_don_qt2' : 'hoa_don_qt';
+		$u   = trim( (string) $url );
+		self::upd_don( $ma_don, array( $cot => $u ) );
 		VHCP_Log::log_action( array(
 			'actor'  => (string) $nguoi,
-			'action' => ( $u === '' ? 'Bỏ hóa đơn tổng' : 'Đính hóa đơn tổng' ),
+			'action' => ( $u === '' ? 'Bỏ hóa đơn tổng ' . $o : 'Đính hóa đơn tổng ' . $o ),
 			'target' => (string) $ma_don,
 			'detail' => 'trạng thái đơn: ' . (string) $d['trang_thai'],
 		) );
-		return VHCP_Util::ok( array( 'anhHoaDon' => $u ) );
+		return VHCP_Util::ok( array( 'o' => $o, 'anhHoaDon' => $u ) );
 	}
 
 	// ---------------------------------------------------------------- kế toán / quản lý
