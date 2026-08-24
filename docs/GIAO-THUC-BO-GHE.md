@@ -315,6 +315,23 @@ Nhịp cũng cố định:
 
 1,2 giây là lúc ICT kéo tờ tiền vào và xác nhận. Bơm mà bỏ nhịp này thì bo ghế có thể không nhận.
 
+### Hai mã kẹt: 0x25 và 0x27
+
+Đo thêm 24/08/2026, lúc thử chen ESP32 vào giữa và cục nhận tiền kẹt liên tục:
+
+```
+25   kẹt tờ ở DƯỚI
+27   kẹt tờ ở TRÊN
+2F   gỡ xong, sẵn sàng lại
+```
+
+`0x27` là mã mới, trước chỉ biết `0x25`. Cả hai đều nên báo về web bằng cùng mã `"ket"` —
+người trực không cần biết kẹt trên hay kẹt dưới, họ chỉ cần biết phải ra mở máy.
+
+⚠️ Kẹt liên tục ba tờ là dấu ghế đang cắt lệnh giữa chừng, không phải máng hỏng: cục nhận
+tiền dừng mô-tơ với tờ tiền còn trong máng. Gặp cảnh này thì **trả dây về nguyên bản trước**,
+đừng thử tiếp — kẹt nhiều lần liên tục có ngày hỏng máng thật.
+
 ### Bốn ca KHÔNG có tiền — đo 24/08/2026
 
 Ngoài ca nhận được tiền, ICT còn phát ra bốn kiểu dấu vết nữa. Ghi lại đủ vì chúng
