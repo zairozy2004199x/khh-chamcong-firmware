@@ -58,13 +58,24 @@ oan. Linux không cần bước này.
 ### Vướng lúc cài — hai lỗi ai cũng gặp
 
 **`MSVCR100.dll was not found`** — không phải máy hỏng. Đó là thư viện chạy của **Visual C++
-2010**; bản PulseView tải về được dịch bằng nó mà máy chưa có.
+2010**; bản PulseView tải về được dịch bằng nó mà máy chưa có. Bản kèm đĩa/link của shop bán
+máy hay là bản cũ, thiếu thư viện là chuyện thường.
 
-- *Nhanh:* cài **Microsoft Visual C++ 2010 Redistributable (x86)** (`vcredist_x86.exe`) từ
-  microsoft.com. Cài bản **x86** trước kể cả khi Windows là 64-bit — PulseView thường là 32-bit.
-- *Chắc hơn:* gỡ bản đang có, tải từ **sigrok.org/wiki/Downloads** đúng bản **installer 32-bit
-  STATIC**. Chữ *static* là mấu chốt: mọi thư viện nằm trong file, không đòi dll nào.
-  Bản kèm theo shop bán máy hay là bản cũ, thiếu thư viện là chuyện thường.
+**`The application was unable to start correctly (0xc000007b)`** — lệch kiến trúc: file 32-bit
+đang cố nạp dll 64-bit, hoặc ngược lại. Cài thêm `vcredist` KHÔNG chữa được lỗi này. Gỡ bản
+đang có rồi tải lại cho đúng.
+
+**Tải bản nào ở sigrok.org/wiki/Downloads** — trang chia hai khối. Lấy ở khối trên:
+
+| Khối | Mục | Lấy? |
+|---|---|---|
+| **Nightly builds (recommended)** | PulseView **64bit** | ✅ **lấy cái này** |
+| Nightly builds | PulseView 32bit | ❌ chính là thứ gây `0xc000007b` |
+| Nightly builds | sigrok-cli (32/64) | ❌ bản dòng lệnh, không cần |
+| Release builds | PulseView 0.4.2 | ❌ cũ hơn nightly, thiếu vá |
+
+Trang không ghi chữ *static* trên nút nào cả — cứ lấy đúng dòng **PulseView (64bit)** ở khối
+*Nightly builds*. Bản nightly của sigrok đã gói sẵn thư viện, không đòi `vcredist`.
 
 **PulseView không thấy thiết bị** — quay lại Zadig bấm *Reinstall Driver*, rút ra cắm lại.
 Dấu hiệu Zadig đã xong: hai ô Driver đều ghi **WinUSB**, và nút ghi *Reinstall* chứ không phải
