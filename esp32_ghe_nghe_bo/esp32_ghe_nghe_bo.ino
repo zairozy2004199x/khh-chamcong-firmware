@@ -86,8 +86,13 @@ void gomByte(uint8_t b){ if(g_soBo < BO_DEM) g_bo[g_soBo++] = b; }
 
 /* --- ccTalk ---------------------------------------------------------------------------------
    Khung: [đích][số byte data][nguồn][mã lệnh][data...][checksum]
-   Dấu vân tay KHÔNG THỂ NHẦM: TỔNG TẤT CẢ byte trong khung chia hết cho 256.
-   Một khung trùng ngẫu nhiên thì có thể; ba khung liên tiếp cùng khớp thì không. */
+   Dấu vân tay: TỔNG TẤT CẢ byte trong khung chia hết cho 256.
+
+   🔴 BẪY đã sập một lần, 24/08/2026: chuỗi toàn 00 có tổng bằng 0, mà 0 thì chia hết 256.
+      Nên mọi đoạn rỗng đều "khớp checksum", và bản dò hớn hở báo "ccTalk — kết luận CHẮC"
+      trong khi thật ra chân đọc đang kẹt ở mức thấp, không có byte nào. Câu "ba khung liên
+      tiếp không thể trùng ngẫu nhiên" chỉ đúng khi các byte KHÁC NHAU.
+      Từ đây: khung mà mọi byte giống hệt nhau thì không tính. */
 int doCcTalk(){
   int khop = 0;
   for(uint16_t i = 0; i + 4 < g_soBo; i++){
@@ -95,10 +100,22 @@ int doCcTalk(){
     uint16_t tong_dai = (uint16_t)len + 5;
     if(len > 32 || i + tong_dai > g_soBo) continue;
     uint8_t tong = 0;
-    for(uint16_t j = 0; j < tong_dai; j++) tong += g_bo[i + j];
-    if(tong == 0){ khop++; i += tong_dai - 1; }
+    bool co_khac = false;
+    for(uint16_t j = 0; j < tong_dai; j++){
+      tong += g_bo[i + j];
+      if(g_bo[i + j] != g_bo[i]) co_khac = true;
+    }
+    if(tong == 0 && co_khac){ khop++; i += tong_dai - 1; }
   }
   return khop;
+}
+
+/* Mọi byte gom được có giống hệt nhau không? Nếu có thì đấy là chân kẹt mức, không phải
+   dữ liệu — và mọi kết luận phía sau đều vô nghĩa, phải nói thẳng ra. */
+bool moiByteGiongNhau(){
+  if(g_soBo < 8) return false;
+  for(uint16_t i = 1; i < g_soBo; i++){ if(g_bo[i] != g_bo[0]) return false; }
+  return true;
 }
 
 /* --- ICT RS232 ------------------------------------------------------------------------------
@@ -119,34 +136,64 @@ int doLeTe(uint32_t so_byte, uint32_t so_khung){
 
    🔴 Đọc ở đây CHỈ ĐỌC. Không có digitalWrite nào trong khối này, và chân 35 vốn không đẩy ra
       được — hai lớp, vì đây là bus của máy đang chạy tiền khách. */
-#define MDB_BIT_US 104        // 1/9600 = 104.17us
+/* 1/9600 = 104,1667 µs — KHÔNG tròn. Giữ dạng phân số và tính mốc TUYỆT ĐỐI từ mép sườn;
+   cộng dồn 104 µs mười một lần thì tới bit stop đã lệch 1,8 µs, lấy mẫu trượt sang bit bên. */
+static const uint32_t MDB_BIT_x100 = 10417;
+static inline uint32_t mdbGiua(uint8_t k){ return (MDB_BIT_x100 * (2 * k + 1)) / 200; }
+
+static inline void mdbChoToi(uint32_t moc){
+  while((int32_t)(micros() - moc) < 0){ /* bận chờ; ở 104 µs thì không đáng ngại */ }
+}
 
 int ngheMdb(uint32_t ms){
   pinMode(CHAN_NGHE, INPUT);
   uint32_t het = millis() + ms;
-  int so_khung = 0, so_byte = 0, so_dia_chi = 0;
+  int so_byte = 0, so_dia_chi = 0, so_hong = 0;
 
   Serial.println();
   Serial.printf("=== NGHE KIỂU MDB 9-BIT (%lu giây) ===\n", (unsigned long)(ms / 1000));
 
   while(millis() < het){
-    if(digitalRead(CHAN_NGHE) != 0){ continue; }        // chờ bit start (mức thấp)
-    delayMicroseconds(MDB_BIT_US + MDB_BIT_US / 2);     // nhảy qua start, canh giữa bit 0
+    /* 🔴 Phải bắt SƯỜN XUỐNG, không phải "đang ở mức thấp".
+       Bản cũ chỉ hỏi digitalRead()==0 rồi lao vào đọc. Khi đường nằm thấp kéo dài — mà bo ghế
+       có hẳn một quãng thấp 1 ms lúc bắt tay — nó tưởng mọi điểm trong quãng đó đều là bit
+       start, đọc ra chín bit thấp, tức 00, lặp tới khi đầy bộ đệm. Đó là nguồn gốc của
+       "401 byte toàn 00" hôm 24/08/2026.
+       Nên: chờ đường LÊN CAO trước (về mức nghỉ), rồi mới rình lúc nó XUỐNG. */
+    while(digitalRead(CHAN_NGHE) == LOW){ if(millis() >= het) goto xong; }
+    while(digitalRead(CHAN_NGHE) == HIGH){ if(millis() >= het) goto xong; }
+    uint32_t goc = micros();                    // mép sườn xuống = mép bit start
+
+    mdbChoToi(goc + mdbGiua(0));
+    if(digitalRead(CHAN_NGHE) != LOW){ continue; }   // gai nhiễu, không phải start thật
+
     uint16_t v = 0;
     for(int i = 0; i < 9; i++){
+      mdbChoToi(goc + mdbGiua(i + 1));
       if(digitalRead(CHAN_NGHE)) v |= (1 << i);
-      delayMicroseconds(MDB_BIT_US);
     }
-    /* Bit thứ 9 bật = byte ĐỊA CHỈ (mở đầu một khung MDB). Đây là dấu vân tay của MDB: UART
-       thường không bao giờ sinh ra được cái bit đó. */
+
+    /* Kiểm bit stop. Không kiểm thì khung hỏng cũng được nhận, và một chuỗi rác vẫn ra
+       được "byte" trông như thật. */
+    mdbChoToi(goc + mdbGiua(10));
+    if(digitalRead(CHAN_NGHE) != HIGH){ so_hong++; continue; }
+
+    /* Bit thứ 9 bật = byte ĐỊA CHỈ (mở đầu một khung MDB). */
     bool la_dia_chi = (v & 0x100) != 0;
-    if(la_dia_chi){ Serial.println(); Serial.print("  [ĐC] "); so_khung++; so_dia_chi++; }
+    if(la_dia_chi){ Serial.println(); Serial.print("  [ĐC] "); so_dia_chi++; }
     inHex((uint8_t)(v & 0xFF));
+    gomByte((uint8_t)(v & 0xFF));
     so_byte++;
     if(so_byte > 400) break;
   }
+xong:
   Serial.println();
-  Serial.printf("  -> %d byte, %d byte địa chỉ (bit 9 bật)\n", so_byte, so_dia_chi);
+  Serial.printf("  -> %d byte, %d byte địa chỉ (bit 9 bật), %d khung hỏng bit stop\n",
+                so_byte, so_dia_chi, so_hong);
+  if(so_byte >= 8 && so_dia_chi == 0 && so_hong == 0){
+    Serial.println("  ⚠ Không byte nào có bit 9 — nếu tất cả lại giống hệt nhau thì đây KHÔNG");
+    Serial.println("    phải dữ liệu MDB, mà là chân đọc đang kẹt mức. Xem cảnh báo ở KẾT LUẬN.");
+  }
   return so_dia_chi;
 }
 
@@ -226,12 +273,26 @@ void ketLuan(){
   Serial.printf("TỐC ĐỘ NHIỀU KHẢ NĂNG NHẤT: %lu baud\n", (unsigned long)bang[tot].toc_do);
 
   /* --- Nhận dạng họ giao thức --- */
+  if(moiByteGiongNhau()){
+    Serial.println();
+    Serial.println("🔴 MỌI BYTE GOM ĐƯỢC ĐỀU GIỐNG HỆT NHAU — ĐÂY KHÔNG PHẢI DỮ LIỆU.");
+    Serial.printf("   Cả %u byte đều là %02X. Không giao thức nào phát như vậy.\n",
+                  (unsigned)g_soBo, g_bo[0]);
+    Serial.println("   Nghĩa là chân đọc đang bị giữ ở một mức, không nhận được tín hiệu thật:");
+    Serial.println("     - kẹp GND chưa chắc, hoặc chưa chung mát với bo ghế");
+    Serial.println("     - kẹp vào nhầm chân (chân nguồn, chân mát, chân điều khiển)");
+    Serial.println("     - dây tuột");
+    Serial.println("   MỌI KẾT LUẬN GIAO THỨC DƯỚI ĐÂY ĐỀU VÔ NGHĨA. Sửa dây rồi đo lại.");
+    Serial.println();
+  }
+
   int cc = doCcTalk();
   Serial.println();
   if(cc >= 3){
     Serial.printf(">>> ccTalk — %d khung có checksum ĐÚNG (tổng byte chia hết 256).\n", cc);
     Serial.println(">>> Khung ccTalk: [đích][số data][nguồn][mã lệnh][data...][checksum].");
-    Serial.println(">>> Đây là kết luận CHẮC: ba khung liên tiếp khớp checksum không thể trùng ngẫu nhiên.");
+    Serial.println(">>> Các byte trong khung KHÁC nhau, nên khớp checksum ở đây là dấu hiệu thật,");
+    Serial.println(">>> không phải kiểu chuỗi rỗng nào cũng khớp. Vẫn nên đối chiếu bằng logic analyzer.");
   } else if(doLeTe(bang[tot].so_byte, bang[tot].so_khung)){
     Serial.println(">>> KHÔNG phải ccTalk. Byte bắn LẺ TẺ, không thành khung —");
     Serial.println(">>> hợp với kiểu 'mỗi sự việc một byte' (ICT RS232 và vài hãng khác).");
