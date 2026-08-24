@@ -163,6 +163,60 @@ Muốn vừa bơm vừa nghe lại thì hoặc hạ trở kéo lên xuống 1kΩ
 RX22 là chân VÀO trở kháng cao, có mạch thật bên trong ghế. Đáng ghi vì suốt buổi dò không có
 cách nào khác xác nhận được điều đó.
 
+### ✅ KẸP SONG SONG BẰNG 10k/20k CHẠY TỐT — chốt 24/08/2026
+
+Đọc sạch trên bo hãng khác đang chạy, **không cắt sợi nào, không phá gì**:
+
+```
+1140614 ms  81
+1140616 ms  41      ← 2 ms sau · kênh 1 = 10.000đ
+1141842 ms  10      ← 1,2 giây sau · ĐÃ NUỐT
+
+1153698 ms  81
+1153700 ms  42      ← kênh 2 = 20.000đ
+1154936 ms  10
+```
+
+Nhịp rác: **0 byte/giây**. Cục nhận tiền vẫn nuốt tiền bình thường (byte cuối là `10`, không
+phải `29`), và màn ghế cộng đúng số tiền.
+
+Mạch kẹp:
+
+```
+   đường ICT ──[10k]──●──────────► GPIO 35        ● = NÚT
+                      │
+                    [10k]
+                      │
+                    [10k]
+                      │
+                     GND
+```
+
+🔴 **Từ NÚT sang chân 35 phải là DÂY TRẦN.** Thêm một con trở ở đó là tự chia áp lần nữa: 5V
+còn 1,67V, dưới ngưỡng mức cao, đọc ra rác. Đây là lỗi đã ngốn mấy tiếng — chân đo lần lượt
+ra 0,8V · 1,4V · 0,7V, mỗi lần một số vì cụm trở ghép mỗi lần một kiểu.
+
+Chia áp chỉ có **một điểm ra**: chỗ nhánh trên gặp nhánh dưới.
+
+### Những giả thuyết đã bị bác trong đêm đó
+
+Ghi lại để lần sau khỏi đi lại:
+
+| Giả thuyết | Vì sao bác |
+|---|---|
+| "5V thì bắt buộc phải chia áp" | Chân 27 đọc xung ICT 5V nối THẲNG, chạy nhiều năm không sao. Cổng ICT là hở cực góp, dòng bị trở nội ~4kΩ hạn lại |
+| "Diode bảo vệ hút dòng làm ICT nhả tiền" | Đổi lên 62k (22 µA) vẫn nhả. Không phải chuyện dòng |
+| "Không được kẹp song song, phải cắt" | Sai hẳn. Kẹp 10k/20k đúng cách thì chạy tốt, và cắt mới là thứ làm ICT nháy 2 đỏ |
+
+Cái sai chung của cả ba: đi tìm nguyên nhân ở lý thuyết trong khi lỗi nằm ở **cụm trở ghép
+tay**. Mỗi lần ghép lại ra một trị số khác, nên mỗi lần đo ra một điện áp khác, và không lần
+nào truy được vì sao.
+
+### Cục ICT của hãng khác nói CÙNG một thứ tiếng
+
+Cùng `81` + mã kênh + `10`, cùng nhịp 2 ms rồi 1,2 giây. Bảng mệnh giá dò từ ghế K&H dùng
+được luôn cho bo hãng khác — không phải dò lại.
+
 ### 🔴 Chen vào giữa, KHÔNG cắm song song
 
 Nguyên bản đường ICT nói ra cắm thẳng vào chân RX22 của ghế. Muốn ESP32 bơm được thì phải
