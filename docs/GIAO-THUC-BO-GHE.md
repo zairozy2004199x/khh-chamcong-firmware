@@ -103,8 +103,22 @@ ICT gửi MỘT byte 0x02 ở 4800 baud 8N1 cực thuận khi nhận 10.000đ.
 Không khung, không checksum, không bắt tay.
 ```
 
-Đó là chế độ RS232 của ICT: mỗi kênh tiền một mã byte. Kênh 2 đang đặt cho tờ 10k.
-Mệnh giá khác sẽ là mã khác — nạp một tờ rồi đọc dòng `ICT:` mà `esp32_ghe_bom_tien` in ra.
+Đó là chế độ RS232 của ICT: mỗi kênh tiền một mã byte.
+
+### ⚠ Tờ 50k cũng cho `0x02` — y hệt tờ 10k
+
+Đo lại với tờ 50.000đ: `414 µs · 207 µs · 1242 µs`, không lệch một micro-giây, vẫn ra `0x02`.
+Một cụm duy nhất, không phải năm cụm.
+
+**ICT đang báo cùng một mã cho cả hai mệnh giá** — nó không nói cho ghế biết tờ đó bao nhiêu tiền.
+
+Cần kiểm trên màn ghế: nạp 50k thì cộng bao nhiêu so với nạp 10k?
+
+- **Cộng như nhau** → chuyện tiền bạc, không phải kỹ thuật. Khách bỏ 50.000đ chỉ được số phút
+  của 10.000đ. Nguyên nhân thường là cấu hình kênh của ICT: DIP switch gạt sai, hoặc chưa khai
+  mệnh giá 50k vào kênh riêng nên mọi tờ rơi hết về kênh 2.
+- **Cộng đúng 50k** → bo ghế đếm cách khác; bắt lại lâu hơn 10 giây, có thể ICT gửi năm byte
+  `0x02` rải rác mà bản ghi chưa đủ dài để thấy hết.
 
 ### Bài học về cách dò
 
