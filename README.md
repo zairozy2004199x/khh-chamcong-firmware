@@ -97,6 +97,11 @@ Cắm USB, gõ `QUYTRINH` — nó chạy tuần tự các bước nghiệm thu v
 định nên không có kiểu lỗi "tự đoán chiều" của TXS0108E, không có chân OE để mà quên, chạy tới
 hàng Mbps, và đầu ra phía 5V đúng mức nên **khỏi cần biết con HT245 trên bo ghế là HC hay HCT**.
 
+L70 ăn **nguồn 12V DC**. Nó có **hai đầu ra mức khác nhau** — đấu vào đầu nào quyết định phần cứng:
+đầu **DB9** (chân 2=TXD, 3=RXD, 5=GND) là **RS-232 thật → cần MAX3232**; đầu **molex TMT 8 chân**
+(đen=RX1, tím=TX1, xanh dương=GND, trắng=Download VCC) nhiều khả năng là **cổng nạp TTL → dùng
+ADuM1201/mạch chuyển mức, khỏi MAX3232**. Nhìn cáp thật xem ra đầu nào.
+
 ⚠️ **Trước hết đo xem L70 là RS-232 thật hay TTL.** Bản `L70T-P5 / L77T-P5` là RS-232 thật —
 mức lưỡng cực, idle ở điện áp **âm** (−5…−12V), logic đảo. Cắm thẳng vào ESP32 hay ADuM1201 là
 **cháy chân**. Đo chân TX của L70 so với mass lúc nghỉ: **âm** → cần **MAX3232** (nó hạ mức và đảo
