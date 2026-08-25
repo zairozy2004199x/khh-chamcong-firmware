@@ -21,7 +21,13 @@ FILE=(esp32_hik_chamcong_full/esp32_hik_chamcong_full.ino
       esp32_ota_updater/secrets.example.h
       esp32_hik_chamcong_full/ci/secrets.ci.h
       esp32_ota_updater/ci/secrets.ci.h
-      esp32_hik_chamcong_full/ci/User_Setup.h)
+      esp32_hik_chamcong_full/ci/User_Setup.h
+      esp32_posh_qr/esp32_posh_qr.ino
+      esp32_posh_qr/ma_qr.h
+      esp32_posh_qr/quet_qr.h
+      esp32_posh_qr/ict_ghe.h
+      esp32_posh_qr/secrets.example.h
+      esp32_posh_qr/ci/secrets.ci.h)
 
 # Chỉ xét thứ LỌT VÀO .bin: chuỗi trong dấu ngoặc kép. Ghi chú thì vô hại.
 # Cách bóc: xoá ghi chú // và /* */ trước, rồi mới trích chuỗi.
@@ -59,14 +65,14 @@ PY
 done
 
 # secrets.h thật không được lọt vào repo (đã có .gitignore, kiểm lại cho chắc)
-for f in esp32_hik_chamcong_full/secrets.h esp32_ota_updater/secrets.h; do
+for f in esp32_hik_chamcong_full/secrets.h esp32_ota_updater/secrets.h esp32_posh_qr/secrets.h; do
   if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
     echo "🔴 $f ĐANG được git theo dõi — đây là file bí mật, phải bỏ ra."; loi=1
   fi
 done
 
 # ci/secrets.ci.h phải toàn placeholder — điền giá trị thật vào đó là lộ lên .bin công khai
-for f in esp32_hik_chamcong_full/ci/secrets.ci.h esp32_ota_updater/ci/secrets.ci.h; do
+for f in esp32_hik_chamcong_full/ci/secrets.ci.h esp32_ota_updater/ci/secrets.ci.h esp32_posh_qr/ci/secrets.ci.h; do
   [ -f "$f" ] || continue
   if grep -E '^#define +SEC_' "$f" | grep -qv '__CHUA_CAU_HINH__'; then
     echo "🔴 $f có giá trị KHÁC placeholder:"; grep -E '^#define +SEC_' "$f" | grep -v '__CHUA_CAU_HINH__' | sed 's/^/     /'

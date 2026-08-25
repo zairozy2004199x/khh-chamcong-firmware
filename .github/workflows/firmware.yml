@@ -20,6 +20,7 @@ on:
     paths:
       - 'esp32_hik_chamcong_full/**'
       - 'esp32_ota_updater/**'
+      - 'esp32_posh_qr/**'
       - '.github/workflows/firmware.yml'
   workflow_dispatch:
 
@@ -295,3 +296,85 @@ jobs:
             --notes "Tro toi ban may tram moi nhat. Chi MAY TRAM doc file nay." \
             || gh release upload latest-tram "outtram/latest-tram.json" --repo "$PUB" --clobber
           echo "Da phat hanh $VER" 
+
+  # ==========================================================================
+  #  Hộp POSH QR (mở ghế massage bằng mã QR) — kiểm nhanh, KHÔNG cần arduino-cli.
+  #  Chạy trước và tách riêng để hỏng là biết trong ~30 giây, khỏi chờ 3 phút cài core.
+  # ==========================================================================
+  poshqr-kiem-nhanh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Kiem ma nguon khong dinh mau CI quet
+        run: bash esp32_hik_chamcong_full/ci/kiem-mau-cam.sh
+      - name: Test doc/kiem ma QR (chay tren may, khong can chip)
+        run: bash esp32_posh_qr/ci/kiem-ma-qr.sh
+      - name: Test khung lenh UART sang bo ghe
+        run: bash esp32_posh_qr/ci/kiem-ict.sh
+      - name: Bien dich kiem bang thu vien ESP32 gia
+        run: bash esp32_posh_qr/ci/kiem-bien-dich.sh
+
+  # Hộp POSH QR: biên dịch THẬT bằng arduino-cli. Chỉ kiểm + lưu file, KHÔNG phát hành —
+  # hộp không có cơ chế tự tải firmware, thợ tải .bin ở đây rồi nạp qua trang /update.
+  poshqr:
+    runs-on: ubuntu-latest
+    needs: poshqr-kiem-nhanh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cai arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 1.4.0
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Cache core
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: acli-esp32-${{ env.CORE_VER }}-v3
+
+      - name: Cai core ESP32
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@${CORE_VER}
+
+      - name: Dat secrets.h PLACEHOLDER (co y - .bin phai sach bi mat)
+        run: cp esp32_posh_qr/ci/secrets.ci.h esp32_posh_qr/secrets.h
+
+      - name: Compile
+        run: |
+          # pipefail BAT BUOC: "arduino-cli | tee" tra ve ma cua TEE -> compile hong ma buoc van xanh.
+          set -eo pipefail
+          if ! arduino-cli compile --fqbn "$FQBN" --warnings default \
+                 --build-path "$PWD/qrbuild" esp32_posh_qr 2>&1 | tee qr.log; then
+            echo "===== CHI CAC DONG LOI ====="
+            grep -nE 'error:|Error during build|exceeds|undefined reference|No such file' qr.log | head -40
+            echo "===== HET ====="
+            exit 1
+          fi
+
+      - name: Kiem .bin - sach bi mat va vua phan vung
+        run: |
+          set -e
+          BIN="qrbuild/esp32_posh_qr.ino.bin"
+          [ -f "$BIN" ] || { echo "::error::KHONG co file .bin"; ls -la qrbuild/ | head; exit 1; }
+          SZ=$(stat -c%s "$BIN")
+          echo "Hop POSH QR .bin: $SZ / $APP_MAX byte ($(( SZ * 100 / APP_MAX ))%)"
+          [ "$SZ" -le "$APP_MAX" ] || { echo "::error::.bin qua co phan vung app"; exit 1; }
+          # .bin nay duoc tai cong khai tu Actions -> khong duoc chua bi mat nao.
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio'; do
+            if grep -aqF "$pat" "$BIN"; then echo "::error::.bin CO chua '$pat'"; exit 1; fi
+          done
+          echo "OK: .bin sach bi mat va vua phan vung."
+
+      - name: Luu file de tai tay
+        uses: actions/upload-artifact@v4
+        with:
+          name: poshqr-${{ github.sha }}
+          path: qrbuild/esp32_posh_qr.ino.bin

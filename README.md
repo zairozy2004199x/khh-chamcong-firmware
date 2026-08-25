@@ -20,12 +20,51 @@ repo này vẫn chạy bình thường, không phải tới tận nơi khai lạ
 CI có bước chặn cứng: quét file `.bin` tìm dấu vết bí mật (`AKfycb`, `default-rtdb`, `firebaseio`, …),
 thấy là **dừng, không phát hành**.
 
-## Hai firmware trong repo
+## Ba firmware trong repo
 
 | Thư mục | Việc |
 |---|---|
 | `esp32_hik_chamcong_full/` | **Máy chính** — đọc sự kiện quẹt thẻ/khuôn mặt từ đầu đọc Hikvision (ISAPI), đẩy lên web app kèm ảnh, đồng bộ nhân viên xuống máy, màn hình CYD, hỗ trợ cả WiFi lẫn 4G |
 | `esp32_ota_updater/` | **Máy trạm ("thợ nạp")** — tự tải `.bin` mới về thẻ nhớ cắm sẵn qua WiFi; đứng gần máy chính rồi **bấm** mới nạp |
+| `esp32_posh_qr/` | **Hộp POSH QR** — mở ghế massage bằng mã QR: quét mã → kiểm chữ ký ngay trên chip (không cần mạng) → gửi lệnh UART sang bo ICT của ghế |
+
+### Hộp POSH QR
+
+Khách quét mã QR đã trả tiền, hộp tự kiểm rồi bảo bo ghế chạy N phút. **Không cần mạng** —
+mã QR tự mang chữ ký HMAC-SHA256 bên trong, hộp kiểm bằng khoá nằm trong NVS của chính nó.
+
+```
+POSH1|<mã ghế hoặc *>|<phút>|<hết hạn>|<mã lượt>|<chữ ký 16 hex>
+```
+
+Chống xài lại: hộp nhớ 200 mã lượt gần nhất trong NVS (sống qua mất điện), cộng thêm ô hạn dùng.
+
+**Nối với bo ghế qua UART.** Đây là chỗ hay vướng nhất, nên firmware có sẵn bộ đo tín hiệu:
+cắm cáp USB, mở Serial Monitor 115200, gõ `TRO` để xem bảng lệnh. Thứ tự nên làm:
+
+| Lệnh | Việc |
+|---|---|
+| `DAY` | đo mức nghỉ dây RX — loại lỗi phần cứng trước đã (UART nghỉ phải ở mức CAO) |
+| `TUKIEM` | nối tạm TX↔RX rồi chạy: biết lỗi ở trong chip hay ngoài dây |
+| `DO` | dò baud, thử lần lượt các tốc độ thông dụng rồi chấm điểm |
+| `NGHE` | nghe lén bo nói gì khi bấm nút trên ghế |
+| `HEX` / `CHU` | bắn thử một khung bất kỳ, xem bo trả về gì |
+| `CAU` | nối thẳng cổng USB với bo ghế để soi bằng phần mềm trên máy tính |
+
+⚠️ **Bo đưa tín hiệu qua chip đệm HT245 (74HC245)** thì đọc kỹ khối ghi chú đầu
+`esp32_posh_qr/ict_ghe.h`. Bẫy nặng nhất: HT245 chạy VCC 5V loại HC đòi mức vào ≥ 3,5V,
+mà chân ESP32 chỉ xuất 3,3V — **thấp hơn ngưỡng**, nên lúc được lúc không và rất dễ đổ oan
+cho baud hay khung lệnh. Đo chân 20 của HT245 trước khi đấu.
+
+Kiểm tại chỗ, không cần chip, không cần arduino-cli:
+
+```bash
+bash esp32_posh_qr/ci/kiem-ma-qr.sh      # đọc/kiểm mã QR + đối chiếu chéo với tao-ma-qr.py
+bash esp32_posh_qr/ci/kiem-ict.sh        # chốt từng byte của khung lệnh gửi sang bo ghế
+bash esp32_posh_qr/ci/kiem-bien-dich.sh  # biên dịch kiểm cả sketch bằng thư viện ESP32 giả
+```
+
+Sinh mã QR để thử: `python3 esp32_posh_qr/ci/tao-ma-qr.py --khoa "$KHOA" --may GHE-01 --phut 15`
 
 ## Phát hành
 
