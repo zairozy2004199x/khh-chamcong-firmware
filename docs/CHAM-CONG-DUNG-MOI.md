@@ -54,6 +54,35 @@ Năm cột của mỗi ngày, đúng thứ tự:
 Ngày đầu tiên luôn bắt đầu ở **cột C**. Cách nhận ra một khối: ô cột C của hàng tiêu đề luôn là
 chuỗi `"Giờ Vào / Checkin"`.
 
+### Xác nhận bằng ảnh chụp Sheet thật (25/08/2026)
+
+Ba chi tiết ảnh cho thấy mà đọc mã không ra:
+
+- Cột A tiêu đề là **`Họ và Tên`**, cột B là **`ID`** — KHÔNG phải `Mã NV` như trong `NhanVien`.
+  Bộ nạp phải nhận cả hai tên, đừng khớp cứng một chuỗi.
+- Mã nhân viên dạng dài: `MNNV2KVC0017`. Không phải số, không cắt được, không suy ra cơ sở từ mã.
+- Khối tháng 7 và tháng 8 xếp dọc thật, cách nhau vài hàng trống — đúng như mã mô tả, và khối
+  đầu có thể **thiếu ô `Họ và Tên`** ở hàng tiêu đề (ảnh cho thấy A1 trống, chỉ B1 có `ID`).
+  Nên **không được dựa vào cột A để nhận ra hàng tiêu đề** — chỉ dựa vào cột C bằng
+  `"Giờ Vào / Checkin"`, đúng như `Code.gs` đã dặn.
+
+### Các sheet khác trong cùng bảng tính
+
+Thanh tab cho thấy hệ còn nhiều hơn hai sheet đang bàn:
+
+| Nhóm | Sheet |
+|---|---|
+| Chấm công | `CS_FZ_ADV_AL` · `CS_FF_SC` · `CS_GHOST_BRIDE_BD` — mỗi cơ sở một sheet |
+| Nhân sự | `NhanVien` · `NV_POSH_HCM` |
+| Gộp mã / quy đổi | `MaSongSong` · `QuyDoiCoSo` |
+| Luật tính công | `QuyTacTinhCong` · `VP_NgayCong` · `TangCuong` |
+| Cấu hình | `CaiDat` · `DongBoWP` |
+| Nhật ký | `NhatKySuaGio` · `NhatKyTraPin` |
+
+Bản dựng mới làm **hai sheet đầu trước** theo đúng yêu cầu. Nhưng ghi ra đây để lúc chốt lương
+không ai quên rằng luật tính công nằm ở `QuyTacTinhCong` / `VP_NgayCong` / `TangCuong` — thiếu
+chúng thì bảng công lên đủ mà tiền vẫn tính sai.
+
 ## Luật giờ vào / giờ ra — giữ nguyên, không được đổi
 
 Ô giờ vào và giờ ra là **cặp [sớm nhất, muộn nhất] của ngày, chỉ NỚI RỘNG, không bao giờ THU
