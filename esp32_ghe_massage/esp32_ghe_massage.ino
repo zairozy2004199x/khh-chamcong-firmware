@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25e (do CA duty %low VA tan so Hz de chot)"
+#define FW_VERSION "ghe-massage 2026-08-25f (GATE_BY_PIN=0: dem gio binh thuong lai)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -203,8 +203,13 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
       (dù 3.3V hay 0V) = dừng. Nhờ vậy CẮT NGUỒN ghế (hết xung) cũng thành 'dừng' ->
       KHÔNG cần trở kéo, không phụ thuộc cực. */
 #define DO_GHECHAY         1
-#define GHECHAY_PIN        34        // đọc chân "pulse" của bo ghế (gắn trực tiếp)
-#define GHECHAY_DUTY_NGUONG 50       // %low >= ngưỡng này = ĐANG CHẠY (chạy 0.3V=đa phần thấp; tắt 3V=đa phần cao)
+/* 🔴 GATE_BY_PIN: 1 = ĐỒNG HỒ ĐẾM THEO CHÂN GHẾ (cần chân đọc được rõ chạy/tắt).
+   0 = đếm giờ BÌNH THƯỜNG (real-time), KHÔNG phụ thuộc chân — dùng khi chưa có tín
+   hiệu chạy/tắt dùng được. HIỆN ĐỂ 0 vì chân "pulse" mV chỉ ra nhiễu (chạy=tắt như
+   nhau ~20%/100kHz), IO34 không đọc được. Có cảm biến rung/tín hiệu thật -> bật lại 1. */
+#define GATE_BY_PIN        0
+#define GHECHAY_PIN        34        // chân đọc trạng thái chạy (khi có tín hiệu dùng được)
+#define GHECHAY_DUTY_NGUONG 50       // %low >= ngưỡng này = ĐANG CHẠY (chỉnh theo số đo thật)
 #define GHECHAY_CHET_MS    10000     // paid mà ghế CHƯA TỪNG chạy quá lâu này -> cảnh báo web
 #define GHE_DUNG_MS        1500       // ghế ĐÃ chạy rồi mà DỪNG lâu ngần này -> KẾT THÚC phiên (QR dừng theo)
 
@@ -1904,13 +1909,16 @@ void loop(){
          quá GHE_DUNG_MS thì KẾT THÚC phiên (làm ở nhánh ST_RUNNING). */
   if(state == ST_CAMON || state == ST_RUNNING){
     uint32_t now = millis();
-    bool gheChay = gheDangChay();            // CHẠY = có xung; DỪNG = đứng yên
-    /* DEBUG: in khi đổi trạng thái hoặc mỗi 3s. Xóa khi chạy ổn. */
+    /* GATE_BY_PIN=0 -> luôn coi như ĐANG CHẠY (đếm real-time, không phụ thuộc chân). */
+    bool gheChay = GATE_BY_PIN ? gheDangChay() : true;
+#if GATE_BY_PIN
+    /* DEBUG: in khi đổi trạng thái hoặc mỗi 2s. Xóa khi chạy ổn. */
     { static int _last = -1; static uint32_t _tp = 0;
       if(gheChay != (_last==1) || now - _tp > 2000){ _last = gheChay?1:0; _tp = now;
         Serial.printf("[GHE] %s low=%d%% hz=%d state=%s conLai=%lds daChay=%d\n",
           gheChay?"CHAY":"DUNG", g_pctLow, g_hz,
           state==ST_RUNNING?"RUN":"CAMON", g_conLaiMs/1000, g_gheDaChay); } }
+#endif
     uint32_t dt = g_tickTruoc ? (now - g_tickTruoc) : 0;
     if(dt > 2000) dt = 2000;                 // lỡ 1 nhịp dài (mạng/tft) thì không trừ nhảy
     g_tickTruoc = now;
@@ -2025,7 +2033,7 @@ void loop(){
     if(g_conLaiMs <= 0){ ketThucPhien("het gio"); return; }
     /* ĐÃ chạy rồi mà ghế TẮT/STOP quá GHE_DUNG_MS -> QR dừng theo (đúng ý: ghế dừng
        thì QR dừng, không để "ghế đã dừng mà QR vẫn chạy"). */
-#if DO_GHECHAY
+#if DO_GHECHAY && GATE_BY_PIN
     if(g_gheDaChay && g_dungTu && (millis() - g_dungTu > GHE_DUNG_MS)){
       ketThucPhien("ghe da dung (stop/tat) -> QR dung theo"); return; }
 #endif
