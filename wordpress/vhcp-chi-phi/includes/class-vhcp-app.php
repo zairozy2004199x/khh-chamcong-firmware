@@ -88,7 +88,8 @@ class VHCP_App {
 			// mà đường dẫn này người dùng vừa mở được nên không thể bị chặn.
 			'trang'    => esc_url_raw( $trang ),
 			'fns'      => $fns,
-			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'], 'coso' => $sso['coso'] ) : null,
+			'ssoUser'  => $sso ? array( 'name' => $sso['name'], 'role' => $sso['role'],
+				'roleGoc' => VHCP_Cfg::vai_goc( (string) $sso['role'] ), 'coso' => $sso['coso'] ) : null,
 			'ver'      => VHCP_VERSION,
 		);
 

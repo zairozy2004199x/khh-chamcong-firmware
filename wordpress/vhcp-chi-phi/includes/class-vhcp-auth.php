@@ -64,6 +64,7 @@ class VHCP_Auth {
 					'ok'     => true,
 					'name'   => $u['ten'],
 					'role'   => ( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
+					'roleGoc' => VHCP_Cfg::vai_goc( $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên' ),
 					'coso'   => $u['coso'],
 					'boPhan' => $u['boPhan'],
 					'token'  => $tok,
@@ -119,7 +120,12 @@ class VHCP_Auth {
 		$t = VHCP_DB::t( 'session' );
 		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $t WHERE token=%s AND het_han > UTC_TIMESTAMP()", $token ), ARRAY_A );
 		if ( ! $r ) { return null; }
-		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'], 'coso' => $r['coso'], 'boPhan' => $r['bo_phan'] );
+		/* 🔴 GỬI KÈM VAI GỐC. Giao diện dựng danh sách tab bằng một bảng tra theo TÊN VAI —
+		   vai tự tạo không có trong bảng đó nên rơi vào nhánh mặc định và chỉ còn đúng một tab.
+		   Vai vừa tạo ra mà gần như không dùng được thì tính năng tạo vai coi như vô nghĩa. */
+		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'],
+			'roleGoc' => VHCP_Cfg::vai_goc( (string) $r['vai_tro'] ),
+			'coso' => $r['coso'], 'boPhan' => $r['bo_phan'] );
 	}
 
 	public static function logout( $token ) {
@@ -232,7 +238,8 @@ class VHCP_Auth {
 			if ( ! empty( $ov[ $k ]['role'] ) ) { $role = $ov[ $k ]['role']; }
 			if ( ! empty( $ov[ $k ]['coso'] ) ) { $coso = $ov[ $k ]['coso']; }
 		}
-		return array( 'name' => (string) ( isset( $ident['n'] ) ? $ident['n'] : '' ), 'role' => $role, 'coso' => $coso );
+		return array( 'name' => (string) ( isset( $ident['n'] ) ? $ident['n'] : '' ), 'role' => $role,
+			'roleGoc' => VHCP_Cfg::vai_goc( $role ), 'coso' => $coso );
 	}
 
 	private static function sso_overrides() {

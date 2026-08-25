@@ -188,6 +188,13 @@ class VHCP_Cfg {
 	/** QUYEN_ACTIONS của app cũ (giữ nguyên thứ tự + mặc định). */
 	public static function actions() {
 		return array(
+			/* HAI LOẠI ĐƠN — anh Thắng 25/08/2026: "chi phí / dự án, chứ nó không phải là gom theo".
+			   Trước đây ai vào được loại nào khai CỨNG trong mã theo bộ phận. Giờ khai ở đây, đúng
+			   chỗ người ta đi tìm. Vẫn CỘNG THÊM với luật bộ phận cũ chứ không thay: đổi thẳng là
+			   nhân viên Kỹ thuật mất tab Dự án ngay lúc cài đè, trước khi kịp tích lại. */
+			array( 'key' => 'donCoSo',   'ten' => 'Lên đơn Chi phí cơ sở (theo tuần)', 'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1, 'Nhân viên' => 1 ) ),
+			array( 'key' => 'donDuAn',   'ten' => 'Lên đơn Dự án (gian thi công)',     'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1 ) ),
+			array( 'key' => 'kyTuDo',    'ten' => 'Chọn khoảng ngày tự do khi tạo đơn','def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1 ) ),
 			array( 'key' => 'duyetTU',   'ten' => 'Duyệt tạm ứng',                'def' => array( 'Quản lý' => 1 ) ),
 			array( 'key' => 'capTU',     'ten' => 'Cấp (gửi) tạm ứng',            'def' => array( 'Kế toán cá nhân' => 1 ) ),
 			// XIN TẠM ỨNG là việc của NHÂN VIÊN: lên đơn rồi gửi lên xin. Trước đây nút gửi
@@ -975,6 +982,152 @@ class VHCP_Cfg {
 	 * Dòng chi đã nhập trước đó KHÔNG đổi mã (đã chốt lúc nhập) — muốn áp lại thì bấm
 	 * "🔗 Gán mã cho dòng cũ".
 	 */
+	/* ==========================================================================================
+	 *  LOẠI CHI PHÍ THEO CƠ SỞ — nhìn từ phía CƠ SỞ
+	 *
+	 *  Màn "Khai mã chi phí" đi chiều: MỘT loại chi phí -> tích nhiều cơ sở. Đúng khi khai một
+	 *  khoản mới cho cả hệ. Nhưng lúc MỞ GIAN MỚI thì câu hỏi ngược lại: "gian này dùng những
+	 *  loại nào?" — và đi chiều kia là phải mở từng loại một, tích lại từng cái.
+	 *
+	 *  Hậu quả thật 25/08/2026: gian ADV GO! AN LẠC vừa mở, ô "Loại chi phí" lúc nhập đơn chỉ
+	 *  có đúng một dòng, nhân viên không nhập được gì mà cũng không biết vì sao.
+	 *
+	 *  Ma trận CH_TKNo lưu [tên loại][CỘT] -> mã TK, trong đó CỘT là tên MẢNG hoặc tên CƠ SỞ.
+	 *  Ô theo cơ sở ĐÈ ô theo mảng (xem _tkNoList bên giao diện).
+	 * ========================================================================================== */
+
+	/** Mảng kinh doanh của một cơ sở. */
+	public static function mang_cua( $coso ) {
+		$k = mb_strtolower( trim( (string) $coso ) );
+		$m = self::cfg_static();
+		return isset( $m['cosoPll'][ $k ] ) ? (string) $m['cosoPll'][ $k ] : '';
+	}
+
+	/**
+	 * loaiCuaCoSo(cơ sở): mọi loại chi phí, kèm loại nào cơ sở này đang dùng và mã nào.
+	 *
+	 * `nguon`:  'coso' = khai riêng cho gian này · 'mang' = ăn theo mảng · '' = chưa dùng.
+	 */
+	public static function loai_cua_coso( $coso ) {
+		$coso = trim( (string) $coso );
+		if ( '' === $coso ) { return VHCP_Util::err( 'Chưa chọn cơ sở' ); }
+		$mang = self::mang_cua( $coso );
+		$kc   = mb_strtolower( $coso );
+		$km   = mb_strtolower( $mang );
+
+		$o_coso = array();
+		$o_mang = array();
+		foreach ( self::read( self::TKNO ) as $r ) {
+			$r  = array_values( (array) $r );
+			$n  = mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) );
+			$c  = mb_strtolower( trim( (string) ( isset( $r[1] ) ? $r[1] : '' ) ) );
+			$v  = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) );
+			if ( '' === $n || '' === $c ) { continue; }
+			if ( $c === $kc ) { $o_coso[ $n ] = $v; }
+			elseif ( '' !== $km && $c === $km ) { $o_mang[ $n ] = $v; }
+		}
+
+		$ds = array();
+		foreach ( self::cfg_static()['loaiChiPhi'] as $l ) {
+			$ten = (string) $l['ten'];
+			$k   = mb_strtolower( trim( $ten ) );
+			if ( '' === $k ) { continue; }
+			$co_cs = array_key_exists( $k, $o_coso );
+			$ds[]  = array(
+				'ten'     => $ten,
+				'boPhan'  => isset( $l['boPhan'] ) ? $l['boPhan'] : '',
+				'tenMisa' => isset( $l['tenMisa'] ) ? $l['tenMisa'] : '',
+				'ma'      => $co_cs ? $o_coso[ $k ] : ( isset( $o_mang[ $k ] ) ? $o_mang[ $k ] : '' ),
+				'maMang'  => isset( $o_mang[ $k ] ) ? $o_mang[ $k ] : '',
+				'nguon'   => $co_cs ? 'coso' : ( isset( $o_mang[ $k ] ) ? 'mang' : '' ),
+			);
+		}
+		return array( 'coso' => $coso, 'mang' => $mang, 'ds' => $ds );
+	}
+
+	/**
+	 * datLoaiChoCoSo(cơ sở, danh sách): ghi lại loại nào gian này dùng, mã nào.
+	 *
+	 * 🔴 CHỈ ĐỤNG Ô CỦA CHÍNH CƠ SỞ NÀY. Ô của MẢNG là của cả mảng — sửa ở đây là lặng lẽ đổi
+	 *    cho mọi gian cùng mảng. Loại nào đang ăn theo mảng mà bỏ tích thì KHÔNG bỏ được ở đây;
+	 *    trả về danh sách đó để màn hình nói thẳng "phải bỏ ở mảng", thay vì bấm xong không
+	 *    thấy gì đổi rồi tưởng hệ hỏng.
+	 */
+	public static function dat_loai_cho_coso( $coso, $ds ) {
+		$coso = trim( (string) $coso );
+		if ( '' === $coso ) { return VHCP_Util::err( 'Chưa chọn cơ sở' ); }
+		$kc   = mb_strtolower( $coso );
+		$mang = self::mang_cua( $coso );
+		$km   = mb_strtolower( $mang );
+
+		/* Muốn gì cho từng loại. */
+		$muon = array();
+		foreach ( (array) $ds as $x ) {
+			$x = (array) $x;
+			$t = trim( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) );
+			if ( '' === $t ) { continue; }
+			$muon[ mb_strtolower( $t ) ] = array(
+				'ten'  => $t,
+				'dung' => ! empty( $x['dung'] ),
+				'ma'   => trim( (string) ( isset( $x['ma'] ) ? $x['ma'] : '' ) ),
+			);
+		}
+
+		$mx      = array();
+		$o_mang  = array();
+		$da_sua  = array();
+		$them = 0; $doi = 0; $bo = 0;
+
+		foreach ( self::read( self::TKNO ) as $r ) {
+			$r = array_values( (array) $r );
+			$n = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			$c = trim( (string) ( isset( $r[1] ) ? $r[1] : '' ) );
+			$v = trim( (string) ( isset( $r[2] ) ? $r[2] : '' ) );
+			if ( '' === $n || '' === $c ) { continue; }
+			$kn = mb_strtolower( $n );
+			if ( '' !== $km && mb_strtolower( $c ) === $km ) { $o_mang[ $kn ] = $v; }
+
+			if ( mb_strtolower( $c ) !== $kc || ! isset( $muon[ $kn ] ) ) { $mx[] = array( $n, $c, $v ); continue; }
+
+			$w = $muon[ $kn ];
+			$da_sua[ $kn ] = 1;
+			if ( ! $w['dung'] ) { $bo++; continue; }              // bỏ hẳn dòng của cơ sở này
+			if ( '' === $w['ma'] ) { $mx[] = array( $n, $c, $v ); continue; }
+			if ( $w['ma'] !== $v ) { $doi++; }
+			$mx[] = array( $n, $c, $w['ma'] );
+		}
+
+		/* Loại được tích mà chưa có ô riêng -> thêm ô mới cho cơ sở này. */
+		$thieu_ma = array();
+		foreach ( $muon as $kn => $w ) {
+			if ( isset( $da_sua[ $kn ] ) || ! $w['dung'] ) { continue; }
+			$ma = ( '' !== $w['ma'] ) ? $w['ma'] : ( isset( $o_mang[ $kn ] ) ? $o_mang[ $kn ] : '' );
+			if ( '' === $ma ) { $thieu_ma[] = $w['ten']; continue; }
+			/* Đang ăn theo mảng và mã y hệt -> khỏi đẻ thêm ô riêng, để cơ sở tiếp tục theo mảng. */
+			if ( isset( $o_mang[ $kn ] ) && $o_mang[ $kn ] === $ma ) { continue; }
+			$mx[] = array( $w['ten'], $coso, $ma );
+			$them++;
+		}
+
+		/* Bỏ tích một loại đang ăn theo MẢNG -> ô đó không thuộc cơ sở này, không bỏ được ở đây. */
+		$khong_bo = array();
+		foreach ( $muon as $kn => $w ) {
+			if ( $w['dung'] || ! isset( $o_mang[ $kn ] ) ) { continue; }
+			$khong_bo[] = $w['ten'] ;
+		}
+
+		self::write( self::TKNO, $mx );
+		self::clear_cache();
+		return VHCP_Util::ok( array(
+			'them'     => $them,
+			'doi'      => $doi,
+			'bo'       => $bo,
+			'mang'     => $mang,
+			'thieuMa'  => $thieu_ma,
+			'khongBo'  => $khong_bo,
+		) );
+	}
+
 	public static function khai_cho_coso( $rec ) {
 		$rec = (array) $rec;
 		$g   = function ( $k ) use ( $rec ) { return isset( $rec[ $k ] ) ? trim( (string) $rec[ $k ] ) : ''; };

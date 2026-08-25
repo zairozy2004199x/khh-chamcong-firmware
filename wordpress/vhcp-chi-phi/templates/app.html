@@ -129,10 +129,10 @@
   <div id="page-don">
   <div class="wrap" style="padding-top:10px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
-      <span style="font-size:12px;color:#64748b;font-weight:700">GOM THEO</span>
-      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Tuần · cơ sở</button>
+      <span style="font-size:12px;color:#64748b;font-weight:700">LOẠI ĐƠN</span>
+      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Chi phí · cơ sở</button>
       <button class="btn b-x" data-dcsw="duan" onclick="showPage('duan')">🏗 Dự án · gian thi công</button>
-      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px">Cùng một loại đơn chi phí — bên cơ sở gom theo <b>tuần</b> (đơn xin tạm ứng tuần), bên kỹ thuật gom theo <b>gian thi công</b> (dự án). Loại chi phí, mã tài khoản, xuất MISA dùng chung.</span>
+      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px"><b>Hai loại đơn</b>, không phải hai cách gom: <b>Chi phí · cơ sở</b> là đơn xin tạm ứng của một gian (bó theo tuần), <b>Dự án · gian thi công</b> là đơn của một đợt thi công (thời gian bất kỳ). Loại chi phí, mã tài khoản, xuất MISA dùng chung. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
     </div>
   </div>
   <!-- GHIM thanh này lại. Nút "Gửi xin tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
@@ -390,10 +390,10 @@
   <div id="page-duan" class="wrap" style="display:none">
   <div style="padding-top:2px">
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:12px">
-      <span style="font-size:12px;color:#64748b;font-weight:700">GOM THEO</span>
-      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Tuần · cơ sở</button>
+      <span style="font-size:12px;color:#64748b;font-weight:700">LOẠI ĐƠN</span>
+      <button class="btn b-x" data-dcsw="don" onclick="showPage('don')">📅 Chi phí · cơ sở</button>
       <button class="btn b-x" data-dcsw="duan" onclick="showPage('duan')">🏗 Dự án · gian thi công</button>
-      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px">Cùng một loại đơn chi phí — bên cơ sở gom theo <b>tuần</b> (đơn xin tạm ứng tuần), bên kỹ thuật gom theo <b>gian thi công</b> (dự án). Loại chi phí, mã tài khoản, xuất MISA dùng chung.</span>
+      <span style="font-size:11px;color:#94a3b8;flex:1;min-width:220px"><b>Hai loại đơn</b>, không phải hai cách gom: <b>Chi phí · cơ sở</b> là đơn xin tạm ứng của một gian (bó theo tuần), <b>Dự án · gian thi công</b> là đơn của một đợt thi công (thời gian bất kỳ). Loại chi phí, mã tài khoản, xuất MISA dùng chung. Ai vào được loại nào khai ở <b>⚙️ Cấu hình → 🔑 Phân quyền chỉnh sửa</b>.</span>
     </div>
   </div>
     <div class="card">
@@ -942,6 +942,34 @@
       <datalist id="dl_pll"></datalist>
     </div>
 
+    <!-- ============ LOẠI CHI PHÍ THEO CƠ SỞ ============
+         Thẻ "Khai mã chi phí" ngay dưới đi chiều: MỘT loại -> tích nhiều cơ sở. Đúng khi khai
+         một khoản mới cho cả hệ. Nhưng lúc MỞ GIAN MỚI thì câu hỏi ngược lại — "gian này dùng
+         những loại nào?" — và đi chiều kia là phải mở từng loại một, tích lại từng cái.
+         Gian ADV GO! AN LẠC vừa mở, ô Loại chi phí lúc nhập đơn chỉ có một dòng: đúng hậu quả. -->
+    <div class="card" id="lccsCard">
+      <div class="ch"><h2>🏷 Loại chi phí theo cơ sở</h2><div style="display:flex;gap:8px">
+        <button class="btn b-x" id="lccsChepBtn" onclick="lccsChep()">⧉ Chép từ gian khác</button>
+        <button class="btn b-g" onclick="lccsLuu()">💾 Lưu cho cơ sở này</button></div></div>
+      <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">
+        Chọn một gian → tích những loại chi phí gian đó dùng. Loại nào <b>ăn theo mảng</b> thì đã tích sẵn và ghi rõ —
+        sửa mã ở đây là <b>khai riêng cho gian này</b>, đè lên mã của mảng. Gian mới mở thì bấm <b>⧉ Chép từ gian khác</b> cho nhanh.
+      </div>
+      <div style="padding:4px 14px 8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <b style="font-size:12px">Cơ sở:</b>
+        <select id="lccsCoSo" style="min-width:280px" onchange="lccsTai()"></select>
+        <span id="lccsMang" style="font-size:12px;color:#64748b"></span>
+        <input type="text" id="lccsTim" placeholder="Lọc loại chi phí…" style="font-size:12px;padding:5px 8px;min-width:200px" oninput="lccsVe()">
+        <button class="btn b-x" onclick="lccsAll(1)">Tích hết</button>
+        <button class="btn b-x" onclick="lccsAll(0)">Bỏ hết</button>
+      </div>
+      <div class="tw"><table style="min-width:720px"><thead><tr>
+        <th style="width:44px">Dùng</th><th>Loại chi phí</th><th style="width:150px">Mã TK Nợ</th>
+        <th style="width:150px">Nguồn</th><th style="width:130px">Bộ phận</th></tr></thead>
+        <tbody id="lccsBody"></tbody></table></div>
+      <div id="lccsInfo" style="padding:4px 14px 12px;font-size:12px;color:#64748b"></div>
+    </div>
+
     <div class="card">
       <div class="ch"><h2>🆕 Khai mã chi phí</h2><div style="display:flex;gap:8px"><button class="btn b-g" onclick="khaiChiPhi()">💾 Khai mã</button></div></div>
       <div style="padding:8px 14px 4px;font-size:12px;color:#64748b">Gõ <b>tên gọi chi phí</b> → <b>số tài khoản</b> → <b>tích những cơ sở áp dụng</b>. Xong. Sau đó cơ sở đã tích mà nhập loại chi phí này là tự ra: TK Nợ · tên tài khoản nội bộ · tên xuất MISA.</div>
@@ -1389,8 +1417,11 @@
               // của kế toán. Riêng dòng tài khoản Admin thì chỉ Admin sửa (chặn ở máy chủ).
               'Kế toán cá nhân':{tongquan:1,don:0,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:1,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
               'Kế toán NCC':{tongquan:1,don:0,sochi:1,duan:0,mkt:1,congtac:1,setup:1,vhtuan:1,trama:1,duyet:0,qt:1,tattoan:0,xuat:1,cauhinh:1,log:0},
-              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
-    if(role==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
+              'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[_vaiGoc()]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
+    // 🔴 TRA THEO VAI GỐC, không theo tên vai. Vai tự tạo ("Nhân viên văn phòng") không có
+    //    trong bảng trên nên rơi vào nhánh mặc định {don:1} — vai vừa tạo ra chỉ còn đúng MỘT
+    //    tab, tức tính năng tạo vai coi như vô nghĩa. Đây là lỗi thật, không phải giả định.
+    if(_vaiGoc()==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
       var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
       // 🔴 AI VÀO ĐƯỢC TAB "DỰ ÁN · GIAN THI CÔNG" — anh Thắng chốt 25/08/2026:
       //    cách lên đơn ở tab đó y hệt bên cơ sở, KHÁC DUY NHẤT ở chỗ bộ phận nào được vào.
@@ -1402,8 +1433,14 @@
       // tab Đơn chi phí — không thì họ không còn chỗ nào để nhập.
       vis.don=1; vis.sochi=1;
     }
+    /* CỘNG THÊM quyền khai ở bảng Phân quyền (thẻ 🔑 Phân quyền chỉnh sửa).
+       CỘNG chứ không THAY luật bộ phận: đổi thẳng là nhân viên Kỹ thuật mất tab Dự án ngay lúc
+       cài đè, trước khi anh Thắng kịp tích lại. Ai đang vào được thì vẫn vào được; bảng kia chỉ
+       để MỞ THÊM. */
+    if(canDo('donDuAn')) vis.duan=1;
+    if(canDo('donCoSo')) vis.don=1;
     ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
-    // Thanh "GOM THEO" nằm TRONG trang, không phải trên hàng tab — nên phải ẩn riêng. Để nút
+    // Thanh "LOẠI ĐƠN" nằm TRONG trang, không phải trên hàng tab — nên phải ẩn riêng. Để nút
     // "Dự án · gian thi công" sáng cho người không có quyền vào là họ bấm rồi ăn trang trắng.
     Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw="duan"]'),function(b){
       b.style.display=vis.duan?'':'none';
@@ -1527,11 +1564,18 @@
   function backToList(){ el('donSel').value=''; openDon(''); }
   function backToPrev(){ var t=_viewDonFrom||'qt'; _viewDonFrom=''; showPage(t); }
   // Phân quyền theo ma trận cấu hình (Admin toàn quyền). BOOT.quyen = {actionKey:{role:bool}}
+  /** Vai GỐC của người đang dùng. Vai tự tạo ("Nhân viên văn phòng") kế thừa một vai gốc;
+      mọi bảng tra theo tên vai phải hỏi cái này, không thì vai tự tạo rơi vào nhánh mặc định. */
+  function _vaiGoc(){ return String((CURUSER&&(CURUSER.roleGoc||CURUSER.role))||''); }
   function canDo(action){
     if(CURUSER && CURUSER.role==='Admin') return true;
     if(!BOOT.quyen) return true;   // chưa nạp cấu hình (bản cũ) -> tạm cho phép, tránh khóa nhầm
     var q=BOOT.quyen[action];
-    return q ? !!q[CURUSER&&CURUSER.role] : false;
+    if(!q) return false;
+    /* Tra theo TÊN VAI trước (vai tự tạo có cột riêng trong ma trận), không có thì theo VAI GỐC. */
+    var r=CURUSER&&CURUSER.role;
+    if(r && q.hasOwnProperty(r)) return !!q[r];
+    return !!q[_vaiGoc()];
   }
   function _applyTabPerms(){   // CỘNG THÊM: mở tab nếu vai trò có quyền hành động trong đó (không ẩn bớt tab role-default)
     // NHÂN VIÊN KHÔNG BAO GIỜ ĐƯỢC MỞ THÊM TAB theo bảng phân quyền. Bảng đó nạp từ bảng
@@ -1610,8 +1654,9 @@
    */
   function _kyTuDo(){
     if(!CURUSER) return false;
-    if(String(CURUSER.role||'')!=='Nhân viên') return true;
-    return BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0;
+    if(_vaiGoc()!=='Nhân viên') return true;
+    if(BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0) return true;
+    return canDo('kyTuDo');   // hoặc tích riêng cho vai đó ở bảng Phân quyền
   }
   function newDon(){
     // Nhân viên cơ sở KHÔNG thấy dòng này — không phải chỉ "không chọn sẵn", mà là không có.
@@ -4780,6 +4825,7 @@
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
     renderCosoBody();
     renderVai();
+    lccsCoSoList();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     el('cfgMangBody').innerHTML=(CFG.mangTk||[]).map(function(x){ return '<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
@@ -4934,6 +4980,111 @@
     }
     el('kcInfo').innerHTML='<span style="color:'+mau+'">'+msg.join(' · ')+'</span>';
   }
+  /* ===================== LOẠI CHI PHÍ THEO CƠ SỞ =====================
+     Nhìn từ phía GIAN: gian này dùng những loại nào, mã bao nhiêu.
+     Ô của MẢNG là của cả mảng — màn này chỉ đụng ô của chính gian đang chọn. */
+  var LCCS=null;   // {coso, mang, ds:[…]}
+  function lccsCoSoList(){
+    var e=el('lccsCoSo'); if(!e) return;
+    var cu=e.value;
+    e.innerHTML='<option value="">— chọn cơ sở —</option>'+(CFG.coso||[]).map(function(x){
+      var ph=_csPhu(x.ten);
+      return '<option value="'+esc(x.ten)+'"'+(x.ten===cu?' selected':'')+'>'+esc(x.ten)+(ph?(' · '+esc(ph)):'')+'</option>';
+    }).join('');
+  }
+  function lccsTai(){
+    var cs=el('lccsCoSo').value;
+    LCCS=null; el('lccsInfo').textContent='';
+    if(!cs){ el('lccsMang').textContent=''; el('lccsBody').innerHTML=''; return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||r.error){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      LCCS=r;
+      el('lccsMang').innerHTML=r.mang?('mảng <b>'+esc(r.mang)+'</b>'):'<span style="color:#c0392b">chưa khai mảng (Phân loại lớn) cho gian này</span>';
+      lccsVe();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).loaiCuaCoSo(cs);
+  }
+  function lccsVe(){
+    if(!LCCS){ el('lccsBody').innerHTML=''; return; }
+    var q=_bd(el('lccsTim').value).trim();
+    var n=0;
+    el('lccsBody').innerHTML=LCCS.ds.map(function(x,i){
+      if(q && _bd(x.ten).indexOf(q)<0) return '';
+      n++;
+      var ng=(x.nguon==='coso')?'<span style="color:#0f766e;font-weight:600">riêng gian này</span>'
+            :(x.nguon==='mang')?('<span style="color:#64748b">theo mảng'+(LCCS.mang?(' '+esc(LCCS.mang)):'')+'</span>')
+            :'<span style="color:#94a3b8">chưa dùng</span>';
+      return '<tr data-i="'+i+'">'
+        +'<td style="text-align:center"><input type="checkbox" class="lccsChk"'+(x.nguon?' checked':'')+'></td>'
+        +'<td>'+esc(x.ten)+(x.tenMisa&&x.tenMisa!==x.ten?('<span style="color:#94a3b8;font-size:11px"> · '+esc(x.tenMisa)+'</span>'):'')+'</td>'
+        +'<td>'+_tkInp(x.ma,'VD: 64196')+'</td>'
+        +'<td>'+ng+'</td>'
+        +'<td style="color:#64748b">'+esc(x.boPhan||'—')+'</td></tr>';
+    }).join('')||'<tr><td colspan="5" style="color:#94a3b8;padding:10px">Không có loại nào khớp.</td></tr>';
+    var dung=LCCS.ds.filter(function(x){return !!x.nguon;}).length;
+    el('lccsInfo').innerHTML='Gian này đang dùng <b>'+dung+'</b>/'+LCCS.ds.length+' loại chi phí'
+      +(q?(' · đang lọc, hiện '+n+' dòng'):'');
+  }
+  function lccsAll(on){
+    // Đang lọc thì chỉ áp cho dòng đang thấy — áp cả bảng trong khi màn hình hiện ba dòng là
+    // tích/bỏ một đống loại không hề nhìn thấy.
+    Array.prototype.forEach.call(el('lccsBody').querySelectorAll('tr'),function(tr){
+      var c=tr.querySelector('.lccsChk'); if(c) c.checked=!!on;
+    });
+  }
+  function lccsDoc(){
+    var out=[];
+    Array.prototype.forEach.call(el('lccsBody').querySelectorAll('tr[data-i]'),function(tr){
+      var i=parseInt(tr.getAttribute('data-i'),10);
+      if(isNaN(i)||!LCCS.ds[i]) return;
+      var c=tr.querySelector('.lccsChk'), m=tr.querySelector('input[list]');
+      out.push({ten:LCCS.ds[i].ten, dung:!!(c&&c.checked), ma:(m?m.value:'').trim()});
+    });
+    return out;
+  }
+  function lccsLuu(){
+    if(!LCCS){ toast('warn','Chọn cơ sở trước'); return; }
+    // 🔴 Đang LỌC thì chỉ những dòng ĐANG THẤY được đọc ra — gửi đi là mọi loại bị lọc khỏi
+    //    màn hình biến mất khỏi danh sách và bị coi như "không tích". Chặn ngay.
+    if(el('lccsTim').value.trim()){ toast('warn','Xoá ô lọc trước khi lưu — đang lọc thì không thấy hết dòng'); return; }
+    var ds=lccsDoc();
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var t=[]; if(r.them)t.push('thêm '+r.them); if(r.doi)t.push('đổi mã '+r.doi); if(r.bo)t.push('bỏ '+r.bo);
+      toast('ok','Đã lưu cho '+LCCS.coso+(t.length?(' — '+t.join(' · ')):' — không có gì đổi'));
+      _log('Loại chi phí theo cơ sở', LCCS.coso, t.join(' · '));
+      if(r.thieuMa&&r.thieuMa.length) toast('warn','Chưa có mã TK, chưa áp được: '+r.thieuMa.join(', '));
+      if(r.khongBo&&r.khongBo.length){
+        alert('Mấy loại này ăn theo MẢNG '+(r.mang||'')+' nên không bỏ riêng cho một gian được:\n\n'
+          +r.khongBo.join('\n')+'\n\nMuốn bỏ thì bỏ ở mảng (thẻ Khai mã chi phí), nhưng bỏ là bỏ cho MỌI gian cùng mảng.');
+      }
+      lccsTai(); boot();
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).datLoaiChoCoSo(LCCS.coso, ds);
+  }
+  /** Chép nguyên bộ loại chi phí của một gian khác sang gian đang chọn (chỉ điền lên màn hình,
+      chưa ghi — người ta còn nhìn lại rồi mới bấm Lưu). */
+  function lccsChep(){
+    if(!LCCS){ toast('warn','Chọn cơ sở trước'); return; }
+    var ds=(CFG.coso||[]).map(function(x){return x.ten;}).filter(function(t){return t!==LCCS.coso;});
+    var ng=prompt('Chép bộ loại chi phí TỪ gian nào sang "'+LCCS.coso+'"?\n\n'
+      +'(Chỉ điền lên màn hình — xem lại rồi bấm 💾 Lưu mới ghi.)\n\n'+ds.join('\n'), ds[0]||'');
+    if(ng===null) return;
+    ng=String(ng).trim(); if(!ng) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||r.error){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var m={}; r.ds.forEach(function(x){ if(x.nguon) m[x.ten.toLowerCase()]=x.ma; });
+      LCCS.ds.forEach(function(x){
+        var k=x.ten.toLowerCase();
+        if(m.hasOwnProperty(k)){ x.nguon=x.nguon||'coso'; if(m[k]) x.ma=m[k]; }
+      });
+      el('lccsTim').value='';
+      lccsVe();
+      toast('ok','Đã điền theo gian '+ng+' — xem lại rồi bấm Lưu');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).loaiCuaCoSo(ng);
+  }
+
   function khaiChiPhi(){
     var ch=kcChon();
     var rec={ ten:String(el('kcTen').value||'').trim(), tkNo:String(el('kcTk').value||'').trim(),

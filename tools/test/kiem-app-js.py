@@ -194,6 +194,35 @@ if m10:
     la('dòng kỳ tự do chỉ dựng khi được phép', "(tudo?'<option value=\"__tudo__\"" in t10)
     la('không còn chọn sẵn theo tudo', "((!tudo&&o.cur)" not in t10)
 
+# ---------------------------------------------------------------- vai tự tạo dùng được
+print('— vai tự tạo phải dùng được —')
+# 🔴 LỖI THẬT: bảng tab tra theo TÊN VAI. Vai tự tạo không có trong bảng nên rơi vào nhánh
+#    mặc định {don:1} — vai vừa tạo ra chỉ còn đúng MỘT tab, tức tính năng tạo vai vô nghĩa.
+la('có hàm lấy vai gốc phía giao diện', 'function _vaiGoc(' in src)
+la('bảng tab tra theo VAI GỐC', '}[_vaiGoc()]||{don:1}' in src)
+la('  không còn tra theo tên vai', '}[role]||{don:1}' not in src)
+la('nhánh bộ phận cũng theo vai gốc', "if(_vaiGoc()==='Nhân viên'){" in src)
+m11 = re.search(r'function canDo\(action\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy canDo()', m11 is not None)
+if m11:
+    t11 = m11.group(1)
+    # Vai tự tạo có CỘT RIÊNG trong ma trận -> tra tên vai trước, không có mới lùi về vai gốc.
+    la('canDo tra tên vai trước', 'q.hasOwnProperty(r)' in t11)
+    la('canDo lùi về vai gốc', 'q[_vaiGoc()]' in t11)
+
+print('— loại đơn: nhãn và phân quyền —')
+# Anh Thắng: "chi phí / dự án, chứ nó không phải là gom theo".
+# Kiểm NHÃN HIỆN RA (nằm giữa hai thẻ), không phải chữ trong chú thích — bản đầu bắt cả
+# chú thích nên đỏ oan.
+la('bỏ nhãn GOM THEO', '>GOM THEO<' not in src)
+la('có nhãn LOẠI ĐƠN', '>LOẠI ĐƠN<' in src)
+la('nút đổi thành Chi phí · cơ sở', 'Chi phí · cơ sở' in src)
+# 🔴 CỘNG THÊM chứ không THAY luật bộ phận: thay thẳng là nhân viên Kỹ thuật mất tab Dự án
+#    ngay lúc cài đè, trước khi kịp tích lại ở bảng phân quyền.
+la('quyền Dự án cộng thêm từ ma trận', "if(canDo('donDuAn')) vis.duan=1;" in src)
+la('luật bộ phận vẫn còn', 'BP_VAO_DUAN.indexOf(bp)>=0' in src)
+la('kỳ tự do cũng cộng thêm từ ma trận', "return canDo('kyTuDo');" in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

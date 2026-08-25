@@ -40,7 +40,7 @@ class VHCP_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'cosoLa', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo', 'loaiCuaCoSo', 'datLoaiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -265,6 +265,8 @@ class VHCP_API {
 			'doMangTuTaiKhoan'      => array( 'VHCP_Cfg', 'do_mang_tu_tk' ),
 			'xoaLoaiTuTao'          => array( 'VHCP_Cfg', 'xoa_loai_tu_tao' ),
 			'khaiChiPhiChoCoSo'     => array( 'VHCP_Cfg', 'khai_cho_coso' ),
+			'loaiCuaCoSo'           => array( 'VHCP_Cfg', 'loai_cua_coso' ),
+			'datLoaiChoCoSo'        => array( 'VHCP_Cfg', 'dat_loai_cho_coso' ),
 
 			// báo cáo
 			'getFinanceReport'      => array( 'VHCP_Report', 'finance' ),
