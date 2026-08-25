@@ -97,6 +97,11 @@ Cắm USB, gõ `QUYTRINH` — nó chạy tuần tự các bước nghiệm thu v
 định nên không có kiểu lỗi "tự đoán chiều" của TXS0108E, không có chân OE để mà quên, chạy tới
 hàng Mbps, và đầu ra phía 5V đúng mức nên **khỏi cần biết con HT245 trên bo ghế là HC hay HCT**.
 
+⚠️ **Trước hết đo xem L70 là RS-232 thật hay TTL.** Bản `L70T-P5 / L77T-P5` là RS-232 thật —
+mức lưỡng cực, idle ở điện áp **âm** (−5…−12V), logic đảo. Cắm thẳng vào ESP32 hay ADuM1201 là
+**cháy chân**. Đo chân TX của L70 so với mass lúc nghỉ: **âm** → cần **MAX3232** (nó hạ mức và đảo
+logic, sau nó coi như UART thường); **dương ~5V** → TTL, dùng ADuM1201/mạch chuyển mức như dưới.
+
 ⚠️ **Phải là ADuM1201, không phải ADuM1200** — con 1200 hai kênh cùng chiều, UART không chạy được,
 mà cắm vào cũng chẳng cháy gì nên rất khó ngờ. Cần 4 đường nên phải hai con; hoặc một con
 **ADuM1402** (4 kênh, 2 mỗi chiều) gọn cả hai bên trong một chip.
