@@ -860,7 +860,11 @@
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
            đủ chỗ mọi cột; hẹp hơn thì trượt ngang chứ không bóp. -->
       <div class="tw"><table style="min-width:1060px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
-      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">Vai trò: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ cơ sở của mình). Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
+      <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
+        <b>Vai trò</b> (cột 3) quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ đơn của mình).<br>
+        <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO — nhân viên nào cũng chọn được: <b>Cơ sở</b> · <b>Văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.
+        Nhân viên để bộ phận <b>Văn phòng</b> thì lúc tạo đơn được chọn <b>khoảng ngày tự do (theo dự án)</b> thay vì gom theo tuần — tuần chỉ đúng với nhân viên cơ sở.<br>
+        Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
     <div class="card" id="ssoCard">
       <div class="ch"><h2>🔗 Đăng nhập từ trang tổng (SSO)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addSsoRow()">＋ Thêm</button><button class="btn b-g" onclick="saveSso()">💾 Lưu</button></div></div>
@@ -5095,6 +5099,32 @@
    * Ô chọn thật vẫn là <select multiple> (để _readRows đọc như cũ) nhưng bị ẩn;
    * người dùng thấy 1 nút tóm tắt "3 cơ sở", bấm mới mở danh sách để tích.
    */
+  /** Bỏ dấu tiếng Việt để gõ không dấu vẫn tìm ra ("tan phu" ra "TÂN PHÚ"). */
+  function _bd(s){
+    return String(s||'').toLowerCase()
+      .replace(/[àáạảãâầấậẩẫăằắặẳẵ]/g,'a').replace(/[èéẹẻẽêềếệểễ]/g,'e')
+      .replace(/[ìíịỉĩ]/g,'i').replace(/[òóọỏõôồốộổỗơờớợởỡ]/g,'o')
+      .replace(/[ùúụủũưừứựửữ]/g,'u').replace(/[ỳýỵỷỹ]/g,'y').replace(/đ/g,'d');
+  }
+  /**
+   * NHÃN MỘT CƠ SỞ TRONG HỘP CHỌN: tên thường gọi · tên theo MISA · mã đơn vị.
+   *
+   * 🔴 VÌ SAO: tên thường gọi nhiều khi là tên MẢNG chứ không phải tên gian — "EVENT FZ MN"
+   *    chẳng gợi ra "ADV Go An Lạc" là gian nào. Người đi gán quyền phải nhớ thuộc lòng mới
+   *    tìm được, mà nhớ nhầm thì gán quyền cho gian khác.
+   *
+   * ⚠️ GIÁ TRỊ LƯU VẪN LÀ TÊN THƯỜNG GỌI, KHÔNG ĐỔI. Đây chỉ là chữ hiện ra để đọc và để lọc.
+   *    Đổi giá trị lưu là mọi dòng phân quyền đang có trỏ vào một cái tên không còn tồn tại.
+   */
+  function _csNhan(ten){
+    var x=null;
+    (CFG.coso||[]).forEach(function(c){ if(String(c.ten)===String(ten)) x=c; });
+    if(!x) return ten;
+    var p=[ten], tm=String(x.tenMisa||'').trim(), md=String(x.maDonVi||'').trim();
+    if(tm && tm.toLowerCase()!==String(ten).toLowerCase()) p.push(tm);
+    if(md) p.push(md);
+    return p.join(' · ');
+  }
   function _cosoSel(v){
     var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
     var arr=(CFG.coso||[]).map(function(x){return x.ten;}); sel.forEach(function(s){ if(arr.indexOf(s)<0) arr.push(s); });
@@ -5102,9 +5132,21 @@
       + '<select multiple style="display:none">'+arr.map(function(c){return '<option value="'+esc(c)+'"'+(sel.indexOf(c)>=0?' selected':'')+'>'+esc(c)+'</option>';}).join('')+'</select>'
       + '<button type="button" class="btn b-x cs-btn" onclick="_csOpen(this)" style="width:100%;text-align:left;font-weight:400">'+esc(_csLabel(sel))+'</button>'
       + '<div class="cs-pop" style="display:none">'
+      +   '<div style="padding:6px 8px;border-bottom:1px solid #e2e8f0"><input type="text" class="cs-tim" placeholder="Gõ để lọc: tên gọi, tên MISA hay mã đơn vị" oninput="_csTim(this)" style="width:100%;font-size:12px;padding:5px 8px"></div>'
       +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
-      +   '<div class="cs-list">'+arr.map(function(c,i){ return '<label style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'+(sel.indexOf(c)>=0?' checked':'')+'>'+esc(c)+'</label>'; }).join('')+'</div>'
+      +   '<div class="cs-list">'+arr.map(function(c,i){
+              var nhan=_csNhan(c);
+              return '<label data-tim="'+esc(_bd(nhan))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'+(sel.indexOf(c)>=0?' checked':'')+'><span>'+esc(nhan)+'</span></label>';
+            }).join('')+'</div>'
       + '</div></div>';
+  }
+  /** Lọc danh sách trong hộp chọn. Ô nào bị lọc đi vẫn còn nguyên checkbox — _csDone đọc theo
+      chỉ số nên ẩn bớt KHÔNG làm mất lựa chọn đã tích của những ô đang không thấy. */
+  function _csTim(o){
+    var w=_csWrap(o), q=_bd(o.value).trim();
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-list label'),function(l){
+      l.style.display=(!q || String(l.getAttribute('data-tim')||'').indexOf(q)>=0)?'flex':'none';
+    });
   }
   function _csLabel(sel){
     if(!sel.length) return 'Tất cả cơ sở';
@@ -5121,7 +5163,12 @@
   }
   function _csAll(btn, on){
     var w=_csWrap(btn);
-    Array.prototype.forEach.call(w.querySelectorAll('.cs-list input'),function(c){ c.checked=!!on; });
+    // Đang lọc thì "Chọn hết / Bỏ hết" chỉ áp cho những dòng ĐANG THẤY. Áp cả danh sách trong
+    // khi màn hình chỉ hiện ba dòng là người ta vừa tích/bỏ mất một đống cơ sở không hề nhìn thấy.
+    Array.prototype.forEach.call(w.querySelectorAll('.cs-list label'),function(l){
+      if(l.style.display==='none') return;
+      var c=l.querySelector('input'); if(c) c.checked=!!on;
+    });
   }
   function _csDone(btn){
     var w=_csWrap(btn), sel=w.querySelector('select'), sels=[];

@@ -112,6 +112,42 @@ if m4:
     la('chặn ngày kết thúc trước ngày bắt đầu', 'dz.getTime()<da.getTime()' in t)
     la('dùng lại đúng khuôn chuỗi kỳ cũ', '_kyRange(da,dz)' in t)
 
+# ---------------------------------------------------------------- hộp chọn cơ sở
+print('— hộp chọn cơ sở —')
+# 🔴 Tên thường gọi nhiều khi là tên MẢNG chứ không phải tên gian ("EVENT FZ MN" không gợi ra
+#    "ADV Go An Lạc"). Nhãn phải kèm tên MISA + mã đơn vị, và phải lọc được.
+la('có hàm dựng nhãn cơ sở', 'function _csNhan(' in src)
+m5 = re.search(r'function _csNhan\(ten\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy _csNhan()', m5 is not None)
+if m5:
+    t5 = m5.group(1)
+    # Kiểm ĐÚNG chỗ ghép vào nhãn, không phải chỗ đọc biến ra. Chỉ kiểm 'tenMisa' in t5 là
+    # xoá hẳn p.push(tm) vẫn xanh — phép thử đó không bắt được gì.
+    la('lấy tên theo MISA từ cấu hình', 'x.tenMisa' in t5)
+    la('GHÉP tên MISA vào nhãn', 'p.push(tm)' in t5)
+    la('lấy mã đơn vị từ cấu hình', 'x.maDonVi' in t5)
+    la('GHÉP mã đơn vị vào nhãn', 'p.push(md)' in t5)
+    la('nối bằng dấu chấm giữa', "p.join(' · ')" in t5)
+    # Không có dòng cấu hình cho tên đó (cơ sở lạ) thì trả nguyên tên, không được rơi ra rỗng.
+    la('cơ sở lạ vẫn trả về tên', 'if(!x) return ten;' in t5)
+la('có ô lọc trong hộp chọn', 'cs-tim' in src and 'function _csTim(' in src)
+la('lọc bỏ dấu được', 'function _bd(' in src)
+
+m6 = re.search(r'function _cosoSel\(v\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy _cosoSel()', m6 is not None)
+if m6:
+    t6 = m6.group(1)
+    # ⚠️ Giá trị lưu PHẢI vẫn là tên thường gọi. Đổi sang nhãn là mọi dòng phân quyền đang có
+    #    trỏ vào một cái tên không còn tồn tại.
+    la('giá trị <option> vẫn là tên thường gọi', "'<option value=\"'+esc(c)+'\"'" in t6)
+    la('nhãn hiển thị mới dùng _csNhan', '_csNhan(c)' in t6)
+
+m7 = re.search(r'function _csAll\(btn, on\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy _csAll()', m7 is not None)
+if m7:
+    # Đang lọc mà "Chọn hết" áp cả danh sách là tích/bỏ một đống cơ sở không hề nhìn thấy.
+    la('Chọn hết/Bỏ hết chỉ áp dòng đang thấy', "l.style.display==='none'" in m7.group(1))
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
