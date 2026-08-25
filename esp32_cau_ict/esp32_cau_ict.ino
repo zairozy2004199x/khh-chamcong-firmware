@@ -202,6 +202,12 @@
 #define CHAN_OE_ICT   -1
 #define CHAN_OE_GHE   -1
 
+// Chân ESP32 PHÁT khung tiền giả vào GHẾ (lệnh BOM). Nối chân này (qua chia mức
+// 3,3V->5V) vào ĐÚNG dây mà L70 thật vẫn phát 81/4X (dây vào RX nhận tiền của ghế).
+// Test thì rút dây TX của L70 thật ra khoi day nay de khong danh nhau.
+#define CHAN_BOM_TX   27      // IO27 (CN1) — chân trống, phát ra được
+#define CHAN_BOM_RX   35      // nghe ghe dap (02) — cùng dây IO35 đang tap
+
 #define BAUD_MAC_DINH 4800   // ĐO THẬT bang RAW: nhip bit ~207us -> 4800, KHONG phai 9600
 #define NGHI_MS       15      // dây im ngần này = hết một khung (ở 9600 một byte ~1ms)
 #define KHUNG_TOI_DA  96
@@ -598,6 +604,57 @@ void ngheHw(uint32_t giay) {
 }
 
 /* ============================================================================
+ *  BOM — GIẢ LÀM L70: phát khung "có tiền" vào GHẾ để thử ghế có ăn không.
+ * ----------------------------------------------------------------------------
+ *  Đây là bước KIỂM CHỨNG giao thức tiền trên máy thật (mã đã đọc được:
+ *  L70 -> ghe: 81 4X   (X = chi so menh gia: 0=5k,1=10k,2=20k,3=50k,4=100k,5=200k)
+ *  ghe -> L70: 02      (nuot)
+ *  L70 -> ghe: 10      (da nuot)
+ *  Bus rảnh im hoàn toàn nên phát thẳng, không lo poll.
+ *
+ *  NỐI DÂY TEST:
+ *   - CHAN_BOM_TX (IO27) --[chia mức 3,3->5V]--> dây RX-nhận-tiền của ghế
+ *     (chính là dây mà L70 thật vẫn phát 81/4X vào — tap o IO22).
+ *   - RÚT dây TX của L70 thật ra khỏi dây này (kẻo hai bên đẩy nhau).
+ *   - GND chung. Nghe ghế đáp 02 trên IO35 (CHAN_BOM_RX).
+ * ========================================================================== */
+void bomTien(int chiSo) {
+  if (chiSo < 0) chiSo = 0; if (chiSo > 6) chiSo = 6;
+  uint8_t ma = (uint8_t)(0x40 + chiSo);
+  const long TIEN[] = {5000,10000,20000,50000,100000,200000,500000};
+  congIct.end(); congGhe.end(); delay(20);
+  // Serial2: TX ra ghe (IO27), RX nghe ghe dap (IO35)
+  congGhe.begin(4800, SERIAL_8E1, CHAN_BOM_RX, CHAN_BOM_TX);
+  Serial.printf("[BOM] gia lam L70: phat 81 %02X (=%ld VND) vao ghe qua IO%d, nghe dap tren IO%d.\n",
+                ma, TIEN[chiSo], CHAN_BOM_TX, CHAN_BOM_RX);
+  // 1) phat "co to tien loai X"
+  congGhe.write(0x81); congGhe.write(ma); congGhe.flush();
+  Serial.printf("[BOM] da phat: 81 %02X\n", ma);
+  // 2) cho ghe dap 02 (toi 800ms), in het gi ghe noi
+  uint32_t het = millis() + 800; bool thay02 = false;
+  while ((int32_t)(het - millis()) > 0) {
+    while (congGhe.available()) {
+      int c = congGhe.read() & 0xFF;
+      Serial.printf("  ghe -> %02X\n", c);
+      if (c == 0x02) thay02 = true;
+    }
+    yield();
+  }
+  // 3) phat "da nuot xong"
+  congGhe.write(0x10); congGhe.flush();
+  Serial.println("[BOM] da phat: 10 (da nuot).");
+  Serial.println(thay02 ? "[BOM] GHE DA DAP 02 -> nhiều khả năng ghế đã ăn tiền. Xem ghế có cộng tiền/chạy không."
+                        : "[BOM] Khong thay 02. Kiem: dung day chua, chia muc 3,3->5V co chua, GND chung chua.");
+  // nghe them 1,5s xem ghe lam gi tiep
+  het = millis() + 1500;
+  while ((int32_t)(het - millis()) > 0) {
+    while (congGhe.available()) Serial.printf("  ghe -> %02X\n", congGhe.read() & 0xFF);
+    yield();
+  }
+  moCong();
+}
+
+/* ============================================================================
  *  DÒ DÂY — tìm dây dữ liệu bằng cách chạm đầu dò vào từng dây, xem live
  * ----------------------------------------------------------------------------
  *  Traffic có thật (tiền mặt chạy được) mà tap không ra khung = tap SAI DÂY.
@@ -642,6 +699,8 @@ void inTro() {
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
     "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
+    "  BOM <chiso>     GIA LAM L70: phat khung co tien vao ghe (0=5k 1=10k 2=20k\n"
+    "                  3=50k 4=100k 5=200k 6=500k). Test ghe co an tien khong.\n"
     "  HW [giay]       NGHE bang UART phan cung 4800 8E1 (KHONG rot byte). NEN DUNG\n"
     "  RAW [giay]      ghi tho tung canh CA HAI day (may do) -> giai ma offline\n"
     "  DODAY [giay]    DO DAY: re dau do (IO22) qua tung day, tim day co nhip ~9600\n"
@@ -791,6 +850,7 @@ void ngheLenhUsb() {
     else if (lenh == "TT")   inTrangThai();
     else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
+    else if (lenh == "BOM")  { bomTien(tham.toInt()); }
     else if (lenh == "HW")   { uint32_t g = tham.toInt(); ngheHw(g ? g : 60); }
     else if (lenh == "RAW")  { uint32_t g = tham.toInt(); rawCanh(g ? g : 8); }
     else if (lenh == "DODAY") { uint32_t g = tham.toInt(); doDay(g ? g : 30); }
