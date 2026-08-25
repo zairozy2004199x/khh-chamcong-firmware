@@ -77,13 +77,18 @@ $ajax      = admin_url( 'admin-ajax.php' );
 		border:1px solid var(--vien);border-radius:8px;width:200px}
 	.tu-dien input:focus{outline:0;border-color:var(--xanh)}
 	.tu-dien input.can{border-color:var(--do);background:var(--do-nhat)}
+	.pb{font-size:12px;font-weight:600;color:var(--mo);background:#eef0f3;
+		border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px}
 	.khoa{opacity:.55}
 </style>
 </head>
 <body>
 <div class="bao">
 
-	<h1>Chấm công — nạp dữ liệu</h1>
+	<h1>Chấm công — nạp dữ liệu <span class="pb">b<?php echo esc_html( VCG_PHIEN_BAN ); ?></span></h1>
+	<!-- 🔴 SỐ PHIÊN BẢN HIỆN NGAY TRÊN TRANG. Cài đè plugin mà tệp cũ còn nằm lại là chuyện có
+	     thật, và khi đó mọi con số đều lệch một cách không giải thích được — mất cả buổi để đoán.
+	     In số phiên bản ra là một giây biết ngay đang chạy bản nào. -->
 	<p class="phu">
 		<?php if ( $vai ) : ?>
 			Đang dùng: <b><?php echo esc_html( $nguoi['ten'] ? $nguoi['ten'] : $vai ); ?></b>
@@ -248,7 +253,13 @@ $ajax      = admin_url( 'admin-ajax.php' );
 				if (!r.ok){ kq.innerHTML = '<div class="bao-loi">' + chu(r.loi) + '</div>'; return; }
 				kq.innerHTML = (loai === 'nv')
 					? '<div class="bao-ok">Xong. Thêm mới <b>' + r.nguoi_them + '</b> người · cập nhật <b>'
-						+ r.nguoi_sua + '</b> · thêm <b>' + r.gan_them + '</b> lượt gán cơ sở.</div>'
+						+ r.nguoi_sua + '</b> · gán cơ sở: đọc được <b>'
+						+ (r.gan_doc === undefined ? r.gan_them : r.gan_doc)
+						+ '</b>, thêm mới <b>' + r.gan_them + '</b>'
+						+ (r.gan_doc !== undefined && r.gan_doc > r.gan_them
+							? ' (<b>' + (r.gan_doc - r.gan_them) + '</b> cặp đã có sẵn trong bảng)'
+							: '')
+						+ '.</div>'
 					: '<div class="bao-ok">Xong — cơ sở <b>' + chu(r.co_so) + '</b>. Thêm <b>' + r.them
 						+ '</b> lượt · nới rộng <b>' + r.noi + '</b> · giữ nguyên <b>' + r.giu
 						+ '</b>.</div>' + veCanhBao(r.canh_bao);

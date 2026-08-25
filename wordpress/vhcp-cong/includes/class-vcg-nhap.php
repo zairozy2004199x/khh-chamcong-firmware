@@ -48,7 +48,16 @@ class VCG_Nhap {
 			);
 			$gan += (int) $wpdb->query( $sql );
 		}
-		return array( 'nguoi_them' => $them, 'nguoi_sua' => $sua, 'gan_them' => $gan );
+		/* 🔴 TRẢ CẢ HAI CON SỐ: đọc được bao nhiêu cặp, và thêm mới được bao nhiêu.
+		   Chỉ báo `gan_them` là gây hiểu nhầm thật — INSERT IGNORE trả 0 cho cặp đã có, nên nạp
+		   lần hai hiện "thêm 0 lượt gán" trông y như hỏng. Mà lệch giữa hai con số cũng chính là
+		   thứ giúp phát hiện đang chạy nhầm bản plugin. */
+		return array(
+			'nguoi_them' => $them,
+			'nguoi_sua'  => $sua,
+			'gan_doc'    => count( $kq['gan'] ),
+			'gan_them'   => $gan,
+		);
 	}
 
 	/**
