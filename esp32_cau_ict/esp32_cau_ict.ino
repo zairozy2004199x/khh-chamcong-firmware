@@ -91,7 +91,21 @@
  *  Vì chưa biết bo đang chạy kiểu nào, lệnh XUNG (đo bề rộng cạnh) phân biệt trước:
  *  hẹp cỡ micro giây = UART; rộng cỡ chục mili giây = xung tiền, khỏi cần khung lệnh.
  *
-*  ─── NẾU CÁP NHÀ MÁY LÀ MDB (harness WEL-RBG01, nhãn "MDB") ─────────────────
+ *  ─── DÙNG TXS0108E CHO BƯỚC NGHE LÉN (nếu chưa có ADuM1201) ─────────────────
+ *  Được, vì MDB chạy 9600 baud — chậm nên tật tốc-độ-cao của TXS0108E không kịp
+ *  cắn. (Đính chính "đừng dùng TXS0108E cho UART" hôm trước: đúng cho tốc độ cao,
+ *  ở 9600 thì oan.) Vấn đề thật so với ADuM nằm ở hai chỗ khác:
+ *    1) KHÔNG CÁCH LY -> chỉ một mass chung. Nghe lén trên bàn bằng USB laptop thì
+ *       được; LẮP CỐ ĐỊNH TRONG GHẾ thì quay lại ADuM1201 (mô-tơ đá nhiễu ngược).
+ *    2) DỊ ỨNG TRỞ KÉO MẠNH: kéo cao bằng trở ~4k, mà RX của L70 có trở kéo 1K
+ *       mạnh hơn -> kéo xuống không dứt khoát / tự kích sai. Bit dính thì đổi sang
+ *       ADuM1201 hoặc SN74LVC2T45.
+ *  Đấu (một module 8 kênh dùng chung cả hai bên, mass chung, 4 kênh):
+ *    VCCA=3,3V  VCCB=5V  GND=chung hết  OE=3,3V (BẮT BUỘC — để hở là cả module TẮT)
+ *    A1<->GPIO26 B1<->L70 đỏ/RX   A2<->GPIO25 B2<->L70 xanh/TX
+ *    A3<->GPIO32 B3<->ghế         A4<->GPIO33 B4<->ghế
+ *
+ *  ─── NẾU CÁP NHÀ MÁY LÀ MDB (harness WEL-RBG01, nhãn "MDB") ─────────────────
  *  Cáp: nguồn 12V (dây cam), GND (xanh lá/tím), VCC (vàng), và DỮ LIỆU: đỏ=RX,
  *  xanh dương=TX. Mức TTL 5V, CÁCH LY QUANG — KHÔNG phải RS-232, nên KHÔNG cần
  *  MAX3232; ADuM1201 là đúng bài (MDB vốn để cách ly).
