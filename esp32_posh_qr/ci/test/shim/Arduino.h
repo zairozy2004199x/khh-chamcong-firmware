@@ -75,6 +75,7 @@ inline String operator+(const String& a, char b)          { String r(a); r += b;
 #include <functional>
 
 #define SERIAL_8N1 0x800001c
+#define SERIAL_8E1 0x800001e   // 8 data + chan le CHAN + 1 stop (giao thuc L70 that)
 
 inline uint32_t& _gioAo() { static uint32_t t = 1000; return t; }
 inline uint32_t millis() { return _gioAo(); }

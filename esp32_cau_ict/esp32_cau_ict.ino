@@ -331,8 +331,10 @@ long doBaudTheoXung(int chan, const char* ten, uint32_t giay) {
 void moCong() {
   congIct.end(); congGhe.end();
   delay(20);
-  congIct.begin(g_baud, SERIAL_8N1, CHAN_ICT_RX, CHAN_ICT_TX);
-  congGhe.begin(g_baud, SERIAL_8N1, CHAN_GHE_RX, CHAN_GHE_TX);
+  // Giao thuc L70 that = 8E1 (do bang RAW: bit9 khop chan-le CHAN). Doc 8N1 se
+  // nham bit parity thanh stop -> loi khung. Nen mo dung 8E1.
+  congIct.begin(g_baud, SERIAL_8E1, CHAN_ICT_RX, CHAN_ICT_TX);
+  congGhe.begin(g_baud, SERIAL_8E1, CHAN_GHE_RX, CHAN_GHE_TX);
   gomIct.n = 0; gomGhe.n = 0;
 }
 
@@ -561,6 +563,41 @@ void rawCanh(uint32_t giay) {
 }
 
 /* ============================================================================
+ *  HW — NGHE bằng UART PHẦN CỨNG @ 4800 8E1 (đã xác nhận từ RAW: 8 data + parity
+ *  chẵn + 1 stop). Phần cứng có FIFO + ngắt nên KHÔNG rớt byte như UART mềm — đây
+ *  mới là cách chắc chắn bắt được khung "có tiền" trên bus thưa.
+ *  Chỉ đọc (tx=-1), tap song song, không đụng bus.
+ * ========================================================================== */
+void ngheHw(uint32_t giay) {
+  congIct.end(); congGhe.end(); delay(20);
+  congGhe.begin(4800, SERIAL_8E1, CHAN_GHE_RX, -1);   // ghe (IO22)  - chi doc
+  congIct.begin(4800, SERIAL_8E1, CHAN_ICT_RX, -1);   // L70 (IO35)  - chi doc
+  Serial.printf("[HW] UART phan cung 4800 8E1: ghe@IO%d  L70@IO%d, nghe %lu giay.\n",
+                CHAN_GHE_RX, CHAN_ICT_RX, (unsigned long)giay);
+  Serial.println("[HW] NHET 10k VAO NGAY BAY GIO. G=ghe noi, L=L70 noi. Dong moi = nghi >15ms.");
+  uint32_t het = millis() + giay * 1000UL;
+  uint32_t lanCuoi = 0; bool dong = false; uint32_t soG = 0, soL = 0;
+  while ((int32_t)(het - millis()) > 0) {
+    bool coGi = false;
+    while (congGhe.available()) {
+      int c = congGhe.read();
+      if (millis() - lanCuoi > 15 && dong) { Serial.println(); dong = false; }
+      Serial.printf("G%02X ", c & 0xFF); lanCuoi = millis(); dong = true; soG++; coGi = true;
+    }
+    while (congIct.available()) {
+      int c = congIct.read();
+      if (millis() - lanCuoi > 15 && dong) { Serial.println(); dong = false; }
+      Serial.printf("L%02X ", c & 0xFF); lanCuoi = millis(); dong = true; soL++; coGi = true;
+    }
+    if (!coGi && dong && millis() - lanCuoi > 15) { Serial.println(); dong = false; }
+    if (!coGi) yield();
+  }
+  Serial.printf("\n[HW] xong. ghe %lu byte, L70 %lu byte. Neu L70 im -> doi cham 22<->35.\n",
+                (unsigned long)soG, (unsigned long)soL);
+  moCong();
+}
+
+/* ============================================================================
  *  DÒ DÂY — tìm dây dữ liệu bằng cách chạm đầu dò vào từng dây, xem live
  * ----------------------------------------------------------------------------
  *  Traffic có thật (tiền mặt chạy được) mà tap không ra khung = tap SAI DÂY.
@@ -605,7 +642,8 @@ void inTro() {
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
     "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
-    "  RAW [giay]      ghi tho tung canh CA HAI day (may do) -> giai ma offline. NEN DUNG\n"
+    "  HW [giay]       NGHE bang UART phan cung 4800 8E1 (KHONG rot byte). NEN DUNG\n"
+    "  RAW [giay]      ghi tho tung canh CA HAI day (may do) -> giai ma offline\n"
     "  DODAY [giay]    DO DAY: re dau do (IO22) qua tung day, tim day co nhip ~9600\n"
     "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
     "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
@@ -753,6 +791,7 @@ void ngheLenhUsb() {
     else if (lenh == "TT")   inTrangThai();
     else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
+    else if (lenh == "HW")   { uint32_t g = tham.toInt(); ngheHw(g ? g : 60); }
     else if (lenh == "RAW")  { uint32_t g = tham.toInt(); rawCanh(g ? g : 8); }
     else if (lenh == "DODAY") { uint32_t g = tham.toInt(); doDay(g ? g : 30); }
     else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
