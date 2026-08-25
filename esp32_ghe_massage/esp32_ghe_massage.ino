@@ -194,12 +194,18 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
    chạy ngầm từ mốc ghế đếm (QR_TRE_MS) nên phóng to ra là đã trừ đúng phần đã qua. */
 #define CAMON_MS           5000
 
-/* 🔧 DÒ IO34: bật để soi dây đầu-điều-khiển ghế (4 dây rx/tx/5v/gnd) — biết ghế
-   đang CHẠY hay TẮT. Nối tín hiệu đó vào IO34 (qua ADuM/chia mức), nạp, xem log:
-     "muc=1/0" + "canh/200ms". Đổi mức rõ khi ghế chạy/tắt (canh≈0) = MỨC đơn giản
-     -> dò digitalRead chắc chắn. Nhiều cạnh (canh lớn) = DATA serial. Đo xong TẮT. */
-#define DO_IO34            1
-#define IO34_PIN           34
+/* ================= PHÁT HIỆN GHẾ CHẠY THẬT ==================================
+   Đo trên bo ghế: có 1 chân ra MỨC — ĐANG CHẠY = 3.3V, TẮT = ~0V. Tap chân đó
+   vào GHECHAY_PIN (IO34, chung GND). Chân này driven hẳn nên đọc digitalRead ổn.
+   Logic: đang tính giờ (ST_RUNNING) mà chân báo KHÔNG chạy quá GHECHAY_CHET_MS
+   -> đẩy web cảnh báo 'ghekhongchay' (khách trả tiền, đồng hồ chạy mà ghế không
+   nhúc nhích). Chạy lại -> tự gỡ cảnh báo.
+   ⚠️ IO34 không kéo nội: nên gắn thêm điện trở 10k từ IO34 xuống GND (khi đứt dây
+      thì về mức TẮT = cảnh báo, an toàn hơn là lơ lửng). */
+#define DO_GHECHAY         1
+#define GHECHAY_PIN        34        // đọc chân báo-chạy của bo ghế (3.3V chạy / 0V tắt)
+#define GHECHAY_CHAY_MUC   HIGH      // mức đọc được khi ghế ĐANG CHẠY
+#define GHECHAY_CHET_MS    10000     // đang tính giờ mà không chạy quá lâu này -> cảnh báo web
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -1785,11 +1791,10 @@ void setup(){
   /* Kích rơ-le fail-safe sang ESP-mode (COM->NO). Mất điện thì rơ-le tự nhả về NC
      = ICT nối thẳng ghế -> tiền mặt vẫn chạy dù hộp QR chết. */
   pinMode(BYPASS_PIN, OUTPUT); digitalWrite(BYPASS_PIN, BYPASS_ACTIVE_HIGH ? HIGH : LOW);
-  /* IO21 = đèn nền TFT (giữ nguyên). Wire B (đọc 3E/5E/02 để báo lỗi 'qr') đã dời
-     sang IO34 QUA ADuM1201 — ngõ vào cao-trở nên KHÔNG làm rớt ICT như mạch MOSFET.
-     Xem cong_tien.h (WIRE_B_RX=34). */
-#if DO_IO34
-  pinMode(IO34_PIN, INPUT);   // dò tín hiệu đầu điều khiển ghế (rx/tx) để biết ghế chạy/tắt
+  /* IO34 nay dung doc chan bao-chay cua bo ghe (3.3V chay / 0V tat) -> canh bao
+     'ghekhongchay'. (Bo huong doc wire B 3E/5E qua ADuM vi doc-mem nhieu.) */
+#if DO_GHECHAY
+  pinMode(GHECHAY_PIN, INPUT);   // đọc chân báo-chạy của bo ghế (3.3V chạy / 0V tắt)
 #endif
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
@@ -1838,23 +1843,26 @@ void loop(){
   congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
-#if DO_IO34
-  /* Dò IO34: lấy mẫu liên tục 200ms -> đếm cạnh + đếm số mẫu MỨC THẤP (duty), rồi
-     IN ĐỀU MỖI GIÂY (kể cả khi đứng yên) để anh luôn có dòng mới mà copy. */
-  { static uint32_t _t34 = 0;
-    if(millis() - _t34 > 1000){ _t34 = millis();
-      uint32_t canh = 0, mau = 0, thap = 0; int p = digitalRead(IO34_PIN);
-      uint32_t e = millis() + 200;
-      while((int32_t)(e - millis()) > 0){ int m = digitalRead(IO34_PIN);
-        mau++; if(m == LOW) thap++; if(m != p){ canh++; p = m; } }
-      int pctThap = mau ? (int)(thap * 100 / mau) : 0;
-      const char* kl = canh > 40 ? "CO DATA noi tiep"
-                     : canh > 0  ? "co xung (it)"
-                     : pctThap > 80 ? "MUC THAP dung yen"
-                     :               "MUC CAO dung yen";
-      Serial.printf("[IO34] muc=%d canh/200ms=%lu thap=%d%% -> %s (ghe: %s)\n",
-        digitalRead(IO34_PIN), (unsigned long)canh, pctThap, kl,
-        state==ST_RUNNING ? "DANG CHAY" : state==ST_CAMON ? "cam on" : "tat/ranh");
+#if DO_GHECHAY
+  /* Đọc chân báo-chạy của bo ghế. Đang tính giờ (ST_RUNNING) mà ghế KHÔNG chạy quá
+     GHECHAY_CHET_MS -> cảnh báo web 'ghekhongchay'. Chạy lại -> gỡ. Chỉ soi khi
+     ST_RUNNING (ST_CAMON là màn chờ, ghế chưa khởi động, không tính). */
+  { static uint32_t g_chuaChayTu = 0; static bool g_baoGheChet = false;
+    bool gheChay = (digitalRead(GHECHAY_PIN) == GHECHAY_CHAY_MUC);
+    if(state == ST_RUNNING){
+      if(gheChay){
+        g_chuaChayTu = 0;
+        if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false);
+          Serial.println("[GHE] da chay lai -> go canh bao"); }
+      } else {
+        if(g_chuaChayTu == 0) g_chuaChayTu = millis();
+        else if(!g_baoGheChet && millis() - g_chuaChayTu > GHECHAY_CHET_MS){
+          g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
+          Serial.println("[GHE] dang tinh gio ma KHONG chay -> canh bao web"); }
+      }
+    } else {                                   // hết chạy: dọn cờ để lần sau tính lại
+      g_chuaChayTu = 0;
+      if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
     }
   }
 #endif
