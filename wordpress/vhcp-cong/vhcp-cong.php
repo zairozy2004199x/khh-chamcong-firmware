@@ -2,7 +2,7 @@
 /**
  * Plugin Name: VHCP Chấm công (dựng mới)
  * Description: Chấm công dựng lại từ đầu — nạp CSV xuất thẳng từ Google Sheets, mọi thao tác nằm NGOÀI trang quản trị.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Text Domain: vhcp-cong
  *
  * VÌ SAO CÓ PLUGIN NÀY THAY VÌ SỬA BẢN CŨ
@@ -18,7 +18,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VCG_PHIEN_BAN', '1.1.0' );
+define( 'VCG_PHIEN_BAN', '1.2.0' );
 define( 'VCG_DUONG_DAN', plugin_dir_path( __FILE__ ) );
 
 require_once VCG_DUONG_DAN . 'includes/class-vcg-db.php';
@@ -47,5 +47,21 @@ class VCG_Boot {
 		flush_rewrite_rules();
 	}
 }
+
+/**
+ * 🔴 TỰ NÂNG CẤP BẢNG KHI CÀI ĐÈ.
+ *
+ * dbDelta chỉ chạy ở hook kích hoạt, mà CÀI ĐÈ một plugin đang bật thì KHÔNG kích hoạt lại.
+ * Nên thêm bảng mới ở bản sau là bảng đó không bao giờ được tạo, và mọi truy vấn vào nó lỗi
+ * lặng lẽ — màn hình trắng, không ai biết vì sao. So số phiên bản DB rồi chạy lại dbDelta là
+ * xong; dbDelta vốn không đụng gì tới bảng đã đúng.
+ */
+add_action( 'plugins_loaded', function () {
+	if ( get_option( 'vcg_phien_ban_db' ) === VCG_DB::PHIEN_BAN ) { return; }
+	require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+	global $wpdb;
+	foreach ( VCG_DB::lenh_tao( $wpdb->get_charset_collate() ) as $sql ) { dbDelta( $sql ); }
+	update_option( 'vcg_phien_ban_db', VCG_DB::PHIEN_BAN, false );
+} );
 
 VCG_Trang::init();

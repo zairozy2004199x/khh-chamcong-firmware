@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) { if ( ! defined( 'VCG_TEST' ) ) { exit; } }
 
 class VCG_DB {
 
-	const PHIEN_BAN = '1.0.0';
+	const PHIEN_BAN = '1.1.0';
 
 	public static function bang( $ten ) {
 		global $wpdb;
@@ -94,8 +94,20 @@ class VCG_DB {
 	/** Các cơ sở đang CÓ dữ liệu chấm công, kèm số lượt. Dùng dựng ô chọn cơ sở. */
 	public static function ds_co_so() {
 		global $wpdb;
-		$t = self::bang( 'ngay' );
-		return $wpdb->get_results( "SELECT co_so, COUNT(*) AS so FROM $t GROUP BY co_so ORDER BY co_so ASC", ARRAY_A );
+		$t   = self::bang( 'ngay' );
+		$dem = array();
+		foreach ( $wpdb->get_results( "SELECT co_so, COUNT(*) AS so FROM $t GROUP BY co_so", ARRAY_A ) as $r ) {
+			$dem[ (string) $r['co_so'] ] = (int) $r['so'];
+		}
+		/* Hợp nhất với DANH MỤC: cơ sở đã khai mà chưa có lượt nào vẫn phải hiện, kèm số 0.
+		   Ẩn nó đi là người ta tưởng cơ sở đó không tồn tại, thay vì hiểu là chưa nạp. */
+		foreach ( self::danh_muc_co_so() as $ma ) {
+			if ( ! isset( $dem[ $ma ] ) ) { $dem[ $ma ] = 0; }
+		}
+		ksort( $dem );
+		$ra = array();
+		foreach ( $dem as $ma => $so ) { $ra[] = array( 'co_so' => $ma, 'so' => $so ); }
+		return $ra;
 	}
 
 	/** Các tháng đang có dữ liệu của một cơ sở, mới nhất trước. */
@@ -170,11 +182,224 @@ class VCG_DB {
 		return $ra - $vao;
 	}
 
+	/* ==========================================================================================
+	 *  RÀ SOÁT THIẾU — "đã đủ chưa", chứ không bắt người ta tự dò
+	 *
+	 *  Anh Thắng 25/08/2026: "cho ra giao diện web để anh xem thiếu cơ sở nào, thiếu chấm công
+	 *  nào". Đây là câu hỏi đúng: dữ liệu nạp bằng tay từng tệp CSV thì thiếu là chuyện thường,
+	 *  mà thiếu KHÔNG BÁO GÌ CẢ — bảng vẫn mở ra bình thường, chỉ là ít dòng hơn.
+	 * ========================================================================================== */
+
+	/**
+	 * Ngày hôm nay theo giờ Việt Nam.
+	 *
+	 * 🔴 KHÔNG dùng date() trần. Máy chủ đang chạy UTC, lệch 7 tiếng — từ 17h chiều VN trở đi là
+	 *    date() trả về ngày HÔM QUA, và mọi phép so "đã nạp tới đâu" lệch nguyên một ngày.
+	 *    current_time() đi theo múi giờ khai trong WordPress; hàm mo_ta_mui_gio() bên dưới nói
+	 *    thẳng ra màn hình múi giờ đang là gì để không ai phải đoán.
+	 */
+	public static function hom_nay() {
+		return function_exists( 'current_time' ) ? current_time( 'Y-m-d' ) : gmdate( 'Y-m-d' );
+	}
+
+	/** Múi giờ WordPress đang khai — hiện ra màn hình để lệch ngày thì thấy ngay vì sao. */
+	public static function mo_ta_mui_gio() {
+		if ( ! function_exists( 'get_option' ) ) { return 'UTC'; }
+		$tz = get_option( 'timezone_string' );
+		if ( $tz ) { return $tz; }
+		$o = (float) get_option( 'gmt_offset' );
+		return 'UTC' . ( $o >= 0 ? '+' : '' ) . rtrim( rtrim( number_format( $o, 1, '.', '' ), '0' ), '.' );
+	}
+
+	/**
+	 * NGÀY TRỐNG: ngày nào nằm giữa khoảng đã có dữ liệu mà không có dòng nào.
+	 *
+	 * 🔴 ĐẾM TỪ NGÀY ĐẦU CÓ DỮ LIỆU, KHÔNG TỪ MÙNG 1. Cơ sở mới mở ngày 15 mà đếm từ mùng 1 thì
+	 *    lúc nào cũng "thiếu 14 ngày" — báo động giả, và báo động giả thì người ta thôi nhìn
+	 *    bảng này, rồi bỏ qua luôn cái thiếu thật.
+	 *
+	 * 🔴 DỪNG Ở MỐC CUỐI, KHÔNG Ở CUỐI THÁNG. Tháng đang chạy mà đếm cả ngày chưa tới là dòng
+	 *    nào cũng đỏ rực.
+	 *
+	 * Hàm THUẦN — vào là mảng ngày, ra là mảng ngày. Thử được bằng con số, không cần cơ sở dữ
+	 * liệu. Đây cũng là chỗ trước đây viết lặp ở hai nơi, mà lặp thì sớm muộn hai nơi lệch nhau.
+	 *
+	 * @param array  $co_ngay  các ngày ĐÃ có dữ liệu ('Y-m-d')
+	 * @param string $moc_cuoi soi tới hết ngày này
+	 */
+	public static function ngay_trong( $co_ngay, $moc_cuoi ) {
+		$co = array();
+		foreach ( (array) $co_ngay as $d ) {
+			$d = trim( (string) $d );
+			if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) ) { $co[ $d ] = 1; }
+		}
+		if ( ! $co ) { return array(); }
+		$ds = array_keys( $co );
+		sort( $ds );
+		$dau = $ds[0];
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $moc_cuoi ) || $moc_cuoi < $dau ) { return array(); }
+		$ra = array();
+		for ( $d = $dau; $d <= $moc_cuoi; $d = gmdate( 'Y-m-d', strtotime( $d . ' +1 day' ) ) ) {
+			if ( ! isset( $co[ $d ] ) ) { $ra[] = $d; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Ghi một mã cơ sở vào danh mục. Gọi mỗi lần nạp tệp cơ sở, KỂ CẢ khi tệp đó 0 lượt.
+	 *
+	 * Nạp một tệp rỗng cũng là một thông tin: cơ sở đó có thật, chỉ chưa có ai chấm. Không ghi
+	 * lại thì lần sau mở màn rà soát, cơ sở đó lại biến mất.
+	 */
+	public static function ghi_co_so( $ma, $ten = '' ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return; }
+		$t = self::bang( 'co_so' );
+		$wpdb->query( $wpdb->prepare(
+			"INSERT INTO $t (ma, ten, tao_luc) VALUES (%s,%s,%s)
+			 ON DUPLICATE KEY UPDATE ten = IF(VALUES(ten)='', ten, VALUES(ten))",
+			$ma, (string) $ten, current_time( 'mysql' ) ) );
+	}
+
+	/** Danh mục cơ sở đã khai. */
+	public static function danh_muc_co_so() {
+		global $wpdb;
+		$t = self::bang( 'co_so' );
+		return $wpdb->get_col( "SELECT ma FROM $t ORDER BY ma ASC" );
+	}
+
+	/** Mọi cơ sở TỪNG có dữ liệu, kèm lượt gần nhất. Dùng để biết cơ sở nào tháng này vắng mặt. */
+	public static function co_so_tung_co() {
+		global $wpdb;
+		$t   = self::bang( 'ngay' );
+		$gom = array();
+		foreach ( $wpdb->get_results(
+			"SELECT co_so, MAX(ngay) AS ngay_cuoi, COUNT(*) AS tong FROM $t GROUP BY co_so", ARRAY_A ) as $r ) {
+			$gom[ (string) $r['co_so'] ] = array(
+				'co_so' => (string) $r['co_so'], 'ngay_cuoi' => (string) $r['ngay_cuoi'], 'tong' => (int) $r['tong'] );
+		}
+		/* Cơ sở đã khai mà CHƯA CÓ LƯỢT NÀO vẫn vào bảng rà soát, với 0 lượt và không ngày nào.
+		   Đó là dòng đáng nhìn nhất trong bảng, không phải dòng nên giấu. */
+		foreach ( self::danh_muc_co_so() as $ma ) {
+			if ( ! isset( $gom[ $ma ] ) ) {
+				$gom[ $ma ] = array( 'co_so' => $ma, 'ngay_cuoi' => '', 'tong' => 0 );
+			}
+		}
+		ksort( $gom );
+		return array_values( $gom );
+	}
+
+	/**
+	 * Rà soát một tháng: mỗi cơ sở một dòng.
+	 *
+	 * Trả mỗi cơ sở: số người · số lượt · số NGÀY có ai đó chấm · số lượt thiếu giờ ra ·
+	 * ngày cuối có dữ liệu · ngày trống (chỉ khi trong khoảng đã có dữ liệu).
+	 */
+	public static function ra_soat( $thang ) {
+		global $wpdb;
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { return null; }
+		$t    = self::bang( 'ngay' );
+		$dau  = $thang . '-01';
+		$cuoi = gmdate( 'Y-m-t', strtotime( $dau ) );
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT co_so, ngay, ma_nv, vao, ra FROM $t WHERE ngay BETWEEN %s AND %s", $dau, $cuoi ), ARRAY_A );
+
+		$gom = array();
+		foreach ( (array) $rows as $r ) {
+			$cs = (string) $r['co_so'];
+			if ( ! isset( $gom[ $cs ] ) ) {
+				$gom[ $cs ] = array( 'nguoi' => array(), 'ngay' => array(), 'luot' => 0, 'thieu_ra' => 0, 'thieu_vao' => 0 );
+			}
+			$gom[ $cs ]['nguoi'][ (string) $r['ma_nv'] ] = 1;
+			$gom[ $cs ]['ngay'][ (string) $r['ngay'] ]   = 1;
+			$gom[ $cs ]['luot']++;
+			if ( null !== $r['vao'] && null === $r['ra'] ) { $gom[ $cs ]['thieu_ra']++; }
+			if ( null === $r['vao'] && null !== $r['ra'] ) { $gom[ $cs ]['thieu_vao']++; }
+		}
+
+		$hom_nay  = self::hom_nay();
+		/* Soi tới HÔM NAY, không tới cuối tháng — xem ngay_trong() để biết vì sao. */
+		$moc_cuoi = ( $hom_nay < $cuoi ) ? $hom_nay : $cuoi;
+
+		$ds = array();
+		foreach ( self::co_so_tung_co() as $c ) {
+			$cs = (string) $c['co_so'];
+			$g  = isset( $gom[ $cs ] ) ? $gom[ $cs ] : null;
+			$co_ngay = $g ? array_keys( $g['ngay'] ) : array();
+			sort( $co_ngay );
+
+			/* Ngày TRỐNG: chỉ tính trong khoảng từ ngày đầu có dữ liệu tới mốc cuối. Đếm từ mùng 1
+			   là cơ sở mới mở giữa tháng lúc nào cũng "thiếu 14 ngày" — báo động giả. */
+			$trong = self::ngay_trong( $co_ngay, $moc_cuoi );
+			$ds[] = array(
+				'co_so'      => $cs,
+				'co_du_lieu' => (bool) $g,
+				'nguoi'      => $g ? count( $g['nguoi'] ) : 0,
+				'luot'       => $g ? $g['luot'] : 0,
+				'so_ngay'    => count( $co_ngay ),
+				'ngay_dau'   => $co_ngay ? $co_ngay[0] : '',
+				'ngay_cuoi'  => $co_ngay ? $co_ngay[ count( $co_ngay ) - 1 ] : '',
+				'thieu_ra'   => $g ? $g['thieu_ra'] : 0,
+				'thieu_vao'  => $g ? $g['thieu_vao'] : 0,
+				'ngay_trong' => $trong,
+				/* Lượt gần nhất của cơ sở này ở BẤT KỲ tháng nào — để phân biệt "gian đã đóng"
+				   với "quên nạp tháng này". */
+				'moi_nhat'   => (string) $c['ngay_cuoi'],
+			);
+		}
+		return array(
+			'thang'    => (string) $thang,
+			'hom_nay'  => $hom_nay,
+			'moc_cuoi' => $moc_cuoi,
+			'mui_gio'  => self::mo_ta_mui_gio(),
+			'ds'       => $ds,
+		);
+	}
+
+	/**
+	 * Chi tiết thiếu của MỘT cơ sở trong tháng: ai thiếu ngày nào.
+	 *
+	 * Hai loại "thiếu" khác hẳn nhau, phải tách:
+	 *   · thiếu GIỜ RA  — có chấm vào mà không chấm ra (quên bấm)
+	 *   · KHÔNG CHẤM    — cả ngày không có dòng nào (nghỉ? hay máy hỏng?)
+	 */
+	public static function thieu_chi_tiet( $co_so, $thang ) {
+		$b = self::bang_cong( $co_so, $thang );
+		if ( null === $b ) { return null; }
+		$hom_nay  = self::hom_nay();
+		$moc_cuoi = ( $hom_nay < $b['ngay_cuoi'] ) ? $hom_nay : $b['ngay_cuoi'];
+
+		$thieu_ra = array();
+		foreach ( $b['o'] as $ma => $ngays ) {
+			foreach ( $ngays as $ng => $o ) {
+				if ( null !== $o['vao'] && null === $o['ra'] ) {
+					$thieu_ra[] = array( 'ma_nv' => $ma, 'ho_ten' => $b['nguoi'][ $ma ], 'ngay' => $ng, 'vao' => $o['vao'] );
+				}
+			}
+		}
+		usort( $thieu_ra, function ( $a, $c ) { return strcmp( $a['ngay'], $c['ngay'] ); } );
+
+		/* Ngày cả cơ sở không ai chấm — tính từ ngày đầu CÓ dữ liệu tới hôm nay. */
+		$co = array();
+		foreach ( $b['o'] as $ngays ) { foreach ( $ngays as $ng => $x ) { $co[ $ng ] = 1; } }
+		$trong = self::ngay_trong( array_keys( $co ), $moc_cuoi );
+		return array(
+			'co_so'      => $b['co_so'],
+			'thang'      => $b['thang'],
+			'thieu_ra'   => $thieu_ra,
+			'ngay_trong' => $trong,
+			'so_nguoi'   => count( $b['nguoi'] ),
+		);
+	}
+
 	/** Lệnh dựng bảng. Gọi qua dbDelta nên phải theo đúng khuôn WordPress đòi. */
 	public static function lenh_tao( $charset ) {
 		$nv    = self::bang( 'nv' );
 		$dv    = self::bang( 'nv_donvi' );
 		$ngay  = self::bang( 'ngay' );
+		$cs    = self::bang( 'co_so' );
 		return array(
 			/* Hồ sơ người. `ma_nv` là khoá chính: một người một dòng.
 			   Mã dạng chuỗi dài (MNNV2KVC0106) và có cả mã ngắn tự đặt (TP15, TUTP02) trong
@@ -229,6 +454,20 @@ class VCG_DB {
 				UNIQUE KEY mot_luot (co_so, ngay, ma_nv),
 				KEY theo_nguoi (ma_nv, ngay),
 				KEY theo_co_so (co_so, ngay)
+			) $charset;",
+
+			/* DANH MỤC CƠ SỞ — anh Thắng 25/08/2026: "cho dù cơ sở đó không có chấm công vẫn
+			   hiện (để biết cơ sở đó tồn tại)".
+
+			   🔴 VÌ SAO PHẢI CÓ BẢNG RIÊNG: trước đây danh sách cơ sở suy ra từ chính bảng chấm
+			   công. Cơ sở chưa nạp lượt nào thì KHÔNG TỒN TẠI với hệ — nó biến mất khỏi ô chọn
+			   và khỏi bảng rà soát. Mà đó đúng là cơ sở đáng lo nhất: "chưa nạp gì cả" khác hẳn
+			   "không có cơ sở đó". Suy ra từ dữ liệu thì không bao giờ phân biệt được hai thứ. */
+			"CREATE TABLE $cs (
+				ma VARCHAR(64) NOT NULL,
+				ten VARCHAR(191) NOT NULL DEFAULT '',
+				tao_luc DATETIME NULL,
+				PRIMARY KEY (ma)
 			) $charset;",
 		);
 	}

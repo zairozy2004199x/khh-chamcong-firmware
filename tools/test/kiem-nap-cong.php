@@ -249,6 +249,28 @@ la( 'không có CS_ -> rỗng', '', VCG_Nap::co_so_tu_ten( 'bang cong thang 7.cs
 la( 'có dấu tiếng Việt -> rỗng', '', VCG_Nap::co_so_tu_ten( 'CS_Cơ Sở Mới.csv' ) );
 la( 'CS_ rồi hết -> rỗng',  '', VCG_Nap::co_so_tu_ten( 'CS_.csv' ) );
 
+/* 🔴 CA THẬT THỨ HAI, 25/08/2026: `CS_(PART TIME )_POSH+JP.csv` — có DẤU NGOẶC, KHOẢNG TRẮNG và
+   DẤU CỘNG. Lại bị chặn ở cửa y như ca dấu gạch ngang hôm trước. Đó là LẦN THỨ HAI cùng một
+   kiểu sai: liệt kê trước "ký tự nào được phép" thì lần nào cũng sót một ký tự mới.
+   Giờ đổi hướng — DỌN chuỗi về khuôn dùng được, chỉ từ chối khi dọn xong vẫn còn thứ không đặt
+   làm mã được. */
+la( 'CÓ NGOẶC + KHOẢNG TRẮNG + DẤU CỘNG (ca thật)',
+	'PART_TIME_POSH+JP', VCG_Nap::co_so_tu_ten( $sheets . 'CS_(PART TIME )_POSH+JP.csv' ) );
+la( '  gõ tay ra CÙNG một mã',
+	'PART_TIME_POSH+JP', VCG_Nap::chuan_co_so( '(PART TIME )_POSH+JP' ) );
+/* Gộp gạch dưới liên tiếp: không gộp thì ra `PART_TIME__POSH` — nhìn giống hệt nhưng là MÃ
+   KHÁC, và cơ sở đó có công nằm hai chỗ. */
+la( 'gộp gạch dưới liên tiếp', 'A_B', VCG_Nap::chuan_co_so( 'A___B' ) );
+la( 'cắt gạch dưới hai đầu',   'AB',  VCG_Nap::chuan_co_so( '__AB__' ) );
+la( 'ngoặc vuông cũng dọn',    'A_B', VCG_Nap::chuan_co_so( '[A] B' ) );
+la( 'dấu & giữ nguyên',        'K&H', VCG_Nap::chuan_co_so( 'K&H' ) );
+/* Dọn xong mà rỗng thì phải trả rỗng, không được trả '_' hay chuỗi rác. */
+la( 'chỉ toàn ngoặc -> rỗng',  '', VCG_Nap::co_so_tu_ten( 'CS_( ).csv' ) );
+/* Hậu tố bản sao cắt TRƯỚC khi dọn ngoặc — không thì " (2)" thành "_2" dính vào mã và tệp tải
+   lần hai đẻ ra một cơ sở khác. */
+la( 'bản sao (2) không dính vào mã', 'VP_KH-HCM',
+	VCG_Nap::co_so_tu_ten( $sheets . 'CS_VP_KH-HCM (2).csv' ) );
+
 /* Ô tự gõ phải đi qua CÙNG khuôn — nếu không thì gõ tay ra một mã, tên tệp ra một mã khác, và
    cùng một cơ sở có công nằm hai nơi. */
 la( 'gõ tay: bình thường', 'VP_KH-HCM', VCG_Nap::chuan_co_so( ' VP_KH-HCM ' ) );
@@ -425,6 +447,44 @@ la( 'trống cả hai -> null',          null, gio( null, null ) );
 la( 'vào bằng ra -> 0',              0, gio( 8 * 3600, 8 * 3600 ) );
 /* Lượt đã được trải phẳng lúc nạp (giờ ra > 86400) thì trừ thẳng, không cộng thêm lần nữa. */
 la( 'giờ đã trải phẳng: 22:00 -> 30:00', 8 * 3600, gio( 22 * 3600, 30 * 3600 ) );
+
+/* ======================= NGÀY TRỐNG (MÀN RÀ SOÁT) ======================= */
+/* 🔴 Đây là chỗ dễ đẻ BÁO ĐỘNG GIẢ nhất, mà báo động giả thì người ta thôi nhìn bảng rà soát,
+   rồi bỏ qua luôn cái thiếu thật. Hai luật phải giữ chặt:
+     · đếm TỪ NGÀY ĐẦU CÓ DỮ LIỆU, không từ mùng 1 — cơ sở mở giữa tháng không phải lúc nào
+       cũng "thiếu 14 ngày"
+     · dừng ở MỐC CUỐI (hôm nay), không tới cuối tháng — tháng đang chạy thì ngày mai chưa thiếu */
+echo "— ngày trống —\n";
+function trong( $co, $moc ) { return VCG_DB::ngay_trong( $co, $moc ); }
+
+la( 'liên tục -> không thiếu ngày nào', array(),
+	trong( array( '2026-08-10', '2026-08-11', '2026-08-12' ), '2026-08-12' ) );
+la( 'hụt một ngày ở giữa', array( '2026-08-11' ),
+	trong( array( '2026-08-10', '2026-08-12' ), '2026-08-12' ) );
+la( 'hụt hai ngày liền', array( '2026-08-11', '2026-08-12' ),
+	trong( array( '2026-08-10', '2026-08-13' ), '2026-08-13' ) );
+
+/* 🔴 KHÔNG đếm ngược về mùng 1. Cơ sở này bắt đầu có dữ liệu từ 15/8. */
+la( 'mở giữa tháng: không thiếu ngày 1-14', array(),
+	trong( array( '2026-08-15', '2026-08-16' ), '2026-08-16' ) );
+
+/* 🔴 DỪNG Ở MỐC CUỐI. Hôm nay là 12, ngày 13-31 chưa tới nên chưa thiếu. */
+la( 'không đếm ngày chưa tới', array(),
+	trong( array( '2026-08-10', '2026-08-11', '2026-08-12' ), '2026-08-12' ) );
+la( 'đếm tới mốc cuối, kể cả ngày cuối hụt', array( '2026-08-12' ),
+	trong( array( '2026-08-10', '2026-08-11' ), '2026-08-12' ) );
+
+la( 'chưa có dữ liệu -> không báo gì', array(), trong( array(), '2026-08-20' ) );
+la( 'mốc cuối trước ngày đầu -> rỗng', array(), trong( array( '2026-08-20' ), '2026-08-10' ) );
+la( 'mốc cuối hỏng -> rỗng', array(), trong( array( '2026-08-10' ), 'hôm nay' ) );
+la( 'ngày rác bị bỏ qua', array( '2026-08-11' ),
+	trong( array( '2026-08-10', 'xxx', '', '2026-08-12' ), '2026-08-12' ) );
+/* Vắt tháng: dữ liệu từ 30/7, mốc cuối 02/8 -> thiếu 31/7 và 01/8. */
+la( 'vắt tháng vẫn đếm đúng', array( '2026-07-31', '2026-08-01' ),
+	trong( array( '2026-07-30', '2026-08-02' ), '2026-08-02' ) );
+/* Ngày trùng nhau trong đầu vào không được đẻ ra ngày trống giả. */
+la( 'ngày lặp không ảnh hưởng', array(),
+	trong( array( '2026-08-10', '2026-08-10', '2026-08-11' ), '2026-08-11' ) );
 
 /* ======================= QUYỀN ======================= */
 echo "— quyền —\n";

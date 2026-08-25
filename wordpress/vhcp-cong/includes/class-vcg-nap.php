@@ -413,24 +413,58 @@ class VCG_Nap {
 	 * tệp ra `VP_KH-HCM`, và đó là HAI cơ sở khác nhau trong bảng — cùng một chỗ mà công nằm
 	 * hai nơi. Trả rỗng nếu gõ ký tự không dùng làm mã được.
 	 */
+	/**
+	 * Chuẩn hoá mã cơ sở — dùng chung cho cả tên tệp lẫn ô người ta tự gõ.
+	 *
+	 * 🔴 KHÔNG liệt kê trước "ký tự nào được phép" nữa. Đã sai hai lần rồi:
+	 *      lần 1: `CS_VP_KH-HCM.csv`            — thiếu dấu gạch ngang
+	 *      lần 2: `CS_(PART TIME )_POSH+JP.csv` — thiếu ngoặc, khoảng trắng, dấu cộng
+	 *    Liệt kê thì lần nào cũng sót một ký tự mới, và sót là màn nạp chặn ngay ở cửa.
+	 *
+	 * Giờ đi theo hướng ngược: DỌN chuỗi về khuôn dùng được, chỉ từ chối khi dọn xong vẫn còn
+	 * thứ không đặt làm mã được (dấu tiếng Việt, gạch chéo, ký tự điều khiển).
+	 *
+	 *    `(PART TIME )_POSH+JP`  ->  `PART_TIME_POSH+JP`
+	 *    ` VP KH-HCM `           ->  `VP_KH-HCM`
+	 *
+	 * Cả hai đường đi qua ĐÚNG hàm này, nên gõ tay và lấy từ tên tệp luôn ra cùng một mã. Hai
+	 * khuôn khác nhau là cùng một cơ sở có công nằm hai chỗ.
+	 */
 	public static function chuan_co_so( $s ) {
-		$s = preg_replace( '/\s+/u', '_', trim( (string) $s ) );
-		if ( '' === $s || ! preg_match( '/^[A-Za-z0-9_.\-]+$/', $s ) ) { return ''; }
+		$s = trim( (string) $s );
+		if ( '' === $s ) { return ''; }
+		/* Dấu nhóm trong tên tệp chỉ là chú thích của người đặt tên, không phải phần của mã. */
+		$s = str_replace( array( '(', ')', '[', ']', '{', '}' ), ' ', $s );
+		/* Khoảng trắng -> gạch dưới, rồi gộp gạch dưới liên tiếp và cắt hai đầu. Không gộp thì
+		   `(PART TIME )_POSH` ra `PART_TIME__POSH` — nhìn thì giống, mà là mã khác. */
+		$s = preg_replace( '/\s+/u', '_', $s );
+		$s = preg_replace( '/_{2,}/', '_', $s );
+		$s = trim( $s, '_' );
+		if ( '' === $s ) { return ''; }
+		/* Dọn xong mà vẫn còn ký tự lạ thì TỪ CHỐI, để người ta tự gõ. Mã cơ sở là khoá trong
+		   bảng — đẻ ra một mã kỳ quặc là dữ liệu nằm sai chỗ vĩnh viễn, sửa lại rất tốn. */
+		if ( ! preg_match( '/^[A-Za-z0-9_.+&\-]+$/', $s ) ) { return ''; }
 		return $s;
 	}
 
+	/**
+	 * Tên cơ sở lấy từ tên tệp Google Sheets xuất ra.
+	 *
+	 *     ( Đang chạy ) Hệ Thống Chấm Công Cơ Sở - CS_VP_KH-HCM.csv        ->  VP_KH-HCM
+	 *     ( Đang chạy ) Hệ Thống Chấm Công Cơ Sở - CS_(PART TIME )_POSH+JP.csv -> PART_TIME_POSH+JP
+	 *     …Cơ Sở - CS_VP_KH-HCM (1).csv                                    ->  VP_KH-HCM
+	 *
+	 * Lấy TẤT CẢ phần sau `CS_` cuối cùng rồi đưa qua chuan_co_so() — một khuôn duy nhất.
+	 */
 	public static function co_so_tu_ten( $ten ) {
 		$ten = basename( str_replace( '\\', '/', (string) $ten ) );
 		$ten = preg_replace( '/\.csv$/i', '', $ten );
+		/* Hậu tố bản sao của trình duyệt: " (1)". Cắt TRƯỚC khi bỏ dấu ngoặc, không thì nó thành
+		   "_1" dính vào mã và tệp tải lần hai ra một cơ sở khác. */
 		$ten = preg_replace( '/\s*\(\d+\)$/', '', $ten );
 
 		$vt = strripos( $ten, 'CS_' );
 		if ( false === $vt ) { return ''; }
-		$ma = trim( substr( $ten, $vt + 3 ) );
-		/* Khoảng trắng trong tên tab -> gạch dưới. `CS_VP KH HCM` và `CS_VP_KH_HCM` là cùng một
-		   cơ sở; để nguyên khoảng trắng là hai mã cơ sở khác nhau trong bảng. */
-		$ma = preg_replace( '/\s+/u', '_', $ma );
-		if ( '' === $ma || ! preg_match( '/^[A-Za-z0-9_.\-]+$/', $ma ) ) { return ''; }
-		return $ma;
+		return self::chuan_co_so( substr( $ten, $vt + 3 ) );
 	}
 }

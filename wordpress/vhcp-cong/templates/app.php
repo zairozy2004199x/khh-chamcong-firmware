@@ -32,7 +32,11 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	*{box-sizing:border-box}
 	body{margin:0;background:var(--nen);color:var(--chu);
 		font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-	.bao{max-width:880px;margin:0 auto;padding:24px 16px 64px}
+	/* 🔴 KHUNG RỘNG THEO MÀN HÌNH. Bó 880px là bảng 31 ngày bị nén vào một khe hẹp giữa màn
+	   hình 27 inch trống hai bên — đọc không nổi mà cũng phí chỗ. Màn NẠP thì ngược lại: mấy ô
+	   chọn tệp kéo dài hết 1600px trông rời rạc, nên nó có khung hẹp riêng. */
+	.bao{max-width:1500px;margin:0 auto;padding:24px 16px 64px}
+	#man-nap{max-width:880px}
 	h1{font-size:22px;margin:0 0 4px}
 	.phu{color:var(--mo);font-size:14px;margin:0 0 24px}
 	.the{background:var(--the);border:1px solid var(--vien);border-radius:12px;
@@ -98,10 +102,59 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	table.bc td.thieu{background:#fffbef;color:#8a6100;font-weight:600}
 	table.bc td.trong{color:#cbd5e1}
 	table.bc td.tong{font-weight:700;background:#f6f9f6}
+	/* Ba mức: đỏ = chưa nạp · vàng = có nhưng thiếu · xanh = đủ. Ba MÀU chứ không phải ba dòng
+	   chữ — mắt bắt màu trước khi đọc chữ, mà bảng này người ta liếc qua chứ không ngồi đọc. */
+	table.ra{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+	table.ra th,table.ra td{padding:8px 10px;border-bottom:1px solid var(--vien);text-align:left}
+	table.ra th{color:var(--mo);font-size:12px;font-weight:600;background:#f6f8fa}
+	table.ra tr.co{cursor:pointer}
+	table.ra tr.co:hover td{background:#f6f9ff}
+	td.m-do{border-left:4px solid var(--do);background:var(--do-nhat)}
+	td.m-vang{border-left:4px solid #e0a800;background:#fffbef}
+	td.m-luc{border-left:4px solid var(--luc);background:var(--luc-nhat)}
+	.vet{display:inline-block;font-size:11.5px;font-weight:600;border-radius:20px;padding:2px 9px;margin-right:5px}
+	.v-do{background:#fdecea;color:var(--do)} .v-vang{background:#fdf2d0;color:#8a6100}
+	.v-luc{background:var(--luc-nhat);color:var(--luc)} .v-xam{background:#eef0f3;color:var(--mo)}
+	.ct{background:#fbfcfe;border:1px solid var(--vien);border-radius:8px;padding:10px 12px;margin:6px 0 2px}
+	.ct h4{font-size:13px;margin:0 0 6px}
+	.ct .ds{font-size:12.5px;color:var(--chu);line-height:1.9}
 	.bc-tt{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--mo)}
 	.bc-tt b{color:var(--chu);font-size:16px}
 	@media print{ .tabs,.hang,.phu,#man-nap{display:none!important}
-		.bcw{overflow:visible;border:0} table.bc{font-size:10px} }
+		.bao{max-width:none;padding:0}
+		.bcw{overflow:visible;border:0} table.bc{font-size:10px}
+		table.bc .ten{position:static;box-shadow:none} }
+
+	/* ---- Màn hình hẹp ----
+	   Bảng ngang 31 ngày thì máy tính bảng và điện thoại kiểu gì cũng phải cuộn — đó là bản
+	   chất của bảng này, không giấu được. Việc cần làm là để phần CÒN LẠI của trang đừng cũng
+	   tràn theo: tab, hàng chọn, ô lọc phải tự xuống dòng và chiếm đủ bề ngang. */
+	@media (max-width:860px){
+		.bao{padding:16px 10px 48px}
+		h1{font-size:19px}
+		.the{padding:14px}
+		.tabs{flex-wrap:wrap}
+		.tab{flex:1 1 auto;padding:8px 10px;font-size:13px}
+		.hang{gap:8px}
+		.hang select,.hang input[type=text]{flex:1 1 160px;min-width:0!important}
+		.tu-dien input{width:100%}
+		table.bc{font-size:11px}
+		table.bc th,table.bc td{padding:4px 5px}
+		table.bc .ten{min-width:128px}
+		table.ra th,table.ra td{padding:6px 7px;font-size:12px}
+		/* Bảng rà soát: giấu ba cột số, giữ Cơ sở · Nạp tới · Vấn đề — ba cột đó trả lời đủ
+		   câu hỏi "thiếu chỗ nào", còn số người/lượt là chi tiết, bấm vào dòng là ra. */
+		table.ra th:nth-child(2),table.ra td:nth-child(2),
+		table.ra th:nth-child(3),table.ra td:nth-child(3),
+		table.ra th:nth-child(4),table.ra td:nth-child(4){display:none}
+		.bc-tt{gap:12px;font-size:12px}
+		.bc-tt b{font-size:15px}
+	}
+	@media (max-width:520px){
+		table.bc .ten{min-width:104px;font-size:10.5px}
+		table.bc th,table.bc td{padding:3px 4px}
+		.vet{font-size:10.5px;padding:2px 7px}
+	}
 </style>
 </head>
 <body>
@@ -123,11 +176,29 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	<!-- Hai màn, một trang. Đổi màn bằng JS chứ không tải lại — người ta nạp xong là muốn xem
 	     ngay bảng, tải lại trang là mất luôn kết quả nạp vừa hiện. -->
 	<div class="tabs">
-		<button class="tab dang" data-man="bang">📅 Bảng chấm công</button>
+		<button class="tab dang" data-man="ra">🔎 Rà soát thiếu</button>
+		<button class="tab" data-man="bang">📅 Bảng chấm công</button>
 		<button class="tab" data-man="nap">⬆️ Nạp dữ liệu</button>
 	</div>
 
-	<div id="man-bang">
+	<!-- Tab ĐẦU TIÊN là rà soát, không phải bảng công. Câu hỏi người ta mở trang ra để hỏi là
+	     "đã đủ chưa", chứ bảng công thì phải biết đủ rồi mới đọc được. -->
+	<div id="man-ra">
+		<div class="the">
+			<h2>Rà soát thiếu — tháng <span id="r-nhan"></span></h2>
+			<p class="gt">Mỗi dòng một cơ sở. Đỏ là <b>chưa nạp tháng này</b>, vàng là <b>có nạp nhưng còn thiếu</b>,
+			xanh là đủ. Bấm vào dòng để xem thiếu đúng ngày nào, ai thiếu.</p>
+			<div class="hang">
+				<select id="r-thang" style="min-width:150px"></select>
+				<label style="font-size:13px;color:var(--mo);display:flex;align-items:center;gap:6px">
+					<input type="checkbox" id="r-chi-thieu" checked> chỉ hiện cơ sở còn thiếu
+				</label>
+			</div>
+			<div id="r-kq"></div>
+		</div>
+	</div>
+
+	<div id="man-bang" style="display:none">
 		<div class="the">
 			<h2>Bảng chấm công theo cơ sở</h2>
 			<p class="gt">Chọn cơ sở và tháng. Mỗi dòng một người, mỗi cột một ngày —
@@ -273,8 +344,11 @@ $ajax      = admin_url( 'admin-ajax.php' );
 			if(!r||!r.ok){ el('b-kq').innerHTML='<div class="bao-loi">'+chu(r&&r.loi)+'</div>'; return; }
 			if(!coso){
 				var s1=el('b-coso');
+				/* Cơ sở CHƯA CÓ LƯỢT NÀO vẫn nằm trong danh sách, ghi rõ "chưa có dữ liệu".
+				   Giấu đi là người ta tưởng cơ sở đó không tồn tại, thay vì hiểu là chưa nạp. */
 				s1.innerHTML='<option value="">— chọn cơ sở —</option>'+r.coSo.map(function(x){
-					return '<option value="'+thoat(x.ten)+'">'+thoat(x.ten)+' ('+x.so+' lượt)</option>';
+					return '<option value="'+thoat(x.ten)+'">'+thoat(x.ten)
+						+(x.so ? (' ('+x.so+' lượt)') : ' — chưa có dữ liệu')+'</option>';
 				}).join('');
 				if(!r.coSo.length) el('b-kq').innerHTML='<div class="bao-loi">Chưa có dữ liệu chấm công nào. Sang tab <b>Nạp dữ liệu</b> để nạp CSV.</div>';
 			}
@@ -345,6 +419,26 @@ $ajax      = admin_url( 'admin-ajax.php' );
 			+'<div><b>'+thoat(gioNgan(tongCaThang)||'0h')+'</b> tổng giờ cả bảng</div>'
 			+'<div>Cơ sở <b>'+thoat(BANG.co_so)+'</b> · tháng <b>'+thoat(BANG.thang)+'</b></div></div>';
 		el('b-in').style.display=soNguoi?'':'none';
+		cuonToiHomNay();
+	}
+
+	/**
+	 * Mở bảng của THÁNG ĐANG CHẠY thì cuộn thẳng tới hôm nay.
+	 *
+	 * Bảng có 31 cột; mở ra là thấy đầu tháng, mà thứ người ta cần xem gần như luôn là mấy ngày
+	 * gần đây — nên lần nào cũng phải kéo tay qua hết. Tháng đã qua thì để nguyên ở ngày 1, vì
+	 * lúc đó người ta đọc cả tháng chứ không tìm một ngày.
+	 */
+	function cuonToiHomNay(){
+		if(!BANG || !RA || !RA.hom_nay) return;
+		if(BANG.thang !== String(RA.hom_nay).slice(0,7)) return;
+		var w=el('b-kq').querySelector('.bcw'); if(!w) return;
+		var o=w.querySelector('td[title="'+RA.hom_nay+'"]'); if(!o) return;
+		var ten=w.querySelector('thead .ten');
+		var chua=ten?ten.offsetWidth:0;
+		/* Trừ bề rộng cột tên đang GHIM TRÁI, nếu không thì ô hôm nay nằm ngay dưới cột ghim
+		   và bị che mất — đúng cảnh cột ngày 19 bị cắt còn "9" trong ảnh anh Thắng gửi. */
+		w.scrollLeft = Math.max(0, o.offsetLeft - chua - 8);
 	}
 
 	function noiBang(){
@@ -360,12 +454,151 @@ $ajax      = admin_url( 'admin-ajax.php' );
 
 	/* Đổi màn. Giữ cả hai màn trong DOM, chỉ ẩn/hiện — nạp xong tải lại trang là mất luôn kết
 	   quả nạp vừa hiện ra. */
+	/* ===================== MÀN RÀ SOÁT THIẾU ===================== */
+	var RA=null;
+
+	function thangGanDay(n){
+		/* Danh sách tháng dựng từ HÔM NAY THEO GIỜ VN do máy chủ gửi xuống, không dựng bằng
+		   đồng hồ máy người dùng — máy ai đặt sai giờ là danh sách lệch riêng của người đó. */
+		var goc=(RA&&RA.hom_nay)||'';
+		var d = goc ? new Date(goc+'T00:00:00') : new Date();
+		var ds=[];
+		for(var i=0;i<n;i++){
+			var y=d.getFullYear(), m=d.getMonth()+1;
+			ds.push(y+'-'+(m<10?'0':'')+m);
+			d.setMonth(d.getMonth()-1);
+		}
+		return ds;
+	}
+
+	function taiRaSoat(){
+		var th=el('r-thang').value;
+		el('r-kq').innerHTML='<p class="chan">Đang rà…</p>';
+		goiB('vcg_ra_soat', th?{thang:th}:{}, function(r){
+			if(!r||!r.ok){ el('r-kq').innerHTML='<div class="bao-loi">'+chu(r&&r.loi)+'</div>'; return; }
+			RA=r;
+			if(!el('r-thang').options.length){
+				el('r-thang').innerHTML=thangGanDay(14).map(function(t){
+					return '<option value="'+thoat(t)+'"'+(t===r.thang?' selected':'')+'>'+thoat(t)+'</option>'; }).join('');
+			}
+			el('r-nhan').textContent=r.thang;
+			veRaSoat();
+		});
+	}
+
+	/** Xếp hạng một cơ sở: 'do' chưa nạp · 'vang' có nhưng thiếu · 'luc' đủ. */
+	function mucCoSo(x){
+		if(!x.co_du_lieu) return 'do';
+		if(x.ngay_trong.length || x.thieu_ra || x.thieu_vao) return 'vang';
+		return 'luc';
+	}
+
+	function veRaSoat(){
+		if(!RA) return;
+		var chiThieu=el('r-chi-thieu').checked;
+		var dem={do:0,vang:0,luc:0};
+		RA.ds.forEach(function(x){ dem[mucCoSo(x)]++; });
+
+		var h='<div class="bc-tt">'
+			+'<div><b>'+dem.do+'</b> cơ sở chưa nạp</div>'
+			+'<div><b>'+dem.vang+'</b> cơ sở còn thiếu</div>'
+			+'<div><b>'+dem.luc+'</b> cơ sở đủ</div>'
+			+'<div>Soi tới ngày <b>'+thoat(RA.moc_cuoi)+'</b> · múi giờ <b>'+thoat(RA.mui_gio)+'</b></div></div>';
+
+		/* 🔴 NÓI THẲNG KHI MÚI GIỜ CÒN LÀ UTC. Máy chủ UTC lệch 7 tiếng so với VN, nên từ 17h
+		   chiều trở đi "hôm nay" của hệ là ngày hôm qua — bảng này báo thiếu một ngày mà không
+		   ai hiểu vì sao. Đây là việc anh Thắng còn phải làm trong wp-admin. */
+		if(/^UTC(\+0)?$/.test(String(RA.mui_gio))){
+			h+='<div class="bao-loi" style="margin-top:10px">Múi giờ WordPress đang là <b>'+thoat(RA.mui_gio)+'</b>, '
+			 +'lệch 7 tiếng so với giờ Việt Nam. Từ 17h chiều trở đi hệ coi "hôm nay" là ngày hôm qua, '
+			 +'nên bảng này có thể báo thiếu oan một ngày. Sửa ở <b>wp-admin → Cài đặt → Tổng quan → Múi giờ = Ho Chi Minh</b>.</div>';
+		}
+
+		var ds=RA.ds.filter(function(x){ return !chiThieu || mucCoSo(x)!=='luc'; });
+		if(!ds.length){
+			h+='<div class="bao-ok" style="margin-top:12px">'+(chiThieu
+				?'Không cơ sở nào thiếu trong tháng '+thoat(RA.thang)+'. Bỏ tích ô lọc để xem hết.'
+				:'Chưa có cơ sở nào có dữ liệu.')+'</div>';
+			el('r-kq').innerHTML=h; return;
+		}
+
+		h+='<table class="ra"><thead><tr><th>Cơ sở</th><th>Người</th><th>Lượt</th><th>Ngày có</th>'
+		 +'<th>Nạp tới</th><th>Vấn đề</th></tr></thead><tbody>';
+		ds.forEach(function(x){
+			var m=mucCoSo(x), lop=(m==='do'?'m-do':(m==='vang'?'m-vang':'m-luc'));
+			var vd=[];
+			if(!x.co_du_lieu){
+				/* Ba tình cảnh khác hẳn nhau, đừng gộp làm một dòng chữ:
+				   · chưa nạp lần nào  -> cơ sở mới khai, chưa có gì
+				   · có ở tháng khác   -> quên nạp tháng này, hoặc gian đã ngừng
+				   Nói rõ ra thì người đọc tự biết phải làm gì. */
+				vd.push(x.moi_nhat
+					? '<span class="vet v-do">chưa nạp tháng này</span>'
+					: '<span class="vet v-do">chưa nạp lần nào</span>');
+				/* Phân biệt "gian đã đóng" với "quên nạp": nếu cơ sở này có dữ liệu ở tháng khác
+				   thì nói rõ tháng nào — người đọc tự biết là quên hay là đã ngừng. */
+				if(x.moi_nhat) vd.push('<span class="vet v-xam">gần nhất '+thoat(x.moi_nhat)+'</span>');
+			} else {
+				if(x.ngay_trong.length) vd.push('<span class="vet v-vang">'+x.ngay_trong.length+' ngày trống</span>');
+				if(x.thieu_ra)  vd.push('<span class="vet v-vang">'+x.thieu_ra+' lượt thiếu giờ ra</span>');
+				if(x.thieu_vao) vd.push('<span class="vet v-vang">'+x.thieu_vao+' lượt thiếu giờ vào</span>');
+				if(!vd.length)  vd.push('<span class="vet v-luc">đủ</span>');
+			}
+			h+='<tr class="co" data-cs="'+thoat(x.co_so)+'">'
+			 +'<td class="'+lop+'"><b>'+thoat(x.co_so)+'</b></td>'
+			 +'<td>'+(x.nguoi||'—')+'</td><td>'+(x.luot||'—')+'</td><td>'+(x.so_ngay||'—')+'</td>'
+			 +'<td>'+(x.ngay_cuoi?thoat(x.ngay_cuoi):'—')+'</td><td>'+vd.join('')+'</td></tr>'
+			 +'<tr class="ct-row" data-ct="'+thoat(x.co_so)+'" style="display:none"><td colspan="6"></td></tr>';
+		});
+		h+='</tbody></table>';
+		el('r-kq').innerHTML=h;
+
+		Array.prototype.forEach.call(el('r-kq').querySelectorAll('tr.co'), function(tr){
+			tr.addEventListener('click', function(){ moChiTiet(tr.getAttribute('data-cs')); });
+		});
+	}
+
+	function moChiTiet(cs){
+		var tr=el('r-kq').querySelector('tr[data-ct="'+cs.replace(/"/g,'\\"')+'"]');
+		if(!tr) return;
+		if(tr.style.display!=='none'){ tr.style.display='none'; return; }
+		tr.style.display='';
+		var td=tr.firstChild;
+		td.innerHTML='<p class="chan">Đang đọc…</p>';
+		goiB('vcg_thieu', {co_so:cs, thang:RA.thang}, function(r){
+			if(!r||!r.ok){ td.innerHTML='<div class="bao-loi">'+chu(r&&r.loi)+'</div>'; return; }
+			var h='';
+			if(r.ngay_trong.length){
+				h+='<div class="ct"><h4>📅 '+r.ngay_trong.length+' ngày cả cơ sở không ai chấm</h4>'
+				 +'<div class="ds">'+r.ngay_trong.map(function(d){return '<span class="vet v-vang">'+thoat(d)+'</span>';}).join('')+'</div>'
+				 +'<p class="chan">Có thể là ngày nghỉ, cũng có thể là quên nạp hoặc máy hỏng — hệ không đoán thay được.</p></div>';
+			}
+			if(r.thieu_ra.length){
+				h+='<div class="ct"><h4>⏱ '+r.thieu_ra.length+' lượt có giờ vào mà thiếu giờ ra</h4><div class="ds">'
+				 +r.thieu_ra.map(function(x){
+					 return '<div>'+thoat(x.ngay)+' · <b>'+thoat(x.ho_ten||x.ma_nv)+'</b> '
+						 +'<span style="color:#94a3b8">('+thoat(x.ma_nv)+')</span> · vào '+hhmm(x.vao)+'</div>';
+				   }).join('')+'</div></div>';
+			}
+			if(!h) h='<div class="bao-ok">Cơ sở này đủ trong tháng '+thoat(r.thang)+' — '+r.so_nguoi+' người, không ngày trống, không lượt thiếu.</div>';
+			td.innerHTML=h;
+		});
+	}
+
+	function noiRaSoat(){
+		if(!el('r-thang')) return;
+		el('r-thang').addEventListener('change', taiRaSoat);
+		el('r-chi-thieu').addEventListener('change', veRaSoat);
+		taiRaSoat();
+	}
+
 	function noiTab(){
 		Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){
 			b.addEventListener('click', function(){
 				var m=b.getAttribute('data-man');
 				Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){
 					x.classList.toggle('dang', x===b); });
+				el('man-ra').style.display=(m==='ra')?'':'none';
 				el('man-bang').style.display=(m==='bang')?'':'none';
 				el('man-nap').style.display=(m==='nap')?'':'none';
 			});
@@ -531,6 +764,7 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	noi('nv');
 	noiTab();
 	noiBang();
+	noiRaSoat();
 })();
 </script>
 </body>

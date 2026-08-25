@@ -31,6 +31,8 @@ class VCG_Trang {
 		add_action( 'wp_ajax_vcg_nap', array( __CLASS__, 'ajax_nap' ) );
 		add_action( 'wp_ajax_vcg_chon', array( __CLASS__, 'ajax_chon' ) );
 		add_action( 'wp_ajax_vcg_bang', array( __CLASS__, 'ajax_bang' ) );
+		add_action( 'wp_ajax_vcg_ra_soat', array( __CLASS__, 'ajax_ra_soat' ) );
+		add_action( 'wp_ajax_vcg_thieu', array( __CLASS__, 'ajax_thieu' ) );
 	}
 
 	public static function luat() {
@@ -215,6 +217,37 @@ class VCG_Trang {
 		self::tra( array( 'ok' => true ) + $b );
 	}
 
+	/** Rà soát cả tháng: cơ sở nào thiếu, thiếu gì. Đã lọc theo phạm vi người xem. */
+	public static function ajax_ra_soat() {
+		$nguoi = self::cua_xem();
+		$thang = isset( $_POST['thang'] ) ? sanitize_text_field( wp_unslash( $_POST['thang'] ) ) : '';
+		if ( '' === $thang ) { $thang = substr( VCG_DB::hom_nay(), 0, 7 ); }
+		$r = VCG_DB::ra_soat( $thang );
+		if ( null === $r ) { self::tra( array( 'ok' => false, 'loi' => 'Tháng không hợp lệ (cần dạng 2026-08).' ), 400 ); }
+
+		$loc = array();
+		foreach ( $r['ds'] as $x ) {
+			if ( ! VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $x['co_so'] ) ) { continue; }
+			$loc[] = $x;
+		}
+		$r['ds'] = $loc;
+		self::tra( array( 'ok' => true ) + $r );
+	}
+
+	/** Chi tiết thiếu của một cơ sở. */
+	public static function ajax_thieu() {
+		$nguoi = self::cua_xem();
+		$co_so = isset( $_POST['co_so'] ) ? sanitize_text_field( wp_unslash( $_POST['co_so'] ) ) : '';
+		$thang = isset( $_POST['thang'] ) ? sanitize_text_field( wp_unslash( $_POST['thang'] ) ) : '';
+		if ( '' === $co_so || '' === $thang ) { self::tra( array( 'ok' => false, 'loi' => 'Thiếu cơ sở hoặc tháng.' ), 400 ); }
+		if ( ! VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $co_so ) ) {
+			self::tra( array( 'ok' => false, 'loi' => 'Bạn không phụ trách cơ sở ' . $co_so . '.' ), 403 );
+		}
+		$r = VCG_DB::thieu_chi_tiet( $co_so, $thang );
+		if ( null === $r ) { self::tra( array( 'ok' => false, 'loi' => 'Tháng không hợp lệ.' ), 400 ); }
+		self::tra( array( 'ok' => true ) + $r );
+	}
+
 	public static function ajax_nap() {
 		$loai  = isset( $_POST['loai'] ) ? sanitize_key( $_POST['loai'] ) : '';
 		$nguoi = self::canh_cua( $loai );
@@ -231,6 +264,10 @@ class VCG_Trang {
 			self::tra( array( 'ok' => false, 'loi' => 'Không được phép nạp cơ sở này.' ), 403 );
 		}
 		$canh_bao = null;
+		/* Ghi mã cơ sở vào DANH MỤC trước khi ghi lượt — kể cả tệp 0 lượt.
+		   Nạp một tệp rỗng cũng là thông tin: cơ sở có thật, chỉ chưa ai chấm. Không ghi lại thì
+		   lần sau mở màn rà soát, cơ sở đó biến mất và người ta tưởng nó không tồn tại. */
+		VCG_DB::ghi_co_so( $co_so );
 		$kq = VCG_Nhap::ghi_cong( VCG_Nap::doc_co_so( $hang, $co_so, $canh_bao ) );
 		self::tra( array( 'ok' => true, 'loai' => 'cs', 'co_so' => $co_so,
 			'canh_bao' => $canh_bao ) + $kq );
