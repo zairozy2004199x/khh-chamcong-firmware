@@ -75,6 +75,30 @@ class VHCC_Web {
 		return $u;
 	}
 
+	/**
+	 * Ai VÀO được trang này — rộng hơn `toi()`.
+	 *
+	 * 🔴 VÌ SAO PHẢI TÁCH LÀM HAI. Trang này ban đầu chỉ có màn HỒ SƠ + TÀI KHOẢN, nên `toi()`
+	 * gác thẳng ở cửa: không phải Admin/Quản lý là bị đá về màn đăng nhập. Nay có thêm màn BẢNG
+	 * CHẤM CÔNG — thứ Cửa hàng trưởng phải xem hằng ngày, và chỉ xem CƠ SỞ CỦA MÌNH.
+	 * Giữ nguyên cửa cũ thì họ không vào nổi; nới cửa cũ ra thì họ vào luôn được màn Hồ sơ, tức
+	 * là sửa được lương và cấp được PIN cho cả chuỗi. Nên: cửa VÀO rộng, cửa TỪNG MÀN hẹp.
+	 *
+	 * ⚠️ Không nới thêm gì so với hệ chấm công: `user_by_token` vốn đã lọc theo
+	 *    `VHCC_Auth::vai_tro_vao()`. Cửa hàng trưởng chỉ vào được khi anh Thắng TÍCH họ ở màn
+	 *    Cài đặt — quyết định đó nằm trên màn hình, không nằm trong một dòng mã em tự đổi.
+	 */
+	public static function nguoi_vao() {
+		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+		if ( '' === $tok ) { return null; }
+		return VHCC_Auth::user_by_token( $tok );
+	}
+
+	/** Người này có được vào màn HỒ SƠ / TÀI KHOẢN không (cửa hẹp). */
+	public static function co_ho_so( $u ) {
+		return in_array( isset( $u['role'] ) ? (string) $u['role'] : '', self::VAI_TRO, true );
+	}
+
 	private static function dat_cookie( $tok, $song = true ) {
 		$tuoi = $song ? ( time() + 12 * 3600 ) : ( time() - 3600 );
 		$args = array(
@@ -111,7 +135,8 @@ class VHCC_Web {
 	// ======================================================================= phục vụ
 
 	public static function phuc_vu() {
-		$toi = self::toi();
+		/* Cửa VÀO rộng — xem `nguoi_vao()`. Màn nào hẹp thì chính màn đó gác. */
+		$toi = self::nguoi_vao();
 
 		/* Đăng xuất xử trước mọi thứ. */
 		if ( isset( $_POST['viec'] ) && 'thoat' === $_POST['viec'] ) {
@@ -139,7 +164,7 @@ class VHCC_Web {
 	}
 
 	/** Các tham số phải sống sót qua một lượt POST — bộ lọc, ô tìm, màn đang mở. */
-	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin' );
+	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth' );
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -195,8 +220,50 @@ class VHCC_Web {
 
 	// ======================================================================= việc
 
+	/**
+	 * Việc của màn BẢNG CHẤM CÔNG — mở cho mọi vai vào được trang.
+	 * Quyền theo CƠ SỞ vẫn do lớp dưới gác (`VHCC_Cham` gọi `VHCC_NhanSu::co_quyen_coso`), nên
+	 * Cửa hàng trưởng chỉ đụng được cơ sở mình. Danh sách này chỉ nói "việc này không cần quyền
+	 * hồ sơ", không nói "ai làm cũng được".
+	 */
+	const VIEC_CHAM = array( 'co', 'xu_ly_co' );
+
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
+
+		/* 🔴 DANH SÁCH TRẮNG, MẶC ĐỊNH LÀ CHỐI. Từ khi cửa vào trang được nới ra (xem
+		   `nguoi_vao()`), một Cửa hàng trưởng đã có phiên hợp lệ ở đây — mà mọi việc bên dưới đều
+		   là việc HỒ SƠ: nạp .csv đè cả sổ nhân sự, cấp PIN, đổi vai trò, xoá hết. Nới cửa mà quên
+		   chốt này là mở toang đúng những thứ `VAI_TRO` sinh ra để giữ.
+		   Viết theo hướng CHỐI TRƯỚC: thêm một việc mới mà quên khai thì nó bị chối, chứ không
+		   lọt. Ngược lại (danh sách đen) thì quên một dòng là mở một cửa, và cửa đó im lặng. */
+		if ( ! in_array( $viec, self::VIEC_CHAM, true ) && ! self::co_ho_so( $toi ) ) {
+			return array( array( 'loi' => 'Tài khoản ' . ( isset( $toi['name'] ) ? $toi['name'] : '' )
+				. ' (' . ( isset( $toi['role'] ) ? $toi['role'] : '' ) . ') chỉ xem được bảng chấm công. '
+				. 'Việc này thuộc màn Hồ sơ — cần Admin hoặc Quản lý.' ) );
+		}
+
+		if ( 'co' === $viec ) {
+			$r = VHCC_Cham::luu_ghi_chu( $toi, array(
+				'coso'   => isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
+				'ngay'   => isset( $_POST['ngay'] ) ? wp_unslash( $_POST['ngay'] ) : '',
+				'ma_nv'  => isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '',
+				'ho_ten' => isset( $_POST['ho_ten'] ) ? wp_unslash( $_POST['ho_ten'] ) : '',
+				'ghi_chu' => isset( $_POST['ghi_chu'] ) ? wp_unslash( $_POST['ghi_chu'] ) : '',
+			) );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'xong' => 'Đã gắn cờ ' . $r['flagId'] . '. Cờ nằm CẠNH giờ chấm, không đè lên — '
+					. 'giờ trong bảng vẫn nguyên như máy ghi.' ) );
+		}
+
+		if ( 'xu_ly_co' === $viec ) {
+			$r = VHCC_Cham::xu_ly_ghi_chu( $toi,
+				isset( $_POST['flag_id'] ) ? wp_unslash( $_POST['flag_id'] ) : '',
+				isset( $_POST['ket_luan'] ) ? wp_unslash( $_POST['ket_luan'] ) : '' );
+			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
+				: array( 'xong' => 'Đã đánh dấu cờ là xử lý xong. Nội dung cờ giữ nguyên, kết luận nối thêm '
+					. 'vào cuối — còn đó để tra lại về sau.' ) );
+		}
 
 		if ( 'xem_csv' === $viec || 'nap_csv' === $viec ) {
 			$f = self::doc_tep();
@@ -638,7 +705,28 @@ class VHCC_Web {
 			. 'user-select:all;background:#fef3c7;padding:1px 6px;border-radius:5px;color:var(--chu)}'
 			. '.pin{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:4px;'
 			. 'user-select:all;background:#fffbeb;padding:6px 12px;border-radius:8px;display:inline-block}'
-			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}';
+			/* ---- lưới bảng chấm công: 31 cột ngày, phải nhỏ và dày ---- */
+			. 'table.cc{font-size:11.5px}'
+			. 'table.cc th,table.cc td{padding:3px 4px;border:1px solid var(--vien);text-align:center;'
+			. 'white-space:nowrap;vertical-align:middle}'
+			. 'table.cc th.ng{width:34px;min-width:34px;padding:3px 2px}'
+			/* Chủ nhật tô nhạt để đếm tuần bằng mắt — nhìn một tháng mà không có mốc thì đếm mãi. */
+			. 'table.cc th.cn{background:#fef2f2;color:var(--do)}'
+			. 'table.cc th.nay,table.cc td.nay{outline:2px solid var(--xanh);outline-offset:-2px}'
+			. 'table.cc td:first-child{text-align:left;min-width:190px;white-space:normal;line-height:1.3}'
+			. 'table.cc td.o{color:var(--mo);line-height:1.25}'
+			/* Thiếu giờ ra: nền đỏ nhạt. Không dùng MỖI màu chữ — ô còn có chữ "?" để người mù
+			   màu và bản in đen trắng vẫn đọc được. */
+			. 'table.cc td.hong{background:#fef2f2;color:var(--do);font-weight:600}'
+			. 'table.cc td.cco{box-shadow:inset 0 0 0 2px var(--vang)}'
+			. 'table.cc td.tong{font-weight:700;background:#f8fafc}'
+			. '.duoi{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:0 5px;font-size:11px;font-weight:600}'
+			. '.chu-hong{color:var(--do);font-weight:600}.chu-co{color:var(--vang);font-weight:600}'
+			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}'
+			/* In ra giấy: bỏ nền, bỏ nút, để bảng lọt trang ngang. */
+			. '@media print{header,form,.nut{display:none!important}'
+			. 'body{background:#fff}.the{border:0;padding:0;margin:0 0 10px}'
+			. '.cuon{overflow:visible}table.cc{font-size:9px}}';
 	}
 
 	/**
@@ -675,14 +763,19 @@ class VHCC_Web {
 		if ( isset( $_POST['pin'] ) ) {
 			$kq = VHCC_Auth::login( (string) wp_unslash( $_POST['pin'] ) );
 			if ( ! empty( $kq['ok'] ) ) {
-				if ( in_array( (string) $kq['role'], self::VAI_TRO, true ) ) {
+				/* ⚠️ Gác bằng CÙNG danh sách với `user_by_token` (`vai_tro_vao`), không phải
+				   `VAI_TRO`. Hai chỗ gác lệch nhau thì có vai vào được cửa này rồi bị `toi()`
+				   đá ra ở lượt sau — người dùng thấy "đăng nhập xong lại về màn đăng nhập",
+				   không một câu giải thích. Ai vào được thì thấy màn nào là việc của
+				   `trang_chinh`, không phải của cửa này. */
+				if ( in_array( (string) $kq['role'], VHCC_Auth::vai_tro_vao(), true ) ) {
 					self::dat_cookie( $kq['token'] );
 					self::ve( self::url() );
 				}
 				/* PIN ĐÚNG nhưng không đủ quyền: nói rõ, đừng báo "PIN sai" — người ta gõ lại
 				   mười lần rồi tự khoá mình. */
-				$loi = 'Tài khoản ' . $kq['name'] . ' (' . $kq['role'] . ') không mở được trang quản trị. '
-					. 'Trang này chỉ dành cho Admin và Quản lý.';
+				$loi = 'Tài khoản ' . $kq['name'] . ' (' . $kq['role'] . ') không được vào hệ thống chấm công. '
+					. 'Vai trò vào được: ' . implode( ' · ', VHCC_Auth::vai_tro_vao() ) . '.';
 			} else {
 				$loi = isset( $kq['error'] ) ? $kq['error'] : 'PIN không đúng.';
 			}
@@ -691,7 +784,9 @@ class VHCC_Web {
 		echo '<div class="bo" style="max-width:420px;padding-top:56px">';
 		echo '<div class="the">';
 		echo '<h2>Quản trị Chấm Công</h2>';
-		echo '<p class="mo">Đăng nhập bằng PIN chấm công. Chỉ <b>Admin</b> và <b>Quản lý</b> vào được.</p>';
+		echo '<p class="mo">Đăng nhập bằng PIN chấm công. Vai trò vào được: <b>'
+			. esc_html( implode( ' · ', VHCC_Auth::vai_tro_vao() ) ) . '</b>. '
+			. 'Màn <b>Hồ sơ &amp; tài khoản</b> chỉ Admin / Quản lý mở được.</p>';
 		if ( '' !== $loi ) { echo '<div class="bao loi">' . esc_html( $loi ) . '</div>'; }
 
 		/* CHƯA AI ĐĂNG NHẬP ĐƯỢC thì nói thẳng ra, kèm đường vào — đừng để người ta gõ PIN mãi
@@ -752,6 +847,21 @@ class VHCC_Web {
 		$bao = array_merge( self::lay_bao(), (array) $bao );
 		foreach ( $bao as $b ) { self::ve_bao( $b ); }
 
+		/* ------------------------------------------------------------------ chọn màn
+		   Người KHÔNG có quyền hồ sơ chỉ có đúng một màn, nên đừng bày ra thanh chọn một mục rồi
+		   để họ bấm vào một màn sẽ bị chối — vẽ thẳng màn của họ. */
+		$co_hs = self::co_ho_so( $toi );
+		$man   = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
+		if ( ! $co_hs ) { $man = 'cham'; }
+		if ( ! in_array( $man, array( 'cham', 'ho_so' ), true ) ) { $man = 'ho_so'; }
+		if ( $co_hs ) { self::thanh_man( $man ); }
+
+		if ( 'cham' === $man ) {
+			self::the_bang_cham( $ky, $toi );
+			echo '</div></body></html>';
+			return;
+		}
+
 		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
@@ -772,6 +882,255 @@ class VHCC_Web {
 		if ( $la ) { self::the_xoa_het( $ky, $tong ); }
 
 		echo '</div></body></html>';
+	}
+
+	/** Thanh chọn màn. Chỉ vẽ cho người có nhiều hơn một màn — xem `trang_chinh`. */
+	private static function thanh_man( $man ) {
+		$ds = array( 'cham' => 'Bảng chấm công', 'ho_so' => 'Hồ sơ & tài khoản' );
+		echo '<div class="the" style="padding:8px 10px;margin-bottom:14px"><div class="hang" style="gap:8px">';
+		foreach ( $ds as $k => $ten ) {
+			$url = add_query_arg( array( 'man' => $k ), self::url() );
+			echo '<a class="nut' . ( $k === $man ? ' chinh' : '' ) . '" href="' . esc_url( $url ) . '">'
+				. esc_html( $ten ) . '</a>';
+		}
+		echo '</div></div>';
+	}
+
+	/** Cơ sở người này được xem — Admin/Quản lý thấy hết, còn lại thấy cơ sở mình phụ trách. */
+	private static function ds_coso_xem( $toi ) {
+		$vt = isset( $toi['role'] ) ? (string) $toi['role'] : '';
+		if ( 'Admin' === $vt || 'Quản lý' === $vt ) { return VHCC_NhanSu::ds_coso(); }
+		return VHCC_NhanSu::ds_coso_cua( $toi );
+	}
+
+	/* ===========================================================================
+	 *  MÀN BẢNG CHẤM CÔNG
+	 * ---------------------------------------------------------------------------
+	 *  🔴 MÀN NÀY CHỈ ĐỌC GIỜ. Không có một ô nhập giờ nào, và sẽ không bao giờ có.
+	 *  Giờ chấm công chỉ được ghi bởi ĐÚNG HAI đường: cổng nhận từ máy (`VHCC_Nhan`) và trạm
+	 *  chấm công online (`VHCC_Online`). Mở đường thứ ba "để sửa cho nhanh" là mở đường sửa
+	 *  lương bằng tay mà không để lại dấu vết — thấy một ngày sai thì GẮN CỜ: cờ nằm cạnh, giữ
+	 *  lại lý do, và giờ gốc vẫn nguyên để đối chiếu.
+	 *
+	 *  ⚠️ Lưới xếp NGƯỜI theo hàng, NGÀY theo cột — giống hệt sheet `CS_` anh Thắng vẫn nhìn.
+	 *     Đổi sang mỗi lượt một dòng thì đúng về dữ liệu nhưng không ai soi nổi một tháng.
+	 * ======================================================================== */
+	private static function the_bang_cham( $ky, $toi ) {
+		$ds_cs = self::ds_coso_xem( $toi );
+		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
+		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
+		/* Chưa chọn cơ sở mà người này chỉ có ĐÚNG MỘT thì mở luôn — bắt bấm thêm một cái để
+		   chọn thứ duy nhất có là bắt bấm vô ích. */
+		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+
+		echo '<div class="the">';
+		echo '<h2>Bảng chấm công</h2>';
+		echo '<p class="mo">Màn này <b>chỉ đọc</b> giờ chấm công — không có nút nào sửa giờ. '
+			. 'Giờ chỉ vào bằng hai đường: máy chấm công và trạm chấm công online. '
+			. 'Thấy một ngày sai thì <b>gắn cờ</b>: cờ nằm cạnh, không đè lên giờ, và giữ lại lý do.</p>';
+		echo '<form method="get" class="hang" style="margin-top:10px">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="cham">';
+		echo '<div><label for="ccs">Cơ sở</label><select id="ccs" name="ccs">';
+		echo '<option value="">— chọn cơ sở —</option>';
+		foreach ( $ds_cs as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
+				. esc_html( $x ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><label for="cth">Tháng</label><input id="cth" name="cth" type="month" value="'
+			. esc_attr( $th ) . '"></div>';
+		echo '<div><button class="chinh">Xem</button></div>';
+		echo '</form>';
+
+		if ( '' === $cs ) {
+			echo '<p class="mo" style="margin-top:12px">'
+				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
+					: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' )
+				. '</p></div>';
+			return;
+		}
+		echo '</div>';
+
+		$b = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
+		if ( empty( $b['ok'] ) ) {
+			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
+			return;
+		}
+		self::ve_luoi_cham( $b, $cs, $th, $ky, $toi );
+	}
+
+	/** Lưới người × ngày + khối cờ. Tách hàm để phần dựng lưới thử được riêng. */
+	private static function ve_luoi_cham( $b, $cs, $th, $ky, $toi ) {
+		$tt  = (string) $b['thang'];
+		$sn  = (int) gmdate( 't', (int) strtotime( $tt . '-01' ) );
+		$hom_nay = (string) current_time( 'Y-m-d' );
+
+		/* Gom theo NGƯỜI. Khoá là mã + hậu tố: hàng `-CD` (ca đêm) và `-TC` (tăng cường) là
+		   HÀNG RIÊNG trong bảng công, gộp vào hàng chính là mất chỗ để nhìn ra ca đêm. */
+		$nguoi = array();
+		$o     = array();
+		foreach ( (array) $b['hang'] as $r ) {
+			$k = $r['maNV'] . '|' . $r['hauTo'];
+			if ( ! isset( $nguoi[ $k ] ) ) {
+				$nguoi[ $k ] = array( 'ma' => $r['maNV'], 'duoi' => $r['hauTo'], 'ten' => $r['hoTen'] );
+			}
+			if ( '' === $nguoi[ $k ]['ten'] && '' !== $r['hoTen'] ) { $nguoi[ $k ]['ten'] = $r['hoTen']; }
+			$o[ $k ][ $r['ngay'] ] = array( 'vao' => $r['vao'], 'ra' => $r['ra'] );
+		}
+		uasort( $nguoi, function ( $x, $y ) {
+			$c = strcasecmp( $x['ten'], $y['ten'] );
+			return 0 !== $c ? $c : strcmp( $x['duoi'], $y['duoi'] );
+		} );
+
+		/* Cờ theo ô (ngày|mã) — để tô đúng ô chứ không tô cả hàng. */
+		$co_o = array();
+		$cho  = 0;
+		foreach ( (array) $b['co'] as $c ) {
+			$co_o[ $c['ngay'] . '|' . strtolower( (string) $c['ma_nv'] ) ][] = $c;
+			if ( 'Đã xử lý' !== (string) $c['trang_thai'] ) { $cho++; }
+		}
+
+		$thieu = VHCC_Cham::canh_bao_thieu_gio_ra( $toi, $cs, $th );
+
+		echo '<div class="the">';
+		echo '<h2>' . esc_html( $cs ) . ' · tháng ' . esc_html( $tt ) . '</h2>';
+		echo '<p class="mo">' . count( $nguoi ) . ' hàng · ' . count( (array) $b['hang'] ) . ' lượt ngày'
+			. ( $cho ? ' · <b style="color:var(--do)">' . (int) $cho . ' cờ đang chờ</b>' : '' )
+			. ( $thieu ? ' · <b style="color:var(--do)">' . count( $thieu ) . ' ngày thiếu giờ ra</b>' : '' )
+			. '</p>';
+
+		if ( ! $nguoi ) {
+			echo '<p class="mo">Tháng này chưa có lượt chấm công nào ở cơ sở này.</p></div>';
+			return;
+		}
+
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Người</th>';
+		for ( $d = 1; $d <= $sn; $d++ ) {
+			$ngay = $tt . '-' . str_pad( (string) $d, 2, '0', STR_PAD_LEFT );
+			$thu  = (int) gmdate( 'w', (int) strtotime( $ngay ) );
+			echo '<th class="ng' . ( 0 === $thu ? ' cn' : '' ) . ( $ngay === $hom_nay ? ' nay' : '' )
+				. '" title="' . esc_attr( $ngay ) . '">' . (int) $d . '</th>';
+		}
+		echo '<th>Ngày công</th></tr></thead><tbody>';
+
+		foreach ( $nguoi as $k => $ng ) {
+			$dem = 0;
+			echo '<tr><td><b>' . esc_html( $ng['ten'] ? $ng['ten'] : $ng['ma'] ) . '</b>'
+				. '<br><span class="mo">' . esc_html( $ng['ma'] )
+				. ( '' !== $ng['duoi'] ? ' <span class="duoi">' . esc_html( $ng['duoi'] ) . '</span>' : '' )
+				. '</span></td>';
+			for ( $d = 1; $d <= $sn; $d++ ) {
+				$ngay = $tt . '-' . str_pad( (string) $d, 2, '0', STR_PAD_LEFT );
+				$g    = isset( $o[ $k ][ $ngay ] ) ? $o[ $k ][ $ngay ] : null;
+				$dsc  = isset( $co_o[ $ngay . '|' . strtolower( $ng['ma'] ) ] )
+					? $co_o[ $ngay . '|' . strtolower( $ng['ma'] ) ] : array();
+				$lop  = 'o';
+				$chu  = '';
+				$mo   = $ngay;
+				if ( $g ) {
+					$dem++;
+					$vao = substr( (string) $g['vao'], 0, 5 );
+					$ra  = substr( (string) $g['ra'], 0, 5 );
+					/* Có vào mà KHÔNG có ra: tô đỏ và ghi "?" — quên check-out là mất công của
+					   chính ngày đó, phải nhìn thấy ngay chứ không để tới cuối tháng. */
+					if ( '' === $ra ) { $lop .= ' hong'; $ra = '?'; }
+					$chu = esc_html( $vao ) . '<br>' . esc_html( $ra );
+					$mo  = $ngay . ' · vào ' . $vao . ' · ra ' . ( '?' === $ra ? 'CHƯA CÓ' : $ra );
+				}
+				if ( $dsc ) {
+					$lop .= ' cco';
+					foreach ( $dsc as $c ) {
+						$mo .= "\n[" . $c['trang_thai'] . '] ' . $c['ghi_chu'];
+					}
+				}
+				if ( $ngay === $hom_nay ) { $lop .= ' nay'; }
+				echo '<td class="' . esc_attr( $lop ) . '" title="' . esc_attr( $mo ) . '">' . $chu . '</td>';
+			}
+			echo '<td class="tong">' . (int) $dem . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo" style="margin-top:8px">Ô <span class="chu-hong">đỏ</span> = có giờ vào mà '
+			. 'chưa có giờ ra. Ô viền <span class="chu-co">cam</span> = đang có cờ (rê chuột đọc nội dung). '
+			. 'Cột <b>Ngày công</b> đếm số ngày CÓ chấm, chưa phải số công tính lương.</p>';
+		echo '</div>';
+
+		self::the_co( $b, $cs, $tt, $ky, $thieu );
+	}
+
+	/** Khối cờ: gắn mới · danh sách đang chờ · ngày thiếu giờ ra. */
+	private static function the_co( $b, $cs, $tt, $ky, $thieu ) {
+		$o_loc = self::o_loc();
+
+		if ( $thieu ) {
+			echo '<div class="the"><h2>Ngày thiếu giờ ra (' . count( $thieu ) . ')</h2>';
+			echo '<p class="mo">Có giờ vào mà không có giờ ra — hệ thống <b>không tự điền</b>: điền là '
+				. 'bịa ra số giờ làm cho một ngày, mà số đó thành tiền. Gắn cờ để còn tra lại.</p>';
+			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Họ tên</th>'
+				. '<th>Giờ vào</th></tr></thead><tbody>';
+			foreach ( $thieu as $x ) {
+				echo '<tr><td>' . esc_html( $x['ngay'] ) . '</td><td>' . esc_html( $x['maNV'] )
+					. ( '' !== $x['hauTo'] ? ' <span class="duoi">' . esc_html( $x['hauTo'] ) . '</span>' : '' )
+					. '</td><td>' . esc_html( $x['hoTen'] ) . '</td><td>'
+					. esc_html( substr( (string) $x['vao'], 0, 5 ) ) . '</td></tr>';
+			}
+			echo '</tbody></table></div></div>';
+		}
+
+		echo '<div class="the"><h2>Gắn cờ cần kiểm</h2>';
+		echo '<p class="mo">Cờ KHÔNG đụng vào giờ đã ghi. Nó chỉ ghi lại <b>ngày nào, của ai, nghi gì</b> '
+			. 'để người duyệt lương biết mà tra.</p>';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="co">' . $o_loc;
+		echo '<div class="luoi">';
+		echo '<div><label for="co_ngay">Ngày *</label><input id="co_ngay" name="ngay" type="date" required '
+			. 'min="' . esc_attr( $tt . '-01' ) . '" max="' . esc_attr( $tt . '-' . gmdate( 't', (int) strtotime( $tt . '-01' ) ) ) . '"></div>';
+		echo '<div><label for="co_ma">Mã NV</label><input id="co_ma" name="ma_nv" placeholder="MNNV…"></div>';
+		echo '<div><label for="co_ten">Họ tên</label><input id="co_ten" name="ho_ten"></div>';
+		echo '</div>';
+		echo '<p><label for="co_nd">Cần kiểm gì *</label>'
+			. '<textarea id="co_nd" name="ghi_chu" rows="2" required style="width:100%" '
+			. 'placeholder="VD: quên check-out, giờ ra 23:50 nhưng cửa hàng đóng 22:00"></textarea></p>';
+		echo '<p><button class="chinh">Gắn cờ</button></p></form></div>';
+
+		$cho = array();
+		$xong = array();
+		foreach ( (array) $b['co'] as $c ) {
+			if ( 'Đã xử lý' === (string) $c['trang_thai'] ) { $xong[] = $c; } else { $cho[] = $c; }
+		}
+		echo '<div class="the"><h2>Cờ tháng này (' . count( (array) $b['co'] ) . ')</h2>';
+		if ( ! $b['co'] ) {
+			echo '<p class="mo">Chưa có cờ nào.</p></div>';
+			return;
+		}
+		echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Người</th><th>Nội dung</th>'
+			. '<th>Người gắn</th><th>Trạng thái</th><th></th></tr></thead><tbody>';
+		foreach ( array_merge( $cho, $xong ) as $c ) {
+			$da = ( 'Đã xử lý' === (string) $c['trang_thai'] );
+			echo '<tr><td>' . esc_html( $c['ngay'] ) . '</td>';
+			echo '<td>' . esc_html( $c['ho_ten'] ? $c['ho_ten'] : $c['ma_nv'] )
+				. ( $c['ho_ten'] && $c['ma_nv'] ? '<br><span class="mo">' . esc_html( $c['ma_nv'] ) . '</span>' : '' )
+				. '</td>';
+			echo '<td style="white-space:pre-wrap;max-width:420px">' . esc_html( $c['ghi_chu'] ) . '</td>';
+			echo '<td>' . esc_html( $c['nguoi_gan'] ) . '<br><span class="mo">'
+				. esc_html( substr( (string) $c['tao_luc'], 0, 16 ) ) . '</span></td>';
+			echo '<td><span class="' . ( $da ? 'co' : 'chua' ) . '">' . esc_html( $c['trang_thai'] ) . '</span></td>';
+			echo '<td>';
+			if ( ! $da ) {
+				echo '<form method="post" style="margin:0">'
+					. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+					. '<input type="hidden" name="viec" value="xu_ly_co">'
+					. '<input type="hidden" name="flag_id" value="' . esc_attr( $c['flag_id'] ) . '">'
+					. $o_loc
+					. '<input name="ket_luan" placeholder="kết luận" style="width:150px">'
+					. ' <button>Xong</button></form>';
+			} else {
+				echo '<span class="mo">' . esc_html( substr( (string) $c['xu_ly_luc'], 0, 16 ) ) . '</span>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div></div>';
 	}
 
 	private static function ve_bao( $b ) {

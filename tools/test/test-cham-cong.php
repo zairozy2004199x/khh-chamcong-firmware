@@ -4999,6 +4999,20 @@ VHCC_NguoiDung::luu( '', 'Chị Kế Toán', '468024', 'Kế toán cá nhân', '
 VHCC_NapCsv::nap( "Mã NV,Họ tên,Cửa hàng,CCCD,PIN đăng nhập\n"
 	. "W1,Nguyễn Thu Hiền,JP_HCM,049304007231,170412\n", false );
 
+/**
+ * Gọi một phương thức `private static` để thử THẲNG cái chốt, không phải thử qua màn hình.
+ *
+ * 🔴 Vì sao cần: chốt quyền của `lam_viec` là thứ đứng giữa một tài khoản Kế toán và lệnh xoá
+ * sạch sổ nhân sự. Thử nó qua `phuc_vu()` thì lượt POST kết thúc bằng một cú chuyển hướng, và
+ * cái mình đọc được chỉ là trang sau đó — chối hay không chối đều ra một màn hình gần giống
+ * nhau. Gọi thẳng thì đọc được đúng câu trả lời của chốt.
+ */
+function vhcc_goi_rieng( $lop, $ham, $args ) {
+	$m = new ReflectionMethod( $lop, $ham );
+	$m->setAccessible( true );
+	return $m->invokeArgs( null, $args );
+}
+
 function vhcc_web( $pin_vai_tro = null, $post = array(), $get = array() ) {
 	$_POST = $post; $_GET = $get; $_COOKIE = array();
 	if ( null !== $pin_vai_tro ) {
@@ -5020,20 +5034,61 @@ t( 'không lộ CCCD', strpos( $h_w, '049304007231' ) === false );
 t( 'không lộ mã nhân viên', strpos( $h_w, 'W1' ) === false );
 t( 'trang quản trị chặn công cụ tìm kiếm', strpos( $h_w, 'noindex' ) !== false );
 
-/* 🔴 PIN ĐÚNG mà không đủ quyền: nói rõ lý do, KHÔNG báo "PIN sai" — báo sai thì người ta gõ
-   lại mười lần rồi tự khoá mình. */
-$h_w = vhcc_web( null, array( 'pin' => '468024' ) );
-t( 'Kế toán KHÔNG vào được trang quản trị', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
-t( 'và được nói rõ vì sao, không phải "PIN sai"',
-	strpos( $h_w, 'chỉ dành cho Admin và Quản lý' ) !== false, $h_w );
 $h_w = vhcc_web( null, array( 'pin' => '999999' ) );
 t( 'PIN sai thì vẫn ở màn đăng nhập', strpos( $h_w, 'name="pin"' ) !== false );
 
-/* 🔴 CHỐT THẬT NẰM Ở PHIÊN, KHÔNG PHẢI Ở FORM ĐĂNG NHẬP. Kế toán đăng nhập được cổng
-   /cham-cong (đúng thiết kế) nên họ CÓ token thật trong tay. Mang token đó sang trang quản trị
-   là phải bị chối — nếu chỉ gác ở form đăng nhập thì cái cổng này hở toang mà nhìn vẫn kín. */
+/* ===========================================================================
+ *  HAI CỬA, KHÔNG PHẢI MỘT  —  đổi 25/08/2026
+ * ---------------------------------------------------------------------------
+ *  Trước đây trang này chỉ có màn HỒ SƠ, nên cửa VÀO chính là cửa hồ sơ: không phải Admin /
+ *  Quản lý thì bị đá thẳng về màn đăng nhập.
+ *
+ *  Nay có thêm màn BẢNG CHẤM CÔNG — thứ Cửa hàng trưởng và Kế toán phải xem, và chỉ xem CƠ SỞ
+ *  CỦA MÌNH. Nên cửa tách làm hai: VÀO thì rộng (theo `vai_tro_vao`), MÀN HỒ SƠ thì vẫn hẹp
+ *  đúng như cũ.
+ *
+ *  🔴 Chỗ nguy hiểm nằm ở đây: mọi việc của màn hồ sơ (nạp .csv đè cả sổ nhân sự, cấp PIN, đổi
+ *     vai trò, xoá hết) trước kia được giữ bởi CỬA VÀO. Nới cửa mà quên gác `lam_viec` là mở
+ *     toang đúng những thứ đó cho một người chỉ đáng được xem bảng công. Mấy phép dưới canh
+ *     đúng chuyện ấy — và canh bằng cách GỬI THẬT một lượt POST, không phải chỉ nhìn màn hình.
+ * ======================================================================== */
 $h_w = vhcc_web( '468024' );
-t( 'Kế toán mang PHIÊN THẬT sang cũng bị chối', strpos( $h_w, 'name="pin"' ) !== false, $h_w );
+t( 'Kế toán mang phiên thật thì VÀO ĐƯỢC (để xem bảng công)',
+	strpos( $h_w, 'name="pin"' ) === false, $h_w );
+t( 'và thấy màn Bảng chấm công', strpos( $h_w, 'Bảng chấm công' ) !== false );
+t( 'nhưng KHÔNG thấy một mẩu hồ sơ nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false, $h_w );
+t( 'không thấy CCCD', strpos( $h_w, '049304007231' ) === false );
+t( 'không thấy thanh chọn màn (họ chỉ có một màn)',
+	strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) === false, $h_w );
+/* Ép `man=ho_so` trên thanh địa chỉ cũng KHÔNG mở được — nếu chỉ ẩn cái nút thì đây là cửa hở. */
+$h_w = vhcc_web( '468024', array(), array( 'man' => 'ho_so' ) );
+t( 'gõ tay ?man=ho_so cũng không mở được hồ sơ',
+	strpos( $h_w, 'Nguyễn Thu Hiền' ) === false, $h_w );
+
+/* 🔴 GỬI THẬT một lượt POST việc hồ sơ bằng phiên Kế toán. Đây mới là chốt: màn hình có thể ẩn
+   nút, nhưng người ta dựng được form ở đâu cũng gửi lên được. */
+VHCC_Auth::mo_khoa();
+$tok_kt = VHCC_Auth::login( '468024' );
+VHCC_Auth::mo_khoa();
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_kt['token'];
+$ky_kt = VHCC_Web::chu_ky( $tok_kt['token'] );
+foreach ( array( 'nap_csv', 'xoa_het', 'doi_nguon', 'khai_admin', 'nap_tk', 'sua_hs', 'doi_ma' ) as $v_kt ) {
+	$_POST = array( 'viec' => $v_kt, 'ky' => $ky_kt );
+	$r_kt = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( $v_kt, array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán cá nhân', 'coso' => 'TUTU_BT' ) ) );
+	t( 'Kế toán POST việc "' . $v_kt . '" bị chối',
+		is_array( $r_kt ) && isset( $r_kt[0]['loi'] ) && strpos( $r_kt[0]['loi'], 'Admin hoặc Quản lý' ) !== false,
+		$r_kt );
+}
+$_POST = array(); $_COOKIE = array();
+
+/* Admin thì vẫn đủ hai màn, y như trước. */
+$h_w = vhcc_web( '246813' );
+t( 'Admin thấy thanh chọn màn', strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) !== false, $h_w );
+t( 'Admin mặc định vào màn hồ sơ', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
+$h_w = vhcc_web( '246813', array(), array( 'man' => 'cham' ) );
+t( 'Admin mở được màn Bảng chấm công', strpos( $h_w, 'chỉ đọc</b> giờ chấm công' ) !== false, $h_w );
+t( 'màn bảng công KHÔNG có ô nhập giờ nào',
+	! preg_match( '/name="(gio_vao|gio_ra|vao|ra)"/', $h_w ), $h_w );
 t( 'và không thấy hồ sơ nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
 VHCC_Auth::mo_khoa();
 $kq_kt = VHCC_Auth::login( '468024' );
