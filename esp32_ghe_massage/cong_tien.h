@@ -111,10 +111,13 @@ private:
   /** Đọc mềm wire B (8E1, 4800) tìm byte 0x02 trong toMs. Đồng bộ, chỉ dùng lúc bơm. */
   bool _cho02(uint32_t toMs) {
     uint32_t het = millis() + toMs;
+    bool thayGi = false;
     while (millis() < het) {
       int b = _docByteB(het);
+      if (b >= 0) { thayGi = true; Serial.printf("[TIEN] wireB rx %02X\n", b); }  // soi IO21 doc gi
       if (b == 0x02) return true;
     }
+    if (!thayGi) Serial.println("[TIEN] wireB IM (IO21 khong bat duoc canh nao) — kiem day/chia muc");
     return false;
   }
   int _docByteB(uint32_t hetMs) {
