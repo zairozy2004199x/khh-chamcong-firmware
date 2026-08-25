@@ -464,14 +464,48 @@ t( 'không nhánh GPS nào tắt nút chấm công',
 
 /* ---- Bản đồ nhúng ---- */
 t( 'có bản đồ nhúng', strpos( $tram_js2, 'veBanDo' ) !== false );
-/* 🔴 KHÔNG DÙNG IFRAME. Trên máy anh Thắng khung nhúng của OSM ra đúng một ô xám
-   "đã từ chối kết nối" — máy chủ trả tiêu đề chặn nhúng, và trình duyệt bỏ luôn khung, không
-   có cách nào bắt lỗi bằng JavaScript để hiện thứ khác thay. Ô ảnh thì bắt được `onerror`. */
-t( 'dùng ô ảnh của OpenStreetMap', strpos( $tram_js2, 'tile.openstreetmap.org/' ) !== false );
+/* 🔴 BẢN ĐỒ ĐÃ HỎNG HAI LẦN, cả hai vì trình duyệt nói chuyện thẳng với máy chủ người khác:
+     1. <iframe> openstreetmap.org  -> "đã từ chối kết nối" (họ chặn nhúng bằng tiêu đề, và
+        trình duyệt bỏ luôn khung — JavaScript không bắt lỗi được để hiện thứ khác thay).
+     2. tải thẳng ô ảnh tile.openstreetmap.org -> ô trắng, một ô hiện dấu hỏi ảnh vỡ. Chính
+        sách của họ KHÔNG cho một trang bất kỳ móc thẳng vào máy chủ ô ảnh — họ chặn, và đúng.
+   Nay máy chủ mình tải hộ một lần rồi nhớ lại. */
+t( 'ô ảnh lấy từ máy chủ MÌNH', strpos( $tram_js2, 'function urlO' ) !== false
+	&& strpos( $tram_js2, "'viec=o&z='" ) !== false );
+t( 'KHÔNG móc thẳng vào máy chủ ô ảnh của OSM',
+	strpos( $tram_js2, 'tile.openstreetmap.org' ) === false );
 t( 'KHÔNG nhúng bằng iframe nữa', strpos( $tram_js2, 'export/embed.html' ) === false );
-t( 'ô ảnh tải hỏng thì ẩn cả bản đồ', strpos( $tram_js2, 'function banDoHong' ) !== false );
-t( 'và có gắn onerror vào từng ô', strpos( $tram_js2, 'onerror="banDoHong(this)"' ) !== false );
+t( 'ô ảnh tải hỏng thì ẩn cả bản đồ', strpos( $tram_js2, 'function nghenBanDo' ) !== false );
+
+/* 🔴 LỖI THẬT ĐÃ GẶP: `onerror="banDoHong(this)"` trong HTML chạy ở phạm vi TOÀN CỤC, mà cả
+   tệp JavaScript nằm trong một hàm bọc kín — nên nó gọi một cái tên không tồn tại, ném lỗi, và
+   bản đồ hỏng vẫn nằm nguyên với chín ô trắng. Không có gì đỏ, chỉ có một thứ đáng lẽ phải
+   biến mất thì lại còn đó. */
+t( 'KHÔNG dùng thuộc tính onerror trong HTML', strpos( $tram_js2, 'onerror="' ) === false );
+t( 'gắn bằng addEventListener', strpos( $tram_js2, "addEventListener('error'" ) !== false );
+t( 'và gọi SAU khi đã chèn HTML',
+	preg_match( "/veBanDo\([^\n]*\)[\s\S]{0,400}nghenBanDo\(\);/", $tram_js2 ) === 1 );
 t( 'ghi công OpenStreetMap', strpos( $tram_vt, '© OpenStreetMap' ) !== false );
+
+/* Cổng ô ảnh: KHOÁ, không phải cửa chuyển tiếp tự do. */
+t( 'chỉ nhận mức phóng đang dùng',
+	VHCC_BanDo::Z_MIN >= 13 && VHCC_BanDo::Z_MAX <= 18 );
+t( 'ô trong TP.HCM được nhận', VHCC_BanDo::trong_vung( 16, 52464, 30837 ) );
+t( 'ô ngoài Việt Nam bị chối', ! VHCC_BanDo::trong_vung( 16, 100, 100 ) );
+t( 'toạ độ ô âm bị chối', ! VHCC_BanDo::trong_vung( 16, -1, 5 ) );
+t( 'toạ độ ô vượt mức phóng bị chối', ! VHCC_BanDo::trong_vung( 2, 99, 99 ) );
+$src_bd = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-bando.php' );
+t( 'địa chỉ đích dựng từ ba SỐ, không nhận mẩu URL nào từ ngoài',
+	strpos( $src_bd, "'https://tile.openstreetmap.org/' . \$z . '/' . \$x . '/' . \$y" ) !== false );
+t( 'khai danh tính khi đi tải (chính sách của OSM)',
+	strpos( $src_bd, "'User-Agent' =>" ) !== false );
+t( 'nhớ lại ô đã tải', strpos( $src_bd, 'file_put_contents( $tep' ) !== false );
+t( 'chỉ nhận đúng PNG, không nhớ trang quảng cáo của nhà mạng',
+	strpos( $src_bd, '"\x89PNG" !== substr' ) !== false );
+t( 'mất mạng thì dùng tạm bản cũ quá hạn',
+	preg_match( "/is_wp_error[\s\S]{0,600}is_readable\( \\\$tep \)[\s\S]{0,120}self::tra/", $src_bd ) === 1 );
+t( 'hỏng thì trả 404/502 chứ KHÔNG trả ảnh trắng',
+	strpos( $src_bd, 'self::chet( 502 )' ) !== false );
 /* 🔴 KHÔNG được có khoá API nào trong trang: trang này ai xem nguồn cũng đọc được. */
 foreach ( array( 'key=AIza', 'maps/embed/v1', 'output=embed' ) as $cam_bd ) {
 	/* Soi MÃ đã bỏ chú thích, không soi lời giải thích: chính chú thích trong tram.php nhắc
@@ -481,8 +515,10 @@ foreach ( array( 'key=AIza', 'maps/embed/v1', 'output=embed' ) as $cam_bd ) {
 }
 t( 'bản đồ tải trễ (3G ở cơ sở không tải khi chưa cuộn tới)',
 	strpos( $tram_js2, 'loading="lazy"' ) !== false );
-t( 'chỉ gửi tên miền sang máy chủ bản đồ, không gửi đường dẫn trang',
-	strpos( $tram_js2, 'referrerpolicy="origin"' ) !== false );
+/* Không cần referrerpolicy nữa: ô ảnh nay lấy từ chính máy chủ mình, toạ độ nhân viên không
+   rời khỏi khmatrix.com. */
+t( 'trang KHÔNG gọi thẳng ra máy chủ ngoài nào cho bản đồ',
+	strpos( $tram_js2, 'openstreetmap.org' ) === false );
 /* Chỉ dựng khung bản đồ KHI ĐÃ CÓ toạ độ — không nạp sẵn lúc mở trang. */
 t( 'bản đồ chỉ dựng trong nhánh đã có toạ độ',
 	preg_match( "/GPS_TRANG === 'co'[\s\S]{0,2600}veBanDo\(/", $tram_js2 ) === 1 );

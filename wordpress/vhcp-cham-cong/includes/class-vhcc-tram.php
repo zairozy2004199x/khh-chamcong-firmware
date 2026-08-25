@@ -111,6 +111,23 @@ class VHCC_Tram {
 	}
 
 	public static function cong( $viec ) {
+		/* Ô ảnh bản đồ — xử TRƯỚC `nocache_headers()`, và đó là điểm mấu chốt.
+		   `nocache_headers()` đặt `Pragma: no-cache` cùng `Expires` quá khứ; để nó chạy rồi mới
+		   trả ảnh thì trình duyệt KHÔNG nhớ ô ảnh nào cả, và mỗi lần mở trang là chín lượt hỏi
+		   lại máy chủ — đúng thứ mà việc nhớ đệm sinh ra để tránh. Mấy tiêu đề ấy đúng cho JSON
+		   của lượt chấm công, sai cho một mảnh bản đồ đường phố.
+
+		   Không đòi đăng nhập: thẻ <img> không mang phiên theo được, mà nội dung cũng chỉ là
+		   bản đồ công khai. Phần gác nằm ở VHCC_BanDo — chỉ mức phóng đang dùng, chỉ vùng Việt
+		   Nam, và địa chỉ đích dựng từ ba số nguyên đã kiểm. */
+		if ( 'o' === $viec ) {
+			VHCC_BanDo::phuc_vu(
+				isset( $_GET['z'] ) ? (int) $_GET['z'] : 0,
+				isset( $_GET['x'] ) ? (int) $_GET['x'] : -1,
+				isset( $_GET['y'] ) ? (int) $_GET['y'] : -1
+			);
+		}
+
 		nocache_headers();
 		$b = self::than();
 

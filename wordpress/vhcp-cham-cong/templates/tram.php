@@ -350,6 +350,7 @@ function veViTri(){
 			/* Vẫn giữ link ra Google Maps: bản đồ ở đây đủ để thấy "mình đang ở đâu", còn khi
 			   cần chỉ đường hay xem ảnh phố thì mở ứng dụng bản đồ thật vẫn hơn. */
 			+ lk;
+		nghenBanDo();   /* phải gọi SAU khi đã chèn HTML — trước đó chưa có thẻ nào để nghe */
 		return;
 	}
 
@@ -426,9 +427,7 @@ function veBanDo(lat, lng, acc){
 			var tx = ((x + dx) % n + n) % n;      /* vòng quanh quả đất theo chiều ngang */
 			var ty = y + dy;
 			if(ty < 0 || ty >= n){ h += '<i class="o"></i>'; continue; }   /* quá cực, ô trống */
-			h += '<img class="o" alt="" referrerpolicy="origin" loading="lazy"'
-			   + ' src="https://tile.openstreetmap.org/' + z + '/' + tx + '/' + ty + '.png"'
-			   + ' onerror="banDoHong(this)">';
+			h += '<img class="o" alt="" loading="lazy" src="' + esc(urlO(z, tx, ty)) + '">';
 		}
 	}
 	h += '</div><b class="cham"></b>'
@@ -436,40 +435,39 @@ function veBanDo(lat, lng, acc){
 	return h;
 }
 
-/* Ô ảnh tải hỏng (mạng chặn, OSM quá tải) -> ẩn cả bản đồ. Thà không có bản đồ còn hơn một
-   khung lỗ chỗ ô trắng — nhìn như trang bị hỏng, mà thứ người ta cần là cái nút chấm công. */
-function banDoHong(img){
-	var b = img.closest ? img.closest('.bando') : null;
-	if(b){ b.style.display = 'none'; }
+/* Ô ảnh lấy từ MÁY CHỦ MÌNH, không lấy thẳng từ openstreetmap.org.
+   Lấy thẳng đã thử và hỏng: ô trắng, một ô hiện dấu hỏi ảnh vỡ. Chính sách dùng ô ảnh của
+   OpenStreetMap không cho một trang bất kỳ móc thẳng vào máy chủ ô ảnh của họ — họ chặn, và
+   họ đúng. Nay máy chủ mình tải hộ một lần rồi nhớ lại; xem VHCC_BanDo. */
+function urlO(z, x, y){
+	return CFG.cong + (CFG.cong.indexOf('?') >= 0 ? '&' : '?')
+	     + 'viec=o&z=' + z + '&x=' + x + '&y=' + y;
 }
 
 /**
- * Xin vị trí — CHỜ GPS KHOÁ, không lấy phát đầu rồi thôi.
+ * Ô ảnh tải hỏng -> ẩn cả bản đồ.
  *
- * =========================================================================================
- * 🔴 ĐÂY LÀ GỐC CỦA "±200000m" TRÊN MÁY ANH THẮNG
- * =========================================================================================
- * `getCurrentPosition` trả về NGAY cái đang có sẵn: thường là vị trí đoán theo địa chỉ mạng,
- * sai số hàng chục tới hàng trăm kilômét. Chip GPS cần vài giây tới vài chục giây mới bắt đủ
- * vệ tinh; ai chờ được thì có toạ độ chính xác vài mét, ai lấy phát đầu thì có một cặp số
- * trông rất thật mà vô dụng.
+ * 🔴 GẮN BẰNG addEventListener, KHÔNG DÙNG onerror="..." TRONG HTML.
+ *    Lỗi thật vừa gặp: cả tệp JavaScript này nằm trong một hàm bọc kín `(function(){…})()`,
+ *    nên `banDoHong` KHÔNG có mặt ở phạm vi toàn cục. Mà thuộc tính `onerror` trong HTML thì
+ *    chạy ở đúng phạm vi toàn cục ấy — nó gọi một cái tên không tồn tại, ném lỗi, và cái việc
+ *    cần làm (ẩn bản đồ) không bao giờ chạy. Kết quả trên máy anh Thắng: khung bản đồ nằm đó
+ *    với chín ô trắng và một dấu hỏi, trông như trang hỏng.
  *
- * `watchPosition` bắn liên tục và số sai lệch NHỎ DẦN. Giữ lấy lần đo tốt nhất, dừng khi đã
- * đủ tốt hoặc hết giờ chờ. `maximumAge: 0` là bắt buộc — để mặc định thì trình duyệt lại đưa
- * đúng cái vị trí cũ theo mạng ra dùng.
+ *    Đây là loại lỗi im lặng đúng nghĩa: không có gì đỏ, chỉ có một thứ đáng lẽ phải biến mất
+ *    thì lại nằm nguyên.
  *
- * ⚠️ Vẫn KHÔNG CHẶN chấm công. Hết 20 giây mà chỉ có vị trí thô thì dùng vị trí thô, có nhãn
- *    đàng hoàng — người ta đang đứng chờ để vào ca, không đợi vệ tinh được.
+ * ⚠️ Ẩn khi có BẤT KỲ ô nào hỏng, không đợi hỏng hết. Một bản đồ thủng lỗ chỗ còn khó hiểu
+ *    hơn là không có bản đồ.
  */
-var GPS_THEO = null;     /* id của watchPosition đang chạy */
-var GPS_HEN  = null;     /* hẹn giờ dừng chờ */
-var GPS_DU   = 50;       /* mét — đủ tốt thì dừng sớm, khỏi hao pin */
-var GPS_CHO  = 20000;    /* ms — chờ tối đa */
-
-function thoiTheoGps(){
-	if(GPS_THEO !== null && navigator.geolocation){ navigator.geolocation.clearWatch(GPS_THEO); }
-	GPS_THEO = null;
-	if(GPS_HEN){ clearTimeout(GPS_HEN); GPS_HEN = null; }
+function nghenBanDo(){
+	var ds = document.querySelectorAll('.bando img.o');
+	for(var i = 0; i < ds.length; i++){
+		ds[i].addEventListener('error', function(){
+			var b = this.parentNode && this.parentNode.parentNode;
+			if(b && b.classList && b.classList.contains('bando')){ b.style.display = 'none'; }
+		});
+	}
 }
 
 function xinGps(){
