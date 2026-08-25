@@ -29,6 +29,8 @@ class VCG_Trang {
 		add_action( 'template_redirect', array( __CLASS__, 'phuc_vu' ) );
 		add_action( 'wp_ajax_vcg_xem_truoc', array( __CLASS__, 'ajax_xem_truoc' ) );
 		add_action( 'wp_ajax_vcg_nap', array( __CLASS__, 'ajax_nap' ) );
+		add_action( 'wp_ajax_vcg_chon', array( __CLASS__, 'ajax_chon' ) );
+		add_action( 'wp_ajax_vcg_bang', array( __CLASS__, 'ajax_bang' ) );
 	}
 
 	public static function luat() {
@@ -162,6 +164,55 @@ class VCG_Trang {
 			   sửa đúng là sửa Sheet chứ không phải sửa bảng sau. */
 			'canh_bao' => $canh_bao,
 		) );
+	}
+
+	/* ============================ MÀN BẢNG CÔNG ============================ */
+
+	/** Kiểm nonce + quyền XEM. Trả mảng người, hoặc thoát bằng lỗi. */
+	private static function cua_xem() {
+		if ( ! check_ajax_referer( 'vcg_nap', 'nonce', false ) ) {
+			self::tra( array( 'ok' => false, 'loi' => 'Phiên đã hết hạn, tải lại trang.' ), 403 );
+		}
+		$nguoi = VCG_Nguoi::hien_tai();
+		if ( ! VCG_Quyen::xem( $nguoi['vai'] ) ) {
+			self::tra( array( 'ok' => false, 'loi' => 'Tài khoản này không xem được bảng chấm công.',
+				'vai' => $nguoi['vai'] ), 403 );
+		}
+		return $nguoi;
+	}
+
+	/** Danh sách cơ sở + tháng để dựng hai ô chọn. Đã LỌC theo phạm vi của người đang xem. */
+	public static function ajax_chon() {
+		$nguoi = self::cua_xem();
+		$ds    = array();
+		foreach ( VCG_DB::ds_co_so() as $r ) {
+			/* 🔴 LỌC Ở MÁY CHỦ. Cửa hàng trưởng chỉ phụ trách vài gian; gửi cả danh sách xuống
+			   rồi để giao diện tự giấu là dữ liệu đã nằm trong máy người ta rồi. */
+			if ( ! VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $r['co_so'] ) ) { continue; }
+			$ds[] = array( 'ten' => $r['co_so'], 'so' => (int) $r['so'] );
+		}
+		$co_so = isset( $_POST['co_so'] ) ? sanitize_text_field( wp_unslash( $_POST['co_so'] ) ) : '';
+		$thang = array();
+		if ( '' !== $co_so && VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $co_so ) ) {
+			$thang = VCG_DB::ds_thang( $co_so );
+		}
+		self::tra( array( 'ok' => true, 'coSo' => $ds, 'thang' => $thang ) );
+	}
+
+	/** Bảng công một cơ sở một tháng. */
+	public static function ajax_bang() {
+		$nguoi = self::cua_xem();
+		$co_so = isset( $_POST['co_so'] ) ? sanitize_text_field( wp_unslash( $_POST['co_so'] ) ) : '';
+		$thang = isset( $_POST['thang'] ) ? sanitize_text_field( wp_unslash( $_POST['thang'] ) ) : '';
+		if ( '' === $co_so || '' === $thang ) {
+			self::tra( array( 'ok' => false, 'loi' => 'Chọn cơ sở và tháng.' ), 400 );
+		}
+		if ( ! VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $co_so ) ) {
+			self::tra( array( 'ok' => false, 'loi' => 'Bạn không phụ trách cơ sở ' . $co_so . '.' ), 403 );
+		}
+		$b = VCG_DB::bang_cong( $co_so, $thang );
+		if ( null === $b ) { self::tra( array( 'ok' => false, 'loi' => 'Tháng không hợp lệ (cần dạng 2026-08).' ), 400 ); }
+		self::tra( array( 'ok' => true ) + $b );
 	}
 
 	public static function ajax_nap() {

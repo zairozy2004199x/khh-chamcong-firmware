@@ -80,12 +80,34 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	.pb{font-size:12px;font-weight:600;color:var(--mo);background:#eef0f3;
 		border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px}
 	.khoa{opacity:.55}
+	.tabs{display:flex;gap:6px;margin:0 0 16px}
+	.tab{font:inherit;font-size:14px;font-weight:600;border:1px solid var(--vien);background:var(--the);
+		color:var(--mo);border-radius:8px;padding:8px 14px;cursor:pointer}
+	.tab.dang{background:var(--xanh);border-color:var(--xanh);color:#fff}
+	/* Bảng công: cột NGÀY hẹp và NHIỀU — phải cuộn ngang trong khung riêng, không để cả trang
+	   trôi ngang. Cột tên GHIM TRÁI, nếu không thì cuộn tới ngày 20 là không biết dòng của ai. */
+	.bcw{overflow-x:auto;border:1px solid var(--vien);border-radius:10px;margin-top:14px}
+	table.bc{border-collapse:separate;border-spacing:0;font-size:12px;white-space:nowrap}
+	table.bc th,table.bc td{border-bottom:1px solid var(--vien);border-right:1px solid var(--vien);padding:5px 7px}
+	table.bc thead th{background:#f0f3f7;position:sticky;top:0;z-index:2;font-weight:600;color:var(--mo)}
+	table.bc .ten{position:sticky;left:0;background:var(--the);z-index:3;text-align:left;min-width:170px;
+		box-shadow:1px 0 0 var(--vien)}
+	table.bc thead .ten{z-index:4;background:#f0f3f7}
+	table.bc td.o{text-align:center;font-variant-numeric:tabular-nums}
+	table.bc td.cn{background:#fafafa}
+	table.bc td.thieu{background:#fffbef;color:#8a6100;font-weight:600}
+	table.bc td.trong{color:#cbd5e1}
+	table.bc td.tong{font-weight:700;background:#f6f9f6}
+	.bc-tt{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--mo)}
+	.bc-tt b{color:var(--chu);font-size:16px}
+	@media print{ .tabs,.hang,.phu,#man-nap{display:none!important}
+		.bcw{overflow:visible;border:0} table.bc{font-size:10px} }
 </style>
 </head>
 <body>
 <div class="bao">
 
-	<h1>Chấm công — nạp dữ liệu <span class="pb">b<?php echo esc_html( VCG_PHIEN_BAN ); ?></span></h1>
+	<h1>Chấm công <span class="pb">b<?php echo esc_html( VCG_PHIEN_BAN ); ?></span></h1>
 	<!-- 🔴 SỐ PHIÊN BẢN HIỆN NGAY TRÊN TRANG. Cài đè plugin mà tệp cũ còn nằm lại là chuyện có
 	     thật, và khi đó mọi con số đều lệch một cách không giải thích được — mất cả buổi để đoán.
 	     In số phiên bản ra là một giây biết ngay đang chạy bản nào. -->
@@ -97,6 +119,30 @@ $ajax      = admin_url( 'admin-ajax.php' );
 			Chưa đăng nhập.
 		<?php endif; ?>
 	</p>
+
+	<!-- Hai màn, một trang. Đổi màn bằng JS chứ không tải lại — người ta nạp xong là muốn xem
+	     ngay bảng, tải lại trang là mất luôn kết quả nạp vừa hiện. -->
+	<div class="tabs">
+		<button class="tab dang" data-man="bang">📅 Bảng chấm công</button>
+		<button class="tab" data-man="nap">⬆️ Nạp dữ liệu</button>
+	</div>
+
+	<div id="man-bang">
+		<div class="the">
+			<h2>Bảng chấm công theo cơ sở</h2>
+			<p class="gt">Chọn cơ sở và tháng. Mỗi dòng một người, mỗi cột một ngày —
+			ô ghi <b>giờ vào → giờ ra</b>. Ô vàng là <b>thiếu giờ ra</b>.</p>
+			<div class="hang">
+				<select id="b-coso" style="min-width:230px"><option value="">— chọn cơ sở —</option></select>
+				<select id="b-thang" style="min-width:150px"><option value="">— tháng —</option></select>
+				<input type="text" id="b-tim" placeholder="Lọc theo tên hoặc mã NV…" style="min-width:200px">
+				<button class="chinh" id="b-in" style="display:none">🖨 In / PDF</button>
+			</div>
+			<div id="b-kq"></div>
+		</div>
+	</div>
+
+	<div id="man-nap" style="display:none">
 
 <?php if ( ! $xem_duoc ) : ?>
 	<div class="the">
@@ -164,6 +210,7 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	</div>
 
 <?php endif; ?>
+	</div><!-- /man-nap -->
 </div>
 
 <script>
@@ -180,6 +227,150 @@ $ajax      = admin_url( 'admin-ajax.php' );
 		});
 	}
 	function chu(n){ return (n===null||n===undefined) ? '—' : thoat(n); }
+	/* Tệp này vốn gọi thẳng document.getElementById ở mọi chỗ. Màn bảng công dùng nhiều lần nên
+	   đặt một tên ngắn — và trả về null an toàn khi phần tử chưa có (màn kia đang ẩn). */
+	function el(id){ return document.getElementById(id); }
+
+	/* ===================== MÀN BẢNG CHẤM CÔNG =====================
+	   Dữ liệu về là PHẲNG (mỗi lượt một dòng); màn này xoay nó thành bảng NGANG như Sheet mà
+	   anh Thắng đang dùng — người ta đọc quen kiểu đó rồi, đổi cách trình bày là phải học lại. */
+	var BANG=null;
+
+	function hhmm(g){
+		if (g===null||g===undefined) return '';
+		g=Number(g); if(isNaN(g)) return '';
+		/* Ca đêm đã được trải phẳng (+86400) lúc nạp, nên giờ có thể vượt 24h. Đưa về trong ngày
+		   để đọc, chứ không phải để tính — phần tính giờ dùng số giây gốc. */
+		var t=((g%86400)+86400)%86400;
+		var h=Math.floor(t/3600), p=Math.floor((t%3600)/60);
+		return (h<10?'0':'')+h+':'+(p<10?'0':'')+p;
+	}
+	/** Số giờ của một lượt. Giờ ra nhỏ hơn giờ vào = qua nửa đêm -> cộng 24h, không thì ra ÂM. */
+	function soGiay(vao,ra){
+		if(vao===null||vao===undefined||ra===null||ra===undefined) return null;
+		vao=Number(vao); ra=Number(ra);
+		if(ra<vao) ra+=86400;
+		return ra-vao;
+	}
+	function gioNgan(giay){
+		if(giay===null) return '';
+		var h=Math.floor(giay/3600), p=Math.round((giay%3600)/60);
+		if(p===60){ h++; p=0; }
+		return h+'h'+(p?(' '+p+'p'):'');
+	}
+
+	function goiB(viec, them, xong){
+		var d=new FormData();
+		d.append('action', viec); d.append('nonce', NONCE);
+		for(var k in (them||{})) d.append(k, them[k]);
+		fetch(AJAX,{method:'POST',body:d,credentials:'same-origin'})
+			.then(function(r){return r.json();}).then(xong)
+			.catch(function(){ el('b-kq').innerHTML='<div class="bao-loi">Không gọi được máy chủ.</div>'; });
+	}
+
+	function napChon(coso, xong){
+		goiB('vcg_chon', coso?{co_so:coso}:{}, function(r){
+			if(!r||!r.ok){ el('b-kq').innerHTML='<div class="bao-loi">'+chu(r&&r.loi)+'</div>'; return; }
+			if(!coso){
+				var s1=el('b-coso');
+				s1.innerHTML='<option value="">— chọn cơ sở —</option>'+r.coSo.map(function(x){
+					return '<option value="'+thoat(x.ten)+'">'+thoat(x.ten)+' ('+x.so+' lượt)</option>';
+				}).join('');
+				if(!r.coSo.length) el('b-kq').innerHTML='<div class="bao-loi">Chưa có dữ liệu chấm công nào. Sang tab <b>Nạp dữ liệu</b> để nạp CSV.</div>';
+			}
+			var s2=el('b-thang');
+			s2.innerHTML='<option value="">— tháng —</option>'+(r.thang||[]).map(function(t){
+				return '<option value="'+thoat(t)+'">'+thoat(t)+'</option>'; }).join('');
+			if(typeof xong==='function') xong(r);
+		});
+	}
+
+	function taiBang(){
+		var cs=el('b-coso').value, th=el('b-thang').value;
+		if(!cs||!th){ BANG=null; el('b-kq').innerHTML=''; el('b-in').style.display='none'; return; }
+		el('b-kq').innerHTML='<p class="chan">Đang đọc…</p>';
+		goiB('vcg_bang', {co_so:cs, thang:th}, function(r){
+			if(!r||!r.ok){ el('b-kq').innerHTML='<div class="bao-loi">'+chu(r&&r.loi)+'</div>'; return; }
+			BANG=r; veBang();
+		});
+	}
+
+	function veBang(){
+		if(!BANG){ el('b-kq').innerHTML=''; return; }
+		var q=(el('b-tim').value||'').trim().toLowerCase();
+		var nam=+BANG.thang.slice(0,4), thg=+BANG.thang.slice(5,7);
+		var ngays=[];
+		for(var d=1; d<=BANG.so_ngay; d++){
+			var dd=(d<10?'0':'')+d;
+			ngays.push({s:BANG.thang+'-'+dd, d:d, thu:new Date(nam, thg-1, d).getDay()});
+		}
+		var THU=['CN','T2','T3','T4','T5','T6','T7'];
+
+		var h='<div class="bcw"><table class="bc"><thead><tr><th class="ten">Nhân viên</th>';
+		ngays.forEach(function(x){
+			h+='<th'+(x.thu===0?' style="background:#eef1f5"':'')+'>'+x.d+'<br><span style="font-weight:400;font-size:10px">'+THU[x.thu]+'</span></th>';
+		});
+		h+='<th>Ngày công</th><th>Tổng giờ</th></tr></thead><tbody>';
+
+		var soNguoi=0, tongCaThang=0;
+		for(var ma in BANG.nguoi){
+			var ten=BANG.nguoi[ma]||'';
+			if(q && ten.toLowerCase().indexOf(q)<0 && ma.toLowerCase().indexOf(q)<0) continue;
+			soNguoi++;
+			var oc=BANG.o[ma]||{}, ngayCong=0, tong=0;
+			h+='<tr><td class="ten">'+thoat(ten)+'<br><span style="color:#94a3b8;font-size:10.5px">'+thoat(ma)+'</span></td>';
+			ngays.forEach(function(x){
+				var o=oc[x.s];
+				if(!o){ h+='<td class="o trong'+(x.thu===0?' cn':'')+'">·</td>'; return; }
+				ngayCong++;
+				var g=soGiay(o.vao,o.ra);
+				if(g!==null) tong+=g;
+				/* 🔴 THIẾU GIỜ RA phải NHÌN THẤY. Ô chỉ có giờ vào nghĩa là người ta quên bấm ra
+				   — để nó trông y hệt ô đủ là tới cuối tháng mới phát hiện, lúc đó không ai nhớ
+				   hôm đó về mấy giờ nữa. */
+				var thieu=(o.vao!==null&&o.ra===null);
+				h+='<td class="o'+(thieu?' thieu':'')+(x.thu===0?' cn':'')+'" title="'+thoat(x.s)+'">'
+					+ (o.vao!==null?hhmm(o.vao):'—')
+					+ '<br><span style="font-size:10.5px;color:'+(thieu?'#8a6100':'#64748b')+'">'
+					+ (o.ra!==null?hhmm(o.ra):'thiếu ra')+'</span></td>';
+			});
+			tongCaThang+=tong;
+			h+='<td class="o tong">'+ngayCong+'</td><td class="o tong">'+thoat(gioNgan(tong))+'</td></tr>';
+		}
+		h+='</tbody></table></div>';
+		if(!soNguoi) h='<div class="bao-loi">Không có ai khớp bộ lọc.</div>';
+
+		el('b-kq').innerHTML=h
+			+'<div class="bc-tt"><div><b>'+soNguoi+'</b> người</div>'
+			+'<div><b>'+thoat(gioNgan(tongCaThang)||'0h')+'</b> tổng giờ cả bảng</div>'
+			+'<div>Cơ sở <b>'+thoat(BANG.co_so)+'</b> · tháng <b>'+thoat(BANG.thang)+'</b></div></div>';
+		el('b-in').style.display=soNguoi?'':'none';
+	}
+
+	function noiBang(){
+		if(!el('b-coso')) return;
+		el('b-coso').addEventListener('change', function(){
+			napChon(el('b-coso').value, function(){ taiBang(); });
+		});
+		el('b-thang').addEventListener('change', taiBang);
+		el('b-tim').addEventListener('input', veBang);
+		el('b-in').addEventListener('click', function(){ window.print(); });
+		napChon('');
+	}
+
+	/* Đổi màn. Giữ cả hai màn trong DOM, chỉ ẩn/hiện — nạp xong tải lại trang là mất luôn kết
+	   quả nạp vừa hiện ra. */
+	function noiTab(){
+		Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(b){
+			b.addEventListener('click', function(){
+				var m=b.getAttribute('data-man');
+				Array.prototype.forEach.call(document.querySelectorAll('.tab'), function(x){
+					x.classList.toggle('dang', x===b); });
+				el('man-bang').style.display=(m==='bang')?'':'none';
+				el('man-nap').style.display=(m==='nap')?'':'none';
+			});
+		});
+	}
 	function gio(g){
 		if (g === null || g === undefined) return '—';
 		var h = Math.floor(g/3600), p = Math.floor((g%3600)/60);
@@ -338,6 +529,8 @@ $ajax      = admin_url( 'admin-ajax.php' );
 
 	noi('cs');
 	noi('nv');
+	noiTab();
+	noiBang();
 })();
 </script>
 </body>

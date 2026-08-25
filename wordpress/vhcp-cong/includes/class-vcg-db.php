@@ -87,6 +87,89 @@ class VCG_DB {
 		return ( null !== $giay && $giay <= $moc_dem ) ? ( (int) $giay + 86400 ) : $giay;
 	}
 
+	/* ==========================================================================================
+	 *  ĐỌC BẢNG CÔNG — một cơ sở, một tháng
+	 * ========================================================================================== */
+
+	/** Các cơ sở đang CÓ dữ liệu chấm công, kèm số lượt. Dùng dựng ô chọn cơ sở. */
+	public static function ds_co_so() {
+		global $wpdb;
+		$t = self::bang( 'ngay' );
+		return $wpdb->get_results( "SELECT co_so, COUNT(*) AS so FROM $t GROUP BY co_so ORDER BY co_so ASC", ARRAY_A );
+	}
+
+	/** Các tháng đang có dữ liệu của một cơ sở, mới nhất trước. */
+	public static function ds_thang( $co_so ) {
+		global $wpdb;
+		$t = self::bang( 'ngay' );
+		return $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT DATE_FORMAT(ngay,'%%Y-%%m') FROM $t WHERE co_so=%s ORDER BY 1 DESC", $co_so ) );
+	}
+
+	/**
+	 * Bảng công một cơ sở một tháng.
+	 *
+	 * Trả về: 'ngay_dau'/'ngay_cuoi', 'nguoi' => [ ma_nv => ho_ten ], 'o' => [ ma_nv => [ ngay => lượt ] ].
+	 *
+	 * 🔴 ĐỌC ĐÚNG MỘT LƯỢT rồi gom trong PHP. Truy vấn từng người từng ngày là 30 ngày × 25
+	 *    người = 750 lệnh cho một lần mở màn hình — chậm tới mức không ai dùng, và chậm kiểu
+	 *    đó thì người ta quay về mở Google Sheet.
+	 */
+	public static function bang_cong( $co_so, $thang ) {
+		global $wpdb;
+		$t = self::bang( 'ngay' );
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { return null; }
+		$dau  = $thang . '-01';
+		$cuoi = gmdate( 'Y-m-t', strtotime( $dau ) );
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ngay, ma_nv, ho_ten, vao, ra, anh_vao, anh_ra
+			   FROM $t WHERE co_so=%s AND ngay BETWEEN %s AND %s
+			  ORDER BY ma_nv ASC, ngay ASC", $co_so, $dau, $cuoi ), ARRAY_A );
+
+		$nguoi = array();
+		$o     = array();
+		foreach ( (array) $rows as $r ) {
+			$ma = (string) $r['ma_nv'];
+			/* Tên lấy theo lượt MỚI NHẤT có tên — người đổi tên giữa tháng thì hiện tên mới,
+			   chứ không phải tên của ngày đầu tháng. */
+			if ( '' !== trim( (string) $r['ho_ten'] ) ) { $nguoi[ $ma ] = (string) $r['ho_ten']; }
+			elseif ( ! isset( $nguoi[ $ma ] ) ) { $nguoi[ $ma ] = ''; }
+			$o[ $ma ][ (string) $r['ngay'] ] = array(
+				'vao'     => ( null === $r['vao'] ) ? null : (int) $r['vao'],
+				'ra'      => ( null === $r['ra'] ) ? null : (int) $r['ra'],
+				'anh_vao' => (string) $r['anh_vao'],
+				'anh_ra'  => (string) $r['anh_ra'],
+			);
+		}
+		/* Xếp theo TÊN, không theo mã. Người ta tìm nhau bằng tên. */
+		uasort( $nguoi, function ( $a, $b ) { return strcoll( $a, $b ); } );
+
+		return array(
+			'co_so'    => (string) $co_so,
+			'thang'    => (string) $thang,
+			'ngay_dau' => $dau,
+			'ngay_cuoi'=> $cuoi,
+			'so_ngay'  => (int) gmdate( 't', strtotime( $dau ) ),
+			'nguoi'    => $nguoi,
+			'o'        => $o,
+		);
+	}
+
+	/**
+	 * Số giờ làm của một lượt, tính bằng GIÂY. null nếu chưa đủ hai mốc.
+	 *
+	 * 🔴 CA ĐÊM: giờ ra nhỏ hơn giờ vào nghĩa là đã qua nửa đêm -> cộng 86400. Không cộng thì
+	 *    ca 22:00–06:00 ra số ÂM, và bảng tổng tháng trừ mất 16 tiếng của người ta.
+	 *    Hàm thuần, thử được bằng con số — xem tools/test/kiem-nap-cong.php.
+	 */
+	public static function so_gio( $vao, $ra ) {
+		if ( null === $vao || null === $ra ) { return null; }
+		$vao = (int) $vao; $ra = (int) $ra;
+		if ( $ra < $vao ) { $ra += 86400; }
+		return $ra - $vao;
+	}
+
 	/** Lệnh dựng bảng. Gọi qua dbDelta nên phải theo đúng khuôn WordPress đòi. */
 	public static function lenh_tao( $charset ) {
 		$nv    = self::bang( 'nv' );

@@ -408,6 +408,24 @@ la( 'ca đêm dài 8 tiếng', 28800, $kd['ra'] - $kd['vao'] );
 $sai = VCG_DB::gop_gio( null, null, 79200, 21600 );
 la( 'quên trải trục -> sai 16 tiếng', 57600, $sai['ra'] - $sai['vao'] );
 
+/* ======================= SỐ GIỜ MỘT LƯỢT (BẢNG CÔNG) ======================= */
+/* 🔴 Đây là con số đi thẳng vào bảng lương. Ca đêm là chỗ duy nhất dễ sai, và sai thì ra số ÂM
+   — bảng tổng tháng TRỪ mất mười mấy tiếng của người ta thay vì cộng vào. */
+echo "— số giờ một lượt —\n";
+function gio( $v, $r ) { return VCG_DB::so_gio( $v, $r ); }
+la( 'ca ngày 08:00-17:00 = 9 tiếng', 9 * 3600, gio( 8 * 3600, 17 * 3600 ) );
+la( 'ca 08:30-17:15',                8 * 3600 + 45 * 60, gio( 8 * 3600 + 30 * 60, 17 * 3600 + 15 * 60 ) );
+/* Ca đêm: ra 06:00 hôm sau, vào 22:00 hôm trước. Không cộng 24h là ra -16 tiếng. */
+la( 'CA ĐÊM 22:00-06:00 = 8 tiếng',  8 * 3600, gio( 22 * 3600, 6 * 3600 ) );
+la( 'CA ĐÊM 23:30-07:30 = 8 tiếng',  8 * 3600, gio( 23 * 3600 + 30 * 60, 7 * 3600 + 30 * 60 ) );
+that( 'ca đêm KHÔNG BAO GIỜ ra số âm', gio( 22 * 3600, 6 * 3600 ) > 0 );
+la( 'thiếu giờ ra -> null',          null, gio( 8 * 3600, null ) );
+la( 'thiếu giờ vào -> null',         null, gio( null, 17 * 3600 ) );
+la( 'trống cả hai -> null',          null, gio( null, null ) );
+la( 'vào bằng ra -> 0',              0, gio( 8 * 3600, 8 * 3600 ) );
+/* Lượt đã được trải phẳng lúc nạp (giờ ra > 86400) thì trừ thẳng, không cộng thêm lần nữa. */
+la( 'giờ đã trải phẳng: 22:00 -> 30:00', 8 * 3600, gio( 22 * 3600, 30 * 3600 ) );
+
 /* ======================= QUYỀN ======================= */
 echo "— quyền —\n";
 require __DIR__ . '/../../wordpress/vhcp-cong/includes/class-vcg-quyen.php';
