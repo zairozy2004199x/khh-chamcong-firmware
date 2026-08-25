@@ -301,6 +301,12 @@ volatile bool g_giuKenh = false;
 unsigned long waitUntil = 0;
 unsigned long lastPayPoll = 0;
 unsigned long runUntil = 0;
+/* HẸN bắt đầu đếm giờ: ghế hiện đồng hồ ngay khi nhận tiền nhưng ~QR_TRE_MS sau
+   mới ĐẾM. Nên hoãn khởi động đồng hồ trên ESP/web đúng ngần đó cho khớp (không
+   chặn màn). Áp cho cả tiền mặt/QR/từ xa. */
+uint32_t g_henLuc  = 0;    // millis sẽ startRunning (0 = không hẹn)
+int      g_henPhut = 0;
+char     g_henSrc  = 0;
 volatile char g_srcCode = 0;          // 0=none 'q'=QR 'c'=tiền mặt 'r'=lệnh từ web
 volatile bool g_statusDirty = true;
 unsigned long lastNhipMs = 0;
@@ -1486,6 +1492,17 @@ void startRunning(int minutes){
   state = ST_RUNNING; screenDrawn=false; lastShownSec=-1; g_statusDirty=true;
 }
 
+/* HẸN đếm giờ: ghế nhận tiền -> hiện đồng hồ nhưng ~QR_TRE_MS sau mới ĐẾM. Hoãn
+   startRunning đúng ngần đó cho khớp ghế (không chặn màn). Đang chạy sẵn thì cộng
+   giờ NGAY (không hoãn — chỉ khởi động mới có khoảng dừng của ghế). */
+void henChay(int minutes, char src){
+  if(minutes <= 0) return;
+  if(state == ST_RUNNING){ g_srcCode = src; startRunning(minutes); return; }
+  g_henPhut = minutes; g_henSrc = src; g_henLuc = millis() + QR_TRE_MS;
+  if(g_henLuc == 0) g_henLuc = 1;   // 0 = "không hẹn", tránh trùng
+  Serial.printf("[HEN] doi %dms roi moi dem gio: %d phut (src %c)\n", (int)QR_TRE_MS, minutes, src);
+}
+
 /**
  * Một đợt tiền mặt nạp xong -> chạy/cộng giờ ghế.
  *
@@ -1648,8 +1665,7 @@ static void mdbCreditVnd(long vnd){
   int minutes = (PRICE_VND>0) ? (int)((vnd*(long)MINUTES)/PRICE_VND) : 0;
   Serial.printf("[MDB] +%ld d -> %d phut\n", vnd, minutes);
   if(minutes <= 0) return;
-  if(state==ST_RUNNING){ runUntil += (unsigned long)minutes*60000UL; g_statusDirty=true; Serial.println("[MDB] +gio (dang chay)"); }
-  else { g_srcCode='c'; startRunning(minutes); }
+  henChay(minutes, 'c');   // hoãn đếm giờ cho khớp (đang chạy thì cộng ngay). Tiền mặt cũng qua ghế -> cũng có khoảng dừng.
   portENTER_CRITICAL(&g_mux);
   g_pendingCashLog += vnd;
   /* ⚠️ PHẢI có mã ổn định cho đợt này. Để rỗng thì máy chủ tự sinh mã từ (giờ + tiền + nội
@@ -1785,6 +1801,12 @@ void loop(){
   congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
+  /* Tới giờ hẹn -> bắt đầu đếm (đã đợi QR_TRE_MS cho khớp lúc ghế thật sự đếm). */
+  if(g_henLuc && (int32_t)(millis() - g_henLuc) >= 0){
+    uint32_t h = g_henLuc; g_henLuc = 0; (void)h;
+    g_srcCode = g_henSrc; startRunning(g_henPhut);
+  }
+
   if(g_remoteStop){ g_remoteStop=false;
     if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false;
       g_runTotalVnd=0; setAcceptorEnabled(true); g_statusDirty=true; screenDrawn=false;
@@ -1795,8 +1817,7 @@ void loop(){
        chỉ đóng relay (không nối gì) nên phải BƠM tiền quy đổi từ số phút vào ghế. */
     long vnd = (MINUTES > 0) ? (long)m * PRICE_VND / MINUTES : 0;
     congTien.bom(vnd);
-    if(state != ST_RUNNING) delay(QR_TRE_MS);   // đợi ghế khởi động xong rồi mới đếm giờ
-    g_srcCode='r'; startRunning(m);
+    henChay(m, 'r');       // hoãn đếm giờ QR_TRE_MS cho khớp lúc ghế thật sự đếm
     Serial.printf("[CMD] -> da MO may %d phut (bom %ld d vao ghe)\n", m, vnd);
   }
 
@@ -1811,8 +1832,8 @@ void loop(){
     /* QR đã trả: GIẢ LÀM ICT bơm khung "có tiền" vào ghế -> ghế tự chạy đúng chương
        trình của nó (Hướng 1). startRunning() bên dưới chỉ để MÀN đếm ngược cho khớp. */
     congTien.bom(paid);
-    if(state != ST_RUNNING) delay(QR_TRE_MS);   // đợi ghế khởi động xong rồi mới đếm giờ cho khớp
-    g_srcCode='q'; g_runTotalVnd += paid; updateAcceptor(); startRunning(mins);
+    g_runTotalVnd += paid; updateAcceptor();
+    henChay(mins, 'q');    // hoãn đếm giờ QR_TRE_MS cho khớp lúc ghế thật sự đếm
     return;
   }
 
