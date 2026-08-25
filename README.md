@@ -95,6 +95,11 @@ Cắm USB, gõ `QUYTRINH` — nó chạy tuần tự các bước nghiệm thu v
 ⚠️ **Chân OE của TXS0108E có trở kéo xuống bên trong — để hở là cả mạch TẮT**, không byte nào
 qua được và không có dấu hiệu báo lỗi nào. Phải nối OE lên 3,3V. Đây là chỗ vấp kinh điển.
 
+Chân lấy nguyên khối `D32 D33 D25 D26 D27` — năm chân liền nhau ở hàng trái DevKit 30 chân, ngay
+trên GND: đếm không nhầm, kẹp que đo không chạm nhau. Cả năm đều không dính boot, không dính
+flash, không bị PSRAM chiếm. Hộp POSH QR **cố ý dùng chung cặp 32/33** cho phía bo ghế, nên nạp
+qua nạp lại giữa hai firmware không phải đấu lại dây.
+
 ## Phát hành
 
 Mỗi lần đẩy code lên nhánh `main`, GitHub Actions tự biên dịch và tạo bản phát hành.

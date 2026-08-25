@@ -36,23 +36,41 @@
 #define FW_VERSION "posh-qr 2026-08-25a (UART bo ghe + phong thi nghiem tin hieu)"
 
 /* ============================================================================
- *  CHÂN CẮM — sửa cho khớp cách đấu dây thực tế
- *  ⚠️ Đọc phần "CHỌN CHÂN" ở đầu ict_ghe.h trước khi đổi. Có mấy chân đổi vào là
- *     ESP32 không boot được nữa, mà triệu chứng chỉ là "cắm điện không lên".
+ *  CHÂN CẮM — CHỌN CHO DỄ CẮM DỄ ĐO, VÌ ĐÂY LÀ MẠCH TEST
+ * ----------------------------------------------------------------------------
+ *  Trên DevKit ESP32 30 chân, hàng bên TRÁI đếm từ giữa xuống có đúng năm chân
+ *  nằm liền nhau:   D32  D33  D25  D26  D27   — rồi tới D14 D12 D13 GND.
+ *  Lấy nguyên khối đó: đếm không nhầm, kẹp que đo không chạm nhau, và GND thì
+ *  nằm ngay dưới cùng hàng nên khỏi vòng dây sang bên kia bo.
+ *
+ *  Cả năm chân đều AN TOÀN: không quyết định kiểu boot, không dính flash, không
+ *  bị PSRAM chiếm, và đều xuất được (không phải loại chỉ vào được).
+ *
+ *  ⚠️ NHỮNG CHÂN ĐỪNG BAO GIỜ LẤY CHO UART, kể cả khi làm mạch thật sau này:
+ *      GPIO 6..11    dính flash — dùng là chip không boot.
+ *      GPIO 34..39   CHỈ VÀO được, không làm chân TX được.
+ *      GPIO 1, 3     là cổng USB (Serial0). Lấy là mất luôn màn hình log.
+ *      GPIO 0,2,5,12,15  quyết định kiểu boot. Thiết bị bên kia kéo mấy chân đó
+ *                    lúc cắm điện là ESP32 không khởi động. Riêng GPIO12 bị kéo
+ *                    lên còn làm chip đổi flash sang 1,8V — coi như hỏng bo.
+ *      GPIO 16, 17   an toàn trên bo WROOM, nhưng bo WROVER thì PSRAM chiếm mất.
+ *                    Mạch test hay mượn bo bất kỳ nên tránh luôn cho chắc.
  * ========================================================================== */
-#define CHAN_ICT_RX    16      // ESP32 nhận  <- TX bo ghế
-#define CHAN_ICT_TX    17      // ESP32 gửi   -> RX bo ghế
-#define CHAN_QR_RX     26      // ESP32 nhận  <- TX module quét mã
-#define CHAN_QR_TX     27      // ESP32 gửi   -> RX module quét mã
+/* ⚠️ CỐ Ý dùng ĐÚNG cặp chân phía bo ghế mà firmware cầu nghe lén (esp32_cau_ict)
+   dùng: 32/33. Nhờ vậy nạp qua nạp lại giữa hai firmware mà KHÔNG phải đấu lại dây
+   — mà mỗi lần tháo lắp lại dây là một lần có cơ hội cắm nhầm. */
+#define CHAN_ICT_RX    32      // ESP32 nhận  <- TX bo ghế
+#define CHAN_ICT_TX    33      // ESP32 gửi   -> RX bo ghế
+#define CHAN_QR_RX     25      // ESP32 nhận  <- TX module quét mã
+#define CHAN_QR_TX     26      // ESP32 gửi   -> RX module quét mã
 #define CHAN_QR_KICH   -1      // chân TRIG của module quét, -1 = module tự quét liên tục
-#define CHAN_COI       32      // còi báo (loại còi có mạch dao động sẵn: cấp điện là kêu)
-#define CHAN_DEN_XANH  33      // đèn báo mở ghế thành công
-#define CHAN_DEN_DO    22      // đèn báo mã hỏng
+#define CHAN_COI       22      // còi báo (loại có mạch dao động sẵn: cấp điện là kêu)
+#define CHAN_DEN_XANH  21      // đèn báo mở ghế thành công
+#define CHAN_DEN_DO    19      // đèn báo mã hỏng
 #define CHAN_NUT       0       // nút BOOT sẵn trên bo: giữ lúc cắm điện -> vào cầu nối UART
 
 /* Chân điều khiển con đệm HT245 nằm trên đường UART của bo ICT. Để -1 nếu không đấu
-   dây tới nó. Xem khối "BO CÓ CHIP ĐỆM HT245" ở đầu ict_ghe.h — nhất là cái bẫy
-   ngưỡng vào 3,5V của họ 74HC khi chạy 5V. */
+   dây tới nó. Xem khối "BO CÓ CHIP ĐỆM HT245" ở đầu ict_ghe.h. */
 #define CHAN_HT245_OE  -1      // -> chân 19 (OE) của HT245; kéo CAO = thả nổi đầu ra cho ESP32 tự đẩy
 #define CHAN_HT245_DIR -1      // -> chân 1  (DIR) của HT245
 

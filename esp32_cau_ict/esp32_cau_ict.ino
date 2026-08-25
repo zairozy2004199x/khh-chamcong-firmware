@@ -22,8 +22,8 @@
  *
  *  ─── ĐẤU DÂY ───────────────────────────────────────────────────────────────
  *    Phía ICT L70            Phía GHẾ
- *    ESP32 GPIO26 ← TX L70   ESP32 GPIO16 ← TX ghế     (qua TXS0108E, phía LV)
- *    ESP32 GPIO27 → RX L70   ESP32 GPIO17 → RX ghế
+ *    ESP32 GPIO25 ← TX L70   ESP32 GPIO32 ← TX ghế     (qua TXS0108E, phía A/3,3V)
+ *    ESP32 GPIO26 → RX L70   ESP32 GPIO33 → RX ghế
  *    GND chung HẾT: ESP32, cả hai mạch TXS0108E, L70, bo ghế.
  *
  *  ⚠️ TXS0108E — CHÂN OE. Đây là chỗ vấp kinh điển, và nó IM LẶNG hoàn toàn.
@@ -49,13 +49,34 @@
 
 #define FW_VERSION "cau-ict 2026-08-25a (nghe len 2 chieu ICT L70 <-> ghe)"
 
-/* ---- CHÂN CẮM ---- */
-#define CHAN_ICT_RX   26      // ESP32 nhận  <- TX của ICT L70
-#define CHAN_ICT_TX   27      // ESP32 gửi   -> RX của ICT L70
-#define CHAN_GHE_RX   16      // ESP32 nhận  <- TX của bo ghế
-#define CHAN_GHE_TX   17      // ESP32 gửi   -> RX của bo ghế
+/* ============================================================================
+ *  CHÂN CẮM — CHỌN CHO DỄ CẮM DỄ ĐO, VÌ ĐÂY LÀ MẠCH TEST
+ * ----------------------------------------------------------------------------
+ *  Trên DevKit ESP32 30 chân, hàng bên TRÁI đếm từ giữa xuống có đúng năm chân
+ *  nằm liền nhau:   D32  D33  D25  D26  D27   — rồi tới D14 D12 D13 GND.
+ *  Lấy nguyên khối đó: đếm không nhầm, kẹp que đo không chạm nhau, và GND thì
+ *  nằm ngay dưới cùng hàng nên khỏi vòng dây sang bên kia bo.
+ *
+ *  Cả năm chân đều AN TOÀN: không quyết định kiểu boot, không dính flash, không
+ *  bị PSRAM chiếm, và đều xuất được (không phải loại chỉ vào được).
+ *
+ *  ⚠️ NHỮNG CHÂN ĐỪNG BAO GIỜ LẤY CHO UART, kể cả khi làm mạch thật sau này:
+ *      GPIO 6..11    dính flash — dùng là chip không boot.
+ *      GPIO 34..39   CHỈ VÀO được, không làm chân TX được.
+ *      GPIO 1, 3     là cổng USB (Serial0). Lấy là mất luôn màn hình log.
+ *      GPIO 0,2,5,12,15  quyết định kiểu boot. Thiết bị bên kia kéo mấy chân đó
+ *                    lúc cắm điện là ESP32 không khởi động. Riêng GPIO12 bị kéo
+ *                    lên còn làm chip đổi flash sang 1,8V — coi như hỏng bo.
+ *      GPIO 16, 17   an toàn trên bo WROOM, nhưng bo WROVER thì PSRAM chiếm mất.
+ *                    Mạch test hay mượn bo bất kỳ nên tránh luôn cho chắc.
+ * ========================================================================== */
+#define CHAN_ICT_RX   25      // ESP32 nhận  <- TX của ICT L70
+#define CHAN_ICT_TX   26      // ESP32 gửi   -> RX của ICT L70
+#define CHAN_GHE_RX   32      // ESP32 nhận  <- TX của bo ghế
+#define CHAN_GHE_TX   33      // ESP32 gửi   -> RX của bo ghế
 #define CHAN_OE_ICT   -1      // -> OE của TXS0108E phía L70; -1 = đã nối cứng lên 3,3V
 #define CHAN_OE_GHE   -1      // -> OE của TXS0108E phía ghế; -1 = đã nối cứng lên 3,3V
+// GPIO 27 để trống làm chân dự phòng — dùng cho OE nếu muốn ESP32 tự bật/tắt mạch chuyển mức.
 
 #define BAUD_MAC_DINH 9600
 #define NGHI_MS       15      // dây im ngần này = hết một khung (ở 9600 một byte ~1ms)
@@ -221,7 +242,7 @@ void inTrangThai() {
   if (g_soIct == 0 && g_soGhe == 0)
     Serial.println("  ⚠️ CHUA NHAN DUOC BYTE NAO tu ca hai ben. Xem buoc 1-3 cua QUYTRINH.");
   else if (g_soIct == 0)
-    Serial.println("  ⚠️ Phia L70 im. Kiem TX cua L70 co vao GPIO26 khong, va OE cua mach ben do.");
+    Serial.println("  ⚠️ Phia L70 im. Kiem TX cua L70 co vao GPIO25 khong, va OE cua mach ben do.");
   else if (g_soGhe == 0)
     Serial.println("  ⚠️ Phia ghe im. Binh thuong neu bo ghe chi NGHE ma khong noi lai —\n"
                    "     dung the thi thay hen dut day: xem ghi chu ve chan DIR cua HT245.");
@@ -290,10 +311,10 @@ void quyTrinh() {
     Serial.println("⚠️ Chi co L70 noi, ghe im. Hai kha nang:");
     Serial.println("   - bo ghe von chi NGHE, khong tra loi (rat co the — con HT245 chi co MOT chan");
     Serial.println("     DIR cho ca 8 kenh nen hai duong qua no bi ep cung mot chieu);");
-    Serial.println("   - hoac duong ve chua dau dung. Kiem TX cua ghe -> GPIO16.");
+    Serial.println("   - hoac duong ve chua dau dung. Kiem TX cua ghe -> GPIO32.");
     Serial.println("   Neu la kha nang dau thi VAN LAM DUOC: chi can phat lai dung cai L70 phat.");
   } else if (dIct == 0) {
-    Serial.println("⚠️ Chi co ghe noi, L70 im. Kiem TX cua L70 -> GPIO26, va OE mach phia do.");
+    Serial.println("⚠️ Chi co ghe noi, L70 im. Kiem TX cua L70 -> GPIO25, va OE mach phia do.");
   } else {
     Serial.println("✅ CA HAI CHIEU DEU CHAY. Day la cai can nhat: gio cu bo tien vao L70 vai lan,");
     Serial.println("   chep lai khung hai ben trao doi, roi phat lai dung nhu vay la mo duoc ghe.");
