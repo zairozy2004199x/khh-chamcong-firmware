@@ -5116,14 +5116,19 @@
    * ⚠️ GIÁ TRỊ LƯU VẪN LÀ TÊN THƯỜNG GỌI, KHÔNG ĐỔI. Đây chỉ là chữ hiện ra để đọc và để lọc.
    *    Đổi giá trị lưu là mọi dòng phân quyền đang có trỏ vào một cái tên không còn tồn tại.
    */
-  function _csNhan(ten){
+  function _csPhu(ten){
     var x=null;
     (CFG.coso||[]).forEach(function(c){ if(String(c.ten)===String(ten)) x=c; });
-    if(!x) return ten;
-    var p=[ten], tm=String(x.tenMisa||'').trim(), md=String(x.maDonVi||'').trim();
+    if(!x) return '';
+    var p=[], tm=String(x.tenMisa||'').trim(), md=String(x.maDonVi||'').trim();
     if(tm && tm.toLowerCase()!==String(ten).toLowerCase()) p.push(tm);
     if(md) p.push(md);
     return p.join(' · ');
+  }
+  /** Chuỗi dùng để LỌC: gồm cả tên thường gọi lẫn phần phụ. Tìm bằng gì cũng ra. */
+  function _csNhan(ten){
+    var ph=_csPhu(ten);
+    return ph ? (ten+' · '+ph) : String(ten);
   }
   function _cosoSel(v){
     var sel=String(v||'').split(',').map(function(s){return s.trim();}).filter(Boolean);
@@ -5135,8 +5140,13 @@
       +   '<div style="padding:6px 8px;border-bottom:1px solid #e2e8f0"><input type="text" class="cs-tim" placeholder="Gõ để lọc: tên gọi, tên MISA hay mã đơn vị" oninput="_csTim(this)" style="width:100%;font-size:12px;padding:5px 8px"></div>'
       +   '<div style="display:flex;gap:6px;padding:6px 8px;border-bottom:1px solid #e2e8f0"><button type="button" class="btn b-x" onclick="_csAll(this,1)">Chọn hết</button><button type="button" class="btn b-x" onclick="_csAll(this,0)">Bỏ hết</button><button type="button" class="btn b-g" onclick="_csDone(this)">Xong</button></div>'
       +   '<div class="cs-list">'+arr.map(function(c,i){
-              var nhan=_csNhan(c);
-              return '<label data-tim="'+esc(_bd(nhan))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'+(sel.indexOf(c)>=0?' checked':'')+'><span>'+esc(nhan)+'</span></label>';
+              // 🔴 TÊN THƯỜNG GỌI LÀ TÊN CHÍNH — anh Thắng chốt 25/08/2026. Tên theo MISA và mã
+              //    đơn vị chỉ đứng sau, chữ nhỏ màu mờ: chúng có mặt để TÌM chứ không phải để
+              //    đọc. Cho ba cái tên cùng cỡ chữ thì mắt không biết bám vào cái nào.
+              var ph=_csPhu(c);
+              return '<label data-tim="'+esc(_bd(_csNhan(c)))+'" style="display:flex;gap:8px;align-items:center;padding:4px 8px;font-size:12px;cursor:pointer"><input type="checkbox" data-i="'+i+'"'
+                +(sel.indexOf(c)>=0?' checked':'')
+                +'><span>'+esc(c)+(ph?(' <span style="color:#94a3b8;font-size:11px">· '+esc(ph)+'</span>'):'')+'</span></label>';
             }).join('')+'</div>'
       + '</div></div>';
   }
@@ -5282,8 +5292,24 @@
       +'<table style="width:auto;margin:0 14px 12px"><tr><th style="text-align:left">Tên trên dữ liệu</th><th style="text-align:left">Đang nằm ở</th><th></th></tr>';
     ds.forEach(function(x){
       var o=[]; for(var k in (x.dong||{})){ o.push((ten[k]||k)+': '+x.dong[k]); }
-      h+='<tr><td style="font-weight:600">'+esc(x.ten)+'</td><td style="color:#64748b">'+esc(o.join(' · '))+'</td>'
-        +'<td><button class="btn b-x" onclick="moGopCoSo('+JSON.stringify(x.ten).replace(/"/g,'&quot;')+')">↦ Gộp / đổi tên</button></td></tr>';
+      /* 🔴 GỢI Ý ĐÍCH GỘP khi tên lạ trùng đúng một PHÂN LOẠI LỚN (tên mảng).
+         Ca thật 25/08/2026: cơ sở khai nhầm tên thường gọi bằng tên mảng "EVENT FZ MN", sau đó
+         sửa lại đúng tên gian — thế là 9 dòng chi phí cũ ở lại với tên mảng. Mảng đó chỉ có
+         MỘT gian nên đích gộp là chắc chắn; mảng nhiều gian thì KHÔNG đoán, vì đoán sai là
+         đẩy tiền của gian này sang gian khác. */
+      var cung=(CFG.coso||[]).filter(function(c){
+        return String(c.phanLoaiLon||'').trim().toLowerCase()===String(x.ten).trim().toLowerCase(); });
+      var goi='';
+      if(cung.length===1){
+        goi='<div style="color:#8a6100;font-size:11.5px;margin-top:3px">Đây là tên <b>mảng</b>, không phải tên gian. '
+          +'Mảng này chỉ có một gian: <b>'+esc(cung[0].ten)+'</b> — gần như chắc chắn là đích cần gộp.</div>';
+      } else if(cung.length>1){
+        goi='<div style="color:#8a6100;font-size:11.5px;margin-top:3px">Đây là tên <b>mảng</b>, không phải tên gian. '
+          +'Mảng này có <b>'+cung.length+'</b> gian ('+esc(cung.map(function(c){return c.ten;}).join(', '))+') — '
+          +'phải tự xem đơn thuộc gian nào, <b>đừng đoán</b>.</div>';
+      }
+      h+='<tr><td style="font-weight:600;vertical-align:top">'+esc(x.ten)+goi+'</td><td style="color:#64748b;vertical-align:top">'+esc(o.join(' · '))+'</td>'
+        +'<td style="vertical-align:top"><button class="btn b-x" onclick="moGopCoSo('+JSON.stringify(x.ten).replace(/"/g,'&quot;')+')">↦ Gộp / đổi tên</button></td></tr>';
     });
     b.innerHTML=h+'</table></div>';
     b.style.display='';

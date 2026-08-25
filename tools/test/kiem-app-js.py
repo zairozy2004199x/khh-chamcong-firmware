@@ -117,8 +117,9 @@ print('— hộp chọn cơ sở —')
 # 🔴 Tên thường gọi nhiều khi là tên MẢNG chứ không phải tên gian ("EVENT FZ MN" không gợi ra
 #    "ADV Go An Lạc"). Nhãn phải kèm tên MISA + mã đơn vị, và phải lọc được.
 la('có hàm dựng nhãn cơ sở', 'function _csNhan(' in src)
-m5 = re.search(r'function _csNhan\(ten\)\{(.*?)\n  \}', src, re.S)
-la('tìm thấy _csNhan()', m5 is not None)
+la('có hàm tách phần phụ', 'function _csPhu(' in src)
+m5 = re.search(r'function _csPhu\(ten\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy _csPhu()', m5 is not None)
 if m5:
     t5 = m5.group(1)
     # Kiểm ĐÚNG chỗ ghép vào nhãn, không phải chỗ đọc biến ra. Chỉ kiểm 'tenMisa' in t5 là
@@ -129,7 +130,9 @@ if m5:
     la('GHÉP mã đơn vị vào nhãn', 'p.push(md)' in t5)
     la('nối bằng dấu chấm giữa', "p.join(' · ')" in t5)
     # Không có dòng cấu hình cho tên đó (cơ sở lạ) thì trả nguyên tên, không được rơi ra rỗng.
-    la('cơ sở lạ vẫn trả về tên', 'if(!x) return ten;' in t5)
+    # Không có dòng cấu hình cho tên đó (cơ sở lạ) -> phần phụ rỗng, và _csNhan trả nguyên tên.
+    la('cơ sở lạ: phần phụ rỗng', "if(!x) return '';" in t5)
+    la('cơ sở lạ: nhãn vẫn là chính tên đó', "return ph ? (ten+' · '+ph) : String(ten);" in src)
 la('có ô lọc trong hộp chọn', 'cs-tim' in src and 'function _csTim(' in src)
 la('lọc bỏ dấu được', 'function _bd(' in src)
 
@@ -140,7 +143,15 @@ if m6:
     # ⚠️ Giá trị lưu PHẢI vẫn là tên thường gọi. Đổi sang nhãn là mọi dòng phân quyền đang có
     #    trỏ vào một cái tên không còn tồn tại.
     la('giá trị <option> vẫn là tên thường gọi', "'<option value=\"'+esc(c)+'\"'" in t6)
-    la('nhãn hiển thị mới dùng _csNhan', '_csNhan(c)' in t6)
+    la('chuỗi lọc dùng _csNhan (đủ cả ba phần)', '_csNhan(c)' in t6)
+    # 🔴 TÊN THƯỜNG GỌI LÀ TÊN CHÍNH — anh Thắng chốt 25/08/2026. Phần MISA/mã đứng sau, chữ mờ.
+    la('có tách phần phụ ra khỏi tên chính', 'function _csPhu(' in src)
+    la('dòng vẽ tên thường gọi trước', "'><span>'+esc(c)+" in t6)
+    # 🔴🔴 CHỖ SUÝT CHẾT NGƯỜI: viết lại dòng <input> mà rơi mất ' checked' thì mọi cơ sở ĐÃ GÁN
+    #     hiện ra KHÔNG tích. Người ta bấm Xong là _csDone ghi lại "không chọn cơ sở nào" —
+    #     phân quyền cơ sở của cả bảng bay sạch, không lỗi, không hỏi. Em làm rơi đúng lần này.
+    la('CHECKBOX GIỮ TRẠNG THÁI ĐÃ TÍCH', "sel.indexOf(c)>=0?' checked':''" in t6)
+    la('  chỉ đúng MỘT chỗ dựng checked', t6.count("sel.indexOf(c)>=0?' checked':''") == 1)
 
 m7 = re.search(r'function _csAll\(btn, on\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy _csAll()', m7 is not None)
