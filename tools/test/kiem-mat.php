@@ -383,6 +383,89 @@ t( 'mọi lỗi của phần soi mặt đều nuốt im',
 t( 'KHÔNG có địa chỉ CDN nào trong trang',
 	false === strpos( $src_tp, 'cdn.' ) && false === strpos( $src_tp, 'unpkg' ) );
 
+/* ============================================ 11. NÚT TẢI THƯ VIỆN HỘ
+ *
+ * Bắt anh Thắng lọc 8 tệp trong một kho mã nguồn rồi tải lên bằng File Manager là tám lần có
+ * thể tải nhầm tệp, nhầm thư mục, hoặc bỏ sót. Máy chủ tự tải thì chỉ còn một cái nút.
+ */
+$src_mat = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-mat.php' );
+
+/* 🔴 GHIM VÀO MỘT PHIÊN BẢN, KHÔNG DÙNG `master`. Nhánh master đổi lúc nào không ai báo, và
+   một bản model mới có thể không đọc được bằng dãy đặc trưng cũ — nghĩa là mọi mẫu khuôn mặt
+   đã lấy thành vô nghĩa, mà không có gì đỏ lên cả. */
+t( 'nguồn tải ghim vào một phiên bản', preg_match( "#face-api\.js/v[\d.]+/#", VHCC_Mat::NGUON ) === 1, VHCC_Mat::NGUON );
+t( 'KHÔNG tải từ nhánh master', false === strpos( VHCC_Mat::NGUON, '/master/' ), VHCC_Mat::NGUON );
+
+/* Chỉ Admin: đây là lệnh bảo máy chủ đi tải tệp từ internet về thư mục mã nguồn. */
+t( 'Kế toán KHÔNG tải được', empty( VHCC_Mat::tai_ve( array( 'role' => 'Kế toán cá nhân' ) )['ok'] ) );
+t( 'Quản lý KHÔNG tải được', empty( VHCC_Mat::tai_ve( array( 'role' => 'Quản lý' ) )['ok'] ) );
+t( 'Nhân viên KHÔNG tải được', empty( VHCC_Mat::tai_ve( array( 'role' => 'Nhân viên' ) )['ok'] ) );
+t( 'Kế toán KHÔNG xoá được thư viện',
+	empty( VHCC_Mat::xoa_thu_vien( array( 'role' => 'Kế toán cá nhân' ) )['ok'] ) );
+
+/* 🔴 Chỉ nhận tên NẰM TRONG danh sách khai sẵn — ghép tên từ ngoài vào đường dẫn là mở đường
+   cho `../` đi ngược lên thư mục khác. */
+$tai_mot = new ReflectionMethod( 'VHCC_Mat', 'tai_mot' );
+$tai_mot->setAccessible( true );
+foreach ( array( '../../wp-config.php', 'bat-ky-gi.js', '', 'face-api.min.js.bak' ) as $ten_la ) {
+	$kq_la = $tai_mot->invoke( null, $ten_la, VHCC_Mat::thu_muc() );
+	t( "tên lạ \"$ten_la\" bị chối trước khi đi tải",
+		is_string( $kq_la ) && false !== strpos( $kq_la, 'không nằm trong danh sách' ), $kq_la );
+}
+
+/* 🔴 KHÔNG TIN MÃ 200. Nhà mạng chèn trang quảng cáo, GitHub trả trang lỗi, tường lửa trả
+   trang đăng nhập — tất cả đều kèm mã 200. Ghi một trang HTML dưới tên model thì mọi thứ trông
+   như đã cài xong, và hỏng ở đúng chỗ không ai soi: trình duyệt của nhân viên. */
+$xet = new ReflectionMethod( 'VHCC_Mat', 'xet_tep' );
+$xet->setAccessible( true );
+$html = '<!DOCTYPE html><html><body>' . str_repeat( 'trang loi ', 200 ) . '</body></html>';
+t( 'trang HTML dưới tên model bị chối',
+	true !== $xet->invoke( null, 'face_recognition_model-shard1', $html ) );
+t( 'trang HTML dưới tên .json bị chối',
+	true !== $xet->invoke( null, 'face_recognition_model-weights_manifest.json', $html ) );
+t( 'tệp .js không có mã face-api bị chối',
+	true !== $xet->invoke( null, 'face-api.min.js', str_repeat( 'var x = 1; ', 200 ) ) );
+t( 'tệp quá nhỏ bị chối (thường là trang lỗi)',
+	true !== $xet->invoke( null, 'face_recognition_model-shard1', 'oops' ) );
+t( 'model quá nhỏ bị chối', true !== $xet->invoke( null, 'face_recognition_model-shard1',
+	str_repeat( "\x01\x02", 500 ) ) );
+/* Và nhận đúng thứ thật. */
+t( 'JSON thật được nhận',
+	true === $xet->invoke( null, 'tiny_face_detector_model-weights_manifest.json',
+		wp_json_encode( array( 'weights' => array_fill( 0, 60, 'x' ) ) ) ) );
+/* Thư viện thật ~250 KB; ngưỡng 50 KB bắt được trang lỗi mà không chối nhầm tệp thật. */
+t( 'mã face-api thật được nhận',
+	true === $xet->invoke( null, 'face-api.min.js', 'var faceapi=' . str_repeat( 'a', 60000 ) ) );
+t( 'tệp .js nhỏ hơn 50 KB bị chối, dù có chữ faceapi',
+	true !== $xet->invoke( null, 'face-api.min.js', 'var faceapi=' . str_repeat( 'a', 600 ) ) );
+t( 'model nhị phân thật được nhận',
+	true === $xet->invoke( null, 'face_recognition_model-shard1', str_repeat( "\x7f\x00\x11\x22", 5000 ) ) );
+
+/* ⚠️ Ghi ra tệp TẠM rồi mới đổi tên. Ghi thẳng vào tên thật mà đứt giữa chừng là để lại một
+   tệp hỏng dở, và lần sau `is_readable()` thấy có tệp nên báo "đủ rồi". */
+t( 'ghi tệp tạm rồi đổi tên', false !== strpos( $src_mat, "'.dang-tai'" )
+	&& false !== strpos( $src_mat, 'rename( $tam' ) );
+/* ⚠️ Tải từng đợt, canh đồng hồ — hosting cắt lượt PHP ở 30 giây mà một model đã 4 MB. */
+t( 'canh giờ để không bị cắt giữa chừng',
+	false !== strpos( $src_mat, "ini_get( 'max_execution_time' )" )
+	&& false !== strpos( $src_mat, 'time() > $het' ) );
+
+/* Nút trong màn Cài đặt. */
+$src_ad = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+t( 'có nút để máy chủ tự tải', false !== strpos( $src_ad, "value=\"tai_mat\"" ) );
+t( 'có nút xoá và tải lại', false !== strpos( $src_ad, "value=\"xoa_mat_tv\"" ) );
+/* 🔴 Thẻ <form> phải nằm NGOÀI form Cài đặt: HTML không cho lồng <form>, trình duyệt lặng lẽ
+   vứt thẻ con rồi gộp ô nhập vào form cha — mỗi lần Lưu cài đặt là chạy kèm một lượt tải. */
+t( 'form nút gom vào $form_roi, không lồng trong form Cài đặt',
+	false !== strpos( $src_ad, "\$form_roi .= '<form method=\"post\" id=\"vhcc-f-taimat\">'" ) );
+t( 'và có nonce riêng cho từng việc',
+	false !== strpos( $src_ad, "wp_nonce_field( 'vhcc_tai_mat'" )
+	&& false !== strpos( $src_ad, "wp_nonce_field( 'vhcc_xoa_mat_tv'" ) );
+/* Vẫn giữ hướng dẫn tải tay: hosting chặn máy chủ ra internet là chuyện có thật. */
+t( 'vẫn giữ hướng dẫn tải tay', false !== strpos( $src_ad, 'File Manager' ) );
+t( 'và nói rõ nếu hosting chặn thì dùng cách tay',
+	false !== strpos( $src_ad, 'chặn máy chủ ra internet' ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

@@ -173,6 +173,147 @@ class VHCC_Mat {
 		return $ra;
 	}
 
+	/**
+	 * Nơi tải thư viện về.
+	 *
+	 * Địa chỉ tệp thô trên GitHub của chính kho mã nguồn mở face-api.js. Ghim vào một PHIÊN BẢN
+	 * (thẻ `v0.22.2`), không dùng `master`: nhánh master đổi lúc nào không ai báo, và một bản
+	 * model mới có thể không đọc được bằng dãy đặc trưng cũ — nghĩa là mọi mẫu khuôn mặt đã lấy
+	 * thành vô nghĩa, mà không có gì đỏ lên cả.
+	 */
+	const NGUON = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/v0.22.2/';
+
+	/** Tệp nào lấy ở thư mục nào trong kho. */
+	private static function duong_trong_kho( $ten ) {
+		return ( 'face-api.min.js' === $ten ) ? 'dist/' . $ten : 'weights/' . $ten;
+	}
+
+	/**
+	 * Tải các tệp còn thiếu về thư mục plugin.
+	 *
+	 * =========================================================================================
+	 * 🔴 TẢI TỪNG ĐỢT, KHÔNG CỐ TẢI HẾT TRONG MỘT LƯỢT
+	 * =========================================================================================
+	 * Model nặng nhất khoảng 4 MB. Hosting chia sẻ thường cắt một lượt PHP ở 30 giây, và cắt
+	 * thì cắt GIỮA CHỪNG: tệp đang ghi dở nằm lại trên đĩa với kích thước sai, lần sau
+	 * `is_readable()` thấy có tệp nên báo "đủ rồi", rồi thư viện chết ở trình duyệt của nhân
+	 * viên. Nên: canh đồng hồ, gần hết giờ thì dừng và bảo bấm tiếp.
+	 *
+	 * ⚠️ GHI RA TỆP TẠM RỒI MỚI ĐỔI TÊN. Ghi thẳng vào tên thật mà đứt giữa chừng là để lại
+	 *    đúng cái tệp hỏng vừa nói. Đổi tên là thao tác gọn của hệ tệp — hoặc xong hẳn, hoặc
+	 *    chưa có gì.
+	 *
+	 * ⚠️ Chỉ Admin. Đây là lệnh bảo máy chủ đi tải tệp từ internet về thư mục mã nguồn.
+	 */
+	public static function tai_ve( $u ) {
+		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'he_thong', 'Tải thư viện nhận diện' ) );
+		}
+		$tv = self::thu_vien();
+		if ( $tv['co'] ) { return array( 'ok' => true, 'xong' => true, 'tai' => 0, 'con' => 0 ); }
+
+		$dich = self::thu_muc();
+		if ( ! wp_mkdir_p( $dich ) || ! is_writable( $dich ) ) {
+			return array( 'ok' => false, 'error' => 'Không ghi được vào ' . $dich
+				. '. Hosting đang khoá quyền ghi thư mục plugin — cách khác là tự tải tệp rồi '
+				. 'bỏ vào bằng File Manager.' );
+		}
+
+		/* Còn bao nhiêu giây thì dừng. Chừa rộng tay: một tệp 4 MB trên đường truyền chậm có
+		   thể ngốn hơn chục giây, và bị cắt giữa chừng thì mất công hơn là dừng sớm. */
+		$han  = (int) ini_get( 'max_execution_time' );
+		if ( $han <= 0 ) { $han = 30; }
+		$het  = time() + max( 10, $han - 12 );
+
+		$tai = 0; $loi = array();
+		foreach ( $tv['thieu'] as $ten ) {
+			if ( time() > $het ) { break; }
+			$kq = self::tai_mot( $ten, $dich );
+			if ( true === $kq ) { $tai++; } else { $loi[] = $ten . ': ' . $kq; }
+		}
+
+		$con = self::thu_vien();
+		return array( 'ok' => true, 'xong' => ! empty( $con['co'] ), 'tai' => $tai,
+			'con' => count( $con['thieu'] ), 'loi' => $loi );
+	}
+
+	/** Tải một tệp. Trả true, hoặc câu giải thích vì sao không được. */
+	private static function tai_mot( $ten, $dich ) {
+		/* Chỉ nhận tên NẰM TRONG danh sách khai sẵn. Ghép tên từ bên ngoài vào đường dẫn là mở
+		   đường cho `../` đi ngược lên thư mục khác. */
+		$bo = self::bo_file();
+		$hop_le = array_merge( array( $bo['goc']['js'] ), $bo['goc']['mau'] );
+		if ( ! in_array( $ten, $hop_le, true ) ) { return 'tên tệp không nằm trong danh sách'; }
+
+		$kq = wp_remote_get( self::NGUON . self::duong_trong_kho( $ten ), array(
+			'timeout'  => 60,
+			'headers'  => array( 'User-Agent' => 'VHCC-ChamCong/' . VHCC_VERSION ),
+		) );
+		if ( is_wp_error( $kq ) ) { return $kq->get_error_message(); }
+		$ma = (int) wp_remote_retrieve_response_code( $kq );
+		if ( 200 !== $ma ) { return 'máy chủ trả mã ' . $ma; }
+
+		$than = wp_remote_retrieve_body( $kq );
+		$xet  = self::xet_tep( $ten, $than );
+		if ( true !== $xet ) { return $xet; }
+
+		/* Tệp tạm rồi đổi tên — xem chú thích ở `tai_ve()`. */
+		$tam = $dich . $ten . '.dang-tai';
+		if ( false === file_put_contents( $tam, $than ) ) { return 'không ghi được tệp'; }
+		if ( ! rename( $tam, $dich . $ten ) ) { @unlink( $tam ); return 'không đổi tên được tệp'; }
+		return true;
+	}
+
+	/**
+	 * Nội dung tải về có đúng thứ mình cần không.
+	 *
+	 * 🔴 KHÔNG TIN MÃ 200. Nhà mạng chèn trang quảng cáo, GitHub trả trang lỗi HTML, tường lửa
+	 *    trả trang đăng nhập — tất cả đều kèm mã 200. Ghi một trang HTML dưới tên
+	 *    `face_recognition_model-shard1` thì mọi thứ trông như đã cài xong, và hỏng ở đúng chỗ
+	 *    không ai soi: trình duyệt của nhân viên, lúc họ đang chấm công.
+	 */
+	private static function xet_tep( $ten, $than ) {
+		$dai = strlen( (string) $than );
+
+		/* ⚠️ NGƯỠNG KÍCH THƯỚC PHẢI THEO TỪNG LOẠI, không một con số cho tất cả. Tệp khai báo
+		   trọng số (`*_manifest.json`) có thể chỉ vài trăm byte — đặt một ngưỡng chung đủ lớn
+		   để bắt trang lỗi thì nó chối luôn cả tệp thật. Với JSON thì phép thử đúng không phải
+		   là kích thước mà là *có đọc ra được không*: một trang HTML thì không bao giờ đọc ra. */
+		if ( '.json' === substr( $ten, -5 ) ) {
+			$j = json_decode( $than, true );
+			if ( ! is_array( $j ) ) { return 'không phải JSON — nhiều khả năng là trang lỗi HTML'; }
+			return true;
+		}
+		if ( '.js' === substr( $ten, -3 ) ) {
+			if ( $dai < 50000 ) { return 'tệp thư viện quá nhỏ (' . $dai . ' byte)'; }
+			if ( false === strpos( $than, 'faceapi' ) && false === strpos( $than, 'TinyFaceDetector' ) ) {
+				return 'không thấy mã face-api trong tệp';
+			}
+			return true;
+		}
+		/* Tệp trọng số là nhị phân: không đọc được nội dung, nhưng một trang HTML thì nhận ra
+		   ngay từ mấy ký tự đầu. */
+		$dau = ltrim( substr( $than, 0, 32 ) );
+		if ( 0 === stripos( $dau, '<!doctype' ) || 0 === stripos( $dau, '<html' ) ) {
+			return 'nhận về một trang HTML, không phải dữ liệu model';
+		}
+		if ( $dai < 10000 ) { return 'tệp model quá nhỏ (' . $dai . ' byte)'; }
+		return true;
+	}
+
+	/** Xoá sạch thư viện đã tải — để tải lại từ đầu khi nghi tệp hỏng. */
+	public static function xoa_thu_vien( $u ) {
+		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'he_thong', 'Xoá thư viện nhận diện' ) );
+		}
+		$bo = self::bo_file();
+		$so = 0;
+		foreach ( array_merge( array( $bo['goc']['js'] ), $bo['goc']['mau'] ) as $f ) {
+			if ( is_file( self::thu_muc() . $f ) && @unlink( self::thu_muc() . $f ) ) { $so++; }
+		}
+		return array( 'ok' => true, 'so' => $so );
+	}
+
 	// ==================================================================== toán
 
 	/**

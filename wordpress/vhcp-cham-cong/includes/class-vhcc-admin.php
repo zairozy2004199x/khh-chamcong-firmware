@@ -1763,6 +1763,35 @@ class VHCC_Admin {
 			VHCC_Auth::mo_khoa();
 			self::ve( 'mokhoa' );
 		}
+
+		/* Tải thư viện nhận diện về máy chủ — đỡ cho anh Thắng khỏi phải lọc tệp trong kho mã
+		   nguồn rồi tải lên bằng File Manager. Tải TỪNG ĐỢT: hosting cắt lượt PHP ở 30 giây,
+		   mà riêng một model đã 4 MB. Xem VHCC_Mat::tai_ve(). */
+		if ( $action === 'tai_mat' ) {
+			$u_tm = array( 'name' => 'wp-admin', 'role' => 'Admin' );
+			$r_tm = VHCC_Mat::tai_ve( $u_tm );
+			if ( empty( $r_tm['ok'] ) ) {
+				set_transient( 'vhcc_mat_bao', array( 'kieu' => 'error', 'chu' => $r_tm['error'] ), 60 );
+			} elseif ( ! empty( $r_tm['xong'] ) ) {
+				set_transient( 'vhcc_mat_bao', array( 'kieu' => 'success',
+					'chu' => 'Đã tải xong thư viện nhận diện. Tính năng đối chiếu khuôn mặt sẵn sàng.' ), 60 );
+			} else {
+				$chu_tm = 'Đã tải ' . (int) $r_tm['tai'] . ' tệp, còn ' . (int) $r_tm['con']
+					. ' tệp — bấm "Tải thư viện" lần nữa để tải tiếp.';
+				if ( ! empty( $r_tm['loi'] ) ) {
+					$chu_tm .= ' Vướng: ' . implode( ' · ', array_slice( (array) $r_tm['loi'], 0, 3 ) );
+				}
+				set_transient( 'vhcc_mat_bao', array( 'kieu' => 'warning', 'chu' => $chu_tm ), 60 );
+			}
+			self::ve( 'mat' );
+		}
+
+		if ( $action === 'xoa_mat_tv' ) {
+			$r_xm = VHCC_Mat::xoa_thu_vien( array( 'name' => 'wp-admin', 'role' => 'Admin' ) );
+			set_transient( 'vhcc_mat_bao', array( 'kieu' => 'success',
+				'chu' => 'Đã xoá ' . (int) $r_xm['so'] . ' tệp thư viện. Bấm "Tải thư viện" để tải lại.' ), 60 );
+			self::ve( 'mat' );
+		}
 	}
 
 	private static function ve( $msg ) {
@@ -2178,9 +2207,26 @@ class VHCC_Admin {
 		$dem_mat = VHCC_Mat::dem();
 		echo '<tr><th scope="row">Đối chiếu khuôn mặt</th><td>';
 
+		/* Lời báo của lượt tải vừa rồi. Dùng transient chứ không nhét vào địa chỉ: câu báo có
+		   thể dài và chứa cả thông báo lỗi của máy chủ. */
+		$bao_mat = get_transient( 'vhcc_mat_bao' );
+		if ( is_array( $bao_mat ) ) {
+			delete_transient( 'vhcc_mat_bao' );
+			echo '<div class="notice notice-' . esc_attr( $bao_mat['kieu'] ) . ' inline" style="margin:0 0 10px">'
+				. '<p>' . esc_html( $bao_mat['chu'] ) . '</p></div>';
+		}
+
 		if ( $tv_mat['co'] ) {
 			echo '<p style="margin:0 0 8px"><b style="color:#1a7f37">✔ Thư viện đã sẵn sàng.</b> '
 				. 'Ảnh chấm công online sẽ được đối chiếu với mẫu khuôn mặt.</p>';
+			/* Thẻ <form> gom vào $form_roi để in NGOÀI form Cài đặt — HTML không cho lồng
+			   <form>, và trình duyệt lặng lẽ vứt thẻ con rồi gộp ô nhập vào form cha. */
+			$form_roi .= '<form method="post" id="vhcc-f-xoamat">'
+				. wp_nonce_field( 'vhcc_xoa_mat_tv', '_wpnonce', true, false )
+				. '<input type="hidden" name="vhcc_action" value="xoa_mat_tv" /></form>';
+			echo '<p style="margin:0 0 8px"><button form="vhcc-f-xoamat" class="button">'
+				. 'Xoá và tải lại thư viện</button> '
+				. '<span class="description">dùng khi nghi tệp tải về bị hỏng dở.</span></p>';
 		} else {
 			echo '<div class="notice notice-warning inline" style="margin:0 0 10px"><p>'
 				. '<b>Chưa có thư viện nhận diện — tính năng đang tắt.</b> Mọi thứ khác chạy '
@@ -2201,6 +2247,20 @@ class VHCC_Admin {
 				. '<p style="margin:6px 0 0">Bảy file model cộng lại khoảng <b>7 MB</b>. Nhân '
 				. 'viên tải một lần rồi trình duyệt nhớ, những lần sau không tải lại.</p>'
 				. '</div>';
+
+			/* Nút tải hộ. Đặt SAU phần hướng dẫn tay, không thay thế nó: hosting chặn máy chủ
+			   ra internet là chuyện có thật, và lúc đó anh Thắng vẫn cần biết tải tay thế nào. */
+			$form_roi .= '<form method="post" id="vhcc-f-taimat">'
+				. wp_nonce_field( 'vhcc_tai_mat', '_wpnonce', true, false )
+				. '<input type="hidden" name="vhcc_action" value="tai_mat" /></form>';
+			echo '<p style="margin:0 0 4px"><button form="vhcc-f-taimat" class="button button-primary">'
+				. '⬇ Để máy chủ tự tải về</button></p>';
+			echo '<p class="description" style="margin:0 0 10px">Máy chủ tải thẳng từ kho mã nguồn '
+				. 'mở về thư mục plugin — khỏi phải mó tay vào File Manager. '
+				. 'Tải <b>từng đợt</b> vì hosting cắt mỗi lượt ở khoảng 30 giây mà riêng một model '
+				. 'đã 4 MB: bấm xong nếu còn tệp thì bấm lại, nó tải tiếp chỗ đang dở. '
+				. 'Nếu hosting chặn máy chủ ra internet thì nút này báo lỗi — lúc đó dùng cách '
+				. 'tải tay ở trên.</p>';
 		}
 
 		echo '<p style="margin:0 0 6px"><label><input type="checkbox" name="vhcc_mat_bat" value="1"'
