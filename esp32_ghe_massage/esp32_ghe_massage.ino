@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25d (phat hien ghe chay theo DUTY %low + in so)"
+#define FW_VERSION "ghe-massage 2026-08-25e (do CA duty %low VA tan so Hz de chot)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -325,7 +325,8 @@ bool     g_gheDaChay  = false;  // chân ghế đã lên mức chạy ít nhất
 bool     g_baoGheChet = false;  // đang treo cảnh báo 'ghekhongchay' (paid mà chưa chạy)
 uint32_t g_tickTruoc  = 0;      // millis lần trừ trước (0 = chưa bắt đầu, dt=0)
 uint32_t g_dungTu     = 0;      // millis ghế bắt đầu ở trạng thái DỪNG (để debounce dừng)
-int      g_pctLow     = 0;      // % thời gian chân ghế ở mức THẤP (duty) — chạy: cao, tắt: thấp
+int      g_pctLow     = 0;      // % thời gian chân ghế ở mức THẤP (duty) — chạy vs tắt khác nhau?
+int      g_hz         = 0;      // tần số xung (Hz) đo trên chân ghế — chạy vs tắt khác nhau?
 /* HẸN bắt đầu đếm giờ: ghế hiện đồng hồ ngay khi nhận tiền nhưng ~QR_TRE_MS sau
    mới ĐẾM. Nên hoãn khởi động đồng hồ trên ESP/web đúng ngần đó cho khớp (không
    chặn màn). Áp cho cả tiền mặt/QR/từ xa. */
@@ -1557,13 +1558,18 @@ bool gheDangChay(){
   uint32_t now = millis();
   if(luc == 0 || now - luc >= 300){
     luc = now;
-    uint32_t low = 0, tot = 0, t0 = micros();
+    uint32_t low = 0, tot = 0, canh = 0;
+    int prev = digitalRead(GHECHAY_PIN);
+    uint32_t t0 = micros();
     while((uint32_t)(micros() - t0) < 30000){        // lấy mẫu 30ms
-      if(digitalRead(GHECHAY_PIN) == LOW) low++;
+      int m = digitalRead(GHECHAY_PIN);
+      if(m == LOW) low++;
       tot++;
+      if(m != prev){ canh++; prev = m; }             // đếm cạnh -> tần số
     }
     g_pctLow = tot ? (int)(low * 100 / tot) : 0;
-    cache = (g_pctLow >= GHECHAY_DUTY_NGUONG);
+    g_hz     = (int)(canh * 1000 / 30 / 2);           // cạnh/30ms -> chu kỳ/giây (Hz)
+    cache = (g_pctLow >= GHECHAY_DUTY_NGUONG);         // (tạm quyết theo duty; xem số rồi chốt)
   }
   return cache;
 }
@@ -1902,8 +1908,8 @@ void loop(){
     /* DEBUG: in khi đổi trạng thái hoặc mỗi 3s. Xóa khi chạy ổn. */
     { static int _last = -1; static uint32_t _tp = 0;
       if(gheChay != (_last==1) || now - _tp > 2000){ _last = gheChay?1:0; _tp = now;
-        Serial.printf("[GHE] %s low=%d%% state=%s conLai=%lds daChay=%d\n",
-          gheChay?"CHAY":"DUNG", g_pctLow,
+        Serial.printf("[GHE] %s low=%d%% hz=%d state=%s conLai=%lds daChay=%d\n",
+          gheChay?"CHAY":"DUNG", g_pctLow, g_hz,
           state==ST_RUNNING?"RUN":"CAMON", g_conLaiMs/1000, g_gheDaChay); } }
     uint32_t dt = g_tickTruoc ? (now - g_tickTruoc) : 0;
     if(dt > 2000) dt = 2000;                 // lỡ 1 nhịp dài (mạng/tft) thì không trừ nhảy
