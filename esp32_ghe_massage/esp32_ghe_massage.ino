@@ -185,6 +185,12 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
 #define BYPASS_PIN         22
 #define BYPASS_ACTIVE_HIGH false   // module active-LOW: false = IN kéo LOW để hút (ESP-mode)
 
+/* Ghế mất ~3s KHỞI ĐỘNG sau khi nhận tiền QR/từ xa (bơm 81 4X) rồi mới thực sự chạy.
+   Đồng hồ đếm trên màn/web bắt đầu ngay là chạy TRƯỚC ghế -> lệch. Đợi ngần này rồi
+   mới bật đếm giờ cho KHỚP với lúc ghế thật sự chạy. Chỉnh theo ghế của anh (ms).
+   Tiền mặt KHÔNG áp (ghế tự xử khi có tờ thật, đếm theo lúc '10'). */
+#define QR_TRE_MS          3000
+
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
    Đo trên máy thật: cục ICT L70 nói với ghế bằng SERIAL 4800 8E1 (khung 81 4X),
@@ -1785,6 +1791,7 @@ void loop(){
        chỉ đóng relay (không nối gì) nên phải BƠM tiền quy đổi từ số phút vào ghế. */
     long vnd = (MINUTES > 0) ? (long)m * PRICE_VND / MINUTES : 0;
     congTien.bom(vnd);
+    if(state != ST_RUNNING) delay(QR_TRE_MS);   // đợi ghế khởi động xong rồi mới đếm giờ
     g_srcCode='r'; startRunning(m);
     Serial.printf("[CMD] -> da MO may %d phut (bom %ld d vao ghe)\n", m, vnd);
   }
@@ -1800,6 +1807,7 @@ void loop(){
     /* QR đã trả: GIẢ LÀM ICT bơm khung "có tiền" vào ghế -> ghế tự chạy đúng chương
        trình của nó (Hướng 1). startRunning() bên dưới chỉ để MÀN đếm ngược cho khớp. */
     congTien.bom(paid);
+    if(state != ST_RUNNING) delay(QR_TRE_MS);   // đợi ghế khởi động xong rồi mới đếm giờ cho khớp
     g_srcCode='q'; g_runTotalVnd += paid; updateAcceptor(); startRunning(mins);
     return;
   }
