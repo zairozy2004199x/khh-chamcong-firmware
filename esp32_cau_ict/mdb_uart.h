@@ -33,23 +33,36 @@ public:
   void batDau(int chanRx, int chanTx) {
     _rx = chanRx; _tx = chanTx;
     pinMode(_rx, INPUT);
+    _muc = HIGH;   // idle = mức cao, để mép xuống đầu tiên bắt được
     if (_tx >= 0) { pinMode(_tx, OUTPUT); digitalWrite(_tx, HIGH); }  // idle = mức cao
   }
 
-  /** Có đang bắt đầu một khung không (dây từ cao xuống thấp = start bit). */
+  /** Có đang thấy mức thấp không (thô — không neo mép). Giữ cho tương thích. */
   bool coByte() { return digitalRead(_rx) == LOW; }
 
   /**
-   * Đọc MỘT byte 9 bit. Trả true nếu đọc xong, điền ra->giaTri/mode/khungLoi.
-   * Gọi khi coByte()==true. Lấy mẫu ở GIỮA mỗi bit cho chắc.
-   * ⚠️ Đây là chỗ nhịp phải chuẩn — xem cảnh báo BIT_US ở đầu file.
+   * BẮT MÉP XUỐNG của start bit. Gọi LIÊN TỤC trong vòng lặp.
+   * Trả true ĐÚNG LÚC dây đi từ CAO -> THẤP (bắt đầu start bit) và NEO mốc thời
+   * gian ngay tại đó (_tMoc). Nhờ neo vào mép thật nên lấy mẫu giữa-bit không còn
+   * bị lệch một lượng ngẫu nhiên 0..104us như trước (đó là nguồn gốc các '?').
+   */
+  bool mepXuong() {
+    int m = digitalRead(_rx);
+    bool xuong = (_muc != LOW && m == LOW);   // CAO -> THẤP
+    _muc = m;
+    if (xuong) _tMoc = micros();
+    return xuong;
+  }
+
+  /**
+   * Đọc MỘT byte 9 bit, NEO vào mốc mép xuống bắt được ở mepXuong().
+   * Gọi ngay sau khi mepXuong()==true. Lấy mẫu ở GIỮA mỗi bit cho chắc.
+   * ⚠️ Nhịp bit vẫn phải chuẩn (MDB_BIT_US) — nhưng gốc thời gian giờ đã đúng.
    */
   bool docByte(MdbByte* ra) {
-    // đợi mép xuống của start (đang thấp rồi thì vào luôn)
-    uint32_t t0 = micros();
-    // canh tới giữa start bit
+    uint32_t t0 = _tMoc;                                // gốc = MÉP XUỐNG thật sự
     _choToi(t0, MDB_BIT_US / 2);
-    if (digitalRead(_rx) != LOW) return false;         // nhiễu, không phải start
+    if (digitalRead(_rx) != LOW) { _muc = digitalRead(_rx); return false; }  // nhiễu
     uint16_t v = 0;
     for (int i = 0; i < 9; i++) {
       _choToi(t0, MDB_BIT_US / 2 + (long)MDB_BIT_US * (i + 1));
@@ -60,6 +73,7 @@ public:
     ra->giaTri   = (uint8_t)(v & 0xFF);
     ra->mode     = (uint8_t)((v >> 8) & 1);
     ra->khungLoi = (stop != 1);
+    _muc = digitalRead(_rx);                            // cập nhật để bắt mép kế tiếp
     return true;
   }
 
@@ -80,6 +94,8 @@ public:
 
 private:
   int _rx = -1, _tx = -1;
+  int _muc = HIGH;          // mức đọc lần trước (để bắt mép xuống)
+  uint32_t _tMoc = 0;       // thời điểm bắt được mép xuống start bit
   /* Bận-chờ tới mốc us kể từ t0. Dùng bận-chờ (không delayMicroseconds) để mép
      bit không bị trôi tích luỹ — sai số mỗi bit cộng dồn 11 lần là hỏng khung. */
   static void _choToi(uint32_t t0, long moc_us) {

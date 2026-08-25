@@ -357,20 +357,22 @@ void ngheMdb(int giay) {
   bool dangDong = false;
   while ((int32_t)(het - millis()) > 0) {
     bool coGi = false;
-    if (uGhe.coByte() && uGhe.docByte(&b)) {
+    if (uGhe.mepXuong() && uGhe.docByte(&b)) {
       if (millis() - lanCuoiMs > 10 && dangDong) { Serial.println(); dangDong = false; }
       Serial.printf(b.mode ? "G<%02X> " : "G%02X ", b.giaTri);
       if (b.khungLoi) { Serial.print("? "); soLoi++; }
       lanCuoiMs = millis(); soByte++; dangDong = true; coGi = true;
     }
-    if (uL70.coByte() && uL70.docByte(&b)) {
+    if (uL70.mepXuong() && uL70.docByte(&b)) {
       if (millis() - lanCuoiMs > 10 && dangDong) { Serial.println(); dangDong = false; }
       Serial.printf(b.mode ? "L<%02X> " : "L%02X ", b.giaTri);
       if (b.khungLoi) { Serial.print("? "); soLoi++; }
       lanCuoiMs = millis(); soByte++; dangDong = true; coGi = true;
     }
     if (!coGi && dangDong && millis() - lanCuoiMs > 10) { Serial.println(); dangDong = false; }
-    yield();   // nhả CPU cho watchdog ESP32 -> không bị reset giữa chừng (60s tight loop)
+    // Chỉ nhả CPU khi KHÔNG đang trong khung — để không bỏ sót mép xuống byte kế
+    // tiếp (yield có thể tốn hàng chục us, đủ để trượt một start bit).
+    if (!coGi) yield();
   }
   Serial.printf("\n[MDB] xong. Tong %lu byte, %lu khung loi.\n", (unsigned long)soByte, (unsigned long)soLoi);
   if (soByte == 0)
@@ -493,7 +495,7 @@ void congTrungGian(uint32_t giay) {
   uint32_t het = millis() + giay * 1000UL;
   MdbByte b;
   while ((int32_t)(het - millis()) > 0) {
-    if (mdbGhe.coByte() && mdbGhe.docByte(&b)) {          // chủ (ghế) nói -> L70
+    if (mdbGhe.mepXuong() && mdbGhe.docByte(&b)) {        // chủ (ghế) nói -> L70
       mdbL70.guiByte(b.giaTri, b.mode);
       Serial.printf(b.mode ? "G<%02X> " : "G%02X ", b.giaTri);
       if (b.khungLoi) Serial.print("? ");
@@ -501,7 +503,7 @@ void congTrungGian(uint32_t giay) {
          (mode=1, 0x30..0x37) và g_chenQR bật thì lát nữa chèn khung "có tiền"
          vào chỗ L70 trả lời. Chưa biết khung đó nên chưa làm. */
     }
-    if (mdbL70.coByte() && mdbL70.docByte(&b)) {          // tớ (L70) trả lời -> ghế
+    if (mdbL70.mepXuong() && mdbL70.docByte(&b)) {        // tớ (L70) trả lời -> ghế
       mdbGhe.guiByte(b.giaTri, b.mode);
       Serial.printf(b.mode ? "L<%02X> " : "L%02X ", b.giaTri);
       if (b.khungLoi) Serial.print("? ");
@@ -513,6 +515,50 @@ void congTrungGian(uint32_t giay) {
 /* ============================================================================
  *  BẢNG LỆNH
  * ========================================================================== */
+/* ============================================================================
+ *  RAW — ghi lại thời điểm TỪNG CẠNH tín hiệu (như máy đo), để giải mã offline
+ * ----------------------------------------------------------------------------
+ *  Thay vì giải mã trên chip (phải đoán nhịp), ESP32 chỉ ghi thô: mỗi lần dây đổi
+ *  mức, lưu khoảng thời gian (micro giây) từ cạnh trước. In ra hết, gửi cho người
+ *  phân tích -> tự tính nhịp bit chính xác và đọc byte, không đoán.
+ *  Đo trên IO22 (dây ghế poll — dây bận, đã thấy <30>).
+ * ========================================================================== */
+#define RAW_SO_CANH 1200
+void rawCanh(uint32_t giay) {
+  const int CHAN = CHAN_GHE_RX;   // IO22
+  congIct.end(); congGhe.end();
+  pinMode(CHAN, INPUT);
+  static uint32_t dt[RAW_SO_CANH];
+  static uint8_t  lv[RAW_SO_CANH];
+  Serial.printf("[RAW] ghi canh tren IO%d, toi da %d canh hoac %lu giay. Bo tien vao neu muon bat luc do.\n",
+                CHAN, RAW_SO_CANH, (unsigned long)giay);
+  int n=0;
+  int truoc=digitalRead(CHAN);
+  uint32_t last=micros();
+  uint32_t het=millis()+giay*1000UL;
+  uint32_t feed=micros();
+  while(n<RAW_SO_CANH && (int32_t)(het-millis())>0){
+    int m=digitalRead(CHAN);
+    if(m!=truoc){
+      uint32_t now=micros();
+      dt[n]=now-last; lv[n]=truoc; n++;   // muc TRUOC cạnh, keo dai dt
+      last=now; truoc=m;
+    } else {
+      // Chi nhuong CPU (nuoi watchdog) khi day IM > 2ms — tuc la giua cac khung,
+      // khong bao gio nhuong giua khung nen KHONG bo sot cạnh nao.
+      uint32_t now=micros();
+      if((now-last)>2000 && (now-feed)>20000){ yield(); feed=micros(); }
+    }
+  }
+  Serial.printf("[RAW] %d canh. Dinh dang: <do_dai_us>:<muc truoc canh>. Gui het cho ky su.\n", n);
+  for(int i=0;i<n;i++){
+    Serial.printf("%lu:%d ",(unsigned long)dt[i],lv[i]);
+    if((i&7)==7) Serial.println();
+  }
+  Serial.println("\n[RAW] xong.");
+  moCong();
+}
+
 /* ============================================================================
  *  DÒ DÂY — tìm dây dữ liệu bằng cách chạm đầu dò vào từng dây, xem live
  * ----------------------------------------------------------------------------
@@ -558,6 +604,7 @@ void inTro() {
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
     "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
+    "  RAW [giay]      ghi tho tung canh (may do) -> gui ky su giai ma offline. NEN DUNG\n"
     "  DODAY [giay]    DO DAY: re dau do (IO22) qua tung day, tim day co nhip ~9600\n"
     "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
     "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
@@ -705,6 +752,7 @@ void ngheLenhUsb() {
     else if (lenh == "TT")   inTrangThai();
     else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
+    else if (lenh == "RAW")  { uint32_t g = tham.toInt(); rawCanh(g ? g : 5); }
     else if (lenh == "DODAY") { uint32_t g = tham.toInt(); doDay(g ? g : 30); }
     else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
     else if (lenh == "DOBAUD") { uint32_t g = tham.toInt(); doBaudTheoXung(CHAN_ICT_RX, "phia L70", g ? g : 5); }
