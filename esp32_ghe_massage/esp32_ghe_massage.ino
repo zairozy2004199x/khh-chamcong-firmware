@@ -1839,16 +1839,22 @@ void loop(){
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
 #if DO_IO34
-  { static uint32_t _t34 = 0; static int _lv34 = -1;
-    if(millis() - _t34 > 500){ _t34 = millis();
-      int lv = digitalRead(IO34_PIN);
-      uint32_t canh = 0; int p = lv; uint32_t e = millis() + 200;   // đếm cạnh trong 200ms
-      while((int32_t)(e - millis()) > 0){ int m = digitalRead(IO34_PIN); if(m != p){ canh++; p = m; } }
-      if(lv != _lv34 || canh > 5){ _lv34 = lv;
-        Serial.printf("[IO34] muc=%d canh/200ms=%lu %s (ghe: %s)\n", lv, (unsigned long)canh,
-          canh > 40 ? "DATA?" : canh == 0 ? "MUC on dinh" : "it canh",
-          state==ST_RUNNING ? "DANG CHAY" : state==ST_CAMON ? "cam on" : "tat/ranh");
-      }
+  /* Dò IO34: lấy mẫu liên tục 200ms -> đếm cạnh + đếm số mẫu MỨC THẤP (duty), rồi
+     IN ĐỀU MỖI GIÂY (kể cả khi đứng yên) để anh luôn có dòng mới mà copy. */
+  { static uint32_t _t34 = 0;
+    if(millis() - _t34 > 1000){ _t34 = millis();
+      uint32_t canh = 0, mau = 0, thap = 0; int p = digitalRead(IO34_PIN);
+      uint32_t e = millis() + 200;
+      while((int32_t)(e - millis()) > 0){ int m = digitalRead(IO34_PIN);
+        mau++; if(m == LOW) thap++; if(m != p){ canh++; p = m; } }
+      int pctThap = mau ? (int)(thap * 100 / mau) : 0;
+      const char* kl = canh > 40 ? "CO DATA noi tiep"
+                     : canh > 0  ? "co xung (it)"
+                     : pctThap > 80 ? "MUC THAP dung yen"
+                     :               "MUC CAO dung yen";
+      Serial.printf("[IO34] muc=%d canh/200ms=%lu thap=%d%% -> %s (ghe: %s)\n",
+        digitalRead(IO34_PIN), (unsigned long)canh, pctThap, kl,
+        state==ST_RUNNING ? "DANG CHAY" : state==ST_CAMON ? "cam on" : "tat/ranh");
     }
   }
 #endif
