@@ -28,6 +28,10 @@
 #define WIRE_B_RX     34     // IO34 (chỉ-input) — đọc TX ghế (3E/5E/02) qua ADuM1201 (cao-trở!)
 #define TIEN_BAUD     4800
 #define TIEN_KET_MS   8000
+/* Báo lỗi 'qr' (ghế không đáp 02 khi bơm) cần wire B (IO34) đọc SẠCH. Khi wire B
+   còn ra rác (idle không cao / sai kênh ADuM) thì để 0 cho khỏi báo nhầm — vẫn in
+   byte wireB để soi. Đọc sạch rồi (idle HIGH, chỉ thấy 3E/5E/02) thì đổi thành 1. */
+#define BAT_LOI_QR    0
 
 static const long TIEN_MENH_GIA[7] = { 5000, 10000, 20000, 50000, 100000, 200000, 500000 };
 
@@ -44,6 +48,12 @@ public:
     while (Serial1.available()) Serial1.read();
     Serial.printf("[TIEN] cong 4800 8E1: ICT@IO%d, ghe@IO%d, wireB@IO%d (ADuM).\n",
                   TIEN_RX_ICT, TIEN_TX_GHE, WIRE_B_RX);
+    // Soi mức IDLE của wire B (lúc rảnh phải là CAO). Cao ~100% = tốt; ~50/50 hoặc
+    // thấp = ADuM sai kênh/thả nổi/đảo -> đọc ra rác. (Chỉ để chẩn đoán, in 1 lần.)
+    uint32_t hi = 0, lo = 0;
+    for (uint32_t i = 0; i < 20000; i++) { if (digitalRead(WIRE_B_RX)) hi++; else lo++; }
+    Serial.printf("[TIEN] wireB idle: CAO=%lu%% (%s)\n", (unsigned long)(hi * 100 / (hi + lo)),
+                  (hi > lo * 20) ? "OK idle cao" : "!! khong idle cao -> kiem ADuM/kenh/dao");
   }
 
   void datChay(bool dangChay) { _dangChay = dangChay; }
@@ -70,7 +80,7 @@ public:
       while (vnd >= TIEN_MENH_GIA[i]) { if (_phatMotTo(i)) coAn = true; vnd -= TIEN_MENH_GIA[i]; }
     }
     _dangBom = false;
-    if (_loi) _loi("qr", coAn ? false : true);   // không thấy 02 lần nào -> lỗi 'qr'
+    if (BAT_LOI_QR && _loi) _loi("qr", coAn ? false : true);   // chỉ báo 'qr' khi wire B đã sạch
   }
 
   void bomChiSo(int idx) { if (idx >= 0 && idx <= 6) { _dangBom = true; _phatMotTo(idx); _dangBom = false; } }
