@@ -700,6 +700,9 @@ void congTien(uint32_t giay) {
   congIct.end(); congGhe.end(); delay(20);
   congIct.begin(4800, SERIAL_8E1, CHAN_A_L70_RX, CHAN_A_GHE_TX);  // duong tien: relay + bom
   congGhe.begin(4800, SERIAL_8E1, CHAN_B_GHE_RX, -1);             // duong dieu khien: chi doc
+  delay(60);                                                      // cho chan/chia muc on dinh
+  while (congIct.available()) congIct.read();                     // bo cum rac luc khoi dong
+  while (congGhe.available()) congGhe.read();
   Serial.printf("[GATE] CONG XEN GIUA: relay L70(IO%d)->ghe(IO%d), theo doi ghe(IO%d). %lu giay.\n",
                 CHAN_A_L70_RX, CHAN_A_GHE_TX, CHAN_B_GHE_RX, (unsigned long)giay);
   Serial.println("[GATE] Tien mat chay xuyen qua nhu cu. GO 0-6 (USB) = GIA quet QR menh gia do:");
