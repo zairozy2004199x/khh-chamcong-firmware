@@ -52,6 +52,8 @@ th{color:#94a3b8;font-weight:600;font-size:11.5px;text-transform:uppercase;lette
 td.g{font-variant-numeric:tabular-nums}
 .trong{color:#64748b}
 video,canvas.xem{width:100%;border-radius:12px;background:#000;display:block}
+iframe.bando{width:100%;height:200px;border:1px solid #334155;border-radius:12px;
+	background:#0f172a;display:block;margin:10px 0 0}
 .an{display:none!important}
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
 	padding:14px 14px calc(20px + env(safe-area-inset-bottom))}
@@ -111,6 +113,20 @@ a{color:#7dd3fc}
 		<div id="baoCham"></div>
 		<p></p>
 		<button id="btCham" class="chinh to">📷 CHẤM CÔNG</button>
+	</div>
+
+	<!-- ============ VỊ TRÍ ĐANG ĐỨNG ============ -->
+	<div class="the">
+		<label style="margin:0 0 8px">Vị trí đang đứng</label>
+		<div id="oViTri"><p class="trong">Đang lấy vị trí…</p></div>
+		<p></p>
+		<button id="btViTri" class="phu" style="width:100%">Lấy lại vị trí</button>
+	</div>
+
+	<!-- ============ CƠ SỞ ĐƯỢC CHẤM ============ -->
+	<div class="the">
+		<label style="margin:0 0 8px">Cơ sở được chấm công</label>
+		<div id="oCoSo"><p class="trong">Đang tải…</p></div>
 	</div>
 
 	<div class="the">
@@ -239,14 +255,104 @@ function nhipDongHo(){
 }
 setInterval(nhipDongHo, 1000);
 
-/* ---------------------------------------------------------------- GPS (không chặn) */
+/* ---------------------------------------------------------------- GPS (không chặn)
+
+   🔴 KHÔNG CHẶN CHẤM CÔNG. Vị trí là thứ ghi kèm để đối chiếu, không phải điều kiện để chấm:
+      trong nhà kho, dưới hầm gửi xe, máy cũ tắt định vị — thiếu sóng GPS là chuyện thường, mà
+      giờ vào thì không đợi được. Không lấy được thì vẫn chấm, phiếu ghi "KHÔNG có GPS".
+
+   ⚠️ NÓI RA TRẠNG THÁI, ĐỪNG IM. Bản trước nuốt lỗi (`GPS = null` rồi thôi) nên người dùng
+      không biết phiếu của mình có toạ độ hay không, và cũng không biết vì sao không có. Ba
+      nguyên nhân dẫn tới ba cách sửa KHÁC HẲN nhau, nên phải phân biệt:
+        · bị TỪ CHỐI QUYỀN  -> vào Cài đặt trình duyệt bật lại (người dùng tự sửa được)
+        · KHÔNG BẮT ĐƯỢC SÓNG -> ra chỗ thoáng, bấm lấy lại
+        · máy KHÔNG HỖ TRỢ  -> không sửa được, đừng bắt họ thử mãi                            */
 var GPS = null;
+var GPS_TRANG = 'chua';   /* chua | dangxin | co | choi | hong | khong_ho_tro */
+
+function veViTri(){
+	var e = el('oViTri');
+	if(!e) return;
+	if(GPS_TRANG === 'co' && GPS){
+		var q = GPS.lat.toFixed(6) + ',' + GPS.lng.toFixed(6);
+		e.innerHTML = '<div class="xanh" style="margin:0">📍 <b>' + esc(q) + '</b>'
+			+ ' <span style="opacity:.75">(±' + Math.round(GPS.acc) + 'm)</span></div>'
+			+ veBanDo(GPS.lat, GPS.lng)
+			/* Vẫn giữ link ra Google Maps: bản đồ nhúng đủ để thấy "mình đang ở đâu", còn khi
+			   cần chỉ đường hay xem ảnh phố thì mở ứng dụng bản đồ thật vẫn hơn. */
+			+ '<p style="margin:8px 0 0"><a target="_blank" rel="noopener"'
+			+ ' href="https://maps.google.com/?q=' + encodeURIComponent(q) + '">Mở Google Maps ↗</a></p>';
+		return;
+	}
+	if(GPS_TRANG === 'dangxin'){ e.innerHTML = '<p class="trong">Đang lấy vị trí…</p>'; return; }
+	if(GPS_TRANG === 'khong_ho_tro'){
+		e.innerHTML = '<div class="vang" style="margin:0">📍 Máy này không hỗ trợ định vị. '
+			+ 'Vẫn chấm công được — phiếu sẽ ghi <b>KHÔNG có GPS</b>.</div>';
+		return;
+	}
+	if(GPS_TRANG === 'choi'){
+		e.innerHTML = '<div class="vang" style="margin:0">📍 <b>Trình duyệt đang chặn định vị.</b> '
+			+ 'Bấm biểu tượng ổ khoá 🔒 cạnh địa chỉ web → cho phép <b>Vị trí</b> → bấm "Lấy lại vị trí". '
+			+ 'Vẫn chấm công được — phiếu sẽ ghi <b>KHÔNG có GPS</b>.</div>';
+		return;
+	}
+	if(GPS_TRANG === 'hong'){
+		e.innerHTML = '<div class="vang" style="margin:0">📍 Chưa bắt được vị trí (trong nhà hay '
+			+ 'dưới hầm hay bị vậy). Ra chỗ thoáng rồi bấm "Lấy lại vị trí". '
+			+ 'Vẫn chấm công được — phiếu sẽ ghi <b>KHÔNG có GPS</b>.</div>';
+		return;
+	}
+	e.innerHTML = '<p class="trong">Chưa lấy vị trí.</p>';
+}
+
+/**
+ * Bản đồ nhúng quanh chỗ đang đứng.
+ *
+ * =========================================================================================
+ * DÙNG OPENSTREETMAP, KHÔNG DÙNG GOOGLE
+ * =========================================================================================
+ * Khung nhúng của OSM là đường công khai chính thức, KHÔNG cần khoá API. Google Maps thì
+ * khung nhúng chính thức (`/maps/embed/v1`) đòi khoá, mà khoá ấy nằm lộ trong mã trang —
+ * ai xem nguồn cũng lấy được và tiêu hạn mức của mình. Còn `output=embed` của Google là
+ * đường không công bố: nay chạy mai đổi, và lúc đổi thì bản đồ trắng bóc mà không ai biết
+ * vì sao. Link "Mở Google Maps" bên dưới vẫn còn cho ai cần chỉ đường.
+ *
+ * ⚠️ NHÚNG LÀ GỬI TOẠ ĐỘ RA NGOÀI. Khung này gọi thẳng tới máy chủ của OpenStreetMap, nên
+ *    vị trí nhân viên có đi ra khỏi hosting của mình. Chấp nhận được vì OSM là tổ chức phi
+ *    lợi nhuận và không gắn quảng cáo — nhưng nó là một lựa chọn, không phải chuyện đương
+ *    nhiên. Chỉ nạp KHI ĐÃ CÓ toạ độ, không nạp sẵn lúc mở trang.
+ *
+ * ⚠️ `loading="lazy"`: máy 3G ở cơ sở không tải bản đồ cho tới khi người ta cuộn tới nó.
+ *    Nút CHẤM CÔNG nằm TRÊN khối này nên bản đồ không bao giờ giành băng thông với việc
+ *    chính là gửi ảnh chấm công đi.
+ */
+function veBanDo(lat, lng){
+	var d = 0.0025;   /* khoảng ±250m mỗi chiều — đủ thấy toà nhà, không phải cả quận */
+	var bbox = (lng - d).toFixed(6) + ',' + (lat - d).toFixed(6) + ','
+	         + (lng + d).toFixed(6) + ',' + (lat + d).toFixed(6);
+	var src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + encodeURIComponent(bbox)
+	        + '&layer=mapnik&marker=' + encodeURIComponent(lat.toFixed(6) + ',' + lng.toFixed(6));
+	return '<iframe class="bando" loading="lazy" referrerpolicy="no-referrer"'
+	     + ' title="Bản đồ chỗ đang đứng" src="' + esc(src) + '"></iframe>';
+}
+
 function xinGps(){
-	if(!navigator.geolocation) return;
+	if(!navigator.geolocation){ GPS = null; GPS_TRANG = 'khong_ho_tro'; veViTri(); return; }
+	GPS_TRANG = 'dangxin'; veViTri();
 	navigator.geolocation.getCurrentPosition(function(p){
 		GPS = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy };
-	}, function(){ GPS = null; }, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
+		GPS_TRANG = 'co';
+		veViTri();
+	}, function(err){
+		GPS = null;
+		/* err.code 1 = PERMISSION_DENIED. Hai mã còn lại (2 hết chỗ dò, 3 quá hạn) đều là
+		   "không bắt được sóng" với người dùng, nên gộp — họ làm cùng một việc: ra chỗ thoáng. */
+		GPS_TRANG = (err && 1 === err.code) ? 'choi' : 'hong';
+		veViTri();
+	}, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
 }
+
+el('btViTri').addEventListener('click', xinGps);
 
 /* ---------------------------------------------------------------- đăng nhập */
 var TOI = null;   /* thông tin từ viec=toi */
@@ -315,9 +421,10 @@ function napToi(){
 		TOI = j;
 		if(j.gio){ MOC = { sec: Number(j.gio.moc)||0, tuLuc: performance.now() }; nhipDongHo(); }
 		el('tenToi').textContent = j.hoTen || '—';
-		el('maToi').textContent  = j.maNV || '';
-		el('csToi').textContent  = (j.dsCoSo && j.dsCoSo.length) ? j.dsCoSo.join(' · ') : (j.coSoMacDinh||'—');
+		el('maToi').textContent  = 'Mã ' + (j.maNV || '—');
+		el('csToi').textContent  = j.coSoMacDinh || '—';
 		el('btCham').disabled = false;
+		veCoSo(j);
 		/* Đường sang trang quản trị chỉ hiện khi MÁY CHỦ gửi nó về — tức người này thật sự mở
 		   được. Trang không tự đoán theo vai trò: đoán ở đây là bộ luật quyền thứ hai, và bộ
 		   thứ hai bao giờ cũng lệch trước. */
@@ -331,6 +438,34 @@ function napToi(){
 		veHomNay(j);
 		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }
 	}).catch(function(){ /* het_phien đã tự đá về màn đăng nhập — không báo thêm gì */ });
+}
+
+/* Cơ sở được chấm — khối riêng, không nhét vào dòng chú thích nhỏ ở đầu trang.
+   🔴 Người ở nhiều cơ sở phải NHÌN THẤY mình có những cơ sở nào TRƯỚC khi bấm chấm. Ô chọn cơ
+      sở chỉ hiện ra lúc lưu (đúng ràng buộc: hỏi đúng lúc lưu, không hỏi từ sáng), nên nếu ở
+      đây cũng không hiện thì tới màn chọn họ mới biết mình thiếu một cơ sở — mà lúc ấy tay đã
+      cầm ảnh vừa chụp, giờ vào thì đang trôi. */
+function veCoSo(j){
+	var ds = (j.dsCoSo && j.dsCoSo.length) ? j.dsCoSo : (j.coSoMacDinh ? [j.coSoMacDinh] : []);
+	if(!ds.length){
+		el('oCoSo').innerHTML = '<div class="vang" style="margin:0">Hồ sơ chưa khai cơ sở nào. '
+			+ 'Nhờ quản lý khai ô <b>Cửa hàng</b> trong hồ sơ — chưa có cơ sở thì lượt chấm '
+			+ 'không biết ghi vào đâu.</div>';
+		return;
+	}
+	var h = '<table><tbody>';
+	for(var i=0;i<ds.length;i++){
+		var chinh = (ds[i] === j.coSoMacDinh);
+		h += '<tr><td>' + esc(ds[i])
+		   + (chinh ? '<span class="nhan">cơ sở chính</span>' : '<span class="nhan">cơ sở phụ</span>')
+		   + '</td></tr>';
+	}
+	h += '</tbody></table>';
+	if(ds.length > 1){
+		h += '<p class="ct" style="margin:8px 0 0;text-align:left">Lúc lưu, trang sẽ hỏi anh/chị '
+		   + '<b>đang có mặt ở cơ sở nào</b> — chọn đúng cơ sở đang đứng, đừng chọn theo thói quen.</p>';
+	}
+	el('oCoSo').innerHTML = h;
 }
 
 function veHomNay(j){

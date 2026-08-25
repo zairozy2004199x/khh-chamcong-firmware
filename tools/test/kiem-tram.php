@@ -430,6 +430,77 @@ t( 'mo_phien nhận thẻ thật', true === VHCC_Web::mo_phien( $r_lk['token'] )
 $src_web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 'thanh màn có nút mở trang chấm công', strpos( $src_web, 'VHCC_Tram::url()' ) !== false );
 
+/* ============================================ 11. VỊ TRÍ ĐANG ĐỨNG + BẢN ĐỒ + CƠ SỞ
+ *
+ * Anh Thắng 25/08/2026: *"web đã đưa lên host nên tốc độ khác nhanh rồi, nên mình sẽ mở lại
+ * tính năng: hiện vị trí đang đứng chấm công · hiện cơ sở đang có"*, và *"kèm bản đồ đang
+ * đứng nhé"*. Bản gốc Apps Script có hiện vị trí (ô `ccGps`); bản dựng lại làm mất phần hiện
+ * ra — vẫn GỬI toạ độ kèm lượt chấm, nhưng người dùng không thấy gì.
+ */
+$tram_vt = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+$tram_js2 = js_sach( $tram_vt );
+
+t( 'có khối Vị trí đang đứng', strpos( $tram_vt, 'Vị trí đang đứng' ) !== false );
+t( 'có nút lấy lại vị trí', strpos( $tram_js2, "el('btViTri')" ) !== false );
+t( 'có khối Cơ sở được chấm công', strpos( $tram_vt, 'Cơ sở được chấm công' ) !== false );
+
+/* 🔴 BỐN TRẠNG THÁI, KHÔNG PHẢI HAI. Ba nguyên nhân không có GPS dẫn tới ba cách sửa khác
+   hẳn nhau; gộp làm một câu "không lấy được vị trí" là bắt người dùng đoán. */
+foreach ( array( 'dangxin', 'khong_ho_tro', 'choi', 'hong' ) as $tt_gps ) {
+	t( "trạng thái GPS \"$tt_gps\" có nhánh riêng", strpos( $tram_js2, "'$tt_gps'" ) !== false );
+}
+t( 'phân biệt BỊ TỪ CHỐI QUYỀN bằng err.code 1',
+	strpos( $tram_js2, '1 === err.code' ) !== false );
+t( 'câu khi bị chặn chỉ đúng chỗ bấm (ổ khoá cạnh địa chỉ web)',
+	strpos( $tram_vt, 'ổ khoá' ) !== false );
+
+/* 🔴 GPS KHÔNG ĐƯỢC CHẶN CHẤM CÔNG. Trong kho, dưới hầm, máy cũ tắt định vị — thiếu sóng là
+   chuyện thường, mà giờ vào thì không đợi được. Cả ba nhánh hỏng đều phải nói "vẫn chấm công
+   được", và không nhánh nào tắt nút chấm. */
+$so_van_cham = substr_count( $tram_vt, 'Vẫn chấm công được' );
+t( 'cả ba nhánh hỏng đều nói VẪN CHẤM CÔNG ĐƯỢC', $so_van_cham >= 3, $so_van_cham );
+t( 'không nhánh GPS nào tắt nút chấm công',
+	! preg_match( "/GPS_TRANG[^\n]*\n[^\n]*btCham'\)\.disabled\s*=\s*true/", $tram_js2 ) );
+
+/* ---- Bản đồ nhúng ---- */
+t( 'có bản đồ nhúng', strpos( $tram_js2, 'veBanDo' ) !== false );
+t( 'dùng OpenStreetMap (đường công khai, không cần khoá API)',
+	strpos( $tram_js2, 'openstreetmap.org/export/embed.html' ) !== false );
+/* 🔴 KHÔNG được có khoá API nào trong trang: trang này ai xem nguồn cũng đọc được. */
+foreach ( array( 'key=AIza', 'maps/embed/v1', 'output=embed' ) as $cam_bd ) {
+	/* Soi MÃ đã bỏ chú thích, không soi lời giải thích: chính chú thích trong tram.php nhắc
+	   tên hai đường ấy để nói VÌ SAO không dùng chúng. Soi cả chú thích là phép thử đỏ oan —
+	   đã vấp đúng kiểu này với chốt "không dùng new Date()". */
+	t( "không dùng \"$cam_bd\"", strpos( $tram_js2, $cam_bd ) === false );
+}
+t( 'bản đồ tải trễ (3G ở cơ sở không tải khi chưa cuộn tới)',
+	strpos( $tram_js2, 'loading="lazy"' ) !== false );
+t( 'không gửi đường dẫn trang này sang máy chủ bản đồ',
+	strpos( $tram_js2, 'referrerpolicy="no-referrer"' ) !== false );
+/* Chỉ dựng khung bản đồ KHI ĐÃ CÓ toạ độ — không nạp sẵn lúc mở trang. */
+t( 'khung bản đồ nằm trong nhánh đã có toạ độ',
+	preg_match( "/GPS_TRANG === 'co'[\s\S]{0,900}veBanDo\(/", $tram_js2 ) === 1 );
+t( 'HTML tĩnh KHÔNG có sẵn thẻ iframe bản đồ nào',
+	strpos( preg_replace( '/<script[\s\S]*?<\/script>/', '', $tram_vt ), '<iframe' ) === false );
+
+/* Toạ độ ghép vào địa chỉ phải qua encodeURIComponent — chuỗi tự dựng nhét thẳng vào src là
+   đúng kiểu lỗi mở đường cho người khác chèn nội dung lạ vào khung. */
+t( 'toạ độ được mã hoá trước khi ghép vào địa chỉ',
+	substr_count( $tram_js2, 'encodeURIComponent' ) >= 2 );
+
+/* Khối cơ sở: người ở nhiều cơ sở phải thấy danh sách TRƯỚC khi bấm chấm. */
+t( 'vẽ danh sách cơ sở', strpos( $tram_js2, 'function veCoSo' ) !== false );
+t( 'phân biệt cơ sở chính và cơ sở phụ',
+	strpos( $tram_vt, 'cơ sở chính' ) !== false && strpos( $tram_vt, 'cơ sở phụ' ) !== false );
+t( 'chưa khai cơ sở nào thì nói rõ phải nhờ ai khai',
+	strpos( $tram_vt, 'chưa khai cơ sở nào' ) !== false );
+t( 'người nhiều cơ sở được nhắc chọn đúng cơ sở đang đứng',
+	strpos( $tram_vt, 'đang có mặt ở cơ sở nào' ) !== false );
+
+/* Máy chủ vẫn nhận và ghi GPS đúng như trước — mở lại phần HIỆN RA không được đụng phần GHI. */
+$src_on2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-online.php' );
+t( 'máy chủ vẫn đóng dấu GPS vào ghi chú', strpos( $src_on2, 'gps_thanh_chu' ) !== false );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
