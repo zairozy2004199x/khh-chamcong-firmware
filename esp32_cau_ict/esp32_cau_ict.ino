@@ -80,6 +80,17 @@
  *    ⚠️ Giữ baud ≤ 38400. Ra rác hay bit dính thì ĐỪNG sửa phần mềm — hạ baud
  *       trước, vẫn vậy thì đổi sang ADuM1201 (hoặc TXB0104 / SN74LVC2T45).
  *
+*  ─── TÀI LIỆU L-SERIES CHO BIẾT (đọc từ Installation Guide) ──────────────────
+ *  L70 có nhiều kiểu đầu ra, hai kiểu hay gặp:
+ *    • Pulse: đầu ra tiền là CẶP TIẾP ĐIỂM KHÔ cách ly quang (Credit_Relay_NO/COM),
+ *      khách kéo lên qua 4K7. Mỗi tờ = vài nhịp đóng tiếp điểm. KHÔNG có byte.
+ *    • RS232/ccNet: nhãn ghi "RS232" nhưng thực chất là TTL 5V (không có ±12V thật).
+ *      Có TXD/RXD. ⚠️ chú thích "Hi->TR ON, Lo->TR OFF" nghĩa là đường khách->L70
+ *      đi qua transistor hở cực góp ĐẢO tín hiệu — dễ làm tưởng gửi mà bo không nhận.
+ *  TTL 5V này khớp với con HT245 5V đo được trên bo.
+ *  Vì chưa biết bo đang chạy kiểu nào, lệnh XUNG (đo bề rộng cạnh) phân biệt trước:
+ *  hẹp cỡ micro giây = UART; rộng cỡ chục mili giây = xung tiền, khỏi cần khung lệnh.
+ *
  *  ─── DÙNG ───────────────────────────────────────────────────────────────────
  *    Cắm USB, mở Serial Monitor 115200, gõ  TRO  để xem bảng lệnh.
  *    Chưa biết baud thì gõ  DOBAUD  rồi bỏ tờ tiền vào L70 cho có tín hiệu chạy.
@@ -251,12 +262,106 @@ void moCong() {
 }
 
 /* ============================================================================
+ *  ĐO CẠNH XUNG — TRẢ LỜI CÂU "UART HAY XUNG TIỀN?"
+ * ----------------------------------------------------------------------------
+ *  Tài liệu L-Series cho thấy L70 có NHIỀU kiểu giao tiếp, và hai kiểu hay gặp
+ *  nhất KHÁC NHAU VỀ BẢN CHẤT:
+ *
+ *    Pulse Interface — đầu ra tiền là một CẶP TIẾP ĐIỂM KHÔ cách ly quang
+ *      (Credit_Relay_NO / Credit_Relay_COM), phía khách kéo lên qua trở 4K7.
+ *      Mỗi tờ tiền = một hoặc vài nhịp đóng tiếp điểm. KHÔNG CÓ BYTE NÀO.
+ *
+ *    RS232 / ccNet — TTL 5V thật (không phải RS232 ±12V), có TXD và RXD.
+ *
+ *  Chưa biết bo đang chạy kiểu nào thì DÒ BAUD là vô nghĩa: nếu là xung tiền thì
+ *  chẳng có baud nào để dò, mà hàm dò vẫn cứ trả về một con số trông như thật.
+ *  Nên phải phân biệt TRƯỚC, và cách phân biệt thì đơn giản: ĐO BỀ RỘNG XUNG.
+ *
+ *      bề rộng hẹp nhất ~50-500 micro giây, đi thành chùm  -> UART (baud = 1/bề rộng)
+ *      bề rộng hàng chục MILI giây, lác đác                -> xung tiền
+ *
+ *  Hai thứ đó lệch nhau khoảng trăm lần nên không thể lẫn.
+ * ========================================================================== */
+#define XUNG_TOI_DA 900
+
+struct CanhXung { uint32_t us; uint8_t day; uint8_t muc; };
+CanhXung g_canh[XUNG_TOI_DA];
+
+void doXung(uint32_t giay) {
+  Serial.printf("[XUNG] do canh trong %lu giay tren CA HAI day.\n", (unsigned long)giay);
+  Serial.println("       LAM CHO NO CHAY NGAY BAY GIO: bo to tien vao L70, hoac bam nut tren ghe.");
+  congIct.end(); congGhe.end();
+  pinMode(CHAN_ICT_RX, INPUT);
+  pinMode(CHAN_GHE_RX, INPUT);
+
+  int n = 0;
+  uint8_t truocI = digitalRead(CHAN_ICT_RX) ? 1 : 0;
+  uint8_t truocG = digitalRead(CHAN_GHE_RX) ? 1 : 0;
+  uint32_t het = millis() + giay * 1000UL;
+  uint32_t goc = micros();
+  while ((int32_t)(het - millis()) > 0 && n < XUNG_TOI_DA) {
+    uint8_t a = digitalRead(CHAN_ICT_RX) ? 1 : 0;
+    if (a != truocI) { g_canh[n].us = micros() - goc; g_canh[n].day = 0; g_canh[n].muc = a; n++; truocI = a; if (n >= XUNG_TOI_DA) break; }
+    uint8_t b = digitalRead(CHAN_GHE_RX) ? 1 : 0;
+    if (b != truocG) { g_canh[n].us = micros() - goc; g_canh[n].day = 1; g_canh[n].muc = b; n++; truocG = b; }
+  }
+  moCong();
+
+  if (n == 0) {
+    Serial.println("[XUNG] khong bat duoc canh nao — hai day nam im suot.");
+    Serial.println("       Kiem: da lam cho no chay that chua; GND chung chua; dung chan chua;");
+    Serial.println("       va neu dung TXS0108E thi chan OE da keo len 3,3V chua.");
+    return;
+  }
+  Serial.printf("[XUNG] bat duoc %d canh%s\n", n, n >= XUNG_TOI_DA ? " (day bo nho, dung som)" : "");
+
+  // Thống kê bề rộng cho từng dây
+  for (int d = 0; d < 2; d++) {
+    uint32_t hepNhat = 0xFFFFFFFF, rongNhat = 0, tong = 0; int dem = 0;
+    uint32_t truoc = 0; bool coTruoc = false;
+    for (int i = 0; i < n; i++) {
+      if (g_canh[i].day != d) continue;
+      if (coTruoc) {
+        uint32_t w = g_canh[i].us - truoc;
+        if (w < hepNhat) hepNhat = w;
+        if (w > rongNhat) rongNhat = w;
+        tong += w; dem++;
+      }
+      truoc = g_canh[i].us; coTruoc = true;
+    }
+    const char* ten = d ? "GHE" : "L70";
+    if (dem == 0) { Serial.printf("  %s: khong du canh de do\n", ten); continue; }
+    Serial.printf("  %s: %d khoang, hep nhat %lu us, rong nhat %lu us, trung binh %lu us\n",
+                  ten, dem, (unsigned long)hepNhat, (unsigned long)rongNhat,
+                  (unsigned long)(tong / (uint32_t)dem));
+    /* Đây là chỗ ra kết luận. Ngưỡng 2000us (2ms) nằm giữa hai thế giới: bit của
+       UART chậm nhất (1200 baud) rộng 833us, còn xung tiền hẹp nhất cũng cỡ 20ms. */
+    if (hepNhat < 2000) {
+      long baud = (long)(1000000UL / hepNhat);
+      Serial.printf("     => giong UART. Baud xap xi %ld -> go 'DOBAUD' de do ky, roi 'BAUD <so>'.\n", baud);
+    } else {
+      Serial.printf("     => giong XUNG TIEN (tiep diem kho), khong phai UART.\n");
+      Serial.println("        Neu dung vay thi KHONG CAN khung lenh gi ca: gia lam L70 chi la keo");
+      Serial.println("        chan Credit_Relay_NO ve COM dung so nhip. Dem so nhip moi to tien");
+      Serial.println("        bang cach bo lan luot tung menh gia va xem 'XUNG' bao bao nhieu canh.");
+    }
+  }
+
+  Serial.println("\n  --- 40 canh dau (micro giay ke tu luc bat dau do) ---");
+  for (int i = 0; i < n && i < 40; i++)
+    Serial.printf("  %8lu  %s  -> %s\n", (unsigned long)g_canh[i].us,
+                  g_canh[i].day ? "GHE" : "L70", g_canh[i].muc ? "CAO" : "THAP");
+}
+
+/* ============================================================================
  *  BẢNG LỆNH
  * ========================================================================== */
 void inTro() {
   Serial.println(
     "\n===== CAU NGHE LEN ICT L70 <-> GHE — LENH GO QUA USB (115200) =====\n"
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
+    "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
+    "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
     "  DOBAUD [giay]   DO baud bang be rong xung (mac dinh 5 giay).\n"
     "                  Phai lam cho day co tin hieu trong luc do!\n"
     "  BAUD <so>       dat baud cho CA HAI ben (hai ben cua mot duong day, phai bang nhau)\n"
@@ -332,10 +437,16 @@ void quyTrinh() {
   Serial.println("   [ ] Dung so kenh: A1 thong voi B1, A2 voi B2");
   Serial.println("   Xong het thi go tiep QUYTRINH.\n");
 
-  Serial.println("BUOC 2 — do baud bang be rong xung. LAM CHO DAY CO TIN HIEU NGAY BAY GIO:");
+  Serial.println("BUOC 2 — UART hay XUNG TIEN? Do canh truoc, vi do baud ma nham kieu la vo nghia.");
+  Serial.println("   LAM CHO NO CHAY NGAY BAY GIO (bo to tien vao L70):");
+  doXung(8);
+  Serial.println("\n   Ket luan o tren bao 'giong XUNG TIEN' thi DUNG LAI O DAY — khong can baud,");
+  Serial.println("   khong can khung lenh. Bao 'giong UART' thi di tiep buoc 3.\n");
+
+  Serial.println("BUOC 3 — do baud bang be rong xung. LAM CHO DAY CO TIN HIEU NGAY BAY GIO:");
   long b = doBaudTheoXung(CHAN_ICT_RX, "phia L70", 5);
   if (b == 0) {
-    Serial.println("\n❌ DUNG O BUOC 2. Khong co tin hieu tren day phia L70.");
+    Serial.println("\n❌ DUNG O BUOC 3. Khong co tin hieu tren day phia L70.");
     Serial.println("   Gan nhu chac chan la phan cung — quay lai lam ky BUOC 1.");
     Serial.println("   ADuM1201: kiem du nguon ca hai phia, va co lay nham con 1200 khong.");
     Serial.println("   TXS0108E: kiem chan OE truoc tien. Do xong lam lai QUYTRINH.");
@@ -343,7 +454,7 @@ void quyTrinh() {
   }
   if (b != g_baud) { g_baud = b; moCong(); Serial.printf("   -> da dat baud = %ld\n", g_baud); }
 
-  Serial.println("\nBUOC 3 — nghe that 8 giay. Lam cho hai ben noi chuyen (bo tien vao L70):");
+  Serial.println("\nBUOC 4 — nghe that 8 giay. Lam cho hai ben noi chuyen (bo tien vao L70):");
   uint32_t i0 = g_soIct, g0 = g_soGhe;
   uint32_t het = millis() + 8000;
   while ((int32_t)(het - millis()) > 0) { chayCau(); inHangDoi(); delay(1); }
@@ -387,6 +498,7 @@ void ngheLenhUsb() {
 
     if      (lenh == "TRO")  inTro();
     else if (lenh == "TT")   inTrangThai();
+    else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
     else if (lenh == "DOBAUD") { uint32_t g = tham.toInt(); doBaudTheoXung(CHAN_ICT_RX, "phia L70", g ? g : 5); }
     else if (lenh == "BAUD") { long b = tham.toInt();
                                if (b < 300 || b > 921600) Serial.println("baud khong hop ly");
