@@ -1749,7 +1749,12 @@ void loop(){
       Serial.println("[CMD] -> da TAT may"); }
   }
   if(g_remoteStartMin > 0){ int m=g_remoteStartMin; g_remoteStartMin=0;
-    g_srcCode='r'; startRunning(m); Serial.printf("[CMD] -> da MO may %d phut\n", m);
+    /* Hướng 1: lệnh từ xa / tiêu ví -> ghế chỉ chạy khi CÓ TIỀN trên bus. startRunning()
+       chỉ đóng relay (không nối gì) nên phải BƠM tiền quy đổi từ số phút vào ghế. */
+    long vnd = (MINUTES > 0) ? (long)m * PRICE_VND / MINUTES : 0;
+    congTien.bom(vnd);
+    g_srcCode='r'; startRunning(m);
+    Serial.printf("[CMD] -> da MO may %d phut (bom %ld d vao ghe)\n", m, vnd);
   }
 
   /* Nhận tiền QR -> chạy ghế ở MỌI trạng thái, kể cả sau khi khách đã bấm huỷ hoặc màn đã tắt
