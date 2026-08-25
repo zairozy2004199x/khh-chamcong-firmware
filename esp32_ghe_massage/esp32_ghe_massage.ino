@@ -368,9 +368,13 @@ void ghiLoiTien(const char* ma, bool dangDienRa){
    không ăn QR). active=true -> treo lỗi; false -> gỡ lỗi đang treo. Đẩy đúng vào
    g_tmLoi để nhịp báo lên web như hệ báo lỗi cũ. */
 void loiTienCong(const char* ma, bool active){
-  if(active){ ghiLoiTien(ma, true); }
-  else if(strcmp(g_tmLoi, ma) == 0){ g_tmLoi[0] = 0; g_statusDirty = true;
-    Serial.printf("[TIEN] het loi: %s\n", ma); }
+  if(active){ ghiLoiTien(ma, true); return; }
+  /* HỒI PHỤC (2F): xóa CẢ lỗi đang treo LẪN lỗi gần nhất, để web hết luôn banner
+     (không còn "đã hỏng lúc trước"). ICT báo 2F = đã hết lỗi thật sự. */
+  bool doi = false;
+  if(strcmp(g_tmLoi, ma) == 0){ g_tmLoi[0] = 0; doi = true; }
+  if(strcmp(g_tmLoiCuoi, ma) == 0){ g_tmLoiCuoi[0] = 0; doi = true; }
+  if(doi){ g_statusDirty = true; Serial.printf("[TIEN] het loi (xoa ca cu): %s\n", ma); }
 }
 
 /** Gọi mỗi vòng loop(): nhìn đường xung xem có đang kẹt không. */
