@@ -87,6 +87,18 @@ inline int mdbGiaiMa(const uint8_t* mau, int soMau, int mauMoiBit,
   return n;
 }
 
+/* ─── MÃ HOÁ (ngược với mdbGiaiMa) — dùng cho phần PHÁT LẠI 9 bit ───────────
+   Sinh ra 11 mức dây của một khung UART: start(0) + 9 bit dữ liệu GỬI BIT THẤP
+   TRƯỚC + stop(1). Bit thứ 9 = mode. Bit-bang thì xuất lần lượt 11 mức này, mỗi
+   mức giữ đúng một bit-time (104us ở 9600). Tách riêng ra kiểu C thuần để bài
+   test đối chiếu: mã hoá xong giải mã lại phải ra đúng byte + mode ban đầu. */
+inline void mdbMaHoa(uint8_t giaTri, uint8_t mode, uint8_t bit11[11]) {
+  uint16_t v = (uint16_t)giaTri | ((uint16_t)(mode & 1) << 8);
+  bit11[0] = 0;                                  // start
+  for (int i = 0; i < 9; i++) bit11[1 + i] = (uint8_t)((v >> i) & 1);  // thấp trước
+  bit11[10] = 1;                                 // stop
+}
+
 /* Địa chỉ MDB hay gặp — để in cho dễ đọc, không dùng để quyết định gì.
    Bill validator = 0x30, coin changer = 0x08. Byte địa chỉ = <địa chỉ> | lệnh con. */
 inline const char* mdbTenDiaChi(uint8_t byteDiaChi) {

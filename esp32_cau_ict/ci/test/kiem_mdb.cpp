@@ -87,6 +87,25 @@ int main() {
     ok("hai byte sau là DỮ LIỆU (mode=0)", n>=3 && ra[1].mode==0 && ra[2].mode==0, "");
   }
 
+  printf("\n== MÃ HOÁ RỒI GIẢI MÃ PHẢI RA ĐÚNG BAN ĐẦU (round-trip) ==\n");
+  {
+    struct { uint8_t v, m; } mau[] = {
+      {0x30,1},{0x33,1},{0x00,0},{0xFF,0},{0x55,0},{0xAA,0},{0x01,0},{0x80,0},{0x7F,1}
+    };
+    int loi_rt = 0;
+    for (unsigned k=0;k<sizeof(mau)/sizeof(mau[0]);k++) {
+      uint8_t b11[11]; mdbMaHoa(mau[k].v, mau[k].m, b11);
+      // giãn 11 bit thành mẫu (OV mẫu/bit) rồi cho mdbGiaiMa đọc lại
+      std::vector<uint8_t> s2(OV*3,1);
+      for (int i=0;i<11;i++) for(int j=0;j<OV;j++) s2.push_back(b11[i]);
+      for (int i=0;i<OV*3;i++) s2.push_back(1);
+      int n = mdbGiaiMa(s2.data(),(int)s2.size(),OV,ra,32);
+      bool okrt = (n==1 && ra[0].giaTri==mau[k].v && ra[0].mode==mau[k].m && !ra[0].khungLoi);
+      if(!okrt) loi_rt++;
+    }
+    ok("9 byte mã hoá -> giải mã khớp 100%", loi_rt==0, "");
+  }
+
   printf("\n%d bài, %d lỗi\n", soChay, soLoi);
   return soLoi ? 1 : 0;
 }

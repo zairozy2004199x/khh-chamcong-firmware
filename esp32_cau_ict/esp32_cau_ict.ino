@@ -182,36 +182,28 @@
  * ========================================================================== */
 
 #include "mdb.h"
+#include "mdb_uart.h"
 
 #define FW_VERSION "cau-ict 2026-08-25a (nghe len 2 chieu ICT L70 <-> ghe)"
 
-/* ============================================================================
- *  CHÂN CẮM — board CYD ESP32-2432S028 (KHÔNG phải DevKit trần)
- * ----------------------------------------------------------------------------
- *  Trên CYD gần hết chân đã bị màn hình / cảm ứng / thẻ nhớ / loa chiếm, nên
- *  32/33 vừa kẹt khó hàn vừa trùng chân cảm ứng. Chỉ vài chân đưa ra JACK CẮM SẴN,
- *  cắm là xong, khỏi hàn:
- *      P3  "Extended IO" (jack 1.25, 4 chân):  GND · IO35 · IO22 · IO21
- *      CN1 "Temp/Humidity":                    GND · NC · IO27 · 3V3
- *      P1  "Power":                            VIN · IO1(TX) · IO3(RX) · GND
- *  Dùng P3: một jack có sẵn GND + hai chân đọc. IO35 CHỈ VÀO được (đúng cho đọc),
- *  IO22 vào/ra đều được. ⚠️ TRÁNH IO21 — nó là đèn nền TFT, dùng là chớp màn hình.
- *  IO27 (CN1) để dành làm chân dự phòng.
- *
- *  ─── NGHE LÉN KIỂU TAP SONG SONG — KHÔNG CẮT DÂY ──────────────────────────
- *  CYD không đủ chân để làm cầu cắt-giữa 4 dây. Nhưng để HỌC giao thức thì chỉ
- *  cần NGHE: kẹp vào hai dây dữ liệu của bus MDB (KHÔNG cắt), ghế và L70 vẫn nói
- *  chuyện thẳng với nhau như cũ, ESP32 đứng cạnh đọc. Chỉ tốn 2 chân đọc + GND.
- *  Vì chỉ đọc nên hai chân TX để -1 (ESP32 KHÔNG drive, không đụng vào bus).
- *  ⚠️ Dây MDB là 5V -> mỗi dây tap phải qua chia áp 5V->3,3V trước khi vào ESP32
- *     (đơn giản nhất: trở 10k nối tiếp + 20k xuống mass; hoặc 2 kênh board MOSFET).
- *     Chọn trở LỚN (10k/20k) để tap nhẹ, không tải bus.
- * ========================================================================== */
-#define CHAN_ICT_RX   22      // P3 · tap dây dữ liệu 1 của bus MDB (qua chia áp 5V->3,3V)
-#define CHAN_GHE_RX   35      // P3 · tap dây dữ liệu 2 (IO35 chỉ vào được — hợp cho đọc)
-#define CHAN_ICT_TX   -1      // TAP song song: KHÔNG drive dây
-#define CHAN_GHE_TX   -1      // TAP song song: KHÔNG drive dây
-#define CHAN_OE_ICT   -1      // (giữ cho tương thích; TAP song song không dùng)
+/* ---- CHÂN CẮM — CYD ESP32-2432S028, XEN GIỮA (cắt dây, phát lại được) ----
+ * Anh chọn xen giữa trên CYD nên hy sinh đèn nền màn hình để lấy đủ 4 chân.
+ * Tất cả nằm trên jack có sẵn P3 + CN1 -> cắm, khỏi hàn:
+ *     đọc L70   : IO35 (P3, chỉ vào được — hợp cho đọc)
+ *     phát → L70: IO27 (CN1)
+ *     đọc ghế   : IO22 (P3)
+ *     phát → ghế: IO21 (P3) — ⚠️ là ĐÈN NỀN TFT, sẽ chớp theo dữ liệu (không dùng
+ *                 màn hình thì kệ). Đây là chân thứ 4 duy nhất còn trống trên CYD.
+ * ⚠️ Dây MDB 5V -> cả 4 dây qua board MOSFET 4 kênh (LV↔ESP32, HV↔thiết bị,
+ *    GND chung, LVn khớp HVn).
+ * ⚠️ Xen giữa MDB dùng UART MỀM 9 bit (mdb_uart.h) — KHÔNG dùng UART cứng 8 bit
+ *    (làm rụng bit mode -> hỏng khung). Nhịp bit chỉnh trên máy thật.
+ */
+#define CHAN_ICT_RX   35      // đọc L70  (P3)
+#define CHAN_ICT_TX   27      // phát -> L70 (CN1)
+#define CHAN_GHE_RX   22      // đọc ghế  (P3)
+#define CHAN_GHE_TX   21      // phát -> ghế (P3, đèn nền — chớp theo dữ liệu)
+#define CHAN_OE_ICT   -1
 #define CHAN_OE_GHE   -1
 
 #define BAUD_MAC_DINH 9600
@@ -494,12 +486,50 @@ void doXung(uint32_t giay) {
 }
 
 /* ============================================================================
+ *  CỔNG TRUNG GIAN 9 BIT — bản THẬT của thành phẩm (đang dựng, cần chỉnh trên bo)
+ * ----------------------------------------------------------------------------
+ *  ESP32 xen giữa: chuyển tiếp 9 bit hai chiều (giữ bit mode) -> tiền mặt của L70
+ *  chạy qua như cũ; có chỗ móc chenQR để sau chèn "có tiền" khi quét QR.
+ *  ⚠️ CHƯA HOÀN CHỈNH: (1) nhịp bit MDB_BIT_US phải chỉnh trên máy thật tới khi
+ *     đọc ra khung sạch; (2) phần chèn QR chỉ điền được sau khi chép log tờ tiền
+ *     thật. Trước khi có hai thứ đó, hàm này chạy như CẦU CHUYỂN TIẾP + GHI LOG.
+ * ========================================================================== */
+MdbUart mdbGhe, mdbL70;
+volatile bool g_chenQR = false;      // sau này: nút QR bật cờ này
+
+void congTrungGian(uint32_t giay) {
+  mdbGhe.batDau(CHAN_GHE_RX, CHAN_GHE_TX);
+  mdbL70.batDau(CHAN_ICT_RX, CHAN_ICT_TX);
+  Serial.printf("[CONG] xen giua %lu giay. Chuyen tiep 9 bit hai chieu + ghi log.\n", (unsigned long)giay);
+  Serial.println("       Bo to tien vao L70 de xem khung. <XX>=dia chi, XX=du lieu, ?=khung loi.");
+  uint32_t het = millis() + giay * 1000UL;
+  MdbByte b;
+  while ((int32_t)(het - millis()) > 0) {
+    if (mdbGhe.coByte() && mdbGhe.docByte(&b)) {          // chủ (ghế) nói -> L70
+      mdbL70.guiByte(b.giaTri, b.mode);
+      Serial.printf(b.mode ? "G<%02X> " : "G%02X ", b.giaTri);
+      if (b.khungLoi) Serial.print("? ");
+      /* CHỖ MÓC CHÈN QR (điền sau khi có log): nếu b là POLL tới bill validator
+         (mode=1, 0x30..0x37) và g_chenQR bật thì lát nữa chèn khung "có tiền"
+         vào chỗ L70 trả lời. Chưa biết khung đó nên chưa làm. */
+    }
+    if (mdbL70.coByte() && mdbL70.docByte(&b)) {          // tớ (L70) trả lời -> ghế
+      mdbGhe.guiByte(b.giaTri, b.mode);
+      Serial.printf(b.mode ? "L<%02X> " : "L%02X ", b.giaTri);
+      if (b.khungLoi) Serial.print("? ");
+    }
+  }
+  Serial.println("\n[CONG] xong. G=ghe noi, L=L70 noi.");
+}
+
+/* ============================================================================
  *  BẢNG LỆNH
  * ========================================================================== */
 void inTro() {
   Serial.println(
     "\n===== CAU NGHE LEN ICT L70 <-> GHE — LENH GO QUA USB (115200) =====\n"
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
+    "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
     "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
     "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
@@ -599,11 +629,13 @@ void quyTrinh() {
     Serial.println("\n   ⚠️ Baud ≈ 9600 thi rat co the la MDB (bo ghe hay dung). MDB la 9 BIT,");
     Serial.println("      nghe kieu 8 bit se ra rac. Go 'MDB' de nghe dung 9 bit truoc khi ket luan.");
   }
-  Serial.println("\nBUOC 4 — nghe that 8 giay. Lam cho hai ben noi chuyen (bo tien vao L70):");
-  uint32_t i0 = g_soIct, g0 = g_soGhe;
-  uint32_t het = millis() + 8000;
-  while ((int32_t)(het - millis()) > 0) { chayCau(); inHangDoi(); delay(1); }
-  uint32_t dIct = g_soIct - i0, dGhe = g_soGhe - g0;
+  Serial.println("\nBUOC 4 — nghe khung 9 bit. Bo to tien vao L70 ngay bay gio:");
+  /* ⚠️ KHÔNG dùng cầu 8 bit ở đây (rụng bit mode). Gọi thẳng bộ nghe MDB 9 bit. */
+  ngheMdb(10);
+  Serial.println("\n   Doc ra khung sach (it '?') la nhip bit dung. Con nhieu '?' thi chinh");
+  Serial.println("   MDB_BIT_US trong mdb_uart.h/mdb.h vai us roi thu lai.");
+  Serial.println("   Xong buoc nay: go CONG de XEN GIUA that (chuyen tiep 9 bit, giu tien mat).");
+  uint32_t dIct = 1, dGhe = 1;   // ngheMdb tu in ket qua; day chi de khoi bao loi bien
 
   Serial.printf("\n----- KET QUA: L70 gui %lu byte, ghe gui %lu byte -----\n",
                 (unsigned long)dIct, (unsigned long)dGhe);
@@ -643,6 +675,7 @@ void ngheLenhUsb() {
 
     if      (lenh == "TRO")  inTro();
     else if (lenh == "TT")   inTrangThai();
+    else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
     else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
     else if (lenh == "DOBAUD") { uint32_t g = tham.toInt(); doBaudTheoXung(CHAN_ICT_RX, "phia L70", g ? g : 5); }
@@ -702,16 +735,20 @@ void setup() {
                    "     Con dung TXS0108E thi phai NOI CUNG OE len 3,3V o ca hai mach:\n"
                    "     de ho la ca mach TAT, khong byte nao qua, va khong bao loi gi ca.");
 
-  moCong();
+  /* ⚠️ KHÔNG tự chuyển tiếp lúc khởi động. Nếu tự chạy cầu 8 bit thì cắm vào là
+     CORRUPT bus MDB ngay (rụng bit mode). Để hai chân phát ở mức nghỉ (cao),
+     KHÔNG drive, cho tới khi anh gõ lệnh CONG (xen giữa 9 bit đúng cách). */
+  pinMode(CHAN_ICT_TX, INPUT_PULLUP);
+  pinMode(CHAN_GHE_TX, INPUT_PULLUP);
   g_batDauMs = millis();
-  Serial.printf("[CAU] L70 @ GPIO%d/%d — GHE @ GPIO%d/%d — %ld baud\n",
-                CHAN_ICT_RX, CHAN_ICT_TX, CHAN_GHE_RX, CHAN_GHE_TX, g_baud);
-  Serial.println("[CAU] dang chuyen tiep hai chieu. Cot dau la mili giay ke tu luc bat may.");
+  Serial.printf("[CAU] doc L70 @ GPIO%d, ghe @ GPIO%d ; phat -> L70 @ GPIO%d, -> ghe @ GPIO%d\n",
+                CHAN_ICT_RX, CHAN_GHE_RX, CHAN_ICT_TX, CHAN_GHE_TX);
+  Serial.println("[CAU] CHUA chuyen tiep. Go CONG de xen giua 9 bit (giu tien mat), MDB de chi nghe.");
   inTro();
 }
 
 void loop() {
-  chayCau();          // việc chính, luôn chạy trước
-  inHangDoi();
+  /* ⚠️ KHÔNG gọi chayCau() (cầu 8 bit) ở đây — nó làm rụng bit mode của MDB.
+     Xen giữa MDB dùng lệnh CONG (UART mềm 9 bit). loop chỉ nghe lệnh USB. */
   ngheLenhUsb();
 }
