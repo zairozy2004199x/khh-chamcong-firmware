@@ -169,6 +169,22 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
 #define RELAY_PIN          17
 #define RELAY_ACTIVE_HIGH  true
 
+/* --- RƠ-LE FAIL-SAFE bypass đường tiền (GIỮ TIỀN MẶT khi ESP mất điện) ----------
+ * Vì đã CẮT dây A (ICT-TX -> ghế-RX) để ESP xen giữa, ESP tắt/treo là tiền mặt chết.
+ * Thêm 1 rơ-le SPDT bắc qua chỗ cắt:
+ *     COM -> dây vào chân nhận tiền của GHẾ
+ *     NC  -> ICT-TX          (MẤT ĐIỆN: nối thẳng ICT->ghế, tiền mặt chạy)
+ *     NO  -> đầu ra IO27 ESP (CÓ ĐIỆN: ESP relay/bơm)   [qua chia mức 3,3->5V]
+ *     IN  -> BYPASS_PIN
+ * 🔴 CẤP NGUỒN module rơ-le CÙNG nguồn với ESP: ESP mất điện thì rơ-le cũng mất
+ *    điện -> tự nhả về NC (bypass). Đó chính là lưới an toàn.
+ * Firmware giữ BYPASS_PIN ở mức "kích" suốt khi chạy (chọn ESP-mode = COM-NO).
+ * ⚠️ Đa số module rơ-le xanh là ACTIVE-LOW (IN=LOW mới hút). Nếu nạp xong mà QR/
+ *    lệnh từ xa KHÔNG làm ghế chạy (còn tiền mặt vẫn chạy) = sai cực -> đổi
+ *    BYPASS_ACTIVE_HIGH. */
+#define BYPASS_PIN         22
+#define BYPASS_ACTIVE_HIGH false   // module active-LOW: false = IN kéo LOW để hút (ESP-mode)
+
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
    Đo trên máy thật: cục ICT L70 nói với ghế bằng SERIAL 4800 8E1 (khung 81 4X),
@@ -1697,6 +1713,9 @@ void setup(){
   Serial.begin(115200); delay(200);
   Serial.println("\n\n=== " FW_VERSION " ===");
   pinMode(RELAY_PIN, OUTPUT); relaySet(false);
+  /* Kích rơ-le fail-safe sang ESP-mode (COM->NO). Mất điện thì rơ-le tự nhả về NC
+     = ICT nối thẳng ghế -> tiền mặt vẫn chạy dù hộp QR chết. */
+  pinMode(BYPASS_PIN, OUTPUT); digitalWrite(BYPASS_PIN, BYPASS_ACTIVE_HIGH ? HIGH : LOW);
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CASH_PULSE_PIN), onCashPulse, FALLING); }
