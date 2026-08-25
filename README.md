@@ -59,10 +59,11 @@ cắm cáp USB, mở Serial Monitor 115200, gõ `TRO` để xem bảng lệnh. T
 
 - **Chiều bo → ESP32: bắt buộc chia áp** (1kΩ nối tiếp + 2kΩ xuống mass). Đầu ra HT245 đánh
   0–5V, chân ESP32 chỉ chịu ~3,6V — cắm thẳng là hỏng chân, mà hỏng âm thầm.
-- **Chiều ESP32 → bo:** tuỳ ngưỡng vào của chip. Loại ngưỡng 3,5V (74HC/AHC ở 5V) thì 3,3V
-  của ESP32 **không đủ** — sai thỉnh thoảng, ấm lên là chết, rất dễ đổ oan cho baud. Tên in
-  trên chip là "HT245", không mang chữ C/T nên không suy ra được: dùng `GIU 1` + đồng hồ để
-  biết trong 30 giây, rồi `TUKIEM 200` để chắc.
+- **Chiều ESP32 → bo: phải đo, đừng đoán theo chữ in trên chip.** `74HC245` ở 5V có ngưỡng
+  vào 3,5V → 3,3V của ESP32 **không đủ**; `74HCT245` ngưỡng 2,0V → **thừa sức**. Chip in
+  "HT245" — chữ quyết định (`C` hay `CT`) đã bị lược đi, và mã đó được dùng cho cả hai loại,
+  nên soi chữ hay tra mã đều không kết luận được. Gõ `GIU 1` rồi đo đầu ra HT245: ~5V là nối
+  thẳng được, ~0V là phải nâng mức. Xong thì `TUKIEM 200` để chắc.
 
 Kiểm tại chỗ, không cần chip, không cần arduino-cli:
 

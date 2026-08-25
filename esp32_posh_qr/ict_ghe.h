@@ -41,7 +41,7 @@
  *  hai chiều). Biết điều này thì phải xử 4 việc, cái nào bỏ qua cũng ra đúng một
  *  triệu chứng: "gửi mà ghế không nhúc nhích".
  *
- *  1) ⚠️ CON HT245 TRÊN BO GHẾ NÀY CHẠY VCC 5V (đã đo chân 20 so với chân 10).
+ *  1) ⚠️ CON ĐỆM TRÊN BO NÀY CHẠY VCC 5V (đã đo chân 20 so với chân 10).
  *     Kéo theo hai việc, đừng bỏ việc nào:
  *
  *     a) CHIỀU BO → ESP32: BẮT BUỘC chia áp. Đầu ra của HT245 đánh 0–5V, mà chân
@@ -57,31 +57,66 @@
  *        5V × 2/(1+2) = 3,33V. Dùng 1k/2k chứ đừng 10k/20k: trở càng lớn sườn xung
  *        càng ì, baud cao là méo.
  *
- *     b) CHIỀU ESP32 → BO: tuỳ ngưỡng vào của con chip, mà chữ "T" là tất cả.
- *            74HCT245 / 74LVC245  -> ngưỡng vào 2,0V  -> nối thẳng 3,3V, ĐƯỢC.
- *            74HC245  / 74AHC245  -> ngưỡng vào 3,5V  -> 3,3V KHÔNG ĐỦ, phải nâng mức.
- *        Loại ngưỡng cao không hỏng hẳn mà SAI THỈNH THOẢNG — đúng kiểu "lúc được lúc
- *        không, ấm lên là chết". Đo đồng hồ vẫn thấy "có 3,3V, dây tốt" nên rất dễ đổ
- *        oan cho baud hoặc khung lệnh.
+ *     b) CHIỀU ESP32 → BO: PHẢI ĐO MỚI BIẾT, ĐỪNG ĐOÁN THEO CHỮ IN TRÊN CHIP.
  *
- *        ⚠️ CON CHIP TRÊN BO NÀY IN LÀ "HT245" (hai dòng dưới "27KG4", "c9q8" chỉ là
- *           mã lô và tuần sản xuất, không nói lên loại gì). Cái tên đó KHÔNG mang chữ
- *           C hay T nên KHÔNG suy ra được ngưỡng vào — đừng đoán theo tên.
- *           Vậy thì làm hai bước, đều rẻ:
+ *        Con chip in đúng ba dòng:  HT245 / 85KG4 / ALQT  (chip dán, vỏ TSSOP-20).
+ *        Chữ "HC" KHÔNG hề có trên đó, và "HT245" thì được dùng cho CẢ HAI loại:
+ *            • nhiều hãng Trung Quốc in "HT245" cho hàng tương đương 74HC245;
+ *            • TI rút gọn "HCT245" thành "HT245" cho vừa vỏ nhỏ (đuôi G4 ở dòng
+ *              giữa là hậu tố chì-xanh của TI, hợp với khả năng này).
+ *        Mà đúng cái chữ bị lược đi lại là chữ quyết định:
+ *            74HC245  ở 5V -> ngưỡng vào 3,5V  -> ESP32 3,3V KHÔNG ĐỦ
+ *            74HCT245 ở 5V -> ngưỡng vào 2,0V  -> ESP32 3,3V THỪA SỨC
  *
- *           BƯỚC 1 — đồng hồ, 30 giây. Nối TX của ESP32 vào đầu vào của HT245, gõ
- *             GIU 1  rồi đo đầu ra tương ứng của HT245:
- *                ~5V  -> chip ăn được 3,3V. Ngưỡng thấp, nối thẳng được.
- *                ~0V  -> chip KHÔNG ăn. Phải nâng mức, hết cãi.
- *             (xem ghi chú đầy đủ ở hàm giuMuc())
+ *        ⚠️ Đây là chỗ dễ đi sai nhất trong cả việc này, nên nói thẳng: soi chữ trên
+ *           chip KHÔNG kết luận được. Tra mã trên mạng CÀNG KHÔNG.
+ *           Đã thử tra: trang bán hàng cho "74HC245" ghi mục "IC thu phát thay thế:
+ *           MCP2551, MCP2515" — hai con đó là chip CAN bus, chẳng dính gì tới bộ đệm
+ *           bus 8 kênh. Trang ghép nội dung máy móc, không phải datasheet. Chính mấy
+ *           trang kiểu đó gán "HT245 = 74HC245" cho mọi con hình dạng giống nhau, và
+ *           đó đúng là đường mà HCT bị gọi nhầm thành HC.
+ *           Có ĐÚNG MỘT con số trên trang đó dùng được, vì nó khớp datasheet thật:
+ *           "điện áp đầu vào tối đa 4,2V" chính là VIH của họ 74HC ở VCC 6V (0,7 × 6).
+ *           Nó xác nhận quy tắc VIH = 0,7 × VCC -> ở VCC 5V là 3,5V. Nhưng đó là số
+ *           của HỌ HC, không trả lời được con trên bo có phải HC hay không.
  *
- *           BƯỚC 2 — chạy thật. Khép kín TX → HT245 → (chia áp) → RX rồi gõ
- *             TUKIEM 200. Ngưỡng sát nút vẫn qua được bước 1 mà rớt ở bước 2.
- *             Một lần đúng KHÔNG nói lên gì; phải 200/200 mới tính là đạt.
+ *        ĐO 30 GIÂY LÀ XONG. Nối chân TX của ESP32 vào đầu vào HT245 (GND chung), gõ
+ *        GIU 1 rồi đo đầu ra tương ứng của HT245 so với mass:
+ *            ra ~5V  -> ngưỡng thấp (HCT). NỐI THẲNG ĐƯỢC, không cần thêm mạch nào.
+ *            ra ~0V  -> ngưỡng cao (HC). PHẢI nâng mức, xem ba cách bên dưới.
+ *            ra lửng lơ 1–4V -> vùng chập chờn, cũng coi như phải nâng mức.
+ *        Gõ GIU 0 đo lại phải ra ~0V; không đổi gì là chưa nối đúng chân, hoặc con
+ *        245 đang bị vô hiệu (OE mức cao), hoặc sai chiều DIR.
  *
- *           CHƯA ĐO ĐƯỢC mà cần lắp ngay thì cứ COI NHƯ LÀ LOẠI NGƯỠNG CAO và lắp
- *           mạch nâng mức. Lắp thừa thì chẳng mất gì ngoài mấy nghìn tiền linh kiện;
- *           thiếu thì đổi lại bằng những lượt khách rớt lác đác không ai truy ra.
+ *        ⚠️ KHÔNG ĐO ĐƯỢC mà cần lắp ngay thì CỨ COI NHƯ LÀ HC và lắp mạch nâng mức.
+ *           Lắp thừa chỉ tốn mấy nghìn tiền linh kiện. Lắp thiếu thì đổi lại bằng
+ *           kiểu hỏng đắt nhất: nó KHÔNG chết hẳn, nó chỉ SAI THỈNH THOẢNG — trên
+ *           bàn thử chạy ngon, lắp vào ghế ấm lên vài độ là rớt lượt lác đác, mà lúc
+ *           đó chẳng ai còn nghĩ tới điện áp nữa, chỉ ngồi đổ cho baud với khung lệnh.
+ *
+ *        NẾU PHẢI NÂNG MỨC — ba cách, xếp theo độ sạch:
+ *
+ *        1. ĐỔI CON ĐÓ THÀNH 74HCT245 (cùng vỏ dán, chân y hệt, cũng ăn 5V). Chữ T
+ *           nghĩa là ngưỡng vào 2,0V — sinh ra đúng để nhận tín hiệu mức thấp thế này.
+ *           Đổi xong nối thẳng, không thêm mạch nào, phía bo ICT vẫn đẩy 5V bình
+ *           thường. Sạch nhất, nếu được phép sửa bo của họ.
+ *
+ *        2. MODULE CHUYỂN MỨC LOGIC 3,3V ↔ 5V (loại 4 kênh dùng BSS138, bán đầy).
+ *           Không phải đụng vào bo của họ, và nó lo LUÔN chiều ngược lại nên bỏ được
+ *           cái chia áp 1k/2k ở mục (a).
+ *           ⚠️ Loại này kéo mức cao bằng trở 10k nên sườn xung ì. Dùng nó thì giữ
+ *              baud ≤ 38400, đừng ham 115200 — nhất là khi dây dài.
+ *
+ *        3. SN74LVC2T45 hoặc 74HCT1G125. Đẩy đối xứng, chạy 115200 vô tư, chuẩn nhất
+ *           về mặt tín hiệu. Đổi lại là phải hàn.
+ *
+ *        ❌ ĐỪNG dùng mẹo "cho chân ESP32 sang chế độ hở cực máng rồi treo trở lên 5V".
+ *           Mẹo đó chỉ đúng với vi điều khiển chịu được 5V. Chân ESP32 KHÔNG chịu 5V:
+ *           lúc chân thả nổi, 5V ở ngoài đi ngược qua diode bảo vệ vào nguồn 3,3V của
+ *           chip. Hỏng chân, và hỏng dần.
+ *
+ *        LẮP XONG RỒI KIỂM LẠI: khép kín đường đi rồi gõ TUKIEM 200. Phải đúng
+ *        200/200 mới tính là xong — phép đo tĩnh ở trên không bắt được ngưỡng sát nút.
  *
  *  2) CHIỀU (chân DIR, số 1) VÀ CHO PHÉP (chân OE, số 19, tích cực MỨC THẤP).
  *     Một con 245 chỉ có MỘT chân DIR cho cả 8 kênh — nên hai đường đi qua nó đều bị
