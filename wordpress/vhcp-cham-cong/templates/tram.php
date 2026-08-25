@@ -54,6 +54,12 @@ td.g{font-variant-numeric:tabular-nums}
 video,canvas.xem{width:100%;border-radius:12px;background:#000;display:block}
 iframe.bando{width:100%;height:200px;border:1px solid #334155;border-radius:12px;
 	background:#0f172a;display:block;margin:10px 0 0}
+.khung{position:relative}
+.dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+	pointer-events:none;border-radius:12px}
+.dem span{font-size:96px;font-weight:800;color:#fff;line-height:1;
+	text-shadow:0 0 22px rgba(0,0,0,.85),0 3px 10px rgba(0,0,0,.9);
+	font-variant-numeric:tabular-nums}
 .an{display:none!important}
 .mn{position:fixed;inset:0;background:rgba(2,6,23,.94);z-index:9;overflow:auto;
 	padding:14px 14px calc(20px + env(safe-area-inset-bottom))}
@@ -160,15 +166,19 @@ a{color:#7dd3fc}
 <!-- ============ MÀN CHỤP ẢNH ============ -->
 <div id="mChup" class="mn an"><div class="bao">
 	<h1>Chụp ảnh</h1>
-	<p class="mo">Đưa mặt vào khung, đủ sáng. Ảnh sẽ được đóng dấu giờ máy chủ.</p>
+	<p class="mo">Đưa mặt vào khung, đủ sáng. Máy tự chụp sau <b>5 giây</b> —
+		chạm vào khung hình để đếm lại từ đầu. Ảnh được đóng dấu giờ máy chủ.</p>
 	<div class="the" id="oMau"></div>
 	<div class="the" style="padding:10px">
-		<video id="vid" playsinline autoplay muted></video>
-		<canvas id="xem" class="xem an"></canvas>
+		<div class="khung">
+			<video id="vid" playsinline autoplay muted></video>
+			<canvas id="xem" class="xem an"></canvas>
+			<div id="oDem" class="dem an"><span id="soDem">5</span></div>
+		</div>
 		<div id="loiChup"></div>
 		<p></p>
 		<div class="hang" id="nhomChup">
-			<button id="btChup" class="chinh">Chụp</button>
+			<button id="btChup" class="chinh">Chụp ngay</button>
 			<button id="btHuyChup" class="phu">Huỷ</button>
 		</div>
 		<div class="hang an" id="nhomXem">
@@ -578,6 +588,7 @@ function veAnhMau(){
 }
 
 function moCamera(){
+	DEM_HUT = 0;
 	hien('xem',false); hien('vid',true);
 	el('nhomChup').classList.remove('an'); el('nhomXem').classList.add('an');
 	bao('loiChup','',null);
@@ -586,7 +597,15 @@ function moCamera(){
 		return;
 	}
 	navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ideal:1280} }, audio:false })
-	.then(function(s){ LUONG=s; el('vid').srcObject=s; })
+	.then(function(s){
+		LUONG = s;
+		var v = el('vid');
+		v.srcObject = s;
+		/* Đếm từ lúc CÓ HÌNH, không phải từ lúc bấm nút: máy ảnh trên điện thoại cũ mất một
+		   hai giây mới lên hình, đếm sớm là hết 5 giây khi màn hình vẫn còn đen. */
+		v.onloadedmetadata = function(){ if(!ANH) batDem(); };
+		if(v.videoWidth && !ANH){ batDem(); }
+	})
 	.catch(function(e){
 		bao('loiChup','dong','Không mở được máy ảnh: ' + (e && e.name ? e.name : 'lỗi')
 			+ '. Vào Cài đặt trình duyệt cho phép Máy ảnh với trang này.');
@@ -598,18 +617,79 @@ function dongCamera(){
 	el('vid').srcObject = null;
 }
 
-el('btHuyChup').addEventListener('click', function(){ dongCamera(); hien('mChup',false); });
-el('btChupLai').addEventListener('click', function(){ ANH=null; moCamera(); });
+el('btHuyChup').addEventListener('click', function(){ dungDem(); dongCamera(); hien('mChup',false); });
+el('btChupLai').addEventListener('click', function(){ dungDem(); ANH=null; moCamera(); });
 
-el('btChup').addEventListener('click', function(){
+/* ---------------------------------------------------------------- đếm ngược rồi TỰ CHỤP
+
+   Anh Thắng 25/08/2026: *"Trước khi chụp nó sẽ báo 5-4-3-2-1"*. Lý do thật sự đáng làm: chụp
+   bằng một tay trong khi tay kia giơ điện thoại thì ngón cái che ống kính hoặc làm rung máy —
+   ảnh mờ, mà ảnh mờ thì mất luôn công dụng duy nhất của nó là đối chiếu khi tranh cãi.
+
+   ⚠️ ĐẾM NGƯỢC KHÔNG ĐỤNG TỚI GIỜ ĐÓNG DẤU. Giờ in lên ảnh là giờ máy chủ ở ĐÚNG GIÂY BẤM
+      máy, `gioMayChu()` tự trôi theo đồng hồ máy từ mốc đã lấy — nên năm giây đếm ngược không
+      làm ảnh ghi sai giờ. Nếu đóng dấu bằng giờ lúc MỞ màn chụp thì mỗi tấm ảnh lệch 5 giây,
+      và lệch âm thầm.
+
+   ⚠️ Chưa có mốc giờ máy chủ thì KHÔNG chụp. Đếm lại chứ không chụp bừa — xem `chupNgay()`. */
+var DEM = null;          /* id của bộ đếm đang chạy */
+var DEM_GIAY = 5;
+var DEM_HUT = 0;         /* số lần đếm xong mà chụp không được */
+var HUT_TOI_DA = 3;
+
+function dungDem(){
+	if(DEM){ clearInterval(DEM); DEM = null; }
+	el('oDem').classList.add('an');
+}
+
+function batDem(){
+	dungDem();
+	var con = DEM_GIAY;
+	el('soDem').textContent = con;
+	el('oDem').classList.remove('an');
+	DEM = setInterval(function(){
+		con--;
+		if(con > 0){ el('soDem').textContent = con; return; }
+		dungDem();
+		/* Chụp hụt (máy ảnh chưa sẵn sàng, chưa có giờ máy chủ) thì ĐẾM LẠI, đừng đứng im:
+		   người ta đang giơ điện thoại chờ, không nhìn vào dòng chữ lỗi nhỏ phía dưới. */
+		if(chupNgay()){ DEM_HUT = 0; return; }
+		/* Hụt mãi (mất mạng nên không có giờ máy chủ) thì DỪNG, đừng quay vòng vô tận: vòng lặp
+		   im lặng làm người ta đứng chờ mà không hiểu, còn nút "Chụp ngay" thì vẫn bấm được. */
+		DEM_HUT++;
+		if(DEM_HUT >= HUT_TOI_DA){
+			DEM_HUT = 0;
+			bao('loiChup','dong','Thử tự chụp ' + HUT_TOI_DA + ' lần chưa được — thường là mạng '
+				+ 'đang chập chờn nên chưa lấy được giờ máy chủ. Bấm "Chụp ngay" để thử bằng tay.');
+			return;
+		}
+		setTimeout(function(){ if(!ANH) batDem(); }, 1200);
+	}, 1000);
+}
+
+/* Chạm vào khung hình = "khoan, đếm lại từ đầu". Không thêm nút: màn chụp đã có hai nút, thêm
+   nút thứ ba vào chỗ người ta đang giơ điện thoại một tay là mời bấm nhầm. */
+el('oDem').parentNode.addEventListener('click', function(){
+	if(ANH) return;                       /* đã chụp xong, đang xem lại */
+	if(el('vid').classList.contains('an')) return;
+	batDem();
+});
+
+/**
+ * Chụp một tấm. Trả về true nếu chụp được.
+ * Dùng chung cho nút "Chụp ngay" và cho bộ đếm — hai đường chụp riêng là hai chỗ đóng dấu giờ,
+ * và sớm muộn một chỗ quên mất ràng buộc nào đó.
+ */
+function chupNgay(){
+	if(ANH) return true;                  /* 🔴 ràng buộc 4: đã có ảnh thì không chụp đè */
 	var v = el('vid');
-	if(!v.videoWidth){ bao('loiChup','dong','Máy ảnh chưa sẵn sàng — chờ một giây rồi bấm lại.'); return; }
+	if(!v.videoWidth){ bao('loiChup','dong','Máy ảnh chưa sẵn sàng — chờ một giây rồi bấm lại.'); return false; }
 	var d = gioMayChu();
 	if(!d){
 		/* 🔴 Không có giờ máy chủ thì KHÔNG đóng dấu bừa bằng giờ máy. Thà chối và bảo thử lại. */
 		bao('loiChup','dong','Chưa lấy được giờ máy chủ. Kiểm tra mạng rồi bấm Chụp lại.');
 		napGio();
-		return;
+		return false;
 	}
 
 	/* 🔴 ràng buộc 2: thu nhỏ về 720px NGAY TẠI ĐÂY, trước mọi thứ khác. */
@@ -631,10 +711,36 @@ el('btChup').addEventListener('click', function(){
 	g.fillText(chu, 10, H - 10);
 
 	ANH = c.toDataURL('image/jpeg', 0.8);
+	dungDem();
 	hien('vid',false); hien('xem',true);
 	el('nhomChup').classList.add('an'); el('nhomXem').classList.remove('an');
 	dongCamera();
-});
+
+	/* Ảnh tối thui thì CẢNH BÁO, không chặn. Máy tự bấm nên người chụp không kịp nhìn khung
+	   hình — phải nói ra để họ bấm "Chụp lại" thay vì gửi đi một tấm không nhận ra ai. Cố ý
+	   không tự chối: thà có ảnh tối còn hơn không có lượt chấm công nào. */
+	if(doSang(g, W, H) < 55){
+		/* `bao()` thoát HTML (đúng — chữ ở đây có thể tới từ máy chủ), nên viết chữ thuần,
+		   đừng nhét thẻ vào rồi ngồi thắc mắc sao màn hình hiện ra "&lt;b&gt;". */
+		bao('loiChup','vang','Ảnh hơi tối, khó nhận ra mặt. Ra chỗ sáng hơn rồi bấm "Chụp lại" '
+			+ '— hoặc cứ dùng ảnh này nếu anh/chị thấy rõ mặt mình.');
+	}
+	return true;
+}
+
+/** Độ sáng trung bình 0–255. Lấy mẫu thưa: quét đủ 720×540 điểm trên máy cũ là khựng một nhịp. */
+function doSang(g, W, H){
+	try{
+		var d = g.getImageData(0, 0, W, H).data, tong = 0, n = 0;
+		for(var i = 0; i < d.length; i += 4 * 40){
+			tong += (d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114);
+			n++;
+		}
+		return n ? (tong / n) : 255;
+	}catch(e){ return 255; }   /* đọc không được thì coi như đủ sáng, đừng doạ nhầm */
+}
+
+el('btChup').addEventListener('click', function(){ dungDem(); chupNgay(); });
 
 /* ---------------------------------------------------------------- 🔴 ràng buộc 3:
    hỏi cơ sở / nhiệm vụ ĐÚNG LÚC LƯU, không hỏi lúc mở trang. */

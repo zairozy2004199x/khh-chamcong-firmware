@@ -501,6 +501,68 @@ t( 'người nhiều cơ sở được nhắc chọn đúng cơ sở đang đứ
 $src_on2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-online.php' );
 t( 'máy chủ vẫn đóng dấu GPS vào ghi chú', strpos( $src_on2, 'gps_thanh_chu' ) !== false );
 
+/* ============================================ 12. ĐẾM NGƯỢC RỒI TỰ CHỤP
+ *
+ * Anh Thắng: *"Trước khi chụp nó sẽ báo 5-4-3-2-1"*. Lý do đáng làm: chụp một tay trong khi
+ * tay kia giơ điện thoại thì ngón cái che ống kính hoặc làm rung máy — ảnh mờ, mà ảnh mờ thì
+ * mất luôn công dụng duy nhất của nó là đối chiếu khi tranh cãi.
+ */
+t( 'có bộ đếm ngược', strpos( $tram_js2, 'function batDem' ) !== false );
+t( 'đếm từ 5', strpos( $tram_js2, 'DEM_GIAY = 5' ) !== false );
+t( 'có lớp số đếm đè lên khung hình', strpos( $tram_vt, 'id="oDem"' ) !== false );
+t( 'chạm khung hình thì đếm lại từ đầu',
+	strpos( $tram_js2, "el('oDem').parentNode.addEventListener" ) !== false );
+
+/* 🔴 MỘT ĐƯỜNG CHỤP DUY NHẤT. Nút bấm và bộ đếm phải gọi CÙNG một hàm — hai đường chụp là hai
+   chỗ đóng dấu giờ, và sớm muộn một chỗ quên mất ràng buộc nào đó. */
+t( 'tách hàm chupNgay dùng chung', strpos( $tram_js2, 'function chupNgay' ) !== false );
+t( 'nút Chụp gọi chupNgay', preg_match( "/btChup'\\).addEventListener[^\n]*chupNgay\\(\\)/", $tram_js2 ) === 1 );
+t( 'bộ đếm cũng gọi chupNgay', strpos( $tram_js2, 'if(chupNgay())' ) !== false );
+$so_dong_dau = substr_count( $tram_js2, 'g.fillText(chu' );
+t( 'chỉ có ĐÚNG MỘT chỗ đóng dấu giờ lên ảnh', 1 === $so_dong_dau, $so_dong_dau );
+
+/* 🔴 ĐẾM NGƯỢC KHÔNG ĐƯỢC LÀM ẢNH GHI SAI GIỜ. Giờ in lên ảnh phải lấy ở ĐÚNG GIÂY bấm máy;
+   lấy lúc MỞ màn chụp thì mọi tấm ảnh lệch 5 giây, và lệch âm thầm. */
+t( 'giờ đóng dấu lấy TRONG chupNgay, không lấy lúc mở màn',
+	preg_match( "/function chupNgay\\(\\)[\\s\\S]{0,500}gioMayChu\\(\\)/", $tram_js2 ) === 1 );
+t( 'chưa có giờ máy chủ thì KHÔNG chụp bừa',
+	preg_match( "/if\\(!d\\)\\{[\\s\\S]{0,400}return false;/", $tram_js2 ) === 1 );
+
+/* Ràng buộc 4 vẫn nguyên: đã có ảnh thì không chụp đè. Tự chụp làm chốt này quan trọng hơn
+   trước — bộ đếm có thể bắn trong lúc người ta đang xem lại ảnh. */
+t( 'đã có ảnh thì chupNgay trả về ngay, không chụp đè',
+	preg_match( "/function chupNgay\\(\\)\\s*\\{\\s*\n?\\s*if\\(ANH\\) return true;/", $tram_js2 ) === 1 );
+
+/* Mọi đường thoát đều phải dừng bộ đếm, không thì nó bắn khi màn đã đóng. */
+foreach ( array( 'btHuyChup', 'btChupLai' ) as $nut_d ) {
+	t( "nút $nut_d dừng bộ đếm",
+		preg_match( "/$nut_d'\\).addEventListener[^\n]*dungDem\\(\\)/", $tram_js2 ) === 1 );
+}
+
+/* Đếm bắt đầu từ lúc CÓ HÌNH, không phải lúc bấm nút: máy cũ mất một hai giây mới lên hình,
+   đếm sớm là hết 5 giây khi màn hình vẫn đen. */
+t( 'đếm bắt đầu khi luồng hình sẵn sàng', strpos( $tram_js2, 'onloadedmetadata' ) !== false );
+
+/* Hụt mãi thì DỪNG, không quay vòng vô tận — vòng lặp im lặng làm người ta đứng chờ. */
+t( 'có trần số lần tự chụp hụt', strpos( $tram_js2, 'HUT_TOI_DA' ) !== false );
+t( 'hụt hết trần thì bảo bấm tay',
+	strpos( $tram_vt, 'để thử bằng tay' ) !== false );
+
+/* Ảnh tối: CẢNH BÁO, không chặn. Máy tự bấm nên người chụp không kịp nhìn khung hình. */
+t( 'có đo độ sáng ảnh', strpos( $tram_js2, 'function doSang' ) !== false );
+t( 'ảnh tối chỉ cảnh báo màu vàng, không phải lỗi đỏ',
+	preg_match( "/doSang\\([^\n]*\\)\\s*<\\s*\\d+\\)\\{[\\s\\S]{0,500}'vang'/", $tram_js2 ) === 1 );
+t( 'đo sáng hỏng thì coi như đủ sáng, không doạ nhầm',
+	strpos( $tram_js2, 'return 255;' ) !== false );
+/* Ảnh tối KHÔNG bị vứt: cảnh báo nằm SAU khi đã gán ANH, nên vẫn bấm "Dùng ảnh này" được. */
+t( 'ảnh tối vẫn dùng được',
+	strpos( $tram_js2, 'ANH = c.toDataURL' ) < strpos( $tram_js2, 'doSang(g, W, H)' ) );
+
+/* Câu cảnh báo đi qua bao() — hàm đó thoát HTML, nên trong chữ không được có thẻ. */
+t( 'bao() vẫn thoát HTML', strpos( $tram_js2, 'esc(chu)' ) !== false );
+t( 'câu ảnh tối không nhét thẻ HTML vào bao()',
+	preg_match( "/bao\\('loiChup','vang'[^;]*<b>/", $tram_js2 ) !== 1 );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
