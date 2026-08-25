@@ -68,11 +68,109 @@ class VHCC_Mat {
 		return '1' === (string) get_option( 'vhcc_mat_bat', '1' );
 	}
 
+	/**
+	 * Chế độ: 'im' = so và ghi nhật ký nhưng KHÔNG gắn cờ · 'co' = gắn cờ thật.
+	 *
+	 * 🔴 MẶC ĐỊNH LÀ 'im', VÀ ĐÓ LÀ CHỦ Ý. Ngưỡng 0,60 là con số của ngành chứ không phải của
+	 *    K&H — nó phụ thuộc ánh sáng từng cơ sở, camera từng đời máy, khẩu trang. Bật cờ ngay
+	 *    bằng số mặc định dẫn tới một trong hai kết cục, cả hai đều hỏng:
+	 *      · cả trăm cờ oan -> hai tuần sau không ai mở màn cờ nữa, và cờ THẬT chìm theo;
+	 *      · không cờ nào -> tưởng mọi thứ sạch, trong khi ngưỡng đang quá lỏng.
+	 *    Chạy im vài tuần, đọc nhật ký, rồi mới chọn ngưỡng theo số ĐO ĐƯỢC.
+	 */
+	public static function che_do() {
+		return 'co' === (string) get_option( 'vhcc_mat_che_do', 'im' ) ? 'co' : 'im';
+	}
+
 	/** Ngưỡng gắn cờ, chỉnh được ở Cài đặt khi thực tế báo nhầm nhiều quá. */
 	public static function nguong_lech() {
 		$v = (float) get_option( 'vhcc_mat_nguong', self::D_LECH );
 		if ( $v < 0.3 || $v > 1.2 ) { return self::D_LECH; }   // số vô lý -> về mặc định
 		return $v;
+	}
+
+	// ==================================================================== thư viện
+
+	/**
+	 * Thư mục đặt thư viện nhận diện. Anh Thắng tải về rồi bỏ vào đây.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO TỰ ĐẶT VÀO PLUGIN, KHÔNG GỌI CDN
+	 * =========================================================================================
+	 * Anh Thắng chọn: *"Anh tải file rồi bỏ vào thư mục plugin"*. Đúng hơn hẳn gọi CDN:
+	 *   · Trang chấm công không còn phụ thuộc một địa chỉ ngoài mà mình không kiểm soát. CDN
+	 *     đổi đường dẫn, hết hạn tên miền, hay nhà mạng chặn — là cả tính năng chết mà không
+	 *     có gì báo.
+	 *   · Model là 6 MB. Tải từ chính hosting của mình thì nhân viên ở cơ sở tải một lần rồi
+	 *     trình duyệt nhớ, và tốc độ do mình quyết chứ không do CDN quốc tế.
+	 *   · Không gửi thông tin lượt truy cập của nhân viên sang máy chủ của bên thứ ba.
+	 *
+	 * ⚠️ THƯ MỤC TRỐNG LÀ CHUYỆN BÌNH THƯỜNG, KHÔNG PHẢI LỖI. Chưa bỏ file vào thì tính năng
+	 *    im lặng không chạy, mọi thứ khác nguyên vẹn. Màn Cài đặt nói rõ còn thiếu file nào.
+	 */
+	public static function thu_muc() {
+		return VHCC_DIR . 'assets/mat/';
+	}
+
+	public static function url_thu_muc() {
+		return VHCC_URL . 'assets/mat/';
+	}
+
+	/**
+	 * Những file phải có, theo từng bộ.
+	 *
+	 * Nhận CẢ HAI bộ đang lưu hành, vì tên file của chúng khác nhau và anh Thắng có thể tải
+	 * nhầm bộ — bắt đúng một bộ là dựng một cái bẫy im lặng ngay ở bước cài đặt.
+	 */
+	public static function bo_file() {
+		return array(
+			/* face-api.js bản gốc (justadudewhohacks) — phổ biến nhất, tên file ổn định. */
+			'goc' => array(
+				'js'  => 'face-api.min.js',
+				'mau' => array(
+					'tiny_face_detector_model-weights_manifest.json',
+					'tiny_face_detector_model-shard1',
+					'face_landmark_68_tiny_model-weights_manifest.json',
+					'face_landmark_68_tiny_model-shard1',
+					'face_recognition_model-weights_manifest.json',
+					'face_recognition_model-shard1',
+					'face_recognition_model-shard2',
+				),
+			),
+		);
+	}
+
+	/**
+	 * Thư viện đã sẵn sàng chưa, và còn thiếu gì.
+	 *
+	 * 🔴 KIỂM Ở MÁY CHỦ, không để trình duyệt tự dò. Trình duyệt dò thiếu file thì nó nhận về
+	 *    một trang lỗi 404 của WordPress, cố đọc như JavaScript, rồi ném lỗi giữa lúc người ta
+	 *    đang chấm công. Máy chủ biết chắc file có hay không — hỏi nó một lần là xong.
+	 */
+	public static function thu_vien() {
+		$goc = self::thu_muc();
+		$ra  = array( 'co' => false, 'bo' => '', 'js' => '', 'mau_url' => '', 'thieu' => array() );
+
+		foreach ( self::bo_file() as $ten_bo => $bo ) {
+			$thieu = array();
+			if ( ! is_readable( $goc . $bo['js'] ) ) { $thieu[] = $bo['js']; }
+			foreach ( $bo['mau'] as $f ) {
+				if ( ! is_readable( $goc . $f ) ) { $thieu[] = $f; }
+			}
+			if ( ! $thieu ) {
+				return array( 'co' => true, 'bo' => $ten_bo,
+					'js'      => self::url_thu_muc() . $bo['js'],
+					'mau_url' => rtrim( self::url_thu_muc(), '/' ),
+					'thieu'   => array() );
+			}
+			/* Giữ danh sách thiếu của bộ NÀO GẦN ĐỦ NHẤT — báo "thiếu 7 file" khi người ta đã
+			   bỏ vào 6 file là làm họ tưởng mình làm sai từ đầu. */
+			if ( ! $ra['thieu'] || count( $thieu ) < count( $ra['thieu'] ) ) {
+				$ra['thieu'] = $thieu;
+				$ra['bo']    = $ten_bo;
+			}
+		}
+		return $ra;
 	}
 
 	// ==================================================================== toán
@@ -203,15 +301,74 @@ class VHCC_Mat {
 		}
 
 		if ( $d <= $nguong ) {
-			/* Khớp, hoặc nằm trong vùng KHÔNG BIẾT. Không gắn cờ — xem chú thích ở D_KHOP. */
-			return array( 'ok' => true,
-				'ket_qua' => ( $d <= self::D_KHOP ) ? 'khop' : 'kho_noi',
-				'd' => round( $d, 4 ) );
+			/* Khớp, hoặc nằm trong vùng KHÔNG BIẾT. Không gắn cờ — xem chú thích ở D_KHOP.
+			   Vẫn ghi nhật ký: muốn chọn ngưỡng thì phải thấy CẢ phân bố, không chỉ cái đuôi.
+			   Chỉ có số của phần lệch thì không biết đám đông người thật nằm ở đâu. */
+			$kq = ( $d <= self::D_KHOP ) ? 'khop' : 'kho_noi';
+			self::ghi_nhat_ky( $ma, $ngay, $coso, $d, $kq, false );
+			return array( 'ok' => true, 'ket_qua' => $kq, 'd' => round( $d, 4 ) );
 		}
 
 		/* ---- lệch: GẮN CỜ, không chặn ---- */
+		if ( 'im' === self::che_do() ) {
+			/* Đang đo, chưa gắn cờ. Vẫn ghi nhật ký — đó chính là thứ để lát nữa chọn ngưỡng. */
+			self::ghi_nhat_ky( $ma, $ngay, $coso, $d, 'lech', false );
+			return array( 'ok' => true, 'ket_qua' => 'lech', 'd' => round( $d, 4 ), 'im' => true );
+		}
 		$flag = self::gan_co( $u, $ma, $ngay, $coso, $d, $mau );
+		self::ghi_nhat_ky( $ma, $ngay, $coso, $d, 'lech', true );
 		return array( 'ok' => true, 'ket_qua' => 'lech', 'd' => round( $d, 4 ), 'flagId' => $flag );
+	}
+
+	/**
+	 * Ghi một dòng nhật ký đối chiếu.
+	 *
+	 * ⚠️ MỘT DÒNG CHO MỖI (người, ngày, kết quả) — không phải mỗi lượt. Vào, ra, ca tối là ba
+	 *    lượt mỗi ngày; ghi hết thì bảng phình gấp ba mà không nói thêm điều gì. Giữ dòng có
+	 *    khoảng cách LỚN NHẤT trong ngày: đó mới là lượt đáng xem.
+	 */
+	private static function ghi_nhat_ky( $ma, $ngay, $coso, $d, $ket_qua, $co_gan ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'mat_nhat_ky' );
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, d FROM $bang WHERE ma_nv=%s AND ngay=%s AND ket_qua=%s",
+			$ma, $ngay, $ket_qua ), ARRAY_A );
+		$ghi = array( 'ma_nv' => $ma, 'ngay' => $ngay, 'coso' => $coso,
+			'd' => round( $d, 4 ), 'ket_qua' => $ket_qua, 'co_gan' => $co_gan ? 1 : 0,
+			'tao_luc' => current_time( 'mysql' ) );
+		if ( ! $cu ) { $wpdb->insert( $bang, $ghi ); return; }
+		if ( (float) $cu['d'] < $d ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $cu['id'] ) ); }
+	}
+
+	/**
+	 * Thống kê để chọn ngưỡng: mỗi khoảng 0,05 có bao nhiêu lượt.
+	 *
+	 * Đây là bảng anh Thắng đọc sau vài tuần chạy im. Nhìn vào đó thấy khoảng nào là "đám đông
+	 * người thật" và khoảng nào là cái đuôi thưa đáng ngờ — ngưỡng nằm ở chỗ hai đám tách ra,
+	 * không phải ở con số em viết sẵn trong mã.
+	 */
+	public static function thong_ke( $u, $tu_ngay = '', $den_ngay = '' ) {
+		global $wpdb;
+		if ( ! VHCC_Vai::duoc( $u, 'ho_so' ) ) { return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so', 'Xem thống kê đối chiếu mặt' ) ); }
+		$bang = VHCC_DB::t( 'mat_nhat_ky' );
+		$dk   = '';
+		$tv   = array();
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $tu_ngay ) )  { $dk .= ' AND ngay >= %s'; $tv[] = $tu_ngay; }
+		if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', (string) $den_ngay ) ) { $dk .= ' AND ngay <= %s'; $tv[] = $den_ngay; }
+		$sql = "SELECT d, ket_qua, co_gan, ma_nv, ngay, coso FROM $bang WHERE 1=1" . $dk . ' ORDER BY d DESC';
+		$r   = $tv ? $wpdb->get_results( $wpdb->prepare( $sql, $tv ), ARRAY_A )
+		           : $wpdb->get_results( $sql, ARRAY_A );
+
+		$o = array();
+		foreach ( (array) $r as $x ) {
+			$k = (string) ( floor( (float) $x['d'] / 0.05 ) * 0.05 );
+			if ( ! isset( $o[ $k ] ) ) { $o[ $k ] = 0; }
+			$o[ $k ]++;
+		}
+		ksort( $o, SORT_NUMERIC );
+		return array( 'ok' => true, 'tong' => count( (array) $r ), 'o' => $o,
+			/* 30 lượt lệch nhất — mở ảnh của đúng mấy lượt này là biết ngưỡng đặt ở đâu. */
+			'dau' => array_slice( (array) $r, 0, 30 ) );
 	}
 
 	/**

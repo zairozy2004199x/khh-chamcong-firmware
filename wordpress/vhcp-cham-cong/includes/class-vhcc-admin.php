@@ -1720,6 +1720,20 @@ class VHCC_Admin {
 			   luôn giá trị cũ để không ai đọc nhầm một tuỳ chọn đã hết tác dụng. */
 			delete_option( 'vhcc_vai_tro_vao' );
 
+			/* --- đối chiếu khuôn mặt --- */
+			update_option( 'vhcc_mat_bat', isset( $_POST['vhcc_mat_bat'] ) ? '1' : '0' );
+			$cd_mat = isset( $_POST['vhcc_mat_che_do'] )
+				? sanitize_text_field( wp_unslash( $_POST['vhcc_mat_che_do'] ) ) : 'im';
+			update_option( 'vhcc_mat_che_do', 'co' === $cd_mat ? 'co' : 'im' );
+			if ( isset( $_POST['vhcc_mat_nguong'] ) ) {
+				/* Số vô lý thì XOÁ tuỳ chọn để về mặc định, đừng lưu lại rồi để `nguong_lech()`
+				   âm thầm bỏ qua — nhìn vào ô nhập vẫn thấy số mình gõ mà nó không có tác dụng
+				   là kiểu khó hiểu nhất. */
+				$ng_mat = (float) str_replace( ',', '.', sanitize_text_field( wp_unslash( $_POST['vhcc_mat_nguong'] ) ) );
+				if ( $ng_mat >= 0.3 && $ng_mat <= 1.2 ) { update_option( 'vhcc_mat_nguong', $ng_mat ); }
+				else { delete_option( 'vhcc_mat_nguong' ); }
+			}
+
 			VHCC_CauNoi::bao_dam_khoa();
 			VHCC_CauNoi::xoa_cache_giao_dien();   // đổi cấu hình thì lấy lại giao diện, khỏi dùng bản nhớ tạm
 			self::ve( 'saved' );
@@ -2157,6 +2171,75 @@ class VHCC_Admin {
 		   không nên chặn: nhân viên gõ đúng PIN vẫn bị đá ra, dù việc họ cần chỉ là chấm công
 		   và xem công của chính mình. Nay ai cũng vào, và THẤY GÌ thì do bậc quyền quyết định.
 		   Bảng dưới là bảng đó, in ra để anh Thắng đối chiếu chứ không phải để tích. */
+		/* ============================================ ĐỐI CHIẾU KHUÔN MẶT
+		   Thư viện do anh Thắng tự tải rồi bỏ vào thư mục plugin — xem VHCC_Mat::thu_muc().
+		   Khối này phải trả lời được đúng một câu: *đã bỏ đủ file chưa, còn thiếu cái nào*. */
+		$tv_mat = VHCC_Mat::thu_vien();
+		$dem_mat = VHCC_Mat::dem();
+		echo '<tr><th scope="row">Đối chiếu khuôn mặt</th><td>';
+
+		if ( $tv_mat['co'] ) {
+			echo '<p style="margin:0 0 8px"><b style="color:#1a7f37">✔ Thư viện đã sẵn sàng.</b> '
+				. 'Ảnh chấm công online sẽ được đối chiếu với mẫu khuôn mặt.</p>';
+		} else {
+			echo '<div class="notice notice-warning inline" style="margin:0 0 10px"><p>'
+				. '<b>Chưa có thư viện nhận diện — tính năng đang tắt.</b> Mọi thứ khác chạy '
+				. 'bình thường; chỉ là không có đối chiếu mặt. Tải và bỏ các file dưới đây vào '
+				. '<code>' . esc_html( str_replace( ABSPATH, '', VHCC_Mat::thu_muc() ) ) . '</code> '
+				. 'trên hosting (dùng File Manager của cPanel hoặc FTP), rồi tải lại trang này.</p>'
+				. '<p style="margin:6px 0 0">Còn thiếu <b>' . count( $tv_mat['thieu'] ) . '</b> file:</p>'
+				. '<ul style="margin:4px 0 0 18px;list-style:disc">';
+			foreach ( $tv_mat['thieu'] as $f_mat ) {
+				echo '<li><code>' . esc_html( $f_mat ) . '</code></li>';
+			}
+			echo '</ul>'
+				. '<p style="margin:8px 0 0"><b>Lấy ở đâu:</b> kho mã nguồn mở '
+				. '<code>face-api.js</code> trên GitHub (justadudewhohacks/face-api.js) — '
+				. 'file <code>face-api.min.js</code> nằm trong thư mục <code>dist/</code>, '
+				. 'các file model nằm trong thư mục <code>weights/</code>. Tải cả nhóm, bỏ '
+				. '<b>thẳng vào một thư mục</b>, không tạo thư mục con.</p>'
+				. '<p style="margin:6px 0 0">Bảy file model cộng lại khoảng <b>7 MB</b>. Nhân '
+				. 'viên tải một lần rồi trình duyệt nhớ, những lần sau không tải lại.</p>'
+				. '</div>';
+		}
+
+		echo '<p style="margin:0 0 6px"><label><input type="checkbox" name="vhcc_mat_bat" value="1"'
+			. checked( VHCC_Mat::bat(), true, false ) . '> Bật đối chiếu khuôn mặt</label></p>';
+
+		echo '<p style="margin:0 0 6px"><b>Chế độ:</b> ';
+		foreach ( array( 'im' => 'Chạy im — chỉ ghi số, KHÔNG gắn cờ',
+			'co' => 'Gắn cờ thật cho quản lý xem' ) as $k_cd => $ten_cd ) {
+			echo '<label style="margin-right:16px"><input type="radio" name="vhcc_mat_che_do" value="'
+				. esc_attr( $k_cd ) . '"' . checked( VHCC_Mat::che_do(), $k_cd, false ) . '> '
+				. esc_html( $ten_cd ) . '</label>';
+		}
+		echo '</p>';
+		echo '<p class="description" style="margin:0 0 8px">🔴 <b>Để "Chạy im" vài tuần trước đã.</b> '
+			. 'Ngưỡng bên dưới là con số chung của ngành, không phải của K&amp;H — nó phụ thuộc '
+			. 'ánh sáng từng cơ sở, camera từng đời máy, và cả chuyện có đeo khẩu trang hay không. '
+			. 'Bật cờ ngay bằng số mặc định thì hoặc ra cả trăm cờ oan (hai tuần sau không ai mở '
+			. 'màn cờ nữa, và cờ THẬT chìm theo), hoặc không ra cờ nào và tưởng mọi thứ sạch. '
+			. 'Chạy im, đọc bảng thống kê, rồi mới chọn ngưỡng theo số <b>đo được</b>.</p>';
+
+		echo '<p style="margin:0 0 4px"><label>Ngưỡng gắn cờ '
+			. '<input type="number" step="0.01" min="0.3" max="1.2" name="vhcc_mat_nguong" value="'
+			. esc_attr( (string) VHCC_Mat::nguong_lech() ) . '" style="width:90px"></label></p>';
+		echo '<p class="description" style="margin:0 0 8px">Lệch hơn số này thì coi là không khớp. '
+			. 'Nhỏ hơn ' . esc_html( (string) VHCC_Mat::D_KHOP ) . ' là gần như chắc chắn cùng một '
+			. 'người; lớn hơn ' . esc_html( (string) VHCC_Mat::D_LECH ) . ' là gần như chắc chắn hai '
+			. 'người khác nhau; ở giữa là vùng <i>không biết</i> và hệ thống cố ý im.</p>';
+
+		echo '<p style="margin:0"><b>Mẫu khuôn mặt:</b> ' . (int) $dem_mat['tong'] . ' người đã có mẫu';
+		if ( $dem_mat['cho'] ) {
+			echo ', trong đó <b>' . (int) $dem_mat['cho'] . ' chờ duyệt</b>';
+		}
+		echo '.</p>';
+		echo '<p class="description" style="margin:4px 0 0">Mẫu tự lấy từ <b>tấm ảnh chấm công đầu '
+			. 'tiên</b> của mỗi người. ⚠️ Mẫu chưa duyệt vẫn dùng để so, nhưng nếu chính ngày đầu ấy '
+			. 'có người chấm hộ thì mẫu ghi lại mặt người chấm hộ — và từ đó hệ thống gắn cờ '
+			. '<b>ngược</b>. Xoá mẫu là lượt chấm sau tự lấy lại.</p>';
+		echo '</td></tr>';
+
 		echo '<tr><th scope="row">Phân quyền</th><td>';
 		echo '<p class="description" style="margin:0 0 8px"><b>Ai cũng đăng nhập được bằng PIN.</b> '
 			. 'Việc làm được thì theo bậc — bậc trên làm được mọi việc của bậc dưới:</p>';

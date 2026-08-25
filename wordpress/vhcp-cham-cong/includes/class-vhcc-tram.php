@@ -370,9 +370,18 @@ class VHCC_Tram {
 	public static function render() {
 		nocache_headers();
 		header( 'Content-Type: text/html; charset=UTF-8' );
+		/* Trạng thái thư viện nhận diện: hỏi MÁY CHỦ một lần, không để trình duyệt tự dò.
+		   Trình duyệt dò thiếu file thì nhận về trang lỗi 404 của WordPress, cố đọc như
+		   JavaScript, rồi ném lỗi giữa lúc người ta đang chấm công. */
+		$tv  = VHCC_Mat::thu_vien();
 		$cfg = array(
 			'cong' => esc_url_raw( self::url() ),
 			'ver'  => VHCC_VERSION,
+			'mat'  => array(
+				'co'  => ( VHCC_Mat::bat() && $tv['co'] ),
+				'js'  => $tv['co'] ? esc_url_raw( $tv['js'] ) : '',
+				'mau' => $tv['co'] ? esc_url_raw( $tv['mau_url'] ) : '',
+			),
 		);
 		$VHCC_TRAM_CFG = $cfg;   // phpcs:ignore -- biến dùng trong template
 		include VHCC_DIR . 'templates/tram.php';

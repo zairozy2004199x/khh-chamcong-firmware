@@ -25,6 +25,10 @@ function t( $ten, $dk, $them = null ) {
 	if ( $dk ) { $dat++; return; }
 	$truot[] = $ten . ( null === $them ? '' : ' — ' . ( is_scalar( $them ) ? $them : wp_json_encode( $them ) ) );
 }
+/** So bằng nhau, và IN RA cái nhận được — "mong X, được Y" đọc nhanh hơn "sai". */
+function teq( $ten, $mong, $duoc ) {
+	t( $ten, $mong === $duoc, 'mong ' . var_export( $mong, true ) . ', được ' . var_export( $duoc, true ) );
+}
 
 global $wpdb;
 
@@ -125,6 +129,42 @@ $r = VHCC_Mat::soi( $U_GIUA, vec_cach( 0.1, 0.52 ), '2026-08-23', 'VIVO' );
 t( 'vùng giữa -> "khó nói"', 'kho_noi' === $r['ket_qua'], $r );
 t( 'và KHÔNG gắn cờ', $truoc_co === (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'ghi_chu' ) ) );
 t( 'vùng giữa cũng KHÔNG động vào mẫu', 1 === (int) VHCC_Mat::mau( 'NV_GIUA' )['so_lan'] );
+
+/* ============================================================ 4b. CHẾ ĐỘ IM LẶNG (mặc định)
+ *
+ * 🔴 MẶC ĐỊNH KHÔNG GẮN CỜ, VÀ ĐÓ LÀ CHỦ Ý. Ngưỡng 0,60 là con số của ngành chứ không phải của
+ * K&H — nó phụ thuộc ánh sáng từng cơ sở, camera từng đời máy, khẩu trang. Bật cờ ngay bằng số
+ * mặc định dẫn tới một trong hai kết cục, cả hai đều hỏng: cả trăm cờ oan (hai tuần sau không
+ * ai mở màn cờ nữa, cờ THẬT chìm theo), hoặc không cờ nào và tưởng mọi thứ sạch.
+ */
+teq( 'mặc định là chế độ IM LẶNG', 'im', VHCC_Mat::che_do() );
+$U_IM = gieo_mau( 'NV_IM', 0.3 );
+$truoc_im = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'ghi_chu' ) );
+$r = VHCC_Mat::soi( $U_IM, vec_cach( 0.3, 0.95 ), '2026-08-23', 'VIVO' );
+t( 'chế độ im: vẫn KẾT LUẬN lệch', 'lech' === $r['ket_qua'], $r );
+t( 'và nói rõ đang chạy im', ! empty( $r['im'] ), $r );
+t( 'nhưng KHÔNG gắn cờ nào',
+	$truoc_im === (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'ghi_chu' ) ) );
+/* Nhưng PHẢI ghi nhật ký — đó chính là thứ để lát nữa chọn ngưỡng. */
+$nk = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHCC_DB::t( 'mat_nhat_ky' )
+	. ' WHERE ma_nv=%s AND ngay=%s', 'NV_IM', '2026-08-23' ), ARRAY_A );
+t( 'nhưng CÓ ghi nhật ký', is_array( $nk ), $nk );
+t( 'nhật ký ghi đúng kết quả', 'lech' === $nk['ket_qua'] );
+t( 'và ghi rõ chưa gắn cờ', 0 === (int) $nk['co_gan'] );
+t( 'nhật ký KHÔNG giữ dãy đặc trưng', ! isset( $nk['vector'] ) );
+
+/* Phân bố phải có CẢ phần khớp, không chỉ cái đuôi lệch — chỉ có số của phần lệch thì không
+   biết đám đông người thật nằm ở đâu, mà ngưỡng đúng nằm ở chỗ hai đám tách ra. */
+VHCC_Mat::soi( $U_IM, vec_cach( 0.3, 0.10 ), '2026-08-24', 'VIVO' );
+$tk = VHCC_Mat::thong_ke( array( 'role' => 'Admin', 'name' => 'Sếp' ) );
+t( 'thống kê xem được', ! empty( $tk['ok'] ), $tk );
+t( 'và có cả lượt khớp lẫn lượt lệch', count( $tk['o'] ) >= 2, $tk['o'] );
+t( 'nhân viên KHÔNG xem được thống kê',
+	empty( VHCC_Mat::thong_ke( array( 'role' => 'Nhân viên' ) )['ok'] ) );
+
+/* ============================================================ 4c. BẬT CỜ THẬT */
+update_option( 'vhcc_mat_che_do', 'co' );
+teq( 'bật được chế độ gắn cờ', 'co', VHCC_Mat::che_do() );
 
 /* Lệch hẳn -> gắn cờ. */
 $r = VHCC_Mat::soi( $U, vec_cach( 0.1, 0.95 ), '2026-08-24', 'VIVO' );
@@ -256,18 +296,92 @@ $r = VHCC_Mat::soi( $U, vec( 0.9 ), '2026-08-31', 'VIVO' );
 t( 'lượt tới tự lấy mẫu mới', 'lay_mau' === $r['ket_qua'], $r );
 
 /* ============================================================ 9. ĐẾM CHO MÀN QUẢN TRỊ */
-/* Bốn mẫu: NV001 (vừa lấy lại) + ba mã riêng của mục 4. */
+/* Đếm theo SỐ THẬT trong kho, không gõ tay một con số rồi sửa mỗi lần thêm mục thử mới —
+   đó là kiểu phép thử vỡ vì lý do chẳng liên quan gì tới thứ nó canh. */
+$tong_that = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'mat_mau' ) );
+$cho_that  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM " . VHCC_DB::t( 'mat_mau' ) . " WHERE trang_thai='cho'" );
 $d = VHCC_Mat::dem();
-t( 'đếm được tổng số mẫu', 4 === $d['tong'], $d );
-t( 'và số mẫu đang chờ duyệt', 4 === $d['cho'], $d );
+teq( 'đếm đúng tổng số mẫu', $tong_that, $d['tong'] );
+teq( 'đếm đúng số mẫu đang chờ duyệt', $cho_that, $d['cho'] );
 VHCC_Mat::duyet( $AD, 'NV_GOP' );
 $d = VHCC_Mat::dem();
-t( 'duyệt một mẫu thì số chờ giảm', 3 === $d['cho'] && 4 === $d['tong'], $d );
+teq( 'duyệt một mẫu thì số chờ giảm đúng một', $cho_that - 1, $d['cho'] );
+teq( 'tổng không đổi', $tong_that, $d['tong'] );
 
 /* Lọc theo trạng thái — màn quản trị mở ra là muốn thấy ngay cái đang chờ. */
-t( 'lọc được mẫu đang chờ', 3 === count( VHCC_Mat::ds( $AD, 'cho' ) ) );
-t( 'lọc được mẫu đã duyệt', 1 === count( VHCC_Mat::ds( $AD, 'duyet' ) ) );
-t( 'không lọc thì thấy hết', 4 === count( VHCC_Mat::ds( $AD ) ) );
+teq( 'lọc được mẫu đang chờ', $cho_that - 1, count( VHCC_Mat::ds( $AD, 'cho' ) ) );
+teq( 'lọc được mẫu đã duyệt', $tong_that - ( $cho_that - 1 ), count( VHCC_Mat::ds( $AD, 'duyet' ) ) );
+teq( 'không lọc thì thấy hết', $tong_that, count( VHCC_Mat::ds( $AD ) ) );
+
+/* ============================================ 10. THƯ VIỆN ĐẶT TRONG PLUGIN
+ *
+ * Anh Thắng chọn: *"Anh tải file rồi bỏ vào thư mục plugin"*. Đúng hơn hẳn gọi CDN — trang
+ * chấm công không phụ thuộc một địa chỉ ngoài, model tải từ chính hosting của mình, và không
+ * gửi thông tin lượt truy cập của nhân viên sang máy chủ bên thứ ba.
+ *
+ * 🔴 THIẾU FILE LÀ CHUYỆN BÌNH THƯỜNG, KHÔNG PHẢI LỖI. Chưa bỏ file vào thì tính năng im lặng
+ *    không chạy, mọi thứ khác nguyên vẹn.
+ */
+$tm = VHCC_Mat::thu_muc();
+t( 'thư mục nằm trong plugin', false !== strpos( $tm, 'assets/mat' ) , $tm );
+t( 'thư mục có thật (đã tạo sẵn kèm plugin)', is_dir( $tm ), $tm );
+t( 'có index.php chặn duyệt thư mục', is_readable( $tm . 'index.php' ) );
+
+$tv = VHCC_Mat::thu_vien();
+t( 'chưa bỏ file vào thì báo CHƯA CÓ', empty( $tv['co'] ), $tv );
+t( 'và liệt kê ra còn thiếu file nào', count( $tv['thieu'] ) > 0 );
+t( 'thiếu đủ 8 file (1 thư viện + 7 model)', 8 === count( $tv['thieu'] ), $tv['thieu'] );
+t( 'có tên tệp thư viện', in_array( 'face-api.min.js', $tv['thieu'], true ) );
+t( 'có tên các model nhận dạng',
+	in_array( 'face_recognition_model-shard1', $tv['thieu'], true )
+	&& in_array( 'face_recognition_model-shard2', $tv['thieu'], true ) );
+t( 'có model dò mặt bản nhẹ',
+	in_array( 'tiny_face_detector_model-shard1', $tv['thieu'], true ) );
+
+/* Bỏ đủ file giả vào -> phải báo SẴN SÀNG. Không có phép thử này thì nhánh "đủ file" chưa
+   bao giờ chạy, và ngày anh Thắng bỏ file thật vào mới biết nó hỏng. */
+$bo = VHCC_Mat::bo_file();
+$da_tao = array();
+foreach ( array_merge( array( $bo['goc']['js'] ), $bo['goc']['mau'] ) as $f_gia ) {
+	file_put_contents( $tm . $f_gia, '/* tệp giả của bài kiểm */' );
+	$da_tao[] = $tm . $f_gia;
+}
+$tv2 = VHCC_Mat::thu_vien();
+t( 'bỏ đủ file thì báo SẴN SÀNG', ! empty( $tv2['co'] ), $tv2 );
+t( 'không còn thiếu gì', 0 === count( $tv2['thieu'] ) );
+t( 'trả về địa chỉ tệp thư viện', false !== strpos( $tv2['js'], 'face-api.min.js' ), $tv2['js'] );
+t( 'và địa chỉ thư mục model', false !== strpos( $tv2['mau_url'], 'assets/mat' ), $tv2['mau_url'] );
+
+/* Thiếu ĐÚNG MỘT file cũng phải là "chưa sẵn sàng" — nạp thư viện mà thiếu một model thì nó
+   chết giữa chừng, và chết ở trình duyệt của nhân viên chứ không ở đây. */
+unlink( $tm . 'face_recognition_model-shard2' );
+$tv3 = VHCC_Mat::thu_vien();
+t( 'thiếu một file thôi cũng là chưa sẵn sàng', empty( $tv3['co'] ) );
+t( 'và nói đúng file nào thiếu',
+	array( 'face_recognition_model-shard2' ) === $tv3['thieu'], $tv3['thieu'] );
+
+foreach ( $da_tao as $f_xoa ) { if ( is_file( $f_xoa ) ) { unlink( $f_xoa ); } }
+t( 'dọn sạch tệp giả sau khi thử', ! is_file( $tm . 'face-api.min.js' ) );
+
+/* ---- Trang trạm: máy chủ gác, không để trình duyệt tự dò ---- */
+$src_tram = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( 'trang trạm hỏi máy chủ về thư viện',
+	false !== strpos( $src_tram, 'VHCC_Mat::thu_vien()' ) );
+t( 'và chỉ bật khi CẢ HAI: bật ở cài đặt VÀ đủ file',
+	false !== strpos( $src_tram, "VHCC_Mat::bat() && \$tv['co']" ), $src_tram );
+
+$src_tp = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' );
+t( 'đối chiếu chạy SAU khi giờ đã ghi', false !== strpos( $src_tp, 'soiMat(anhVuaGui' ) );
+t( 'giữ lại ảnh trước khi xoá để còn soi', false !== strpos( $src_tp, 'var anhVuaGui = ANH;' ) );
+t( 'thư viện chỉ nạp MỘT lần cho cả phiên', false !== strpos( $src_tp, 'if(MAT_TAI) return MAT_TAI;' ) );
+t( 'không thấy mặt trong ảnh thì KHÔNG gửi gì',
+	false !== strpos( $src_tp, 'if(!kq || !kq.descriptor) return;' ) );
+/* 🔴 Hỏng ở đâu cũng IM. Người dùng không được thấy lỗi của một thứ họ không yêu cầu và không
+   sửa được — cái duy nhất họ cần thấy là dòng "đã ghi giờ vào". */
+t( 'mọi lỗi của phần soi mặt đều nuốt im',
+	preg_match( "/soiMat[\\s\\S]{0,2500}catch\\(function\\(\\)\\{ \\/\\* im/", $src_tp ) === 1 );
+t( 'KHÔNG có địa chỉ CDN nào trong trang',
+	false === strpos( $src_tp, 'cdn.' ) && false === strpos( $src_tp, 'unpkg' ) );
 
 echo "\n";
 if ( $truot ) {

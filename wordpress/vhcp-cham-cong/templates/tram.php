@@ -932,9 +932,11 @@ el('btLuu').addEventListener('click', function(){
 	var cs = oCS ? oCS.value : (((TOI&&TOI.dsCoSo)||[])[0] || (TOI&&TOI.coSoMacDinh) || '');
 	var nv = oNV ? oNV.value : '';
 
+	var anhVuaGui = ANH;   /* giữ lại để đối chiếu mặt SAU KHI giờ đã ghi xong */
 	goi('cham',{ token:token(), anh:ANH, gps:GPS, coSo:cs, nhiemVu:nv }).then(function(j){
 		if(!j || !j.ok){ bao('loiChon','dong',(j&&j.error)||'Không lưu được.'); return; }
 		ANH = null;
+		soiMat(anhVuaGui, j.ngay, j.coSo);
 		hien('mChon',false);
 		var nhan = (j.loai==='ra') ? 'GIỜ RA' : 'GIỜ VÀO';
 		bao('baoCham','xanh', '✔ Đã ghi ' + nhan + ' ' + j.gio + ' — ' + j.coSo
@@ -947,6 +949,69 @@ el('btLuu').addEventListener('click', function(){
 		b.disabled = false; b.textContent = 'LƯU CHẤM CÔNG';
 	});
 });
+
+/* ================================================================ ĐỐI CHIẾU KHUÔN MẶT
+
+   🔴 CHẠY SAU KHI GIỜ ĐÃ GHI XONG, VÀ KHÔNG AI PHẢI CHỜ NÓ.
+      Tính dãy đặc trưng cần tải một model vài megabyte. Nếu việc ấy nằm trên đường đi của
+      lượt chấm công thì mỗi lần chấm phải đợi model tải xong mới ghi được giờ — đổi một tiện
+      ích lấy chính cái việc mà cả hệ thống sinh ra để làm. Nên: `cham` trả về ok, màn hình
+      báo "đã ghi giờ vào", XONG; rồi cái này mới lặng lẽ chạy.
+
+   ⚠️ HỎNG Ở BẤT KỲ ĐÂU CŨNG IM. Thiếu file, model tải dở, ảnh không thấy mặt, mạng chết —
+      tất cả đều `return` không nói gì. Người dùng KHÔNG được thấy lỗi của một thứ họ không
+      yêu cầu và không sửa được. Cái duy nhất họ cần thấy là dòng "đã ghi giờ vào" ở trên.
+
+   ⚠️ Máy chủ đã tự gác: thiếu thư viện thì `CFG.mat.co` là false ngay từ lúc dựng trang. */
+var MAT_TAI = null;      /* Promise nạp thư viện — chỉ nạp MỘT lần cho cả phiên */
+
+function napThuVienMat(){
+	if(MAT_TAI) return MAT_TAI;
+	MAT_TAI = new Promise(function(xong, hong){
+		var s = document.createElement('script');
+		s.src = CFG.mat.js;
+		s.onload = function(){ xong(); };
+		s.onerror = function(){ hong(new Error('không tải được thư viện')); };
+		document.head.appendChild(s);
+	}).then(function(){
+		if(!window.faceapi) throw new Error('thư viện nạp rồi mà không thấy faceapi');
+		var m = CFG.mat.mau;
+		/* Ba model, tải song song. Bản "tiny" cho bộ dò và bộ điểm mốc — nhẹ hơn nhiều bản
+		   đầy đủ và đủ dùng cho ảnh selfie chính diện. Bộ nhận dạng thì không có bản tiny. */
+		return Promise.all([
+			faceapi.nets.tinyFaceDetector.loadFromUri(m),
+			faceapi.nets.faceLandmark68TinyNet.loadFromUri(m),
+			faceapi.nets.faceRecognitionNet.loadFromUri(m)
+		]);
+	});
+	MAT_TAI.catch(function(){ /* nuốt, để lần sau còn thử lại được */ MAT_TAI = null; });
+	return MAT_TAI;
+}
+
+function soiMat(anh, ngay, coSo){
+	if(!CFG.mat || !CFG.mat.co || !anh) return;
+	napThuVienMat().then(function(){
+		return new Promise(function(xong, hong){
+			var img = new Image();
+			img.onload  = function(){ xong(img); };
+			img.onerror = function(){ hong(new Error('ảnh hỏng')); };
+			img.src = anh;
+		});
+	}).then(function(img){
+		return faceapi
+			.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320 }))
+			.withFaceLandmarks(true)
+			.withFaceDescriptor();
+	}).then(function(kq){
+		/* Không thấy mặt trong ảnh: KHÔNG gửi gì cả. Gửi một dãy rỗng lên là máy chủ hoặc lấy
+		   nó làm mẫu, hoặc gắn cờ — cả hai đều sai, vì thứ thiếu là tấm ảnh chứ không phải
+		   con người. Ảnh không thấy mặt thì quản lý mở ra xem là biết ngay. */
+		if(!kq || !kq.descriptor) return;
+		var v = [];
+		for(var i = 0; i < kq.descriptor.length; i++){ v.push(kq.descriptor[i]); }
+		return goi('mat', { token:token(), vector:v, ngay:ngay, coSo:coSo });
+	}).catch(function(){ /* im — xem chú thích ở đầu khối */ });
+}
 
 /* ---------------------------------------------------------------- khởi động */
 if(token()){ moManChinh(); }

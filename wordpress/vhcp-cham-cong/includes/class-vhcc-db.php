@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.3.0';
+	const SCHEMA_VERSION = '2.4.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -295,6 +295,31 @@ class VHCC_DB {
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY trang_thai (trang_thai)";
+
+		/* ===== NHẬT KÝ ĐỐI CHIẾU MẶT ======================================================
+		   🔴 CÓ ĐỂ ĐO TRƯỚC KHI TIN. Ngưỡng 0,60 là con số của ngành, không phải của K&H: nó
+		      phụ thuộc ánh sáng từng cơ sở, camera từng đời máy, và cả việc nhân viên có đeo
+		      khẩu trang hay không. Bật cờ ngay bằng số mặc định thì hoặc là cả trăm cờ oan
+		      (hai tuần sau không ai mở màn cờ nữa, cờ thật chìm luôn), hoặc là không cờ nào và
+		      tưởng mọi thứ sạch.
+
+		      Nên: chạy chế độ IM LẶNG vài tuần — vẫn so, vẫn ghi vào đây, KHÔNG gắn cờ. Rồi mở
+		      bảng ra xem lệch thật rơi vào đâu, chọn ngưỡng theo số đo được.
+
+		   Bảng này chỉ giữ CON SỐ, không giữ dãy đặc trưng: đo xong thì dãy ấy hết việc, mà giữ
+		   lại là thêm một chỗ dữ liệu sinh trắc học nằm rải rác. */
+		$b['mat_nhat_ky'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ngay DATE NULL,
+			coso VARCHAR(120) NOT NULL DEFAULT '',
+			d DECIMAL(6,4) NULL,
+			ket_qua VARCHAR(20) NOT NULL DEFAULT '',
+			co_gan TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY ma_ngay (ma_nv,ngay),
+			KEY ket_qua (ket_qua)";
 
 		$b['ghi_chu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,

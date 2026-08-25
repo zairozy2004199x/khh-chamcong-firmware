@@ -1,0 +1,59 @@
+THƯ MỤC NÀY ĐỂ ĐẶT THƯ VIỆN NHẬN DIỆN KHUÔN MẶT
+================================================
+
+Thư mục trống là BÌNH THƯỜNG. Chưa bỏ file vào thì tính năng đối chiếu khuôn
+mặt im lặng không chạy, còn mọi thứ khác của plugin nguyên vẹn.
+
+Bỏ đủ 8 file dưới đây vào ĐÂY (thẳng vào thư mục này, không tạo thư mục con),
+rồi mở wp-admin → Chấm Công → Cài đặt: khối "Đối chiếu khuôn mặt" sẽ chuyển
+sang "✔ Thư viện đã sẵn sàng".
+
+
+CẦN 8 FILE
+----------
+Từ kho mã nguồn mở face-api.js trên GitHub:
+
+    https://github.com/justadudewhohacks/face-api.js
+
+  1. face-api.min.js                                  (thư mục dist/)
+
+  Bảy file còn lại nằm trong thư mục weights/ :
+
+  2. tiny_face_detector_model-weights_manifest.json
+  3. tiny_face_detector_model-shard1
+  4. face_landmark_68_tiny_model-weights_manifest.json
+  5. face_landmark_68_tiny_model-shard1
+  6. face_recognition_model-weights_manifest.json
+  7. face_recognition_model-shard1
+  8. face_recognition_model-shard2
+
+Tổng cộng khoảng 7 MB. Nhân viên tải một lần rồi trình duyệt nhớ, những lần
+sau không tải lại.
+
+
+CÁCH TẢI
+--------
+Cách gọn nhất: vào trang GitHub ở trên → nút "Code" → "Download ZIP" → giải
+nén → lấy đúng 8 file kể trên → tải lên hosting bằng File Manager của cPanel
+(hoặc FTP) vào thư mục này.
+
+Đường dẫn trên hosting:
+    wp-content/plugins/vhcp-cham-cong/assets/mat/
+
+
+⚠️ LƯU Ý KHI CẬP NHẬT PLUGIN
+----------------------------
+Cài đè plugin bằng file .zip mới có thể XOÁ thư mục này. Sau mỗi lần cập nhật,
+mở Cài đặt xem khối "Đối chiếu khuôn mặt" còn báo sẵn sàng không — nếu không
+thì bỏ lại 8 file.
+
+Muốn khỏi lo chuyện đó thì đặt 8 file ở nơi khác ngoài plugin và trỏ tới, nhưng
+hiện plugin chưa có ô khai đường dẫn riêng — cần thì báo để làm thêm.
+
+
+⚠️ VÌ SAO KHÔNG GỌI THẲNG TỪ INTERNET (CDN)
+-------------------------------------------
+  · Trang chấm công không phụ thuộc một địa chỉ ngoài mà mình không kiểm soát.
+    CDN đổi đường dẫn hay nhà mạng chặn là cả tính năng chết mà không có gì báo.
+  · Model 7 MB tải từ chính hosting của mình thì tốc độ do mình quyết.
+  · Không gửi thông tin lượt truy cập của nhân viên sang máy chủ bên thứ ba.
