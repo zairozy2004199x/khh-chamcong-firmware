@@ -192,6 +192,69 @@ foreach ( $l2 as $x ) {
 	}
 }
 
+/* ======================= LUẬT GỘP GIỜ ======================= */
+echo "— luật gộp giờ (chỗ quyết định TIỀN LƯƠNG) —\n";
+require __DIR__ . '/../../wordpress/vhcp-cong/includes/class-vcg-db.php';
+
+function gop( $cv, $cr, $mv, $mr ) {
+	$k = VCG_DB::gop_gio( $cv, $cr, $mv, $mr );
+	return array( $k['vao'], $k['ra'] );
+}
+
+la( 'ô trống + lượt đầu -> giờ vào',      array( 28680, null ),  gop( null, null, 28680, null ) );
+la( 'có giờ vào + lượt muộn -> nới ra',   array( 28680, 63000 ), gop( 28680, null, 63000, null ) );
+la( 'lượt SỚM hơn giờ vào -> vào mới',    array( 25000, 28680 ), gop( 28680, null, 25000, null ) );
+la( 'lượt nằm GIỮA -> không đụng gì',     array( 28680, 63000 ), gop( 28680, 63000, 40000, null ) );
+la( 'lượt trùng giờ vào -> không đổi',    array( 28680, 63000 ), gop( 28680, 63000, 28680, null ) );
+la( 'lượt trùng giờ ra -> không đổi',     array( 28680, 63000 ), gop( 28680, 63000, 63000, null ) );
+la( 'lượt MUỘN hơn -> nới giờ ra',        array( 28680, 70000 ), gop( 28680, 63000, 70000, null ) );
+la( 'cả cặp mới, rộng hơn -> nới cả hai', array( 20000, 80000 ), gop( 28680, 63000, 20000, 80000 ) );
+
+/* 🔴 KHÔNG BAO GIỜ THU HẸP. Đây là chốt quan trọng nhất: nạp lại một tệp cũ, hoặc nạp một tệp
+   chỉ có nửa ngày, không được cắt mất giờ đã ghi. Thu hẹp là ăn mất công của người ta. */
+la( 'lượt HẸP hơn -> giữ nguyên khoảng cũ', array( 20000, 80000 ), gop( 20000, 80000, 40000, 50000 ) );
+la( 'chỉ giờ vào hẹp hơn -> giữ nguyên',    array( 20000, 80000 ), gop( 20000, 80000, 30000, null ) );
+
+/* Một mốc duy nhất -> đó là GIỜ VÀO, ô giờ ra để TRỐNG. Đặt bằng nhau là sinh ca "làm 0 phút"
+   trông như đã ra ca, và bảng công cộng thiếu một buổi. */
+la( 'một mốc duy nhất -> giờ ra TRỐNG', array( 28680, null ), gop( null, null, 28680, 28680 ) );
+la( 'không có mốc nào',                array( null, null ),  gop( null, null, null, null ) );
+
+/* Cờ `doi` phải trung thực: báo đổi khi không đổi gì là mỗi lần nạp lại ghi đè cả bảng, mất
+   dấu vết `sua_luc` và làm mọi phép đối chiếu vô nghĩa. */
+$k1 = VCG_DB::gop_gio( 28680, 63000, 40000, null );
+la( 'nằm giữa -> KHÔNG báo đổi', false, $k1['doi'] );
+$k2 = VCG_DB::gop_gio( 28680, 63000, 70000, null );
+la( 'nới rộng -> CÓ báo đổi',    true,  $k2['doi'] );
+
+/* KHÔNG PHỤ THUỘC THỨ TỰ. Ba lượt trong ngày, nạp theo mọi thứ tự, phải ra cùng một cặp giờ.
+   Đây chính là thứ làm cho "nạp lại CSV bao nhiêu lần cũng được" có nghĩa. */
+$ba = array( 28680, 45000, 63000 );
+$chuan = null;
+foreach ( array( array(0,1,2), array(2,1,0), array(1,0,2), array(2,0,1), array(1,2,0), array(0,2,1) ) as $tt ) {
+	$v = null; $r = null;
+	foreach ( $tt as $i ) { $k = VCG_DB::gop_gio( $v, $r, $ba[ $i ], null ); $v = $k['vao']; $r = $k['ra']; }
+	if ( null === $chuan ) { $chuan = array( $v, $r ); }
+	la( '  thứ tự ' . implode( '', $tt ) . ' ra cùng kết quả', $chuan, array( $v, $r ) );
+}
+la( 'kết quả đó là [sớm nhất, muộn nhất]', array( 28680, 63000 ), $chuan );
+
+/* Ca đêm: trải phẳng trục rồi mới gộp. Không trải thì 06:00 "sớm hơn" 22:00 và ca đêm bị đảo
+   thành 16 tiếng ban ngày — đúng lỗi bản Apps Script phải viết hàm riêng để né. */
+echo "— ca đêm —\n";
+$vao_dem = VCG_DB::trai_dem( VCG_Nap::giay( '22:00' ) );   // 22:00 không trải
+$ra_dem  = VCG_DB::trai_dem( VCG_Nap::giay( '06:00' ) );   // 06:00 -> +86400
+la( '22:00 giữ nguyên', 79200, $vao_dem );
+la( '06:00 trải sang hôm sau', 108000, $ra_dem );
+$kd = VCG_DB::gop_gio( null, null, $vao_dem, $ra_dem );
+la( 'ca đêm: vào 22:00', 79200, $kd['vao'] );
+la( 'ca đêm: ra 06:00 hôm sau', 108000, $kd['ra'] );
+la( 'ca đêm dài 8 tiếng', 28800, $kd['ra'] - $kd['vao'] );
+
+/* Nếu QUÊN trải trục thì ca đêm ra 16 tiếng ban ngày — ghi ra đây để thấy hậu quả bằng số. */
+$sai = VCG_DB::gop_gio( null, null, 79200, 21600 );
+la( 'quên trải trục -> sai 16 tiếng', 57600, $sai['ra'] - $sai['vao'] );
+
 echo "\n";
 if ( $hong ) { printf( "🔴 HỎNG: %d | ĐẠT: %d\n", $hong, $dat ); exit( 1 ); }
 printf( "✓ SẠCH — %d phép, chạy trên tệp CSV THẬT\n", $dat );
