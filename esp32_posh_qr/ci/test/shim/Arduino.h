@@ -79,6 +79,7 @@ inline String operator+(const String& a, char b)          { String r(a); r += b;
 inline uint32_t& _gioAo() { static uint32_t t = 1000; return t; }
 inline uint32_t millis() { return _gioAo(); }
 inline void delay(uint32_t ms) { _gioAo() += ms; }
+inline void delayMicroseconds(uint32_t) {}
 inline void pinMode(int, int) {}
 inline void digitalWrite(int, int) {}
 inline int  digitalRead(int) { return 1; }

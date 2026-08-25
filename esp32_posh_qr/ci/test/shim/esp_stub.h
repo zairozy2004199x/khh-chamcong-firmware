@@ -109,5 +109,35 @@ class _EspGia { public: void restart() {} };
 inline _EspGia& _espGia() { static _EspGia e; return e; }
 #define ESP _espGia()
 
+/* --- SD + SPI (chi de bien dich kiem tho nap dsPIC) --- */
+#define FILE_READ  0
+#define FILE_WRITE 1
+class File {
+public:
+  operator bool() const { return _co; }
+  bool isDirectory() { return false; }
+  const char* name() { return "/mau.hex"; }
+  size_t size() { return 0; }
+  int  available() { return 0; }
+  int  read() { return -1; }
+  void close() {}
+  File openNextFile() { return File(false); }
+  File() {}
+  explicit File(bool co) : _co(co) {}
+private:
+  bool _co = false;
+};
+class _SdGia {
+public:
+  bool begin(int, class _SpiGia&, long = 4000000) { return true; }
+  bool begin(int) { return true; }
+  File open(const char*, int = FILE_READ) { return File(false); }
+};
+class _SpiGia { public: void begin(int, int, int, int) {} };
+inline _SpiGia& _spiGia() { static _SpiGia s; return s; }
+inline _SdGia&  _sdGia()  { static _SdGia s; return s; }
+#define SPI _spiGia()
+#define SD  _sdGia()
+
 extern HardwareSerial Serial1;
 extern HardwareSerial Serial2;

@@ -20,13 +20,14 @@ repo này vẫn chạy bình thường, không phải tới tận nơi khai lạ
 CI có bước chặn cứng: quét file `.bin` tìm dấu vết bí mật (`AKfycb`, `default-rtdb`, `firebaseio`, …),
 thấy là **dừng, không phát hành**.
 
-## Bốn firmware trong repo
+## Năm firmware trong repo
 
 | Thư mục | Việc |
 |---|---|
 | `esp32_hik_chamcong_full/` | **Máy chính** — đọc sự kiện quẹt thẻ/khuôn mặt từ đầu đọc Hikvision (ISAPI), đẩy lên web app kèm ảnh, đồng bộ nhân viên xuống máy, màn hình CYD, hỗ trợ cả WiFi lẫn 4G |
 | `esp32_ota_updater/` | **Máy trạm ("thợ nạp")** — tự tải `.bin` mới về thẻ nhớ cắm sẵn qua WiFi; đứng gần máy chính rồi **bấm** mới nạp |
 | `esp32_posh_qr/` | **Hộp POSH QR** — mở ghế massage bằng mã QR: quét mã → kiểm chữ ký ngay trên chip (không cần mạng) → gửi lệnh UART sang bo ICT của ghế |
+| `esp32_nap_pic/` | **Thợ nạp dsPIC** — nạp firmware cho dsPIC33F từ thẻ nhớ, **không cần máy tính**, và **chọn được bản** nào trong thẻ |
 | `esp32_cau_ict/` | **Cầu nghe lén** (mạch tạm) — ESP32 ngồi giữa `ICT L70 ⇄ ghế`, chuyển tiếp trong suốt hai chiều và chép lại từng byte. Dùng để **học giao thức**, không nằm trong máy chạy thật |
 
 ### Hộp POSH QR
@@ -155,3 +156,31 @@ phân vùng** — muốn đổi phải nạp USB lại toàn bộ máy.
 
 Nối WiFi `ChamCong-<tên cơ sở>` → mở `192.168.4.1`. Chip chưa cấu hình thì AP **mở, không mật khẩu**
 để còn vào khai được; khai xong mật khẩu AP thì lần sau AP có khoá.
+
+### Thợ nạp dsPIC
+
+PICkit bắt buộc phải cắm vào máy tính. Chế độ Programmer-To-Go thì hàng nhái không chạy, mà chạy
+được cũng chỉ giữ **đúng một ảnh** — muốn đổi bản là phải mang về máy tính. Máy này để cả xấp
+`.hex` trong thẻ nhớ, đứng tại chỗ **chọn bản nào nạp bản đó** (bấm nút BOOT, còi kêu N tiếng =
+file thứ N, giữ 2 giây để xác nhận).
+
+Nối thẳng, không mạch phụ nào: dsPIC33F chạy 3,3V y như ESP32, và vào chế độ nạp chỉ cần `MCLR` ở
+mức VDD — **không cần Vpp 9–13V** như PIC16/18.
+
+```
+ESP32 GPIO32 ──► MCLR      GPIO33 ──► PGEC      GPIO25 ◄─► PGED      GND ─── VSS
+Thẻ nhớ: SPI (SCK18 / MISO19 / MOSI23), CS = 5
+```
+
+⚠️ **Đang ở chế độ CHỈ ĐỌC, cố ý.** Chuỗi lệnh ICSP viết theo tài liệu Microchip DS70152 nhưng chưa
+đối chiếu được từng dòng với bản gốc. Ghi bằng chuỗi lệnh sai là hỏng bo thật — mà hỏng kiểu mất
+luôn đường ICSP thì PICkit cũng không cứu được. Thứ tự bắt buộc:
+
+1. `MACHIP` — đọc mã chip. **Chỉ đọc, không hỏng được gì.** Đọc ra đúng tên chip là đã chứng minh
+   cùng lúc: chìa khoá vào chế độ nạp, thứ tự bit, nhịp xung, và đường dây.
+2. `DOC` / `SOSANH` — đọc thử flash, so bản trong chip với file `.hex`. Vẫn chỉ đọc.
+3. Hai bước trên chạy đúng rồi mới viết tiếp phần xoá và ghi.
+
+Hai bẫy của file `.hex` dsPIC (đã chốt bằng 24 bài test, `ci/kiem-hex.sh`): mỗi lệnh 24 bit chiếm
+**4 byte trong file, byte thứ tư là byte ma phải vứt**; và **địa chỉ trong file = địa chỉ chương
+trình × 2**. Sai một trong hai thì nạp ra bãi rác mà máy vẫn báo thành công.
