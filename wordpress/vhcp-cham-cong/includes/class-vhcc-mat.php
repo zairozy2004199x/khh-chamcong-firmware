@@ -108,11 +108,40 @@ class VHCC_Mat {
 	 * ⚠️ THƯ MỤC TRỐNG LÀ CHUYỆN BÌNH THƯỜNG, KHÔNG PHẢI LỖI. Chưa bỏ file vào thì tính năng
 	 *    im lặng không chạy, mọi thứ khác nguyên vẹn. Màn Cài đặt nói rõ còn thiếu file nào.
 	 */
+	/**
+	 * Nơi đặt thư viện: `wp-content/uploads/vhcc-mat/`.
+	 *
+	 * =========================================================================================
+	 * 🔴 NGOÀI THƯ MỤC PLUGIN, VÀ ĐÓ LÀ ĐIỂM CHÍNH
+	 * =========================================================================================
+	 * Anh Thắng 25/08/2026: *"sao tải xong về nó lại mất tiêu rồi"*. Vì bản trước để thư viện ở
+	 * `plugins/vhcp-cham-cong/assets/mat/`, mà **cài đè plugin bằng tệp .zip thì WordPress XOÁ
+	 * SẠCH thư mục plugin cũ rồi giải nén bản mới đè lên**. Bảy megabyte vừa tải bay theo, và
+	 * lần cập nhật nào cũng bay lại.
+	 *
+	 * Em có ghi cảnh báo ấy trong DOC-TRUOC.txt — nhưng ghi cảnh báo về một cái bẫy mà vẫn để
+	 * cái bẫy nằm đó thì không phải là sửa. Chỗ đúng là `uploads/`: WordPress không đụng tới nó
+	 * khi cập nhật plugin, và các bản sao lưu của hosting đều gói nó theo.
+	 *
+	 * ⚠️ VẪN NHẬN THƯ MỤC CŨ. Ai đã kịp bỏ tệp vào trong plugin thì không phải làm lại — xem
+	 *    `thu_muc_cu()` và cách `thu_vien()` dò cả hai nơi.
+	 */
 	public static function thu_muc() {
-		return VHCC_DIR . 'assets/mat/';
+		$up = wp_upload_dir();
+		return trailingslashit( $up['basedir'] ) . 'vhcc-mat/';
 	}
 
 	public static function url_thu_muc() {
+		$up = wp_upload_dir();
+		return trailingslashit( $up['baseurl'] ) . 'vhcc-mat/';
+	}
+
+	/** Chỗ cũ trong plugin — còn đọc được thì vẫn dùng, nhưng không tải mới vào đó nữa. */
+	public static function thu_muc_cu() {
+		return VHCC_DIR . 'assets/mat/';
+	}
+
+	public static function url_thu_muc_cu() {
 		return VHCC_URL . 'assets/mat/';
 	}
 
@@ -148,8 +177,22 @@ class VHCC_Mat {
 	 *    đang chấm công. Máy chủ biết chắc file có hay không — hỏi nó một lần là xong.
 	 */
 	public static function thu_vien() {
-		$goc = self::thu_muc();
-		$ra  = array( 'co' => false, 'bo' => '', 'js' => '', 'mau_url' => '', 'thieu' => array() );
+		/* Dò CHỖ MỚI trước, rồi mới tới chỗ cũ trong plugin. Ai đã kịp bỏ tệp vào plugin thì
+		   vẫn chạy được cho tới lần cập nhật kế tiếp — lúc đó tệp mất, và hệ thống tự quay về
+		   báo thiếu, không im lặng chạy sai. */
+		foreach ( array( array( self::thu_muc(), self::url_thu_muc() ),
+			array( self::thu_muc_cu(), self::url_thu_muc_cu() ) ) as $noi ) {
+			$ra = self::soi_thu_muc( $noi[0], $noi[1] );
+			if ( $ra['co'] ) { return $ra; }
+		}
+		/* Không nơi nào đủ: báo theo CHỖ MỚI, vì đó là nơi sẽ tải vào. */
+		return self::soi_thu_muc( self::thu_muc(), self::url_thu_muc() );
+	}
+
+	/** Một thư mục có đủ bộ tệp không, và thiếu gì. */
+	private static function soi_thu_muc( $goc, $url ) {
+		$ra = array( 'co' => false, 'bo' => '', 'js' => '', 'mau_url' => '', 'thieu' => array(),
+			'noi' => $goc );
 
 		foreach ( self::bo_file() as $ten_bo => $bo ) {
 			$thieu = array();
@@ -158,9 +201,9 @@ class VHCC_Mat {
 				if ( ! is_readable( $goc . $f ) ) { $thieu[] = $f; }
 			}
 			if ( ! $thieu ) {
-				return array( 'co' => true, 'bo' => $ten_bo,
-					'js'      => self::url_thu_muc() . $bo['js'],
-					'mau_url' => rtrim( self::url_thu_muc(), '/' ),
+				return array( 'co' => true, 'bo' => $ten_bo, 'noi' => $goc,
+					'js'      => $url . $bo['js'],
+					'mau_url' => rtrim( $url, '/' ),
 					'thieu'   => array() );
 			}
 			/* Giữ danh sách thiếu của bộ NÀO GẦN ĐỦ NHẤT — báo "thiếu 7 file" khi người ta đã
@@ -209,10 +252,13 @@ class VHCC_Mat {
 		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
 			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'he_thong', 'Tải thư viện nhận diện' ) );
 		}
-		$tv = self::thu_vien();
+		/* ⚠️ Soi CHỖ MỚI, không hỏi `thu_vien()`. `thu_vien()` trả "đủ rồi" khi tệp còn nằm ở
+		   thư mục cũ trong plugin — mà chỗ ấy sẽ bị xoá ở lần cập nhật plugin tới. Bấm nút này
+		   là muốn CHUYỂN sang chỗ an toàn, nên phải hỏi chỗ an toàn thiếu gì. */
+		$dich = self::thu_muc();
+		$tv   = self::soi_thu_muc( $dich, self::url_thu_muc() );
 		if ( $tv['co'] ) { return array( 'ok' => true, 'xong' => true, 'tai' => 0, 'con' => 0 ); }
 
-		$dich = self::thu_muc();
 		if ( ! wp_mkdir_p( $dich ) || ! is_writable( $dich ) ) {
 			return array( 'ok' => false, 'error' => 'Không ghi được vào ' . $dich
 				. '. Hosting đang khoá quyền ghi thư mục plugin — cách khác là tự tải tệp rồi '
@@ -228,6 +274,15 @@ class VHCC_Mat {
 		$tai = 0; $loi = array();
 		foreach ( $tv['thieu'] as $ten ) {
 			if ( time() > $het ) { break; }
+
+			/* Có sẵn ở thư mục cũ thì CHÉP, đừng tải lại 7 MB từ internet. Đây đúng tình huống
+			   anh Thắng đang gặp: tệp còn nguyên trong plugin, chỉ cần dời sang chỗ mà cập nhật
+			   plugin không xoá. Vẫn xét nội dung trước khi chép — tệp cũ cũng có thể hỏng dở. */
+			$cu = self::thu_muc_cu() . $ten;
+			if ( is_readable( $cu ) && true === self::xet_tep( $ten, file_get_contents( $cu ) ) ) {
+				if ( copy( $cu, $dich . $ten ) ) { $tai++; continue; }
+			}
+
 			$kq = self::tai_mot( $ten, $dich );
 			if ( true === $kq ) { $tai++; } else { $loi[] = $ten . ': ' . $kq; }
 		}
@@ -308,8 +363,12 @@ class VHCC_Mat {
 		}
 		$bo = self::bo_file();
 		$so = 0;
-		foreach ( array_merge( array( $bo['goc']['js'] ), $bo['goc']['mau'] ) as $f ) {
-			if ( is_file( self::thu_muc() . $f ) && @unlink( self::thu_muc() . $f ) ) { $so++; }
+		/* Xoá ở CẢ HAI nơi — còn sót một bản ở thư mục cũ thì `thu_vien()` vẫn thấy "đủ", và
+		   người bấm "xoá để tải lại" không hiểu vì sao chẳng có gì đổi. */
+		foreach ( array( self::thu_muc(), self::thu_muc_cu() ) as $noi ) {
+			foreach ( array_merge( array( $bo['goc']['js'] ), $bo['goc']['mau'] ) as $f ) {
+				if ( is_file( $noi . $f ) && @unlink( $noi . $f ) ) { $so++; }
+			}
 		}
 		return array( 'ok' => true, 'so' => $so );
 	}

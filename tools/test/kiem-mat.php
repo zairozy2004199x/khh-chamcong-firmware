@@ -322,10 +322,18 @@ teq( 'không lọc thì thấy hết', $tong_that, count( VHCC_Mat::ds( $AD ) ) 
  * 🔴 THIẾU FILE LÀ CHUYỆN BÌNH THƯỜNG, KHÔNG PHẢI LỖI. Chưa bỏ file vào thì tính năng im lặng
  *    không chạy, mọi thứ khác nguyên vẹn.
  */
+/* 🔴 THƯ VIỆN PHẢI NẰM NGOÀI THƯ MỤC PLUGIN.
+   Anh Thắng 25/08/2026: *"sao tải xong về nó lại mất tiêu rồi"* — vì bản trước để ở
+   `plugins/vhcp-cham-cong/assets/mat/`, mà cài đè plugin bằng tệp .zip thì WordPress XOÁ SẠCH
+   thư mục plugin cũ rồi giải nén bản mới đè lên. Bảy megabyte vừa tải bay theo, và lần cập
+   nhật nào cũng bay lại. Ghi cảnh báo trong tài liệu mà vẫn để cái bẫy nằm đó thì không phải
+   là sửa — chỗ đúng là `uploads/`, nơi WordPress không đụng tới khi cập nhật plugin. */
 $tm = VHCC_Mat::thu_muc();
-t( 'thư mục nằm trong plugin', false !== strpos( $tm, 'assets/mat' ) , $tm );
-t( 'thư mục có thật (đã tạo sẵn kèm plugin)', is_dir( $tm ), $tm );
-t( 'có index.php chặn duyệt thư mục', is_readable( $tm . 'index.php' ) );
+t( 'thư mục nằm trong uploads, KHÔNG trong plugin',
+	false !== strpos( $tm, 'uploads' ) && false === strpos( $tm, 'plugins' ), $tm );
+t( 'chỗ cũ trong plugin vẫn còn được nhận',
+	false !== strpos( VHCC_Mat::thu_muc_cu(), 'assets/mat' ), VHCC_Mat::thu_muc_cu() );
+wp_mkdir_p( $tm );
 
 $tv = VHCC_Mat::thu_vien();
 t( 'chưa bỏ file vào thì báo CHƯA CÓ', empty( $tv['co'] ), $tv );
@@ -350,7 +358,7 @@ $tv2 = VHCC_Mat::thu_vien();
 t( 'bỏ đủ file thì báo SẴN SÀNG', ! empty( $tv2['co'] ), $tv2 );
 t( 'không còn thiếu gì', 0 === count( $tv2['thieu'] ) );
 t( 'trả về địa chỉ tệp thư viện', false !== strpos( $tv2['js'], 'face-api.min.js' ), $tv2['js'] );
-t( 'và địa chỉ thư mục model', false !== strpos( $tv2['mau_url'], 'assets/mat' ), $tv2['mau_url'] );
+t( 'và địa chỉ thư mục model', false !== strpos( $tv2['mau_url'], 'vhcc-mat' ), $tv2['mau_url'] );
 
 /* Thiếu ĐÚNG MỘT file cũng phải là "chưa sẵn sàng" — nạp thư viện mà thiếu một model thì nó
    chết giữa chừng, và chết ở trình duyệt của nhân viên chứ không ở đây. */
@@ -360,8 +368,39 @@ t( 'thiếu một file thôi cũng là chưa sẵn sàng', empty( $tv3['co'] ) )
 t( 'và nói đúng file nào thiếu',
 	array( 'face_recognition_model-shard2' ) === $tv3['thieu'], $tv3['thieu'] );
 
+/* Tệp còn ở CHỖ CŨ (trong plugin) thì vẫn chạy được — ai đã kịp bỏ vào đó không phải làm lại.
+   Nhưng `tai_ve()` phải nhận ra chỗ mới đang thiếu và CHÉP sang, chứ không báo "đủ rồi". */
 foreach ( $da_tao as $f_xoa ) { if ( is_file( $f_xoa ) ) { unlink( $f_xoa ); } }
-t( 'dọn sạch tệp giả sau khi thử', ! is_file( $tm . 'face-api.min.js' ) );
+$tmc = VHCC_Mat::thu_muc_cu();
+wp_mkdir_p( $tmc );
+$da_cu = array();
+foreach ( array_merge( array( $bo['goc']['js'] ), $bo['goc']['mau'] ) as $f_gia ) {
+	$noi_dung = ( '.json' === substr( $f_gia, -5 ) )
+		? wp_json_encode( array( 'weights' => array_fill( 0, 60, 'x' ) ) )
+		: ( ( '.js' === substr( $f_gia, -3 ) ) ? 'var faceapi=' . str_repeat( 'a', 60000 )
+			: str_repeat( "\x7f\x00\x11\x22", 5000 ) );
+	file_put_contents( $tmc . $f_gia, $noi_dung );
+	$da_cu[] = $tmc . $f_gia;
+}
+$tv_cu = VHCC_Mat::thu_vien();
+t( 'tệp ở chỗ cũ vẫn dùng được', ! empty( $tv_cu['co'] ), $tv_cu );
+t( 'và biết mình đang đọc ở chỗ cũ', false !== strpos( $tv_cu['noi'], 'assets/mat' ), $tv_cu['noi'] );
+
+$r_doi = VHCC_Mat::tai_ve( array( 'name' => 'Sếp', 'role' => 'Admin' ) );
+t( 'dời sang chỗ an toàn: chép chứ không tải lại 7 MB',
+	! empty( $r_doi['ok'] ) && 8 === (int) $r_doi['tai'], $r_doi );
+t( 'và chép thật sang uploads', is_readable( $tm . 'face-api.min.js' ) );
+$tv_moi = VHCC_Mat::thu_vien();
+t( 'sau khi dời thì đọc ở chỗ mới',
+	! empty( $tv_moi['co'] ) && false !== strpos( $tv_moi['noi'], 'uploads' ), $tv_moi['noi'] );
+
+/* Xoá phải xoá CẢ HAI nơi — sót một bản ở chỗ cũ thì `thu_vien()` vẫn thấy "đủ", và người bấm
+   "xoá để tải lại" không hiểu vì sao chẳng có gì đổi. */
+$r_xoa_tv = VHCC_Mat::xoa_thu_vien( array( 'name' => 'Sếp', 'role' => 'Admin' ) );
+t( 'xoá thư viện xoá cả hai nơi', 16 === (int) $r_xoa_tv['so'], $r_xoa_tv );
+t( 'chỗ mới sạch', ! is_file( $tm . 'face-api.min.js' ) );
+t( 'chỗ cũ cũng sạch', ! is_file( $tmc . 'face-api.min.js' ) );
+t( 'và quay về báo thiếu', empty( VHCC_Mat::thu_vien()['co'] ) );
 
 /* ---- Trang trạm: máy chủ gác, không để trình duyệt tự dò ---- */
 $src_tram = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );

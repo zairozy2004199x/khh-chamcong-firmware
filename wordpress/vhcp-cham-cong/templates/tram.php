@@ -226,12 +226,44 @@ function esc(s){ var d=document.createElement('div'); d.textContent=(s===null||s
 function bao(o,kieu,chu){ el(o).innerHTML = chu ? '<div class="'+kieu+'">'+esc(chu)+'</div>' : ''; }
 
 /* ---------------------------------------------------------------- gọi máy chủ */
+/**
+ * Gọi máy chủ.
+ *
+ * 🔴 `r.json()` KHÔNG ĐƯỢC GỌI TRẦN. Khi máy chủ trả lỗi 500, hoặc hosting chèn một trang
+ *    chặn, thì thân trả về là HTML — `r.json()` ném một lỗi kiểu "Unexpected token <", và lỗi
+ *    ấy trôi vào `.catch` của chỗ gọi rồi bị nuốt. Kết quả đúng như màn hình anh Thắng chụp
+ *    lúc 16:44: tên "—", giờ "--:--:--", hai khối "Đang tải…" nằm im mãi mãi. Không có gì đỏ,
+ *    không có gì để bấm, và không ai đoán được chuyện gì đang xảy ra.
+ *
+ *    Nên: đọc thân ra CHỮ trước, tự phân tích, và khi không phải JSON thì ném một lỗi NÓI ĐƯỢC
+ *    — mã HTTP là bao nhiêu, máy chủ trả về cái gì. Đó là thứ anh Thắng chụp lại được và em
+ *    đọc ra ngay.
+ */
 function goi(viec, than){
-	return fetch(CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?') + 'viec=' + encodeURIComponent(viec), {
+	var url = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?') + 'viec=' + encodeURIComponent(viec);
+	var ma  = 0;
+	return fetch(url, {
 		method:'POST', credentials:'same-origin',
 		headers:{'Content-Type':'application/json'},
 		body: JSON.stringify(than||{})
-	}).then(function(r){ return r.json(); }).then(function(j){
+	}).then(function(r){
+		ma = r.status;
+		return r.text();
+	}).then(function(chu){
+		var j = null;
+		try { j = JSON.parse(chu); }
+		catch(e){
+			var goi_y = '';
+			if(ma === 0)   { goi_y = ' Mất mạng giữa chừng.'; }
+			if(ma >= 500)  { goi_y = ' Máy chủ đang lỗi — báo quản trị xem nhật ký lỗi của hosting.'; }
+			if(ma === 403) { goi_y = ' Hosting đang chặn đường này (tường lửa).'; }
+			if(ma === 404) { goi_y = ' Sai đường dẫn trang — vào Cài đặt bấm Lưu để nạp lại luật đường.'; }
+			/* Kèm mấy chữ đầu của thứ nhận được: một trang lỗi PHP hay trang chặn của hosting
+			   thường lộ nguyên nhân ngay dòng đầu. */
+			var dau = String(chu || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);
+			throw new Error('Máy chủ trả về nội dung không đọc được (mã ' + ma + ').' + goi_y
+				+ (dau ? ' Máy chủ nói: ' + dau : ''));
+		}
 		if(j && j.ma==='het_phien'){ dangXuat(true); throw new Error(j.error||'Phiên đã hết'); }
 		return j;
 	});
@@ -250,7 +282,13 @@ function napGio(){
 	return goi('gio',{}).then(function(j){
 		if(j && j.ok){ MOC = { sec: Number(j.moc)||0, tuLuc: performance.now() }; }
 		return j;
-	}).catch(function(){ return null; });
+	}).catch(function(e){
+		/* Đồng hồ đứng ở "--:--:--" là dấu hiệu đầu tiên người ta nhìn thấy khi máy chủ hỏng —
+		   nói ngay tại đó, đừng để họ ngồi đợi một cái đồng hồ không bao giờ chạy. */
+		el('ngayMC').textContent = 'không lấy được giờ máy chủ';
+		bao('trangThai','dong', (e && e.message) || 'Không gọi được máy chủ.');
+		return null;
+	});
 }
 
 /** Giờ máy chủ NGAY BÂY GIỜ. null = chưa lấy được mốc (và lúc đó KHÔNG được đoán). */
@@ -587,7 +625,15 @@ function napToi(){
 		}
 		veHomNay(j);
 		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }
-	}).catch(function(){ /* het_phien đã tự đá về màn đăng nhập — không báo thêm gì */ });
+	}).catch(function(e){
+		/* het_phien tự đá về màn đăng nhập rồi, không báo thêm. Còn lại thì PHẢI nói ra: màn
+		   hình đứng im với mấy chữ "Đang tải…" là thứ tệ nhất — người ta không biết nên chờ,
+		   nên bấm lại, hay nên gọi ai. */
+		if(/Phiên đã hết/.test(e && e.message)) return;
+		bao('trangThai','dong', (e && e.message) || 'Không đọc được hồ sơ.');
+		el('oCoSo').innerHTML = '<p class="trong">Không tải được.</p>';
+		el('bangHN').innerHTML = '<p class="trong">Không tải được.</p>';
+	});
 }
 
 /* Cơ sở được chấm — khối riêng, không nhét vào dòng chú thích nhỏ ở đầu trang.

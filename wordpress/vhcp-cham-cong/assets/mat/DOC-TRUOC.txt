@@ -1,12 +1,29 @@
-THƯ MỤC NÀY ĐỂ ĐẶT THƯ VIỆN NHẬN DIỆN KHUÔN MẶT
-================================================
+⚠️ ĐỪNG BỎ FILE VÀO THƯ MỤC NÀY NỮA
+====================================
 
-Thư mục trống là BÌNH THƯỜNG. Chưa bỏ file vào thì tính năng đối chiếu khuôn
-mặt im lặng không chạy, còn mọi thứ khác của plugin nguyên vẹn.
+Chỗ đúng nay là:      wp-content/uploads/vhcc-mat/
 
-Bỏ đủ 8 file dưới đây vào ĐÂY (thẳng vào thư mục này, không tạo thư mục con),
-rồi mở wp-admin → Chấm Công → Cài đặt: khối "Đối chiếu khuôn mặt" sẽ chuyển
-sang "✔ Thư viện đã sẵn sàng".
+VÌ SAO ĐỔI: cài đè plugin bằng file .zip thì WordPress XOÁ SẠCH thư mục plugin
+cũ rồi giải nén bản mới đè lên — bảy megabyte vừa tải bay theo, và lần cập nhật
+nào cũng bay lại. Thư mục uploads/ thì WordPress không đụng tới.
+
+Thư mục này vẫn còn được ĐỌC (ai đã kịp bỏ file vào đây thì chưa phải làm lại),
+nhưng lần cập nhật plugin tới là mất. Vào wp-admin → Chấm Công → Cài đặt, khối
+"Đối chiếu khuôn mặt" sẽ có nút "⇢ Dời sang chỗ an toàn" — bấm một cái là xong,
+nó chép qua chứ không tải lại.
+
+
+CÁCH NHANH NHẤT: ĐỂ MÁY CHỦ TỰ TẢI
+===================================
+wp-admin → Chấm Công → Cài đặt → khối "Đối chiếu khuôn mặt" → nút
+"⬇ Để máy chủ tự tải về". Bấm vài lần (nó tải từng đợt vì hosting cắt mỗi lượt
+ở khoảng 30 giây) cho tới khi báo "✔ Thư viện đã sẵn sàng".
+
+Chỉ khi hosting chặn máy chủ ra internet mới cần làm tay theo hướng dẫn dưới.
+
+
+LÀM TAY: 8 FILE, BỎ VÀO wp-content/uploads/vhcc-mat/
+=====================================================
 
 
 CẦN 8 FILE
@@ -38,17 +55,9 @@ nén → lấy đúng 8 file kể trên → tải lên hosting bằng File Manag
 (hoặc FTP) vào thư mục này.
 
 Đường dẫn trên hosting:
-    wp-content/plugins/vhcp-cham-cong/assets/mat/
+    wp-content/uploads/vhcc-mat/
 
-
-⚠️ LƯU Ý KHI CẬP NHẬT PLUGIN
-----------------------------
-Cài đè plugin bằng file .zip mới có thể XOÁ thư mục này. Sau mỗi lần cập nhật,
-mở Cài đặt xem khối "Đối chiếu khuôn mặt" còn báo sẵn sàng không — nếu không
-thì bỏ lại 8 file.
-
-Muốn khỏi lo chuyện đó thì đặt 8 file ở nơi khác ngoài plugin và trỏ tới, nhưng
-hiện plugin chưa có ô khai đường dẫn riêng — cần thì báo để làm thêm.
+Thư mục chưa có thì tự tạo. Cập nhật plugin KHÔNG xoá thư mục này.
 
 
 ⚠️ VÌ SAO KHÔNG GỌI THẲNG TỪ INTERNET (CDN)

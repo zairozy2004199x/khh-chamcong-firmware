@@ -2219,6 +2219,16 @@ class VHCC_Admin {
 		if ( $tv_mat['co'] ) {
 			echo '<p style="margin:0 0 8px"><b style="color:#1a7f37">✔ Thư viện đã sẵn sàng.</b> '
 				. 'Ảnh chấm công online sẽ được đối chiếu với mẫu khuôn mặt.</p>';
+			/* Nói rõ đang đọc ở ĐÂU. Nếu còn nằm trong plugin thì nhắc: lần cập nhật tới nó
+			   mất, vì cài đè .zip xoá sạch thư mục plugin cũ. */
+			if ( false !== strpos( $tv_mat['noi'], 'plugins' ) ) {
+				echo '<div class="notice notice-warning inline" style="margin:0 0 10px"><p>'
+					. '⚠️ Thư viện đang nằm <b>trong thư mục plugin</b> — lần cập nhật plugin tới '
+					. 'sẽ xoá mất (cài đè .zip xoá sạch thư mục cũ). Bấm '
+					. '<b>Để máy chủ tự tải về</b> một lần nữa để nó chuyển sang chỗ mới '
+					. '(<code>' . esc_html( str_replace( ABSPATH, '', VHCC_Mat::thu_muc() ) ) . '</code>), '
+					. 'nơi cập nhật plugin không đụng tới.</p></div>';
+			}
 			/* Thẻ <form> gom vào $form_roi để in NGOÀI form Cài đặt — HTML không cho lồng
 			   <form>, và trình duyệt lặng lẽ vứt thẻ con rồi gộp ô nhập vào form cha. */
 			$form_roi .= '<form method="post" id="vhcc-f-xoamat">'
@@ -2232,7 +2242,8 @@ class VHCC_Admin {
 				. '<b>Chưa có thư viện nhận diện — tính năng đang tắt.</b> Mọi thứ khác chạy '
 				. 'bình thường; chỉ là không có đối chiếu mặt. Tải và bỏ các file dưới đây vào '
 				. '<code>' . esc_html( str_replace( ABSPATH, '', VHCC_Mat::thu_muc() ) ) . '</code> '
-				. 'trên hosting (dùng File Manager của cPanel hoặc FTP), rồi tải lại trang này.</p>'
+				. 'trên hosting (dùng File Manager của cPanel hoặc FTP), rồi tải lại trang này. '
+				. 'Thư mục này nằm <b>ngoài</b> plugin nên cập nhật plugin không xoá mất nữa.</p>'
 				. '<p style="margin:6px 0 0">Còn thiếu <b>' . count( $tv_mat['thieu'] ) . '</b> file:</p>'
 				. '<ul style="margin:4px 0 0 18px;list-style:disc">';
 			foreach ( $tv_mat['thieu'] as $f_mat ) {

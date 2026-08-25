@@ -34,6 +34,8 @@ function wp_generate_password( $len = 12, $sp = true, $xsp = false ) {
 	return $o;
 }
 function wp_upload_dir() { return array( 'basedir' => $GLOBALS['VHCP_TMP'] . '/uploads', 'baseurl' => 'http://example.test/wp-content/uploads' ); }
+function trailingslashit( $s ) { return rtrim( (string) $s, '/\\' ) . '/'; }
+function untrailingslashit( $s ) { return rtrim( (string) $s, '/\\' ); }
 function wp_mkdir_p( $p ) { return is_dir( $p ) || mkdir( $p, 0777, true ); }
 function sanitize_text_field( $s ) { return trim( strip_tags( (string) $s ) ); }
 function sanitize_file_name( $s ) { return preg_replace( '/[^A-Za-z0-9._-]+/u', '-', (string) $s ); }

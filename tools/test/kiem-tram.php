@@ -677,6 +677,42 @@ t( 'lỗi giữa chừng mà đã đo được thì giữ lại',
 t( 'bấm lấy lại thì đo lại từ đầu, không giữ số của lần đứng chỗ khác',
 	preg_match( "/xinGps\\(\\)\\{[\\s\\S]{0,400}GPS = null;/", $tram_js2 ) === 1 );
 
+/* ============================================ 14. HỎNG THÌ PHẢI NÓI RA
+ *
+ * 🔴 MÀN HÌNH ĐỨNG IM LÀ THỨ TỆ NHẤT. Ảnh anh Thắng chụp lúc 16:44: tên "—", giờ "--:--:--",
+ * hai khối "Đang tải…" nằm im mãi mãi. Không có gì đỏ, không có gì để bấm, và không ai đoán
+ * được chuyện gì đang xảy ra — kể cả em, nhìn ảnh cũng không biết máy chủ trả về cái gì.
+ *
+ * Gốc: `r.json()` gọi trần. Máy chủ trả lỗi 500 hay hosting chèn trang chặn thì thân là HTML,
+ * `r.json()` ném "Unexpected token <", lỗi ấy trôi vào `.catch` của chỗ gọi rồi bị NUỐT.
+ */
+t( 'không gọi r.json() trần', strpos( $tram_js2, 'return r.json();' ) === false );
+t( 'đọc thân ra chữ rồi tự phân tích',
+	strpos( $tram_js2, 'return r.text();' ) !== false
+	&& strpos( $tram_js2, 'JSON.parse(chu)' ) !== false );
+t( 'giữ lại mã HTTP để nói ra', strpos( $tram_js2, 'ma = r.status' ) !== false );
+t( 'câu lỗi có mã HTTP', strpos( $tram_vt, 'mã \' + ma + \'' ) !== false
+	|| strpos( $tram_js2, "'(mã ' + ma" ) !== false || strpos( $tram_js2, 'mã ' ) !== false );
+/* Mỗi mã HTTP hay gặp có một lời khuyên riêng — "lỗi máy chủ" chung chung thì người đọc không
+   biết nên gọi ai. */
+foreach ( array( '500', '403', '404' ) as $ma_http ) {
+	t( "mã $ma_http có lời khuyên riêng", strpos( $tram_js2, $ma_http ) !== false );
+}
+t( 'kèm mấy chữ đầu của thứ máy chủ trả về',
+	strpos( $tram_js2, 'Máy chủ nói: ' ) !== false );
+t( 'và bóc thẻ HTML khỏi câu đó trước khi hiện',
+	strpos( $tram_js2, "replace(/<[^>]*>/g" ) !== false );
+
+/* napToi / napGio phải BÁO, không nuốt im. */
+t( 'napToi báo lỗi ra màn hình',
+	preg_match( "/napToi[\s\S]{0,3000}bao\('trangThai','dong'/", $tram_js2 ) === 1 );
+t( 'và dọn hai khối "Đang tải…" đứng im',
+	strpos( $tram_js2, "el('oCoSo').innerHTML = '<p class=\"trong\">Không tải được." ) !== false );
+t( 'napGio nói ngay tại chỗ đồng hồ',
+	strpos( $tram_js2, "el('ngayMC').textContent = 'không lấy được giờ máy chủ'" ) !== false );
+/* Nhưng "hết phiên" thì vẫn im — nó đã tự đá về màn đăng nhập, báo thêm là báo hai lần. */
+t( 'hết phiên thì không báo chồng', strpos( $tram_js2, '/Phiên đã hết/.test' ) !== false );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
