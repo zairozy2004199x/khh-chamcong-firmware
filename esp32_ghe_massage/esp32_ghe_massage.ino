@@ -189,7 +189,7 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
    Đồng hồ đếm trên màn/web bắt đầu ngay là chạy TRƯỚC ghế -> lệch. Đợi ngần này rồi
    mới bật đếm giờ cho KHỚP với lúc ghế thật sự chạy. Chỉnh theo ghế của anh (ms).
    Tiền mặt KHÔNG áp (ghế tự xử khi có tờ thật, đếm theo lúc '10'). */
-#define QR_TRE_MS          3000
+#define QR_TRE_MS          4000
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
