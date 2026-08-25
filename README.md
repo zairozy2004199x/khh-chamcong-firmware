@@ -79,7 +79,7 @@ Sinh mã QR để thử: `python3 esp32_posh_qr/ci/tao-ma-qr.py --khoa "$KHOA" -
 ### Cầu nghe lén ICT L70 ⇄ ghế (mạch tạm)
 
 ```
-Ghế  ⇄  TXS0108E  ⇄  [ ESP32 ]  ⇄  TXS0108E  ⇄  ICT L70
+Ghế  ⇄  ADuM1201  ⇄  [ ESP32 ]  ⇄  ADuM1201  ⇄  ICT L70
                         │
                      USB → Serial Monitor 115200
 ```
@@ -92,8 +92,20 @@ Cắm USB, gõ `QUYTRINH` — nó chạy tuần tự các bước nghiệm thu v
 đáng chú ý: `DOBAUD` đo baud bằng **bề rộng xung** (đo thật, không phải thử từng tốc độ rồi
 đoán), `BANG <hex>` bắn khung sang phía ghế để giả làm L70, `CAT`/`NOI` để cắt cầu.
 
-⚠️ **Chân OE của TXS0108E có trở kéo xuống bên trong — để hở là cả mạch TẮT**, không byte nào
-qua được và không có dấu hiệu báo lỗi nào. Phải nối OE lên 3,3V. Đây là chỗ vấp kinh điển.
+**Cách ly bằng ADuM1201** (bộ cách ly số 2 kênh, một kênh mỗi chiều) là cách nên dùng: chiều cố
+định nên không có kiểu lỗi "tự đoán chiều" của TXS0108E, không có chân OE để mà quên, chạy tới
+hàng Mbps, và đầu ra phía 5V đúng mức nên **khỏi cần biết con HT245 trên bo ghế là HC hay HCT**.
+
+⚠️ **Phải là ADuM1201, không phải ADuM1200** — con 1200 hai kênh cùng chiều, UART không chạy được,
+mà cắm vào cũng chẳng cháy gì nên rất khó ngờ. Cần 4 đường nên phải hai con; hoặc một con
+**ADuM1402** (4 kênh, 2 mỗi chiều) gọn cả hai bên trong một chip.
+
+⚠️ **Hai nét mass RIÊNG, không chạm nhau** — ngược hẳn với cách đấu thường. Nối chúng lại thì mạch
+**vẫn chạy** nên không ai phát hiện, chỉ là đã vứt sạch phần cách ly. Kéo theo: ESP32 ăn nguồn
+riêng (cắm USB laptop là được), không lấy 5V của máy. Và tụ 0,1µF sát chân VDD1/VDD2 từng con.
+
+Nếu vẫn dùng TXS0108E: ⚠️ **chân OE có trở kéo xuống bên trong — để hở là cả mạch TẮT**, không byte
+nào qua và không có dấu hiệu báo lỗi nào. Phải nối OE lên 3,3V, và mass thì chung hết.
 
 Chân lấy nguyên khối `D32 D33 D25 D26 D27` — năm chân liền nhau ở hàng trái DevKit 30 chân, ngay
 trên GND: đếm không nhầm, kẹp que đo không chạm nhau. Cả năm đều không dính boot, không dính

@@ -4,7 +4,7 @@
  *  ESP32 ngồi GIỮA đường dây có sẵn, cho hai bên nói chuyện qua mình y như cũ, và
  *  chép lại từng byte của cả hai chiều:
  *
- *      Ghế  ⇄  TXS0108E  ⇄  [ ESP32 ]  ⇄  TXS0108E  ⇄  ICT L70
+ *      Ghế  ⇄  ADuM1201  ⇄  [ ESP32 ]  ⇄  ADuM1201  ⇄  ICT L70
  *                             │
  *                          cáp USB → máy tính (Serial Monitor 115200)
  *
@@ -20,27 +20,65 @@
  *     lạ vào lúc L70 và bo ghế đang giữa chừng một lượt là làm hỏng đúng cái mình
  *     đang muốn quan sát.
  *
- *  ─── ĐẤU DÂY ───────────────────────────────────────────────────────────────
- *    Phía ICT L70            Phía GHẾ
- *    ESP32 GPIO25 ← TX L70   ESP32 GPIO32 ← TX ghế     (qua TXS0108E, phía A/3,3V)
- *    ESP32 GPIO26 → RX L70   ESP32 GPIO33 → RX ghế
- *    GND chung HẾT: ESP32, cả hai mạch TXS0108E, L70, bo ghế.
+ *  ─── ĐẤU DÂY QUA ADuM1201 (cách nên dùng) ─────────────────────────────────
+ *    ADuM1201 là bộ CÁCH LY SỐ hai kênh, một kênh mỗi chiều — vừa khít một cặp
+ *    UART. Hai bên có nguồn riêng: VDD1 = 3,3V (phía ESP32), VDD2 = 5V (phía máy).
+ *    Tín hiệu ra bên nào thì đánh đúng mức của bên đó.
  *
- *  ⚠️ TXS0108E — CHÂN OE. Đây là chỗ vấp kinh điển, và nó IM LẶNG hoàn toàn.
- *     Chân OE của TXS0108E có điện trở kéo XUỐNG bên trong. Để hở = OE mức thấp =
- *     CẢ MẠCH TẮT, mọi đầu ra thả nổi. Nhìn thì thấy dây cắm đủ, đèn nguồn sáng,
- *     mà không byte nào qua được, và chẳng có dấu hiệu gì báo tại sao.
- *        -> PHẢI nối OE lên VCCA (3,3V). Nối thẳng bằng dây cũng được, hoặc khai
- *           CHAN_OE_* bên dưới để ESP32 tự kéo lên lúc khởi động.
- *     Ngoài ra TXS0108E cần ĐỦ CẢ HAI nguồn: VCCA = 3,3V, VCCB = 5V, và VCCA phải
- *     nhỏ hơn hoặc bằng VCCB.
+ *    ⚠️ PHẢI LÀ ADuM1201, ĐỪNG LẤY NHẦM ADuM1200. Nhìn giống hệt nhau, cùng vỏ
+ *       8 chân, tên lệch một số. ADuM1200 hai kênh CÙNG chiều — UART không chạy
+ *       được, mà cắm vào thì cũng chẳng cháy gì, chỉ là một chiều im lặng mãi.
+ *       Cần 4 đường (2 mỗi bên) nên phải HAI con 1201. Hoặc một con ADuM1402
+ *       (4 kênh, 2 mỗi chiều) là gọn hết cả hai bên trong một chip.
  *
- *  ⚠️ TXS0108E vốn sinh ra cho I2C (kiểu hở cực máng). Ghép với UART đẩy đối xứng
- *     thì phần lớn trường hợp chạy, nhưng nó có mạch "một phát" bên trong nên đôi
- *     khi dở chứng: bit dính, rác lác đác, hoặc tự dao động — nhất là baud cao hay
- *     dây dài. Gặp mấy triệu chứng đó thì ĐỪNG đi sửa phần mềm: hạ baud xuống trước,
- *     vẫn không đỡ thì đổi sang TXB0104 (đẩy đối xứng) hoặc SN74LVC2T45 (cố định
- *     chiều, chuẩn nhất cho UART).
+ *    Mỗi con 1201, theo TÊN CHÂN (đối chiếu datasheet cho chắc số thứ tự):
+ *
+ *        phía 1 (3,3V, nối ESP32)          phía 2 (5V, nối thiết bị)
+ *        VDD1 ← 3V3 của ESP32              VDD2 ← 5V của máy
+ *        GND1 ← GND của ESP32              GND2 ← GND của máy
+ *        VIA  ← ESP32 gửi ra   ───kênh A──► VOA  → RX của thiết bị
+ *        VOB  → ESP32 nhận vào ◄──kênh B─── VIB  ← TX của thiết bị
+ *
+ *    Con ① (phía L70):  VIA ← GPIO26 → VOA → RX của L70
+ *                       VOB → GPIO25 ← VIB ← TX của L70
+ *    Con ② (phía ghế):  VIA ← GPIO33 → VOA → RX của ghế
+ *                       VOB → GPIO32 ← VIB ← TX của ghế
+ *
+ *  ⚠️⚠️ HAI NÉT MASS, VÀ CHÚNG KHÔNG ĐƯỢC CHẠM NHAU.
+ *     Đây là chỗ NGƯỢC HẲN với cách đấu qua mạch chuyển mức thường, nên đọc kỹ:
+ *
+ *        nét mass 1:  GND1 của cả hai con  +  GND của ESP32
+ *        nét mass 2:  GND2 của cả hai con  +  GND của L70  +  GND của bo ghế
+ *
+ *     Nối hai nét đó lại với nhau thì mạch VẪN CHẠY — nên không ai phát hiện ra —
+ *     chỉ là đã vứt sạch phần cách ly vừa bỏ tiền mua. Ghế massage có mô-tơ, mà
+ *     mô-tơ thì đá nhiễu ngược về đường nguồn; cách ly là thứ chặn đường đó.
+ *
+ *     Kéo theo: ESP32 phải ăn nguồn RIÊNG, không lấy 5V của máy. Lúc test thì cắm
+ *     USB vào laptop là tự nhiên đã tách rồi. Làm bo thật thì cần nguồn cách ly.
+ *
+ *  ─── VÌ SAO ADuM1201 HƠN TXS0108E Ở ĐÂY ───────────────────────────────────
+ *    • CHIỀU CỐ ĐỊNH cho từng kênh. TXS0108E tự đoán chiều — nó sinh ra cho I2C,
+ *      ghép với UART đẩy đối xứng thì hay dở chứng: bit dính, rác lác đác, có khi
+ *      tự dao động. ADuM không đoán gì cả nên không có cái class lỗi đó.
+ *    • KHÔNG CÓ CHÂN OE để mà quên. TXS0108E có trở kéo OE xuống bên trong, để hở
+ *      là cả mạch tắt mà không báo gì — cái bẫy tốn buổi.
+ *    • ĐẨY ĐỐI XỨNG, chạy tới hàng Mbps. Bỏ được trần baud 38400 của loại dùng trở
+ *      kéo 10k. 115200 thoải mái.
+ *    • Ra 5V ĐÚNG MỨC ở phía 2, nên câu "con HT245 trên bo ghế là HC hay HCT" thành
+ *      không cần trả lời nữa: 5V vượt xa ngưỡng 3,5V của cả loại khó tính nhất.
+ *
+ *  ⚠️ TỤ LỌC. Datasheet đòi 0,1µF sát chân VDD1 và VDD2 của TỪNG con, thêm 10µF
+ *     làm tụ đệm. Thiếu tụ thì chip chạy chập chờn và bắn nhiễu ra ngoài — mà lỗi
+ *     đó trông y hệt lỗi sai baud, ngồi mò rất lâu mới ra.
+ *
+ *  ─── NẾU VẪN DÙNG TXS0108E ────────────────────────────────────────────────
+ *    Nối A ← phía ESP32, B ← phía thiết bị, VCCA = 3,3V, VCCB = 5V, kênh khớp số
+ *    (A1 chỉ thông với B1), và MASS CHUNG HẾT (loại này không cách ly).
+ *    ⚠️ Chân OE có trở kéo xuống bên trong: để hở = cả mạch TẮT, không byte nào
+ *       qua, không dấu hiệu gì. Phải nối OE lên VCCA (3,3V) ở cả hai mạch.
+ *    ⚠️ Giữ baud ≤ 38400. Ra rác hay bit dính thì ĐỪNG sửa phần mềm — hạ baud
+ *       trước, vẫn vậy thì đổi sang ADuM1201 (hoặc TXB0104 / SN74LVC2T45).
  *
  *  ─── DÙNG ───────────────────────────────────────────────────────────────────
  *    Cắm USB, mở Serial Monitor 115200, gõ  TRO  để xem bảng lệnh.
@@ -74,8 +112,8 @@
 #define CHAN_ICT_TX   26      // ESP32 gửi   -> RX của ICT L70
 #define CHAN_GHE_RX   32      // ESP32 nhận  <- TX của bo ghế
 #define CHAN_GHE_TX   33      // ESP32 gửi   -> RX của bo ghế
-#define CHAN_OE_ICT   -1      // -> OE của TXS0108E phía L70; -1 = đã nối cứng lên 3,3V
-#define CHAN_OE_GHE   -1      // -> OE của TXS0108E phía ghế; -1 = đã nối cứng lên 3,3V
+#define CHAN_OE_ICT   -1      // CHỈ dùng khi đấu bằng TXS0108E: -> chân OE phía L70. ADuM1201 không có chân này.
+#define CHAN_OE_GHE   -1      // CHỈ dùng khi đấu bằng TXS0108E: -> chân OE phía ghế. -1 = không đấu tới.
 // GPIO 27 để trống làm chân dự phòng — dùng cho OE nếu muốn ESP32 tự bật/tắt mạch chuyển mức.
 
 #define BAUD_MAC_DINH 9600
@@ -278,19 +316,29 @@ void ban(HardwareSerial& cong, const String& hex, const char* phia) {
 void quyTrinh() {
   Serial.println("\n========== QUY TRINH NGHIEM THU CAU NGHE LEN ==========");
   Serial.println("BUOC 1 — KIEM TAY, firmware khong tu lam duoc:");
-  Serial.println("   [ ] OE cua CA HAI mach TXS0108E da keo len 3,3V (de ho = ca mach TAT, im lang hoan toan)");
-  Serial.println("   [ ] Ca hai mach du CA HAI nguon: VCCA = 3,3V, VCCB = 5V");
-  Serial.println("   [ ] GND chung het: ESP32 + 2 mach + L70 + bo ghe");
+  Serial.println("   Chung cho ca hai kieu dau:");
+  Serial.println("   [ ] Du CA HAI nguon o moi con: phia ESP32 3,3V, phia may 5V");
   Serial.println("   [ ] TX cua ben kia vao RX cua minh (CHEO), khong phai TX-TX");
+  Serial.println("   NEU DUNG ADuM1201 (nen dung):");
+  Serial.println("   [ ] Dung con 1201, KHONG phai 1200 (1200 hai kenh cung chieu -> UART khong chay)");
+  Serial.println("   [ ] HAI net mass RIENG, KHONG cham nhau:");
+  Serial.println("       net 1 = GND1 hai con + GND cua ESP32");
+  Serial.println("       net 2 = GND2 hai con + GND cua L70 + GND cua bo ghe");
+  Serial.println("   [ ] ESP32 an nguon RIENG (cam USB laptop la duoc), khong lay 5V cua may");
+  Serial.println("   [ ] Tu 0,1uF sat chan VDD1 va VDD2 cua TUNG con");
+  Serial.println("   NEU DUNG TXS0108E:");
+  Serial.println("   [ ] OE cua CA HAI mach da keo len 3,3V (de ho = ca mach TAT, im lang hoan toan)");
+  Serial.println("   [ ] GND CHUNG HET (loai nay khong cach ly)");
   Serial.println("   [ ] Dung so kenh: A1 thong voi B1, A2 voi B2");
-  Serial.println("   Xong het 5 o thi go tiep QUYTRINH.\n");
+  Serial.println("   Xong het thi go tiep QUYTRINH.\n");
 
   Serial.println("BUOC 2 — do baud bang be rong xung. LAM CHO DAY CO TIN HIEU NGAY BAY GIO:");
   long b = doBaudTheoXung(CHAN_ICT_RX, "phia L70", 5);
   if (b == 0) {
     Serial.println("\n❌ DUNG O BUOC 2. Khong co tin hieu tren day phia L70.");
-    Serial.println("   Gan nhu chac chan la phan cung — quay lai lam ky BUOC 1,");
-    Serial.println("   dac biet la chan OE. Do xong lam lai QUYTRINH.");
+    Serial.println("   Gan nhu chac chan la phan cung — quay lai lam ky BUOC 1.");
+    Serial.println("   ADuM1201: kiem du nguon ca hai phia, va co lay nham con 1200 khong.");
+    Serial.println("   TXS0108E: kiem chan OE truoc tien. Do xong lam lai QUYTRINH.");
     return;
   }
   if (b != g_baud) { g_baud = b; moCong(); Serial.printf("   -> da dat baud = %ld\n", g_baud); }
@@ -305,8 +353,10 @@ void quyTrinh() {
                 (unsigned long)dIct, (unsigned long)dGhe);
   if (dIct == 0 && dGhe == 0) {
     Serial.println("❌ Khong ben nao noi gi. Baud do duoc o buoc 2 nhung khong doc ra byte:");
-    Serial.println("   TXS0108E dang bo tron suon xung? Ha baud xuong thu (BAUD 4800),");
-    Serial.println("   van vay thi doi sang TXB0104 hoac SN74LVC2T45.");
+    Serial.println("   Dung ADuM1201 -> kiem lai chieu tung kenh (VIA/VOA di mot chieu, VIB/VOB chieu kia)");
+    Serial.println("   va tu loc 0,1uF sat chan nguon.");
+    Serial.println("   Dung TXS0108E -> no dang bo tron suon xung. Ha baud (BAUD 4800), van vay");
+    Serial.println("   thi doi sang ADuM1201 / TXB0104 / SN74LVC2T45.");
   } else if (dGhe == 0) {
     Serial.println("⚠️ Chi co L70 noi, ghe im. Hai kha nang:");
     Serial.println("   - bo ghe von chi NGHE, khong tra loi (rat co the — con HT245 chi co MOT chan");
@@ -390,8 +440,9 @@ void setup() {
   if (CHAN_OE_ICT >= 0) { pinMode(CHAN_OE_ICT, OUTPUT); digitalWrite(CHAN_OE_ICT, HIGH); }
   if (CHAN_OE_GHE >= 0) { pinMode(CHAN_OE_GHE, OUTPUT); digitalWrite(CHAN_OE_GHE, HIGH); }
   if (CHAN_OE_ICT < 0 && CHAN_OE_GHE < 0)
-    Serial.println("[OE] Khong khai chan OE -> hai mach TXS0108E phai duoc NOI CUNG OE len 3,3V.\n"
-                   "     De ho la ca mach TAT, khong byte nao qua duoc, va khong bao loi gi ca.");
+    Serial.println("[OE] Khong khai chan OE. Dung ADuM1201 thi DUNG vay - no khong co chan OE.\n"
+                   "     Con dung TXS0108E thi phai NOI CUNG OE len 3,3V o ca hai mach:\n"
+                   "     de ho la ca mach TAT, khong byte nao qua, va khong bao loi gi ca.");
 
   moCong();
   g_batDauMs = millis();

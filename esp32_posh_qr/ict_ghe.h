@@ -42,63 +42,60 @@
  *  triệu chứng: "gửi mà ghế không nhúc nhích".
  *
  *  1) ⚠️ CON ĐỆM TRÊN BO NÀY CHẠY VCC 5V (đã đo chân 20 so với chân 10), mà ESP32
- *     chạy 3,3V. Hai bên KHÔNG nói chuyện thẳng với nhau được. ĐÃ CHỌN CÁCH XỬ:
- *     dùng MẠCH CHUYỂN MỨC LOGIC 3,3V ↔ 5V, loại 4 kênh dùng BSS138 (bán đầy, rẻ).
- *
- *     Chọn vậy là dứt điểm được cả hai chiều cùng lúc, và tránh được câu hỏi không
- *     trả lời nổi là con đệm đó thuộc loại ngưỡng vào nào (xem ghi chú "VÌ SAO KHÔNG
- *     ĐI ĐƯỜNG KHÁC" bên dưới).
+ *     chạy 3,3V. Hai bên KHÔNG nói chuyện thẳng với nhau được.
+ *     ĐÃ CHỌN CÁCH XỬ: bộ CÁCH LY SỐ **ADuM1201** — hai kênh, một kênh mỗi chiều,
+ *     vừa khít một cặp UART, hai bên nguồn riêng.
  *
  *     ─── ĐẤU DÂY ───────────────────────────────────────────────────────────────
  *
- *       ESP32              Mạch chuyển mức            Bo ghế
- *       ─────              ───────────────            ──────
- *       3V3   ───────────  LV
- *       GND   ───────────  GND  ───────────────────── GND  (chân 10 của HT245)
- *                          HV   ───────────────────── 5V   (chân 20 của HT245)
- *       GPIO17 (TX) ─────  LV1      HV1 ────────────  đầu VÀO của HT245
- *       GPIO16 (RX) ─────  LV2      HV2 ────────────  đầu RA  của HT245
+ *       ESP32                    ADuM1201                    Bo ghế
+ *       ─────                    ────────                    ──────
+ *       3V3  ──────────────────  VDD1          VDD2  ──────  5V  (chân 20 HT245)
+ *       GND  ──────────────────  GND1          GND2  ──────  GND (chân 10 HT245)
+ *       GPIO33 (TX) ──────────►  VIA  ─kênh A─► VOA   ──────► đầu VÀO của HT245
+ *       GPIO32 (RX) ◄──────────  VOB  ◄─kênh B─ VIB   ◄────── đầu RA  của HT245
  *
- *     BỐN CHỖ SAI THƯỜNG GẶP, cái nào cũng ra đúng một triệu chứng "gửi mà im":
+ *       Tụ 0,1µF sát chân VDD1 và sát chân VDD2. Thêm 10µF làm tụ đệm.
  *
- *       • THIẾU MỘT TRONG HAI NGUỒN. Mạch phải có CẢ LV (3,3V) lẫn HV (5V) thì mới
- *         sống. Quên cắm HV là cả mạch câm, mà nhìn thì chẳng thấy gì bất thường.
- *       • LỆCH SỐ KÊNH. LV1 chỉ thông với HV1, LV2 với HV2. Cắm LV1 sang HV2 là
- *         không có đường nào thông cả.
- *       • MASS KHÔNG CHUNG ĐỦ BA BÊN. ESP32, mạch chuyển mức, bo ghế — cả ba phải
- *         chung một mass.
- *       • BỎ QUÊN CHIA ÁP CŨ. Nếu trước đó đã lắp 1k/2k thì THÁO RA. Để lại là chia
- *         áp thêm lần nữa, mức tụt xuống còn ~2,2V, lại thành thiếu ngưỡng.
+ *     ⚠️⚠️ GND1 VÀ GND2 KHÔNG ĐƯỢC NỐI VỚI NHAU.
+ *        Đây là chỗ NGƯỢC HẲN với mọi cách đấu thường, nên rất dễ làm theo quán
+ *        tính rồi hỏng mà không biết: nối hai mass lại thì mạch VẪN CHẠY — nên
+ *        chẳng ai phát hiện ra — chỉ là đã vứt sạch phần cách ly vừa bỏ tiền mua.
+ *        Ghế có mô-tơ, mà mô-tơ đá nhiễu ngược về đường nguồn; cách ly là thứ chặn
+ *        đường đó. Kéo theo: ESP32 phải ăn nguồn RIÊNG, không lấy 5V của ghế.
  *
- *     ⚠️ GIỮ BAUD ≤ 38400. Loại BSS138 kéo mức cao bằng trở 10k nên sườn xung ì.
- *        9600 (mặc định của firmware này) thì thoải mái; ham 115200 với dây dài là
- *        bit bị bo tròn, sinh lỗi lác đác — đúng kiểu khó truy nhất.
- *        Cần 115200 thì phải đổi sang loại đẩy đối xứng: TXB0104 hoặc SN74LVC2T45.
- *     ⚠️ ĐỪNG mua TXS0108E cho việc này. Con đó sinh ra cho I2C (hở cực máng); ghép
- *        với UART đẩy đối xứng thì hay dở chứng.
+ *     ⚠️ PHẢI LÀ ADuM1201, KHÔNG PHẢI ADuM1200. Nhìn giống hệt, cùng vỏ 8 chân,
+ *        tên lệch một số. Con 1200 hai kênh CÙNG chiều: UART không chạy được, mà
+ *        cắm vào cũng chẳng cháy gì — chỉ là một chiều im lặng mãi.
+ *
+ *     ⚠️ TỤ LỌC KHÔNG PHẢI TUỲ CHỌN. Thiếu tụ thì chip chạy chập chờn và bắn nhiễu
+ *        ra ngoài, mà triệu chứng trông y hệt sai baud — ngồi mò rất lâu mới ra.
+ *
+ *     ─── ĐƯỢC GÌ SO VỚI MẠCH CHUYỂN MỨC THƯỜNG ─────────────────────────────────
+ *       • KHỎI PHẢI TRẢ LỜI CÂU "HC HAY HCT". Đầu ra phía 2 đánh đúng 5V đẩy đối
+ *         xứng, vượt xa ngưỡng 3,5V của loại 74HC khó tính nhất. Xem "VÌ SAO KHÔNG
+ *         ĐI ĐƯỜNG KHÁC" bên dưới để biết vì sao câu đó không tra ra được.
+ *       • KHỎI CẦN CHIA ÁP chiều ngược lại: phía 1 đã ra sẵn 3,3V.
+ *       • CHIỀU CỐ ĐỊNH từng kênh, không có kiểu lỗi "tự đoán chiều".
+ *       • KHÔNG CÓ CHÂN OE để mà quên.
+ *       • Chạy tới hàng Mbps — không còn trần baud 38400.
  *
  *     ─── LẮP XONG PHẢI KIỂM, ĐỪNG TIN LUÔN ─────────────────────────────────────
- *       1. GIU 1  -> đo HV1 (phía 5V) so với mass: phải ~5V.
- *          GIU 0  -> phải ~0V.  Không đổi gì = sai kênh, thiếu nguồn HV, hoặc con
- *          245 đang bị vô hiệu (OE mức cao) / sai chiều DIR.
+ *       1. GIU 1  -> đo VOA (phía 5V) so với GND2: phải ~5V.
+ *          GIU 0  -> phải ~0V.  Không đổi gì = sai kênh (lấy nhầm chiều), thiếu
+ *          nguồn một phía, hoặc lỡ mua con 1200.
  *          GIU    -> thả chân ra.
  *       2. DAY    -> mức nghỉ chân RX phải ~100% ở mức CAO.
  *       3. Khép kín đường đi rồi TUKIEM 200. Phải đúng 200/200. Một lần đúng KHÔNG
- *          nói lên gì — lỗi mức điện áp và lỗi sườn xung đều chỉ lộ ra khi chạy nhiều.
+ *          nói lên gì — lỗi mức điện áp và lỗi sườn xung chỉ lộ ra khi chạy nhiều.
  *
- *     ─── VÌ SAO KHÔNG ĐI ĐƯỜNG KHÁC (ghi lại cho khỏi bàn lại) ─────────────────
- *       Con đệm in ba dòng  HT245 / 85KG4 / ALQT  (chip dán, TSSOP-20). Chữ "HC"
- *       KHÔNG hề có trên đó, mà "HT245" được dùng cho CẢ HAI loại: nhiều hãng Trung
- *       Quốc in vậy cho hàng tương đương 74HC245, còn TI thì rút gọn HCT245 thành
- *       HT245 cho vừa vỏ nhỏ. Đúng cái chữ bị lược đi lại là chữ quyết định:
- *           74HC245  @5V -> ngưỡng vào 3,5V -> ESP32 3,3V KHÔNG đủ
- *           74HCT245 @5V -> ngưỡng vào 2,0V -> ESP32 3,3V thừa sức
- *       Tra mã trên mạng không cứu được: trang bán hàng cho "74HC245" ghi mục "IC
- *       thu phát thay thế: MCP2551, MCP2515" — hai con đó là chip CAN bus, chẳng
- *       dính gì tới bộ đệm bus 8 kênh, đủ thấy trang ghép nội dung máy móc. Chính
- *       mấy trang kiểu đó gán "HT245 = 74HC245" cho mọi con hình dạng giống nhau.
- *       Mạch chuyển mức chạy đúng với CẢ HAI loại, nên lắp nó là khỏi phải trả lời
- *       câu hỏi đó nữa. Đó là lý do chọn cách này chứ không phải vì nó rẻ nhất.
+ *     ─── NẾU DÙNG MẠCH CHUYỂN MỨC THƯỜNG THAY VÌ CÁCH LY ───────────────────────
+ *       Loại 4 kênh BSS138: A/LV ← ESP32, B/HV ← bo ghế, đủ CẢ HAI nguồn, kênh khớp
+ *       số (LV1 chỉ thông với HV1), và MASS CHUNG HẾT (loại này không cách ly).
+ *       ⚠️ Giữ baud ≤ 38400 — nó kéo mức cao bằng trở 10k nên sườn xung ì.
+ *       ⚠️ Đừng dùng TXS0108E cho UART: con đó sinh ra cho I2C, ghép với UART đẩy
+ *          đối xứng thì hay dở chứng (bit dính, rác lác đác, có khi tự dao động).
+ *
  *
  *  2) CHIỀU (chân DIR, số 1) VÀ CHO PHÉP (chân OE, số 19, tích cực MỨC THẤP).
  *     Một con 245 chỉ có MỘT chân DIR cho cả 8 kênh — nên hai đường đi qua nó đều bị
