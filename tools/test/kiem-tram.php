@@ -464,8 +464,14 @@ t( 'không nhánh GPS nào tắt nút chấm công',
 
 /* ---- Bản đồ nhúng ---- */
 t( 'có bản đồ nhúng', strpos( $tram_js2, 'veBanDo' ) !== false );
-t( 'dùng OpenStreetMap (đường công khai, không cần khoá API)',
-	strpos( $tram_js2, 'openstreetmap.org/export/embed.html' ) !== false );
+/* 🔴 KHÔNG DÙNG IFRAME. Trên máy anh Thắng khung nhúng của OSM ra đúng một ô xám
+   "đã từ chối kết nối" — máy chủ trả tiêu đề chặn nhúng, và trình duyệt bỏ luôn khung, không
+   có cách nào bắt lỗi bằng JavaScript để hiện thứ khác thay. Ô ảnh thì bắt được `onerror`. */
+t( 'dùng ô ảnh của OpenStreetMap', strpos( $tram_js2, 'tile.openstreetmap.org/' ) !== false );
+t( 'KHÔNG nhúng bằng iframe nữa', strpos( $tram_js2, 'export/embed.html' ) === false );
+t( 'ô ảnh tải hỏng thì ẩn cả bản đồ', strpos( $tram_js2, 'function banDoHong' ) !== false );
+t( 'và có gắn onerror vào từng ô', strpos( $tram_js2, 'onerror="banDoHong(this)"' ) !== false );
+t( 'ghi công OpenStreetMap', strpos( $tram_vt, '© OpenStreetMap' ) !== false );
 /* 🔴 KHÔNG được có khoá API nào trong trang: trang này ai xem nguồn cũng đọc được. */
 foreach ( array( 'key=AIza', 'maps/embed/v1', 'output=embed' ) as $cam_bd ) {
 	/* Soi MÃ đã bỏ chú thích, không soi lời giải thích: chính chú thích trong tram.php nhắc
@@ -475,13 +481,35 @@ foreach ( array( 'key=AIza', 'maps/embed/v1', 'output=embed' ) as $cam_bd ) {
 }
 t( 'bản đồ tải trễ (3G ở cơ sở không tải khi chưa cuộn tới)',
 	strpos( $tram_js2, 'loading="lazy"' ) !== false );
-t( 'không gửi đường dẫn trang này sang máy chủ bản đồ',
-	strpos( $tram_js2, 'referrerpolicy="no-referrer"' ) !== false );
+t( 'chỉ gửi tên miền sang máy chủ bản đồ, không gửi đường dẫn trang',
+	strpos( $tram_js2, 'referrerpolicy="origin"' ) !== false );
 /* Chỉ dựng khung bản đồ KHI ĐÃ CÓ toạ độ — không nạp sẵn lúc mở trang. */
-t( 'khung bản đồ nằm trong nhánh đã có toạ độ',
-	preg_match( "/GPS_TRANG === 'co'[\s\S]{0,900}veBanDo\(/", $tram_js2 ) === 1 );
-t( 'HTML tĩnh KHÔNG có sẵn thẻ iframe bản đồ nào',
+t( 'bản đồ chỉ dựng trong nhánh đã có toạ độ',
+	preg_match( "/GPS_TRANG === 'co'[\s\S]{0,2600}veBanDo\(/", $tram_js2 ) === 1 );
+t( 'HTML tĩnh KHÔNG có sẵn iframe nào',
 	strpos( preg_replace( '/<script[\s\S]*?<\/script>/', '', $tram_vt ), '<iframe' ) === false );
+
+/* 🔴 ĐỘ CHÍNH XÁC THÔ THÌ KHÔNG VẼ BẢN ĐỒ. Ảnh anh Thắng gửi: toạ độ trông rất thật
+   (10.775500,106.702100 — trung tâm TP.HCM) kèm sai số ±200000m. Vẽ một chấm đỏ giữa Quận 1
+   khi máy chỉ biết "đâu đó ở miền Nam" là nói dối bằng hình ảnh: người xem tin cái chấm chứ
+   không đọc dòng ±. */
+t( 'có chia mức độ chính xác', strpos( $tram_js2, 'function mucGps' ) !== false );
+t( 'mức "mang" (theo địa chỉ mạng) KHÔNG vẽ bản đồ',
+	preg_match( "/m === 'mang'[\s\S]{0,1200}return;/", $tram_js2 ) === 1
+	&& preg_match( "/m === 'mang'[\s\S]{0,1200}veBanDo/", $tram_js2 ) !== 1 );
+t( 'và nói thẳng đó là vị trí theo địa chỉ mạng',
+	strpos( $tram_vt, 'theo <b>địa chỉ mạng</b>' ) !== false );
+t( 'chỉ đúng chỗ bật Dịch vụ định vị', strpos( $tram_vt, 'Dịch vụ định vị' ) !== false );
+/* Vẫn chấm công được ở mọi mức — GPS không phải điều kiện. */
+t( 'mức thô vẫn chấm công được', strpos( $tram_vt, 'phiếu sẽ ghi rõ là vị trí ước lượng' ) !== false );
+
+/* ±200000m đọc không ra là to cỡ nào — đổi sang km. */
+t( 'đơn vị dài đọc được', strpos( $tram_js2, 'function dai' ) !== false );
+
+/* Sai số càng lớn thì kéo càng xa: phóng hết cỡ trong khi máy chỉ biết bán kính 500m là vẽ
+   một chấm rất chính xác vào một chỗ rất có thể sai. */
+t( 'mức phóng chọn theo sai số',
+	preg_match( "/acc <= 60[^\n]*17[^\n]*acc <= 200 \? 16 : 15/", $tram_js2 ) === 1 );
 
 /* Toạ độ ghép vào địa chỉ phải qua encodeURIComponent — chuỗi tự dựng nhét thẳng vào src là
    đúng kiểu lỗi mở đường cho người khác chèn nội dung lạ vào khung. */
@@ -562,6 +590,56 @@ t( 'ảnh tối vẫn dùng được',
 t( 'bao() vẫn thoát HTML', strpos( $tram_js2, 'esc(chu)' ) !== false );
 t( 'câu ảnh tối không nhét thẻ HTML vào bao()',
 	preg_match( "/bao\\('loiChup','vang'[^;]*<b>/", $tram_js2 ) !== 1 );
+
+/* ============================================ 13. GPS THÔ PHẢI NÓI RA, CẢ Ở PHIẾU
+ *
+ * Ảnh anh Thắng gửi 25/08/2026: toạ độ 10.775500,106.702100 (giữa Quận 1) kèm ±200000m — đó
+ * là trình duyệt đoán theo địa chỉ mạng, không phải GPS. Ghi mỗi cặp toạ độ vào phiếu thì
+ * người đọc ba tháng sau mở bản đồ ra, thấy đúng trung tâm thành phố, và kết luận người này
+ * có mặt — trong khi dữ liệu chỉ nói "đâu đó ở miền Nam". Dấu ± nhỏ quá, không ai đọc.
+ */
+$gps_chu = new ReflectionMethod( 'VHCC_Online', 'gps_thanh_chu' );
+$gps_chu->setAccessible( true );
+$chu_tot = $gps_chu->invoke( null, array( 'lat' => 10.7755, 'lng' => 106.7021, 'acc' => 12 ) );
+t( 'GPS tốt ghi bình thường', 0 === strpos( $chu_tot, 'GPS ' ), $chu_tot );
+t( 'và kèm sai số', strpos( $chu_tot, '±12m' ) !== false, $chu_tot );
+
+$chu_tho = $gps_chu->invoke( null, array( 'lat' => 10.7755, 'lng' => 106.7021, 'acc' => 200000 ) );
+t( 'vị trí theo mạng KHÔNG được gọi là GPS', 0 !== strpos( $chu_tho, 'GPS ' ), $chu_tho );
+t( 'và nói thẳng là ước lượng', strpos( $chu_tho, 'ƯỚC LƯỢNG' ) !== false, $chu_tho );
+t( 'và nói thẳng không dùng để xác nhận có mặt',
+	strpos( $chu_tho, 'KHÔNG dùng để xác nhận có mặt' ) !== false, $chu_tho );
+t( '±200000m đổi thành ±200km cho đọc ra',
+	strpos( $chu_tho, '200km' ) !== false && strpos( $chu_tho, '200000' ) === false, $chu_tho );
+/* Toạ độ vẫn còn trong dòng chữ — nói nó thô không có nghĩa là vứt đi. */
+t( 'vẫn giữ lại toạ độ', strpos( $chu_tho, '10.7755' ) !== false, $chu_tho );
+
+/* Ranh giới đúng chỗ khai, không phải số rải trong mã. */
+t( 'ngưỡng thô khai thành hằng', defined( 'VHCC_Online::GPS_THO' ) || VHCC_Online::GPS_THO > 0 );
+$chu_ranh = $gps_chu->invoke( null, array( 'lat' => 1, 'lng' => 1, 'acc' => VHCC_Online::GPS_THO - 1 ) );
+t( 'ngay dưới ngưỡng vẫn là GPS', 0 === strpos( $chu_ranh, 'GPS ' ), $chu_ranh );
+
+t( 'không có GPS thì không bịa ra dòng nào',
+	'' === $gps_chu->invoke( null, null ) && '' === $gps_chu->invoke( null, array() ) );
+t( 'toạ độ không phải số thì bỏ qua, không ghi chữ rác',
+	'' === $gps_chu->invoke( null, array( 'lat' => 'abc', 'lng' => 'xyz' ) ) );
+
+/* ---- Trang trạm: chờ GPS khoá thay vì lấy phát đầu ---- */
+t( 'dùng watchPosition để chờ số sai lệch nhỏ dần',
+	strpos( $tram_js2, 'watchPosition' ) !== false );
+t( 'maximumAge 0 — không nhận lại vị trí cũ theo mạng',
+	strpos( $tram_js2, 'maximumAge:0' ) !== false );
+t( 'chỉ nhận lần đo TỐT HƠN cái đang có',
+	strpos( $tram_js2, 'moi.acc < GPS.acc' ) !== false );
+t( 'đủ tốt thì dừng sớm, khỏi hao pin',
+	strpos( $tram_js2, 'GPS.acc <= GPS_DU' ) !== false );
+t( 'có trần thời gian chờ', strpos( $tram_js2, 'GPS_CHO' ) !== false );
+t( 'hết giờ chờ vẫn dùng vị trí thô, không vứt đi',
+	preg_match( "/GPS_TRANG = GPS \\? 'co' : 'hong'/", $tram_js2 ) === 1 );
+t( 'lỗi giữa chừng mà đã đo được thì giữ lại',
+	strpos( $tram_js2, "if(GPS){ GPS_TRANG = 'co'; }" ) !== false );
+t( 'bấm lấy lại thì đo lại từ đầu, không giữ số của lần đứng chỗ khác',
+	preg_match( "/xinGps\\(\\)\\{[\\s\\S]{0,400}GPS = null;/", $tram_js2 ) === 1 );
 
 echo "\n";
 if ( $truot ) {

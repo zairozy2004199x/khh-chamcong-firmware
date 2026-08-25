@@ -283,14 +283,43 @@ class VHCC_Online {
 		return $s;
 	}
 
+	/** Sai số (mét) từ đó trở lên thì toạ độ KHÔNG còn xác nhận được ai đứng ở đâu. */
+	const GPS_THO = 2000;
+
+	/**
+	 * GPS -> dòng chữ đóng vào ghi chú của lượt chấm.
+	 *
+	 * 🔴 NÓI RÕ KHI TOẠ ĐỘ CHỈ LÀ ƯỚC LƯỢNG. Trình duyệt vẫn trả về một cặp số trông rất thật
+	 *    khi chưa bắt được vệ tinh — nó đoán theo địa chỉ mạng, sai số có khi 200 KILÔMÉT. Trên
+	 *    máy anh Thắng đúng là như vậy: 10.775500,106.702100 (giữa Quận 1) ±200000m.
+	 *
+	 *    Ghi mỗi "GPS 10.7755,106.7021 ±200000m" thì người đọc phiếu ba tháng sau chỉ nhìn cặp
+	 *    toạ độ, mở bản đồ ra, thấy đúng trung tâm thành phố, và kết luận người này có mặt —
+	 *    trong khi dữ liệu chỉ nói "đâu đó ở miền Nam". Dấu ± nhỏ quá, không ai đọc.
+	 *
+	 *    Nên: dán thẳng chữ vào, không bắt ai suy từ con số.
+	 */
 	private static function gps_thanh_chu( $gps ) {
 		if ( ! is_array( $gps ) || ! isset( $gps['lat'], $gps['lng'] ) ) { return ''; }
 		$la = is_numeric( $gps['lat'] ) ? (float) $gps['lat'] : null;
 		$ln = is_numeric( $gps['lng'] ) ? (float) $gps['lng'] : null;
 		if ( null === $la || null === $ln ) { return ''; }
+		$acc = ( isset( $gps['acc'] ) && is_numeric( $gps['acc'] ) ) ? (float) $gps['acc'] : null;
+
+		if ( null !== $acc && $acc >= self::GPS_THO ) {
+			return 'VỊ TRÍ ƯỚC LƯỢNG THEO MẠNG (không phải GPS, KHÔNG dùng để xác nhận có mặt) '
+				. round( $la, 6 ) . ',' . round( $ln, 6 ) . ' ±' . self::do_dai( $acc );
+		}
 		$s = 'GPS ' . round( $la, 6 ) . ',' . round( $ln, 6 );
-		if ( isset( $gps['acc'] ) && is_numeric( $gps['acc'] ) ) { $s .= ' ±' . round( (float) $gps['acc'] ) . 'm'; }
+		if ( null !== $acc ) { $s .= ' ±' . self::do_dai( $acc ); }
 		return $s;
+	}
+
+	/** 200000 -> "200km". "±200000m" thì không ai thấy nó to cỡ nào. */
+	private static function do_dai( $m ) {
+		$m = (int) round( (float) $m );
+		if ( $m < 1000 ) { return $m . 'm'; }
+		return ( $m < 10000 ? number_format( $m / 1000, 1 ) : (string) (int) round( $m / 1000 ) ) . 'km';
 	}
 
 	/** GIỜ MÁY CHỦ — trang chấm công phụ hiện đồng hồ theo giờ này, không theo giờ điện thoại.

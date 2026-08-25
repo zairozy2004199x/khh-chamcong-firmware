@@ -52,8 +52,15 @@ th{color:#94a3b8;font-weight:600;font-size:11.5px;text-transform:uppercase;lette
 td.g{font-variant-numeric:tabular-nums}
 .trong{color:#64748b}
 video,canvas.xem{width:100%;border-radius:12px;background:#000;display:block}
-iframe.bando{width:100%;height:200px;border:1px solid #334155;border-radius:12px;
-	background:#0f172a;display:block;margin:10px 0 0}
+.bando{position:relative;width:100%;height:200px;border:1px solid #334155;border-radius:12px;
+	background:#1e293b;overflow:hidden;margin:10px 0 0}
+.bando .luoi{position:absolute;left:50%;top:50%;width:768px;height:768px;
+	display:grid;grid-template-columns:repeat(3,256px);grid-template-rows:repeat(3,256px)}
+.bando .o{display:block;width:256px;height:256px;background:#1e293b}
+.bando .cham{position:absolute;left:50%;top:50%;width:16px;height:16px;margin:-8px 0 0 -8px;
+	border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
+.bando .ghi{position:absolute;right:4px;bottom:2px;font-size:10px;color:#0f172a;
+	background:rgba(255,255,255,.72);padding:0 5px;border-radius:4px}
 .khung{position:relative}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:12px}
@@ -280,21 +287,79 @@ setInterval(nhipDongHo, 1000);
 var GPS = null;
 var GPS_TRANG = 'chua';   /* chua | dangxin | co | choi | hong | khong_ho_tro */
 
+/**
+ * Độ chính xác nói lên điều gì.
+ *
+ * 🔴 ±200000m LÀ VỊ TRÍ THEO ĐỊA CHỈ MẠNG, KHÔNG PHẢI GPS. Trình duyệt vẫn trả về một cặp toạ
+ *    độ trông rất thật (10.775500,106.702100 — trung tâm TP.HCM), kèm sai số 200 KILÔMÉT. Ai
+ *    đọc phiếu mà chỉ nhìn cặp số ấy sẽ tưởng đã xác nhận được người này đứng ở đâu, trong khi
+ *    nó chỉ nói "đâu đó ở miền Nam". Đây là kiểu sai nguy hiểm nhất: có số, trông đúng, và sai.
+ *
+ * Nên: chia mức, nói thẳng mức nào dùng được vào việc gì.
+ */
+function mucGps(acc){
+	if(acc <= 50)   return 'tot';     /* GPS đã khoá — đủ để nói đứng ở toà nhà nào */
+	if(acc <= 200)  return 'tam';     /* GPS yếu hoặc Wi-Fi tốt — đủ để nói đúng khu phố */
+	if(acc <= 2000) return 'tho';     /* Wi-Fi / trạm phát sóng — chỉ đúng phường, quận */
+	return 'mang';                     /* theo địa chỉ mạng — KHÔNG dùng để xác nhận có mặt */
+}
+
+/** 1234 -> "1,2km"; 85 -> "85m". Đọc "±200000m" thì không ai thấy nó to cỡ nào. */
+function dai(m){
+	m = Math.round(Number(m) || 0);
+	if(m < 1000) return m + 'm';
+	return (m / 1000).toFixed(m < 10000 ? 1 : 0).replace('.', ',') + 'km';
+}
+
 function veViTri(){
 	var e = el('oViTri');
 	if(!e) return;
+
 	if(GPS_TRANG === 'co' && GPS){
-		var q = GPS.lat.toFixed(6) + ',' + GPS.lng.toFixed(6);
-		e.innerHTML = '<div class="xanh" style="margin:0">📍 <b>' + esc(q) + '</b>'
-			+ ' <span style="opacity:.75">(±' + Math.round(GPS.acc) + 'm)</span></div>'
-			+ veBanDo(GPS.lat, GPS.lng)
-			/* Vẫn giữ link ra Google Maps: bản đồ nhúng đủ để thấy "mình đang ở đâu", còn khi
+		var q  = GPS.lat.toFixed(6) + ',' + GPS.lng.toFixed(6);
+		var m  = mucGps(GPS.acc);
+		var lk = '<p style="margin:8px 0 0"><a target="_blank" rel="noopener"'
+		       + ' href="https://maps.google.com/?q=' + encodeURIComponent(q) + '">Mở Google Maps ↗</a></p>';
+
+		if(m === 'mang'){
+			/* KHÔNG vẽ bản đồ ở mức này. Vẽ một chấm đỏ giữa Quận 1 khi sai số là 200km chính
+			   là nói dối bằng hình ảnh — người xem tin vào cái chấm chứ không đọc dòng ±. */
+			e.innerHTML = '<div class="vang" style="margin:0">📍 <b>Chưa bắt được GPS thật.</b> '
+				+ 'Toạ độ đang lấy theo <b>địa chỉ mạng</b>, sai số ±' + dai(GPS.acc) + ' — '
+				+ 'chỉ nói được "đâu đó trong vùng này", không xác nhận được anh/chị đứng ở đâu.'
+				+ '<br>Bật <b>Dịch vụ định vị</b> trong Cài đặt máy, ra chỗ thoáng, rồi bấm '
+				+ '"Lấy lại vị trí". Vẫn chấm công được — phiếu sẽ ghi rõ là vị trí ước lượng.</div>'
+				+ '<p class="ct" style="margin:8px 0 0;text-align:left">' + esc(q) + ' (±'
+				+ dai(GPS.acc) + ')</p>' + lk;
+			return;
+		}
+
+		var them = '';
+		if(m === 'tam'){ them = '<br><span style="opacity:.85">GPS chưa khoá hẳn — đúng khu phố, '
+			+ 'chưa chắc đúng toà nhà. Đợi vài giây hoặc ra chỗ thoáng thì số này nhỏ lại.</span>'; }
+		if(m === 'tho'){ them = '<br><span style="opacity:.85">Đang lấy theo Wi-Fi / trạm phát sóng, '
+			+ 'chưa phải GPS. Ra chỗ thoáng rồi bấm "Lấy lại vị trí".</span>'; }
+
+		/* Tên lớp viết nội tuyến từ hằng, không đi qua biến: bộ kiểm giao diện canh "mọi thứ
+		   ghép vào innerHTML phải là hằng hoặc đã esc()", và nó canh đúng — hôm nay là tên lớp
+		   do mình đặt, mai có người sửa thành giá trị lấy từ máy chủ thì chốt ấy phải còn. */
+		e.innerHTML = '<div class="' + ( 'tot' === m ? 'xanh' : 'vang' ) + '" style="margin:0">📍 <b>'
+			+ esc(q) + '</b>'
+			+ ' <span style="opacity:.75">(±' + dai(GPS.acc) + ')</span>' + them + '</div>'
+			+ veBanDo(GPS.lat, GPS.lng, GPS.acc)
+			/* Vẫn giữ link ra Google Maps: bản đồ ở đây đủ để thấy "mình đang ở đâu", còn khi
 			   cần chỉ đường hay xem ảnh phố thì mở ứng dụng bản đồ thật vẫn hơn. */
-			+ '<p style="margin:8px 0 0"><a target="_blank" rel="noopener"'
-			+ ' href="https://maps.google.com/?q=' + encodeURIComponent(q) + '">Mở Google Maps ↗</a></p>';
+			+ lk;
 		return;
 	}
-	if(GPS_TRANG === 'dangxin'){ e.innerHTML = '<p class="trong">Đang lấy vị trí…</p>'; return; }
+
+	if(GPS_TRANG === 'dangxin'){
+		/* Đang chờ GPS khoá: nếu đã có một vị trí thô rồi thì nói ra, đừng để màn hình câm —
+		   người ta cần biết máy vẫn đang cố, chứ không phải đã treo. */
+		e.innerHTML = '<p class="trong">Đang lấy vị trí…'
+			+ (GPS ? ' (hiện ±' + dai(GPS.acc) + ', đang chờ chính xác hơn)' : '') + '</p>';
+		return;
+	}
 	if(GPS_TRANG === 'khong_ho_tro'){
 		e.innerHTML = '<div class="vang" style="margin:0">📍 Máy này không hỗ trợ định vị. '
 			+ 'Vẫn chấm công được — phiếu sẽ ghi <b>KHÔNG có GPS</b>.</div>';
@@ -316,50 +381,127 @@ function veViTri(){
 }
 
 /**
- * Bản đồ nhúng quanh chỗ đang đứng.
+ * Bản đồ quanh chỗ đang đứng — GHÉP TỪ Ô ẢNH, KHÔNG DÙNG IFRAME.
  *
  * =========================================================================================
- * DÙNG OPENSTREETMAP, KHÔNG DÙNG GOOGLE
+ * 🔴 VÌ SAO BỎ IFRAME: "www.openstreetmap.org đã từ chối kết nối"
  * =========================================================================================
- * Khung nhúng của OSM là đường công khai chính thức, KHÔNG cần khoá API. Google Maps thì
- * khung nhúng chính thức (`/maps/embed/v1`) đòi khoá, mà khoá ấy nằm lộ trong mã trang —
- * ai xem nguồn cũng lấy được và tiêu hạn mức của mình. Còn `output=embed` của Google là
- * đường không công bố: nay chạy mai đổi, và lúc đổi thì bản đồ trắng bóc mà không ai biết
- * vì sao. Link "Mở Google Maps" bên dưới vẫn còn cho ai cần chỉ đường.
+ * Bản trước nhúng `openstreetmap.org/export/embed.html` bằng <iframe>. Trên máy anh Thắng nó
+ * ra đúng một khung xám với dòng "đã từ chối kết nối" — máy chủ OSM trả tiêu đề chặn nhúng
+ * (X-Frame-Options / frame-ancestors), và trình duyệt bỏ luôn khung, không có cách nào bắt
+ * lỗi bằng JavaScript để hiện thứ khác thay thế. Nhúng khung của người khác là đặt một mảnh
+ * giao diện của mình dưới quyền quyết định của họ.
  *
- * ⚠️ NHÚNG LÀ GỬI TOẠ ĐỘ RA NGOÀI. Khung này gọi thẳng tới máy chủ của OpenStreetMap, nên
- *    vị trí nhân viên có đi ra khỏi hosting của mình. Chấp nhận được vì OSM là tổ chức phi
- *    lợi nhuận và không gắn quảng cáo — nhưng nó là một lựa chọn, không phải chuyện đương
- *    nhiên. Chỉ nạp KHI ĐÃ CÓ toạ độ, không nạp sẵn lúc mở trang.
+ * Ô ảnh thì khác: nó chỉ là <img>. Không ai chặn được bằng tiêu đề khung, và nếu tải hỏng thì
+ * `onerror` bắt được — bản đồ tự ẩn đi, còn lại dòng toạ độ và link, chứ không để một khung
+ * xám báo lỗi giữa trang chấm công.
  *
- * ⚠️ `loading="lazy"`: máy 3G ở cơ sở không tải bản đồ cho tới khi người ta cuộn tới nó.
- *    Nút CHẤM CÔNG nằm TRÊN khối này nên bản đồ không bao giờ giành băng thông với việc
- *    chính là gửi ảnh chấm công đi.
+ * Ghép 3×3 ô 256px quanh điểm cần xem, dịch bằng lề âm cho điểm ấy nằm đúng giữa khung. Toán
+ * là phép chiếu Web Mercator chuẩn — cùng công thức mọi thư viện bản đồ dùng, chỉ là mình tự
+ * viết mười dòng thay vì kéo về một thư viện 150KB cho một cái bản đồ tĩnh.
+ *
+ * ⚠️ TẢI Ô ẢNH LÀ GỬI TOẠ ĐỘ RA NGOÀI. Đường dẫn ô ảnh chứa vị trí, nên máy chủ OSM biết
+ *    vùng đang xem. Chấp nhận được (phi lợi nhuận, không quảng cáo) nhưng là một lựa chọn.
+ *    `referrerpolicy="origin"` gửi mỗi tên miền, không gửi đường dẫn trang.
+ *
+ * ⚠️ Chỉ vẽ khi độ chính xác đủ tốt — xem `veViTri()`. Chấm đỏ giữa Quận 1 với sai số 200km
+ *    là nói dối bằng hình ảnh.
  */
-function veBanDo(lat, lng){
-	var d = 0.0025;   /* khoảng ±250m mỗi chiều — đủ thấy toà nhà, không phải cả quận */
-	var bbox = (lng - d).toFixed(6) + ',' + (lat - d).toFixed(6) + ','
-	         + (lng + d).toFixed(6) + ',' + (lat + d).toFixed(6);
-	var src = 'https://www.openstreetmap.org/export/embed.html?bbox=' + encodeURIComponent(bbox)
-	        + '&layer=mapnik&marker=' + encodeURIComponent(lat.toFixed(6) + ',' + lng.toFixed(6));
-	return '<iframe class="bando" loading="lazy" referrerpolicy="no-referrer"'
-	     + ' title="Bản đồ chỗ đang đứng" src="' + esc(src) + '"></iframe>';
+function veBanDo(lat, lng, acc){
+	/* Sai số càng lớn thì kéo càng xa: phóng to hết cỡ trong khi máy chỉ biết mình ở đâu đó
+	   trong bán kính 500m là vẽ một chấm rất chính xác vào một chỗ rất có thể sai. */
+	var z = ( acc <= 60 ) ? 17 : ( acc <= 200 ? 16 : 15 );
+	var n  = Math.pow(2, z);
+	var xf = (lng + 180) / 360 * n;
+	var la = lat * Math.PI / 180;
+	var yf = (1 - Math.log(Math.tan(la) + 1 / Math.cos(la)) / Math.PI) / 2 * n;
+	var x  = Math.floor(xf), y = Math.floor(yf);
+	var px = 256 + Math.round((xf - x) * 256);   /* vị trí điểm trong lưới 3×3 */
+	var py = 256 + Math.round((yf - y) * 256);
+
+	var h = '<div class="bando"><div class="luoi" style="margin-left:' + (-px) + 'px;margin-top:'
+	      + (-py) + 'px">';
+	for(var dy = -1; dy <= 1; dy++){
+		for(var dx = -1; dx <= 1; dx++){
+			var tx = ((x + dx) % n + n) % n;      /* vòng quanh quả đất theo chiều ngang */
+			var ty = y + dy;
+			if(ty < 0 || ty >= n){ h += '<i class="o"></i>'; continue; }   /* quá cực, ô trống */
+			h += '<img class="o" alt="" referrerpolicy="origin" loading="lazy"'
+			   + ' src="https://tile.openstreetmap.org/' + z + '/' + tx + '/' + ty + '.png"'
+			   + ' onerror="banDoHong(this)">';
+		}
+	}
+	h += '</div><b class="cham"></b>'
+	   + '<span class="ghi">© OpenStreetMap</span></div>';
+	return h;
+}
+
+/* Ô ảnh tải hỏng (mạng chặn, OSM quá tải) -> ẩn cả bản đồ. Thà không có bản đồ còn hơn một
+   khung lỗ chỗ ô trắng — nhìn như trang bị hỏng, mà thứ người ta cần là cái nút chấm công. */
+function banDoHong(img){
+	var b = img.closest ? img.closest('.bando') : null;
+	if(b){ b.style.display = 'none'; }
+}
+
+/**
+ * Xin vị trí — CHỜ GPS KHOÁ, không lấy phát đầu rồi thôi.
+ *
+ * =========================================================================================
+ * 🔴 ĐÂY LÀ GỐC CỦA "±200000m" TRÊN MÁY ANH THẮNG
+ * =========================================================================================
+ * `getCurrentPosition` trả về NGAY cái đang có sẵn: thường là vị trí đoán theo địa chỉ mạng,
+ * sai số hàng chục tới hàng trăm kilômét. Chip GPS cần vài giây tới vài chục giây mới bắt đủ
+ * vệ tinh; ai chờ được thì có toạ độ chính xác vài mét, ai lấy phát đầu thì có một cặp số
+ * trông rất thật mà vô dụng.
+ *
+ * `watchPosition` bắn liên tục và số sai lệch NHỎ DẦN. Giữ lấy lần đo tốt nhất, dừng khi đã
+ * đủ tốt hoặc hết giờ chờ. `maximumAge: 0` là bắt buộc — để mặc định thì trình duyệt lại đưa
+ * đúng cái vị trí cũ theo mạng ra dùng.
+ *
+ * ⚠️ Vẫn KHÔNG CHẶN chấm công. Hết 20 giây mà chỉ có vị trí thô thì dùng vị trí thô, có nhãn
+ *    đàng hoàng — người ta đang đứng chờ để vào ca, không đợi vệ tinh được.
+ */
+var GPS_THEO = null;     /* id của watchPosition đang chạy */
+var GPS_HEN  = null;     /* hẹn giờ dừng chờ */
+var GPS_DU   = 50;       /* mét — đủ tốt thì dừng sớm, khỏi hao pin */
+var GPS_CHO  = 20000;    /* ms — chờ tối đa */
+
+function thoiTheoGps(){
+	if(GPS_THEO !== null && navigator.geolocation){ navigator.geolocation.clearWatch(GPS_THEO); }
+	GPS_THEO = null;
+	if(GPS_HEN){ clearTimeout(GPS_HEN); GPS_HEN = null; }
 }
 
 function xinGps(){
 	if(!navigator.geolocation){ GPS = null; GPS_TRANG = 'khong_ho_tro'; veViTri(); return; }
-	GPS_TRANG = 'dangxin'; veViTri();
-	navigator.geolocation.getCurrentPosition(function(p){
-		GPS = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy };
-		GPS_TRANG = 'co';
+	thoiTheoGps();
+	GPS = null;                      /* đo lại từ đầu, không giữ số cũ của lần đứng chỗ khác */
+	GPS_TRANG = 'dangxin';
+	veViTri();
+
+	GPS_THEO = navigator.geolocation.watchPosition(function(p){
+		var moi = { lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy };
+		/* Chỉ nhận khi TỐT HƠN cái đang có. Máy có lúc bắn ra một lần đo tệ hơn ở giữa chừng;
+		   nhận bừa là số sai lệch nhảy qua nhảy lại trên màn hình. */
+		if(!GPS || moi.acc < GPS.acc){ GPS = moi; }
+		if(GPS.acc <= GPS_DU){ thoiTheoGps(); GPS_TRANG = 'co'; }
 		veViTri();
 	}, function(err){
-		GPS = null;
 		/* err.code 1 = PERMISSION_DENIED. Hai mã còn lại (2 hết chỗ dò, 3 quá hạn) đều là
 		   "không bắt được sóng" với người dùng, nên gộp — họ làm cùng một việc: ra chỗ thoáng. */
-		GPS_TRANG = (err && 1 === err.code) ? 'choi' : 'hong';
+		thoiTheoGps();
+		if(GPS){ GPS_TRANG = 'co'; }      /* đã đo được lần nào đó rồi thì giữ, đừng vứt */
+		else   { GPS = null; GPS_TRANG = ( err && 1 === err.code ) ? 'choi' : 'hong'; }
 		veViTri();
-	}, { enableHighAccuracy:true, timeout:8000, maximumAge:60000 });
+	}, { enableHighAccuracy:true, timeout:GPS_CHO, maximumAge:0 });
+
+	GPS_HEN = setTimeout(function(){
+		thoiTheoGps();
+		/* Hết giờ chờ: có gì dùng nấy, nhưng `veViTri` sẽ dán nhãn đúng mức. Không có gì thì
+		   coi như không bắt được sóng — vẫn chấm công được. */
+		GPS_TRANG = GPS ? 'co' : 'hong';
+		veViTri();
+	}, GPS_CHO);
 }
 
 el('btViTri').addEventListener('click', xinGps);
