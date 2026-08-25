@@ -185,11 +185,14 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
 #define BYPASS_PIN         22
 #define BYPASS_ACTIVE_HIGH false   // module active-LOW: false = IN kéo LOW để hút (ESP-mode)
 
-/* Ghế mất ~3s KHỞI ĐỘNG sau khi nhận tiền QR/từ xa (bơm 81 4X) rồi mới thực sự chạy.
-   Đồng hồ đếm trên màn/web bắt đầu ngay là chạy TRƯỚC ghế -> lệch. Đợi ngần này rồi
-   mới bật đếm giờ cho KHỚP với lúc ghế thật sự chạy. Chỉnh theo ghế của anh (ms).
-   Tiền mặt KHÔNG áp (ghế tự xử khi có tờ thật, đếm theo lúc '10'). */
-#define QR_TRE_MS          4000
+/* Ghế nhận tiền -> HIỆN đồng hồ ngay nhưng ~ngần này SAU mới ĐẾM. Đồng hồ (offset)
+   canh theo đúng khoảng dừng đó cho KHỚP ghế. Chỉnh theo ghế (ms): sớm hơn ghế ->
+   tăng; trễ hơn ghế -> giảm. Áp cho cả tiền mặt/QR/từ xa. */
+#define QR_TRE_MS          3500
+/* Thời gian hiện màn "CẢM ƠN QUÝ KHÁCH" (chữ cảm ơn + thời gian nhỏ) trước khi
+   phóng to đồng hồ đếm ngược. KHÁC QR_TRE_MS: đây chỉ là màn hình, còn đồng hồ đã
+   chạy ngầm từ mốc ghế đếm (QR_TRE_MS) nên phóng to ra là đã trừ đúng phần đã qua. */
+#define CAMON_MS           5000
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -272,7 +275,7 @@ CongTien congTien;      // CỔNG TIỀN serial (relay tiền mặt ICT->ghế +
 volatile bool g_4gReady = false;
 int  g_simTx = SIM_TX_PIN, g_simRx = SIM_RX_PIN; long g_simBaud = 115200;
 
-enum State { ST_IDLE, ST_WAIT_PAY, ST_RUNNING };
+enum State { ST_IDLE, ST_WAIT_PAY, ST_CAMON, ST_RUNNING };   // ST_CAMON = màn "cảm ơn" ~5s trước khi phóng to đồng hồ
 State state = ST_IDLE;
 bool  screenDrawn = false;
 /* Web đã bấm "khởi động lại", đang chờ ghế rảnh. Xem checkRemoteCmd(). */
@@ -1121,6 +1124,23 @@ void drawRunning(int secLeft){
   tft.setTextPadding(0);
 }
 
+/* MÀN "CẢM ƠN" — hiện khi ghế vừa nhận tiền, trước khi phóng to đồng hồ đếm ngược.
+   Trên: lời cảm ơn. Dưới: thời gian (NHỎ, font 4) — hết CAMON_MS chuyển sang
+   drawRunning là đồng hồ font 6 (to) = "thời gian phóng to". Chỉnh vị trí/cỡ tuỳ ý. */
+void drawCamOn(){
+  tft.fillScreen(COL_BG);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_VANG, COL_BG);
+  tft.drawString("CAM ON QUY KHACH", 160, 52, 4);
+  tft.drawString("DA SU DUNG GHE", 160, 88, 4);
+  /* Thời gian NHỎ (font 4) — sẽ phóng to (font 6) khi vào màn chạy. */
+  char b[8]; snprintf(b, sizeof(b), "%02d:00", payMinutes);
+  tft.setTextColor(COL_KEM, COL_BG);
+  tft.drawString(b, 160, 150, 4);
+  tft.setTextColor(COL_MO, COL_BG);
+  tft.drawString("Phien massage bat dau...", 160, 200, 2);
+}
+
 // ======================= Touch =======================
 bool getTouch(int& sx, int& sy){
   if(!ts.touched()) return false;
@@ -1240,9 +1260,10 @@ bool duNhanTien(){ return ACCOUNT_NO.length() > 0 && BANK_BIN.length() > 0; }
  * lượt AT-HTTP mất 3-6 giây — gộp lại là khác biệt giữa "ghế phản ứng trong 2 giây" và "10 giây".
  */
 void guiNhip(){
-  const char* st = (state==ST_RUNNING) ? "running" : (state==ST_WAIT_PAY ? "wait_pay" : "idle");
+  bool dangChay = (state==ST_RUNNING || state==ST_CAMON);   // CAMON = đã nhận tiền, đồng hồ chạy ngầm -> web coi như running
+  const char* st = dangChay ? "running" : (state==ST_WAIT_PAY ? "wait_pay" : "idle");
   const char* src = (g_srcCode=='q') ? "qr" : (g_srcCode=='c' ? "cash" : (g_srcCode=='r' ? "remote" : ""));
-  long conLai = (state==ST_RUNNING) ? ((long)(runUntil - millis())/1000) : 0; if(conLai<0) conLai=0;
+  long conLai = dangChay ? ((long)(runUntil - millis())/1000) : 0; if(conLai<0) conLai=0;
   /* `tre` = lượt gọi trước mất bao nhiêu ms. Máy chủ trừ nửa quãng đó khỏi `con_lai`: con số
      trên được tính Ở ĐÂY, còn dấu giờ thì đóng lúc gói tin TỚI NƠI — nửa quãng đi là phần
      máy chủ không tự thấy được. Giữ kênh HTTPS mở làm quãng này còn ~150ms, nên phần trừ chỉ
@@ -1492,15 +1513,21 @@ void startRunning(int minutes){
   state = ST_RUNNING; screenDrawn=false; lastShownSec=-1; g_statusDirty=true;
 }
 
-/* HẸN đếm giờ: ghế nhận tiền -> hiện đồng hồ nhưng ~QR_TRE_MS sau mới ĐẾM. Hoãn
-   startRunning đúng ngần đó cho khớp ghế (không chặn màn). Đang chạy sẵn thì cộng
-   giờ NGAY (không hoãn — chỉ khởi động mới có khoảng dừng của ghế). */
+/* Ghế nhận tiền -> HIỆN màn "cảm ơn" CAMON_MS, đồng hồ chạy NGẦM từ mốc ghế đếm
+   (millis + QR_TRE_MS). Hết CAMON_MS thì phóng to đồng hồ (đã trừ đúng phần đã qua
+   nên KHỚP ghế). Đang chạy sẵn -> cộng giờ NGAY (không màn cảm ơn). */
 void henChay(int minutes, char src){
   if(minutes <= 0) return;
   if(state == ST_RUNNING){ g_srcCode = src; startRunning(minutes); return; }
-  g_henPhut = minutes; g_henSrc = src; g_henLuc = millis() + QR_TRE_MS;
-  if(g_henLuc == 0) g_henLuc = 1;   // 0 = "không hẹn", tránh trùng
-  Serial.printf("[HEN] doi %dms roi moi dem gio: %d phut (src %c)\n", (int)QR_TRE_MS, minutes, src);
+  g_srcCode = src; g_henSrc = src; g_henPhut = minutes;
+  payMinutes = minutes;                                   // để màn đếm hiện đúng TỔNG
+  runUntil = millis() + QR_TRE_MS + (unsigned long)minutes*60000UL;  // đồng hồ canh mốc ghế đếm
+  state = ST_CAMON; screenDrawn = false;
+  g_henLuc = millis() + CAMON_MS;                         // hết ngần này thì phóng to đồng hồ
+  if(g_henLuc == 0) g_henLuc = 1;
+  g_statusDirty = true;
+  Serial.printf("[HEN] man CAM ON %dms, dong ho canh moc ghe (+%dms): %d phut (src %c)\n",
+                (int)CAMON_MS, (int)QR_TRE_MS, minutes, src);
 }
 
 /**
@@ -1801,14 +1828,16 @@ void loop(){
   congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
-  /* Tới giờ hẹn -> bắt đầu đếm (đã đợi QR_TRE_MS cho khớp lúc ghế thật sự đếm). */
-  if(g_henLuc && (int32_t)(millis() - g_henLuc) >= 0){
-    uint32_t h = g_henLuc; g_henLuc = 0; (void)h;
-    g_srcCode = g_henSrc; startRunning(g_henPhut);
+  /* Hết màn cảm ơn -> PHÓNG TO đồng hồ (chuyển sang màn đếm ngược). runUntil ĐÃ đặt
+     ở henChay (canh mốc ghế đếm) nên KHÔNG đặt lại — số hiện ra đã trừ đúng phần qua. */
+  if(g_henLuc && state == ST_CAMON && (int32_t)(millis() - g_henLuc) >= 0){
+    g_henLuc = 0;
+    relaySet(true); state = ST_RUNNING; screenDrawn = false; lastShownSec = -1; g_statusDirty = true;
+    Serial.println("[HEN] het man cam on -> phong to dong ho dem nguoc");
   }
 
   if(g_remoteStop){ g_remoteStop=false;
-    if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false;
+    if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false; g_henLuc=0;
       g_runTotalVnd=0; setAcceptorEnabled(true); g_statusDirty=true; screenDrawn=false;
       Serial.println("[CMD] -> da TAT may"); }
   }
@@ -1871,6 +1900,9 @@ void loop(){
       g_qcMat = !g_qcMat;
       if(QC_O < PKG_N) veTheGoi(QC_O);
     }
+  }
+  else if(state==ST_CAMON){
+    if(!screenDrawn){ drawCamOn(); screenDrawn=true; }   // hết CAMON_MS thì khối g_henLuc ở trên chuyển sang ST_RUNNING (phóng to)
   }
   else if(state==ST_WAIT_PAY){
     if(!screenDrawn){ drawQRScreen(); screenDrawn=true; }
