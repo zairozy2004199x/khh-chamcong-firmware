@@ -341,56 +341,47 @@ void moCong() {
 }
 
 /* ============================================================================
- *  NGHE MDB — lấy mẫu hai dây ở 9600 baud rồi giải khung 9 bit
+ *  NGHE MDB — nghe LIÊN TỤC hai dây, giải khung 9 bit (bắt được cụm ngắt quãng)
  * ----------------------------------------------------------------------------
- *  MDB là 9 bit (bit thứ 9 = mode), mà UART của ESP32 đọc kiểu thường bỏ mất bit
- *  đó -> phải lấy mẫu thô bằng phần mềm rồi tự giải (xem mdb.h). 9600 baud = một
- *  bit rộng ~104us nên lấy mẫu phần mềm thoải mái.
- *  ⚠️ Đây là bản NGHE để học giao thức. Trả lời poll thay cho L70 (đóng vai máy
- *     nhận tiền) là việc khác, viết sau khi đã chép được đối thoại thật.
+ *  MDB nói theo CỤM: 2-3 byte rồi nghỉ, lặp lại. Bản cũ chụp từng nhát 52ms rồi
+ *  nghỉ nên cụm rơi vào lúc nghỉ là sót. Bản này RÌNH SẴN: có start bit là bắt
+ *  ngay từng byte, in liền; im >10ms thì xuống dòng ngăn cụm cho dễ đọc.
+ *  Dùng UART mềm 9 bit (mdb_uart.h) ở chế độ CHỈ ĐỌC (tx=-1) — không đụng bus.
  * ========================================================================== */
-#define MDB_MAU_MOI_BIT  8
-#define MDB_SO_MAU       4000
-
-void ngheMdb(int soLan) {
-  Serial.printf("[MDB] chup %d lan tren ca hai day @ 9600 baud 9 bit. Bo to tien vao L70 luc nay.\n", soLan);
-  congIct.end(); congGhe.end();
-  pinMode(CHAN_ICT_RX, INPUT);
-  pinMode(CHAN_GHE_RX, INPUT);
-  const int CHU_KY_US = 13;               // 1e6/(9600*8) ≈ 13us
-  static uint8_t mau[MDB_SO_MAU];
-  MdbByte ra[128];
-
-  for (int lan = 0; lan < soLan; lan++) {
-    for (int d = 0; d < 2; d++) {
-      int chan = d ? CHAN_GHE_RX : CHAN_ICT_RX;
-      const char* ten = d ? "GHE(chu)->L70" : "L70(to)->GHE";
-      uint32_t cho = micros();
-      while (digitalRead(chan) == 0 && (micros() - cho) < 5000) {}
-      for (int i = 0; i < MDB_SO_MAU; i++) {
-        mau[i] = digitalRead(chan) ? 1 : 0;
-        uint32_t t = micros();
-        while ((micros() - t) < (uint32_t)CHU_KY_US) {}
-      }
-      int n = mdbGiaiMa(mau, MDB_SO_MAU, MDB_MAU_MOI_BIT, ra, 128);
-      if (n <= 0) continue;
-      int tot = 0; for (int i = 0; i < n; i++) if (!ra[i].khungLoi) tot++;
-      if (tot == 0) continue;
-      Serial.printf("  [%s] %d byte: ", ten, n);
-      for (int i = 0; i < n; i++) {
-        if (ra[i].mode) Serial.printf("<%02X> ", ra[i].giaTri);
-        else            Serial.printf("%02X ", ra[i].giaTri);
-        if (ra[i].khungLoi) Serial.print("?");
-      }
-      Serial.println();
-      if (n >= 1 && ra[0].mode) Serial.printf("        (dia chi %02X = %s)\n",
-                                              ra[0].giaTri, mdbTenDiaChi(ra[0].giaTri));
+void ngheMdb(int giay) {
+  MdbUart uL70, uGhe;
+  uL70.batDau(CHAN_ICT_RX, -1);     // đọc L70 (IO35)
+  uGhe.batDau(CHAN_GHE_RX, -1);     // đọc ghế (IO22)
+  Serial.printf("[MDB] nghe lien tuc %d giay. Bo to tien vao L70 luc nay.\n", giay);
+  Serial.println("      G=ghe noi, L=L70 noi. <XX>=dia chi, XX=du lieu, ?=khung loi. Dong moi = cum moi.");
+  uint32_t het = millis() + (uint32_t)giay * 1000UL;
+  uint32_t lanCuoiMs = 0;
+  uint32_t soByte = 0, soLoi = 0;
+  MdbByte b;
+  bool dangDong = false;
+  while ((int32_t)(het - millis()) > 0) {
+    bool coGi = false;
+    if (uGhe.coByte() && uGhe.docByte(&b)) {
+      if (millis() - lanCuoiMs > 10 && dangDong) { Serial.println(); dangDong = false; }
+      Serial.printf(b.mode ? "G<%02X> " : "G%02X ", b.giaTri);
+      if (b.khungLoi) { Serial.print("? "); soLoi++; }
+      lanCuoiMs = millis(); soByte++; dangDong = true; coGi = true;
     }
-    delay(30);
+    if (uL70.coByte() && uL70.docByte(&b)) {
+      if (millis() - lanCuoiMs > 10 && dangDong) { Serial.println(); dangDong = false; }
+      Serial.printf(b.mode ? "L<%02X> " : "L%02X ", b.giaTri);
+      if (b.khungLoi) { Serial.print("? "); soLoi++; }
+      lanCuoiMs = millis(); soByte++; dangDong = true; coGi = true;
+    }
+    if (!coGi && dangDong && millis() - lanCuoiMs > 10) { Serial.println(); dangDong = false; }
   }
-  moCong();
-  Serial.println("[MDB] xong. <XX> = byte dia chi (mode=1); XX = byte du lieu; ? = khung loi.");
-  Serial.println("      Byte dia chi 0x30-0x37 = bo ghe dang goi MAY NHAN TIEN GIAY (L70).");
+  Serial.printf("\n[MDB] xong. Tong %lu byte, %lu khung loi.\n", (unsigned long)soByte, (unsigned long)soLoi);
+  if (soByte == 0)
+    Serial.println("      0 byte -> chua trung day du lieu, hoac ghe khong poll. Dung DODAY do lai.");
+  else if (soLoi * 3 > soByte)
+    Serial.println("      Nhieu khung loi -> nhip lech. Bao lai de chinh MDB_BIT_US.");
+  else
+    Serial.println("      Doc tot. Byte dia chi 0x30-0x37 = ghe goi may nhan tien (L70).");
 }
 
 /* ============================================================================
