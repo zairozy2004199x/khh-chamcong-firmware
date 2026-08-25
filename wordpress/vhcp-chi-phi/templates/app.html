@@ -1686,7 +1686,7 @@
     el('ndKy').innerHTML=(tudo?'<option value="__tudo__">🗓 Khoảng ngày tự chọn (theo dự án)</option>':'')
       +genKyOptions().map(function(o){return '<option value="'+esc(o.val)+'"'+(o.cur?' selected':'')+'>'+esc(o.label)+'</option>';}).join('');
     var h=new Date(), h2=new Date(); h2.setDate(h2.getDate()+6);
-    el('ndTuNgay').value=_ymd(h); el('ndDenNgay').value=_ymd(h2);
+    el('ndTuNgay').value=_ngayISO(h); el('ndDenNgay').value=_ngayISO(h2);
     ndKyDoi();
     el('ndNguoiLap').value=(CURUSER&&CURUSER.name)||'';
     el('ndNguoiLap').readOnly=!!(CURUSER&&CURUSER.role==='Nhân viên');
@@ -1694,7 +1694,13 @@
     setTimeout(function(){el('ndNguoiLap').focus();},50);
   }
   function closeNewDon(){ el('newDonModal').style.display='none'; }
-  function _ymd(d){ return d.getFullYear()+'-'+_p2(d.getMonth()+1)+'-'+_p2(d.getDate()); }
+  /* Date -> 'yyyy-MM-dd' cho ô <input type=date>.
+     ⚠️ ĐỪNG đặt tên hàm này là `_ymd`. Dưới kia (bảng dòng chi phí) đã có sẵn một `_ymd` khác
+     hẳn: nó nhận CHUỖI 'dd/MM/yyyy'. Hai khai báo function cùng tên thì cái SAU thắng, nên
+     bản nhận Date này chết ngay lúc nạp trang — và chết im: `newDon()` gọi nó với một Date,
+     bản chuỗi không khớp mẫu nào và trả '', thế là hai ô ngày của "khoảng ngày tự chọn" mở
+     ra TRỐNG thay vì điền sẵn hôm nay..+6. Không có lỗi nào hiện ra. */
+  function _ngayISO(d){ return d.getFullYear()+'-'+_p2(d.getMonth()+1)+'-'+_p2(d.getDate()); }
   function ndKyDoi(){
     var b=el('ndTuDoBox'); if(!b) return;
     b.style.display=(el('ndKy').value==='__tudo__')?'':'none';

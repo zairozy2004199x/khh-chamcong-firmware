@@ -261,7 +261,16 @@ class VHCC_Auth {
 		return array( 'ok' => false, 'error' => 'PIN không đúng hoặc chưa được cấp' );
 	}
 
-	public static function phat_token( $ten, $role, $coso ) {
+	/**
+	 * Phát một thẻ phiên. `$ma_nv` chỉ dùng cho phiên của TRẠM chấm công (trang nhân viên) —
+	 * phiên quản trị để rỗng.
+	 *
+	 * ⚠️ Trạm gọi hàm này với `$role = VHCC_Tram::VAI_TRAM` ('CC_ONLINE'), một chuỗi cố ý KHÔNG
+	 *    nằm trong VAI_TRO_TAT_CA, nên `user_by_token()` dưới đây luôn chối. Đó là chốt chặn:
+	 *    một nhân viên cơ sở đăng nhập trạm KHÔNG mở thêm được cửa nào của hệ quản trị, dù hai
+	 *    bên dùng chung bảng `session`.
+	 */
+	public static function phat_token( $ten, $role, $coso, $ma_nv = '' ) {
 		global $wpdb;
 		$t = VHCC_DB::t( 'session' );
 		$wpdb->query( "DELETE FROM $t WHERE het_han < UTC_TIMESTAMP()" );
@@ -271,6 +280,7 @@ class VHCC_Auth {
 			'ten'     => (string) $ten,
 			'vai_tro' => (string) $role,
 			'coso'    => (string) $coso,
+			'ma_nv'   => (string) $ma_nv,
 			'het_han' => gmdate( 'Y-m-d H:i:s', time() + self::TTL ),
 		) );
 		return $tok;

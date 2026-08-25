@@ -143,8 +143,13 @@ teq('giao diện và máy chủ CÙNG một danh sách vai trò vào Cấu hình
 t('Quản lý được vào Cấu hình', vaiJs.includes('Quản lý'), vaiJs);
 t('Kế toán được vào Cấu hình', vaiJs.includes('Kế toán cá nhân') && vaiJs.includes('Kế toán NCC'), vaiJs);
 t('Nhân viên KHÔNG được vào Cấu hình', !vaiJs.includes('Nhân viên'), vaiJs);
+// ⚠️ Biến ở đây TÊN LÀ `laAdminNay`, không phải `_laAdmin`. Đặt tên `_laAdmin` là trùng với
+// hàm toàn cục `_laAdmin()` — `var` được kéo lên đầu hàm nên cái tên đó chết ngay từ dòng
+// một, và bảng Người dùng & Phân quyền hiện ra TRẮNG TRƠN (đã xảy ra 25/08/2026).
 t('giao diện vẫn khoá dòng tài khoản Admin cho người khác',
-  /var _laAdmin=\(CURUSER&&CURUSER\.role==='Admin'\)/.test(HTML) && /khoa=\(!_laAdmin && String\(u\.vaiTro\|\|''\)==='Admin'\)/.test(HTML));
+  /var laAdminNay=\(CURUSER&&CURUSER\.role==='Admin'\)/.test(HTML)
+  && /khoa=\(!laAdminNay && String\(u\.vaiTro\|\|''\)==='Admin'\)/.test(HTML));
+t('KHÔNG dùng lại tên _laAdmin làm biến', !/var _laAdmin\s*=/.test(HTML));
 
 // ---------------------------------------------------------------- 7. ô cảnh báo xuất MISA
 // GẬP SẴN + TẮT ĐƯỢC. Xuất một lượt 169 dòng thì cảnh báo dài hơn cả bảng, đẩy bảng

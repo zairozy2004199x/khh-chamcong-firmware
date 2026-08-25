@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.1.0';
+	const SCHEMA_VERSION = '2.2.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -108,12 +108,19 @@ class VHCC_DB {
 		$b = array();
 
 		/* ===== 1. PHIÊN ĐĂNG NHẬP ============================================================ */
+		/* `ma_nv` phục vụ TRẠM CHẤM CÔNG (trang nhân viên). Phiên của trạm mang theo mã NV, vì
+		   mọi phép ghi giờ đều khoá theo MÃ NV chứ không theo tên — tra lại mã từ tên là chỗ hai
+		   người trùng tên ghi đè công của nhau. Phiên của hệ quản trị để rỗng ô này.
+		   ⚠️ Phiên của trạm mang `vai_tro` = 'CC_ONLINE', một chuỗi CỐ Ý không nằm trong
+		   VHCC_Auth::VAI_TRO_TAT_CA. Nhờ vậy `user_by_token()` luôn chối nó, và Cài đặt cũng
+		   không có ô tích nào bật nó lên được: thẻ vào trạm không bao giờ mở được cửa quản trị. */
 		$b['session'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			token CHAR(64) NOT NULL,
 			ten VARCHAR(190) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			coso VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
 			het_han DATETIME NOT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY token (token),

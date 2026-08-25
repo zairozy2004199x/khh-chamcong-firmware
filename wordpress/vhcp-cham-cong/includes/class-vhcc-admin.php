@@ -1694,6 +1694,16 @@ class VHCC_Admin {
 			update_option( 'vhcc_slug', $slug );
 			if ( $cu !== $slug ) { update_option( 'vhcc_flush_rewrite', 1 ); }
 
+			/* Đường dẫn TRẠM chấm công (trang nhân viên). Để rỗng là về mặc định — KHÔNG để
+			   trạm mất đường: nhân viên đã lưu link trên màn hình chính điện thoại, đổi một cái
+			   là cả cơ sở bấm vào trang 404 mà không ai báo cho ai. */
+			$slug_tram = isset( $_POST['vhcc_slug_tram'] )
+				? sanitize_title( wp_unslash( $_POST['vhcc_slug_tram'] ) ) : '';
+			if ( '' === $slug_tram ) { $slug_tram = VHCC_Tram::SLUG_MD; }
+			$cu_tram = get_option( 'vhcc_slug_tram' );
+			update_option( 'vhcc_slug_tram', $slug_tram );
+			if ( $cu_tram !== $slug_tram ) { update_option( 'vhcc_flush_rewrite', 1 ); }
+
 			$url = isset( $_POST['vhcc_exec_url'] ) ? esc_url_raw( wp_unslash( $_POST['vhcc_exec_url'] ) ) : '';
 			/* Chuẩn hoá TRƯỚC khi lưu, và giữ lại lời giải thích — sửa ngầm thì lần sau anh Thắng
 			   dán lại đúng cái địa chỉ sai đó và không hiểu vì sao lần này lại chạy. */
@@ -1836,6 +1846,18 @@ class VHCC_Admin {
 		echo '<h2>Mở hệ thống chấm công</h2><p><a class="button button-primary" target="_blank" href="'
 			. esc_url( VHCC_Trang::url() ) . '">' . esc_html( VHCC_Trang::url() ) . '</a></p>';
 
+		/* TRẠM là trang nhân viên mở hàng ngày — đường dẫn phải nằm ngay đây, không bắt đi tìm.
+		   Nó chạy THẲNG trên WordPress: không qua Apps Script, không cần /exec, nên vẫn sống khi
+		   cầu nối chết. */
+		echo '<h2>Trạm chấm công của nhân viên</h2>';
+		echo '<p><a class="button" target="_blank" href="' . esc_url( VHCC_Tram::url() ) . '">'
+			. esc_html( VHCC_Tram::url() ) . '</a></p>';
+		echo '<p class="description">Trang nhân viên tự chấm bằng điện thoại: PIN → chụp ảnh (đóng dấu '
+			. '<b>giờ máy chủ</b>) → chọn cơ sở/nhiệm vụ → lưu. Chạy thẳng trên host, '
+			. 'không đi qua Apps Script. Vào được là tài khoản đã khai <b>Mã NV chấm công online</b> '
+			. 'ở màn <i>Phân quyền &amp; PIN</i> — không khai thì gõ đúng PIN vẫn không vào, và trang '
+			. 'nói rõ câu đó. Chèn vào bài viết bằng <code>[vhcc_tram]</code>.</p>';
+
 		echo '<div class="notice notice-info"><p><b>Plugin này không giữ dữ liệu chấm công.</b> '
 			. 'Hợp đồng vẫn nằm trong Google Sheet và toàn bộ nghiệp vụ vẫn ở app Apps Script. '
 			. 'WordPress chỉ lo cổng PIN, giữ khoá bí mật và phục vụ giao diện gốc.</p></div>';
@@ -1868,6 +1890,13 @@ class VHCC_Admin {
 		echo '<tr><th scope="row"><label for="vhcc_slug">Đường dẫn trang</label></th><td>'
 			. esc_html( home_url( '/' ) ) . '<input name="vhcc_slug" id="vhcc_slug" value="' . esc_attr( $slug )
 			. '" class="regular-text"> /<p class="description">Mặc định <code>cham-cong</code>.</p></td></tr>';
+
+		echo '<tr><th scope="row"><label for="vhcc_slug_tram">Đường dẫn trạm nhân viên</label></th><td>'
+			. esc_html( home_url( '/' ) ) . '<input name="vhcc_slug_tram" id="vhcc_slug_tram" value="'
+			. esc_attr( get_option( 'vhcc_slug_tram', VHCC_Tram::SLUG_MD ) ) . '" class="regular-text"> /'
+			. '<p class="description">Mặc định <code>' . esc_html( VHCC_Tram::SLUG_MD ) . '</code>. '
+			. 'Nhân viên lưu link này ra màn hình chính điện thoại — đổi là họ bấm vào trang trống.</p>'
+			. '</td></tr>';
 
 		echo '<tr><th scope="row"><label for="vhcc_exec_url">Địa chỉ /exec của app chấm công</label></th><td>'
 			. '<input name="vhcc_exec_url" id="vhcc_exec_url" value="' . esc_attr( $exec ) . '" class="large-text code" '

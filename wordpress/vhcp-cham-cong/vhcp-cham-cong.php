@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           2.8.0
+ * Version:           2.9.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '2.8.0' );
+define( 'VHCC_VERSION', '2.9.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -58,6 +58,7 @@ require_once VHCC_DIR . 'includes/class-vhcc-keo.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nguoi-dung.php';
 require_once VHCC_DIR . 'includes/class-vhcc-nap-csv.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';
+require_once VHCC_DIR . 'includes/class-vhcc-tram.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-man.php';
@@ -81,6 +82,8 @@ add_action( 'wp_ajax_nopriv_vhcc_call', array( 'VHCC_API', 'ajax' ) );
 
 add_action( 'init', array( 'VHCC_Trang', 'init' ), 5 );
 add_action( 'init', array( 'VHCC_Web', 'init' ), 5 );
+/* Trạm chấm công của nhân viên — trang họ mở hàng ngày bằng điện thoại. */
+add_action( 'init', array( 'VHCC_Tram', 'init' ), 5 );
 /* Cổng nhận chấm công của máy. Gài ở ưu tiên 4 — TRƯỚC trang (5) và trước lượt nạp lại luật
    đường dẫn (99) — để luật đường của máy có mặt sớm nhất. Đường của máy là đường duy nhất trong
    plugin này mà một lượt bị chuyển hướng đồng nghĩa MẤT chấm công, xem class-vhcc-nhan.php. */
@@ -96,3 +99,4 @@ add_action( 'admin_menu', array( 'VHCC_Admin', 'menu' ) );
 add_action( 'in_admin_header', array( 'VHCC_Admin', 'dai_ban' ) );
 add_action( 'admin_init', array( 'VHCC_Admin', 'handle_post' ) );
 add_shortcode( 'vhcc_hop_dong', array( 'VHCC_Trang', 'shortcode' ) );
+add_shortcode( 'vhcc_tram', array( 'VHCC_Tram', 'shortcode' ) );

@@ -65,6 +65,20 @@ for m in re.finditer(r'^(\s+)var\s+([A-Za-z_$][\w$]*)\s*=', src, re.M):
 la('không biến nội bộ nào che mất hàm toàn cục', not trung,
    '; '.join('dòng %d: var %s' % t for t in trung[:5]))
 
+# 🔴 CÙNG HỌ VỚI BẪY TRÊN, và đã cắn lần thứ hai (25/08/2026): HAI `function` cùng tên.
+#    JavaScript không báo gì, khai báo SAU thắng, khai báo TRƯỚC chết. Lần này là `_ymd`:
+#    bản nhận Date bị bản nhận chuỗi đè, nên hai ô ngày của "khoảng ngày tự chọn" mở ra TRỐNG
+#    thay vì điền sẵn — không lỗi, không cảnh báo, chỉ là hai ô rỗng mà không ai biết vì sao.
+#    Chỉ soi hàm TOÀN CỤC (thụt đúng 2 dấu cách, đúng lối viết của tệp này). Hàm lồng bên
+#    trong hai hàm khác nhau thì trùng tên là bình thường — chúng ở hai phạm vi khác nhau và
+#    không đè nhau. Bắt cả chúng là báo đỏ oan, rồi người ta tắt phép thử này đi.
+dem = {}
+for m in re.finditer(r'^  function ([A-Za-z_$][\w$]*)\s*\(', src, re.M):
+    dem.setdefault(m.group(1), []).append(src[:m.start()].count('\n') + 1)
+trung_ham = {k: v for k, v in dem.items() if len(v) > 1}
+la('không hàm nào bị khai hai lần', not trung_ham,
+   '; '.join('%s ở dòng %s' % (k, v) for k, v in list(trung_ham.items())[:5]))
+
 # Chốt riêng đúng chỗ đã hỏng, phòng khi ai đó đổi lại.
 m = re.search(r'function renderUsers\(\)\{(.*?)\n  \}', src, re.S)
 la('tìm thấy renderUsers()', m is not None)

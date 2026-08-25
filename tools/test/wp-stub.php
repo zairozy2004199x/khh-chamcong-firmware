@@ -370,7 +370,10 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}bp_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', UNIQUE(ma,row_no))",
 		// Bảng phiên của plugin Thư viện hợp đồng — tiền tố vhd_, KHÔNG phải vhcp_
 		"CREATE TABLE wp_vhd_session (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', het_han TEXT)",
-		"CREATE TABLE wp_vhcc_session (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', het_han TEXT)",
+		/* Bảng của plugin chấm công KHÔNG khai ở đây nữa — xem vhcc_test_boot(), nó dựng thẳng
+		   từ VHCC_DB::bang(). Trước bản này `wp_vhcc_session` được gõ tay ngay chỗ này, và đúng
+		   cái bẫy khai-hai-nơi đã sập: thêm cột `ma_nv` vào sơ đồ thật thì bài kiểm chết với
+		   "table has no column named ma_nv" — một lỗi của BÀI KIỂM trông y như lỗi của plugin. */
 		"CREATE TABLE {$p}hopdong (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, so_hd TEXT DEFAULT '', ten TEXT DEFAULT '', doi_tac TEXT DEFAULT '', coso TEXT DEFAULT '', loai_hd TEXT DEFAULT '', ngay_ky TEXT DEFAULT '', ngay_het TEXT DEFAULT '', gia_tri REAL, trang_thai TEXT DEFAULT 'Còn hiệu lực', nguoi_pt TEXT DEFAULT '', ghi_chu TEXT DEFAULT '', files TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '', tao_luc TEXT DEFAULT '')",
 		"CREATE TABLE {$p}cfg (id INTEGER PRIMARY KEY AUTOINCREMENT, bang TEXT, stt INTEGER DEFAULT 0, cols TEXT)",
 		"CREATE TABLE {$p}meta (k TEXT PRIMARY KEY, v TEXT)",
@@ -396,6 +399,73 @@ function vhcp_test_boot( $dir ) {
  * Nạp plugin THƯ VIỆN HỢP ĐỒNG (vhcp-hop-dong) — plugin riêng, chỉ nối sang app Apps Script.
  * Gọi SAU vhcp_test_boot() vì nó đọc bảng người dùng của plugin Vận hành chi phí.
  */
+/**
+ * Dịch sơ đồ MySQL của plugin sang SQLite. CHỈ đủ cho các kiểu plugin thật sự dùng — không cố
+ * làm một bộ dịch tổng quát, vì bộ dịch tổng quát nửa vời còn khó tin hơn là không có.
+ *
+ * Đây là nơi DUY NHẤT khai bảng của plugin chấm công trong bài kiểm: sơ đồ thật đổi thì bảng
+ * giả đổi theo, khỏi phải nhớ sửa hai chỗ.
+ */
+function vhcc_test_ddl( $ten_bang, $than ) {
+	$cot  = array();
+	$rang = array();
+	foreach ( vhcc_test_tach_manh( $than ) as $m ) {
+		if ( '' === $m ) { continue; }
+
+		/* Khoá: PRIMARY KEY (id) bỏ đi (cột id đã tự khai là INTEGER PRIMARY KEY), UNIQUE KEY
+		   thành ràng buộc UNIQUE, KEY thường thì bài kiểm không cần.
+		   Nhưng UNIQUE thì PHẢI giữ: nhiều phép ghi của plugin dựa vào ràng buộc đó (ghi giờ vào
+		   / giờ ra là ĐÈ lên đúng một hàng `(coso,ngay,ma_nv,hau_to)`). Bỏ UNIQUE đi thì mỗi lượt
+		   chấm tạo một hàng mới, bài kiểm vẫn xanh, mà cái nó kiểm thì không còn là cái đang chạy. */
+		if ( preg_match( '/^PRIMARY KEY/i', $m ) ) { continue; }
+		if ( preg_match( '/^UNIQUE KEY \\S+ \\(([^)]*)\\)/i', $m, $k ) ) { $rang[] = 'UNIQUE(' . $k[1] . ')'; continue; }
+		if ( preg_match( '/^(KEY|FULLTEXT|INDEX)\\b/i', $m ) ) { continue; }
+
+		if ( ! preg_match( '/^(\\w+) (.*)$/', $m, $c ) ) { continue; }
+		$ten = $c[1]; $kieu = $c[2];
+
+		if ( preg_match( '/AUTO_INCREMENT/i', $kieu ) ) { $cot[] = "$ten INTEGER PRIMARY KEY AUTOINCREMENT"; continue; }
+
+		$sq = 'TEXT';
+		if ( preg_match( '/^(BIGINT|INT|TINYINT|SMALLINT|MEDIUMINT)/i', $kieu ) ) { $sq = 'INTEGER'; }
+		elseif ( preg_match( '/^(DECIMAL|DOUBLE|FLOAT)/i', $kieu ) ) { $sq = 'REAL'; }
+
+		$duoi = '';
+		if ( preg_match( "/DEFAULT ('[^']*'|[-\\d.]+)/i", $kieu, $d ) ) { $duoi = ' DEFAULT ' . $d[1]; }
+		$cot[] = "$ten $sq$duoi";
+	}
+	return 'CREATE TABLE ' . $ten_bang . ' (' . implode( ', ', array_merge( $cot, $rang ) ) . ')';
+}
+
+/**
+ * Tách thân CREATE TABLE thành từng mảnh, CẮT THEO DẤU PHẨY NGOÀI NGOẶC.
+ *
+ * ⚠️ Không được dùng explode(','). Khoá nhiều cột — `UNIQUE KEY o (coso,ngay,ma_nv,hau_to)` —
+ *    bị chẻ làm bốn, mảnh đầu không còn dấu đóng ngoặc nên mẫu UNIQUE trượt, rồi rơi xuống
+ *    nhánh "cột thường" và sinh ra một cột tên `UNIQUE`. Bảng vẫn tạo được, chỉ là MẤT ràng
+ *    buộc duy nhất — đúng thứ vừa nói ở trên là không được mất.
+ */
+function vhcc_test_tach_manh( $than ) {
+	$than = preg_replace( '/\\s+/', ' ', $than );
+	$ra = array(); $cur = ''; $sau = 0;
+	for ( $i = 0; $i < strlen( $than ); $i++ ) {
+		$ch = $than[ $i ];
+		if ( '(' === $ch ) { $sau++; }
+		if ( ')' === $ch ) { $sau--; }
+		if ( ',' === $ch && $sau <= 0 ) { $ra[] = trim( $cur ); $cur = ''; continue; }
+		$cur .= $ch;
+	}
+	$ra[] = trim( $cur );
+	return $ra;
+}
+
+function vhcc_test_create_tables() {
+	global $wpdb;
+	foreach ( VHCC_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( vhcc_test_ddl( VHCC_DB::t( $ten ), $than ) );
+	}
+}
+
 function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
@@ -410,6 +480,7 @@ function vhcc_test_boot( $dir ) {
 		throw new RuntimeException( 'Không đọc được danh sách lớp trong vhcp-cham-cong.php' );
 	}
 	foreach ( $m[1] as $duong ) { require_once $dir . '/' . $duong; }
+	vhcc_test_create_tables();
 }
 
 function vhd_test_boot( $dir ) {

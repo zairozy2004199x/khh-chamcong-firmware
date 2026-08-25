@@ -137,6 +137,12 @@ t('hiện ảnh nhỏ để nhìn ra dòng nào đã có chứng từ', /<img sr
 // ---------------------------------------------------------------- 7. ngày & tiền ở bảng dòng
 // NGÀY sửa tại chỗ: đang có dòng mang năm vô lý ("22/08/4625"), bắt mở form sửa cả dòng
 // chỉ để đổi một chữ số là quá phiền.
+// `layHam` lấy khai báo ĐẦU TIÊN khớp tên. Trước bản này trong app.html có HAI hàm cùng tên
+// `_ymd` — một nhận Date, một nhận chuỗi 'dd/MM/yyyy' — nên phép thử bốc trúng bản kia và chết
+// với "d.getFullYear is not a function". Trong trình duyệt thì khai báo SAU thắng, tức bản
+// nhận Date là bản chết. Đã tách tên (`_ngayISO`); phép dưới canh không cho trùng lại.
+t('không có hai hàm _ymd cùng tên', (HTML.match(/function _ymd\s*\(/g) || []).length === 1,
+  String((HTML.match(/function _ymd\s*\(/g) || []).length));
 const _ymd = new Function(layHam('_ymd') + '; return _ymd;')();
 const _voLy = new Function(layHam('_ngayVoLy') + '; return _ngayVoLy;')();
 teq('đổi dd/MM/yyyy sang dạng ô ngày', '2026-08-22', _ymd('22/08/2026'));
