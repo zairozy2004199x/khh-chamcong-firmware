@@ -525,12 +525,52 @@ void congTrungGian(uint32_t giay) {
 /* ============================================================================
  *  BẢNG LỆNH
  * ========================================================================== */
+/* ============================================================================
+ *  DÒ DÂY — tìm dây dữ liệu bằng cách chạm đầu dò vào từng dây, xem live
+ * ----------------------------------------------------------------------------
+ *  Traffic có thật (tiền mặt chạy được) mà tap không ra khung = tap SAI DÂY.
+ *  Màu dây thực tế hay khác datasheet, nên dò bằng máy chắc hơn tin màu.
+ *  Chạm đầu dò (qua chia mức 5V->3,3V) vào IO22 rồi rê lần lượt qua từng dây của
+ *  bus. Dây nào báo "GIONG DU LIEU UART" (nhiều cạnh, hẹp ~100us) là dây dữ liệu.
+ *  Ghế phải đang bật + chờ nhận tiền (chủ MDB poll liên tục) thì mới có nhịp.
+ * ========================================================================== */
+void doDay(uint32_t giay) {
+  const int CHAN = CHAN_GHE_RX;    // IO22 — chân thường, không dính lỗi pullup
+  congIct.end(); congGhe.end();
+  pinMode(CHAN, INPUT);
+  Serial.printf("[DODAY] do tren IO%d trong %lu giay. Re dau do qua tung day cua bus.\n", CHAN, (unsigned long)giay);
+  Serial.println("        Day nao bao 'GIONG DU LIEU UART' la DAY DU LIEU can tap.");
+  uint32_t het = millis() + giay * 1000UL;
+  while ((int32_t)(het - millis()) > 0) {
+    uint32_t tEnd = micros() + 1000000UL;      // cửa sổ 1 giây
+    int canh = 0; uint32_t hep = 0xFFFFFFFF, last = micros();
+    int truoc = digitalRead(CHAN);
+    while ((int32_t)(tEnd - micros()) > 0) {
+      int m = digitalRead(CHAN);
+      if (m != truoc) {
+        uint32_t now = micros(), w = now - last;
+        if (w > 1 && w < hep) hep = w;
+        last = now; truoc = m; canh++;
+      }
+    }
+    if (canh == 0) Serial.println("[DODAY] 0 canh — day im (khong phai day du lieu, hoac chua cham trung)");
+    else {
+      bool laDL = (canh > 50 && hep < 300);
+      Serial.printf("[DODAY] %4d canh/giay, hep nhat %lu us  %s\n",
+                    canh, (unsigned long)hep, laDL ? "<== GIONG DU LIEU UART!" : "(nhieu/khong phai)");
+    }
+  }
+  moCong();
+  Serial.println("[DODAY] xong. Tim ra 2 day 'GIONG DU LIEU' -> do la 2 day du lieu MDB.");
+}
+
 void inTro() {
   Serial.println(
     "\n===== CAU NGHE LEN ICT L70 <-> GHE — LENH GO QUA USB (115200) =====\n"
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
     "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
+    "  DODAY [giay]    DO DAY: re dau do (IO22) qua tung day, tim day co nhip ~9600\n"
     "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
     "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
     "  DOBAUD [giay]   DO baud bang be rong xung (mac dinh 5 giay).\n"
@@ -677,6 +717,7 @@ void ngheLenhUsb() {
     else if (lenh == "TT")   inTrangThai();
     else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
+    else if (lenh == "DODAY") { uint32_t g = tham.toInt(); doDay(g ? g : 30); }
     else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
     else if (lenh == "DOBAUD") { uint32_t g = tham.toInt(); doBaudTheoXung(CHAN_ICT_RX, "phia L70", g ? g : 5); }
     else if (lenh == "BAUD") { long b = tham.toInt();
@@ -738,8 +779,8 @@ void setup() {
   /* ⚠️ KHÔNG tự chuyển tiếp lúc khởi động. Nếu tự chạy cầu 8 bit thì cắm vào là
      CORRUPT bus MDB ngay (rụng bit mode). Để hai chân phát ở mức nghỉ (cao),
      KHÔNG drive, cho tới khi anh gõ lệnh CONG (xen giữa 9 bit đúng cách). */
-  pinMode(CHAN_ICT_TX, INPUT_PULLUP);
-  pinMode(CHAN_GHE_TX, INPUT_PULLUP);
+  pinMode(CHAN_ICT_TX, INPUT);   // để nghỉ, không drive; INPUT (không PULLUP) tránh lỗi trên chân chỉ-vào
+  pinMode(CHAN_GHE_TX, INPUT);
   g_batDauMs = millis();
   Serial.printf("[CAU] doc L70 @ GPIO%d, ghe @ GPIO%d ; phat -> L70 @ GPIO%d, -> ghe @ GPIO%d\n",
                 CHAN_ICT_RX, CHAN_GHE_RX, CHAN_ICT_TX, CHAN_GHE_TX);
