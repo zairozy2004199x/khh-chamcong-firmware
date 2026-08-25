@@ -25,7 +25,9 @@ class VHCP_API {
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
 			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
-			'listUserBak', 'khoiPhucUsers' );
+			'listUserBak', 'khoiPhucUsers',
+			// Đổi tên cơ sở là sửa hàng loạt trên bốn bảng dữ liệu — chỉ Admin.
+			'doiTenCoSo' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -38,7 +40,7 @@ class VHCP_API {
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
 		}
-		$cau_hinh   = array( 'getUsers', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
+		$cau_hinh   = array( 'getUsers', 'cosoLa', 'saveConfig', 'undoConfig', 'setQuyen', 'resetQuyen', 'getQuyenConfig', 'migrateOldImages', 'ganMaTaiKhoanSoChi', 'ganMaTaiKhoanDon', 'ganMaTaiKhoanTatCa', 'dongBoTkLoai', 'xoaLoaiTuTao', 'getTaiKhoan', 'ghepHeThongTk', 'doMangTuTaiKhoan', 'khaiChiPhiChoCoSo' );
 		if ( in_array( $fn, $admin_only, true ) ) { return array( 'Admin' ); }
 		// Kế toán cũng phải vào được Cấu hình (khai mã tài khoản, tên MISA, mã đơn vị là
 		// việc của kế toán). Riêng tài khoản Admin thì chỉ Admin sửa — chặn trong
@@ -153,6 +155,8 @@ class VHCP_API {
 			'getUsers'              => array( 'VHCP_Cfg', 'get_users' ),
 			'listUserBak'           => array( 'VHCP_Cfg', 'list_user_bak' ),
 			'khoiPhucUsers'         => array( 'VHCP_Cfg', 'khoi_phuc_users' ),
+			'cosoLa'                => array( 'VHCP_Cfg', 'coso_la' ),
+			'doiTenCoSo'            => array( 'VHCP_Cfg', 'doi_ten_coso' ),
 			'getQuyen'              => array( 'VHCP_Cfg', 'get_quyen' ),
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),

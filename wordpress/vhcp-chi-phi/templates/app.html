@@ -920,6 +920,7 @@
     </div>
     <div class="card">
       <div class="ch"><h2>🏢 Mã đơn vị theo Cơ sở</h2><div style="display:flex;gap:8px"><button class="btn b-x" id="csLockBtn" onclick="toggleCsLock()">🔒 Đang khóa — bấm để mở</button><button class="btn b-x" onclick="addCfgCoso()">＋ Thêm cơ sở</button><button class="btn b-g" onclick="saveCfgCoso()">💾 Lưu</button></div></div>
+      <div id="cosoLaBox" style="display:none"></div>
       <div class="tw"><table style="min-width:820px"><thead><tr><th>Tên thường gọi (hiển thị)</th><th>Tên theo MISA</th><th>Mã đơn vị (MISA)</th><th>Phân loại lớn</th><th style="width:190px">Đóng cửa gian hàng</th><th style="width:44px"></th></tr></thead><tbody id="cfgCosoBody"></tbody></table></div>
       <datalist id="dl_pll"></datalist>
     </div>
@@ -987,7 +988,19 @@
     <div style="background:#fff;border-radius:14px;padding:20px 22px;width:min(430px,92vw);box-shadow:0 20px 60px rgba(0,0,0,.3)">
       <h3 style="font-size:16px;margin-bottom:14px;color:#0f766e">＋ Tạo đơn mới</h3>
       <div class="fld" style="margin-bottom:12px"><label>Kỳ / tuần (chọn sẵn)</label>
-        <select id="ndKy" style="width:100%"></select></div>
+        <select id="ndKy" style="width:100%" onchange="ndKyDoi()"></select></div>
+      <!-- Khoảng ngày tự chọn — dùng cho đơn theo DỰ ÁN (nhân viên Văn phòng lên gian).
+           Một đợt thi công không nằm gọn trong một tuần, mà ép vào tuần thì phải xé thành
+           mấy đơn rời rồi tự cộng lại bằng tay — vừa mất công vừa lệch số. -->
+      <div class="fld" id="ndTuDoBox" style="display:none;margin-bottom:12px">
+        <label>Khoảng ngày của đợt (từ → đến)</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="ndTuNgay" style="flex:1">
+          <span style="color:#94a3b8">→</span>
+          <input type="date" id="ndDenNgay" style="flex:1">
+        </div>
+        <div style="font-size:11.5px;color:#94a3b8;margin-top:5px">Đợt dài bao nhiêu ngày cũng được, vắt sang tháng cũng được.</div>
+      </div>
       <div class="fld" style="margin-bottom:16px"><label>Người lập</label>
         <input id="ndNguoiLap" placeholder="Tên NV" style="width:100%"></div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -1555,16 +1568,41 @@
   function _guardChi(){ if(CUR&&CUR.lockChi){toast('warn','Trạng thái này không cho sửa dòng chi');return true;} return false; }
   function stCls(st){ return (st==='Đã quyết toán'||st==='Đã xuất MISA')?'st-duyet':(st==='Đã cấp tạm ứng'?'st-cap':(st==='Nháp'?'st-nhap':'st-cho')); }
 
+  function _kyTuDo(){ return BP_KY_TU_DO.indexOf(String((CURUSER&&CURUSER.boPhan)||'').trim())>=0; }
   function newDon(){
-    el('ndKy').innerHTML=genKyOptions().map(function(o){return '<option value="'+esc(o.val)+'"'+(o.cur?' selected':'')+'>'+esc(o.label)+'</option>';}).join('');
+    // Ô "khoảng ngày tự chọn" luôn có mặt cho MỌI người — có đợt vắt tuần thì ai cũng cần.
+    // Riêng nhân viên Văn phòng thì nó được chọn sẵn, vì với họ đó mới là cách thường dùng.
+    var tudo=_kyTuDo();
+    el('ndKy').innerHTML='<option value="__tudo__"'+(tudo?' selected':'')+'>🗓 Khoảng ngày tự chọn (theo dự án)</option>'
+      +genKyOptions().map(function(o){return '<option value="'+esc(o.val)+'"'+((!tudo&&o.cur)?' selected':'')+'>'+esc(o.label)+'</option>';}).join('');
+    var h=new Date(), h2=new Date(); h2.setDate(h2.getDate()+6);
+    el('ndTuNgay').value=_ymd(h); el('ndDenNgay').value=_ymd(h2);
+    ndKyDoi();
     el('ndNguoiLap').value=(CURUSER&&CURUSER.name)||'';
     el('ndNguoiLap').readOnly=!!(CURUSER&&CURUSER.role==='Nhân viên');
     el('newDonModal').style.display='flex';
     setTimeout(function(){el('ndNguoiLap').focus();},50);
   }
   function closeNewDon(){ el('newDonModal').style.display='none'; }
+  function _ymd(d){ return d.getFullYear()+'-'+_p2(d.getMonth()+1)+'-'+_p2(d.getDate()); }
+  function ndKyDoi(){
+    var b=el('ndTuDoBox'); if(!b) return;
+    b.style.display=(el('ndKy').value==='__tudo__')?'':'none';
+  }
   function submitNewDon(){
     var ky=el('ndKy').value, nv=el('ndNguoiLap').value.trim();
+    if(ky==='__tudo__'){
+      var a=el('ndTuNgay').value, z=el('ndDenNgay').value;
+      if(!a||!z){toast('warn','Chọn đủ ngày bắt đầu và ngày kết thúc');return;}
+      var da=new Date(a+'T00:00:00'), dz=new Date(z+'T00:00:00');
+      if(isNaN(da)||isNaN(dz)){toast('warn','Ngày không hợp lệ');return;}
+      // 🔴 Ngày kết thúc trước ngày bắt đầu thì chuỗi kỳ sinh ra ngược, và _kyVal() đọc ra một
+      //    mốc thời gian sai — đơn xếp nhầm chỗ trong mọi báo cáo. Chặn ngay tại đây.
+      if(dz.getTime()<da.getTime()){toast('warn','Ngày kết thúc phải sau ngày bắt đầu');return;}
+      // Dùng ĐÚNG khuôn chuỗi kỳ của đơn tuần — mọi chỗ đọc kỳ (_kyVal, báo cáo, xuất MISA)
+      // đã hiểu khuôn này rồi. Đẻ ra khuôn thứ hai là phải sửa theo cả chục chỗ.
+      ky=_kyRange(da,dz);
+    }
     if(!ky){toast('warn','Chọn kỳ');return;}
     try{localStorage.setItem('vhcp_nguoilap',nv);}catch(e){}
     closeNewDon(); loading(true);
@@ -4673,7 +4711,12 @@
   function _loaiSel(v){ var o=[['','Cả hai'],['ncc','Nhà cung cấp'],['canhan','Cá nhân']];
     v=(String(v||'')==='both')?'':String(v||'');
     return '<select style="width:100%">'+o.map(function(p){return '<option value="'+p[0]+'"'+(p[0]===v?' selected':'')+'>'+p[1]+'</option>';}).join('')+'</select>'; }
-  var BOPHAN_LIST=['Cơ sở','Kỹ thuật','Marketing','Công tác','Setup'];   // bộ phận: lọc danh mục khi nhập đơn + phân quyền tab cho Nhân viên
+  // Bộ phận: lọc danh mục khi nhập đơn + phân quyền tab cho Nhân viên.
+  // 'Văn phòng' thêm 25/08/2026 theo anh Thắng: nhân viên VP đi lên dự án ở gian nào thì đơn
+  // đi theo DỰ ÁN của gian đó và THỜI GIAN BẤT KỲ, không gom theo tuần. Gom theo tuần chỉ
+  // đúng với nhân viên cơ sở — họ xin tạm ứng cho một tuần vận hành.
+  var BOPHAN_LIST=['Cơ sở','Văn phòng','Kỹ thuật','Marketing','Công tác','Setup'];
+  var BP_KY_TU_DO=['Văn phòng'];   // bộ phận được chọn khoảng ngày tự do thay vì tuần
   function _bpSel(v, allLabel){ var o=[['', allLabel||'Tất cả (mọi bộ phận)']].concat(BOPHAN_LIST.map(function(b){return [b,b];}));
     v=String(v||''); return '<select style="width:100%">'+o.map(function(p){return '<option value="'+esc(p[0])+'"'+(p[0]===v?' selected':'')+'>'+esc(p[1])+'</option>';}).join('')+'</select>'; }
   function _delBtn(){ return '<td style="text-align:center"><button class="btn b-d" onclick="delCfgRow(this)">✕</button></td>'; }
@@ -4940,6 +4983,7 @@
       return '<tr><td colspan="6" style="background:#f0fdfa;font-weight:700;color:#0f766e;border-left:3px solid #0f766e">▸ '+esc(g)+' <span style="font-weight:400;color:#64748b">· '+gr[g].length+' cơ sở</span></td></tr>'+gr[g].map(rowCoso).join('');
     }).join('');
     _csLock(true);
+    doCoSoLa();   // dò tên cơ sở có trên dữ liệu mà chưa khai ở bảng này
   }
   // Khóa bảng cơ sở: mã đơn vị MISA sửa nhầm là xuất sai đơn vị, nên mặc định chỉ xem
   var CS_LOCK=true;
@@ -5161,6 +5205,72 @@
     }
     _saveCfg({users:data},'Đã lưu người dùng');
   }
+  /**
+   * CƠ SỞ LẠ — tên gian hàng có trên DỮ LIỆU mà không có trong bảng Cấu hình.
+   *
+   * 🔴 Cơ sở ở đây nhận nhau bằng CHUỖI TÊN, không bằng mã. Sửa ô "Tên thường gọi" là mọi đơn
+   *    cũ mang tên cũ mồ côi ngay: vẫn nằm đó, vẫn cộng tiền, nhưng không thuộc cơ sở nào
+   *    trong danh sách — mà hộp chọn cơ sở ở bảng phân quyền lại dựng từ danh sách đó, nên gán
+   *    quyền kiểu gì cũng không với tới chúng.
+   *
+   *    Ca thật 25/08/2026: đơn ghi "ADV GO AN LAC", bảng Cấu hình khai "EVENT FZ MN". Hai màn
+   *    hình hai cái tên, không có gì nối lại và cũng không có gì báo là đã lệch. Băng này chính
+   *    là cái báo đó.
+   */
+  function doCoSoLa(){
+    if(!el('cosoLaBox')) return;
+    google.script.run.withSuccessHandler(function(ds){ veCoSoLa(ds||[]); })
+      .withFailureHandler(function(){ el('cosoLaBox').style.display='none'; }).cosoLa();
+  }
+  function veCoSoLa(ds){
+    var b=el('cosoLaBox'); if(!b) return;
+    if(!ds.length){ b.style.display='none'; b.innerHTML=''; return; }
+    var ten={tamung:'tạm ứng', chiphi:'dòng chi phí', so_chi:'sổ chi', mk_don:'đơn mua'};
+    var h='<div style="margin:10px 14px;border:1px solid #f0d48a;border-radius:8px;background:#fffbef;overflow:hidden">'
+      +'<div style="background:#fdf2d0;color:#8a6100;padding:10px 14px;font-weight:600;font-size:13px">'
+      +'⚠️ '+ds.length+' tên cơ sở đang có trên dữ liệu nhưng KHÔNG có trong bảng này</div>'
+      +'<div style="padding:10px 14px;font-size:12px;color:#64748b">Đơn mang những tên này vẫn cộng tiền bình thường, '
+      +'nhưng <b>không thuộc cơ sở nào trong danh sách</b> — nên chúng không hiện ở hộp chọn cơ sở của bảng phân quyền. '
+      +'Hoặc khai thêm một dòng đúng tên đó ở bảng dưới, hoặc <b>gộp</b> về một cơ sở đã khai.</div>'
+      +'<table style="width:auto;margin:0 14px 12px"><tr><th style="text-align:left">Tên trên dữ liệu</th><th style="text-align:left">Đang nằm ở</th><th></th></tr>';
+    ds.forEach(function(x){
+      var o=[]; for(var k in (x.dong||{})){ o.push((ten[k]||k)+': '+x.dong[k]); }
+      h+='<tr><td style="font-weight:600">'+esc(x.ten)+'</td><td style="color:#64748b">'+esc(o.join(' · '))+'</td>'
+        +'<td><button class="btn b-x" onclick="moGopCoSo('+JSON.stringify(x.ten).replace(/"/g,'&quot;')+')">↦ Gộp / đổi tên</button></td></tr>';
+    });
+    b.innerHTML=h+'</table></div>';
+    b.style.display='';
+  }
+  /**
+   * Gộp một cơ sở lạ về cơ sở đã khai, HOẶC đổi tên hẳn cơ sở đó.
+   *
+   * Đổi tên bằng cách sửa ô trong bảng rồi tự đi sửa dữ liệu sau là kiểu nào cũng sót một chỗ:
+   * tên cơ sở nằm ở bốn bảng dữ liệu CỘNG danh sách cơ sở của từng nhân viên. Máy chủ đổi hết
+   * trong một lượt.
+   */
+  function moGopCoSo(cu){
+    if(!_laAdmin()){ toast('warn','Chỉ Admin đổi tên cơ sở được — đây là sửa hàng loạt trên bốn bảng dữ liệu'); return; }
+    var ds=(CFG.coso||[]).map(function(x){return x.ten;});
+    var moi=prompt('Cơ sở "'+cu+'" chưa có trong bảng.\n\n'
+      +'Gõ TÊN ĐÍCH để đổi mọi dòng mang tên "'+cu+'" sang tên đó.\n'
+      +'· Gõ tên một cơ sở ĐÃ KHAI  -> gộp vào cơ sở đó\n'
+      +'· Gõ một tên mới            -> đổi tên, rồi nhớ thêm dòng cho tên mới ở bảng dưới\n\n'
+      +'Cơ sở đã khai:\n'+ds.join('\n'), cu);
+    if(moi===null) return;
+    moi=String(moi).trim();
+    if(!moi||moi===cu){ toast('warn','Chưa đổi gì'); return; }
+    if(!confirm('Đổi MỌI dòng "'+cu+'" thành "'+moi+'"?\n\nSửa trên 4 bảng dữ liệu và cả danh sách cơ sở của từng nhân viên. Không có nút hoàn tác.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(r&&r.success){
+        var t=[]; for(var k in (r.dong||{})){ if(r.dong[k]) t.push(k+':'+r.dong[k]); }
+        toast('ok','Đã đổi '+(t.join(' · ')||'0 dòng')+(r.nguoi?(' · '+r.nguoi+' người'):'')+(r.cauHinh?' · cả dòng cấu hình':''));
+        _log('Đổi tên cơ sở', cu+' -> '+moi, t.join(' · '));
+        loadCfg(); boot();
+      } else toast('err',(r&&r.error)||'Lỗi');
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).doiTenCoSo(cu,moi);
+  }
+
   /**
    * KHÔI PHỤC DANH SÁCH NGƯỜI DÙNG từ bản lưu.
    *

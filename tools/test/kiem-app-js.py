@@ -84,6 +84,34 @@ la('tìm thấy saveCfgUsers()', m2 is not None)
 if m2:
     la('saveCfgUsers chặn khi danh sách rỗng', 'if(!data.length)' in m2.group(1))
 
+# ---------------------------------------------------------------- cơ sở lạ
+print('— cơ sở lạ —')
+la('có hộp cảnh báo cơ sở lạ', 'cosoLaBox' in src)
+la('renderCosoBody có gọi doCoSoLa()', re.search(r'_csLock\(true\);\s*\n\s*doCoSoLa\(\);', src) is not None)
+la('có đường gộp / đổi tên cơ sở', 'doiTenCoSo(' in src)
+
+# ---------------------------------------------------------------- bộ phận Văn phòng
+print('— bộ phận Văn phòng & kỳ tự do —')
+m3 = re.search(r"var BOPHAN_LIST=\[(.*?)\];", src)
+la('đọc được BOPHAN_LIST', m3 is not None)
+if m3:
+    bp = [x.strip().strip("'") for x in m3.group(1).split(',')]
+    la('có bộ phận Văn phòng', 'Văn phòng' in bp, str(bp))
+    la('vẫn giữ đủ 5 bộ phận cũ',
+       all(x in bp for x in ['Cơ sở', 'Kỹ thuật', 'Marketing', 'Công tác', 'Setup']), str(bp))
+la('Văn phòng được chọn kỳ tự do', "BP_KY_TU_DO=['Văn phòng']" in src)
+la('modal có ô khoảng ngày', 'ndTuDoBox' in src and 'ndTuNgay' in src and 'ndDenNgay' in src)
+
+m4 = re.search(r'function submitNewDon\(\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy submitNewDon()', m4 is not None)
+if m4:
+    t = m4.group(1)
+    la('nhận nhánh kỳ tự do', "__tudo__" in t)
+    # 🔴 Ngày kết thúc trước ngày bắt đầu thì chuỗi kỳ sinh ra ngược và _kyVal() đọc sai mốc
+    #    -> đơn xếp nhầm chỗ trong mọi báo cáo. Phải chặn.
+    la('chặn ngày kết thúc trước ngày bắt đầu', 'dz.getTime()<da.getTime()' in t)
+    la('dùng lại đúng khuôn chuỗi kỳ cũ', '_kyRange(da,dz)' in t)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

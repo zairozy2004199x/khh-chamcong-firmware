@@ -1475,6 +1475,109 @@ class VHCP_Cfg {
 	}
 
 	/* ==========================================================================================
+	 *  CƠ SỞ LẠ — tên gian hàng có trên DỮ LIỆU mà không có trong BẢNG CẤU HÌNH
+	 *
+	 *  🔴 VÌ SAO CẦN: cơ sở ở đây được nhận ra bằng CHUỖI TÊN, không phải bằng mã. Sửa ô
+	 *  "Tên thường gọi" trong Cấu hình là mọi đơn cũ mang tên cũ lập tức mồ côi — chúng vẫn
+	 *  nằm đó, vẫn cộng tiền, nhưng không còn thuộc cơ sở nào trong danh sách. Hộp chọn cơ sở
+	 *  ở bảng phân quyền dựng từ bảng Cấu hình, nên gán quyền kiểu gì cũng không với tới chúng.
+	 *
+	 *  Ca thật 25/08/2026: đơn ghi "ADV GO AN LAC" trong khi bảng Cấu hình khai tên thường gọi
+	 *  là "EVENT FZ MN" (trùng luôn với Phân loại lớn). Nhìn hai màn hình thì thấy hai cái tên,
+	 *  không có gì nối chúng lại, và cũng không có gì báo là chúng đã lệch.
+	 *
+	 *  Bốn bảng có cột cơ sở: tạm ứng · chi phí · sổ chi · đơn mua. Quét đủ cả bốn, vì tên lệch
+	 *  chỉ ở một bảng cũng đủ làm số liệu không khớp.
+	 * ========================================================================================== */
+	const COSO_BANG = array( 'tamung', 'chiphi', 'so_chi', 'mk_don' );
+
+	/** cosoLa(): [ ['ten'=>…, 'dong'=>['chiphi'=>12,…], 'tong'=>12], … ] */
+	public static function coso_la() {
+		global $wpdb;
+		$khai = array();
+		foreach ( self::cfg_static()['coso'] as $x ) {
+			$k = mb_strtolower( trim( (string) $x['ten'] ) );
+			if ( '' !== $k ) { $khai[ $k ] = 1; }
+		}
+		$gom = array();
+		foreach ( self::COSO_BANG as $b ) {
+			$t = VHCP_DB::t( $b );
+			foreach ( VHCP_DB::rows( "SELECT coso, COUNT(*) AS n FROM $t WHERE coso<>'' GROUP BY coso" ) as $r ) {
+				$ten = trim( (string) $r['coso'] );
+				$k   = mb_strtolower( $ten );
+				if ( '' === $k || isset( $khai[ $k ] ) ) { continue; }
+				if ( ! isset( $gom[ $k ] ) ) { $gom[ $k ] = array( 'ten' => $ten, 'dong' => array(), 'tong' => 0 ); }
+				$gom[ $k ]['dong'][ $b ] = (int) $r['n'];
+				$gom[ $k ]['tong']      += (int) $r['n'];
+			}
+		}
+		$out = array_values( $gom );
+		usort( $out, function ( $a, $b ) { return $b['tong'] - $a['tong']; } );
+		return $out;
+	}
+
+	/**
+	 * doiTenCoSo(cũ, mới): đổi tên một cơ sở TRÊN MỌI CHỖ cùng lúc.
+	 *
+	 * Dùng cho hai việc, cùng một đường:
+	 *   · đổi tên một cơ sở đã khai  -> đổi cả dòng trong bảng Cấu hình
+	 *   · gộp một cơ sở lạ về cơ sở đã khai -> chỉ đổi dữ liệu, không thêm dòng nào
+	 *
+	 * 🔴 KHÔNG để người ta sửa ô tên trong bảng rồi tự đi sửa dữ liệu sau. Sửa ô tên là việc
+	 *    một giây, còn dữ liệu cũ thì nằm ở bốn bảng cộng danh sách cơ sở của từng nhân viên —
+	 *    làm tay kiểu gì cũng sót một chỗ, và chỗ sót đó im lặng cho tới lúc đối chiếu tiền.
+	 */
+	public static function doi_ten_coso( $cu, $moi ) {
+		global $wpdb;
+		$cu  = trim( (string) $cu );
+		$moi = trim( (string) $moi );
+		if ( '' === $cu || '' === $moi ) { return VHCP_Util::err( 'Thiếu tên cũ hoặc tên mới' ); }
+		if ( mb_strtolower( $cu ) === mb_strtolower( $moi ) ) { return VHCP_Util::err( 'Hai tên giống nhau' ); }
+
+		$dem = array();
+		foreach ( self::COSO_BANG as $b ) {
+			$n = $wpdb->update( VHCP_DB::t( $b ), array( 'coso' => $moi ), array( 'coso' => $cu ) );
+			$dem[ $b ] = (int) $n;
+		}
+
+		/* Danh sách cơ sở của từng nhân viên là chuỗi ngăn bằng dấu phẩy — phải tách ra rồi
+		   thay đúng phần tử, chứ str_replace cả chuỗi là "GO AN LAC" nuốt luôn "GO AN LAC 2". */
+		$u_doi = 0;
+		$rows  = self::read( self::USER );
+		foreach ( $rows as $i => $r ) {
+			$r  = array_values( (array) $r );
+			$ds = array_map( 'trim', explode( ',', (string) ( isset( $r[3] ) ? $r[3] : '' ) ) );
+			$co = false;
+			foreach ( $ds as $j => $x ) {
+				if ( '' !== $x && mb_strtolower( $x ) === mb_strtolower( $cu ) ) { $ds[ $j ] = $moi; $co = true; }
+			}
+			if ( $co ) {
+				$r[3]       = implode( ', ', array_filter( $ds, 'strlen' ) );
+				$rows[ $i ] = $r;
+				$u_doi++;
+			}
+		}
+		if ( $u_doi ) { self::sao_luu_users(); self::write( self::USER, $rows ); }
+
+		/* Dòng trong chính bảng Cấu hình — chỉ đụng khi tên cũ CÓ trong bảng. Gộp cơ sở lạ thì
+		   không có dòng nào để đổi, và cũng không được đẻ thêm dòng. */
+		$c_doi = 0;
+		$crows = self::read( self::COSO );
+		foreach ( $crows as $i => $r ) {
+			$r = array_values( (array) $r );
+			if ( isset( $r[0] ) && mb_strtolower( trim( (string) $r[0] ) ) === mb_strtolower( $cu ) ) {
+				$r[0]        = $moi;
+				$crows[ $i ] = $r;
+				$c_doi++;
+			}
+		}
+		if ( $c_doi ) { self::write( self::COSO, $crows ); }
+
+		self::clear_cache();
+		return VHCP_Util::ok( array( 'dong' => $dem, 'nguoi' => $u_doi, 'cauHinh' => $c_doi ) );
+	}
+
+	/* ==========================================================================================
 	 *  BẢN LƯU RIÊNG CHO BẢNG NGƯỜI DÙNG
 	 *
 	 *  `cfg_undo` chỉ giữ được MỘT bảng — bảng nào ghi sau thì giành mất ô đó. Lưu cấu hình
