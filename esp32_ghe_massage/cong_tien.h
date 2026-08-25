@@ -21,6 +21,11 @@
 #pragma once
 #include <Arduino.h>
 
+/* 🔧 BẬT ĐỂ ĐO: in RA MỌI byte ICT-TX (IO35) — dùng để tìm mã lỗi ICT phát ra lúc
+   hỏng (kẹt/đầy thùng/cảm biến). Gây lỗi ICT + nhét tiền, xem [TIEN] rx XX. Tìm ra
+   byte lỗi rồi thì XÓA dòng này (tắt log) cho đỡ rác Serial. */
+#define TIEN_DEBUG    1
+
 #define TIEN_RX_ICT   35     // IO35 (chỉ-input) — đọc TX của ICT (81/4X/10)
 #define TIEN_TX_GHE   27     // IO27 — phát sang chân nhận tiền của ghế
 #define TIEN_BAUD     4800
