@@ -124,8 +124,9 @@ class VCG_Trang {
 			self::tra( array( 'ok' => false, 'loi' => 'Bạn không phụ trách cơ sở ' . $co_so . '.' ), 403 );
 		}
 
-		$luot  = VCG_Nap::doc_co_so( $hang, $co_so );
-		$thang = array();
+		$canh_bao = null;
+		$luot     = VCG_Nap::doc_co_so( $hang, $co_so, $canh_bao );
+		$thang    = array();
 		$nguoi_ds = array();
 		foreach ( $luot as $x ) {
 			$thang[ substr( $x['ngay'], 0, 7 ) ] = 1;
@@ -141,6 +142,11 @@ class VCG_Trang {
 			'thang' => array_keys( $thang ),
 			'khoi'  => count( VCG_Nap::tim_khoi( $hang ) ),
 			'mau'   => array_slice( $luot, 0, 5 ),
+			/* 🔴 CẢNH BÁO ĐI KÈM BƯỚC XEM TRƯỚC, không phải sau khi đã ghi. Chỗ hỏng trong tệp
+			   là chuyện của SHEET GỐC — mã NV ghi số trần, một người mang hai mã, ô giờ gõ tay
+			   hai mốc. Máy vẫn nạp được, nhưng người nạp phải nhìn thấy trước khi bấm, vì cách
+			   sửa đúng là sửa Sheet chứ không phải sửa bảng sau. */
+			'canh_bao' => $canh_bao,
 		) );
 	}
 
@@ -162,7 +168,9 @@ class VCG_Trang {
 		if ( '' === $co_so || ! VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $co_so ) ) {
 			self::tra( array( 'ok' => false, 'loi' => 'Không được phép nạp cơ sở này.' ), 403 );
 		}
-		$kq = VCG_Nhap::ghi_cong( VCG_Nap::doc_co_so( $hang, $co_so ) );
-		self::tra( array( 'ok' => true, 'loai' => 'cs', 'co_so' => $co_so ) + $kq );
+		$canh_bao = null;
+		$kq = VCG_Nhap::ghi_cong( VCG_Nap::doc_co_so( $hang, $co_so, $canh_bao ) );
+		self::tra( array( 'ok' => true, 'loai' => 'cs', 'co_so' => $co_so,
+			'canh_bao' => $canh_bao ) + $kq );
 	}
 }

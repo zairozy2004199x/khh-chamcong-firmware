@@ -89,8 +89,39 @@ foreach ( $kq['gan'] as $g ) {
 	$dem[ $g['ma_nv'] ]++;
 }
 $nhieu = count( array_filter( $dem, function ( $n ) { return $n > 1; } ) );
-la( '21 người làm nhiều cơ sở', 21, $nhieu );
+/* 29, KHÔNG PHẢI 21. Con số cũ 21 chỉ đếm những người có NHIỀU DÒNG trong sheet. Còn 8 người
+   nữa khai nhiều đơn vị trong CÙNG MỘT Ô, ngăn bằng dấu phẩy:
+       "Funfest SC Vivo, Pinball SC Vivo"
+       "Funzone ADV Aeon Mall Tân Phú, Tutu Lotte Mart Gò Vấp, … " (sáu đơn vị)
+   Giữ nguyên cả chuỗi là đẻ ra một "đơn vị" ảo không có thật, và tám người đó không thuộc về
+   cơ sở nào trong số các cơ sở họ thật sự làm. 21 + 8 = 29. */
+la( '29 người làm nhiều cơ sở', 29, $nhieu );
 that( 'số dòng gán > số người',  count( $kq['gan'] ) > count( $kq['nguoi'] ) );
+
+/* Không được còn ô đơn vị nào dính dấu phẩy — dấu phẩy sót lại là ô chưa tách. */
+$dinh_phay = 0;
+foreach ( $kq['gan'] as $g ) { if ( false !== strpos( $g['don_vi'], ',' ) ) { $dinh_phay++; } }
+la( 'không đơn vị nào còn dấu phẩy', 0, $dinh_phay );
+
+/* Ca sáu đơn vị trong MỘT ô — HUỲNH THỊ THU THẢO, dòng có nhiều đơn vị nhất trong tệp thật. */
+$sau = array();
+foreach ( $kq['gan'] as $g ) { if ( 'MNNV2KVC0173' === $g['ma_nv'] ) { $sau[] = $g['don_vi']; } }
+sort( $sau );
+la( 'MNNV2KVC0173: ô 6 đơn vị -> 6 dòng gán', array(
+	'Funzone ADV Aeon Mall Tân Phú',
+	'Funzone ADV Go An Lạc',
+	'Snow Fun Aeon Mall Tân Phú',
+	'Tutu Lotte Mart Gò Vấp',
+	'Tutu Train Aeon Mall Tân An',
+	'VR Aeon Mall Tân An',
+), $sau );
+
+la( 'tách đơn vị: một tên thường',  array( 'Posh Go Dĩ An' ), VCG_Nap::tach_don_vi( 'Posh Go Dĩ An' ) );
+la( 'tách đơn vị: hai tên',
+	array( 'Funfest SC Vivo', 'Pinball SC Vivo' ),
+	VCG_Nap::tach_don_vi( 'Funfest SC Vivo, Pinball SC Vivo' ) );
+la( 'tách đơn vị: ô trống -> mảng rỗng', array(), VCG_Nap::tach_don_vi( '   ' ) );
+la( 'tách đơn vị: trùng thì gộp', array( 'JP' ), VCG_Nap::tach_don_vi( 'JP,  JP ' ) );
 
 /* Một ca cụ thể, đối chiếu tận mắt với ảnh chụp Sheet. */
 $dv = array();
@@ -191,6 +222,93 @@ foreach ( $l2 as $x ) {
 		echo "  HỎNG sinh dòng cho ô trống\n"; $hong++;
 	}
 }
+
+/* ======================= TỆP CƠ SỞ THỨ HAI — CS_VP_KHHCM_1 ======================= */
+/* Anh Thắng gửi tệp này kèm câu "cơ sở này chưa nạp được". Nó KHÔNG hỏng ở chỗ đọc — nó hỏng ở
+   bốn chỗ trong chính dữ liệu nguồn mà bản đầu nuốt im lặng. Giữ nguyên tệp làm bộ thử để bốn
+   chỗ đó không quay lại. */
+echo "— tệp CS_VP_KHHCM_1.csv (thật) —\n";
+$vp = doc_csv( __DIR__ . '/fixtures/cong/CS_VP_KHHCM_1.csv' );
+la( 'tên cơ sở từ tên tệp dài của Sheets', 'VP_KHHCM_1',
+	VCG_Nap::co_so_tu_ten( 'Đang chạy_ Hệ Thống Chấm Công Cơ Sở - CS_VP_KHHCM_1.csv' ) );
+la( 'tìm đủ 2 khối tháng', 2, count( VCG_Nap::tim_khoi( $vp ) ) );
+
+$cb   = null;
+$lvp  = VCG_Nap::doc_co_so( $vp, 'VP_KHHCM_1', $cb );
+/* 722 đếm lại bằng một bản Python độc lập đọc cùng tệp — 374 của tháng 7 + 348 của tháng 8. */
+la( 'tệp thật -> 722 lượt', 722, count( $lvp ) );
+
+$t = array();
+foreach ( $lvp as $x ) { $k = substr( $x['ngay'], 0, 7 ); $t[ $k ] = isset( $t[ $k ] ) ? $t[ $k ] + 1 : 1; }
+ksort( $t );
+la( 'chia đúng hai tháng', array( '2026-07' => 374, '2026-08' => 348 ), $t );
+
+/* 🔴 CHỖ HỎNG SỐ 1 — Ô GIỜ CÓ HAI MỐC.
+   Dòng của Huỳnh Thị Ngọc Nhiên ngày 2026-08-01 ghi `08:30 13:23:38` trong ô Giờ Vào. Bản đầu
+   khớp cả chuỗi nên trả null và CẢ BUỔI LÀM của người đó biến mất khỏi bảng công — không lỗi,
+   không dấu vết. Giờ phải ra đủ hai mốc, và phải kèm cảnh báo để anh Thắng sửa gốc. */
+$hai = null;
+foreach ( $lvp as $x ) {
+	if ( 'KHKT1CTY0001' === $x['ma_nv'] && '2026-08-01' === $x['ngay'] ) { $hai = $x; break; }
+}
+that( 'tìm thấy lượt 2026-08-01 của KHKT1CTY0001', null !== $hai );
+if ( $hai ) {
+	la( '  ô "08:30 13:23:38" -> vào 08:30', 8 * 3600 + 30 * 60, $hai['vao'] );
+	la( '  ô "08:30 13:23:38" -> ra 13:23:38', 13 * 3600 + 23 * 60 + 38, $hai['ra'] );
+}
+la( 'moc_gio: ô hai mốc', array( 30600, 48218 ), VCG_Nap::moc_gio( '08:30 13:23:38' ) );
+la( 'moc_gio: ô sạch',    array( 30600 ), VCG_Nap::moc_gio( '08:30:00' ) );
+la( 'moc_gio: ô trống',   array(), VCG_Nap::moc_gio( '  ' ) );
+la( 'moc_gio: rác không ra mốc', array(), VCG_Nap::moc_gio( 'nghỉ' ) );
+/* Giờ một chữ số và giờ không có giây — tệp này có cả hai, `8:30` và `08:30`. */
+la( 'giờ một chữ số 8:30',  30600, VCG_Nap::giay( '8:30' ) );
+la( 'giờ không có giây',    59400, VCG_Nap::giay( '16:30' ) );
+
+/* 🔴 CHỖ HỎNG SỐ 2 — MÃ NV LÀ SỐ TRẦN. Năm người trong tệp này có ô ID ghi `1`, `2`, `15`,
+   `17`, `24` thay vì mã chuẩn. Mã số trần đụng nhau giữa các cơ sở và không nối được với sheet
+   nhân viên, nên phải BÁO chứ không nuốt. */
+$so_tran = array();
+foreach ( $cb as $c ) { if ( 'ma_so_tran' === $c['kieu'] ) { $so_tran[ $c['ma_nv'] ] = 1; } }
+$k = array_keys( $so_tran ); sort( $k );
+la( 'báo đủ 5 mã số trần', array( 1, 2, 15, 17, 24 ), $k );
+
+/* 🔴 CHỖ HỎNG SỐ 3 — MỘT NGƯỜI HAI MÃ. Nguyễn Hữu Thọ nằm hai dòng trong CÙNG khối tháng 8,
+   một dòng mã `2` một dòng mã `15`. Không báo thì công của anh ấy bị chia đôi thành hai người
+   trong bảng, và bảng lương trả thiếu mà nhìn vẫn thấy bình thường. */
+$hai_ma = array();
+foreach ( $cb as $c ) { if ( 'mot_nguoi_nhieu_ma' === $c['kieu'] ) { $hai_ma[ $c['ho_ten'] ] = $c['ma_nv']; } }
+la( 'báo đúng một người mang nhiều mã', 1, count( $hai_ma ) );
+la( 'Nguyễn Hữu Thọ: mã 2 và 15', '2 / 15', isset( $hai_ma['Nguyễn Hữu Thọ'] ) ? $hai_ma['Nguyễn Hữu Thọ'] : '' );
+/* ⚠️ Chỉ báo MỘT dòng cho một người, không phải hai dòng theo hai chiều `2/15` và `15/2`.
+   Cảnh báo lặp là người ta thôi đọc cảnh báo, và rồi bỏ qua luôn cái thật. */
+
+/* 🔴 CHỖ HỎNG SỐ 4 — Ô NHIỀU MỐC vẫn phải để lại dấu vết dù máy đã tự xử được. */
+$nhieu_moc = 0;
+foreach ( $cb as $c ) { if ( 'o_nhieu_moc' === $c['kieu'] ) { $nhieu_moc++; } }
+la( 'báo đúng 2 ô hai mốc', 2, $nhieu_moc );
+
+/* Cảnh báo KHÔNG được lặp: cùng một người ở hai khối tháng chỉ báo một lần. */
+$khoa = array();
+foreach ( $cb as $c ) { $khoa[ implode( "\x1f", $c ) ] = 1; }
+la( 'cảnh báo không trùng nhau', count( $cb ), count( $khoa ) );
+
+/* CS_TUTU_TP cũng có chỗ hỏng, ít hơn — hoá ra tệp đầu tiên cũng không sạch như tưởng:
+       ô ID ghi `1`             (Huỳnh Quang Thắng)
+       ô ID ghi `855146747`     — số điện thoại lọt vào cột ID, ô tên trống
+       Nguyễn Thành Pháp mang cả `MNNV2KVC0107` lẫn `TUTP05`
+   Ba chỗ này nằm im từ đầu tới giờ. Đó chính là lý do phải có kênh cảnh báo, chứ không phải chỉ
+   để đỡ cho riêng tệp VP. */
+$cb2 = null;
+VCG_Nap::doc_co_so( $cs, 'TUTU_TP', $cb2 );
+la( 'CS_TUTU_TP -> 3 cảnh báo', 3, count( $cb2 ) );
+$kieu2 = array();
+foreach ( $cb2 as $c ) { $kieu2[] = $c['kieu']; }
+sort( $kieu2 );
+la( 'đúng loại cảnh báo', array( 'ma_so_tran', 'ma_so_tran', 'mot_nguoi_nhieu_ma' ), $kieu2 );
+/* Không có ô giờ lạ nào -> không được đẻ cảnh báo giờ. Cảnh báo giả là người ta thôi đọc. */
+$gio_la = 0;
+foreach ( $cb2 as $c ) { if ( 'gio_la' === $c['kieu'] || 'o_nhieu_moc' === $c['kieu'] ) { $gio_la++; } }
+la( 'CS_TUTU_TP: 0 cảnh báo về giờ', 0, $gio_la );
 
 /* ======================= LUẬT GỘP GIỜ ======================= */
 echo "— luật gộp giờ (chỗ quyết định TIỀN LƯƠNG) —\n";

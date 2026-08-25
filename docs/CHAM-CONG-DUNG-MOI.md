@@ -114,3 +114,66 @@ cảnh báo: hai bản tính giờ lệch nhau là lệch tiền lương.
 Mã song song là chuyện có thật: một người có hai mã vì máy cũ chưa nhận lệnh đổi mã.
 🔴 Phải **KHAI BÁO**, tuyệt đối không tự suy "hai mã này chắc là một người" từ tên — tên người
 Việt trùng rất nhiều, đoán sai là gộp lương hai người khác nhau.
+
+---
+
+## Tệp `CS_VP_KHHCM_1` — "cơ sở này chưa nạp được" (25/08/2026)
+
+Anh Thắng gửi tệp này kèm câu trên. Chạy bộ đọc trên chính tệp đó:
+
+```
+so hang : 50
+so khoi : 2        (tháng 7 · tháng 8)
+so luot : 722      (374 + 348)
+trung   : 0
+```
+
+**Tệp đọc được.** Không có chỗ nào chặn ở bước đọc. Nhưng nó lòi ra bốn chỗ hỏng trong
+**dữ liệu nguồn** mà bản đầu nuốt im lặng — và đó mới là thứ đáng sợ, vì im lặng nghĩa là
+mấy tháng nay không ai biết.
+
+| # | Chỗ hỏng | Ví dụ thật | Hậu quả nếu để im |
+|---|---|---|---|
+| 1 | Ô Giờ Vào có **hai mốc** | `08:30 13:23:38` — Huỳnh Thị Ngọc Nhiên, 01/08 | `giay()` khớp cả chuỗi nên trả `null` → **mất trắng cả buổi làm**, không lỗi nào hiện |
+| 2 | Mã NV là **số trần** | `1` · `2` · `15` · `17` · `24` | Đụng nhau giữa các cơ sở, không nối được với sheet nhân viên |
+| 3 | **Một người hai mã** | Nguyễn Hữu Thọ: `2` và `15`, cùng khối tháng 8 | Công bị chia thành hai người → bảng lương trả thiếu mà nhìn vẫn bình thường |
+| 4 | Người có trong CS mà **không có trong sheet NV** | 22/23 mã | Bảng công có người "không rõ là ai" |
+
+### Đã sửa
+
+* `moc_gio()` — đọc **mọi** mốc giờ trong một ô, rồi lấy sớm nhất làm giờ vào và muộn nhất
+  làm giờ ra. Đúng bằng định nghĩa của hai ô đó, nên ô sạch cho kết quả **y hệt** cách cũ,
+  còn ô bẩn thì không mất dữ liệu nữa.
+* Kênh **cảnh báo** đi kèm bước *Xem trước* (và cả sau khi nạp): bảng vàng liệt kê đúng từng
+  chỗ cần sửa trong Sheet gốc. Vàng chứ không đỏ — tệp vẫn nạp được.
+* 🔴 Cảnh báo **chỉ báo, tuyệt đối không tự gộp**. Gộp hai mã thành một người phải khai qua
+  sheet `MaSongSong`, đúng luật đã ghi ở trên: tên người Việt trùng rất nhiều, đoán sai là
+  gộp lương hai người khác nhau.
+
+Chạy thử lại cho thấy **`CS_TUTU_TP` cũng không sạch** — 3 chỗ nằm im từ đầu: mã `1`
+(Huỳnh Quang Thắng), mã `855146747` (số điện thoại lọt vào cột ID, ô tên trống), và
+Nguyễn Thành Pháp mang cả `MNNV2KVC0107` lẫn `TUTP05`.
+
+### 🔴 CÒN TREO — tên cơ sở hai hệ, chưa nối được
+
+Đây là chỗ **chưa giải quyết được** và cần anh Thắng chốt:
+
+| Nguồn | Ghi cơ sở kiểu gì | Ví dụ |
+|---|---|---|
+| tệp `CS_*.csv` (chấm công) | **mã ngắn** lấy từ tên tệp | `TUTU_TP` · `VP_KHHCM_1` |
+| cột "Đơn vị làm việc" (sheet NV) | **tên đầy đủ** | `Tutu Train Aeon Mall Tân Phú` · `Funzone ADV SC Vivo` |
+
+Hai hệ tên này **không khớp nhau**, nên hiện chưa nối được người ↔ cơ sở giữa hai bảng.
+Riêng `VP_KHHCM_1` (văn phòng) còn không có tên nào tương ứng trong 60 đơn vị của sheet NV.
+
+Cần một **bảng quy đổi mã ngắn ↔ tên đầy đủ**. Tuyệt đối không đoán bằng cách so tên gần
+giống — `Posh Go Bà Rịa` và `Posh Go Bạc Liêu` chỉ khác vài chữ.
+
+### Chỗ đã sửa thêm — cột "Đơn vị làm việc" nhiều đơn vị trong một ô
+
+8 dòng trong sheet NV khai nhiều đơn vị trong **cùng một ô**, ngăn bằng dấu phẩy; ô nhiều
+nhất có **sáu** đơn vị (HUỲNH THỊ THU THẢO — `MNNV2KVC0173`). Bản đầu giữ nguyên cả chuỗi,
+tức đẻ ra một "đơn vị" ảo không có thật và tám người đó không thuộc về cơ sở nào trong số
+các cơ sở họ thật sự làm. `tach_don_vi()` tách theo dấu phẩy.
+
+Số người làm nhiều cơ sở vì vậy đổi từ **21 → 29**.

@@ -64,6 +64,14 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	.bao-ok{background:var(--luc-nhat);color:var(--luc);border:1px solid #bfe3c8;
 		border-radius:8px;padding:12px 14px;margin-top:14px;font-size:14px}
 	.chan{color:var(--mo);font-size:13px;margin-top:8px}
+	/* Bảng cảnh báo: màu VÀNG chứ không đỏ. Đỏ là "hỏng, không nạp được"; vàng là "nạp rồi,
+	   nhưng Sheet gốc có chỗ nên sửa". Dùng đỏ cho cả hai là người ta hoặc hoảng vô cớ, hoặc
+	   quen mắt rồi bỏ qua luôn cái đỏ thật. */
+	.canh{margin-top:14px;border:1px solid #f0d48a;border-radius:8px;overflow:hidden;background:#fffbef}
+	.canh-dau{background:#fdf2d0;color:#8a6100;padding:10px 14px;font-weight:600;font-size:14px}
+	.canh table{padding:0 14px}
+	.canh td,.canh th{border-top:1px solid #f4e3b4}
+	.canh .chan{padding:0 14px 12px}
 	.khoa{opacity:.55}
 </style>
 </head>
@@ -219,7 +227,8 @@ $ajax      = admin_url( 'admin-ajax.php' );
 					? '<div class="bao-ok">Xong. Thêm mới <b>' + r.nguoi_them + '</b> người · cập nhật <b>'
 						+ r.nguoi_sua + '</b> · thêm <b>' + r.gan_them + '</b> lượt gán cơ sở.</div>'
 					: '<div class="bao-ok">Xong — cơ sở <b>' + chu(r.co_so) + '</b>. Thêm <b>' + r.them
-						+ '</b> lượt · nới rộng <b>' + r.noi + '</b> · giữ nguyên <b>' + r.giu + '</b>.</div>';
+						+ '</b> lượt · nới rộng <b>' + r.noi + '</b> · giữ nguyên <b>' + r.giu
+						+ '</b>.</div>' + veCanhBao(r.canh_bao);
 				bNap.style.display = 'none';
 			});
 		});
@@ -241,7 +250,34 @@ $ajax      = admin_url( 'admin-ajax.php' );
 			});
 			h += '</table>';
 		}
+		h += veCanhBao(r.canh_bao);
 		return h + '</div></div>';
+	}
+
+	/* Bảng CHỖ CẦN SỬA TRONG SHEET.
+	   Đây không phải lỗi nạp — tệp vẫn nạp được. Đây là chỗ hỏng trong sheet gốc mà từ trước
+	   tới giờ không ai thấy, vì bản cũ lặng lẽ bỏ qua. Ba loại, xếp theo mức nặng:
+	     mot_nguoi_nhieu_ma  nặng nhất — công của một người bị chia ra thành hai người
+	     o_nhieu_moc         ô giờ gõ tay hai mốc; máy tự xử được nhưng gốc vẫn nên sửa
+	     ma_so_tran          ID chưa cấp mã chuẩn, dễ đụng nhau giữa các cơ sở
+	     gio_la              ô có chữ số mà không đọc ra giờ nào — chỗ này thì MẤT dữ liệu thật */
+	function veCanhBao(ds){
+		if (!ds || !ds.length){ return ''; }
+		var ten = {
+			mot_nguoi_nhieu_ma: 'Một người mang nhiều mã',
+			o_nhieu_moc:        'Ô giờ có hai mốc',
+			ma_so_tran:         'Mã NV là số trần',
+			gio_la:             'Ô giờ không đọc được'
+		};
+		var h = '<div class="canh"><div class="canh-dau">Nạp được, nhưng ' + ds.length
+		      + ' chỗ nên sửa trong Sheet gốc</div><table>'
+		      + '<tr><th>Chỗ</th><th>Mã NV</th><th>Họ tên</th><th>Ô</th></tr>';
+		ds.forEach(function(c){
+			h += '<tr><td>' + chu(ten[c.kieu] || c.kieu) + '</td><td>' + chu(c.ma_nv || '')
+			  + '</td><td>' + chu(c.ho_ten || '') + '</td><td>' + chu(c.o || (c.ngay || '')) + '</td></tr>';
+		});
+		return h + '</table><p class="chan">Sửa ở Sheet rồi xuất lại CSV và nạp đè — luật nới rộng '
+		     + 'làm nạp lại bao nhiêu lần cũng ra một kết quả.</p></div>';
 	}
 
 	function tomNV(r){

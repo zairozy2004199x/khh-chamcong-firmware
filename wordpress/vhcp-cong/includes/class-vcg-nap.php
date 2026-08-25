@@ -127,6 +127,56 @@ class VCG_Nap {
 	}
 
 	/**
+	 * Mọi mốc giờ có trong MỘT ô -> mảng số giây. Ô sạch cho một phần tử, ô bẩn cho nhiều.
+	 *
+	 * 🔴 VÌ SAO CẦN: tệp `CS_VP_KHHCM_1` có ô Giờ Vào ghi `08:30 13:23:38` — hai mốc trong một ô,
+	 *    do người ta gõ tay giờ ca vào cạnh giờ quét thật. `giay()` khớp cả chuỗi nên trả null,
+	 *    và cả buổi làm của người đó BIẾN MẤT khỏi bảng công mà không có lỗi nào hiện ra.
+	 *    Mất im lặng đúng vào ô quyết định tiền lương là kiểu hỏng tệ nhất ở đây.
+	 *
+	 * Tách theo khoảng trắng rồi đọc từng mảnh. Mảnh nào không phải giờ thì bỏ, KHÔNG đoán.
+	 */
+	public static function moc_gio( $s ) {
+		$s = trim( (string) $s );
+		if ( '' === $s ) { return array(); }
+		$ra = array();
+		foreach ( preg_split( '/[\s,;]+/u', $s ) as $manh ) {
+			$g = self::giay( $manh );
+			if ( null !== $g ) { $ra[] = $g; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Ô CÓ CHỮ SỐ VÀ DẤU HAI CHẤM MÀ KHÔNG RA MỐC NÀO — tức có người định ghi giờ mà máy không
+	 * hiểu. Dùng để BÁO RA MÀN HÌNH thay vì lặng lẽ bỏ qua.
+	 */
+	public static function o_hong( $s ) {
+		$s = trim( (string) $s );
+		if ( '' === $s ) { return false; }
+		if ( ! preg_match( '/\d/', $s ) ) { return false; }
+		return ! self::moc_gio( $s );
+	}
+
+	/**
+	 * Cột "Đơn vị làm việc" chứa NHIỀU đơn vị ngăn bằng dấu phẩy -> tách thành mảng.
+	 *
+	 * 🔴 Trong 245 dòng thật có 8 ô kiểu này, ô nhiều nhất SÁU đơn vị:
+	 *    `Funzone ADV Aeon Mall Tân Phú, Tutu Lotte Mart Gò Vấp, Tutu Train Aeon Mall Tân An, …`
+	 *    Giữ nguyên cả chuỗi là đẻ ra một "đơn vị" ảo không tồn tại ở đâu cả, và người đó không
+	 *    thuộc về cơ sở nào trong số sáu cơ sở họ thật sự làm. Đúng chỗ anh Thắng dặn:
+	 *    *"nhân viên có thể làm ở nhiều gian qua cột đơn vị làm việc"*.
+	 */
+	public static function tach_don_vi( $s ) {
+		$ra = array();
+		foreach ( explode( ',', (string) $s ) as $x ) {
+			$x = trim( preg_replace( '/\s+/u', ' ', $x ) );
+			if ( '' !== $x ) { $ra[ $x ] = 1; }
+		}
+		return array_keys( $ra );
+	}
+
+	/**
 	 * Đọc CSV nhân viên -> array( 'nguoi' => [...], 'gan' => [...] ).
 	 *
 	 * MỘT NGƯỜI ↔ NHIỀU CƠ SỞ. Anh Thắng 25/08/2026: *"nhân viên có thể làm ở nhiều gian qua cột
@@ -167,13 +217,13 @@ class VCG_Nap {
 					'tao_luc'       => $o['tao_luc'],
 				);
 			}
-			if ( '' !== $o['don_vi'] ) {
+			foreach ( self::tach_don_vi( $o['don_vi'] ) as $dv ) {
 				/* Khoá theo cặp mã+đơn vị: cùng một người khai lại cùng một đơn vị thì gộp, còn
 				   khai đơn vị khác thì thêm dòng. Đúng nghĩa "làm ở nhiều gian". */
-				$k = $ma . "\x1f" . $o['don_vi'];
+				$k = $ma . "\x1f" . $dv;
 				$gan[ $k ] = array(
 					'ma_nv'      => $ma,
-					'don_vi'     => $o['don_vi'],
+					'don_vi'     => $dv,
 					'tinh_thanh' => $o['tinh_thanh'],
 					'tao_luc'    => $o['tao_luc'],
 				);
@@ -240,8 +290,10 @@ class VCG_Nap {
 	 * Bỏ hẳn những ô trống: sheet 31 ngày × 20 người là 620 ô, phần lớn trống. Ghi cả ô trống
 	 * xuống bảng là phình dữ liệu vô ích và làm mọi câu truy vấn chậm đi.
 	 */
-	public static function doc_co_so( $hang, $co_so ) {
+	public static function doc_co_so( $hang, $co_so, &$canh_bao = null ) {
 		$ra = array();
+		$canh_bao = array();
+		$thay     = array();          // ma_nv -> tên, để bắt một người mang hai mã
 		foreach ( self::tim_khoi( $hang ) as $khoi ) {
 			$hang_ngay = isset( $hang[ $khoi['ngay'] ] ) ? $hang[ $khoi['ngay'] ] : array();
 			/* Ngày nằm ở ô ĐẦU của mỗi cụm 5 cột; bốn ô sau trống vì Sheet gộp ô. */
@@ -256,11 +308,45 @@ class VCG_Nap {
 				$ten   = isset( $r[0] ) ? trim( (string) $r[0] ) : '';
 				$ma    = isset( $r[1] ) ? trim( (string) $r[1] ) : '';
 				if ( '' === $ma ) { continue; }          // hàng trống giữa hai khối
+
+				/* 🔴 MÃ NV LÀ SỐ TRẦN (`1`, `15`, `24`) nghĩa là ô ID chưa được cấp mã chuẩn —
+				   trong `CS_VP_KHHCM_1` có năm người như vậy. Nạp vẫn nạp, nhưng phải BÁO, vì mã
+				   số trần đụng nhau giữa các cơ sở và không nối được với sheet nhân viên. */
+				if ( preg_match( '/^\d+$/', $ma ) ) {
+					$canh_bao[] = array( 'kieu' => 'ma_so_tran', 'ma_nv' => $ma, 'ho_ten' => $ten );
+				}
+				/* Cùng một tên mà nhiều mã khác nhau -> công của người đó bị chia ra trong bảng.
+				   `CS_VP_KHHCM_1` có Nguyễn Hữu Thọ mang cả mã `2` lẫn mã `15` trong cùng tháng 8.
+				   Gom lại rồi báo MỘT LẦN ở cuối, chứ không báo ngay tại chỗ: báo tại chỗ thì mỗi
+				   lần đổi mã lại đẻ một dòng, và cùng một cặp mã hiện hai lần theo hai chiều. */
+				$k_ten = self::gop( $ten );
+				if ( '' !== $k_ten ) { $thay[ $k_ten ][ $ma ] = $ten; }
 				foreach ( $cot_ngay as $c => $ngay ) {
-					$vao = self::giay( isset( $r[ $c ] ) ? $r[ $c ] : '' );
-					$ra_ = self::giay( isset( $r[ $c + 2 ] ) ? $r[ $c + 2 ] : '' );
-					$av  = isset( $r[ $c + 1 ] ) ? trim( (string) $r[ $c + 1 ] ) : '';
-					$ar  = isset( $r[ $c + 3 ] ) ? trim( (string) $r[ $c + 3 ] ) : '';
+					$o_vao = isset( $r[ $c ] ) ? $r[ $c ] : '';
+					$o_ra  = isset( $r[ $c + 2 ] ) ? $r[ $c + 2 ] : '';
+					$av    = isset( $r[ $c + 1 ] ) ? trim( (string) $r[ $c + 1 ] ) : '';
+					$ar    = isset( $r[ $c + 3 ] ) ? trim( (string) $r[ $c + 3 ] ) : '';
+
+					/* 🔴 GOM MỌI MỐC GIỜ CỦA NGÀY RỒI LẤY SỚM NHẤT / MUỘN NHẤT, thay vì đọc cứng
+					   một ô một giá trị. Đúng bằng định nghĩa của hai ô đó, và nhờ vậy ô bẩn kiểu
+					   `08:30 13:23:38` vẫn ra đủ hai mốc thay vì mất trắng cả buổi làm. Ô sạch thì
+					   kết quả y hệt cách cũ — một mốc ở ô vào, một mốc ở ô ra. */
+					$moc = array_merge( self::moc_gio( $o_vao ), self::moc_gio( $o_ra ) );
+					foreach ( array( $o_vao, $o_ra ) as $o ) {
+						if ( self::o_hong( $o ) ) {
+							$canh_bao[] = array( 'kieu' => 'gio_la', 'ngay' => $ngay,
+								'ma_nv' => $ma, 'ho_ten' => $ten, 'o' => trim( (string) $o ) );
+						} elseif ( count( self::moc_gio( $o ) ) > 1 ) {
+							/* Đọc được rồi, nhưng vẫn BÁO: ô đáng lẽ một mốc mà có hai là ô ai đó
+							   sửa tay trong Sheet. Máy tự xử được lần này, còn người thì nên biết
+							   để sửa gốc — im lặng là lần sau nó thành ba mốc và không ai hay. */
+							$canh_bao[] = array( 'kieu' => 'o_nhieu_moc', 'ngay' => $ngay,
+								'ma_nv' => $ma, 'ho_ten' => $ten, 'o' => trim( (string) $o ) );
+						}
+					}
+					sort( $moc );
+					$vao = $moc ? $moc[0] : null;
+					$ra_ = ( count( $moc ) > 1 ) ? $moc[ count( $moc ) - 1 ] : null;
 					if ( null === $vao && null === $ra_ && '' === $av && '' === $ar ) { continue; }
 					$ra[] = array(
 						'co_so'   => $co_so,
@@ -275,6 +361,28 @@ class VCG_Nap {
 				}
 			}
 		}
+		foreach ( $thay as $ds ) {
+			if ( count( $ds ) < 2 ) { continue; }
+			$ma_ds = array_keys( $ds );
+			sort( $ma_ds );
+			$canh_bao[] = array(
+				'kieu'   => 'mot_nguoi_nhieu_ma',
+				'ho_ten' => reset( $ds ),
+				'ma_nv'  => implode( ' / ', $ma_ds ),
+			);
+		}
+		/* Gộp cảnh báo trùng: cùng một người xuất hiện ở hai khối tháng thì chỉ báo một lần.
+		   Danh sách cảnh báo dài gấp đôi vì lặp là người ta thôi đọc nó — mà đọc được thì mới có
+		   tác dụng. */
+		$da = array();
+		$loc = array();
+		foreach ( $canh_bao as $c ) {
+			$k = implode( "\x1f", $c );
+			if ( isset( $da[ $k ] ) ) { continue; }
+			$da[ $k ] = 1;
+			$loc[]    = $c;
+		}
+		$canh_bao = $loc;
 		return $ra;
 	}
 
