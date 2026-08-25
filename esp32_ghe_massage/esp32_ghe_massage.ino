@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-23c (QR mua ma tren o goi)"
+#define FW_VERSION "ghe-massage 2026-08-25a (dem gio theo chan ghe + canh bao ghe khong chay)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -185,13 +185,10 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
 #define BYPASS_PIN         22
 #define BYPASS_ACTIVE_HIGH false   // module active-LOW: false = IN kéo LOW để hút (ESP-mode)
 
-/* Ghế nhận tiền -> HIỆN đồng hồ ngay nhưng ~ngần này SAU mới ĐẾM. Đồng hồ (offset)
-   canh theo đúng khoảng dừng đó cho KHỚP ghế. Chỉnh theo ghế (ms): sớm hơn ghế ->
-   tăng; trễ hơn ghế -> giảm. Áp cho cả tiền mặt/QR/từ xa. */
-#define QR_TRE_MS          3500
-/* Thời gian hiện màn "CẢM ƠN QUÝ KHÁCH" (chữ cảm ơn + thời gian nhỏ) trước khi
-   phóng to đồng hồ đếm ngược. KHÁC QR_TRE_MS: đây chỉ là màn hình, còn đồng hồ đã
-   chạy ngầm từ mốc ghế đếm (QR_TRE_MS) nên phóng to ra là đã trừ đúng phần đã qua. */
+/* (BỎ QR_TRE_MS) — không còn hoãn đồng hồ theo con số cố định nữa. Đồng hồ nay ĐẾM
+   THEO CHÂN GHẾ: ghế thật sự chạy (3.3V) thì mới trừ giờ, nên tự khớp, khỏi chỉnh. */
+/* Thời gian hiện màn "CẢM ƠN QUÝ KHÁCH" (chữ cảm ơn + thời gian nhỏ) trước khi phóng
+   to đồng hồ đếm ngược. Trong lúc này đồng hồ vẫn đếm theo chân ghế nếu ghế đã chạy. */
 #define CAMON_MS           5000
 
 /* ================= PHÁT HIỆN GHẾ CHẠY THẬT ==================================
@@ -200,12 +197,15 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
    Logic: đang tính giờ (ST_RUNNING) mà chân báo KHÔNG chạy quá GHECHAY_CHET_MS
    -> đẩy web cảnh báo 'ghekhongchay' (khách trả tiền, đồng hồ chạy mà ghế không
    nhúc nhích). Chạy lại -> tự gỡ cảnh báo.
-   ⚠️ IO34 không kéo nội: nên gắn thêm điện trở 10k từ IO34 xuống GND (khi đứt dây
-      thì về mức TẮT = cảnh báo, an toàn hơn là lơ lửng). */
+   ⚠️ CỰC (đo thật): TẮT = 3.3V, CHẠY = ~0.3V -> tức CHẠY = mức THẤP (LOW).
+   ⚠️ IO34 không kéo nội: nên gắn điện trở kéo LÊN 3.3V (đứt dây thì về 3.3V = TẮT =
+      không đếm giờ nhầm/không báo chạy nhầm — fail-safe). Dùng 100k cho khỏi kéo mức
+      0.3V lên (10k cũng được nếu chân ghế hút khoẻ). Nối solid thì không cần cũng chạy. */
 #define DO_GHECHAY         1
-#define GHECHAY_PIN        34        // đọc chân báo-chạy của bo ghế (3.3V chạy / 0V tắt)
-#define GHECHAY_CHAY_MUC   HIGH      // mức đọc được khi ghế ĐANG CHẠY
-#define GHECHAY_CHET_MS    10000     // đang tính giờ mà không chạy quá lâu này -> cảnh báo web
+#define GHECHAY_PIN        34        // đọc chân báo-chạy của bo ghế (TẮT=3.3V / CHẠY=~0.3V)
+#define GHECHAY_CHAY_MUC   LOW       // ĐANG CHẠY = mức THẤP (đo thật: chạy về 0.32V)
+#define GHECHAY_CHET_MS    10000     // paid mà ghế CHƯA TỪNG chạy quá lâu này -> cảnh báo web
+#define GHE_DUNG_MS        2500      // ghế ĐÃ chạy rồi mà tắt/stop lâu ngần này -> KẾT THÚC phiên (QR dừng theo)
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -316,7 +316,14 @@ unsigned long g_rttMs = 0;
 volatile bool g_giuKenh = false;
 unsigned long waitUntil = 0;
 unsigned long lastPayPoll = 0;
-unsigned long runUntil = 0;
+/* ĐỒNG HỒ ĐẾM THEO CHÂN GHẾ (pin-master): thời gian còn lại của phiên, CHỈ trừ khi
+   chân báo-chạy = 3.3V (ghế thật sự chạy). Ghế dừng/stop/tắt (0V) sau khi đã chạy ->
+   kết thúc phiên (QR dừng theo). Bỏ 'runUntil' đồng hồ độc lập cũ + QR_TRE_MS. */
+long     g_conLaiMs   = 0;      // thời gian còn lại (ms) của phiên
+bool     g_gheDaChay  = false;  // chân ghế đã lên mức chạy ít nhất 1 lần trong phiên
+bool     g_baoGheChet = false;  // đang treo cảnh báo 'ghekhongchay' (paid mà chưa chạy)
+uint32_t g_tickTruoc  = 0;      // millis lần trừ trước (0 = chưa bắt đầu, dt=0)
+uint32_t g_dungTu     = 0;      // millis chân ghế bắt đầu ở mức TẮT (để debounce dừng)
 /* HẸN bắt đầu đếm giờ: ghế hiện đồng hồ ngay khi nhận tiền nhưng ~QR_TRE_MS sau
    mới ĐẾM. Nên hoãn khởi động đồng hồ trên ESP/web đúng ngần đó cho khớp (không
    chặn màn). Áp cho cả tiền mặt/QR/từ xa. */
@@ -1276,7 +1283,7 @@ void guiNhip(){
   bool dangChay = (state==ST_RUNNING || state==ST_CAMON);   // CAMON = đã nhận tiền, đồng hồ chạy ngầm -> web coi như running
   const char* st = dangChay ? "running" : (state==ST_WAIT_PAY ? "wait_pay" : "idle");
   const char* src = (g_srcCode=='q') ? "qr" : (g_srcCode=='c' ? "cash" : (g_srcCode=='r' ? "remote" : ""));
-  long conLai = dangChay ? ((long)(runUntil - millis())/1000) : 0; if(conLai<0) conLai=0;
+  long conLai = dangChay ? (g_conLaiMs / 1000) : 0; if(conLai<0) conLai=0;
   /* `tre` = lượt gọi trước mất bao nhiêu ms. Máy chủ trừ nửa quãng đó khỏi `con_lai`: con số
      trên được tính Ở ĐÂY, còn dấu giờ thì đóng lúc gói tin TỚI NƠI — nửa quãng đi là phần
      máy chủ không tự thấy được. Giữ kênh HTTPS mở làm quãng này còn ~150ms, nên phần trừ chỉ
@@ -1511,36 +1518,51 @@ void startRunning(int minutes){
   g_payWaiting = false; g_watchPayUntil = 0;
 
   if(state == ST_RUNNING){
-    runUntil += (unsigned long)minutes*60000UL;
+    g_conLaiMs += (long)minutes * 60000L;   // CỘNG DỒN vào giờ còn lại (không ghi đè)
     /* Không đụng `relaySet`, `state`, `screenDrawn`: ghế đang chạy, đang có người nằm trên đó.
        Chỉ báo màn vẽ lại con số đếm ngược cho khớp. */
     lastShownSec = -1; g_statusDirty = true;
     Serial.printf("[RUN] cong them %d phut (dang chay, con %ld giay)\n",
-      minutes, (long)((runUntil - millis())/1000));
+      minutes, g_conLaiMs / 1000);
     return;
   }
 
-  runUntil = millis() + (unsigned long)minutes*60000UL;
+  /* Nhánh này gần như không dùng (henChay đi qua ST_CAMON). Giữ để an toàn. */
+  g_conLaiMs = (long)minutes * 60000L; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0;
   relaySet(true);
   Serial.printf("[RUN] Ghế chạy %d phút\n", minutes);
   state = ST_RUNNING; screenDrawn=false; lastShownSec=-1; g_statusDirty=true;
 }
 
-/* Ghế nhận tiền -> HIỆN màn "cảm ơn" CAMON_MS, đồng hồ chạy NGẦM từ mốc ghế đếm
-   (millis + QR_TRE_MS). Hết CAMON_MS thì phóng to đồng hồ (đã trừ đúng phần đã qua
-   nên KHỚP ghế). Đang chạy sẵn -> cộng giờ NGAY (không màn cảm ơn). */
+/* Kết thúc phiên -> về màn chính. Dùng chung cho: hết giờ, và GHẾ DỪNG (stop/tắt sau
+   khi đã chạy — QR dừng theo). Dọn sạch đồng hồ + cờ cảnh báo. */
+void ketThucPhien(const char* lyDo){
+  relaySet(false);
+  state = ST_IDLE; g_srcCode = 0; g_statusDirty = true; screenDrawn = false;
+  g_runTotalVnd = 0; setAcceptorEnabled(true);
+  g_conLaiMs = 0; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; lastShownSec = -1;
+  if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+  Serial.printf("[RUN] ket thuc phien: %s\n", lyDo);
+}
+
+/* Ghế nhận tiền -> HIỆN màn "cảm ơn" CAMON_MS. ĐỒNG HỒ đếm theo CHÂN GHẾ: chỉ trừ
+   giờ khi chân báo-chạy = 3.3V (xem khối pin-master trong loop). Nên KHÔNG cần
+   QR_TRE_MS nữa — ghế thật sự chạy lúc nào thì đếm lúc đó, tự khớp.
+   Đang chạy sẵn -> cộng giờ NGAY (không màn cảm ơn). */
 void henChay(int minutes, char src){
   if(minutes <= 0) return;
   if(state == ST_RUNNING){ g_srcCode = src; startRunning(minutes); return; }
   g_srcCode = src; g_henSrc = src; g_henPhut = minutes;
   payMinutes = minutes;                                   // để màn đếm hiện đúng TỔNG
-  runUntil = millis() + QR_TRE_MS + (unsigned long)minutes*60000UL;  // đồng hồ canh mốc ghế đếm
+  g_conLaiMs = (long)minutes * 60000L;                    // giờ còn lại, đếm khi ghế chạy
+  g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0;     // phiên mới: chờ ghế lên mức chạy
+  if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
   state = ST_CAMON; screenDrawn = false;
   g_henLuc = millis() + CAMON_MS;                         // hết ngần này thì phóng to đồng hồ
   if(g_henLuc == 0) g_henLuc = 1;
   g_statusDirty = true;
-  Serial.printf("[HEN] man CAM ON %dms, dong ho canh moc ghe (+%dms): %d phut (src %c)\n",
-                (int)CAMON_MS, (int)QR_TRE_MS, minutes, src);
+  Serial.printf("[HEN] man CAM ON %dms roi dem theo chan ghe: %d phut (src %c)\n",
+                (int)CAMON_MS, minutes, src);
 }
 
 /**
@@ -1844,40 +1866,48 @@ void loop(){
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
 #if DO_GHECHAY
-  /* Đọc chân báo-chạy của bo ghế. Đang tính giờ (ST_RUNNING) mà ghế KHÔNG chạy quá
-     GHECHAY_CHET_MS -> cảnh báo web 'ghekhongchay'. Chạy lại -> gỡ. Chỉ soi khi
-     ST_RUNNING (ST_CAMON là màn chờ, ghế chưa khởi động, không tính). */
-  { static uint32_t g_chuaChayTu = 0; static bool g_baoGheChet = false;
+  /* ĐỒNG HỒ PIN-MASTER: trong phiên đã trả tiền (CAMON hoặc RUNNING), CHỈ trừ giờ khi
+     chân báo-chạy = mức chạy (ghế thật sự chạy). Phân biệt 2 ca khi ghế KHÔNG chạy:
+       - CHƯA TỪNG chạy (g_gheDaChay=false): khách trả tiền mà ghế chưa khởi động ->
+         chờ, không trừ giờ; quá GHECHAY_CHET_MS -> cảnh báo 'ghekhongchay'.
+       - ĐÃ chạy rồi mà tắt: bấm stop / tắt máy / hết chương trình -> đánh dấu g_dungTu,
+         quá GHE_DUNG_MS thì KẾT THÚC phiên (làm ở nhánh ST_RUNNING). */
+  if(state == ST_CAMON || state == ST_RUNNING){
+    uint32_t now = millis();
     bool gheChay = (digitalRead(GHECHAY_PIN) == GHECHAY_CHAY_MUC);
-    if(state == ST_RUNNING){
-      if(gheChay){
-        g_chuaChayTu = 0;
-        if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false);
-          Serial.println("[GHE] da chay lai -> go canh bao"); }
-      } else {
-        if(g_chuaChayTu == 0) g_chuaChayTu = millis();
-        else if(!g_baoGheChet && millis() - g_chuaChayTu > GHECHAY_CHET_MS){
+    uint32_t dt = g_tickTruoc ? (now - g_tickTruoc) : 0;
+    if(dt > 2000) dt = 2000;                 // lỡ 1 nhịp dài (mạng/tft) thì không trừ nhảy
+    g_tickTruoc = now;
+    if(gheChay){
+      g_gheDaChay = true; g_dungTu = 0;
+      if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false);
+        Serial.println("[GHE] da chay lai -> go canh bao"); }
+      g_conLaiMs -= (long)dt;                // ĐẾM: chỉ trừ khi ghế đang chạy
+    } else {
+      if(g_dungTu == 0) g_dungTu = now;
+      if(!g_gheDaChay){                       // paid mà ghế chưa từng chạy -> cảnh báo
+        if(!g_baoGheChet && now - g_dungTu > GHECHAY_CHET_MS){
           g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
-          Serial.println("[GHE] dang tinh gio ma KHONG chay -> canh bao web"); }
+          Serial.println("[GHE] paid ma ghe CHUA chay -> canh bao web"); }
       }
-    } else {                                   // hết chạy: dọn cờ để lần sau tính lại
-      g_chuaChayTu = 0;
-      if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+      // đã chạy rồi mà tắt: việc KẾT THÚC phiên xử ở nhánh ST_RUNNING (dùng g_dungTu).
     }
   }
 #endif
 
-  /* Hết màn cảm ơn -> PHÓNG TO đồng hồ (chuyển sang màn đếm ngược). runUntil ĐÃ đặt
-     ở henChay (canh mốc ghế đếm) nên KHÔNG đặt lại — số hiện ra đã trừ đúng phần qua. */
+  /* Hết màn cảm ơn -> chuyển sang màn đếm ngược (phóng to đồng hồ). Đồng hồ đã đếm
+     theo chân ghế ở khối pin-master trên nên số hiện ra khớp phần ghế đã chạy. */
   if(g_henLuc && state == ST_CAMON && (int32_t)(millis() - g_henLuc) >= 0){
     g_henLuc = 0;
     relaySet(true); state = ST_RUNNING; screenDrawn = false; lastShownSec = -1; g_statusDirty = true;
-    Serial.println("[HEN] het man cam on -> phong to dong ho dem nguoc");
+    Serial.println("[HEN] het man cam on -> man dem nguoc (dem theo chan ghe)");
   }
 
   if(g_remoteStop){ g_remoteStop=false;
     if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false; g_henLuc=0;
       g_runTotalVnd=0; setAcceptorEnabled(true); g_statusDirty=true; screenDrawn=false;
+      g_conLaiMs=0; g_gheDaChay=false; g_dungTu=0; g_tickTruoc=0; lastShownSec=-1;
+      if(g_baoGheChet){ g_baoGheChet=false; loiTienCong("ghekhongchay", false); }
       Serial.println("[CMD] -> da TAT may"); }
   }
   if(g_remoteStartMin > 0){ int m=g_remoteStartMin; g_remoteStartMin=0;
@@ -1885,7 +1915,7 @@ void loop(){
        chỉ đóng relay (không nối gì) nên phải BƠM tiền quy đổi từ số phút vào ghế. */
     long vnd = (MINUTES > 0) ? (long)m * PRICE_VND / MINUTES : 0;
     congTien.bom(vnd);
-    henChay(m, 'r');       // hoãn đếm giờ QR_TRE_MS cho khớp lúc ghế thật sự đếm
+    henChay(m, 'r');       // đồng hồ đếm theo chân ghế -> tự khớp lúc ghế thật sự chạy
     Serial.printf("[CMD] -> da MO may %d phut (bom %ld d vao ghe)\n", m, vnd);
   }
 
@@ -1901,7 +1931,7 @@ void loop(){
        trình của nó (Hướng 1). startRunning() bên dưới chỉ để MÀN đếm ngược cho khớp. */
     congTien.bom(paid);
     g_runTotalVnd += paid; updateAcceptor();
-    henChay(mins, 'q');    // hoãn đếm giờ QR_TRE_MS cho khớp lúc ghế thật sự đếm
+    henChay(mins, 'q');    // đồng hồ đếm theo chân ghế -> tự khớp lúc ghế thật sự chạy
     return;
   }
 
@@ -1955,11 +1985,15 @@ void loop(){
       state=ST_IDLE; g_srcCode=0; g_statusDirty=true; screenDrawn=false; delay(300); return; }
   }
   else if(state==ST_RUNNING){
-    long left = (long)(runUntil - millis());
-    if(left <= 0){ relaySet(false); Serial.println("[RUN] hết giờ -> tắt ghế");
-      state=ST_IDLE; g_srcCode=0; g_statusDirty=true; screenDrawn=false;
-      g_runTotalVnd=0; setAcceptorEnabled(true); return; }
-    int secLeft = (int)(left/1000);
+    /* Hết giờ (đã đếm theo chân ghế) -> kết thúc. */
+    if(g_conLaiMs <= 0){ ketThucPhien("het gio"); return; }
+    /* ĐÃ chạy rồi mà ghế TẮT/STOP quá GHE_DUNG_MS -> QR dừng theo (đúng ý: ghế dừng
+       thì QR dừng, không để "ghế đã dừng mà QR vẫn chạy"). */
+#if DO_GHECHAY
+    if(g_gheDaChay && g_dungTu && (millis() - g_dungTu > GHE_DUNG_MS)){
+      ketThucPhien("ghe da dung (stop/tat) -> QR dung theo"); return; }
+#endif
+    int secLeft = (int)((g_conLaiMs + 999) / 1000);   // làm tròn LÊN cho khớp cảm nhận
     if(secLeft != lastShownSec){ lastShownSec=secLeft; drawRunning(secLeft); }
   }
   delay(20);
