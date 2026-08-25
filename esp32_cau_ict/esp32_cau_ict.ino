@@ -374,6 +374,7 @@ void ngheMdb(int giay) {
       lanCuoiMs = millis(); soByte++; dangDong = true; coGi = true;
     }
     if (!coGi && dangDong && millis() - lanCuoiMs > 10) { Serial.println(); dangDong = false; }
+    yield();   // nhả CPU cho watchdog ESP32 -> không bị reset giữa chừng (60s tight loop)
   }
   Serial.printf("\n[MDB] xong. Tong %lu byte, %lu khung loi.\n", (unsigned long)soByte, (unsigned long)soLoi);
   if (soByte == 0)
