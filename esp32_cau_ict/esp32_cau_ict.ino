@@ -519,40 +519,41 @@ void congTrungGian(uint32_t giay) {
  *  RAW — ghi lại thời điểm TỪNG CẠNH tín hiệu (như máy đo), để giải mã offline
  * ----------------------------------------------------------------------------
  *  Thay vì giải mã trên chip (phải đoán nhịp), ESP32 chỉ ghi thô: mỗi lần dây đổi
- *  mức, lưu khoảng thời gian (micro giây) từ cạnh trước. In ra hết, gửi cho người
- *  phân tích -> tự tính nhịp bit chính xác và đọc byte, không đoán.
- *  Đo trên IO22 (dây ghế poll — dây bận, đã thấy <30>).
+ *  mức, lưu khoảng thời gian (micro giây) tính từ CẠNH TRƯỚC CÙNG DÂY. Ghi CẢ HAI
+ *  dây (IO22 ghế nói, IO35 L70 nói) nên bắt luôn khung "có tiền". In ra hết, gửi
+ *  cho người phân tích -> TỰ tính nhịp bit chính xác và đọc byte, KHÔNG đoán.
+ *
+ *  Vòng lặp CỰC CHẶT: không in, không yield giữa lúc bận -> không bỏ sót cạnh nào.
+ *  Chỉ nhả CPU (nuôi watchdog) khi CẢ HAI dây im > 2ms (giữa các lượt poll).
  * ========================================================================== */
-#define RAW_SO_CANH 1200
+#define RAW_SO_CANH 4000
 void rawCanh(uint32_t giay) {
-  const int CHAN = CHAN_GHE_RX;   // IO22
+  const int A = CHAN_GHE_RX;      // IO22 — ghế (chủ) nói
+  const int B = CHAN_ICT_RX;      // IO35 — L70 (tớ) nói  <-- khung tiền o day
   congIct.end(); congGhe.end();
-  pinMode(CHAN, INPUT);
+  pinMode(A, INPUT); pinMode(B, INPUT);
   static uint32_t dt[RAW_SO_CANH];
-  static uint8_t  lv[RAW_SO_CANH];
-  Serial.printf("[RAW] ghi canh tren IO%d, toi da %d canh hoac %lu giay. Bo tien vao neu muon bat luc do.\n",
-                CHAN, RAW_SO_CANH, (unsigned long)giay);
+  static uint8_t  lv[RAW_SO_CANH];   // bit0=muc truoc canh, bit1=day (0=A ghe,1=B L70)
+  Serial.printf("[RAW] ghi CA HAI day: A=IO%d(ghe) B=IO%d(L70). Toi da %d canh hoac %lu giay.\n",
+                A, B, RAW_SO_CANH, (unsigned long)giay);
+  Serial.println("[RAW] NHET TIEN NGAY BAY GIO de bat duoc khung 'co tien'.");
   int n=0;
-  int truoc=digitalRead(CHAN);
-  uint32_t last=micros();
+  int pa=digitalRead(A), pb=digitalRead(B);
+  uint32_t lastA=micros(), lastB=micros();
   uint32_t het=millis()+giay*1000UL;
   uint32_t feed=micros();
   while(n<RAW_SO_CANH && (int32_t)(het-millis())>0){
-    int m=digitalRead(CHAN);
-    if(m!=truoc){
-      uint32_t now=micros();
-      dt[n]=now-last; lv[n]=truoc; n++;   // muc TRUOC cạnh, keo dai dt
-      last=now; truoc=m;
-    } else {
-      // Chi nhuong CPU (nuoi watchdog) khi day IM > 2ms — tuc la giua cac khung,
-      // khong bao gio nhuong giua khung nen KHONG bo sot cạnh nao.
-      uint32_t now=micros();
-      if((now-last)>2000 && (now-feed)>20000){ yield(); feed=micros(); }
-    }
+    int a=digitalRead(A);
+    if(a!=pa){ uint32_t now=micros(); dt[n]=now-lastA; lv[n]=(uint8_t)(pa&1); n++; lastA=now; pa=a; continue; }
+    int b=digitalRead(B);
+    if(b!=pb){ uint32_t now=micros(); dt[n]=now-lastB; lv[n]=(uint8_t)((pb&1)|2); n++; lastB=now; pb=b; continue; }
+    // ca hai im lau -> nha CPU (chi luc nay moi an toan, khong dang trong khung)
+    uint32_t now=micros();
+    if((now-lastA)>2000 && (now-lastB)>2000 && (now-feed)>20000){ yield(); feed=micros(); }
   }
-  Serial.printf("[RAW] %d canh. Dinh dang: <do_dai_us>:<muc truoc canh>. Gui het cho ky su.\n", n);
+  Serial.printf("[RAW] %d canh. Dinh dang moi canh: <day><do_dai_us>:<muc truoc>. day: G=ghe(IO22) L=L70(IO35).\n", n);
   for(int i=0;i<n;i++){
-    Serial.printf("%lu:%d ",(unsigned long)dt[i],lv[i]);
+    Serial.printf("%c%lu:%d ", (lv[i]&2)?'L':'G', (unsigned long)dt[i], lv[i]&1);
     if((i&7)==7) Serial.println();
   }
   Serial.println("\n[RAW] xong.");
@@ -604,7 +605,7 @@ void inTro() {
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
     "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
-    "  RAW [giay]      ghi tho tung canh (may do) -> gui ky su giai ma offline. NEN DUNG\n"
+    "  RAW [giay]      ghi tho tung canh CA HAI day (may do) -> giai ma offline. NEN DUNG\n"
     "  DODAY [giay]    DO DAY: re dau do (IO22) qua tung day, tim day co nhip ~9600\n"
     "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
     "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
@@ -752,7 +753,7 @@ void ngheLenhUsb() {
     else if (lenh == "TT")   inTrangThai();
     else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
-    else if (lenh == "RAW")  { uint32_t g = tham.toInt(); rawCanh(g ? g : 5); }
+    else if (lenh == "RAW")  { uint32_t g = tham.toInt(); rawCanh(g ? g : 8); }
     else if (lenh == "DODAY") { uint32_t g = tham.toInt(); doDay(g ? g : 30); }
     else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
     else if (lenh == "DOBAUD") { uint32_t g = tham.toInt(); doBaudTheoXung(CHAN_ICT_RX, "phia L70", g ? g : 5); }
