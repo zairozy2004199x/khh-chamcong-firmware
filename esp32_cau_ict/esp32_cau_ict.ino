@@ -202,11 +202,12 @@
 #define CHAN_OE_ICT   -1
 #define CHAN_OE_GHE   -1
 
-// Chân ESP32 PHÁT khung tiền giả vào GHẾ (lệnh BOM). Nối chân này (qua chia mức
-// 3,3V->5V) vào ĐÚNG dây mà L70 thật vẫn phát 81/4X (dây vào RX nhận tiền của ghế).
-// Test thì rút dây TX của L70 thật ra khoi day nay de khong danh nhau.
-#define CHAN_BOM_TX   27      // IO27 (CN1) — chân trống, phát ra được
-#define CHAN_BOM_RX   35      // nghe ghe dap (02) — cùng dây IO35 đang tap
+// Chân ESP32 PHÁT khung tiền giả vào GHẾ (lệnh BOM). Dùng LẠI IO22 — dây nay da
+// noi san qua mach chia muc (MOSFET chay hai chieu) vao dung day L70->ghe (cho
+// hien 81/4X). Nen KHONG can dau them IO27. Nghe ghe dap tren IO35 nhu cu.
+// ⚠️ Test thi RUT L70 that ra khoi day 22 (day A) keo hai ben day nhau.
+#define CHAN_BOM_TX   22      // IO22 — chinh day tien, da noi san qua chia muc
+#define CHAN_BOM_RX   35      // nghe ghe dap (02) — dây IO35 đang tap
 
 #define BAUD_MAC_DINH 4800   // ĐO THẬT bang RAW: nhip bit ~207us -> 4800, KHONG phai 9600
 #define NGHI_MS       15      // dây im ngần này = hết một khung (ở 9600 một byte ~1ms)
