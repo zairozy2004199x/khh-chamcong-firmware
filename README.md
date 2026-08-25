@@ -181,6 +181,19 @@ luôn đường ICSP thì PICkit cũng không cứu được. Thứ tự bắt b
 2. `DOC` / `SOSANH` — đọc thử flash, so bản trong chip với file `.hex`. Vẫn chỉ đọc.
 3. Hai bước trên chạy đúng rồi mới viết tiếp phần xoá và ghi.
 
+**Chip nằm ở đâu** (soi hai file firmware thật, 25/08/2026): con `dsPIC33FJ256` nằm trong **chính đầu
+bán tiền ICT L70** — 87.552 lệnh chương trình đúng bằng 256 KB của nó, 12 từ cấu hình ở
+`0xF80000`, byte ma đúng khuôn không một ngoại lệ. Còn **bo ghế thì không phải PIC**: firmware của
+nó nằm ở `0x08000000` với từ đầu là con trỏ ngăn xếp trỏ vào SRAM `0x20000000` — đó là bảng vector
+ARM Cortex-M, tức **STM32**. Nạp bo ghế là việc khác: SWD, hoặc dễ hơn là bộ nạp UART có sẵn trong
+chip (ST AN3155).
+
+Kiểm một file `.hex` trên máy trước khi mang thẻ ra hiện trường, bằng đúng bộ đọc mà firmware dùng:
+
+```bash
+bash esp32_nap_pic/ci/xem-hex.sh duong/dan/toi/file.hex
+```
+
 Hai bẫy của file `.hex` dsPIC (đã chốt bằng 24 bài test, `ci/kiem-hex.sh`): mỗi lệnh 24 bit chiếm
 **4 byte trong file, byte thứ tư là byte ma phải vứt**; và **địa chỉ trong file = địa chỉ chương
 trình × 2**. Sai một trong hai thì nạp ra bãi rác mà máy vẫn báo thành công.

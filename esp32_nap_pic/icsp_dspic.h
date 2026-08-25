@@ -23,6 +23,33 @@
  *     ICSP — sau đó PICkit cũng không vào được nữa. Nên bộ nạp này ghi vùng cấu
  *     hình SAU CÙNG, và bắt buộc đọc ngược kiểm tra trước khi đụng tới nó.
  *
+ *  ─── ĐÃ XÁC ĐỊNH CHIP NÀY NẰM Ở ĐÂU (25/08/2026) ──────────────────────────
+ *  Soi hai file firmware thật thì ra kết luận NGƯỢC với giả định ban đầu:
+ *
+ *    ICTL70RT6900_new_1.2.hex  ->  chính ĐẦU BÁN TIỀN ICT L70 là con dsPIC33F.
+ *        Ba dấu hiệu độc lập, khớp cả ba:
+ *          • 87.564 lệnh, byte thứ tư CỦA MỌI LỆNH đều bằng 0, không một ngoại lệ
+ *            -> đúng khuôn 24 bit + byte ma của dsPIC/PIC24;
+ *          • 12 từ cấu hình ở 0xF80000..0xF80016 -> đúng bộ thanh ghi cấu hình
+ *            của dsPIC33F, không họ nào khác đặt ở đó;
+ *          • 87.552 lệnh chương trình = ĐÚNG dung lượng 256 KB của dsPIC33FJ256;
+ *          • từ đầu tiên 0x04AB60 = lệnh GOTO — vector reset của dsPIC.
+ *
+ *    TimerControler20181214V0213.hex  ->  bo ghế KHÔNG PHẢI PIC, mà là ARM
+ *        Cortex-M (gần như chắc chắn STM32):
+ *          • dữ liệu nằm ở 0x08000000 — vùng flash của STM32;
+ *          • từ đầu tiên 0x20000720 = con trỏ ngăn xếp ban đầu, trỏ vào SRAM
+ *            0x20000000 — đúng khuôn bảng vector của Cortex-M;
+ *          • từ thứ hai 0x080089F1 = hàm xử lý reset, số LẺ = chế độ Thumb;
+ *          • bản ghi kiểu 05 khai điểm vào 0x08008A01, cũng lẻ.
+ *
+ *  => BỘ NẠP NÀY NẠP CHO ĐẦU BÁN TIỀN L70, KHÔNG PHẢI CHO BO GHẾ.
+ *     Muốn nạp bo ghế thì là việc khác hẳn: STM32 nạp qua SWD (2 dây), hoặc dễ
+ *     hơn nữa là qua BỘ NẠP UART CÓ SẴN TRONG CHIP (tài liệu ST AN3155) — chỉ cần
+ *     kéo chân BOOT0 lên rồi reset, sau đó nói chuyện UART bằng giao thức công
+ *     khai. Cách đó đơn giản hơn ICSP của dsPIC nhiều, và dùng lại được đúng bộ
+ *     UART + mạch cách ly đã có.
+ *
  *  ─── ĐẤU DÂY ───────────────────────────────────────────────────────────────
  *  dsPIC33F chạy 3,3V y như ESP32, và vào chế độ nạp chỉ cần MCLR ở mức VDD
  *  (KHÔNG cần Vpp 9-13V như PIC16/18). Nên nối thẳng, không mạch phụ:
