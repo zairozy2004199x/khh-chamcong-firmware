@@ -194,6 +194,13 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
    chạy ngầm từ mốc ghế đếm (QR_TRE_MS) nên phóng to ra là đã trừ đúng phần đã qua. */
 #define CAMON_MS           5000
 
+/* 🔧 DÒ IO34: bật để soi dây đầu-điều-khiển ghế (4 dây rx/tx/5v/gnd) — biết ghế
+   đang CHẠY hay TẮT. Nối tín hiệu đó vào IO34 (qua ADuM/chia mức), nạp, xem log:
+     "muc=1/0" + "canh/200ms". Đổi mức rõ khi ghế chạy/tắt (canh≈0) = MỨC đơn giản
+     -> dò digitalRead chắc chắn. Nhiều cạnh (canh lớn) = DATA serial. Đo xong TẮT. */
+#define DO_IO34            1
+#define IO34_PIN           34
+
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
    Đo trên máy thật: cục ICT L70 nói với ghế bằng SERIAL 4800 8E1 (khung 81 4X),
@@ -1781,6 +1788,9 @@ void setup(){
   /* IO21 = đèn nền TFT (giữ nguyên). Wire B (đọc 3E/5E/02 để báo lỗi 'qr') đã dời
      sang IO34 QUA ADuM1201 — ngõ vào cao-trở nên KHÔNG làm rớt ICT như mạch MOSFET.
      Xem cong_tien.h (WIRE_B_RX=34). */
+#if DO_IO34
+  pinMode(IO34_PIN, INPUT);   // dò tín hiệu đầu điều khiển ghế (rx/tx) để biết ghế chạy/tắt
+#endif
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CASH_PULSE_PIN), onCashPulse, FALLING); }
@@ -1827,6 +1837,21 @@ void loop(){
   mdbTask();
   congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
+
+#if DO_IO34
+  { static uint32_t _t34 = 0; static int _lv34 = -1;
+    if(millis() - _t34 > 500){ _t34 = millis();
+      int lv = digitalRead(IO34_PIN);
+      uint32_t canh = 0; int p = lv; uint32_t e = millis() + 200;   // đếm cạnh trong 200ms
+      while((int32_t)(e - millis()) > 0){ int m = digitalRead(IO34_PIN); if(m != p){ canh++; p = m; } }
+      if(lv != _lv34 || canh > 5){ _lv34 = lv;
+        Serial.printf("[IO34] muc=%d canh/200ms=%lu %s (ghe: %s)\n", lv, (unsigned long)canh,
+          canh > 40 ? "DATA?" : canh == 0 ? "MUC on dinh" : "it canh",
+          state==ST_RUNNING ? "DANG CHAY" : state==ST_CAMON ? "cam on" : "tat/ranh");
+      }
+    }
+  }
+#endif
 
   /* Hết màn cảm ơn -> PHÓNG TO đồng hồ (chuyển sang màn đếm ngược). runUntil ĐÃ đặt
      ở henChay (canh mốc ghế đếm) nên KHÔNG đặt lại — số hiện ra đã trừ đúng phần qua. */
