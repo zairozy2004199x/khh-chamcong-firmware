@@ -466,6 +466,74 @@ t( 'vẫn giữ hướng dẫn tải tay', false !== strpos( $src_ad, 'File Mana
 t( 'và nói rõ nếu hosting chặn thì dùng cách tay',
 	false !== strpos( $src_ad, 'chặn máy chủ ra internet' ) );
 
+/* ============================================ 12. MÀN "KHUÔN MẶT" TRONG WP-ADMIN
+ *
+ * 🔴 KHÔNG CÓ MÀN NÀY THÌ CẢ TÍNH NĂNG VÔ DỤNG. Hệ thống mặc định chạy im — so, ghi số, không
+ * gắn cờ — với ý là vài tuần sau đọc số rồi mới chọn ngưỡng. Mà không có chỗ đọc thì nó im mãi
+ * mãi, và mọi thứ đã làm chỉ là một bảng dữ liệu không ai mở. Suýt nữa đúng như vậy: `thong_ke()`
+ * viết xong rồi mà không màn nào gọi tới.
+ */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$_GET = array(); $_POST = array();
+/* Mục 4c bật chế độ gắn cờ để thử cờ — trả về mặc định trước khi soi màn hình, không thì phép
+   thử này đo đúng cái mục kia vừa đặt chứ không đo mặc định. */
+update_option( 'vhcc_mat_che_do', 'im' );
+ob_start(); VHCC_Man::trang_mat(); $h_mat = ob_get_clean();
+
+t( 'màn vẽ được', strlen( $h_mat ) > 500 );
+t( 'nhắc đang chạy IM', strpos( $h_mat, 'Đang chạy IM' ) !== false, substr( $h_mat, 0, 400 ) );
+t( 'và chỉ đường sang Cài đặt để bật cờ', strpos( $h_mat, 'page=vhcc' ) !== false );
+t( 'có bảng phân bố', strpos( $h_mat, 'phân bố' ) !== false );
+t( 'nói rõ ngưỡng nằm ở chỗ hai đám tách nhau',
+	strpos( $h_mat, 'tách khỏi cái đuôi' ) !== false );
+t( 'có danh sách lượt lệch nhất để mở ảnh ra xem',
+	strpos( $h_mat, 'lệch nhất' ) !== false );
+t( 'có bảng mẫu khuôn mặt', strpos( $h_mat, 'Mẫu khuôn mặt' ) !== false );
+t( 'cảnh báo mẫu chưa duyệt vẫn được dùng để so',
+	strpos( $h_mat, 'vẫn được dùng để '  ) !== false );
+t( 'và nói rõ hậu quả nếu mẫu bắt nhầm mặt', strpos( $h_mat, 'ngược' ) !== false );
+
+/* 🔴 MỖI DÒNG MỘT <form> RIÊNG. Gộp cả bảng vào một form thì mọi ô ẩn `ma_nv` cùng được gửi
+   lên, và máy chủ đọc cái CUỐI — bấm "Xoá mẫu" ở dòng đầu lại xoá mẫu của dòng cuối. */
+$so_form = substr_count( $h_mat, '<form method="post"' );
+$so_ma   = substr_count( $h_mat, 'name="ma_nv"' );
+t( 'mỗi dòng mẫu có form riêng', $so_form >= $so_ma && $so_ma > 0, "form=$so_form ma_nv=$so_ma" );
+t( 'xoá mẫu có hỏi lại', strpos( $h_mat, 'confirm(' ) !== false );
+
+/* Bật chế độ gắn cờ thì màn phải NÓI KHÁC — người mở màn cần biết ngay đang ở chế độ nào. */
+update_option( 'vhcc_mat_che_do', 'co' );
+ob_start(); VHCC_Man::trang_mat(); $h_mat2 = ob_get_clean();
+t( 'chế độ gắn cờ thì báo khác hẳn', strpos( $h_mat2, 'Đang GẮN CỜ THẬT' ) !== false );
+t( 'và in ra ngưỡng đang dùng', strpos( $h_mat2, (string) VHCC_Mat::nguong_lech() ) !== false );
+update_option( 'vhcc_mat_che_do', 'im' );
+
+/* Duyệt / xoá qua màn hình, không phải gọi thẳng hàm. */
+$ma_thu = VHCC_Mat::ds( array( 'role' => 'Admin' ), 'cho' );
+if ( $ma_thu ) {
+	$ma_1 = $ma_thu[0]['ma_nv'];
+	$_POST = array( 'vhcc_mat_viec' => 'duyet', 'ma_nv' => $ma_1 );
+	ob_start(); VHCC_Man::trang_mat(); ob_end_clean();
+	t( 'bấm Duyệt trên màn thì mẫu đổi trạng thái',
+		'duyet' === VHCC_Mat::mau( $ma_1 )['trang_thai'], $ma_1 );
+	$_POST = array( 'vhcc_mat_viec' => 'xoa', 'ma_nv' => $ma_1 );
+	ob_start(); VHCC_Man::trang_mat(); ob_end_clean();
+	t( 'bấm Xoá trên màn thì mẫu biến mất', null === VHCC_Mat::mau( $ma_1 ) );
+}
+$_POST = array(); $_GET = array();
+
+/* Menu phải khai màn này, kèm số chờ duyệt — mẫu chưa duyệt nằm im trong một tab không ai mở
+   thì nó vẫn được dùng để so, và nếu chính tấm mẫu ấy bắt nhầm mặt thì hệ thống gắn cờ ngược
+   suốt mà không ai biết. */
+$GLOBALS['VHCP_MENU'] = array();
+VHCC_Admin::menu();
+t( 'menu có màn Khuôn mặt', isset( $GLOBALS['VHCP_MENU']['vhcc-mat'] ),
+	array_keys( (array) $GLOBALS['VHCP_MENU'] ) );
+t( 'và hàm vẽ gọi được',
+	isset( $GLOBALS['VHCP_MENU']['vhcc-mat'] ) && is_callable( $GLOBALS['VHCP_MENU']['vhcc-mat']['cb'] ) );
+$src_man = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-man.php' );
+t( 'nhãn menu hiện số mẫu chờ duyệt', false !== strpos( $src_man, 'pending-count' )
+	&& false !== strpos( $src_man, "VHCC_Mat::dem()['cho']" ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

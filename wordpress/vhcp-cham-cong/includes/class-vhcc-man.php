@@ -29,6 +29,187 @@ class VHCC_Man {
 			$cap, 'vhcc-yeu-cau', array( __CLASS__, 'trang_yeu_cau' ) );
 		add_submenu_page( $goc, 'Cấu hình lương', 'Cấu hình lương', $cap,
 			'vhcc-cf-luong', array( __CLASS__, 'trang_cf_luong' ) );
+
+		/* Số mẫu khuôn mặt CHỜ DUYỆT hiện ngay trên menu — cùng lý do với số yêu cầu chờ:
+		   mẫu chưa duyệt nằm im trong một tab không ai mở thì nó vẫn được dùng để so, và nếu
+		   chính tấm mẫu ấy bắt nhầm mặt thì hệ thống gắn cờ ngược suốt mà không ai biết. */
+		$cho_mat = 0;
+		try { $cho_mat = (int) VHCC_Mat::dem()['cho']; } catch ( Exception $e ) { $cho_mat = 0; }
+		add_submenu_page( $goc, 'Khuôn mặt',
+			'Khuôn mặt' . ( $cho_mat > 0
+				? ' <span class="awaiting-mod"><span class="pending-count">' . $cho_mat . '</span></span>'
+				: '' ),
+			$cap, 'vhcc-mat', array( __CLASS__, 'trang_mat' ) );
+	}
+
+	/**
+	 * MÀN KHUÔN MẶT — duyệt mẫu, và đọc số để chọn ngưỡng.
+	 *
+	 * 🔴 KHÔNG CÓ MÀN NÀY THÌ CẢ TÍNH NĂNG VÔ DỤNG. Hệ thống mặc định chạy im: so, ghi số,
+	 *    không gắn cờ — với ý là vài tuần sau đọc số rồi mới chọn ngưỡng. Mà không có chỗ đọc
+	 *    thì nó im mãi mãi, và mọi thứ đã làm chỉ là một bảng dữ liệu không ai mở.
+	 */
+	public static function trang_mat() {
+		if ( ! current_user_can( VHCC_Admin::CAP ) ) { wp_die( 'Không đủ quyền.' ); }
+		$u   = VHCC_Admin::toi();
+		$bao = array();
+
+		if ( isset( $_POST['vhcc_mat_viec'] ) ) {
+			check_admin_referer( 'vhcc_mat_man' );
+			$viec = sanitize_text_field( wp_unslash( $_POST['vhcc_mat_viec'] ) );
+			$ma   = isset( $_POST['ma_nv'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_nv'] ) ) : '';
+			if ( 'duyet' === $viec )    { $bao[] = VHCC_Mat::duyet( $u, $ma ); }
+			elseif ( 'xoa' === $viec )  { $bao[] = VHCC_Mat::xoa( $u, $ma ); }
+			elseif ( 'duyet_het' === $viec ) {
+				/* Duyệt hàng loạt: có 240 người, bắt bấm 240 lần là không ai làm. Nhưng CHỈ
+				   duyệt những mẫu đang hiện, và nói rõ số — "duyệt tất" mà không biết tất là
+				   bao nhiêu thì đó là bấm bừa. */
+				$so = 0;
+				foreach ( VHCC_Mat::ds( $u, 'cho' ) as $m ) {
+					if ( ! empty( VHCC_Mat::duyet( $u, $m['ma_nv'] )['ok'] ) ) { $so++; }
+				}
+				$bao[] = array( 'ok' => true, 'so' => $so );
+			}
+		}
+
+		$loc = isset( $_GET['loc'] ) ? sanitize_text_field( wp_unslash( $_GET['loc'] ) ) : 'cho';
+		if ( ! in_array( $loc, array( 'cho', 'duyet', 'het' ), true ) ) { $loc = 'cho'; }
+		$ds  = VHCC_Mat::ds( $u, 'het' === $loc ? '' : $loc );
+		$dem = VHCC_Mat::dem();
+		$tk  = VHCC_Mat::thong_ke( $u );
+
+		echo '<div class="wrap"><h1>Khuôn mặt</h1>';
+		self::bao( $bao );
+
+		/* ---- Nhắc chế độ đang chạy: đây là thứ quyết định màn này có nghĩa gì ---- */
+		if ( 'im' === VHCC_Mat::che_do() ) {
+			echo '<div class="notice notice-info"><p><b>Đang chạy IM.</b> Hệ thống vẫn so và ghi '
+				. 'số, nhưng <b>chưa gắn cờ nào</b>. Đọc bảng phân bố bên dưới sau vài tuần, chọn '
+				. 'ngưỡng theo số đo được, rồi mới bật "Gắn cờ thật" ở '
+				. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc' ) ) . '">Cài đặt</a>.</p></div>';
+		} else {
+			echo '<div class="notice notice-warning"><p><b>Đang GẮN CỜ THẬT</b> với ngưỡng '
+				. esc_html( (string) VHCC_Mat::nguong_lech() ) . '. Cờ vào màn '
+				. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc-cham' ) ) . '">Bảng chấm công</a>.</p></div>';
+		}
+
+		/* ================================ BẢNG PHÂN BỐ ================================ */
+		echo '<h2>Lệch bao nhiêu — phân bố</h2>';
+		if ( empty( $tk['ok'] ) || ! $tk['tong'] ) {
+			echo '<p>Chưa có lượt nào được đối chiếu. Cần nhân viên chấm công vài lượt đã — '
+				. 'lượt đầu của mỗi người là để <i>lấy mẫu</i>, từ lượt thứ hai mới có số để so.</p>';
+		} else {
+			echo '<p>Đã đối chiếu <b>' . (int) $tk['tong'] . '</b> lượt.</p>';
+			echo '<table class="widefat striped" style="max-width:640px"><thead><tr>'
+				. '<th style="width:120px">Lệch</th><th style="width:90px">Số lượt</th>'
+				. '<th></th></tr></thead><tbody>';
+			$dinh = 1;
+			foreach ( $tk['o'] as $so_o ) { $dinh = max( $dinh, (int) $so_o ); }
+			foreach ( $tk['o'] as $khoang => $so_o ) {
+				$tu  = (float) $khoang;
+				$mau = ( $tu < VHCC_Mat::D_KHOP ) ? '#1a7f37' : ( $tu < VHCC_Mat::D_LECH ? '#bd8600' : '#b32d2e' );
+				echo '<tr><td>' . esc_html( number_format( $tu, 2 ) ) . ' – '
+					. esc_html( number_format( $tu + 0.05, 2 ) ) . '</td>'
+					. '<td><b>' . (int) $so_o . '</b></td>'
+					/* Vẽ cột bằng một ô màu: nhìn hình thấy ngay hai đám tách nhau ở đâu, còn
+					   đọc cột số thì phải tự dựng hình trong đầu. */
+					. '<td><span style="display:inline-block;height:14px;background:' . esc_attr( $mau )
+					. ';width:' . (int) round( 100 * $so_o / $dinh ) . '%"></span></td></tr>';
+			}
+			echo '</tbody></table>';
+			echo '<p class="description" style="max-width:900px">Xanh = gần như chắc chắn cùng một '
+				. 'người · Vàng = vùng <i>không biết</i> · Đỏ = gần như chắc chắn hai người khác nhau. '
+				. '<b>Ngưỡng đúng nằm ở chỗ đám đông xanh tách khỏi cái đuôi thưa</b> — không phải ở '
+				. 'con số mặc định. Nếu đám đông kéo dài sang vùng vàng thì ánh sáng ở cơ sở đang '
+				. 'kém, nới ngưỡng lên; nếu có một cái đuôi rời hẳn ra thì đó mới là chỗ đáng xem.</p>';
+
+			if ( ! empty( $tk['dau'] ) ) {
+				echo '<h3>30 lượt lệch nhất</h3>';
+				echo '<p class="description">Mở ảnh của đúng mấy lượt này ở '
+					. '<a href="' . esc_url( admin_url( 'admin.php?page=vhcc-cham' ) ) . '">Bảng chấm công</a> '
+					. 'là biết ngưỡng nên đặt ở đâu: xem chúng là người thật hay không.</p>';
+				echo '<table class="widefat striped" style="max-width:760px"><thead><tr>'
+					. '<th>Lệch</th><th>Mã NV</th><th>Ngày</th><th>Cơ sở</th><th>Kết luận</th>'
+					. '</tr></thead><tbody>';
+				foreach ( $tk['dau'] as $d_ ) {
+					echo '<tr><td><b>' . esc_html( number_format( (float) $d_['d'], 3 ) ) . '</b></td>'
+						. '<td>' . esc_html( $d_['ma_nv'] ) . '</td>'
+						. '<td>' . esc_html( (string) $d_['ngay'] ) . '</td>'
+						. '<td>' . esc_html( $d_['coso'] ) . '</td>'
+						. '<td>' . esc_html( $d_['ket_qua'] )
+						. ( ! empty( $d_['co_gan'] ) ? ' · đã gắn cờ' : '' ) . '</td></tr>';
+				}
+				echo '</tbody></table>';
+			}
+		}
+
+		/* ================================ BẢNG MẪU ================================ */
+		echo '<h2 style="margin-top:26px">Mẫu khuôn mặt</h2>';
+		echo '<p><b>' . (int) $dem['tong'] . '</b> người đã có mẫu'
+			. ( $dem['cho'] ? ', <b>' . (int) $dem['cho'] . ' chờ duyệt</b>' : '' ) . '.</p>';
+		echo '<p class="description" style="max-width:900px">⚠️ <b>Mẫu chưa duyệt vẫn được dùng để '
+			. 'so.</b> Nếu chính ngày đầu tiên ấy có người chấm hộ thì mẫu ghi lại mặt người chấm '
+			. 'hộ — và từ đó hệ thống gắn cờ <b>ngược</b>: người thật bị coi là giả. Duyệt nghĩa là '
+			. '"tôi đã mở ảnh ra xem và đúng là người này"; nghi ngờ thì <b>Xoá mẫu</b>, lượt chấm '
+			. 'sau tự lấy lại.</p>';
+
+		$url_loc = admin_url( 'admin.php?page=vhcc-mat' );
+		echo '<p>';
+		foreach ( array( 'cho' => 'Chờ duyệt', 'duyet' => 'Đã duyệt', 'het' => 'Tất cả' ) as $k_l => $ten_l ) {
+			echo '<a class="button' . ( $k_l === $loc ? ' button-primary' : '' ) . '" href="'
+				. esc_url( add_query_arg( 'loc', $k_l, $url_loc ) ) . '" style="margin-right:6px">'
+				. esc_html( $ten_l ) . '</a>';
+		}
+		echo '</p>';
+
+		if ( ! $ds ) {
+			echo '<p>Không có mẫu nào ở mục này.</p></div>';
+			return;
+		}
+
+		/* ⚠️ MỖI DÒNG MỘT <form> RIÊNG, đặt gọn trong ô cuối.
+		   Gộp cả bảng vào một form thì mọi ô ẩn `ma_nv` cùng được gửi lên, và máy chủ đọc cái
+		   cuối cùng — bấm "Xoá mẫu" ở dòng đầu lại xoá mẫu của dòng cuối. HTML cho phép <form>
+		   nằm trong <td>; chỉ không cho form lồng trong form, mà ở đây không có form bọc ngoài. */
+		echo '<table class="widefat striped" style="max-width:1000px"><thead><tr>'
+			. '<th>Mã NV</th><th>Họ tên</th><th>Cơ sở</th><th>Lấy từ</th><th>Đã gộp</th>'
+			. '<th>Trạng thái</th><th style="width:230px"></th></tr></thead><tbody>';
+		foreach ( $ds as $m ) {
+			echo '<tr><td><b>' . esc_html( $m['ma_nv'] ) . '</b></td>'
+				. '<td>' . esc_html( (string) $m['ho_ten'] ) . '</td>'
+				. '<td>' . esc_html( (string) $m['cua_hang'] ) . '</td>'
+				. '<td>' . esc_html( (string) $m['nguon_ngay'] )
+				. ( '' !== (string) $m['nguon_coso'] ? ' · ' . esc_html( $m['nguon_coso'] ) : '' ) . '</td>'
+				. '<td>' . (int) $m['so_lan'] . ' lần</td>'
+				. '<td>' . ( 'duyet' === $m['trang_thai']
+					? '<span style="color:#1a7f37">✔ đã duyệt</span>'
+						. ( '' !== (string) $m['nguoi_duyet'] ? '<br><small>' . esc_html( $m['nguoi_duyet'] ) . '</small>' : '' )
+					: '<span style="color:#bd8600">chờ duyệt</span>' ) . '</td>'
+				. '<td><form method="post" style="margin:0">'
+				. wp_nonce_field( 'vhcc_mat_man', '_wpnonce', true, false )
+				. '<input type="hidden" name="ma_nv" value="' . esc_attr( $m['ma_nv'] ) . '">'
+				. ( 'duyet' === $m['trang_thai'] ? ''
+					: '<button class="button" name="vhcc_mat_viec" value="duyet">Duyệt</button> ' )
+				. '<button class="button" name="vhcc_mat_viec" value="xoa" '
+				/* Xoá mẫu là việc lùi được (lượt sau tự lấy lại), nhưng vẫn hỏi: bấm nhầm ở
+				   dòng bên cạnh là người ta phải chấm thêm một lượt mới có mẫu. */
+				. 'onclick="return confirm(\'Xoá mẫu của ' . esc_attr( $m['ma_nv'] )
+				. '? Lượt chấm công sau sẽ tự lấy mẫu mới.\')">Xoá mẫu</button>'
+				. '</form></td></tr>';
+		}
+		echo '</tbody></table>';
+
+		if ( 'cho' === $loc && count( $ds ) > 1 ) {
+			echo '<form method="post" style="margin-top:14px" onsubmit="return confirm('
+				. '\'Duyệt tất cả ' . count( $ds ) . ' mẫu đang chờ? Chỉ bấm khi đã mở ảnh ra xem.\');">';
+			wp_nonce_field( 'vhcc_mat_man' );
+			echo '<button class="button" name="vhcc_mat_viec" value="duyet_het">Duyệt tất cả '
+				. count( $ds ) . ' mẫu đang chờ</button>';
+			echo ' <span class="description">chỉ bấm khi đã xem qua ảnh — duyệt bừa là mất luôn '
+				. 'tác dụng của việc duyệt.</span></form>';
+		}
+
+		echo '</div>';
 	}
 
 	/**
