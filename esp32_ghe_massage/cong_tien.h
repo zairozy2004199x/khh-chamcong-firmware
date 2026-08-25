@@ -120,6 +120,9 @@ private:
   }
   int _docByteB(uint32_t hetMs) {
     while (digitalRead(WIRE_B_RX) == HIGH) { if (millis() >= hetMs) return -1; }  // chờ start
+    // KHOÁ NGẮT khi lấy mẫu: bit-bang trên ESP32 (có 4G/hệ thống) bị ngắt làm lệch
+    // nhịp -> ra rác. Chỉ khoá ~2ms/byte nên không hại 4G.
+    noInterrupts();
     uint32_t t0 = micros();
     const long BIT = 208;
     uint8_t v = 0;
@@ -128,6 +131,7 @@ private:
       if (digitalRead(WIRE_B_RX)) v |= (uint8_t)(1u << i);
     }
     while ((long)(micros() - t0) < BIT + BIT / 2 + BIT * 9) { }
+    interrupts();
     return v;
   }
 

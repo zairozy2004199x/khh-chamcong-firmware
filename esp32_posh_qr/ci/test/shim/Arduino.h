@@ -82,6 +82,8 @@ inline uint32_t millis() { return _gioAo(); }
 inline void delay(uint32_t ms) { _gioAo() += ms; }
 inline void delayMicroseconds(uint32_t) {}
 inline void yield() {}
+inline void noInterrupts() {}
+inline void interrupts() {}
 inline void pinMode(int, int) {}
 inline void digitalWrite(int, int) {}
 inline int  digitalRead(int) { return 1; }
