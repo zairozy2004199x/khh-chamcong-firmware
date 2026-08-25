@@ -80,7 +80,7 @@
  *    ⚠️ Giữ baud ≤ 38400. Ra rác hay bit dính thì ĐỪNG sửa phần mềm — hạ baud
  *       trước, vẫn vậy thì đổi sang ADuM1201 (hoặc TXB0104 / SN74LVC2T45).
  *
-*  ─── TÀI LIỆU L-SERIES CHO BIẾT (đọc từ Installation Guide) ──────────────────
+ *  ─── TÀI LIỆU L-SERIES CHO BIẾT (đọc từ Installation Guide) ──────────────────
  *  L70 có nhiều kiểu đầu ra, hai kiểu hay gặp:
  *    • Pulse: đầu ra tiền là CẶP TIẾP ĐIỂM KHÔ cách ly quang (Credit_Relay_NO/COM),
  *      khách kéo lên qua 4K7. Mỗi tờ = vài nhịp đóng tiếp điểm. KHÔNG có byte.
@@ -90,6 +90,33 @@
  *  TTL 5V này khớp với con HT245 5V đo được trên bo.
  *  Vì chưa biết bo đang chạy kiểu nào, lệnh XUNG (đo bề rộng cạnh) phân biệt trước:
  *  hẹp cỡ micro giây = UART; rộng cỡ chục mili giây = xung tiền, khỏi cần khung lệnh.
+ *
+ *  ─── ĐỌC MÃ CÁP LÀ BIẾT CHẾ ĐỘ (xem nhãn in trên sợi cáp, khỏi cần đo) ───────
+ *    WEL-RL702                 -> Pulse (xung tiền, khỏi khung lệnh)
+ *    WEL-RL705-1 / 2-BA-RL705  -> Pulse HOẶC RS232 A0 (dùng chung cáp -> còn phải
+ *                                 phân biệt bằng lệnh XUNG hoặc xem công tắc DIP)
+ *    WEL-RL703                 -> ICT (RS232) — serial
+ *    WEL-RL701                 -> Parallel A1 (song song nhiều dây)
+ *    5RBA-RAB248MX             -> ccTalk — serial
+ *  Tất cả đều ăn nguồn 12V DC.
+ *
+ *  ─── SƠ ĐỒ CHÂN ĐẦU NỐI (FIG 06) ───────────────────────────────────────────
+ *  HAI đầu ra, mức KHÁC nhau — đấu vào đầu nào là chuyện sống còn:
+ *    D-SUB 9 chân (RS-232 THẬT): chân 2=TXD, chân 3=RXD, chân 5=GND
+ *    Molex TMT 2x4 (nhiều khả năng TTL): 1 xanh dương=GND, 6 trắng=Download VCC,
+ *                                        8 đen=RX1, tím=TX1
+ *
+ *  ⚠️⚠️ CÓ THỂ CHÁY CHÂN ESP32 — ĐO TRƯỚC KHI CẮM.
+ *     Bản L70T-P5 / L77T-P5 (RS232 A0 & V2.2, FIG 07) là RS-232 THẬT: mức lưỡng
+ *     cực, idle ở ĐIỆN ÁP ÂM (-5..-12V), logic ĐẢO. Chân ESP32 chịu 0..3,3V,
+ *     ADuM1201 cũng không nuốt được điện áp âm -> cắm thẳng là hỏng chân, âm thầm.
+ *       Bản -P5 / đầu DB9  ->  L70 (RS-232) ──► MAX3232 ──► ESP32 (TTL 3,3V)
+ *     MAX3232 lo cả hai: hạ mức lưỡng cực VÀ đảo logic về đúng chiều, nên sau nó
+ *     phần mềm coi như UART thường, KHÔNG cần đảo bit trong code.
+ *     PHÂN BIỆT: đo chân TX so với mass LÚC NGHỈ.
+ *       ÂM (-5..-12V)      -> RS-232 thật -> BẮT BUỘC MAX3232
+ *       DƯƠNG ~5V đứng yên -> TTL          -> ADuM1201 / mạch chuyển mức như trên
+ *     Đo ra âm là DỪNG, đừng cắm gì vào ESP32 cho tới khi có MAX3232.
  *
  *  ─── DÙNG ───────────────────────────────────────────────────────────────────
  *    Cắm USB, mở Serial Monitor 115200, gõ  TRO  để xem bảng lệnh.
