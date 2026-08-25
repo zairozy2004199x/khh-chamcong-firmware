@@ -315,6 +315,18 @@ void xuLyMa(const String& tho) {
 }
 
 /* ============================================================================
+ *  BO GHẾ TỰ GỬI TIN — không phải trả lời lệnh nào của mình
+ * ----------------------------------------------------------------------------
+ *  Đây là chỗ để móc thêm khi đã biết bo nói gì. Ví dụ bo báo "hết giờ" thì đặt
+ *  g_dangChay = false ở đây, thay vì để hộp tự đếm bằng đồng hồ của nó.
+ *  Chưa biết giao thức thì CHỈ GHI LẠI, đừng đoán ý nghĩa — đoán sai thì ghế dừng
+ *  giữa chừng mà nhân viên không hiểu vì sao.
+ * ========================================================================== */
+void xuLyKhungTuBo(const KhungIct& k) {
+  ghiNhatKy("📥 bo ghế tự gửi: " + IctGhe::moTaKhung(k));
+}
+
+/* ============================================================================
  *  BẢNG LỆNH GÕ QUA CỔNG USB — chỗ dò tín hiệu bo ghế
  * ========================================================================== */
 void inTro() {
@@ -389,7 +401,14 @@ void ngheLenhUsb() {
     else if (lenh == "NGHE") { uint32_t g = tham.toInt(); ict.nghe((g ? g : 10) * 1000UL); }
     else if (lenh == "BAUD") { long b = tham.toInt();
                                if (b < 300 || b > 921600) Serial.println("baud khong hop ly");
-                               else { ict.doiBaud(b); prefs.putLong("ictBaud", b); } }
+                               else { ict.doiBaud(b); prefs.putLong("ictBaud", b);
+                                 /* Mạch chuyển mức loại BSS138 kéo mức cao bằng trở 10k nên sườn
+                                    xung ì. Baud cao + dây dài = bit bo tròn, lỗi lác đác chứ không
+                                    chết hẳn — nhắc ngay lúc đặt cho khỏi mất buổi đi mò. */
+                                 if (b > 38400) Serial.println(
+                                   "[!] Baud > 38400: neu dang qua mach chuyen muc loai BSS138 (tro keo 10k)\n"
+                                   "    thi suon xung se i -> loi lac dac. Ha ve 9600-38400, hoac doi sang\n"
+                                   "    loai day doi xung (TXB0104 / SN74LVC2T45)."); } }
     else if (lenh == "KHUNG"){ int k = tham.toInt();
                                if (k != 1 && k != 2) Serial.println("chi co KHUNG 1 hoac KHUNG 2");
                                else { ict.doiChe((uint8_t)k); prefs.putUChar("ictChe", (uint8_t)k); } }
@@ -575,6 +594,9 @@ void loop() {
   dns.processNextRequest();
   server.handleClient();
   ngheLenhUsb();
+
+  // Bộ thu của bo ghế chạy nền: tin bo TỰ GỬI cũng không rơi mất.
+  if (ict.chay()) { while (ict.coKhungMoi()) xuLyKhungTuBo(ict.layKhung()); }
 
   String ma = quet.doc();
   if (ma.length()) xuLyMa(ma);

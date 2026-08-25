@@ -83,6 +83,8 @@ inline void pinMode(int, int) {}
 inline void digitalWrite(int, int) {}
 inline int  digitalRead(int) { return 1; }
 inline bool isHexadecimalDigit(char c) { return isxdigit((unsigned char)c) != 0; }
+inline unsigned long pulseIn(int, int, unsigned long) { return 104; }   // ~9600 baud
+inline uint32_t micros() { return _gioAo() * 1000; }
 #define INPUT 0
 #define OUTPUT 1
 #define INPUT_PULLUP 2

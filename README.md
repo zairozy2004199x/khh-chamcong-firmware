@@ -20,13 +20,14 @@ repo này vẫn chạy bình thường, không phải tới tận nơi khai lạ
 CI có bước chặn cứng: quét file `.bin` tìm dấu vết bí mật (`AKfycb`, `default-rtdb`, `firebaseio`, …),
 thấy là **dừng, không phát hành**.
 
-## Ba firmware trong repo
+## Bốn firmware trong repo
 
 | Thư mục | Việc |
 |---|---|
 | `esp32_hik_chamcong_full/` | **Máy chính** — đọc sự kiện quẹt thẻ/khuôn mặt từ đầu đọc Hikvision (ISAPI), đẩy lên web app kèm ảnh, đồng bộ nhân viên xuống máy, màn hình CYD, hỗ trợ cả WiFi lẫn 4G |
 | `esp32_ota_updater/` | **Máy trạm ("thợ nạp")** — tự tải `.bin` mới về thẻ nhớ cắm sẵn qua WiFi; đứng gần máy chính rồi **bấm** mới nạp |
 | `esp32_posh_qr/` | **Hộp POSH QR** — mở ghế massage bằng mã QR: quét mã → kiểm chữ ký ngay trên chip (không cần mạng) → gửi lệnh UART sang bo ICT của ghế |
+| `esp32_cau_ict/` | **Cầu nghe lén** (mạch tạm) — ESP32 ngồi giữa `ICT L70 ⇄ ghế`, chuyển tiếp trong suốt hai chiều và chép lại từng byte. Dùng để **học giao thức**, không nằm trong máy chạy thật |
 
 ### Hộp POSH QR
 
@@ -74,6 +75,25 @@ bash esp32_posh_qr/ci/kiem-bien-dich.sh  # biên dịch kiểm cả sketch bằn
 ```
 
 Sinh mã QR để thử: `python3 esp32_posh_qr/ci/tao-ma-qr.py --khoa "$KHOA" --may GHE-01 --phut 15`
+
+### Cầu nghe lén ICT L70 ⇄ ghế (mạch tạm)
+
+```
+Ghế  ⇄  TXS0108E  ⇄  [ ESP32 ]  ⇄  TXS0108E  ⇄  ICT L70
+                        │
+                     USB → Serial Monitor 115200
+```
+
+Đầu bán tiền ICT L70 và bo ghế đã nói chuyện đúng giao thức của chúng từ trước. Ngồi đoán khung
+lệnh là tự nghĩ ra một thứ rồi mong nó trùng; ngồi giữa mà chép thì có **đúng** cái bo ghế chịu
+nghe — cả checksum, cả nhịp hỏi đáp. Sau này thay hẳn L70 thì chỉ việc phát lại y như vậy.
+
+Cắm USB, gõ `QUYTRINH` — nó chạy tuần tự các bước nghiệm thu và dừng lại ngay chỗ hỏng. Lệnh
+đáng chú ý: `DOBAUD` đo baud bằng **bề rộng xung** (đo thật, không phải thử từng tốc độ rồi
+đoán), `BANG <hex>` bắn khung sang phía ghế để giả làm L70, `CAT`/`NOI` để cắt cầu.
+
+⚠️ **Chân OE của TXS0108E có trở kéo xuống bên trong — để hở là cả mạch TẮT**, không byte nào
+qua được và không có dấu hiệu báo lỗi nào. Phải nối OE lên 3,3V. Đây là chỗ vấp kinh điển.
 
 ## Phát hành
 

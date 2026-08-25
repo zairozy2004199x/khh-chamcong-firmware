@@ -41,82 +41,64 @@
  *  hai chiều). Biết điều này thì phải xử 4 việc, cái nào bỏ qua cũng ra đúng một
  *  triệu chứng: "gửi mà ghế không nhúc nhích".
  *
- *  1) ⚠️ CON ĐỆM TRÊN BO NÀY CHẠY VCC 5V (đã đo chân 20 so với chân 10).
- *     Kéo theo hai việc, đừng bỏ việc nào:
+ *  1) ⚠️ CON ĐỆM TRÊN BO NÀY CHẠY VCC 5V (đã đo chân 20 so với chân 10), mà ESP32
+ *     chạy 3,3V. Hai bên KHÔNG nói chuyện thẳng với nhau được. ĐÃ CHỌN CÁCH XỬ:
+ *     dùng MẠCH CHUYỂN MỨC LOGIC 3,3V ↔ 5V, loại 4 kênh dùng BSS138 (bán đầy, rẻ).
  *
- *     a) CHIỀU BO → ESP32: BẮT BUỘC chia áp. Đầu ra của HT245 đánh 0–5V, mà chân
- *        ESP32 chỉ chịu tới ~3,6V. Cắm thẳng là hỏng chân — và hỏng ÂM THẦM, chạy
- *        được vài hôm rồi chết dần, nên đừng "thử tạm một lát xem sao".
+ *     Chọn vậy là dứt điểm được cả hai chiều cùng lúc, và tránh được câu hỏi không
+ *     trả lời nổi là con đệm đó thuộc loại ngưỡng vào nào (xem ghi chú "VÌ SAO KHÔNG
+ *     ĐI ĐƯỜNG KHÁC" bên dưới).
  *
- *            HT245 (ra) ──[ 1kΩ ]──┬── chân RX của ESP32
- *                                  │
- *                                [ 2kΩ ]
- *                                  │
- *                                 GND (chung với chân 10 của HT245)
+ *     ─── ĐẤU DÂY ───────────────────────────────────────────────────────────────
  *
- *        5V × 2/(1+2) = 3,33V. Dùng 1k/2k chứ đừng 10k/20k: trở càng lớn sườn xung
- *        càng ì, baud cao là méo.
+ *       ESP32              Mạch chuyển mức            Bo ghế
+ *       ─────              ───────────────            ──────
+ *       3V3   ───────────  LV
+ *       GND   ───────────  GND  ───────────────────── GND  (chân 10 của HT245)
+ *                          HV   ───────────────────── 5V   (chân 20 của HT245)
+ *       GPIO17 (TX) ─────  LV1      HV1 ────────────  đầu VÀO của HT245
+ *       GPIO16 (RX) ─────  LV2      HV2 ────────────  đầu RA  của HT245
  *
- *     b) CHIỀU ESP32 → BO: PHẢI ĐO MỚI BIẾT, ĐỪNG ĐOÁN THEO CHỮ IN TRÊN CHIP.
+ *     BỐN CHỖ SAI THƯỜNG GẶP, cái nào cũng ra đúng một triệu chứng "gửi mà im":
  *
- *        Con chip in đúng ba dòng:  HT245 / 85KG4 / ALQT  (chip dán, vỏ TSSOP-20).
- *        Chữ "HC" KHÔNG hề có trên đó, và "HT245" thì được dùng cho CẢ HAI loại:
- *            • nhiều hãng Trung Quốc in "HT245" cho hàng tương đương 74HC245;
- *            • TI rút gọn "HCT245" thành "HT245" cho vừa vỏ nhỏ (đuôi G4 ở dòng
- *              giữa là hậu tố chì-xanh của TI, hợp với khả năng này).
- *        Mà đúng cái chữ bị lược đi lại là chữ quyết định:
- *            74HC245  ở 5V -> ngưỡng vào 3,5V  -> ESP32 3,3V KHÔNG ĐỦ
- *            74HCT245 ở 5V -> ngưỡng vào 2,0V  -> ESP32 3,3V THỪA SỨC
+ *       • THIẾU MỘT TRONG HAI NGUỒN. Mạch phải có CẢ LV (3,3V) lẫn HV (5V) thì mới
+ *         sống. Quên cắm HV là cả mạch câm, mà nhìn thì chẳng thấy gì bất thường.
+ *       • LỆCH SỐ KÊNH. LV1 chỉ thông với HV1, LV2 với HV2. Cắm LV1 sang HV2 là
+ *         không có đường nào thông cả.
+ *       • MASS KHÔNG CHUNG ĐỦ BA BÊN. ESP32, mạch chuyển mức, bo ghế — cả ba phải
+ *         chung một mass.
+ *       • BỎ QUÊN CHIA ÁP CŨ. Nếu trước đó đã lắp 1k/2k thì THÁO RA. Để lại là chia
+ *         áp thêm lần nữa, mức tụt xuống còn ~2,2V, lại thành thiếu ngưỡng.
  *
- *        ⚠️ Đây là chỗ dễ đi sai nhất trong cả việc này, nên nói thẳng: soi chữ trên
- *           chip KHÔNG kết luận được. Tra mã trên mạng CÀNG KHÔNG.
- *           Đã thử tra: trang bán hàng cho "74HC245" ghi mục "IC thu phát thay thế:
- *           MCP2551, MCP2515" — hai con đó là chip CAN bus, chẳng dính gì tới bộ đệm
- *           bus 8 kênh. Trang ghép nội dung máy móc, không phải datasheet. Chính mấy
- *           trang kiểu đó gán "HT245 = 74HC245" cho mọi con hình dạng giống nhau, và
- *           đó đúng là đường mà HCT bị gọi nhầm thành HC.
- *           Có ĐÚNG MỘT con số trên trang đó dùng được, vì nó khớp datasheet thật:
- *           "điện áp đầu vào tối đa 4,2V" chính là VIH của họ 74HC ở VCC 6V (0,7 × 6).
- *           Nó xác nhận quy tắc VIH = 0,7 × VCC -> ở VCC 5V là 3,5V. Nhưng đó là số
- *           của HỌ HC, không trả lời được con trên bo có phải HC hay không.
+ *     ⚠️ GIỮ BAUD ≤ 38400. Loại BSS138 kéo mức cao bằng trở 10k nên sườn xung ì.
+ *        9600 (mặc định của firmware này) thì thoải mái; ham 115200 với dây dài là
+ *        bit bị bo tròn, sinh lỗi lác đác — đúng kiểu khó truy nhất.
+ *        Cần 115200 thì phải đổi sang loại đẩy đối xứng: TXB0104 hoặc SN74LVC2T45.
+ *     ⚠️ ĐỪNG mua TXS0108E cho việc này. Con đó sinh ra cho I2C (hở cực máng); ghép
+ *        với UART đẩy đối xứng thì hay dở chứng.
  *
- *        ĐO 30 GIÂY LÀ XONG. Nối chân TX của ESP32 vào đầu vào HT245 (GND chung), gõ
- *        GIU 1 rồi đo đầu ra tương ứng của HT245 so với mass:
- *            ra ~5V  -> ngưỡng thấp (HCT). NỐI THẲNG ĐƯỢC, không cần thêm mạch nào.
- *            ra ~0V  -> ngưỡng cao (HC). PHẢI nâng mức, xem ba cách bên dưới.
- *            ra lửng lơ 1–4V -> vùng chập chờn, cũng coi như phải nâng mức.
- *        Gõ GIU 0 đo lại phải ra ~0V; không đổi gì là chưa nối đúng chân, hoặc con
- *        245 đang bị vô hiệu (OE mức cao), hoặc sai chiều DIR.
+ *     ─── LẮP XONG PHẢI KIỂM, ĐỪNG TIN LUÔN ─────────────────────────────────────
+ *       1. GIU 1  -> đo HV1 (phía 5V) so với mass: phải ~5V.
+ *          GIU 0  -> phải ~0V.  Không đổi gì = sai kênh, thiếu nguồn HV, hoặc con
+ *          245 đang bị vô hiệu (OE mức cao) / sai chiều DIR.
+ *          GIU    -> thả chân ra.
+ *       2. DAY    -> mức nghỉ chân RX phải ~100% ở mức CAO.
+ *       3. Khép kín đường đi rồi TUKIEM 200. Phải đúng 200/200. Một lần đúng KHÔNG
+ *          nói lên gì — lỗi mức điện áp và lỗi sườn xung đều chỉ lộ ra khi chạy nhiều.
  *
- *        ⚠️ KHÔNG ĐO ĐƯỢC mà cần lắp ngay thì CỨ COI NHƯ LÀ HC và lắp mạch nâng mức.
- *           Lắp thừa chỉ tốn mấy nghìn tiền linh kiện. Lắp thiếu thì đổi lại bằng
- *           kiểu hỏng đắt nhất: nó KHÔNG chết hẳn, nó chỉ SAI THỈNH THOẢNG — trên
- *           bàn thử chạy ngon, lắp vào ghế ấm lên vài độ là rớt lượt lác đác, mà lúc
- *           đó chẳng ai còn nghĩ tới điện áp nữa, chỉ ngồi đổ cho baud với khung lệnh.
- *
- *        NẾU PHẢI NÂNG MỨC — ba cách, xếp theo độ sạch:
- *
- *        1. ĐỔI CON ĐÓ THÀNH 74HCT245 (cùng vỏ dán, chân y hệt, cũng ăn 5V). Chữ T
- *           nghĩa là ngưỡng vào 2,0V — sinh ra đúng để nhận tín hiệu mức thấp thế này.
- *           Đổi xong nối thẳng, không thêm mạch nào, phía bo ICT vẫn đẩy 5V bình
- *           thường. Sạch nhất, nếu được phép sửa bo của họ.
- *
- *        2. MODULE CHUYỂN MỨC LOGIC 3,3V ↔ 5V (loại 4 kênh dùng BSS138, bán đầy).
- *           Không phải đụng vào bo của họ, và nó lo LUÔN chiều ngược lại nên bỏ được
- *           cái chia áp 1k/2k ở mục (a).
- *           ⚠️ Loại này kéo mức cao bằng trở 10k nên sườn xung ì. Dùng nó thì giữ
- *              baud ≤ 38400, đừng ham 115200 — nhất là khi dây dài.
- *
- *        3. SN74LVC2T45 hoặc 74HCT1G125. Đẩy đối xứng, chạy 115200 vô tư, chuẩn nhất
- *           về mặt tín hiệu. Đổi lại là phải hàn.
- *
- *        ❌ ĐỪNG dùng mẹo "cho chân ESP32 sang chế độ hở cực máng rồi treo trở lên 5V".
- *           Mẹo đó chỉ đúng với vi điều khiển chịu được 5V. Chân ESP32 KHÔNG chịu 5V:
- *           lúc chân thả nổi, 5V ở ngoài đi ngược qua diode bảo vệ vào nguồn 3,3V của
- *           chip. Hỏng chân, và hỏng dần.
- *
- *        LẮP XONG RỒI KIỂM LẠI: khép kín đường đi rồi gõ TUKIEM 200. Phải đúng
- *        200/200 mới tính là xong — phép đo tĩnh ở trên không bắt được ngưỡng sát nút.
+ *     ─── VÌ SAO KHÔNG ĐI ĐƯỜNG KHÁC (ghi lại cho khỏi bàn lại) ─────────────────
+ *       Con đệm in ba dòng  HT245 / 85KG4 / ALQT  (chip dán, TSSOP-20). Chữ "HC"
+ *       KHÔNG hề có trên đó, mà "HT245" được dùng cho CẢ HAI loại: nhiều hãng Trung
+ *       Quốc in vậy cho hàng tương đương 74HC245, còn TI thì rút gọn HCT245 thành
+ *       HT245 cho vừa vỏ nhỏ. Đúng cái chữ bị lược đi lại là chữ quyết định:
+ *           74HC245  @5V -> ngưỡng vào 3,5V -> ESP32 3,3V KHÔNG đủ
+ *           74HCT245 @5V -> ngưỡng vào 2,0V -> ESP32 3,3V thừa sức
+ *       Tra mã trên mạng không cứu được: trang bán hàng cho "74HC245" ghi mục "IC
+ *       thu phát thay thế: MCP2551, MCP2515" — hai con đó là chip CAN bus, chẳng
+ *       dính gì tới bộ đệm bus 8 kênh, đủ thấy trang ghép nội dung máy móc. Chính
+ *       mấy trang kiểu đó gán "HT245 = 74HC245" cho mọi con hình dạng giống nhau.
+ *       Mạch chuyển mức chạy đúng với CẢ HAI loại, nên lắp nó là khỏi phải trả lời
+ *       câu hỏi đó nữa. Đó là lý do chọn cách này chứ không phải vì nó rẻ nhất.
  *
  *  2) CHIỀU (chân DIR, số 1) VÀ CHO PHÉP (chân OE, số 19, tích cực MỨC THẤP).
  *     Một con 245 chỉ có MỘT chân DIR cho cả 8 kênh — nên hai đường đi qua nó đều bị
@@ -183,6 +165,19 @@
 #define ICT_CHO_TRA_LOI_MS  600   // đợi bo trả lời bao lâu trước khi gửi lại
 #define ICT_SO_LAN_GUI      3     // gửi lại mấy lần rồi mới chịu thua
 #define ICT_DEM_TOI_DA      64
+#define ICT_NGHI_MS         20    // dây im ngần này = hết một khung (ở 9600 một byte mất ~1ms)
+#define ICT_SO_KHUNG_NHO    6     // nhớ mấy khung gần nhất để hiện lên portal
+
+/* Một "khung" = một chùm byte bo ghế gửi tới, cắt theo khoảng lặng trên dây.
+   ⚠️ CỐ Ý cắt theo khoảng lặng chứ không theo cấu trúc khung: lúc mới đấu dây thì
+      chưa ai biết bo dùng khung kiểu gì, mà nếu bộ thu chỉ nhận đúng một dạng thì
+      mọi thứ khác nó nuốt mất — thành ra bo CÓ nói mà màn hình vẫn trắng trơn. */
+struct KhungIct {
+  uint8_t  d[ICT_DEM_TOI_DA];
+  uint8_t  n   = 0;
+  uint32_t luc = 0;      // millis lúc nhận xong
+  bool     tran = false; // dài quá cỡ, đã bị cắt
+};
 
 class IctGhe {
 public:
@@ -512,6 +507,12 @@ private:
   int      _rx = -1, _tx = -1;
   long     _baud = 9600;
   int      _oe = -1, _dir = -1;   // chân điều khiển HT245, -1 = không đấu tới
+  uint8_t  _gom[ICT_DEM_TOI_DA];
+  uint8_t  _gomN = 0;
+  bool     _gomTran = false;
+  uint32_t _byteCuoiMs = 0;
+  KhungIct _hang[ICT_SO_KHUNG_NHO];
+  uint8_t  _ghiTai = 0, _docTai = 0, _soChua = 0;
   uint8_t  _che  = ICT_CHE_NHI_PHAN;
   String   _lanCuoi = "(chua gui lenh nao)";
 
@@ -521,10 +522,16 @@ private:
     delay(20);
     _cong->begin(_baud, SERIAL_8N1, _rx, _tx);
     _cong->setTimeout(50);
+    _gomN = 0; _gomTran = false; _docTai = _ghiTai; _soChua = 0;
   }
-  /* Vứt hết byte cũ còn tồn trước khi gửi lệnh mới. Không xả thì cái "trả lời" đọc
-     được rất có thể là đuôi của lần trước -> tưởng bo còn sống trong khi nó đã treo. */
-  void _xaCong() { while (_cong && _cong->available()) _cong->read(); }
+  /* Vứt hết byte cũ CẢ trên dây LẪN trong bộ thu, trước khi gửi lệnh mới. Không xả
+     thì cái "trả lời" đọc được rất có thể là đuôi của lần trước -> tưởng bo còn sống
+     trong khi nó đã treo. */
+  void _xaCong() {
+    while (_cong && _cong->available()) _cong->read();
+    _gomN = 0; _gomTran = false;
+    _docTai = _ghiTai; _soChua = 0;
+  }
 
   static uint8_t _nibble(char c) {
     if (c >= '0' && c <= '9') return (uint8_t)(c - '0');
@@ -553,35 +560,91 @@ private:
     else     Serial.println("[ICT] NHAN (bo khong tra loi gi)");
   }
 
-  /** Đọc trả lời và cho biết bo có NHẬN không. Đồng thời ghi lại để hiện lên portal. */
-  bool _docTraLoi(const String& daGui) {
-    uint8_t dem[ICT_DEM_TOI_DA]; int n = 0;
-    uint32_t het = millis() + ICT_CHO_TRA_LOI_MS;
-    while ((int32_t)(het - millis()) > 0) {
-      while (_cong->available() && n < ICT_DEM_TOI_DA) {
-        dem[n++] = (uint8_t)_cong->read();
-        het = millis() + 80;                     // còn byte về thì chờ thêm chút cho hết khung
-      }
-      delay(2);
+public:
+  /* ---- BỘ THU CHẠY NỀN ----------------------------------------------------
+     Gom byte liên tục, cắt khung theo khoảng lặng, xếp vào hàng đợi. Nhờ có nó,
+     tin bo TỰ GỬI (không phải trả lời lệnh nào) cũng không bị rơi.
+
+     ⚠️ TRƯỚC ĐÂY chỉ đọc dây ngay sau khi gửi lệnh, ngoài lúc đó thì không ai
+        nghe. Bo có báo gì — hết giờ, kẹt cơ, có người bấm nút — cũng chỉ nằm
+        trong bộ đệm rồi bị lệnh sau xả đi. Nhìn từ ngoài thì y như bo câm. */
+
+  /** Gọi mỗi vòng loop(). Trả true khi vừa gom xong một khung mới. */
+  bool chay() {
+    if (!_cong) return false;
+    while (_cong->available()) {
+      uint8_t b = (uint8_t)_cong->read();
+      if (_gomN < ICT_DEM_TOI_DA) _gom[_gomN++] = b;
+      else                        _gomTran = true;
+      _byteCuoiMs = millis();
     }
+    if (_gomN > 0 && (uint32_t)(millis() - _byteCuoiMs) >= ICT_NGHI_MS) { _chotKhung(); return true; }
+    return false;
+  }
+  bool coKhungMoi() const { return _soChua > 0; }
+  /** Lấy khung cũ nhất chưa ai đọc. Gọi khi coKhungMoi() == true. */
+  KhungIct layKhung() {
+    KhungIct k = _hang[_docTai];
+    _docTai = (uint8_t)((_docTai + 1) % ICT_SO_KHUNG_NHO);
+    if (_soChua) _soChua--;
+    return k;
+  }
+  /** Mô tả một khung thành "hex |chữ|" để in ra log hoặc portal. */
+  static String moTaKhung(const KhungIct& k) {
     String hex, chu;
-    for (int i = 0; i < n; i++) {
-      char b[4]; snprintf(b, sizeof(b), "%02X ", dem[i]); hex += b;
-      chu += (dem[i] >= 0x20 && dem[i] <= 0x7E) ? (char)dem[i] : '.';
+    for (uint8_t i = 0; i < k.n; i++) {
+      char b[4]; snprintf(b, sizeof(b), "%02X ", k.d[i]); hex += b;
+      chu += (k.d[i] >= 0x20 && k.d[i] <= 0x7E) ? (char)k.d[i] : '.';
     }
+    if (!k.n) return String("(rong)");
+    return hex + "|" + chu + "|" + (k.tran ? " (DAI QUA CO, da cat)" : "");
+  }
+
+  /** Khung này có phải lời NHẬN không: 1 = nhận, -1 = từ chối, 0 = không rõ. */
+  int doanKetQua(const KhungIct& k) const {
     bool nhan = false, tuChoi = false;
     if (_che == ICT_CHE_DONG_CHU) {
-      String t = chu; t.toUpperCase();
-      nhan   = (t.indexOf("OK") >= 0 || t.indexOf("ACK") >= 0);
+      String t;
+      for (uint8_t i = 0; i < k.n; i++) t += (k.d[i] >= 0x20 && k.d[i] <= 0x7E) ? (char)k.d[i] : ' ';
+      t.toUpperCase();
+      nhan   = (t.indexOf("OK")  >= 0 || t.indexOf("ACK") >= 0);
       tuChoi = (t.indexOf("ERR") >= 0 || t.indexOf("NAK") >= 0);
     } else {
-      for (int i = 0; i < n; i++) { if (dem[i] == ICT_ACK) nhan = true; if (dem[i] == ICT_NAK) tuChoi = true; }
+      for (uint8_t i = 0; i < k.n; i++) { if (k.d[i] == ICT_ACK) nhan = true; if (k.d[i] == ICT_NAK) tuChoi = true; }
     }
-    if (tuChoi) nhan = false;
-    _lanCuoi = daGui + " → " + (n ? hex : String("(im lang)")) +
-               (nhan ? "  [BO NHAN]" : tuChoi ? "  [BO TU CHOI]" : "  [KHONG TRA LOI]");
+    if (tuChoi) return -1;
+    return nhan ? 1 : 0;
+  }
+
+private:
+  void _chotKhung() {
+    KhungIct& k = _hang[_ghiTai];
+    k.n = _gomN; k.luc = millis(); k.tran = _gomTran;
+    memcpy(k.d, _gom, _gomN);
+    _ghiTai = (uint8_t)((_ghiTai + 1) % ICT_SO_KHUNG_NHO);
+    if (_soChua < ICT_SO_KHUNG_NHO) _soChua++;
+    else _docTai = _ghiTai;          // hàng đầy: khung cũ nhất bị đẩy ra
+    _gomN = 0; _gomTran = false;
+  }
+  /** Chờ một khung trả lời trong choMs. Vẫn chạy bộ thu nên không bỏ sót byte nào. */
+  bool _choKhung(uint32_t choMs, KhungIct* ra) {
+    uint32_t het = millis() + choMs;
+    while ((int32_t)(het - millis()) > 0) {
+      chay();
+      if (_soChua) { *ra = layKhung(); return true; }
+      delay(1);
+    }
+    return false;
+  }
+  /** Gửi xong thì chờ trả lời. Ghi lại lần trao đổi để hiện lên portal. */
+  bool _docTraLoi(const String& daGui) {
+    KhungIct k;
+    bool co = _choKhung(ICT_CHO_TRA_LOI_MS, &k);
+    int  kq = co ? doanKetQua(k) : 0;
+    _lanCuoi = daGui + " → " + (co ? moTaKhung(k) : String("(im lang)")) +
+               (kq > 0 ? "  [BO NHAN]" : kq < 0 ? "  [BO TU CHOI]" : "  [KHONG TRA LOI]");
     if (amThanh) Serial.println("[ICT] " + _lanCuoi);
-    return nhan;
+    return kq > 0;
   }
 
   bool _guiKhung(uint8_t cmd, const uint8_t* data, uint8_t len) {
