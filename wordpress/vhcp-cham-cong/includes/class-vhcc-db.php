@@ -57,6 +57,20 @@ class VHCC_DB {
 		return $wpdb->prefix . 'vhcc_' . $name;
 	}
 
+	/**
+	 * Bảng này có thật trên máy chủ chưa?
+	 *
+	 * 🔴 Dùng TRƯỚC khi đọc một bảng có thể chưa được dựng — `phan_quyen` chỉ có nội dung sau
+	 *    khi bấm nút kéo sổ về, và trên một cài đặt mới thì nó chưa tồn tại. `$wpdb` mặc định
+	 *    NUỐT lỗi SQL: truy vấn một bảng không có trả về mảng rỗng y hệt bảng rỗng, nên chỗ gọi
+	 *    không phân biệt được "chưa cài" với "không có ai" — mà hai câu đó dẫn tới hai lời
+	 *    khuyên khác hẳn nhau cho người đang đứng trước màn hình.
+	 */
+	public static function co_bang( $ten_day_du ) {
+		global $wpdb;
+		return (bool) $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $ten_day_du ) );
+	}
+
 	const NGAY_GIAY = 86400;
 
 	/**

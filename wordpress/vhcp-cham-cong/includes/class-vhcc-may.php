@@ -322,8 +322,9 @@ class VHCC_May {
 		$thieu = array();    // web có mà máy chưa có -> người mới chưa lấy được mặt
 		foreach ( $trong_may as $ma => $ten ) {
 			if ( ! isset( $tren_web[ $ma ] ) ) { $thua[] = array( 'ma' => $ma, 'ten' => $ten, 'vi_sao' => 'không có hồ sơ ở cơ sở này' ); continue; }
-			$tt = strtolower( trim( (string) $tren_web[ $ma ]['trang_thai_lam_viec'] ) );
-			if ( '' !== $tt && false !== strpos( $tt, 'nghỉ' ) ) {
+			/* Truyền THÔ cho da_nghi — nó tự hạ chữ bằng mb_strtolower. `strtolower` của PHP
+			   không hạ được chữ CÓ DẤU, nên "NGHỈ" viết hoa lọt qua phép so sánh chữ thường. */
+			if ( VHCC_NhanSu::da_nghi( $tren_web[ $ma ]['trang_thai_lam_viec'] ) ) {
 				$thua[] = array( 'ma' => $ma, 'ten' => $ten, 'vi_sao' => 'hồ sơ ghi ' . $tren_web[ $ma ]['trang_thai_lam_viec'] );
 			}
 		}

@@ -59,8 +59,10 @@ class VHCC_Luong {
 	 *    TIỀN của cả chuỗi. Nới ra một vai trò là mở lương toàn chuỗi cho từng cửa hàng trưởng.
 	 */
 	public static function co_quyen( $vai_tro ) {
-		$v = strtoupper( trim( (string) $vai_tro ) );
-		return 'ADMIN' === $v || 'KE_TOAN' === $v;
+		/* 🔴 Bản cũ: `strtoupper($vai_tro) === 'KE_TOAN'`. Thẻ phiên mang 'Kế toán cá nhân', và
+		   strtoupper không nâng được chữ có dấu — nên KHÔNG kế toán nào vào được màn lương của
+		   chính họ, chỉ Admin vào được. Nay hỏi bảng vai, nơi mọi kiểu viết quy về một mã. */
+		return VHCC_Vai::duoc( array( 'role' => $vai_tro ), 'luong' );
 	}
 
 	// ======================================================================= tra cứu cấu hình
@@ -228,6 +230,23 @@ class VHCC_Luong {
 		return ( is_array( $ds_nv ) && $ds_nv ) ? $ds_nv[0] : '';
 	}
 
+	/**
+	 * Số PHÚT của một ca, từ phút-vào và phút-ra trong ngày.
+	 *
+	 * 🔴 Ca qua đêm (ra < vào) cộng trọn một vòng 24h. Không xử thì ra số ÂM, và số âm đó trừ
+	 *    thẳng vào lương người ta — bảng vẫn có số nên nhìn qua không thấy gì lạ. Hàng -CD đã
+	 *    được trải phẳng từ trước nên ra > vào, nhánh cộng 24h không chạm tới nó.
+	 *
+	 * Tách riêng vì có HAI nơi hỏi cùng câu này: bảng lương, và màn "Công của tôi" mà nhân viên
+	 * tự mở trên điện thoại. Hai nơi tự tính lấy thì sớm muộn lệch nhau đúng ở ca đêm — và lúc
+	 * đó nhân viên cầm màn hình của mình cãi với bảng lương, không ai biết bên nào đúng.
+	 */
+	public static function phut_ca( $vao_m, $ra_m ) {
+		$vao_m = (int) $vao_m;
+		$ra_m  = (int) $ra_m;
+		return ( $ra_m > $vao_m ) ? ( $ra_m - $vao_m ) : ( $ra_m + 1440 - $vao_m );
+	}
+
 	public static function mtd_tinh_luong( $coso, $tt ) {
 		$gia   = self::mtd_gia();
 		$ds_le = self::mtd_ngay_le();
@@ -264,9 +283,7 @@ class VHCC_Luong {
 			if ( '' === $by[ $ma ]['ten'] ) { $by[ $ma ]['ten'] = $ma; }
 
 			if ( $theo_gio ) {
-				/* Ca qua đêm (ra < vào) cộng trọn một vòng 24h. Không xử thì ra số ÂM và trừ thẳng
-				   vào lương người ta. Hàng -CD đã trải phẳng nên ra > vào, nhánh này không chạm. */
-				$phut = ( $ra_m > $vao_m ) ? ( $ra_m - $vao_m ) : ( $ra_m + 1440 - $vao_m );
+				$phut = self::phut_ca( $vao_m, $ra_m );
 				$so   = round( $phut / 60, 2 );
 				$dg   = $gia[ 'gio' . $hoa ];
 				$by[ $ma ]['gio'][ $loai ] += $so;

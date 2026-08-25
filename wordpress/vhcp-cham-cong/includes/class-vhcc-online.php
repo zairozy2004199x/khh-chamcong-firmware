@@ -394,6 +394,80 @@ class VHCC_Online {
 	}
 
 	/**
+	 * BẢNG CÔNG MỘT THÁNG của CHÍNH người đang đăng nhập — để họ tự soát trên điện thoại.
+	 *
+	 * Anh Thắng: *"còn nhân viên vào check chấm công của mình thì sao"*. Trước đó trạm chỉ có
+	 * "hôm nay" và 60 dòng gần nhất — đủ để biết mình đã chấm chưa, KHÔNG đủ để trả lời câu
+	 * người ta thật sự hỏi cuối tháng: *tháng này tôi được bao nhiêu công, ngày nào thiếu*.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHÔNG IN TIỀN, VÀ KHÔNG TÍNH CÔNG THEO LUẬT LƯƠNG
+	 * =========================================================================================
+	 * Màn này đếm **lượt có mặt** và **giờ thô**, không nhân đơn giá, không xét ngày lễ, không
+	 * quy ra "công". Hai lý do, cả hai đều nặng:
+	 *
+	 *   1. Vai `CC_ONLINE` là bậc thấp nhất của hệ. Mở tiền ở đây là mở lương cho bất kỳ ai có
+	 *      PIN, trên một trang chạy ngoài internet.
+	 *   2. Số công dùng để trả lương do `VHCC_Luong` tính, có ngày lễ, hàng -CD, ân hạn, nhiệm
+	 *      vụ. Nếu màn này cũng in ra một con số gọi là "công" thì đó là CÔNG THỨC THỨ HAI cho
+	 *      cùng một việc, và ngày nó lệch với bảng lương là ngày nhân viên cầm điện thoại lên
+	 *      cãi với kế toán — hai bên đều đang đọc số do chính hệ thống in ra.
+	 *
+	 * Nên: "lượt", "giờ có mặt", "ngày thiếu giờ ra". Ba con số nhân viên tự kiểm chứng được
+	 * bằng trí nhớ, và không con nào giả vờ là bảng lương.
+	 *
+	 * ⚠️ Chỉ lấy đúng mã NV của người đang đăng nhập và đúng danh sách cơ sở của họ — cùng phép
+	 *    gác với `lich_su()`.
+	 *
+	 * @param string $thang 'YYYY-MM'. Sai định dạng -> tháng hiện tại theo GIỜ MÁY CHỦ.
+	 */
+	public static function bang_thang( $ma_nv, $ds_coso, $thang = '' ) {
+		global $wpdb;
+		$ma_nv = trim( (string) $ma_nv );
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { $thang = current_time( 'Y-m' ); }
+		$rong = array( 'ok' => true, 'thang' => $thang, 'dong' => array(),
+			'tong' => array( 'ngay' => 0, 'luot' => 0, 'phut' => 0, 'thieuRa' => 0 ) );
+		if ( '' === $ma_nv || ! $ds_coso ) { return $rong; }
+
+		$oc = implode( ',', array_fill( 0, count( $ds_coso ), '%s' ) );
+		$tv = array_merge( array( $ma_nv, $thang . '-01', $thang . '-31' ), $ds_coso );
+		$r  = $wpdb->get_results( $wpdb->prepare(
+			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			. " WHERE ma_nv=%s AND ngay BETWEEN %s AND %s AND coso IN ($oc)"
+			. ' ORDER BY ngay ASC, coso ASC, hau_to ASC', $tv ), ARRAY_A );
+
+		$dong    = array();
+		$co_ngay = array();
+		$phut    = 0;
+		$thieu   = 0;
+		foreach ( (array) $r as $x ) {
+			$v = $x['gio_vao_giay'];
+			$a = $x['gio_ra_giay'];
+			$p = null;
+			if ( null !== $v && '' !== $v && null !== $a && '' !== $a ) {
+				$p = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $a, 60 ) );
+				$phut += $p;
+			} elseif ( null !== $v && '' !== $v ) {
+				/* Có vào mà không có ra. Đếm riêng — đây chính là thứ người ta cần thấy để đi
+				   xin bổ sung TRƯỚC khi kế toán chốt tháng, chứ không phải sau khi nhận lương. */
+				$thieu++;
+			}
+			$co_ngay[ (string) $x['ngay'] ] = true;
+			$dong[] = array(
+				'ngay'  => (string) $x['ngay'],
+				'coSo'  => (string) $x['coso'],
+				'hauTo' => (string) $x['hau_to'],
+				'vao'   => VHCC_DB::hhmmss( $v ),
+				'ra'    => VHCC_DB::hhmmss( $a ),
+				'phut'  => $p,
+			);
+		}
+		return array( 'ok' => true, 'thang' => $thang, 'dong' => $dong,
+			'tong' => array( 'ngay' => count( $co_ngay ), 'luot' => count( $dong ),
+				'phut' => $phut, 'thieuRa' => $thieu ) );
+	}
+
+	/**
 	 * Lịch sử chấm công của CHÍNH người đang đăng nhập.
 	 * ⚠️ Lọc theo ĐÚNG mã NV của họ: vai trò Nhân viên không được thấy chấm công của ai khác.
 	 */

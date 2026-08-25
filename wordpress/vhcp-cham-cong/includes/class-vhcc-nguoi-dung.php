@@ -72,12 +72,22 @@ class VHCC_NguoiDung {
 	}
 
 	/** Có ai đăng nhập được với nguồn ĐANG CHỌN không? */
+	/**
+	 * Có ai QUẢN TRỊ ĐƯỢC hệ thống chưa?
+	 *
+	 * 🔴 Từ 25/08/2026 câu hỏi này KHÔNG còn là "có ai đăng nhập được" — ai có PIN cũng đăng
+	 *    nhập được. Câu cần hỏi là *"có ai mở được cài đặt, hồ sơ, máy chấm công"*, tức có ai
+	 *    ở bậc Admin. Một sổ toàn Nhân viên và Cửa hàng trưởng thì mọi người vẫn chấm công
+	 *    được, nhưng KHÔNG AI cấp được PIN cho người mới hay sửa được cấu hình — hệ tắc ở đúng
+	 *    chỗ không nhìn thấy, vì màn đăng nhập vẫn cho vào bình thường.
+	 */
 	public static function co_ai_vao_duoc() {
 		$u = VHCC_Auth::users();
 		if ( is_wp_error( $u ) ) { return false; }
-		$cho = VHCC_Auth::vai_tro_vao();
 		foreach ( $u as $x ) {
-			if ( '' !== $x['pin'] && in_array( $x['vaiTro'], $cho, true ) ) { return true; }
+			if ( '' !== $x['pin'] && VHCC_Vai::duoc( array( 'role' => $x['vaiTro'] ), 'he_thong' ) ) {
+				return true;
+			}
 		}
 		return false;
 	}
@@ -481,9 +491,9 @@ class VHCC_NguoiDung {
 			self::doi_sang_rieng();
 			update_option( 'vhcc_mo_duong_nap', array( 'so' => (int) $nap['them'],
 				'yeu' => $nap['yeu'], 'bo' => $nap['bo'] ) );
-			/* Nạp về mà không ai mang vai trò được vào (sổ cũ phần lớn là Nhân viên / Cửa hàng
-			   trưởng) thì vẫn tắc — rơi xuống bước 3. Nhưng người đã nằm sẵn trong danh sách,
-			   nên chỉ cần tích thêm vai trò là xong, khỏi gõ tay 26 cửa hàng. */
+			/* Nạp về mà không ai ở bậc Admin (sổ cũ phần lớn là Nhân viên / Cửa hàng trưởng)
+			   thì vẫn tắc phần quản trị — rơi xuống bước 3 để có một Admin. Người đã nằm sẵn
+			   trong danh sách, nên chỉ cần sửa vai trò của một người là xong. */
 			if ( self::so_vao_duoc() > 0 ) { return 'nap'; }
 		}
 
@@ -600,11 +610,13 @@ class VHCC_NguoiDung {
 	}
 
 	/** Bao nhiêu người trong danh sách này VÀO ĐƯỢC (vai trò nằm trong danh sách cho vào). */
+	/** Bao nhiêu người QUẢN TRỊ được (bậc Admin). Xem `co_ai_vao_duoc()` cho lý do đổi nghĩa. */
 	public static function so_vao_duoc( $ds = null ) {
-		$ds  = ( null === $ds ) ? self::ds() : $ds;
-		$cho = VHCC_Auth::vai_tro_vao();
-		$n   = 0;
-		foreach ( $ds as $u ) { if ( in_array( $u['vaiTro'], $cho, true ) ) { $n++; } }
+		$ds = ( null === $ds ) ? self::ds() : $ds;
+		$n  = 0;
+		foreach ( $ds as $u ) {
+			if ( VHCC_Vai::duoc( array( 'role' => $u['vaiTro'] ), 'he_thong' ) ) { $n++; }
+		}
 		return $n;
 	}
 
@@ -695,11 +707,13 @@ class VHCC_NguoiDung {
 		foreach ( $ds as $u ) { if ( $u['id'] === $id ) { $ai = $u; break; } }
 		if ( null === $ai ) { return array( 'ok' => false, 'error' => 'Không thấy dòng cần xoá.' ); }
 
-		$cho = VHCC_Auth::vai_tro_vao();
-		if ( in_array( $ai['vaiTro'], $cho, true ) && self::so_vao_duoc( $ds ) <= 1 ) {
-			return array( 'ok' => false, 'error' => 'Đây là người CUỐI CÙNG còn vào được hệ thống. '
-				. 'Xoá là không ai đăng nhập nổi nữa, mà đường lùi duy nhất là sửa thẳng cơ sở dữ liệu. '
-				. 'Thêm người khác trước đã.' );
+		/* Chốt: không xoá được người QUẢN TRỊ cuối cùng. Xoá xong thì mọi người vẫn chấm công
+		   được, nhưng không ai mở nổi cài đặt hay cấp PIN — hệ tắc ở chỗ không nhìn thấy, và
+		   đường lùi duy nhất là sửa thẳng cơ sở dữ liệu. */
+		if ( VHCC_Vai::duoc( array( 'role' => $ai['vaiTro'] ), 'he_thong' ) && self::so_vao_duoc( $ds ) <= 1 ) {
+			return array( 'ok' => false, 'error' => 'Đây là tài khoản QUẢN TRỊ cuối cùng (bậc Admin). '
+				. 'Xoá là không ai mở được cài đặt, hồ sơ hay máy chấm công nữa, mà đường lùi duy nhất '
+				. 'là sửa thẳng cơ sở dữ liệu. Khai một Admin khác trước đã.' );
 		}
 
 		$moi = array();

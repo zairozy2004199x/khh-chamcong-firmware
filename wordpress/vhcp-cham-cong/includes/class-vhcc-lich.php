@@ -34,9 +34,16 @@ class VHCC_Lich {
 	const DA_DUYET  = 'Đã duyệt';
 	const TU_CHOI   = 'Từ chối';
 
-	/** Xếp lịch: Admin / Quản lý / Cửa hàng trưởng, và phải có quyền trên cơ sở đó. */
+	/**
+	 * Xếp lịch: **Cửa hàng trưởng trở lên**, và phải có quyền trên cơ sở đó.
+	 *
+	 * ⚠️ Hỏi `lich_lam`, KHÔNG hỏi `co_sua_ho_so`. Hai việc khác hẳn nhau mà bản cũ gộp làm
+	 *    một: mô hình anh Thắng chốt giao lịch cho cửa hàng trưởng (*"lên lịch làm cho cửa
+	 *    hàng"*) nhưng KHÔNG giao hồ sơ nhân sự. Buộc lịch theo quyền hồ sơ là cửa hàng trưởng
+	 *    hết xếp được lịch của chính cửa hàng mình.
+	 */
 	public static function co_xep_lich( $u, $coso ) {
-		return VHCC_NhanSu::co_sua_ho_so( $u ) && VHCC_NhanSu::co_quyen_coso( $u, $coso );
+		return VHCC_Vai::duoc( $u, 'lich_lam' ) && VHCC_NhanSu::co_quyen_coso( $u, $coso );
 	}
 
 	/** Duyệt xin đổi lịch: cùng bậc — đúng `duyetDoiLich` bản gốc. */
@@ -113,7 +120,7 @@ class VHCC_Lich {
 			'moiCoSo'   => VHCC_NhanSu::ds_coso(),
 			'coSoCuaToi' => VHCC_NhanSu::co_quan_tri_nv( $u )
 				? VHCC_NhanSu::ds_coso() : VHCC_NhanSu::ds_coso_cua( $u ),
-			'suaDuocCauHinh' => VHCC_NhanSu::co_sua_ho_so( $u ),
+			'suaDuocCauHinh' => VHCC_Vai::duoc( $u, 'ngoai_coso' ),
 		);
 	}
 
@@ -142,8 +149,11 @@ class VHCC_Lich {
 	 */
 	public static function dat_ca( $u, $ds ) {
 		global $wpdb;
-		if ( ! VHCC_NhanSu::co_sua_ho_so( $u ) ) {
-			return array( 'ok' => false, 'error' => 'Không có quyền sửa danh sách ca.' );
+		/* Danh sách ca dùng CHUNG cho mọi cơ sở — sửa ở đây là đổi lịch của cả chuỗi, nên
+		   hỏi `ngoai_coso` chứ không phải `lich_lam`. Cửa hàng trưởng xếp lịch cửa hàng mình,
+		   nhưng không đặt lại tên ca cho 20 cơ sở khác. */
+		if ( ! VHCC_Vai::duoc( $u, 'ngoai_coso' ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền sửa danh sách ca (dùng chung mọi cơ sở).' );
 		}
 		$sach = array();
 		foreach ( (array) $ds as $x ) {
@@ -162,8 +172,8 @@ class VHCC_Lich {
 	}
 
 	public static function dat_loai_viec( $u, $ds ) {
-		if ( ! VHCC_NhanSu::co_sua_ho_so( $u ) ) {
-			return array( 'ok' => false, 'error' => 'Không có quyền sửa loại công việc.' );
+		if ( ! VHCC_Vai::duoc( $u, 'ngoai_coso' ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền sửa loại công việc (dùng chung mọi cơ sở).' );
 		}
 		$sach = array();
 		foreach ( (array) $ds as $x ) {

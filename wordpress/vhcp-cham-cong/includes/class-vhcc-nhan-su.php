@@ -43,33 +43,50 @@ class VHCC_NhanSu {
 	/** Ô chỉ Admin/Quản lý được thấy và sửa. */
 	const O_LUONG = array( 'luong_co_ban', 'so_tai_khoan', 'ngan_hang' );
 
+	/**
+	 * ⚠️ CÒN ĐÂY CHỈ ĐỂ MÃ CŨ KHÔNG GÃY. Đừng dùng để phân quyền — dùng `VHCC_Vai::cua()`.
+	 *
+	 * 🔴 Bản cũ của hàm này là `strtoupper( $u['role'] )` rồi so với 'QUAN_LY' / 'KE_TOAN'.
+	 *    Thẻ phiên mang vai trò dạng tên tiếng Việt ('Quản lý'), và `strtoupper` của PHP KHÔNG
+	 *    nâng được chữ có dấu — 'Quản lý' thành 'QUảN Lý', không khớp gì cả. Kết quả: mọi vai
+	 *    trừ 'Admin' đều bị chối ở mọi cửa hỏi qua tệp này, im lặng, suốt nhiều tháng. Đó chính
+	 *    là *"xung đột phân quyền"* anh Thắng gặp.
+	 */
 	private static function vt( $u ) {
-		return strtoupper( trim( isset( $u['role'] ) ? (string) $u['role'] : '' ) );
+		return VHCC_Vai::cua( $u );
 	}
 
+	/**
+	 * Sửa được HỒ SƠ nhân sự (thông tin cá nhân, hợp đồng, PIN).
+	 * Từ 25/08/2026: **Kế toán trở lên**. Trước đây Cửa hàng trưởng cũng sửa được; mô hình anh
+	 * Thắng chốt không giao việc hồ sơ cho cửa hàng — họ chấm công, xem công, lên lịch, báo lỗi.
+	 * ⚠️ Đây KHÔNG phải quyền sửa LỊCH LÀM VIỆC. Lịch hỏi `lich_lam` (Cửa hàng trưởng trở lên).
+	 */
 	public static function co_sua_ho_so( $u ) {
-		$v = self::vt( $u );
-		return self::R_ADMIN === $v || self::R_QUAN_LY === $v || self::R_CHT === $v;
+		return VHCC_Vai::duoc( $u, 'ho_so' );
 	}
 
+	/** Việc ảnh hưởng NGOÀI phạm vi một cửa hàng: tăng cường, khoá bảng, xoá thống kê. Quản lý+. */
 	public static function co_quan_tri_nv( $u ) {
-		$v = self::vt( $u );
-		return self::R_ADMIN === $v || self::R_QUAN_LY === $v;
+		return VHCC_Vai::duoc( $u, 'ngoai_coso' );
 	}
 
+	/** Thấy ô Lương cơ bản / số tài khoản / ngân hàng trong hồ sơ. Kế toán+. */
 	public static function co_xem_luong( $u ) {
-		$v = self::vt( $u );
-		return self::R_ADMIN === $v || self::R_QUAN_LY === $v;
+		return VHCC_Vai::duoc( $u, 'xem_luong_hs' );
 	}
 
 	/**
 	 * Người này có quyền trên cơ sở đó không.
-	 * ⚠️ NHÂN VIÊN trả false LUÔN — trước cả phép so danh sách cơ sở.
+	 *
+	 * ⚠️ NHÂN VIÊN trả false LUÔN — trước cả phép so danh sách cơ sở. Cửa hàng ghi trong dòng
+	 *    phân quyền của nhân viên chỉ để biết chấm công ghi vào đâu, KHÔNG phải quyền xem.
+	 * ⚠️ Quản lý trở lên: MỌI cơ sở, không cần khai — đúng `cong_tat_ca` trong bảng vai.
+	 *    Cửa hàng trưởng: chỉ những cơ sở đã khai cho họ.
 	 */
 	public static function co_quyen_coso( $u, $coso ) {
-		$v = self::vt( $u );
-		if ( self::R_NV === $v ) { return false; }
-		if ( self::R_ADMIN === $v || self::R_QUAN_LY === $v ) { return true; }
+		if ( ! VHCC_Vai::duoc( $u, 'cong_coso' ) ) { return false; }   // Nhân viên dừng ở đây
+		if ( VHCC_Vai::duoc( $u, 'cong_tat_ca' ) ) { return true; }
 		$coso = self::chuan_coso( $coso );
 		if ( '' === $coso ) { return false; }
 		foreach ( self::ds_coso_cua( $u ) as $x ) {
@@ -89,6 +106,29 @@ class VHCC_NhanSu {
 
 	public static function chuan_coso( $s ) {
 		return trim( preg_replace( '/^CS_/', '', (string) $s ) );
+	}
+
+	/**
+	 * Hồ sơ này đã nghỉ việc chưa — đọc từ ô "Trạng thái làm việc".
+	 *
+	 * 🔴 MỘT NƠI DUY NHẤT quyết định câu đó. Ô này người ta gõ tay, nên trong sổ có đủ kiểu:
+	 *    "Đã nghỉ", "Nghỉ việc", "đã nghỉ 12/2025", "NGHỈ". Luật là *có chữ "nghỉ"*, và luật
+	 *    ấy phải giống nhau ở mọi chỗ hỏi: cổng trạm chấm công, bảng đối chiếu máy, danh sách
+	 *    lương. Hai nơi tự viết luật riêng thì có ngày một người nghỉ vẫn chấm công được ở cửa
+	 *    này trong khi cửa kia đã chặn — và không ai biết bên nào đúng.
+	 *
+	 * ⚠️ Ô TRỐNG = ĐANG LÀM. Sổ cũ nhiều dòng bỏ trống ô này; coi trống là nghỉ thì khoá cửa
+	 *    của phần lớn công ty ngay lượt cài đặt đầu tiên.
+	 */
+	public static function da_nghi( $trang_thai ) {
+		$t = trim( (string) $trang_thai );
+		if ( '' === $t ) { return false; }
+		return false !== strpos( self::chu_thuong( $t ), 'nghỉ' );
+	}
+
+	/** Chữ thường có dấu — mb_strtolower khi có, strtolower khi không (host cũ thiếu mbstring). */
+	public static function chu_thuong( $s ) {
+		return function_exists( 'mb_strtolower' ) ? mb_strtolower( (string) $s, 'UTF-8' ) : strtolower( (string) $s );
 	}
 
 	/**
@@ -558,7 +598,9 @@ class VHCC_NhanSu {
 	public static function dat_nhiem_vu( $u, $ngay, $coso, $ma_nv, $nhiem_vu ) {
 		global $wpdb;
 		$coso = self::chuan_coso( $coso );
-		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $coso ) ) {
+		/* Hỏi `lich_lam`, không hỏi quyền HỒ SƠ: khai nhiệm vụ NGÀY là việc vận hành hằng ngày
+		   của cửa hàng — cùng loại với xếp lịch — chứ không phải sửa hồ sơ nhân sự. */
+		if ( ! VHCC_Vai::duoc( $u, 'lich_lam' ) || ! self::co_quyen_coso( $u, $coso ) ) {
 			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
 		}
 		if ( ! VHCC_Luong::la_may_tu_dong( $coso ) ) {

@@ -153,20 +153,18 @@ t( 'chỉ ra phải để Anyone', strpos( $r['error'], 'Anyone' ) !== false, $r
 $users = VHCC_Auth::users();
 t( 'đọc được người dùng dùng chung với app chi phí', is_array( $users ) && count( $users ) > 0 );
 
-teq( 'mặc định KHÔNG cho Nhân viên vào', false,
+/* 🔴 TỪ 25/08/2026 CỬA KHÔNG CÒN Ở CỔNG. Anh Thắng chốt mô hình năm bậc: ai cũng vào được,
+   thấy gì thì do QUYỀN quyết. Trước đó nhân viên gõ PIN đúng vẫn bị chối ngay cửa — mà việc
+   họ cần chỉ là chấm công và xem công của chính mình. */
+teq( 'Nhân viên VÀO ĐƯỢC cổng', true, in_array( 'Nhân viên', VHCC_Auth::vai_tro_vao(), true ) );
+teq( 'Cửa hàng trưởng vào được', true, in_array( 'Cửa hàng trưởng', VHCC_Auth::vai_tro_vao(), true ) );
+teq( 'Admin vào được', true, in_array( 'Admin', VHCC_Auth::vai_tro_vao(), true ) );
+
+/* Tuỳ chọn cũ `vhcc_vai_tro_vao` CỐ Ý bị bỏ qua: nó chặn ở đúng chỗ không nên chặn, và một ô
+   tích quên bỏ ở đó khoá cửa cả công ty mà không ai ngờ tới nó. */
+$GLOBALS['VHCP_OPT']['vhcc_vai_tro_vao'] = array( 'Admin' );
+teq( 'ô tích cũ KHÔNG còn khoá được ai ra ngoài', true,
 	in_array( 'Nhân viên', VHCC_Auth::vai_tro_vao(), true ) );
-teq( 'mặc định cho Admin vào', true, in_array( 'Admin', VHCC_Auth::vai_tro_vao(), true ) );
-
-// Mở rộng bằng CÀI ĐẶT, không sửa code
-$GLOBALS['VHCP_OPT']['vhcc_vai_tro_vao'] = array( 'Admin', 'Nhân viên' );
-teq( 'mở thêm được vai trò từ Cài đặt', true, in_array( 'Nhân viên', VHCC_Auth::vai_tro_vao(), true ) );
-teq( 'không nhận vai trò lạ', false, in_array( 'Giám đốc', VHCC_Auth::vai_tro_vao(), true ) );
-
-// Rỗng thì PHẢI về mặc định — rỗng là không ai vào được, kể cả Admin, không có đường tự mở lại
-$GLOBALS['VHCP_OPT']['vhcc_vai_tro_vao'] = array();
-teq( 'danh sách rỗng thì về mặc định, không khoá sạch', VHCC_Auth::VAI_TRO_MAC_DINH, VHCC_Auth::vai_tro_vao() );
-$GLOBALS['VHCP_OPT']['vhcc_vai_tro_vao'] = array( 'Giám đốc' );   // toàn tên lạ
-teq( 'lọc hết còn rỗng thì cũng về mặc định', VHCC_Auth::VAI_TRO_MAC_DINH, VHCC_Auth::vai_tro_vao() );
 unset( $GLOBALS['VHCP_OPT']['vhcc_vai_tro_vao'] );
 
 $admin = null;
@@ -197,7 +195,13 @@ teq( 'chưa đăng nhập -> 401', 401, $a['status'] );
 teq( 'kèm mã để giao diện mở lại cổng PIN', 'no_session', $a['body']['code'] );
 
 $tok_nv = VHCC_Auth::phat_token( 'NV Cơ Sở', 'Nhân viên', '' );
-teq( 'token Nhân viên -> 401 (mặc định không cho vào)', 401, goi_cc( 'layBangCong', array(), $tok_nv )['status'] );
+/* Phiên của Nhân viên nay HỢP LỆ ở cửa API — cửa chuyển sang từng việc. `layBangCong` lọc theo
+   cơ sở ở lớp dưới (`co_quyen_coso` trả false cho Nhân viên), nên họ vào mà không thấy gì của
+   ai. Đó mới là tách quyền: chối ĐÚNG dữ liệu, không chối cả cánh cửa. */
+teq( 'phiên Nhân viên hợp lệ (cửa nằm ở từng việc, không ở cổng)', true,
+	null !== VHCC_Auth::user_by_token( $tok_nv ) );
+teq( 'nhưng Nhân viên KHÔNG có quyền cơ sở nào', false,
+	VHCC_NhanSu::co_quyen_coso( VHCC_Auth::user_by_token( $tok_nv ), 'TUTU_BT' ) );
 
 $GLOBALS['VHD_POST'] = array( '/exec' => array( 'code' => 200,
 	'body' => json_encode( array( 'ok' => true, 'data' => array( 1, 2 ) ) ) ) );
@@ -1509,18 +1513,47 @@ $U_CHT = array( 'name' => 'CHT_BT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU
 $U_NV  = array( 'name' => 'NhanVien','role' => 'NHAN_VIEN',      'coso' => 'TUTU_BT' );
 $U_KT  = array( 'name' => 'KeToan', 'role' => 'KE_TOAN',         'coso' => '' );
 
+/* 🔴 THANG NĂM BẬC anh Thắng chốt 25/08/2026 — Nhân viên < Cửa hàng trưởng < Quản lý <
+   Kế toán < Admin. Kế toán *"full quyền ngoài admin"*, nên hồ sơ nhân sự thuộc về họ, KHÔNG
+   thuộc về Quản lý hay Cửa hàng trưởng. Trước đó ba vai giữa tự có quyền hồ sơ, và Kế toán
+   thì không — ngược hẳn thang. */
 teq( 'Admin sửa được hồ sơ', true, VHCC_NhanSu::co_sua_ho_so( $U_AD ) );
-teq( 'Quản lý sửa được hồ sơ', true, VHCC_NhanSu::co_sua_ho_so( $U_QL ) );
-teq( 'Cửa hàng trưởng sửa được hồ sơ', true, VHCC_NhanSu::co_sua_ho_so( $U_CHT ) );
+teq( 'Kế toán sửa được hồ sơ (full quyền ngoài admin)', true, VHCC_NhanSu::co_sua_ho_so( $U_KT ) );
+teq( 'Quản lý KHÔNG sửa hồ sơ (việc của họ là check công, báo lỗi)', false, VHCC_NhanSu::co_sua_ho_so( $U_QL ) );
+teq( 'Cửa hàng trưởng KHÔNG sửa hồ sơ (báo lên trên, không tự sửa)', false, VHCC_NhanSu::co_sua_ho_so( $U_CHT ) );
 teq( 'Nhân viên KHÔNG sửa được hồ sơ', false, VHCC_NhanSu::co_sua_ho_so( $U_NV ) );
-teq( 'Kế toán KHÔNG sửa được hồ sơ (việc của họ ở app Lương)', false, VHCC_NhanSu::co_sua_ho_so( $U_KT ) );
-/* Bậc trên: chỉ Admin/Quản lý. Cửa hàng trưởng KHÔNG được. */
+/* Việc ảnh hưởng NGOÀI phạm vi một cửa hàng: Quản lý trở lên. */
 teq( 'Cửa hàng trưởng KHÔNG có quyền quản trị NV', false, VHCC_NhanSu::co_quan_tri_nv( $U_CHT ) );
 teq( 'Admin có', true, VHCC_NhanSu::co_quan_tri_nv( $U_AD ) );
 teq( 'Quản lý có', true, VHCC_NhanSu::co_quan_tri_nv( $U_QL ) );
-/* Lương: cửa hàng trưởng sửa hồ sơ người mình được, nhưng KHÔNG thấy lương. */
+teq( 'Kế toán có', true, VHCC_NhanSu::co_quan_tri_nv( $U_KT ) );
+/* Ô lương trong hồ sơ: KẾ TOÁN trở lên. Quản lý check công, không đụng tiền. */
 teq( 'Cửa hàng trưởng KHÔNG xem được lương', false, VHCC_NhanSu::co_xem_luong( $U_CHT ) );
-teq( 'Quản lý xem được lương', true, VHCC_NhanSu::co_xem_luong( $U_QL ) );
+teq( 'Quản lý KHÔNG xem được lương (không phải việc của họ)', false, VHCC_NhanSu::co_xem_luong( $U_QL ) );
+teq( 'Kế toán xem được lương', true, VHCC_NhanSu::co_xem_luong( $U_KT ) );
+teq( 'Admin xem được lương', true, VHCC_NhanSu::co_xem_luong( $U_AD ) );
+
+/* ---- Bậc thang phải LIỀN MẠCH: mọi quyền của bậc dưới, bậc trên đều có ----
+   Đây là chốt canh chính cái sai cũ: một vai ở giữa thang mà thiếu quyền của vai dưới nó thì
+   sơ đồ không còn là thang, và không ai nhìn ra cho tới lúc có người bị chối oan. */
+$THANG = array( $U_NV, $U_CHT, $U_QL, $U_KT, $U_AD );
+foreach ( array_keys( VHCC_Vai::QUYEN ) as $q_ ) {
+	$truoc = true;
+	for ( $i_ = 0; $i_ < count( $THANG ); $i_++ ) {
+		$co_ = VHCC_Vai::duoc( $THANG[ $i_ ], $q_ );
+		if ( $truoc && ! $co_ ) { continue; }        // chưa tới bậc có quyền này
+		if ( ! $truoc && ! $co_ ) {
+			t( "quyền $q_ liền mạch theo thang", false, 'bậc ' . ( $i_ + 1 ) . ' mất quyền mà bậc dưới có' );
+			break;
+		}
+		$truoc = ! $co_;
+	}
+}
+t( 'mọi quyền đều liền mạch theo thang bậc', true );
+teq( 'Nhân viên chỉ có đúng hai quyền: chấm công + xem công của mình', 2,
+	count( array_filter( VHCC_Quyen::bang_quyen( $U_NV ) ) ) );
+teq( 'Admin có đủ mọi quyền', count( VHCC_Vai::QUYEN ),
+	count( array_filter( VHCC_Quyen::bang_quyen( $U_AD ) ) ) );
 /* Cơ sở: NHÂN VIÊN trả false LUÔN, kể cả cơ sở ghi trong dòng phân quyền của họ. */
 teq( 'Nhân viên KHÔNG có quyền cơ sở nào, kể cả cơ sở của mình', false,
 	VHCC_NhanSu::co_quyen_coso( $U_NV, 'TUTU_BT' ) );
@@ -1534,29 +1567,23 @@ $hs = array( 'ma_nv' => 'NV001', 'ho_ten' => 'Nguyễn A', 'cua_hang' => 'TUTU_B
 teq( 'Nhân viên: không lưu được', false, VHCC_NhanSu::luu_ho_so( $U_NV, $hs )['ok'] );
 /* TẠO MỚI là cấp Mã NV dùng chung cả chuỗi -> cửa hàng trưởng KHÔNG được, dù đúng cơ sở mình. */
 $r = VHCC_NhanSu::luu_ho_so( $U_CHT, $hs );
-t( 'Cửa hàng trưởng KHÔNG tạo được hồ sơ MỚI (Mã NV dùng chung cả chuỗi)',
-	empty( $r['ok'] ) && stripos( $r['error'], 'Mã NV' ) !== false, $r['error'] );
+t( 'Cửa hàng trưởng KHÔNG tạo được hồ sơ MỚI', empty( $r['ok'] ), $r );
 t( 'và không có hồ sơ nào được tạo', VHCC_NhanSu::ho_so( 'NV001' ) === null );
 $r = VHCC_NhanSu::luu_ho_so( $U_AD, $hs );
 t( 'Admin tạo được', ! empty( $r['ok'] ) && true === $r['tao_moi'], isset( $r['error'] ) ? $r['error'] : '' );
-/* Sửa hồ sơ ĐANG ở cơ sở mình: cửa hàng trưởng ĐƯỢC. */
+/* 🔴 25/08/2026: HỒ SƠ LÊN BẬC KẾ TOÁN. Cửa hàng trưởng KHÔNG còn sửa hồ sơ, kể cả người của
+   chính cửa hàng mình — mô hình anh Thắng giao cho họ đúng bốn việc (chấm công bù, check công,
+   chấm công online của mình, lên lịch), còn lại *"báo lên admin xử lý"*. */
 $r = VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV001', 'sdt' => '0911', 'chuc_vu' => 'Thu ngân' ) );
-t( 'Cửa hàng trưởng sửa được hồ sơ người của cửa hàng mình', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
+t( 'Cửa hàng trưởng KHÔNG sửa được hồ sơ người của cửa hàng mình', empty( $r['ok'] ), $r );
+teq( 'và SĐT không bị đổi', '0900', VHCC_NhanSu::ho_so( 'NV001' )['sdt'] );
+$r = VHCC_NhanSu::luu_ho_so( $U_KT, array( 'ma_nv' => 'NV001', 'sdt' => '0911', 'chuc_vu' => 'Thu ngân' ) );
+t( 'Kế toán sửa được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
 teq( 'và sửa vào thật', '0911', VHCC_NhanSu::ho_so( 'NV001' )['sdt'] );
-/* ĐỔI CỬA HÀNG là chuyển cả công và lương -> cửa hàng trưởng KHÔNG được. */
-$r = VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV001', 'cua_hang' => 'POSH_HCM' ) );
-t( 'Cửa hàng trưởng KHÔNG đổi được cửa hàng của một người',
-	empty( $r['ok'] ) && stripos( $r['error'], 'Đổi cửa hàng' ) !== false, $r['error'] );
-teq( 'cửa hàng KHÔNG bị đổi', 'TUTU_BT', VHCC_NhanSu::ho_so( 'NV001' )['cua_hang'] );
-t( 'và lời báo có gợi ý dùng Cơ sở phụ thay vì đổi hẳn',
-	stripos( $r['error'], 'Cơ sở phụ' ) !== false, $r['error'] );
-$r = VHCC_NhanSu::luu_ho_so( $U_QL, array( 'ma_nv' => 'NV001', 'cua_hang' => 'POSH_HCM' ) );
-t( 'Quản lý đổi được', ! empty( $r['ok'] ) );
+/* ĐỔI CỬA HÀNG là chuyển cả công và lương. Kế toán trở lên đổi được. */
+$r = VHCC_NhanSu::luu_ho_so( $U_KT, array( 'ma_nv' => 'NV001', 'cua_hang' => 'POSH_HCM' ) );
+t( 'Kế toán đổi được cửa hàng', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
 teq( 'và đổi thật', 'POSH_HCM', VHCC_NhanSu::ho_so( 'NV001' )['cua_hang'] );
-/* Sau khi người đó chuyển đi, cửa hàng trưởng cũ KHÔNG sửa được nữa. */
-$r = VHCC_NhanSu::luu_ho_so( $U_CHT, array( 'ma_nv' => 'NV001', 'sdt' => '0999' ) );
-t( 'người đã chuyển đi: cửa hàng trưởng cũ không sửa được nữa',
-	empty( $r['ok'] ) && stripos( $r['error'], 'không thuộc cơ sở' ) !== false, $r['error'] );
 
 /* ---- Ô LƯƠNG: bị BỎ khỏi dữ liệu, không phải ẩn trên màn ---- */
 VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'NV002', 'ho_ten' => 'Trần B',
@@ -1574,8 +1601,11 @@ teq( 'số trơn', 9000000.0, VHCC_NhanSu::so_tien( '9000000' ) );
 teq( 'ô rỗng là 0', 0.0, VHCC_NhanSu::so_tien( '' ) );
 teq( 'ô rác là 0, không phải NaN', 0.0, VHCC_NhanSu::so_tien( 'chưa khai' ) );
 teq( 'nhận cả số thật', 7000000.0, VHCC_NhanSu::so_tien( 7000000 ) );
+$ds_kt = VHCC_NhanSu::ds_nhan_vien( $U_KT, 'TUTU_BT' );
+t( 'Kế toán thấy ô lương', isset( $ds_kt[0]['luong_co_ban'] ) );
 $ds_ql = VHCC_NhanSu::ds_nhan_vien( $U_QL, 'TUTU_BT' );
-t( 'Quản lý thấy ô lương', isset( $ds_ql[0]['luong_co_ban'] ) );
+t( 'Quản lý KHÔNG thấy ô lương — họ check công, không đụng tiền',
+	count( $ds_ql ) > 0 && ! isset( $ds_ql[0]['luong_co_ban'] ) );
 $ds_cht = VHCC_NhanSu::ds_nhan_vien( $U_CHT, 'TUTU_BT' );
 t( 'Cửa hàng trưởng: ô lương bị BỎ khỏi dữ liệu, không phải ẩn bằng CSS',
 	count( $ds_cht ) > 0 && ! isset( $ds_cht[0]['luong_co_ban'] )
@@ -2577,12 +2607,18 @@ VHCC_Lich::dat_coso_bat_lich( $U_AD, array() );
 teq( 'tắt lịch KHÔNG xoá ô lịch đã xếp', 1,
 	count( VHCC_Lich::ds_lich( 'TUTU_BT', '2026-09-01', '2026-09-30' ) ) );
 /* ⚠️ Đổi tên ca thì ô cũ giữ tên cũ — phải BÁO RA số ô mồ côi, không để im. */
+/* Danh sách ca dùng CHUNG mọi cơ sở -> Quản lý trở lên. Cửa hàng trưởng xếp lịch cửa hàng
+   mình được, nhưng không đặt lại tên ca cho cả chuỗi. */
 $r = VHCC_Lich::dat_ca( $U_CHT, array( 'Ca 1', 'Ca 2' ) );
-t( 'đổi danh sách ca được', ! empty( $r['ok'] ) );
+t( 'Cửa hàng trưởng KHÔNG đổi được danh sách ca (dùng chung cả chuỗi)', empty( $r['ok'] ), $r );
+$r = VHCC_Lich::dat_ca( $U_QL, array( 'Ca 1', 'Ca 2' ) );
+t( 'Quản lý đổi danh sách ca được', ! empty( $r['ok'] ), $r );
 teq( 'và BÁO RA ô lịch đang dùng tên ca vừa bị bỏ', 1, $r['oMoCoi']['Sáng'] );
 teq( 'danh sách ca rỗng bị từ chối', false, VHCC_Lich::dat_ca( $U_AD, array() )['ok'] );
 teq( 'nhân viên không sửa được ca', false, VHCC_Lich::dat_ca( $U_NV, array( 'X' ) )['ok'] );
-t( 'đặt loại việc được', ! empty( VHCC_Lich::dat_loai_viec( $U_CHT, array( 'Thu tiền', 'Vệ sinh', 'Thu tiền' ) )['ok'] ) );
+t( 'Cửa hàng trưởng KHÔNG đặt được loại việc (dùng chung cả chuỗi)',
+	empty( VHCC_Lich::dat_loai_viec( $U_CHT, array( 'X' ) )['ok'] ) );
+t( 'đặt loại việc được', ! empty( VHCC_Lich::dat_loai_viec( $U_QL, array( 'Thu tiền', 'Vệ sinh', 'Thu tiền' ) )['ok'] ) );
 teq( 'loại việc bỏ trùng', 2, count( VHCC_Lich::cau_hinh( $U_AD )['loaiViec'] ) );
 
 // ============================================================ 29. Chấm công online: phần còn lại
@@ -2677,9 +2713,12 @@ t( 'Quản lý (không phải Admin) vẫn đổi được vì Quản lý có qu
 	! empty( VHCC_NhanSu::doi_ma_nv( $U_QL_BT, 'D2', 'D3' )['ok'] ) );
 
 /* ---- CHO NGHỈ VIỆC: đường ĐÚNG thay cho xoá ---- */
+/* Cho nghỉ việc là việc HỒ SƠ -> Kế toán trở lên (mô hình 25/08/2026). Cửa hàng trưởng báo
+   lên, không tự cho nghỉ: một dòng "Đã nghỉ" gõ nhầm là người đó mất chỗ trong bảng lương. */
 $r = VHCC_NhanSu::dat_nghi_viec( $U_CHT, 'D3', '2026-08-31', 'chuyển chỗ khác' );
-t( 'cửa hàng trưởng cho nghỉ được (người của cửa hàng mình)', ! empty( $r['ok'] ),
-	isset( $r['error'] ) ? $r['error'] : '' );
+t( 'cửa hàng trưởng KHÔNG cho nghỉ được', empty( $r['ok'] ), $r );
+$r = VHCC_NhanSu::dat_nghi_viec( $U_KT, 'D3', '2026-08-31', 'chuyển chỗ khác' );
+t( 'Kế toán cho nghỉ được', ! empty( $r['ok'] ), isset( $r['error'] ) ? $r['error'] : '' );
 $hs = VHCC_NhanSu::ho_so( 'D3' );
 t( 'trạng thái ghi rõ ngày và lý do',
 	stripos( $hs['trang_thai_lam_viec'], 'Đã nghỉ' ) !== false
@@ -3527,8 +3566,10 @@ ob_start(); VHCC_Admin::page(); $h_cd = ob_get_clean();
 
 t( 'liệt kê người VÀO ĐƯỢC', strpos( $h_cd, 'Bà Kế Toán' ) !== false
 	&& strpos( $h_cd, 'Anh Quản Lý' ) !== false );
-t( 'KHÔNG liệt kê người không đủ quyền vào bảng đó',
-	strpos( $h_cd, 'Em Nhân Viên' ) === false );
+/* Bảng nay liệt kê MỌI người có PIN — ai cũng đăng nhập được, khác nhau ở bậc. Giấu nhân
+   viên đi là giấu mất câu trả lời cho "PIN của người này dài mấy số". */
+t( 'liệt kê CẢ nhân viên (ai cũng vào được, khác nhau ở bậc)',
+	strpos( $h_cd, 'Em Nhân Viên' ) !== false, $h_cd );
 t( 'nói PIN dài mấy số', strpos( $h_cd, '6 số' ) !== false && strpos( $h_cd, '8 số' ) !== false );
 
 /* 🔴 Phép thử quan trọng nhất của mục này: TUYỆT ĐỐI không in PIN ra màn hình. */
@@ -3552,8 +3593,8 @@ t( 'PIN bị xén còn 3 số: bị chối vì sai khuôn',
 	empty( $kq['ok'] ) && strpos( $kq['error'], '4–8' ) !== false, $kq );
 VHCC_Auth::mo_khoa();
 $kq = VHCC_Auth::login( '4321' );
-t( 'PIN của Nhân viên: chối vì KHÔNG ĐỦ QUYỀN, không nói "PIN sai"',
-	empty( $kq['ok'] ) && strpos( $kq['error'], 'không được xem' ) !== false, $kq );
+t( 'PIN của Nhân viên: VÀO ĐƯỢC, ở bậc đáy', ! empty( $kq['ok'] ), $kq );
+teq( 'và đúng bậc Nhân viên', VHCC_Vai::NV, VHCC_Vai::ma( $kq['role'] ) );
 VHCC_Auth::mo_khoa();
 
 $wpdb->exec_raw( "DELETE FROM $bang_cfg WHERE bang='CH_NguoiDung'" );
@@ -3984,11 +4025,16 @@ teq( 'và đúng vai trò khai trong hồ sơ', 'Admin', isset( $kq_hs['role'] )
 teq( 'đúng cơ sở', 'TUTU_BT', isset( $kq_hs['coso'] ) ? $kq_hs['coso'] : null );
 VHCC_Auth::mo_khoa();
 /* 🔴 Hồ sơ CHƯA khai vai trò -> 'Nhân viên', bậc THẤP NHẤT, KHÔNG đoán lên cao. Đoán nhầm lên
-   Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả. */
+   Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả.
+   Họ VÀO được (mô hình năm bậc: ai cũng vào) nhưng chỉ ở bậc đáy. */
 $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => '' ), array( 'ma_nv' => 'HS_THU' ) );
 VHCC_Auth::mo_khoa();
 $kq_hs = VHCC_Auth::login( '135791' );
-t( 'hồ sơ chưa khai vai trò thì KHÔNG được đoán lên cao', empty( $kq_hs['ok'] ), $kq_hs );
+t( 'hồ sơ chưa khai vai trò thì vào được nhưng ở BẬC ĐÁY', ! empty( $kq_hs['ok'] ), $kq_hs );
+teq( 'và vai trò là Nhân viên, KHÔNG đoán lên cao', VHCC_Vai::NV,
+	VHCC_Vai::cua( array( 'role' => $kq_hs['role'] ) ) );
+teq( 'nên không có quyền hồ sơ', false,
+	VHCC_Vai::duoc( array( 'role' => $kq_hs['role'] ), 'ho_so' ) );
 VHCC_Auth::mo_khoa();
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='HS_THU'" );
 update_option( 'vhcc_nguon_nguoidung', 'chung' );
@@ -4076,27 +4122,33 @@ t( 'chối vai trò không có trong hệ thống', empty( $r['ok'] ), $r );
 $r = VHCC_NguoiDung::luu( '', '', '246814', 'Admin', '' );
 t( 'chối thiếu họ tên', empty( $r['ok'] ), $r );
 
-/* 🔴 KHÔNG XOÁ ĐƯỢC NGƯỜI CUỐI CÙNG CÒN VÀO ĐƯỢC — xoá là không ai đăng nhập nổi nữa. */
+/* 🔴 KHÔNG XOÁ ĐƯỢC TÀI KHOẢN QUẢN TRỊ CUỐI CÙNG — xoá là không ai mở nổi cài đặt nữa.
+   (Từ 25/08/2026 chốt tính theo BẬC ADMIN, không phải "ai đăng nhập được": ai cũng đăng nhập
+   được, nên chốt cũ hết ý nghĩa — nó sẽ cho xoá sạch Admin miễn là còn một Nhân viên.) */
 $ds1 = VHCC_NguoiDung::ds();
 $r = VHCC_NguoiDung::xoa( $ds1[0]['id'] );
-t( 'chặn xoá người CUỐI CÙNG còn vào được',
-	empty( $r['ok'] ) && strpos( $r['error'], 'CUỐI CÙNG' ) !== false, $r );
+t( 'chặn xoá tài khoản QUẢN TRỊ cuối cùng',
+	empty( $r['ok'] ) && strpos( $r['error'], 'QUẢN TRỊ cuối cùng' ) !== false, $r );
 teq( 'và không xoá thật', 1, count( VHCC_NguoiDung::ds() ) );
 
-/* Thêm người thứ hai rồi mới xoá được người thứ nhất. */
+/* Thêm một Kế toán KHÔNG gỡ được chốt — kế toán không mở được cài đặt hệ thống. */
 $r = VHCC_NguoiDung::luu( '', 'Chị Kế Toán', '357913', 'Kế toán cá nhân', 'TUTU_BT' );
 t( 'thêm người thứ hai', ! empty( $r['ok'] ), $r );
 $r = VHCC_NguoiDung::xoa( $ds1[0]['id'] );
-t( 'giờ xoá được người thứ nhất', ! empty( $r['ok'] ), $r );
-teq( 'còn lại 1 người', 1, count( VHCC_NguoiDung::ds() ) );
+t( 'thêm Kế toán vẫn KHÔNG xoá được Admin cuối cùng', empty( $r['ok'] ), $r );
+/* Thêm một Admin nữa thì mới xoá được. */
+VHCC_NguoiDung::luu( '', 'Admin Hai', '135797', 'Admin', '' );
+$r = VHCC_NguoiDung::xoa( $ds1[0]['id'] );
+t( 'thêm Admin thứ hai thì xoá được người thứ nhất', ! empty( $r['ok'] ), $r );
+teq( 'còn lại 2 người', 2, count( VHCC_NguoiDung::ds() ) );
 
-/* Người có vai trò KHÔNG vào được thì xoá thoải mái, không vướng chốt trên. */
+/* Người KHÔNG ở bậc Admin thì xoá thoải mái, không vướng chốt trên. */
 VHCC_NguoiDung::luu( '', 'Em Nhân Viên', '468024', 'Nhân viên', '' );
 $ds2 = VHCC_NguoiDung::ds();
 $id_nv = '';
 foreach ( $ds2 as $u ) { if ( 'Nhân viên' === $u['vaiTro'] ) { $id_nv = $u['id']; } }
 $r = VHCC_NguoiDung::xoa( $id_nv );
-t( 'xoá được người vốn không vào được (không vướng chốt người cuối)', ! empty( $r['ok'] ), $r );
+t( 'xoá được người không phải Admin (không vướng chốt người cuối)', ! empty( $r['ok'] ), $r );
 
 /* Sửa: để trống ô PIN = giữ PIN cũ. Bắt gõ lại PIN mỗi lần đổi tên là mời đặt PIN dễ nhớ hơn. */
 $ds3 = VHCC_NguoiDung::ds();
@@ -4119,12 +4171,16 @@ t( 'nhưng KHÔNG in PIN ra', strpos( $h_nd, '357913' ) === false );
 t( 'chỉ in số chữ số', strpos( $h_nd, '6 số' ) !== false );
 t( 'có ô thêm người ngay tại chỗ', strpos( $h_nd, 'Thêm người' ) !== false );
 
-/* Có người nhưng KHÔNG AI vào được -> phải báo đỏ, vì trông vẫn "có danh sách" mà thật ra tắc. */
+/* Sổ chỉ có Nhân viên: nay KHÔNG còn là tình trạng tắc — họ vào được, chỉ thấy công của mình.
+   Màn Cài đặt phải in bảng bậc để anh Thắng đối chiếu ai làm được gì. */
 delete_option( 'vhcc_nguoidung' );
 VHCC_NguoiDung::luu( '', 'Chỉ Nhân Viên', '468024', 'Nhân viên', '' );
 ob_start(); VHCC_Admin::page(); $h_nd2 = ob_get_clean();
-t( 'có người mà không ai vào được thì báo rõ',
-	strpos( $h_nd2, 'KHÔNG AI vào được' ) !== false );
+t( 'màn Cài đặt in bảng năm bậc quyền',
+	strpos( $h_nd2, 'Cửa hàng trưởng' ) !== false && strpos( $h_nd2, 'Kế toán' ) !== false
+	&& strpos( $h_nd2, 'xem công của mình' ) !== false, $h_nd2 );
+t( 'và KHÔNG còn ô tích "vai trò vào được" đã bỏ',
+	strpos( $h_nd2, 'vhcc_vai_tro[]' ) === false );
 
 delete_option( 'vhcc_nguoidung' );
 
@@ -4370,29 +4426,23 @@ t( 'QUAN_LY đăng nhập được', ! empty( $kq['ok'] ), $kq );
 teq( 'vai trò quy về Quản lý', 'Quản lý', isset( $kq['role'] ) ? $kq['role'] : null );
 VHCC_Auth::mo_khoa();
 
-/* Cửa hàng trưởng và Nhân viên: MẶC ĐỊNH không vào được — chấm công là căn cứ tính lương. */
+/* Cửa hàng trưởng và Nhân viên của sổ app gốc: VÀO ĐƯỢC, ở đúng bậc của mình. */
 $kq = VHCC_Auth::login( '468024' );
-t( 'CỬA HÀNG TRƯỞNG mặc định KHÔNG vào được',
-	empty( $kq['ok'] ) && strpos( $kq['error'], 'không được xem' ) !== false, $kq );
+t( 'CỬA HÀNG TRƯỞNG vào được', ! empty( $kq['ok'] ), $kq );
+teq( 'và quy đúng về bậc Cửa hàng trưởng', VHCC_Vai::CHT, VHCC_Vai::ma( $kq['role'] ) );
 VHCC_Auth::mo_khoa();
 $kq = VHCC_Auth::login( '579135' );
-t( 'NHÂN VIÊN mặc định KHÔNG vào được', empty( $kq['ok'] ), $kq );
+t( 'NHÂN VIÊN vào được', ! empty( $kq['ok'] ), $kq );
+teq( 'ở bậc đáy', VHCC_Vai::NV, VHCC_Vai::ma( $kq['role'] ) );
 VHCC_Auth::mo_khoa();
 /* 🔴 Vai trò LẠ phải rơi về bậc THẤP NHẤT. Đoán nhầm lên Admin là mở toàn bộ bảng lương cho
    một dòng gõ sai chính tả trong sheet. */
 $kq = VHCC_Auth::login( '680246' );
-t( 'vai trò LẠ rơi về bậc thấp nhất, KHÔNG thành Admin', empty( $kq['ok'] ), $kq );
+t( 'vai trò LẠ vào được nhưng ở bậc đáy', ! empty( $kq['ok'] ), $kq );
+teq( 'KHÔNG thành Admin', VHCC_Vai::NV, VHCC_Vai::ma( $kq['role'] ) );
+teq( 'nên không đụng được hồ sơ', false,
+	VHCC_Vai::duoc( array( 'role' => $kq['role'] ), 'ho_so' ) );
 VHCC_Auth::mo_khoa();
-
-/* Mở thêm vai trò thì cửa hàng trưởng vào được — và đó phải là lựa chọn có ý thức ở Cài đặt. */
-update_option( 'vhcc_vai_tro_vao', array( 'Admin', 'Quản lý', 'Cửa hàng trưởng' ) );
-$kq = VHCC_Auth::login( '468024' );
-t( 'tích thêm "Cửa hàng trưởng" thì họ vào được', ! empty( $kq['ok'] ), $kq );
-VHCC_Auth::mo_khoa();
-$kq = VHCC_Auth::login( '579135' );
-t( 'nhưng nhân viên VẪN không — hai vai trò tách riêng, không gộp', empty( $kq['ok'] ), $kq );
-VHCC_Auth::mo_khoa();
-delete_option( 'vhcc_vai_tro_vao' );
 
 /* 🔴 BẤT BIẾN SIẾT LẠI: nguồn 'chung'/'rieng' thì PIN trong `phan_quyen` PHẢI bị chối.
    Nối hai đường đó lại một cách NGẦM là điều duy nhất không được xảy ra. */
@@ -4450,15 +4500,18 @@ foreach ( array(
 	array( '357913', 'Chị Kế Toán',  'KE_TOAN',         'TUTU_BT' ),
 	array( '468024', 'Em Nhân Viên', 'NHAN_VIEN',       'CS_FZ_ADV_AL' ),
 	array( '579135', 'Anh CHT',      'CUA_HANG_TRUONG', 'CS_FZ_ADV_AL' ),
+	/* Sổ phải có SẴN một Admin thì mới khỏi gieo PIN mới: bậc Admin là bậc duy nhất mở được
+	   cài đặt, và không có ai ở bậc đó thì hệ tắc phần quản trị dù ai cũng đăng nhập được. */
+	array( '802468', 'Anh Admin Cũ', 'ADMIN',           '' ),
 ) as $r_pq ) {
 	$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => $r_pq[0], 'ho_ten' => $r_pq[1],
 		'vai_tro' => $r_pq[2], 'cua_hang' => $r_pq[3] ) );
 }
 teq( 'có sổ PIN cũ thì NẠP, không bịa PIN mới', 'nap', VHCC_NguoiDung::mo_duong_vao() );
 teq( 'KHÔNG hiện PIN lần đầu nào ở wp-admin', '', VHCC_NguoiDung::pin_lan_dau() );
-teq( 'nạp đủ 4 người của sổ cũ', 4, count( VHCC_NguoiDung::ds() ) );
+teq( 'nạp đủ 5 người của sổ cũ', 5, count( VHCC_NguoiDung::ds() ) );
 $_nap = VHCC_NguoiDung::mo_duong_nap();
-teq( 'và kể lại đã nạp bao nhiêu', 4, isset( $_nap['so'] ) ? $_nap['so'] : 0 );
+teq( 'và kể lại đã nạp bao nhiêu', 5, isset( $_nap['so'] ) ? $_nap['so'] : 0 );
 
 /* 🔴 Phép thử đáng giá nhất: mọi người đăng nhập bằng ĐÚNG PIN CŨ của họ. */
 VHCC_Auth::mo_khoa();
@@ -4474,7 +4527,8 @@ VHCC_Auth::mo_khoa();
 /* Nhân viên / Cửa hàng trưởng vẫn NẠP (để có sẵn, chỉ cần tích vai trò là vào) nhưng CHƯA vào
    được — chấm công là căn cứ tính lương, không mở rộng quyền thay anh Thắng. */
 $kq = VHCC_Auth::login( '468024' );
-t( 'nhân viên nạp về nhưng CHƯA vào được (đúng thiết kế)', empty( $kq['ok'] ), $kq );
+t( 'nhân viên nạp về VÀO ĐƯỢC luôn (mô hình năm bậc)', ! empty( $kq['ok'] ), $kq );
+teq( 'ở bậc đáy', VHCC_Vai::NV, VHCC_Vai::ma( $kq['role'] ) );
 VHCC_Auth::mo_khoa();
 teq( 'nguồn chuyển sang danh sách riêng', 'rieng', VHCC_Auth::nguon() );
 teq( 'và ghi lại nguồn cũ để màn Cài đặt nói ra', 'chung', VHCC_NguoiDung::gieo_doi_nguon() );
@@ -5038,46 +5092,74 @@ $h_w = vhcc_web( null, array( 'pin' => '999999' ) );
 t( 'PIN sai thì vẫn ở màn đăng nhập', strpos( $h_w, 'name="pin"' ) !== false );
 
 /* ===========================================================================
- *  HAI CỬA, KHÔNG PHẢI MỘT  —  đổi 25/08/2026
+ *  MÀN THEO BẬC QUYỀN  —  đổi 25/08/2026 (mô hình năm bậc anh Thắng chốt)
  * ---------------------------------------------------------------------------
- *  Trước đây trang này chỉ có màn HỒ SƠ, nên cửa VÀO chính là cửa hồ sơ: không phải Admin /
- *  Quản lý thì bị đá thẳng về màn đăng nhập.
+ *  Cửa VÀO rộng: ai có PIN cũng vào được, kể cả Nhân viên — việc họ cần (chấm công của mình,
+ *  xem công của mình) nằm ngay trong trang. Cửa TỪNG MÀN hẹp, theo bậc:
  *
- *  Nay có thêm màn BẢNG CHẤM CÔNG — thứ Cửa hàng trưởng và Kế toán phải xem, và chỉ xem CƠ SỞ
- *  CỦA MÌNH. Nên cửa tách làm hai: VÀO thì rộng (theo `vai_tro_vao`), MÀN HỒ SƠ thì vẫn hẹp
- *  đúng như cũ.
+ *      Nhân viên        -> chỉ "Công của tôi"
+ *      Cửa hàng trưởng  -> thêm "Bảng chấm công" (cơ sở mình)
+ *      Kế toán          -> thêm "Hồ sơ & tài khoản"
+ *      Admin            -> thêm khối hệ thống (nguồn người dùng, xoá sạch, khai Admin)
  *
- *  🔴 Chỗ nguy hiểm nằm ở đây: mọi việc của màn hồ sơ (nạp .csv đè cả sổ nhân sự, cấp PIN, đổi
- *     vai trò, xoá hết) trước kia được giữ bởi CỬA VÀO. Nới cửa mà quên gác `lam_viec` là mở
- *     toang đúng những thứ đó cho một người chỉ đáng được xem bảng công. Mấy phép dưới canh
- *     đúng chuyện ấy — và canh bằng cách GỬI THẬT một lượt POST, không phải chỉ nhìn màn hình.
+ *  🔴 Chỗ nguy hiểm: mọi việc của màn hồ sơ (nạp .csv đè cả sổ nhân sự, cấp PIN, đổi vai trò,
+ *     xoá hết) trước kia được giữ bởi CỬA VÀO. Cửa vào đã mở, nên `lam_viec` phải tự gác. Mấy
+ *     phép dưới canh đúng chuyện ấy — bằng cách GỬI THẬT một lượt POST, không phải chỉ nhìn
+ *     màn hình: màn hình ẩn được cái nút, nhưng người ta dựng form ở đâu cũng gửi lên được.
  * ======================================================================== */
-$h_w = vhcc_web( '468024' );
-t( 'Kế toán mang phiên thật thì VÀO ĐƯỢC (để xem bảng công)',
+VHCC_NguoiDung::luu( '', 'Anh CHT', '579135', 'Cửa hàng trưởng', 'TUTU_BT' );
+
+$h_w = vhcc_web( '579135' );
+t( 'Cửa hàng trưởng mang phiên thật thì VÀO ĐƯỢC',
 	strpos( $h_w, 'name="pin"' ) === false, $h_w );
 t( 'và thấy màn Bảng chấm công', strpos( $h_w, 'Bảng chấm công' ) !== false );
 t( 'nhưng KHÔNG thấy một mẩu hồ sơ nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false, $h_w );
 t( 'không thấy CCCD', strpos( $h_w, '049304007231' ) === false );
-t( 'không thấy thanh chọn màn (họ chỉ có một màn)',
-	strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) === false, $h_w );
+t( 'không có nút vào màn Hồ sơ', strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) === false, $h_w );
 /* Ép `man=ho_so` trên thanh địa chỉ cũng KHÔNG mở được — nếu chỉ ẩn cái nút thì đây là cửa hở. */
-$h_w = vhcc_web( '468024', array(), array( 'man' => 'ho_so' ) );
+$h_w = vhcc_web( '579135', array(), array( 'man' => 'ho_so' ) );
 t( 'gõ tay ?man=ho_so cũng không mở được hồ sơ',
 	strpos( $h_w, 'Nguyễn Thu Hiền' ) === false, $h_w );
 
-/* 🔴 GỬI THẬT một lượt POST việc hồ sơ bằng phiên Kế toán. Đây mới là chốt: màn hình có thể ẩn
-   nút, nhưng người ta dựng được form ở đâu cũng gửi lên được. */
-VHCC_Auth::mo_khoa();
-$tok_kt = VHCC_Auth::login( '468024' );
-VHCC_Auth::mo_khoa();
-$_COOKIE[ VHCC_Web::COOKIE ] = $tok_kt['token'];
-$ky_kt = VHCC_Web::chu_ky( $tok_kt['token'] );
+/* 🔴 GỬI THẬT lượt POST việc hồ sơ bằng phiên Cửa hàng trưởng. */
+$U_W_CHT = array( 'name' => 'Anh CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' );
 foreach ( array( 'nap_csv', 'xoa_het', 'doi_nguon', 'khai_admin', 'nap_tk', 'sua_hs', 'doi_ma' ) as $v_kt ) {
-	$_POST = array( 'viec' => $v_kt, 'ky' => $ky_kt );
-	$r_kt = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( $v_kt, array( 'name' => 'Chị Kế Toán', 'role' => 'Kế toán cá nhân', 'coso' => 'TUTU_BT' ) ) );
-	t( 'Kế toán POST việc "' . $v_kt . '" bị chối',
-		is_array( $r_kt ) && isset( $r_kt[0]['loi'] ) && strpos( $r_kt[0]['loi'], 'Admin hoặc Quản lý' ) !== false,
-		$r_kt );
+	$_POST = array( 'viec' => $v_kt );
+	$r_kt  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( $v_kt, $U_W_CHT ) );
+	t( 'Cửa hàng trưởng POST việc "' . $v_kt . '" bị chối',
+		is_array( $r_kt ) && isset( $r_kt[0]['loi'] )
+		&& strpos( $r_kt[0]['loi'], 'Kế toán trở lên' ) !== false, $r_kt );
+}
+
+/* NHÂN VIÊN: bậc thấp nhất — vào được, nhưng chỉ có đúng một màn. */
+VHCC_NguoiDung::luu( '', 'Em Nhân Viên Web', '680246', 'Nhân viên', 'TUTU_BT' );
+$h_w = vhcc_web( '680246' );
+t( 'Nhân viên vào được (trước đây bị chối ngay cổng)',
+	strpos( $h_w, 'name="pin"' ) === false, $h_w );
+t( 'và thấy màn Công của tôi', strpos( $h_w, 'Công của tôi' ) !== false, $h_w );
+t( 'KHÔNG có nút Bảng chấm công', strpos( $h_w, '>Bảng chấm công<' ) === false, $h_w );
+t( 'KHÔNG thấy hồ sơ ai', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
+$h_w = vhcc_web( '680246', array(), array( 'man' => 'cham' ) );
+t( 'gõ tay ?man=cham cũng không mở được bảng công cơ sở',
+	strpos( $h_w, 'chọn cơ sở' ) === false, $h_w );
+foreach ( array( 'co', 'xu_ly_co', 'sua_hs' ) as $v_nv ) {
+	$_POST = array( 'viec' => $v_nv );
+	$r_nv  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+		array( $v_nv, array( 'name' => 'Em NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ) ) );
+	t( 'Nhân viên POST việc "' . $v_nv . '" không làm gì được',
+		is_array( $r_nv ) && ( ! isset( $r_nv[0]['xong'] ) ), $r_nv );
+}
+
+/* KẾ TOÁN: "full quyền ngoài admin" — hồ sơ mở, khối hệ thống thì không. */
+$h_w = vhcc_web( '468024' );
+t( 'Kế toán thấy màn Hồ sơ & tài khoản', strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) !== false, $h_w );
+foreach ( array( 'xoa_het', 'doi_nguon', 'khai_admin', 'doi_ma' ) as $v_ad ) {
+	$_POST = array( 'viec' => $v_ad );
+	$r_ad  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+		array( $v_ad, array( 'name' => 'Chị KT', 'role' => 'Kế toán cá nhân', 'coso' => '' ) ) );
+	t( 'nhưng việc hệ thống "' . $v_ad . '" vẫn chỉ Admin',
+		is_array( $r_ad ) && isset( $r_ad[0]['loi'] )
+		&& strpos( $r_ad[0]['loi'], 'Chỉ Admin' ) !== false, $r_ad );
 }
 $_POST = array(); $_COOKIE = array();
 
@@ -5102,8 +5184,10 @@ $u_kt = VHCC_Auth::user_by_token( $kq_kt['token'] );
 t( 'mà token đó vẫn hợp lệ ở cổng chấm công', is_array( $u_kt ) && 'Kế toán cá nhân' === $u_kt['role'], $u_kt );
 
 /* Quản lý và Admin vào được. */
+/* Quản lý vào được, nhưng KHÔNG thấy hồ sơ — hồ sơ thuộc bậc Kế toán. */
 $h_w = vhcc_web( '357913' );
-t( 'Quản lý vào được', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
+t( 'Quản lý vào được', strpos( $h_w, 'name="pin"' ) === false, $h_w );
+t( 'nhưng Quản lý KHÔNG thấy hồ sơ', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
 t( 'nhưng KHÔNG thấy nút xoá sạch hồ sơ', strpos( $h_w, 'value="xoa_het"' ) === false );
 t( 'và không khai được Admin', strpos( $h_w, 'value="khai_admin"' ) === false );
 
@@ -5142,7 +5226,8 @@ t( 'KHÔNG còn nút Lưu từng dòng', strpos( $h_w, '>Lưu</button>' ) === fa
 t( 'có nút đặt Vai trò hàng loạt', strpos( $h_w, 'value="vai_tro_hang_loat"' ) !== false );
 t( 'và nói rõ phạm vi là các dòng ĐANG HIỆN',
 	strpos( $h_w, 'dòng đang hiện' ) !== false && strpos( $h_w, 'không phải cả sổ' ) !== false );
-t( 'và nói rõ vai trò nào KHÔNG vào được', strpos( $h_w, '(không vào được)' ) !== false );
+/* Cột vai trò nay in BẬC, không in "(không vào được)" — ai cũng vào được, khác nhau ở bậc. */
+t( 'và nói rõ bậc của từng vai trò', strpos( $h_w, 'bậc' ) !== false, $h_w );
 /* Bốn ô cho CHỌN, nhưng vẫn gõ được giá trị mới -> datalist, không phải select. */
 foreach ( array( 'dl_ch' => 'cua_hang', 'dl_cv' => 'chuc_vu', 'dl_nv' => 'nhiem_vu',
 	'dl_cp' => 'coso_phu' ) as $dl => $o_ten ) {
@@ -5452,7 +5537,13 @@ $_COOKIE[ VHCC_Web::COOKIE ] = $kq_ql['token'];
 $_POST = array( 'viec' => 'doi_ma', 'ky' => VHCC_Web::chu_ky( $kq_ql['token'] ),
 	'ma_cu' => 'MOI01', 'ma_moi' => 'QL_DOI' );
 ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
-t( 'Quản lý KHÔNG đổi được Mã NV', strpos( $h_w, 'Chỉ Admin' ) !== false );
+/* Quản lý bị chối SỚM HƠN — họ không có cả quyền vào màn Hồ sơ (mô hình năm bậc). */
+t( 'Quản lý KHÔNG đổi được Mã NV', strpos( $h_w, 'Kế toán trở lên' ) !== false, $h_w );
+/* Kế toán VÀO được màn Hồ sơ, nhưng đổi Mã NV vẫn là việc hệ thống -> chỉ Admin. */
+$r_ma = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'doi_ma', array( 'name' => 'Chị KT', 'role' => 'Kế toán cá nhân', 'coso' => '' ) ) );
+t( 'Kế toán cũng KHÔNG đổi được Mã NV (chỉ Admin)',
+	isset( $r_ma[0]['loi'] ) && strpos( $r_ma[0]['loi'], 'Chỉ Admin' ) !== false, $r_ma );
 teq( 'và mã vẫn nguyên', 1, count( VHCC_DB::rows(
 	'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='MOI01'" ) ) );
 $_POST = array(); $_COOKIE = array();
@@ -5541,7 +5632,11 @@ VHCC_Auth::mo_khoa();
 $_COOKIE[ VHCC_Web::COOKIE ] = $kq_ql['token'];
 $_POST = array( 'viec' => 'xoa_het', 'ky' => VHCC_Web::chu_ky( $kq_ql['token'] ), 'xac_nhan' => 'XOA HET' );
 ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
-t( 'Quản lý bấm xoá sạch thì bị chối', strpos( $h_w, 'Chỉ Admin' ) !== false );
+t( 'Quản lý bấm xoá sạch thì bị chối', strpos( $h_w, 'Kế toán trở lên' ) !== false, $h_w );
+$r_xh = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'xoa_het', array( 'name' => 'Chị KT', 'role' => 'Kế toán cá nhân', 'coso' => '' ) ) );
+t( 'Kế toán cũng bị chối xoá sạch (chỉ Admin)',
+	isset( $r_xh[0]['loi'] ) && strpos( $r_xh[0]['loi'], 'Chỉ Admin' ) !== false, $r_xh );
 teq( 'và hồ sơ còn nguyên', 1, count( VHCC_DB::rows( 'SELECT id FROM ' . VHCC_DB::t( 'nhan_vien' ) ) ) );
 $_POST = array(); $_COOKIE = array();
 
@@ -5578,7 +5673,11 @@ teq( 'không ai trùng PIN với ai', count( $pins ), count( array_unique( $pins
 $_COOKIE[ VHCC_Web::COOKIE ] = $kq_ql['token'];
 $_POST = array( 'viec' => 'khai_admin', 'ky' => VHCC_Web::chu_ky( $kq_ql['token'] ), 'ten' => 'Kẻ Lạ' );
 ob_start(); VHCC_Web::phuc_vu(); $h_w = ob_get_clean();
-t( 'Quản lý KHÔNG khai được tài khoản Admin', strpos( $h_w, 'Chỉ Admin' ) !== false );
+t( 'Quản lý KHÔNG khai được tài khoản Admin', strpos( $h_w, 'Kế toán trở lên' ) !== false, $h_w );
+$r_ka = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'khai_admin', array( 'name' => 'Chị KT', 'role' => 'Kế toán cá nhân', 'coso' => '' ) ) );
+t( 'Kế toán cũng KHÔNG khai được Admin (chỉ Admin)',
+	isset( $r_ka[0]['loi'] ) && strpos( $r_ka[0]['loi'], 'Chỉ Admin' ) !== false, $r_ka );
 $_POST = array(); $_COOKIE = array();
 
 /* ---- 47c. ĐƯỜNG VÀO BẰNG QUYỀN QUẢN TRỊ WORDPRESS ---- */

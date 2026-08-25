@@ -94,9 +94,33 @@ class VHCC_Web {
 		return VHCC_Auth::user_by_token( $tok );
 	}
 
-	/** Người này có được vào màn HỒ SƠ / TÀI KHOẢN không (cửa hẹp). */
+	/**
+	 * Người này có được vào màn HỒ SƠ / TÀI KHOẢN không.
+	 *
+	 * 🔴 Trước đây so tên vai trò với một mảng cứng trong mã (`['Admin','Quản lý']`) — nên Kế
+	 *    toán bị chối, dù anh Thắng chốt kế toán *"full quyền ngoài admin"*. Nay hỏi bảng vai:
+	 *    thêm/bớt quyền là sửa MỘT bảng, không phải đi tìm từng mảng cứng nằm rải trong mã.
+	 */
 	public static function co_ho_so( $u ) {
-		return in_array( isset( $u['role'] ) ? (string) $u['role'] : '', self::VAI_TRO, true );
+		return VHCC_Vai::duoc( $u, 'ho_so' );
+	}
+
+	/**
+	 * Mở phiên trang quản trị cho một thẻ đã phát ở nơi khác.
+	 *
+	 * Dùng khi người ta đăng nhập ở TRẠM: cùng một thẻ, nên bấm sang trang quản trị là vào
+	 * thẳng, không gõ PIN lần hai. Không có bước này thì "gộp một trang" chỉ là cái liên kết —
+	 * bấm vào vẫn rơi ra màn PIN, và người dùng vẫn thấy hai hệ thống rời nhau.
+	 *
+	 * ⚠️ Chỉ nhận thẻ do chính hệ phát ra (kiểm bằng `user_by_token`). Nhận bừa là ai gửi một
+	 *    chuỗi 64 ký tự cũng mở được phiên.
+	 */
+	public static function mo_phien( $tok ) {
+		$tok = (string) $tok;
+		if ( ! preg_match( '/^[0-9a-f]{64}$/', $tok ) ) { return false; }
+		if ( ! VHCC_Auth::user_by_token( $tok ) ) { return false; }
+		self::dat_cookie( $tok );
+		return true;
 	}
 
 	private static function dat_cookie( $tok, $song = true ) {
@@ -239,8 +263,8 @@ class VHCC_Web {
 		   lọt. Ngược lại (danh sách đen) thì quên một dòng là mở một cửa, và cửa đó im lặng. */
 		if ( ! in_array( $viec, self::VIEC_CHAM, true ) && ! self::co_ho_so( $toi ) ) {
 			return array( array( 'loi' => 'Tài khoản ' . ( isset( $toi['name'] ) ? $toi['name'] : '' )
-				. ' (' . ( isset( $toi['role'] ) ? $toi['role'] : '' ) . ') chỉ xem được bảng chấm công. '
-				. 'Việc này thuộc màn Hồ sơ — cần Admin hoặc Quản lý.' ) );
+				. ' (' . VHCC_Vai::ten( $toi ) . ') chỉ xem được bảng chấm công. '
+				. 'Việc này thuộc màn Hồ sơ — cần bậc Kế toán trở lên.' ) );
 		}
 
 		if ( 'co' === $viec ) {
@@ -285,7 +309,7 @@ class VHCC_Web {
 		/* 🔴 XOÁ SẠCH HỒ SƠ. Anh Thắng: *"xoá hết dữ liệu nhân viên xong bổ sung lại từ đầu"*.
 		   Đòi gõ đúng chữ, và CHỈ Admin — Quản lý không được xoá cả sổ nhân sự của chuỗi. */
 		if ( 'xoa_het' === $viec ) {
-			if ( 'Admin' !== $toi['role'] ) {
+			if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
 				return array( array( 'loi' => 'Chỉ Admin mới xoá được cả sổ hồ sơ.' ) );
 			}
 			$go = isset( $_POST['xac_nhan'] ) ? trim( (string) wp_unslash( $_POST['xac_nhan'] ) ) : '';
@@ -302,7 +326,7 @@ class VHCC_Web {
 		}
 
 		if ( 'doi_nguon' === $viec ) {
-			if ( 'Admin' !== $toi['role'] ) {
+			if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
 				return array( array( 'loi' => 'Chỉ Admin mới đổi được nguồn người dùng.' ) );
 			}
 			$ng = isset( $_POST['nguon'] ) ? sanitize_text_field( wp_unslash( $_POST['nguon'] ) ) : '';
@@ -338,7 +362,7 @@ class VHCC_Web {
 		}
 
 		if ( 'doi_ma' === $viec ) {
-			if ( 'Admin' !== $toi['role'] ) {
+			if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
 				return array( array( 'loi' => 'Chỉ Admin mới đổi được Mã NV.' ) );
 			}
 			$r = VHCC_NhanSu::doi_ma(
@@ -381,7 +405,7 @@ class VHCC_Web {
 		}
 
 		if ( 'khai_admin' === $viec ) {
-			if ( 'Admin' !== $toi['role'] ) {
+			if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
 				return array( array( 'loi' => 'Chỉ Admin mới khai được tài khoản Admin khác.' ) );
 			}
 			$r = VHCC_NguoiDung::khai_admin( isset( $_POST['ten'] ) ? wp_unslash( $_POST['ten'] ) : '' );
@@ -831,7 +855,7 @@ class VHCC_Web {
 	private static function trang_chinh( $toi, $bao ) {
 		global $wpdb;
 		$ky  = self::chu_ky( (string) $_COOKIE[ self::COOKIE ] );
-		$la  = 'Admin' === $toi['role'];
+		$la  = VHCC_Vai::duoc( $toi, 'he_thong' );   // khối hệ thống: nguồn người dùng, xoá sạch, khai Admin
 		$bang = VHCC_DB::t( 'nhan_vien' );
 		$tong = (int) $wpdb->get_var( "SELECT COUNT(*) FROM $bang" );
 
@@ -839,7 +863,7 @@ class VHCC_Web {
 
 		echo self::dau( 'Quản trị Chấm Công' );
 		echo '<header><div class="bo"><h1>Quản trị Chấm Công</h1>'
-			. '<span class="mo">' . esc_html( $toi['name'] . ' · ' . $toi['role'] ) . '</span>'
+			. '<span class="mo">' . esc_html( $toi['name'] . ' · ' . VHCC_Vai::ten( $toi ) ) . '</span>'
 			. '<form method="post" style="margin:0"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<button name="viec" value="thoat">Thoát</button></form></div></header>';
 		echo '<div class="bo">';
@@ -848,13 +872,25 @@ class VHCC_Web {
 		foreach ( $bao as $b ) { self::ve_bao( $b ); }
 
 		/* ------------------------------------------------------------------ chọn màn
-		   Người KHÔNG có quyền hồ sơ chỉ có đúng một màn, nên đừng bày ra thanh chọn một mục rồi
-		   để họ bấm vào một màn sẽ bị chối — vẽ thẳng màn của họ. */
-		$co_hs = self::co_ho_so( $toi );
-		$man   = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
-		if ( ! $co_hs ) { $man = 'cham'; }
-		if ( ! in_array( $man, array( 'cham', 'ho_so' ), true ) ) { $man = 'ho_so'; }
-		if ( $co_hs ) { self::thanh_man( $man ); }
+		   Thanh màn dựng theo QUYỀN, không theo tên vai trò: mỗi người chỉ thấy những màn mình
+		   mở được, nên không có chuyện bấm vào một mục rồi bị chối. Người chỉ có đúng một màn
+		   thì không vẽ thanh — một cái thanh một mục chỉ tổ chiếm chỗ. */
+		$ds_man = self::man_cua( $toi );
+		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
+		if ( ! isset( $ds_man[ $man ] ) ) {
+			/* Mặc định là màn CAO NHẤT người này mở được, không phải màn đầu danh sách: kế toán
+			   mở trang ra để làm hồ sơ, không phải để xem công của chính mình. Thanh vẫn xếp từ
+			   thấp lên cao để thứ tự nút cố định với mọi người. */
+			$khoa = array_keys( $ds_man );
+			$man  = end( $khoa );
+		}
+		if ( count( $ds_man ) > 1 ) { self::thanh_man( $man, $ds_man ); }
+
+		if ( 'cong_toi' === $man ) {
+			self::the_cong_toi( $toi );
+			echo '</div></body></html>';
+			return;
+		}
 
 		if ( 'cham' === $man ) {
 			self::the_bang_cham( $ky, $toi );
@@ -884,15 +920,38 @@ class VHCC_Web {
 		echo '</div></body></html>';
 	}
 
-	/** Thanh chọn màn. Chỉ vẽ cho người có nhiều hơn một màn — xem `trang_chinh`. */
-	private static function thanh_man( $man ) {
-		$ds = array( 'cham' => 'Bảng chấm công', 'ho_so' => 'Hồ sơ & tài khoản' );
-		echo '<div class="the" style="padding:8px 10px;margin-bottom:14px"><div class="hang" style="gap:8px">';
+	/**
+	 * Những màn người này mở được, theo thứ tự hiện ra.
+	 *
+	 * 🔴 MỘT NƠI DUY NHẤT quyết định thanh màn VÀ quyết định `?man=` nào hợp lệ. Hai danh sách
+	 *    (một để vẽ nút, một để gác) là kiểu lỗi mở cửa sau: nút không hiện, nhưng gõ thẳng
+	 *    `?man=ho_so` lên thanh địa chỉ thì vẫn vào. Ở đây danh sách vẽ nút CHÍNH LÀ danh sách
+	 *    gác, nên không có cửa sau nào để quên.
+	 *
+	 * ⚠️ Luôn trả về ít nhất một màn. Rỗng thì `key()` cho null và trang ra trắng — người dùng
+	 *    thấy một trang trắng chứ không thấy câu giải thích nào.
+	 */
+	public static function man_cua( $toi ) {
+		$ds = array();
+		if ( VHCC_Vai::duoc( $toi, 'cong_minh' ) ) { $ds['cong_toi'] = 'Công của tôi'; }
+		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['cham']     = 'Bảng chấm công'; }
+		if ( VHCC_Vai::duoc( $toi, 'ho_so' ) )     { $ds['ho_so']    = 'Hồ sơ & tài khoản'; }
+		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
+		return $ds;
+	}
+
+	/** Người này có được vào màn HỒ SƠ / TÀI KHOẢN không. Giữ tên cũ, hỏi bảng vai. */
+	private static function thanh_man( $man, $ds ) {
+		echo '<div class="the" style="padding:8px 10px;margin-bottom:14px"><div class="hang" style="gap:8px;flex-wrap:wrap">';
 		foreach ( $ds as $k => $ten ) {
 			$url = add_query_arg( array( 'man' => $k ), self::url() );
 			echo '<a class="nut' . ( $k === $man ? ' chinh' : '' ) . '" href="' . esc_url( $url ) . '">'
 				. esc_html( $ten ) . '</a>';
 		}
+		/* Chấm công là TRANG KHÁC (cần camera, và phải nhẹ để mở bằng 3G ở cơ sở) nên là một
+		   liên kết chứ không phải một màn. Vẫn để chung thanh: với người dùng thì đó vẫn là
+		   "một hệ thống, bấm qua lại được", đúng thứ anh Thắng hỏi. */
+		echo '<a class="nut" href="' . esc_url( VHCC_Tram::url() ) . '">📷 Chấm công</a>';
 		echo '</div></div>';
 	}
 
@@ -915,6 +974,98 @@ class VHCC_Web {
 	 *  ⚠️ Lưới xếp NGƯỜI theo hàng, NGÀY theo cột — giống hệt sheet `CS_` anh Thắng vẫn nhìn.
 	 *     Đổi sang mỗi lượt một dòng thì đúng về dữ liệu nhưng không ai soi nổi một tháng.
 	 * ======================================================================== */
+	/**
+	 * MÀN "CÔNG CỦA TÔI" — ai cũng có, kể cả nhân viên bậc thấp nhất.
+	 *
+	 * Anh Thắng: *"Nhân viên (chỉ chấm công và xem công của mình)"*. Đây là nửa sau của câu đó.
+	 * Nửa trước — chấm công — nằm ở trang trạm, vì nó cần camera và phải nhẹ; thanh màn có liên
+	 * kết bấm qua.
+	 *
+	 * 🔴 KHÔNG IN TIỀN. Cùng lý do với bản trên điện thoại: đây là bậc thấp nhất của hệ, và số
+	 *    "công" dùng để trả lương do VHCC_Luong tính chứ không phải màn này. Xem chú thích dài
+	 *    ở `VHCC_Online::bang_thang()`.
+	 *
+	 * ⚠️ Đọc MÃ NV từ THẺ PHIÊN, không nhận từ `$_GET`. Nhận từ URL là mở đường cho một nhân
+	 *    viên gõ mã người khác vào thanh địa chỉ và xem công của họ.
+	 */
+	private static function the_cong_toi( $toi ) {
+		$ma_nv = trim( isset( $toi['ma_nv'] ) ? (string) $toi['ma_nv'] : '' );
+		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', $th ) ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
+
+		echo '<div class="the">';
+		echo '<h2>Công của tôi</h2>';
+
+		if ( '' === $ma_nv ) {
+			/* Không có mã thì không tra được gì — nhưng phải nói RÕ thiếu ở đâu và ai sửa được,
+			   chứ không phải một bảng trống. Bảng trống làm người ta tưởng mình mất công. */
+			echo '<p class="loi" style="margin-top:10px">Hồ sơ của anh/chị <b>chưa có Mã NV</b>, '
+				. 'nên hệ thống chưa biết các lượt chấm công thuộc về ai. '
+				. 'Nhờ quản lý cửa hàng hoặc kế toán khai ô <b>Mã NV</b> trong hồ sơ nhân sự — '
+				. 'khai xong là bảng dưới đây có số ngay, không phải chấm lại.</p>';
+			echo '</div>';
+			return;
+		}
+
+		$ds_cs = VHCC_Online::ds_coso_cua_nv( $ma_nv, VHCC_NhanSu::chuan_coso( $toi['coso'] ) );
+		$kq    = VHCC_Online::bang_thang( $ma_nv, $ds_cs, $th );
+		$tong  = $kq['tong'];
+
+		echo '<p class="mo">' . esc_html( $toi['name'] ) . ' · mã <b>' . esc_html( $ma_nv ) . '</b> · '
+			. esc_html( $ds_cs ? implode( ' · ', $ds_cs ) : 'chưa khai cơ sở' ) . '</p>';
+
+		echo '<form method="get" class="hang" style="margin-top:10px">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="cong_toi">';
+		echo '<div><label for="cth">Tháng</label><input id="cth" name="cth" type="month" value="'
+			. esc_attr( $th ) . '"></div>';
+		echo '<div><button class="chinh">Xem</button></div>';
+		echo '</form>';
+
+		echo '<p style="margin:12px 0 4px"><b>' . (int) $tong['ngay'] . '</b> ngày · <b>'
+			. (int) $tong['luot'] . '</b> lượt · <b>' . esc_html( self::gio_phut( $tong['phut'] ) )
+			. '</b> có mặt</p>';
+		if ( $tong['thieuRa'] ) {
+			echo '<p class="loi"><b>' . (int) $tong['thieuRa'] . ' lượt thiếu giờ ra</b> '
+				. '(ô Ra để trống bên dưới). Báo quản lý bổ sung <b>trước khi chốt lương tháng</b>.</p>';
+		}
+
+		if ( ! $kq['dong'] ) {
+			echo '<p class="mo" style="margin-top:10px">Tháng này chưa có lượt chấm công nào.</p>';
+			echo '</div>';
+			return;
+		}
+
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Ngày</th><th>Cơ sở</th><th>Hàng</th>'
+			. '<th>Vào</th><th>Ra</th><th>Giờ có mặt</th></tr></thead><tbody>';
+		foreach ( $kq['dong'] as $d ) {
+			$thieu = ( '' === $d['ra'] );
+			echo '<tr>';
+			echo '<td>' . esc_html( $d['ngay'] ) . '</td>';
+			echo '<td>' . esc_html( $d['coSo'] ) . '</td>';
+			echo '<td>' . esc_html( '' !== $d['hauTo'] ? $d['hauTo'] : 'chính' ) . '</td>';
+			echo '<td>' . esc_html( '' !== $d['vao'] ? $d['vao'] : '—' ) . '</td>';
+			echo '<td' . ( $thieu ? ' class="chu-hong"' : '' ) . '>'
+				. ( $thieu ? 'thiếu ?' : esc_html( $d['ra'] ) ) . '</td>';
+			echo '<td>' . esc_html( self::gio_phut( $d['phut'] ) ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo" style="margin-top:10px">Số ở đây là <b>giờ có mặt</b> đọc thẳng từ bảng '
+			. 'chấm công — chưa trừ nghỉ, chưa quy ra công tính lương. Bảng lương do kế toán chốt '
+			. 'có thể khác; thấy lệch thì báo, đừng tự cộng.</p>';
+		echo '</div>';
+	}
+
+	/** Phút -> "7h30". Rỗng/null -> "—". */
+	private static function gio_phut( $p ) {
+		if ( null === $p || '' === $p ) { return '—'; }
+		$p = (int) $p;
+		$g = intdiv( $p, 60 );
+		$m = $p % 60;
+		return $g . 'h' . ( $m ? sprintf( '%02d', $m ) : '' );
+	}
+
 	private static function the_bang_cham( $ky, $toi ) {
 		$ds_cs = self::ds_coso_xem( $toi );
 		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
@@ -1325,7 +1476,7 @@ class VHCC_Web {
 		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt ) {
 			echo '<option value="' . esc_attr( $vt ) . '"' . selected( $vt, 'Nhân viên', false ) . '>'
 				. esc_html( $vt )
-				. ( in_array( $vt, VHCC_Auth::vai_tro_vao(), true ) ? '' : ' — không vào được' ) . '</option>';
+				. ' — bậc ' . VHCC_Vai::BAC[ VHCC_Vai::ma( $vt ) ] . '</option>';
 		}
 		echo '</select></div>';
 		echo '<button class="chinh" name="viec" value="nap_tk">Nạp tài khoản</button>';
@@ -1355,7 +1506,7 @@ class VHCC_Web {
 		   đã mất một khoá cầu nối vì một ảnh gửi qua chat. Nên: bấm 👁 ở ĐÚNG dòng cần xem, và
 		   chỉ dòng đó hiện. Chỉ Admin. Không lưu lại đâu cả. */
 		$xem_pin = isset( $_GET['pin'] ) ? sanitize_text_field( wp_unslash( $_GET['pin'] ) ) : '';
-		if ( '' !== $xem_pin && 'Admin' !== $toi['role'] ) { $xem_pin = ''; }
+		if ( '' !== $xem_pin && ! VHCC_Vai::duoc( $toi, 'xem_pin' ) ) { $xem_pin = ''; }
 		$cs   = isset( $_GET['cs'] ) ? sanitize_text_field( wp_unslash( $_GET['cs'] ) ) : '';
 		$tim  = isset( $_GET['q'] ) ? sanitize_text_field( wp_unslash( $_GET['q'] ) ) : '';
 
@@ -1478,7 +1629,7 @@ class VHCC_Web {
 		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_h ) {
 			echo '<option value="' . esc_attr( $vt_h ) . '"' . selected( $vt_h, 'Nhân viên', false ) . '>'
 				. esc_html( $vt_h )
-				. ( in_array( $vt_h, VHCC_Auth::vai_tro_vao(), true ) ? '' : ' (không vào được)' )
+				. ' (bậc ' . VHCC_Vai::BAC[ VHCC_Vai::ma( $vt_h ) ] . ')'
 				. '</option>';
 		}
 		echo '</select></div>';
@@ -1513,7 +1664,7 @@ class VHCC_Web {
 			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_c ) {
 				echo '<option value="' . esc_attr( $vt_c ) . '"' . selected( $vt_c, $vt_r, false ) . '>'
 					. esc_html( $vt_c )
-					. ( in_array( $vt_c, VHCC_Auth::vai_tro_vao(), true ) ? '' : ' (không vào được)' )
+					. ' (bậc ' . VHCC_Vai::BAC[ VHCC_Vai::ma( $vt_c ) ] . ')'
 					. '</option>';
 			}
 			echo '</select></td>';
@@ -1529,7 +1680,7 @@ class VHCC_Web {
 					. '<a href="' . esc_url( remove_query_arg( 'pin' ) ) . '">ẩn</a>';
 			} elseif ( $co_pin ) {
 				echo '<span class="co">✔ có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số</span>';
-				if ( 'Admin' === $toi['role'] ) {
+				if ( VHCC_Vai::duoc( $toi, 'xem_pin' ) ) {
 					echo ' <a href="' . esc_url( add_query_arg( 'pin', $r['ma_nv'] ) ) . '">👁</a>';
 				}
 				echo ' <label style="display:inline;color:var(--do)"><input form="' . $id . '" '
@@ -1556,7 +1707,7 @@ class VHCC_Web {
 			. 'của sổ cũ đang lẫn tên cơ sở, gom vào là danh sách toàn rác và mời bấm nhầm.</p>'
 			. '</form></details>';
 
-		if ( 'Admin' === $toi['role'] ) {
+		if ( VHCC_Vai::duoc( $toi, 'xem_pin' ) ) {
 			echo '<p class="mo">Cần đọc PIN để báo cho nhân viên thì bấm <b>👁 xem</b> ở đúng dòng đó — '
 				. 'hiện <b>một người một lúc</b>, và chỉ Admin thấy nút này. Cố ý không có nút '
 				. '"hiện hết": in 240 PIN ra một màn hình thì một ảnh chụp là mất sạch mật khẩu cả '
@@ -1667,7 +1818,7 @@ class VHCC_Web {
 					foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt ) {
 						echo '<option value="' . esc_attr( $vt ) . '"' . selected( $vt, $g( 'vai_tro' ), false )
 							. '>' . esc_html( $vt )
-							. ( in_array( $vt, VHCC_Auth::vai_tro_vao(), true ) ? '' : ' (không vào được)' )
+							. ' (bậc ' . VHCC_Vai::BAC[ VHCC_Vai::ma( $vt ) ] . ')'
 							. '</option>';
 					}
 					echo '</select>';

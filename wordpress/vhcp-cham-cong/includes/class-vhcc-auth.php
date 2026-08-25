@@ -23,14 +23,29 @@ class VHCC_Auth {
 	const TTL = 2592000;   // 30 ngày
 
 	/**
-	 * Vai trò vào được — MẶC ĐỊNH HẸP, mở rộng bằng Cài đặt chứ không sửa code.
+	 * Vai trò vào được CỔNG.
 	 *
-	 * Chấm công khác thư viện hợp đồng: có thể cửa hàng trưởng cần xem bảng công của cơ sở
-	 * mình. Nhưng em KHÔNG tự mở rộng: dữ liệu chấm công là căn cứ tính lương, mở rộng quyền
-	 * phải là quyết định của anh, thấy được trên màn hình Cài đặt, không phải một dòng code
-	 * em tự đổi. Nên mặc định giống app hợp đồng, và có ô tích để anh thêm vai trò.
+	 * =========================================================================================
+	 * 🔴 TỪ 25/08/2026: MỌI VAI ĐỀU VÀO ĐƯỢC. Cửa không còn nằm ở đây.
+	 * =========================================================================================
+	 * Bản cũ chặn ngay tại cổng: chỉ Admin / Quản lý / Kế toán. Hệ quả là nhân viên có PIN gõ
+	 * vào thì nhận đúng câu *"Tài khoản … (Nhân viên) không được xem hệ thống chấm công"* — dù
+	 * việc họ cần chỉ là chấm công của chính mình và xem công của chính mình, hai việc mà mô
+	 * hình anh Thắng chốt giao cho MỌI người.
+	 *
+	 * Chặn ở cổng còn đẻ ra cái cửa thứ hai: trạm chấm công phải tự dựng đường đăng nhập riêng
+	 * với một vai giả, và từ đó hai nửa hệ thống không nhận thẻ của nhau. Một người phải đăng
+	 * nhập hai lần, ở hai trang, bằng cùng một PIN.
+	 *
+	 * Nay: **vào thì ai cũng vào, thấy gì thì do QUYỀN quyết định** (`VHCC_Vai::duoc()`). Một
+	 * cửa, một bộ luật. Nhân viên vào và chỉ thấy hai màn của mình; kế toán vào thấy thêm lương.
+	 *
+	 * ⚠️ Đây KHÔNG phải nới quyền: không màn nào bỏ phép gác, chỉ đổi chỗ gác từ cổng vào sang
+	 *    từng việc. Việc nào chưa khai quyền thì `duoc()` CHỐI, nên quên khai là bị chặn chứ
+	 *    không phải lọt.
 	 */
-	const VAI_TRO_MAC_DINH = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
+	const VAI_TRO_MAC_DINH = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
+		'Cửa hàng trưởng', 'Nhân viên' );
 
 	/** Mọi vai trò có trong hệ thống — để Cài đặt vẽ ô tích. */
 	const VAI_TRO_TAT_CA = array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC',
@@ -55,17 +70,14 @@ class VHCC_Auth {
 		'NHAN_VIEN'        => 'Nhân viên',
 	);
 
+	/**
+	 * Còn trả về danh sách để mã cũ không gãy, nhưng nay LUÔN là mọi vai — xem chú thích ở
+	 * VAI_TRO_MAC_DINH. Tuỳ chọn `vhcc_vai_tro_vao` cũ CỐ Ý bị bỏ qua: nó chặn ở đúng chỗ
+	 * không nên chặn, và để lại thì một ô tích quên bỏ sẽ khoá cửa cả công ty mà không ai
+	 * ngờ tới nó.
+	 */
 	public static function vai_tro_vao() {
-		$ds = get_option( 'vhcc_vai_tro_vao' );
-		if ( ! is_array( $ds ) || ! count( $ds ) ) { return self::VAI_TRO_MAC_DINH; }
-		$ra = array();
-		foreach ( $ds as $v ) {
-			$v = (string) $v;
-			if ( in_array( $v, self::VAI_TRO_TAT_CA, true ) && ! in_array( $v, $ra, true ) ) { $ra[] = $v; }
-		}
-		// Danh sách rỗng sau khi lọc thì về mặc định, KHÔNG để rỗng: rỗng là không ai vào được,
-		// kể cả Admin, và không có đường nào tự mở lại ngoài database.
-		return count( $ra ) ? $ra : self::VAI_TRO_MAC_DINH;
+		return self::VAI_TRO_TAT_CA;
 	}
 
 	/**
@@ -239,21 +251,23 @@ class VHCC_Auth {
 			if ( $u['pin'] === '' || $u['pin'] !== $pin ) { continue; }
 			self::xoa_dem_sai();
 			$role = $u['vaiTro'] !== '' ? $u['vaiTro'] : 'Nhân viên';
-			if ( ! in_array( $role, self::vai_tro_vao(), true ) ) {
-				// Nói rõ là "không đủ quyền", không nói "PIN sai": PIN đúng mà báo sai thì người
-				// dùng gõ lại mười lần rồi tự khoá mình.
-				return array(
-					'ok'    => false,
-					'error' => 'Tài khoản ' . $u['ten'] . ' (' . $role . ') không được xem hệ thống chấm công. '
-						. 'Chỉ Kế toán, Quản lý và Admin vào được.',
-				);
+
+			/* MÃ NV gắn ngay vào thẻ, để CÙNG một lần đăng nhập vừa quản trị vừa chấm công
+			   được. Không có nó thì người ta phải gõ lại PIN ở trang thứ hai — và đó chính là
+			   cái làm hệ thống tách đôi. Không tra ra mã thì để rỗng: họ vẫn vào xem được, chỉ
+			   là nút chấm công báo "hồ sơ chưa có Mã NV". */
+			$ma_nv = '';
+			if ( class_exists( 'VHCC_Tram' ) ) {
+				$tim = VHCC_Tram::tim_pin( $pin );
+				if ( $tim['thay'] ) { $ma_nv = $tim['ma_nv']; }
 			}
 			return array(
 				'ok'    => true,
 				'name'  => $u['ten'],
 				'role'  => $role,
 				'coso'  => $u['coso'],
-				'token' => self::phat_token( $u['ten'], $role, $u['coso'] ),
+				'maNV'  => $ma_nv,
+				'token' => self::phat_token( $u['ten'], $role, $u['coso'], $ma_nv ),
 			);
 		}
 
@@ -262,13 +276,15 @@ class VHCC_Auth {
 	}
 
 	/**
-	 * Phát một thẻ phiên. `$ma_nv` chỉ dùng cho phiên của TRẠM chấm công (trang nhân viên) —
-	 * phiên quản trị để rỗng.
+	 * Phát một thẻ phiên.
 	 *
-	 * ⚠️ Trạm gọi hàm này với `$role = VHCC_Tram::VAI_TRAM` ('CC_ONLINE'), một chuỗi cố ý KHÔNG
-	 *    nằm trong VAI_TRO_TAT_CA, nên `user_by_token()` dưới đây luôn chối. Đó là chốt chặn:
-	 *    một nhân viên cơ sở đăng nhập trạm KHÔNG mở thêm được cửa nào của hệ quản trị, dù hai
-	 *    bên dùng chung bảng `session`.
+	 * `$ma_nv` là mã nhân viên trong hồ sơ — thứ để biết lượt chấm công ghi cho ai. Gắn cho MỌI
+	 * phiên, không riêng phiên của trạm: một thẻ dùng được ở cả trang quản trị lẫn trang chấm
+	 * công là điều kiện để hệ thống chỉ có MỘT lần đăng nhập.
+	 *
+	 * ⚠️ Trước 25/08/2026 trạm phát thẻ mang vai giả 'CC_ONLINE' để hai bên không nhận thẻ của
+	 *    nhau. Chốt ấy đã bỏ: nó bắt cùng một người gõ PIN hai lần ở hai trang, và là gốc của
+	 *    xung đột phân quyền. Nay thẻ mang VAI THẬT, còn ai được làm gì thì `VHCC_Vai` quyết.
 	 */
 	public static function phat_token( $ten, $role, $coso, $ma_nv = '' ) {
 		global $wpdb;
@@ -295,8 +311,8 @@ class VHCC_Auth {
 			"SELECT * FROM $t WHERE token=%s AND het_han > UTC_TIMESTAMP()", $token
 		), ARRAY_A );
 		if ( ! $r ) { return null; }
-		if ( ! in_array( (string) $r['vai_tro'], self::vai_tro_vao(), true ) ) { return null; }
-		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'], 'coso' => $r['coso'] );
+		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'], 'coso' => $r['coso'],
+			'ma_nv' => isset( $r['ma_nv'] ) ? (string) $r['ma_nv'] : '' );
 	}
 
 	public static function logout( $token ) {

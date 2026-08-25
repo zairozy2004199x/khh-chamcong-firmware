@@ -42,11 +42,17 @@ class VHCC_YeuCau {
 		return count( self::ds( $u, true ) );
 	}
 
-	/** Gửi một yêu cầu. Cửa hàng trưởng gửi được; nhân viên thì không (họ dùng gui_thong_tin_nv). */
+	/**
+	 * Gửi một yêu cầu. Cửa hàng trưởng gửi được; nhân viên thì không (họ dùng gui_thong_tin_nv).
+	 *
+	 * ⚠️ Hỏi `bao_loi`, KHÔNG hỏi `co_sua_ho_so`. Đây đúng là việc anh Thắng giao cho cửa hàng
+	 *    trưởng — *"báo lên admin xử lý các lỗi khác"* — và họ KHÔNG có quyền hồ sơ. Buộc theo
+	 *    quyền hồ sơ thì cả cửa hàng hết đường báo lên, mà cũng chẳng ai biết vì sao im.
+	 */
 	public static function gui( $u, $dat ) {
 		global $wpdb;
-		if ( ! VHCC_NhanSu::co_sua_ho_so( $u ) ) {
-			return array( 'ok' => false, 'error' => 'Không có quyền gửi yêu cầu nhân sự.' );
+		if ( ! VHCC_Vai::duoc( $u, 'bao_loi' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'bao_loi', 'Gửi yêu cầu nhân sự' ) );
 		}
 		$coso = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
 		if ( '' !== $coso && ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {

@@ -97,15 +97,27 @@ class VHCC_Quyen {
 		return VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'phan_quyen' ) . ' ORDER BY ho_ten' );
 	}
 
+	/** Từng quyền một -> true/false. Khai ở VHCC_Vai::QUYEN, không khai lại ở đây. */
+	public static function bang_quyen( $u ) {
+		$ra = array();
+		foreach ( array_keys( VHCC_Vai::QUYEN ) as $q ) { $ra[ $q ] = VHCC_Vai::duoc( $u, $q ); }
+		return $ra;
+	}
+
 	/** Quyền của chính người đang đăng nhập — để giao diện biết ẩn/hiện gì. */
 	public static function quyen_cua( $u ) {
 		return array(
-			'vaiTro'      => strtoupper( trim( isset( $u['role'] ) ? (string) $u['role'] : '' ) ),
+			'vaiTro'      => VHCC_Vai::cua( $u ),
+			'vaiTroTen'   => VHCC_Vai::ten( $u ),
+			'bac'         => VHCC_Vai::bac( $u ),
 			'suaHoSo'     => VHCC_NhanSu::co_sua_ho_so( $u ),
 			'quanTriNV'   => VHCC_NhanSu::co_quan_tri_nv( $u ),
 			'xemLuong'    => VHCC_NhanSu::co_xem_luong( $u ),
 			'vaoManLuong' => VHCC_Luong::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ),
 			'dsCoSo'      => VHCC_NhanSu::ds_coso_cua( $u ),
+			/* Bảng quyền đầy đủ, để giao diện ẩn/hiện theo ĐÚNG một nguồn thay vì tự suy từ
+			   tên vai trò — suy ở giao diện là bộ luật thứ hai, và nó lệch trước tiên. */
+			'quyen'       => self::bang_quyen( $u ),
 		);
 	}
 
@@ -126,7 +138,10 @@ class VHCC_Quyen {
 		$ghi = array(
 			'pin' => $pin,
 			'ho_ten' => trim( isset( $dat['ho_ten'] ) ? (string) $dat['ho_ten'] : '' ),
-			'vai_tro' => strtoupper( trim( isset( $dat['vai_tro'] ) ? (string) $dat['vai_tro'] : '' ) ),
+			/* Sổ `phan_quyen` là bản sao sổ của app gốc, lưu vai trò dạng MÃ HOA. Quy về mã bằng
+			   VHCC_Vai::ma() chứ không `strtoupper` — strtoupper không nâng được chữ có dấu, nên
+			   "Quản lý" gõ vào ô này sẽ lưu thành "QUảN Lý", một vai không ai đọc ra. */
+			'vai_tro' => VHCC_Vai::ma( isset( $dat['vai_tro'] ) ? $dat['vai_tro'] : '' ),
 			'cua_hang' => trim( isset( $dat['cua_hang'] ) ? (string) $dat['cua_hang'] : '' ),
 			'ma_cc_online' => trim( isset( $dat['ma_cc_online'] ) ? (string) $dat['ma_cc_online'] : '' ),
 			'coso_cc_online' => VHCC_NhanSu::chuan_coso( isset( $dat['coso_cc_online'] ) ? $dat['coso_cc_online'] : '' ),

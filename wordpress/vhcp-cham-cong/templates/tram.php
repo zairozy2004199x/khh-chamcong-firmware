@@ -119,11 +119,23 @@ a{color:#7dd3fc}
 	</div>
 
 	<div class="the">
-		<label style="margin:0 0 8px">Lịch sử gần đây</label>
-		<div id="bangLS"><p class="trong">—</p></div>
-		<p></p>
-		<button id="btLS" class="phu" style="width:100%">Tải lịch sử</button>
+		<label style="margin:0 0 8px">Công của tôi</label>
+		<div class="hang" style="align-items:center;margin:0 0 10px">
+			<button id="btThangTruoc" class="phu" style="flex:0 0 46px">‹</button>
+			<b id="nhanThang" style="flex:1;text-align:center;font-variant-numeric:tabular-nums;font-size:16px">—</b>
+			<button id="btThangSau" class="phu" style="flex:0 0 46px">›</button>
+		</div>
+		<div id="tomTat"></div>
+		<div id="bangThang"><p class="trong">—</p></div>
+		<p class="ct" style="margin:10px 0 0;text-align:left">Số ở đây là <b>giờ có mặt</b> đọc thẳng từ
+			bảng chấm công, chưa trừ nghỉ và chưa quy ra công tính lương. Bảng lương do kế toán chốt
+			có thể khác — thấy lệch thì báo, đừng tự cộng.</p>
 	</div>
+
+	<p id="oQuanTri" class="an" style="margin:14px 0 0">
+		<a id="lkQuanTri" class="phu" href="#"
+			style="display:block;text-align:center;text-decoration:none;padding:13px 16px;border-radius:10px">
+			Trang quản trị →</a></p>
 
 	<p style="margin:14px 0 0"><button id="btRa" class="phu" style="width:100%">Thoát</button></p>
 	<p class="ct">K&amp;H · b<?php echo esc_html( $cfg['ver'] ); ?></p>
@@ -306,7 +318,18 @@ function napToi(){
 		el('maToi').textContent  = j.maNV || '';
 		el('csToi').textContent  = (j.dsCoSo && j.dsCoSo.length) ? j.dsCoSo.join(' · ') : (j.coSoMacDinh||'—');
 		el('btCham').disabled = false;
+		/* Đường sang trang quản trị chỉ hiện khi MÁY CHỦ gửi nó về — tức người này thật sự mở
+		   được. Trang không tự đoán theo vai trò: đoán ở đây là bộ luật quyền thứ hai, và bộ
+		   thứ hai bao giờ cũng lệch trước. */
+		if(j.qtUrl){
+			el('lkQuanTri').href = j.qtUrl;
+			el('lkQuanTri').textContent = 'Trang quản trị (' + (j.vaiTen || '') + ') →';
+			el('oQuanTri').classList.remove('an');
+		} else {
+			el('oQuanTri').classList.add('an');
+		}
 		veHomNay(j);
+		if(!THANG){ var tn = thangNay(); if(tn) veThang(tn); }
 	}).catch(function(){ /* het_phien đã tự đá về màn đăng nhập — không báo thêm gì */ });
 }
 
@@ -324,22 +347,70 @@ function veHomNay(j){
 	el('bangHN').innerHTML = co ? h : '<p class="trong">Hôm nay chưa chấm lượt nào.</p>';
 }
 
-el('btLS').addEventListener('click', function(){
-	var b=el('btLS'); b.disabled=true; b.textContent='Đang tải…';
-	goi('lichsu',{token:token()}).then(function(j){
-		if(!j || !j.ok){ el('bangLS').innerHTML='<p class="trong">Không tải được.</p>'; return; }
-		var d=j.dong||[];
-		if(!d.length){ el('bangLS').innerHTML='<p class="trong">Chưa có dòng nào.</p>'; return; }
-		var h='<table><thead><tr><th>Ngày</th><th>Cơ sở</th><th>Vào</th><th>Ra</th></tr></thead><tbody>';
-		for(var i=0;i<d.length;i++){
-			h+='<tr><td class="g">'+esc(d[i].ngay)+'</td><td>'+esc(d[i].coSo)
-			 + (d[i].hauTo?'<span class="nhan">'+esc(d[i].hauTo)+'</span>':'')
-			 + '</td><td class="g">'+esc(d[i].vao||'—')+'</td><td class="g">'+esc(d[i].ra||'—')+'</td></tr>';
+/* ------------------------------------------------------- công của tôi (theo tháng)
+
+   🔴 THÁNG TÍNH TỪ GIỜ MÁY CHỦ, KHÔNG TỪ ĐIỆN THOẠI. Ngày 1 và ngày cuối tháng, một cái điện
+      thoại lệch múi giờ mở ra là thấy tháng khác — rồi báo "mất công" trong khi công vẫn còn
+      nguyên ở tháng bên cạnh. `TOI.gio.ngay` là chuỗi ngày do máy chủ gửi kèm mọi lượt nạp.
+
+   Cộng trừ tháng bằng CHUỖI chứ không bằng đối tượng Date: Date đọc '2026-08' theo UTC rồi in
+   ra theo giờ máy, và ở múi giờ âm thì tháng lùi mất một. */
+var THANG = '';
+
+function thangDich(ym, buoc){
+	var p = String(ym).split('-'), n = Number(p[0])||2026, t = (Number(p[1])||1) + buoc;
+	while(t > 12){ t -= 12; n++; }
+	while(t < 1){ t += 12; n--; }
+	return n + '-' + hai(t);
+}
+
+function thangNay(){
+	var ng = (TOI && TOI.gio && TOI.gio.ngay) ? String(TOI.gio.ngay) : '';
+	return /^\d{4}-\d{2}/.test(ng) ? ng.slice(0,7) : '';
+}
+
+function gioPhut(p){
+	if(p === null || p === undefined) return '—';
+	var g = Math.floor(p/60), m = p%60;
+	return g + 'h' + (m ? hai(m) : '');
+}
+
+function veThang(ym){
+	THANG = ym;
+	el('nhanThang').textContent = 'Tháng ' + ym.slice(5) + '/' + ym.slice(0,4);
+	/* Không cho đi tới tương lai — tháng sau chắc chắn trống, và một bảng trống làm người ta
+	   tưởng mất dữ liệu. */
+	el('btThangSau').disabled = ( thangNay() !== '' && ym >= thangNay() );
+	el('bangThang').innerHTML = '<p class="trong">Đang tải…</p>';
+	el('tomTat').innerHTML = '';
+	goi('thang',{token:token(), thang:ym}).then(function(j){
+		if(!j || !j.ok){ el('bangThang').innerHTML = '<p class="trong">Không tải được.</p>'; return; }
+		var t = j.tong || {}, d = j.dong || [];
+		var s = '<div class="xanh" style="margin:0 0 10px">' + (t.ngay||0) + ' ngày · ' + (t.luot||0)
+		      + ' lượt · ' + gioPhut(t.phut||0) + ' có mặt</div>';
+		if(t.thieuRa){
+			s += '<div class="vang" style="margin:0 0 10px">' + t.thieuRa
+			   + ' lượt thiếu giờ ra (ô <b>Ra</b> để trống bên dưới). Báo quản lý bổ sung '
+			   + '<b>trước khi chốt lương tháng</b> — chốt rồi thì sửa rất phiền.</div>';
 		}
-		el('bangLS').innerHTML = h+'</tbody></table>';
-	}).catch(function(){ el('bangLS').innerHTML='<p class="trong">Lỗi mạng.</p>'; })
-	.then(function(){ b.disabled=false; b.textContent='Tải lịch sử'; });
-});
+		el('tomTat').innerHTML = s;
+		if(!d.length){ el('bangThang').innerHTML = '<p class="trong">Tháng này chưa có lượt nào.</p>'; return; }
+		var h = '<table><thead><tr><th>Ngày</th><th>Cơ sở</th><th>Vào</th><th>Ra</th><th>Giờ</th></tr></thead><tbody>';
+		for(var i=0;i<d.length;i++){
+			var thieu = !d[i].ra;
+			h += '<tr' + (thieu ? ' style="background:#3f1d1d"' : '') + '>'
+			   + '<td class="g">' + esc(String(d[i].ngay).slice(8)) + '</td>'
+			   + '<td>' + esc(d[i].coSo) + (d[i].hauTo ? '<span class="nhan">'+esc(d[i].hauTo)+'</span>' : '') + '</td>'
+			   + '<td class="g">' + esc(d[i].vao||'—') + '</td>'
+			   + '<td class="g">' + (thieu ? '<b style="color:#fca5a5">thiếu</b>' : esc(d[i].ra)) + '</td>'
+			   + '<td class="g">' + gioPhut(d[i].phut) + '</td></tr>';
+		}
+		el('bangThang').innerHTML = h + '</tbody></table>';
+	}).catch(function(){ el('bangThang').innerHTML = '<p class="trong">Lỗi mạng.</p>'; });
+}
+
+el('btThangTruoc').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,-1)); });
+el('btThangSau').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,1)); });
 
 /* ---------------------------------------------------------------- chụp ảnh */
 var LUONG = null, ANH = null;

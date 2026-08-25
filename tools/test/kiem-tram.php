@@ -93,19 +93,75 @@ $TOK_TRAM = $r['token'];
 t( 'PIN dạng "246810.0" (Sheets ép về số) vẫn vào được',
 	! empty( VHCC_Tram::dang_nhap( '246810.0' )['ok'] ) );
 
-/* ================================================================== 2. HAI CHIỀU CHẶN QUYỀN */
+/* ============================================ 1b. KHO THỨ HAI: HỒ SƠ NHÂN SỰ
+ *
+ * 🔴 LỖI THẬT NGÀY 25/08/2026. Cửa trạm chỉ đọc `phan_quyen` — bản sao sổ PhanQuyen của app cũ,
+ *    chỉ có nội dung nếu đã bấm nút kéo về. Trên khmatrix.com hồ sơ Nhân sự có 240 người khai
+ *    PIN, còn `phan_quyen` thì trống, nên MỌI PIN đều rơi vào nhánh "PIN không đúng hoặc chưa
+ *    được cấp". Anh Thắng gõ PIN của chính mình và bị chối, không có gì trên màn hình chỉ ra
+ *    rằng hai cửa đang đọc hai cuốn sổ khác nhau.
+ */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS01', 'ho_ten' => 'Phạm Hồ Sơ', 'cua_hang' => 'CS_TUTU_BT',
+	'vai_tro' => 'Cửa hàng trưởng', 'pin_dang_nhap' => '135791' ) );
+$r = VHCC_Tram::dang_nhap( '135791' );
+t( 'PIN khai trong HỒ SƠ NHÂN SỰ cũng vào được', ! empty( $r['ok'] ), $r );
+t( 'lấy mã NV từ hồ sơ', isset( $r['maNV'] ) && 'HS01' === $r['maNV'], $r );
+t( 'lấy cơ sở từ hồ sơ, đã cắt CS_', isset( $r['coSo'] ) && 'TUTU_BT' === $r['coSo'], $r );
+t( 'và mang VAI THẬT của người ta, không phải vai giả',
+	VHCC_Vai::CHT === VHCC_Vai::ma( VHCC_Auth::user_by_token( $r['token'] )['role'] ) );
 
-t( 'vai của trạm KHÔNG nằm trong VAI_TRO_TAT_CA (Cài đặt không bật lên được)',
-	! in_array( VHCC_Tram::VAI_TRAM, VHCC_Auth::VAI_TRO_TAT_CA, true ) );
-t( 'vai của trạm KHÔNG nằm trong danh sách vào hệ quản trị',
-	! in_array( VHCC_Tram::VAI_TRAM, VHCC_Auth::vai_tro_vao(), true ) );
+/* PIN kiểu Google Sheets ở CỘT hồ sơ: rửa cả hai bên, không chỉ bên ô người ta gõ. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS02', 'ho_ten' => 'Đỗ Chấm Không', 'cua_hang' => 'TUTU_BT',
+	'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '864209.0' ) );
+t( 'PIN trong hồ sơ lưu dạng "864209.0" vẫn vào được',
+	! empty( VHCC_Tram::dang_nhap( '864209' )['ok'] ) );
 
-/* 🔴 CHIỀU 1: thẻ trạm không mở được cửa quản trị. */
-t( 'thẻ của TRẠM bị hệ quản trị chối', null === VHCC_Auth::user_by_token( $TOK_TRAM ) );
+/* Đã nghỉ việc: chối, và nói RÕ là đã nghỉ — đừng để họ đứng gõ lại PIN. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS03', 'ho_ten' => 'Vũ Đã Nghỉ', 'cua_hang' => 'TUTU_BT',
+	'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '975310',
+	'trang_thai_lam_viec' => 'Đã nghỉ 2026-07-01' ) );
+$r = VHCC_Tram::dang_nhap( '975310' );
+t( 'người đã nghỉ việc bị chối', empty( $r['ok'] ), $r );
+t( 'và câu báo nói rõ là đã nghỉ, không nói "PIN sai"',
+	strpos( $r['error'], 'không chấm công được' ) !== false
+	&& strpos( $r['error'], 'PIN không đúng' ) === false, $r['error'] );
+/* Luật "đã nghỉ" phải là MỘT: viết hoa, viết thường, kèm ngày — cùng một câu trả lời. */
+t( 'nhận "Đã nghỉ"',   VHCC_NhanSu::da_nghi( 'Đã nghỉ' ) );
+t( 'nhận "NGHỈ VIỆC"', VHCC_NhanSu::da_nghi( 'NGHỈ VIỆC' ) );
+t( 'nhận "đã nghỉ 12/2025"', VHCC_NhanSu::da_nghi( 'đã nghỉ 12/2025' ) );
+t( 'ô TRỐNG là ĐANG LÀM, không phải đã nghỉ', ! VHCC_NhanSu::da_nghi( '' ) );
+t( '"Đang làm" không phải đã nghỉ', ! VHCC_NhanSu::da_nghi( 'Đang làm' ) );
 
-/* 🔴 CHIỀU 2: thẻ quản trị không đi được vào cửa trạm. */
+/* Khai ở CẢ HAI kho thì kho `phan_quyen` thắng — đó là lời khai CÓ CHỦ Ý cho đúng việc này,
+   còn hồ sơ chỉ là suy ra. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'HS_TRUNG', 'ho_ten' => 'Trần Văn A', 'cua_hang' => 'AEON',
+	'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '246810' ) );
+$r = VHCC_Tram::tim_pin( '246810' );
+t( 'khai ở cả hai kho thì phan_quyen thắng', 'phan_quyen' === $r['kho'], $r );
+t( 'và lấy mã của kho đó', 'NV001' === $r['ma_nv'], $r );
+
+/* ================================================ 2. MỘT THẺ, HAI TRANG — và phép gác là MÃ NV
+ *
+ * 🔴 ĐỔI 25/08/2026. Trước đó trạm phát thẻ mang vai giả 'CC_ONLINE' để thẻ trạm và thẻ quản
+ *    trị không đổi cho nhau được. Chốt ấy làm đúng việc của nó, nhưng cái giá là cùng một
+ *    người phải gõ PIN hai lần ở hai trang — và hai nửa hệ thống có hai bộ luật quyền, tức
+ *    *"xung đột phân quyền"* anh Thắng gặp. Nay MỘT thẻ dùng chung, và cửa trạm gác bằng:
+ *      (1) quyền `cham_online` — mọi vai đều có, nhưng phải là vai hợp lệ;
+ *      (2) thẻ PHẢI mang Mã NV — không có mã thì lượt chấm ghi vào một hàng vô chủ.
+ */
+t( 'thẻ của trạm dùng được ở hệ quản trị (một lần đăng nhập, hai trang)',
+	null !== VHCC_Auth::user_by_token( $TOK_TRAM ) );
+t( 'và mang đúng vai trò thật, không phải vai giả',
+	VHCC_Vai::NV === VHCC_Vai::cua( VHCC_Auth::user_by_token( $TOK_TRAM ) ),
+	VHCC_Auth::user_by_token( $TOK_TRAM ) );
+
+/* 🔴 Thẻ quản trị KHÔNG có Mã NV thì trạm vẫn chối — đó là phép gác thật, không phải cái vai. */
 $TOK_QT = VHCC_Auth::phat_token( 'Sếp', 'Admin', '' );
-t( 'thẻ QUẢN TRỊ bị trạm chối', null === VHCC_Tram::nguoi( $TOK_QT ) );
+t( 'thẻ không mang Mã NV bị trạm chối, dù là Admin', null === VHCC_Tram::nguoi( $TOK_QT ) );
 
 t( 'thẻ rác bị trạm chối', null === VHCC_Tram::nguoi( 'khong-phai-hex' ) );
 t( 'thẻ rỗng bị trạm chối', null === VHCC_Tram::nguoi( '' ) );
@@ -115,10 +171,10 @@ t( 'thẻ trạm tra ra người', is_array( $u ) );
 t( 'thẻ trạm mang theo mã NV', 'NV001' === $u['ma_nv'], $u );
 t( 'thẻ trạm mang theo họ tên', 'Trần Văn A' === $u['ho_ten'] );
 
-/* Phiên trạm mà mã NV rỗng thì KHÔNG được coi là hợp lệ: mọi phép ghi giờ khoá theo mã NV, một
-   phiên không có mã là một phiên ghi được vào hàng rỗng. */
-$TOK_RONG = VHCC_Auth::phat_token( 'Ai đó', VHCC_Tram::VAI_TRAM, 'VIVO', '' );
-t( 'phiên trạm thiếu mã NV bị chối', null === VHCC_Tram::nguoi( $TOK_RONG ) );
+/* Phiên mà mã NV rỗng thì KHÔNG chấm công được: mọi phép ghi giờ khoá theo mã NV, một phiên
+   không có mã là một phiên ghi được vào hàng rỗng. */
+$TOK_RONG = VHCC_Auth::phat_token( 'Ai đó', 'Nhân viên', 'VIVO', '' );
+t( 'phiên thiếu mã NV bị chối', null === VHCC_Tram::nguoi( $TOK_RONG ) );
 
 /* ================================================================== 3. HÃM DÒ PIN */
 
@@ -269,7 +325,111 @@ t( 'sơ đồ phiên có cột ma_nv', (bool) preg_match( "/ma_nv VARCHAR\(40\) 
 preg_match( "/SCHEMA_VERSION = '([^']+)'/", $db, $ms );
 t( 'SCHEMA_VERSION đã nhích qua 2.1.0', version_compare( $ms[1], '2.1.0', '>' ), $ms );
 
+
+/* ============================================ 9. "CÔNG CỦA TÔI" — nhân viên tự soát
+ *
+ * Anh Thắng: *"còn nhân viên vào check chấm công của mình thì sao"*. Màn này đếm LƯỢT và GIỜ
+ * THÔ, cố ý không quy ra "công" và không in tiền — số công trả lương do VHCC_Luong tính, và
+ * một con số thứ hai gọi là "công" là mời nhân viên cầm điện thoại lên cãi với kế toán.
+ */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-03',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-04',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600 + 1800, 'gio_ra_giay' => null ) );
+/* Ca qua đêm: vào 22h, ra 6h sáng hôm sau -> 8 giờ, KHÔNG phải âm 16 giờ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-05',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 22 * 3600, 'gio_ra_giay' => 6 * 3600 ) );
+/* Tháng khác — KHÔNG được lọt vào tổng của tháng 8. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-09-01',
+	'ma_nv' => 'NV_BT', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+/* Người KHÁC — tuyệt đối không lọt. Kể cả NV001, người đang có phiên ở bài kiểm này. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'VIVO', 'ngay' => '2026-08-03',
+	'ma_nv' => 'NV999', 'hau_to' => '', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600 ) );
+
+$bt = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), '2026-08' );
+t( 'trả đúng tháng hỏi', '2026-08' === $bt['thang'], $bt['thang'] );
+t( 'chỉ lấy tháng đó, không lẫn tháng 9', 3 === count( $bt['dong'] ), $bt['dong'] );
+t( 'đếm đúng số ngày có chấm', 3 === $bt['tong']['ngay'], $bt['tong'] );
+t( 'đếm đúng số lượt thiếu giờ ra', 1 === $bt['tong']['thieuRa'], $bt['tong'] );
+/* 9h (ngày 3) + 8h ca đêm (ngày 5) = 17h. Ngày 4 thiếu giờ ra nên KHÔNG cộng. */
+t( 'giờ có mặt cộng đúng, ca qua đêm không ra số âm', 17 * 60 === $bt['tong']['phut'], $bt['tong'] );
+t( 'ca qua đêm tính trọn 8 giờ', 8 * 60 === $bt['dong'][2]['phut'], $bt['dong'][2] );
+t( 'lượt thiếu giờ ra để phút NULL, không bịa số 0', null === $bt['dong'][1]['phut'], $bt['dong'][1] );
+$bt999 = VHCC_Online::bang_thang( 'NV999', array( 'VIVO' ), '2026-08' );
+t( 'KHÔNG lẫn lượt của người khác: mã khác ra bảng khác',
+	1 === count( $bt999['dong'] ) && 3 === count( $bt['dong'] ), $bt999 );
+
+/* 🔴 Không có mã NV, hoặc không có cơ sở nào -> trả bảng RỖNG, không trả cả bảng của cơ sở. */
+$bt0 = VHCC_Online::bang_thang( '', array( 'VIVO' ), '2026-08' );
+t( 'mã NV rỗng -> bảng rỗng', 0 === count( $bt0['dong'] ) && 0 === $bt0['tong']['luot'] );
+$bt0 = VHCC_Online::bang_thang( 'NV_BT', array(), '2026-08' );
+t( 'không cơ sở nào -> bảng rỗng', 0 === count( $bt0['dong'] ) );
+/* Tháng sai khuôn -> tháng hiện tại, KHÔNG phải nuốt lỗi rồi quét cả bảng. */
+$btx = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), 'linh tinh' );
+t( 'tháng sai khuôn rơi về tháng hiện tại',
+	(bool) preg_match( '/^\d{4}-\d{2}$/', $btx['thang'] ), $btx['thang'] );
+
+/* 🔴 KHÔNG được có chữ nào về TIỀN trong kết quả. */
+$json_bt = wp_json_encode( $bt );
+foreach ( array( 'tien', 'luong', 'donGia', 'thanhTien' ) as $cam_bt ) {
+	t( "bảng công của nhân viên không mang khoá \"$cam_bt\"", false === strpos( $json_bt, $cam_bt ) );
+}
+
+/* Công thức ca qua đêm phải là MỘT — VHCC_Luong::phut_ca, không viết lần hai. */
+t( 'phut_ca: ca thường', 540 === VHCC_Luong::phut_ca( 8 * 60, 17 * 60 ) );
+t( 'phut_ca: ca qua đêm', 480 === VHCC_Luong::phut_ca( 22 * 60, 6 * 60 ) );
+$src_on = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-online.php' );
+t( 'VHCC_Online gọi phut_ca chứ không tự tính lại',
+	strpos( $src_on, 'VHCC_Luong::phut_ca' ) !== false
+	&& strpos( $src_on, '+ 1440 -' ) === false );
+
+/* Giao diện trạm phải có màn tháng, và chọn tháng theo GIỜ MÁY CHỦ chứ không theo điện thoại. */
+$tram_js = js_sach( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' ) );
+t( 'trang trạm có màn Công của tôi', strpos( $tram_js, 'Công của tôi' ) !== false );
+t( 'có nút lùi/tiến tháng',
+	strpos( $tram_js, 'btThangTruoc' ) !== false && strpos( $tram_js, 'btThangSau' ) !== false );
+t( 'tháng mặc định lấy từ giờ MÁY CHỦ (TOI.gio.ngay), không từ new Date()',
+	strpos( $tram_js, 'TOI.gio.ngay' ) !== false );
+t( 'cộng trừ tháng bằng chuỗi, không dựng Date từ chuỗi tháng',
+	strpos( $tram_js, 'new Date(ym' ) === false );
+t( 'không cho bấm sang tháng tương lai', strpos( $tram_js, "btThangSau').disabled" ) !== false );
+t( 'nói rõ đây KHÔNG phải bảng lương',
+	strpos( $tram_js, 'chưa quy ra công tính lương' ) !== false );
+
+
 /* ------------------------------------------------------------------ báo cáo */
+/* ============================================ 10. HAI TRANG NỐI ĐƯỢC VỚI NHAU
+ *
+ * Anh Thắng: *"Gộp lại thành 1 trang, anh link chuyển tiếp với nhau được không"*. Với người
+ * dùng thì "một hệ thống" nghĩa là: đăng nhập MỘT lần, bấm qua lại được. Cái liên kết không
+ * đủ — bấm sang mà rơi ra màn PIN thì vẫn là hai hệ thống rời nhau.
+ */
+$r_lk = VHCC_Tram::dang_nhap( '135791' );          // Phạm Hồ Sơ — Cửa hàng trưởng
+t( 'cửa hàng trưởng đăng nhập trạm được', ! empty( $r_lk['ok'] ), $r_lk );
+$u_lk = VHCC_Auth::user_by_token( $r_lk['token'] );
+t( 'thẻ ấy dùng luôn được ở trang quản trị', null !== $u_lk );
+t( 'và mở được màn Bảng chấm công', VHCC_Vai::duoc( $u_lk, 'cong_coso' ) );
+t( 'nhưng KHÔNG mở được màn Hồ sơ', ! VHCC_Vai::duoc( $u_lk, 'ho_so' ) );
+
+/* Đường sang trang quản trị chỉ gửi cho người MỞ ĐƯỢC nó. Gửi cho ai cũng thì nhân viên bấm
+   vào rồi nhận một trang chối, và họ tưởng máy hỏng. */
+$man_cht = VHCC_Web::man_cua( $u_lk );
+t( 'cửa hàng trưởng có 2 màn', 2 === count( $man_cht ), array_keys( $man_cht ) );
+$man_nv = VHCC_Web::man_cua( array( 'role' => 'Nhân viên' ) );
+t( 'nhân viên chỉ có 1 màn', 1 === count( $man_nv ), array_keys( $man_nv ) );
+t( 'và đó là "Công của tôi"', isset( $man_nv['cong_toi'] ) );
+$man_ad = VHCC_Web::man_cua( array( 'role' => 'Admin' ) );
+t( 'admin có đủ 3 màn', 3 === count( $man_ad ), array_keys( $man_ad ) );
+
+/* mo_phien: chỉ nhận thẻ do chính hệ phát ra. */
+t( 'mo_phien chối thẻ rác', false === VHCC_Web::mo_phien( str_repeat( 'a', 64 ) ) );
+t( 'mo_phien chối chuỗi sai khuôn', false === VHCC_Web::mo_phien( 'abc' ) );
+t( 'mo_phien nhận thẻ thật', true === VHCC_Web::mo_phien( $r_lk['token'] ) );
+
+/* Chiều ngược: thanh màn của trang quản trị phải có đường ra trạm. */
+$src_web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( 'thanh màn có nút mở trang chấm công', strpos( $src_web, 'VHCC_Tram::url()' ) !== false );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
@@ -277,4 +437,4 @@ if ( $truot ) {
 	echo "ĐẠT: $dat\n";
 	exit( 1 );
 }
-echo "ĐẠT: $dat phép thử — trạm chấm công đứng riêng, và thẻ hai bên không đổi vai cho nhau.\n";
+echo "ĐẠT: $dat phép thử — trạm chấm công dùng chung một thẻ với hệ quản trị, gác bằng Mã NV.\n";

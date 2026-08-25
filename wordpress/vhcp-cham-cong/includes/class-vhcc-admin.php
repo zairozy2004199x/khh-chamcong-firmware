@@ -1716,12 +1716,9 @@ class VHCC_Admin {
 			if ( ! in_array( $nguon, array( 'chung', 'rieng', 'app', 'ho_so' ), true ) ) { $nguon = 'chung'; }
 			update_option( 'vhcc_nguon_nguoidung', $nguon );
 
-			$vt = array();
-			foreach ( (array) ( isset( $_POST['vhcc_vai_tro'] ) ? $_POST['vhcc_vai_tro'] : array() ) as $x ) {
-				$x = sanitize_text_field( wp_unslash( $x ) );
-				if ( in_array( $x, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { $vt[] = $x; }
-			}
-			update_option( 'vhcc_vai_tro_vao', $vt );   // rỗng -> vai_tro_vao() tự về mặc định
+			/* Không còn lưu `vhcc_vai_tro_vao`: cửa không nằm ở cổng nữa (xem VHCC_Auth). Xoá
+			   luôn giá trị cũ để không ai đọc nhầm một tuỳ chọn đã hết tác dụng. */
+			delete_option( 'vhcc_vai_tro_vao' );
 
 			VHCC_CauNoi::bao_dam_khoa();
 			VHCC_CauNoi::xoa_cache_giao_dien();   // đổi cấu hình thì lấy lại giao diện, khỏi dùng bản nhớ tạm
@@ -2156,19 +2153,31 @@ class VHCC_Admin {
 		}
 		echo '</td></tr>';
 
-		echo '<tr><th scope="row">Vai trò vào được</th><td>';
-		$dang_cho = VHCC_Auth::vai_tro_vao();
-		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt ) {
-			echo '<label style="margin-right:16px"><input type="checkbox" name="vhcc_vai_tro[]" value="'
-				. esc_attr( $vt ) . '"' . checked( in_array( $vt, $dang_cho, true ), true, false ) . '> '
-				. esc_html( $vt ) . '</label>';
+		/* 🔴 Ô TÍCH "VAI TRÒ VÀO ĐƯỢC" ĐÃ BỎ (25/08/2026). Nó chặn ở CỔNG, mà cổng là chỗ
+		   không nên chặn: nhân viên gõ đúng PIN vẫn bị đá ra, dù việc họ cần chỉ là chấm công
+		   và xem công của chính mình. Nay ai cũng vào, và THẤY GÌ thì do bậc quyền quyết định.
+		   Bảng dưới là bảng đó, in ra để anh Thắng đối chiếu chứ không phải để tích. */
+		echo '<tr><th scope="row">Phân quyền</th><td>';
+		echo '<p class="description" style="margin:0 0 8px"><b>Ai cũng đăng nhập được bằng PIN.</b> '
+			. 'Việc làm được thì theo bậc — bậc trên làm được mọi việc của bậc dưới:</p>';
+		echo '<table class="widefat striped" style="max-width:920px"><thead><tr><th>Bậc</th>'
+			. '<th>Vai trò</th><th>Làm được</th></tr></thead><tbody>';
+		$mo_ta = array(
+			VHCC_Vai::NV      => 'Chấm công online của mình · xem công của mình',
+			VHCC_Vai::CHT     => '+ chấm công bù cho nhân viên · xem công cơ sở mình · lên lịch làm cho cửa hàng · báo lỗi lên trên',
+			VHCC_Vai::QL      => '+ xem công MỌI cơ sở · xử lý lỗi cơ sở báo lên · cấu hình ca và loại việc',
+			VHCC_Vai::KE_TOAN => '+ lương, đơn giá, ngày nghỉ lễ · hồ sơ nhân sự · cấp PIN · cho nghỉ việc',
+			VHCC_Vai::ADMIN   => '+ máy chấm công · cài đặt hệ thống · đổi nguồn người dùng · xem PIN người khác',
+		);
+		foreach ( VHCC_Vai::tat_ca() as $ma_vt ) {
+			echo '<tr><td>' . (int) VHCC_Vai::BAC[ $ma_vt ] . '</td><td><b>'
+				. esc_html( VHCC_Vai::TEN[ $ma_vt ] ) . '</b></td><td>'
+				. esc_html( $mo_ta[ $ma_vt ] ) . '</td></tr>';
 		}
-		echo '<p class="description">Dữ liệu chấm công là căn cứ tính lương nên mặc định chỉ '
-			. esc_html( implode( ' · ', VHCC_Auth::VAI_TRO_MAC_DINH ) ) . '. Cần cho cửa hàng trưởng xem '
-			. 'bảng công cơ sở mình thì tích thêm <b>Nhân viên</b> — nhưng lưu ý app gốc có thể '
-			. 'KHÔNG lọc theo người, tức là tích vào là họ xem được bảng công của mọi người. '
-			. 'Bỏ tích hết thì quay về mặc định (không bao giờ để rỗng — rỗng là không ai vào được, '
-			. 'kể cả Admin).</p></td></tr>';
+		echo '</tbody></table>';
+		echo '<p class="description">Vai trò lấy từ hồ sơ nhân sự (ô <b>Vai trò</b>). Ô trống hoặc '
+			. 'ghi lạ thì rơi về <b>Nhân viên</b> — bậc thấp nhất. Cố ý không đoán lên cao: đoán '
+			. 'nhầm một dòng gõ sai chính tả là mở bảng lương cho cả cơ sở.</p></td></tr>';
 
 		echo '</tbody></table>';
 		submit_button( 'Lưu cài đặt' );
