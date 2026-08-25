@@ -91,6 +91,18 @@
  *  Vì chưa biết bo đang chạy kiểu nào, lệnh XUNG (đo bề rộng cạnh) phân biệt trước:
  *  hẹp cỡ micro giây = UART; rộng cỡ chục mili giây = xung tiền, khỏi cần khung lệnh.
  *
+*  ─── NẾU CÁP NHÀ MÁY LÀ MDB (harness WEL-RBG01, nhãn "MDB") ─────────────────
+ *  Cáp: nguồn 12V (dây cam), GND (xanh lá/tím), VCC (vàng), và DỮ LIỆU: đỏ=RX,
+ *  xanh dương=TX. Mức TTL 5V, CÁCH LY QUANG — KHÔNG phải RS-232, nên KHÔNG cần
+ *  MAX3232; ADuM1201 là đúng bài (MDB vốn để cách ly).
+ *  ⚠️ MDB KHÔNG phải "chép rồi phát lại". Ba điểm:
+ *    • 9600 baud cố định, 9 BIT (bit thứ 9 = mode: 1=địa chỉ, 0=dữ liệu);
+ *    • CHỦ–TỚ: BO GHẾ là chủ, nó poll; L70 là tớ (bill validator, địa chỉ 0x30);
+ *    • Muốn hộp QR mở ghế -> ESP32 ĐÓNG VAI máy nhận tiền, TRẢ LỜI poll của bo ghế
+ *      rằng "vừa có tờ tiền", chứ không phát lại một khung đã chép.
+ *  Lệnh MDB nghe đúng 9 bit (xem hàm ngheMdb + mdb.h). Do baud ra ~9600 mà NGHE
+ *  kieu 8 bit ra rac thi gan nhu chac la MDB -> dung lenh MDB.
+ *
  *  ─── ĐỌC MÃ CÁP LÀ BIẾT CHẾ ĐỘ (xem nhãn in trên sợi cáp, khỏi cần đo) ───────
  *    WEL-RL702                 -> Pulse (xung tiền, khỏi khung lệnh)
  *    WEL-RL705-1 / 2-BA-RL705  -> Pulse HOẶC RS232 A0 (dùng chung cáp -> còn phải
@@ -122,6 +134,8 @@
  *    Cắm USB, mở Serial Monitor 115200, gõ  TRO  để xem bảng lệnh.
  *    Chưa biết baud thì gõ  DOBAUD  rồi bỏ tờ tiền vào L70 cho có tín hiệu chạy.
  * ========================================================================== */
+
+#include "mdb.h"
 
 #define FW_VERSION "cau-ict 2026-08-25a (nghe len 2 chieu ICT L70 <-> ghe)"
 
@@ -289,6 +303,59 @@ void moCong() {
 }
 
 /* ============================================================================
+ *  NGHE MDB — lấy mẫu hai dây ở 9600 baud rồi giải khung 9 bit
+ * ----------------------------------------------------------------------------
+ *  MDB là 9 bit (bit thứ 9 = mode), mà UART của ESP32 đọc kiểu thường bỏ mất bit
+ *  đó -> phải lấy mẫu thô bằng phần mềm rồi tự giải (xem mdb.h). 9600 baud = một
+ *  bit rộng ~104us nên lấy mẫu phần mềm thoải mái.
+ *  ⚠️ Đây là bản NGHE để học giao thức. Trả lời poll thay cho L70 (đóng vai máy
+ *     nhận tiền) là việc khác, viết sau khi đã chép được đối thoại thật.
+ * ========================================================================== */
+#define MDB_MAU_MOI_BIT  8
+#define MDB_SO_MAU       4000
+
+void ngheMdb(int soLan) {
+  Serial.printf("[MDB] chup %d lan tren ca hai day @ 9600 baud 9 bit. Bo to tien vao L70 luc nay.\n", soLan);
+  congIct.end(); congGhe.end();
+  pinMode(CHAN_ICT_RX, INPUT);
+  pinMode(CHAN_GHE_RX, INPUT);
+  const int CHU_KY_US = 13;               // 1e6/(9600*8) ≈ 13us
+  static uint8_t mau[MDB_SO_MAU];
+  MdbByte ra[128];
+
+  for (int lan = 0; lan < soLan; lan++) {
+    for (int d = 0; d < 2; d++) {
+      int chan = d ? CHAN_GHE_RX : CHAN_ICT_RX;
+      const char* ten = d ? "GHE(chu)->L70" : "L70(to)->GHE";
+      uint32_t cho = micros();
+      while (digitalRead(chan) == 0 && (micros() - cho) < 5000) {}
+      for (int i = 0; i < MDB_SO_MAU; i++) {
+        mau[i] = digitalRead(chan) ? 1 : 0;
+        uint32_t t = micros();
+        while ((micros() - t) < (uint32_t)CHU_KY_US) {}
+      }
+      int n = mdbGiaiMa(mau, MDB_SO_MAU, MDB_MAU_MOI_BIT, ra, 128);
+      if (n <= 0) continue;
+      int tot = 0; for (int i = 0; i < n; i++) if (!ra[i].khungLoi) tot++;
+      if (tot == 0) continue;
+      Serial.printf("  [%s] %d byte: ", ten, n);
+      for (int i = 0; i < n; i++) {
+        if (ra[i].mode) Serial.printf("<%02X> ", ra[i].giaTri);
+        else            Serial.printf("%02X ", ra[i].giaTri);
+        if (ra[i].khungLoi) Serial.print("?");
+      }
+      Serial.println();
+      if (n >= 1 && ra[0].mode) Serial.printf("        (dia chi %02X = %s)\n",
+                                              ra[0].giaTri, mdbTenDiaChi(ra[0].giaTri));
+    }
+    delay(30);
+  }
+  moCong();
+  Serial.println("[MDB] xong. <XX> = byte dia chi (mode=1); XX = byte du lieu; ? = khung loi.");
+  Serial.println("      Byte dia chi 0x30-0x37 = bo ghe dang goi MAY NHAN TIEN GIAY (L70).");
+}
+
+/* ============================================================================
  *  ĐO CẠNH XUNG — TRẢ LỜI CÂU "UART HAY XUNG TIỀN?"
  * ----------------------------------------------------------------------------
  *  Tài liệu L-Series cho thấy L70 có NHIỀU kiểu giao tiếp, và hai kiểu hay gặp
@@ -387,6 +454,7 @@ void inTro() {
   Serial.println(
     "\n===== CAU NGHE LEN ICT L70 <-> GHE — LENH GO QUA USB (115200) =====\n"
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
+    "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
     "  XUNG [giay]     ĐO TRUOC TIEN: canh xung tren ca hai day, de biet day la UART\n"
     "                  hay chi la XUNG TIEN (tiep diem kho). Do baud ma nham kieu la vo nghia\n"
     "  DOBAUD [giay]   DO baud bang be rong xung (mac dinh 5 giay).\n"
@@ -481,6 +549,10 @@ void quyTrinh() {
   }
   if (b != g_baud) { g_baud = b; moCong(); Serial.printf("   -> da dat baud = %ld\n", g_baud); }
 
+  if (b == 9600) {
+    Serial.println("\n   ⚠️ Baud ≈ 9600 thi rat co the la MDB (bo ghe hay dung). MDB la 9 BIT,");
+    Serial.println("      nghe kieu 8 bit se ra rac. Go 'MDB' de nghe dung 9 bit truoc khi ket luan.");
+  }
   Serial.println("\nBUOC 4 — nghe that 8 giay. Lam cho hai ben noi chuyen (bo tien vao L70):");
   uint32_t i0 = g_soIct, g0 = g_soGhe;
   uint32_t het = millis() + 8000;
@@ -525,6 +597,7 @@ void ngheLenhUsb() {
 
     if      (lenh == "TRO")  inTro();
     else if (lenh == "TT")   inTrangThai();
+    else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
     else if (lenh == "XUNG") { uint32_t g = tham.toInt(); doXung(g ? g : 10); }
     else if (lenh == "DOBAUD") { uint32_t g = tham.toInt(); doBaudTheoXung(CHAN_ICT_RX, "phia L70", g ? g : 5); }
     else if (lenh == "BAUD") { long b = tham.toInt();

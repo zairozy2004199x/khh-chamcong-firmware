@@ -89,6 +89,12 @@ Ghế  ⇄  ADuM1201  ⇄  [ ESP32 ]  ⇄  ADuM1201  ⇄  ICT L70
 lệnh là tự nghĩ ra một thứ rồi mong nó trùng; ngồi giữa mà chép thì có **đúng** cái bo ghế chịu
 nghe — cả checksum, cả nhịp hỏi đáp. Sau này thay hẳn L70 thì chỉ việc phát lại y như vậy.
 
+**Nếu cáp là MDB** (harness `WEL-RBG01`): nguồn 12V, dữ liệu đỏ=RX/xanh dương=TX, mức TTL 5V cách
+ly quang — **không cần MAX3232**, ADuM1201 đúng bài. Nhưng MDB **không phải "chép rồi phát lại"**:
+9600 baud, **9 bit** (bit thứ 9 = mode), và **chủ–tớ** — bo ghế là chủ poll, L70 là tớ (bill
+validator `0x30`). Để hộp QR mở ghế, ESP32 phải **đóng vai máy nhận tiền và trả lời poll**. Lệnh
+`MDB` nghe đúng 9 bit; phần giải mã đã chốt bằng 9 bài test (`ci/kiem-mdb.sh`).
+
 Cắm USB, gõ `QUYTRINH` — nó chạy tuần tự các bước nghiệm thu và dừng lại ngay chỗ hỏng. Lệnh
 đáng chú ý: `DOBAUD` đo baud bằng **bề rộng xung** (đo thật, không phải thử từng tốc độ rồi
 đoán), `BANG <hex>` bắn khung sang phía ghế để giả làm L70, `CAT`/`NOI` để cắt cầu.

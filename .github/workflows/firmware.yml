@@ -315,6 +315,8 @@ jobs:
         run: bash esp32_posh_qr/ci/kiem-ict.sh
       - name: Bien dich kiem bang thu vien ESP32 gia
         run: bash esp32_posh_qr/ci/kiem-bien-dich.sh
+      - name: Test giai ma khung MDB 9 bit
+        run: bash esp32_cau_ict/ci/kiem-mdb.sh
       - name: Bien dich kiem cau nghe len ICT
         run: bash esp32_cau_ict/ci/kiem-bien-dich.sh
       - name: Test doc file .hex cua dsPIC
