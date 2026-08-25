@@ -186,33 +186,33 @@
 #define FW_VERSION "cau-ict 2026-08-25a (nghe len 2 chieu ICT L70 <-> ghe)"
 
 /* ============================================================================
- *  CHÂN CẮM — CHỌN CHO DỄ CẮM DỄ ĐO, VÌ ĐÂY LÀ MẠCH TEST
+ *  CHÂN CẮM — board CYD ESP32-2432S028 (KHÔNG phải DevKit trần)
  * ----------------------------------------------------------------------------
- *  Trên DevKit ESP32 30 chân, hàng bên TRÁI đếm từ giữa xuống có đúng năm chân
- *  nằm liền nhau:   D32  D33  D25  D26  D27   — rồi tới D14 D12 D13 GND.
- *  Lấy nguyên khối đó: đếm không nhầm, kẹp que đo không chạm nhau, và GND thì
- *  nằm ngay dưới cùng hàng nên khỏi vòng dây sang bên kia bo.
+ *  Trên CYD gần hết chân đã bị màn hình / cảm ứng / thẻ nhớ / loa chiếm, nên
+ *  32/33 vừa kẹt khó hàn vừa trùng chân cảm ứng. Chỉ vài chân đưa ra JACK CẮM SẴN,
+ *  cắm là xong, khỏi hàn:
+ *      P3  "Extended IO" (jack 1.25, 4 chân):  GND · IO35 · IO22 · IO21
+ *      CN1 "Temp/Humidity":                    GND · NC · IO27 · 3V3
+ *      P1  "Power":                            VIN · IO1(TX) · IO3(RX) · GND
+ *  Dùng P3: một jack có sẵn GND + hai chân đọc. IO35 CHỈ VÀO được (đúng cho đọc),
+ *  IO22 vào/ra đều được. ⚠️ TRÁNH IO21 — nó là đèn nền TFT, dùng là chớp màn hình.
+ *  IO27 (CN1) để dành làm chân dự phòng.
  *
- *  Cả năm chân đều AN TOÀN: không quyết định kiểu boot, không dính flash, không
- *  bị PSRAM chiếm, và đều xuất được (không phải loại chỉ vào được).
- *
- *  ⚠️ NHỮNG CHÂN ĐỪNG BAO GIỜ LẤY CHO UART, kể cả khi làm mạch thật sau này:
- *      GPIO 6..11    dính flash — dùng là chip không boot.
- *      GPIO 34..39   CHỈ VÀO được, không làm chân TX được.
- *      GPIO 1, 3     là cổng USB (Serial0). Lấy là mất luôn màn hình log.
- *      GPIO 0,2,5,12,15  quyết định kiểu boot. Thiết bị bên kia kéo mấy chân đó
- *                    lúc cắm điện là ESP32 không khởi động. Riêng GPIO12 bị kéo
- *                    lên còn làm chip đổi flash sang 1,8V — coi như hỏng bo.
- *      GPIO 16, 17   an toàn trên bo WROOM, nhưng bo WROVER thì PSRAM chiếm mất.
- *                    Mạch test hay mượn bo bất kỳ nên tránh luôn cho chắc.
+ *  ─── NGHE LÉN KIỂU TAP SONG SONG — KHÔNG CẮT DÂY ──────────────────────────
+ *  CYD không đủ chân để làm cầu cắt-giữa 4 dây. Nhưng để HỌC giao thức thì chỉ
+ *  cần NGHE: kẹp vào hai dây dữ liệu của bus MDB (KHÔNG cắt), ghế và L70 vẫn nói
+ *  chuyện thẳng với nhau như cũ, ESP32 đứng cạnh đọc. Chỉ tốn 2 chân đọc + GND.
+ *  Vì chỉ đọc nên hai chân TX để -1 (ESP32 KHÔNG drive, không đụng vào bus).
+ *  ⚠️ Dây MDB là 5V -> mỗi dây tap phải qua chia áp 5V->3,3V trước khi vào ESP32
+ *     (đơn giản nhất: trở 10k nối tiếp + 20k xuống mass; hoặc 2 kênh board MOSFET).
+ *     Chọn trở LỚN (10k/20k) để tap nhẹ, không tải bus.
  * ========================================================================== */
-#define CHAN_ICT_RX   25      // ESP32 nhận  <- TX của ICT L70
-#define CHAN_ICT_TX   26      // ESP32 gửi   -> RX của ICT L70
-#define CHAN_GHE_RX   32      // ESP32 nhận  <- TX của bo ghế
-#define CHAN_GHE_TX   33      // ESP32 gửi   -> RX của bo ghế
-#define CHAN_OE_ICT   -1      // CHỈ dùng khi đấu bằng TXS0108E: -> chân OE phía L70. ADuM1201 không có chân này.
-#define CHAN_OE_GHE   -1      // CHỈ dùng khi đấu bằng TXS0108E: -> chân OE phía ghế. -1 = không đấu tới.
-// GPIO 27 để trống làm chân dự phòng — dùng cho OE nếu muốn ESP32 tự bật/tắt mạch chuyển mức.
+#define CHAN_ICT_RX   22      // P3 · tap dây dữ liệu 1 của bus MDB (qua chia áp 5V->3,3V)
+#define CHAN_GHE_RX   35      // P3 · tap dây dữ liệu 2 (IO35 chỉ vào được — hợp cho đọc)
+#define CHAN_ICT_TX   -1      // TAP song song: KHÔNG drive dây
+#define CHAN_GHE_TX   -1      // TAP song song: KHÔNG drive dây
+#define CHAN_OE_ICT   -1      // (giữ cho tương thích; TAP song song không dùng)
+#define CHAN_OE_GHE   -1
 
 #define BAUD_MAC_DINH 9600
 #define NGHI_MS       15      // dây im ngần này = hết một khung (ở 9600 một byte ~1ms)
