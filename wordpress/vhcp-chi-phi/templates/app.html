@@ -19,7 +19,9 @@
   </div>
 
   <div class="top">
-    <div><h1>💵 Vận Hành Chi Phí</h1><div class="sub">Nhập chi tạm ứng · đối chiếu · kế toán duyệt · cấu hình MISA</div></div>
+    <!-- Số phiên bản in thẳng lên trang: cài đè xong mà không biết bản nào đang chạy thì mọi
+         con số lệch đều thành câu đố. Lấy từ VHCP_CFG.ver do máy chủ gửi xuống. -->
+    <div><h1>💵 Vận Hành Chi Phí <span id="pbChip" style="font-size:12px;font-weight:600;color:#a7f3d0;background:rgba(255,255,255,.16);border-radius:20px;padding:3px 10px;vertical-align:middle;margin-left:6px"></span></h1><div class="sub">Nhập chi tạm ứng · đối chiếu · kế toán duyệt · cấu hình MISA</div></div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span id="userChip" style="font-size:12px;color:#a7f3d0"></span>
       <button class="btn b-x" onclick="boot()">↻ Làm mới</button>
@@ -862,8 +864,9 @@
       <div class="tw"><table style="min-width:1060px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
         <b>Vai trò</b> (cột 3) quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ đơn của mình).<br>
-        <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO — nhân viên nào cũng chọn được: <b>Cơ sở</b> · <b>Văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.
-        Nhân viên để bộ phận <b>Văn phòng</b> thì lúc tạo đơn được chọn <b>khoảng ngày tự do (theo dự án)</b> thay vì gom theo tuần — tuần chỉ đúng với nhân viên cơ sở.<br>
+        <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
+        <b>Nhân viên cơ sở</b> → chỉ lên đơn theo <b>Tuần · cơ sở</b> (đơn xin tạm ứng một tuần vận hành).
+        <b>Nhân viên văn phòng</b> → vào được <b>cả hai</b>: Tuần · cơ sở <i>và</i> Dự án · gian thi công, và khi tạo đơn được chọn thêm <b>khoảng ngày tự do</b> cho đợt vắt tuần.<br>
         Admin ban đầu PIN <b>1111</b> — hãy đổi ngay.</div>
     </div>
     <div class="card" id="ssoCard">
@@ -1169,6 +1172,11 @@
 
 <script>
   var SSO_USER = (window.VHCP_CFG && window.VHCP_CFG.ssoUser) || null;   // SSO: danh tính do WordPress xác thực (null nếu mở trực tiếp)
+  // In số phiên bản plugin lên tiêu đề ngay khi trang dựng xong.
+  (function(){ var v=(window.VHCP_CFG&&window.VHCP_CFG.ver)||'';
+    document.addEventListener('DOMContentLoaded',function(){
+      var c=document.getElementById('pbChip'); if(c&&v) c.textContent='b'+v; });
+  })();
   var BOOT={coso:[],nhom:[],phanloai:[]}, CUR=null, CURUSER=null, CFGUSERS=[]; // CUR=getDon; CURUSER=phiên đăng nhập
   // Bảng người dùng TẢI HỎNG khác hẳn bảng người dùng RỖNG, mà trước đây vẽ ra giống hệt nhau:
   // cả hai đều là một cái bảng trắng. Người ta thấy trắng thì bấm Lưu, và thế là mất sạch phân
@@ -1374,12 +1382,22 @@
               'Nhân viên':{tongquan:1,don:1,sochi:1,duan:1,mkt:1,congtac:1,setup:1,vhtuan:0,trama:0,duyet:0,qt:0,tattoan:0,xuat:0,cauhinh:0,log:0} }[role]||{don:1};   // NV: Tổng quan + Dự án + Marketing + Công tác/Setup (không thấy tổng vận hành tuần toàn cơ sở)
     if(role==='Nhân viên'){   // NV có Bộ phận cụ thể -> chỉ thấy tab của bộ phận đó (để "— Tất cả —" thì thấy hết như cũ)
       var bp=String((CURUSER&&CURUSER.boPhan)||'').trim();
-      if(bp){ vis.duan=(bp==='Kỹ thuật')?1:0; vis.mkt=(bp==='Marketing')?1:0; vis.congtac=(bp==='Công tác')?1:0; vis.setup=(bp==='Setup')?1:0; }
+      // 🔴 AI VÀO ĐƯỢC TAB "DỰ ÁN · GIAN THI CÔNG" — anh Thắng chốt 25/08/2026:
+      //    cách lên đơn ở tab đó y hệt bên cơ sở, KHÁC DUY NHẤT ở chỗ bộ phận nào được vào.
+      //      Nhân viên Cơ sở    -> chỉ "Tuần · cơ sở"
+      //      Nhân viên Văn phòng -> CẢ HAI
+      //      Nhân viên Kỹ thuật  -> Dự án, như từ trước tới nay
+      if(bp){ vis.duan=(BP_VAO_DUAN.indexOf(bp)>=0)?1:0; vis.mkt=(bp==='Marketing')?1:0; vis.congtac=(bp==='Công tác')?1:0; vis.setup=(bp==='Setup')?1:0; }
       // 3 tab Marketing/Công tác/Setup đã bỏ, nên NV của mấy bộ phận đó phải vào được
       // tab Đơn chi phí — không thì họ không còn chỗ nào để nhập.
       vis.don=1; vis.sochi=1;
     }
     ['tongquan','don','sochi','duan','mkt','congtac','setup','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){ var t=el('tab-'+x); if(t) t.style.display=(vis[x]&&!BO_TAB[x])?'inline-block':'none'; });
+    // Thanh "GOM THEO" nằm TRONG trang, không phải trên hàng tab — nên phải ẩn riêng. Để nút
+    // "Dự án · gian thi công" sáng cho người không có quyền vào là họ bấm rồi ăn trang trắng.
+    Array.prototype.forEach.call(document.querySelectorAll('[data-dcsw="duan"]'),function(b){
+      b.style.display=vis.duan?'':'none';
+    });
     var tqt=el('tab-qt'); if(tqt) tqt.textContent=(role==='Kế toán NCC')?'🧾 Duyệt NCC':'🧾 Quyết toán';
     // ADMIN CŨNG LÊN ĐƠN ĐƯỢC — để chạy thử trọn luồng (lên đơn → xin tạm ứng → cấp →
     // chốt chi phí → kế toán duyệt → xuất MISA) mà không phải mượn tài khoản nhân viên.
@@ -1572,13 +1590,25 @@
   function _guardChi(){ if(CUR&&CUR.lockChi){toast('warn','Trạng thái này không cho sửa dòng chi');return true;} return false; }
   function stCls(st){ return (st==='Đã quyết toán'||st==='Đã xuất MISA')?'st-duyet':(st==='Đã cấp tạm ứng'?'st-cap':(st==='Nháp'?'st-nhap':'st-cho')); }
 
-  function _kyTuDo(){ return BP_KY_TU_DO.indexOf(String((CURUSER&&CURUSER.boPhan)||'').trim())>=0; }
+  /**
+   * Người này có được chọn KHOẢNG NGÀY TỰ DO không?
+   *
+   * 🔴 Nhân viên CƠ SỞ thì KHÔNG — anh Thắng chốt 25/08/2026. Đơn của họ là đơn xin tạm ứng
+   *    cho MỘT TUẦN vận hành; cho tự chọn khoảng ngày là đơn vắt qua mấy tuần, và thừa/thiếu
+   *    luân chuyển giữa các tuần hết đường tính. Chỉ nhân viên Văn phòng mới được.
+   *    Vai khác (Admin / Quản lý / Kế toán) vẫn được, để chạy thử trọn luồng.
+   */
+  function _kyTuDo(){
+    if(!CURUSER) return false;
+    if(String(CURUSER.role||'')!=='Nhân viên') return true;
+    return BP_KY_TU_DO.indexOf(String(CURUSER.boPhan||'').trim())>=0;
+  }
   function newDon(){
-    // Ô "khoảng ngày tự chọn" luôn có mặt cho MỌI người — có đợt vắt tuần thì ai cũng cần.
-    // Riêng nhân viên Văn phòng thì nó được chọn sẵn, vì với họ đó mới là cách thường dùng.
+    // Nhân viên cơ sở KHÔNG thấy dòng này — không phải chỉ "không chọn sẵn", mà là không có.
+    // Để đó rồi trông chờ người ta đừng bấm là sớm muộn có người bấm.
     var tudo=_kyTuDo();
-    el('ndKy').innerHTML='<option value="__tudo__"'+(tudo?' selected':'')+'>🗓 Khoảng ngày tự chọn (theo dự án)</option>'
-      +genKyOptions().map(function(o){return '<option value="'+esc(o.val)+'"'+((!tudo&&o.cur)?' selected':'')+'>'+esc(o.label)+'</option>';}).join('');
+    el('ndKy').innerHTML=(tudo?'<option value="__tudo__">🗓 Khoảng ngày tự chọn (theo dự án)</option>':'')
+      +genKyOptions().map(function(o){return '<option value="'+esc(o.val)+'"'+(o.cur?' selected':'')+'>'+esc(o.label)+'</option>';}).join('');
     var h=new Date(), h2=new Date(); h2.setDate(h2.getDate()+6);
     el('ndTuNgay').value=_ymd(h); el('ndDenNgay').value=_ymd(h2);
     ndKyDoi();
@@ -4720,8 +4750,19 @@
   // đi theo DỰ ÁN của gian đó và THỜI GIAN BẤT KỲ, không gom theo tuần. Gom theo tuần chỉ
   // đúng với nhân viên cơ sở — họ xin tạm ứng cho một tuần vận hành.
   var BOPHAN_LIST=['Cơ sở','Văn phòng','Kỹ thuật','Marketing','Công tác','Setup'];
-  var BP_KY_TU_DO=['Văn phòng'];   // bộ phận được chọn khoảng ngày tự do thay vì tuần
-  function _bpSel(v, allLabel){ var o=[['', allLabel||'Tất cả (mọi bộ phận)']].concat(BOPHAN_LIST.map(function(b){return [b,b];}));
+  // Bộ phận được chọn KHOẢNG NGÀY TỰ DO khi tạo đơn (thay vì bắt buộc gom theo tuần).
+  // Nhân viên cơ sở xin tạm ứng cho MỘT TUẦN vận hành nên tuần là đúng và không được nới ra;
+  // nhân viên văn phòng lên dự án thì một đợt thi công chẳng nằm gọn trong tuần nào cả.
+  var BP_KY_TU_DO=['Văn phòng'];
+  // Bộ phận vào được tab "Dự án · gian thi công".
+  var BP_VAO_DUAN=['Văn phòng','Kỹ thuật'];
+  /* Nhãn hiển thị của bộ phận. GIÁ TRỊ LƯU GIỮ NGUYÊN ('Cơ sở', 'Văn phòng') — đổi giá trị là
+     mọi dòng người dùng đang khai trỏ vào một bộ phận không còn tồn tại. Chỉ đổi CHỮ HIỆN RA
+     cho khớp cách anh Thắng gọi: "Nhân viên thì chia thành 2 bộ phận — Nhân viên văn phòng,
+     Nhân viên cơ sở". */
+  var BOPHAN_NHAN={'Cơ sở':'Nhân viên cơ sở','Văn phòng':'Nhân viên văn phòng'};
+  function _bpNhan(b){ return BOPHAN_NHAN[b]||b; }
+  function _bpSel(v, allLabel){ var o=[['', allLabel||'Tất cả (mọi bộ phận)']].concat(BOPHAN_LIST.map(function(b){return [b,_bpNhan(b)];}));
     v=String(v||''); return '<select style="width:100%">'+o.map(function(p){return '<option value="'+esc(p[0])+'"'+(p[0]===v?' selected':'')+'>'+esc(p[1])+'</option>';}).join('')+'</select>'; }
   function _delBtn(){ return '<td style="text-align:center"><button class="btn b-d" onclick="delCfgRow(this)">✕</button></td>'; }
   function delCfgRow(btn){ var tr=btn.parentNode.parentNode; tr.parentNode.removeChild(tr); }

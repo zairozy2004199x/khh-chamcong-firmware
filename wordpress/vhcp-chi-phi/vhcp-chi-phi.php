@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.35.0
+ * Version:           1.36.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -13,7 +13,15 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCP_VERSION', '1.31.0' );
+/**
+ * 🔴 SỐ NÀY PHẢI BẰNG ĐÚNG "Version:" Ở ĐẦU TỆP.
+ *
+ * Nó không phải chỗ ghi chú: `vhcp_ver` so với nó để biết có phải chạy bước nâng cấp không, và
+ * nó đi vào ?ver= của CSS/JS để trình duyệt bỏ bộ nhớ đệm. Header đã lên 1.35.0 trong khi số
+ * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
+ * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
+ */
+define( 'VHCP_VERSION', '1.36.0' );
 define( 'VHCP_FILE', __FILE__ );
 define( 'VHCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCP_URL', plugin_dir_url( __FILE__ ) );

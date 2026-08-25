@@ -159,6 +159,41 @@ if m7:
     # Đang lọc mà "Chọn hết" áp cả danh sách là tích/bỏ một đống cơ sở không hề nhìn thấy.
     la('Chọn hết/Bỏ hết chỉ áp dòng đang thấy', "l.style.display==='none'" in m7.group(1))
 
+# ---------------------------------------------------------------- ai vào tab Dự án
+print('— luật bộ phận: tuần vs dự án —')
+# 🔴 Anh Thắng chốt 25/08/2026:
+#      Nhân viên Cơ sở     -> CHỈ "Tuần · cơ sở"
+#      Nhân viên Văn phòng -> CẢ HAI
+#    Cách lên đơn ở tab Dự án y hệt bên cơ sở; khác duy nhất ở chỗ bộ phận nào được vào.
+m8 = re.search(r"var BP_VAO_DUAN=\[(.*?)\];", src)
+la('có khai BP_VAO_DUAN', m8 is not None)
+if m8:
+    vd = [x.strip().strip("'") for x in m8.group(1).split(',')]
+    la('Văn phòng vào được tab Dự án', 'Văn phòng' in vd, str(vd))
+    la('Kỹ thuật vẫn vào được tab Dự án', 'Kỹ thuật' in vd, str(vd))
+    la('Cơ sở KHÔNG vào tab Dự án', 'Cơ sở' not in vd, str(vd))
+la('quyền tab Dự án tra theo BP_VAO_DUAN', 'BP_VAO_DUAN.indexOf(bp)>=0' in src)
+# Nút "Dự án · gian thi công" nằm TRONG trang chứ không trên hàng tab -> phải ẩn riêng,
+# không thì người không có quyền bấm vào rồi ăn trang trắng.
+la('ẩn nút GOM THEO khi không có quyền',
+   '[data-dcsw="duan"]' in src and 'b.style.display=vis.duan' in src)
+
+m9 = re.search(r'function _kyTuDo\(\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy _kyTuDo()', m9 is not None)
+if m9:
+    t9 = m9.group(1)
+    la('vai khác Nhân viên vẫn được kỳ tự do', "!=='Nhân viên') return true" in t9)
+    la('Nhân viên phải nằm trong BP_KY_TU_DO', 'BP_KY_TU_DO.indexOf(' in t9)
+
+m10 = re.search(r'function newDon\(\)\{(.*?)\n  \}', src, re.S)
+la('tìm thấy newDon()', m10 is not None)
+if m10:
+    t10 = m10.group(1)
+    # 🔴 Nhân viên cơ sở phải KHÔNG CÓ dòng đó, chứ không phải "có mà không chọn sẵn".
+    #    Để đó rồi trông chờ người ta đừng bấm là sớm muộn có người bấm.
+    la('dòng kỳ tự do chỉ dựng khi được phép', "(tudo?'<option value=\"__tudo__\"" in t10)
+    la('không còn chọn sẵn theo tudo', "((!tudo&&o.cur)" not in t10)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
