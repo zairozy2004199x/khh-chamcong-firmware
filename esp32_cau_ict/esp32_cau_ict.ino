@@ -209,6 +209,17 @@
 #define CHAN_BOM_TX   22      // IO22 — chinh day tien, da noi san qua chia muc
 #define CHAN_BOM_RX   35      // nghe ghe dap (02) — dây IO35 đang tap
 
+/* ---- HUONG B: CONG XEN GIUA (giu tien mat + them QR) --------------------------
+ * Vi TX cua L70 la day-keo (giu day cao) nen KHONG song song duoc -> phai CAT day
+ * tien cua L70 va cho ESP32 vao giua:
+ *   - Dau L70 (da cat) -> CHAN_A_L70_RX (doc, qua chia muc 5V->3,3V)
+ *   - CHAN_A_GHE_TX -> chan nhan tien cua ghe (phat, qua chia muc 3,3V->5V) [IO22 cu]
+ *   - CHAN_B_GHE_RX  -> tap TX dieu khien cua ghe (3E mo khoa / 5E khoa / 02 ack) [IO35 cu]
+ * Thuong ngay: relay byte L70 -> ghe (tien mat xuyen qua). Quet QR: ESP32 tu phat 81 4X. */
+#define CHAN_A_L70_RX 27      // IO27 (CN1) — doc TX cua L70 (dau da cat)
+#define CHAN_A_GHE_TX 22      // IO22 — phat sang chan nhan tien cua ghe
+#define CHAN_B_GHE_RX 35      // IO35 — tap TX dieu khien cua ghe
+
 #define BAUD_MAC_DINH 4800   // ĐO THẬT bang RAW: nhip bit ~207us -> 4800, KHONG phai 9600
 #define NGHI_MS       15      // dây im ngần này = hết một khung (ở 9600 một byte ~1ms)
 #define KHUNG_TOI_DA  96
@@ -656,6 +667,77 @@ void bomTien(int chiSo) {
 }
 
 /* ============================================================================
+ *  GATE — CỔNG XEN GIỮA (SẢN PHẨM): giữ tiền mặt + thêm QR.  [Hướng B]
+ * ----------------------------------------------------------------------------
+ *  congIct (Serial1): duong TIEN. RX=IO27 doc L70 (dau da cat), TX=IO22 phat sang
+ *                     chan nhan tien cua ghe. Relay L70->ghe = tien mat xuyen qua.
+ *  congGhe (Serial2): duong DIEU KHIEN. RX=IO35 tap TX cua ghe (3E mo/5E khoa/02).
+ *
+ *  Thuong ngay: byte nao L70 phat -> chuyen thang sang ghe (tien mat chay y cu).
+ *  Quet QR (test: go 0-6 tren USB): neu ghe DANG MO KHOA thi phat 81 4X -> cho 02
+ *  -> phat 10. Ghe an "tien QR" va chay. Ghe dang chay (5E) thi khong bom (giong
+ *  tien mat: dang chay khong nap them).
+ * ========================================================================== */
+void bomQrTrongCong(int chiSo, bool moKhoa) {
+  if (chiSo < 0) chiSo = 0; if (chiSo > 6) chiSo = 6;
+  if (!moKhoa) {
+    Serial.println("\n[GATE] Ghe DANG KHOA (dang chay) -> khong bom duoc, giong het tien mat.");
+    return;
+  }
+  uint8_t ma = (uint8_t)(0x40 + chiSo);
+  congIct.write(0x81); congIct.write(ma); congIct.flush();
+  Serial.printf("\n[GATE] QR! phat 81 %02X sang ghe...\n", ma);
+  uint32_t het = millis() + 800; bool ack = false;
+  while ((int32_t)(het - millis()) > 0) {
+    while (congGhe.available()) { int c = congGhe.read() & 0xFF; Serial.printf("  ghe -> %02X\n", c); if (c == 0x02) ack = true; }
+    yield();
+  }
+  congIct.write(0x10); congIct.flush();
+  Serial.println(ack ? "[GATE] ghe da an QR -> CHAY!" : "[GATE] chua thay 02 (kiem day/chia muc).");
+}
+
+void congTien(uint32_t giay) {
+  congIct.end(); congGhe.end(); delay(20);
+  congIct.begin(4800, SERIAL_8E1, CHAN_A_L70_RX, CHAN_A_GHE_TX);  // duong tien: relay + bom
+  congGhe.begin(4800, SERIAL_8E1, CHAN_B_GHE_RX, -1);             // duong dieu khien: chi doc
+  Serial.printf("[GATE] CONG XEN GIUA: relay L70(IO%d)->ghe(IO%d), theo doi ghe(IO%d). %lu giay.\n",
+                CHAN_A_L70_RX, CHAN_A_GHE_TX, CHAN_B_GHE_RX, (unsigned long)giay);
+  Serial.println("[GATE] Tien mat chay xuyen qua nhu cu. GO 0-6 (USB) = GIA quet QR menh gia do:");
+  Serial.println("[GATE] 0=5k 1=10k 2=20k 3=50k 4=100k 5=200k 6=500k. Phim khac = thoat.");
+  bool moKhoa = true;               // gia dinh luc dau ghe mo khoa (ranh)
+  uint32_t het = millis() + giay * 1000UL;
+  uint32_t lanCuoi = 0; bool dong = false;
+  while ((int32_t)(het - millis()) > 0) {
+    bool coGi = false;
+    // 1) RELAY tien mat: L70 -> ghe (nguyen van)
+    while (congIct.available()) {
+      uint8_t b = (uint8_t)congIct.read();
+      congIct.write(b);                                  // chuyen thang sang ghe (TX=IO22)
+      if (millis() - lanCuoi > 15 && dong) { Serial.println(); dong = false; }
+      Serial.printf("L70>%02X ", b); lanCuoi = millis(); dong = true; coGi = true;
+    }
+    // 2) theo doi trang thai ghe tren duong dieu khien
+    while (congGhe.available()) {
+      uint8_t c = (uint8_t)congGhe.read();
+      if (c == 0x3E) moKhoa = true;
+      else if (c == 0x5E) moKhoa = false;
+      if (millis() - lanCuoi > 15 && dong) { Serial.println(); dong = false; }
+      Serial.printf("ghe>%02X%s ", c, c == 0x3E ? "(mo)" : c == 0x5E ? "(khoa)" : ""); lanCuoi = millis(); dong = true; coGi = true;
+    }
+    // 3) kich QR (test qua USB). San pham: thay bang tin hieu tu module QR.
+    if (Serial.available()) {
+      int k = Serial.read();
+      if (k >= '0' && k <= '6') bomQrTrongCong(k - '0', moKhoa);
+      else if (k != '\r' && k != '\n') { Serial.println("\n[GATE] thoat."); break; }
+    }
+    if (!coGi && dong && millis() - lanCuoi > 15) { Serial.println(); dong = false; }
+    if (!coGi) yield();
+  }
+  Serial.println("\n[GATE] xong.");
+  moCong();
+}
+
+/* ============================================================================
  *  DÒ DÂY — tìm dây dữ liệu bằng cách chạm đầu dò vào từng dây, xem live
  * ----------------------------------------------------------------------------
  *  Traffic có thật (tiền mặt chạy được) mà tap không ra khung = tap SAI DÂY.
@@ -700,6 +782,7 @@ void inTro() {
     "  TT              trang thai: baud, dem byte/khung tung chieu\n"
     "  CONG [giay]     XEN GIUA that: chuyen tiep 9 bit hai chieu + log (ban thanh pham)\n"
     "  MDB [lan]       nghe khung MDB 9 bit (bo ghe dung giao thuc nay). Bo tien vao L70.\n"
+    "  GATE [giay]     SAN PHAM: cong xen giua - relay tien mat + go 0-6 gia quet QR\n"
     "  BOM <chiso>     GIA LAM L70: phat khung co tien vao ghe (0=5k 1=10k 2=20k\n"
     "                  3=50k 4=100k 5=200k 6=500k). Test ghe co an tien khong.\n"
     "  HW [giay]       NGHE bang UART phan cung 4800 8E1 (KHONG rot byte). NEN DUNG\n"
@@ -851,6 +934,7 @@ void ngheLenhUsb() {
     else if (lenh == "TT")   inTrangThai();
     else if (lenh == "CONG") { uint32_t g = tham.toInt(); congTrungGian(g ? g : 20); }
     else if (lenh == "MDB")  { int k = tham.toInt(); ngheMdb(k > 0 ? k : 20); }
+    else if (lenh == "GATE") { uint32_t g = tham.toInt(); congTien(g ? g : 3600); }
     else if (lenh == "BOM")  { bomTien(tham.toInt()); }
     else if (lenh == "HW")   { uint32_t g = tham.toInt(); ngheHw(g ? g : 60); }
     else if (lenh == "RAW")  { uint32_t g = tham.toInt(); rawCanh(g ? g : 8); }
