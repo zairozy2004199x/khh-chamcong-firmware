@@ -223,6 +223,41 @@ foreach ( $l2 as $x ) {
 	}
 }
 
+/* ======================= TÊN TỆP -> MÃ CƠ SỞ ======================= */
+/* 🔴 ĐÂY LÀ CHỖ ĐÃ CHẶN ANH THẮNG THẬT. Tệp tên `CS_VP_KH-HCM.csv` — có DẤU GẠCH NGANG. Bản đầu
+   khớp `[A-Za-z0-9_]+` nên trả rỗng, và màn nạp chặn ngay ở cửa: "Không đoán được cơ sở từ tên
+   tệp". Không phải dữ liệu hỏng, không phải quyền — chỉ là một dấu gạch ngang không nằm trong
+   danh sách ký tự em cho phép.
+   Bài học: liệt kê trước những ký tự nào được phép thì kiểu gì cũng sót. Giờ lấy TẤT CẢ phần
+   sau `CS_` rồi mới chặn cái thật sự không dùng được. */
+echo "— tên tệp -> mã cơ sở —\n";
+$sheets = '( Đang chạy ) Hệ Thống Chấm Công Cơ Sở - ';
+la( 'CÓ DẤU GẠCH NGANG (ca thật của anh Thắng)',
+	'VP_KH-HCM', VCG_Nap::co_so_tu_ten( $sheets . 'CS_VP_KH-HCM.csv' ) );
+la( 'tên thường',        'TUTU_TP',    VCG_Nap::co_so_tu_ten( $sheets . 'CS_TUTU_TP.csv' ) );
+la( 'gạch dưới + số',    'VP_KHHCM_1', VCG_Nap::co_so_tu_ten( $sheets . 'CS_VP_KHHCM_1.csv' ) );
+la( 'không có phần đầu', 'TUTU_TP',    VCG_Nap::co_so_tu_ten( 'CS_TUTU_TP.csv' ) );
+/* Trình duyệt tải lần hai thì thêm " (1)" vào tên — rất hay gặp, và đủ để tắc lần nữa. */
+la( 'bản sao (1) của trình duyệt', 'VP_KH-HCM',
+	VCG_Nap::co_so_tu_ten( $sheets . 'CS_VP_KH-HCM (1).csv' ) );
+la( 'đuôi CSV viết hoa', 'TUTU_TP', VCG_Nap::co_so_tu_ten( 'CS_TUTU_TP.CSV' ) );
+la( 'khoảng trắng -> gạch dưới', 'VP_KH_HCM', VCG_Nap::co_so_tu_ten( 'CS_VP KH HCM.csv' ) );
+la( 'có đường dẫn',      'TUTU_TP', VCG_Nap::co_so_tu_ten( '/tmp/tai ve/CS_TUTU_TP.csv' ) );
+/* Vẫn phải TỪ CHỐI khi không có gì để lấy — trả bừa một mã cơ sở kỳ quặc rồi ghi xuống bảng là
+   dữ liệu nằm sai chỗ vĩnh viễn, vì mã cơ sở là khoá. */
+la( 'không có CS_ -> rỗng', '', VCG_Nap::co_so_tu_ten( 'bang cong thang 7.csv' ) );
+la( 'có dấu tiếng Việt -> rỗng', '', VCG_Nap::co_so_tu_ten( 'CS_Cơ Sở Mới.csv' ) );
+la( 'CS_ rồi hết -> rỗng',  '', VCG_Nap::co_so_tu_ten( 'CS_.csv' ) );
+
+/* Ô tự gõ phải đi qua CÙNG khuôn — nếu không thì gõ tay ra một mã, tên tệp ra một mã khác, và
+   cùng một cơ sở có công nằm hai nơi. */
+la( 'gõ tay: bình thường', 'VP_KH-HCM', VCG_Nap::chuan_co_so( ' VP_KH-HCM ' ) );
+la( 'gõ tay: khoảng trắng -> gạch dưới', 'VP_KH_HCM', VCG_Nap::chuan_co_so( 'VP KH HCM' ) );
+la( 'gõ tay: dấu tiếng Việt -> rỗng', '', VCG_Nap::chuan_co_so( 'Cơ sở 1' ) );
+la( 'gõ tay: rỗng -> rỗng', '', VCG_Nap::chuan_co_so( '   ' ) );
+that( 'gõ tay và tên tệp ra CÙNG một mã',
+	VCG_Nap::chuan_co_so( 'VP_KH-HCM' ) === VCG_Nap::co_so_tu_ten( $sheets . 'CS_VP_KH-HCM.csv' ) );
+
 /* ======================= TỆP CƠ SỞ THỨ HAI — CS_VP_KHHCM_1 ======================= */
 /* Anh Thắng gửi tệp này kèm câu "cơ sở này chưa nạp được". Nó KHÔNG hỏng ở chỗ đọc — nó hỏng ở
    bốn chỗ trong chính dữ liệu nguồn mà bản đầu nuốt im lặng. Giữ nguyên tệp làm bộ thử để bốn

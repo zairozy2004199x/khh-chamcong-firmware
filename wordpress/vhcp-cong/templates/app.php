@@ -72,6 +72,11 @@ $ajax      = admin_url( 'admin-ajax.php' );
 	.canh table{padding:0 14px}
 	.canh td,.canh th{border-top:1px solid #f4e3b4}
 	.canh .chan{padding:0 14px 12px}
+	.tu-dien{font-size:13.5px;color:var(--mo);display:flex;align-items:center;gap:8px}
+	.tu-dien input{font:inherit;font-size:14px;color:var(--chu);padding:7px 10px;
+		border:1px solid var(--vien);border-radius:8px;width:200px}
+	.tu-dien input:focus{outline:0;border-color:var(--xanh)}
+	.tu-dien input.can{border-color:var(--do);background:var(--do-nhat)}
 	.khoa{opacity:.55}
 </style>
 </head>
@@ -111,6 +116,17 @@ $ajax      = admin_url( 'admin-ajax.php' );
 			<div class="hang">
 				<button class="chinh" id="xem-cs" disabled>Xem trước</button>
 				<button class="phu2" id="nap-cs" style="display:none">Xác nhận nạp</button>
+			</div>
+			<!-- Ô TỰ ĐIỀN — để cái cửa "không đoán được cơ sở" không bao giờ chặn được nữa.
+			     Để trống thì hệ tự lấy từ tên tệp như thường; điền vào thì lấy đúng cái điền.
+			     Tự đoán tên tệp tiện, nhưng tiện mà tắc thì người ta đứng luôn ở đó. -->
+			<div class="hang">
+				<label class="tu-dien">Cơ sở
+					<input type="text" id="co-so-cs" placeholder="tự lấy từ tên tệp"
+						autocomplete="off" spellcheck="false">
+				</label>
+				<span class="chan">Chỉ điền khi hệ không tự nhận ra, hoặc khi muốn nạp vào một
+				cơ sở khác với tên tệp.</span>
 			</div>
 			<div id="kq-cs"></div>
 		<?php else : ?>
@@ -194,6 +210,8 @@ $ajax      = admin_url( 'admin-ajax.php' );
 			d.append('nonce', NONCE);
 			d.append('loai', loai);
 			d.append('tep', f);
+			var oCS = document.getElementById('co-so-cs');
+			if (loai === 'cs' && oCS && oCS.value.trim()){ d.append('co_so', oCS.value.trim()); }
 			fetch(AJAX, { method:'POST', body:d, credentials:'same-origin' })
 				.then(function(r){ return r.json(); })
 				.then(xong)
@@ -209,8 +227,13 @@ $ajax      = admin_url( 'admin-ajax.php' );
 				if (!r.ok){
 					kq.innerHTML = '<div class="bao-loi">' + chu(r.loi) + '</div>';
 					bNap.style.display = 'none';
+					/* Chặn xong thì ĐƯA NGƯỜI TA TỚI CHỖ SỬA, đừng bắt tự mò. */
+					var o = document.getElementById('co-so-cs');
+					if (loai === 'cs' && o && !o.value.trim()){ o.classList.add('can'); o.focus(); }
 					return;
 				}
+				var o2 = document.getElementById('co-so-cs');
+				if (o2){ o2.classList.remove('can'); }
 				kq.innerHTML = (loai === 'nv') ? tomNV(r) : tomCS(r);
 				/* Chỉ hiện nút nạp SAU khi đã xem trước. Người ta phải nhìn con số một lần
 				   trước khi ghi — nạp nhầm tệp thì không có nút hoàn tác. */

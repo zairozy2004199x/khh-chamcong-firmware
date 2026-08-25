@@ -69,6 +69,19 @@ class VCG_Trang {
 		return $ds;
 	}
 
+	/**
+	 * Mã cơ sở của lượt nạp: ô người ta tự gõ trước, không có thì lấy từ tên tệp.
+	 *
+	 * MỘT CHỖ DUY NHẤT cho cả xem trước lẫn nạp thật. Viết hai chỗ là sớm muộn hai chỗ lệch
+	 * nhau, và lúc đó người ta xem trước ra một cơ sở rồi nạp vào một cơ sở khác.
+	 */
+	private static function lay_co_so() {
+		$go = isset( $_POST['co_so'] ) ? sanitize_text_field( wp_unslash( $_POST['co_so'] ) ) : '';
+		$go = VCG_Nap::chuan_co_so( $go );
+		if ( '' !== $go ) { return $go; }
+		return VCG_Nap::co_so_tu_ten( isset( $_FILES['tep']['name'] ) ? $_FILES['tep']['name'] : '' );
+	}
+
 	/** Kiểm quyền + nonce chung cho cả hai lượt. Trả mảng người, hoặc thoát bằng lỗi. */
 	private static function canh_cua( $loai ) {
 		if ( ! check_ajax_referer( 'vcg_nap', 'nonce', false ) ) {
@@ -110,13 +123,14 @@ class VCG_Trang {
 			) );
 		}
 
-		$co_so = isset( $_POST['co_so'] ) ? sanitize_text_field( wp_unslash( $_POST['co_so'] ) ) : '';
+		$co_so = self::lay_co_so();
 		if ( '' === $co_so ) {
-			$co_so = VCG_Nap::co_so_tu_ten( isset( $_FILES['tep']['name'] ) ? $_FILES['tep']['name'] : '' );
-		}
-		if ( '' === $co_so ) {
-			self::tra( array( 'ok' => false,
-				'loi' => 'Không đoán được cơ sở từ tên tệp. Đặt tên tệp dạng CS_TUTU_TP.csv, hoặc chọn cơ sở.' ), 400 );
+			/* Nói RÕ nó đã nhìn thấy tên tệp gì. Câu "không đoán được cơ sở" cụt lủn là người ta
+			   đứng đó không biết sửa gì — đúng chỗ tắc của tệp `CS_VP_KH-HCM.csv`. */
+			$ten = isset( $_FILES['tep']['name'] ) ? sanitize_text_field( $_FILES['tep']['name'] ) : '';
+			self::tra( array( 'ok' => false, 'loi' =>
+				'Không đoán được cơ sở từ tên tệp “' . $ten . '”. Gõ mã cơ sở vào ô Cơ sở bên dưới '
+				. '(chữ, số, dấu _ . - ), hoặc đổi tên tệp về dạng CS_TUTU_TP.csv.' ), 400 );
 		}
 		/* Cửa hàng trưởng chỉ nạp cơ sở mình. Kiểm ở ĐÂY chứ không chỉ ở giao diện — giao diện
 		   là gợi ý, máy chủ mới là chốt. */
@@ -161,10 +175,7 @@ class VCG_Trang {
 			self::tra( array( 'ok' => true, 'loai' => 'nv' ) + $kq );
 		}
 
-		$co_so = isset( $_POST['co_so'] ) ? sanitize_text_field( wp_unslash( $_POST['co_so'] ) ) : '';
-		if ( '' === $co_so ) {
-			$co_so = VCG_Nap::co_so_tu_ten( isset( $_FILES['tep']['name'] ) ? $_FILES['tep']['name'] : '' );
-		}
+		$co_so = self::lay_co_so();
 		if ( '' === $co_so || ! VCG_Quyen::duoc_co_so( $nguoi['vai'], $nguoi['co_so'], $co_so ) ) {
 			self::tra( array( 'ok' => false, 'loi' => 'Không được phép nạp cơ sở này.' ), 403 );
 		}

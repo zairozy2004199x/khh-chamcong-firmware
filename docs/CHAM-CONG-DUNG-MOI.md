@@ -117,6 +117,32 @@ Việt trùng rất nhiều, đoán sai là gộp lương hai người khác nha
 
 ---
 
+## 🔴 Chỗ đã chặn thật: một DẤU GẠCH NGANG trong tên tệp (25/08/2026)
+
+Anh Thắng gửi ảnh màn hình: chọn đúng tệp, bấm *Xem trước*, ăn ngay dòng đỏ
+
+> Không đoán được cơ sở từ tên tệp. Đặt tên tệp dạng CS_TUTU_TP.csv, hoặc chọn cơ sở.
+
+Tên tệp thật là `( Đang chạy ) Hệ Thống Chấm Công Cơ Sở - CS_VP_KH-HCM.csv`.
+
+Bản đầu moi mã cơ sở bằng `/CS_([A-Za-z0-9_]+)\.csv$/i` — **không có dấu gạch ngang trong
+danh sách ký tự cho phép**. `VP_KH-HCM` có một dấu gạch ngang, thế là hàm trả rỗng và màn nạp
+chặn ngay ở cửa. Không phải dữ liệu hỏng, không phải quyền, không phải máy chủ.
+
+**Bài học:** liệt kê trước những ký tự nào *được phép* thì kiểu gì cũng sót. Giờ lấy **tất cả**
+phần sau `CS_` cuối cùng, rồi mới chặn cái thật sự không dùng làm mã được. Kèm luôn:
+
+* bỏ hậu tố bản sao của trình duyệt — `CS_VP_KH-HCM (1).csv` (tải lần hai là gặp)
+* khoảng trắng → gạch dưới, để `CS_VP KH HCM` và `CS_VP_KH_HCM` không thành hai cơ sở
+* đuôi `.CSV` viết hoa
+
+**Và thêm một ô tự gõ cơ sở** ngay dưới nút, để cái cửa này không bao giờ chặn được nữa. Ô đó
+đi qua **cùng một khuôn** với tên tệp (`chuan_co_so`) — nếu không thì gõ tay ra `VP KH-HCM`,
+tên tệp ra `VP_KH-HCM`, và cùng một chỗ có công nằm hai nơi. Câu báo lỗi giờ **in ra tên tệp
+nó đã nhìn thấy**, chứ không nói trống không.
+
+---
+
 ## Tệp `CS_VP_KHHCM_1` — "cơ sở này chưa nạp được" (25/08/2026)
 
 Anh Thắng gửi tệp này kèm câu trên. Chạy bộ đọc trên chính tệp đó:

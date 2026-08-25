@@ -386,10 +386,51 @@ class VCG_Nap {
 		return $ra;
 	}
 
-	/** Tên cơ sở từ tên tệp: `…CS_TUTU_TP.csv` -> `TUTU_TP`. */
+	/**
+	 * Tên cơ sở lấy từ tên tệp Google Sheets xuất ra.
+	 *
+	 *     ( Đang chạy ) Hệ Thống Chấm Công Cơ Sở - CS_VP_KH-HCM.csv  ->  VP_KH-HCM
+	 *     …Cơ Sở - CS_TUTU_TP.csv                                   ->  TUTU_TP
+	 *     …Cơ Sở - CS_VP_KH-HCM (1).csv                             ->  VP_KH-HCM
+	 *
+	 * 🔴 VÌ SAO PHẢI VIẾT LẠI: bản đầu khớp `[A-Za-z0-9_]+`, tức KHÔNG nhận dấu gạch ngang. Tệp
+	 *    thật của anh Thắng tên là `CS_VP_KH-HCM.csv` nên hàm trả về rỗng, và màn nạp chặn ngay
+	 *    ở cửa bằng câu "Không đoán được cơ sở từ tên tệp" — đúng chỗ tắc anh Thắng gặp. Một dấu
+	 *    gạch ngang trong tên cơ sở là chuyện bình thường; chính bộ đọc mới là chỗ hẹp.
+	 *
+	 * Cách làm: cắt đuôi `.csv`, bỏ hậu tố bản sao của trình duyệt (` (1)`), rồi lấy TẤT CẢ phần
+	 * sau `CS_` cuối cùng — thay vì liệt kê trước những ký tự nào được phép. Liệt kê là kiểu nào
+	 * cũng sót, và sót thì tắc y như lần này.
+	 *
+	 * Vẫn giữ một cửa chặn: nếu phần lấy ra có ký tự lạ (dấu tiếng Việt, dấu chấm than, dấu /)
+	 * thì trả rỗng để màn nạp bắt người ta tự chọn cơ sở, chứ không đẻ ra một mã cơ sở kỳ quặc
+	 * rồi ghi thẳng xuống bảng — mã cơ sở là khoá, đặt sai một lần là dữ liệu nằm sai chỗ mãi.
+	 */
+	/**
+	 * Chuẩn hoá mã cơ sở người ta tự gõ vào ô, cho khớp đúng khuôn mã lấy từ tên tệp.
+	 *
+	 * Phải đi qua CÙNG MỘT khuôn với `co_so_tu_ten`, nếu không thì gõ tay ra `VP KH-HCM` còn tên
+	 * tệp ra `VP_KH-HCM`, và đó là HAI cơ sở khác nhau trong bảng — cùng một chỗ mà công nằm
+	 * hai nơi. Trả rỗng nếu gõ ký tự không dùng làm mã được.
+	 */
+	public static function chuan_co_so( $s ) {
+		$s = preg_replace( '/\s+/u', '_', trim( (string) $s ) );
+		if ( '' === $s || ! preg_match( '/^[A-Za-z0-9_.\-]+$/', $s ) ) { return ''; }
+		return $s;
+	}
+
 	public static function co_so_tu_ten( $ten ) {
-		$ten = basename( (string) $ten );
-		if ( preg_match( '/CS_([A-Za-z0-9_]+)\.csv$/i', $ten, $m ) ) { return $m[1]; }
-		return '';
+		$ten = basename( str_replace( '\\', '/', (string) $ten ) );
+		$ten = preg_replace( '/\.csv$/i', '', $ten );
+		$ten = preg_replace( '/\s*\(\d+\)$/', '', $ten );
+
+		$vt = strripos( $ten, 'CS_' );
+		if ( false === $vt ) { return ''; }
+		$ma = trim( substr( $ten, $vt + 3 ) );
+		/* Khoảng trắng trong tên tab -> gạch dưới. `CS_VP KH HCM` và `CS_VP_KH_HCM` là cùng một
+		   cơ sở; để nguyên khoảng trắng là hai mã cơ sở khác nhau trong bảng. */
+		$ma = preg_replace( '/\s+/u', '_', $ma );
+		if ( '' === $ma || ! preg_match( '/^[A-Za-z0-9_.\-]+$/', $ma ) ) { return ''; }
+		return $ma;
 	}
 }
