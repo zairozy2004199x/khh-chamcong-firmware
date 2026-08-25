@@ -73,7 +73,8 @@ public:
 
 private:
   TienMatCb _cb = nullptr;
-  int  _st = 0;                 // máy trạng thái dò: 0=chờ 0x81, 1=chờ 4X
+  int  _st = 0;                 // máy trạng thái dò: 0=thường, 1=vừa thấy 0x81
+  long _choVnd = 0;             // mệnh giá tờ ĐANG ở escrow, chờ 0x10 mới tính
   bool _dangBom = false;
 
   void _phatMotTo(int idx) {
@@ -86,14 +87,25 @@ private:
   }
 
   void _quan(uint8_t b) {
-    // Tờ tiền THẬT từ ICT = 0x81 rồi tới 0x40..0x46. (Byte ta tự bơm nằm ở TX,
-    // không vào RX nên không bị đếm nhầm thành tiền mặt.)
-    if (_st == 0) { if (b == 0x81) _st = 1; }
-    else {
+#ifdef TIEN_DEBUG
+    Serial.printf("[TIEN] rx %02X\n", b);         // bật để soi từng byte ICT gửi
+#endif
+    // Tờ tiền THẬT: ICT gửi 81 4X (vào escrow) -> ... -> 10 (đã NUỐT hẳn).
+    // CHỈ tính khi có 10: lỡ nhả tờ ra thì không có 10 -> không ghi khống.
+    // (Byte ta tự bơm cho QR nằm ở TX, không vào RX nên không bị đếm nhầm.)
+    if (_st == 0) {
+      if (b == 0x81) _st = 1;
+      else if (b == 0x10 && _choVnd > 0) {        // ĐÃ NUỐT -> giờ mới ghi nhận
+        Serial.printf("[TIEN] +%ld d (da nuot, 10) -> ghi so\n", _choVnd);
+        if (_cb) _cb(_choVnd);
+        _choVnd = 0;
+      }
+    } else {                                       // vừa thấy 0x81
       _st = 0;
-      if ((b & 0xF8) == 0x40) {              // 0x40..0x47
+      if ((b & 0xF8) == 0x40) {                    // 0x40..0x47 = tờ vào escrow
         int idx = b & 0x07;
-        if (idx <= 6 && _cb) _cb(TIEN_MENH_GIA[idx]);
+        if (idx <= 6) { _choVnd = TIEN_MENH_GIA[idx];
+          Serial.printf("[TIEN] to %ld d vao escrow (81 %02X), cho 10...\n", _choVnd, b); }
       }
     }
   }
