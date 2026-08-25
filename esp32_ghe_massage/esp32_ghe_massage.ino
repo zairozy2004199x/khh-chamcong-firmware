@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25a (dem gio theo chan ghe + canh bao ghe khong chay)"
+#define FW_VERSION "ghe-massage 2026-08-25b (dem theo chan ghe + debug IO34)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1874,7 +1874,14 @@ void loop(){
          quá GHE_DUNG_MS thì KẾT THÚC phiên (làm ở nhánh ST_RUNNING). */
   if(state == ST_CAMON || state == ST_RUNNING){
     uint32_t now = millis();
-    bool gheChay = (digitalRead(GHECHAY_PIN) == GHECHAY_CHAY_MUC);
+    int mucIO = digitalRead(GHECHAY_PIN);
+    bool gheChay = (mucIO == GHECHAY_CHAY_MUC);
+    /* DEBUG dò tắt-QR-theo-ghế: in khi đổi trạng thái hoặc mỗi 3s. Xóa khi chạy ổn. */
+    { static int _last = -1; static uint32_t _tp = 0;
+      if(gheChay != (_last==1) || now - _tp > 3000){ _last = gheChay?1:0; _tp = now;
+        Serial.printf("[GHE] IO34=%d(%s) state=%s conLai=%lds daChay=%d dungTu=%lums\n",
+          mucIO, gheChay?"CHAY":"DUNG", state==ST_RUNNING?"RUN":"CAMON",
+          g_conLaiMs/1000, g_gheDaChay, g_dungTu?(unsigned long)(now-g_dungTu):0UL); } }
     uint32_t dt = g_tickTruoc ? (now - g_tickTruoc) : 0;
     if(dt > 2000) dt = 2000;                 // lỡ 1 nhịp dài (mạng/tft) thì không trừ nhảy
     g_tickTruoc = now;
