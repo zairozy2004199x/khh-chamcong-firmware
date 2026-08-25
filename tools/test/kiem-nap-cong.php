@@ -255,6 +255,66 @@ la( 'ca đêm dài 8 tiếng', 28800, $kd['ra'] - $kd['vao'] );
 $sai = VCG_DB::gop_gio( null, null, 79200, 21600 );
 la( 'quên trải trục -> sai 16 tiếng', 57600, $sai['ra'] - $sai['vao'] );
 
+/* ======================= QUYỀN ======================= */
+echo "— quyền —\n";
+require __DIR__ . '/../../wordpress/vhcp-cong/includes/class-vcg-quyen.php';
+
+/* Nạp sheet NHÂN VIÊN: chỉ Admin. Đây là dữ liệu chung của mọi plugin. */
+la( 'Admin nạp được sheet NV',        true,  VCG_Quyen::nap_nhan_vien( 'ADMIN' ) );
+la( 'Quản lý vùng KHÔNG nạp sheet NV', false, VCG_Quyen::nap_nhan_vien( 'QUAN_LY' ) );
+la( 'Kế toán KHÔNG nạp sheet NV',      false, VCG_Quyen::nap_nhan_vien( 'KE_TOAN' ) );
+la( 'CHT KHÔNG nạp sheet NV',          false, VCG_Quyen::nap_nhan_vien( 'CUA_HANG_TRUONG' ) );
+
+/* Nạp sheet CƠ SỞ: Admin, quản lý vùng, cửa hàng trưởng. Kế toán KHÔNG — giữ lớp soát chéo. */
+la( 'Admin nạp được sheet cơ sở',     true,  VCG_Quyen::nap_co_so( 'ADMIN' ) );
+la( 'Quản lý vùng nạp được',          true,  VCG_Quyen::nap_co_so( 'QUAN_LY' ) );
+la( 'CHT nạp được',                   true,  VCG_Quyen::nap_co_so( 'CUA_HANG_TRUONG' ) );
+la( '🔴 Kế toán KHÔNG nạp cơ sở',      false, VCG_Quyen::nap_co_so( 'KE_TOAN' ) );
+
+/* Vai LẠ không được coi là hợp lệ. Vai trò trong hệ cũ là chuỗi tự do nên rác lọt vào được. */
+la( 'vai rỗng không nạp được',        false, VCG_Quyen::nap_co_so( '' ) );
+la( 'vai lạ không nạp được',          false, VCG_Quyen::nap_co_so( 'NHAN_VIEN' ) );
+la( 'vai bịa không nạp được',         false, VCG_Quyen::nap_co_so( 'SIEU_ADMIN' ) );
+la( 'vai rỗng không xem được',        false, VCG_Quyen::xem( '' ) );
+
+/* Cả bốn vai đều XEM được — khác nhau ở phạm vi, không ở việc có xem được hay không. */
+foreach ( array( 'ADMIN', 'QUAN_LY', 'KE_TOAN', 'CUA_HANG_TRUONG' ) as $v ) {
+	la( "  $v xem được", true, VCG_Quyen::xem( $v ) );
+}
+
+/* Chuẩn hoá tên vai: hệ cũ ghi chuỗi tự do nên phải chịu được đủ kiểu viết.
+   Trượt về phía TỪ CHỐI thì người ta báo ngay; trượt về phía CHO PHÉP thì không ai báo. */
+la( 'admin thường -> ADMIN',      'ADMIN', VCG_Quyen::chuan( 'admin' ) );
+la( 'có khoảng trắng thừa',       'ADMIN', VCG_Quyen::chuan( '  Admin  ' ) );
+la( 'CHT -> CUA_HANG_TRUONG',     'CUA_HANG_TRUONG', VCG_Quyen::chuan( 'cht' ) );
+la( 'cua hang truong (cách)',     'CUA_HANG_TRUONG', VCG_Quyen::chuan( 'cua hang truong' ) );
+la( 'quan-ly (gạch ngang)',       'QUAN_LY', VCG_Quyen::chuan( 'quan-ly' ) );
+la( 'ke toan',                    'KE_TOAN', VCG_Quyen::chuan( 'ke toan' ) );
+la( 'admin viết hoa sẵn',         'ADMIN', VCG_Quyen::nap_nhan_vien( 'admin' ) ? 'ADMIN' : 'x' );
+
+/* PHẠM VI CƠ SỞ. Trả true = mọi cơ sở; trả mảng = chỉ những cơ sở trong mảng. */
+echo "— phạm vi cơ sở —\n";
+la( 'Admin: mọi cơ sở',   true, VCG_Quyen::pham_vi( 'ADMIN', array() ) );
+la( 'Kế toán: mọi cơ sở', true, VCG_Quyen::pham_vi( 'KE_TOAN', array() ) );
+la( 'CHT: đúng cơ sở mình', array( 'TUTU_TP' ),
+	VCG_Quyen::pham_vi( 'CUA_HANG_TRUONG', array( 'TUTU_TP' ) ) );
+la( 'QL vùng: nhiều cơ sở', array( 'TUTU_TP', 'FF_SC' ),
+	VCG_Quyen::pham_vi( 'QUAN_LY', array( 'TUTU_TP', ' FF_SC ' ) ) );
+la( 'CHT chưa gán cơ sở nào -> RỖNG', array(),
+	VCG_Quyen::pham_vi( 'CUA_HANG_TRUONG', array() ) );
+
+/* 🔴 Chốt quan trọng nhất của khối này: người chưa được gán cơ sở nào thì KHÔNG vào được cơ
+   sở nào cả. Nếu nhầm mảng rỗng thành "mọi cơ sở" thì mọi tài khoản chưa cấu hình xong đều
+   mở toang toàn hệ — và không ai phát hiện ra vì màn hình vẫn hiện bình thường. */
+la( 'CHT chưa gán -> KHÔNG vào được', false,
+	VCG_Quyen::duoc_co_so( 'CUA_HANG_TRUONG', array(), 'TUTU_TP' ) );
+la( 'CHT vào đúng cơ sở mình',  true,
+	VCG_Quyen::duoc_co_so( 'CUA_HANG_TRUONG', array( 'TUTU_TP' ), 'TUTU_TP' ) );
+la( 'CHT KHÔNG vào cơ sở khác', false,
+	VCG_Quyen::duoc_co_so( 'CUA_HANG_TRUONG', array( 'TUTU_TP' ), 'FF_SC' ) );
+la( 'Admin vào cơ sở bất kỳ',   true,
+	VCG_Quyen::duoc_co_so( 'ADMIN', array(), 'CO_SO_MOI_TINH' ) );
+
 echo "\n";
 if ( $hong ) { printf( "🔴 HỎNG: %d | ĐẠT: %d\n", $hong, $dat ); exit( 1 ); }
 printf( "✓ SẠCH — %d phép, chạy trên tệp CSV THẬT\n", $dat );
