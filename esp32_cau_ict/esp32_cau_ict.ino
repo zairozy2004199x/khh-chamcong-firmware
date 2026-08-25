@@ -91,6 +91,24 @@
  *  Vì chưa biết bo đang chạy kiểu nào, lệnh XUNG (đo bề rộng cạnh) phân biệt trước:
  *  hẹp cỡ micro giây = UART; rộng cỡ chục mili giây = xung tiền, khỏi cần khung lệnh.
  *
+ *  ─── CHỈ CÓ 1 CON ADuM1201? — ĐỦ RỒI, KHÔNG CẦN CÁI THỨ HAI ─────────────────
+ *  ADuM1201 = 2 kênh, mỗi chiều một kênh = MỘT đường UART cách ly TRỌN VẸN (cả RX
+ *  lẫn TX). Không phải "một kênh một hướng".
+ *  Hộp QR THÀNH PHẨM chỉ nói với MỘT bên (bo ghế, chủ) -> chỉ một đường serial ->
+ *  MỘT con ADuM1201 là khớp chính xác. Khỏi mua thêm.
+ *  NGHE LÉN cần hai bên nhưng chỉ là tạm trên bàn -> dùng board MOSFET cả hai bên.
+ *  ⚠️ ĐỪNG ghép ADuM một bên + MOSFET một bên: lúc nghe lén để nguyên dây nguồn
+ *     12V/GND nên GND ghế = GND L70; board MOSFET mass chung sẽ nối GND ESP32 vào
+ *     GND thiết bị -> cái ADuM bên kia MẤT tác dụng cách ly vì hai mass đã bắc cầu.
+ *     Ghép lẫn = coi như không cách ly mà lại rối. Vô ích.
+ *  Đấu ADuM1201 cho THÀNH PHẨM (một đường, theo TÊN chân — số thứ tự xem datasheet):
+ *    Phía 1 (ESP32 3,3V): VDD1=3,3V  GND1=GND ESP32
+ *                         VIA <- ESP32 TX (kênh A: ESP32->ghế)
+ *                         VOB -> ESP32 RX (kênh B: ghế->ESP32)
+ *    Phía 2 (ghế 5V):     VDD2=5V    GND2=GND ghế   (HAI mass, KHÔNG nối nhau)
+ *                         VOA -> ghế RX (đỏ)    VIB <- ghế TX (xanh dương)
+ *    Tụ 0,1uF sát VDD1 và VDD2.
+ *
  *  ─── DÙNG MODULE MOSFET (BSS138, có mấy con dấu "103"=10k) — NÊN DÙNG ─────────
  *  Loại này HỢP hơn TXS0108E cho MDB 9600: không có chân OE để quên, không có mạch
  *  "một phát" để tự kích sai, và KHÔNG dị ứng trở kéo 1K của L70 (trở 1K ngoài chỉ
