@@ -380,7 +380,7 @@ $so_do = VHCC_DB::bang();
 /* 20 bảng, không phải 19: khối ghi chú số 14 trong class-vhcc-db.php gom hai bảng (lịch công
    việc + xin đổi lịch) vì chúng là một nghiệp vụ. Con số này chốt cứng để ai thêm bảng mới thì
    phải sửa phép thử — tức là phải nghĩ một lần nữa xem bảng đó có thật cần không. */
-t( 'sơ đồ có đủ 23 bảng', count( $so_do ) === 23, count( $so_do ) );
+t( 'sơ đồ có đủ 24 bảng', count( $so_do ) === 24, count( $so_do ) );
 
 foreach ( $so_do as $ten => $than ) {
 	$dong = array_values( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) );
@@ -535,20 +535,8 @@ define( 'VHCC_TEST', 1 );
 define( 'VHCC_KHOA_MAY', 'khoa-thu-nghiem-123' );
 
 // Dựng bảng thật trong SQLite (dịch DDL MySQL sang SQLite, y như mục 10).
-function vhcc_dung_bang() {
-	global $wpdb;
-	foreach ( VHCC_DB::bang() as $ten => $than ) {
-		$bang = $wpdb->prefix . 'vhcc_' . $ten;
-		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . $bang );
-		$cot = array();
-		foreach ( array_filter( array_map( 'trim', explode( "\n", $than ) ) ) as $d ) {
-			$d = rtrim( $d, ',' );
-			if ( preg_match( '/^(PRIMARY KEY|UNIQUE KEY|KEY)\b/', $d ) ) { continue; }
-			$cot[] = preg_replace( '/BIGINT\(20\) NOT NULL AUTO_INCREMENT/i', 'INTEGER PRIMARY KEY AUTOINCREMENT', $d );
-		}
-		$wpdb->exec_raw( 'CREATE TABLE ' . $bang . " (\n" . implode( ",\n", $cot ) . "\n)" );
-	}
-}
+/* `vhcc_dung_bang()` nay nằm trong wp-stub.php — bản gõ tay ở đây vứt mất mọi UNIQUE KEY, xem
+   lời giải thích tại chỗ khai mới. */
 
 /** Một lượt máy gửi lên. Trả về [mã HTTP, thân đã giải JSON]. */
 function vhcc_may_gui( $goi, $khoa = 'khoa-thu-nghiem-123', $phuong_thuc = 'POST' ) {
@@ -2539,7 +2527,10 @@ teq( 'cơ sở khác cũng vậy', 0, VHCC_Luong::vp_nc_lay( 'VP_SG', '2026-09' 
 /* ---- BẢNG ĐỐI CHIẾU cách tính: chỉ đọc, và hai bên dùng CÙNG một lần đọc dữ liệu ---- */
 vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'V1', 'luong_co_ban' => 13000000 ) );
-$wpdb->insert( VHCC_DB::t( 'vp_ngay_cong' ), array( 'coso' => 'VP_HCM', 'thang' => '2026-09', 'ngay_cong' => 26 ) );
+/* Số ngày công của (VP_HCM, 2026-09) đã đặt ở mấy dòng trên rồi — ghi thêm một lần nữa là hàng
+   THỨ HAI cho cùng một cặp. Bảng có `UNIQUE KEY (coso,thang)` nên chuyện đó không được phép, và
+   trước đây bài kiểm không thấy vì bản dựng bảng cũ vứt mất mọi UNIQUE. Chốt ấy khôi phục xong
+   là bắt ngay chỗ này. */
 for ( $i = 1; $i <= 5; $i++ ) {
 	vhcc_cham( 'VP_HCM', '2026-09-0' . $i, 'V1', '', '08:30:00', '13:00:00' );   // 4.5 giờ/ngày
 }

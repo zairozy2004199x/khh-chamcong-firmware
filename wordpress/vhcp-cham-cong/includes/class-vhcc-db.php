@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.2.0';
+	const SCHEMA_VERSION = '2.3.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -262,6 +262,40 @@ class VHCC_DB {
 			KEY coso_ngay (coso,ngay)";
 
 		/* ===== 7. GHI CHÚ / CỜ CẦN KIỂM (sheet GhiChuChamCong) =============================== */
+		/* ===== MẪU KHUÔN MẶT (đối chiếu ảnh chấm công online) ===============================
+		   🔴 LƯU DÃY SỐ ĐẶC TRƯNG, KHÔNG LƯU ẢNH. `vector` là 128 con số do trình duyệt của
+		      chính nhân viên tính ra từ tấm ảnh; từ dãy số ấy KHÔNG dựng lại được khuôn mặt.
+		      Lưu thêm một kho ảnh mẫu riêng là nhân đôi chỗ có thể rò, mà không thêm được gì:
+		      việc đối chiếu chỉ cần dãy số.
+
+		   ⚠️ ĐÂY LÀ DỮ LIỆU SINH TRẮC HỌC. Xoá hồ sơ một người thì xoá luôn dòng này — xem
+		      `VHCC_NhanSu::xoa_*`. Đừng để lại "mẫu mồ côi" của người đã nghỉ.
+
+		   `so_lan` đếm số lần đã gộp mẫu: mẫu tốt dần theo thời gian (đổi kiểu tóc, đeo kính),
+		   nhưng chỉ gộp khi khớp RẤT chắc — xem VHCC_Mat::GOP_TOI_DA và ngưỡng gộp. Gộp lỏng
+		   tay là mẫu trôi dần sang một khuôn mặt khác mà không ai thấy.
+
+		   `vector` để TEXT là đủ: 128 số làm tròn 6 chữ số khoảng 1,5 KB, TEXT chứa 64 KB.
+
+		   ⚠️ CHÚ THÍCH PHẢI NẰM NGOÀI CHUỖI SQL. Vừa vấp: viết một dòng giải thích vào giữa
+		      thân CREATE TABLE, trong đó có cặp nháy kép, thế là chuỗi PHP đóng sớm và cả tệp
+		      không dịch được — mà thông báo lỗi lại trỏ vào một dòng chẳng liên quan. */
+		$b['mat_mau'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL,
+			vector TEXT NULL,
+			so_lan INT(11) NOT NULL DEFAULT 1,
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho',
+			nguon_ngay DATE NULL,
+			nguon_coso VARCHAR(120) NOT NULL DEFAULT '',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			cap_nhat DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_nv (ma_nv),
+			KEY trang_thai (trang_thai)";
+
 		$b['ghi_chu'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			flag_id VARCHAR(40) NOT NULL,

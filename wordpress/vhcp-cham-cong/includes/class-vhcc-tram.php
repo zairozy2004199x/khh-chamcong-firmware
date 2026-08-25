@@ -169,6 +169,24 @@ class VHCC_Tram {
 			self::ra( array( 'ok' => true, 'dong' => VHCC_Online::lich_su( $u['ma_nv'], $ds, 60 ) ) );
 		}
 
+		/**
+		 * Dãy đặc trưng khuôn mặt của tấm ảnh vừa chấm.
+		 *
+		 * 🔴 GỬI RIÊNG, SAU KHI GIỜ ĐÃ GHI XONG. Cố ý không nhét vào lượt `cham`: tính dãy đặc
+		 *    trưng cần tải một model vài megabyte về máy, và ở cơ sở dùng 3G thì việc ấy mất
+		 *    hàng chục giây. Nhét chung là mỗi lượt chấm công phải đợi model tải xong mới ghi
+		 *    được giờ — đổi một tiện ích lấy chính cái việc mà cả hệ thống sinh ra để làm.
+		 *
+		 *    Tách ra thì: giờ vào ghi ngay, còn đối chiếu mặt chạy sau ở nền. Mạng chết giữa
+		 *    chừng thì chỉ mất phần đối chiếu, lượt chấm vẫn nguyên.
+		 */
+		if ( 'mat' === $viec ) {
+			self::ra( VHCC_Mat::soi( $u,
+				isset( $b['vector'] ) ? $b['vector'] : null,
+				isset( $b['ngay'] ) ? (string) $b['ngay'] : '',
+				isset( $b['coSo'] ) ? (string) $b['coSo'] : '' ) );
+		}
+
 		if ( 'thang' === $viec ) {
 			$ds = VHCC_Online::ds_coso_cua_nv( $u['ma_nv'], VHCC_NhanSu::chuan_coso( $u['coso'] ) );
 			self::ra( VHCC_Online::bang_thang( $u['ma_nv'], $ds,

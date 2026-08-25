@@ -466,6 +466,23 @@ function vhcc_test_create_tables() {
 	}
 }
 
+/**
+ * Xoá sạch rồi dựng lại mọi bảng — để mỗi mục của bài kiểm bắt đầu từ một kho trống.
+ *
+ * 🔴 ĐỂ Ở ĐÂY, KHÔNG ĐỂ TRONG BÀI KIỂM. Trước đây `test-cham-cong.php` có bản gõ tay riêng, và
+ *    bản ấy vứt SẠCH mọi dòng khoá — kể cả `UNIQUE KEY`. Mất ràng buộc duy nhất thì mỗi lượt
+ *    chấm công tạo một hàng mới thay vì đè lên hàng cũ: bài kiểm vẫn xanh, nhưng cái nó kiểm
+ *    không còn là cái đang chạy trên máy chủ thật. Đúng cái bẫy "khai hai nơi" mà `vhcc_test_ddl`
+ *    sinh ra để dẹp — rồi lại mọc lại ở chỗ khác.
+ */
+function vhcc_dung_bang() {
+	global $wpdb;
+	foreach ( VHCC_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHCC_DB::t( $ten ) );
+	}
+	vhcc_test_create_tables();
+}
+
 function vhcc_test_boot( $dir ) {
 	define( 'VHCC_VERSION', 'test' );
 	define( 'VHCC_DIR', $dir . '/' );
