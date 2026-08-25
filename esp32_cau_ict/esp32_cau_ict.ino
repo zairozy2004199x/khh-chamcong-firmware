@@ -186,23 +186,19 @@
 
 #define FW_VERSION "cau-ict 2026-08-25a (nghe len 2 chieu ICT L70 <-> ghe)"
 
-/* ---- CHÂN CẮM — CYD ESP32-2432S028, XEN GIỮA (cắt dây, phát lại được) ----
- * Anh chọn xen giữa trên CYD nên hy sinh đèn nền màn hình để lấy đủ 4 chân.
- * Tất cả nằm trên jack có sẵn P3 + CN1 -> cắm, khỏi hàn:
- *     đọc L70   : IO35 (P3, chỉ vào được — hợp cho đọc)
- *     phát → L70: IO27 (CN1)
- *     đọc ghế   : IO22 (P3)
- *     phát → ghế: IO21 (P3) — ⚠️ là ĐÈN NỀN TFT, sẽ chớp theo dữ liệu (không dùng
- *                 màn hình thì kệ). Đây là chân thứ 4 duy nhất còn trống trên CYD.
- * ⚠️ Dây MDB 5V -> cả 4 dây qua board MOSFET 4 kênh (LV↔ESP32, HV↔thiết bị,
- *    GND chung, LVn khớp HVn).
- * ⚠️ Xen giữa MDB dùng UART MỀM 9 bit (mdb_uart.h) — KHÔNG dùng UART cứng 8 bit
- *    (làm rụng bit mode -> hỏng khung). Nhịp bit chỉnh trên máy thật.
+/* ---- CHÂN CẮM — CYD, TAP SONG SONG (KHÔNG cắt dây, KHÔNG drive) ----
+ * Chỉ NGHE: kẹp 2 chân đọc song song vào 2 dây dữ liệu của bus (qua 2 kênh MOSFET,
+ * hạ 5V->3,3V). Ghế và L70 vẫn nói chuyện thẳng như cũ, ESP32 đứng cạnh đọc.
+ * Cả hai chân TX = -1 -> ESP32 KHÔNG BAO GIỜ đẩy dây, không thể phá bus.
+ *   đọc dây bận (ghế poll)      : IO22 (P3)
+ *   đọc dây kia (L70 trả lời)   : IO35 (P3, chỉ vào được — hợp cho đọc)
+ *   GND chung; nếu chưa tìm ra dây thứ hai thì nối tạm IO35 lên 3V3.
+ * Lệnh dùng: MDB (nghe liên tục). KHÔNG dùng CONG (CONG là xen-giữa, cần cắt dây).
  */
-#define CHAN_ICT_RX   35      // đọc L70  (P3)
-#define CHAN_ICT_TX   27      // phát -> L70 (CN1)
-#define CHAN_GHE_RX   22      // đọc ghế  (P3)
-#define CHAN_GHE_TX   21      // phát -> ghế (P3, đèn nền — chớp theo dữ liệu)
+#define CHAN_ICT_RX   35      // đọc dây dữ liệu 2 (L70 trả lời)
+#define CHAN_ICT_TX   -1      // TAP song song: KHÔNG drive
+#define CHAN_GHE_RX   22      // đọc dây dữ liệu 1 (ghế poll — dây bận)
+#define CHAN_GHE_TX   -1      // TAP song song: KHÔNG drive
 #define CHAN_OE_ICT   -1
 #define CHAN_OE_GHE   -1
 
