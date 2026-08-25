@@ -33,6 +33,18 @@
 
 static const long TIEN_MENH_GIA[7] = { 5000, 10000, 20000, 50000, 100000, 200000, 500000 };
 
+/* Mã LỖI của ICT (đo thật trên bus, đều dạng 0x2X, khác hẳn tiền 81/4X/10):
+   0x2F = HỒI PHỤC (hết lỗi). Các mã khác = một loại kẹt/lỗi -> gán "bệnh" cho web.
+   Mã 0x2X chưa có trong bảng -> "ictla" (ICT mã lạ) để nhân viên biết mà kiểm. */
+#define ICT_HOI_PHUC  0x2F
+struct IctLoi { uint8_t b; const char* ma; };
+static const IctLoi ICT_LOI[] = {
+  { 0x20, "ictgiay" },  // nhét giấy/tờ không phải tiền (không đọc được)
+  { 0x25, "ictcbd"  },  // kẹt cảm biến ra dưới
+  { 0x27, "ictlt"   },  // kẹt đầu ra lối trên
+  { 0x29, "ictnc"   },  // kẹt nửa chừng
+};
+
 typedef void (*TienMatCb)(long vnd);
 typedef void (*LoiTienCb)(const char* ma, bool active);
 
@@ -85,6 +97,7 @@ private:
   bool _daKet = false;
   bool _dangBom = false;
   bool _dangChay = false;
+  char _ictMa[10] = "";   // mã lỗi ICT đang treo (để 0x2F gỡ đúng cái)
 
   void _phatMotTo(int idx) {
     uint8_t ma = (uint8_t)(0x40 + idx);
@@ -99,6 +112,22 @@ private:
 #ifdef TIEN_DEBUG
     Serial.printf("[TIEN] rx %02X\n", b);
 #endif
+    // MÃ TRẠNG THÁI/LỖI ICT (dạng 0x2X, khác hẳn tiền 81/4X/10) -> báo "bệnh" cho web.
+    if (b >= 0x20 && b <= 0x2F) {
+      _st = 0;
+      if (b == ICT_HOI_PHUC) {                       // 0x2F = hết lỗi
+        if (_ictMa[0]) { if (_loi) _loi(_ictMa, false); Serial.printf("[TIEN] ICT hoi phuc (2F) -> go '%s'\n", _ictMa); _ictMa[0] = 0; }
+      } else {
+        const char* ma = "ictla";                    // mã lạ (chưa map) -> vẫn báo cho khỏi sót
+        for (unsigned i = 0; i < sizeof(ICT_LOI) / sizeof(ICT_LOI[0]); i++)
+          if (ICT_LOI[i].b == b) { ma = ICT_LOI[i].ma; break; }
+        _choVnd = 0; _escrowLuc = 0;                  // tờ đang dở coi như hỏng, không stack
+        strncpy(_ictMa, ma, sizeof(_ictMa) - 1); _ictMa[sizeof(_ictMa) - 1] = 0;
+        if (_loi) _loi(ma, true);
+        Serial.printf("[TIEN] ICT LOI ma %02X -> %s (bao web)\n", b, ma);
+      }
+      return;
+    }
     // Tờ THẬT: 81 4X (escrow) -> ... -> 10 (đã nuốt). CHỈ tính khi có 10 (nhả ra thì không có).
     if (_st == 0) {
       if (b == 0x81) _st = 1;
