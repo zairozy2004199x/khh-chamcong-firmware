@@ -51,10 +51,18 @@ cắm cáp USB, mở Serial Monitor 115200, gõ `TRO` để xem bảng lệnh. T
 | `HEX` / `CHU` | bắn thử một khung bất kỳ, xem bo trả về gì |
 | `CAU` | nối thẳng cổng USB với bo ghế để soi bằng phần mềm trên máy tính |
 
-⚠️ **Bo đưa tín hiệu qua chip đệm HT245 (74HC245)** thì đọc kỹ khối ghi chú đầu
-`esp32_posh_qr/ict_ghe.h`. Bẫy nặng nhất: HT245 chạy VCC 5V loại HC đòi mức vào ≥ 3,5V,
-mà chân ESP32 chỉ xuất 3,3V — **thấp hơn ngưỡng**, nên lúc được lúc không và rất dễ đổ oan
-cho baud hay khung lệnh. Đo chân 20 của HT245 trước khi đấu.
+| `GIU 0\|1` | giữ chân TX ở mức cố định để đo bằng đồng hồ vạn năng |
+| `TUKIEM 200` | khép kín TX→RX chạy 200 lần — bắt lỗi "lúc được lúc không" mà chạy 1 lần không thấy |
+
+⚠️ **Bo đưa tín hiệu qua chip đệm HT245, đo được VCC = 5V.** Đọc kỹ khối ghi chú đầu
+`esp32_posh_qr/ict_ghe.h`. Hai việc:
+
+- **Chiều bo → ESP32: bắt buộc chia áp** (1kΩ nối tiếp + 2kΩ xuống mass). Đầu ra HT245 đánh
+  0–5V, chân ESP32 chỉ chịu ~3,6V — cắm thẳng là hỏng chân, mà hỏng âm thầm.
+- **Chiều ESP32 → bo:** tuỳ ngưỡng vào của chip. Loại ngưỡng 3,5V (74HC/AHC ở 5V) thì 3,3V
+  của ESP32 **không đủ** — sai thỉnh thoảng, ấm lên là chết, rất dễ đổ oan cho baud. Tên in
+  trên chip là "HT245", không mang chữ C/T nên không suy ra được: dùng `GIU 1` + đồng hồ để
+  biết trong 30 giây, rồi `TUKIEM 200` để chắc.
 
 Kiểm tại chỗ, không cần chip, không cần arduino-cli:
 

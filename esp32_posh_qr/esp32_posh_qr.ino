@@ -323,7 +323,8 @@ void inTro() {
     "  TT              trạng thái hộp: giờ, cấu hình, lần trao đổi cuối với bo\n"
     "  --- dò tín hiệu bo ghế (làm theo ĐÚNG thứ tự này) ---\n"
     "  DAY             1. đo mức nghỉ của dây RX — loại ngay lỗi phần cứng, làm TRƯỚC\n"
-    "  TUKIEM          2. nối tạm TX với RX rồi chạy: biết lỗi ở trong chip hay ngoài dây\n"
+    "  TUKIEM [số lần] 2. khép kín TX->RX rồi chạy (mặc định 200 lần). Chỉ 100% mới là đạt —\n"
+    "                     mức điện áp thiếu ngưỡng chỉ lộ ra khi chạy nhiều lần\n"
     "  DO              3. dò baud của bo ghế (thử lần lượt các tốc độ thông dụng)\n"
     "  NGHE [giây]     nghe lén bo nói gì (mặc định 10 giây) — bấm nút trên ghế lúc này\n"
     "  BAUD <số>       đặt baud cho bo ghế rồi nhớ vào máy\n"
@@ -331,6 +332,7 @@ void inTro() {
     "  HEX <hex>       bắn thẳng chuỗi hex, ví dụ: HEX 02 03 31 00 0F 3D 03\n"
     "  CHU <chữ>       bắn một dòng chữ, tự thêm CR+LF\n"
     "  CAU             nối thẳng cổng USB với bo ghế (thoát: bấm RESET)\n"
+    "  GIU 0|1         giữ chân TX ở mức thấp/cao để ĐO BẰNG ĐỒNG HỒ; gõ GIU trống để thả\n"
     "  --- con đệm HT245 trên đường UART (chỉ dùng nếu đã đấu dây tới OE/DIR) ---\n"
     "  OE 0|1          1 = cho HT245 dẫn, 0 = thả nổi đầu ra để ESP32 tự đẩy dây\n"
     "  CHIEU 0|1       đặt chân DIR của HT245 (1 = A->B)\n"
@@ -377,6 +379,12 @@ void ngheLenhUsb() {
 
     if      (lenh == "TRO")  inTro();
     else if (lenh == "TT")   inTrangThai();
+    else if (lenh == "DAY")  ict.doMucNghi();
+    else if (lenh == "TUKIEM") { int n = tham.toInt(); ict.tuKiem(n > 0 ? n : 200); }
+    else if (lenh == "GIU")  { if (tham.length() == 0) ict.giuMuc(-1);
+                               else ict.giuMuc(tham.toInt() != 0 ? 1 : 0); }
+    else if (lenh == "OE")    ict.chodan(tham.toInt() != 0);
+    else if (lenh == "CHIEU") ict.datChieu(tham.toInt() != 0);
     else if (lenh == "DO")   { long b = ict.doBaud(); if (b) Serial.printf("   -> go 'BAUD %ld' de dat\n", b); }
     else if (lenh == "NGHE") { uint32_t g = tham.toInt(); ict.nghe((g ? g : 10) * 1000UL); }
     else if (lenh == "BAUD") { long b = tham.toInt();

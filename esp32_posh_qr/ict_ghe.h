@@ -41,16 +41,47 @@
  *  hai chiều). Biết điều này thì phải xử 4 việc, cái nào bỏ qua cũng ra đúng một
  *  triệu chứng: "gửi mà ghế không nhúc nhích".
  *
- *  1) ⚠️ BẪY NẶNG NHẤT — NGƯỠNG VÀO CỦA HỌ 74HC Ở 5V.
- *     74HC chạy VCC 5V đòi mức cao ĐẦU VÀO tối thiểu 0,7 × VCC = 3,5V.
- *     Chân ESP32 xuất cao chỉ 3,3V — THẤP HƠN NGƯỠNG. Hậu quả: lúc được lúc không,
- *     ấm lên là chết, hoặc im hẳn. Đo bằng đồng hồ thì thấy "có 3,3V, dây tốt" nên
- *     cực dễ đổ oan cho khung lệnh hay baud.
- *       • HT245 chạy 3,3V  -> nối thẳng, không sao.
- *       • HT245 chạy 5V mà là loại HC -> PHẢI nâng mức 3,3V → 5V cho chân TX của
- *         ESP32 (module level shifter, hoặc một con 74HCT/AHCT làm đệm trung gian).
- *       • Loại HCT (ngưỡng vào chỉ 2,0V) -> nối thẳng được.
- *     ĐO TRƯỚC KHI ĐẤU: chân 20 của HT245 so với chân 10 — ra 5V hay 3,3V.
+ *  1) ⚠️ CON HT245 TRÊN BO GHẾ NÀY CHẠY VCC 5V (đã đo chân 20 so với chân 10).
+ *     Kéo theo hai việc, đừng bỏ việc nào:
+ *
+ *     a) CHIỀU BO → ESP32: BẮT BUỘC chia áp. Đầu ra của HT245 đánh 0–5V, mà chân
+ *        ESP32 chỉ chịu tới ~3,6V. Cắm thẳng là hỏng chân — và hỏng ÂM THẦM, chạy
+ *        được vài hôm rồi chết dần, nên đừng "thử tạm một lát xem sao".
+ *
+ *            HT245 (ra) ──[ 1kΩ ]──┬── chân RX của ESP32
+ *                                  │
+ *                                [ 2kΩ ]
+ *                                  │
+ *                                 GND (chung với chân 10 của HT245)
+ *
+ *        5V × 2/(1+2) = 3,33V. Dùng 1k/2k chứ đừng 10k/20k: trở càng lớn sườn xung
+ *        càng ì, baud cao là méo.
+ *
+ *     b) CHIỀU ESP32 → BO: tuỳ ngưỡng vào của con chip, mà chữ "T" là tất cả.
+ *            74HCT245 / 74LVC245  -> ngưỡng vào 2,0V  -> nối thẳng 3,3V, ĐƯỢC.
+ *            74HC245  / 74AHC245  -> ngưỡng vào 3,5V  -> 3,3V KHÔNG ĐỦ, phải nâng mức.
+ *        Loại ngưỡng cao không hỏng hẳn mà SAI THỈNH THOẢNG — đúng kiểu "lúc được lúc
+ *        không, ấm lên là chết". Đo đồng hồ vẫn thấy "có 3,3V, dây tốt" nên rất dễ đổ
+ *        oan cho baud hoặc khung lệnh.
+ *
+ *        ⚠️ CON CHIP TRÊN BO NÀY IN LÀ "HT245" (hai dòng dưới "27KG4", "c9q8" chỉ là
+ *           mã lô và tuần sản xuất, không nói lên loại gì). Cái tên đó KHÔNG mang chữ
+ *           C hay T nên KHÔNG suy ra được ngưỡng vào — đừng đoán theo tên.
+ *           Vậy thì làm hai bước, đều rẻ:
+ *
+ *           BƯỚC 1 — đồng hồ, 30 giây. Nối TX của ESP32 vào đầu vào của HT245, gõ
+ *             GIU 1  rồi đo đầu ra tương ứng của HT245:
+ *                ~5V  -> chip ăn được 3,3V. Ngưỡng thấp, nối thẳng được.
+ *                ~0V  -> chip KHÔNG ăn. Phải nâng mức, hết cãi.
+ *             (xem ghi chú đầy đủ ở hàm giuMuc())
+ *
+ *           BƯỚC 2 — chạy thật. Khép kín TX → HT245 → (chia áp) → RX rồi gõ
+ *             TUKIEM 200. Ngưỡng sát nút vẫn qua được bước 1 mà rớt ở bước 2.
+ *             Một lần đúng KHÔNG nói lên gì; phải 200/200 mới tính là đạt.
+ *
+ *           CHƯA ĐO ĐƯỢC mà cần lắp ngay thì cứ COI NHƯ LÀ LOẠI NGƯỠNG CAO và lắp
+ *           mạch nâng mức. Lắp thừa thì chẳng mất gì ngoài mấy nghìn tiền linh kiện;
+ *           thiếu thì đổi lại bằng những lượt khách rớt lác đác không ai truy ra.
  *
  *  2) CHIỀU (chân DIR, số 1) VÀ CHO PHÉP (chân OE, số 19, tích cực MỨC THẤP).
  *     Một con 245 chỉ có MỘT chân DIR cho cả 8 kênh — nên hai đường đi qua nó đều bị
@@ -184,6 +215,39 @@ public:
   }
 
   /**
+   * GIỮ CHÂN TX Ở MỘT MỨC CỐ ĐỊNH để đo bằng đồng hồ vạn năng.
+   *   muc = 1  giữ mức cao (chân ESP32 ra 3,3V)
+   *   muc = 0  giữ mức thấp (0V)
+   *   muc = -1 thả ra, trả chân về cho UART
+   *
+   * DÙNG ĐỂ LÀM GÌ: đây là cách nhanh nhất trả lời câu "con HT245 5V này có chịu
+   * ăn mức 3,3V của ESP32 không", mà chỉ cần cái đồng hồ, không cần máy hiện sóng.
+   *
+   *   1. Nối chân TX của ESP32 vào ĐẦU VÀO của HT245 (nhớ GND chung).
+   *   2. Gõ  GIU 1  rồi đo ĐẦU RA tương ứng của HT245 so với mass:
+   *        ~5V   -> con chip ĐÃ hiểu 3,3V là mức cao. Loại ngưỡng thấp (HCT/LVC).
+   *        ~0V   -> nó KHÔNG hiểu. Đây là loại ngưỡng 3,5V — phải nâng mức, hết cãi.
+   *        lửng lơ (1–4V) -> đang ở vùng chập chờn, cũng phải nâng mức.
+   *   3. Gõ  GIU 0  rồi đo lại: phải ra ~0V. Không đổi gì cả nghĩa là chưa nối đúng
+   *      chân, hoặc con 245 đang bị vô hiệu (OE ở mức cao), hoặc sai chiều DIR.
+   *   4. Gõ  GIU  (bỏ trống) để thả chân ra rồi làm tiếp việc khác.
+   *
+   * ⚠️ Ra ~5V ở bước 2 mới chỉ là "qua được ở trạng thái đứng yên". Ngưỡng sát nút
+   *    vẫn đủ sức làm sai lúc đang truyền nhanh và lúc mạch ấm lên. Đo xong vẫn phải
+   *    chạy TUKIEM 200 rồi mới tin.
+   */
+  void giuMuc(int muc) {
+    if (!_cong) return;
+    if (muc < 0) { _moCong(); Serial.println("[GIU] da tha chan TX, tra ve cho UART"); return; }
+    _cong->end();
+    pinMode(_tx, OUTPUT);
+    digitalWrite(_tx, muc ? HIGH : LOW);
+    Serial.printf("[GIU] chan TX (GPIO %d) dang giu muc %s (%s).\n", _tx,
+                  muc ? "CAO" : "THAP", muc ? "~3,3V" : "0V");
+    Serial.println("      Do dau ra tuong ung cua HT245 so voi mass, roi go 'GIU' de tha.");
+  }
+
+  /**
    * ĐO MỨC NGHỈ CỦA CHÂN RX. Đường UART lúc không truyền gì phải nằm ở mức CAO.
    * Đây là phép đo rẻ nhất mà lại loại được phân nửa số nguyên nhân, nên làm TRƯỚC
    * khi ngồi dò baud hay đoán khung lệnh.
@@ -223,24 +287,64 @@ public:
    * lỗi nằm ngoài con chip. Đọc không ra = sai chân trong code, hoặc chân đã hỏng.
    * Nhờ vậy khỏi phải đoán "tại chip hay tại bo".
    */
-  bool tuKiem() {
-    if (!_cong) return false;
+  bool tuKiem(int soLan) {
+    if (!_cong || soLan < 1) return false;
     static const uint8_t MAU[] = { 0x55, 0xAA, 0x00, 0xFF, 0x02, 0x03, 0x31, 0x7E };
-    Serial.printf("[TUKIEM] noi tam GPIO %d (TX) voi GPIO %d (RX) roi chay lai neu chua noi.\n", _tx, _rx);
-    _xaCong();
-    _cong->write(MAU, sizeof(MAU)); _cong->flush();
-    uint8_t nhan[sizeof(MAU)]; unsigned n = 0;
-    uint32_t het = millis() + 400;
-    while ((int32_t)(het - millis()) > 0 && n < sizeof(MAU)) {
-      while (_cong->available() && n < sizeof(MAU)) nhan[n++] = (uint8_t)_cong->read();
-      delay(2);
+    Serial.printf("[TUKIEM] chay %d lan @ %ld baud. Duong di phai khep kin: TX -> (day dang do) -> RX.\n",
+                  soLan, _baud);
+    int hong = 0, sai = 0; long tongByte = 0;
+    uint8_t nhan[sizeof(MAU)];
+    unsigned nCuoi = 0;
+    for (int lan = 0; lan < soLan; lan++) {
+      _xaCong();
+      _cong->write(MAU, sizeof(MAU)); _cong->flush();
+      unsigned n = 0;
+      uint32_t het = millis() + 300;
+      while ((int32_t)(het - millis()) > 0 && n < sizeof(MAU)) {
+        while (_cong->available() && n < sizeof(MAU)) nhan[n++] = (uint8_t)_cong->read();
+        delay(1);
+      }
+      nCuoi = n;
+      if (n != sizeof(MAU)) hong++;
+      else {
+        int lech = 0;
+        for (unsigned i = 0; i < sizeof(MAU); i++) if (nhan[i] != MAU[i]) lech++;
+        if (lech) { hong++; sai += lech; }
+      }
+      tongByte += sizeof(MAU);
+      if (soLan > 20 && (lan + 1) % 50 == 0)
+        Serial.printf("      … %d/%d lan, hong %d\n", lan + 1, soLan, hong);
+      delay(3);
     }
-    bool ok = (n == sizeof(MAU)) && (memcmp(MAU, nhan, sizeof(MAU)) == 0);
-    Serial.print("[TUKIEM] gui "); _inHang(MAU, sizeof(MAU));
-    Serial.print("[TUKIEM] nhan "); if (n) _inHang(nhan, n); else Serial.println("(khong co gi)");
-    Serial.println(ok ? "[TUKIEM] ✅ UART cua ESP32 va so chan trong code DEU DUNG — loi nam ngoai chip."
-                      : "[TUKIEM] ❌ khong doc lai duoc. Chua noi day TX-RX? Hay so chan trong code sai?");
-    return ok;
+    Serial.print("[TUKIEM] gui  "); _inHang(MAU, sizeof(MAU));
+    Serial.print("[TUKIEM] nhan "); if (nCuoi) _inHang(nhan, nCuoi); else Serial.println("(khong co gi)");
+    Serial.printf("[TUKIEM] %d/%d lan hong, %d byte sai / %ld byte\n", hong, soLan, sai, tongByte);
+
+    /* ⚠️ ĐỌC KẾT QUẢ — chỗ này mới là phần đáng tiền.
+       Mức vào KHÔNG ĐỦ NGƯỠNG (đẩy 3,3V vào con 74HC chạy 5V) KHÔNG làm hỏng hẳn.
+       Nó làm SAI THỈNH THOẢNG. Chạy một lần thấy đúng rồi kết luận "ổn" là đúng cái
+       bẫy đó: lắp lên ghế xong, ấm máy lên vài độ là bắt đầu rớt lượt, mà lúc ấy
+       không ai còn nghĩ tới chuyện điện áp nữa.
+       Nên phép đo này phải chạy NHIỀU LẦN, và chỉ 100% mới được tính là đạt. */
+    if (hong == 0) {
+      Serial.printf("[TUKIEM] ✅ %d/%d lan dung tuyet doi.\n", soLan, soLan);
+      if (soLan < 100) Serial.println("         Chay lai 'TUKIEM 200' truoc khi tin han — loi muc dien ap"
+                                      " chi lo ra khi chay nhieu.");
+      else Serial.println("         Duong tin hieu nay dung duoc.");
+    } else if (hong == soLan && sai == 0) {
+      Serial.println("[TUKIEM] ❌ KHONG nhan lai duoc gi ca. Day chua khep kin, sai so chan trong code,\n"
+                     "         HT245 dang bi vo hieu (OE muc cao), hoac chua noi GND chung.");
+    } else {
+      Serial.printf("[TUKIEM] ⚠️ LUC DUOC LUC KHONG (%d%% so lan hong). Day KHONG phai loi phan mem.\n",
+                    hong * 100 / soLan);
+      Serial.println("         Gan nhu chac chan la MUC DIEN AP KHONG DU NGUONG:\n"
+                     "         HT245 chay VCC 5V ma la loai 74HC thi doi muc vao >= 3,5V, chan ESP32\n"
+                     "         chi xuat 3,3V. Phai nang muc 3,3V -> 5V cho chan TX (module level shifter,\n"
+                     "         hoac chen mot con 74HCT245 lam dem trung gian).\n"
+                     "         Loai HCT/LVC thi nguong chi 2,0V — neu dung loai do ma van hong thi soi\n"
+                     "         lai GND chung va baud truoc.");
+    }
+    return hong == 0;
   }
 
   /* ==================================================================
