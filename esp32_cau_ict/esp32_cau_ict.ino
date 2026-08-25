@@ -91,6 +91,20 @@
  *  Vì chưa biết bo đang chạy kiểu nào, lệnh XUNG (đo bề rộng cạnh) phân biệt trước:
  *  hẹp cỡ micro giây = UART; rộng cỡ chục mili giây = xung tiền, khỏi cần khung lệnh.
  *
+ *  ─── DÙNG MODULE MOSFET (BSS138, có mấy con dấu "103"=10k) — NÊN DÙNG ─────────
+ *  Loại này HỢP hơn TXS0108E cho MDB 9600: không có chân OE để quên, không có mạch
+ *  "một phát" để tự kích sai, và KHÔNG dị ứng trở kéo 1K của L70 (trở 1K ngoài chỉ
+ *  song song với 10k trên board, đường vẫn lên mức cao bình thường). Nó kéo cao
+ *  bằng trở nên sườn xung hơi ì, nhưng ở 9600 thừa sức.
+ *  ⚠️ Vẫn KHÔNG cách ly (mass chung) — nghe lén trên bàn thì được, lắp cố định
+ *     trong ghế thì quay lại ADuM1201 (mô-tơ đá nhiễu ngược).
+ *  Board 4 kênh, một cái đủ cả hai bên. LV=phía 3,3V (ESP32), HV=phía 5V (thiết bị),
+ *  GND hai bên CHUNG một net:
+ *    LV(giữa)=3,3V  HV(giữa)=5V  GND=chung hết
+ *    LV1<->GPIO26 HV1<->L70 đỏ/RX    LV2<->GPIO25 HV2<->L70 xanh/TX
+ *    LV3<->GPIO32 HV3<->ghế          LV4<->GPIO33 HV4<->ghế
+ *    ⚠️ kênh khớp số: LV1 chỉ thông với HV1, cắm chéo là đường đó câm.
+ *
  *  ─── DÙNG TXS0108E CHO BƯỚC NGHE LÉN (nếu chưa có ADuM1201) ─────────────────
  *  Được, vì MDB chạy 9600 baud — chậm nên tật tốc-độ-cao của TXS0108E không kịp
  *  cắn. (Đính chính "đừng dùng TXS0108E cho UART" hôm trước: đúng cho tốc độ cao,
