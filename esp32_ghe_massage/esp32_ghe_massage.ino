@@ -1725,10 +1725,10 @@ void setup(){
   /* Kích rơ-le fail-safe sang ESP-mode (COM->NO). Mất điện thì rơ-le tự nhả về NC
      = ICT nối thẳng ghế -> tiền mặt vẫn chạy dù hộp QR chết. */
   pinMode(BYPASS_PIN, OUTPUT); digitalWrite(BYPASS_PIN, BYPASS_ACTIVE_HIGH ? HIGH : LOW);
-  /* IO21 GIỜ LÀ WIRE B (đọc 3E/5E/02) — KHÔNG drive đèn nền ở đây nữa. Đèn nền bo
-     CYD của anh bật cứng sẵn nên bỏ được. Nếu màn TỐI sau khi nạp -> đèn nền cần
-     IO21: đổi WIRE_B_RX sang chân trống khác trong cong_tien.h và trả IO21 về đây. */
-  // pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
+  /* IO21 = đèn nền TFT (trả lại như cũ). Đã BỎ wire B: tap vào dây B (ghế->ICT)
+     làm RỚT tín hiệu ICT vì đó là dây sống chở lệnh mở khoá. Nên báo lỗi chỉ còn
+     'ket' (chạy từ IO35, không cần wire B). RÚT dây IO21 khỏi dây B. */
+  pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CASH_PULSE_PIN), onCashPulse, FALLING); }
   if(CASH_INHIBIT_ENABLE){ pinMode(INHIBIT_PIN, OUTPUT); }
