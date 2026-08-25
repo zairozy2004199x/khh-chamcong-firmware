@@ -1452,7 +1452,28 @@
     var bn=el('btnNewDon'); if(bn) bn.style.display=(role==='Nhân viên'||role==='Quản lý'||role==='Admin')?'inline-block':'none';
     el('userChip').innerHTML='👤 '+esc(CURUSER.name)+' · '+esc(role)+(CURUSER.coso?' · '+esc(CURUSER.coso):'');
   }
-  function _myDons(){ var isNV=(CURUSER&&CURUSER.role==='Nhân viên'); return (BOOT.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; }); }
+  /**
+   * SẮP ĐƠN: kỳ MỚI NHẤT lên đầu, trong cùng một kỳ thì theo cơ sở rồi người lập.
+   *
+   * 🔴 Trước đây danh sách giữ nguyên thứ tự máy chủ trả về, tức thứ tự TẠO ĐƠN. Ai lập bù một
+   *    đơn của tuần cũ là đơn đó nằm chen giữa tuần mới — đúng cảnh anh Thắng thấy: một dòng
+   *    tuần 3/8 lọt vào giữa nhóm 10/8. Danh sách vài chục dòng mà thứ tự không đoán được thì
+   *    tìm một đơn phải đọc từ đầu tới cuối.
+   *
+   * Kỳ đọc bằng _kyVal (đã hiểu cả khuôn tuần lẫn khuôn khoảng ngày tự chọn). Kỳ không đọc
+   * được trả -1 nên tự rơi xuống cuối — thấy ngay là có gì đó sai với đơn đó, thay vì nó nấp
+   * giữa danh sách.
+   */
+  function _sapDon(ds){
+    return (ds||[]).slice().sort(function(a,b){
+      var ka=_kyVal(a&&a.ky), kb=_kyVal(b&&b.ky);
+      if(ka!==kb) return kb-ka;                                   // kỳ mới nhất trước
+      var ca=String((a&&a.coso)||''), cb=String((b&&b.coso)||'');
+      if(ca!==cb) return ca.localeCompare(cb,'vi');
+      return String((a&&a.nguoiLap)||'').localeCompare(String((b&&b.nguoiLap)||''),'vi');
+    });
+  }
+  function _myDons(){ var isNV=(CURUSER&&CURUSER.role==='Nhân viên'); return _sapDon((BOOT.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; })); }
   /** "T8/2026 (17/8-23/8/2026)" -> "T8/2026" (tháng) — phần trước dấu ngoặc. */
   function _thangCuaKy(ky){ return String(ky||'').split(' (')[0].trim(); }
   /**
@@ -1617,7 +1638,7 @@
       el('f_pltt').innerHTML=opts(BOOT.phanloai,'—');
       if(typeof renderNhomCp==='function') renderNhomCp();
       fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
-      var dons=(b.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; });
+      var dons=_sapDon((b.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; }));
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
         return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
       renderDonList(dons);
