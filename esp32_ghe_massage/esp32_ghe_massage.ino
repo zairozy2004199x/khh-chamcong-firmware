@@ -358,6 +358,15 @@ void ghiLoiTien(const char* ma, bool dangDienRa){
   Serial.printf("[TIEN] %s: %s\n", dangDienRa ? "DANG LOI" : "vua xay ra", ma);
 }
 
+/* Cầu nối cho cong_tien.h báo lỗi đường serial mới ('ket'=kẹt tiền, 'qr'=ghế
+   không ăn QR). active=true -> treo lỗi; false -> gỡ lỗi đang treo. Đẩy đúng vào
+   g_tmLoi để nhịp báo lên web như hệ báo lỗi cũ. */
+void loiTienCong(const char* ma, bool active){
+  if(active){ ghiLoiTien(ma, true); }
+  else if(strcmp(g_tmLoi, ma) == 0){ g_tmLoi[0] = 0; g_statusDirty = true;
+    Serial.printf("[TIEN] het loi: %s\n", ma); }
+}
+
 /** Gọi mỗi vòng loop(): nhìn đường xung xem có đang kẹt không. */
 void kiemCucTien(){
   if(!CASH_ENABLE || USE_MDB) return;
@@ -1716,7 +1725,10 @@ void setup(){
   /* Kích rơ-le fail-safe sang ESP-mode (COM->NO). Mất điện thì rơ-le tự nhả về NC
      = ICT nối thẳng ghế -> tiền mặt vẫn chạy dù hộp QR chết. */
   pinMode(BYPASS_PIN, OUTPUT); digitalWrite(BYPASS_PIN, BYPASS_ACTIVE_HIGH ? HIGH : LOW);
-  pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
+  /* IO21 GIỜ LÀ WIRE B (đọc 3E/5E/02) — KHÔNG drive đèn nền ở đây nữa. Đèn nền bo
+     CYD của anh bật cứng sẵn nên bỏ được. Nếu màn TỐI sau khi nạp -> đèn nền cần
+     IO21: đổi WIRE_B_RX sang chân trống khác trong cong_tien.h và trả IO21 về đây. */
+  // pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
     attachInterrupt(digitalPinToInterrupt(CASH_PULSE_PIN), onCashPulse, FALLING); }
   if(CASH_INHIBIT_ENABLE){ pinMode(INHIBIT_PIN, OUTPUT); }
@@ -1725,7 +1737,7 @@ void setup(){
   /* CỔNG TIỀN serial 4800 8E1 — thay đường xung. Khi ICT báo tờ tiền thật thì gọi
      mdbCreditVnd() (cộng giờ + ghi sổ như tiền mặt cũ); tiền mặt vẫn được relay
      thẳng sang ghế bên trong cong_tien.tick(). */
-  congTien.khoiDong(mdbCreditVnd);
+  congTien.khoiDong(mdbCreditVnd, loiTienCong);
 
   prefs.begin("ghe", false);
   CHAIR_ID = prefs.getString("chair", "");   // nhớ mã ghế máy chủ đã gán, để mất mạng vẫn hiện đúng
@@ -1760,7 +1772,8 @@ void loop(){
   kiemCucTien();
   checkCash();
   mdbTask();
-  congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền thật (gọi mdbCreditVnd)
+  congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
+  congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
   if(g_remoteStop){ g_remoteStop=false;
     if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false;
