@@ -22,6 +22,7 @@ class VHCP_Cfg {
 	const LOAI  = 'CH_LoaiChiPhi';   // DANH MỤC LOẠI CHI PHÍ — mỗi loại gắn sẵn mã tài khoản
 	const TK    = 'CH_TaiKhoan';     // HỆ THỐNG TÀI KHOẢN của kế toán (nạp từ file Excel/CSV)
 	const MANG  = 'CH_MangTK';       // MẢNG KINH DOANH -> nhóm tài khoản 641x + từ khóa trong tên TK
+	const VAI   = 'CH_VaiTro';       // VAI TRÒ TỰ TẠO — mỗi vai kế thừa quyền của một vai gốc
 
 	public static function headers( $bang ) {
 		$h = array(
@@ -131,8 +132,57 @@ class VHCP_Cfg {
 		);
 	}
 
+	/**
+	 * BỐN VAI GỐC — cứng, không xóa được. Mọi vai tự tạo đều phải kế thừa MỘT trong bốn vai này.
+	 *
+	 * 🔴 'Admin' KHÔNG có trong danh sách kế thừa. Cho kế thừa Admin là ai vào được Cấu hình
+	 *    cũng tự đúc cho mình một vai Admin trá hình — thành cái cửa sau mở sẵn.
+	 */
+	const VAI_GOC = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+
+	/** Vai tự tạo: [ ['ten'=>…, 'goc'=>…], … ]. Bỏ dòng trùng tên vai gốc / Admin. */
+	public static function vai_tuy_bien() {
+		$out = array();
+		$da  = array();
+		foreach ( self::read( self::VAI ) as $r ) {
+			$r = array_values( (array) $r );
+			$t = trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) );
+			$g = trim( (string) ( isset( $r[1] ) ? $r[1] : '' ) );
+			if ( '' === $t || 'Admin' === $t || in_array( $t, self::VAI_GOC, true ) ) { continue; }
+			if ( isset( $da[ mb_strtolower( $t ) ] ) ) { continue; }
+			$da[ mb_strtolower( $t ) ] = 1;
+			/* Kế thừa lung tung thì quy về vai thấp nhất, KHÔNG quy về vai cao. Khai sai một ô
+			   mà tự động thành Quản lý là mất quyền kiểm soát; thành Nhân viên thì cùng lắm là
+			   bị chặn rồi có người kêu. */
+			if ( ! in_array( $g, self::VAI_GOC, true ) ) { $g = 'Nhân viên'; }
+			$out[] = array( 'ten' => $t, 'goc' => $g );
+		}
+		return $out;
+	}
+
+	/**
+	 * Danh sách vai để dựng CỘT của ma trận phân quyền.
+	 *
+	 * 🔴 BỐN VAI GỐC LUÔN ĐỨNG ĐẦU, ĐÚNG THỨ TỰ ĐÓ. Bảng CH_Quyen lưu theo CHỈ SỐ CỘT
+	 *    (cột 2+i là vai thứ i), nên chèn một vai vào giữa là mọi ô đã tích trượt sang vai
+	 *    khác — cả bảng phân quyền sai mà không có gì báo. Vai mới chỉ được NỐI VÀO CUỐI.
+	 */
 	public static function roles() {
-		return array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên' );
+		$r = self::VAI_GOC;
+		foreach ( self::vai_tuy_bien() as $v ) { $r[] = $v['ten']; }
+		return $r;
+	}
+
+	/** Vai này thực chất là vai gốc nào? Vai gốc / Admin / rỗng thì trả về chính nó. */
+	public static function vai_goc( $ten ) {
+		$ten = trim( (string) $ten );
+		if ( '' === $ten || 'Admin' === $ten || in_array( $ten, self::VAI_GOC, true ) ) { return $ten; }
+		foreach ( self::vai_tuy_bien() as $v ) {
+			if ( $v['ten'] === $ten ) { return $v['goc']; }
+		}
+		/* Vai lạ (dòng người dùng còn giữ tên vai đã xóa) -> coi như Nhân viên, không phải
+		   "không rõ". Trả rỗng là lọt qua mọi phép kiểm `in_array` rỗng. */
+		return 'Nhân viên';
 	}
 
 	/** QUYEN_ACTIONS của app cũ (giữ nguyên thứ tự + mặc định). */
@@ -429,6 +479,8 @@ class VHCP_Cfg {
 		}
 		$sso = isset( $s['sso'] ) ? $s['sso'] : array();
 		return array(
+			'vaiGoc'     => self::VAI_GOC,
+			'vaiTro'     => self::vai_tuy_bien(),
 			'coso'       => $s['coso'],
 			'nhom'       => $s['nhom'],
 			'loaiChiPhi' => isset( $s['loaiChiPhi'] ) ? $s['loaiChiPhi'] : array(),
@@ -609,6 +661,22 @@ class VHCP_Cfg {
 			}
 			self::write( self::USER, $rows );
 		}
+		if ( isset( $cfg['vaiTro'] ) && is_array( $cfg['vaiTro'] ) ) {
+			/* 🔴 CHỈ ADMIN. Ai sửa được bảng này là tự đúc cho mình một vai kế thừa Quản lý. */
+			if ( 'Admin' !== VHCP_Auth::vai_tro() ) {
+				return VHCP_Util::err( 'Chỉ Admin mới thêm/sửa vai trò được.' );
+			}
+			$rows = array();
+			foreach ( $cfg['vaiTro'] as $x ) {
+				$x = (array) $x;
+				$t = trim( $g( $x, 'ten' ) );
+				$b = trim( $g( $x, 'goc' ) );
+				if ( '' === $t || 'Admin' === $t || in_array( $t, self::VAI_GOC, true ) ) { continue; }
+				if ( ! in_array( $b, self::VAI_GOC, true ) ) { $b = 'Nhân viên'; }
+				$rows[] = array( $t, $b );
+			}
+			self::write( self::VAI, $rows );
+		}
 		if ( isset( $cfg['sso'] ) && is_array( $cfg['sso'] ) ) {
 			$rows = array();
 			foreach ( $cfg['sso'] as $x ) { $x = (array) $x; $rows[] = array( $g( $x, 'email' ), $g( $x, 'role' ), $g( $x, 'coso' ) ); }
@@ -635,19 +703,41 @@ class VHCP_Cfg {
 		$hit = get_transient( 'vhcp_quyen' );
 		if ( is_array( $hit ) ) { return $hit; }
 		$roles = self::roles();
+		/* Vai tự tạo -> vai gốc. Ô nào của vai tự tạo CHƯA từng được tích riêng thì lấy đúng ô
+		   của vai gốc: đó chính là nghĩa của "kế thừa". Không có bước này thì vai vừa tạo ra
+		   không có quyền gì cả, và người mang vai đó bị chặn giữa chừng mà chẳng hiểu vì sao. */
+		$goc = array();
+		foreach ( self::vai_tuy_bien() as $v ) { $goc[ $v['ten'] ] = $v['goc']; }
+
 		$saved = array();
 		foreach ( self::read( self::QUYEN ) as $r ) {
 			$key = trim( (string) $r[0] );
 			if ( $key === '' ) { continue; }
 			$o = array();
-			foreach ( $roles as $i => $role ) { $o[ $role ] = VHCP_Util::quyen_truthy( isset( $r[ 2 + $i ] ) ? $r[ 2 + $i ] : '' ); }
+			foreach ( $roles as $i => $role ) {
+				$co = array_key_exists( 2 + $i, $r );
+				$o[ $role ] = $co ? VHCP_Util::quyen_truthy( $r[ 2 + $i ] ) : null;   // null = chưa khai
+			}
 			$saved[ $key ] = $o;
 		}
 		$out = array();
 		foreach ( self::actions() as $a ) {
-			if ( isset( $saved[ $a['key'] ] ) ) { $out[ $a['key'] ] = $saved[ $a['key'] ]; continue; }
-			$o = array();
-			foreach ( $roles as $role ) { $o[ $role ] = ! empty( $a['def'][ $role ] ); }
+			if ( isset( $saved[ $a['key'] ] ) ) {
+				$o = $saved[ $a['key'] ];
+			} else {
+				$o = array();
+				foreach ( $roles as $role ) {
+					$o[ $role ] = array_key_exists( $role, (array) $a['def'] )
+						? ! empty( $a['def'][ $role ] )
+						: ( isset( $goc[ $role ] ) ? null : false );
+				}
+			}
+			foreach ( $goc as $vai => $g ) {
+				if ( ! isset( $o[ $vai ] ) || null === $o[ $vai ] ) {
+					$o[ $vai ] = ! empty( $o[ $g ] );
+				}
+			}
+			foreach ( $o as $k => $vv ) { if ( null === $vv ) { $o[ $k ] = false; } }
 			$out[ $a['key'] ] = $o;
 		}
 		set_transient( 'vhcp_quyen', $out, 300 );

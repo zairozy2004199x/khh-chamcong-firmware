@@ -314,11 +314,19 @@ class VHCP_API {
 			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
-				$role = $role_ht;
+				/* So bằng VAI GỐC, không phải tên vai người ta khai. Vai tự tạo "Nhân viên văn
+				   phòng" kế thừa "Nhân viên" — so tên thật thì nó không khớp danh sách nào và
+				   bị chặn hết, mà so vai gốc thì đúng bằng quyền nó được kế thừa. */
+				$role = VHCP_Auth::vai_tro();
 				if ( ! in_array( $role, $need, true ) ) {
 					return new WP_REST_Response( array(
 						'ok'    => false,
-						'error' => 'Vai trò "' . ( $role !== '' ? $role : 'không rõ' ) . '" không được phép dùng chức năng này',
+						/* Báo TÊN VAI NGƯỜI TA KHAI, kèm vai gốc khi hai cái khác nhau. Chỉ báo vai
+						   gốc là người mang vai "Nhân viên văn phòng" đọc thấy "Nhân viên" rồi
+						   tưởng hệ đọc sai vai của mình. */
+						'error' => 'Vai trò "' . ( VHCP_Auth::vai_hien() !== '' ? VHCP_Auth::vai_hien() : 'không rõ' )
+							. ( ( $role !== '' && $role !== VHCP_Auth::vai_hien() ) ? ' (kế thừa ' . $role . ')' : '' )
+							. '" không được phép dùng chức năng này',
 						'code'  => 'forbidden',
 					), 403 );
 				}

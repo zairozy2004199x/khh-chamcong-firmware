@@ -22,13 +22,25 @@ class VHCP_Auth {
 	 * Cần biết để chặn người không phải Admin sửa tài khoản Admin — chặn ở MÁY CHỦ, chứ
 	 * khoá ô nhập trên giao diện chỉ là lớp sơn.
 	 */
-	private static $vai_tro = '';
+	private static $vai_tro = '';   // VAI GỐC — mọi phép kiểm quyền dùng cái này
+	private static $vai_hien = '';  // tên vai NHƯ NGƯỜI TA KHAI (có thể là vai tự tạo)
 	private static $nguoi   = '';
+	/**
+	 * 🔴 QUY VỀ VAI GỐC NGAY TẠI ĐÂY, một chỗ duy nhất.
+	 *
+	 * Vai tự tạo ("Nhân viên văn phòng") kế thừa quyền của một vai gốc ("Nhân viên"). Nếu để
+	 * mỗi nơi tự quy đổi thì chỉ cần MỘT nơi quên là thủng: `la_nhan_vien()` so với chuỗi
+	 * 'Nhân viên' sẽ trả false cho vai tự tạo, và người đó thấy đơn của cả công ty.
+	 *
+	 * Quy ở cửa vào nên mọi chỗ phía sau không cần biết vai tự tạo là gì.
+	 */
 	public static function dat_vai_tro( $r, $ten = '' ) {
-		self::$vai_tro = (string) $r;
-		self::$nguoi   = (string) $ten;
+		self::$vai_hien = (string) $r;
+		self::$vai_tro  = class_exists( 'VHCP_Cfg' ) ? VHCP_Cfg::vai_goc( (string) $r ) : (string) $r;
+		self::$nguoi    = (string) $ten;
 	}
 	public static function vai_tro() { return self::$vai_tro; }
+	public static function vai_hien() { return self::$vai_hien; }
 	public static function nguoi() { return self::$nguoi; }
 
 	/** Người đang gọi là NHÂN VIÊN (chỉ được thấy / sửa đơn của chính mình)? */

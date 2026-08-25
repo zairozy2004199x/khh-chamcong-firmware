@@ -855,6 +855,16 @@
       <span style="font-size:11px;color:#94a3b8">Lỡ lưu nhầm?</span>
       <button class="btn b-x" onclick="undoCfg()" title="Khôi phục về nội dung ngay trước lần Lưu gần nhất">↩ Hồi lại lần lưu gần nhất</button>
     </div>
+    <div class="card" id="vaiCard">
+      <div class="ch"><h2>🎭 Vai trò tự tạo</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgVai()">＋ Thêm vai</button><button class="btn b-g" onclick="saveCfgVai()">💾 Lưu vai trò</button></div></div>
+      <div style="padding:8px 14px 0;font-size:12px;color:#64748b">
+        Bốn vai <b>Quản lý · Kế toán cá nhân · Kế toán NCC · Nhân viên</b> là vai <b>gốc</b>, không xoá được.
+        Vai tự tạo ở đây <b>kế thừa toàn bộ quyền</b> của vai gốc mà nó chọn — muốn khác đi thì chỉnh ô tương ứng
+        ở bảng <b>🔑 Phân quyền chỉnh sửa</b> bên dưới (vai mới hiện thành một cột riêng ở đó).<br>
+        <b>Không kế thừa được Admin</b> — cho phép là ai vào Cấu hình cũng tự đúc cho mình một vai Admin trá hình.
+      </div>
+      <div class="tw"><table style="min-width:520px"><thead><tr><th style="width:260px">Tên vai trò</th><th style="width:220px">Kế thừa quyền của</th><th style="width:44px"></th></tr></thead><tbody id="cfgVaiBody"></tbody></table></div>
+    </div>
     <div class="card" id="userCard">
       <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
       <!-- Cột TÊN phải có bề rộng riêng. Không khai thì trình duyệt chia phần còn lại cho
@@ -4769,6 +4779,7 @@
   function renderCfg(){
     var q=CFG.qr||{}; el('cfgQrStk').value=q.stk||''; el('cfgQrBank').value=q.bank||''; el('cfgQrTen').value=q.ten||'';
     renderCosoBody();
+    renderVai();
     el('cfgTkInfo').innerHTML = _tkChartHtml() + (TKCHART.length ? ('✅ Đã nạp <b>'+TKCHART.length+'</b> tài khoản — mọi ô mã tài khoản trong trang này đã có gợi ý theo số hiệu + tên.') : '<span style="color:#dc2626">Chưa nạp hệ thống tài khoản — mã phải gõ tay, dễ sai số.</span>');
     el('cfgMangBody').innerHTML=(CFG.mangTk||[]).map(function(x){ return '<tr><td>'+_pllSel(x.pll)+'</td><td>'+_inp(x.nhomTk,'VD: 6412')+'</td><td>'+_inp(x.tuKhoa,'VD: Funzone')+'</td><td>'+_inp(x.note,'Ghi chú')+'</td>'+_delBtn()+'</tr>'; }).join('');
     el('cfgPlBody').innerHTML=(CFG.phanloai||[]).map(function(x){ return '<tr><td>'+_inp(x.ten,'Phân loại')+'</td><td>'+_inp(x.tkCo,'VD: 141')+'</td>'+_delBtn()+'</tr>'; }).join('');
@@ -5133,8 +5144,62 @@
   }
   function saveCfgQR(){ _saveCfg({qr:{stk:el('cfgQrStk').value.trim(), bank:el('cfgQrBank').value.trim(), ten:el('cfgQrTen').value.trim()}},'Đã lưu tài khoản QR'); }
   // ---- Người dùng & phân quyền ----
-  function _roleSel(v){ var o=['Admin','Quản lý','Kế toán cá nhân','Kế toán NCC','Nhân viên'];
-    return '<select style="width:100%">'+o.map(function(r){return '<option'+(r===v?' selected':'')+'>'+r+'</option>';}).join('')+'</select>'; }
+  var VAI_GOC=['Quản lý','Kế toán cá nhân','Kế toán NCC','Nhân viên'];
+  function _vaiGocCua(ten){
+    var g=''; ((CFG.vaiTro)||[]).forEach(function(x){ if(x.ten===ten) g=x.goc; });
+    return g;
+  }
+  /* Ô chọn vai trò: Admin + bốn vai gốc + MỌI VAI TỰ TẠO.
+     🔴 Vai đang khai mà không còn trong danh sách (ai đó vừa xoá vai đó) vẫn phải hiện ra —
+     không thì mở bảng lên là vai của người ta lặng lẽ nhảy sang 'Admin' (dòng đầu), và bấm Lưu
+     một cái là phong Admin cho cả loạt người. */
+  function _roleSel(v){
+    var o=['Admin'].concat(VAI_GOC);
+    ((CFG.vaiTro)||[]).forEach(function(x){ if(o.indexOf(x.ten)<0) o.push(x.ten); });
+    v=String(v||'');
+    var la=(v!=='' && o.indexOf(v)<0);
+    return '<select style="width:100%'+(la?';border-color:#c0392b':'')+'">'
+      +(la?'<option selected>'+esc(v)+'</option>':'')
+      +o.map(function(r){
+          var g=_vaiGocCua(r);
+          var nh=(g&&g!==r)?(r+' (như '+g+')'):r;
+          return '<option value="'+esc(r)+'"'+(r===v?' selected':'')+'>'+esc(nh)+'</option>';
+        }).join('')+'</select>'; }
+  function _vaiGocSel(v){
+    return '<select style="width:100%">'+VAI_GOC.map(function(r){
+      return '<option'+(r===v?' selected':'')+'>'+esc(r)+'</option>'; }).join('')+'</select>';
+  }
+  function renderVai(){
+    if(!el('cfgVaiBody')) return;
+    if(el('vaiCard')) el('vaiCard').style.display=_laAdmin()?'':'none';
+    el('cfgVaiBody').innerHTML=((CFG.vaiTro)||[]).map(function(x){
+      return '<tr><td>'+_inp(x.ten,'VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel(x.goc)+'</td>'+_delBtn()+'</tr>';
+    }).join('');
+  }
+  function addCfgVai(){ el('cfgVaiBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','VD: Nhân viên văn phòng')+'</td><td>'+_vaiGocSel('Nhân viên')+'</td>'+_delBtn()+'</tr>'); }
+  function saveCfgVai(){
+    var data=_readRows('cfgVaiBody').map(function(r){return {ten:(r[0]||'').trim(), goc:r[1]||'Nhân viên'};})
+      .filter(function(x){return x.ten;});
+    var cam=['Admin'].concat(VAI_GOC), thay={};
+    for(var i=0;i<data.length;i++){
+      // Trùng tên vai gốc là hai cột cùng tên trong ma trận phân quyền — không ai biết cột nào là cột nào.
+      if(cam.indexOf(data[i].ten)>=0){ toast('warn','"'+data[i].ten+'" là vai gốc, không đặt trùng được'); return; }
+      var k=data[i].ten.toLowerCase();
+      if(thay[k]){ toast('warn','Trùng tên vai: '+data[i].ten); return; }
+      thay[k]=1;
+    }
+    // 🔴 XOÁ MỘT VAI LÀ NGƯỜI ĐANG MANG VAI ĐÓ TỤT VỀ QUYỀN NHÂN VIÊN. Đếm trước rồi hỏi.
+    var conLai={}; data.forEach(function(x){ conLai[x.ten]=1; });
+    var mat=[];
+    (CFGUSERS||[]).forEach(function(u){
+      var vt=String(u.vaiTro||'');
+      if(vt==='' || vt==='Admin' || VAI_GOC.indexOf(vt)>=0 || conLai[vt]) return;
+      mat.push(u.ten+' ('+vt+')');
+    });
+    if(mat.length && !confirm(mat.length+' người đang mang vai sắp bị xoá:\n\n'+mat.join('\n')
+      +'\n\nHọ sẽ bị coi như vai "Nhân viên" cho tới khi anh khai lại. Vẫn lưu?')) return;
+    _saveCfg({vaiTro:data},'Đã lưu vai trò');
+  }
   /**
    * Ô CƠ SỞ thu gọn: mỗi người chỉ còn 1 dòng cao 36px thay vì hộp 4 dòng.
    * Ô chọn thật vẫn là <select multiple> (để _readRows đọc như cũ) nhưng bị ẩn;
