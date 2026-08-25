@@ -202,7 +202,7 @@
 #define CHAN_OE_ICT   -1
 #define CHAN_OE_GHE   -1
 
-#define BAUD_MAC_DINH 9600
+#define BAUD_MAC_DINH 4800   // ĐO THẬT bang RAW: nhip bit ~207us -> 4800, KHONG phai 9600
 #define NGHI_MS       15      // dây im ngần này = hết một khung (ở 9600 một byte ~1ms)
 #define KHUNG_TOI_DA  96
 #define HANG_DOI      16      // nhớ tối đa ngần này khung chờ in ra

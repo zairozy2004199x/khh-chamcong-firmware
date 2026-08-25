@@ -24,8 +24,11 @@
 #include <Arduino.h>
 #include "mdb.h"
 
-#define MDB_BIT_US   104     // 1e6/9600. Chỉnh ±vài us trên máy thật nếu đọc ra '?'
-#define MDB_KHUNG_US 3000    // im quá lâu giữa các byte = coi như hết một lượt
+// ĐO THẬT bằng lệnh RAW: mọi cạnh đều là bội số của ~207us -> baud = 4800, KHÔNG
+// phải 9600. Trước để 104 (đúng một nửa nhịp) nên đọc ra toàn rác '?'. 1e6/4800 =
+// 208.33us. Đây là SỐ ĐO, không phải đoán.
+#define MDB_BIT_US   208     // 4800 baud (1e6/4800). Do bang RAW tren bo that.
+#define MDB_KHUNG_US 6000    // im quá lâu giữa các byte = coi như hết một lượt (4800 chậm hơn)
 
 class MdbUart {
 public:
