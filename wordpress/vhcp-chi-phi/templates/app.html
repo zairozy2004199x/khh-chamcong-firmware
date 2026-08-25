@@ -854,7 +854,7 @@
       <button class="btn b-x" onclick="undoCfg()" title="Khôi phục về nội dung ngay trước lần Lưu gần nhất">↩ Hồi lại lần lưu gần nhất</button>
     </div>
     <div class="card" id="userCard">
-      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
+      <div class="ch"><h2>🔐 Người dùng &amp; Phân quyền</h2><div style="display:flex;gap:8px"><button class="btn" id="btnKhoiPhucUser" style="display:none" onclick="moKhoiPhucUser()">🛟 Khôi phục</button><button class="btn b-x" id="btnThemUser" onclick="addCfgUser()">＋ Thêm người</button><button class="btn b-g" id="btnLuuUser" onclick="saveCfgUsers()">💾 Lưu</button></div></div>
       <!-- Cột TÊN phải có bề rộng riêng. Không khai thì trình duyệt chia phần còn lại cho
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
@@ -1153,6 +1153,10 @@
 <script>
   var SSO_USER = (window.VHCP_CFG && window.VHCP_CFG.ssoUser) || null;   // SSO: danh tính do WordPress xác thực (null nếu mở trực tiếp)
   var BOOT={coso:[],nhom:[],phanloai:[]}, CUR=null, CURUSER=null, CFGUSERS=[]; // CUR=getDon; CURUSER=phiên đăng nhập
+  // Bảng người dùng TẢI HỎNG khác hẳn bảng người dùng RỖNG, mà trước đây vẽ ra giống hệt nhau:
+  // cả hai đều là một cái bảng trắng. Người ta thấy trắng thì bấm Lưu, và thế là mất sạch phân
+  // quyền của cả công ty. Giữ riêng một cờ để phân biệt hai chuyện đó.
+  var CFGUSERS_LOI='';
   var CUR_PAGE='', _viewDonFrom='';   // theo dõi tab hiện tại + tab đã mở "trang đầy đủ" để quay lại
   function el(id){return document.getElementById(id);}
   function money(n){return (Number(n)||0).toLocaleString('vi-VN');}
@@ -4634,11 +4638,11 @@
       google.script.run.withSuccessHandler(function(t){
         TKCHART=(t&&t.taiKhoan)||[]; TKNAME={}; TKCHART.forEach(function(x){ TKNAME[String(x.ma)]=x.ten||''; });
         CFG.mangTk=(t&&t.mangTk)||[];
-        google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; renderCfg(); renderUsers();})
-          .withFailureHandler(function(e){loading(false); CFGUSERS=[]; renderCfg(); renderUsers();}).getUsers();
+        google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; CFGUSERS_LOI=''; renderCfg(); renderUsers();})
+          .withFailureHandler(function(e){loading(false); CFGUSERS=[]; CFGUSERS_LOI=(e&&e.message)||'không gọi được máy chủ'; renderCfg(); renderUsers();}).getUsers();
       }).withFailureHandler(function(e){ TKCHART=[]; TKNAME={};
-        google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; renderCfg(); renderUsers();})
-          .withFailureHandler(function(e2){loading(false); CFGUSERS=[]; renderCfg(); renderUsers();}).getUsers();
+        google.script.run.withSuccessHandler(function(us){loading(false); CFGUSERS=us||[]; CFGUSERS_LOI=''; renderCfg(); renderUsers();})
+          .withFailureHandler(function(e2){loading(false); CFGUSERS=[]; CFGUSERS_LOI=(e2&&e2.message)||'không gọi được máy chủ'; renderCfg(); renderUsers();}).getUsers();
       }).getTaiKhoan();
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).getConfig();
   }
@@ -5101,11 +5105,35 @@
     // Sửa ngày hàng loạt là đụng thẳng kỳ hạch toán -> CHỈ Admin (máy chủ chặn lần nữa).
     if(el('ngayHongCard')) el('ngayHongCard').style.display=_laAdmin()?'':'none';
     if(!el('cfgUserBody')) return;
+    if(el('btnKhoiPhucUser')) el('btnKhoiPhucUser').style.display=_laAdmin()?'':'none';
+    // 🔴 TẢI HỎNG THÌ NÓI LÀ TẢI HỎNG, và KHÓA nút Lưu lại. Vẽ bảng trắng rồi để nút Lưu sáng
+    //    là mời người ta ghi đè cái rỗng lên danh sách thật — đúng đường tai nạn 25/08/2026.
+    if(CFGUSERS_LOI){
+      el('cfgUserBody').innerHTML='<tr><td colspan="8" style="background:#fdecea;color:#c0392b;padding:12px">'
+        +'<b>Chưa tải được danh sách người dùng</b> — '+esc(CFGUSERS_LOI)+'.<br>'
+        +'Dữ liệu cũ <b>vẫn còn nguyên</b> trên máy chủ. Tải lại trang rồi thử lại; '
+        +'nút Lưu đang khóa để không ghi đè bảng rỗng lên danh sách thật.</td></tr>';
+      if(el('btnLuuUser')){ el('btnLuuUser').disabled=true; el('btnLuuUser').style.opacity='.5'; }
+      if(el('btnThemUser')){ el('btnThemUser').disabled=true; el('btnThemUser').style.opacity='.5'; }
+      return;
+    }
+    if(el('btnLuuUser')){ el('btnLuuUser').disabled=false; el('btnLuuUser').style.opacity=''; }
+    if(el('btnThemUser')){ el('btnThemUser').disabled=false; el('btnThemUser').style.opacity=''; }
     // Dòng vai trò Admin: chỉ Admin sửa được. Người khác vẫn thấy để biết ai là Admin,
     // nhưng ô bị khoá và không có nút xóa — máy chủ cũng chặn lần nữa, không tin giao diện.
-    var _laAdmin=(CURUSER&&CURUSER.role==='Admin');
+    //
+    // 🔴 TÊN BIẾN NÀY TỪNG LÀ `_laAdmin` — TRÙNG TÊN với hàm toàn cục `_laAdmin()`.
+    //    JavaScript kéo mọi khai báo `var` lên đầu hàm, nên từ dòng đầu tiên của renderUsers()
+    //    cái tên `_laAdmin` đã là một biến rỗng chứ không còn là hàm nữa. Dòng
+    //        el('ngayHongCard').style.display=_laAdmin()?'':'none';
+    //    nằm PHÍA TRÊN liền ném "TypeError: _laAdmin is not a function", hàm chết ngay tại đó,
+    //    và lệnh vẽ bảng người dùng bên dưới KHÔNG BAO GIỜ chạy.
+    //
+    //    Đó chính là "hệ thống phân quyền cho từng nhân viên bị mất" ngày 25/08/2026: dữ liệu
+    //    còn nguyên trên máy chủ, chỉ là màn hình không vẽ ra được. Đổi tên biến là xong.
+    var laAdminNay=(CURUSER&&CURUSER.role==='Admin');
     el('cfgUserBody').innerHTML=(CFGUSERS||[]).map(function(u){
-      var khoa=(!_laAdmin && String(u.vaiTro||'')==='Admin');
+      var khoa=(!laAdminNay && String(u.vaiTro||'')==='Admin');
       if(khoa){
         return '<tr style="background:#f8fafc;color:#64748b" title="Tài khoản Admin — chỉ Admin sửa được">'
           +'<td><input value="'+esc(u.ten||'')+'" style="width:100%" disabled></td>'
@@ -5123,8 +5151,46 @@
   function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td>'+_delBtn()+'</tr>'); }
   function saveCfgUsers(){ var data=_readRows('cfgUserBody').map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:r[5]||'', maDt:r[6]||''};}).filter(function(x){return x.ten;});
     for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }
+    // 🔴 LƯU DANH SÁCH RỖNG = XÓA HẾT TÀI KHOẢN. Không cho đi qua bằng một cú bấm.
+    //    Máy chủ chặn lần nữa; đây chỉ là để hỏi cho tử tế trước khi tới đó.
+    if(!data.length){
+      if(!confirm('Bảng đang RỖNG.\n\nLưu bây giờ là XÓA HẾT tài khoản và phân quyền của mọi nhân viên.\n\n'
+        +'Nếu bảng trắng vì chưa tải xong thì bấm Hủy rồi tải lại trang.\n\nVẫn muốn xóa hết?')) return;
+      _saveCfg({users:[],usersXoaHet:1},'Đã xóa hết người dùng');
+      return;
+    }
     _saveCfg({users:data},'Đã lưu người dùng');
   }
+  /**
+   * KHÔI PHỤC DANH SÁCH NGƯỜI DÙNG từ bản lưu.
+   *
+   * Máy chủ cất năm bản gần nhất mỗi lần bảng người dùng bị ghi đè. Ô "hồi lại lần lưu gần
+   * nhất" dùng chung cho mọi bảng cấu hình nên chỉ giữ được MỘT bảng — bảng nào ghi sau thì
+   * giành mất ô đó. Bảng người dùng mất là không ai đăng nhập được, nên nó có ô riêng.
+   *
+   * Khôi phục là GỘP, không đè: chỉ thêm lại ai đã mất, giữ nguyên ai đang có.
+   */
+  function moKhoiPhucUser(){
+    google.script.run.withSuccessHandler(function(ds){
+      ds=ds||[];
+      if(!ds.length){ toast('warn','Chưa có bản lưu nào — bản lưu chỉ sinh ra khi bảng người dùng bị ghi đè.'); return; }
+      var d=['Chọn bản lưu để khôi phục (gộp thêm người đã mất, KHÔNG xóa ai đang có):',''];
+      ds.forEach(function(b){
+        d.push(b.i+') '+(b.luc||'?')+'  ·  '+b.so+' người'+(b.boi?('  ·  bởi '+b.boi):''));
+        if(b.ten&&b.ten.length) d.push('     '+b.ten.join(', ')+(b.so>b.ten.length?' …':''));
+      });
+      d.push('','Gõ số của bản muốn khôi phục:');
+      var c=prompt(d.join('\n'),'0');
+      if(c===null) return;
+      c=parseInt(c,10); if(isNaN(c)){ toast('warn','Phải gõ một con số'); return; }
+      loading(true);
+      google.script.run.withSuccessHandler(function(r){ loading(false);
+        if(r&&r.success){ toast('ok','Đã thêm lại '+(r.them||0)+' người · tổng '+(r.tong||0)); _log('Khôi phục người dùng','bản '+c, (r.them||0)+' người'); loadCfg(); }
+        else toast('err',(r&&r.error)||'Lỗi');
+      }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).khoiPhucUsers(c);
+    }).withFailureHandler(function(e){toast('err',e.message);}).listUserBak();
+  }
+
   // ---- Ma trận phân quyền (Admin) ----
   function renderQuyen(){
     if(!coCauHinh()) return;

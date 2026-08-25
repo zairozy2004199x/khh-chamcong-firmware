@@ -23,7 +23,9 @@ class VHCP_API {
 	private static function required_roles( $fn ) {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
-		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay' );
+		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
+			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
+			'listUserBak', 'khoiPhucUsers' );
 		// Việc của NGƯỜI DUYỆT / KẾ TOÁN — nhân viên KHÔNG được gọi, bất kể bảng phân quyền
 		// khai gì. Bảng đó nạp từ bảng tính cũ có thể lệch cột, mà đây là chỗ đụng tới tiền
 		// của người khác nên phải chốt ở máy chủ.
@@ -149,6 +151,8 @@ class VHCP_API {
 			'saveConfig'            => array( 'VHCP_Cfg', 'save_config' ),
 			'undoConfig'            => array( 'VHCP_Cfg', 'undo_config' ),
 			'getUsers'              => array( 'VHCP_Cfg', 'get_users' ),
+			'listUserBak'           => array( 'VHCP_Cfg', 'list_user_bak' ),
+			'khoiPhucUsers'         => array( 'VHCP_Cfg', 'khoi_phuc_users' ),
 			'getQuyen'              => array( 'VHCP_Cfg', 'get_quyen' ),
 			'getQuyenConfig'        => array( 'VHCP_Cfg', 'get_quyen_config' ),
 			'setQuyen'              => array( 'VHCP_Cfg', 'set_quyen' ),

@@ -444,6 +444,42 @@ class VHCP_Cfg {
 		$cfg = (array) $cfg;
 		$g   = function ( $row, $key ) { return isset( $row[ $key ] ) ? (string) $row[ $key ] : ''; };
 
+		/* ==================================================================================
+		 * 🔴 CHỐT CHẶN XÓA TRẮNG BẢNG NGƯỜI DÙNG — kiểm TRƯỚC KHI ghi bất cứ bảng nào.
+		 *
+		 * Chuyện đã xảy ra thật ngày 25/08/2026: màn Cấu hình mở ra, bảng "Người dùng & Phân
+		 * quyền" trống trơn, toàn bộ phân quyền từng nhân viên biến mất.
+		 *
+		 * Đường đi của tai nạn: `getUsers` lỗi một nhịp (mạng, 403 của tường lửa, hết phiên)
+		 * -> giao diện nuốt lỗi và vẽ bảng RỖNG, trông y hệt "chưa khai ai" -> người ta bấm
+		 * 💾 Lưu -> gửi lên `users: []` -> ghi đè sạch bảng.
+		 *
+		 * Một lần bấm nhầm không được phép xóa hết tài khoản của cả công ty. Muốn xóa thật
+		 * thì phải nói rõ bằng cờ `usersXoaHet` — cờ đó chỉ đặt được khi người ta bấm qua một
+		 * hộp xác nhận riêng, không phải nút Lưu thường ngày.
+		 *
+		 * Kiểm ở ĐẦU hàm, không phải tới lượt ghi bảng users: các bảng khác đã ghi xong rồi
+		 * mới báo lỗi là nửa lưu nửa không, còn tệ hơn.
+		 * ================================================================================== */
+		if ( isset( $cfg['users'] ) && is_array( $cfg['users'] ) ) {
+			$co_ten = 0;
+			foreach ( $cfg['users'] as $x0 ) {
+				$x0 = (array) $x0;
+				if ( isset( $x0['ten'] ) && trim( (string) $x0['ten'] ) !== '' ) { $co_ten++; }
+			}
+			$dang_co = self::count_rows( self::USER );
+			if ( 0 === $co_ten && $dang_co > 0 && empty( $cfg['usersXoaHet'] ) ) {
+				return VHCP_Util::err(
+					'Không lưu: danh sách người dùng gửi lên đang RỖNG trong khi bảng có ' . $dang_co
+					. ' người. Nhiều khả năng bảng chưa tải xong. Tải lại trang rồi thử lại — '
+					. 'dữ liệu cũ vẫn còn nguyên.'
+				);
+			}
+			/* Còn dữ liệu thì cất một bản trước khi đè. Bản lưu của `cfg_undo` chỉ có MỘT ô và
+			   bị bảng ghi sau giành mất, nên không tin được cho việc này. */
+			if ( $dang_co > 0 ) { self::sao_luu_users(); }
+		}
+
 		if ( isset( $cfg['coso'] ) && is_array( $cfg['coso'] ) ) {
 			$rows = array();
 			// Giữ lại ngày ĐÓNG CỬA khi dữ liệu gửi lên không mang theo — bảng cơ sở trên
@@ -1436,5 +1472,87 @@ class VHCP_Cfg {
 	public static function get_users() {
 		$s = self::cfg_static();   // đã gồm bảng người dùng, có cache 5 phút
 		return isset( $s['users'] ) ? $s['users'] : array();
+	}
+
+	/* ==========================================================================================
+	 *  BẢN LƯU RIÊNG CHO BẢNG NGƯỜI DÙNG
+	 *
+	 *  `cfg_undo` chỉ giữ được MỘT bảng — bảng nào ghi sau thì giành mất ô đó. Lưu cấu hình
+	 *  thường ghi liền mấy bảng, nên tới lúc cần hồi lại người dùng thì ô ấy đang giữ bảng SSO.
+	 *  Bảng người dùng là thứ mất đi thì không ai đăng nhập được nữa, nên nó có ô riêng, giữ
+	 *  NĂM bản gần nhất kèm mốc thời gian.
+	 * ========================================================================================== */
+	const BAK_MAX = 5;
+
+	private static function sao_luu_users() {
+		$rows = self::read( self::USER );
+		if ( ! count( $rows ) ) { return; }
+		$ds = VHCP_Meta::get_json( 'users_bak', array() );
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		/* Bản mới nhất lên đầu. Trùng y hệt bản đầu thì bỏ qua — bấm Lưu ba lần không đẩy
+		   ba bản giống nhau vào rồi hất bản cũ thật ra khỏi danh sách. */
+		if ( isset( $ds[0]['rows'] ) && wp_json_encode( $ds[0]['rows'] ) === wp_json_encode( $rows ) ) { return; }
+		array_unshift( $ds, array(
+			'luc'   => current_time( 'mysql' ),
+			'boi'   => (string) VHCP_Auth::nguoi(),
+			'so'    => count( $rows ),
+			'rows'  => $rows,
+		) );
+		VHCP_Meta::set_json( 'users_bak', array_slice( $ds, 0, self::BAK_MAX ) );
+	}
+
+	/** listUserBak(): các bản lưu đang có — KHÔNG kèm PIN, chỉ đủ để chọn. */
+	public static function list_user_bak() {
+		$ds  = VHCP_Meta::get_json( 'users_bak', array() );
+		$out = array();
+		foreach ( (array) $ds as $i => $b ) {
+			$ten = array();
+			foreach ( (array) ( isset( $b['rows'] ) ? $b['rows'] : array() ) as $r ) {
+				$r = array_values( (array) $r );
+				if ( isset( $r[0] ) && trim( (string) $r[0] ) !== '' ) { $ten[] = (string) $r[0]; }
+			}
+			$out[] = array(
+				'i'   => $i,
+				'luc' => isset( $b['luc'] ) ? $b['luc'] : '',
+				'boi' => isset( $b['boi'] ) ? $b['boi'] : '',
+				'so'  => count( $ten ),
+				'ten' => array_slice( $ten, 0, 12 ),
+			);
+		}
+		return $out;
+	}
+
+	/**
+	 * khoiPhucUsers(): đưa bảng người dùng về một bản lưu.
+	 *
+	 * GỘP chứ không đè: giữ nguyên người đang có, chỉ thêm lại những ai trong bản lưu mà giờ
+	 * không còn. Đè thẳng là người mới khai sau lần lưu đó lại biến mất — vá một lỗ thủng bằng
+	 * cách đào một lỗ khác.
+	 */
+	public static function khoi_phuc_users( $i = 0 ) {
+		$ds = VHCP_Meta::get_json( 'users_bak', array() );
+		$i  = (int) $i;
+		if ( ! isset( $ds[ $i ]['rows'] ) ) { return VHCP_Util::err( 'Không có bản lưu số ' . $i ); }
+
+		$hien = self::read( self::USER );
+		$co   = array();
+		foreach ( $hien as $r ) {
+			$r = array_values( (array) $r );
+			$k = mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) );
+			if ( '' !== $k ) { $co[ $k ] = 1; }
+		}
+		$them = 0;
+		foreach ( (array) $ds[ $i ]['rows'] as $r ) {
+			$r = array_values( (array) $r );
+			$k = mb_strtolower( trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) );
+			if ( '' === $k || isset( $co[ $k ] ) ) { continue; }
+			$hien[] = $r;
+			$co[ $k ] = 1;
+			$them++;
+		}
+		if ( ! $them ) { return VHCP_Util::ok( array( 'them' => 0, 'tong' => count( $hien ) ) ); }
+		self::write( self::USER, $hien );
+		self::clear_cache();
+		return VHCP_Util::ok( array( 'them' => $them, 'tong' => count( $hien ) ) );
 	}
 }
