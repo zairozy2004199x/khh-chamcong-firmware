@@ -98,9 +98,24 @@
 
   /* ---------------------------------------------------------------- worker */
 
+  /**
+   * Địa chỉ file worker. Bản thường dùng đường dẫn tương đối; bản đóng thành một
+   * trang đơn (không có file rời) đặt sẵn biến này thành một blob URL.
+   */
+  function workerUrl() {
+    return (typeof window.VATREC_WORKER_URL === 'string' && window.VATREC_WORKER_URL)
+      ? window.VATREC_WORKER_URL
+      : 'js/worker.js';
+  }
+
   function ensureWorker() {
     if (worker) return worker;
-    worker = new Worker('js/worker.js');
+    try {
+      worker = new Worker(workerUrl());
+    } catch (err) {
+      showError('Trình duyệt không tạo được luồng xử lý nền: ' + err.message);
+      throw err;
+    }
     worker.onmessage = function (event) { onWorkerMessage(event.data || {}); };
     worker.onerror = function (event) {
       showError('Lỗi trong luồng xử lý: ' + (event.message || 'không rõ nguyên nhân'));

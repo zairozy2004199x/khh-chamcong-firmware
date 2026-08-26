@@ -4,7 +4,7 @@ Tags: ke-toan, hoa-don, doi-soat, excel, vat
 Requires at least: 5.6
 Tested up to: 6.7
 Requires PHP: 7.2
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: MIT
 
 Gộp sao kê thu hộ từ nhiều cổng thanh toán, quy về điểm xuất hoá đơn, tách VAT
@@ -19,6 +19,14 @@ sinh file Excel gồm danh sách hoá đơn, bản kê chi tiết, pivot theo ng
 
 Xuất hoá đơn theo hai kiểu: gộp cả kỳ (mỗi điểm một hoá đơn) hoặc theo từng ngày
 (mỗi điểm mỗi ngày một dòng).
+
+= Địa chỉ web =
+
+Plugin mở một địa chỉ gọn ngay trên tên miền, ví dụ https://tenmien.com/doi-soat-vat/
+Địa chỉ hiện ở đầu trang quản trị kèm nút sao chép.
+
+Mặc định phải đăng nhập WordPress mới mở được. Muốn gửi cho người ngoài thì tick
+"Cho người chưa đăng nhập dùng địa chỉ này" rồi Lưu.
 
 = Về dữ liệu =
 
@@ -43,13 +51,22 @@ Chỉ tài khoản có quyền `manage_options` (thường là Quản trị viê
 
 Không. File được đọc bằng JavaScript trong trình duyệt, không rời khỏi máy bạn.
 
-= Vì sao trang trống hoặc báo lỗi tải? =
+= Địa chỉ /doi-soat-vat/ báo 404 =
+
+WordPress chưa dựng lại bảng đường dẫn. Vào Cài đặt → Đường dẫn tĩnh và bấm Lưu
+một lần. Trong lúc đó dùng đường dẫn dự phòng in ở trang quản trị.
+
+= Vì sao khung công cụ trong trang quản trị bị trống? =
 
 Một số cấu hình bảo mật chặn truy cập file .html trong thư mục plugin. Bấm
 "Mở ở tab mới" để kiểm tra; nếu báo 403 thì cần cho phép đọc file tĩnh trong
 wp-content/plugins/doi-soat-vat/web/.
 
 == Changelog ==
+
+= 1.1.0 =
+* Thêm địa chỉ web gọn cho công cụ, kèm tuỳ chọn cho người chưa đăng nhập dùng.
+* Trang quản trị hiện địa chỉ kèm nút sao chép và đường dẫn dự phòng.
 
 = 1.0.0 =
 * Bản đầu tiên.

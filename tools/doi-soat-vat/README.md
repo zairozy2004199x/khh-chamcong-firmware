@@ -42,16 +42,37 @@ Sau đó mở mục **Đối soát VAT** ở menu bên trái.
 > Zip của trang tĩnh (`web/`) **không** cài được bằng đường này — WordPress sẽ báo
 > "Không tìm thấy gói mở rộng hợp lệ". Phải dùng zip do `dong-goi.sh` sinh ra.
 
+### Địa chỉ web của công cụ
+
+Plugin mở một địa chỉ gọn ngay trên tên miền:
+
+```
+https://tenmien.com/doi-soat-vat/
+```
+
+Địa chỉ này hiện ngay đầu trang quản trị kèm nút sao chép, gửi cho ai cũng được.
+
+**Mặc định phải đăng nhập WordPress mới mở được.** Muốn gửi cho người ngoài thì
+tick "Cho người chưa đăng nhập dùng địa chỉ này" rồi Lưu. Sao kê vẫn không rời
+khỏi máy người dùng trong cả hai trường hợp — điều thay đổi chỉ là *ai được dùng
+công cụ*, không phải dữ liệu đi đâu.
+
+Nếu địa chỉ báo 404: vào Cài đặt → Đường dẫn tĩnh, bấm Lưu một lần để WordPress
+dựng lại bảng đường dẫn. Trang quản trị cũng in kèm đường dẫn dự phòng trỏ thẳng
+vào file, dùng được ngay không cần rewrite.
+
 ### Plugin làm gì
 
-Chỉ hai việc: thêm một mục vào menu quản trị, và nhúng trang công cụ vào đó bằng
-iframe. Không có endpoint nào nhận dữ liệu, không ghi gì vào cơ sở dữ liệu.
-Dùng iframe thay vì in thẳng ra trang vì giao diện công cụ có bộ CSS riêng, in
-thẳng vào trang quản trị thì hai bên đè nhau.
+Chỉ ba việc: thêm một mục vào menu quản trị, mở địa chỉ web ở trên, và nhớ xem
+địa chỉ đó có cho người ngoài vào hay không. Không có endpoint nào nhận dữ liệu,
+không tạo bảng nào trong cơ sở dữ liệu.
 
-Nếu máy chủ chặn truy cập file `.html` trong thư mục plugin thì iframe sẽ trống —
-bấm "Mở ở tab mới" để xem lỗi thật; cần cho phép đọc file tĩnh trong
-`wp-content/plugins/doi-soat-vat/web/`.
+Trang công khai được in ra từ chính `web/index.html`, chỉ chèn thêm một thẻ
+`<base>` để mọi đường dẫn tương đối (CSS, JS, Web Worker) trỏ về thư mục plugin —
+nhờ vậy giao diện chỉ có một bản duy nhất, không phải chép lại vào PHP.
+
+Trong trang quản trị thì công cụ được nhúng bằng iframe, vì giao diện của nó có
+bộ CSS riêng, in thẳng vào trang quản trị thì hai bên đè nhau.
 
 ---
 
@@ -359,6 +380,14 @@ Chưa khai ánh xạ gian hàng Zalo sang điểm xuất hoá đơn. Xem mục 4
 
 **WordPress báo "Không tìm thấy gói mở rộng hợp lệ".**
 Đang cài nhầm zip của trang tĩnh. Chạy `wordpress/dong-goi.sh` để lấy zip plugin.
+
+**Địa chỉ `/doi-soat-vat/` báo 404.**
+WordPress chưa dựng lại bảng đường dẫn. Vào Cài đặt → Đường dẫn tĩnh và bấm Lưu.
+Dùng tạm đường dẫn dự phòng in ở trang quản trị trong lúc đó.
+
+**Muốn địa chỉ khác `/doi-soat-vat/`.**
+Sửa hằng `DSVAT_SLUG` trong `doi-soat-vat.php`, rồi vào Cài đặt → Đường dẫn tĩnh
+bấm Lưu.
 
 **Muốn nâng cấp SheetJS.**
 Đọc `web/vendor/README.md` trước — gói `xlsx` trên npm đứng yên ở 0.18.5 và dính
