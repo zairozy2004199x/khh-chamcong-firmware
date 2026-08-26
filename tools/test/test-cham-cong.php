@@ -5792,6 +5792,198 @@ foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f ) {
 t( 'mã plugin không có câu HƯỚNG DẪN nào gắn với một nhà cung cấp',
 	count( $nhac_ncc ) === 0, implode( ', ', $nhac_ncc ) );
 
+// ====== 48. MÀN QUẢN TRỊ CÔNG CƠ SỞ — dựng theo ĐÚNG tab "Chấm công" của bản Apps Script
+/* Anh Thắng 26/08/2026: *"anh đã gửi code và wed appscript em làm y như mẫu đó"*, *"theo mẫu
+   giao diện đó đi, sau đó anh sửa sau"*. Nên bộ thử này canh theo BẢN GỐC, không canh theo cái
+   lưới người × ngày mà bản WordPress tự nghĩ ra trước đó:
+
+       · bộ lọc năm ô  : Bộ phận · Cơ sở · Tháng · Ngày · Nhân viên
+       · bảng chi tiết : Ngày · Mã NV · Họ tên · Hàng · Giờ vào · Giờ ra · Giờ làm · Kiểm tra
+       · bảng tổng     : Mã NV · Họ tên · Ngày công · Ngày thiếu giờ ra · Tổng giờ làm
+
+   ⚠️ Chỗ dễ trượt nhất KHÔNG phải cột nào — mà là hai chi tiết lặng lẽ: bảng tổng có bị ô Ngày
+      kéo tụt xuống còn một ngày không, và `phut_lam` có tự cộng 24 giờ cho hàng ra < vào không.
+      Cả hai đều KHÔNG báo lỗi khi sai, chỉ ra một con số trông hợp lý. */
+
+/* ---- phut_lam: bản dịch `_workMin` ---- */
+teq( 'phut_lam 08:00 -> 17:00 = 540 phút', 540,
+	VHCC_Cham::phut_lam( VHCC_DB::giay( '08:00:00' ), VHCC_DB::giay( '17:00:00' ) ) );
+teq( 'phut_lam làm tròn tới phút (08:00:00 -> 08:00:40 = 1)', 1,
+	VHCC_Cham::phut_lam( VHCC_DB::giay( '08:00:00' ), VHCC_DB::giay( '08:00:40' ) ) );
+teq( 'thiếu giờ ra -> null', null, VHCC_Cham::phut_lam( VHCC_DB::giay( '08:00:00' ), null ) );
+teq( 'thiếu giờ vào -> null', null, VHCC_Cham::phut_lam( null, VHCC_DB::giay( '17:00:00' ) ) );
+teq( 'chuỗi rỗng cũng -> null', null, VHCC_Cham::phut_lam( '', '' ) );
+/* 🔴 Chốt quan trọng nhất của mục này. Ra < vào ở MÀN SOÁT là dấu hiệu ghi sai (ca đêm đã được
+   trải sang hàng -CD từ trước), nên phải để "—" đập vào mắt người soát. Cộng thêm 24 giờ như
+   `VHCC_Luong::phut_ca` làm là lặng lẽ chữa lành một con số đáng lẽ phải bị nhìn. */
+teq( 'RA SỚM HƠN VÀO -> null, KHÔNG tự cộng 24 giờ', null,
+	VHCC_Cham::phut_lam( VHCC_DB::giay( '17:00:00' ), VHCC_DB::giay( '08:00:00' ) ) );
+/* ⚠️ `phut_ca` nhận PHÚT (17:00 = 1020), `phut_lam` nhận GIÂY — hai đơn vị khác nhau, nên đừng
+   gộp hai hàm này lại "cho gọn": gộp là một trong hai bên nhận sai đơn vị mà vẫn ra số. */
+teq( 'và đó là chỗ CỐ Ý khác VHCC_Luong::phut_ca (bên lương vẫn cộng trọn vòng 24h, kẻo trừ tiền người ta)',
+	900, VHCC_Luong::phut_ca( 17 * 60, 8 * 60 ) );
+
+/* ---- chu_gio: bản dịch `_fmtHrsTxt` ---- */
+teq( 'chu_gio 540 -> "9h"', '9h', VHCC_Cham::chu_gio( 540 ) );
+teq( 'chu_gio 510 -> "8h 30m"', '8h 30m', VHCC_Cham::chu_gio( 510 ) );
+teq( 'chu_gio 45 -> "0h 45m"', '0h 45m', VHCC_Cham::chu_gio( 45 ) );
+teq( 'chu_gio null -> "—" (dấu hiệu sai, không phải "0h")', '—', VHCC_Cham::chu_gio( null ) );
+
+/* ---- gom_tong: bản dịch `ccGomTong` ---- */
+$gt_hang = array(
+	array( 'ngay' => '2026-07-01', 'maNV' => 'GT1', 'hoTen' => 'Bê', 'hauTo' => '',
+		'vao' => '08:00:00', 'ra' => '17:00:00', 'phut' => 540 ),
+	/* CÙNG NGÀY, hàng ca đêm -> vẫn phải là MỘT ngày công, nhưng giờ thì cộng dồn. */
+	array( 'ngay' => '2026-07-01', 'maNV' => 'GT1', 'hoTen' => 'Bê', 'hauTo' => 'CD',
+		'vao' => '18:00:00', 'ra' => '20:00:00', 'phut' => 120 ),
+	array( 'ngay' => '2026-07-02', 'maNV' => 'GT1', 'hoTen' => 'Bê', 'hauTo' => '',
+		'vao' => '08:00:00', 'ra' => '', 'phut' => null ),
+	array( 'ngay' => '2026-07-01', 'maNV' => 'GT2', 'hoTen' => 'A', 'hauTo' => '',
+		'vao' => '', 'ra' => '', 'phut' => null ),
+);
+$gt = VHCC_Cham::gom_tong( $gt_hang );
+teq( 'gom_tong gom đúng hai người', 2, count( $gt ) );
+teq( 'xếp theo HỌ TÊN chứ không theo thứ tự gặp ("A" trước "Bê")', 'GT2', $gt[0]['maNV'] );
+$gt1 = ( 'GT1' === $gt[0]['maNV'] ) ? $gt[0] : $gt[1];
+teq( 'ngày công đếm NGÀY RIÊNG BIỆT — hai hàng cùng ngày vẫn là 1', 2, $gt1['ngay'] );
+teq( 'tổng phút cộng cả hàng chính lẫn hàng -CD', 660, $gt1['phut'] );
+teq( 'đếm đúng 1 ngày thiếu giờ ra', 1, $gt1['thieu'] );
+$gt2 = ( 'GT2' === $gt[0]['maNV'] ) ? $gt[0] : $gt[1];
+teq( 'hàng TRỐNG HẲN không tính là "quên check-out" (đó là ngày không đi làm)', 0, $gt2['thieu'] );
+
+/* ---- bang_cham_cong: mỗi hàng phải mang sẵn `phut`, và có khoá `tong` ---- */
+vhcc_cham( 'TUTU_BT', '2026-07-06', 'QTC1', '', '08:00:00', '17:30:00' );
+vhcc_cham( 'TUTU_BT', '2026-07-07', 'QTC1', '', '08:05:00', null );          // quên bấm lúc về
+vhcc_cham( 'TUTU_BT', '2026-07-06', 'QTC2', '', '09:00:00', '18:00:00' );
+$u_qtc = array( 'name' => 'Admin QTC', 'role' => 'Admin', 'coso' => '' );
+$b_qtc = VHCC_Cham::bang_cham_cong( $u_qtc, 'TUTU_BT', '2026-07' );
+t( 'bang_cham_cong chạy được', ! empty( $b_qtc['ok'] ), $b_qtc );
+t( 'trả về khoá `tong` sẵn — hai bảng đi từ MỘT mảng, không có công thức thứ hai',
+	isset( $b_qtc['tong'] ) && is_array( $b_qtc['tong'] ) );
+$h_qtc1 = null;
+foreach ( $b_qtc['hang'] as $r_qtc ) {
+	if ( 'QTC1' === $r_qtc['maNV'] && '2026-07-06' === $r_qtc['ngay'] ) { $h_qtc1 = $r_qtc; }
+}
+t( 'mỗi hàng mang sẵn số phút đã tính', is_array( $h_qtc1 ) && 570 === $h_qtc1['phut'], $h_qtc1 );
+t( 'và mang cả `nguon` để biết giờ từ máy hay từ trạm online',
+	is_array( $h_qtc1 ) && isset( $h_qtc1['nguon'] ) );
+
+/* ---- màn hình: bộ lọc năm ô + hai bảng ---- */
+/* Mục 47 ở trên vừa thử "đổi nguồn người dùng" nên nguồn đang là `chung`, mà `VHCC_NguoiDung::luu`
+   thì ghi vào sổ RIÊNG — khai tài khoản kiểu gì cũng không đăng nhập được. Đặt lại nguồn rồi mới
+   khai, kẻo mọi phép dưới đây chỉ đang soi cái màn đăng nhập mà tưởng là soi bảng công. */
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+$r_khai_qtc = VHCC_NguoiDung::luu( '', 'Admin Soát Công', '135791', 'Admin', '' );
+t( 'khai được một Admin để soi màn bảng công', ! empty( $r_khai_qtc['ok'] ), $r_khai_qtc );
+$h_vao_qtc = vhcc_web( '135791' );
+t( 'Admin vừa khai vào được trang quản trị (kẻo phép dưới soi nhầm màn đăng nhập)',
+	strpos( $h_vao_qtc, 'name="pin"' ) === false, $h_vao_qtc );
+
+$g_qtc = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' );
+$h_qtc = vhcc_web( '135791', array(), $g_qtc );
+foreach ( array( 'cbp' => 'Bộ phận', 'ccs' => 'Cơ sở', 'cth' => 'Tháng',
+	'cng' => 'Ngày', 'cnv' => 'Nhân viên' ) as $o_qtc => $nhan_qtc ) {
+	t( 'màn có ô lọc ' . $nhan_qtc . ' (name="' . $o_qtc . '")',
+		strpos( $h_qtc, 'name="' . $o_qtc . '"' ) !== false, $h_qtc );
+}
+foreach ( array( 'Ngày', 'Mã NV', 'Họ tên', 'Hàng', 'Giờ vào', 'Giờ ra', 'Giờ làm', 'Kiểm tra' ) as $c_qtc ) {
+	t( 'bảng chi tiết có cột "' . $c_qtc . '"', strpos( $h_qtc, '<th>' . $c_qtc . '</th>' ) !== false );
+}
+foreach ( array( 'Ngày công', 'Ngày thiếu giờ ra', 'Tổng giờ làm' ) as $c_qtc ) {
+	t( 'bảng tổng có cột "' . $c_qtc . '"', strpos( $h_qtc, '<th>' . $c_qtc . '</th>' ) !== false );
+}
+t( 'in ra giờ làm đã quy đổi ("9h 30m") chứ không phải số phút trần',
+	strpos( $h_qtc, '9h 30m' ) !== false, $h_qtc );
+t( 'hàng thiếu giờ ra được tô cả DÒNG', strpos( $h_qtc, '<tr class="hong">' ) !== false, $h_qtc );
+t( 'và cột Giờ ra ghi thẳng chữ "thiếu"', strpos( $h_qtc, '>thiếu</td>' ) !== false );
+/* Tô nền bằng class thì phải CÓ luật CSS cho class đó. Thiếu luật là hỏng không kêu tiếng nào:
+   thuộc tính có trong HTML, mà màu thì không bao giờ lên. */
+t( 'và có LUẬT CSS cho tr.hong (thuộc tính có mà thiếu luật là tô hụt trong im lặng)',
+	strpos( $h_qtc, 'tr.hong>td' ) !== false, $h_qtc );
+t( 'màn này vẫn KHÔNG có ô nhập giờ nào — chỉ đọc, y như trước',
+	! preg_match( '/name="(gio_vao|gio_ra|vao|ra)"/', $h_qtc ), $h_qtc );
+
+/* ---- lọc theo NGÀY: kéo bảng chi tiết, KHÔNG kéo bảng tổng ---- */
+$g_ng = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cng' => '2026-07-06' );
+$h_ng = vhcc_web( '135791', array(), $g_ng );
+t( 'chọn một ngày thì bảng chi tiết bỏ ngày khác đi',
+	substr_count( $h_ng, '2026-07-07' ) < substr_count( $h_qtc, '2026-07-07' ), $h_ng );
+/* 🔴 Bảng tổng CỐ Ý không theo ngày — bản gốc `renderTotals` cũng vậy. Để nó tụt xuống một ngày
+   thì cột "Ngày công" luôn bằng 1 và cả bảng hết ý nghĩa. */
+/* ⚠️ Bám đúng MỘT DÒNG của bảng tổng, không dùng `.*?` bắc cầu: `.*?` với cờ /s vắt được qua
+   cả dòng khác, nên phép thử vẫn xanh trong khi bảng tổng đã tụt xuống còn một ngày. Đã thử
+   phá thật (cho bảng tổng ăn mảng đã lọc ngày) để chắc phép này đỏ. */
+$re_tong_qtc = '/<td>QTC1<\/td><td[^>]*>[^<]*<\/td><td>2<\/td><td[^>]*>1<\/td>/';
+t( 'bảng TỔNG (cả tháng, không lọc ngày) đúng: QTC1 có 2 ngày công, 1 ngày thiếu giờ ra',
+	preg_match( $re_tong_qtc, $h_qtc ) === 1, $h_qtc );
+t( 'chọn một ngày thì bảng TỔNG VẪN THẾ — ô Ngày chỉ kéo bảng chi tiết',
+	preg_match( $re_tong_qtc, $h_ng ) === 1, $h_ng );
+t( 'và màn nói rõ với người dùng chuyện đó', strpos( $h_ng, 'cả tháng' ) !== false );
+
+/* ---- lọc theo MÃ NV: kéo cả hai bảng ---- */
+$h_nv = vhcc_web( '135791', array(),
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cnv' => 'QTC1' ) );
+t( 'lọc theo mã NV thì bảng chi tiết chỉ còn người đó',
+	strpos( $h_nv, 'QTC1' ) !== false && strpos( $h_nv, 'QTC2' ) === false, $h_nv );
+t( 'lọc theo mã NV KHÔNG phân biệt hoa thường',
+	strpos( vhcc_web( '135791', array(),
+		array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cnv' => 'qtc1' ) ),
+		'QTC1' ) !== false );
+
+/* ---- nút 🚩: điền sẵn bằng ĐƯỜNG LIÊN KẾT, không bằng JavaScript ---- */
+/* Cả màn quản trị này không có lấy một dòng script. Thêm một dòng vào đây là mở ra một thứ chỉ
+   chạy khi trình duyệt chịu chạy, mà lại KHÔNG thử được bằng bộ thử PHP. */
+t( 'màn quản trị KHÔNG có thẻ <script> nào', stripos( $h_qtc, '<script' ) === false, $h_qtc );
+t( 'và không có thuộc tính onclick/onerror nào trong HTML',
+	! preg_match( '/\son(click|error|load|change|submit)=/i', $h_qtc ), $h_qtc );
+t( 'nút 🚩 là đường liên kết chở sẵn ngày', strpos( $h_qtc, 'gnd=2026-07-06' ) !== false, $h_qtc );
+t( 'và chở sẵn mã nhân viên', strpos( $h_qtc, 'gma=QTC1' ) !== false );
+t( 'và neo xuống đúng khối gắn cờ', strpos( $h_qtc, '#gancoform' ) !== false );
+t( 'khối gắn cờ có cái neo ấy để nhảy tới', strpos( $h_qtc, 'id="gancoform"' ) !== false );
+$h_dien = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
+	'cth' => '2026-07', 'gnd' => '2026-07-07', 'gma' => 'QTC1', 'gten' => 'Người QTC1' ) );
+t( 'bấm 🚩 thì ô Ngày của khối gắn cờ được điền sẵn',
+	strpos( $h_dien, 'id="co_ngay" name="ngay" type="date" required value="2026-07-07"' ) !== false, $h_dien );
+t( 'ô Mã NV cũng được điền sẵn', strpos( $h_dien, 'value="QTC1"' ) !== false );
+/* Điền sẵn NGÀY và MÃ thôi — lý do thì người ta phải tự gõ. Cờ không có lý do thì người đọc cờ
+   chẳng biết phải kiểm cái gì, mà cờ ấy vẫn nằm đó chờ ai đó xử lý. */
+t( 'nhưng LÝ DO vẫn để trống, bắt người gắn phải tự gõ',
+	preg_match( '/id="co_nd"[^>]*>\s*<\/textarea>/', $h_dien ) === 1, $h_dien );
+t( 'và màn nói rõ là còn thiếu lý do', strpos( $h_dien, 'còn thiếu lý do' ) !== false );
+
+/* ---- cờ đã gắn thì cột Kiểm tra phải BIẾT ---- */
+/* 🔴 `$b['co']` là hàng đọc thẳng từ bảng `ghi_chu` (khoá gạch dưới: ma_nv, ghi_chu,
+   trang_thai), còn mảng `hang` dùng khoá lưng lạc đà. Hai kiểu khoá nằm cạnh nhau trong cùng
+   một hàm — gõ nhầm thì cột Kiểm tra im lặng hiện 🚩 cho cả ngày ĐÃ có cờ, không báo gì. */
+VHCC_Cham::luu_ghi_chu( $u_qtc, array( 'coso' => 'TUTU_BT', 'ngay' => '2026-07-07',
+	'ma_nv' => 'QTC1', 'ho_ten' => 'Người QTC1', 'ghi_chu' => 'quên check-out' ) );
+$h_co = vhcc_web( '135791', array(), $g_qtc );
+t( 'ngày đã có cờ thì cột Kiểm tra ghi "đã gắn cờ", không mời gắn lần nữa',
+	strpos( $h_co, 'đã gắn cờ' ) !== false, $h_co );
+t( 'và rê chuột đọc được lý do (đúng khoá gạch dưới của bảng ghi_chu)',
+	strpos( $h_co, 'title="quên check-out"' ) !== false, $h_co );
+/* Cờ ĐÃ XỬ LÝ thì phải mời gắn cờ MỚI được — nếu không, một ngày sai lần thứ hai sẽ đứng sau
+   cái cờ cũ đã đóng, và không ai gắn được cờ mới cho nó. */
+$co_ds_qtc = VHCC_Cham::ds_ghi_chu( $u_qtc, 'TUTU_BT', '2026-07' );
+VHCC_Cham::xu_ly_ghi_chu( $u_qtc, $co_ds_qtc[0]['flag_id'], 'đã hỏi, quên thật' );
+$h_xong = vhcc_web( '135791', array(), $g_qtc );
+t( 'cờ đã xử lý xong thì cột Kiểm tra mời gắn cờ MỚI, không kẹt ở cái cờ cũ',
+	strpos( $h_xong, 'đã gắn cờ' ) === false
+	&& strpos( $h_xong, 'gnd=2026-07-07' ) !== false, $h_xong );
+
+/* ---- bộ lọc phải SỐNG SÓT qua một lượt POST ---- */
+/* Gắn cờ xong mà bảng nhảy về cơ sở khác / tháng khác thì người ta phải chọn lại từ đầu cho
+   từng cái cờ. Ô ẩn `o_loc` chở bộ lọc qua, nên MỌI tham số lọc phải có tên trong THAM_SO. */
+foreach ( array( 'cbp', 'ccs', 'cth', 'cng', 'cnv' ) as $k_ts ) {
+	t( 'tham số lọc "' . $k_ts . '" có trong THAM_SO (thiếu là gắn cờ xong mất bộ lọc)',
+		in_array( $k_ts, VHCC_Web::THAM_SO, true ) );
+}
+
+/* ---- lưới người × ngày của bản cũ đã đi hẳn, không để lại hàm mồ côi ---- */
+$than_web_qtc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( 've_luoi_cham (lưới cũ) đã bỏ hẳn, không còn nằm chết trong tệp',
+	strpos( $than_web_qtc, 've_luoi_cham' ) === false );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

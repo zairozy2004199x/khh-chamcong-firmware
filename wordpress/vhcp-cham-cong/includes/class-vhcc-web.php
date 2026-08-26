@@ -188,7 +188,7 @@ class VHCC_Web {
 	}
 
 	/** Các tham số phải sống sót qua một lượt POST — bộ lọc, ô tìm, màn đang mở. */
-	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth' );
+	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv' );
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -742,6 +742,10 @@ class VHCC_Web {
 			/* Thiếu giờ ra: nền đỏ nhạt. Không dùng MỖI màu chữ — ô còn có chữ "?" để người mù
 			   màu và bản in đen trắng vẫn đọc được. */
 			. 'table.cc td.hong{background:#fef2f2;color:var(--do);font-weight:600}'
+			/* Cả DÒNG thiếu giờ ra ở bảng chi tiết. Luật riêng chứ không dùng chung với `td.hong`
+			   ở trên: `td.hong` tô MỘT ô của lưới, còn ở đây cờ nằm trên `<tr>`. Thiếu luật này
+			   thì thuộc tính có mà màu không lên — đúng kiểu hỏng không kêu tiếng nào. */
+			. 'table.cc tr.hong>td{background:#fef2f2}'
 			. 'table.cc td.cco{box-shadow:inset 0 0 0 2px var(--vang)}'
 			. 'table.cc td.tong{font-weight:700;background:#f8fafc}'
 			. '.duoi{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:0 5px;font-size:11px;font-weight:600}'
@@ -1066,23 +1070,71 @@ class VHCC_Web {
 		return $g . 'h' . ( $m ? sprintf( '%02d', $m ) : '' );
 	}
 
+	/**
+	 * MÀN QUẢN TRỊ CÔNG CƠ SỞ — dựng theo ĐÚNG tab "Chấm công" của bản Apps Script.
+	 *
+	 * Anh Thắng 26/08/2026: *"anh đã gửi code và web appscript, em làm y như mẫu đó"*. Nên màn
+	 * này không phải em tự nghĩ ra bố cục: nó là bản dịch của `<div id="v-dash">` trong
+	 * Index.html — cùng bộ lọc, cùng hai bảng, cùng quy ước màu.
+	 *
+	 *   · Bộ lọc: bộ phận · cơ sở · tháng · ngày · nhân viên
+	 *   · Bảng chi tiết: từng lượt một, dòng đỏ = thiếu giờ ra, nút 🚩 gắn cờ
+	 *   · Bảng tổng theo người: ngày công · ngày thiếu OUT · tổng giờ làm
+	 *
+	 * 🔴 HAI BẢNG ĐI TỪ CÙNG MỘT MẢNG. Bản gốc ghi rõ điều này ở chỗ xuất PDF — *"số trên PDF =
+	 *    số trên màn hình, không có công thức thứ hai"*. Giữ nguyên: `VHCC_Cham::gom_tong()`
+	 *    nhận chính mảng `hang` đã lọc, chứ không đi đọc lại cơ sở dữ liệu bằng một câu truy vấn
+	 *    khác. Hai đường đọc là hai con số, và không con nào giải thích được con kia.
+	 *
+	 * ⚠️ Bảng TỔNG cố ý KHÔNG lọc theo ngày — đúng bản gốc (`renderTotals` chỉ lọc tháng và
+	 *    nhân viên). Chọn một ngày để soi chi tiết thì bảng tổng vẫn là tổng CẢ THÁNG; nếu nó
+	 *    tụt xuống còn một ngày thì cột "Ngày công" luôn bằng 1 và mất hết ý nghĩa.
+	 */
 	private static function the_bang_cham( $ky, $toi ) {
 		$ds_cs = self::ds_coso_xem( $toi );
+		$bp    = isset( $_GET['cbp'] ) ? sanitize_text_field( wp_unslash( $_GET['cbp'] ) ) : '';
 		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
 		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		$ngay  = isset( $_GET['cng'] ) ? sanitize_text_field( wp_unslash( $_GET['cng'] ) ) : '';
+		$ma_nv = isset( $_GET['cnv'] ) ? sanitize_text_field( wp_unslash( $_GET['cnv'] ) ) : '';
 		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
-		/* Chưa chọn cơ sở mà người này chỉ có ĐÚNG MỘT thì mở luôn — bắt bấm thêm một cái để
-		   chọn thứ duy nhất có là bắt bấm vô ích. */
+
+		/* Lọc danh sách cơ sở theo bộ phận trước khi vẽ ô chọn — chọn bộ phận mà ô cơ sở vẫn
+		   liệt kê cả chuỗi thì cái lọc ấy không lọc gì. */
+		if ( '' !== $bp ) {
+			$loc = array();
+			foreach ( $ds_cs as $x ) {
+				if ( VHCC_Luong::bo_phan_cua( $x ) === $bp ) { $loc[] = $x; }
+			}
+			$ds_cs = $loc;
+			/* Cơ sở đang chọn rơi ra ngoài bộ phận vừa lọc thì bỏ chọn, đừng giữ lại một cơ sở
+			   không còn nằm trong danh sách — bảng sẽ hiện dữ liệu của một chỗ mà ô chọn không
+			   hề trỏ tới. */
+			if ( '' !== $cs && ! in_array( $cs, $ds_cs, true ) ) { $cs = ''; }
+		}
 		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
 
 		echo '<div class="the">';
-		echo '<h2>Bảng chấm công</h2>';
+		echo '<h2>Chấm công</h2>';
 		echo '<p class="mo">Màn này <b>chỉ đọc</b> giờ chấm công — không có nút nào sửa giờ. '
 			. 'Giờ chỉ vào bằng hai đường: máy chấm công và trạm chấm công online. '
 			. 'Thấy một ngày sai thì <b>gắn cờ</b>: cờ nằm cạnh, không đè lên giờ, và giữ lại lý do.</p>';
+
 		echo '<form method="get" class="hang" style="margin-top:10px">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
 		echo '<input type="hidden" name="man" value="cham">';
+
+		echo '<div><label for="cbp">Bộ phận</label><select id="cbp" name="cbp">';
+		echo '<option value="">— mọi bộ phận —</option>';
+		foreach ( VHCC_Luong::BP_DS as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $bp, false ) . '>'
+				. esc_html( $x ) . '</option>';
+		}
+		echo '<option value="' . esc_attr( VHCC_Luong::BP_CHUA_XEP ) . '"'
+			. selected( VHCC_Luong::BP_CHUA_XEP, $bp, false ) . '>'
+			. esc_html( VHCC_Luong::BP_CHUA_XEP ) . '</option>';
+		echo '</select></div>';
+
 		echo '<div><label for="ccs">Cơ sở</label><select id="ccs" name="ccs">';
 		echo '<option value="">— chọn cơ sở —</option>';
 		foreach ( $ds_cs as $x ) {
@@ -1090,15 +1142,22 @@ class VHCC_Web {
 				. esc_html( $x ) . '</option>';
 		}
 		echo '</select></div>';
+
 		echo '<div><label for="cth">Tháng</label><input id="cth" name="cth" type="month" value="'
 			. esc_attr( $th ) . '"></div>';
+		echo '<div><label for="cng">Ngày</label><input id="cng" name="cng" type="date" value="'
+			. esc_attr( $ngay ) . '" placeholder="cả tháng"></div>';
+		echo '<div><label for="cnv">Nhân viên</label><input id="cnv" name="cnv" value="'
+			. esc_attr( $ma_nv ) . '" placeholder="mã NV — trống = tất cả" style="width:170px"></div>';
 		echo '<div><button class="chinh">Xem</button></div>';
 		echo '</form>';
 
 		if ( '' === $cs ) {
 			echo '<p class="mo" style="margin-top:12px">'
 				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
-					: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' )
+					: ( '' !== $bp
+						? 'Không có cơ sở nào thuộc bộ phận này trong phạm vi của anh/chị.'
+						: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' ) )
 				. '</p></div>';
 			return;
 		}
@@ -1109,102 +1168,124 @@ class VHCC_Web {
 			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
 			return;
 		}
-		self::ve_luoi_cham( $b, $cs, $th, $ky, $toi );
+		self::ve_bang_cham( $b, $cs, $th, $ngay, $ma_nv, $ky, $toi );
 	}
 
-	/** Lưới người × ngày + khối cờ. Tách hàm để phần dựng lưới thử được riêng. */
-	private static function ve_luoi_cham( $b, $cs, $th, $ky, $toi ) {
-		$tt  = (string) $b['thang'];
-		$sn  = (int) gmdate( 't', (int) strtotime( $tt . '-01' ) );
-		$hom_nay = (string) current_time( 'Y-m-d' );
+	/**
+	 * Hai bảng của tab Chấm công: chi tiết từng lượt, rồi tổng theo người.
+	 * Tách hàm để phần dựng bảng thử được riêng, không phải dựng cả trang.
+	 */
+	private static function ve_bang_cham( $b, $cs, $th, $ngay, $ma_nv, $ky, $toi ) {
+		$tt   = (string) $b['thang'];
+		$hang = (array) $b['hang'];
 
-		/* Gom theo NGƯỜI. Khoá là mã + hậu tố: hàng `-CD` (ca đêm) và `-TC` (tăng cường) là
-		   HÀNG RIÊNG trong bảng công, gộp vào hàng chính là mất chỗ để nhìn ra ca đêm. */
-		$nguoi = array();
-		$o     = array();
-		foreach ( (array) $b['hang'] as $r ) {
-			$k = $r['maNV'] . '|' . $r['hauTo'];
-			if ( ! isset( $nguoi[ $k ] ) ) {
-				$nguoi[ $k ] = array( 'ma' => $r['maNV'], 'duoi' => $r['hauTo'], 'ten' => $r['hoTen'] );
-			}
-			if ( '' === $nguoi[ $k ]['ten'] && '' !== $r['hoTen'] ) { $nguoi[ $k ]['ten'] = $r['hoTen']; }
-			$o[ $k ][ $r['ngay'] ] = array( 'vao' => $r['vao'], 'ra' => $r['ra'] );
+		/* Lọc cho BẢNG CHI TIẾT. Bảng tổng dùng mảng khác — xem chú thích ở `the_bang_cham`. */
+		$loc_thang = array();
+		foreach ( $hang as $r ) {
+			if ( '' !== $ma_nv && strcasecmp( (string) $r['maNV'], $ma_nv ) !== 0 ) { continue; }
+			$loc_thang[] = $r;
 		}
-		uasort( $nguoi, function ( $x, $y ) {
-			$c = strcasecmp( $x['ten'], $y['ten'] );
-			return 0 !== $c ? $c : strcmp( $x['duoi'], $y['duoi'] );
-		} );
+		$chi_tiet = array();
+		foreach ( $loc_thang as $r ) {
+			if ( '' !== $ngay && (string) $r['ngay'] !== $ngay ) { continue; }
+			$chi_tiet[] = $r;
+		}
 
-		/* Cờ theo ô (ngày|mã) — để tô đúng ô chứ không tô cả hàng. */
-		$co_o = array();
-		$cho  = 0;
+		/* Cờ đã gắn, tra theo (ngày, mã) để đánh dấu dòng nào đang chờ kiểm. */
+		/* ⚠️ `$b['co']` là hàng ĐỌC THẲNG từ bảng `ghi_chu` — khoá gạch dưới (`ma_nv`,
+		   `ghi_chu`, `trang_thai`), KHÔNG phải khoá lưng lạc đà như mảng `hang`. Hai kiểu khoá
+		   nằm cạnh nhau trong cùng một hàm là chỗ rất dễ gõ nhầm, mà gõ nhầm thì cột Kiểm tra
+		   im lặng hiện 🚩 cho cả ngày ĐÃ có cờ — không báo lỗi gì. */
+		$co_theo = array();
 		foreach ( (array) $b['co'] as $c ) {
-			$co_o[ $c['ngay'] . '|' . strtolower( (string) $c['ma_nv'] ) ][] = $c;
-			if ( 'Đã xử lý' !== (string) $c['trang_thai'] ) { $cho++; }
+			if ( 'Đã xử lý' === (string) $c['trang_thai'] ) { continue; }
+			$co_theo[ (string) $c['ngay'] . '|' . strtoupper( (string) $c['ma_nv'] ) ] = $c;
 		}
 
-		$thieu = VHCC_Cham::canh_bao_thieu_gio_ra( $toi, $cs, $th );
+		$thieu = array();   /* để khối cờ bên dưới gợi ý sẵn */
 
 		echo '<div class="the">';
-		echo '<h2>' . esc_html( $cs ) . ' · tháng ' . esc_html( $tt ) . '</h2>';
-		echo '<p class="mo">' . count( $nguoi ) . ' hàng · ' . count( (array) $b['hang'] ) . ' lượt ngày'
-			. ( $cho ? ' · <b style="color:var(--do)">' . (int) $cho . ' cờ đang chờ</b>' : '' )
-			. ( $thieu ? ' · <b style="color:var(--do)">' . count( $thieu ) . ' ngày thiếu giờ ra</b>' : '' )
-			. '</p>';
+		echo '<h3 style="margin:0 0 6px">Chi tiết từng lượt</h3>';
+		echo '<p class="mo" style="margin:0 0 10px">Dòng nền đỏ = <b>thiếu giờ ra</b> (quên bấm '
+			. 'lúc về). Cột <b>Giờ làm</b> để trống nghĩa là giờ ra sớm hơn giờ vào — dấu hiệu ghi '
+			. 'sai, mở ra xem. Bấm 🚩 để gắn cờ nhờ cấp trên kiểm.</p>';
 
-		if ( ! $nguoi ) {
-			echo '<p class="mo">Tháng này chưa có lượt chấm công nào ở cơ sở này.</p></div>';
-			return;
-		}
+		if ( ! $chi_tiet ) {
+			echo '<p class="mo">Không có lượt nào'
+				. ( '' !== $ngay ? ' trong ngày ' . esc_html( $ngay ) : ' trong tháng ' . esc_html( $tt ) )
+				. ( '' !== $ma_nv ? ' của mã ' . esc_html( $ma_nv ) : '' ) . '.</p>';
+		} else {
+			echo '<div class="cuon"><table class="cc"><thead><tr>'
+				. '<th>Ngày</th><th>Mã NV</th><th>Họ tên</th><th>Hàng</th>'
+				. '<th>Giờ vào</th><th>Giờ ra</th><th>Giờ làm</th><th>Kiểm tra</th>'
+				. '</tr></thead><tbody>';
+			foreach ( $chi_tiet as $r ) {
+				$mat_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
+				if ( $mat_ra ) { $thieu[] = $r; }
+				$khoa = (string) $r['ngay'] . '|' . strtoupper( (string) $r['maNV'] );
+				$co   = isset( $co_theo[ $khoa ] ) ? $co_theo[ $khoa ] : null;
 
-		echo '<div class="cuon"><table class="cc"><thead><tr><th>Người</th>';
-		for ( $d = 1; $d <= $sn; $d++ ) {
-			$ngay = $tt . '-' . str_pad( (string) $d, 2, '0', STR_PAD_LEFT );
-			$thu  = (int) gmdate( 'w', (int) strtotime( $ngay ) );
-			echo '<th class="ng' . ( 0 === $thu ? ' cn' : '' ) . ( $ngay === $hom_nay ? ' nay' : '' )
-				. '" title="' . esc_attr( $ngay ) . '">' . (int) $d . '</th>';
-		}
-		echo '<th>Ngày công</th></tr></thead><tbody>';
-
-		foreach ( $nguoi as $k => $ng ) {
-			$dem = 0;
-			echo '<tr><td><b>' . esc_html( $ng['ten'] ? $ng['ten'] : $ng['ma'] ) . '</b>'
-				. '<br><span class="mo">' . esc_html( $ng['ma'] )
-				. ( '' !== $ng['duoi'] ? ' <span class="duoi">' . esc_html( $ng['duoi'] ) . '</span>' : '' )
-				. '</span></td>';
-			for ( $d = 1; $d <= $sn; $d++ ) {
-				$ngay = $tt . '-' . str_pad( (string) $d, 2, '0', STR_PAD_LEFT );
-				$g    = isset( $o[ $k ][ $ngay ] ) ? $o[ $k ][ $ngay ] : null;
-				$dsc  = isset( $co_o[ $ngay . '|' . strtolower( $ng['ma'] ) ] )
-					? $co_o[ $ngay . '|' . strtolower( $ng['ma'] ) ] : array();
-				$lop  = 'o';
-				$chu  = '';
-				$mo   = $ngay;
-				if ( $g ) {
-					$dem++;
-					$vao = substr( (string) $g['vao'], 0, 5 );
-					$ra  = substr( (string) $g['ra'], 0, 5 );
-					/* Có vào mà KHÔNG có ra: tô đỏ và ghi "?" — quên check-out là mất công của
-					   chính ngày đó, phải nhìn thấy ngay chứ không để tới cuối tháng. */
-					if ( '' === $ra ) { $lop .= ' hong'; $ra = '?'; }
-					$chu = esc_html( $vao ) . '<br>' . esc_html( $ra );
-					$mo  = $ngay . ' · vào ' . $vao . ' · ra ' . ( '?' === $ra ? 'CHƯA CÓ' : $ra );
-				}
-				if ( $dsc ) {
-					$lop .= ' cco';
-					foreach ( $dsc as $c ) {
-						$mo .= "\n[" . $c['trang_thai'] . '] ' . $c['ghi_chu'];
-					}
-				}
-				if ( $ngay === $hom_nay ) { $lop .= ' nay'; }
-				echo '<td class="' . esc_attr( $lop ) . '" title="' . esc_attr( $mo ) . '">' . $chu . '</td>';
+				echo '<tr' . ( $mat_ra ? ' class="hong"' : '' ) . '>';
+				echo '<td>' . esc_html( $r['ngay'] ) . '</td>';
+				echo '<td>' . esc_html( $r['maNV'] ) . '</td>';
+				echo '<td style="text-align:left">' . esc_html( $r['hoTen'] ) . '</td>';
+				echo '<td>' . ( '' !== $r['hauTo']
+					? '<span class="duoi">' . esc_html( $r['hauTo'] ) . '</span>' : 'chính' ) . '</td>';
+				echo '<td>' . esc_html( '' !== $r['vao'] ? $r['vao'] : '—' ) . '</td>';
+				echo '<td' . ( $mat_ra ? ' class="chu-hong"' : '' ) . '>'
+					. ( $mat_ra ? 'thiếu' : esc_html( '' !== $r['ra'] ? $r['ra'] : '—' ) ) . '</td>';
+				echo '<td>' . esc_html( VHCC_Cham::chu_gio( $r['phut'] ) ) . '</td>';
+				echo '<td>' . ( $co
+					? '<span class="chu-co" title="' . esc_attr( (string) $co['ghi_chu'] ) . '">🚩 đã gắn cờ</span>'
+					/* Bấm cờ chỉ ĐIỀN SẴN ngày và mã xuống khối bên dưới, KHÔNG gắn ngay: cờ
+					   không có lý do thì người đọc cờ chẳng biết phải kiểm gì.
+					   ⚠️ Điền bằng một lượt tải lại trang chứ không bằng JavaScript. Cả màn quản
+					   trị này không có lấy một dòng script; thêm một dòng vào đây là mở ra một
+					   thứ chỉ chạy khi trình duyệt chịu chạy, mà lại KHÔNG có cách nào thử được
+					   bằng bộ thử PHP. Đường liên kết thì thử được, bấm Lùi vẫn đúng. */
+					: '<a href="' . esc_url( add_query_arg( array(
+							'gnd' => (string) $r['ngay'], 'gma' => (string) $r['maNV'],
+							'gten' => (string) $r['hoTen'] ), self::url_hien() ) . '#gancoform' )
+						. '" title="Gắn cờ ngày này">🚩</a>' ) . '</td>';
+				echo '</tr>';
 			}
-			echo '<td class="tong">' . (int) $dem . '</td></tr>';
+			echo '</tbody></table></div>';
+			echo '<p class="mo" style="margin-top:8px">' . count( $chi_tiet ) . ' lượt'
+				. ( '' !== $ngay || '' !== $ma_nv ? ' (đang lọc)' : '' ) . '.</p>';
 		}
-		echo '</tbody></table></div>';
-		echo '<p class="mo" style="margin-top:8px">Ô <span class="chu-hong">đỏ</span> = có giờ vào mà '
-			. 'chưa có giờ ra. Ô viền <span class="chu-co">cam</span> = đang có cờ (rê chuột đọc nội dung). '
-			. 'Cột <b>Ngày công</b> đếm số ngày CÓ chấm, chưa phải số công tính lương.</p>';
+		echo '</div>';
+
+		/* ================= BẢNG TỔNG — cả tháng, không theo ngày ================= */
+		$tong = VHCC_Cham::gom_tong( $loc_thang );
+		echo '<div class="the">';
+		echo '<h3 style="margin:0 0 6px">Tổng giờ làm theo nhân viên · ' . esc_html( $tt ) . '</h3>';
+		echo '<p class="mo" style="margin:0 0 10px">Tổng của <b>cả tháng</b> — không đổi theo ô '
+			. 'Ngày ở trên. Chọn một ngày là để soi bảng chi tiết, còn bảng này mà tụt xuống một '
+			. 'ngày thì cột Ngày công luôn bằng 1 và hết ý nghĩa.</p>';
+		if ( ! $tong ) {
+			echo '<p class="mo">Chưa có dữ liệu.</p>';
+		} else {
+			echo '<div class="cuon"><table class="cc"><thead><tr>'
+				. '<th>Mã NV</th><th>Họ tên</th><th>Ngày công</th><th>Ngày thiếu giờ ra</th>'
+				. '<th>Tổng giờ làm</th></tr></thead><tbody>';
+			$tong_phut = 0;
+			$tong_ngay = 0;
+			foreach ( $tong as $o ) {
+				$tong_phut += (int) $o['phut'];
+				$tong_ngay += (int) $o['ngay'];
+				echo '<tr>';
+				echo '<td>' . esc_html( $o['maNV'] ) . '</td>';
+				echo '<td style="text-align:left">' . esc_html( $o['hoTen'] ) . '</td>';
+				echo '<td>' . (int) $o['ngay'] . '</td>';
+				echo '<td' . ( $o['thieu'] ? ' class="chu-hong"' : '' ) . '>' . (int) $o['thieu'] . '</td>';
+				echo '<td><b>' . esc_html( VHCC_Cham::chu_gio( $o['phut'] ) ) . '</b></td>';
+				echo '</tr>';
+			}
+			echo '<tr class="tong"><td colspan="2">' . count( $tong ) . ' người</td>'
+				. '<td>' . (int) $tong_ngay . '</td><td></td>'
+				. '<td><b>' . esc_html( VHCC_Cham::chu_gio( $tong_phut ) ) . '</b></td></tr>';
+			echo '</tbody></table></div>';
+		}
 		echo '</div>';
 
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
@@ -1229,16 +1310,28 @@ class VHCC_Web {
 			echo '</tbody></table></div></div>';
 		}
 
-		echo '<div class="the"><h2>Gắn cờ cần kiểm</h2>';
+		/* Giá trị bấm 🚩 ở bảng chi tiết gửi sang — điền sẵn chứ không gắn thay người ta. */
+		$g_ngay = isset( $_GET['gnd'] ) ? sanitize_text_field( wp_unslash( $_GET['gnd'] ) ) : '';
+		$g_ma   = isset( $_GET['gma'] ) ? sanitize_text_field( wp_unslash( $_GET['gma'] ) ) : '';
+		$g_ten  = isset( $_GET['gten'] ) ? sanitize_text_field( wp_unslash( $_GET['gten'] ) ) : '';
+
+		echo '<div class="the" id="gancoform"><h2>Gắn cờ cần kiểm</h2>';
 		echo '<p class="mo">Cờ KHÔNG đụng vào giờ đã ghi. Nó chỉ ghi lại <b>ngày nào, của ai, nghi gì</b> '
 			. 'để người duyệt lương biết mà tra.</p>';
+		if ( '' !== $g_ngay || '' !== $g_ma ) {
+			echo '<p class="mo">Đã điền sẵn từ dòng anh/chị vừa bấm — <b>còn thiếu lý do</b>, '
+				. 'ghi vào ô dưới rồi bấm Gắn cờ.</p>';
+		}
 		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="co">' . $o_loc;
 		echo '<div class="luoi">';
 		echo '<div><label for="co_ngay">Ngày *</label><input id="co_ngay" name="ngay" type="date" required '
+			. 'value="' . esc_attr( $g_ngay ) . '" '
 			. 'min="' . esc_attr( $tt . '-01' ) . '" max="' . esc_attr( $tt . '-' . gmdate( 't', (int) strtotime( $tt . '-01' ) ) ) . '"></div>';
-		echo '<div><label for="co_ma">Mã NV</label><input id="co_ma" name="ma_nv" placeholder="MNNV…"></div>';
-		echo '<div><label for="co_ten">Họ tên</label><input id="co_ten" name="ho_ten"></div>';
+		echo '<div><label for="co_ma">Mã NV</label><input id="co_ma" name="ma_nv" placeholder="MNNV…" '
+			. 'value="' . esc_attr( $g_ma ) . '"></div>';
+		echo '<div><label for="co_ten">Họ tên</label><input id="co_ten" name="ho_ten" '
+			. 'value="' . esc_attr( $g_ten ) . '"></div>';
 		echo '</div>';
 		echo '<p><label for="co_nd">Cần kiểm gì *</label>'
 			. '<textarea id="co_nd" name="ghi_chu" rows="2" required style="width:100%" '

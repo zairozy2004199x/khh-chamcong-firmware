@@ -17,6 +17,67 @@ class VHCC_Cham {
 	 * Bản dịch `getSheetDataVaFlags` — trả CẢ HAI trong một lượt vì giao diện hiện chung một bảng;
 	 * gọi hai lượt là hai lần đọc cho một màn hình.
 	 */
+	/**
+	 * Số PHÚT làm của một lượt — bản dịch `_workMin` của Index.html.
+	 *
+	 * 🔴 RA < VÀO THÌ TRẢ NULL, KHÔNG CỘNG 24 GIỜ. Đây là chỗ khác có chủ ý với
+	 *    `VHCC_Luong::phut_ca()`, và khác vì hai màn hỏi hai câu khác nhau:
+	 *
+	 *      · Bảng lương hỏi *"trả bao nhiêu tiền"* — ca đêm là ca thật, phải cộng trọn vòng 24h,
+	 *        nếu không thì số âm trừ thẳng vào lương người ta.
+	 *      · Bảng quản trị công hỏi *"dòng nào sai"* — mà ca đêm ở đây đã được trải phẳng sang
+	 *        hàng `-CD` từ trước, nên ra < vào KHÔNG còn là ca đêm nữa: nó là DẤU HIỆU SAI
+	 *        (máy ghi nhầm, bù tay nhầm). Tự cộng 24h ở đây là lặng lẽ chữa lành một con số
+	 *        đáng lẽ phải đập vào mắt người đang soát.
+	 *
+	 *    Nên: null, và màn hình hiện "—" để người ta nhìn thấy mà mở ra xem.
+	 */
+	public static function phut_lam( $vao_giay, $ra_giay ) {
+		if ( null === $vao_giay || '' === $vao_giay || null === $ra_giay || '' === $ra_giay ) { return null; }
+		$d = (int) $ra_giay - (int) $vao_giay;
+		if ( $d < 0 ) { return null; }
+		return (int) round( $d / 60 );
+	}
+
+	/**
+	 * Gom tổng theo NGƯỜI — bản dịch `ccGomTong`.
+	 *
+	 * ⚠️ `ngay` đếm theo NGÀY RIÊNG BIỆT, không đếm số dòng: một người có hàng chính và hàng
+	 *    `-CD` trong cùng ngày vẫn là MỘT ngày công. Đếm dòng là thổi số ngày công lên.
+	 * ⚠️ `thieu` chỉ đếm lượt CÓ VÀO mà không có ra. Dòng trống hẳn (không vào không ra) không
+	 *    phải "quên check-out" — nó là ngày không đi làm.
+	 */
+	public static function gom_tong( $hang ) {
+		$by = array();
+		foreach ( (array) $hang as $r ) {
+			$ma = (string) $r['maNV'];
+			if ( ! isset( $by[ $ma ] ) ) {
+				$by[ $ma ] = array( 'maNV' => $ma, 'hoTen' => (string) $r['hoTen'],
+					'ngayTap' => array(), 'phut' => 0, 'thieu' => 0 );
+			}
+			if ( '' === $by[ $ma ]['hoTen'] ) { $by[ $ma ]['hoTen'] = (string) $r['hoTen']; }
+			$by[ $ma ]['ngayTap'][ (string) $r['ngay'] ] = 1;
+			if ( null !== $r['phut'] ) { $by[ $ma ]['phut'] += (int) $r['phut']; }
+			elseif ( '' !== $r['vao'] && '' === $r['ra'] ) { $by[ $ma ]['thieu']++; }
+		}
+		$ra = array();
+		foreach ( $by as $o ) {
+			$o['ngay'] = count( $o['ngayTap'] );
+			unset( $o['ngayTap'] );
+			$ra[] = $o;
+		}
+		usort( $ra, function ( $a, $b ) { return strcasecmp( $a['hoTen'], $b['hoTen'] ); } );
+		return $ra;
+	}
+
+	/**
+	 * Bảng chấm công một cơ sở / một tháng — dữ liệu cho màn quản trị công cơ sở.
+	 *
+	 * Trả về ĐÚNG những gì tab "Chấm công" của bản Apps Script hiện: từng lượt một (ngày, mã,
+	 * tên, hàng, vào, ra, giờ làm) và bảng tổng theo người (ngày công, ngày thiếu giờ ra, tổng
+	 * giờ). Hai bảng đi từ CÙNG một mảng `hang` — không có công thức thứ hai, đúng như bản gốc
+	 * ghi trong chú thích của nó.
+	 */
 	public static function bang_cham_cong( $u, $coso, $thang ) {
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		if ( ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {
@@ -31,10 +92,23 @@ class VHCC_Cham {
 				'hoTen' => $r['ho_ten'],
 				'vao' => VHCC_DB::hhmmss( $r['gio_vao_giay'] ),
 				'ra'  => VHCC_DB::hhmmss( $r['gio_ra_giay'] ),
+				'phut' => self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'] ),
+				'ghiChu' => isset( $r['ghi_chu'] ) ? (string) $r['ghi_chu'] : '',
+				'nguon'  => isset( $r['nguon'] ) ? (string) $r['nguon'] : '',
 			);
 		}
 		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'hang' => $hang,
+			'tong' => self::gom_tong( $hang ),
 			'co' => self::ds_ghi_chu( $u, $coso, $tt ) );
+	}
+
+	/** Phút -> "8h 30m". Bản dịch `_fmtHrsTxt`; null -> "—" để dấu hiệu sai lộ ra. */
+	public static function chu_gio( $phut ) {
+		if ( null === $phut || '' === $phut ) { return '—'; }
+		$p = (int) $phut;
+		$h = intdiv( $p, 60 );
+		$m = $p % 60;
+		return $h . 'h' . ( $m ? ' ' . $m . 'm' : '' );
 	}
 
 	// ======================================================================= cờ cần kiểm
