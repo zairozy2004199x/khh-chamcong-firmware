@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.5.0';
+	const SCHEMA_VERSION = '2.6.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -299,6 +299,8 @@ class VHCC_DB {
 			ma_nv VARCHAR(40) NOT NULL,
 			o_gio VARCHAR(8) NOT NULL DEFAULT '',
 			gio_giay INT NULL,
+			gio_cu_giay INT NULL,
+			viec VARCHAR(10) NOT NULL DEFAULT 'bu',
 			ly_do VARCHAR(255) NOT NULL DEFAULT '',
 			nguoi_bu VARCHAR(190) NOT NULL DEFAULT '',
 			ma_nguoi_bu VARCHAR(40) NOT NULL DEFAULT '',

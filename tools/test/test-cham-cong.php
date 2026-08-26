@@ -6084,6 +6084,75 @@ $r_bu  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
 t( 'và POST thẳng việc bu cũng bị chối', is_array( $r_bu ) && ! isset( $r_bu[0]['xong'] ), $r_bu );
 $_POST = array();
 
+/* ---- khối SỬA GIỜ CÔNG: chỉ Admin ----
+   Anh Thắng 26/08: *"admin có quyền chỉnh sửa lại giờ công cho nhân viên"*. Đây là cửa DUY NHẤT
+   đè được lên giờ máy đã ghi, nên nó phải đứng cao hơn cả bù lẫn nạp công. */
+t( 'Admin thấy khối Sửa giờ công', strpos( $h_qtc, 'id="suagio"' ) !== false, $h_qtc );
+/* 🔴 Hai khối nằm cạnh nhau, hai biểu mẫu trông y hệt, mà hậu quả khác hẳn. Màn phải TỰ NÓI ra
+   chỗ khác nhau — người dùng không đọc được ý định trong mã, họ chỉ thấy hai cái ô giờ. */
+t( 'và khối ấy nói rõ nó KHÁC chấm công bù ở chỗ nào',
+	strpos( $h_qtc, 'đè lên' ) !== false, $h_qtc );
+t( 'nói rõ dòng bị sửa thôi được tính là lượt máy ghi',
+	strpos( $h_qtc, 'lượt máy ghi' ) !== false, $h_qtc );
+t( 'đòi lý do', strpos( $h_qtc, 'id="sg_ly"' ) !== false );
+/* 🔴 Xoá trắng phải là ô TÍCH riêng, không phải "để trống ô giờ". */
+t( 'có ô tích xoá trắng riêng cho từng ô giờ',
+	strpos( $h_qtc, 'name="sg_xoa_vao"' ) !== false && strpos( $h_qtc, 'name="sg_xoa_ra"' ) !== false );
+t( 'và nói rõ ô để trống nghĩa là GIỮ NGUYÊN', strpos( $h_qtc, 'giữ nguyên' ) !== false, $h_qtc );
+t( 'ô ngày chặn ngày tương lai ngay trên trình duyệt',
+	preg_match( '/id="sg_ngay"[^>]*max="\d{4}-\d{2}-\d{2}"/', $h_qtc ) === 1, $h_qtc );
+/* Bảng chi tiết có cột ✏️ dẫn xuống khối, mang sẵn ngày + mã. */
+t( 'bảng chi tiết có cột Sửa cho Admin', strpos( $h_qtc, '<th>Sửa</th>' ) !== false, $h_qtc );
+t( 'và bấm ✏️ thì điền sẵn ngày + mã xuống khối',
+	preg_match( '/sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=/', $h_qtc ) === 1, $h_qtc );
+
+/* Mở khối ở trạng thái ĐANG CHỌN một dòng: phải hiện GIỜ ĐANG CÓ.
+   🔴 Không hiện thì người sửa phải NHỚ giờ cũ, mà nhớ sai một chữ số là ghi đè mất một giờ
+   công thật, và không có gì trên màn hình mâu thuẫn với con số vừa gõ. */
+$h_sg = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'sgn' => '2026-07-07', 'sgm' => 'QTC1' ) );
+/* ⚠️ Canh vào ĐÚNG KHỐI BÁO, không canh cả trang: cụm chữ "giờ đang có" còn nằm ở câu hướng
+   dẫn ngay trên, nên tìm khắp trang thì bỏ hẳn phần hiện giờ đi chốt vẫn xanh. Đã phá thử để
+   thấy đúng chuyện đó. */
+$khoi_bao = preg_match( '/<p class="bao canh"[^>]*>(.*?)<\/p>/s', $h_sg, $m_sg ) ? $m_sg[1] : '';
+t( 'có khối báo "Đang sửa"', '' !== $khoi_bao, $h_sg );
+t( 'và nhắc lại đúng mã đang sửa', strpos( $khoi_bao, '>QTC1</b>' ) !== false, $khoi_bao );
+t( 'kèm đúng ngày', strpos( $khoi_bao, '>2026-07-07</b>' ) !== false, $khoi_bao );
+/* 🔴 Và GIỜ THẬT ĐANG CÓ — QTC1 ngày 07/7 vào 08:05, quên bấm lúc về. Không hiện con số này thì
+   người sửa phải NHỚ, mà nhớ sai một chữ số là ghi đè mất một giờ công thật. */
+t( 'kèm giờ vào THẬT đang có', strpos( $khoi_bao, '>08:05</b>' ) !== false, $khoi_bao );
+t( 'và nói rõ giờ ra đang trống', strpos( $khoi_bao, '>—</b>' ) !== false, $khoi_bao );
+
+/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG ĐƯỢC — kể cả POST thẳng. Ẩn cái khối không phải là gác cửa. */
+t( 'Cửa hàng trưởng KHÔNG thấy khối Sửa giờ', strpos( $h_cht, 'id="suagio"' ) === false, $h_cht );
+t( 'và bảng chi tiết của họ KHÔNG có cột Sửa', strpos( $h_cht, '<th>Sửa</th>' ) === false, $h_cht );
+$_POST = array( 'viec' => 'sua_gio' );
+$r_sg  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'sua_gio', array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT',
+		'ma_nv' => 'NVCHT' ) ) );
+t( 'POST thẳng việc sua_gio cũng KHÔNG lọt',
+	is_array( $r_sg ) && ! isset( $r_sg[0]['xong'] ), $r_sg );
+$_POST = array();
+
+/* ---- chạy thật một lượt sửa, qua đúng cửa POST của trang ---- */
+/* Mã phải có hồ sơ thật — sửa cho một mã không tồn tại là viết công cho một người không có. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ),
+	array( 'ma_nv' => 'QTC1', 'ho_ten' => 'Người QTC1', 'cua_hang' => 'TUTU_BT' ) );
+$tok_sg = VHCC_Auth::login( '135791' )['token'];
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_sg;
+$_POST = array( 'viec' => 'sua_gio', 'ky' => VHCC_Web::chu_ky( $tok_sg ),
+	'ccs' => 'TUTU_BT', 'ngay' => '2026-07-07', 'ma_nv' => 'QTC1',
+	'sg_vao' => '09:45', 'ly_do' => 'máy lệch đồng hồ, đối chiếu camera' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+$h_sau = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+t( '🔴 sửa qua trang thật thì bảng hiện giờ MỚI',
+	strpos( $h_sau, '09:45' ) !== false, $h_sau );
+/* Sổ nhật ký gộp cả bù lẫn sửa, và nói rõ cũ -> mới. */
+t( 'sổ nhật ký có cột Giờ cũ', strpos( $h_sau, '<th>Giờ cũ</th>' ) !== false, $h_sau );
+t( 'và đánh dấu lượt này là "sửa đè", không phải "bù"',
+	strpos( $h_sau, 'sửa đè' ) !== false, $h_sau );
+
 // ====== 49. TAB "CÔNG VĂN PHÒNG" — lưới người × ngày, mỗi ô là SỐ CÔNG
 /* Anh Thắng 26/08/2026: *"hiện bảng công theo hàng ngang giống này"* kèm ảnh tab Công Văn phòng
    của bản Apps Script. Đây là bản dịch `vpcVeLuoi`, để TAB RIÊNG đúng như bản gốc — hai màn trả

@@ -355,6 +355,84 @@ class VHCC_Nhan {
 	}
 
 	/**
+	 * ĐẶT THẲNG giờ vào / giờ ra — cửa ghi THỨ TƯ, và là cửa duy nhất ĐÈ ĐƯỢC.
+	 *
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 KHÁC HẲN `ghi_gio()`, ĐỌC KỸ TRƯỚC KHI GỌI.
+	 *
+	 *    `ghi_gio()` chỉ NỚI khung [vào, ra]: một lượt quẹt mới sớm hơn thì đẩy giờ vào sớm ra,
+	 *    muộn hơn thì đẩy giờ ra muộn vào, còn nằm giữa thì bỏ qua. Nhờ vậy nạp lại tệp cũ bao
+	 *    nhiêu lần cũng ra một kết quả, và không lượt quẹt nào làm mất lượt quẹt khác.
+	 *
+	 *    Hàm này thì ĐẶT ĐÚNG GIÁ TRỊ ĐƯỢC TRUYỀN — thu hẹp được, xoá trắng được (`null`). Tức
+	 *    là nó XOÁ MẤT thứ máy đã ghi. Đó chính là việc anh Thắng cần (26/08/2026: *"admin có
+	 *    quyền chỉnh sửa lại giờ công cho nhân viên"*), nhưng cũng chính là thứ mà cả `VHCC_Cham`
+	 *    lẫn `VHCC_Bu` viết ra để ngăn. Nên hàm này KHÔNG có ai gọi ngoài `VHCC_Bu::sua()` —
+	 *    nơi gác quyền Admin, đòi lý do, và ghi nhật ký CŨ -> MỚI.
+	 *
+	 * 🔴 `nguon` ĐỔI THÀNH 'sua', KHÔNG PHẢI 'hon-hop'.
+	 *    Hàng đã bị sửa tay thì không còn là sổ ghi máy nữa, và phép đối chiếu (chỉ đếm lượt
+	 *    `nguon='may'`) phải THÔI đếm nó. Để nguyên 'may' là bảo phép đối chiếu rằng con số này
+	 *    do máy ghi — nói dối đúng chỗ dựng ra để bắt nói dối.
+	 *
+	 * ⚠️ Cả hai `null` thì hàng vẫn còn, chỉ trống giờ — KHÔNG xoá hàng. Xoá hàng là mất luôn
+	 *    `ghi_chu` và dấu vết `ghi_luc`; để lại một hàng trống thì bảng hiện '·' y như chưa có
+	 *    dữ liệu, mà sổ vẫn nhớ là ngày này từng có gì.
+	 *
+	 * @param int|null $vao_giay Giây trong ngày, hoặc null để xoá trắng ô.
+	 * @param int|null $ra_giay  Giây trong ngày, hoặc null để xoá trắng ô.
+	 * @return array `cu` (giờ trước khi sửa) + `moi`, hoặc `loi`.
+	 */
+	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
+
+		$vao_giay = ( null === $vao_giay || '' === $vao_giay ) ? null : (int) $vao_giay;
+		$ra_giay  = ( null === $ra_giay  || '' === $ra_giay )  ? null : (int) $ra_giay;
+
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+			$coso, $ngay, $ma_goc, $hau_to ), ARRAY_A );
+
+		$vao_cu = ( $cu && null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$ra_cu  = ( $cu && null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+
+		/* Ô "Thời gian trong ngày" tính LẠI từ cặp mới, y như `ghi_gio()` — chắp từ nhánh là chỗ
+		   dễ lệch nhất giữa hai cửa ghi. */
+		if ( null === $vao_giay && null === $ra_giay ) { $chuan = ''; }
+		elseif ( null === $ra_giay )                   { $chuan = VHCC_DB::hhmm( $vao_giay ); }
+		elseif ( null === $vao_giay )                  { $chuan = VHCC_DB::hhmm( $ra_giay ); }
+		else { $chuan = VHCC_DB::hhmm( $vao_giay ) . ' ' . VHCC_DB::hhmm( $ra_giay ); }
+
+		$dat = array(
+			'gio_vao_giay' => $vao_giay,
+			'gio_ra_giay'  => $ra_giay,
+			'chuan'        => $chuan,
+			'nguon'        => 'sua',
+		);
+		if ( null !== $ghi_chu && '' !== $ghi_chu ) { $dat['ghi_chu'] = $ghi_chu; }
+
+		if ( $cu ) {
+			$ok = $wpdb->update( $bang, $dat, array( 'id' => (int) $cu['id'] ) );
+		} else {
+			$dat['coso']    = $coso;
+			$dat['ngay']    = $ngay;
+			$dat['ma_nv']   = $ma_goc;
+			$dat['hau_to']  = $hau_to;
+			$dat['ho_ten']  = $ho_ten;
+			$dat['ghi_luc'] = current_time( 'mysql' );
+			$ok = $wpdb->insert( $bang, $dat );
+		}
+		if ( false === $ok ) { return array( 'loi' => 'MySQL: ' . $wpdb->last_error ); }
+
+		return array(
+			'cu'  => array( 'vao' => $vao_cu,   'ra' => $ra_cu ),
+			'moi' => array( 'vao' => $vao_giay, 'ra' => $ra_giay ),
+		);
+	}
+
+	/**
 	 * Tách hậu tố nhiệm vụ / ca khỏi mã — bản dịch `_tachMaNhiemVu`.
 	 * -TT Thu Tiền · -TG Trực Ghế · -CD tăng ca/ca đêm · -CT công tối (cũ) · -TC tăng cường.
 	 * KHÔNG cắt hậu tố lạ: mã `NV-XX` là mã thật tên vậy, cắt bừa là gộp công hai người.

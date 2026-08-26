@@ -112,6 +112,12 @@ class VHCC_Vai {
 
 		/* --- bậc 5: admin --- */
 		'he_thong'     => self::ADMIN,    // máy chấm công, cài đặt, nguồn người dùng
+		'sua_gio'      => self::ADMIN,    // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
+		                                  // ⚠️ Cố ý ĐẶT TRÊN cả `nap_cong`. Bù và nạp chỉ THÊM
+		                                  // vào ô trống; việc này ĐÈ LÊN thứ máy đã ghi, tức là
+		                                  // xoá mất bằng chứng gốc. Anh Thắng 26/08 chốt: *"admin
+		                                  // có quyền chỉnh sửa lại giờ công cho nhân viên"* —
+		                                  // đúng chữ ADMIN, không nới xuống Quản lý.
 		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác
 	);
 

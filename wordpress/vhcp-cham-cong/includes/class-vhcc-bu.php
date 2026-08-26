@@ -160,17 +160,159 @@ class VHCC_Bu {
 			'daGhi' => $da_ghi, 'boQua' => $bo_qua );
 	}
 
+	/* ===================================================================== sửa đè */
+
+	/**
+	 * SỬA ĐÈ giờ đã có — cửa thứ tư, và là cửa duy nhất xoá được thứ máy đã ghi.
+	 *
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * 🔴 ĐÂY LÀ VIỆC MÀ CẢ TỆP NÀY VIẾT RA ĐỂ NGĂN.
+	 *
+	 *    Đầu tệp ghi: *"Bù chỉ điền ô trống, không bao giờ đè lên giờ đã có… Cần sửa một giờ ĐÃ
+	 *    CÓ thì gắn cờ để cấp trên tra, chứ không sửa đè."* Câu ấy vẫn đúng cho **bù**. Nhưng
+	 *    "cấp trên tra" xong thì phải có đường sửa, không thì cái cờ treo đó mãi — anh Thắng
+	 *    26/08/2026: *"admin có quyền chỉnh sửa lại giờ công cho nhân viên"*. Đây là đường đó.
+	 *
+	 *    Giá phải trả, và trả đủ:
+	 *      · quyền `sua_gio` — bậc **Admin**, cao hơn cả `nap_cong` (Quản lý). Bù và nạp chỉ
+	 *        THÊM vào ô trống; việc này XOÁ MẤT bằng chứng gốc.
+	 *      · lý do bắt buộc, y như bù.
+	 *      · nhật ký ghi **CŨ -> MỚI** cho từng ô, vào cùng bảng `cham_bu` không có đường xoá.
+	 *      · hàng bị sửa đổi `nguon` thành `'sua'`, nên phép đối chiếu thôi đếm nó là lượt máy.
+	 *
+	 * ⚠️ VẪN KHÔNG AI SỬA ĐƯỢC CHO CHÍNH MÌNH, kể cả Admin — dùng chung `vi_sao_khong_duoc()`
+	 *    với bù. Sửa giờ công của mình là tự ký duyệt tiền của mình, và ở đây còn nặng hơn bù:
+	 *    bù thì chỉ thêm được vào ô trống, sửa thì viết lại được cả ngày.
+	 *
+	 * @param array $dat coso · ngay · ma_nv · vao 'HH:mm' (rỗng = xoá ô) · ra · ly_do
+	 *                   Kèm `xoa_vao` / `xoa_ra` = '1' để nói rõ "cố ý xoá trắng ô này".
+	 */
+	public static function sua( $u, $dat ) {
+		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
+		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
+
+		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC. `vi_sao_khong_duoc()` chỉ đòi bậc Cửa hàng trưởng —
+		   gọi mỗi nó là mở việc sửa đè cho cả Cửa hàng trưởng, tức là mỗi cửa hàng có một người
+		   viết lại được bảng công của chính cửa hàng mình. */
+		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) {
+			return array( 'ok' => false,
+				'error' => 'Sửa giờ đã có cần quyền Admin. Cửa hàng trưởng chỉ bù được vào ô còn '
+					. 'trống; thấy giờ sai thì gắn cờ để Admin sửa.' );
+		}
+		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
+		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }
+
+		$ngay = trim( (string) ( isset( $dat['ngay'] ) ? $dat['ngay'] : '' ) );
+		$loi  = self::ngay_hop_le( $ngay );
+		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
+
+		$ly_do = trim( (string) ( isset( $dat['ly_do'] ) ? $dat['ly_do'] : '' ) );
+		if ( mb_strlen( $ly_do, 'UTF-8' ) < 5 ) {
+			return array( 'ok' => false,
+				'error' => 'Ghi rõ vì sao phải sửa (ít nhất 5 ký tự) — VD: "máy lệch giờ 2 tiếng '
+					. 'ngày 12/8, đối chiếu camera".' );
+		}
+
+		$cu = self::hang( $coso, $ngay, $ma_nv );
+		if ( ! $cu ) {
+			return array( 'ok' => false,
+				'error' => 'Ngày này chưa có dòng chấm công nào để sửa. Chưa có giờ thì dùng '
+					. '"Chấm công bù" ở khối trên.' );
+		}
+		$vao_cu = ( null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$ra_cu  = ( null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+
+		/* 🔴 Ô ĐỂ TRỐNG NGHĨA LÀ "GIỮ NGUYÊN", KHÔNG PHẢI "XOÁ".
+		   Người sửa giờ ra mà không gõ lại giờ vào là chuyện thường. Hiểu ô trống thành xoá là
+		   mỗi lượt sửa một ô lại âm thầm xoá ô kia — mất giờ công mà không ai bấm nút xoá nào.
+		   Muốn xoá thì phải TÍCH Ô "xoá trắng", tức là một hành động riêng, cố ý. */
+		/* ⚠️ Gõ SAI dạng cũng phải báo lỗi, KHÔNG được lặng lẽ thành xoá trắng. `giay()` trả
+		   `null` cho cả "ô trống" lẫn "gõ bậy", nên hai chuyện ấy phải tách ra ở đây — không
+		   tách thì gõ nhầm "8h30" là mất trắng giờ vào của người ta, mà màn hình vẫn báo Đã lưu. */
+		$vao_moi = $vao_cu;
+		if ( ! empty( $dat['xoa_vao'] ) ) {
+			$vao_moi = null;
+		} elseif ( '' !== trim( (string) ( isset( $dat['vao'] ) ? $dat['vao'] : '' ) ) ) {
+			$vao_moi = self::giay( $dat['vao'] );
+			if ( null === $vao_moi ) {
+				return array( 'ok' => false, 'error' => 'Giờ vào không đúng dạng — gõ kiểu 08:30.' );
+			}
+		}
+		$ra_moi = $ra_cu;
+		if ( ! empty( $dat['xoa_ra'] ) ) {
+			$ra_moi = null;
+		} elseif ( '' !== trim( (string) ( isset( $dat['ra'] ) ? $dat['ra'] : '' ) ) ) {
+			$ra_moi = self::giay( $dat['ra'] );
+			if ( null === $ra_moi ) {
+				return array( 'ok' => false, 'error' => 'Giờ ra không đúng dạng — gõ kiểu 17:00.' );
+			}
+		}
+
+		if ( $vao_moi === $vao_cu && $ra_moi === $ra_cu ) {
+			return array( 'ok' => false, 'error' => 'Không có gì thay đổi — giờ mới trùng giờ cũ.' );
+		}
+		if ( null !== $vao_moi && null !== $ra_moi && $ra_moi <= $vao_moi ) {
+			return array( 'ok' => false,
+				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì sửa ở hàng ca đêm (mã kèm -CD).' );
+		}
+
+		$kq = VHCC_Nhan::dat_gio( $coso, $ngay, $ma_nv, (string) $cu['ho_ten'],
+			$vao_moi, $ra_moi, 'Sửa: ' . $ly_do );
+		if ( isset( $kq['loi'] ) ) { return array( 'ok' => false, 'error' => $kq['loi'] ); }
+
+		/* Một dòng nhật ký cho MỖI Ô THẬT SỰ ĐỔI. Ghi cả ô không đổi là sổ đầy dòng vô nghĩa,
+		   và người đọc sổ phải tự đoán ô nào mới là ô bị động vào. */
+		$doi = array();
+		if ( $vao_moi !== $vao_cu ) {
+			self::nhat_ky( $u, $coso, $ngay, $ma_nv, 'vao', $vao_moi, $ly_do, 'sua', $vao_cu );
+			$doi['vao'] = array( 'cu' => self::hhmm_hoac_trong( $vao_cu ),
+				'moi' => self::hhmm_hoac_trong( $vao_moi ) );
+		}
+		if ( $ra_moi !== $ra_cu ) {
+			self::nhat_ky( $u, $coso, $ngay, $ma_nv, 'ra', $ra_moi, $ly_do, 'sua', $ra_cu );
+			$doi['ra'] = array( 'cu' => self::hhmm_hoac_trong( $ra_cu ),
+				'moi' => self::hhmm_hoac_trong( $ra_moi ) );
+		}
+
+		return array( 'ok' => true, 'coSo' => $coso, 'ngay' => $ngay, 'maNV' => $ma_nv, 'doi' => $doi );
+	}
+
+	/**
+	 * Giờ đang có của một dòng, đã dạng 'HH:mm' — để màn hình HIỆN RA trước khi người ta sửa.
+	 *
+	 * 🔴 Không hiện thì người sửa phải NHỚ giờ cũ. Nhớ sai một chữ số là ghi đè mất một giờ công
+	 *    thật, và không có gì trên màn hình mâu thuẫn với con số vừa gõ.
+	 */
+	public static function gio_hien_tai( $coso, $ngay, $ma_nv ) {
+		$cu = self::hang( VHCC_NhanSu::chuan_coso( $coso ), $ngay, $ma_nv );
+		if ( ! $cu ) { return array( 'co' => false, 'vao' => '—', 'ra' => '—' ); }
+		$v = ( null !== $cu['gio_vao_giay'] && '' !== $cu['gio_vao_giay'] ) ? (int) $cu['gio_vao_giay'] : null;
+		$r = ( null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
+		return array( 'co' => true, 'vao' => self::hhmm_hoac_trong( $v ),
+			'ra' => self::hhmm_hoac_trong( $r ), 'nguon' => (string) $cu['nguon'] );
+	}
+
+	/** 'HH:mm' hoặc '—'. Dùng cho câu báo và cho sổ nhật ký, để hai nơi nói giống nhau. */
+	public static function hhmm_hoac_trong( $giay ) {
+		return ( null === $giay ) ? '—' : VHCC_DB::hhmm( (int) $giay );
+	}
+
 	/* ===================================================================== nhật ký */
 
 	/** Một dòng nhật ký cho MỘT ô giờ. Bảng này không có đường xoá — xem chú thích đầu tệp. */
-	private static function nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do ) {
+	private static function nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do, $viec = 'bu', $giay_cu = null ) {
 		global $wpdb;
 		$wpdb->insert( VHCC_DB::t( 'cham_bu' ), array(
 			'coso'       => $coso,
 			'ngay'       => $ngay,
 			'ma_nv'      => $ma_nv,
 			'o_gio'      => $o,
-			'gio_giay'   => (int) $giay,
+			/* ⚠️ KHÔNG ép `(int)` ở đây. Lượt sửa có thể XOÁ TRẮNG một ô, và `(int) null` là 0 —
+			   tức là sổ ghi "sửa thành 00:00" trong khi thật ra là "xoá trắng". Hai chuyện khác
+			   hẳn nhau, mà chỉ khác nhau ở một dấu ngoặc. */
+			'gio_giay'   => ( null === $giay ) ? null : (int) $giay,
+			'gio_cu_giay' => ( null === $giay_cu ) ? null : (int) $giay_cu,
+			'viec'       => $viec,
 			'ly_do'      => $ly_do,
 			'nguoi_bu'   => (string) ( isset( $u['name'] ) ? $u['name'] : '' ),
 			'ma_nguoi_bu' => (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ),

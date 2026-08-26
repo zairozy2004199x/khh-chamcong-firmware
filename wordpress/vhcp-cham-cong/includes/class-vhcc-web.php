@@ -406,6 +406,29 @@ class VHCC_Web {
 			return array( array( 'xong' => $noi ) );
 		}
 
+		if ( 'sua_gio' === $viec ) {
+			$r = VHCC_Bu::sua( $toi, array(
+				'coso'    => isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
+				'ngay'    => isset( $_POST['ngay'] ) ? wp_unslash( $_POST['ngay'] ) : '',
+				'ma_nv'   => isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '',
+				'vao'     => isset( $_POST['sg_vao'] ) ? wp_unslash( $_POST['sg_vao'] ) : '',
+				'ra'      => isset( $_POST['sg_ra'] ) ? wp_unslash( $_POST['sg_ra'] ) : '',
+				'xoa_vao' => ! empty( $_POST['sg_xoa_vao'] ),
+				'xoa_ra'  => ! empty( $_POST['sg_xoa_ra'] ),
+				'ly_do'   => isset( $_POST['ly_do'] ) ? wp_unslash( $_POST['ly_do'] ) : '',
+			) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* Câu báo nói CŨ -> MỚI, không chỉ nói "đã lưu". Người vừa sửa giờ công của người
+			   khác phải đọc lại được đúng thứ mình vừa làm, ngay lúc còn nhớ mình định làm gì. */
+			$chu = array();
+			foreach ( $r['doi'] as $o => $d ) {
+				$chu[] = ( 'vao' === $o ? 'giờ vào ' : 'giờ ra ' ) . $d['cu'] . ' → ' . $d['moi'];
+			}
+			return array( array( 'xong' => 'Đã sửa ' . implode( ' · ', $chu ) . ' cho ' . $r['maNV']
+				. ' ngày ' . $r['ngay'] . '. Dòng này nay mang nhãn nguồn "sửa" (thôi tính là lượt '
+				. 'máy ghi) và đã vào sổ nhật ký kèm giờ cũ — xoá không được.' ) );
+		}
+
 		if ( 'ca' === $viec ) {
 			$ds_ca = array();
 			$ten_ca = isset( $_POST['ca_ten'] ) ? (array) wp_unslash( $_POST['ca_ten'] ) : array();
@@ -1457,6 +1480,10 @@ class VHCC_Web {
 	private static function ve_bang_cham( $b, $cs, $th, $ngay, $ma_nv, $ky, $toi ) {
 		$tt   = (string) $b['thang'];
 		$hang = (array) $b['hang'];
+		/* Hỏi quyền MỘT LẦN ở đây rồi truyền xuống, thay vì hỏi lại trong vòng lặp mấy trăm
+		   dòng. Và nhất là để cột tiêu đề với cột nội dung dùng CHUNG một câu trả lời — hỏi hai
+		   nơi là có ngày bảng lệch cột mà không ai hiểu vì sao. */
+		$duoc_sua_gio = VHCC_Vai::duoc( $toi, 'sua_gio' );
 
 		/* Lọc cho BẢNG CHI TIẾT. Bảng tổng dùng mảng khác — xem chú thích ở `the_bang_cham`. */
 		$loc_thang = array();
@@ -1512,7 +1539,8 @@ class VHCC_Web {
 		} else {
 			echo '<div class="cuon"><table class="cc"><thead><tr>'
 				. '<th>Ngày</th><th>Mã NV</th><th>Họ tên</th><th>Hàng</th>'
-				. '<th>Giờ vào</th><th>Giờ ra</th><th>Giờ làm</th><th>Kiểm tra</th>'
+				. '<th>Giờ vào</th><th>Giờ ra</th><th>Giờ làm</th>'
+				. ( $duoc_sua_gio ? '<th>Sửa</th>' : '' ) . '<th>Kiểm tra</th>'
 				. '</tr></thead><tbody>';
 			foreach ( $chi_tiet as $r ) {
 				$mat_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
@@ -1529,6 +1557,16 @@ class VHCC_Web {
 				echo '<td' . ( $mat_ra ? ' class="chu-hong"' : '' ) . '>'
 					. ( $mat_ra ? 'thiếu' : esc_html( '' !== $r['ra'] ? $r['ra'] : '—' ) ) . '</td>';
 				echo '<td>' . esc_html( VHCC_Cham::chu_gio( $r['phut'] ) ) . '</td>';
+				/* Cột sửa: chỉ Admin thấy. Bấm là ĐIỀN SẴN ngày + mã xuống khối "Sửa giờ" bên
+				   dưới, không sửa ngay — sửa ngay bằng một cú bấm là sửa lương bằng một cú bấm.
+				   ⚠️ Điền bằng một lượt tải lại trang, không bằng JavaScript: cả màn này không
+				   có lấy một dòng script, xem chú thích ở cột cờ ngay dưới. */
+				if ( $duoc_sua_gio ) {
+					echo '<td><a href="' . esc_url( add_query_arg( array(
+							'sgn' => (string) $r['ngay'], 'sgm' => (string) $r['maNV'] ),
+							self::url_hien() ) . '#suagio' )
+						. '" title="Sửa giờ ngày này">✏️</a></td>';
+				}
 				echo '<td>' . ( $co
 					? '<span class="chu-co" title="' . esc_attr( (string) $co['ghi_chu'] ) . '">🚩 đã gắn cờ</span>'
 					/* Bấm cờ chỉ ĐIỀN SẴN ngày và mã xuống khối bên dưới, KHÔNG gắn ngay: cờ
@@ -1550,6 +1588,7 @@ class VHCC_Web {
 		echo '</details></div>';
 
 		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
+		self::the_sua_gio( $cs, $ky, $toi );
 		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
 	}
@@ -2369,22 +2408,104 @@ class VHCC_Web {
 			. 'placeholder="VD: máy chấm công mất điện sáng 12/8 — có camera đối chiếu"></p>';
 		echo '<p><button class="chinh">Bù giờ</button></p></form>';
 
+		/* 🔴 MỘT SỔ CHO CẢ HAI VIỆC — bù và sửa đè cùng ghi vào bảng `cham_bu`.
+		   Tách làm hai sổ thì người soát phải mở hai chỗ mới dựng lại được chuyện gì đã xảy ra
+		   với một ngày công; mà thứ họ cần biết là "ngày này ai đã động vào, mấy lần", không
+		   phải "ai đã bù" và "ai đã sửa" thành hai câu chuyện rời nhau. */
 		$nk = VHCC_Bu::ds_nhat_ky( $toi, $cs, $tt );
 		if ( $nk ) {
-			echo '<h3 style="margin:14px 0 6px">Đã bù tháng này (' . count( $nk ) . ')</h3>';
-			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Ô</th>'
-				. '<th>Giờ</th><th>Lý do</th><th>Người bù</th></tr></thead><tbody>';
+			echo '<h3 style="margin:14px 0 6px">Đã động vào tháng này (' . count( $nk ) . ')</h3>';
+			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Việc</th>'
+				. '<th>Ô</th><th>Giờ cũ</th><th>Giờ mới</th><th>Lý do</th><th>Người làm</th>'
+				. '</tr></thead><tbody>';
 			foreach ( $nk as $x ) {
+				$la_sua = ( 'sua' === ( isset( $x['viec'] ) ? $x['viec'] : 'bu' ) );
 				echo '<tr><td>' . esc_html( $x['ngay'] ) . '</td>';
 				echo '<td>' . esc_html( $x['ma_nv'] ) . '</td>';
+				echo '<td>' . ( $la_sua ? '<span class="k hong">sửa đè</span>' : '<span class="k luc">bù</span>' ) . '</td>';
 				echo '<td>' . ( 'vao' === $x['o_gio'] ? 'giờ vào' : 'giờ ra' ) . '</td>';
-				echo '<td>' . esc_html( VHCC_DB::hhmm( (int) $x['gio_giay'] ) ) . '</td>';
-				echo '<td style="white-space:pre-wrap;max-width:380px">' . esc_html( $x['ly_do'] ) . '</td>';
+				/* Cột giờ cũ chỉ có nghĩa với lượt SỬA. Lượt bù thì ô vốn trống — in '—' ở đó là
+				   đúng, in '00:00' thì lại thành một con số trông như thật. */
+				echo '<td>' . esc_html( $la_sua
+					? VHCC_Bu::hhmm_hoac_trong( isset( $x['gio_cu_giay'] ) && '' !== $x['gio_cu_giay']
+						? $x['gio_cu_giay'] : null )
+					: '—' ) . '</td>';
+				echo '<td><b>' . esc_html( VHCC_Bu::hhmm_hoac_trong(
+					( null === $x['gio_giay'] || '' === $x['gio_giay'] ) ? null : $x['gio_giay'] ) )
+					. '</b></td>';
+				echo '<td style="white-space:pre-wrap;max-width:340px">' . esc_html( $x['ly_do'] ) . '</td>';
 				echo '<td>' . esc_html( $x['nguoi_bu'] ) . '<br><span class="mo">'
 					. esc_html( substr( (string) $x['tao_luc'], 0, 16 ) ) . '</span></td></tr>';
 			}
 			echo '</tbody></table></div>';
 		}
+		echo '</div>';
+	}
+
+	/**
+	 * KHỐI SỬA GIỜ CÔNG — chỉ Admin.
+	 *
+	 * Anh Thắng 26/08/2026: *"admin có quyền chỉnh sửa lại giờ công cho nhân viên"*.
+	 *
+	 * 🔴 KHỐI NÀY PHẢI NÓI RÕ NÓ KHÁC "CHẤM CÔNG BÙ" Ở CHỖ NÀO.
+	 *    Hai khối nằm cạnh nhau, hai biểu mẫu trông y hệt, mà hậu quả khác hẳn: bù chỉ điền vào
+	 *    ô còn trống, sửa thì ĐÈ LÊN thứ máy đã ghi. Người dùng không đọc được ý định trong mã —
+	 *    họ chỉ thấy hai cái ô giờ. Không nói ra thì có ngày người ta dùng nhầm khối, rồi mất
+	 *    một dòng giờ máy mà tưởng mình vừa bù thêm.
+	 */
+	private static function the_sua_gio( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'sua_gio' ) ) { return; }
+		$o_loc  = self::o_loc();
+		$g_ngay = isset( $_GET['sgn'] ) ? sanitize_text_field( wp_unslash( $_GET['sgn'] ) ) : '';
+		$g_ma   = isset( $_GET['sgm'] ) ? sanitize_text_field( wp_unslash( $_GET['sgm'] ) ) : '';
+
+		echo '<div class="the" id="suagio"><h2>Sửa giờ công <span class="duoi">Admin</span></h2>';
+		echo '<p class="mo">Dùng khi giờ đã ghi là <b>sai</b> — máy lệch đồng hồ, quẹt nhầm thẻ, '
+			. 'bù nhầm ngày. Khác <b>Chấm công bù</b> ở khối trên: bù chỉ điền vào ô <b>còn '
+			. 'trống</b>, còn đây <b>đè lên</b> giờ máy đã ghi.</p>';
+		echo '<p class="mo">⚠️ Dòng bị sửa sẽ mang nhãn nguồn <b>"sửa"</b> và <b>thôi được tính là '
+			. 'lượt máy ghi</b> trong phép đối chiếu. Giờ cũ vào sổ nhật ký kèm giờ mới, '
+			. '<b>không xoá được</b>. Vẫn không tự sửa cho mình được, kể cả Admin.</p>';
+
+		/* Hiện GIỜ ĐANG CÓ của đúng dòng đang chọn. Không hiện thì người sửa phải nhớ, mà nhớ
+		   sai một chữ số là ghi đè mất một giờ công thật. */
+		if ( '' !== $g_ngay && '' !== $g_ma ) {
+			$dg = VHCC_Bu::gio_hien_tai( $cs, $g_ngay, $g_ma );
+			echo '<p class="bao canh" style="margin:10px 0">Đang sửa <b>' . esc_html( $g_ma )
+				. '</b> ngày <b>' . esc_html( $g_ngay ) . '</b> — giờ đang có: vào <b>'
+				. esc_html( $dg['vao'] ) . '</b>, ra <b>' . esc_html( $dg['ra'] ) . '</b>'
+				. ( $dg['co'] ? '' : ' <i>(chưa có dòng nào — dùng Chấm công bù ở trên)</i>' )
+				. '.</p>';
+		} else {
+			echo '<p class="mo">Bấm ✏️ ở dòng nào trong bảng chi tiết phía trên thì ngày và mã của '
+				. 'dòng đó điền sẵn xuống đây, kèm giờ đang có.</p>';
+		}
+
+		/* ⚠️ Ô `ccs` của màn phải đứng SAU `o_loc()` — xem chú thích ở `the_bu()`. */
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="sua_gio">' . $o_loc
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		echo '<div class="luoi">';
+		echo '<div><label for="sg_ngay">Ngày *</label><input id="sg_ngay" name="ngay" type="date" required'
+			. ' value="' . esc_attr( $g_ngay ) . '"'
+			. ' max="' . esc_attr( (string) current_time( 'Y-m-d' ) ) . '"></div>';
+		echo '<div><label for="sg_ma">Mã NV *</label><input id="sg_ma" name="ma_nv" required'
+			. ' value="' . esc_attr( $g_ma ) . '" placeholder="MNNV… (kèm -CD nếu là ca đêm)"></div>';
+		echo '<div><label for="sg_vao">Giờ vào mới</label><input id="sg_vao" name="sg_vao" type="time"></div>';
+		echo '<div><label for="sg_ra">Giờ ra mới</label><input id="sg_ra" name="sg_ra" type="time"></div>';
+		echo '</div>';
+		/* 🔴 Ô TRỐNG = GIỮ NGUYÊN. Muốn xoá trắng thì phải tích ô — một hành động riêng, cố ý.
+		   Hiểu ô trống thành xoá là mỗi lượt sửa một ô lại âm thầm xoá ô kia. */
+		echo '<p class="mo" style="margin:10px 0 4px">Ô giờ để <b>trống</b> nghĩa là <b>giữ nguyên</b> '
+			. 'giờ đang có. Muốn <b>xoá trắng</b> một ô thì tích vào đây:</p>';
+		echo '<p><label style="display:inline;margin-right:18px">'
+			. '<input type="checkbox" name="sg_xoa_vao" value="1"> Xoá trắng giờ vào</label>'
+			. '<label style="display:inline">'
+			. '<input type="checkbox" name="sg_xoa_ra" value="1"> Xoá trắng giờ ra</label></p>';
+		echo '<p><label for="sg_ly">Vì sao phải sửa *</label>'
+			. '<input id="sg_ly" name="ly_do" required minlength="5" style="width:100%" '
+			. 'placeholder="VD: máy lệch đồng hồ 2 tiếng ngày 12/8 — đối chiếu camera"></p>';
+		echo '<p><button class="chinh">Sửa giờ</button></p></form>';
 		echo '</div>';
 	}
 
