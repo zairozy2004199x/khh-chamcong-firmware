@@ -6236,8 +6236,12 @@ t( 'cơ sở KHÔNG phải Văn phòng thì ô là SỐ GIỜ, không phải s�
 	strpos( $h_gio, 'là <b>số giờ làm</b>' ) !== false, $h_gio );
 t( 'và nói rõ vì sao không dùng công thức Văn phòng ở đây',
 	strpos( $h_gio, 'ca gãy' ) !== false, $h_gio );
-t( 'và chỉ cách đổi sang lối Văn phòng nếu muốn',
-	strpos( $h_gio, 'khai bộ phận' ) !== false, $h_gio );
+t( 'và chỉ thẳng chỗ đổi cách tính',
+	strpos( $h_gio, 'Cách tính công của từng cơ sở' ) !== false, $h_gio );
+/* Nói rõ vì sao cơ sở này đang tính kiểu đó — "đã khai thẳng" hay "suy theo bộ phận". Không nói
+   thì người ta đổi bộ phận cho gọn báo cáo rồi ngạc nhiên vì bảng công đổi theo. */
+t( 'nói rõ vì sao đang tính kiểu đó',
+	strpos( $h_gio, 'suy theo bộ phận' ) !== false || strpos( $h_gio, 'đã khai thẳng' ) !== false, $h_gio );
 /* 🔴 Số giờ phải là số giờ THẬT, không phải số công lẻ. 08:00 -> 17:30 = 9.5 giờ. */
 t( 'ô hiện đúng số giờ làm (9.5)', strpos( $h_gio, '>9.5</b>' ) !== false, $h_gio );
 t( 'KHÔNG có ô nào mang số công lẻ kiểu 0.63', strpos( $h_gio, '>0.63<' ) === false, $h_gio );
@@ -6351,6 +6355,73 @@ t( 'giờ không thuộc ca nào hiện ở cột Ngoài ca, không bị nuốt'
 	strpos( $h_ca2, 'oc vang' ) !== false, $h_ca2 );
 t( 'và nói rõ đó là dấu hiệu khung ca khai chưa khớp',
 	strpos( $h_ca2, 'khung ca khai chưa khớp' ) !== false, $h_ca2 );
+
+/* ---- CÔNG TẮC: cơ sở nào tính THEO GIỜ, cơ sở nào THEO CÔNG ---- */
+/* Anh Thắng 26/08: *"bổ sung phần cấu hình để phân biệt cơ sở nào tính theo giờ, cơ sở nào tính
+   theo công"*.
+
+   🔴 Trước đây chuyện này SUY RA TỪ BỘ PHẬN, và đó là chỗ sai: nó buộc hai câu hỏi khác nhau vào
+      một ô dữ liệu — "cơ sở thuộc bộ phận nào" (để lọc, gom báo cáo) và "cơ sở trả công thế nào"
+      (để ra tiền). Đổi bộ phận cho gọn báo cáo là lặng lẽ đổi cách tính tiền của cả một cơ sở. */
+
+/* Chưa khai gì -> vẫn theo luật cũ, để cơ sở đang chạy không đổi kết quả sau khi cài bản mới. */
+t( 'chưa khai thì suy theo bộ phận', ! VHCC_Luong::cach_tinh_da_khai( $CS_GIO ) );
+teq( 'cơ sở không phải Văn phòng -> theo giờ', 'gio', VHCC_Luong::cach_tinh( $CS_GIO ) );
+teq( 'cơ sở Văn phòng -> theo công', 'cong', VHCC_Luong::cach_tinh( $VP_CS ) );
+
+/* Khai thẳng thì công tắc thắng bộ phận — cả hai chiều. */
+$r_ct = VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $CS_GIO => 'cong', $VP_CS => 'gio' ) );
+t( 'lưu được cách tính', ! empty( $r_ct['ok'] ), $r_ct );
+teq( 'khai thẳng THEO CÔNG thắng bộ phận', 'cong', VHCC_Luong::cach_tinh( $CS_GIO ) );
+teq( 'và khai thẳng THEO GIỜ cũng thắng bộ phận Văn phòng', 'gio', VHCC_Luong::cach_tinh( $VP_CS ) );
+t( 'đánh dấu là đã khai thẳng', VHCC_Luong::cach_tinh_da_khai( $CS_GIO ) );
+/* Màn đọc theo công tắc, không đọc bộ phận nữa. */
+$h_ct = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+t( 'bảng đổi sang SỐ CÔNG theo công tắc', strpos( $h_ct, 'là <b>số công</b>' ) !== false, $h_ct );
+t( 'và nói rõ là do khai thẳng', strpos( $h_ct, 'đã khai thẳng' ) !== false, $h_ct );
+
+/* Để rỗng = BỎ khai, quay về suy theo bộ phận — KHÔNG phải "cơ sở này không có cách tính nào". */
+VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $CS_GIO => '', $VP_CS => '' ) );
+t( 'để rỗng là bỏ khai', ! VHCC_Luong::cach_tinh_da_khai( $CS_GIO ) );
+/* Và XOÁ HẲN khoá, không để lại một ô rỗng. Giữ lại thì sổ cấu hình cứ phình ra theo mỗi lượt
+   bấm Lưu, đầy những cơ sở "đã khai là không khai gì" — đọc lại chẳng ai hiểu. */
+$bd_ct = VHCC_Luong::ban_do_cach_tinh();
+t( 'và xoá hẳn khoá khỏi sổ cấu hình, không để lại ô rỗng',
+	! array_key_exists( $CS_GIO, $bd_ct ) && ! array_key_exists( $VP_CS, $bd_ct ), $bd_ct );
+teq( 'và quay về suy theo bộ phận', 'gio', VHCC_Luong::cach_tinh( $CS_GIO ) );
+teq( 'Văn phòng cũng quay về theo công', 'cong', VHCC_Luong::cach_tinh( $VP_CS ) );
+
+/* Khối cấu hình trên màn. */
+t( 'có khối Cách tính công của từng cơ sở', strpos( $h_gio, 'id="cachtinh"' ) !== false, $h_gio );
+t( 'khối ấy liệt kê CẢ danh sách cơ sở, không chỉ cơ sở đang xem',
+	substr_count( $h_gio, 'name="ct[' ) > 1, $h_gio );
+t( 'mỗi cơ sở có ba lựa chọn', strpos( $h_gio, '— theo bộ phận —' ) !== false
+	&& strpos( $h_gio, '>Theo giờ<' ) !== false && strpos( $h_gio, '>Theo công<' ) !== false, $h_gio );
+t( 'có cột Đang dùng cho biết luật hiện ra kết quả gì',
+	strpos( $h_gio, '<th>Đang dùng</th>' ) !== false, $h_gio );
+/* Nói rõ đổi công tắc KHÔNG sửa giờ chấm — kẻo người ta sợ không dám bấm. */
+t( 'nói rõ đổi cách tính không sửa giờ chấm nào',
+	strpos( $h_gio, 'không sửa một giờ chấm nào' ) !== false, $h_gio );
+/* Và trỏ sang công thức tính công của khối Văn phòng — đó là màn khác, nhiều ô hơn hẳn. */
+t( 'trỏ sang công thức tính công của khối Văn phòng',
+	strpos( $h_gio, 'công thức tính công của khối Văn phòng' ) !== false
+	|| strpos( $h_gio, 'công thức '  ) !== false, $h_gio );
+
+/* Gác cửa: đổi cách tính là đổi con số ra tiền, không phải việc trong phạm vi một cửa hàng. */
+foreach ( array( 'Nhân viên', 'Cửa hàng trưởng' ) as $vt_ct ) {
+	$r_c = VHCC_Luong::dat_cach_tinh(
+		array( 'name' => 'X', 'role' => $vt_ct, 'coso' => $CS_GIO ), array( $CS_GIO => 'cong' ) );
+	t( $vt_ct . ' KHÔNG đổi được cách tính', empty( $r_c['ok'] ), $r_c );
+}
+$h_ct_ch = vhcc_web( '357913', array(), array( 'man' => 'vp', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+t( 'Cửa hàng trưởng không thấy khối cấu hình', strpos( $h_ct_ch, 'id="cachtinh"' ) === false, $h_ct_ch );
+/* Ẩn khối không phải là gác cửa — POST thẳng cũng phải bị chối. */
+$_POST = array( 'viec' => 'cach_tinh', 'ct' => array( $CS_GIO => 'cong' ) );
+$r_ct_p = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'cach_tinh', array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => $CS_GIO ) ) );
+$_POST = array();
+t( 'và POST thẳng cũng bị chối', is_array( $r_ct_p ) && ! isset( $r_ct_p[0]['xong'] ), $r_ct_p );
+teq( 'cách tính KHÔNG bị đổi', 'gio', VHCC_Luong::cach_tinh( $CS_GIO ) );
 
 /* ---- XUẤT EXCEL: chi tiết ca đó từ mấy giờ đến mấy giờ ---- */
 /* Anh Thắng 26/08: *"bổ sung tính năng xuất excel, khi xuất thì nó sẽ chi tiết ca đó từ mấy h

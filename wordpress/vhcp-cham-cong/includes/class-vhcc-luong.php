@@ -104,6 +104,83 @@ class VHCC_Luong {
 		return 'Văn phòng' === self::bo_phan_cua( $coso );
 	}
 
+	/** Khoá lưu bản đồ cách tính: { 'CO_SO' => 'gio' | 'cong' }. */
+	const CACH_TINH_O = 'CACH_TINH_COSO';
+
+	/**
+	 * CƠ SỞ NÀY TÍNH THEO GIỜ HAY THEO CÔNG?
+	 *
+	 * Anh Thắng 26/08/2026: *"bổ sung phần cấu hình để phân biệt cơ sở nào tính theo giờ, cơ sở
+	 * nào tính theo công"*.
+	 *
+	 * 🔴 TRƯỚC ĐÂY CHUYỆN NÀY SUY RA TỪ BỘ PHẬN — và đó là chỗ sai.
+	 *    Luật cũ: bộ phận đúng chữ 'Văn phòng' thì tính theo công, còn lại theo giờ. Nghe gọn,
+	 *    nhưng nó buộc HAI câu hỏi khác nhau vào một ô dữ liệu:
+	 *      · "cơ sở này thuộc bộ phận nào"   — dùng để lọc, để gom báo cáo
+	 *      · "cơ sở này trả công thế nào"    — dùng để ra tiền
+	 *    Muốn một kho Văn phòng trả theo giờ thì phải đổi bộ phận của nó, và thế là hỏng luôn mọi
+	 *    bộ lọc. Ngược lại, đổi bộ phận cho gọn báo cáo là lặng lẽ đổi cách tính tiền của cả một
+	 *    cơ sở. Không câu nào báo.
+	 *
+	 * Nay: khai THẲNG, mỗi cơ sở một ô. Chưa khai thì vẫn theo luật cũ (bộ phận) để mọi cơ sở
+	 * đang chạy không đổi kết quả sau khi cài bản này.
+	 *
+	 * @return string 'gio' | 'cong'
+	 */
+	public static function cach_tinh( $coso ) {
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$m    = self::ban_do_cach_tinh();
+		if ( isset( $m[ $coso ] ) && in_array( $m[ $coso ], array( 'gio', 'cong' ), true ) ) {
+			return $m[ $coso ];
+		}
+		return self::la_van_phong( $coso ) ? 'cong' : 'gio';
+	}
+
+	/** Cơ sở này đã KHAI THẲNG chưa, hay đang suy từ bộ phận? */
+	public static function cach_tinh_da_khai( $coso ) {
+		$m = self::ban_do_cach_tinh();
+		$k = VHCC_NhanSu::chuan_coso( $coso );
+		return isset( $m[ $k ] ) && in_array( $m[ $k ], array( 'gio', 'cong' ), true );
+	}
+
+	public static function ban_do_cach_tinh() {
+		$m = self::cai_dat( self::CACH_TINH_O, array() );
+		return is_array( $m ) ? $m : array();
+	}
+
+	/**
+	 * Khai cách tính cho một loạt cơ sở.
+	 *
+	 * ⚠️ Quyền `ngoai_coso` (bậc Quản lý) chứ không phải `cong_coso`: đổi cách tính của một cơ sở
+	 *    là đổi CON SỐ RA TIỀN của cả cơ sở đó, không phải một việc trong phạm vi cửa hàng. Kế
+	 *    toán và Admin ở bậc trên nên cũng làm được.
+	 *
+	 * @param array $dat { 'CO_SO' => 'gio' | 'cong' | '' }. Giá trị rỗng = BỎ khai, quay về suy
+	 *                   theo bộ phận — chứ không phải "cơ sở này không có cách tính nào".
+	 */
+	public static function dat_cach_tinh( $u, $dat ) {
+		if ( ! VHCC_Vai::duoc( $u, 'ngoai_coso' ) ) {
+			return array( 'ok' => false,
+				'error' => 'Đổi cách tính công của cơ sở cần quyền Quản lý trở lên — nó đổi con số ra tiền.' );
+		}
+		$m = self::ban_do_cach_tinh();
+		$so = 0;
+		foreach ( (array) $dat as $cs => $kieu ) {
+			$cs = VHCC_NhanSu::chuan_coso( $cs );
+			if ( '' === $cs ) { continue; }
+			/* ⚠️ Dòng này HIỆN KHÔNG BAO GIỜ chối ai: qua được cửa `ngoai_coso` ở trên nghĩa là
+			   bậc Quản lý trở lên, mà bậc ấy đã có `cong_tat_ca` nên `co_quyen_coso` luôn trả
+			   true. Giữ lại là để phòng thang quyền đổi về sau — nhưng nói thẳng ra ở đây, kẻo
+			   người đọc sau tưởng cơ sở đang được gác từng cái một. */
+			if ( ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) { continue; }
+			$kieu = trim( (string) $kieu );
+			if ( in_array( $kieu, array( 'gio', 'cong' ), true ) ) { $m[ $cs ] = $kieu; $so++; }
+			else { unset( $m[ $cs ] ); }
+		}
+		self::dat_cai_dat( self::CACH_TINH_O, $m, $u );
+		return array( 'ok' => true, 'so_khai' => $so, 'so_co_so' => count( $m ) );
+	}
+
 	/** Cơ sở được tích "tính theo giờ". Khoá so sánh đã bỏ dấu để gõ kiểu nào cũng trúng. */
 	public static function coso_tinh_theo_gio( $coso ) {
 		$k = self::bo_chu( preg_replace( '/^CS_/', '', (string) $coso ) );

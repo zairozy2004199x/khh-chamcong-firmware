@@ -326,7 +326,7 @@ class VHCC_Web {
 	 *    `nap_cong` bậc 3). Hai tầng ấy khác nhau — bỏ tầng sau vì "đã có tầng trước" là để
 	 *    Cửa hàng trưởng nạp đè cả tháng công của cơ sở khác.
 	 */
-	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca' );
+	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -402,6 +402,19 @@ class VHCC_Web {
 			return array( array( 'xong' => $r['so_ca']
 				? 'Đã khai ' . $r['so_ca'] . ' ca cho ' . $r['coSo'] . '. Giờ công tách lại theo ca mới ngay.'
 				: 'Đã bỏ khai ca riêng của ' . $r['coSo'] . ' — quay về dùng ca chung.' ) );
+		}
+
+		if ( 'cach_tinh' === $viec ) {
+			$ct = isset( $_POST['ct'] ) ? (array) wp_unslash( $_POST['ct'] ) : array();
+			$sach = array();
+			foreach ( $ct as $cs_ct => $kieu_ct ) {
+				$sach[ sanitize_text_field( $cs_ct ) ] = sanitize_text_field( $kieu_ct );
+			}
+			$r = VHCC_Luong::dat_cach_tinh( $toi, $sach );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => 'Đã lưu cách tính: ' . $r['so_khai'] . ' cơ sở khai thẳng, '
+				. 'còn lại suy theo bộ phận. Bảng công đọc lại theo cách mới ngay — không giờ chấm '
+				. 'nào bị sửa.' ) );
 		}
 
 		if ( 'xem_cong' === $viec || 'nap_cong' === $viec ) {
@@ -1698,25 +1711,27 @@ class VHCC_Web {
 		   (bậc thang theo khung 08:30–17:00) đem áp lên một CỬA HÀNG, nơi người ta làm ca gãy và
 		   trả theo giờ. Con số ra vẫn là số, vẫn cộng được, chỉ là không có nghĩa gì.
 		   Bản gốc cũng đổi đơn vị theo cơ sở (`d.theoGio ? giờ : công`) — làm y vậy. */
-		$la_vp = VHCC_Luong::la_van_phong( $cs );
+		$la_vp = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
+		$khai_roi = VHCC_Luong::cach_tinh_da_khai( $cs );
 
 		echo '<div class="the">';
 		echo '<h2>Bảng công tháng</h2>';
 		if ( '' === $cs ) {
 			echo '<p class="mo">Chọn cơ sở rồi bấm Xem. Đơn vị của ô do <b>bộ phận của cơ sở</b> '
 				. 'quyết: Văn phòng tính ra <b>số công</b>, cửa hàng tính ra <b>số giờ làm</b>.</p>';
-		} elseif ( $la_vp ) {
-			echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> thuộc bộ phận <b>Văn phòng</b> nên mỗi ô '
-				. 'là <b>số công</b> — đã qua phép tính (khung giờ, tăng ca, ca đêm, công bù), không '
-				. 'phải số giờ thô. Rê chuột lên ô để đọc vì sao ra con số đó.</p>';
 		} else {
-			echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> <b>không</b> thuộc bộ phận Văn phòng nên '
-				. 'mỗi ô là <b>số giờ làm</b> (giờ ra trừ giờ vào), không quy ra công. Cửa hàng làm ca '
-				. 'gãy, đem công thức khung giờ của Văn phòng vào đây là ra một dãy số lẻ không có '
-				. 'nghĩa.</p>';
-			echo '<p class="mo">Muốn đổi cơ sở này sang cách tính Văn phòng thì khai bộ phận '
-				. '<b>Văn phòng</b> cho nó ở màn <b>Hồ sơ &amp; tài khoản</b> — cách tính đi theo bộ '
-				. 'phận, không đi theo tên cơ sở.</p>';
+			$vi_sao = $khai_roi ? 'đã khai thẳng' : 'suy theo bộ phận <b>' . esc_html( VHCC_Luong::bo_phan_cua( $cs ) ) . '</b>';
+			if ( $la_vp ) {
+				echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO CÔNG</b> (' . $vi_sao
+					. ') nên mỗi ô là <b>số công</b> — đã qua phép tính (khung giờ, tăng ca, ca đêm, '
+					. 'công bù), không phải số giờ thô. Rê chuột lên ô để đọc vì sao ra con số đó.</p>';
+			} else {
+				echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO GIỜ</b> (' . $vi_sao
+					. ') nên mỗi ô là <b>số giờ làm</b> (giờ ra trừ giờ vào), không quy ra công. Cửa hàng '
+					. 'làm ca gãy, đem công thức khung giờ của Văn phòng vào đây là ra một dãy số lẻ '
+					. 'không có nghĩa.</p>';
+			}
+			echo '<p class="mo">Đổi được ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
 		}
 
 		echo '<form method="get" class="hang" style="margin-top:10px">';
@@ -1756,6 +1771,67 @@ class VHCC_Web {
 		self::ve_luoi_gio( $b_gio, $th );
 		self::the_tong_ca( $b_gio, $cs );
 		self::the_khai_ca( $cs, $ky, $toi );
+		self::the_cach_tinh( $ky, $toi );
+	}
+
+	/**
+	 * CÁCH TÍNH CÔNG CỦA TỪNG CƠ SỞ — theo giờ hay theo công.
+	 *
+	 * Anh Thắng 26/08/2026: *"bổ sung phần cấu hình để phân biệt cơ sở nào tính theo giờ, cơ sở
+	 * nào tính theo công"*.
+	 *
+	 * 🔴 Vẽ CẢ DANH SÁCH, không phải chỉ cơ sở đang xem. Sửa từng cơ sở một thì không ai thấy
+	 *    được bức tranh chung, và chỗ sai thường lộ ra đúng lúc nhìn cả bảng: "ủa sao cái kho này
+	 *    lại đang tính theo công".
+	 */
+	private static function the_cach_tinh( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		$ds = self::ds_coso_xem( $toi );
+		if ( ! $ds ) { return; }
+
+		echo '<div class="the" id="cachtinh"><details><summary><b>Cách tính công của từng cơ sở</b> '
+			. '<span class="mo">(' . count( $ds ) . ' cơ sở · bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0"><b>Theo giờ</b> = mỗi ô là số giờ làm thật (giờ ra '
+			. 'trừ giờ vào) — hợp với cửa hàng làm ca gãy. <b>Theo công</b> = quy ra số công theo '
+			. 'khung giờ, tăng ca, ca đêm — hợp với Văn phòng làm giờ hành chính.</p>';
+		echo '<p class="mo">Để <b>Theo bộ phận</b> là giữ luật cũ: bộ phận đúng chữ "Văn phòng" thì '
+			. 'tính theo công, còn lại theo giờ. Cột <b>Đang dùng</b> cho biết luật ấy đang ra kết quả gì.</p>';
+		echo '<p class="mo">⚠️ Đổi cách tính là đổi <b>con số ra tiền</b> của cả cơ sở. Bảng công vẫn '
+			. 'chỉ đọc — đổi ở đây <b>không sửa một giờ chấm nào</b>, chỉ đổi cách đọc số đã có.</p>';
+		/* Công tắc này chỉ chọn DÙNG công thức nào. Bản thân công thức tính công của khối Văn
+		   phòng (khung ca ngày, bậc thang, ca đêm, công bù, luật riêng của Kế toán) là một màn
+		   khác, nhiều ô hơn hẳn — trỏ sang chứ không nhét vào đây, kẻo hai thứ lẫn vào nhau. */
+		echo '<p class="mo">Đây chỉ là công tắc <b>chọn công thức nào</b>. Bản thân <b>công thức '
+			. 'tính công của khối Văn phòng</b> (khung ca ngày, bậc thang, ca đêm, công bù, luật '
+			. 'riêng của Kế toán) nằm ở màn <b>Cấu hình lương</b> trong wp-admin'
+			. ( current_user_can( 'manage_options' )
+				? ' — <a href="' . esc_url( admin_url( 'admin.php?page=vhcc-cf-luong' ) ) . '">mở ngay</a>'
+				: '' ) . '.</p>';
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="cach_tinh">' . self::o_loc();
+		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Bộ phận</th>'
+			. '<th>Cách tính</th><th>Đang dùng</th></tr></thead><tbody>';
+		foreach ( $ds as $x ) {
+			$m    = VHCC_Luong::ban_do_cach_tinh();
+			$chon = isset( $m[ $x ] ) ? (string) $m[ $x ] : '';
+			$dang = VHCC_Luong::cach_tinh( $x );
+			echo '<tr><td><b>' . esc_html( $x ) . '</b></td>';
+			echo '<td>' . esc_html( VHCC_Luong::bo_phan_cua( $x ) ) . '</td>';
+			echo '<td><select name="ct[' . esc_attr( $x ) . ']">';
+			foreach ( array( '' => '— theo bộ phận —', 'gio' => 'Theo giờ', 'cong' => 'Theo công' ) as $k => $n ) {
+				echo '<option value="' . esc_attr( $k ) . '"' . selected( $k, $chon, false ) . '>'
+					. esc_html( $n ) . '</option>';
+			}
+			echo '</select></td>';
+			echo '<td><span class="k ' . ( 'cong' === $dang ? 'ca2' : 'ca1' ) . '">'
+				. ( 'cong' === $dang ? 'số công' : 'số giờ' ) . '</span>'
+				. ( '' === $chon ? ' <span class="mo">(suy theo bộ phận)</span>' : '' ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p><button class="chinh">Lưu cách tính</button></p>';
+		echo '</form></details></div>';
 	}
 
 	/**
