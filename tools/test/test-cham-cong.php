@@ -5995,6 +5995,25 @@ t( 'màn có khối Nạp công từ .csv', strpos( $h_qtc, 'id="napcong"' ) !==
 t( 'khối nạp công nói rõ nút .csv ở màn Hồ sơ KHÔNG nạp giờ công',
 	strpos( $h_qtc, 'sổ nhân sự' ) !== false && strpos( $h_qtc, 'bảng công vẫn trắng' ) !== false, $h_qtc );
 t( 'có nút Xem trước', strpos( $h_qtc, 'value="xem_cong"' ) !== false );
+/* 🔴 Anh Thắng 26/08: *"không thấy chỗ nạp dữ liệu công"*. Bản đầu đặt khối nạp ở CUỐI, sau
+   bảng — mà bảng chỉ vẽ khi đã chọn cơ sở VÀ bấm Xem. Tức là đúng lúc bảng công còn TRỐNG,
+   lúc người ta cần nạp nhất, thì cái nút nạp là thứ duy nhất không hiện.
+   Phép dưới đây mở màn ở đúng trạng thái ấy: CHƯA chọn cơ sở gì cả. */
+/* Lọc theo một bộ phận KHÔNG có cơ sở nào -> rơi đúng vào đường thoát sớm của `the_bang_cham`.
+   (Mở màn trơn không rơi vào đó được: sổ thử chỉ có một cơ sở nên hệ tự chọn giúp.) */
+$h_trong = vhcc_web( '135791', array(),
+	array( 'man' => 'cham', 'cbp' => 'Bộ phận không tồn tại' ) );
+t( 'lọc ra 0 cơ sở thì bảng KHÔNG vẽ (đường thoát sớm)',
+	strpos( $h_trong, 'Chi tiết từng lượt' ) === false, $h_trong );
+t( 'NHƯNG khối Nạp công VẪN hiện — đây là lúc cần nó nhất',
+	strpos( $h_trong, 'id="napcong"' ) !== false, $h_trong );
+t( 'và khối nạp có ô chọn cơ sở RIÊNG, không phải chờ bảng vẽ xong',
+	strpos( $h_trong, 'id="ncs"' ) !== false, $h_trong );
+t( 'ô chọn cơ sở của khối nạp có liệt kê cơ sở thật',
+	strpos( $h_trong, '>TUTU_BT<' ) !== false, $h_trong );
+t( 'và vẫn nhận được file', strpos( $h_trong, 'enctype="multipart/form-data"' ) !== false );
+t( 'khối nạp đứng một mình vẫn nói rõ nút .csv kia là nạp NHÂN SỰ',
+	strpos( $h_trong, 'sổ nhân sự' ) !== false, $h_trong );
 t( 'và nút Nạp thật',  strpos( $h_qtc, 'value="nap_cong"' ) !== false );
 t( 'form nạp nhận được file', strpos( $h_qtc, 'enctype="multipart/form-data"' ) !== false );
 

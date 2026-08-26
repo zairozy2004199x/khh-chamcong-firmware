@@ -1198,6 +1198,12 @@ class VHCC_Web {
 						? 'Không có cơ sở nào thuộc bộ phận này trong phạm vi của anh/chị.'
 						: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' ) )
 				. '</p></div>';
+			/* 🔴 VẪN vẽ khối nạp công ở đây. Anh Thắng 26/08: *"không thấy chỗ nạp dữ liệu công"* —
+			   đúng, vì bản đầu đặt khối nạp ở CUỐI, sau bảng, mà bảng chỉ vẽ khi đã chọn cơ sở.
+			   Tức là đúng lúc bảng công còn TRỐNG — lúc người ta cần nạp nhất — thì cái nút nạp
+			   lại là thứ duy nhất không hiện. Ngược đời, và im lặng: màn hình trông vẫn bình
+			   thường, chỉ thiếu mất thứ đang cần. */
+			self::the_nap_cong( $cs, $ky, $toi, $ds_cs );
 			return;
 		}
 		echo '</div>';
@@ -1328,7 +1334,7 @@ class VHCC_Web {
 		echo '</div>';
 
 		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
-		self::the_nap_cong( $cs, $ky, $toi );
+		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
 	}
 
@@ -1398,7 +1404,7 @@ class VHCC_Web {
 	 *    chấm công chưa vào, anh nạp rồi mà"* — và hệ thống lúc đó không có một câu nào phân biệt
 	 *    hai thứ. Một màn im lặng đúng vẫn là một màn sai.
 	 */
-	private static function the_nap_cong( $cs, $ky, $toi ) {
+	private static function the_nap_cong( $cs, $ky, $toi, $ds_cs = array() ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'nap_cong' ) ) { return; }
 		echo '<div class="the" id="napcong"><h2>Nạp công từ .csv (Sheets cũ)</h2>';
 		echo '<p class="mo">Nhận đúng tệp <b>"Bảng chạy · Hệ Thống Chấm Công Cơ Sở"</b> xuất từ '
@@ -1409,19 +1415,34 @@ class VHCC_Web {
 			. 'bảng công vẫn trắng là đúng, không phải mất dữ liệu.</p>';
 		echo '<p class="mo">Nạp lại bao nhiêu lần cũng không sinh trùng, và <b>không bao giờ xoá bớt '
 			. 'giờ đã có</b>: tệp cũ thiếu giờ ra thì giờ ra do máy ghi vẫn nguyên.</p>';
-		if ( '' === $cs ) {
-			echo '<p class="mo">Chọn một cơ sở ở trên trước đã — công nạp vào cơ sở nào là do ô đó quyết.</p></div>';
+
+		/* Ô chọn cơ sở RIÊNG của khối này, không mượn ô lọc ở trên.
+		   ⚠️ Mượn ô trên thì khối nạp chỉ dùng được sau khi đã bấm Xem — mà lúc chưa có dữ liệu
+		      thì bảng trống, người ta không có lý do gì để bấm Xem, nên không bao giờ tới được
+		      cái nút này. Khối nạp phải đứng được MỘT MÌNH. */
+		if ( ! $ds_cs ) { $ds_cs = self::ds_coso_xem( $toi ); }
+		if ( ! $ds_cs ) {
+			echo '<p class="mo">Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô '
+				. '"Cửa hàng phụ trách" ở màn Hồ sơ.</p></div>';
 			return;
 		}
 		echo '<form method="post" enctype="multipart/form-data">'
-			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
-			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">' . self::o_loc();
-		echo '<p class="mo">Nạp vào cơ sở: <b>' . esc_html( $cs ) . '</b></p>';
-		echo '<p><input type="file" name="tep" accept=".csv,.tsv,.txt" required></p>';
-		echo '<p><button name="viec" value="xem_cong">Xem trước</button> '
-			. '<button class="chinh" name="viec" value="nap_cong">Nạp thật</button></p>';
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc();
+		echo '<div class="hang">';
+		echo '<div><label for="ncs">Nạp vào cơ sở *</label><select id="ncs" name="ccs" required>';
+		if ( '' === $cs ) { echo '<option value="">— chọn cơ sở —</option>'; }
+		foreach ( $ds_cs as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
+				. esc_html( $x ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><label for="ntep">Tệp .csv *</label>'
+			. '<input id="ntep" type="file" name="tep" accept=".csv,.tsv,.txt" required></div>';
+		echo '<div><button name="viec" value="xem_cong">Xem trước</button></div>';
+		echo '<div><button class="chinh" name="viec" value="nap_cong">Nạp thật</button></div>';
+		echo '</div>';
 		echo '<p class="mo">Bấm <b>Xem trước</b> đi đã: nó đếm và kể ra mọi chỗ lạ mà '
-			. '<b>không ghi gì</b>.</p>';
+			. '<b>không ghi gì</b>. Bốn con số nó in ra phải khớp với tệp đang cầm trên tay.</p>';
 		echo '</form></div>';
 	}
 
