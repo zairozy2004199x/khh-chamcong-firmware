@@ -195,7 +195,7 @@ class VHNB_Trang {
 		if ( ! self::co_he_cham_cong() ) {
 			echo '<div class="bao loi"><b>Chưa cài plugin Chấm Công.</b> Trang nội bộ dùng chung '
 				. 'mã PIN với hệ chấm công, nên phải có plugin đó thì mới đăng nhập được.</div>';
-			echo '</div></body></html>';
+			self::dong_trang();
 			return;
 		}
 		if ( ! $toi ) {
@@ -204,7 +204,8 @@ class VHNB_Trang {
 				. '<p class="mo">Đăng nhập bằng <b>mã PIN chấm công</b> ở trang chấm công, rồi quay '
 				. 'lại đây — hai trang dùng chung một phiên, không phải nhập PIN hai lần.</p>'
 				. '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() ) . '">Tới trang đăng nhập</a></p>'
-				. '</div></div></body></html>';
+				. '</div>';
+			self::dong_trang();
 			return;
 		}
 
@@ -218,7 +219,26 @@ class VHNB_Trang {
 		self::o_dang( $toi, $nhom );
 		self::thanh_nhom( $nhom );
 		self::bang_tin( $toi, $nhom );
-		echo '</div></body></html>';
+		self::dong_trang();
+	}
+
+	/**
+	 * ĐÓNG TRANG — chân trang công ty rồi mới tới mấy thẻ đóng.
+	 *
+	 * 🔴 MỘT CHỖ ĐÓNG, KHÔNG BA CHỖ. Ba dòng `</div></body></html>` giống hệt nhau nằm rải rác
+	 *    là ba chỗ phải nhớ sửa mỗi lần thêm gì vào cuối trang — và chỗ quên thì im lặng thiếu.
+	 *
+	 * ⚠️ Thông tin công ty lấy từ `VHCC_Cty` của plugin chấm công. Trang này VỐN ĐÃ phụ thuộc
+	 *    plugin ấy (dùng chung thẻ phiên), nên không thêm ràng buộc gì mới; và nhờ vậy số liệu
+	 *    công ty chỉ khai một nơi cho cả bốn trang.
+	 */
+	private static function dong_trang() {
+		echo '</div>';
+		/* Gác `method_exists` cùng hàm với lời gọi — xem `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHCC_Cty' ) && method_exists( 'VHCC_Cty', 'html' ) ) {
+			echo '<div class="bo">' . VHCC_Cty::html() . '</div>';
+		}
+		echo '</body></html>';
 	}
 
 	private static function o_dang( $toi, $nhom ) {
@@ -384,6 +404,10 @@ class VHNB_Trang {
 			. 'word-break:break-word}'
 			/* Điện thoại: ô nhập đủ 16px, kẻo iPhone tự phóng to cả trang mỗi lần bấm vào ô. */
 			. '@media(max-width:640px){.bo{padding:10px}input,select,textarea{font-size:16px}}'
+			/* Chân trang công ty mang bộ kiểu chữ riêng, tiền tố `cty-`. Ghép vào đây thay vì in
+			   thẻ <style> thứ hai giữa trang. */
+			. ( ( class_exists( 'VHCC_Cty' ) && method_exists( 'VHCC_Cty', 'css' ) )
+				? VHCC_Cty::css() : '' )
 			. '</style></head><body>';
 	}
 }

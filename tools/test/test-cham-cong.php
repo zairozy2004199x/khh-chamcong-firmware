@@ -6674,6 +6674,119 @@ foreach ( $man_thu as $ten_man => $get_man ) {
 	}
 }
 
+/* ================================= 51b. THÔNG TIN CÔNG TY Ở CUỐI TRANG
+   Anh Thắng 26/08: *"nhớ bổ sung thông tin công ty ở cuối trang nhé"* — kèm ảnh chính trang này. */
+
+/* 🔴 MỘT CHỖ ĐÓNG TRANG, KHÔNG BẢY CHỖ.
+   Trước đây bảy màn tự `echo '</div></body></html>'`. Thêm chân trang kiểu ấy là sửa bảy chỗ,
+   quên một chỗ, rồi đúng màn bị quên thì thiếu thông tin công ty mà chẳng ai để ý. Canh thẳng
+   vào MÃ: cả tệp chỉ được có đúng một dòng đóng trang. */
+/* ⚠️ BỎ CHÚ THÍCH TRƯỚC KHI ĐẾM. Chốt này soi MÃ, không soi lời giải thích về mã: chính dòng
+   chú thích kể VỀ cái lỗi cũ ("mỗi màn tự echo '</div></body></html>'") bị đếm thành một chỗ
+   sót — phép thử đỏ trong khi mã đúng. Đúng vết đã cắn `kiem-goi-cheo.php` sáng nay. */
+function vhcc_bo_chu_thich( $ma ) {
+	$ra = '';
+	foreach ( token_get_all( $ma ) as $tk ) {
+		if ( is_array( $tk ) && in_array( $tk[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { continue; }
+		$ra .= is_array( $tk ) ? $tk[1] : $tk;
+	}
+	return $ra;
+}
+$ma_web = vhcc_bo_chu_thich( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ) );
+teq( '🔴 class-vhcc-web.php chỉ có ĐÚNG MỘT chỗ in </body></html>', 1,
+	substr_count( $ma_web, "'</body></html>'" ) );
+teq( 'và không còn dòng đóng trang gộp nào sót lại', 0,
+	substr_count( $ma_web, "</div></body></html>'" ) );
+
+/* Chưa ai khai công ty ở đâu -> KHÔNG vẽ chân trang. Bịa ra một cái tên còn tệ hơn để trống. */
+delete_option( 'vhg_chan' );
+teq( 'chưa khai gì thì thong_tin() trả rỗng', array(), VHCC_Cty::thong_tin() );
+teq( 'và html() trả chuỗi rỗng, không phải một cái khung trống', '', VHCC_Cty::html() );
+t( 'trang vẫn vẽ bình thường khi chưa khai công ty',
+	strpos( vhcc_web( '135791' ), 'Việc anh/chị làm được' ) !== false );
+
+/* Khai vào ô cài đặt dùng chung `vhg_chan` — đúng ô mà màn quản trị của plugin Ghế đang ghi. */
+update_option( 'vhg_chan', array(
+	'ten'        => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H',
+	'ten_qt'     => 'K&H SERVICES AND ENTERTAINMENT COMPANY LIMITED',
+	'mst'        => '0106924989',
+	'dia_chi'    => 'Thôn Mai Nội, Xã Sóc Sơn, Thành phố Hà Nội, Việt Nam',
+	'dai_dien'   => 'Nguyễn Văn Kiên',
+	'dien_thoai' => '0435961469',
+	'email'      => '',
+	'ngay_hd'    => '05/08/2015',
+	'co_quan'    => 'Thuế cơ sở 18 thành phố Hà Nội',
+	'chi_nhanh'  => "Đà Nẵng\nNha Trang",
+	'hien'       => 0,
+) );
+
+/* 🔴 CHÂN TRANG PHẢI CÓ Ở **MỌI** MÀN, kể cả màn đăng nhập — nhất là màn đăng nhập, vì đó là
+   thứ duy nhất người ngoài nhìn thấy. Quét lại đúng danh sách màn ở khối trên, không gõ riêng. */
+$h_dnhap = vhcc_web( '000000' );        // PIN sai -> màn đăng nhập
+t( 'màn ĐĂNG NHẬP có thông tin công ty',
+	strpos( $h_dnhap, '0106924989' ) !== false, substr( $h_dnhap, -400 ) );
+foreach ( $man_thu as $ten_man => $get_man ) {
+	$h_ct = vhcc_web( '135791', array(), $get_man );
+	t( 'màn ' . $ten_man . ' có tên công ty ở cuối trang',
+		strpos( $h_ct, 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H' ) !== false );
+	t( 'màn ' . $ten_man . ' có mã số thuế', strpos( $h_ct, '0106924989' ) !== false );
+	t( 'màn ' . $ten_man . ' có dòng bản quyền', strpos( $h_ct, '© ' . gmdate( 'Y' ) ) !== false );
+}
+
+$h_ct = vhcc_web( '135791' );
+t( 'số điện thoại bấm gọi được', strpos( $h_ct, 'href="tel:0435961469"' ) !== false, $h_ct );
+t( 'có chi nhánh, nối bằng dấu chấm giữa',
+	strpos( $h_ct, 'Đà Nẵng · Nha Trang' ) !== false, $h_ct );
+/* Ô email đang trống -> bỏ hẳn dòng, không in nhãn treo lơ lửng. */
+t( 'ô email trống thì KHÔNG in nhãn Email:', strpos( $h_ct, 'Email:' ) === false );
+/* 🔴 KHÔNG đọc cờ `hien` của plugin Ghế (đang để 0 ở trên). Cờ ấy nói "có hiện trên trang Ghế
+   không"; tắt nó để trang bán mã gọn hơn mà kéo theo trang chấm công mất phần giới thiệu công
+   ty thì không ai đoán ra vì sao. */
+t( 'tắt cờ `hien` bên plugin Ghế thì trang này VẪN có thông tin công ty',
+	strpos( $h_ct, '0106924989' ) !== false );
+/* Chân trang là CHỮ, không được kéo theo script hay thuộc tính on*= nào. */
+t( 'chân trang không mang script nào',
+	stripos( $h_ct, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_ct ) );
+/* Kiểu chữ của chân trang phải nằm trong khối <style> DUY NHẤT của trang, không phải thẻ thứ hai. */
+teq( 'cả trang chỉ có MỘT khối kiểu chữ', 1, substr_count( $h_ct, '<style>' ) );
+t( 'và khối ấy có kiểu chữ của chân trang', strpos( $h_ct, '.cty-ten{' ) !== false );
+
+/* Sửa ở ô cài đặt thì trang đổi theo ngay — không phải sửa mã, đóng gói, cài lại. */
+$o_cty = get_option( 'vhg_chan' );
+$o_cty['dia_chi'] = 'Số 1 Đường Mới, Hà Nội';
+$o_cty['email']   = 'lienhe@khmatrix.com';
+update_option( 'vhg_chan', $o_cty );
+$h_ct2 = vhcc_web( '135791' );
+t( 'sửa địa chỉ ở ô cài đặt thì trang đổi theo', strpos( $h_ct2, 'Số 1 Đường Mới' ) !== false );
+t( 'và không còn địa chỉ cũ', strpos( $h_ct2, 'Thôn Mai Nội' ) === false );
+t( 'khai email rồi thì dòng Email hiện ra',
+	strpos( $h_ct2, 'href="mailto:lienhe@khmatrix.com"' ) !== false );
+
+/* ---- bảng mặc định: HỎI PLUGIN KHÁC, không tự khai ----
+   Plugin này KHÔNG giữ bản chép nào của thông tin công ty. Chưa ai lưu ô cài đặt thì nó hỏi
+   `VHG_Chan` (plugin Ghế) rồi hỏi `VHTC_Trang` (cổng K&H). Không plugin nào có mặt thì thôi —
+   đã thử ở đầu khối này. */
+delete_option( 'vhg_chan' );
+teq( 'lúc này quả thật chưa nạp plugin Ghế', false, class_exists( 'VHG_Chan' ) );
+require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-chan.php';
+$t_md = VHCC_Cty::thong_tin();
+t( '🔴 ô cài đặt trống thì lấy bảng mặc định TỪ plugin Ghế',
+	isset( $t_md['mst'] ) && '0106924989' === $t_md['mst'], $t_md );
+t( 'và trang hiện ra đúng thông tin ấy',
+	strpos( vhcc_web( '135791' ), 'Thôn Mai Nội' ) !== false );
+
+/* 🔴 Ô CỐ Ý ĐỂ TRỐNG PHẢI GIỮ ĐƯỢC TRẠNG THÁI TRỐNG.
+   Anh Thắng xoá ô "Cơ quan quản lý thuế" đi vì không muốn hiện nữa. Nếu chỗ trộn dùng
+   `! empty()` thay vì `array_key_exists()` thì giá trị mặc định nhảy vào lấp lại — xoá xong
+   vẫn thấy, sửa mãi không mất, mà chẳng có gì giải thích vì sao. */
+update_option( 'vhg_chan', array_merge( VHG_Chan::mac_dinh(), array( 'co_quan' => '' ) ) );
+$h_ct3 = vhcc_web( '135791' );
+t( 'xoá trắng ô Cơ quan quản lý thuế thì dòng đó BIẾN MẤT',
+	strpos( $h_ct3, 'Cơ quan quản lý thuế' ) === false, $h_ct3 );
+t( 'nhưng mấy ô khác vẫn còn', strpos( $h_ct3, '0106924989' ) !== false );
+
+delete_option( 'vhg_chan' );
+
 /* ---- màn mặc định phải KHAI THẲNG, không suy từ vị trí trong danh sách ---- */
 /* 🔴 Bản trước lấy màn CUỐI danh sách làm mặc định. Thêm tab "Bảng công tháng" (cùng bậc quyền
    với "Bảng chấm công") là Cửa hàng trưởng đăng nhập vào bỗng rơi thẳng vào tab mới, chỉ vì nó

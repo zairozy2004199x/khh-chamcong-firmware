@@ -370,6 +370,52 @@ teq( 'danh sách nhóm lấy THẲNG từ bộ phận của hệ chấm công',
 	array_values( (array) VHCC_Luong::BP_DS ), array_values( $nhom ) );
 foreach ( $nhom as $x ) { t( 'thanh nhóm có ô "' . $x . '"', false !== strpos( $h_ad, esc_html( $x ) ) ); }
 
+/* ================================================================= thông tin công ty cuối trang
+
+   Anh Thắng 26/08: *"nhớ bổ sung thông tin công ty ở cuối trang nhé"*. Trang này KHÔNG giữ bản
+   chép nào — nó gọi `VHCC_Cty` của plugin chấm công, mà plugin ấy lại đọc ô cài đặt dùng chung
+   `vhg_chan`. Bốn trang, một kho. */
+
+teq( 'chưa khai công ty thì KHÔNG vẽ khung trống', '', VHCC_Cty::html() );
+$_COOKIE[ VHCC_Web::COOKIE ] = $TOK_NV;
+ob_start(); VHNB_Trang::ve( $U_NV ); $h_k = ob_get_clean();
+t( 'và trang vẫn vẽ bình thường', strpos( $h_k, 'name="noi_dung"' ) !== false );
+
+update_option( 'vhg_chan', array(
+	'ten' => 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&H', 'mst' => '0106924989',
+	'dia_chi' => 'Thôn Mai Nội, Xã Sóc Sơn, Thành phố Hà Nội, Việt Nam',
+	'dien_thoai' => '0435961469', 'email' => '', 'chi_nhanh' => "Đà Nẵng\nNha Trang",
+) );
+ob_start(); VHNB_Trang::ve( $U_NV ); $h_c = ob_get_clean();
+t( 'bảng tin có tên công ty ở cuối trang',
+	strpos( $h_c, 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H' ) !== false, substr( $h_c, -600 ) );
+t( 'có mã số thuế', strpos( $h_c, '0106924989' ) !== false );
+t( 'số điện thoại bấm gọi được', strpos( $h_c, 'href="tel:0435961469"' ) !== false );
+t( 'ô email trống thì KHÔNG in nhãn Email:', strpos( $h_c, 'Email:' ) === false );
+/* 🔴 Kể cả màn CHƯA ĐĂNG NHẬP — đó là thứ duy nhất người ngoài nhìn thấy. */
+$_COOKIE = array();
+ob_start(); VHNB_Trang::ve( null ); $h_cn = ob_get_clean();
+t( 'màn chưa đăng nhập cũng có thông tin công ty',
+	strpos( $h_cn, '0106924989' ) !== false, substr( $h_cn, -600 ) );
+/* Chân trang là CHỮ — không được kéo theo script hay thuộc tính on*= nào. */
+t( 'chân trang không mang script nào',
+	stripos( $h_c, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_c ) );
+teq( 'cả trang vẫn chỉ có MỘT khối kiểu chữ', 1, substr_count( $h_c, '<style>' ) );
+t( 'và khối ấy có kiểu chữ của chân trang', strpos( $h_c, '.cty-ten{' ) !== false );
+
+/* 🔴 MỘT CHỖ ĐÓNG TRANG, KHÔNG BA CHỖ. Canh thẳng vào mã, sau khi bỏ chú thích — chốt soi MÃ,
+   không soi lời giải thích về mã. */
+$ma_nb = '';
+foreach ( token_get_all( file_get_contents( VHNB_DIR . 'includes/class-vhnb-trang.php' ) ) as $tk ) {
+	if ( is_array( $tk ) && in_array( $tk[0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) { continue; }
+	$ma_nb .= is_array( $tk ) ? $tk[1] : $tk;
+}
+teq( 'class-vhnb-trang.php chỉ có ĐÚNG MỘT chỗ in </body></html>', 1,
+	substr_count( $ma_nb, "'</body></html>'" ) );
+teq( 'không còn dòng đóng trang gộp nào sót lại', 0, substr_count( $ma_nb, "</div></body></html>'" ) );
+
+delete_option( 'vhg_chan' );
+
 /* ================================================================= POST: chữ ký + chuyển hướng */
 
 function vhnb_post( $tok, $post ) {

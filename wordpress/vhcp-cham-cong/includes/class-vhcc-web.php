@@ -251,8 +251,29 @@ class VHCC_Web {
 		echo '<h2>Không xuất được tệp</h2>';
 		echo '<div class="bao loi">' . esc_html( $loi ) . '</div>';
 		echo '<p><a class="nut chinh" href="' . esc_url( self::url() ) . '">Quay lại</a></p>';
-		echo '</div></div></body></html>';
+		self::dong_trang( 2 );
 		exit;
+	}
+
+	/**
+	 * ĐÓNG TRANG — chân trang công ty rồi mới tới mấy thẻ đóng.
+	 *
+	 * 🔴 MỘT CHỖ ĐÓNG, KHÔNG BẢY CHỖ. Trước đây mỗi màn tự `echo '</div></body></html>'` —
+	 *    bảy dòng giống hệt nhau nằm rải rác. Thêm chân trang kiểu ấy là phải sửa bảy chỗ và
+	 *    quên một chỗ, rồi đúng cái màn bị quên thì thiếu thông tin công ty mà chẳng ai để ý.
+	 *    `test-cham-cong.php` canh: trong tệp này KHÔNG còn dòng `</body></html>` nào ngoài đây.
+	 *
+	 * @param int $so_div Số thẻ <div> còn phải đóng (màn báo lỗi xuất tệp lồng sâu hơn một tầng).
+	 */
+	private static function dong_trang( $so_div = 1 ) {
+		echo str_repeat( '</div>', max( 0, (int) $so_div ) );
+		/* ⚠️ Gác `method_exists` cùng hàm với lời gọi — xem `tools/test/kiem-goi-cheo.php`.
+		   `VHCC_Cty` cùng plugin nên chắc chắn có, nhưng ai đó gỡ tệp ra khỏi bản cài thì
+		   trang vẫn phải chạy: thiếu chân trang là thiếu một đoạn chữ, không phải trắng trang. */
+		if ( class_exists( 'VHCC_Cty' ) && method_exists( 'VHCC_Cty', 'html' ) ) {
+			echo VHCC_Cty::html();
+		}
+		echo '</body></html>';
 	}
 
 	/** Các tham số phải sống sót qua một lượt POST — bộ lọc, ô tìm, màn đang mở. */
@@ -959,7 +980,12 @@ class VHCC_Web {
 			/* In ra giấy: bỏ nền, bỏ nút, để bảng lọt trang ngang. */
 			. '@media print{header,form,.nut{display:none!important}'
 			. 'body{background:#fff}.the{border:0;padding:0;margin:0 0 10px}'
-			. '.cuon{overflow:visible}table.cc{font-size:9px}}';
+			. '.cuon{overflow:visible}table.cc{font-size:9px}}'
+			/* Chân trang công ty mang bộ kiểu chữ riêng, tiền tố `cty-`. Ghép vào đây thay vì
+			   in thẻ <style> thứ hai giữa trang — một trang một khối kiểu chữ.
+			   ⚠️ Gác `method_exists` cùng hàm với lời gọi, xem `tools/test/kiem-goi-cheo.php`. */
+			. ( ( class_exists( 'VHCC_Cty' ) && method_exists( 'VHCC_Cty', 'css' ) )
+				? VHCC_Cty::css() : '' );
 	}
 
 	/**
@@ -1058,7 +1084,7 @@ class VHCC_Web {
 			. '<input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" '
 			. 'autofocus required style="width:100%;font-size:19px;letter-spacing:3px;text-align:center">'
 			. '<button class="chinh" style="width:100%;margin-top:10px">Vào</button></form>';
-		echo '</div></div></body></html>';
+		self::dong_trang( 2 );
 	}
 
 	private static function trang_chinh( $toi, $bao ) {
@@ -1093,25 +1119,25 @@ class VHCC_Web {
 
 		if ( 'nha' === $man ) {
 			self::the_nha( $toi );
-			echo '</div></body></html>';
+			self::dong_trang();
 			return;
 		}
 
 		if ( 'cong_toi' === $man ) {
 			self::the_cong_toi( $toi );
-			echo '</div></body></html>';
+			self::dong_trang();
 			return;
 		}
 
 		if ( 'cham' === $man ) {
 			self::the_bang_cham( $ky, $toi );
-			echo '</div></body></html>';
+			self::dong_trang();
 			return;
 		}
 
 		if ( 'vp' === $man ) {
 			self::the_cong_vp( $ky, $toi );
-			echo '</div></body></html>';
+			self::dong_trang();
 			return;
 		}
 
@@ -1125,7 +1151,7 @@ class VHCC_Web {
 				array( 'Nhân Viên', 'Admin', 'Cửa Hàng Trưởng', 'Kế Toán' ) );
 			echo self::goi_y( 'dl_cp', "SELECT DISTINCT coso_phu AS v FROM $b_hs WHERE coso_phu<>''", true );
 			self::the_sua_ho_so( $ky, $sua, $la );
-			echo '</div></body></html>';
+			self::dong_trang();
 			return;
 		}
 
@@ -1134,7 +1160,7 @@ class VHCC_Web {
 		self::the_ho_so( $ky, $toi );
 		if ( $la ) { self::the_xoa_het( $ky, $tong ); }
 
-		echo '</div></body></html>';
+		self::dong_trang();
 	}
 
 	/**
