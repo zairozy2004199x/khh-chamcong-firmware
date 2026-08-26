@@ -114,6 +114,7 @@ a{color:#7dd3fc}
 <div id="mChinh" class="bao an">
 	<h1 id="tenToi">—</h1>
 	<p class="mo"><span id="maToi"></span> · <span id="csToi"></span></p>
+	<div id="tinhTrang"></div>
 
 	<div class="the">
 		<p class="dngay" id="ngayMC">—</p>
@@ -221,6 +222,39 @@ var KHOA_PHIEN = 'cc_session';
 var RONG_ANH   = 720;            /* 🔴 ràng buộc 2: thu nhỏ về 720px TRƯỚC khi gửi */
 
 function el(id){ return document.getElementById(id); }
+
+/* ================================================================ BẮT MỌI LỖI, HIỆN LÊN TRANG
+ *
+ * 🔴 BA LẦN LIỀN TRANG ĐỨNG IM MÀ KHÔNG AI BIẾT VÌ SAO. Người dùng chụp được đúng cái màn hình
+ *    im ấy; em nhìn ảnh cũng chỉ đoán. Trên điện thoại thì không có cách nào mở bảng lỗi của
+ *    trình duyệt ra xem.
+ *
+ *    Một lỗi JavaScript ở bất kỳ đâu — gõ nhầm tên biến, trình duyệt cũ thiếu một hàm, một
+ *    Promise không ai bắt — đều làm phần còn lại của trang ngừng chạy, LẶNG LẼ. Nên: bắt hết,
+ *    in thẳng lên trang. Xấu thì xấu, nhưng nó nói được, còn màn hình im thì không.
+ *
+ * ⚠️ Gắn TRƯỚC mọi thứ khác, để bắt được cả lỗi của chính đoạn khởi động bên dưới.
+ */
+function loiToanCuc(chu){
+	var o = document.getElementById('loiChet');
+	if(!o){
+		o = document.createElement('div');
+		o.id = 'loiChet';
+		o.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99;background:#7f1d1d;'
+			+ 'color:#fecaca;border-bottom:2px solid #b91c1c;padding:10px 12px;font-size:12.5px;'
+			+ 'line-height:1.45;max-height:45vh;overflow:auto;white-space:pre-wrap';
+		if(document.body){ document.body.appendChild(o); }
+	}
+	o.textContent = '⚠ Trang gặp lỗi — chụp màn hình này gửi kỹ thuật:\n' + chu;
+}
+window.addEventListener('error', function(e){
+	loiToanCuc((e && e.message ? e.message : 'lỗi không rõ')
+		+ (e && e.filename ? '\n' + String(e.filename).split('/').pop() + ':' + e.lineno : ''));
+});
+window.addEventListener('unhandledrejection', function(e){
+	var r = e && e.reason;
+	loiToanCuc('Lượt gọi hỏng mà không ai bắt: ' + ( r && r.message ? r.message : String(r) ));
+});
 function hien(x,co){ el(x).classList[co?'remove':'add']('an'); }
 function esc(s){ var d=document.createElement('div'); d.textContent=(s===null||s===undefined)?'':String(s); return d.innerHTML; }
 function bao(o,kieu,chu){ el(o).innerHTML = chu ? '<div class="'+kieu+'">'+esc(chu)+'</div>' : ''; }
@@ -239,7 +273,9 @@ function bao(o,kieu,chu){ el(o).innerHTML = chu ? '<div class="'+kieu+'">'+esc(c
  *    — mã HTTP là bao nhiêu, máy chủ trả về cái gì. Đó là thứ anh Thắng chụp lại được và em
  *    đọc ra ngay.
  */
-var CHO_TOI_DA = 15000;   /* ms — quá lâu thì coi như máy chủ không trả lời */
+var CHO_TOI_DA = 10000;   /* ms — quá lâu thì coi như máy chủ không trả lời.
+   Mười giây, không phải mười lăm: người ta đang đứng chờ để vào ca, và mười lăm giây nhìn một
+   màn hình không nhúc nhích đủ để họ bỏ đi gọi quản lý. */
 
 function goi(viec, than){
 	var url = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?') + 'viec=' + encodeURIComponent(viec);
@@ -619,11 +655,33 @@ el('btRa').addEventListener('click', function(){
 });
 
 /* ---------------------------------------------------------------- màn chính */
+var DEM_GOI = null;
+
+/* Đếm giây trong lúc chờ máy chủ. Không có nó thì "Đang tải…" và "đã treo" nhìn giống hệt
+   nhau — người ta không biết nên chờ thêm hay nên bấm lại. */
+function dangGoi(bat){
+	if(DEM_GOI){ clearInterval(DEM_GOI); DEM_GOI = null; }
+	if(!bat){ el('tinhTrang').innerHTML = ''; return; }
+	var t0 = 0;
+	var ve = function(){
+		/* Số giây đi qua esc() như mọi thứ khác ghép vào innerHTML — nó là số do mình đếm, nhưng
+		   chốt "không ghép thẳng biến" canh đúng: hôm nay là số, mai có người sửa thành chữ lấy
+		   từ máy chủ. */
+		el('tinhTrang').innerHTML = '<div class="vang" style="margin:0 0 10px">Đang gọi máy chủ… '
+			+ esc(t0) + ' giây</div>';
+	};
+	ve();
+	DEM_GOI = setInterval(function(){ t0++; ve(); }, 1000);
+}
+
 function moManChinh(){
 	hien('mVao',false); hien('mQuen',false); hien('mChinh',true);
+	dangGoi(true);
 	xinGps();
-	napGio().then(nhipDongHo);
-	napToi();
+	/* Chờ CẢ HAI lượt rồi mới tắt đồng hồ — tắt sớm là màn hình lại trông như đã xong trong
+	   khi một nửa vẫn đang treo. */
+	Promise.all([ napGio().then(nhipDongHo), napToi() ])
+		.then(function(){ dangGoi(false); }, function(){ dangGoi(false); });
 }
 
 function napToi(){

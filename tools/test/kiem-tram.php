@@ -765,6 +765,40 @@ t( 'khối chẩn đoán cắt đúng, không trùm sang mã khác', strlen( $kh
 t( 'chẩn đoán đứng TRƯỚC phép đòi thẻ phiên (mở được khi chưa đăng nhập)',
 	strpos( $src_tram2, "'chan_doan' === \$viec" ) < strpos( $src_tram2, "\$u = self::nguoi(" ) );
 
+/* ============================================ 17. TRANG PHẢI TỰ TỐ CÁO KHI HỎNG
+ *
+ * 🔴 BA LẦN LIỀN TRANG ĐỨNG IM MÀ KHÔNG AI BIẾT VÌ SAO. Anh Thắng chụp được đúng cái màn hình
+ * im ấy; em nhìn ảnh cũng chỉ đoán. Trên điện thoại thì không mở được bảng lỗi của trình duyệt.
+ *
+ * Một lỗi JavaScript ở bất kỳ đâu — gõ nhầm tên biến, trình duyệt cũ thiếu một hàm, một Promise
+ * không ai bắt — đều làm phần còn lại của trang ngừng chạy, LẶNG LẼ. Nên bắt hết, in thẳng lên
+ * trang: xấu thì xấu, nhưng nó nói được, còn màn hình im thì không.
+ */
+t( 'bắt lỗi toàn cục', strpos( $tram_js2, "addEventListener('error'" ) !== false
+	&& strpos( $tram_js2, 'function loiToanCuc' ) !== false );
+t( 'bắt cả Promise hỏng mà không ai xử',
+	strpos( $tram_js2, "addEventListener('unhandledrejection'" ) !== false );
+t( 'in lỗi LÊN TRANG, không chỉ vào bảng lỗi trình duyệt',
+	strpos( $tram_js2, "createElement('div')" ) !== false
+	&& strpos( $tram_vt, 'chụp màn hình này gửi kỹ thuật' ) !== false );
+/* Gắn TRƯỚC mọi thứ khác — để bắt được cả lỗi của chính đoạn khởi động. */
+t( 'gắn bộ bắt lỗi trước phần khởi động',
+	strpos( $tram_js2, 'function loiToanCuc' ) < strpos( $tram_js2, 'function moManChinh' ) );
+/* Dùng textContent, không innerHTML: nội dung lỗi có thể chứa mẩu HTML của trang lỗi máy chủ. */
+t( 'nội dung lỗi in bằng textContent', strpos( $tram_js2, 'o.textContent = ' ) !== false );
+
+/* Đồng hồ đếm giây trong lúc chờ: không có nó thì "đang tải" và "đã treo" nhìn giống hệt nhau,
+   và người ta không biết nên chờ thêm hay bấm lại. */
+t( 'có đếm giây lúc chờ máy chủ', strpos( $tram_js2, 'function dangGoi' ) !== false );
+t( 'hiện ngay khi mở màn chính',
+	preg_match( "/function moManChinh[\s\S]{0,300}dangGoi\(true\)/", $tram_js2 ) === 1 );
+/* Tắt đồng hồ khi CẢ HAI lượt xong — tắt sớm là màn hình lại trông như đã xong trong khi một
+   nửa vẫn treo. */
+t( 'đợi cả hai lượt rồi mới tắt đồng hồ', strpos( $tram_js2, 'Promise.all([ napGio()' ) !== false );
+t( 'tắt cả khi xong lẫn khi lỗi',
+	preg_match( "/Promise\.all[\s\S]{0,200}dangGoi\(false\)[\s\S]{0,60}dangGoi\(false\)/", $tram_js2 ) === 1 );
+t( 'chờ tối đa 10 giây, không phải 15', strpos( $tram_js2, 'CHO_TOI_DA = 10000' ) !== false );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
