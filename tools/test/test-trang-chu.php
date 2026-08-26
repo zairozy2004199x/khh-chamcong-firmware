@@ -154,6 +154,70 @@ foreach ( VHTC_Trang::ds_app() as $a ) { $t4[ $a['ten'] ] = $a; }
 teq( 'cài nội bộ + có hệ chấm công -> ô sáng', true, $t4['Nội Bộ']['co'] );
 teq( 'và trỏ đúng trang nội bộ', 'https://khmatrix.com/noi-bo/', $t4['Nội Bộ']['url'] );
 
+/* =================================================== thông tin công ty ở cuối trang
+   Anh Thắng 26/08/2026: *"nhớ bổ sung thông tin công ty cuối trang"*. Đây là trang chủ công ty,
+   nên nó là chỗ đáng có nhất — nhưng số liệu thì KHÔNG được gõ lại. */
+
+ob_start(); VHTC_Trang::ve(); $h_cty = ob_get_clean();
+t( 'cuối trang có tên công ty đầy đủ',
+	strpos( $h_cty, 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H' ) !== false, $h_cty );
+t( 'có mã số thuế', strpos( $h_cty, '0106924989' ) !== false );
+t( 'có địa chỉ đăng ký', strpos( $h_cty, 'Thôn Mai Nội' ) !== false );
+t( 'có người đại diện', strpos( $h_cty, 'Nguyễn Văn Kiên' ) !== false );
+t( 'có dòng bản quyền theo năm hiện tại',
+	strpos( $h_cty, '© ' . gmdate( 'Y' ) ) !== false, $h_cty );
+/* Số điện thoại BẤM GỌI ĐƯỢC — phần lớn người mở trang này đang cầm điện thoại. */
+t( 'số điện thoại là liên kết tel:', strpos( $h_cty, 'href="tel:0435961469"' ) !== false, $h_cty );
+t( 'có danh sách chi nhánh', strpos( $h_cty, 'Nha Trang' ) !== false );
+/* 🔴 Ô TRỐNG thì BỎ HẲN DÒNG, không in nhãn treo lơ lửng. Mặc định chưa có email, nên nhãn
+   "Email:" mà vẫn hiện nghĩa là sau nó không có gì — trông như trang hỏng, chứ không phải như
+   công ty chưa khai email. */
+t( 'ô email đang trống thì KHÔNG in nhãn Email:', strpos( $h_cty, 'Email:' ) === false, $h_cty );
+/* Chân trang chỉ là chữ, KHÔNG được thành một ô app thứ bảy. */
+teq( 'thêm chân trang KHÔNG làm đổi số thẻ app', $SO_APP,
+	substr_count( $h_cty, '<a class="the"' ) + substr_count( $h_cty, 'chưa cài' ) );
+
+/* 🔴 CHƯA CÀI PLUGIN GHẾ THÌ VẪN PHẢI CÓ. Đây là trang chủ công ty; gỡ plugin Ghế mà mất luôn
+   thông tin pháp lý của công ty là buộc hai thứ chẳng liên quan gì vào nhau.
+   Mấy phép thử trên chạy TRƯỚC dòng require dưới đây, nên chúng đang đúng là cảnh "chưa cài". */
+t( 'lúc này quả thật CHƯA có plugin Ghế', ! class_exists( 'VHG_Chan' ) );
+
+require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-chan.php';
+
+/* 🔴 CÓ PLUGIN GHẾ THÌ ĐỌC TỪ ĐÓ, không đọc bản dự phòng của mình.
+   Plugin Ghế đã có màn quản trị để sửa địa chỉ / người đại diện / chi nhánh. Đọc bản riêng là
+   anh Thắng sửa địa chỉ bên kia mà trang chủ vẫn nói địa chỉ cũ — nói sai đúng chỗ đặt ra để
+   tạo tin cậy, và không có gì báo. */
+update_option( 'vhg_chan', array_merge( VHG_Chan::mac_dinh(), array(
+	'dia_chi' => 'Số 1 Đường Mới, Quận Mới, Hà Nội',
+	'email'   => 'lienhe@khmatrix.com',
+) ) );
+ob_start(); VHTC_Trang::ve(); $h_cty2 = ob_get_clean();
+t( '🔴 sửa địa chỉ ở plugin Ghế thì trang chủ đổi theo',
+	strpos( $h_cty2, 'Số 1 Đường Mới' ) !== false, $h_cty2 );
+t( 'và KHÔNG còn địa chỉ cũ', strpos( $h_cty2, 'Thôn Mai Nội' ) === false, $h_cty2 );
+t( 'khai email rồi thì dòng Email hiện ra',
+	strpos( $h_cty2, 'href="mailto:lienhe@khmatrix.com"' ) !== false, $h_cty2 );
+
+/* ⚠️ Cờ `hien` của plugin Ghế nói "có hiện chân trang trên trang Ghế không". Tắt nó đi để trang
+   bán mã gọn hơn mà kéo theo trang chủ công ty mất luôn phần giới thiệu mình là ai thì không ai
+   đoán ra vì sao — nên trang này KHÔNG đọc cờ ấy. */
+update_option( 'vhg_chan', array_merge( VHG_Chan::mac_dinh(), array( 'hien' => 0 ) ) );
+ob_start(); VHTC_Trang::ve(); $h_cty3 = ob_get_clean();
+t( 'tắt chân trang bên plugin Ghế thì trang chủ VẪN có thông tin công ty',
+	strpos( $h_cty3, '0106924989' ) !== false, $h_cty3 );
+delete_option( 'vhg_chan' );
+
+/* 🔴 HAI BẢNG MẶC ĐỊNH PHẢI KHỚP NHAU.
+   Bản dự phòng ở trang chủ là một BẢN CHÉP — thứ mà cả dự án này vẫn tránh. Chép được là vì có
+   phép thử ngay đây canh: lệch một ô thì đỏ, chứ không im lặng nói sai. */
+$md_ghe = VHG_Chan::mac_dinh();
+foreach ( VHTC_Trang::CTY_DU_PHONG as $k => $v ) {
+	t( "bản dự phòng khớp plugin Ghế ở ô '$k'",
+		isset( $md_ghe[ $k ] ) && (string) $md_ghe[ $k ] === (string) $v,
+		'trang-chu: ' . $v . '  ·  ghe: ' . ( isset( $md_ghe[ $k ] ) ? $md_ghe[ $k ] : '(KHÔNG CÓ)' ) );
+}
+
 /* 🔴 KHÔNG ĐƯỢC GÕ CỨNG đường dẫn nào trong mã. Gõ cứng là hôm nào anh Thắng đổi đường dẫn bên
    app kia, trang cổng vẫn trỏ về đường cũ — bấm vào ra 404 mà không có gì báo. */
 $ma = file_get_contents( VHTC_DIR . 'includes/class-vhtc-trang.php' );
