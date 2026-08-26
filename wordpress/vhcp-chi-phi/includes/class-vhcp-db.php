@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_DB {
 
-	const SCHEMA_VERSION = '1.7.0';
+	const SCHEMA_VERSION = '1.8.0';
 	const DATA_ROW       = 5;   // DA_DATA_ROW / BP_DATA_ROW của app cũ
 
 	public static function t( $name ) {
@@ -67,6 +67,11 @@ class VHCP_DB {
 			ma_don VARCHAR(40) NOT NULL,
 			ky VARCHAR(120) NOT NULL DEFAULT '',
 			nguoi_lap VARCHAR(120) NOT NULL DEFAULT '',
+			/* ĐƠN VỊ (K&H · POSH) — xem `VHCP_DonVi`. Ghi MỘT LẦN lúc lập đơn, theo nhà của
+			   người lập, rồi KHÔNG đổi nữa: đổi đơn vị của một đơn đã chạy là chuyển cả tiền
+			   sang sổ bên kia mà không có vết. Muốn chuyển thì lập đơn mới ở bên ấy.
+			   Đơn cũ có ô rỗng — đúng, vì trước khi có POSH thì mọi đơn đều là đơn K&H. */
+			don_vi VARCHAR(60) NOT NULL DEFAULT '',
 			ngay_tao DATETIME NULL,
 			trang_thai VARCHAR(40) NOT NULL DEFAULT 'Nháp',
 			ghi_chu TEXT NULL,

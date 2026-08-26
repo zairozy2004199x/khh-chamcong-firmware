@@ -172,7 +172,14 @@ class VHCP_Don {
 		   dòng, kèm mấy loại đã khớp. Trả 40 dòng giống nhau là bắt người tìm tự gom bằng mắt. */
 		$dk = array( '1=1' );
 		$tv = array();
-		if ( '' !== $coso ) { $dk[] = 'd.coso = %s'; $tv[] = $coso; }
+		/* 🔴 CƠ SỞ NẰM Ở DÒNG CHI (`c.coso`), KHÔNG NẰM Ở ĐƠN.
+		   Bảng `don` chưa từng có cột `coso` — cơ sở của một đơn là cơ sở của các dòng trong
+		   nó, đúng như `coso_cua_don()` vẫn làm. Bản trước viết `d.coso` ở cả chỗ lọc lẫn chỗ
+		   SELECT, nên câu SQL hỏng ở MỌI lượt gọi; wpdb nuốt lỗi và trả về rỗng, thành ra ô
+		   tìm luôn báo "không tìm thấy đơn nào khớp" dù sổ có mấy trăm đơn. Không có gì đỏ,
+		   không có gì kêu — chỉ là một ô tìm không bao giờ tìm ra. Anh Thắng 26/08 báo
+		   *"Lọc tìm kiếm chung theo loại chi phí lẻ anh chưa thấy"* chính là chỗ này. */
+		if ( '' !== $coso ) { $dk[] = 'c.coso = %s'; $tv[] = $coso; }
 		if ( '' !== $nhom ) { $dk[] = 'c.nhom = %s'; $tv[] = $nhom; }
 		if ( '' !== $q ) {
 			$like = '%' . $wpdb->esc_like( $q ) . '%';
@@ -180,12 +187,17 @@ class VHCP_Don {
 				. ' OR c.nhom LIKE %s OR c.noi_dung LIKE %s OR c.doi_tuong LIKE %s )';
 			array_push( $tv, $like, $like, $like, $like, $like, $like );
 		}
-		$sql = "SELECT d.ma_don, d.ky, d.coso, d.nguoi_lap, d.trang_thai,
+		/* Lọc đơn vị NGAY TRONG SQL, trước `LIMIT` — xem `VHCP_DonVi::dieu_kien_sql()`. */
+		$dv = VHCP_DonVi::dieu_kien_sql( 'd.don_vi' );
+		if ( $dv ) { $dk[] = $dv['sql']; $tv = array_merge( $tv, $dv['tv'] ); }
+
+		$sql = "SELECT d.ma_don, d.ky, d.nguoi_lap, d.trang_thai, d.don_vi,
+				GROUP_CONCAT(DISTINCT c.coso) AS cac_coso,
 				GROUP_CONCAT(DISTINCT c.nhom) AS cac_nhom, COUNT(c.id) AS so_dong,
 				SUM(c.thanh_tien) AS tong_tien
 			FROM $td d LEFT JOIN $tc c ON c.ma_don = d.ma_don
 			WHERE " . implode( ' AND ', $dk ) . "
-			GROUP BY d.ma_don, d.ky, d.coso, d.nguoi_lap, d.trang_thai
+			GROUP BY d.ma_don, d.ky, d.nguoi_lap, d.trang_thai, d.don_vi
 			ORDER BY d.stt DESC LIMIT %d";
 		$tv[] = $limit;
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $tv ), ARRAY_A );
@@ -197,10 +209,16 @@ class VHCP_Don {
 				$x = trim( $x );
 				if ( '' !== $x && ! in_array( $x, $loai, true ) ) { $loai[] = $x; }
 			}
+			$cs = array();
+			foreach ( explode( ',', (string) $r['cac_coso'] ) as $x ) {
+				$x = trim( $x );
+				if ( '' !== $x && ! in_array( $x, $cs, true ) ) { $cs[] = $x; }
+			}
 			$items[] = array(
 				'maDon'     => (string) $r['ma_don'],
 				'ky'        => (string) $r['ky'],
-				'coso'      => (string) $r['coso'],
+				'coso'      => implode( ', ', $cs ),
+				'donVi'     => VHCP_DonVi::chuan( isset( $r['don_vi'] ) ? $r['don_vi'] : '' ),
 				'nguoiLap'  => (string) $r['nguoi_lap'],
 				'trangThai' => (string) $r['trang_thai'],
 				'loai'      => $loai,
@@ -423,6 +441,8 @@ class VHCP_Don {
 				'maDon'       => $m,
 				'ky'          => VHCP_Util::fmt( $r['ky'] ),
 				'nguoiLap'    => (string) $r['nguoi_lap'],
+				/* Gác isset: cột `don_vi` thêm ở bản 1.43.0 — bảng nới ở lượt tải trang sau. */
+				'donVi'       => VHCP_DonVi::chuan( isset( $r['don_vi'] ) ? $r['don_vi'] : '' ),
 				'coso'        => $coso,
 				'ngayTao'     => VHCP_Util::fmt( $r['ngay_tao'] ),
 				'trangThai'   => ( $r['trang_thai'] !== '' ? $r['trang_thai'] : 'Nháp' ),
@@ -470,6 +490,17 @@ class VHCP_Don {
 				return mb_strtolower( trim( (string) $x['nguoiLap'] ) ) === $toi;
 			} ) );
 		}
+		/* 🔴 LỌC ĐƠN VỊ Ở ĐÚNG CHỖ NÀY, cạnh chốt trên, và vì đúng một lý do: mọi màn (danh
+		   sách đơn · duyệt tạm ứng · quyết toán · thừa/thiếu · báo cáo · xuất MISA) đều múc
+		   từ `list_dons()`. Chặn ở đây là chặn hết một lượt; chặn ở từng màn là sớm muộn sót
+		   một màn, và cái sót ấy đưa số của POSH sang màn của K&H mà không ai biết.
+		   Anh Thắng 26/08: *"Bộ phận khác nên sẽ tách biệt không xem được doanh thu của nhau."* */
+		$dv_xem = VHCP_DonVi::xem_duoc();
+		if ( null !== $dv_xem ) {
+			$out = array_values( array_filter( $out, function ( $x ) {
+				return VHCP_DonVi::duoc_xem( isset( $x['donVi'] ) ? $x['donVi'] : '' );
+			} ) );
+		}
 		return array_reverse( $out );
 	}
 
@@ -478,6 +509,14 @@ class VHCP_Don {
 	 * Nhân viên chỉ mở / sửa đơn do chính mình lập; vai trò khác thì không giới hạn.
 	 */
 	private static function loi_khong_phai_don_minh( $ma_don ) {
+		/* 🔴 CHỐT ĐƠN VỊ ĐỨNG TRƯỚC, và áp cho MỌI VAI — kể cả Kế toán và Quản lý.
+		   Chốt "đơn của mình" bên dưới chỉ áp cho Nhân viên, nên nếu để chốt đơn vị đi sau nó
+		   thì kế toán POSH gõ mã đơn của K&H lên thanh địa chỉ là mở được — danh sách có lọc,
+		   nhưng cửa mở thẳng thì không.
+		   Lọc danh sách là để MẮT không thấy; chốt ở đây là để TAY không với tới. Thiếu cái
+		   thứ hai thì cái thứ nhất chỉ là lớp sơn. */
+		$loi_dv = VHCP_DonVi::vi_sao_khong_dung( $ma_don );
+		if ( '' !== $loi_dv ) { return $loi_dv; }
 		if ( ! VHCP_Auth::la_nhan_vien() ) { return ''; }
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return 'Không tìm thấy đơn'; }
@@ -489,7 +528,9 @@ class VHCP_Don {
 
 	/** Như trên nhưng tra theo ID DÒNG (dòng nào cũng thuộc một đơn). */
 	private static function loi_khong_phai_dong_minh( $id ) {
-		if ( ! VHCP_Auth::la_nhan_vien() ) { return ''; }
+		/* ⚠️ KHÔNG thoát sớm theo vai ở đây. Chốt đơn vị nằm trong `loi_khong_phai_don_minh()`
+		   và áp cho mọi vai, nên phải đi tới đó — thoát sớm là kế toán POSH sửa được TỪNG DÒNG
+		   của đơn K&H bằng id dòng, dù không mở nổi cái đơn chứa nó. */
 		$l = self::line_row( $id );
 		if ( ! $l ) { return 'Không tìm thấy dòng'; }
 		return self::loi_khong_phai_don_minh( (string) $l['ma_don'] );
@@ -504,6 +545,12 @@ class VHCP_Don {
 			'ma_don'     => $m,
 			'ky'         => (string) $ky,
 			'nguoi_lap'  => (string) $nguoi_lap,
+			/* 🔴 ĐƠN VỊ LẤY TỪ NHÀ CỦA NGƯỜI LẬP, ghi một lần rồi thôi.
+			   Anh Thắng chốt 26/08: người lập thuộc đơn vị nào thì đơn thuộc đơn vị đó — kể cả
+			   khi đơn ấy chi cho một cơ sở bên kia. Không có ô cho người dùng chọn: một ô chọn
+			   là một chỗ chọn nhầm, mà chọn nhầm ở đây là đơn rơi sang sổ của bên kia và biến
+			   mất khỏi màn của chính người vừa lập nó. */
+			'don_vi'     => VHCP_DonVi::cua_nguoi( $nguoi_lap ),
 			'ngay_tao'   => VHCP_Util::now_sql(),
 			'trang_thai' => 'Nháp',
 			'ghi_chu'    => '',

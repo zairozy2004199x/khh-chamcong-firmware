@@ -32,6 +32,7 @@ require_once VHCP_DIR . 'includes/class-vhcp-meta.php';
 require_once VHCP_DIR . 'includes/class-vhcp-cfg.php';
 require_once VHCP_DIR . 'includes/class-vhcp-auth.php';
 require_once VHCP_DIR . 'includes/class-vhcp-log.php';
+require_once VHCP_DIR . 'includes/class-vhcp-donvi.php';
 require_once VHCP_DIR . 'includes/class-vhcp-don.php';
 require_once VHCP_DIR . 'includes/class-vhcp-sochi.php';
 require_once VHCP_DIR . 'includes/class-vhcp-duan.php';

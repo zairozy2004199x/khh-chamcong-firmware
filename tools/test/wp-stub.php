@@ -360,7 +360,7 @@ function vhcp_test_create_tables() {
 	global $wpdb;
 	$p = 'wp_vhcp_';
 	$q = array(
-		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL)",
+		"CREATE TABLE {$p}don (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT UNIQUE, ky TEXT DEFAULT '', nguoi_lap TEXT DEFAULT '', don_vi TEXT DEFAULT '', ngay_tao TEXT, trang_thai TEXT DEFAULT 'Nháp', ghi_chu TEXT DEFAULT '', nguoi_duyet TEXT DEFAULT '', ngay_duyet TEXT, nguoi_qt TEXT DEFAULT '', ngay_qt TEXT, chenh_lech_qt REAL DEFAULT 0, xu_ly TEXT DEFAULT '', so_tien_thuc_mua REAL, hinh_thuc_tt TEXT DEFAULT '', hoa_don_qt TEXT DEFAULT '', hoa_don_qt2 TEXT DEFAULT '', ngay_xuat_cn TEXT, nguoi_qt_ncc TEXT DEFAULT '', ngay_qt_ncc TEXT, ngay_xuat_ncc TEXT, tam_ung_duyet REAL, nguoi_cap TEXT DEFAULT '', ngay_cap TEXT, ht_cap TEXT DEFAULT '', anh_cap TEXT DEFAULT '', tat_toan TEXT DEFAULT '', ngay_tat_toan TEXT, du_phong REAL, bu_tru REAL)",
 		"CREATE TABLE {$p}tamung (id INTEGER PRIMARY KEY AUTOINCREMENT, ma_don TEXT, coso TEXT DEFAULT '', so REAL DEFAULT 0, UNIQUE(ma_don,coso))",
 		"CREATE TABLE {$p}chiphi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, coso TEXT DEFAULT '', ngay TEXT, phan_loai_tt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', nhom TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, thanh_tien REAL DEFAULT 0, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', tao_luc TEXT, thue_suat REAL, tien_thue REAL, thuc_mua REAL, cn_xu_ly INTEGER DEFAULT 1, phat_sinh INTEGER DEFAULT 0, tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '')",
 		"CREATE TABLE {$p}so_chi (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ngay TEXT, ky TEXT DEFAULT '', coso TEXT DEFAULT '', loai TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', noi_dung TEXT DEFAULT '', dvt TEXT DEFAULT '', so_luong REAL, don_gia REAL, so_tien REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', thue_suat REAL, tien_thue REAL, ghi_chu TEXT DEFAULT '', anh TEXT DEFAULT '', ma_du_an TEXT DEFAULT '', hang_muc TEXT DEFAULT '', du_toan REAL, ho_so TEXT DEFAULT '', nguoi_nhap TEXT DEFAULT '', tao_luc TEXT, ngay_xuat TEXT)",
@@ -390,9 +390,16 @@ function vhcp_test_boot( $dir ) {
 	define( 'VHCP_VERSION', 'test' );
 	define( 'VHCP_DIR', $dir . '/' );
 	define( 'VHCP_URL', 'http://example.test/plugin/' );
-	foreach ( array( 'util', 'db', 'meta', 'cfg', 'auth', 'log', 'don', 'sochi', 'duan', 'mk', 'bp', 'report', 'misa', 'trama', 'upload', 'nap', 'sheet', 'import' ) as $c ) {
-		require_once $dir . '/includes/class-vhcp-' . $c . '.php';
+	/* 🔴 ĐỌC DANH SÁCH LỚP TỪ CHÍNH TỆP PLUGIN, không gõ tay lại.
+	   Gõ tay là thêm một lớp mới vào plugin thì bài kiểm chết với "Class ... not found" — một
+	   lỗi của BÀI KIỂM trông y hệt lỗi của plugin, và người đọc mất một lượt mới nhận ra.
+	   Đã sập đúng bẫy này khi thêm `VHCP_DonVi` (26/08/2026). Cùng lối với `kiem-noi-bo.php`. */
+	$chinh = file_get_contents( $dir . '/vhcp-chi-phi.php' );
+	if ( ! preg_match_all( "#require_once VHCP_DIR \. 'includes/(class-vhcp-[a-z-]+\.php)';#", $chinh, $m_lop )
+		|| count( $m_lop[1] ) < 10 ) {
+		throw new RuntimeException( 'wp-stub: không đọc được danh sách lớp trong vhcp-chi-phi.php' );
 	}
+	foreach ( $m_lop[1] as $tep ) { require_once $dir . '/includes/' . $tep; }
 	vhcp_test_create_tables();
 	VHCP_Cfg::seed();
 }

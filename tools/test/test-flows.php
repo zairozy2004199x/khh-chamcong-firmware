@@ -10,6 +10,17 @@ vhcp_test_boot( dirname( dirname( __DIR__ ) ) . '/wordpress/vhcp-chi-phi' );
 $GLOBALS['T_OK'] = 0;
 $GLOBALS['T_NG'] = array();
 
+/* 🔴 CHẾT GIỮA ĐƯỜNG PHẢI NÓI RA. Không có chỗ này thì một lỗi PHP nghiêm trọng (câu SQL hỏng,
+   lớp chưa nạp) làm bài kiểm dừng ngang, KHÔNG in dòng tổng kết nào — và người chạy nhìn màn
+   hình trống rồi tưởng chưa chạy. Tệ hơn: đếm số dòng "✗" ra 0, trông y như SẠCH.
+   Đúng chuyện vừa gặp khi phá thử `d.coso` (26/08/2026). Cùng lối với `kiem-noi-bo.php`. */
+register_shutdown_function( function () {
+	$e = error_get_last();
+	if ( ! $e || ! in_array( $e['type'], array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR ), true ) ) { return; }
+	echo "\n🔴 BÀI KIỂM CHẾT GIỮA ĐƯỜNG: " . $e['message'] . "\n   tại " . $e['file'] . ':' . $e['line'] . "\n";
+	echo '  ✗ chết giữa đường sau ' . $GLOBALS['T_OK'] . " phép đã đạt\n";
+} );
+
 function t( $name, $cond, $got = null ) {
 	if ( $cond ) { $GLOBALS['T_OK']++; return; }
 	$GLOBALS['T_NG'][] = $name . ( $got === null ? '' : ' → nhận được: ' . var_export( $got, true ) );
@@ -3028,6 +3039,225 @@ foreach ( VHCP_Don::get_don( $_ms )['lines'] as $_ln ) {
 	if ( $_ln['id'] === $_ls['id'] ) { $_sau = $_ln; }
 }
 teq( 'và số tiền dòng ấy còn nguyên', 600000, VHCP_Util::num( $_sau['thanhTien'] ) );
+
+
+// ================================================================ SƠ ĐỒ BẢNG KHAI HAI NƠI
+/* 🔴 BỘ KHUNG THỬ GÕ TAY LẠI SƠ ĐỒ BẢNG (SQLite), plugin khai sơ đồ thật (MySQL) — HAI NƠI.
+   Chú thích ngay trong `wp-stub.php` đã cảnh báo đúng cái bẫy này, và nó đã sập một lần bên
+   chấm công ("table has no column named ma_nv"). Bên chi phí thì các bảng vẫn còn gõ tay.
+   Chuyển hẳn sang dựng từ sơ đồ thật là một việc riêng; trong lúc chờ, ít nhất phải có một
+   phép ĐỐI CHIẾU: thêm cột vào plugin mà quên thêm vào bộ khung thì ĐỎ NGAY ở đây, kèm tên
+   cột thiếu — thay vì đỏ ở một phép thử không liên quan, với câu lỗi SQL không ai đọc.
+
+   ⚠️ Đọc cột từ CHÍNH hai chuỗi CREATE TABLE, không gõ tay danh sách cột lần thứ ba. */
+function _cot_trong_create( $sql, $bang ) {
+	if ( ! preg_match( '/CREATE TABLE\s+\S*' . preg_quote( $bang, '/' ) . '\s*\((.*)\)\s*$/s', trim( $sql ), $m ) ) {
+		return array();
+	}
+	$than = $m[1];
+	$than = preg_replace( '#/\*.*?\*/#s', '', $than );      // bỏ chú thích trong sơ đồ
+	$ra = array();
+	foreach ( explode( "\n", $than ) as $d ) {
+		$d = trim( $d );
+		if ( '' === $d || preg_match( '/^(PRIMARY|UNIQUE|KEY|INDEX)\b/i', $d ) ) { continue; }
+		if ( preg_match( '/^([a-z_][a-z0-9_]*)\s/i', $d, $mm ) ) { $ra[] = strtolower( $mm[1] ); }
+	}
+	return $ra;
+}
+/* Sơ đồ thật nằm trong `install()` dạng chuỗi ghép — đọc thẳng từ MÃ NGUỒN. Xấu, nhưng thà
+   đọc từ đúng một nguồn còn hơn gõ tay danh sách cột ở nơi thứ ba. */
+$_ma_db  = file_get_contents( VHCP_DIR . 'includes/class-vhcp-db.php' );
+$_ddl_that = preg_match( "#self::t\( 'don' \) \. \" \((.*?)\) \\\$c\";#s", $_ma_db, $_mddl )
+	? $_mddl[1] : '';
+t( 'đọc được sơ đồ bảng `don` của plugin', '' !== $_ddl_that, substr( (string) $_ddl_that, 0, 80 ) );
+$_cot_that = _cot_trong_create( "CREATE TABLE don (" . $_ddl_that . ")", 'don' );
+t( 'sơ đồ thật có ít nhất 25 cột', count( $_cot_that ) >= 25, $_cot_that );
+$_cot_thu = array();
+foreach ( VHCP_DB::rows( 'PRAGMA table_info(' . VHCP_DB::t( 'don' ) . ')' ) as $r ) {
+	$_cot_thu[] = strtolower( (string) $r['name'] );
+}
+$_thieu = array_values( array_diff( $_cot_that, $_cot_thu ) );
+t( '🔴 bộ khung thử có ĐỦ cột của bảng `don` trong plugin', ! $_thieu,
+	'thiếu ở tools/test/wp-stub.php: ' . implode( ', ', $_thieu ) );
+
+// ================================================================ ĐƠN VỊ (K&H · POSH)
+/* Anh Thắng 26/08/2026:
+     *"Anh có thêm bộ Phận Posh sẽ lên chi trong này. Bộ phận khác nên sẽ tách biệt không xem
+     được doanh thu của nhau."*
+     *"Kế toán Posh chỉ thấy chi phí Posh. Còn kế toán cá nhân được set thấy cả bộ phận thì
+     nhìn chung luôn."*
+     *"Bên Posh người duyệt là Quản Lý Posh."*
+
+   🔴 KHỐI NÀY CANH ĐÚNG MỘT CÂU HỎI: số của POSH có lọt sang màn K&H được không, và ngược lại.
+      Và canh ở CẢ HAI TẦNG — danh sách (mắt không thấy) và cửa vào từng đơn (tay không với
+      tới). Chỉ canh tầng thứ nhất thì gõ mã đơn lên thanh địa chỉ là qua. */
+
+$_vt_dv = VHCP_Auth::vai_tro();
+
+/* Bốn người: một cặp K&H, một cặp POSH, và một kế toán nhìn chung cả hai. */
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Admin',        '1111', 'Admin',    '', '', '', '', '',     '' ),
+	array( 'NV K&H',       '2001', 'Nhân viên', '', '', '', '', 'K&H',  '' ),
+	array( 'NV POSH',      '2002', 'Nhân viên', '', '', '', '', 'POSH', '' ),
+	array( 'KT Cá Nhân',   '2003', 'Kế toán cá nhân', '', '', '', '', 'K&H',  '' ),
+	array( 'KT POSH',      '2004', 'Kế toán cá nhân', '', '', '', '', 'POSH', 'POSH' ),
+	array( 'QL POSH',      '2005', 'Quản lý',  '', '', '', '', 'POSH', 'POSH' ),
+	array( 'KT Chỉ K&H',   '2006', 'Kế toán cá nhân', '', '', '', '', 'K&H',  'K&H' ),
+) );
+
+teq( 'nhà của người khai POSH', 'POSH', VHCP_DonVi::cua_nguoi( 'NV POSH' ) );
+teq( 'người chưa khai đơn vị rơi về nhà mặc định', 'K&H', VHCP_DonVi::cua_nguoi( 'Admin' ) );
+teq( 'người không có trong sổ cũng về nhà mặc định', 'K&H', VHCP_DonVi::cua_nguoi( 'Ai Đó Lạ' ) );
+t( 'danh sách đơn vị có cả K&H lẫn POSH',
+	in_array( 'K&H', VHCP_DonVi::ds(), true ) && in_array( 'POSH', VHCP_DonVi::ds(), true ),
+	VHCP_DonVi::ds() );
+
+/* ---- đơn mang đơn vị của NGƯỜI LẬP ---- */
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV POSH' );
+$_dp = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV POSH' );
+$_mp = $_dp['maDon'];
+VHCP_Don::add_line( $_mp, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đèn POSH',
+	'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV K&H' );
+$_dk = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV K&H' );
+$_mk = $_dk['maDon'];
+VHCP_Don::add_line( $_mk, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đèn K&H',
+	'soLuong' => 1, 'donGia' => 700000, 'thanhTien' => 700000 ) );
+
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+teq( 'đơn của NV POSH mang đơn vị POSH', 'POSH', VHCP_DonVi::cua_don( $_mp ) );
+teq( 'đơn của NV K&H mang đơn vị K&H',   'K&H',  VHCP_DonVi::cua_don( $_mk ) );
+
+/* Đơn cũ (lập trước khi có cột) có ô rỗng — phải hiểu là K&H, không phải "không thuộc đâu". */
+global $wpdb;
+$wpdb->update( VHCP_DB::t( 'don' ), array( 'don_vi' => '' ), array( 'ma_don' => $_mk ) );
+teq( '🔴 đơn cũ ô rỗng vẫn là đơn K&H', 'K&H', VHCP_DonVi::cua_don( $_mk ) );
+
+function _dv_ma_don_cua( $vai, $ten ) {
+	VHCP_Auth::dat_vai_tro( $vai, $ten );
+	$ra = array();
+	foreach ( VHCP_Don::list_dons() as $d ) { $ra[] = $d['maDon']; }
+	VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+	return $ra;
+}
+
+/* ---- ai thấy gì ---- */
+$_ds_ktp = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT POSH' );
+t( '🔴 kế toán POSH thấy đơn POSH',      in_array( $_mp, $_ds_ktp, true ), $_ds_ktp );
+t( '🔴 kế toán POSH KHÔNG thấy đơn K&H', ! in_array( $_mk, $_ds_ktp, true ), $_ds_ktp );
+
+$_ds_ktk = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT Chỉ K&H' );
+t( 'kế toán chỉ-K&H thấy đơn K&H (kể cả đơn cũ ô rỗng)', in_array( $_mk, $_ds_ktk, true ), $_ds_ktk );
+t( 'kế toán chỉ-K&H KHÔNG thấy đơn POSH', ! in_array( $_mp, $_ds_ktk, true ), $_ds_ktk );
+
+/* Kế toán cá nhân KHÔNG khai ô "Xem đơn vị" -> nhìn chung cả hai. Đây là bản nâng cấp cho một
+   hệ đang chạy: 240 người, không ai có ô đó, nên "để trống" phải là "như cũ", không phải "mù". */
+$_ds_ktc = _dv_ma_don_cua( 'Kế toán cá nhân', 'KT Cá Nhân' );
+t( '🔴 kế toán để trống ô Xem đơn vị thì nhìn CHUNG cả hai',
+	in_array( $_mp, $_ds_ktc, true ) && in_array( $_mk, $_ds_ktc, true ), $_ds_ktc );
+
+$_ds_ad = _dv_ma_don_cua( 'Admin', 'Admin' );
+t( 'Admin thấy cả hai', in_array( $_mp, $_ds_ad, true ) && in_array( $_mk, $_ds_ad, true ) );
+
+/* ---- CỬA VÀO TỪNG ĐƠN, không chỉ danh sách ---- */
+/* Lọc danh sách là để MẮT không thấy; chốt ở cửa là để TAY không với tới. Thiếu cái thứ hai
+   thì gõ mã đơn lên thanh địa chỉ là qua, và cái thứ nhất chỉ còn là lớp sơn. */
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT POSH' );
+$_mo = VHCP_Don::get_don( $_mk );
+t( '🔴 kế toán POSH KHÔNG mở được đơn K&H bằng mã', empty( $_mo['success'] ), $_mo );
+t( 'và câu chối KHÔNG hé lộ là đơn ấy có thật',
+	isset( $_mo['error'] ) && false === strpos( (string) $_mo['error'], 'đơn vị' ), $_mo );
+t( 'kế toán POSH vẫn mở được đơn POSH', ! empty( VHCP_Don::get_don( $_mp )['success'] ) );
+
+/* Sửa TỪNG DÒNG cũng phải chặn — không thì mở đơn thì không được mà sửa ruột nó thì được. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$_lines_k = VHCP_Don::get_don( $_mk )['lines'];
+$_dong_k  = $_lines_k[0]['id'];
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT POSH' );
+$_sua = VHCP_Don::update_line( $_dong_k, array( 'coso' => 'FARM PHAN THIẾT',
+	'nhom' => 'Chi phí cơ sở', 'noiDung' => 'chen vào', 'soLuong' => 1, 'donGia' => 1, 'thanhTien' => 1 ) );
+t( '🔴 kế toán POSH KHÔNG sửa được DÒNG của đơn K&H', empty( $_sua['success'] ), $_sua );
+$_xoa = VHCP_Don::delete_line( $_dong_k );
+t( 'và cũng không xoá được dòng ấy', empty( $_xoa['success'] ), $_xoa );
+
+/* ---- duyệt: bên POSH là Quản lý POSH ----
+   🔴 GỌI QUA ĐÚNG CÁI CỬA MÀ GIAO DIỆN ĐI: `VHCP_Api::handle()`.
+      Chốt đơn vị cho nhóm hàm duyệt / cấp tiền / trả lại / tất toán nằm ở cửa API, không nằm
+      trong từng hàm — xem `VHCP_DonVi::chan_theo_ham()` cho lý do. Gọi thẳng `VHCP_Don::…`
+      trong bài kiểm là đi vòng qua đúng cái chốt đang cần kiểm, và phép thử sẽ xanh cho một
+      thứ chưa bao giờ chạy. */
+function _dv_api( $pin, $fn, $args ) {
+	$dn = VHCP_Auth::login( (string) $pin );
+	if ( empty( $dn['ok'] ) ) { return array( 'ok' => false, 'error' => 'không đăng nhập được: ' . $pin ); }
+	$r = VHCP_API::handle( new WP_REST_Request( array(
+		'fn' => $fn, 'args' => $args, 'token' => $dn['token'] ) ) );
+	$d = $r->get_data();
+	VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+	return $d;
+}
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV POSH' );
+VHCP_Don::gui_duyet_tam_ung( $_mp );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV K&H' );
+VHCP_Don::gui_duyet_tam_ung( $_mk );
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+
+$_dk_ql = _dv_api( '2005', 'duyetTamUng', array( $_mk, 'QL POSH' ) );
+t( '🔴 Quản lý POSH KHÔNG duyệt được đơn K&H', empty( $_dk_ql['ok'] ), $_dk_ql );
+$_dp_ql = _dv_api( '2005', 'duyetTamUng', array( $_mp, 'QL POSH' ) );
+t( '🔴 Quản lý POSH duyệt được đơn POSH', ! empty( $_dp_ql['ok'] ), $_dp_ql );
+$_dk_ad = _dv_api( '1111', 'duyetTamUng', array( $_mk, 'Admin' ) );
+t( 'Admin vẫn duyệt được đơn K&H', ! empty( $_dk_ad['ok'] ), $_dk_ad );
+
+/* Bản "nhiều đơn một lượt" cũng phải gác — gói một đơn K&H lẫn vào danh sách là qua mặt được
+   chốt đơn-lẻ nếu chốt chỉ soi tham số đầu tiên. */
+$_nhieu = _dv_api( '2005', 'duyetTamUngNhieu', array( array( $_mp, $_mk ), 'QL POSH' ) );
+t( '🔴 gói lẫn một đơn K&H vào lệnh duyệt nhiều thì CHỐI CẢ GÓI', empty( $_nhieu['ok'] ), $_nhieu );
+
+/* Cấp tiền cũng vậy — duyệt xong còn một cửa nữa, và tiền đi ra ở cửa ấy. */
+$_cap = _dv_api( '2005', 'capTamUng', array( $_mk, 'QL POSH', 'Tiền mặt', '' ) );
+t( '🔴 Quản lý POSH KHÔNG cấp được tiền cho đơn K&H', empty( $_cap['ok'] ), $_cap );
+
+/* ---- tìm đơn ---- */
+/* 🔴 Ô TÌM PHẢI CHẠY ĐÃ. `tim_don()` viết `d.coso` trong khi bảng `don` chưa từng có cột ấy,
+   nên câu SQL hỏng ở MỌI lượt gọi; wpdb nuốt lỗi và trả rỗng, thành ra ô tìm luôn báo "không
+   tìm thấy đơn nào khớp" dù sổ có mấy trăm đơn. Không có gì đỏ, không có gì kêu.
+   Anh Thắng 26/08: *"Lọc tìm kiếm chung theo loại chi phí lẻ anh chưa thấy"*. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$_tim = VHCP_Don::tim_don( 'Đèn' );
+t( '🔴 tìm đơn CHẠY ĐƯỢC (câu SQL không hỏng)', ! empty( $_tim['success'] ), $_tim );
+t( 'và tìm ra cả hai đơn', count( $_tim['items'] ) >= 2, $_tim['items'] );
+$_co_cs = false;
+foreach ( $_tim['items'] as $x ) { if ( 'FARM PHAN THIẾT' === $x['coso'] ) { $_co_cs = true; } }
+t( 'kết quả nói rõ đơn thuộc cơ sở nào (lấy từ dòng chi)', $_co_cs, $_tim['items'] );
+t( 'lọc theo cơ sở cũng chạy', ! empty( VHCP_Don::tim_don( '', 'FARM PHAN THIẾT' )['items'] ) );
+t( 'lọc theo loại chi phí cũng chạy', ! empty( VHCP_Don::tim_don( '', '', 'Chi phí cơ sở' )['items'] ) );
+
+/* 🔴 Ô TÌM LỌC ĐƠN VỊ TRONG SQL, và SQL phải hiểu ô rỗng là nhà mặc định.
+   `$_mk` ở trên đã bị đặt `don_vi = ''` để giả sổ cũ. Kế toán chỉ-K&H mà không tìm ra nó thì
+   nghĩa là toàn bộ sổ cũ đã biến mất khỏi ô tìm của chính K&H — mà sổ cũ là gần như tất cả. */
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT Chỉ K&H' );
+$_tim_k = VHCP_Don::tim_don( 'Đèn' );
+$_ma_k = array();
+foreach ( $_tim_k['items'] as $x ) { $_ma_k[] = $x['maDon']; }
+t( '🔴 ô tìm vẫn ra đơn cũ có ô đơn vị RỖNG', in_array( $_mk, $_ma_k, true ), $_ma_k );
+t( 'và không ra đơn POSH', ! in_array( $_mp, $_ma_k, true ), $_ma_k );
+
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT POSH' );
+$_tim_p = VHCP_Don::tim_don( 'Đèn' );
+$_ma_p = array();
+foreach ( $_tim_p['items'] as $x ) { $_ma_p[] = $x['maDon']; }
+t( '🔴 ô tìm của kế toán POSH KHÔNG trả đơn K&H', ! in_array( $_mk, $_ma_p, true ), $_ma_p );
+t( 'nhưng vẫn trả đơn POSH', in_array( $_mp, $_ma_p, true ), $_ma_p );
+
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+VHCP_Don::delete_don_admin( $_mp );
+VHCP_Don::delete_don_admin( $_mk );
+VHCP_Cfg::write( VHCP_Cfg::USER, array( array( 'Admin', '1111', 'Admin', '', '', '', '', '', '' ) ) );
+VHCP_Auth::dat_vai_tro( $_vt_dv, 'Admin' );
 
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {

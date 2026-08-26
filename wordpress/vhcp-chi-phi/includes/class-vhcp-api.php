@@ -338,6 +338,17 @@ class VHCP_API {
 			}
 		}
 
+		/* 🔴 CHỐT ĐƠN VỊ (K&H · POSH) — MỘT LƯỢT CHO MỌI HÀM CÓ MÃ ĐƠN.
+		   Đơn vị vuông góc với vai: Quản lý POSH vẫn là Quản lý, vẫn qua được chốt vai ở trên,
+		   chỉ là không được đụng vào đơn của K&H. Chốt ở đây thì hàm viết sau này cũng tự được
+		   gác — xem `VHCP_DonVi::chan_theo_ham()` cho lý do không rải chốt vào từng hàm.
+		   Đứng SAU chốt vai và TRƯỚC lời gọi: chối vì sai vai là chuyện của vai, chối vì sai
+		   đơn vị là chuyện của đơn vị, và không lượt gọi nào chạy trước khi qua cả hai. */
+		$loi_dv = VHCP_DonVi::chan_theo_ham( $map[ $fn ], $args );
+		if ( '' !== $loi_dv ) {
+			return new WP_REST_Response( array( 'ok' => false, 'error' => $loi_dv, 'code' => 'not_found' ), 404 );
+		}
+
 		try {
 			$out = call_user_func_array( $map[ $fn ], $args );
 		} catch ( Throwable $e ) {

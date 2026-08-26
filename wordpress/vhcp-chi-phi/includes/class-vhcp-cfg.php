@@ -33,7 +33,11 @@ class VHCP_Cfg {
 			self::PL    => array( 'Phân loại TT', 'TK Có' ),
 			self::DT    => array( 'Đối tượng', 'Mã đối tượng', 'Loại (NV/NCC)' ),
 			self::QR    => array( 'Khóa', 'Giá trị' ),
-			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận' ),
+			/* Hai cột cuối là ĐƠN VỊ (K&H · POSH) — xem `VHCP_DonVi`. "Đơn vị" là NHÀ (đơn
+			   người ấy lập rơi về đâu); "Xem đơn vị" là những đơn vị người ấy ĐƯỢC ĐỌC, cách
+			   nhau dấu phẩy, để trống = theo mặc định của vai. Hai việc khác nhau nên hai cột:
+			   nhà thì phải là một, còn tầm nhìn thì có thể là nhiều. */
+			self::USER  => array( 'Tên', 'PIN', 'Vai trò', 'Cơ sở', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Đơn vị', 'Xem đơn vị' ),
 			self::TKNO  => array( 'Nhóm mặt hàng', 'Phân loại lớn', 'TK Nợ' ),
 			self::SSO   => array( 'Email', 'Vai trò Chi Phí', 'Cơ sở' ),
 			self::LOAI  => array( 'Loại chi phí', 'TK Nợ', 'TK Có', 'Mã đối tượng', 'Bộ phận', 'Ghi chú', 'Tên MISA', 'Loại' ),
@@ -431,7 +435,12 @@ class VHCP_Cfg {
 			if ( trim( (string) $r[0] ) === '' ) { continue; }
 			// Dòng cũ đã nạp lệch (PIN "2222.0") thì rửa ngay lúc ĐỌC, khỏi phải sửa tay
 			// từng người mới đăng nhập lại được.
-			$out['users'][] = array( 'ten' => $r[0], 'pin' => VHCP_Util::pin_sach( $r[1] ), 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => VHCP_Util::ma_so( $r[4] ), 'maDt' => VHCP_Util::ma_so( $r[5] ), 'boPhan' => $r[6] );
+			/* ⚠️ GÁC `isset` CHO HAI Ô CUỐI. Bảng người dùng đang chạy chỉ có 7 ô; đọc thẳng
+			   `$r[7]` là cảnh báo tràn nhật ký lỗi ở MỌI lượt tải trang, và trang trắng nếu
+			   site bật WP_DEBUG — cho một cột vừa mới thêm mà chưa ai kịp khai. */
+			$out['users'][] = array( 'ten' => $r[0], 'pin' => VHCP_Util::pin_sach( $r[1] ), 'vaiTro' => ( $r[2] !== '' ? $r[2] : 'Nhân viên' ), 'coso' => $r[3], 'tkCo' => VHCP_Util::ma_so( $r[4] ), 'maDt' => VHCP_Util::ma_so( $r[5] ), 'boPhan' => $r[6],
+				'donVi' => isset( $r[7] ) ? trim( (string) $r[7] ) : '',
+				'xemDonVi' => isset( $r[8] ) ? trim( (string) $r[8] ) : '' );
 		}
 
 		// Bảng tra nhanh cho việc chốt TK Nợ: cơ sở -> phân loại lớn, và
@@ -663,7 +672,9 @@ class VHCP_Cfg {
 					$g( $x, 'coso' ),
 					VHCP_Util::ma_so( $g( $x, 'tkCo' ) ),
 					VHCP_Util::ma_so( $g( $x, 'maDt' ) ),
-					$g( $x, 'boPhan' )
+					$g( $x, 'boPhan' ),
+					$g( $x, 'donVi' ),
+					$g( $x, 'xemDonVi' )
 				);
 			}
 			self::write( self::USER, $rows );
