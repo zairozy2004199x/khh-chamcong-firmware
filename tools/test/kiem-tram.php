@@ -413,13 +413,24 @@ t( 'nhưng KHÔNG mở được màn Hồ sơ', ! VHCC_Vai::duoc( $u_lk, 'ho_so'
 
 /* Đường sang trang quản trị chỉ gửi cho người MỞ ĐƯỢC nó. Gửi cho ai cũng thì nhân viên bấm
    vào rồi nhận một trang chối, và họ tưởng máy hỏng. */
+/* ⚠️ Canh TÊN MÀN, không canh SỐ MÀN. Bản đầu viết `2 === count(...)` và nó vỡ ngay lần thêm
+   tab "Công Văn phòng" — trong khi chẳng có gì sai: cửa hàng trưởng ĐƯỢC xem tab đó. Đếm bằng
+   con số gõ tay thì mỗi lần thêm màn là một phép thử đỏ oan, và đỏ oan nhiều lần thì người ta
+   bắt đầu sửa con số cho xanh mà không đọc xem có đúng không. */
 $man_cht = VHCC_Web::man_cua( $u_lk );
-t( 'cửa hàng trưởng có 2 màn', 2 === count( $man_cht ), array_keys( $man_cht ) );
+t( 'cửa hàng trưởng có màn công của mình', isset( $man_cht['cong_toi'] ), array_keys( $man_cht ) );
+t( 'và màn bảng công cơ sở', isset( $man_cht['cham'] ), array_keys( $man_cht ) );
+t( 'nhưng KHÔNG có màn hồ sơ', ! isset( $man_cht['ho_so'] ), array_keys( $man_cht ) );
 $man_nv = VHCC_Web::man_cua( array( 'role' => 'Nhân viên' ) );
 t( 'nhân viên chỉ có 1 màn', 1 === count( $man_nv ), array_keys( $man_nv ) );
 t( 'và đó là "Công của tôi"', isset( $man_nv['cong_toi'] ) );
 $man_ad = VHCC_Web::man_cua( array( 'role' => 'Admin' ) );
-t( 'admin có đủ 3 màn', 3 === count( $man_ad ), array_keys( $man_ad ) );
+/* Admin phải có ĐỦ mọi màn mà bất cứ vai nào khác có được — chốt này không cần đếm, và tự đúng
+   khi thêm màn mới. */
+foreach ( array_keys( $man_cht ) as $k_ad ) {
+	t( 'admin có màn "' . $k_ad . '" (không kém vai nào)', isset( $man_ad[ $k_ad ] ), array_keys( $man_ad ) );
+}
+t( 'và admin có thêm màn hồ sơ', isset( $man_ad['ho_so'] ), array_keys( $man_ad ) );
 
 /* mo_phien: chỉ nhận thẻ do chính hệ phát ra. */
 t( 'mo_phien chối thẻ rác', false === VHCC_Web::mo_phien( str_repeat( 'a', 64 ) ) );

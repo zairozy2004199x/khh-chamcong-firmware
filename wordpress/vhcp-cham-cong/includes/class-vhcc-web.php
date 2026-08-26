@@ -789,6 +789,19 @@ class VHCC_Web {
 			. 'table.cc td.tong{font-weight:700;background:#f8fafc}'
 			. '.duoi{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:0 5px;font-size:11px;font-weight:600}'
 			. '.chu-hong{color:var(--do);font-weight:600}.chu-co{color:var(--vang);font-weight:600}'
+			/* Lưới Công Văn phòng. Màu ở đây là LÝ DO chứ không phải trang trí, nên mỗi lớp phải
+			   đi kèm một câu trong phần chú thích dưới lưới — màu không có chú giải thì người đọc
+			   chỉ biết "ô này khác màu", không biết khác vì gì. */
+			. 'table.cc td.oc{text-align:center;white-space:nowrap}'
+			. 'table.cc td.oc.hong{background:#fef2f2;color:var(--do)}'
+			. 'table.cc td.oc.vang{background:#fffbeb;color:#b45309}'
+			. 'table.cc td.oc.tim{background:#f5f3ff;color:#6d28d9}'
+			. 'table.cc td.oc.luc{background:#f0fdf4;color:#15803d}'
+			. 'table.cc td.tong{text-align:right;font-weight:700;background:#f8fafc}'
+			. '.chu-luc{color:var(--luc);font-weight:600}'
+			. '.k{padding:1px 6px;border-radius:3px;font-size:12px}'
+			. '.k.luc{background:#f0fdf4;color:#15803d}.k.tim{background:#f5f3ff;color:#6d28d9}'
+			. '.k.vang{background:#fffbeb;color:#b45309}.k.hong{background:#fef2f2;color:var(--do)}'
 			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}'
 			/* In ra giấy: bỏ nền, bỏ nút, để bảng lọt trang ngang. */
 			. '@media print{header,form,.nut{display:none!important}'
@@ -941,6 +954,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'vp' === $man ) {
+			self::the_cong_vp( $toi );
+			echo '</div></body></html>';
+			return;
+		}
+
 		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
@@ -978,6 +997,7 @@ class VHCC_Web {
 		$ds = array();
 		if ( VHCC_Vai::duoc( $toi, 'cong_minh' ) ) { $ds['cong_toi'] = 'Công của tôi'; }
 		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['cham']     = 'Bảng chấm công'; }
+		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['vp']       = 'Công Văn phòng'; }
 		if ( VHCC_Vai::duoc( $toi, 'ho_so' ) )     { $ds['ho_so']    = 'Hồ sơ & tài khoản'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
@@ -1336,6 +1356,220 @@ class VHCC_Web {
 		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
 		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
+	}
+
+	/**
+	 * TAB "CÔNG VĂN PHÒNG" — lưới người × ngày, mỗi ô là SỐ CÔNG.
+	 *
+	 * Anh Thắng 26/08/2026: *"hiện bảng công theo hàng ngang giống này"* kèm ảnh tab Công Văn
+	 * phòng của bản Apps Script. Nên đây là bản dịch của `vpcVeLuoi`, để tab riêng đúng như bản
+	 * gốc — không nhét vào màn Bảng chấm công, vì hai màn trả lời hai câu khác nhau:
+	 *
+	 *    Bảng chấm công  -> "hôm đó người này bấm máy lúc mấy giờ"   (GIỜ, chỉ đọc, không tính)
+	 *    Công Văn phòng  -> "tháng này người này được mấy công"      (CÔNG, đã qua phép tính)
+	 *
+	 * 🔴 Ô TRỐNG VÀ Ô SỐ 0 LÀ HAI CHUYỆN KHÁC NHAU, và lưới phải phân biệt được:
+	 *      dấu `·` = ngày đó KHÔNG có dữ liệu chấm công (nghỉ, hoặc chưa nạp)
+	 *      số `0`  = CÓ giờ chấm mà KHÔNG ra công (ca lạ, ca đêm thiếu giờ, kế toán chấm CN)
+	 *    Gộp hai thứ này lại là xoá mất đúng những ngày cần soi.
+	 */
+	private static function the_cong_vp( $toi ) {
+		$ds_cs = self::ds_coso_xem( $toi );
+		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
+		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
+		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+
+		echo '<div class="the">';
+		echo '<h2>Công Văn phòng</h2>';
+		echo '<p class="mo">Mỗi ô là <b>số công</b> của ngày đó — đã qua phép tính (khung giờ, tăng ca, '
+			. 'ca đêm, công bù), không phải số giờ thô. Muốn xem giờ vào/giờ ra thì sang màn '
+			. '<b>Bảng chấm công</b>. Rê chuột lên ô để đọc vì sao ra con số đó.</p>';
+
+		echo '<form method="get" class="hang" style="margin-top:10px">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="vp">';
+		echo '<div><label for="vcs">Cơ sở</label><select id="vcs" name="ccs">';
+		echo '<option value="">— chọn cơ sở —</option>';
+		foreach ( $ds_cs as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
+				. esc_html( $x ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><label for="vth">Tháng</label><input id="vth" name="cth" type="month" value="'
+			. esc_attr( $th ) . '"></div>';
+		echo '<div><button class="chinh">Xem</button></div>';
+		echo '</form>';
+		if ( '' === $cs ) {
+			echo '<p class="mo" style="margin-top:12px">'
+				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
+					: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' )
+				. '</p>';
+		}
+		echo '</div>';
+		if ( '' === $cs ) { return; }
+
+		$b = VHCC_Luong::vp_bang_cong_va_luong( $cs, $th );
+		self::ve_luoi_vp( $b );
+	}
+
+	/** Lưới người × ngày. Tách hàm để thử được riêng, không phải dựng cả trang. */
+	private static function ve_luoi_vp( $b ) {
+		$tt   = (string) $b['month'];
+		$rows = (array) $b['rows'];
+		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
+		if ( false === $moc ) {
+			echo '<div class="bao loi">Tháng không hợp lệ.</div>';
+			return;
+		}
+		$so_ngay = (int) gmdate( 't', $moc );
+		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+
+		/* Gom `detail` về [mã][số ngày]. `detail` CHỈ có ngày có dữ liệu — ngày nghỉ không có
+		   dòng nào, nên ô để dấu `·` chứ không phải số 0. */
+		$o = array();
+		foreach ( (array) $b['detail'] as $d ) {
+			$n = (int) substr( (string) $d['ngay'], 8, 2 );
+			$o[ (string) $d['ma'] ][ $n ] = $d;
+		}
+
+		echo '<div class="the">';
+		if ( ! $rows ) {
+			echo '<p class="mo">Tháng ' . esc_html( $tt ) . ' chưa có dữ liệu chấm công nào ở cơ sở này. '
+				. 'Nạp công từ .csv ở màn <b>Bảng chấm công</b>, hoặc chờ máy đẩy giờ về.</p></div>';
+			return;
+		}
+
+		echo '<div class="cuon"><table class="cc"><thead><tr>';
+		echo '<th>Nhân viên</th>';
+		for ( $i = 1; $i <= $so_ngay; $i++ ) {
+			$t  = (int) gmdate( 'w', strtotime( sprintf( '%s-%02d 00:00:00 UTC', $tt, $i ) ) );
+			$cn = ( 0 === $t || 6 === $t );
+			echo '<th class="ng' . ( $cn ? ' cn' : '' ) . '">' . $i
+				. '<div style="font-weight:400;opacity:.7">' . $thu_vn[ $t ] . '</div></th>';
+		}
+		echo '<th>TỔNG</th></tr></thead><tbody>';
+
+		$lech = 0;
+		foreach ( $rows as $e ) {
+			$ma  = (string) $e['ma'];
+			$ngd = isset( $o[ $ma ] ) ? $o[ $ma ] : array();
+
+			echo '<tr><td>' . esc_html( $e['ten'] )
+				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' ) . '</td>';
+			$cong = 0.0;
+			$co_dem = false;
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				if ( ! isset( $ngd[ $i ] ) ) { echo '<td class="o">·</td>'; continue; }
+				$d = $ngd[ $i ];
+				if ( $d['congDem'] || '' !== $d['h2vao'] || '' !== $d['h2ra'] ) { $co_dem = true; }
+				$cong += (float) $d['tong'];
+
+				/* Màu = LÝ DO, không phải trang trí. Đỏ là chỗ CÓ giờ mà KHÔNG ra công — đúng
+				   thứ cần soi. */
+				$lop = '';
+				if ( ! empty( $d['caLa'] ) || ! empty( $d['demThieuGio'] ) ) { $lop = ' hong'; }
+				elseif ( ! empty( $d['ktCnNghi'] ) )   { $lop = ' vang'; }
+				elseif ( $d['congDem'] )               { $lop = ' tim'; }
+				elseif ( $d['congTangCa'] )            { $lop = ' luc'; }
+
+				echo '<td class="oc' . $lop . '" title="' . esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
+					. ( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
+						: '<span class="chu-hong">0</span>' ) . '</td>';
+			}
+			/* 🔴 Ô đối chiếu. Lưới cộng ra khác bảng tổng của engine = một trong hai chỗ sai,
+			   phải kêu ngay chứ không im lặng in ra hai con số. */
+			$cong = round( $cong, 2 );
+			$khop = ( abs( $cong - (float) $e['tong'] ) < 0.005 );
+			if ( ! $khop ) { $lech++; }
+			echo '<td class="tong' . ( $khop ? '' : ' chu-hong' ) . '"><b>' . self::so_vp( $cong ) . '</b>'
+				. ( $khop ? '' : ' ≠ ' . self::so_vp( $e['tong'] ) ) . '</td>';
+			echo '</tr>';
+
+			/* Dòng con hàng -CD. Trong sổ mỗi người có thể chiếm nhiều hàng; lưới chỉ vẽ một dòng
+			   thì hàng ca đêm biến mất khỏi tầm mắt dù công của nó ĐÃ cộng vào tổng.
+			   Hai ngày KHÁC NHAU trong cùng dòng: ngày LÀM ca đêm hiện 🌙, ngày ĐƯỢC TÍNH công
+			   hiện SỐ (ca đêm 04/08 cho công vào 05/08). */
+			if ( ! $co_dem ) { continue; }
+			echo '<tr><td class="o" style="padding-left:20px">↳ ca đêm <code>-CD</code></td>';
+			$cong_d = 0.0;
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				if ( ! isset( $ngd[ $i ] ) ) { echo '<td class="o">·</td>'; continue; }
+				$d = $ngd[ $i ];
+				$lam = ( '' !== $d['h2vao'] || '' !== $d['h2ra'] );
+				if ( ! $lam && ! $d['congDem'] && empty( $d['demThieuGio'] ) && empty( $d['demChuaDuCap'] ) ) {
+					echo '<td class="o">·</td>';
+					continue;
+				}
+				$cong_d += (float) $d['congDem'];
+				$lop = ! empty( $d['demThieuGio'] ) ? ' hong' : ( $d['congDem'] ? ' tim' : '' );
+				echo '<td class="oc' . $lop . '" title="' . esc_attr( self::chu_dem_vp( $d, $e['ten'] ) ) . '">'
+					. ( $d['congDem'] ? '<b>' . self::so_vp( $d['congDem'] ) . '</b>'
+						: ( ! empty( $d['demThieuGio'] ) ? '0' : ( $lam ? '🌙' : '·' ) ) ) . '</td>';
+			}
+			echo '<td class="tong">' . self::so_vp( $cong_d ) . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+
+		echo '<p class="mo" style="margin-top:8px">Ô là <b>số công</b> của ngày đó · dấu '
+			. '<b>·</b> = không có dữ liệu chấm công · '
+			. '<span class="k luc">có tăng ca</span> <span class="k tim">có công đêm</span> '
+			. '<span class="k vang">kế toán chấm chủ nhật</span> '
+			. '<span class="k hong">có giờ nhưng KHÔNG ra công</span>'
+			. '<br>Dòng <b>↳ ca đêm <code>-CD</code></b> là hàng thứ hai của người đó: '
+			. '<b>🌙</b> = đêm đó CÓ làm · <b>số</b> = công đêm được tính vào ngày đó '
+			. '(ca đêm đêm trước cho công sang hôm sau).';
+		echo $lech
+			? '<br><b class="chu-hong">⚠️ ' . (int) $lech . ' người có tổng ở lưới KHÁC tổng của phép '
+				. 'tính — đừng dùng số nào cả, báo lại để tra.</b></p>'
+			: '<br><span class="chu-luc">✓ Tổng từng người khớp với phép tính.</span></p>';
+		echo '</div>';
+	}
+
+	/** 1.5 -> "1.5", 2.0 -> "2". Số công hay là số lẻ .5, in ".00" vào chỉ tổ chật lưới. */
+	private static function so_vp( $n ) {
+		$n = round( (float) $n, 2 );
+		return rtrim( rtrim( number_format( $n, 2, '.', '' ), '0' ), '.' );
+	}
+
+	/** Chú thích rê chuột của một ô ngày — nói VÌ SAO ô đó ra con số ấy. */
+	private static function chu_o_vp( $d, $ten ) {
+		$c = array( self::ngay_vn( $d['ngay'] ) . ' · ' . $ten );
+		if ( '' !== $d['vao'] || '' !== $d['ra'] ) {
+			$c[] = ( '' !== $d['vao'] ? $d['vao'] : '—' ) . ' → ' . ( '' !== $d['ra'] ? $d['ra'] : '—' );
+		}
+		if ( $d['gioNgay'] )    { $c[] = self::so_vp( $d['gioNgay'] ) . 'h trong khung ' . $d['khung']; }
+		if ( $d['congNgay'] )   { $c[] = 'ngày ' . self::so_vp( $d['congNgay'] ); }
+		if ( $d['congTangCa'] ) { $c[] = 'tăng ca ' . self::so_vp( $d['congTangCa'] ); }
+		if ( $d['congDem'] )    { $c[] = 'đêm ' . self::so_vp( $d['congDem'] ); }
+		if ( $d['congBu'] )     { $c[] = 'bù ' . self::so_vp( $d['congBu'] ); }
+		if ( ! empty( $d['caLa'] ) )       { $c[] = '⚠ hàng 2 nằm trong ca ngày → KHÔNG tính'; }
+		if ( ! empty( $d['demThieuGio'] ) ) {
+			$c[] = '⚠ ca đêm ' . self::so_vp( $d['gioDemThuc'] ) . 'h < mức tối thiểu';
+		}
+		if ( ! empty( $d['ktCnNghi'] ) )   { $c[] = '⚠ kế toán chấm chủ nhật → 0 công'; }
+		return implode( "\n", $c );
+	}
+
+	/** Chú thích rê chuột của ô dòng ca đêm. */
+	private static function chu_dem_vp( $d, $ten ) {
+		$c = array( self::ngay_vn( $d['ngay'] ) . ' · ' . $ten );
+		if ( '' !== $d['h2vao'] || '' !== $d['h2ra'] ) {
+			$c[] = 'hàng 2 (' . ( '' !== $d['h2vao'] ? $d['h2vao'] : '—' ) . ' → '
+				. ( '' !== $d['h2ra'] ? $d['h2ra'] : '—' ) . ')';
+		}
+		if ( '' !== $d['demSangNgay'] ) { $c[] = 'ca đêm này cho công vào ngày ' . self::ngay_vn( $d['demSangNgay'] ); }
+		if ( '' !== $d['demTuNgay'] )   { $c[] = 'công đêm nhận từ ca ngày ' . self::ngay_vn( $d['demTuNgay'] ); }
+		if ( ! empty( $d['demThieuGio'] ) ) {
+			$c[] = '⚠ ca đêm chỉ ' . self::so_vp( $d['gioDemThuc'] ) . 'h < mức tối thiểu → KHÔNG tính';
+		}
+		if ( ! empty( $d['demChuaDuCap'] ) ) { $c[] = '⚠ thiếu giờ vào hoặc giờ ra → không đo được, vẫn tính đủ'; }
+		return implode( "\n", $c );
+	}
+
+	private static function ngay_vn( $ngay ) {
+		$p = explode( '-', (string) $ngay );
+		return ( 3 === count( $p ) ) ? $p[2] . '/' . $p[1] . '/' . $p[0] : (string) $ngay;
 	}
 
 	/**

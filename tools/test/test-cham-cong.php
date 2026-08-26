@@ -6040,6 +6040,127 @@ $r_bu  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
 t( 'và POST thẳng việc bu cũng bị chối', is_array( $r_bu ) && ! isset( $r_bu[0]['xong'] ), $r_bu );
 $_POST = array();
 
+// ====== 49. TAB "CÔNG VĂN PHÒNG" — lưới người × ngày, mỗi ô là SỐ CÔNG
+/* Anh Thắng 26/08/2026: *"hiện bảng công theo hàng ngang giống này"* kèm ảnh tab Công Văn phòng
+   của bản Apps Script. Đây là bản dịch `vpcVeLuoi`, để TAB RIÊNG đúng như bản gốc — hai màn trả
+   lời hai câu khác nhau: Bảng chấm công hỏi "bấm máy lúc mấy giờ" (GIỜ, chỉ đọc), Công Văn phòng
+   hỏi "được mấy công" (CÔNG, đã qua phép tính).
+
+   🔴 Chốt nặng nhất: ô TRỐNG và ô SỐ 0 phải phân biệt được.
+        dấu `·` = ngày KHÔNG có dữ liệu chấm công (nghỉ, hoặc chưa nạp)
+        số `0`  = CÓ giờ chấm mà KHÔNG ra công (ca lạ, ca đêm thiếu giờ, kế toán chấm CN)
+      Gộp hai thứ này là xoá mất đúng những ngày cần soi, mà bảng vẫn trông đầy đủ. */
+
+$VP_CS = 'VP_LUOI';
+vhcc_bo_phan( $VP_CS, 'Văn phòng' );
+/* Ngày thường đủ khung 08:30–17:00 -> 1 công. */
+vhcc_cham( $VP_CS, '2026-07-01', 'VPA', '', '08:30:00', '17:00:00' );
+vhcc_cham( $VP_CS, '2026-07-02', 'VPA', '', '08:30:00', '17:00:00' );
+/* Ngày CÓ giờ nhưng quá ngắn. ⚠️ Em tưởng chỗ này ra 0 công — SAI: cấu hình mặc định
+   `duoiMin => 'tyle'` nên dưới mức tối thiểu vẫn ăn công theo TỶ LỆ (30 phút -> 0.06). Đây là
+   con số lấy từ phép tính thật, không lấy từ trí nhớ. */
+vhcc_cham( $VP_CS, '2026-07-03', 'VPA', '', '08:30:00', '09:00:00' );
+/* Ngày thật sự KHÔNG ra công: hàng 2 nằm trong ca ngày (`caLa`) -> vp_ca_hang2 trả 'la', không
+   tính tăng ca cũng không tính đêm. Đây mới là ô phải hiện SỐ 0 nền đỏ.
+   ⚠️ Ghi thẳng hàng `-CD` chứ KHÔNG qua `vhcc_cham_dem`: hàm đó đi qua `trai_phang`, mà
+      `trai_phang` cố ý trả null cho giờ ban ngày (không ghi bừa giờ ca ngày vào hàng 2). Dùng nó
+      ở đây thì hàng ra NULL cả hai giờ, `caLa` không bật, và phép thử xanh nhờ một lý do khác
+      hẳn thứ nó tưởng đang canh. */
+vhcc_cham( $VP_CS, '2026-07-08', 'VPC', 'CD', '10:00:00', '11:00:00' );
+/* Ca đêm: hàng -CD đêm 06/07, công dồn sang 07/07. */
+vhcc_cham( $VP_CS, '2026-07-06', 'VPB', '', '08:30:00', '17:00:00' );
+vhcc_cham_dem( $VP_CS, '2026-07-06', 'VPB', '21:30:00', '05:30:00' );
+/* 2026-07-04 VPA nghỉ hẳn — không gieo gì, để canh dấu chấm. */
+
+$g_vp = array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2026-07' );
+$h_vp = vhcc_web( '135791', array(), $g_vp );
+
+t( 'có tab Công Văn phòng trên thanh chọn màn', strpos( $h_vp, '>Công Văn phòng<' ) !== false, $h_vp );
+t( 'lưới vẽ ra được', strpos( $h_vp, 'Nhân viên' ) !== false, $h_vp );
+/* Đủ 31 cột ngày cho tháng 7 + cột Nhân viên + cột TỔNG. Đếm số THẬT, không gõ tay con số. */
+$sn_vp = (int) gmdate( 't', strtotime( '2026-07-01' ) );
+teq( 'đủ một cột cho mỗi ngày trong tháng', $sn_vp, substr_count( $h_vp, '<th class="ng' ) );
+t( 'có cột TỔNG', strpos( $h_vp, '<th>TỔNG</th>' ) !== false );
+/* Thứ trong tuần phải đúng: 01/07/2026 là thứ Tư -> T4. Sai chỗ này thì cả lưới lệch cột. */
+t( 'nhãn thứ đúng với ngày thật (01/07/2026 là T4)',
+	strpos( $h_vp, '>1<div style="font-weight:400;opacity:.7">T4</div>' ) !== false, $h_vp );
+t( 'cuối tuần được tô khác', strpos( $h_vp, 'class="ng cn"' ) !== false, $h_vp );
+
+/* 🔴 Hai ký hiệu KHÁC NHAU cho hai chuyện khác nhau. */
+t( 'ngày nghỉ hẳn -> dấu chấm', strpos( $h_vp, '<td class="o">·</td>' ) !== false, $h_vp );
+t( 'ngày CÓ giờ mà không ra công -> số 0 nền đỏ, không phải dấu chấm',
+	strpos( $h_vp, '<span class="chu-hong">0</span>' ) !== false, $h_vp );
+t( 'và chú thích nói rõ vì sao không tính',
+	strpos( $h_vp, 'hàng 2 nằm trong ca ngày' ) !== false, $h_vp );
+/* Ngày dưới mức tối thiểu vẫn ăn công theo tỷ lệ -> ô có số lẻ, KHÔNG phải 0. Hai ca này rất
+   dễ lẫn: cả hai đều "làm ít", nhưng một cái ra công một cái không. */
+t( 'ngày dưới mức tối thiểu ăn công theo tỷ lệ (0.06), không bị làm tròn thành 0',
+	strpos( $h_vp, '>0.06<' ) !== false, $h_vp );
+
+/* Chú thích rê chuột phải nói được VÌ SAO ô ra con số đó. */
+t( 'ô có chú thích kèm giờ vào → giờ ra',
+	strpos( $h_vp, '08:30 → 17:00' ) !== false, $h_vp );
+t( 'và nói rõ mấy giờ nằm trong khung', strpos( $h_vp, 'h trong khung' ) !== false, $h_vp );
+
+/* Dòng con ca đêm: ngày LÀM hiện 🌙, ngày ĐƯỢC TÍNH hiện số. */
+/* ⚠️ Canh đúng Ô TRONG LƯỚI, không canh chữ chung: cả '↳ ca đêm' lẫn '🌙' đều xuất hiện trong
+   phần CHÚ GIẢI dưới lưới, nên tìm chuỗi trần thì bỏ hẳn dòng con đi phép thử vẫn xanh. Đã phá
+   thử để thấy đúng chuyện đó. */
+t( 'có dòng con ca đêm -CD (ô đầu dòng, không phải chữ trong chú giải)',
+	strpos( $h_vp, 'padding-left:20px">↳ ca đêm' ) !== false, $h_vp );
+t( 'đêm có làm thì ô hiện mặt trăng', strpos( $h_vp, '>🌙</td>' ) !== false, $h_vp );
+t( 'và chú thích nói ca đêm cho công sang ngày nào',
+	strpos( $h_vp, 'cho công vào ngày' ) !== false, $h_vp );
+
+/* Phần chú giải: mỗi màu phải có một câu giải thích, kẻo người đọc chỉ thấy "ô này khác màu". */
+foreach ( array( 'có tăng ca', 'có công đêm', 'kế toán chấm chủ nhật', 'có giờ nhưng KHÔNG ra công' ) as $k_vp ) {
+	t( 'chú giải có giải thích màu "' . $k_vp . '"', strpos( $h_vp, $k_vp ) !== false, $h_vp );
+}
+t( 'nói rõ dấu chấm nghĩa là không có dữ liệu',
+	strpos( $h_vp, 'không có dữ liệu chấm công' ) !== false );
+
+/* 🔴 Ô đối chiếu: lưới tự cộng lại và so với tổng của phép tính. Lệch thì phải KÊU, không im
+   lặng in ra hai con số khác nhau ở hai chỗ. */
+/* 🔴 Ô ĐỐI CHIẾU. Lưới tự cộng lại rồi so với tổng của phép tính; lệch thì phải KÊU, không
+   im lặng in ra hai con số khác nhau ở hai chỗ trên cùng một trang.
+   Chuyện này KHÔNG xảy ra khi engine đúng, nên phải gọi thẳng hàm dựng lưới với dữ liệu cố tình
+   lệch — chờ nó tự xảy ra thì phép thử chẳng bao giờ chạy tới nhánh đó. */
+function vp_o_ngay( $ma, $ngay, $tong ) {
+	return array( 'ma' => $ma, 'ten' => 'Người ' . $ma, 'ngay' => $ngay,
+		'congNgay' => $tong, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0, 'tong' => $tong,
+		'phutNgay' => 480, 'gioNgay' => 8.0, 'khung' => '08:30-17:00',
+		'kt7' => false, 'ktCnNghi' => false, 'caLa' => false, 'demTuNgay' => '', 'demSangNgay' => '',
+		'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0,
+		'vao' => '08:30', 'ra' => '17:00', 'h2vao' => '', 'h2ra' => '' );
+}
+$b_lech = array( 'month' => '2026-07',
+	/* Bảng nói 5 công, mà lưới chỉ có 2 ngày × 1 công = 2. */
+	'rows' => array( array( 'ma' => 'ZZ', 'ten' => 'Người ZZ', 'tong' => 5.0, 'laKeToan' => false ) ),
+	'detail' => array( vp_o_ngay( 'ZZ', '2026-07-01', 1.0 ), vp_o_ngay( 'ZZ', '2026-07-02', 1.0 ) ) );
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 've_luoi_vp', array( $b_lech ) ); $h_lech = ob_get_clean();
+t( 'tổng lưới lệch tổng phép tính -> KÊU LÊN, không im lặng',
+	strpos( $h_lech, 'KHÁC tổng của phép' ) !== false, $h_lech );
+t( 'và in cả hai con số cạnh nhau để so',
+	strpos( $h_lech, '≠ 5' ) !== false, $h_lech );
+t( 'còn khi khớp thì nói khớp', strpos( $h_vp, 'Tổng từng người khớp' ) !== false );
+
+/* Tháng không có dữ liệu -> nói rõ, và chỉ đường sang chỗ nạp. */
+$h_vp0 = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2020-01' ) );
+t( 'tháng trống thì nói rõ chưa có dữ liệu',
+	strpos( $h_vp0, 'chưa có dữ liệu chấm công nào' ) !== false, $h_vp0 );
+t( 'và chỉ sang chỗ nạp .csv', strpos( $h_vp0, 'Nạp công từ .csv' ) !== false, $h_vp0 );
+
+/* Lưới là màn CHỈ ĐỌC — không có ô nhập giờ nào, y như bảng chấm công. */
+t( 'lưới KHÔNG có ô nhập giờ nào',
+	! preg_match( '/name="(gio_vao|gio_ra|bu_vao|bu_ra)"/', $h_vp ), $h_vp );
+/* Và không lộ tiền: tab này nói về CÔNG, tiền là chuyện của màn lương (quyền khác). */
+t( 'lưới không in ô tiền nào', strpos( $h_vp, 'đ</td>' ) === false, $h_vp );
+
+/* Nhân viên bậc 1 không mở được tab này. */
+$h_vp_nv = vhcc_web( '680246', array(), $g_vp );
+t( 'Nhân viên KHÔNG thấy tab Công Văn phòng', strpos( $h_vp_nv, '>Công Văn phòng<' ) === false, $h_vp_nv );
+t( 'và gõ tay ?man=vp cũng không ra lưới', strpos( $h_vp_nv, '↳ ca đêm' ) === false, $h_vp_nv );
+
 /* ---- lưới người × ngày của bản cũ đã đi hẳn, không để lại hàm mồ côi ---- */
 $than_web_qtc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 've_luoi_cham (lưới cũ) đã bỏ hẳn, không còn nằm chết trong tệp',

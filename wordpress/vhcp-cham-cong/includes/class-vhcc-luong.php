@@ -473,7 +473,11 @@ class VHCC_Luong {
 				$out[ $ngay ] = array( 'ngay' => $ngay, 'congNgay' => 0.0, 'congTangCa' => 0.0,
 					'congDem' => 0.0, 'congBu' => 0.0, 'tong' => 0.0, 'phutNgay' => 0, 'khung' => '',
 					'kt7' => false, 'ktCnNghi' => false, 'caLa' => false, 'demTuNgay' => '',
-					'demSangNgay' => '', 'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0 );
+					'demSangNgay' => '', 'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0,
+					/* Giờ THÔ của cả hai hàng. Không dùng để tính công — phép tính đã xong ở trên —
+					   mà để lưới còn nói được VÌ SAO ô này ra con số đó. Một ô công 0.5 không có
+					   giờ đi kèm thì người soi chỉ biết là 0.5, không biết cãi vào đâu. */
+					'vao' => '', 'ra' => '', 'h2vao' => '', 'h2ra' => '', 'gioNgay' => 0.0 );
 			}
 			return $ngay;
 		};
@@ -496,6 +500,11 @@ class VHCC_Luong {
 			$chinh = isset( $h['chinh'] ) ? $h['chinh'] : null;
 			$out[ $ngay ]['phutNgay'] = $chinh
 				? self::vp_phut_trong_khung( self::pm( $chinh[0] ), self::pm( $chinh[1] ), $tu, $den ) : 0;
+			$out[ $ngay ]['gioNgay'] = round( $out[ $ngay ]['phutNgay'] / 60, 2 );
+			if ( $chinh ) {
+				$out[ $ngay ]['vao'] = VHCC_DB::hhmm( $chinh[0] );
+				$out[ $ngay ]['ra']  = VHCC_DB::hhmm( $chinh[1] );
+			}
 			/* Kế toán CHỦ NHẬT: lịch nghỉ -> 0 công ngày. Vẫn GIỮ số phút để giao diện hiện được
 			   "đi làm chủ nhật nhưng chủ nhật là ngày nghỉ", không xoá dấu vết. */
 			$out[ $ngay ]['congNgay'] = $ktcn ? 0.0
@@ -503,6 +512,10 @@ class VHCC_Luong {
 
 			/* ----- HÀNG 2: tăng ca (cùng ngày) hoặc ca đêm (dồn sang NGÀY HÔM SAU) ----- */
 			$dem = isset( $h['dem'] ) ? $h['dem'] : null;
+			if ( $dem ) {
+				$out[ $ngay ]['h2vao'] = VHCC_DB::hhmm( $dem[0] );
+				$out[ $ngay ]['h2ra']  = VHCC_DB::hhmm( $dem[1] );
+			}
 			$ca  = self::vp_ca_hang2( $cfg, $dem ? $dem[0] : null, $dem ? $dem[1] : null );
 			if ( 'tangca' === $ca['loai'] ) {
 				$out[ $ngay ]['congTangCa'] += (float) $cfg['tangCaCong'];
