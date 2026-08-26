@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Nội Bộ K&H
  * Description:       Trang trao đổi nội bộ: bảng tin, bình luận, thả tim — dùng chung PIN với hệ chấm công.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Author:            K&H
  * Requires at least: 5.6
  * Requires PHP:      7.2
@@ -17,10 +17,11 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHNB_VERSION', '1.1.0' );
+define( 'VHNB_VERSION', '1.2.0' );
 define( 'VHNB_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once VHNB_DIR . 'includes/class-vhnb-db.php';
+require_once VHNB_DIR . 'includes/class-vhnb-nhom.php';
 require_once VHNB_DIR . 'includes/class-vhnb-bai.php';
 require_once VHNB_DIR . 'includes/class-vhnb-trang.php';
 

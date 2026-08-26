@@ -95,6 +95,8 @@ $TOK_AD  = VHCC_Auth::phat_token( 'Nguyễn C',   'Admin',           '',        
 $U_NV  = VHCC_Auth::user_by_token( $TOK_NV );
 $U_CHT = VHCC_Auth::user_by_token( $TOK_CHT );
 $U_AD  = VHCC_Auth::user_by_token( $TOK_AD );
+$TOK_LA = VHCC_Auth::phat_token( 'Phạm Thị D', 'Nhân viên', 'CS_AEON', 'NV009' );
+$U_NV_LA = VHCC_Auth::user_by_token( $TOK_LA );
 t( 'dựng được ba phiên', $U_NV && $U_CHT && $U_AD );
 teq( 'nhân viên KHÔNG phải admin của trang nội bộ', false, VHNB_Bai::la_admin( $U_NV ) );
 teq( 'cửa hàng trưởng cũng KHÔNG', false, VHNB_Bai::la_admin( $U_CHT ) );
@@ -127,7 +129,7 @@ $rf = new ReflectionMethod( 'VHNB_Bai', 'dang' );
 $ten_ts = array();
 foreach ( $rf->getParameters() as $p ) { $ten_ts[] = $p->getName(); }
 teq( 'dang() KHÔNG có tham số nào nhận tên/mã người đăng',
-	array( 'u', 'noi_dung', 'nhom' ), $ten_ts );
+	array( 'u', 'noi_dung', 'nhom', 'nhom_id' ), $ten_ts );
 
 /* Bài dài quá thì cắt, không nhận nguyên. */
 $r = VHNB_Bai::dang( $U_CHT, str_repeat( 'x', VHNB_Bai::DAI_TOI_DA + 500 ) );
@@ -469,6 +471,164 @@ $truoc2 = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'bai' ) );
 vhnb_post( 'a0a0a0', array( 'viec' => 'dang', 'noi_dung' => 'người lạ', 'ky' => $KY_NV ) );
 teq( 'chưa đăng nhập thì POST không ghi được gì', $truoc2,
 	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'bai' ) ) );
+
+/* ============================================================ nhóm riêng do người dùng tự lập */
+
+/* 🔴 KHỐI NÀY CANH ĐÚNG MỘT CÂU HỎI: bài trong nhóm riêng có LỌT RA NGOÀI được không.
+   Nhóm riêng là chỗ duy nhất trong cả hệ mà "ai đọc được" KHÔNG suy ra từ chức vụ — kể cả Admin
+   ở ngoài cũng phải mù. Nên mọi đường đọc đều phải kiểm, không chỉ đường chính. */
+
+vhnb_dung_bang();
+
+/* Mời người vào nhóm là mời bằng MÃ, và mã phải có hồ sơ thật — nên dựng hồ sơ trước.
+   ⚠️ Ghi thẳng vào bảng chứ không qua `luu_ho_so()`: bài này kiểm NHÓM, mượn đường ghi hồ sơ
+   thì một ngày nào đó quyền ghi hồ sơ siết lại là khối nhóm đỏ oan. */
+foreach ( array(
+	array( 'NV001', 'Trần Văn A' ),
+	array( 'NV002', 'Lê Thị B' ),
+	array( 'NV009', 'Phạm Thị D' ),
+) as $hs ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $hs[0], 'ho_ten' => $hs[1] ) );
+}
+
+$g1 = VHNB_Nhom::lap( $U_CHT, '  Nhóm xử lý sự cố  ', 'Bàn riêng khi máy hỏng' );
+t( 'lập được nhóm', ! empty( $g1['ok'] ), $g1 );
+$G1 = (int) $g1['id'];
+$n1 = VHNB_Nhom::mot( $G1 );
+teq( 'tên nhóm bị cắt khoảng trắng hai đầu', 'Nhóm xử lý sự cố', $n1['ten'] );
+teq( 'người lập vào nhóm ngay, đếm được 1 thành viên', 1, (int) $n1['so_tv'] );
+teq( 'người lập mang vai chủ nhóm', true, VHNB_Nhom::la_chu( $U_CHT, $n1 ) );
+
+teq( 'nhóm không tên thì chối', false, VHNB_Nhom::lap( $U_CHT, "   \n " )['ok'] );
+
+/* Tên dài quá thì CẮT, không chối — chối một cái tên dài là bắt người ta gõ lại từ đầu. */
+$g_dai = VHNB_Nhom::lap( $U_CHT, str_repeat( 'x', VHNB_Nhom::TEN_TOI_DA + 60 ) );
+teq( 'tên nhóm dài quá bị cắt đúng mức', VHNB_Nhom::TEN_TOI_DA,
+	mb_strlen( VHNB_Nhom::mot( (int) $g_dai['id'] )['ten'], 'UTF-8' ) );
+VHNB_Nhom::xoa( $U_CHT, (int) $g_dai['id'] );
+
+/* ---- ai đọc được ---- */
+
+teq( 'người lập vào được nhóm mình', true,  VHNB_Nhom::duoc_vao( $U_CHT, $G1 ) );
+teq( 'người NGOÀI nhóm KHÔNG vào được', false, VHNB_Nhom::duoc_vao( $U_NV, $G1 ) );
+/* 🔴 Admin cũng mù. Nếu ai cũng biết "sếp đọc được hết" thì không ai bàn gì trong đó nữa. */
+teq( 'ADMIN ở ngoài nhóm CŨNG KHÔNG đọc được', false, VHNB_Nhom::duoc_vao( $U_AD, $G1 ) );
+teq( 'nhóm không tồn tại thì không ai vào được', false, VHNB_Nhom::duoc_vao( $U_CHT, 999999 ) );
+
+/* ---- mời người ---- */
+
+teq( 'người ngoài KHÔNG mời được ai vào nhóm của người khác', false,
+	VHNB_Nhom::moi( $U_NV, $G1, 'NV009' )['ok'] );
+teq( 'Admin ở ngoài CŨNG không mời được', false, VHNB_Nhom::moi( $U_AD, $G1, 'NV009' )['ok'] );
+teq( 'chưa nhập mã thì chối', false, VHNB_Nhom::moi( $U_CHT, $G1, '  ' )['ok'] );
+
+$mo = VHNB_Nhom::moi( $U_CHT, $G1, 'NV001' );
+t( 'chủ nhóm mời được người bằng MÃ NV', ! empty( $mo['ok'] ), $mo );
+teq( 'mời xong thì người ấy vào được', true, VHNB_Nhom::duoc_vao( $U_NV, $G1 ) );
+teq( 'đếm thành viên đi theo, không phải gõ tay', 2, (int) VHNB_Nhom::mot( $G1 )['so_tv'] );
+teq( 'mời trùng một mã hai lần thì chối', false, VHNB_Nhom::moi( $U_CHT, $G1, 'NV001' )['ok'] );
+
+/* ---- đăng bài trong nhóm ---- */
+
+$b_nhom  = VHNB_Bai::dang( $U_CHT, 'Máy chấm công CS_VIVO hỏng, ai qua xem giúp.', '', $G1 );
+t( 'thành viên đăng được bài vào nhóm', ! empty( $b_nhom['ok'] ), $b_nhom );
+$B_NHOM  = (int) $b_nhom['id'];
+$b_chung = VHNB_Bai::dang( $U_CHT, 'Thông báo chung ai cũng đọc.' );
+$B_CHUNG = (int) $b_chung['id'];
+
+/* 🔴 GÁC Ở LÕI, KHÔNG Ở MÀN. Màn chỉ liệt kê nhóm của mình, nhưng POST thì ai dựng ở đâu cũng
+   gửi lên được — chốt phải nằm trong `dang()`, không nằm trong chỗ vẽ ô chọn. */
+teq( 'người NGOÀI nhóm KHÔNG đăng bài vào nhóm được', false,
+	VHNB_Bai::dang( $U_NV_LA, 'chen vào', '', $G1 )['ok'] );
+teq( 'ADMIN ở ngoài CŨNG KHÔNG đăng bài vào nhóm được', false,
+	VHNB_Bai::dang( $U_AD, 'sếp chen vào', '', $G1 )['ok'] );
+
+/* ---- bài nhóm KHÔNG lọt ra bảng tin chung ---- */
+
+$ids_chung = array();
+foreach ( VHNB_Bai::bang_tin( '', 1 ) as $b ) { $ids_chung[] = (int) $b['id']; }
+t( 'bảng tin CHUNG có bài chung', in_array( $B_CHUNG, $ids_chung, true ), $ids_chung );
+t( '🔴 bảng tin CHUNG KHÔNG có bài của nhóm riêng',
+	! in_array( $B_NHOM, $ids_chung, true ), $ids_chung );
+
+/* Lọc theo BỘ PHẬN cũng là một đường đọc chung — bài nhóm không được lọt qua đó. */
+foreach ( VHNB_Trang::ds_nhom() as $bp ) {
+	$ids_bp = array();
+	foreach ( VHNB_Bai::bang_tin( $bp, 1 ) as $b ) { $ids_bp[] = (int) $b['id']; }
+	t( 'bài nhóm riêng không lọt qua bộ lọc bộ phận "' . $bp . '"',
+		! in_array( $B_NHOM, $ids_bp, true ), $ids_bp );
+}
+
+$ids_g = array();
+foreach ( VHNB_Bai::bang_tin( '', 1, $G1 ) as $b ) { $ids_g[] = (int) $b['id']; }
+t( 'mở đúng nhóm thì thấy bài của nhóm', in_array( $B_NHOM, $ids_g, true ), $ids_g );
+t( 'trong nhóm KHÔNG lẫn bài chung của cả công ty',
+	! in_array( $B_CHUNG, $ids_g, true ), $ids_g );
+
+/* ---- bình luận / thả tim / xoá cũng phải gác ---- */
+
+teq( 'người ngoài KHÔNG bình luận được bài trong nhóm', false,
+	VHNB_Bai::binh_luan( $U_NV_LA, $B_NHOM, 'nghe lén' )['ok'] );
+teq( 'ADMIN ở ngoài CŨNG không bình luận được', false,
+	VHNB_Bai::binh_luan( $U_AD, $B_NHOM, 'sếp nghe lén' )['ok'] );
+teq( 'thành viên trong nhóm bình luận được', true,
+	VHNB_Bai::binh_luan( $U_NV, $B_NHOM, 'em qua ngay' )['ok'] );
+teq( 'người ngoài KHÔNG thả tim được bài trong nhóm', false,
+	VHNB_Bai::tim( $U_NV_LA, $B_NHOM )['ok'] );
+teq( 'thành viên thả tim được', true, VHNB_Bai::tim( $U_NV, $B_NHOM )['ok'] );
+teq( 'doc_duoc(): người ngoài đọc KHÔNG được', false, VHNB_Bai::doc_duoc( $U_NV_LA, $B_NHOM ) );
+teq( 'doc_duoc(): thành viên đọc được', true, VHNB_Bai::doc_duoc( $U_NV, $B_NHOM ) );
+
+/* ---- rời / bỏ khỏi nhóm ---- */
+
+/* 🔴 Chủ nhóm rời thì còn lại một đám không ai thêm bớt được ai — một nhóm chết vẫn hiện ra. */
+teq( 'CHỦ NHÓM KHÔNG tự rời được', false, VHNB_Nhom::bo( $U_CHT, $G1, 'NV002' )['ok'] );
+teq( 'người ngoài không bỏ được ai', false, VHNB_Nhom::bo( $U_NV_LA, $G1, 'NV001' )['ok'] );
+teq( 'thành viên tự rời được', true, VHNB_Nhom::bo( $U_NV, $G1, 'NV001' )['ok'] );
+teq( 'rời rồi thì hết đọc được', false, VHNB_Nhom::duoc_vao( $U_NV, $G1 ) );
+teq( 'đếm thành viên giảm theo', 1, (int) VHNB_Nhom::mot( $G1 )['so_tv'] );
+VHNB_Nhom::moi( $U_CHT, $G1, 'NV001' );
+teq( 'chủ nhóm bỏ được người khác', true, VHNB_Nhom::bo( $U_CHT, $G1, 'NV001' )['ok'] );
+
+/* ---- cua_toi() chỉ liệt kê nhóm mình ở trong ---- */
+
+$g2 = VHNB_Nhom::lap( $U_NV, 'Nhóm của Trần Văn A' );
+$G2 = (int) $g2['id'];
+$ten_cua_cht = array();
+foreach ( VHNB_Nhom::cua_toi( $U_CHT ) as $x ) { $ten_cua_cht[] = (int) $x['id']; }
+t( 'cua_toi() có nhóm mình lập', in_array( $G1, $ten_cua_cht, true ), $ten_cua_cht );
+t( '🔴 cua_toi() KHÔNG hé tên nhóm của người khác',
+	! in_array( $G2, $ten_cua_cht, true ), $ten_cua_cht );
+
+/* ---- xoá nhóm ---- */
+
+teq( 'người ngoài không xoá được nhóm', false, VHNB_Nhom::xoa( $U_NV, $G1 )['ok'] );
+/* Admin XOÁ được — quyền dọn dẹp không phải quyền đọc trộm. */
+teq( 'ADMIN xoá được nhóm dù không đọc được', true, VHNB_Nhom::xoa( $U_AD, $G1 )['ok'] );
+teq( 'xoá nhóm rồi thì nhóm không còn', null, VHNB_Nhom::mot( $G1 ) );
+teq( '🔴 xoá nhóm thì bài trong đó đi theo, không để mồ côi', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE nhom_id=' . $G1 ) );
+teq( 'bình luận của bài trong nhóm cũng đi theo', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'binh_luan' ) . ' WHERE bai_id=' . $B_NHOM ) );
+teq( 'thả tim của bài trong nhóm cũng đi theo', 0,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'tim' ) . ' WHERE bai_id=' . $B_NHOM ) );
+teq( 'bài CHUNG không bị xoá lây', 1,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . $B_CHUNG ) );
+
+/* ---- trần số nhóm mỗi người ---- */
+
+$goc_dem = (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'nhom' ) . ' WHERE ma_nv_tao=%s', 'NV002' ) );
+for ( $i = $goc_dem; $i < VHNB_Nhom::TOI_DA_MOI_NGUOI; $i++ ) {
+	VHNB_Nhom::lap( $U_CHT, 'nhóm ' . $i );
+}
+teq( 'quá trần thì chối, không lập vô hạn', false,
+	VHNB_Nhom::lap( $U_CHT, 'nhóm thừa' )['ok'] );
+teq( 'đúng bằng trần thì dừng, đếm từ số thật', VHNB_Nhom::TOI_DA_MOI_NGUOI,
+	(int) $wpdb->get_var( $wpdb->prepare(
+		'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'nhom' ) . ' WHERE ma_nv_tao=%s', 'NV002' ) ) );
+
+vhnb_dung_bang();
 
 /* ================================================================= đường dẫn của trang */
 

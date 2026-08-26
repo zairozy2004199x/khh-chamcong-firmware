@@ -26,10 +26,23 @@ class VHNB_Bai {
 	 *    nhập, mã và tên lấy TỪ ĐÓ chứ không nhận từ biểu mẫu. Nhận từ biểu mẫu là ai cũng đăng
 	 *    được bài mang tên giám đốc.
 	 */
-	public static function dang( $u, $noi_dung, $nhom = '' ) {
+	public static function dang( $u, $noi_dung, $nhom = '', $nhom_id = 0 ) {
 		global $wpdb;
 		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
+
+		/* 🔴 ĐĂNG VÀO NHÓM TỰ TẠO THÌ PHẢI LÀ THÀNH VIÊN — gác Ở ĐÂY, không gác ở màn hình.
+		   Màn hình chỉ liệt kê nhóm của mình, nhưng biểu mẫu POST thì ai dựng ở đâu cũng gửi
+		   lên được: không chặn tại lõi là đăng được bài vào nhóm mình chưa hề được mời. */
+		$nhom_id = (int) $nhom_id;
+		if ( $nhom_id > 0 ) {
+			if ( ! VHNB_Nhom::duoc_vao( $u, $nhom_id ) ) {
+				return array( 'ok' => false, 'error' => 'Anh/chị không ở trong nhóm này.' );
+			}
+			/* Bài của nhóm KHÔNG mang thêm nhãn bộ phận: một bài chỉ thuộc đúng một chỗ, nhận
+			   cả hai là nó vừa nằm trong nhóm kín vừa nằm ở bảng tin bộ phận. */
+			$nhom = '';
+		}
 
 		$nd = self::gon( $noi_dung, self::DAI_TOI_DA );
 		if ( '' === $nd ) {
@@ -37,6 +50,7 @@ class VHNB_Bai {
 		}
 		$ok = $wpdb->insert( VHNB_DB::t( 'bai' ), array(
 			'nhom'     => self::chuan_nhom( $nhom ),
+			'nhom_id'  => $nhom_id,
 			'ma_nv'    => (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ),
 			'ho_ten'   => $ten,
 			'vai_tro'  => (string) ( isset( $u['role'] ) ? $u['role'] : '' ),
@@ -53,6 +67,9 @@ class VHNB_Bai {
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
 		$bai_id = (int) $bai_id;
 		if ( ! self::co_bai( $bai_id ) ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
+		if ( ! self::doc_duoc( $u, $bai_id ) ) {
+			return array( 'ok' => false, 'error' => 'Bài này nằm trong nhóm anh/chị không ở trong.' );
+		}
 		$nd = self::gon( $noi_dung, self::BL_TOI_DA );
 		if ( '' === $nd ) { return array( 'ok' => false, 'error' => 'Bình luận rỗng.' ); }
 
@@ -83,6 +100,9 @@ class VHNB_Bai {
 		}
 		$bai_id = (int) $bai_id;
 		if ( ! self::co_bai( $bai_id ) ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
+		if ( ! self::doc_duoc( $u, $bai_id ) ) {
+			return array( 'ok' => false, 'error' => 'Bài này nằm trong nhóm anh/chị không ở trong.' );
+		}
 
 		$t  = VHNB_DB::t( 'tim' );
 		$cu = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $t WHERE bai_id=%d AND ma_nv=%s", $bai_id, $ma ) );
@@ -144,22 +164,33 @@ class VHNB_Bai {
 	 *
 	 * @param string $nhom '' = xem tất cả; tên bộ phận = chỉ bài của bộ phận đó (kèm bài chung).
 	 */
-	public static function bang_tin( $nhom = '', $trang = 1 ) {
+	public static function bang_tin( $nhom = '', $trang = 1, $nhom_id = 0 ) {
 		global $wpdb;
 		$t  = VHNB_DB::t( 'bai' );
 		$tr = max( 1, (int) $trang );
 		$bo = ( $tr - 1 ) * self::MOI_TRANG;
 		$nhom = self::chuan_nhom( $nhom );
+		$nhom_id = (int) $nhom_id;
+
+		/* 🔴 BÀI CỦA NHÓM TỰ TẠO KHÔNG BAO GIỜ LỌT RA BẢNG TIN CHUNG.
+		   Mọi đường đọc ở dưới đều chặn `nhom_id=0`, trừ đúng đường "đang mở một nhóm". Thiếu
+		   một chỗ là bài trong nhóm kín hiện ra ở màn "Tất cả" của cả công ty — và người viết
+		   không hề biết, vì họ đăng vào nhóm. */
+		if ( $nhom_id > 0 ) {
+			return VHNB_DB::rows( $wpdb->prepare(
+				"SELECT * FROM $t WHERE nhom_id=%d ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
+				$nhom_id, self::MOI_TRANG, $bo ) );
+		}
 
 		/* Chọn một bộ phận thì VẪN thấy bài chung (`nhom=''`): thông báo toàn công ty mà biến
 		   mất chỉ vì đang lọc bộ phận thì lọc xong là bỏ sót đúng thứ quan trọng nhất. */
 		if ( '' !== $nhom ) {
 			$sql = $wpdb->prepare(
-				"SELECT * FROM $t WHERE nhom=%s OR nhom='' ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
+				"SELECT * FROM $t WHERE nhom_id=0 AND ( nhom=%s OR nhom='' ) ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
 				$nhom, self::MOI_TRANG, $bo );
 		} else {
 			$sql = $wpdb->prepare(
-				"SELECT * FROM $t ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
+				"SELECT * FROM $t WHERE nhom_id=0 ORDER BY ghim DESC, tao_luc DESC, id DESC LIMIT %d OFFSET %d",
 				self::MOI_TRANG, $bo );
 		}
 		return VHNB_DB::rows( $sql );
@@ -206,6 +237,22 @@ class VHNB_Bai {
 			'SELECT COUNT(*) FROM ' . VHNB_DB::t( 'binh_luan' ) . ' WHERE bai_id=%d', $bai_id ) );
 		$wpdb->update( VHNB_DB::t( 'bai' ), array( 'so_tim' => $tim, 'so_bl' => $bl ),
 			array( 'id' => $bai_id ) );
+	}
+
+	/**
+	 * Người này có được đụng vào bài này không (đọc · bình luận · thả tim).
+	 *
+	 * 🔴 Bài THƯỜNG thì ai cũng được. Bài của NHÓM TỰ TẠO thì chỉ thành viên — và chốt phải nằm
+	 *    ở LÕI, không phải ở màn hình: màn chỉ vẽ bài mình thấy được, nhưng `bai_id` thì gõ tay
+	 *    vào biểu mẫu POST là gửi lên được. Không chặn ở đây thì đoán mò vài con số là bình luận
+	 *    được vào nhóm mình chưa hề được mời — và người trong nhóm thấy bình luận ấy hiện ra.
+	 */
+	public static function doc_duoc( $u, $bai_id ) {
+		global $wpdb;
+		$nid = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT nhom_id FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $bai_id ) );
+		if ( $nid <= 0 ) { return true; }
+		return VHNB_Nhom::duoc_vao( $u, $nid );
 	}
 
 	private static function co_bai( $id ) {
