@@ -1826,8 +1826,16 @@
       /* Dải trạng thái: một câu tiếng người + thanh bước. Đặt NGAY ĐẦU ĐƠN, trước mọi con số —
          câu đầu tiên người dùng đọc phải trả lời câu họ đang hỏi. */
       var _ct=_cauTrangThai(st);
-      var _dai='<div style="margin-top:8px;padding:9px 12px;background:'+_ct.nen+';border:1px solid '+_ct.vien
-        +';border-radius:8px;color:'+_ct.mau+';font-size:12px">'+_ct.chu+_thanhBuoc(st)+'</div>';
+      /* 🔴 TO LÊN. Dải cũ 12px lẫn vào mọi dòng chữ khác trên màn, nên người ta lướt qua đúng
+         thứ họ đang cần. Anh Thắng: *"to lên với đặt cảnh báo…"*. Dòng đầu là TÊN TRẠNG THÁI cỡ
+         lớn, dưới nó là ba chốt "làm được gì", rồi mới tới câu giải thích và thanh bước. */
+      var _dai='<div style="margin-top:10px;padding:13px 16px;background:'+_ct.nen+';border:2px solid '+_ct.vien
+        +';border-radius:10px;color:'+_ct.mau+'">'
+        +'<div style="font-size:17px;font-weight:800;letter-spacing:.2px;margin-bottom:7px">'
+          +'Đơn đang <u>'+esc(st||'—')+'</u></div>'
+        +'<div style="margin-bottom:7px">'+_lamDuocGi(st)+'</div>'
+        +'<div style="font-size:12.5px;line-height:1.6">'+_ct.chu+'</div>'
+        +_thanhBuoc(st)+'</div>';
       el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_dai+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
       var nhan='', tay=null, goi='';
@@ -3951,6 +3959,36 @@
     return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',chu:'Trạng thái: <b>'+esc(st||'—')+'</b>'};
   }
 
+  /**
+   * LÀM ĐƯỢC GÌ Ở TRẠNG THÁI NÀY — ba chốt, nói thẳng bằng chữ.
+   *
+   * Anh Thắng 26/08/2026: *"to lên với đặt cảnh báo : Đơn đang chờ quyết toán - Khóa xóa - Sửa
+   * được.. ( kiểu như vậy )"*.
+   *
+   * 🔴 TÊN TRẠNG THÁI KHÔNG TRẢ LỜI CÂU "GIỜ TÔI LÀM GÌ ĐƯỢC".
+   *    "Chờ quyết toán" là một sự thật về đơn, không phải một câu trả lời cho người đang cầm
+   *    chuột. Họ phải thử bấm mới biết nút nào chết — và mỗi lần thử là một câu từ chối, tức là
+   *    học bằng cách bị chối. Nói trước thì khỏi phải thử.
+   *
+   * ⚠️ Ba chốt này phải KHỚP với máy chủ (`VHCP_Don::vi_sao_khong_sua` và luật xoá hạng mục
+   *    xin). Nói "sửa được" mà máy chủ chối là tệ hơn không nói gì.
+   */
+  function _lamDuocGi(st){
+    var chot=(st==='Đã quyết toán'||st==='Đã xuất MISA');
+    var nhap=(st==='Nháp');
+    var ds=[];
+    ds.push(chot ? {ok:0,chu:'KHOÁ SỬA'} : {ok:1,chu:'SỬA ĐƯỢC'});
+    ds.push(chot ? {ok:0,chu:'KHOÁ THÊM DÒNG'} : {ok:1,chu:'THÊM DÒNG ĐƯỢC'});
+    /* Xoá hạng mục ĐÃ XIN chỉ mở lúc Nháp (hoặc đơn bị trả lại) — sau khi quản lý đã duyệt thì
+       không xoá, để Thực chi = 0 nếu không mua. Đó là luật kế toán, không phải luật giao diện. */
+    ds.push(nhap ? {ok:1,chu:'XOÁ ĐƯỢC'} : {ok:0,chu:'KHOÁ XOÁ HẠNG MỤC ĐÃ XIN'});
+    return ds.map(function(x){
+      return '<span style="display:inline-block;font-size:11.5px;font-weight:800;padding:3px 9px;'
+        +'border-radius:999px;margin:0 6px 0 0;background:'+(x.ok?'#dcfce7':'#fee2e2')+';color:'
+        +(x.ok?'#166534':'#b91c1c')+'">'+(x.ok?'✔ ':'🔒 ')+x.chu+'</span>';
+    }).join('');
+  }
+
   function _thanhBuoc(st){
     var i=TT_LUONG.indexOf(st);
     var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px">';
@@ -4295,8 +4333,7 @@
       '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
       '<td>'+esc(d.httt||'')+'</td>'+
       '<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span>'+(/\[KT sửa\]/.test(d.ghiChu||'')?' <span style="color:#b91c1c;font-weight:700;font-size:11px" title="Kế toán đã sửa số tiền">✎KT</span>':'')+'</td>'+
-      '<td style="text-align:center;white-space:nowrap">'+duyetBtn+'<button class="btn b-s" onclick="qtToggleDetail(\''+esc(d.maDon)+'\',this)">🔽 Chi tiết</button></td></tr>'+
-      '<tr class="qd'+g+'" id="qtd-'+esc(d.maDon)+'" style="display:none"><td colspan="'+COLS+'" style="background:#f8fafc;padding:0"><div class="qtd-wrap" style="padding:12px 16px"><span style="color:#94a3b8;font-size:12px">Đang tải…</span></div></td></tr>';
+      '<td style="text-align:center;white-space:nowrap">'+duyetBtn+'<button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
   }
   function qtGroupToggle(gid, el){
     var open=el.getAttribute('data-open')==='1';
@@ -4392,24 +4429,13 @@
             +' onchange="saveDonNgay(\''+esc(d.maDon)+'\',\'ngayCap\',this.value)" style="width:98px;text-align:center;padding:3px 4px'
             +(d.ngayCap?'':';border-color:#f59e0b;background:#fffbeb')+'" title="Sửa ngày cấp tiền">'
           : esc(d.ngayCap||'—'))+'</td>'+
-        '<td style="text-align:center"><button class="btn b-s" onclick="qtChuaNopDetail(\''+esc(d.maDon)+'\',this)">🔽 Chi tiết</button></td></tr>'+
-        '<tr id="qtcn-'+esc(d.maDon)+'" style="display:none"><td colspan="6" style="background:#f8fafc;padding:0"><div class="qtcn-wrap" style="padding:12px 16px"><span style="color:#94a3b8;font-size:12px">Đang tải…</span></div></td></tr>';
+        '<td style="text-align:center"><button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
     }).join('');
     el('qtEmptyChuaNop').style.display=rows.length?'none':'block';
     el('qtSoChuaNop').textContent=rows.length+' đơn';
     var tu=0; rows.forEach(function(d){ tu+=Number(d.tamUng)||0; });
     el('qtSumChuaNop').innerHTML=rows.length?('&#8721; Tạm ứng đang nằm ngoài: <b style="color:#b45309">'+money(tu)+'</b>'):'';
     el('qtPagerChuaNop').innerHTML=_qtPagerHtml('chuanop', rows.length, trang, soTrang);
-  }
-  function qtChuaNopDetail(maDon, btn){
-    var row=el('qtcn-'+maDon); if(!row) return;
-    if(row.style.display!=='none'){ row.style.display='none'; if(btn) btn.textContent='🔽 Chi tiết'; return; }
-    row.style.display=''; if(btn) btn.textContent='🔼 Thu gọn';
-    var wrap=row.querySelector('.qtcn-wrap'); if(!wrap || wrap.getAttribute('data-loaded')==='1') return;
-    google.script.run.withSuccessHandler(function(r){
-      if(!r||!r.success){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
-      wrap.innerHTML=_qtChuaNopDetailHtml(r); wrap.setAttribute('data-loaded','1');
-    }).withFailureHandler(function(e){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc(e.message)+'</span>'; }).getDon(maDon);
   }
   function renderQTList(){
     var canBatch=canDo('xacNhanQT');   // ai được xác nhận quyết toán -> tích nhiều đơn duyệt 1 lần
@@ -4471,18 +4497,13 @@
     if(el('qtChkAll')) el('qtChkAll').checked=false;
     qtUpdateBar();
   }
-  // Xổ chi tiết đơn ngay tại chỗ (từng cơ sở) — không nhảy trang
-  function qtToggleDetail(maDon, btn){
-    var row=el('qtd-'+maDon); if(!row) return;
-    if(row.style.display!=='none'){ row.style.display='none'; if(btn) btn.textContent='🔽 Chi tiết'; return; }
-    row.style.display=''; if(btn) btn.textContent='🔼 Thu gọn';
-    var wrap=row.querySelector('.qtd-wrap'); if(!wrap || wrap.getAttribute('data-loaded')==='1') return;
-    wrap.innerHTML='<span style="color:#94a3b8;font-size:12px">Đang tải…</span>';
-    google.script.run.withSuccessHandler(function(r){
-      if(!r||!r.success){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc((r&&r.error)||'Lỗi')+'</span>'; return; }
-      wrap.innerHTML=_qtDetailHtml(r); wrap.setAttribute('data-loaded','1');
-    }).withFailureHandler(function(e){ wrap.innerHTML='<span style="color:#dc2626;font-size:12px">'+esc(e.message)+'</span>'; }).getDon(maDon);
-  }
+  /* 🔴 BẤM "CHI TIẾT" LÀ MỞ THẲNG TRANG ĐƠN, không xổ một khối ngay dưới dòng.
+     Anh Thắng 26/08/2026: *"khi bấm ra chi tiết thì nhảy ra trang đơn luôn chứ không hiện phía
+     dưới nữa"*. Khối xổ tại chỗ chỉ hiện được một bản RÚT GỌN, và nó đứng chen giữa danh sách
+     nên đọc xong không còn thấy mấy đơn kia đâu. Trang đơn thì đầy đủ — sửa được, gắn ảnh được,
+     xem đối chiếu được — và đã có sẵn nút "← Quay lại Quyết toán" nhờ `viewDon()` nhớ tab cũ.
+     Hai hàm `qtToggleDetail` / `qtChuaNopDetail` bỏ hẳn: để lại là để một đường thứ hai dẫn tới
+     cùng một thứ, mà đường ấy hiện ít hơn. */
   // Đối chiếu CỤC (dùng chung tab Quyết toán & Gom & mục 2 trong đơn): banner cục nổi bật + đã chi theo cơ sở
   function _reconTablesHtml(r, opts){
     opts=opts||{}; var d=r.don, tcn=r.tongCN||{}, cl=tcn.chenhLech||0;
@@ -4589,22 +4610,6 @@
       Object.keys(byLoai).sort().forEach(function(g){ h+=loaiHtml(g, byLoai[g]); });
     });
     return h;
-  }
-  function _qtDetailHtml(r){
-    var d=r.don, st=d.trangThai, a='';
-    if(st==='Chờ quyết toán' && canDo('xacNhanQT') && !d.nguoiQT) a+='<button class="btn b-g" onclick="qtInlineXacNhan(\''+esc(d.maDon)+'\')">✔ Xác nhận quyết toán</button> ';
-    if(canDo('duyetNCC') && r.reconNCC && r.reconNCC.length && !d.nguoiQTNCC && st!=='Nháp') a+='<button class="btn b-g" onclick="qtInlineNCC(\''+esc(d.maDon)+'\')">✔ Duyệt NCC</button> ';
-    if(st==='Chờ quyết toán' && canDo('traDon')) a+='<button class="btn b-d" onclick="openTraModal(\''+esc(d.maDon)+'\',\'qt\')">↩ Trả lại</button> ';
-    a+='<button class="btn b-x" onclick="viewDon(\''+esc(d.maDon)+'\')" title="Xem đầy đủ + từng dòng chi + đính hóa đơn">🧾 Mở trang đầy đủ</button>';
-    return _reconTablesHtml(r)+_linesByCosoHtml(r)+'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'+a+'</div>';
-  }
-  // Chi tiết của đơn ĐÃ CẤP TIỀN — CHƯA NỘP HÓA ĐƠN. Không có nút quyết toán ở đây
-  // (đơn chưa gửi lên), chỉ trả lại hoặc mở trang đầy đủ.
-  function _qtChuaNopDetailHtml(r){
-    var d=r.don, st=d.trangThai, a='';
-    if(canDo('traDon') && st==='Đã cấp tạm ứng') a+='<button class="btn b-d" onclick="openTraModal(\''+esc(d.maDon)+'\',\'qt\')">↩ Trả lại</button> ';
-    a+='<button class="btn b-x" onclick="viewDon(\''+esc(d.maDon)+'\')" title="Xem đầy đủ + từng dòng chi + đính hóa đơn">🧾 Mở trang đầy đủ</button>';
-    return _reconTablesHtml(r)+_linesByCosoHtml(r)+'<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">'+a+'</div>';
   }
   function qtInlineXacNhan(maDon){
     if(!confirm('Xác nhận quyết toán đơn này (chốt thừa/thiếu theo đối chiếu)?'))return;

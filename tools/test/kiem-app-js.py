@@ -285,6 +285,24 @@ la('nhãn khối nhập nói rõ đang thêm dòng phát sinh', 'Thêm dòng PH�
 #    không còn khớp số đã duyệt, mà không có gì nói ra.
 la('kêu lên khi tổng xin đã đổi sau khi duyệt', 'Tổng xin đã đổi sau khi duyệt' in src)
 
+# 🔴 Ba chốt "làm được gì" — anh Thắng 26/08: *"to lên với đặt cảnh báo : Đơn đang chờ quyết
+#    toán - Khóa xóa - Sửa được.. ( kiểu như vậy )"*. Tên trạng thái là một sự thật về đơn, không
+#    phải câu trả lời cho người đang cầm chuột; không nói trước thì họ học bằng cách bị chối.
+la('có hàng chốt "làm được gì"', 'function _lamDuocGi(' in src)
+for nhan in ('SỬA ĐƯỢC', 'KHOÁ SỬA', 'THÊM DÒNG ĐƯỢC', 'KHOÁ THÊM DÒNG', 'XOÁ ĐƯỢC', 'KHOÁ XOÁ'):
+    la('nhãn "%s"' % nhan, nhan in src)
+la('dải trạng thái in tên trạng thái cỡ lớn', "font-size:17px;font-weight:800" in src)
+la('và hàng chốt nằm trong dải', '_lamDuocGi(st)' in src)
+
+# Bấm "Chi tiết" ở tab Quyết toán -> mở THẲNG trang đơn.
+# Anh Thắng: *"khi bấm ra chi tiết thì nhảy ra trang đơn luôn chứ không hiện phía dưới nữa"*.
+la('nút Chi tiết ở Quyết toán gọi viewDon', 'onclick="viewDon(' in src)
+la('bỏ hẳn đường xổ chi tiết tại chỗ',
+   'qtToggleDetail' not in src.replace('`qtToggleDetail`', '') and
+   'qtChuaNopDetail' not in src.replace('`qtChuaNopDetail`', ''))
+# Bỏ hàm thì phải bỏ luôn HÀNG ẨN chứa nó — để lại là một <tr> rỗng nằm giữa bảng.
+la('bỏ luôn hàng ẩn của khối xổ', "id=\'qtd-" not in src and 'id="qtd-' not in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
