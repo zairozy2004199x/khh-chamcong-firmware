@@ -134,13 +134,28 @@ foreach ( $_items as $_it ) {
 t( 'xóa bằng quyền Admin có ghi nhật ký kèm nội dung và số tiền', $_co_vet );
 t( 'dòng đã biến mất thật', null === VHCP_Don::line_row( $l_adm['id'] ) );
 
-/* Admin xóa dòng ở trạng thái BÌNH THƯỜNG thì KHÔNG ghi vết — nhật ký chỉ để dành cho lần
-   phá khóa. Ghi cả những lần thường là làm loãng, tra lại không thấy gì. */
+/* 🔴 ĐỔI Ý CÓ CHỦ Ý (anh Thắng 26/08: *"Phía bên phải là lịch sử chỉnh đơn. để biết ai chỉnh gì
+   trong này."*).
+   Trước đây xoá ở trạng thái BÌNH THƯỜNG thì KHÔNG ghi vết, lý do là "ghi cả những lần thường
+   là làm loãng, tra lại không thấy gì". Lý do ấy đúng khi nhật ký chỉ có MỘT cuốn chung cho cả
+   hệ. Nay mỗi đơn có sổ riêng (`nhat_ky_don` lọc theo mã đơn), nên ghi đủ KHÔNG làm loãng gì —
+   và đúng lúc quyền sửa vừa mở rộng ra mọi trạng thái chưa chốt, không ghi đủ mới là chỗ hở:
+   một con số đổi sau khi quản lý đã duyệt mà không ai dựng lại được là ai đổi. */
 $l_th = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Phát sinh', 'noiDung' => 'PHÁT SINH THƯỜNG', 'thanhTien' => 11000 ) );
-$_n1 = count( VHCP_Log::get_log( array( 'limit' => 200 ) )['items'] );
 VHCP_Don::delete_line( $l_th['id'] );
-$_n2 = count( VHCP_Log::get_log( array( 'limit' => 200 ) )['items'] );
-teq( 'xóa dòng phát sinh (trạng thái cho phép) KHÔNG ghi vết phá khóa', $_n1, $_n2 );
+$_nk = VHCP_Don::nhat_ky_don( $ma, 100 )['items'];
+$_vet_th = null;
+foreach ( $_nk as $_it ) {
+	if ( strpos( (string) $_it['chiTiet'], 'PHÁT SINH THƯỜNG' ) !== false
+		&& strpos( (string) $_it['hanhDong'], 'Xoá' ) !== false ) { $_vet_th = $_it; break; }
+}
+t( 'xoá dòng ở trạng thái bình thường VẪN ghi vết (ai xoá gì)', null !== $_vet_th, $_nk );
+/* ⚠️ Nhưng KHÔNG mang nhãn phá khoá — hai chuyện khác nhau: xoá đúng luật, và Admin phá khoá
+   xoá ở trạng thái người khác không xoá được. Gộp nhãn là mất chỗ để soi chuyện thứ hai. */
+t( 'và KHÔNG mang nhãn phá khoá',
+	null !== $_vet_th && strpos( (string) $_vet_th['hanhDong'], 'đã khóa' ) === false, $_vet_th );
+t( 'vết ghi kèm số tiền của dòng đã mất',
+	null !== $_vet_th && preg_match( '/11[.,]?000/', (string) $_vet_th['chiTiet'] ) === 1, $_vet_th );
 
 VHCP_Auth::dat_vai_tro( $_vt_truoc );
 

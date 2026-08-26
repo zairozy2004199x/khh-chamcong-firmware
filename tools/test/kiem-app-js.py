@@ -303,6 +303,44 @@ la('bỏ hẳn đường xổ chi tiết tại chỗ',
 # Bỏ hàm thì phải bỏ luôn HÀNG ẨN chứa nó — để lại là một <tr> rỗng nằm giữa bảng.
 la('bỏ luôn hàng ẩn của khối xổ', "id=\'qtd-" not in src and 'id="qtd-' not in src)
 
+print('— lịch sử chỉnh đơn · ô tiền · tìm đơn · phân trang —')
+# Anh Thắng 26/08, bốn việc.
+
+# 1) Lịch sử chỉnh đơn, đặt ngay cạnh dải trạng thái.
+la('có khung lịch sử chỉnh đơn', 'id="donSuBox"' in src)
+la('gọi riêng theo mã đơn, không kéo cả sổ chung', '.getDonLog(' in src)
+la('và nạp lại mỗi lần mở đơn', 'loadDonSu(maDon)' in src)
+la('đóng đơn thì dọn khung', "loadDonSu('')" in src)
+# 🔴 Máy chủ phải có đường ấy — gọi một hàm không khai là bấm vào ra lỗi câm.
+PHP_API = os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-api.php')
+api = io.open(PHP_API, encoding='utf-8').read()
+for ham in ('getDonLog', 'timDon', 'dsLoaiChiPhi'):
+    la('máy chủ có khai "%s"' % ham, ("'%s'" % ham) in api)
+
+# 2) Ô tiền nổi màu.
+la('ô Tạm ứng nổi màu', 'id="qtTU"' in src and '#eff6ff' in src)
+la('ô Thực mua nổi màu', 'id="qtThucMua"' in src and '#f0fdf4' in src)
+la('ô Còn lại đổi cả nền lẫn viền theo thừa/thiếu',
+   "elc.style.background='#fef2f2'" in src and "elc.style.borderColor" in src)
+
+# 3) Tìm đơn ở đầu trang — theo loại chi phí và cơ sở.
+la('có ô tìm đơn ở đầu trang', 'id="tdQ"' in src)
+la('có ô lọc loại chi phí', 'id="tdLoai"' in src)
+la('có ô lọc cơ sở', 'id="tdCoso"' in src)
+la('tìm ở MÁY CHỦ (quét cả dòng chi), không lọc ô xổ', '.timDon(' in src)
+la('kết quả hiện rõ đơn thuộc cơ sở nào', 'Loại chi phí khớp' in src)
+la('và mở được thẳng đơn từ kết quả', "onclick=\\'viewDon" in src or 'onclick="viewDon(' in src)
+
+# 4) Tra theo mã: lọc loại + phân trang 20 dòng.
+la('tab Tra theo mã có ô lọc loại chi phí', 'id="tmLoai"' in src)
+la('có thanh phân trang', 'id="tmPager"' in src)
+la('mỗi trang 20 dòng', 'TM_MOI=20' in src)
+# 🔴 Chân bảng phải nói TỔNG CỦA CẢ BỘ LỌC — tổng của một trang thì chẳng đối chiếu với cái gì.
+la('chân bảng vẫn cộng cả bộ lọc, không cộng mỗi trang đang hiện', "money(tong)" in src)
+# 🔴 Xuất Excel theo bộ lọc nhưng KHÔNG cắt trang: cắt 20 dòng vào tệp là đưa một bản thiếu mà
+#    trông như đủ.
+la('xuất Excel không cắt theo trang', 'TM_LOC&&TM_LOC.length' in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

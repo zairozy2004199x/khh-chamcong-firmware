@@ -1650,7 +1650,7 @@ class VHCC_Web {
 				if ( $duoc_sua_gio ) {
 					echo '<td><a href="' . esc_url( add_query_arg( array(
 							'sgn' => (string) $r['ngay'], 'sgm' => (string) $r['maNV'] ),
-							self::url_hien() ) . '#suagio' )
+							self::url_hien() ) . '#suaday' )
 						. '" title="Sửa giờ ngày này">✏️</a></td>';
 				}
 				echo '<td>' . ( $co
@@ -1674,7 +1674,6 @@ class VHCC_Web {
 		echo '</details></div>';
 
 		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
-		self::the_sua_gio( $cs, $ky, $toi );
 		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
 	}
@@ -2025,7 +2024,7 @@ class VHCC_Web {
 		$duoc = $co_gio ? $duoc_sua : $duoc_bu;
 		if ( ! $duoc ) { return $noi_dung; }
 		$url = $co_gio
-			? ( add_query_arg( array( 'sgn' => $ngay, 'sgm' => $ma_day_du ), self::url_hien() ) . '#suagio' )
+			? ( add_query_arg( array( 'sgn' => $ngay, 'sgm' => $ma_day_du ), self::url_hien() ) . '#suaday' )
 			: ( add_query_arg( array( 'gnd' => $ngay, 'gma' => $ma_day_du ), self::url_hien() ) . '#bucong' );
 		return '<a class="o-sua" href="' . esc_url( $url ) . '">' . $noi_dung . '</a>';
 	}
@@ -2074,7 +2073,7 @@ class VHCC_Web {
 	 */
 	private static function hang_sua( $so_cot, $cs, $ngay, $ma_dd, $co_gio, $ky, $toi ) {
 		$duoc = $co_gio ? VHCC_Vai::duoc( $toi, 'sua_gio' ) : VHCC_Vai::duoc( $toi, 'cham_bu' );
-		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '">';
+		echo '<tr class="hang-sua" id="suaday"><td colspan="' . (int) $so_cot . '">';
 
 		if ( ! $duoc ) {
 			echo '<div class="bao canh" style="margin:0">' . esc_html( $co_gio
@@ -2850,72 +2849,13 @@ class VHCC_Web {
 		echo '</div>';
 	}
 
-	/**
-	 * KHỐI SỬA GIỜ CÔNG — chỉ Admin.
-	 *
-	 * Anh Thắng 26/08/2026: *"admin có quyền chỉnh sửa lại giờ công cho nhân viên"*.
-	 *
-	 * 🔴 KHỐI NÀY PHẢI NÓI RÕ NÓ KHÁC "CHẤM CÔNG BÙ" Ở CHỖ NÀO.
-	 *    Hai khối nằm cạnh nhau, hai biểu mẫu trông y hệt, mà hậu quả khác hẳn: bù chỉ điền vào
-	 *    ô còn trống, sửa thì ĐÈ LÊN thứ máy đã ghi. Người dùng không đọc được ý định trong mã —
-	 *    họ chỉ thấy hai cái ô giờ. Không nói ra thì có ngày người ta dùng nhầm khối, rồi mất
-	 *    một dòng giờ máy mà tưởng mình vừa bù thêm.
-	 */
-	private static function the_sua_gio( $cs, $ky, $toi ) {
-		if ( ! VHCC_Vai::duoc( $toi, 'sua_gio' ) ) { return; }
-		$o_loc  = self::o_loc();
-		$g_ngay = isset( $_GET['sgn'] ) ? sanitize_text_field( wp_unslash( $_GET['sgn'] ) ) : '';
-		$g_ma   = isset( $_GET['sgm'] ) ? sanitize_text_field( wp_unslash( $_GET['sgm'] ) ) : '';
-
-		echo '<div class="the" id="suagio"><h2>Sửa giờ công <span class="duoi">Admin</span></h2>';
-		echo '<p class="mo">Dùng khi giờ đã ghi là <b>sai</b> — máy lệch đồng hồ, quẹt nhầm thẻ, '
-			. 'bù nhầm ngày. Khác <b>Chấm công bù</b> ở khối trên: bù chỉ điền vào ô <b>còn '
-			. 'trống</b>, còn đây <b>đè lên</b> giờ máy đã ghi.</p>';
-		echo '<p class="mo">⚠️ Dòng bị sửa sẽ mang nhãn nguồn <b>"sửa"</b> và <b>thôi được tính là '
-			. 'lượt máy ghi</b> trong phép đối chiếu. Giờ cũ vào sổ nhật ký kèm giờ mới, '
-			. '<b>không xoá được</b>. Vẫn không tự sửa cho mình được, kể cả Admin.</p>';
-
-		/* Hiện GIỜ ĐANG CÓ của đúng dòng đang chọn. Không hiện thì người sửa phải nhớ, mà nhớ
-		   sai một chữ số là ghi đè mất một giờ công thật. */
-		if ( '' !== $g_ngay && '' !== $g_ma ) {
-			$dg = VHCC_Bu::gio_hien_tai( $cs, $g_ngay, $g_ma );
-			echo '<p class="bao canh" style="margin:10px 0">Đang sửa <b>' . esc_html( $g_ma )
-				. '</b> ngày <b>' . esc_html( $g_ngay ) . '</b> — giờ đang có: vào <b>'
-				. esc_html( $dg['vao'] ) . '</b>, ra <b>' . esc_html( $dg['ra'] ) . '</b>'
-				. ( $dg['co'] ? '' : ' <i>(chưa có dòng nào — dùng Chấm công bù ở trên)</i>' )
-				. '.</p>';
-		} else {
-			echo '<p class="mo">Bấm ✏️ ở dòng nào trong bảng chi tiết phía trên thì ngày và mã của '
-				. 'dòng đó điền sẵn xuống đây, kèm giờ đang có.</p>';
-		}
-
-		/* ⚠️ Ô `ccs` của màn phải đứng SAU `o_loc()` — xem chú thích ở `the_bu()`. */
-		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
-			. '<input type="hidden" name="viec" value="sua_gio">' . $o_loc
-			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
-		echo '<div class="luoi">';
-		echo '<div><label for="sg_ngay">Ngày *</label><input id="sg_ngay" name="ngay" type="date" required'
-			. ' value="' . esc_attr( $g_ngay ) . '"'
-			. ' max="' . esc_attr( (string) current_time( 'Y-m-d' ) ) . '"></div>';
-		echo '<div><label for="sg_ma">Mã NV *</label><input id="sg_ma" name="ma_nv" required'
-			. ' value="' . esc_attr( $g_ma ) . '" placeholder="MNNV… (kèm -CD nếu là ca đêm)"></div>';
-		echo '<div><label for="sg_vao">Giờ vào mới</label><input id="sg_vao" name="sg_vao" type="time"></div>';
-		echo '<div><label for="sg_ra">Giờ ra mới</label><input id="sg_ra" name="sg_ra" type="time"></div>';
-		echo '</div>';
-		/* 🔴 Ô TRỐNG = GIỮ NGUYÊN. Muốn xoá trắng thì phải tích ô — một hành động riêng, cố ý.
-		   Hiểu ô trống thành xoá là mỗi lượt sửa một ô lại âm thầm xoá ô kia. */
-		echo '<p class="mo" style="margin:10px 0 4px">Ô giờ để <b>trống</b> nghĩa là <b>giữ nguyên</b> '
-			. 'giờ đang có. Muốn <b>xoá trắng</b> một ô thì tích vào đây:</p>';
-		echo '<p><label style="display:inline;margin-right:18px">'
-			. '<input type="checkbox" name="sg_xoa_vao" value="1"> Xoá trắng giờ vào</label>'
-			. '<label style="display:inline">'
-			. '<input type="checkbox" name="sg_xoa_ra" value="1"> Xoá trắng giờ ra</label></p>';
-		echo '<p><label for="sg_ly">Vì sao phải sửa *</label>'
-			. '<input id="sg_ly" name="ly_do" required minlength="5" style="width:100%" '
-			. 'placeholder="VD: máy lệch đồng hồ 2 tiếng ngày 12/8 — đối chiếu camera"></p>';
-		echo '<p><button class="chinh">Sửa giờ</button></p></form>';
-		echo '</div>';
-	}
+	/* 🔴 KHỐI "SỬA GIỜ CÔNG" Ở CUỐI MÀN ĐÃ BỎ (anh Thắng 26/08/2026: *"Loại bỏ chỗ này. Chỗ này
+	   đã hiện đủ rồi."*).
+	   Hàng sửa nội tuyến trong lưới (`hang_sua`) làm đúng việc ấy mà không bắt ai gõ lại ngày và
+	   mã: bấm ô nào thì biểu mẫu mở dưới đúng dòng ấy. Để lại cả hai là hai biểu mẫu giống hệt
+	   nhau trên cùng một màn, và người dùng phải đoán cái nào mới là cái đang dùng.
+	   ⚠️ Khối "Chấm công bù" thì GIỮ: người chưa có dòng nào trong tháng thì lưới không vẽ hàng
+	      của họ, tức là không có ô nào để bấm — bù cho họ phải đi bằng đường khác. */
 
 	/**
 	 * Khối NẠP CÔNG TỪ .CSV.

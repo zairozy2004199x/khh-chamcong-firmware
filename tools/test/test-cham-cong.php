@@ -6101,44 +6101,28 @@ $_POST = array();
 /* ---- khối SỬA GIỜ CÔNG: chỉ Admin ----
    Anh Thắng 26/08: *"admin có quyền chỉnh sửa lại giờ công cho nhân viên"*. Đây là cửa DUY NHẤT
    đè được lên giờ máy đã ghi, nên nó phải đứng cao hơn cả bù lẫn nạp công. */
-t( 'Admin thấy khối Sửa giờ công', strpos( $h_qtc, 'id="suagio"' ) !== false, $h_qtc );
-/* 🔴 Hai khối nằm cạnh nhau, hai biểu mẫu trông y hệt, mà hậu quả khác hẳn. Màn phải TỰ NÓI ra
-   chỗ khác nhau — người dùng không đọc được ý định trong mã, họ chỉ thấy hai cái ô giờ. */
-t( 'và khối ấy nói rõ nó KHÁC chấm công bù ở chỗ nào',
-	strpos( $h_qtc, 'đè lên' ) !== false, $h_qtc );
-t( 'nói rõ dòng bị sửa thôi được tính là lượt máy ghi',
-	strpos( $h_qtc, 'lượt máy ghi' ) !== false, $h_qtc );
-t( 'đòi lý do', strpos( $h_qtc, 'id="sg_ly"' ) !== false );
-/* 🔴 Xoá trắng phải là ô TÍCH riêng, không phải "để trống ô giờ". */
-t( 'có ô tích xoá trắng riêng cho từng ô giờ',
-	strpos( $h_qtc, 'name="sg_xoa_vao"' ) !== false && strpos( $h_qtc, 'name="sg_xoa_ra"' ) !== false );
-t( 'và nói rõ ô để trống nghĩa là GIỮ NGUYÊN', strpos( $h_qtc, 'giữ nguyên' ) !== false, $h_qtc );
-t( 'ô ngày chặn ngày tương lai ngay trên trình duyệt',
-	preg_match( '/id="sg_ngay"[^>]*max="\d{4}-\d{2}-\d{2}"/', $h_qtc ) === 1, $h_qtc );
-/* Bảng chi tiết có cột ✏️ dẫn xuống khối, mang sẵn ngày + mã. */
+/* 🔴 KHỐI "SỬA GIỜ CÔNG" Ở CUỐI MÀN ĐÃ BỎ (anh Thắng 26/08: *"Loại bỏ chỗ này. Chỗ này đã hiện
+   đủ rồi."*). Hàng sửa nội tuyến trong lưới làm đúng việc ấy mà không bắt ai gõ lại ngày và mã.
+   Để lại cả hai là hai biểu mẫu giống hệt nhau trên cùng một màn, và người dùng phải đoán cái
+   nào mới là cái đang dùng. */
+t( 'KHÔNG còn khối Sửa giờ công rời ở cuối màn',
+	strpos( $h_qtc, 'id="suagio"' ) === false, $h_qtc );
+t( 'và không còn hàm dựng nó trong mã',
+	strpos( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ), 'function the_sua_gio' ) === false );
+/* Nhưng khối CHẤM CÔNG BÙ thì GIỮ: người chưa có dòng nào trong tháng thì lưới không vẽ hàng
+   của họ, tức là không có ô nào để bấm — bù cho họ phải đi bằng đường khác. */
+t( 'khối Chấm công bù vẫn còn', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
+
+/* Bảng chi tiết vẫn có cột ✏️, và nay nó neo thẳng vào HÀNG SỬA trong lưới. */
 t( 'bảng chi tiết có cột Sửa cho Admin', strpos( $h_qtc, '<th>Sửa</th>' ) !== false, $h_qtc );
-t( 'và bấm ✏️ thì điền sẵn ngày + mã xuống khối',
+t( 'và bấm ✏️ thì điền sẵn ngày + mã',
 	preg_match( '/sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=/', $h_qtc ) === 1, $h_qtc );
+/* 🔴 Neo phải trỏ vào ĐÚNG hàng sửa (`#suaday`), không còn `#suagio` — khối ấy không tồn tại
+   nữa, neo tới nó là bấm xong trang đứng im và người ta tưởng nút hỏng. */
+t( 'neo trỏ vào hàng sửa trong lưới, không phải khối đã bỏ',
+	strpos( $h_qtc, '#suaday' ) !== false && strpos( $h_qtc, '#suagio' ) === false, $h_qtc );
 
-/* Mở khối ở trạng thái ĐANG CHỌN một dòng: phải hiện GIỜ ĐANG CÓ.
-   🔴 Không hiện thì người sửa phải NHỚ giờ cũ, mà nhớ sai một chữ số là ghi đè mất một giờ
-   công thật, và không có gì trên màn hình mâu thuẫn với con số vừa gõ. */
-$h_sg = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
-	'sgn' => '2026-07-07', 'sgm' => 'QTC1' ) );
-/* ⚠️ Canh vào ĐÚNG KHỐI BÁO, không canh cả trang: cụm chữ "giờ đang có" còn nằm ở câu hướng
-   dẫn ngay trên, nên tìm khắp trang thì bỏ hẳn phần hiện giờ đi chốt vẫn xanh. Đã phá thử để
-   thấy đúng chuyện đó. */
-$khoi_bao = preg_match( '/<p class="bao canh"[^>]*>(.*?)<\/p>/s', $h_sg, $m_sg ) ? $m_sg[1] : '';
-t( 'có khối báo "Đang sửa"', '' !== $khoi_bao, $h_sg );
-t( 'và nhắc lại đúng mã đang sửa', strpos( $khoi_bao, '>QTC1</b>' ) !== false, $khoi_bao );
-t( 'kèm đúng ngày', strpos( $khoi_bao, '>2026-07-07</b>' ) !== false, $khoi_bao );
-/* 🔴 Và GIỜ THẬT ĐANG CÓ — QTC1 ngày 07/7 vào 08:05, quên bấm lúc về. Không hiện con số này thì
-   người sửa phải NHỚ, mà nhớ sai một chữ số là ghi đè mất một giờ công thật. */
-t( 'kèm giờ vào THẬT đang có', strpos( $khoi_bao, '>08:05</b>' ) !== false, $khoi_bao );
-t( 'và nói rõ giờ ra đang trống', strpos( $khoi_bao, '>—</b>' ) !== false, $khoi_bao );
-
-/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG ĐƯỢC — kể cả POST thẳng. Ẩn cái khối không phải là gác cửa. */
-t( 'Cửa hàng trưởng KHÔNG thấy khối Sửa giờ', strpos( $h_cht, 'id="suagio"' ) === false, $h_cht );
+/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG SỬA ĐƯỢC — kể cả POST thẳng. Ẩn cái nút không phải là gác cửa. */
 t( 'và bảng chi tiết của họ KHÔNG có cột Sửa', strpos( $h_cht, '<th>Sửa</th>' ) === false, $h_cht );
 $_POST = array( 'viec' => 'sua_gio' );
 $r_sg  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
@@ -6547,7 +6531,7 @@ t( 'ô trong lưới là đường bấm được', strpos( $h_gio, 'class="o-su
 /* Ô CÓ GIỜ -> khối Sửa giờ (đè lên giờ đã có). Ô TRỐNG -> khối Chấm công bù (điền ô trống).
    Trỏ nhầm đường là bấm vào ngày trống rồi nhận câu "chưa có dòng nào để sửa". */
 t( 'ô CÓ GIỜ trỏ sang khối Sửa giờ, mang sẵn ngày + mã',
-	preg_match( '/class="o-sua" href="[^"]*sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=[^"]*#suagio"/', $h_gio ) === 1,
+	preg_match( '/class="o-sua" href="[^"]*sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=[^"]*#suaday"/', $h_gio ) === 1,
 	$h_gio );
 t( 'ô TRỐNG trỏ sang khối Chấm công bù',
 	preg_match( '/class="o-sua" href="[^"]*gnd=\d{4}-\d{2}-\d{2}[^"]*gma=[^"]*#bucong"/', $h_gio ) === 1,
@@ -6562,11 +6546,11 @@ $h_iv = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
 t( 'bấm ô có giờ -> mở hàng sửa ngay trong lưới',
 	strpos( $h_iv, 'class="hang-sua"' ) !== false, $h_iv );
 t( 'hàng sửa nằm TRONG bảng lưới (không phải một khối rời phía dưới)',
-	preg_match( '#<table class="cc".*?<tr class="hang-sua">#s', $h_iv ) === 1, $h_iv );
+	preg_match( '#<table class="cc".*?<tr class="hang-sua"#s', $h_iv ) === 1, $h_iv );
 t( 'và mang sẵn ngày + mã, khỏi gõ lại',
 	strpos( $h_iv, 'name="ngay" value="2026-07-06"' ) !== false
 	&& strpos( $h_iv, 'name="ma_nv" value="QTC1"' ) !== false, $h_iv );
-$khoi_iv = preg_match( '#<tr class="hang-sua">(.*?)</tr>#s', $h_iv, $m_iv ) ? $m_iv[1] : '';
+$khoi_iv = preg_match( '#<tr class="hang-sua"[^>]*>(.*?)</tr>#s', $h_iv, $m_iv ) ? $m_iv[1] : '';
 t( 'tìm được hàng sửa trong lưới', '' !== $khoi_iv, substr( $h_iv, 0, 200 ) );
 t( 'gửi đúng việc sua_gio', strpos( $khoi_iv, 'name="viec" value="sua_gio"' ) !== false, $khoi_iv );
 t( 'có ô nhập giờ ngay tại đó', strpos( $khoi_iv, 'name="sg_vao"' ) !== false, $khoi_iv );
@@ -6588,7 +6572,7 @@ t( 'bấm ô trống -> mở hàng BÙ ngay trong lưới',
 /* ⚠️ Soi ĐÚNG hàng bù, không quét cả trang: khối "Chấm công bù" và khối "Sửa giờ công" ở dưới
    màn cũng có `viec=bu` / ô tích xoá trắng, và có quyền có. Quét cả trang thì bỏ hẳn nhánh phân
    biệt ô-trống / ô-có-giờ đi mà chốt vẫn xanh — đã phá thử để thấy đúng chuyện đó. */
-$khoi_ib = preg_match( '#<tr class="hang-sua">(.*?)</tr>#s', $h_ib, $m_ib ) ? $m_ib[1] : '';
+$khoi_ib = preg_match( '#<tr class="hang-sua"[^>]*>(.*?)</tr>#s', $h_ib, $m_ib ) ? $m_ib[1] : '';
 t( 'tìm được hàng bù trong lưới', '' !== $khoi_ib, substr( $h_ib, 0, 200 ) );
 t( 'và gửi đúng việc bu, không phải sua_gio',
 	strpos( $khoi_ib, 'name="viec" value="bu"' ) !== false, $khoi_ib );

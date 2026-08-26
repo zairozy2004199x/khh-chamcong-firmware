@@ -146,6 +146,9 @@ class VHCP_API {
 			'vhcpLogout'            => array( 'VHCP_Auth', 'logout' ),
 			'logAction'             => array( 'VHCP_Log', 'log_action' ),
 			'getLog'                => array( 'VHCP_Log', 'get_log' ),
+			'getDonLog'             => array( 'VHCP_Don', 'nhat_ky_don' ),
+			'timDon'                => array( 'VHCP_Don', 'tim_don' ),
+			'dsLoaiChiPhi'          => array( 'VHCP_Don', 'ds_loai_chi_phi' ),
 
 			// khởi động & cấu hình
 			'getBootstrap'          => array( 'VHCP_Don', 'get_bootstrap' ),

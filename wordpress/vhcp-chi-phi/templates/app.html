@@ -141,11 +141,32 @@
   <div class="bar" id="donBar" style="position:sticky;top:0;z-index:40">
     <div class="fld"><label>Đơn</label>
       <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
+    <!-- 🔴 TÌM ĐƠN THEO LOẠI CHI PHÍ + CƠ SỞ.
+         Anh Thắng 26/08: *"đầu trang bổ sung tìm kiếm đơn ( tìm kiếm loại chi phí và đơn đó
+         thuộc cơ sở nào )"*. Ô xổ đơn ở bên trái chỉ mang kỳ · cơ sở · người lập, mà LOẠI CHI
+         PHÍ nằm ở TỪNG DÒNG CHI — nên lọc ô xổ là gõ "Chi phí nuôi thú" ra rỗng trong khi có
+         mấy chục đơn chứa nó. Tìm ở máy chủ (`timDon`), quét cả bảng dòng chi. -->
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input id="tdQ" placeholder="🔎 Tìm đơn: loại chi phí, nội dung, người lập…" style="min-width:230px"
+        onkeydown="if(event.key==='Enter')doTimDon()">
+      <select id="tdLoai" style="max-width:200px" onchange="doTimDon()"><option value="">— mọi loại chi phí —</option></select>
+      <select id="tdCoso" style="max-width:180px" onchange="doTimDon()"><option value="">— mọi cơ sở —</option></select>
+      <button class="btn b-s" onclick="doTimDon()">Tìm</button>
+      <button class="btn b-x" onclick="closeTimDon()" id="tdClose" style="display:none">✕</button>
+    </div>
     <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
     <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
     <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
+    <div id="tdKq" style="display:none;flex:1 1 100%;order:9"></div>
     <span id="donBadge"></span>
     <div style="flex:1"></div>
+    <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
+         Anh Thắng 26/08: *"Phía bên phải là lịch sử chỉnh đơn. để biết ai chỉnh gì trong này."*
+         Đây là cái giá của việc vừa mở quyền sửa tới tận lúc chốt sổ: một con số có thể đổi SAU
+         khi quản lý đã duyệt. Không có sổ thì người duyệt nhớ 15 triệu, đơn ghi 12 triệu, và
+         không có gì phân xử. Đặt cạnh trạng thái vì hai thứ luôn được đọc cùng nhau: "đơn đang
+         ở đâu" và "ai vừa động vào". -->
+    <div id="donSuBox" style="display:none;flex:0 1 460px;min-width:280px"></div>
     <button class="btn b-d" id="btnDelDon" style="display:none" onclick="delDon(CUR&&CUR.don&&CUR.don.maDon)" title="Xóa đơn nháp/lỗi (chưa cấp tạm ứng)">🗑 Xóa đơn</button>
     <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
     <button class="btn b-s" id="btnAction" style="display:none"></button>
@@ -270,12 +291,18 @@
       <div class="cb">
         <div id="qtCNBox">
         <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
-          <div class="fld"><label>Tạm ứng (số đã duyệt)</label><input id="qtTU" disabled style="width:160px;font-weight:700"></div>
+          <!-- 🔴 BA Ô TIỀN LÀM NỔI HẲN LÊN. Anh Thắng 26/08: *"Phần ô tiền làm nổi màu lên"*.
+               Ba con số này là kết luận của cả cái đơn — tiền đã đưa, tiền đã tiêu, còn lại
+               bao nhiêu — mà trước đây chúng mặc đúng bộ đồ của mọi ô nhập khác trên màn, nên
+               mắt lướt qua. Mỗi ô một màu theo VAI TRÒ của nó, không phải tô cho đẹp:
+                 xanh dương = tiền công ty đưa · xanh lá = tiền đã tiêu · ô còn lại tự đổi màu
+                 theo thừa (xanh) / thiếu (đỏ) / khớp (xám) trong `renderQT()`. -->
+          <div class="fld"><label>Tạm ứng (số đã duyệt)</label><input id="qtTU" disabled style="width:170px;font-weight:800;font-size:17px;text-align:right;color:#1d4ed8;background:#eff6ff;border:2px solid #bfdbfe"></div>
           <!-- type=text: ô này chỉ để ĐỌC mà nằm cạnh "Tạm ứng 30.000.000" — để type=number
                thì nó hiện 1837000 trong khi ô bên cạnh hiện 30.000.000, hai kiểu số cạnh nhau
                trên cùng một hàng. Giá trị thật đọc qua _tienSo() nên không đổi gì phía sau. -->
-          <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:170px;font-weight:700;text-align:right"></div>
-          <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:150px;font-weight:800;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;font-family:Consolas,monospace">—</div></div>
+          <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:180px;font-weight:800;font-size:17px;text-align:right;color:#15803d;background:#f0fdf4;border:2px solid #bbf7d0"></div>
+          <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:170px;font-weight:800;font-size:17px;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;background:#f8fafc;text-align:right">—</div></div>
           <!-- HAI Ô HÓA ĐƠN, CÓ TÊN. Anh Thắng: "với 1 đơn cho phép upload 2 hóa đơn".
                Ô thứ hai sinh ra vì ô thứ nhất THIẾU hoặc SAI, nên đặt tên "bổ sung" chứ không
                phải một danh sách vô danh — người đối chiếu sau này cần biết cái nào là bản bù. -->
@@ -623,6 +650,11 @@
           <select id="tmMang" onchange="loadTraMa()"><option value="all">Tất cả mảng</option></select>
           <select id="tmKy" onchange="loadTraMa()"><option value="all">Tất cả kỳ</option></select>
           <select id="tmCoso" onchange="loadTraMa()"><option value="all">Tất cả cơ sở</option></select>
+          <!-- 🔴 Ô LỌC RIÊNG CHO LOẠI CHI PHÍ. Anh Thắng 26/08: *"Lọc theo loại chi phí"*.
+               Ô "Tìm nội dung / loại" bên cạnh là tìm CHỮ — gõ "Chi phí cơ sở" thì dính cả mấy
+               dòng có chữ ấy trong NỘI DUNG, và trượt mất dòng ghi hoa/thường khác đi. Lọc thì
+               phải khớp ĐÚNG một loại, và chỉ liệt kê loại đang có thật trong kết quả. -->
+          <select id="tmLoai" onchange="tmVeTrang(1)" style="max-width:210px"><option value="all">Tất cả loại chi phí</option></select>
           <input id="tmQ" placeholder="Tìm nội dung / loại…" oninput="tmSearchDebounced()" style="width:180px">
           <button class="btn b-x" onclick="loadTraMa()">↻ Tải lại</button>
           <button class="btn b-g" onclick="traExport()">⬇ Tải Excel</button>
@@ -635,7 +667,8 @@
         <thead><tr><th style="width:120px">Mảng</th><th style="width:95px">Ngày</th><th>Cơ sở / Gian</th><th>Loại chi phí</th><th style="width:80px">TK Nợ</th><th style="width:80px">TK Có</th><th>Nội dung</th><th>Thuộc</th><th style="text-align:right;width:130px">Số tiền</th></tr></thead>
         <tbody id="tmBody"></tbody>
         <tfoot id="tmFoot"></tfoot>
-      </table><div class="empty" id="tmEmpty" style="display:none">Không có khoản chi nào khớp.</div></div>
+      </table><div class="empty" id="tmEmpty" style="display:none">Không có khoản chi nào khớp.</div>
+      <div id="tmPager" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:10px 14px"></div></div>
     </div>
 
     <div class="card">
@@ -1761,7 +1794,7 @@
   var _openSeq=0;
   function openDon(maDon){
     _openSeq++;   // tăng cả khi bỏ chọn, để phản hồi đang bay về không dựng lại đơn vừa đóng
-    if(!maDon){el('main').style.display='none';el('donBadge').innerHTML='';el('btnAction').style.display='none';CUR=null;renderDonList();_syncDonView();return;}
+    if(!maDon){el('main').style.display='none';el('donBadge').innerHTML='';el('btnAction').style.display='none';CUR=null;loadDonSu('');renderDonList();_syncDonView();return;}
     var _seq=_openSeq, _ma=String(maDon);
     loading(true);
     google.script.run.withSuccessHandler(function(r){
@@ -1864,6 +1897,7 @@
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
       renderTU(); renderLines(); renderRecon(); renderQT(); setProducts(r.products); resetLineForm(); renderDonList(); _syncDonView();
+      loadDonSu(maDon);
       _khoaCoSo();
     }).withFailureHandler(function(e){
       if(_seq!==_openSeq) return;   // lỗi của lượt cũ cũng không được cướp màn hình
@@ -2439,9 +2473,15 @@
     else { box.style.background='#f1f5f9'; box.style.color='#334155'; box.textContent='Khớp — không thừa thiếu'; }
     var elc=el('qtConLai');
     if(elc){
-      if(cl>0){ elc.textContent=money(cl)+'đ thừa'; elc.style.color='#166534'; }
-      else if(cl<0){ elc.textContent=money(-cl)+'đ thiếu'; elc.style.color='#dc2626'; }
-      else { elc.textContent='0đ (khớp)'; elc.style.color='#334155'; }
+      /* Ô "Còn lại" đổi CẢ NỀN VÀ VIỀN theo kết quả, không chỉ đổi màu chữ. Đây là con số duy
+         nhất trên màn nói ra ai còn nợ ai — thừa thì NV trả lại, thiếu thì kế toán bù. Chữ đỏ
+         trên nền trắng lẫn vào mọi thứ khác; cả ô đỏ thì không lướt qua được. */
+      if(cl>0){ elc.textContent=money(cl)+'đ thừa'; elc.style.color='#166534';
+        elc.style.background='#f0fdf4'; elc.style.borderColor='#86efac'; }
+      else if(cl<0){ elc.textContent=money(-cl)+'đ thiếu'; elc.style.color='#b91c1c';
+        elc.style.background='#fef2f2'; elc.style.borderColor='#fca5a5'; }
+      else { elc.textContent='0đ (khớp)'; elc.style.color='#334155';
+        elc.style.background='#f8fafc'; elc.style.borderColor='#e2e8f0'; }
     }
     var qrBox=el('qtQR'); qrBox.innerHTML=''; var httt=el('qtHTTT').value;
     if(httt==='Chuyển khoản' && cl>0){
@@ -2503,6 +2543,7 @@
   function showPage(p){
     CUR_PAGE=p;
     if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
+    if(p==='don'){ try{ _fillTimDonOpts(); }catch(e){} }
     var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
     ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
@@ -3545,7 +3586,27 @@
   }
   // ===================== TRA THEO MÃ TÀI KHOẢN =====================
   var TM=null, TM_T=null;
-  function tmSearchDebounced(){ clearTimeout(TM_T); TM_T=setTimeout(loadTraMa,350); }
+  function tmSearchDebounced(){ clearTimeout(TM_T); TM_T=setTimeout(function(){ TM_TRANG=1; loadTraMa(); },350); }
+  /* 20 dòng một trang — đúng con số anh Thắng chốt. */
+  var TM_MOI=20, TM_TRANG=1, TM_LOC=[], TM_TONG=0;
+  function tmVeTrang(n){ TM_TRANG=Math.max(1,Number(n)||1); if(TM) renderTraMa(TM); }
+  function _tmVePhanTrang(soDong, soTrang){
+    var p=el('tmPager'); if(!p) return;
+    if(soDong<=TM_MOI){ p.innerHTML=''; return; }
+    var tu=(TM_TRANG-1)*TM_MOI+1, den=Math.min(soDong, TM_TRANG*TM_MOI);
+    var h='<span style="font-size:12px;color:#64748b">Dòng <b>'+tu+'–'+den+'</b> / '+soDong+'</span>';
+    h+='<button class="btn b-x" onclick="tmVeTrang(1)"'+(TM_TRANG<=1?' disabled':'')+'>« Đầu</button>';
+    h+='<button class="btn b-x" onclick="tmVeTrang('+(TM_TRANG-1)+')"'+(TM_TRANG<=1?' disabled':'')+'>‹ Trước</button>';
+    /* Chỉ vẽ 7 số quanh trang đang đứng: 43 trang mà vẽ đủ 43 nút thì thanh phân trang dài hơn
+       cả bảng. */
+    var a=Math.max(1,TM_TRANG-3), b=Math.min(soTrang,a+6); a=Math.max(1,b-6);
+    for(var i=a;i<=b;i++){
+      h+='<button class="btn '+(i===TM_TRANG?'b-p':'b-x')+'" onclick="tmVeTrang('+i+')">'+i+'</button>';
+    }
+    h+='<button class="btn b-x" onclick="tmVeTrang('+(TM_TRANG+1)+')"'+(TM_TRANG>=soTrang?' disabled':'')+'>Sau ›</button>';
+    h+='<button class="btn b-x" onclick="tmVeTrang('+soTrang+')"'+(TM_TRANG>=soTrang?' disabled':'')+'>Cuối »</button>';
+    p.innerHTML=h;
+  }
   function loadTraMa(){
     loading(true);
     var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
@@ -3588,9 +3649,28 @@
     if(maCu) msg.push('<b>'+maCu+' dòng còn dùng mã cũ</b> (Nợ 141 / Có 331-64125) vì chưa chọn loại chi phí: '+(r.maCu||[]).map(function(x){return _tmName(x.mang)+' ('+x.n+')';}).join(' · ')+'. Vào ⚙️ Cấu hình → 🧮 bảng Loại chi phí → <b>🔗 Gán mã cho dòng cũ</b>, hoặc mở tab của mảng đó chọn loại cho từng dòng.');
     if(msg.length){ w.style.display='block'; w.innerHTML='• '+msg.join('<br>• '); } else w.style.display='none';
 
-    var L=r.items||[];
+    /* 🔴 LỌC LOẠI + PHÂN TRANG.
+       Anh Thắng 26/08: *"Lọc theo loại chi phí, Với sắp xếp trang tầm 20 đơn là sang trang"*.
+       Bảng này đang đổ THẲNG 859 dòng ra một trang: trình duyệt dựng 859 hàng mỗi lần đổi bộ
+       lọc, và người đọc thì cuộn mãi không hết. Cắt 20 dòng một trang.
+       ⚠️ Ô lọc loại chỉ liệt kê loại CÓ THẬT trong kết quả hiện tại, và dựng từ danh sách CHƯA
+          cắt trang — dựng từ 20 dòng đang hiện thì mỗi lần sang trang ô lọc lại đổi nội dung. */
+    var Lall=r.items||[];
+    var dsLoai={}; Lall.forEach(function(x){ if(x.loai) dsLoai[x.loai]=1; });
+    keep('tmLoai', Object.keys(dsLoai).sort(), 'Tất cả loại chi phí');
+    var fLoai=el('tmLoai').value||'all';
+    var L=(fLoai==='all')?Lall:Lall.filter(function(x){ return String(x.loai||'')===fLoai; });
+
+    TM_LOC=L;
+    var tong=0; L.forEach(function(x){ tong+=Number(x.tien)||0; });
+    TM_TONG=tong;
+    if(TM_TRANG<1) TM_TRANG=1;
+    var soTrang=Math.max(1, Math.ceil(L.length/TM_MOI));
+    if(TM_TRANG>soTrang) TM_TRANG=soTrang;
+    var Lt=L.slice((TM_TRANG-1)*TM_MOI, TM_TRANG*TM_MOI);
+
     el('tmEmpty').style.display=L.length?'none':'block';
-    el('tmBody').innerHTML=L.map(function(x){
+    el('tmBody').innerHTML=Lt.map(function(x){
       return '<tr><td style="white-space:nowrap">'+esc(_tmName(x.mang))+'</td>'+
         '<td style="white-space:nowrap">'+esc(x.ngay)+'</td>'+
         '<td>'+esc(x.coso)+'</td>'+
@@ -3601,7 +3681,12 @@
         '<td style="font-size:12px;color:#64748b">'+esc(x.thuoc||'')+'</td>'+
         '<td class="money">'+money(x.tien)+'</td></tr>';
     }).join('');
-    el('tmFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td colspan="8">TỔNG '+L.length+' DÒNG</td><td class="money">'+money(r.tong)+'</td></tr>'):'';
+    /* Chân bảng nói TỔNG CỦA CẢ BỘ LỌC, không phải tổng của 20 dòng đang hiện — người ta đọc
+       con số ấy để đối chiếu, mà tổng của một trang thì chẳng đối chiếu với cái gì. */
+    el('tmFoot').innerHTML=L.length?('<tr style="font-weight:700;background:#f8fafc;border-top:2px solid #cbd5e1"><td colspan="8">TỔNG '+L.length+' DÒNG'
+      +(L.length>TM_MOI?(' <span style="font-weight:400;color:#64748b">· đang hiện '+Lt.length+' dòng của trang '+TM_TRANG+'</span>'):'')
+      +'</td><td class="money">'+money(tong)+'</td></tr>'):'';
+    _tmVePhanTrang(L.length, soTrang);
 
     el('tmByMa').innerHTML=(r.byMa||[]).map(function(x){ return '<tr><td style="font-family:Consolas,monospace"><b>'+esc(x.tkNo)+'</b></td><td style="font-size:12px">'+esc(x.loai||'')+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="4" style="color:#94a3b8">—</td></tr>';
     el('tmByMang').innerHTML=(r.byMang||[]).map(function(x){ return '<tr><td>'+esc(_tmName(x.mang))+'</td><td>'+x.n+'</td><td class="money">'+money(x.tien)+'</td></tr>'; }).join('')||'<tr><td colspan="3" style="color:#94a3b8">—</td></tr>';
@@ -3611,7 +3696,10 @@
   function traExport(){
     if(!TM||!(TM.items||[]).length){ toast('warn','Không có dữ liệu để tải'); return; }
     var cols=['Mảng','Ngày','Cơ sở / Gian','Loại chi phí','TK Nợ','TK Có','Nội dung','Thuộc','Số tiền'];
-    var rows=TM.items.map(function(x){ return [_tmName(x.mang), x.ngay, x.coso, x.loai, x.tkNo, x.tkCo, x.noiDung, x.thuoc, Number(x.tien)||0]; });
+    /* Xuất ĐÚNG bộ lọc đang áp (kể cả lọc loại), nhưng KHÔNG cắt trang: tệp Excel là để mở ra
+       tính toán, cắt 20 dòng vào đó là đưa người ta một bản thiếu mà trông như đủ. */
+    var _xu=(TM_LOC&&TM_LOC.length)?TM_LOC:TM.items;
+    var rows=_xu.map(function(x){ return [_tmName(x.mang), x.ngay, x.coso, x.loai, x.tkNo, x.tkCo, x.noiDung, x.thuoc, Number(x.tien)||0]; });
     var ten='TraTheoMa_'+String(el('tmMa').value||'all');
     var ok=false;
     try{
@@ -3986,6 +4074,124 @@
       return '<span style="display:inline-block;font-size:11.5px;font-weight:800;padding:3px 9px;'
         +'border-radius:999px;margin:0 6px 0 0;background:'+(x.ok?'#dcfce7':'#fee2e2')+';color:'
         +(x.ok?'#166534':'#b91c1c')+'">'+(x.ok?'✔ ':'🔒 ')+x.chu+'</span>';
+    }).join('');
+  }
+
+  /**
+   * SỔ CHỈNH ĐƠN — ai · lúc nào · chỉnh gì.
+   *
+   * ⚠️ Gọi RIÊNG theo mã đơn (`getDonLog`), không kéo cả sổ chung về rồi lọc ở đây: sổ chung
+   *    trả 800 dòng của mọi đơn để hiện 5 dòng — chậm, và trên điện thoại thì tốn dữ liệu của
+   *    người ta.
+   */
+  /* ---------- TÌM ĐƠN (đầu trang) ---------- */
+  var _tdSeq=0;
+  function _fillTimDonOpts(){
+    /* Ô "loại chi phí" chỉ liệt kê thứ ĐANG CÓ THẬT trong sổ — liệt kê cả danh mục chưa ai dùng
+       là bày ra một loạt lựa chọn bấm vào đều ra rỗng. */
+    var sl=el('tdLoai');
+    if(sl && sl.options.length<=1){
+      google.script.run.withSuccessHandler(function(r){
+        var it=(r&&r.items)||[];
+        sl.innerHTML='<option value="">— mọi loại chi phí —</option>'+it.map(function(x){
+          return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+      }).dsLoaiChiPhi();
+    }
+    var sc=el('tdCoso');
+    if(sc && sc.options.length<=1){
+      var cs={}; (BOOT.dons||[]).forEach(function(d){ if(d.coso) cs[d.coso]=1; });
+      sc.innerHTML='<option value="">— mọi cơ sở —</option>'+Object.keys(cs).sort().map(function(x){
+        return '<option value="'+esc(x)+'">'+esc(x)+'</option>'; }).join('');
+    }
+  }
+  function closeTimDon(){
+    var b=el('tdKq'); if(b){ b.style.display='none'; b.innerHTML=''; }
+    if(el('tdClose')) el('tdClose').style.display='none';
+    if(el('tdQ')) el('tdQ').value='';
+    if(el('tdLoai')) el('tdLoai').value='';
+    if(el('tdCoso')) el('tdCoso').value='';
+  }
+  function doTimDon(){
+    var q=(el('tdQ')&&el('tdQ').value||'').trim();
+    var lo=(el('tdLoai')&&el('tdLoai').value)||'';
+    var cs=(el('tdCoso')&&el('tdCoso').value)||'';
+    var box=el('tdKq'); if(!box) return;
+    if(!q && !lo && !cs){ closeTimDon(); return; }
+    var seq=++_tdSeq;
+    box.style.display=''; if(el('tdClose')) el('tdClose').style.display='inline-block';
+    box.innerHTML='<div style="padding:8px 10px;color:#94a3b8;font-size:12px">Đang tìm…</div>';
+    google.script.run.withSuccessHandler(function(r){
+      if(seq!==_tdSeq) return;
+      var it=(r&&r.items)||[];
+      if(!it.length){
+        box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:10px 12px;font-size:12px;color:#64748b">Không tìm thấy đơn nào khớp.</div>';
+        return;
+      }
+      var h='<div style="border:1px solid #bfdbfe;border-radius:8px;background:#f8fbff;padding:8px 10px">'
+        +'<div style="font-size:12px;font-weight:800;color:#0369a1;margin-bottom:6px">🔎 '+it.length+' đơn khớp</div>'
+        +'<div style="max-height:260px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'
+        +'<thead><tr style="color:#64748b;text-align:left"><th style="padding:4px 6px">Kỳ</th><th>Cơ sở</th><th>Người lập</th><th>Trạng thái</th><th>Loại chi phí khớp</th><th style="text-align:right">Tổng</th><th></th></tr></thead><tbody>';
+      h+=it.map(function(d){
+        /* Hiện ĐÚNG NHỮNG LOẠI ĐÃ KHỚP — chỉ trả mã đơn thì người tìm phải mở từng đơn ra xem
+           vì sao nó lọt vào kết quả. */
+        var lo5=(d.loai||[]).slice(0,3).map(function(x){
+          return '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 5px;margin-right:3px;white-space:nowrap">'+esc(x)+'</span>'; }).join('');
+        if((d.loai||[]).length>3) lo5+='<span style="color:#94a3b8">+'+((d.loai.length)-3)+'</span>';
+        return '<tr style="border-top:1px solid #e2e8f0">'
+          +'<td style="padding:4px 6px">'+esc(d.ky||d.maDon)+'</td>'
+          +'<td><b>'+esc(d.coso||'—')+'</b></td>'
+          +'<td>'+esc(d.nguoiLap||'')+'</td>'
+          +'<td><span class="badge '+stCls(d.trangThai)+'">'+esc(d.trangThai)+'</span></td>'
+          +'<td>'+lo5+'</td>'
+          +'<td style="text-align:right">'+money(d.tongTien)+'đ</td>'
+          +'<td style="text-align:right"><button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">Mở</button></td>'
+          +'</tr>';
+      }).join('');
+      box.innerHTML=h+'</tbody></table></div></div>';
+    }).withFailureHandler(function(e){
+      if(seq!==_tdSeq) return;
+      box.innerHTML='<div style="color:#dc2626;font-size:12px">'+esc(e.message)+'</div>';
+    }).timDon(q, cs, lo, 60);
+  }
+
+  var _suSeq=0;
+  function loadDonSu(maDon){
+    var box=el('donSuBox'); if(!box) return;
+    if(!maDon){ box.style.display='none'; box.innerHTML=''; return; }
+    var seq=++_suSeq;
+    box.style.display='';
+    box.innerHTML='<div style="font-size:11.5px;color:#94a3b8">Đang tải lịch sử…</div>';
+    google.script.run.withSuccessHandler(function(r){
+      if(seq!==_suSeq) return;            // lượt cũ về sau thì không được cướp màn hình
+      var it=(r&&r.items)||[];
+      if(!it.length){
+        box.innerHTML='<div style="border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;'
+          +'background:#fff;font-size:11.5px;color:#94a3b8">🕘 <b>Lịch sử chỉnh đơn</b> — chưa có ai chỉnh gì.</div>';
+        return;
+      }
+      /* Hiện 5 dòng gần nhất, phần còn lại nằm trong <details>. Người ta mở đơn ra là muốn biết
+         "vừa có ai động vào không", không phải đọc hết 50 dòng. */
+      var h='<div style="border:1px solid #e2e8f0;border-radius:8px;background:#fff;padding:8px 10px">'
+        +'<div style="font-size:11.5px;font-weight:800;color:#334155;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
+      h+=_suDongHtml(it.slice(0,5));
+      if(it.length>5){
+        h+='<details style="margin-top:4px"><summary style="font-size:11px;color:#64748b;cursor:pointer">xem '+(it.length-5)+' dòng cũ hơn</summary>'
+          +_suDongHtml(it.slice(5))+'</details>';
+      }
+      box.innerHTML=h+'</div>';
+    }).withFailureHandler(function(){
+      if(seq!==_suSeq) return;
+      box.innerHTML='<div style="font-size:11.5px;color:#dc2626">Không đọc được lịch sử.</div>';
+    }).getDonLog(maDon, 50);
+  }
+  function _suDongHtml(ds){
+    return ds.map(function(x){
+      return '<div style="font-size:11.5px;line-height:1.5;padding:3px 0;border-top:1px dashed #f1f5f9">'
+        +'<b>'+esc(x.nguoi||'—')+'</b>'+(x.vaiTro?(' <span style="color:#94a3b8">('+esc(x.vaiTro)+')</span>'):'')
+        +' · <span style="color:#64748b">'+esc(x.tg||'—')+'</span><br>'
+        +'<span style="color:#0369a1;font-weight:600">'+esc(x.hanhDong||'')+'</span>'
+        +(x.chiTiet?(' — <span style="color:#334155">'+esc(x.chiTiet)+'</span>'):'')
+        +'</div>';
     }).join('');
   }
 

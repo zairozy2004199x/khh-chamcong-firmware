@@ -61,6 +61,164 @@ class VHCP_Don {
 		return '';
 	}
 
+	/**
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * GHI VẾT MỌI LƯỢT ĐỘNG VÀO ĐƠN.
+	 *
+	 * Anh Thắng 26/08/2026: *"Phía bên phải là lịch sử chỉnh đơn. để biết ai chỉnh gì trong
+	 * này."*
+	 *
+	 * 🔴 ĐÂY LÀ CÁI GIÁ CỦA VIỆC VỪA MỞ QUYỀN SỬA.
+	 *    Sáng nay đơn chỉ sửa được lúc "Nháp" và "Đã cấp tạm ứng". Nay sửa được suốt tới lúc
+	 *    chốt sổ — tức là một con số có thể đổi SAU khi quản lý đã duyệt và SAU khi kế toán đã
+	 *    nhìn. Mở cửa mà không có sổ ghi thì không ai dựng lại được chuyện gì đã xảy ra: người
+	 *    duyệt nhớ mình duyệt 15 triệu, đơn ghi 12 triệu, và không có gì phân xử.
+	 *
+	 * ⚠️ Ghi SỐ TIỀN CŨ, không chỉ ghi "đã sửa". Câu "Nguyễn A sửa dòng Thịt heo" không nói được
+	 *    gì; "Thịt heo: 1.200.000 -> 600.000" thì nói đủ. Sau khi sửa thì giá trị cũ không còn
+	 *    ở đâu nữa — nhật ký là bản sao duy nhất.
+	 *
+	 * ⚠️ KHÔNG bao giờ để việc ghi vết làm hỏng việc chính. `log_action` trượt (bảng nhật ký
+	 *    chưa dựng trên một bản cài cũ) thì dòng chi phí vẫn phải được ghi.
+	 */
+	private static function ghi_vet( $ma_don, $hanh_dong, $chi_tiet ) {
+		if ( ! class_exists( 'VHCP_Log' ) || ! method_exists( 'VHCP_Log', 'log_action' ) ) { return; }
+		VHCP_Log::log_action( array(
+			'actor'  => VHCP_Auth::nguoi(),
+			'role'   => VHCP_Auth::vai_tro(),
+			'action' => (string) $hanh_dong,
+			'target' => (string) $ma_don,
+			'detail' => (string) $chi_tiet,
+		) );
+	}
+
+	/** Mô tả gọn một dòng chi: nội dung + số tiền. Dùng chung cho mọi câu nhật ký. */
+	private static function ta_dong( $r ) {
+		$r = (array) $r;
+		$nd = trim( (string) ( isset( $r['noi_dung'] ) ? $r['noi_dung'] : '' ) );
+		if ( '' === $nd ) { $nd = '(chưa có nội dung)'; }
+		$tt = VHCP_Util::num( isset( $r['thanh_tien'] ) ? $r['thanh_tien'] : 0 );
+		$tm = ( isset( $r['thuc_mua'] ) && '' !== $r['thuc_mua'] && null !== $r['thuc_mua'] )
+			? VHCP_Util::num( $r['thuc_mua'] ) : null;
+		return $nd . ' · ' . number_format( $tt, 0, ',', '.' ) . 'đ'
+			. ( null === $tm ? '' : ' · thực chi ' . number_format( $tm, 0, ',', '.' ) . 'đ' );
+	}
+
+	/**
+	 * NHẬT KÝ CỦA MỘT ĐƠN — mới nhất trước.
+	 *
+	 * ⚠️ Lọc theo `doi_tuong` = mã đơn. Đọc cả sổ rồi lọc ở giao diện là kéo về 800 dòng của
+	 *    mọi đơn để hiện 5 dòng — chậm, và trên điện thoại thì tốn dữ liệu của người ta.
+	 */
+	public static function nhat_ky_don( $ma_don, $limit = 50 ) {
+		global $wpdb;
+		$ma_don = trim( (string) $ma_don );
+		if ( '' === $ma_don ) { return VHCP_Util::ok( array( 'items' => array() ) ); }
+		$limit = (int) $limit;
+		if ( $limit <= 0 || $limit > 300 ) { $limit = 50; }
+		$t = VHCP_DB::t( 'log' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM $t WHERE doi_tuong=%s ORDER BY id DESC LIMIT %d", $ma_don, $limit ), ARRAY_A );
+		$items = array();
+		foreach ( (array) $rows as $r ) {
+			$tg = VHCP_Util::fmt_dt( $r['tg'] );
+			/* Thời điểm vô lý thì nói là không biết, đừng hiện ngày bịa — xem chú thích cùng
+			   kiểu ở `VHCP_Log::get_log()`. */
+			if ( '' !== $tg && VHCP_Util::ngay_vo_ly( substr( $tg, 0, 10 ) ) ) { $tg = ''; }
+			$items[] = array(
+				'tg'      => $tg,
+				'nguoi'   => (string) $r['nguoi'],
+				'vaiTro'  => (string) $r['vai_tro'],
+				'hanhDong' => (string) $r['hanh_dong'],
+				'chiTiet' => (string) $r['chi_tiet'],
+			);
+		}
+		return VHCP_Util::ok( array( 'items' => $items ) );
+	}
+
+	/**
+	 * TÌM ĐƠN — theo LOẠI CHI PHÍ, theo CƠ SỞ, hoặc theo chữ bất kỳ.
+	 *
+	 * Anh Thắng 26/08/2026: *"đầu trang bổ sung tìm kiếm đơn ( tìm kiếm loại chi phí và đơn đó
+	 * thuộc cơ sở nào )"*.
+	 *
+	 * 🔴 PHẢI TÌM Ở MÁY CHỦ, KHÔNG LỌC Ô XỔ XUỐNG Ở GIAO DIỆN.
+	 *    Ô xổ đơn chỉ mang kỳ · cơ sở · người lập · trạng thái. Câu anh Thắng hỏi là *"đơn nào
+	 *    có chi phí loại này"* — mà loại chi phí nằm ở TỪNG DÒNG CHI, không nằm trên đơn. Lọc ở
+	 *    giao diện thì gõ "Chi phí nuôi thú" ra rỗng, trong khi có mấy chục đơn chứa nó.
+	 *
+	 * ⚠️ Trả kèm ĐÚNG NHỮNG LOẠI ĐÃ KHỚP của từng đơn. Chỉ trả danh sách mã đơn thì người tìm
+	 *    phải mở từng đơn ra xem vì sao nó lọt vào kết quả.
+	 *
+	 * @param string $q     chữ tìm: khớp mã đơn · kỳ · người lập · nhóm (loại chi phí) · nội dung.
+	 * @param string $coso  lọc thêm theo cơ sở của đơn ('' = mọi cơ sở).
+	 * @param string $nhom  lọc thêm theo ĐÚNG một loại chi phí ('' = mọi loại).
+	 */
+	public static function tim_don( $q = '', $coso = '', $nhom = '', $limit = 60 ) {
+		global $wpdb;
+		$q     = trim( (string) $q );
+		$coso  = trim( (string) $coso );
+		$nhom  = trim( (string) $nhom );
+		$limit = (int) $limit;
+		if ( $limit <= 0 || $limit > 200 ) { $limit = 60; }
+		if ( '' === $q && '' === $coso && '' === $nhom ) {
+			return VHCP_Util::ok( array( 'items' => array(), 'chuaNhap' => true ) );
+		}
+
+		$td = VHCP_DB::t( 'don' );
+		$tc = VHCP_DB::t( 'chiphi' );
+
+		/* Gom theo ĐƠN chứ không theo dòng: một đơn có 40 dòng cùng loại thì kết quả vẫn là một
+		   dòng, kèm mấy loại đã khớp. Trả 40 dòng giống nhau là bắt người tìm tự gom bằng mắt. */
+		$dk = array( '1=1' );
+		$tv = array();
+		if ( '' !== $coso ) { $dk[] = 'd.coso = %s'; $tv[] = $coso; }
+		if ( '' !== $nhom ) { $dk[] = 'c.nhom = %s'; $tv[] = $nhom; }
+		if ( '' !== $q ) {
+			$like = '%' . $wpdb->esc_like( $q ) . '%';
+			$dk[] = '( d.ma_don LIKE %s OR d.ky LIKE %s OR d.nguoi_lap LIKE %s'
+				. ' OR c.nhom LIKE %s OR c.noi_dung LIKE %s OR c.doi_tuong LIKE %s )';
+			array_push( $tv, $like, $like, $like, $like, $like, $like );
+		}
+		$sql = "SELECT d.ma_don, d.ky, d.coso, d.nguoi_lap, d.trang_thai,
+				GROUP_CONCAT(DISTINCT c.nhom) AS cac_nhom, COUNT(c.id) AS so_dong,
+				SUM(c.thanh_tien) AS tong_tien
+			FROM $td d LEFT JOIN $tc c ON c.ma_don = d.ma_don
+			WHERE " . implode( ' AND ', $dk ) . "
+			GROUP BY d.ma_don, d.ky, d.coso, d.nguoi_lap, d.trang_thai
+			ORDER BY d.stt DESC LIMIT %d";
+		$tv[] = $limit;
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $tv ), ARRAY_A );
+
+		$items = array();
+		foreach ( (array) $rows as $r ) {
+			$loai = array();
+			foreach ( explode( ',', (string) $r['cac_nhom'] ) as $x ) {
+				$x = trim( $x );
+				if ( '' !== $x && ! in_array( $x, $loai, true ) ) { $loai[] = $x; }
+			}
+			$items[] = array(
+				'maDon'     => (string) $r['ma_don'],
+				'ky'        => (string) $r['ky'],
+				'coso'      => (string) $r['coso'],
+				'nguoiLap'  => (string) $r['nguoi_lap'],
+				'trangThai' => (string) $r['trang_thai'],
+				'loai'      => $loai,
+				'soDong'    => (int) $r['so_dong'],
+				'tongTien'  => VHCP_Util::num( $r['tong_tien'] ),
+			);
+		}
+		return VHCP_Util::ok( array( 'items' => $items, 'chuaNhap' => false ) );
+	}
+
+	/** Mọi LOẠI CHI PHÍ đang có thật trong sổ — để ô lọc chỉ liệt kê thứ tìm ra được. */
+	public static function ds_loai_chi_phi() {
+		global $wpdb;
+		$tc = VHCP_DB::t( 'chiphi' );
+		$rows = $wpdb->get_col( "SELECT DISTINCT nhom FROM $tc WHERE nhom<>'' ORDER BY nhom ASC" );
+		return VHCP_Util::ok( array( 'items' => array_values( array_filter( (array) $rows ) ) ) );
+	}
+
 	// ---------------------------------------------------------------- đọc bảng
 
 	/** Mọi dòng chi phí, theo đúng thứ tự nhập (như đọc sheet ChiPhi). */
@@ -890,6 +1048,8 @@ class VHCP_Don {
 		$id   = VHCP_Util::uid( 'L' );
 		$data = self::line_data( $id, $ma_don, $rec );
 		$wpdb->insert( VHCP_DB::t( 'chiphi' ), $data );
+		self::ghi_vet( $ma_don, ( $ps ? 'Thêm dòng phát sinh' : 'Thêm hạng mục xin' ),
+			self::ta_dong( $data ) . ' · lúc đơn ở "' . $st . '"' );
 		return VHCP_Util::ok( array( 'id' => $id, 'phatSinh' => $ps ) );
 	}
 
@@ -942,6 +1102,15 @@ class VHCP_Don {
 		if ( $data['tk_co'] === '' && trim( (string) $cur['tk_co'] ) !== '' ) { $data['tk_co'] = $cur['tk_co']; }
 		unset( $data['id'] );
 		$wpdb->update( VHCP_DB::t( 'chiphi' ), $data, array( 'id' => (string) $id ) );
+		/* 🔴 Ghi CŨ -> MỚI, không chỉ ghi "đã sửa". Sau khi sửa thì giá trị cũ không còn ở đâu
+		   nữa — nhật ký là bản sao duy nhất. Chỉ ghi khi có gì đó THẬT SỰ đổi: mở màn sửa rồi
+		   bấm Lưu mà không đụng gì cũng ghi thì sổ đầy dòng vô nghĩa, và dòng đáng đọc chìm mất. */
+		$cu_ta  = self::ta_dong( $cur );
+		$moi_ta = self::ta_dong( array_merge( (array) $cur, $data ) );
+		if ( $cu_ta !== $moi_ta ) {
+			self::ghi_vet( $ma_don, ( $ps ? 'Sửa dòng phát sinh' : 'Sửa hạng mục xin' ),
+				$cu_ta . '  →  ' . $moi_ta . ' · lúc đơn ở "' . $st . '"' );
+		}
 		return VHCP_Util::ok();
 	}
 
@@ -955,7 +1124,15 @@ class VHCP_Don {
 			return VHCP_Util::err( 'Chỉ nhập Thực chi khi "Đã cấp tạm ứng" (hoặc kế toán sửa khi "Chờ quyết toán")' );
 		}
 		$v = VHCP_Util::blank_or_num( $val );
+		$cu_tm = ( '' !== $cur['thuc_mua'] && null !== $cur['thuc_mua'] )
+			? VHCP_Util::num( $cur['thuc_mua'] ) : null;
 		$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'thuc_mua' => $v ), array( 'id' => (string) $id ) );
+		if ( $cu_tm !== ( null === $v ? null : VHCP_Util::num( $v ) ) ) {
+			$_ts = function ( $x ) { return ( null === $x ) ? '(trống)' : number_format( $x, 0, ',', '.' ) . 'đ'; };
+			self::ghi_vet( $ma_don, 'Nhập thực chi',
+				trim( (string) $cur['noi_dung'] ) . ': ' . $_ts( $cu_tm ) . '  →  '
+					. $_ts( null === $v ? null : VHCP_Util::num( $v ) ) );
+		}
 		$kt_sua = false;
 		if ( $st === 'Chờ quyết toán' ) { self::mark_kt_sua( $ma_don, $actor ); $kt_sua = true; }
 		return VHCP_Util::ok( array( 'ktSua' => $kt_sua ) );
@@ -1322,6 +1499,10 @@ class VHCP_Don {
 		$binh_thuong = $ps ? ! self::da_chot( $st ) : $xin_edit;
 
 		$wpdb->delete( VHCP_DB::t( 'chiphi' ), array( 'id' => (string) $id ) );
+		/* Xoá dòng thì ghi vết cho MỌI VAI, không riêng Admin. Nhật ký riêng của Admin ở dưới
+		   là để đánh dấu chuyện phá khoá; còn đây là câu trả lời cho "ai xoá mất dòng này". */
+		self::ghi_vet( (string) $cur['ma_don'], ( $ps ? 'Xoá dòng phát sinh' : 'Xoá hạng mục xin' ),
+			self::ta_dong( $cur ) . ' · lúc đơn ở "' . $st . '"' );
 
 		/* Ghi vết khi Admin xóa ở trạng thái mà người khác không xóa được. Ghi cả nội dung và
 		   số tiền: sau khi xóa thì dòng không còn để tra lại, nhật ký là bản sao duy nhất. */
