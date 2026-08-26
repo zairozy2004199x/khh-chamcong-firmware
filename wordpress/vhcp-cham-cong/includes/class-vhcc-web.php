@@ -905,7 +905,35 @@ class VHCC_Web {
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
 			. 'summary::marker{color:var(--xanh)}'
 			. 'summary:hover{color:var(--xanh)}'
-			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}'
+			/* --- đầu trang --- */
+			. '.hieu{flex:1;font-size:16px;text-decoration:none;color:var(--chu)}'
+			. '.hieu b{color:var(--xanh)}'
+			/* --- trang chào: thẻ việc --- */
+			. '.chao{background:linear-gradient(180deg,#f8fafc,var(--the))}'
+			. '.the-viec{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}'
+			. '.viec{display:block;padding:13px 14px;border:1px solid var(--vien);border-radius:10px;'
+			. 'text-decoration:none;color:var(--chu);background:var(--the)}'
+			. '.viec:hover{border-color:var(--xanh);background:#f8fafc}'
+			. '.viec b{display:block;font-size:15px;margin-bottom:3px}'
+			. '.viec span{display:block;font-size:13px;color:var(--mo);line-height:1.45}'
+			. '.viec-chinh{border-color:var(--xanh);background:#eff6ff}'
+			. '.viec-chinh b{color:var(--xanh)}'
+			. 'input.link{width:100%;min-width:220px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}'
+			/* --- ĐIỆN THOẠI ---
+			   Cửa hàng trưởng ở cơ sở phần lớn chỉ có điện thoại. Bảng ngang thì vẫn phải cuộn —
+			   một tháng 31 cột không có cách nào nhét vừa màn 5 inch — nhưng MỌI THỨ KHÁC thì
+			   không được bắt cuộn ngang: ô lọc xếp dọc, thẻ việc một cột, chữ vừa đọc. */
+			. '@media(max-width:640px){'
+			. '.bo{padding:10px}h1{font-size:15px}.hieu{font-size:15px}'
+			. '.ai{width:100%;order:3;font-size:12px}'
+			. '.the{padding:13px;border-radius:9px}'
+			. '.hang{gap:8px}.hang>div{flex:1 1 140px}'
+			. '.luoi{grid-template-columns:1fr}'
+			. '.the-viec{grid-template-columns:1fr}'
+			. 'table.cc{font-size:11px}table.cc td:first-child{min-width:140px}'
+			. 'input,select,textarea{font-size:16px}'   /* 16px: dưới mức này iPhone tự phóng to trang */
+			. '.nut{padding:9px 12px}'
+			. '}'
 			/* In ra giấy: bỏ nền, bỏ nút, để bảng lọt trang ngang. */
 			. '@media print{header,form,.nut{display:none!important}'
 			. 'body{background:#fff}.the{border:0;padding:0;margin:0 0 10px}'
@@ -1021,8 +1049,10 @@ class VHCC_Web {
 		$GLOBALS['VHCC_FORM_ROI'] = '';
 
 		echo self::dau( 'Quản trị Chấm Công' );
-		echo '<header><div class="bo"><h1>Quản trị Chấm Công</h1>'
-			. '<span class="mo">' . esc_html( $toi['name'] . ' · ' . VHCC_Vai::ten( $toi ) ) . '</span>'
+		echo '<header><div class="bo">'
+			. '<a class="hieu" href="' . esc_url( self::url() ) . '"><b>K&amp;H</b> Chấm công</a>'
+			. '<span class="mo ai">' . esc_html( $toi['name'] ) . ' · '
+			. esc_html( VHCC_Vai::ten( $toi ) ) . '</span>'
 			. '<form method="post" style="margin:0"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<button name="viec" value="thoat">Thoát</button></form></div></header>';
 		echo '<div class="bo">';
@@ -1038,6 +1068,12 @@ class VHCC_Web {
 		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
 		if ( ! isset( $ds_man[ $man ] ) ) { $man = self::man_mac_dinh( $ds_man ); }
 		if ( count( $ds_man ) > 1 ) { self::thanh_man( $man, $ds_man ); }
+
+		if ( 'nha' === $man ) {
+			self::the_nha( $toi );
+			echo '</div></body></html>';
+			return;
+		}
 
 		if ( 'cong_toi' === $man ) {
 			self::the_cong_toi( $toi );
@@ -1102,7 +1138,11 @@ class VHCC_Web {
 	 * Nay: thứ tự ưu tiên nằm ở đây, thành chữ. Thêm màn mới không đổi màn mặc định của ai —
 	 * trừ khi cố ý khai nó vào danh sách này.
 	 */
-	const MAN_UU_TIEN = array( 'ho_so', 'cham', 'vp', 'cong_toi' );
+	/* 🔴 'nha' đứng ĐẦU: ai đăng nhập vào cũng rơi vào trang chào trước.
+	   Anh Thắng 26/08: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"* — người bộ phận mở
+	   đường link ra mà rơi thẳng vào một bảng số thì không biết mình được làm gì và bấm vào đâu.
+	   Trang chào nói ra trước, rồi mới tới bảng. */
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'vp', 'cong_toi' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -1113,7 +1153,7 @@ class VHCC_Web {
 	}
 
 	public static function man_cua( $toi ) {
-		$ds = array();
+		$ds = array( 'nha' => 'Trang chính' );
 		if ( VHCC_Vai::duoc( $toi, 'cong_minh' ) ) { $ds['cong_toi'] = 'Công của tôi'; }
 		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['cham']     = 'Bảng chấm công'; }
 		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['vp']       = 'Bảng công tháng'; }
@@ -1502,6 +1542,123 @@ class VHCC_Web {
 			echo '</tbody></table></div>';
 		}
 		echo '</div>';
+	}
+
+	/**
+	 * TRANG CHÀO — người mở trang ra thấy NGAY mình làm được gì và bấm vào đâu.
+	 *
+	 * Anh Thắng 26/08/2026: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"*.
+	 *
+	 * 🔴 Vấn đề thật: đường link gửi cho một cửa hàng trưởng mở ra là rơi thẳng vào một bảng số
+	 *    mấy trăm ô. Người ta không biết mình được làm gì, không biết cái nút nào là của mình,
+	 *    và cũng không biết mình KHÔNG được làm gì — nên bấm bừa rồi nhận về câu chối. Trang này
+	 *    nói ra trước, bằng lời, rồi mới tới bảng.
+	 *
+	 * ⚠️ Thẻ việc dựng theo QUYỀN, không theo tên vai trò. Ai không mở được việc gì thì việc ấy
+	 *    KHÔNG hiện — chứ không hiện rồi chối. Hiện rồi chối là dạy người dùng rằng cái màn này
+	 *    hay nói dối, và từ đó họ không tin cái nút nào nữa.
+	 */
+	private static function the_nha( $toi ) {
+		$ten = isset( $toi['name'] ) ? (string) $toi['name'] : '';
+		$ds_cs = self::ds_coso_xem( $toi );
+		$th_nay = substr( (string) current_time( 'Y-m-d' ), 0, 7 );
+
+		echo '<div class="the chao">';
+		echo '<h2 style="font-size:19px;margin:0 0 2px">Chào ' . esc_html( $ten ) . '</h2>';
+		echo '<p class="mo" style="margin:0">Anh/chị đang vào với vai <b>' . esc_html( VHCC_Vai::ten( $toi ) )
+			. '</b>' . ( $ds_cs ? ' · phụ trách <b>' . count( $ds_cs ) . '</b> cơ sở' : '' )
+			. '. Bên dưới là <b>đúng những việc anh/chị làm được</b> — việc nào không hiện là vai này '
+			. 'chưa mở, không phải hỏng.</p>';
+		echo '</div>';
+
+		/* Danh sách việc. Mỗi việc: quyền cần có · tên · một câu "để làm gì" · đường tới. */
+		$viec = array();
+		$viec[] = array( 'q' => 'cham_online', 'ten' => '📷 Chấm công',
+			'chu' => 'Bấm giờ vào / giờ ra bằng điện thoại, có ảnh và vị trí.',
+			'url' => VHCC_Tram::url(), 'chinh' => true );
+		$viec[] = array( 'q' => 'cong_minh', 'ten' => 'Công của tôi',
+			'chu' => 'Xem tháng này mình đi làm bao nhiêu ngày, bao nhiêu giờ.',
+			'url' => add_query_arg( array( 'man' => 'cong_toi' ), self::url() ) );
+		$viec[] = array( 'q' => 'cong_coso', 'ten' => 'Bảng chấm công',
+			'chu' => 'Giờ vào / giờ ra từng ngày của cơ sở. Chỉ đọc — thấy sai thì gắn cờ.',
+			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) );
+		$viec[] = array( 'q' => 'cong_coso', 'ten' => 'Bảng công tháng',
+			'chu' => 'Lưới cả tháng: ai làm ca nào, mấy giờ. Xuất được ra Excel.',
+			'url' => add_query_arg( array( 'man' => 'vp', 'cth' => $th_nay ), self::url() ) );
+		$viec[] = array( 'q' => 'cham_bu', 'ten' => 'Chấm công bù',
+			'chu' => 'Máy hỏng hoặc nhân viên quên bấm thì bù vào — có ghi lại ai bù, vì sao.',
+			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) . '#bucong' );
+		$viec[] = array( 'q' => 'lich_lam', 'ten' => 'Khai ca làm việc',
+			'chu' => 'Cơ sở chạy mấy ca, mỗi ca từ mấy giờ đến mấy giờ.',
+			'url' => add_query_arg( array( 'man' => 'vp', 'cth' => $th_nay ), self::url() ) . '#khaica' );
+		$viec[] = array( 'q' => 'nap_cong', 'ten' => 'Nạp công từ .csv',
+			'chu' => 'Đưa bảng công cũ từ Google Sheets vào. Có nút Xem trước, chưa ghi gì.',
+			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) . '#napcong' );
+		$viec[] = array( 'q' => 'ho_so', 'ten' => 'Hồ sơ & tài khoản',
+			'chu' => 'Khai người, cấp PIN, đặt vai trò và cơ sở phụ trách.',
+			'url' => add_query_arg( array( 'man' => 'ho_so' ), self::url() ) );
+
+		echo '<div class="the"><h3 style="margin:0 0 10px">Việc anh/chị làm được</h3>';
+		echo '<div class="the-viec">';
+		foreach ( $viec as $v ) {
+			if ( ! VHCC_Vai::duoc( $toi, $v['q'] ) ) { continue; }
+			echo '<a class="viec' . ( empty( $v['chinh'] ) ? '' : ' viec-chinh' ) . '" href="'
+				. esc_url( $v['url'] ) . '">';
+			echo '<b>' . esc_html( $v['ten'] ) . '</b>';
+			echo '<span>' . esc_html( $v['chu'] ) . '</span>';
+			echo '</a>';
+		}
+		echo '</div></div>';
+
+		self::the_link_bo_phan( $toi, $ds_cs, $th_nay );
+	}
+
+	/**
+	 * ĐƯỜNG LINK GỬI CHO TỪNG BỘ PHẬN / CƠ SỞ.
+	 *
+	 * Anh Thắng cần *"gửi các bộ phận"*. Gửi mỗi địa chỉ trần thì người nhận mở ra phải tự chọn
+	 * bộ phận, chọn cơ sở, chọn tháng — ba lần chọn trước khi thấy được thứ mình cần, và chọn sai
+	 * một ô là nhìn nhầm số của cơ sở khác. Link ở đây mang sẵn cả ba.
+	 *
+	 * ⚠️ LINK KHÔNG PHẢI LÀ CHÌA KHOÁ. Người nhận vẫn phải đăng nhập bằng PIN của họ, và vẫn chỉ
+	 *    thấy cơ sở thuộc phạm vi của họ — link chỉ đỡ mấy lượt bấm chọn. Ai đó chuyển tiếp link
+	 *    cho người ngoài thì người ngoài mở ra vẫn là màn nhập PIN.
+	 */
+	private static function the_link_bo_phan( $toi, $ds_cs, $th_nay ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) || ! $ds_cs ) { return; }
+
+		/* Gom cơ sở theo bộ phận để người gửi tìm ra chỗ mình cần mà không phải đọc cả danh sách. */
+		$theo_bp = array();
+		foreach ( $ds_cs as $x ) { $theo_bp[ VHCC_Luong::bo_phan_cua( $x ) ][] = $x; }
+		ksort( $theo_bp );
+
+		echo '<div class="the" id="guilink"><details><summary><b>Đường link gửi cho bộ phận</b> '
+			. '<span class="mo">(bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Mỗi dòng là một đường link mở sẵn <b>đúng cơ sở '
+			. 'và tháng này</b> — người nhận khỏi phải chọn. Bôi đen ô rồi copy, dán vào Zalo là xong.</p>';
+		echo '<p class="mo">⚠️ Link <b>không phải chìa khoá</b>: người nhận vẫn phải đăng nhập bằng '
+			. 'PIN của họ và vẫn chỉ thấy cơ sở thuộc phạm vi của họ. Chuyển tiếp cho người ngoài '
+			. 'thì người ngoài mở ra chỉ thấy màn nhập PIN.</p>';
+		echo '<div class="cuon"><table><thead><tr><th>Bộ phận</th><th>Cơ sở</th>'
+			. '<th>Link bảng chấm công</th><th>Link bảng công tháng</th></tr></thead><tbody>';
+		foreach ( $theo_bp as $bp => $ds ) {
+			sort( $ds );
+			foreach ( $ds as $i => $cs ) {
+				echo '<tr>';
+				echo '<td>' . ( 0 === $i ? esc_html( $bp ) : '' ) . '</td>';
+				echo '<td><b>' . esc_html( $cs ) . '</b></td>';
+				foreach ( array( 'cham', 'vp' ) as $m ) {
+					$u = add_query_arg( array( 'man' => $m, 'ccs' => $cs, 'cth' => $th_nay ), self::url() );
+					/* Ô chỉ đọc để bôi đen copy. KHÔNG gắn `onfocus="this.select()"` cho tiện —
+					   cả màn này không có lấy một dòng script, và một thuộc tính JS lẻ ở đây là
+					   cái khe để dòng thứ hai chui vào sau. Bấm vào ô rồi Ctrl+A vẫn chọn được. */
+					echo '<td><input class="link" readonly value="' . esc_attr( $u ) . '">'
+						. ' <a href="' . esc_url( $u ) . '">mở</a></td>';
+				}
+				echo '</tr>';
+			}
+		}
+		echo '</tbody></table></div></details></div>';
 	}
 
 	/**

@@ -421,9 +421,13 @@ $man_cht = VHCC_Web::man_cua( $u_lk );
 t( 'cửa hàng trưởng có màn công của mình', isset( $man_cht['cong_toi'] ), array_keys( $man_cht ) );
 t( 'và màn bảng công cơ sở', isset( $man_cht['cham'] ), array_keys( $man_cht ) );
 t( 'nhưng KHÔNG có màn hồ sơ', ! isset( $man_cht['ho_so'] ), array_keys( $man_cht ) );
+/* ⚠️ Lại một phép đếm bằng con số gõ tay ("chỉ có 1 màn") — vỡ ngay lần thêm Trang chính, dù
+   chẳng có gì sai: nhân viên ĐƯỢC vào trang chào. Canh TÊN màn thì thêm màn mới không đỏ oan. */
 $man_nv = VHCC_Web::man_cua( array( 'role' => 'Nhân viên' ) );
-t( 'nhân viên chỉ có 1 màn', 1 === count( $man_nv ), array_keys( $man_nv ) );
-t( 'và đó là "Công của tôi"', isset( $man_nv['cong_toi'] ) );
+t( 'nhân viên có Trang chính', isset( $man_nv['nha'] ), array_keys( $man_nv ) );
+t( 'và có "Công của tôi"', isset( $man_nv['cong_toi'] ), array_keys( $man_nv ) );
+t( 'nhưng KHÔNG có bảng công cơ sở', ! isset( $man_nv['cham'] ), array_keys( $man_nv ) );
+t( 'và KHÔNG có hồ sơ', ! isset( $man_nv['ho_so'] ), array_keys( $man_nv ) );
 $man_ad = VHCC_Web::man_cua( array( 'role' => 'Admin' ) );
 /* Admin phải có ĐỦ mọi màn mà bất cứ vai nào khác có được — chốt này không cần đếm, và tự đúng
    khi thêm màn mới. */

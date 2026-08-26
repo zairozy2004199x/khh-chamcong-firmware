@@ -5159,7 +5159,7 @@ foreach ( array( 'xoa_het', 'doi_nguon', 'khai_admin', 'doi_ma' ) as $v_ad ) {
 $_POST = array(); $_COOKIE = array();
 
 /* Admin thì vẫn đủ hai màn, y như trước. */
-$h_w = vhcc_web( '246813' );
+$h_w = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'Admin thấy thanh chọn màn', strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) !== false, $h_w );
 t( 'Admin mặc định vào màn hồ sơ', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
 $h_w = vhcc_web( '246813', array(), array( 'man' => 'cham' ) );
@@ -5186,7 +5186,7 @@ t( 'nhưng Quản lý KHÔNG thấy hồ sơ', strpos( $h_w, 'Nguyễn Thu Hiề
 t( 'nhưng KHÔNG thấy nút xoá sạch hồ sơ', strpos( $h_w, 'value="xoa_het"' ) === false );
 t( 'và không khai được Admin', strpos( $h_w, 'value="khai_admin"' ) === false );
 
-$h_w = vhcc_web( '246813' );
+$h_w = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'Admin vào được', strpos( $h_w, 'Nguyễn Thu Hiền' ) !== false );
 t( 'có ô nạp file .csv ngay trên web', strpos( $h_w, 'name="tep"' ) !== false );
 t( 'có nút xem trước', strpos( $h_w, 'value="xem_csv"' ) !== false );
@@ -5203,7 +5203,7 @@ t( 'KHÔNG cho sửa Mã NV', ! in_array( 'ma_nv', VHCC_Web::COT_SUA, true ) );
 /* ---- 47d. SỬA HỒ SƠ NGAY TRÊN BẢNG: PIN, VAI TRÒ, VÀ Ô CHO CHỌN ---- */
 /* Anh Thắng: *"hồ sơ nhân sự chưa có cột PIN"*, *"cột nhiệm vụ cũng chưa có để chị"*, *"chọn"*,
    và *"Nhiệm vụ: Nhân Viên, Admin, Cửa Hàng Trưởng, Kế Toán"*. */
-$h_w = vhcc_web( '246813' );
+$h_w = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'có Ô NHẬP PIN ngay tại dòng', strpos( $h_w, 'name="pin_dang_nhap[W1]"' ) !== false );
 t( 'nhưng KHÔNG điền sẵn PIN cũ vào ô', strpos( $h_w, 'value="170412"' ) === false, $h_w );
 t( 'có ô tích XOÁ PIN cho người đã có PIN', strpos( $h_w, 'name="xoa_pin[W1]"' ) !== false );
@@ -5239,7 +5239,7 @@ foreach ( array( 'Admin', 'Kế Toán', 'Nhân Viên', 'Thu Tiền' ) as $g ) {
 		strpos( $h_w, '<option value="' . $g . '">' ) !== false, $h_w );
 }
 $wpdb->query( "UPDATE " . VHCC_DB::t( 'nhan_vien' ) . " SET nhiem_vu='JP Aeon Mall Tân Phú'" );
-$h_nv = vhcc_web( '246813' );
+$h_nv = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'tên cơ sở trong cột Nhiệm vụ KHÔNG trôi vào danh sách xổ ra',
 	strpos( $h_nv, '<option value="JP Aeon Mall Tân Phú">' ) === false, $h_nv );
 $wpdb->query( "UPDATE " . VHCC_DB::t( 'nhan_vien' ) . " SET nhiem_vu=''" );
@@ -5267,7 +5267,7 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'K1', 'ho_ten' => 'C
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'K2', 'ho_ten' => 'Có Pin Chưa Vai Trò',
 	'cua_hang' => 'JP_HCM', 'pin_dang_nhap' => '246813', 'vai_tro' => '' ) );
 
-$h_d = vhcc_web( '246813' );
+$h_d = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'có bộ đếm ai vào được / ai chưa', strpos( $h_d, '1/3</b> người đăng nhập được' ) !== false, $h_d );
 t( 'đếm đúng số người CHƯA có PIN', strpos( $h_d, '<b>1</b> chưa có PIN' ) !== false, $h_d );
 t( 'và có đường bấm thẳng sang danh sách người chưa vào được',
@@ -5277,15 +5277,15 @@ t( 'người CHƯA có PIN hiện dấu ✖ màu đỏ', strpos( $h_d, '✖ chư
 t( 'người chưa khai vai trò cũng hiện ✖', strpos( $h_d, '✖ chưa khai' ) !== false );
 
 /* Lọc ra đúng nhóm cần xử. */
-$h_l = vhcc_web( '246813', array(), array( 'loc' => 'chua_pin' ) );
+$h_l = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'loc' => 'chua_pin'  ) );
 t( 'lọc "chưa có PIN" ra đúng người đó', strpos( $h_l, 'Chưa Có Pin' ) !== false
 	&& strpos( $h_l, 'Nguyễn Thu Hiền' ) === false, $h_l );
-$h_l = vhcc_web( '246813', array(), array( 'loc' => 'chua_vt' ) );
+$h_l = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'loc' => 'chua_vt'  ) );
 t( 'lọc "chưa khai vai trò" ra đúng người đó', strpos( $h_l, 'Có Pin Chưa Vai Trò' ) !== false
 	&& strpos( $h_l, 'Chưa Có Pin' ) === false, $h_l );
 /* 🔴 Câu hỏi THẬT không phải "có PIN chưa" mà "VÀO ĐƯỢC chưa": thiếu PIN, HOẶC vai trò nằm
    ngoài nhóm được vào — cả hai đều là không đăng nhập được. */
-$h_l = vhcc_web( '246813', array(), array( 'loc' => 'chua_vao' ) );
+$h_l = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'loc' => 'chua_vao'  ) );
 t( 'lọc "chưa đăng nhập được" gom CẢ hai kiểu thiếu',
 	strpos( $h_l, 'Chưa Có Pin' ) !== false && strpos( $h_l, 'Có Pin Chưa Vai Trò' ) !== false
 	&& strpos( $h_l, 'Nguyễn Thu Hiền' ) === false, $h_l );
@@ -5296,12 +5296,12 @@ $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => '' ), array( 'ma_n
    thử không phân biệt được — em đã vấp đúng chỗ này lúc phá mã. */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'W8', 'ho_ten' => 'Người Kia',
 	'cua_hang' => 'JP_HCM', 'pin_dang_nhap' => '864209', 'vai_tro' => 'Quản lý' ) );
-$h_p = vhcc_web( '246813', array(), array( 'pin' => 'W1' ) );
+$h_p = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'pin' => 'W1'  ) );
 t( 'bấm xem thì PIN của ĐÚNG người đó hiện ra', strpos( $h_p, '170412' ) !== false, $h_p );
 t( '🔴 nhưng PIN người KHÁC vẫn ẩn — không lộ cả bảng',
 	strpos( $h_p, '864209' ) === false, $h_p );
 t( 'và có đường ẩn lại', strpos( $h_p, '>ẩn</a>' ) !== false );
-$h_p2 = vhcc_web( '246813' );
+$h_p2 = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'không bấm gì thì KHÔNG PIN nào hiện',
 	strpos( $h_p2, '170412' ) === false && strpos( $h_p2, '864209' ) === false, $h_p2 );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='W8'" );
@@ -5309,7 +5309,7 @@ $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='W8'" )
 t( 'KHÔNG có nút hiện tất cả PIN', stripos( $h_w, 'hiện hết' ) === false
 	|| strpos( $h_w, 'Cố ý không có nút' ) !== false );
 /* Quản lý KHÔNG xem được PIN của người khác, dù gõ thẳng địa chỉ. */
-$h_p = vhcc_web( '357913', array(), array( 'pin' => 'W1' ) );
+$h_p = vhcc_web( '357913', array(), array( 'man' => 'ho_so', 'pin' => 'W1'  ) );
 t( 'Quản lý gõ thẳng địa chỉ cũng KHÔNG xem được PIN', strpos( $h_p, '170412' ) === false, $h_p );
 t( 'và Quản lý cũng không thấy nút xem', strpos( $h_p, '👁 xem' ) === false );
 
@@ -5425,13 +5425,13 @@ t( '🔴 chuyển hướng GIỮ NGUYÊN bộ lọc đang xem',
 teq( 'và việc vẫn được làm', 'Đổi Tên Lần Nữa', vhcc_hs( 'W1' )['ho_ten'] );
 /* Mọi form POST phải chở bộ lọc theo, không thì chuyển hướng về chẳng biết đường nào mà lần. */
 $_GET = array( 'cs' => 'JP_HCM', 'loc' => 'chua_vao' );
-$h_lo = vhcc_web( '246813', array(), array( 'cs' => 'JP_HCM', 'loc' => 'chua_vao' ) );
+$h_lo = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'cs' => 'JP_HCM', 'loc' => 'chua_vao'  ) );
 $_GET = array();
 t( 'form trong trang chở theo bộ lọc bằng ô ẩn',
 	strpos( $h_lo, '<input type="hidden" name="cs" value="JP_HCM">' ) !== false
 	&& strpos( $h_lo, '<input type="hidden" name="loc" value="chua_vao">' ) !== false, $h_lo );
 /* Kết quả chỉ hiện MỘT LẦN — không dính lại ở lần tải trang sau. */
-$h_l1 = vhcc_web( '246813' );
+$h_l1 = vhcc_web( '246813', array(), array( 'man' => 'ho_so' ) );
 t( 'kết quả không dính lại ở lần tải trang sau',
 	strpos( $h_l1, 'Đã lưu 1 dòng' ) === false, $h_l1 );
 
@@ -5544,7 +5544,7 @@ teq( 'và mã vẫn nguyên', 1, count( VHCC_DB::rows(
 $_POST = array(); $_COOKIE = array();
 
 /* Màn Sửa đủ: có ô đổi mã, và nói trước sẽ động vào bao nhiêu hàng. */
-$h_w = vhcc_web( '246813', array(), array( 'sua' => 'MOI01' ) );
+$h_w = vhcc_web( '246813', array(), array( 'man' => 'ho_so', 'sua' => 'MOI01'  ) );
 t( 'màn Sửa đủ mở được', strpos( $h_w, 'Sửa hồ sơ MOI01' ) !== false, $h_w );
 t( 'có ô đổi Mã NV', strpos( $h_w, 'name="ma_moi"' ) !== false );
 t( 'và nói TRƯỚC sẽ kéo theo bao nhiêu hàng', strpos( $h_w, 'kéo theo cả 4 hàng' ) !== false, $h_w );
@@ -5875,6 +5875,14 @@ t( 'và mang cả `nguon` để biết giờ từ máy hay từ trạm online',
 update_option( 'vhcc_nguon_nguoidung', 'rieng' );
 $r_khai_qtc = VHCC_NguoiDung::luu( '', 'Admin Soát Công', '135791', 'Admin', '' );
 t( 'khai được một Admin để soi màn bảng công', ! empty( $r_khai_qtc['ok'] ), $r_khai_qtc );
+/* 🔴 Và một NHÂN VIÊN trong CÙNG nguồn người dùng.
+   PIN 680246 khai ở mục 47 nằm ở nguồn `chung`, mà mục này đã đổi nguồn sang `rieng` — dùng lại
+   nó là rơi vào MÀN ĐĂNG NHẬP. Mấy phép "Nhân viên không thấy X" vì thế xanh nhờ một lý do
+   hoàn toàn khác: chúng đang soi cái màn nhập PIN, nơi dĩ nhiên không có gì cả. */
+$r_khai_nv = VHCC_NguoiDung::luu( '', 'Em Nhân Viên', '864202', 'Nhân viên', 'TUTU_BT' );
+t( 'khai được một Nhân viên cùng nguồn', ! empty( $r_khai_nv['ok'] ), $r_khai_nv );
+t( 'và Nhân viên ấy VÀO ĐƯỢC (kẻo mọi phép "không thấy X" chỉ đang soi màn đăng nhập)',
+	strpos( vhcc_web( '864202' ), 'name="pin"' ) === false );
 $h_vao_qtc = vhcc_web( '135791' );
 t( 'Admin vừa khai vào được trang quản trị (kẻo phép dưới soi nhầm màn đăng nhập)',
 	strpos( $h_vao_qtc, 'name="pin"' ) === false, $h_vao_qtc );
@@ -5961,8 +5969,11 @@ t( 'lọc theo mã NV KHÔNG phân biệt hoa thường',
 /* Cả màn quản trị này không có lấy một dòng script. Thêm một dòng vào đây là mở ra một thứ chỉ
    chạy khi trình duyệt chịu chạy, mà lại KHÔNG thử được bằng bộ thử PHP. */
 t( 'màn quản trị KHÔNG có thẻ <script> nào', stripos( $h_qtc, '<script' ) === false, $h_qtc );
-t( 'và không có thuộc tính onclick/onerror nào trong HTML',
-	! preg_match( '/\son(click|error|load|change|submit)=/i', $h_qtc ), $h_qtc );
+/* ⚠️ Danh sách này phải RỘNG, không chỉ mấy cái hay gặp. Em suýt nhét `onfocus="this.select()"`
+   vào ô copy đường link cho tiện — `onfocus` không có trong danh sách cũ nên phép thử vẫn xanh.
+   Một thuộc tính JS lẻ là cái khe để dòng thứ hai chui vào sau. */
+t( 'và không có thuộc tính JS nào trong HTML',
+	! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_qtc ), $h_qtc );
 t( 'nút 🚩 là đường liên kết chở sẵn ngày', strpos( $h_qtc, 'gnd=2026-07-06' ) !== false, $h_qtc );
 t( 'và chở sẵn mã nhân viên', strpos( $h_qtc, 'gma=QTC1' ) !== false );
 t( 'và neo xuống đúng khối gắn cờ', strpos( $h_qtc, '#gancoform' ) !== false );
@@ -6059,7 +6070,7 @@ $r_np  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
 t( 'và POST thẳng việc nap_cong cũng KHÔNG lọt', is_array( $r_np ) && ! isset( $r_np[0]['xong'] ), $r_np );
 $_POST = array();
 /* Nhân viên thì không có cả hai. */
-$h_nv2 = vhcc_web( '680246', array(), $g_qtc );
+$h_nv2 = vhcc_web( '864202', array(), $g_qtc );
 t( 'Nhân viên không thấy khối bù', strpos( $h_nv2, 'id="bucong"' ) === false, $h_nv2 );
 $_POST = array( 'viec' => 'bu' );
 $r_bu  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
@@ -6427,7 +6438,7 @@ $c_x2 = VHCC_Web::vi_sao_khong_xuat(
 t( 'Cửa hàng trưởng không tải được cơ sở của người khác', '' !== $c_x2, $c_x2 );
 
 /* Nhân viên không khai ca được, kể cả POST thẳng. */
-$h_ca_nv = vhcc_web( '680246', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+$h_ca_nv = vhcc_web( '864202', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
 t( 'Nhân viên không thấy khối khai ca', strpos( $h_ca_nv, 'id="khaica"' ) === false, $h_ca_nv );
 $_POST = array( 'viec' => 'ca', 'ccs' => $CS_GIO, 'ca_ten' => array( 'Lậu' ),
 	'ca_tu' => array( '00:00' ), 'ca_den' => array( '23:00' ) );
@@ -6470,6 +6481,64 @@ teq( 'và form chấm công bù cũng vậy', 'TUTU_BT',
 	vhcc_ccs_cuoi( vhcc_web( '135791', array(),
 		array( 'man' => 'cham', 'ccs' => 'CS_TUTU_BT', 'cth' => '2026-07' ) ), 'value="bu"' ) );
 
+// ====== 51. TRANG CHÀO + LINK GỬI BỘ PHẬN + CHẠY ĐƯỢC TRÊN ĐIỆN THOẠI
+/* Anh Thắng 26/08: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"*. Bốn hướng anh chốt:
+   trang chào theo vai · phần nhìn gọn · chạy tốt trên điện thoại · link riêng từng bộ phận. */
+
+$h_nha_ad = vhcc_web( '135791' );                       // Admin
+$h_nha_nv = vhcc_web( '864202' );                       // Nhân viên
+$h_nha_ch = vhcc_web( '357913' );                       // Cửa hàng trưởng
+
+t( 'mở trang ra là vào Trang chính', strpos( $h_nha_ad, 'Việc anh/chị làm được' ) !== false, $h_nha_ad );
+t( 'chào đúng tên người đang vào', strpos( $h_nha_ad, 'Chào Admin Soát Công' ) !== false, $h_nha_ad );
+t( 'và nói rõ đang vào với vai gì', strpos( $h_nha_ad, 'Admin' ) !== false );
+/* 🔴 Thẻ việc dựng theo QUYỀN. Hiện rồi chối là dạy người dùng rằng màn này hay nói dối, và từ
+   đó họ không tin cái nút nào nữa. */
+t( 'Nhân viên thấy việc chấm công', strpos( $h_nha_nv, 'Chấm công</b>' ) !== false, $h_nha_nv );
+t( 'và thấy việc xem công của mình', strpos( $h_nha_nv, 'Công của tôi</b>' ) !== false, $h_nha_nv );
+t( 'nhưng KHÔNG thấy việc nạp công', strpos( $h_nha_nv, 'Nạp công từ .csv</b>' ) === false, $h_nha_nv );
+t( 'không thấy việc hồ sơ', strpos( $h_nha_nv, 'Hồ sơ &amp; tài khoản</b>' ) === false, $h_nha_nv );
+t( 'không thấy việc khai ca', strpos( $h_nha_nv, 'Khai ca làm việc</b>' ) === false, $h_nha_nv );
+t( 'Cửa hàng trưởng thấy việc chấm công bù', strpos( $h_nha_ch, 'Chấm công bù</b>' ) !== false, $h_nha_ch );
+t( 'và thấy việc khai ca', strpos( $h_nha_ch, 'Khai ca làm việc</b>' ) !== false, $h_nha_ch );
+t( 'nhưng KHÔNG thấy việc nạp công (bậc Quản lý)',
+	strpos( $h_nha_ch, 'Nạp công từ .csv</b>' ) === false, $h_nha_ch );
+t( 'Admin thấy đủ, kể cả hồ sơ', strpos( $h_nha_ad, 'Hồ sơ &amp; tài khoản</b>' ) !== false, $h_nha_ad );
+/* Mỗi thẻ phải có một câu nói việc đó ĐỂ LÀM GÌ — chỉ có tên thì vẫn phải đoán. */
+t( 'mỗi việc kèm một câu giải thích', substr_count( $h_nha_ad, '<span>' ) >= 5, $h_nha_ad );
+
+/* ---- link gửi bộ phận ---- */
+t( 'có khối Đường link gửi cho bộ phận', strpos( $h_nha_ad, 'id="guilink"' ) !== false, $h_nha_ad );
+t( 'khối link thu gọn sẵn', strpos( $h_nha_ad, 'id="guilink"><details>' ) !== false, $h_nha_ad );
+t( 'link mang sẵn cơ sở', strpos( $h_nha_ad, 'ccs=TUTU_BT' ) !== false, $h_nha_ad );
+t( 'và mang sẵn tháng', preg_match( '/cth=\d{4}-\d{2}/', $h_nha_ad ) === 1, $h_nha_ad );
+t( 'gom cơ sở theo bộ phận', strpos( $h_nha_ad, '<th>Bộ phận</th>' ) !== false, $h_nha_ad );
+/* 🔴 Nói THẲNG rằng link không phải chìa khoá — kẻo người gửi tưởng ai cầm link cũng xem được,
+   rồi ngại không dám gửi, hoặc tệ hơn là tưởng đã chia sẻ xong mà người nhận mở ra chẳng thấy gì. */
+t( 'nói rõ link KHÔNG phải chìa khoá', strpos( $h_nha_ad, 'không phải chìa khoá' ) !== false, $h_nha_ad );
+t( 'Nhân viên KHÔNG có khối link gửi bộ phận', strpos( $h_nha_nv, 'id="guilink"' ) === false, $h_nha_nv );
+
+/* ---- chạy được trên điện thoại ---- */
+t( 'trang khai khổ màn hình', strpos( $h_nha_ad, 'name="viewport"' ) !== false, $h_nha_ad );
+t( 'có luật riêng cho màn nhỏ', strpos( $h_nha_ad, '@media(max-width:640px)' ) !== false, $h_nha_ad );
+/* 🔴 Ô nhập dưới 16px thì iPhone TỰ PHÓNG TO cả trang mỗi lần bấm vào ô, và không tự thu lại —
+   người dùng phải vuốt ngang suốt phần còn lại. Đây là lỗi ai cũng gặp mà ít ai lần ra. */
+t( 'ô nhập trên điện thoại đủ 16px (kẻo iPhone tự phóng to trang)',
+	strpos( $h_nha_ad, 'input,select,textarea{font-size:16px}' ) !== false, $h_nha_ad );
+t( 'thẻ việc xuống một cột trên màn nhỏ',
+	strpos( $h_nha_ad, '.the-viec{grid-template-columns:1fr}' ) !== false, $h_nha_ad );
+t( 'ô lọc cũng xuống một cột', strpos( $h_nha_ad, '.luoi{grid-template-columns:1fr}' ) !== false, $h_nha_ad );
+/* Bảng ngang vẫn phải cuộn được — 31 cột không có cách nào nhét vừa màn 5 inch. */
+t( 'bảng rộng vẫn cuộn ngang được trong khung riêng',
+	strpos( $h_nha_ad, '.cuon{overflow-x:auto' ) !== false, $h_nha_ad );
+
+/* ---- phần nhìn ---- */
+t( 'đầu trang mang tên K&H', strpos( $h_nha_ad, '<b>K&amp;H</b> Chấm công' ) !== false, $h_nha_ad );
+t( 'bấm tên là về trang chính', strpos( $h_nha_ad, 'class="hieu"' ) !== false, $h_nha_ad );
+t( 'trang chào KHÔNG dùng JavaScript',
+	stripos( $h_nha_ad, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_nha_ad ),
+	$h_nha_ad );
+
 /* ---- MỌI FORM POST PHẢI MANG THẺ PHIÊN `ky` KHÁC RỖNG ---- */
 /* 🔴 Bắt được lỗi thật: tab "Bảng công tháng" gọi `the_cong_vp( $toi )` mà bên trong lại dùng
    `$ky` — biến chưa hề được truyền vào. Form khai ca vì thế mang `ky=""`, và trên trang thật
@@ -6479,6 +6548,7 @@ teq( 'và form chấm công bù cũng vậy', 'TUTU_BT',
 $man_thu = array(
 	'cham'     => array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ),
 	'vp'       => array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ),
+	'nha'      => array( 'man' => 'nha' ),
 	'cong_toi' => array( 'man' => 'cong_toi' ),
 	'ho_so'    => array( 'man' => 'ho_so' ),
 );
@@ -6498,19 +6568,20 @@ foreach ( $man_thu as $ten_man => $get_man ) {
 /* 🔴 Bản trước lấy màn CUỐI danh sách làm mặc định. Thêm tab "Bảng công tháng" (cùng bậc quyền
    với "Bảng chấm công") là Cửa hàng trưởng đăng nhập vào bỗng rơi thẳng vào tab mới, chỉ vì nó
    được khai sau một dòng. Không gì báo, thanh nút trông y hệt. */
-teq( 'Admin mặc định vào màn hồ sơ', 'ho_so',
-	VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => 'Admin' ) ) ) );
-teq( 'Cửa hàng trưởng mặc định vào Bảng chấm công, KHÔNG phải tab mới', 'cham',
-	VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => 'Cửa hàng trưởng' ) ) ) );
-teq( 'Nhân viên mặc định vào Công của tôi', 'cong_toi',
-	VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => 'Nhân viên' ) ) ) );
+/* 🔴 ĐỔI Ý CÓ CHỦ Ý (anh Thắng 26/08: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"*):
+   MỌI vai giờ mở ra là vào TRANG CHÀO, không rơi thẳng vào bảng số. Người bộ phận mở link ra mà
+   gặp ngay mấy trăm ô thì không biết mình được làm gì và bấm vào đâu. */
+foreach ( array( 'Admin', 'Kế toán cá nhân', 'Quản lý', 'Cửa hàng trưởng', 'Nhân viên' ) as $vt_md ) {
+	teq( $vt_md . ' mở ra là vào Trang chính', 'nha',
+		VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => $vt_md ) ) ) );
+}
 /* Và canh cả MÀN THẬT SỰ HIỆN RA, không chỉ canh hàm trả về gì: hàm đúng mà chỗ gọi không dùng
    nó thì mọi phép trên vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
 $h_cht_md = vhcc_web( '357913' );
-t( 'Cửa hàng trưởng đăng nhập vào là thấy MÀN BẢNG CHẤM CÔNG',
-	strpos( $h_cht_md, 'Chi tiết từng lượt' ) !== false, $h_cht_md );
-t( 'chứ không rơi vào tab Bảng công tháng',
-	strpos( $h_cht_md, 'là <b>số công</b>' ) === false
+t( 'Cửa hàng trưởng đăng nhập vào là thấy TRANG CHÀO',
+	strpos( $h_cht_md, 'Việc anh/chị làm được' ) !== false, $h_cht_md );
+t( 'chứ không rơi thẳng vào bảng số',
+	strpos( $h_cht_md, 'Chi tiết từng lượt' ) === false
 	&& strpos( $h_cht_md, 'là <b>số giờ làm</b>' ) === false, $h_cht_md );
 
 /* Mọi màn khai được đều phải có tên trong bảng ưu tiên, kẻo thêm màn mới là lại rơi vào nhánh
@@ -6521,7 +6592,7 @@ foreach ( array_keys( VHCC_Web::man_cua( array( 'role' => 'Admin' ) ) ) as $k_ma
 }
 
 /* Nhân viên bậc 1 không mở được tab này. */
-$h_vp_nv = vhcc_web( '680246', array(), $g_vp );
+$h_vp_nv = vhcc_web( '864202', array(), $g_vp );
 t( 'Nhân viên KHÔNG thấy tab Bảng công tháng', strpos( $h_vp_nv, '>Bảng công tháng<' ) === false, $h_vp_nv );
 t( 'và gõ tay ?man=vp cũng không ra lưới', strpos( $h_vp_nv, '↳ ca đêm' ) === false, $h_vp_nv );
 
