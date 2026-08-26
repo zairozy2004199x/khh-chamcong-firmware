@@ -1194,6 +1194,7 @@ function datNN(n){
 var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000 };
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
+var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
 var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
 
@@ -2432,8 +2433,27 @@ function veQuanLy(){
     + '</p></div>';
 
   /* ---- Ghế ---- */
-  var opt = '<option value="0">' + L('(chưa gán)','(unassigned)') + '</option>'
-    + coso.map(function(c){ return '<option value="' + c.id + '">' + esc(c.ten) + '</option>'; }).join('');
+  /* Cơ sở id đang lọc (để nút Thêm ghế mặc định gán luôn vào cơ sở đang xem). */
+  var locId = 0;
+  coso.forEach(function(c){ if (c.ten === QL_LOC) locId = c.id; });
+  var opt = '<option value="0"' + (locId ? '' : ' selected') + '>' + L('(chưa gán)','(unassigned)')
+    + '</option>' + coso.map(function(c){
+        return '<option value="' + c.id + '"' + (c.id === locId ? ' selected' : '') + '>'
+          + esc(c.ten) + '</option>'; }).join('');
+  /* Bộ lọc theo cơ sở — kèm số ghế mỗi cơ sở cho dễ nhìn. */
+  var flt = '<option value="">' + L('Tất cả cơ sở','All sites') + ' (' + may.length + ')</option>'
+    + coso.map(function(c){
+        return '<option value="' + esc(c.ten) + '"' + (QL_LOC === c.ten ? ' selected' : '') + '>'
+          + esc(c.ten) + ' (' + (demGhe[c.ten]||0) + ')</option>'; }).join('')
+    + (chuaGan ? '<option value="__none__"' + (QL_LOC === '__none__' ? ' selected' : '') + '>'
+        + L('(chưa gán)','(unassigned)') + ' (' + chuaGan + ')</option>' : '');
+
+  var mayLoc = may.filter(function(m){
+    if (QL_LOC === '') return true;
+    if (QL_LOC === '__none__') return !m.coso;
+    return m.coso === QL_LOC;
+  });
+
   h += '<div class="card"><h2>' + L('Ghế','Chairs') + '</h2>'
     + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px">'
     + '<input id="ma-moi" type="text" maxlength="20" placeholder="'
@@ -2442,12 +2462,16 @@ function veQuanLy(){
     + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế','Add chair') + '</button></div>'
     + '<p class="mut" style="margin:0 0 10px">'
     + L('Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
-        'The code goes into the transfer memo the customer types — letters and digits only.') + '</p>';
+        'The code goes into the transfer memo the customer types — letters and digits only.') + '</p>'
+    + '<div class="act" style="margin-bottom:10px"><label class="mut" style="align-self:center">'
+    + L('Lọc cơ sở','Filter site') + ':</label>'
+    + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select></div>';
   h += '<table><tr><th>' + L('Mã','Code') + '</th><th>' + L('Địa điểm','Site')
     + '</th><th class="r hide-sm">' + L('Trạng thái','Status') + '</th><th class="r"></th></tr>';
-  if (!may.length) h += '<tr><td colspan="4" class="mut">'
-    + L('Chưa có ghế nào.','No chairs yet.') + '</td></tr>';
-  may.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); }).forEach(function(m){
+  if (!mayLoc.length) h += '<tr><td colspan="4" class="mut">'
+    + (may.length ? L('Không có ghế ở cơ sở này.','No chairs at this site.')
+                  : L('Chưa có ghế nào.','No chairs yet.')) + '</td></tr>';
+  mayLoc.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); }).forEach(function(m){
     var csOpt = '<option value="0"' + (!m.coso ? ' selected' : '') + '>' + L('(chưa gán)','(unassigned)')
       + '</option>' + coso.map(function(c){
           return '<option value="' + c.id + '"' + (m.coso === c.ten ? ' selected' : '') + '>'
@@ -2918,6 +2942,9 @@ function noi(){
       lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value });  // đổi cơ sở, giữ giá
     };
   });
+  if ((_e = document.getElementById('ql-loc'))) _e.onchange = function(){
+    QL_LOC = _e.value; ve();   // lọc tại chỗ, vẽ lại từ dữ liệu đang có (không gọi máy chủ)
+  };
 
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
      ⚠️ Hỏi lại TRƯỚC khi nộp, và nói rõ con số. Nộp là nộp hết, và sau đó chỉ quản lý mới gỡ
