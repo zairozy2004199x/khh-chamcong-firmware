@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25h (nhip 6s -> lenh tu xa nhanh hon)"
+#define FW_VERSION "ghe-massage 2026-08-25i (nhip thu lai khi rot mang + ep ket noi lai)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -167,6 +167,7 @@ const unsigned long PAY_GRACE_MS = 20000;  // sau khi HỦY vẫn theo dõi ~20s
    chờ tới nhịp kế nên chậm 10-15s. Hạ xuống 6s cho lệnh nhận nhanh (~vài giây). Đánh
    đổi: tốn data 4G hơn (~5x nhịp). Muốn tiết kiệm data hơn thì tăng lại (vd 10000). */
 const unsigned long NHIP_MS      = 6000;   // chu kỳ hỏi web lúc RẢNH (ms)
+const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> thử lại sau ngần này (đừng đợi hết NHIP_MS)
 
 // --- Relay điều khiển ghế ---
 #define RELAY_PIN          17
@@ -1310,8 +1311,20 @@ void guiNhip(){
     + ",\"tm_to\":"   + String(g_tmLucTo  ? (long)((millis()-g_tmLucTo )/1000) : -1L)
     + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
     + "\",\"fw\":\"" FW_VERSION "\"");
+  static int nhipHong = 0;
+  if(r.length()==0){
+    /* Nhịp HỎNG (rớt 4G lúc đang chạy): KHÔNG coi như đã gửi. Giữ g_statusDirty và lùi
+       lastNhipMs để lượt sau THỬ LẠI sau ~NHIP_RETRY_MS -> panel điều khiển cập nhật lại
+       ngay khi mạng về, thay vì mất trạng thái tới hết NHIP_MS. (Tiền mặt vốn đã gửi lại
+       nên đối soát không sao; nhịp trước đây bắn 1 lần nên mới mất.) */
+    lastNhipMs = millis() - (NHIP_MS > NHIP_RETRY_MS ? (NHIP_MS - NHIP_RETRY_MS) : 0);
+    /* Hỏng liên tiếp -> ép kết nối lại 4G ngay (đừng đợi 30s lượt kiểm đăng ký). */
+    if(USE_4G && ++nhipHong >= 3){ nhipHong = 0; g_4gReady = false;
+      Serial.println("[NET] nhip hong 3 lan -> ep ket noi lai 4G"); }
+    return;
+  }
+  nhipHong = 0;
   lastNhipMs = millis(); g_statusDirty = false;
-  if(r.length()==0) return;
   /* 1536 chứ không 512: gói nhịp mang thêm bốn gói {t,n,p} — mỗi gói một cái tên tới 18 ký tự.
      Tràn bộ đệm thì `deserializeJson` trả lỗi và HÀM THOÁT NGAY: ghế mất luôn cả giá, tài khoản
      lẫn lệnh, mà màn hình không có gì báo. Một con số chật ở đây làm chết cả lượt nhịp.
@@ -2059,7 +2072,7 @@ void netTask(void*){
         g_4gReady = false;
       }
     }
-    if(USE_4G && !g_4gReady && millis()-last4gTry > 15000UL){
+    if(USE_4G && !g_4gReady && millis()-last4gTry > 8000UL){
       last4gTry = millis();
       String r = atSend("AT+CEREG?", 1200), g = atSend("AT+CGREG?", 1200);
       if(r.indexOf(",1")>=0||r.indexOf(",5")>=0||g.indexOf(",1")>=0||g.indexOf(",5")>=0){
