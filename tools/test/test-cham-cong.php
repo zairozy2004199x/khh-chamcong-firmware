@@ -6102,13 +6102,13 @@ vhcc_cham_dem( $VP_CS, '2026-07-06', 'VPB', '21:30:00', '05:30:00' );
 $g_vp = array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2026-07' );
 $h_vp = vhcc_web( '135791', array(), $g_vp );
 
-t( 'có tab Công Văn phòng trên thanh chọn màn', strpos( $h_vp, '>Công Văn phòng<' ) !== false, $h_vp );
+t( 'có tab Bảng công tháng trên thanh chọn màn', strpos( $h_vp, '>Bảng công tháng<' ) !== false, $h_vp );
 /* 🔴 Và phải thấy nó từ MÀN KHÁC nữa. Anh Thắng 26/08 đứng ở màn Bảng chấm công và nói "anh
    chưa thấy lưới" — một tab chỉ hiện khi đã ở trong nó thì không ai vào được. */
-t( 'tab Công Văn phòng thấy được TỪ màn Bảng chấm công',
-	strpos( $h_qtc, '>Công Văn phòng<' ) !== false, $h_qtc );
+t( 'tab Bảng công tháng thấy được TỪ màn Bảng chấm công',
+	strpos( $h_qtc, '>Bảng công tháng<' ) !== false, $h_qtc );
 t( 'và thấy được từ màn Công của tôi',
-	strpos( vhcc_web( '135791', array(), array( 'man' => 'cong_toi' ) ), '>Công Văn phòng<' ) !== false );
+	strpos( vhcc_web( '135791', array(), array( 'man' => 'cong_toi' ) ), '>Bảng công tháng<' ) !== false );
 /* Thanh tab ở trên đầu dễ bị lướt qua — màn Bảng chấm công phải TỰ NÓI ra là có lưới ngang, và
    nói ngay trong phần mở đầu chứ không giấu ở đâu đó. */
 t( 'màn Bảng chấm công tự chỉ đường sang lưới ngang',
@@ -6195,9 +6195,73 @@ t( 'lưới KHÔNG có ô nhập giờ nào',
 /* Và không lộ tiền: tab này nói về CÔNG, tiền là chuyện của màn lương (quyền khác). */
 t( 'lưới không in ô tiền nào', strpos( $h_vp, 'đ</td>' ) === false, $h_vp );
 
+/* ---- ĐƠN VỊ CỦA Ô DO BỘ PHẬN QUYẾT, không phải một công thức cho tất cả ---- */
+/* Anh Thắng 26/08: *"này là cơ sở mà, nên kiểu chấm khác, tính theo giờ"* — anh mở lưới ở một
+   CỬA HÀNG và thấy toàn 0.63 · 0.31 · 0.84, tức công thức Văn phòng (bậc thang theo khung
+   08:30–17:00) đem áp lên nơi người ta làm ca gãy. Số vẫn ra, vẫn cộng được, chỉ là vô nghĩa. */
+t( 'cơ sở Văn phòng thì ô là SỐ CÔNG', strpos( $h_vp, 'là <b>số công</b>' ) !== false, $h_vp );
+
+$CS_GIO = 'FZ_SC_THU';                                  /* KHÔNG khai bộ phận -> không phải VP */
+vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', '', '08:00:00', '17:30:00' );   /* 9.5h */
+vhcc_cham( $CS_GIO, '2026-07-02', 'GIO1', '', '08:00:00', null );         /* thiếu giờ ra */
+vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', 'CD', '21:00:00', '23:00:00' ); /* hàng riêng */
+$h_gio = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+
+t( 'cơ sở KHÔNG phải Văn phòng thì ô là SỐ GIỜ, không phải số công',
+	strpos( $h_gio, 'là <b>số giờ làm</b>' ) !== false, $h_gio );
+t( 'và nói rõ vì sao không dùng công thức Văn phòng ở đây',
+	strpos( $h_gio, 'ca gãy' ) !== false, $h_gio );
+t( 'và chỉ cách đổi sang lối Văn phòng nếu muốn',
+	strpos( $h_gio, 'khai bộ phận' ) !== false, $h_gio );
+/* 🔴 Số giờ phải là số giờ THẬT, không phải số công lẻ. 08:00 -> 17:30 = 9.5 giờ. */
+t( 'ô hiện đúng số giờ làm (9.5)', strpos( $h_gio, '>9.5</b>' ) !== false, $h_gio );
+t( 'KHÔNG có ô nào mang số công lẻ kiểu 0.63', strpos( $h_gio, '>0.63<' ) === false, $h_gio );
+/* Ba trạng thái, ba ký hiệu — gộp lại là xoá mất đúng ngày cần soi. */
+t( 'ngày không đi làm -> dấu chấm', strpos( $h_gio, '<td class="o">·</td>' ) !== false, $h_gio );
+t( 'ngày thiếu giờ ra -> dấu hỏi nền đỏ, không phải số 0',
+	strpos( $h_gio, '>?</td>' ) !== false, $h_gio );
+t( 'và chú thích nói rõ là quên bấm lúc về',
+	strpos( $h_gio, 'quên bấm lúc về' ) !== false, $h_gio );
+/* Hàng -CD là hàng RIÊNG, và tổng của dòng chính phải gồm cả nó. */
+t( 'hàng -CD hiện thành dòng riêng', strpos( $h_gio, '↳ <code>-CD</code>' ) !== false, $h_gio );
+t( 'và nói rõ tổng dòng chính đã gồm hàng dưới',
+	strpos( $h_gio, 'gồm cả hàng dưới' ) !== false, $h_gio );
+/* 9.5h (hàng chính) + 2h (hàng -CD) = 11h 30m. Lấy CÙNG phép tính với màn Bảng chấm công. */
+t( 'tổng của người cộng cả hai hàng (9.5h + 2h = 11h 30m)',
+	strpos( $h_gio, '11h 30m' ) !== false, $h_gio );
+/* Nói thẳng chuyện giờ làm khác giờ được trả tiền, đừng để lộ ra lúc đối lương. */
+t( 'nói rõ đây là giờ LÀM, không phải giờ được trả tiền',
+	strpos( $h_gio, 'không phải giờ được trả tiền' ) !== false, $h_gio );
+
+/* ---- màn mặc định phải KHAI THẲNG, không suy từ vị trí trong danh sách ---- */
+/* 🔴 Bản trước lấy màn CUỐI danh sách làm mặc định. Thêm tab "Bảng công tháng" (cùng bậc quyền
+   với "Bảng chấm công") là Cửa hàng trưởng đăng nhập vào bỗng rơi thẳng vào tab mới, chỉ vì nó
+   được khai sau một dòng. Không gì báo, thanh nút trông y hệt. */
+teq( 'Admin mặc định vào màn hồ sơ', 'ho_so',
+	VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => 'Admin' ) ) ) );
+teq( 'Cửa hàng trưởng mặc định vào Bảng chấm công, KHÔNG phải tab mới', 'cham',
+	VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => 'Cửa hàng trưởng' ) ) ) );
+teq( 'Nhân viên mặc định vào Công của tôi', 'cong_toi',
+	VHCC_Web::man_mac_dinh( VHCC_Web::man_cua( array( 'role' => 'Nhân viên' ) ) ) );
+/* Và canh cả MÀN THẬT SỰ HIỆN RA, không chỉ canh hàm trả về gì: hàm đúng mà chỗ gọi không dùng
+   nó thì mọi phép trên vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
+$h_cht_md = vhcc_web( '357913' );
+t( 'Cửa hàng trưởng đăng nhập vào là thấy MÀN BẢNG CHẤM CÔNG',
+	strpos( $h_cht_md, 'Chi tiết từng lượt' ) !== false, $h_cht_md );
+t( 'chứ không rơi vào tab Bảng công tháng',
+	strpos( $h_cht_md, 'là <b>số công</b>' ) === false
+	&& strpos( $h_cht_md, 'là <b>số giờ làm</b>' ) === false, $h_cht_md );
+
+/* Mọi màn khai được đều phải có tên trong bảng ưu tiên, kẻo thêm màn mới là lại rơi vào nhánh
+   đoán mò ở cuối hàm. */
+foreach ( array_keys( VHCC_Web::man_cua( array( 'role' => 'Admin' ) ) ) as $k_man ) {
+	t( 'màn "' . $k_man . '" có tên trong bảng ưu tiên màn mặc định',
+		in_array( $k_man, VHCC_Web::MAN_UU_TIEN, true ), VHCC_Web::MAN_UU_TIEN );
+}
+
 /* Nhân viên bậc 1 không mở được tab này. */
 $h_vp_nv = vhcc_web( '680246', array(), $g_vp );
-t( 'Nhân viên KHÔNG thấy tab Công Văn phòng', strpos( $h_vp_nv, '>Công Văn phòng<' ) === false, $h_vp_nv );
+t( 'Nhân viên KHÔNG thấy tab Bảng công tháng', strpos( $h_vp_nv, '>Bảng công tháng<' ) === false, $h_vp_nv );
 t( 'và gõ tay ?man=vp cũng không ra lưới', strpos( $h_vp_nv, '↳ ca đêm' ) === false, $h_vp_nv );
 
 // ====== 50. MÃ TỰ SINH PHẢI KHÔNG ĐỤNG NHAU — lỗi im lặng làm mất cờ của người khác
