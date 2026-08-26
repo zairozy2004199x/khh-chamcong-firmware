@@ -821,6 +821,17 @@ class VHCC_Web {
 			. '.k{padding:1px 6px;border-radius:3px;font-size:12px}'
 			. '.k.luc{background:#f0fdf4;color:#15803d}.k.tim{background:#f5f3ff;color:#6d28d9}'
 			. '.k.vang{background:#fffbeb;color:#b45309}.k.hong{background:#fef2f2;color:var(--do)}'
+			/* Màu theo CA. Bốn tông đủ phân biệt mà không chói; ca thứ 5 trở đi quay vòng lại —
+			   một cơ sở có hơn bốn ca là chuyện hiếm, và quay vòng vẫn hơn là tất cả cùng trắng. */
+			. 'table.cc td.oc.ca1,table.cc th.ca1{background:#eff6ff}'
+			. 'table.cc td.oc.ca2,table.cc th.ca2{background:#f0fdf4}'
+			. 'table.cc td.oc.ca3,table.cc th.ca3{background:#faf5ff}'
+			. 'table.cc td.oc.ca4,table.cc th.ca4{background:#fff7ed}'
+			. '.k.ca1{background:#eff6ff;color:#1d4ed8}.k.ca2{background:#f0fdf4;color:#15803d}'
+			. '.k.ca3{background:#faf5ff;color:#7e22ce}.k.ca4{background:#fff7ed;color:#c2410c}'
+			/* Mã ca nằm DƯỚI số giờ, nhỏ và nhạt hơn: số giờ vẫn là thứ đọc trước, mã ca là thứ
+			   liếc thấy. Đảo ngược cỡ chữ là cả lưới trông như một rừng mã. */
+			. '.mca{font-size:10px;font-weight:600;opacity:.75;line-height:1.1;margin-top:1px}'
 			/* Khối thu gọn bằng <details> của chính HTML — không JavaScript. Phải cho `summary`
 			   trông ra một cái nút bấm được, kẻo nó nằm im như một dòng chữ và không ai bấm. */
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
@@ -1545,8 +1556,9 @@ class VHCC_Web {
 		if ( ! $nguoi ) { echo '<p class="mo">Chưa có dữ liệu.</p></div>'; return; }
 
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Nhân viên</th>';
-		foreach ( $ds_ca as $c ) {
-			echo '<th>' . esc_html( $c['ten'] ) . '<div style="font-weight:400;opacity:.7">'
+		foreach ( $ds_ca as $i => $c ) {
+			echo '<th class="ca' . ( ( $i % 4 ) + 1 ) . '"><b>' . esc_html( VHCC_Ca::ma_ngan( $i ) )
+				. '</b> ' . esc_html( $c['ten'] ) . '<div style="font-weight:400;opacity:.7">'
 				. esc_html( $c['tu'] . '–' . $c['den'] ) . '</div></th>';
 		}
 		echo '<th>Ngoài ca</th><th>TỔNG</th></tr></thead><tbody>';
@@ -1725,8 +1737,18 @@ class VHCC_Web {
 					if ( '' !== $td ) { $chu .= "\n" . $td; }
 					$chu_ca = VHCC_Ca::chu( $tc );
 					if ( '' !== $chu_ca ) { $chu .= "\n" . $chu_ca; }
-					echo '<td class="oc" title="' . esc_attr( $chu ) . '"><b>'
-						. self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b></td>';
+					/* 🔴 MÃ CA IN THẲNG VÀO Ô, không giấu trong chú thích rê chuột.
+					   Anh Thắng 26/08: *"hiện sẵn bạn ca nào ca nào luôn nhé, đi rà này rất khó"*.
+					   Đúng: một tháng của 21 người là hơn 600 ô, rê chuột từng ô để biết ca thì
+					   không ai rà nổi. Số giờ nằm trên, mã ca nằm dưới, và MÀU NỀN theo ca chính
+					   — nhìn một cái là thấy cả tháng ai chạy ca nào. */
+					$i_ca = VHCC_Ca::ca_chinh( $ds_ca, $tc );
+					$ma_o = VHCC_Ca::ma_o( $ds_ca, $tc );
+					echo '<td class="oc' . ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' )
+						. '" title="' . esc_attr( $chu ) . '"><b>'
+						. self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>'
+						. ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' )
+						. '</td>';
 				}
 				echo $chinh && 1 === count( $hts )
 					? '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b></td>'
@@ -1743,6 +1765,17 @@ class VHCC_Web {
 		echo '<td colspan="' . (int) $so_ngay . '"></td>';
 		echo '<td><b>' . esc_html( VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td></tr>';
 		echo '</tbody></table></div>';
+
+		/* Chú giải mã ca — bắt buộc phải có, vì mã trong ô là C1/C2/C3 theo VỊ TRÍ, không phải
+		   tên ca. Không có bảng quy đổi này thì mã trong ô là chữ vô nghĩa. */
+		echo '<p class="mo" style="margin-top:8px">Mã ca trong ô: ';
+		foreach ( $ds_ca as $i => $c ) {
+			echo '<span class="k ca' . ( ( $i % 4 ) + 1 ) . '"><b>' . esc_html( VHCC_Ca::ma_ngan( $i ) )
+				. '</b> ' . esc_html( $c['ten'] . ' ' . $c['tu'] . '–' . $c['den'] ) . '</span> ';
+		}
+		echo '<span class="k vang"><b>?</b> giờ không thuộc ca nào</span>';
+		echo '<br>Ô có <b>hai mã</b> (VD <b>C1·C2</b>) là ngày đó vắt qua hai ca; nền tô theo ca '
+			. '<b>ăn nhiều giờ nhất</b>. Rê chuột lên ô để đọc mỗi ca mấy tiếng.</p>';
 
 		echo '<p class="mo" style="margin-top:8px">Ô là <b>số giờ làm</b> của ngày đó (giờ ra trừ giờ '
 			. 'vào) · dấu <b>·</b> = không có dữ liệu chấm công · '

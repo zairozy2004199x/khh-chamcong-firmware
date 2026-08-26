@@ -6210,6 +6210,9 @@ vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', 'CD', '21:00:00', '23:00:00' ); /* hà
    rằng phép tách ăn GIÂY THÔ — `vao`/`ra` dạng chữ đã bị `hhmmss` gói về trong một ngày, đọc
    từ đó thì 05:30 hôm sau trông y hệt 05:30 hôm nay và cả ca đêm biến mất. */
 vhcc_cham_dem( $CS_GIO, '2026-07-05', 'GIO2', '21:30:00', '05:30:00' );
+/* Một lượt nằm GỌN trong một ca — để canh ô chỉ hiện MỘT mã. Mọi lượt khác ở đây đều vắt qua
+   hai ca, nên thiếu ca này thì phép thử "một ca thì một mã" không có ô nào để soi. */
+vhcc_cham( $CS_GIO, '2026-07-06', 'GIO2', '', '07:00:00', '13:00:00' );
 $h_gio = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
 
 t( 'cơ sở KHÔNG phải Văn phòng thì ô là SỐ GIỜ, không phải số công',
@@ -6245,8 +6248,9 @@ t( 'lưới giờ có bảng Tổng giờ theo ca', strpos( $h_gio, 'Tổng gi�
 t( 'nói rõ đang dùng khung ca nào', strpos( $h_gio, 'Khung ca đang dùng' ) !== false, $h_gio );
 t( 'và chưa ai khai thì nói là đang dùng MẶC ĐỊNH',
 	strpos( $h_gio, '<b>mặc định</b>' ) !== false, $h_gio );
-foreach ( array( 'Ca 1', 'Ca 2', 'Ca 3' ) as $tc ) {
-	t( 'bảng theo ca có cột "' . $tc . '"', strpos( $h_gio, '<th>' . $tc . '<' ) !== false, $h_gio );
+foreach ( array( 'C1' => 'Ca 1', 'C2' => 'Ca 2', 'C3' => 'Ca 3' ) as $ma_tc => $tc ) {
+	t( 'bảng theo ca có cột "' . $tc . '" kèm mã ngắn ' . $ma_tc,
+		strpos( $h_gio, '<b>' . $ma_tc . '</b> ' . $tc ) !== false, $h_gio );
 }
 t( 'và có cột Ngoài ca', strpos( $h_gio, '<th>Ngoài ca</th>' ) !== false, $h_gio );
 /* GIO1 ngày 01/07 có HAI hàng: hàng chính 08:00–17:30 và hàng -CD 21:00–23:00.
@@ -6260,6 +6264,29 @@ t( 'Ca 2 gom cả hàng chính lẫn phần hàng -CD chạm vào nó',
 	strpos( $h_gio, '>4h 30m</b>' ) !== false, $h_gio );
 t( 'tổng theo ca khớp tổng giờ làm của lưới (11h 30m)',
 	substr_count( $h_gio, '11h 30m' ) >= 2, $h_gio );
+/* 🔴 MÃ CA IN THẲNG VÀO Ô. Anh Thắng 26/08: *"hiện sẵn bạn ca nào ca nào luôn nhé, đi rà này
+   rất khó"* — một tháng của 21 người là hơn 600 ô, rê chuột từng ô thì không ai rà nổi. */
+t( 'ô lưới in sẵn mã ca, không bắt rê chuột mới biết',
+	strpos( $h_gio, '<div class="mca">' ) !== false, $h_gio );
+t( 'ngày vắt hai ca thì ô hiện cả hai mã',
+	strpos( $h_gio, '>C1·C2</div>' ) !== false, $h_gio );
+t( 'ngày nằm gọn một ca thì ô chỉ hiện MỘT mã',
+	strpos( $h_gio, '>C1</div>' ) !== false, $h_gio );
+/* Nền tô theo ca ĂN NHIỀU GIỜ NHẤT — để lướt mắt là thấy cả tháng ai chạy ca nào. */
+t( 'ô được tô màu theo ca chính', preg_match( '/class="oc ca[1-4]"/', $h_gio ) === 1, $h_gio );
+/* 🔴 Tô theo ca ĂN NHIỀU GIỜ NHẤT, không phải ca ĐẦU TIÊN chạm vào. Lượt 21:30 → 05:30 chạm
+   Ca 2 đúng 30 phút rồi nằm trong Ca 3 suốt 7h 30m — tô theo ca đầu là cả tháng ca đêm hiện màu
+   ca chiều, và người rà bảng đọc ngược hoàn toàn. */
+t( 'ca đêm được tô theo Ca 3 (7h 30m), không theo Ca 2 (30 phút chạm đầu)',
+	preg_match( '/class="oc ca3" title="[^"]*Ca 3 7h 30m/', $h_gio ) === 1, $h_gio );
+/* Mã trong ô là C1/C2/C3 theo VỊ TRÍ, nên bắt buộc phải có bảng quy đổi ngay dưới lưới. */
+t( 'có bảng quy đổi mã ca ngay dưới lưới',
+	strpos( $h_gio, 'Mã ca trong ô' ) !== false, $h_gio );
+t( 'bảng quy đổi nói C1 là ca nào, khung giờ nào',
+	strpos( $h_gio, '<b>C1</b> Ca 1 06:00–14:00' ) !== false, $h_gio );
+t( 'và giải thích ô hai mã nghĩa là gì',
+	strpos( $h_gio, 'vắt qua hai ca' ) !== false, $h_gio );
+
 /* Chú thích ô nói luôn ngày đó chạy từ ca nào đến ca nào. */
 t( 'chú thích ô nói từ ca nào đến ca nào', strpos( $h_gio, 'Ca 1 → Ca 2' ) !== false, $h_gio );
 t( 'và nói mỗi ca mấy tiếng kèm khung giờ',
@@ -6295,10 +6322,10 @@ $r_ca = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'ca', $ADMIN_W ) );
 $_POST = array();
 t( 'lưu được ca mới', is_array( $r_ca ) && isset( $r_ca[0]['xong'] ), $r_ca );
 $h_ca2 = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
-t( 'bảng đổi theo ca vừa khai', strpos( $h_ca2, '<th>Sáng<' ) !== false, $h_ca2 );
+t( 'bảng đổi theo ca vừa khai', strpos( $h_ca2, '<b>C1</b> Sáng' ) !== false, $h_ca2 );
 t( 'và nói là cơ sở này đã có khung ca RIÊNG',
 	strpos( $h_ca2, 'khai riêng cho' ) !== false, $h_ca2 );
-t( 'ca cũ không còn trong bảng', strpos( $h_ca2, '<th>Ca 1<' ) === false, $h_ca2 );
+t( 'ca cũ không còn trong bảng', strpos( $h_ca2, '<b>C1</b> Ca 1' ) === false, $h_ca2 );
 /* 08:00–17:30 với ca Sáng 06–12 và Chiều 12–20 -> 4h + 5h 30m. */
 t( 'tách lại đúng theo khung ca mới', strpos( $h_ca2, '>4h</b>' ) !== false
 	&& strpos( $h_ca2, '>5h 30m</b>' ) !== false, $h_ca2 );

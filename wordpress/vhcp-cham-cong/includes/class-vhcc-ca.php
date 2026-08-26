@@ -158,6 +158,45 @@ class VHCC_Ca {
 		return $trong;
 	}
 
+	/**
+	 * Mã ngắn của ca theo VỊ TRÍ: ca thứ nhất -> C1, thứ hai -> C2…
+	 *
+	 * Dùng vị trí chứ không cắt từ tên, vì tên ca do người dùng đặt: "Ca sáng" và "Ca chiều" cắt
+	 * ngắn kiểu nào cũng ra hai mã trông giống nhau, mà ô lưới thì chỉ rộng chừng ba ký tự. Vị
+	 * trí thì luôn phân biệt được, và bảng chú giải ngay dưới lưới nói rõ C1 là ca nào.
+	 */
+	public static function ma_ngan( $i ) {
+		return 'C' . ( (int) $i + 1 );
+	}
+
+	/**
+	 * Ca ĂN NHIỀU GIỜ NHẤT trong một lượt — để tô màu ô theo đúng ca người ta làm chính.
+	 * Trả về chỉ số trong danh sách ca, hoặc -1 nếu lượt không thuộc ca nào.
+	 */
+	public static function ca_chinh( $ds_ca, $tach ) {
+		$nhieu = -1;
+		$phut  = 0;
+		foreach ( (array) $tach['ds'] as $o ) {
+			if ( $o['phut'] <= $phut ) { continue; }
+			foreach ( (array) $ds_ca as $i => $c ) {
+				if ( $c['ten'] === $o['ten'] ) { $nhieu = (int) $i; $phut = (int) $o['phut']; }
+			}
+		}
+		return $nhieu;
+	}
+
+	/** "C1·C2" — mã ngắn của MỌI ca lượt đó chạm vào, để in thẳng vào ô lưới. */
+	public static function ma_o( $ds_ca, $tach ) {
+		$ma = array();
+		foreach ( (array) $tach['ds'] as $o ) {
+			foreach ( (array) $ds_ca as $i => $c ) {
+				if ( $c['ten'] === $o['ten'] ) { $ma[] = self::ma_ngan( $i ); }
+			}
+		}
+		if ( ! empty( $tach['ngoai_ca'] ) && ! $ma ) { return '?'; }
+		return implode( '·', $ma );
+	}
+
 	/** "Ca 1 → Ca 3" — câu trả lời cho *"từ ca nào đến ca nào"*. '' nếu không thuộc ca nào. */
 	public static function tu_den( $tach ) {
 		$ds = isset( $tach['ds'] ) ? (array) $tach['ds'] : array();
