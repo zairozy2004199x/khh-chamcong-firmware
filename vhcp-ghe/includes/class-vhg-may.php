@@ -849,6 +849,18 @@ class VHG_May {
 		return array( 'ok' => true, 'thong_bao' => 'Đã lưu máy ' . $ma . '.' );
 	}
 
+	/** Chuyển ghế sang cơ sở khác — CHỈ đổi coso_id, giữ nguyên giá/thời lượng/số tài khoản.
+	 *  (gan_ma trả về sớm khi mã không đổi nên không dùng để đổi mỗi cơ sở được.) */
+	public static function dat_coso( $ma, $coso_id ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		$wpdb->update( VHG_DB::t( 'may' ),
+			array( 'coso_id' => (int) $coso_id, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma' => $ma ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã chuyển cơ sở cho ghế ' . $ma . '.' );
+	}
+
 	public static function xoa_may( $ma ) {
 		global $wpdb;
 		$wpdb->delete( VHG_DB::t( 'may' ), array( 'ma' => (string) $ma ) );

@@ -87,6 +87,12 @@ class VHG_Auth {
 		'gan_ma',
 		'ma_huy',
 		'so_may',
+		/* Tab QUẢN LÝ GHẾ: thêm/xoá địa điểm, thêm/xoá ghế. Chỉ quản trị. */
+		'coso_luu',
+		'coso_xoa',
+		'may_them',
+		'may_xoa',
+		'may_coso',
 	);
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════

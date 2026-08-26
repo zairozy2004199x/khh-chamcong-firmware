@@ -178,6 +178,50 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ---- TAB QUẢN LÝ GHẾ: địa điểm + ghế (chỉ quản trị, đã chặn ở duoc_lam) ---------------- */
+		if ( 'coso_luu' === $viec ) {
+			$r = VHG_May::luu_coso( isset( $d['id'] ) ? (int) $d['id'] : 0,
+				isset( $d['ten'] ) ? $d['ten'] : '' );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' lưu địa điểm: ' . (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) ) );
+			}
+			self::tra( $r ); return;
+		}
+		if ( 'coso_xoa' === $viec ) {
+			$r = VHG_May::xoa_coso( isset( $d['id'] ) ? (int) $d['id'] : 0 );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' xoá địa điểm id=' . (int) ( isset( $d['id'] ) ? $d['id'] : 0 ) ) );
+			}
+			self::tra( $r ); return;
+		}
+		if ( 'may_them' === $viec ) {
+			/* Thêm/lưu ghế: mã + địa điểm (giá/thời lượng để trống = dùng ô chung). */
+			$r = VHG_May::luu_may( array(
+				'ma'      => isset( $d['ma'] ) ? $d['ma'] : '',
+				'coso_id' => isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0,
+			) );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' thêm ghế: ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
+			}
+			self::tra( $r ); return;
+		}
+		if ( 'may_xoa' === $viec ) {
+			$r = VHG_May::xoa_may( isset( $d['ma'] ) ? (string) $d['ma'] : '' );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
+					$ai['name'] . ' xoá ghế: ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
+			}
+			self::tra( $r ); return;
+		}
+		if ( 'may_coso' === $viec ) {
+			$r = VHG_May::dat_coso( isset( $d['ma'] ) ? (string) $d['ma'] : '',
+				isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0 );
+			self::tra( $r ); return;
+		}
+
 		if ( 'ma_tra' === $viec ) {
 			/* Nhân viên tra hộ khách QUÊN PIN — chỉ cần số điện thoại.
 			   ⚠️ Đường này bỏ qua PIN, nên nó CHỈ được nằm ở đây: trang `/ghe` đã qua cổng PIN
@@ -1234,6 +1278,9 @@ function tai(im){
 function henLai(){
   if (hen) { clearTimeout(hen); hen = null; }
   if (!TOK) return;
+  /* Tab QUẢN LÝ không tự hỏi lại: vẽ lại giữa chừng sẽ xoá ô đang gõ (thêm ghế/địa điểm).
+     Dữ liệu quản lý ít đổi; muốn mới thì bấm ↻, còn mỗi thao tác thêm/xoá đã tự tải lại. */
+  if (TAB === 'quan-ly') return;
   hen = setTimeout(function(){
     /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
        xoá mất số họ đang gõ), hoặc trang đang ẩn (điện thoại trong túi — hỏi cũng không ai đọc,
@@ -1294,6 +1341,7 @@ function ve(){
   if (QT) TABS.push(['thu-tien', '💵 ' + L('Thu tiền','Cash collection')]);
   TABS.push(['quy', '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')]);
   if (QT) TABS.push(['kich-hoat', '⚡ ' + L('Kích hoạt ghế','Chair activation')]);
+  if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
   if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
   /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
@@ -1377,6 +1425,7 @@ function ve(){
   if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
 
   h += '<div class="kpis">'
@@ -2326,6 +2375,96 @@ function veKichHoat(){
   return h + '</table></div>';
 }
 
+/* ============================================================================================
+ * TAB QUẢN LÝ GHẾ — địa điểm (thêm/sửa/xoá), ghế (thêm/xoá/chuyển cơ sở), doanh thu theo địa điểm.
+ * Dữ liệu lấy sẵn từ so_lieu: D.coso (danh sách), D.may (ghế), D.tong.theo_coso (doanh thu/kỳ).
+ * ========================================================================================== */
+function veQuanLy(){
+  var coso = D.coso || [], may = D.may || [];
+  var tc = (D.tong && D.tong.theo_coso) || [];
+  var dt = {};                         // doanh thu theo TÊN cơ sở
+  tc.forEach(function(c){ dt[c.coso] = c; });
+  var demGhe = {}, chuaGan = 0;        // đếm ghế theo cơ sở
+  may.forEach(function(m){
+    if (!m.coso) { chuaGan++; } else { demGhe[m.coso] = (demGhe[m.coso]||0) + 1; }
+  });
+
+  var h = '<div class="kpis">'
+    + kpi(L('Địa điểm','Sites'), String(coso.length), L('cơ sở','locations'), 'a')
+    + kpi(L('Tổng ghế','Chairs'), String(may.length),
+        (chuaGan ? chuaGan + ' ' + L('chưa gán','unassigned') : L('đã gán hết','all assigned')), 'b')
+    + kpi(L('Doanh thu kỳ','Revenue'), tien(D.tong ? D.tong.tong : 0),
+        L('kỳ đang xem','selected period'), 'd')
+    + '</div>';
+
+  /* ---- Địa điểm ---- */
+  h += '<div class="card"><h2>' + L('Địa điểm','Sites') + '</h2>'
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:12px">'
+    + '<input id="cs-ten" type="text" maxlength="60" placeholder="'
+      + L('Tên địa điểm mới','New site name') + '" style="flex:2;min-width:180px">'
+    + '<button id="cs-them" class="on">＋ ' + L('Thêm địa điểm','Add site') + '</button></div>';
+  h += '<table><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
+    + '</th><th class="r">' + L('Doanh thu','Revenue') + '</th><th class="r hide-sm">' + L('QR','QR')
+    + '</th><th class="r hide-sm">' + L('Tiền mặt','Cash') + '</th><th class="r"></th></tr>';
+  if (!coso.length) h += '<tr><td colspan="6" class="mut">'
+    + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
+  coso.forEach(function(c){
+    var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
+    h += '<tr><td><b>' + esc(c.ten) + '</b></td>'
+      + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
+      + '<td class="r"><b>' + tien(r.tong) + '</b></td>'
+      + '<td class="r hide-sm">' + tien(r.qr) + '</td>'
+      + '<td class="r hide-sm">' + tien(r.tien_mat) + '</td>'
+      + '<td class="r" style="white-space:nowrap">'
+      + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '">✎</button> '
+      + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
+  });
+  if (chuaGan) {
+    var rc = dt['(chưa gán)'] || { tong:0, qr:0, tien_mat:0 };
+    h += '<tr><td class="mut">' + L('(chưa gán)','(unassigned)') + '</td>'
+      + '<td class="r">' + chuaGan + '</td><td class="r">' + tien(rc.tong) + '</td>'
+      + '<td class="r hide-sm">' + tien(rc.qr) + '</td><td class="r hide-sm">' + tien(rc.tien_mat)
+      + '</td><td></td></tr>';
+  }
+  h += '</table><p class="mut" style="margin:8px 0 0">'
+    + L('Xoá địa điểm KHÔNG xoá ghế — ghế thành "chưa gán". Doanh thu theo kỳ đang chọn ở đầu trang.',
+        'Deleting a site does not delete its chairs — they become "unassigned". Revenue is for the selected period.')
+    + '</p></div>';
+
+  /* ---- Ghế ---- */
+  var opt = '<option value="0">' + L('(chưa gán)','(unassigned)') + '</option>'
+    + coso.map(function(c){ return '<option value="' + c.id + '">' + esc(c.ten) + '</option>'; }).join('');
+  h += '<div class="card"><h2>' + L('Ghế','Chairs') + '</h2>'
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px">'
+    + '<input id="ma-moi" type="text" maxlength="20" placeholder="'
+      + L('Mã ghế mới (vd AMTP02)','New chair code') + '" style="flex:2;min-width:160px">'
+    + '<select id="ma-cs" style="flex:1;min-width:130px">' + opt + '</select>'
+    + '<button id="ma-them" class="on">＋ ' + L('Thêm ghế','Add chair') + '</button></div>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
+        'The code goes into the transfer memo the customer types — letters and digits only.') + '</p>';
+  h += '<table><tr><th>' + L('Mã','Code') + '</th><th>' + L('Địa điểm','Site')
+    + '</th><th class="r hide-sm">' + L('Trạng thái','Status') + '</th><th class="r"></th></tr>';
+  if (!may.length) h += '<tr><td colspan="4" class="mut">'
+    + L('Chưa có ghế nào.','No chairs yet.') + '</td></tr>';
+  may.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); }).forEach(function(m){
+    var csOpt = '<option value="0"' + (!m.coso ? ' selected' : '') + '>' + L('(chưa gán)','(unassigned)')
+      + '</option>' + coso.map(function(c){
+          return '<option value="' + c.id + '"' + (m.coso === c.ten ? ' selected' : '') + '>'
+            + esc(c.ten) + '</option>'; }).join('');
+    var tt = m.tt === 'running' ? '▶️' : (m.tt === 'wait_pay' ? '⏳' : (m.song ? '🟢' : '⚪'));
+    h += '<tr><td><b>' + esc(m.ma) + '</b></td>'
+      + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + csOpt + '</select></td>'
+      + '<td class="r hide-sm mut">' + tt + '</td>'
+      + '<td class="r"><button data-mxoa="' + esc(m.ma) + '">🗑 ' + L('Xoá','Delete') + '</button></td></tr>';
+  });
+  h += '</table><p class="mut" style="margin:8px 0 0">'
+    + L('Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). Xoá ghế chỉ xoá cấu hình — doanh thu đã ghi giữ nguyên.',
+        'Change the site dropdown to move a chair (saves immediately). Deleting a chair removes only its config — recorded revenue is kept.')
+    + '</p></div>';
+  return h;
+}
+
 function kpi(lb, vl, sb, m){
   return '<div class="kpi"><div class="lb">' + lb + '</div><div class="vl ' + m + '">' + vl
     + '</div><div class="sb">' + sb + '</div></div>';
@@ -2733,6 +2872,51 @@ function noi(){
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){
     b.onclick = function(){ moChotCa(b.getAttribute('data-mat')); };
+  });
+
+  /* ---- TAB QUẢN LÝ GHẾ: địa điểm + ghế ---- */
+  var _e;
+  if ((_e = document.getElementById('cs-them'))) _e.onclick = function(){
+    var t = (document.getElementById('cs-ten').value || '').trim();
+    if (!t) { alert(L('Nhập tên địa điểm.','Enter a site name.')); return; }
+    lam('coso_luu', { id: 0, ten: t });
+  };
+  [].forEach.call(document.querySelectorAll('[data-cssua]'), function(b){
+    b.onclick = function(){
+      var t = prompt(L('Đổi tên địa điểm:','Rename site:'), b.getAttribute('data-csten'));
+      if (t === null) return; t = t.trim(); if (!t) return;
+      lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t });
+    };
+  });
+  [].forEach.call(document.querySelectorAll('[data-csxoa]'), function(b){
+    b.onclick = function(){
+      var nhan = b.getAttribute('data-csnhan');
+      if (!confirm(L('Xoá địa điểm "' + nhan + '"?\nGhế của địa điểm này thành "chưa gán", KHÔNG bị xoá.',
+        'Delete site "' + nhan + '"?\nIts chairs become "unassigned" — they are NOT deleted.'))) return;
+      lam('coso_xoa', { id: b.getAttribute('data-csxoa') });
+    };
+  });
+  if ((_e = document.getElementById('ma-them'))) _e.onclick = function(){
+    var m = (document.getElementById('ma-moi').value || '').trim();
+    if (!m) { alert(L('Nhập mã ghế.','Enter a chair code.')); return; }
+    if (!/^[A-Za-z0-9]{1,20}$/.test(m)) {
+      alert(L('Mã chỉ gồm chữ và số, không dấu, không khoảng trắng.',
+        'The code may contain letters and digits only — no accents, no spaces.')); return;
+    }
+    lam('may_them', { ma: m, coso_id: document.getElementById('ma-cs').value });
+  };
+  [].forEach.call(document.querySelectorAll('[data-mxoa]'), function(b){
+    b.onclick = function(){
+      var m = b.getAttribute('data-mxoa');
+      if (!confirm(L('Xoá ghế ' + m + '?\nChỉ xoá cấu hình ghế — doanh thu đã ghi giữ nguyên.',
+        'Delete chair ' + m + '?\nOnly the chair config is removed — recorded revenue is kept.'))) return;
+      lam('may_xoa', { ma: m });
+    };
+  });
+  [].forEach.call(document.querySelectorAll('[data-csma]'), function(s){
+    s.onchange = function(){
+      lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value });  // đổi cơ sở, giữ giá
+    };
   });
 
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
