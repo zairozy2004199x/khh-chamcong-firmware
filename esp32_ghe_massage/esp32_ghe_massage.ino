@@ -49,7 +49,7 @@
 #include <Update.h>      // Update.h tự kiểm ảnh hợp lệ -> nạp lỗi/dở thì HỦY, GIỮ firmware cũ
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-26b (OTA AP + chong mat tien mat khi loi mang/mat dien)"
+#define FW_VERSION "ghe-massage 2026-08-26c (AP bat SOM, khong cho 4G)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1951,11 +1951,13 @@ void startOtaAP(){
   String ap = String(OTA_AP_PREFIX) + (CHAIR_ID.length() ? CHAIR_ID : mac);
   WiFi.mode(USE_4G ? WIFI_AP : WIFI_AP_STA);   // 4G: radio WiFi rảnh -> chỉ AP; WiFi fallback -> AP+STA
   WiFi.softAP(ap.c_str(), SEC_AP_PASS);
-  otaSrv.on("/", otaTrangNap);
-  otaSrv.on("/update", HTTP_GET, otaTrangNap);
-  otaSrv.on("/update", HTTP_POST, otaXongNap, otaUpload);
-  otaSrv.begin();
-  g_otaMoAP = true;
+  if(!g_otaMoAP){                              // routes + begin CHỈ một lần (hàm có thể gọi lại để đổi tên)
+    otaSrv.on("/", otaTrangNap);
+    otaSrv.on("/update", HTTP_GET, otaTrangNap);
+    otaSrv.on("/update", HTTP_POST, otaXongNap, otaUpload);
+    otaSrv.begin();
+    g_otaMoAP = true;
+  }
   Serial.printf("[OTA] AP \"%s\" pass=%s @ 192.168.4.1 (may tram nap .bin)\n", ap.c_str(), SEC_AP_PASS);
 }
 #endif
@@ -2000,6 +2002,9 @@ void setup(){
       Serial.printf("[TIEN] khoi phuc no tien mat chua gui: %ld d (ref %s)\n", noCu, g_cashRef);
     } }
   docCauHinh();                              // và nhớ luôn phần NHẬN TIỀN — xem khối trên luuCauHinh()
+#if OTA_AP_ENABLE
+  startOtaAP();   // BẬT SỚM: AP "POSH_QR-<mã>" lên ngay, KHÔNG chờ 4G (4G lâu/kẹt vẫn có AP để nạp)
+#endif
 
   tft.init(); tft.setRotation(1); tft.fillScreen(COL_BG);
   tft.setTextDatum(MC_DATUM);
@@ -2019,10 +2024,12 @@ void setup(){
     Serial.println(WiFi.status()==WL_CONNECTED ? "[WiFi] OK" : "[WiFi] fail"); }
 
   if(netUp()) guiNhip();     // lấy mã ghế + giá + số tài khoản ngay lượt đầu
-  if(CHAIR_ID.length()) prefs.putString("chair", CHAIR_ID);
+  if(CHAIR_ID.length()){
+    prefs.putString("chair", CHAIR_ID);
 #if OTA_AP_ENABLE
-  startOtaAP();   // bật AP "POSH_QR-<mã>" cho máy trạm nạp firmware (radio WiFi rảnh vì đi 4G)
+    startOtaAP();   // đổi tên AP sang "POSH_QR-<mã>" khi biết mã ghế (đã bật sớm bằng MAC ở trên)
 #endif
+  }
   state = ST_IDLE; screenDrawn=false;
   xTaskCreatePinnedToCore(netTask, "netTask", 10240, NULL, 1, NULL, 0);
 }
