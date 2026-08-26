@@ -38,6 +38,8 @@ class VHNB_Nhom {
 	 */
 	public static function lap( $u, $ten, $mo_ta = '' ) {
 		global $wpdb;
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'nhom' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
 		$ma = self::ma( $u );
 		if ( '' === $ma ) {
 			return array( 'ok' => false,
@@ -125,6 +127,12 @@ class VHNB_Nhom {
 		}
 		self::them_tv( (int) $n['id'], $ma, $ho_ten, 'tv' );
 		self::dem_lai( (int) $n['id'] );
+		/* Được mời vào một nhóm kín mà không có gì báo thì người ta không biết nhóm ấy tồn tại
+		   — nhóm chỉ hiện ở cột trái, mà họ có mở trang đâu để thấy. */
+		VHNB_Bao::gui( $ma, 'noi_bo',
+			self::ten( $u ) . ' thêm bạn vào nhóm "' . (string) $n['ten'] . '"',
+			VHNB_Trang::url() . '?g=' . (int) $n['id'],
+			'nhom_moi:' . (int) $n['id'], self::ma( $u ) );
 		return array( 'ok' => true, 'maNV' => $ma, 'hoTen' => $ho_ten );
 	}
 

@@ -156,8 +156,38 @@ class VHCC_Bu {
 			self::nhat_ky( $u, $coso, $ngay, $ma_nv, $o, $giay, $ly_do );
 		}
 
+		if ( $da_ghi ) { self::bao_nguoi_bi_dong( $u, $ma_nv, $ngay, 'bù giờ công', $da_ghi ); }
 		return array( 'ok' => true, 'coSo' => $coso, 'ngay' => $ngay, 'maNV' => $ma_nv,
 			'daGhi' => $da_ghi, 'boQua' => $bo_qua );
+	}
+
+	/**
+	 * BÁO CHO CHÍNH NGƯỜI BỊ ĐỘNG VÀO GIỜ CÔNG — đẩy sang chuông của trang Nội bộ.
+	 *
+	 * Anh Thắng 26/08/2026: *"Ví dụ như có chấm công, có chi phí nó sẽ hiện lên nội bộ này."*
+	 *
+	 * 🔴 NGƯỜI BỊ SỬA GIỜ PHẢI LÀ NGƯỜI BIẾT ĐẦU TIÊN. Sổ nhật ký đã ghi đủ ai-sửa-gì, nhưng
+	 *    nó nằm ở màn quản trị mà nhân viên không vào. Không có tin báo thì họ chỉ phát hiện ra
+	 *    vào cuối tháng, lúc nhìn số tiền — và lúc đó cãi lại thì đã muộn.
+	 *
+	 * ⚠️ Gác `class_exists` + `method_exists` CÙNG HÀM với lời gọi — luật của
+	 *    `tools/test/kiem-goi-cheo.php`. Chưa cài plugin nội bộ thì lời gọi im lặng trôi qua,
+	 *    KHÔNG được làm hỏng việc bù: bù giờ là việc chính, báo tin là việc phụ.
+	 */
+	private static function bao_nguoi_bi_dong( $u, $ma_nv, $ngay, $viec, $da_ghi ) {
+		if ( ! class_exists( 'VHNB_Bao' ) || ! method_exists( 'VHNB_Bao', 'gui' ) ) { return; }
+		$o = array();
+		foreach ( (array) $da_ghi as $k => $v ) {
+			$o[] = ( 'vao' === $k ? 'giờ vào' : 'giờ ra' ) . ' ' . $v;
+		}
+		VHNB_Bao::gui(
+			(string) $ma_nv, 'cham_cong',
+			trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) ) . ' ' . $viec
+				. ' ngày ' . (string) $ngay . ( $o ? ' — ' . implode( ' · ', $o ) : '' ),
+			'',
+			'cc_gio:' . (string) $ngay,
+			trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) )
+		);
 	}
 
 	/* ===================================================================== sửa đè */

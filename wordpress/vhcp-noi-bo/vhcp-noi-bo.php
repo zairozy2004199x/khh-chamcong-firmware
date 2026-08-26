@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Nội Bộ K&H
  * Description:       Trang trao đổi nội bộ: bảng tin, bình luận, thả tim — dùng chung PIN với hệ chấm công.
- * Version:           1.2.0
+ * Version:           1.3.0
  * Author:            K&H
  * Requires at least: 5.6
  * Requires PHP:      7.2
@@ -17,13 +17,16 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHNB_VERSION', '1.2.0' );
+define( 'VHNB_VERSION', '1.3.0' );
 define( 'VHNB_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once VHNB_DIR . 'includes/class-vhnb-db.php';
+require_once VHNB_DIR . 'includes/class-vhnb-quyen.php';
 require_once VHNB_DIR . 'includes/class-vhnb-nhom.php';
+require_once VHNB_DIR . 'includes/class-vhnb-bao.php';
 require_once VHNB_DIR . 'includes/class-vhnb-bai.php';
 require_once VHNB_DIR . 'includes/class-vhnb-trang.php';
+require_once VHNB_DIR . 'includes/class-vhnb-admin.php';
 
 register_activation_hook( __FILE__, 'vhnb_kich_hoat' );
 function vhnb_kich_hoat() {
@@ -45,6 +48,7 @@ add_action( 'plugins_loaded', function () {
 } );
 
 add_action( 'init', array( 'VHNB_Trang', 'init' ) );
+add_action( 'init', array( 'VHNB_Admin', 'init' ) );
 
 /* Ghi lại bộ luật đường ở ưu tiên 99 — SAU khi luật của trang đã được khai ở ưu tiên mặc định.
    Ghi trước là ghi một bộ luật chưa có `/noi-bo/` trong đó. */

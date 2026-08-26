@@ -92,6 +92,42 @@ class VHCP_Don {
 		) );
 	}
 
+	/**
+	 * ĐẨY MỘT TIN SANG CHUÔNG CỦA TRANG NỘI BỘ.
+	 *
+	 * Anh Thắng 26/08/2026: *"Ví dụ như có chấm công, có chi phí nó sẽ hiện lên nội bộ này."*
+	 *
+	 * 🔴 NGƯỜI LẬP ĐƠN PHẢI BIẾT ĐƠN CỦA MÌNH ĐI TỚI ĐÂU. Trước bản này, đơn được duyệt / bị
+	 *    trả lại / đã cấp tiền đều im lặng: người gửi phải tự mở app ra dò từng ngày, và đơn bị
+	 *    trả lại thì nằm đó cả tuần không ai đụng vào vì không ai biết nó đã bị trả.
+	 *
+	 * ⚠️ Gác `class_exists` + `method_exists` CÙNG HÀM với lời gọi — luật của
+	 *    `tools/test/kiem-goi-cheo.php`. Chưa cài plugin nội bộ thì im lặng trôi qua: báo tin là
+	 *    việc phụ, KHÔNG được làm hỏng việc duyệt đơn.
+	 *
+	 * ⚠️ Gửi theo MÃ NV, mà bảng đơn chỉ giữ TÊN người lập — nên phải tra ngược qua bảng người
+	 *    dùng. Không tra ra thì thôi, đừng đoán: gửi nhầm hộp thư là báo chuyện tiền nong của
+	 *    người này vào chuông người khác.
+	 */
+	private static function bao_noi_bo( $ma_don, $chu ) {
+		if ( ! class_exists( 'VHNB_Bao' ) || ! method_exists( 'VHNB_Bao', 'gui' ) ) { return; }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return; }
+		$ten = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
+		if ( '' === $ten ) { return; }
+		$ma_nv = '';
+		foreach ( VHCP_Cfg::get_users() as $u ) {
+			if ( mb_strtolower( trim( (string) $u['ten'] ) ) === $ten ) {
+				$ma_nv = trim( (string) ( isset( $u['maDt'] ) ? $u['maDt'] : '' ) );
+				break;
+			}
+		}
+		if ( '' === $ma_nv ) { return; }
+		VHNB_Bao::gui( $ma_nv, 'chi_phi',
+			'Đơn ' . (string) $d['ky'] . ' — ' . (string) $chu, '',
+			'cp_don:' . (string) $ma_don, '' );
+	}
+
 	/** Mô tả gọn một dòng chi: nội dung + số tiền. Dùng chung cho mọi câu nhật ký. */
 	private static function ta_dong( $r ) {
 		$r = (array) $r;
@@ -1711,6 +1747,7 @@ class VHCP_Don {
 			'ngay_duyet'    => VHCP_Util::now_sql(),
 			'tam_ung_duyet' => VHCP_Util::blank_or_num( $so_tam_ung ),
 		) );
+		self::bao_noi_bo( $ma_don, 'đã được duyệt tạm ứng — chờ kế toán chuyển tiền' );
 		return VHCP_Util::ok();
 	}
 
@@ -1727,6 +1764,7 @@ class VHCP_Don {
 			'ht_cap'     => (string) $ht_cap,
 			'anh_cap'    => (string) $anh_cap,
 		) );
+		self::bao_noi_bo( $ma_don, 'đã ĐƯỢC CẤP TẠM ỨNG (' . (string) $ht_cap . ')' );
 		return VHCP_Util::ok();
 	}
 
@@ -1778,6 +1816,7 @@ class VHCP_Don {
 			$data['ghi_chu'] = '[Trả lại] ' . $ly_do . ( $old !== '' ? ' | ' . $old : '' );
 		}
 		self::upd_don( $ma_don, $data );
+		self::bao_noi_bo( $ma_don, 'bị TRẢ LẠI' . ( $ly_do ? ' — ' . $ly_do : '' ) . '. Sửa rồi gửi lại nhé.' );
 		return VHCP_Util::ok( array( 'target' => $target ) );
 	}
 

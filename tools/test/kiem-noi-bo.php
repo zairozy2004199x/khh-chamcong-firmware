@@ -630,6 +630,152 @@ teq( 'đúng bằng trần thì dừng, đếm từ số thật', VHNB_Nhom::TOI
 
 vhnb_dung_bang();
 
+
+/* ============================================================ PHÂN QUYỀN TRANG NỘI BỘ */
+/* Anh Thắng 26/08/2026: *"phần quyền người vào chỗ nào"* — và lúc đó không có chỗ nào.
+   🔴 KHỐI NÀY CANH HAI THỨ: mặc định KHÔNG được siết chặt hơn hành vi đang chạy, và chốt phải
+      nằm Ở LÕI chứ không ở màn hình. */
+
+vhnb_dung_bang();
+delete_option( VHNB_Quyen::O );
+
+$U_QNV  = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Q Nhân Viên', 'Nhân viên',       'CS_VIVO', 'QNV1' ) );
+$U_QCHT = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Q Cửa Hàng',  'Cửa hàng trưởng', 'CS_VIVO', 'QCH1' ) );
+$U_QQL  = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Q Quản Lý',   'Quản lý',         '',        'QQL1' ) );
+$U_QAD  = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Q Admin',     'Admin',           '',        'QAD1' ) );
+
+/* ---- mặc định phải BẰNG ĐÚNG hành vi trước khi có màn này ---- */
+/* 🔴 Bản nâng cấp mà đặt mặc định chặt hơn hiện tại là sáng hôm sau cả công ty mất quyền đăng
+   bài, trong khi họ không đổi gì cả. */
+foreach ( array( 'vao', 'dang', 'nhom' ) as $_v ) {
+	t( 'mặc định: Nhân viên VẪN ' . $_v . ' được', VHNB_Quyen::duoc( $U_QNV, $_v ), $_v );
+}
+t( 'mặc định: Nhân viên KHÔNG dọn bài người khác', ! VHNB_Quyen::duoc( $U_QNV, 'don' ) );
+t( 'mặc định: Quản lý cũng KHÔNG dọn bài người khác', ! VHNB_Quyen::duoc( $U_QQL, 'don' ) );
+t( 'mặc định: Admin dọn được', VHNB_Quyen::duoc( $U_QAD, 'don' ) );
+t( 'việc không có tên thì CHỐI, không cho qua', ! VHNB_Quyen::duoc( $U_QAD, 'viec_la' ) );
+
+/* ---- khai lại bậc ---- */
+VHNB_Quyen::dat( array( 'dang' => 'CUA_HANG_TRUONG', 'don' => 'QUAN_LY' ) );
+t( 'siết "đăng" lên Cửa hàng trưởng: Nhân viên hết đăng được', ! VHNB_Quyen::duoc( $U_QNV, 'dang' ) );
+t( 'Cửa hàng trưởng vẫn đăng được', VHNB_Quyen::duoc( $U_QCHT, 'dang' ) );
+t( 'bậc TRÊN luôn làm được việc của bậc dưới (Admin vẫn đăng được)',
+	VHNB_Quyen::duoc( $U_QAD, 'dang' ) );
+t( 'nới "dọn" xuống Quản lý: Quản lý dọn được', VHNB_Quyen::duoc( $U_QQL, 'don' ) );
+t( 'nhưng Cửa hàng trưởng thì chưa', ! VHNB_Quyen::duoc( $U_QCHT, 'don' ) );
+teq( 'việc không đụng tới thì giữ nguyên', 'NHAN_VIEN', VHNB_Quyen::cai_dat()['vao'] );
+
+/* Bậc lạ / việc lạ thì BỎ, không nhận bừa — một dòng gõ nhầm không được đổi luật. */
+VHNB_Quyen::dat( array( 'dang' => 'SIEU_NHAN', 'viec_la' => 'ADMIN' ) );
+teq( 'bậc lạ bị bỏ, giữ giá trị cũ', 'CUA_HANG_TRUONG', VHNB_Quyen::cai_dat()['dang'] );
+t( 'việc lạ không lọt vào bảng', ! isset( VHNB_Quyen::cai_dat()['viec_la'] ) );
+
+/* ---- CHỐT PHẢI NẰM Ở LÕI ---- */
+/* 🔴 Màn hình có giấu ô soạn bài thì biểu mẫu POST vẫn dựng được từ bên ngoài. Giấu là trang
+   trí; chặn ở lõi mới là chặn. */
+t( '🔴 lõi CHỐI đăng bài khi chưa đủ bậc', empty( VHNB_Bai::dang( $U_QNV, 'chen vào' )['ok'] ) );
+$_ok_b = VHNB_Bai::dang( $U_QCHT, 'bài hợp lệ' );
+t( 'đủ bậc thì đăng được', ! empty( $_ok_b['ok'] ), $_ok_b );
+t( '🔴 lõi CHỐI bình luận khi chưa đủ bậc',
+	empty( VHNB_Bai::binh_luan( $U_QNV, (int) $_ok_b['id'], 'chen vào' )['ok'] ) );
+t( '🔴 lõi CHỐI thả tim khi chưa đủ bậc',
+	empty( VHNB_Bai::tim( $U_QNV, (int) $_ok_b['id'] )['ok'] ) );
+VHNB_Quyen::dat( array( 'nhom' => 'QUAN_LY' ) );
+t( '🔴 lõi CHỐI lập nhóm khi chưa đủ bậc', empty( VHNB_Nhom::lap( $U_QCHT, 'nhóm chen' )['ok'] ) );
+t( 'đủ bậc thì lập nhóm được', ! empty( VHNB_Nhom::lap( $U_QQL, 'nhóm hợp lệ' )['ok'] ) );
+
+/* Câu chối phải NÓI RA BẬC CẦN — "không đủ quyền" thì người đọc không biết phải xin ai. */
+$_ly = VHNB_Quyen::vi_sao_khong( $U_QNV, 'dang' );
+t( 'câu chối nói rõ cần bậc nào', false !== strpos( $_ly, 'Cửa hàng trưởng' ), $_ly );
+teq( 'đủ quyền thì câu chối rỗng', '', VHNB_Quyen::vi_sao_khong( $U_QAD, 'dang' ) );
+
+/* ---- chốt "vào trang" ---- */
+VHNB_Quyen::dat( array( 'vao' => 'QUAN_LY' ) );
+ob_start(); VHNB_Trang::ve( $U_QCHT ); $_h_chan = ob_get_clean();
+t( '🔴 chưa đủ bậc thì KHÔNG vẽ bảng tin ra', false === strpos( $_h_chan, 'class="giua"' ), $_h_chan );
+t( 'và nói rõ cần bậc nào', false !== strpos( $_h_chan, 'Quản lý' ), $_h_chan );
+ob_start(); VHNB_Trang::ve( $U_QQL ); $_h_vao = ob_get_clean();
+t( 'đủ bậc thì vào bình thường', false !== strpos( $_h_vao, 'class="giua"' ) );
+
+delete_option( VHNB_Quyen::O );
+vhnb_dung_bang();
+
+/* ============================================================ CHUÔNG THÔNG BÁO */
+/* Anh Thắng: *"chỗ thông báo tin nhắn chỗ nào"* rồi *"Ví dụ như có chấm công, có chi phí nó
+   sẽ hiện lên nội bộ này."* Nên hộp thư mở đúng MỘT CỬA NHẬN, ai có tin thì gọi vào. */
+
+teq( 'chưa có tin thì đếm bằng 0', 0, VHNB_Bao::chua_doc( 'NV001' ) );
+teq( 'và nhãn chuông để trống, không hiện số 0', '', VHNB_Bao::nhan_dem( 'NV001' ) );
+
+t( 'nhận được tin từ nguồn ngoài (chấm công)',
+	false !== VHNB_Bao::gui( 'NV001', 'cham_cong', 'Lê Thị B bù giờ công ngày 12/8', '', 'cc:12-8', 'NV002' ) );
+teq( 'đếm lên 1', 1, VHNB_Bao::chua_doc( 'NV001' ) );
+t( 'nhận được tin từ chi phí',
+	false !== VHNB_Bao::gui( 'NV001', 'chi_phi', 'Đơn T8 đã được duyệt', '', 'cp:D1', '' ) );
+teq( 'đếm lên 2', 2, VHNB_Bao::chua_doc( 'NV001' ) );
+
+/* 🔴 KHÔNG TỰ BÁO CHO CHÍNH MÌNH — chuông kêu là chuông nói lại thứ người ta vừa làm. */
+t( '🔴 tự gây ra thì KHÔNG báo cho chính mình',
+	false === VHNB_Bao::gui( 'NV001', 'noi_bo', 'bạn bình luận bài của bạn', '', 'x:1', 'NV001' ) );
+teq( 'nên số đếm không nhúc nhích', 2, VHNB_Bao::chua_doc( 'NV001' ) );
+t( 'không có người nhận thì bỏ', false === VHNB_Bao::gui( '', 'noi_bo', 'gửi cho ai?', '', 'y:1' ) );
+t( 'câu rỗng thì bỏ', false === VHNB_Bao::gui( 'NV001', 'noi_bo', '   ', '', 'y:2' ) );
+
+/* ---- gộp theo khoá ---- */
+/* Một bài 20 người bình luận mà đẻ 20 dòng thì chuông thành chỗ không ai mở. */
+/* ⚠️ Mã người GÂY RA phải khác mã người NHẬN ở cả năm lượt — trùng một lượt là lượt ấy bị
+   chốt "không tự báo cho mình" gạt đi, và con số 5 hụt xuống 4 vì lỗi của BÀI KIỂM. */
+for ( $i = 0; $i < 5; $i++ ) {
+	VHNB_Bao::gui( 'NV003', 'noi_bo', 'người thứ ' . $i . ' bình luận bài của bạn', '', 'bl:9', 'NGUOI' . $i );
+}
+teq( '🔴 năm lượt cùng khoá GỘP thành một dòng', 1, VHNB_Bao::chua_doc( 'NV003' ) );
+$_ds3 = VHNB_Bao::ds( 'NV003' );
+teq( 'và đếm đủ 5 lượt', 5, (int) $_ds3[0]['so_lan'] );
+t( 'câu hiện ra là câu MỚI NHẤT', false !== strpos( (string) $_ds3[0]['chu'], 'thứ 4' ), $_ds3[0]['chu'] );
+
+/* ---- đọc rồi thì đếm lại từ đầu ---- */
+VHNB_Bao::danh_dau_doc( 'NV003' );
+teq( 'đọc hết thì về 0', 0, VHNB_Bao::chua_doc( 'NV003' ) );
+VHNB_Bao::gui( 'NV003', 'noi_bo', 'người mới bình luận bài của bạn', '', 'bl:9', 'NV009' );
+teq( '🔴 đã đọc rồi mà có lượt mới thì SÁNG LẠI', 1, VHNB_Bao::chua_doc( 'NV003' ) );
+$_ds3b = VHNB_Bao::ds( 'NV003' );
+teq( 'và đếm LẠI TỪ 1, không cộng dồn xuyên qua lượt đọc', 1, (int) $_ds3b[0]['so_lan'] );
+
+/* ---- đánh dấu đọc một tin, và không chạm hộp thư người khác ---- */
+$_ds1 = VHNB_Bao::ds( 'NV001' );
+VHNB_Bao::danh_dau_doc( 'NV001', (int) $_ds1[0]['id'] );
+teq( 'đánh dấu một tin thì chỉ tin ấy đã đọc', 1, VHNB_Bao::chua_doc( 'NV001' ) );
+/* ⚠️ Gửi lên id của người khác thì không được chạm tới. */
+VHNB_Bao::danh_dau_doc( 'NV001', (int) $_ds3b[0]['id'] );
+teq( '🔴 không đánh dấu được tin của người khác', 1, VHNB_Bao::chua_doc( 'NV003' ) );
+
+/* ---- trần đếm ---- */
+for ( $i = 0; $i < VHNB_Bao::DEM_TRAN + 5; $i++ ) {
+	VHNB_Bao::gui( 'NV004', 'noi_bo', 'tin ' . $i, '', 'k' . $i, 'NVX' );
+}
+teq( 'quá trần thì hiện 99+, không hiện số dài', VHNB_Bao::DEM_TRAN . '+', VHNB_Bao::nhan_dem( 'NV004' ) );
+t( 'một lượt đọc không bao giờ trả quá trần', count( VHNB_Bao::ds( 'NV004' ) ) <= VHNB_Bao::TOI_DA );
+
+/* ---- chuông trên trang ---- */
+$_U_C = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Người Có Tin', 'Nhân viên', 'CS_VIVO', 'NV001' ) );
+ob_start(); VHNB_Trang::ve( $_U_C ); $_h_ch = ob_get_clean();
+t( 'đầu trang có chuông', false !== strpos( $_h_ch, 'class="chuong"' ), 'không thấy .chuong' );
+t( 'chuông hiện số tin chưa đọc', false !== strpos( $_h_ch, 'class="cham"' ) );
+t( 'và bày ra câu của tin', false !== strpos( $_h_ch, 'Đơn T8 đã được duyệt' ) );
+t( 'kèm nhãn nguồn để biết tin từ đâu', false !== strpos( $_h_ch, 'Chi phí' ) );
+/* 🔴 Chuông KHÔNG được dùng script — cùng luật với màn quản trị chấm công. */
+t( '🔴 chuông không dùng một dòng script nào',
+	false === stripos( $_h_ch, '<script' ) && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $_h_ch ), 'có script' );
+/* ⚠️ Mở trang KHÔNG được tự đánh dấu đã đọc: tải lại trang là con số về 0 dù chưa ai mở chuông. */
+t( '🔴 mở trang KHÔNG tự đánh dấu đã đọc', VHNB_Bao::chua_doc( 'NV001' ) > 0 );
+
+/* Người chưa có Mã NV thì hộp thư không có địa chỉ — nói thẳng, đừng treo chuông rỗng. */
+$_U_KM = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Không Mã', 'Nhân viên', 'CS_VIVO', '' ) );
+teq( 'không có mã thì đếm bằng 0, không nổ', 0, VHNB_Bao::chua_doc( '' ) );
+teq( 'và đánh dấu đọc cũng không đụng vào gì', 0, VHNB_Bao::danh_dau_doc( '' ) );
+
+vhnb_dung_bang();
+
 /* ================================================================= đường dẫn của trang */
 
 teq( 'đường dẫn mặc định là noi-bo', 'noi-bo', VHNB_Trang::slug() );

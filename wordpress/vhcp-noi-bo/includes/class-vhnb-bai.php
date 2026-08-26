@@ -30,6 +30,11 @@ class VHNB_Bai {
 		global $wpdb;
 		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
+		/* 🔴 GÁC QUYỀN Ở LÕI, cả ba cửa ghi (đăng · bình luận · thả tim). Màn hình có giấu ô
+		   soạn bài thì biểu mẫu POST vẫn dựng được từ bên ngoài — giấu là trang trí, chặn ở
+		   đây mới là chặn. Xem `VHNB_Quyen`. */
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'dang' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
 
 		/* 🔴 ĐĂNG VÀO NHÓM TỰ TẠO THÌ PHẢI LÀ THÀNH VIÊN — gác Ở ĐÂY, không gác ở màn hình.
 		   Màn hình chỉ liệt kê nhóm của mình, nhưng biểu mẫu POST thì ai dựng ở đâu cũng gửi
@@ -58,13 +63,32 @@ class VHNB_Bai {
 			'tao_luc'  => current_time( 'mysql' ),
 		) );
 		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error ); }
-		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id );
+		$id = (int) $wpdb->insert_id;
+
+		/* 🔴 CHỈ BÁO CHO NHÓM RIÊNG, KHÔNG BÁO CHO BÀI CHUNG.
+		   Bài ở Bảng tin thì cả công ty đọc được — báo cho 240 người mỗi lần ai đó đăng một
+		   dòng là chuông kêu suốt ngày và không ai mở nó nữa. Nhóm riêng thì khác: người ta vào
+		   nhóm để bàn một việc, và im lặng ở đó là bỏ lỡ việc ấy. */
+		if ( $nhom_id > 0 ) {
+			$n = VHNB_Nhom::mot( $nhom_id );
+			$tom = self::gon( $nd, 60 );
+			foreach ( VHNB_Nhom::ds_thanh_vien( $nhom_id ) as $tv ) {
+				VHNB_Bao::gui( (string) $tv['ma_nv'], 'noi_bo',
+					$ten . ' đăng trong nhóm "' . ( $n ? (string) $n['ten'] : '' ) . '": ' . $tom,
+					VHNB_Trang::url() . '?g=' . $nhom_id . '#bai' . $id,
+					'nhom_bai:' . $nhom_id,
+					(string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+			}
+		}
+		return array( 'ok' => true, 'id' => $id );
 	}
 
 	public static function binh_luan( $u, $bai_id, $noi_dung ) {
 		global $wpdb;
 		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'dang' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
 		$bai_id = (int) $bai_id;
 		if ( ! self::co_bai( $bai_id ) ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
 		if ( ! self::doc_duoc( $u, $bai_id ) ) {
@@ -81,6 +105,7 @@ class VHNB_Bai {
 			'tao_luc'  => current_time( 'mysql' ),
 		) );
 		self::dem_lai( $bai_id );
+		self::bao_ve_bai( $u, $bai_id, 'bl', 'bình luận bài của bạn' );
 		return array( 'ok' => true );
 	}
 
@@ -98,6 +123,8 @@ class VHNB_Bai {
 			return array( 'ok' => false,
 				'error' => 'Tài khoản này chưa có Mã NV nên chưa thả tim được — nhờ Admin khai giúp ở hồ sơ.' );
 		}
+		$_q = VHNB_Quyen::vi_sao_khong( $u, 'dang' );
+		if ( '' !== $_q ) { return array( 'ok' => false, 'error' => $_q ); }
 		$bai_id = (int) $bai_id;
 		if ( ! self::co_bai( $bai_id ) ) { return array( 'ok' => false, 'error' => 'Bài này không còn.' ); }
 		if ( ! self::doc_duoc( $u, $bai_id ) ) {
@@ -113,6 +140,8 @@ class VHNB_Bai {
 			$co = true;
 		}
 		self::dem_lai( $bai_id );
+		/* Chỉ báo lúc THẢ, không báo lúc bỏ tim: bỏ tim là chuyện riêng của người bỏ. */
+		if ( $co ) { self::bao_ve_bai( $u, $bai_id, 'tim', 'thả tim bài của bạn' ); }
 		return array( 'ok' => true, 'da_tim' => $co );
 	}
 
@@ -255,19 +284,43 @@ class VHNB_Bai {
 		return VHNB_Nhom::duoc_vao( $u, $nid );
 	}
 
+	/**
+	 * Báo cho CHỦ BÀI biết có người vừa động vào bài của họ.
+	 *
+	 * ⚠️ `VHNB_Bao::gui()` tự bỏ qua khi người gây ra chính là người nhận, nên ở đây không phải
+	 *    nhớ kiểm lại. Một chỗ chặn, không rải.
+	 */
+	private static function bao_ve_bai( $u, $bai_id, $loai, $viec ) {
+		global $wpdb;
+		$b = $wpdb->get_row( $wpdb->prepare(
+			'SELECT ma_nv, noi_dung FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $bai_id ), ARRAY_A );
+		if ( ! $b ) { return; }
+		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
+		$tom = self::gon( (string) $b['noi_dung'], 60 );
+		VHNB_Bao::gui(
+			(string) $b['ma_nv'], 'noi_bo',
+			$ten . ' ' . $viec . ( '' !== $tom ? ': "' . $tom . '"' : '' ),
+			VHNB_Trang::url() . '#bai' . (int) $bai_id,
+			$loai . ':' . (int) $bai_id,
+			(string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' )
+		);
+	}
+
 	private static function co_bai( $id ) {
 		global $wpdb;
 		return (bool) $wpdb->get_var( $wpdb->prepare(
 			'SELECT id FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=%d', (int) $id ) );
 	}
 
+	/**
+	 * ĐƯỢC GHIM / DỌN BÀI CỦA NGƯỜI KHÁC KHÔNG.
+	 *
+	 * ⚠️ TÊN HÀM CÒN LÀ `la_admin` VÌ NÓ ĐƯỢC GỌI Ở BỐN NƠI, nhưng câu hỏi nay là "có quyền dọn
+	 *    không", không phải "có phải Admin không" — Admin khai lại được bậc ở màn Cấu hình nội
+	 *    bộ. Mặc định vẫn là Admin, nên hành vi không đổi cho site đang chạy.
+	 */
 	public static function la_admin( $u ) {
-		if ( class_exists( 'VHCC_Vai' ) && method_exists( 'VHCC_Vai', 'duoc' ) ) {
-			return VHCC_Vai::duoc( $u, 'he_thong' );
-		}
-		/* Chưa cài plugin chấm công -> lui về so chuỗi. Không phải cách hay, nhưng thà thế còn
-		   hơn để `la_admin` luôn trả false và không ai ghim / dọn được bài nào. */
-		return 0 === strcasecmp( trim( (string) ( isset( $u['role'] ) ? $u['role'] : '' ) ), 'Admin' );
+		return VHNB_Quyen::duoc( $u, 'don' );
 	}
 
 	/** Bỏ khoảng trắng thừa, cắt độ dài. KHÔNG lọc HTML ở đây — nơi in ra lo việc thoát chuỗi. */

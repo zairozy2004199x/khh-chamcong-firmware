@@ -187,6 +187,11 @@ class VHNB_Trang {
 			$r = VHNB_Nhom::xoa( $toi, $g );
 			return empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã xoá nhóm.' );
 		}
+		if ( 'doc_bao' === $viec ) {
+			VHNB_Bao::danh_dau_doc( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '',
+				isset( $_POST['bao'] ) ? (int) $_POST['bao'] : 0 );
+			return array();
+		}
 		if ( 'binh_luan' === $viec ) {
 			$r = VHNB_Bai::binh_luan( $toi, $id,
 				isset( $_POST['noi_dung'] ) ? wp_unslash( $_POST['noi_dung'] ) : '' );
@@ -220,6 +225,7 @@ class VHNB_Trang {
 			echo '<span class="ai">' . self::anh_dai_dien( $toi['name'], 30 )
 				. '<span class="ai-ten">' . esc_html( $toi['name'] ) . '</span></span>';
 			/* ⚠️ DÒ TỪNG HÀM, KHÔNG DÒ MỖI TÊN LỚP: lớp CÓ mà hàm KHÔNG là trắng cả trang. */
+			self::chuong( $toi );
 			if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'url' ) ) {
 				echo '<a class="nut" href="' . esc_url( VHTC_Trang::url() ) . '">🏠 Cổng K&amp;H</a>';
 			}
@@ -232,6 +238,21 @@ class VHNB_Trang {
 		if ( ! self::co_he_cham_cong() ) {
 			echo '<div class="bo"><div class="bao loi"><b>Chưa cài plugin Chấm Công.</b> Trang nội bộ '
 				. 'dùng chung mã PIN với hệ chấm công, nên phải có plugin đó thì mới đăng nhập được.</div>';
+			self::dong_trang();
+			return;
+		}
+		/* 🔴 CHỐT "AI ĐƯỢC VÀO" ĐỨNG NGAY SAU CHỐT ĐĂNG NHẬP, trước mọi thứ khác.
+		   Đặt sau là đã lỡ vẽ bảng tin ra rồi mới chối — mà nội dung thì đã nằm trong HTML gửi
+		   xuống máy người ta. Xem `VHNB_Quyen`. */
+		if ( $toi && ! VHNB_Quyen::duoc( $toi, 'vao' ) ) {
+			echo '<div class="bo"><div class="the" style="max-width:520px;margin:40px auto">'
+				. '<h2>Chưa mở cho vai này</h2>'
+				. '<p class="mo">' . esc_html( VHNB_Quyen::vi_sao_khong( $toi, 'vao' ) ) . '</p>'
+				. '<p class="mo">Vai hiện tại của anh/chị: <b>'
+				. esc_html( (string) ( isset( $toi['role'] ) ? $toi['role'] : '—' ) ) . '</b>. '
+				. 'Cần vào thì nhờ Admin mở ở <b>wp-admin → Nội bộ K&amp;H</b>.</p>'
+				. '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() ) . '">← Về trang chấm công</a></p>'
+				. '</div>';
 			self::dong_trang();
 			return;
 		}
@@ -334,6 +355,64 @@ class VHNB_Trang {
 			return (array) constant( 'VHCC_Luong::BP_DS' );
 		}
 		return array();
+	}
+
+	/* ==================================================================== chuông */
+
+	/**
+	 * CHUÔNG THÔNG BÁO — hộp thư chung, mở bằng `<details>`, KHÔNG một dòng script nào.
+	 *
+	 * Anh Thắng 26/08/2026: *"chỗ thông báo tin nhắn chỗ nào"* — và lúc đó không có chỗ nào:
+	 * ai bình luận bài mình, ai thả tim, ai mời mình vào nhóm, đều im lặng. Rồi anh nói rõ
+	 * thêm: *"Ví dụ như có chấm công, có chi phí nó sẽ hiện lên nội bộ này."*
+	 *
+	 * ⚠️ MỞ RA LÀ ĐÁNH DẤU ĐÃ ĐỌC — nhưng phải BẤM NÚT, không tự đánh dấu lúc vẽ trang. Đánh
+	 *    dấu lúc vẽ thì chỉ cần tải lại trang là con số về 0 dù người ta chưa hề mở chuông ra.
+	 */
+	private static function chuong( $toi ) {
+		$ma  = trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) );
+		/* Người chưa có Mã NV thì hộp thư không có địa chỉ để mà gửi tới — nói thẳng, đừng
+		   treo một cái chuông rỗng đời đời không bao giờ kêu. */
+		if ( '' === $ma ) {
+			echo '<span class="mo" title="Hộp thư gửi theo Mã NV — tài khoản này chưa có mã">🔔</span>';
+			return;
+		}
+		$dem = VHNB_Bao::nhan_dem( $ma );
+		$ds  = VHNB_Bao::ds( $ma );
+
+		echo '<details class="chuong"><summary title="Thông báo">🔔'
+			. ( '' !== $dem ? '<span class="cham">' . esc_html( $dem ) . '</span>' : '' )
+			. '</summary><div class="hop">';
+
+		if ( '' !== $dem ) {
+			echo '<form method="post" class="hop-dau">' . self::o_ky()
+				. '<input type="hidden" name="viec" value="doc_bao">'
+				. '<span>' . esc_html( $dem ) . ' tin mới</span>'
+				. '<button class="nho">Đánh dấu đã đọc hết</button></form>';
+		}
+		if ( ! $ds ) {
+			echo '<p class="mo" style="padding:10px 12px;margin:0">Chưa có thông báo nào.</p>';
+		}
+		foreach ( $ds as $b ) {
+			$moi = empty( $b['da_doc'] );
+			$sl  = (int) $b['so_lan'];
+			$dd  = trim( (string) $b['duong_dan'] );
+			echo '<' . ( '' !== $dd ? 'a href="' . esc_url( $dd ) . '"' : 'div' )
+				. ' class="tin' . ( $moi ? ' moi' : '' ) . '">'
+				/* Nhãn nguồn để mắt biết ngay tin này từ đâu — nội bộ, chấm công hay chi phí. */
+				. '<span class="tin-ng">' . esc_html( self::ten_nguon( (string) $b['nguon'] ) ) . '</span>'
+				. '<span class="tin-chu">' . esc_html( (string) $b['chu'] )
+				. ( $sl > 1 ? ' <b>(' . $sl . ' lượt)</b>' : '' ) . '</span>'
+				. '<span class="tin-luc">' . esc_html( VHNB_Bai::bao_lau( (string) $b['tao_luc'] ) ) . '</span>'
+				. '</' . ( '' !== $dd ? 'a' : 'div' ) . '>';
+		}
+		echo '</div></details>';
+	}
+
+	/** Nhãn hiện ra của từng nguồn. Nguồn lạ thì in nguyên — thà thô còn hơn giấu mất. */
+	private static function ten_nguon( $x ) {
+		$m = array( 'noi_bo' => 'Nội bộ', 'cham_cong' => 'Chấm công', 'chi_phi' => 'Chi phí' );
+		return isset( $m[ $x ] ) ? $m[ $x ] : ( '' !== $x ? $x : 'Khác' );
 	}
 
 	/* ==================================================================== cột trái */
@@ -615,6 +694,34 @@ class VHNB_Trang {
 			. 'padding:8px 10px}'
 			. '.lap summary{cursor:pointer;font-weight:600;font-size:14px}'
 			. '.lap input,.lap textarea{width:100%;margin:6px 0}'
+
+			/* ---------- chuông thông báo ---------- */
+			/* Hộp thư mở bằng `<details>`, không một dòng script. Đặt `position:relative` ở
+			   `.chuong` để hộp thả xuống neo vào đúng cái chuông chứ không vào cả trang. */
+			. '.chuong{position:relative}'
+			. '.chuong>summary{list-style:none;cursor:pointer;font-size:19px;line-height:1;'
+			. 'padding:6px 8px;border-radius:8px;position:relative;user-select:none}'
+			. '.chuong>summary::-webkit-details-marker{display:none}'
+			. '.chuong>summary:hover{background:var(--ro)}'
+			. '.chuong .cham{position:absolute;top:0;right:0;background:var(--do);color:#fff;'
+			. 'font-size:10px;font-weight:700;line-height:1;padding:2px 5px;border-radius:9px}'
+			. '.chuong .hop{position:absolute;right:0;top:calc(100% + 6px);width:340px;max-width:88vw;'
+			. 'max-height:60vh;overflow:auto;background:var(--the);border:1px solid var(--vien);'
+			. 'border-radius:10px;box-shadow:0 8px 26px rgba(15,23,42,.16);z-index:20}'
+			. '.chuong .hop-dau{display:flex;align-items:center;gap:8px;padding:8px 10px;'
+			. 'border-bottom:1px solid var(--vien);font-size:12.5px;color:var(--mo)}'
+			. '.chuong .hop-dau span{flex:1;font-weight:700;color:var(--chu)}'
+			. '.chuong .tin{display:block;padding:9px 12px;border-bottom:1px solid #f1f5f9;'
+			. 'text-decoration:none;color:var(--chu);font-size:13px;line-height:1.45}'
+			. '.chuong a.tin:hover{background:#f8fafc}'
+			/* Tin chưa đọc có vạch xanh bên trái — đọc rồi thì mờ đi nhưng VẪN CÒN, không biến
+			   mất: người ta hay bấm nhầm "đã đọc" rồi đi tìm lại cái vừa lướt qua. */
+			. '.chuong .tin.moi{background:#f0f7ff;border-left:3px solid var(--xanh)}'
+			. '.chuong .tin-ng{display:inline-block;background:var(--ro);color:var(--mo);'
+			. 'border-radius:4px;padding:0 5px;font-size:10.5px;font-weight:700;margin-right:5px}'
+			. '.chuong .tin-chu{display:block;margin-top:3px;overflow-wrap:anywhere}'
+			. '.chuong .tin-luc{display:block;color:var(--mo);font-size:11px;margin-top:2px}'
+			. '@media(max-width:760px){.chuong .hop{position:fixed;left:8px;right:8px;width:auto;top:60px}}'
 
 			/* ---------- ảnh đại diện ---------- */
 			. '.add{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;'

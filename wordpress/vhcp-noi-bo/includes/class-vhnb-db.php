@@ -94,6 +94,27 @@ class VHNB_DB {
 			UNIQUE KEY mot_nguoi_mot_lan (nhom_id,ma_nv),
 			KEY cua_nguoi (ma_nv)";
 
+		/* ===== HỘP THƯ / CHUÔNG =====
+		   Nhận tin từ CHÍNH trang này và từ plugin khác (chấm công · chi phí) — xem `VHNB_Bao`.
+
+		   🔴 UNIQUE (ma_nv, khoa) LÀ THỨ LÀM NÊN VIỆC GỘP. Không có khoá này thì một bài được
+		      20 người bình luận đẻ ra 20 dòng, và chuông thành chỗ không ai mở. Có nó thì lượt
+		      thứ hai trở đi rơi vào đúng dòng cũ để cộng dồn.
+		   ⚠️ `khoa` để VARCHAR(120) chứ không TEXT: MySQL không đánh chỉ mục UNIQUE trên TEXT. */
+		$b['bao'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			nguon VARCHAR(30) NOT NULL DEFAULT '',
+			khoa VARCHAR(120) NOT NULL DEFAULT '',
+			chu VARCHAR(320) NOT NULL DEFAULT '',
+			duong_dan VARCHAR(255) NOT NULL DEFAULT '',
+			so_lan INT NOT NULL DEFAULT 1,
+			da_doc TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY mot_viec (ma_nv,khoa),
+			KEY hop_thu (ma_nv,da_doc,tao_luc)";
+
 		return $b;
 	}
 
