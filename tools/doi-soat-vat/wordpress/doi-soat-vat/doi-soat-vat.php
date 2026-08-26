@@ -22,6 +22,14 @@ if (!defined('ABSPATH')) {
 
 const DSVAT_SLUG = 'doi-soat-vat';
 
+/**
+ * Phiên bản plugin, phải trùng số ghi ở đầu file và trùng chuỗi ?v= trong
+ * web/index.html. Dùng để buộc trình duyệt tải lại giao diện sau khi cập nhật:
+ * không có nó thì người dùng cập nhật xong vẫn thấy bản cũ trong bộ đệm.
+ * dong-goi.sh kiểm tra ba chỗ này khớp nhau lúc đóng gói.
+ */
+const DSVAT_VERSION = '1.2.0';
+
 /** Quyền cần có để mở công cụ trong trang quản trị. */
 const DSVAT_CAPABILITY = 'manage_options';
 
@@ -37,10 +45,16 @@ function dsvat_base_url(): string
     return plugins_url('web/', __FILE__);
 }
 
-/** Địa chỉ file giao diện, dùng cho iframe trong trang quản trị. */
+/**
+ * Địa chỉ file giao diện, dùng cho iframe trong trang quản trị.
+ *
+ * Kèm ?v= để trình duyệt không dùng lại bản cũ sau khi cập nhật plugin. Trỏ thẳng
+ * vào file tĩnh chứ không qua địa chỉ web gọn, để iframe vẫn chạy khi bảng đường
+ * dẫn của WordPress chưa được dựng lại.
+ */
 function dsvat_app_url(): string
 {
-    return dsvat_base_url() . 'index.html';
+    return dsvat_base_url() . 'index.html?v=' . DSVAT_VERSION;
 }
 
 /** Địa chỉ web gọn cho công cụ, ví dụ https://tenmien.com/doi-soat-vat/ */
@@ -219,6 +233,11 @@ function dsvat_hien_trang(): void
 
         <p class="description dsvat-note">
             <?php esc_html_e('Sao kê được xử lý ngay trong trình duyệt của bạn — không có file nào được tải lên máy chủ.', 'doi-soat-vat'); ?>
+            <?php printf(
+                /* translators: %s là số phiên bản plugin */
+                esc_html__('Phiên bản %s — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo.', 'doi-soat-vat'),
+                '<strong>' . esc_html(DSVAT_VERSION) . '</strong>'
+            ); ?>
         </p>
 
         <iframe

@@ -8,7 +8,14 @@
 /* global importScripts, XLSX, VatRec, VatRecReport */
 'use strict';
 
-importScripts('../vendor/xlsx.full.min.js', 'core.js', 'report.js');
+// Truyền tiếp chuỗi truy vấn phiên bản của chính file worker sang các file con,
+// để cập nhật không bị trình duyệt giữ lại bản cũ trong bộ đệm.
+var VERSION_QUERY = self.location.search || '';
+importScripts(
+  '../vendor/xlsx.full.min.js' + VERSION_QUERY,
+  'core.js' + VERSION_QUERY,
+  'report.js' + VERSION_QUERY
+);
 
 var state = {
   // tên file -> { sheets: [{ name, kind, label, headerRow, rows }] }

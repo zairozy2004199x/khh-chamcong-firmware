@@ -99,13 +99,31 @@
   /* ---------------------------------------------------------------- worker */
 
   /**
-   * Địa chỉ file worker. Bản thường dùng đường dẫn tương đối; bản đóng thành một
-   * trang đơn (không có file rời) đặt sẵn biến này thành một blob URL.
+   * Chuỗi truy vấn phiên bản, đọc lại từ thẻ <script> đã nạp chính file này.
+   * Nhờ vậy số phiên bản chỉ khai một lần trong index.html, và mọi file con đều
+   * được tải mới khi số đó đổi — nếu không thì trình duyệt vẫn dùng bản cũ trong
+   * bộ đệm sau khi cập nhật, và người dùng thấy công cụ như chưa hề được sửa.
+   */
+  var VERSION_QUERY = (function () {
+    var script = document.currentScript;
+    if (!script) {
+      var all = document.getElementsByTagName('script');
+      script = all[all.length - 1];
+    }
+    var src = (script && script.getAttribute('src')) || '';
+    var at = src.indexOf('?');
+    return at >= 0 ? src.slice(at) : '';
+  }());
+
+  /**
+   * Địa chỉ file worker. Bản thường dùng đường dẫn tương đối kèm số phiên bản;
+   * bản đóng thành một trang đơn (không có file rời) đặt sẵn biến ghi đè này
+   * thành một blob URL.
    */
   function workerUrl() {
     return (typeof window.VATREC_WORKER_URL === 'string' && window.VATREC_WORKER_URL)
       ? window.VATREC_WORKER_URL
-      : 'js/worker.js';
+      : 'js/worker.js' + VERSION_QUERY;
   }
 
   function ensureWorker() {

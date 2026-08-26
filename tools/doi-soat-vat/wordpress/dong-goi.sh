@@ -21,6 +21,21 @@ if [[ ! -f "$goc/web/index.html" ]]; then
   exit 1
 fi
 
+# Ba chỗ ghi phiên bản phải khớp nhau, nếu không thì trình duyệt sẽ giữ lại giao
+# diện cũ trong bộ đệm và người dùng cập nhật xong vẫn thấy như chưa sửa gì.
+ver_header="$(sed -n 's/^ \* Version: *\([0-9.]*\).*/\1/p' "$thu_muc_script/$ten_plugin/doi-soat-vat.php" | head -1)"
+ver_const="$(sed -n "s/^const DSVAT_VERSION = '\([0-9.]*\)';.*/\1/p" "$thu_muc_script/$ten_plugin/doi-soat-vat.php" | head -1)"
+ver_html="$(sed -n 's/.*js\/app\.js?v=\([0-9.]*\)".*/\1/p' "$goc/web/index.html" | head -1)"
+
+if [[ -z "$ver_header" || "$ver_header" != "$ver_const" || "$ver_header" != "$ver_html" ]]; then
+  echo "Lệch phiên bản — sửa cho khớp rồi đóng gói lại:" >&2
+  echo "  Version ở đầu doi-soat-vat.php : ${ver_header:-(không đọc được)}" >&2
+  echo "  DSVAT_VERSION                  : ${ver_const:-(không đọc được)}" >&2
+  echo "  ?v= trong web/index.html       : ${ver_html:-(không đọc được)}" >&2
+  exit 1
+fi
+echo "Phiên bản: $ver_header"
+
 tam="$(mktemp -d)"
 trap 'rm -rf "$tam"' EXIT
 

@@ -61,6 +61,29 @@ Nếu địa chỉ báo 404: vào Cài đặt → Đường dẫn tĩnh, bấm L
 dựng lại bảng đường dẫn. Trang quản trị cũng in kèm đường dẫn dự phòng trỏ thẳng
 vào file, dùng được ngay không cần rewrite.
 
+### Cập nhật plugin: nhớ đổi số phiên bản
+
+Giao diện là file tĩnh nên trình duyệt cache rất chặt. Sửa `web/js/core.js` mà
+không đổi số phiên bản thì người dùng cập nhật plugin xong **vẫn thấy bản cũ** —
+đúng như chưa sửa gì.
+
+Số phiên bản phải khớp ở **ba chỗ**:
+
+| Chỗ | Ví dụ |
+|---|---|
+| `wordpress/doi-soat-vat/doi-soat-vat.php`, dòng `Version:` | `1.2.0` |
+| cùng file, hằng `DSVAT_VERSION` | `'1.2.0'` |
+| `web/index.html`, chuỗi `?v=` ở thẻ `<script src="js/app.js">` | `?v=1.2.0` |
+
+`dong-goi.sh` kiểm tra ba chỗ này và **từ chối đóng gói** nếu lệch.
+
+Chỉ cần đổi `?v=` trong `index.html`: `app.js` đọc lại số đó từ chính thẻ script
+của nó rồi truyền cho worker, worker truyền tiếp cho `core.js`, `report.js` và
+SheetJS. Một chỗ đổi, cả bộ file được tải mới.
+
+Số phiên bản đang chạy hiện ở cuối trang công cụ và ở đầu trang quản trị — kiểm
+tra ở đó khi thấy cập nhật "không có tác dụng".
+
 ### Plugin làm gì
 
 Chỉ ba việc: thêm một mục vào menu quản trị, mở địa chỉ web ở trên, và nhớ xem
@@ -412,6 +435,11 @@ Nếu để nguyên thì phần trùng mã giao dịch tự bị bỏ và phần
 
 **Tổng Zalo bằng 0.**
 Chưa khai ánh xạ gian hàng Zalo sang điểm xuất hoá đơn. Xem mục 4.1.
+
+**Cập nhật plugin rồi mà công cụ vẫn như cũ.**
+Trình duyệt còn giữ bản JavaScript cũ. Bấm Ctrl+Shift+R (Cmd+Shift+R trên Mac) một
+lần. Xem số phiên bản ở cuối trang công cụ để biết bản nào đang chạy. Nếu lập trình
+viên sửa code mà quên đổi `?v=` thì mọi người vẫn nhận bản cũ — xem mục 1.
 
 **WordPress báo "Không tìm thấy gói mở rộng hợp lệ".**
 Đang cài nhầm zip của trang tĩnh. Chạy `wordpress/dong-goi.sh` để lấy zip plugin.
