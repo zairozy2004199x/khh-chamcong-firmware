@@ -62,7 +62,7 @@ void  cheDoChotCa();
  * ─────────────────────────────────────────────────────────────────────────── */
 #define WIFI_SSID     "TenWifiCuaBan"          // WiFi Internet cho phần CHỐT CA
 #define WIFI_PASS     "MatKhauWifi"
-#define WEB_BASE      "https://poshvn.com/ghe/" // trang /ghe của web (có dấu / cuối)
+#define WEB_BASE      "https://khmatrix.com/ghe/" // trang /ghe của web (có dấu / cuối)
 
 // Khớp secrets/otaPhucVu của con ghế (esp32_ghe_massage.ino: SEC_AP_PASS, OTA_AP_PREFIX)
 #define GHE_AP_PREFIX "POSH_QR-"
@@ -71,7 +71,7 @@ void  cheDoChotCa();
 IPAddress GHE_IP(192, 168, 4, 1);
 const uint16_t GHE_PORT = 80;
 const char*  FW_PATH   = "/firmware.bin";       // tên file .bin trên thẻ SD máy trạm
-const int    NEAR_RSSI = -75;                   // chỉ hiện ghế Ở GẦN (sóng >= mức này)
+const int    NEAR_RSSI = -90;                   // gần như không lọc sóng (để chắc thấy ghế; siết lại sau khi ok)
 
 // ── Phần cứng CYD (khớp esp32_ghe_massage.ino) ────────────────────────────────
 #define T_CS   33
@@ -223,11 +223,16 @@ long banPhimSo(const char* nhan, long macDinh, long toiDa){
 /* Quét WiFi, lọc AP "POSH_QR-*" ở gần, xếp theo sóng. Trả số ghế tìm được. */
 int quetAp(bool phaiCoGhe){
   bao("Dang do ghe...", COL_ACC, "Quet WiFi POSH_QR", "");
-  WiFi.mode(WIFI_STA); WiFi.disconnect(true); delay(120);
-  int n = WiFi.scanNetworks();
+  WiFi.mode(WIFI_STA); WiFi.disconnect(true); delay(300);
+  int n = WiFi.scanNetworks();          // đồng bộ; mặc định quét mọi kênh
+  Serial.printf("[QUET] thay %d AP:\n", n);
   g_dsN = 0;
-  for(int i = 0; i < n && g_dsN < 24; i++){
+  for(int i = 0; i < n; i++){
     String ss = WiFi.SSID(i);
+    // In HẾT để soi: thấy POSH_QR không? sóng bao nhiêu? tên có đúng prefix không?
+    Serial.printf("   %2d) \"%s\"  %ddBm  ch%d %s\n", i, ss.c_str(), WiFi.RSSI(i), WiFi.channel(i),
+                  ss.startsWith(GHE_AP_PREFIX) ? "<= GHE" : "");
+    if(g_dsN >= 24) continue;
     if(!ss.startsWith(GHE_AP_PREFIX)) continue;
     if(WiFi.RSSI(i) < NEAR_RSSI) continue;
     ApGhe g; g.ssid = ss; g.ma = ss.substring(strlen(GHE_AP_PREFIX));
@@ -235,6 +240,7 @@ int quetAp(bool phaiCoGhe){
     g_ds[g_dsN++] = g;
   }
   WiFi.scanDelete();
+  Serial.printf("[QUET] loc ra %d ghe POSH_QR\n", g_dsN);
   // sắp xếp sóng mạnh trước
   for(int i = 0; i < g_dsN; i++) for(int j = i + 1; j < g_dsN; j++)
     if(g_ds[j].rssi > g_ds[i].rssi){ ApGhe t = g_ds[i]; g_ds[i] = g_ds[j]; g_ds[j] = t; }
