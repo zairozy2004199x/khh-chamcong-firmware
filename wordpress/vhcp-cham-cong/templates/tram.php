@@ -61,6 +61,11 @@ video,canvas.xem{width:100%;border-radius:12px;background:#000;display:block}
 	border-radius:50%;background:#ef4444;border:3px solid #fff;box-shadow:0 0 0 2px rgba(0,0,0,.35)}
 .bando .ghi{position:absolute;right:4px;bottom:2px;font-size:10px;color:#0f172a;
 	background:rgba(255,255,255,.72);padding:0 5px;border-radius:4px}
+.thanh{position:sticky;top:0;z-index:8;display:flex;gap:9px;margin:0 0 12px;padding:8px 0;
+	background:#0f172a}
+.thanh button{flex:1;padding:11px 8px;font-size:14px}
+/* Chừa chỗ cho thanh dính, không thì nó che mất đầu khối vừa nhảy tới. */
+#oKhoiCham,#oKhoiCong{scroll-margin-top:62px}
 .khung{position:relative}
 .dem{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
 	pointer-events:none;border-radius:12px}
@@ -116,13 +121,21 @@ a{color:#7dd3fc}
 	<p class="mo"><span id="maToi"></span> · <span id="csToi"></span></p>
 	<div id="tinhTrang"></div>
 
+	<!-- ============ THANH NHẢY NHANH ============
+	     Dính ở đầu màn hình, nên bấm được dù đang cuộn tới đâu. Người ta mở trang này vì hai
+	     việc, và hai việc ấy nằm cách nhau bốn khối. -->
+	<div class="thanh">
+		<button id="btDenCham" class="phu">📷 Chấm công</button>
+		<button id="btDenCong" class="phu">📅 Công của tôi</button>
+	</div>
+
 	<div class="the">
 		<p class="dngay" id="ngayMC">—</p>
 		<p class="dhho" id="gioMC">--:--:--</p>
 		<p class="dngay" style="margin-top:4px">giờ máy chủ</p>
 	</div>
 
-	<div class="the">
+	<div class="the" id="oKhoiCham">
 		<div id="trangThai"></div>
 		<div id="baoCham"></div>
 		<p></p>
@@ -148,7 +161,7 @@ a{color:#7dd3fc}
 		<div id="bangHN"><p class="trong">Đang tải…</p></div>
 	</div>
 
-	<div class="the">
+	<div class="the" id="oKhoiCong">
 		<label style="margin:0 0 8px">Công của tôi</label>
 		<div class="hang" style="align-items:center;margin:0 0 10px">
 			<button id="btThangTruoc" class="phu" style="flex:0 0 46px">‹</button>
@@ -850,6 +863,22 @@ function veThang(ym){
 		el('bangThang').innerHTML = h + '</tbody></table>';
 	}).catch(function(){ el('bangThang').innerHTML = '<p class="trong">Lỗi mạng.</p>'; });
 }
+
+/**
+ * Nhảy tới một khối.
+ *
+ * ⚠️ `scrollIntoView({behavior:'smooth'})` không có ở mọi máy — Safari cũ bỏ qua cả đối tượng
+ *    tuỳ chọn và nhảy phắt tới, mà nhảy phắt thì vẫn ĐÚNG VIỆC. Nên gọi trong try/catch rồi
+ *    lùi về bản không tham số: thà nhảy giật còn hơn nút bấm không lên.
+ */
+function nhayToi(id){
+	var o = el(id);
+	if(!o) return;
+	try { o.scrollIntoView({ behavior:'smooth', block:'start' }); }
+	catch(e){ o.scrollIntoView(); }
+}
+el('btDenCham').addEventListener('click', function(){ nhayToi('oKhoiCham'); });
+el('btDenCong').addEventListener('click', function(){ nhayToi('oKhoiCong'); });
 
 el('btThangTruoc').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,-1)); });
 el('btThangSau').addEventListener('click', function(){ if(THANG) veThang(thangDich(THANG,1)); });

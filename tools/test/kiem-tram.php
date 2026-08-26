@@ -799,6 +799,34 @@ t( 'tắt cả khi xong lẫn khi lỗi',
 	preg_match( "/Promise\.all[\s\S]{0,200}dangGoi\(false\)[\s\S]{0,60}dangGoi\(false\)/", $tram_js2 ) === 1 );
 t( 'chờ tối đa 10 giây, không phải 15', strpos( $tram_js2, 'CHO_TOI_DA = 10000' ) !== false );
 
+/* ============================================ 18. THANH NHẢY NHANH
+ *
+ * Anh Thắng 26/08/2026: *"làm 2 nút đó đi"*. Người ta mở trang này vì hai việc — chấm công, và
+ * xem công của mình — mà hai việc ấy cách nhau bốn khối. Đầu tháng thì vuốt tới nút chấm công,
+ * cuối tháng thì vuốt ngược lại xem công: lần nào cũng phải cuộn qua hết.
+ */
+t( 'có thanh hai nút', strpos( $tram_vt, 'id="btDenCham"' ) !== false
+	&& strpos( $tram_vt, 'id="btDenCong"' ) !== false );
+t( 'thanh dính ở đầu màn hình, bấm được dù cuộn tới đâu',
+	strpos( $tram_vt, '.thanh{position:sticky' ) !== false );
+t( 'hai khối đích có mốc để nhảy tới',
+	strpos( $tram_vt, 'id="oKhoiCham"' ) !== false && strpos( $tram_vt, 'id="oKhoiCong"' ) !== false );
+/* ⚠️ Thanh dính che mất đầu khối vừa nhảy tới nếu không chừa chỗ. */
+t( 'chừa chỗ cho thanh dính', strpos( $tram_vt, 'scroll-margin-top' ) !== false );
+
+/* Hai nút làm CÙNG một kiểu việc (cuộn tới khối), không phải mỗi nút một kiểu — một hàng nút
+   mà hành xử khác nhau thì người dùng không đoán được cái nào làm gì. */
+t( 'cả hai nút đều gọi cùng một hàm nhảy',
+	preg_match( "/btDenCham'\\)[^\n]*nhayToi\\('oKhoiCham'\\)/", $tram_js2 ) === 1
+	&& preg_match( "/btDenCong'\\)[^\n]*nhayToi\\('oKhoiCong'\\)/", $tram_js2 ) === 1 );
+
+/* ⚠️ `scrollIntoView({behavior:'smooth'})` không có ở mọi máy — Safari cũ bỏ qua cả đối tượng
+   tuỳ chọn. Nhảy phắt thì vẫn ĐÚNG VIỆC, còn nút bấm không lên thì không. */
+t( 'có đường lùi khi trình duyệt không cuộn mượt được',
+	preg_match( "/catch\\(e\\)\\{ o\\.scrollIntoView\\(\\); \\}/", $tram_js2 ) === 1 );
+t( 'nhảy tới một id không có thì im, không nổ',
+	strpos( $tram_js2, 'if(!o) return;' ) !== false );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
