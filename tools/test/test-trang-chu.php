@@ -62,6 +62,17 @@ teq( 'không có thẻ <a> nào khi chưa cài app nào', 0, substr_count( $h, '
    giữa tệp thì `class_exists('VHCC_Trang')` đã trả về true NGAY TỪ DÒNG ĐẦU. Bản đầu em làm vậy
    và toàn bộ phần "chưa cài" ở trên không bao giờ đúng được: nó báo hỏng trong khi mã đúng.
    `eval` chạy đúng lúc gọi tới, nên mới dựng được cảnh "trước khi cài" rồi "sau khi cài". */
+/* 🔴 CÀI NỘI BỘ NHƯNG CHƯA CÓ HỆ CHẤM CÔNG -> VẪN PHẢI XÁM.
+   Trang nội bộ không có cửa đăng nhập riêng: nó đọc thẻ phiên của `VHCC_Web`. Thiếu hệ ấy thì
+   bấm vào chỉ ra một trang nói "chưa cài plugin Chấm Công".
+   ⚠️ Phải thử ở ĐÂY, trước khi khai `VHCC_Web`. Khai rồi thì không dựng lại được cảnh này nữa —
+   và nửa điều kiện `&& $co('VHCC_Web','url')` sẽ không có phép thử nào canh. */
+eval( 'class VHNB_Trang { public static function url() { return "https://khmatrix.com/noi-bo/"; } }' );
+$t_nb = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $t_nb[ $a['ten'] ] = $a; }
+teq( 'cài nội bộ nhưng CHƯA có hệ chấm công -> ô vẫn xám', false, $t_nb['Nội Bộ']['co'] );
+teq( 'và KHÔNG dựng đường dẫn tới một trang chưa đăng nhập được', '', $t_nb['Nội Bộ']['url'] );
+
 eval( 'class VHCC_Trang { public static function url() { return "https://khmatrix.com/cham-cong/"; } }' );
 eval( 'class VHCP_App   { public static function app_url() { return "https://khmatrix.com/chi-phi/"; } }' );
 /* Chỉ có app CŨ thì trang chủ đành trỏ về nó — liên kết dẫn tới hệ cũ còn hơn ô xám. */
@@ -132,6 +143,16 @@ $t3 = array();
 foreach ( VHTC_Trang::ds_app() as $a ) { $t3[ $a['ten'] ] = $a; }
 teq( 'có trang ngoài thì trỏ vào trang ngoài', 'https://khmatrix.com/ghe/', $t3['Ghế Massage']['url'] );
 t( 'và KHÔNG còn trỏ wp-admin', strpos( $t3['Ghế Massage']['url'], '/wp-admin/' ) === false );
+
+/* ============================================ ô Nội Bộ: chỉ đứng khi CÓ hệ chấm công
+   🔴 Trang nội bộ không có cửa đăng nhập riêng — nó đọc thẻ phiên của `VHCC_Web`. Thiếu hệ chấm
+   công thì bấm vào chỉ ra một trang nói "chưa cài plugin Chấm Công". Nên ô này phải xám khi
+   thiếu hệ ấy, chứ không phải xanh vì "plugin nội bộ có cài mà". */
+t( 'trang cổng có ô Nội Bộ', isset( $theo_ten['Nội Bộ'] ), array_keys( $theo_ten ) );
+$t4 = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $t4[ $a['ten'] ] = $a; }
+teq( 'cài nội bộ + có hệ chấm công -> ô sáng', true, $t4['Nội Bộ']['co'] );
+teq( 'và trỏ đúng trang nội bộ', 'https://khmatrix.com/noi-bo/', $t4['Nội Bộ']['url'] );
 
 /* 🔴 KHÔNG ĐƯỢC GÕ CỨNG đường dẫn nào trong mã. Gõ cứng là hôm nào anh Thắng đổi đường dẫn bên
    app kia, trang cổng vẫn trỏ về đường cũ — bấm vào ra 404 mà không có gì báo. */

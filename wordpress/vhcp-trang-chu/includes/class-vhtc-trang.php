@@ -91,6 +91,18 @@ class VHTC_Trang {
 				'url'   => $co( 'VHG_Trang', 'url' ) ? VHG_Trang::url()
 					: ( $co( 'VHG_Admin', 'app_url' ) ? VHG_Admin::app_url() : '' ),
 			),
+			/* Trang nội bộ dùng CHUNG PIN với hệ chấm công (`VHNB_Trang` đọc cookie của
+			   `VHCC_Web`), nên nó chỉ đứng được khi hệ chấm công có mặt. Thiếu hệ ấy thì ô này
+			   phải xám: một liên kết dẫn tới trang chỉ nói "chưa cài plugin Chấm Công" thì thà
+			   đừng dựng. */
+			array(
+				'ten'   => 'Nội Bộ',
+				'mo_ta' => 'Bảng tin công ty: thông báo, trao đổi theo bộ phận, bình luận',
+				'icon'  => '💬',
+				'co'    => $co( 'VHNB_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ),
+				'url'   => ( $co( 'VHNB_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ) )
+					? VHNB_Trang::url() : '',
+			),
 			array(
 				'ten'   => 'Thư Viện Hợp Đồng',
 				'mo_ta' => 'Hợp đồng, đối tác, ngày hết hiệu lực',

@@ -6595,6 +6595,39 @@ t( 'gom cơ sở theo bộ phận', strpos( $h_nha_ad, '<th>Bộ phận</th>' ) 
 t( 'nói rõ link KHÔNG phải chìa khoá', strpos( $h_nha_ad, 'không phải chìa khoá' ) !== false, $h_nha_ad );
 t( 'Nhân viên KHÔNG có khối link gửi bộ phận', strpos( $h_nha_nv, 'id="guilink"' ) === false, $h_nha_nv );
 
+/* ---- đường sang trang khác của công ty ----
+   Anh Thắng 26/08: *"làm 1 trang chủ ghép các trang chấm công chung lại… tạo 1 trang chủ công ty
+   K&H để liên kết đến các trang con"*. Trang chào ghép xong phần chấm công; khối này là đường ra.
+   🔴 CHƯA CÀI thì KHÔNG được in khung rỗng: một tiêu đề không có gì bên dưới trông y như hỏng. */
+t( 'chưa cài trang nội bộ / cổng K&H thì KHÔNG in khung rỗng',
+	strpos( $h_nha_ad, 'Trang khác của công ty' ) === false, $h_nha_ad );
+
+/* ⚠️ Khai bằng eval() vì PHP NÂNG mọi khai báo lớp ở cấp cao nhất lên lúc biên dịch tệp — khai
+   thẳng thì `class_exists` đã trả true ngay từ dòng đầu và phép thử "chưa cài" ở trên không bao
+   giờ đúng được. */
+/* 🔴 LỚP CÓ MÀ HÀM KHÔNG. Bốn plugin cài độc lập nên bản có thể lệch nhau, và gọi một hàm không
+   tồn tại là Fatal error — TRẮNG CẢ TRANG, không phải một ô hỏng. Vết này đã xảy ra thật ở chân
+   trang app chi phí ngày 23/08/2026. Nên dựng đúng cảnh đó: cổng K&H bản cũ, chưa có `url()`. */
+eval( 'class VHTC_Trang { public static function ve() { return null; } }' );
+$h_nha_cu = vhcc_web( '135791' );
+t( 'cổng K&H bản cũ (lớp CÓ, hàm url KHÔNG) -> trang chào vẫn vẽ được, không trắng trang',
+	strpos( $h_nha_cu, 'Việc anh/chị làm được' ) !== false, substr( $h_nha_cu, 0, 200 ) );
+t( 'và KHÔNG dựng ô trỏ sang cổng K&H', strpos( $h_nha_cu, 'Cổng K&amp;H' ) === false, $h_nha_cu );
+t( 'chưa có trang nào dùng được thì vẫn không in khung rỗng',
+	strpos( $h_nha_cu, 'Trang khác của công ty' ) === false, $h_nha_cu );
+
+eval( 'class VHNB_Trang { public static function url() { return "https://khmatrix.com/noi-bo/"; } }' );
+$h_nha_2 = vhcc_web( '135791' );
+t( 'cài rồi thì trang chào có khối Trang khác của công ty',
+	strpos( $h_nha_2, 'Trang khác của công ty' ) !== false, $h_nha_2 );
+t( 'và trỏ sang bảng tin nội bộ', strpos( $h_nha_2, 'https://khmatrix.com/noi-bo/' ) !== false, $h_nha_2 );
+t( 'ô cổng K&H vẫn vắng vì bản kia chưa có url()',
+	strpos( $h_nha_2, 'Cổng K&amp;H' ) === false, $h_nha_2 );
+/* 🔴 Đường dẫn lấy TỪ CHÍNH plugin kia, không gõ cứng: gõ cứng là hôm nào anh Thắng đổi đường
+   dẫn bên ấy, ô này vẫn trỏ về đường cũ — bấm vào ra 404 mà không có gì báo. */
+t( 'mã KHÔNG gõ cứng đường dẫn trang nội bộ',
+	strpos( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ), "'noi-bo'" ) === false );
+
 /* ---- chạy được trên điện thoại ---- */
 t( 'trang khai khổ màn hình', strpos( $h_nha_ad, 'name="viewport"' ) !== false, $h_nha_ad );
 t( 'có luật riêng cho màn nhỏ', strpos( $h_nha_ad, '@media(max-width:640px)' ) !== false, $h_nha_ad );

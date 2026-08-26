@@ -18,16 +18,6 @@
  */
 $goc = dirname( __DIR__, 2 );
 
-/** Tiền tố lớp của từng plugin. */
-$plugin = array(
-	'wordpress/vhcp-chi-phi'  => 'VHCP_',
-	'wordpress/vhcp-cham-cong'=> 'VHCC_',
-	'wordpress/vhcp-ghe'      => 'VHG_',
-	'wordpress/vhcp-hop-dong' => 'VHD_',
-	'wordpress/vhcp-trang-chu'=> 'VHTC_',
-);
-$moi_tien_to = array_values( $plugin );
-
 function tep_php_cua( $thu_muc ) {
 	$out = array();
 	if ( ! is_dir( $thu_muc ) ) { return $out; }
@@ -36,6 +26,43 @@ function tep_php_cua( $thu_muc ) {
 	sort( $out );
 	return $out;
 }
+
+/**
+ * Tiền tố lớp của từng plugin — DÒ TỪ CHÍNH MÃ, không gõ tay.
+ *
+ * 🔴 Bản đầu gõ tay năm dòng, và bảng ấy đứng im trong khi cây mã đi tiếp: `vhcp-cong` và
+ *    `vhcp-noi-bo` không có tên trong đó, nên mọi lời gọi chéo của hai plugin ấy KHÔNG được soi
+ *    — mà `vhcp-noi-bo` thì sống bằng lời gọi chéo (nó đọc thẻ phiên của hệ chấm công). Bài kiểm
+ *    vẫn xanh, chỉ là nó không nhìn vào chỗ đang cần nhìn nhất. Đúng cái bẫy mà chính bài kiểm
+ *    này sinh ra để dẹp — rồi lại mọc lại ở danh sách của nó.
+ *
+ * Cách dò: thư mục nào khai `class VHXX_...` thì tiền tố của plugin ấy là `VHXX_`. Mỗi plugin
+ * hiện khai đúng một tiền tố; khai hai là chốt dưới đây đỏ, và đỏ đúng — hai tiền tố trong một
+ * plugin nghĩa là bài kiểm không còn phân biệt được đâu là "lớp của mình", đâu là "lớp plugin khác".
+ */
+$plugin = array();
+$loi_dau = array();
+foreach ( glob( $goc . '/wordpress/*', GLOB_ONLYDIR ) as $thu_muc ) {
+	$dem = array();
+	foreach ( tep_php_cua( $thu_muc ) as $f ) {
+		if ( preg_match_all( '/^\s*(?:final\s+|abstract\s+)?class\s+([A-Za-z0-9]+_)/m',
+			file_get_contents( $f ), $mm ) ) {
+			foreach ( $mm[1] as $tt ) { $dem[ $tt ] = isset( $dem[ $tt ] ) ? $dem[ $tt ] + 1 : 1; }
+		}
+	}
+	if ( ! $dem ) { continue; }                       // thư mục không khai lớp nào -> bỏ qua
+	if ( count( $dem ) > 1 ) {
+		$loi_dau[] = basename( $thu_muc ) . ' khai NHIỀU tiền tố lớp: ' . implode( ', ', array_keys( $dem ) );
+		continue;
+	}
+	$plugin[ 'wordpress/' . basename( $thu_muc ) ] = key( $dem );
+}
+$moi_tien_to = array_values( $plugin );
+
+if ( count( $plugin ) < 5 ) {
+	$loi_dau[] = 'chỉ dò ra ' . count( $plugin ) . ' plugin — đường dẫn sai hay cây mã đổi?';
+}
+
 
 /** Cắt mã thành từng THÂN HÀM để hỏi "gác có nằm cùng hàm với lời gọi không". */
 function than_ham( $ma ) {
@@ -54,6 +81,15 @@ function than_ham( $ma ) {
 		while ( $k < $n && $sau > 0 ) {
 			if ( $tok[ $k ] === '{' ) { $sau++; }
 			elseif ( $tok[ $k ] === '}' ) { $sau--; if ( ! $sau ) { break; } }
+			/* 🔴 BỎ CHÚ THÍCH RA KHỎI THÂN HÀM.
+			   Giữ lại thì hỏng cả hai chiều: một dòng chú thích KỂ VỀ lời gọi `VHCC_Auth::phien()`
+			   bị đếm thành lời gọi thật (đã xảy ra 26/08/2026, ngay chỗ vừa sửa xong lỗi ấy), và
+			   ngược lại một `method_exists` chỉ nằm trong chú thích lại được tính là đã gác. Chốt
+			   này phải soi MÃ, không soi lời giải thích về mã. */
+			if ( is_array( $tok[ $k ] ) && in_array( $tok[ $k ][0], array( T_COMMENT, T_DOC_COMMENT ), true ) ) {
+				$k++;
+				continue;
+			}
 			$chuoi .= is_array( $tok[ $k ] ) ? $tok[ $k ][1] : $tok[ $k ];
 			$k++;
 		}
@@ -63,7 +99,7 @@ function than_ham( $ma ) {
 	return $than;
 }
 
-$loi = array(); $so_tep = 0; $so_goi = 0;
+$loi = $loi_dau; $so_tep = 0; $so_goi = 0;
 foreach ( $plugin as $thu_muc => $cua_minh ) {
 	foreach ( tep_php_cua( $goc . '/' . $thu_muc ) as $f ) {
 		$so_tep++;

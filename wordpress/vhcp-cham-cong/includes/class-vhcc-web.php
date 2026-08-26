@@ -1633,6 +1633,43 @@ class VHCC_Web {
 		echo '</div></div>';
 
 		self::the_link_bo_phan( $toi, $ds_cs, $th_nay );
+		self::the_trang_khac();
+	}
+
+	/**
+	 * ĐƯỜNG SANG CÁC TRANG KHÁC CỦA CÔNG TY.
+	 *
+	 * Anh Thắng 26/08/2026: *"làm 1 trang chủ ghép các trang chấm công chung lại… tạo 1 trang chủ
+	 * công ty K&H để liên kết đến các trang con"*. Trang chào này đã ghép xong phần chấm công;
+	 * khối dưới đây là đường ra khỏi nó — sang cổng K&H và sang bảng tin nội bộ.
+	 *
+	 * ⚠️ DÒ TỪNG HÀM, KHÔNG DÒ MỖI TÊN LỚP. Bốn plugin cài độc lập nên bản có thể lệch nhau:
+	 *    lớp CÓ mà hàm KHÔNG là trắng cả trang. Đúng vết đã xảy ra thật ở chân trang app chi phí
+	 *    ngày 23/08/2026.
+	 */
+	private static function the_trang_khac() {
+		$co = function ( $lop, $ham ) { return class_exists( $lop ) && method_exists( $lop, $ham ); };
+
+		$ds = array();
+		if ( $co( 'VHNB_Trang', 'url' ) ) {
+			$ds[] = array( 'ten' => '💬 Nội bộ', 'url' => VHNB_Trang::url(),
+				'chu' => 'Bảng tin công ty: thông báo, trao đổi theo bộ phận. Dùng chung PIN với trang này.' );
+		}
+		if ( $co( 'VHTC_Trang', 'url' ) ) {
+			$ds[] = array( 'ten' => '🏠 Cổng K&H', 'url' => VHTC_Trang::url(),
+				'chu' => 'Trang chủ công ty — đường vào mọi phần mềm K&H.' );
+		}
+		/* Chưa cài trang nào thì KHÔNG in cái khung rỗng ra. Một khối tiêu đề không có gì bên
+		   dưới trông y như trang bị hỏng. */
+		if ( ! $ds ) { return; }
+
+		echo '<div class="the"><h3 style="margin:0 0 10px">Trang khác của công ty</h3>';
+		echo '<div class="the-viec">';
+		foreach ( $ds as $v ) {
+			echo '<a class="viec" href="' . esc_url( $v['url'] ) . '"><b>' . esc_html( $v['ten'] ) . '</b>'
+				. '<span>' . esc_html( $v['chu'] ) . '</span></a>';
+		}
+		echo '</div></div>';
 	}
 
 	/**

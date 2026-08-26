@@ -30,16 +30,30 @@ class VCG_Nguoi {
 			);
 		}
 
-		/* Phiên PIN của bản cũ, nếu có. Dùng lại thay vì làm phiên mới: hai hệ đăng nhập song
-		   song là hai chỗ để rò, và người dùng phải nhớ hai thứ. */
-		if ( class_exists( 'VHCC_Auth' ) && method_exists( 'VHCC_Auth', 'phien' ) ) {
-			$p = VHCC_Auth::phien();
-			if ( is_array( $p ) && ! empty( $p['vai_tro'] ) ) {
-				return array(
-					'vai'   => VCG_Quyen::chuan( $p['vai_tro'] ),
-					'ten'   => isset( $p['ho_ten'] ) ? (string) $p['ho_ten'] : '',
-					'co_so' => isset( $p['cua_hang'] ) ? (array) $p['cua_hang'] : array(),
-				);
+		/* Phiên PIN của hệ chấm công, nếu có. Dùng lại thay vì làm phiên mới: hai hệ đăng nhập
+		   song song là hai chỗ để rò, và người dùng phải nhớ hai thứ.
+		 *
+		 * 🔴 SỬA 26/08/2026: nhánh này gọi `VHCC_Auth::phien()` — một hàm KHÔNG HỀ TỒN TẠI. Có
+		 *    `method_exists` gác nên không trắng trang, nhưng nhánh chưa từng chạy lấy một lần:
+		 *    mọi người vào bằng PIN đều rơi xuống `vai => ''` và không thấy gì, mà chẳng có lỗi
+		 *    nào phát ra. `tools/test/kiem-tham-chieu.php` bắt được ngay khi nó thôi gõ tay danh
+		 *    sách plugin và dò cả thư mục `wordpress/`.
+		 *
+		 * ⚠️ `user_by_token()` trả khoá `name` / `role` / `coso` (một chuỗi), KHÔNG phải
+		 *    `ho_ten` / `vai_tro` / `cua_hang` như bản gọi hụt ở trên tưởng. */
+		if ( class_exists( 'VHCC_Web' ) && defined( 'VHCC_Web::COOKIE' )
+			&& method_exists( 'VHCC_Auth', 'user_by_token' ) ) {
+			$c = constant( 'VHCC_Web::COOKIE' );
+			if ( $c && ! empty( $_COOKIE[ $c ] ) ) {
+				$p = VHCC_Auth::user_by_token( (string) $_COOKIE[ $c ] );
+				if ( is_array( $p ) && ! empty( $p['role'] ) ) {
+					$cs = trim( (string) ( isset( $p['coso'] ) ? $p['coso'] : '' ) );
+					return array(
+						'vai'   => VCG_Quyen::chuan( $p['role'] ),
+						'ten'   => isset( $p['name'] ) ? (string) $p['name'] : '',
+						'co_so' => ( '' !== $cs ) ? array( $cs ) : array(),
+					);
+				}
 			}
 		}
 

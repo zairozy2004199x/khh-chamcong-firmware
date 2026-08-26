@@ -18,8 +18,20 @@
  */
 
 $goc = dirname( __DIR__, 2 );
-$thu_muc = array( 'wordpress/vhcp-cham-cong', 'wordpress/vhcp-chi-phi', 'wordpress/vhcp-hop-dong',
-	'wordpress/vhcp-trang-chu', 'wordpress/vhcp-ghe' );
+
+/* 🔴 DÒ CẢ THƯ MỤC `wordpress/`, KHÔNG GÕ TAY DANH SÁCH PLUGIN.
+   Danh sách gõ tay đứng im trong khi cây mã đi tiếp: `vhcp-cong` và `vhcp-noi-bo` từng không có
+   tên ở đây, nên mọi tham chiếu sai trong hai plugin ấy không ai soi — bài kiểm vẫn xanh, chỉ là
+   nó không nhìn vào chỗ mới nhất, tức chỗ dễ sai nhất. */
+$thu_muc = array();
+foreach ( glob( $goc . '/wordpress/*', GLOB_ONLYDIR ) as $d ) {
+	$thu_muc[] = 'wordpress/' . basename( $d );
+}
+sort( $thu_muc );
+if ( count( $thu_muc ) < 5 ) {
+	echo "🔴 chỉ dò ra " . count( $thu_muc ) . " plugin — đường dẫn sai hay cây mã đổi?\n";
+	exit( 1 );
+}
 
 /** Tất cả tệp .php dưới các thư mục trên. */
 function tep_php( $goc, $thu_muc ) {
