@@ -7,8 +7,11 @@ Có hai cách dùng, chung một bộ quy tắc:
 
 | Cách dùng | Ở đâu | Hợp với |
 |---|---|---|
-| **Trang web** | `web/` — mở trong trình duyệt | Chạy hàng tháng, ai cũng dùng được, không cần cài gì |
+| **Plugin WordPress** | `wordpress/` | Site đã chạy WordPress — cài như plugin bình thường |
+| **Trang web tĩnh** | `web/` | Host thường, không có WordPress |
 | **Dòng lệnh** | `vatrec/` — Python | Chạy tự động, xử lý hàng loạt, đưa vào pipeline |
+
+Cả ba dùng chung một bộ quy tắc và chung luôn phần giao diện trong `web/`.
 
 > **Dữ liệu không nằm trong repo này.** Repo firmware là repo công khai, còn sao kê
 > chứa tên khách, số điện thoại và số tài khoản. `.gitignore` đã chặn mọi file
@@ -16,7 +19,43 @@ Có hai cách dùng, chung một bộ quy tắc:
 
 ---
 
-## 1. Dùng trang web
+## 1. Cài làm plugin WordPress
+
+Cách này hợp nhất nếu site đã chạy WordPress: công cụ nằm luôn trong trang quản
+trị, và chỉ tài khoản có quyền `manage_options` mới mở được.
+
+### Đóng gói
+
+```bash
+cd tools/doi-soat-vat/wordpress
+./dong-goi.sh              # sinh ra doi-soat-vat.zip
+```
+
+Script chép `web/` vào plugin lúc đóng gói, nên giao diện chỉ có một bản duy nhất
+trong repo, không sợ hai bản lệch nhau.
+
+### Cài
+
+Plugin → Thêm Plugin → **Tải Plugin lên** → chọn `doi-soat-vat.zip` → Kích hoạt.
+Sau đó mở mục **Đối soát VAT** ở menu bên trái.
+
+> Zip của trang tĩnh (`web/`) **không** cài được bằng đường này — WordPress sẽ báo
+> "Không tìm thấy gói mở rộng hợp lệ". Phải dùng zip do `dong-goi.sh` sinh ra.
+
+### Plugin làm gì
+
+Chỉ hai việc: thêm một mục vào menu quản trị, và nhúng trang công cụ vào đó bằng
+iframe. Không có endpoint nào nhận dữ liệu, không ghi gì vào cơ sở dữ liệu.
+Dùng iframe thay vì in thẳng ra trang vì giao diện công cụ có bộ CSS riêng, in
+thẳng vào trang quản trị thì hai bên đè nhau.
+
+Nếu máy chủ chặn truy cập file `.html` trong thư mục plugin thì iframe sẽ trống —
+bấm "Mở ở tab mới" để xem lỗi thật; cần cho phép đọc file tĩnh trong
+`wp-content/plugins/doi-soat-vat/web/`.
+
+---
+
+## 2. Dùng trang web tĩnh
 
 ### Chạy thử tại máy
 
@@ -50,7 +89,7 @@ không lập chỉ mục, nhưng đó không phải là biện pháp bảo mật
 ### Các bước trên trang
 
 1. **Kỳ báo cáo** — từ ngày, đến ngày, ngày ghi trên hoá đơn, thuế suất, và
-   **kiểu xuất hoá đơn** (xem mục 3.5). Ô "Lọc pháp nhân" để trống thì lấy tất cả.
+   **kiểu xuất hoá đơn** (xem mục 4.5). Ô "Lọc pháp nhân" để trống thì lấy tất cả.
    Nút *Đặt kỳ = hôm qua* dành cho nhịp chạy hằng ngày.
 2. **Thả file sao kê** — thả cả bộ vào một lượt. Trang tự đọc từng sheet và nhận
    ra sheet nào là sao kê của cổng nào, sheet nào là bảng danh mục.
@@ -64,7 +103,7 @@ không lập chỉ mục, nhưng đó không phải là biện pháp bảo mật
 
 ---
 
-## 2. Dùng dòng lệnh
+## 3. Dùng dòng lệnh
 
 ```bash
 cd tools/doi-soat-vat
@@ -121,12 +160,12 @@ repo công khai. Đường dẫn trong `file` tính tương đối so với chí
 
 ---
 
-## 3. Quy tắc tính
+## 4. Quy tắc tính
 
 Phần này là cái đáng đọc kỹ nhất. Mọi con số dưới đây đã được **tính lại từ sao kê
 thô rồi so với chính file VAT mẫu KH705 / KH989**.
 
-### 3.1 Đọc gì từ mỗi cổng
+### 4.1 Đọc gì từ mỗi cổng
 
 | Cổng | Lọc | Cột tiền | Mã điểm bán | Ngày |
 |---|---|---|---|---|
@@ -151,7 +190,7 @@ rồi cắt lấy phần trước dấu `-`. Tên gian hàng đó **chưa** tư�
 hoá đơn — phải tự khai ánh xạ ở bước 4 của trang web (hoặc phần danh mục bổ sung),
 vì trong bộ file gốc việc gán này làm bằng tay.
 
-### 3.2 Quy về điểm xuất hoá đơn
+### 4.2 Quy về điểm xuất hoá đơn
 
 Sheet `chia theo mã cửa hàng` là bảng quy đổi cho kênh QR:
 `Mã cửa hàng` → `mã điểm xuất hóa đơn`. VNPay và Payoo mỗi cổng có sheet danh mục
@@ -173,7 +212,7 @@ Kiểm chứng trên dữ liệu thật: tính lại từ sao kê rồi so từn
 Các ô lệch là lỗi dán tay trong file gốc, không phải lệch quy tắc: tổng cột vẫn
 đúng, chỉ là tiền bị gán nhầm sang mã cửa hàng bên cạnh trong cùng một cột ngày.
 
-### 3.3 Tách VAT
+### 4.3 Tách VAT
 
 ```
 Có VAT   = tổng doanh thu của điểm trong kỳ
@@ -186,7 +225,7 @@ VAT lấy **phần dư** chứ không tính riêng, để `Chưa VAT + VAT` luô
 
 Kiểm chứng với dòng đầu file mẫu: 37.750.000 → 34.953.704 + 2.796.296. Khớp.
 
-### 3.4 Xuất theo kỳ hay theo ngày
+### 4.4 Xuất theo kỳ hay theo ngày
 
 Sao kê về theo ngày, nên công cụ có hai kiểu xuất. Cả hai dùng đúng một dữ liệu
 đã tổng hợp, chỉ khác cách gộp dòng:
@@ -208,7 +247,7 @@ Ngoài ra file kết quả luôn có sheet **`Tổng theo ngày`** dù chọn ki
 trong kỳ một dòng, kèm thứ trong tuần, số điểm phát sinh và tách theo từng luồng
 tiền. Ngày nào bằng 0 giữa kỳ thường là dấu hiệu thiếu file sao kê của ngày đó.
 
-### 3.5 Những gì công cụ **không** tự cộng vào
+### 4.5 Những gì công cụ **không** tự cộng vào
 
 Đây là phần quan trọng nhất khi đọc kết quả. Bốn nhóm dưới đây bị tách ra và báo
 riêng ở sheet `Đối soát`, **không** cộng vào hoá đơn nào:
@@ -228,7 +267,7 @@ mã vẫn được coi là hai giao dịch thật.
 
 ---
 
-## 4. File kết quả
+## 5. File kết quả
 
 | Sheet | Nội dung |
 |---|---|
@@ -245,7 +284,7 @@ tự cập nhật.
 
 ---
 
-## 5. Chạy test
+## 6. Chạy test
 
 ```bash
 cd tools/doi-soat-vat
@@ -258,7 +297,7 @@ bên thì phải sửa cả bên kia, nếu không test sẽ lệch nhau.
 
 ---
 
-## 6. Cấu trúc thư mục
+## 7. Cấu trúc thư mục
 
 ```
 tools/doi-soat-vat/
@@ -278,6 +317,9 @@ tools/doi-soat-vat/
 │   ├── config.py           đọc file cấu hình
 │   ├── pipeline.py         ghép các bước
 │   └── cli.py              dòng lệnh
+├── wordpress/              bản plugin WordPress
+│   ├── dong-goi.sh         script đóng gói ra file .zip cài được
+│   └── doi-soat-vat/       phần riêng của plugin (php + readme)
 └── web/                    trang web tĩnh — chép nguyên thư mục này lên host
     ├── index.html
     ├── style.css
@@ -291,7 +333,7 @@ tools/doi-soat-vat/
 
 ---
 
-## 7. Vướng mắc thường gặp
+## 8. Vướng mắc thường gặp
 
 **Trang không phản hồi khi thả file to.**
 Phần nặng chạy trong Web Worker nên trang vẫn bấm được, nhưng file 23 MB mất
@@ -313,7 +355,10 @@ Danh mục QR (`chia theo mã cửa hàng`) chỉ có tên điểm. Muốn đủ
 kèm sheet danh mục của VNPay hoặc Payoo — công cụ tự gộp, bản ghi đầy đủ hơn thắng.
 
 **Tổng Zalo bằng 0.**
-Chưa khai ánh xạ gian hàng Zalo sang điểm xuất hoá đơn. Xem mục 3.1.
+Chưa khai ánh xạ gian hàng Zalo sang điểm xuất hoá đơn. Xem mục 4.1.
+
+**WordPress báo "Không tìm thấy gói mở rộng hợp lệ".**
+Đang cài nhầm zip của trang tĩnh. Chạy `wordpress/dong-goi.sh` để lấy zip plugin.
 
 **Muốn nâng cấp SheetJS.**
 Đọc `web/vendor/README.md` trước — gói `xlsx` trên npm đứng yên ở 0.18.5 và dính
