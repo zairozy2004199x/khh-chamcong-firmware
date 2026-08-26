@@ -6054,6 +6054,12 @@ t( 'khối nạp đứng một mình vẫn nói rõ nút .csv kia là nạp NHÂ
 	strpos( $h_trong, 'sổ nhân sự' ) !== false, $h_trong );
 t( 'và nút Nạp thật',  strpos( $h_qtc, 'value="nap_cong"' ) !== false );
 t( 'form nạp nhận được file', strpos( $h_qtc, 'enctype="multipart/form-data"' ) !== false );
+/* 🔴 Ô gõ cơ sở MỚI. Anh Thắng 26/08: *"nếu chưa có cơ sở cũ chỗ này thì sao"* — ô xổ xuống chỉ
+   liệt kê cơ sở ĐÃ có dữ liệu, nên cơ sở mới mở không nạp được. Vòng tròn y hệt cái vòng tròn
+   PIN hồi đầu: muốn vào thì phải có tài khoản, muốn có tài khoản thì phải vào được. */
+t( 'có ô gõ cơ sở MỚI cho nơi chưa có trong danh sách',
+	strpos( $h_qtc, 'name="ccs_moi"' ) !== false, $h_qtc );
+t( 'và nói rõ ô ấy thắng ô xổ xuống', strpos( $h_qtc, 'thắng ô xổ xuống' ) !== false, $h_qtc );
 
 /* ---- bù mở cho Cửa hàng trưởng, nạp công thì KHÔNG ---- */
 /* Hai việc trông giống nhau ("thêm giờ vào bảng") nhưng bù là sửa MỘT ô của một người, còn nạp

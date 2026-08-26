@@ -254,7 +254,7 @@ class VHCC_NapCong {
 	 * @param bool $chi_xem true = chỉ đếm và kể, KHÔNG ghi gì. Mặc định là true — nạp đè cả
 	 *                      tháng công của một cơ sở mà không cho xem trước là quá nguy.
 	 */
-	public static function nap( $u, $coso, $dong, $chi_xem = true ) {
+	public static function nap( $u, $coso, $dong, $chi_xem = true, $ten_tep = '' ) {
 		if ( ! VHCC_Vai::duoc( $u, 'nap_cong' ) ) {
 			return array( 'ok' => false, 'error' => 'Nạp dữ liệu công cần quyền Quản lý trở lên.' );
 		}
@@ -262,6 +262,8 @@ class VHCC_NapCong {
 		if ( '' === $coso ) {
 			return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở để nạp vào.' );
 		}
+		$loi_ma = self::ma_coso_hop_le( $coso );
+		if ( '' !== $loi_ma ) { return array( 'ok' => false, 'error' => $loi_ma ); }
 		if ( ! VHCC_NhanSu::co_quyen_coso( $u, $coso ) ) {
 			return array( 'ok' => false, 'error' => 'Không có quyền cơ sở này.' );
 		}
@@ -292,7 +294,17 @@ class VHCC_NapCong {
 		$ngay_co = array();
 		foreach ( $d['luot'] as $x ) { $ngay_co[ $x['ngay'] ] = 1; }
 
+		/* Cơ sở CHƯA có trong hệ thống -> nạp thật là TẠO MỚI. Phải nói ra ở bước xem trước, kẻo
+		   một mã gõ sai đẻ ra một cơ sở ma mang cả tháng công, mà nhìn bảng thì trông như thật. */
+		$la_moi = ! in_array( $coso, VHCC_NhanSu::ds_coso(), true );
+
+		/* Tên tệp nói cơ sở nào? Lệch với ô đang chọn là dấu hiệu nạp nhầm cửa hàng — cái sai này
+		   hoàn toàn im lặng nếu không đối chiếu. */
+		$cs_tep = self::coso_tu_ten_tep( $ten_tep );
+		$lech_ten = ( '' !== $cs_tep && 0 !== strcasecmp( $cs_tep, $coso ) ) ? $cs_tep : '';
+
 		return array( 'ok' => true, 'chi_xem' => (bool) $chi_xem, 'coSo' => $coso,
+			'la_moi' => $la_moi, 'cs_tep' => $cs_tep, 'lech_ten' => $lech_ten,
 			'thang' => implode( ' · ', $d['thang_ds'] ), 'thang_ds' => $d['thang_ds'],
 			'so_khoi' => $d['so_khoi'], 'so_ngay' => count( $ngay_co ),
 			'so_nguoi' => count( $d['nguoi'] ), 'so_luot' => count( $d['luot'] ),
@@ -300,6 +312,45 @@ class VHCC_NapCong {
 	}
 
 	/* ==================================================================== phụ */
+
+	/**
+	 * ĐOÁN MÃ CƠ SỞ TỪ TÊN TỆP.
+	 *
+	 * Tên Google Sheets xuất ra có khuôn: `Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_JP_SANBAY.csv`
+	 * — phần sau dấu gạch cuối cùng chính là mã cơ sở.
+	 *
+	 * 🔴 Dùng để ĐỐI CHIẾU, không dùng để tự chọn thay người. Với hai chục cơ sở trong ô xổ
+	 *    xuống, nạp nhầm cơ sở là chuyện rất dễ và hoàn toàn IM LẶNG: cả tháng công của cửa hàng
+	 *    này chui vào sổ của cửa hàng kia, không câu nào báo. Đối chiếu tên tệp với ô đang chọn
+	 *    là phép kiểm gần như miễn phí cho đúng cái sai đó.
+	 *
+	 * ⚠️ Cắt đuôi `_1`, `_2`… vì Google Drive thêm vào khi tải trùng tên. Nhưng đó là PHỎNG ĐOÁN
+	 *    — một cơ sở tên thật là `TUTU_1` sẽ bị cắt oan. Nên hàm này chỉ đẻ ra một câu nhắc, và
+	 *    người dùng vẫn là người quyết.
+	 */
+	public static function coso_tu_ten_tep( $ten ) {
+		$t = trim( (string) $ten );
+		$t = preg_replace( '/\.(csv|tsv|txt)$/i', '', $t );
+		if ( '' === $t ) { return ''; }
+		$phan = preg_split( '/\s+-\s+/u', $t );
+		$t = trim( (string) end( $phan ) );
+		$t = preg_replace( '/_\d+$/', '', $t );        // đuôi Google Drive thêm khi trùng tên
+		return VHCC_NhanSu::chuan_coso( $t );
+	}
+
+	/**
+	 * Mã cơ sở người ta gõ tay có dùng được không? '' = được, hoặc câu từ chối.
+	 * Cho phép chữ, số, gạch, khoảng trắng và ngoặc — sổ thật có cả `PART_TIME (POSHJP)`.
+	 */
+	public static function ma_coso_hop_le( $cs ) {
+		$cs = trim( (string) $cs );
+		if ( '' === $cs ) { return 'Chưa nhập mã cơ sở.'; }
+		if ( mb_strlen( $cs, 'UTF-8' ) > 100 ) { return 'Mã cơ sở dài quá (tối đa 100 ký tự).'; }
+		if ( ! preg_match( '/^[\p{L}\p{N} _\-().]+$/u', $cs ) ) {
+			return 'Mã cơ sở chỉ nhận chữ, số, khoảng trắng và _ - ( ) . — không nhận ký tự khác.';
+		}
+		return '';
+	}
 
 	/** Cắt .csv thành mảng dòng. Nhận cả CRLF lẫn LF, cả dấu phẩy lẫn chấm phẩy. */
 	public static function tach( $van_ban ) {

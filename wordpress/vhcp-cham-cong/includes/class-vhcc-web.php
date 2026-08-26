@@ -407,10 +407,16 @@ class VHCC_Web {
 		if ( 'xem_cong' === $viec || 'nap_cong' === $viec ) {
 			$f = self::doc_tep();
 			if ( empty( $f['ok'] ) ) { return array( array( 'loi' => $f['error'] ) ); }
-			$r = VHCC_NapCong::nap( $toi,
-				isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
-				VHCC_NapCong::tach( $f['noi_dung'] ),
-				'xem_cong' === $viec );
+			/* Cơ sở MỚI gõ tay thắng ô xổ xuống. Vòng tròn có thật: muốn có cơ sở trong danh
+			   sách thì phải có dữ liệu, mà muốn nạp dữ liệu thì phải chọn được cơ sở. Anh Thắng
+			   26/08: *"nếu chưa có cơ sở cũ chỗ này thì sao"* — đúng, tệp JP_SANBAY không nạp
+			   được vì cơ sở ấy chưa từng xuất hiện ở đâu. */
+			$cs_nap = isset( $_POST['ccs_moi'] ) ? trim( (string) wp_unslash( $_POST['ccs_moi'] ) ) : '';
+			if ( '' === $cs_nap ) {
+				$cs_nap = isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '';
+			}
+			$r = VHCC_NapCong::nap( $toi, $cs_nap, VHCC_NapCong::tach( $f['noi_dung'] ),
+				'xem_cong' === $viec, isset( $f['ten'] ) ? $f['ten'] : '' );
 			$r['viec'] = $viec;
 			return array( $r );
 		}
@@ -583,7 +589,10 @@ class VHCC_Web {
 		if ( ! mb_check_encoding( $nd, 'UTF-8' ) ) {
 			$nd = mb_convert_encoding( $nd, 'UTF-8', 'Windows-1258, Windows-1252, ISO-8859-1' );
 		}
-		return array( 'ok' => true, 'noi_dung' => (string) $nd );
+		/* Trả cả TÊN TỆP: bộ nạp công dùng nó để đối chiếu với ô cơ sở đang chọn — nạp nhầm cửa
+		   hàng là cái sai hoàn toàn im lặng, mà tên tệp thì nói sẵn cơ sở nào. */
+		return array( 'ok' => true, 'noi_dung' => (string) $nd,
+			'ten' => isset( $f['name'] ) ? sanitize_file_name( (string) $f['name'] ) : '' );
 	}
 
 	/**
@@ -2282,11 +2291,16 @@ class VHCC_Web {
 				. esc_html( $x ) . '</option>';
 		}
 		echo '</select></div>';
+		echo '<div><label for="ncsm">…hoặc cơ sở MỚI</label>'
+			. '<input id="ncsm" name="ccs_moi" placeholder="VD: JP_SANBAY" style="width:180px"></div>';
 		echo '<div><label for="ntep">Tệp .csv *</label>'
 			. '<input id="ntep" type="file" name="tep" accept=".csv,.tsv,.txt" required></div>';
 		echo '<div><button name="viec" value="xem_cong">Xem trước</button></div>';
 		echo '<div><button class="chinh" name="viec" value="nap_cong">Nạp thật</button></div>';
 		echo '</div>';
+		echo '<p class="mo">Cơ sở <b>chưa có trong danh sách</b> (mới mở, hoặc chưa ai chấm công '
+			. 'lần nào) thì gõ mã vào ô <b>cơ sở MỚI</b> — ô ấy thắng ô xổ xuống. Xem trước sẽ nói '
+			. 'rõ đây là cơ sở chưa từng có, trước khi anh/chị bấm Nạp thật.</p>';
 		echo '<p class="mo">Bấm <b>Xem trước</b> đi đã: nó đếm và kể ra mọi chỗ lạ mà '
 			. '<b>không ghi gì</b>. Bốn con số nó in ra phải khớp với tệp đang cầm trên tay.</p>';
 		echo '</form></div>';
@@ -2451,6 +2465,22 @@ class VHCC_Web {
 		echo '.<br><span class="mo">Bốn con số này phải khớp với tệp đang cầm trên tay. Lệch là bộ đọc '
 			. 'đoán nhầm bố cục cột — đừng bấm Nạp thật.</span></div>';
 
+		/* 🔴 Hai cảnh báo NẶNG hơn mọi thứ khác, nên đặt ngay trên cùng. */
+		if ( ! empty( $b['lech_ten'] ) ) {
+			echo '<div class="bao loi"><b>⚠️ TÊN TỆP KHÔNG KHỚP CƠ SỞ ĐANG CHỌN.</b><br>'
+				. 'Tệp trông như của cơ sở <b>' . esc_html( $b['lech_ten'] ) . '</b>, '
+				. 'nhưng đang nạp vào <b>' . esc_html( $b['coSo'] ) . '</b>.<br>'
+				. '<span class="mo">Nạp nhầm cửa hàng thì cả tháng công chui vào sổ của nơi khác mà '
+				. 'không câu nào báo. Kiểm lại ô cơ sở trước khi bấm Nạp thật.</span></div>';
+		}
+		if ( ! empty( $b['la_moi'] ) ) {
+			echo '<div class="bao canh"><b>Cơ sở "' . esc_html( $b['coSo'] ) . '" CHƯA có trong hệ thống.</b><br>'
+				. ( ! empty( $b['chi_xem'] )
+					? 'Bấm Nạp thật là nó được TẠO MỚI cùng với số công trong tệp. '
+					: 'Đã tạo mới cùng với số công trong tệp. ' )
+				. '<span class="mo">Gõ sai một ký tự là đẻ ra một cơ sở ma mang cả tháng công, mà '
+				. 'nhìn bảng thì trông y như thật. Soi lại mã cho chắc.</span></div>';
+		}
 		if ( ! empty( $b['la'] ) ) {
 			echo '<div class="bao canh"><b>' . count( (array) $b['la'] ) . ' mã có công nhưng CHƯA có hồ sơ:</b> '
 				. esc_html( implode( ' · ', array_keys( (array) $b['la'] ) ) )

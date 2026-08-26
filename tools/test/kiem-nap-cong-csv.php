@@ -184,6 +184,8 @@ if ( ! class_exists( 'VHCC_NhanSu' ) ) {
 		public static function chuan_coso( $s ) { return trim( preg_replace( '/^CS_/', '', (string) $s ) ); }
 		public static function co_quyen_coso( $u, $c ) { return self::$co_quyen; }
 		public static function ho_so( $ma ) { return ( 'MNLX1CTY0001' === $ma ) ? array( 'ho_ten' => 'Nguyễn Tiến Đạt' ) : null; }
+		/* Cơ sở ĐÃ có trong hệ thống — để phân biệt với cơ sở nạp lần đầu. */
+		public static function ds_coso() { return array( 'VP_KHHCM', 'TUTU_BD', 'TUTU_TP' ); }
 	}
 }
 
@@ -225,6 +227,68 @@ $sau = $wpdb->get_row( "SELECT * FROM " . VHCC_DB::t( 'cham_cong' )
 	. " WHERE ma_nv='MNLX1CTY0001' AND ngay='2026-07-02'", ARRAY_A );
 teq( 'nạp lại KHÔNG thu hẹp giờ ra do máy ghi (22:05 vẫn nguyên)',
 	VHCC_DB::giay( '22:05:00' ), (int) $sau['gio_ra_giay'] );
+
+// ============================================================ 5b. CƠ SỞ CHƯA CÓ TRONG HỆ THỐNG
+echo "— cơ sở mới —\n";
+/* Anh Thắng 26/08: *"nếu chưa có cơ sở cũ chỗ này thì sao"*. Ô xổ xuống chỉ liệt kê cơ sở ĐÃ có
+   dữ liệu, nên tệp của một cơ sở mới mở (JP_SANBAY, SETUP_VP…) không nạp được: muốn có cơ sở
+   thì phải có dữ liệu, muốn nạp dữ liệu thì phải chọn được cơ sở. Vòng tròn. */
+
+/* --- đoán mã cơ sở từ TÊN TỆP, thử trên đúng bốn tên thật anh Thắng gửi --- */
+$ten_that = array(
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_JP_SANBAY_1.csv'          => 'JP_SANBAY',
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_PART_TIME (POSHJP)_2.csv' => 'PART_TIME (POSHJP)',
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_SETUP_VP_1.csv'           => 'SETUP_VP',
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_VP_KHHCM.csv'             => 'VP_KHHCM',
+);
+foreach ( $ten_that as $tt_x => $mong_x ) {
+	teq( 'đoán được cơ sở từ tên tệp thật', $mong_x, VHCC_NapCong::coso_tu_ten_tep( $tt_x ) );
+}
+/* Đuôi `_1`, `_2` là Google Drive thêm khi tải trùng tên — phải cắt, nhưng chỉ ở CUỐI. */
+teq( 'không cắt nhầm số nằm giữa mã', 'TUTU_2_BD',
+	VHCC_NapCong::coso_tu_ten_tep( 'x - CS_TUTU_2_BD.csv' ) );
+teq( 'tên tệp lạ -> chịu, trả rỗng chứ không đoán bừa', 'linh tinh',
+	VHCC_NapCong::coso_tu_ten_tep( 'linh tinh.csv' ) );
+
+/* --- mã cơ sở gõ tay --- */
+teq( 'mã thường hợp lệ', '', VHCC_NapCong::ma_coso_hop_le( 'JP_SANBAY' ) );
+/* Sổ thật CÓ cơ sở tên `PART_TIME (POSHJP)` — dấu cách và ngoặc phải nhận, đừng siết quá tay
+   rồi chối đúng cái tên đang dùng. */
+teq( 'mã có dấu cách và ngoặc vẫn hợp lệ', '', VHCC_NapCong::ma_coso_hop_le( 'PART_TIME (POSHJP)' ) );
+t( 'mã rỗng bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( '' ) );
+t( 'mã có ký tự lạ bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( 'a"b' ) );
+t( 'mã dài quá bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( str_repeat( 'x', 200 ) ) );
+
+/* --- nạp vào một cơ sở CHƯA TỪNG CÓ --- */
+$r_moi = VHCC_NapCong::nap( $admin, 'JP_SANBAY', $dong, true,
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_JP_SANBAY_1.csv' );
+t( 'xem trước cơ sở mới chạy được', ! empty( $r_moi['ok'] ), $r_moi );
+/* 🔴 Phải NÓI RA là cơ sở này chưa từng có: gõ sai một ký tự là đẻ ra một cơ sở ma mang cả tháng
+   công, mà nhìn bảng thì trông y như thật. */
+t( 'và nói rõ đây là cơ sở CHƯA có trong hệ thống', ! empty( $r_moi['la_moi'] ), $r_moi );
+$r_cu = VHCC_NapCong::nap( $admin, 'VP_KHHCM', $dong, true );
+t( 'cơ sở đã có thì không báo là mới', empty( $r_cu['la_moi'] ), $r_cu );
+
+/* --- đối chiếu tên tệp với ô cơ sở đang chọn --- */
+/* 🔴 Với hai chục cơ sở trong ô xổ xuống, nạp nhầm cửa hàng là chuyện rất dễ và hoàn toàn IM
+   LẶNG: cả tháng công của nơi này chui vào sổ của nơi kia, không câu nào báo. */
+$r_lech = VHCC_NapCong::nap( $admin, 'TUTU_BD', $dong, true,
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_JP_SANBAY_1.csv' );
+teq( 'tên tệp lệch ô cơ sở -> kêu lên, và nói tệp là của cơ sở nào',
+	'JP_SANBAY', isset( $r_lech['lech_ten'] ) ? $r_lech['lech_ten'] : null );
+$r_khop = VHCC_NapCong::nap( $admin, 'JP_SANBAY', $dong, true,
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_JP_SANBAY_1.csv' );
+teq( 'tên tệp khớp thì im lặng, không dọa oan', '', $r_khop['lech_ten'] );
+/* Tiền tố `CS_` trên ô chọn cũng phải hiểu là cùng một cơ sở, đừng kêu oan. */
+$r_cs = VHCC_NapCong::nap( $admin, 'CS_JP_SANBAY', $dong, true,
+	'Bảng chạy - Hệ Thống Chấm Công Cơ Sở - CS_JP_SANBAY_1.csv' );
+teq( 'ô chọn có tiền tố CS_ vẫn coi là khớp', '', $r_cs['lech_ten'] );
+/* Không đưa tên tệp thì không đối chiếu được — nhưng cũng KHÔNG được kêu bừa. */
+teq( 'không có tên tệp thì không dọa', '', $r_cu['lech_ten'] );
+
+/* Mã gõ tay có ký tự lạ -> chối THẲNG, đừng để nó thành tên bảng. */
+$r_ma_la = VHCC_NapCong::nap( $admin, 'a"b', $dong, true );
+t( 'mã cơ sở có ký tự lạ bị chối ngay ở cửa nạp', empty( $r_ma_la['ok'] ), $r_ma_la );
 
 // ============================================================ 6. GÁC CỬA
 echo "— gác cửa —\n";
