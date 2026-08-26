@@ -45,11 +45,12 @@
 #include <time.h>
 #include <sys/time.h>
 #include <esp_mac.h>
-#include <WebServer.h>   // OTA nội bộ: máy trạm nạp .bin qua WiFi AP của ghế (giống chấm công)
 #include <Update.h>      // Update.h tự kiểm ảnh hợp lệ -> nạp lỗi/dở thì HỦY, GIỮ firmware cũ
+/* KHÔNG dùng <WebServer.h>: core 3.3.11 báo lỗi 'ETagFunction' trên máy anh (thư viện kén).
+   Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-26c (AP bat SOM, khong cho 4G)"
+#define FW_VERSION "ghe-massage 2026-08-26d (OTA bang WiFiServer, bo WebServer.h loi)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1901,63 +1902,71 @@ void mdbTask(){
   }
 }
 
-// ======================= OTA qua WiFi AP nội bộ =======================
+// ============ OTA qua WiFi AP nội bộ — WiFiServer thô (không cần WebServer.h) ============
 #if OTA_AP_ENABLE
-WebServer otaSrv(80);
+WiFiServer otaTcp(80);
 bool g_otaMoAP = false;
 
 static void otaManNap(const char* msg){
   tft.fillScreen(TFT_BLACK); tft.setTextDatum(MC_DATUM);
   tft.setTextColor(TFT_ORANGE, TFT_BLACK); tft.drawString(msg, 160, 120, 4);
 }
-void otaTrangNap(){
-  if(!otaSrv.authenticate(SEC_OTA_USER, SEC_OTA_PASS)) return otaSrv.requestAuthentication();
-  String ten = CHAIR_ID.length() ? CHAIR_ID : macBo();
-  String h = "<!doctype html><meta charset='utf-8'><meta name=viewport content='width=device-width,initial-scale=1'>";
-  h += "<body style='font-family:system-ui,Arial;background:#0f172a;color:#e2e8f0;padding:16px'>";
-  h += "<h2 style='color:#f0b429'>Cap nhat firmware — ghe " + ten + "</h2>";
-  h += "<p style='color:#94a3b8'>Chon file .bin roi bam Nap. KHONG tat nguon khi dang nap. Nap xong ghe tu khoi dong lai.</p>";
-  h += "<form method=POST action=/update enctype=multipart/form-data>";
-  h += "<input type=file name=fw accept=.bin style='width:100%;padding:10px;margin:8px 0;background:#1e293b;color:#e2e8f0;border:1px solid #334155;border-radius:8px'>";
-  h += "<button style='width:100%;padding:12px;background:#f0b429;color:#221a00;border:0;border-radius:8px;font-weight:700;font-size:16px'>Nap firmware</button></form>";
-  h += "<p style='color:#94a3b8;font-size:12px'>Ban hien tai: " FW_VERSION "</p></body>";
-  otaSrv.send(200, "text/html; charset=utf-8", h);
-}
-void otaXongNap(){
-  if(!otaSrv.authenticate(SEC_OTA_USER, SEC_OTA_PASS)) return otaSrv.requestAuthentication();
-  bool ok = !Update.hasError();
-  otaSrv.send(200, "text/html; charset=utf-8",
-    String("<!doctype html><meta charset=utf-8><body style='font-family:system-ui;padding:20px;font-size:16px'>")
-    + (ok ? "Nap firmware THANH CONG. Ghe dang khoi dong lai..." : "Nap LOI. Kiem lai file .bin roi thu lai.")
-    + "</body>");
-  delay(900);
+
+/* Gọi mỗi vòng loop(): nhận 1 client. GET / -> trang mô tả; POST /update (kèm header
+   X-OTA-Key = mật khẩu AP) -> đọc Content-Length byte .bin THÔ, nạp thẳng vào Update.
+   Máy trạm/curl gửi raw body (không multipart) — mình làm cả hai đầu nên tự định giao thức. */
+void otaPhucVu(){
+  WiFiClient cl = otaTcp.available();
+  if(!cl) return;
+  cl.setTimeout(8000);
+  String req = cl.readStringUntil('\n');           // "POST /update HTTP/1.1"
+  bool isPost = req.startsWith("POST");
+  long len = 0; bool keyOk = false;
+  for(;;){                                          // đọc header tới dòng trống
+    String h = cl.readStringUntil('\n');
+    if(h.length() == 0) break;
+    h.trim();
+    if(h.length() == 0) break;
+    int c = h.indexOf(':'); if(c <= 0) continue;
+    String k = h.substring(0, c); k.toLowerCase();
+    String v = h.substring(c + 1); v.trim();
+    if(k == "content-length") len = v.toInt();
+    else if(k == "x-ota-key" && v == String(SEC_AP_PASS)) keyOk = true;
+  }
+  if(!isPost){
+    cl.print(F("HTTP/1.1 200 OK\r\nContent-Type:text/plain; charset=utf-8\r\nConnection:close\r\n\r\n"
+               "POSH QR OTA. POST file .bin toi /update, kem header X-OTA-Key = mat khau AP."));
+    cl.stop(); return;
+  }
+  if(!keyOk || len <= 0){
+    cl.print(F("HTTP/1.1 401 Unauthorized\r\nConnection:close\r\n\r\nSai khoa hoac thieu Content-Length"));
+    cl.stop(); Serial.println("[OTA] tu choi: sai khoa / thieu len"); return;
+  }
+  Serial.printf("[OTA] bat dau nap %ld byte\n", len);
+  otaManNap("DANG NAP FIRMWARE...");
+  if(!Update.begin(len)){ Update.printError(Serial);
+    cl.print(F("HTTP/1.1 500\r\nConnection:close\r\n\r\nUpdate.begin loi")); cl.stop(); return; }
+  long got = 0; uint8_t buf[1024]; uint32_t t0 = millis();
+  while(got < len && cl.connected() && millis() - t0 < 60000){
+    int n = cl.read(buf, sizeof(buf));
+    if(n > 0){ if(Update.write(buf, n) != (size_t)n){ Update.printError(Serial); break; } got += n; t0 = millis(); }
+    else delay(1);
+  }
+  bool ok = (got == len) && Update.end(true);
+  cl.print(ok ? F("HTTP/1.1 200 OK\r\nConnection:close\r\n\r\nOK - dang khoi dong lai")
+              : F("HTTP/1.1 500\r\nConnection:close\r\n\r\nFAIL - giu firmware cu"));
+  cl.stop();
+  Serial.printf("[OTA] nhan %ld/%ld byte -> %s\n", got, len, ok ? "OK" : "FAIL");
+  delay(600);
   if(ok) ESP.restart();
 }
-void otaUpload(){
-  HTTPUpload& up = otaSrv.upload();
-  if(up.status == UPLOAD_FILE_START){
-    if(!otaSrv.authenticate(SEC_OTA_USER, SEC_OTA_PASS)){ Serial.println("[OTA] tu choi: chua dang nhap"); return; }
-    Serial.printf("[OTA] bat dau nap: %s\n", up.filename.c_str());
-    otaManNap("DANG NAP FIRMWARE...");
-    if(!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
-  } else if(up.status == UPLOAD_FILE_WRITE){
-    if(Update.write(up.buf, up.currentSize) != up.currentSize) Update.printError(Serial);
-  } else if(up.status == UPLOAD_FILE_END){
-    if(Update.end(true)) Serial.printf("[OTA] xong %u byte\n", up.totalSize); else Update.printError(Serial);
-  }
-}
+
 void startOtaAP(){
   String mac = macBo(); mac.replace(":", "");
   String ap = String(OTA_AP_PREFIX) + (CHAIR_ID.length() ? CHAIR_ID : mac);
   WiFi.mode(USE_4G ? WIFI_AP : WIFI_AP_STA);   // 4G: radio WiFi rảnh -> chỉ AP; WiFi fallback -> AP+STA
   WiFi.softAP(ap.c_str(), SEC_AP_PASS);
-  if(!g_otaMoAP){                              // routes + begin CHỈ một lần (hàm có thể gọi lại để đổi tên)
-    otaSrv.on("/", otaTrangNap);
-    otaSrv.on("/update", HTTP_GET, otaTrangNap);
-    otaSrv.on("/update", HTTP_POST, otaXongNap, otaUpload);
-    otaSrv.begin();
-    g_otaMoAP = true;
-  }
+  if(!g_otaMoAP){ otaTcp.begin(); g_otaMoAP = true; }   // begin 1 lần (hàm có thể gọi lại để đổi tên)
   Serial.printf("[OTA] AP \"%s\" pass=%s @ 192.168.4.1 (may tram nap .bin)\n", ap.c_str(), SEC_AP_PASS);
 }
 #endif
@@ -2037,7 +2046,7 @@ void setup(){
 /* ===== NHÂN 1 (loop): CHỈ GIAO DIỆN — không có lệnh 4G nào, nên màn không bao giờ đơ ===== */
 void loop(){
 #if OTA_AP_ENABLE
-  otaSrv.handleClient();   // phục vụ máy trạm nạp firmware (rảnh thì gần như không tốn gì)
+  otaPhucVu();   // phục vụ máy trạm nạp firmware (rảnh thì gần như không tốn gì)
 #endif
   dongBoNoTienMat();       // lưu tiền mặt chưa gửi vào NVS (chống mất điện lúc offline)
   { static uint32_t _pc=0; uint32_t c=g_cashPulses; if(c!=_pc){ _pc=c; g_lastPulseMs=millis(); } }
