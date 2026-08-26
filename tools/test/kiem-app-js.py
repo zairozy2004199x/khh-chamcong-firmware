@@ -325,6 +325,17 @@ la('ô Còn lại đổi cả nền lẫn viền theo thừa/thiếu',
 
 # 3) Tìm đơn ở đầu trang — theo loại chi phí và cơ sở.
 la('có ô tìm đơn ở đầu trang', 'id="tdQ"' in src)
+# 🔴 THANH TÌM ĐƠN PHẢI NẰM NGOÀI MỌI TAB. Anh Thắng 26/08: *"Lọc tìm kiếm chung theo loại chi
+#    phí lẻ anh chưa thấy"* — bản trước đặt nó trong thanh của tab "Đơn chi phí", nên đứng ở tab
+#    khác cuộn lên đầu trang là không có gì. Thứ gọi là "tìm kiếm chung" mà chỉ có ở một tab thì
+#    nó là ô tìm của tab đó.
+la('thanh tìm đơn là thanh chung (id timChung)', 'id="timChung"' in src)
+la('và nằm NGOÀI trang đơn', src.index('id="timChung"') < src.index('<div id="page-don">'))
+# Ô xổ loại/cơ sở phải nạp ở MỌI lượt đổi tab, không riêng tab đơn — bỏ sót là đứng ở Sổ chi phí
+# thấy ô "mọi loại chi phí" rỗng trơn.
+la('ô xổ nạp ở mọi lượt đổi tab, không riêng tab đơn',
+   "if(p==='don'){ try{ _fillTimDonOpts(); }catch(e){} }" not in src
+   and 'try{ _fillTimDonOpts(); }catch(e){}' in src)
 la('có ô lọc loại chi phí', 'id="tdLoai"' in src)
 la('có ô lọc cơ sở', 'id="tdCoso"' in src)
 la('tìm ở MÁY CHỦ (quét cả dòng chi), không lọc ô xổ', '.timDon(' in src)
@@ -340,6 +351,23 @@ la('chân bảng vẫn cộng cả bộ lọc, không cộng mỗi trang đang h
 # 🔴 Xuất Excel theo bộ lọc nhưng KHÔNG cắt trang: cắt 20 dòng vào tệp là đưa một bản thiếu mà
 #    trông như đủ.
 la('xuất Excel không cắt theo trang', 'TM_LOC&&TM_LOC.length' in src)
+
+# 5) Khối Quyết toán nổi hẳn lên cho kế toán.
+# 🔴 Anh Thắng 26/08: *"Đóng nguyên ô này nổi màu lên cho kế toán thấy"*. Mục 3) là chỗ kế toán
+#    phải dừng lại — đối chiếu tạm ứng với thực mua rồi trả tiền — mà nó mặc đúng bộ đồ trắng
+#    của mọi khối khác, nên trong một trang dài toàn khối trắng thì đúng cái cần dừng lại lại
+#    khó thấy nhất.
+print()
+print('— khối quyết toán nổi màu —')
+la('khối Quyết toán mang lớp nổi', 'class="card qt-noi" id="qtCard"' in src)
+la('cụm ba con số đóng chung MỘT khung', 'class="qt-cum"' in src)
+la('tiêu đề nói rõ đây là việc của kế toán', 'id="qtNhan"' in src and 'kế toán' in src)
+# ⚠️ CẢ TRANG CHỈ ĐƯỢC CÓ MỘT KHỐI MANG MÀU NÀY. Tô thêm khối thứ hai là mất tính "một", và
+#    mất luôn tác dụng: khi mọi thứ đều nổi thì không có gì nổi.
+la('chỉ ĐÚNG MỘT khối mang lớp qt-noi', src.count('qt-noi') == 1)
+css = open(GOC + '/wordpress/vhcp-chi-phi/assets/css/vhcp.css', encoding='utf-8').read()
+la('lớp qt-noi có kiểu chữ thật trong tệp css', '.card.qt-noi{' in css)
+la('và lớp qt-cum cũng vậy', '.qt-cum{' in css)
 
 print()
 if hong:

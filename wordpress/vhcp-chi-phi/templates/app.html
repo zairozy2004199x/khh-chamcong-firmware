@@ -47,6 +47,31 @@
     <button class="btn b-x" id="tab-log" onclick="showPage('log')">📜 Nhật ký</button>
   </div>
 
+  <!-- 🔴 TÌM ĐƠN LÀ THANH CHUNG, NẰM NGOÀI MỌI TAB.
+       Anh Thắng 26/08: *"đầu trang bổ sung tìm kiếm đơn"* → dựng xong nhưng đặt trong thanh của
+       tab "Đơn chi phí". Anh nhắn lại: *"Lọc tìm kiếm chung theo loại chi phí lẻ anh chưa thấy"*
+       — anh đứng ở tab khác, cuộn lên đầu trang, và không có gì cả. Anh đúng: thứ gọi là "tìm
+       kiếm chung" mà chỉ có ở một tab thì nó là ô tìm của tab đó, không phải tìm chung.
+       Nay nó nằm ngay dưới thanh tab: đứng ở Sổ chi phí · Quyết toán · Xuất MISA đều tìm được,
+       bấm "Mở" thì `viewDon()` tự nhảy sang tab đơn và vẫn nhớ đường quay lại.
+
+       ⚠️ LOẠI CHI PHÍ NẰM Ở TỪNG DÒNG CHI, KHÔNG NẰM Ở ĐƠN. Nên phải hỏi máy chủ (`timDon`,
+          quét cả bảng dòng chi) chứ không lọc ô xổ đơn — lọc ô xổ là gõ "Chi phí nuôi thú" ra
+          rỗng trong khi có mấy chục đơn chứa nó. -->
+  <div class="wrap" id="timChung" style="padding-top:10px;padding-bottom:0">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:9px 12px;
+      background:#fff;border:1px solid #e2e8f0;border-radius:12px">
+      <span style="font-size:12px;color:#64748b;font-weight:700;white-space:nowrap">TÌM ĐƠN</span>
+      <input id="tdQ" placeholder="🔎 Loại chi phí lẻ, nội dung dòng chi, người lập…" style="min-width:250px;flex:1"
+        onkeydown="if(event.key==='Enter')doTimDon()">
+      <select id="tdLoai" style="max-width:220px" onchange="doTimDon()"><option value="">— mọi loại chi phí —</option></select>
+      <select id="tdCoso" style="max-width:180px" onchange="doTimDon()"><option value="">— mọi cơ sở —</option></select>
+      <button class="btn b-s" onclick="doTimDon()">Tìm</button>
+      <button class="btn b-x" onclick="closeTimDon()" id="tdClose" style="display:none">✕</button>
+      <div id="tdKq" style="display:none;flex:1 1 100%"></div>
+    </div>
+  </div>
+
   <!-- ============ TRANG CHỦ: TỔNG QUAN DÒNG TIỀN ============ -->
   <div id="page-tongquan" class="wrap" style="display:none">
     <div class="card" id="acctInboxCard" style="display:none;border:2px solid #bae6fd">
@@ -141,23 +166,9 @@
   <div class="bar" id="donBar" style="position:sticky;top:0;z-index:40">
     <div class="fld"><label>Đơn</label>
       <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
-    <!-- 🔴 TÌM ĐƠN THEO LOẠI CHI PHÍ + CƠ SỞ.
-         Anh Thắng 26/08: *"đầu trang bổ sung tìm kiếm đơn ( tìm kiếm loại chi phí và đơn đó
-         thuộc cơ sở nào )"*. Ô xổ đơn ở bên trái chỉ mang kỳ · cơ sở · người lập, mà LOẠI CHI
-         PHÍ nằm ở TỪNG DÒNG CHI — nên lọc ô xổ là gõ "Chi phí nuôi thú" ra rỗng trong khi có
-         mấy chục đơn chứa nó. Tìm ở máy chủ (`timDon`), quét cả bảng dòng chi. -->
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <input id="tdQ" placeholder="🔎 Tìm đơn: loại chi phí, nội dung, người lập…" style="min-width:230px"
-        onkeydown="if(event.key==='Enter')doTimDon()">
-      <select id="tdLoai" style="max-width:200px" onchange="doTimDon()"><option value="">— mọi loại chi phí —</option></select>
-      <select id="tdCoso" style="max-width:180px" onchange="doTimDon()"><option value="">— mọi cơ sở —</option></select>
-      <button class="btn b-s" onclick="doTimDon()">Tìm</button>
-      <button class="btn b-x" onclick="closeTimDon()" id="tdClose" style="display:none">✕</button>
-    </div>
     <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
     <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
     <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
-    <div id="tdKq" style="display:none;flex:1 1 100%;order:9"></div>
     <span id="donBadge"></span>
     <div style="flex:1"></div>
     <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
@@ -286,11 +297,12 @@
     </div>
 
     <!-- QUYẾT TOÁN (hiện khi đã cấp tạm ứng trở đi) -->
-    <div class="card" id="qtCard" style="display:none">
-      <div class="ch"><h2>3) Quyết toán — thực mua & trả tiền kế toán</h2></div>
+    <div class="card qt-noi" id="qtCard" style="display:none">
+      <div class="ch"><h2>💰 3) Quyết toán — thực mua &amp; trả tiền kế toán</h2>
+        <span class="badge st-cho" id="qtNhan">kế toán đối chiếu &amp; trả tiền</span></div>
       <div class="cb">
         <div id="qtCNBox">
-        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end">
+        <div class="qt-cum">
           <!-- 🔴 BA Ô TIỀN LÀM NỔI HẲN LÊN. Anh Thắng 26/08: *"Phần ô tiền làm nổi màu lên"*.
                Ba con số này là kết luận của cả cái đơn — tiền đã đưa, tiền đã tiêu, còn lại
                bao nhiêu — mà trước đây chúng mặc đúng bộ đồ của mọi ô nhập khác trên màn, nên
@@ -2543,7 +2555,10 @@
   function showPage(p){
     CUR_PAGE=p;
     if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
-    if(p==='don'){ try{ _fillTimDonOpts(); }catch(e){} }
+    /* Thanh tìm đơn nay là thanh CHUNG, hiện ở MỌI tab — nên nạp ô xổ ở MỌI lượt đổi tab, không
+       riêng tab đơn. Bỏ sót là đứng ở Sổ chi phí thấy ô "mọi loại chi phí" rỗng trơn.
+       `_fillTimDonOpts()` tự bỏ qua nếu đã nạp rồi, nên gọi nhiều lượt không tốn thêm gì. */
+    try{ _fillTimDonOpts(); }catch(e){}
     var targetPage=(p==='congtac'||p==='setup')?'bp':p;   // 2 tab Công tác/Setup dùng chung trang page-bp
     ['tongquan','don','sochi','duan','mkt','bp','vhtuan','trama','duyet','qt','tattoan','xuat','cauhinh','log'].forEach(function(x){
       var pg=el('page-'+x); if(pg) pg.style.display=(x===targetPage)?'':'none';
