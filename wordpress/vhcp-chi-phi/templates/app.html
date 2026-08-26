@@ -5610,10 +5610,27 @@
   }
   function addCfgPl(){ el('cfgPlBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Phân loại')+'</td><td>'+_inp('','VD: 141')+'</td>'+_delBtn()+'</tr>'); }
   function addCfgDt(){ if(!el('cfgDtBody')) return; el('cfgDtBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên đối tượng')+'</td><td>'+_inp('','Mã MISA')+'</td><td>'+_inp('','NV/NCC','80px')+'</td>'+_delBtn()+'</tr>'); }
+  /**
+   * ĐỌC MỘT BẢNG SỬA TAY THÀNH MẢNG [hàng][cột].
+   *
+   * 🔴 ĐỌC THEO VỊ TRÍ, NÊN MỌI Ô NHẬP "PHỤ" ĐỀU PHẢI BỊ LOẠI RA.
+   *    Anh Thắng 26/08/2026: *"Chỗ đơn vị anh gõ rồi vẫn trống"*. Gõ xong, lưu, quay lại rỗng.
+   *
+   *    Gốc rễ: hộp chọn cơ sở thu gọn (`_cosoSel`) đẻ ra BA thứ trong một ô — `<select multiple>`
+   *    ẩn (giá trị thật), một đám checkbox, và một Ô GÕ ĐỂ LỌC. Checkbox đã được loại từ trước
+   *    (chú thích cũ nói đúng chuyện đó), nhưng ô gõ để lọc thì thêm vào sau và KHÔNG ai loại.
+   *    Từ lúc ấy mọi cột sau cột "Cơ sở" lệch đúng một nhịp:
+   *        TK Có  <- đọc nhầm ô lọc (luôn rỗng)  ->  TK Có bị xoá trắng mỗi lần lưu
+   *        Mã đối tượng <- đọc nhầm TK Có
+   *        Đơn vị <- đọc nhầm Mã đối tượng (rỗng)  ->  đúng cái anh Thắng vừa gặp
+   *    Không có gì đỏ, không ai kêu — vì hai cột kia hiếm khi dùng tới.
+   *
+   * ⚠️ ĐỌC THEO VỊ TRÍ LÀ CÁI BẪY, không phải cái ô lọc. Thêm bất kỳ `<input>` nào vào giữa
+   *    bảng là lệch lại. `tools/test/test-cauhinh-xo.js` có phép ĐẾM Ô THẬT của từng cột rồi
+   *    so với chỉ số `saveCfgUsers` đang dùng — thêm một ô là đỏ ngay, kèm tên cột bị lệch.
+   */
   function _readRows(tbodyId){ return Array.prototype.map.call(el(tbodyId).getElementsByTagName('tr'),function(tr){
-    // Bỏ ô tích của hộp chọn cơ sở thu gọn: giá trị thật vẫn nằm ở <select multiple> bị ẩn,
-    // đếm cả checkbox thì mọi cột phía sau lệch một nhịp.
-    return Array.prototype.map.call(tr.querySelectorAll('input:not([type=checkbox]),select'),function(f){
+    return Array.prototype.map.call(tr.querySelectorAll('input:not([type=checkbox]):not(.cs-tim),select'),function(f){
       if(f.tagName==='SELECT'&&f.multiple){ return Array.prototype.map.call(f.selectedOptions,function(o){return o.value;}).join(', '); }
       return f.value; }); }); }
   function _saveCfg(payload,msg){ loading(true);

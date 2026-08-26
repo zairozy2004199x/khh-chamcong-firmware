@@ -200,6 +200,88 @@ t('không có cảnh báo: ẩn ô lẫn nút 🔔',
   oCanhBao.style.display === 'none' && nutBat.style.display === 'none');
 t('nút 🔔 có thật trong trang Xuất MISA', /id="xuatWarnBtn"[^>]*onclick="xuatWarnBat\(\)"/.test(HTML));
 
+// ---------------------------------------------------------------- 6. BẢNG NGƯỜI DÙNG: cột có lệch không
+/*
+ * 🔴 `_readRows()` ĐỌC THEO VỊ TRÍ. Anh Thắng 26/08/2026: *"Chỗ đơn vị anh gõ rồi vẫn trống"*.
+ *    Gõ xong, lưu, quay lại rỗng — mà máy chủ thì ghi đúng.
+ *
+ *    Hộp chọn cơ sở thu gọn đẻ ra BA thứ trong một ô: `<select multiple>` ẩn (giá trị thật),
+ *    một đám checkbox, và một Ô GÕ ĐỂ LỌC. Checkbox đã bị loại từ trước; ô gõ để lọc thêm vào
+ *    sau và không ai loại. Từ lúc ấy mọi cột sau "Cơ sở" lệch đúng một nhịp — TK Có bị xoá
+ *    trắng mỗi lần lưu, Mã đối tượng nuốt giá trị của TK Có, và Đơn vị thì luôn rỗng.
+ *
+ * ⚠️ CÁI BẪY LÀ "ĐỌC THEO VỊ TRÍ", KHÔNG PHẢI CÁI Ô LỌC. Thêm bất kỳ `<input>` nào vào giữa
+ *    bảng là lệch lại. Nên phép dưới đây ĐẾM Ô THẬT của từng cột — đọc từ chính mã của các hàm
+ *    dựng ô — rồi so với chỉ số mà `saveCfgUsers` đang dùng. Không gõ tay con số nào.
+ */
+function thanHam(ten) {
+  const i = HTML.indexOf('function ' + ten + '(');
+  if (i < 0) return '';
+  let d = 0, bat = -1;
+  for (let k = i; k < HTML.length; k++) {
+    if (HTML[k] === '{') { if (d === 0) bat = k; d++; }
+    else if (HTML[k] === '}') { d--; if (d === 0) return HTML.slice(bat, k + 1); }
+  }
+  return '';
+}
+/* Bao nhiêu ô mà `_readRows` sẽ ĐẾM trong đoạn HTML do hàm này sinh ra. Luật loại trừ đọc
+   THẲNG từ chuỗi selector trong `_readRows`, không chép lại ở đây. */
+const SELECTOR = (HTML.match(/tr\.querySelectorAll\('([^']+)'\)/) || [])[1] || '';
+t('đọc được chuỗi selector của _readRows', SELECTOR.indexOf('input') >= 0, SELECTOR);
+const BO_CHECKBOX = SELECTOR.indexOf(':not([type=checkbox])') >= 0;
+const BO_CSTIM    = SELECTOR.indexOf(':not(.cs-tim)') >= 0;
+t('🔴 _readRows loại ô gõ-để-lọc của hộp chọn cơ sở (.cs-tim)', BO_CSTIM, SELECTOR);
+t('và vẫn loại checkbox như trước', BO_CHECKBOX, SELECTOR);
+
+function demO(than) {
+  let n = 0;
+  for (const m of than.matchAll(/<(input|select)\b([^>]*)>/g)) {
+    const the = m[1], thuoc = m[2];
+    if (the === 'input' && BO_CHECKBOX && /type="checkbox"/.test(thuoc)) continue;
+    if (BO_CSTIM && /class="[^"]*\bcs-tim\b/.test(thuoc)) continue;
+    n++;
+  }
+  return n;
+}
+/* Hàng người dùng dựng bằng những hàm nào, theo đúng thứ tự trong mã. */
+const HANG = (HTML.match(/return '<tr><td>'\+_inp\(u\.ten[\s\S]*?_delBtn\(\)\+'<\/tr>';/) || [])[0] || '';
+t('cắt được dòng dựng hàng người dùng', HANG.length > 50, HANG.slice(0, 60));
+/* ⚠️ CÓ Ô VIẾT THẲNG TRONG HÀNG, không qua hàm dựng — ô PIN là một `<input>` gõ tay ngay
+   trong chuỗi. Chỉ quét tên hàm là bỏ sót đúng nó, và mọi cột sau đó lệch một nhịp trong
+   CHÍNH BÀI KIỂM — một lỗi của bài kiểm trông y như lỗi của mã. Nên quét CẢ HAI, theo đúng
+   thứ tự chúng xuất hiện. */
+const GOI = [...HANG.matchAll(/(_inp|_roleSel|_bpSel|_cosoSel|_dvInp)\(|<(input|select)\b([^>]*)>/g)]
+  .filter(m => {
+    if (m[1]) return true;
+    if (BO_CHECKBOX && /type="checkbox"/.test(m[3] || '')) return false;
+    if (BO_CSTIM && /class="[^"]*\bcs-tim\b/.test(m[3] || '')) return false;
+    return true;
+  })
+  .map(m => m[1] || ('<' + m[2] + '>'));
+t('hàng người dùng dựng đủ ô cho mọi cột (≥8)', GOI.length >= 8, GOI);
+
+const COT = ['ten', 'pin', 'vaiTro', 'boPhan', 'coso', 'tkCo', 'maDt', 'donVi', 'xemDonVi'];
+teq('số hàm dựng ô bằng đúng số cột dữ liệu', COT.length, GOI.length);
+const CHI_SO = {};
+let dem = 0;
+GOI.forEach((ten, i) => {
+  if (!COT[i]) return;
+  CHI_SO[COT[i]] = dem;
+  /* Ô viết thẳng trong hàng thì đúng một ô; ô dựng bằng hàm thì đếm trong thân hàm ấy. */
+  dem += (ten[0] === '<') ? 1 : demO(thanHam(ten));
+});
+/* Chỉ số mà `saveCfgUsers` ĐANG dùng — đọc từ chính mã, không chép lại. */
+const SAVE = thanHam('saveCfgUsers');
+const DUNG = {};
+for (const m of SAVE.matchAll(/(\w+):\((?:r\[(\d+)\])\|\|''\)/g)) { DUNG[m[1]] = Number(m[2]); }
+for (const m of SAVE.matchAll(/(\w+):r\[(\d+)\]\|\|''/g))          { DUNG[m[1]] = Number(m[2]); }
+t('đọc được chỉ số saveCfgUsers đang dùng', Object.keys(DUNG).length >= 7, DUNG);
+COT.forEach(k => {
+  if (!(k in DUNG)) return;
+  teq('cột "' + k + '" — chỉ số saveCfgUsers khớp số ô thật', CHI_SO[k], DUNG[k]);
+});
+
+
 // ---------------------------------------------------------------- kết
 if (hong.length) {
   console.error('\nĐẠT: ' + dat + ' phép thử');
