@@ -49,7 +49,7 @@
 #include <Update.h>      // Update.h tự kiểm ảnh hợp lệ -> nạp lỗi/dở thì HỦY, GIỮ firmware cũ
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-26a (OTA qua WiFi AP + may tram)"
+#define FW_VERSION "ghe-massage 2026-08-26b (OTA AP + chong mat tien mat khi loi mang/mat dien)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1513,9 +1513,26 @@ void checkRemoteCmd(){
   }
 }
 
-/** Báo sổ tiền mặt. Gửi lại được: máy chủ ghi theo `ref`, xem ghi chú ở g_cashRef. */
-void baoTienMat(long amount, const char* ref){
-  wpGoi("tien_mat", String("\"so_tien\":") + String(amount) + ",\"ref\":\"" + String(ref) + "\"");
+/** Báo sổ tiền mặt. Trả TRUE khi máy chủ XÁC NHẬN ghi sổ (ok:true). Gửi lại được: máy chủ
+    ghi theo `ref` (gửi hai lần không cộng đôi), xem ghi chú ở g_cashRef.
+    🔴 PHẢI kiểm ok trước khi trừ nợ: trước đây gửi xong trừ luôn, nên mạng hỏng thoáng
+       qua giữa lúc gửi là MẤT tiền mặt khỏi sổ (dù không mất điện). */
+bool baoTienMat(long amount, const char* ref){
+  String r = wpGoi("tien_mat", String("\"so_tien\":") + String(amount) + ",\"ref\":\"" + String(ref) + "\"");
+  return r.indexOf("\"ok\":true") >= 0;
+}
+
+/* Giữ 'tiền mặt CHƯA GỬI' trong NVS (flash sẵn có) để MẤT ĐIỆN lúc offline không mất tiền.
+   Chỉ ghi khi con số ĐỔI (đang nợ mới ghi; gửi xong -> xoá), nên không mòn flash. */
+void dongBoNoTienMat(){
+  static long snap = -2;
+  long a; char ref[40];
+  portENTER_CRITICAL(&g_mux); a = g_pendingCashLog; strncpy(ref, g_cashRef, sizeof(ref)); portEXIT_CRITICAL(&g_mux);
+  ref[sizeof(ref)-1] = 0;
+  if(a == snap) return;
+  snap = a;
+  if(a > 0){ prefs.putLong("noTien", a); prefs.putString("noRef", ref); }
+  else { prefs.remove("noTien"); prefs.remove("noRef"); }
 }
 
 // ======================= Phiên thanh toán =======================
@@ -1973,6 +1990,15 @@ void setup(){
 
   prefs.begin("ghe", false);
   CHAIR_ID = prefs.getString("chair", "");   // nhớ mã ghế máy chủ đã gán, để mất mạng vẫn hiện đúng
+  /* Khôi phục TIỀN MẶT CHƯA GỬI (mất điện lúc offline): đọc lại để netTask gửi tiếp. */
+  { long noCu = prefs.getLong("noTien", 0); String rf = prefs.getString("noRef", "");
+    if(noCu > 0){
+      portENTER_CRITICAL(&g_mux);
+      g_pendingCashLog = noCu;
+      strncpy(g_cashRef, rf.c_str(), sizeof(g_cashRef)-1); g_cashRef[sizeof(g_cashRef)-1]=0;
+      portEXIT_CRITICAL(&g_mux);
+      Serial.printf("[TIEN] khoi phuc no tien mat chua gui: %ld d (ref %s)\n", noCu, g_cashRef);
+    } }
   docCauHinh();                              // và nhớ luôn phần NHẬN TIỀN — xem khối trên luuCauHinh()
 
   tft.init(); tft.setRotation(1); tft.fillScreen(COL_BG);
@@ -2006,6 +2032,7 @@ void loop(){
 #if OTA_AP_ENABLE
   otaSrv.handleClient();   // phục vụ máy trạm nạp firmware (rảnh thì gần như không tốn gì)
 #endif
+  dongBoNoTienMat();       // lưu tiền mặt chưa gửi vào NVS (chống mất điện lúc offline)
   { static uint32_t _pc=0; uint32_t c=g_cashPulses; if(c!=_pc){ _pc=c; g_lastPulseMs=millis(); } }
   kiemCucTien();
   checkCash();
@@ -2189,8 +2216,7 @@ void netTask(void*){
     /* Tiền mặt còn nợ sổ: đẩy LUÔN, kể cả lúc đang chờ trả — nó là tiền đã vào két rồi. */
     if(g_pendingCashLog > 0 && netUp()){
       portENTER_CRITICAL(&g_mux); long a=g_pendingCashLog; char ref[40]; strncpy(ref,g_cashRef,sizeof(ref)); portEXIT_CRITICAL(&g_mux);
-      if(a>0){
-        baoTienMat(a, ref);
+      if(a>0 && baoTienMat(a, ref)){   // CHỈ trừ nợ khi máy chủ XÁC NHẬN — gửi hỏng thì giữ, gửi lại
         /* Xoá phần ĐÃ gửi chứ không đặt về 0 thẳng: giữa lúc gửi có thể khách nhét thêm tờ nữa,
            đặt 0 là mất luôn tờ đó khỏi sổ. */
         portENTER_CRITICAL(&g_mux);
