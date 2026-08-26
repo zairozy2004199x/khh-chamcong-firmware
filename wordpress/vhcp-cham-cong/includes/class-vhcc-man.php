@@ -837,7 +837,7 @@ class VHCC_Man {
 				if ( 'thu' === $v ) {
 					/* CHỈ XEM — không lưu. Đây là chỗ phải thấy con số TRƯỚC khi đổi lương cả cơ sở. */
 					$dc = VHCC_Luong::so_sanh_cach_tinh( $u, $cs_thu, $th_thu, $cfg );
-					$dc['caChuanThu'] = VHCC_Luong::ca_chuan( array_merge( VHCC_Luong::vp_cfg(), $cfg ) );
+					$dc['caChuanThu'] = VHCC_Luong::ca_chuan( array_merge( VHCC_Luong::vp_cfg( $cs_thu ), $cfg ) );
 				} else {
 					$r = VHCC_Luong::dat_vp_cfg( $u, $cfg, $cs_thu, $th_thu );
 					$bao[] = $r;
@@ -894,6 +894,24 @@ class VHCC_Man {
 
 		/* ---- Cấu hình công Văn phòng ---- */
 		$c = VHCC_Luong::vp_cfg();
+
+		/* 🔴 NÓI RÕ MÀN NÀY CHỈ SỬA BẢN CHUNG.
+		   Từ 26/08/2026 mỗi KHỐI khai riêng được (xem `VHCC_Luong::VP_CFG_BP_O`). Khối nào đã
+		   khai riêng thì sửa ở đây KHÔNG động tới nó — mà màn vẫn hiện con số mới, nên người sửa
+		   đinh ninh mình vừa đổi cho cả công ty. Liệt kê thẳng ra khối nào đang khai riêng. */
+		$khoi_rieng = array();
+		foreach ( VHCC_Luong::vp_cfg_ds_khoi() as $k_bp ) {
+			$n_o = count( VHCC_Luong::vp_cfg_khoi( $k_bp ) );
+			if ( $n_o ) { $khoi_rieng[] = $k_bp . ' (' . $n_o . ' ô)'; }
+		}
+		echo '<div class="notice notice-info"><p>Màn này sửa <strong>bản chung</strong>. '
+			. 'Khai riêng cho từng khối thì làm ở <strong>trang chấm công ngoài web → Bảng công → '
+			. 'Công thức tính công</strong>.'
+			. ( $khoi_rieng
+				? ' <strong>Đang khai riêng:</strong> ' . esc_html( implode( ' · ', $khoi_rieng ) )
+					. ' — mấy ô ấy KHÔNG đổi theo màn này.'
+				: ' Hiện chưa khối nào khai riêng.' )
+			. '</p></div>';
 		$cc = VHCC_Luong::ca_chuan( $c );
 		echo '<h2>Cấu hình công — bộ phận Văn phòng</h2>';
 		echo '<div class="notice notice-warning"><p><strong>Ca chuẩn hiện tại: ' . esc_html( $cc['gio'] )

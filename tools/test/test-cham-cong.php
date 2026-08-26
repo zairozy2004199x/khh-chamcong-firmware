@@ -5958,8 +5958,13 @@ t( 'và màn nói rõ với người dùng chuyện đó', strpos( $h_ng, 'cả 
 /* ---- lọc theo MÃ NV: kéo cả hai bảng ---- */
 $h_nv = vhcc_web( '135791', array(),
 	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cnv' => 'QTC1' ) );
+/* ⚠️ Canh vào ĐÚNG bảng chi tiết, không quét cả trang. Từ 26/08/2026 hai tab gộp làm một, nên
+   trên cùng màn còn có LƯỚI NGANG — mà lưới cố ý KHÔNG lọc theo mã (lọc thì nó chỉ còn một
+   dòng và mất hết ý nghĩa "cả cơ sở trong một màn"). Quét cả trang là chốt này đỏ oan. */
+$khoi_ct = preg_match( '/Chi tiết từng lượt(.*?)<\/details>/s', $h_nv, $m_ct ) ? $m_ct[1] : '';
+t( 'tìm được bảng chi tiết trong màn đã gộp', '' !== $khoi_ct, substr( $h_nv, 0, 200 ) );
 t( 'lọc theo mã NV thì bảng chi tiết chỉ còn người đó',
-	strpos( $h_nv, 'QTC1' ) !== false && strpos( $h_nv, 'QTC2' ) === false, $h_nv );
+	strpos( $khoi_ct, 'QTC1' ) !== false && strpos( $khoi_ct, 'QTC2' ) === false, $khoi_ct );
 t( 'lọc theo mã NV KHÔNG phân biệt hoa thường',
 	strpos( vhcc_web( '135791', array(),
 		array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cnv' => 'qtc1' ) ),
@@ -6153,6 +6158,128 @@ t( 'sổ nhật ký có cột Giờ cũ', strpos( $h_sau, '<th>Giờ cũ</th>' )
 t( 'và đánh dấu lượt này là "sửa đè", không phải "bù"',
 	strpos( $h_sau, 'sửa đè' ) !== false, $h_sau );
 
+// ====== 48c. CÔNG THỨC TÍNH CÔNG RIÊNG TỪNG KHỐI
+/* Anh Thắng 26/08/2026: *"bổ sung cho khối văn phòng phương pháp tính công"* — kèm ảnh màn cấu
+   hình đang để **ca ngày 08:30–21:30**. Đó là khung của CỬA HÀNG, nhưng cả hệ chỉ có MỘT bộ số
+   nên đúng bộ số ấy cũng đang tính công cho Văn phòng, nơi người ta về lúc 17:00. */
+
+$u_ad_cfg = array( 'role' => 'Admin' );
+/* Cơ sở Văn phòng RIÊNG cho mục này. Không mượn `$CFG_CS` của mục 49 phía dưới: mục ấy chạy sau
+   nên ở đây biến còn rỗng, mà khai hộ nó thì mục 49 khai lại là vỡ khoá UNIQUE. */
+$CFG_CS = 'VP_CAUHINH';
+vhcc_bo_phan( $CFG_CS, 'Văn phòng' );
+/* Dọn cả hai kho cấu hình về trắng — mấy mục trước có thể đã ghi vào đó. `luu_cai_dat` là hàm
+   riêng của lớp nên gọi qua đường chung, không chọc thẳng vào trong. */
+$wpdb->query( "DELETE FROM " . VHCC_DB::t( 'cai_dat' )
+	. " WHERE khoa IN ('VP_CONG_CFG','" . VHCC_Luong::VP_CFG_BP_O . "')" );
+
+teq( 'chưa khai khối nào thì vp_cfg_khoi trả rỗng', array(), VHCC_Luong::vp_cfg_khoi( 'Văn phòng' ) );
+$cfg_goc = VHCC_Luong::vp_cfg();
+teq( 'bản chung mặc định: ca ngày đến 17:00', '17:00', $cfg_goc['ngayDen'] );
+
+/* Anh Thắng sửa bản CHUNG thành khung cửa hàng 08:30–21:30. */
+VHCC_Luong::dat_vp_cfg( $u_ad_cfg, array( 'ngayDen' => '21:30' ), '', '' );
+teq( 'bản chung nay đến 21:30', '21:30', VHCC_Luong::vp_cfg()['ngayDen'] );
+
+/* 🔴 VÀ ĐÓ CHÍNH LÀ CHỖ HỎNG: cơ sở Văn phòng cũng bị kéo theo. */
+teq( '🔴 chưa khai riêng thì khối Văn phòng cũng dính khung 21:30 của cửa hàng',
+	'21:30', VHCC_Luong::vp_cfg( $CFG_CS )['ngayDen'] );
+
+/* Khai riêng cho khối Văn phòng. */
+$r_k = VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng', array( 'ngayDen' => '17:00' ) );
+t( 'khai riêng được cho khối', ! empty( $r_k['ok'] ), $r_k );
+teq( '🔴 cơ sở Văn phòng nay dùng khung riêng 17:00', '17:00', VHCC_Luong::vp_cfg( $CFG_CS )['ngayDen'] );
+teq( 'bản chung KHÔNG bị đụng', '21:30', VHCC_Luong::vp_cfg()['ngayDen'] );
+/* ⚠️ Khối riêng chỉ đè ô ĐÃ KHAI, không thay cả bộ — chép cả bộ là ba bản sao của một thứ. */
+teq( 'ô không khai riêng vẫn theo bản chung',
+	VHCC_Luong::vp_cfg()['demTu'], VHCC_Luong::vp_cfg( $CFG_CS )['demTu'] );
+teq( 'và khối chỉ giữ đúng ô đã khai', 1, count( VHCC_Luong::vp_cfg_khoi( 'Văn phòng' ) ) );
+
+/* Cơ sở thuộc khối KHÁC không dính bản riêng của Văn phòng. */
+teq( 'cơ sở cửa hàng vẫn theo bản chung', '21:30', VHCC_Luong::vp_cfg( 'TUTU_BT' )['ngayDen'] );
+
+/* 🔴 PHẢI CÓ ĐƯỜNG BỎ KHAI. Không có thì lỡ tay khai một ô là ô ấy dính vĩnh viễn: sửa bản
+   chung không ăn thua, mà màn bản chung vẫn hiện con số mới — người sửa tưởng mình sửa rồi. */
+$r_k = VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng', array( 'ngayDen' => '' ) );
+t( 'bỏ khai được', ! empty( $r_k['ok'] ), $r_k );
+teq( 'và khối quay về bản chung hoàn toàn', array(), VHCC_Luong::vp_cfg_khoi( 'Văn phòng' ) );
+teq( 'cơ sở Văn phòng lại theo 21:30', '21:30', VHCC_Luong::vp_cfg( $CFG_CS )['ngayDen'] );
+
+/* Khai lại để dùng cho mấy phép dưới. */
+VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng', array( 'ngayDen' => '17:00' ) );
+
+/* ---- gác cửa + kiểm dữ liệu ---- */
+$r_k = VHCC_Luong::dat_cfg_khoi( array( 'role' => 'Nhân viên' ), 'Văn phòng', array( 'ngayDen' => '10:00' ) );
+t( 'Nhân viên KHÔNG đặt được công thức', empty( $r_k['ok'] ), $r_k );
+$r_k = VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Khối bịa', array( 'ngayDen' => '10:00' ) );
+t( 'khối lạ -> chối', empty( $r_k['ok'] ), $r_k );
+$r_k = VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng', array( 'ngayDen' => '25 giờ' ) );
+t( 'giờ sai dạng -> chối', empty( $r_k['ok'] ), $r_k );
+teq( 'và KHÔNG ghi đè cái đang có', '17:00', VHCC_Luong::vp_cfg( $CFG_CS )['ngayDen'] );
+$r_k = VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng', array( 'duoiMin' => 'kiểu lạ' ) );
+t( 'cách tính thiếu giờ lạ -> chối', empty( $r_k['ok'] ), $r_k );
+$r_k = VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng',
+	array( 'ngayDen' => '17:00', 'ô_bịa_ra' => 'x' ) );
+t( 'ô lạ thì bỏ qua, không nhét bừa vào kho', ! empty( $r_k['ok'] )
+	&& ! array_key_exists( 'ô_bịa_ra', VHCC_Luong::vp_cfg_khoi( 'Văn phòng' ) ), VHCC_Luong::vp_cfg_khoi( 'Văn phòng' ) );
+
+/* 🔴 CHỖ GHI LƯỢT CHẤM VÀ CHỖ TÍNH CÔNG PHẢI ĐỌC CÙNG MỘT BỘ SỐ.
+   `VHCC_Online::dinh_tuyen()` dùng `ngayDen` để quyết một lượt chấm rơi vào hàng chính hay hàng
+   ca đêm. Nó đọc bản CHUNG trong khi phép tính công đọc bản riêng thì hai chỗ lệch nhau — không
+   báo lỗi gì, chỉ có mấy lượt chấm rơi nhầm hàng. */
+teq( '🔴 chỗ định tuyến lượt chấm cũng đọc bản riêng của khối',
+	'17:00', VHCC_Online::vp_cfg( $CFG_CS )['ngayDen'] );
+teq( 'còn cơ sở khác vẫn là bản chung', '21:30', VHCC_Online::vp_cfg( 'TUTU_BT' )['ngayDen'] );
+
+/* ---- màn hình ---- */
+$h_ct = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => $CFG_CS, 'cth' => '2026-07' ) );
+t( 'màn có khối Công thức tính công', strpos( $h_ct, 'id="congthuc"' ) !== false, $h_ct );
+t( 'khối ấy thu gọn sẵn', strpos( $h_ct, 'id="congthuc"><details>' ) !== false, $h_ct );
+/* 🔴 Con số phải đọc TRƯỚC khi bấm Lưu — mốc bậc thang sai là lương cả khối tăng 50%. */
+t( 'hiện sẵn ca chuẩn ra mấy công', strpos( $h_ct, 'Ca chuẩn của khối đang xem' ) !== false, $h_ct );
+t( 'có thanh chọn khối', strpos( $h_ct, 'Bản chung' ) !== false
+	&& strpos( $h_ct, '>Văn phòng' ) !== false, $h_ct );
+t( 'và cho biết khối nào đang khai riêng mấy ô', strpos( $h_ct, 'ô riêng' ) !== false, $h_ct );
+/* Ô sinh ra TỪ bảng mô tả, không gõ tay — thêm ô mới thì màn tự có. */
+foreach ( array_keys( VHCC_Luong::VP_O ) as $k_o ) {
+	t( 'màn có ô "' . $k_o . '"', strpos( $h_ct, 'name="ct[' . $k_o . ']"' ) !== false );
+}
+
+$h_ct_vp = vhcc_web( '135791', array(),
+	array( 'man' => 'cham', 'ccs' => $CFG_CS, 'cth' => '2026-07', 'ctk' => 'Văn phòng' ) );
+t( 'chọn khối thì màn nói rõ đang sửa riêng cho khối nào',
+	strpos( $h_ct_vp, 'Đang sửa riêng cho khối' ) !== false, $h_ct_vp );
+/* 🔴 Ô để trống ở bản riêng = theo bản chung, nên phải nói ra, và phải cho biết bản chung đang
+   là bao nhiêu. Không nói thì người ta gõ đè cả bộ, và từ đó bản chung hết với tới khối này. */
+t( 'nói rõ ô trống = theo bản chung', strpos( $h_ct_vp, 'theo bản chung' ) !== false, $h_ct_vp );
+t( 'và hiện bản chung đang là bao nhiêu', strpos( $h_ct_vp, 'Bản chung: <b>' ) !== false, $h_ct_vp );
+/* Ô tích phải là BA trạng thái ở bản riêng: có · không · chưa khai. */
+t( 'ô có/không ở bản riêng có lựa chọn "theo bản chung"',
+	preg_match( '/name="ct\[ktChuNhatNghi\]"[^>]*>\s*<option value="">/', $h_ct_vp ) === 1, $h_ct_vp );
+
+/* ---- lưu qua đúng cửa POST của trang ---- */
+$tok_ct = VHCC_Auth::login( '135791' )['token'];
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_ct;
+$_POST = array( 'viec' => 'cong_thuc', 'ky' => VHCC_Web::chu_ky( $tok_ct ),
+	'ctk' => 'Văn phòng', 'ct' => array( 'ngayDen' => '16:30' ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+teq( '🔴 lưu qua trang thật thì khối Văn phòng đổi theo',
+	'16:30', VHCC_Luong::vp_cfg( $CFG_CS )['ngayDen'] );
+teq( 'bản chung vẫn nguyên', '21:30', VHCC_Luong::vp_cfg()['ngayDen'] );
+
+/* Nhân viên POST thẳng cũng không lọt. */
+$_POST = array( 'viec' => 'cong_thuc' );
+$r_ct = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'cong_thuc', array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ) ) );
+t( 'Nhân viên POST thẳng việc cong_thuc bị chối',
+	is_array( $r_ct ) && ! isset( $r_ct[0]['xong'] ), $r_ct );
+$_POST = array();
+
+/* Trả lại khung 17:00 cho mấy phép thử lưới phía dưới. */
+VHCC_Luong::dat_cfg_khoi( $u_ad_cfg, 'Văn phòng', array( 'ngayDen' => '17:00' ) );
+VHCC_Luong::dat_vp_cfg( $u_ad_cfg, array( 'ngayDen' => '17:00' ), '', '' );
+
 // ====== 49. TAB "CÔNG VĂN PHÒNG" — lưới người × ngày, mỗi ô là SỐ CÔNG
 /* Anh Thắng 26/08/2026: *"hiện bảng công theo hàng ngang giống này"* kèm ảnh tab Công Văn phòng
    của bản Apps Script. Đây là bản dịch `vpcVeLuoi`, để TAB RIÊNG đúng như bản gốc — hai màn trả
@@ -6188,19 +6315,26 @@ vhcc_cham_dem( $VP_CS, '2026-07-06', 'VPB', '21:30:00', '05:30:00' );
 $g_vp = array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2026-07' );
 $h_vp = vhcc_web( '135791', array(), $g_vp );
 
-t( 'có tab Bảng công tháng trên thanh chọn màn', strpos( $h_vp, '>Bảng công tháng<' ) !== false, $h_vp );
-/* 🔴 Và phải thấy nó từ MÀN KHÁC nữa. Anh Thắng 26/08 đứng ở màn Bảng chấm công và nói "anh
-   chưa thấy lưới" — một tab chỉ hiện khi đã ở trong nó thì không ai vào được. */
-t( 'tab Bảng công tháng thấy được TỪ màn Bảng chấm công',
-	strpos( $h_qtc, '>Bảng công tháng<' ) !== false, $h_qtc );
-t( 'và thấy được từ màn Công của tôi',
-	strpos( vhcc_web( '135791', array(), array( 'man' => 'cong_toi' ) ), '>Bảng công tháng<' ) !== false );
-/* Thanh tab ở trên đầu dễ bị lướt qua — màn Bảng chấm công phải TỰ NÓI ra là có lưới ngang, và
-   nói ngay trong phần mở đầu chứ không giấu ở đâu đó. */
-t( 'màn Bảng chấm công tự chỉ đường sang lưới ngang',
+/* 🔴 HAI TAB GỘP LÀM MỘT (anh Thắng 26/08: *"bản chấm công và bảng công tháng gộp lại, sửa 1
+   lần"*). Nên KHÔNG còn tab "Bảng công tháng" nữa — và đường cũ `?man=vp` vẫn phải mở được, vì
+   anh đã gửi link kèm tham số ấy cho các bộ phận rồi. */
+t( 'KHÔNG còn tab riêng "Bảng công tháng"', strpos( $h_vp, '>Bảng công tháng<' ) === false, $h_vp );
+t( 'chỉ còn một tab "Bảng công"', strpos( $h_vp, '>Bảng công<' ) !== false, $h_vp );
+t( '🔴 đường cũ ?man=vp vẫn mở đúng màn đã gộp, không rơi về Trang chính',
+	strpos( $h_vp, 'Lưới cả tháng' ) !== false, $h_vp );
+t( 'và màn ấy có CẢ bảng chi tiết từng lượt', strpos( $h_vp, 'Chi tiết từng lượt' ) !== false, $h_vp );
+t( 'tab Bảng công thấy được từ màn Công của tôi',
+	strpos( vhcc_web( '135791', array(), array( 'man' => 'cong_toi' ) ), '>Bảng công<' ) !== false );
+/* Màn phải TỰ NÓI ra là có lưới ngang, và nói ngay trong phần mở đầu chứ không giấu ở đâu đó.
+   Anh Thắng 26/08 đứng ngay màn này và nói *"anh chưa thấy lưới"*. Nay lưới nằm CÙNG MÀN, nên
+   câu chỉ đường trỏ xuống khối bên dưới chứ không sang tab khác — và tuyệt đối không được trỏ
+   sang `man=vp` nữa, vì tab ấy không còn. */
+t( 'màn Bảng công tự chỉ đường xuống lưới ngang',
 	strpos( $h_qtc, 'dạng lưới ngang' ) !== false, $h_qtc );
-t( 'và đường ấy mang sẵn cơ sở + tháng đang xem (khỏi chọn lại)',
-	strpos( $h_qtc, 'man=vp' ) !== false && strpos( $h_qtc, 'cth=2026-07' ) !== false, $h_qtc );
+t( 'và trỏ XUỐNG khối cùng màn, không sang tab khác',
+	strpos( $h_qtc, 'href="#luoithang"' ) !== false, $h_qtc );
+t( 'lưới thật sự có mặt ngay trên màn ấy, khỏi phải chọn cơ sở lần hai',
+	strpos( $h_qtc, 'id="luoithang"' ) !== false, $h_qtc );
 t( 'lưới vẽ ra được', strpos( $h_vp, 'Nhân viên' ) !== false, $h_vp );
 /* Đủ 31 cột ngày cho tháng 7 + cột Nhân viên + cột TỔNG. Đếm số THẬT, không gõ tay con số. */
 $sn_vp = (int) gmdate( 't', strtotime( '2026-07-01' ) );
@@ -6275,11 +6409,17 @@ t( 'tháng trống thì nói rõ chưa có dữ liệu',
 	strpos( $h_vp0, 'chưa có dữ liệu chấm công nào' ) !== false, $h_vp0 );
 t( 'và chỉ sang chỗ nạp .csv', strpos( $h_vp0, 'Nạp công từ .csv' ) !== false, $h_vp0 );
 
-/* Lưới là màn CHỈ ĐỌC — không có ô nhập giờ nào, y như bảng chấm công. */
+/* 🔴 CHÍNH LƯỚI là thứ CHỈ ĐỌC — không có ô nhập giờ nào.
+   ⚠️ Canh vào ĐÚNG khối lưới, không quét cả trang: màn đã gộp còn có khối Chấm công bù và khối
+   Sửa giờ công, hai khối ấy CÓ ô nhập giờ và có quyền có. Quét cả trang là chốt đỏ oan, mà sửa
+   cho xanh bằng cách bỏ chốt thì mất luôn thứ nó đang canh. */
+$khoi_luoi = preg_match( '/Lưới cả tháng(.*?)(?=<div class="the" id="bucong")/s', $h_vp, $m_lu )
+	? $m_lu[1] : '';
+t( 'tìm được khối lưới trong màn đã gộp', '' !== $khoi_luoi, substr( $h_vp, 0, 200 ) );
 t( 'lưới KHÔNG có ô nhập giờ nào',
-	! preg_match( '/name="(gio_vao|gio_ra|bu_vao|bu_ra)"/', $h_vp ), $h_vp );
-/* Và không lộ tiền: tab này nói về CÔNG, tiền là chuyện của màn lương (quyền khác). */
-t( 'lưới không in ô tiền nào', strpos( $h_vp, 'đ</td>' ) === false, $h_vp );
+	! preg_match( '/name="(gio_vao|gio_ra|bu_vao|bu_ra|sg_vao|sg_ra)"/', $khoi_luoi ), $khoi_luoi );
+/* Và không lộ tiền: khối này nói về CÔNG, tiền là chuyện của màn lương (quyền khác). */
+t( 'lưới không in ô tiền nào', strpos( $khoi_luoi, 'đ</td>' ) === false, $khoi_luoi );
 
 /* ---- ĐƠN VỊ CỦA Ô DO BỘ PHẬN QUYẾT, không phải một công thức cho tất cả ---- */
 /* Anh Thắng 26/08: *"này là cơ sở mà, nên kiểu chấm khác, tính theo giờ"* — anh mở lưới ở một
@@ -6803,6 +6943,18 @@ foreach ( $man_thu as $ten_man => $get_man ) {
 }
 
 $h_ct = vhcc_web( '135791' );
+/* 🔴 CHÂN TRANG PHẢI NẰM TRONG KHUNG `.bo` CỦA TRANG.
+   Anh Thắng 26/08: *"bị lệch"* — bản đầu in chân trang SAU khi đã đóng `.bo`, nên nó dính sát
+   mép trái màn hình trong khi cả trang còn lại thụt vào. Bộ thử lúc ấy vẫn xanh vì nó chỉ hỏi
+   "có chữ đó không", chưa hỏi "chữ đó nằm ở đâu". */
+t( '🔴 chân trang nằm TRONG khung .bo, không lọt ra ngoài',
+	strpos( $h_ct, '<div class="bo"><footer class="cty">' ) !== false,
+	substr( $h_ct, strrpos( $h_ct, 'footer class="cty"' ) - 120, 160 ) );
+/* ⚠️ Bỏ điều kiện `@media(max-width:…)` ra trước khi soi: đó là mốc màn hình, không phải bề
+   ngang của khối. Bản đầu quét thẳng cả chuỗi nên chốt đỏ oan. */
+$css_cty = preg_replace( '/@media\s*\([^)]*\)/', '', VHCC_Cty::css() );
+t( 'và kiểu chữ của chân trang KHÔNG tự đặt max-width (kẻo hai khung chồng nhau)',
+	strpos( $css_cty, 'max-width' ) === false, $css_cty );
 t( 'số điện thoại bấm gọi được', strpos( $h_ct, 'href="tel:0435961469"' ) !== false, $h_ct );
 t( 'có chi nhánh, nối bằng dấu chấm giữa',
 	strpos( $h_ct, 'Đà Nẵng · Nha Trang' ) !== false, $h_ct );

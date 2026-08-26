@@ -420,7 +420,78 @@ class VHCC_Luong {
 
 	// ======================================================================= engine Văn phòng
 
-	public static function vp_cfg() {
+	/**
+	 * KHOÁ LƯU CẤU HÌNH RIÊNG TỪNG KHỐI: { 'Văn phòng' => {…}, 'Khu vui chơi' => {…} }.
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ. Anh Thắng 26/08/2026: *"bổ sung cho khối văn phòng phương pháp tính
+	 *    công"* — kèm ảnh màn Cách tính công đang để **ca ngày 08:30–21:30**. Đó là khung của
+	 *    CỬA HÀNG (mở tới 21:30), nhưng cả hệ chỉ có MỘT bộ số, nên đúng bộ số ấy cũng đang được
+	 *    dùng để tính công Văn phòng — nơi người ta về lúc 17:00.
+	 *
+	 *    Hậu quả im lặng: một ngày Văn phòng đủ 08:30–17:00 chỉ phủ 8/13 tiếng của khung, và
+	 *    tuỳ ô "Làm thiếu giờ thì tính sao" mà nó rơi xuống nửa công hoặc 1.5 công. Bảng vẫn ra
+	 *    số, vẫn đẹp, chỉ là sai — và sai theo hướng nào thì phụ thuộc một ô mà người sửa khung
+	 *    giờ cửa hàng không hề nghĩ mình đang chạm tới.
+	 *
+	 * ⚠️ KHỐI RIÊNG chỉ ĐÈ NHỮNG Ô ĐÃ KHAI, không thay cả bộ. Khai lại cả bộ cho mỗi khối là ba
+	 *    bản sao của cùng một thứ: sửa "công của ca đêm" ở bản chung xong vẫn sai ở hai bản kia,
+	 *    mà màn hình thì trông như đã sửa rồi.
+	 */
+	const VP_CFG_BP_O = 'VP_CONG_CFG_BP';
+
+	/**
+	 * MÔ TẢ TỪNG Ô CẤU HÌNH — khai MỘT LẦN, mọi màn đọc lại.
+	 *
+	 * 🔴 Trước đây bộ ô này được gõ tay trong biểu mẫu wp-admin. Thêm một màn thứ hai (trang web
+	 *    ngoài) là gõ tay lần thứ hai: thêm ô mới thì một màn có, màn kia không — và người dùng
+	 *    màn thiếu ô sẽ đinh ninh cấu hình đó không tồn tại.
+	 *
+	 * kiểu: gio (HH:mm) · so · chon · ds (danh sách mã) · tick
+	 */
+	const VP_O = array(
+		'ngayTu'  => array( 'Ca ngày từ', 'gio', '' ),
+		'ngayDen' => array( 'Ca ngày đến', 'gio', '' ),
+		'ngayMin' => array( 'Đủ bao nhiêu tiếng = 1 công', 'so', '' ),
+		'duoiMin' => array( 'Làm thiếu giờ thì tính sao', 'chon', '' ),
+		'gioChuan' => array( 'Giờ chuẩn (cho cách tỷ lệ)', 'so', '' ),
+		'bacNua'  => array( 'Bậc thang — dưới mốc này nửa công', 'so', '' ),
+		'bacMot'  => array( 'Bậc thang — dưới mốc này một công', 'so',
+			'Mốc này mặc định 9, KHÔNG phải 8. Để 8 thì ca chuẩn 8.5 tiếng rơi vào bậc "dưới 12h" = 1.5 công.' ),
+		'bacRuoi' => array( 'Bậc thang — dưới mốc này 1.5 công', 'so', '' ),
+		'graceRaPhut' => array( 'Ân hạn tan làm (phút)', 'so',
+			'Tan làm bấm trong khoảng ân hạn mà hàng 1 chưa có giờ ra thì đó là tan làm, KHÔNG phải mở hàng tăng ca — không có chỗ này là mất trọn 1 công ngày.' ),
+		'demTu'   => array( 'Ca đêm từ', 'gio', '' ),
+		'demDen'  => array( 'Ca đêm đến (hôm sau)', 'gio', '' ),
+		'demToiThieuGio' => array( 'Ca đêm tối thiểu (giờ, 0 = không xét)', 'so',
+			'Ngưỡng này KHÔNG áp cho ca thiếu cặp giờ: quên chấm ra thì không cách nào biết ca dài bao lâu, cắt ngầm là trừ tiền một người vì cái máy lỗi.' ),
+		'demCong'    => array( 'Công của một ca đêm', 'so', '' ),
+		'demCongBu'  => array( 'Công nghỉ bù sau ca đêm', 'so', '' ),
+		'tangCaCong' => array( 'Công của một ca tăng ca', 'so', '' ),
+		'ktThu7Tu'   => array( 'Kế toán — thứ Bảy từ', 'gio', '' ),
+		'ktThu7Den'  => array( 'Kế toán — thứ Bảy đến', 'gio', '' ),
+		'ktThu7Min'  => array( 'Kế toán — thứ Bảy đủ mấy tiếng = 1 công', 'so', '' ),
+		'ktMaNV'     => array( 'Mã NV thuộc Kế toán văn phòng (cách nhau dấu phẩy)', 'ds', '' ),
+		'ktChuNhatNghi' => array( 'Kế toán — Chủ nhật là ngày nghỉ', 'tick',
+			'0 công ngày, nhưng vẫn giữ dòng để soi được là có đi làm.' ),
+	);
+
+	/** Các lựa chọn của ô "Làm thiếu giờ thì tính sao". */
+	const VP_DUOI_MIN = array(
+		'tyle' => 'Theo tỷ lệ (giờ ÷ giờ chuẩn)',
+		'nua'  => 'Nửa công nếu đủ mốc',
+		'tron' => 'Tròn 1 công',
+		'khong' => 'Không công',
+		'bacthang' => 'Bậc thang (<4h nửa công · <9h một công · <12h 1.5 công)',
+	);
+
+	/**
+	 * Cấu hình công.
+	 *
+	 * @param string $coso Khai cơ sở thì lấy cấu hình của KHỐI (bộ phận) chứa cơ sở đó; để trống
+	 *                     thì lấy bản CHUNG. Chỗ nào biết cơ sở thì phải truyền vào — không
+	 *                     truyền là lặng lẽ tính bằng bộ số của người khác.
+	 */
+	public static function vp_cfg( $coso = '' ) {
 		$mac_dinh = array(
 			'ngayTu' => '08:30', 'ngayDen' => '17:00', 'ngayMin' => 7, 'ngayMax' => 9,
 			'duoiMin' => 'tyle', 'gioChuan' => 8,
@@ -446,7 +517,87 @@ class VHCC_Luong {
 			if ( '' !== $x ) { $sach[] = $x; }
 		}
 		$mac_dinh['ktMaNV'] = $sach;
+
+		/* Lớp thứ ba: khối riêng. Đặt SAU bản chung nên nó thắng — và chỉ thắng ở đúng những ô
+		   đã khai. */
+		$coso = trim( (string) $coso );
+		if ( '' !== $coso ) {
+			$rieng = self::vp_cfg_khoi( self::bo_phan_cua( $coso ) );
+			foreach ( $rieng as $k => $v ) {
+				if ( array_key_exists( $k, $mac_dinh ) ) { $mac_dinh[ $k ] = $v; }
+			}
+		}
 		return $mac_dinh;
+	}
+
+	/** Bộ số ĐANG THẬT SỰ CHẠY của một khối (chung đè bởi riêng). '' = bản chung. */
+	public static function vp_cfg_thu( $khoi ) {
+		$khoi = trim( (string) $khoi );
+		if ( '' === $khoi ) { return self::vp_cfg(); }
+		return array_merge( self::vp_cfg(), self::vp_cfg_khoi( $khoi ) );
+	}
+
+	/** Những ô mà một KHỐI đã khai riêng. Mảng rỗng = khối ấy đang theo bản chung. */
+	public static function vp_cfg_khoi( $khoi ) {
+		$khoi = trim( (string) $khoi );
+		if ( '' === $khoi ) { return array(); }
+		$m = self::cai_dat( self::VP_CFG_BP_O, array() );
+		if ( ! is_array( $m ) || ! isset( $m[ $khoi ] ) || ! is_array( $m[ $khoi ] ) ) { return array(); }
+		return $m[ $khoi ];
+	}
+
+	/** Danh sách khối có thể khai riêng — lấy từ chính bảng bộ phận, không gõ tay lại. */
+	public static function vp_cfg_ds_khoi() {
+		return array_values( (array) self::BP_DS );
+	}
+
+	/**
+	 * Lưu cấu hình riêng cho một khối. Ô nào để TRỐNG thì BỎ KHAI (khối ấy quay về bản chung).
+	 *
+	 * 🔴 Phải có đường bỏ khai. Không có thì lỡ tay khai một ô là ô ấy dính vĩnh viễn: sửa bản
+	 *    chung không ăn thua, mà màn hình bản chung vẫn hiện con số mới — người sửa tưởng mình
+	 *    sửa rồi.
+	 */
+	public static function dat_cfg_khoi( $u, $khoi, $cfg_moi ) {
+		if ( ! self::co_quyen( isset( $u['role'] ) ? $u['role'] : '' ) ) {
+			return array( 'ok' => false, 'error' => 'Đặt cấu hình công — chỉ Admin / Kế toán.' );
+		}
+		$khoi = trim( (string) $khoi );
+		if ( ! in_array( $khoi, self::vp_cfg_ds_khoi(), true ) ) {
+			return array( 'ok' => false, 'error' => 'Khối không hợp lệ: "' . $khoi . '".' );
+		}
+		$chung = self::vp_cfg();
+		$rieng = array();
+		foreach ( (array) $cfg_moi as $k => $v ) {
+			if ( ! array_key_exists( $k, $chung ) ) { continue; }   // ô lạ -> bỏ, không nhét bừa
+			if ( is_string( $v ) && '' === trim( $v ) ) { continue; }  // để trống = bỏ khai
+			$rieng[ $k ] = $v;
+		}
+		/* Kiểm ngay trên bộ ĐÃ TRỘN, không kiểm riêng mấy ô vừa gõ: một khung giờ hợp lệ khi
+		   đứng một mình vẫn có thể vô nghĩa khi ghép với phần còn lại. */
+		$thu = array_merge( $chung, $rieng );
+		$hop = array( 'tyle', 'nua', 'tron', 'khong', 'bacthang' );
+		if ( ! in_array( $thu['duoiMin'], $hop, true ) ) {
+			return array( 'ok' => false, 'error' => 'Cách tính khi thiếu giờ phải là một trong: '
+				. implode( ' · ', $hop ) );
+		}
+		foreach ( array( 'ngayTu', 'ngayDen', 'demTu', 'demDen', 'ktThu7Tu', 'ktThu7Den' ) as $k ) {
+			if ( null === VHCC_DB::giay( $thu[ $k ] ) ) {
+				return array( 'ok' => false, 'error' => 'Giờ "' . $k . '" phải dạng HH:mm.' );
+			}
+		}
+
+		$m = self::cai_dat( self::VP_CFG_BP_O, array() );
+		if ( ! is_array( $m ) ) { $m = array(); }
+		if ( $rieng ) { $m[ $khoi ] = $rieng; } else { unset( $m[ $khoi ] ); }
+		$r = self::luu_cai_dat( self::VP_CFG_BP_O, $m, $u );
+		$r['khoi']    = $khoi;
+		$r['soO']     = count( $rieng );
+		$r['thongBao'] = $rieng
+			? 'Đã lưu cách tính riêng cho khối "' . $khoi . '" — ' . count( $rieng )
+				. ' ô khai riêng, mấy ô còn lại vẫn theo bản chung.'
+			: 'Khối "' . $khoi . '" nay KHÔNG khai riêng ô nào — quay về theo bản chung hoàn toàn.';
+		return $r;
 	}
 
 	/**
@@ -708,7 +859,7 @@ class VHCC_Luong {
 	}
 
 	public static function vp_bang_cong_va_luong( $coso, $tt ) {
-		return self::vp_bang_cong_va_luong_voi( $coso, $tt, self::vp_cfg() );
+		return self::vp_bang_cong_va_luong_voi( $coso, $tt, self::vp_cfg( $coso ) );
 	}
 
 	/**
@@ -913,8 +1064,12 @@ class VHCC_Luong {
 		if ( ! self::la_van_phong( $coso ) ) {
 			return array( 'ok' => false, 'error' => 'Bảng đối chiếu này chỉ dùng cho bộ phận Văn phòng.' );
 		}
-		$cu  = self::vp_bang_cong_va_luong_voi( $coso, $tt, self::vp_cfg() );
-		$moi = self::vp_bang_cong_va_luong_voi( $coso, $tt, array_merge( self::vp_cfg(), (array) $cfg_thu ) );
+		/* Cả hai bên phải xuất phát từ cấu hình của ĐÚNG cơ sở này — so bản chung với bản
+		   thử trong khi cơ sở đang chạy bản riêng thì cột chênh nói về một phép tính không ai
+		   dùng. */
+		$goc = self::vp_cfg( $coso );
+		$cu  = self::vp_bang_cong_va_luong_voi( $coso, $tt, $goc );
+		$moi = self::vp_bang_cong_va_luong_voi( $coso, $tt, array_merge( $goc, (array) $cfg_thu ) );
 		$m = array();
 		foreach ( $moi['rows'] as $r ) { $m[ $r['ma'] ] = $r; }
 		$dong = array();
@@ -933,7 +1088,7 @@ class VHCC_Luong {
 		}
 		return array( 'ok' => true, 'coSo' => $coso, 'thang' => $tt, 'dong' => $dong,
 			'chenhCong' => $chenh_cong, 'chenhTien' => $chenh_tien,
-			'caChuan' => self::ca_chuan( array_merge( self::vp_cfg(), (array) $cfg_thu ) ) );
+			'caChuan' => self::ca_chuan( array_merge( $goc, (array) $cfg_thu ) ) );
 	}
 
 	/**

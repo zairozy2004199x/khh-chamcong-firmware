@@ -47,7 +47,15 @@ class VHCC_Online {
 	 * Cấu hình công Văn phòng. Đọc từ bảng `cai_dat`, trộn với mặc định.
 	 * Giữ đúng tên khoá của Code.gs để hai bên đọc cùng một bộ số.
 	 */
-	public static function vp_cfg() {
+	public static function vp_cfg( $coso = '' ) {
+		/* 🔴 HỎI `VHCC_Luong` TRƯỚC — nó là nơi DUY NHẤT biết đủ ba lớp cấu hình (mặc định ·
+		   bản chung · bản riêng của khối). Bản rút gọn ở dưới chỉ đọc bản CHUNG, nên từ lúc có
+		   cấu hình riêng cho khối Văn phòng (26/08/2026) mà vẫn dùng nó thì chỗ ĐỊNH TUYẾN lượt
+		   chấm đọc một khung giờ, chỗ TÍNH CÔNG đọc một khung giờ khác. Hai chỗ lệch nhau kiểu
+		   đó không báo lỗi — chỉ có mấy lượt chấm rơi nhầm hàng. */
+		if ( method_exists( 'VHCC_Luong', 'vp_cfg' ) ) {
+			return VHCC_Luong::vp_cfg( $coso );
+		}
 		$mac_dinh = array(
 			'ngayTu' => '08:30', 'ngayDen' => '17:00',
 			'demTu' => '21:00', 'demDen' => '06:00',
@@ -114,7 +122,7 @@ class VHCC_Online {
 	 */
 	public static function dinh_tuyen( $coso, $ngay, $giay, $chinh_chua_ra = false ) {
 		if ( ! self::la_van_phong( $coso ) ) { return null; }
-		$cfg      = self::vp_cfg();
+		$cfg      = self::vp_cfg( $coso );
 		$dem_den  = VHCC_DB::giay( $cfg['demDen'] );
 		$ngay_den = VHCC_DB::giay( $cfg['ngayDen'] );
 		if ( null === $giay || null === $dem_den || null === $ngay_den ) { return null; }
@@ -221,7 +229,7 @@ class VHCC_Online {
 		/* Định tuyến Văn phòng. Phải kiểm "hàng 1 đã có giờ vào mà chưa có giờ ra" TRƯỚC khi quyết
 		   định, vì đó là điều kiện của ân hạn tan làm. */
 		$chinh_chua_ra = false;
-		$cfg = self::vp_cfg();
+		$cfg = self::vp_cfg( $coso );
 		$ngay_den = VHCC_DB::giay( $cfg['ngayDen'] );
 		if ( null !== $giay && null !== $ngay_den
 			&& $giay >= $ngay_den && $giay <= $ngay_den + (int) $cfg['graceRaPhut'] * 60 ) {

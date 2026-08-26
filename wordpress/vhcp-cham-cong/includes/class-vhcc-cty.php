@@ -139,7 +139,11 @@ class VHCC_Cty {
 
 	/** Kiểu chữ — nền sáng, hợp với trang chấm công và trang nội bộ. */
 	public static function css() {
-		return '.cty{margin:26px auto 0;padding:20px 0 30px;border-top:1px solid #e2e8f0;'
+		/* ⚠️ KHÔNG tự đặt `max-width` ở đây. Chân trang này chèn vào mấy trang có khung riêng
+		   (`.bo` rộng 1760px ở trang chấm công, 760px ở trang nội bộ). Tự đặt khung là hai
+		   khung chồng nhau, và chân trang thụt vào khác phần trên — cũng lệch, chỉ lệch kiểu
+		   khác. Nơi gọi có trách nhiệm bọc nó vào đúng khung của trang mình. */
+		return '.cty{margin:26px 0 0;padding:20px 0 30px;border-top:1px solid #e2e8f0;'
 			. 'color:#64748b;font-size:12.5px;line-height:1.7}'
 			/* Ba cột tự giãn: `flex:1 1 250px` nghĩa là cột nào cũng phải rộng ít nhất 250px mới
 			   đứng cạnh nhau — hẹp hơn thì tự xuống dòng, khỏi cần mốc @media nào. */

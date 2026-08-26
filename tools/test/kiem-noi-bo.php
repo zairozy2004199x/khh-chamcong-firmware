@@ -390,6 +390,10 @@ ob_start(); VHNB_Trang::ve( $U_NV ); $h_c = ob_get_clean();
 t( 'bảng tin có tên công ty ở cuối trang',
 	strpos( $h_c, 'CÔNG TY TNHH DỊCH VỤ VÀ GIẢI TRÍ K&amp;H' ) !== false, substr( $h_c, -600 ) );
 t( 'có mã số thuế', strpos( $h_c, '0106924989' ) !== false );
+/* 🔴 Nằm TRONG khung `.bo` của trang — xem chú thích cùng chốt ở `test-cham-cong.php`. */
+t( '🔴 chân trang nằm trong khung .bo, không lọt ra ngoài',
+	strpos( $h_c, '<div class="bo"><footer class="cty">' ) !== false,
+	substr( $h_c, max( 0, strrpos( $h_c, 'footer class="cty"' ) - 120 ), 160 ) );
 t( 'số điện thoại bấm gọi được', strpos( $h_c, 'href="tel:0435961469"' ) !== false );
 t( 'ô email trống thì KHÔNG in nhãn Email:', strpos( $h_c, 'Email:' ) === false );
 /* 🔴 Kể cả màn CHƯA ĐĂNG NHẬP — đó là thứ duy nhất người ngoài nhìn thấy. */

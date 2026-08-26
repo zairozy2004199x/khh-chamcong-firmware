@@ -271,13 +271,17 @@ class VHCC_Web {
 		   `VHCC_Cty` cùng plugin nên chắc chắn có, nhưng ai đó gỡ tệp ra khỏi bản cài thì
 		   trang vẫn phải chạy: thiếu chân trang là thiếu một đoạn chữ, không phải trắng trang. */
 		if ( class_exists( 'VHCC_Cty' ) && method_exists( 'VHCC_Cty', 'html' ) ) {
-			echo VHCC_Cty::html();
+			/* 🔴 BỌC TRONG `.bo`. Anh Thắng 26/08: *"bị lệch"* — chân trang in ra SAU khi đã đóng
+			   `.bo` nên nó nằm ngoài khung, dính sát mép trái màn hình trong khi cả trang còn
+			   lại thụt vào. Khung `.bo` là thứ giữ mọi thứ thẳng hàng; ra ngoài nó là lệch. */
+			$h_cty = VHCC_Cty::html();
+			if ( '' !== $h_cty ) { echo '<div class="bo">' . $h_cty . '</div>'; }
 		}
 		echo '</body></html>';
 	}
 
 	/** Các tham số phải sống sót qua một lượt POST — bộ lọc, ô tìm, màn đang mở. */
-	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv' );
+	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk' );
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -404,6 +408,37 @@ class VHCC_Web {
 				$noi .= ' BỎ QUA ' . implode( ', ', $r['boQua'] ) . ': bù không đè lên giờ đã có.';
 			}
 			return array( array( 'xong' => $noi ) );
+		}
+
+		if ( 'cong_thuc' === $viec ) {
+			$khoi = isset( $_POST['ctk'] ) ? sanitize_text_field( wp_unslash( $_POST['ctk'] ) ) : '';
+			$o    = isset( $_POST['ct'] ) ? (array) wp_unslash( $_POST['ct'] ) : array();
+			$cfg  = array();
+			foreach ( $o as $k => $v ) {
+				$k = sanitize_text_field( $k );
+				if ( ! array_key_exists( $k, VHCC_Luong::VP_O ) ) { continue; }
+				$v = is_array( $v ) ? '' : trim( (string) $v );
+				/* Ô danh sách mã: tách ngay ở đây thành mảng. Để chuỗi thì `vp_cfg()` phải tự
+				   đoán, và nó đang đoán bằng `explode(',')` — hai nơi tách một thứ. */
+				if ( 'ds' === VHCC_Luong::VP_O[ $k ][1] ) {
+					$v = preg_split( '/[\s,;]+/', $v, -1, PREG_SPLIT_NO_EMPTY );
+					if ( ! $v ) { continue; }        // rỗng = bỏ khai
+				}
+				$cfg[ $k ] = $v;
+			}
+			if ( '' === $khoi ) {
+				/* Bản CHUNG: ô để trống nghĩa là gì thì `dat_vp_cfg` đã có luật riêng của nó —
+				   không tự diễn giải lại ở đây, kẻo hai nơi hiểu khác nhau. */
+				$r = VHCC_Luong::dat_vp_cfg( $toi, $cfg, '', '' );
+			} else {
+				$r = VHCC_Luong::dat_cfg_khoi( $toi, $khoi, $cfg );
+			}
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			$cc = VHCC_Luong::ca_chuan( VHCC_Luong::vp_cfg_thu( $khoi ) );
+			/* 🔴 Báo lại NGAY con số ra tiền, không chỉ báo "đã lưu". Người vừa đổi mốc bậc thang
+			   phải thấy ca chuẩn nay ra mấy công — đó là chỗ sai đắt nhất của cả màn này. */
+			return array( array( 'xong' => ( isset( $r['thongBao'] ) ? $r['thongBao'] : 'Đã lưu công thức.' )
+				. ' Ca chuẩn của khối này nay: ' . $cc['gio'] . ' tiếng → ' . $cc['cong'] . ' công.' ) );
 		}
 
 		if ( 'sua_gio' === $viec ) {
@@ -1137,6 +1172,10 @@ class VHCC_Web {
 		   thì không vẽ thanh — một cái thanh một mục chỉ tổ chiếm chỗ. */
 		$ds_man = self::man_cua( $toi );
 		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
+		/* 🔴 `?man=vp` LÀ ĐƯỜNG CŨ, VẪN PHẢI MỞ ĐƯỢC. Anh Thắng đã gửi link kèm `man=vp` cho các
+		   bộ phận rồi; gộp tab mà để đường cũ rơi về màn mặc định thì người nhận bấm vào không
+		   thấy thứ người gửi bảo họ xem, và chẳng ai đoán ra vì sao. Quy về tab đã gộp. */
+		if ( 'vp' === $man ) { $man = 'cham'; }
 		if ( ! isset( $ds_man[ $man ] ) ) { $man = self::man_mac_dinh( $ds_man ); }
 		if ( count( $ds_man ) > 1 ) { self::thanh_man( $man, $ds_man ); }
 
@@ -1154,12 +1193,6 @@ class VHCC_Web {
 
 		if ( 'cham' === $man ) {
 			self::the_bang_cham( $ky, $toi );
-			self::dong_trang();
-			return;
-		}
-
-		if ( 'vp' === $man ) {
-			self::the_cong_vp( $ky, $toi );
 			self::dong_trang();
 			return;
 		}
@@ -1213,7 +1246,7 @@ class VHCC_Web {
 	   Anh Thắng 26/08: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"* — người bộ phận mở
 	   đường link ra mà rơi thẳng vào một bảng số thì không biết mình được làm gì và bấm vào đâu.
 	   Trang chào nói ra trước, rồi mới tới bảng. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'vp', 'cong_toi' );
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -1226,8 +1259,12 @@ class VHCC_Web {
 	public static function man_cua( $toi ) {
 		$ds = array( 'nha' => 'Trang chính' );
 		if ( VHCC_Vai::duoc( $toi, 'cong_minh' ) ) { $ds['cong_toi'] = 'Công của tôi'; }
-		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['cham']     = 'Bảng chấm công'; }
-		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['vp']       = 'Bảng công tháng'; }
+		/* 🔴 MỘT TAB, KHÔNG HAI. Anh Thắng 26/08/2026: *"bản chấm công và bảng công tháng gộp
+		   lại, sửa 1 lần"*. Hai tab cũ nói về CÙNG một tháng của CÙNG một cơ sở, chỉ khác cách
+		   bày: một bên từng lượt chấm, một bên lưới ngang. Tách ra là bắt người ta chọn cơ sở và
+		   tháng HAI LẦN, và chọn lệch một ô là hai màn nói về hai chỗ khác nhau mà không có gì
+		   báo. Anh đứng ngay màn Chấm công và nói *"anh chưa thấy lưới"* — lưới nằm ở tab kia. */
+		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['cham']     = 'Bảng công'; }
 		if ( VHCC_Vai::duoc( $toi, 'ho_so' ) )     { $ds['ho_so']    = 'Hồ sơ & tài khoản'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
@@ -1411,10 +1448,10 @@ class VHCC_Web {
 		/* Chỉ đường sang lưới ngang. Anh Thắng 26/08 đứng ngay màn này và nói *"anh chưa thấy
 		   lưới"* — lưới nằm ở tab khác, mà không có câu nào trên màn này nói ra điều đó. Hai màn
 		   nói về cùng một tháng của cùng một người thì phải trỏ được sang nhau. */
-		echo '<p class="mo">Muốn xem <b>dạng lưới ngang</b> (mỗi ô là một số công, cả tháng trên '
-			. 'một dòng) thì sang tab <a href="'
-			. esc_url( add_query_arg( array( 'man' => 'vp', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
-			. '"><b>Công Văn phòng</b></a>.</p>';
+		/* Trước 26/08/2026 câu này chỉ sang một TAB KHÁC. Hai tab nay đã gộp, nên nó chỉ xuống
+		   một khối ngay dưới — cùng cơ sở, cùng tháng, không phải chọn lại. */
+		echo '<p class="mo">Cuộn xuống <a href="#luoithang"><b>Lưới cả tháng</b></a> để xem '
+			. '<b>dạng lưới ngang</b>: mỗi ô một số, cả tháng của cả cơ sở trên một màn.</p>';
 
 		echo '<form method="get" class="hang" style="margin-top:10px">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
@@ -1520,6 +1557,12 @@ class VHCC_Web {
 
 		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
 
+		/* 🔴 LƯỚI NGANG NGAY DƯỚI BẢNG TỔNG, CÙNG MỘT MÀN.
+		   Trước đây nó là tab riêng ("Bảng công tháng"), và anh Thắng đứng ngay màn này nói
+		   *"anh chưa thấy lưới"*. Nay cả hai cách bày cùng một tháng nằm chung một chỗ, chọn cơ
+		   sở và tháng đúng MỘT lần — chọn hai lần là có ngày hai màn nói về hai chỗ khác nhau. */
+		self::the_luoi_thang( $cs, $th, $ky, $toi );
+
 		/* Bảng chi tiết THU GỌN SẴN. Dùng thẻ <details> của chính HTML, không phải JavaScript:
 		   cả màn quản trị này không có lấy một dòng script, và thứ chỉ chạy khi trình duyệt chịu
 		   chạy thì bộ thử PHP không với tới được. <details> còn mở được cả khi tắt JS, và Ctrl+F
@@ -1591,6 +1634,11 @@ class VHCC_Web {
 		self::the_sua_gio( $cs, $ky, $toi );
 		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
+		/* Mấy khối CẤU HÌNH xuống cuối, sau mọi thứ để xem và mọi thứ để sửa từng ngày. Chúng
+		   đổi cách đọc của CẢ cơ sở, nên không nên nằm lẫn giữa đường đi hằng ngày. */
+		self::the_khai_ca( $cs, $ky, $toi );
+		self::the_cach_tinh( $ky, $toi );
+		self::the_cong_thuc_vp( $cs, $ky, $toi );
 	}
 
 	/**
@@ -1800,70 +1848,44 @@ class VHCC_Web {
 	 *      số `0`  = CÓ giờ chấm mà KHÔNG ra công (ca lạ, ca đêm thiếu giờ, kế toán chấm CN)
 	 *    Gộp hai thứ này lại là xoá mất đúng những ngày cần soi.
 	 */
-	private static function the_cong_vp( $ky, $toi ) {
-		$ds_cs = self::ds_coso_xem( $toi );
-		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
-		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
-		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
-		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
-
-		/* 🔴 ĐƠN VỊ CỦA Ô DO CƠ SỞ QUYẾT, KHÔNG PHẢI MỘT CÔNG THỨC CHO TẤT CẢ.
-		   Anh Thắng 26/08: *"này là cơ sở mà, nên kiểu chấm khác, tính theo giờ"* — anh mở lưới ở
-		   `FZ_SC_VIVO_T4` và thấy toàn số lẻ 0.63 · 0.31 · 0.84. Đúng: đó là công thức VĂN PHÒNG
-		   (bậc thang theo khung 08:30–17:00) đem áp lên một CỬA HÀNG, nơi người ta làm ca gãy và
-		   trả theo giờ. Con số ra vẫn là số, vẫn cộng được, chỉ là không có nghĩa gì.
-		   Bản gốc cũng đổi đơn vị theo cơ sở (`d.theoGio ? giờ : công`) — làm y vậy. */
-		$la_vp = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
+	/**
+	 * LƯỚI NGANG CẢ THÁNG — người × ngày, mỗi ô một số.
+	 *
+	 * Trước 26/08/2026 đây là một TAB RIÊNG ("Bảng công tháng") với bộ lọc riêng. Anh Thắng:
+	 * *"bản chấm công và bảng công tháng gộp lại, sửa 1 lần"* — nên nó thành một KHỐI của màn
+	 * Bảng công, dùng chung cơ sở và tháng đã chọn ở trên. Không còn ô chọn nào ở đây nữa.
+	 *
+	 * 🔴 ĐƠN VỊ CỦA Ô DO CƠ SỞ QUYẾT, KHÔNG PHẢI MỘT CÔNG THỨC CHO TẤT CẢ.
+	 *    Anh Thắng 26/08: *"này là cơ sở mà, nên kiểu chấm khác, tính theo giờ"* — anh mở lưới ở
+	 *    `FZ_SC_VIVO_T4` và thấy toàn số lẻ 0.63 · 0.31 · 0.84. Đúng: đó là công thức VĂN PHÒNG
+	 *    (bậc thang theo khung 08:30–17:00) đem áp lên một CỬA HÀNG, nơi người ta làm ca gãy và
+	 *    trả theo giờ. Con số ra vẫn là số, vẫn cộng được, chỉ là không có nghĩa gì.
+	 */
+	private static function the_luoi_thang( $cs, $th, $ky, $toi ) {
+		if ( '' === $cs ) { return; }
+		$la_vp    = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
 		$khai_roi = VHCC_Luong::cach_tinh_da_khai( $cs );
+		$vi_sao   = $khai_roi ? 'đã khai thẳng'
+			: 'suy theo bộ phận <b>' . esc_html( VHCC_Luong::bo_phan_cua( $cs ) ) . '</b>';
 
-		echo '<div class="the">';
-		echo '<h2>Bảng công tháng</h2>';
-		if ( '' === $cs ) {
-			echo '<p class="mo">Chọn cơ sở rồi bấm Xem. Đơn vị của ô do <b>bộ phận của cơ sở</b> '
-				. 'quyết: Văn phòng tính ra <b>số công</b>, cửa hàng tính ra <b>số giờ làm</b>.</p>';
+		echo '<div class="the" id="luoithang">';
+		echo '<h2>Lưới cả tháng</h2>';
+		if ( $la_vp ) {
+			echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO CÔNG</b> (' . $vi_sao
+				. ') nên mỗi ô là <b>số công</b> — đã qua phép tính (khung giờ, tăng ca, ca đêm, '
+				. 'công bù), không phải số giờ thô. Rê chuột lên ô để đọc vì sao ra con số đó.</p>';
 		} else {
-			$vi_sao = $khai_roi ? 'đã khai thẳng' : 'suy theo bộ phận <b>' . esc_html( VHCC_Luong::bo_phan_cua( $cs ) ) . '</b>';
-			if ( $la_vp ) {
-				echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO CÔNG</b> (' . $vi_sao
-					. ') nên mỗi ô là <b>số công</b> — đã qua phép tính (khung giờ, tăng ca, ca đêm, '
-					. 'công bù), không phải số giờ thô. Rê chuột lên ô để đọc vì sao ra con số đó.</p>';
-			} else {
-				echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO GIỜ</b> (' . $vi_sao
-					. ') nên mỗi ô là <b>số giờ làm</b> (giờ ra trừ giờ vào), không quy ra công. Cửa hàng '
-					. 'làm ca gãy, đem công thức khung giờ của Văn phòng vào đây là ra một dãy số lẻ '
-					. 'không có nghĩa.</p>';
-			}
-			echo '<p class="mo">Đổi được ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
-		}
-
-		echo '<form method="get" class="hang" style="margin-top:10px">';
-		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
-		echo '<input type="hidden" name="man" value="vp">';
-		echo '<div><label for="vcs">Cơ sở</label><select id="vcs" name="ccs">';
-		echo '<option value="">— chọn cơ sở —</option>';
-		foreach ( $ds_cs as $x ) {
-			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
-				. esc_html( $x ) . '</option>';
-		}
-		echo '</select></div>';
-		echo '<div><label for="vth">Tháng</label><input id="vth" name="cth" type="month" value="'
-			. esc_attr( $th ) . '"></div>';
-		echo '<div><button class="chinh">Xem</button></div>';
-		echo '</form>';
-		if ( '' === $cs ) {
-			echo '<p class="mo" style="margin-top:12px">'
-				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
-					: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' )
-				. '</p>';
-		}
-		if ( '' !== $cs && ! $la_vp ) {
+			echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO GIỜ</b> (' . $vi_sao
+				. ') nên mỗi ô là <b>số giờ làm</b> (giờ ra trừ giờ vào), không quy ra công. Cửa hàng '
+				. 'làm ca gãy, đem công thức khung giờ của Văn phòng vào đây là ra một dãy số lẻ '
+				. 'không có nghĩa.</p>';
 			echo '<p style="margin:10px 0 0"><a class="nut" href="'
 				. esc_url( add_query_arg( array( 'xuat' => 'ca', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
 				. '">⬇ Xuất Excel (.xlsx)</a> <span class="mo">— ba trang: chi tiết từng ca '
 				. '(ca nào, từ mấy giờ đến mấy giờ, mấy tiếng) · tổng theo ca · từng lượt chấm.</span></p>';
 		}
+		echo '<p class="mo">Đổi đơn vị ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
 		echo '</div>';
-		if ( '' === $cs ) { return; }
 
 		if ( $la_vp ) {
 			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ) );
@@ -1872,8 +1894,6 @@ class VHCC_Web {
 		$b_gio = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
 		self::ve_luoi_gio( $b_gio, $th );
 		self::the_tong_ca( $b_gio, $cs );
-		self::the_khai_ca( $cs, $ky, $toi );
-		self::the_cach_tinh( $ky, $toi );
 	}
 
 	/**
@@ -1934,6 +1954,133 @@ class VHCC_Web {
 		echo '</tbody></table></div>';
 		echo '<p><button class="chinh">Lưu cách tính</button></p>';
 		echo '</form></details></div>';
+	}
+
+	/**
+	 * CÔNG THỨC TÍNH CÔNG — bản chung, và bản riêng của từng KHỐI.
+	 *
+	 * Anh Thắng 26/08/2026: *"bổ sung cho khối văn phòng phương pháp tính công"* và *"trang quản
+	 * trị không cần tách ra đâu"* — nên biểu mẫu này mang từ wp-admin về đây, cạnh chỗ người ta
+	 * đang nhìn bảng công.
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ BẢN RIÊNG TỪNG KHỐI.
+	 *    Ảnh anh gửi cho thấy màn cấu hình đang để **ca ngày 08:30–21:30**. Đó là khung của CỬA
+	 *    HÀNG (mở tới 21:30), nhưng cả hệ chỉ có MỘT bộ số, nên đúng bộ số ấy cũng đang tính công
+	 *    cho Văn phòng — nơi người ta về lúc 17:00. Một ngày Văn phòng đủ giờ chỉ phủ 8 trên 13
+	 *    tiếng của khung, và tuỳ ô "Làm thiếu giờ thì tính sao" mà nó rơi xuống nửa công hoặc lên
+	 *    1.5 công. Bảng vẫn ra số, vẫn đẹp, chỉ là sai — và sai theo hướng nào thì phụ thuộc một ô
+	 *    mà người sửa khung giờ cửa hàng không hề nghĩ mình đang chạm tới.
+	 *
+	 * ⚠️ Ô để TRỐNG ở bản riêng = KHÔNG khai = theo bản chung. Nên khối riêng chỉ cần khai đúng
+	 *    mấy ô thật sự khác, không phải chép lại cả bộ. Chép cả bộ là ba bản sao của cùng một
+	 *    thứ: sửa "công của ca đêm" ở bản chung xong vẫn sai ở hai bản kia.
+	 */
+	private static function the_cong_thuc_vp( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'luong' ) ) { return; }
+
+		$ds_khoi = VHCC_Luong::vp_cfg_ds_khoi();
+		$khoi = isset( $_GET['ctk'] ) ? sanitize_text_field( wp_unslash( $_GET['ctk'] ) ) : '';
+		if ( '' !== $khoi && ! in_array( $khoi, $ds_khoi, true ) ) { $khoi = ''; }
+
+		$chung = VHCC_Luong::vp_cfg();
+		$rieng = ( '' === $khoi ) ? array() : VHCC_Luong::vp_cfg_khoi( $khoi );
+		/* Bộ số ĐANG THẬT SỰ CHẠY của khối đang xem — chung đè bởi riêng. Hiện con số này chứ
+		   không hiện mỗi ô trống: người ta cần biết khối này đang chạy bằng gì, không phải biết
+		   khối này chưa khai gì. */
+		$dang = array_merge( $chung, $rieng );
+		$cc   = VHCC_Luong::ca_chuan( $dang );
+
+		echo '<div class="the" id="congthuc"><details><summary><b>Công thức tính công</b> '
+			. '<span class="mo">(' . ( '' === $khoi ? 'bản chung' : 'khối ' . esc_html( $khoi ) )
+			. ' · bấm để mở)</span></summary>';
+
+		/* 🔴 CON SỐ PHẢI ĐỌC TRƯỚC KHI BẤM LƯU. Ca chuẩn dài mấy tiếng thì ra mấy công — đặt mốc
+		   bậc thang sai là chính NGÀY LÀM BÌNH THƯỜNG thành 1.5 công, tức lương cả khối tăng 50%,
+		   không riêng người thiếu giờ. */
+		echo '<div class="bao canh" style="margin:10px 0"><b>Ca chuẩn của khối đang xem: '
+			. esc_html( $cc['gio'] ) . ' tiếng → ' . esc_html( $cc['cong'] ) . ' công.</b> '
+			. 'Đọc con số này TRƯỚC khi bấm Lưu: mốc bậc thang đặt sai thì <i>ngày làm bình '
+			. 'thường</i> cũng thành 1.5 công — lương cả khối tăng, không riêng người thiếu giờ.</div>';
+
+		/* Thanh chọn khối. Đi bằng đường liên kết chứ không bằng JavaScript — cả màn này không
+		   có lấy một dòng script. */
+		echo '<div class="hang" style="gap:8px;margin:0 0 12px">';
+		echo '<a class="nut' . ( '' === $khoi ? ' chinh' : '' ) . '" href="'
+			. esc_url( add_query_arg( array( 'ctk' => '' ), self::url_hien() ) . '#congthuc' )
+			. '">Bản chung</a>';
+		foreach ( $ds_khoi as $k ) {
+			$so = count( VHCC_Luong::vp_cfg_khoi( $k ) );
+			echo '<a class="nut' . ( $k === $khoi ? ' chinh' : '' ) . '" href="'
+				. esc_url( add_query_arg( array( 'ctk' => $k ), self::url_hien() ) . '#congthuc' )
+				. '">' . esc_html( $k )
+				. ( $so ? ' <span class="k tim">' . (int) $so . ' ô riêng</span>' : '' ) . '</a>';
+		}
+		echo '</div>';
+
+		if ( '' === $khoi ) {
+			echo '<p class="mo">Đang sửa <b>bản chung</b> — bộ số này áp cho mọi khối CHƯA khai riêng.</p>';
+		} else {
+			echo '<p class="mo">Đang sửa riêng cho khối <b>' . esc_html( $khoi ) . '</b>. Ô nào để '
+				. '<b>trống</b> thì khối này <b>theo bản chung</b>; ô nào gõ vào thì <b>chỉ khối này</b> '
+				. 'dùng số ấy. Xoá trắng một ô là bỏ khai, quay về bản chung.</p>';
+		}
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="cong_thuc">' . self::o_loc()
+			. '<input type="hidden" name="ctk" value="' . esc_attr( $khoi ) . '">';
+		echo '<div class="luoi">';
+		foreach ( VHCC_Luong::VP_O as $k => $mt ) {
+			list( $nhan, $kieu, $chu ) = $mt;
+			$id = 'ct_' . $k;
+			/* Bản riêng: ô hiện GIÁ TRỊ ĐÃ KHAI RIÊNG (rỗng nếu chưa khai), còn gợi ý bên dưới
+			   nói bản chung đang là bao nhiêu. Đổ sẵn giá trị chung vào ô là bấm Lưu một phát
+			   thành khai riêng TOÀN BỘ, và từ đó bản chung không còn với tới khối này nữa. */
+			$gt = ( '' === $khoi ) ? $chung[ $k ] : ( isset( $rieng[ $k ] ) ? $rieng[ $k ] : '' );
+			$gt_chung = $chung[ $k ];
+			if ( 'ds' === $kieu ) {
+				$gt = is_array( $gt ) ? implode( ', ', $gt ) : (string) $gt;
+				$gt_chung = is_array( $gt_chung ) ? implode( ', ', $gt_chung ) : (string) $gt_chung;
+			}
+
+			echo '<div><label for="' . esc_attr( $id ) . '">' . esc_html( $nhan ) . '</label>';
+			if ( 'chon' === $kieu ) {
+				echo '<select id="' . esc_attr( $id ) . '" name="ct[' . esc_attr( $k ) . ']">';
+				if ( '' !== $khoi ) { echo '<option value="">— theo bản chung —</option>'; }
+				foreach ( VHCC_Luong::VP_DUOI_MIN as $vk => $vn ) {
+					echo '<option value="' . esc_attr( $vk ) . '"' . selected( $vk, (string) $gt, false )
+						. '>' . esc_html( $vn ) . '</option>';
+				}
+				echo '</select>';
+			} elseif ( 'tick' === $kieu ) {
+				/* 🔴 BA TRẠNG THÁI, KHÔNG PHẢI Ô TÍCH. Ô tích chỉ nói được có/không; ở bản riêng
+				   còn trạng thái thứ ba là "không khai, theo bản chung". Dùng ô tích thì mỗi lượt
+				   Lưu đều khai cứng một giá trị, và không còn đường nào bỏ khai. */
+				$hien = ( '' === (string) $gt ) ? '' : ( $gt ? '1' : '0' );
+				echo '<select id="' . esc_attr( $id ) . '" name="ct[' . esc_attr( $k ) . ']">';
+				if ( '' !== $khoi ) { echo '<option value="">— theo bản chung —</option>'; }
+				foreach ( array( '1' => 'Có', '0' => 'Không' ) as $vk => $vn ) {
+					echo '<option value="' . esc_attr( $vk ) . '"' . selected( $vk, $hien, false )
+						. '>' . esc_html( $vn ) . '</option>';
+				}
+				echo '</select>';
+			} else {
+				$type = ( 'gio' === $kieu ) ? 'time' : 'text';
+				echo '<input id="' . esc_attr( $id ) . '" name="ct[' . esc_attr( $k ) . ']" type="'
+					. esc_attr( $type ) . '" value="' . esc_attr( (string) $gt ) . '"'
+					. ( '' !== $khoi ? ' placeholder="' . esc_attr( (string) $gt_chung ) . '"' : '' ) . '>';
+			}
+			if ( '' !== $khoi ) {
+				echo '<div class="mo" style="font-size:11.5px">Bản chung: <b>'
+					. esc_html( '' === (string) $gt_chung ? '(trống)' : (string) $gt_chung ) . '</b></div>';
+			}
+			if ( '' !== $chu ) { echo '<div class="mo" style="font-size:11.5px">' . esc_html( $chu ) . '</div>'; }
+			echo '</div>';
+		}
+		echo '</div>';
+		echo '<p style="margin-top:12px"><button class="chinh">'
+			. ( '' === $khoi ? 'Lưu bản chung' : 'Lưu riêng cho khối ' . esc_html( $khoi ) )
+			. '</button></p></form>';
+		echo '</details></div>';
 	}
 
 	/**
