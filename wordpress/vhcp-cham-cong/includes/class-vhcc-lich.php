@@ -216,7 +216,10 @@ class VHCC_Lich {
 		if ( '' !== $sang && ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $sang ) ) {
 			return array( 'ok' => false, 'error' => 'Ngày đổi sang không hợp lệ.' );
 		}
-		$ma_yc = 'YC' . gmdate( 'YmdHis', (int) current_time( 'timestamp' ) ) . wp_rand( 100, 999 );
+		$ma_yc = VHCC_DB::ma_moi( 'YC', 'doi_lich_cv', 'ma_yc' );
+		if ( '' === $ma_yc ) {
+			return array( 'ok' => false, 'error' => 'Không cấp được mã yêu cầu, thử lại giúp em.' );
+		}
 		$ok = $wpdb->insert( VHCC_DB::t( 'doi_lich_cv' ), array(
 			'ma_yc' => $ma_yc, 'coso' => $coso, 'ma_nv' => $ma,
 			'ho_ten' => trim( isset( $req['ho_ten'] ) ? (string) $req['ho_ten'] : '' ),

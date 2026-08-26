@@ -802,6 +802,11 @@ class VHCC_Web {
 			. '.k{padding:1px 6px;border-radius:3px;font-size:12px}'
 			. '.k.luc{background:#f0fdf4;color:#15803d}.k.tim{background:#f5f3ff;color:#6d28d9}'
 			. '.k.vang{background:#fffbeb;color:#b45309}.k.hong{background:#fef2f2;color:var(--do)}'
+			/* Khối thu gọn bằng <details> của chính HTML — không JavaScript. Phải cho `summary`
+			   trông ra một cái nút bấm được, kẻo nó nằm im như một dòng chữ và không ai bấm. */
+			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
+			. 'summary::marker{color:var(--xanh)}'
+			. 'summary:hover{color:var(--xanh)}'
 			. '@media(max-width:640px){.bo{padding:12px}h1{font-size:15px}}'
 			/* In ra giấy: bỏ nền, bỏ nút, để bảng lọt trang ngang. */
 			. '@media print{header,form,.nut{display:none!important}'
@@ -1178,6 +1183,13 @@ class VHCC_Web {
 		echo '<p class="mo">Màn này <b>chỉ đọc</b> giờ chấm công — không có nút nào sửa giờ. '
 			. 'Giờ chỉ vào bằng hai đường: máy chấm công và trạm chấm công online. '
 			. 'Thấy một ngày sai thì <b>gắn cờ</b>: cờ nằm cạnh, không đè lên giờ, và giữ lại lý do.</p>';
+		/* Chỉ đường sang lưới ngang. Anh Thắng 26/08 đứng ngay màn này và nói *"anh chưa thấy
+		   lưới"* — lưới nằm ở tab khác, mà không có câu nào trên màn này nói ra điều đó. Hai màn
+		   nói về cùng một tháng của cùng một người thì phải trỏ được sang nhau. */
+		echo '<p class="mo">Muốn xem <b>dạng lưới ngang</b> (mỗi ô là một số công, cả tháng trên '
+			. 'một dòng) thì sang tab <a href="'
+			. esc_url( add_query_arg( array( 'man' => 'vp', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
+			. '"><b>Công Văn phòng</b></a>.</p>';
 
 		echo '<form method="get" class="hang" style="margin-top:10px">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
@@ -1267,11 +1279,27 @@ class VHCC_Web {
 			$co_theo[ (string) $c['ngay'] . '|' . strtoupper( (string) $c['ma_nv'] ) ] = $c;
 		}
 
-		$thieu = array();   /* để khối cờ bên dưới gợi ý sẵn */
+		/* Ngày thiếu giờ ra — tính TRƯỚC khi vẽ.
+		   Bản trước gom `$thieu` ngay trong vòng lặp vẽ bảng chi tiết, nên bảng tổng buộc phải
+		   nằm SAU nó. Anh Thắng 26/08: *"lưới chiều ngang nó gọn, này quá dài"* — đúng, một tháng
+		   của 24 người là mấy trăm dòng, và thứ gọn nhất (bảng tổng) lại nằm dưới đáy. Tách phép
+		   đếm ra khỏi phép vẽ thì muốn xếp thứ tự nào cũng được. */
+		$thieu = array();
+		foreach ( $chi_tiet as $r ) {
+			if ( '' !== $r['vao'] && '' === $r['ra'] ) { $thieu[] = $r; }
+		}
 
+		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
+
+		/* Bảng chi tiết THU GỌN SẴN. Dùng thẻ <details> của chính HTML, không phải JavaScript:
+		   cả màn quản trị này không có lấy một dòng script, và thứ chỉ chạy khi trình duyệt chịu
+		   chạy thì bộ thử PHP không với tới được. <details> còn mở được cả khi tắt JS, và Ctrl+F
+		   của trình duyệt vẫn tìm thấy chữ bên trong. */
 		echo '<div class="the">';
-		echo '<h3 style="margin:0 0 6px">Chi tiết từng lượt</h3>';
-		echo '<p class="mo" style="margin:0 0 10px">Dòng nền đỏ = <b>thiếu giờ ra</b> (quên bấm '
+		echo '<details><summary><b>Chi tiết từng lượt</b> — ' . count( $chi_tiet ) . ' lượt'
+			. ( $thieu ? ' · <span class="chu-hong">' . count( $thieu ) . ' ngày thiếu giờ ra</span>' : '' )
+			. ' <span class="mo">(bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Dòng nền đỏ = <b>thiếu giờ ra</b> (quên bấm '
 			. 'lúc về). Cột <b>Giờ làm</b> để trống nghĩa là giờ ra sớm hơn giờ vào — dấu hiệu ghi '
 			. 'sai, mở ra xem. Bấm 🚩 để gắn cờ nhờ cấp trên kiểm.</p>';
 
@@ -1286,7 +1314,6 @@ class VHCC_Web {
 				. '</tr></thead><tbody>';
 			foreach ( $chi_tiet as $r ) {
 				$mat_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
-				if ( $mat_ra ) { $thieu[] = $r; }
 				$khoa = (string) $r['ngay'] . '|' . strtoupper( (string) $r['maNV'] );
 				$co   = isset( $co_theo[ $khoa ] ) ? $co_theo[ $khoa ] : null;
 
@@ -1318,9 +1345,18 @@ class VHCC_Web {
 			echo '<p class="mo" style="margin-top:8px">' . count( $chi_tiet ) . ' lượt'
 				. ( '' !== $ngay || '' !== $ma_nv ? ' (đang lọc)' : '' ) . '.</p>';
 		}
-		echo '</div>';
+		echo '</details></div>';
 
-		/* ================= BẢNG TỔNG — cả tháng, không theo ngày ================= */
+		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
+		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
+		self::the_co( $b, $cs, $tt, $ky, $thieu );
+	}
+
+	/**
+	 * BẢNG TỔNG — cả tháng, KHÔNG theo ngày.
+	 * Đứng TRƯỚC bảng chi tiết vì nó là thứ gọn nhất: một dòng một người, nhìn phát ra ngay.
+	 */
+	private static function the_tong_cham( $loc_thang, $tt, $cs, $th ) {
 		$tong = VHCC_Cham::gom_tong( $loc_thang );
 		echo '<div class="the">';
 		echo '<h3 style="margin:0 0 6px">Tổng giờ làm theo nhân viên · ' . esc_html( $tt ) . '</h3>';
@@ -1352,10 +1388,6 @@ class VHCC_Web {
 			echo '</tbody></table></div>';
 		}
 		echo '</div>';
-
-		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
-		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
-		self::the_co( $b, $cs, $tt, $ky, $thieu );
 	}
 
 	/**

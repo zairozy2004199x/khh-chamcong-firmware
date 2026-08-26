@@ -152,8 +152,18 @@ class VHCC_Cham {
 		if ( '' === $noi_dung ) {
 			return array( 'ok' => false, 'error' => 'Cờ rỗng thì không nói lên điều gì — ghi rõ cần kiểm gì.' );
 		}
+		/* Mã cờ. Có sẵn = đang SỬA một cờ cũ; trống = cờ MỚI, phải cấp mã chưa ai dùng.
+		   🔴 Chỗ này từng là lỗi im lặng nặng nhất của cả hệ: mã tự sinh chỉ có 900 giá trị trong
+		      một giây, mà bên dưới lại tra `flag_id` rồi thấy trùng thì coi là "sửa cờ cũ" và ĐÈ
+		      LÊN cờ của người khác — khác ngày, khác người, khác nội dung — vẫn trả `ok:true`.
+		      Một cờ cần kiểm biến mất mà không ai biết. */
 		$id = isset( $dat['flag_id'] ) ? trim( (string) $dat['flag_id'] ) : '';
-		if ( '' === $id ) { $id = 'CO' . gmdate( 'YmdHis', (int) current_time( 'timestamp' ) ) . wp_rand( 100, 999 ); }
+		if ( '' === $id ) {
+			$id = VHCC_DB::ma_moi( 'CO', 'ghi_chu', 'flag_id' );
+			if ( '' === $id ) {
+				return array( 'ok' => false, 'error' => 'Không cấp được mã cờ, thử lại giúp em.' );
+			}
+		}
 		$ghi = array( 'flag_id' => $id, 'coso' => $coso, 'ngay' => $ngay,
 			'ma_nv' => trim( isset( $dat['ma_nv'] ) ? (string) $dat['ma_nv'] : '' ),
 			'ho_ten' => trim( isset( $dat['ho_ten'] ) ? (string) $dat['ho_ten'] : '' ),

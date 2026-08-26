@@ -58,6 +58,43 @@ class VHCC_DB {
 	}
 
 	/**
+	 * CẤP MỘT MÃ CHƯA AI DÙNG cho các sổ có `UNIQUE KEY` trên cột mã (`ma_yc`, `flag_id`…).
+	 *
+	 * 🔴 VÌ SAO PHẢI CÓ HÀM NÀY. Ba nơi trước đây cùng tự sinh mã bằng
+	 *    `'YC' . YmdHis . wp_rand( 100, 999 )` — trong CÙNG MỘT GIÂY chỉ có 900 giá trị, nên hai
+	 *    người bấm gửi cùng lúc là đụng nhau với xác suất 1/900. Nghe nhỏ, nhưng nó không nhỏ:
+	 *
+	 *      · `VHCC_Lich::xin_doi_lich` -> ghi trượt, người xin nhận về câu "MySQL: Duplicate
+	 *        entry" chẳng ai hiểu.
+	 *      · `VHCC_Cham::luu_ghi_chu`  -> TỆ NHẤT. Nó tra `flag_id` trước, thấy trùng thì coi là
+	 *        "sửa cờ cũ" và ĐÈ LÊN cờ của người khác — khác ngày, khác người, khác nội dung — rồi
+	 *        vẫn trả về `ok:true`. Một cờ cần kiểm biến mất, không ai biết.
+	 *
+	 *    Bài kiểm bắt được nó vì SQLite ném lỗi; trên MySQL thật thì `$wpdb->insert` chỉ trả về
+	 *    `false`, im lặng. Đúng loại lỗi chỉ lộ ra khi có người khiếu nại.
+	 *
+	 * Hai lớp chắn, cố ý dùng CẢ HAI: nới số ngẫu nhiên lên 6 chữ số (900 -> 900.000 giá trị) và
+	 * HỎI BẢNG xem mã đã có chưa. Chỉ nới số thì vẫn còn xác suất; chỉ hỏi bảng thì vẫn có khe
+	 * đua giữa lúc hỏi và lúc ghi. Hai lớp cùng lúc thì phần còn lại nhỏ tới mức bỏ qua được.
+	 *
+	 * @return string mã, hoặc '' nếu thử mãi không ra (nơi gọi PHẢI xử, đừng ghi mã rỗng).
+	 */
+	public static function ma_moi( $tien_to, $bang, $cot, $lan = 8 ) {
+		global $wpdb;
+		/* Tên cột đi thẳng vào câu SQL nên không được nhận chữ lạ. Mọi nơi gọi đều truyền hằng,
+		   nhưng chốt ở đây để một nơi gọi sau này không mở ra lỗ tiêm SQL. */
+		if ( ! preg_match( '/^[a-z_][a-z0-9_]*$/', (string) $cot ) ) { return ''; }
+		$t = self::t( $bang );
+		for ( $i = 0; $i < (int) $lan; $i++ ) {
+			$ma = (string) $tien_to . gmdate( 'YmdHis', (int) current_time( 'timestamp' ) )
+				. wp_rand( 100000, 999999 );
+			$co = $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE $cot=%s", $ma ) );
+			if ( ! (int) $co ) { return $ma; }
+		}
+		return '';
+	}
+
+	/**
 	 * Bảng này có thật trên máy chủ chưa?
 	 *
 	 * 🔴 Dùng TRƯỚC khi đọc một bảng có thể chưa được dựng — `phan_quyen` chỉ có nội dung sau

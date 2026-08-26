@@ -5903,6 +5903,33 @@ t( 'và có LUẬT CSS cho tr.hong (thuộc tính có mà thiếu luật là tô
 t( 'màn này vẫn KHÔNG có ô nhập giờ nào — chỉ đọc, y như trước',
 	! preg_match( '/name="(gio_vao|gio_ra|vao|ra)"/', $h_qtc ), $h_qtc );
 
+/* ---- màn phải GỌN: bảng tổng trước, chi tiết thu sẵn ---- */
+/* Anh Thắng 26/08: *"lưới chiều ngang nó gọn, này quá dài"*. Một tháng của 24 người là mấy trăm
+   dòng, mà thứ gọn nhất (bảng tổng, một dòng một người) lại nằm dưới đáy. */
+$vt_tong = strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' );
+$vt_ct   = strpos( $h_qtc, 'Chi tiết từng lượt' );
+t( 'bảng TỔNG đứng TRƯỚC bảng chi tiết', $vt_tong !== false && $vt_ct !== false && $vt_tong < $vt_ct,
+	'tong@' . var_export( $vt_tong, true ) . ' ct@' . var_export( $vt_ct, true ) );
+t( 'bảng chi tiết nằm trong khối thu gọn <details>', strpos( $h_qtc, '<details>' ) !== false, $h_qtc );
+/* 🔴 THU SẴN, không mở sẵn: `<details open>` thì màn vẫn dài y như cũ, mà thẻ vẫn có nên phép
+   thử ở trên vẫn xanh. */
+t( 'và THU SẴN (không có thuộc tính open)', strpos( $h_qtc, '<details open' ) === false, $h_qtc );
+/* ⚠️ Cắt ĐÚNG phần <summary> ra rồi mới kiểm. Bản đầu dùng '/<summary>.*?\d+ lượt/s' — với cờ
+   /s thì `.*?` vắt được qua cả đoạn "N lượt" nằm DƯỚI bảng, nên bỏ hẳn số ra khỏi nhãn mà phép
+   thử vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
+preg_match( '#<summary>(.*?)</summary>#s', $h_qtc, $m_sum );
+$sum_qtc = isset( $m_sum[1] ) ? $m_sum[1] : '';
+t( 'có nhãn <summary>', '' !== $sum_qtc, $h_qtc );
+t( 'nhãn thu gọn nói sẵn có bao nhiêu lượt', preg_match( '/\d+ lượt/', $sum_qtc ) === 1, $sum_qtc );
+t( 'và nói sẵn bao nhiêu ngày thiếu giờ ra, khỏi mở ra mới biết',
+	strpos( $sum_qtc, 'ngày thiếu giờ ra' ) !== false, $sum_qtc );
+/* Thu gọn bằng HTML thuần, không JavaScript — cả màn này vẫn phải không có script nào. */
+t( 'thu gọn KHÔNG dùng JavaScript', stripos( $h_qtc, '<script' ) === false, $h_qtc );
+t( 'và summary có CSS cho ra dáng bấm được', strpos( $h_qtc, 'summary{cursor:pointer' ) !== false );
+/* Thu gọn chứ KHÔNG bỏ: nội dung vẫn phải nằm trong trang để Ctrl+F tìm thấy và để in ra giấy. */
+t( 'thu gọn nhưng dữ liệu VẪN nằm trong trang (Ctrl+F vẫn thấy)',
+	strpos( $h_qtc, 'QTC1' ) !== false && strpos( $h_qtc, '<th>Giờ vào</th>' ) !== false, $h_qtc );
+
 /* ---- lọc theo NGÀY: kéo bảng chi tiết, KHÔNG kéo bảng tổng ---- */
 $g_ng = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cng' => '2026-07-06' );
 $h_ng = vhcc_web( '135791', array(), $g_ng );
@@ -6076,6 +6103,18 @@ $g_vp = array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2026-07' );
 $h_vp = vhcc_web( '135791', array(), $g_vp );
 
 t( 'có tab Công Văn phòng trên thanh chọn màn', strpos( $h_vp, '>Công Văn phòng<' ) !== false, $h_vp );
+/* 🔴 Và phải thấy nó từ MÀN KHÁC nữa. Anh Thắng 26/08 đứng ở màn Bảng chấm công và nói "anh
+   chưa thấy lưới" — một tab chỉ hiện khi đã ở trong nó thì không ai vào được. */
+t( 'tab Công Văn phòng thấy được TỪ màn Bảng chấm công',
+	strpos( $h_qtc, '>Công Văn phòng<' ) !== false, $h_qtc );
+t( 'và thấy được từ màn Công của tôi',
+	strpos( vhcc_web( '135791', array(), array( 'man' => 'cong_toi' ) ), '>Công Văn phòng<' ) !== false );
+/* Thanh tab ở trên đầu dễ bị lướt qua — màn Bảng chấm công phải TỰ NÓI ra là có lưới ngang, và
+   nói ngay trong phần mở đầu chứ không giấu ở đâu đó. */
+t( 'màn Bảng chấm công tự chỉ đường sang lưới ngang',
+	strpos( $h_qtc, 'dạng lưới ngang' ) !== false, $h_qtc );
+t( 'và đường ấy mang sẵn cơ sở + tháng đang xem (khỏi chọn lại)',
+	strpos( $h_qtc, 'man=vp' ) !== false && strpos( $h_qtc, 'cth=2026-07' ) !== false, $h_qtc );
 t( 'lưới vẽ ra được', strpos( $h_vp, 'Nhân viên' ) !== false, $h_vp );
 /* Đủ 31 cột ngày cho tháng 7 + cột Nhân viên + cột TỔNG. Đếm số THẬT, không gõ tay con số. */
 $sn_vp = (int) gmdate( 't', strtotime( '2026-07-01' ) );
@@ -6160,6 +6199,70 @@ t( 'lưới không in ô tiền nào', strpos( $h_vp, 'đ</td>' ) === false, $h_
 $h_vp_nv = vhcc_web( '680246', array(), $g_vp );
 t( 'Nhân viên KHÔNG thấy tab Công Văn phòng', strpos( $h_vp_nv, '>Công Văn phòng<' ) === false, $h_vp_nv );
 t( 'và gõ tay ?man=vp cũng không ra lưới', strpos( $h_vp_nv, '↳ ca đêm' ) === false, $h_vp_nv );
+
+// ====== 50. MÃ TỰ SINH PHẢI KHÔNG ĐỤNG NHAU — lỗi im lặng làm mất cờ của người khác
+/* Bài kiểm này CHẾT NGẪU NHIÊN khoảng 1/5 lượt chạy (UNIQUE constraint failed trên `ma_yc`),
+   và lần lần ra thì đó là lỗi thật, có sẵn từ trước: ba nơi cùng sinh mã bằng
+   `YmdHis . wp_rand(100, 999)` — cùng một giây chỉ có 900 giá trị.
+
+   🔴 Chỗ nguy nhất KHÔNG phải chỗ làm bài kiểm chết. `VHCC_Cham::luu_ghi_chu` tra `flag_id`
+      trước; trùng mã thì nó coi là "sửa cờ cũ" và ĐÈ LÊN cờ của người khác — khác ngày, khác
+      người, khác nội dung — rồi vẫn trả `ok:true`. Trên MySQL thật `$wpdb->insert` chỉ trả về
+      false chứ không ném lỗi, nên cả hai kiểu hỏng đều IM LẶNG. */
+
+$U_MA = array( 'name' => 'Admin Mã', 'role' => 'Admin', 'coso' => '' );
+
+/* Sinh nhiều mã LIÊN TIẾP trong cùng một giây — đúng cảnh mấy người bấm gửi cùng lúc. */
+$ds_ma = array();
+for ( $i_ma = 0; $i_ma < 200; $i_ma++ ) {
+	$ds_ma[] = VHCC_DB::ma_moi( 'YC', 'yeu_cau_nv', 'ma_yc' );
+}
+teq( '200 mã sinh liên tiếp thì KHÔNG mã nào rỗng', 0, count( array_filter( $ds_ma, function ( $x ) {
+	return '' === $x; } ) ) );
+teq( 'và không mã nào trùng mã nào', 200, count( array_unique( $ds_ma ) ) );
+
+/* 🔴 Chốt gắn cờ: hai cờ gắn liên tiếp phải là HAI cờ, không phải một cờ bị đè. */
+$co_a = VHCC_Cham::luu_ghi_chu( $U_MA, array( 'coso' => 'TUTU_BT', 'ngay' => '2026-07-11',
+	'ma_nv' => 'MA1', 'ho_ten' => 'Người MA1', 'ghi_chu' => 'cờ của người thứ nhất' ) );
+$co_b = VHCC_Cham::luu_ghi_chu( $U_MA, array( 'coso' => 'TUTU_BT', 'ngay' => '2026-07-12',
+	'ma_nv' => 'MA2', 'ho_ten' => 'Người MA2', 'ghi_chu' => 'cờ của người thứ hai' ) );
+t( 'gắn được cờ thứ nhất', ! empty( $co_a['ok'] ), $co_a );
+t( 'gắn được cờ thứ hai', ! empty( $co_b['ok'] ), $co_b );
+t( 'hai cờ mang HAI mã khác nhau', $co_a['flagId'] !== $co_b['flagId'],
+	$co_a['flagId'] . ' vs ' . $co_b['flagId'] );
+$ds_co_ma = VHCC_Cham::ds_ghi_chu( $U_MA, 'TUTU_BT', '2026-07' );
+$noi_dung_co = array();
+foreach ( $ds_co_ma as $c_ma ) { $noi_dung_co[] = $c_ma['ghi_chu']; }
+t( 'cờ của người thứ nhất KHÔNG bị cờ thứ hai đè mất',
+	in_array( 'cờ của người thứ nhất', $noi_dung_co, true )
+	&& in_array( 'cờ của người thứ hai', $noi_dung_co, true ), $noi_dung_co );
+
+/* Truyền sẵn flag_id thì vẫn phải SỬA đúng cờ đó, không đẻ ra cờ mới. */
+$co_c = VHCC_Cham::luu_ghi_chu( $U_MA, array( 'flag_id' => $co_a['flagId'], 'coso' => 'TUTU_BT',
+	'ngay' => '2026-07-11', 'ma_nv' => 'MA1', 'ho_ten' => 'Người MA1', 'ghi_chu' => 'đã sửa lại' ) );
+teq( 'sửa cờ cũ thì giữ nguyên mã', $co_a['flagId'], $co_c['flagId'] );
+teq( 'và KHÔNG đẻ thêm cờ', count( $ds_co_ma ),
+	count( VHCC_Cham::ds_ghi_chu( $U_MA, 'TUTU_BT', '2026-07' ) ) );
+
+/* Nới số ngẫu nhiên rồi thì cũng đừng ai lặng lẽ hạ nó xuống lại. */
+$ma_mau = VHCC_DB::ma_moi( 'YC', 'yeu_cau_nv', 'ma_yc' );
+t( 'mã có đủ 6 chữ số ngẫu nhiên ở đuôi (900 giá trị là quá ít cho một giây)',
+	preg_match( '/^YC\d{14}\d{6}$/', $ma_mau ) === 1, $ma_mau );
+/* Tên cột đi thẳng vào câu SQL -> chữ lạ phải bị chối, không được ghép vào câu lệnh. */
+teq( 'tên cột lạ bị chối, không ghép vào SQL', '',
+	VHCC_DB::ma_moi( 'YC', 'yeu_cau_nv', 'ma_yc; DROP TABLE x' ) );
+
+/* 🔴 Chốt quét mã: không tệp nào được quay lại kiểu sinh mã cũ. */
+$ma_tho = array();
+foreach ( glob( $goc . '/wordpress/vhcp-cham-cong/includes/*.php' ) as $f_ma ) {
+	foreach ( explode( "\n", file_get_contents( $f_ma ) ) as $i_d => $d_ma ) {
+		if ( 0 === strpos( ltrim( $d_ma ), '*' ) || false !== strpos( $d_ma, '//' ) ) { continue; }
+		if ( preg_match( "/wp_rand\(\s*100\s*,\s*999\s*\)/", $d_ma ) ) {
+			$ma_tho[] = basename( $f_ma ) . ':' . ( $i_d + 1 );
+		}
+	}
+}
+t( 'không tệp nào còn tự sinh mã bằng wp_rand(100,999)', 0 === count( $ma_tho ), implode( ', ', $ma_tho ) );
 
 /* ---- lưới người × ngày của bản cũ đã đi hẳn, không để lại hàm mồ côi ---- */
 $than_web_qtc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );

@@ -15,8 +15,9 @@ class VHCC_YeuCau {
 	const DUYET  = 'Đã duyệt';
 	const TU_CHOI = 'Từ chối';
 
+	/** Mã yêu cầu — cấp qua VHCC_DB::ma_moi để không đụng mã người khác. '' = không cấp được. */
 	private static function ma_moi() {
-		return 'YC' . gmdate( 'YmdHis', (int) current_time( 'timestamp' ) ) . wp_rand( 100, 999 );
+		return VHCC_DB::ma_moi( 'YC', 'yeu_cau_nv', 'ma_yc' );
 	}
 
 	public static function ds( $u, $chi_cho = false ) {
