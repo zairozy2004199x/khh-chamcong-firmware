@@ -1,0 +1,19 @@
+{
+  "co_so": "KH705",
+  "ky_tu": "2026-08-01",
+  "ky_den": "2026-08-31",
+  "ngay_hoa_don": "2026-08-31",
+  "vat_rate": 0.08,
+  "theo_ngay": false,
+
+  "sources": [
+    { "kind": "qr", "file": "../du-lieu/KH705_ds_giao_dich.xlsx", "sheet": "QR Posh 30.03.26 HN 705", "stream": "QR Posh HN" },
+    { "kind": "qr", "file": "../du-lieu/KH705_ds_giao_dich.xlsx", "sheet": "QR JP 30.03.26 HN 705", "stream": "QR JP HN" },
+    { "kind": "qr", "file": "../du-lieu/KH705_ds_giao_dich.xlsx", "sheet": "QR Posh +JP 30.03.26 HCM 705", "stream": "QR Posh + JP HCM" },
+    { "kind": "qr", "file": "../du-lieu/KH705_ds_giao_dich.xlsx", "sheet": "QR + JP MB MỚI", "stream": "QR về TK MB" }
+  ],
+
+  "catalogs": [
+    { "kind": "store_code", "file": "../du-lieu/KH705_ds_giao_dich.xlsx", "sheet": "chia theo mã cửa hàng" }
+  ]
+}

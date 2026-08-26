@@ -1,0 +1,26 @@
+{
+  "co_so": "KH989",
+  "ky_tu": "2026-08-01",
+  "ky_den": "2026-08-31",
+  "ngay_hoa_don": "2026-08-31",
+  "vat_rate": 0.08,
+  "theo_ngay": false,
+  "phap_nhan": null,
+  "noi_dung": "Dịch vụ vui chơi giải trí",
+  "ten_khach": "Bán cho người tiêu dùng",
+
+  "sources": [
+    { "kind": "qr", "file": "../du-lieu/KH989_ds_giao_dich.xlsx", "sheet": "QR Posh 30.03.26 HN 989 ", "stream": "QR Posh HN" },
+    { "kind": "qr", "file": "../du-lieu/KH989_ds_giao_dich.xlsx", "sheet": "QR TK MB268", "stream": "QR Posh MB268" },
+    { "kind": "qr", "file": "../du-lieu/KH989_ds_giao_dich.xlsx", "sheet": "QR POSH 7704", "stream": "QR Posh 7704" },
+    { "kind": "payoo", "file": "../du-lieu/Payoo_thu_ho_KH989.xlsx", "sheet": "Dữ liệu Payoo cơ sở KH989", "stream": "Payoo" },
+    { "kind": "vnpay", "file": "../du-lieu/VNPay_thu_ho_KH989.xlsx", "sheet": "dữ liệu VNpay cơ sở KH989", "stream": "VNPay" },
+    { "kind": "zalo", "file": "../du-lieu/doi_soat_zalo_app_va_vnpay.xls", "sheet": "Đối soát zalo", "stream": "Zalo mini app" }
+  ],
+
+  "catalogs": [
+    { "kind": "store_code", "file": "../du-lieu/KH989_ds_giao_dich.xlsx", "sheet": "chia theo mã cửa hàng KH989" },
+    { "kind": "vnpay", "file": "../du-lieu/VNPay_thu_ho_KH989.xlsx", "sheet": "Danh mục điểm", "code_column": "Mã điểm thu" },
+    { "kind": "payoo", "file": "../du-lieu/Payoo_thu_ho_KH989.xlsx", "sheet": "Danh mục tên điểm", "code_column": "Chi nhánh" }
+  ]
+}

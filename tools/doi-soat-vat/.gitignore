@@ -1,0 +1,14 @@
+# Sao kê và file VAT chứa tên khách, số điện thoại, số tài khoản.
+# Repo này công khai — đừng bao giờ commit dữ liệu thật.
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+
+# Cấu hình thật thường chứa đường dẫn nội bộ; chỉ giữ file mẫu.
+config/*.json
+!config/*.mau.json
+
+__pycache__/
+*.pyc
+node_modules/

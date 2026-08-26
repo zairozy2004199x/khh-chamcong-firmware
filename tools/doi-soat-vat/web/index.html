@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <h1>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</h1>
+    <p class="sub">Gộp sao kê QR VietQR, Payoo, VNPay, Zalo Mini App &rarr; quy về điểm xuất hoá đơn &rarr; tách VAT &rarr; xuất file Excel.</p>
+  </div>
+</header>
+
+<div class="wrap main">
+
+  <p class="privacy">
+    <strong>Toàn bộ xử lý chạy ngay trong trình duyệt của bạn.</strong>
+    File sao kê không được tải lên máy chủ nào — trang này không gửi đi bất cứ dữ liệu gì.
+  </p>
+
+  <!-- ------------------------------------------------------------ bước 1 -->
+  <section class="step">
+    <h2><span class="num">1</span> Kỳ báo cáo</h2>
+    <div class="grid">
+      <label>Cơ sở
+        <input type="text" id="coSo" value="KH989" placeholder="KH989">
+      </label>
+      <label>Từ ngày
+        <input type="date" id="kyTu">
+      </label>
+      <label>Đến ngày
+        <input type="date" id="kyDen">
+      </label>
+      <label>Ngày hoá đơn
+        <input type="date" id="ngayHoaDon">
+      </label>
+      <label>Thuế suất
+        <select id="rate">
+          <option value="0.08" selected>8%</option>
+          <option value="0.1">10%</option>
+          <option value="0.05">5%</option>
+          <option value="0">0%</option>
+        </select>
+      </label>
+      <label>Lọc pháp nhân <span class="hint">(để trống = lấy tất cả)</span>
+        <input type="text" id="phapNhan" placeholder="ví dụ: KH cũ">
+      </label>
+      <label>Xuất hoá đơn
+        <select id="kieuXuat">
+          <option value="ky" selected>Gộp cả kỳ — mỗi điểm 1 hoá đơn</option>
+          <option value="ngay">Theo từng ngày — mỗi điểm mỗi ngày 1 hoá đơn</option>
+        </select>
+      </label>
+      <label class="wide">Nội dung xuất hoá đơn
+        <input type="text" id="noiDung" value="Dịch vụ vui chơi giải trí">
+      </label>
+      <label class="wide">Tên khách hàng trên hoá đơn
+        <input type="text" id="tenKhach" value="Bán cho người tiêu dùng">
+      </label>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ bước 2 -->
+  <section class="step">
+    <h2><span class="num">2</span> Chọn file sao kê</h2>
+    <p class="note">
+      Thả cả bộ file vào đây. Trang tự nhận diện từng sheet là sao kê của cổng nào,
+      hay là bảng danh mục điểm — bạn không phải chọn sheet thủ công.
+      Nhận <code>.xlsx</code>, <code>.xlsm</code> và <code>.xls</code>.
+    </p>
+
+    <div id="drop" class="drop" tabindex="0" role="button"
+         aria-label="Thả file sao kê vào đây hoặc bấm để chọn file">
+      <div class="drop-inner">
+        <div class="drop-icon" aria-hidden="true">📥</div>
+        <p><strong>Thả file vào đây</strong> hoặc bấm để chọn</p>
+        <p class="hint">File 20&nbsp;MB mất khoảng 20–30 giây để đọc.</p>
+      </div>
+      <input type="file" id="fileInput" multiple accept=".xlsx,.xlsm,.xls" hidden>
+    </div>
+
+    <div id="fileList" class="files"></div>
+  </section>
+
+  <!-- ------------------------------------------------------------ bước 3 -->
+  <section class="step" id="stepSheets" hidden>
+    <h2><span class="num">3</span> Sheet đã nhận diện</h2>
+    <p class="note">
+      Bỏ chọn sheet không muốn tính. Cột <em>Tên luồng tiền</em> là tên hiển thị trên
+      báo cáo — mỗi luồng ra một sheet pivot riêng trong file kết quả.
+    </p>
+    <div class="table-scroll">
+      <table id="sheetTable" class="grid-table">
+        <thead>
+          <tr>
+            <th class="tick">Dùng</th>
+            <th>File</th>
+            <th>Sheet</th>
+            <th>Nhận diện</th>
+            <th class="num-col">Số dòng</th>
+            <th>Tên luồng tiền</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ bước 4 -->
+  <section class="step" id="stepExtra">
+    <h2><span class="num">4</span> Danh mục bổ sung <span class="optional">không bắt buộc</span></h2>
+    <p class="note">
+      Mã điểm bán nào không có trong file danh mục thì khai ở đây. Hay gặp nhất là
+      <strong>gian hàng Zalo Mini App</strong> — file Zalo không kèm mã điểm bán, tên gian hàng
+      được cắt từ tên sản phẩm nên phải tự gán sang điểm xuất hoá đơn.
+      Danh mục này lưu trong trình duyệt, kỳ sau mở lại vẫn còn.
+    </p>
+    <div class="table-scroll">
+      <table id="extraTable" class="grid-table">
+        <thead>
+          <tr>
+            <th>Kênh</th>
+            <th>Mã điểm bán / tên gian hàng</th>
+            <th>Tên điểm xuất hoá đơn</th>
+            <th>Mã điểm misa</th>
+            <th>Khu vực</th>
+            <th>Dịch vụ</th>
+            <th>Pháp nhân</th>
+            <th class="tick"></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="row-actions">
+      <button type="button" id="addExtra" class="btn ghost">+ Thêm dòng</button>
+      <button type="button" id="clearExtra" class="btn ghost danger">Xoá hết</button>
+      <span id="extraCount" class="hint"></span>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ bước 5 -->
+  <section class="step">
+    <h2><span class="num">5</span> Tổng hợp</h2>
+    <div class="row-actions">
+      <button type="button" id="today" class="btn ghost">Đặt kỳ = hôm qua</button>
+      <button type="button" id="run" class="btn primary" disabled>Tổng hợp &amp; tạo file VAT</button>
+      <button type="button" id="download" class="btn" hidden>⬇ Tải file .xlsx</button>
+      <span id="status" class="status" role="status" aria-live="polite"></span>
+    </div>
+    <div id="error" class="error" hidden></div>
+  </section>
+
+  <!-- ------------------------------------------------------------- kết quả -->
+  <section id="results" hidden>
+    <h2 class="results-title">Kết quả</h2>
+
+    <div class="cards" id="cards"></div>
+
+    <div class="panels">
+      <div class="panel">
+        <h3>Tổng theo luồng tiền</h3>
+        <div class="table-scroll">
+          <table class="grid-table" id="streamTable">
+            <thead><tr><th>Luồng tiền</th><th class="num-col">Số tiền</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Cảnh báo <span id="warnBadge" class="badge" hidden></span></h3>
+        <div class="table-scroll">
+          <table class="grid-table" id="warnTable">
+            <thead><tr><th>Mục</th><th class="num-col">Số lượng</th><th class="num-col">Số tiền</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="unmappedPanel" hidden>
+      <h3>Mã điểm bán chưa có trong danh mục</h3>
+      <p class="note">
+        Tiền của các mã này <strong>chưa được tính vào hoá đơn nào</strong>.
+        Bấm “Khai vào danh mục” để đưa lên bảng ở bước 4, gán điểm xuất hoá đơn rồi chạy lại.
+      </p>
+      <div class="table-scroll">
+        <table class="grid-table" id="unmappedTable">
+          <thead>
+            <tr><th>Kênh</th><th>Mã</th><th class="num-col">Số GD</th><th class="num-col">Số tiền</th><th></th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="row-actions">
+        <button type="button" id="addAllUnmapped" class="btn ghost">Khai tất cả vào danh mục</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Doanh thu theo ngày</h3>
+      <p class="note">
+        Ngày nào bằng 0 giữa kỳ thường là dấu hiệu thiếu file sao kê của ngày đó.
+      </p>
+      <div class="table-scroll tall">
+        <table class="grid-table" id="dayTable">
+          <thead><tr><th>Ngày</th><th>Thứ</th><th class="num-col">Doanh thu (có VAT)</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Điểm xuất hoá đơn</h3>
+      <div class="table-scroll tall">
+        <table class="grid-table" id="pointTable">
+          <thead>
+            <tr>
+              <th class="num-col">#</th><th id="thNgay" hidden>Ngày</th>
+              <th>Tên điểm xuất hoá đơn</th><th>Mã điểm misa</th>
+              <th>Khu vực</th><th class="num-col">Chưa VAT</th><th class="num-col">VAT</th>
+              <th class="num-col">Có VAT</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <p>
+      Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
+      Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
+    </p>
+  </footer>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
