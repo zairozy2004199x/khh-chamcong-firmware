@@ -704,6 +704,17 @@ class VHCC_Luong {
 
 	// ======================================================================= đặt cấu hình
 
+	/**
+	 * Ghi một ô cấu hình — cửa CÔNG KHAI của `luu_cai_dat`.
+	 *
+	 * ⚠️ HÀM NÀY KHÔNG GÁC QUYỀN. Nó cố ý để trần, vì mỗi loại cấu hình có một luật quyền khác
+	 *    nhau (khai ca thì Cửa hàng trưởng làm được, đổi đơn giá thì chỉ Kế toán trở lên). NƠI
+	 *    GỌI phải hỏi `VHCC_Vai::duoc()` trước — xem `VHCC_Ca::luu()` làm mẫu.
+	 */
+	public static function dat_cai_dat( $khoa, $gia_tri, $u ) {
+		return self::luu_cai_dat( $khoa, $gia_tri, $u );
+	}
+
 	private static function luu_cai_dat( $khoa, $gia_tri, $u ) {
 		global $wpdb;
 		$bang = VHCC_DB::t( 'cai_dat' );

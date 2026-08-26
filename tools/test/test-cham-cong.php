@@ -6201,10 +6201,15 @@ t( 'lưới không in ô tiền nào', strpos( $h_vp, 'đ</td>' ) === false, $h_
    08:30–17:00) đem áp lên nơi người ta làm ca gãy. Số vẫn ra, vẫn cộng được, chỉ là vô nghĩa. */
 t( 'cơ sở Văn phòng thì ô là SỐ CÔNG', strpos( $h_vp, 'là <b>số công</b>' ) !== false, $h_vp );
 
+$ADMIN_W = array( 'name' => 'Admin Soát Công', 'role' => 'Admin', 'coso' => '' );
 $CS_GIO = 'FZ_SC_THU';                                  /* KHÔNG khai bộ phận -> không phải VP */
 vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', '', '08:00:00', '17:30:00' );   /* 9.5h */
 vhcc_cham( $CS_GIO, '2026-07-02', 'GIO1', '', '08:00:00', null );         /* thiếu giờ ra */
 vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', 'CD', '21:00:00', '23:00:00' ); /* hàng riêng */
+/* 🔴 Hàng ca đêm THẬT: ra 05:30 HÔM SAU, nên `gio_ra_giay` > 86400. Cần đúng ca này để chốt
+   rằng phép tách ăn GIÂY THÔ — `vao`/`ra` dạng chữ đã bị `hhmmss` gói về trong một ngày, đọc
+   từ đó thì 05:30 hôm sau trông y hệt 05:30 hôm nay và cả ca đêm biến mất. */
+vhcc_cham_dem( $CS_GIO, '2026-07-05', 'GIO2', '21:30:00', '05:30:00' );
 $h_gio = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
 
 t( 'cơ sở KHÔNG phải Văn phòng thì ô là SỐ GIỜ, không phải số công',
@@ -6232,6 +6237,120 @@ t( 'tổng của người cộng cả hai hàng (9.5h + 2h = 11h 30m)',
 /* Nói thẳng chuyện giờ làm khác giờ được trả tiền, đừng để lộ ra lúc đối lương. */
 t( 'nói rõ đây là giờ LÀM, không phải giờ được trả tiền',
 	strpos( $h_gio, 'không phải giờ được trả tiền' ) !== false, $h_gio );
+
+/* ---- TÁCH CA: làm ca nào · ca đó mấy tiếng · từ ca nào đến ca nào ---- */
+/* Anh Thắng 26/08: *"bổ sung phần tách ca, để biết bạn đó làm ca nào, ca đó mấy tiếng, từ ca nào
+   đến ca nào"*. Lõi tách ca thử riêng ở kiem-ca.php (47 phép); ở đây canh phần MÀN HÌNH. */
+t( 'lưới giờ có bảng Tổng giờ theo ca', strpos( $h_gio, 'Tổng giờ theo ca' ) !== false, $h_gio );
+t( 'nói rõ đang dùng khung ca nào', strpos( $h_gio, 'Khung ca đang dùng' ) !== false, $h_gio );
+t( 'và chưa ai khai thì nói là đang dùng MẶC ĐỊNH',
+	strpos( $h_gio, '<b>mặc định</b>' ) !== false, $h_gio );
+foreach ( array( 'Ca 1', 'Ca 2', 'Ca 3' ) as $tc ) {
+	t( 'bảng theo ca có cột "' . $tc . '"', strpos( $h_gio, '<th>' . $tc . '<' ) !== false, $h_gio );
+}
+t( 'và có cột Ngoài ca', strpos( $h_gio, '<th>Ngoài ca</th>' ) !== false, $h_gio );
+/* GIO1 ngày 01/07 có HAI hàng: hàng chính 08:00–17:30 và hàng -CD 21:00–23:00.
+     Ca 1 (06–14) = 6h        (08:00→14:00 của hàng chính)
+     Ca 2 (14–22) = 4h 30m    (14:00→17:30 hàng chính  +  21:00→22:00 hàng -CD)
+     Ca 3 (22–06) = 1h        (22:00→23:00 hàng -CD)
+   ⚠️ Em gõ 3h 30m cho Ca 2 vì chỉ nhẩm hàng chính — quên rằng hàng -CD cũng chạm Ca 2. Con số
+      dưới đây lấy từ phép tính thật, và tổng 11h 30m khớp với cột TỔNG của lưới ở trên. */
+t( 'tách đúng giờ vào Ca 1', strpos( $h_gio, '>6h</b>' ) !== false, $h_gio );
+t( 'Ca 2 gom cả hàng chính lẫn phần hàng -CD chạm vào nó',
+	strpos( $h_gio, '>4h 30m</b>' ) !== false, $h_gio );
+t( 'tổng theo ca khớp tổng giờ làm của lưới (11h 30m)',
+	substr_count( $h_gio, '11h 30m' ) >= 2, $h_gio );
+/* Chú thích ô nói luôn ngày đó chạy từ ca nào đến ca nào. */
+t( 'chú thích ô nói từ ca nào đến ca nào', strpos( $h_gio, 'Ca 1 → Ca 2' ) !== false, $h_gio );
+t( 'và nói mỗi ca mấy tiếng kèm khung giờ',
+	strpos( $h_gio, 'Ca 1 6h (06:00–14:00)' ) !== false, $h_gio );
+
+/* 🔴 Hàng ca đêm: 21:00–23:00 phải rơi vào Ca 3 (22:00–06:00, qua nửa đêm), không được biến
+   mất. Ca qua nửa đêm là chỗ mà phép so ngây thơ `tu <= x && x < den` luôn trượt. */
+t( 'hàng ca đêm vẫn được tách vào Ca 3', strpos( $h_gio, '>1h</b>' ) !== false, $h_gio );
+/* 🔴 GIO2 làm 21:30 → 05:30 HÔM SAU = 8 tiếng, trong đó Ca 3 (22:00–06:00) ăn trọn 7h 30m và
+   Ca 2 (14:00–22:00) ăn 30 phút đầu. Đọc từ chuỗi giờ đã gói về trong ngày thì ra ~0 và cả ca
+   đêm này biến mất mà tổng vẫn có số — đúng kiểu hỏng không kêu tiếng nào. */
+t( 'ca đêm qua hôm sau tách đúng 7h 30m vào Ca 3',
+	strpos( $h_gio, '>7h 30m</b>' ) !== false, $h_gio );
+t( 'và 30 phút đầu rơi vào Ca 2', strpos( $h_gio, '>0h 30m</b>' ) !== false, $h_gio );
+
+/* Khối khai ca — Cửa hàng trưởng trở lên. */
+t( 'có khối Khai ca làm việc', strpos( $h_gio, 'id="khaica"' ) !== false, $h_gio );
+t( 'khối khai ca thu gọn sẵn (màn đã dài rồi)',
+	preg_match( '/id="khaica"><details>/', $h_gio ) === 1, $h_gio );
+t( 'có ô nhập tên ca', strpos( $h_gio, 'name="ca_ten[0]"' ) !== false, $h_gio );
+t( 'và ô giờ cuối tuần riêng', strpos( $h_gio, 'name="ca_tuw[0]"' ) !== false, $h_gio );
+/* Luôn thừa hai dòng trống để thêm ca mà KHÔNG cần JavaScript — cả màn này không có script. */
+t( 'thừa sẵn dòng trống để thêm ca', strpos( $h_gio, 'name="ca_ten[4]"' ) !== false, $h_gio );
+t( 'khối khai ca KHÔNG dùng JavaScript', stripos( $h_gio, '<script' ) === false, $h_gio );
+
+/* Lưu ca THẬT rồi xem bảng đổi theo. */
+$_POST = array( 'viec' => 'ca', 'ccs' => $CS_GIO,
+	'ca_ten'  => array( 'Sáng', 'Chiều' ),
+	'ca_tu'   => array( '06:00', '12:00' ),
+	'ca_den'  => array( '12:00', '20:00' ),
+	'ca_tuw'  => array( '', '' ), 'ca_denw' => array( '', '' ) );
+$r_ca = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'ca', $ADMIN_W ) );
+$_POST = array();
+t( 'lưu được ca mới', is_array( $r_ca ) && isset( $r_ca[0]['xong'] ), $r_ca );
+$h_ca2 = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+t( 'bảng đổi theo ca vừa khai', strpos( $h_ca2, '<th>Sáng<' ) !== false, $h_ca2 );
+t( 'và nói là cơ sở này đã có khung ca RIÊNG',
+	strpos( $h_ca2, 'khai riêng cho' ) !== false, $h_ca2 );
+t( 'ca cũ không còn trong bảng', strpos( $h_ca2, '<th>Ca 1<' ) === false, $h_ca2 );
+/* 08:00–17:30 với ca Sáng 06–12 và Chiều 12–20 -> 4h + 5h 30m. */
+t( 'tách lại đúng theo khung ca mới', strpos( $h_ca2, '>4h</b>' ) !== false
+	&& strpos( $h_ca2, '>5h 30m</b>' ) !== false, $h_ca2 );
+/* 🔴 Hàng ca đêm 21:00–23:00 nay nằm NGOÀI mọi ca -> phải hiện ở cột Ngoài ca, không được nuốt. */
+t( 'giờ không thuộc ca nào hiện ở cột Ngoài ca, không bị nuốt',
+	strpos( $h_ca2, 'oc vang' ) !== false, $h_ca2 );
+t( 'và nói rõ đó là dấu hiệu khung ca khai chưa khớp',
+	strpos( $h_ca2, 'khung ca khai chưa khớp' ) !== false, $h_ca2 );
+
+/* Nhân viên không khai ca được, kể cả POST thẳng. */
+$h_ca_nv = vhcc_web( '680246', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+t( 'Nhân viên không thấy khối khai ca', strpos( $h_ca_nv, 'id="khaica"' ) === false, $h_ca_nv );
+$_POST = array( 'viec' => 'ca', 'ccs' => $CS_GIO, 'ca_ten' => array( 'Lậu' ),
+	'ca_tu' => array( '00:00' ), 'ca_den' => array( '23:00' ) );
+$r_ca_nv = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'ca', array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => $CS_GIO ) ) );
+$_POST = array();
+t( 'và POST thẳng việc khai ca cũng bị chối',
+	is_array( $r_ca_nv ) && ! isset( $r_ca_nv[0]['xong'] ), $r_ca_nv );
+
+/* ---- ô ẩn chở bộ lọc KHÔNG được đè lên cơ sở màn đang hiện ---- */
+/* `o_loc()` cũng chở `ccs`, nên form có hai ô cùng tên và ô SAU thắng. Chọn một bộ phận mà cơ sở
+   cũ rơi ra ngoài thì `$cs` thành rỗng, trong khi `?ccs=` trên thanh địa chỉ vẫn giữ cơ sở cũ —
+   để o_loc thắng là bù giờ vào một cơ sở mà màn hình không hề đang hiện. */
+function vhcc_ccs_cuoi( $html, $sau ) {
+	$i = strpos( $html, $sau );
+	if ( false === $i ) { return null; }
+	$het = strpos( $html, '</form>', $i );
+	$than = ( false === $het ) ? substr( $html, $i ) : substr( $html, $i, $het - $i );
+	return preg_match_all( '/name="ccs" value="([^"]*)"/', $than, $m ) ? end( $m[1] ) : null;
+}
+$h_bu_loc = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
+	'cth' => '2026-07', 'cbp' => 'Bộ phận không tồn tại' ) );
+/* Bộ lọc gạt hết cơ sở -> màn không vẽ bảng, nên cũng không được vẽ form bù mang cơ sở cũ. */
+t( 'lọc rỗng thì không vẽ form chấm công bù mang cơ sở cũ',
+	strpos( $h_bu_loc, 'value="bu"' ) === false, $h_bu_loc );
+/* Còn ở màn bình thường: ô ccs cuối cùng trong form phải là cơ sở ĐANG HIỆN. */
+teq( 'form chấm công bù gửi đúng cơ sở đang hiện', 'TUTU_BT',
+	vhcc_ccs_cuoi( $h_qtc, 'value="bu"' ) );
+teq( 'form khai ca gửi đúng cơ sở đang hiện', $CS_GIO,
+	vhcc_ccs_cuoi( $h_gio, 'value="ca"' ) );
+/* 🔴 Ca phân biệt được "ô nào thắng": địa chỉ mang tiền tố `CS_` (app cũ viết vậy). `$cs` đã
+   qua `chuan_coso()` nên là `FZ_SC_THU`, còn `o_loc()` chở nguyên `CS_FZ_SC_THU`. Ô của MÀN phải
+   thắng — để o_loc thắng là khai ca cho một chuỗi cơ sở không tồn tại, và bảng công vẫn dùng ca
+   mặc định mãi mà không ai hiểu vì sao lưu rồi không ăn. */
+$h_tien_to = vhcc_web( '135791', array(),
+	array( 'man' => 'vp', 'ccs' => 'CS_' . $CS_GIO, 'cth' => '2026-07' ) );
+teq( 'địa chỉ có tiền tố CS_ thì form khai ca vẫn gửi mã cơ sở ĐÃ CHUẨN HOÁ', $CS_GIO,
+	vhcc_ccs_cuoi( $h_tien_to, 'value="ca"' ) );
+teq( 'và form chấm công bù cũng vậy', 'TUTU_BT',
+	vhcc_ccs_cuoi( vhcc_web( '135791', array(),
+		array( 'man' => 'cham', 'ccs' => 'CS_TUTU_BT', 'cth' => '2026-07' ) ), 'value="bu"' ) );
 
 /* ---- màn mặc định phải KHAI THẲNG, không suy từ vị trí trong danh sách ---- */
 /* 🔴 Bản trước lấy màn CUỐI danh sách làm mặc định. Thêm tab "Bảng công tháng" (cùng bậc quyền

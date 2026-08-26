@@ -92,6 +92,11 @@ class VHCC_Cham {
 				'hoTen' => $r['ho_ten'],
 				'vao' => VHCC_DB::hhmmss( $r['gio_vao_giay'] ),
 				'ra'  => VHCC_DB::hhmmss( $r['gio_ra_giay'] ),
+				/* Giây THÔ đi kèm. `vao`/`ra` ở trên đã bị `hhmmss` gói về trong một ngày
+				   (`% 86400`), nên hàng ca đêm ra 06:00 hôm sau trông y hệt 06:00 hôm nay — tách
+				   ca từ chuỗi ấy là mất đúng ca đêm. Phép tách phải ăn giây thô. */
+				'vaoGiay' => $r['gio_vao_giay'],
+				'raGiay'  => $r['gio_ra_giay'],
 				'phut' => self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'] ),
 				'ghiChu' => isset( $r['ghi_chu'] ) ? (string) $r['ghi_chu'] : '',
 				'nguon'  => isset( $r['nguon'] ) ? (string) $r['nguon'] : '',

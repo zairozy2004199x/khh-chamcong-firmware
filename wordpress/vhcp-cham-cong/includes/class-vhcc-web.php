@@ -258,7 +258,7 @@ class VHCC_Web {
 	 *    `nap_cong` bậc 3). Hai tầng ấy khác nhau — bỏ tầng sau vì "đã có tầng trước" là để
 	 *    Cửa hàng trưởng nạp đè cả tháng công của cơ sở khác.
 	 */
-	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong' );
+	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -315,6 +315,25 @@ class VHCC_Web {
 				$noi .= ' BỎ QUA ' . implode( ', ', $r['boQua'] ) . ': bù không đè lên giờ đã có.';
 			}
 			return array( array( 'xong' => $noi ) );
+		}
+
+		if ( 'ca' === $viec ) {
+			$ds_ca = array();
+			$ten_ca = isset( $_POST['ca_ten'] ) ? (array) wp_unslash( $_POST['ca_ten'] ) : array();
+			foreach ( $ten_ca as $i => $ten ) {
+				$ds_ca[] = array(
+					'ten'  => sanitize_text_field( $ten ),
+					'tu'   => isset( $_POST['ca_tu'][ $i ] )   ? sanitize_text_field( wp_unslash( $_POST['ca_tu'][ $i ] ) ) : '',
+					'den'  => isset( $_POST['ca_den'][ $i ] )  ? sanitize_text_field( wp_unslash( $_POST['ca_den'][ $i ] ) ) : '',
+					'tuW'  => isset( $_POST['ca_tuw'][ $i ] )  ? sanitize_text_field( wp_unslash( $_POST['ca_tuw'][ $i ] ) ) : '',
+					'denW' => isset( $_POST['ca_denw'][ $i ] ) ? sanitize_text_field( wp_unslash( $_POST['ca_denw'][ $i ] ) ) : '',
+				);
+			}
+			$r = VHCC_Ca::luu( $toi, isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '', $ds_ca );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => $r['so_ca']
+				? 'Đã khai ' . $r['so_ca'] . ' ca cho ' . $r['coSo'] . '. Giờ công tách lại theo ca mới ngay.'
+				: 'Đã bỏ khai ca riêng của ' . $r['coSo'] . ' — quay về dùng ca chung.' ) );
 		}
 
 		if ( 'xem_cong' === $viec || 'nap_cong' === $viec ) {
@@ -1482,7 +1501,126 @@ class VHCC_Web {
 			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ) );
 			return;
 		}
-		self::ve_luoi_gio( VHCC_Cham::bang_cham_cong( $toi, $cs, $th ), $th );
+		$b_gio = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
+		self::ve_luoi_gio( $b_gio, $th );
+		self::the_tong_ca( $b_gio, $cs );
+		self::the_khai_ca( $cs, $ky, $toi );
+	}
+
+	/**
+	 * TỔNG GIỜ THEO CA — *"bạn đó làm ca nào, ca đó mấy tiếng"*.
+	 * Một dòng một người, một cột một ca. Cột cuối là phần giờ KHÔNG thuộc ca nào — cột ấy có số
+	 * là dấu hiệu khung ca đang khai lệch với giờ người ta làm thật, không phải lỗi của ai.
+	 */
+	private static function the_tong_ca( $b, $cs ) {
+		if ( empty( $b['ok'] ) ) { return; }
+		$ds_ca = VHCC_Ca::cua( $cs );
+		if ( ! $ds_ca ) { return; }
+
+		$ten_ca = array();
+		foreach ( $ds_ca as $c ) { $ten_ca[] = $c['ten']; }
+
+		$nguoi = array();
+		foreach ( (array) $b['hang'] as $r ) {
+			$ma = (string) $r['maNV'];
+			if ( ! isset( $nguoi[ $ma ] ) ) {
+				$nguoi[ $ma ] = array( 'ten' => (string) $r['hoTen'], 'ca' => array(), 'ngoai' => 0 );
+			}
+			$x = VHCC_Ca::tach( $ds_ca, $r['vaoGiay'], $r['raGiay'], VHCC_Ca::la_cuoi_tuan( $r['ngay'] ) );
+			foreach ( $x['ds'] as $o ) {
+				$nguoi[ $ma ]['ca'][ $o['ten'] ] = ( isset( $nguoi[ $ma ]['ca'][ $o['ten'] ] )
+					? $nguoi[ $ma ]['ca'][ $o['ten'] ] : 0 ) + (int) $o['phut'];
+			}
+			$nguoi[ $ma ]['ngoai'] += (int) $x['ngoai_ca'];
+		}
+		uasort( $nguoi, function ( $a, $c ) { return strcasecmp( $a['ten'], $c['ten'] ); } );
+
+		echo '<div class="the"><h3 style="margin:0 0 6px">Tổng giờ theo ca</h3>';
+		$nguon = VHCC_Ca::nguon_ca( $cs );
+		echo '<p class="mo" style="margin:0 0 10px">Khung ca đang dùng: '
+			. ( 'rieng' === $nguon ? '<b>khai riêng cho ' . esc_html( $cs ) . '</b>'
+				: ( 'chung' === $nguon ? '<b>khai chung</b> cho mọi cơ sở'
+					: '<b>mặc định</b> (chưa ai khai)' ) )
+			. ' — ' . esc_html( self::chu_ds_ca( $ds_ca ) ) . '. Khai lại ở khối dưới cùng.</p>';
+		if ( ! $nguoi ) { echo '<p class="mo">Chưa có dữ liệu.</p></div>'; return; }
+
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Nhân viên</th>';
+		foreach ( $ds_ca as $c ) {
+			echo '<th>' . esc_html( $c['ten'] ) . '<div style="font-weight:400;opacity:.7">'
+				. esc_html( $c['tu'] . '–' . $c['den'] ) . '</div></th>';
+		}
+		echo '<th>Ngoài ca</th><th>TỔNG</th></tr></thead><tbody>';
+		foreach ( $nguoi as $x ) {
+			echo '<tr><td>' . esc_html( $x['ten'] ) . '</td>';
+			$tong = 0;
+			foreach ( $ten_ca as $tc ) {
+				$p = isset( $x['ca'][ $tc ] ) ? (int) $x['ca'][ $tc ] : 0;
+				$tong += $p;
+				echo '<td class="oc">' . ( $p ? '<b>' . esc_html( VHCC_Cham::chu_gio( $p ) ) . '</b>' : '·' ) . '</td>';
+			}
+			$tong += (int) $x['ngoai'];
+			echo '<td class="oc' . ( $x['ngoai'] ? ' vang' : '' ) . '">'
+				. ( $x['ngoai'] ? esc_html( VHCC_Cham::chu_gio( $x['ngoai'] ) ) : '·' ) . '</td>';
+			echo '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong ) ) . '</b></td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo" style="margin-top:8px">Cột <b>Ngoài ca</b> có số nghĩa là người ta có làm '
+			. 'những giờ KHÔNG nằm trong khung ca nào đang khai — không phải lỗi của ai, mà là dấu '
+			. 'hiệu khung ca khai chưa khớp với giờ làm thật. Sửa khung ca ở khối dưới cùng.</p>';
+		echo '</div>';
+	}
+
+	private static function chu_ds_ca( $ds_ca ) {
+		$c = array();
+		foreach ( $ds_ca as $x ) { $c[] = $x['ten'] . ' ' . $x['tu'] . '–' . $x['den']; }
+		return implode( ' · ', $c );
+	}
+
+	/**
+	 * KHAI CA cho một cơ sở.
+	 *
+	 * Luôn vẽ thêm HAI dòng trống để thêm ca mà không cần JavaScript — cả màn này không có lấy
+	 * một dòng script, và một cái nút "＋ Thêm ca" chạy bằng script thì bộ thử PHP không với tới.
+	 * Muốn thêm ca thứ ba trở lên thì lưu một lượt rồi hai dòng trống mới lại hiện ra.
+	 */
+	private static function the_khai_ca( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
+		$ds  = VHCC_Ca::cua( $cs );
+		$ngu = VHCC_Ca::nguon_ca( $cs );
+
+		echo '<div class="the" id="khaica"><details><summary><b>Khai ca làm việc</b> — '
+			. count( $ds ) . ' ca <span class="mo">(bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Mỗi ca có giờ <b>ngày thường</b> và giờ '
+			. '<b>cuối tuần</b> (T7–CN). Để trống ô cuối tuần = dùng như ngày thường. '
+			. 'Ca qua nửa đêm cứ khai thẳng (VD 22:00 → 06:00), hệ hiểu là kết thúc hôm sau.</p>';
+		if ( 'rieng' !== $ngu ) {
+			echo '<p class="mo">Cơ sở này đang mượn khung ca '
+				. ( 'chung' === $ngu ? 'khai chung' : 'mặc định' )
+				. '. Lưu một lượt là nó có khung ca RIÊNG, đổi cơ sở khác không ảnh hưởng.</p>';
+		}
+		/* Ô `ccs` của màn này phải đứng SAU `o_loc()` — xem chú thích ở `the_bu`. */
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="ca">' . self::o_loc()
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		echo '<div class="cuon"><table><thead><tr><th>Tên ca</th><th>Từ (T2–T6)</th><th>Đến</th>'
+			. '<th>Từ (T7–CN)</th><th>Đến</th></tr></thead><tbody>';
+		$hang = $ds;
+		$hang[] = array( 'ten' => '', 'tu' => '', 'den' => '', 'tuW' => '', 'denW' => '' );
+		$hang[] = array( 'ten' => '', 'tu' => '', 'den' => '', 'tuW' => '', 'denW' => '' );
+		foreach ( $hang as $i => $c ) {
+			echo '<tr>';
+			echo '<td><input name="ca_ten[' . (int) $i . ']" value="' . esc_attr( $c['ten'] )
+				. '" placeholder="VD: Ca 1" style="width:130px"></td>';
+			foreach ( array( 'ca_tu' => 'tu', 'ca_den' => 'den', 'ca_tuw' => 'tuW', 'ca_denw' => 'denW' ) as $o => $k ) {
+				echo '<td><input type="time" name="' . $o . '[' . (int) $i . ']" value="'
+					. esc_attr( $c[ $k ] ) . '"></td>';
+			}
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo">Xoá hết tên ca rồi lưu = bỏ khai riêng, quay về dùng ca chung.</p>';
+		echo '<p><button class="chinh">Lưu ca cho ' . esc_html( $cs ) . '</button></p>';
+		echo '</form></details></div>';
 	}
 
 	/**
@@ -1510,6 +1648,7 @@ class VHCC_Web {
 		}
 		$so_ngay = (int) gmdate( 't', $moc );
 		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+		$ds_ca   = VHCC_Ca::cua( (string) $b['coSo'] );
 
 		/* Gom [mã][hậu tố][số ngày]. Hàng `-CD` / `-TC` là HÀNG RIÊNG trong sổ công — gộp vào
 		   hàng chính là mất chỗ để nhìn ra ca đêm và người tăng cường. */
@@ -1575,9 +1714,18 @@ class VHCC_Web {
 						continue;
 					}
 					$phut_dong += (int) $r['phut'];
-					echo '<td class="oc" title="' . esc_attr( self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
+					/* Chú thích nói luôn ngày đó rơi vào ca nào, mỗi ca mấy tiếng — đúng câu anh
+					   Thắng hỏi: *"làm ca nào, ca đó mấy tiếng, từ ca nào đến ca nào"*. */
+					$tc  = VHCC_Ca::tach( $ds_ca, $r['vaoGiay'], $r['raGiay'],
+						VHCC_Ca::la_cuoi_tuan( $r['ngay'] ) );
+					$chu = self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
 						. "\n" . $r['vao'] . ' → ' . $r['ra']
-						. "\n" . VHCC_Cham::chu_gio( $r['phut'] ) ) . '"><b>'
+						. "\n" . VHCC_Cham::chu_gio( $r['phut'] );
+					$td = VHCC_Ca::tu_den( $tc );
+					if ( '' !== $td ) { $chu .= "\n" . $td; }
+					$chu_ca = VHCC_Ca::chu( $tc );
+					if ( '' !== $chu_ca ) { $chu .= "\n" . $chu_ca; }
+					echo '<td class="oc" title="' . esc_attr( $chu ) . '"><b>'
 						. self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b></td>';
 				}
 				echo $chinh && 1 === count( $hts )
@@ -1788,9 +1936,13 @@ class VHCC_Web {
 			echo '<p class="mo">Đang có <b>' . count( $thieu ) . '</b> ngày thiếu giờ ra ở bảng trên — '
 				. 'bấm 🚩 ở dòng nào thì ngày và mã của dòng đó điền sẵn xuống đây.</p>';
 		}
+		/* ⚠️ `o_loc()` cũng chở `ccs` (nó nằm trong THAM_SO), nên form có HAI ô cùng tên và ô SAU
+		   thắng. Phải để ô của màn này đứng SAU: `$cs` đã qua bộ lọc bộ phận — chọn một bộ phận
+		   mà cơ sở cũ rơi ra ngoài thì `$cs` thành rỗng, trong khi `?ccs=` trên thanh địa chỉ vẫn
+		   giữ cơ sở cũ. Để o_loc thắng là bù giờ vào một cơ sở mà màn hình không hề đang hiện. */
 		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
-			. '<input type="hidden" name="viec" value="bu">'
-			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">' . $o_loc;
+			. '<input type="hidden" name="viec" value="bu">' . $o_loc
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
 		echo '<div class="luoi">';
 		echo '<div><label for="bu_ngay">Ngày *</label><input id="bu_ngay" name="ngay" type="date" required'
 			. ' value="' . esc_attr( $g_ngay ) . '"'
@@ -1854,6 +2006,8 @@ class VHCC_Web {
 				. '"Cửa hàng phụ trách" ở màn Hồ sơ.</p></div>';
 			return;
 		}
+		/* Khối nạp có ô CHỌN cơ sở riêng (`name="ccs"`) nằm dưới, nên `o_loc()` phải đứng TRƯỚC
+		   nó — kẻo ô ẩn chở `ccs` cũ thắng cái ô người ta vừa chọn. */
 		echo '<form method="post" enctype="multipart/form-data">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">' . self::o_loc();
 		echo '<div class="hang">';
