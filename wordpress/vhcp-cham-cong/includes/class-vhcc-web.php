@@ -1714,7 +1714,7 @@ class VHCC_Web {
 		}
 		echo '</details></div>';
 
-		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
+		self::the_nhat_ky_gio( $cs, $tt, $ky, $toi );
 		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
 	}
@@ -2503,18 +2503,42 @@ class VHCC_Web {
 		   hàng chính là mất chỗ để nhìn ra ca đêm và người tăng cường. */
 		$o    = array();
 		$ten  = array();
+		$khong_cham = array();
 		foreach ( (array) $b['hang'] as $r ) {
 			$ma = (string) $r['maNV'];
 			$ht = (string) $r['hauTo'];
 			$o[ $ma ][ $ht ][ (int) substr( (string) $r['ngay'], 8, 2 ) ] = $r;
 			if ( ! isset( $ten[ $ma ] ) || '' === $ten[ $ma ] ) { $ten[ $ma ] = (string) $r['hoTen']; }
 		}
+		/* 🔴 NGƯỜI CẢ THÁNG KHÔNG CÓ LƯỢT CHẤM NÀO VẪN PHẢI CÓ MỘT HÀNG.
+		   Anh Thắng 26/08: *"Vẫn còn"* — khối "Chấm công bù" rời ở cuối màn. Nó bị bỏ, vì lưới
+		   đã bù được ngay tại ô. Nhưng lưới cũ dựng danh sách người TỪ CHÍNH các lượt chấm, nên
+		   ai cả tháng chưa bấm lần nào thì không có hàng — không có ô nào để bấm — và đó đúng là
+		   người CẦN bù nhất (máy hỏng cả tháng, người mới chưa đăng vân tay).
+		   Bỏ khối rời mà không vá chỗ này là bỏ mất một việc, chứ không phải dọn màn hình.
+		   Nên: lấy thêm danh sách người của cơ sở từ SỔ NHÂN SỰ, ai chưa có hàng thì dựng một
+		   hàng toàn dấu chấm — bấm ô nào cũng bù được.
+
+		   ⚠️ Gác `method_exists` cùng chỗ với lời gọi. Và nếu sổ nhân sự chưa khai ai thì lưới
+		      vẫn chạy y như cũ, chỉ là không có hàng nào thêm. */
+		if ( class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'ds_nhan_vien' ) ) {
+			foreach ( VHCC_NhanSu::ds_nhan_vien( $toi, (string) $b['coSo'] ) as $hs ) {
+				$ma_hs = trim( (string) $hs['ma_nv'] );
+				if ( '' === $ma_hs || isset( $ten[ $ma_hs ] ) ) { continue; }
+				$ten[ $ma_hs ] = trim( (string) $hs['ho_ten'] );
+				/* Phải có hàng chính rỗng, không phải mảng rỗng: `array_keys( array() )` ra rỗng
+				   thì vòng vẽ hàng chạy 0 lượt và người ấy lại biến mất. */
+				$o[ $ma_hs ] = array( '' => array() );
+				$khong_cham[ $ma_hs ] = true;
+			}
+		}
 		uasort( $ten, function ( $a, $c ) { return strcasecmp( $a, $c ); } );
 
 		echo '<div class="the">';
 		if ( ! $ten ) {
-			echo '<p class="mo">Tháng ' . esc_html( $tt ) . ' chưa có dữ liệu chấm công nào ở cơ sở này. '
-				. 'Nạp công từ .csv ở màn <b>Bảng chấm công</b>, hoặc chờ máy đẩy giờ về.</p></div>';
+			echo '<p class="mo">Tháng ' . esc_html( $tt ) . ' chưa có dữ liệu chấm công nào ở cơ sở này, '
+				. 'mà sổ nhân sự cũng chưa có ai thuộc cơ sở này. Nạp công từ .csv ở màn '
+				. '<b>Bảng chấm công</b>, hoặc khai người ở màn <b>Hồ sơ &amp; tài khoản</b>.</p></div>';
 			return;
 		}
 
@@ -2541,7 +2565,10 @@ class VHCC_Web {
 				$chinh = ( '' === $ht );
 				echo '<tr>';
 				echo $chinh
-					? '<td>' . esc_html( $ho_ten ) . '</td>'
+					? '<td>' . esc_html( $ho_ten )
+						. ( isset( $khong_cham[ $ma ] )
+							? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
+								. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' ) . '</td>'
 					: '<td class="o" style="padding-left:20px">↳ <code>-' . esc_html( $ht ) . '</code></td>';
 				$phut_dong = 0;
 				for ( $i = 1; $i <= $so_ngay; $i++ ) {
@@ -2814,55 +2841,36 @@ class VHCC_Web {
 	}
 
 	/**
-	 * Khối CHẤM CÔNG BÙ — cửa ghi giờ thứ ba, xem `VHCC_Bu` cho lý do nó được phép tồn tại.
+	 * SỔ NHẬT KÝ GIỜ CÔNG — mọi lượt bù và mọi lượt sửa đè của tháng đang xem.
 	 *
-	 * Ô ngày và mã điền sẵn từ dòng anh/chị bấm 🚩 ở bảng chi tiết, y như khối cờ: hai việc đi
-	 * cùng một dòng dữ liệu, bắt gõ lại ngày và mã cho từng việc là mời gõ nhầm.
+	 * 🔴 KHỐI "CHẤM CÔNG BÙ" RỜI ĐÃ BỎ (anh Thắng 26/08/2026: *"Vẫn còn"*, sau khi khối "Sửa giờ
+	 *    công" rời bị bỏ ở lượt trước). Bù và sửa nay làm ngay TẠI Ô trong lưới cả tháng: bấm ô
+	 *    trống → bù, bấm ô có giờ → sửa. Không phải gõ lại ngày và mã cho từng lượt.
+	 *
+	 * ⚠️ Trước khi bỏ, khối rời còn giữ MỘT việc mà lưới không làm được: bù cho người cả tháng
+	 *    chưa chấm lần nào — lưới cũ dựng hàng từ chính các lượt chấm nên họ không có hàng, không
+	 *    có ô để bấm. Việc ấy đã vá ở `ve_luoi_gio`: lưới kéo thêm người từ sổ nhân sự, ai chưa
+	 *    chấm lần nào vẫn có một hàng toàn dấu chấm, gắn nhãn "chưa chấm". Bỏ một khối mà không
+	 *    vá chỗ đó là bỏ mất một việc, chứ không phải dọn màn hình.
+	 *
+	 * 🔴 MỘT SỔ CHO CẢ HAI VIỆC — bù và sửa đè cùng ghi vào bảng `cham_bu`.
+	 *    Tách làm hai sổ thì người soát phải mở hai chỗ mới dựng lại được chuyện gì đã xảy ra với
+	 *    một ngày công; mà thứ họ cần biết là "ngày này ai đã động vào, mấy lần", không phải "ai
+	 *    đã bù" và "ai đã sửa" thành hai câu chuyện rời nhau.
 	 */
-	private static function the_bu( $cs, $tt, $ky, $toi, $thieu ) {
-		if ( ! VHCC_Vai::duoc( $toi, 'cham_bu' ) ) { return; }
-		$o_loc  = self::o_loc();
-		$g_ngay = isset( $_GET['gnd'] ) ? sanitize_text_field( wp_unslash( $_GET['gnd'] ) ) : '';
-		$g_ma   = isset( $_GET['gma'] ) ? sanitize_text_field( wp_unslash( $_GET['gma'] ) ) : '';
-
-		echo '<div class="the" id="bucong"><h2>Chấm công bù</h2>';
-		echo '<p class="mo">Dùng khi <b>máy hỏng</b> hoặc <b>nhân viên quên bấm</b>. Bù chỉ điền vào '
-			. 'ô <b>còn trống</b> — giờ máy đã ghi thì bù không đè lên được. Mỗi lượt bù đều vào sổ '
-			. 'nhật ký (ai bù · cho ai · vì sao) và <b>không xoá được</b>.</p>';
+	private static function the_nhat_ky_gio( $cs, $tt, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'cham_bu' ) && ! VHCC_Vai::duoc( $toi, 'sua_gio' ) ) { return; }
+		echo '<div class="the" id="bucong"><h2>Đã động vào giờ công tháng này</h2>';
+		echo '<p class="mo">Mỗi lượt <b>bù</b> (điền ô còn trống) và mỗi lượt <b>sửa đè</b> đều vào '
+			. 'sổ này — ai làm · cho ai · ngày nào · giờ cũ ra sao · vì sao — và <b>không xoá được</b>. '
+			. 'Bù và sửa làm ngay tại ô trong <a href="#luoithang"><b>Lưới cả tháng</b></a>: ô '
+			. '<b>trống</b> thì bù, ô <b>có giờ</b> thì sửa.</p>';
 		echo '<p class="mo">⚠️ Không tự bù cho mình được, kể cả Admin — nhờ người khác bù giúp. '
 			. 'Bù công là đổi thẳng ra tiền, nên chỗ này không để hở.</p>';
-		if ( $thieu ) {
-			echo '<p class="mo">Đang có <b>' . count( $thieu ) . '</b> ngày thiếu giờ ra ở bảng trên — '
-				. 'bấm 🚩 ở dòng nào thì ngày và mã của dòng đó điền sẵn xuống đây.</p>';
-		}
-		/* ⚠️ `o_loc()` cũng chở `ccs` (nó nằm trong THAM_SO), nên form có HAI ô cùng tên và ô SAU
-		   thắng. Phải để ô của màn này đứng SAU: `$cs` đã qua bộ lọc bộ phận — chọn một bộ phận
-		   mà cơ sở cũ rơi ra ngoài thì `$cs` thành rỗng, trong khi `?ccs=` trên thanh địa chỉ vẫn
-		   giữ cơ sở cũ. Để o_loc thắng là bù giờ vào một cơ sở mà màn hình không hề đang hiện. */
-		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
-			. '<input type="hidden" name="viec" value="bu">' . $o_loc
-			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
-		echo '<div class="luoi">';
-		echo '<div><label for="bu_ngay">Ngày *</label><input id="bu_ngay" name="ngay" type="date" required'
-			. ' value="' . esc_attr( $g_ngay ) . '"'
-			. ' max="' . esc_attr( (string) current_time( 'Y-m-d' ) ) . '"></div>';
-		echo '<div><label for="bu_ma">Mã NV *</label><input id="bu_ma" name="ma_nv" required'
-			. ' value="' . esc_attr( $g_ma ) . '" placeholder="MNNV… (kèm -CD nếu là ca đêm)"></div>';
-		echo '<div><label for="bu_vao">Giờ vào</label><input id="bu_vao" name="bu_vao" type="time"></div>';
-		echo '<div><label for="bu_ra">Giờ ra</label><input id="bu_ra" name="bu_ra" type="time"></div>';
-		echo '</div>';
-		echo '<p><label for="bu_ly">Vì sao phải bù *</label>'
-			. '<input id="bu_ly" name="ly_do" required minlength="5" style="width:100%" '
-			. 'placeholder="VD: máy chấm công mất điện sáng 12/8 — có camera đối chiếu"></p>';
-		echo '<p><button class="chinh">Bù giờ</button></p></form>';
 
-		/* 🔴 MỘT SỔ CHO CẢ HAI VIỆC — bù và sửa đè cùng ghi vào bảng `cham_bu`.
-		   Tách làm hai sổ thì người soát phải mở hai chỗ mới dựng lại được chuyện gì đã xảy ra
-		   với một ngày công; mà thứ họ cần biết là "ngày này ai đã động vào, mấy lần", không
-		   phải "ai đã bù" và "ai đã sửa" thành hai câu chuyện rời nhau. */
 		$nk = VHCC_Bu::ds_nhat_ky( $toi, $cs, $tt );
 		if ( $nk ) {
-			echo '<h3 style="margin:14px 0 6px">Đã động vào tháng này (' . count( $nk ) . ')</h3>';
+			echo '<p class="mo"><b>' . count( $nk ) . '</b> lượt trong tháng ' . esc_html( $tt ) . '.</p>';
 			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Việc</th>'
 				. '<th>Ô</th><th>Giờ cũ</th><th>Giờ mới</th><th>Lý do</th><th>Người làm</th>'
 				. '</tr></thead><tbody>';
@@ -2886,6 +2894,8 @@ class VHCC_Web {
 					. esc_html( substr( (string) $x['tao_luc'], 0, 16 ) ) . '</span></td></tr>';
 			}
 			echo '</tbody></table></div>';
+		} else {
+			echo '<p class="mo">Tháng này chưa ai bù hay sửa giờ công ở cơ sở này.</p>';
 		}
 		echo '</div>';
 	}

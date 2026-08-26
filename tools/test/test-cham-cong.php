@@ -5166,7 +5166,12 @@ $h_w = vhcc_web( '246813', array(), array( 'man' => 'cham' ) );
 t( 'Admin mở được màn Bảng chấm công', strpos( $h_w, 'chỉ đọc</b> giờ chấm công' ) !== false, $h_w );
 t( 'màn bảng công KHÔNG có ô nhập giờ nào',
 	! preg_match( '/name="(gio_vao|gio_ra|vao|ra)"/', $h_w ), $h_w );
-t( 'và không thấy hồ sơ nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false );
+/* ⚠️ TÊN NGƯỜI KHÔNG CÒN LÀ DẤU HIỆU PHÂN BIỆT HAI MÀN. Từ 26/08/2026 lưới cả tháng có kéo
+   thêm người từ sổ nhân sự vào (ai cả tháng chưa chấm lần nào vẫn phải có một hàng để bấm bù),
+   nên tên người xuất hiện ở CẢ hai màn là đúng. Thứ phải không có ở màn chấm công là các Ô SỬA
+   HỒ SƠ — CCCD, số điện thoại, PIN, lương. */
+t( 'màn chấm công KHÔNG có ô sửa hồ sơ nào',
+	! preg_match( '/name="(cccd|sdt|pin|luong_[a-z_]+|ma_moi)"/', $h_w ), $h_w );
 VHCC_Auth::mo_khoa();
 $kq_kt = VHCC_Auth::login( '468024' );
 VHCC_Auth::mo_khoa();
@@ -6095,15 +6100,63 @@ foreach ( array( 'cbp', 'ccs', 'cth', 'cng', 'cnv' ) as $k_ts ) {
 		in_array( $k_ts, VHCC_Web::THAM_SO, true ) );
 }
 
-/* ---- hai khối mới: chấm công bù · nạp công từ .csv ---- */
-/* Anh Thắng 26/08: *"làm tiếp công bù đi em"* và *"bổ sung thêm nạp dữ liệu công nhé"*. */
-t( 'màn có khối Chấm công bù', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
-t( 'khối bù nói rõ chỉ điền ô còn trống', strpos( $h_qtc, 'còn trống' ) !== false );
-t( 'và nói rõ không tự bù cho mình', strpos( $h_qtc, 'Không tự bù cho mình' ) !== false
+/* ---- sổ nhật ký giờ công · nạp công từ .csv ---- */
+/* 🔴 KHỐI "CHẤM CÔNG BÙ" RỜI ĐÃ BỎ (anh Thắng 26/08: *"Vẫn còn"*, sau khi khối "Sửa giờ công"
+   rời bị bỏ ở lượt trước). Bù và sửa nay làm NGAY TẠI Ô trong lưới cả tháng.
+   Chỗ `id="bucong"` giữ nguyên tên — mọi ô trong lưới đều trỏ tới `#bucong`, đổi tên là mọi
+   liên kết trong lưới rơi vào hư không. Nay nó là SỔ NHẬT KÝ, không phải biểu mẫu. */
+t( 'màn có khối sổ nhật ký giờ công', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
+t( 'sổ nói rõ ghi cả bù lẫn sửa và không xoá được',
+	strpos( $h_qtc, 'không xoá được' ) !== false, $h_qtc );
+t( 'và vẫn nói rõ không tự bù cho mình', strpos( $h_qtc, 'Không tự bù cho mình' ) !== false
 	|| strpos( $h_qtc, 'không tự bù' ) !== false, $h_qtc );
-t( 'khối bù đòi lý do', strpos( $h_qtc, 'name="ly_do"' ) !== false );
-t( 'và ô ngày chặn ngày tương lai ngay trên trình duyệt',
-	preg_match( '/id="bu_ngay"[^>]*max="\d{4}-\d{2}-\d{2}"/', $h_qtc ) === 1, $h_qtc );
+/* 🔴 KHÔNG CÒN BIỂU MẪU BÙ RỜI Ở CUỐI MÀN. Để lại là hai biểu mẫu giống hệt nhau trên cùng
+   một màn và người dùng phải đoán cái nào đang dùng. */
+t( 'cuối màn KHÔNG còn biểu mẫu bù rời (gõ tay ngày + mã)',
+	strpos( $h_qtc, 'id="bu_ngay"' ) === false && strpos( $h_qtc, 'id="bu_ma"' ) === false, $h_qtc );
+
+/* 🔴 NGƯỜI CẢ THÁNG CHƯA CHẤM LẦN NÀO VẪN PHẢI CÓ MỘT HÀNG TRONG LƯỚI.
+   Đây là việc DUY NHẤT mà khối bù rời làm được còn lưới thì không: lưới cũ dựng danh sách
+   người từ CHÍNH các lượt chấm, nên ai chưa bấm lần nào thì không có hàng — không có ô nào để
+   bấm — mà đó đúng là người CẦN bù nhất (máy hỏng cả tháng, người mới chưa đăng vân tay).
+   Bỏ khối rời mà không vá chỗ này là bỏ mất một việc, chứ không phải dọn màn hình.
+   Nên lưới kéo thêm người từ SỔ NHÂN SỰ. Phép dưới đây canh đúng chuyện đó. */
+$r_hs_trong = VHCC_NhanSu::luu_ho_so( $u_qtc,
+	array( 'ma_nv' => 'QTC9', 'ho_ten' => 'Người Chưa Chấm', 'cua_hang' => 'TUTU_BT' ) );
+t( 'khai được một người chưa hề chấm công', ! empty( $r_hs_trong['ok'] ), $r_hs_trong );
+$h_trong_luoi = vhcc_web( '135791', array(),
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+t( '🔴 người cả tháng chưa chấm lần nào VẪN có hàng trong lưới',
+	strpos( $h_trong_luoi, 'Người Chưa Chấm' ) !== false, $h_trong_luoi );
+t( 'và hàng ấy có ô bấm được để bù giờ',
+	strpos( $h_trong_luoi, 'gma=QTC9' ) !== false, $h_trong_luoi );
+t( 'hàng ấy gắn nhãn "chưa chấm" — kẻo trông như một hàng lỗi',
+	preg_match( '/Người Chưa Chấm[^<]*<span class="duoi"[^>]*>chưa chấm<\/span>/', $h_trong_luoi ) === 1,
+	$h_trong_luoi );
+/* Và bấm vào ô của họ thì mở được hàng bù, y như người đã có giờ. */
+$h_bu_trong = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
+	'cth' => '2026-07', 'gnd' => '2026-07-03', 'gma' => 'QTC9' ) );
+t( 'bù được cho người chưa chấm lần nào',
+	strpos( $h_bu_trong, '<input type="hidden" name="ma_nv" value="QTC9">' ) !== false, $h_bu_trong );
+
+/* Biểu mẫu bù nay mở NGAY DƯỚI ô vừa bấm: bấm ô trống -> hàng bù, có sẵn ngày và mã. */
+$h_o_bu = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
+	'cth' => '2026-07', 'gnd' => '2026-07-02', 'gma' => 'QTC1' ) );
+t( 'bấm một ô trống thì mở hàng bù ngay dưới dòng ấy',
+	strpos( $h_o_bu, 'class="hang-sua"' ) !== false, $h_o_bu );
+t( 'hàng bù mang sẵn ngày của ô vừa bấm, không phải gõ lại',
+	strpos( $h_o_bu, '<input type="hidden" name="ngay" value="2026-07-02">' ) !== false, $h_o_bu );
+t( 'và mang sẵn mã của người ở dòng ấy',
+	strpos( $h_o_bu, '<input type="hidden" name="ma_nv" value="QTC1">' ) !== false, $h_o_bu );
+t( 'hàng bù vẫn đòi lý do', strpos( $h_o_bu, 'name="ly_do"' ) !== false, $h_o_bu );
+/* Ngày không còn gõ tay được nên `max=` trên ô ngày hết chỗ dựa — chốt ngày tương lai chuyển
+   hẳn về LÕI, chỗ chặn thật. Chốt trên trình duyệt vốn chỉ là lời nhắc. */
+$ngay_mai = gmdate( 'Y-m-d', strtotime( (string) current_time( 'Y-m-d' ) ) + 86400 );
+t( 'lõi CHỐI bù cho ngày tương lai', '' !== VHCC_Bu::ngay_hop_le( $ngay_mai ),
+	VHCC_Bu::ngay_hop_le( $ngay_mai ) );
+$r_mai = VHCC_Bu::ghi( $u_qtc, array( 'coso' => 'TUTU_BT', 'ngay' => $ngay_mai,
+	'ma_nv' => 'QTC1', 'bu_vao' => '08:00', 'bu_ra' => '', 'ly_do' => 'thử ngày mai' ) );
+t( 'và đường ghi thật cũng chối, không chỉ hàm kiểm', empty( $r_mai['ok'] ), $r_mai );
 
 t( 'màn có khối Nạp công từ .csv', strpos( $h_qtc, 'id="napcong"' ) !== false, $h_qtc );
 /* 🔴 Đây là câu trả lời cho đúng chỗ anh Thắng vấp: nạp 240 hồ sơ xong bảng công vẫn trắng.
@@ -6960,12 +7013,12 @@ function vhcc_ccs_cuoi( $html, $sau ) {
 }
 $h_bu_loc = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
 	'cth' => '2026-07', 'cbp' => 'Bộ phận không tồn tại' ) );
-/* Bộ lọc gạt hết cơ sở -> màn không vẽ bảng, nên cũng không được vẽ form bù mang cơ sở cũ. */
-t( 'lọc rỗng thì không vẽ form chấm công bù mang cơ sở cũ',
+/* Bộ lọc gạt hết cơ sở -> màn không vẽ bảng, nên cũng không được vẽ hàng bù mang cơ sở cũ. */
+t( 'lọc rỗng thì không vẽ hàng bù mang cơ sở cũ',
 	strpos( $h_bu_loc, 'value="bu"' ) === false, $h_bu_loc );
-/* Còn ở màn bình thường: ô ccs cuối cùng trong form phải là cơ sở ĐANG HIỆN. */
-teq( 'form chấm công bù gửi đúng cơ sở đang hiện', 'TUTU_BT',
-	vhcc_ccs_cuoi( $h_qtc, 'value="bu"' ) );
+/* Còn ở hàng bù nội tuyến: ô ccs cuối cùng trong form phải là cơ sở ĐANG HIỆN. */
+teq( 'hàng bù gửi đúng cơ sở đang hiện', 'TUTU_BT',
+	vhcc_ccs_cuoi( $h_o_bu, 'value="bu"' ) );
 teq( 'form khai ca gửi đúng cơ sở đang hiện', $CS_GIO,
 	vhcc_ccs_cuoi( $h_gio, 'value="ca"' ) );
 /* 🔴 Ca phân biệt được "ô nào thắng": địa chỉ mang tiền tố `CS_` (app cũ viết vậy). `$cs` đã
@@ -6976,9 +7029,10 @@ $h_tien_to = vhcc_web( '135791', array(),
 	array( 'man' => 'vp', 'ccs' => 'CS_' . $CS_GIO, 'cth' => '2026-07' ) );
 teq( 'địa chỉ có tiền tố CS_ thì form khai ca vẫn gửi mã cơ sở ĐÃ CHUẨN HOÁ', $CS_GIO,
 	vhcc_ccs_cuoi( $h_tien_to, 'value="ca"' ) );
-teq( 'và form chấm công bù cũng vậy', 'TUTU_BT',
+teq( 'và hàng bù cũng vậy', 'TUTU_BT',
 	vhcc_ccs_cuoi( vhcc_web( '135791', array(),
-		array( 'man' => 'cham', 'ccs' => 'CS_TUTU_BT', 'cth' => '2026-07' ) ), 'value="bu"' ) );
+		array( 'man' => 'cham', 'ccs' => 'CS_TUTU_BT', 'cth' => '2026-07',
+			'gnd' => '2026-07-02', 'gma' => 'QTC1' ) ), 'value="bu"' ) );
 
 // ====== 51. TRANG CHÀO + LINK GỬI BỘ PHẬN + CHẠY ĐƯỢC TRÊN ĐIỆN THOẠI
 /* Anh Thắng 26/08: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"*. Bốn hướng anh chốt:
