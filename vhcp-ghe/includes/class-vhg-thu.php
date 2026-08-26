@@ -1,0 +1,591 @@
+<?php
+/**
+ * GHI NHẬN TIỀN VÀO — chỗ duy nhất trong plugin được phép ghi bảng doanh thu.
+ *
+ * =============================================================================================
+ * 🔴 LUẬT: GHI THEO `ref`, VÀ CHỈ MỘT ĐƯỜNG GHI
+ * =============================================================================================
+ * Mỗi giao dịch ngân hàng có một mã tham chiếu. Ghi theo mã đó (UNIQUE ở bảng) nghĩa là:
+ *   · webhook bắn lại lần hai  -> ghi đè lên đúng hàng cũ, KHÔNG cộng thêm;
+ *   · nhập lại đúng file Excel -> cũng vậy;
+ *   · nhập file chồng lấn ngày -> phần trùng tự hoà, phần mới thì thêm.
+ * Nhờ vậy "nhập lại cho chắc" là việc AN TOÀN. Bỏ luật này là mất luôn tính chất đó, và không
+ * ai dám bấm nút nhập lần thứ hai nữa.
+ *
+ * ⚠️ Không có `ref` thì TỰ SINH một mã ổn định từ (thời điểm + số tiền + nội dung) chứ KHÔNG
+ *    sinh ngẫu nhiên. Ngẫu nhiên là mỗi lần bắn lại thành một hàng mới — đúng thứ luật trên
+ *    đang tránh. Mã tự sinh có tiền tố `tu-` để người đọc biết đây không phải mã của ngân hàng.
+ *
+ * =============================================================================================
+ * ⚠️ CHỈ NỚI, KHÔNG THU HẸP — với thông tin đã biết về một giao dịch
+ * =============================================================================================
+ * Một giao dịch có thể tới HAI lần theo hai đường: webhook lúc phát sinh (chưa biết máy nào),
+ * rồi file Excel Tingo hôm sau (có Mã điểm bán -> tra ra máy). Lượt sau phải ĐIỀN THÊM tên máy,
+ * chứ lượt sau mà xoá trắng tên máy lượt trước đã biết thì đối soát đi lùi.
+ */
+
+if ( ! defined( 'ABSPATH' ) ) { exit; }
+
+class VHG_Thu {
+
+	/** Nguồn tiền. `cash` là thu tay tại quầy — người bấm, không qua ngân hàng. */
+	const QR     = 'qr';
+	const VIETQR = 'vietqr';
+	const SEPAY  = 'sepay';
+	const TIEN_MAT = 'cash';
+
+	/**
+	 * Ghi một giao dịch. `$d` gồm: ref, luc, ma_may, ma_lenh, so_tien, nguon, noi_dung,
+	 * ten_khai, vvb, ma_ch. Trả array( 'ok', 'moi' => true/false, 'ref' ).
+	 */
+	public static function ghi( $d ) {
+		global $wpdb;
+		$tien = (int) ( isset( $d['so_tien'] ) ? $d['so_tien'] : 0 );
+		if ( $tien <= 0 ) { return array( 'ok' => false, 'error' => 'Số tiền phải lớn hơn 0.' ); }
+
+		$luc = isset( $d['luc'] ) ? VHG_Doc::ngay( $d['luc'] ) : '';
+		if ( '' === $luc ) { $luc = current_time( 'mysql' ); }
+
+		$ref = trim( (string) ( isset( $d['ref'] ) ? $d['ref'] : '' ) );
+		if ( '' === $ref ) { $ref = self::ref_tu_sinh( $luc, $tien, isset( $d['noi_dung'] ) ? $d['noi_dung'] : '' ); }
+
+		$bang = VHG_DB::t( 'thu' );
+		$cu = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE ref=%s LIMIT 1", $ref ), ARRAY_A );
+
+		$hang = array(
+			'ref'      => $ref,
+			'luc'      => $luc,
+			'so_tien'  => $tien,
+			'nguon'    => (string) ( isset( $d['nguon'] ) ? $d['nguon'] : self::QR ),
+			'noi_dung' => mb_substr( (string) ( isset( $d['noi_dung'] ) ? $d['noi_dung'] : '' ), 0, 250 ),
+			'ma_may'   => (string) ( isset( $d['ma_may'] ) ? $d['ma_may'] : '' ),
+			'ma_lenh'  => (string) ( isset( $d['ma_lenh'] ) ? $d['ma_lenh'] : '' ),
+			'ten_khai' => (string) ( isset( $d['ten_khai'] ) ? $d['ten_khai'] : '' ),
+			'vvb'      => (string) ( isset( $d['vvb'] ) ? $d['vvb'] : '' ),
+			'ma_ch'    => (string) ( isset( $d['ma_ch'] ) ? $d['ma_ch'] : '' ),
+			'ghi_luc'  => current_time( 'mysql' ),
+		);
+
+		if ( $cu ) {
+			/* CHỈ NỚI: giá trị mới rỗng thì GIỮ giá trị cũ. Xem khối ⚠️ ở đầu tệp — lượt sau
+			   biết thêm thì điền thêm, lượt sau không biết thì đừng xoá cái lượt trước đã biết. */
+			foreach ( array( 'ma_may', 'ma_lenh', 'ten_khai', 'vvb', 'ma_ch', 'noi_dung' ) as $c ) {
+				if ( '' === $hang[ $c ] && '' !== (string) $cu[ $c ] ) { $hang[ $c ] = $cu[ $c ]; }
+			}
+			$wpdb->update( $bang, $hang, array( 'id' => (int) $cu['id'] ) );
+			return array( 'ok' => true, 'moi' => false, 'ref' => $ref );
+		}
+		$wpdb->insert( $bang, $hang );
+		return array( 'ok' => true, 'moi' => true, 'ref' => $ref );
+	}
+
+	/**
+	 * Mã tham chiếu tự sinh khi bên gửi không có. ỔN ĐỊNH theo nội dung giao dịch, không ngẫu
+	 * nhiên — xem khối ⚠️ ở đầu tệp.
+	 */
+	public static function ref_tu_sinh( $luc, $tien, $noi_dung ) {
+		return 'tu-' . substr( md5( $luc . '|' . $tien . '|' . trim( (string) $noi_dung ) ), 0, 16 );
+	}
+
+	/**
+	 * Nhận MỘT giao dịch từ webhook: ghi doanh thu, và nếu nội dung khớp "GHE<ghế> <mã>" thì
+	 * xếp vào hàng chờ cho ghế chạy.
+	 *
+	 * ⚠️ TIỀN RA thì KHÔNG ghi doanh thu. Webhook biến động số dư gửi cả tiền vào lẫn tiền ra;
+	 *    tính cả hai là doanh thu phồng lên bằng đúng số tiền mình tự chuyển đi.
+	 */
+	public static function nhan( $nguon, $ev ) {
+		$tien = (int) $ev['so_tien'];
+		$nd   = (string) $ev['noi_dung'];
+
+		/* 🔴 NỘI DUNG ĐÃ KHỚP `GHE<ghế> <mã>` THÌ ĐỪNG SUY RA "TÊN MÁY" TỪ CHÍNH NÓ NỮA.
+		 *
+		 * Ảnh trang ngoài ngày 22/08/2026: bảng "Theo cơ sở" mọc ra một dòng tên
+		 * `GHEAMTP01 TEST` — đó không phải cơ sở nào cả, mà là nội dung chuyển khoản bị đem đi
+		 * đoán tên máy rồi đoán tiếp thành tên cơ sở. Ghế đã biết chắc là AMTP01 rồi.
+		 *
+		 * `ten_khai` chỉ có nghĩa cho đường NHẬP EXCEL của Tingo/VietQR, nơi giao dịch mang tên
+		 * máy ("AMTP 03") chứ không mang mã ghế. Đường webhook của mình luôn có mã ghế trong nội
+		 * dung, nên ở đây suy thêm là chỉ tạo ra rác. */
+		list( $ma_may, $ma_lenh ) = VHG_Doc::ghe_va_ma( $nd );
+		/* Đơn mua mã trước: nội dung là "MUA<mã đơn>", không có ghế nào cả. */
+		$ma_don = VHG_Doc::don_mua( $nd );
+		$ten = '';
+		if ( '' === $ma_may ) {
+			$ten = VHG_Doc::ten_may( $nd );
+			if ( '' === $ten && ! empty( $ev['ten_khai'] ) ) { $ten = VHG_Doc::chuan_ten( $ev['ten_khai'] ); }
+		}
+
+		/* 🔴 GÓI THỬ CỦA SEPAY KHÔNG PHẢI TIỀN.
+		 *
+		 * Nút "Gửi thử" trên trang SePay bắn một gói y như thật, có `transferAmount` hẳn hoi —
+		 * ngày 22/08/2026 nó đẻ ra một dòng doanh thu 10.000đ không hề tồn tại. Ai bấm thử lại
+		 * là thêm một dòng nữa, mà mỗi dòng là một lần sổ sách lệch với sao kê ngân hàng.
+		 *
+		 * Vẫn GHI NHẬT KÝ như mọi lượt khác — người khai webhook cần thấy gói thử đã tới nơi,
+		 * đó chính là mục đích của nút Gửi thử. Chỉ không vào sổ tiền.
+		 *
+		 * ⚠️ Nhận diện bằng nội dung ĐÚNG NGUYÊN VĂN, không dùng `strpos`. Khách chuyển khoản
+		 *    ghi "TT SEPAY TEST WEBHOOK 20K" là tiền thật — khớp một phần rồi bỏ qua là MẤT
+		 *    TIỀN THẬT, tệ hơn hẳn cái nó chữa. */
+		if ( 'SEPAY TEST WEBHOOK' === strtoupper( trim( $nd ) ) ) {
+			return array( 'ok' => true, 'bo_qua' => true, 'ten_khai' => '',
+				'ghi_chu' => 'gói THỬ của SePay — cổng nhận được, nhưng KHÔNG ghi vào sổ tiền' );
+		}
+
+		if ( ! empty( $ev['tien_ra'] ) || $tien <= 0 ) {
+			return array( 'ok' => true, 'bo_qua' => true,
+				'ghi_chu' => ! empty( $ev['tien_ra'] ) ? 'tiền ra — không phải doanh thu' : 'số tiền = 0',
+				'ten_khai' => $ten );
+		}
+
+		$kq = self::ghi( array(
+			'ref' => $ev['ref'], 'so_tien' => $tien, 'noi_dung' => $nd, 'nguon' => $nguon,
+			'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh, 'ten_khai' => $ten,
+			/* Giờ của BÊN GỬI, không phải giờ máy chủ. Máy chủ đặt sai múi giờ là mọi giao dịch
+			   lệch đúng bằng chênh lệch đó, và đối soát với sao kê ngân hàng thành mò kim. Bên
+			   gửi không kèm giờ thì `ghi()` mới lấy giờ máy chủ. */
+			'luc' => isset( $ev['luc'] ) ? $ev['luc'] : '',
+		) );
+		if ( empty( $kq['ok'] ) ) { return $kq; }
+
+		/* Khớp mẫu "GHE<ghế> <mã>" -> ghế được phép chạy. KHÔNG khớp thì tiền vẫn vào sổ, chỉ là
+		   chưa gắn được máy — đối soát tay sau, đừng bỏ. */
+		if ( '' !== $ma_may && '' !== $ma_lenh ) {
+			VHG_May::xep_cho_chay( $ma_may, $ma_lenh, $tien, $kq['ref'], $nd );
+			/* ══════════════════════════════════════════════════════════════════════════════
+			 * TÍCH LƯỢT ƯU ĐÃI — ĐẶT SAU `xep_cho_chay`, KHÔNG ĐẶT TRƯỚC.
+			 *
+			 * Anh Thắng 23/08/2026: *"Tích lượt qua quét QR tại máy luôn, chỉ có tiền mặt thì
+			 * không"*.
+			 *
+			 * 🔴 GHẾ CHẠY LÀ VIỆC KHÔNG ĐƯỢC CHỜ AI. Khách đang ngồi trên ghế, đã trả tiền, và
+			 *    đường tiền này vốn đã trễ vài giây vì phải đi qua ngân hàng — anh Thắng đo
+			 *    được *"QR nhận trễ 5s"*. Lượt tích thì chậm một nhịp cũng không ai thấy.
+			 *    Nên: cho ghế chạy trước, tính điểm sau.
+			 *
+			 * 🔴 KHÔNG ĐƯỢC LÀM GÃY LƯỢT TIỀN. Đây là cổng webhook: ném lỗi ở đây là SePay coi
+			 *    như gửi hỏng và bắn lại, mà `xep_cho_chay` ở trên đã chạy rồi. Nên `tich_don_ghe`
+			 *    trả về lý do chứ không ném, và không ai đọc giá trị trả về của nó ở đây cả —
+			 *    lượt tích hỏng thì im lặng, tiền và ghế vẫn nguyên.
+			 *
+			 * ⚠️ Đa số lượt tới đây KHÔNG phải đơn đặt từ trang web (khách quét thẳng QR trên
+			 *    màn ghế). `tich_don_ghe` tra không thấy thì trả 'không phải đơn' và thôi — đó
+			 *    là đường chạy BÌNH THƯỜNG, không phải lỗi.
+			 * ═════════════════════════════════════════════════════════════════════════════ */
+			VHG_Vi::tich_don_ghe( $ma_lenh, $ma_may, $tien );
+		}
+
+		/* ĐƠN MUA MÃ TRƯỚC. Tiền về -> phát mã cho đúng số điện thoại đã chốt lúc đặt đơn.
+		   ⚠️ Đặt SAU `ghi()`: dòng doanh thu phải vào sổ trước, rồi mã mới được phát. Ngược lại
+		      thì có mã trong tay khách mà sổ chưa có tiền, và một lượt gãy giữa chừng để lại
+		      đúng cảnh đó vĩnh viễn.
+		   ⚠️ `phat_ma` tự chịu được gọi lại — webhook bắn lại là chuyện bình thường, và mỗi lượt
+		      bắn lại mà phát thêm mã là cho không hàng trăm nghìn đồng. */
+		if ( '' !== $ma_don ) {
+			/* 🔴 MỘT MÃ ĐƠN, HAI KIỂU HÀNG. Nội dung chuyển khoản chỉ mang "MUA<mã đơn>" —
+			   nó KHÔNG nói đơn đó mua mã hay nạp ví, và không nên nói: nội dung bị giới hạn
+			   25 ký tự, và thứ gì khách gõ tay được thì khách gõ sai được.
+			   Nên tra ra ĐƠN rồi hỏi chính nó. Đơn cũ không có cột `loai` thì đọc ra rỗng, và
+			   rỗng nghĩa là 'ma' — đúng như hệ thống chạy trước bản này. */
+			$don_ = VHG_Ma::don( $ma_don );
+			$loai_ = $don_ ? (string) ( isset( $don_['loai'] ) ? $don_['loai'] : '' ) : '';
+
+			if ( 'nap' === $loai_ ) {
+				/* ⚠️ Cùng luật với phát mã: `nap()` tự chịu được gọi lại, vì webhook bắn lại là
+				   chuyện bình thường — và mỗi lượt bắn lại mà cộng thêm là cho không tiền thật. */
+				$nv = VHG_Vi::nap( $ma_don, $kq['ref'] );
+				if ( ! empty( $nv['ok'] ) ) {
+					return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
+						'ma_may' => '', 'ma_lenh' => '', 'ten_khai' => $ten, 'so_tien' => $tien,
+						'don_ma' => $ma_don, 'nap_vi' => (int) $nv['nhan_tien'],
+						'ghi_chu' => 'đơn nạp ví ' . $ma_don . ' — cộng '
+							. number_format( (int) $nv['nhan_tien'], 0, ',', '.' ) . 'đ' );
+				}
+			} else {
+				$pm = VHG_Ma::phat_ma( $ma_don, $kq['ref'] );
+				if ( ! empty( $pm['ok'] ) ) {
+					return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
+						'ma_may' => '', 'ma_lenh' => '', 'ten_khai' => $ten, 'so_tien' => $tien,
+						'don_ma' => $ma_don, 'ma_phat' => $pm['ma'],
+						'ghi_chu' => 'đơn mua mã ' . $ma_don . ' — phát ' . count( $pm['ma'] ) . ' mã' );
+				}
+			}
+		}
+		return array( 'ok' => true, 'ref' => $kq['ref'], 'moi' => $kq['moi'],
+			'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh, 'ten_khai' => $ten, 'so_tien' => $tien );
+	}
+
+	/**
+	 * HUỶ một giao dịch đã ghi — ĐÁNH DẤU, KHÔNG XOÁ.
+	 *
+	 * 🔴 Vì sao không DELETE, dù DELETE ngắn hơn ba dòng:
+	 *    1. `ref` là UNIQUE, và đó là thứ DUY NHẤT chặn cộng đôi. Xoá dòng đi thì đúng giao dịch
+	 *       ấy bắn lại (webhook thử lại, hoặc nhập lại file Excel) sẽ vào sổ như một khoản mới.
+	 *       Nghĩa là phép "sửa sổ" tự mở lại đúng cái lỗ nó vừa vá.
+	 *    2. Mất chỗ duy nhất trả lời câu "sao hôm đó lệch 10.000đ". Dòng còn nằm đó kèm lý do
+	 *       thì người đối soát đọc một cái là xong.
+	 *
+	 * Gỡ luôn lượt CHƯA CHẠY trong hàng chờ: huỷ tiền mà vẫn để ghế chạy là cho không một lượt.
+	 * Lượt ghế ĐÃ NHẬN thì để nguyên — ghế chạy rồi, xoá dấu vết đi là sổ nói dối.
+	 */
+	public static function huy( $ref, $ly_do = '' ) {
+		global $wpdb;
+		$ref = trim( (string) $ref );
+		if ( '' === $ref ) { return array( 'ok' => false, 'error' => 'Thiếu mã tham chiếu.' ); }
+		$bang = VHG_DB::t( 'thu' );
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE ref=%s LIMIT 1", $ref ), ARRAY_A );
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không thấy giao dịch ' . $ref . '.' ); }
+		if ( (int) $r['huy'] === 1 ) {
+			return array( 'ok' => true, 'thong_bao' => 'Giao dịch này đã huỷ từ trước.' );
+		}
+		$wpdb->update( $bang, array( 'huy' => 1,
+			'huy_ly_do' => mb_substr( (string) $ly_do, 0, 190 ) ), array( 'id' => (int) $r['id'] ) );
+
+		$go = $wpdb->query( $wpdb->prepare(
+			'DELETE FROM ' . VHG_DB::t( 'cho' ) . ' WHERE ref=%s AND nhan_luc IS NULL', $ref ) );
+
+		return array( 'ok' => true, 'so_tien' => (int) $r['so_tien'], 'go_cho' => (int) $go,
+			'thong_bao' => 'Đã huỷ giao dịch ' . self::tien_ngan( $r['so_tien'] ) . ' (' . $ref . ')'
+				. ( $go > 0 ? ' và gỡ ' . (int) $go . ' lượt chưa chạy khỏi hàng chờ.' : '.' ) );
+	}
+
+	/** Bỏ huỷ — huỷ nhầm thì phải lùi được, không thì người ta ngại bấm và để rác trong sổ. */
+	public static function bo_huy( $ref ) {
+		global $wpdb;
+		$ref = trim( (string) $ref );
+		if ( '' === $ref ) { return array( 'ok' => false, 'error' => 'Thiếu mã tham chiếu.' ); }
+		$n = $wpdb->query( $wpdb->prepare( 'UPDATE ' . VHG_DB::t( 'thu' )
+			. " SET huy=0, huy_ly_do='' WHERE ref=%s", $ref ) );
+		return $n
+			? array( 'ok' => true, 'thong_bao' => 'Đã đưa giao dịch ' . $ref . ' trở lại sổ.' )
+			: array( 'ok' => false, 'error' => 'Không thấy giao dịch ' . $ref . '.' );
+	}
+
+	/** Danh sách giao dịch ĐÃ HUỶ — có huỷ thì phải xem lại được, không thì huỷ thành mất tăm. */
+	public static function ds_huy( $gioi_han = 200 ) {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'thu' )
+			. ' WHERE huy=1 ORDER BY luc DESC, id DESC LIMIT ' . (int) $gioi_han );
+	}
+
+	private static function tien_ngan( $v ) {
+		return number_format( (float) $v, 0, ',', '.' ) . 'đ';
+	}
+
+	/**
+	 * GÁN TAY một giao dịch cho ghế, và cho ghế chạy.
+	 *
+	 * 🔴 Ca thật, 22/08/2026 22:25: tiền về tài khoản, SePay thấy, webhook bắn về đúng nơi — mà
+	 *    ghế không chạy, vì nội dung chuyển khoản ngân hàng tự sinh (`CT DEN:145T26811LG6HQZL
+	 *    SEVQR …`) không mang `GHE<ghế> <mã lượt>`.
+	 *
+	 *    Ca này KHÔNG hiếm: khách gõ tay nội dung mà gõ sai, app ngân hàng cắt bớt nội dung, hoặc
+	 *    khách quét nhầm tem của ghế bên cạnh. Lúc đó tiền đã vào sổ, khách đứng đó, và cách duy
+	 *    nhất trước đây là bấm "Bật tay" — nhưng bấm thế thì hệ thống ghi là CHO KHÔNG một lượt,
+	 *    tức là sổ nói mình tặng khách một lượt trong khi khách đã trả tiền. Sai cả hai đầu.
+	 *
+	 * Phép này gắn đúng đồng tiền đó vào đúng cái ghế, rồi mới cho chạy — sổ nói đúng chuyện đã
+	 * xảy ra.
+	 *
+	 * ⚠️ CHỈ gán được giao dịch CHƯA có máy. Đổi máy của một giao dịch đã khớp là mở đường cho
+	 *    việc dời doanh thu từ ghế này sang ghế kia bằng vài cú bấm, và không ai thấy.
+	 */
+	public static function gan_may( $ref, $ma_may, $nguoi = '' ) {
+		global $wpdb;
+		$ref    = trim( (string) $ref );
+		$ma_may = trim( (string) $ma_may );
+		if ( '' === $ref || '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã tham chiếu hoặc mã ghế.' ); }
+		if ( ! VHG_May::may( $ma_may ) ) {
+			return array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma_may . '.' );
+		}
+		$bang = VHG_DB::t( 'thu' );
+		$r = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM $bang WHERE ref=%s LIMIT 1", $ref ), ARRAY_A );
+		if ( ! $r ) { return array( 'ok' => false, 'error' => 'Không thấy giao dịch ' . $ref . '.' ); }
+		if ( (int) $r['huy'] === 1 ) {
+			return array( 'ok' => false, 'error' => 'Giao dịch này đã huỷ — bỏ huỷ trước rồi mới gán.' );
+		}
+		if ( '' !== trim( (string) $r['ma_may'] ) ) {
+			return array( 'ok' => false, 'error' => 'Giao dịch này đã thuộc ghế ' . $r['ma_may']
+				. '. Không đổi được — dời doanh thu giữa hai ghế bằng vài cú bấm là chuyện không ai thấy.' );
+		}
+
+		/* Mã lượt ỔN ĐỊNH theo `ref`, không ngẫu nhiên: bấm hai lần thì `xep_cho_chay` thấy cùng
+		   (máy, mã lượt) nên chỉ xếp MỘT hàng. Ngẫu nhiên là mỗi lần bấm một lượt chạy mới. */
+		$ma_lenh = 'TAY' . strtoupper( substr( md5( $ref ), 0, 5 ) );
+		$wpdb->update( $bang, array( 'ma_may' => $ma_may, 'ma_lenh' => $ma_lenh ), array( 'id' => (int) $r['id'] ) );
+		VHG_May::xep_cho_chay( $ma_may, $ma_lenh, (int) $r['so_tien'], $ref,
+			'gán tay' . ( '' !== $nguoi ? ' bởi ' . $nguoi : '' ) );
+
+		return array( 'ok' => true, 'ma_lenh' => $ma_lenh,
+			'thong_bao' => 'Đã gán ' . self::tien_ngan( $r['so_tien'] ) . ' cho ghế ' . $ma_may
+				. ' và xếp cho ghế chạy. Ghế nhận trong ~10 giây.' );
+	}
+
+	/** Giao dịch CHƯA gắn được ghế nào — chỗ để soi khi "tiền vào mà ghế không chạy". */
+	public static function ds_chua_ro( $gioi_han = 50 ) {
+		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'thu' )
+			. " WHERE huy=0 AND ma_may='' ORDER BY luc DESC, id DESC LIMIT " . (int) $gioi_han );
+	}
+
+	/* ==========================================================================================
+	 * HAI ĐƯỜNG TIỀN MẶT — KHAI NHÃN Ở MỘT CHỖ.
+	 *
+	 * Ghế nuốt tờ tiền thì cổng máy ghi một dòng; người đứng quầy bấm "Thu tiền mặt" thì màn
+	 * ngoài ghi một dòng nữa. Cả hai đều là `nguon = TIEN_MAT`, nên nhìn vào bảng doanh thu KHÔNG
+	 * phân biệt được — mà chúng là hai việc khác hẳn nhau:
+	 *   · "Ghế nhận tiền mặt"  = khách vừa nhét tiền vào máy, ghế chạy ngay. Tiền còn trong ghế.
+	 *   · "Thu tiền mặt · <ai>" = người đi thu mở ngăn, đếm được bao nhiêu thì ghi bấy nhiêu.
+	 *
+	 * 🔴 GHẾ CÓ CỤC NHẬN TIỀN CHẠY TỐT MÀ NGƯỜI THU VẪN BẤM "THU TIỀN MẶT" LÀ CỘNG ĐÔI: cùng một
+	 *    xấp tiền vào sổ hai lần, một lần lúc khách nhét, một lần lúc người ta đếm. Doanh thu
+	 *    tháng phồng lên mà không ai thấy, vì hai dòng nhìn giống hệt nhau.
+	 *
+	 *    Không chặn ở đây — có ghế không lắp cục nhận tiền, và ở đó nút bấm tay là đường DUY NHẤT.
+	 *    Nên thay vì cấm, HIỆN RA: tab Thu tiền tách hai loại và kêu lên khi một ghế có cả hai
+	 *    trong cùng một kỳ.
+	 *
+	 * ⚠️ Hai hằng này là thứ DUY NHẤT phân biệt hai loại. Gõ tay chuỗi ở nơi ghi rồi gõ lại ở nơi
+	 *    đọc là sớm muộn lệch nhau một dấu cách, và lúc đó phép phân loại im lặng trả về sai loại.
+	 * ========================================================================================== */
+	const ND_GHE_NUOT = 'Ghế nhận tiền mặt';
+	const ND_THU_TAY  = 'Thu tiền mặt · ';
+
+	/** Một dòng tiền mặt là loại nào: 'ghe' (ghế nuốt) | 'nguoi' (người thu) | '' (không rõ). */
+	public static function kieu_tien_mat( $noi_dung ) {
+		$nd = trim( (string) $noi_dung );
+		if ( self::ND_GHE_NUOT === $nd ) { return 'ghe'; }
+		if ( 0 === strpos( $nd, self::ND_THU_TAY ) ) { return 'nguoi'; }
+		return '';
+	}
+
+	/** Ai bấm thu — lấy từ chính dòng ghi, không đoán. Rỗng nếu không phải dòng thu tay. */
+	public static function nguoi_thu( $noi_dung ) {
+		$nd = trim( (string) $noi_dung );
+		if ( 0 !== strpos( $nd, self::ND_THU_TAY ) ) { return ''; }
+		return trim( substr( $nd, strlen( self::ND_THU_TAY ) ) );
+	}
+
+	/**
+	 * Mọi lượt tiền mặt trong kỳ, đã tách loại — nguồn của tab "Thu tiền".
+	 */
+	public static function ds_tien_mat( $ky = 'today', $gioi_han = 200 ) {
+		$ra = array();
+		foreach ( self::ds( $ky, 100000 ) as $r ) {
+			if ( self::TIEN_MAT !== $r['nguon'] ) { continue; }
+			$ra[] = array(
+				'luc'     => (string) $r['luc'],
+				'ma_may'  => (string) $r['ma_may'],
+				'so_tien' => (int) $r['so_tien'],
+				'kieu'    => self::kieu_tien_mat( $r['noi_dung'] ),
+				'nguoi'   => self::nguoi_thu( $r['noi_dung'] ),
+			);
+			if ( count( $ra ) >= $gioi_han ) { break; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Theo ghế: tiền mặt ghế nuốt, tiền mặt người thu, QR, tổng — và cờ CỘNG ĐÔI.
+	 *
+	 * Cờ bật khi một ghế có CẢ hai loại tiền mặt trong cùng kỳ. Không phải lúc nào cũng sai (ghế
+	 * mới lắp cục nhận tiền giữa kỳ chẳng hạn), nên gọi là "cần soi" chứ không gọi là lỗi.
+	 */
+	public static function theo_may_tien_mat( $ky = 'today' ) {
+		$ra  = array();
+		$may = VHG_May::ds_may_theo_ma();
+		foreach ( self::ds( $ky, 100000 ) as $r ) {
+			$ten = '' !== $r['ma_may'] ? $r['ma_may']
+				: ( '' !== $r['ten_khai'] ? $r['ten_khai'] : '(chưa rõ máy)' );
+			if ( ! isset( $ra[ $ten ] ) ) {
+				$ra[ $ten ] = array( 'may' => $ten, 'coso' => self::coso_cua( $r, $may ),
+					'mat_ghe' => 0, 'mat_nguoi' => 0, 'qr' => 0, 'tong' => 0,
+					'so_lan_thu' => 0, 'cong_doi' => false );
+			}
+			$tien = (int) $r['so_tien'];
+			$ra[ $ten ]['tong'] += $tien;
+			if ( self::TIEN_MAT !== $r['nguon'] ) { $ra[ $ten ]['qr'] += $tien; continue; }
+			$k = self::kieu_tien_mat( $r['noi_dung'] );
+			if ( 'nguoi' === $k ) { $ra[ $ten ]['mat_nguoi'] += $tien; $ra[ $ten ]['so_lan_thu']++; }
+			else { $ra[ $ten ]['mat_ghe'] += $tien; }
+		}
+		foreach ( $ra as $k => $v ) {
+			$ra[ $k ]['cong_doi'] = ( $v['mat_ghe'] > 0 && $v['mat_nguoi'] > 0 );
+		}
+		return $ra;
+	}
+
+	/** Thu tiền mặt tại quầy — người bấm trên màn, không qua ngân hàng. */
+	public static function thu_tien_mat( $ma_may, $so_tien, $nguoi ) {
+		$ma_may = trim( (string) $ma_may );
+		if ( '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
+		$so_tien = (int) $so_tien;
+		if ( $so_tien <= 0 ) { return array( 'ok' => false, 'error' => 'Số tiền phải lớn hơn 0.' ); }
+		$luc = current_time( 'mysql' );
+		return self::ghi( array(
+			'ref' => 'mat-' . $ma_may . '-' . strtotime( $luc ) . '-' . $so_tien,
+			'luc' => $luc, 'so_tien' => $so_tien, 'nguon' => self::TIEN_MAT,
+			'ma_may' => $ma_may, 'noi_dung' => self::ND_THU_TAY . $nguoi,
+		) );
+	}
+
+	// ======================================================================= đọc
+
+	/**
+	 * Mốc đầu kỳ (chuỗi mysql, theo giờ website). Bản dịch `_periodStartMs`.
+	 * 'all' -> chuỗi rỗng nghĩa là không lọc.
+	 */
+	public static function dau_ky( $ky ) {
+		$nay = current_time( 'timestamp' );
+		switch ( $ky ) {
+			case 'today': return gmdate( 'Y-m-d 00:00:00', $nay );
+			case 'week':
+				/* Tuần bắt đầu THỨ HAI. `N` cho 1..7 với 1 = thứ hai — dùng `w` là tuần bắt đầu
+				   chủ nhật, tức doanh thu chủ nhật rơi sang tuần sau. */
+				$thu = (int) gmdate( 'N', $nay );
+				return gmdate( 'Y-m-d 00:00:00', $nay - ( $thu - 1 ) * 86400 );
+			case 'month': return gmdate( 'Y-m-01 00:00:00', $nay );
+			case 'year':  return gmdate( 'Y-01-01 00:00:00', $nay );
+		}
+		return '';
+	}
+
+	/**
+	 * Tổng của MỘT ghế trong một kỳ: số lượt, QR, tiền mặt, tổng.
+	 *
+	 * Cộng bằng SQL chứ không kéo hết giao dịch về rồi cộng trong PHP: màn chốt ca hỏi bốn kỳ
+	 * cho một ghế, mà "tất cả" của một ghế chạy cả năm là hàng chục nghìn dòng. Kéo về để cộng
+	 * là mỗi lần bấm Thu tiền mặt lại đợi vài giây — đúng lúc người ta đang đứng đếm tiền.
+	 *
+	 * ⚠️ Bỏ dòng đã huỷ (`huy=0`), y như `ds()`. Sót chỗ này là màn chốt ca nói một số, bảng đối
+	 *    soát nói số khác, và người đếm tiền không biết tin cái nào.
+	 */
+	public static function tong_may( $ma_may, $ky = 'today' ) {
+		global $wpdb;
+		$ma_may = trim( (string) $ma_may );
+		$ra = array( 'so_luot' => 0, 'qr' => 0, 'tien_mat' => 0, 'tong' => 0 );
+		if ( '' === $ma_may ) { return $ra; }
+		$bang = VHG_DB::t( 'thu' );
+		$tu   = self::dau_ky( $ky );
+		$sql  = "SELECT nguon, COUNT(*) AS n, COALESCE(SUM(so_tien),0) AS t FROM $bang"
+			. ' WHERE huy=0 AND ma_may=%s';
+		$tham = array( $ma_may );
+		if ( '' !== $tu ) { $sql .= ' AND luc >= %s'; $tham[] = $tu; }
+		$sql .= ' GROUP BY nguon';
+		foreach ( VHG_DB::rows( $wpdb->prepare( $sql, $tham ) ) as $r ) {
+			$t = (int) $r['t'];
+			$ra['so_luot'] += (int) $r['n'];
+			$ra['tong']    += $t;
+			if ( self::TIEN_MAT === $r['nguon'] ) { $ra['tien_mat'] += $t; } else { $ra['qr'] += $t; }
+		}
+		return $ra;
+	}
+
+	/** Danh sách giao dịch trong kỳ. */
+	public static function ds( $ky = 'today', $gioi_han = 500 ) {
+		global $wpdb;
+		$tu = self::dau_ky( $ky );
+		/* `huy=0` LỌC Ở ĐÂY, không ở từng nơi gọi. `ds()` là cửa duy nhất mọi báo cáo đi qua
+		   (`tong_hop` gọi lại chính nó), nên lọc một chỗ là cả hệ thống theo. Lọc rải rác từng
+		   nơi thì thêm một màn mới là quên một chỗ, và chỗ quên đó cộng tiền đã huỷ vào doanh thu. */
+		$sql = 'SELECT * FROM ' . VHG_DB::t( 'thu' ) . ' WHERE huy=0';
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND luc >= %s', $tu ); }
+		$sql .= ' ORDER BY luc DESC, id DESC LIMIT ' . (int) $gioi_han;
+		return VHG_DB::rows( $sql );
+	}
+
+	/**
+	 * Tổng hợp một kỳ: tổng tiền, theo nguồn, theo máy, theo cơ sở.
+	 *
+	 * Cơ sở lấy theo BẢNG MÁY nếu máy đã khai; chưa khai thì mới đoán từ tên. Người khai luôn
+	 * đúng hơn phép đoán từ chuỗi — mà đoán thì "AMTP 03" và "AMTP03" ra hai cơ sở khác nhau.
+	 */
+	public static function tong_hop( $ky = 'today' ) {
+		$ds  = self::ds( $ky, 100000 );
+		$may = VHG_May::ds_may_theo_ma();
+		$ra = array( 'tong' => 0, 'so_luot' => 0, 'qr' => 0, 'qr_luot' => 0,
+			'tien_mat' => 0, 'tien_mat_luot' => 0, 'theo_may' => array(), 'theo_coso' => array() );
+
+		foreach ( $ds as $r ) {
+			$tien = (int) $r['so_tien'];
+			$ra['tong'] += $tien; $ra['so_luot']++;
+			if ( VHG_Thu::TIEN_MAT === $r['nguon'] ) { $ra['tien_mat'] += $tien; $ra['tien_mat_luot']++; }
+			else { $ra['qr'] += $tien; $ra['qr_luot']++; }
+
+			$ten = '' !== $r['ma_may'] ? $r['ma_may'] : ( '' !== $r['ten_khai'] ? $r['ten_khai'] : '(chưa rõ máy)' );
+			$cs  = self::coso_cua( $r, $may );
+			if ( ! isset( $ra['theo_may'][ $ten ] ) ) {
+				$ra['theo_may'][ $ten ] = array( 'may' => $ten, 'coso' => $cs, 'so_luot' => 0,
+					'qr' => 0, 'tien_mat' => 0, 'tong' => 0 );
+			}
+			$ra['theo_may'][ $ten ]['so_luot']++;
+			$ra['theo_may'][ $ten ]['tong'] += $tien;
+			if ( VHG_Thu::TIEN_MAT === $r['nguon'] ) { $ra['theo_may'][ $ten ]['tien_mat'] += $tien; }
+			else { $ra['theo_may'][ $ten ]['qr'] += $tien; }
+
+			if ( ! isset( $ra['theo_coso'][ $cs ] ) ) {
+				$ra['theo_coso'][ $cs ] = array( 'coso' => $cs, 'so_may' => array(), 'so_luot' => 0,
+					'qr' => 0, 'tien_mat' => 0, 'tong' => 0 );
+			}
+			$ra['theo_coso'][ $cs ]['so_luot']++;
+			$ra['theo_coso'][ $cs ]['tong'] += $tien;
+			$ra['theo_coso'][ $cs ]['so_may'][ $ten ] = 1;
+			if ( VHG_Thu::TIEN_MAT === $r['nguon'] ) { $ra['theo_coso'][ $cs ]['tien_mat'] += $tien; }
+			else { $ra['theo_coso'][ $cs ]['qr'] += $tien; }
+		}
+
+		foreach ( $ra['theo_coso'] as $k => $v ) {
+			$ra['theo_coso'][ $k ]['so_may'] = count( $v['so_may'] );
+		}
+		ksort( $ra['theo_may'] );
+		ksort( $ra['theo_coso'] );
+		$ra['theo_may']  = array_values( $ra['theo_may'] );
+		$ra['theo_coso'] = array_values( $ra['theo_coso'] );
+		return $ra;
+	}
+
+	/** Cơ sở của một giao dịch: bảng máy trước, đoán từ tên sau. */
+	/**
+	 * Cơ sở của một giao dịch.
+	 *
+	 * 🔴 KHÔNG BAO GIỜ BỊA RA MỘT CƠ SỞ KHÔNG TỒN TẠI. Bản trước đoán tên cơ sở bằng cách cắt
+	 *    số ở cuối tên máy, và nhận BẤT KỲ chuỗi nào ra. Kết quả trên màn hình thật: hai dòng
+	 *    "cơ sở" tên `GHEAMTP01 TEST` và `SEPAY TEST WEBHOOK`. Một bảng đối soát mọc ra những
+	 *    cơ sở không có thật là bảng không dùng được — người đọc không phân biệt nổi đâu là cơ
+	 *    sở quên khai, đâu là rác.
+	 *
+	 * Phép đoán vẫn giữ (đường nhập Excel của Tingo mang tên máy "AMTP 03" chứ không mang mã
+	 * ghế), nhưng CHỈ nhận khi tên đoán ra TRÙNG một cơ sở đã khai. Đoán trúng thì gộp đúng;
+	 * đoán trượt thì nói "chưa gán" — câu đó đúng và làm được gì đó với nó.
+	 */
+	private static function coso_cua( $r, $may ) {
+		$ma = (string) $r['ma_may'];
+		if ( '' !== $ma && isset( $may[ $ma ] ) && '' !== $may[ $ma ]['coso_ten'] ) {
+			return $may[ $ma ]['coso_ten'];
+		}
+		/* Ghế đã khai mà chưa gán cơ sở -> DỪNG. Đừng quay sang đoán từ nội dung chuyển khoản:
+		   ghế đã biết chắc rồi, đoán thêm chỉ ra rác. */
+		if ( '' !== $ma && isset( $may[ $ma ] ) ) { return '(chưa gán cơ sở)'; }
+
+		$ten = (string) $r['ten_khai'];
+		if ( '' !== $ten ) {
+			$k = VHG_Doc::chuan_ten( $ten );
+			if ( isset( $may[ $k ] ) && '' !== $may[ $k ]['coso_ten'] ) { return $may[ $k ]['coso_ten']; }
+			$doan = VHG_Doc::coso_tu_ten( $ten );
+			if ( '' !== $doan ) {
+				$that = self::coso_da_khai( $doan );
+				if ( '' !== $that ) { return $that; }
+			}
+		}
+		return '(chưa gán cơ sở)';
+	}
+
+	/** Tên cơ sở ĐÃ KHAI trùng với chuỗi này (bỏ dấu, không phân biệt hoa thường), hoặc rỗng. */
+	private static function coso_da_khai( $ten ) {
+		$k = VHG_May::bo_dau_hoa( $ten );
+		if ( '' === $k ) { return ''; }
+		foreach ( VHG_May::ds_coso() as $c ) {
+			if ( VHG_May::bo_dau_hoa( $c['ten'] ) === $k ) { return (string) $c['ten']; }
+		}
+		return '';
+	}
+}
