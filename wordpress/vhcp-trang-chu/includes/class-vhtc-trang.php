@@ -47,12 +47,29 @@ class VHTC_Trang {
 		 */
 		$co = function ( $lop, $ham ) { return class_exists( $lop ) && method_exists( $lop, $ham ); };
 		return array(
+			/* 🔴 TRỎ VỀ HỆ MỚI, KHÔNG VỀ `/cham-cong/`.
+			   Anh Thắng 26/08/2026 hỏi: *"trang này còn dùng không"* — `/cham-cong/` là app Apps
+			   Script CŨ: plugin chỉ lấy Index.html từ project Apps Script rồi chèn cầu nối, còn
+			   số liệu vẫn nằm ở Google Sheets. Hệ MỚI (`VHCC_Web`) chạy thẳng trên host với MySQL.
+			   Hai hệ đọc HAI kho khác nhau, nên để trang chủ trỏ về hệ cũ là mời người ta vào
+			   nhìn số của một kho đã ngừng được cập nhật. Ưu tiên hệ mới; hệ cũ chỉ còn là đường
+			   lui khi plugin chưa nâng cấp. */
 			array(
 				'ten'   => 'Chấm Công',
-				'mo_ta' => 'Bảng công, lương, nhân sự, lịch làm việc',
+				'mo_ta' => 'Bảng công theo ca, chấm công bù, nạp công, hồ sơ & phân quyền',
 				'icon'  => '🕐',
-				'co'    => $co( 'VHCC_Trang', 'url' ),
-				'url'   => $co( 'VHCC_Trang', 'url' ) ? VHCC_Trang::url() : '',
+				'co'    => $co( 'VHCC_Web', 'url' ) || $co( 'VHCC_Trang', 'url' ),
+				'url'   => $co( 'VHCC_Web', 'url' ) ? VHCC_Web::url()
+					: ( $co( 'VHCC_Trang', 'url' ) ? VHCC_Trang::url() : '' ),
+			),
+			/* Trạm chấm công là TRANG RIÊNG, không phải một tab của hệ quản trị: nó cần camera và
+			   phải nhẹ để mở bằng 3G ở cơ sở. Nhân viên đứng quầy chỉ cần đúng ô này. */
+			array(
+				'ten'   => 'Chấm Công Online',
+				'mo_ta' => 'Nhân viên bấm giờ vào / giờ ra bằng điện thoại, có ảnh và vị trí',
+				'icon'  => '📷',
+				'co'    => $co( 'VHCC_Tram', 'url' ),
+				'url'   => $co( 'VHCC_Tram', 'url' ) ? VHCC_Tram::url() : '',
 			),
 			array(
 				'ten'   => 'Vận Hành Chi Phí',

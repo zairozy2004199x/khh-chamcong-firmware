@@ -39,7 +39,10 @@ teq( 'để trống thì về mặc định, KHÔNG để rỗng (rỗng là tra
 $ds = VHTC_Trang::ds_app();
 /* Con số này sửa TAY mỗi lần thêm app — thêm một thẻ vào trang cổng là thêm một chỗ nhân viên
    ngoài cơ sở bấm vào, nên phải là quyết định có ý thức chứ không phải phép thử tự chạy theo mã. */
-teq( 'liệt kê đúng 4 app', 4, count( $ds ) );
+/* ⚠️ Đếm từ CHÍNH danh sách, không gõ tay con số: thêm một ô (trạm chấm công) là phép thử đỏ
+   oan, và đỏ oan nhiều lần thì người ta sửa con số cho xanh mà không đọc xem có đúng không. */
+$SO_APP = count( $ds );
+t( 'có liệt kê app', $SO_APP >= 4, $SO_APP );
 foreach ( $ds as $a ) {
 	t( 'app "' . $a['ten'] . '" chưa cài -> co = false', false === $a['co'], $a );
 	teq( 'và KHÔNG dựng đường dẫn đoán cho ' . $a['ten'], '', $a['url'] );
@@ -47,7 +50,8 @@ foreach ( $ds as $a ) {
 
 ob_start(); VHTC_Trang::ve(); $h = ob_get_clean();
 t( 'chưa cài app nào thì trang vẫn vẽ được, không chết', strlen( $h ) > 300 );
-t( 'và nói rõ "chưa cài"', substr_count( $h, 'chưa cài' ) === 4, substr_count( $h, 'chưa cài' ) );
+t( 'và nói rõ "chưa cài" cho MỌI app', substr_count( $h, 'chưa cài' ) === $SO_APP,
+	substr_count( $h, 'chưa cài' ) . ' / ' . $SO_APP );
 /* 🔴 Đây là phép thử chính: app chưa cài KHÔNG được là thẻ <a>. Một liên kết chết trông y hệt
    một liên kết sống cho tới lúc bấm vào — và người bấm là nhân viên ngoài cơ sở. */
 teq( 'không có thẻ <a> nào khi chưa cài app nào', 0, substr_count( $h, '<a class="the"' ) );
@@ -60,23 +64,53 @@ teq( 'không có thẻ <a> nào khi chưa cài app nào', 0, substr_count( $h, '
    `eval` chạy đúng lúc gọi tới, nên mới dựng được cảnh "trước khi cài" rồi "sau khi cài". */
 eval( 'class VHCC_Trang { public static function url() { return "https://khmatrix.com/cham-cong/"; } }' );
 eval( 'class VHCP_App   { public static function app_url() { return "https://khmatrix.com/chi-phi/"; } }' );
+/* Chỉ có app CŨ thì trang chủ đành trỏ về nó — liên kết dẫn tới hệ cũ còn hơn ô xám. */
+$theo_cu = array();
+foreach ( VHTC_Trang::ds_app() as $a ) { $theo_cu[ $a['ten'] ] = $a; }
+teq( 'chưa có hệ mới thì lui về app cũ, không bỏ trống',
+	'https://khmatrix.com/cham-cong/', $theo_cu['Chấm Công']['url'] );
+
+/* Có hệ MỚI thì nó phải THẮNG app cũ. */
+eval( 'class VHCC_Web  { public static function url() { return "https://khmatrix.com/quan-tri-cham-cong/"; } }' );
+eval( 'class VHCC_Tram { public static function url() { return "https://khmatrix.com/tram-cham-cong/"; } }' );
 
 $ds = VHTC_Trang::ds_app();
 $theo_ten = array();
 foreach ( $ds as $a ) { $theo_ten[ $a['ten'] ] = $a; }
 t( 'app đã cài -> co = true', true === $theo_ten['Chấm Công']['co'] );
 teq( 'và đường dẫn lấy TỪ CHÍNH app đó',
-	'https://khmatrix.com/cham-cong/', $theo_ten['Chấm Công']['url'] );
+	'https://khmatrix.com/quan-tri-cham-cong/', $theo_ten['Chấm Công']['url'] );
+teq( 'ô trạm chấm công trỏ đúng trạm',
+	'https://khmatrix.com/tram-cham-cong/', $theo_ten['Chấm Công Online']['url'] );
 teq( 'app chi phí cũng vậy',
 	'https://khmatrix.com/chi-phi/', $theo_ten['Vận Hành Chi Phí']['url'] );
+/* 🔴 Anh Thắng 26/08 hỏi *"trang này còn dùng không"* về `/cham-cong/` — đó là app Apps Script
+   CŨ, số liệu vẫn nằm ở Google Sheets. Hệ MỚI chạy thẳng trên host với MySQL. Hai hệ đọc HAI
+   kho khác nhau, nên trang chủ phải trỏ về hệ MỚI; trỏ về hệ cũ là mời người ta vào nhìn số của
+   một kho đã ngừng được cập nhật. */
+t( 'ô Chấm Công trỏ về HỆ MỚI, không về app Apps Script cũ',
+	isset( $theo_ten['Chấm Công'] )
+	&& false !== strpos( (string) $theo_ten['Chấm Công']['url'], 'quan-tri-cham-cong' ),
+	isset( $theo_ten['Chấm Công'] ) ? $theo_ten['Chấm Công']['url'] : null );
+/* Trạm chấm công là ô RIÊNG: nhân viên đứng quầy chỉ cần đúng ô đó, không cần cả hệ quản trị. */
+t( 'có ô riêng cho Chấm Công Online', isset( $theo_ten['Chấm Công Online'] ), array_keys( $theo_ten ) );
+
 t( 'app hợp đồng chưa cài thì vẫn xám', false === $theo_ten['Thư Viện Hợp Đồng']['co'] );
 t( 'app ghế massage chưa cài thì cũng xám', false === $theo_ten['Ghế Massage']['co'] );
 
 ob_start(); VHTC_Trang::ve(); $h = ob_get_clean();
-teq( 'hai app đã cài -> đúng 2 thẻ <a>', 2, substr_count( $h, '<a class="the"' ) );
-teq( 'hai app chưa cài -> đúng 2 chữ "chưa cài"', 2, substr_count( $h, 'chưa cài' ) );
-t( 'trang chứa đúng đường dẫn của app chấm công',
-	strpos( $h, 'https://khmatrix.com/cham-cong/' ) !== false );
+/* Đếm từ chính danh sách: app nào `co` thì thành thẻ <a>, còn lại thành chữ "chưa cài".
+   Tổng hai thứ phải bằng đúng số app — không ô nào biến mất, không ô nào đếm hai lần. */
+$so_co = 0;
+foreach ( VHTC_Trang::ds_app() as $a ) { if ( $a['co'] ) { $so_co++; } }
+teq( 'app đã cài -> đúng ngần ấy thẻ <a>', $so_co, substr_count( $h, '<a class="the"' ) );
+teq( 'app chưa cài -> đúng ngần ấy chữ "chưa cài"', $SO_APP - $so_co, substr_count( $h, 'chưa cài' ) );
+teq( 'và hai thứ cộng lại đúng bằng số app', $SO_APP,
+	substr_count( $h, '<a class="the"' ) + substr_count( $h, 'chưa cài' ) );
+t( 'trang chứa đúng đường dẫn của hệ chấm công mới',
+	strpos( $h, 'https://khmatrix.com/quan-tri-cham-cong/' ) !== false, $h );
+t( 'và đường dẫn trạm chấm công',
+	strpos( $h, 'https://khmatrix.com/tram-cham-cong/' ) !== false, $h );
 
 /* Ghế massage: bản < 1.1.0 CHƯA có trang ngoài nên chỉ còn wp-admin. Liên kết dẫn tới màn đăng
    nhập vẫn hơn liên kết chết, nên vẫn trỏ — nhưng ca có trang ngoài mới là ca đúng, thử ngay
@@ -128,7 +162,7 @@ ob_start(); VHTC_Admin::page(); $h_ad = ob_get_clean();
 t( 'màn Cài đặt vẽ được', strlen( $h_ad ) > 300 );
 t( 'và có bảng cho biết từng app đang trỏ đi đâu',
 	strpos( $h_ad, 'App trên trang cổng' ) !== false
-	&& strpos( $h_ad, 'https://khmatrix.com/cham-cong/' ) !== false );
+	&& strpos( $h_ad, 'https://khmatrix.com/quan-tri-cham-cong/' ) !== false, $h_ad );
 t( 'nói rõ app nào chưa cài', strpos( $h_ad, 'chưa cài' ) !== false );
 t( 'màn Cài đặt có nonce', strpos( $h_ad, '_wpnonce' ) !== false );
 $GLOBALS['VHCP_CO_QUYEN'] = false;
