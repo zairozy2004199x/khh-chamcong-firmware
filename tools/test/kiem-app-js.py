@@ -369,6 +369,39 @@ css = open(GOC + '/wordpress/vhcp-chi-phi/assets/css/vhcp.css', encoding='utf-8'
 la('lớp qt-noi có kiểu chữ thật trong tệp css', '.card.qt-noi{' in css)
 la('và lớp qt-cum cũng vậy', '.qt-cum{' in css)
 
+# 6) Đơn vị K&H · POSH trên giao diện.
+print()
+print('— đơn vị K&H · POSH —')
+# 🔴 Anh Thắng 26/08: *"trong phần chi phí, tạm ứng, quyết toán thì tách thành 2 phần để dễ
+#    nhìn chi phí của bộ phận nào."*
+la('có hàm tách khối theo đơn vị', 'function _tachDonVi(' in src)
+# Chỉ tách khi người xem nhìn được HƠN MỘT đơn vị — kế toán POSH chỉ có đơn POSH, chèn thêm
+# một dải "POSH" lên đầu mọi bảng là thêm một dòng chữ không mang tin gì.
+la('chỉ tách khi nhìn được hơn một đơn vị', 'if(!BOOT.nhieuDonVi) return' in src)
+for _b, _goi in [('Duyệt tạm ứng', "el('duyetBody').innerHTML=_tachDonVi("),
+                ('Quyết toán chờ/xong', "el('qtBody'+hoa).innerHTML=_tachDonVi("),
+                ('Đã cấp chưa nộp', "el('qtBodyChuaNop').innerHTML=_tachDonVi(")]:
+    la('bảng "%s" dùng _tachDonVi' % _b, _goi in src)
+la('dòng ngăn có kiểu chữ thật trong tệp css', 'tr.dv-ngan>td{' in css)
+
+# Cấu hình: hai cột Đơn vị / Xem đơn vị — hai việc khác nhau, không gộp.
+la('bảng người dùng có cột Đơn vị', '>Đơn vị</th>' in src)
+la('và cột Xem đơn vị', '>Xem đơn vị</th>' in src)
+la('lưu người dùng gửi kèm cả hai ô', 'donVi:(r[7]' in src and 'xemDonVi:(r[8]' in src)
+# Ô Đơn vị là ô NHẬP kèm gợi ý, không phải ô xổ đóng: chi nhánh mới phải khai được ngay.
+la('ô Đơn vị nhập được tự do (có datalist gợi ý)',
+   'function _dvInp(' in src and 'list="dl_donvi"' in src)
+
+# Đẩy đơn / dòng chi lẻ sang đơn vị khác.
+la('có nút đẩy sang đơn vị khác', 'id="btnChuyenDV"' in src)
+la('nút chỉ hiện khi nhìn được hơn một đơn vị', 'BOOT.nhieuDonVi && !CUR.stChot' in src)
+la('có hàm đẩy đơn', 'function moChuyenDonVi(' in src)
+la('gọi đúng hàm máy chủ', '.chuyenDonVi(CUR.don.maDon' in src)
+# 🔴 Hỏi rõ "cả đơn hay vài dòng" — hai việc khác hẳn nhau về hậu quả, tự chọn giúp là chọn
+#    sai một nửa số lần, mà sai ở đây là tiền nằm nhầm sổ.
+la('hỏi rõ cả đơn hay vài dòng chi lẻ', 'Đẩy CẢ ĐƠN' in src and 'chọn vài dòng chi lẻ' in src)
+la('nói trước hậu quả rồi mới hỏi đồng ý', 'trạng thái Nháp' in src and 'RỜI khỏi đơn này' in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

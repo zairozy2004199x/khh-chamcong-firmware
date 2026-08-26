@@ -41,6 +41,10 @@
   .card.qt-noi>.ch h2{color:#92400e;font-size:15px}
   /* Cụm ba con số là KẾT LUẬN của cả cái đơn — tiền đã đưa · tiền đã tiêu · còn lại bao nhiêu.
      Đóng chung một khung để đọc như MỘT câu, chứ không phải ba ô rời cạnh nhau. */
+  /* Dòng ngăn giữa hai đơn vị trong cùng một bảng — xem `_tachDonVi()` trong app.html. */
+  tr.dv-ngan>td{background:#eef2ff;color:#3730a3;font-weight:800;font-size:12.5px;
+    border-left:4px solid #6366f1;padding:8px 10px}
+
   .qt-cum{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;
     background:#fffdf5;border:1px dashed #fcd34d;border-radius:10px;padding:12px 14px}
   @media(max-width:560px){.qt-cum{padding:10px}}

@@ -178,6 +178,13 @@
          không có gì phân xử. Đặt cạnh trạng thái vì hai thứ luôn được đọc cùng nhau: "đơn đang
          ở đâu" và "ai vừa động vào". -->
     <div id="donSuBox" style="display:none;flex:0 1 460px;min-width:280px"></div>
+    <!-- 🔴 ĐẨY ĐƠN SANG ĐƠN VỊ KHÁC — kế toán POSH gửi cho kế toán cá nhân.
+         Anh Thắng 26/08: *"Kế toán Posh có thể sẽ đẩy đơn hoặc chi phí lẻ trong đơn cho kế
+         toán cá nhân — thì khi chuyển qua nó sẽ tạo thành 1 đơn như nhân viên tạo bình
+         thường."* Nút chỉ hiện cho người nhìn được HƠN MỘT đơn vị: người chỉ có một đơn vị
+         thì không có chỗ nào để đẩy tới, bày nút ra chỉ để bấm vào rồi báo lỗi. -->
+    <button class="btn b-x" id="btnChuyenDV" style="display:none" onclick="moChuyenDonVi()"
+      title="Đẩy cả đơn hoặc vài dòng chi lẻ sang đơn vị khác — bên kia nhận về thành một đơn Nháp mới">🏢➜ Đẩy sang đơn vị khác</button>
     <button class="btn b-d" id="btnDelDon" style="display:none" onclick="delDon(CUR&&CUR.don&&CUR.don.maDon)" title="Xóa đơn nháp/lỗi (chưa cấp tạm ứng)">🗑 Xóa đơn</button>
     <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
     <button class="btn b-s" id="btnAction" style="display:none"></button>
@@ -916,7 +923,7 @@
            nó sau khi các cột khai cứng (150+110+120+44) và ô chọn Cơ sở lấy hết chỗ — cột
            Tên bị bóp còn một vạch, không đọc được tên ai. min-width của bảng nâng lên cho
            đủ chỗ mọi cột; hẹp hơn thì trượt ngang chứ không bóp. -->
-      <div class="tw"><table style="min-width:1060px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
+      <div class="tw"><table style="min-width:1320px"><thead><tr><th style="width:190px">Tên</th><th style="width:96px">PIN (4–8 số)</th><th style="width:132px">Vai trò</th><th style="width:150px">Bộ phận / Loại NV</th><th style="min-width:220px">Cơ sở (cho NV)</th><th style="width:110px">TK Có (khi là người duyệt)</th><th style="width:126px">Mã đối tượng (khi là người duyệt)</th><th style="width:110px" title="NHÀ của người này: đơn họ lập rơi về đơn vị này. Để trống = K&amp;H.">Đơn vị</th><th style="width:150px" title="Những đơn vị người này được ĐỌC, cách nhau dấu phẩy. Để trống = theo mặc định của vai (Admin · Quản lý · Kế toán nhìn cả hệ).">Xem đơn vị</th><th style="width:44px"></th></tr></thead><tbody id="cfgUserBody"></tbody></table></div>
       <div style="padding:8px 14px;font-size:11px;color:#94a3b8">
         <b>Vai trò</b> (cột 3) quyết định LÀM ĐƯỢC GÌ: <b>Quản lý</b> (toàn quyền + Cấu hình) · <b>Kế toán cá nhân</b> (cấp tạm ứng, quyết toán, xuất dòng 141) · <b>Kế toán NCC</b> (xuất dòng 331) · <b>Nhân viên</b> (chỉ đơn của mình).<br>
         <b>Bộ phận / Loại NV</b> (cột 4) quyết định LÀM Ở MẢNG NÀO: <b>Nhân viên cơ sở</b> · <b>Nhân viên văn phòng</b> · <b>Kỹ thuật</b> · <b>Marketing</b> · <b>Công tác</b> · <b>Setup</b>.<br>
@@ -1618,6 +1625,61 @@
       else toast('err',(r&&r.error)||'Lỗi');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).deleteDonAdmin(m);
   }
+  /* ============ ĐẨY ĐƠN / DÒNG CHI LẺ SANG ĐƠN VỊ KHÁC ============
+     🔴 HỎI RÕ "CẢ ĐƠN HAY VÀI DÒNG", đừng đoán. Anh Thắng nói *"đẩy đơn HOẶC chi phí lẻ trong
+        đơn"* — hai việc khác hẳn nhau về hậu quả: đẩy cả đơn là đơn cũ thành vỏ rỗng, đẩy vài
+        dòng là đơn cũ vẫn sống tiếp với phần còn lại. Tự chọn giúp một trong hai là chọn sai
+        một nửa số lần, mà ở đây sai là tiền nằm nhầm sổ.
+
+     ⚠️ NÓI TRƯỚC HẬU QUẢ RỒI MỚI HỎI ĐỒNG Ý: đơn mới về trạng thái Nháp, phải đi lại từ đầu
+        quy trình duyệt bên nhận. Người bấm cần biết điều đó TRƯỚC khi bấm, không phải sau. */
+  function moChuyenDonVi(){
+    if(!(CUR&&CUR.don)) return;
+    var ds=(BOOT.donVi||[]).filter(function(x){ return String(x)!==String(CUR.don.donVi||'K&H'); });
+    if(!ds.length){ toast('warn','Chưa có đơn vị nào khác để đẩy sang — khai ở Cấu hình → Người dùng.'); return; }
+    var dich=ds.length===1 ? ds[0]
+      : prompt('Đẩy sang đơn vị nào?\n\nCác đơn vị đang có: '+ds.join(' · '), ds[0]);
+    dich=String(dich||'').trim();
+    if(!dich) return;
+
+    var lines=(CUR.lines||[]);
+    var chon=[];
+    var ca=confirm('Đẩy CẢ ĐƠN ('+lines.length+' dòng) sang "'+dich+'"?\n\n'
+      +'• OK  = đẩy cả đơn\n'
+      +'• Hủy = chọn vài dòng chi lẻ để đẩy');
+    if(!ca){
+      var stt=prompt('Đẩy những dòng nào? Gõ số thứ tự dòng, cách nhau dấu phẩy.\n\n'
+        +lines.map(function(l,i){ return (i+1)+'. '+(l.noiDung||'(chưa có nội dung)')+' — '+money(l.thanhTien)+'đ'; }).join('\n'));
+      if(stt===null) return;
+      String(stt).split(',').forEach(function(x){
+        var i=parseInt(String(x).trim(),10)-1;
+        if(i>=0 && lines[i]) chon.push(lines[i].id);
+      });
+      if(!chon.length){ toast('warn','Chưa chọn dòng nào'); return; }
+    }
+    var nhan=prompt('Đơn mới bên "'+dich+'" đứng tên ai?\n\n'
+      +'(Người này sẽ là "người lập" của đơn mới, y như nhân viên tự tạo.)',
+      (CURUSER&&CURUSER.name)||'');
+    nhan=String(nhan||'').trim();
+    if(!nhan) return;
+    if(!confirm('Xác nhận đẩy '+(chon.length?(chon.length+' dòng'):'CẢ ĐƠN')+' sang "'+dich+'".\n\n'
+      +'⚠️ Bên nhận sẽ có một đơn MỚI ở trạng thái Nháp — phải đi lại từ đầu quy trình duyệt '
+      +'của bên đó. Phần đã đẩy sẽ RỜI khỏi đơn này.')) return;
+
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){
+      loading(false);
+      if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('ĐẨY SANG ĐƠN VỊ', CUR.don.maDon, r.soDong+' dòng · '+money(r.soTien)+'đ → '+r.donVi+' · đơn mới '+r.maDonMoi);
+      toast('ok','Đã đẩy '+r.soDong+' dòng ('+money(r.soTien)+'đ) sang '+r.donVi+' — đơn mới '+r.maDonMoi);
+      if(r.goc_rong){
+        toast('warn','Đơn này nay không còn dòng nào. Xóa đi nếu không dùng nữa.');
+      }
+      boot(function(){ openDon(CUR&&CUR.don?CUR.don.maDon:''); });
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .chuyenDonVi(CUR.don.maDon, chon, dich, nhan);
+  }
+
   function _syncDonView(){   // danh sách & chi tiết loại trừ nhau: mở đơn -> ẩn danh sách + hiện nút quay lại
     var open=!!(CUR&&CUR.don);
     if(el('donListCard'))  el('donListCard').style.display  = open?'none':'';
@@ -1905,6 +1967,12 @@
           var ly=_viSaoKhongGui(st);
           if(el('donActionDuoiHint')){ el('donActionDuoiHint').innerHTML=ly.html; el('donActionDuoiHint').style.color=ly.mau; }
         }
+      }
+      /* Đẩy được khi: nhìn thấy hơn một đơn vị · đơn còn sửa được · có quyền của người duyệt.
+         `stChot` là ranh giới "đã vào sổ" dùng chung cả app — hỏi nó, đừng gõ lại danh sách. */
+      if(el('btnChuyenDV')){
+        var _cdv=!!BOOT.nhieuDonVi && !CUR.stChot && (canDo('duyetTU')||canDo('capTU')||_laAdmin());
+        el('btnChuyenDV').style.display=_cdv?'inline-block':'none';
       }
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';
@@ -4614,7 +4682,7 @@
     if(QT_TRANG[khoa]>soTrang) QT_TRANG[khoa]=soTrang;
     var trang=QT_TRANG[khoa];
     var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
-    el('qtBody'+hoa).innerHTML=lat.map(function(d){ return _qtRowHtml(d, canBatch, COLS); }).join('');
+    el('qtBody'+hoa).innerHTML=_tachDonVi(lat, function(d){ return _qtRowHtml(d, canBatch, COLS); });
     el('qtEmpty'+hoa).style.display=rows.length?'none':'block';
     el('qtSo'+hoa).textContent=rows.length+' đơn';
     el('qtSum'+hoa).innerHTML=rows.length?_qtSumHtml(rows):'';
@@ -4641,7 +4709,7 @@
     if(QT_TRANG.chuanop>soTrang) QT_TRANG.chuanop=soTrang;
     var trang=QT_TRANG.chuanop;
     var lat=rows.slice((trang-1)*QT_MOI_TRANG, trang*QT_MOI_TRANG);
-    el('qtBodyChuaNop').innerHTML=lat.map(function(d){
+    el('qtBodyChuaNop').innerHTML=_tachDonVi(lat, function(d){
       return '<tr><td>'+esc(d.ky||d.maDon)+'</td><td style="font-size:12px">'+esc(d.coso||'')+'</td><td>'+esc(d.nguoiLap||'')+'</td>'+
         // NGÀY CẤP TIỀN sửa được tại chỗ (Admin). Cột này là DATETIME nên số sê-ri bảng tính
         // bị MySQL loại thẳng lúc nạp — mất hẳn, chỉ còn cách điền lại bằng tay.
@@ -4651,7 +4719,7 @@
             +(d.ngayCap?'':';border-color:#f59e0b;background:#fffbeb')+'" title="Sửa ngày cấp tiền">'
           : esc(d.ngayCap||'—'))+'</td>'+
         '<td style="text-align:center"><button class="btn b-s" onclick="viewDon(\''+esc(d.maDon)+'\')">📄 Chi tiết</button></td></tr>';
-    }).join('');
+    });
     el('qtEmptyChuaNop').style.display=rows.length?'none':'block';
     el('qtSoChuaNop').textContent=rows.length+' đơn';
     var tu=0; rows.forEach(function(d){ tu+=Number(d.tamUng)||0; });
@@ -4882,6 +4950,39 @@
   }
   function loadDuyet(){ boot(renderDuyet); }
   function dvXoaLoc(){ ['dvThang','dvKy','dvCoso'].forEach(function(i){ if(el(i)) el(i).value=''; }); renderDuyet(); }
+  /* ================= TÁCH KHỐI THEO ĐƠN VỊ (K&H · POSH) =================
+     Anh Thắng 26/08/2026: *"để biết sao đơn bên bộ phận nào thì trong phần chi phí, tạm ứng,
+     quyết toán thì tách thành 2 phần để dễ nhìn chi phí của bộ phận nào."*
+
+     🔴 CHỈ TÁCH KHI NGƯỜI ĐANG XEM NHÌN ĐƯỢC HƠN MỘT ĐƠN VỊ.
+        Kế toán POSH chỉ có đơn POSH; chèn thêm một dải "POSH" lên đầu bảng của họ là thêm một
+        dòng chữ không mang tin gì, lặp lại ở mọi bảng. Ai nhìn cả hệ mới cần cái vạch ấy.
+
+     ⚠️ TÁCH BẰNG DÒNG NGĂN TRONG CÙNG MỘT BẢNG, không dựng hai bảng rời. Hai bảng là hai chân
+        bảng, hai lần cộng tổng, hai chỗ để lệch — mà thứ kế toán cần vẫn là MỘT con số tổng
+        của cả màn. Dòng ngăn cho mắt biết chỗ nào sang chỗ nào, còn tổng thì vẫn là tổng.
+
+     ⚠️ ĐẾM TỪ CHÍNH DANH SÁCH, không gõ tay "K&H rồi POSH". Có đơn vị thứ ba thì nó tự hiện;
+        đơn vị nào không có đơn nào thì không vẽ dải rỗng. */
+  function _tachDonVi(list, veHang){
+    if(!BOOT.nhieuDonVi) return list.map(veHang).join('');
+    var thu=[], theo={};
+    list.forEach(function(d){
+      var k=String(d.donVi||'K&H');
+      if(!theo[k]){ theo[k]=[]; thu.push(k); }
+      theo[k].push(d);
+    });
+    if(thu.length<2) return list.map(veHang).join('');
+    thu.sort(function(a,b){ return a.localeCompare(b,'vi'); });
+    return thu.map(function(k){
+      var ds=theo[k];
+      var tong=ds.reduce(function(x,d){ return x+(Number(d.tamUng)||0); },0);
+      return '<tr class="dv-ngan"><td colspan="99">🏢 <b>'+esc(k)+'</b>'
+        +' <span style="font-weight:400;color:#64748b">· '+ds.length+' đơn · tạm ứng '+money(tong)+'đ</span></td></tr>'
+        +ds.map(veHang).join('');
+    }).join('');
+  }
+
   function renderDuyet(){
     _renderTongLH('duyetTongLH');
     var f=el('duyetFilter').value;
@@ -4901,7 +5002,7 @@
       if(f==='cho') return ['Chờ duyệt tạm ứng','Chờ cấp tạm ứng'].indexOf(d.trangThai)>=0;
       return d.trangThai===f; });
     el('duyetEmpty').style.display=list.length?'none':'block';
-    el('duyetBody').innerHTML=list.map(function(d){
+    el('duyetBody').innerHTML=_tachDonVi(list, function(d){
       var st=d.trangThai; var cl=d.chenhLech>=0?'pos':'neg'; var role=(CURUSER&&CURUSER.role)||'';
       var canChk=(st==='Chờ duyệt tạm ứng'&&canDo('duyetTU'))||(st==='Chờ cấp tạm ứng'&&canDo('capTU'));
       var chk=canChk?('<td style="text-align:center"><input type="checkbox" class="dvChk" data-m="'+esc(d.maDon)+'" data-st="'+esc(st)+'" data-tu="'+(Number(d.tamUng)||0)+'" onchange="dvUpdateBar()"></td>'):'<td></td>';
@@ -4922,7 +5023,7 @@
         '<td class="money '+cl+'">'+money(d.chenhLech)+'</td>'+
         '<td><span class="badge '+stCls(st)+'">'+esc(st)+'</span>'+info+'</td>'+
         '<td style="text-align:center;white-space:nowrap">'+act+'</td></tr>';
-    }).join('');
+    });
     if(el('dvChkAll')) el('dvChkAll').checked=false;
     dvUpdateBar();
   }
@@ -5839,13 +5940,23 @@
           +'<td><input value="'+esc(u.coso||'Tất cả cơ sở')+'" style="width:100%" disabled></td>'
           +'<td><input value="'+esc(u.tkCo||'')+'" style="width:100%" disabled></td>'
           +'<td><input value="'+esc(u.maDt||'')+'" style="width:100%" disabled></td>'
+          +'<td><input value="'+esc(u.donVi||'K&H')+'" style="width:100%" disabled></td>'
+          +'<td><input value="'+esc(u.xemDonVi||'(cả hệ)')+'" style="width:100%" disabled></td>'
           +'<td style="text-align:center">🔒</td></tr>';
       }
-      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td>'+_delBtn()+'</tr>';
+      return '<tr><td>'+_inp(u.ten,'Tên')+'</td><td><input value="'+esc(u.pin||'')+'" maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel(u.vaiTro)+'</td><td>'+_bpSel(u.boPhan,'— Tất cả —')+'</td><td>'+_cosoSel(u.coso)+'</td><td>'+_inp(u.tkCo,'VD: 1411')+'</td><td>'+_inp(u.maDt,'VD: NV001')+'</td><td>'+_dvInp(u.donVi)+'</td><td>'+_inp(u.xemDonVi,'trống = theo vai')+'</td>'+_delBtn()+'</tr>';
     }).join('');
   }
-  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td>'+_delBtn()+'</tr>'); }
-  function saveCfgUsers(){ var data=_readRows('cfgUserBody').map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:r[5]||'', maDt:r[6]||''};}).filter(function(x){return x.ten;});
+  function addCfgUser(){ el('cfgUserBody').insertAdjacentHTML('beforeend','<tr><td>'+_inp('','Tên')+'</td><td><input maxlength="8" inputmode="numeric" placeholder="4–8 số" style="width:100%"></td><td>'+_roleSel('Nhân viên')+'</td><td>'+_bpSel('','— Tất cả —')+'</td><td>'+_cosoSel('')+'</td><td>'+_inp('','VD: 1411')+'</td><td>'+_inp('','VD: NV001')+'</td><td>'+_dvInp('')+'</td><td>'+_inp('','trống = theo vai')+'</td>'+_delBtn()+'</tr>'); }
+  /* Ô "Đơn vị" là ô NHẬP KÈM GỢI Ý, không phải ô xổ đóng: đơn vị thứ ba (một chi nhánh mới)
+     phải khai được ngay tại đây chứ không phải chờ sửa mã. Gợi ý lấy từ những đơn vị đang có
+     thật trong sổ — bày ra một danh mục riêng là hai nơi phải khai, và hai nơi thì lệch. */
+  function _dvInp(v){
+    var ds=(BOOT.donVi||['K&H']);
+    return '<input list="dl_donvi" value="'+esc(v||'')+'" placeholder="trống = K&H" style="width:100%">'
+      +'<datalist id="dl_donvi">'+ds.map(function(x){return '<option value="'+esc(x)+'">';}).join('')+'</datalist>';
+  }
+  function saveCfgUsers(){ var data=_readRows('cfgUserBody').map(function(r){return {ten:(r[0]||'').trim(), pin:(r[1]||'').trim(), vaiTro:r[2]||'Nhân viên', boPhan:r[3]||'', coso:r[4]||'', tkCo:r[5]||'', maDt:r[6]||'', donVi:(r[7]||'').trim(), xemDonVi:(r[8]||'').trim()};}).filter(function(x){return x.ten;});
     for(var i=0;i<data.length;i++){ if(data[i].pin && !/^\d{4,8}$/.test(data[i].pin)){ toast('warn','PIN của "'+data[i].ten+'" phải là 4–8 số'); return; } }
     // 🔴 LƯU DANH SÁCH RỖNG = XÓA HẾT TÀI KHOẢN. Không cho đi qua bằng một cú bấm.
     //    Máy chủ chặn lần nữa; đây chỉ là để hỏi cho tử tế trước khi tới đó.

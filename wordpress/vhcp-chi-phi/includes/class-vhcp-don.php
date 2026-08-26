@@ -353,6 +353,12 @@ class VHCP_Don {
 		return array(
 			'coso'       => $coso,
 			'cosoDong'   => $coso_dong,
+			/* Đơn vị (K&H · POSH) — giao diện cần để gợi ý ở Cấu hình và để biết có nên tách
+			   khối trong các bảng. `donViCuaToi` là NHÀ, `xemDonVi` là tầm nhìn (null = cả hệ). */
+			'donVi'      => VHCP_DonVi::ds(),
+			'donViCuaToi'=> VHCP_DonVi::cua_toi(),
+			'xemDonVi'   => VHCP_DonVi::xem_duoc(),
+			'nhieuDonVi' => VHCP_DonVi::nhieu_don_vi(),
 			'cosoPll'    => $coso_ml,
 			'tkNoMx'     => $mx,
 			'tenTk'      => $ten_tk,
