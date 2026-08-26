@@ -6554,6 +6554,68 @@ t( 'ô TRỐNG trỏ sang khối Chấm công bù',
 	$h_gio );
 t( 'và màn nói cho biết bấm vào ô thì được gì',
 	strpos( $h_gio, 'Bấm thẳng vào' ) !== false, $h_gio );
+/* ---- 🔴 SỬA NGAY TRONG LƯỚI, KHÔNG NHẢY ĐI ĐÂU ----
+   Anh Thắng 26/08: *"mình có sửa trong khu này luôn được không, hay phải bắt buộc nhảy vào ô
+   sửa"*. Bấm một ô là biểu mẫu mở ra NGAY DƯỚI dòng của đúng người đó, trong chính cái lưới. */
+$h_iv = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'QTC1' ) );
+t( 'bấm ô có giờ -> mở hàng sửa ngay trong lưới',
+	strpos( $h_iv, 'class="hang-sua"' ) !== false, $h_iv );
+t( 'hàng sửa nằm TRONG bảng lưới (không phải một khối rời phía dưới)',
+	preg_match( '#<table class="cc".*?<tr class="hang-sua">#s', $h_iv ) === 1, $h_iv );
+t( 'và mang sẵn ngày + mã, khỏi gõ lại',
+	strpos( $h_iv, 'name="ngay" value="2026-07-06"' ) !== false
+	&& strpos( $h_iv, 'name="ma_nv" value="QTC1"' ) !== false, $h_iv );
+$khoi_iv = preg_match( '#<tr class="hang-sua">(.*?)</tr>#s', $h_iv, $m_iv ) ? $m_iv[1] : '';
+t( 'tìm được hàng sửa trong lưới', '' !== $khoi_iv, substr( $h_iv, 0, 200 ) );
+t( 'gửi đúng việc sua_gio', strpos( $khoi_iv, 'name="viec" value="sua_gio"' ) !== false, $khoi_iv );
+t( 'có ô nhập giờ ngay tại đó', strpos( $khoi_iv, 'name="sg_vao"' ) !== false, $khoi_iv );
+t( 'và đòi lý do', strpos( $khoi_iv, 'name="ly_do" required' ) !== false, $khoi_iv );
+/* 🔴 Nhắc lại ĐANG SỬA AI, GIỜ ĐANG CÓ BAO NHIÊU — lưới 31 cột thì mắt vẫn lạc, mà sửa nhầm
+   người là sửa nhầm lương. */
+t( 'nhắc lại giờ đang có', strpos( $h_iv, 'đang có: vào' ) !== false, $h_iv );
+/* Ô đang mở phải tìm lại được giữa 600 ô. */
+t( 'ô đang sửa được tô viền', strpos( $h_iv, 'dang-sua' ) !== false, $h_iv );
+/* 🔴 CHỈ MỘT HÀNG. Vẽ sẵn biểu mẫu cho cả 600 ô là 600 biểu mẫu trong một trang. */
+teq( 'chỉ mở ĐÚNG MỘT hàng sửa', 1, substr_count( $h_iv, 'class="hang-sua"' ) );
+t( 'và có nút Đóng để trả lưới về như cũ', strpos( $h_iv, '>Đóng</a>' ) !== false, $h_iv );
+
+/* Ô TRỐNG -> biểu mẫu BÙ, không phải biểu mẫu sửa. Hai việc khác nhau. */
+$h_ib = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'gnd' => '2026-07-20', 'gma' => 'QTC1' ) );
+t( 'bấm ô trống -> mở hàng BÙ ngay trong lưới',
+	strpos( $h_ib, 'class="hang-sua"' ) !== false, $h_ib );
+/* ⚠️ Soi ĐÚNG hàng bù, không quét cả trang: khối "Chấm công bù" và khối "Sửa giờ công" ở dưới
+   màn cũng có `viec=bu` / ô tích xoá trắng, và có quyền có. Quét cả trang thì bỏ hẳn nhánh phân
+   biệt ô-trống / ô-có-giờ đi mà chốt vẫn xanh — đã phá thử để thấy đúng chuyện đó. */
+$khoi_ib = preg_match( '#<tr class="hang-sua">(.*?)</tr>#s', $h_ib, $m_ib ) ? $m_ib[1] : '';
+t( 'tìm được hàng bù trong lưới', '' !== $khoi_ib, substr( $h_ib, 0, 200 ) );
+t( 'và gửi đúng việc bu, không phải sua_gio',
+	strpos( $khoi_ib, 'name="viec" value="bu"' ) !== false, $khoi_ib );
+t( 'ô bù KHÔNG có tích xoá trắng (chưa có gì để xoá)',
+	strpos( $khoi_ib, 'name="sg_xoa_vao"' ) === false, $khoi_ib );
+
+/* 🔴 NGÀY KHÁC THÁNG THÌ KHÔNG MỞ. Bấm một ô ở tháng 7, đổi sang tháng 8, mà hàng sửa vẫn mở
+   giữa lưới tháng 8 với một ngày tháng 7 — rồi người ta bấm Lưu. */
+/* ⚠️ Phải có dữ liệu tháng 8 cho ĐÚNG người ấy, không thì lưới tháng 8 chẳng vẽ dòng nào của
+   QTC1 và chốt xanh vì một lý do khác hẳn (không có dòng thì cũng không có hàng sửa). */
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'QTC1', '', '08:00:00', '17:00:00' );
+$h_ix = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-08',
+	'sgn' => '2026-07-06', 'sgm' => 'QTC1' ) );
+t( 'lưới tháng 8 có vẽ dòng của QTC1', strpos( $h_ix, 'Người QTC1' ) !== false, $h_ix );
+t( '🔴 ngày lạc tháng thì KHÔNG mở hàng sửa trong lưới',
+	strpos( $h_ix, 'class="hang-sua"' ) === false, $h_ix );
+
+/* Cửa hàng trưởng bấm ô CÓ GIỜ: hàng vẫn mở, nhưng nói rõ cần quyền Admin — chứ không im lặng
+   bày ra một biểu mẫu bấm Lưu là bị chối. */
+VHCC_NguoiDung::luu( '', 'CHT Lưới', '357913', 'Cửa hàng trưởng', 'TUTU_BT' );
+$h_ic = vhcc_web( '357913', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'QTC1' ) );
+t( 'Cửa hàng trưởng bấm ô có giờ -> nói rõ cần quyền Admin',
+	strpos( $h_ic, 'cần quyền Admin' ) !== false, $h_ic );
+t( 'và KHÔNG bày ra ô nhập giờ để bấm Lưu rồi bị chối',
+	strpos( $h_ic, 'name="sg_vao"' ) === false, $h_ic );
+
 /* Hàng -CD là hàng RIÊNG: đường bấm phải mang mã KÈM hậu tố, không thì sửa nhầm sang hàng chính. */
 t( '🔴 ô của hàng -CD mang mã KÈM hậu tố',
 	preg_match( '/sgm=[A-Za-z0-9_]+-CD/', $h_gio ) === 1
@@ -7155,10 +7217,20 @@ t( 'và gõ tay ?man=vp cũng không ra lưới', strpos( $h_vp_nv, '↳ ca đê
 
 $U_MA = array( 'name' => 'Admin Mã', 'role' => 'Admin', 'coso' => '' );
 
-/* Sinh nhiều mã LIÊN TIẾP trong cùng một giây — đúng cảnh mấy người bấm gửi cùng lúc. */
+/* Sinh nhiều mã LIÊN TIẾP trong cùng một giây — đúng cảnh mấy người bấm gửi cùng lúc.
+   🔴 PHẢI GHI TỪNG MÃ VÀO BẢNG NGAY SAU KHI SINH, y như đường chạy thật.
+   `ma_moi()` chống trùng bằng cách HỎI BẢNG. Sinh 200 mã mà không ghi mã nào vào bảng thì lớp
+   chống trùng ấy không có gì để đọc, và cả phép thử tụt xuống thành "200 lần bốc ngẫu nhiên
+   trong 900 nghìn giá trị có trùng không" — theo nghịch lý ngày sinh thì khoảng 2% số lần chạy
+   sẽ trùng. Tức là bài kiểm ĐỎ NGẪU NHIÊN vài chục lượt một lần, trong khi mã chạy đúng. Đỏ
+   ngẫu nhiên là thứ dạy người ta chạy lại bài kiểm cho tới lúc xanh. */
 $ds_ma = array();
 for ( $i_ma = 0; $i_ma < 200; $i_ma++ ) {
-	$ds_ma[] = VHCC_DB::ma_moi( 'YC', 'yeu_cau_nv', 'ma_yc' );
+	$ma_x = VHCC_DB::ma_moi( 'YC', 'yeu_cau_nv', 'ma_yc' );
+	$ds_ma[] = $ma_x;
+	if ( '' !== $ma_x ) {
+		$wpdb->insert( VHCC_DB::t( 'yeu_cau_nv' ), array( 'ma_yc' => $ma_x, 'ma_nv' => 'MA' . $i_ma ) );
+	}
 }
 teq( '200 mã sinh liên tiếp thì KHÔNG mã nào rỗng', 0, count( array_filter( $ds_ma, function ( $x ) {
 	return '' === $x; } ) ) );

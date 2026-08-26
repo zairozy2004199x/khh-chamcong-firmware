@@ -1027,6 +1027,12 @@ class VHCC_Web {
 			. 'text-decoration:none;border-radius:3px}'
 			. 'table.cc a.o-sua:hover{background:#1d4ed8;color:#fff;box-shadow:0 0 0 2px #1d4ed8}'
 			. 'table.cc a.o-sua:focus-visible{outline:2px solid var(--xanh);outline-offset:1px}'
+			/* Ô đang mở để sửa: viền đậm để mắt tìm lại được nó giữa 600 ô. */
+			. 'table.cc td.dang-sua{outline:3px solid var(--do);outline-offset:-3px}'
+			/* Hàng sửa nội tuyến: nền khác hẳn, và chữ về cỡ thường (lưới đang 11.5px). */
+			. 'table.cc tr.hang-sua>td{background:#fffbeb;border:2px solid var(--vang);'
+			. 'text-align:left;white-space:normal;padding:10px 12px;font-size:14px}'
+			. 'table.cc tr.hang-sua label{font-size:12px}'
 			/* Khối thu gọn bằng <details> của chính HTML — không JavaScript. Phải cho `summary`
 			   trông ra một cái nút bấm được, kẻo nó nằm im như một dòng chữ và không ai bấm. */
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
@@ -1931,11 +1937,11 @@ class VHCC_Web {
 				. '.</p>';
 		}
 		if ( $la_vp ) {
-			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu );
+			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu, $ky, $toi );
 			return;
 		}
 		$b_gio = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
-		self::ve_luoi_gio( $b_gio, $th, $duoc_sua, $duoc_bu );
+		self::ve_luoi_gio( $b_gio, $th, $duoc_sua, $duoc_bu, $ky, $toi );
 		self::the_tong_ca( $b_gio, $cs );
 	}
 
@@ -2022,6 +2028,100 @@ class VHCC_Web {
 			? ( add_query_arg( array( 'sgn' => $ngay, 'sgm' => $ma_day_du ), self::url_hien() ) . '#suagio' )
 			: ( add_query_arg( array( 'gnd' => $ngay, 'gma' => $ma_day_du ), self::url_hien() ) . '#bucong' );
 		return '<a class="o-sua" href="' . esc_url( $url ) . '">' . $noi_dung . '</a>';
+	}
+
+	/**
+	 * Ô nào đang được chọn để sửa / bù: [ngày, mã, có-giờ-hay-không].
+	 *
+	 * ⚠️ Chỉ nhận ngày THUỘC ĐÚNG THÁNG đang xem. Không kiểm thì bấm một ô ở tháng 7, đổi sang
+	 *    tháng 8, rồi hàng sửa vẫn mở ra giữa lưới tháng 8 với một ngày của tháng 7 — và người
+	 *    ta bấm Lưu.
+	 */
+	private static function o_dang_sua( $tt ) {
+		$sgn = isset( $_GET['sgn'] ) ? sanitize_text_field( wp_unslash( $_GET['sgn'] ) ) : '';
+		$sgm = isset( $_GET['sgm'] ) ? sanitize_text_field( wp_unslash( $_GET['sgm'] ) ) : '';
+		if ( '' !== $sgn && '' !== $sgm ) {
+			return ( 0 === strpos( $sgn, $tt . '-' ) ) ? array( $sgn, $sgm, true ) : array( '', '', true );
+		}
+		$gnd = isset( $_GET['gnd'] ) ? sanitize_text_field( wp_unslash( $_GET['gnd'] ) ) : '';
+		$gma = isset( $_GET['gma'] ) ? sanitize_text_field( wp_unslash( $_GET['gma'] ) ) : '';
+		if ( '' !== $gnd && '' !== $gma ) {
+			return ( 0 === strpos( $gnd, $tt . '-' ) ) ? array( $gnd, $gma, false ) : array( '', '', false );
+		}
+		return array( '', '', false );
+	}
+
+	/**
+	 * HÀNG SỬA NỘI TUYẾN — biểu mẫu hiện NGAY DƯỚI dòng của người vừa bấm, trong chính cái lưới.
+	 *
+	 * Anh Thắng 26/08/2026: *"mình có sửa trong khu này luôn được không, hay phải bắt buộc nhảy
+	 * vào ô sửa"*. Được — và đây là câu trả lời.
+	 *
+	 * 🔴 VÌ SAO KHÔNG NHÉT BIỂU MẪU VÀO CHÍNH CÁI Ô.
+	 *    Ô trong lưới rộng chừng 34px. Nhét hai ô giờ + ô lý do vào đó thì hoặc là cả lưới giãn
+	 *    ra gấp mười (mất luôn cái lợi "cả tháng trên một màn"), hoặc là mấy ô nhập bé tới mức
+	 *    không bấm nổi trên điện thoại. Nên biểu mẫu chiếm TRỌN một hàng ngay dưới — vẫn nằm
+	 *    trong lưới, vẫn thấy dòng của đúng người đó ở ngay trên.
+	 *
+	 * 🔴 CHỈ MỘT HÀNG, CỦA ĐÚNG Ô VỪA BẤM.
+	 *    Vẽ sẵn biểu mẫu cho cả 600 ô là 600 biểu mẫu trong một trang: trang nặng, và mọi ô đều
+	 *    trông như đang chờ sửa. Bấm ô nào thì mở hàng của ô ấy — địa chỉ mang sẵn `sgn`/`sgm`
+	 *    nên bấm Lùi vẫn đúng, và không cần một dòng JavaScript nào.
+	 *
+	 * ⚠️ Ô CÓ GIỜ và Ô TRỐNG là hai việc khác nhau, nên hai biểu mẫu khác nhau:
+	 *      có giờ -> `sua_gio` (đè lên giờ đã có · quyền Admin)
+	 *      trống  -> `bu`      (điền vào ô còn trống · quyền Cửa hàng trưởng)
+	 */
+	private static function hang_sua( $so_cot, $cs, $ngay, $ma_dd, $co_gio, $ky, $toi ) {
+		$duoc = $co_gio ? VHCC_Vai::duoc( $toi, 'sua_gio' ) : VHCC_Vai::duoc( $toi, 'cham_bu' );
+		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '">';
+
+		if ( ! $duoc ) {
+			echo '<div class="bao canh" style="margin:0">' . esc_html( $co_gio
+				? 'Sửa giờ đã có cần quyền Admin. Thấy giờ sai thì gắn cờ để Admin sửa.'
+				: 'Bù giờ vào ô trống cần quyền Cửa hàng trưởng trở lên.' ) . '</div></td></tr>';
+			return;
+		}
+
+		$dg = VHCC_Bu::gio_hien_tai( $cs, $ngay, $ma_dd );
+		echo '<form method="post" class="hang" style="margin:0;align-items:flex-end">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="' . ( $co_gio ? 'sua_gio' : 'bu' ) . '">'
+			. self::o_loc()
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="ngay" value="' . esc_attr( $ngay ) . '">'
+			. '<input type="hidden" name="ma_nv" value="' . esc_attr( $ma_dd ) . '">';
+
+		/* Nhắc lại ĐANG SỬA AI, NGÀY NÀO, GIỜ ĐANG CÓ LÀ BAO NHIÊU. Hàng nằm ngay dưới dòng của
+		   người đó, nhưng lưới 31 cột thì mắt vẫn lạc — và sửa nhầm người là sửa nhầm lương. */
+		echo '<div style="flex:0 0 auto"><label>Đang ' . ( $co_gio ? 'sửa' : 'bù' ) . '</label>'
+			. '<b>' . esc_html( $ma_dd ) . '</b> · ' . esc_html( self::ngay_vn( $ngay ) )
+			. '<div class="mo" style="font-size:11.5px">đang có: vào <b>' . esc_html( $dg['vao'] )
+			. '</b> · ra <b>' . esc_html( $dg['ra'] ) . '</b></div></div>';
+
+		$tv = $co_gio ? 'sg_vao' : 'bu_vao';
+		$tr = $co_gio ? 'sg_ra' : 'bu_ra';
+		echo '<div><label for="iv_' . esc_attr( $tv ) . '">Giờ vào' . ( $co_gio ? ' mới' : '' ) . '</label>'
+			. '<input id="iv_' . esc_attr( $tv ) . '" name="' . esc_attr( $tv ) . '" type="time"></div>';
+		echo '<div><label for="iv_' . esc_attr( $tr ) . '">Giờ ra' . ( $co_gio ? ' mới' : '' ) . '</label>'
+			. '<input id="iv_' . esc_attr( $tr ) . '" name="' . esc_attr( $tr ) . '" type="time"></div>';
+
+		if ( $co_gio ) {
+			/* Ô trống = GIỮ NGUYÊN. Muốn xoá trắng phải tích — một hành động riêng, cố ý. */
+			echo '<div style="flex:0 0 auto"><label>Xoá trắng</label>'
+				. '<label style="display:inline;font-size:12px;margin-right:10px">'
+				. '<input type="checkbox" name="sg_xoa_vao" value="1"> vào</label>'
+				. '<label style="display:inline;font-size:12px">'
+				. '<input type="checkbox" name="sg_xoa_ra" value="1"> ra</label></div>';
+		}
+		echo '<div style="flex:1 1 240px"><label for="iv_ly">Vì sao *</label>'
+			. '<input id="iv_ly" name="ly_do" required minlength="5" style="width:100%" '
+			. 'placeholder="' . esc_attr( $co_gio ? 'VD: máy lệch đồng hồ 2 tiếng — đối chiếu camera'
+				: 'VD: máy hỏng sáng nay, có camera' ) . '"></div>';
+		echo '<div><button class="chinh">' . ( $co_gio ? 'Lưu giờ' : 'Bù giờ' ) . '</button></div>';
+		echo '<div><a class="nut" href="' . esc_url( remove_query_arg(
+			array( 'sgn', 'sgm', 'gnd', 'gma' ), self::url_hien() ) ) . '#luoithang">Đóng</a></div>';
+		echo '</form></td></tr>';
 	}
 
 	/**
@@ -2342,7 +2442,7 @@ class VHCC_Web {
 	 *    ca đã xếp (xem `VHCC_Luong::bao_cao_theo_gio`), nên hai số có thể lệch — nói thẳng ra ở
 	 *    chú giải chứ không để người đọc tự phát hiện lúc đối lương.
 	 */
-	private static function ve_luoi_gio( $b, $th, $duoc_sua = false, $duoc_bu = false ) {
+	private static function ve_luoi_gio( $b, $th, $duoc_sua = false, $duoc_bu = false, $ky = '', $toi = array() ) {
 		if ( empty( $b['ok'] ) ) {
 			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
 			return;
@@ -2356,6 +2456,8 @@ class VHCC_Web {
 		$so_ngay = (int) gmdate( 't', $moc );
 		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
 		$ds_ca   = VHCC_Ca::cua( (string) $b['coSo'] );
+		/* Ô đang được chọn để sửa / bù — đọc từ chính địa chỉ, nên bấm Lùi vẫn đúng. */
+		list( $sg_n, $sg_m, $sg_co ) = self::o_dang_sua( $tt );
 
 		/* Gom [mã][hậu tố][số ngày]. Hàng `-CD` / `-TC` là HÀNG RIÊNG trong sổ công — gộp vào
 		   hàng chính là mất chỗ để nhìn ra ca đêm và người tăng cường. */
@@ -2405,8 +2507,9 @@ class VHCC_Web {
 				for ( $i = 1; $i <= $so_ngay; $i++ ) {
 					$ma_dd  = $ma . ( '' !== $ht ? '-' . $ht : '' );
 					$ngay_o = sprintf( '%s-%02d', $tt, $i );
+					$dang   = ( $ngay_o === $sg_n && 0 === strcasecmp( $ma_dd, (string) $sg_m ) );
 					if ( ! isset( $o[ $ma ][ $ht ][ $i ] ) ) {
-						echo '<td class="o">'
+						echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '">'
 							. self::o_sua( '·', $ngay_o, $ma_dd, false, $duoc_sua, $duoc_bu )
 							. '</td>';
 						continue;
@@ -2419,7 +2522,7 @@ class VHCC_Web {
 					     bình thường    -> số giờ */
 					if ( null === $r['phut'] ) {
 						$thieu_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
-						echo '<td class="oc hong" title="' . esc_attr( self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
+						echo '<td class="oc hong' . ( $dang ? ' dang-sua' : '' ) . '" title="' . esc_attr( self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
 							. "\n" . ( '' !== $r['vao'] ? $r['vao'] : '—' ) . ' → '
 							. ( '' !== $r['ra'] ? $r['ra'] : '—' ) . "\n"
 							. ( $thieu_ra ? '⚠ thiếu giờ ra — quên bấm lúc về'
@@ -2448,7 +2551,7 @@ class VHCC_Web {
 					$i_ca = VHCC_Ca::ca_chinh( $ds_ca, $tc );
 					$ma_o = VHCC_Ca::ma_o( $ds_ca, $tc );
 					echo '<td class="oc' . ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' )
-						. '" title="' . esc_attr( $chu ) . '">'
+						. ( $dang ? ' dang-sua' : '' ) . '" title="' . esc_attr( $chu ) . '">'
 						. self::o_sua( '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>'
 							. ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
 							(string) $r['ngay'], $ma_dd, true, $duoc_sua, $duoc_bu )
@@ -2462,6 +2565,11 @@ class VHCC_Web {
 						: '<td class="tong"><span class="mo">' . esc_html( VHCC_Cham::chu_gio( $phut_dong ) )
 							. '</span></td>' );
 				echo '</tr>';
+				/* Hàng sửa nội tuyến: chỉ mở cho ĐÚNG dòng vừa bấm, ngay dưới dòng ấy. */
+				if ( '' !== $sg_n && 0 === strcasecmp( $ma . ( '' !== $ht ? '-' . $ht : '' ), (string) $sg_m ) ) {
+					self::hang_sua( $so_ngay + 2, (string) $b['coSo'], $sg_n,
+						$ma . ( '' !== $ht ? '-' . $ht : '' ), $sg_co, $ky, $toi );
+				}
 				unset( $k_ht );
 			}
 		}
@@ -2493,7 +2601,7 @@ class VHCC_Web {
 	}
 
 	/** Lưới người × ngày. Tách hàm để thử được riêng, không phải dựng cả trang. */
-	private static function ve_luoi_vp( $b, $duoc_sua = false, $duoc_bu = false ) {
+	private static function ve_luoi_vp( $b, $duoc_sua = false, $duoc_bu = false, $ky = '', $toi = array() ) {
 		$tt   = (string) $b['month'];
 		$rows = (array) $b['rows'];
 		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
@@ -2529,6 +2637,7 @@ class VHCC_Web {
 		}
 		echo '<th>TỔNG</th></tr></thead><tbody>';
 
+		list( $sg_n, $sg_m, $sg_co ) = self::o_dang_sua( $tt );
 		$lech = 0;
 		foreach ( $rows as $e ) {
 			$ma  = (string) $e['ma'];
@@ -2540,9 +2649,10 @@ class VHCC_Web {
 			$co_dem = false;
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
 				$ngay_o = sprintf( '%s-%02d', $tt, $i );
+				$dang   = ( $ngay_o === $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) );
 				if ( ! isset( $ngd[ $i ] ) ) {
-					echo '<td class="o">' . self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu )
-						. '</td>';
+					echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '">'
+						. self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu ) . '</td>';
 					continue;
 				}
 				$d = $ngd[ $i ];
@@ -2557,7 +2667,8 @@ class VHCC_Web {
 				elseif ( $d['congDem'] )               { $lop = ' tim'; }
 				elseif ( $d['congTangCa'] )            { $lop = ' luc'; }
 
-				echo '<td class="oc' . $lop . '" title="' . esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
+				echo '<td class="oc' . $lop . ( $dang ? ' dang-sua' : '' ) . '" title="'
+					. esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
 					. self::o_sua(
 						( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
 							: '<span class="chu-hong">0</span>' ),
@@ -2572,6 +2683,9 @@ class VHCC_Web {
 			echo '<td class="tong' . ( $khop ? '' : ' chu-hong' ) . '"><b>' . self::so_vp( $cong ) . '</b>'
 				. ( $khop ? '' : ' ≠ ' . self::so_vp( $e['tong'] ) ) . '</td>';
 			echo '</tr>';
+			if ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) ) {
+				self::hang_sua( $so_ngay + 2, (string) $b['station'], $sg_n, $ma, $sg_co, $ky, $toi );
+			}
 
 			/* Dòng con hàng -CD. Trong sổ mỗi người có thể chiếm nhiều hàng; lưới chỉ vẽ một dòng
 			   thì hàng ca đêm biến mất khỏi tầm mắt dù công của nó ĐÃ cộng vào tổng.
