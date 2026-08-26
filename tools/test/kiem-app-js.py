@@ -237,6 +237,54 @@ la('quyền Dự án cộng thêm từ ma trận', "if(canDo('donDuAn')) vis.dua
 la('luật bộ phận vẫn còn', 'BP_VAO_DUAN.indexOf(bp)>=0' in src)
 la('kỳ tự do cũng cộng thêm từ ma trận', "return canDo('kyTuDo');" in src)
 
+print('— trạng thái đơn + mở khoá sửa đơn —')
+# Anh Thắng 26/08/2026: *"tại đầu mỗi đơn bổ sung giúp anh đơn đang ở trạng thái gì, để cho nhân
+# viên đơn mình gửi duyệt hay chưa"* và *"giờ sẽ cho nhân viên được phép sửa đơn. trừ khi ở
+# trạng thái đã quyết toán mới không được sửa"*.
+
+# 🔴 THANH BƯỚC PHẢI KHỚP LUỒNG BÊN MÁY CHỦ. Đọc thẳng `VHCP_Don::TT_LUONG` từ mã PHP chứ không
+#    gõ tay lại ở đây — gõ tay là ba nơi khai cùng một luồng, và nơi quên sửa thì vẽ ra một tiến
+#    độ không có thật. Người ta tin cái hình hơn tin câu chữ.
+PHP_DON = os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'includes', 'class-vhcp-don.php')
+php = io.open(PHP_DON, encoding='utf-8').read()
+m_luong = re.search(r"const TT_LUONG = array\((.*?)\);", php, re.S)
+la('đọc được TT_LUONG bên máy chủ', m_luong is not None)
+if m_luong:
+    tt_php = re.findall(r"'([^']+)'", m_luong.group(1))
+    m_js = re.search(r"var TT_LUONG=\[(.*?)\];", src)
+    la('màn hình có khai TT_LUONG', m_js is not None)
+    if m_js:
+        tt_js = re.findall(r"'([^']+)'", m_js.group(1))
+        la('🔴 thanh bước KHỚP luồng bên máy chủ', tt_php == tt_js,
+           'php=%s js=%s' % (tt_php, tt_js))
+    # Mỗi bước phải có nhãn ngắn để thanh không tràn ngang trên điện thoại.
+    m_ngan = re.search(r"var TT_NGAN =\{(.*?)\};", src)
+    la('có bảng nhãn ngắn cho từng bước', m_ngan is not None)
+    if m_ngan:
+        for b in tt_php:
+            la('bước "%s" có nhãn ngắn' % b, ("'%s'" % b) in m_ngan.group(1))
+
+# Câu tiếng người: hai chỗ người dùng thật sự hỏi.
+la('nói thẳng "CHƯA GỬI DUYỆT" khi còn Nháp', 'CHƯA GỬI DUYỆT' in src)
+la('và "ĐÃ GỬI DUYỆT" khi đã gửi', 'ĐÃ GỬI DUYỆT' in src)
+la('và "ĐÃ CHỐT SỔ" khi hết sửa được', 'ĐÃ CHỐT SỔ' in src)
+la('dải trạng thái gắn vào đầu đơn', "el('donBadge').innerHTML=" in src and '_thanhBuoc(st)' in src)
+
+# 🔴 MỘT RANH GIỚI. Khoá theo `stChot` chứ không theo danh sách trạng thái gõ tay.
+la('khoá sửa dòng theo ĐÃ CHỐT SỔ', 'CUR.lockChi=CUR.stChot;' in src)
+la('và stChot đúng hai trạng thái',
+   "CUR.stChot=(st==='Đã quyết toán'||st==='Đã xuất MISA');" in src)
+la('form nhập dòng mở ở mọi trạng thái chưa chốt',
+   "el('lineFormCard').style.display= CUR.stChot?'none':''" in src)
+la('bỏ luật cũ "chỉ Nháp hoặc Đã cấp mới sửa dòng"',
+   'CUR.lockChi=!(CUR.stNhap||CUR.stCap)' not in src)
+# Nhãn khối nhập phải đổi theo trạng thái — thêm dòng sau khi gửi duyệt là PHÁT SINH.
+la('nhãn khối nhập nói rõ đang thêm dòng phát sinh', 'Thêm dòng PHÁT SINH' in src)
+
+# 🔴 Hở do chính thay đổi này tạo ra: sửa hạng mục xin SAU khi quản lý đã duyệt thì tổng xin
+#    không còn khớp số đã duyệt, mà không có gì nói ra.
+la('kêu lên khi tổng xin đã đổi sau khi duyệt', 'Tổng xin đã đổi sau khi duyệt' in src)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))

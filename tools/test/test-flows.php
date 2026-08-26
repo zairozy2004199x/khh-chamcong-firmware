@@ -2933,6 +2933,87 @@ $_bt3 = VHCP_Don::get_don( $_m_cung )['don']['buTruAuto'];
 teq( 'vẫn lấy tuần A, không lấy đơn cùng tuần B', $_ky_a, (string) $_bt3['kyTruoc'] );
 teq( 'và ra cùng con số với đơn kia của quản lý', VHCP_Util::num( $_bt['so'] ), VHCP_Util::num( $_bt3['so'] ) );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+   NHÂN VIÊN SỬA ĐƯỢC ĐƠN Ở MỌI TRẠNG THÁI CHƯA CHỐT SỔ
+   Anh Thắng 26/08/2026: *"giờ sẽ cho nhân viên được phép sửa đơn. trừ khi ở trạng thái đã quyết
+   toán mới không được sửa, còn lại nhân viên đều được sửa và bổ sung đơn."*                    */
+
+/* ---- ranh giới: chỉ hai trạng thái là chốt ---- */
+teq( 'chốt sổ đúng hai trạng thái', array( 'Đã quyết toán', 'Đã xuất MISA' ), VHCP_Don::TT_CHOT );
+foreach ( array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng', 'Chờ quyết toán' ) as $_st_mo ) {
+	t( 'trạng thái "' . $_st_mo . '" KHÔNG phải chốt sổ', ! VHCP_Don::da_chot( $_st_mo ) );
+}
+foreach ( VHCP_Don::TT_CHOT as $_st_dong ) {
+	t( 'trạng thái "' . $_st_dong . '" là chốt sổ', VHCP_Don::da_chot( $_st_dong ) );
+}
+/* 🔴 Thanh bước trên màn hình đọc `TT_LUONG`. Thiếu một trạng thái ở đây là thanh vẽ ra một
+   luồng không có thật — và người ta tin cái hình hơn tin câu chữ. */
+foreach ( VHCP_Don::TT_CHOT as $_x ) {
+	t( 'luồng có nhắc "' . $_x . '"', in_array( $_x, VHCP_Don::TT_LUONG, true ) );
+}
+teq( 'luồng bắt đầu từ Nháp', 'Nháp', VHCP_Don::TT_LUONG[0] );
+teq( 'và kết ở Đã xuất MISA', 'Đã xuất MISA', VHCP_Don::TT_LUONG[ count( VHCP_Don::TT_LUONG ) - 1 ] );
+
+$_ky_s = 'T9/2026 (7/9-13/9/2026)';
+$_ms = VHCP_Don::create_don( $_ky_s, 'NV Sửa Đơn' )['maDon'];
+$_ls = VHCP_Don::add_line( $_ms, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu',
+	'noiDung' => 'Hàng xin', 'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+t( 'thêm được hạng mục xin lúc Nháp', ! empty( $_ls['success'] ), $_ls );
+teq( 'và nó là hạng mục XIN, không phải phát sinh', 0, (int) $_ls['phatSinh'] );
+
+/* 🔴 CHỖ TRƯỚC ĐÂY VƯỚNG: gửi duyệt xong là khoá cứng. Quản lý bảo "sửa lại rồi anh duyệt" mà
+   nhân viên không sửa được, phải nhờ người khác trả đơn về Nháp. */
+VHCP_Don::gui_duyet_tam_ung( $_ms );
+teq( 'đơn đã gửi duyệt', 'Chờ duyệt tạm ứng', VHCP_Don::get_don( $_ms )['don']['trangThai'] );
+teq( 'và vẫn còn sửa được', '', VHCP_Don::vi_sao_khong_sua( $_ms ) );
+$_r = VHCP_Don::update_line( $_ls['id'], array( 'noiDung' => 'Hàng xin (đã sửa)',
+	'soLuong' => 1, 'donGia' => 600000, 'thanhTien' => 600000 ) );
+t( '🔴 sửa được hạng mục xin khi ĐANG CHỜ DUYỆT', ! empty( $_r['success'] ), $_r );
+$_r = VHCP_Don::add_line( $_ms, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu',
+	'noiDung' => 'Bổ sung lúc chờ duyệt', 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+t( '🔴 bổ sung được dòng khi đang chờ duyệt', ! empty( $_r['success'] ), $_r );
+/* ⚠️ Dòng thêm SAU khi gửi duyệt là PHÁT SINH, không phải hạng mục xin. Phân loại theo trạng
+   thái lúc thêm chứ không hỏi giao diện — hỏi giao diện là ai cũng khai được một khoản mua thêm
+   thành "đã xin từ đầu", và bảng đối chiếu thừa/thiếu mất nghĩa. */
+teq( 'và dòng ấy là PHÁT SINH', 1, (int) $_r['phatSinh'] );
+
+/* Đi tiếp tới "Chờ quyết toán" — vẫn phải sửa được. */
+VHCP_Don::duyet_tam_ung( $_ms, 'Quản lý S', '' );
+teq( 'sửa được cả khi đã duyệt, chờ cấp tiền', '', VHCP_Don::vi_sao_khong_sua( $_ms ) );
+VHCP_Don::cap_tam_ung( $_ms, 'Lê Kế Toán', 'Tiền mặt' );
+VHCP_Don::set_line_thuc_mua( $_ls['id'], 600000, 'Lê Kế Toán' );
+VHCP_Don::gui_quyet_toan( $_ms );
+teq( 'đơn đang chờ quyết toán', 'Chờ quyết toán', VHCP_Don::get_don( $_ms )['don']['trangThai'] );
+teq( 'vẫn còn sửa được', '', VHCP_Don::vi_sao_khong_sua( $_ms ) );
+$_r = VHCP_Don::add_line( $_ms, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu',
+	'noiDung' => 'Bổ sung lúc chờ quyết toán', 'soLuong' => 1, 'donGia' => 50000, 'thanhTien' => 50000 ) );
+t( '🔴 bổ sung được dòng khi đang chờ quyết toán', ! empty( $_r['success'] ), $_r );
+
+/* ---- và ĐÃ QUYẾT TOÁN thì thôi ---- */
+VHCP_Don::xac_nhan_quyet_toan_cn( $_ms, 'Lê Kế Toán', 'Hoàn lại', 0 );
+teq( 'đơn đã quyết toán', 'Đã quyết toán', VHCP_Don::get_don( $_ms )['don']['trangThai'] );
+$_vs = VHCP_Don::vi_sao_khong_sua( $_ms );
+t( '🔴 đã quyết toán thì KHÔNG sửa được nữa', '' !== $_vs, $_vs );
+/* ⚠️ Câu từ chối phải nói ra ĐANG Ở TRẠNG THÁI NÀO — "không sửa được" trần trụi thì người dùng
+   không biết là do đơn đã chốt, do vai trò mình, hay do phần mềm lỗi. */
+t( 'và câu từ chối nói rõ đang ở trạng thái nào',
+	false !== strpos( $_vs, 'Đã quyết toán' ), $_vs );
+$_r = VHCP_Don::add_line( $_ms, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu',
+	'noiDung' => 'Lén thêm sau khi chốt', 'soLuong' => 1, 'donGia' => 1, 'thanhTien' => 1 ) );
+t( '🔴 thêm dòng vào đơn đã chốt bị chối', empty( $_r['success'] ), $_r );
+$_r = VHCP_Don::update_line( $_ls['id'], array( 'noiDung' => 'Lén sửa', 'soLuong' => 1,
+	'donGia' => 999999, 'thanhTien' => 999999 ) );
+t( '🔴 sửa dòng của đơn đã chốt bị chối', empty( $_r['success'] ), $_r );
+$_sau = null;
+foreach ( VHCP_Don::get_don( $_ms )['lines'] as $_ln ) {
+	if ( $_ln['id'] === $_ls['id'] ) { $_sau = $_ln; }
+}
+teq( 'và số tiền dòng ấy còn nguyên', 600000, VHCP_Util::num( $_sau['thanhTien'] ) );
+
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {
 	echo 'HỎNG: ' . count( $GLOBALS['T_NG'] ) . "\n";

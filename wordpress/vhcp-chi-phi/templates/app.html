@@ -1779,7 +1779,14 @@
       CUR.stNhap=(st==='Nháp'); CUR.stCap=(st==='Đã cấp tạm ứng');
       CUR.isReturned=/\[Trả lại\]/.test(String(r.don.ghiChu||''));  // đơn bị trả lại -> mở khóa hạng mục xin cho NV sửa
       CUR.lockTU=(st!=='Nháp');                                   // tạm ứng chỉ đổi (qua hạng mục xin) khi Nháp
-      CUR.lockChi=!(CUR.stNhap||CUR.stCap);                       // còn thêm/sửa hạng mục: Nháp (xin) hoặc Đã cấp (phát sinh)
+      /* 🔴 MỘT RANH GIỚI: ĐÃ CHỐT SỔ THÌ THÔI, CHƯA CHỐT THÌ SỬA.
+         Anh Thắng 26/08/2026: *"giờ sẽ cho nhân viên được phép sửa đơn. trừ khi ở trạng thái đã
+         quyết toán mới không được sửa, còn lại nhân viên đều được sửa và bổ sung đơn."*
+         Trước đây khoá ở mọi trạng thái ngoài Nháp / Đã cấp — tức là đúng lúc quản lý trả lời
+         "sửa lại rồi anh duyệt" thì nhân viên không sửa được, phải nhờ người khác trả đơn về
+         Nháp. Máy chủ (`VHCP_Don::vi_sao_khong_sua`) mới là nơi gác thật; chỗ này chỉ bày nút. */
+      CUR.stChot=(st==='Đã quyết toán'||st==='Đã xuất MISA');
+      CUR.lockChi=CUR.stChot;
       // Hiển thị card theo trạng thái (model mới: hạng mục xin trước — thực chi + phát sinh sau khi cấp)
       var _showTU=(st==='Nháp' || CUR.tuMode==='new');
       if(el('tuCard'))      el('tuCard').style.display      = _showTU?'':'none';
@@ -1792,7 +1799,15 @@
         var _wy=el('buWhy');
         if(_wy) _wy.textContent=(CUR.don.buTruAuto&&CUR.don.buTruAuto.lyDo)?CUR.don.buTruAuto.lyDo:'';
       }
-      if(el('lineFormCard'))el('lineFormCard').style.display= (CUR.stNhap||CUR.stCap)?'':'none'; // Nháp: hạng mục xin · Đã cấp: phát sinh
+      if(el('lineFormCard'))el('lineFormCard').style.display= CUR.stChot?'none':'';   // chưa chốt sổ thì còn nhập được
+      /* Tên khối nhập phải nói ĐÚNG thứ sắp thêm vào: ở "Nháp" là hạng mục xin (nằm trong số
+         tạm ứng xin), gửi duyệt rồi thì mọi dòng thêm sau đó là PHÁT SINH — mua thêm ngoài dự
+         kiến. Máy chủ tự phân loại theo trạng thái, nên nhãn phải khớp, kẻo người ta tưởng mình
+         đang bổ sung vào phần đã xin. */
+      if(el('lineFormTitle')&&el('lineId')&&!el('lineId').value){
+        el('lineFormTitle').textContent = CUR.stNhap ? '1) Nhập hạng mục xin tạm ứng'
+                                                     : '1) Thêm dòng PHÁT SINH (mua thêm ngoài dự kiến)';
+      }
       var hint={'Nháp':'✏️ nhập CHI TIẾT hạng mục xin (cơ sở · nhóm · nội dung · SL · đơn giá) — tạm ứng = tổng các hạng mục — rồi Gửi xin tạm ứng',
                 'Chờ duyệt tạm ứng':'⏳ chờ Quản lý/Kế toán duyệt tạm ứng',
                 'Chờ cấp tạm ứng':'✅ đã duyệt — chờ kế toán gửi (cấp) tiền tạm ứng',
@@ -1808,7 +1823,12 @@
       // Ghi luôn CƠ SỞ của đơn lên badge: mỗi đơn 1 cơ sở nên đây là thông tin nhận dạng
       // chính, phải thấy ngay chứ không phải cuộn xuống mục nhập mới biết.
       var _csD=r.don.cosoDon?('<b style="color:#0f766e"> · 🏢 '+esc(r.don.cosoDon)+'</b>'):'';
-      el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_traBanner+_kdBanner+_ktBanner;
+      /* Dải trạng thái: một câu tiếng người + thanh bước. Đặt NGAY ĐẦU ĐƠN, trước mọi con số —
+         câu đầu tiên người dùng đọc phải trả lời câu họ đang hỏi. */
+      var _ct=_cauTrangThai(st);
+      var _dai='<div style="margin-top:8px;padding:9px 12px;background:'+_ct.nen+';border:1px solid '+_ct.vien
+        +';border-radius:8px;color:'+_ct.mau+';font-size:12px">'+_ct.chu+_thanhBuoc(st)+'</div>';
+      el('donBadge').innerHTML='<span class="badge '+stCls(st)+'">'+esc(st)+'</span> <span style="font-size:11px;color:#64748b">'+esc(r.don.ky||'')+_csD+(r.don.nguoiLap?' · '+esc(r.don.nguoiLap):'')+(hint?' · '+hint:'')+'</span>'+_dai+_traBanner+_kdBanner+_ktBanner;
       var btn=el('btnAction');
       var nhan='', tay=null, goi='';
       // Nhân viên GỬI XIN tạm ứng; DUYỆT là bước sau của quản lý. Gác bằng quyền 'xinTU'
@@ -1864,7 +1884,15 @@
       }
       var parts=[]; if(hangMuc>0)parts.push('hạng mục '+money(hangMuc)+'đ'); if(dp>0)parts.push('dự phòng '+money(dp)+'đ'); if(bt)parts.push('bù '+(bt>0?'+':'−')+money(Math.abs(bt))+'đ');
       var bd=(parts.length>1)?(' <span style="color:#94a3b8">('+parts.join(' + ')+')</span>'):'';
-      el('tuChips').innerHTML=chips+'<div style="margin-top:6px;font-size:13px"><b>Tổng tạm ứng xin: '+money(tong)+'đ</b>'+bd+((CUR.tuMode==='new'&&duyet>0&&duyet!==tong)?(' · <span style="color:#0369a1">đã duyệt: '+money(duyet)+'đ</span>'):'')+'</div>';
+      /* 🔴 XIN ĐÃ ĐỔI SAU KHI DUYỆT -> PHẢI KÊU LÊN.
+         Từ 26/08/2026 nhân viên sửa được hạng mục xin ở cả những trạng thái SAU khi quản lý đã
+         duyệt (anh Thắng: *"còn lại nhân viên đều được sửa và bổ sung đơn"*). Đó là điều anh
+         muốn, nhưng nó kéo theo một chỗ hở: số quản lý duyệt là một con số CHỤP LẠI, sửa hạng
+         mục xong thì tổng xin không còn khớp nó nữa — mà không có gì nói ra. Người duyệt tưởng
+         mình duyệt cái đang nhìn thấy. Nên chênh là hiện đỏ, ngay cạnh con số. */
+      var _lech=(duyet>0 && Math.round(duyet)!==Math.round(tong) && CUR.don && CUR.don.trangThai!=='Nháp');
+      var _canhLech=_lech?('<div style="margin-top:6px;padding:7px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;color:#b91c1c;font-size:11.5px">⚠️ <b>Tổng xin đã đổi sau khi duyệt.</b> Quản lý duyệt <b>'+money(duyet)+'đ</b>, nay tổng hạng mục xin là <b>'+money(tong)+'đ</b> — chênh <b>'+money(Math.abs(duyet-tong))+'đ</b>. Báo lại quản lý để duyệt lại số mới.</div>'):'';
+      el('tuChips').innerHTML=chips+'<div style="margin-top:6px;font-size:13px"><b>Tổng tạm ứng xin: '+money(tong)+'đ</b>'+bd+((duyet>0&&duyet!==tong)?(' · <span style="color:#0369a1">đã duyệt: '+money(duyet)+'đ</span>'):'')+'</div>'+_canhLech;
     } else if(CUR.tuMode==='new' && duyet>0){   // tạm ứng CỤC do quản lý duyệt
       el('tuChips').innerHTML='<span class="chip">💰 Tạm ứng (cục cả đơn): <b>'+money(duyet)+'đ</b></span>'+
         '<div style="font-size:11px;color:#94a3b8;margin-top:6px">Số đã duyệt cho cả đơn.</div>';
@@ -2154,7 +2182,9 @@
        dữ liệu, việc đó không để lại vết. Máy chủ (delete_line) mới là nơi gác thật và có ghi
        nhật ký kèm số tiền — chỗ này chỉ bày nút ra. */
     var admDel=(CURUSER&&CURUSER.role==='Admin');
-    var xinEditContent=(stNhap || stCap)&&sd;           // SỬA NỘI DUNG hạng mục xin: khi Nháp hoặc Đã cấp (chỉnh cho khớp bill thực tế)
+    /* SỬA NỘI DUNG: mọi trạng thái CHƯA CHỐT SỔ. Xem chú thích "một ranh giới" ở openDon(). */
+    var xinEditContent=!stFin&&sd;
+    var psEdit=!stFin&&sd;                              // dòng phát sinh: sửa/xoá khi chưa chốt
     // Ở "Nháp" mọi dòng là hạng mục xin (kể cả dòng phát sinh còn sót do đơn bị trả về) -> gộp hết vào mục ĐÃ XIN
     var xinL = stNhap ? L : L.filter(function(l){return !l.phatSinh;});
     var psL  = stNhap ? [] : L.filter(function(l){return l.phatSinh;});
@@ -2171,17 +2201,18 @@
     if(el('lineTable')) el('lineTable').classList[lechCs?'remove':'add']('anCoso');
     var COLS=13, html='';
     // ---- Mục HẠNG MỤC ĐÃ XIN (khóa danh mục sau khi cấp; đơn bị trả lại thì mở khóa để NV sửa) ----
-    var xinLbl = stNhap ? 'nhập/sửa được'
+    var xinLbl = stFin ? '🔒 đã chốt sổ — không sửa được nữa'
+      : stNhap ? 'nhập/sửa được'
       : (isReturned&&stCap) ? '🔓 đơn bị trả — sửa/xóa lại được'
       : stCap ? '✏ sửa nội dung được · nhập Thực chi (không mua để 0)'
-      : 'đã khóa';
+      : '✏ sửa nội dung được (không mua thì để Thực chi = 0)';
     html+='<tr><td colspan="'+COLS+'" style="background:#ecfeff;font-weight:800;color:#0369a1;border-left:4px solid #0369a1;padding:8px 10px">📋 HẠNG MỤC ĐÃ XIN ('+xinL.length+') <span style="font-weight:400;color:#64748b">· '+xinLbl+'</span></td></tr>';
-    html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:(xinUnlock&&sd)||admDel, admOnly:(!(xinUnlock&&sd))&&admDel, canSplit:(xinUnlock&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
+    html+=_lineSectionHtml(xinL, {canThucChi:canTC, canEditRow:xinEditContent, canDelRow:(xinUnlock&&sd)||admDel, admOnly:(!(xinUnlock&&sd))&&admDel, canSplit:xinEditContent||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
     if(!xinL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có hạng mục xin —</td></tr>';
     // ---- Mục PHÁT SINH (mua thêm ngoài dự kiến) ----
-    if(psL.length || stCap){
+    if(psL.length || (!stNhap&&!stFin)){
       html+='<tr><td colspan="'+COLS+'" style="background:#fff7ed;font-weight:800;color:#b45309;border-left:4px solid #f59e0b;padding:8px 10px">➕ PHÁT SINH — mua thêm ngoài dự kiến ('+psL.length+') <span style="font-weight:400;color:#64748b">· để quản lý / kế toán biết là phát sinh</span></td></tr>';
-      html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:(stCap||stNhap)&&sd, canDelRow:((stCap||stNhap)&&sd)||admDel, admOnly:(!((stCap||stNhap)&&sd))&&admDel, canSplit:((stCap||stNhap)&&sd)||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
+      html+=_lineSectionHtml(psL, {canThucChi:canTC, canEditRow:psEdit, canDelRow:psEdit||admDel, admOnly:(!psEdit)&&admDel, canSplit:psEdit||ktEdit, canFlag:canFlag, COLS:COLS, hienCs:lechCs, csDon:csDon});
       if(!psL.length) html+='<tr><td colspan="'+COLS+'" style="color:#94a3b8;padding:8px 10px">— chưa có phát sinh (thêm ở form phía trên) —</td></tr>';
     }
     b.innerHTML=html;
@@ -3883,6 +3914,60 @@
       else toast('err',(r&&r.error)||'Không đặt lại được');
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).resetQuyen();
   }
+  /**
+   * THANH BƯỚC Ở ĐẦU ĐƠN — đơn này đang ở đâu trong luồng, và ĐÃ GỬI DUYỆT CHƯA.
+   *
+   * Anh Thắng 26/08/2026: *"tại đầu mỗi đơn bổ sung giúp anh đơn đang ở trạng thái gì, để cho
+   * nhân viên đơn mình gửi duyệt hay chưa"*.
+   *
+   * 🔴 CÁI HUY HIỆU CŨ CÓ NÓI TRẠNG THÁI, NHƯNG NÓI BẰNG TIẾNG CỦA HỆ THỐNG.
+   *    "Chờ quyết toán" là đúng, mà người nhập đơn đọc xong vẫn không trả lời được câu họ đang
+   *    hỏi: *mình gửi rồi hay chưa?* Bảy trạng thái đứng rời nhau thì phải thuộc lòng thứ tự
+   *    mới biết mình đang ở khúc nào — và người đứng cơ sở không có nhu cầu thuộc lòng cái đó.
+   *    Thanh bước trả lời bằng HÌNH: chỗ nào đã qua, đang ở đâu, còn mấy bước.
+   *
+   * ⚠️ Danh sách bước phải KHỚP với `VHCP_Don::TT_LUONG` bên máy chủ. Lệch là thanh vẽ ra một
+   *    luồng không có thật — và người ta tin cái hình hơn tin câu chữ.
+   */
+  var TT_LUONG=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
+  var TT_NGAN ={'Nháp':'Nháp','Chờ duyệt tạm ứng':'Chờ duyệt','Chờ cấp tạm ứng':'Chờ cấp tiền','Đã cấp tạm ứng':'Đã cấp tiền','Chờ quyết toán':'Chờ quyết toán','Đã quyết toán':'Đã quyết toán','Đã xuất MISA':'Đã xuất MISA'};
+
+  /** Một câu tiếng người trả lời đúng câu người dùng đang hỏi. */
+  function _cauTrangThai(st){
+    if(st==='Nháp') return {mau:'#b45309',nen:'#fff7ed',vien:'#fed7aa',
+      chu:'📝 <b>CHƯA GỬI DUYỆT.</b> Đơn còn là bản nháp — nhập đủ hạng mục rồi bấm <b>Gửi xin tạm ứng</b> thì quản lý mới thấy.'};
+    if(st==='Chờ duyệt tạm ứng') return {mau:'#0369a1',nen:'#eff6ff',vien:'#bfdbfe',
+      chu:'📤 <b>ĐÃ GỬI DUYỆT.</b> Đang chờ <b>quản lý duyệt</b> số tạm ứng. Vẫn sửa được đơn trong lúc chờ.'};
+    if(st==='Chờ cấp tạm ứng') return {mau:'#0369a1',nen:'#eff6ff',vien:'#bfdbfe',
+      chu:'✅ <b>QUẢN LÝ ĐÃ DUYỆT.</b> Đang chờ <b>kế toán chuyển tiền</b> tạm ứng.'};
+    if(st==='Đã cấp tạm ứng') return {mau:'#15803d',nen:'#f0fdf4',vien:'#bbf7d0',
+      chu:'💰 <b>ĐÃ NHẬN TIỀN.</b> Mua xong thì nhập <b>Thực chi</b> + ảnh chứng từ, mua thêm ngoài dự kiến thì thêm ở mục <b>Phát sinh</b>, rồi bấm <b>Gửi quyết toán</b>.'};
+    if(st==='Chờ quyết toán') return {mau:'#0369a1',nen:'#eff6ff',vien:'#bfdbfe',
+      chu:'📤 <b>ĐÃ GỬI HÓA ĐƠN.</b> Đang chờ <b>kế toán quyết toán</b>. Vẫn bổ sung / sửa được cho tới khi kế toán chốt.'};
+    if(st==='Đã quyết toán') return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',
+      chu:'🔒 <b>ĐÃ CHỐT SỔ.</b> Số đã vào sổ nên <b>không sửa được nữa</b>. Cần sửa thì báo kế toán.'};
+    if(st==='Đã xuất MISA') return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',
+      chu:'🔒 <b>ĐÃ XUẤT MISA.</b> Số đã gửi sang phần mềm kế toán — <b>không sửa được nữa</b>.'};
+    return {mau:'#475569',nen:'#f8fafc',vien:'#e2e8f0',chu:'Trạng thái: <b>'+esc(st||'—')+'</b>'};
+  }
+
+  function _thanhBuoc(st){
+    var i=TT_LUONG.indexOf(st);
+    var h='<div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px">';
+    TT_LUONG.forEach(function(b,k){
+      /* Ba kiểu ô: đã qua (xanh nhạt) · đang ở (đậm, viền) · chưa tới (xám). Trạng thái lạ thì
+         `i` = -1, lúc ấy KHÔNG tô ô nào là "đã qua" — thà thanh trông trống còn hơn vẽ bừa một
+         tiến độ không đúng. */
+      var daQua=(i>=0&&k<i), dangO=(k===i);
+      var nen=dangO?'#0369a1':(daQua?'#e0f2fe':'#f1f5f9');
+      var chu=dangO?'#fff':(daQua?'#0369a1':'#94a3b8');
+      h+='<span style="font-size:10.5px;font-weight:'+(dangO?'800':'600')+';padding:3px 8px;border-radius:999px;background:'+nen+';color:'+chu+';white-space:nowrap">'
+        +(daQua?'✓ ':'')+esc(TT_NGAN[b]||b)+'</span>';
+      if(k<TT_LUONG.length-1) h+='<span style="color:#cbd5e1;font-size:10px">›</span>';
+    });
+    return h+'</div>';
+  }
+
   function _viSaoKhongGui(st){
     var vt=(CURUSER&&CURUSER.role)||'—';
     if(st==='Nháp'){

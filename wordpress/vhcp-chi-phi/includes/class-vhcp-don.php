@@ -13,6 +13,54 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCP_Don {
 
+	/**
+	 * ════════════════════════════════════════════════════════════════════════════════════════
+	 * RANH GIỚI SỬA ĐƯỢC / KHÔNG SỬA ĐƯỢC — MỘT CHỖ, KHÔNG TÁM CHỖ.
+	 *
+	 * Anh Thắng 26/08/2026: *"giờ sẽ cho nhân viên được phép sửa đơn. trừ khi ở trạng thái đã
+	 * quyết toán mới không được sửa, còn lại nhân viên đều được sửa và bổ sung đơn."*
+	 *
+	 * 🔴 TRƯỚC ĐÂY LUẬT NẰM RẢI RÁC TÁM CHỖ, mỗi chỗ một danh sách trạng thái gõ tay:
+	 *      · thêm dòng    -> 'Nháp' | 'Đã cấp tạm ứng'
+	 *      · sửa dòng     -> 'Nháp' | 'Đã cấp tạm ứng'
+	 *      · sửa ngày     -> 'Nháp' | 'Đã cấp tạm ứng' | 'Chờ quyết toán'
+	 *      · tách dòng    -> 'Nháp' | 'Đã cấp tạm ứng' | 'Chờ quyết toán'
+	 *      · gắn ảnh      -> 'Nháp' | 'Đã cấp tạm ứng' | 'Chờ quyết toán'
+	 *      · sửa tạm ứng  -> 'Nháp'
+	 *    Ba danh sách khác nhau cho cùng một câu hỏi. Người dùng không đọc được mã, họ chỉ thấy
+	 *    chỗ này sửa được chỗ kia không, cùng một đơn, cùng một lúc — và kết luận là phần mềm
+	 *    hỏng. Nay đúng MỘT ranh giới: đã chốt sổ thì thôi, chưa chốt thì sửa.
+	 *
+	 * ⚠️ 'Đã xuất MISA' nằm SAU 'Đã quyết toán' trong luồng, nên nó cũng là đã chốt. Anh Thắng
+	 *    chỉ nêu tên trạng thái đầu tiên; hiểu theo nghĩa đen mà mở lại đơn đã xuất MISA thì hai
+	 *    bên sổ lệch nhau — số bên MISA đã gửi đi rồi, không rút về được.
+	 */
+	const TT_CHOT = array( 'Đã quyết toán', 'Đã xuất MISA' );
+
+	/** Toàn bộ luồng, đúng thứ tự — để màn hình vẽ được thanh bước và biết mình đang ở đâu. */
+	const TT_LUONG = array( 'Nháp', 'Chờ duyệt tạm ứng', 'Chờ cấp tạm ứng', 'Đã cấp tạm ứng',
+		'Chờ quyết toán', 'Đã quyết toán', 'Đã xuất MISA' );
+
+	public static function da_chot( $st ) {
+		return in_array( trim( (string) $st ), self::TT_CHOT, true );
+	}
+
+	/**
+	 * '' nếu còn sửa được, hoặc câu từ chối nói RÕ vì sao.
+	 *
+	 * ⚠️ Câu từ chối phải nói ra ĐANG Ở TRẠNG THÁI NÀO. "Không sửa được" trần trụi thì người
+	 *    dùng không biết là do đơn đã chốt, do vai trò mình, hay do phần mềm lỗi.
+	 */
+	public static function vi_sao_khong_sua( $ma_don ) {
+		$st = self::state( $ma_don );
+		if ( '' === $st ) { return 'Không tìm thấy đơn.'; }
+		if ( self::da_chot( $st ) ) {
+			return 'Đơn đã ở trạng thái "' . $st . '" — số đã vào sổ nên không sửa được nữa. '
+				. 'Cần sửa thì báo kế toán.';
+		}
+		return '';
+	}
+
 	// ---------------------------------------------------------------- đọc bảng
 
 	/** Mọi dòng chi phí, theo đúng thứ tự nhập (như đọc sheet ChiPhi). */
@@ -819,9 +867,13 @@ class VHCP_Don {
 		global $wpdb;
 		$rec = (array) $rec;
 		$st  = self::state( $ma_don );
-		if ( $st === 'Nháp' ) { $ps = 0; }
-		elseif ( $st === 'Đã cấp tạm ứng' ) { $ps = 1; }
-		else { return VHCP_Util::err( 'Chỉ thêm hạng mục khi đơn "Nháp" (hạng mục xin) hoặc "Đã cấp tạm ứng" (phát sinh)' ); }
+		$_c  = self::vi_sao_khong_sua( $ma_don );
+		if ( $_c !== '' ) { return VHCP_Util::err( $_c ); }
+		/* Đơn còn ở "Nháp" thì dòng thêm vào là HẠNG MỤC XIN (nằm trong số tạm ứng xin); gửi
+		   duyệt rồi thì mọi dòng thêm sau đó là PHÁT SINH — mua thêm ngoài dự kiến. Phân biệt
+		   theo trạng thái LÚC THÊM chứ không hỏi giao diện: hỏi giao diện là ai cũng khai được
+		   một khoản mua thêm thành "đã xin từ đầu", và bảng đối chiếu thừa/thiếu mất nghĩa. */
+		$ps = ( $st === 'Nháp' ) ? 0 : 1;
 		$loi = self::loi_khac_coso( $ma_don, isset( $rec['coso'] ) ? $rec['coso'] : '' );
 		if ( $loi !== '' ) { return VHCP_Util::err( $loi ); }
 		// Gian đã đóng thì không nhận chi mới — đóng gian là đã chốt sổ với cơ sở đó.
@@ -852,9 +904,12 @@ class VHCP_Don {
 		$ps     = VHCP_Util::is_phat_sinh( $cur['phat_sinh'] );
 		$info   = self::info( $ma_don );
 		$st     = $info['st'];
-		$xin_edit = ( $st === 'Nháp' || $st === 'Đã cấp tạm ứng' );
-		if ( ! $ps && ! $xin_edit ) { return VHCP_Util::err( 'Hạng mục đã xin chỉ sửa khi "Nháp" hoặc "Đã cấp tạm ứng"' ); }
-		if ( $ps && $st !== 'Đã cấp tạm ứng' && $st !== 'Nháp' ) { return VHCP_Util::err( 'Dòng phát sinh chỉ sửa khi đơn "Nháp" hoặc "Đã cấp tạm ứng"' ); }
+		/* 🔴 MỘT RANH GIỚI: chưa chốt sổ thì sửa được, chốt rồi thì thôi. Trước đây hạng mục xin
+		   và dòng phát sinh có hai luật khác nhau, và cả hai đều khoá ở "Chờ duyệt tạm ứng" —
+		   tức là đúng lúc quản lý trả lời "sửa lại đi rồi anh duyệt" thì nhân viên không sửa
+		   được, phải nhờ người khác trả đơn về Nháp. */
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( $_c !== '' ) { return VHCP_Util::err( $_c ); }
 
 		$rec = (array) $rec;
 		// Sửa dòng cũng không được đổi sang cơ sở khác — trừ khi đây là dòng duy nhất
@@ -934,8 +989,9 @@ class VHCP_Don {
 		// Người khác vẫn theo luật cũ.
 		$st = self::state( (string) $cur['ma_don'] );
 		$la_admin = ( VHCP_Auth::vai_tro() === 'Admin' );
-		if ( ! $la_admin && ! in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
-			return VHCP_Util::err( 'Đơn "' . $st . '" — không sửa ngày được nữa (nhờ Admin sửa)' );
+		if ( ! $la_admin ) {
+			$_c = self::vi_sao_khong_sua( (string) $cur['ma_don'] );
+			if ( $_c !== '' ) { return VHCP_Util::err( $_c . ' (nhờ Admin sửa)' ); }
 		}
 		$moi = VHCP_Util::parse_date( $ngay );
 		if ( ! $moi ) { return VHCP_Util::err( 'Ngày không đọc được: ' . $ngay ); }
@@ -1196,7 +1252,7 @@ class VHCP_Don {
 		$cur = self::line_row( $id );
 		if ( ! $cur ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
 		$st = self::state( (string) $cur['ma_don'] );
-		$mo = array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' );
+		$chua_chot = ! self::da_chot( $st );
 
 		/* 🔴 ĐƠN ĐÃ CHỐT VẪN PHẢI BỔ SUNG ĐƯỢC HÓA ĐƠN — nhưng CHỈ kế toán.
 		   Anh Thắng: *"đối với đơn đã xuất MISA hoặc đã quyết toán, kế toán được phép bổ sung
@@ -1214,7 +1270,7 @@ class VHCP_Don {
 		$la_ke_toan = in_array( $vt, array( 'Kế toán cá nhân', 'Kế toán NCC', 'Admin' ), true );
 		$da_chot    = in_array( $st, array( 'Đã quyết toán', 'Đã xuất MISA' ), true );
 
-		if ( ! in_array( $st, $mo, true ) && ! ( $la_ke_toan && $da_chot ) ) {
+		if ( ! $chua_chot && ! ( $la_ke_toan && $da_chot ) ) {
 			return VHCP_Util::err( $da_chot
 				? 'Đơn đã chốt sổ — chỉ KẾ TOÁN mới bổ sung/sửa được hóa đơn của dòng.'
 				: 'Chỉ đính hóa đơn khi đơn đang nhập / đã cấp tạm ứng / chờ quyết toán' );
@@ -1257,10 +1313,13 @@ class VHCP_Don {
 
 		if ( ! $la_admin ) {
 			if ( ! $ps && ! $xin_edit ) { return VHCP_Util::err( 'Hạng mục đã xin không được xóa (để Thực chi = 0 nếu không mua; đơn bị trả lại mới mở khóa)' ); }
-			if ( $ps && $st !== 'Đã cấp tạm ứng' && $st !== 'Nháp' ) { return VHCP_Util::err( 'Dòng phát sinh chỉ xóa khi đơn "Nháp" hoặc "Đã cấp tạm ứng"' ); }
+			if ( $ps ) {
+				$_c = self::vi_sao_khong_sua( (string) $cur['ma_don'] );
+				if ( $_c !== '' ) { return VHCP_Util::err( $_c ); }
+			}
 		}
 
-		$binh_thuong = $ps ? in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng' ), true ) : $xin_edit;
+		$binh_thuong = $ps ? ! self::da_chot( $st ) : $xin_edit;
 
 		$wpdb->delete( VHCP_DB::t( 'chiphi' ), array( 'id' => (string) $id ) );
 
@@ -1291,9 +1350,8 @@ class VHCP_Don {
 		if ( ! $v ) { return VHCP_Util::err( 'Không tìm thấy dòng' ); }
 		$ma_don = (string) $v['ma_don'];
 		$st     = self::state( $ma_don );
-		if ( ! in_array( $st, array( 'Nháp', 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
-			return VHCP_Util::err( 'Chỉ tách dòng khi đơn ở "Nháp" / "Đã cấp tạm ứng" / "Chờ quyết toán"' );
-		}
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( $_c !== '' ) { return VHCP_Util::err( $_c ); }
 		$rec = array(
 			'coso'       => ( $coso ? $coso : $v['coso'] ),
 			'ngay'       => $v['ngay'],
