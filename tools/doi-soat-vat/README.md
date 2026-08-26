@@ -194,6 +194,7 @@ thô rồi so với chính file VAT mẫu KH705 / KH989**.
 | **Payoo** | (lấy hết) | `Số tiền thanh toán (₫)` | `Cửa hàng` | `Ngày giao dịch` |
 | **VNPay** | `Trạng thái = Thành công` | `Số tiền sau KM` | `Mã điểm thu` | `Thời gian GD` |
 | **Zalo Mini App** | `Đã thanh toán`, bỏ đơn `Đã hủy` | `Tổng tiền phải trả` | cắt từ `Tên sản phẩm` | `Ngày đặt hàng` |
+| **MoMo** | `Trạng thái = Thành công` | `Số tiền` | `Mã cửa hàng` | `Thời gian` |
 
 Hai lựa chọn dễ nhầm, đã kiểm chứng bằng số:
 
@@ -204,6 +205,20 @@ Hai lựa chọn dễ nhầm, đã kiểm chứng bằng số:
   toán lệch vì có giao dịch VNPay trả sang kỳ sau (294.509.000 so với 460.763.000).
   Kiểm chứng: "Số tiền sau KM" khớp tuyệt đối 460.763.000 với sheet `Danh mục điểm`.
 
+**MoMo có hai khối cạnh nhau trên cùng một sheet.** Sheet dữ liệu MoMo đặt một
+khối `MS.…` tổng hợp bên trái và khối xuất thẳng từ cổng bên phải. Vì công cụ dò
+tiêu đề theo tên cột nên tự bắt đúng khối xuất thẳng — khối kia không có bộ cột
+này. Đừng lấy `MS.Total Amount`: cột đó chỉ điền một phần.
+
+Danh mục MoMo nằm ở sheet tổng hợp theo ngày (`Tổng Momo T8`), khoá là
+`Mã cửa hàng` → `Tên điểm xuất hóa đơn`. Sheet đó **xếp nhiều bảng nối nhau**:
+doanh thu, rồi phí MoMo, rồi dòng tổng. Chỉ dòng vừa có mã cửa hàng vừa có tên
+điểm mới là dòng danh mục — bảng phí để trống tên điểm, dòng tổng để trống mã.
+Bỏ sót chi tiết này là cộng cả tiền phí vào doanh thu.
+
+Kiểm chứng: khớp tuyệt đối 1.042.790.000 và **không lệch một ô nào** trên 17 điểm
+× 31 ngày.
+
 **Zalo là trường hợp đặc biệt.** File Zalo không có mã điểm bán. Mỗi dòng là một
 *dòng sản phẩm* của đơn, và tên gian hàng nằm ở đầu tên sản phẩm
 (`VINCOM TIMES CITY - Vé nhà ma`). Nên công cụ gom về đơn (một mã đơn tính một lần)
@@ -213,9 +228,24 @@ vì trong bộ file gốc việc gán này làm bằng tay.
 
 ### 4.2 Quy về điểm xuất hoá đơn
 
-Sheet `chia theo mã cửa hàng` là bảng quy đổi cho kênh QR:
-`Mã cửa hàng` → `mã điểm xuất hóa đơn`. VNPay và Payoo mỗi cổng có sheet danh mục
-riêng, khoá lần lượt là `Mã điểm thu` và `Chi nhánh`.
+Mỗi cổng có bảng quy đổi riêng:
+
+| Kênh | Sheet danh mục | Khoá tra cứu |
+|---|---|---|
+| QR | `chia theo mã cửa hàng` | `Mã cửa hàng` → `mã điểm xuất hóa đơn` |
+| VNPay | `Danh mục điểm` | `Mã điểm thu` |
+| Payoo | `Danh mục tên điểm` | `Chi nhánh` |
+| MoMo | `Tổng Momo T8` | `Mã cửa hàng` → `Tên điểm xuất hóa đơn` |
+| Zalo | (không có — phải tự khai) | tên gian hàng |
+
+Ngoài ra, sheet nào chỉ có thông tin điểm mà không kèm mã của cổng nào (ví dụ
+`MOMO KH cũ (KH989)`) được nhận là **danh mục điểm chung**: nó không tạo khoá tra
+cứu mới, chỉ bù `Mã điểm trên misa thuế`, `Khu vực`, `Dịch vụ` và `Pháp nhân` cho
+những điểm mà danh mục của cổng bỏ trống. Bản ghi đầy đủ hơn thắng.
+
+Việc bù này cũng quyết định **lọc pháp nhân**: danh mục MoMo ghi pháp nhân tắt
+(`KH Mới TK CTy`), còn bảng thông tin điểm mới ghi chuẩn (`KH mới`). Công cụ lọc
+theo bản đã bù, tức đúng bản hiển thị trên báo cáo.
 
 Doanh thu được cộng theo **(điểm xuất hoá đơn, luồng tiền, ngày)**.
 
@@ -374,6 +404,11 @@ Bỏ chọn sheet cũ rồi chạy lại.
 **Điểm xuất hoá đơn thiếu Khu vực / Mã điểm misa.**
 Danh mục QR (`chia theo mã cửa hàng`) chỉ có tên điểm. Muốn đủ thông tin thì chọn
 kèm sheet danh mục của VNPay hoặc Payoo — công cụ tự gộp, bản ghi đầy đủ hơn thắng.
+
+**MoMo: sheet nào cũng bị nhận là sao kê.**
+File MoMo thường kèm sao kê của kỳ trước (`Sheet 1`). Bỏ chọn sheet đó ở bước 3.
+Nếu để nguyên thì phần trùng mã giao dịch tự bị bỏ và phần ngoài kỳ bị loại, đều
+được báo ở sheet `Đối soát`.
 
 **Tổng Zalo bằng 0.**
 Chưa khai ánh xạ gian hàng Zalo sang điểm xuất hoá đơn. Xem mục 4.1.

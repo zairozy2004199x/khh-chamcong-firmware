@@ -134,6 +134,17 @@ function run(message) {
       VatRec.loadPointCatalog(sheet.rows, sheet.headerRow, 'vnpay', 'Mã điểm thu', catalog);
     } else if (sheet.kind === 'catalog_payoo') {
       VatRec.loadPointCatalog(sheet.rows, sheet.headerRow, 'payoo', 'Chi nhánh', catalog);
+    } else if (sheet.kind === 'catalog_momo') {
+      VatRec.loadMomoCatalog(sheet.rows, sheet.headerRow, catalog);
+    }
+  });
+
+  // Bảng thông tin điểm nạp sau cùng để bù khu vực / mã misa / pháp nhân cho
+  // những điểm mà danh mục của cổng bỏ trống.
+  chosen.forEach(function (item) {
+    var sheet = findSheet(item);
+    if (sheet && sheet.kind === 'catalog_diem') {
+      VatRec.loadPointInfo(sheet.rows, sheet.headerRow, catalog);
     }
   });
 

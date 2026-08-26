@@ -310,6 +310,8 @@ def _sheet_doi_soat(
         result.trung_lap, fill=None if not result.trung_lap else _WARN_FILL, money=True)
     put("", "Tiền vãng lai (không có mã điểm bán)", result.vang_lai_so_giao_dich, result.vang_lai,
         fill=None if not result.vang_lai else _WARN_FILL, money=True)
+    put("", "Tiền của điểm thuộc pháp nhân khác (đã loại)", None, result.loai_khac_phap_nhan,
+        fill=None if not result.loai_khac_phap_nhan else _WARN_FILL, money=True)
     put()
 
     put("Mã điểm bán chưa có trong danh mục", "", "Số GD", "Số tiền", bold=True, fill=_HEADER_FILL)

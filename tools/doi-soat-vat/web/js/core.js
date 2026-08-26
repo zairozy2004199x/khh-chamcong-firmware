@@ -159,6 +159,12 @@
       required: ['Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Mã điểm thu'] },
     { kind: 'catalog_payoo', label: 'Danh mục điểm Payoo',
       required: ['Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Chi nhánh'] },
+    { kind: 'catalog_momo', label: 'Danh mục điểm MoMo',
+      required: ['Mã cửa hàng', 'Tên điểm xuất hóa đơn'] },
+    // Bảng chỉ có thông tin điểm, không kèm mã của cổng nào. Dùng để bù khu vực,
+    // mã misa và pháp nhân cho những điểm mà danh mục của cổng bỏ trống.
+    { kind: 'catalog_diem', label: 'Danh mục điểm (thông tin chung)',
+      required: ['Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế'] },
     { kind: 'qr', label: 'Sao kê QR VietQR',
       required: ['Thời gian TT', 'Số tiền đến (VND)', 'Trạng thái', 'Mã cửa hàng'] },
     { kind: 'payoo', label: 'Sao kê Payoo',
@@ -166,7 +172,9 @@
     { kind: 'vnpay', label: 'Sao kê VNPay',
       required: ['Mã điểm thu', 'Thời gian GD', 'Số tiền sau KM', 'Trạng thái'] },
     { kind: 'zalo', label: 'Đơn Zalo Mini App',
-      required: ['Mã đơn hàng', 'Ngày đặt hàng', 'Tổng tiền phải trả', 'Trạng thái thanh toán'] }
+      required: ['Mã đơn hàng', 'Ngày đặt hàng', 'Tổng tiền phải trả', 'Trạng thái thanh toán'] },
+    { kind: 'momo', label: 'Sao kê MoMo',
+      required: ['Thời gian', 'Mã đơn hàng', 'Trạng thái', 'Số tiền', 'Mã cửa hàng'] }
   ];
 
   /** Đoán loại của một sheet. Trả về null nếu không phải sheet ta quan tâm. */
@@ -296,7 +304,38 @@
     return tenSanPham || cleanText(at(row, ix['Chi nhánh']));
   }
 
-  var READERS = { qr: readQr, payoo: readPayoo, vnpay: readVnpay, zalo: readZalo };
+  /**
+   * Sao kê MoMo.
+   *
+   * File MoMo hay đặt hai khối cạnh nhau trên cùng một sheet: khối "MS.…" tổng
+   * hợp và khối xuất thẳng từ cổng. Dò tiêu đề theo tên cột nên tự bắt đúng khối
+   * xuất thẳng — khối kia không có bộ cột này.
+   *
+   * Đã đối chiếu: tổng khớp tuyệt đối 1.042.790.000 và không lệch một ô nào trên
+   * 17 điểm x 31 ngày của bảng "Tổng Momo T8".
+   */
+  function readMomo(rows, headerRow, stream) {
+    var ix = columnIndex(rows[headerRow],
+      ['Thời gian', 'Mã đơn hàng', 'Trạng thái', 'Số tiền', 'Mã cửa hàng']);
+    var out = [];
+    for (var r = headerRow + 1; r < rows.length; r += 1) {
+      var row = rows[r] || [];
+      var code = cleanText(at(row, ix['Mã cửa hàng']));
+      if (!code) continue;
+      if (cleanText(at(row, ix['Trạng thái'])) !== SUCCESS) continue;
+      out.push({
+        channel: 'momo',
+        stream: stream,
+        code: code,
+        ngay: toDate(at(row, ix['Thời gian'])),
+        soTien: toInt(at(row, ix['Số tiền'])),
+        ref: cleanText(at(row, ix['Mã đơn hàng']))
+      });
+    }
+    return out;
+  }
+
+  var READERS = { qr: readQr, payoo: readPayoo, vnpay: readVnpay, zalo: readZalo, momo: readMomo };
 
   /* -------------------------------------------------------------- danh mục */
 
@@ -312,6 +351,14 @@
     if (!this.byChannel[channel]) this.byChannel[channel] = Object.create(null);
     if (!(codeKey in this.byChannel[channel])) this.byChannel[channel][codeKey] = point;
     // Bản ghi đầy đủ nhất thắng: sheet phụ hay bỏ trống khu vực / pháp nhân.
+    var key = pointKey(point);
+    var current = this.points[key];
+    if (!current || filledScore(point) > filledScore(current)) this.points[key] = point;
+  };
+
+  /** Ghi nhận thông tin một điểm mà không gắn với mã của cổng nào. */
+  Catalog.prototype.addPoint = function (point) {
+    if (!point.tenDiem) return;
     var key = pointKey(point);
     var current = this.points[key];
     if (!current || filledScore(point) > filledScore(current)) this.points[key] = point;
@@ -383,6 +430,48 @@
     }
   }
 
+  /**
+   * Danh mục MoMo: mã cửa hàng -> điểm xuất hoá đơn.
+   *
+   * Sheet tổng hợp của MoMo xếp nhiều bảng nối nhau (doanh thu, rồi phí, rồi
+   * dòng tổng). Chỉ dòng vừa có mã cửa hàng vừa có tên điểm mới là dòng danh mục;
+   * bảng phí để trống tên điểm và dòng tổng để trống mã cửa hàng.
+   */
+  function loadMomoCatalog(rows, headerRow, catalog) {
+    var ix = columnIndex(rows[headerRow], ['Mã cửa hàng', 'Tên điểm xuất hóa đơn', 'Mã KH']);
+    var daThay = Object.create(null);
+    for (var r = headerRow + 1; r < rows.length; r += 1) {
+      var row = rows[r] || [];
+      var code = cleanText(at(row, ix['Mã cửa hàng']));
+      var tenDiem = cleanText(at(row, ix['Tên điểm xuất hóa đơn']));
+      if (!code || !tenDiem || daThay[keyText(code)]) continue;
+      daThay[keyText(code)] = true;
+      catalog.add('momo', code, makePoint({
+        tenDiem: tenDiem,
+        phapNhan: cleanText(at(row, ix['Mã KH']))
+      }));
+    }
+  }
+
+  /** Bảng chỉ có thông tin điểm — bù khu vực, mã misa, pháp nhân. */
+  function loadPointInfo(rows, headerRow, catalog) {
+    var ix = columnIndex(rows[headerRow], ['Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế',
+      'Khu vực', 'Dịch vụ', 'Hình thức hợp tác', 'Pháp nhân']);
+    for (var r = headerRow + 1; r < rows.length; r += 1) {
+      var row = rows[r] || [];
+      var tenDiem = cleanText(at(row, ix['Tên điểm xuất hóa đơn']));
+      if (!tenDiem) continue;
+      catalog.addPoint(makePoint({
+        tenDiem: tenDiem,
+        maMisa: cleanText(at(row, ix['Mã điểm trên misa thuế'])),
+        khuVuc: cleanText(at(row, ix['Khu vực'])),
+        dichVu: cleanText(at(row, ix['Dịch vụ'])),
+        hinhThucHopTac: cleanText(at(row, ix['Hình thức hợp tác'])),
+        phapNhan: cleanText(at(row, ix['Pháp nhân']))
+      }));
+    }
+  }
+
   /* ------------------------------------------------------------- tổng hợp */
 
   // Ký tự ngăn khoá ghép: unit separator (U+001F). Không bao giờ xuất hiện trong
@@ -442,12 +531,16 @@
         chuaMapAmount[missKey] = (chuaMapAmount[missKey] || 0) + txn.soTien;
         return;
       }
-      if (phapNhan && point.phapNhan && keyText(point.phapNhan) !== keyText(phapNhan)) {
+      // Lọc theo bản ghi đã bù thông tin, đúng bản dùng để hiển thị: danh mục của
+      // cổng hay ghi pháp nhân tắt ("KH Mới TK CTy"), bảng thông tin điểm mới có
+      // tên pháp nhân chuẩn.
+      var key = pointKey(point);
+      var full = catalog.points[key] || point;
+      if (phapNhan && full.phapNhan && keyText(full.phapNhan) !== keyText(phapNhan)) {
         loaiKhacPhapNhan += txn.soTien;
         return;
       }
-      var key = pointKey(point);
-      if (!points[key]) points[key] = catalog.points[key] || point;
+      if (!points[key]) points[key] = full;
       dates[txn.ngay] = true;
       var cellKey = key + SEP + txn.stream + SEP + txn.ngay;
       cells[cellKey] = (cells[cellKey] || 0) + txn.soTien;
@@ -622,6 +715,8 @@
     pointKey: pointKey,
     loadStoreCatalog: loadStoreCatalog,
     loadPointCatalog: loadPointCatalog,
+    loadMomoCatalog: loadMomoCatalog,
+    loadPointInfo: loadPointInfo,
     aggregate: aggregate,
     totalsByPoint: totalsByPoint,
     totalOf: totalOf,

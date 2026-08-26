@@ -5,6 +5,7 @@ dữ liệu đến từ cổng nào.
 """
 
 from .base import Txn
+from .momo import read_momo
 from .payoo import read_payoo
 from .qr import read_qr
 from .vnpay import read_vnpay
@@ -15,6 +16,7 @@ READERS = {
     "payoo": read_payoo,
     "vnpay": read_vnpay,
     "zalo": read_zalo,
+    "momo": read_momo,
 }
 
-__all__ = ["Txn", "READERS", "read_qr", "read_payoo", "read_vnpay", "read_zalo"]
+__all__ = ["Txn", "READERS", "read_qr", "read_payoo", "read_vnpay", "read_zalo", "read_momo"]

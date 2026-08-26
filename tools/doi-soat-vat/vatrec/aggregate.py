@@ -52,6 +52,9 @@ class Aggregate:
 
     khong_co_ngay: int = 0
 
+    loai_khac_phap_nhan: int = 0
+    """Số tiền của điểm thuộc pháp nhân khác (đã bị loại khi có lọc pháp nhân)."""
+
     def total(self, point_key: str | None = None, stream: str | None = None) -> int:
         return sum(
             amount
@@ -140,10 +143,15 @@ def aggregate(
             unmapped_count[(txn.channel, txn.code)] += 1
             unmapped_amount[(txn.channel, txn.code)] += txn.so_tien
             continue
-        if chi_phap_nhan and point.phap_nhan and key_text(point.phap_nhan) != key_text(chi_phap_nhan):
+        # Lọc theo bản ghi đã bù thông tin, đúng bản dùng để hiển thị: danh mục của
+        # cổng hay ghi pháp nhân tắt ("KH Mới TK CTy"), bảng thông tin điểm mới có
+        # tên pháp nhân chuẩn.
+        full = catalog.points.get(point.key, point)
+        if chi_phap_nhan and full.phap_nhan and key_text(full.phap_nhan) != key_text(chi_phap_nhan):
+            result.loai_khac_phap_nhan += txn.so_tien
             continue
 
-        result.points.setdefault(point.key, catalog.points.get(point.key, point))
+        result.points.setdefault(point.key, full)
         dates.add(txn.ngay)
         cell = (point.key, txn.stream, txn.ngay)
         result.cells[cell] = result.cells.get(cell, 0) + txn.so_tien

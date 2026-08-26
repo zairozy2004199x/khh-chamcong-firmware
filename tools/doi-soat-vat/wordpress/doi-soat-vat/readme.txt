@@ -4,7 +4,7 @@ Tags: ke-toan, hoa-don, doi-soat, excel, vat
 Requires at least: 5.6
 Tested up to: 6.7
 Requires PHP: 7.2
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: MIT
 
 Gộp sao kê thu hộ từ nhiều cổng thanh toán, quy về điểm xuất hoá đơn, tách VAT
@@ -12,7 +12,7 @@ rồi xuất file Excel để nhập Misa.
 
 == Description ==
 
-Công cụ đọc sao kê của QR VietQR, Payoo, VNPay và Zalo Mini App, tự nhận diện
+Công cụ đọc sao kê của QR VietQR, Payoo, VNPay, Zalo Mini App và MoMo, tự nhận diện
 từng sheet, quy mã điểm bán của mỗi cổng về điểm xuất hoá đơn theo danh mục, rồi
 sinh file Excel gồm danh sách hoá đơn, bản kê chi tiết, pivot theo ngày và bảng
 đối soát.
@@ -63,6 +63,9 @@ Một số cấu hình bảo mật chặn truy cập file .html trong thư mục
 wp-content/plugins/doi-soat-vat/web/.
 
 == Changelog ==
+
+= 1.2.0 =
+* Thêm cổng MoMo: đọc sao kê, danh mục mã cửa hàng, và bảng thông tin điểm.
 
 = 1.1.0 =
 * Thêm địa chỉ web gọn cho công cụ, kèm tuỳ chọn cho người chưa đăng nhập dùng.

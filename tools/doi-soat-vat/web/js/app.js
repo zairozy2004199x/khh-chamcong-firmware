@@ -201,7 +201,9 @@
 
   /* -------------------------------------------------- bảng sheet nhận diện */
 
-  var CATALOG_KINDS = { catalog_store: 1, catalog_vnpay: 1, catalog_payoo: 1 };
+  var CATALOG_KINDS = {
+    catalog_store: 1, catalog_vnpay: 1, catalog_payoo: 1, catalog_momo: 1, catalog_diem: 1
+  };
 
   function renderSheets() {
     var body = el.sheetTable.tBodies[0];
@@ -268,6 +270,7 @@
     if (sheet.kind === 'payoo') return 'Payoo';
     if (sheet.kind === 'vnpay') return 'VNPay';
     if (sheet.kind === 'zalo') return 'Zalo mini app';
+    if (sheet.kind === 'momo') return 'MoMo';
     return sheet.name.trim();
   }
 
@@ -300,7 +303,8 @@
   /* ------------------------------------------------------ danh mục bổ sung */
 
   var EXTRA_FIELDS = ['channel', 'code', 'tenDiem', 'maMisa', 'khuVuc', 'dichVu', 'phapNhan'];
-  var CHANNELS = [['qr', 'QR VietQR'], ['payoo', 'Payoo'], ['vnpay', 'VNPay'], ['zalo', 'Zalo']];
+  var CHANNELS = [['qr', 'QR VietQR'], ['payoo', 'Payoo'], ['vnpay', 'VNPay'],
+    ['zalo', 'Zalo'], ['momo', 'MoMo']];
 
   function loadExtra() {
     var saved = [];

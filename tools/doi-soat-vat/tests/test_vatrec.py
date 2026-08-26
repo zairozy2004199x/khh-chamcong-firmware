@@ -94,6 +94,86 @@ def test_date_blocks():
     check("nhãn khối 2", blocks[1][0] == "Tổng QR B")
 
 
+# ------------------------------------------------------------------------ MoMo
+
+def test_read_momo(tmp_rows=None):
+    """Reader MoMo: chỉ lấy giao dịch thành công, bỏ dòng không có mã cửa hàng."""
+    from vatrec.sources.momo import read_momo
+
+    rows = [
+        ["tổng"],
+        ["Thời gian", "Mã đơn hàng", "Trạng thái", "Số tiền", "Mã cửa hàng"],
+        ["02-08-2026 21:38:56", "MD1", "Thành công", 160000, "ABC123"],
+        ["02-08-2026 21:33:34", "MD2", "Thất bại", 400000, "ABC123"],
+        ["03-08-2026 10:00:00", "MD3", "Thành công", 50000, ""],
+    ]
+    txns = _doc_bang(read_momo, rows)
+    check("MoMo chỉ lấy giao dịch thành công", len(txns) == 1, str(len(txns)))
+    check("MoMo đọc đúng số tiền", txns[0].so_tien == 160000)
+    check("MoMo đọc đúng ngày", txns[0].ngay == dt.date(2026, 8, 2))
+    check("MoMo giữ mã đơn làm mã tham chiếu", txns[0].ref == "MD1")
+    check("MoMo lấy đúng kênh", txns[0].channel == "momo")
+
+
+def _doc_bang(reader, rows):
+    """Ghi bảng ra file tạm rồi cho reader đọc — reader nhận đường dẫn, không nhận mảng."""
+    import tempfile
+
+    from openpyxl import Workbook
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "T"
+    for row in rows:
+        sheet.append(row)
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as handle:
+        book.save(handle.name)
+        return reader(handle.name, "T", "MoMo")
+
+
+def test_momo_catalog():
+    """Danh mục MoMo bỏ bảng phí (trống tên điểm) và dòng tổng (trống mã)."""
+    import tempfile
+
+    from openpyxl import Workbook
+
+    from vatrec.catalog import load_momo_catalog, load_point_info
+
+    book = Workbook()
+    sheet = book.active
+    sheet.title = "T"
+    for row in [
+        ["ghi chú"],
+        ["Mã KH", "Gian", "Mã cửa hàng", "Tên điểm xuất hóa đơn"],
+        ["KH Cũ", "FZ A", "ABC123", "Điểm A"],
+        ["KH cũ", "FZ B", "DEF456", "Điểm B"],
+        ["KH Cũ", "", "ABC123", ""],
+        ["", "", "Tổng theo ngày", ""],
+    ]:
+        sheet.append(row)
+    info = book.create_sheet("I")
+    for row in [
+        ["ghi chú"],
+        ["Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế", "Khu vực", "Dịch vụ", "Pháp nhân"],
+        ["Điểm A", "MISA-A", "HCM", "KVC", "KH cũ"],
+    ]:
+        info.append(row)
+
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as handle:
+        book.save(handle.name)
+        catalog = load_momo_catalog(handle.name, "T")
+        check("danh mục MoMo bỏ bảng phí và dòng tổng", len(catalog.codes("momo")) == 2,
+              str(catalog.codes("momo")))
+        check("danh mục MoMo tra đúng điểm", catalog.lookup("momo", "ABC123").ten_diem == "Điểm A")
+        check("danh mục MoMo lấy pháp nhân từ Mã KH",
+              catalog.lookup("momo", "DEF456").phap_nhan == "KH cũ")
+
+        thong_tin = load_point_info(handle.name, "I")
+        check("thông tin điểm không tạo mã tra cứu", not thong_tin.by_channel)
+        check("thông tin điểm có mã misa",
+              thong_tin.points[key_text("Điểm A")].ma_misa == "MISA-A")
+
+
 # ------------------------------------------------------------------------ VAT
 
 def test_split_vat():
@@ -193,6 +273,25 @@ def test_aggregate_loc_phap_nhan():
         _catalog(), dt.date(2026, 8, 1), dt.date(2026, 8, 31), chi_phap_nhan="KH cũ",
     )
     check("chỉ lấy pháp nhân đã chọn", result.total() == 100)
+
+
+def test_aggregate_loc_phap_nhan_dung_ban_da_bu():
+    """Danh mục của cổng ghi pháp nhân tắt; lọc phải theo bản đã bù thông tin."""
+    catalog = Catalog()
+    catalog.add("momo", "SHOP9", Point(ten_diem="Điểm C", phap_nhan="KH Mới TK CTy"))
+    catalog.add_point(Point(ten_diem="Điểm C", ma_misa="MISA-C", khu_vuc="HCM",
+                            dich_vu="KVC", phap_nhan="KH mới"))
+
+    txn = Txn(channel="momo", stream="MoMo", code="SHOP9",
+              ngay=dt.date(2026, 8, 1), so_tien=100, ref="m1")
+    lay = aggregate([txn], catalog, dt.date(2026, 8, 1), dt.date(2026, 8, 31),
+                    chi_phap_nhan="KH mới")
+    check("lọc khớp theo pháp nhân đã bù", lay.total() == 100, str(lay.total()))
+
+    bo = aggregate([txn], catalog, dt.date(2026, 8, 1), dt.date(2026, 8, 31),
+                   chi_phap_nhan="KH cũ")
+    check("pháp nhân khác thì loại", bo.total() == 0)
+    check("báo lại tiền bị loại vì pháp nhân", bo.loai_khac_phap_nhan == 100)
 
 
 def test_aggregate_khong_co_ngay():

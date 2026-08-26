@@ -46,6 +46,14 @@ class Catalog:
         if existing is None or _filled(point) > _filled(existing):
             self.points[point.key] = point
 
+    def add_point(self, point: Point) -> None:
+        """Ghi nhận thông tin một điểm mà không gắn với mã của cổng nào."""
+        if not point.ten_diem:
+            return
+        existing = self.points.get(point.key)
+        if existing is None or _filled(point) > _filled(existing):
+            self.points[point.key] = point
+
     def lookup(self, channel: str, code: str) -> Point | None:
         return self.by_channel.get(channel, {}).get(key_text(code))
 
@@ -135,6 +143,67 @@ def load_point_directory(path: str, sheet: str, channel: str, code_column: str) 
                 hinh_thuc_hop_tac=clean_text(_at(row, index["Hình thức hợp tác"])),
                 phap_nhan=clean_text(_at(row, index["Pháp nhân"])),
             ),
+        )
+    return catalog
+
+
+def load_momo_catalog(path: str, sheet: str) -> Catalog:
+    """Danh mục MoMo: mã cửa hàng -> điểm xuất hoá đơn.
+
+    Sheet tổng hợp của MoMo xếp nhiều bảng nối nhau (doanh thu, rồi phí, rồi dòng
+    tổng). Chỉ dòng vừa có mã cửa hàng vừa có tên điểm mới là dòng danh mục: bảng
+    phí để trống tên điểm, dòng tổng để trống mã cửa hàng.
+    """
+    rows = read_sheet(path, sheet)
+    header_row = find_header(rows, ["Mã cửa hàng", "Tên điểm xuất hóa đơn"])
+    index = column_index(rows[header_row], ["Mã cửa hàng", "Tên điểm xuất hóa đơn"])
+    try:
+        index["Mã KH"] = column_index(rows[header_row], ["Mã KH"])["Mã KH"]
+    except LookupError:
+        index["Mã KH"] = -1
+
+    catalog = Catalog()
+    seen: set[str] = set()
+    for row in rows[header_row + 1 :]:
+        code = clean_text(_at(row, index["Mã cửa hàng"]))
+        ten_diem = clean_text(_at(row, index["Tên điểm xuất hóa đơn"]))
+        if not code or not ten_diem or key_text(code) in seen:
+            continue
+        seen.add(key_text(code))
+        catalog.add(
+            "momo",
+            code,
+            Point(ten_diem=ten_diem, phap_nhan=clean_text(_at(row, index["Mã KH"]))),
+        )
+    return catalog
+
+
+def load_point_info(path: str, sheet: str) -> Catalog:
+    """Bảng chỉ có thông tin điểm — bù khu vực, mã misa, pháp nhân."""
+    rows = read_sheet(path, sheet)
+    header_row = find_header(rows, ["Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế"])
+    names = ["Tên điểm xuất hóa đơn", "Mã điểm trên misa thuế"]
+    index = column_index(rows[header_row], names)
+    for name in ("Khu vực", "Dịch vụ", "Hình thức hợp tác", "Pháp nhân"):
+        try:
+            index[name] = column_index(rows[header_row], [name])[name]
+        except LookupError:
+            index[name] = -1
+
+    catalog = Catalog()
+    for row in rows[header_row + 1 :]:
+        ten_diem = clean_text(_at(row, index["Tên điểm xuất hóa đơn"]))
+        if not ten_diem:
+            continue
+        catalog.add_point(
+            Point(
+                ten_diem=ten_diem,
+                ma_misa=clean_text(_at(row, index["Mã điểm trên misa thuế"])),
+                khu_vuc=clean_text(_at(row, index["Khu vực"])),
+                dich_vu=clean_text(_at(row, index["Dịch vụ"])),
+                hinh_thuc_hop_tac=clean_text(_at(row, index["Hình thức hợp tác"])),
+                phap_nhan=clean_text(_at(row, index["Pháp nhân"])),
+            )
         )
     return catalog
 

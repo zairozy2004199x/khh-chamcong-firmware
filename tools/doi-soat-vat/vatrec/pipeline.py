@@ -3,7 +3,14 @@
 from __future__ import annotations
 
 from .aggregate import Aggregate, aggregate
-from .catalog import Catalog, load_point_directory, load_store_codes, merge
+from .catalog import (
+    Catalog,
+    load_momo_catalog,
+    load_point_directory,
+    load_point_info,
+    load_store_codes,
+    merge,
+)
 from .config import Config
 from .invoices import Invoice, build_invoices
 from .report import write_workbook
@@ -17,6 +24,10 @@ def build_catalog(config: Config) -> Catalog:
         if spec.kind == "store_code":
             catalog, _ = load_store_codes(path, spec.sheet)
             catalogs.append(catalog)
+        elif spec.kind == "momo":
+            catalogs.append(load_momo_catalog(path, spec.sheet))
+        elif spec.kind == "point_info":
+            catalogs.append(load_point_info(path, spec.sheet))
         else:
             if not spec.code_column:
                 raise ValueError(f"danh mục {spec.kind} thiếu 'code_column'")

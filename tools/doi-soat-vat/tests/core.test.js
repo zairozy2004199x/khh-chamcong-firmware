@@ -93,6 +93,20 @@ eq('nhận ra danh mục Payoo',
 eq('nhận ra danh mục mã cửa hàng',
   V.detectSheet(headerSheet(['Mã cửa hàng', 'mã điểm xuất hóa đơn'])).kind,
   'catalog_store');
+eq('nhận ra sao kê MoMo',
+  V.detectSheet(headerSheet(['Thời gian', 'Mã đơn hàng', 'Trạng thái', 'Số tiền', 'Mã cửa hàng'])).kind,
+  'momo');
+eq('nhận ra danh mục MoMo',
+  V.detectSheet(headerSheet(['Mã KH', 'Gian', 'Mã cửa hàng', 'Tên điểm xuất hóa đơn'])).kind,
+  'catalog_momo');
+eq('nhận ra bảng thông tin điểm',
+  V.detectSheet(headerSheet(['Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Khu vực'])).kind,
+  'catalog_diem');
+// Sao kê QR cũng có "Mã cửa hàng" và "Mã đơn hàng" — không được nhận nhầm là MoMo.
+eq('sao kê QR không bị nhận nhầm là MoMo',
+  V.detectSheet(headerSheet(['Thời gian TT', 'Số tiền đến (VND)', 'Trạng thái', 'Mã cửa hàng',
+    'Mã đơn hàng'])).kind,
+  'qr');
 eq('sheet lạ thì bỏ qua', V.detectSheet(headerSheet(['A', 'B', 'C'])), null);
 
 /* -------------------------------------------------------------- đọc sao kê */
@@ -133,6 +147,45 @@ var zaloTxns = V.READERS.zalo(zaloRows, 1, 'Zalo');
 eq('một đơn nhiều dòng sản phẩm chỉ tính một lần', zaloTxns.length, 1);
 eq('cắt đúng tên gian hàng', zaloTxns[0].code, 'VINCOM TIMES CITY');
 eq('đơn chưa thanh toán và đơn huỷ bị loại', zaloTxns[0].soTien, 200000);
+
+var momoRows = [
+  ['tổng'],
+  ['Thời gian', 'Mã đơn hàng', 'Trạng thái', 'Số tiền', 'Mã cửa hàng', 'Tên cửa hàng'],
+  ['02-08-2026 21:38:56', 'MD1', 'Thành công', 160000, 'ABC123', 'VR FUN'],
+  ['02-08-2026 21:33:34', 'MD2', 'Thất bại', 400000, 'ABC123', 'VR FUN'],
+  ['03-08-2026 10:00:00', 'MD3', 'Thành công', 50000, '', 'không rõ']
+];
+var momoTxns = V.READERS.momo(momoRows, 1, 'MoMo');
+eq('MoMo chỉ lấy giao dịch thành công', momoTxns.length, 1);
+eq('MoMo đọc đúng số tiền', momoTxns[0].soTien, 160000);
+eq('MoMo đọc đúng ngày', momoTxns[0].ngay, '2026-08-02');
+eq('MoMo giữ mã đơn làm mã tham chiếu', momoTxns[0].ref, 'MD1');
+eq('MoMo lấy đúng kênh', momoTxns[0].channel, 'momo');
+
+// Danh mục MoMo: bảng phí để trống tên điểm, dòng tổng để trống mã cửa hàng.
+var momoCatRows = [
+  ['ghi chú'],
+  ['Mã KH', 'Gian', 'Mã cửa hàng', 'Tên điểm xuất hóa đơn'],
+  ['KH Cũ', 'FZ A', 'ABC123', 'Điểm A'],
+  ['KH cũ', 'FZ B', 'DEF456', 'Điểm B'],
+  ['KH Cũ', '', 'ABC123', ''],
+  ['', '', 'Tổng theo ngày', '']
+];
+var momoCat = new V.Catalog();
+V.loadMomoCatalog(momoCatRows, 1, momoCat);
+eq('danh mục MoMo bỏ bảng phí và dòng tổng', Object.keys(momoCat.byChannel.momo).length, 2);
+eq('danh mục MoMo tra đúng điểm', momoCat.lookup('momo', 'ABC123').tenDiem, 'Điểm A');
+eq('danh mục MoMo lấy pháp nhân từ Mã KH', momoCat.lookup('momo', 'DEF456').phapNhan, 'KH cũ');
+
+// Bảng thông tin điểm bù thông tin còn trống, không tạo mã tra cứu mới.
+V.loadPointInfo([
+  ['ghi chú'],
+  ['Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Khu vực', 'Dịch vụ', 'Pháp nhân'],
+  ['Điểm A', 'MISA-A', 'HCM', 'KVC', 'KH cũ']
+], 1, momoCat);
+eq('thông tin điểm bù được mã misa', momoCat.points[V.keyText('Điểm A')].maMisa, 'MISA-A');
+eq('thông tin điểm bù được khu vực', momoCat.points[V.keyText('Điểm A')].khuVuc, 'HCM');
+eq('thông tin điểm không thêm mã tra cứu', Object.keys(momoCat.byChannel.momo).length, 2);
 
 /* ------------------------------------------------------------------- VAT */
 
@@ -223,6 +276,18 @@ var locPhapNhan = V.aggregate([
   txn('SHOP2', '2026-08-01', 900, 'r2')
 ], catalog(), { kyTu: KY.kyTu, kyDen: KY.kyDen, phapNhan: 'KH cũ' });
 eq('chỉ lấy pháp nhân đã chọn', V.totalOf(locPhapNhan), 100);
+
+// Danh mục của cổng ghi pháp nhân tắt; lọc phải theo bản đã bù thông tin.
+var catBu = new V.Catalog();
+catBu.add('momo', 'SHOP9', V.makePoint({ tenDiem: 'Điểm C', phapNhan: 'KH Mới TK CTy' }));
+catBu.addPoint(V.makePoint({ tenDiem: 'Điểm C', maMisa: 'MISA-C', khuVuc: 'HCM',
+  dichVu: 'KVC', phapNhan: 'KH mới' }));
+var tnMomo = txn('SHOP9', '2026-08-01', 100, 'm1', 'MoMo', 'momo');
+eq('lọc khớp theo pháp nhân đã bù',
+  V.totalOf(V.aggregate([tnMomo], catBu, { kyTu: KY.kyTu, kyDen: KY.kyDen, phapNhan: 'KH mới' })), 100);
+var boPhapNhan = V.aggregate([tnMomo], catBu, { kyTu: KY.kyTu, kyDen: KY.kyDen, phapNhan: 'KH cũ' });
+eq('pháp nhân khác thì loại', V.totalOf(boPhapNhan), 0);
+eq('báo lại tiền bị loại vì pháp nhân', boPhapNhan.loaiKhacPhapNhan, 100);
 
 var khongNgay = V.aggregate([txn('SHOP1', null, 100, 'r1')], catalog(), KY);
 eq('đếm giao dịch không đọc được ngày', khongNgay.khongCoNgay, 1);
