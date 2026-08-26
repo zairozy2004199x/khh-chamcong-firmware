@@ -952,6 +952,16 @@ class VHCC_Web {
 			. '.nut{display:inline-block;font-size:14px;font-weight:600;padding:8px 12px;border-radius:7px;'
 			. 'border:1px solid #cbd5e1;background:#fff;color:var(--chu);text-decoration:none}'
 			. '.nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
+			/* Dải bộ phận: mỗi bộ phận là một LIÊN KẾT kèm số cơ sở đang có. Bộ phận rỗng thì
+			   mờ đi — vẫn bấm được (để thấy câu giải thích), nhưng không mời gọi bấm. */
+			. '.loc-bp{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:10px}'
+			. '.nhan-bp{font-size:12px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;'
+			. 'color:var(--mo);margin-right:2px}'
+			. '.loc-bp .nut{padding:6px 11px;font-size:13px}'
+			. '.loc-bp .nut.trong{opacity:.55}'
+			. '.loc-bp .sl{display:inline-block;min-width:18px;text-align:center;border-radius:9px;'
+			. 'background:#e2e8f0;color:#475569;font-size:11px;padding:0 5px;margin-left:3px}'
+			. '.loc-bp .nut.chinh .sl{background:rgba(255,255,255,.28);color:#fff}'
 			. '.luoi{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}'
 			. 'table{border-collapse:collapse;width:100%;font-size:13.5px}'
 			. 'th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--vien);vertical-align:top}'
@@ -1485,20 +1495,51 @@ class VHCC_Web {
 		echo '<p class="mo">Cuộn xuống <a href="#luoithang"><b>Lưới cả tháng</b></a> để xem '
 			. '<b>dạng lưới ngang</b>: mỗi ô một số, cả tháng của cả cơ sở trên một màn.</p>';
 
+		/* 🔴 BỘ PHẬN LÀ LIÊN KẾT, KHÔNG PHẢI Ô CHỌN NẰM TRONG BIỂU MẪU.
+		   Anh Thắng 26/08: *"Lỗi rồi"* — chọn Bộ phận = Văn phòng rồi mở ô Cơ sở ra thì vẫn
+		   thấy nguyên cả chuỗi cơ sở. Phần lọc ở trên VẪN đúng, nhưng nó chỉ chạy SAU khi bấm
+		   "Xem": ô Bộ phận nằm CÙNG biểu mẫu với ô Cơ sở, hai ô cùng gửi lên một lượt, nên
+		   không ô nào lọc được ô nào. Người dùng chọn xong, mở ô bên cạnh ra, thấy y nguyên —
+		   và kết luận là hỏng. Họ đúng: một cái lọc chỉ lọc sau một cú bấm nữa thì không phải
+		   cái lọc.
+		   Màn này KHÔNG có một dòng script nào (phép thử "màn quản trị KHÔNG có thẻ <script>"),
+		   nên không tự gửi biểu mẫu lúc đổi ô được. Cách chạy được mà không cần script: bộ phận
+		   là LIÊN KẾT — bấm một cái là tải lại trang, ô Cơ sở dựng lại đã lọc sẵn.
+
+		   ⚠️ ĐẾM SỐ CƠ SỞ NGAY TRÊN TỪNG NHÃN. Bộ phận chưa xếp cơ sở nào thì bấm vào chỉ thấy
+		      một ô chọn rỗng, không câu nào giải thích — mà "rỗng" trông y hệt "hỏng". Có con
+		      số thì nhìn là biết ngay chỗ nào chưa xếp, khỏi bấm thử từng cái. */
+		$ds_tat_ca = self::ds_coso_xem( $toi );
+		$dem_bp    = array();
+		foreach ( $ds_tat_ca as $x ) {
+			$b = VHCC_Luong::bo_phan_cua( $x );
+			$dem_bp[ $b ] = ( isset( $dem_bp[ $b ] ) ? $dem_bp[ $b ] : 0 ) + 1;
+		}
+		/* Giữ tháng / ngày / mã NV khi đổi bộ phận — đổi bộ phận không phải là bắt đầu lại từ
+		   đầu. KHÔNG giữ `ccs`: cơ sở cũ có thể không thuộc bộ phận mới. */
+		$giu = array( 'man' => 'cham' );
+		if ( '' !== $th )    { $giu['cth'] = $th; }
+		if ( '' !== $ngay )  { $giu['cng'] = $ngay; }
+		if ( '' !== $ma_nv ) { $giu['cnv'] = $ma_nv; }
+
+		echo '<div class="loc-bp"><span class="nhan-bp">Bộ phận</span>';
+		$cac_bp = array_merge( array( '' ), VHCC_Luong::BP_DS, array( VHCC_Luong::BP_CHUA_XEP ) );
+		foreach ( $cac_bp as $x ) {
+			$nh = ( '' === $x ) ? 'Tất cả' : $x;
+			$sl = ( '' === $x ) ? count( $ds_tat_ca ) : ( isset( $dem_bp[ $x ] ) ? $dem_bp[ $x ] : 0 );
+			$u  = add_query_arg( ( '' === $x ) ? $giu : array_merge( $giu, array( 'cbp' => $x ) ), self::url() );
+			echo '<a class="nut' . ( $x === $bp ? ' chinh' : '' ) . ( 0 === $sl ? ' trong' : '' )
+				. '" href="' . esc_url( $u ) . '">' . esc_html( $nh )
+				. ' <span class="sl">' . (int) $sl . '</span></a>';
+		}
+		echo '</div>';
+
 		echo '<form method="get" class="hang" style="margin-top:10px">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
 		echo '<input type="hidden" name="man" value="cham">';
-
-		echo '<div><label for="cbp">Bộ phận</label><select id="cbp" name="cbp">';
-		echo '<option value="">— mọi bộ phận —</option>';
-		foreach ( VHCC_Luong::BP_DS as $x ) {
-			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $bp, false ) . '>'
-				. esc_html( $x ) . '</option>';
-		}
-		echo '<option value="' . esc_attr( VHCC_Luong::BP_CHUA_XEP ) . '"'
-			. selected( VHCC_Luong::BP_CHUA_XEP, $bp, false ) . '>'
-			. esc_html( VHCC_Luong::BP_CHUA_XEP ) . '</option>';
-		echo '</select></div>';
+		/* Bộ phận đi kèm biểu mẫu bằng ô ẩn: bấm "Xem" mà rơi mất bộ phận đang lọc thì cả danh
+		   sách cơ sở nhảy về đầy đủ ngay sau cú bấm — đúng cái lỗi vừa sửa, chỉ chậm một nhịp. */
+		if ( '' !== $bp ) { echo '<input type="hidden" name="cbp" value="' . esc_attr( $bp ) . '">'; }
 
 		echo '<div><label for="ccs">Cơ sở</label><select id="ccs" name="ccs">';
 		echo '<option value="">— chọn cơ sở —</option>';

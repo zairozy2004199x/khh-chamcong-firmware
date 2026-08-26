@@ -5889,11 +5889,75 @@ t( 'Admin vừa khai vào được trang quản trị (kẻo phép dưới soi n
 
 $g_qtc = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' );
 $h_qtc = vhcc_web( '135791', array(), $g_qtc );
-foreach ( array( 'cbp' => 'Bộ phận', 'ccs' => 'Cơ sở', 'cth' => 'Tháng',
+foreach ( array( 'ccs' => 'Cơ sở', 'cth' => 'Tháng',
 	'cng' => 'Ngày', 'cnv' => 'Nhân viên' ) as $o_qtc => $nhan_qtc ) {
 	t( 'màn có ô lọc ' . $nhan_qtc . ' (name="' . $o_qtc . '")',
 		strpos( $h_qtc, 'name="' . $o_qtc . '"' ) !== false, $h_qtc );
 }
+
+/* ---- BỘ PHẬN LÀ LIÊN KẾT, KHÔNG PHẢI Ô CHỌN ----
+   🔴 Anh Thắng 26/08: *"Lỗi rồi"* — chọn Bộ phận = Văn phòng rồi mở ô Cơ sở ra thì vẫn thấy
+   nguyên cả chuỗi cơ sở. Phần lọc trong `the_bang_cham` VẪN đúng, nhưng nó chỉ chạy sau khi
+   bấm "Xem": ô Bộ phận nằm CÙNG biểu mẫu với ô Cơ sở nên hai ô cùng gửi lên một lượt, không
+   ô nào lọc được ô nào. Một cái lọc chỉ lọc sau một cú bấm nữa thì không phải cái lọc.
+   Màn này không được có script (phép "màn quản trị KHÔNG có thẻ <script>"), nên cách duy nhất
+   là biến bộ phận thành LIÊN KẾT: bấm là tải lại trang, ô Cơ sở dựng lại đã lọc sẵn.
+
+   ⚠️ CANH BẰNG NỘI DUNG Ô CƠ SỞ, KHÔNG CANH BẰNG "CÓ CHỮ cbp KHÔNG". Bản hỏng CŨNG có chữ
+      `cbp` trên màn — nó có nguyên một cái `<select name="cbp">`. Thứ phân biệt hỏng với chạy
+      là danh sách cơ sở SAU khi lọc, nên phải soi đúng chỗ đó. */
+t( 'màn có dải lọc Bộ phận', strpos( $h_qtc, 'class="loc-bp"' ) !== false, $h_qtc );
+t( 'bộ phận là LIÊN KẾT (bấm là lọc ngay), không phải <select name="cbp">',
+	strpos( $h_qtc, 'cbp=' ) !== false && ! preg_match( '/<select[^>]*name="cbp"/i', $h_qtc ), $h_qtc );
+
+/* Xếp TUTU_BT vào một bộ phận rồi soi ô Cơ sở ở hai lượt lọc khác nhau. */
+VHCC_NhanSu::xep_bo_phan( $u_qtc, 'TUTU_BT', 'Khu vui chơi' );
+
+function vhcc_ds_ccs( $h ) {
+	if ( ! preg_match( '/<select id="ccs".*?<\/select>/s', $h, $m ) ) { return array(); }
+	preg_match_all( '/<option value="([^"]*)"/', $m[0], $o );
+	return array_values( array_filter( $o[1], function ( $x ) { return '' !== $x; } ) );
+}
+
+$h_kvc = vhcc_web( '135791', array(), array( 'man' => 'cham', 'cbp' => 'Khu vui chơi', 'cth' => '2026-07' ) );
+t( '🔴 lọc bộ phận ĐÚNG thì ô Cơ sở còn cơ sở của bộ phận ấy',
+	in_array( 'TUTU_BT', vhcc_ds_ccs( $h_kvc ), true ), vhcc_ds_ccs( $h_kvc ) );
+$h_vp = vhcc_web( '135791', array(), array( 'man' => 'cham', 'cbp' => 'Văn phòng', 'cth' => '2026-07' ) );
+t( '🔴 lọc bộ phận KHÁC thì ô Cơ sở KHÔNG còn cơ sở ấy — đây là chỗ anh Thắng vấp',
+	! in_array( 'TUTU_BT', vhcc_ds_ccs( $h_vp ), true ), vhcc_ds_ccs( $h_vp ) );
+
+/* Đang lọc bộ phận mà bấm "Xem" thì bộ phận phải đi theo — rơi mất là danh sách cơ sở nhảy
+   về đầy đủ ngay sau cú bấm, đúng cái lỗi vừa sửa, chỉ chậm một nhịp. */
+/* ⚠️ SOI ĐÚNG BIỂU MẪU LỌC, KHÔNG SOI CẢ TRANG. Trang này còn một chỗ khác cũng in ô ẩn
+   `cbp`: khối `o_loc` chở bộ lọc qua lượt POST gắn cờ. Quét cả trang thì bỏ hẳn ô ẩn trong
+   biểu mẫu lọc mà phép thử vẫn xanh — đúng thứ vừa gặp khi phá thử. */
+function vhcc_form_loc( $h ) {
+	return preg_match( '/<form method="get" class="hang".*?<\/form>/s', $h, $m ) ? $m[0] : '';
+}
+$f_kvc = vhcc_form_loc( $h_kvc );
+t( 'tách được biểu mẫu lọc ra khỏi trang', '' !== $f_kvc, $h_kvc );
+t( 'đang lọc bộ phận thì BIỂU MẪU LỌC chở `cbp` bằng ô ẩn',
+	strpos( $f_kvc, '<input type="hidden" name="cbp" value="Khu vui chơi">' ) !== false, $f_kvc );
+
+/* Đếm số cơ sở ngay trên nhãn: bộ phận rỗng thì bấm vào chỉ thấy ô chọn trống, mà "trống"
+   trông y hệt "hỏng". Có con số thì nhìn là biết chỗ nào chưa xếp. */
+t( 'mỗi bộ phận kèm số cơ sở đang có',
+	preg_match( '/class="loc-bp".*?<span class="sl">\d+<\/span>/s', $h_qtc ) === 1, $h_qtc );
+
+/* Đổi bộ phận không phải bắt đầu lại từ đầu: tháng/ngày/mã NV phải đi theo. */
+$h_giu = vhcc_web( '135791', array(),
+	array( 'man' => 'cham', 'cth' => '2026-07', 'cnv' => 'NV777' ) );
+t( 'đổi bộ phận vẫn giữ tháng và mã NV đang lọc',
+	preg_match( '/href="[^"]*cbp=[^"]*"/', $h_giu, $m_giu ) === 1
+	&& false !== strpos( $m_giu[0], 'cth=2026-07' )
+	&& false !== strpos( $m_giu[0], 'cnv=NV777' ), isset( $m_giu[0] ) ? $m_giu[0] : $h_giu );
+/* NHƯNG không giữ `ccs`: cơ sở cũ có thể không thuộc bộ phận mới, giữ lại là bảng hiện dữ
+   liệu của một chỗ mà ô chọn không hề trỏ tới. */
+t( 'đổi bộ phận thì BỎ cơ sở đang chọn, không chở theo',
+	preg_match( '/href="[^"]*cbp=[^"]*"/', $h_kvc, $m_bo ) === 1
+	&& false === strpos( $m_bo[0], 'ccs=' ), isset( $m_bo[0] ) ? $m_bo[0] : $h_kvc );
+
+VHCC_NhanSu::xep_bo_phan( $u_qtc, 'TUTU_BT', '' );
 foreach ( array( 'Ngày', 'Mã NV', 'Họ tên', 'Hàng', 'Giờ vào', 'Giờ ra', 'Giờ làm', 'Kiểm tra' ) as $c_qtc ) {
 	t( 'bảng chi tiết có cột "' . $c_qtc . '"', strpos( $h_qtc, '<th>' . $c_qtc . '</th>' ) !== false );
 }
