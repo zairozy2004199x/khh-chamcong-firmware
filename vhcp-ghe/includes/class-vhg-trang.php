@@ -1195,6 +1195,7 @@ var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000 };
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
+var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
 var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
 
@@ -1525,16 +1526,39 @@ function veDieuKhien(){
     + '<button id="nv-tra" class="on">' + L('Xem số dư','Show balance') + '</button></div>'
     + '<div class="err" id="nv-e"></div><div id="nv-kq"></div></div>';
 
+  /* Lọc theo cơ sở — gom từ chính D.may (không phụ thuộc D.coso, để cả role Giúp khách dùng được). */
+  var dkLocs = {};
+  D.may.forEach(function(m){ var k = m.coso || ''; dkLocs[k] = (dkLocs[k]||0) + 1; });
+  var dkList = Object.keys(dkLocs).filter(function(k){ return k; }).sort();
+  var dkChuaGan = dkLocs[''] || 0;
+  var dsMay = D.may.filter(function(m){
+    if (DK_LOC === '') return true;
+    if (DK_LOC === '__none__') return !m.coso;
+    return m.coso === DK_LOC;
+  });
+  var dkFilter = '';
+  if (dkList.length + (dkChuaGan ? 1 : 0) > 1) {   // chỉ hiện lọc khi có >1 cơ sở
+    dkFilter = '<div class="act" style="margin:0 0 12px"><label class="mut" style="align-self:center">'
+      + L('Lọc cơ sở','Filter site') + ':</label><select id="dk-loc" style="flex:1;max-width:260px">'
+      + '<option value="">' + L('Tất cả','All') + ' (' + D.may.length + ')</option>'
+      + dkList.map(function(k){
+          return '<option value="' + esc(k) + '"' + (DK_LOC === k ? ' selected' : '') + '>'
+            + esc(k) + ' (' + dkLocs[k] + ')</option>'; }).join('')
+      + (dkChuaGan ? '<option value="__none__"' + (DK_LOC === '__none__' ? ' selected' : '') + '>'
+          + L('(chưa gán)','(unassigned)') + ' (' + dkChuaGan + ')</option>' : '')
+      + '</select></div>';
+  }
+
   h += '<div class="card"><h2>' + L('Quản lý ghế · Điều khiển','Chair management · Control')
-    + ' — ' + D.may.length + ' ' + L('ghế','chairs') + '</h2>'
+    + ' — ' + dsMay.length + '/' + D.may.length + ' ' + L('ghế','chairs') + '</h2>'
     + '<p class="mut" style="margin:0 0 12px">'
     + L('Bật tay là <b>cho không một lượt</b> — hệ thống ghi lại ai bấm và lúc nào, để cuối tháng '
         + 'còn giải thích được vì sao một ghế chạy nhiều hơn số tiền thu.',
         'Turning a chair on by hand is <b>a free session</b> — the system records who pressed it and '
         + 'when, so at month end you can still explain why a chair ran more than it took in.')
-    + '</p><div class="ghe-luoi">';
+    + '</p>' + dkFilter + '<div class="ghe-luoi">';
 
-  D.may.forEach(function(m){
+  dsMay.forEach(function(m){
     var p = trangThai(m);
     var lop = !m.song ? ' dut' : (m.tt === 'running' ? ' chay' : '');
     h += '<div class="ghe' + lop + '">'
@@ -2944,6 +2968,9 @@ function noi(){
   });
   if ((_e = document.getElementById('ql-loc'))) _e.onchange = function(){
     QL_LOC = _e.value; ve();   // lọc tại chỗ, vẽ lại từ dữ liệu đang có (không gọi máy chủ)
+  };
+  if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){
+    DK_LOC = _e.value; ve();   // lọc lưới ghế tab Điều khiển
   };
 
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
