@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25i (nhip thu lai khi rot mang + ep ket noi lai)"
+#define FW_VERSION "ghe-massage 2026-08-25j (bo ro-le GPIO17 trung PWRKEY 4G)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -170,6 +170,11 @@ const unsigned long NHIP_MS      = 6000;   // chu kỳ hỏi web lúc RẢNH (ms
 const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> thử lại sau ngần này (đừng đợi hết NHIP_MS)
 
 // --- Relay điều khiển ghế ---
+/* 🔴 HƯỚNG 1: ghế CHẠY BẰNG TIỀN (ESP bơm khung tiền), KHÔNG dùng rơ-le cắt nguồn ghế.
+ *    RELAY_PIN=17 TRÙNG với SIM_PWRKEY=17 (chân bật nguồn module 4G). Nếu relaySet() cứ
+ *    ghi GPIO17 mỗi lần chạy/dừng thì nó GIẬT chân PWRKEY -> 4G dễ rớt đúng lúc ghế chạy.
+ *    Nên TẮT rơ-le này (USE_RELAY=false): GPIO17 chỉ còn là PWRKEY của 4G. */
+#define USE_RELAY          false
 #define RELAY_PIN          17
 #define RELAY_ACTIVE_HIGH  true
 
@@ -1185,7 +1190,13 @@ bool getTouch(int& sx, int& sy){
 bool inBtn(Btn b, int x, int y){ return x>=b.x && x<=b.x+b.w && y>=b.y && y<=b.y+b.h; }
 
 // ======================= Relay + khoá máy nhận tiền =======================
-void relaySet(bool on){ digitalWrite(RELAY_PIN, (on == RELAY_ACTIVE_HIGH) ? HIGH : LOW); }
+void relaySet(bool on){
+#if USE_RELAY
+  digitalWrite(RELAY_PIN, (on == RELAY_ACTIVE_HIGH) ? HIGH : LOW);
+#else
+  (void)on;   // Hướng 1: không có rơ-le cắt nguồn ghế; KHÔNG đụng GPIO17 (để yên PWRKEY 4G)
+#endif
+}
 void setAcceptorEnabled(bool en){
   /* CASH_INHIBIT_ENABLE tắt = KHÔNG có dây khoá nào cả, nên không bao giờ được coi là "đang
      khoá" — nếu không, mọi tờ tiền hợp lệ đều bị báo thành "nhận tiền khi đã khoá". */
@@ -1860,7 +1871,9 @@ void netTask(void*);
 void setup(){
   Serial.begin(115200); delay(200);
   Serial.println("\n\n=== " FW_VERSION " ===");
-  pinMode(RELAY_PIN, OUTPUT); relaySet(false);
+#if USE_RELAY
+  pinMode(RELAY_PIN, OUTPUT); relaySet(false);   // chỉ khi thật sự dùng rơ-le cắt nguồn ghế
+#endif
   /* Kích rơ-le fail-safe sang ESP-mode (COM->NO). Mất điện thì rơ-le tự nhả về NC
      = ICT nối thẳng ghế -> tiền mặt vẫn chạy dù hộp QR chết. */
   pinMode(BYPASS_PIN, OUTPUT); digitalWrite(BYPASS_PIN, BYPASS_ACTIVE_HIGH ? HIGH : LOW);
