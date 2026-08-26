@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25g (khoa chan 34, dem gio binh thuong)"
+#define FW_VERSION "ghe-massage 2026-08-25h (nhip 6s -> lenh tu xa nhanh hon)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -163,7 +163,10 @@ const int PAY_WINDOW_S   = 150;    // chờ khách trả (giây) rồi hủy QR
    Imunify360 chặn vì gõ cửa quá dày. */
 const unsigned long PAY_POLL_MS  = 800;
 const unsigned long PAY_GRACE_MS = 20000;  // sau khi HỦY vẫn theo dõi ~20s: tiền tới trễ vẫn chạy
-const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
+/* Nhịp sống + lấy CẤU HÌNH + LỆNH từ web. Trước để 30s -> lệnh từ xa (mở/tắt) phải
+   chờ tới nhịp kế nên chậm 10-15s. Hạ xuống 6s cho lệnh nhận nhanh (~vài giây). Đánh
+   đổi: tốn data 4G hơn (~5x nhịp). Muốn tiết kiệm data hơn thì tăng lại (vd 10000). */
+const unsigned long NHIP_MS      = 6000;   // chu kỳ hỏi web lúc RẢNH (ms)
 
 // --- Relay điều khiển ghế ---
 #define RELAY_PIN          17
