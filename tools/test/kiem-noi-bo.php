@@ -129,7 +129,7 @@ $rf = new ReflectionMethod( 'VHNB_Bai', 'dang' );
 $ten_ts = array();
 foreach ( $rf->getParameters() as $p ) { $ten_ts[] = $p->getName(); }
 teq( 'dang() KHÔNG có tham số nào nhận tên/mã người đăng',
-	array( 'u', 'noi_dung', 'nhom', 'nhom_id' ), $ten_ts );
+	array( 'u', 'noi_dung', 'nhom', 'nhom_id', 'anh' ), $ten_ts );
 
 /* Bài dài quá thì cắt, không nhận nguyên. */
 $r = VHNB_Bai::dang( $U_CHT, str_repeat( 'x', VHNB_Bai::DAI_TOI_DA + 500 ) );
@@ -780,6 +780,64 @@ t( '🔴 mở trang KHÔNG tự đánh dấu đã đọc', VHNB_Bao::chua_doc( '
 $_U_KM = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Không Mã', 'Nhân viên', 'CS_VIVO', '' ) );
 teq( 'không có mã thì đếm bằng 0, không nổ', 0, VHNB_Bao::chua_doc( '' ) );
 teq( 'và đánh dấu đọc cũng không đụng vào gì', 0, VHNB_Bao::danh_dau_doc( '' ) );
+
+vhnb_dung_bang();
+
+/* ============================================================ ẢNH KÈM BÀI */
+/* Anh Thắng 26/08/2026: *"bổ sung đăng được ảnh nhé em"*. */
+
+vhnb_dung_bang();
+$_U_A = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Người Đăng Ảnh', 'Admin', '', 'NVA1' ) );
+$_up  = wp_upload_dir();
+$_url_ok = $_up['baseurl'] . '/vhnb/2026/08/nb_test.jpg';
+
+/* ---- chỉ nhận địa chỉ TRONG thư mục tải lên của chính web này ---- */
+/* 🔴 Lưu được một địa chỉ bất kỳ là mở đường cho `javascript:` và cho ảnh nhúng từ web ngoài —
+   ảnh ngoài thì mỗi lượt xem bảng tin là một lượt báo cho chủ web ấy biết ai vừa đọc gì. */
+t( 'địa chỉ trong uploads/vhnb thì nhận', VHNB_Anh::hop_le( $_url_ok ), $_url_ok );
+foreach ( array(
+	'javascript:alert(1)',
+	'https://web-khac.com/anh.jpg',
+	$_up['baseurl'] . '/2026/08/anh-cua-nguoi-khac.jpg',
+	'',
+) as $_xau ) {
+	t( 'chối địa chỉ lạ: ' . ( '' === $_xau ? '(rỗng)' : $_xau ), ! VHNB_Anh::hop_le( $_xau ) );
+}
+
+/* ---- đăng bài kèm ảnh ---- */
+$_b_anh = VHNB_Bai::dang( $_U_A, 'có ảnh nhé', '', 0, $_url_ok );
+t( 'đăng được bài kèm ảnh', ! empty( $_b_anh['ok'] ), $_b_anh );
+$_r_anh = $wpdb->get_row( 'SELECT * FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . (int) $_b_anh['id'], ARRAY_A );
+teq( 'ảnh vào đúng cột', $_url_ok, (string) $_r_anh['anh'] );
+
+/* 🔴 ĐỊA CHỈ LẠ THÌ BỎ ẢNH, VẪN ĐĂNG BÀI. Mất cái ảnh còn hơn mất cả bài, và người đăng thấy
+   ngay là ảnh không lên. */
+$_b_xau = VHNB_Bai::dang( $_U_A, 'ảnh lạ', '', 0, 'https://web-khac.com/x.jpg' );
+t( 'ảnh lạ thì vẫn đăng được bài', ! empty( $_b_xau['ok'] ), $_b_xau );
+teq( '🔴 nhưng KHÔNG lưu địa chỉ lạ ấy', '',
+	(string) $wpdb->get_var( 'SELECT anh FROM ' . VHNB_DB::t( 'bai' ) . ' WHERE id=' . (int) $_b_xau['id'] ) );
+
+/* 🔴 CÓ ẢNH THÌ KHÔNG CÒN LÀ BÀI RỖNG. Chốt "bài rỗng thì chối" viết từ hồi chưa có ảnh; giữ
+   nguyên là đăng ảnh không kèm chữ bị chối — mà đó là cách người ta đăng ảnh nhiều nhất. */
+$_b_chi_anh = VHNB_Bai::dang( $_U_A, '   ', '', 0, $_url_ok );
+t( '🔴 đăng ảnh KHÔNG kèm chữ vẫn được', ! empty( $_b_chi_anh['ok'] ), $_b_chi_anh );
+t( 'nhưng rỗng cả chữ lẫn ảnh thì vẫn chối',
+	empty( VHNB_Bai::dang( $_U_A, '   ', '', 0, '' )['ok'] ) );
+
+/* ---- trên màn ---- */
+ob_start(); VHNB_Trang::ve( $_U_A ); $_h_anh = ob_get_clean();
+t( 'ô soạn bài có nút đính ảnh', false !== strpos( $_h_anh, 'name="anh"' ), 'không thấy ô chọn tệp' );
+/* ⚠️ Thiếu `enctype` thì trình duyệt vẫn gửi biểu mẫu, vẫn không báo lỗi gì — chỉ là `$_FILES`
+   rỗng và ảnh im lặng không bao giờ lên. */
+t( '🔴 biểu mẫu đăng bài có enctype multipart',
+	false !== strpos( $_h_anh, 'enctype="multipart/form-data"' ), 'thiếu enctype' );
+t( 'bài có ảnh thì vẽ thẻ img', false !== strpos( $_h_anh, 'class="bai-anh"' ), 'không thấy ảnh' );
+t( 'và ảnh tải chậm (lazy) — bảng tin 20 bài không kéo 20 ảnh một lượt',
+	false !== strpos( $_h_anh, 'loading="lazy"' ) );
+t( 'ảnh có kiểu chữ thật', false !== strpos( $_h_anh, '.bai-anh img{' ) );
+/* Vẫn không một dòng script nào — người ở cơ sở mở bằng điện thoại cũ trên 3G. */
+t( 'thêm ảnh mà trang vẫn KHÔNG dùng script',
+	false === stripos( $_h_anh, '<script' ) && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $_h_anh ) );
 
 vhnb_dung_bang();
 

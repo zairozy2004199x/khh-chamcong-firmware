@@ -22,6 +22,13 @@ class VHNB_DB {
 		   `nhom` = phạm vi bài: '' là toàn công ty, còn lại là tên bộ phận. Lưu TÊN chứ không
 		   lưu id: bộ phận ở hệ chấm công là một chuỗi trong bảng `bo_phan_coso`, không có id
 		   riêng — bịa ra một id ở đây là hai nơi phải đồng bộ với nhau mãi. */
+		/* Cột `anh` giữ ĐỊA CHỈ ảnh kèm bài — xem `VHNB_Anh`. Một bài một ảnh: nhiều ảnh thì
+		   phải có bảng riêng, mà bảng tin nội bộ chưa cần tới mức ấy.
+
+		   ⚠️ KHÔNG ĐẶT CHÚ THÍCH BÊN TRONG CHUỖI SQL. Bộ khung thử dựng bảng SQLite bằng cách
+		      đọc từng DÒNG của chuỗi này; một dòng chú thích rơi vào đó thì nó tưởng là một cột
+		      và cả bảng dựng hỏng — "table has no column named anh", một lỗi trông y như lỗi
+		      của plugin. Đã sập đúng bẫy này lúc thêm cột `anh` (26/08/2026). */
 		$b['bai'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			nhom VARCHAR(60) NOT NULL DEFAULT '',
@@ -30,6 +37,7 @@ class VHNB_DB {
 			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(30) NOT NULL DEFAULT '',
 			noi_dung TEXT NULL,
+			anh VARCHAR(255) NOT NULL DEFAULT '',
 			ghim TINYINT(1) NOT NULL DEFAULT 0,
 			so_tim INT NOT NULL DEFAULT 0,
 			so_bl INT NOT NULL DEFAULT 0,

@@ -3251,6 +3251,58 @@ t( 'lọc theo loại chi phí cũng chạy', ! empty( VHCP_Don::tim_don( '', ''
 /* 🔴 Ô TÌM LỌC ĐƠN VỊ TRONG SQL, và SQL phải hiểu ô rỗng là nhà mặc định.
    `$_mk` ở trên đã bị đặt `don_vi = ''` để giả sổ cũ. Kế toán chỉ-K&H mà không tìm ra nó thì
    nghĩa là toàn bộ sổ cũ đã biến mất khỏi ô tìm của chính K&H — mà sổ cũ là gần như tất cả. */
+/* 🔴 KẾT QUẢ TÌM PHẢI TRẢ VỀ DÒNG CHI KHỚP, KHÔNG CHỈ TÊN LOẠI.
+   Anh Thắng 26/08/2026: *"chỗ này phải hiện hàng con dưa leo ra chứ, hiện tên đơn thì không
+   biết được"*. Gõ "dưa leo" ra 9 đơn mà cột kết quả ghi "Chi phí NVL đồ ăn - Mua lẻ" ở cả 9
+   dòng — đúng một cái tên, nhìn xong vẫn phải mở từng đơn ra xem. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$_dd = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV K&H' );
+$_mdd = $_dd['maDon'];
+foreach ( array( array( 'dưa leo', 60000 ), array( 'dưa chuột', 30000 ), array( 'thịt heo', 90000 ) ) as $_x ) {
+	VHCP_Don::add_line( $_mdd, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+		'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => $_x[0],
+		'soLuong' => 1, 'donGia' => $_x[1], 'thanhTien' => $_x[1] ) );
+}
+$_t_dl = VHCP_Don::tim_don( 'dưa leo' );
+$_it = null;
+foreach ( $_t_dl['items'] as $x ) { if ( $x['maDon'] === $_mdd ) { $_it = $x; } }
+t( 'tìm ra đơn chứa dòng "dưa leo"', null !== $_it, $_t_dl['items'] );
+t( '🔴 kết quả kèm DÒNG CHI khớp', ! empty( $_it['dong'] ), $_it );
+teq( 'đúng một dòng khớp, không lôi cả đơn ra', 1, count( $_it['dong'] ) );
+teq( 'và đúng cái dòng ấy', 'dưa leo', $_it['dong'][0]['noiDung'] );
+teq( 'kèm số tiền của chính dòng ấy', 60000, VHCP_Util::num( $_it['dong'][0]['tien'] ) );
+t( 'dòng KHÔNG khớp thì không lọt vào',
+	'thịt heo' !== $_it['dong'][0]['noiDung'], $_it['dong'] );
+
+/* Gõ một từ khớp NHIỀU dòng thì trả nhiều, và đếm đúng. */
+$_t_dua = VHCP_Don::tim_don( 'dưa' );
+$_it2 = null;
+foreach ( $_t_dua['items'] as $x ) { if ( $x['maDon'] === $_mdd ) { $_it2 = $x; } }
+teq( 'khớp hai dòng thì trả hai', 2, count( $_it2['dong'] ) );
+teq( 'và số đếm nói đúng hai', 2, (int) $_it2['soDongKhop'] );
+
+/* 🔴 CẮT BỚT THÌ PHẢI NÓI RA CÒN BAO NHIÊU. Cắt im lặng thì "5 dòng" trông y hệt "chỉ có 5
+   dòng", và người tìm tin vào một con số thiếu. */
+for ( $i = 0; $i < 8; $i++ ) {
+	VHCP_Don::add_line( $_mdd, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+		'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'dưa số ' . $i,
+		'soLuong' => 1, 'donGia' => 1000, 'thanhTien' => 1000 ) );
+}
+$_t_nhieu = VHCP_Don::tim_don( 'dưa' );
+$_it3 = null;
+foreach ( $_t_nhieu['items'] as $x ) { if ( $x['maDon'] === $_mdd ) { $_it3 = $x; } }
+teq( 'trả tối đa 5 dòng', 5, count( $_it3['dong'] ) );
+teq( '🔴 nhưng số đếm là SỐ THẬT, không phải số đã cắt', 10, (int) $_it3['soDongKhop'] );
+
+/* Tìm theo kỳ / người lập thì không có dòng nào khớp — trả mảng rỗng, không trả bừa. */
+$_t_ky = VHCP_Don::tim_don( 'NV K&H' );
+$_it4 = null;
+foreach ( $_t_ky['items'] as $x ) { if ( $x['maDon'] === $_mdd ) { $_it4 = $x; } }
+t( 'tìm theo người lập vẫn ra đơn', null !== $_it4, $_t_ky['items'] );
+teq( 'nhưng không dòng nào khớp thì trả rỗng', 0, count( $_it4['dong'] ) );
+
+VHCP_Don::delete_don_admin( $_mdd );
+
 VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'KT Chỉ K&H' );
 $_tim_k = VHCP_Don::tim_don( 'Đèn' );
 $_ma_k = array();

@@ -26,7 +26,7 @@ class VHNB_Bai {
 	 *    nhập, mã và tên lấy TỪ ĐÓ chứ không nhận từ biểu mẫu. Nhận từ biểu mẫu là ai cũng đăng
 	 *    được bài mang tên giám đốc.
 	 */
-	public static function dang( $u, $noi_dung, $nhom = '', $nhom_id = 0 ) {
+	public static function dang( $u, $noi_dung, $nhom = '', $nhom_id = 0, $anh = '' ) {
 		global $wpdb;
 		$ten = trim( (string) ( isset( $u['name'] ) ? $u['name'] : '' ) );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ); }
@@ -50,8 +50,12 @@ class VHNB_Bai {
 		}
 
 		$nd = self::gon( $noi_dung, self::DAI_TOI_DA );
-		if ( '' === $nd ) {
-			return array( 'ok' => false, 'error' => 'Bài rỗng thì không ai đọc được gì — gõ vài chữ đã.' );
+		/* 🔴 CÓ ẢNH THÌ KHÔNG CÒN LÀ BÀI RỖNG. Chốt "bài rỗng thì chối" ở dưới viết từ hồi
+		   chưa có ảnh; giữ nguyên là đăng ảnh không kèm chữ bị chối, mà đó là cách người ta
+		   đăng ảnh nhiều nhất. */
+		$co_anh = VHNB_Anh::hop_le( $anh );
+		if ( '' === $nd && ! $co_anh ) {
+			return array( 'ok' => false, 'error' => 'Bài rỗng thì không ai đọc được gì — gõ vài chữ, hoặc đính một tấm ảnh.' );
 		}
 		$ok = $wpdb->insert( VHNB_DB::t( 'bai' ), array(
 			'nhom'     => self::chuan_nhom( $nhom ),
@@ -60,6 +64,10 @@ class VHNB_Bai {
 			'ho_ten'   => $ten,
 			'vai_tro'  => (string) ( isset( $u['role'] ) ? $u['role'] : '' ),
 			'noi_dung' => $nd,
+			/* ⚠️ Chỉ nhận địa chỉ nằm trong thư mục tải lên của chính web này — xem
+			   `VHNB_Anh::hop_le()`. Không hợp lệ thì BỎ ẢNH, vẫn đăng bài: mất cái ảnh còn hơn
+			   mất cả bài, và người đăng thấy ngay là ảnh không lên. */
+			'anh'      => $co_anh ? (string) $anh : '',
 			'tao_luc'  => current_time( 'mysql' ),
 		) );
 		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error ); }

@@ -4240,13 +4240,24 @@
       var h='<div style="border:1px solid #bfdbfe;border-radius:8px;background:#f8fbff;padding:8px 10px">'
         +'<div style="font-size:12px;font-weight:800;color:#0369a1;margin-bottom:6px">🔎 '+it.length+' đơn khớp</div>'
         +'<div style="max-height:260px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'
-        +'<thead><tr style="color:#64748b;text-align:left"><th style="padding:4px 6px">Kỳ</th><th>Cơ sở</th><th>Người lập</th><th>Trạng thái</th><th>Loại chi phí khớp</th><th style="text-align:right">Tổng</th><th></th></tr></thead><tbody>';
+        +'<thead><tr style="color:#64748b;text-align:left"><th style="padding:4px 6px">Kỳ</th><th>Cơ sở</th><th>Người lập</th><th>Trạng thái</th><th>Dòng chi khớp</th><th style="text-align:right">Tổng</th><th></th></tr></thead><tbody>';
       h+=it.map(function(d){
-        /* Hiện ĐÚNG NHỮNG LOẠI ĐÃ KHỚP — chỉ trả mã đơn thì người tìm phải mở từng đơn ra xem
-           vì sao nó lọt vào kết quả. */
-        var lo5=(d.loai||[]).slice(0,3).map(function(x){
+        /* 🔴 HIỆN ĐÚNG CÁI DÒNG NGƯỜI TA VỪA GÕ, không hiện tên loại.
+           Anh Thắng 26/08: *"chỗ này phải hiện hàng con dưa leo ra chứ, hiện tên đơn thì không
+           biết được"*. Gõ "dưa leo" ra 9 đơn mà cột nào cũng ghi "Chi phí NVL đồ ăn - Mua lẻ" —
+           đúng một cái tên ở cả 9 dòng, nhìn xong vẫn phải mở từng đơn. Nay hiện thẳng nội dung
+           dòng + số tiền: "dưa leo · 60.000đ".
+           ⚠️ Cắt còn 5 dòng thì NÓI RA còn bao nhiêu. Cắt im lặng thì "3 dòng" trông y hệt
+              "chỉ có 3 dòng", và người tìm tin vào một con số thiếu. */
+        var lo5=(d.dong||[]).map(function(x){
+          return '<div style="white-space:nowrap"><b>'+esc(x.noiDung||'(chưa có nội dung)')+'</b>'
+            +' <span style="color:#0369a1">'+money(x.tien)+'đ</span></div>'; }).join('');
+        var _du=(Number(d.soDongKhop)||0)-((d.dong||[]).length);
+        if(_du>0) lo5+='<div style="color:#94a3b8">+'+_du+' dòng nữa</div>';
+        /* Không có dòng nào khớp (tìm theo kỳ / người lập) thì lui về tên loại — thà thô còn
+           hơn để trống một cột. */
+        if(!lo5) lo5=(d.loai||[]).slice(0,3).map(function(x){
           return '<span style="background:#e0f2fe;color:#0369a1;border-radius:4px;padding:1px 5px;margin-right:3px;white-space:nowrap">'+esc(x)+'</span>'; }).join('');
-        if((d.loai||[]).length>3) lo5+='<span style="color:#94a3b8">+'+((d.loai.length)-3)+'</span>';
         return '<tr style="border-top:1px solid #e2e8f0">'
           +'<td style="padding:4px 6px">'+esc(d.ky||d.maDon)+'</td>'
           +'<td><b>'+esc(d.coso||'—')+'</b></td>'

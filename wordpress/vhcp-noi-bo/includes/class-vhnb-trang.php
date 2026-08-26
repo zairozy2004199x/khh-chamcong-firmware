@@ -161,9 +161,13 @@ class VHNB_Trang {
 		$g  = isset( $_POST['g_xem'] ) ? (int) $_POST['g_xem'] : 0;
 
 		if ( 'dang' === $viec ) {
+			/* Ảnh hỏng thì NÓI RA và KHÔNG đăng — đăng lặng lẽ bài trắng ảnh là người ta tưởng
+			   ảnh đã lên, mãi sau mới phát hiện. */
+			$a = VHNB_Anh::nhan( isset( $_FILES['anh'] ) ? $_FILES['anh'] : array() );
+			if ( '' !== $a['error'] ) { return array( 'loi' => $a['error'] ); }
 			$r = VHNB_Bai::dang( $toi,
 				isset( $_POST['noi_dung'] ) ? wp_unslash( $_POST['noi_dung'] ) : '',
-				isset( $_POST['nhom'] ) ? wp_unslash( $_POST['nhom'] ) : '', $g );
+				isset( $_POST['nhom'] ) ? wp_unslash( $_POST['nhom'] ) : '', $g, $a['url'] );
 			return empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => 'Đã đăng.' );
 		}
 		if ( 'lap_nhom' === $viec ) {
@@ -532,7 +536,9 @@ class VHNB_Trang {
 
 	private static function o_dang( $toi, $nhom, $g ) {
 		echo '<div class="the soan">';
-		echo '<form method="post">' . self::o_ky();
+		/* ⚠️ `enctype` là thứ làm nên việc gửi tệp. Thiếu nó thì trình duyệt vẫn gửi biểu mẫu,
+		   vẫn không báo lỗi gì — chỉ là `$_FILES` rỗng, và ảnh im lặng không bao giờ lên. */
+		echo '<form method="post" enctype="multipart/form-data">' . self::o_ky();
 		echo '<input type="hidden" name="viec" value="dang">';
 		echo '<input type="hidden" name="nhom_xem" value="' . esc_attr( $nhom ) . '">';
 		echo '<input type="hidden" name="g_xem" value="' . (int) $g . '">';
@@ -553,6 +559,9 @@ class VHNB_Trang {
 			}
 			echo '</select>';
 		}
+		/* Ảnh: `<input type="file">` thường, không script — xem `VHNB_Anh`. */
+		echo '<label class="dinh-anh" title="Đính một tấm ảnh (JPG · PNG · GIF · WEBP)">'
+			. '🖼 Ảnh<input type="file" name="anh" accept="image/*"></label>';
 		echo '<button class="chinh">Đăng</button>';
 		echo '</div></form></div>';
 	}
@@ -588,6 +597,14 @@ class VHNB_Trang {
 			/* `esc_html` rồi `nl2br`: thoát TRƯỚC, xuống dòng SAU. Làm ngược lại là mấy thẻ <br>
 			   vừa chèn cũng bị thoát thành chữ. */
 			echo '<div class="nd">' . nl2br( esc_html( (string) $b['noi_dung'] ) ) . '</div>';
+			$a_bai = isset( $b['anh'] ) ? (string) $b['anh'] : '';
+			if ( VHNB_Anh::hop_le( $a_bai ) ) {
+				/* `loading="lazy"` để bảng tin 20 bài không kéo về 20 tấm ảnh một lượt — người ở
+				   cơ sở mở bằng 3G. `alt` để trống có chủ ý: ảnh ở đây là nội dung, không phải
+				   trang trí, mà mình không có mô tả thật để điền. */
+				echo '<a class="bai-anh" href="' . esc_url( $a_bai ) . '" target="_blank" rel="noopener">'
+					. '<img src="' . esc_url( $a_bai ) . '" alt="" loading="lazy"></a>';
+			}
 
 			$o_lo = '<input type="hidden" name="nhom_xem" value="' . esc_attr( $nhom ) . '">'
 				. '<input type="hidden" name="g_xem" value="' . (int) $g . '">';
@@ -758,6 +775,21 @@ class VHNB_Trang {
 			. '.soan-tren textarea:focus{background:#fff;border-color:#cbd5e1;outline:none}'
 			. '.soan-duoi{display:flex;gap:8px;flex-wrap:wrap;align-items:center;'
 			. 'border-top:1px solid var(--vien);margin-top:10px;padding-top:10px}'
+
+			/* ---------- ảnh kèm bài ---------- */
+			/* Ảnh chiếm hết bề ngang cột giữa, cao tối đa 70% màn — một tấm ảnh dọc chụp bằng
+			   điện thoại mà để nguyên là đẩy hết bài phía dưới ra khỏi tầm mắt. Bấm vào ảnh mở
+			   tab mới xem cỡ thật. */
+			. '.bai-anh{display:block;margin:10px 0 0;border-radius:10px;overflow:hidden;'
+			. 'background:#f0f2f5;line-height:0}'
+			. '.bai-anh img{width:100%;max-height:70vh;object-fit:contain;display:block}'
+			/* Nút đính ảnh: trông như một cái nút, nhưng thật ra là `<label>` bọc ô chọn tệp —
+			   ô chọn tệp thật thì mỗi trình duyệt vẽ một kiểu và không tô lại được. */
+			. '.dinh-anh{display:inline-flex;align-items:center;gap:6px;font-size:13px;'
+			. 'font-weight:600;padding:7px 12px;border-radius:8px;border:1px solid #cbd5e1;'
+			. 'background:#fff;cursor:pointer;color:var(--chu)}'
+			. '.dinh-anh:hover{background:var(--ro)}'
+			. '.dinh-anh input{width:118px;font-size:11px;padding:0;border:0;background:none}'
 
 			/* ---------- thẻ bài ---------- */
 			. '.bai{padding:12px 14px}'

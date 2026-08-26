@@ -238,6 +238,38 @@ class VHCP_Don {
 		$tv[] = $limit;
 		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $tv ), ARRAY_A );
 
+		/* 🔴 LẤY CẢ DÒNG CHI KHỚP, KHÔNG CHỈ TÊN LOẠI.
+		   Anh Thắng 26/08/2026: *"chỗ này phải hiện hàng con dưa leo ra chứ, hiện tên đơn thì
+		   không biết được"*. Gõ "dưa leo" ra 9 đơn, mà cột kết quả chỉ hiện "Chi phí NVL đồ ăn -
+		   Mua lẻ" — đúng cái tên ấy ở cả 9 dòng, nên nhìn xong vẫn phải mở từng đơn ra xem.
+		   Thứ người tìm cần thấy là DÒNG họ vừa gõ: "dưa leo · 60.000đ".
+
+		   ⚠️ HỎI BẰNG MỘT CÂU RIÊNG, KHÔNG GOM VÀO CÂU TRÊN. Gom được bằng
+		      GROUP_CONCAT + CONCAT + SEPARATOR — nhưng đó là cú pháp RIÊNG CỦA MySQL, mà bộ thử
+		      chạy trên SQLite. Viết thế là đúng chỗ này vĩnh viễn không có phép thử nào với tới,
+		      mà nó lại chính là chỗ vừa hỏng. Một câu thêm trên tối đa 60 mã đơn rẻ hơn nhiều so
+		      với một tính năng không kiểm được. */
+		$dong_khop = array();
+		if ( '' !== $q && $rows ) {
+			$ma_ds = array();
+			foreach ( $rows as $r0 ) { $ma_ds[] = (string) $r0['ma_don']; }
+			$cho   = implode( ',', array_fill( 0, count( $ma_ds ), '%s' ) );
+			$like2 = '%' . $wpdb->esc_like( $q ) . '%';
+			$tv2   = array_merge( $ma_ds, array( $like2, $like2, $like2 ) );
+			foreach ( VHCP_DB::rows( $wpdb->prepare(
+				"SELECT ma_don, noi_dung, thanh_tien FROM $tc
+					WHERE ma_don IN ($cho)
+					  AND ( noi_dung LIKE %s OR nhom LIKE %s OR doi_tuong LIKE %s )
+					ORDER BY stt ASC", $tv2 ) ) as $l ) {
+				$m2 = (string) $l['ma_don'];
+				if ( ! isset( $dong_khop[ $m2 ] ) ) { $dong_khop[ $m2 ] = array(); }
+				$dong_khop[ $m2 ][] = array(
+					'noiDung' => trim( (string) $l['noi_dung'] ),
+					'tien'    => VHCP_Util::num( $l['thanh_tien'] ),
+				);
+			}
+		}
+
 		$items = array();
 		foreach ( (array) $rows as $r ) {
 			$loai = array();
@@ -250,7 +282,13 @@ class VHCP_Don {
 				$x = trim( $x );
 				if ( '' !== $x && ! in_array( $x, $cs, true ) ) { $cs[] = $x; }
 			}
+			/* Dòng chi KHỚP — trả tối đa 5, kèm SỐ THẬT còn bao nhiêu. Cắt im lặng thì "3 dòng"
+			   trông y hệt "chỉ có 3 dòng", và người tìm tin vào một con số thiếu. */
+			$m_don = (string) $r['ma_don'];
+			$dong  = isset( $dong_khop[ $m_don ] ) ? $dong_khop[ $m_don ] : array();
 			$items[] = array(
+				'dong'      => array_slice( $dong, 0, 5 ),
+				'soDongKhop'=> count( $dong ),
 				'maDon'     => (string) $r['ma_don'],
 				'ky'        => (string) $r['ky'],
 				'coso'      => implode( ', ', $cs ),

@@ -339,7 +339,17 @@ la('ô xổ nạp ở mọi lượt đổi tab, không riêng tab đơn',
 la('có ô lọc loại chi phí', 'id="tdLoai"' in src)
 la('có ô lọc cơ sở', 'id="tdCoso"' in src)
 la('tìm ở MÁY CHỦ (quét cả dòng chi), không lọc ô xổ', '.timDon(' in src)
-la('kết quả hiện rõ đơn thuộc cơ sở nào', 'Loại chi phí khớp' in src)
+la('kết quả hiện rõ đơn thuộc cơ sở nào', '<th>Cơ sở</th>' in src)
+# 🔴 Anh Thắng 26/08: *"chỗ này phải hiện hàng con dưa leo ra chứ, hiện tên đơn thì không biết
+#    được"*. Gõ "dưa leo" ra 9 đơn mà cột nào cũng ghi "Chi phí NVL đồ ăn - Mua lẻ" — đúng một
+#    cái tên ở cả 9 dòng, nhìn xong vẫn phải mở từng đơn ra xem.
+la('cột kết quả là DÒNG CHI khớp, không phải tên loại', '<th>Dòng chi khớp</th>' in src)
+la('và hiện nội dung + số tiền của từng dòng',
+   'esc(x.noiDung' in src and 'money(x.tien)' in src)
+# Cắt còn 5 dòng thì phải NÓI RA còn bao nhiêu — cắt im lặng thì "3 dòng" trông y hệt "chỉ có 3".
+la('cắt bớt thì nói ra còn bao nhiêu dòng nữa', 'dòng nữa' in src and 'd.soDongKhop' in src)
+# Tìm theo kỳ / người lập thì không có dòng nào khớp — lui về tên loại, thà thô còn hơn cột trống.
+la('không có dòng khớp thì lui về tên loại', 'if(!lo5) lo5=(d.loai||[])' in src)
 la('và mở được thẳng đơn từ kết quả', "onclick=\\'viewDon" in src or 'onclick="viewDon(' in src)
 
 # 4) Tra theo mã: lọc loại + phân trang 20 dòng.
