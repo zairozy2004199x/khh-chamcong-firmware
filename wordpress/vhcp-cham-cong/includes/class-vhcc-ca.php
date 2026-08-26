@@ -218,6 +218,95 @@ class VHCC_Ca {
 		return implode( "\n", $c );
 	}
 
+	/* ==================================================================== xuất */
+
+	/**
+	 * Ba trang tính cho tệp .xlsx: chi tiết từng ca · tổng theo người × ca · từng lượt chấm.
+	 *
+	 * 🔴 Trang ĐẦU là thứ anh Thắng hỏi: *"chi tiết ca đó từ mấy h đến mấy h"*. Mỗi dòng là MỘT
+	 *    CA của một người trong một ngày — không phải một ngày một dòng. Một người làm vắt hai
+	 *    ca thì ra hai dòng, và mỗi dòng nói rõ khung ca lẫn số giờ thật nằm trong khung ấy.
+	 *    Gộp lại một dòng là mất đúng cái người đọc cần: giờ nào thuộc ca nào.
+	 */
+	public static function to_xuat( $b, $coso ) {
+		$ds_ca  = self::cua( $coso );
+		$thu_vn = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+
+		$chi_tiet = array( array( 'Ngày', 'Thứ', 'Mã NV', 'Họ tên', 'Hàng', 'Giờ vào', 'Giờ ra',
+			'Tổng giờ làm', 'Ca', 'Ca bắt đầu', 'Ca kết thúc', 'Giờ trong ca', 'Ghi chú' ) );
+		$luot = array( array( 'Ngày', 'Thứ', 'Mã NV', 'Họ tên', 'Hàng', 'Giờ vào', 'Giờ ra',
+			'Tổng giờ làm', 'Các ca', 'Từ ca → đến ca', 'Ghi chú' ) );
+		$theo_nguoi = array();
+
+		foreach ( (array) $b['hang'] as $r ) {
+			$ngay  = (string) $r['ngay'];
+			$thu   = $thu_vn[ (int) gmdate( 'w', strtotime( $ngay . ' 00:00:00 UTC' ) ) ];
+			$ma    = (string) $r['maNV'];
+			$ten   = (string) $r['hoTen'];
+			$hang  = ( '' !== $r['hauTo'] ) ? $r['hauTo'] : 'chính';
+			$vao   = (string) $r['vao'];
+			$ra    = (string) $r['ra'];
+			$gio   = ( null === $r['phut'] ) ? '' : round( $r['phut'] / 60, 2 );
+
+			$ghi = '';
+			if ( '' !== $vao && '' === $ra )      { $ghi = 'THIẾU GIỜ RA — quên bấm lúc về'; }
+			elseif ( null === $r['phut'] && '' !== $vao && '' !== $ra ) {
+				$ghi = 'GIỜ RA SỚM HƠN GIỜ VÀO — dấu hiệu ghi sai';
+			}
+
+			$x = self::tach( $ds_ca, $r['vaoGiay'], $r['raGiay'], self::la_cuoi_tuan( $ngay ) );
+
+			$luot[] = array( $ngay, $thu, VHCC_Xuat::chu( $ma ), $ten, $hang, $vao, $ra, $gio,
+				self::ma_o( $ds_ca, $x ), self::tu_den( $x ), $ghi );
+
+			if ( ! isset( $theo_nguoi[ $ma ] ) ) {
+				$theo_nguoi[ $ma ] = array( 'ten' => $ten, 'ca' => array(), 'ngoai' => 0 );
+			}
+			foreach ( $x['ds'] as $o ) {
+				$chi_tiet[] = array( $ngay, $thu, VHCC_Xuat::chu( $ma ), $ten, $hang, $vao, $ra, $gio,
+					$o['ten'], $o['tu'], $o['den'], round( $o['phut'] / 60, 2 ), $ghi );
+				$theo_nguoi[ $ma ]['ca'][ $o['ten'] ] = ( isset( $theo_nguoi[ $ma ]['ca'][ $o['ten'] ] )
+					? $theo_nguoi[ $ma ]['ca'][ $o['ten'] ] : 0 ) + (int) $o['phut'];
+			}
+			/* Lượt KHÔNG rơi vào ca nào vẫn phải có một dòng ở trang chi tiết — bỏ đi thì tổng
+			   của trang chi tiết hụt so với trang lượt, và không ai biết hụt vì đâu. */
+			if ( ! $x['ds'] ) {
+				$chi_tiet[] = array( $ngay, $thu, VHCC_Xuat::chu( $ma ), $ten, $hang, $vao, $ra, $gio,
+					'(ngoài ca)', '', '',
+					$x['ngoai_ca'] ? round( $x['ngoai_ca'] / 60, 2 ) : '',
+					'' !== $ghi ? $ghi : 'Không nằm trong khung ca nào đang khai' );
+			}
+			$theo_nguoi[ $ma ]['ngoai'] += (int) $x['ngoai_ca'];
+		}
+
+		uasort( $theo_nguoi, function ( $a, $c ) { return strcasecmp( $a['ten'], $c['ten'] ); } );
+
+		$dau = array( 'Mã NV', 'Họ tên' );
+		foreach ( $ds_ca as $c ) { $dau[] = $c['ten'] . ' (' . $c['tu'] . '–' . $c['den'] . ')'; }
+		$dau[] = 'Ngoài ca';
+		$dau[] = 'TỔNG giờ';
+		$tong = array( $dau );
+		foreach ( $theo_nguoi as $ma => $x ) {
+			$dong = array( VHCC_Xuat::chu( $ma ), $x['ten'] );
+			$cong = 0;
+			foreach ( $ds_ca as $c ) {
+				$p = isset( $x['ca'][ $c['ten'] ] ) ? (int) $x['ca'][ $c['ten'] ] : 0;
+				$cong += $p;
+				$dong[] = $p ? round( $p / 60, 2 ) : '';
+			}
+			$cong += (int) $x['ngoai'];
+			$dong[] = $x['ngoai'] ? round( $x['ngoai'] / 60, 2 ) : '';
+			$dong[] = round( $cong / 60, 2 );
+			$tong[] = $dong;
+		}
+
+		return array(
+			array( 'ten' => 'Chi tiết ca', 'hang' => $chi_tiet ),
+			array( 'ten' => 'Tổng theo ca', 'hang' => $tong ),
+			array( 'ten' => 'Từng lượt chấm', 'hang' => $luot ),
+		);
+	}
+
 	/* ==================================================================== phụ */
 
 	/** 'H:mm' / 'HH:mm' -> 'HH:mm'; rỗng hoặc sai -> ''. */

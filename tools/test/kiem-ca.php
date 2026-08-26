@@ -197,10 +197,65 @@ for ( $v = 0; $v < 24; $v++ ) {
 }
 teq( 'không ca nào nhận quá 8 tiếng từ một lượt 8 tiếng', array(), $qua );
 
+// ============================================================ 6. XUẤT .XLSX
+echo "— xuất .xlsx —\n";
+require $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-xuat.php';
+
+teq( 'cột 0 -> A',   'A',  VHCC_Xuat::cot( 0 ) );
+teq( 'cột 25 -> Z',  'Z',  VHCC_Xuat::cot( 25 ) );
+teq( 'cột 26 -> AA', 'AA', VHCC_Xuat::cot( 26 ) );
+teq( 'cột 51 -> AZ', 'AZ', VHCC_Xuat::cot( 51 ) );
+/* Tên trang tính: Excel cấm : \ / ? * [ ] và giới hạn 31 ký tự. Quá tay là tệp KHÔNG MỞ ĐƯỢC,
+   báo "found unreadable content" — không phải cắt bớt cho. */
+teq( 'tên trang tính bỏ ký tự Excel cấm', 'a b', VHCC_Xuat::ten_to( 'a/b' ) );
+t( 'tên trang tính không quá 31 ký tự',
+	mb_strlen( VHCC_Xuat::ten_to( str_repeat( 'x', 60 ) ), 'UTF-8' ) <= 31 );
+teq( 'tên rỗng -> đặt tên thay', 'Trang 1', VHCC_Xuat::ten_to( '', 0 ) );
+
+t( 'máy này dựng được .xlsx (cần ZipArchive)', VHCC_Xuat::co_xlsx() );
+
+$to = array( array( 'ten' => 'Thử', 'hang' => array(
+	array( 'Mã NV', 'Số', 'Chữ có dấu' ),
+	/* 🔴 Mã `0029` phải giữ nguyên số 0 ở đầu. Để Excel tự đoán là nó thành số 29 — mã nhân viên
+	   sai mà tệp vẫn mở bình thường, đúng kiểu hỏng không kêu tiếng nào. */
+	array( VHCC_Xuat::chu( '0029' ), 7.5, 'Nguyễn Huỳnh Tường Vy' ),
+	array( VHCC_Xuat::chu( '17' ), 0, 'a & b < c > d "e"' ),
+) ) );
+$noi = VHCC_Xuat::xlsx( $to );
+t( 'dựng được tệp', is_string( $noi ) && strlen( $noi ) > 500, is_string( $noi ) ? strlen( $noi ) : $noi );
+t( 'tệp bắt đầu bằng chữ ký ZIP (PK)', 'PK' === substr( (string) $noi, 0, 2 ) );
+
+/* Mở tệp ra đọc lại bằng máy — không tin vào việc "dựng xong là đúng". */
+$tam = sys_get_temp_dir() . '/vhcc-thu-' . getmypid() . '.xlsx';
+file_put_contents( $tam, $noi );
+$z = new ZipArchive();
+t( 'mở lại được tệp vừa dựng', true === $z->open( $tam ) );
+$can = array( '[Content_Types].xml', '_rels/.rels', 'xl/workbook.xml',
+	'xl/_rels/workbook.xml.rels', 'xl/styles.xml', 'xl/worksheets/sheet1.xml' );
+foreach ( $can as $ten_phan ) {
+	t( 'tệp có phần "' . $ten_phan . '"', false !== $z->locateName( $ten_phan ) );
+}
+$sheet = $z->getFromName( 'xl/worksheets/sheet1.xml' );
+$z->close();
+@unlink( $tam );
+
+t( 'XML của trang tính đọc được', false !== simplexml_load_string( $sheet ), substr( (string) $sheet, 0, 200 ) );
+t( 'mã 0029 giữ nguyên số 0 ở đầu (ghi là CHỮ)',
+	false !== strpos( $sheet, '<t xml:space="preserve">0029</t>' ), $sheet );
+t( 'số 7.5 ghi là SỐ, không bọc chữ',
+	false !== strpos( $sheet, '<v>7.5</v>' ), $sheet );
+t( 'chữ có dấu giữ nguyên',
+	false !== strpos( $sheet, 'Nguyễn Huỳnh Tường Vy' ), $sheet );
+/* Thoát XML: `&` phải đi TRƯỚC, kẻo nó thoát lại chính dấu & của mấy cái kia thành `&amp;lt;`. */
+t( 'ký tự đặc biệt được thoát đúng, không thoát hai lần',
+	false !== strpos( $sheet, 'a &amp; b &lt; c &gt; d' ) && false === strpos( $sheet, '&amp;lt;' ), $sheet );
+/* Số 0 là số THẬT, không được biến thành ô rỗng. */
+t( 'số 0 vẫn ghi ra là 0, không thành ô trống', false !== strpos( $sheet, '<v>0</v>' ), $sheet );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
 	echo "ĐẠT: $dat\n";
 	exit( 1 );
 }
-echo "\n✓ SẠCH — $dat phép: tách ca chạy đúng cả với ca qua nửa đêm.\n";
+echo "\n✓ SẠCH — $dat phép: tách ca chạy đúng cả với ca qua nửa đêm, và tệp .xlsx mở lại được.\n";

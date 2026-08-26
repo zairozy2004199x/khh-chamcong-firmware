@@ -170,6 +170,12 @@ class VHCC_Web {
 
 		if ( ! $toi ) { self::trang_dang_nhap(); return; }
 
+		/* 🔴 TẢI TỆP XỬ TRƯỚC MỌI THỨ KHÁC — trước cả `trang_chinh()`, vì gửi tệp đòi đặt
+		   header, mà header chỉ đặt được khi CHƯA in ra một byte nào. Để nhánh này xuống dưới là
+		   PHP báo "headers already sent" và trình duyệt nhận về một tệp .xlsx có lẫn cả trang
+		   HTML ở đầu — Excel mở ra báo hỏng, mà chẳng ai đoán được vì sao. */
+		if ( isset( $_GET['xuat'] ) ) { self::xuat_tep( $toi ); }
+
 		/* 🔴 POST → CHUYỂN HƯỚNG → GET. Anh Thắng: *"cứ bấm F5 là nó reset về ban đầu"*, và
 		   trình duyệt hiện hộp "Confirm Form Resubmission".
 		   Trước đây bấm Lưu là POST rồi VẼ THẲNG kết quả, nên địa chỉ trên thanh vẫn là địa chỉ
@@ -185,6 +191,68 @@ class VHCC_Web {
 			self::ve( self::url_hien() );
 		}
 		self::trang_chinh( $toi, array() );
+	}
+
+	/**
+	 * Gửi tệp .xlsx về trình duyệt. Không quay lại — hoặc gửi tệp rồi thoát, hoặc vẽ một trang
+	 * báo lỗi rồi thoát.
+	 */
+	private static function xuat_tep( $toi ) {
+		$loai = sanitize_text_field( wp_unslash( $_GET['xuat'] ) );
+		$cs   = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
+		$th   = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
+		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
+
+		$chan = self::vi_sao_khong_xuat( $toi, $loai, $cs );
+		if ( '' !== $chan ) { self::loi_xuat( $chan ); }
+
+		$b = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
+		if ( empty( $b['ok'] ) ) { self::loi_xuat( $b['error'] ); }
+		if ( empty( $b['hang'] ) ) {
+			self::loi_xuat( 'Tháng ' . $b['thang'] . ' chưa có dữ liệu chấm công nào ở ' . $cs
+				. ' — không có gì để xuất.' );
+		}
+
+		$noi = VHCC_Xuat::xlsx( VHCC_Ca::to_xuat( $b, $cs ) );
+		if ( null === $noi ) { self::loi_xuat( 'Không dựng được tệp .xlsx.' ); }
+
+		/* Tên tệp chỉ giữ chữ/số/gạch — dấu tiếng Việt và khoảng trắng trong `Content-Disposition`
+		   là mỗi trình duyệt đặt tên một kiểu, có cái cắt cụt ngay chỗ dấu cách. */
+		$ten = 'cong-' . preg_replace( '/[^A-Za-z0-9_-]/', '', $cs ) . '-' . $b['thang'] . '.xlsx';
+		VHCC_Xuat::gui( $ten, $noi );
+	}
+
+	/**
+	 * Người này có tải được tệp không? '' = được, hoặc câu từ chối.
+	 *
+	 * ⚠️ Tách ra khỏi `xuat_tep` vì hàm kia luôn kết bằng `exit` — gọi nó trong bộ thử là GIẾT
+	 *    luôn cả lượt chạy, nên phần gác cửa sẽ vĩnh viễn không có phép thử nào. Một cửa không
+	 *    thử được là một cửa sớm muộn hở.
+	 */
+	public static function vi_sao_khong_xuat( $toi, $loai, $cs ) {
+		if ( 'ca' !== $loai ) { return 'Không biết xuất kiểu "' . $loai . '".'; }
+		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
+			return 'Xuất bảng công cần quyền Cửa hàng trưởng trở lên.';
+		}
+		$cs = VHCC_NhanSu::chuan_coso( $cs );
+		if ( '' === $cs ) { return 'Chưa chọn cơ sở.'; }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return 'Không có quyền cơ sở này.'; }
+		if ( ! VHCC_Xuat::co_xlsx() ) {
+			return 'Máy chủ này thiếu phần mở rộng ZipArchive của PHP nên không dựng được tệp '
+				. '.xlsx. Nhờ bên hosting bật `php-zip` giúp — bật xong là nút này chạy ngay, '
+				. 'không phải cài lại gì.';
+		}
+		return '';
+	}
+
+	private static function loi_xuat( $loi ) {
+		echo self::dau( 'Không xuất được' );
+		echo '<div class="bo" style="max-width:560px;padding-top:40px"><div class="the">';
+		echo '<h2>Không xuất được tệp</h2>';
+		echo '<div class="bao loi">' . esc_html( $loi ) . '</div>';
+		echo '<p><a class="nut chinh" href="' . esc_url( self::url() ) . '">Quay lại</a></p>';
+		echo '</div></div></body></html>';
+		exit;
 	}
 
 	/** Các tham số phải sống sót qua một lượt POST — bộ lọc, ô tìm, màn đang mở. */
@@ -984,7 +1052,7 @@ class VHCC_Web {
 		}
 
 		if ( 'vp' === $man ) {
-			self::the_cong_vp( $toi );
+			self::the_cong_vp( $ky, $toi );
 			echo '</div></body></html>';
 			return;
 		}
@@ -1451,7 +1519,7 @@ class VHCC_Web {
 	 *      số `0`  = CÓ giờ chấm mà KHÔNG ra công (ca lạ, ca đêm thiếu giờ, kế toán chấm CN)
 	 *    Gộp hai thứ này lại là xoá mất đúng những ngày cần soi.
 	 */
-	private static function the_cong_vp( $toi ) {
+	private static function the_cong_vp( $ky, $toi ) {
 		$ds_cs = self::ds_coso_xem( $toi );
 		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
 		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
@@ -1504,6 +1572,12 @@ class VHCC_Web {
 				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
 					: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' )
 				. '</p>';
+		}
+		if ( '' !== $cs && ! $la_vp ) {
+			echo '<p style="margin:10px 0 0"><a class="nut" href="'
+				. esc_url( add_query_arg( array( 'xuat' => 'ca', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
+				. '">⬇ Xuất Excel (.xlsx)</a> <span class="mo">— ba trang: chi tiết từng ca '
+				. '(ca nào, từ mấy giờ đến mấy giờ, mấy tiếng) · tổng theo ca · từng lượt chấm.</span></p>';
 		}
 		echo '</div>';
 		if ( '' === $cs ) { return; }

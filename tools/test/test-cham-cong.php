@@ -6335,6 +6335,97 @@ t( 'giờ không thuộc ca nào hiện ở cột Ngoài ca, không bị nuốt'
 t( 'và nói rõ đó là dấu hiệu khung ca khai chưa khớp',
 	strpos( $h_ca2, 'khung ca khai chưa khớp' ) !== false, $h_ca2 );
 
+/* ---- XUẤT EXCEL: chi tiết ca đó từ mấy giờ đến mấy giờ ---- */
+/* Anh Thắng 26/08: *"bổ sung tính năng xuất excel, khi xuất thì nó sẽ chi tiết ca đó từ mấy h
+   đến mấy h"*. */
+t( 'màn có nút Xuất Excel', strpos( $h_gio, 'Xuất Excel' ) !== false, $h_gio );
+t( 'nút mang sẵn cơ sở và tháng đang xem',
+	strpos( $h_gio, 'xuat=ca' ) !== false && strpos( $h_gio, 'cth=2026-07' ) !== false, $h_gio );
+
+$b_xuat = VHCC_Cham::bang_cham_cong( $ADMIN_W, $CS_GIO, '2026-07' );
+$to_x   = VHCC_Ca::to_xuat( $b_xuat, $CS_GIO );
+teq( 'xuất ra ĐÚNG ba trang tính', 3, count( $to_x ) );
+teq( 'trang đầu là Chi tiết ca', 'Chi tiết ca', $to_x[0]['ten'] );
+teq( 'trang hai là Tổng theo ca', 'Tổng theo ca', $to_x[1]['ten'] );
+teq( 'trang ba là Từng lượt chấm', 'Từng lượt chấm', $to_x[2]['ten'] );
+
+/* 🔴 Trang Chi tiết ca: MỖI CA MỘT DÒNG, không phải mỗi ngày một dòng. Gộp lại là mất đúng thứ
+   anh Thắng cần — giờ nào thuộc ca nào. */
+$dau_x = $to_x[0]['hang'][0];
+foreach ( array( 'Ca', 'Ca bắt đầu', 'Ca kết thúc', 'Giờ trong ca' ) as $c_x ) {
+	t( 'trang Chi tiết ca có cột "' . $c_x . '"', in_array( $c_x, $dau_x, true ), $dau_x );
+}
+/* GIO1 ngày 01/07 làm 08:00–17:30, vắt Ca 1 và Ca 2 -> phải ra HAI dòng cho một ngày. */
+$dong_gio1 = array();
+foreach ( array_slice( $to_x[0]['hang'], 1 ) as $d_x ) {
+	if ( '2026-07-01' === $d_x[0] && 'chính' === $d_x[4] ) { $dong_gio1[] = $d_x; }
+}
+teq( 'một ngày vắt hai ca thì ra HAI dòng', 2, count( $dong_gio1 ) );
+/* ⚠️ Ca ở đây là ca ĐANG KHAI cho cơ sở này ("Sáng" 06–12 · "Chiều" 12–20, khai ở mục trên),
+   KHÔNG phải bộ mặc định Ca 1/Ca 2. Lượt 08:00–17:30 -> Sáng 4h, Chiều 5h30. Em gõ Ca 1/Ca 2
+   theo trí nhớ và trượt — con số dưới đây lấy từ chính phép tính. */
+$ca_cua = array();
+foreach ( $dong_gio1 as $d_x ) { $ca_cua[ $d_x[8] ] = array( $d_x[9], $d_x[10], $d_x[11] ); }
+teq( 'dòng ca đầu ghi rõ khung ca và số giờ trong ca',
+	array( '06:00', '12:00', 4.0 ), isset( $ca_cua['Sáng'] ) ? $ca_cua['Sáng'] : $ca_cua );
+teq( 'dòng ca sau cũng vậy',
+	array( '12:00', '20:00', 5.5 ), isset( $ca_cua['Chiều'] ) ? $ca_cua['Chiều'] : $ca_cua );
+
+/* Ngày thiếu giờ ra vẫn phải có dòng, kèm ghi chú — bỏ đi là bảng xuất ra trông như người ta
+   nghỉ hôm đó. */
+$co_thieu = false;
+foreach ( array_slice( $to_x[0]['hang'], 1 ) as $d_x ) {
+	if ( false !== strpos( (string) $d_x[12], 'THIẾU GIỜ RA' ) ) { $co_thieu = true; }
+}
+t( 'ngày thiếu giờ ra vẫn có dòng, kèm ghi chú', $co_thieu, $to_x[0]['hang'] );
+
+/* Mã NV phải ghi là CHỮ. Mã kiểu `0029` để Excel tự đoán là mất số 0 ở đầu. */
+$o_ma = $to_x[0]['hang'][1][2];
+t( 'mã NV được bọc thành chữ, không để Excel đoán',
+	is_array( $o_ma ) && isset( $o_ma['chu'] ), $o_ma );
+
+/* Dựng tệp thật rồi MỞ LẠI bằng máy — không tin "dựng xong là đúng". */
+$noi_x = VHCC_Xuat::xlsx( $to_x );
+t( 'dựng được tệp .xlsx', is_string( $noi_x ) && 'PK' === substr( $noi_x, 0, 2 ) );
+$tep_x = sys_get_temp_dir() . '/vhcc-xuat-' . getmypid() . '.xlsx';
+file_put_contents( $tep_x, $noi_x );
+$z_x = new ZipArchive();
+t( 'mở lại được tệp vừa dựng', true === $z_x->open( $tep_x ) );
+foreach ( array( 1, 2, 3 ) as $i_x ) {
+	$xml_x = $z_x->getFromName( 'xl/worksheets/sheet' . $i_x . '.xml' );
+	t( 'trang tính ' . $i_x . ' là XML hợp lệ', false !== simplexml_load_string( (string) $xml_x ) );
+}
+$s1_x = $z_x->getFromName( 'xl/worksheets/sheet1.xml' );
+$wb_x = $z_x->getFromName( 'xl/workbook.xml' );
+$z_x->close();
+@unlink( $tep_x );
+t( 'tên ba trang tính nằm trong workbook',
+	false !== strpos( $wb_x, 'Chi tiết ca' ) && false !== strpos( $wb_x, 'Tổng theo ca' )
+	&& false !== strpos( $wb_x, 'Từng lượt chấm' ), $wb_x );
+/* Khung ca của cơ sở này là Sáng 06:00–12:00 · Chiều 12:00–20:00 (khai ở mục trên), không phải
+   bộ mặc định — đây chính là thứ anh Thắng hỏi: "chi tiết ca đó từ mấy h đến mấy h". */
+t( 'trang Chi tiết ca in ra khung giờ ca thật (06:00 và 12:00)',
+	false !== strpos( $s1_x, '>06:00<' ) && false !== strpos( $s1_x, '>12:00<' ), substr( $s1_x, 0, 600 ) );
+t( 'và in cả tên ca', false !== strpos( $s1_x, '>Sáng<' ), substr( $s1_x, 0, 600 ) );
+t( 'và tên có dấu không bị vỡ', false !== strpos( $s1_x, 'Người GIO1' ), substr( $s1_x, 0, 400 ) );
+
+/* Gác cửa của đường tải tệp — hỏi hàm THUẦN, không gọi `xuat_tep` (hàm đó luôn `exit`, gọi
+   trong bộ thử là giết luôn cả lượt chạy và phần gác cửa vĩnh viễn không có phép thử nào). */
+teq( 'Admin xuất được', '',
+	VHCC_Web::vi_sao_khong_xuat( $ADMIN_W, 'ca', $CS_GIO ) );
+foreach ( array( 'Nhân viên' ) as $vt_x ) {
+	$c_x = VHCC_Web::vi_sao_khong_xuat( array( 'name' => 'X', 'role' => $vt_x, 'coso' => $CS_GIO ),
+		'ca', $CS_GIO );
+	t( $vt_x . ' KHÔNG tải được tệp',
+		'' !== $c_x && false !== strpos( $c_x, 'Cửa hàng trưởng' ), $c_x );
+}
+t( 'chưa chọn cơ sở -> chối', '' !== VHCC_Web::vi_sao_khong_xuat( $ADMIN_W, 'ca', '' ) );
+t( 'kiểu xuất lạ -> chối', '' !== VHCC_Web::vi_sao_khong_xuat( $ADMIN_W, 'linh_tinh', $CS_GIO ) );
+/* Cửa hàng trưởng chỉ tải được cơ sở MÌNH — ẩn cái nút không phải là gác cửa. */
+$c_x2 = VHCC_Web::vi_sao_khong_xuat(
+	array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' ), 'ca', $CS_GIO );
+t( 'Cửa hàng trưởng không tải được cơ sở của người khác', '' !== $c_x2, $c_x2 );
+
 /* Nhân viên không khai ca được, kể cả POST thẳng. */
 $h_ca_nv = vhcc_web( '680246', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
 t( 'Nhân viên không thấy khối khai ca', strpos( $h_ca_nv, 'id="khaica"' ) === false, $h_ca_nv );
@@ -6378,6 +6469,30 @@ teq( 'địa chỉ có tiền tố CS_ thì form khai ca vẫn gửi mã cơ s�
 teq( 'và form chấm công bù cũng vậy', 'TUTU_BT',
 	vhcc_ccs_cuoi( vhcc_web( '135791', array(),
 		array( 'man' => 'cham', 'ccs' => 'CS_TUTU_BT', 'cth' => '2026-07' ) ), 'value="bu"' ) );
+
+/* ---- MỌI FORM POST PHẢI MANG THẺ PHIÊN `ky` KHÁC RỖNG ---- */
+/* 🔴 Bắt được lỗi thật: tab "Bảng công tháng" gọi `the_cong_vp( $toi )` mà bên trong lại dùng
+   `$ky` — biến chưa hề được truyền vào. Form khai ca vì thế mang `ky=""`, và trên trang thật
+   MỌI lượt lưu ca đều bị chối bằng câu "Phiên đã hết hoặc biểu mẫu không hợp lệ".
+   Phép thử cũ không bắt vì nó gọi thẳng `lam_viec`, đi vòng qua cửa kiểm thẻ. Nên chốt này quét
+   TẤT CẢ form của TẤT CẢ màn, thay vì canh từng form một. */
+$man_thu = array(
+	'cham'     => array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ),
+	'vp'       => array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ),
+	'cong_toi' => array( 'man' => 'cong_toi' ),
+	'ho_so'    => array( 'man' => 'ho_so' ),
+);
+foreach ( $man_thu as $ten_man => $get_man ) {
+	$h_man = vhcc_web( '135791', array(), $get_man );
+	foreach ( array_slice( explode( '<form', $h_man ), 1 ) as $khuc_man ) {
+		$het_man = strpos( $khuc_man, '</form>' );
+		$than_man = ( false === $het_man ) ? $khuc_man : substr( $khuc_man, 0, $het_man );
+		if ( false === stripos( $than_man, 'method="post"' ) ) { continue; }
+		$viec_man = preg_match( '/name="viec" value="([^"]*)"/', $than_man, $m_man ) ? $m_man[1] : '(nút)';
+		t( 'màn ' . $ten_man . ': form POST "' . $viec_man . '" mang thẻ phiên khác rỗng',
+			preg_match( '/name="ky" value="[^"]+"/', $than_man ) === 1, trim( substr( $than_man, 0, 200 ) ) );
+	}
+}
 
 /* ---- màn mặc định phải KHAI THẲNG, không suy từ vị trí trong danh sách ---- */
 /* 🔴 Bản trước lấy màn CUỐI danh sách làm mặc định. Thêm tab "Bảng công tháng" (cùng bậc quyền
