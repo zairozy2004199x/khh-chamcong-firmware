@@ -5918,14 +5918,23 @@ $vt_tong = strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' );
 $vt_ct   = strpos( $h_qtc, 'Chi tiết từng lượt' );
 t( 'bảng TỔNG đứng TRƯỚC bảng chi tiết', $vt_tong !== false && $vt_ct !== false && $vt_tong < $vt_ct,
 	'tong@' . var_export( $vt_tong, true ) . ' ct@' . var_export( $vt_ct, true ) );
-t( 'bảng chi tiết nằm trong khối thu gọn <details>', strpos( $h_qtc, '<details>' ) !== false, $h_qtc );
+/* ⚠️ CẮT ĐÚNG KHỐI CHI TIẾT RA RỒI MỚI SOI.
+   Trên màn đã gộp còn mấy khối `<details>` khác (bộ phận · khai ca · cách tính · công thức), và
+   khối "Cơ sở thuộc bộ phận nào" CỐ Ý tự mở khi còn cơ sở chưa xếp. Quét cả trang thì chốt
+   "phải thu sẵn" đỏ oan, mà sửa cho xanh bằng cách bỏ thuộc tính `open` ấy đi là mất đúng thứ
+   hữu ích: cái duy nhất làm mọi phép tính công im lặng không chạy. */
+$vt_ct_d = strpos( $h_qtc, '<div class="the"><details>' );
+$khoi_ct_d = ( false !== $vt_ct_d ) ? substr( $h_qtc, $vt_ct_d, 4000 ) : '';
+t( 'bảng chi tiết nằm trong khối thu gọn <details>',
+	false !== strpos( $khoi_ct_d, 'Chi tiết từng lượt' ), substr( $khoi_ct_d, 0, 200 ) );
 /* 🔴 THU SẴN, không mở sẵn: `<details open>` thì màn vẫn dài y như cũ, mà thẻ vẫn có nên phép
    thử ở trên vẫn xanh. */
-t( 'và THU SẴN (không có thuộc tính open)', strpos( $h_qtc, '<details open' ) === false, $h_qtc );
+t( 'và THU SẴN (không có thuộc tính open)',
+	strpos( $khoi_ct_d, '<details open' ) === false, substr( $khoi_ct_d, 0, 200 ) );
 /* ⚠️ Cắt ĐÚNG phần <summary> ra rồi mới kiểm. Bản đầu dùng '/<summary>.*?\d+ lượt/s' — với cờ
    /s thì `.*?` vắt được qua cả đoạn "N lượt" nằm DƯỚI bảng, nên bỏ hẳn số ra khỏi nhãn mà phép
    thử vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
-preg_match( '#<summary>(.*?)</summary>#s', $h_qtc, $m_sum );
+preg_match( '#<summary>(.*?)</summary>#s', $khoi_ct_d, $m_sum );
 $sum_qtc = isset( $m_sum[1] ) ? $m_sum[1] : '';
 t( 'có nhãn <summary>', '' !== $sum_qtc, $h_qtc );
 t( 'nhãn thu gọn nói sẵn có bao nhiêu lượt', preg_match( '/\d+ lượt/', $sum_qtc ) === 1, $sum_qtc );
@@ -6157,6 +6166,70 @@ t( '🔴 sửa qua trang thật thì bảng hiện giờ MỚI',
 t( 'sổ nhật ký có cột Giờ cũ', strpos( $h_sau, '<th>Giờ cũ</th>' ) !== false, $h_sau );
 t( 'và đánh dấu lượt này là "sửa đè", không phải "bù"',
 	strpos( $h_sau, 'sửa đè' ) !== false, $h_sau );
+
+// ====== 48b. XẾP CƠ SỞ VÀO BỘ PHẬN + THỨ TỰ KHỐI CẤU HÌNH
+/* Anh Thắng 26/08/2026: *"bổ sung set cơ sở thuộc bộ phận nào"*, *"thêm bộ phận PART TIME"*,
+   *"Đưa 3 cái này lên trên"*. */
+
+t( 'danh sách bộ phận có PART TIME', in_array( 'Part time', VHCC_Luong::BP_DS, true ),
+	VHCC_Luong::BP_DS );
+/* 🔴 Khối nào khai được công thức riêng thì phải đúng bằng danh sách bộ phận — thêm một bộ phận
+   mà quên mở khối cho nó là bộ phận ấy vĩnh viễn chạy bản chung, im lặng. */
+teq( 'và mỗi bộ phận là một khối khai công thức riêng được',
+	array_values( (array) VHCC_Luong::BP_DS ), VHCC_Luong::vp_cfg_ds_khoi() );
+
+$h_bp = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+t( 'màn có khối xếp bộ phận', strpos( $h_bp, 'id="bophan"' ) !== false, $h_bp );
+foreach ( VHCC_Luong::BP_DS as $_b ) {
+	t( 'ô chọn có bộ phận "' . $_b . '"',
+		strpos( $h_bp, '<option value="' . esc_attr( $_b ) . '"' ) !== false, $h_bp );
+}
+/* 🔴 Còn cơ sở CHƯA XẾP thì khối tự MỞ. Đó là thứ duy nhất làm mọi phép tính công im lặng không
+   chạy — thu gọn nó lại là giấu đúng cái đang hỏng. */
+t( 'còn cơ sở chưa xếp thì khối tự mở', strpos( $h_bp, 'id="bophan"><details open>' ) !== false, $h_bp );
+t( 'và nhãn nói sẵn còn bao nhiêu cơ sở chưa xếp', strpos( $h_bp, 'chưa xếp</b>' ) !== false, $h_bp );
+/* Nói THẲNG hậu quả — "Chưa xếp" nghe như một trạng thái vô hại. */
+t( 'nói rõ chưa xếp thì KHÔNG có công thức tính công',
+	strpos( $h_bp, 'không có công thức tính công' ) !== false, $h_bp );
+
+/* 🔴 BA KHỐI CẤU HÌNH LÊN TRÊN BẢNG SỐ.
+   Chúng đổi cách đọc CẢ BẢNG, nên phải nhìn thấy TRƯỚC khi đọc số, không phải sau khi đã tin
+   vào số. */
+$_vt_bp  = strpos( $h_bp, 'id="bophan"' );
+$_vt_ca  = strpos( $h_bp, 'id="khaica"' );
+$_vt_ct  = strpos( $h_bp, 'id="cachtinh"' );
+$_vt_cth = strpos( $h_bp, 'id="congthuc"' );
+$_vt_bang = strpos( $h_bp, 'Tổng giờ làm theo nhân viên' );
+t( 'tìm được mốc bảng số', false !== $_vt_bang, substr( $h_bp, 0, 200 ) );
+foreach ( array( 'Cơ sở thuộc bộ phận' => $_vt_bp, 'Khai ca' => $_vt_ca,
+	'Cách tính' => $_vt_ct, 'Công thức' => $_vt_cth ) as $_ten => $_vt ) {
+	t( 'khối "' . $_ten . '" đứng TRƯỚC bảng số',
+		false !== $_vt && false !== $_vt_bang && $_vt < $_vt_bang, $_ten . '@' . var_export( $_vt, true ) );
+}
+
+/* ---- lưu qua đúng cửa POST ---- */
+vhcc_bo_phan( 'BP_THU_1', '' );
+teq( 'cơ sở mới chưa xếp bộ phận', VHCC_Luong::BP_CHUA_XEP, VHCC_Luong::bo_phan_cua( 'BP_THU_1' ) );
+$tok_bp = VHCC_Auth::login( '135791' )['token'];
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_bp;
+$_POST = array( 'viec' => 'bo_phan', 'ky' => VHCC_Web::chu_ky( $tok_bp ),
+	'bp' => array( 'BP_THU_1' => 'Part time' ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+teq( '🔴 xếp được cơ sở vào PART TIME qua trang thật', 'Part time', VHCC_Luong::bo_phan_cua( 'BP_THU_1' ) );
+
+/* Bộ phận lạ -> chối, không lặng lẽ đổi thành "Chưa xếp". */
+$r_bp = VHCC_NhanSu::xep_bo_phan( array( 'role' => 'Admin' ), 'BP_THU_1', 'Bộ phận bịa' );
+t( 'bộ phận lạ bị chối', empty( $r_bp['ok'] ), $r_bp );
+teq( 'và cơ sở giữ nguyên bộ phận cũ', 'Part time', VHCC_Luong::bo_phan_cua( 'BP_THU_1' ) );
+
+/* Nhân viên POST thẳng cũng không lọt — ẩn cái khối không phải là gác. */
+$_POST = array( 'viec' => 'bo_phan' );
+$r_bp2 = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'bo_phan', array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ) ) );
+t( 'Nhân viên POST thẳng việc bo_phan bị chối',
+	is_array( $r_bp2 ) && ! isset( $r_bp2[0]['xong'] ), $r_bp2 );
+$_POST = array();
 
 // ====== 48c. CÔNG THỨC TÍNH CÔNG RIÊNG TỪNG KHỐI
 /* Anh Thắng 26/08/2026: *"bổ sung cho khối văn phòng phương pháp tính công"* — kèm ảnh màn cấu
@@ -6454,10 +6527,40 @@ t( 'nói rõ vì sao đang tính kiểu đó',
 /* 🔴 Số giờ phải là số giờ THẬT, không phải số công lẻ. 08:00 -> 17:30 = 9.5 giờ. */
 t( 'ô hiện đúng số giờ làm (9.5)', strpos( $h_gio, '>9.5</b>' ) !== false, $h_gio );
 t( 'KHÔNG có ô nào mang số công lẻ kiểu 0.63', strpos( $h_gio, '>0.63<' ) === false, $h_gio );
-/* Ba trạng thái, ba ký hiệu — gộp lại là xoá mất đúng ngày cần soi. */
-t( 'ngày không đi làm -> dấu chấm', strpos( $h_gio, '<td class="o">·</td>' ) !== false, $h_gio );
+/* Ba trạng thái, ba ký hiệu — gộp lại là xoá mất đúng ngày cần soi.
+   ⚠️ Bóc lớp <a class="o-sua"> ra trước khi soi ô: từ 26/08/2026 mỗi ô là một đường bấm được
+   (anh Thắng: *"sửa là sửa trực tiếp trong này luôn nhé"*). Nới chốt thành "có dấu chấm ở đâu
+   đó trong trang" thì nó thôi canh KÝ HIỆU CỦA Ô — mà đó mới là thứ đang canh. */
+$_boc = function ( $h ) {
+	return preg_replace( '#<a class="o-sua"[^>]*>(.*?)</a>#s', '$1', $h );
+};
+$h_gio_tr = $_boc( $h_gio );
+t( 'ngày không đi làm -> dấu chấm', strpos( $h_gio_tr, '<td class="o">·</td>' ) !== false, $h_gio_tr );
 t( 'ngày thiếu giờ ra -> dấu hỏi nền đỏ, không phải số 0',
-	strpos( $h_gio, '>?</td>' ) !== false, $h_gio );
+	strpos( $h_gio_tr, '>?</td>' ) !== false, $h_gio_tr );
+
+/* ---- 🔴 BẤM THẲNG VÀO Ô TRONG LƯỚI ĐỂ SỬA ----
+   Bắt người ta đọc ô ở dòng 14 cột 22 rồi cuộn xuống gõ lại ngày và mã vào biểu mẫu là bắt
+   chép tay một thứ máy đã biết — chép sai một chữ số thì sửa nhầm ngày của người khác, mà màn
+   hình vẫn báo "Đã sửa". */
+t( 'ô trong lưới là đường bấm được', strpos( $h_gio, 'class="o-sua"' ) !== false, $h_gio );
+/* Ô CÓ GIỜ -> khối Sửa giờ (đè lên giờ đã có). Ô TRỐNG -> khối Chấm công bù (điền ô trống).
+   Trỏ nhầm đường là bấm vào ngày trống rồi nhận câu "chưa có dòng nào để sửa". */
+t( 'ô CÓ GIỜ trỏ sang khối Sửa giờ, mang sẵn ngày + mã',
+	preg_match( '/class="o-sua" href="[^"]*sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=[^"]*#suagio"/', $h_gio ) === 1,
+	$h_gio );
+t( 'ô TRỐNG trỏ sang khối Chấm công bù',
+	preg_match( '/class="o-sua" href="[^"]*gnd=\d{4}-\d{2}-\d{2}[^"]*gma=[^"]*#bucong"/', $h_gio ) === 1,
+	$h_gio );
+t( 'và màn nói cho biết bấm vào ô thì được gì',
+	strpos( $h_gio, 'Bấm thẳng vào' ) !== false, $h_gio );
+/* Hàng -CD là hàng RIÊNG: đường bấm phải mang mã KÈM hậu tố, không thì sửa nhầm sang hàng chính. */
+t( '🔴 ô của hàng -CD mang mã KÈM hậu tố',
+	preg_match( '/sgm=[A-Za-z0-9_]+-CD/', $h_gio ) === 1
+	|| preg_match( '/gma=[A-Za-z0-9_]+-CD/', $h_gio ) === 1, $h_gio );
+/* Đường bấm là LIÊN KẾT, không phải script — cả màn này không có lấy một dòng script. */
+t( 'ô bấm được KHÔNG dùng JavaScript',
+	stripos( $h_gio, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_gio ), $h_gio );
 t( 'và chú thích nói rõ là quên bấm lúc về',
 	strpos( $h_gio, 'quên bấm lúc về' ) !== false, $h_gio );
 /* Hàng -CD là hàng RIÊNG, và tổng của dòng chính phải gồm cả nó. */

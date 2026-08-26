@@ -39,8 +39,18 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_Luong {
 
-	/** Bộ phận hợp lệ. Ngoài danh sách này -> 'Chưa xếp'. Giữ đúng BO_PHAN_DS của Code.gs. */
-	const BP_DS = array( 'Máy tự động', 'Khu vui chơi', 'Văn phòng' );
+	/**
+	 * Bộ phận hợp lệ. Ngoài danh sách này -> 'Chưa xếp'.
+	 *
+	 * Ba cái đầu giữ đúng BO_PHAN_DS của Code.gs. **'Part time'** là anh Thắng thêm 26/08/2026
+	 * (*"thêm bộ phận PART TIME"*) — khối này chạy khung giờ khác hẳn, và từ nay khai được công
+	 * thức tính công riêng cho nó ở màn Bảng công.
+	 *
+	 * ⚠️ THÊM VÀO ĐÂY LÀ THÊM MỘT KHỐI CÓ THỂ KHAI CÔNG THỨC RIÊNG (`vp_cfg_ds_khoi`) và một mục
+	 *    trong ô lọc bộ phận. Bỏ một cái ra thì mọi cơ sở đang mang tên ấy tụt về 'Chưa xếp' —
+	 *    tức là THÔI được tính lương, im lặng. Sửa danh sách này là việc phải cân nhắc.
+	 */
+	const BP_DS = array( 'Máy tự động', 'Khu vui chơi', 'Văn phòng', 'Part time' );
 	const BP_CHUA_XEP = 'Chưa xếp';
 
 	/* Nhóm cơ sở xét bằng CHÍNH CÁI TÊN, đúng NHOM_CS của Code.gs. */

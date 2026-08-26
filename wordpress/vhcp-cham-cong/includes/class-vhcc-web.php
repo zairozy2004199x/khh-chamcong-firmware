@@ -410,6 +410,26 @@ class VHCC_Web {
 			return array( array( 'xong' => $noi ) );
 		}
 
+		if ( 'bo_phan' === $viec ) {
+			$o = isset( $_POST['bp'] ) ? (array) wp_unslash( $_POST['bp'] ) : array();
+			$doi = 0; $loi = array();
+			foreach ( $o as $cs_x => $bp_x ) {
+				$cs_x = sanitize_text_field( $cs_x );
+				$bp_x = sanitize_text_field( is_array( $bp_x ) ? '' : $bp_x );
+				/* Chỉ ghi cơ sở THẬT SỰ ĐỔI. Ghi lại hết thì mỗi lượt Lưu là mấy chục lượt ghi
+				   vào kho, và nhật ký (nếu sau này có) đầy dòng "đổi từ X sang X". */
+				if ( VHCC_Luong::bo_phan_cua( $cs_x ) === ( '' === $bp_x ? VHCC_Luong::BP_CHUA_XEP : $bp_x ) ) { continue; }
+				$r = VHCC_NhanSu::xep_bo_phan( $toi, $cs_x, $bp_x );
+				if ( empty( $r['ok'] ) ) { $loi[] = $cs_x . ': ' . $r['error']; }
+				else { $doi++; }
+			}
+			if ( $loi ) { return array( array( 'loi' => implode( ' · ', $loi ) ) ); }
+			return array( array( 'xong' => $doi
+				? 'Đã xếp bộ phận cho ' . $doi . ' cơ sở. Công thức tính công của khối tương ứng '
+					. 'áp dụng ngay từ lần xem bảng sau.'
+				: 'Không có cơ sở nào đổi bộ phận.' ) );
+		}
+
 		if ( 'cong_thuc' === $viec ) {
 			$khoi = isset( $_POST['ctk'] ) ? sanitize_text_field( wp_unslash( $_POST['ctk'] ) ) : '';
 			$o    = isset( $_POST['ct'] ) ? (array) wp_unslash( $_POST['ct'] ) : array();
@@ -1001,6 +1021,12 @@ class VHCC_Web {
 			/* Mã ca nằm DƯỚI số giờ, nhỏ và nhạt hơn: số giờ vẫn là thứ đọc trước, mã ca là thứ
 			   liếc thấy. Đảo ngược cỡ chữ là cả lưới trông như một rừng mã. */
 			. '.mca{font-size:10px;font-weight:600;opacity:.75;line-height:1.1;margin-top:1px}'
+			/* Ô bấm được: đường liên kết phủ KÍN ô, giữ nguyên màu chữ. Chỉ tô nền khi rê chuột
+			   — tô sẵn thì cả lưới 600 ô xanh lè, không còn nhìn ra màu theo ca nữa. */
+			. 'table.cc a.o-sua{display:block;margin:-3px -4px;padding:3px 4px;color:inherit;'
+			. 'text-decoration:none;border-radius:3px}'
+			. 'table.cc a.o-sua:hover{background:#1d4ed8;color:#fff;box-shadow:0 0 0 2px #1d4ed8}'
+			. 'table.cc a.o-sua:focus-visible{outline:2px solid var(--xanh);outline-offset:1px}'
 			/* Khối thu gọn bằng <details> của chính HTML — không JavaScript. Phải cho `summary`
 			   trông ra một cái nút bấm được, kẻo nó nằm im như một dòng chữ và không ai bấm. */
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
@@ -1555,6 +1581,17 @@ class VHCC_Web {
 			if ( '' !== $r['vao'] && '' === $r['ra'] ) { $thieu[] = $r; }
 		}
 
+		/* 🔴 MẤY KHỐI CẤU HÌNH LÊN TRÊN, TRƯỚC BẢNG SỐ.
+		   Bản trước em xếp chúng xuống cuối với lý do "chúng đổi cách đọc của cả cơ sở nên
+		   không nên nằm lẫn giữa đường đi hằng ngày". Anh Thắng 26/08: *"Đưa 3 cái này lên
+		   trên"* — và anh đúng: chính vì chúng đổi cách đọc CẢ BẢNG nên phải nhìn thấy chúng
+		   TRƯỚC khi đọc số, không phải sau khi đã tin vào số. Cả ba đều thu gọn sẵn nên mỗi cái
+		   chỉ chiếm một dòng. */
+		self::the_bo_phan( $ky, $toi );
+		self::the_khai_ca( $cs, $ky, $toi );
+		self::the_cach_tinh( $ky, $toi );
+		self::the_cong_thuc_vp( $cs, $ky, $toi );
+
 		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
 
 		/* 🔴 LƯỚI NGANG NGAY DƯỚI BẢNG TỔNG, CÙNG MỘT MÀN.
@@ -1634,11 +1671,6 @@ class VHCC_Web {
 		self::the_sua_gio( $cs, $ky, $toi );
 		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
-		/* Mấy khối CẤU HÌNH xuống cuối, sau mọi thứ để xem và mọi thứ để sửa từng ngày. Chúng
-		   đổi cách đọc của CẢ cơ sở, nên không nên nằm lẫn giữa đường đi hằng ngày. */
-		self::the_khai_ca( $cs, $ky, $toi );
-		self::the_cach_tinh( $ky, $toi );
-		self::the_cong_thuc_vp( $cs, $ky, $toi );
 	}
 
 	/**
@@ -1887,12 +1919,23 @@ class VHCC_Web {
 		echo '<p class="mo">Đổi đơn vị ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
 		echo '</div>';
 
+		/* Hỏi quyền MỘT LẦN rồi truyền xuống — ô nào bấm được là do quyền, không phải do lưới. */
+		$duoc_sua = VHCC_Vai::duoc( $toi, 'sua_gio' );
+		$duoc_bu  = ( '' === VHCC_Bu::vi_sao_khong_duoc( $toi, $cs, 'X' )
+			|| VHCC_Vai::duoc( $toi, 'cham_bu' ) );
+		if ( $duoc_sua || $duoc_bu ) {
+			echo '<p class="mo" style="margin:-6px 0 12px">💡 Bấm thẳng vào <b>một ô</b> trong lưới '
+				. 'là nhảy xuống đúng ngày, đúng người: ô <b>có giờ</b> → '
+				. ( $duoc_sua ? '<b>Sửa giờ công</b>' : 'chỉ Admin sửa được' )
+				. ' · ô <b>trống</b> → ' . ( $duoc_bu ? '<b>Chấm công bù</b>' : 'cần quyền Cửa hàng trưởng' )
+				. '.</p>';
+		}
 		if ( $la_vp ) {
-			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ) );
+			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu );
 			return;
 		}
 		$b_gio = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
-		self::ve_luoi_gio( $b_gio, $th );
+		self::ve_luoi_gio( $b_gio, $th, $duoc_sua, $duoc_bu );
 		self::the_tong_ca( $b_gio, $cs );
 	}
 
@@ -1954,6 +1997,93 @@ class VHCC_Web {
 		echo '</tbody></table></div>';
 		echo '<p><button class="chinh">Lưu cách tính</button></p>';
 		echo '</form></details></div>';
+	}
+
+	/**
+	 * BỌC MỘT Ô CỦA LƯỚI THÀNH ĐƯỜNG BẤM ĐƯỢC — bấm là sửa/bù đúng ngày đó, đúng người đó.
+	 *
+	 * Anh Thắng 26/08/2026: *"sửa là sửa trực tiếp trong này luôn nhé"* — kèm ảnh khối Sửa giờ
+	 * công và ảnh lưới cả tháng. Đúng: bắt người ta đọc ô ở dòng thứ 14 cột 22, rồi cuộn xuống
+	 * gõ lại ngày và mã vào biểu mẫu, là bắt chép tay một thứ máy đã biết — và chép sai một chữ
+	 * số thì sửa nhầm ngày của người khác mà màn hình vẫn báo "Đã sửa".
+	 *
+	 * 🔴 Ô CÓ GIỜ và Ô TRỐNG đi hai đường khác nhau, vì đó là hai việc khác nhau:
+	 *      có giờ  -> khối **Sửa giờ công** (đè lên giờ đã có · quyền Admin)
+	 *      trống   -> khối **Chấm công bù** (điền vào ô còn trống · quyền Cửa hàng trưởng)
+	 *    Trỏ nhầm đường là người ta bấm vào một ngày trống rồi nhận câu "chưa có dòng nào để sửa".
+	 *
+	 * ⚠️ KHÔNG dùng JavaScript — cả màn này không có lấy một dòng script. Một đường liên kết
+	 *    mang sẵn tham số thì bấm Lùi vẫn đúng, và bộ thử PHP soi được.
+	 */
+	private static function o_sua( $noi_dung, $ngay, $ma_day_du, $co_gio, $duoc_sua, $duoc_bu ) {
+		$duoc = $co_gio ? $duoc_sua : $duoc_bu;
+		if ( ! $duoc ) { return $noi_dung; }
+		$url = $co_gio
+			? ( add_query_arg( array( 'sgn' => $ngay, 'sgm' => $ma_day_du ), self::url_hien() ) . '#suagio' )
+			: ( add_query_arg( array( 'gnd' => $ngay, 'gma' => $ma_day_du ), self::url_hien() ) . '#bucong' );
+		return '<a class="o-sua" href="' . esc_url( $url ) . '">' . $noi_dung . '</a>';
+	}
+
+	/**
+	 * XẾP CƠ SỞ VÀO BỘ PHẬN.
+	 *
+	 * Anh Thắng 26/08/2026: *"bổ sung set cơ sở thuộc bộ phận nào"* — kèm ảnh ô lọc Bộ phận và
+	 * danh sách 21 cơ sở.
+	 *
+	 * 🔴 THIẾU MÀN NÀY THÌ HAI THỨ VỪA LÀM ĐỀU KHÔNG DÙNG ĐƯỢC.
+	 *    Bảng `bo_phan_coso` có từ lâu và `VHCC_NhanSu::xep_bo_phan()` cũng có, nhưng chưa có
+	 *    chỗ nào TRÊN WEB để khai. Nên: ô lọc "Bộ phận" liệt kê đủ bốn mục mà chọn cái nào cũng
+	 *    ra rỗng, và **công thức tính công riêng từng khối** (làm 26/08) không có tác dụng với
+	 *    cơ sở nào cả — vì không cơ sở nào thuộc khối nào. Cả hai đều hỏng IM LẶNG: màn hình
+	 *    trông đầy đủ, chỉ là không có gì xảy ra.
+	 *
+	 * ⚠️ Bộ phận quyết định CÔNG THỨC LƯƠNG của cả cơ sở, nên gác ở bậc Quản lý trở lên
+	 *    (`VHCC_NhanSu::xep_bo_phan` gác lại lần nữa ở máy chủ — ẩn cái khối không phải là gác).
+	 */
+	private static function the_bo_phan( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		$ds = self::ds_coso_xem( $toi );
+		if ( ! $ds ) { return; }
+
+		/* Đếm xem còn bao nhiêu cơ sở chưa xếp — con số này là lý do người ta mở khối ra. */
+		$chua = 0;
+		foreach ( $ds as $x ) {
+			if ( VHCC_Luong::BP_CHUA_XEP === VHCC_Luong::bo_phan_cua( $x ) ) { $chua++; }
+		}
+
+		echo '<div class="the" id="bophan"><details' . ( $chua ? ' open' : '' ) . '><summary>'
+			. '<b>Cơ sở thuộc bộ phận nào</b> <span class="mo">(' . count( $ds ) . ' cơ sở'
+			. ( $chua ? ' · <b class="chu-hong">' . $chua . ' chưa xếp</b>' : ' · đã xếp hết' )
+			. ' · bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Bộ phận quyết định <b>công thức tính công</b> của '
+			. 'cả cơ sở, và là thứ mà ô lọc <b>Bộ phận</b> ở đầu màn dựa vào.</p>';
+		/* 🔴 Nói THẲNG hậu quả của việc để trống. "Chưa xếp" nghe như một trạng thái vô hại. */
+		echo '<p class="mo">⚠️ Cơ sở để <b>Chưa xếp</b> thì <b>không có công thức tính công</b> — '
+			. 'đó là hành vi cố ý (thà không tính còn hơn tính bằng công thức của bộ phận khác), '
+			. 'nhưng nghĩa là bảng công của cơ sở đó sẽ không ra số công nào.</p>';
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="bo_phan">' . self::o_loc();
+		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Bộ phận</th>'
+			. '<th>Cách tính đang dùng</th></tr></thead><tbody>';
+		foreach ( $ds as $x ) {
+			$bp = VHCC_Luong::bo_phan_cua( $x );
+			$la_chua = ( VHCC_Luong::BP_CHUA_XEP === $bp );
+			echo '<tr' . ( $la_chua ? ' class="hong"' : '' ) . '><td><b>' . esc_html( $x ) . '</b></td>';
+			echo '<td><select name="bp[' . esc_attr( $x ) . ']">';
+			echo '<option value=""' . ( $la_chua ? ' selected' : '' ) . '>— chưa xếp —</option>';
+			foreach ( VHCC_Luong::BP_DS as $b ) {
+				echo '<option value="' . esc_attr( $b ) . '"' . selected( $b, $bp, false ) . '>'
+					. esc_html( $b ) . '</option>';
+			}
+			echo '</select></td>';
+			$ct = VHCC_Luong::cach_tinh( $x );
+			echo '<td><span class="k ' . ( 'cong' === $ct ? 'ca2' : 'ca1' ) . '">'
+				. ( 'cong' === $ct ? 'số công' : 'số giờ' ) . '</span></td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p><button class="chinh">Lưu bộ phận</button></p></form>';
+		echo '</details></div>';
 	}
 
 	/**
@@ -2212,7 +2342,7 @@ class VHCC_Web {
 	 *    ca đã xếp (xem `VHCC_Luong::bao_cao_theo_gio`), nên hai số có thể lệch — nói thẳng ra ở
 	 *    chú giải chứ không để người đọc tự phát hiện lúc đối lương.
 	 */
-	private static function ve_luoi_gio( $b, $th ) {
+	private static function ve_luoi_gio( $b, $th, $duoc_sua = false, $duoc_bu = false ) {
 		if ( empty( $b['ok'] ) ) {
 			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
 			return;
@@ -2273,7 +2403,14 @@ class VHCC_Web {
 					: '<td class="o" style="padding-left:20px">↳ <code>-' . esc_html( $ht ) . '</code></td>';
 				$phut_dong = 0;
 				for ( $i = 1; $i <= $so_ngay; $i++ ) {
-					if ( ! isset( $o[ $ma ][ $ht ][ $i ] ) ) { echo '<td class="o">·</td>'; continue; }
+					$ma_dd  = $ma . ( '' !== $ht ? '-' . $ht : '' );
+					$ngay_o = sprintf( '%s-%02d', $tt, $i );
+					if ( ! isset( $o[ $ma ][ $ht ][ $i ] ) ) {
+						echo '<td class="o">'
+							. self::o_sua( '·', $ngay_o, $ma_dd, false, $duoc_sua, $duoc_bu )
+							. '</td>';
+						continue;
+					}
 					$r = $o[ $ma ][ $ht ][ $i ];
 					/* Ba trạng thái khác nhau, ba ký hiệu khác nhau — gộp lại là xoá mất đúng
 					   những ngày cần soi:
@@ -2287,7 +2424,8 @@ class VHCC_Web {
 							. ( '' !== $r['ra'] ? $r['ra'] : '—' ) . "\n"
 							. ( $thieu_ra ? '⚠ thiếu giờ ra — quên bấm lúc về'
 								: '⚠ giờ ra sớm hơn giờ vào — dấu hiệu ghi sai' ) ) . '">'
-							. ( $thieu_ra ? '?' : '—' ) . '</td>';
+							. self::o_sua( ( $thieu_ra ? '?' : '—' ), (string) $r['ngay'], $ma_dd, true,
+								$duoc_sua, $duoc_bu ) . '</td>';
 						continue;
 					}
 					$phut_dong += (int) $r['phut'];
@@ -2310,9 +2448,10 @@ class VHCC_Web {
 					$i_ca = VHCC_Ca::ca_chinh( $ds_ca, $tc );
 					$ma_o = VHCC_Ca::ma_o( $ds_ca, $tc );
 					echo '<td class="oc' . ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' )
-						. '" title="' . esc_attr( $chu ) . '"><b>'
-						. self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>'
-						. ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' )
+						. '" title="' . esc_attr( $chu ) . '">'
+						. self::o_sua( '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>'
+							. ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
+							(string) $r['ngay'], $ma_dd, true, $duoc_sua, $duoc_bu )
 						. '</td>';
 				}
 				echo $chinh && 1 === count( $hts )
@@ -2354,7 +2493,7 @@ class VHCC_Web {
 	}
 
 	/** Lưới người × ngày. Tách hàm để thử được riêng, không phải dựng cả trang. */
-	private static function ve_luoi_vp( $b ) {
+	private static function ve_luoi_vp( $b, $duoc_sua = false, $duoc_bu = false ) {
 		$tt   = (string) $b['month'];
 		$rows = (array) $b['rows'];
 		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
@@ -2400,7 +2539,12 @@ class VHCC_Web {
 			$cong = 0.0;
 			$co_dem = false;
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
-				if ( ! isset( $ngd[ $i ] ) ) { echo '<td class="o">·</td>'; continue; }
+				$ngay_o = sprintf( '%s-%02d', $tt, $i );
+				if ( ! isset( $ngd[ $i ] ) ) {
+					echo '<td class="o">' . self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu )
+						. '</td>';
+					continue;
+				}
 				$d = $ngd[ $i ];
 				if ( $d['congDem'] || '' !== $d['h2vao'] || '' !== $d['h2ra'] ) { $co_dem = true; }
 				$cong += (float) $d['tong'];
@@ -2414,8 +2558,11 @@ class VHCC_Web {
 				elseif ( $d['congTangCa'] )            { $lop = ' luc'; }
 
 				echo '<td class="oc' . $lop . '" title="' . esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
-					. ( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
-						: '<span class="chu-hong">0</span>' ) . '</td>';
+					. self::o_sua(
+						( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
+							: '<span class="chu-hong">0</span>' ),
+						$ngay_o, $ma, true, $duoc_sua, $duoc_bu )
+					. '</td>';
 			}
 			/* 🔴 Ô đối chiếu. Lưới cộng ra khác bảng tổng của engine = một trong hai chỗ sai,
 			   phải kêu ngay chứ không im lặng in ra hai con số. */
