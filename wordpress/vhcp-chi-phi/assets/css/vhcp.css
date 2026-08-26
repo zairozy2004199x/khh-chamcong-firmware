@@ -36,6 +36,18 @@
      dài toàn khối trắng thì đúng cái khối cần dừng lại lại là cái khó thấy nhất.
      Khung vàng + dải tiêu đề vàng là để MẮT DỪNG LẠI, không phải để trang trí — cả trang chỉ
      có MỘT khối mang màu này, mất tính "một" là mất luôn tác dụng. */
+  /* Thanh đơn: hai hàng chia bằng tay — xem chú thích ở `#donBar` trong app.html. */
+  .don-bar{display:block}
+  .db-hang1{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .db-day{flex:1;min-width:0}
+  /* Hàng 2 chỉ chiếm chỗ khi có nội dung: đơn chưa mở thì cả hai ô đều rỗng/ẩn, và một khoảng
+     trắng 14px treo lơ lửng dưới thanh trông y như lỗi. */
+  .db-hang2{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap}
+  .db-hang2:not(:empty){margin-top:10px}
+  .db-hang2>#donBadge{flex:1 1 420px;min-width:0}
+  .db-hang2>#donSuBox{flex:0 1 460px;min-width:280px}
+  @media(max-width:900px){.db-hang2>#donSuBox{flex:1 1 100%}}
+
   .card.qt-noi{border:2px solid #f59e0b;box-shadow:0 2px 10px rgba(245,158,11,.22)}
   .card.qt-noi>.ch{background:linear-gradient(180deg,#fffbeb,#fef3c7);border-bottom:1px solid #fde68a}
   .card.qt-noi>.ch h2{color:#92400e;font-size:15px}

@@ -163,31 +163,43 @@
   <!-- GHIM thanh này lại. Nút "Gửi xin tạm ứng" nằm ở đây, mà trang đơn dài mấy màn
        hình: nhập xong hạng mục ở giữa trang thì thanh đã cuộn mất, nhân viên tưởng app
        không có chỗ gửi. -->
-  <div class="bar" id="donBar" style="position:sticky;top:0;z-index:40">
-    <div class="fld"><label>Đơn</label>
-      <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
-    <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
-    <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
-    <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
-    <span id="donBadge"></span>
-    <div style="flex:1"></div>
-    <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
-         Anh Thắng 26/08: *"Phía bên phải là lịch sử chỉnh đơn. để biết ai chỉnh gì trong này."*
-         Đây là cái giá của việc vừa mở quyền sửa tới tận lúc chốt sổ: một con số có thể đổi SAU
-         khi quản lý đã duyệt. Không có sổ thì người duyệt nhớ 15 triệu, đơn ghi 12 triệu, và
-         không có gì phân xử. Đặt cạnh trạng thái vì hai thứ luôn được đọc cùng nhau: "đơn đang
-         ở đâu" và "ai vừa động vào". -->
-    <div id="donSuBox" style="display:none;flex:0 1 460px;min-width:280px"></div>
-    <!-- 🔴 ĐẨY ĐƠN SANG ĐƠN VỊ KHÁC — kế toán POSH gửi cho kế toán cá nhân.
-         Anh Thắng 26/08: *"Kế toán Posh có thể sẽ đẩy đơn hoặc chi phí lẻ trong đơn cho kế
-         toán cá nhân — thì khi chuyển qua nó sẽ tạo thành 1 đơn như nhân viên tạo bình
-         thường."* Nút chỉ hiện cho người nhìn được HƠN MỘT đơn vị: người chỉ có một đơn vị
-         thì không có chỗ nào để đẩy tới, bày nút ra chỉ để bấm vào rồi báo lỗi. -->
-    <button class="btn b-x" id="btnChuyenDV" style="display:none" onclick="moChuyenDonVi()"
-      title="Đẩy cả đơn hoặc vài dòng chi lẻ sang đơn vị khác — bên kia nhận về thành một đơn Nháp mới">🏢➜ Đẩy sang đơn vị khác</button>
-    <button class="btn b-d" id="btnDelDon" style="display:none" onclick="delDon(CUR&&CUR.don&&CUR.don.maDon)" title="Xóa đơn nháp/lỗi (chưa cấp tạm ứng)">🗑 Xóa đơn</button>
-    <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
-    <button class="btn b-s" id="btnAction" style="display:none"></button>
+  <!-- 🔴 THANH ĐƠN CHIA HAI HÀNG RÕ RỆT, KHÔNG ĐỂ FLEX TỰ XUỐNG DÒNG.
+       Anh Thắng 26/08/2026: *"Dẫn đến lệch giao diện nè"*. Trước đó thanh này là một hàng flex
+       `flex-wrap:wrap` chứa lẫn lộn: ô chọn đơn, mấy cái nút, dải trạng thái (một khối to), và
+       khối Lịch sử chỉnh đơn (rộng 460px). Bỏ ô tìm đơn ra khỏi đây (nó thành thanh chung ở
+       đầu trang) là số phần tử đổi, và flex xuống dòng ở chỗ khác — dải trạng thái nhảy sang
+       phải, lịch sử rơi xuống trái, hai nút Xoá đứng chơ vơ giữa khoảng trắng.
+       Gốc rễ: để `flex-wrap` tự quyết chỗ ngắt dòng thì bố cục phụ thuộc vào SỐ phần tử và bề
+       rộng màn — thêm hay bớt một nút là vỡ, mà không có gì báo. Nên chia hàng bằng tay:
+         · hàng 1 — chọn đơn + các nút (nút gom hết về mép phải)
+         · hàng 2 — dải trạng thái bên trái, Lịch sử chỉnh đơn bên phải
+       Hai thứ ở hàng 2 luôn được đọc cùng nhau: "đơn đang ở đâu" và "ai vừa động vào". -->
+  <div class="bar don-bar" id="donBar" style="position:sticky;top:0;z-index:40">
+    <div class="db-hang1">
+      <div class="fld"><label>Đơn</label>
+        <select id="donSel" onchange="openDon(this.value)" style="min-width:280px"><option value="">— Chọn đơn —</option></select></div>
+      <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
+      <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
+      <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
+      <div class="db-day"></div>
+      <!-- 🔴 ĐẨY ĐƠN SANG ĐƠN VỊ KHÁC — kế toán POSH gửi cho kế toán cá nhân.
+           Nút chỉ hiện cho người nhìn được HƠN MỘT đơn vị: người chỉ có một đơn vị thì không
+           có chỗ nào để đẩy tới, bày nút ra chỉ để bấm vào rồi báo lỗi. -->
+      <button class="btn b-x" id="btnChuyenDV" style="display:none" onclick="moChuyenDonVi()"
+        title="Đẩy cả đơn hoặc vài dòng chi lẻ sang đơn vị khác — bên kia nhận về thành một đơn Nháp mới">🏢➜ Đẩy sang đơn vị khác</button>
+      <button class="btn b-s" id="btnAction" style="display:none"></button>
+      <button class="btn b-d" id="btnDelDon" style="display:none" onclick="delDon(CUR&&CUR.don&&CUR.don.maDon)" title="Xóa đơn nháp/lỗi (chưa cấp tạm ứng)">🗑 Xóa đơn</button>
+      <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
+    </div>
+    <div class="db-hang2">
+      <span id="donBadge"></span>
+      <!-- 🔴 LỊCH SỬ CHỈNH ĐƠN, ĐẶT NGAY CẠNH DẢI TRẠNG THÁI.
+           Anh Thắng 26/08: *"Phía bên phải là lịch sử chỉnh đơn. để biết ai chỉnh gì trong
+           này."* Đây là cái giá của việc mở quyền sửa tới tận lúc chốt sổ: một con số có thể
+           đổi SAU khi quản lý đã duyệt. Không có sổ thì người duyệt nhớ 15 triệu, đơn ghi 12
+           triệu, và không có gì phân xử. -->
+      <div id="donSuBox" style="display:none"></div>
+    </div>
   </div>
 
   <div class="card" id="donListCard">
@@ -2622,7 +2634,22 @@
 
   function showPage(p){
     CUR_PAGE=p;
-    if(p!=='don'){ _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none'; }   // rời tab đơn -> bỏ ngữ cảnh quay lại
+    if(p!=='don'){
+      _viewDonFrom=''; if(el('btnBackPrev')) el('btnBackPrev').style.display='none';   // rời tab đơn -> bỏ ngữ cảnh quay lại
+      /* 🔴 RỜI TAB ĐƠN LÀ ĐÓNG LUÔN ĐƠN ĐANG MỞ.
+         Anh Thắng 26/08/2026: *"Anh chuyển qua trang tổng quan xong quay lại đơn chi phí nó
+         vẫn hiện đơn đó. anh chưa mở đơn mà"*. Đúng: `CUR` sống suốt phiên, nên quay lại tab
+         là `_syncDonView()` thấy `CUR.don` còn và bày lại nguyên cái đơn cũ — trong khi người
+         dùng vừa đi một vòng và đang chờ thấy DANH SÁCH đơn.
+         Nặng hơn chuyện khó chịu: màn hình bày ra một đơn mà người ta không chủ động mở, rồi
+         mọi nút Sửa / Xoá / Gửi duyệt trên đó đều nhắm vào đơn ấy. Bấm nhầm là bấm vào tiền
+         của người khác.
+         ⚠️ KHÔNG ảnh hưởng `viewDon()`: nó gọi `showPage('don')` TRƯỚC rồi `openDon(m)` ngay
+            sau, nên đơn được đặt lại đúng ở nhịp kế tiếp. */
+      CUR=null;
+      if(el('donSel')) el('donSel').value='';
+      try{ _syncDonView(); }catch(e){}
+    }
     /* Thanh tìm đơn nay là thanh CHUNG, hiện ở MỌI tab — nên nạp ô xổ ở MỌI lượt đổi tab, không
        riêng tab đơn. Bỏ sót là đứng ở Sổ chi phí thấy ô "mọi loại chi phí" rỗng trơn.
        `_fillTimDonOpts()` tự bỏ qua nếu đã nạp rồi, nên gọi nhiều lượt không tốn thêm gì. */

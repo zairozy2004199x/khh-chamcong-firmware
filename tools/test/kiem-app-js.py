@@ -402,6 +402,42 @@ la('gọi đúng hàm máy chủ', '.chuyenDonVi(CUR.don.maDon' in src)
 la('hỏi rõ cả đơn hay vài dòng chi lẻ', 'Đẩy CẢ ĐƠN' in src and 'chọn vài dòng chi lẻ' in src)
 la('nói trước hậu quả rồi mới hỏi đồng ý', 'trạng thái Nháp' in src and 'RỜI khỏi đơn này' in src)
 
+# 7) Rời tab đơn là đóng luôn đơn đang mở.
+print()
+print('— rời tab đơn thì đóng đơn —')
+# 🔴 Anh Thắng 26/08: *"Anh chuyển qua trang tổng quan xong quay lại đơn chi phí nó vẫn hiện đơn
+#    đó. anh chưa mở đơn mà"*. `CUR` sống suốt phiên nên quay lại tab là bày lại đơn cũ. Nặng
+#    hơn chuyện khó chịu: mọi nút Sửa/Xoá/Gửi duyệt trên màn đều nhắm vào đơn ấy.
+la('rời tab đơn thì quên đơn đang mở', "CUR=null;" in src and "if(el('donSel')) el('donSel').value='';" in src)
+la('và vẽ lại màn cho về danh sách', 'try{ _syncDonView(); }catch(e){}' in src)
+# viewDon() vẫn phải mở được đơn từ tab khác: nó gọi showPage('don') trước rồi openDon() sau.
+la('viewDon vẫn đặt đơn SAU khi đổi tab',
+   "showPage('don'); _viewDonFrom=from; el('donSel').value=m; openDon(m);" in src)
+
+# 8) Thanh đơn chia hai hàng bằng tay.
+print()
+print('— thanh đơn hai hàng —')
+# 🔴 Anh Thắng 26/08: *"Dẫn đến lệch giao diện nè"*. Thanh đơn từng là MỘT hàng flex-wrap chứa
+#    lẫn ô chọn đơn, các nút, dải trạng thái và khối lịch sử 460px. Bỏ ô tìm ra khỏi đó là số
+#    phần tử đổi và flex ngắt dòng ở chỗ khác — nút Xoá đứng chơ vơ giữa khoảng trắng.
+#    Để flex tự quyết chỗ ngắt thì bố cục phụ thuộc số phần tử: thêm một nút là vỡ, không báo.
+la('thanh đơn dùng lớp don-bar (không còn một hàng flex)', 'class="bar don-bar" id="donBar"' in src)
+la('hàng 1 gom ô chọn đơn + các nút', 'class="db-hang1"' in src)
+la('hàng 2 gom trạng thái + lịch sử chỉnh đơn', 'class="db-hang2"' in src)
+la('có ô đệm đẩy nhóm nút về mép phải', 'class="db-day"' in src)
+for _id in ['donSel', 'btnNewDon', 'btnChuyenDV', 'btnDelDon', 'btnDelDonAdmin', 'btnAction']:
+    _i = src.index('id="%s"' % _id)
+    la('%s nằm ở hàng 1' % _id,
+       src.rindex('class="db-hang1"', 0, _i) > src.rindex('class="bar don-bar"', 0, _i)
+       and 'class="db-hang2"' not in src[src.rindex('class="db-hang1"', 0, _i):_i])
+for _id in ['donBadge', 'donSuBox']:
+    _i = src.index('id="%s"' % _id)
+    la('%s nằm ở hàng 2' % _id, 'class="db-hang2"' in src[:_i].rsplit('class="db-hang1"', 1)[-1])
+la('ba lớp có kiểu chữ thật trong tệp css',
+   '.db-hang1{' in css and '.db-hang2{' in css and '.db-day{' in css)
+# Hàng 2 rỗng thì không được treo một khoảng trắng trông như lỗi.
+la('hàng 2 chỉ chiếm chỗ khi có nội dung', '.db-hang2:not(:empty){margin-top' in css)
+
 print()
 if hong:
     print('🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
