@@ -47,7 +47,7 @@
 #include <esp_mac.h>
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-25f (GATE_BY_PIN=0: dem gio binh thuong lai)"
+#define FW_VERSION "ghe-massage 2026-08-25g (khoa chan 34, dem gio binh thuong)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -202,12 +202,12 @@ const unsigned long NHIP_MS      = 30000;  // nhịp sống + lấy cấu hình
       chuỗi xung. -> Phát hiện theo XUNG, KHÔNG theo mức: có nhấp nháy = chạy; đứng yên
       (dù 3.3V hay 0V) = dừng. Nhờ vậy CẮT NGUỒN ghế (hết xung) cũng thành 'dừng' ->
       KHÔNG cần trở kéo, không phụ thuộc cực. */
-#define DO_GHECHAY         1
-/* 🔴 GATE_BY_PIN: 1 = ĐỒNG HỒ ĐẾM THEO CHÂN GHẾ (cần chân đọc được rõ chạy/tắt).
-   0 = đếm giờ BÌNH THƯỜNG (real-time), KHÔNG phụ thuộc chân — dùng khi chưa có tín
-   hiệu chạy/tắt dùng được. HIỆN ĐỂ 0 vì chân "pulse" mV chỉ ra nhiễu (chạy=tắt như
-   nhau ~20%/100kHz), IO34 không đọc được. Có cảm biến rung/tín hiệu thật -> bật lại 1. */
-#define GATE_BY_PIN        0
+/* 🔴 KHÓA CHÂN 34: DO_GHECHAY=0 -> KHÔNG đụng gì tới IO34 (không pinMode, không đọc),
+   đồng hồ đếm giờ BÌNH THƯỜNG (real-time). Khi nào tìm được 1 nguồn "bật" mức logic
+   rõ (0/3.3V) thì: đặt GHECHAY_PIN = chân đó, DO_GHECHAY=1 và GATE_BY_PIN=1 để bật lại
+   (đếm theo ghế + dừng theo ghế + cảnh báo 'ghekhongchay'). */
+#define DO_GHECHAY         0
+#define GATE_BY_PIN        0         // 1 = gate đồng hồ theo chân ghế (cần DO_GHECHAY=1)
 #define GHECHAY_PIN        34        // chân đọc trạng thái chạy (khi có tín hiệu dùng được)
 #define GHECHAY_DUTY_NGUONG 50       // %low >= ngưỡng này = ĐANG CHẠY (chỉnh theo số đo thật)
 #define GHECHAY_CHET_MS    10000     // paid mà ghế CHƯA TỪNG chạy quá lâu này -> cảnh báo web
@@ -1900,20 +1900,15 @@ void loop(){
   congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
 
-#if DO_GHECHAY
-  /* ĐỒNG HỒ PIN-MASTER: trong phiên đã trả tiền (CAMON hoặc RUNNING), CHỈ trừ giờ khi
-     chân báo-chạy = mức chạy (ghế thật sự chạy). Phân biệt 2 ca khi ghế KHÔNG chạy:
-       - CHƯA TỪNG chạy (g_gheDaChay=false): khách trả tiền mà ghế chưa khởi động ->
-         chờ, không trừ giờ; quá GHECHAY_CHET_MS -> cảnh báo 'ghekhongchay'.
-       - ĐÃ chạy rồi mà tắt: bấm stop / tắt máy / hết chương trình -> đánh dấu g_dungTu,
-         quá GHE_DUNG_MS thì KẾT THÚC phiên (làm ở nhánh ST_RUNNING). */
+  /* ĐỒNG HỒ: trong phiên đã trả tiền (CAMON/RUNNING) thì trừ giờ. Mặc định đếm
+     REAL-TIME (không phụ thuộc chân nào). Khi bật cả DO_GHECHAY && GATE_BY_PIN thì
+     mới GATE theo chân ghế (chỉ trừ khi ghế thật sự chạy + cảnh báo/dừng theo ghế). */
   if(state == ST_CAMON || state == ST_RUNNING){
     uint32_t now = millis();
-    /* GATE_BY_PIN=0 -> luôn coi như ĐANG CHẠY (đếm real-time, không phụ thuộc chân). */
-    bool gheChay = GATE_BY_PIN ? gheDangChay() : true;
-#if GATE_BY_PIN
-    /* DEBUG: in khi đổi trạng thái hoặc mỗi 2s. Xóa khi chạy ổn. */
-    { static int _last = -1; static uint32_t _tp = 0;
+    bool gheChay = true;                     // mặc định: coi như đang chạy -> đếm real-time
+#if DO_GHECHAY && GATE_BY_PIN
+    gheChay = gheDangChay();
+    { static int _last = -1; static uint32_t _tp = 0;      // DEBUG (chỉ khi gate theo chân)
       if(gheChay != (_last==1) || now - _tp > 2000){ _last = gheChay?1:0; _tp = now;
         Serial.printf("[GHE] %s low=%d%% hz=%d state=%s conLai=%lds daChay=%d\n",
           gheChay?"CHAY":"DUNG", g_pctLow, g_hz,
@@ -1924,27 +1919,27 @@ void loop(){
     g_tickTruoc = now;
     if(gheChay){
       g_gheDaChay = true; g_dungTu = 0;
-      if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false);
-        Serial.println("[GHE] da chay lai -> go canh bao"); }
-      g_conLaiMs -= (long)dt;                // ĐẾM: chỉ trừ khi ghế đang chạy
-    } else {
+      if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+      g_conLaiMs -= (long)dt;                // ĐẾM
+    }
+#if DO_GHECHAY && GATE_BY_PIN
+    else {
       if(g_dungTu == 0) g_dungTu = now;
       if(!g_gheDaChay){                       // paid mà ghế chưa từng chạy -> cảnh báo
         if(!g_baoGheChet && now - g_dungTu > GHECHAY_CHET_MS){
           g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
           Serial.println("[GHE] paid ma ghe CHUA chay -> canh bao web"); }
       }
-      // đã chạy rồi mà tắt: việc KẾT THÚC phiên xử ở nhánh ST_RUNNING (dùng g_dungTu).
     }
-  }
 #endif
+  }
 
   /* Hết màn cảm ơn -> chuyển sang màn đếm ngược (phóng to đồng hồ). Đồng hồ đã đếm
      theo chân ghế ở khối pin-master trên nên số hiện ra khớp phần ghế đã chạy. */
   if(g_henLuc && state == ST_CAMON && (int32_t)(millis() - g_henLuc) >= 0){
     g_henLuc = 0;
     relaySet(true); state = ST_RUNNING; screenDrawn = false; lastShownSec = -1; g_statusDirty = true;
-    Serial.println("[HEN] het man cam on -> man dem nguoc (dem theo chan ghe)");
+    Serial.println("[HEN] het man cam on -> man dem nguoc");
   }
 
   if(g_remoteStop){ g_remoteStop=false;
