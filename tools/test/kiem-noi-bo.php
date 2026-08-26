@@ -378,7 +378,14 @@ foreach ( $nhom as $x ) { t( 'thanh nhóm có ô "' . $x . '"', false !== strpos
    chép nào — nó gọi `VHCC_Cty` của plugin chấm công, mà plugin ấy lại đọc ô cài đặt dùng chung
    `vhg_chan`. Bốn trang, một kho. */
 
-teq( 'chưa khai công ty thì KHÔNG vẽ khung trống', '', VHCC_Cty::html() );
+$_ct_trong = VHCC_Cty::html();
+t( 'chưa khai công ty thì KHÔNG bịa ra tên / mã số thuế nào',
+	false === strpos( $_ct_trong, 'cty-ten' ) && false === strpos( $_ct_trong, 'Mã số thuế' ),
+	$_ct_trong );
+/* ⚠️ Nhưng VẪN giữ nhãn phiên bản — anh Thắng 26/08: *"Cuối mỗi tất cả các trang bổ sung tên
+   phiên bản đang chạy"*. Site mới cài thì thông tin công ty chắc chắn trống, mà đó lại đúng
+   lúc cần biết bản nào đang chạy nhất. */
+t( 'nhưng vẫn giữ nhãn phiên bản', false !== strpos( $_ct_trong, 'class="cty-pb"' ), $_ct_trong );
 $_COOKIE[ VHCC_Web::COOKIE ] = $TOK_NV;
 ob_start(); VHNB_Trang::ve( $U_NV ); $h_k = ob_get_clean();
 t( 'và trang vẫn vẽ bình thường', strpos( $h_k, 'name="noi_dung"' ) !== false );

@@ -6100,6 +6100,29 @@ foreach ( array( 'cbp', 'ccs', 'cth', 'cng', 'cnv' ) as $k_ts ) {
 		in_array( $k_ts, VHCC_Web::THAM_SO, true ) );
 }
 
+/* 🔴 KHAI CẤU HÌNH VÀ NẠP DỮ LIỆU ĐÃ DỜI SANG TAB RIÊNG.
+   Anh Thắng 26/08: *"cái này cho qua cấu hình đi, vì chỗ này là bảng công"* · *"Cho qua tab
+   cấu hình luôn nhé"* · *"Đẩy này qua tab dữ liệu đầu vào đi"*.
+   Bảng công là màn mở HẰNG NGÀY chỉ để đọc; khai cấu hình là việc làm một lần mà mỗi lần làm
+   là đổi cách tính tiền của cả cơ sở. Để chung một màn thì thao tác hằng ngày cứ lướt ngang
+   qua mấy cái nút đổi tiền.
+   ⚠️ Mấy phép dưới đây soi HAI MÀN MỚI, không soi `$h_qtc` nữa. */
+$g_ch  = array( 'man' => 'cau_hinh', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' );
+$h_ch  = vhcc_web( '135791', array(), $g_ch );
+$h_dl  = vhcc_web( '135791', array(), array( 'man' => 'du_lieu' ) );
+
+t( 'thanh màn có tab Cấu hình', strpos( $h_qtc, 'man=cau_hinh' ) !== false, $h_qtc );
+t( 'thanh màn có tab Dữ liệu đầu vào', strpos( $h_qtc, 'man=du_lieu' ) !== false, $h_qtc );
+/* 🔴 Màn Bảng công phải CHỈ ĐƯỜNG sang chỗ mới — người quen tay tìm mãi không thấy rồi tưởng
+   mất tính năng, đúng chuyện đã xảy ra với khối nạp công ("không thấy chỗ nạp dữ liệu công"). */
+t( 'màn Bảng công chỉ đường sang tab Cấu hình',
+	strpos( $h_qtc, 'Cấu hình</b></a>' ) !== false, $h_qtc );
+t( 'và chỉ đường sang tab Dữ liệu đầu vào',
+	strpos( $h_qtc, 'Dữ liệu đầu vào</b></a>' ) !== false, $h_qtc );
+/* Và không còn bày mấy khối ấy trên màn Bảng công nữa. */
+t( 'màn Bảng công KHÔNG còn khối xếp bộ phận', strpos( $h_qtc, 'id="bophan"' ) === false, $h_qtc );
+t( 'màn Bảng công KHÔNG còn khối nạp .csv', strpos( $h_qtc, 'id="napcong"' ) === false, $h_qtc );
+
 /* ---- sổ nhật ký giờ công · nạp công từ .csv ---- */
 /* 🔴 KHỐI "CHẤM CÔNG BÙ" RỜI ĐÃ BỎ (anh Thắng 26/08: *"Vẫn còn"*, sau khi khối "Sửa giờ công"
    rời bị bỏ ở lượt trước). Bù và sửa nay làm NGAY TẠI Ô trong lưới cả tháng.
@@ -6158,39 +6181,41 @@ $r_mai = VHCC_Bu::ghi( $u_qtc, array( 'coso' => 'TUTU_BT', 'ngay' => $ngay_mai,
 	'ma_nv' => 'QTC1', 'bu_vao' => '08:00', 'bu_ra' => '', 'ly_do' => 'thử ngày mai' ) );
 t( 'và đường ghi thật cũng chối, không chỉ hàm kiểm', empty( $r_mai['ok'] ), $r_mai );
 
-t( 'màn có khối Nạp công từ .csv', strpos( $h_qtc, 'id="napcong"' ) !== false, $h_qtc );
+t( 'màn có khối Nạp công từ .csv', strpos( $h_dl, 'id="napcong"' ) !== false, $h_qtc );
 /* 🔴 Đây là câu trả lời cho đúng chỗ anh Thắng vấp: nạp 240 hồ sơ xong bảng công vẫn trắng.
    Màn phải TỰ NÓI ra chuyện hai nút "nạp" là hai việc khác nhau. */
 t( 'khối nạp công nói rõ nút .csv ở màn Hồ sơ KHÔNG nạp giờ công',
-	strpos( $h_qtc, 'sổ nhân sự' ) !== false && strpos( $h_qtc, 'bảng công vẫn trắng' ) !== false, $h_qtc );
-t( 'có nút Xem trước', strpos( $h_qtc, 'value="xem_cong"' ) !== false );
-/* 🔴 Anh Thắng 26/08: *"không thấy chỗ nạp dữ liệu công"*. Bản đầu đặt khối nạp ở CUỐI, sau
-   bảng — mà bảng chỉ vẽ khi đã chọn cơ sở VÀ bấm Xem. Tức là đúng lúc bảng công còn TRỐNG,
-   lúc người ta cần nạp nhất, thì cái nút nạp là thứ duy nhất không hiện.
-   Phép dưới đây mở màn ở đúng trạng thái ấy: CHƯA chọn cơ sở gì cả. */
+	strpos( $h_dl, 'sổ nhân sự' ) !== false && strpos( $h_dl, 'bảng công vẫn trắng' ) !== false, $h_dl );
+t( 'có nút Xem trước', strpos( $h_dl, 'value="xem_cong"' ) !== false, $h_dl );
+/* 🔴 Anh Thắng 26/08: *"không thấy chỗ nạp dữ liệu công"*. Bản đầu đặt khối nạp ở CUỐI màn
+   bảng công, sau bảng — mà bảng chỉ vẽ khi đã chọn cơ sở VÀ bấm Xem. Tức là đúng lúc bảng công
+   còn TRỐNG, lúc người ta cần nạp nhất, thì cái nút nạp là thứ duy nhất không hiện.
+   Nay khối nạp ở tab riêng (*"Đẩy này qua tab dữ liệu đầu vào đi"*), nên màn bảng công KHÔNG
+   vẽ nó nữa — nhưng phải CHỈ ĐƯỜNG sang đó, kẻo rơi lại đúng cái bẫy cũ dưới hình dạng khác. */
 /* Lọc theo một bộ phận KHÔNG có cơ sở nào -> rơi đúng vào đường thoát sớm của `the_bang_cham`.
    (Mở màn trơn không rơi vào đó được: sổ thử chỉ có một cơ sở nên hệ tự chọn giúp.) */
 $h_trong = vhcc_web( '135791', array(),
 	array( 'man' => 'cham', 'cbp' => 'Bộ phận không tồn tại' ) );
 t( 'lọc ra 0 cơ sở thì bảng KHÔNG vẽ (đường thoát sớm)',
 	strpos( $h_trong, 'Chi tiết từng lượt' ) === false, $h_trong );
-t( 'NHƯNG khối Nạp công VẪN hiện — đây là lúc cần nó nhất',
-	strpos( $h_trong, 'id="napcong"' ) !== false, $h_trong );
-t( 'và khối nạp có ô chọn cơ sở RIÊNG, không phải chờ bảng vẽ xong',
-	strpos( $h_trong, 'id="ncs"' ) !== false, $h_trong );
+t( '🔴 chưa chọn được cơ sở thì màn CHỈ ĐƯỜNG sang tab Dữ liệu đầu vào',
+	strpos( $h_trong, 'man=du_lieu' ) !== false
+	&& strpos( $h_trong, 'Dữ liệu đầu vào</b></a>' ) !== false, $h_trong );
+/* Còn khối nạp thật thì nằm ở tab kia, và nó có ô chọn cơ sở RIÊNG — không phải chờ bảng nào vẽ. */
+t( 'khối nạp có ô chọn cơ sở RIÊNG', strpos( $h_dl, 'id="ncs"' ) !== false, $h_dl );
 t( 'ô chọn cơ sở của khối nạp có liệt kê cơ sở thật',
-	strpos( $h_trong, '>TUTU_BT<' ) !== false, $h_trong );
-t( 'và vẫn nhận được file', strpos( $h_trong, 'enctype="multipart/form-data"' ) !== false );
+	strpos( $h_dl, '>TUTU_BT<' ) !== false, $h_dl );
+t( 'và vẫn nhận được file', strpos( $h_dl, 'enctype="multipart/form-data"' ) !== false );
 t( 'khối nạp đứng một mình vẫn nói rõ nút .csv kia là nạp NHÂN SỰ',
-	strpos( $h_trong, 'sổ nhân sự' ) !== false, $h_trong );
-t( 'và nút Nạp thật',  strpos( $h_qtc, 'value="nap_cong"' ) !== false );
-t( 'form nạp nhận được file', strpos( $h_qtc, 'enctype="multipart/form-data"' ) !== false );
+	strpos( $h_dl, 'sổ nhân sự' ) !== false, $h_dl );
+t( 'và nút Nạp thật',  strpos( $h_dl, 'value="nap_cong"' ) !== false, $h_dl );
+t( 'form nạp nhận được file', strpos( $h_dl, 'enctype="multipart/form-data"' ) !== false, $h_dl );
 /* 🔴 Ô gõ cơ sở MỚI. Anh Thắng 26/08: *"nếu chưa có cơ sở cũ chỗ này thì sao"* — ô xổ xuống chỉ
    liệt kê cơ sở ĐÃ có dữ liệu, nên cơ sở mới mở không nạp được. Vòng tròn y hệt cái vòng tròn
    PIN hồi đầu: muốn vào thì phải có tài khoản, muốn có tài khoản thì phải vào được. */
 t( 'có ô gõ cơ sở MỚI cho nơi chưa có trong danh sách',
-	strpos( $h_qtc, 'name="ccs_moi"' ) !== false, $h_qtc );
-t( 'và nói rõ ô ấy thắng ô xổ xuống', strpos( $h_qtc, 'thắng ô xổ xuống' ) !== false, $h_qtc );
+	strpos( $h_dl, 'name="ccs_moi"' ) !== false, $h_qtc );
+t( 'và nói rõ ô ấy thắng ô xổ xuống', strpos( $h_dl, 'thắng ô xổ xuống' ) !== false, $h_dl );
 
 /* ---- bù mở cho Cửa hàng trưởng, nạp công thì KHÔNG ---- */
 /* Hai việc trông giống nhau ("thêm giờ vào bảng") nhưng bù là sửa MỘT ô của một người, còn nạp
@@ -6279,7 +6304,7 @@ t( 'danh sách bộ phận có PART TIME', in_array( 'Part time', VHCC_Luong::BP
 teq( 'và mỗi bộ phận là một khối khai công thức riêng được',
 	array_values( (array) VHCC_Luong::BP_DS ), VHCC_Luong::vp_cfg_ds_khoi() );
 
-$h_bp = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+$h_bp = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
 t( 'màn có khối xếp bộ phận', strpos( $h_bp, 'id="bophan"' ) !== false, $h_bp );
 foreach ( VHCC_Luong::BP_DS as $_b ) {
 	t( 'ô chọn có bộ phận "' . $_b . '"',
@@ -6293,20 +6318,87 @@ t( 'và nhãn nói sẵn còn bao nhiêu cơ sở chưa xếp', strpos( $h_bp, '
 t( 'nói rõ chưa xếp thì KHÔNG có công thức tính công',
 	strpos( $h_bp, 'không có công thức tính công' ) !== false, $h_bp );
 
-/* 🔴 BA KHỐI CẤU HÌNH LÊN TRÊN BẢNG SỐ.
-   Chúng đổi cách đọc CẢ BẢNG, nên phải nhìn thấy TRƯỚC khi đọc số, không phải sau khi đã tin
-   vào số. */
+/* 🔴 THỨ TỰ TRÊN MÀN CẤU HÌNH: BỘ PHẬN -> CÁCH TÍNH -> (CA hoặc CÔNG THỨC).
+   Hai khối đầu là bảng của MỌI cơ sở và chúng quyết định khối thứ ba hiện cái nào — xếp cơ sở
+   vào bộ phận rồi chọn cách tính, xong mới tới bộ số của riêng cơ sở ấy. Đảo lại là bắt người
+   ta khai một bộ số trước khi biết bộ số đó có được dùng hay không.
+   (Trước 26/08/2026 mấy khối này nằm trên màn Bảng công và phép thử canh chúng đứng TRƯỚC bảng
+   số. Anh Thắng cho dời sang tab riêng, nên nay canh thứ tự TRONG tab ấy.) */
 $_vt_bp  = strpos( $h_bp, 'id="bophan"' );
-$_vt_ca  = strpos( $h_bp, 'id="khaica"' );
 $_vt_ct  = strpos( $h_bp, 'id="cachtinh"' );
-$_vt_cth = strpos( $h_bp, 'id="congthuc"' );
-$_vt_bang = strpos( $h_bp, 'Tổng giờ làm theo nhân viên' );
-t( 'tìm được mốc bảng số', false !== $_vt_bang, substr( $h_bp, 0, 200 ) );
-foreach ( array( 'Cơ sở thuộc bộ phận' => $_vt_bp, 'Khai ca' => $_vt_ca,
-	'Cách tính' => $_vt_ct, 'Công thức' => $_vt_cth ) as $_ten => $_vt ) {
-	t( 'khối "' . $_ten . '" đứng TRƯỚC bảng số',
-		false !== $_vt && false !== $_vt_bang && $_vt < $_vt_bang, $_ten . '@' . var_export( $_vt, true ) );
+t( 'màn Cấu hình có khối xếp bộ phận', false !== $_vt_bp, substr( $h_bp, 0, 200 ) );
+t( 'màn Cấu hình có khối cách tính',   false !== $_vt_ct, substr( $h_bp, 0, 200 ) );
+t( 'bộ phận đứng TRƯỚC cách tính', $_vt_bp < $_vt_ct, array( $_vt_bp, $_vt_ct ) );
+/* Khối thứ ba là CA hay CÔNG THỨC tuỳ cơ sở — xem khối "chỉ bày đúng một trong hai" ở dưới. */
+$_vt_ba = max( (int) strpos( $h_bp . 'x', 'id="khaica"' ), (int) strpos( $h_bp . 'x', 'id="congthuc"' ) );
+t( 'và khối của riêng cơ sở đứng SAU cả hai', $_vt_ba > $_vt_ct, $_vt_ba );
+
+/* 🔴 PHIÊN BẢN ĐANG CHẠY Ở CUỐI MỖI TRANG.
+   Anh Thắng 26/08: *"Cuối mỗi tất cả các trang bổ sung tên phiên bản đang chạy để theo dõi"*.
+   Mỗi lần sửa xong là cài đè một tệp .zip lên hosting; không có số trên màn thì không cách nào
+   biết mình đang nhìn bản mới hay bản cũ còn trong bộ nhớ đệm trình duyệt — và mọi câu "sửa
+   rồi mà vẫn thế" đều bắt đầu từ chỗ ấy.
+   ⚠️ Số phải ĐỌC TỪ HẰNG của plugin, không gõ tay: nhãn nói một đằng mã chạy một nẻo là một
+      cái đồng hồ chạy sai, tệ hơn không có đồng hồ. */
+$h_pb = vhcc_web( '135791' );
+t( 'chân trang có nhãn phiên bản', strpos( $h_pb, 'class="cty-pb"' ) !== false, $h_pb );
+t( '🔴 và số ấy ĐÚNG BẰNG hằng VHCC_VERSION',
+	strpos( $h_pb, 'Chấm công ' . VHCC_VERSION ) !== false, VHCC_VERSION );
+t( 'nhãn phiên bản có kiểu chữ thật', strpos( $h_pb, '.cty-pb{' ) !== false );
+/* Chân trang dùng chung cho nhiều plugin — plugin nào đang nạp thì số của plugin ấy phải có mặt. */
+if ( defined( 'VHCP_VERSION' ) ) {
+	t( 'plugin chi phí cùng nạp thì số của nó cũng hiện',
+		strpos( $h_pb, 'Chi phí ' . VHCP_VERSION ) !== false, $h_pb );
 }
+
+/* 🔴 BẢNG "NGÀY THIẾU GIỜ RA" THU GỌN SẴN.
+   Anh Thắng 26/08: *"Cho này gọn lại, khi nào bấm xổ mới xổ ra"*. Số dòng do dữ liệu quyết
+   định — sổ thật đang 36 ngày và nó xổ hết ra giữa màn, đẩy mọi thứ phía dưới đi mấy màn hình.
+   Người mở màn bảng công phần lớn chỉ cần biết CÓ BAO NHIÊU; con số nằm trên nhãn. */
+$h_thieu = vhcc_web( '135791', array(), $g_qtc );
+if ( strpos( $h_thieu, 'Ngày thiếu giờ ra' ) !== false ) {
+	t( '🔴 bảng "Ngày thiếu giờ ra" gói trong khối gập',
+		preg_match( '/<details><summary><b>Ngày thiếu giờ ra<\/b>/', $h_thieu ) === 1, 'không thấy details' );
+	t( 'và gập SẴN (không có thuộc tính open)',
+		preg_match( '/<details open><summary><b>Ngày thiếu giờ ra/', $h_thieu ) === 0, 'đang mở sẵn' );
+	t( 'nhãn nói sẵn bao nhiêu ngày, khỏi phải mở ra đếm',
+		preg_match( '/Ngày thiếu giờ ra<\/b> — <span class="chu-hong">\d+ ngày<\/span>/', $h_thieu ) === 1,
+		'nhãn không có con số' );
+	/* Gập bằng <details> của HTML, không phải JavaScript — cả màn này không có một dòng script. */
+	t( 'khối gập KHÔNG dùng JavaScript', stripos( $h_thieu, '<script' ) === false );
+}
+
+/* 🔴 CHỈ BÀY ĐÚNG MỘT TRONG HAI: CA (cho cơ sở theo giờ) hoặc CÔNG THỨC (cho Văn phòng).
+   Anh Thắng 26/08: *"Cơ sở mới có ca, Bộ Phận VP không có ca"* và *"Bộ phận văn phòng tính
+   theo công thức này (tức tính dạng công). Cái trên là tính theo dạng giờ, cho cơ sở."*
+
+   Cơ sở tính THEO GIỜ thì con số là giờ ra trừ giờ vào — bộ bậc thang / ca đêm / công bù không
+   hề được dùng tới. Cơ sở tính THEO CÔNG thì không chạy ca gãy, khai ca là khai cho vui.
+   ⚠️ Bày nhầm khối còn nguy hiểm hơn thiếu khối: người khai tưởng mình vừa đổi được cái gì đó,
+      lưu xong thấy bảng không nhúc nhích, và không có gì giải thích. */
+$_CS_2M = 'HAI_MAT_1';
+vhcc_bo_phan( $_CS_2M, 'Khu vui chơi' );
+$_AD_2M = array( 'name' => 'Admin', 'role' => 'Admin', 'coso' => '' );
+VHCC_Luong::dat_cach_tinh( $_AD_2M, array( $_CS_2M => 'gio' ) );
+$h_2m_gio = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => $_CS_2M ) );
+t( '🔴 cơ sở theo GIỜ: có khối Khai ca', strpos( $h_2m_gio, 'id="khaica"' ) !== false, $h_2m_gio );
+t( '🔴 cơ sở theo GIỜ: KHÔNG bày khối Công thức tính công',
+	strpos( $h_2m_gio, 'id="congthuc"' ) === false, $h_2m_gio );
+t( 'và nói ra vì sao không bày', strpos( $h_2m_gio, 'THEO GIỜ' ) !== false, $h_2m_gio );
+
+VHCC_Luong::dat_cach_tinh( $_AD_2M, array( $_CS_2M => 'cong' ) );
+$h_2m_cong = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => $_CS_2M ) );
+t( '🔴 cơ sở theo CÔNG: có khối Công thức tính công',
+	strpos( $h_2m_cong, 'id="congthuc"' ) !== false, $h_2m_cong );
+t( '🔴 cơ sở theo CÔNG: KHÔNG bày khối Khai ca',
+	strpos( $h_2m_cong, 'id="khaica"' ) === false, $h_2m_cong );
+t( 'và nói ra vì sao không bày', strpos( $h_2m_cong, 'THEO CÔNG' ) !== false, $h_2m_cong );
+/* Hai khối bảng-của-mọi-cơ-sở thì luôn có, không phụ thuộc cơ sở đang chọn. */
+foreach ( array( 'gio' => $h_2m_gio, 'cong' => $h_2m_cong ) as $_k2 => $_h2 ) {
+	t( 'khối bộ phận luôn có (' . $_k2 . ')',  strpos( $_h2, 'id="bophan"' ) !== false );
+	t( 'khối cách tính luôn có (' . $_k2 . ')', strpos( $_h2, 'id="cachtinh"' ) !== false );
+}
+VHCC_Luong::dat_cach_tinh( $_AD_2M, array( $_CS_2M => '' ) );
 
 /* ---- lưu qua đúng cửa POST ---- */
 vhcc_bo_phan( 'BP_THU_1', '' );
@@ -6406,7 +6498,7 @@ teq( '🔴 chỗ định tuyến lượt chấm cũng đọc bản riêng của 
 teq( 'còn cơ sở khác vẫn là bản chung', '21:30', VHCC_Online::vp_cfg( 'TUTU_BT' )['ngayDen'] );
 
 /* ---- màn hình ---- */
-$h_ct = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => $CFG_CS, 'cth' => '2026-07' ) );
+$h_ct = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => $CFG_CS, 'cth' => '2026-07' ) );
 t( 'màn có khối Công thức tính công', strpos( $h_ct, 'id="congthuc"' ) !== false, $h_ct );
 t( 'khối ấy thu gọn sẵn', strpos( $h_ct, 'id="congthuc"><details>' ) !== false, $h_ct );
 /* 🔴 Con số phải đọc TRƯỚC khi bấm Lưu — mốc bậc thang sai là lương cả khối tăng 50%. */
@@ -6420,7 +6512,7 @@ foreach ( array_keys( VHCC_Luong::VP_O ) as $k_o ) {
 }
 
 $h_ct_vp = vhcc_web( '135791', array(),
-	array( 'man' => 'cham', 'ccs' => $CFG_CS, 'cth' => '2026-07', 'ctk' => 'Văn phòng' ) );
+	array( 'man' => 'cau_hinh', 'ccs' => $CFG_CS, 'cth' => '2026-07', 'ctk' => 'Văn phòng' ) );
 t( 'chọn khối thì màn nói rõ đang sửa riêng cho khối nào',
 	strpos( $h_ct_vp, 'Đang sửa riêng cho khối' ) !== false, $h_ct_vp );
 /* 🔴 Ô để trống ở bản riêng = theo bản chung, nên phải nói ra, và phải cho biết bản chung đang
@@ -6798,15 +6890,19 @@ t( 'ca đêm qua hôm sau tách đúng 7h 30m vào Ca 3',
 	strpos( $h_gio, '>7h 30m</b>' ) !== false, $h_gio );
 t( 'và 30 phút đầu rơi vào Ca 2', strpos( $h_gio, '>0h 30m</b>' ) !== false, $h_gio );
 
+/* Khối khai ca — Cửa hàng trưởng trở lên.
+   ⚠️ Khối này nay ở TAB CẤU HÌNH, không còn trên màn bảng công — nên soi màn cấu hình. */
+$h_ch_gio = vhcc_web( '135791', array(),
+	array( 'man' => 'cau_hinh', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
 /* Khối khai ca — Cửa hàng trưởng trở lên. */
-t( 'có khối Khai ca làm việc', strpos( $h_gio, 'id="khaica"' ) !== false, $h_gio );
+t( 'có khối Khai ca làm việc', strpos( $h_ch_gio, 'id="khaica"' ) !== false, $h_ch_gio );
 t( 'khối khai ca thu gọn sẵn (màn đã dài rồi)',
-	preg_match( '/id="khaica"><details>/', $h_gio ) === 1, $h_gio );
-t( 'có ô nhập tên ca', strpos( $h_gio, 'name="ca_ten[0]"' ) !== false, $h_gio );
-t( 'và ô giờ cuối tuần riêng', strpos( $h_gio, 'name="ca_tuw[0]"' ) !== false, $h_gio );
+	preg_match( '/id="khaica"><details>/', $h_ch_gio ) === 1, $h_ch_gio );
+t( 'có ô nhập tên ca', strpos( $h_ch_gio, 'name="ca_ten[0]"' ) !== false, $h_ch_gio );
+t( 'và ô giờ cuối tuần riêng', strpos( $h_ch_gio, 'name="ca_tuw[0]"' ) !== false, $h_ch_gio );
 /* Luôn thừa hai dòng trống để thêm ca mà KHÔNG cần JavaScript — cả màn này không có script. */
-t( 'thừa sẵn dòng trống để thêm ca', strpos( $h_gio, 'name="ca_ten[4]"' ) !== false, $h_gio );
-t( 'khối khai ca KHÔNG dùng JavaScript', stripos( $h_gio, '<script' ) === false, $h_gio );
+t( 'thừa sẵn dòng trống để thêm ca', strpos( $h_ch_gio, 'name="ca_ten[4]"' ) !== false, $h_ch_gio );
+t( 'khối khai ca KHÔNG dùng JavaScript', stripos( $h_ch_gio, '<script' ) === false, $h_ch_gio );
 
 /* Lưu ca THẬT rồi xem bảng đổi theo. */
 $_POST = array( 'viec' => 'ca', 'ccs' => $CS_GIO,
@@ -6851,9 +6947,12 @@ teq( 'khai thẳng THEO CÔNG thắng bộ phận', 'cong', VHCC_Luong::cach_tin
 teq( 'và khai thẳng THEO GIỜ cũng thắng bộ phận Văn phòng', 'gio', VHCC_Luong::cach_tinh( $VP_CS ) );
 t( 'đánh dấu là đã khai thẳng', VHCC_Luong::cach_tinh_da_khai( $CS_GIO ) );
 /* Màn đọc theo công tắc, không đọc bộ phận nữa. */
-$h_ct = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
-t( 'bảng đổi sang SỐ CÔNG theo công tắc', strpos( $h_ct, 'là <b>số công</b>' ) !== false, $h_ct );
-t( 'và nói rõ là do khai thẳng', strpos( $h_ct, 'đã khai thẳng' ) !== false, $h_ct );
+$h_ct = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+/* ⚠️ Câu "mỗi ô là số công" nằm ở LƯỚI CẢ THÁNG, tức màn Bảng công — không phải màn Cấu
+   hình. Soi nhầm màn thì phép thử đỏ vì lý do chẳng liên quan gì tới cái công tắc. */
+$h_ct_bc = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
+t( 'bảng đổi sang SỐ CÔNG theo công tắc', strpos( $h_ct_bc, 'là <b>số công</b>' ) !== false, $h_ct_bc );
+t( 'và nói rõ là do khai thẳng', strpos( $h_ct_bc, 'đã khai thẳng' ) !== false, $h_ct_bc );
 
 /* Để rỗng = BỎ khai, quay về suy theo bộ phận — KHÔNG phải "cơ sở này không có cách tính nào". */
 VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $CS_GIO => '', $VP_CS => '' ) );
@@ -6867,20 +6966,20 @@ teq( 'và quay về suy theo bộ phận', 'gio', VHCC_Luong::cach_tinh( $CS_GIO
 teq( 'Văn phòng cũng quay về theo công', 'cong', VHCC_Luong::cach_tinh( $VP_CS ) );
 
 /* Khối cấu hình trên màn. */
-t( 'có khối Cách tính công của từng cơ sở', strpos( $h_gio, 'id="cachtinh"' ) !== false, $h_gio );
+t( 'có khối Cách tính công của từng cơ sở', strpos( $h_ch_gio, 'id="cachtinh"' ) !== false, $h_ch_gio );
 t( 'khối ấy liệt kê CẢ danh sách cơ sở, không chỉ cơ sở đang xem',
-	substr_count( $h_gio, 'name="ct[' ) > 1, $h_gio );
-t( 'mỗi cơ sở có ba lựa chọn', strpos( $h_gio, '— theo bộ phận —' ) !== false
-	&& strpos( $h_gio, '>Theo giờ<' ) !== false && strpos( $h_gio, '>Theo công<' ) !== false, $h_gio );
+	substr_count( $h_ch_gio, 'name="ct[' ) > 1, $h_ch_gio );
+t( 'mỗi cơ sở có ba lựa chọn', strpos( $h_ch_gio, '— theo bộ phận —' ) !== false
+	&& strpos( $h_ch_gio, '>Theo giờ<' ) !== false && strpos( $h_ch_gio, '>Theo công<' ) !== false, $h_ch_gio );
 t( 'có cột Đang dùng cho biết luật hiện ra kết quả gì',
-	strpos( $h_gio, '<th>Đang dùng</th>' ) !== false, $h_gio );
+	strpos( $h_ch_gio, '<th>Đang dùng</th>' ) !== false, $h_ch_gio );
 /* Nói rõ đổi công tắc KHÔNG sửa giờ chấm — kẻo người ta sợ không dám bấm. */
 t( 'nói rõ đổi cách tính không sửa giờ chấm nào',
-	strpos( $h_gio, 'không sửa một giờ chấm nào' ) !== false, $h_gio );
+	strpos( $h_ch_gio, 'không sửa một giờ chấm nào' ) !== false, $h_ch_gio );
 /* Và trỏ sang công thức tính công của khối Văn phòng — đó là màn khác, nhiều ô hơn hẳn. */
 t( 'trỏ sang công thức tính công của khối Văn phòng',
-	strpos( $h_gio, 'công thức tính công của khối Văn phòng' ) !== false
-	|| strpos( $h_gio, 'công thức '  ) !== false, $h_gio );
+	strpos( $h_ch_gio, 'công thức tính công của khối Văn phòng' ) !== false
+	|| strpos( $h_ch_gio, 'công thức '  ) !== false, $h_ch_gio );
 
 /* Gác cửa: đổi cách tính là đổi con số ra tiền, không phải việc trong phạm vi một cửa hàng. */
 foreach ( array( 'Nhân viên', 'Cửa hàng trưởng' ) as $vt_ct ) {
@@ -6888,7 +6987,7 @@ foreach ( array( 'Nhân viên', 'Cửa hàng trưởng' ) as $vt_ct ) {
 		array( 'name' => 'X', 'role' => $vt_ct, 'coso' => $CS_GIO ), array( $CS_GIO => 'cong' ) );
 	t( $vt_ct . ' KHÔNG đổi được cách tính', empty( $r_c['ok'] ), $r_c );
 }
-$h_ct_ch = vhcc_web( '357913', array(), array( 'man' => 'vp', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+$h_ct_ch = vhcc_web( '357913', array(), array( 'man' => 'cau_hinh', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
 t( 'Cửa hàng trưởng không thấy khối cấu hình', strpos( $h_ct_ch, 'id="cachtinh"' ) === false, $h_ct_ch );
 /* Ẩn khối không phải là gác cửa — POST thẳng cũng phải bị chối. */
 $_POST = array( 'viec' => 'cach_tinh', 'ct' => array( $CS_GIO => 'cong' ) );
@@ -7020,13 +7119,13 @@ t( 'lọc rỗng thì không vẽ hàng bù mang cơ sở cũ',
 teq( 'hàng bù gửi đúng cơ sở đang hiện', 'TUTU_BT',
 	vhcc_ccs_cuoi( $h_o_bu, 'value="bu"' ) );
 teq( 'form khai ca gửi đúng cơ sở đang hiện', $CS_GIO,
-	vhcc_ccs_cuoi( $h_gio, 'value="ca"' ) );
+	vhcc_ccs_cuoi( $h_ch_gio, 'value="ca"' ) );
 /* 🔴 Ca phân biệt được "ô nào thắng": địa chỉ mang tiền tố `CS_` (app cũ viết vậy). `$cs` đã
    qua `chuan_coso()` nên là `FZ_SC_THU`, còn `o_loc()` chở nguyên `CS_FZ_SC_THU`. Ô của MÀN phải
    thắng — để o_loc thắng là khai ca cho một chuỗi cơ sở không tồn tại, và bảng công vẫn dùng ca
    mặc định mãi mà không ai hiểu vì sao lưu rồi không ăn. */
 $h_tien_to = vhcc_web( '135791', array(),
-	array( 'man' => 'vp', 'ccs' => 'CS_' . $CS_GIO, 'cth' => '2026-07' ) );
+	array( 'man' => 'cau_hinh', 'ccs' => 'CS_' . $CS_GIO, 'cth' => '2026-07' ) );
 teq( 'địa chỉ có tiền tố CS_ thì form khai ca vẫn gửi mã cơ sở ĐÃ CHUẨN HOÁ', $CS_GIO,
 	vhcc_ccs_cuoi( $h_tien_to, 'value="ca"' ) );
 teq( 'và hàng bù cũng vậy', 'TUTU_BT',
@@ -7174,10 +7273,18 @@ teq( '🔴 class-vhcc-web.php chỉ có ĐÚNG MỘT chỗ in </body></html>', 1
 teq( 'và không còn dòng đóng trang gộp nào sót lại', 0,
 	substr_count( $ma_web, "</div></body></html>'" ) );
 
-/* Chưa ai khai công ty ở đâu -> KHÔNG vẽ chân trang. Bịa ra một cái tên còn tệ hơn để trống. */
+/* Chưa ai khai công ty ở đâu -> KHÔNG bịa ra tên, địa chỉ, mã số thuế. Bịa còn tệ hơn để trống. */
 delete_option( 'vhg_chan' );
 teq( 'chưa khai gì thì thong_tin() trả rỗng', array(), VHCC_Cty::thong_tin() );
-teq( 'và html() trả chuỗi rỗng, không phải một cái khung trống', '', VHCC_Cty::html() );
+$_chan_trong = VHCC_Cty::html();
+t( '🔴 nhưng KHÔNG bịa ra thông tin công ty nào',
+	false === strpos( $_chan_trong, 'cty-ten' ) && false === strpos( $_chan_trong, 'Mã số thuế' ),
+	$_chan_trong );
+/* ⚠️ VẪN PHẢI CÒN SỐ PHIÊN BẢN. Anh Thắng bảo *"cuối MỌI trang"*, mà thông tin công ty là thứ
+   khai được và site mới cài thì chắc chắn trống — để cả chân trang biến mất theo là đúng lúc
+   cần số nhất (vừa cài xong, đang muốn biết bản nào đang chạy) thì lại không có. */
+t( 'chân trang trống vẫn giữ nhãn phiên bản',
+	false !== strpos( $_chan_trong, 'class="cty-pb"' ), $_chan_trong );
 t( 'trang vẫn vẽ bình thường khi chưa khai công ty',
 	strpos( vhcc_web( '135791' ), 'Việc anh/chị làm được' ) !== false );
 
@@ -7201,6 +7308,13 @@ update_option( 'vhg_chan', array(
 $h_dnhap = vhcc_web( '000000' );        // PIN sai -> màn đăng nhập
 t( 'màn ĐĂNG NHẬP có thông tin công ty',
 	strpos( $h_dnhap, '0106924989' ) !== false, substr( $h_dnhap, -400 ) );
+/* 🔴 VÀ NHÃN PHIÊN BẢN CŨNG PHẢI CÓ Ở CHÂN TRANG ĐẦY ĐỦ, không chỉ ở chân trang trống.
+   Khối phép ở trên soi lúc CHƯA khai công ty, nên nó không với tới nhánh này — bỏ nhãn khỏi
+   chân trang đầy đủ mà mọi phép vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
+t( 'chân trang ĐẦY ĐỦ vẫn có nhãn phiên bản',
+	strpos( $h_dnhap, 'class="cty-pb"' ) !== false, substr( $h_dnhap, -600 ) );
+t( 'và số ấy đúng bằng hằng VHCC_VERSION',
+	strpos( $h_dnhap, 'Chấm công ' . VHCC_VERSION ) !== false, VHCC_VERSION );
 foreach ( $man_thu as $ten_man => $get_man ) {
 	$h_ct = vhcc_web( '135791', array(), $get_man );
 	t( 'màn ' . $ten_man . ' có tên công ty ở cuối trang',

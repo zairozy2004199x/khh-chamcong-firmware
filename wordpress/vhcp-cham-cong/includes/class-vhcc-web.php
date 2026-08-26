@@ -1239,6 +1239,18 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'cau_hinh' === $man ) {
+			self::the_man_cau_hinh( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
+		if ( 'du_lieu' === $man ) {
+			self::the_man_du_lieu( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
@@ -1288,7 +1300,11 @@ class VHCC_Web {
 	   Anh Thắng 26/08: *"làm lại giao diện web chuẩn để anh gửi các bộ phận"* — người bộ phận mở
 	   đường link ra mà rơi thẳng vào một bảng số thì không biết mình được làm gì và bấm vào đâu.
 	   Trang chào nói ra trước, rồi mới tới bảng. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi' );
+	/* ⚠️ MỌI màn khai được đều phải có tên ở đây — có phép thử canh chuyện đó. Hai màn khai
+	   cấu hình / nạp dữ liệu đứng CUỐI: chúng là việc làm một lần, không ai muốn mở app ra là
+	   rơi thẳng vào bảng khai cấu hình. Nhưng vẫn phải có tên, kẻo người CHỈ có hai màn ấy lại
+	   rơi vào nhánh đoán mò ở cuối hàm. */
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -1308,6 +1324,17 @@ class VHCC_Web {
 		   báo. Anh đứng ngay màn Chấm công và nói *"anh chưa thấy lưới"* — lưới nằm ở tab kia. */
 		if ( VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { $ds['cham']     = 'Bảng công'; }
 		if ( VHCC_Vai::duoc( $toi, 'ho_so' ) )     { $ds['ho_so']    = 'Hồ sơ & tài khoản'; }
+		/* 🔴 KHAI CẤU HÌNH VÀ NẠP DỮ LIỆU TÁCH KHỎI MÀN BẢNG CÔNG.
+		   Anh Thắng 26/08/2026: *"cái này cho qua cấu hình đi, vì chỗ này là bảng công mà hiện
+		   phân quyền cơ sở làm gì trong này đâu"*, rồi *"Cho qua tab cấu hình luôn nhé"* (khối
+		   Cách tính công), rồi *"Đẩy này qua tab dữ liệu đầu vào đi"* (khối nạp .csv).
+		   Anh đúng, và lý do sâu hơn chuyện chật màn: bảng công là thứ người ta MỞ HẰNG NGÀY để
+		   ĐỌC; khai cấu hình là việc làm MỘT LẦN rồi thôi, mà mỗi lần làm là đổi cách tính tiền
+		   của cả cơ sở. Để hai loại việc ấy chung một màn thì thao tác hằng ngày cứ lướt ngang
+		   qua mấy cái nút đổi tiền — sớm muộn có người bấm nhầm.
+		   Vẫn dùng chung quyền `ngoai_coso` như trước, KHÔNG nới ra: dời chỗ không phải mở quyền. */
+		if ( VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { $ds['cau_hinh'] = 'Cấu hình'; }
+		if ( VHCC_Vai::duoc( $toi, 'nap_cong' ) )   { $ds['du_lieu']  = 'Dữ liệu đầu vào'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
 	}
@@ -1565,12 +1592,17 @@ class VHCC_Web {
 						? 'Không có cơ sở nào thuộc bộ phận này trong phạm vi của anh/chị.'
 						: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' ) )
 				. '</p></div>';
-			/* 🔴 VẪN vẽ khối nạp công ở đây. Anh Thắng 26/08: *"không thấy chỗ nạp dữ liệu công"* —
-			   đúng, vì bản đầu đặt khối nạp ở CUỐI, sau bảng, mà bảng chỉ vẽ khi đã chọn cơ sở.
-			   Tức là đúng lúc bảng công còn TRỐNG — lúc người ta cần nạp nhất — thì cái nút nạp
-			   lại là thứ duy nhất không hiện. Ngược đời, và im lặng: màn hình trông vẫn bình
-			   thường, chỉ thiếu mất thứ đang cần. */
-			self::the_nap_cong( $cs, $ky, $toi, $ds_cs );
+			/* 🔴 CHƯA CHỌN CƠ SỞ THÌ CHỈ ĐƯỜNG SANG CHỖ NẠP, ĐỪNG ĐỂ NGƯỜI TA ĐỨNG TRƯỚC MÀN TRỐNG.
+			   Anh Thắng từng vấp đúng chỗ này: *"không thấy chỗ nạp dữ liệu công"* — bản đầu đặt
+			   khối nạp ở CUỐI màn, sau bảng, mà bảng chỉ vẽ khi đã chọn cơ sở. Tức là đúng lúc
+			   bảng công còn TRỐNG, lúc người ta cần nạp nhất, thì cái nút nạp là thứ duy nhất
+			   không hiện.
+			   Nay khối nạp ở tab riêng (anh Thắng: *"Đẩy này qua tab dữ liệu đầu vào đi"*), nên ở
+			   đây không vẽ lại nó nữa — nhưng PHẢI có một câu chỉ đường, kẻo lại rơi vào đúng cái
+			   bẫy cũ dưới một hình dạng khác. */
+			echo '<p class="mo" style="margin-top:8px">Chưa có dữ liệu công? Nạp từ .csv ở tab '
+				. '<a href="' . esc_url( add_query_arg( array( 'man' => 'du_lieu' ), self::url() ) )
+				. '"><b>Dữ liệu đầu vào</b></a>.</p>';
 			return;
 		}
 		echo '</div>';
@@ -1634,10 +1666,14 @@ class VHCC_Web {
 		   trên"* — và anh đúng: chính vì chúng đổi cách đọc CẢ BẢNG nên phải nhìn thấy chúng
 		   TRƯỚC khi đọc số, không phải sau khi đã tin vào số. Cả ba đều thu gọn sẵn nên mỗi cái
 		   chỉ chiếm một dòng. */
-		self::the_bo_phan( $ky, $toi );
-		self::the_khai_ca( $cs, $ky, $toi );
-		self::the_cach_tinh( $ky, $toi );
-		self::the_cong_thuc_vp( $cs, $ky, $toi );
+		/* Mấy khối KHAI CẤU HÌNH đã dời sang tab riêng — xem `man_cua()`. Ở đây chỉ để lại
+		   một dòng chỉ đường, kẻo người quen tay tìm mãi không thấy rồi tưởng mất tính năng. */
+		echo '<p class="mo" style="margin:-6px 0 12px">⚙️ Khai <b>bộ phận của cơ sở</b>, '
+			. '<b>ca làm việc</b>, <b>cách tính công</b> và <b>công thức tính công</b> nay ở tab '
+			. '<a href="' . esc_url( add_query_arg( array( 'man' => 'cau_hinh' ), self::url() ) )
+			. '"><b>Cấu hình</b></a>. Nạp công từ .csv ở tab '
+			. '<a href="' . esc_url( add_query_arg( array( 'man' => 'du_lieu' ), self::url() ) )
+			. '"><b>Dữ liệu đầu vào</b></a>.</p>';
 
 		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
 
@@ -1715,7 +1751,6 @@ class VHCC_Web {
 		echo '</details></div>';
 
 		self::the_nhat_ky_gio( $cs, $tt, $ky, $toi );
-		self::the_nap_cong( $cs, $ky, $toi, self::ds_coso_xem( $toi ) );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
 	}
 
@@ -2908,6 +2943,94 @@ class VHCC_Web {
 	   ⚠️ Khối "Chấm công bù" thì GIỮ: người chưa có dòng nào trong tháng thì lưới không vẽ hàng
 	      của họ, tức là không có ô nào để bấm — bù cho họ phải đi bằng đường khác. */
 
+	/* ===========================================================================
+	 *  MÀN CẤU HÌNH — khai một lần rồi thôi
+	 * ---------------------------------------------------------------------------
+	 *  Anh Thắng 26/08/2026: *"cái này cho qua cấu hình đi, vì chỗ này là bảng công mà hiện
+	 *  phân quyền cơ sở làm gì trong này đâu"* và *"Cho qua tab cấu hình luôn nhé"*.
+	 *
+	 *  🔴 BỐN KHỐI Ở ĐÂY ĐỀU ĐỔI CÁCH TÍNH RA TIỀN của cả một cơ sở. Chúng từng nằm trên màn
+	 *     Bảng công — màn người ta mở hằng ngày chỉ để ĐỌC. Thao tác hằng ngày mà cứ lướt ngang
+	 *     qua mấy cái nút đổi tiền thì sớm muộn có người bấm nhầm, và cái bấm nhầm ấy không kêu
+	 *     lên ngay: nó chỉ lộ ra ở bảng lương cuối tháng.
+	 * =========================================================================== */
+	private static function the_man_cau_hinh( $ky, $toi ) {
+		$ds_cs = self::ds_coso_xem( $toi );
+		$cs    = isset( $_GET['ccs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ccs'] ) ) : '';
+		if ( '' !== $cs && ! in_array( $cs, $ds_cs, true ) ) { $cs = ''; }
+		if ( '' === $cs && 1 === count( $ds_cs ) ) { $cs = $ds_cs[0]; }
+
+		echo '<div class="the"><h2>Cấu hình chấm công</h2>';
+		echo '<p class="mo">Khai <b>một lần rồi thôi</b>. Mỗi ô ở đây đổi <b>cách tính ra tiền</b> '
+			. 'của cả cơ sở — đọc kỹ trước khi lưu. Bảng công vẫn <b>chỉ đọc</b>: đổi ở đây '
+			. '<b>không sửa một giờ chấm nào</b>, chỉ đổi cách đọc số đã có.</p>';
+
+		/* Hai khối dưới (ca làm việc · công thức) là của MỘT cơ sở, nên phải chọn cơ sở trước.
+		   Hai khối còn lại (bộ phận · cách tính) là bảng của MỌI cơ sở nên không cần. */
+		echo '<form method="get" class="hang" style="margin-top:10px">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="cau_hinh">';
+		echo '<div><label for="ccs">Cơ sở (cho khối Ca làm việc &amp; Công thức)</label>'
+			. '<select id="ccs" name="ccs"><option value="">— chọn cơ sở —</option>';
+		foreach ( $ds_cs as $x ) {
+			echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
+				. esc_html( $x ) . '</option>';
+		}
+		echo '</select></div><div><button class="chinh">Xem</button></div></form>';
+		echo '</div>';
+
+		self::the_bo_phan( $ky, $toi );
+		self::the_cach_tinh( $ky, $toi );
+
+		if ( '' === $cs ) {
+			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để khai <b>ca làm việc</b> '
+				. 'và <b>công thức tính công</b> cho cơ sở đó.</p></div>';
+			return;
+		}
+
+		/* 🔴 CA LÀ CỦA CƠ SỞ, CÔNG THỨC CÔNG LÀ CỦA VĂN PHÒNG — KHÔNG BÀY CẢ HAI CHO CẢ HAI.
+		   Anh Thắng 26/08: *"Cơ sở mới có ca, Bộ Phận VP không có ca"* và *"Bộ phận văn phòng
+		   tính theo công thức này (tức tính dạng công). Cái trên là tính theo dạng giờ, cho cơ
+		   sở."*
+		   Cơ sở tính theo GIỜ thì con số là giờ ra trừ giờ vào — bộ công thức bậc thang/ca đêm
+		   không hề được dùng tới, bày ra chỉ mời người ta khai một bộ số không ăn vào đâu.
+		   Cơ sở tính theo CÔNG thì ngược lại: nó không chạy ca gãy, khai ca là khai cho vui.
+		   Bày nhầm khối nguy hiểm hơn thiếu khối: người khai tưởng mình vừa đổi được cái gì đó. */
+		$theo_cong = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
+		if ( $theo_cong ) {
+			self::the_cong_thuc_vp( $cs, $ky, $toi );
+			echo '<div class="the"><p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính '
+				. '<b>THEO CÔNG</b> nên không dùng tới khối <b>Ca làm việc</b> — khối ấy chỉ có '
+				. 'nghĩa với cơ sở tính theo giờ (ca gãy). Đổi cách tính ở khối '
+				. '<b>Cách tính công của từng cơ sở</b> bên trên.</p></div>';
+		} else {
+			self::the_khai_ca( $cs, $ky, $toi );
+			echo '<div class="the"><p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính '
+				. '<b>THEO GIỜ</b> (mỗi ô là số giờ làm) nên không dùng tới <b>Công thức tính '
+				. 'công</b> — bộ bậc thang, ca đêm, công bù chỉ chạy khi cơ sở tính theo công. '
+				. 'Đổi cách tính ở khối <b>Cách tính công của từng cơ sở</b> bên trên.</p></div>';
+		}
+	}
+
+	/* ===========================================================================
+	 *  MÀN DỮ LIỆU ĐẦU VÀO — chỗ giờ công đi vào hệ thống
+	 * ---------------------------------------------------------------------------
+	 *  Anh Thắng 26/08/2026: *"Đẩy này qua tab dữ liệu đầu vào đi"*.
+	 *
+	 *  ⚠️ Tab này cố ý CHỈ có một việc. Nó là cửa DUY NHẤT nạp giờ công bằng tay, và người ta
+	 *     tìm tới nó đúng những lúc đang rối (máy hỏng, sổ cũ chưa vào). Nhét thêm thứ khác vào
+	 *     đây là mời bấm nhầm vào lúc dễ bấm nhầm nhất.
+	 * =========================================================================== */
+	private static function the_man_du_lieu( $ky, $toi ) {
+		echo '<div class="the"><h2>Dữ liệu đầu vào</h2>';
+		echo '<p class="mo">Giờ công vào hệ thống bằng <b>bốn</b> đường: máy chấm công · trạm '
+			. 'chấm công online · <b>bù / sửa ngay trên lưới</b> ở tab <b>Bảng công</b> · và '
+			. '<b>nạp .csv</b> ở dưới đây. Ba đường đầu chạy hằng ngày; đường thứ tư là để '
+			. 'chuyển sổ cũ sang, hoặc vá lại một tháng máy hỏng.</p>';
+		echo '</div>';
+		self::the_nap_cong( '', $ky, $toi, self::ds_coso_xem( $toi ) );
+	}
+
 	/**
 	 * Khối NẠP CÔNG TỪ .CSV.
 	 *
@@ -2970,9 +3093,19 @@ class VHCC_Web {
 		$o_loc = self::o_loc();
 
 		if ( $thieu ) {
-			echo '<div class="the"><h2>Ngày thiếu giờ ra (' . count( $thieu ) . ')</h2>';
-			echo '<p class="mo">Có giờ vào mà không có giờ ra — hệ thống <b>không tự điền</b>: điền là '
-				. 'bịa ra số giờ làm cho một ngày, mà số đó thành tiền. Gắn cờ để còn tra lại.</p>';
+			/* 🔴 THU GỌN SẴN. Anh Thắng 26/08/2026: *"Cho này gọn lại, khi nào bấm xổ mới xổ ra"*.
+			   Bảng này có bao nhiêu dòng là do dữ liệu quyết định — sổ thật đang 36 ngày, và nó
+			   xổ hết ra giữa màn, đẩy mọi thứ phía dưới đi mất mấy màn hình. Người mở màn bảng
+			   công phần lớn không đến đây để đọc nó; họ chỉ cần biết CÓ BAO NHIÊU. Con số nằm
+			   ngay trên nhãn, ai cần chi tiết thì bấm.
+			   ⚠️ Dùng `<details>` của chính HTML, KHÔNG JavaScript — cả màn quản trị này không
+			      có lấy một dòng script, và Ctrl+F của trình duyệt vẫn tìm được chữ bên trong. */
+			echo '<div class="the"><details><summary><b>Ngày thiếu giờ ra</b> — '
+				. '<span class="chu-hong">' . count( $thieu ) . ' ngày</span> '
+				. '<span class="mo">(bấm để mở)</span></summary>';
+			echo '<p class="mo" style="margin:10px 0">Có giờ vào mà không có giờ ra — hệ thống '
+				. '<b>không tự điền</b>: điền là bịa ra số giờ làm cho một ngày, mà số đó thành '
+				. 'tiền. Gắn cờ để còn tra lại.</p>';
 			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Họ tên</th>'
 				. '<th>Giờ vào</th></tr></thead><tbody>';
 			foreach ( $thieu as $x ) {
@@ -2981,7 +3114,7 @@ class VHCC_Web {
 					. '</td><td>' . esc_html( $x['hoTen'] ) . '</td><td>'
 					. esc_html( substr( (string) $x['vao'], 0, 5 ) ) . '</td></tr>';
 			}
-			echo '</tbody></table></div></div>';
+			echo '</tbody></table></div></details></div>';
 		}
 
 		/* Giá trị bấm 🚩 ở bảng chi tiết gửi sang — điền sẵn chứ không gắn thay người ta. */

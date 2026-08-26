@@ -89,9 +89,48 @@ class VHCC_Cty {
 	 *    và các trang ấy dùng tên lớp rất ngắn (`.the`, `.mo`, `.cd`). Đặt trùng tên là chân
 	 *    trang bẻ giao diện của trang chứa nó, hoặc ngược lại.
 	 */
+	/**
+	 * NHÃN PHIÊN BẢN ở cuối trang.
+	 *
+	 * Anh Thắng 26/08/2026: *"Cuối mỗi tất cả các trang bổ sung tên phiên bản đang chạy để theo
+	 * dõi nhé"*.
+	 *
+	 * 🔴 VÌ SAO CẦN THẬT, không phải cho đẹp: mỗi lần sửa xong em gửi tệp .zip, anh cài đè lên
+	 *    hosting. Không có số phiên bản trên màn thì không cách nào biết cái mình đang nhìn là
+	 *    bản mới hay bản cũ còn trong bộ nhớ đệm của trình duyệt — và mọi câu "sửa rồi mà vẫn
+	 *    thế" đều bắt đầu từ chỗ ấy. Có số thì hỏi một câu là xong.
+	 *
+	 * ⚠️ ĐỌC TỪ HẰNG PHIÊN BẢN CỦA TỪNG PLUGIN, không gõ tay. Gõ tay là sớm muộn nhãn nói một
+	 *    đằng còn mã chạy một nẻo — tức là một cái đồng hồ chạy sai, tệ hơn không có đồng hồ.
+	 *    Dò cả ba plugin vì chân trang này dùng chung: trang nào đang vẽ thì plugin ấy có hằng.
+	 */
+	public static function nhan_phien_ban() {
+		$ds = array(
+			'Chấm công' => 'VHCC_VERSION',
+			'Chi phí'   => 'VHCP_VERSION',
+			'Nội bộ'    => 'VHNB_VERSION',
+			'Cổng'      => 'VHTC_VERSION',
+			'Ghế'       => 'VHG_VERSION',
+		);
+		$co = array();
+		foreach ( $ds as $ten => $hang ) {
+			if ( defined( $hang ) ) { $co[] = $ten . ' ' . (string) constant( $hang ); }
+		}
+		if ( ! $co ) { return ''; }
+		return ' <span class="cty-pb" title="Phiên bản đang chạy — đọc thẳng từ mã, '
+			. 'dùng để đối chiếu khi vừa cài đè bản mới">' . esc_html( implode( ' · ', $co ) ) . '</span>';
+	}
+
 	public static function html() {
 		$t = self::thong_tin();
-		if ( ! $t ) { return ''; }
+		/* 🔴 CHƯA KHAI THÔNG TIN CÔNG TY THÌ VẪN PHẢI CÓ SỐ PHIÊN BẢN.
+		   Anh Thắng bảo *"cuối MỌI trang"*, mà thông tin công ty là thứ khai được và có thể để
+		   trống — site mới cài thì chắc chắn trống. Để cả chân trang biến mất theo là đúng lúc
+		   cần số nhất (vừa cài xong, đang muốn biết bản nào đang chạy) thì lại không có. */
+		if ( ! $t ) {
+			$pb = self::nhan_phien_ban();
+			return ( '' === $pb ) ? '' : '<footer class="cty"><div class="cty-bq">' . $pb . '</div></footer>';
+		}
 
 		/* Ô nào TRỐNG thì bỏ hẳn dòng, không in nhãn treo lơ lửng: "Email:" mà sau nó không có
 		   gì trông như trang hỏng, chứ không phải như công ty chưa khai email. */
@@ -133,6 +172,7 @@ class VHCC_Cty {
 		$h .= '</div><div class="cty-bq">© '
 			. esc_html( gmdate( 'Y', current_time( 'timestamp' ) ) ) . ' '
 			. esc_html( $t['ten'] ) . '. Toàn bộ bản quyền thuộc công ty. / All rights reserved.'
+			. self::nhan_phien_ban()
 			. '</div></footer>';
 		return $h;
 	}
@@ -156,6 +196,10 @@ class VHCC_Cty {
 			. '.cty a:hover{text-decoration:underline}'
 			. '.cty-bq{margin-top:14px;padding-top:11px;border-top:1px solid #f1f5f9;color:#94a3b8;'
 			. 'font-size:12px}'
+			/* Nhãn phiên bản: chữ máy, mờ hơn cả dòng bản quyền — nó là thứ để TRA khi cần, không
+			   phải thứ để đọc. Bọc `nowrap` kẻo tách "1.3" một dòng và ".0" dòng dưới. */
+			. '.cty-pb{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:#cbd5e1;'
+			. 'white-space:nowrap;margin-left:6px}'
 			. '@media(max-width:640px){.cty{font-size:12px;padding:16px 0 22px}.cty-in{gap:13px}}'
 			/* Bản in: chân trang pháp lý là thứ ĐÁNG in — bảng công ký đưa kế toán thì tờ giấy
 			   phải nói rõ của công ty nào. Mấy thứ khác (thanh nút, biểu mẫu) đã bị ẩn sẵn. */
