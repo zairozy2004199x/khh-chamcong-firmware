@@ -128,6 +128,56 @@ class VHCC_Tram {
 			);
 		}
 
+		/**
+		 * ĐƯỜNG CHẨN ĐOÁN — mở bằng trình duyệt, đọc được bằng mắt, chụp màn hình gửi đi được.
+		 *
+		 * 🔴 VÌ SAO CẦN. Khi trang trạm đứng im, người dùng chỉ chụp được cái màn hình đứng im
+		 *    ấy — và nhìn vào đó thì không ai biết máy chủ đang trả về cái gì, bảng đã dựng
+		 *    chưa, plugin bản mấy. Ba lần liền phải đoán qua ảnh. Một đường in thẳng mấy con số
+		 *    đó ra chữ thì hết đoán.
+		 *
+		 * ⚠️ KHÔNG IN GÌ BÍ MẬT. Không PIN, không thẻ phiên, không khoá, không tên người. Đường
+		 *    này ai gõ trúng cũng mở được — nên nó chỉ được nói về TÌNH TRẠNG MÁY, không nói về
+		 *    người. Cái duy nhất lộ ra là plugin có chạy hay không, mà nhìn trang chấm công thì
+		 *    cũng biết rồi.
+		 */
+		if ( 'chan_doan' === $viec ) {
+			nocache_headers();
+			header( 'Content-Type: text/plain; charset=utf-8' );
+			$tv = VHCC_Mat::thu_vien();
+			$d  = array(
+				'plugin'      => VHCC_VERSION,
+				'so_do_bang'  => VHCC_DB::SCHEMA_VERSION,
+				'da_cai'      => (string) get_option( 'vhcc_ver' ),
+				'php'         => PHP_VERSION,
+				'gio_may_chu' => current_time( 'Y-m-d H:i:s' ),
+				'mui_gio_wp'  => (string) get_option( 'timezone_string' ) . ' / '
+					. (string) get_option( 'gmt_offset' ),
+			);
+			echo "== CHAM CONG: CHAN DOAN ==\n";
+			foreach ( $d as $k => $v ) { echo str_pad( $k, 14 ) . ': ' . $v . "\n"; }
+
+			echo "\n-- bang du lieu --\n";
+			foreach ( array( 'cham_cong', 'nhan_vien', 'session', 'ghi_chu', 'mat_mau', 'mat_nhat_ky' ) as $bg ) {
+				echo str_pad( $bg, 14 ) . ': '
+					. ( VHCC_DB::co_bang( VHCC_DB::t( $bg ) ) ? 'co' : 'CHUA CO' ) . "\n";
+			}
+
+			echo "\n-- doi chieu khuon mat --\n";
+			echo 'bat           : ' . ( VHCC_Mat::bat() ? 'co' : 'khong' ) . "\n";
+			echo 'che do        : ' . VHCC_Mat::che_do() . "\n";
+			echo 'thu vien      : ' . ( $tv['co'] ? 'san sang' : 'thieu ' . count( $tv['thieu'] ) . ' tep' ) . "\n";
+			echo 'noi dat       : ' . str_replace( ABSPATH, '', $tv['noi'] ) . "\n";
+			$dm = VHCC_Mat::dem();
+			echo 'mau khuon mat : ' . (int) $dm['tong'] . ' (cho duyet ' . (int) $dm['cho'] . ")\n";
+
+			echo "\n-- duong dan --\n";
+			echo 'tram          : ' . self::url() . "\n";
+			echo 'quan tri      : ' . VHCC_Web::url() . "\n";
+			echo "\nNeu doc duoc dong nay thi may chu CHAY BINH THUONG va tra ve duoc noi dung.\n";
+			exit;
+		}
+
 		nocache_headers();
 		$b = self::than();
 

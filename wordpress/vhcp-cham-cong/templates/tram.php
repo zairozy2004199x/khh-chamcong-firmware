@@ -239,13 +239,43 @@ function bao(o,kieu,chu){ el(o).innerHTML = chu ? '<div class="'+kieu+'">'+esc(c
  *    — mã HTTP là bao nhiêu, máy chủ trả về cái gì. Đó là thứ anh Thắng chụp lại được và em
  *    đọc ra ngay.
  */
+var CHO_TOI_DA = 15000;   /* ms — quá lâu thì coi như máy chủ không trả lời */
+
 function goi(viec, than){
 	var url = CFG.cong + (CFG.cong.indexOf('?')>=0?'&':'?') + 'viec=' + encodeURIComponent(viec);
 	var ma  = 0;
-	return fetch(url, {
+
+	/* 🔴 FETCH PHẢI CÓ THỜI HẠN. Đây là chỗ hổng còn lại sau lần sửa trước: bản ấy đã báo được
+	   lỗi khi máy chủ trả về thứ không đọc nổi, nhưng nếu máy chủ NHẬN request rồi không trả
+	   lời gì — PHP chạy mãi, tường lửa nuốt gói tin, mạng rớt giữa chừng — thì `fetch` không
+	   hỏng mà cũng không xong. Nó treo. Và một Promise treo thì `.then` không chạy, `.catch`
+	   cũng không: màn hình đứng ở "Đang tải…" vĩnh viễn, đúng ảnh anh Thắng chụp — lần này
+	   KHÔNG có cả dòng lỗi đỏ, vì chẳng có lỗi nào được ném ra cả.
+
+	   Đợi vô hạn không bao giờ là câu trả lời đúng. Mười lăm giây rồi nói thật. */
+	var het  = null;
+	var chan = ( typeof AbortController !== 'undefined' ) ? new AbortController() : null;
+	var tuy  = {
 		method:'POST', credentials:'same-origin',
 		headers:{'Content-Type':'application/json'},
 		body: JSON.stringify(than||{})
+	};
+	if(chan){ tuy.signal = chan.signal; }
+
+	return new Promise(function(xong, hong){
+		het = setTimeout(function(){
+			if(chan){ try { chan.abort(); } catch(e){} }
+			hong(new Error('Máy chủ không trả lời sau ' + Math.round(CHO_TOI_DA/1000)
+				+ ' giây. Thường là hosting đang quá tải hoặc chặn đường này — thử lại, '
+				+ 'nếu vẫn vậy thì báo quản trị xem nhật ký lỗi.'));
+		}, CHO_TOI_DA);
+		fetch(url, tuy).then(xong, hong);
+	}).then(function(r){
+		clearTimeout(het);
+		return r;
+	}, function(e){
+		clearTimeout(het);
+		throw e;
 	}).then(function(r){
 		ma = r.status;
 		return r.text();

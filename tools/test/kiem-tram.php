@@ -713,6 +713,58 @@ t( 'napGio nói ngay tại chỗ đồng hồ',
 /* Nhưng "hết phiên" thì vẫn im — nó đã tự đá về màn đăng nhập, báo thêm là báo hai lần. */
 t( 'hết phiên thì không báo chồng', strpos( $tram_js2, '/Phiên đã hết/.test' ) !== false );
 
+/* ============================================ 15. FETCH PHẢI CÓ THỜI HẠN
+ *
+ * 🔴 LỖ HỔNG CÒN LẠI SAU LẦN SỬA TRƯỚC. Bản ấy đã báo được lỗi khi máy chủ trả về thứ không
+ * đọc nổi. Nhưng nếu máy chủ NHẬN request rồi không trả lời gì — PHP chạy mãi, tường lửa nuốt
+ * gói tin, mạng rớt giữa chừng — thì `fetch` không hỏng mà cũng không xong. Nó TREO. Một
+ * Promise treo thì `.then` không chạy và `.catch` cũng không: màn hình đứng ở "Đang tải…" vĩnh
+ * viễn, và lần này KHÔNG có cả dòng lỗi đỏ, vì chẳng có lỗi nào được ném ra cả.
+ *
+ * Đúng ảnh anh Thắng chụp lần thứ hai: trang kẹt, không một chữ nào giải thích.
+ */
+t( 'có trần thời gian chờ', strpos( $tram_js2, 'CHO_TOI_DA' ) !== false );
+t( 'chờ tối đa 15 giây', preg_match( '/CHO_TOI_DA = 1[0-9]000/', $tram_js2 ) === 1 );
+t( 'hết giờ thì NÉM LỖI, không im', preg_match( "/setTimeout\([\s\S]{0,400}hong\(new Error/", $tram_js2 ) === 1 );
+t( 'và nói rõ chờ bao lâu rồi', strpos( $tram_vt, 'không trả lời sau' ) !== false );
+t( 'cắt luôn lượt gọi treo, không để nó chạy ngầm',
+	strpos( $tram_js2, 'AbortController' ) !== false && strpos( $tram_js2, 'chan.abort()' ) !== false );
+t( 'AbortController thiếu thì vẫn chạy được (máy cũ)',
+	strpos( $tram_js2, "typeof AbortController !== 'undefined'" ) !== false );
+t( 'xong rồi thì huỷ hẹn giờ, cả khi thành công lẫn khi lỗi',
+	substr_count( $tram_js2, 'clearTimeout(het)' ) >= 2 );
+
+/* ============================================ 16. ĐƯỜNG CHẨN ĐOÁN
+ *
+ * Ba lần liền phải đoán nguyên nhân qua một tấm ảnh chụp màn hình đứng im. Một đường in thẳng
+ * tình trạng máy ra CHỮ thì hết đoán: mở bằng trình duyệt, đọc bằng mắt, chụp gửi đi được.
+ */
+$src_tram2 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( 'có đường chẩn đoán', strpos( $src_tram2, "'chan_doan' === \$viec" ) !== false );
+t( 'trả về CHỮ, không phải JSON',
+	preg_match( "/chan_doan[\s\S]{0,400}text\/plain/", $src_tram2 ) === 1 );
+foreach ( array( 'plugin', 'so_do_bang', 'php', 'gio_may_chu', 'mui_gio_wp' ) as $muc ) {
+	t( "chẩn đoán in \"$muc\"", strpos( $src_tram2, "'$muc'" ) !== false );
+}
+t( 'in tình trạng từng bảng', strpos( $src_tram2, "'mat_nhat_ky'" ) !== false
+	&& strpos( $src_tram2, 'CHUA CO' ) !== false );
+t( 'in tình trạng thư viện nhận diện', strpos( $src_tram2, 'thu vien' ) !== false );
+
+/* 🔴 KHÔNG IN GÌ BÍ MẬT. Đường này ai gõ trúng cũng mở được — nó chỉ được nói về TÌNH TRẠNG
+   MÁY, không nói về người. */
+/* Cắt ĐÚNG khối chẩn đoán — từ dòng mở tới `exit;` gần nhất. Lấy dư 3000 ký tự là chạm sang
+   mã bên dưới và bắt oan; đã vấp đúng vậy. */
+$i_cd    = strpos( $src_tram2, "'chan_doan' === \$viec" );
+$khoi_cd = substr( $src_tram2, $i_cd, strpos( $src_tram2, 'exit;', $i_cd ) - $i_cd );
+/* Dùng mẫu có ranh giới từ: "pin" trần khớp luôn trong chữ "plugin". */
+foreach ( array( '\bpin\b', '\btoken\b', 'KHOA', 'ho_ten', '\bcccd\b', 'vector', 'pin_dang_nhap' ) as $cam_cd ) {
+	t( "chẩn đoán KHÔNG in \"$cam_cd\"",
+		0 === preg_match( '/' . $cam_cd . '/i', $khoi_cd ), $cam_cd );
+}
+t( 'khối chẩn đoán cắt đúng, không trùm sang mã khác', strlen( $khoi_cd ) < 2600, strlen( $khoi_cd ) );
+t( 'chẩn đoán đứng TRƯỚC phép đòi thẻ phiên (mở được khi chưa đăng nhập)',
+	strpos( $src_tram2, "'chan_doan' === \$viec" ) < strpos( $src_tram2, "\$u = self::nguoi(" ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";
