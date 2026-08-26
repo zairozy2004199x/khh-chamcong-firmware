@@ -36,6 +36,8 @@ class VHCP_API {
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
 			'setLineThucMua', 'setLineCN',
+			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
+			'chuyenDonVi',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
@@ -198,6 +200,9 @@ class VHCP_API {
 			'deleteDon'             => array( 'VHCP_Don', 'delete_don' ),
 			'deleteDonAdmin'        => array( 'VHCP_Don', 'delete_don_admin' ),
 			'setTatToanTuan'        => array( 'VHCP_Don', 'set_tat_toan_tuan' ),
+			/* Đẩy đơn / dòng chi sang đơn vị khác — kế toán POSH gửi cho kế toán cá nhân. */
+			'chuyenDonVi'           => array( 'VHCP_Don', 'chuyen_don_vi' ),
+			'dsDonVi'               => array( 'VHCP_DonVi', 'ds' ),
 			'duyetTamUngNhieu'      => array( 'VHCP_Don', 'duyet_tam_ung_nhieu' ),
 			'capTamUngNhieu'        => array( 'VHCP_Don', 'cap_tam_ung_nhieu' ),
 			'traLaiDonNhieu'        => array( 'VHCP_Don', 'tra_lai_don_nhieu' ),

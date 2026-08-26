@@ -3198,6 +3198,18 @@ function _dv_api( $pin, $fn, $args ) {
 	VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
 	return $d;
 }
+/**
+ * ⚠️ CỬA API TRẢ HAI TẦNG "được/không": `ok` là tầng vận chuyển (đúng hàm, đúng vai, đúng đơn
+ *    vị), `data.success` là tầng nghiệp vụ (đơn đã chốt, sai trạng thái…). Chỉ soi `ok` là một
+ *    lệnh bị lõi chối vẫn đọc thành "chạy được" — và phép thử xanh cho thứ chưa bao giờ chạy.
+ */
+function _dv_ok( $d ) {
+	return ! empty( $d['ok'] ) && ! empty( $d['data']['success'] );
+}
+function _dv_loi( $d ) {
+	if ( ! empty( $d['error'] ) ) { return (string) $d['error']; }
+	return isset( $d['data']['error'] ) ? (string) $d['data']['error'] : '';
+}
 
 VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV POSH' );
 VHCP_Don::gui_duyet_tam_ung( $_mp );
@@ -3206,20 +3218,20 @@ VHCP_Don::gui_duyet_tam_ung( $_mk );
 VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
 
 $_dk_ql = _dv_api( '2005', 'duyetTamUng', array( $_mk, 'QL POSH' ) );
-t( '🔴 Quản lý POSH KHÔNG duyệt được đơn K&H', empty( $_dk_ql['ok'] ), $_dk_ql );
+t( '🔴 Quản lý POSH KHÔNG duyệt được đơn K&H', ! _dv_ok( $_dk_ql ), $_dk_ql );
 $_dp_ql = _dv_api( '2005', 'duyetTamUng', array( $_mp, 'QL POSH' ) );
-t( '🔴 Quản lý POSH duyệt được đơn POSH', ! empty( $_dp_ql['ok'] ), $_dp_ql );
+t( '🔴 Quản lý POSH duyệt được đơn POSH', _dv_ok( $_dp_ql ), $_dp_ql );
 $_dk_ad = _dv_api( '1111', 'duyetTamUng', array( $_mk, 'Admin' ) );
-t( 'Admin vẫn duyệt được đơn K&H', ! empty( $_dk_ad['ok'] ), $_dk_ad );
+t( 'Admin vẫn duyệt được đơn K&H', _dv_ok( $_dk_ad ), $_dk_ad );
 
 /* Bản "nhiều đơn một lượt" cũng phải gác — gói một đơn K&H lẫn vào danh sách là qua mặt được
    chốt đơn-lẻ nếu chốt chỉ soi tham số đầu tiên. */
 $_nhieu = _dv_api( '2005', 'duyetTamUngNhieu', array( array( $_mp, $_mk ), 'QL POSH' ) );
-t( '🔴 gói lẫn một đơn K&H vào lệnh duyệt nhiều thì CHỐI CẢ GÓI', empty( $_nhieu['ok'] ), $_nhieu );
+t( '🔴 gói lẫn một đơn K&H vào lệnh duyệt nhiều thì CHỐI CẢ GÓI', ! _dv_ok( $_nhieu ), $_nhieu );
 
 /* Cấp tiền cũng vậy — duyệt xong còn một cửa nữa, và tiền đi ra ở cửa ấy. */
 $_cap = _dv_api( '2005', 'capTamUng', array( $_mk, 'QL POSH', 'Tiền mặt', '' ) );
-t( '🔴 Quản lý POSH KHÔNG cấp được tiền cho đơn K&H', empty( $_cap['ok'] ), $_cap );
+t( '🔴 Quản lý POSH KHÔNG cấp được tiền cho đơn K&H', ! _dv_ok( $_cap ), $_cap );
 
 /* ---- tìm đơn ---- */
 /* 🔴 Ô TÌM PHẢI CHẠY ĐÃ. `tim_don()` viết `d.coso` trong khi bảng `don` chưa từng có cột ấy,
@@ -3252,6 +3264,108 @@ $_ma_p = array();
 foreach ( $_tim_p['items'] as $x ) { $_ma_p[] = $x['maDon']; }
 t( '🔴 ô tìm của kế toán POSH KHÔNG trả đơn K&H', ! in_array( $_mk, $_ma_p, true ), $_ma_p );
 t( 'nhưng vẫn trả đơn POSH', in_array( $_mp, $_ma_p, true ), $_ma_p );
+
+
+/* ---- chuyển đơn / dòng chi sang đơn vị khác ----
+   Anh Thắng 26/08: *"Kế toán Posh có thể sẽ đẩy đơn hoặc chi phí lẻ trong đơn cho kế toán cá
+   nhân — thì khi chuyển qua nó sẽ tạo thành 1 đơn như nhân viên tạo bình thường."* */
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'NV POSH' );
+$_dc = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV POSH' );
+$_mc = $_dc['maDon'];
+foreach ( array( array( 'Ghế POSH', 300000 ), array( 'Bàn POSH', 200000 ), array( 'Đèn bàn', 100000 ) ) as $_x ) {
+	VHCP_Don::add_line( $_mc, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+		'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => $_x[0],
+		'soLuong' => 1, 'donGia' => $_x[1], 'thanhTien' => $_x[1] ) );
+}
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$_dong_mc = array();
+foreach ( VHCP_Don::get_don( $_mc )['lines'] as $_l ) { $_dong_mc[] = $_l['id']; }
+teq( 'đơn nguồn có 3 dòng', 3, count( $_dong_mc ) );
+
+/* Nhân viên KHÔNG được đẩy tiền sang sổ bên kia — chốt ở cửa API theo vai. */
+$_nv_chuyen = _dv_api( '2002', 'chuyenDonVi', array( $_mc, array( $_dong_mc[0] ), 'K&H', 'KT Cá Nhân' ) );
+t( '🔴 Nhân viên KHÔNG chuyển được đơn sang đơn vị khác', ! _dv_ok( $_nv_chuyen ), $_nv_chuyen );
+
+/* Kế toán POSH đẩy MỘT dòng lẻ sang K&H. */
+$_ch = _dv_api( '2004', 'chuyenDonVi', array( $_mc, array( $_dong_mc[0] ), 'K&H', 'KT Cá Nhân' ) );
+t( '🔴 kế toán POSH đẩy được một dòng lẻ sang K&H', _dv_ok( $_ch ), $_ch );
+$_kq = $_ch['data'];
+t( 'trả về mã đơn mới', ! empty( $_kq['maDonMoi'] ), $_kq );
+teq( 'đẩy đúng 1 dòng', 1, $_kq['soDong'] );
+teq( 'đúng số tiền của dòng ấy', 300000, VHCP_Util::num( $_kq['soTien'] ) );
+t( 'và nói rõ đơn gốc CHƯA rỗng', empty( $_kq['goc_rong'] ), $_kq );
+
+$_mm = $_kq['maDonMoi'];
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+teq( '🔴 đơn mới thuộc đơn vị K&H', 'K&H', VHCP_DonVi::cua_don( $_mm ) );
+teq( 'đơn mới ở trạng thái Nháp — đi lại từ đầu quy trình bên nhận',
+	'Nháp', VHCP_Don::get_don( $_mm )['don']['trangThai'] );
+teq( 'đơn mới đứng tên người nhận', 'KT Cá Nhân', VHCP_Don::get_don( $_mm )['don']['nguoiLap'] );
+teq( 'đơn mới giữ NGUYÊN KỲ của đơn gốc — kẻo sổ hai bên lệch kỳ',
+	VHCP_Don::get_don( $_mc )['don']['ky'], VHCP_Don::get_don( $_mm )['don']['ky'] );
+teq( 'đơn mới có đúng 1 dòng', 1, count( VHCP_Don::get_don( $_mm )['lines'] ) );
+teq( '🔴 đơn gốc còn 2 dòng — dòng đã chuyển KHÔNG nhân đôi',
+	2, count( VHCP_Don::get_don( $_mc )['lines'] ) );
+
+/* Cả hai bên đều còn vết: bên gửi ghi "đẩy đi", bên nhận ghi "nhận về". */
+$_nk_goc = json_encode( VHCP_Don::nhat_ky_don( $_mc ), JSON_UNESCAPED_UNICODE );
+$_nk_moi = json_encode( VHCP_Don::nhat_ky_don( $_mm ), JSON_UNESCAPED_UNICODE );
+t( '🔴 đơn gốc có vết "đã đẩy đi"', false !== strpos( $_nk_goc, 'Chuyển sang đơn vị khác' ), $_nk_goc );
+t( '🔴 đơn mới có vết "nhận về"', false !== strpos( $_nk_moi, 'Nhận từ đơn vị khác' ), $_nk_moi );
+t( 'vết bên gửi trỏ tới đơn mới', false !== strpos( $_nk_goc, $_mm ), $_nk_goc );
+t( 'vết bên nhận trỏ về đơn gốc', false !== strpos( $_nk_moi, $_mc ), $_nk_moi );
+
+/* 🔴 ĐƠN VỊ CỦA ĐƠN MỚI LÀ ĐƠN VỊ ĐÍCH NGƯỜI CHUYỂN CHỌN, không phải nhà của người đứng tên.
+   `create_don()` gán đơn vị theo NHÀ của người đứng tên — đúng cho đường lập đơn bình thường,
+   sai cho đường này. Phép trên không bắt được chỗ đó vì "KT Cá Nhân" tình cờ cũng ở nhà K&H;
+   nên chuyển thêm một lượt cho người ĐANG Ở POSH, khi ấy hai giá trị mới khác nhau. */
+$_dx = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV POSH' );
+$_mx = $_dx['maDon'];
+VHCP_Don::add_line( $_mx, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Kiểm đích',
+	'soLuong' => 1, 'donGia' => 90000, 'thanhTien' => 90000 ) );
+$_chx = _dv_api( '2004', 'chuyenDonVi', array( $_mx, array(), 'K&H', 'NV POSH' ) );
+t( 'chuyển được cho người đang ở POSH', _dv_ok( $_chx ), $_chx );
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+teq( '🔴 đơn mới mang ĐƠN VỊ ĐÍCH, không mang nhà của người đứng tên',
+	'K&H', VHCP_DonVi::cua_don( $_chx['data']['maDonMoi'] ) );
+teq( 'nhưng vẫn đứng tên đúng người nhận', 'NV POSH',
+	VHCP_Don::get_don( $_chx['data']['maDonMoi'] )['don']['nguoiLap'] );
+VHCP_Don::delete_don_admin( $_chx['data']['maDonMoi'] );
+VHCP_Don::delete_don_admin( $_mx );
+
+/* Chuyển sang chính đơn vị của mình thì vô nghĩa — chối. */
+$_tu = _dv_api( '2004', 'chuyenDonVi', array( $_mc, array(), 'POSH', 'KT POSH' ) );
+t( 'chuyển sang chính đơn vị của mình thì chối', ! _dv_ok( $_tu ), _dv_loi( $_tu ) );
+/* Đơn vị chưa ai khai thì chối — chuyển vào hư không là mất dấu đơn. */
+$_la = _dv_api( '2004', 'chuyenDonVi', array( $_mc, array(), 'ĐƠN VỊ MA', 'KT Cá Nhân' ) );
+t( 'đơn vị chưa khai thì chối, không chuyển vào hư không', ! _dv_ok( $_la ), _dv_loi( $_la ) );
+
+/* Đẩy NỐT cả đơn: ids rỗng = cả đơn. */
+$_ch2 = _dv_api( '2004', 'chuyenDonVi', array( $_mc, array(), 'K&H', 'KT Cá Nhân' ) );
+t( 'đẩy được CẢ ĐƠN khi không chọn dòng nào', _dv_ok( $_ch2 ), $_ch2 );
+teq( 'đẩy nốt 2 dòng còn lại', 2, $_ch2['data']['soDong'] );
+t( '🔴 và nói rõ đơn gốc nay đã RỖNG (để màn mời xoá, không tự xoá)',
+	! empty( $_ch2['data']['goc_rong'] ), $_ch2['data'] );
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+teq( 'đơn gốc còn 0 dòng', 0, count( VHCP_Don::get_don( $_mc )['lines'] ) );
+
+/* Đơn đã chốt sổ thì KHÔNG rút dòng ra được — số quyết toán đã chốt sẽ không còn khớp ruột. */
+$_dq = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'NV POSH' );
+$_mq = $_dq['maDon'];
+VHCP_Don::add_line( $_mq, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đã chốt',
+	'soLuong' => 1, 'donGia' => 50000, 'thanhTien' => 50000 ) );
+global $wpdb;
+$wpdb->update( VHCP_DB::t( 'don' ), array( 'trang_thai' => 'Đã quyết toán' ), array( 'ma_don' => $_mq ) );
+$_chot = _dv_api( '2004', 'chuyenDonVi', array( $_mq, array(), 'K&H', 'KT Cá Nhân' ) );
+t( '🔴 đơn đã quyết toán thì KHÔNG rút dòng ra chuyển được', ! _dv_ok( $_chot ), _dv_loi( $_chot ) );
+
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+foreach ( array( $_mc, $_mm, $_mq ) as $_z ) { VHCP_Don::delete_don_admin( $_z ); }
+foreach ( VHCP_Don::list_dons() as $_z ) {
+	if ( 'KT Cá Nhân' === $_z['nguoiLap'] ) { VHCP_Don::delete_don_admin( $_z['maDon'] ); }
+}
 
 VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
 VHCP_Don::delete_don_admin( $_mp );

@@ -1830,6 +1830,105 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * CHUYỂN ĐƠN / DÒNG CHI SANG ĐƠN VỊ KHÁC — kế toán POSH đẩy sang kế toán cá nhân.
+	 *
+	 * Anh Thắng 26/08/2026: *"Kế toán Posh có thể sẽ đẩy đơn hoặc chi phí lẻ trong đơn cho kế
+	 * toán cá nhân — thì khi chuyển qua nó sẽ tạo thành 1 đơn như nhân viên tạo bình thường."*
+	 *
+	 * 🔴 LẬP ĐƠN MỚI, KHÔNG ĐỔI `don_vi` CỦA ĐƠN CŨ.
+	 *    Đổi ô đơn vị tại chỗ thì cả cái đơn — kể cả những dòng KHÔNG chuyển, kể cả tiền tạm
+	 *    ứng đã cấp, kể cả chữ ký người duyệt bên POSH — nhảy nguyên sang sổ bên kia trong một
+	 *    nhịp, và sổ tháng của POSH hụt đúng chừng ấy tiền mà không có dòng nào giải thích.
+	 *    Lập đơn mới thì hai bên đều còn vết: bên đây ghi "đã đẩy đi", bên kia ghi "nhận về".
+	 *
+	 * 🔴 DÒNG ĐÃ CHUYỂN THÌ XOÁ KHỎI ĐƠN CŨ, không nhân đôi.
+	 *    Để lại cả hai nơi là một khoản chi đếm hai lần — ở đây là tiền thật, không phải một ô
+	 *    hiển thị. Đơn mới sinh ra ở trạng thái **Nháp**, đúng như anh Thắng nói: "như nhân viên
+	 *    tạo bình thường". Nó phải đi lại từ đầu quy trình duyệt của bên nhận, chứ không thừa
+	 *    hưởng chữ ký duyệt của bên gửi.
+	 *
+	 * ⚠️ CHỈ CHUYỂN ĐƯỢC KHI ĐƠN CŨ CÒN SỬA ĐƯỢC. Đơn đã quyết toán mà rút một dòng ra là số
+	 *    quyết toán đã chốt không còn khớp với ruột đơn nữa — `vi_sao_khong_sua()` là ranh giới
+	 *    duy nhất cho chuyện đó, hỏi nó chứ đừng gõ lại danh sách trạng thái.
+	 *
+	 * @param string $ma_don   đơn nguồn
+	 * @param array  $ids      id các dòng cần chuyển · rỗng = chuyển CẢ ĐƠN
+	 * @param string $don_vi   đơn vị đích
+	 * @param string $nguoi    người đứng tên đơn mới (để trống = người đang thao tác)
+	 */
+	public static function chuyen_don_vi( $ma_don, $ids, $don_vi, $nguoi = '' ) {
+		global $wpdb;
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCP_Util::err( $_loi ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+
+		$dv_moi = VHCP_DonVi::chuan( $don_vi );
+		$dv_cu  = VHCP_DonVi::chuan( isset( $d['don_vi'] ) ? $d['don_vi'] : '' );
+		if ( VHCP_DonVi::bang( $dv_moi, $dv_cu ) ) {
+			return VHCP_Util::err( 'Đơn này đã thuộc đơn vị ' . $dv_cu . ' rồi.' );
+		}
+		/* Chuyển sang một đơn vị mình không đọc được thì chính người vừa chuyển cũng mất dấu
+		   cái mình vừa gửi đi — và không ai giải thích được đơn ấy đi đâu. */
+		if ( ! in_array( $dv_moi, VHCP_DonVi::ds(), true ) ) {
+			return VHCP_Util::err( 'Chưa có đơn vị "' . $dv_moi . '" — khai ở Cấu hình → Người dùng trước.' );
+		}
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
+
+		$tat_ca = self::rows_of_don( $ma_don );
+		if ( ! $tat_ca ) { return VHCP_Util::err( 'Đơn này chưa có dòng chi nào để chuyển.' ); }
+
+		$ids  = array_values( array_filter( array_map( 'strval', (array) $ids ), 'strlen' ) );
+		$chon = array();
+		foreach ( $tat_ca as $r ) {
+			if ( ! $ids || in_array( (string) $r['id'], $ids, true ) ) { $chon[] = $r; }
+		}
+		if ( ! $chon ) { return VHCP_Util::err( 'Không có dòng nào khớp để chuyển.' ); }
+
+		$nguoi = trim( (string) $nguoi );
+		if ( '' === $nguoi ) { $nguoi = VHCP_Auth::nguoi(); }
+
+		/* Đơn mới mang KỲ của đơn cũ: một khoản chi ngày 12/8 mà rơi vào kỳ của ngày chuyển là
+		   sổ hai bên lệch kỳ, và báo cáo tuần không bao giờ khớp lại được. */
+		$moi = self::create_don( (string) $d['ky'], $nguoi );
+		if ( empty( $moi['success'] ) ) { return $moi; }
+		$ma_moi = (string) $moi['maDon'];
+		/* `create_don()` lấy đơn vị theo NHÀ của người đứng tên; ở đây đích do người chuyển
+		   chọn, nên đặt lại thẳng. */
+		$wpdb->update( VHCP_DB::t( 'don' ), array( 'don_vi' => $dv_moi ), array( 'ma_don' => $ma_moi ) );
+
+		$tien = 0;
+		foreach ( $chon as $r ) {
+			$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'ma_don' => $ma_moi ), array( 'id' => (string) $r['id'] ) );
+			$tien += VHCP_Util::num( $r['thanh_tien'] );
+		}
+
+		$ta = count( $chon ) . ' dòng · ' . number_format( $tien, 0, ',', '.' ) . 'đ';
+		self::ghi_vet( $ma_don, 'Chuyển sang đơn vị khác',
+			'Đẩy ' . $ta . ' sang ' . $dv_moi . ' — đơn mới ' . $ma_moi );
+		self::ghi_vet( $ma_moi, 'Nhận từ đơn vị khác',
+			'Nhận ' . $ta . ' từ ' . $dv_cu . ' — đơn gốc ' . $ma_don );
+
+		return VHCP_Util::ok( array(
+			'maDonMoi' => $ma_moi,
+			'soDong'   => count( $chon ),
+			'soTien'   => $tien,
+			'donVi'    => $dv_moi,
+			/* Chuyển hết dòng đi thì đơn cũ thành cái vỏ rỗng — nói ra để màn mời xoá, chứ
+			   đừng tự xoá: xoá thay người ta là mất luôn nhật ký của đơn ấy. */
+			'goc_rong' => count( $chon ) >= count( $tat_ca ),
+		) );
+	}
+
+	/** Các dòng chi của một đơn (đọc thô, không qua lớp bày biện). */
+	private static function rows_of_don( $ma_don ) {
+		global $wpdb;
+		$t = VHCP_DB::t( 'chiphi' );
+		return VHCP_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE ma_don=%s ORDER BY stt ASC", (string) $ma_don ) );
+	}
+
 	public static function set_tat_toan_tuan( $ma_don, $on, $actor = '' ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
