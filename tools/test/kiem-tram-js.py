@@ -46,6 +46,81 @@ with tempfile.TemporaryDirectory() as d:
     r = subprocess.run(['node', '--check', f], capture_output=True, text=True)
     la('node dịch được', r.returncode == 0, r.stderr.strip()[:300])
 
+print('— gọi tên chưa khai —')
+# ============================================================================================
+# 🔴 CHỐT NÀY SINH RA TỪ MỘT LỖI THẬT, VÀ LÀ LỖI NẶNG NHẤT TRONG CẢ ĐỢT.
+#
+# 25/08/2026: trang trạm đứng im ba lần liền. Nguyên nhân cuối cùng lộ ra là
+#     Uncaught ReferenceError: thoiTheoGps is not defined
+# Em sửa khối bản đồ bằng cách cắt từ mốc này tới mốc kia rồi thay nội dung mới — mà
+# `thoiTheoGps` cùng bốn biến GPS_* nằm LỌT GIỮA hai mốc ấy. Chúng biến mất, còn năm chỗ gọi
+# thì vẫn nguyên.
+#
+# `node --check` KHÔNG bắt được: gọi một tên chưa khai là cú pháp hợp lệ, lỗi chỉ nổ lúc chạy.
+# Nên bài kiểm vẫn xanh, bản .zip vẫn dựng, và người dùng nhận một trang chết lặng.
+#
+# Đây là lần thứ HAI trong ngày cùng một kiểu cắt nhầm (lần trước mất bốn hàm của VHCC_Mat).
+# Cắt theo mốc là thao tác nguy hiểm; chốt này là cái lưới hứng bên dưới.
+# ============================================================================================
+
+# Tên có sẵn trong trình duyệt hoặc trong JavaScript, không cần khai.
+CO_SAN = set("""
+    fetch setTimeout clearTimeout setInterval clearInterval requestAnimationFrame
+    parseInt parseFloat isNaN isFinite encodeURIComponent decodeURIComponent
+    Number String Boolean Array Object Math JSON Date Promise Error RegExp
+    Image FileReader Blob File FormData URL AbortController Event CustomEvent
+    alert confirm prompt console document window navigator performance location
+    localStorage sessionStorage history screen getComputedStyle btoa atob
+    Map Set WeakMap WeakSet Symbol Proxy Reflect BigInt
+    if for while switch catch return typeof function
+""".split())
+
+def ten_khai(ma):
+    """Mọi tên được khai trong tệp: hàm, var, tham số hàm, biến của catch."""
+    ra = set()
+    ra |= set(re.findall(r'\bfunction\s+([A-Za-z_$][\w$]*)', ma))
+    # var a = 1, b = 2  -> bắt cả tên sau dấu phẩy
+    for m in re.finditer(r'\bvar\s+([^;\n]+)', ma):
+        for phan in m.group(1).split(','):
+            g = re.match(r'\s*([A-Za-z_$][\w$]*)', phan)
+            if g:
+                ra.add(g.group(1))
+    for m in re.finditer(r'\bfunction\s*[A-Za-z_$\w$]*\s*\(([^)]*)\)', ma):
+        for phan in m.group(1).split(','):
+            g = re.match(r'\s*([A-Za-z_$][\w$]*)', phan)
+            if g:
+                ra.add(g.group(1))
+    ra |= set(re.findall(r'\bcatch\s*\(\s*([A-Za-z_$][\w$]*)', ma))
+    return ra
+
+def ten_goi(ma):
+    """Mọi lời gọi `ten(` — bỏ qua `.ten(` (phương thức) và `function ten(`."""
+    ra = {}
+    for m in re.finditer(r'(^|[^\w$.])([A-Za-z_$][\w$]*)\s*\(', ma, re.M):
+        ten = m.group(2)
+        truoc = ma[max(0, m.start() - 12):m.start() + 1]
+        if re.search(r'\bfunction\s*$', truoc):
+            continue
+        ra.setdefault(ten, ma[:m.start()].count('\n') + 1)
+    return ra
+
+# Bỏ chú thích và chuỗi trước khi soi — một cái tên nhắc trong lời giải thích không phải lời gọi.
+sach = re.sub(r'/\*.*?\*/', '', js, flags=re.S)
+sach = re.sub(r'^\s*//.*$', '', sach, flags=re.M)
+sach = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", sach)
+sach = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', sach)
+
+da_khai = ten_khai(sach) | CO_SAN
+thieu = [(t, d) for t, d in ten_goi(sach).items() if t not in da_khai]
+la('mọi hàm được gọi đều có khai', not thieu,
+   '; '.join('dòng %d: %s()' % (d, t) for t, d in sorted(thieu, key=lambda x: x[1])[:6]))
+
+# Và phép thử NGƯỢC: bộ dò trên phải bắt được khi một hàm biến mất — không thì nó chỉ là một
+# chốt luôn xanh, y như `node --check` đã luôn xanh suốt lúc thiếu `thoiTheoGps`.
+gia = sach.replace('function veViTri(', 'function veViTri_DA_XOA(', 1)
+la('bộ dò bắt được khi một hàm biến mất',
+   'veViTri' in [t for t in ten_goi(gia) if t not in (ten_khai(gia) | CO_SAN)])
+
 print('— biến che mất hàm cùng tên —')
 ham = set(re.findall(r'^function ([A-Za-z_$][\w$]*)\s*\(', js, re.M))
 la('đọc được danh sách hàm toàn cục', len(ham) >= 10, 'đếm được %d' % len(ham))

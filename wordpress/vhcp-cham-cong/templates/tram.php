@@ -574,6 +574,29 @@ function nghenBanDo(){
 	}
 }
 
+/**
+ * Xin vị trí — CHỜ GPS KHOÁ, không lấy phát đầu rồi thôi.
+ *
+ * `getCurrentPosition` trả về NGAY cái đang có sẵn: thường là vị trí đoán theo địa chỉ mạng,
+ * sai số hàng chục tới hàng trăm kilômét. Chip GPS cần vài giây tới vài chục giây mới bắt đủ
+ * vệ tinh. `watchPosition` bắn liên tục và số sai lệch NHỎ DẦN — giữ lấy lần đo tốt nhất, dừng
+ * khi đã đủ tốt hoặc hết giờ chờ. `maximumAge: 0` là bắt buộc: để mặc định thì trình duyệt lại
+ * đưa đúng cái vị trí cũ theo mạng ra dùng.
+ *
+ * ⚠️ Vẫn KHÔNG CHẶN chấm công. Hết giờ chờ mà chỉ có vị trí thô thì dùng vị trí thô, có nhãn
+ *    đàng hoàng — người ta đang đứng chờ vào ca, không đợi vệ tinh được.
+ */
+var GPS_THEO = null;     /* id của watchPosition đang chạy */
+var GPS_HEN  = null;     /* hẹn giờ dừng chờ */
+var GPS_DU   = 50;       /* mét — đủ tốt thì dừng sớm, khỏi hao pin */
+var GPS_CHO  = 20000;    /* ms — chờ tối đa */
+
+function thoiTheoGps(){
+	if(GPS_THEO !== null && navigator.geolocation){ navigator.geolocation.clearWatch(GPS_THEO); }
+	GPS_THEO = null;
+	if(GPS_HEN){ clearTimeout(GPS_HEN); GPS_HEN = null; }
+}
+
 function xinGps(){
 	if(!navigator.geolocation){ GPS = null; GPS_TRANG = 'khong_ho_tro'; veViTri(); return; }
 	thoiTheoGps();
