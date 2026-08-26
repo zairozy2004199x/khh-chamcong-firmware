@@ -250,7 +250,15 @@ class VHCC_Web {
 	 * Cửa hàng trưởng chỉ đụng được cơ sở mình. Danh sách này chỉ nói "việc này không cần quyền
 	 * hồ sơ", không nói "ai làm cũng được".
 	 */
-	const VIEC_CHAM = array( 'co', 'xu_ly_co' );
+	/**
+	 * Việc làm được ở màn Bảng chấm công — tức là KHÔNG cần bậc Kế toán như việc hồ sơ.
+	 *
+	 * ⚠️ Có tên ở đây KHÔNG phải là được làm. Nó chỉ nói "việc này không thuộc màn Hồ sơ";
+	 *    quyền thật vẫn do chính lớp xử lý hỏi `VHCC_Vai` (bù: `cham_bu` bậc 2, nạp công:
+	 *    `nap_cong` bậc 3). Hai tầng ấy khác nhau — bỏ tầng sau vì "đã có tầng trước" là để
+	 *    Cửa hàng trưởng nạp đè cả tháng công của cơ sở khác.
+	 */
+	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -287,6 +295,37 @@ class VHCC_Web {
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] )
 				: array( 'xong' => 'Đã đánh dấu cờ là xử lý xong. Nội dung cờ giữ nguyên, kết luận nối thêm '
 					. 'vào cuối — còn đó để tra lại về sau.' ) );
+		}
+
+		if ( 'bu' === $viec ) {
+			$r = VHCC_Bu::ghi( $toi, array(
+				'coso'  => isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
+				'ngay'  => isset( $_POST['ngay'] ) ? wp_unslash( $_POST['ngay'] ) : '',
+				'ma_nv' => isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '',
+				'vao'   => isset( $_POST['bu_vao'] ) ? wp_unslash( $_POST['bu_vao'] ) : '',
+				'ra'    => isset( $_POST['bu_ra'] ) ? wp_unslash( $_POST['bu_ra'] ) : '',
+				'ly_do' => isset( $_POST['ly_do'] ) ? wp_unslash( $_POST['ly_do'] ) : '',
+			) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			$chu = array();
+			foreach ( $r['daGhi'] as $o => $g ) { $chu[] = ( 'vao' === $o ? 'giờ vào ' : 'giờ ra ' ) . $g; }
+			$noi = 'Đã bù ' . implode( ' · ', $chu ) . ' cho ' . $r['maNV'] . ' ngày ' . $r['ngay']
+				. '. Lượt bù mang nhãn nguồn "bù" và đã vào sổ nhật ký — xoá không được.';
+			if ( $r['boQua'] ) {
+				$noi .= ' BỎ QUA ' . implode( ', ', $r['boQua'] ) . ': bù không đè lên giờ đã có.';
+			}
+			return array( array( 'xong' => $noi ) );
+		}
+
+		if ( 'xem_cong' === $viec || 'nap_cong' === $viec ) {
+			$f = self::doc_tep();
+			if ( empty( $f['ok'] ) ) { return array( array( 'loi' => $f['error'] ) ); }
+			$r = VHCC_NapCong::nap( $toi,
+				isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
+				VHCC_NapCong::tach( $f['noi_dung'] ),
+				'xem_cong' === $viec );
+			$r['viec'] = $viec;
+			return array( $r );
 		}
 
 		if ( 'xem_csv' === $viec || 'nap_csv' === $viec ) {
@@ -1288,7 +1327,102 @@ class VHCC_Web {
 		}
 		echo '</div>';
 
+		self::the_bu( $cs, $tt, $ky, $toi, $thieu );
+		self::the_nap_cong( $cs, $ky, $toi );
 		self::the_co( $b, $cs, $tt, $ky, $thieu );
+	}
+
+	/**
+	 * Khối CHẤM CÔNG BÙ — cửa ghi giờ thứ ba, xem `VHCC_Bu` cho lý do nó được phép tồn tại.
+	 *
+	 * Ô ngày và mã điền sẵn từ dòng anh/chị bấm 🚩 ở bảng chi tiết, y như khối cờ: hai việc đi
+	 * cùng một dòng dữ liệu, bắt gõ lại ngày và mã cho từng việc là mời gõ nhầm.
+	 */
+	private static function the_bu( $cs, $tt, $ky, $toi, $thieu ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'cham_bu' ) ) { return; }
+		$o_loc  = self::o_loc();
+		$g_ngay = isset( $_GET['gnd'] ) ? sanitize_text_field( wp_unslash( $_GET['gnd'] ) ) : '';
+		$g_ma   = isset( $_GET['gma'] ) ? sanitize_text_field( wp_unslash( $_GET['gma'] ) ) : '';
+
+		echo '<div class="the" id="bucong"><h2>Chấm công bù</h2>';
+		echo '<p class="mo">Dùng khi <b>máy hỏng</b> hoặc <b>nhân viên quên bấm</b>. Bù chỉ điền vào '
+			. 'ô <b>còn trống</b> — giờ máy đã ghi thì bù không đè lên được. Mỗi lượt bù đều vào sổ '
+			. 'nhật ký (ai bù · cho ai · vì sao) và <b>không xoá được</b>.</p>';
+		echo '<p class="mo">⚠️ Không tự bù cho mình được, kể cả Admin — nhờ người khác bù giúp. '
+			. 'Bù công là đổi thẳng ra tiền, nên chỗ này không để hở.</p>';
+		if ( $thieu ) {
+			echo '<p class="mo">Đang có <b>' . count( $thieu ) . '</b> ngày thiếu giờ ra ở bảng trên — '
+				. 'bấm 🚩 ở dòng nào thì ngày và mã của dòng đó điền sẵn xuống đây.</p>';
+		}
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="bu">'
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">' . $o_loc;
+		echo '<div class="luoi">';
+		echo '<div><label for="bu_ngay">Ngày *</label><input id="bu_ngay" name="ngay" type="date" required'
+			. ' value="' . esc_attr( $g_ngay ) . '"'
+			. ' max="' . esc_attr( (string) current_time( 'Y-m-d' ) ) . '"></div>';
+		echo '<div><label for="bu_ma">Mã NV *</label><input id="bu_ma" name="ma_nv" required'
+			. ' value="' . esc_attr( $g_ma ) . '" placeholder="MNNV… (kèm -CD nếu là ca đêm)"></div>';
+		echo '<div><label for="bu_vao">Giờ vào</label><input id="bu_vao" name="bu_vao" type="time"></div>';
+		echo '<div><label for="bu_ra">Giờ ra</label><input id="bu_ra" name="bu_ra" type="time"></div>';
+		echo '</div>';
+		echo '<p><label for="bu_ly">Vì sao phải bù *</label>'
+			. '<input id="bu_ly" name="ly_do" required minlength="5" style="width:100%" '
+			. 'placeholder="VD: máy chấm công mất điện sáng 12/8 — có camera đối chiếu"></p>';
+		echo '<p><button class="chinh">Bù giờ</button></p></form>';
+
+		$nk = VHCC_Bu::ds_nhat_ky( $toi, $cs, $tt );
+		if ( $nk ) {
+			echo '<h3 style="margin:14px 0 6px">Đã bù tháng này (' . count( $nk ) . ')</h3>';
+			echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã NV</th><th>Ô</th>'
+				. '<th>Giờ</th><th>Lý do</th><th>Người bù</th></tr></thead><tbody>';
+			foreach ( $nk as $x ) {
+				echo '<tr><td>' . esc_html( $x['ngay'] ) . '</td>';
+				echo '<td>' . esc_html( $x['ma_nv'] ) . '</td>';
+				echo '<td>' . ( 'vao' === $x['o_gio'] ? 'giờ vào' : 'giờ ra' ) . '</td>';
+				echo '<td>' . esc_html( VHCC_DB::hhmm( (int) $x['gio_giay'] ) ) . '</td>';
+				echo '<td style="white-space:pre-wrap;max-width:380px">' . esc_html( $x['ly_do'] ) . '</td>';
+				echo '<td>' . esc_html( $x['nguoi_bu'] ) . '<br><span class="mo">'
+					. esc_html( substr( (string) $x['tao_luc'], 0, 16 ) ) . '</span></td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+		echo '</div>';
+	}
+
+	/**
+	 * Khối NẠP CÔNG TỪ .CSV.
+	 *
+	 * 🔴 Khối này còn có việc thứ hai, quan trọng không kém việc nạp: NÓI RA cho anh Thắng biết
+	 *    nút "Nạp .csv" ở màn Hồ sơ không nạp giờ công. Anh nạp 240 hồ sơ rồi hỏi *"Sao dữ liệu
+	 *    chấm công chưa vào, anh nạp rồi mà"* — và hệ thống lúc đó không có một câu nào phân biệt
+	 *    hai thứ. Một màn im lặng đúng vẫn là một màn sai.
+	 */
+	private static function the_nap_cong( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'nap_cong' ) ) { return; }
+		echo '<div class="the" id="napcong"><h2>Nạp công từ .csv (Sheets cũ)</h2>';
+		echo '<p class="mo">Nhận đúng tệp <b>"Bảng chạy · Hệ Thống Chấm Công Cơ Sở"</b> xuất từ '
+			. 'Google Sheets — dạng bảng ngang, mỗi ngày một cụm cột. Một tệp chứa nhiều tháng '
+			. 'chồng nhau cũng đọc được.</p>';
+		echo '<p class="mo">⚠️ Đây là chỗ DUY NHẤT nạp <b>giờ công</b>. Nút "Nạp .csv" ở màn '
+			. '<b>Hồ sơ &amp; tài khoản</b> nạp <b>sổ nhân sự</b> (ai, mã gì, PIN gì) — nạp xong '
+			. 'bảng công vẫn trắng là đúng, không phải mất dữ liệu.</p>';
+		echo '<p class="mo">Nạp lại bao nhiêu lần cũng không sinh trùng, và <b>không bao giờ xoá bớt '
+			. 'giờ đã có</b>: tệp cũ thiếu giờ ra thì giờ ra do máy ghi vẫn nguyên.</p>';
+		if ( '' === $cs ) {
+			echo '<p class="mo">Chọn một cơ sở ở trên trước đã — công nạp vào cơ sở nào là do ô đó quyết.</p></div>';
+			return;
+		}
+		echo '<form method="post" enctype="multipart/form-data">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">' . self::o_loc();
+		echo '<p class="mo">Nạp vào cơ sở: <b>' . esc_html( $cs ) . '</b></p>';
+		echo '<p><input type="file" name="tep" accept=".csv,.tsv,.txt" required></p>';
+		echo '<p><button name="viec" value="xem_cong">Xem trước</button> '
+			. '<button class="chinh" name="viec" value="nap_cong">Nạp thật</button></p>';
+		echo '<p class="mo">Bấm <b>Xem trước</b> đi đã: nó đếm và kể ra mọi chỗ lạ mà '
+			. '<b>không ghi gì</b>.</p>';
+		echo '</form></div>';
 	}
 
 	/** Khối cờ: gắn mới · danh sách đang chờ · ngày thiếu giờ ra. */
@@ -1394,6 +1528,10 @@ class VHCC_Web {
 				. 'và hệ thống không lưu chỗ nào khác để in ra.</span></div>';
 			return;
 		}
+		if ( isset( $b['viec'] ) && ( 'nap_cong' === $b['viec'] || 'xem_cong' === $b['viec'] ) ) {
+			self::ve_bao_cong( $b );
+			return;
+		}
 		if ( isset( $b['viec'] ) && ( 'nap_csv' === $b['viec'] || 'xem_csv' === $b['viec'] ) ) {
 			self::ve_bao_csv( $b, 'xem_csv' === $b['viec'] );
 			return;
@@ -1414,6 +1552,51 @@ class VHCC_Web {
 				echo '</ul></div>';
 			}
 			return;
+		}
+	}
+
+	/**
+	 * Kết quả nạp công.
+	 *
+	 * 🔴 Kể ĐỦ BỐN con số (khối · tháng · người · lượt) chứ không chỉ "đã nạp xong". Bộ đọc này
+	 *    đoán bố cục từ hàng tiêu đề, nên cách duy nhất để biết nó đoán đúng là nhìn bốn con số
+	 *    ấy có khớp với tệp đang cầm trên tay không. "Nạp xong" thì lúc đọc sai cũng in ra y hệt.
+	 */
+	private static function ve_bao_cong( $b ) {
+		if ( empty( $b['ok'] ) ) {
+			echo '<div class="bao loi"><b>Không đọc được tệp.</b> ' . esc_html( $b['error'] ) . '</div>';
+			if ( ! empty( $b['canh'] ) ) {
+				echo '<div class="bao canh"><ul>';
+				foreach ( array_slice( (array) $b['canh'], 0, 20 ) as $c ) { echo '<li>' . esc_html( $c ) . '</li>'; }
+				echo '</ul></div>';
+			}
+			return;
+		}
+		$xem = ! empty( $b['chi_xem'] );
+		echo '<div class="bao ' . ( $xem ? 'canh' : 'ok' ) . '">';
+		echo '<b>' . ( $xem ? 'XEM TRƯỚC — chưa ghi gì vào bảng công.' : 'Đã nạp vào bảng công.' ) . '</b><br>';
+		echo 'Cơ sở <b>' . esc_html( $b['coSo'] ) . '</b> · '
+			. esc_html( (string) $b['so_khoi'] ) . ' bảng trong tệp · tháng <b>'
+			. esc_html( $b['thang'] ) . '</b> · ' . esc_html( (string) $b['so_ngay'] )
+			. ' ngày có công · <b>' . esc_html( (string) $b['so_nguoi'] )
+			. '</b> người · <b>' . esc_html( (string) $b['so_luot'] ) . '</b> lượt giờ';
+		if ( ! $xem ) { echo ' · đã ghi <b>' . esc_html( (string) $b['da_ghi'] ) . '</b>'; }
+		echo '.<br><span class="mo">Bốn con số này phải khớp với tệp đang cầm trên tay. Lệch là bộ đọc '
+			. 'đoán nhầm bố cục cột — đừng bấm Nạp thật.</span></div>';
+
+		if ( ! empty( $b['la'] ) ) {
+			echo '<div class="bao canh"><b>' . count( (array) $b['la'] ) . ' mã có công nhưng CHƯA có hồ sơ:</b> '
+				. esc_html( implode( ' · ', array_keys( (array) $b['la'] ) ) )
+				. '<br><span class="mo">Giờ vẫn nạp, nhưng bảng lương sẽ không biết mấy mã này là ai. '
+				. 'Khai hồ sơ ở màn Hồ sơ &amp; tài khoản rồi số liệu tự khớp lại.</span></div>';
+		}
+		if ( ! empty( $b['canh'] ) ) {
+			$ds = (array) $b['canh'];
+			echo '<div class="bao canh"><b>' . count( $ds ) . ' chỗ cần biết:</b><ul>';
+			foreach ( array_slice( $ds, 0, 30 ) as $c ) { echo '<li>' . esc_html( $c ) . '</li>'; }
+			echo '</ul>';
+			if ( count( $ds ) > 30 ) { echo '<span class="mo">…và ' . ( count( $ds ) - 30 ) . ' dòng nữa.</span>'; }
+			echo '</div>';
 		}
 	}
 

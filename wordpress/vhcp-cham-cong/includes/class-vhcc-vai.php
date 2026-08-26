@@ -96,6 +96,11 @@ class VHCC_Vai {
 		/* --- bậc 3: quản lý --- */
 		'cong_tat_ca'  => self::QL,       // xem công MỌI cơ sở, không cần khai cơ sở
 		'xu_ly_loi'    => self::QL,       // kết luận / đóng cờ cơ sở báo lên
+		'nap_cong'     => self::QL,       // nạp cả tháng công từ .csv Sheets cũ.
+		                                  // ⚠️ Cố ý ĐẶT TRÊN cham_bu: bù là sửa MỘT ô của một
+		                                  // người, còn nạp là đổ hàng nghìn lượt vào cả một
+		                                  // tháng của cả cơ sở. Cùng gọi là "thêm giờ", nhưng
+		                                  // hai bậc rủi ro khác hẳn nhau.
 		'ngoai_coso'   => self::QL,       // việc ẢNH HƯỞNG NGOÀI phạm vi một cửa hàng:
 		                                  // tăng cường, khoá bảng, xoá thống kê, cấu hình lịch
 

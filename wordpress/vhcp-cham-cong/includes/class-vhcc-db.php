@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.4.0';
+	const SCHEMA_VERSION = '2.5.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -247,6 +247,30 @@ class VHCC_DB {
 			UNIQUE KEY o (coso,ngay,ma_nv,hau_to),
 			KEY thang (coso,ngay),
 			KEY nguoi (ma_nv,ngay)";
+
+		/* ===== 5b. NHẬT KÝ CHẤM CÔNG BÙ =====================================================
+		   Sổ đối chứng của cửa ghi giờ thứ ba. Mỗi Ô GIỜ được bù là một dòng — không gộp cặp
+		   vào/ra vào một dòng, vì bù giờ ra cho một ngày đã có giờ vào là chuyện thường, và gộp
+		   thì dòng ấy phải để trống một nửa, đọc lại không biết nửa trống là "không bù" hay
+		   "bù mà mất".
+		   ⚠️ KHÔNG có UNIQUE KEY nào ở đây: bù hai lần cho cùng một ô là chuyện CẦN nhìn thấy,
+		      không phải chuyện cần chặn ở tầng bảng. */
+		$b['cham_bu'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			o_gio VARCHAR(8) NOT NULL DEFAULT '',
+			gio_giay INT NULL,
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			nguoi_bu VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nguoi_bu VARCHAR(40) NOT NULL DEFAULT '',
+			vai_nguoi_bu VARCHAR(30) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY thang (coso,ngay),
+			KEY nguoi (ma_nv,ngay),
+			KEY ai (ma_nguoi_bu)";
 
 		/* ===== 6. NHIỆM VỤ THEO NGÀY (sheet ChamCongNhiemVu) ================================= */
 		$b['cham_cong_nhiem_vu'] = "

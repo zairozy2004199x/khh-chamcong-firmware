@@ -5979,6 +5979,48 @@ foreach ( array( 'cbp', 'ccs', 'cth', 'cng', 'cnv' ) as $k_ts ) {
 		in_array( $k_ts, VHCC_Web::THAM_SO, true ) );
 }
 
+/* ---- hai khối mới: chấm công bù · nạp công từ .csv ---- */
+/* Anh Thắng 26/08: *"làm tiếp công bù đi em"* và *"bổ sung thêm nạp dữ liệu công nhé"*. */
+t( 'màn có khối Chấm công bù', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
+t( 'khối bù nói rõ chỉ điền ô còn trống', strpos( $h_qtc, 'còn trống' ) !== false );
+t( 'và nói rõ không tự bù cho mình', strpos( $h_qtc, 'Không tự bù cho mình' ) !== false
+	|| strpos( $h_qtc, 'không tự bù' ) !== false, $h_qtc );
+t( 'khối bù đòi lý do', strpos( $h_qtc, 'name="ly_do"' ) !== false );
+t( 'và ô ngày chặn ngày tương lai ngay trên trình duyệt',
+	preg_match( '/id="bu_ngay"[^>]*max="\d{4}-\d{2}-\d{2}"/', $h_qtc ) === 1, $h_qtc );
+
+t( 'màn có khối Nạp công từ .csv', strpos( $h_qtc, 'id="napcong"' ) !== false, $h_qtc );
+/* 🔴 Đây là câu trả lời cho đúng chỗ anh Thắng vấp: nạp 240 hồ sơ xong bảng công vẫn trắng.
+   Màn phải TỰ NÓI ra chuyện hai nút "nạp" là hai việc khác nhau. */
+t( 'khối nạp công nói rõ nút .csv ở màn Hồ sơ KHÔNG nạp giờ công',
+	strpos( $h_qtc, 'sổ nhân sự' ) !== false && strpos( $h_qtc, 'bảng công vẫn trắng' ) !== false, $h_qtc );
+t( 'có nút Xem trước', strpos( $h_qtc, 'value="xem_cong"' ) !== false );
+t( 'và nút Nạp thật',  strpos( $h_qtc, 'value="nap_cong"' ) !== false );
+t( 'form nạp nhận được file', strpos( $h_qtc, 'enctype="multipart/form-data"' ) !== false );
+
+/* ---- bù mở cho Cửa hàng trưởng, nạp công thì KHÔNG ---- */
+/* Hai việc trông giống nhau ("thêm giờ vào bảng") nhưng bù là sửa MỘT ô của một người, còn nạp
+   là đổ hàng nghìn lượt vào cả một tháng của cả cơ sở. Khác bậc rủi ro thì phải khác bậc quyền. */
+VHCC_NguoiDung::luu( '', 'CHT Soát Công', '357913', 'Cửa hàng trưởng', 'TUTU_BT' );
+$h_cht = vhcc_web( '357913', array(), $g_qtc );
+t( 'Cửa hàng trưởng vào được màn bảng công', strpos( $h_cht, 'name="pin"' ) === false, $h_cht );
+t( 'và THẤY khối Chấm công bù', strpos( $h_cht, 'id="bucong"' ) !== false, $h_cht );
+t( 'nhưng KHÔNG thấy khối Nạp công', strpos( $h_cht, 'id="napcong"' ) === false, $h_cht );
+/* Ẩn cái khối không phải là gác cửa — gửi thẳng lượt POST cũng phải bị chối. */
+$_POST = array( 'viec' => 'nap_cong' );
+$r_np  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'nap_cong', array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' ) ) );
+t( 'và POST thẳng việc nap_cong cũng KHÔNG lọt', is_array( $r_np ) && ! isset( $r_np[0]['xong'] ), $r_np );
+$_POST = array();
+/* Nhân viên thì không có cả hai. */
+$h_nv2 = vhcc_web( '680246', array(), $g_qtc );
+t( 'Nhân viên không thấy khối bù', strpos( $h_nv2, 'id="bucong"' ) === false, $h_nv2 );
+$_POST = array( 'viec' => 'bu' );
+$r_bu  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
+	array( 'bu', array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ) ) );
+t( 'và POST thẳng việc bu cũng bị chối', is_array( $r_bu ) && ! isset( $r_bu[0]['xong'] ), $r_bu );
+$_POST = array();
+
 /* ---- lưới người × ngày của bản cũ đã đi hẳn, không để lại hàm mồ côi ---- */
 $than_web_qtc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 've_luoi_cham (lưới cũ) đã bỏ hẳn, không còn nằm chết trong tệp',
