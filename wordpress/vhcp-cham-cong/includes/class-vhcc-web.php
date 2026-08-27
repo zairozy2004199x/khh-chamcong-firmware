@@ -1183,11 +1183,22 @@ class VHCC_Web {
 			   dòng thuộc về bảng đang đọc. Con số ở đây KHÔNG nằm trong cột TỔNG. */
 			. '.mdem.ngoai{background:#f1f5f9;color:#475569;font-style:italic}'
 			. '.duoi.ngoai{background:#f1f5f9;color:#475569}'
+			/* Nhãn CHÍNH / PHỤ trong bảng khai ghép — nằm cạnh TÊN, vì đó là chỗ mắt dừng
+			   lại đầu tiên. Hai màu khác hẳn nhau: đọc lướt cả cột là thấy ngay cấu trúc. */
+			. '.duoi.nhan-chinh{background:#dcfce7;color:#15803d}'
+			. '.duoi.nhan-phu{background:#f3e8ff;color:#7e22ce}'
+			. 'tr.hang-phu>td:first-child{padding-left:22px}'
+			. 'tr.hang-phu>td{background:#fcfaff}'
 			/* Dòng TỔNG của cơ sở khác: xám, nghiêng, có vạch ngăn — để mắt không đọc nhầm nó
 			   là một phần của con số lớn phía trên. */
 			/* Nhãn cơ sở PHỤ đã ghép: xanh nhạt, KHÁC hẳn dòng xám của cơ sở khác. Con số này
 			   ĐÃ nằm trong TỔNG; dòng xám thì không. Cho chúng giống nhau là mời người ta trừ
 			   nhầm một trong hai. */
+			/* Tách công trong ô TỔNG: nhỏ và nhạt hơn con số lớn — con số lớn vẫn là thứ đọc
+			   trước, phần tách là thứ liếc thấy. Đảo cỡ chữ là cột TỔNG thành một đoạn văn. */
+			. '.tach-cong{font-size:10.5px;font-weight:500;line-height:1.3;margin-top:2px;'
+			. 'color:var(--mo);white-space:nowrap}'
+			. '.tach-cong b{font-weight:700;color:var(--chu)}'
 			. '.mghep{font-size:9.5px;font-weight:700;line-height:1.15;margin-top:2px;padding:0 3px;'
 			. 'border-radius:3px;background:#e0f2fe;color:#0369a1;letter-spacing:.2px}'
 			. '.tk-ngoai{font-size:10.5px;font-weight:600;line-height:1.25;margin-top:3px;padding-top:2px;'
@@ -2369,15 +2380,63 @@ class VHCC_Web {
 			. 'tính công đều riêng), và lưới đã có sẵn <b>dòng xám</b> bày ra những ngày ấy mà không '
 			. 'cộng vào. Ghép nhầm là cộng công của bảng người khác vào bảng này.</div>';
 		echo '<p class="mo">Cơ sở phụ vẫn mở riêng được để soi; màn của nó sẽ nói nó đang ghép vào đâu.</p>';
+		/* Anh Thắng 27/08/2026: *"như cái này biết cái nào bảng chính, cái nào bảng phụ"*. */
+		echo '<p class="mo">Cách đọc bảng dưới: <span class="duoi nhan-chinh">CHÍNH</span> là bảng '
+			. 'lương thật · <span class="duoi nhan-phu">PHỤ</span> là cơ sở <b>không có bảng riêng</b>, '
+			. 'công của nó chạy vào bảng chính · hàng phụ <b>thụt vào</b> ngay dưới bảng chính của nó. '
+			. 'Không nhãn = đứng một mình.</p>';
 
 		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="ghep_cs">' . self::o_loc();
-		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Ghép vào bảng công của</th>'
-			. '<th>Đang là gì</th></tr></thead><tbody>';
+		/* 🔴 XẾP THEO NHÓM, KHÔNG THEO BẢNG CHỮ CÁI.
+		   Anh Thắng 27/08/2026, sau khi khai xong: *"như cái này biết cái nào bảng chính, cái
+		   nào bảng phụ"*. Bảng CÓ nói — ở cột thứ ba. Nhưng xếp A-Z thì một bảng chính và mấy
+		   cơ sở phụ của nó nằm rải rác cách nhau mấy hàng (PART_TIME ở giữa, JP_HCM ở trên,
+		   POSH_HCM ở dưới), nên muốn biết "cái nào thuộc cái nào" là phải đọc cả bảng rồi tự
+		   ghép trong đầu. Nay: bảng chính đứng đầu nhóm, cơ sở phụ thụt vào ngay dưới nó, và
+		   nhãn CHÍNH/PHỤ nằm CẠNH TÊN chứ không phải ở cột cuối. */
+		$nhom = array();
 		foreach ( $ds as $x ) {
+			if ( '' === VHCC_Luong::ghep_vao( $x ) ) { $nhom[] = $x; }   // đứng riêng hoặc là CHÍNH
+		}
+		$hang = array();
+		foreach ( $nhom as $x ) {
+			$hang[] = array( $x, false );
+			foreach ( VHCC_Luong::phu_cua( $x ) as $p ) {
+				/* Chỉ vẽ cơ sở phụ mà người này XEM ĐƯỢC — bảng đang dựng từ `ds_coso_xem()`. */
+				if ( in_array( $p, $ds, true ) ) { $hang[] = array( $p, true ); }
+			}
+		}
+		/* Cơ sở phụ mà cơ sở CHÍNH của nó nằm ngoài tầm xem: vẫn phải vẽ, kẻo nó biến mất khỏi
+		   màn và không ai gỡ ghép được nữa. */
+		foreach ( $ds as $x ) {
+			$co = false;
+			foreach ( $hang as $h ) {
+				if ( 0 === strcasecmp( (string) $h[0], (string) $x ) ) { $co = true; break; }
+			}
+			if ( ! $co ) { $hang[] = array( $x, true ); }
+		}
+
+		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Ghép vào bảng công của</th>'
+			. '<th>Nghĩa là gì</th></tr></thead><tbody>';
+		foreach ( $hang as $h ) {
+			$x    = $h[0];
+			$la_phu = $h[1];
 			$chon = VHCC_Luong::ghep_vao( $x );
 			$phu  = VHCC_Luong::phu_cua( $x );
-			echo '<tr><td><b>' . esc_html( $x ) . '</b></td>';
+
+			echo '<tr' . ( $la_phu ? ' class="hang-phu"' : '' ) . '>';
+			/* Nhãn nằm CẠNH TÊN. Đó là chỗ mắt dừng lại đầu tiên; để nó ở cột cuối là bắt người
+			   ta đọc ngang cả hàng mới biết hàng này là gì. */
+			echo '<td>' . ( $la_phu ? '<span class="mo">↳ </span>' : '' )
+				. '<b>' . esc_html( $x ) . '</b>';
+			if ( '' !== $chon ) {
+				echo ' <span class="duoi nhan-phu">PHỤ</span>';
+			} elseif ( $phu ) {
+				echo ' <span class="duoi nhan-chinh">CHÍNH</span>';
+			}
+			echo '</td>';
+
 			echo '<td><select name="gh[' . esc_attr( $x ) . ']">';
 			echo '<option value="">— bảng riêng —</option>';
 			foreach ( $ds as $y ) {
@@ -2387,14 +2446,18 @@ class VHCC_Web {
 					. esc_html( $y ) . '</option>';
 			}
 			echo '</select></td>';
+
+			/* Cột cuối nói bằng CÂU, không bằng thuật ngữ: người đọc cần biết CÔNG CHẠY ĐI ĐÂU,
+			   đó mới là thứ ra tiền. */
 			echo '<td>';
 			if ( '' !== $chon ) {
-				echo '<span class="k ca3">ghép vào <b>' . esc_html( $chon ) . '</b></span>';
+				echo '<span class="mo">Công của cơ sở này <b>cộng vào bảng ' . esc_html( $chon )
+					. '</b> — nó không có bảng lương riêng.</span>';
 			} elseif ( $phu ) {
-				echo '<span class="k ca2">bảng CHÍNH — gồm ' . count( $phu ) . ' cơ sở phụ: <b>'
-					. esc_html( implode( ' · ', $phu ) ) . '</b></span>';
+				echo '<span class="mo">Bảng lương thật. Đã <b>gồm</b> công của '
+					. count( $phu ) . ' cơ sở: <b>' . esc_html( implode( ' · ', $phu ) ) . '</b>.</span>';
 			} else {
-				echo '<span class="mo">bảng riêng</span>';
+				echo '<span class="mo">Bảng lương riêng, đứng một mình.</span>';
 			}
 			echo '</td></tr>';
 		}
@@ -2514,6 +2577,40 @@ class VHCC_Web {
 	 *
 	 * 🔴 KHÔNG CỘNG VÀO SỐ LỚN. Lương tính theo cơ sở; công của ngày ấy thuộc bảng của cơ sở kia.
 	 */
+	/**
+	 * Ô TỔNG: con số lớn tách ra thành NGÀY · ĐÊM · TĂNG CA · BÙ.
+	 *
+	 * Anh Thắng 27/08/2026: *"tổng công ngày đêm hiện vô cuối hàng nhân viên luôn"*.
+	 *
+	 * Bốn con số ấy vốn CÓ, nhưng nằm ở bảng Giờ & Lương phía dưới — tức phải cuộn xuống rồi dò
+	 * lại đúng người. Mà câu hỏi *"trong 27.5 công này bao nhiêu là đêm"* là câu hỏi ngay tại
+	 * hàng, lúc đang nhìn hàng ấy.
+	 *
+	 * 🔴 CHỈ HIỆN PHẦN KHÁC 0. Hiện đủ bốn cho mọi hàng là mỗi hàng cao gấp đôi để nói "đêm 0 ·
+	 *    tăng ca 0 · bù 0" — và cái đáng chú ý (người DUY NHẤT có công đêm) chìm nghỉm giữa
+	 *    một rừng số 0.
+	 *
+	 * 🔴 KHÔNG HIỆN GÌ KHI CẢ THÁNG CHỈ CÓ CÔNG NGÀY. Lúc ấy "ngày 23" chỉ là chép lại con số
+	 *    lớn ngay trên nó — thêm một dòng để nói đúng thứ vừa nói xong.
+	 */
+	private static function tach_cong( $e ) {
+		$phan = array();
+		$dem  = (float) ( isset( $e['congDem'] ) ? $e['congDem'] : 0 );
+		$tc   = (float) ( isset( $e['congTangCa'] ) ? $e['congTangCa'] : 0 );
+		$bu   = (float) ( isset( $e['congBu'] ) ? $e['congBu'] : 0 );
+		$ngay = (float) ( isset( $e['congNgay'] ) ? $e['congNgay'] : 0 );
+		/* Không có gì ngoài công ngày -> im. */
+		if ( abs( $dem ) < 0.005 && abs( $tc ) < 0.005 && abs( $bu ) < 0.005 ) { return ''; }
+		if ( abs( $ngay ) >= 0.005 ) { $phan[] = 'ngày <b>' . self::so_vp( $ngay ) . '</b>'; }
+		if ( abs( $dem ) >= 0.005 )  { $phan[] = '🌙 <b>' . self::so_vp( $dem ) . '</b>'; }
+		if ( abs( $tc ) >= 0.005 )   { $phan[] = 'TC <b>' . self::so_vp( $tc ) . '</b>'; }
+		if ( abs( $bu ) >= 0.005 )   { $phan[] = 'bù <b>' . self::so_vp( $bu ) . '</b>'; }
+		return '<div class="tach-cong" title="' . esc_attr( 'Bốn phần cộng lại thành con số lớn: '
+			. 'công ngày ' . self::so_vp( $ngay ) . ' · công đêm ' . self::so_vp( $dem )
+			. ' · tăng ca ' . self::so_vp( $tc ) . ' · công bù ' . self::so_vp( $bu ) )
+			. '">' . implode( ' · ', $phan ) . '</div>';
+	}
+
 	private static function tong_coso_khac( $tk_nguoi ) {
 		if ( ! is_array( $tk_nguoi ) || ! $tk_nguoi ) { return ''; }
 		$cs = array_keys( $tk_nguoi );
@@ -3412,6 +3509,8 @@ class VHCC_Web {
 			if ( ! $khop ) { $lech++; }
 			echo '<td class="tong' . ( $khop ? '' : ' chu-hong' ) . '"><b>' . self::so_vp( $cong ) . '</b>'
 				. ( $khop ? '' : ' ≠ ' . self::so_vp( $e['tong'] ) )
+				/* Anh Thắng: *"tổng công ngày đêm hiện vô cuối hàng nhân viên luôn"*. */
+				. self::tach_cong( $e )
 				. self::tong_coso_khac( isset( $tk_ds[ strtoupper( $ma ) ] )
 					? $tk_ds[ strtoupper( $ma ) ] : array() ) . '</td>';
 			echo '</tr>';
@@ -3436,6 +3535,9 @@ class VHCC_Web {
 			. '<b>cơ sở khác</b> — bày ra để ô ấy khỏi trông như ngày nghỉ. '
 			. '<b>KHÔNG cộng vào cột TỔNG ở đây</b>: lương tính theo cơ sở, công của ngày ấy '
 			. 'thuộc bảng của cơ sở kia.'
+			. '<br>Cột <b>TỔNG</b>: con số lớn là <b>tổng công cả tháng</b>; dòng nhỏ dưới nó tách '
+			. 'ra <b>ngày</b> · <b>🌙 đêm</b> · <b>TC</b> (tăng ca) · <b>bù</b> — chỉ hiện phần nào '
+			. 'khác 0, và không hiện gì nếu cả tháng chỉ có công ngày.'
 			. '<br>Nhãn <b>nền xanh nhạt</b> (VD <i>SETUP_VP</i>) thì ngược lại: cơ sở ấy đã '
 			. '<b>ghép vào bảng này</b> (ca đêm chấm ở mã riêng chẳng hạn), nên công của nó '
 			. '<b>ĐÃ nằm trong cột TỔNG</b> — nhãn chỉ để soi lại được nó đến từ đâu.';

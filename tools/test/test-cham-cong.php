@@ -6701,6 +6701,13 @@ vhcc_cham( $VP_CS, '2026-07-08', 'VPC', 'CD', '10:00:00', '11:00:00' );
 /* Ca đêm: hàng -CD đêm 06/07, công dồn sang 07/07. */
 vhcc_cham( $VP_CS, '2026-07-06', 'VPB', '', '08:30:00', '17:00:00' );
 vhcc_cham_dem( $VP_CS, '2026-07-06', 'VPB', '21:30:00', '05:30:00' );
+/* 🔴 MỘT NGƯỜI CÓ TĂNG CA. Không có ai tăng ca thì cột ấy luôn 0, và gõ nhầm khoá
+   `congTangCa` thành `tangCa` vẫn xanh — đúng cái bẫy đã cắn một lần ở bảng soi lương:
+   `esc_html(null)` in ra ô TRỐNG, không lỗi, không cảnh báo, chỉ là cột trắng trơn.
+   Hàng 2 lúc 18:00–20:00 nằm NGOÀI cả ca ngày (08:30–17:00) lẫn khung đêm (21:00–06:00),
+   nên engine xếp nó vào tăng ca. */
+vhcc_cham( $VP_CS, '2026-07-09', 'VPD', '', '08:30:00', '17:00:00' );
+vhcc_cham( $VP_CS, '2026-07-09', 'VPD', 'CD', '18:00:00', '20:00:00' );
 /* 2026-07-04 VPA nghỉ hẳn — không gieo gì, để canh dấu chấm. */
 
 $g_vp = array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2026-07' );
@@ -6780,6 +6787,38 @@ t( 'đêm có làm thì dòng phụ hiện mặt trăng trơn',
 	strpos( $h_vp, '<div class="mdem">🌙</div>' ) !== false, $h_vp );
 t( 'ngày được tính công đêm thì mặt trăng kèm SỐ',
 	preg_match( '~<div class="mdem">🌙[0-9]~u', $h_vp ) === 1, $h_vp );
+/* ---- 🔴 CỘT TỔNG TÁCH RA NGÀY · ĐÊM · TĂNG CA · BÙ ----
+   Anh Thắng 27/08/2026: *"tổng công ngày đêm hiện vô cuối hàng nhân viên luôn"*.
+   Bốn con số ấy vốn CÓ, nhưng nằm ở bảng Giờ & Lương phía dưới — phải cuộn xuống rồi dò lại
+   đúng người. Mà câu hỏi "trong 27.5 công này bao nhiêu là đêm" là câu hỏi ngay tại hàng. */
+t( '🔴 ô TỔNG có dòng tách công', strpos( $h_vp, '<div class="tach-cong"' ) !== false, $h_vp );
+t( 'tách ra phần công NGÀY', preg_match( '~class="tach-cong"[^>]*>ngày <b>~u', $h_vp ) === 1, $h_vp );
+t( '🔴 và phần công ĐÊM, đúng thứ anh hỏi',
+	preg_match( '~class="tach-cong"[^>]*>[^<]*(<b>[^<]*</b>[^<]*)*🌙 <b>~u', $h_vp ) === 1, $h_vp );
+t( 'chú thích cộng lại đủ bốn phần cho ai muốn soi',
+	strpos( $h_vp, 'Bốn phần cộng lại thành con số lớn' ) !== false, $h_vp );
+/* 🔴 KHÔNG HIỆN GÌ KHI CẢ THÁNG CHỈ CÓ CÔNG NGÀY — lúc ấy "ngày 23" chỉ chép lại con số lớn
+   ngay trên nó. VPA làm hai ngày thường, không đêm không tăng ca không bù. */
+$tach_vpa = preg_match( '~<td>Người VPA</td>.*?<td class="tong[^"]*">(.*?)</td>~s', $h_vp, $m_tv )
+	? $m_tv[1] : '';
+t( 'dựng cảnh: tìm được ô TỔNG của người chỉ có công ngày', '' !== $tach_vpa, substr( $h_vp, 0, 300 ) );
+t( '🔴 người chỉ có công ngày thì KHÔNG có dòng tách — đừng chép lại con số vừa nói',
+	strpos( $tach_vpa, 'tach-cong' ) === false, $tach_vpa );
+/* Còn VPB có ca đêm thì PHẢI có. */
+$tach_vpb = preg_match( '~<td>Người VPB</td>.*?<td class="tong[^"]*">(.*?)</td>~s', $h_vp, $m_tb )
+	? $m_tb[1] : '';
+t( 'dựng cảnh: tìm được ô TỔNG của người CÓ ca đêm', '' !== $tach_vpb, substr( $h_vp, 0, 300 ) );
+t( '🔴 người có công đêm thì ô TỔNG tách ra',
+	strpos( $tach_vpb, 'tach-cong' ) !== false, $tach_vpb );
+t( 'và nói rõ mấy công đêm', strpos( $tach_vpb, '🌙' ) !== false, $tach_vpb );
+/* Và người có TĂNG CA thì phần ấy cũng phải hiện. */
+$tach_vpd = preg_match( '~<td>Người VPD</td>.*?<td class="tong[^"]*">(.*?)</td>~s', $h_vp, $m_td )
+	? $m_td[1] : '';
+t( 'dựng cảnh: tìm được ô TỔNG của người CÓ tăng ca', '' !== $tach_vpd, substr( $h_vp, 0, 300 ) );
+t( '🔴 phần TĂNG CA hiện ra ở ô TỔNG', strpos( $tach_vpd, 'TC <b>' ) !== false, $tach_vpd );
+t( 'và là một CON SỐ, không phải ô trống — đúng cái bẫy congTangCa/tangCa đã cắn một lần',
+	preg_match( '~TC <b>[0-9]~', $tach_vpd ) === 1, $tach_vpd );
+
 /* 🔴 MỘT NGƯỜI = MỘT HÀNG. Còn sót một ô đầu dòng '↳' nghĩa là vẫn còn hàng riêng. */
 t( '🔴 không còn hàng ↳ riêng nào trong lưới',
 	strpos( $h_vp, 'padding-left:20px">↳' ) === false, $h_vp );
@@ -9928,6 +9967,10 @@ $G_VP = 'GH_VP_HCM';
 $G_SU = 'GH_SETUP_VP';
 vhcc_bo_phan( $G_VP, 'Văn phòng' );
 vhcc_bo_phan( $G_SU, 'Văn phòng' );
+/* ⚠️ Một cơ sở ĐỨNG RIÊNG trong cảnh. Chỉ có một chính + một phụ thì mọi hàng đều mang nhãn,
+   và vết phá "gắn nhãn cho MỌI hàng" — đúng cái làm nhãn hết nghĩa — vẫn xanh. */
+$G_KHO = 'GH_KHO_RIENG';
+vhcc_bo_phan( $G_KHO, 'Văn phòng' );
 $u_gh = array( 'role' => 'Admin' );
 
 /* ---- Lõi khai ghép ---- */
@@ -10019,6 +10062,69 @@ t( 'màn Cấu hình có khối Ghép bảng công',
 	strpos( $h_ghc, 'Ghép bảng công của hai cơ sở' ) !== false, $h_ghc );
 t( '🔴 và nói rõ chỗ khác nhau với dòng xám "cơ sở khác"',
 	strpos( $h_ghc, 'Chỉ ghép khi ĐÚNG LÀ MỘT BẢNG LƯƠNG' ) !== false, $h_ghc );
+
+/* ---- 🔴 NHÌN LÀ BIẾT CÁI NÀO CHÍNH, CÁI NÀO PHỤ ----
+   Anh Thắng 27/08/2026, sau khi khai xong: *"như cái này biết cái nào bảng chính, cái nào bảng
+   phụ"*. Bảng CÓ nói — ở cột thứ ba. Nhưng xếp A-Z thì bảng chính và mấy cơ sở phụ của nó nằm
+   rải rác cách nhau mấy hàng, nên muốn biết cái nào thuộc cái nào là phải đọc cả bảng rồi tự
+   ghép trong đầu. */
+t( '🔴 cơ sở PHỤ mang nhãn PHỤ ngay cạnh tên',
+	strpos( $h_ghc, '<span class="duoi nhan-phu">PHỤ</span>' ) !== false, $h_ghc );
+t( '🔴 cơ sở CHÍNH mang nhãn CHÍNH ngay cạnh tên',
+	strpos( $h_ghc, '<span class="duoi nhan-chinh">CHÍNH</span>' ) !== false, $h_ghc );
+/* ⚠️ CẮT ĐÚNG KHỐI GHÉP RỒI MỚI ĐO. Tên cơ sở xuất hiện ở CẢ khối "Cơ sở thuộc bộ phận" và
+   "Cách tính công" phía trên, và hai khối ấy xếp A-Z — nên đo trên cả trang là đo nhầm sang
+   bảng khác, và ra kết luận ngược hẳn. Đã vấp đúng chuyện đó. */
+$kh_gh = preg_match( '~id="ghepcs".*?</details>~s', $h_ghc, $m_kg ) ? $m_kg[0] : '';
+t( 'dựng cảnh: cắt được đúng khối Ghép bảng công', '' !== $kh_gh, substr( $h_ghc, 0, 200 ) );
+/* Đếm nhãn trong THÂN BẢNG, không phải cả khối: câu "Cách đọc bảng dưới" cũng in hai nhãn ấy
+   làm ví dụ — đó là chú thích, không phải hàng. */
+$tb_gh = preg_match( '~<tbody>.*?</tbody>~s', $kh_gh, $m_tg ) ? $m_tg[0] : '';
+/* ⚠️ Cảnh phải có MỘT CƠ SỞ ĐỨNG RIÊNG. Chỉ có một chính + một phụ thì mọi hàng đều mang nhãn,
+   và "gắn nhãn cho mọi hàng" — đúng cái làm nhãn hết nghĩa — vẫn xanh. Đã phá thử để thấy.
+   TUTU_BT ở trên đã thử ghép vào chính nó và bị chối, nên nó đứng riêng. */
+t( 'dựng cảnh: có một cơ sở đứng riêng trong bảng',
+	strpos( $tb_gh, '<b>' . $G_KHO . '</b>' ) !== false, $tb_gh );
+teq( '🔴 cơ sở đứng riêng KHÔNG mang nhãn nào — nhãn cho mọi hàng thì nhãn hết nghĩa',
+	2, substr_count( $tb_gh, 'class="duoi nhan-' ) );
+t( 'và hàng của nó nói rõ là bảng lương riêng, đứng một mình',
+	strpos( $tb_gh, 'đứng một mình' ) !== false, $tb_gh );
+/* 🔴 XẾP THEO NHÓM: hàng phụ đứng NGAY DƯỚI bảng chính của nó, và thụt vào. */
+t( 'hàng phụ được thụt vào và đánh dấu', strpos( $tb_gh, '<tr class="hang-phu">' ) !== false, $tb_gh );
+/* ⚠️ SO THỨ TỰ HÀNG, đừng so vị trí chuỗi tên: tên cơ sở phụ còn xuất hiện trong CỘT THỨ BA
+   của chính hàng CHÍNH ("Đã gồm công của: GH_SETUP_VP") và trong mọi ô xổ xuống — `strpos`
+   bắt được cái gần nhất chứ không phải hàng của nó. Đã vấp đúng chuyện đó. */
+preg_match_all( '~<tr[^>]*>.*?</tr>~s', $tb_gh, $m_hg );
+$hg = $m_hg[0];
+teq( 'dựng cảnh: bảng có ba hàng (1 chính + 1 phụ + 1 đứng riêng)', 3, count( $hg ) );
+/* Tìm hàng của bảng CHÍNH, rồi soi hàng NGAY SAU nó. Không giả định nó đứng đầu bảng: mấy cơ
+   sở đứng riêng vẫn xếp A-Z nên bảng chính có thể nằm ở giữa. Thứ cần canh là "phụ đi liền
+   sau chính", không phải "chính đứng đầu". */
+$i_chinh = -1;
+foreach ( $hg as $i_h => $h_row ) {
+	if ( strpos( $h_row, '<b>' . $G_VP . '</b>' ) !== false ) { $i_chinh = (int) $i_h; break; }
+}
+t( 'dựng cảnh: tìm được hàng của bảng chính', $i_chinh >= 0, $tb_gh );
+t( '🔴 hàng ấy mang nhãn CHÍNH', strpos( $hg[ $i_chinh ], 'nhan-chinh' ) !== false, $hg[ $i_chinh ] );
+t( 'dựng cảnh: có hàng đứng ngay sau nó', isset( $hg[ $i_chinh + 1 ] ), $tb_gh );
+t( '🔴 hàng NGAY SAU là cơ sở phụ của nó, thụt vào — không rải rác theo bảng chữ cái',
+	strpos( $hg[ $i_chinh + 1 ], '<b>' . $G_SU . '</b>' ) !== false
+	&& strpos( $hg[ $i_chinh + 1 ], 'nhan-phu' ) !== false
+	&& strpos( $hg[ $i_chinh + 1 ], 'hang-phu' ) !== false, $hg[ $i_chinh + 1 ] );
+/* 🔴 CANH QUAN HỆ HAI LỚP. Bảng có một nhánh vớt "cơ sở phụ mà bảng CHÍNH của nó nằm ngoài
+   tầm xem" — nhánh ấy HIỆN KHÔNG BAO GIỜ chạy, vì khối này đòi quyền `ngoai_coso` (bậc Quản
+   lý) mà bậc ấy đã có `cong_tat_ca` nên `ds_coso_xem()` trả về MỌI cơ sở. Giữ nhánh là để
+   phòng ngày `ds_coso_xem()` lọc theo cơ sở phụ trách đúng như tên nó gợi ý — lúc ấy thiếu
+   nhánh này là cơ sở phụ biến mất khỏi màn và không ai gỡ ghép được nữa.
+   Nói thẳng quan hệ ấy ra đây, kèm phép thử: quan hệ đổi thì phép thử đỏ, và người sửa biết
+   phải xem lại nhánh vớt. */
+t( '🔴 ai mở được khối Ghép thì thấy MỌI cơ sở (nên nhánh vớt hiện là phòng xa)',
+	VHCC_Vai::duoc( array( 'role' => 'Quản lý' ), 'ngoai_coso' )
+	&& VHCC_Vai::duoc( array( 'role' => 'Quản lý' ), 'cong_tat_ca' ) );
+t( 'cột cuối nói bằng CÂU công chạy đi đâu, không bằng thuật ngữ',
+	strpos( $h_ghc, 'cộng vào bảng ' . $G_VP ) !== false, $h_ghc );
+t( 'và màn dạy cách đọc bảng ngay trên đầu',
+	strpos( $h_ghc, 'Cách đọc bảng dưới' ) !== false, $h_ghc );
 $_COOKIE[ VHCC_Web::COOKIE ] = $tok_gh;
 $_POST = array( 'viec' => 'ghep_cs', 'ky' => VHCC_Web::chu_ky( $tok_gh ),
 	'gh' => array( $G_SU => '' ) );                       // bỏ ghép
