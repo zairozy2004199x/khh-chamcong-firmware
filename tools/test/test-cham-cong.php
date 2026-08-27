@@ -2702,8 +2702,17 @@ t( 'nói rõ máy chấm công VẪN mang mã cũ',
 /* Người có mặt ở cơ sở NGOÀI quyền -> chỉ Admin. */
 vhcc_cham( 'POSH_HCM', '2026-08-03', 'D2', '', '08:00:00', '17:00:00' );
 $U_QL_BT = array( 'name' => 'QL', 'role' => 'QUAN_LY', 'coso' => 'TUTU_BT' );
-t( 'Quản lý (không phải Admin) vẫn đổi được vì Quản lý có quyền mọi cơ sở',
-	! empty( VHCC_NhanSu::doi_ma_nv( $U_QL_BT, 'D2', 'D3' )['ok'] ) );
+/* 🔴 SIẾT 27/08/2026 — TRƯỚC ĐÂY QUẢN LÝ ĐỔI ĐƯỢC MÃ, NAY KHÔNG.
+   Anh Thắng: *"Mã NV thì cố định chỉ có admin chỉnh được thôi"*. Đây là THU HẸP quyền có chủ
+   ý: Quản lý mất một việc họ từng làm được, nên phép thử cũ ("Quản lý vẫn đổi được") bị lật
+   ngược ở đây chứ không phải bị xoá — lật ngược thì còn đọc ra được là luật đã đổi, chứ xoá
+   đi thì mai kia có người nới lại mà không ai thấy gì sai. */
+$r_ql = VHCC_NhanSu::doi_ma_nv( $U_QL_BT, 'D2', 'D3' );
+t( '🔴 Quản lý KHÔNG còn đổi được Mã NV', empty( $r_ql['ok'] ), $r_ql );
+t( 'và câu chối nói rõ chỉ Admin',
+	isset( $r_ql['error'] ) && stripos( $r_ql['error'], 'Admin' ) !== false, $r_ql );
+t( 'Kế toán cũng không', empty( VHCC_NhanSu::doi_ma_nv( $U_KT, 'D2', 'D3' )['ok'] ) );
+t( 'Admin thì đổi được', ! empty( VHCC_NhanSu::doi_ma_nv( $U_AD, 'D2', 'D3' )['ok'] ) );
 
 /* ---- CHO NGHỈ VIỆC: đường ĐÚNG thay cho xoá ---- */
 /* Cho nghỉ việc là việc HỒ SƠ -> Kế toán trở lên (mô hình 25/08/2026). Cửa hàng trưởng báo
@@ -2722,6 +2731,14 @@ t( 'hồ sơ vẫn còn', null !== VHCC_NhanSu::ho_so( 'D3' ) );
 
 /* ---- XOÁ NHIỀU: từng cái đi qua đúng chốt của xoa_ho_so ---- */
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'Z1', 'cua_hang' => 'TUTU_BT' ) );
+/* 🔴 XOÁ HỒ SƠ CŨNG SIẾT LÊN ADMIN — cùng lý do với đổi mã: cả hai đều bỏ chỗ bám của dữ liệu
+   cũ. Chốt "còn chấm công thì không xoá" ở dưới VẪN GIỮ, hai tầng không thay nhau. */
+$r_xq = VHCC_NhanSu::xoa_ho_so( $U_QL_BT, 'Z1' );
+t( '🔴 Quản lý KHÔNG còn xoá được hồ sơ', empty( $r_xq['ok'] ), $r_xq );
+t( 'Kế toán cũng không', empty( VHCC_NhanSu::xoa_ho_so( $U_KT, 'Z1' )['ok'] ) );
+t( 'và câu chối chỉ đường sang "cho nghỉ việc" thay vì xoá',
+	isset( $r_xq['error'] ) && stripos( $r_xq['error'], 'nghỉ việc' ) !== false, $r_xq );
+t( 'hồ sơ chưa bị đụng', null !== VHCC_NhanSu::ho_so( 'Z1' ) );
 $r = VHCC_NhanSu::xoa_nhieu_ho_so( $U_AD, array( 'Z1', 'D3' ) );
 teq( 'xoá được người chưa có chấm công', array( 'Z1' ), $r['xong'] );
 teq( 'và bỏ người còn chấm công, kèm lý do', 1, count( $r['bo'] ) );
@@ -7944,7 +7961,15 @@ t( '🔴 đặt chốt một-giờ TRƯỚC khi bật cờ nạp lại — đặ
    mất trạng thái "theo vai" — mà mất nó thì gỡ một ngoại lệ đã đặt là không gỡ được nữa. */
 delete_option( VHCC_Cong::O );
 $nt_h = vhcc_ns( 'Kế toán' );
-t( '🔴 ô quyền là radio, không còn ô xổ', strpos( $nt_h, '<select class="o-q' ) === false );
+/* ⚠️ SOI ĐÚNG Ô QUYỀN, ĐỪNG SOI TIỀN TỐ LỚP. Bản đầu kiểm `<select class="o-q` — mà cột Vai
+   trò (thêm sau) dùng lớp `o-q-vai`, khớp luôn tiền tố ấy, nên phép thử đỏ oan trong khi ô
+   quyền vẫn đúng là radio. Ô quyền nhận ra bằng TÊN TRƯỜNG `o[…]`, không phải bằng tên lớp. */
+t( '🔴 ô quyền là radio, không còn ô xổ',
+	preg_match( '/<select[^>]*name="o\[/', $nt_h ) === 0, $nt_h );
+/* Cột Vai trò thì NGƯỢC LẠI — cố ý là ô xổ: vai có sáu giá trị chứ không phải ba, vẽ sáu nút
+   cạnh nhau là mỗi hàng dài thêm một gang tay. Hai kiểu ô khác nhau ở đây là có chủ ý. */
+t( 'cột Vai trò là ô xổ và sửa được',
+	preg_match( '/<select[^>]*name="vai\[/', $nt_h ) === 1, $nt_h );
 t( 'ô quyền dùng radio', strpos( $nt_h, 'type="radio"' ) !== false );
 foreach ( array( 'value=""' => 'theo vai', 'value="mo"' => 'mở', 'value="khoa"' => 'khoá' ) as $nt_v => $nt_ten ) {
 	t( 'vẫn đủ ba trạng thái — có nút "' . $nt_ten . '"', strpos( $nt_h, $nt_v ) !== false );
@@ -8043,6 +8068,146 @@ ob_start(); VHCC_TrangNS::phuc_vu(); ob_get_clean();
 $_POST = array(); $_COOKIE = array();
 teq( '🔴 Nhân viên bấm nút cột cũng không ghi được gì', '', VHCC_Cong::o( 'C5', 'tram' ) );
 delete_option( VHCC_Cong::O );
+
+/* ---- 60p. ĐỔI VAI TRÒ NGAY TẠI TRANG QUẢN LÝ NHÂN SỰ ----
+   Anh Thắng 27/08/2026: *"chỗ cột vai trò vẫn đang khóa chưa đổi vai trò được"*.
+
+   🔴 ĐỔI VAI LÀ ĐỔI QUYỀN, VÀ ĐÂY LÀ CHỖ MỘT NGƯỜI TỰ NÂNG MÌNH LÊN ADMIN.
+   Cho Kế toán sửa ô vai mà không chốt gì thì việc đầu tiên làm được là mở ô của CHÍNH MÌNH,
+   chọn Admin, bấm Lưu — xong là có PIN xem được PIN mọi người, máy chấm công, toàn bộ cài đặt.
+   Không lỗi nào phát ra, không dòng nhật ký nào. Ba chốt dưới đây KHÁC NHAU, không phải một
+   chốt viết ba lần — bỏ bất kỳ cái nào là hai cái kia trở nên vô dụng. */
+vhcc_dung_bang();
+foreach ( array(
+	array( 'V_NV',  'Người NV',  'Nhân viên' ),
+	array( 'V_CHT', 'Người CHT', 'Cửa hàng trưởng' ),
+	array( 'V_KT',  'Người KT',  'Kế toán cá nhân' ),
+	array( 'V_AD',  'Người AD',  'Admin' ),
+) as $vv ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $vv[0], 'ho_ten' => $vv[1],
+		'vai_tro' => $vv[2], 'cua_hang' => 'TUTU_BT' ) );
+}
+$vt_kt = array( 'name' => 'Kế', 'role' => 'Kế toán cá nhân', 'coso' => 'TUTU_BT', 'ma_nv' => 'V_KT' );
+$vt_ad = array( 'name' => 'Quản', 'role' => 'Admin', 'coso' => 'TUTU_BT', 'ma_nv' => 'V_AD' );
+
+/* Đường thường: Kế toán nâng một Nhân viên lên Cửa hàng trưởng. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_kt, 'V_NV', 'Cửa hàng trưởng' );
+t( 'Kế toán nâng Nhân viên lên Cửa hàng trưởng được', ! empty( $r['ok'] ), $r );
+teq( 'và hồ sơ ghi đúng', 'Cửa hàng trưởng', VHCC_NhanSu::ho_so( 'V_NV' )['vai_tro'] );
+
+/* CHỐT 1 — không đặt vai CAO HƠN bậc của chính mình. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_kt, 'V_NV', 'Admin' );
+t( '🔴 Kế toán KHÔNG nâng ai lên Admin được', empty( $r['ok'] ), $r );
+t( 'câu chối nói rõ là vì vai của chính mình',
+	isset( $r['error'] ) && stripos( $r['error'], 'cao hơn vai của chính mình' ) !== false, $r );
+teq( 'và hồ sơ không bị đụng', 'Cửa hàng trưởng', VHCC_NhanSu::ho_so( 'V_NV' )['vai_tro'] );
+
+/* CHỐT 2 — không ĐỤNG người đang ở bậc cao hơn.
+   ⚠️ Thiếu chốt này thì chốt 1 vô dụng: không nâng được mình lên thì HẠ HẾT người trên xuống,
+   kết quả y hệt — Kế toán thành người cao nhất còn lại. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_kt, 'V_AD', 'Nhân viên' );
+t( '🔴 Kế toán KHÔNG hạ được Admin xuống', empty( $r['ok'] ), $r );
+t( 'câu chối nói rõ người đó đang ở bậc cao hơn',
+	isset( $r['error'] ) && stripos( $r['error'], 'cao hơn vai của bạn' ) !== false, $r );
+teq( 'Admin vẫn nguyên vai', 'Admin', VHCC_NhanSu::ho_so( 'V_AD' )['vai_tro'] );
+
+/* CHỐT 3 — không tự đổi vai của CHÍNH MÌNH, kể cả hạ.
+   ⚠️ Admin duy nhất tự hạ xuống Nhân viên là cả hệ không còn ai vào được màn cài đặt, và không
+   có đường gỡ nào ngoài sửa thẳng CSDL. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_ad, 'V_AD', 'Nhân viên' );
+t( '🔴 Admin KHÔNG tự hạ vai mình được', empty( $r['ok'] ), $r );
+t( 'và câu chối chỉ đường nhờ Admin khác',
+	isset( $r['error'] ) && stripos( $r['error'], 'chính mình' ) !== false, $r );
+$r = VHCC_NhanSu::dat_vai_tro( $vt_kt, 'V_KT', 'Admin' );
+t( '🔴 Kế toán cũng không tự NÂNG mình', empty( $r['ok'] ), $r );
+t( 'câu chối nói đúng chuyện đang xảy ra (tự sửa mình), không đổ nhầm cho bậc',
+	isset( $r['error'] ) && stripos( $r['error'], 'chính mình' ) !== false, $r );
+teq( 'vai của chính người khai vẫn nguyên', 'Kế toán cá nhân', VHCC_NhanSu::ho_so( 'V_KT' )['vai_tro'] );
+
+/* Admin đổi được vai người khác, kể cả lên Admin. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_ad, 'V_CHT', 'Quản lý' );
+t( 'Admin đổi được vai người khác', ! empty( $r['ok'] ), $r );
+teq( 'ghi đúng', 'Quản lý', VHCC_NhanSu::ho_so( 'V_CHT' )['vai_tro'] );
+
+/* Chốt chung: bậc dưới Kế toán không đụng được gì.
+   ⚠️ Phép thử này phải đặt vai NGANG BẬC người khai, không phải cao hơn. Bản đầu thử "Cửa hàng
+   trưởng nâng ai đó lên Quản lý" — vẫn XANH kể cả khi bỏ hẳn chốt quyền `ho_so`, vì chốt "không
+   đặt vai cao hơn bậc mình" đã chặn trước. Phép thử khen nhầm người, y như lần trước ở nút cột.
+   Đặt đúng bậc của chính họ (Cửa hàng trưởng nâng một Nhân viên lên Cửa hàng trưởng) thì cả ba
+   chốt bậc đều cho qua, và chỉ còn chốt quyền đứng đó — lúc ấy mới đo được nó. */
+$vt_cht = array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT', 'ma_nv' => 'V_CHT' );
+$r = VHCC_NhanSu::dat_vai_tro( $vt_cht, 'V_NV', 'Cửa hàng trưởng' );
+t( '🔴 Cửa hàng trưởng KHÔNG đổi được vai ai, kể cả NGANG bậc mình', empty( $r['ok'] ), $r );
+t( 'và câu chối nói rõ cần bậc Kế toán',
+	isset( $r['error'] ) && stripos( $r['error'], 'Kế toán' ) !== false, $r );
+t( 'Nhân viên lại càng không',
+	empty( VHCC_NhanSu::dat_vai_tro( array( 'role' => 'Nhân viên', 'ma_nv' => 'V_X' ), 'V_NV', 'Nhân viên' )['ok'] ) );
+t( 'Cửa hàng trưởng cũng không nâng ai lên bậc trên mình',
+	empty( VHCC_NhanSu::dat_vai_tro( $vt_cht, 'V_NV', 'Quản lý' )['ok'] ) );
+
+/* ⚠️ LƯU NGUYÊN CHUỖI, KHÔNG QUY VỀ TÊN CHUNG. Hệ chấm công gộp "Kế toán cá nhân" và "Kế toán
+   NCC" vào một bậc, nhưng app Vận hành chi phí PHÂN BIỆT hai vai ấy. Ghi đè thành "Kế toán" là
+   bên chi phí mất phân biệt, mà bên này không thấy gì khác cả. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_ad, 'V_NV', 'Kế toán NCC' );
+t( 'đặt được vai "Kế toán NCC"', ! empty( $r['ok'] ), $r );
+teq( '🔴 và lưu NGUYÊN chuỗi, không quy về "Kế toán"',
+	'Kế toán NCC', VHCC_NhanSu::ho_so( 'V_NV' )['vai_tro'] );
+
+/* Vai lạ bị chối — nhận bừa thì `VHCC_Vai::ma()` đẩy nó về Nhân viên, tức ô vai trở thành một
+   đường HẠ quyền người khác mà không ai gọi tên được việc vừa xảy ra. */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_ad, 'V_NV', 'Sếp Tổng' );
+t( '🔴 vai không có trong hệ thì bị chối', empty( $r['ok'] ), $r );
+teq( 'và hồ sơ giữ nguyên', 'Kế toán NCC', VHCC_NhanSu::ho_so( 'V_NV' )['vai_tro'] );
+t( 'hồ sơ không có thì chối', empty( VHCC_NhanSu::dat_vai_tro( $vt_ad, 'KHONG_CO', 'Quản lý' )['ok'] ) );
+
+/* Đặt lại đúng vai đang có thì KHÔNG tính là một lượt đổi — nếu không thì mỗi lần bấm Lưu đều
+   báo "đã đổi vai cho 50 người". */
+$r = VHCC_NhanSu::dat_vai_tro( $vt_ad, 'V_NV', 'Kế toán NCC' );
+t( 'lưu lại y nguyên thì ok nhưng không tính là đổi', ! empty( $r['ok'] ) && empty( $r['doi'] ), $r );
+
+/* ---- 60q. ĐỔI VAI QUA MÀN HÌNH ---- */
+function vhcc_ns_luu( $vai_toi, $ma_toi, $post ) {
+	$_GET = array(); $_POST = array();
+	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Khai', $vai_toi, 'TUTU_BT', $ma_toi );
+	$_POST = array_merge( array( 'viec' => 'luu_quyen',
+		'ky' => VHCC_Web::chu_ky( $_COOKIE[ VHCC_Web::COOKIE ] ) ), $post );
+	ob_start(); VHCC_TrangNS::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_COOKIE = array();
+	return $h;
+}
+vhcc_ns_luu( 'Admin', 'V_AD', array( 'o' => array( 'V_NV' => array( 'tram' => '' ) ),
+	'vai' => array( 'V_NV' => 'Nhân viên' ) ) );
+teq( 'bấm Lưu trên màn hình thì vai vào hồ sơ thật', 'Nhân viên', VHCC_NhanSu::ho_so( 'V_NV' )['vai_tro'] );
+
+/* 🔴 LỖI VAI PHẢI HIỆN RA, KHÔNG ĐƯỢC NUỐT. Ba chốt trên chỉ có tác dụng nếu người bấm ĐỌC
+   ĐƯỢC câu chối. Nuốt đi thì màn báo "đã lưu", ô vai trở về giá trị cũ, và người ta tưởng hệ
+   thống hỏng chứ không biết mình vừa bị chặn. */
+$vq_h = vhcc_ns_luu( 'Kế toán cá nhân', 'V_KT', array( 'o' => array( 'V_NV' => array( 'tram' => '' ) ),
+	'vai' => array( 'V_NV' => 'Admin' ) ) );
+teq( 'Kế toán không nâng được ai lên Admin qua màn hình', 'Nhân viên', VHCC_NhanSu::ho_so( 'V_NV' )['vai_tro'] );
+t( '🔴 và màn hình NÓI RA vì sao, không im lặng',
+	strpos( $vq_h, 'cao hơn vai của chính mình' ) !== false, $vq_h );
+
+/* Người khai không đổi được ai thì ô vai in ra CHỮ, không phải ô xổ — vẽ ô xổ cho hàng họ
+   không đụng được là bấm xong bấm Lưu mới nhận câu chối, mà giữa một trang 50 người thì câu
+   chối ấy trôi mất và người ta tưởng mình đã đổi. */
+$_GET = array(); $_POST = array();
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Kế', 'Kế toán cá nhân', 'TUTU_BT', 'V_KT' );
+ob_start(); VHCC_TrangNS::phuc_vu(); $vq_h2 = ob_get_clean();
+$_COOKIE = array();
+t( '🔴 hàng của CHÍNH người đang khai không có ô xổ vai',
+	preg_match( '/<select[^>]*name="vai\[V_KT\]"/', $vq_h2 ) === 0, $vq_h2 );
+t( 'và ghi rõ "(chính bạn)"', strpos( $vq_h2, 'chính bạn' ) !== false );
+t( '🔴 hàng của người ở bậc CAO HƠN cũng không có ô xổ',
+	preg_match( '/<select[^>]*name="vai\[V_AD\]"/', $vq_h2 ) === 0, $vq_h2 );
+t( 'Kế toán KHÔNG thấy lựa chọn "Admin" trong ô xổ nào',
+	strpos( $vq_h2, '<option value="Admin"' ) === false, $vq_h2 );
+
+/* Đường sang hồ sơ đầy đủ — anh Thắng: *"cấu hình này nó thông với thông tin nhân viên"*. */
+t( 'mỗi hàng có đường mở hồ sơ đầy đủ', strpos( $vq_h2, 'class="mo-hs"' ) !== false );
+t( 'và đường ấy trỏ đúng màn Hồ sơ kèm mã người đó',
+	strpos( $vq_h2, 'man=ho_so' ) !== false && strpos( $vq_h2, 'q=V_NV' ) !== false, $vq_h2 );
+vhcc_dung_bang();
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

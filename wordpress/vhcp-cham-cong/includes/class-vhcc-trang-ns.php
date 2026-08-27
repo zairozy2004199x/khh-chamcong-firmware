@@ -216,9 +216,47 @@ class VHCC_TrangNS {
 		if ( ! $sach ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+
+		$vai = self::luu_vai( $toi );
 		$doi = (int) $kq['doi'];
-		if ( ! $doi ) { return array( array( 'canh' => 'Không có ô nào đổi — chưa lưu gì.' ) ); }
-		return array( array( 'ok' => 'Đã lưu ' . $doi . ' ô quyền vào trang.' ) );
+
+		$bao = array();
+		if ( $doi )          { $bao[] = array( 'ok' => 'Đã lưu ' . $doi . ' ô quyền vào trang.' ); }
+		if ( $vai['doi'] )   { $bao[] = array( 'ok' => 'Đã đổi vai trò cho ' . $vai['doi'] . ' người.' ); }
+		/* 🔴 LỖI VAI TRÒ PHẢI HIỆN RA, KHÔNG ĐƯỢC NUỐT. Mấy chốt trong `dat_vai_tro()` (không
+		   nâng quá bậc mình, không đụng người trên mình, không tự sửa mình) chỉ có tác dụng nếu
+		   người bấm ĐỌC ĐƯỢC câu chối. Nuốt đi thì màn hình báo "đã lưu", ô vai trở về giá trị
+		   cũ, và người ta tưởng hệ thống hỏng chứ không biết mình vừa bị chặn. */
+		foreach ( $vai['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
+		if ( ! $bao ) { return array( array( 'canh' => 'Không có ô nào đổi — chưa lưu gì.' ) ); }
+		return $bao;
+	}
+
+	/**
+	 * Ghi những ô vai trò vừa đổi.
+	 *
+	 * ⚠️ ĐI QUA `VHCC_NhanSu::dat_vai_tro()` TỪNG NGƯỜI, không tự ghi thẳng vào bảng. Ba chốt
+	 *    chống tự nâng quyền nằm trong hàm ấy; ghi tắt ở đây là mở một cửa thứ hai không ai gác.
+	 */
+	private static function luu_vai( $toi ) {
+		$gui = isset( $_POST['vai'] ) ? wp_unslash( $_POST['vai'] ) : array();
+		$ra  = array( 'doi' => 0, 'loi' => array() );
+		if ( ! is_array( $gui ) ) { return $ra; }
+		foreach ( $gui as $ma => $v ) {
+			$ma_s = sanitize_text_field( (string) $ma );
+			$v_s  = sanitize_text_field( is_array( $v ) ? '' : (string) $v );
+			if ( '' === $ma_s ) { continue; }
+			$r = VHCC_NhanSu::dat_vai_tro( $toi, $ma_s, $v_s );
+			if ( empty( $r['ok'] ) ) {
+				/* Gộp theo câu, không in 50 dòng giống hệt nhau: bấm nhầm một cột là 50 hàng
+				   cùng trượt vì cùng một lý do, và 50 dòng báo thì không ai đọc dòng nào. */
+				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
+				continue;
+			}
+			if ( ! empty( $r['doi'] ) ) { $ra['doi']++; }
+		}
+		$ra['loi'] = array_values( $ra['loi'] );
+		return $ra;
 	}
 
 	/**
@@ -332,7 +370,13 @@ class VHCC_TrangNS {
 			. '.cot-nut button:last-child{border-radius:0 5px 5px 0}'
 			. '.cot-nut button+button{border-left:0}'
 			. '.cot-nut button:hover{background:#f1f5f9;color:var(--chu)}'
-			. '.chua-ma{color:var(--do);font-size:12px}';
+			. '.chua-ma{color:var(--do);font-size:12px}'
+			. 'select.o-q-vai{padding:4px 6px;font-size:12.5px;border-radius:6px;max-width:170px}'
+			/* Đường sang hồ sơ: nhạt và nhỏ, chỉ đậm lên khi rê chuột — mỗi hàng có một cái,
+			   tô đậm sẵn là cả cột tên biến thành một rừng liên kết xanh. */
+			. '.mo-hs{font-size:11px;color:var(--mo);text-decoration:none;white-space:nowrap;'
+			. 'border:1px solid var(--vien);border-radius:5px;padding:1px 5px;margin-left:4px}'
+			. '.mo-hs:hover{color:var(--xanh);border-color:var(--xanh)}';
 	}
 
 	/**
@@ -506,10 +550,20 @@ class VHCC_TrangNS {
 			$ma = trim( (string) $r['ma_nv'] );
 			echo '<tr>';
 			echo '<td><b>' . esc_html( $ma ) . '</b></td>';
-			echo '<td>' . esc_html( (string) $r['ho_ten'] ) . '</td>';
+			/* Nút mở thẳng hồ sơ người này ở màn Hồ sơ & tài khoản. Anh Thắng: *"bổ sung thêm
+			   1 số thông tin nhân viên, với cấu hình này nó thông với thông tin nhân viên"*.
+			   🔴 KHÔNG dựng lại màn hồ sơ ở đây. Thêm/sửa/xoá nhân sự đã có đủ ở màn kia; làm
+			      lần hai là hai màn cùng ghi một bảng, và sớm muộn hai bên lệch luật. Nối
+			      đường đi thì vẫn một lần bấm mà chỉ có MỘT nơi giữ luật. */
+			echo '<td>' . esc_html( (string) $r['ho_ten'] );
+			if ( '' !== $ma && class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
+				echo ' <a class="mo-hs" title="Mở hồ sơ đầy đủ — sửa thông tin, PIN, lương"'
+					. ' href="' . esc_url( add_query_arg(
+						array( 'man' => 'ho_so', 'q' => $ma ), VHCC_Web::url() ) ) . '">hồ sơ ↗</a>';
+			}
+			echo '</td>';
 			echo '<td>' . esc_html( (string) $r['cua_hang'] ) . '</td>';
-			$ma_vai = VHCC_Vai::ma( isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' );
-			echo '<td class="o-vai">' . esc_html( VHCC_Vai::TEN[ $ma_vai ] ) . '</td>';
+			echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) . '</td>';
 
 			/* Giả một "người" chỉ có mã + vai, để hỏi `VHCC_Cong` xem MẶC ĐỊNH của họ ra sao.
 			   ⚠️ Hỏi bằng CHÍNH hàm mà cửa vào dùng, không tự tính lại bậc ở đây — hai phép
@@ -540,6 +594,59 @@ class VHCC_TrangNS {
 
 		self::thanh_trang( $p, $so_tr, $tong );
 		echo '</div>';
+	}
+
+	/**
+	 * Ô VAI TRÒ — sửa được ngay tại đây.
+	 *
+	 * Anh Thắng 27/08/2026: *"chỗ cột vai trò vẫn đang khóa chưa đổi vai trò được"*.
+	 *
+	 * 🔴 Ô XỔ, KHÔNG PHẢI BA NÚT như cột quyền. Vai có SÁU giá trị chứ không phải ba; vẽ sáu
+	 *    nút cạnh nhau là mỗi hàng dài thêm một gang tay, mà cột này người ta đụng tới hiếm hơn
+	 *    cột quyền nhiều. Hai kiểu ô khác nhau ở đây là CÓ CHỦ Ý, không phải quên đồng bộ.
+	 *
+	 * ⚠️ CHỈ VẼ Ô XỔ KHI NGƯỜI KHAI THẬT SỰ ĐỔI ĐƯỢC. Vẽ cho cả những hàng họ không đụng được
+	 *    thì bấm xong bấm Lưu mới nhận câu chối — mà giữa một trang 50 người thì câu chối ấy
+	 *    trôi mất, và người ta tưởng mình đã đổi. Không đổi được thì in ra chữ, kèm lý do ở
+	 *    thuộc tính `title`.
+	 */
+	private static function o_vai( $toi, $ma, $vai_cu ) {
+		$ma_vai  = VHCC_Vai::ma( $vai_cu );
+		$ten_cu  = VHCC_Vai::TEN[ $ma_vai ];
+		$bac_toi = VHCC_Vai::bac( $toi );
+		$ma_toi  = trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) );
+
+		if ( '' === $ma ) { return '<span class="o-vai">' . esc_html( $ten_cu ) . '</span>'; }
+		if ( '' !== $ma_toi && $ma_toi === $ma ) {
+			return '<span class="o-vai" title="Không tự đổi vai trò của chính mình được">'
+				. esc_html( $ten_cu ) . ' <span class="chua-ma">(chính bạn)</span></span>';
+		}
+		if ( VHCC_Vai::bac( array( 'role' => (string) $vai_cu ) ) > $bac_toi ) {
+			return '<span class="o-vai" title="Người này đang ở bậc cao hơn vai của bạn">'
+				. esc_html( $ten_cu ) . ' 🔒</span>';
+		}
+
+		/* Danh sách vai đọc từ `VHCC_Auth` — nơi duy nhất khai tên vai của cả hệ — rồi CẮT ở
+		   bậc của người đang khai. Kế toán không thấy dòng "Admin" trong ô xổ, nên không có
+		   đường bấm nhầm rồi nhận câu chối. */
+		$h = '<select class="o-q-vai" name="vai[' . esc_attr( $ma ) . ']">';
+		$co_cu = false;
+		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $ten ) {
+			if ( VHCC_Vai::bac( array( 'role' => $ten ) ) > $bac_toi ) { continue; }
+			$chon = ( trim( (string) $vai_cu ) === $ten );
+			if ( $chon ) { $co_cu = true; }
+			$h .= '<option value="' . esc_attr( $ten ) . '"' . selected( true, $chon, false ) . '>'
+				. esc_html( $ten ) . '</option>';
+		}
+		/* ⚠️ Hồ sơ đang ghi một chuỗi KHÔNG có trong danh sách ("ketoan", "NV", ô trống…) thì
+		   phải giữ nguyên nó làm lựa chọn đang chọn. Không giữ thì ô xổ tự nhảy về dòng đầu, và
+		   người khai chỉ bấm Lưu một cái là đổi vai cả trang mà không hề định đổi ai. */
+		if ( ! $co_cu ) {
+			$tho = trim( (string) $vai_cu );
+			$h  .= '<option value="' . esc_attr( $tho ) . '" selected>'
+				. esc_html( '' === $tho ? '— chưa khai —' : $tho . ' (chưa chuẩn)' ) . '</option>';
+		}
+		return $h . '</select>';
 	}
 
 	/**

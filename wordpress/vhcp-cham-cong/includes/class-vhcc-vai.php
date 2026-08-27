@@ -119,6 +119,19 @@ class VHCC_Vai {
 		                                  // có quyền chỉnh sửa lại giờ công cho nhân viên"* —
 		                                  // đúng chữ ADMIN, không nới xuống Quản lý.
 		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác
+		'doi_ma_nv'    => self::ADMIN,    // ĐỔI Mã NV của một người
+		                                  // 🔴 Anh Thắng 27/08/2026: *"Mã NV thì cố định chỉ có
+		                                  // admin chỉnh được thôi"*. Trước đây gác bằng
+		                                  // `ngoai_coso` (bậc Quản lý) — tức Quản lý đổi được.
+		                                  // Mã NV là KHOÁ: mọi lượt chấm công, mọi dòng lương,
+		                                  // mọi bảng có cột ma_nv đều trỏ vào nó. Đổi sai một
+		                                  // mã là công của người này rơi sang người kia, và chỉ
+		                                  // lộ ra ở bảng lương cuối tháng.
+		'xoa_ho_so'    => self::ADMIN,    // XOÁ hẳn một hồ sơ khỏi sổ
+		                                  // ⚠️ Cùng bậc với đổi mã, cùng một lý do: cả hai đều
+		                                  // làm dữ liệu cũ mất chỗ bám. `VHCC_NhanSu::xoa_ho_so`
+		                                  // vẫn chặn thêm khi người đó CÒN chấm công — hai
+		                                  // tầng, không thay nhau.
 	);
 
 	/**

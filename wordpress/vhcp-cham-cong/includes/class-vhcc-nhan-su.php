@@ -276,6 +276,82 @@ class VHCC_NhanSu {
 		return array( 'ok' => true, 'bang' => $dem, 'cu' => $cu, 'moi' => $moi );
 	}
 
+	/**
+	 * ĐẶT VAI TRÒ CHO MỘT NGƯỜI.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐỔI VAI LÀ ĐỔI QUYỀN — VÀ ĐÂY LÀ CHỖ MỘT NGƯỜI TỰ NÂNG MÌNH LÊN ADMIN
+	 * =========================================================================================
+	 * Cho Kế toán sửa ô vai trò mà không chốt gì thì việc đầu tiên làm được là mở ô của CHÍNH
+	 * MÌNH, chọn Admin, bấm Lưu. Xong là có PIN xem được PIN của mọi người, máy chấm công, và
+	 * toàn bộ cài đặt hệ thống. Không lỗi nào phát ra, không dòng nhật ký nào.
+	 *
+	 * Nên ba chốt, và ba chốt này KHÁC NHAU chứ không phải một chốt viết ba lần:
+	 *   1. KHÔNG ĐẶT VAI CAO HƠN BẬC CỦA CHÍNH MÌNH — chặn đường nâng người khác lên trên đầu
+	 *      mình rồi nhờ họ nâng lại.
+	 *   2. KHÔNG ĐỤNG VÀO NGƯỜI ĐANG Ở BẬC CAO HƠN — chặn đường Kế toán hạ Admin xuống Nhân
+	 *      viên. Thiếu chốt này thì chốt 1 vô dụng: không nâng được mình lên thì hạ hết người
+	 *      trên xuống, kết quả y hệt.
+	 *   3. KHÔNG TỰ ĐỔI VAI CỦA CHÍNH MÌNH — kể cả hạ. Admin duy nhất tự hạ xuống Nhân viên là
+	 *      cả hệ thống không còn ai vào được màn cài đặt, và không có đường nào gỡ ra ngoài
+	 *      việc sửa thẳng CSDL.
+	 *
+	 * ⚠️ LƯU NGUYÊN CHUỖI NGƯỜI TA CHỌN, KHÔNG QUY VỀ TÊN CHUNG. Sổ đang có cả "Kế toán cá nhân"
+	 *    lẫn "Kế toán NCC" — hệ chấm công gộp cả hai vào một bậc, nhưng app Vận hành chi phí
+	 *    phân biệt chúng. Ghi đè thành "Kế toán" là bên chi phí mất phân biệt, mà bên này không
+	 *    thấy gì khác cả.
+	 *
+	 * @param array  $u      Người đang khai.
+	 * @param string $ma_nv  Mã NV của người bị đổi vai.
+	 * @param string $vai    Tên vai, phải nằm trong `VHCC_Auth::VAI_TRO_TAT_CA`.
+	 */
+	public static function dat_vai_tro( $u, $ma_nv, $vai ) {
+		global $wpdb;
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Đổi vai trò cần vai Kế toán trở lên.' );
+		}
+		$ma  = trim( (string) $ma_nv );
+		$vai = trim( (string) $vai );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		/* Danh sách TRẮNG, đọc từ `VHCC_Auth` — nơi duy nhất khai tên vai của cả hệ. Nhận bừa
+		   một chuỗi lạ thì `VHCC_Vai::ma()` đẩy nó về Nhân viên, tức là ô vai trò thành một
+		   đường HẠ quyền người khác mà không ai gọi tên được việc vừa xảy ra. */
+		if ( ! in_array( $vai, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) {
+			return array( 'ok' => false, 'error' => 'Vai trò "' . $vai . '" không có trong hệ.' );
+		}
+		$cu = self::ho_so( $ma );
+		if ( ! $cu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_quyen_coso( $u, $cu['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
+		}
+
+		$bac_toi = VHCC_Vai::bac( $u );
+		/* Chốt 3 trước hai chốt kia: câu chối của nó nói đúng chuyện đang xảy ra, còn hai chốt
+		   kia sẽ nói nhầm thành "vai cao hơn bậc của bạn" khi người ta tự sửa chính mình. */
+		$ma_toi = trim( (string) ( isset( $u['ma_nv'] ) ? $u['ma_nv'] : '' ) );
+		if ( '' !== $ma_toi && $ma_toi === $ma ) {
+			return array( 'ok' => false, 'error' => 'Không tự đổi vai trò của chính mình được — '
+				. 'nhờ một Admin khác đổi giúp.' );
+		}
+		if ( VHCC_Vai::bac( array( 'role' => $vai ) ) > $bac_toi ) {
+			return array( 'ok' => false, 'error' => 'Không đặt được vai cao hơn vai của chính mình ('
+				. VHCC_Vai::ten( $u ) . ').' );
+		}
+		if ( VHCC_Vai::bac( array( 'role' => (string) $cu['vai_tro'] ) ) > $bac_toi ) {
+			return array( 'ok' => false, 'error' => trim( (string) $cu['ho_ten'] ) . ' đang mang vai '
+				. VHCC_Vai::ten( array( 'role' => (string) $cu['vai_tro'] ) )
+				. ' — cao hơn vai của bạn, nên không đổi được.' );
+		}
+
+		if ( trim( (string) $cu['vai_tro'] ) === $vai ) { return array( 'ok' => true, 'doi' => false ); }
+		$ok = $wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+			array( 'vai_tro' => $vai, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma_nv' => $ma ) );
+		return ( false === $ok )
+			? array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error )
+			: array( 'ok' => true, 'doi' => true );
+	}
+
 	public static function ds_coso() {
 		global $wpdb;
 		$ds = array();
@@ -375,8 +451,12 @@ class VHCC_NhanSu {
 	 */
 	public static function xoa_ho_so( $u, $ma_nv ) {
 		global $wpdb;
-		if ( ! self::co_quan_tri_nv( $u ) ) {
-			return array( 'ok' => false, 'error' => 'Xoá hồ sơ — ' . self::LOI_QT );
+		/* 🔴 CHỈ ADMIN — cùng bậc với đổi Mã NV, cùng một lý do: cả hai đều làm dữ liệu cũ mất
+		   chỗ bám. Trước đây bậc Quản lý. Chốt "còn chấm công thì không xoá" ở dưới VẪN GIỮ —
+		   hai tầng, không thay nhau. */
+		if ( ! VHCC_Vai::duoc( $u, 'xoa_ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Xoá hẳn một hồ sơ là bỏ chỗ bám của mọi dữ liệu '
+				. 'cũ mang mã ấy — chỉ Admin xoá được. Cho nghỉ việc thì đổi "Trạng thái làm việc".' );
 		}
 		$ma = trim( (string) $ma_nv );
 		$so = (int) $wpdb->get_var( $wpdb->prepare(
@@ -477,9 +557,12 @@ class VHCC_NhanSu {
 	 */
 	public static function doi_ma_nv( $u, $ma_cu, $ma_moi ) {
 		global $wpdb;
-		if ( ! self::co_quan_tri_nv( $u ) ) {
-			return array( 'ok' => false, 'error' => 'Đổi mã NV ảnh hưởng mọi hàng chấm công đã có — '
-				. self::LOI_QT );
+		/* 🔴 CHỈ ADMIN. Anh Thắng 27/08/2026: *"Mã NV thì cố định chỉ có admin chỉnh được thôi"*.
+		   Trước đây `co_quan_tri_nv()` (bậc Quản lý) — nay siết lên bậc Admin qua quyền riêng
+		   `doi_ma_nv`. Đây là THU HẸP quyền có chủ ý: Quản lý mất một việc họ từng làm được. */
+		if ( ! VHCC_Vai::duoc( $u, 'doi_ma_nv' ) ) {
+			return array( 'ok' => false, 'error' => 'Mã NV là khoá của mọi hàng chấm công và mọi dòng '
+				. 'lương đã có — chỉ Admin đổi được.' );
 		}
 		$xt = self::xem_truoc_doi_ma( $u, $ma_cu, $ma_moi );
 		if ( empty( $xt['ok'] ) ) { return $xt; }
