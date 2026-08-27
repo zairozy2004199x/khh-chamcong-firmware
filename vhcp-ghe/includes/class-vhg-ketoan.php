@@ -55,7 +55,7 @@ class VHG_KeToan {
 		$tu  = self::dau_ngay_( $ky );
 		$sql = 'SELECT h.coso_key ck, h.coso coso, COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr, '
 			. 'COALESCE(SUM(d.tong),0) tg, COUNT(*) n FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN '
-			. VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id WHERE d.chi_so_sau IS NOT NULL';
+			. VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id WHERE (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)';
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND d.ngay >= %s', $tu ); }
 		$sql .= ' GROUP BY h.coso_key, h.coso';
 		$ra = array();
@@ -224,7 +224,7 @@ class VHG_KeToan {
 		$ck = self::squash( $coso ); $d = self::ngay_( $ngay );
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.report_id, d.ma_may FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE h.coso_key=%s AND d.ngay=%s AND d.chi_so_sau IS NOT NULL', $ck, $d ), ARRAY_A );
+			. ' WHERE h.coso_key=%s AND d.ngay=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', $ck, $d ), ARRAY_A );
 		$t = array();
 		foreach ( (array) $rows as $r ) { $t[] = array( 'report_id' => $r['report_id'], 'ma_may' => $r['ma_may'] ); }
 		if ( ! count( $t ) ) { return array( 'ok' => false, 'message' => 'Không thấy ghế nào.' ); }
@@ -581,7 +581,7 @@ class VHG_KeToan {
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.report_id, d.ma_may, d.ngay, d.tien_mat, d.nop_so_tien, h.coso, h.coso_key'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND d.chi_so_sau IS NOT NULL', '%Y-%m', $th ), ARRAY_A );
+			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', '%Y-%m', $th ), ARRAY_A );
 		$out = array();
 		foreach ( (array) $rows as $r ) {
 			if ( (int) $r['tien_mat'] <= 0 ) { continue; }
@@ -786,7 +786,7 @@ class VHG_KeToan {
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.report_id, d.ma_may, d.ten, d.ngay, d.qr, h.coso'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND d.chi_so_sau IS NOT NULL', '%Y-%m', $th ), ARRAY_A );
+			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', '%Y-%m', $th ), ARRAY_A );
 		$ra = array(); $khop = 0; $tongBc = 0; $tongWeb = 0;
 		foreach ( (array) $rows as $r ) {
 			$web = self::qr_web_( $r['ma_may'], $r['ngay'] );
@@ -853,7 +853,7 @@ class VHG_KeToan {
 		$rows = $wpdb->get_results(
 			'SELECT DATE_FORMAT(d.ngay,"%Y-%m") th, h.coso, h.coso_key, d.tien_mat, d.nop_so_tien, d.nop_hinhthuc, d.qr'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE d.chi_so_sau IS NOT NULL', ARRAY_A );
+			. ' WHERE (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', ARRAY_A );
 		$out = array();
 		foreach ( (array) $rows as $r ) {
 			$th = (string) $r['th']; $k = $r['coso_key'];
@@ -1047,7 +1047,7 @@ class VHG_KeToan {
 	public static function misa_chungtu( $from, $to, $thang, $chi_tien_mat, $so_ct_dau ) {
 		global $wpdb;
 		$f = self::ngay_( $from ); $t = self::ngay_( $to );
-		$where = 'd.kt_duyet=1 AND d.chi_so_sau IS NOT NULL';
+		$where = 'd.kt_duyet=1 AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)';
 		$args = array();
 		if ( '' !== $f && '' !== $t ) { $where .= ' AND d.ngay BETWEEN %s AND %s'; $args[] = $f; $args[] = $t; }
 		else { $where .= ' AND DATE_FORMAT(d.ngay,%s)=%s'; $args[] = '%Y-%m'; $args[] = self::thang_( $thang ); }
@@ -1104,7 +1104,7 @@ class VHG_KeToan {
 		$th = self::thang_( $thang );
 		list( $y, $mo ) = array_map( 'intval', explode( '-', $th ) );
 		$soNgay = (int) gmdate( 't', gmmktime( 0, 0, 0, $mo, 1, $y ) );
-		$w = 'd.chi_so_sau IS NOT NULL AND DATE_FORMAT(d.ngay,%s)=%s' . ( $chi_da_duyet ? ' AND d.kt_duyet=1' : '' );
+		$w = '(d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0) AND DATE_FORMAT(d.ngay,%s)=%s' . ( $chi_da_duyet ? ' AND d.kt_duyet=1' : '' );
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT h.coso, h.coso_key, DAY(d.ngay) ng, d.tong FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
 			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id WHERE ' . $w, '%Y-%m', $th ), ARRAY_A );

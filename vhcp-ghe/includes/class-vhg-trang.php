@@ -2181,6 +2181,7 @@ var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
+var QL_PG = 0, QL_PER = 10;   // Quản lý ghế: trang danh sách ghế (10 ghế/trang)
 var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
 var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
@@ -4571,12 +4572,33 @@ function veQuanLy(){
     + '<div class="act" style="margin-bottom:10px"><label class="mut" style="align-self:center">'
     + L('Lọc cơ sở','Filter site') + ':</label>'
     + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select></div>';
-  h += '<table><tr><th>' + L('Mã','Code') + '</th><th>' + L('Địa điểm','Site')
+  h += '<div id="ql-wrap"></div>'
+    + '<p class="mut" style="margin:8px 0 0">'
+    + L('Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). Xoá ghế chỉ xoá cấu hình — doanh thu đã ghi giữ nguyên.',
+        'Change the site dropdown to move a chair (saves immediately). Deleting a chair removes only its config — recorded revenue is kept.')
+    + '</p></div>';
+  return h;
+}
+
+/* Danh sách ghế (tab Quản lý ghế): 10 ghế/trang, lọc theo QL_LOC — vẽ tại chỗ vào #ql-wrap,
+   tự gắn lại select đổi cơ sở + nút xoá cho mỗi trang. */
+function qlGheRender(){
+  var box = document.getElementById('ql-wrap'); if (!box) return;
+  var may = (D && D.may) || [], coso = (D && D.coso) || [];
+  var list = may.filter(function(m){
+    if (QL_LOC === '') return true;
+    if (QL_LOC === '__none__') return !m.coso;
+    return m.coso === QL_LOC;
+  }).sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); });
+  var pages = Math.max(1, Math.ceil(list.length / QL_PER));
+  if (QL_PG >= pages) QL_PG = pages - 1; if (QL_PG < 0) QL_PG = 0;
+  var from = QL_PG * QL_PER, to = Math.min(list.length, from + QL_PER);
+  var h = '<table><tr><th>' + L('Mã','Code') + '</th><th>' + L('Địa điểm','Site')
     + '</th><th class="r hide-sm">' + L('Trạng thái','Status') + '</th><th class="r"></th></tr>';
-  if (!mayLoc.length) h += '<tr><td colspan="4" class="mut">'
+  if (!list.length) h += '<tr><td colspan="4" class="mut">'
     + (may.length ? L('Không có ghế ở cơ sở này.','No chairs at this site.')
                   : L('Chưa có ghế nào.','No chairs yet.')) + '</td></tr>';
-  mayLoc.slice().sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma)); }).forEach(function(m){
+  for (var i = from; i < to; i++){ var m = list[i];
     var csOpt = '<option value="0"' + (!m.coso ? ' selected' : '') + '>' + L('(chưa gán)','(unassigned)')
       + '</option>' + coso.map(function(c){
           return '<option value="' + c.id + '"' + (m.coso === c.ten ? ' selected' : '') + '>'
@@ -4586,12 +4608,30 @@ function veQuanLy(){
       + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + csOpt + '</select></td>'
       + '<td class="r hide-sm mut">' + tt + '</td>'
       + '<td class="r"><button data-mxoa="' + esc(m.ma) + '">🗑 ' + L('Xoá','Delete') + '</button></td></tr>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+  // pager
+  var pg = document.createElement('div'); pg.className = 'act'; pg.style.cssText = 'margin-top:8px;align-items:center';
+  var bT = document.createElement('button'); bT.className = 'ghost'; bT.textContent = '‹ ' + L('Trước','Prev');
+  bT.style.padding = '4px 10px'; bT.disabled = QL_PG <= 0; bT.onclick = function(){ QL_PG--; qlGheRender(); };
+  var bS = document.createElement('button'); bS.className = 'ghost'; bS.textContent = L('Sau','Next') + ' ›';
+  bS.style.padding = '4px 10px'; bS.disabled = QL_PG >= pages - 1; bS.onclick = function(){ QL_PG++; qlGheRender(); };
+  var sp = document.createElement('span'); sp.className = 'mut';
+  sp.textContent = L('Trang','Page') + ' ' + (QL_PG + 1) + '/' + pages + ' · ' + list.length + ' ' + L('ghế','chairs');
+  pg.appendChild(bT); pg.appendChild(sp); pg.appendChild(bS); box.appendChild(pg);
+  // gắn lại đổi cơ sở + xoá cho các dòng của trang này
+  [].forEach.call(box.querySelectorAll('[data-csma]'), function(s){
+    s.onchange = function(){ lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value }); };
   });
-  h += '</table><p class="mut" style="margin:8px 0 0">'
-    + L('Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). Xoá ghế chỉ xoá cấu hình — doanh thu đã ghi giữ nguyên.',
-        'Change the site dropdown to move a chair (saves immediately). Deleting a chair removes only its config — recorded revenue is kept.')
-    + '</p></div>';
-  return h;
+  [].forEach.call(box.querySelectorAll('[data-mxoa]'), function(b){
+    b.onclick = function(){
+      var m = b.getAttribute('data-mxoa');
+      if (!confirm(L('Xoá ghế ' + m + '? Chỉ xoá cấu hình, doanh thu đã ghi giữ nguyên.',
+        'Delete chair ' + m + '? Config only; recorded revenue is kept.'))) return;
+      lam('may_xoa', { ma: m });
+    };
+  });
 }
 
 function kpi(lb, vl, sb, m){
@@ -4958,6 +4998,7 @@ function noi(){
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
   if (document.getElementById('ktn-csv')) ktnInit();
   if (document.getElementById('tt-wrap')) ttWire();
+  if (document.getElementById('ql-wrap')) qlGheRender();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');
@@ -5078,7 +5119,7 @@ function noi(){
     };
   });
   if ((_e = document.getElementById('ql-loc'))) _e.onchange = function(){
-    QL_LOC = _e.value; ve();   // lọc tại chỗ, vẽ lại từ dữ liệu đang có (không gọi máy chủ)
+    QL_LOC = _e.value; QL_PG = 0; qlGheRender();   // lọc + vẽ lại DANH SÁCH tại chỗ (không cả trang)
   };
   if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){
     DK_LOC = _e.value; ve();   // lọc lưới ghế tab Điều khiển

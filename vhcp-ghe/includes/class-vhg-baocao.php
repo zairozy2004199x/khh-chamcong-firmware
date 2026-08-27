@@ -255,7 +255,7 @@ class VHG_BaoCao {
 		global $wpdb;
 		$r = $wpdb->get_row( $wpdb->prepare(
 			'SELECT COUNT(*) so, COALESCE(SUM(tien_mat),0) tm, COALESCE(SUM(qr),0) qr, COALESCE(SUM(tong),0) tg'
-			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND chi_so_sau IS NOT NULL', (string) $rid ), ARRAY_A );
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND (chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0)', (string) $rid ), ARRAY_A );
 		return array( 'so' => (int) $r['so'], 'tien_mat' => (int) $r['tm'], 'qr' => (int) $r['qr'], 'tong' => (int) $r['tg'] );
 	}
 
@@ -505,7 +505,7 @@ class VHG_BaoCao {
 			if ( ! self::trong_pham_vi( $q, $h['coso'] ) ) { continue; }
 			if ( ! self::con_han_( $h['tao_luc'] ) ) { continue; }
 			$dong = $wpdb->get_results( $wpdb->prepare(
-				'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND chi_so_sau IS NOT NULL ORDER BY id ASC', $h['report_id'] ), ARRAY_A );
+				'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND (chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0) ORDER BY id ASC', $h['report_id'] ), ARRAY_A );
 			$ghe = array(); $tong = 0;
 			foreach ( $dong as $d ) {
 				$tong += (int) $d['tong'];
@@ -560,7 +560,7 @@ class VHG_BaoCao {
 		$thang = preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ? (string) $thang : current_time( 'Y-m' );
 		$dong = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.*, h.coso FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND d.chi_so_sau IS NOT NULL ORDER BY d.ngay DESC', '%Y-%m', $thang ), ARRAY_A );
+			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0) ORDER BY d.ngay DESC', '%Y-%m', $thang ), ARRAY_A );
 		$ra = array();
 		foreach ( (array) $dong as $d ) {
 			if ( ! self::trong_pham_vi( $q, $d['coso'], $d['ma_may'] ) ) { continue; }
@@ -842,7 +842,7 @@ class VHG_BaoCao {
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.qr, d.actual, d.ma_may, d.ten, h.coso, h.coso_key FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
 			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE d.ngay=%s AND d.chi_so_sau IS NOT NULL', $ngay ), ARRAY_A );
+			. ' WHERE d.ngay=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', $ngay ), ARRAY_A );
 
 		$tThu = VHG_DB::t( 'thu' );
 		$ds = array();
