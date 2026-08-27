@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27e (QR_BU_MS=1000: tinh chinh QR khop ghe)"
+#define FW_VERSION "ghe-massage 2026-08-27f (ghe dung dot ngot: canh bao man + web 1p, giu gio cho chay lai)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -252,6 +252,12 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
    trừ giờ -> QR về 0 khớp ghế, màn vẫn hiện đúng mm:00. Anh Thắng đo chênh 2s -> để 2000.
    Chỉnh số này nếu còn lệch (QR nhanh -> tăng; QR chậm -> giảm). 0 = không bù. */
 #define QR_BU_MS           1000
+/* GHẾ DỪNG ĐỘT NGỘT giữa chừng (đã chạy rồi, CÒN giờ): giữ giờ (QR tạm dừng), chờ chạy lại.
+   - Dừng > GHE_DUNG_MS      -> CẢNH BÁO NGAY TRÊN MÀN (đỏ) cho nhân viên gần đó.
+   - Dừng >= GHE_BAOWEB_MS   -> ĐẨY LỖI VỀ WEB 'ghedungdotngot' (văn phòng/quản lý xa biết).
+   - Ghế chạy lại            -> gỡ cảnh báo (màn + web), đếm tiếp.
+   Không tự kết thúc phiên -> giữ giờ cho khách; kết thúc khi hết giờ hoặc lệnh tắt từ xa. */
+#define GHE_BAOWEB_MS      60000     // dừng liên tục 1 phút -> báo lỗi về web
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -369,6 +375,7 @@ long     g_conLaiMs   = 0;      // thời gian còn lại (ms) của phiên
 bool     g_gheDaChay  = false;  // chân ghế đã lên mức chạy ít nhất 1 lần trong phiên
 uint32_t g_chayDauTu  = 0;      // millis lúc ghế chạy LẦN ĐẦU trong phiên (0=chưa) -> bù trễ QR_BU_MS
 bool     g_baoGheChet = false;  // đang treo cảnh báo 'ghekhongchay' (paid mà chưa chạy)
+bool     g_baoDungDot = false;  // đang treo cảnh báo 'ghedungdotngot' (đang chạy mà DỪNG đột ngột, còn giờ)
 uint32_t g_tickTruoc  = 0;      // millis lần trừ trước (0 = chưa bắt đầu, dt=0)
 uint32_t g_dungTu     = 0;      // millis ghế bắt đầu ở trạng thái DỪNG (để debounce dừng)
 int      g_pctLow     = 0;      // % thời gian chân ghế ở mức THẤP (duty) — chạy vs tắt khác nhau?
@@ -1163,16 +1170,29 @@ void drawRunning(int secLeft){
     tft.setTextColor(COL_KEM, COL_KHUNG);
     tft.drawString(duoi, 160, 136, 1);
 
-    /* Dải trạng thái dưới */
-    tft.fillRoundRect(20, 156, 280, 44, 8, COL_KHUNG);
-    tft.drawRoundRect(20, 156, 280, 44, 8, COL_VANG2);
-    tft.fillCircle(42, 178, 8, 0x0660);
-    tft.drawCircle(42, 178, 11, COL_VANG2);
-    tft.setTextDatum(ML_DATUM);
-    tft.setTextColor(COL_VANG, COL_KHUNG);
-    tft.drawString("PHIEN MASSAGE DANG CHAY", 60, 170, 1);
-    tft.setTextColor(COL_MO, COL_KHUNG);
-    tft.drawString("Xin hay thu gian va tan huong dich vu.", 60, 186, 1);
+    /* Dải trạng thái dưới: bình thường = xanh "đang chạy"; ghế DỪNG ĐỘT NGỘT = ĐỎ cảnh báo. */
+#if DO_GHECHAY && GATE_BY_PIN
+    if(g_baoDungDot){
+      tft.fillRoundRect(20, 156, 280, 44, 8, 0x9800);        // nền đỏ đậm
+      tft.drawRoundRect(20, 156, 280, 44, 8, TFT_RED);
+      tft.fillCircle(42, 178, 8, TFT_RED);
+      tft.setTextDatum(ML_DATUM);
+      tft.setTextColor(TFT_WHITE, 0x9800);
+      tft.drawString("! GHE DUNG DOT NGOT", 60, 170, 1);
+      tft.drawString("Dong ho tam dung - kiem tra ghe.", 60, 186, 1);
+    } else
+#endif
+    {
+      tft.fillRoundRect(20, 156, 280, 44, 8, COL_KHUNG);
+      tft.drawRoundRect(20, 156, 280, 44, 8, COL_VANG2);
+      tft.fillCircle(42, 178, 8, 0x0660);
+      tft.drawCircle(42, 178, 11, COL_VANG2);
+      tft.setTextDatum(ML_DATUM);
+      tft.setTextColor(COL_VANG, COL_KHUNG);
+      tft.drawString("PHIEN MASSAGE DANG CHAY", 60, 170, 1);
+      tft.setTextColor(COL_MO, COL_KHUNG);
+      tft.drawString("Xin hay thu gian va tan huong dich vu.", 60, 186, 1);
+    }
 
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(COL_MO, COL_BG);
@@ -1633,6 +1653,7 @@ void ketThucPhien(const char* lyDo){
   g_runTotalVnd = 0; setAcceptorEnabled(true);
   g_conLaiMs = 0; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; g_chayDauTu = 0; lastShownSec = -1;
   if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+  if(g_baoDungDot){ g_baoDungDot = false; loiTienCong("ghedungdotngot", false); }
   Serial.printf("[RUN] ket thuc phien: %s\n", lyDo);
 }
 
@@ -1673,7 +1694,7 @@ void henChay(int minutes, char src){
   g_srcCode = src; g_henSrc = src; g_henPhut = minutes;
   payMinutes = minutes;                                   // để màn đếm hiện đúng TỔNG
   g_conLaiMs = (long)minutes * 60000L;                    // giờ còn lại, đếm khi ghế chạy
-  g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; g_chayDauTu = 0;   // phiên mới: chờ ghế lên mức chạy
+  g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; g_chayDauTu = 0; g_baoDungDot = false;   // phiên mới: chờ ghế lên mức chạy
   if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
   state = ST_CAMON; screenDrawn = false;
   g_henLuc = millis() + CAMON_MS;                         // hết ngần này thì phóng to đồng hồ
@@ -2097,6 +2118,8 @@ void loop(){
       g_gheDaChay = true; g_dungTu = 0;
       if(g_chayDauTu == 0) g_chayDauTu = now;   // ghế chạy lần đầu -> mốc bù trễ khởi động
       if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+      if(g_baoDungDot){ g_baoDungDot = false; g_statusDirty = true; loiTienCong("ghedungdotngot", false);
+        Serial.println("[GHE] ghe chay lai -> go canh bao dung dot ngot, dem tiep"); }
 #if DO_GHECHAY && GATE_BY_PIN
       if(now - g_chayDauTu >= (uint32_t)QR_BU_MS) g_conLaiMs -= (long)dt;   // qua bù trễ mới ĐẾM
 #else
@@ -2106,10 +2129,16 @@ void loop(){
 #if DO_GHECHAY && GATE_BY_PIN
     else {
       if(g_dungTu == 0) g_dungTu = now;
-      if(!g_gheDaChay){                       // paid mà ghế chưa từng chạy -> cảnh báo
+      if(!g_gheDaChay){                       // paid mà ghế CHƯA TỪNG chạy -> ghekhongchay
         if(!g_baoGheChet && now - g_dungTu > GHECHAY_CHET_MS){
           g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
           Serial.println("[GHE] paid ma ghe CHUA chay -> canh bao web"); }
+      } else if(g_conLaiMs > 0){              // ĐÃ chạy rồi mà DỪNG khi CÒN giờ -> DỪNG ĐỘT NGỘT
+        if(!g_baoDungDot && now - g_dungTu > GHE_DUNG_MS){   // >1.5s -> cảnh báo NGAY TRÊN MÀN
+          g_baoDungDot = true; g_statusDirty = true;
+          Serial.println("[GHE] DUNG DOT NGOT (con gio) -> canh bao man"); }
+        if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){        // >=1 phút -> báo lỗi VỀ WEB
+          ghiLoiTien("ghedungdotngot", true); }              // (ghiLoiTien tự chống lặp)
       }
     }
 #endif
@@ -2138,6 +2167,7 @@ void loop(){
       g_runTotalVnd=0; setAcceptorEnabled(true); g_statusDirty=true; screenDrawn=false;
       g_conLaiMs=0; g_gheDaChay=false; g_dungTu=0; g_tickTruoc=0; g_chayDauTu=0; lastShownSec=-1;
       if(g_baoGheChet){ g_baoGheChet=false; loiTienCong("ghekhongchay", false); }
+      if(g_baoDungDot){ g_baoDungDot=false; loiTienCong("ghedungdotngot", false); }
       Serial.println("[CMD] -> da TAT may"); }
   }
   if(g_remoteStartMin > 0){ int m=g_remoteStartMin; g_remoteStartMin=0;
@@ -2217,13 +2247,14 @@ void loop(){
       state=ST_IDLE; g_srcCode=0; g_statusDirty=true; screenDrawn=false; delay(300); return; }
   }
   else if(state==ST_RUNNING){
-    /* Hết giờ (đã đếm theo chân ghế) -> kết thúc. */
+    /* Hết giờ (đã đếm theo chân ghế) -> kết thúc bình thường. */
     if(g_conLaiMs <= 0){ ketThucPhien("het gio"); return; }
-    /* ĐÃ chạy rồi mà ghế TẮT/STOP quá GHE_DUNG_MS -> QR dừng theo (đúng ý: ghế dừng
-       thì QR dừng, không để "ghế đã dừng mà QR vẫn chạy"). */
+    /* Ghế DỪNG giữa chừng khi CÒN giờ: KHÔNG kết thúc -> GIỮ giờ, QR tạm dừng (khối đồng hồ
+       trên đã lo: không trừ khi dừng), cảnh báo màn (>1.5s) + web (>=1 phút). Ghế chạy lại thì
+       đếm tiếp. Chỉ kết thúc khi HẾT GIỜ hoặc lệnh TẮT từ xa. Vẽ lại màn khi cảnh báo đổi. */
 #if DO_GHECHAY && GATE_BY_PIN
-    if(g_gheDaChay && g_dungTu && (millis() - g_dungTu > GHE_DUNG_MS)){
-      ketThucPhien("ghe da dung (stop/tat) -> QR dung theo"); return; }
+    { static bool _rnDot = false;
+      if(g_baoDungDot != _rnDot){ _rnDot = g_baoDungDot; screenDrawn = false; lastShownSec = -1; } }
 #endif
     int secLeft = (int)((g_conLaiMs + 999) / 1000);   // làm tròn LÊN cho khớp cảm nhận
     if(secLeft != lastShownSec){ lastShownSec=secLeft; drawRunning(secLeft); }
