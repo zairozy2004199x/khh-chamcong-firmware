@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27q (man canh bao/khoa tieng Viet co dau - font VLW)"
+#define FW_VERSION "ghe-massage 2026-08-27r (man chon goi tong xanh + gia co 'd' + tieu de co dau)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -166,6 +166,9 @@ String tienVN(long v){
   }
   return r + "d";
 }
+
+/* Giá kèm ký tự "đ" Unicode — CHỈ dùng khi vẽ bằng font VLW (font ASCII không vẽ được 'đ'). */
+String tienVNd(long v){ String s = tienVN(v); if(s.endsWith("d")) s.remove(s.length()-1); return s + "đ"; }
 
 /* Số phút của một gói: khai cứng nếu máy chủ có gửi, không thì tính theo tỉ lệ quy đổi.
    MỘT chỗ tính duy nhất — trước đây phép này chép ở bốn nơi (vẽ nút, mở phiên, nhận tiền mặt,
@@ -842,6 +845,19 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 #define COL_MO_KEM 0x7B6B  // chữ phụ trên nền KEM sáng — COL_MO ở đây chỉ được 2,84:1
 #define COL_ACC   COL_VANG // tên cũ, còn dùng ở màn "chưa gán mã"
 
+/* ===== TÔNG XANH cho màn CHỌN GÓI (ảnh mẫu anh Thắng 27/08): nền teal tối, thẻ viền sáng,
+   giá cyan nổi. Đây là MÀU HIỂN THỊ — panel này đảo màu (invertDisplay) nên giá trị đặt ra sẽ
+   hiện đúng như vậy, giống bộ COL_* sẵn có. Chỉnh số nếu nạp lên thấy lệch tông. ===== */
+#define COL_T_BG    0x0124   // nền toàn màn (xanh đen)
+#define COL_T_NEN   0x0208   // nền thẻ gói (teal tối)
+#define COL_T_VIEN  0x05FF   // viền sáng thẻ (glow) — cyan
+#define COL_T_VIEN2 0x02D4   // viền lớp ngoài mờ hơn (giả quầng sáng)
+#define COL_T_GIA   0x07FF   // số tiền — cyan sáng
+#define COL_T_TEN   0xCE79   // tên gói — xám sáng
+#define COL_T_PHU   0x4E92   // phút / mô tả — teal mờ
+#define COL_T_ID    0x07E0   // mã ghế góc phải — xanh lá
+#define COL_T_BAR   0x0186   // dải tiêu đề / dải chân — teal tối
+
 /* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
 Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,122,150,84} };
 
@@ -927,49 +943,43 @@ void veTheGoi(int i){
   Btn  b    = PKG_BTN[i];
   bool vip  = (PKG_VIP[i] != 0);
   int  cx   = b.x + b.w / 2;
-  uint16_t nen  = vip ? COL_VIP : COL_KEM;
-  /* Chữ chính TỐI trên cả hai kiểu thẻ. Trước đây thẻ VVIP dùng COL_VANG trên nền đồng tối —
-     đó đúng là chỗ anh Thắng bảo "không thấy được". */
-  uint16_t chu  = COL_CHU;
-  uint16_t phu  = vip ? COL_VIP_MO : COL_MO_KEM;
+  uint16_t nen = COL_T_NEN;
 
-  tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, nen);
-  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG2);
-  /* Dải màu ở đầu thẻ thay cho hình minh hoạ: đủ để mắt phân biệt bốn gói mà không tốn flash. */
-  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG2);
+  /* Thẻ nền teal tối + viền sáng HAI lớp (giả quầng sáng như ảnh mẫu). */
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, nen);
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_T_VIEN);
+  tft.drawRoundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 7, COL_T_VIEN2);
 
   tft.setTextDatum(TC_DATUM);
-  /* Tên gói. Máy chủ cắt còn VHG_May::CHU_VUA_O ký tự cho vừa 150px ở font 1 (6px/ký tự).
-     🔴 Chú thích cũ ghi "16 ký tự" — con số đó không có thật ở đâu cả: máy chủ hồi đó cắt ở 30,
-        tức là cho qua một chuỗi 180px trong ô 150px. Đừng chép số vào đây nữa. */
-  tft.setTextColor(chu, nen);
-  tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 12, 1);
+  /* Tên gói (máy chủ gửi xuống, đã bỏ dấu + cắt cho vừa 150px ở font 1). */
+  tft.setTextColor(vip ? COL_T_GIA : COL_T_TEN, nen);
+  tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 8, 1);
 
-  /* Số phút ngay dưới tên — đúng thứ tự trên tấm bảng giá. */
-  tft.setTextColor(phu, nen);
-  tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 24, 1);
+  /* Số phút ngay dưới tên. */
+  tft.setTextColor(COL_T_PHU, nen);
+  tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 20, 1);
 
-  /* SỐ TIỀN to nhất: đó là thứ khách quyết định. Font 4 cao 26px, "200.000d" rộng ~112px nên
-     vừa trong 150px. Dùng dấu chấm nghìn kiểu Việt, không viết tắt "200k" — tấm bảng giá ghi
-     đủ số, và khách đối chiếu bảng treo tường với màn ghế bằng mắt. */
-  tft.setTextColor(chu, nen);
-  tft.drawString(tienVN(PKG_AMT[i]), cx, b.y + 38, 4);
+  /* SỐ TIỀN to nhất, cyan sáng, có ký tự "đ" (font VLW). Đây là thứ khách quyết định. */
+  tft.loadFont(vietLon);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_T_GIA, nen);
+  tft.drawString(tienVNd(PKG_AMT[i]), cx, b.y + 48);
+  tft.unloadFont();
 
-  /* Mô tả một dòng, dưới cùng. Rỗng thì bỏ trống chứ đừng bịa chữ. */
+  /* Mô tả một dòng, dưới cùng. Rỗng thì bỏ trống. */
   if(PKG_MOTA[i].length()){
-    tft.setTextColor(phu, nen);
-    tft.drawString(PKG_MOTA[i], cx, b.y + b.h - 14, 1);
+    tft.setTextDatum(TC_DATUM);
+    tft.setTextColor(COL_T_PHU, nen);
+    tft.drawString(PKG_MOTA[i], cx, b.y + b.h - 13, 1);
   }
   if(vip){
-    /* Nhãn VVIP ở góc phải trên, như tấm bảng giá. */
-    /* Nhãn cũng đổi sang COL_VANG2: nhãn COL_VANG nằm trên thẻ vàng sáng thì chỉ 1,60:1,
-       tức là cái nhãn biến mất đúng ở thẻ duy nhất cần nó. */
-    tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_VANG2);
+    /* Nhãn VVIP góc phải trên, nền viền sáng. */
+    tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_T_VIEN);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_KEM, COL_VANG2);
+    tft.setTextColor(COL_T_NEN, COL_T_VIEN);
     tft.drawString("VVIP", b.x + b.w - 23, b.y + 1, 1);
-    tft.setTextDatum(TC_DATUM);
   }
+  tft.setTextDatum(TC_DATUM);
 }
 
 /**
@@ -996,7 +1006,7 @@ void veManChuaCoTk(){
 }
 
 void drawIdle(){
-  tft.fillScreen(COL_BG);
+  tft.fillScreen(COL_T_BG);   // nền xanh đen theo ảnh mẫu
   tft.setTextDatum(TC_DATUM);
   /* Ghế chưa được gán mã thì NÓI RA trên màn. Người đi lắp thấy ngay còn thiếu một bước, thay vì
      bấm chọn gói rồi đứng chờ một mã QR không bao giờ hiện. */
@@ -1036,42 +1046,44 @@ void drawIdle(){
    * ⚠️ Nên KHÔNG đoán chiều rộng nữa. Vẽ phần bên phải TRƯỚC, ĐO nó bằng `textWidth()`, rồi mới
    *    căn tiêu đề vào phần còn lại. Mã ghế dài bao nhiêu cũng không đè được nữa.
    * ============================================================================================ */
-  tft.fillRect(0, 0, 320, 28, COL_KHUNG);
-  tft.drawFastHLine(0, 28, 320, COL_VANG2);
+  tft.fillRect(0, 0, 320, 28, COL_T_BAR);
+  tft.drawFastHLine(0, 28, 320, COL_T_VIEN2);
 
-  String chuPhai = netUp() ? CHAIR_ID : (CHAIR_ID + " - MAT MANG");
+  /* Mã ghế góc phải (xanh lá) + tiêu đề CÓ DẤU (font VLW). Đo bề rộng mã ghế bằng chính font
+     VLW rồi mới căn tiêu đề vào phần còn lại — mã ghế dài mấy cũng không đè chữ. */
+  String chuPhai = netUp() ? CHAIR_ID : (CHAIR_ID + " - MẤT MẠNG");
+  tft.loadFont(vietVua);
   tft.setTextDatum(TR_DATUM);
-  tft.setTextColor(netUp() ? 0x0660 : 0xF800, COL_KHUNG);
-  tft.drawString(chuPhai, 314, 9, 1);
-
-  /* Chỗ còn lại cho tiêu đề, chừa 8px khe để hai bên không dính nhau. */
-  int mepPhai = 314 - tft.textWidth(chuPhai, 1) - 8;
-  /* Bốn mức, dài xuống ngắn: lấy mức ĐẦU TIÊN vừa chỗ. Cắt cụt giữa chừng chữ thì đọc còn khó
-     hiểu hơn là mất hẳn vế đầu, nên thà rụng cả cụm. Mức cuối luôn vừa ở mọi mã ghế hợp lệ. */
+  tft.setTextColor(netUp() ? COL_T_ID : COL_T_GIA, COL_T_BAR);
+  tft.drawString(chuPhai, 314, 5);
+  int mepPhai = 314 - tft.textWidth(chuPhai) - 8;
+  /* Ba mức, dài xuống ngắn: lấy mức ĐẦU TIÊN vừa chỗ (font 16 to hơn font cũ nên bỏ mức dài nhất). */
   static const char* TIEU_DE[] = {
-    "CHAO MUNG QUY KHACH  -  MASSAGE GHE CAO CAP",
-    "CHAO MUNG  -  MASSAGE GHE CAO CAP",
-    "MASSAGE GHE CAO CAP",
+    "CHÀO MỪNG - MASSAGE GHẾ CAO CẤP",
+    "MASSAGE GHẾ CAO CẤP",
     "MASSAGE"
   };
   String tieu = "";
   for(unsigned k = 0; k < sizeof(TIEU_DE)/sizeof(TIEU_DE[0]); k++){
-    if(tft.textWidth(TIEU_DE[k], 1) <= mepPhai - 6){ tieu = TIEU_DE[k]; break; }
+    if(tft.textWidth(TIEU_DE[k]) <= mepPhai - 6){ tieu = TIEU_DE[k]; break; }
   }
   if(tieu.length()){
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_VANG, COL_KHUNG);
-    tft.drawString(tieu, (6 + mepPhai) / 2, 13, 1);
+    tft.setTextColor(COL_T_TEN, COL_T_BAR);
+    tft.drawString(tieu, (6 + mepPhai) / 2, 12);
   }
+  tft.unloadFont();
 
   for(int i=0;i<PKG_N;i++) veTheGoi(i);
 
-  /* Dải chân: câu mời quét mã. Đây là câu duy nhất nói cho khách biết PHẢI LÀM GÌ, nên nó nằm
-     trên dải riêng chứ không lẫn vào chữ nhỏ. */
-  tft.fillRect(0, 210, 320, 30, COL_KHUNG);
-  tft.drawFastHLine(0, 210, 320, COL_VANG2);
-  tft.setTextColor(COL_VANG, COL_KHUNG);
-  tft.drawString("CHON GOI  >  QUET MA QR DE THANH TOAN & BAT DAU", 160, 222, 1);
+  /* Dải chân: câu mời quét mã — CÓ DẤU (font VLW), cyan sáng cho nổi. */
+  tft.fillRect(0, 210, 320, 30, COL_T_BAR);
+  tft.drawFastHLine(0, 210, 320, COL_T_VIEN2);
+  tft.loadFont(vietVua);
+  tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_T_GIA, COL_T_BAR);
+  tft.drawString("CHỌN GÓI  >  QUÉT QR ĐỂ THANH TOÁN", 160, 224);
+  tft.unloadFont();
 
   /* Mã ghế + trạng thái mạng đã vẽ ở ĐẦU hàm, trước tiêu đề — vì tiêu đề phải đo nó mới biết
      căn vào đâu. Đừng chuyển xuống lại đây. */
