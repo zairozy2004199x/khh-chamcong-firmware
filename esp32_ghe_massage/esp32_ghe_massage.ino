@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27h (dung stop 1p khong chay lai -> bao web + tat QR, chan tu chay lai)"
+#define FW_VERSION "ghe-massage 2026-08-27i (dung 30s khong chay lai -> bao web + tat QR)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -254,11 +254,11 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
 #define QR_BU_MS           1500
 /* GHẾ DỪNG ĐỘT NGỘT giữa chừng (đã chạy rồi, CÒN giờ): giữ giờ (QR tạm dừng), chờ chạy lại.
    - Dừng > GHE_DUNG_MS      -> CẢNH BÁO NGAY TRÊN MÀN (đỏ) cho nhân viên gần đó.
-   - Ghế ĐẢO CHẠY LẠI < 1 phút -> gỡ cảnh báo (màn + web), đếm tiếp (kẹt tạm).
+   - Ghế ĐẢO CHẠY LẠI < 30s -> gỡ cảnh báo (màn + web), đếm tiếp (kẹt tạm).
    - Dừng >= GHE_BAOWEB_MS (không đảo chạy lại) -> BÁO LỖI VỀ WEB 'ghedungdotngot' + KẾT THÚC
      phiên (tắt QR). Đóng phiên nên ghế/chân pulse tự xuống LOW sau đó cũng KHÔNG tự chạy đếm
-     lại (phải trả tiền mới). Đúng ý: bấm stop, 1 phút không chạy lại -> báo lỗi + tắt QR. */
-#define GHE_BAOWEB_MS      60000     // dừng liên tục 1 phút không chạy lại -> báo web + tắt QR (kết thúc)
+     lại (phải trả tiền mới). Đúng ý: bấm stop, 30s không chạy lại -> báo lỗi + tắt QR. */
+#define GHE_BAOWEB_MS      30000     // dừng liên tục 30s không chạy lại -> báo web + tắt QR (kết thúc)
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).

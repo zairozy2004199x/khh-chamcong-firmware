@@ -205,9 +205,9 @@ class VHG_May {
 			. 'giờ. Nguyên nhân: ghế lỗi/kẹt cơ/mất nguồn động cơ, hoặc lệnh chưa xuống (mạng chập '
 			. 'chờn). RA KIỂM NGAY kẻo khách trả tiền mà không được dùng.',
 		'ghedungdotngot' => 'GHẾ DỪNG ĐỘT NGỘT giữa chừng — đang massage mà ghế ngừng chạy trong khi '
-			. 'khách CÒN giờ. Đồng hồ QR đã TẠM DỪNG (giữ giờ, chờ ghế chạy lại), đã dừng quá 1 phút. '
-			. 'Ghế kẹt/lỗi/mất nguồn động cơ, hoặc có người bấm dừng. RA KIỂM: ghế chạy lại thì khách '
-			. 'được dùng tiếp phần giờ còn lại.',
+			. 'khách CÒN giờ. Ghế dừng quá 30 giây không chạy lại nên phiên ĐÃ TỰ KẾT THÚC (tắt QR). '
+			. 'Ghế kẹt/lỗi/mất nguồn động cơ, hoặc có người bấm dừng. RA KIỂM; nếu khách chưa dùng '
+			. 'hết giờ thì xử lý bù cho khách.',
 		/* --- Cục nhận tiền ICT tự báo bệnh (mã 0x2X đo thật trên bus) ---------------------- */
 		'ictgiay' => 'Cục nhận tiền báo: có tờ NHÉT VÀO nhưng KHÔNG PHẢI TIỀN (giấy lạ/tờ giả/rách '
 			. 'quá). Rút tờ đó ra. Nếu tờ tiền thật vẫn báo vậy thì lau cảm biến hoặc kiểm cấu hình mệnh giá.',
@@ -242,9 +242,9 @@ class VHG_May {
 			. 'The chair may be faulty, mechanically jammed, or lost motor power. CHECK NOW so the '
 			. 'customer is not charged without service.',
 		'ghedungdotngot' => 'CHAIR STOPPED MID-SESSION — the chair stopped while the customer still had '
-			. 'time left. The QR timer is PAUSED (time held, waiting for the chair to resume); stopped for '
-			. 'over a minute. The chair is jammed/faulty/lost motor power, or someone pressed stop. CHECK: '
-			. 'when it resumes, the customer uses the remaining time.',
+			. 'time left. It stayed stopped for over 30s without resuming, so the session AUTO-ENDED (QR '
+			. 'off). The chair is jammed/faulty/lost motor power, or someone pressed stop. CHECK; if the '
+			. 'customer had unused time, compensate them.',
 		'ictgiay' => 'Bill acceptor: a NON-CASH item was inserted (paper/fake/too torn). Remove it. If '
 			. 'a real bill still triggers this, clean the sensor or check the denomination config.',
 		'ictcbd'  => 'Bill acceptor: LOWER EXIT SENSOR JAMMED — debris/a bill is blocking the lower '
