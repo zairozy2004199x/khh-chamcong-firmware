@@ -104,7 +104,9 @@ class VHCC_TrangNS {
 	/* ==================================================================== địa chỉ & báo */
 
 	/** Tham số phải sống sót qua một lượt POST — bộ lọc và số trang. */
-	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'np' );
+	/* `sua_o` = mã người đang mở hàng sửa. Nó phải nằm trong THAM_SO để sống sót qua lượt POST —
+	   thiếu thì lưu xong hàng tự đóng, mà anh Thắng đang muốn sửa tiếp mấy ô nữa. */
+	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'np', 'sua_o' );
 
 	private static function url_hien() {
 		$them = array();
@@ -187,6 +189,7 @@ class VHCC_TrangNS {
 		if ( 'luu_quyen' === $viec )   { return self::viec_luu( $toi ); }
 		if ( 'ap_cot' === $viec )      { return self::viec_cot( $toi ); }
 		if ( 'go_ngoai_le' === $viec ) { return self::viec_go( $toi ); }
+		if ( 'sua_nhanh' === $viec )   { return self::viec_sua_nhanh( $toi ); }
 		if ( 'them_vai' === $viec )    { return self::viec_them_vai( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
@@ -337,6 +340,30 @@ class VHCC_TrangNS {
 			. $doi . ' ô đổi trên ' . count( $sach ) . ' người đang hiện.' ) );
 	}
 
+	private static function viec_sua_nhanh( $toi ) {
+		$ma = isset( $_POST['ma_nv'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_nv'] ) ) : '';
+		if ( '' === $ma ) { return array( array( 'loi' => 'Thiếu Mã NV.' ) ); }
+		$dat = array( 'ma_nv' => $ma );
+		/* Danh sách CHO PHÉP, không phải danh sách CHẶN — cùng luật với `luu_ho_so()`. Với danh
+		   sách chặn thì mỗi cột mới thêm vào bảng là một ô người ta ghi được mà không ai nhớ ra
+		   phải chặn. `cua_hang` và `vai_tro` CỐ Ý vắng mặt: hai thứ ấy có cửa riêng, có chốt
+		   riêng (chuyển cơ sở reset quyền; đổi vai có ba chốt chống tự nâng). */
+		foreach ( array( 'ho_ten', 'sdt', 'chuc_vu', 'nhiem_vu', 'ngay_vao_lam',
+			'trang_thai_lam_viec', 'luong_co_ban', 'so_tai_khoan', 'ngan_hang' ) as $c ) {
+			if ( isset( $_POST[ $c ] ) ) { $dat[ $c ] = sanitize_text_field( wp_unslash( $_POST[ $c ] ) ); }
+		}
+		/* ⚠️ Ô PIN ĐỂ TRỐNG = GIỮ NGUYÊN, không phải = xoá PIN. Gửi chuỗi rỗng xuống
+		   `luu_ho_so()` là nó ghi đè thành rỗng, tức là mỗi lần sửa tên một người là xoá luôn
+		   đường đăng nhập của họ — im lặng, và họ chỉ biết vào sáng hôm sau. */
+		$pin = isset( $_POST['pin_dang_nhap'] ) ? trim( (string) wp_unslash( $_POST['pin_dang_nhap'] ) ) : '';
+		if ( '' !== $pin ) { $dat['pin_dang_nhap'] = sanitize_text_field( $pin ); }
+
+		$kq = VHCC_NhanSu::luu_ho_so( $toi, $dat );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã lưu hồ sơ ' . $ma . '.'
+			. ( '' !== $pin ? ' PIN đã đổi.' : '' ) ) );
+	}
+
 	private static function viec_them_vai( $toi ) {
 		$ten = isset( $_POST['vai_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['vai_ten'] ) ) : '';
 		$goc = isset( $_POST['vai_goc'] ) ? sanitize_text_field( wp_unslash( $_POST['vai_goc'] ) ) : '';
@@ -437,7 +464,11 @@ class VHCC_TrangNS {
 			. '.chip-t,.chip-n{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;'
 			. 'background:#fee2e2;color:var(--do);font-size:10.5px;font-weight:700;'
 			. 'letter-spacing:.2px;vertical-align:middle}'
-			. '.chip-n{margin-left:0}';
+			. '.chip-n{margin-left:0}'
+			/* Hàng đang mở: viền đậm để mắt tìm lại được nó giữa 50 hàng sau khi tải lại trang. */
+			. 'tr.dang-sua>td{box-shadow:inset 0 2px 0 var(--xanh)}'
+			. 'tr.hang-sua>td{background:#eff6ff;border:2px solid var(--xanh);padding:12px 14px}'
+			. 'tr.hang-sua .luoi{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}';
 	}
 
 	/**
@@ -710,6 +741,7 @@ class VHCC_TrangNS {
 	/* ------------------------------------------------------------------ bảng người × trang */
 
 	private static function the_bang( $toi, $ds_trang, $cs, $q, $vai, $p ) {
+		$dang_sua = isset( $_GET['sua_o'] ) ? sanitize_text_field( wp_unslash( $_GET['sua_o'] ) ) : '';
 		$nguoi = VHCC_NhanSu::ds_nhan_vien( $toi, $cs, $q );
 		if ( '' !== $vai ) {
 			$loc = array();
@@ -784,8 +816,11 @@ class VHCC_TrangNS {
 		foreach ( $lat as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			$co_trung = isset( $trung[ $ma ] ) ? $trung[ $ma ] : null;
-			echo '<tr' . ( $co_trung ? ' class="hang-trung"' : '' ) . '>';
-			echo '<td><b>' . esc_html( $ma ) . '</b>';
+			$lop_hang = trim( ( $co_trung ? 'hang-trung ' : '' )
+				. ( $dang_sua === $ma ? 'dang-sua' : '' ) );
+			echo '<tr' . ( '' !== $lop_hang ? ' class="' . esc_attr( $lop_hang ) . '"' : '' ) . '>';
+			echo '<td><a id="hs' . esc_attr( substr( md5( $ma ), 0, 8 ) ) . '"></a><b>'
+				. esc_html( $ma ) . '</b>';
 			if ( $co_trung ) {
 				/* Nhãn nói RÕ trùng cái gì. Một chấm đỏ chung chung thì người ta phải tự đoán,
 				   mà hai kiểu trùng này cần hai cách xử khác hẳn nhau: trùng tên thì gộp hai hồ
@@ -801,14 +836,28 @@ class VHCC_TrangNS {
 			      đường đi thì vẫn một lần bấm mà chỉ có MỘT nơi giữ luật. */
 			echo '<td>' . esc_html( (string) $r['ho_ten'] );
 			if ( '' !== $ma && class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
-				/* 🔴 `sua=` CHỨ KHÔNG PHẢI `q=`. Anh Thắng 27/08/2026: *"Admin chưa sửa được thông
-				   tin nhân viên"* — và anh đúng, đó là lỗi của bản trước: `q=` là ô TÌM, nó chỉ
-				   LỌC danh sách chứ không mở biểu mẫu sửa. Bấm vào thấy đúng người mình cần mà
-				   không có ô nào nhập được, nên trông y như tính năng sửa bị hỏng. `sua=<mã>` mới
-				   là thứ `VHCC_Web` đọc để dựng biểu mẫu (xem `the_sua_ho_so`). */
-				echo ' <a class="mo-hs" title="Mở biểu mẫu sửa hồ sơ — thông tin, PIN, lương"'
+				/* 🔴 MỞ NGAY TẠI HÀNG, KHÔNG NHẢY TRANG. Anh Thắng 27/08/2026: *"thay vì nhảy ra 1
+				   trang khác thì mình xổ xuống được không, chứ nhảy trang thì lại phải đi dò lại
+				   người 2, 3 rất lâu"*.
+				   Anh đúng, và cái mất không chỉ là thời gian: nhảy trang là mất bộ lọc, mất số
+				   trang, mất chỗ đang đứng — nên sửa xong người thứ nhất là phải làm lại từ đầu
+				   để tới người thứ hai. Nay `sua_o=<mã>` tải lại CHÍNH trang này, giữ nguyên
+				   lọc và trang, rồi chèn một hàng sửa ngay dưới người ấy. Không script — cùng
+				   lối `VHCC_Web` đã làm cho lưới chấm công (`tr.hang-sua`).
+				   ⚠️ `#` anchor để trình duyệt cuộn thẳng tới hàng ấy: giữa 50 hàng mà tải lại
+				      trang rồi đứng ở đầu bảng thì vẫn phải đi tìm. */
+				if ( $dang_sua === $ma ) {
+					echo ' <a class="mo-hs" href="' . esc_url( self::url_sua( '' ) ) . '">đóng ▲</a>';
+				} else {
+					echo ' <a class="mo-hs" title="Mở ô sửa ngay tại đây, không rời trang"'
+						. ' href="' . esc_url( self::url_sua( $ma ) . '#hs' . substr( md5( $ma ), 0, 8 ) )
+						. '">sửa ▾</a>';
+				}
+				/* Vẫn giữ đường sang hồ sơ ĐẦY ĐỦ — hàng sửa dưới đây chỉ có mấy ô hay dùng nhất,
+				   còn CCCD, địa chỉ, hợp đồng, người liên hệ khẩn thì nằm ở màn kia. */
+				echo ' <a class="mo-hs" title="Mở hồ sơ đầy đủ — CCCD, địa chỉ, hợp đồng…"'
 					. ' href="' . esc_url( add_query_arg(
-						array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() ) ) . '">sửa ↗</a>';
+						array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() ) ) . '">đầy đủ ↗</a>';
 			}
 			echo '</td>';
 			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'] ) . '</td>';
@@ -833,6 +882,7 @@ class VHCC_TrangNS {
 				echo '<td class="o-q-td">' . self::ba_nut( $ma, $k, $dat, $mac ) . '</td>';
 			}
 			echo '</tr>';
+			if ( $dang_sua === $ma ) { self::hang_sua( $toi, $r, 4 + count( $ds_trang ) ); }
 		}
 		echo '</tbody></table></div>';
 		echo '<div class="hang" style="margin-top:12px">'
@@ -843,6 +893,83 @@ class VHCC_TrangNS {
 
 		self::thanh_trang( $p, $so_tr, $tong );
 		echo '</div>';
+	}
+
+	/** Địa chỉ trang này với ô sửa mở ở `$ma` (rỗng = đóng), giữ nguyên bộ lọc và số trang. */
+	private static function url_sua( $ma ) {
+		$u = self::url_hien();
+		$u = remove_query_arg( 'sua_o', $u );
+		return ( '' === $ma ) ? $u : add_query_arg( 'sua_o', $ma, $u );
+	}
+
+	/**
+	 * HÀNG SỬA — chèn ngay dưới người đang mở, trong CHÍNH bảng này.
+	 *
+	 * Anh Thắng 27/08/2026: *"thay vì nhảy ra 1 trang khác thì mình xổ xuống được không… sửa
+	 * xong anh đóng nó gọn lại là được"*.
+	 *
+	 * 🔴 CHỈ MẤY Ô HAY SỬA NHẤT. Bê cả 20 trường của màn hồ sơ vào đây thì hàng sửa cao hơn cả
+	 *    màn hình, và cái lợi "không rời trang" mất sạch. CCCD, địa chỉ, hợp đồng, người liên hệ
+	 *    khẩn vẫn nằm ở màn hồ sơ đầy đủ — có đường "đầy đủ ↗" ngay cạnh.
+	 *
+	 * ⚠️ ĐI QUA `VHCC_NhanSu::luu_ho_so()`, KHÔNG GHI THẲNG. Mọi chốt (bậc, quyền cơ sở, danh
+	 *    sách cột cho phép, ô lương chỉ ai xem được mới ghi được) nằm trong hàm ấy. Đây là cửa
+	 *    thứ hai vào cùng một việc — cửa thứ hai mà tự ghi lấy là cửa không ai gác.
+	 *
+	 * ⚠️ KHÔNG CÓ Ô MÃ NV. Mã là khoá của mọi lượt chấm công; đổi nó là việc riêng, chỉ Admin,
+	 *    và có màn xem trước hẳn hoi (`VHCC_NhanSu::xem_truoc_doi_ma`).
+	 */
+	private static function hang_sua( $toi, $r, $so_cot ) {
+		$ma  = trim( (string) $r['ma_nv'] );
+		$luong = VHCC_NhanSu::co_xem_luong( $toi );
+		$g = function ( $c ) use ( $r ) { return isset( $r[ $c ] ) ? (string) $r[ $c ] : ''; };
+
+		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '">';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+		echo '<input type="hidden" name="ma_nv" value="' . esc_attr( $ma ) . '">';
+		echo '<b>Sửa nhanh ' . esc_html( $ma ) . '</b>';
+		echo '<div class="luoi" style="margin-top:8px">';
+		foreach ( array(
+			'ho_ten'              => array( 'Họ tên', 'text' ),
+			'sdt'                 => array( 'Số điện thoại', 'text' ),
+			'chuc_vu'             => array( 'Chức vụ', 'text' ),
+			'nhiem_vu'            => array( 'Nhiệm vụ', 'text' ),
+			'ngay_vao_lam'        => array( 'Ngày vào làm', 'date' ),
+			'trang_thai_lam_viec' => array( 'Trạng thái làm việc', 'text' ),
+		) as $c => $o ) {
+			echo '<label>' . esc_html( $o[0] ) . '<input type="' . esc_attr( $o[1] ) . '" name="'
+				. esc_attr( $c ) . '" value="' . esc_attr( $g( $c ) ) . '" style="width:100%"></label>';
+		}
+		if ( $luong ) {
+			/* Ô lương chỉ hiện với người có quyền xem — `luu_ho_so()` cũng chỉ nhận mấy ô này từ
+			   họ, nên đây là hai tầng cho cùng một luật.
+			   ⚠️ NHÁNH NÀY HIỆN CHƯA TỪNG RẼ SANG FALSE, và đó không phải lý do bỏ nó. Cửa vào
+			      trang là `ho_so` (bậc 4), ô lương là `xem_luong_hs` (cũng bậc 4) — ai vào nổi
+			      trang đều xem được lương. Khác cái chốt chết đã bỏ ở `dat_co_so()`: chốt kia
+			      nằm ngay cạnh một chốt chặt hơn trong CÙNG hàm nên không bảo vệ trước gì cả,
+			      còn chốt này bảo vệ trước thay đổi ở CHỖ KHÁC — ngày nào cửa vào trang nới
+			      xuống bậc 3, nó tự đứng ra chặn mà không ai phải nhớ. Bộ thử canh chính quan
+			      hệ hai bậc ấy. */
+			echo '<label>Lương cơ bản<input name="luong_co_ban" value="'
+				. esc_attr( $g( 'luong_co_ban' ) ) . '" style="width:100%"></label>';
+			echo '<label>Số tài khoản<input name="so_tai_khoan" value="'
+				. esc_attr( $g( 'so_tai_khoan' ) ) . '" style="width:100%"></label>';
+			echo '<label>Ngân hàng<input name="ngan_hang" value="'
+				. esc_attr( $g( 'ngan_hang' ) ) . '" style="width:100%"></label>';
+		}
+		/* 🔴 KHÔNG ĐIỀN SẴN PIN CŨ VÀO Ô. Trang này chạy ngoài internet và ảnh chụp màn hình đi
+		   khắp nơi — đúng luật màn Hồ sơ đang giữ. Để trống = giữ nguyên PIN cũ. */
+		echo '<label>PIN đăng nhập <span class="mo">('
+			. ( '' !== $g( 'pin_dang_nhap' ) ? 'đang có ' . strlen( $g( 'pin_dang_nhap' ) ) . ' số'
+				: 'chưa có' ) . ', để trống = giữ nguyên)</span>'
+			. '<input name="pin_dang_nhap" inputmode="numeric" style="width:100%"></label>';
+		echo '</div>';
+		echo '<div class="hang" style="margin-top:10px">';
+		echo '<button class="chinh" name="viec" value="sua_nhanh">Lưu hồ sơ này</button>';
+		echo '<a class="nut" href="' . esc_url( self::url_sua( '' ) ) . '">Đóng</a>';
+		echo '<span class="mo">Còn CCCD, địa chỉ, hợp đồng… thì mở <b>đầy đủ ↗</b> ở cột Họ tên.</span>';
+		echo '</div></form></td></tr>';
 	}
 
 	/**

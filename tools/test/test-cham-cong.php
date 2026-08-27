@@ -8716,6 +8716,115 @@ teq( '🔴 và quyền riêng reset về mặc định, kể cả ô vừa gửi
 delete_option( VHCC_Cong::O );
 vhcc_dung_bang();
 
+/* ---- 64. SỬA NGAY TẠI HÀNG, KHÔNG NHẢY TRANG ----
+   Anh Thắng 27/08/2026: *"thay vì nhảy ra 1 trang khác thì mình xổ xuống được không, chứ nhảy
+   trang thì lại phải đi dò lại người 2, 3 rất lâu, sửa xong anh đóng nó gọn lại là được"*.
+
+   🔴 Cái mất khi nhảy trang không chỉ là thời gian: mất bộ lọc, mất số trang, mất chỗ đang
+   đứng — nên sửa xong người thứ nhất là phải làm lại từ đầu để tới người thứ hai. */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'SN1', 'ho_ten' => 'Người Sửa',
+	'sdt' => '0900000000', 'pin_dang_nhap' => '778899', 'vai_tro' => 'Nhân viên',
+	'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'SN2', 'ho_ten' => 'Người Khác',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+
+$sn_h = vhcc_ns( 'Admin' );
+t( 'chưa mở thì KHÔNG có hàng sửa nào', strpos( $sn_h, 'value="sua_nhanh"' ) === false, $sn_h );
+t( 'mỗi hàng có nút mở ô sửa', strpos( $sn_h, 'sửa ▾' ) !== false, $sn_h );
+t( '🔴 nút ấy trỏ về CHÍNH trang này (sua_o), không sang trang khác',
+	strpos( $sn_h, 'sua_o=SN1' ) !== false, $sn_h );
+t( 'và vẫn giữ đường sang hồ sơ đầy đủ cho mấy trường ít dùng',
+	strpos( $sn_h, 'đầy đủ ↗' ) !== false && strpos( $sn_h, 'sua=SN1' ) !== false );
+
+$sn_h = vhcc_ns( 'Admin', array( 'sua_o' => 'SN1' ) );
+t( '🔴 mở ra thì có hàng sửa ngay trong bảng', strpos( $sn_h, 'value="sua_nhanh"' ) !== false, $sn_h );
+t( 'điền sẵn tên cũ', strpos( $sn_h, 'value="Người Sửa"' ) !== false );
+t( 'điền sẵn SĐT cũ', strpos( $sn_h, 'value="0900000000"' ) !== false );
+/* ⚠️ LẦN THỨ TƯ CÙNG CÁI BẪY (sau cty-bq, o-q, chip-t): soi tên lớp TRẦN thì luôn trúng luật
+   CSS ở đầu trang. Soi thuộc tính `class="…"` của chỗ DÙNG. */
+t( 'hàng của người ấy được đánh dấu để mắt tìm lại được',
+	strpos( $sn_h, 'class="dang-sua"' ) !== false, $sn_h );
+t( 'có mỏ neo để trình duyệt cuộn thẳng tới hàng đó',
+	strpos( $sn_h, 'id="hs' . substr( md5( 'SN1' ), 0, 8 ) . '"' ) !== false, $sn_h );
+t( 'có nút Đóng', strpos( $sn_h, '>Đóng</a>' ) !== false );
+/* 🔴 CHỈ MỞ ĐÚNG MỘT HÀNG. Mở hết là hàng sửa cao hơn cả màn hình và cái lợi "không rời trang"
+   mất sạch. */
+teq( '🔴 chỉ MỘT hàng sửa được mở', 1, substr_count( $sn_h, 'value="sua_nhanh"' ) );
+t( 'người khác vẫn ở dạng hàng thường', strpos( $sn_h, '<b>SN2</b>' ) !== false );
+
+/* 🔴 KHÔNG ĐIỀN SẴN PIN CŨ. Trang chạy ngoài internet, ảnh chụp màn hình đi khắp nơi — đúng
+   luật màn Hồ sơ đang giữ. */
+t( '🔴 KHÔNG in PIN cũ ra màn', strpos( $sn_h, '778899' ) === false, $sn_h );
+t( 'chỉ cho biết PIN có mấy số', strpos( $sn_h, 'đang có 6 số' ) !== false, $sn_h );
+/* KHÔNG có ô Mã NV: mã là khoá của mọi lượt chấm công, đổi nó là việc riêng chỉ Admin và có
+   màn xem trước hẳn hoi. */
+t( '🔴 hàng sửa KHÔNG có ô nhập Mã NV',
+	preg_match( '/<input[^>]*name="ma_nv"[^>]*type="text"/', $sn_h ) === 0, $sn_h );
+
+/* ---- Lưu ---- */
+vhcc_ns_luu( 'Admin', 'ADM', array( 'viec' => 'sua_nhanh', 'ma_nv' => 'SN1',
+	'ho_ten' => 'Tên Đã Sửa', 'sdt' => '0911111111', 'pin_dang_nhap' => '' ) );
+$hs_sn = VHCC_NhanSu::ho_so( 'SN1' );
+teq( 'lưu được tên mới', 'Tên Đã Sửa', $hs_sn['ho_ten'] );
+teq( 'và SĐT mới', '0911111111', $hs_sn['sdt'] );
+/* 🔴 Ô PIN ĐỂ TRỐNG = GIỮ NGUYÊN, KHÔNG PHẢI = XOÁ. Gửi chuỗi rỗng xuống `luu_ho_so()` là ghi
+   đè thành rỗng — tức mỗi lần sửa tên một người là xoá luôn đường đăng nhập của họ, im lặng,
+   và họ chỉ biết vào sáng hôm sau. */
+teq( '🔴 để trống ô PIN thì GIỮ NGUYÊN PIN cũ', '778899', $hs_sn['pin_dang_nhap'] );
+vhcc_ns_luu( 'Admin', 'ADM', array( 'viec' => 'sua_nhanh', 'ma_nv' => 'SN1',
+	'ho_ten' => 'Tên Đã Sửa', 'pin_dang_nhap' => '445566' ) );
+teq( 'gõ PIN mới thì đổi', '445566', VHCC_NhanSu::ho_so( 'SN1' )['pin_dang_nhap'] );
+
+/* Cột cua_hang và vai_tro CỐ Ý không nhận ở đây — hai thứ ấy có cửa riêng, chốt riêng. */
+vhcc_ns_luu( 'Admin', 'ADM', array( 'viec' => 'sua_nhanh', 'ma_nv' => 'SN1',
+	'cua_hang' => 'JP_HCM', 'vai_tro' => 'Admin' ) );
+$hs_sn = VHCC_NhanSu::ho_so( 'SN1' );
+teq( '🔴 sửa nhanh KHÔNG đổi được cơ sở (có cửa riêng, reset quyền)', 'TUTU_BT', $hs_sn['cua_hang'] );
+teq( '🔴 và KHÔNG đổi được vai trò (có cửa riêng, ba chốt)', 'Nhân viên', $hs_sn['vai_tro'] );
+
+/* 🔴 Ô LƯƠNG CHỈ HIỆN VỚI NGƯỜI ĐƯỢC XEM LƯƠNG. Vẽ ra cho người khác thì số lương đi thẳng
+   xuống HTML của máy họ — ẩn bằng CSS hay không vẽ nút Lưu đều vô nghĩa, ai mở công cụ nhà phát
+   triển là đọc được. `luu_ho_so()` cũng chỉ nhận mấy ô ấy từ người có quyền, nên đây là hai
+   tầng cho cùng một luật. Quản lý (bậc 3) KHÔNG có `xem_luong_hs` (bậc 4). */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'luong_co_ban' => 12345678 ), array( 'ma_nv' => 'SN1' ) );
+$sn_l = vhcc_ns( 'Kế toán', array( 'sua_o' => 'SN1' ) );
+t( 'Kế toán thấy ô Lương cơ bản', strpos( $sn_l, 'name="luong_co_ban"' ) !== false, $sn_l );
+/* ⚠️ CHỐT NÀY HIỆN CHƯA TỪNG KÍCH HOẠT — và đó KHÔNG phải lý do bỏ nó.
+   Cửa vào trang là quyền `ho_so` (bậc 4); ô lương gác bằng `xem_luong_hs` (cũng bậc 4). Hai
+   bậc BẰNG nhau, nên ai vào nổi trang này đều xem được lương, và nhánh `if ( $luong )` chưa
+   bao giờ rẽ sang false. Phá thử phát hiện đúng chuyện đó.
+
+   Khác hẳn cái chốt chết ở `dat_co_so()` mà bản trước đã bỏ: chốt kia nằm NGAY CẠNH một chốt
+   chặt hơn trong cùng một hàm, nên nó không bảo vệ trước bất cứ thay đổi nào. Chốt này bảo vệ
+   trước một thay đổi ở CHỖ KHÁC — ngày nào cửa vào trang được nới xuống (chẳng hạn cho Quản lý
+   vào để chuyển cơ sở), nó tự đứng ra chặn mà không ai phải nhớ. Nên: GIỮ, và canh chính cái
+   quan hệ hai bậc làm nó chưa chạy — mất quan hệ ấy là lúc nó bắt đầu có việc. */
+teq( 'cửa vào trang và chốt ô lương hiện đang CÙNG một bậc',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ], VHCC_Vai::BAC[ VHCC_Vai::QUYEN['xem_luong_hs'] ] );
+t( '🔴 và Quản lý không xem được lương — nới cửa trang xuống bậc 3 là chốt ấy vào việc ngay',
+	! VHCC_Vai::duoc( array( 'role' => 'Quản lý' ), 'xem_luong_hs' ) );
+/* Soi thẳng hàm dựng ô: vẽ ô lương cho người không được xem là số lương đi xuống HTML máy họ. */
+t( 'hàng sửa gác ô lương bằng co_xem_luong',
+	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' ),
+		'$luong = VHCC_NhanSu::co_xem_luong( $toi );' ) !== false );
+
+/* Chốt quyền: sửa hồ sơ cần Kế toán trở lên — đi qua đúng `luu_ho_so()`. */
+$_GET = array(); $_POST = array();
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'CHT', 'Cửa hàng trưởng', 'TUTU_BT', 'C9' );
+$_POST = array( 'viec' => 'sua_nhanh', 'ma_nv' => 'SN1', 'ho_ten' => 'Bị Chối',
+	'ky' => VHCC_Web::chu_ky( $_COOKIE[ VHCC_Web::COOKIE ] ) );
+ob_start(); VHCC_TrangNS::phuc_vu(); ob_get_clean();
+$_POST = array(); $_COOKIE = array();
+teq( '🔴 Cửa hàng trưởng không sửa được hồ sơ qua đường này', 'Tên Đã Sửa',
+	VHCC_NhanSu::ho_so( 'SN1' )['ho_ten'] );
+
+/* ⚠️ Ô sửa phải SỐNG SÓT qua lượt lưu: `sua_o` nằm trong THAM_SO nên lưu xong hàng vẫn mở, sửa
+   tiếp được ô khác. Thiếu nó thì mỗi lần bấm Lưu là hàng tự đóng. */
+t( '🔴 sua_o có trong danh sách tham số chở qua lượt POST',
+	in_array( 'sua_o', VHCC_TrangNS::THAM_SO, true ), VHCC_TrangNS::THAM_SO );
+vhcc_dung_bang();
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
