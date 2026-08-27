@@ -17,15 +17,22 @@
  * 🔴 1 BÁO CÁO / CƠ SỞ / NGÀY: UNIQUE(coso_key, ngay) ở tầng CSDL; gửi lại = cập nhật.
  *
  * ════════════════════════════════════════════════════════════════════════════════════════════
- * PHÂN QUYỀN BẰNG PIN RIÊNG (bảng `bc_pin`), KHÔNG dùng token /ghe.
+ * PHÂN QUYỀN BẰNG PIN — DÙNG CHUNG PIN NHÂN SỰ K&H, KHÔNG dùng token /ghe.
  *
- * Anh Thắng 27/08/2026: *"mỗi nhân viên 1 PIN, gán cho cơ sở rồi; đăng nhập thấy cơ sở mình. Sau
- * PIN này dùng CHUNG với nhân sự K&H để chấm công, nộp báo cáo và ghi chi phí"*.
+ * Anh Thắng 27/08/2026: *"mỗi nhân viên 1 PIN, gán cho cơ sở rồi; đăng nhập thấy cơ sở mình"*,
+ * rồi chốt: *"Nhân viên lấy từ hệ thống nhân sự qua, các bạn đã có PIN sẵn"*.
  *
- * → PIN là DANH TÍNH CHUNG. Mỗi PIN khai: tên nhân viên + danh sách cơ sở (+ ghế riêng nếu cần).
- *   Đăng nhập báo cáo = nhập PIN (bc_boot). Về sau nối `bc_pin.pin` sang PIN chấm công là một mối.
+ * → PIN LÀ DANH TÍNH CHUNG, VÀ NGUỒN GỐC LÀ NHÂN SỰ. Nhân viên đã có PIN chấm công (danh sách
+ *   người dùng của VHG_Auth — bảng dùng chung `{prefix}vhcp_cfg` hàng `CH_NguoiDung`, hoặc danh
+ *   sách riêng của plugin). Đăng nhập báo cáo = nhập ĐÚNG PIN đó. Không bắt Admin nhập lại PIN.
+ *   Cơ sở nhìn thấy = cột "cơ sở" trong hồ sơ nhân sự của người đó.
  *
- * ⛔ REPO CÔNG KHAI → KHÔNG hardcode PIN trong mã. Admin tự nhập bc_pin ở màn cấu hình.
+ * → BẢNG `bc_pin` GIỜ LÀ BẢNG NGOẠI LỆ (không bắt buộc), để Admin:
+ *      · cho một người phạm vi KHÁC hồ sơ nhân sự (thêm cơ sở, hoặc giới hạn theo từng GHẾ), hoặc
+ *      · KHOÁ một PIN khỏi trang báo cáo (thêm hàng với active=0) mà không đụng hồ sơ nhân sự.
+ *   Có hàng bc_pin cho PIN nào thì hàng đó THẮNG hồ sơ nhân sự cho riêng PIN ấy (kể cả để tắt).
+ *
+ * ⛔ REPO CÔNG KHAI → KHÔNG hardcode PIN trong mã. PIN nằm ở nhân sự / bc_pin, không ở nguồn.
  * ⛔ FAIL CLOSED: PIN sai/rỗng ⇒ KHÔNG trả dữ liệu (không lộ danh mục/doanh thu toàn công ty).
  * ════════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -45,22 +52,69 @@ class VHG_BaoCao {
 
 	// ══════════════════════════════════════════════════════════════════ PIN & PHẠM VI
 
-	/** Thông tin 1 PIN: [ 'ten', 'coso'=>[...], 'coso_key'=>[...], 'ghe'=>[...] ] hoặc null. */
-	public static function pin_info( $pin ) {
-		global $wpdb;
-		$pin = trim( (string) $pin );
-		if ( '' === $pin ) { return null; }
-		$r = $wpdb->get_row( $wpdb->prepare(
-			'SELECT * FROM ' . VHG_DB::t( 'bc_pin' ) . ' WHERE pin=%s AND active=1 LIMIT 1', $pin ), ARRAY_A );
-		if ( ! $r ) { return null; }
-		$tach = function ( $v ) {
-			return array_values( array_filter( array_map( 'trim', preg_split( '/[;,]/', (string) $v ) ) ) );
-		};
-		$coso = $tach( $r['coso'] );
+	/** Tách chuỗi "a; b, c" → ['a','b','c'] (ngăn bởi phẩy hoặc chấm phẩy). */
+	private static function tach_( $v ) {
+		return array_values( array_filter( array_map( 'trim', preg_split( '/[;,]/', (string) $v ) ) ) );
+	}
+
+	/**
+	 * Chuẩn hoá PIN để SO KHỚP với hồ sơ nhân sự — mượn luật của VHG_Auth::pin_sach:
+	 * cắt đuôi ".0" của bảng tính TRƯỚC, rồi mới bỏ ký tự lạ (thứ tự ngược là sai âm thầm).
+	 */
+	private static function pin_chuan_( $v ) {
+		if ( class_exists( 'VHG_Auth' ) && method_exists( 'VHG_Auth', 'pin_sach' ) ) {
+			return VHG_Auth::pin_sach( $v );
+		}
+		$s = trim( (string) $v );
+		if ( preg_match( '/^(\d+)\.0*$/', $s, $m ) ) { $s = $m[1]; }
+		return preg_replace( '/\D+/', '', $s );
+	}
+
+	/** Dựng phạm vi từ tên + chuỗi cơ sở + chuỗi ghế. */
+	private static function pham_vi_( $ten, $coso_str, $ghe_str ) {
+		$coso = self::tach_( $coso_str );
 		$ck = array();
 		foreach ( $coso as $c ) { $ck[ self::squash( $c ) ] = true; }
-		return array( 'ten' => (string) $r['ten'], 'coso' => $coso,
-			'coso_key' => $ck, 'ghe' => $tach( $r['ghe'] ) );
+		return array( 'ten' => (string) $ten, 'coso' => $coso,
+			'coso_key' => $ck, 'ghe' => self::tach_( $ghe_str ) );
+	}
+
+	/**
+	 * Thông tin 1 PIN: [ 'ten', 'coso'=>[...], 'coso_key'=>[...], 'ghe'=>[...] ] hoặc null.
+	 *
+	 * THỨ TỰ TRA (xem đầu tệp): (1) bảng ngoại lệ `bc_pin` THẮNG nếu có hàng cho PIN này —
+	 * kể cả active=0 nghĩa là Admin KHOÁ tường minh ⇒ trả null; (2) không có ngoại lệ thì tra
+	 * PIN trong hồ sơ NHÂN SỰ (VHG_Auth::users), phạm vi = cột "cơ sở" của người đó.
+	 */
+	public static function pin_info( $pin ) {
+		global $wpdb;
+		$pin_raw = trim( (string) $pin );
+		if ( '' === $pin_raw ) { return null; }
+
+		// (1) Ngoại lệ do Admin khai — thắng hồ sơ nhân sự cho riêng PIN này (kể cả để tắt).
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_pin' ) . ' WHERE pin=%s LIMIT 1', $pin_raw ), ARRAY_A );
+		if ( $r ) {
+			if ( 1 !== (int) $r['active'] ) { return null; }   // Admin khoá PIN này khỏi báo cáo
+			return self::pham_vi_( $r['ten'], $r['coso'], $r['ghe'] );
+		}
+
+		// (2) PIN nhân sự sẵn có — "các bạn đã có PIN sẵn", không cần Admin nhập lại.
+		if ( class_exists( 'VHG_Auth' ) ) {
+			$pin_c = self::pin_chuan_( $pin_raw );
+			if ( '' !== $pin_c ) {
+				$users = VHG_Auth::users();
+				if ( ! is_wp_error( $users ) ) {
+					foreach ( (array) $users as $u ) {
+						if ( '' === (string) $u['pin'] ) { continue; }
+						if ( self::pin_chuan_( $u['pin'] ) === $pin_c ) {
+							return self::pham_vi_( $u['ten'], $u['coso'], '' );
+						}
+					}
+				}
+			}
+		}
+		return null;
 	}
 
 	/** Bản ghi (cơ sở, ghế) có thuộc phạm vi PIN không. $q null ⇒ false (fail closed). */

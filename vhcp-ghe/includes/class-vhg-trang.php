@@ -284,6 +284,17 @@ class VHG_Trang {
 			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
+			if ( 'kt_import' === $viec ) {
+				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
+				if ( empty( $q['quan_tri'] ) ) {
+					self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+						'error' => 'Nhập doanh thu cũ chỉ dành cho Quản lý hoặc Admin.' ) );
+					return;
+				}
+				self::tra( VHG_KeToan::nhap_doanhthu( isset( $d['rows'] ) ? $d['rows'] : array(),
+					! empty( $d['ghi_de'] ), ! empty( $d['duyet'] ), $boi ) );
+				return;
+			}
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
 			return;
 		}
@@ -2247,6 +2258,7 @@ function ve(){
   if (QT || KT) TABS.push(['kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')]);
   if (QT || KT) TABS.push(['kt-tien', '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')]);
   if (QT || KT) TABS.push(['kt-xuat', '📤 ' + L('Xuất MISA','Export MISA')]);
+  if (QT) TABS.push(['kt-nhap', '📥 ' + L('Nhập doanh thu cũ','Import old data')]);
   /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
      Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
@@ -2335,6 +2347,7 @@ function ve(){
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-xuat')    { h += veKtXuat()   + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'kt-nhap')    { h += veKtNhap()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
@@ -2927,16 +2940,16 @@ function ktdUndo(){
     box.textContent='';
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Chưa có thao tác nào.','Nothing yet.'))); return; }
-    var ten={sua:'Sửa số liệu',qr:'Áp QR',doisoat:'Đối soát nộp',doi_ngay:'Đổi ngày'};
+    var ten={sua:'Sửa số liệu',qr:'Áp QR',doisoat:'Đối soát nộp',doi_ngay:'Đổi ngày',nhap:'Nhập doanh thu cũ'};
     r.rows.forEach(function(x){
       var it=ktEl('div','act'); it.style.cssText='flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);padding:6px 0';
       var t=ktEl('div'); t.style.flex='1';
       t.appendChild(ktEl('b',null,(ten[x.viec]||x.viec)+(x.daHoanTac?' · ĐÃ HOÀN TÁC':'')));
       t.appendChild(ktEl('div','mut',(x.ly_do||'')+(x.boi?(' · '+x.boi):'')+' · '+x.luc));
       it.appendChild(t);
-      if(!x.daHoanTac && (x.viec==='sua'||x.viec==='qr'||x.viec==='doisoat')){
+      if(!x.daHoanTac && (x.viec==='sua'||x.viec==='qr'||x.viec==='doisoat'||x.viec==='nhap')){
         var m=ktEl('span','mut'); var b=ktEl('button','ghost',L('Hoàn tác','Undo')); b.style.cssText='padding:4px 9px;font-size:12px';
-        b.onclick=function(){ if(!confirm(L('Hoàn tác thao tác này?','Undo this?'))) return; ktAct('kt_undo',{id:x.id},m,function(){ ktdUndo(); ktdLoad(); }); };
+        b.onclick=function(){ if(!confirm(x.viec==='nhap'?L('Gỡ toàn bộ báo cáo của lần nhập này?','Remove all reports from this import?'):L('Hoàn tác thao tác này?','Undo this?'))) return; ktAct('kt_undo',{id:x.id},m,function(){ ktdUndo(); ktdLoad(); }); };
         it.appendChild(b); it.appendChild(m);
       }
       box.appendChild(it);
@@ -3405,6 +3418,134 @@ function ktxMaMisa(){
     sc.appendChild(tb); box.appendChild(sc);
     if(!(r&&r.rows&&r.rows.length)) box.appendChild(ktEl('p','mut',L('Chưa có — bấm "Mồi từ danh mục ghế".','Empty — click Seed.')));
   });
+}
+
+/* ══════════════════════════════ NHẬP DOANH THU CŨ (dán CSV web cũ) ══════════════════════════
+   Bảng xuất web THU TIỀN cũ. TIỀN chép nguyên (web cũ ×10000/đơn vị, hệ mới ×5000 — tính lại là
+   sai). Parser theo RFC4180: ô có dấu " bọc dấu phẩy / xuống dòng / "" — vì cột `json` đầy dấu
+   phẩy. Gộp 1 báo cáo / cơ sở / ngày ở server. */
+var KTN_ROWS = null;   // đã parse, sẵn sàng gửi
+
+function ktnParseCsv(text){
+  var rows=[], cur=[], val='', i=0, inQ=false, c, n=text.length;
+  while(i<n){
+    c=text[i];
+    if(inQ){
+      if(c==='"'){ if(text[i+1]==='"'){ val+='"'; i+=2; continue; } inQ=false; i++; continue; }
+      val+=c; i++; continue;
+    }
+    if(c==='"'){ inQ=true; i++; continue; }
+    if(c===','){ cur.push(val); val=''; i++; continue; }
+    if(c==='\r'){ i++; continue; }
+    if(c==='\n'){ cur.push(val); rows.push(cur); cur=[]; val=''; i++; continue; }
+    val+=c; i++;
+  }
+  if(val!==''||cur.length){ cur.push(val); rows.push(cur); }
+  return rows.filter(function(r){ return r.length>1 || (r.length===1 && (r[0]||'').trim()!==''); });
+}
+function ktnNum(v){ var s=String(v==null?'':v).replace(/[^0-9-]/g,''); s=s.replace(/(?!^)-/g,''); return s===''||s==='-'?0:parseInt(s,10); }
+function ktnMapRows(aoa){
+  if(!aoa.length) return {rows:[],err:L('File rỗng.','Empty.')};
+  var head=aoa[0].map(function(x){ return String(x||'').trim().toLowerCase(); });
+  var ix={}; head.forEach(function(h,j){ ix[h]=j; });
+  function need(name){ return ix.hasOwnProperty(name); }
+  if(!need('date')||!need('locname')||!need('chaircode')){
+    return {rows:[],err:L('Không thấy cột date / locName / chairCode ở dòng đầu.','Missing date/locName/chairCode header.')};
+  }
+  function g(r,name){ var j=ix[name]; return (j==null||j>=r.length)?'':r[j]; }
+  var out=[];
+  for(var k=1;k<aoa.length;k++){
+    var r=aoa[k]; if(!r||!r.length) continue;
+    var loc=String(g(r,'locname')).trim(), date=String(g(r,'date')).trim(), code=String(g(r,'chaircode')).trim();
+    if(!loc&&!date&&!code) continue;
+    var method='', pstat=String(g(r,'cashsubmitstatus')).trim();
+    var jc=String(g(r,'json')||'');
+    /* Ưu tiên CỘT cashSubmitStatus (nhãn người: "Nộp thiếu (CK)" phân biệt được nộp thiếu) —
+       json chỉ có token thô "paid_transfer" KHÔNG mã hoá "thiếu", nên chỉ dùng json khi cột rỗng.
+       Riêng phương thức (cash/transfer) thì lấy từ json vì cột không có. */
+    if(jc){ try{ var o=JSON.parse(jc); if(o){ if(o.cashPaymentMethod) method=String(o.cashPaymentMethod);
+      if(!pstat&&o.cashSubmitStatus) pstat=String(o.cashSubmitStatus); } }catch(e){} }
+    var imgs=String(g(r,'images')||'').split('|').map(function(s){return s.trim();}).filter(Boolean);
+    out.push({
+      date:date, loc:loc, chairCode:code, chairName:String(g(r,'chairname')).trim(), staff:String(g(r,'staff')).trim(),
+      before:ktnNum(g(r,'meterbefore')), after:ktnNum(g(r,'meterafter')),
+      actual:ktnNum(g(r,'actual')), cash:ktnNum(g(r,'cash')), qr:ktnNum(g(r,'qr')),
+      adjust:ktnNum(g(r,'adjust')), total:ktnNum(g(r,'total')),
+      reportId:String(g(r,'reportid')).trim(), note:String(g(r,'note')).trim(),
+      method:method, paidStatus:pstat, paidAmount:ktnNum(g(r,'cashpaidamount')),
+      paidDate:String(g(r,'cashpaiddate')).trim(),
+      ref:String(g(r,'transferref')).trim(), bank:String(g(r,'transferbank')).trim(),
+      images:imgs
+    });
+  }
+  return {rows:out,err:''};
+}
+function veKtNhap(){
+  return '<div class="card"><h2>📥 ' + L('Nhập doanh thu cũ (CSV web cũ)','Import old revenue (CSV)') + '</h2>'
+    + '<p class="mut">' + L('Dán nguyên bảng xuất từ web THU TIỀN cũ (có dòng tiêu đề date,locName,chairCode…). '
+        + 'Tiền được chép ĐÚNG như file — KHÔNG tính lại theo chỉ số (web cũ nhân ×10.000, hệ mới ×5.000). '
+        + 'Gộp 1 báo cáo mỗi cơ sở mỗi ngày.',
+        'Paste the old THU TIỀN export (with header row). Money copied verbatim — not recomputed. One report per branch/day.') + '</p>'
+    + '<textarea id="ktn-csv" rows="8" style="width:100%;font-family:monospace;font-size:12px" '
+    + 'placeholder="date,locName,chairName,chairCode,staff,meterBefore,meterAfter,actual,cash,qr,adjust,total,…"></textarea>'
+    + '<div class="act" style="flex-wrap:wrap;margin-top:8px">'
+    + '<button id="ktn-xem" class="ghost">' + L('Xem trước','Preview') + '</button>'
+    + '<label class="mut"><input type="checkbox" id="ktn-ghide"> ' + L('Ghi đè nếu cơ sở/ngày đã có','Overwrite existing') + '</label>'
+    + '<label class="mut"><input type="checkbox" id="ktn-duyet"> ' + L('Đánh dấu đã duyệt','Mark confirmed') + '</label>'
+    + '<button id="ktn-nap" class="on">' + L('Nhập vào hệ thống','Import') + '</button>'
+    + '<span id="ktn-msg" class="mut"></span></div>'
+    + '<div id="ktn-xem-kq" style="margin-top:10px"></div></div>';
+}
+function ktnInit(){
+  var msg=document.getElementById('ktn-msg'), box=document.getElementById('ktn-xem-kq');
+  function doiText(){ KTN_ROWS=null; }
+  document.getElementById('ktn-csv').addEventListener('input',doiText);
+  document.getElementById('ktn-xem').onclick=function(){
+    var t=(document.getElementById('ktn-csv').value||'').trim();
+    box.textContent=''; msg.textContent='';
+    if(!t){ msg.textContent=L('Chưa dán gì.','Nothing pasted.'); msg.className='mut err'; return; }
+    var m=ktnMapRows(ktnParseCsv(t));
+    if(m.err){ msg.textContent=m.err; msg.className='mut err'; KTN_ROWS=null; return; }
+    if(!m.rows.length){ msg.textContent=L('Không có dòng dữ liệu nào.','No data rows.'); msg.className='mut err'; KTN_ROWS=null; return; }
+    KTN_ROWS=m.rows;
+    var cs={}, ngays={}, tm=0, qr=0, dmin='', dmax='';
+    m.rows.forEach(function(x){ cs[x.loc]=1; ngays[x.date]=1; tm+=x.cash; qr+=x.qr;
+      if(x.date){ if(!dmin||x.date<dmin)dmin=x.date; if(!dmax||x.date>dmax)dmax=x.date; } });
+    box.appendChild(ktEl('div','ok', '✓ '+m.rows.length+' '+L('dòng ghế','chair rows')+' · '
+      +Object.keys(cs).length+' '+L('cơ sở','branches')+' · '+Object.keys(ngays).length+' '+L('ngày','days')
+      +(dmin?(' ('+dmin+' → '+dmax+')'):'')));
+    box.appendChild(ktEl('div','mut', L('Tổng tiền mặt','Total cash')+' '+ktVnd(tm)+'đ · QR '+ktVnd(qr)+'đ'));
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='620px';
+    tb.innerHTML='<tr><th>'+L('Ngày','Date')+'</th><th>'+L('Cơ sở','Branch')+'</th><th>'+L('Ghế','Chair')
+      +'</th><th class="r">'+L('T.mặt','Cash')+'</th><th class="r">QR</th><th class="r">'+L('Tổng','Total')+'</th></tr>';
+    m.rows.slice(0,12).forEach(function(x){
+      var tr=ktEl('tr');
+      tr.appendChild(ktEl('td',null,x.date)); tr.appendChild(ktEl('td',null,x.loc));
+      tr.appendChild(ktEl('td',null,x.chairCode));
+      var a=ktEl('td','r',ktVnd(x.cash)), b=ktEl('td','r',ktVnd(x.qr)), c=ktEl('td','r',ktVnd(x.total));
+      tr.appendChild(a); tr.appendChild(b); tr.appendChild(c); tb.appendChild(tr);
+    });
+    sc.appendChild(tb); box.appendChild(sc);
+    if(m.rows.length>12) box.appendChild(ktEl('p','mut','… '+L('và','and')+' '+(m.rows.length-12)+' '+L('dòng nữa','more')));
+    msg.textContent=L('Đã đọc xong — kiểm tra rồi bấm "Nhập vào hệ thống".','Parsed — review then Import.'); msg.className='mut ok';
+  };
+  document.getElementById('ktn-nap').onclick=function(){
+    if(!KTN_ROWS){ document.getElementById('ktn-xem').onclick(); if(!KTN_ROWS) return; }
+    if(!KTN_ROWS.length){ return; }
+    var ghide=document.getElementById('ktn-ghide').checked;
+    if(!confirm(L('Nhập '+KTN_ROWS.length+' dòng ghế vào hệ thống?'+(ghide?'\n\n⚠ GHI ĐÈ: báo cáo cơ sở/ngày đã có sẽ bị thay.':''),
+        'Import '+KTN_ROWS.length+' rows?'+(ghide?'\n\nOverwrite existing branch/day reports.':'')))) return;
+    msg.textContent=L('Đang nhập…','Importing…'); msg.className='mut';
+    goi('kt_import',{rows:KTN_ROWS,ghi_de:ghide?1:0,duyet:document.getElementById('ktn-duyet').checked?1:0},function(r){
+      if(!r||!r.ok){ msg.textContent=(r&&r.error)||(r&&r.message)||'Lỗi.'; msg.className='mut err'; return; }
+      msg.textContent='✓ '+r.message; msg.className='mut ok';
+      box.textContent=''; box.appendChild(ktEl('div','ok',r.message));
+      if(r.loi&&r.loi.length){ r.loi.forEach(function(e){ box.appendChild(ktEl('div','mut err','• '+e)); }); }
+      box.appendChild(ktEl('p','mut',L('Gỡ lần nhập này ở tab Duyệt báo cáo → Nhật ký hoàn tác (mục "Nhập").',
+        'Undo this import under Review → Undo log.')));
+      KTN_ROWS=null;
+    });
+  };
 }
 
 function veCauHinh(){
@@ -4577,6 +4718,7 @@ function noi(){
   if (document.getElementById('ktdn-list')) ktdnInit();
   if (document.getElementById('kti-congno')) ktiInit();
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
+  if (document.getElementById('ktn-csv')) ktnInit();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');

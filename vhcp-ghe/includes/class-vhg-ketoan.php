@@ -370,11 +370,25 @@ class VHG_KeToan {
 		$u = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_undo' ) . ' WHERE id=%d LIMIT 1', $id ), ARRAY_A );
 		if ( ! $u ) { return array( 'ok' => false, 'message' => 'Không thấy dòng nhật ký.' ); }
 		if ( (int) $u['da_hoan_tac'] ) { return array( 'ok' => false, 'message' => 'Đã hoàn tác trước đó.' ); }
-		if ( ! in_array( $u['viec'], array( 'sua', 'qr', 'doisoat' ), true ) ) {
+		if ( ! in_array( $u['viec'], array( 'sua', 'qr', 'doisoat', 'nhap' ), true ) ) {
 			return array( 'ok' => false, 'message' => 'Thao tác này không hoàn tác được ở đây.' );
 		}
 		$ct = json_decode( (string) $u['chi_tiet'], true );
 		if ( ! is_array( $ct ) ) { return array( 'ok' => false, 'message' => 'Nhật ký không đọc được.' ); }
+
+		/* Hoàn tác NHẬP: xoá đúng các báo cáo đã chép vào (cả header lẫn dòng ghế). */
+		if ( 'nhap' === $u['viec'] ) {
+			$rids = isset( $ct['report_ids'] ) && is_array( $ct['report_ids'] ) ? $ct['report_ids'] : array();
+			$n = 0;
+			foreach ( $rids as $rid ) {
+				$rid = (string) $rid;
+				$n  += (int) $wpdb->delete( VHG_DB::t( 'bc_dong' ), array( 'report_id' => $rid ) );
+				$wpdb->delete( VHG_DB::t( 'bc' ), array( 'report_id' => $rid ) );
+			}
+			$wpdb->update( VHG_DB::t( 'bc_undo' ), array( 'da_hoan_tac' => 1 ), array( 'id' => $id ) );
+			return array( 'ok' => true, 'changed' => $n, 'message' => 'Đã gỡ ' . count( $rids ) . ' báo cáo vừa nhập (' . $n . ' ghế).' );
+		}
+
 		$n = 0;
 		foreach ( $ct as $o ) {
 			$key = array( 'report_id' => $o['report_id'], 'ma_may' => $o['ma_may'] );
@@ -1140,5 +1154,191 @@ class VHG_KeToan {
 		if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_congno_dau' ), $data, array( 'id' => (int) $co ) ); }
 		else { $wpdb->insert( VHG_DB::t( 'bc_congno_dau' ), $data ); }
 		return array( 'ok' => true, 'message' => 'Đã đặt dư đầu kỳ ' . $th . ' · ' . $coso . '.' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ NHẬP DOANH THU CŨ (CSV)
+
+	/**
+	 * Đọc ô nộp tiền của một dòng CSV cũ về đúng bộ từ vựng dòng ghế:
+	 *   hinhthuc ∈ {cash, transfer, ''}   trang_thai ∈ {paid, thieu, unpaid}
+	 * $tm = tiền mặt PHẢI nộp của ghế (cột `cash`). So `paidAmount` với nó để ra paid/thieu.
+	 */
+	private static function nop_tu_csv_( $r0, $tm ) {
+		$method = strtolower( trim( (string) ( isset( $r0['method'] ) ? $r0['method'] : '' ) ) );
+		$ref    = trim( (string) ( isset( $r0['ref'] ) ? $r0['ref'] : '' ) );
+		$bank   = trim( (string) ( isset( $r0['bank'] ) ? $r0['bank'] : '' ) );
+		$paid   = self::songuyen_( isset( $r0['paidAmount'] ) ? $r0['paidAmount'] : '' );
+		$paid   = ( null === $paid ) ? 0 : (int) $paid;
+		$ngay   = self::ngay_( isset( $r0['paidDate'] ) ? $r0['paidDate'] : '' );
+
+		/* Chuẩn hoá trạng thái về ASCII: nhãn cũ có dấu ("Đã nộp (CK)", "Nộp thiếu"). strtolower KHÔNG
+		   hạ được chữ có dấu — phải remove_accents trước, nếu không /da nop/ và /thieu/ đều trượt. */
+		$st_raw = trim( (string) ( isset( $r0['paidStatus'] ) ? $r0['paidStatus'] : '' ) );
+		$status = strtolower( function_exists( 'remove_accents' ) ? remove_accents( $st_raw ) : $st_raw );
+
+		$is_transfer = ( 'transfer' === $method ) || ( '' !== $ref ) || ( '' !== $bank )
+			|| ( false !== strpos( $status, 'transfer' ) ) || ( false !== strpos( $status, '(ck)' ) );
+		$is_cash  = ( 'cash' === $method ) || ( false !== strpos( $status, 'paid_cash' ) )
+			|| ( false !== strpos( $status, '(tm)' ) ) || ( false !== strpos( $status, 'tien mat' ) );
+		$thieu    = ( false !== strpos( $status, 'thieu' ) );
+		$paidfull = ! $thieu && ( ( false !== strpos( $status, 'paid_cash' ) )
+			|| ( false !== strpos( $status, 'paid_transfer' ) ) || ( false !== strpos( $status, 'da nop' ) ) );
+		$unpaid   = ! $paidfull && ( ( 'unpaid' === $method ) || ( false !== strpos( $status, 'unpaid' ) )
+			|| ( false !== strpos( $status, 'chua' ) ) || ( false !== strpos( $status, 'khong nop' ) ) );
+
+		$hthuc = $is_transfer ? 'transfer' : ( ( $is_cash || $paid > 0 || $paidfull ) ? 'cash' : '' );
+
+		/* Số tiền đã nộp: lấy cột `cashPaidAmount`. CHỈ khi trạng thái khẳng định ĐÃ NỘP ĐỦ MÀ cột
+		   tiền bỏ TRỐNG/0 (dữ liệu cũ hay để trống) mới suy ra = phần tiền mặt phải thu. Số dương
+		   nhỏ hơn là NỘP THIẾU thật — không được nống lên thành đủ. */
+		$amt = $paid;
+		if ( $paidfull && $tm > 0 && $amt <= 0 ) { $amt = $tm; }
+
+		if ( ( $unpaid && $amt <= 0 ) || ( '' === $hthuc && $amt <= 0 ) ) {
+			return array( 'so_tien' => 0, 'trang_thai' => 'unpaid', 'hinhthuc' => '', 'ngay' => null );
+		}
+		if ( $tm <= 0 || $amt >= $tm ) { $tt = 'paid'; }
+		elseif ( $amt > 0 )           { $tt = 'thieu'; }
+		else                          { return array( 'so_tien' => 0, 'trang_thai' => 'unpaid', 'hinhthuc' => '', 'ngay' => null ); }
+		if ( '' === $hthuc ) { $hthuc = 'cash'; }
+		return array( 'so_tien' => max( 0, $amt ), 'trang_thai' => $tt, 'hinhthuc' => $hthuc,
+			'ngay' => ( '' !== $ngay ) ? $ngay : null );
+	}
+
+	/**
+	 * NHẬP DOANH THU CŨ từ bảng xuất web THU TIỀN cũ (port 08_ImportDoanhThu.gs).
+	 *
+	 * Anh Thắng 27/08/2026: *"đẩy dữ liệu cũ tháng 8 lên"*.
+	 *
+	 * 🔴 TIỀN CHÉP NGUYÊN TỪ FILE, KHÔNG TÍNH LẠI TỪ CHỈ SỐ.
+	 *    Web cũ nhân ×10000 mỗi đơn vị chỉ số (vd 31→43 = 12 → actual 120.000). Hệ mới mặc định
+	 *    ×5000 (VHG_Quy::don_vi()). Tính lại theo chỉ số = SAI. Số cũ đã chốt, chỉ chép: actual/
+	 *    tiền_mặt/qr/điều_chỉnh/tổng lấy đúng cột trong file. Chỉ số trước/sau vẫn chép để NỐI dòng
+	 *    thời gian chỉ số sang tháng sau (chi_so_truoc() dùng chung `bc_dong` + `chot`).
+	 *
+	 * 🔴 1 BÁO CÁO / CƠ SỞ / NGÀY: gộp dòng ghế theo (coso_key, ngay). Đã có → BỎ QUA, trừ khi
+	 *    $ghi_de thì xoá bản cũ (cả dòng ghế) rồi chép lại. Ghi nhật ký hoàn tác viec='nhap'.
+	 *
+	 * @param array $rows  mỗi dòng: date, loc, chairCode, chairName, staff, before, after, actual,
+	 *                     cash, qr, adjust, total, reportId, note, method(cash|transfer|unpaid),
+	 *                     paidStatus, paidAmount, paidDate, ref, bank, images(mảng url)
+	 */
+	public static function nhap_doanhthu( $rows, $ghi_de, $danh_dau_duyet, $boi ) {
+		global $wpdb;
+		$rows = is_array( $rows ) ? $rows : array();
+		if ( ! count( $rows ) ) { return array( 'ok' => false, 'message' => 'Không có dòng nào để nhập.' ); }
+		$ghi_de = ! empty( $ghi_de );
+		$duyet  = ! empty( $danh_dau_duyet );
+
+		$loi = array();
+		$nhom = array();   // (coso_key|ngay) => header + ['dong'=>[ma=>row]]
+		foreach ( $rows as $i => $r0 ) {
+			$r0   = (array) $r0;
+			$ngay = self::ngay_( isset( $r0['date'] ) ? $r0['date'] : '' );
+			$loc  = trim( (string) ( isset( $r0['loc'] ) ? $r0['loc'] : '' ) );
+			$ma   = trim( (string) ( isset( $r0['chairCode'] ) ? $r0['chairCode'] : '' ) );
+			if ( '' === $ngay || '' === $loc || '' === $ma ) {
+				if ( count( $loi ) < 20 ) { $loi[] = 'Dòng ' . ( (int) $i + 1 ) . ': thiếu ngày/cơ sở/mã ghế.'; }
+				continue;
+			}
+			$key = self::squash( $loc ) . '|' . $ngay;
+			if ( ! isset( $nhom[ $key ] ) ) {
+				$nhom[ $key ] = array( 'coso' => $loc, 'ngay' => $ngay, 'staff' => '', 'reportId' => '', 'dong' => array() );
+			}
+			if ( '' === $nhom[ $key ]['staff'] && ! empty( $r0['staff'] ) ) { $nhom[ $key ]['staff'] = trim( (string) $r0['staff'] ); }
+			if ( '' === $nhom[ $key ]['reportId'] && ! empty( $r0['reportId'] ) ) { $nhom[ $key ]['reportId'] = trim( (string) $r0['reportId'] ); }
+			$nhom[ $key ]['dong'][ $ma ] = $r0;   // cùng ghế/ngày: dòng sau đè dòng trước
+		}
+		if ( ! count( $nhom ) ) { return array( 'ok' => false, 'message' => 'Không đọc được dòng hợp lệ nào.', 'loi' => $loi ); }
+
+		$them = 0; $de = 0; $bo = 0; $so_dong = 0; $rid_da = array();
+		$nay = current_time( 'mysql' );
+		foreach ( $nhom as $g ) {
+			$coso = $g['coso']; $ngay = $g['ngay']; $ck = self::squash( $coso );
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				'SELECT id, report_id FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s LIMIT 1', $ck, $ngay ), ARRAY_A );
+			if ( $cu ) {
+				if ( ! $ghi_de ) { $bo++; continue; }
+				$wpdb->delete( VHG_DB::t( 'bc_dong' ), array( 'report_id' => $cu['report_id'] ) );
+				$wpdb->delete( VHG_DB::t( 'bc' ), array( 'id' => (int) $cu['id'] ) );
+				$de++;
+			} else { $them++; }
+
+			$rid = (string) $g['reportId'];
+			if ( '' === $rid || $wpdb->get_var( $wpdb->prepare(
+				'SELECT id FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s', $rid ) ) ) {
+				$rid = 'IMP-' . str_replace( '-', '', $ngay ) . '-' . substr( md5( $ck . '|' . $ngay ), 0, 8 );
+			}
+			$rid = mb_substr( $rid, 0, 40 );
+
+			$hdr_paid = 0; $hdr_hthuc = ''; $hdr_ngay = null; $hdr_ref = ''; $hdr_bank = '';
+			foreach ( $g['dong'] as $ma => $r0 ) {
+				$before = self::songuyen_( isset( $r0['before'] ) ? $r0['before'] : '' );
+				$after  = self::songuyen_( isset( $r0['after'] ) ? $r0['after'] : '' );
+				$tm     = (int) ( isset( $r0['cash'] ) ? $r0['cash'] : 0 );
+				$np     = self::nop_tu_csv_( $r0, $tm );
+				$anh    = array();
+				if ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) {
+					foreach ( $r0['images'] as $u ) { $u = trim( (string) $u ); if ( '' !== $u ) { $anh[] = $u; } }
+				}
+				$wpdb->insert( VHG_DB::t( 'bc_dong' ), array(
+					'report_id'    => $rid,
+					'ma_may'       => (string) $ma,
+					'ten'          => mb_substr( (string) ( isset( $r0['chairName'] ) ? $r0['chairName'] : $ma ), 0, 190 ),
+					'ngay'         => $ngay,
+					'chi_so_truoc' => $before,
+					'chi_so_sau'   => $after,
+					'actual'       => (int) ( isset( $r0['actual'] ) ? $r0['actual'] : 0 ),
+					'tien_mat'     => $tm,
+					'qr'           => (int) ( isset( $r0['qr'] ) ? $r0['qr'] : 0 ),
+					'dieu_chinh'   => (int) ( isset( $r0['adjust'] ) ? $r0['adjust'] : 0 ),
+					'tong'         => (int) ( isset( $r0['total'] ) ? $r0['total'] : 0 ),
+					'ghi_chu'      => mb_substr( trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) ), 0, 250 ),
+					'anh'          => count( $anh ) ? wp_json_encode( $anh ) : null,
+					'nop_so_tien'  => $np['so_tien'],
+					'nop_trang_thai' => $np['trang_thai'],
+					'nop_hinhthuc' => $np['hinhthuc'],
+					'nop_ngay'     => $np['ngay'],
+					'kt_duyet'     => $duyet ? 1 : 0,
+					'kt_duyet_luc' => $duyet ? $nay : null,
+				) );
+				$so_dong++;
+				$hdr_paid += $np['so_tien'];
+				if ( 'transfer' === $np['hinhthuc'] ) { $hdr_hthuc = 'transfer'; }
+				elseif ( 'cash' === $np['hinhthuc'] && '' === $hdr_hthuc ) { $hdr_hthuc = 'cash'; }
+				if ( $np['ngay'] && ( null === $hdr_ngay || $np['ngay'] > $hdr_ngay ) ) { $hdr_ngay = $np['ngay']; }
+				if ( '' === $hdr_ref && ! empty( $r0['ref'] ) ) { $hdr_ref = mb_substr( trim( (string) $r0['ref'] ), 0, 120 ); }
+				if ( '' === $hdr_bank && ! empty( $r0['bank'] ) ) { $hdr_bank = mb_substr( trim( (string) $r0['bank'] ), 0, 60 ); }
+			}
+			$hdr_hthuc_h = ( '' === $hdr_hthuc ) ? 'unpaid' : $hdr_hthuc;
+			$hdr_tt = ( $hdr_paid > 0 && '' !== $hdr_hthuc )
+				? ( 'transfer' === $hdr_hthuc ? 'paid_transfer' : 'paid_cash' ) : 'unpaid';
+			$wpdb->insert( VHG_DB::t( 'bc' ), array(
+				'report_id'    => $rid,
+				'ngay'         => $ngay,
+				'coso'         => mb_substr( (string) $coso, 0, 190 ),
+				'coso_key'     => $ck,
+				'nhan_vien'    => mb_substr( (string) $g['staff'], 0, 190 ),
+				'nop_hinhthuc' => $hdr_hthuc_h,
+				'nop_trang_thai' => $hdr_tt,
+				'nop_so_tien'  => $hdr_paid,
+				'nop_ngay'     => $hdr_ngay,
+				'ck_ref'       => $hdr_ref,
+				'ck_bank'      => $hdr_bank,
+				'tao_luc'      => $nay,
+				'sua_luc'      => $nay,
+			) );
+			$rid_da[] = $rid;
+		}
+
+		if ( count( $rid_da ) ) {
+			self::undo_ghi_( 'nhap', 'Nhập doanh thu cũ — ' . count( $rid_da ) . ' báo cáo, ' . $so_dong . ' ghế.',
+				array( 'report_ids' => $rid_da ), $boi );
+		}
+		return array( 'ok' => true, 'them' => $them, 'ghi_de' => $de, 'bo_qua' => $bo,
+			'so_dong' => $so_dong, 'so_bao_cao' => count( $rid_da ), 'loi' => $loi,
+			'message' => 'Đã nhập ' . count( $rid_da ) . ' báo cáo (' . $so_dong . ' ghế). Thêm mới ' . $them
+				. ', ghi đè ' . $de . ', bỏ qua (đã có) ' . $bo . '.'
+				. ( count( $loi ) ? ' Có ' . count( $loi ) . ' dòng lỗi bị bỏ.' : '' ) );
 	}
 }
