@@ -230,6 +230,36 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * TRANG KẾ TOÁN (kt_*) — token + vai trò CHỐT hoặc QUẢN TRỊ (Admin/Quản lý).
+		 * Kế toán = người "Chốt doanh số"; quản lý/Admin cũng vào được. Người thu (chỉ giúp khách)
+		 * KHÔNG vào. Đọc/ghi chung bảng bc/bc_dong — xem class-vhg-ketoan.php.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 0 === strpos( $viec, 'kt_' ) ) {
+			$q = VHG_Auth::quyen_cua( $ai['role'] );
+			if ( empty( $q['quan_tri'] ) && empty( $q['chot_doanh_so'] ) ) {
+				self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+					'error' => 'Trang kế toán chỉ dành cho vai trò Chốt doanh số, Quản lý hoặc Admin.' ) );
+				return;
+			}
+			$boi = (string) $ai['name'];
+			if ( 'kt_ds' === $viec )       { self::tra( VHG_KeToan::ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_ct' === $viec )       { self::tra( VHG_KeToan::chi_tiet( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
+			if ( 'kt_sua' === $viec )      { self::tra( VHG_KeToan::sua( isset( $d['report_id'] ) ? $d['report_id'] : '', isset( $d['ma_may'] ) ? $d['ma_may'] : '', isset( $d['patch'] ) ? $d['patch'] : array(), $boi ) ); return; }
+			if ( 'kt_duyet' === $viec )    { self::tra( VHG_KeToan::duyet( isset( $d['targets'] ) ? $d['targets'] : array(), ! empty( $d['on'] ), $boi ) ); return; }
+			if ( 'kt_duyet_ngay' === $viec ) { self::tra( VHG_KeToan::duyet_ngay( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '', ! empty( $d['on'] ), $boi ) ); return; }
+			if ( 'kt_khoa' === $viec )     { self::tra( VHG_KeToan::khoa( isset( $d['ngay'] ) ? $d['ngay'] : '', ! empty( $d['on'] ), isset( $d['coso'] ) ? $d['coso'] : '', $boi ) ); return; }
+			if ( 'kt_khoa_ds' === $viec )  { self::tra( VHG_KeToan::khoa_ds() ); return; }
+			if ( 'kt_xoa' === $viec )      { self::tra( VHG_KeToan::xoa( isset( $d['targets'] ) ? $d['targets'] : array(), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
+			if ( 'kt_rac_ds' === $viec )   { self::tra( VHG_KeToan::rac_ds( isset( $d['gh'] ) ? $d['gh'] : 100 ) ); return; }
+			if ( 'kt_rac_hoan' === $viec ) { self::tra( VHG_KeToan::rac_hoan( isset( $d['ids'] ) ? $d['ids'] : array(), $boi ) ); return; }
+			if ( 'kt_doi_ngay' === $viec ) { self::tra( VHG_KeToan::doi_ngay( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay_cu'] ) ? $d['ngay_cu'] : '', isset( $d['ngay_moi'] ) ? $d['ngay_moi'] : '', isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
+			if ( 'kt_undo_ds' === $viec )  { self::tra( VHG_KeToan::undo_ds( isset( $d['gh'] ) ? $d['gh'] : 40 ) ); return; }
+			if ( 'kt_undo' === $viec )     { self::tra( VHG_KeToan::undo( isset( $d['id'] ) ? (int) $d['id'] : 0, $boi ) ); return; }
+			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
+			return;
+		}
+
 		if ( 'bat' === $viec || 'tat' === $viec || 'khoi_dong_lai' === $viec || 'mo_khoa' === $viec ) {
 			$r = VHG_May::dat_lenh(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',

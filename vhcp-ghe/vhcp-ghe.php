@@ -55,6 +55,9 @@ require_once VHG_DIR . 'includes/class-vhg-quy.php';
    class-vhg-may.php: VHG_BaoCao dùng VHG_Quy::don_vi() và VHG_May::ds_may(), và đọc chung bảng
    `chot` để lấy chỉ số trước. */
 require_once VHG_DIR . 'includes/class-vhg-baocao.php';
+/* Trang kế toán (duyệt báo cáo, đối chiếu, công nợ, MISA…). Nạp SAU class-vhg-baocao.php và
+   class-vhg-quy.php: VHG_KeToan dùng lại VHG_BaoCao::squash/ngay_/chi_so_truoc và VHG_Quy::don_vi. */
+require_once VHG_DIR . 'includes/class-vhg-ketoan.php';
 require_once VHG_DIR . 'includes/class-vhg-chan.php';
 require_once VHG_DIR . 'includes/class-vhg-qrve.php';
 require_once VHG_DIR . 'includes/class-vhg-nhap.php';
