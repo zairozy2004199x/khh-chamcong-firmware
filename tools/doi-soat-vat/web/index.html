@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=1.2.0">
+<link rel="stylesheet" href="style.css?v=1.3.0">
 </head>
 <body>
 
@@ -185,6 +185,29 @@
       </div>
     </div>
 
+    <div class="panel">
+      <h3>Đối soát theo từng file</h3>
+      <p class="note">
+        Kiểm từng file trước rồi mới tin số tổng. File kết quả cũng có một tab riêng
+        cho mỗi file — điểm xuất hoá đơn × ngày, chỉ tính riêng file đó, để so thẳng
+        với file gốc.
+      </p>
+      <div class="table-scroll">
+        <table class="grid-table" id="fileTable">
+          <thead>
+            <tr>
+              <th class="num-col">#</th><th>File</th><th>Luồng tiền đọc được</th>
+              <th class="num-col">Số GD</th><th class="num-col">Số điểm</th>
+              <th class="num-col">Vào hoá đơn</th><th class="num-col">Chưa có danh mục</th>
+              <th class="num-col">Vãng lai</th><th class="num-col">Ngoài kỳ</th>
+              <th class="num-col">Trùng mã</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="panel" id="unmappedPanel" hidden>
       <h3>Mã điểm bán chưa có trong danh mục</h3>
       <p class="note">
@@ -239,7 +262,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>1.2.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo.
+      Phiên bản <strong>1.3.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo.
     </p>
   </footer>
 </div>
@@ -247,6 +270,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=1.2.0"></script>
+<script src="js/app.js?v=1.3.0"></script>
 </body>
 </html>

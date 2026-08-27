@@ -16,7 +16,8 @@ PAID = "Đã thanh toán"
 CANCELLED = "Đã hủy"
 
 
-def read_zalo(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn]:
+def read_zalo(path: str, sheet: str, stream: str | None = None,
+              nguon: str | None = None, **_) -> list[Txn]:
     """Đọc sao kê đơn Zalo Mini App.
 
     Chỉ lấy đơn đã thanh toán và chưa huỷ. Một mã đơn hàng chỉ tính một lần dù
@@ -47,6 +48,7 @@ def read_zalo(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn
         out.append(
             Txn(
                 channel="zalo",
+                nguon=nguon or "",
                 stream=label,
                 code=_gian_hang(row, index),
                 ngay=to_date(_at(row, index["Ngày đặt hàng"])),

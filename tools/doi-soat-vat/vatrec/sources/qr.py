@@ -10,7 +10,8 @@ REQUIRED = ["Thời gian TT", "Số tiền đến (VND)", "Trạng thái", "Mã 
 SUCCESS = "Thành công"
 
 
-def read_qr(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn]:
+def read_qr(path: str, sheet: str, stream: str | None = None,
+              nguon: str | None = None, **_) -> list[Txn]:
     """Đọc một sheet sao kê QR.
 
     Chỉ lấy giao dịch ``Thành công`` — đây đúng là điều kiện file mẫu đang dùng
@@ -36,6 +37,7 @@ def read_qr(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn]:
         out.append(
             Txn(
                 channel="qr",
+                nguon=nguon or "",
                 stream=label,
                 code=code,
                 ngay=to_date(_at(row, index["Thời gian TT"])),

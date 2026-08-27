@@ -208,10 +208,10 @@ function catalog() {
   return c;
 }
 
-function txn(code, ngay, soTien, ref, stream, channel) {
+function txn(code, ngay, soTien, ref, stream, channel, nguon) {
   return {
     channel: channel || 'qr', stream: stream || 'QR', code: code,
-    ngay: ngay, soTien: soTien, ref: ref || ''
+    ngay: ngay, soTien: soTien, ref: ref || '', nguon: nguon || 'a.xlsx'
   };
 }
 
@@ -292,6 +292,47 @@ eq('báo lại tiền bị loại vì pháp nhân', boPhapNhan.loaiKhacPhapNhan,
 var khongNgay = V.aggregate([txn('SHOP1', null, 100, 'r1')], catalog(), KY);
 eq('đếm giao dịch không đọc được ngày', khongNgay.khongCoNgay, 1);
 eq('không tính vào doanh thu', V.totalOf(khongNgay), 0);
+
+/* ---------------------------------------------------------- tách theo file */
+
+var theoFile = V.aggregate([
+  txn('SHOP1', '2026-08-01', 100, 'a1', null, null, 'a.xlsx'),
+  txn('SHOP1', '2026-08-02', 200, 'a2', null, null, 'a.xlsx'),
+  txn('SHOP2', '2026-08-01', 50, 'b1', null, null, 'b.xlsx'),
+  txn('LA9', '2026-08-01', 700, 'b2', null, null, 'b.xlsx'),
+  txn('', '2026-08-01', 300, 'b3', null, null, 'b.xlsx')
+], catalog(), KY);
+
+check('liệt kê đúng các file',
+  theoFile.nguonList.length === 2 && theoFile.nguonList[0] === 'a.xlsx',
+  JSON.stringify(theoFile.nguonList));
+eq('file a cộng riêng đúng', theoFile.nguonStats['a.xlsx'].soTien, 300);
+eq('file a đếm đúng số điểm', theoFile.nguonStats['a.xlsx'].soDiem, 1);
+eq('file b cộng riêng đúng', theoFile.nguonStats['b.xlsx'].soTien, 50);
+eq('mã lạ tính vào đúng file', theoFile.nguonStats['b.xlsx'].chuaMapSoTien, 700);
+eq('vãng lai tính vào đúng file', theoFile.nguonStats['b.xlsx'].vangLai, 300);
+eq('file a không dính cảnh báo của file b', theoFile.nguonStats['a.xlsx'].chuaMapSoTien, 0);
+eq('tổng các file bằng tổng chung',
+  theoFile.nguonStats['a.xlsx'].soTien + theoFile.nguonStats['b.xlsx'].soTien,
+  V.totalOf(theoFile));
+
+var diemA = V.pointsOfNguon(theoFile, 'a.xlsx');
+eq('điểm của riêng file a', diemA[V.keyText('Điểm A')], 300);
+eq('file b không thấy điểm của file a',
+  V.pointsOfNguon(theoFile, 'b.xlsx')[V.keyText('Điểm A')], undefined);
+var dongA = V.rowOfNguon(theoFile, 'a.xlsx', V.keyText('Điểm A'));
+eq('dòng theo ngày của riêng file a', dongA['2026-08-02'], 200);
+
+// Ngoài kỳ và trùng mã cũng phải quy về đúng file.
+var fileCanhBao = V.aggregate([
+  txn('SHOP1', '2026-08-01', 100, 'x1', null, null, 'a.xlsx'),
+  txn('SHOP1', '2026-07-01', 900, 'x9', null, null, 'b.xlsx'),
+  txn('SHOP1', '2026-08-01', 100, 'x1', null, null, 'b.xlsx')
+], catalog(), KY);
+eq('ngoài kỳ tính vào đúng file', fileCanhBao.nguonStats['b.xlsx'].ngoaiKy, 900);
+eq('trùng mã tính vào đúng file', fileCanhBao.nguonStats['b.xlsx'].trungLap, 100);
+eq('file a giữ nguyên', fileCanhBao.nguonStats['a.xlsx'].soTien, 100);
+eq('không cộng hai lần', V.totalOf(fileCanhBao), 100);
 
 /* --------------------------------------------------------------- hoá đơn */
 

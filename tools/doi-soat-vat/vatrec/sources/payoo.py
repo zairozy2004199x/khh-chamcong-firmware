@@ -9,7 +9,8 @@ from .base import Txn
 REQUIRED = ["Cửa hàng", "Ngày giao dịch", "Hình thức thanh toán", "Số tiền thanh toán (₫)"]
 
 
-def read_payoo(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn]:
+def read_payoo(path: str, sheet: str, stream: str | None = None,
+              nguon: str | None = None, **_) -> list[Txn]:
     """Đọc sao kê Payoo.
 
     Số tiền lấy ở cột "Số tiền thanh toán" (tiền khách trả, trước khi trừ phí) —
@@ -33,6 +34,7 @@ def read_payoo(path: str, sheet: str, stream: str | None = None, **_) -> list[Tx
         out.append(
             Txn(
                 channel="payoo",
+                nguon=nguon or "",
                 stream=f"{prefix} - {hinh_thuc}" if hinh_thuc else prefix,
                 code=code,
                 ngay=to_date(_at(row, index["Ngày giao dịch"])),

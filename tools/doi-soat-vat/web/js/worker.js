@@ -170,7 +170,8 @@ function run(message) {
     var reader = VatRec.READERS[sheet.kind];
     if (!reader) return;
     post('progress', { phase: 'Đang đọc ' + item.file + ' / ' + sheet.name });
-    txns = txns.concat(reader(sheet.rows, sheet.headerRow, item.luong || sheet.name));
+    // Gắn tên file vào từng giao dịch để phần báo cáo tách được theo file.
+    txns = txns.concat(reader(sheet.rows, sheet.headerRow, item.luong || sheet.name, item.file));
   });
 
   post('progress', { phase: 'Đang tổng hợp ' + txns.length.toLocaleString('vi-VN') + ' giao dịch...' });
@@ -203,6 +204,15 @@ function run(message) {
     tong: VatRec.totalOf(result),
     soGiaoDich: txns.length,
     soDiem: invoices.length,
+    theoFile: result.nguonList.map(function (nguon) {
+      var tk = result.nguonStats[nguon];
+      return {
+        nguon: nguon, luong: tk.luong, soGiaoDich: tk.soGiaoDich, soDiem: tk.soDiem,
+        soTien: tk.soTien, chuaMapSoTien: tk.chuaMapSoTien, vangLai: tk.vangLai,
+        ngoaiKy: tk.ngoaiKy, trungLap: tk.trungLap, loaiKhacPhapNhan: tk.loaiKhacPhapNhan,
+        khongCoNgay: tk.khongCoNgay
+      };
+    }),
     theoNgay: !!message.theoNgay,
     theoNgayBang: bangTheoNgay(result, message),
     chuaVat: invoices.reduce(function (a, i) { return a + i.chuaVat; }, 0),

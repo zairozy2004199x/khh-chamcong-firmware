@@ -348,6 +348,8 @@ mã vẫn được coi là hai giao dịch thật.
 | `DS xuất HĐ MTT` | Danh sách hoá đơn để nhập Misa — đúng thứ tự cột của file mẫu. Cột *Số HĐ* để trống vì số do Misa cấp |
 | `kê ds xuất HĐ MTT` | Bản kê chi tiết, thêm cột tách theo từng luồng tiền để tra ngược |
 | Một sheet cho mỗi luồng tiền | Pivot điểm xuất hoá đơn × ngày (luồng không phát sinh thì không tạo sheet) |
+| `Đối soát theo file` | Mỗi file đầu vào một dòng: luồng đọc được, số GD, tiền vào hoá đơn, và phần bị tách riêng của chính file đó |
+| `F1 …`, `F2 …` | **Một tab cho mỗi file** — điểm xuất hoá đơn × ngày, chỉ tính riêng file đó |
 | `Tổng theo ngày` | Mỗi ngày trong kỳ một dòng: tổng, chưa VAT, VAT, số điểm phát sinh, tách theo luồng |
 | `Đối soát` | Tổng theo luồng, số hoá đơn, và **toàn bộ cảnh báo ở mục 3.5** |
 
@@ -355,6 +357,14 @@ Dòng `TỔNG` cuối mỗi bảng dùng công thức `SUM()`, nên sửa số t
 tự cập nhật.
 
 **Luôn mở sheet `Đối soát` trước.** Dòng "Lệch so với tổng luồng tiền" phải bằng 0.
+
+Sau đó xem **`Đối soát theo file`**: tổng cột *Vào hoá đơn* của các file phải đúng
+bằng tổng chung. File nào có số ở cột *Chưa có danh mục*, *Vãng lai* hay *Trùng mã*
+thì mở tab `F…` của file đó ra soi — tab đó chỉ tính riêng file, so thẳng được với
+file gốc mà không phải bóc tách gì thêm.
+
+Số tổng chỉ đáng tin khi từng file đã đúng, nên thứ tự kiểm là: từng tab `F…` →
+`Đối soát theo file` → mới tới `DS xuất HĐ MTT`.
 
 ---
 

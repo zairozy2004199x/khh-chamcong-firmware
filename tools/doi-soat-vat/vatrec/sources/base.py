@@ -25,3 +25,6 @@ class Txn:
     so_tien: int
     ref: str = ""
     """Mã tham chiếu / mã giao dịch — dùng để phát hiện bản ghi trùng."""
+
+    nguon: str = ""
+    """Tên file đã đọc ra giao dịch này, để đối chiếu ngược từng file một."""

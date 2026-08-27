@@ -10,7 +10,8 @@ REQUIRED = ["Thời gian", "Mã đơn hàng", "Trạng thái", "Số tiền", "M
 SUCCESS = "Thành công"
 
 
-def read_momo(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn]:
+def read_momo(path: str, sheet: str, stream: str | None = None,
+              nguon: str | None = None, **_) -> list[Txn]:
     """Đọc sao kê MoMo.
 
     File MoMo hay đặt hai khối cạnh nhau trên cùng một sheet: khối "MS.…" tổng
@@ -35,6 +36,7 @@ def read_momo(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn
         out.append(
             Txn(
                 channel="momo",
+                nguon=nguon or "",
                 stream=label,
                 code=code,
                 ngay=to_date(_at(row, index["Thời gian"])),

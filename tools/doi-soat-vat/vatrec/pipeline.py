@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from .aggregate import Aggregate, aggregate
 from .catalog import (
     Catalog,
@@ -41,7 +43,9 @@ def read_all(config: Config) -> list[Txn]:
         reader = READERS.get(spec.kind)
         if reader is None:
             raise ValueError(f"không có reader cho nguồn {spec.kind!r}")
-        txns.extend(reader(config.resolve(spec.file), spec.sheet, spec.stream))
+        # Tên file (không kèm đường dẫn) là nhãn dùng cho tab kiểm từng file.
+        nguon = Path(spec.file).name
+        txns.extend(reader(config.resolve(spec.file), spec.sheet, spec.stream, nguon))
     return txns
 
 

@@ -195,7 +195,7 @@
    * Sao kê QR VietQR. Chỉ lấy giao dịch "Thành công" - đúng điều kiện các file
    * mẫu đang dùng (tổng khớp tuyệt đối với khối "Tổng QR ...").
    */
-  function readQr(rows, headerRow, stream) {
+  function readQr(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow],
       ['Thời gian TT', 'Số tiền đến (VND)', 'Trạng thái', 'Mã cửa hàng', 'Mã tham chiếu']);
     var out = [];
@@ -210,6 +210,7 @@
       out.push({
         channel: 'qr',
         stream: stream,
+        nguon: nguon || '',
         code: code,
         ngay: toDate(at(row, ix['Thời gian TT'])),
         soTien: toInt(at(row, ix['Số tiền đến (VND)'])),
@@ -223,7 +224,7 @@
    * Sao kê Payoo. Lấy "Số tiền thanh toán" (tiền khách trả, chưa trừ phí) và
    * tách riêng hai luồng "Quét mã QR" / "Thẻ".
    */
-  function readPayoo(rows, headerRow, stream) {
+  function readPayoo(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow], ['Cửa hàng', 'Ngày giao dịch', 'Hình thức thanh toán',
       'Số tiền thanh toán (₫)', 'Mã giao dịch Payoo']);
     var out = [];
@@ -235,6 +236,7 @@
       out.push({
         channel: 'payoo',
         stream: hinhThuc ? stream + ' - ' + hinhThuc : stream,
+        nguon: nguon || '',
         code: code,
         ngay: toDate(at(row, ix['Ngày giao dịch'])),
         soTien: toInt(at(row, ix['Số tiền thanh toán (₫)'])),
@@ -248,7 +250,7 @@
    * Sao kê VNPay. Doanh thu xuất hoá đơn là "Số tiền sau KM" - không phải
    * "Số tiền hạch toán thu hộ", cột đó lệch vì có giao dịch trả sang kỳ sau.
    */
-  function readVnpay(rows, headerRow, stream) {
+  function readVnpay(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow],
       ['Mã điểm thu', 'Thời gian GD', 'Số tiền sau KM', 'Trạng thái', 'Mã giao dịch']);
     var out = [];
@@ -260,6 +262,7 @@
       out.push({
         channel: 'vnpay',
         stream: stream,
+        nguon: nguon || '',
         code: code,
         ngay: toDate(at(row, ix['Thời gian GD'])),
         soTien: toInt(at(row, ix['Số tiền sau KM'])),
@@ -274,7 +277,7 @@
    * phẩm của đơn, gian hàng nằm ở đầu tên sản phẩm ("VINCOM TIMES CITY - ...").
    * Nên gom về đơn (một mã đơn tính một lần) rồi cắt lấy tên gian hàng.
    */
-  function readZalo(rows, headerRow, stream) {
+  function readZalo(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow], ['Mã đơn hàng', 'Ngày đặt hàng', 'Tổng tiền phải trả',
       'Trạng thái thanh toán', 'Trạng thái đơn hàng', 'Tên sản phẩm', 'Chi nhánh']);
     var seen = Object.create(null);
@@ -289,6 +292,7 @@
       out.push({
         channel: 'zalo',
         stream: stream,
+        nguon: nguon || '',
         code: gianHang(row, ix),
         ngay: toDate(at(row, ix['Ngày đặt hàng'])),
         soTien: toInt(at(row, ix['Tổng tiền phải trả'])),
@@ -314,7 +318,7 @@
    * Đã đối chiếu: tổng khớp tuyệt đối 1.042.790.000 và không lệch một ô nào trên
    * 17 điểm x 31 ngày của bảng "Tổng Momo T8".
    */
-  function readMomo(rows, headerRow, stream) {
+  function readMomo(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow],
       ['Thời gian', 'Mã đơn hàng', 'Trạng thái', 'Số tiền', 'Mã cửa hàng']);
     var out = [];
@@ -326,6 +330,7 @@
       out.push({
         channel: 'momo',
         stream: stream,
+        nguon: nguon || '',
         code: code,
         ngay: toDate(at(row, ix['Thời gian'])),
         soTien: toInt(at(row, ix['Số tiền'])),
@@ -499,10 +504,36 @@
     var trungLap = 0, trungLapSoGiaoDich = 0;
     var viDuTrungLap = [];
 
+    // Số liệu tách theo từng file đầu vào, để đối chiếu ngược từng file một.
+    var nguonList = [];
+    var nguonSeen = Object.create(null);
+    var nguonStats = Object.create(null);
+    var nguonCells = Object.create(null);
+
+    function thongKe(nguon) {
+      var ten = nguon || '(không rõ file)';
+      if (!nguonSeen[ten]) {
+        nguonSeen[ten] = true;
+        nguonList.push(ten);
+        nguonStats[ten] = {
+          nguon: ten, soGiaoDich: 0, soTien: 0, luong: [], luongSeen: Object.create(null),
+          chuaMapSoGiaoDich: 0, chuaMapSoTien: 0, vangLai: 0, vangLaiSoGiaoDich: 0,
+          ngoaiKy: 0, trungLap: 0, trungLapSoGiaoDich: 0, khongCoNgay: 0,
+          loaiKhacPhapNhan: 0, diem: Object.create(null)
+        };
+      }
+      return nguonStats[ten];
+    }
+
     txns.forEach(function (txn) {
       if (!streamSeen[txn.stream]) { streamSeen[txn.stream] = true; streams.push(txn.stream); }
-      if (!txn.ngay) { khongCoNgay += 1; return; }
-      if ((kyTu && txn.ngay < kyTu) || (kyDen && txn.ngay > kyDen)) { ngoaiKy += txn.soTien; return; }
+      var tk = thongKe(txn.nguon);
+      if (!tk.luongSeen[txn.stream]) { tk.luongSeen[txn.stream] = true; tk.luong.push(txn.stream); }
+
+      if (!txn.ngay) { khongCoNgay += 1; tk.khongCoNgay += 1; return; }
+      if ((kyTu && txn.ngay < kyTu) || (kyDen && txn.ngay > kyDen)) {
+        ngoaiKy += txn.soTien; tk.ngoaiKy += txn.soTien; return;
+      }
       // Cùng một mã giao dịch xuất hiện hai lần nghĩa là nó bị đọc từ hai sheet
       // (file sao kê thường kèm cả sheet của kỳ cũ). Cộng cả hai thì doanh thu
       // bị đội lên, nên bỏ bản thứ hai và báo lại số đã bỏ.
@@ -511,6 +542,8 @@
         if (seenRef[refKey]) {
           trungLap += txn.soTien;
           trungLapSoGiaoDich += 1;
+          tk.trungLap += txn.soTien;
+          tk.trungLapSoGiaoDich += 1;
           if (viDuTrungLap.length < 50) {
             viDuTrungLap.push({ channel: txn.channel, ref: txn.ref, stream: txn.stream, soTien: txn.soTien });
           }
@@ -522,6 +555,8 @@
       if (!cleanText(txn.code)) {
         vangLai += txn.soTien;
         vangLaiSoGiaoDich += 1;
+        tk.vangLai += txn.soTien;
+        tk.vangLaiSoGiaoDich += 1;
         return;
       }
       var point = catalog.lookup(txn.channel, txn.code);
@@ -529,6 +564,8 @@
         var missKey = txn.channel + SEP + txn.code;
         chuaMapCount[missKey] = (chuaMapCount[missKey] || 0) + 1;
         chuaMapAmount[missKey] = (chuaMapAmount[missKey] || 0) + txn.soTien;
+        tk.chuaMapSoGiaoDich += 1;
+        tk.chuaMapSoTien += txn.soTien;
         return;
       }
       // Lọc theo bản ghi đã bù thông tin, đúng bản dùng để hiển thị: danh mục của
@@ -538,12 +575,26 @@
       var full = catalog.points[key] || point;
       if (phapNhan && full.phapNhan && keyText(full.phapNhan) !== keyText(phapNhan)) {
         loaiKhacPhapNhan += txn.soTien;
+        tk.loaiKhacPhapNhan += txn.soTien;
         return;
       }
       if (!points[key]) points[key] = full;
       dates[txn.ngay] = true;
       var cellKey = key + SEP + txn.stream + SEP + txn.ngay;
       cells[cellKey] = (cells[cellKey] || 0) + txn.soTien;
+
+      tk.soGiaoDich += 1;
+      tk.soTien += txn.soTien;
+      tk.diem[key] = true;
+      var nguonKey = tk.nguon + SEP + key + SEP + txn.ngay;
+      nguonCells[nguonKey] = (nguonCells[nguonKey] || 0) + txn.soTien;
+    });
+
+    nguonList.forEach(function (ten) {
+      var tk = nguonStats[ten];
+      tk.soDiem = Object.keys(tk.diem).length;
+      delete tk.diem;
+      delete tk.luongSeen;
     });
 
     var chuaMap = Object.keys(chuaMapCount).map(function (key) {
@@ -560,6 +611,9 @@
       streams: streams,
       dates: Object.keys(dates).sort(),
       chuaMap: chuaMap,
+      nguonList: nguonList,
+      nguonStats: nguonStats,
+      nguonCells: nguonCells,
       trungLap: trungLap,
       trungLapSoGiaoDich: trungLapSoGiaoDich,
       viDuTrungLap: viDuTrungLap,
@@ -591,6 +645,26 @@
       sum += result.cells[key];
     });
     return sum;
+  }
+
+  /** Một dòng pivot của riêng một file: điểm -> {ngày: số tiền}. */
+  function rowOfNguon(result, nguon, pointKeyValue) {
+    var out = Object.create(null);
+    Object.keys(result.nguonCells).forEach(function (key) {
+      var parts = key.split(SEP);
+      if (parts[0] === nguon && parts[1] === pointKeyValue) out[parts[2]] = result.nguonCells[key];
+    });
+    return out;
+  }
+
+  /** Các điểm có doanh thu trong một file, kèm tổng của từng điểm. */
+  function pointsOfNguon(result, nguon) {
+    var out = Object.create(null);
+    Object.keys(result.nguonCells).forEach(function (key) {
+      var parts = key.split(SEP);
+      if (parts[0] === nguon) out[parts[1]] = (out[parts[1]] || 0) + result.nguonCells[key];
+    });
+    return out;
   }
 
   /** Một dòng pivot: điểm x luồng -> {ngày: số tiền}. */
@@ -721,6 +795,8 @@
     totalsByPoint: totalsByPoint,
     totalOf: totalOf,
     rowOf: rowOf,
+    rowOfNguon: rowOfNguon,
+    pointsOfNguon: pointsOfNguon,
     splitVat: splitVat,
     buildInvoices: buildInvoices,
     totalsByDate: totalsByDate,

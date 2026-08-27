@@ -19,7 +19,7 @@
     'kieuXuat', 'today', 'dayTable', 'thNgay', 'drop', 'fileInput', 'fileList', 'stepSheets', 'sheetTable', 'extraTable',
     'addExtra', 'clearExtra', 'extraCount', 'run', 'download', 'status', 'error',
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
-    'unmappedTable', 'addAllUnmapped', 'pointTable'].forEach(function (id) {
+    'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable'].forEach(function (id) {
     el[id] = document.getElementById(id);
   });
 
@@ -505,6 +505,25 @@
     var soCanhBao = warnings.filter(function (i) { return (i[1] || 0) > 0 || (i[2] || 0) > 0; }).length;
     el.warnBadge.hidden = !soCanhBao;
     el.warnBadge.textContent = soCanhBao;
+
+    fillTable(el.fileTable, (message.theoFile || []).map(function (item, i) {
+      var canhBao = item.chuaMapSoTien || item.vangLai || item.trungLap;
+      return {
+        warn: !!canhBao,
+        cells: [
+          { value: i + 1, num: true },
+          item.nguon,
+          item.luong.join(', ') || '—',
+          { value: money(item.soGiaoDich), num: true },
+          { value: money(item.soDiem), num: true },
+          { value: money(item.soTien), num: true },
+          { value: item.chuaMapSoTien ? money(item.chuaMapSoTien) : '—', num: true },
+          { value: item.vangLai ? money(item.vangLai) : '—', num: true },
+          { value: item.ngoaiKy ? money(item.ngoaiKy) : '—', num: true },
+          { value: item.trungLap ? money(item.trungLap) : '—', num: true }
+        ]
+      };
+    }));
 
     renderUnmapped(message.chuaMap);
 

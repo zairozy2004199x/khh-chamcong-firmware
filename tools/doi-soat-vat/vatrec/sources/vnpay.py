@@ -10,7 +10,8 @@ REQUIRED = ["Mã điểm thu", "Thời gian GD", "Số tiền sau KM", "Trạng 
 SUCCESS = "Thành công"
 
 
-def read_vnpay(path: str, sheet: str, stream: str | None = None, **_) -> list[Txn]:
+def read_vnpay(path: str, sheet: str, stream: str | None = None,
+              nguon: str | None = None, **_) -> list[Txn]:
     """Đọc sao kê VNPay.
 
     Doanh thu xuất hoá đơn là "Số tiền sau KM" (số khách thực trả), không phải
@@ -36,6 +37,7 @@ def read_vnpay(path: str, sheet: str, stream: str | None = None, **_) -> list[Tx
         out.append(
             Txn(
                 channel="vnpay",
+                nguon=nguon or "",
                 stream=label,
                 code=code,
                 ngay=to_date(_at(row, index["Thời gian GD"])),

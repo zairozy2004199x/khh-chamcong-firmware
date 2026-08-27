@@ -195,9 +195,10 @@ def _catalog():
     return catalog
 
 
-def _txn(code, day, amount, ref="", stream="QR", channel="qr"):
+def _txn(code, day, amount, ref="", stream="QR", channel="qr", nguon="a.xlsx"):
     return Txn(channel=channel, stream=stream, code=code,
-               ngay=dt.date(2026, 8, day) if day else None, so_tien=amount, ref=ref)
+               ngay=dt.date(2026, 8, day) if day else None, so_tien=amount, ref=ref,
+               nguon=nguon)
 
 
 def test_aggregate_basic():
@@ -300,6 +301,61 @@ def test_aggregate_khong_co_ngay():
     )
     check("đếm giao dịch không đọc được ngày", result.khong_co_ngay == 1)
     check("không tính vào doanh thu", result.total() == 0)
+
+
+# ------------------------------------------------------------ tách theo file
+
+def test_tach_theo_nguon():
+    """Mỗi file phải cộng riêng, và tổng các file bằng đúng tổng chung."""
+    result = aggregate(
+        [
+            _txn("SHOP1", 1, 100, "a1", nguon="a.xlsx"),
+            _txn("SHOP1", 2, 200, "a2", nguon="a.xlsx"),
+            _txn("SHOP2", 1, 50, "b1", nguon="b.xlsx"),
+            _txn("LA9", 1, 700, "b2", nguon="b.xlsx"),
+            _txn("", 1, 300, "b3", nguon="b.xlsx"),
+        ],
+        _catalog(), dt.date(2026, 8, 1), dt.date(2026, 8, 31),
+    )
+    check("liệt kê đúng các file", result.nguon_list == ["a.xlsx", "b.xlsx"],
+          str(result.nguon_list))
+
+    a = result.nguon_stats["a.xlsx"]
+    b = result.nguon_stats["b.xlsx"]
+    check("file a cộng riêng đúng", a.so_tien == 300, str(a.so_tien))
+    check("file a đếm đúng số điểm", a.so_diem == 1)
+    check("file b cộng riêng đúng", b.so_tien == 50, str(b.so_tien))
+    check("mã lạ tính vào đúng file", b.chua_map_so_tien == 700)
+    check("vãng lai tính vào đúng file", b.vang_lai == 300)
+    check("file a không dính cảnh báo của file b",
+          a.chua_map_so_tien == 0 and a.vang_lai == 0)
+    check("tổng các file bằng tổng chung",
+          a.so_tien + b.so_tien == result.total(), f"{a.so_tien}+{b.so_tien} vs {result.total()}")
+
+    diem_a = result.diem_cua_nguon("a.xlsx")
+    check("điểm của riêng file a", diem_a == {key_text("Điểm A"): 300}, str(diem_a))
+    dong = result.dong_cua_nguon("a.xlsx", key_text("Điểm A"))
+    check("dòng theo ngày của riêng file a",
+          dong == {dt.date(2026, 8, 1): 100, dt.date(2026, 8, 2): 200}, str(dong))
+    check("file b không thấy điểm của file a",
+          key_text("Điểm A") not in result.diem_cua_nguon("b.xlsx"))
+
+
+def test_nguon_ngoai_ky_va_trung():
+    """Giao dịch ngoài kỳ và trùng mã cũng phải quy về đúng file."""
+    result = aggregate(
+        [
+            _txn("SHOP1", 1, 100, "x1", nguon="a.xlsx"),
+            Txn(channel="qr", stream="QR", code="SHOP1", ngay=dt.date(2026, 7, 1),
+                so_tien=900, ref="x9", nguon="b.xlsx"),
+            _txn("SHOP1", 1, 100, "x1", nguon="b.xlsx"),
+        ],
+        _catalog(), dt.date(2026, 8, 1), dt.date(2026, 8, 31),
+    )
+    check("ngoài kỳ tính vào đúng file", result.nguon_stats["b.xlsx"].ngoai_ky == 900)
+    check("trùng mã tính vào đúng file", result.nguon_stats["b.xlsx"].trung_lap == 100)
+    check("file a giữ nguyên", result.nguon_stats["a.xlsx"].so_tien == 100)
+    check("không cộng hai lần", result.total() == 100)
 
 
 # ------------------------------------------------------------------- invoices

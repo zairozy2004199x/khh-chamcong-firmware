@@ -22,6 +22,26 @@ class Unmapped:
 
 
 @dataclass
+class NguonStats:
+    """Số liệu của riêng một file đầu vào, để đối chiếu ngược từng file một."""
+
+    nguon: str
+    luong: list[str] = field(default_factory=list)
+    so_giao_dich: int = 0
+    so_tien: int = 0
+    so_diem: int = 0
+    chua_map_so_giao_dich: int = 0
+    chua_map_so_tien: int = 0
+    vang_lai: int = 0
+    vang_lai_so_giao_dich: int = 0
+    ngoai_ky: int = 0
+    trung_lap: int = 0
+    trung_lap_so_giao_dich: int = 0
+    khong_co_ngay: int = 0
+    loai_khac_phap_nhan: int = 0
+
+
+@dataclass
 class Aggregate:
     """Kết quả tổng hợp của một cơ sở."""
 
@@ -54,6 +74,30 @@ class Aggregate:
 
     loai_khac_phap_nhan: int = 0
     """Số tiền của điểm thuộc pháp nhân khác (đã bị loại khi có lọc pháp nhân)."""
+
+    nguon_list: list[str] = field(default_factory=list)
+    """Tên các file đầu vào, theo thứ tự gặp."""
+
+    nguon_stats: dict[str, NguonStats] = field(default_factory=dict)
+
+    nguon_cells: dict[tuple[str, str, _dt.date], int] = field(default_factory=dict)
+    """(file, khoá điểm, ngày) -> số tiền. Dùng cho tab kiểm từng file."""
+
+    def diem_cua_nguon(self, nguon: str) -> dict[str, int]:
+        """Khoá điểm -> tổng tiền, chỉ tính riêng một file."""
+        out: dict[str, int] = defaultdict(int)
+        for (ten, point_key, _), amount in self.nguon_cells.items():
+            if ten == nguon:
+                out[point_key] += amount
+        return dict(out)
+
+    def dong_cua_nguon(self, nguon: str, point_key: str) -> dict[_dt.date, int]:
+        """Một dòng pivot của riêng một file: ngày -> số tiền."""
+        return {
+            ngay: amount
+            for (ten, key, ngay), amount in self.nguon_cells.items()
+            if ten == nguon and key == point_key
+        }
 
     def total(self, point_key: str | None = None, stream: str | None = None) -> int:
         return sum(
@@ -109,16 +153,30 @@ def aggregate(
     unmapped_count: Counter[tuple[str, str]] = Counter()
     unmapped_amount: Counter[tuple[str, str]] = Counter()
     seen_ref: set[tuple[str, str]] = set()
+    diem_theo_nguon: dict[str, set[str]] = defaultdict(set)
+
+    def thong_ke(nguon: str) -> NguonStats:
+        ten = nguon or "(không rõ file)"
+        if ten not in result.nguon_stats:
+            result.nguon_stats[ten] = NguonStats(nguon=ten)
+            result.nguon_list.append(ten)
+        return result.nguon_stats[ten]
     streams: dict[str, None] = {}
     dates: set[_dt.date] = set()
 
     for txn in txns:
         streams.setdefault(txn.stream, None)
+        tk = thong_ke(txn.nguon)
+        if txn.stream not in tk.luong:
+            tk.luong.append(txn.stream)
+
         if txn.ngay is None:
             result.khong_co_ngay += 1
+            tk.khong_co_ngay += 1
             continue
         if (ky_tu and txn.ngay < ky_tu) or (ky_den and txn.ngay > ky_den):
             result.ngoai_ky += txn.so_tien
+            tk.ngoai_ky += txn.so_tien
             continue
         # Cùng một mã giao dịch xuất hiện hai lần nghĩa là nó được đọc từ hai
         # sheet (file sao kê thường kèm cả sheet của kỳ cũ). Cộng cả hai thì
@@ -127,6 +185,8 @@ def aggregate(
             if (txn.channel, txn.ref) in seen_ref:
                 result.trung_lap += txn.so_tien
                 result.trung_lap_so_giao_dich += 1
+                tk.trung_lap += txn.so_tien
+                tk.trung_lap_so_giao_dich += 1
                 if len(result.vi_du_trung_lap) < 50:
                     result.vi_du_trung_lap.append((txn.channel, txn.stream, txn.ref, txn.so_tien))
                 continue
@@ -136,12 +196,16 @@ def aggregate(
         if not clean_text(txn.code):
             result.vang_lai += txn.so_tien
             result.vang_lai_so_giao_dich += 1
+            tk.vang_lai += txn.so_tien
+            tk.vang_lai_so_giao_dich += 1
             continue
 
         point = catalog.lookup(txn.channel, txn.code)
         if point is None:
             unmapped_count[(txn.channel, txn.code)] += 1
             unmapped_amount[(txn.channel, txn.code)] += txn.so_tien
+            tk.chua_map_so_giao_dich += 1
+            tk.chua_map_so_tien += txn.so_tien
             continue
         # Lọc theo bản ghi đã bù thông tin, đúng bản dùng để hiển thị: danh mục của
         # cổng hay ghi pháp nhân tắt ("KH Mới TK CTy"), bảng thông tin điểm mới có
@@ -149,12 +213,22 @@ def aggregate(
         full = catalog.points.get(point.key, point)
         if chi_phap_nhan and full.phap_nhan and key_text(full.phap_nhan) != key_text(chi_phap_nhan):
             result.loai_khac_phap_nhan += txn.so_tien
+            tk.loai_khac_phap_nhan += txn.so_tien
             continue
 
         result.points.setdefault(point.key, full)
         dates.add(txn.ngay)
         cell = (point.key, txn.stream, txn.ngay)
         result.cells[cell] = result.cells.get(cell, 0) + txn.so_tien
+
+        tk.so_giao_dich += 1
+        tk.so_tien += txn.so_tien
+        diem_theo_nguon[tk.nguon].add(point.key)
+        nguon_cell = (tk.nguon, point.key, txn.ngay)
+        result.nguon_cells[nguon_cell] = result.nguon_cells.get(nguon_cell, 0) + txn.so_tien
+
+    for ten, keys in diem_theo_nguon.items():
+        result.nguon_stats[ten].so_diem = len(keys)
 
     result.streams = list(streams)
     result.dates = sorted(dates)

@@ -4,7 +4,7 @@ Tags: ke-toan, hoa-don, doi-soat, excel, vat
 Requires at least: 5.6
 Tested up to: 6.7
 Requires PHP: 7.2
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 License: MIT
 
 Gộp sao kê thu hộ từ nhiều cổng thanh toán, quy về điểm xuất hoá đơn, tách VAT
@@ -63,6 +63,9 @@ Một số cấu hình bảo mật chặn truy cập file .html trong thư mục
 wp-content/plugins/doi-soat-vat/web/.
 
 == Changelog ==
+
+= 1.3.0 =
+* Mỗi file đầu vào một tab riêng trong file kết quả, kèm bảng đối soát theo file.
 
 = 1.2.0 =
 * Thêm cổng MoMo: đọc sao kê, danh mục mã cửa hàng, và bảng thông tin điểm.

@@ -27,6 +27,7 @@
     var XLSXLib = root.XLSX;
     var book = XLSXLib.utils.book_new();
 
+    // Trang tổng hợp đứng trước, các tab kiểm từng file đứng sau.
     addSheet(XLSXLib, book, 'DS xuất HĐ MTT', sheetDanhSach(opts), DS_WIDTHS);
     addSheet(XLSXLib, book, 'kê ds xuất HĐ MTT', sheetBanKe(opts));
 
@@ -37,6 +38,16 @@
 
     addSheet(XLSXLib, book, 'Tổng theo ngày', sheetTheoNgay(opts));
     addSheet(XLSXLib, book, 'Đối soát', sheetDoiSoat(opts));
+
+    // Mỗi file đầu vào một tab riêng, để kiểm từng file rồi mới tin số tổng.
+    addSheet(XLSXLib, book, 'Đối soát theo file', sheetTheoFile(opts));
+    opts.result.nguonList.forEach(function (nguon, i) {
+      var built = sheetMotFile(opts, nguon, i + 1);
+      if (built.rows.length > 1) {
+        addSheet(XLSXLib, book, safeTitle('F' + (i + 1) + ' ' + tenNgan(nguon), book), built);
+      }
+    });
+
     return book;
   }
 
@@ -56,7 +67,7 @@
     for (var c = 0; c < columnCount; c += 1) {
       sheet['!cols'].push({ wch: (widths && widths[c]) || built.widths && built.widths[c] || 14 });
     }
-    sheet['!freeze'] = { xSplit: 0, ySplit: 1 };
+    sheet['!freeze'] = { xSplit: 0, ySplit: built.freezeRow || 1 };
     XLSXLib.utils.book_append_sheet(book, sheet, name);
     return sheet;
   }
@@ -207,6 +218,120 @@
 
   function thuTrongTuan(iso) {
     return THU[new Date(iso + 'T00:00:00Z').getUTCDay()];
+  }
+
+  /**
+   * Bảng đối soát theo từng file đầu vào.
+   *
+   * Số tổng chỉ đáng tin khi từng file đã đúng, nên bảng này đặt cạnh nhau: file,
+   * luồng tiền đọc được, số giao dịch, số tiền vào hoá đơn, và các phần bị tách
+   * riêng của chính file đó.
+   */
+  function sheetTheoFile(opts) {
+    var result = opts.result;
+    var header = ['#', 'File', 'Luồng tiền đọc được', 'Số GD', 'Số điểm', 'Vào hoá đơn',
+      'Chưa có danh mục', 'Vãng lai', 'Ngoài kỳ', 'Trùng mã', 'Pháp nhân khác', 'Không đọc được ngày'];
+    var rows = [header];
+    var formats = {};
+    var moneyColumns = [5, 6, 7, 8, 9, 10];
+
+    result.nguonList.forEach(function (nguon, i) {
+      var tk = result.nguonStats[nguon];
+      var r = rows.length;
+      rows.push([
+        i + 1, nguon, tk.luong.join(', '), tk.soGiaoDich, tk.soDiem, tk.soTien,
+        tk.chuaMapSoTien, tk.vangLai, tk.ngoaiKy, tk.trungLap, tk.loaiKhacPhapNhan, tk.khongCoNgay
+      ]);
+      moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN; });
+      formats[r + ',3'] = TIEN;
+    });
+    pushTotal(rows, formats, [3].concat(moneyColumns), header.length);
+    return {
+      rows: rows, formats: formats,
+      widths: [4, 44, 30, 10, 9, 16, 16, 14, 14, 13, 15, 17]
+    };
+  }
+
+  /**
+   * Một tab cho một file: điểm xuất hoá đơn x ngày, chỉ tính riêng file đó.
+   *
+   * Đây là bảng để so thẳng với chính file gốc. Phần đầu ghi lại tên file và các
+   * số bị tách riêng, để nhìn một chỗ là biết file đó đã đọc đủ chưa.
+   */
+  function sheetMotFile(opts, nguon, thuTu) {
+    var V = root.VatRec;
+    var result = opts.result;
+    var tk = result.nguonStats[nguon];
+    var dates = V.periodDates(opts.kyTu, opts.kyDen);
+    var rows = [];
+    var formats = {};
+
+    function ghiChu(nhan, giaTri, laTien) {
+      var r = rows.length;
+      rows.push([nhan, giaTri]);
+      if (laTien) formats[r + ',1'] = TIEN;
+    }
+
+    ghiChu('File', nguon);
+    ghiChu('Luồng tiền đọc được', tk.luong.join(', '));
+    ghiChu('Kỳ', viDate(opts.kyTu) + ' - ' + viDate(opts.kyDen));
+    ghiChu('Số giao dịch tính vào hoá đơn', tk.soGiaoDich);
+    ghiChu('Số tiền vào hoá đơn', tk.soTien, true);
+    ghiChu('Chưa có trong danh mục', tk.chuaMapSoTien, true);
+    ghiChu('Vãng lai (không mã điểm bán)', tk.vangLai, true);
+    ghiChu('Ngoài kỳ (đã loại)', tk.ngoaiKy, true);
+    ghiChu('Trùng mã (đã bỏ bản thứ hai)', tk.trungLap, true);
+    ghiChu('Điểm thuộc pháp nhân khác (đã loại)', tk.loaiKhacPhapNhan, true);
+    rows.push([]);
+
+    var headerRow = rows.length;
+    var header = ['STT', 'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Khu vực', 'Tổng']
+      .concat(dates.map(function (date) { return date.slice(8) + '/' + date.slice(5, 7); }));
+    rows.push(header);
+
+    var moneyColumns = [];
+    for (var c = 4; c < header.length; c += 1) moneyColumns.push(c);
+
+    var totals = V.pointsOfNguon(result, nguon);
+    var keys = Object.keys(totals).sort(function (a, b) {
+      var pa = result.points[a], pb = result.points[b];
+      return ((pa && pa.tenDiem) || a).localeCompare((pb && pb.tenDiem) || b, 'vi');
+    });
+
+    var stt = 0;
+    keys.forEach(function (key) {
+      if (!totals[key]) return;
+      var point = result.points[key] || { tenDiem: key, maMisa: '', khuVuc: '' };
+      var perDate = V.rowOfNguon(result, nguon, key);
+      stt += 1;
+      var r = rows.length;
+      rows.push([stt, point.tenDiem, point.maMisa, point.khuVuc, totals[key]]
+        .concat(dates.map(function (date) { return perDate[date] || 0; })));
+      moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN; });
+    });
+
+    if (stt > 0) {
+      var totalRow = new Array(header.length).fill(null);
+      totalRow[0] = 'TỔNG';
+      rows.push(totalRow);
+      var tr = rows.length - 1;
+      moneyColumns.forEach(function (c) {
+        var letter = columnLetter(c);
+        rows[tr][c] = { f: 'SUM(' + letter + (headerRow + 2) + ':' + letter + tr + ')' };
+        formats[tr + ',' + c] = TIEN;
+      });
+    }
+
+    return {
+      rows: rows, formats: formats,
+      widths: [34, 32, 24, 11, 15], freezeRow: headerRow + 1
+    };
+  }
+
+  /** Tên file rút gọn để đặt tên tab (Excel giới hạn 31 ký tự). */
+  function tenNgan(nguon) {
+    var ten = String(nguon).replace(/\.[^.]+$/, '');
+    return ten.length > 24 ? ten.slice(0, 24) : ten;
   }
 
   /** Bảng đối soát: tổng theo luồng, số hoá đơn, cảnh báo, mã chưa map. */
