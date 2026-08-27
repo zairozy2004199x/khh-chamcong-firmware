@@ -12086,18 +12086,45 @@ update_option( 'vhcc_nhat_ky_may', array(
 		'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
 ) );
 
-/* ⚠️ HAI ĐƯỜNG ĐỀU LÀ "ĐÃ CHẠY". Có hàng chấm công mang nguồn máy mà bảng máy trống là chuyện
-   có thật: sổ máy dựng lại, hoặc dữ liệu chuyển từ nơi khác sang. Chỉ nhìn bảng máy thì màn
-   này kêu "chưa nhận được gì" trong khi công đã vào sổ đủ — và người ta đi chữa cái không hỏng. */
+/* 🔴 BẰNG CHỨNG DUY NHẤT ĐÁNG TIN LÀ BẢNG MÁY — anh Thắng 28/08/2026, ảnh chụp bản 2.74.0.
+   Màn ấy báo "✓ Cổng ĐÃ nhận được dữ liệu thật. 0 máy đã tự hiện ra · 1 hàng chấm công mang
+   nguồn máy", rồi ngay khối dưới lại nói "Chưa có máy nào". Hai câu mâu thuẫn trên cùng một
+   màn, và câu XANH là câu sai — cổng chưa hề nhận được gì.
+
+   Hàng trong bảng `may` chỉ sinh ra ở `ghi_nhan_may()`, tức là chỉ khi một gói POST hợp lệ đã
+   đi trọn đường và qua được cửa khoá. Một hàng chấm công lẻ thì không: nó vào được bằng đường
+   kéo về, nạp .csv, hay chuyển từ hệ cũ sang.
+
+   ⚠️ Báo xanh nhầm ở đây đắt hơn báo đỏ nhầm nhiều: nó TẮT sạch mọi lời chỉ đường bên dưới,
+      đúng lúc người ta mở màn này ra vì đang không biết đi đâu. */
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
 	'coso' => $M_CS2, 'ngay' => '2026-08-27', 'ma_nv' => 'CDNV0001',
 	'ho_ten' => 'Người Thử', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
 	'nguon' => 'may',
 ) );
 $h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
-t( '🔴 chưa có hàng máy nhưng đã có công nguồn máy: vẫn là ĐÃ NHẬN ĐƯỢC',
-	strpos( $h_cd, 'Cổng ĐÃ nhận được dữ liệu thật' ) !== false, $h_cd );
+t( '🔴 hàng công nguồn máy mà bảng máy TRỐNG: KHÔNG được báo đã nhận được dữ liệu thật',
+	strpos( $h_cd, 'Cổng ĐÃ nhận được dữ liệu thật' ) === false, $h_cd );
+t( '🔴 và vẫn chỉ đường như thường, đừng tắt hết',
+	strpos( $h_cd, 'Cổng chưa nhận được lượt chấm công nào' ) !== false, $h_cd );
+/* Vẫn phải KỂ RA con số ấy — giấu đi thì người đọc thấy nó ở màn Bảng công rồi tưởng đếm sai. */
+t( 'nhưng có kể ra con số, kèm lý do vì sao không tính',
+	strpos( $h_cd, 'không máy nào từng qua được cổng' ) !== false
+	&& strpos( $h_cd, 'nạp <code>.csv</code>' ) !== false, $h_cd );
+
+/* 🔴 `hon-hop` KHÔNG PHẢI BẰNG CHỨNG. Nó chỉ có nghĩa "hàng này có từ hai nguồn khác nhau" —
+   chấm online rồi sửa tay cũng thành `hon-hop`, chẳng dính gì tới máy. Đếm nó là đếm khống. */
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv = 'CDNV0001'" );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'coso' => $M_CS2, 'ngay' => '2026-08-27', 'ma_nv' => 'CDNV0002',
+	'ho_ten' => 'Người Thử Hai', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+	'nguon' => 'hon-hop',
+) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 hàng `hon-hop` KHÔNG được tính là lượt của máy',
+	strpos( $h_cd, 'Cổng ĐÃ nhận được dữ liệu thật' ) === false
+	&& strpos( $h_cd, 'hàng chấm công mang nguồn' ) === false, $h_cd );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv = 'CDNV0002'" );
 
 /* Có dữ liệu THẬT rồi thì đổi giọng hẳn — đừng doạ người ta khi mọi thứ đang chạy. */
 $wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'CD-MAY', 'mac' => '', 'cua_hang' => $M_CS2 ) );

@@ -193,13 +193,30 @@ class VHCC_WebMay {
 		}
 
 		global $wpdb;
+		/* ⚠️ CHỈ `'may'`, KHÔNG LẤY `'hon-hop'`. `hon-hop` chỉ có nghĩa "hàng này có từ hai nguồn
+		   khác nhau" — chấm online rồi sửa tay cũng thành `hon-hop`, chẳng dính gì tới máy. Lấy
+		   nó làm bằng chứng "cổng đã chạy" là báo xanh cho một cái cổng chưa hề nhận được gì. */
 		$so_luot = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
-			. " WHERE nguon IN ('may','hon-hop')" );
+			. " WHERE nguon = 'may'" );
 		$so_may  = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'may' ) );
 
 		echo '<div class="the" id="chandoan"><h2>Cổng đang ở trạng thái nào</h2>';
 
-		if ( $so_may > 0 || $so_luot > 0 ) {
+		/* =========================================================================================
+		 * 🔴 BẰNG CHỨNG DUY NHẤT ĐÁNG TIN LÀ BẢNG MÁY. Anh Thắng 28/08/2026, ảnh chụp bản 2.74.0:
+		 *    màn này báo *"✓ Cổng ĐÃ nhận được dữ liệu thật. 0 máy đã tự hiện ra · 1 hàng chấm
+		 *    công mang nguồn máy"* — rồi ngay khối dưới nó lại nói *"Chưa có máy nào"*. Hai câu
+		 *    mâu thuẫn trên cùng một màn, và câu xanh là câu SAI.
+		 * =========================================================================================
+		 * Hàng trong bảng `may` chỉ sinh ra ở `VHCC_Nhan::ghi_nhan_may()`, tức là CHỈ khi một gói
+		 * POST hợp lệ đã đi trọn đường và qua được cửa khoá. Không có đường nào khác tạo ra nó.
+		 * Nên `$so_may > 0` là bằng chứng chắc chắn, còn một hàng chấm công lẻ thì KHÔNG:
+		 * hàng ấy vào được bằng đường kéo về, nạp .csv, hay chuyển từ hệ cũ sang.
+		 *
+		 * ⚠️ Và báo xanh nhầm ở đây đắt hơn báo đỏ nhầm nhiều: nó TẮT sạch mọi lời chỉ đường bên
+		 *    dưới, đúng lúc người ta mở màn này ra vì đang không biết đi đâu.
+		 * ======================================================================================= */
+		if ( $so_may > 0 ) {
 			echo '<p><span class="chu-luc">✓ Cổng ĐÃ nhận được dữ liệu thật.</span> '
 				. esc_html( $so_may ) . ' máy đã tự hiện ra · '
 				. esc_html( number_format( $so_luot ) ) . ' hàng chấm công mang nguồn máy.</p>';
@@ -222,7 +239,18 @@ class VHCC_WebMay {
 
 		/* Chưa có gì cả — nói ra ĐÚNG mấy khả năng, kèm cách phân biệt. */
 		echo '<div class="bao canh"><b>Cổng chưa nhận được lượt chấm công nào.</b> '
-			. 'Khoá đã cấu hình và cổng đang mở, nhưng chưa máy nào gửi được gói POST hợp lệ.</div>';
+			. 'Khoá đã cấu hình và cổng đang mở, nhưng chưa máy nào gửi được gói POST hợp lệ — '
+			. 'bảng máy còn trống, mà máy thì tự hiện ra ngay lượt đầu tiên nó gửi được.</div>';
+
+		if ( $so_luot > 0 ) {
+			/* ⚠️ NÓI RA, NHƯNG ĐỪNG COI LÀ BẰNG CHỨNG. Mấy hàng này gần như chắc vào từ đường
+			   khác — kéo về, nạp .csv, hay chuyển từ hệ cũ. Giấu đi thì người đọc thấy con số ấy
+			   ở màn Bảng công rồi tưởng màn này đếm sai. */
+			echo '<p class="mo">(Trong sổ có ' . esc_html( number_format( $so_luot ) ) . ' hàng chấm '
+				. 'công mang nguồn <code>may</code>, nhưng <b>không máy nào từng qua được cổng</b> — '
+				. 'nên mấy hàng ấy vào bằng đường khác: kéo về, nạp <code>.csv</code>, hoặc chuyển '
+				. 'từ hệ cũ sang. Không tính là cổng đã chạy.)</p>';
+		}
 
 		/* 🔴 SAI KHOÁ ĐỨNG TRƯỚC MỌI THỨ KHÁC. Nó là câu trả lời DỨT KHOÁT cho câu hỏi đắt nhất
 		   của màn này — "máy có chạy không" — và câu trả lời là CÓ: gói đã đi hết quãng đường
