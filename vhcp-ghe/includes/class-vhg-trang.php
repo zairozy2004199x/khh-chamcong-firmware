@@ -1662,9 +1662,8 @@ function veDieuKhien(){
          là người bấm vẫn tưởng mình đang ghi một lượt bán hàng. */
       + '<button data-mat="' + esc(m.ma) + '">🧾 ' + L('Chốt ca / thu ngăn','Close shift') + '</button>'
       + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ ' + L('Khởi động lại','Reboot') + '</button>'
-      + ((m.khoa || m.tm === 'ghekhongchay' || m.tm === 'ghedungdotngot')
-          ? '<button class="on" data-mokhoa="' + esc(m.ma) + '">🔓 ' + L('Mở khoá lỗi','Unlock') + '</button>'
-          : '')
+      + '<button' + ((m.khoa || m.tm === 'ghekhongchay' || m.tm === 'ghedungdotngot') ? ' class="on"' : '')
+          + ' data-mokhoa="' + esc(m.ma) + '">🔓 ' + L('Mở khoá lỗi','Unlock') + '</button>'
       + testNut(m)
       + '</div></div>';
   });
