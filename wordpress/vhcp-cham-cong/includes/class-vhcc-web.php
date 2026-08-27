@@ -1256,6 +1256,9 @@ class VHCC_Web {
 		   bộ phận rồi; gộp tab mà để đường cũ rơi về màn mặc định thì người nhận bấm vào không
 		   thấy thứ người gửi bảo họ xem, và chẳng ai đoán ra vì sao. Quy về tab đã gộp. */
 		if ( 'vp' === $man ) { $man = 'cham'; }
+		/* Địa chỉ cũ `?man=luong` nay dẫn về Bảng công — khối lương nằm trong đó. Ai đã lưu lại
+		   đường ấy thì vẫn tới đúng chỗ, thay vì rơi về màn mặc định mà không hiểu vì sao. */
+		if ( 'luong' === $man ) { $man = 'cham'; }
 		if ( ! isset( $ds_man[ $man ] ) ) { $man = self::man_mac_dinh( $ds_man ); }
 		if ( count( $ds_man ) > 1 ) { self::thanh_man( $man, $ds_man ); }
 
@@ -1277,11 +1280,6 @@ class VHCC_Web {
 			return;
 		}
 
-		if ( 'luong' === $man ) {
-			self::the_man_luong( $toi );
-			self::dong_trang();
-			return;
-		}
 		if ( 'cau_hinh' === $man ) {
 			self::the_man_cau_hinh( $ky, $toi );
 			self::dong_trang();
@@ -1347,7 +1345,7 @@ class VHCC_Web {
 	   cấu hình / nạp dữ liệu đứng CUỐI: chúng là việc làm một lần, không ai muốn mở app ra là
 	   rơi thẳng vào bảng khai cấu hình. Nhưng vẫn phải có tên, kẻo người CHỈ có hai màn ấy lại
 	   rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'luong', 'cau_hinh', 'du_lieu' );
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -1376,13 +1374,13 @@ class VHCC_Web {
 		   của cả cơ sở. Để hai loại việc ấy chung một màn thì thao tác hằng ngày cứ lướt ngang
 		   qua mấy cái nút đổi tiền — sớm muộn có người bấm nhầm.
 		   Vẫn dùng chung quyền `ngoai_coso` như trước, KHÔNG nới ra: dời chỗ không phải mở quyền. */
-		/* 🔴 GIỜ & LƯƠNG RA WEB. Anh Thắng chốt từ đầu: *"mọi việc anh thao tác trên web giao
-		   diện bên ngoài hết, không làm bên trong wp-admin"* — mà màn này thì kế toán mở mỗi
-		   cuối tháng, và wp-admin đòi một tài khoản WordPress mà họ không có (và cũng không nên
-		   có: tài khoản wp-admin mở ra cả website chứ không riêng chấm công).
-		   ⚠️ Quyền `luong`, KHÔNG phải `cong_coso`. Bảng này in ra lương từng người — mở cho
-		      Cửa hàng trưởng là mở bảng lương của cả cơ sở cho người cùng cơ sở. */
-		if ( VHCC_Vai::duoc( $toi, 'luong' ) )      { $ds['luong']    = 'Giờ & Lương'; }
+		/* 🔴 GIỜ & LƯƠNG KHÔNG CÒN LÀ MỘT TAB RIÊNG — nó nằm TRONG màn Bảng công.
+		   Anh Thắng 27/08/2026: *"bảng công và giờ lương gộp lại thành 1 trang"*. Anh đúng, và
+		   là lần thứ hai anh nói cùng một điều (lần trước là gộp Bảng chấm công với Bảng công
+		   tháng): hai bảng nói về CÙNG một cơ sở, CÙNG một tháng, chỉ khác cách bày. Tách ra là
+		   bắt người ta chọn cơ sở và tháng HAI LẦN — và chọn lệch một ô là hai bảng nói về hai
+		   chỗ khác nhau mà không có gì báo.
+		   Xem khối lương ở cuối `the_bang_cham()`. */
 		if ( VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { $ds['cau_hinh'] = 'Cấu hình'; }
 		if ( VHCC_Vai::duoc( $toi, 'nap_cong' ) )   { $ds['du_lieu']  = 'Dữ liệu đầu vào'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
@@ -1412,10 +1410,24 @@ class VHCC_Web {
 		echo '</div></div>';
 	}
 
-	/** Cơ sở người này được xem — Admin/Quản lý thấy hết, còn lại thấy cơ sở mình phụ trách. */
+	/**
+	 * Cơ sở người này được xem — ai có `cong_tat_ca` thấy hết, còn lại thấy cơ sở mình phụ trách.
+	 *
+	 * 🔴 TRƯỚC ĐÂY SO VAI BẰNG MỘT MẢNG CỨNG `['Admin','Quản lý']` — và nó SAI với Kế toán.
+	 * Kế toán ở bậc 4, cao hơn Quản lý (bậc 3), có `cong_tat_ca`, và anh Thắng chốt kế toán
+	 * *"full quyền ngoài admin"*. Nhưng vì tên "Kế toán" không có trong mảng ấy, họ rơi xuống
+	 * nhánh dưới và chỉ thấy ĐÚNG MỘT cơ sở — cơ sở ghi trên thẻ phiên của họ.
+	 *
+	 * Hậu quả im lặng và đúng loại khó lần: ô chọn cơ sở của màn Bảng công chỉ có một dòng, mà
+	 * một dòng thì `the_bang_cham()` TỰ CHỌN luôn — nên màn mở ra vẫn có số, vẫn trông bình
+	 * thường, chỉ là kế toán không bao giờ xem được cơ sở khác và cũng không thấy có gì để bấm.
+	 * Không lỗi, không cảnh báo, không ai đi báo.
+	 *
+	 * Đây đúng là loại lỗi mà cả `VHCC_Vai` sinh ra để dẹp: hỏi QUYỀN, đừng so TÊN VAI. Tìm ra
+	 * khi gộp khối lương vào màn này — khối in ra tên cơ sở, và tên ấy không khớp ô chọn.
+	 */
 	private static function ds_coso_xem( $toi ) {
-		$vt = isset( $toi['role'] ) ? (string) $toi['role'] : '';
-		if ( 'Admin' === $vt || 'Quản lý' === $vt ) { return VHCC_NhanSu::ds_coso(); }
+		if ( VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) ) { return VHCC_NhanSu::ds_coso(); }
 		return VHCC_NhanSu::ds_coso_cua( $toi );
 	}
 
@@ -1671,6 +1683,15 @@ class VHCC_Web {
 			return;
 		}
 		self::ve_bang_cham( $b, $cs, $th, $ngay, $ma_nv, $ky, $toi );
+
+		/* 🔴 GIỜ & LƯƠNG NẰM NGAY DƯỚI, CÙNG CƠ SỞ CÙNG THÁNG. Anh Thắng 27/08/2026: *"bảng
+		   công và giờ lương gộp lại thành 1 trang"*.
+		   ⚠️ Đặt SAU `ve_bang_cham` chứ không phải trước: người ta mở màn này ra để xem BẢNG
+		      CÔNG, còn lương là thứ soi sau. Đảo lại là mỗi lần mở phải cuộn qua bảng tiền mới
+		      tới thứ mình cần.
+		   ⚠️ Và chỉ ở nhánh bảng công VẼ ĐƯỢC — bảng công lỗi mà vẫn in bảng tiền ra thì đó là
+		      tiền tính từ một tháng không đọc nổi. */
+		self::the_khoi_luong( $toi, $cs, $th );
 	}
 
 	/**
@@ -3024,55 +3045,36 @@ class VHCC_Web {
 	 *     tính theo công + giờ) · `vp` (văn phòng, tính theo ngày công). Không gộp làm một:
 	 *     mỗi kiểu có những cột mà kiểu kia không có nghĩa gì.
 	 * ======================================================================== */
-	private static function the_man_luong( $toi ) {
-		$cs = isset( $_GET['lcs'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['lcs'] ) ) : '';
-		$th = isset( $_GET['lth'] ) ? sanitize_text_field( wp_unslash( $_GET['lth'] ) ) : '';
-		if ( ! preg_match( '/^\d{4}-\d{2}$/', $th ) ) { $th = substr( (string) current_time( 'Y-m' ), 0, 7 ); }
+	private static function the_khoi_luong( $toi, $cs, $th ) {
+		/* 🔴 KHÔNG CÓ Ô LỌC RIÊNG. Cơ sở và tháng nhận thẳng từ màn Bảng công — đó là toàn bộ
+		   điểm của việc gộp. Dựng thêm một ô chọn ở đây là hai ô cho cùng một thứ, và người ta
+		   sẽ chọn lệch: bảng trên nói về cơ sở này, bảng dưới nói về cơ sở kia, mà cả hai đều
+		   trông đúng. */
+		if ( '' === $cs ) { return; }
 
-		echo '<div class="the">';
-		echo '<h2>Giờ &amp; Lương</h2>';
-		echo '<p class="mo">Bảng công quy ra tiền của một cơ sở trong một tháng. Cách tính do '
-			. '<b>bộ phận</b> của cơ sở quyết định — khai ở màn <b>Cấu hình</b>.</p>';
+		/* 🔴 GÁC RIÊNG BẰNG `luong`. Màn Bảng công mở cho `cong_coso` (bậc Cửa hàng trưởng) —
+		   nếu khối này đi theo cửa ấy thì gộp trang xong là mở bảng lương của cả cơ sở cho
+		   người cùng cơ sở. Gộp CHỖ BÀY, không gộp QUYỀN. */
+		if ( ! VHCC_Vai::duoc( $toi, 'luong' ) ) { return; }
 
-		echo '<form method="get" class="hang" style="margin:0 0 14px">';
-		if ( ! get_option( 'permalink_structure' ) ) {
-			echo '<input type="hidden" name="vhcc_qt" value="1">';
-		}
-		echo '<input type="hidden" name="man" value="luong">';
-		echo '<div><label>Cơ sở</label><select name="lcs"><option value="">— chọn cơ sở —</option>';
-		foreach ( self::ds_coso_xem( $toi ) as $c ) {
-			echo '<option value="' . esc_attr( $c ) . '"' . selected( $cs, $c, false ) . '>'
-				. esc_html( $c ) . ' · ' . esc_html( VHCC_Luong::bo_phan_cua( $c ) ) . '</option>';
-		}
-		echo '</select></div>';
-		echo '<div><label>Tháng</label><input type="month" name="lth" value="' . esc_attr( $th ) . '"></div>';
-		echo '<button class="chinh">Xem</button>';
-		echo '</form>';
-
-		if ( '' === $cs ) {
-			echo '<div class="bao canh">Chọn cơ sở rồi bấm <b>Xem</b>.</div></div>';
-			return;
-		}
-		/* 🔴 CHỐT CƠ SỞ. `bang_cong_va_luong()` KHÔNG nhận người dùng nên nó không gác gì — màn
-		   wp-admin gác bằng `current_user_can`, mà ngoài web thì không có thứ đó.
-		   ⚠️ Nhánh này hiện chưa từng chối ai: cửa vào màn là quyền `luong` (bậc 4), mà bậc 4 đã
-		      có `cong_tat_ca` (bậc 3) nên xem được mọi cơ sở. Vẫn giữ — nó bảo vệ trước một thay
-		      đổi ở CHỖ KHÁC: ngày nào quyền `luong` được nới xuống cho Cửa hàng trưởng thì nó
-		      đứng ra chặn ngay, không ai phải nhớ. Bộ thử canh chính quan hệ hai bậc ấy. */
-		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) {
-			echo '<div class="bao loi">Cơ sở "' . esc_html( $cs ) . '" không thuộc phạm vi của '
-				. 'anh/chị.</div></div>';
-			return;
-		}
+		/* Chốt cơ sở: `bang_cong_va_luong()` không nhận người dùng nên nó không gác gì.
+		   ⚠️ Nhánh này hiện chưa từng chối ai (bậc `luong` = 4 đã có `cong_tat_ca` = 3), nhưng
+		      giữ — nó chặn ngay ngày nào quyền `luong` được nới xuống. Bộ thử canh quan hệ ấy. */
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 
 		$r = VHCC_Luong::bang_cong_va_luong( $cs, $th );
+
+		echo '<div class="the"><details>';
+		echo '<summary><b>Giờ &amp; Lương</b> — ' . esc_html( $cs ) . ' · tháng '
+			. esc_html( $th ) . ( empty( $r['ok'] ) ? '' : ' · cách tính <code>'
+				. esc_html( $r['kieu'] ) . '</code>' ) . '</summary>';
 		if ( empty( $r['ok'] ) ) {
-			echo '<div class="bao loi">' . esc_html( $r['error'] ) . '</div></div>';
+			echo '<div class="bao loi">' . esc_html( $r['error'] ) . '</div></details></div>';
 			return;
 		}
-		echo '<p class="mo">Bộ phận <b>' . esc_html( $r['boPhan'] ) . '</b> · cách tính <code>'
-			. esc_html( $r['kieu'] ) . '</code> · tháng <b>' . esc_html( $th ) . '</b></p>';
-		echo '</div>';
+		echo '<p class="mo">Bảng công ở trên quy ra tiền. Cách tính do <b>bộ phận</b> của cơ sở '
+			. 'quyết định (' . esc_html( $r['boPhan'] ) . ') — khai ở màn <b>Cấu hình</b>.</p>';
+		echo '</details></div>';
 
 		if ( 'tho' === $r['kieu'] ) { self::luong_tho( $r['tho'] ); return; }
 		if ( 'mtd' === $r['kieu'] ) { self::luong_mtd( $r['mtd'] ); return; }
