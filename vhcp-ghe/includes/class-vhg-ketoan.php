@@ -494,4 +494,327 @@ class VHG_KeToan {
 			'xong_boi' => (string) $boi ), array( 'id' => $id ) );
 		return array( 'ok' => true, 'message' => 'Đã rút lại yêu cầu.' );
 	}
+
+	// ══════════════════════════════════════════════════════════════════ ĐỐI SOÁT NỘP TIỀN
+
+	/** Phân bổ tiền nhận cho ghế theo `cash` phải nộp — ổn định (ngày rồi mã) ⇒ chạy lại y nguyên. */
+	private static function allocate_( $chairs, $amount ) {
+		$left = max( 0, (int) $amount ); $out = array();
+		usort( $chairs, function ( $a, $b ) {
+			if ( $a['ngay'] !== $b['ngay'] ) { return $a['ngay'] < $b['ngay'] ? -1 : 1; }
+			return strcmp( (string) $a['ma'], (string) $b['ma'] );
+		} );
+		foreach ( $chairs as $c ) {
+			$need = max( 0, (int) $c['cash'] );
+			if ( $need <= 0 ) { continue; }
+			$give = min( $left, $need ); if ( $give <= 0 ) { continue; }
+			$left -= $give;
+			$out[] = array( 'report_id' => $c['report_id'], 'ma' => $c['ma'], 'ngay' => $c['ngay'], 'paid' => $give, 'need' => $need );
+		}
+		return array( 'rows' => $out, 'left' => $left );
+	}
+
+	/** Nhu cầu nộp tiền mặt theo cơ sở trong tháng. Trả [coso_key => {coso, need, already, chairs[]}]. */
+	private static function need_( $thang ) {
+		global $wpdb;
+		$th = self::thang_( $thang );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.report_id, d.ma_may, d.ngay, d.tien_mat, d.nop_so_tien, h.coso, h.coso_key'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND d.chi_so_sau IS NOT NULL', '%Y-%m', $th ), ARRAY_A );
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			if ( (int) $r['tien_mat'] <= 0 ) { continue; }
+			$k = $r['coso_key'];
+			if ( ! isset( $out[ $k ] ) ) { $out[ $k ] = array( 'coso' => $r['coso'], 'need' => 0, 'already' => 0, 'chairs' => array() ); }
+			$out[ $k ]['need'] += (int) $r['tien_mat'];
+			$out[ $k ]['already'] += (int) $r['nop_so_tien'];
+			$out[ $k ]['chairs'][] = array( 'report_id' => $r['report_id'], 'ma' => $r['ma_may'],
+				'ngay' => self::ngay_( $r['ngay'] ), 'cash' => (int) $r['tien_mat'] );
+		}
+		return $out;
+	}
+
+	/** Dấu vân tay lô dữ liệu — chặn áp trùng (băm ngày|tiền|diễn giải). */
+	private static function batch_( $kind, $rows ) {
+		$s = array();
+		foreach ( (array) $rows as $r ) {
+			$s[] = self::ngay_( isset( $r['date'] ) ? $r['date'] : '' ) . '|' . (int) ( isset( $r['amount'] ) ? $r['amount'] : 0 )
+				. '|' . self::squash( isset( $r['desc'] ) ? $r['desc'] : '' );
+		}
+		sort( $s );
+		return $kind . '-' . substr( md5( implode( ';', $s ) ), 0, 16 );
+	}
+	private static function batch_da_ap_( $batch ) {
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_undo' ) . ' WHERE viec=%s AND ly_do=%s AND da_hoan_tac=0',
+			'doisoat', (string) $batch ) ) > 0;
+	}
+
+	/** Ghi các ô nộp tiền (SET tuyệt đối) theo danh sách phân bổ; ghi undo. */
+	private static function ghi_nop_( $patches, $hinhthuc, $ngay_nop, $batch, $reason, $boi ) {
+		global $wpdb;
+		$before = array(); $n = 0;
+		foreach ( $patches as $p ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				'SELECT nop_so_tien, nop_trang_thai, nop_hinhthuc, nop_ngay FROM ' . VHG_DB::t( 'bc_dong' )
+				. ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $p['report_id'], $p['ma'] ), ARRAY_A );
+			if ( ! $cu ) { continue; }
+			$before[] = array( 'report_id' => $p['report_id'], 'ma_may' => $p['ma'],
+				'nop_so_tien' => $cu['nop_so_tien'], 'nop_trang_thai' => $cu['nop_trang_thai'],
+				'nop_hinhthuc' => $cu['nop_hinhthuc'], 'nop_ngay' => $cu['nop_ngay'] );
+			$tt = ( $p['paid'] >= $p['need'] ) ? 'paid' : ( $p['paid'] > 0 ? 'thieu' : 'unpaid' );
+			$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
+				'nop_so_tien' => (int) $p['paid'], 'nop_trang_thai' => $tt,
+				'nop_hinhthuc' => $p['paid'] > 0 ? $hinhthuc : '', 'nop_ngay' => $p['paid'] > 0 ? $ngay_nop : null ),
+				array( 'report_id' => $p['report_id'], 'ma_may' => $p['ma'] ) );
+			$n++;
+		}
+		$wpdb->insert( VHG_DB::t( 'bc_undo' ), array( 'viec' => 'doisoat', 'ly_do' => (string) $batch . ' · ' . mb_substr( (string) $reason, 0, 200 ),
+			'chi_tiet' => wp_json_encode( $before ), 'da_hoan_tac' => 0, 'boi' => (string) $boi, 'tao_luc' => current_time( 'mysql' ) ) );
+		return $n;
+	}
+
+	/** Danh sách cơ sở còn phải nộp tiền mặt trong tháng — cho màn xác nhận tay. */
+	public static function can_nop( $thang ) {
+		$need = self::need_( $thang );
+		$ra = array();
+		foreach ( $need as $n ) {
+			$con = (int) $n['need'] - (int) $n['already'];
+			if ( $con <= 0 ) { continue; }
+			$ra[] = array( 'coso' => $n['coso'], 'phaiNop' => (int) $n['need'], 'daGhi' => (int) $n['already'],
+				'conLai' => $con, 'soGhe' => count( $n['chairs'] ) );
+		}
+		usort( $ra, function ( $a, $b ) { return $b['conLai'] - $a['conLai']; } );
+		return array( 'ok' => true, 'thang' => self::thang_( $thang ), 'rows' => $ra,
+			'tongConLai' => array_sum( array_map( function ( $x ) { return $x['conLai']; }, $ra ) ) );
+	}
+
+	/** Xác nhận nộp TAY (không cần file). $pheps=[{coso, amount, method:'cash'|'transfer', payDate}]. */
+	public static function nop_tay( $pheps, $thang, $apply, $reason, $boi ) {
+		$need = self::need_( $thang );
+		$byKey = array();
+		foreach ( $need as $k => $n ) { $byKey[ self::squash( $n['coso'] ) ] = $n; }
+		$rows = array(); $patches = array(); $khong = array();
+		foreach ( (array) $pheps as $p ) {
+			$coso = trim( (string) ( isset( $p['coso'] ) ? $p['coso'] : '' ) );
+			$tien = (int) ( isset( $p['amount'] ) ? $p['amount'] : 0 );
+			if ( '' === $coso || $tien <= 0 ) { continue; }
+			$ht = ( 'transfer' === ( isset( $p['method'] ) ? $p['method'] : 'cash' ) ) ? 'transfer' : 'cash';
+			$ng = isset( $p['payDate'] ) && $p['payDate'] ? self::ngay_( $p['payDate'] ) : current_time( 'Y-m-d' );
+			$n = isset( $byKey[ self::squash( $coso ) ] ) ? $byKey[ self::squash( $coso ) ] : null;
+			if ( ! $n ) { $khong[] = $coso; continue; }
+			$al = self::allocate_( $n['chairs'], $tien );
+			foreach ( $al['rows'] as $x ) { $x['_ht'] = $ht; $x['_ng'] = $ng; $patches[] = $x; }
+			$rows[] = array( 'coso' => $coso, 'hinhThuc' => $ht, 'phaiNop' => (int) $n['need'],
+				'xacNhan' => $tien, 'soGheGhi' => count( $al['rows'] ), 'thua' => $al['left'] );
+		}
+		$batch = self::batch_( 'TAY', $rows );
+		if ( ! $apply ) {
+			return array( 'ok' => true, 'apply' => false, 'batch' => $batch, 'rows' => $rows,
+				'khong' => $khong, 'soGheSeGhi' => count( $patches ),
+				'message' => 'Xem trước: sẽ ghi ' . count( $patches ) . ' ghế của ' . count( $rows ) . ' cơ sở.' );
+		}
+		if ( '' === trim( (string) $reason ) ) { return array( 'ok' => false, 'message' => 'Phải ghi lý do xác nhận tay.' ); }
+		if ( ! count( $patches ) ) { return array( 'ok' => false, 'batch' => $batch, 'message' => 'Không có ghế nào để ghi.' ); }
+		if ( self::batch_da_ap_( $batch ) ) { return array( 'ok' => false, 'batch' => $batch, 'message' => 'Nội dung này đã xác nhận trước đó (chống cộng đôi).' ); }
+		/* Gom theo (hình thức, ngày) để ghi_nop_ đặt đúng nhãn — ở đây mỗi patch mang _ht/_ng riêng. */
+		$n = 0;
+		foreach ( $patches as $p ) {
+			$n += self::ghi_nop_( array( $p ), $p['_ht'], $p['_ng'], $batch, $reason, $boi );
+		}
+		return array( 'ok' => true, 'apply' => true, 'batch' => $batch, 'soGheGhi' => $n,
+			'message' => 'Đã xác nhận tay ' . $n . ' ghế của ' . count( $rows ) . ' cơ sở.' );
+	}
+
+	/** Đối soát CHUYỂN KHOẢN theo sao kê + bảng mã nộp tiền. $bankRows=[{date,amount,desc}]. */
+	public static function doisoat_ck( $bankRows, $thang, $apply, $reason, $boi ) {
+		global $wpdb;
+		$rowsIn = is_array( $bankRows ) ? $bankRows : array();
+		$batch = self::batch_( 'CK', $rowsIn );
+		if ( $apply && self::batch_da_ap_( $batch ) ) {
+			return array( 'ok' => false, 'batch' => $batch, 'message' => 'File này đã áp trước đó (chống cộng đôi).' );
+		}
+		$ma = $wpdb->get_results( 'SELECT code, coso FROM ' . VHG_DB::t( 'bc_ma_nop' ), ARRAY_A );
+		$codes = array();
+		foreach ( (array) $ma as $m ) {
+			$k = self::squash( $m['code'] );
+			if ( strlen( $k ) >= 4 ) { $codes[] = array( 'key' => $k, 'coso' => $m['coso'] ); }
+		}
+		usort( $codes, function ( $a, $b ) { return strlen( $b['key'] ) - strlen( $a['key'] ); } );
+		$byLoc = array(); $unknown = array(); $amb = array(); $tong = 0;
+		foreach ( $rowsIn as $r ) {
+			$amt = (int) round( (float) ( isset( $r['amount'] ) ? $r['amount'] : 0 ) );
+			if ( $amt <= 0 ) { continue; }
+			$tong += $amt;
+			$sq = self::squash( isset( $r['desc'] ) ? $r['desc'] : '' );
+			$hit = array();
+			foreach ( $codes as $c ) { if ( strpos( $sq, $c['key'] ) !== false ) { $hit[ self::squash( $c['coso'] ) ] = $c['coso']; } }
+			$locs = array_values( $hit );
+			if ( count( $locs ) > 1 ) { $amb[] = array( 'amount' => $amt, 'desc' => mb_substr( (string) $r['desc'], 0, 120 ), 'locs' => $locs ); continue; }
+			if ( ! count( $locs ) ) { $unknown[] = array( 'amount' => $amt, 'desc' => mb_substr( (string) $r['desc'], 0, 120 ) ); continue; }
+			$ck = self::squash( $locs[0] );
+			if ( ! isset( $byLoc[ $ck ] ) ) { $byLoc[ $ck ] = array( 'coso' => $locs[0], 'amount' => 0 ); }
+			$byLoc[ $ck ]['amount'] += $amt;
+		}
+		$need = self::need_( $thang );
+		$rows = array(); $patches = array();
+		foreach ( $byLoc as $ck => $b ) {
+			$n = isset( $need[ $ck ] ) ? $need[ $ck ] : null;
+			$willWrite = 0;
+			if ( $n ) {
+				$al = self::allocate_( $n['chairs'], $b['amount'] );
+				$willWrite = count( $al['rows'] );
+				foreach ( $al['rows'] as $x ) { $patches[] = $x; }
+			}
+			$rows[] = array( 'coso' => $b['coso'], 'bank' => $b['amount'], 'need' => $n ? (int) $n['need'] : 0,
+				'already' => $n ? (int) $n['already'] : 0, 'willWrite' => $willWrite );
+		}
+		if ( ! $apply ) {
+			return array( 'ok' => true, 'apply' => false, 'batch' => $batch, 'rows' => $rows,
+				'unknown' => $unknown, 'ambiguous' => $amb, 'bankTotal' => $tong, 'codes' => count( $codes ),
+				'willWrite' => count( $patches ), 'message' => 'Xem trước: khớp ' . count( $rows ) . ' cơ sở, '
+					. count( $unknown ) . ' giao dịch không rõ mã, ' . count( $amb ) . ' giao dịch khớp nhiều mã.' );
+		}
+		if ( ! count( $patches ) ) {
+			return array( 'ok' => false, 'batch' => $batch, 'rows' => $rows, 'unknown' => $unknown, 'ambiguous' => $amb,
+				'message' => 'Không ghi được ô nào (không cơ sở nào vừa có tiền vào khớp mã vừa còn nợ tiền mặt).' );
+		}
+		$n = self::ghi_nop_( $patches, 'transfer', current_time( 'Y-m-d' ), $batch, $reason, $boi );
+		return array( 'ok' => true, 'apply' => true, 'batch' => $batch, 'soGheGhi' => $n,
+			'unknown' => $unknown, 'ambiguous' => $amb,
+			'message' => 'Đã ghi nộp CK cho ' . $n . ' ghế.' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ BẢNG MÃ NỘP TIỀN
+
+	public static function ma_nop_ds() {
+		global $wpdb;
+		$r = $wpdb->get_results( 'SELECT id, code, coso, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_nop' ) . ' ORDER BY coso ASC', ARRAY_A );
+		return array( 'ok' => true, 'rows' => $r ? $r : array() );
+	}
+	public static function ma_nop_luu( $id, $code, $coso, $ghichu ) {
+		global $wpdb;
+		$code = trim( (string) $code ); $coso = trim( (string) $coso );
+		if ( '' === $code || '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu mã hoặc cơ sở.' ); }
+		$data = array( 'code' => $code, 'coso' => $coso, 'coso_key' => self::squash( $coso ), 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ) );
+		if ( (int) $id > 0 ) { $wpdb->update( VHG_DB::t( 'bc_ma_nop' ), $data, array( 'id' => (int) $id ) ); }
+		else { $wpdb->insert( VHG_DB::t( 'bc_ma_nop' ), $data ); }
+		return array( 'ok' => true, 'message' => 'Đã lưu mã nộp tiền.' );
+	}
+	public static function ma_nop_xoa( $id ) {
+		global $wpdb;
+		$wpdb->delete( VHG_DB::t( 'bc_ma_nop' ), array( 'id' => (int) $id ) );
+		return array( 'ok' => true, 'message' => 'Đã xoá.' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ SỔ CÔNG NỢ
+
+	private static function thang_dich_( $thang, $delta ) {
+		if ( ! preg_match( '/^(\d{4})-(\d{2})$/', $thang, $m ) ) { return ''; }
+		$y = (int) $m[1]; $mo = (int) $m[2] + $delta;
+		while ( $mo > 12 ) { $mo -= 12; $y++; }
+		while ( $mo < 1 ) { $mo += 12; $y--; }
+		return $y . '-' . str_pad( $mo, 2, '0', STR_PAD_LEFT );
+	}
+
+	/** Gom phải thu / đã nhận (tách TM/CK theo nop_hinhthuc) theo tháng + cơ sở, TOÀN BỘ dữ liệu. */
+	private static function congno_theo_thang_() {
+		global $wpdb;
+		$rows = $wpdb->get_results(
+			'SELECT DATE_FORMAT(d.ngay,"%Y-%m") th, h.coso, h.coso_key, d.tien_mat, d.nop_so_tien, d.nop_hinhthuc, d.qr'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE d.chi_so_sau IS NOT NULL', ARRAY_A );
+		$out = array();
+		foreach ( (array) $rows as $r ) {
+			$th = (string) $r['th']; $k = $r['coso_key'];
+			if ( ! isset( $out[ $th ] ) ) { $out[ $th ] = array(); }
+			if ( ! isset( $out[ $th ][ $k ] ) ) { $out[ $th ][ $k ] = array( 'coso' => $r['coso'], 'phaiThu' => 0, 'daNhan' => 0, 'tm' => 0, 'ck' => 0, 'qr' => 0 ); }
+			$o = &$out[ $th ][ $k ];
+			$o['phaiThu'] += (int) $r['tien_mat']; $o['daNhan'] += (int) $r['nop_so_tien']; $o['qr'] += (int) $r['qr'];
+			if ( 'transfer' === $r['nop_hinhthuc'] ) { $o['ck'] += (int) $r['nop_so_tien']; } else { $o['tm'] += (int) $r['nop_so_tien']; }
+			unset( $o );
+		}
+		return $out;
+	}
+
+	/** Sổ công nợ một tháng: dư đầu (chốt + lũy kế) → phát sinh → đã nhận → dư cuối, theo cơ sở. */
+	public static function cong_no( $thang ) {
+		global $wpdb;
+		$th = self::thang_( $thang );
+		$byM = self::congno_theo_thang_();
+		$opens = $wpdb->get_results( 'SELECT thang, coso, coso_key, so_tien FROM ' . VHG_DB::t( 'bc_congno_dau' ), ARRAY_A );
+		$base = array();
+		foreach ( (array) $opens as $o ) {
+			if ( $o['thang'] > $th ) { continue; }
+			if ( ! isset( $base[ $o['coso_key'] ] ) || $o['thang'] > $base[ $o['coso_key'] ]['thang'] ) {
+				$base[ $o['coso_key'] ] = array( 'thang' => $o['thang'], 'so_tien' => (int) $o['so_tien'], 'coso' => $o['coso'] );
+			}
+		}
+		$locs = array();
+		foreach ( $byM as $m => $cs ) { if ( $m <= $th ) { foreach ( $cs as $k => $v ) { $locs[ $k ] = $v['coso']; } } }
+		foreach ( $base as $k => $b ) { if ( ! isset( $locs[ $k ] ) ) { $locs[ $k ] = $b['coso']; } }
+		$rows = array();
+		$thangs = array_keys( $byM ); sort( $thangs );
+		foreach ( $locs as $k => $ten ) {
+			$b = isset( $base[ $k ] ) ? $base[ $k ] : null;
+			$opening = $b ? $b['so_tien'] : 0;
+			foreach ( $thangs as $m ) {
+				if ( $m >= $th ) { continue; }
+				if ( $b && $m < $b['thang'] ) { continue; }
+				if ( isset( $byM[ $m ][ $k ] ) ) { $opening += (int) $byM[ $m ][ $k ]['phaiThu'] - (int) $byM[ $m ][ $k ]['daNhan']; }
+			}
+			$cur = isset( $byM[ $th ][ $k ] ) ? $byM[ $th ][ $k ] : array( 'phaiThu' => 0, 'daNhan' => 0, 'tm' => 0, 'ck' => 0, 'qr' => 0 );
+			$closing = $opening + (int) $cur['phaiThu'] - (int) $cur['daNhan'];
+			$rows[] = array( 'coso' => $ten, 'opening' => $opening, 'phaiThu' => (int) $cur['phaiThu'],
+				'daNhan' => (int) $cur['daNhan'], 'daNhanTM' => (int) $cur['tm'], 'daNhanCK' => (int) $cur['ck'],
+				'qr' => (int) $cur['qr'], 'chuaNop' => (int) $cur['phaiThu'] - (int) $cur['daNhan'], 'closing' => $closing );
+		}
+		usort( $rows, function ( $a, $b ) { return $b['closing'] - $a['closing']; } );
+		$daChot = false;
+		foreach ( (array) $opens as $o ) { if ( $o['thang'] === self::thang_dich_( $th, 1 ) ) { $daChot = true; break; } }
+		return array( 'ok' => true, 'thang' => $th, 'thangSau' => self::thang_dich_( $th, 1 ), 'rows' => $rows, 'daChot' => $daChot );
+	}
+
+	/** Chốt sổ: dư cuối tháng → dư đầu tháng sau (chỉ cơ sở ≠ 0). Chạy lại được. */
+	public static function cong_no_chot( $thang, $reason, $boi ) {
+		global $wpdb;
+		$led = self::cong_no( $thang );
+		$next = self::thang_dich_( self::thang_( $thang ), 1 );
+		if ( '' === trim( (string) $reason ) ) { return array( 'ok' => false, 'message' => 'Phải ghi lý do chốt sổ.' ); }
+		$them = 0; $sua = 0;
+		foreach ( $led['rows'] as $r ) {
+			if ( (int) $r['closing'] === 0 ) {
+				$wpdb->delete( VHG_DB::t( 'bc_congno_dau' ), array( 'coso_key' => self::squash( $r['coso'] ), 'thang' => $next ) );
+				continue;
+			}
+			$co = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . VHG_DB::t( 'bc_congno_dau' ) . ' WHERE coso_key=%s AND thang=%s', self::squash( $r['coso'] ), $next ) );
+			$data = array( 'thang' => $next, 'coso' => $r['coso'], 'coso_key' => self::squash( $r['coso'] ),
+				'so_tien' => (int) $r['closing'], 'chot_luc' => current_time( 'mysql' ), 'boi' => (string) $boi, 'ghi_chu' => mb_substr( (string) $reason, 0, 250 ) );
+			if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_congno_dau' ), $data, array( 'id' => (int) $co ) ); $sua++; }
+			else { $wpdb->insert( VHG_DB::t( 'bc_congno_dau' ), $data ); $them++; }
+		}
+		return array( 'ok' => true, 'next' => $next, 'them' => $them, 'sua' => $sua,
+			'message' => 'Đã chốt sổ ' . self::thang_( $thang ) . ' → ' . $next . ' (' . ( $them + $sua ) . ' cơ sở còn dư).' );
+	}
+
+	public static function cong_no_mo( $thang, $boi ) {
+		global $wpdb;
+		$next = self::thang_dich_( self::thang_( $thang ), 1 );
+		$n = (int) $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . VHG_DB::t( 'bc_congno_dau' ) . ' WHERE thang=%s', $next ) );
+		return array( 'ok' => true, 'message' => 'Đã mở lại: xoá ' . $n . ' dòng dư đầu kỳ của ' . $next . '.' );
+	}
+
+	public static function cong_no_dat( $thang, $coso, $so_tien, $ghichu, $boi ) {
+		global $wpdb;
+		$th = self::thang_( $thang ); $coso = trim( (string) $coso );
+		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu cơ sở.' ); }
+		$data = array( 'thang' => $th, 'coso' => $coso, 'coso_key' => self::squash( $coso ),
+			'so_tien' => (int) $so_tien, 'chot_luc' => current_time( 'mysql' ), 'boi' => (string) $boi, 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ) );
+		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . VHG_DB::t( 'bc_congno_dau' ) . ' WHERE coso_key=%s AND thang=%s', self::squash( $coso ), $th ) );
+		if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_congno_dau' ), $data, array( 'id' => (int) $co ) ); }
+		else { $wpdb->insert( VHG_DB::t( 'bc_congno_dau' ), $data ); }
+		return array( 'ok' => true, 'message' => 'Đã đặt dư đầu kỳ ' . $th . ' · ' . $coso . '.' );
+	}
 }

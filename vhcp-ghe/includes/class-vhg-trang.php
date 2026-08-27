@@ -262,6 +262,16 @@ class VHG_Trang {
 			if ( 'kt_yeucau_tao' === $viec )  { self::tra( VHG_KeToan::yeucau_tao( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '', isset( $d['loai'] ) ? $d['loai'] : 'bo_sung', isset( $d['noi_dung'] ) ? $d['noi_dung'] : '', $boi ) ); return; }
 			if ( 'kt_yeucau_ds' === $viec )   { self::tra( VHG_KeToan::yeucau_ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_yeucau_huy' === $viec )  { self::tra( VHG_KeToan::yeucau_huy( isset( $d['id'] ) ? $d['id'] : '', $boi ) ); return; }
+			if ( 'kt_can_nop' === $viec )    { self::tra( VHG_KeToan::can_nop( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_nop_tay' === $viec )    { self::tra( VHG_KeToan::nop_tay( isset( $d['pheps'] ) ? $d['pheps'] : array(), isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['apply'] ), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
+			if ( 'kt_ck' === $viec )         { self::tra( VHG_KeToan::doisoat_ck( isset( $d['rows'] ) ? $d['rows'] : array(), isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['apply'] ), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
+			if ( 'kt_ma_nop_ds' === $viec )  { self::tra( VHG_KeToan::ma_nop_ds() ); return; }
+			if ( 'kt_ma_nop_luu' === $viec ) { self::tra( VHG_KeToan::ma_nop_luu( isset( $d['id'] ) ? (int) $d['id'] : 0, isset( $d['code'] ) ? $d['code'] : '', isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) ); return; }
+			if ( 'kt_ma_nop_xoa' === $viec ) { self::tra( VHG_KeToan::ma_nop_xoa( isset( $d['id'] ) ? (int) $d['id'] : 0 ) ); return; }
+			if ( 'kt_congno' === $viec )     { self::tra( VHG_KeToan::cong_no( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_congno_chot' === $viec ) { self::tra( VHG_KeToan::cong_no_chot( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
+			if ( 'kt_congno_mo' === $viec )  { self::tra( VHG_KeToan::cong_no_mo( isset( $d['thang'] ) ? $d['thang'] : '', $boi ) ); return; }
+			if ( 'kt_congno_dat' === $viec ) { self::tra( VHG_KeToan::cong_no_dat( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['so_tien'] ) ? $d['so_tien'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', $boi ) ); return; }
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
 			return;
 		}
@@ -2163,6 +2173,7 @@ function ve(){
   /* Trang kế toán: duyệt báo cáo doanh thu — vai trò Chốt doanh số / Quản lý / Admin. */
   if (QT || KT) TABS.push(['kt-duyet', '📈 ' + L('Duyệt báo cáo','Review reports')]);
   if (QT || KT) TABS.push(['kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')]);
+  if (QT || KT) TABS.push(['kt-tien', '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')]);
   /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
      Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
@@ -2249,6 +2260,7 @@ function ve(){
   if (TAB === 'bc-pin')     { h += veBcPin()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
@@ -3004,6 +3016,140 @@ function ktycLoad(){
       }
       box.appendChild(it);
     });
+  });
+}
+
+/* ---- TAB KẾ TOÁN: ĐỐI SOÁT NỘP TIỀN + SỔ CÔNG NỢ ---- */
+var KTI_THANG = '';
+function veKtTien(){
+  return '<div class="card"><div class="act" style="flex-wrap:wrap"><b>' + L('Tháng','Month') + ':</b>'
+    + '<input type="month" id="kti-thang" style="max-width:170px">'
+    + '<button id="kti-xem" class="on">' + L('Xem','Load') + '</button></div></div>'
+    + '<div class="card"><h2>' + L('Sổ công nợ','Debt ledger') + '</h2><div id="kti-congno"></div></div>'
+    + '<div class="card"><h2>' + L('Xác nhận nộp tiền (tay)','Confirm cash-in (manual)') + '</h2>'
+    + '<p class="mut">' + L('Cơ sở còn nợ tiền mặt — điền số đã nhận rồi ghi.','Branches still owing — fill received amount.') + '</p>'
+    + '<div id="kti-cannop"></div></div>'
+    + '<div class="card"><h2>' + L('Đối soát chuyển khoản (sao kê)','Reconcile bank transfers') + '</h2>'
+    + '<p class="mut">' + L('Dán sao kê: mỗi dòng "ngày[tab]số tiền[tab]nội dung" (copy từ Excel). Nhận cơ sở qua bảng mã nộp tiền bên dưới.',
+      'Paste statement: each line "date[tab]amount[tab]desc".') + '</p>'
+    + '<textarea id="kti-ck" rows="5" style="width:100%;font:inherit;border-radius:9px;border:1px solid rgba(255,255,255,.15);background:rgba(10,12,22,.55);color:#e8ebff;padding:8px"></textarea>'
+    + '<div class="act" style="margin-top:8px"><button id="kti-ck-xem" class="ghost">' + L('Xem trước','Preview') + '</button>'
+    + '<button id="kti-ck-ap" class="on">' + L('Áp ghi nộp','Apply') + '</button><span id="kti-ck-msg" class="mut"></span></div>'
+    + '<div id="kti-ck-kq" style="margin-top:8px"></div></div>'
+    + '<div class="card"><h2>' + L('Mã nộp tiền (nội dung CK ↔ cơ sở)','Pay codes') + '</h2><div id="kti-manop"></div></div>';
+}
+function ktiInit(){
+  var iT=document.getElementById('kti-thang');
+  if(!KTI_THANG) KTI_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
+  if(iT&&KTI_THANG) iT.value=KTI_THANG;
+  document.getElementById('kti-xem').onclick=function(){ KTI_THANG=iT.value; ktiCongNo(); ktiCanNop(); };
+  document.getElementById('kti-ck-xem').onclick=function(){ ktiCk(false); };
+  document.getElementById('kti-ck-ap').onclick=function(){ ktiCk(true); };
+  ktiCongNo(); ktiCanNop(); ktiMaNop();
+}
+function ktiCongNo(){
+  var box=document.getElementById('kti-congno'); if(!box) return;
+  box.textContent=''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
+  goi('kt_congno',{thang:KTI_THANG},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    KTI_THANG=r.thang;
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='820px';
+    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>'+L('Dư đầu','Opening')+'</th><th>'+L('Phát sinh','Charged')
+      +'</th><th>'+L('Đã nhận TM','Cash in')+'</th><th>'+L('Đã nhận CK','Transfer in')+'</th><th>'+L('Chưa nộp','Unpaid')
+      +'</th><th>'+L('Dư cuối','Closing')+'</th></tr>';
+    (r.rows||[]).forEach(function(o){
+      var tr=ktEl('tr');
+      function c(x,red){ var e=ktEl('td',null,x); e.style.textAlign='right'; e.style.fontVariantNumeric='tabular-nums'; if(red&&x&&x!=='0') e.style.color='#ff8087'; return e; }
+      var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,o.coso)); tr.appendChild(tdN);
+      tr.appendChild(c(ktVnd(o.opening))); tr.appendChild(c(ktVnd(o.phaiThu)));
+      tr.appendChild(c(ktVnd(o.daNhanTM))); tr.appendChild(c(ktVnd(o.daNhanCK)));
+      tr.appendChild(c(ktVnd(o.chuaNop),1)); tr.appendChild(c(ktVnd(o.closing),o.closing>0?1:0));
+      tb.appendChild(tr);
+    });
+    sc.appendChild(tb); box.appendChild(sc);
+    var bar=ktEl('div','act'); bar.style.marginTop='8px';
+    var m=ktEl('span','mut');
+    var bC=ktEl('button','on',L('Chốt sổ → '+r.thangSau,'Close → '+r.thangSau));
+    var bM=ktEl('button','ghost',L('Mở lại '+r.thangSau,'Reopen'));
+    bC.onclick=function(){ var ly=prompt(L('Lý do chốt sổ:','Reason:')); if(ly===null) return; ktAct('kt_congno_chot',{thang:r.thang,ly_do:ly},m,ktiCongNo); };
+    bM.onclick=function(){ if(!confirm(L('Mở lại '+r.thangSau+'? Số dư về tự tính lũy kế.','Reopen?'))) return; ktAct('kt_congno_mo',{thang:r.thang},m,ktiCongNo); };
+    bar.appendChild(bC); bar.appendChild(bM); bar.appendChild(m);
+    if(r.daChot) bar.appendChild(ktEl('span','pill p-off',L('ĐÃ CHỐT','CLOSED')));
+    box.appendChild(bar);
+  });
+}
+function ktiCanNop(){
+  var box=document.getElementById('kti-cannop'); if(!box) return;
+  box.textContent=''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
+  goi('kt_can_nop',{thang:KTI_THANG},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Không còn cơ sở nợ tiền mặt.','No branches owing.'))); return; }
+    var inputs=[];
+    r.rows.forEach(function(o){
+      var row=ktEl('div','act'); row.style.cssText='flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);padding:6px 0';
+      var lbl=ktEl('div'); lbl.style.flex='2'; lbl.style.minWidth='180px';
+      lbl.appendChild(ktEl('b',null,o.coso));
+      lbl.appendChild(ktEl('span','mut',' · còn '+ktVnd(o.conLai)+'đ ('+o.soGhe+' ghế)'));
+      row.appendChild(lbl);
+      var iA=document.createElement('input'); iA.type='text'; iA.inputMode='numeric'; iA.placeholder=L('Số đã nhận','Received'); iA.style.maxWidth='140px';
+      var sM=document.createElement('select'); sM.innerHTML='<option value="cash">TM</option><option value="transfer">CK</option>'; sM.style.maxWidth='90px';
+      row.appendChild(iA); row.appendChild(sM);
+      inputs.push({coso:o.coso,iA:iA,sM:sM});
+      box.appendChild(row);
+    });
+    var bar=ktEl('div','act'); bar.style.marginTop='8px';
+    var m=ktEl('span','mut');
+    var bX=ktEl('button','ghost',L('Xem trước','Preview')); var bG=ktEl('button','on',L('Ghi nộp','Save'));
+    function pheps(){ var ps=[]; inputs.forEach(function(x){ var v=(x.iA.value||'').replace(/[^0-9]/g,''); if(v) ps.push({coso:x.coso,amount:parseInt(v,10),method:x.sM.value}); }); return ps; }
+    bX.onclick=function(){ ktAct('kt_nop_tay',{pheps:pheps(),thang:KTI_THANG,apply:0},m,function(){}); };
+    bG.onclick=function(){ var ly=prompt(L('Lý do xác nhận tay:','Reason:')); if(ly===null) return; ktAct('kt_nop_tay',{pheps:pheps(),thang:KTI_THANG,apply:1,ly_do:ly},m,function(){ ktiCanNop(); ktiCongNo(); }); };
+    bar.appendChild(bX); bar.appendChild(bG); bar.appendChild(m); box.appendChild(bar);
+  });
+}
+function ktiCkParse(){
+  var t=(document.getElementById('kti-ck').value||'').trim(); if(!t) return [];
+  return t.split(/\n/).map(function(line){
+    var p=line.split(/\t/); if(p.length<2) p=line.split(/\s{2,}|,/);
+    return { date:(p[0]||'').trim(), amount:(p[1]||'').replace(/[^0-9]/g,''), desc:(p.slice(2).join(' ')||p[1]||'').trim() };
+  }).filter(function(x){ return x.amount; });
+}
+function ktiCk(apply){
+  var m=document.getElementById('kti-ck-msg'); var kq=document.getElementById('kti-ck-kq');
+  var rows=ktiCkParse(); if(!rows.length){ m.textContent=L('Chưa dán dòng nào.','No rows.'); m.className='mut err'; return; }
+  var d={rows:rows,thang:KTI_THANG,apply:apply?1:0};
+  if(apply){ var ly=prompt(L('Lý do áp đối soát CK:','Reason:')); if(ly===null) return; d.ly_do=ly; }
+  ktAct('kt_ck',d,m,function(r){
+    kq.textContent='';
+    kq.appendChild(ktEl('div','mut', (r.apply?('Đã ghi '+(r.soGheGhi||0)+' ghế. '):'')
+      + (r.unknown?(r.unknown.length+' giao dịch không rõ mã · '):'') + (r.ambiguous?(r.ambiguous.length+' khớp nhiều mã'):'')));
+    (r.rows||[]).forEach(function(x){ kq.appendChild(ktEl('div','mut','• '+x.coso+': vào '+ktVnd(x.bank)+'đ · cần '+ktVnd(x.need)+'đ'+(x.willWrite?(' · ghi '+x.willWrite+' ghế'):' · KHÔNG có ghế còn nợ'))); });
+    if(!apply) ktiCongNo();
+    else { ktiCongNo(); ktiCanNop(); }
+  });
+}
+function ktiMaNop(){
+  var box=document.getElementById('kti-manop'); if(!box) return;
+  box.textContent='';
+  goi('kt_ma_nop_ds',{},function(r){
+    box.textContent='';
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='520px';
+    tb.innerHTML='<tr><th>'+L('Mã (nội dung CK)','Code')+'</th><th>'+L('Cơ sở','Branch')+'</th><th></th></tr>';
+    (r&&r.rows||[]).forEach(function(x){
+      var tr=ktEl('tr'); tr.appendChild(ktEl('td',null,x.code)); tr.appendChild(ktEl('td',null,x.coso));
+      var td=ktEl('td'); var b=ktEl('button','ghost',L('Xoá','Del')); b.style.cssText='padding:4px 8px;font-size:12px';
+      b.onclick=function(){ if(!confirm('Xoá mã '+x.code+'?')) return; goi('kt_ma_nop_xoa',{id:x.id},function(){ ktiMaNop(); }); };
+      td.appendChild(b); tr.appendChild(td); tb.appendChild(tr);
+    });
+    sc.appendChild(tb); box.appendChild(sc);
+    var row=ktEl('div','act'); row.style.marginTop='8px';
+    var iC=document.createElement('input'); iC.placeholder=L('Mã / nội dung CK','Code'); iC.style.flex='1';
+    var iL=document.createElement('input'); iL.placeholder=L('Cơ sở','Branch'); iL.style.flex='2';
+    var b=ktEl('button','on',L('Thêm','Add')); var m=ktEl('span','mut');
+    b.onclick=function(){ if(!(iC.value||'').trim()||!(iL.value||'').trim()){ m.textContent=L('Thiếu mã/cơ sở.','Missing.'); m.className='mut err'; return; }
+      ktAct('kt_ma_nop_luu',{id:0,code:iC.value.trim(),coso:iL.value.trim()},m,function(){ iC.value=''; iL.value=''; ktiMaNop(); }); };
+    row.appendChild(iC); row.appendChild(iL); row.appendChild(b); row.appendChild(m); box.appendChild(row);
   });
 }
 
@@ -4175,6 +4321,7 @@ function noi(){
   if (document.getElementById('bcp-luu') || document.querySelector('[data-bcpxoa]')) noiBcPin();
   if (document.getElementById('ktd-list')) ktdInit();
   if (document.getElementById('ktdn-list')) ktdnInit();
+  if (document.getElementById('kti-congno')) ktiInit();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');
