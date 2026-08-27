@@ -871,6 +871,13 @@ class VHG_KeToan {
 	public static function cong_no( $thang ) {
 		global $wpdb;
 		$th = self::thang_( $thang );
+		/* Tỉnh/TP theo cơ sở (để lọc theo địa bàn) — khớp coso_key = tên cơ sở đã bỏ dấu. */
+		$tinh_map = array();
+		if ( class_exists( 'VHG_May' ) ) {
+			foreach ( (array) VHG_May::ds_coso() as $c ) {
+				$tinh_map[ self::squash( isset( $c['ten'] ) ? $c['ten'] : '' ) ] = (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' );
+			}
+		}
 		$byM = self::congno_theo_thang_();
 		$opens = $wpdb->get_results( 'SELECT thang, coso, coso_key, so_tien FROM ' . VHG_DB::t( 'bc_congno_dau' ), ARRAY_A );
 		$base = array();
@@ -895,7 +902,8 @@ class VHG_KeToan {
 			}
 			$cur = isset( $byM[ $th ][ $k ] ) ? $byM[ $th ][ $k ] : array( 'phaiThu' => 0, 'daNhan' => 0, 'tm' => 0, 'ck' => 0, 'qr' => 0 );
 			$closing = $opening + (int) $cur['phaiThu'] - (int) $cur['daNhan'];
-			$rows[] = array( 'coso' => $ten, 'opening' => $opening, 'phaiThu' => (int) $cur['phaiThu'],
+			$rows[] = array( 'coso' => $ten, 'tinh' => isset( $tinh_map[ $k ] ) ? $tinh_map[ $k ] : '',
+				'opening' => $opening, 'phaiThu' => (int) $cur['phaiThu'],
 				'daNhan' => (int) $cur['daNhan'], 'daNhanTM' => (int) $cur['tm'], 'daNhanCK' => (int) $cur['ck'],
 				'qr' => (int) $cur['qr'], 'chuaNop' => (int) $cur['phaiThu'] - (int) $cur['daNhan'], 'closing' => $closing );
 		}

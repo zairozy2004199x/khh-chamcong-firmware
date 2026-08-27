@@ -346,7 +346,8 @@ class VHG_Trang {
 		/* ---- TAB QUẢN LÝ GHẾ: địa điểm + ghế (chỉ quản trị, đã chặn ở duoc_lam) ---------------- */
 		if ( 'coso_luu' === $viec ) {
 			$r = VHG_May::luu_coso( isset( $d['id'] ) ? (int) $d['id'] : 0,
-				isset( $d['ten'] ) ? $d['ten'] : '' );
+				isset( $d['ten'] ) ? $d['ten'] : '',
+				isset( $d['tinh'] ) ? $d['tinh'] : null );
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' lưu địa điểm: ' . (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) ) );
@@ -730,7 +731,8 @@ class VHG_Trang {
 		}
 		$ds_coso = array();
 		foreach ( VHG_May::ds_coso() as $c ) {
-			$ds_coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'] );
+			$ds_coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'],
+				'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ) );
 		}
 		/* NHẬT KÝ BẬT TỪ XA — gửi kèm trong chính lượt số liệu, không thêm lượt gọi. Mỗi lần bấm
 		   Bật là CHO KHÔNG một lượt: cuối tháng nhìn "ghế chạy 180 lượt, thu 140" thì 40 lượt kia
@@ -4499,7 +4501,9 @@ function veQuanLy(){
   h += '<div class="card"><h2>' + L('Địa điểm','Sites') + '</h2>'
     + '<div class="act" style="flex-wrap:wrap;margin-bottom:12px">'
     + '<input id="cs-ten" type="text" maxlength="60" placeholder="'
-      + L('Tên địa điểm mới','New site name') + '" style="flex:2;min-width:180px">'
+      + L('Tên địa điểm mới','New site name') + '" style="flex:2;min-width:160px">'
+    + '<input id="cs-tinh" type="text" maxlength="60" placeholder="'
+      + L('Tỉnh/TP (VD Bình Dương)','Province') + '" style="flex:1;min-width:130px">'
     + '<button id="cs-them" class="on">＋ ' + L('Thêm địa điểm','Add site') + '</button></div>';
   h += '<table><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
     + '</th><th class="r">' + L('Doanh thu','Revenue') + '</th><th class="r hide-sm">' + L('QR','QR')
@@ -4508,7 +4512,9 @@ function veQuanLy(){
     + L('Chưa có địa điểm nào — thêm ở trên.','No sites yet — add one above.') + '</td></tr>';
   coso.forEach(function(c){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
-    h += '<tr><td><b>' + esc(c.ten) + '</b></td>'
+    h += '<tr><td><b>' + esc(c.ten) + '</b>'
+      + (c.tinh ? '<div class="mut">📍 ' + esc(c.tinh) + '</div>' : '')
+      + '</td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
       + '<td class="r"><b>' + tien(r.tong) + '</b>'
       + (r.nguon_bc ? ' <span class="pill p-wait" title="' + L('Chưa có webhook — lấy từ báo cáo doanh thu','No webhook — from revenue reports') + '">' + L('báo cáo','report') + '</span>' : '')
@@ -4516,7 +4522,7 @@ function veQuanLy(){
       + '<td class="r hide-sm">' + tien(r.qr) + '</td>'
       + '<td class="r hide-sm">' + tien(r.tien_mat) + '</td>'
       + '<td class="r" style="white-space:nowrap">'
-      + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '">✎</button> '
+      + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '" data-cstinh="' + esc(c.tinh||'') + '">✎</button> '
       + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
   });
   if (chuaGan) {
@@ -5028,14 +5034,17 @@ function noi(){
   var _e;
   if ((_e = document.getElementById('cs-them'))) _e.onclick = function(){
     var t = (document.getElementById('cs-ten').value || '').trim();
+    var tinh = (document.getElementById('cs-tinh').value || '').trim();
     if (!t) { alert(L('Nhập tên địa điểm.','Enter a site name.')); return; }
-    lam('coso_luu', { id: 0, ten: t });
+    lam('coso_luu', { id: 0, ten: t, tinh: tinh });
   };
   [].forEach.call(document.querySelectorAll('[data-cssua]'), function(b){
     b.onclick = function(){
       var t = prompt(L('Đổi tên địa điểm:','Rename site:'), b.getAttribute('data-csten'));
       if (t === null) return; t = t.trim(); if (!t) return;
-      lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t });
+      var tinh = prompt(L('Tỉnh/TP của địa điểm (để lọc theo địa bàn):','Province/City:'), b.getAttribute('data-cstinh') || '');
+      if (tinh === null) tinh = b.getAttribute('data-cstinh') || '';
+      lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t, tinh: tinh.trim() });
     };
   });
   [].forEach.call(document.querySelectorAll('[data-csxoa]'), function(b){

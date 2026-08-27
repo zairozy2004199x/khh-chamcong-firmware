@@ -42,6 +42,7 @@ class VHG_DB {
 		$b['coso'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ten VARCHAR(190) NOT NULL,
+			tinh VARCHAR(120) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ten (ten)";

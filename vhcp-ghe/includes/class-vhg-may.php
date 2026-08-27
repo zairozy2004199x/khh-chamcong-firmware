@@ -26,18 +26,26 @@ class VHG_May {
 		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'coso' ) . ' ORDER BY ten ASC' );
 	}
 
-	public static function luu_coso( $id, $ten ) {
+	public static function luu_coso( $id, $ten, $tinh = null ) {
 		global $wpdb;
 		$ten = trim( (string) $ten );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở.' ); }
 		$bang = VHG_DB::t( 'coso' );
+		/* `tinh` (tỉnh/thành) — null = KHÔNG đụng (giữ nguyên), chuỗi = đặt lại. Để lọc theo địa bàn. */
+		$co_tinh = ( null !== $tinh );
+		$tinh = mb_substr( trim( (string) $tinh ), 0, 120 );
 		if ( (int) $id > 0 ) {
-			$wpdb->update( $bang, array( 'ten' => $ten ), array( 'id' => (int) $id ) );
-			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã đổi tên cơ sở.' );
+			$data = array( 'ten' => $ten );
+			if ( $co_tinh ) { $data['tinh'] = $tinh; }
+			$wpdb->update( $bang, $data, array( 'id' => (int) $id ) );
+			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã lưu cơ sở.' );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
-		if ( $co ) { return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' ); }
-		$wpdb->insert( $bang, array( 'ten' => $ten ) );
+		if ( $co ) {
+			if ( $co_tinh ) { $wpdb->update( $bang, array( 'tinh' => $tinh ), array( 'id' => (int) $co ) ); }
+			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
+		}
+		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '' ) );
 		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
 	}
 
