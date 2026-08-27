@@ -1211,6 +1211,66 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'message' => 'Đã đặt dư đầu kỳ ' . $th . ' · ' . $coso . '.' );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ DOANH THU ĐỊA ĐIỂM (LỊCH SỬ)
+
+	/**
+	 * Lịch sử một cơ sở (hoặc tất cả) trong 1 NĂM — gom theo THÁNG, kèm chỉ số máy liên tục.
+	 * Anh Thắng 28/08/2026: "xem một máy chạy xuyên suốt 1 năm, doanh thu bao nhiêu, chỉ số liên
+	 * tục ra sao — dạng như duyệt báo cáo nhưng nguyên tháng/ngày/năm, gọn theo tháng".
+	 *
+	 * Trả: thang[] (mới→cũ) mỗi tháng: tổng tiền + ghe[] (chỉ số đầu→cuối, doanh thu) + ngay[] (gộp
+	 * theo ngày). Chỉ số liên tục = chi_so_truoc đầu tháng → chi_so_sau cuối tháng của từng ghế.
+	 */
+	public static function lich_su( $coso, $nam ) {
+		global $wpdb;
+		$nam = preg_match( '/^\d{4}$/', (string) $nam ) ? (string) $nam : current_time( 'Y' );
+		$ck  = ( '' === trim( (string) $coso ) ) ? '' : self::squash( $coso );
+		$sql = 'SELECT h.coso, d.ngay, d.ma_may, d.ten, d.chi_so_truoc, d.chi_so_sau, d.actual, d.tien_mat, d.qr, d.tong'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)';
+		$tham = array( '%Y', $nam );
+		if ( '' !== $ck ) { $sql .= ' AND h.coso_key=%s'; $tham[] = $ck; }
+		$sql .= ' ORDER BY d.ma_may ASC, d.ngay ASC';
+		$rows = $wpdb->get_results( $wpdb->prepare( $sql, $tham ), ARRAY_A );
+
+		$th = array();
+		$tong_nam = array( 'tong' => 0, 'tien_mat' => 0, 'qr' => 0, 'actual' => 0 );
+		foreach ( (array) $rows as $r ) {
+			$m  = substr( (string) $r['ngay'], 0, 7 );
+			$ng = self::ngay_( $r['ngay'] );
+			$ma = (string) $r['ma_may'];
+			$tm = (int) $r['tien_mat']; $qr = (int) $r['qr']; $tg = (int) $r['tong']; $ac = (int) $r['actual'];
+			if ( ! isset( $th[ $m ] ) ) { $th[ $m ] = array( 'tong' => 0, 'tien_mat' => 0, 'qr' => 0, 'actual' => 0, 'ghe' => array(), 'ngay' => array() ); }
+			$th[ $m ]['tong'] += $tg; $th[ $m ]['tien_mat'] += $tm; $th[ $m ]['qr'] += $qr; $th[ $m ]['actual'] += $ac;
+			$tong_nam['tong'] += $tg; $tong_nam['tien_mat'] += $tm; $tong_nam['qr'] += $qr; $tong_nam['actual'] += $ac;
+			if ( ! isset( $th[ $m ]['ghe'][ $ma ] ) ) {
+				$th[ $m ]['ghe'][ $ma ] = array( 'ma' => $ma, 'ten' => (string) $r['ten'], 'cs_dau' => null, 'cs_cuoi' => null,
+					'tong' => 0, 'tien_mat' => 0, 'qr' => 0, 'so_ngay' => 0 );
+			}
+			$G = &$th[ $m ]['ghe'][ $ma ];
+			$G['tong'] += $tg; $G['tien_mat'] += $tm; $G['qr'] += $qr; $G['so_ngay']++;
+			if ( null !== $r['chi_so_truoc'] && null === $G['cs_dau'] ) { $G['cs_dau'] = (int) $r['chi_so_truoc']; }
+			if ( null !== $r['chi_so_sau'] ) { $G['cs_cuoi'] = (int) $r['chi_so_sau']; }   // ORDER ngay ASC → dòng cuối có chỉ số thắng
+			unset( $G );
+			if ( ! isset( $th[ $m ]['ngay'][ $ng ] ) ) { $th[ $m ]['ngay'][ $ng ] = array( 'ngay' => $ng, 'tong' => 0, 'tien_mat' => 0, 'qr' => 0, 'ghe' => array() ); }
+			$N = &$th[ $m ]['ngay'][ $ng ];
+			$N['tong'] += $tg; $N['tien_mat'] += $tm; $N['qr'] += $qr; $N['ghe'][ $ma ] = 1;
+			unset( $N );
+		}
+		krsort( $th );   // tháng mới nhất lên trước
+		$ra = array();
+		foreach ( $th as $m => $T ) {
+			$ghe = array_values( $T['ghe'] );
+			usort( $ghe, function ( $a, $b ) { return strcmp( (string) $a['ma'], (string) $b['ma'] ); } );
+			$ngay = array();
+			foreach ( $T['ngay'] as $n ) { $n['so_ghe'] = count( $n['ghe'] ); unset( $n['ghe'] ); $ngay[] = $n; }
+			usort( $ngay, function ( $a, $b ) { return strcmp( (string) $b['ngay'], (string) $a['ngay'] ); } );
+			$ra[] = array( 'thang' => $m, 'tong' => $T['tong'], 'tien_mat' => $T['tien_mat'], 'qr' => $T['qr'],
+				'actual' => $T['actual'], 'so_ghe' => count( $ghe ), 'so_ngay' => count( $ngay ), 'ghe' => $ghe, 'ngay' => $ngay );
+		}
+		return array( 'ok' => true, 'coso' => (string) $coso, 'nam' => $nam, 'thang' => $ra, 'tong_nam' => $tong_nam );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ NHẬP DOANH THU CŨ (CSV)
 
 	/**

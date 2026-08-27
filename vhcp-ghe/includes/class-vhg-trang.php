@@ -284,6 +284,7 @@ class VHG_Trang {
 			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
+			if ( 'kt_lichsu' === $viec )      { self::tra( VHG_KeToan::lich_su( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
 			if ( 'kt_import' === $viec ) {
 				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
 				if ( empty( $q['quan_tri'] ) ) {
@@ -2381,6 +2382,7 @@ function ve(){
   /* Trang kế toán: duyệt báo cáo doanh thu — vai trò Chốt doanh số / Quản lý / Admin. */
   if (QT || KT) TABS.push(['kt-duyet', '📈 ' + L('Duyệt báo cáo','Review reports')]);
   if (QT || KT) TABS.push(['kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')]);
+  if (QT || KT) TABS.push(['kt-lichsu', '🏢 ' + L('Doanh thu địa điểm','Site revenue')]);
   if (QT || KT) TABS.push(['kt-tien', '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')]);
   if (QT || KT) TABS.push(['kt-xuat', '📤 ' + L('Xuất MISA','Export MISA')]);
   if (QT) TABS.push(['kt-nhap', '📥 ' + L('Nhập doanh thu cũ','Import old data')]);
@@ -2478,6 +2480,7 @@ function ve(){
   if (TAB === 'bc-pin')     { h += veBcPin()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'kt-lichsu')  { h += veKtLichSu() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-xuat')    { h += veKtXuat()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-nhap')    { h += veKtNhap()   + '</div>'; app.innerHTML = h; noi(); return; }
@@ -3358,6 +3361,91 @@ function ktycLoad(){
 
 /* ---- TAB KẾ TOÁN: ĐỐI SOÁT NỘP TIỀN + SỔ CÔNG NỢ ---- */
 var KTI_THANG = '';
+/* ══════════════════════════════ DOANH THU ĐỊA ĐIỂM (lịch sử nguyên năm, gọn theo tháng) ══════ */
+var KLS_COSO = '', KLS_NAM = '', KLS_MO = {};   // cơ sở, năm, tháng nào đang mở
+function veKtLichSu(){
+  var coso = (D && D.coso) || [];
+  if (!KLS_NAM) KLS_NAM = (D && D.luc ? String(D.luc).slice(0, 4) : '2026');
+  var opt = '<option value="">' + L('Tất cả cơ sở','All sites') + '</option>'
+    + coso.map(function(c){ return '<option value="' + esc(c.ten) + '"' + (KLS_COSO === c.ten ? ' selected' : '') + '>'
+        + esc(c.ten) + (c.tinh ? ' · ' + esc(c.tinh) : '') + '</option>'; }).join('');
+  return '<div class="card"><h2>🏢 ' + L('Doanh thu địa điểm — theo năm','Site revenue — by year') + '</h2>'
+    + '<p class="mut">' + L('Xem một cơ sở/máy chạy xuyên suốt cả năm: doanh thu và chỉ số máy liên tục, gộp gọn theo tháng — bấm tháng để xem từng ghế (chỉ số đầu→cuối) và từng ngày.',
+      'A site/chair across the whole year: revenue and continuous meter readings, grouped by month — click a month for per-chair (meter start→end) and per-day detail.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap"><b>' + L('Cơ sở','Site') + ':</b>'
+    + '<select id="kls-coso" style="max-width:280px">' + opt + '</select>'
+    + '<b style="margin-left:6px">' + L('Năm','Year') + ':</b>'
+    + '<input type="number" id="kls-nam" min="2020" max="2100" value="' + esc(KLS_NAM) + '" style="max-width:110px">'
+    + '<button id="kls-xem" class="on">' + L('Xem','Load') + '</button></div>'
+    + '<div id="kls-wrap" style="margin-top:12px"></div></div>';
+}
+function klsInit(){
+  var s = document.getElementById('kls-coso'), n = document.getElementById('kls-nam'), b = document.getElementById('kls-xem');
+  if (b) b.onclick = function(){ KLS_COSO = s ? s.value : ''; KLS_NAM = (n && n.value) ? n.value : KLS_NAM; KLS_MO = {}; klsLoad(); };
+  klsLoad();
+}
+function klsLoad(){
+  var box = document.getElementById('kls-wrap'); if (!box) return;
+  box.textContent = ''; box.appendChild(ktEl('p', 'mut', L('Đang tải…','Loading…')));
+  goi('kt_lichsu', { coso: KLS_COSO, nam: KLS_NAM }, function(r){
+    box.textContent = '';
+    if (!r || !r.ok) { box.appendChild(ktEl('p', 'mut', (r && r.error) || 'Lỗi.')); return; }
+    var tn = r.tong_nam || { tong: 0, tien_mat: 0, qr: 0 };
+    box.appendChild(ktEl('div', 'mut', L('Cả năm','Year') + ' ' + r.nam + (KLS_COSO ? (' · ' + KLS_COSO) : (' · ' + L('tất cả cơ sở','all sites')))
+      + ' — ' + L('tổng','total') + ' ' + ktVnd(tn.tong) + 'đ · ' + L('tiền mặt','cash') + ' ' + ktVnd(tn.tien_mat) + 'đ · QR ' + ktVnd(tn.qr) + 'đ'));
+    if (!r.thang || !r.thang.length) { box.appendChild(ktEl('p', 'mut', L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
+    r.thang.forEach(function(T){ box.appendChild(klsThang(T)); });
+  });
+}
+function klsThang(T){
+  var mo = !!KLS_MO[T.thang];
+  var card = ktEl('div'); card.style.cssText = 'border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden';
+  var head = ktEl('div', 'act'); head.style.cssText = 'cursor:pointer;padding:10px 12px;background:#f4f6f9;flex-wrap:wrap;align-items:center';
+  var mm = T.thang.slice(5) + '/' + T.thang.slice(0, 4);
+  head.appendChild(ktEl('b', null, (mo ? '▾ ' : '▸ ') + L('Tháng','Month') + ' ' + mm));
+  head.appendChild(ktEl('span', 'mut', ' · ' + T.so_ghe + ' ' + L('ghế','chairs') + ' · ' + T.so_ngay + ' ' + L('ngày','days')));
+  var sp = ktEl('span'); sp.style.flex = '1'; head.appendChild(sp);
+  head.appendChild(ktEl('b', null, ktVnd(T.tong) + 'đ'));
+  head.appendChild(ktEl('span', 'mut', ' (TM ' + ktVnd(T.tien_mat) + ' · QR ' + ktVnd(T.qr) + ')'));
+  card.appendChild(head);
+  var body = ktEl('div'); body.style.cssText = 'padding:' + (mo ? '10px 12px' : '0') + ';display:' + (mo ? 'block' : 'none');
+  if (mo) klsBody(body, T);
+  card.appendChild(body);
+  head.onclick = function(){
+    KLS_MO[T.thang] = !KLS_MO[T.thang];
+    var on = KLS_MO[T.thang];
+    body.style.display = on ? 'block' : 'none'; body.style.padding = on ? '10px 12px' : '0';
+    head.firstChild.textContent = (on ? '▾ ' : '▸ ') + L('Tháng','Month') + ' ' + mm;
+    if (on && !body.hasChildNodes()) klsBody(body, T);
+  };
+  return card;
+}
+function klsBody(body, T){
+  body.appendChild(ktEl('div', 'mut', L('Theo ghế (chỉ số máy đầu → cuối tháng)','By chair (meter start → end of month)')));
+  var sc1 = ktEl('div', 'table-scroll'); var t1 = ktEl('table'); t1.style.minWidth = '620px';
+  t1.innerHTML = '<tr><th>' + L('Ghế','Chair') + '</th><th>' + L('Chỉ số đầu→cuối','Meter start→end')
+    + '</th><th class="r">' + L('Ngày','Days') + '</th><th class="r">' + L('Tiền mặt','Cash') + '</th><th class="r">QR</th><th class="r">' + L('Tổng','Total') + '</th></tr>';
+  (T.ghe || []).forEach(function(g){
+    var cs = (g.cs_dau == null && g.cs_cuoi == null) ? '<span class="mut">—</span>'
+      : ((g.cs_dau == null ? '?' : Number(g.cs_dau).toLocaleString('vi-VN')) + ' → ' + (g.cs_cuoi == null ? '?' : Number(g.cs_cuoi).toLocaleString('vi-VN')));
+    var tr = ktEl('tr');
+    tr.innerHTML = '<td><b>' + esc(g.ma) + '</b></td><td>' + cs + '</td>'
+      + '<td class="r">' + g.so_ngay + '</td><td class="r">' + ktVnd(g.tien_mat) + '</td><td class="r">' + ktVnd(g.qr) + '</td><td class="r"><b>' + ktVnd(g.tong) + '</b></td>';
+    t1.appendChild(tr);
+  });
+  sc1.appendChild(t1); body.appendChild(sc1);
+  body.appendChild(ktEl('div', 'mut', L('Theo ngày','By day'))).style.marginTop = '10px';
+  var sc2 = ktEl('div', 'table-scroll'); var t2 = ktEl('table'); t2.style.minWidth = '480px';
+  t2.innerHTML = '<tr><th>' + L('Ngày','Date') + '</th><th class="r">' + L('Ghế','Chairs') + '</th><th class="r">'
+    + L('Tiền mặt','Cash') + '</th><th class="r">QR</th><th class="r">' + L('Tổng','Total') + '</th></tr>';
+  (T.ngay || []).forEach(function(n){
+    var tr = ktEl('tr');
+    tr.innerHTML = '<td>' + esc(n.ngay) + '</td><td class="r">' + n.so_ghe + '</td><td class="r">' + ktVnd(n.tien_mat)
+      + '</td><td class="r">' + ktVnd(n.qr) + '</td><td class="r"><b>' + ktVnd(n.tong) + '</b></td>';
+    t2.appendChild(tr);
+  });
+  sc2.appendChild(t2); body.appendChild(sc2);
+}
 function veKtTien(){
   return '<div class="card"><div class="act" style="flex-wrap:wrap"><b>' + L('Tháng','Month') + ':</b>'
     + '<input type="month" id="kti-thang" style="max-width:170px">'
@@ -5053,6 +5141,7 @@ function noi(){
   if (document.getElementById('ktd-list')) ktdInit();
   if (document.getElementById('ktdn-list')) ktdnInit();
   if (document.getElementById('kti-congno')) ktiInit();
+  if (document.getElementById('kls-wrap')) klsInit();
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
   if (document.getElementById('ktn-csv')) ktnInit();
   if (document.getElementById('tt-wrap')) ttWire();
