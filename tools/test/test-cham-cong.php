@@ -11374,6 +11374,20 @@ t( 'và phiên bản đang chạy nằm ngay trong tầm mắt',
 /* Tên hệ vẫn là ĐƯỜNG VỀ TRANG CHÍNH — người ta bấm logo để về nhà ở mọi trang web trên đời. */
 t( '🔴 logo vẫn là liên kết về trang chính',
 	preg_match( '~<a[^>]*class="[^"]*\bhieu\b[^"]*"[^>]*href="[^"]*"~', $h_hr ) === 1, $h_hr );
+/* 🔴 VÀ LOGO KHÔNG ĐƯỢC GIÃN CAO. Anh Thắng 27/08/2026, kèm ảnh cột dọc: *"bị lệch"* — một
+   khoảng đen mênh mông giữa logo và mục đầu tiên, menu bị đẩy xuống quá nửa cột.
+   Logo mang cả hai lớp `hieu canh-hieu`, mà `.hieu{flex:1}` vốn dựng cho thanh đầu trang CŨ —
+   một flex hàng NGANG, ở đó `flex:1` để logo ăn hết chỗ thừa và đẩy nút Thoát sang phải. Nay
+   logo nằm trong flex CỘT, nên đúng cái `flex:1` ấy làm nó giãn theo CHIỀU CAO.
+   ⚠️ Đây là bẫy của việc DÙNG LẠI MỘT LỚP ở ngữ cảnh khác: thuộc tính không đổi, nhưng nghĩa
+      của nó đổi. Phép thử canh chính chỗ chữa. */
+t( '🔴 logo trong cột dọc KHÔNG giãn cao (thôi ăn chỗ của menu)',
+	strpos( $h_hr, 'a.canh-hieu{display:block;flex:0 0 auto' ) !== false, $h_hr );
+/* Và menu phải đứng NGAY dưới logo trong luồng — không có gì chen vào giữa. */
+$vt_logo = strpos( $h_hr, 'class="hieu canh-hieu"' );
+$vt_nav  = strpos( $h_hr, '<nav class="canh-nav">' );
+t( 'menu đứng ngay sau logo', false !== $vt_logo && false !== $vt_nav && $vt_logo < $vt_nav,
+	$vt_logo . ' / ' . $vt_nav );
 
 /* ---- Tiêu đề màn ---- */
 /* 🔴 Không có nó thì tám màn mở ra trông giống hệt nhau — cùng nền, cùng thẻ trắng, cùng bảng.
@@ -11445,6 +11459,44 @@ t( '🔴 cột dọc chỉ bật từ 1000px trở lên',
 	strpos( $h_hr, '@media(min-width:1000px){.ung{display:grid' ) !== false, $h_hr );
 t( 'mặc định (màn hẹp) thì KHÔNG phải lưới hai cột',
 	strpos( $h_hr, '.ung{display:block}' ) !== false, $h_hr );
+
+/* ---- Nhãn khối (ảnh 2) ---- */
+/* 🔴 Màn Máy & Firmware có CHÍN khối liền nhau, màn Cấu hình có năm. Không có nhãn thì chúng là
+   chín cái thẻ trắng nối đuôi, tiêu đề chìm vào giữa đám chữ, và cuộn xuống là mất dấu mình
+   đang ở khối nào — người trực một cửa hàng mất chấm công phải đọc từ đầu màn xuống. */
+t( '🔴 tiêu đề khối được bôi thành NHÃN', strpos( $h_hr, '.the>h2,.the>h3{' ) !== false, $h_hr );
+t( 'nhãn ấy là chữ hoa nền nhạt', strpos( $h_hr, 'text-transform:uppercase;color:#1e40af;background:#eff6ff' ) !== false, $h_hr );
+/* ⚠️ CHỈ con TRỰC TIẾP của `.the`. Mấy `h3` nằm sâu bên trong (trong `<details>`, trong bảng) là
+   tiêu đề phụ — bôi nhãn cho chúng nữa thì cả màn đầy nhãn, và nhãn hết nghĩa. */
+t( '🔴 chọn con trực tiếp (`>`), không phải mọi con cháu',
+	strpos( $h_hr, '.the h2,.the h3{font-size:13px' ) === false, $h_hr );
+
+/* ---- Nút theo VIỆC (ảnh 2) ---- */
+/* Màu là thứ mắt đọc trước chữ, nên nó phải nói đúng: xanh lá = thêm mới, cam = việc chạy lâu
+   và chạm ra ngoài (đọc máy, nạp tệp), đỏ = việc không lùi được. */
+t( 'có nút xanh lá cho việc THÊM', strpos( $h_hr, 'button.them{background:var(--luc)' ) !== false, $h_hr );
+t( 'và nút cam cho việc CHẠY LÂU', strpos( $h_hr, 'button.chay{background:var(--vang)' ) !== false, $h_hr );
+
+/* ---- Đánh số hàng (ảnh 1 và 2) ---- */
+/* Bảng máy có 26 dòng, bảng lịch cả tháng có mấy trăm. Người trực gọi điện cho cửa hàng mà nói
+   được "dòng 12" thì hai bên nhìn cùng một chỗ. */
+t( '🔴 bảng danh sách được đánh số bằng CSS', strpos( $h_hr, 'table.stt tbody{counter-reset:d}' ) !== false, $h_hr );
+/* ⚠️ ĐÁNH SỐ BẰNG CSS, không thêm cột `<td>`. Thêm cột thật là mỗi bảng phải sửa cả `<thead>`
+   lẫn mọi `colspan` của hàng tổng — chỗ nào quên là bảng lệch một ô, im lặng. */
+t( 'hàng TỔNG không bị đánh số (26 máy không hoá 27)',
+	strpos( $h_hr, 'table.stt tbody tr.tong{counter-increment:none}' ) !== false, $h_hr );
+/* 🔴 Và KHÔNG bôi cho mọi bảng: lưới cả tháng có cột đầu là TÊN NGƯỜI — chèn số vào đó là số
+   dính vào giữa tên.
+   ⚠️ Đo bằng chính LUẬT, đừng đo bằng cảnh: cảnh này không có ai chấm công nên lưới cả tháng
+      chẳng in ra, và một regex tìm bảng lưới sẽ trượt vì KHÔNG CÓ BẢNG chứ không phải vì luật
+      đúng. Luật ở đây là "chỉ bảng khai lớp `stt` mới bị đánh số". */
+t( '🔴 quy tắc đánh số BUỘC phải có lớp stt',
+	strpos( $h_hr, 'table.stt tbody td:first-child::before' ) !== false
+	&& strpos( $h_hr, 'table tbody td:first-child::before' ) === false, $h_hr );
+/* Và trên một màn CÓ lưới thật (cảnh hàng sửa ở khối 64), lưới ấy không mang lớp `stt`. */
+t( '🔴 lưới cả tháng KHÔNG khai lớp stt',
+	preg_match( '~<table class="cc"~', $h_ls ) === 1
+	&& strpos( $h_ls, '<table class="cc stt"' ) === false, substr( $h_ls, 0, 300 ) );
 
 /* 🔴 KHÔNG một dòng script — cùng luật với cả màn quản trị. */
 t( 'khung mới không kéo theo script nào', stripos( $h_hr, '<script' ) === false );

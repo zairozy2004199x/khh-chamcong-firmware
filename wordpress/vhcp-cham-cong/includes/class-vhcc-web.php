@@ -1202,7 +1202,16 @@ class VHCC_Web {
 			. '.ung{display:block}'
 			. '.canh{background:#0f2744;color:#cbd5e1;display:flex;flex-direction:column}'
 			. '.canh-hieu{padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}'
-			. 'a.canh-hieu{display:block;text-decoration:none;color:#fff;font-size:16px}'
+			/* 🔴 `flex:1` CỦA `.hieu` PHẢI BỊ GỠ Ở ĐÂY.
+			   Anh Thắng 27/08/2026, kèm ảnh cột dọc: *"bị lệch"* — một khoảng đen mênh mông giữa
+			   logo và mục đầu tiên, menu bị đẩy xuống quá nửa cột.
+			   Nguyên do: logo mang cả hai lớp `hieu canh-hieu`, mà `.hieu{flex:1}` vốn dựng cho
+			   thanh đầu trang CŨ — một flex hàng NGANG, ở đó `flex:1` để logo ăn hết chỗ thừa và
+			   đẩy nút Thoát sang phải. Nay logo nằm trong flex CỘT, nên đúng cái `flex:1` ấy làm
+			   nó giãn theo CHIỀU CAO và ăn hết chỗ của menu.
+			   ⚠️ Một lớp dùng lại ở ngữ cảnh khác thì thuộc tính của nó đổi nghĩa. Giữ `.hieu`
+			      (phép thử canh logo vẫn là liên kết về trang chính) nhưng phải nói lại chiều cao. */
+			. 'a.canh-hieu{display:block;flex:0 0 auto;text-decoration:none;color:#fff;font-size:16px}'
 			. '.canh-hieu b{font-size:21px;color:#fff;letter-spacing:.5px;line-height:1.2}'
 			. '.canh-hieu span{display:block;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;'
 			. 'color:#7c9cc4;margin-top:3px}'
@@ -1236,6 +1245,19 @@ class VHCC_Web {
 			. 'margin:0;padding-bottom:5px;border-bottom:3px solid var(--xanh);flex:0 0 auto}'
 			. '.tieu-man .mo{margin:0}'
 
+			/* ================================================== nhãn khối, theo mẫu HR V5.2 (ảnh 2)
+			   Trong mẫu, mỗi khối mở đầu bằng một NHÃN chữ hoa nền nhạt nằm sát mép trên — nhìn
+			   là biết khối bắt đầu từ đâu.
+			   🔴 Vì sao cần: màn Máy & Firmware có CHÍN khối liền nhau, màn Cấu hình có năm. Hiện
+			      chúng là chín cái thẻ trắng nối đuôi, tiêu đề chìm vào giữa đám chữ, nên cuộn
+			      xuống là mất dấu mình đang ở khối nào. Người trực một cửa hàng mất chấm công
+			      phải đọc từ đầu màn xuống mới tìm được khối mình cần.
+			   ⚠️ Chỉ áp cho `h2`/`h3` là CON TRỰC TIẾP của `.the`. Mấy `h3` nằm sâu bên trong
+			      (trong `<details>`, trong bảng) là tiêu đề phụ — bôi nhãn cho chúng nữa thì cả
+			      màn đầy nhãn, và nhãn hết nghĩa. */
+			. '.the>h2,.the>h3{font-size:13px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;'
+			. 'color:#1e40af;background:#eff6ff;border:1px solid #dbeafe;border-radius:8px;'
+			. 'padding:7px 11px;margin:-4px -4px 12px;display:inline-block}'
 			. '.the h2{font-size:15px;margin:0 0 4px}'
 			. '.mo{color:var(--mo);font-size:13px;margin:4px 0}'
 			. 'label{display:block;font-size:13px;color:var(--mo);margin:0 0 3px}'
@@ -1253,6 +1275,11 @@ class VHCC_Web {
 			. 'background:#fff;color:var(--chu);cursor:pointer}'
 			. 'button.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
 			. 'button.nguy{background:var(--do);border-color:var(--do);color:#fff}'
+			/* Nút theo VIỆC, không theo chỗ đứng — mẫu HR V5.2 (ảnh 2) tô xanh lá cho "Thêm",
+			   cam cho "Tải dữ liệu". Màu là thứ mắt đọc trước chữ, nên nó phải nói đúng: xanh lá
+			   = thêm mới, cam = việc chạy lâu và chạm ra ngoài (đọc máy, nạp tệp). */
+			. 'button.them{background:var(--luc);border-color:var(--luc);color:#fff}'
+			. 'button.chay{background:var(--vang);border-color:var(--vang);color:#fff}'
 			. '.nut{display:inline-block;font-size:14px;font-weight:600;padding:8px 12px;border-radius:7px;'
 			. 'border:1px solid #cbd5e1;background:#fff;color:var(--chu);text-decoration:none}'
 			. '.nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
@@ -1270,6 +1297,23 @@ class VHCC_Web {
 			. 'table{border-collapse:collapse;width:100%;font-size:13.5px}'
 			. 'th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--vien);vertical-align:top}'
 			. 'th{background:#f8fafc;font-size:12.5px;color:var(--mo);white-space:nowrap}'
+			/* ================================= đánh số hàng, theo mẫu HR V5.2 (ảnh 1 và 2)
+			   Mẫu có một cột số chạy dọc bên trái mọi bảng danh sách. Không phải trang trí: bảng
+			   máy có 26 dòng, bảng lịch cả tháng có mấy trăm — người trực gọi điện cho cửa hàng
+			   mà nói được "dòng 12" thì hai bên nhìn cùng một chỗ, còn không thì phải đọc cả mã
+			   lẫn tên ra để đối chiếu.
+			   ⚠️ ĐÁNH SỐ BẰNG CSS, không thêm một cột `<td>` nào. Thêm cột thật là mỗi bảng phải
+			      sửa cả `<thead>` lẫn mọi `colspan` của hàng tổng — chỗ nào quên là bảng lệch
+			      một ô và không có gì báo. Số ở đây là thứ để NHÌN, không phải dữ liệu.
+			   ⚠️ Chỉ áp cho bảng khai lớp `stt`. Bôi cho mọi bảng thì bảng hai dòng cũng có số,
+			      và bảng lưới cả tháng (cột đầu là tên người) bị chèn số vào giữa tên. */
+			. 'table.stt tbody{counter-reset:d}'
+			. 'table.stt tbody tr{counter-increment:d}'
+			. 'table.stt tbody td:first-child::before{content:counter(d) ". ";color:var(--mo);'
+			. 'font-size:11.5px;font-weight:600}'
+			/* Hàng TỔNG không phải một dòng dữ liệu — đánh số cho nó là bảng 26 máy hoá ra 27. */
+			. 'table.stt tbody tr.tong{counter-increment:none}'
+			. 'table.stt tbody tr.tong td:first-child::before{content:none}'
 			. '.cuon{overflow-x:auto;-webkit-overflow-scrolling:touch}'
 			/* Cột Mã NV DÍNH BÊN TRÁI. Bảng rộng hơn màn hình nên phải cuộn ngang; không ghim
 			   cột mã lại thì cuộn sang phải là mất luôn thứ cho biết đang sửa hồ sơ của AI. */
@@ -4486,7 +4530,7 @@ class VHCC_Web {
 		echo '<div><label for="ntep">Tệp .csv *</label>'
 			. '<input id="ntep" type="file" name="tep" accept=".csv,.tsv,.txt" required></div>';
 		echo '<div><button name="viec" value="xem_cong">Xem trước</button></div>';
-		echo '<div><button class="chinh" name="viec" value="nap_cong">Nạp thật</button></div>';
+		echo '<div><button class="chay" name="viec" value="nap_cong">Nạp thật</button></div>';
 		echo '</div>';
 		echo '<p class="mo">Cơ sở <b>chưa có trong danh sách</b> (mới mở, hoặc chưa ai chấm công '
 			. 'lần nào) thì gõ mã vào ô <b>cơ sở MỚI</b> — ô ấy thắng ô xổ xuống. Xem trước sẽ nói '

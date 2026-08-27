@@ -1258,7 +1258,7 @@ class VHCC_TrangNS {
 			. 'trang nào</b> ở trên — lệch ở đó có tên, có chỗ soát lại.</p>';
 
 		if ( $them ) {
-			echo '<div class="cuon"><table><thead><tr><th>Tên vai</th><th>Quyền y như</th>'
+			echo '<div class="cuon"><table class="stt"><thead><tr><th>Tên vai</th><th>Quyền y như</th>'
 				. '<th>Đang dùng</th><th></th></tr></thead><tbody>';
 			foreach ( $them as $ten => $goc ) {
 				$so = VHCC_Vai::dem_nguoi( $ten );
@@ -1296,7 +1296,7 @@ class VHCC_TrangNS {
 			echo '<option value="' . esc_attr( $ma_g ) . '">' . esc_html( $ten_g ) . '</option>';
 		}
 		echo '</select></div>';
-		echo '<button class="chinh" name="viec" value="them_vai">Thêm vai</button>';
+		echo '<button class="them" name="viec" value="them_vai">Thêm vai</button>';
 		echo '</form>';
 		echo '</details></div>';
 	}
@@ -1330,7 +1330,7 @@ class VHCC_TrangNS {
 			. 'khác khai. Và chỉ chia được đầu việc mà vai của mình đang làm được.</p>';
 
 		if ( $nl ) {
-			echo '<div class="cuon"><table><thead><tr><th>Cho ai</th><th>Đầu việc</th>'
+			echo '<div class="cuon"><table class="stt"><thead><tr><th>Cho ai</th><th>Đầu việc</th>'
 				. '<th>Đang đặt</th><th></th></tr></thead><tbody>';
 			foreach ( $nl as $dich => $ds_x ) {
 				foreach ( $ds_x as $q => $v ) {

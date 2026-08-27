@@ -343,7 +343,7 @@ class VHCC_WebLich {
 			echo '<p class="mo">Chưa có ô lịch nào trong khoảng này.</p></div>';
 			return;
 		}
-		echo '<div class="cuon"><table class="cc"><thead><tr><th>Ngày</th><th>Mã NV</th><th>Họ tên</th>'
+		echo '<div class="cuon"><table class="cc stt"><thead><tr><th>Ngày</th><th>Mã NV</th><th>Họ tên</th>'
 			. '<th>Ca</th><th>Việc</th><th>Người xếp</th><th></th></tr></thead><tbody>';
 		foreach ( $ds as $r ) {
 			echo '<tr><td>' . esc_html( $r['ngay'] ) . '</td>';

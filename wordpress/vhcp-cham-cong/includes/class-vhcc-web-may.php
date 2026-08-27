@@ -214,7 +214,7 @@ class VHCC_WebMay {
 	private static function the_ds_may( $ds, $ky ) {
 		if ( ! $ds ) { return; }
 		echo '<div class="the"><h2>Danh sách máy</h2>';
-		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Serial đầu đọc</th><th>MAC bo</th>'
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Cơ sở</th><th>Serial đầu đọc</th><th>MAC bo</th>'
 			. '<th>Nhịp cuối</th><th>Bản firmware</th><th>Đường</th><th>Chờ</th><th>Việc</th>'
 			. '</tr></thead><tbody>';
 		foreach ( $ds as $x ) {
@@ -264,7 +264,7 @@ class VHCC_WebMay {
 		echo '<div><label>Đến ngày</label><input type="date" name="den" required></div>';
 		echo '<div><label>Chỉ một mã NV</label>'
 			. '<input type="text" name="ma_nv" placeholder="để trống = tất cả"></div>';
-		echo '<button class="chinh" name="viec" value="may_tai_lai">Tải lại</button>';
+		echo '<button class="chay" name="viec" value="may_tai_lai">Tải lại</button>';
 		echo '</form>';
 		echo '<p class="mo">Tối đa 31 ngày mỗi đợt: máy đẩy từng lượt qua 4G nên khoảng rộng làm '
 			. 'nghẽn đường truyền hàng giờ.</p></div>';
