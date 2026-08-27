@@ -187,6 +187,8 @@ class VHCC_TrangNS {
 		if ( 'luu_quyen' === $viec )   { return self::viec_luu( $toi ); }
 		if ( 'ap_cot' === $viec )      { return self::viec_cot( $toi ); }
 		if ( 'go_ngoai_le' === $viec ) { return self::viec_go( $toi ); }
+		if ( 'them_vai' === $viec )    { return self::viec_them_vai( $toi ); }
+		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -299,6 +301,22 @@ class VHCC_TrangNS {
 			. $doi . ' ô đổi trên ' . count( $sach ) . ' người đang hiện.' ) );
 	}
 
+	private static function viec_them_vai( $toi ) {
+		$ten = isset( $_POST['vai_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['vai_ten'] ) ) : '';
+		$goc = isset( $_POST['vai_goc'] ) ? sanitize_text_field( wp_unslash( $_POST['vai_goc'] ) ) : '';
+		$kq  = VHCC_Vai::dat_them( $toi, $ten, $goc );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã khai vai "' . $ten . '" — quyền y như '
+			. VHCC_Vai::TEN[ $goc ] . '. Gán được cho người ta ở cột Vai trò bên dưới.' ) );
+	}
+
+	private static function viec_xoa_vai( $toi ) {
+		$ten = isset( $_POST['vai_ten'] ) ? sanitize_text_field( wp_unslash( $_POST['vai_ten'] ) ) : '';
+		$kq  = VHCC_Vai::xoa_them( $toi, $ten );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã bỏ vai "' . $ten . '".' ) );
+	}
+
 	private static function viec_go( $toi ) {
 		$ma = isset( $_POST['ma_nv'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_nv'] ) ) : '';
 		$tr = isset( $_POST['trang'] ) ? sanitize_key( wp_unslash( $_POST['trang'] ) ) : '';
@@ -376,7 +394,13 @@ class VHCC_TrangNS {
 			   tô đậm sẵn là cả cột tên biến thành một rừng liên kết xanh. */
 			. '.mo-hs{font-size:11px;color:var(--mo);text-decoration:none;white-space:nowrap;'
 			. 'border:1px solid var(--vien);border-radius:5px;padding:1px 5px;margin-left:4px}'
-			. '.mo-hs:hover{color:var(--xanh);border-color:var(--xanh)}';
+			. '.mo-hs:hover{color:var(--xanh);border-color:var(--xanh)}'
+			/* Hàng trùng: nền vàng nhạt + nhãn đỏ. Màu KHÔNG đứng một mình — nhãn có chữ, để
+			   người mù màu và bản in đen trắng vẫn đọc ra. */
+			. 'tr.hang-trung>td{background:#fffbeb}'
+			. '.chip-t{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;'
+			. 'background:#fee2e2;color:var(--do);font-size:10.5px;font-weight:700;'
+			. 'letter-spacing:.2px;vertical-align:middle}';
 	}
 
 	/**
@@ -431,6 +455,7 @@ class VHCC_TrangNS {
 		foreach ( self::lay_bao() as $b ) { self::ve_bao( $b ); }
 
 		self::the_duong_di( $toi, $ds_trang );
+		self::canh_nguon();
 
 		if ( ! $ds_trang ) {
 			echo '<div class="the"><div class="bao loi">Không dò thấy trang nào trên site này. '
@@ -441,6 +466,7 @@ class VHCC_TrangNS {
 		}
 
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
+		self::the_vai( $toi );
 		self::the_ngoai_le();
 		self::the_ngoai_pham_vi();
 		self::the_mac_dinh( $ds_trang );
@@ -453,6 +479,54 @@ class VHCC_TrangNS {
 				echo '<div class="bao ' . $lop . '">' . esc_html( (string) $b[ $k ] ) . '</div>';
 			}
 		}
+	}
+
+	/**
+	 * 🔴 CẢNH BÁO KHI ĐỔI VAI Ở ĐÂY KHÔNG CÓ HIỆU LỰC ĐĂNG NHẬP.
+	 *
+	 * Hệ có BỐN kho người dùng, và `VHCC_Auth::nguon()` quyết định lúc đăng nhập đọc kho nào:
+	 * hồ sơ nhân sự · danh sách riêng của plugin · bản sao sổ PhanQuyen · sổ của app Vận hành
+	 * chi phí (đây là MẶC ĐỊNH).
+	 *
+	 * Cột Vai trò của bảng này đọc và ghi vào HỒ SƠ NHÂN SỰ. Nên khi nguồn đang đặt là kho
+	 * khác, bấm Lưu vẫn ghi thành công vào hồ sơ, màn hình vẫn báo "Đã đổi vai trò cho N
+	 * người" — mà vai lúc người ta đăng nhập thì đọc từ kho kia, không đổi gì cả. Đó là lời nói
+	 * dối tệ nhất một màn quản trị có thể nói: BÁO THÀNH CÔNG CHO MỘT VIỆC KHÔNG XẢY RA. Người
+	 * khai đóng trang, tin là xong, và chỉ phát hiện khi có người kêu "sao tôi vẫn không vào
+	 * được" — lúc ấy không ai nối được hai chuyện với nhau.
+	 *
+	 * ⚠️ CẢNH BÁO, KHÔNG PHẢI CHẶN. Ghi vào hồ sơ vẫn có ích: hồ sơ là nơi anh Thắng thật sự
+	 *    nhập liệu, và ngày nào lật nguồn sang "hồ sơ" là mọi thứ khai ở đây có hiệu lực ngay.
+	 *    Chặn lại thì mất luôn đường chuẩn bị trước.
+	 */
+	private static function canh_nguon() {
+		if ( ! class_exists( 'VHCC_Auth' ) || ! method_exists( 'VHCC_Auth', 'nguon' ) ) { return; }
+		$n = VHCC_Auth::nguon();
+		if ( 'ho_so' === $n ) { return; }
+
+		$ten = array(
+			'chung' => 'sổ người dùng của app Vận hành chi phí (bảng CH_NguoiDung)',
+			'rieng' => 'danh sách riêng của plugin chấm công',
+			'app'   => 'bản sao sổ PhanQuyen của app Apps Script cũ (bảng phan_quyen)',
+		);
+		$ten = isset( $ten[ $n ] ) ? $ten[ $n ] : $n;
+
+		echo '<div class="bao canh"><b>Cột Vai trò ở đây ghi vào HỒ SƠ NHÂN SỰ, '
+			. 'nhưng hệ đang đăng nhập bằng một cuốn sổ khác.</b><br>'
+			. 'Nguồn người dùng đang đặt là <b>' . esc_html( $ten ) . '</b>. Đổi vai ở bảng này '
+			. 'vẫn được ghi vào hồ sơ, nhưng <b>vai lúc người ta đăng nhập thì đọc từ sổ kia</b> '
+			. '— nên chưa có hiệu lực ngay.';
+		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
+			echo ' Muốn khai ở đây là ăn ngay thì vào <a href="'
+				. esc_url( add_query_arg( array( 'man' => 'cau_hinh' ), VHCC_Web::url() ) ) . '">'
+				. 'Quản trị chấm công → Cấu hình</a>, đổi <b>Nguồn người dùng</b> sang '
+				. '<b>“hồ sơ nhân sự”</b>.';
+		}
+		/* ⚠️ Nói ra cái KHÔNG bị ảnh hưởng, kẻo người đọc tưởng cả hệ đang hỏng. Trạm chấm công
+		   đọc thẳng hồ sơ (xem `VHCC_Tram::tim_pin`), không đi qua `nguon()`. */
+		echo '<br><span class="mo">Trạm chấm công không bị ảnh hưởng — nó luôn đọc thẳng hồ sơ '
+			. 'nhân sự. Chuyện này chỉ liên quan tới vai trò khi đăng nhập trang quản trị.</span>';
+		echo '</div>';
 	}
 
 	/** Thanh đường đi — chính những trang NGƯỜI ĐANG XEM vào được. Không vẽ trang họ không có. */
@@ -506,6 +580,20 @@ class VHCC_TrangNS {
 			}
 			$nguoi = $loc;
 		}
+		/* 🔴 HỒ SƠ TRÙNG LÊN ĐẦU. Anh Thắng 27/08/2026: *"Nhân viên nào trùng tên, trùng Mã NV
+		   thì đưa lên đầu nhé"*.
+		   ⚠️ Dò trên TOÀN BỘ hồ sơ, không dò trên lát cắt đang lọc. Hai người trùng tên ở hai cơ
+		      sở khác nhau mà chỉ dò trong một cơ sở thì mỗi bên thấy đúng một dòng, và cả hai
+		      cùng trông bình thường — đúng cặp nguy hiểm nhất lại là cặp lọt.
+		   ⚠️ Xếp TRƯỚC khi cắt trang. Cắt rồi mới xếp thì hồ sơ trùng nằm ở trang 4 vẫn ở trang
+		      4, mà "đưa lên đầu" chính là để khỏi lật từng trang đi tìm. */
+		$trung = VHCC_NhanSu::dau_hieu_trung( self::ds_de_do( $toi ) );
+		$nguoi = VHCC_NhanSu::xep_trung_len_dau( $nguoi, $trung );
+		$so_trung = 0;
+		foreach ( $nguoi as $r_t ) {
+			if ( isset( $trung[ (string) $r_t['ma_nv'] ] ) ) { $so_trung++; }
+		}
+
 		$tong  = count( $nguoi );
 		$so_tr = max( 1, (int) ceil( $tong / self::MOI_TRANG ) );
 		$p     = min( $p, $so_tr );
@@ -516,6 +604,13 @@ class VHCC_TrangNS {
 		echo '<p class="mo">Mặc định theo <b>vai trò</b> — bảng này chỉ ghi những chỗ <b>khác</b> '
 			. 'mặc định. Để ô ở «Theo vai» là người ấy đi theo thang vai, đổi vai là quyền đổi theo. '
 			. 'Chọn «Mở» hay «Khoá» là ghim cứng cho riêng người đó, vai đổi cũng không lay chuyển.</p>';
+
+		if ( $so_trung ) {
+			echo '<div class="bao canh"><b>' . (int) $so_trung . ' hồ sơ đang trùng tên hoặc trùng '
+				. 'Mã NV</b> — đã đưa lên đầu bảng. Mã NV là khoá của mọi lượt chấm công: hai hồ sơ '
+				. 'của cùng một người là công bị chẻ đôi, hai người cùng một mã là công cộng nhầm '
+				. 'sang nhau. Bấm <b>hồ sơ ↗</b> để xem rồi gộp hoặc sửa mã.</div>';
+		}
 
 		self::o_tim( $cs, $q, $vai );
 
@@ -548,8 +643,17 @@ class VHCC_TrangNS {
 
 		foreach ( $lat as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
-			echo '<tr>';
-			echo '<td><b>' . esc_html( $ma ) . '</b></td>';
+			$co_trung = isset( $trung[ $ma ] ) ? $trung[ $ma ] : null;
+			echo '<tr' . ( $co_trung ? ' class="hang-trung"' : '' ) . '>';
+			echo '<td><b>' . esc_html( $ma ) . '</b>';
+			if ( $co_trung ) {
+				/* Nhãn nói RÕ trùng cái gì. Một chấm đỏ chung chung thì người ta phải tự đoán,
+				   mà hai kiểu trùng này cần hai cách xử khác hẳn nhau: trùng tên thì gộp hai hồ
+				   sơ, trùng mã thì phải cấp lại mã cho một bên. */
+				if ( $co_trung['ma'] )  { echo '<span class="chip-t">trùng mã</span>'; }
+				if ( $co_trung['ten'] ) { echo '<span class="chip-t">trùng tên</span>'; }
+			}
+			echo '</td>';
 			/* Nút mở thẳng hồ sơ người này ở màn Hồ sơ & tài khoản. Anh Thắng: *"bổ sung thêm
 			   1 số thông tin nhân viên, với cấu hình này nó thông với thông tin nhân viên"*.
 			   🔴 KHÔNG dựng lại màn hồ sơ ở đây. Thêm/sửa/xoá nhân sự đã có đủ ở màn kia; làm
@@ -631,7 +735,10 @@ class VHCC_TrangNS {
 		   đường bấm nhầm rồi nhận câu chối. */
 		$h = '<select class="o-q-vai" name="vai[' . esc_attr( $ma ) . ']">';
 		$co_cu = false;
-		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $ten ) {
+		/* Đọc `VHCC_Vai::ds_ten()` chứ không đọc hằng của `VHCC_Auth`: danh sách nay gồm cả vai
+		   TỰ TẠO ("Kế toán POSH", "Kế toán nhân sự"…). Đọc hằng thì vai vừa khai không có mặt
+		   trong ô xổ — khai xong không gán được cho ai, tức là khai để đấy. */
+		foreach ( VHCC_Vai::ds_ten() as $ten ) {
 			if ( VHCC_Vai::bac( array( 'role' => $ten ) ) > $bac_toi ) { continue; }
 			$chon = ( trim( (string) $vai_cu ) === $ten );
 			if ( $chon ) { $co_cu = true; }
@@ -686,6 +793,25 @@ class VHCC_TrangNS {
 		return $h . '</span>';
 	}
 
+	/**
+	 * Toàn bộ hồ sơ người này được xem — CHỈ lấy `ma_nv` + `ho_ten`, để dò trùng.
+	 *
+	 * ⚠️ Không gọi lại `ds_nhan_vien()` không lọc: hàm ấy trả về cả hồ sơ đầy đủ (kể cả ô lương
+	 *    của những người có quyền xem), tức là kéo 240 dòng × 30 cột về chỉ để đếm hai cột.
+	 */
+	private static function ds_de_do( $toi ) {
+		global $wpdb;
+		$ra = array();
+		$rows = VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cua_hang FROM ' . VHCC_DB::t( 'nhan_vien' ) );
+		foreach ( (array) $rows as $r ) {
+			/* Cửa hàng trưởng chỉ dò trong phạm vi họ thấy — đưa lên đầu một cái trùng mà họ
+			   không mở nổi hồ sơ để xử thì chỉ tổ làm họ lo. */
+			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $r['cua_hang'] ) ) { continue; }
+			$ra[] = $r;
+		}
+		return $ra;
+	}
+
 	private static function o_tim( $cs, $q, $vai ) {
 		echo '<form method="get" class="hang" style="margin:0 0 12px">';
 		/* Không có permalink thì trang này nhận ra mình bằng `vhcc_ns=1` — ô tìm phải chở nó
@@ -724,6 +850,76 @@ class VHCC_TrangNS {
 				. (int) $i . '</a>';
 		}
 		echo '</div>';
+	}
+
+	/* ------------------------------------------------------------------ bảng vai trò */
+
+	/**
+	 * BẢNG VAI TRÒ — thêm vai riêng của công ty.
+	 *
+	 * Anh Thắng 27/08/2026: *"muốn thêm bảng vai trò: vì sau anh cần vai trò kế toán nhân sự,
+	 * kế toán Posh"*.
+	 *
+	 * 🔴 MỖI VAI MỚI KẾ THỪA MỘT VAI GỐC, KHÔNG KHAI LẠI TỪNG QUYỀN. Xem chú thích dài ở
+	 *    `VHCC_Vai::them()` cho lý do. Tóm tắt: "Kế toán POSH" và "Kế toán nhân sự" khác nhau ở
+	 *    TÊN — để điều phối, để biết đơn này của ai — còn quyền thì cả hai đều là Kế toán.
+	 *
+	 * ⚠️ Gập lại mặc định. Khai vai là việc làm vài lần rồi thôi; để mở sẵn thì nó chiếm chỗ
+	 *    của bảng người × trang, thứ người ta mở trang này ra để xem.
+	 */
+	private static function the_vai( $toi ) {
+		$them    = VHCC_Vai::them();
+		$bac_toi = VHCC_Vai::bac( $toi );
+
+		echo '<div class="the"><details' . ( $them ? ' open' : '' ) . '>';
+		echo '<summary><b>Bảng vai trò</b> — đang có ' . count( $them ) . ' vai riêng của công ty</summary>';
+		echo '<p class="mo">Mỗi vai riêng <b>kế thừa quyền</b> của một vai gốc. Đặt tên để phân '
+			. 'biệt khi điều phối (“Kế toán POSH”, “Kế toán nhân sự”), còn làm được những gì thì '
+			. 'y hệt vai gốc. Cần một người lệch khỏi vai của họ thì dùng bảng <b>Ai vào được '
+			. 'trang nào</b> ở trên — lệch ở đó có tên, có chỗ soát lại.</p>';
+
+		if ( $them ) {
+			echo '<div class="cuon"><table><thead><tr><th>Tên vai</th><th>Quyền y như</th>'
+				. '<th>Đang dùng</th><th></th></tr></thead><tbody>';
+			foreach ( $them as $ten => $goc ) {
+				$so = VHCC_Vai::dem_nguoi( $ten );
+				echo '<tr><td><b>' . esc_html( $ten ) . '</b></td>';
+				echo '<td>' . esc_html( VHCC_Vai::TEN[ $goc ] ) . '</td>';
+				echo '<td>' . ( $so ? esc_html( $so . ' người' ) : '<span class="mo">chưa ai</span>' ) . '</td>';
+				echo '<td>';
+				/* Nút Bỏ chỉ hiện khi CHƯA AI dùng. Vẽ nó ra rồi chối là mời người ta bấm vào
+				   một việc không làm được — mà `VHCC_Vai::xoa_them()` vẫn chặn ở tầng dưới. */
+				if ( ! $so ) {
+					echo '<form method="post" style="margin:0">'
+						. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
+						. self::o_loc()
+						. '<input type="hidden" name="vai_ten" value="' . esc_attr( $ten ) . '">'
+						. '<button name="viec" value="xoa_vai">Bỏ</button></form>';
+				} else {
+					echo '<span class="mo">đổi vai cho họ trước rồi mới bỏ được</span>';
+				}
+				echo '</td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+
+		echo '<form method="post" class="hang" style="margin-top:12px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+		echo '<div><label>Tên vai mới</label>'
+			. '<input type="text" name="vai_ten" maxlength="40" placeholder="VD: Kế toán POSH"></div>';
+		echo '<div><label>Quyền y như</label><select name="vai_goc">';
+		/* ⚠️ CẮT Ở BẬC NGƯỜI ĐANG KHAI. Kế toán không thấy dòng "Admin" — tạo được vai gốc Admin
+		   là tạo ra một đường nâng quyền: gán cho người khác, rồi nhờ người ấy nâng mình lên.
+		   `VHCC_Vai::dat_them()` cũng chặn ở tầng dưới; đây chỉ là không mời gọi. */
+		foreach ( VHCC_Vai::TEN as $ma_g => $ten_g ) {
+			if ( VHCC_Vai::BAC[ $ma_g ] > $bac_toi ) { continue; }
+			echo '<option value="' . esc_attr( $ma_g ) . '">' . esc_html( $ten_g ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<button class="chinh" name="viec" value="them_vai">Thêm vai</button>';
+		echo '</form>';
+		echo '</details></div>';
 	}
 
 	/* ------------------------------------------------------------------ soát ngoại lệ */

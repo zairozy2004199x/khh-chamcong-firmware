@@ -134,6 +134,167 @@ class VHCC_Vai {
 		                                  // tầng, không thay nhau.
 	);
 
+	/* ====================================================================== vai tự tạo */
+
+	/**
+	 * VAI TỰ TẠO — tên riêng của công ty, quyền thì kế thừa một VAI GỐC.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 27/08/2026: *"muốn thêm bảng vai trò: vì sau anh cần vai trò kế toán nhân sự,
+	 * kế toán Posh"*.
+	 * =============================================================================================
+	 * 🔴 KẾ THỪA MỘT VAI GỐC, KHÔNG KHAI LẠI TỪNG QUYỀN.
+	 * Cách trông có vẻ "đầy đủ" hơn là cho mỗi vai mới một bảng 19 ô tích. Đừng. Thang năm bậc
+	 * là thứ KHÔNG CÓ TỔ HỢP NÀO LỆCH ĐƯỢC — bậc trên làm được mọi việc bậc dưới, hết. Mở ra ô
+	 * tích rời thì tới vai thứ tư là có người tích cho một vai vừa xem được bảng lương vừa không
+	 * xem được bảng công của chính cơ sở mình, và không ai giải thích nổi vì sao.
+	 *
+	 * "Kế toán POSH" và "Kế toán nhân sự" khác nhau ở chỗ nào? Ở TÊN — để điều phối, để biết đơn
+	 * này của ai. Còn quyền thì cả hai đều là Kế toán. Chỗ nào thật sự cần lệch thì đã có bảng
+	 * mở/khoá từng trang cho từng người ở `VHCC_Cong` — lệch có tên, có chỗ soát lại.
+	 *
+	 * ⚠️ Nhớ tạm trong biến static: `ma()` được gọi mỗi hàng bảng, mà một màn có 50 hàng × 3 cột.
+	 *    Đọc `get_option` mỗi lượt là 150 lượt đọc cho một trang.
+	 */
+	const O_THEM  = 'vhcc_vai_them';
+	/** Trần số vai tự tạo. Quá con số này thì vấn đề không còn là thiếu vai nữa. */
+	const THEM_TOI_DA = 30;
+
+	private static $nho_them = null;
+
+	/** Bảng vai tự tạo: [ 'Tên vai' => MÃ VAI GỐC ]. */
+	public static function them() {
+		if ( null === self::$nho_them ) {
+			$x = get_option( self::O_THEM );
+			$ra = array();
+			foreach ( (array) $x as $ten => $goc ) {
+				$ten = trim( (string) $ten );
+				$goc = (string) $goc;
+				if ( '' === $ten || ! isset( self::BAC[ $goc ] ) ) { continue; }
+				$ra[ $ten ] = $goc;
+			}
+			self::$nho_them = $ra;
+		}
+		return self::$nho_them;
+	}
+
+	/** Quên phần nhớ tạm — gọi sau mỗi lượt ghi, và bộ thử cũng cần. */
+	public static function quen_nho() { self::$nho_them = null; }
+
+	/** Mọi tên vai đang dùng được: vai gốc trước, vai tự tạo sau. */
+	public static function ds_ten() {
+		$ra = array();
+		/* ⚠️ Gác `class_exists` cùng hàm với lời gọi. `VHCC_Vai` nạp TRƯỚC `VHCC_Auth` trong tệp
+		   plugin — gọi hụt một hằng của lớp chưa nạp là Fatal error, trắng cả trang. */
+		if ( class_exists( 'VHCC_Auth' ) && defined( 'VHCC_Auth::VAI_TRO_TAT_CA' ) ) {
+			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $t ) { $ra[] = $t; }
+		} else {
+			foreach ( self::TEN as $t ) { $ra[] = $t; }
+		}
+		foreach ( array_keys( self::them() ) as $t ) {
+			if ( ! in_array( $t, $ra, true ) ) { $ra[] = $t; }
+		}
+		return $ra;
+	}
+
+	/** Khoá so sánh của một tên vai — bỏ dấu, hạ chữ, bỏ mọi thứ không phải chữ/số. */
+	public static function khoa_ten( $s ) {
+		$x = self::bo_dau( trim( (string) $s ) );
+		return trim( preg_replace( '/\s+/', ' ', preg_replace( '/[^a-z0-9]+/', ' ', $x ) ) );
+	}
+
+	/**
+	 * Thêm / sửa một vai tự tạo.
+	 *
+	 * @param string $ten Tên hiện ra màn hình, giữ nguyên dấu.
+	 * @param string $goc Mã vai gốc mà nó kế thừa quyền.
+	 */
+	public static function dat_them( $u, $ten, $goc ) {
+		if ( ! self::duoc( $u, 'ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Khai vai trò cần vai Kế toán trở lên.' );
+		}
+		$ten = trim( (string) $ten );
+		$goc = (string) $goc;
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên vai.' ); }
+		if ( mb_strlen( $ten ) > 40 ) {
+			return array( 'ok' => false, 'error' => 'Tên vai dài quá 40 ký tự.' );
+		}
+		if ( ! isset( self::BAC[ $goc ] ) ) {
+			return array( 'ok' => false, 'error' => 'Vai gốc không hợp lệ.' );
+		}
+		/* 🔴 KHÔNG TẠO VAI CÓ GỐC CAO HƠN BẬC MÌNH. Thiếu chốt này thì một Kế toán tạo vai
+		   "Trợ lý" gốc Admin, rồi gán cho một người khác, rồi nhờ người ấy nâng mình lên — ba
+		   bước, không bước nào bị chối, và không dòng nhật ký nào. */
+		if ( self::BAC[ $goc ] > self::bac( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Không tạo được vai kế thừa quyền cao hơn vai của '
+				. 'chính mình (' . self::ten( $u ) . ').' );
+		}
+		/* ⚠️ TRÙNG TÊN VAI GỐC LÀ ĐÈ LÊN LUẬT GỐC. `ma()` tra bảng tự tạo TRƯỚC, nên một dòng
+		   tên "Quản lý" gốc Nhân viên là hạ toàn bộ Quản lý của công ty xuống bậc 1 — im lặng. */
+		$k = self::khoa_ten( $ten );
+		foreach ( self::TEN as $t_goc ) {
+			if ( self::khoa_ten( $t_goc ) === $k ) {
+				return array( 'ok' => false, 'error' => '"' . $ten . '" trùng tên một vai gốc của hệ.' );
+			}
+		}
+		if ( class_exists( 'VHCC_Auth' ) && defined( 'VHCC_Auth::VAI_TRO_TAT_CA' ) ) {
+			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $t_goc ) {
+				if ( self::khoa_ten( $t_goc ) === $k ) {
+					return array( 'ok' => false, 'error' => '"' . $ten . '" trùng tên một vai gốc của hệ.' );
+				}
+			}
+		}
+		$b = self::them();
+		if ( ! isset( $b[ $ten ] ) && count( $b ) >= self::THEM_TOI_DA ) {
+			return array( 'ok' => false, 'error' => 'Đã có ' . self::THEM_TOI_DA
+				. ' vai tự tạo — nhiều hơn thế thì vấn đề không còn nằm ở chỗ thiếu vai nữa.' );
+		}
+		/* Trùng tên một vai tự tạo KHÁC (chỉ khác dấu / hoa thường) thì cũng chối: hai dòng
+		   trông như một trong bảng là sớm muộn có người sửa nhầm dòng. */
+		foreach ( $b as $t_cu => $x ) {
+			if ( $t_cu !== $ten && self::khoa_ten( $t_cu ) === $k ) {
+				return array( 'ok' => false, 'error' => '"' . $ten . '" trùng với vai đã có: "' . $t_cu . '".' );
+			}
+		}
+		$b[ $ten ] = $goc;
+		update_option( self::O_THEM, $b );
+		self::quen_nho();
+		return array( 'ok' => true );
+	}
+
+	/**
+	 * Xoá một vai tự tạo.
+	 *
+	 * 🔴 CHẶN KHI CÒN NGƯỜI MANG VAI ẤY. Xoá đi thì `ma()` không tra ra nữa và họ rơi xuống đáy
+	 *    thang — mất sạch quyền, im lặng, và chỉ lộ ra khi từng người kêu lên. Đổi vai cho họ
+	 *    trước rồi hẵng xoá.
+	 */
+	public static function xoa_them( $u, $ten ) {
+		if ( ! self::duoc( $u, 'ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Khai vai trò cần vai Kế toán trở lên.' );
+		}
+		$ten = trim( (string) $ten );
+		$b   = self::them();
+		if ( ! isset( $b[ $ten ] ) ) { return array( 'ok' => false, 'error' => 'Không có vai "' . $ten . '".' ); }
+		$so = self::dem_nguoi( $ten );
+		if ( $so > 0 ) {
+			return array( 'ok' => false, 'error' => 'Còn ' . $so . ' người đang mang vai "' . $ten
+				. '" — đổi vai cho họ trước, kẻo xoá xong là họ rơi xuống Nhân viên mà không ai báo.' );
+		}
+		unset( $b[ $ten ] );
+		update_option( self::O_THEM, $b );
+		self::quen_nho();
+		return array( 'ok' => true );
+	}
+
+	/** Bao nhiêu hồ sơ đang mang vai này. */
+	public static function dem_nguoi( $ten ) {
+		global $wpdb;
+		if ( ! class_exists( 'VHCC_DB' ) || ! method_exists( 'VHCC_DB', 't' ) ) { return 0; }
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE vai_tro=%s', trim( (string) $ten ) ) );
+	}
+
 	/**
 	 * Mọi kiểu viết vai trò -> MÃ.
 	 *
@@ -151,6 +312,17 @@ class VHCC_Vai {
 		$s = self::bo_dau( $s );                       // 'Quản lý' -> 'quan ly'
 		$s = preg_replace( '/[^a-z0-9]+/', ' ', $s );  // '_' và '-' cũng thành khoảng trắng
 		$s = trim( preg_replace( '/\s+/', ' ', $s ) );
+
+		/* 🔴 VAI TỰ TẠO TRA TRƯỚC. Đặt sau thì một vai tên "Kế toán POSH" rơi vào nhánh
+		   `strpos($s,'ke toan')===0` ở dưới và thành Kế toán — đúng bậc, nhưng chỉ ĐÚNG TÌNH CỜ.
+		   Ngày anh Thắng tạo một vai tên "Điều phối POSH" gốc Quản lý thì nhánh dưới không nhận
+		   ra, và người ấy rơi xuống Nhân viên mà không có gì báo. */
+		$them = self::them();
+		if ( $them ) {
+			foreach ( $them as $t_them => $g_them ) {
+				if ( self::khoa_ten( $t_them ) === $s ) { return $g_them; }
+			}
+		}
 
 		if ( 'admin' === $s || 'quan tri' === $s || 'super admin' === $s ) { return self::ADMIN; }
 		if ( 'quan ly' === $s || 'manager' === $s ) { return self::QL; }

@@ -190,6 +190,95 @@ class VHCC_NhanSu {
 		return $out;
 	}
 
+	/**
+	 * DÒ HỒ SƠ TRÙNG — trùng HỌ TÊN, hoặc trùng MÃ NV sau khi chuẩn hoá.
+	 *
+	 * =========================================================================================
+	 * Anh Thắng 27/08/2026: *"Nhân viên nào trùng tên, trùng Mã NV thì đưa lên đầu nhé"*.
+	 * =========================================================================================
+	 * 🔴 VÌ SAO ĐÁNG DÒ. Hồ sơ nạp từ nhiều đợt .csv khác nhau, và đã từng có một đợt hiểu nhầm
+	 * cột "ID" của Sheets (số thứ tự dòng) thành Mã NV — nên trong sổ còn lẫn mã `1`, `15`, `996`
+	 * bên cạnh mã thật. Hậu quả không nằm ở chỗ xấu mắt: MÃ LÀ KHOÁ. Hai hồ sơ của cùng một
+	 * người mang hai mã là công của họ bị chẻ đôi, mỗi nửa một bảng lương; hai người khác nhau
+	 * lỡ mang cùng một mã là công của người này cộng vào người kia.
+	 *
+	 * Cả hai kiểu hỏng ấy đều IM LẶNG — không có lỗi nào phát ra, chỉ có con số cuối tháng sai.
+	 * Nên trang phải tự chỉ ra, và chỉ lên đầu, chứ không để anh Thắng lật 5 trang đi tìm.
+	 *
+	 * ⚠️ SO SAU KHI CHUẨN HOÁ, KHÔNG SO THÔ. "Nguyễn Thị A" và "NGUYỄN THỊ  A" là một người mà
+	 *    so thô ra hai. Mã "mnnv1" và "MNNV1 " cũng vậy — mà đúng cặp ấy mới nguy hiểm nhất:
+	 *    CSDL coi là hai dòng khác nhau nên không hề chặn, còn người đọc thì thấy y hệt nhau.
+	 *
+	 * @param array $ds Danh sách hồ sơ (mỗi phần tử có `ma_nv`, `ho_ten`).
+	 * @return array [ ma_nv => array( 'ten' => bool, 'ma' => bool ) ] — chỉ những hồ sơ CÓ trùng.
+	 */
+	public static function dau_hieu_trung( $ds ) {
+		$dem_ten = array();
+		$dem_ma  = array();
+		$khoa    = array();
+
+		foreach ( (array) $ds as $r ) {
+			$ma  = isset( $r['ma_nv'] ) ? (string) $r['ma_nv'] : '';
+			$ten = isset( $r['ho_ten'] ) ? (string) $r['ho_ten'] : '';
+			$k_ten = self::khoa_so( $ten );
+			/* Mã so theo chữ HOA + bỏ hết khoảng trắng — không bỏ dấu, vì mã không có dấu và
+			   một mã lỡ có dấu thì đó là chuyện khác, phải thấy nó là khác. */
+			$k_ma  = strtoupper( preg_replace( '/\s+/', '', trim( $ma ) ) );
+			$khoa[] = array( 'ma' => $ma, 'k_ten' => $k_ten, 'k_ma' => $k_ma );
+			if ( '' !== $k_ten ) { $dem_ten[ $k_ten ] = ( isset( $dem_ten[ $k_ten ] ) ? $dem_ten[ $k_ten ] : 0 ) + 1; }
+			if ( '' !== $k_ma )  { $dem_ma[ $k_ma ]   = ( isset( $dem_ma[ $k_ma ] ) ? $dem_ma[ $k_ma ] : 0 ) + 1; }
+		}
+
+		$ra = array();
+		foreach ( $khoa as $x ) {
+			$t = ( '' !== $x['k_ten'] && $dem_ten[ $x['k_ten'] ] > 1 );
+			$m = ( '' !== $x['k_ma'] && $dem_ma[ $x['k_ma'] ] > 1 );
+			if ( $t || $m ) { $ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m ); }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Khoá so sánh của một họ tên: BỎ DẤU, hạ chữ, gộp khoảng trắng, bỏ ký tự lạ.
+	 *
+	 * 🔴 PHẢI BỎ DẤU TRƯỚC KHI LỌC KÝ TỰ. `chu_thuong()` chỉ hạ chữ, không bỏ dấu — nên
+	 *    `preg_replace('/[^a-z0-9]+/')` chạy ngay sau nó sẽ XOÁ mọi chữ có dấu: "Nguyễn" thành
+	 *    "nguy n". Khi ấy "Nguyễn Thị A" và "Nguyệt Thị A" cùng ra "nguy n thi a" — hai người
+	 *    khác nhau bị báo là trùng tên, còn hai người trùng tên thật thì vẫn nhận ra được. Sai
+	 *    kiểu ấy tệ hơn không dò: nó đẻ ra báo động giả, và báo động giả thì người ta tắt đi.
+	 *    Đây đúng là lỗi em vừa mắc ở bản nháp đầu.
+	 * ⚠️ Gác `method_exists` cùng hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`.
+	 */
+	public static function khoa_so( $s ) {
+		$x = trim( (string) $s );
+		if ( class_exists( 'VHCC_Vai' ) && method_exists( 'VHCC_Vai', 'bo_dau' ) ) {
+			$x = VHCC_Vai::bo_dau( $x );          // đã hạ chữ thường luôn
+		} else {
+			$x = self::chu_thuong( $x );
+		}
+		$x = preg_replace( '/[^a-z0-9]+/', ' ', $x );
+		return trim( preg_replace( '/\s+/', ' ', $x ) );
+	}
+
+	/**
+	 * Xếp những hồ sơ ĐÁNG NGỜ lên đầu, giữ nguyên thứ tự cũ trong từng nhóm.
+	 *
+	 * ⚠️ SẮP XẾP TRƯỚC KHI CẮT TRANG. Cắt trang rồi mới xếp thì hồ sơ trùng nằm ở trang 4 vẫn
+	 *    ở trang 4 — mà "đưa lên đầu" chính là để khỏi phải lật từng trang đi tìm.
+	 *
+	 * ⚠️ Giữ thứ tự cũ trong mỗi nhóm (`usort` của PHP 8 đã ổn định, PHP 7 thì không) — nên
+	 *    kèm chỉ số làm khoá phụ, đừng phó mặc cho phiên bản PHP của hosting.
+	 */
+	public static function xep_trung_len_dau( $ds, $trung ) {
+		$co = array();
+		$khong = array();
+		foreach ( (array) $ds as $r ) {
+			$ma = isset( $r['ma_nv'] ) ? (string) $r['ma_nv'] : '';
+			if ( isset( $trung[ $ma ] ) ) { $co[] = $r; } else { $khong[] = $r; }
+		}
+		return array_merge( $co, $khong );
+	}
+
 	public static function ho_so( $ma_nv ) {
 		global $wpdb;
 		return $wpdb->get_row( $wpdb->prepare(

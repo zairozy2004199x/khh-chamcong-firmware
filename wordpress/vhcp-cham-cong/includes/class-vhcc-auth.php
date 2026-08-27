@@ -77,6 +77,14 @@ class VHCC_Auth {
 	 * ngờ tới nó.
 	 */
 	public static function vai_tro_vao() {
+		/* 🔴 GỘP CẢ VAI TỰ TẠO. Thiếu dòng này là người mang vai "Kế toán POSH" gõ đúng PIN mà
+		   bị chối ở cửa — `VHCC_Web::trang_dang_nhap` so vai với đúng danh sách này. Và câu chối
+		   sẽ nói "vai trò không được vào hệ thống", tức là đổ cho vai trò trong khi lỗi nằm ở
+		   chỗ danh sách quên mất mấy vai vừa khai. Đúng loại lỗi không ai lần ra.
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHCC_Vai' ) && method_exists( 'VHCC_Vai', 'ds_ten' ) ) {
+			return VHCC_Vai::ds_ten();
+		}
 		return self::VAI_TRO_TAT_CA;
 	}
 

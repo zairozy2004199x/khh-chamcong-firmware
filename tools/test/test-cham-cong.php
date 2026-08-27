@@ -8209,6 +8209,333 @@ t( 'và đường ấy trỏ đúng màn Hồ sơ kèm mã người đó',
 	strpos( $vq_h2, 'man=ho_so' ) !== false && strpos( $vq_h2, 'q=V_NV' ) !== false, $vq_h2 );
 vhcc_dung_bang();
 
+/* ==========================================================================================
+ *  61. BẢNG VAI TRÒ — vai riêng của công ty
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 27/08/2026: *"muốn thêm bảng vai trò: vì sau anh cần vai trò kế toán nhân sự,
+ *  kế toán Posh"*.
+ *
+ *  🔴 KẾ THỪA MỘT VAI GỐC, KHÔNG KHAI LẠI TỪNG QUYỀN. Cách trông "đầy đủ" hơn là cho mỗi vai
+ *  mới một bảng 19 ô tích — đừng. Thang năm bậc không có tổ hợp nào lệch được; mở ra ô tích rời
+ *  thì tới vai thứ tư là có người tích cho một vai vừa xem được bảng lương vừa không xem được
+ *  bảng công cơ sở mình, và không ai giải thích nổi vì sao.
+ * ======================================================================================== */
+vhcc_dung_bang();
+delete_option( VHCC_Vai::O_THEM );
+VHCC_Vai::quen_nho();
+$vth_ad = array( 'name' => 'Ad', 'role' => 'Admin', 'coso' => 'TUTU_BT', 'ma_nv' => 'T_AD' );
+$vth_kt = array( 'name' => 'Kt', 'role' => 'Kế toán cá nhân', 'coso' => 'TUTU_BT', 'ma_nv' => 'T_KT' );
+
+$r = VHCC_Vai::dat_them( $vth_ad, 'Kế toán POSH', VHCC_Vai::KE_TOAN );
+t( 'khai được vai "Kế toán POSH"', ! empty( $r['ok'] ), $r );
+$r = VHCC_Vai::dat_them( $vth_ad, 'Kế toán nhân sự', VHCC_Vai::KE_TOAN );
+t( 'khai được vai "Kế toán nhân sự"', ! empty( $r['ok'] ), $r );
+
+/* 🔴 VAI MỚI PHẢI RA ĐÚNG BẬC CỦA VAI GỐC — đây là toàn bộ điểm của tính năng. */
+teq( 'vai mới quy về đúng mã gốc', VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'Kế toán POSH' ) );
+$u_posh = array( 'role' => 'Kế toán POSH' );
+teq( 'và ra đúng bậc 4', 4, VHCC_Vai::bac( $u_posh ) );
+t( 'nên làm được việc của Kế toán', VHCC_Vai::duoc( $u_posh, 'ho_so' ) );
+t( 'và KHÔNG làm được việc của Admin', ! VHCC_Vai::duoc( $u_posh, 'he_thong' ) );
+t( 'cũng không đổi được Mã NV', ! VHCC_Vai::duoc( $u_posh, 'doi_ma_nv' ) );
+
+/* ⚠️ Nhận cả kiểu viết khác dấu / khác hoa thường — hồ sơ do người gõ tay. */
+teq( 'nhận "ke toan posh" không dấu', VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'ke toan posh' ) );
+teq( 'nhận "KẾ TOÁN POSH" viết hoa', VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'KẾ TOÁN POSH' ) );
+
+/* 🔴 VAI TỰ TẠO TRA TRƯỚC BẢNG CỨNG. Đặt sau thì "Kế toán POSH" rơi vào nhánh
+   `strpos($s,'ke toan')===0` và thành Kế toán — ĐÚNG BẬC, nhưng chỉ đúng tình cờ. Một vai tên
+   "Điều phối POSH" gốc Quản lý thì nhánh ấy không nhận ra, và người mang vai rơi xuống Nhân
+   viên mà không có gì báo. Nên phải thử bằng một cái tên KHÔNG dính chữ nào của vai gốc. */
+$r = VHCC_Vai::dat_them( $vth_ad, 'Điều phối POSH', VHCC_Vai::QL );
+t( 'khai được vai không giống tên vai gốc nào', ! empty( $r['ok'] ), $r );
+teq( '🔴 và nó vẫn ra đúng bậc Quản lý', VHCC_Vai::QL, VHCC_Vai::ma( 'Điều phối POSH' ) );
+teq( 'bậc 3', 3, VHCC_Vai::bac( array( 'role' => 'Điều phối POSH' ) ) );
+
+/* 🔴 NGƯỜI MANG VAI TỰ TẠO PHẢI ĐĂNG NHẬP ĐƯỢC. `VHCC_Web::trang_dang_nhap` so vai với đúng
+   `vai_tro_vao()`; quên gộp vai tự tạo vào đó là người ta gõ ĐÚNG PIN mà bị chối, kèm câu
+   "vai trò không được vào hệ thống" — đổ cho vai trò trong khi lỗi nằm ở chỗ danh sách quên
+   mất mấy vai vừa khai. Đúng loại lỗi không ai lần ra. */
+t( '🔴 vai tự tạo có tên trong danh sách vai vào được',
+	in_array( 'Kế toán POSH', VHCC_Auth::vai_tro_vao(), true ), VHCC_Auth::vai_tro_vao() );
+t( 'và vai gốc vẫn còn nguyên trong danh sách',
+	in_array( 'Admin', VHCC_Auth::vai_tro_vao(), true ) );
+
+/* ---- CHỐT: KHÔNG TẠO VAI GỐC CAO HƠN BẬC MÌNH ----
+   Thiếu chốt này thì một Kế toán tạo vai "Trợ lý" gốc Admin, gán cho người khác, rồi nhờ người
+   ấy nâng mình lên — ba bước, không bước nào bị chối, không dòng nhật ký nào. */
+$r = VHCC_Vai::dat_them( $vth_kt, 'Trợ lý', VHCC_Vai::ADMIN );
+t( '🔴 Kế toán KHÔNG tạo được vai gốc Admin', empty( $r['ok'] ), $r );
+t( 'câu chối nói rõ vì vai của chính mình',
+	isset( $r['error'] ) && stripos( $r['error'], 'cao hơn vai của' ) !== false, $r );
+t( 'Kế toán tạo được vai gốc Kế toán', ! empty( VHCC_Vai::dat_them( $vth_kt, 'Kế toán kho', VHCC_Vai::KE_TOAN )['ok'] ) );
+t( '🔴 Cửa hàng trưởng không khai được vai nào',
+	empty( VHCC_Vai::dat_them( array( 'role' => 'Cửa hàng trưởng' ), 'Vai X', VHCC_Vai::NV )['ok'] ) );
+
+/* ---- CHỐT: TRÙNG TÊN VAI GỐC LÀ ĐÈ LÊN LUẬT GỐC ----
+   🔴 `ma()` tra bảng tự tạo TRƯỚC, nên một dòng tên "Quản lý" gốc Nhân viên là hạ TOÀN BỘ Quản
+   lý của công ty xuống bậc 1 — im lặng, và không ai nghĩ tới bảng vai khi đi tìm nguyên nhân. */
+$r = VHCC_Vai::dat_them( $vth_ad, 'Quản lý', VHCC_Vai::NV );
+t( '🔴 trùng tên vai gốc thì bị chối', empty( $r['ok'] ), $r );
+teq( 'và Quản lý vẫn nguyên bậc 3', 3, VHCC_Vai::bac( array( 'role' => 'Quản lý' ) ) );
+t( 'trùng kiểu không dấu cũng chối', empty( VHCC_Vai::dat_them( $vth_ad, 'quan ly', VHCC_Vai::NV )['ok'] ) );
+t( 'trùng "Kế toán NCC" (vai gốc của app chi phí) cũng chối',
+	empty( VHCC_Vai::dat_them( $vth_ad, 'Kế toán NCC', VHCC_Vai::NV )['ok'] ) );
+/* ⚠️ "Kế toán" TRỐNG KHÔNG là tên chỉ có trong `VHCC_Vai::TEN`, KHÔNG có trong
+   `VHCC_Auth::VAI_TRO_TAT_CA` (bên đó là "Kế toán cá nhân" / "Kế toán NCC"). Nên nó là cái tên
+   DUY NHẤT đo được vòng chặn theo `VHCC_Vai::TEN`. Thiếu phép thử này thì bỏ hẳn vòng ấy đi mà
+   bộ thử vẫn xanh — vòng kia đỡ giúp cho mọi tên khác. Đã thử phá đúng chỗ đó. */
+$r = VHCC_Vai::dat_them( $vth_ad, 'Kế toán', VHCC_Vai::NV );
+t( '🔴 trùng đúng tên hiển thị của một bậc ("Kế toán") cũng chối', empty( $r['ok'] ), $r );
+teq( 'và ai ghi đúng chữ "Kế toán" trong hồ sơ vẫn giữ bậc 4',
+	4, VHCC_Vai::bac( array( 'role' => 'Kế toán' ) ) );
+t( 'trùng một vai TỰ TẠO khác cũng chối',
+	empty( VHCC_Vai::dat_them( $vth_ad, 'ke toan posh', VHCC_Vai::NV )['ok'] ) );
+teq( 'và "Kế toán POSH" vẫn giữ gốc Kế toán', VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'Kế toán POSH' ) );
+
+/* Sửa lại gốc của một vai đã có thì được — đó là "sửa", không phải "trùng". */
+t( 'sửa gốc của vai đã có', ! empty( VHCC_Vai::dat_them( $vth_ad, 'Kế toán kho', VHCC_Vai::QL )['ok'] ) );
+teq( 'gốc mới có hiệu lực', VHCC_Vai::QL, VHCC_Vai::ma( 'Kế toán kho' ) );
+
+/* Gốc lạ, tên rỗng, tên quá dài. */
+t( 'gốc không hợp lệ thì chối', empty( VHCC_Vai::dat_them( $vth_ad, 'Vai Y', 'SIEU_NHAN' )['ok'] ) );
+t( 'tên rỗng thì chối', empty( VHCC_Vai::dat_them( $vth_ad, '   ', VHCC_Vai::NV )['ok'] ) );
+t( 'tên dài quá 40 ký tự thì chối',
+	empty( VHCC_Vai::dat_them( $vth_ad, str_repeat( 'a', 41 ), VHCC_Vai::NV )['ok'] ) );
+
+/* ---- CHỐT: XOÁ VAI ĐANG CÓ NGƯỜI DÙNG ----
+   🔴 Xoá đi thì `ma()` không tra ra nữa và họ rơi xuống ĐÁY thang — mất sạch quyền, im lặng,
+   và chỉ lộ ra khi từng người kêu lên. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'P1', 'ho_ten' => 'Người POSH',
+	'vai_tro' => 'Kế toán POSH', 'cua_hang' => 'TUTU_BT' ) );
+teq( 'đếm đúng số người đang mang vai', 1, VHCC_Vai::dem_nguoi( 'Kế toán POSH' ) );
+$r = VHCC_Vai::xoa_them( $vth_ad, 'Kế toán POSH' );
+t( '🔴 còn người mang vai thì KHÔNG xoá được', empty( $r['ok'] ), $r );
+t( 'câu chối nói rõ còn bao nhiêu người và phải làm gì trước',
+	isset( $r['error'] ) && strpos( $r['error'], '1 người' ) !== false
+	&& stripos( $r['error'], 'đổi vai' ) !== false, $r );
+teq( 'và người ấy vẫn giữ nguyên bậc', 4, VHCC_Vai::bac( array( 'role' => 'Kế toán POSH' ) ) );
+
+/* Đổi vai cho họ rồi thì xoá được. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Nhân viên' ), array( 'ma_nv' => 'P1' ) );
+t( 'đổi vai cho họ rồi thì xoá được', ! empty( VHCC_Vai::xoa_them( $vth_ad, 'Kế toán POSH' )['ok'] ) );
+/* ⚠️ XOÁ XONG THÌ RƠI VỀ ĐÂU TUỲ CÁI TÊN — và phải thử bằng cái tên KHÔNG dính vai gốc nào.
+   "Kế toán POSH" xoá đi vẫn ra Kế toán, vì bảng cứng có nhánh "mọi thứ bắt đầu bằng ke toan".
+   Đó là hành vi ĐÚNG của bảng cứng, không phải sót. Nhưng nó cũng có nghĩa là phép thử dùng
+   cái tên ấy KHÔNG đo được gì cả — nó xanh vì một lý do khác hẳn lý do mình tưởng. Dùng "Điều
+   phối POSH": bảng cứng không nhận ra chữ nào, nên mới thấy được cú rơi thật. */
+teq( 'xoá "Kế toán POSH" thì bảng cứng vẫn nhận ra chữ "kế toán"',
+	VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'Kế toán POSH' ) );
+t( 'xoá được vai không dính tên vai gốc nào',
+	! empty( VHCC_Vai::xoa_them( $vth_ad, 'Điều phối POSH' )['ok'] ) );
+teq( '🔴 xoá xong thì tên ấy rơi về ĐÁY thang (luật "lạ -> Nhân viên")',
+	VHCC_Vai::NV, VHCC_Vai::ma( 'Điều phối POSH' ) );
+t( 'xoá vai không có thì chối', empty( VHCC_Vai::xoa_them( $vth_ad, 'Không Có Vai Này' )['ok'] ) );
+t( '🔴 Cửa hàng trưởng không xoá được vai',
+	empty( VHCC_Vai::xoa_them( array( 'role' => 'Cửa hàng trưởng' ), 'Kế toán nhân sự' )['ok'] ) );
+
+/* Trần số vai — quá con số này thì vấn đề không còn nằm ở chỗ thiếu vai nữa. */
+delete_option( VHCC_Vai::O_THEM ); VHCC_Vai::quen_nho();
+for ( $i = 1; $i <= VHCC_Vai::THEM_TOI_DA; $i++ ) {
+	VHCC_Vai::dat_them( $vth_ad, 'Vai số ' . $i, VHCC_Vai::NV );
+}
+teq( 'khai đủ trần', VHCC_Vai::THEM_TOI_DA, count( VHCC_Vai::them() ) );
+t( '🔴 quá trần thì chối', empty( VHCC_Vai::dat_them( $vth_ad, 'Vai số ' . ( VHCC_Vai::THEM_TOI_DA + 1 ), VHCC_Vai::NV )['ok'] ) );
+t( 'nhưng SỬA một vai đã có thì vẫn được, không bị trần chặn',
+	! empty( VHCC_Vai::dat_them( $vth_ad, 'Vai số 1', VHCC_Vai::CHT )['ok'] ) );
+
+/* ---- QUA MÀN HÌNH ---- */
+delete_option( VHCC_Vai::O_THEM ); VHCC_Vai::quen_nho();
+vhcc_ns_luu( 'Admin', 'T_AD', array( 'viec' => 'them_vai',
+	'vai_ten' => 'Kế toán POSH', 'vai_goc' => VHCC_Vai::KE_TOAN ) );
+teq( 'khai vai qua màn hình thì vào sổ thật', VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'Kế toán POSH' ) );
+
+$vth_h = vhcc_ns( 'Kế toán' );
+t( 'trang có khối Bảng vai trò', strpos( $vth_h, 'Bảng vai trò' ) !== false );
+
+/* ---- 🔴 CẢNH BÁO KHI ĐỔI VAI Ở ĐÂY KHÔNG CÓ HIỆU LỰC ĐĂNG NHẬP ----
+   Hệ có BỐN kho người dùng; `VHCC_Auth::nguon()` quyết định lúc đăng nhập đọc kho nào. Cột Vai
+   trò của bảng này ghi vào HỒ SƠ NHÂN SỰ. Khi nguồn đang đặt là kho khác thì bấm Lưu vẫn ghi
+   thành công vào hồ sơ, màn hình vẫn báo "Đã đổi vai trò cho N người" — mà vai lúc đăng nhập
+   đọc từ kho kia, không đổi gì cả.
+
+   Đó là lời nói dối tệ nhất một màn quản trị có thể nói: BÁO THÀNH CÔNG CHO MỘT VIỆC KHÔNG XẢY
+   RA. Người khai đóng trang, tin là xong, và chỉ phát hiện khi có người kêu "sao tôi vẫn không
+   vào được" — lúc ấy không ai nối được hai chuyện với nhau. */
+$vth_nguon_cu = get_option( 'vhcc_nguon_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+$vth_c = vhcc_ns( 'Kế toán' );
+t( '🔴 nguồn KHÁC hồ sơ thì trang NÓI RA rằng đổi vai chưa có hiệu lực',
+	strpos( $vth_c, 'chưa có hiệu lực ngay' ) !== false, $vth_c );
+t( 'và nói rõ đang đọc từ sổ nào', strpos( $vth_c, 'Vận hành chi phí' ) !== false );
+t( 'kèm đường sang màn Cấu hình để đổi nguồn', strpos( $vth_c, 'man=cau_hinh' ) !== false );
+/* ⚠️ Nói ra cả cái KHÔNG bị ảnh hưởng, kẻo người đọc tưởng cả hệ đang hỏng. */
+t( 'và trấn an rằng trạm chấm công không dính', strpos( $vth_c, 'Trạm chấm công không bị ảnh hưởng' ) !== false );
+
+update_option( 'vhcc_nguon_nguoidung', 'ho_so' );
+$vth_c = vhcc_ns( 'Kế toán' );
+t( '🔴 nguồn ĐÚNG là hồ sơ thì KHÔNG cảnh báo gì — cảnh báo thừa là cảnh báo bị bỏ qua',
+	strpos( $vth_c, 'chưa có hiệu lực ngay' ) === false, $vth_c );
+update_option( 'vhcc_nguon_nguoidung', $vth_nguon_cu );
+t( 'và ô khai vai mới', strpos( $vth_h, 'name="vai_ten"' ) !== false );
+t( '🔴 vai vừa khai CÓ MẶT trong ô xổ vai của bảng người',
+	strpos( $vth_h, '<option value="Kế toán POSH"' ) !== false, $vth_h );
+/* ⚠️ Ô chọn vai gốc CẮT ở bậc người khai: Kế toán không thấy dòng "Admin" — tạo được vai gốc
+   Admin là tạo ra một đường nâng quyền.
+   🔴 SOI TRONG ĐÚNG Ô `vai_goc`, ĐỪNG SOI CẢ TRANG. Mã "ADMIN" còn nằm ở ô LỌC "Vai trò" phía
+   trên (lọc bảng theo bậc — vô hại, và cần có). Soi cả trang là phép thử đỏ oan trong khi ô
+   khai vai vẫn đúng, rồi lần sau có người "sửa" bằng cách bỏ ADMIN khỏi ô lọc — hỏng một thứ
+   đang đúng để chiều một phép thử viết sai. */
+$vth_o = '';
+if ( preg_match( '/<select name="vai_goc">.*?<\/select>/s', $vth_h, $vth_m ) ) { $vth_o = $vth_m[0]; }
+t( 'dò được ô chọn vai gốc', '' !== $vth_o, $vth_h );
+t( '🔴 Kế toán không thấy lựa chọn gốc "Admin" trong ô khai vai',
+	'' !== $vth_o && strpos( $vth_o, VHCC_Vai::ADMIN ) === false, $vth_o );
+t( 'nhưng vẫn thấy các gốc từ Kế toán trở xuống',
+	strpos( $vth_o, VHCC_Vai::KE_TOAN ) !== false && strpos( $vth_o, VHCC_Vai::NV ) !== false, $vth_o );
+
+delete_option( VHCC_Vai::O_THEM ); VHCC_Vai::quen_nho();
+vhcc_dung_bang();
+
+/* ---- 62. HỒ SƠ TRÙNG TÊN / TRÙNG MÃ ĐƯA LÊN ĐẦU ----
+   Anh Thắng 27/08/2026: *"Nhân viên nào trùng tên, trùng Mã NV thì đưa lên đầu nhé"*.
+
+   🔴 MÃ LÀ KHOÁ. Hai hồ sơ của cùng một người mang hai mã là công của họ bị chẻ đôi, mỗi nửa
+   một bảng lương. Hai người khác nhau lỡ mang cùng một mã là công người này cộng vào người kia.
+   Cả hai kiểu hỏng đều IM LẶNG — không lỗi nào phát ra, chỉ có con số cuối tháng sai. */
+vhcc_dung_bang();
+foreach ( array(
+	array( 'TR1', 'Nguyễn Thị Ánh Tuyết' ),
+	array( 'TR2', 'NGUYỄN THỊ  ÁNH TUYẾT' ),   // trùng TÊN, khác hoa thường + thừa khoảng trắng
+	array( 'TR3', 'Nguyệt Thị Ánh Tuyết' ),    // GẦN giống — KHÔNG được coi là trùng
+	array( 'TR4', 'Lê Văn Bốn' ),
+	array( 'tr4 ', 'Người Khác Hẳn' ),          // trùng MÃ sau chuẩn hoá (hoa thường + khoảng trắng)
+	array( 'TR6', 'Trần Văn Sáu' ),
+	/* ⚠️ CẶP NÀY LÀ ĐỂ ĐO VIỆC "XẾP LÊN ĐẦU", VÀ TÊN CỦA NÓ ĐƯỢC CHỌN CÓ CHỦ Ý.
+	   Danh sách gốc đã `ORDER BY cua_hang, ho_ten`, nên nếu hồ sơ trùng tình cờ có tên đứng
+	   trước theo bảng chữ cái thì nó vẫn ở đầu KỂ CẢ khi bỏ hẳn bước xếp — phép thử xanh mà
+	   chẳng đo được gì. Đã vấp đúng chỗ đó: "Lê Văn Bốn" (trùng) vốn đứng trước "Trần Văn Sáu"
+	   (sạch). Nên thêm một cặp trùng mang tên xếp CUỐI bảng chữ cái, và một người sạch mang tên
+	   xếp ĐẦU — lúc ấy chỉ có bước xếp mới đảo được thứ tự. */
+	array( 'ZZ1', 'Ưng Văn Cuối' ),
+	array( 'ZZ2', 'Ưng Văn Cuối' ),            // trùng TÊN, mà tên lại xếp cuối bảng
+	array( 'AA0', 'An Toàn Sạch' ),            // sạch, tên xếp đầu bảng
+) as $tt ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $tt[0], 'ho_ten' => $tt[1],
+		'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+}
+$ds_tt = VHCC_NhanSu::ds_nhan_vien( $U_AD );
+$tt_tr = VHCC_NhanSu::dau_hieu_trung( $ds_tt );
+
+t( '🔴 bắt được trùng tên dù khác hoa thường và thừa khoảng trắng',
+	isset( $tt_tr['TR1'] ) && $tt_tr['TR1']['ten'], $tt_tr );
+t( 'cả hai bên của cặp trùng đều được đánh dấu', isset( $tt_tr['TR2'] ) && $tt_tr['TR2']['ten'] );
+/* 🔴 PHẢI BỎ DẤU TRƯỚC KHI LỌC KÝ TỰ. Bản nháp đầu hạ chữ mà không bỏ dấu, rồi
+   `preg_replace('/[^a-z0-9]+/')` XOÁ sạch chữ có dấu: "Nguyễn" thành "nguy n", "Nguyệt" cũng
+   thành "nguy t"… và "Nguyễn Thị Ánh Tuyết" đụng "Nguyệt Thị Ánh Tuyết". Hai người KHÁC NHAU
+   bị báo trùng — báo động giả, mà báo động giả thì người ta tắt đi. */
+t( '🔴 "Nguyệt" KHÔNG bị coi là trùng với "Nguyễn"',
+	! isset( $tt_tr['TR3'] ) || ! $tt_tr['TR3']['ten'], $tt_tr );
+teq( 'khoá so của hai tên ấy phải KHÁC nhau', false,
+	VHCC_NhanSu::khoa_so( 'Nguyễn Thị Ánh Tuyết' ) === VHCC_NhanSu::khoa_so( 'Nguyệt Thị Ánh Tuyết' ) );
+teq( 'và khoá so KHÔNG được nuốt mất chữ có dấu',
+	'nguyen thi anh tuyet', VHCC_NhanSu::khoa_so( 'Nguyễn Thị  Ánh Tuyết' ) );
+
+/* Trùng MÃ sau chuẩn hoá — đây là cặp nguy hiểm nhất: CSDL coi "TR4" và "tr4 " là hai dòng
+   khác nhau nên KHÔNG hề chặn, còn người đọc thì thấy y hệt nhau. */
+t( '🔴 bắt được trùng mã dù khác hoa thường + thừa khoảng trắng',
+	isset( $tt_tr['TR4'] ) && $tt_tr['TR4']['ma'], $tt_tr );
+t( 'bên kia của cặp cũng bị đánh dấu', isset( $tt_tr['tr4 '] ) && $tt_tr['tr4 ']['ma'] );
+t( 'người không trùng gì thì KHÔNG bị đánh dấu', ! isset( $tt_tr['TR6'] ), $tt_tr );
+t( 'và người trùng mã KHÔNG bị gắn nhầm nhãn trùng tên', empty( $tt_tr['TR4']['ten'] ) );
+
+/* Xếp lên đầu — giữ nguyên thứ tự cũ trong từng nhóm. */
+$tt_xep = VHCC_NhanSu::xep_trung_len_dau( $ds_tt, $tt_tr );
+teq( 'không mất ai sau khi xếp', count( $ds_tt ), count( $tt_xep ) );
+$tt_dau = array();
+foreach ( array_slice( $tt_xep, 0, count( $tt_tr ) ) as $x ) { $tt_dau[] = (string) $x['ma_nv']; }
+sort( $tt_dau );
+$tt_mong = array_keys( $tt_tr ); sort( $tt_mong );
+teq( '🔴 mọi hồ sơ trùng đều nằm ở đầu danh sách', $tt_mong, $tt_dau );
+/* 🔴 PHÉP ĐO THẬT của việc xếp: hồ sơ trùng mang tên xếp CUỐI bảng chữ cái phải nhảy lên
+   TRƯỚC người sạch mang tên xếp ĐẦU. Không có bước xếp thì thứ tự đúng ngược lại. */
+$vt_zz = -1; $vt_aa = -1;
+foreach ( $tt_xep as $i_x => $x ) {
+	if ( 'ZZ1' === (string) $x['ma_nv'] ) { $vt_zz = $i_x; }
+	if ( 'AA0' === (string) $x['ma_nv'] ) { $vt_aa = $i_x; }
+}
+t( '🔴 hồ sơ trùng (tên xếp cuối) nhảy lên TRƯỚC người sạch (tên xếp đầu)',
+	$vt_zz >= 0 && $vt_aa >= 0 && $vt_zz < $vt_aa, array( 'ZZ1' => $vt_zz, 'AA0' => $vt_aa ) );
+
+/* ⚠️ XẾP TRƯỚC KHI CẮT TRANG. Cắt rồi mới xếp thì hồ sơ trùng ở trang 4 vẫn ở trang 4 — mà
+   "đưa lên đầu" chính là để khỏi lật từng trang đi tìm. Soi trên MÀN HÌNH, không soi hàm. */
+$tt_h = vhcc_ns( 'Kế toán' );
+t( 'màn hình báo có bao nhiêu hồ sơ trùng', strpos( $tt_h, 'trùng tên hoặc trùng' ) !== false, $tt_h );
+t( 'và gắn nhãn "trùng mã" lên hàng', strpos( $tt_h, 'trùng mã' ) !== false );
+t( 'và nhãn "trùng tên"', strpos( $tt_h, 'trùng tên</span>' ) !== false );
+t( 'hàng trùng có lớp riêng để tô nền', strpos( $tt_h, 'class="hang-trung"' ) !== false );
+/* Nhãn phải có CHỮ, không chỉ có màu — người mù màu và bản in đen trắng vẫn phải đọc ra. */
+t( 'nhãn là chữ chứ không chỉ là màu', strpos( $tt_h, '>trùng mã<' ) !== false );
+
+/* Vị trí thật trên màn: hàng trùng phải đứng TRƯỚC hàng sạch. */
+$vt_zz_h = strpos( $tt_h, '<b>ZZ1</b>' );
+$vt_aa_h = strpos( $tt_h, '<b>AA0</b>' );
+t( '🔴 trên MÀN HÌNH cũng vậy — và phải xếp TRƯỚC khi cắt trang, không phải sau',
+	false !== $vt_zz_h && false !== $vt_aa_h && $vt_zz_h < $vt_aa_h, array( $vt_zz_h, $vt_aa_h ) );
+
+/* 🔴 DÒ TRÊN TOÀN BỘ HỒ SƠ, KHÔNG TRÊN LÁT CẮT ĐANG LỌC.
+   Hai người trùng tên ở HAI CƠ SỞ khác nhau: lọc theo một cơ sở thì mỗi bên chỉ thấy đúng một
+   dòng, và cả hai cùng trông bình thường — đúng cặp nguy hiểm nhất lại là cặp lọt. Phải dựng
+   cảnh có bộ lọc thì mới đo được, chứ danh sách không lọc thì hai cách viết cho kết quả y hệt. */
+/* ⚠️ DỌN BẢNG TRƯỚC. Để nguyên mấy cặp trùng ở trên thì lọc cơ sở nào cũng còn một cặp trùng
+   trong đó, và nhãn "trùng tên" xuất hiện bất kể hàm dò nhìn toàn bộ hay chỉ nhìn lát cắt —
+   phép thử xanh mà không đo được gì. Chỉ để ĐÚNG một cặp, và cặp ấy nằm ở hai cơ sở khác nhau. */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CS1', 'ho_ten' => 'Hai Nơi Một Tên',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CS2', 'ho_ten' => 'Hai Nơi Một Tên',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'JP_HCM' ) );
+$tt_h = vhcc_ns( 'Kế toán', array( 'ncs' => 'TUTU_BT' ) );
+t( 'lọc TUTU_BT thì chỉ thấy một trong hai người', strpos( $tt_h, '<b>CS2</b>' ) === false, $tt_h );
+t( '🔴 nhưng VẪN báo người ấy trùng tên với người ở cơ sở KHÁC',
+	strpos( $tt_h, 'trùng tên</span>' ) !== false, $tt_h );
+
+/* Sổ sạch thì KHÔNG báo gì — cảnh báo thừa là cảnh báo bị bỏ qua. */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'S1', 'ho_ten' => 'Một Người',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+teq( 'sổ sạch thì không có hồ sơ nào bị đánh dấu', array(),
+	VHCC_NhanSu::dau_hieu_trung( VHCC_NhanSu::ds_nhan_vien( $U_AD ) ) );
+$tt_h = vhcc_ns( 'Kế toán' );
+t( '🔴 sổ sạch thì màn hình KHÔNG báo trùng', strpos( $tt_h, 'trùng tên hoặc trùng' ) === false );
+
+/* Ô trống không được coi là trùng nhau — nhiều hồ sơ chưa khai tên là chuyện thường, gộp chúng
+   thành một cụm "trùng tên" là đẩy cả chục dòng vô can lên đầu. */
+vhcc_dung_bang();
+foreach ( array( 'E1', 'E2', 'E3' ) as $e ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $e, 'ho_ten' => '',
+		'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+}
+/* 🔴 Ô TÊN TRỐNG KHÔNG PHẢI LÀ TRÙNG NHAU. Nhiều hồ sơ chưa khai tên là chuyện thường; gom
+   chúng thành một cụm "trùng tên" là đẩy cả chục dòng vô can lên đầu, và người đọc mất lòng tin
+   vào cái nhãn — cảnh báo sai vài lần là lần thật cũng bị bỏ qua.
+   ⚠️ Chốt này nằm ở HAI chỗ (lúc đếm và lúc đánh dấu), nên phép thử phải bắt được cả khi bỏ
+      một chỗ lẫn khi bỏ cả hai. Ba `teq` dưới đây soi ba tầng: hàm dò, danh sách xếp, và màn
+      hình — bỏ tầng nào cũng có ít nhất một cái đỏ. */
+teq( '🔴 hồ sơ chưa khai tên KHÔNG bị gom thành "trùng tên"', array(),
+	VHCC_NhanSu::dau_hieu_trung( VHCC_NhanSu::ds_nhan_vien( $U_AD ) ) );
+$tt_e = VHCC_NhanSu::ds_nhan_vien( $U_AD );
+teq( 'và không ai bị đẩy lên đầu', 'E1',
+	(string) VHCC_NhanSu::xep_trung_len_dau( $tt_e, VHCC_NhanSu::dau_hieu_trung( $tt_e ) )[0]['ma_nv'] );
+$tt_h = vhcc_ns( 'Kế toán' );
+/* ⚠️ SOI `class="chip-t"`, ĐỪNG SOI `chip-t` TRẦN. Chuỗi trần CÒN NẰM TRONG CSS (luật
+   `.chip-t{…}` ở đầu trang), nên nó luôn có mặt và phép thử đỏ oan. Đây là lần thứ ba cùng một
+   cái bẫy trong bộ thử này (trước đó là `cty-bq` và `o-q`): tên lớp bao giờ cũng xuất hiện hai
+   lần — một lần khai kiểu, một lần dùng thật. Soi chỗ DÙNG. */
+t( 'màn hình cũng không gắn nhãn nào', strpos( $tt_h, 'class="chip-t"' ) === false, $tt_h );
+t( 'và không báo trùng', strpos( $tt_h, 'trùng tên hoặc trùng' ) === false );
+vhcc_dung_bang();
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
