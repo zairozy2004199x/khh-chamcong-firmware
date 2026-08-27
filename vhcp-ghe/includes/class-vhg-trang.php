@@ -1896,9 +1896,13 @@ tr:last-child td{border-bottom:0}
 .login input{text-align:center;letter-spacing:.5em;font-size:21px;margin:16px 0 10px}
 .err{color:var(--red);font-size:13px;min-height:19px;margin-top:8px}
 .act{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
-/* --- Tab chính --- */
-.nav{display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--line);padding-bottom:10px}
+/* --- Menu chính: mobile = hàng ngang cuộn; desktop = SIDEBAR DỌC (xem @media cuối tệp) --- */
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:2px solid var(--line);padding-bottom:10px}
 .nav button{border-radius:8px 8px 0 0}
+.side-brand{display:none;align-items:center;gap:9px;padding:4px 8px 12px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.14)}
+.side-brand .hieu-o{width:34px;height:34px;font-size:17px;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.22);color:#fff}
+.side-brand-t b{color:#fff;font-size:15px;line-height:1.1;display:block}
+.side-brand-t small{color:#9fb2cd;font-size:10px;letter-spacing:.08em;text-transform:uppercase}
 /* --- Thẻ ghế (tab Điều khiển) ---
    Bảng hợp cho đối soát (so số theo cột), nhưng KHÔNG hợp cho điều khiển: người bấm đang đứng
    cạnh một con ghế cụ thể và cần thấy đúng nó, to và rõ, chứ không dò theo hàng. */
@@ -2015,6 +2019,23 @@ tr:last-child td{border-bottom:0}
   .wrap{max-width:1560px}
   .kpis{grid-template-columns:repeat(4,1fr)}
 }
+/* ============================================================================================
+ * SIDEBAR DỌC (kiểu HR V5.2) — chỉ trên màn rộng. Đặt CUỐI để thắng các @media bên trên.
+ * `.nav` cố định bên trái, nền navy; nội dung (`.wrap`) đẩy sang phải. Mobile giữ hàng ngang.
+ * ============================================================================================ */
+@media(min-width:901px){
+  .nav{position:fixed;left:0;top:0;bottom:0;width:216px;z-index:30;display:flex;flex-direction:column;
+    flex-wrap:nowrap;gap:2px;overflow:auto;margin:0;padding:14px 10px;border:0;border-radius:0;
+    background:linear-gradient(180deg,#26406a 0%,#1b2d4b 100%);box-shadow:2px 0 12px rgba(20,30,50,.18)}
+  .nav .side-brand{display:flex}
+  .nav button{width:100%;text-align:left;border:0;border-radius:0 999px 999px 0;background:transparent;
+    color:#c7d3e5;padding:10px 13px;font-size:13px;font-weight:500;white-space:nowrap}
+  .nav button:hover{background:rgba(255,255,255,.08);color:#fff;border-color:transparent}
+  .nav button.on{background:rgba(255,255,255,.15);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 var(--amber)}
+  .wrap{margin:0 0 0 216px;max-width:none;padding:16px 26px}
+  .top{border-radius:12px}
+}
+@media(min-width:1500px){ .wrap{margin-left:216px;max-width:none} }
 CSS;
 	}
 
@@ -2364,6 +2385,8 @@ function ve(){
   if (GK) TABS.push(['ghe-loi', '🚨 ' + L('Ghế lỗi','Faulty chairs')]);
   if (QT) TABS.push(['cau-hinh', '⚙️ ' + L('Cấu hình','Settings')]);
   h += '<div class="nav">'
+    + '<div class="side-brand"><div class="hieu-o">💆</div><div class="side-brand-t"><b>POSH</b>'
+      + '<small>' + L('Ghế massage','Massage chairs') + '</small></div></div>'
     + TABS.map(function(x){
         return '<button data-tab="' + x[0] + '"' + (TAB===x[0]?' class="on"':'') + '>' + x[1] + '</button>';
       }).join('')
@@ -3388,19 +3411,26 @@ function ktiCongNo(){
     box.textContent='';
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     KTI_THANG=r.thang;
+    /* Ô lọc linh hoạt: tên cơ sở đã chứa cả CHUỖI (GO, AEON, CGV…) lẫn TỈNH/THÀNH (Bến Tre, Bình
+       Dương…) nên gõ chuỗi hay tỉnh đều lọc được. */
+    var iQ=document.createElement('input'); iQ.placeholder=L('Lọc cơ sở / chuỗi / tỉnh thành…','Filter branch / chain / province…');
+    iQ.style.cssText='max-width:340px;margin-bottom:10px';
+    box.appendChild(iQ);
     var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='820px';
     tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th class="r">'+L('Dư đầu','Opening')+'</th><th class="r">'+L('Phát sinh','Charged')
       +'</th><th class="r">'+L('Đã nhận TM','Cash in')+'</th><th class="r">'+L('Đã nhận CK','Transfer in')+'</th><th class="r">'+L('Chưa nộp','Unpaid')
       +'</th><th class="r">'+L('Dư cuối','Closing')+'</th></tr>';
     (r.rows||[]).forEach(function(o){
-      var tr=ktEl('tr');
+      var tr=ktEl('tr'); tr.dataset.q=((o.coso||'')+' '+(o.tinh||'')).toLowerCase();
       function c(x,red){ var e=ktEl('td',null,x); e.style.textAlign='right'; e.style.fontVariantNumeric='tabular-nums'; if(red&&x&&x!=='0') e.style.color='#ff8087'; return e; }
-      var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,o.coso)); tr.appendChild(tdN);
+      var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,o.coso)); if(o.tinh){ tdN.appendChild(ktEl('div','mut',o.tinh)); } tr.appendChild(tdN);
       tr.appendChild(c(ktVnd(o.opening))); tr.appendChild(c(ktVnd(o.phaiThu)));
       tr.appendChild(c(ktVnd(o.daNhanTM))); tr.appendChild(c(ktVnd(o.daNhanCK)));
       tr.appendChild(c(ktVnd(o.chuaNop),1)); tr.appendChild(c(ktVnd(o.closing),o.closing>0?1:0));
       tb.appendChild(tr);
     });
+    iQ.oninput=function(){ var q=iQ.value.trim().toLowerCase();
+      [].forEach.call(tb.querySelectorAll('tr[data-q]'),function(tr){ tr.style.display=(!q||tr.dataset.q.indexOf(q)>=0)?'':'none'; }); };
     sc.appendChild(tb); box.appendChild(sc);
     var bar=ktEl('div','act'); bar.style.marginTop='8px';
     var m=ktEl('span','mut');
