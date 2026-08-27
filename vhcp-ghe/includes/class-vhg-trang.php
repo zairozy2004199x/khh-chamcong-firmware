@@ -1893,6 +1893,8 @@ function ve(){
   if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
   if (QT) TABS.push(['nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')]);
   if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
+  /* PIN nhân viên báo cáo — CHỈ Admin (cấp danh tính thu tiền là việc nhạy cảm). */
+  if (D.ai && D.ai.role === 'Admin') TABS.push(['bc-pin', '📋 ' + L('PIN báo cáo','Report PINs')]);
   /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
      Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
@@ -1976,6 +1978,7 @@ function ve(){
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'bc-pin')     { h += veBcPin()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
@@ -2419,6 +2422,106 @@ function CHOT_DS(){ return !!(D && D.quyen && D.quyen.chot_doanh_so); }
  *    gửi nhầm nhóm chat là cả chuỗi mất doanh thu.
  * ============================================================================================ */
 var CH = null;   // số liệu cấu hình vừa tải
+
+/* ============================================================================================
+ * TAB PIN BÁO CÁO (chỉ Admin) — cấp/sửa/xoá bc_pin cho nhân viên vào màn Báo cáo doanh thu.
+ * Gọi bc_pin_* qua `goi()` (kèm token) — endpoint gác token + Admin ở máy chủ.
+ * ============================================================================================ */
+var BCP = null;   // danh sách PIN báo cáo vừa tải
+function veBcPin(){
+  if (!BCP) {
+    goi('bc_pin_ds', {}, function(r){
+      if (!r || !r.ok) { alert((r && r.error) || L('Không tải được PIN (chỉ Admin xem được).',
+        'Could not load PINs (Admin only).')); BCP = []; ve(); return; }
+      BCP = r.ds || []; ve();
+    });
+    return '<div class="card"><p class="mut">' + L('Đang tải…','Loading…') + '</p></div>';
+  }
+  var h = '<div class="card"><h2>📋 ' + L('PIN nhân viên báo cáo','Report staff PINs') + '</h2>'
+    + '<p class="mut">' + L('PIN RIÊNG để nhân viên vào màn Báo cáo doanh thu — không cần tài khoản '
+      + '/ghe. Mỗi người một PIN, gán cơ sở (nhiều cơ sở ngăn bởi dấu phẩy). Chỉ Admin sửa được.',
+      'Separate PINs for staff to open the Revenue report — no /ghe account needed. One PIN each, '
+      + 'assign branches (comma-separated). Admin only.') + '</p>'
+    + '<table><tr><th>PIN</th><th>' + L('Tên','Name') + '</th><th>' + L('Cơ sở','Branches')
+    + '</th><th class="hide-sm">' + L('Ghế riêng','Chairs') + '</th><th>' + L('Bật','On')
+    + '</th><th class="r"></th></tr>';
+  if (!BCP.length) h += '<tr><td colspan="6" class="mut">' + L('Chưa có PIN nào.','No PINs yet.') + '</td></tr>';
+  BCP.forEach(function(p){
+    h += '<tr><td><b>' + esc(p.pin) + '</b></td><td>' + esc(p.ten || '') + '</td>'
+      + '<td>' + esc(p.coso || L('(cả phạm vi)','(all)')) + '</td>'
+      + '<td class="hide-sm mut">' + esc(p.ghe || '') + '</td>'
+      + '<td>' + (p.active ? '✓' : '<span class="mut">' + L('tắt','off') + '</span>') + '</td>'
+      + '<td class="r"><button data-bcpsua="' + esc(p.pin) + '" class="ghost">' + L('Sửa','Edit') + '</button> '
+      + '<button data-bcpxoa="' + esc(p.pin) + '" class="ghost">' + L('Xoá','Del') + '</button></td></tr>';
+  });
+  h += '</table>'
+    + '<h3 style="margin:16px 0 8px">' + L('Thêm / sửa PIN','Add / edit PIN') + '</h3>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<input id="bcp-pin" type="tel" inputmode="numeric" placeholder="PIN 3–10 ' + L('số','digits')
+      + '" style="flex:1;min-width:110px">'
+    + '<input id="bcp-ten" type="text" placeholder="' + L('Tên nhân viên','Staff name') + '" style="flex:2;min-width:150px">'
+    + '<input id="bcp-coso" type="text" placeholder="' + L('Cơ sở (phẩy ngăn cách)','Branches, comma-sep')
+      + '" style="flex:2;min-width:170px">'
+    + '<input id="bcp-ghe" type="text" placeholder="' + L('Ghế riêng (tuỳ chọn)','Specific chairs (optional)')
+      + '" style="flex:2;min-width:150px">'
+    + '<label class="ph-tick"><input type="checkbox" id="bcp-active" checked> ' + L('Bật','Active') + '</label>'
+    + '<button id="bcp-luu" class="on">' + L('Lưu','Save') + '</button></div>'
+    + '<p class="mut" style="margin-top:8px">' + L('Để trống "Ghế riêng" = nhận TOÀN BỘ ghế của các cơ '
+      + 'sở đã gán. Chỉ điền khi người này chỉ thu vài ghế trong cơ sở.',
+      'Leave "Chairs" empty = all chairs of the assigned branches. Fill only when the person '
+      + 'collects a few chairs within a branch.') + '</p>'
+    + '<div class="err" id="bcp-e"></div></div>';
+  return h;
+}
+
+function noiBcPin(){
+  var e = document.getElementById('bcp-e');
+  var luu = document.getElementById('bcp-luu');
+  if (luu) luu.onclick = function(){
+    var d = {
+      pin:  (document.getElementById('bcp-pin').value || '').trim(),
+      ten:  (document.getElementById('bcp-ten').value || '').trim(),
+      coso: (document.getElementById('bcp-coso').value || '').trim(),
+      ghe:  (document.getElementById('bcp-ghe').value || '').trim(),
+      active: document.getElementById('bcp-active').checked ? 1 : 0
+    };
+    if (!/^[0-9]{3,10}$/.test(d.pin)) { e.textContent = L('PIN phải 3–10 chữ số.','PIN must be 3–10 digits.'); return; }
+    if (!d.ten) { e.textContent = L('Thiếu tên nhân viên.','Missing staff name.'); return; }
+    if (ban) return; ban = true;
+    [].forEach.call(document.querySelectorAll('button'), function(b){ b.disabled = true; });
+    goi('bc_pin_luu', d, function(r){
+      ban = false;
+      if (!r || r.ok === false) {
+        alert((r && r.error) || L('Lưu không thành công.','Could not save.'));
+        [].forEach.call(document.querySelectorAll('button'), function(b){ b.disabled = false; });
+        return;
+      }
+      BCP = null; ve();
+    });
+  };
+  [].forEach.call(document.querySelectorAll('[data-bcpxoa]'), function(b){
+    b.onclick = function(){
+      var pin = b.getAttribute('data-bcpxoa');
+      if (!confirm(L('Xoá PIN ' + pin + '? Dữ liệu báo cáo cũ không đổi.',
+        'Delete PIN ' + pin + '? Existing reports are unchanged.'))) return;
+      if (ban) return; ban = true;
+      goi('bc_pin_xoa', { pin_xoa: pin }, function(){ ban = false; BCP = null; ve(); });
+    };
+  });
+  [].forEach.call(document.querySelectorAll('[data-bcpsua]'), function(b){
+    b.onclick = function(){
+      var pin = b.getAttribute('data-bcpsua'), p = null;
+      (BCP || []).forEach(function(x){ if (x.pin === pin) p = x; });
+      if (!p) return;
+      document.getElementById('bcp-pin').value = p.pin;
+      document.getElementById('bcp-ten').value = p.ten || '';
+      document.getElementById('bcp-coso').value = p.coso || '';
+      document.getElementById('bcp-ghe').value = p.ghe || '';
+      document.getElementById('bcp-active').checked = !!p.active;
+      document.getElementById('bcp-pin').focus();
+    };
+  });
+}
 
 function veCauHinh(){
   if (!CH) {
@@ -3585,6 +3688,7 @@ function noi(){
       ve();
     };
   });
+  if (document.getElementById('bcp-luu') || document.querySelector('[data-bcpxoa]')) noiBcPin();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');
