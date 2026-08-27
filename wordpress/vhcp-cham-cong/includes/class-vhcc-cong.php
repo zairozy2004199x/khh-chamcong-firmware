@@ -330,6 +330,35 @@ class VHCC_Cong {
 		return false;
 	}
 
+	/**
+	 * XOÁ SẠCH NGOẠI LỆ CỦA MỘT NGƯỜI — đưa họ về đúng thang vai.
+	 *
+	 * Anh Thắng 27/08/2026: *"Điều chỉnh bạn thuộc cơ sở nào nên bạn chuyển, khi chuyển quyền
+	 * hạn sẽ reset lại mặc định"*.
+	 *
+	 * 🔴 VÌ SAO CHUYỂN CƠ SỞ THÌ PHẢI RESET. Ngoại lệ được khai theo HOÀN CẢNH của người ta ở
+	 * cơ sở cũ — "người này ở kho nên mở thêm cho họ trang X", "người này đang bị nhắc nên khoá
+	 * trang Y". Sang cơ sở mới thì hoàn cảnh ấy hết, nhưng cái ngoại lệ thì ở lại, âm thầm, và
+	 * không ai ở cơ sở mới biết là nó có. Người quản lý mới nhìn bảng thấy vai đúng, tưởng quyền
+	 * đúng theo vai — trong khi thực tế người ấy đang mang một cái khoá (hoặc một cái mở) mà
+	 * không ai khai cho họ.
+	 *
+	 * ⚠️ KHÔNG PHẢI HÀM ĐỔI QUYỀN. Nó chỉ GỠ ngoại lệ; vai trò và mọi thứ khác giữ nguyên. Sau
+	 *    lượt này người ấy đi theo đúng thang vai, y như một người mới vào.
+	 *
+	 * @return int Số ô ngoại lệ đã gỡ.
+	 */
+	public static function xoa_nguoi( $ma_nv ) {
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return 0; }
+		$b = self::ngoai_le();
+		if ( ! isset( $b[ $ma ] ) ) { return 0; }
+		$so = is_array( $b[ $ma ] ) ? count( $b[ $ma ] ) : 0;
+		unset( $b[ $ma ] );
+		update_option( self::O, $b );
+		return $so;
+	}
+
 	/** Trạng thái hiện tại của một ô trong bảng: 'mo' · 'khoa' · '' (theo vai). */
 	public static function o( $ma_nv, $trang ) {
 		$ng = self::ngoai_le_cua( $ma_nv );

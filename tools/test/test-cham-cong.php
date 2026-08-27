@@ -8205,8 +8205,29 @@ t( 'Kế toán KHÔNG thấy lựa chọn "Admin" trong ô xổ nào',
 
 /* Đường sang hồ sơ đầy đủ — anh Thắng: *"cấu hình này nó thông với thông tin nhân viên"*. */
 t( 'mỗi hàng có đường mở hồ sơ đầy đủ', strpos( $vq_h2, 'class="mo-hs"' ) !== false );
-t( 'và đường ấy trỏ đúng màn Hồ sơ kèm mã người đó',
-	strpos( $vq_h2, 'man=ho_so' ) !== false && strpos( $vq_h2, 'q=V_NV' ) !== false, $vq_h2 );
+/* 🔴 PHẢI LÀ `sua=`, KHÔNG PHẢI `q=`. Anh Thắng 27/08/2026: *"Admin chưa sửa được thông tin
+   nhân viên"* — bản trước trỏ `q=<mã>`, mà `q` là ô TÌM: nó chỉ LỌC danh sách chứ không mở biểu
+   mẫu sửa. Bấm vào thấy đúng người mình cần mà không có ô nào nhập được, nên trông y như tính
+   năng sửa bị hỏng. Phép thử cũ soi `man=ho_so` + `q=V_NV` nên nó XANH với cái đường sai ấy —
+   nó chỉ kiểm "có đường dẫn", không kiểm "đường dẫn ấy mở được cái gì". */
+t( '🔴 đường ấy trỏ tới BIỂU MẪU SỬA (sua=), không phải ô tìm (q=)',
+	strpos( $vq_h2, 'man=ho_so' ) !== false && strpos( $vq_h2, 'sua=V_NV' ) !== false, $vq_h2 );
+t( 'và không còn dùng ô tìm để giả làm đường sửa',
+	strpos( $vq_h2, 'q=V_NV' ) === false, $vq_h2 );
+
+/* ➕ THÊM NHÂN SỰ — anh Thắng: *"Chưa có chỗ bổ sung thêm nhân sự"*.
+   `sua=+` là thứ `VHCC_Web::the_sua_ho_so()` hiểu là "hồ sơ mới" (biểu mẫu có ô Mã NV). */
+$vq_ad = vhcc_ns( 'Admin' );
+t( '🔴 có nút Thêm nhân sự', strpos( $vq_ad, 'Thêm nhân sự' ) !== false, $vq_ad );
+t( 'và nó trỏ tới biểu mẫu HỒ SƠ MỚI (sua=+)',
+	strpos( $vq_ad, 'sua=%2B' ) !== false || strpos( $vq_ad, 'sua=+' ) !== false, $vq_ad );
+/* Tạo hồ sơ mới là cấp Mã NV dùng chung cả chuỗi -> Quản lý trở lên. Kế toán tuy bậc cao hơn
+   Quản lý ở thang chung, nhưng `co_quan_tri_nv` hỏi `ngoai_coso` nên Kế toán vẫn qua. Người
+   KHÔNG qua là Cửa hàng trưởng — mà họ cũng không vào nổi trang này. Nên chỉ cần chắc rằng nút
+   được gác bằng CHÍNH hàm ấy, đừng vẽ cho người bấm vào rồi bị chối. */
+t( 'nút Thêm gác bằng co_quan_tri_nv',
+	strpos( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' ),
+		'VHCC_NhanSu::co_quan_tri_nv( $toi )' ) !== false );
 vhcc_dung_bang();
 
 /* ==========================================================================================
@@ -8534,6 +8555,165 @@ $tt_h = vhcc_ns( 'Kế toán' );
    lần — một lần khai kiểu, một lần dùng thật. Soi chỗ DÙNG. */
 t( 'màn hình cũng không gắn nhãn nào', strpos( $tt_h, 'class="chip-t"' ) === false, $tt_h );
 t( 'và không báo trùng', strpos( $tt_h, 'trùng tên hoặc trùng' ) === false );
+vhcc_dung_bang();
+
+/* ==========================================================================================
+ *  63. ĐỒNG BỘ CHẤM CÔNG ↔ HỒ SƠ NHÂN SỰ, và CHUYỂN CƠ SỞ
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 27/08/2026: *"đồng bộ phần chấm công nhân sự trước, người nào sai đưa ra cảnh báo
+ *  anh chỉnh lại quyền"* và *"Điều chỉnh bạn thuộc cơ sở nào nên bạn chuyển, khi chuyển quyền
+ *  hạn sẽ reset lại mặc định"*.
+ * ======================================================================================== */
+vhcc_dung_bang();
+$db_nguon_cu = get_option( 'vhcc_nguon_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'rieng' );
+update_option( 'vhcc_nguoidung', array(
+	array( 'ten' => 'Người Ở Sổ Cũ', 'pin' => '111111', 'vaiTro' => 'Quản lý',  'coso' => 'TUTU_BT' ),
+	array( 'ten' => 'Người Khớp',    'pin' => '222222', 'vaiTro' => 'Nhân viên', 'coso' => 'TUTU_BT' ),
+) );
+/* Hồ sơ: khớp PIN 222222 nhưng VAI khác; không có 111111; thêm một người PIN mới. */
+foreach ( array(
+	array( 'DB1', 'Người Khớp',    '222222', 'Kế toán cá nhân' ),
+	array( 'DB2', 'Người Mới Vào', '333333', 'Nhân viên' ),
+) as $d ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $d[0], 'ho_ten' => $d[1],
+		'pin_dang_nhap' => $d[2], 'vai_tro' => $d[3], 'cua_hang' => 'TUTU_BT' ) );
+}
+$db = VHCC_Auth::doi_chieu_ho_so();
+$db_loai = array();
+foreach ( $db['muc'] as $m ) { $db_loai[ $m['loai'] ][] = $m; }
+
+/* 🔴 NẶNG NHẤT: đang vào được mà hồ sơ chưa khai PIN -> chuyển nguồn là họ đứng ngoài NGAY, và
+   màn hình chỉ nói "PIN không đúng" nên họ không đoán ra vì sao. Người mất đường vào KHÔNG tự
+   báo được, vì cái họ mất chính là đường để báo. */
+t( '🔴 bắt được người sẽ MẤT ĐƯỜNG VÀO', isset( $db_loai['mat_duong'] ), $db['muc'] );
+t( 'và gọi đúng tên người ấy',
+	isset( $db_loai['mat_duong'] ) && 'Người Ở Sổ Cũ' === $db_loai['mat_duong'][0]['ten'] );
+t( 'mục ấy được xếp mức NẶNG', isset( $db_loai['mat_duong'] ) && $db_loai['mat_duong'][0]['nang'] );
+
+/* Vai lệch giữa hai sổ -> chuyển nguồn là quyền của họ đổi theo hồ sơ. Không nặng, nhưng phải
+   biết trước: một người đang là Nhân viên bỗng thành Kế toán là mở cả bảng lương. */
+t( 'bắt được vai LỆCH giữa hai sổ', isset( $db_loai['vai_doi'] ), $db['muc'] );
+t( 'và nói ra cả vai cũ lẫn vai mới',
+	isset( $db_loai['vai_doi'] )
+	&& strpos( $db_loai['vai_doi'][0]['noi'], 'Nhân viên' ) !== false
+	&& strpos( $db_loai['vai_doi'][0]['noi'], 'Kế toán cá nhân' ) !== false, $db_loai );
+t( 'vai lệch KHÔNG phải mức nặng', isset( $db_loai['vai_doi'] ) && ! $db_loai['vai_doi'][0]['nang'] );
+
+t( 'bắt được người MỚI có đường vào sau khi đổi', isset( $db_loai['moi_vao'] ), $db['muc'] );
+teq( 'đếm đúng số người đang đăng nhập được ở sổ cũ', 2, $db['so_cu'] );
+teq( 'và số người đã khai PIN trong hồ sơ', 2, $db['so_moi'] );
+
+/* 🔴 HAI HỒ SƠ DÙNG CHUNG MỘT PIN — ai gõ PIN đó sẽ đăng nhập thành một trong số họ, tuỳ thứ
+   tự dòng trong bảng, không đoán được. Chấm công, sửa hồ sơ, duyệt chi phí đều ghi tên người kia. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DB3', 'ho_ten' => 'Trùng PIN',
+	'pin_dang_nhap' => '333333', 'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$db = VHCC_Auth::doi_chieu_ho_so();
+$db_loai = array();
+foreach ( $db['muc'] as $m ) { $db_loai[ $m['loai'] ][] = $m; }
+t( '🔴 bắt được hai hồ sơ dùng CHUNG một PIN', isset( $db_loai['pin_trung'] ), $db['muc'] );
+t( 'và đó là mức NẶNG', isset( $db_loai['pin_trung'] ) && $db_loai['pin_trung'][0]['nang'] );
+t( 'kể tên cả hai người', isset( $db_loai['pin_trung'] )
+	&& strpos( $db_loai['pin_trung'][0]['ten'], 'Người Mới Vào' ) !== false
+	&& strpos( $db_loai['pin_trung'][0]['ten'], 'Trùng PIN' ) !== false, $db_loai );
+
+/* 🔴 Hồ sơ có PIN mà THIẾU Mã NV — vào được trang nhưng không chấm công được, và mọi ngoại lệ
+   quyền khai theo mã đều không bám vào đâu. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => '', 'ho_ten' => 'Không Mã',
+	'pin_dang_nhap' => '444444', 'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$db = VHCC_Auth::doi_chieu_ho_so();
+$db_loai = array();
+foreach ( $db['muc'] as $m ) { $db_loai[ $m['loai'] ][] = $m; }
+t( '🔴 bắt được hồ sơ có PIN mà thiếu Mã NV', isset( $db_loai['thieu_ma'] ), $db['muc'] );
+t( 'và đó là mức NẶNG', isset( $db_loai['thieu_ma'] ) && $db_loai['thieu_ma'][0]['nang'] );
+
+/* ---- MÀN HÌNH ---- */
+$db_h = vhcc_ns( 'Admin' );
+t( 'trang có khối Đồng bộ', strpos( $db_h, 'Đồng bộ chấm công' ) !== false, $db_h );
+t( 'và đếm số chỗ phải sửa', strpos( $db_h, 'chỗ phải sửa' ) !== false );
+/* 🔴 NÚT CHUYỂN NGUỒN PHẢI BỊ KHOÁ KHI CÒN CHỖ NẶNG. Bấm được lúc còn lệch là 240 người đổi
+   đường vào cùng lúc, và ai mất đường vào thì không có cách nào báo. */
+t( '🔴 còn chỗ nặng thì nút Chuyển nguồn bị KHOÁ',
+	strpos( $db_h, '<button class="chinh" disabled>Chuyển sang hồ sơ nhân sự</button>' ) !== false, $db_h );
+t( 'và nói rõ còn bao nhiêu chỗ phải sửa trước',
+	strpos( $db_h, 'chỗ phải sửa. Sửa xong tải' ) !== false, $db_h );
+/* ⚠️ KHOÁ NÚT chứ không GIẤU nút — giấu đi thì người ta không biết có đường ấy và đi tìm mãi. */
+t( 'nút vẫn hiện ra, không bị giấu', strpos( $db_h, 'Chuyển sang hồ sơ nhân sự' ) !== false );
+
+/* Sổ sạch thì nút mở. */
+vhcc_dung_bang();
+update_option( 'vhcc_nguoidung', array(
+	array( 'ten' => 'Khớp Hết', 'pin' => '555555', 'vaiTro' => 'Nhân viên', 'coso' => 'TUTU_BT' ),
+) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'OK1', 'ho_ten' => 'Khớp Hết',
+	'pin_dang_nhap' => '555555', 'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$db = VHCC_Auth::doi_chieu_ho_so();
+teq( '🔴 hai sổ khớp nhau thì KHÔNG còn chỗ nặng nào', 0, $db['nang'] );
+$db_h = vhcc_ns( 'Admin' );
+t( 'và nút Chuyển nguồn MỞ', strpos( $db_h, 'value="doi_nguon"' ) !== false, $db_h );
+t( 'nút trỏ về đúng việc doi_nguon đã có ở màn Cấu hình (không đẻ cửa thứ hai)',
+	strpos( $db_h, 'name="nguon" value="ho_so"' ) !== false );
+update_option( 'vhcc_nguon_nguoidung', $db_nguon_cu );
+
+/* ---- CHUYỂN CƠ SỞ: quyền riêng RESET về mặc định ---- */
+vhcc_dung_bang();
+delete_option( VHCC_Cong::O );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CV1', 'ho_ten' => 'Người Chuyển',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+VHCC_Cong::dat( $U_AD, 'CV1', 'tram', 'khoa' );
+VHCC_Cong::dat( $U_AD, 'CV1', 'cham_cong', 'mo' );
+teq( 'trước khi chuyển thì ngoại lệ còn đó', 'khoa', VHCC_Cong::o( 'CV1', 'tram' ) );
+
+$r = VHCC_NhanSu::dat_co_so( $U_AD, 'CV1', 'JP_HCM' );
+t( 'Admin chuyển được cơ sở', ! empty( $r['ok'] ) && ! empty( $r['doi'] ), $r );
+teq( 'hồ sơ ghi cơ sở mới', 'JP_HCM', VHCC_NhanSu::ho_so( 'CV1' )['cua_hang'] );
+/* 🔴 Ngoại lệ khai theo hoàn cảnh ở cơ sở CŨ. Sang chỗ mới thì hoàn cảnh ấy hết, nhưng cái
+   ngoại lệ thì ở lại — âm thầm, và người quản lý mới nhìn bảng thấy vai đúng nên tưởng quyền
+   đúng theo vai, trong khi người ấy đang mang một cái khoá không ai khai cho họ. */
+teq( '🔴 chuyển cơ sở thì ngoại lệ trang TRẠM reset về mặc định', '', VHCC_Cong::o( 'CV1', 'tram' ) );
+teq( 'và cả ngoại lệ trang QUẢN TRỊ', '', VHCC_Cong::o( 'CV1', 'cham_cong' ) );
+teq( 'báo đúng số ô đã gỡ', 2, (int) $r['go'] );
+teq( 'và vai trò KHÔNG bị đụng tới', 'Nhân viên', VHCC_NhanSu::ho_so( 'CV1' )['vai_tro'] );
+
+/* Chuyển về đúng cơ sở đang có thì không tính là đổi, và KHÔNG reset gì. */
+VHCC_Cong::dat( $U_AD, 'CV1', 'tram', 'khoa' );
+$r = VHCC_NhanSu::dat_co_so( $U_AD, 'CV1', 'JP_HCM' );
+t( 'chọn lại đúng cơ sở đang có thì không tính là đổi', ! empty( $r['ok'] ) && empty( $r['doi'] ), $r );
+teq( '🔴 và KHÔNG reset quyền oan', 'khoa', VHCC_Cong::o( 'CV1', 'tram' ) );
+
+/* ---- Chốt bậc: chuyển cơ sở là chuyển cả công và lương ----
+   🔴 CANH KHOẢNG CÁCH HAI BẬC. `dat_co_so()` từng gác cả `ho_so` (bậc 4) lẫn `ngoai_coso`
+   (bậc 3) — trông như hai tầng, nhưng bậc 4 đã cao hơn bậc 3 nên chốt thứ hai là MÃ CHẾT: nó
+   chưa từng chặn ai, và câu lỗi của nó chưa từng hiện ra. Phá thử tìm ra: bỏ hẳn nó đi mà bộ
+   thử vẫn xanh. Nay chỉ còn một chốt — và phép thử này canh cái giả định làm nó đủ. */
+t( '🔴 quyền "ho_so" phải CAO HƠN "ngoai_coso" — chốt chuyển cơ sở dựa vào chuyện đó',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ngoai_coso'] ] );
+$r = VHCC_NhanSu::dat_co_so( array( 'role' => 'Quản lý', 'coso' => 'JP_HCM' ), 'CV1', 'TUTU_BT' );
+t( 'Quản lý cũng KHÔNG chuyển được (chốt là bậc Kế toán)', empty( $r['ok'] ), $r );
+$r = VHCC_NhanSu::dat_co_so( array( 'role' => 'Cửa hàng trưởng', 'coso' => 'JP_HCM' ), 'CV1', 'TUTU_BT' );
+t( '🔴 Cửa hàng trưởng KHÔNG chuyển được cơ sở', empty( $r['ok'] ), $r );
+teq( 'và quyền riêng của người ấy vẫn nguyên', 'khoa', VHCC_Cong::o( 'CV1', 'tram' ) );
+$r = VHCC_NhanSu::dat_co_so( $U_AD, 'KHONG_CO', 'TUTU_BT' );
+t( 'hồ sơ không có thì chối', empty( $r['ok'] ), $r );
+$r = VHCC_NhanSu::dat_co_so( $U_AD, 'CV1', '' );
+t( 'chưa chọn cơ sở đích thì chối', empty( $r['ok'] ), $r );
+
+/* ---- QUA MÀN HÌNH ---- */
+delete_option( VHCC_Cong::O );
+VHCC_Cong::dat( $U_AD, 'CV1', 'tram', 'khoa' );
+$db_h = vhcc_ns( 'Admin' );
+t( '🔴 cột Cơ sở là ô xổ, chuyển được',
+	preg_match( '/<select[^>]*name="cs\[CV1\]"/', $db_h ) === 1, $db_h );
+t( 'và bảng NÓI RA luật reset, đừng để người ta ngạc nhiên',
+	strpos( $db_h, 'quyền riêng của người đó reset về mặc định' ) !== false, $db_h );
+vhcc_ns_luu( 'Admin', 'ADM', array( 'o' => array( 'CV1' => array( 'tram' => 'khoa' ) ),
+	'cs' => array( 'CV1' => 'TUTU_BT' ) ) );
+teq( 'chuyển qua màn hình thì hồ sơ đổi cơ sở', 'TUTU_BT', VHCC_NhanSu::ho_so( 'CV1' )['cua_hang'] );
+/* 🔴 THỨ TỰ: quyền lưu TRƯỚC, cơ sở chuyển SAU. Chạy ngược lại thì bước reset xoá luôn mấy ô
+   quyền vừa lưu ở chính lượt này, mà màn hình vẫn báo "đã lưu N ô". */
+teq( '🔴 và quyền riêng reset về mặc định, kể cả ô vừa gửi cùng lượt',
+	'', VHCC_Cong::o( 'CV1', 'tram' ) );
+delete_option( VHCC_Cong::O );
 vhcc_dung_bang();
 
 if ( count( $truot ) ) {

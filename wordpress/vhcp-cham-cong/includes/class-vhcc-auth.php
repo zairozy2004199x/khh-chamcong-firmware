@@ -241,6 +241,149 @@ class VHCC_Auth {
 		return $out;
 	}
 
+	/**
+	 * ĐỐI CHIẾU SỔ ĐANG DÙNG VỚI HỒ SƠ NHÂN SỰ — ai sẽ lệch nếu chuyển nguồn sang hồ sơ.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 27/08/2026: *"đồng bộ phần chấm công nhân sự trước, người nào sai đưa ra cảnh báo
+	 * anh chỉnh lại quyền"*.
+	 * =============================================================================================
+	 * 🔴 SOI TRƯỚC, ĐỔI SAU. Chuyển nguồn người dùng là đổi CẢ CUỐN SỔ mà cổng PIN đang tra. Bấm
+	 * một cái là 240 người đổi đường vào cùng lúc: ai có PIN ở sổ cũ mà hồ sơ chưa khai PIN sẽ
+	 * đứng ngoài ngay lượt đăng nhập sau, và họ không biết vì sao — màn hình chỉ nói "PIN không
+	 * đúng". Người bị mất đường vào KHÔNG tự báo được, vì cái họ mất chính là đường để báo.
+	 *
+	 * Nên hàm này chạy TRƯỚC, chỉ đọc, không ghi một dòng nào, và trả về đúng những người lệch.
+	 *
+	 * ⚠️ SO THEO PIN, KHÔNG SO THEO TÊN. PIN mới là thứ quyết định ai đăng nhập được; tên thì hai
+	 *    sổ gõ hai kiểu ("Nguyễn Văn A" / "NGUYEN VAN A") nên so tên là ra một rừng lệch giả.
+	 *    Tên vẫn được soi, nhưng chỉ để CẢNH BÁO khi cùng PIN mà khác tên — đó mới là chuyện lạ.
+	 *
+	 * @return array{nguon:string, so_cu:int, so_moi:int, muc:array, nang:int}
+	 */
+	public static function doi_chieu_ho_so() {
+		global $wpdb;
+		$nguon = self::nguon();
+		$muc   = array();
+
+		$cu  = self::users_cua( $nguon );
+		$moi = self::users_cua( 'ho_so' );
+		if ( is_wp_error( $cu ) )  { $cu  = array(); }
+		if ( is_wp_error( $moi ) ) { $moi = array(); }
+
+		/* Gom hồ sơ theo PIN. Một PIN có thể ứng với NHIỀU hồ sơ — đó chính là chỗ hỏng nặng
+		   nhất, nên đừng gom kiểu ghi đè mà phải giữ cả cụm. */
+		$theo_pin = array();
+		foreach ( $moi as $u ) {
+			$p = self::pin_sach( isset( $u['pin'] ) ? $u['pin'] : '' );
+			if ( '' === $p ) { continue; }
+			$theo_pin[ $p ][] = $u;
+		}
+
+		/* ---- NẶNG 1: hai hồ sơ dùng CHUNG một PIN ----
+		   Ai gõ PIN ấy sẽ đăng nhập thành người mà vòng lặp tìm thấy TRƯỚC — tức là tuỳ thứ tự
+		   dòng trong bảng. Chấm công, sửa hồ sơ, duyệt chi phí đều ghi tên người kia. */
+		foreach ( $theo_pin as $p => $ds ) {
+			if ( count( $ds ) < 2 ) { continue; }
+			$ten = array();
+			foreach ( $ds as $u ) { $ten[] = trim( (string) $u['ten'] ); }
+			$muc[] = array(
+				'loai' => 'pin_trung', 'nang' => true,
+				'ten'  => implode( ' + ', $ten ),
+				'noi'  => count( $ds ) . ' hồ sơ đang dùng CHUNG một mã PIN. Ai gõ PIN đó sẽ đăng '
+					. 'nhập thành một trong số họ — tuỳ thứ tự dòng trong bảng, không đoán được. '
+					. 'Đổi PIN cho tất cả trừ một người.',
+			);
+		}
+
+		/* ---- NẶNG 2: hồ sơ có PIN nhưng THIẾU Mã NV ----
+		   Họ vào được trang, nhưng nút chấm công báo "hồ sơ chưa có Mã NV" và mọi ngoại lệ quyền
+		   khai theo mã đều không bám vào đâu. Vào được mà không làm được gì. */
+		$t_hs = VHCC_DB::t( 'nhan_vien' );
+		if ( VHCC_DB::co_bang( $t_hs ) ) {
+			$thieu = VHCC_DB::rows( "SELECT ho_ten, pin_dang_nhap FROM $t_hs"
+				. " WHERE pin_dang_nhap <> '' AND ( ma_nv IS NULL OR TRIM(ma_nv) = '' )" );
+			foreach ( (array) $thieu as $r ) {
+				$muc[] = array(
+					'loai' => 'thieu_ma', 'nang' => true,
+					'ten'  => trim( (string) $r['ho_ten'] ),
+					'noi'  => 'Hồ sơ có PIN nhưng CHƯA có Mã NV. Vào được trang, nhưng không chấm '
+						. 'công được và không khai quyền riêng cho họ được.',
+				);
+			}
+		}
+
+		/* ---- So từng người ĐANG vào được với hồ sơ ---- */
+		$so_cu = 0;
+		foreach ( $cu as $u ) {
+			$p = self::pin_sach( isset( $u['pin'] ) ? $u['pin'] : '' );
+			if ( '' === $p ) { continue; }
+			$so_cu++;
+			$ten_cu = trim( (string) $u['ten'] );
+			$vai_cu = trim( (string) $u['vaiTro'] );
+
+			/* NẶNG 3: đang vào được, đổi nguồn là MẤT ĐƯỜNG VÀO. */
+			if ( ! isset( $theo_pin[ $p ] ) ) {
+				$muc[] = array(
+					'loai' => 'mat_duong', 'nang' => true,
+					'ten'  => '' !== $ten_cu ? $ten_cu : '(không tên)',
+					'noi'  => 'Đang đăng nhập được, nhưng hồ sơ nhân sự CHƯA khai PIN này. Chuyển '
+						. 'nguồn là họ đứng ngoài ngay — mà màn hình chỉ nói "PIN không đúng", nên '
+						. 'họ không đoán ra vì sao. Khai PIN vào hồ sơ của họ trước.',
+				);
+				continue;
+			}
+			if ( count( $theo_pin[ $p ] ) > 1 ) { continue; }   // đã báo ở mục pin_trung
+			$b = $theo_pin[ $p ][0];
+
+			$vai_moi = trim( (string) $b['vaiTro'] );
+			if ( VHCC_Vai::ma( $vai_cu ) !== VHCC_Vai::ma( $vai_moi ) ) {
+				$muc[] = array(
+					'loai' => 'vai_doi', 'nang' => false,
+					'ten'  => '' !== $ten_cu ? $ten_cu : trim( (string) $b['ten'] ),
+					'noi'  => 'Vai trò lệch giữa hai sổ: đang là ' . ( '' !== $vai_cu ? $vai_cu : '(trống)' )
+						. ', hồ sơ ghi ' . ( '' !== $vai_moi ? $vai_moi : '(trống)' )
+						. '. Chuyển nguồn là quyền của họ đổi theo hồ sơ.',
+				);
+			}
+			$ten_moi = trim( (string) $b['ten'] );
+			if ( '' !== $ten_cu && '' !== $ten_moi
+				&& VHCC_NhanSu::khoa_so( $ten_cu ) !== VHCC_NhanSu::khoa_so( $ten_moi ) ) {
+				$muc[] = array(
+					'loai' => 'ten_doi', 'nang' => false,
+					'ten'  => $ten_cu . ' ↔ ' . $ten_moi,
+					'noi'  => 'Cùng một mã PIN mà hai sổ ghi hai TÊN khác nhau — nhiều khả năng đây '
+						. 'là hai người, và một trong hai đang đăng nhập bằng PIN của người kia.',
+				);
+			}
+		}
+
+		/* ---- Người MỚI có đường vào sau khi đổi. Không phải lỗi, nhưng phải biết trước. ---- */
+		$pin_cu = array();
+		foreach ( $cu as $u ) {
+			$p = self::pin_sach( isset( $u['pin'] ) ? $u['pin'] : '' );
+			if ( '' !== $p ) { $pin_cu[ $p ] = true; }
+		}
+		$so_moi = 0;
+		$moi_vao = 0;
+		foreach ( $theo_pin as $p => $ds ) {
+			$so_moi += count( $ds );
+			if ( ! isset( $pin_cu[ $p ] ) ) { $moi_vao += count( $ds ); }
+		}
+		if ( $moi_vao > 0 ) {
+			$muc[] = array(
+				'loai' => 'moi_vao', 'nang' => false, 'ten' => $moi_vao . ' người',
+				'noi'  => 'Có PIN trong hồ sơ nhưng hiện CHƯA đăng nhập được. Chuyển nguồn là họ vào '
+					. 'được — theo đúng vai ghi trong hồ sơ. Soát lại vai của họ trước cho chắc.',
+			);
+		}
+
+		$nang = 0;
+		foreach ( $muc as $m ) { if ( $m['nang'] ) { $nang++; } }
+		return array( 'nguon' => $nguon, 'so_cu' => $so_cu, 'so_moi' => $so_moi,
+			'muc' => $muc, 'nang' => $nang );
+	}
+
 	public static function login( $pin ) {
 		$pin = trim( (string) $pin );
 		if ( ! preg_match( '/^\d{4,8}$/', $pin ) ) {

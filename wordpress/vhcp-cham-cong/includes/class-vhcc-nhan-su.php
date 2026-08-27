@@ -441,6 +441,72 @@ class VHCC_NhanSu {
 			: array( 'ok' => true, 'doi' => true );
 	}
 
+	/**
+	 * CHUYỂN MỘT NGƯỜI SANG CƠ SỞ KHÁC — và RESET quyền riêng của họ về mặc định.
+	 *
+	 * Anh Thắng 27/08/2026: *"Điều chỉnh bạn thuộc cơ sở nào nên bạn chuyển, khi chuyển quyền
+	 * hạn sẽ reset lại mặc định"*.
+	 *
+	 * 🔴 CHUYỂN CƠ SỞ LÀ VIỆC NẶNG, KHÔNG PHẢI SỬA MỘT Ô. Cửa hàng nào trong hồ sơ quyết định
+	 * công và lương của người ấy tính về đâu — nên chốt đúng bằng chốt của `luu_ho_so()`:
+	 * Quản lý trở lên, và phải phụ trách CẢ HAI cơ sở. Chỉ phụ trách cơ sở đích thôi là đủ để
+	 * "hút" người của cơ sở khác về mình.
+	 *
+	 * ⚠️ RESET NGOẠI LỆ QUYỀN, KHÔNG RESET VAI. Vai là thứ khai có chủ ý và không dính cơ sở;
+	 *    ngoại lệ mở/khoá từng trang thì khai theo hoàn cảnh ở cơ sở cũ — xem `VHCC_Cong::xoa_nguoi()`.
+	 * ⚠️ Gác `method_exists` cùng hàm với lời gọi (luật `tools/test/kiem-goi-cheo.php`).
+	 */
+	public static function dat_co_so( $u, $ma_nv, $coso ) {
+		global $wpdb;
+		/* 🔴 MỘT CHỐT, KHÔNG HAI. Bản đầu gác cả `co_sua_ho_so` (quyền `ho_so`, bậc 4) LẪN
+		   `co_quan_tri_nv` (quyền `ngoai_coso`, bậc 3) — trông như phòng thủ hai tầng, nhưng
+		   bậc 4 đã CAO HƠN bậc 3, nên không tồn tại vai nào qua được chốt trên mà trượt chốt
+		   dưới. Chốt thứ hai là MÃ CHẾT: không bao giờ chạy, và câu lỗi "cần Quản lý" của nó
+		   không bao giờ hiện ra cho ai. Phá thử phát hiện đúng chỗ này — bỏ nó đi mà bộ thử
+		   vẫn xanh, vì nó vốn chưa từng chặn ai.
+		   Giữ đúng chốt CHẶT HƠN (`ho_so`), và có phép thử canh khoảng cách hai bậc ấy: hạ
+		   `ho_so` xuống ngang hay thấp hơn `ngoai_coso` là câu chuyện khác, phải biết ngay. */
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Chuyển cơ sở là chuyển cả công và lương giữa hai '
+				. 'cửa hàng — cần vai Kế toán trở lên.' );
+		}
+		$ma  = trim( (string) $ma_nv );
+		$moi = self::chuan_coso( $coso );
+		if ( '' === $ma )  { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		if ( '' === $moi ) { return array( 'ok' => false, 'error' => 'Chưa chọn cơ sở đích.' ); }
+		$cu_hs = self::ho_so( $ma );
+		if ( ! $cu_hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+
+		$cu = self::chuan_coso( $cu_hs['cua_hang'] );
+		if ( strtolower( $cu ) === strtolower( $moi ) ) {
+			return array( 'ok' => true, 'doi' => false, 'go' => 0 );
+		}
+		/* Phải phụ trách CẢ HAI. Thiếu vế "cơ sở cũ" là mở đường hút người của cơ sở khác về
+		   mình mà cơ sở kia không hay biết. */
+		if ( '' !== $cu && ! self::co_quyen_coso( $u, $cu ) ) {
+			return array( 'ok' => false, 'error' => 'Người này đang thuộc ' . $cu
+				. ' — cơ sở bạn không phụ trách.' );
+		}
+		if ( ! self::co_quyen_coso( $u, $moi ) ) {
+			return array( 'ok' => false, 'error' => 'Bạn không phụ trách cơ sở "' . $moi . '".' );
+		}
+
+		$ok = $wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+			array( 'cua_hang' => $moi, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma_nv' => $ma ) );
+		if ( false === $ok ) {
+			return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
+		}
+
+		/* 🔴 RESET QUYỀN RIÊNG. Ngoại lệ khai theo hoàn cảnh ở cơ sở CŨ; sang cơ sở mới thì hoàn
+		   cảnh ấy hết, nhưng cái ngoại lệ thì ở lại — âm thầm, và không ai ở cơ sở mới biết. */
+		$go = 0;
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'xoa_nguoi' ) ) {
+			$go = (int) VHCC_Cong::xoa_nguoi( $ma );
+		}
+		return array( 'ok' => true, 'doi' => true, 'tu' => $cu, 'den' => $moi, 'go' => $go );
+	}
+
 	public static function ds_coso() {
 		global $wpdb;
 		$ds = array();

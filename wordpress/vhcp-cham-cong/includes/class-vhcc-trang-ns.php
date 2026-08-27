@@ -219,12 +219,23 @@ class VHCC_TrangNS {
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 
+		/* 🔴 CHUYỂN CƠ SỞ CHẠY TRƯỚC LƯU QUYỀN THÌ SAI THỨ TỰ. Chuyển cơ sở RESET sạch ngoại lệ
+		   của người ấy; chạy trước là nó xoá luôn mấy ô quyền vừa lưu ở ngay lượt này, mà màn
+		   hình vẫn báo "đã lưu N ô". Nên: quyền trước, cơ sở sau — ai vừa bị chuyển thì quyền
+		   của họ về mặc định, và đó đúng là điều anh Thắng muốn. */
 		$vai = self::luu_vai( $toi );
+		$cs  = self::luu_coso( $toi );
 		$doi = (int) $kq['doi'];
 
 		$bao = array();
 		if ( $doi )          { $bao[] = array( 'ok' => 'Đã lưu ' . $doi . ' ô quyền vào trang.' ); }
 		if ( $vai['doi'] )   { $bao[] = array( 'ok' => 'Đã đổi vai trò cho ' . $vai['doi'] . ' người.' ); }
+		if ( $cs['doi'] ) {
+			$bao[] = array( 'ok' => 'Đã chuyển ' . $cs['doi'] . ' người sang cơ sở khác'
+				. ( $cs['go'] ? ' — quyền riêng của họ đã reset về mặc định (' . $cs['go'] . ' ô).'
+					: '. Họ vốn không có quyền riêng nào nên không có gì phải reset.' ) );
+		}
+		foreach ( $cs['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
 		/* 🔴 LỖI VAI TRÒ PHẢI HIỆN RA, KHÔNG ĐƯỢC NUỐT. Mấy chốt trong `dat_vai_tro()` (không
 		   nâng quá bậc mình, không đụng người trên mình, không tự sửa mình) chỉ có tác dụng nếu
 		   người bấm ĐỌC ĐƯỢC câu chối. Nuốt đi thì màn hình báo "đã lưu", ô vai trở về giá trị
@@ -232,6 +243,31 @@ class VHCC_TrangNS {
 		foreach ( $vai['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
 		if ( ! $bao ) { return array( array( 'canh' => 'Không có ô nào đổi — chưa lưu gì.' ) ); }
 		return $bao;
+	}
+
+	/**
+	 * Chuyển cơ sở cho những người vừa đổi ô Cơ sở.
+	 *
+	 * ⚠️ ĐI QUA `VHCC_NhanSu::dat_co_so()` TỪNG NGƯỜI. Chốt bậc, chốt phụ trách cả hai cơ sở, và
+	 *    bước RESET ngoại lệ quyền đều nằm trong hàm ấy — ghi tắt ở đây là bỏ cả ba.
+	 */
+	private static function luu_coso( $toi ) {
+		$gui = isset( $_POST['cs'] ) ? wp_unslash( $_POST['cs'] ) : array();
+		$ra  = array( 'doi' => 0, 'go' => 0, 'loi' => array() );
+		if ( ! is_array( $gui ) ) { return $ra; }
+		foreach ( $gui as $ma => $v ) {
+			$ma_s = sanitize_text_field( (string) $ma );
+			$v_s  = sanitize_text_field( is_array( $v ) ? '' : (string) $v );
+			if ( '' === $ma_s ) { continue; }
+			$r = VHCC_NhanSu::dat_co_so( $toi, $ma_s, $v_s );
+			if ( empty( $r['ok'] ) ) {
+				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
+				continue;
+			}
+			if ( ! empty( $r['doi'] ) ) { $ra['doi']++; $ra['go'] += (int) $r['go']; }
+		}
+		$ra['loi'] = array_values( $ra['loi'] );
+		return $ra;
 	}
 
 	/**
@@ -398,9 +434,10 @@ class VHCC_TrangNS {
 			/* Hàng trùng: nền vàng nhạt + nhãn đỏ. Màu KHÔNG đứng một mình — nhãn có chữ, để
 			   người mù màu và bản in đen trắng vẫn đọc ra. */
 			. 'tr.hang-trung>td{background:#fffbeb}'
-			. '.chip-t{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;'
+			. '.chip-t,.chip-n{display:inline-block;margin-left:5px;padding:0 6px;border-radius:9px;'
 			. 'background:#fee2e2;color:var(--do);font-size:10.5px;font-weight:700;'
-			. 'letter-spacing:.2px;vertical-align:middle}';
+			. 'letter-spacing:.2px;vertical-align:middle}'
+			. '.chip-n{margin-left:0}';
 	}
 
 	/**
@@ -466,6 +503,7 @@ class VHCC_TrangNS {
 		}
 
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
+		self::the_dong_bo( $toi );
 		self::the_vai( $toi );
 		self::the_ngoai_le();
 		self::the_ngoai_pham_vi();
@@ -527,6 +565,106 @@ class VHCC_TrangNS {
 		echo '<br><span class="mo">Trạm chấm công không bị ảnh hưởng — nó luôn đọc thẳng hồ sơ '
 			. 'nhân sự. Chuyện này chỉ liên quan tới vai trò khi đăng nhập trang quản trị.</span>';
 		echo '</div>';
+	}
+
+	/**
+	 * KHỐI ĐỒNG BỘ — soi trước, đổi sau.
+	 *
+	 * Anh Thắng 27/08/2026: *"đồng bộ phần chấm công nhân sự trước, người nào sai đưa ra cảnh
+	 * báo anh chỉnh lại quyền"*.
+	 *
+	 * 🔴 NÚT CHUYỂN NGUỒN CHỈ MỞ KHI KHÔNG CÒN MỤC NẶNG. Chuyển nguồn là đổi cả cuốn sổ mà cổng
+	 *    PIN đang tra — 240 người đổi đường vào cùng một lúc. Người mất đường vào KHÔNG tự báo
+	 *    được, vì cái họ mất chính là đường để báo. Nên bày ra trước, sửa hết, rồi mới cho bấm.
+	 *
+	 * ⚠️ KHOÁ NÚT, KHÔNG GIẤU NÚT. Giấu đi thì người ta không biết có đường ấy và đi tìm mãi;
+	 *    khoá lại kèm câu "còn N chỗ phải sửa" thì vừa chặn vừa nói ra việc phải làm.
+	 */
+	private static function the_dong_bo( $toi ) {
+		if ( ! class_exists( 'VHCC_Auth' ) || ! method_exists( 'VHCC_Auth', 'doi_chieu_ho_so' ) ) { return; }
+		$kq = VHCC_Auth::doi_chieu_ho_so();
+		$da = ( 'ho_so' === $kq['nguon'] );
+
+		echo '<div class="the"><details' . ( $kq['nang'] ? ' open' : '' ) . '>';
+		echo '<summary><b>Đồng bộ chấm công ↔ hồ sơ nhân sự</b> — '
+			. ( $kq['nang']
+				? '<span class="chua">' . (int) $kq['nang'] . ' chỗ phải sửa</span>'
+				: '<span class="co">không còn chỗ nặng nào</span>' )
+			. ( count( $kq['muc'] ) > $kq['nang']
+				? ' · ' . ( count( $kq['muc'] ) - (int) $kq['nang'] ) . ' chỗ nên soát'
+				: '' )
+			. '</summary>';
+
+		echo '<p class="mo">Cổng PIN đang tra <b>'
+			. esc_html( $da ? 'hồ sơ nhân sự' : self::ten_nguon( $kq['nguon'] ) ) . '</b> — '
+			. (int) $kq['so_cu'] . ' người đăng nhập được. Hồ sơ nhân sự có <b>'
+			. (int) $kq['so_moi'] . '</b> người đã khai PIN.'
+			. ( $da ? ' Hai bên đã là một — bảng dưới chỉ soi sức khoẻ của chính hồ sơ.' : '' ) . '</p>';
+
+		if ( ! $kq['muc'] ) {
+			echo '<div class="bao ok">Không thấy chỗ nào lệch.</div>';
+		} else {
+			echo '<div class="cuon"><table><thead><tr><th>Mức</th><th>Ai</th><th>Chuyện gì</th>'
+				. '</tr></thead><tbody>';
+			/* Mục NẶNG lên trước — cùng lý do với hồ sơ trùng: cái phải sửa ngay không được nằm
+			   lẫn dưới một đống ghi chú. */
+			foreach ( array( true, false ) as $muc_nang ) {
+				foreach ( $kq['muc'] as $m ) {
+					if ( (bool) $m['nang'] !== $muc_nang ) { continue; }
+					echo '<tr' . ( $m['nang'] ? ' class="hang-trung"' : '' ) . '>';
+					/* ⚠️ LỚP RIÊNG `chip-n`, KHÔNG DÙNG LẠI `chip-t` của bảng người. Hai khối nói
+					   về hai chuyện khác nhau (một bên "hồ sơ trùng", một bên "lệch sổ"), mà
+					   dùng chung tên lớp thì mọi phép thử soi `class="chip-t"` sẽ bắt nhầm sang
+					   khối kia — đã đỏ oan đúng một lần vì chuyện đó. */
+					echo '<td>' . ( $m['nang']
+						? '<span class="chip-n">phải sửa</span>'
+						: '<span class="mo">nên soát</span>' ) . '</td>';
+					echo '<td><b>' . esc_html( $m['ten'] ) . '</b></td>';
+					echo '<td>' . esc_html( $m['noi'] ) . '</td></tr>';
+				}
+			}
+			echo '</tbody></table></div>';
+		}
+
+		if ( $da ) { echo '</details></div>'; return; }
+
+		/* Đổi nguồn là việc HỆ THỐNG — chỉ Admin, đúng bằng chốt của `VHCC_Web` xử lượt đó. */
+		echo '<div class="hang" style="margin-top:12px">';
+		if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
+			echo '<span class="mo">Chuyển nguồn là việc của Admin. Sửa xong mấy chỗ trên rồi '
+				. 'nhờ Admin bấm chuyển.</span>';
+		} elseif ( $kq['nang'] ) {
+			echo '<button class="chinh" disabled>Chuyển sang hồ sơ nhân sự</button>';
+			echo '<span class="mo">Còn <b>' . (int) $kq['nang'] . '</b> chỗ phải sửa. Sửa xong tải '
+				. 'lại trang này là nút mở.</span>';
+		} else {
+			/* ⚠️ POST sang chính màn Cấu hình của trang quản trị, dùng ĐÚNG việc `doi_nguon` đã
+			   có ở đó — nó mang sẵn chốt Admin và chốt "không ai vào được thì chối". Viết lại
+			   một đường đổi nguồn thứ hai ở đây là hai cửa cho cùng một việc, và cửa mới thì
+			   chưa ai gác. */
+			echo '<form method="post" action="' . esc_url( VHCC_Web::url() ) . '" style="margin:0">';
+			echo '<input type="hidden" name="ky" value="'
+				. esc_attr( VHCC_Web::chu_ky( isset( $_COOKIE[ VHCC_Web::COOKIE ] )
+					? (string) $_COOKIE[ VHCC_Web::COOKIE ] : '' ) ) . '">';
+			echo '<input type="hidden" name="nguon" value="ho_so">';
+			echo '<input type="hidden" name="man" value="cau_hinh">';
+			echo '<button class="chinh" name="viec" value="doi_nguon">Chuyển sang hồ sơ nhân sự</button>';
+			echo '</form>';
+			echo '<span class="mo">Xong là mọi thứ khai ở trang này có hiệu lực ngay.</span>';
+		}
+		echo '</div>';
+		echo '</details></div>';
+	}
+
+	/** Tên đọc được của một nguồn người dùng. */
+	private static function ten_nguon( $n ) {
+		$ten = array(
+			'chung' => 'sổ người dùng của app Vận hành chi phí',
+			'rieng' => 'danh sách riêng của plugin chấm công',
+			'app'   => 'bản sao sổ PhanQuyen của app cũ',
+			'ho_so' => 'hồ sơ nhân sự',
+		);
+		return isset( $ten[ $n ] ) ? $ten[ $n ] : (string) $n;
 	}
 
 	/** Thanh đường đi — chính những trang NGƯỜI ĐANG XEM vào được. Không vẽ trang họ không có. */
@@ -603,7 +741,9 @@ class VHCC_TrangNS {
 		echo '<h2>Ai vào được trang nào</h2>';
 		echo '<p class="mo">Mặc định theo <b>vai trò</b> — bảng này chỉ ghi những chỗ <b>khác</b> '
 			. 'mặc định. Để ô ở «Theo vai» là người ấy đi theo thang vai, đổi vai là quyền đổi theo. '
-			. 'Chọn «Mở» hay «Khoá» là ghim cứng cho riêng người đó, vai đổi cũng không lay chuyển.</p>';
+			. 'Chọn «Mở» hay «Khoá» là ghim cứng cho riêng người đó, vai đổi cũng không lay chuyển. '
+			. '<b>Chuyển cơ sở thì quyền riêng của người đó reset về mặc định</b> — ngoại lệ khai '
+			. 'theo hoàn cảnh ở cơ sở cũ, sang chỗ mới thì hoàn cảnh ấy hết.</p>';
 
 		if ( $so_trung ) {
 			echo '<div class="bao canh"><b>' . (int) $so_trung . ' hồ sơ đang trùng tên hoặc trùng '
@@ -612,7 +752,7 @@ class VHCC_TrangNS {
 				. 'sang nhau. Bấm <b>hồ sơ ↗</b> để xem rồi gộp hoặc sửa mã.</div>';
 		}
 
-		self::o_tim( $cs, $q, $vai );
+		self::o_tim( $toi, $cs, $q, $vai );
 
 		if ( ! $lat ) {
 			echo '<div class="bao canh">Không có hồ sơ nào khớp bộ lọc.</div></div>';
@@ -661,12 +801,17 @@ class VHCC_TrangNS {
 			      đường đi thì vẫn một lần bấm mà chỉ có MỘT nơi giữ luật. */
 			echo '<td>' . esc_html( (string) $r['ho_ten'] );
 			if ( '' !== $ma && class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
-				echo ' <a class="mo-hs" title="Mở hồ sơ đầy đủ — sửa thông tin, PIN, lương"'
+				/* 🔴 `sua=` CHỨ KHÔNG PHẢI `q=`. Anh Thắng 27/08/2026: *"Admin chưa sửa được thông
+				   tin nhân viên"* — và anh đúng, đó là lỗi của bản trước: `q=` là ô TÌM, nó chỉ
+				   LỌC danh sách chứ không mở biểu mẫu sửa. Bấm vào thấy đúng người mình cần mà
+				   không có ô nào nhập được, nên trông y như tính năng sửa bị hỏng. `sua=<mã>` mới
+				   là thứ `VHCC_Web` đọc để dựng biểu mẫu (xem `the_sua_ho_so`). */
+				echo ' <a class="mo-hs" title="Mở biểu mẫu sửa hồ sơ — thông tin, PIN, lương"'
 					. ' href="' . esc_url( add_query_arg(
-						array( 'man' => 'ho_so', 'q' => $ma ), VHCC_Web::url() ) ) . '">hồ sơ ↗</a>';
+						array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() ) ) . '">sửa ↗</a>';
 			}
 			echo '</td>';
-			echo '<td>' . esc_html( (string) $r['cua_hang'] ) . '</td>';
+			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'] ) . '</td>';
 			echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) . '</td>';
 
 			/* Giả một "người" chỉ có mã + vai, để hỏi `VHCC_Cong` xem MẶC ĐỊNH của họ ra sao.
@@ -698,6 +843,45 @@ class VHCC_TrangNS {
 
 		self::thanh_trang( $p, $so_tr, $tong );
 		echo '</div>';
+	}
+
+	/**
+	 * Ô CƠ SỞ — chuyển người sang cơ sở khác ngay tại đây.
+	 *
+	 * Anh Thắng 27/08/2026: *"Điều chỉnh bạn thuộc cơ sở nào nên bạn chuyển, khi chuyển quyền
+	 * hạn sẽ reset lại mặc định"*.
+	 *
+	 * ⚠️ CHỈ VẼ Ô XỔ CHO NGƯỜI THẬT SỰ CHUYỂN ĐƯỢC — cùng luật với ô Vai trò. Chuyển cơ sở cần
+	 *    bậc Quản lý trở lên (nó chuyển cả công và lương giữa hai cửa hàng), và phải phụ trách
+	 *    cả cơ sở đi lẫn cơ sở đến.
+	 *
+	 * ⚠️ Danh sách cơ sở đọc từ `ds_coso()` — gom từ bảng máy, bảng chấm công và hồ sơ, KHÔNG tự
+	 *    tạo cơ sở nào. Cho gõ tay ở đây là đẻ ra "VP_KH_HCM " với một dấu cách ở cuối, và từ đó
+	 *    trở đi nó là một cơ sở khác trong mọi bảng tổng hợp.
+	 */
+	private static function o_coso( $toi, $ma, $cs_cu ) {
+		if ( '' === $ma || ! VHCC_NhanSu::co_quan_tri_nv( $toi )
+			|| ! VHCC_NhanSu::co_quyen_coso( $toi, $cs_cu ) ) {
+			return esc_html( $cs_cu );
+		}
+		$ds = VHCC_NhanSu::ds_coso();
+		$h  = '<select class="o-q-vai" name="cs[' . esc_attr( $ma ) . ']">';
+		$co = false;
+		foreach ( $ds as $c ) {
+			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $c ) ) { continue; }
+			$chon = ( strtolower( trim( $cs_cu ) ) === strtolower( $c ) );
+			if ( $chon ) { $co = true; }
+			$h .= '<option value="' . esc_attr( $c ) . '"' . selected( true, $chon, false ) . '>'
+				. esc_html( $c ) . '</option>';
+		}
+		/* Cơ sở hiện tại không có trong danh sách (gõ lệch, cơ sở đã bỏ) thì GIỮ nó làm lựa chọn
+		   đang chọn — không giữ thì ô tự nhảy về dòng đầu, và bấm Lưu một cái là chuyển cả trang
+		   người sang một cơ sở không ai định chuyển. */
+		if ( ! $co ) {
+			$h .= '<option value="' . esc_attr( $cs_cu ) . '" selected>'
+				. esc_html( '' === trim( $cs_cu ) ? '— chưa khai —' : $cs_cu ) . '</option>';
+		}
+		return $h . '</select>';
 	}
 
 	/**
@@ -812,7 +996,21 @@ class VHCC_TrangNS {
 		return $ra;
 	}
 
-	private static function o_tim( $cs, $q, $vai ) {
+	private static function o_tim( $toi, $cs, $q, $vai ) {
+		/* ➕ THÊM NHÂN SỰ. Anh Thắng: *"Chưa có chỗ bổ sung thêm nhân sự"* — đúng, trang này chỉ
+		   có đường mở hồ sơ ĐÃ CÓ, không có đường tạo mới.
+		   ⚠️ Trỏ sang `sua=+` của màn Hồ sơ — `VHCC_Web::the_sua_ho_so()` hiểu dấu `+` là "hồ sơ
+		      mới" và dựng biểu mẫu có ô Mã NV. KHÔNG dựng biểu mẫu tạo hồ sơ thứ hai ở đây: tạo
+		      hồ sơ là cấp Mã NV dùng chung cả chuỗi, mà hai cửa cho cùng một việc thì cửa mới
+		      chưa ai gác. */
+		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' )
+			&& VHCC_NhanSu::co_quan_tri_nv( $toi ) ) {
+			echo '<p style="margin:0 0 10px"><a class="nut chinh" href="'
+				. esc_url( add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), VHCC_Web::url() ) )
+				. '">➕ Thêm nhân sự</a> <span class="mo">Tạo hồ sơ mới là cấp Mã NV dùng chung cả '
+				. 'chuỗi — cần vai Quản lý trở lên.</span></p>';
+		}
+
 		echo '<form method="get" class="hang" style="margin:0 0 12px">';
 		/* Không có permalink thì trang này nhận ra mình bằng `vhcc_ns=1` — ô tìm phải chở nó
 		   theo, kẻo bấm Lọc là rơi về trang chủ. */
