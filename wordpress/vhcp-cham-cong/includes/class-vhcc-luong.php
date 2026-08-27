@@ -928,6 +928,8 @@ class VHCC_Luong {
 					'congDem' => 0.0, 'congBu' => 0.0, 'tong' => 0.0, 'phutNgay' => 0, 'khung' => '',
 					'kt7' => false, 'ktCnNghi' => false, 'caLa' => false, 'demTuNgay' => '',
 					'demSangNgay' => '', 'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0,
+					/* Ngày nhận công đêm mà công bù của nó rơi vào ngày này. '' = không có. */
+					'buTuNgay' => '',
 					/* Giờ THÔ của cả hai hàng. Không dùng để tính công — phép tính đã xong ở trên —
 					   mà để lưới còn nói được VÌ SAO ô này ra con số đó. Một ô công 0.5 không có
 					   giờ đi kèm thì người soi chỉ biết là 0.5, không biết cãi vào đâu. */
@@ -1000,12 +1002,39 @@ class VHCC_Luong {
 			}
 		}
 
-		// Công BÙ — làm sau cùng vì cần biết ngày đó đã có công ngày chưa.
+		/* ===== CÔNG BÙ — RƠI VÀO NGÀY HÔM SAU, không phải ngày nhận công đêm =================
+		   Anh Thắng 27/08/2026, chỉ vào một ô 3.5 công: *"1 công bù là bù cho ngày hôm sau nhé
+		   em"*.
+
+		   Bản trước gán công bù vào CHÍNH ngày có công đêm. Nhìn dòng thời gian thì thấy ngay là
+		   sai: ca đêm 08/08 cho công đêm vào 09/08; ngày 09 người ấy VẪN đi làm ca ngày 1.5 công
+		   — vậy hôm ấy có nghỉ bù đâu mà cộng công nghỉ bù. Ô ra 1.5 + 1 + 1 = 3.5 công cho một
+		   ngày, con số không tả đúng bất cứ chuyện gì đã xảy ra.
+		   Nghỉ bù là ngày người ta ĐƯỢC NGHỈ sau khi thức trắng một đêm — tức ngày KẾ TIẾP ngày
+		   nhận công đêm.
+
+		   ⚠️ `demBuKhiDaLam` xét NGÀY ĐƯỢC BÙ, không phải ngày có công đêm. Ô ấy trả lời câu
+		      *"hôm được nghỉ bù mà vẫn đi làm thì có còn được công bù không"* — nên phải nhìn
+		      vào đúng ngày ấy.
+
+		   ⚠️ `+=` chứ không `=` là PHÒNG XA, nói thẳng ra ở đây: với luật ca đêm hiện nay hai ngày
+		      có công đêm luôn cho hai ngày bù KHÁC nhau, nên `=` cũng ra cùng kết quả và không
+		      vết phá nào làm nó đỏ được. Giữ `+=` vì ngày nào luật đổi (một ngày nhận bù từ
+		      nhiều nguồn) thì `=` âm thầm nuốt mất một ngày công của người thức trắng đêm — mà
+		      cái nuốt ấy không có gì báo.
+
+		   ⚠️ `array_keys()` chụp danh sách TRƯỚC vòng lặp, nên ngày mới do `$o()` đẻ ra không bị
+		      lặp vào — không có chuyện bù đẻ ra bù thành dây chuyền. */
 		foreach ( array_keys( $out ) as $ngay ) {
 			if ( ! $out[ $ngay ]['congDem'] ) { continue; }
-			$da_lam = ( $out[ $ngay ]['congNgay'] > 0 || $out[ $ngay ]['congTangCa'] > 0 );
+			$bu = self::ngay_sau( $ngay );
+			$o( $bu );
+			$da_lam = ( $out[ $bu ]['congNgay'] > 0 || $out[ $bu ]['congTangCa'] > 0 );
 			if ( ! $da_lam || (int) $cfg['demBuKhiDaLam'] ) {
-				$out[ $ngay ]['congBu'] = (float) $cfg['demCongBu'];
+				$out[ $bu ]['congBu'] += (float) $cfg['demCongBu'];
+				/* GIỮ dấu vết bù từ đâu — cùng lối với `demTuNgay`. Một ngày tự nhiên có thêm
+				   công mà không nói từ đâu ra là con số không kiểm được. */
+				$out[ $bu ]['buTuNgay'] = $ngay;
 			}
 		}
 		foreach ( array_keys( $out ) as $ngay ) {

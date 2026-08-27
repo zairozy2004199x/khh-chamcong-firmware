@@ -1285,6 +1285,61 @@ teq( 'tổng 2 công', 2.0, $v4['tong'] );
 $ngay_dem = array();
 foreach ( $r['vp']['detail'] as $d ) { if ( $d['congDem'] > 0 ) { $ngay_dem[] = $d['ngay']; } }
 teq( 'công đêm ghi cho NGÀY HÔM SAU', array( '2026-09-11' ), $ngay_dem );
+
+/* 🔴 CÔNG BÙ RƠI VÀO NGÀY SAU NỮA, không chồng lên ngày nhận công đêm.
+   Anh Thắng 27/08/2026, chỉ vào một ô 3.5 công: *"1 công bù là bù cho ngày hôm sau nhé em"*.
+   Dòng thời gian: ca đêm 10/09 → công đêm vào 11/09 → NGHỈ BÙ ngày 12/09. Gán công bù vào
+   chính ngày 11 là nói rằng hôm ấy vừa nhận công đêm vừa nghỉ bù — mà ngày 11 người ta còn có
+   thể đi làm ca ngày nữa, và ô ra 1.5 + 1 + 1 = 3.5 công cho một ngày, con số không tả đúng
+   bất cứ chuyện gì đã xảy ra. */
+$ngay_bu = array();
+foreach ( $r['vp']['detail'] as $d ) { if ( $d['congBu'] > 0 ) { $ngay_bu[] = $d['ngay']; } }
+teq( '🔴 công bù ghi cho ngày SAU ngày nhận công đêm', array( '2026-09-12' ), $ngay_bu );
+t( '🔴 ngày nhận công đêm KHÔNG còn ôm luôn công bù',
+	! in_array( '2026-09-11', $ngay_bu, true ), $ngay_bu );
+/* Và ngày được bù phải nói ra nó bù từ đâu — một ngày tự nhiên có thêm công mà không nói từ
+   đâu ra là con số không kiểm được. Cùng lối với `demTuNgay`. */
+$bu_tu = '';
+foreach ( $r['vp']['detail'] as $d ) {
+	if ( '2026-09-12' === $d['ngay'] ) { $bu_tu = (string) $d['buTuNgay']; }
+}
+teq( 'ngày được bù giữ dấu vết bù từ ngày nào', '2026-09-11', $bu_tu );
+
+/* 🔴 `demBuKhiDaLam` XÉT NGÀY ĐƯỢC BÙ, không phải ngày có công đêm.
+   Ô cấu hình ấy trả lời câu *"hôm được nghỉ bù mà VẪN đi làm thì có còn được công bù không"* —
+   nên phải nhìn vào đúng ngày ấy. Nhìn nhầm sang ngày có công đêm là trả lời một câu khác hẳn.
+   Cảnh: đêm 10/09 → công đêm 11/09 → bù 12/09. Cho người ấy đi làm ca ngày ĐÚNG NGÀY 12,
+   rồi tắt `demBuKhiDaLam`: công bù phải MẤT. Nếu mã nhìn nhầm sang ngày 11 (ngày ấy không có
+   ca ngày) thì nó vẫn bù — và phép thử đỏ. */
+vhcc_cham( 'VP_HCM', '2026-09-12', 'V4', '', '08:30:00', '17:00:00' );
+VHCC_Luong::dat_vp_cfg( array( 'role' => 'Admin' ), array( 'demBuKhiDaLam' => 0 ), '', '' );
+$r_bu0 = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
+$bu0 = 0.0;
+foreach ( $r_bu0['vp']['detail'] as $d ) {
+	if ( '2026-09-12' === $d['ngay'] ) { $bu0 += (float) $d['congBu']; }
+}
+teq( '🔴 tắt "vẫn bù khi đã đi làm" + ngày ĐƯỢC BÙ có đi làm -> KHÔNG bù', 0.0, $bu0 );
+VHCC_Luong::dat_vp_cfg( array( 'role' => 'Admin' ), array( 'demBuKhiDaLam' => 1 ), '', '' );
+$r_bu1 = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
+$bu1 = 0.0;
+foreach ( $r_bu1['vp']['detail'] as $d ) {
+	if ( '2026-09-12' === $d['ngay'] ) { $bu1 += (float) $d['congBu']; }
+}
+teq( 'bật lại thì vẫn bù dù hôm ấy có đi làm', 1.0, $bu1 );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ngay='2026-09-12'" );
+
+/* 🔴 HAI ĐÊM LIỀN NHAU -> HAI LẦN BÙ, mỗi lần một ngày.
+   ⚠️ Phép thử này KHÔNG phân biệt được `+=` với `=` trong mã, và nói thẳng ra ở đây: với luật
+      ca đêm hiện nay hai ngày có công đêm luôn cho hai ngày bù KHÁC nhau, nên hai toán tử ra
+      cùng kết quả. Thứ nó canh là "mỗi đêm một lần bù, không nuốt lần nào" — vẫn đáng canh. */
+vhcc_cham_dem( 'VP_HCM', '2026-09-14', 'V4', '22:00:00', '01:30:00' );
+vhcc_cham_dem( 'VP_HCM', '2026-09-15', 'V4', '22:00:00', '01:30:00' );
+$r_2d = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
+$tong_bu = 0.0;
+foreach ( $r_2d['vp']['detail'] as $d ) { $tong_bu += (float) $d['congBu']; }
+teq( '🔴 ba đêm (10 · 14 · 15) -> ba lần bù, cộng dồn không đè', 3.0, $tong_bu );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ngay>='2026-09-14' AND ngay<='2026-09-16'" );
 /* GIỮ lại dòng ngày bắt đầu ca đêm dù nó 0 công — không thì trên bảng chỉ thấy ngày 11 tự nhiên
    có 2 công mà KHÔNG BIẾT TỪ ĐÂU RA. Không soi được là không kiểm được lương. */
 $co_dong_10 = false;
@@ -6863,10 +6918,14 @@ function vp_o_ngay( $ma, $ngay, $tong ) {
 		'congNgay' => $tong, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0, 'tong' => $tong,
 		'phutNgay' => 480, 'gioNgay' => 8.0, 'khung' => '08:30-17:00',
 		'kt7' => false, 'ktCnNghi' => false, 'caLa' => false, 'demTuNgay' => '', 'demSangNgay' => '',
-		'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0,
+		'demThieuGio' => false, 'demChuaDuCap' => false, 'gioDemThuc' => 0.0, 'buTuNgay' => '',
+		'tuCoSo' => '',
 		'vao' => '08:30', 'ra' => '17:00', 'h2vao' => '', 'h2ra' => '' );
 }
-$b_lech = array( 'month' => '2026-07',
+/* ⚠️ Cảnh dựng tay phải mang ĐỦ khoá mà hàm thật nhận — thiếu `station` là PHP kêu
+   "Undefined array key" và hàm đọc chuỗi rỗng, tức nó đang chạy trên một cảnh KHÔNG giống
+   dữ liệu thật. Cảnh giả mà lệch khuôn thì phép thử đo một thứ khác. */
+$b_lech = array( 'month' => '2026-07', 'station' => 'ZZ_CS',
 	/* Bảng nói 5 công, mà lưới chỉ có 2 ngày × 1 công = 2. */
 	'rows' => array( array( 'ma' => 'ZZ', 'ten' => 'Người ZZ', 'tong' => 5.0, 'laKeToan' => false ) ),
 	'detail' => array( vp_o_ngay( 'ZZ', '2026-07-01', 1.0 ), vp_o_ngay( 'ZZ', '2026-07-02', 1.0 ) ) );
@@ -10205,6 +10264,83 @@ $h_bo = array();
 foreach ( $b_bo['rows'] as $r_b ) { $h_bo[ $r_b['ma'] ] = $r_b; }
 teq( 'và bảng chính hết cộng công của cơ sở ấy (còn 1)', 1.0, (float) $h_bo['GN1']['tong'] );
 vhcc_dung_bang();
+
+
+/* ======================================================================================
+ *  64. /cham-cong/ THÀNH TRANG DÙNG CHUNG · và hàng sửa hết lệch khung
+ *
+ *  Anh Thắng 27/08/2026: *"trang này là trang gì, không nhập pin được. Được chuyển nó trang
+ *  trang dùng chung đi, mọi người truy cập vào link này"* — kèm ảnh ô PIN nền tối.
+ *
+ *  Trang ấy vốn kéo `Index.html` thẳng từ project Apps Script rồi chèn cầu nối. Từ 22/08/2026
+ *  hệ đã bỏ Firebase và Apps Script, nên project ấy không còn được nuôi: trang còn vỏ mà không
+ *  còn ruột, và ô PIN không vào được.
+ * ====================================================================================== */
+$GLOBALS['VHCP_CHUYEN'] = '';
+$GLOBALS['VHCP_QVAR']['vhcc_app'] = 1;
+$_GET = array();
+VHCC_Trang::maybe_render();
+$tc_di = (string) $GLOBALS['VHCP_CHUYEN'];
+t( '🔴 /cham-cong/ CHUYỂN HƯỚNG, không kéo giao diện Apps Script nữa', '' !== $tc_di, $tc_di );
+t( 'và dẫn về đúng trang dùng chung', strpos( $tc_di, VHCC_Web::url() ) === 0, $tc_di );
+
+/* 🔴 CHỞ THEO THAM SỐ. Anh đã gửi cho các bộ phận những link kèm `?man=cham`; vứt tham số là
+   người nhận bấm vào rơi về màn mặc định, không thấy thứ người gửi bảo họ xem. */
+$GLOBALS['VHCP_CHUYEN'] = '';
+$_GET = array( 'man' => 'cham', 'cth' => '2026-08' );
+VHCC_Trang::maybe_render();
+$tc_ts = (string) $GLOBALS['VHCP_CHUYEN'];
+t( '🔴 chở theo tham số của link cũ', strpos( $tc_ts, 'man=cham' ) !== false, $tc_ts );
+t( 'cả tháng đang xem', strpos( $tc_ts, 'cth=2026-08' ) !== false, $tc_ts );
+t( 'nhưng KHÔNG chở theo mấy tham số của chính đường ấy',
+	strpos( $tc_ts, 'vhcc_app' ) === false, $tc_ts );
+
+/* ⚠️ CỬA API KHÔNG ĐƯỢC CHUYỂN HƯỚNG. Chuyển hướng một lời gọi API là đổi nó thành một trang
+   HTML — bên gọi nhận về rác mà không hiểu vì sao. */
+/* ⚠️ KHÔNG gọi thẳng nhánh ấy: `VHCC_API::trang()` kết bằng `exit`, gọi trong bộ thử là giết cả
+   lượt chạy. Soi ở MÃ NGUỒN rằng nhánh API đứng TRƯỚC phần chuyển hướng — thứ tự ấy chính là
+   thứ giữ cho lời gọi API không bị đổi thành một trang HTML. */
+$tc_goc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang.php' );
+$vt_api = strpos( $tc_goc, "isset( \$_GET['vhcc_api'] )" );
+$vt_chuyen = strpos( $tc_goc, 'wp_safe_redirect' );
+t( 'dựng cảnh: thấy cả hai nhánh trong mã', false !== $vt_api && false !== $vt_chuyen );
+t( '🔴 nhánh API đứng TRƯỚC phần chuyển hướng — lời gọi API không bị đổi thành trang HTML',
+	$vt_api < $vt_chuyen, $vt_api . ' vs ' . $vt_chuyen );
+$_GET = array();
+unset( $GLOBALS['VHCP_QVAR']['vhcc_app'] );
+
+/* ---- 🔴 HÀNG SỬA HẾT LỆCH KHUNG ----
+   Anh Thắng: *"lệch ô sửa"* — kèm ảnh khối vàng kéo dài sang phải và nút Lưu bị cắt ngoài mép.
+   `colspan` phủ hết 33 cột nên ô ấy rộng bằng CẢ BẢNG; biểu mẫu bên trong trải theo, ô "Vì sao"
+   dài mấy nghìn điểm ảnh và nút Lưu nằm ngoài tầm nhìn. Người ta thấy hàng sửa mở ra mà không
+   thấy nút bấm, rồi tưởng hỏng. */
+/* ⚠️ DỰNG THẺ PHIÊN THẲNG, đừng đăng nhập bằng PIN mẫu: PIN của mấy tài khoản mẫu đã bị chính
+   các khối thử phía trên sửa đi nhiều lượt, nên `vhcc_web('135791')` rơi vào màn nhập PIN và
+   phép thử đỏ vì không có lưới, chứ không phải vì hàng sửa lệch. Đã vấp đúng chuyện này. */
+vhcc_cham( 'LS_CS', '2026-07-06', 'LS1', '', '08:00:00', '17:00:00' );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', 'LS_CS', 'LSAD' );
+$_GET = array( 'man' => 'cham', 'ccs' => 'LS_CS', 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'LS1' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_ls = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( 'dựng cảnh: hàng sửa mở ra', strpos( $h_ls, 'class="hang-sua"' ) !== false, substr( $h_ls, 0, 400 ) );
+t( '🔴 ruột hàng sửa nằm trong khối GHIM BÊN TRÁI',
+	preg_match( '~<tr class="hang-sua" id="suaday"><td colspan="\d+"><div class="hs-in">~', $h_ls ) === 1,
+	$h_ls );
+t( 'và khối ấy được ghim thật trong bảng kiểu',
+	strpos( $h_ls, '.hs-in{position:sticky;left:0;' ) !== false, $h_ls );
+t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
+	strpos( $h_ls, 'width:calc(100vw - 56px)' ) !== false, $h_ls );
+
+/* ---- Gạch ngăn hai phần trong chú thích ô ----
+   Anh Thắng: *"tách ra 2 ô, bằng gạch ngang, cho dễ nhìn"*. `title` là văn bản THUẦN — không tô
+   màu, không kẻ khung được — nên phần ngăn phải là một gạch DÀI THẬT thì mắt mới tách được hai
+   khối chữ; mấy dấu gạch ngắn kiểu "— ca đêm —" chìm ngay vào đám chữ quanh nó. */
+t( '🔴 chú thích ô có ca đêm được ngăn bằng gạch DÀI',
+	strpos( $h_vp, '────────────────' ) !== false, $h_vp );
+t( 'và gọi tên phần thứ hai là CA ĐÊM', strpos( $h_vp, '🌙 CA ĐÊM' ) !== false, $h_vp );
+t( 'không còn dấu gạch ngắn cũ', strpos( $h_vp, '— ca đêm —' ) === false, $h_vp );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
 vhcc_dung_bang();

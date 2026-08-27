@@ -35,6 +35,25 @@ class VHCC_Trang {
 		return $v;
 	}
 
+	/**
+	 * 🔴 ĐƯỜNG NÀY NAY DẪN VỀ TRANG DÙNG CHUNG, KHÔNG CÒN KÉO GIAO DIỆN APPS SCRIPT.
+	 *
+	 * Anh Thắng 27/08/2026: *"trang này là trang gì, không nhập pin được. Được chuyển nó
+	 * trang trang dùng chung đi, mọi người truy cập vào link này"*.
+	 *
+	 * Trang này vốn lấy `Index.html` thẳng từ project Apps Script rồi chèn cầu nối — hợp lý khi
+	 * Apps Script còn là nơi giữ dữ liệu. Từ 22/08/2026 hệ đã bỏ Firebase và Apps Script, máy
+	 * nói thẳng với WordPress, nên project ấy không còn được nuôi: trang còn vỏ mà không còn
+	 * ruột, và ô PIN không vào được. Đó đúng là thứ anh gặp.
+	 *
+	 * 🔴 CHUYỂN HƯỚNG chứ không xoá đường. Địa chỉ `/cham-cong/` đã nằm trong tin nhắn gửi cho
+	 *    các bộ phận và trong dấu trang của nhiều người; để nó chết là mỗi người ấy phải đi hỏi
+	 *    một lượt. Chuyển hướng thì link cũ vẫn tới đúng chỗ.
+	 *
+	 * ⚠️ GIỮ nguyên cửa `vhcc_api`: cổng ấy là chỗ giao diện cũ gọi hàm, và trong bản cài của ai
+	 *    đó có thể còn thứ đang gọi tới. Chuyển hướng một lời gọi API là đổi nó thành một trang
+	 *    HTML — bên gọi nhận về rác mà không hiểu vì sao.
+	 */
 	public static function maybe_render() {
 		$is = ( (int) get_query_var( 'vhcc_app' ) === 1 );
 		if ( ! $is && isset( $_GET['vhcc'] ) && $_GET['vhcc'] === 'app' ) { $is = true; }
@@ -44,7 +63,24 @@ class VHCC_Trang {
 			VHCC_API::trang();
 			exit;
 		}
-		self::render();
+
+		/* Chở theo mọi tham số trừ mấy cái của chính đường này — ai gửi link kèm `?man=cham`
+		   thì vẫn tới đúng màn ấy. */
+		$dich = VHCC_Web::url();
+		$giu  = $_GET;
+		unset( $giu['vhcc_app'], $giu['vhcc'], $giu['vhcc_api'] );
+		if ( $giu ) {
+			$sach = array();
+			foreach ( $giu as $k => $v ) {
+				if ( is_array( $v ) ) { continue; }
+				$sach[ sanitize_key( $k ) ] = sanitize_text_field( wp_unslash( $v ) );
+			}
+			if ( $sach ) { $dich = add_query_arg( $sach, $dich ); }
+		}
+		nocache_headers();
+		wp_safe_redirect( $dich, 302 );
+		/* Bộ thử chạy trong CÙNG tiến trình — `exit` ở đây là giết luôn bài kiểm. */
+		if ( defined( 'VHCC_TEST' ) ) { return; }
 		exit;
 	}
 

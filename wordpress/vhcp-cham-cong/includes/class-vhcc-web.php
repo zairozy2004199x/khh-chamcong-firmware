@@ -1214,6 +1214,15 @@ class VHCC_Web {
 			/* Ô đang mở để sửa: viền đậm để mắt tìm lại được nó giữa 600 ô. */
 			. 'table.cc td.dang-sua{outline:3px solid var(--do);outline-offset:-3px}'
 			/* Hàng sửa nội tuyến: nền khác hẳn, và chữ về cỡ thường (lưới đang 11.5px). */
+			/* 🔴 RUỘT HÀNG SỬA DÍNH BÊN TRÁI. Anh Thắng 27/08/2026: *"lệch ô sửa"*.
+			   `colspan` phủ hết 33 cột nên ô ấy rộng bằng CẢ BẢNG — biểu mẫu bên trong trải theo,
+			   ô "Vì sao" dài mấy nghìn điểm ảnh và nút Lưu nằm ngoài tầm nhìn. Người ta thấy hàng
+			   sửa mở ra mà không thấy nút bấm, rồi tưởng hỏng.
+			   Ghim khối ruột đúng bề rộng khung nhìn: cuộn ngang tới đâu thì hàng sửa vẫn nằm
+			   nguyên chỗ mắt đang nhìn. Cùng cơ chế với cột Nhân viên vốn đã ghim bên trái. */
+			. '.hs-in{position:sticky;left:0;width:calc(100vw - 56px);max-width:1100px;'
+			. 'box-sizing:border-box}'
+			. '@media(max-width:640px){.hs-in{width:calc(100vw - 24px)}}'
 			. 'table.cc tr.hang-sua>td{background:#fffbeb;border:2px solid var(--vang);'
 			. 'text-align:left;white-space:normal;padding:10px 12px;font-size:14px}'
 			. 'table.cc tr.hang-sua label{font-size:12px}'
@@ -2760,12 +2769,22 @@ class VHCC_Web {
 	 */
 	private static function hang_sua( $so_cot, $cs, $ngay, $ma_dd, $co_gio, $ky, $toi ) {
 		$duoc = $co_gio ? VHCC_Vai::duoc( $toi, 'sua_gio' ) : VHCC_Vai::duoc( $toi, 'cham_bu' );
-		echo '<tr class="hang-sua" id="suaday"><td colspan="' . (int) $so_cot . '">';
+		/* 🔴 HÀNG SỬA PHẢI DÍNH BÊN TRÁI, KHÔNG TRẢI THEO BỀ RỘNG BẢNG.
+		   Anh Thắng 27/08/2026: *"lệch ô sửa"* — kèm ảnh khối vàng kéo dài sang phải và nút Lưu
+		   bị cắt ngoài mép.
+		   Nguyên do: `colspan` phủ hết 33 cột, mà bảng thì rộng hơn màn hình và nằm trong khung
+		   cuộn ngang. Ô ấy vì thế rộng bằng CẢ BẢNG, nên biểu mẫu bên trong trải theo — ô Vì sao
+		   dài mấy nghìn điểm ảnh và nút Lưu nằm ngoài tầm nhìn. Người ta thấy hàng sửa mở ra mà
+		   không thấy nút bấm, rồi tưởng hỏng.
+		   Cách chữa: bọc ruột trong một khối DÍNH BÊN TRÁI (`position:sticky;left:0`) rộng đúng
+		   bằng khung nhìn — cuộn ngang tới đâu thì hàng sửa vẫn nằm nguyên chỗ mắt đang nhìn.
+		   Cùng cơ chế với cột Nhân viên vốn đã ghim bên trái. */
+		echo '<tr class="hang-sua" id="suaday"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
 
 		if ( ! $duoc ) {
 			echo '<div class="bao canh" style="margin:0">' . esc_html( $co_gio
 				? 'Sửa giờ đã có cần quyền Admin. Thấy giờ sai thì gắn cờ để Admin sửa.'
-				: 'Bù giờ vào ô trống cần quyền Cửa hàng trưởng trở lên.' ) . '</div></td></tr>';
+				: 'Bù giờ vào ô trống cần quyền Cửa hàng trưởng trở lên.' ) . '</div></div></td></tr>';
 			return;
 		}
 
@@ -3503,7 +3522,12 @@ class VHCC_Web {
 				if ( '' !== $dem_o ) {
 					/* Chú thích của ô nay phải nói CẢ HAI phần — hàng ca đêm không còn ô riêng
 					   để mang chú thích của nó nữa. */
-					$chu_o = self::chu_o_vp( $d, $e['ten'] ) . "\n— ca đêm —\n"
+					/* Anh Thắng 27/08/2026: *"tách ra 2 ô, bằng gạch ngang, cho dễ nhìn"*.
+					   `title` là văn bản THUẦN — không tô màu, không kẻ khung được. Nên phần ngăn
+					   phải là một gạch DÀI THẬT thì mắt mới tách được hai khối chữ; mấy dấu gạch
+					   ngắn kiểu "— ca đêm —" chìm ngay vào đám chữ quanh nó. */
+					$chu_o = self::chu_o_vp( $d, $e['ten'] )
+						. "\n────────────────\n🌙 CA ĐÊM\n"
 						. self::chu_dem_vp( $d, $e['ten'] );
 				} else {
 					$chu_o = self::chu_o_vp( $d, $e['ten'] );
