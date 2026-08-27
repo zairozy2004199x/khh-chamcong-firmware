@@ -174,11 +174,14 @@ teq( 'ba người ba tim', 3, (int) $wpdb->get_var( 'SELECT so_tim FROM ' . VHNB
    khoá ấy CÓ THẬT trên bảng — không phải chỉ có trong lời khai. */
 $chan = false;
 try {
-	$wpdb->insert( VHNB_DB::t( 'tim' ),
+	$r_tim = $wpdb->insert( VHNB_DB::t( 'tim' ),
 		array( 'bai_id' => $B1, 'ma_nv' => 'NV001', 'tao_luc' => current_time( 'mysql' ) ) );
+	/* `$wpdb` thật KHÔNG ném: nó trả `false` rồi đặt `last_error`. Bản giả nay chạy đúng lối
+	   ấy (trước kia nó để PDO ném, và vì thế mọi nhánh "cơ sở dữ liệu hỏng" của mã thật không
+	   thử được — xem chú thích ở `wp-stub.php`). Vẫn giữ `try` để phép thử đúng với CẢ HAI cách
+	   báo lỗi: thứ đang kiểm là RÀNG BUỘC CỦA BẢNG, không phải cách thư viện báo lỗi. */
+	if ( false === $r_tim ) { $chan = true; }
 } catch ( Exception $e ) {
-	/* $wpdb thật trả false; bản giả chạy trên PDO thì ném. Bắt cả hai — thứ đang kiểm là RÀNG
-	   BUỘC CỦA BẢNG, không phải cách thư viện báo lỗi. */
 	$chan = true;
 }
 teq( '🔴 khoá UNIQUE chặn một người thả tim hai lần', 3,

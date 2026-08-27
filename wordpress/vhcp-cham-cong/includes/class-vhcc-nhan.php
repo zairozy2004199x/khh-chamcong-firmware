@@ -177,6 +177,165 @@ class VHCC_Nhan {
 			return;
 		}
 
+		/* --- GÓI THEO LÔ: một máy CHÍNH ở cơ sở đẩy về nhiều lượt bấm một lần ---------------
+		   Anh Thắng 27/08/2026: *"máy chính tại cơ sở gửi dữ liệu công về"*.
+
+		   Máy ESP32 gọi thẳng ra internet nên mỗi lượt bấm là một gói — hợp lý, vì nó chỉ có
+		   một lượt tại một thời điểm. Máy ZKTeco thì ngược: nó nằm trong mạng nội bộ
+		   (192.168.0.2x:4370), website không với tới được, nên phải có một máy CHÍNH đứng trong
+		   mạng ấy đọc log rồi đẩy về. Máy chính đọc một phát ra cả trăm lượt của cả ngày.
+
+		   🔴 GỬI TỪNG GÓI MỘT LÀ SAI CHỖ NÀO: mỗi gói là một lượt bắt tay TLS. 93 lượt của một
+		      ngày × 5 phòng là gần 500 lượt bắt tay — chậm, và nửa chừng rớt mạng thì không ai
+		      biết đã đẩy tới đâu. Một gói lô thì hoặc xong cả, hoặc trả về đúng dòng nào hỏng.
+
+		   🔴 MỖI DÒNG MANG MÃ MÁY RIÊNG. Máy chính đại diện cho NHIỀU máy con, mỗi máy con là
+		      một phòng khác nhau (Lắp Ráp · Lò Sấy · Sơ Chế · Văn Phòng · Đóng Gói). Lấy mã của
+		      máy CHÍNH để ghép cơ sở là dồn công của cả năm phòng vào một chỗ. Dòng nào thiếu
+		      thì mới lấy theo gói — để máy chỉ có một đầu đọc vẫn gửi gọn được. */
+		if ( isset( $d['logs'] ) && is_array( $d['logs'] ) ) {
+			$kq_lo = self::nhan_lo( $d );
+			if ( isset( $kq_lo['loi'] ) ) {
+				/* 🔴 CƠ SỞ DỮ LIỆU HỎNG THÌ KHÔNG ĐƯỢC ĐI QUA `xong()` — hàm ấy đáp 200 kèm chữ
+				   SUCCESS, và máy chính đọc thấy SUCCESS là xoá phần đã gửi khỏi sổ của nó. Cả lô
+				   mất hẳn, không ai biết. Đây là ca DUY NHẤT đẩy lại sẽ khác kết quả, nên phải để
+				   máy giữ lại và đẩy lại — thà thừa còn hơn mất, mà đẩy lại thì cũng không thừa:
+				   giờ vào/ra chỉ được nới rộng. */
+				self::loi( 'Khong ghi duoc lo: ' . $kq_lo['loi'] );
+				return;
+			}
+			self::xong( $kq_lo );
+			return;
+		}
+
+		$kq1 = self::mot_luot( $d );
+		if ( isset( $kq1['loi'] ) ) {
+			/* Cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất phải để firmware thử lại, nên KHÔNG được
+			   đi qua `xong()` (200 + chữ SUCCESS). Máy đọc thấy SUCCESS là xoá lượt khỏi sổ
+			   của nó, và lượt bấm ấy mất hẳn. */
+			self::ghi_loi( 'GHI_HONG', $kq1['loi'] );
+			self::loi( 'Khong ghi duoc: ' . $kq1['loi'] );
+			return;
+		}
+		self::xong( $kq1 );
+	}
+
+	/**
+	 * MỘT LÔ LƯỢT BẤM — máy chính ở cơ sở đẩy về cả ngày một lần.
+	 *
+	 * =========================================================================================
+	 * VÌ SAO CÓ ĐƯỜNG NÀY
+	 * =========================================================================================
+	 * Máy ZKTeco nằm trong mạng nội bộ (`192.168.0.2x:4370`) — website ngoài internet không có
+	 * đường nào gọi vào, và không nên có: cổng 4370 phơi ra ngoài là ai cũng đọc/ghi được sổ mặt.
+	 * Nên giữ nguyên chiều "máy tự gọi ra": một máy CHÍNH đứng trong mạng ấy đọc log rồi đẩy về
+	 * đúng cổng này, đúng khoá này.
+	 *
+	 * =========================================================================================
+	 * BỐN CHỐT
+	 * =========================================================================================
+	 * 🔴 MỘT DÒNG HỎNG KHÔNG ĐƯỢC KÉO CẢ LÔ XUỐNG. Trả về đếm từng loại + danh sách dòng hỏng
+	 *    kèm SỐ THỨ TỰ, để máy chính biết đẩy lại đúng dòng nào. Bỏ cả lô vì một dòng sai khuôn
+	 *    giờ là mất công thật của cả trăm người.
+	 *
+	 * 🔴 NHƯNG CƠ SỞ DỮ LIỆU HỎNG THÌ PHẢI KÊU. Đó là ca duy nhất đẩy lại sẽ khác kết quả. Trả
+	 *    `loi` để cổng đáp 500 và máy chính giữ lại cả lô — thà đẩy lại thừa còn hơn mất.
+	 *    Ghi lại BAO NHIÊU dòng đã vào trước khi hỏng, kẻo người đọc nhật ký tưởng mất cả lô.
+	 *
+	 * 🔴 TRẦN SỐ DÒNG. Một gói vài chục nghìn dòng là PHP chạy quá `max_execution_time` rồi chết
+	 *    giữa chừng — mà chết giữa chừng thì máy chính không nhận được đáp, đẩy lại từ đầu, và
+	 *    lần nào cũng chết ở đúng chỗ ấy. Cắt ở `LO_TOI_DA` và NÓI RA còn bao nhiêu dòng chưa
+	 *    xử: máy chính đẩy nốt phần còn lại ở lượt sau. Cắt im lặng là mất công không ai thấy.
+	 *
+	 * 🔴 GHI LẠI CÔNG VIỆC LÀ VIỆC AN TOÀN KHI CHẠY LẠI. `ghi_gio()` chỉ NỚI RỘNG cặp giờ vào/ra,
+	 *    không bao giờ thu hẹp — nên đẩy lại cả lô bao nhiêu lần cũng ra một kết quả. Đó là thứ
+	 *    làm cho "đẩy lại khi nghi ngờ" trở thành nước đi an toàn.
+	 */
+	const LO_TOI_DA = 2000;
+
+	private static function nhan_lo( $d ) {
+		$logs = array_values( (array) $d['logs'] );
+		$tong = count( $logs );
+		if ( ! $tong ) {
+			return array( 'lo' => true, 'nhan' => 0, 'note' => 'Lo rong -> khong co gi de ghi.' );
+		}
+		/* Mấy trường CHUNG của gói: dòng nào thiếu thì lấy ở đây. Để máy chỉ có một đầu đọc vẫn
+		   gửi gọn được, mà máy chính nhiều đầu đọc vẫn khai riêng từng dòng. */
+		$chung = array();
+		foreach ( array( 'macAddress', 'hikSerial', 'hikModel', 'stationName' ) as $k ) {
+			if ( isset( $d[ $k ] ) ) { $chung[ $k ] = $d[ $k ]; }
+		}
+
+		$dem = array( 'ghi' => 0, 'trung' => 0, 'choGan' => 0, 'boQua' => 0 );
+		$hong = array();
+		$xu   = 0;
+		foreach ( $logs as $i => $mot ) {
+			if ( $xu >= self::LO_TOI_DA ) { break; }
+			$xu++;
+			if ( ! is_array( $mot ) ) {
+				$dem['boQua']++;
+				$hong[] = array( 'i' => (int) $i, 'vi_sao' => 'dong khong phai doi tuong' );
+				continue;
+			}
+			/* Dòng ĐÈ lên gói, không phải ngược lại: mã máy con của dòng mới là thứ ghép ra cơ
+			   sở. Lấy của máy chính là dồn công cả năm phòng vào một chỗ. */
+			$kq = self::mot_luot( array_merge( $chung, $mot ) );
+			if ( isset( $kq['loi'] ) ) {
+				/* Cơ sở dữ liệu hỏng -> dừng NGAY, đừng cố chạy nốt: hỏng một lần thì gần như
+				   chắc là hỏng cả lượt, và mỗi dòng tiếp theo chỉ tốn thêm thời gian trước khi
+				   PHP hết giờ. */
+				self::ghi_loi( 'LO_GHI_HONG', 'lô ' . $tong . ' dòng: hỏng ở dòng thứ ' . ( (int) $i + 1 )
+					. ' (' . $kq['loi'] . '). ĐÃ ghi được ' . $dem['ghi'] . ' dòng trước đó — '
+					. 'máy chính đẩy lại cả lô cũng không sao, giờ vào/ra chỉ được nới rộng.' );
+				return array( 'loi' => $kq['loi'], 'dongHong' => (int) $i + 1, 'daGhi' => $dem['ghi'] );
+			}
+			if ( ! empty( $kq['choGan'] ) )       { $dem['choGan']++; continue; }
+			if ( ! empty( $kq['boQua'] ) ) {
+				$dem['boQua']++;
+				$hong[] = array( 'i' => (int) $i,
+					'vi_sao' => isset( $kq['note'] ) ? (string) $kq['note'] : 'bo qua' );
+				continue;
+			}
+			if ( isset( $kq['loai'] ) && 'trung' === $kq['loai'] ) { $dem['trung']++; continue; }
+			$dem['ghi']++;
+		}
+
+		$con = $tong - $xu;
+		if ( $con > 0 ) {
+			/* 🔴 CẮT THÌ PHẢI NÓI RA. Cắt im lặng là gói trông "xong" trong khi thiếu người. */
+			self::ghi_loi( 'LO_QUA_DAI', 'lô ' . $tong . ' dòng vượt trần ' . self::LO_TOI_DA
+				. ' — đã xử ' . $xu . ', CÒN ' . $con . ' dòng chưa xử. Máy chính đẩy nốt phần còn lại.' );
+		}
+		if ( $dem['choGan'] > 0 ) {
+			self::ghi_loi( 'LO_CHO_GAN', $dem['choGan'] . ' lượt trong lô đến từ máy CHƯA gán cơ sở — '
+				. 'đã giữ tạm. Vào tab Máy & Firmware gán cơ sở cho máy ấy là chúng tự vào bảng công.' );
+		}
+		return array(
+			'lo'     => true,
+			'nhan'   => $tong,
+			'xu'     => $xu,
+			'conLai' => $con,
+			'ghi'    => $dem['ghi'],
+			'trung'  => $dem['trung'],
+			'choGan' => $dem['choGan'],
+			'boQua'  => $dem['boQua'],
+			/* Chỉ kể 50 dòng đầu: gói đáp phải nhỏ, mà 50 dòng đã quá đủ để thấy KIỂU lỗi. */
+			'hong'   => array_slice( $hong, 0, 50 ),
+		);
+	}
+
+	/**
+	 * MỘT LƯỢT BẤM -> ghi vào sổ. Trả về đúng mảng mà cổng sẽ gửi lại cho máy.
+	 *
+	 * 🔴 Tách ra khỏi `phuc_vu()` vì từ khi có gói theo lô, đoạn này chạy hai đường: gói đơn
+	 *    (ESP32) và từng dòng của gói lô (máy chính ở cơ sở). Chép đôi là sớm muộn hai đường
+	 *    hiểu khác nhau về cùng một lượt bấm — mà "hiểu khác nhau" ở đây nghĩa là hai bảng công
+	 *    ra hai con số, và không có gì báo.
+	 *
+	 * Trả `array('loi' => …)` khi cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất máy phải thử lại.
+	 * Mọi ca khác trả `boQua`/`choGan`: đẩy lại bao nhiêu lần cũng hỏng y vậy.
+	 */
+	private static function mot_luot( $d ) {
 		$ma_nv   = isset( $d['employeeNo'] ) ? trim( (string) $d['employeeNo'] ) : '';
 		$ho_ten  = isset( $d['name'] ) ? trim( (string) $d['name'] ) : '';
 		$luc     = isset( $d['time'] ) ? trim( (string) $d['time'] ) : '';
@@ -189,8 +348,7 @@ class VHCC_Nhan {
 		/* --- Luật 4: gói thử đường truyền. Kiểm cả cờ `selftest` lẫn mã TEST4G, y như Code.gs. */
 		if ( ( isset( $d['selftest'] ) && true === $d['selftest'] ) || 'TEST4G' === strtoupper( $ma_nv ) ) {
 			self::ghi_loi( 'GOI_THU_DUONG', 'máy ' . ( $tu_khai ? $tu_khai : $mac ) . ' đẩy gói thử đường truyền' );
-			self::xong( array( 'boQua' => true, 'note' => 'Goi THU DUONG TRUYEN -> khong ghi cham cong.' ) );
-			return;
+			return array( 'boQua' => true, 'note' => 'Goi THU DUONG TRUYEN -> khong ghi cham cong.' );
 		}
 
 		/* --- Khuôn ngày giờ. Kiểm KHUÔN chứ không chỉ chặn đúng chữ "test": chặn theo tên là lần
@@ -202,13 +360,11 @@ class VHCC_Nhan {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) || null === $giay || ! self::ngay_that( $ngay ) ) {
 			self::ghi_loi( 'GIO_SAI_KHUON', 'máy ' . ( $tu_khai ? $tu_khai : $mac ) . ' gửi time="' . $luc
 				. '" (NV ' . $ma_nv . ') -> bỏ qua' );
-			self::xong( array( 'boQua' => true, 'note' => 'time="' . $luc . '" khong dung khuon -> bo qua.' ) );
-			return;
+			return array( 'boQua' => true, 'note' => 'time="' . $luc . '" khong dung khuon -> bo qua.' );
 		}
 		if ( '' === $ma_nv ) {
 			self::ghi_loi( 'THIEU_MA_NV', 'gói không có employeeNo (máy ' . ( $tu_khai ? $tu_khai : $mac ) . ')' );
-			self::xong( array( 'boQua' => true, 'note' => 'Thieu employeeNo -> bo qua.' ) );
-			return;
+			return array( 'boQua' => true, 'note' => 'Thieu employeeNo -> bo qua.' );
 		}
 
 		/* --- Cơ sở lấy theo MÃ THIẾT BỊ, KHÔNG tin tên máy tự khai. --- */
@@ -217,9 +373,8 @@ class VHCC_Nhan {
 			/* Máy chưa gán cơ sở -> giữ tạm, TUYỆT ĐỐI không tạo cơ sở mới từ lời khai của máy.
 			   Bỏ lượt bấm này là mất công của người thật chỉ vì cái máy chưa được khai. */
 			$luu = self::luu_cho_gan( $serial, $mac, $tu_khai, $ma_nv, $ho_ten, $luc, strlen( $anh ) > 100 );
-			self::xong( array( 'choGan' => true, 'luu' => $luu,
-				'note' => 'May chua gan co so - da giu tam, vao web gan co so cho may nay.' ) );
-			return;
+			return array( 'choGan' => true, 'luu' => $luu,
+				'note' => 'May chua gan co so - da giu tam, vao web gan co so cho may nay.' );
 		}
 		$coso = $gm['station'];
 
@@ -227,10 +382,9 @@ class VHCC_Nhan {
 		if ( isset( $kq['loi'] ) ) {
 			/* Cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất phải để firmware thử lại. */
 			self::ghi_loi( 'GHI_HONG', $kq['loi'] );
-			self::loi( 'Khong ghi duoc: ' . $kq['loi'] );
-			return;
+			return array( 'loi' => $kq['loi'] );
 		}
-		self::xong( array( 'loai' => $kq['loai'], 'coSo' => $coso, 'img' => $kq['anh'] ) );
+		return array( 'loai' => $kq['loai'], 'coSo' => $coso, 'img' => $kq['anh'] );
 	}
 
 	/**

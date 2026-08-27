@@ -1164,6 +1164,10 @@ class VHCC_Web {
 			   dòng thuộc về bảng đang đọc. Con số ở đây KHÔNG nằm trong cột TỔNG. */
 			. '.mdem.ngoai{background:#f1f5f9;color:#475569;font-style:italic}'
 			. '.duoi.ngoai{background:#f1f5f9;color:#475569}'
+			/* Dòng TỔNG của cơ sở khác: xám, nghiêng, có vạch ngăn — để mắt không đọc nhầm nó
+			   là một phần của con số lớn phía trên. */
+			. '.tk-ngoai{font-size:10.5px;font-weight:600;line-height:1.25;margin-top:3px;padding-top:2px;'
+			. 'border-top:1px dotted var(--vien);color:#475569;font-style:italic;white-space:nowrap}'
 			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
 			. '.mdem.ca3{background:#f3e8ff;color:#7e22ce}.mdem.ca4{background:#ffedd5;color:#c2410c}'
 			/* Ô bấm được: đường liên kết phủ KÍN ô, giữ nguyên màu chữ. Chỉ tô nền khi rê chuột
@@ -2389,6 +2393,36 @@ class VHCC_Web {
 	 * ở lưới này chỉ có ba ngày thì nhìn hàng ấy tưởng người ta nghỉ gần hết tháng. Nhãn nói
 	 * ngay: *phần còn lại nằm ở bảng cơ sở kia*.
 	 */
+	/**
+	 * Ô TỔNG: mấy dòng "cơ sở kia được bao nhiêu".
+	 *
+	 * Anh Thắng 27/08/2026: *"phải hiện rõ cơ sở chính bao nhiêu công, cơ sở thứ 2 bao nhiêu
+	 * công"*. Con số lớn phía trên là của cơ sở ĐANG XEM; mỗi dòng dưới đây là một cơ sở khác.
+	 *
+	 * 🔴 CÓ NHÃN ĐƠN VỊ Ở TỪNG DÒNG. Cơ sở kia có thể tính THEO GIỜ trong khi cơ sở đang xem
+	 *    tính THEO CÔNG — hai con số nằm chồng nhau mà không ghi đơn vị thì người đọc cộng
+	 *    thẳng chúng lại, và ra một tổng không có nghĩa gì.
+	 *
+	 * 🔴 KHÔNG CỘNG VÀO SỐ LỚN. Lương tính theo cơ sở; công của ngày ấy thuộc bảng của cơ sở kia.
+	 */
+	private static function tong_coso_khac( $tk_nguoi ) {
+		if ( ! is_array( $tk_nguoi ) || ! $tk_nguoi ) { return ''; }
+		$cs = array_keys( $tk_nguoi );
+		sort( $cs );
+		$h = '';
+		foreach ( $cs as $c ) {
+			$x  = $tk_nguoi[ $c ];
+			$so = ( 'cong' === $x['donVi'] && null !== $x['cong'] )
+				? self::so_vp( $x['cong'] ) . ' công'
+				: self::so_vp( $x['gio'] ) . ' giờ';
+			$h .= '<div class="tk-ngoai" title="' . esc_attr( $c . ' — ' . $x['soNgay'] . ' ngày · '
+				. $so . "\n" . 'Tính bằng công thức của CHÍNH cơ sở ấy. KHÔNG cộng vào tổng ở đây: '
+				. 'lương tính theo cơ sở.' ) . '">' . esc_html( $c ) . ' <b>' . esc_html( $so ) . '</b>'
+				. '<span class="mo"> · ' . (int) $x['soNgay'] . 'n</span></div>';
+		}
+		return $h;
+	}
+
 	private static function chip_coso_khac( $ck_nguoi ) {
 		if ( ! is_array( $ck_nguoi ) || ! $ck_nguoi ) { return ''; }
 		$cs = array();
@@ -2984,6 +3018,8 @@ class VHCC_Web {
 		   thì lưới chạy y như trước, chỉ là không có dòng cơ sở khác. */
 		$ck_ds = method_exists( 'VHCC_Cham', 'ngay_o_coso_khac' )
 			? VHCC_Cham::ngay_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
+		$tk_ds = method_exists( 'VHCC_Cham', 'tong_o_coso_khac' )
+			? VHCC_Cham::tong_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
 
 		$tong_cs = 0;
 		foreach ( $ten as $ma => $ho_ten ) {
@@ -3076,6 +3112,10 @@ class VHCC_Web {
 				echo '<div class="mo" style="font-size:10px">-' . esc_html( $ht_p ) . ' '
 					. esc_html( VHCC_Cham::chu_gio( $p_p ) ) . '</div>';
 			}
+			/* Anh Thắng: *"cơ sở chính bao nhiêu công, cơ sở thứ 2 bao nhiêu công"* — con số lớn
+			   là cơ sở đang xem, mỗi dòng dưới là một cơ sở khác. */
+			echo self::tong_coso_khac( isset( $tk_ds[ strtoupper( $ma ) ] )
+				? $tk_ds[ strtoupper( $ma ) ] : array() );
 			echo '</td></tr>';
 			/* Hàng sửa nội tuyến: mở ngay dưới hàng của ĐÚNG người vừa bấm — dù bấm dòng chính
 			   hay một dòng phụ, vì cả hai nay là một hàng. Mã truyền xuống vẫn là mã ĐẦY ĐỦ đọc
@@ -3167,6 +3207,8 @@ class VHCC_Web {
 		foreach ( $rows as $e_m ) { $ma_ds[] = (string) $e_m['ma']; }
 		$ck_ds = method_exists( 'VHCC_Cham', 'ngay_o_coso_khac' )
 			? VHCC_Cham::ngay_o_coso_khac( $ma_ds, (string) $b['station'], $tt ) : array();
+		$tk_ds = method_exists( 'VHCC_Cham', 'tong_o_coso_khac' )
+			? VHCC_Cham::tong_o_coso_khac( $ma_ds, (string) $b['station'], $tt ) : array();
 
 		$lech = 0;
 		foreach ( $rows as $e ) {
@@ -3251,7 +3293,9 @@ class VHCC_Web {
 			$khop = ( abs( $cong - (float) $e['tong'] ) < 0.005 );
 			if ( ! $khop ) { $lech++; }
 			echo '<td class="tong' . ( $khop ? '' : ' chu-hong' ) . '"><b>' . self::so_vp( $cong ) . '</b>'
-				. ( $khop ? '' : ' ≠ ' . self::so_vp( $e['tong'] ) ) . '</td>';
+				. ( $khop ? '' : ' ≠ ' . self::so_vp( $e['tong'] ) )
+				. self::tong_coso_khac( isset( $tk_ds[ strtoupper( $ma ) ] )
+					? $tk_ds[ strtoupper( $ma ) ] : array() ) . '</td>';
 			echo '</tr>';
 			if ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) ) {
 				self::hang_sua( $so_ngay + 2, (string) $b['station'], $sg_n, $ma, $sg_co, $ky, $toi );

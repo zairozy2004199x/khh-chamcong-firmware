@@ -9500,6 +9500,49 @@ t( 'và ô TỔNG trên lưới vẫn in đúng con số ấy',
 t( 'lưới KHÔNG in ra con số 15h (9h + 6h) ở bất cứ đâu',
 	strpos( $h_hc, '>15h<' ) === false, $h_hc );
 
+/* ---- 🔴 Ô TỔNG PHẢI TÁCH RA: cơ sở này bao nhiêu, cơ sở kia bao nhiêu ----
+   Anh Thắng 27/08/2026: *"phải hiện rõ cơ sở chính bao nhiêu công, cơ sở thứ 2 bao nhiêu công"*.
+   Mấy dòng xám trong ô mới trả lời được "hôm ấy người ta ở đâu" — chưa trả lời được câu này. */
+$hc_t2 = VHCC_Cham::tong_o_coso_khac( array( 'HC1', 'HC2' ), $CS_A, '2026-07' );
+t( '🔴 cộng được tổng của cơ sở kia', isset( $hc_t2['HC1'][ $CS_B ] ), $hc_t2 );
+teq( 'đúng số ngày làm ở cơ sở kia', 1, (int) $hc_t2['HC1'][ $CS_B ]['soNgay'] );
+teq( 'và đúng số giờ (09:00–15:00 = 6h)', 6.0, (float) $hc_t2['HC1'][ $CS_B ]['gio'] );
+t( 'người chỉ làm một nơi thì không có dòng nào', ! isset( $hc_t2['HC2'] ), $hc_t2 );
+/* 🔴 Cơ sở kia tính THEO GIỜ thì KHÔNG có "công" để mà nói — trả null, đừng trả 0. Số 0 ở ô ấy
+   đọc thành "làm mà không được công", sai hẳn nghĩa. */
+teq( 'dựng cảnh: cơ sở kia đang tính theo GIỜ', 'gio', VHCC_Luong::cach_tinh( $CS_B ) );
+teq( 'đơn vị nói đúng là giờ', 'gio', $hc_t2['HC1'][ $CS_B ]['donVi'] );
+teq( '🔴 và cong = null, KHÔNG phải 0', null, $hc_t2['HC1'][ $CS_B ]['cong'] );
+t( '🔴 ô TỔNG trên lưới hiện dòng của cơ sở kia',
+	strpos( $h_hc, '<div class="tk-ngoai"' ) !== false, $h_hc );
+t( 'dòng ấy in tên cơ sở kia và con số kèm ĐƠN VỊ',
+	preg_match( '~<div class="tk-ngoai"[^>]*>HAI_CS_B <b>6 giờ</b>~', $h_hc ) === 1, $h_hc );
+t( 'và nói rõ KHÔNG cộng vào tổng ở đây',
+	strpos( $h_hc, 'KHÔNG cộng vào tổng ở đây' ) !== false, $h_hc );
+
+/* 🔴 CƠ SỞ KIA TÍNH THEO CÔNG THÌ PHẢI RA CÔNG, và tính bằng CÔNG THỨC CỦA CHÍNH NÓ.
+   Đem công thức cơ sở đang xem áp lên giờ của cơ sở kia là ra một con số trông rất giống công
+   mà không phải công của ai cả — tệ hơn là nó cộng được, nên sẽ có người cộng. */
+$CS_VPB = 'HAI_VP_B';
+vhcc_bo_phan( $CS_VPB, 'Văn phòng' );
+teq( 'dựng cảnh: cơ sở thứ hai này tính theo CÔNG', 'cong', VHCC_Luong::cach_tinh( $CS_VPB ) );
+vhcc_cham( $CS_A,    '2026-07-15', 'HC9', '', '08:00:00', '17:00:00' );
+vhcc_cham( $CS_VPB,  '2026-07-16', 'HC9', '', '08:30:00', '17:00:00' );
+$hc_t3 = VHCC_Cham::tong_o_coso_khac( array( 'HC9' ), $CS_A, '2026-07' );
+teq( 'đơn vị nói đúng là công', 'cong', $hc_t3['HC9'][ $CS_VPB ]['donVi'] );
+teq( '🔴 và ra CÔNG thật, tính bằng công thức của chính cơ sở ấy',
+	1.0, (float) $hc_t3['HC9'][ $CS_VPB ]['cong'] );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin',
+	$CS_A . ',' . $CS_B . ',' . $CS_VPB, 'HCAD' );
+$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_hc2 = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 ô TỔNG hiện đúng chữ "công" cho cơ sở tính theo công',
+	preg_match( '~<div class="tk-ngoai"[^>]*>HAI_VP_B <b>1 công</b>~', $h_hc2 ) === 1, $h_hc2 );
+t( 'và vẫn hiện "giờ" cho cơ sở tính theo giờ, không quy về một đơn vị',
+	strpos( $h_hc2, 'HAI_CS_B <b>6 giờ</b>' ) !== false, $h_hc2 );
+
 /* ---- 🔴 CÙNG LUẬT Ở LƯỚI CÔNG. Hai lưới là HAI HÀM khác nhau (`ve_luoi_gio` / `ve_luoi_vp`),
    nên thử một cái không nói gì về cái kia. Cơ sở A ở trên không khai bộ phận nên tính THEO GIỜ
    — cả khối trên chưa hề chạm `ve_luoi_vp`. Đã phá thử để thấy đúng chuyện đó: bỏ hẳn dòng cơ
@@ -9523,6 +9566,11 @@ t( 'và cũng gắn nhãn "cũng làm ở" cạnh tên', strpos( $h_hv, 'cũng l
 /* 🔴 Nhãn gắn cho ĐÚNG NGƯỜI. Gắn nhầm cả hàng là bảo người rà bảng đi tìm những ngày không
    tồn tại ở một cơ sở người ta chưa từng đặt chân tới. */
 teq( '🔴 chỉ MỘT người mang nhãn, không phải cả bảng', 1, substr_count( $h_hv, 'cũng làm ở' ) );
+/* 🔴 Ô TỔNG của lưới CÔNG cũng phải tách theo cơ sở. Hai lưới là HAI HÀM khác nhau, nên thử một
+   cái không nói gì về cái kia — bỏ hẳn dòng TỔNG ra khỏi lưới CÔNG mà bộ thử vẫn xanh nếu chỉ
+   thử ở lưới GIỜ. Đã phá thử để thấy. */
+t( '🔴 lưới CÔNG: ô TỔNG hiện dòng của cơ sở kia',
+	preg_match( '~<div class="tk-ngoai"[^>]*>HAI_CS_B <b>6 giờ</b>~', $h_hv ) === 1, $h_hv );
 
 /* ---- Lõi: mấy chỗ dễ sai mà nhìn màn hình không thấy ---- */
 /* Một ngày chấm ở HAI nơi khác nữa: ô chỉ đủ chỗ một dòng, giữ nơi làm NHIỀU giờ hơn. Giữ nơi
@@ -9718,6 +9766,147 @@ $wm_ota1 = VHCC_WebMay::viec( 'may_ota_mot', array( 'name' => 'A', 'role' => 'Ad
 $_POST = array();
 t( '🔴 nhưng thử RIÊNG MỘT MÁY thì không cần gõ xác nhận',
 	is_array( $wm_ota1 ) && ! empty( $wm_ota1[0]['ok'] ), $wm_ota1 );
+vhcc_dung_bang();
+
+
+/* ======================================================================================
+ *  62. MÁY CHÍNH Ở CƠ SỞ ĐẨY VỀ CẢ LÔ
+ *
+ *  Anh Thắng 27/08/2026: *"máy chính tại cơ sở gửi dữ liệu công về"*.
+ *
+ *  Máy ZKTeco nằm trong mạng nội bộ (192.168.0.2x:4370) — website ngoài internet không có
+ *  đường nào gọi vào, và không nên có. Nên giữ nguyên chiều "máy tự gọi ra": một máy CHÍNH
+ *  đứng trong mạng ấy đọc log rồi đẩy về đúng cổng này, đúng khoá này, cả ngày một lần.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'ZK-LR', 'mac' => '', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'ZK-VP', 'mac' => '', 'cua_hang' => 'JP_HCM' ) );
+
+/* 🔴 MỖI DÒNG MANG MÃ MÁY CON RIÊNG. Máy chính đại diện cho NHIỀU đầu đọc, mỗi đầu một phòng
+   (Lắp Ráp · Lò Sấy · Sơ Chế · Văn Phòng · Đóng Gói). Lấy mã của máy CHÍNH để ghép cơ sở là
+   dồn công của cả năm phòng vào một chỗ — bảng vẫn đầy số, chỉ là số của sai nơi. */
+list( $lo_ma, $lo_kq ) = vhcc_may_gui( array(
+	'macAddress' => 'PC:MAY:CHINH', 'stationName' => 'May chinh',
+	'logs' => array(
+		array( 'hikSerial' => 'ZK-LR', 'employeeNo' => 'ZA1', 'name' => 'Người A',
+			'time' => '2026-07-06 08:00:00' ),
+		array( 'hikSerial' => 'ZK-LR', 'employeeNo' => 'ZA1', 'name' => 'Người A',
+			'time' => '2026-07-06 17:30:00' ),
+		array( 'hikSerial' => 'ZK-VP', 'employeeNo' => 'ZB1', 'name' => 'Người B',
+			'time' => '2026-07-06 09:00:00' ),
+	),
+) );
+teq( 'cổng nhận lô: HTTP 200', 200, $lo_ma );
+t( 'và trả về đúng dấu hiệu lô', ! empty( $lo_kq['lo'] ), $lo_kq );
+teq( 'đếm đúng số dòng nhận được', 3, (int) $lo_kq['nhan'] );
+teq( '🔴 dòng của máy Lắp Ráp vào ĐÚNG cơ sở của máy ấy', array( 8 * 3600, 17 * 3600 + 1800 ),
+	array( (int) vhcc_hang( 'TUTU_BT', '2026-07-06', 'ZA1' )['gio_vao_giay'],
+		(int) vhcc_hang( 'TUTU_BT', '2026-07-06', 'ZA1' )['gio_ra_giay'] ) );
+t( '🔴 dòng của máy Văn Phòng vào cơ sở KHÁC, không dồn chung',
+	null !== vhcc_hang( 'JP_HCM', '2026-07-06', 'ZB1' ) );
+t( 'và KHÔNG lọt sang cơ sở của máy kia',
+	null === vhcc_hang( 'TUTU_BT', '2026-07-06', 'ZB1' ) );
+
+/* 🔴 DÒNG ĐÈ LÊN GÓI, KHÔNG PHẢI NGƯỢC LẠI. Máy chính có mã của chính nó, nhưng mã ghép ra cơ
+   sở phải là mã của ĐẦU ĐỌC ở dòng ấy. Để gói đè lên dòng là dồn công của cả năm phòng vào một
+   chỗ — bảng vẫn đầy số, chỉ là số của sai nơi, và không có gì báo. */
+list( , $lo_de ) = vhcc_may_gui( array(
+	'hikSerial' => 'ZK-LR',                                   // mã CHUNG của gói
+	'logs' => array( array( 'hikSerial' => 'ZK-VP',           // dòng khai RIÊNG, phải thắng
+		'employeeNo' => 'ZDE', 'time' => '2026-07-20 08:00:00' ) ),
+) );
+t( '🔴 mã máy của DÒNG thắng mã chung của gói',
+	null !== vhcc_hang( 'JP_HCM', '2026-07-20', 'ZDE' ), $lo_de );
+t( 'và KHÔNG vào cơ sở của mã chung', null === vhcc_hang( 'TUTU_BT', '2026-07-20', 'ZDE' ) );
+
+/* Dòng thiếu mã máy thì lấy của gói — để máy chỉ có MỘT đầu đọc vẫn gửi gọn được. */
+list( , $lo2 ) = vhcc_may_gui( array(
+	'hikSerial' => 'ZK-LR',
+	'logs' => array( array( 'employeeNo' => 'ZA2', 'time' => '2026-07-07 08:10:00' ) ),
+) );
+t( '🔴 dòng thiếu mã máy thì lấy mã CHUNG của gói',
+	null !== vhcc_hang( 'TUTU_BT', '2026-07-07', 'ZA2' ), $lo2 );
+
+/* 🔴 MỘT DÒNG HỎNG KHÔNG ĐƯỢC KÉO CẢ LÔ XUỐNG. Bỏ cả lô vì một dòng sai khuôn giờ là mất công
+   thật của cả trăm người — mà cái sai ấy đẩy lại bao nhiêu lần cũng y vậy. */
+list( $lo3_ma, $lo3 ) = vhcc_may_gui( array(
+	'hikSerial' => 'ZK-LR',
+	'logs' => array(
+		array( 'employeeNo' => 'ZA3', 'time' => '2026-07-08 08:00:00' ),
+		array( 'employeeNo' => 'ZA4', 'time' => 'hôm qua' ),          // sai khuôn giờ
+		array( 'employeeNo' => '',    'time' => '2026-07-08 08:00:00' ), // thiếu mã NV
+		'không phải mảng',
+		array( 'employeeNo' => 'ZA5', 'time' => '2026-07-08 09:00:00' ),
+	),
+) );
+teq( 'lô có dòng hỏng vẫn trả 200', 200, $lo3_ma );
+t( '🔴 mấy dòng LÀNH vẫn vào sổ', null !== vhcc_hang( 'TUTU_BT', '2026-07-08', 'ZA3' )
+	&& null !== vhcc_hang( 'TUTU_BT', '2026-07-08', 'ZA5' ), $lo3 );
+teq( 'và đếm đúng số dòng bỏ qua', 3, (int) $lo3['boQua'] );
+t( '🔴 kể ra SỐ THỨ TỰ dòng hỏng, để máy chính biết đẩy lại dòng nào',
+	isset( $lo3['hong'][0]['i'] ) && 1 === (int) $lo3['hong'][0]['i'], $lo3 );
+t( 'và nói vì sao hỏng', ! empty( $lo3['hong'][0]['vi_sao'] ), $lo3 );
+
+/* Đẩy LẠI cả lô: giờ vào/ra chỉ được nới rộng nên chạy lại bao nhiêu lần cũng ra một kết quả.
+   Đó là thứ làm cho "đẩy lại khi nghi ngờ" thành nước đi an toàn. */
+$truoc = vhcc_hang( 'TUTU_BT', '2026-07-06', 'ZA1' );
+vhcc_may_gui( array( 'hikSerial' => 'ZK-LR', 'logs' => array(
+	array( 'employeeNo' => 'ZA1', 'time' => '2026-07-06 08:00:00' ),
+	array( 'employeeNo' => 'ZA1', 'time' => '2026-07-06 17:30:00' ),
+) ) );
+$sau = vhcc_hang( 'TUTU_BT', '2026-07-06', 'ZA1' );
+teq( '🔴 đẩy lại cả lô KHÔNG đổi giờ đã có',
+	array( (int) $truoc['gio_vao_giay'], (int) $truoc['gio_ra_giay'] ),
+	array( (int) $sau['gio_vao_giay'], (int) $sau['gio_ra_giay'] ) );
+teq( 'và không đẻ thêm hàng', 1, (int) $wpdb->get_var( 'SELECT COUNT(*) FROM '
+	. VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='ZA1' AND ngay='2026-07-06'" ) );
+
+/* Máy CHƯA gán cơ sở: giữ tạm, không bỏ — bỏ là mất công của người thật vì cái máy chưa khai. */
+list( , $lo4 ) = vhcc_may_gui( array(
+	'hikSerial' => 'ZK-LA-CHUA-KHAI',
+	'logs' => array( array( 'employeeNo' => 'ZC1', 'time' => '2026-07-09 08:00:00' ) ),
+) );
+teq( '🔴 lượt của máy chưa gán cơ sở được GIỮ TẠM, không bỏ', 1, (int) $lo4['choGan'] );
+teq( 'và nằm trong bảng chờ gán', 1, (int) $wpdb->get_var( 'SELECT COUNT(*) FROM '
+	. VHCC_DB::t( 'cho_gan' ) . " WHERE ma_nv='ZC1'" ) );
+
+/* Lô rỗng: không phải lỗi, chỉ là không có gì để ghi. */
+list( $lo5_ma, $lo5 ) = vhcc_may_gui( array( 'hikSerial' => 'ZK-LR', 'logs' => array() ) );
+teq( 'lô rỗng vẫn 200', 200, $lo5_ma );
+teq( 'và nói rõ nhận 0 dòng', 0, (int) $lo5['nhan'] );
+
+/* 🔴 TRẦN SỐ DÒNG — và CẮT THÌ PHẢI NÓI RA. Cắt im lặng là gói trông "xong" trong khi thiếu
+   người, mà máy chính thì đã xoá phần chưa gửi khỏi sổ của nó. */
+$lo_dai = array();
+for ( $i_lo = 0; $i_lo < VHCC_Nhan::LO_TOI_DA + 5; $i_lo++ ) {
+	$lo_dai[] = array( 'employeeNo' => 'ZD' . $i_lo, 'time' => '2026-07-10 08:00:00' );
+}
+list( , $lo6 ) = vhcc_may_gui( array( 'hikSerial' => 'ZK-LR', 'logs' => $lo_dai ) );
+teq( 'lô quá dài: xử đúng tới trần', VHCC_Nhan::LO_TOI_DA, (int) $lo6['xu'] );
+teq( '🔴 và NÓI RA còn bao nhiêu dòng chưa xử', 5, (int) $lo6['conLai'] );
+
+/* 🔴 CƠ SỞ DỮ LIỆU HỎNG LÀ CA DUY NHẤT PHẢI KÊU LÊN.
+   Mọi ca khác (sai khuôn giờ, thiếu mã NV) đẩy lại bao nhiêu lần cũng hỏng y vậy nên trả
+   SUCCESS là đúng. Nhưng bảng hỏng thì đẩy lại SẼ khác — mà máy đọc thấy SUCCESS là xoá lượt
+   khỏi sổ của nó, và lượt bấm ấy mất hẳn. Không có phép thử nào chạm nhánh này thì bỏ hẳn nó
+   đi bộ thử vẫn xanh; đã phá thử để thấy.
+   ⚠️ Dựng cảnh bằng cách THẢ BẢNG chấm công — cách duy nhất làm `ghi_gio` trả lỗi thật mà
+      không phải bịa một lớp giả. Nhớ dựng lại ngay sau. */
+$wpdb->query( 'DROP TABLE ' . VHCC_DB::t( 'cham_cong' ) );
+list( $lo_h_ma, $lo_h ) = vhcc_may_gui( array( 'hikSerial' => 'ZK-LR', 'logs' => array(
+	array( 'employeeNo' => 'ZH1', 'time' => '2026-07-12 08:00:00' ) ) ) );
+t( '🔴 lô gặp bảng hỏng thì KHÔNG trả 200/SUCCESS', 200 !== $lo_h_ma, $lo_h_ma );
+list( $don_h_ma ) = vhcc_may_gui( vhcc_goi( 'ZH2', '2026-07-12 08:00:00' ) );
+t( '🔴 gói ĐƠN cũng vậy — bảng hỏng thì 500, không phải SUCCESS', 200 !== $don_h_ma, $don_h_ma );
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'ZK-LR', 'mac' => '', 'cua_hang' => 'TUTU_BT' ) );
+
+/* Cổng vẫn phải đòi khoá — lô không phải cửa sau. */
+list( $lo7_ma ) = vhcc_may_gui(
+	array( 'hikSerial' => 'ZK-LR', 'logs' => array(
+		array( 'employeeNo' => 'ZE1', 'time' => '2026-07-11 08:00:00' ) ) ), 'khoa-sai' );
+teq( '🔴 lô mà sai khoá thì bị chối, không phải cửa sau', 401, $lo7_ma );
+t( 'và KHÔNG ghi được gì', null === vhcc_hang( 'TUTU_BT', '2026-07-11', 'ZE1' ) );
 vhcc_dung_bang();
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );

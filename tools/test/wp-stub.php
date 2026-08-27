@@ -294,10 +294,37 @@ class VHCP_Test_WPDB {
 		return $this->pdo->quote( (string) $v );
 	}
 
+	/**
+	 * 🔴 CÂU LỆNH HỎNG PHẢI TRẢ VỀ RỖNG + `last_error`, KHÔNG ĐƯỢC NÉM NGOẠI LỆ.
+	 *
+	 * `$wpdb` thật của WordPress dùng `mysqli` ở chế độ KHÔNG ném: bảng thiếu, cột sai, cú pháp
+	 * hỏng đều trả `false` rồi đặt `$wpdb->last_error`. Mã plugin viết theo đúng lối ấy —
+	 * `ghi_gio()` chẳng hạn kiểm `false === $ok` rồi trả `array('loi' => …)` để cổng đáp 500 và
+	 * máy giữ lại lượt bấm.
+	 *
+	 * Bản giả ban đầu để PDO ném `PDOException`. Hậu quả: mọi nhánh "cơ sở dữ liệu hỏng" trong
+	 * plugin KHÔNG THỬ ĐƯỢC — dựng cảnh bảng hỏng là bộ thử chết giữa đường chứ không chạy vào
+	 * nhánh ấy. Nhánh quan trọng nhất của cả cổng máy (ca duy nhất máy phải đẩy lại) vì thế
+	 * chưa từng có một phép thử nào, mà báo cáo vẫn xanh.
+	 *
+	 * Cùng loại bẫy với `remove_query_arg()` từng trả hằng số cứng: bản giả nói dối thì phép
+	 * thử đo được một thứ KHÔNG PHẢI thứ nó tưởng đang đo.
+	 */
 	public function get_results( $sql, $mode = null ) {
 		$this->q_count++;
-		$st = $this->pdo->query( $this->tr( $sql ) );
-		return $st ? $st->fetchAll( PDO::FETCH_ASSOC ) : array();
+		try {
+			$st = $this->pdo->query( $this->tr( $sql ) );
+		} catch ( PDOException $e ) {
+			$this->last_error = $e->getMessage();
+			return array();
+		}
+		if ( ! $st ) {
+			$tt = $this->pdo->errorInfo();
+			$this->last_error = isset( $tt[2] ) ? (string) $tt[2] : 'loi truy van';
+			return array();
+		}
+		$this->last_error = '';
+		return $st->fetchAll( PDO::FETCH_ASSOC );
 	}
 
 	public function get_row( $sql, $mode = null ) {
@@ -318,7 +345,17 @@ class VHCP_Test_WPDB {
 		return $v[0];
 	}
 
-	public function query( $sql ) { $this->q_count++; return $this->pdo->exec( $this->tr( $sql ) ); }
+	public function query( $sql ) {
+		$this->q_count++;
+		try {
+			$r = $this->pdo->exec( $this->tr( $sql ) );
+		} catch ( PDOException $e ) {
+			$this->last_error = $e->getMessage();
+			return false;
+		}
+		$this->last_error = ( false === $r ) ? 'loi truy van' : '';
+		return $r;
+	}
 
 	/* `$wpdb->insert_id` — WordPress thật CÓ thuộc tính này, và mã plugin dùng nó để lấy id vừa
 	   thêm. Bản stub đầu thiếu, nên mọi chỗ đọc `insert_id` nhận null mà chỉ cảnh báo chứ không
@@ -331,7 +368,14 @@ class VHCP_Test_WPDB {
 		foreach ( $data as $v ) { $vals[] = ( $v === null ) ? 'NULL' : $this->quote( $v ); }
 		$sql = 'INSERT INTO ' . $table . ' (' . implode( ',', $cols ) . ') VALUES (' . implode( ',', $vals ) . ')';
 		$this->q_count++;
-		$r = $this->pdo->exec( $sql );
+		/* Cùng luật với `query()`: `$wpdb` thật trả `false` + `last_error`, không ném. */
+		try {
+			$r = $this->pdo->exec( $sql );
+		} catch ( PDOException $e ) {
+			$this->last_error = $e->getMessage();
+			return false;
+		}
+		$this->last_error = ( false === $r ) ? 'loi truy van' : '';
 		$this->insert_id = (int) $this->pdo->lastInsertId();
 		return $r;
 	}
@@ -342,14 +386,27 @@ class VHCP_Test_WPDB {
 		$w = array();
 		foreach ( $where as $k => $v ) { $w[] = $k . '=' . ( $v === null ? 'NULL' : $this->quote( $v ) ); }
 		$this->q_count++;
-		return $this->pdo->exec( 'UPDATE ' . $table . ' SET ' . implode( ',', $set ) . ' WHERE ' . implode( ' AND ', $w ) );
+		return $this->chay( 'UPDATE ' . $table . ' SET ' . implode( ',', $set )
+			. ' WHERE ' . implode( ' AND ', $w ) );
+	}
+
+	/** Chạy một câu ghi, trả `false` + đặt `last_error` khi hỏng — y như `$wpdb` thật. */
+	private function chay( $sql ) {
+		try {
+			$r = $this->pdo->exec( $sql );
+		} catch ( PDOException $e ) {
+			$this->last_error = $e->getMessage();
+			return false;
+		}
+		$this->last_error = ( false === $r ) ? 'loi truy van' : '';
+		return $r;
 	}
 
 	public function delete( $table, $where ) {
 		$w = array();
 		foreach ( $where as $k => $v ) { $w[] = $k . '=' . ( $v === null ? 'NULL' : $this->quote( $v ) ); }
 		$this->q_count++;
-		return $this->pdo->exec( 'DELETE FROM ' . $table . ' WHERE ' . implode( ' AND ', $w ) );
+		return $this->chay( 'DELETE FROM ' . $table . ' WHERE ' . implode( ' AND ', $w ) );
 	}
 }
 

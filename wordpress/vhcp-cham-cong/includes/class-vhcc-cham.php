@@ -159,6 +159,68 @@ class VHCC_Cham {
 		return $out;
 	}
 
+	/**
+	 * NGƯỜI NÀY THÁNG NÀY ĐƯỢC BAO NHIÊU Ở MỖI CƠ SỞ KHÁC.
+	 *
+	 * Anh Thắng 27/08/2026: *"phải hiện rõ cơ sở chính bao nhiêu công, cơ sở thứ 2 bao nhiêu
+	 * công"*.
+	 *
+	 * `ngay_o_coso_khac()` mới trả lời được "hôm ấy người ta ở đâu" — đủ để ô khỏi trông như
+	 * ngày nghỉ, nhưng chưa trả lời được câu anh hỏi. Hàm này cộng lại thành CON SỐ CỦA THÁNG.
+	 *
+	 * 🔴 TÍNH BẰNG CÔNG THỨC CỦA CHÍNH CƠ SỞ KIA, KHÔNG PHẢI CỦA CƠ SỞ ĐANG XEM.
+	 *    Mỗi cơ sở có khung ca, mốc bậc thang, cách xử ca đêm riêng — và một cơ sở còn có thể
+	 *    tính THEO GIỜ trong khi cơ sở đang xem tính THEO CÔNG. Đem công thức chỗ này áp lên giờ
+	 *    chỗ kia là ra một con số trông rất giống công mà không phải công của ai cả; tệ hơn là
+	 *    nó cộng được, nên sẽ có người cộng.
+	 *
+	 * 🔴 CƠ SỞ TÍNH THEO GIỜ THÌ TRẢ `cong = null`, KHÔNG trả 0. Không có "công" để mà nói, và
+	 *    số 0 ở ô ấy đọc thành "làm mà không được công" — sai hẳn nghĩa. Màn phải hiện giờ.
+	 *
+	 * Trả: [ MÃ ][ mã cơ sở ] => array( donVi, cong|null, gio, soNgay )
+	 */
+	public static function tong_o_coso_khac( $ds_ma, $coso, $tt ) {
+		$theo_ngay = self::ngay_o_coso_khac( $ds_ma, $coso, $tt );
+		if ( ! $theo_ngay ) { return array(); }
+
+		$cs_ds = array();
+		foreach ( $theo_ngay as $dsn ) {
+			foreach ( $dsn as $x ) {
+				if ( '' !== (string) $x['coso'] ) { $cs_ds[ (string) $x['coso'] ] = true; }
+			}
+		}
+		$out = array();
+		foreach ( array_keys( $cs_ds ) as $cs2 ) {
+			/* Gọi engine ĐÚNG MỘT LẦN cho mỗi cơ sở kia rồi tra ra, đừng gọi cho từng người:
+			   một cơ sở 24 người là 24 lượt đọc cả tháng cho cùng một bảng. */
+			$theo_cong = ( 'cong' === VHCC_Luong::cach_tinh( $cs2 ) );
+			$bang = array();
+			if ( $theo_cong ) {
+				$b = VHCC_Luong::vp_bang_cong_va_luong( $cs2, $tt );
+				foreach ( (array) $b['rows'] as $r ) {
+					$bang[ strtoupper( (string) $r['ma'] ) ] = (float) $r['tong'];
+				}
+			}
+			foreach ( $theo_ngay as $ma => $dsn ) {
+				$phut = 0;
+				$so_ngay = 0;
+				foreach ( $dsn as $x ) {
+					if ( (string) $x['coso'] !== $cs2 ) { continue; }
+					$phut += (int) $x['phut'];
+					$so_ngay++;
+				}
+				if ( ! $so_ngay ) { continue; }
+				$out[ $ma ][ $cs2 ] = array(
+					'donVi'  => $theo_cong ? 'cong' : 'gio',
+					'cong'   => ( $theo_cong && isset( $bang[ $ma ] ) ) ? $bang[ $ma ] : null,
+					'gio'    => round( $phut / 60, 1 ),
+					'soNgay' => $so_ngay,
+				);
+			}
+		}
+		return $out;
+	}
+
 	/** Phút -> "8h 30m". Bản dịch `_fmtHrsTxt`; null -> "—" để dấu hiệu sai lộ ra. */
 	public static function chu_gio( $phut ) {
 		if ( null === $phut || '' === $phut ) { return '—'; }
