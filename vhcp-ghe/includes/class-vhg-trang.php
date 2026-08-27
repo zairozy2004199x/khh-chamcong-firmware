@@ -1228,6 +1228,17 @@ class VHG_Trang {
     c3.appendChild(r3);
     wrap.appendChild(c3);
 
+    // ảnh báo cáo (2 ảnh/ghế theo thứ tự — server tự chia)
+    var c4=el('div','bc-card');
+    c4.appendChild(el('h3','bc-h','Ảnh báo cáo (tuỳ chọn)'));
+    c4.appendChild(el('div','bc-mut','2 ảnh/ghế theo thứ tự ghế trong bảng. Ảnh được nén trước khi gửi.'));
+    var iImg=el('input'); iImg.type='file'; iImg.id='bc-imgs'; iImg.accept='image/*'; iImg.multiple=true; iImg.style.marginTop='8px';
+    c4.appendChild(iImg);
+    var iPrf=el('input'); iPrf.type='file'; iPrf.id='bc-proofs'; iPrf.accept='image/*'; iPrf.multiple=true; iPrf.style.marginTop='8px';
+    var lp=el('label','bc-f'); lp.style.marginTop='8px'; lp.appendChild(el('span',null,'Ảnh chứng từ nộp tiền (QR/bill)')); lp.appendChild(iPrf);
+    c4.appendChild(lp);
+    wrap.appendChild(c4);
+
     // nút gửi + chốt sớm + đối chiếu
     var bar=el('div','bc-card');
     var brow=el('div','bc-row');
@@ -1370,14 +1381,39 @@ class VHG_Trang {
     var amtRaw=($('bc-amt').value||'').trim();
     var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:($('bc-paynote').value||'').trim() };
     if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
-    msg.textContent='Đang gửi…';
-    goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment },function(r){
-      GUI_DANG=false; $('bc-gui').disabled=false;
-      if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
-      msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
-      if(r.phien) veProg(r.phien);
-      else refreshPhien();
+    msg.textContent='Đang đọc ảnh…';
+    docAnh_('bc-imgs',function(images){
+      docAnh_('bc-proofs',function(proofs){
+        msg.textContent='Đang gửi…';
+        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, images:images, proofs:{qr:proofs} },function(r){
+          GUI_DANG=false; $('bc-gui').disabled=false;
+          if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
+          msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
+          var iI=$('bc-imgs'), iP=$('bc-proofs'); if(iI) iI.value=''; if(iP) iP.value='';
+          if(r.phien) veProg(r.phien);
+          else refreshPhien();
+        });
+      });
     });
+  }
+  // nén ảnh trên máy (cạnh dài 1280, JPEG 0.6) rồi đọc base64 — nhẹ ~10 lần, tránh HTTP 400.
+  function nenAnh_(file,cb){
+    try{
+      if(!file||!/^image\//.test(file.type)){ var f0=new FileReader(); f0.onload=function(){cb(String(f0.result));}; f0.onerror=function(){cb('');}; f0.readAsDataURL(file); return; }
+      var url=URL.createObjectURL(file), img=new Image();
+      img.onload=function(){ try{ var mx=1280,s=Math.min(1,mx/Math.max(img.width,img.height));
+        var cv=document.createElement('canvas'); cv.width=Math.round(img.width*s); cv.height=Math.round(img.height*s);
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url); cb(cv.toDataURL('image/jpeg',0.6)); }
+        catch(e){ URL.revokeObjectURL(url); var fr=new FileReader(); fr.onload=function(){cb(String(fr.result));}; fr.onerror=function(){cb('');}; fr.readAsDataURL(file); } };
+      img.onerror=function(){ URL.revokeObjectURL(url); var fr=new FileReader(); fr.onload=function(){cb(String(fr.result));}; fr.onerror=function(){cb('');}; fr.readAsDataURL(file); };
+      img.src=url;
+    }catch(e){ cb(''); }
+  }
+  function docAnh_(id,cb){
+    var f=$(id); var files=(f&&f.files)?[].slice.call(f.files).slice(0,40):[];
+    if(!files.length) return cb([]);
+    var out=[],done=0;
+    files.forEach(function(file,i){ nenAnh_(file,function(du){ out[i]=du?{name:file.name,dataUrl:du}:null; if(++done===files.length) cb(out.filter(Boolean)); }); });
   }
 
   // ---------------- PHIÊN / TIẾN ĐỘ ----------------
@@ -2950,7 +2986,9 @@ function ktdDetail(o,box){
 function ktdRow(o,c,m,reload,locked){
   var tr=ktEl('tr'); tr.dataset.ma=c.chairCode;
   function td(x,r){ var e=ktEl('td',null,x); if(r){e.style.textAlign='right';e.style.fontVariantNumeric='tabular-nums';} return e; }
-  var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,c.chairName||c.chairCode)); tr.appendChild(tdN);
+  var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,c.chairName||c.chairCode));
+  if(c.anh && c.anh.length){ var a=document.createElement('a'); a.href=c.anh[0]; a.target='_blank'; a.textContent=' 📷'+c.anh.length; a.style.marginLeft='4px'; a.title='Xem ảnh'; tdN.appendChild(a); }
+  tr.appendChild(tdN);
   tr.appendChild(td(c.meterBefore==null?'—':ktVnd(c.meterBefore),1));
   tr.appendChild(td(c.meterAfter==null?'—':ktVnd(c.meterAfter),1));
   tr.appendChild(td(ktVnd(c.actual),1));
