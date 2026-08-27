@@ -292,7 +292,8 @@ class VHG_Trang {
 					return;
 				}
 				self::tra( VHG_KeToan::nhap_doanhthu( isset( $d['rows'] ) ? $d['rows'] : array(),
-					! empty( $d['ghi_de'] ), ! empty( $d['duyet'] ), $boi ) );
+					! empty( $d['ghi_de'] ), ! empty( $d['duyet'] ),
+					! isset( $d['tao_ghe'] ) || ! empty( $d['tao_ghe'] ), $boi ) );
 				return;
 			}
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
@@ -1066,6 +1067,13 @@ class VHG_Trang {
 (function(){
   var API = window.VHG_API || '';
   var PIN='', BC=null, NGAY='', LOC='', LAST={}, GUI_DANG=false;
+  /* GỌN = màn điện thoại: chỉ nhập chỉ số + gửi. ĐẦY ĐỦ = máy tính: hiện hết. Mặc định theo bề
+     ngang màn hình, nhớ lựa chọn của người dùng. Anh Thắng 27/08: điện thoại ít thông tin thôi. */
+  var GON = true;
+  try{ var _p=localStorage.getItem('bc_gon');
+    GON = (_p==='0') ? false : (_p==='1') ? true : (!window.matchMedia || window.matchMedia('(max-width: 860px)').matches);
+  }catch(e){ GON = true; }
+  function datGon(v){ GON=!!v; try{ localStorage.setItem('bc_gon', GON?'1':'0'); }catch(e){} veChinh(); }
 
   function $(id){ return document.getElementById(id); }
   function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
@@ -1179,6 +1187,10 @@ class VHG_Trang {
     var t=el('div'); t.appendChild(el('b',null,'POSH ')); t.appendChild(document.createTextNode((BC.staff||'')));
     top.appendChild(t);
     top.appendChild(el('span','bc-sp'));
+    var tg=el('button','bc-btn', GON ? '🖥 Đầy đủ' : '📱 Gọn');
+    tg.title = GON ? 'Chuyển sang chế độ đầy đủ (máy tính)' : 'Chuyển sang chế độ gọn (điện thoại)';
+    tg.onclick=function(){ datGon(!GON); };
+    top.appendChild(tg);
     var out=el('button','bc-btn','Thoát'); out.onclick=function(){ PIN=''; BC=null; $('bc-app').className=''; };
     top.appendChild(out);
     app.appendChild(top);
@@ -1191,7 +1203,9 @@ class VHG_Trang {
     // chọn ngày + cơ sở
     var c1=el('div','bc-card');
     c1.appendChild(el('h3','bc-h','Báo cáo doanh thu theo cơ sở'));
-    c1.appendChild(el('div','bc-mut','Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
+    c1.appendChild(el('div','bc-mut', GON
+      ? 'Nhập CHỈ SỐ SAU (và QR nếu có), rồi bấm Gửi. Xong hết cơ sở thì Xin chốt ca.'
+      : 'Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
     var r1=el('div','bc-row'); r1.style.marginTop='12px';
     var fN=el('label','bc-f'); fN.appendChild(el('span',null,'Ngày báo cáo'));
     var iN=el('input'); iN.type='date'; iN.value=NGAY; iN.max=BC.today||'';
@@ -1211,20 +1225,25 @@ class VHG_Trang {
     c2.appendChild(el('h3','bc-h','Số liệu từng ghế'));
     var sc=el('div','bc-scroll');
     var tb=el('table','bc-t');
-    tb.innerHTML='<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th></tr></thead>';
+    tb.innerHTML = GON
+      ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>QR</th></tr></thead>'
+      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
     tb.appendChild(body); sc.appendChild(tb); c2.appendChild(sc);
-    // tổng
+    // tổng — gọn: chỉ Tiền mặt + Thực thu; đầy đủ: cả 4 ô
     var tot=el('div','bc-tot');
-    tot.innerHTML='<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
-      +'<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
-      +'<div class="bc-tt"><span>QR</span><b id="bc-s-qr">0</b></div>'
-      +'<div class="bc-tt"><span>Thực thu</span><b id="bc-s-total">0</b></div>';
+    tot.innerHTML = GON
+      ? '<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
+        +'<div class="bc-tt"><span>Thực thu</span><b id="bc-s-total">0</b></div>'
+      : '<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
+        +'<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
+        +'<div class="bc-tt"><span>QR</span><b id="bc-s-qr">0</b></div>'
+        +'<div class="bc-tt"><span>Thực thu</span><b id="bc-s-total">0</b></div>';
     c2.appendChild(tot);
     wrap.appendChild(c2);
 
-    // nộp tiền
+    // nộp tiền — gọn: chỉ 1 ô Hình thức; đầy đủ: hình thức + số tiền + ghi chú
     var c3=el('div','bc-card');
     c3.appendChild(el('h3','bc-h','Nộp tiền'));
     var r3=el('div','bc-row'); r3.style.marginTop='10px';
@@ -1234,50 +1253,57 @@ class VHG_Trang {
     sM.appendChild(new Option('Chuyển khoản','transfer'));
     sM.appendChild(new Option('Chưa nộp','unpaid'));
     fM.appendChild(sM); r3.appendChild(fM);
-    var fA=el('label','bc-f'); fA.appendChild(el('span',null,'Số tiền nộp (trống = đủ)'));
-    var iA=el('input'); iA.id='bc-amt'; iA.type='text'; iA.inputMode='numeric'; iA.placeholder='Để trống = nộp đủ tiền mặt';
-    fA.appendChild(iA); r3.appendChild(fA);
-    var fNo=el('label','bc-f'); fNo.appendChild(el('span',null,'Ghi chú'));
-    var iNo=el('input'); iNo.id='bc-paynote'; iNo.type='text';
-    fNo.appendChild(iNo); r3.appendChild(fNo);
+    if(!GON){
+      var fA=el('label','bc-f'); fA.appendChild(el('span',null,'Số tiền nộp (trống = đủ)'));
+      var iA=el('input'); iA.id='bc-amt'; iA.type='text'; iA.inputMode='numeric'; iA.placeholder='Để trống = nộp đủ tiền mặt';
+      fA.appendChild(iA); r3.appendChild(fA);
+      var fNo=el('label','bc-f'); fNo.appendChild(el('span',null,'Ghi chú'));
+      var iNo=el('input'); iNo.id='bc-paynote'; iNo.type='text';
+      fNo.appendChild(iNo); r3.appendChild(fNo);
+    }
     c3.appendChild(r3);
     wrap.appendChild(c3);
 
-    // ảnh báo cáo (2 ảnh/ghế theo thứ tự — server tự chia)
-    var c4=el('div','bc-card');
-    c4.appendChild(el('h3','bc-h','Ảnh báo cáo (tuỳ chọn)'));
-    c4.appendChild(el('div','bc-mut','2 ảnh/ghế theo thứ tự ghế trong bảng. Ảnh được nén trước khi gửi.'));
-    var iImg=el('input'); iImg.type='file'; iImg.id='bc-imgs'; iImg.accept='image/*'; iImg.multiple=true; iImg.style.marginTop='8px';
-    c4.appendChild(iImg);
-    var iPrf=el('input'); iPrf.type='file'; iPrf.id='bc-proofs'; iPrf.accept='image/*'; iPrf.multiple=true; iPrf.style.marginTop='8px';
-    var lp=el('label','bc-f'); lp.style.marginTop='8px'; lp.appendChild(el('span',null,'Ảnh chứng từ nộp tiền (QR/bill)')); lp.appendChild(iPrf);
-    c4.appendChild(lp);
-    wrap.appendChild(c4);
+    // ảnh báo cáo — chỉ chế độ đầy đủ (điện thoại gọn thì bỏ cho nhẹ)
+    if(!GON){
+      var c4=el('div','bc-card');
+      c4.appendChild(el('h3','bc-h','Ảnh báo cáo (tuỳ chọn)'));
+      c4.appendChild(el('div','bc-mut','2 ảnh/ghế theo thứ tự ghế trong bảng. Ảnh được nén trước khi gửi.'));
+      var iImg=el('input'); iImg.type='file'; iImg.id='bc-imgs'; iImg.accept='image/*'; iImg.multiple=true; iImg.style.marginTop='8px';
+      c4.appendChild(iImg);
+      var iPrf=el('input'); iPrf.type='file'; iPrf.id='bc-proofs'; iPrf.accept='image/*'; iPrf.multiple=true; iPrf.style.marginTop='8px';
+      var lp=el('label','bc-f'); lp.style.marginTop='8px'; lp.appendChild(el('span',null,'Ảnh chứng từ nộp tiền (QR/bill)')); lp.appendChild(iPrf);
+      c4.appendChild(lp);
+      wrap.appendChild(c4);
+    }
 
-    // nút gửi + chốt sớm + đối chiếu
+    // nút gửi + chốt sớm (+ đối chiếu ở chế độ đầy đủ)
     var bar=el('div','bc-card');
     var brow=el('div','bc-row');
     var bGui=el('button','bc-btn pri','Gửi báo cáo cơ sở này'); bGui.id='bc-gui'; bGui.onclick=guiBaoCao;
     var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
-    var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu;
-    brow.appendChild(bGui); brow.appendChild(bChot); brow.appendChild(bDoi);
+    brow.appendChild(bGui); brow.appendChild(bChot);
+    if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
     var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
     wrap.appendChild(bar);
 
-    // các mục phụ (nạp sau khi vẽ xong)
-    wrap.appendChild(boxId('bc-yc'));       // kế toán yêu cầu
-    wrap.appendChild(boxId('bc-recent'));   // báo cáo 24h — sửa
-    wrap.appendChild(boxId('bc-unpaid'));   // nộp bổ sung
-    wrap.appendChild(boxId('bc-dn'));       // đề nghị đổi/xoá chỉ số
-    wrap.appendChild(boxId('bc-hist'));     // lịch sử tháng
-    wrap.appendChild(boxId('bc-hoidap'));   // hỏi đáp về web
+    // các mục phụ — chỉ chế độ đầy đủ (điện thoại gọn thì ẩn hết cho gọn mắt)
+    if(!GON){
+      wrap.appendChild(boxId('bc-yc'));       // kế toán yêu cầu
+      wrap.appendChild(boxId('bc-recent'));   // báo cáo 24h — sửa
+      wrap.appendChild(boxId('bc-unpaid'));   // nộp bổ sung
+      wrap.appendChild(boxId('bc-dn'));       // đề nghị đổi/xoá chỉ số
+      wrap.appendChild(boxId('bc-hist'));     // lịch sử tháng
+      wrap.appendChild(boxId('bc-hoidap'));   // hỏi đáp về web
+    }
 
     app.appendChild(wrap);
     refreshPhien();
-    loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veHoiDap();
-    if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
+    if(!GON){ loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veHoiDap(); }
+    if(LOC && (BC.coso||[]).indexOf(LOC)>=0){ sL.value=LOC; selectLoc(LOC); }
+    else if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
   }
   function boxId(id){ var d=el('div','bc-card'); d.id=id; return d; }
 
@@ -1321,11 +1347,15 @@ class VHG_Trang {
     else { var ib=inp('before','Nhập lần đầu'); tdB.appendChild(ib); }
     tr.appendChild(tdB);
     tr.appendChild(cell(inp('after','Chỉ số sau')));
-    tr.appendChild(cellRo('actual'));
-    tr.appendChild(cellRo('cash',true));
+    if(!GON){
+      tr.appendChild(cellRo('actual'));
+      tr.appendChild(cellRo('cash',true));
+    }
     tr.appendChild(cell(inp('qr','QR')));
-    tr.appendChild(cell(inp('adjust','VD 50000')));
-    tr.appendChild(cell(inp('note','Lý do…',true)));
+    if(!GON){
+      tr.appendChild(cell(inp('adjust','VD 50000')));
+      tr.appendChild(cell(inp('note','Lý do…',true)));
+    }
     calc(tr);
     return tr;
   }
@@ -1338,13 +1368,13 @@ class VHG_Trang {
   function calc(tr){
     var before=beforeOf(tr);
     var after=meterVal(tr.querySelector('.after').value);
-    var qr=snum(tr.querySelector('.qr').value);
-    var adjust=snum(tr.querySelector('.adjust').value);
+    var qEl=tr.querySelector('.qr'); var qr=qEl?snum(qEl.value):0;
+    var aEl=tr.querySelector('.adjust'); var adjust=aEl?snum(aEl.value):0;   // gọn: không có cột này
     var dv=Number(BC.don_vi)||10000;
     var actual=(before===''||after==='')?0:(after-before)*dv;
     var cash=actual-qr+adjust;
-    tr.querySelector('.actual').textContent=money(actual);
-    tr.querySelector('.cash').textContent=money(cash);
+    var elA=tr.querySelector('.actual'); if(elA) elA.textContent=money(actual);   // gọn: ẩn
+    var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
     if(before!==''&&after!==''&&after<before){ w.textContent='Chỉ số sau nhỏ hơn trước'; w.style.display=''; }
@@ -1375,10 +1405,11 @@ class VHG_Trang {
     var out=[];
     document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
       if(!coThu(tr.querySelector('.after').value)) return;
+      var qEl=tr.querySelector('.qr'), aEl=tr.querySelector('.adjust'), nEl=tr.querySelector('.note');
       out.push({ chairCode:tr.dataset.ma, chairName:tr.dataset.ten,
         meterBefore:beforeOf(tr), meterAfter:meterVal(tr.querySelector('.after').value),
-        qr:snum(tr.querySelector('.qr').value), adjust:snum(tr.querySelector('.adjust').value),
-        note:(tr.querySelector('.note').value||'').trim() });
+        qr:qEl?snum(qEl.value):0, adjust:aEl?snum(aEl.value):0,
+        note:nEl?(nEl.value||'').trim():'' });
     });
     return out;
   }
@@ -1393,9 +1424,10 @@ class VHG_Trang {
       if(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore)){
         msg.textContent='Ghế '+(r.chairName||r.chairCode)+': chỉ số sau nhỏ hơn trước. Máy vừa thay/đổi điểm thì gửi đề nghị đổi chỉ số.';
         msg.className='bc-msg bc-err'; return; } }
-    var method=$('bc-method').value;
-    var amtRaw=($('bc-amt').value||'').trim();
-    var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:($('bc-paynote').value||'').trim() };
+    var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
+    var aEl=$('bc-amt'); var amtRaw=aEl?(aEl.value||'').trim():'';   // gọn: không có ô số tiền → nộp đủ
+    var nEl=$('bc-paynote');
+    var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:nEl?(nEl.value||'').trim():'' };
     if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
     msg.textContent='Đang đọc ảnh…';
     docAnh_('bc-imgs',function(images){
@@ -3498,9 +3530,14 @@ function veKtNhap(){
     + '<span id="ktn-file-msg" class="mut"></span></div>'
     + '<textarea id="ktn-csv" rows="8" style="width:100%;font-family:monospace;font-size:12px" '
     + 'placeholder="date,locName,chairName,chairCode,staff,meterBefore,meterAfter,actual,cash,qr,adjust,total,…"></textarea>'
+    + '<p class="mut" style="margin-top:4px">' + L('Mặc định là BỔ SUNG: báo cáo cơ sở/ngày đã có thì chỉ '
+        + 'điền thêm chỗ TRỐNG, không đè số đã nhập (nhập lại lần 2 không hỏng gì). Chỉ tick "Ghi đè hẳn" '
+        + 'khi muốn thay hẳn báo cáo cũ.',
+        'Default is SUPPLEMENT: existing reports only get blanks filled, never overwritten. Tick "Overwrite" to replace.') + '</p>'
     + '<div class="act" style="flex-wrap:wrap;margin-top:8px">'
     + '<button id="ktn-xem" class="ghost">' + L('Xem trước','Preview') + '</button>'
-    + '<label class="mut"><input type="checkbox" id="ktn-ghide"> ' + L('Ghi đè nếu cơ sở/ngày đã có','Overwrite existing') + '</label>'
+    + '<label class="mut"><input type="checkbox" id="ktn-taoghe" checked> ' + L('Thêm cơ sở &amp; ghế vào danh mục','Add branch &amp; chairs') + '</label>'
+    + '<label class="mut"><input type="checkbox" id="ktn-ghide"> ' + L('Ghi đè hẳn (thay báo cáo cũ)','Overwrite existing') + '</label>'
     + '<label class="mut"><input type="checkbox" id="ktn-duyet"> ' + L('Đánh dấu đã duyệt','Mark confirmed') + '</label>'
     + '<button id="ktn-nap" class="on">' + L('Nhập vào hệ thống','Import') + '</button>'
     + '<span id="ktn-msg" class="mut"></span></div>'
@@ -3561,10 +3598,11 @@ function ktnInit(){
     if(!KTN_ROWS){ ktnPreview(document.getElementById('ktn-csv').value); if(!KTN_ROWS) return; }
     if(!KTN_ROWS.length){ return; }
     var ghide=document.getElementById('ktn-ghide').checked;
-    if(!confirm(L('Nhập '+KTN_ROWS.length+' dòng ghế vào hệ thống?'+(ghide?'\n\n⚠ GHI ĐÈ: báo cáo cơ sở/ngày đã có sẽ bị thay.':''),
-        'Import '+KTN_ROWS.length+' rows?'+(ghide?'\n\nOverwrite existing branch/day reports.':'')))) return;
+    var taoghe=document.getElementById('ktn-taoghe').checked;
+    if(!confirm(L('Nhập '+KTN_ROWS.length+' dòng ghế vào hệ thống?'+(ghide?'\n\n⚠ GHI ĐÈ HẲN: báo cáo cơ sở/ngày đã có sẽ bị THAY.':'\n\n(Bổ sung: chỉ điền chỗ trống, không đè số đã có.)'),
+        'Import '+KTN_ROWS.length+' rows?'+(ghide?'\n\nOverwrite existing reports.':'\n\n(Supplement: fill blanks only.)')))) return;
     msg.textContent=L('Đang nhập…','Importing…'); msg.className='mut';
-    goi('kt_import',{rows:KTN_ROWS,ghi_de:ghide?1:0,duyet:document.getElementById('ktn-duyet').checked?1:0},function(r){
+    goi('kt_import',{rows:KTN_ROWS,ghi_de:ghide?1:0,tao_ghe:taoghe?1:0,duyet:document.getElementById('ktn-duyet').checked?1:0},function(r){
       if(!r||!r.ok){ msg.textContent=(r&&r.error)||(r&&r.message)||'Lỗi.'; msg.className='mut err'; return; }
       msg.textContent='✓ '+r.message; msg.className='mut ok';
       box.textContent=''; box.appendChild(ktEl('div','ok',r.message));
