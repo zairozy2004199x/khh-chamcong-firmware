@@ -297,7 +297,7 @@ class VHG_May {
 		$ds = VHG_DB::rows(
 			"SELECT m.*, c.ten AS coso_ten, n.trang_thai, n.nguon AS nhip_nguon, n.con_lai,"
 			. " n.fw, n.ip, n.nd_tien_to, n.tre_ms, n.tm_loi, n.tm_cuoi, n.tm_lan,"
-			. " n.tm_luc, n.tm_to, n.luc AS nhip_luc FROM $may m"
+			. " n.tm_luc, n.tm_to, n.khoa, n.kt, n.luc AS nhip_luc FROM $may m"
 			. " LEFT JOIN $coso c ON c.id = m.coso_id"
 			. " LEFT JOIN $nhip n ON n.ma_may = m.ma"
 			. ' ORDER BY c.ten ASC, m.ma ASC' );
@@ -341,6 +341,8 @@ class VHG_May {
 			$ds[ $i ]['chua_bao_gio'] = $tt['chua_bao_gio'];
 			$ds[ $i ]['nhip_chu']     = $tt['chu'];
 			$ds[ $i ]['cho']          = self::so_cho( $x['ma'] );
+			$ds[ $i ]['khoa']         = ! empty( $x['khoa'] ) ? 1 : 0;
+			$ds[ $i ]['kt']           = ! empty( $x['kt'] ) ? 1 : 0;
 		}
 		return $ds;
 	}
@@ -1044,6 +1046,8 @@ class VHG_May {
 			   Đây là cách duy nhất đúng khi hai bên không chung đồng hồ. */
 			'tm_luc'     => self::luc_tu_tuoi( isset( $d['tm_giay'] ) ? $d['tm_giay'] : -1 ),
 			'tm_to'      => self::luc_tu_tuoi( isset( $d['tm_to'] ) ? $d['tm_to'] : -1 ),
+			'khoa'       => ! empty( $d['khoa'] ) ? 1 : 0,   // ghế đang KHÓA lỗi (chờ hotline mở)
+			'kt'         => ! empty( $d['kt'] ) ? 1 : 0,     // ghế đang CHẾ ĐỘ KỸ THUẬT (test)
 			'ip'         => mb_substr( (string) ( isset( $d['ip'] ) ? $d['ip'] : '' ), 0, 60 ),
 			'nd_tien_to' => mb_substr( trim( (string) ( isset( $d['nd'] ) ? $d['nd'] : '' ) ), 0, 20 ),
 			/* 80, KHỚP VỚI CỘT. Cắt 40 ở đây là cách hỏng âm thầm: chuỗi phiên bản
@@ -1068,9 +1072,9 @@ class VHG_May {
 		global $wpdb;
 		$ma_may = trim( (string) $ma_may );
 		if ( '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
-		if ( ! in_array( $viec, array( 'on', 'off', 'reboot', 'mokhoa' ), true ) ) {
+		if ( ! in_array( $viec, array( 'on', 'off', 'reboot', 'mokhoa', 'test' ), true ) ) {
 			return array( 'ok' => false, 'error' => 'Lệnh chỉ có thể là bật (on), tắt (off), '
-				. 'khởi động lại (reboot) hoặc mở khoá lỗi (mokhoa).' );
+				. 'khởi động lại (reboot), mở khoá lỗi (mokhoa) hoặc chế độ kỹ thuật (test).' );
 		}
 		$nguoi = trim( (string) $nguoi );
 		if ( '' === $nguoi ) { return array( 'ok' => false, 'error' => 'Thiếu tên người đặt lệnh.' ); }
@@ -1099,6 +1103,11 @@ class VHG_May {
 		if ( 'mokhoa' === $viec ) {
 			return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh MỞ KHOÁ LỖI máy ' . $ma_may
 				. '. Máy nhận trong ~10 giây rồi cho quét QR lại.' );
+		}
+		if ( 'test' === $viec ) {
+			return array( 'ok' => true, 'thong_bao' => ( $phut ? 'BẬT' : 'TẮT' )
+				. ' chế độ kỹ thuật cho máy ' . $ma_may . '. Máy nhận trong ~10 giây. '
+				. ( $phut ? 'Trong chế độ này ghế không khoá lỗi, tự tắt sau 15 phút.' : '' ) );
 		}
 		return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh TẮT máy ' . $ma_may . '.' );
 	}

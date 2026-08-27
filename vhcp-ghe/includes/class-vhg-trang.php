@@ -158,6 +158,16 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'test' === $viec ) {
+			/* Chế độ kỹ thuật: bật (bat=1) / tắt (bat=0). Ghế trong chế độ này KHÔNG khoá lỗi. */
+			$r = VHG_May::dat_lenh(
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '', 'test',
+				! empty( $d['bat'] ) ? 1 : 0, $ai['name'],
+				isset( $d['ly_do'] ) ? $d['ly_do'] : '' );
+			self::tra( $r );
+			return;
+		}
+
 		if ( 'gan_ma' === $viec ) {
 			/* 🔴 Gán ghế NGAY TRÊN ĐIỆN THOẠI. Người đi lắp ghế ở Aeon Tân Phú cầm cái điện
 			 *    thoại, không cầm wp-admin. Bắt họ nhắn về văn phòng nhờ ai đó vào wp-admin gán
@@ -466,6 +476,8 @@ class VHG_Trang {
 					? $m['tm_loi'] : $m['tm_cuoi'] ),
 				'tm_chu_en' => VHG_May::loi_tien_chu( '' !== (string) $m['tm_loi']
 					? $m['tm_loi'] : $m['tm_cuoi'], 'en' ),
+				'khoa'    => ! empty( $m['khoa'] ) ? 1 : 0,   // ghế đang KHÓA lỗi
+				'kt'      => ! empty( $m['kt'] ) ? 1 : 0,     // ghế đang chế độ KỸ THUẬT (test)
 			);
 		}
 		/* Ghế đang chờ gán mã + danh sách cơ sở: gửi kèm luôn trong lượt số liệu, không thêm
@@ -1650,6 +1662,7 @@ function veDieuKhien(){
          là người bấm vẫn tưởng mình đang ghi một lượt bán hàng. */
       + '<button data-mat="' + esc(m.ma) + '">🧾 ' + L('Chốt ca / thu ngăn','Close shift') + '</button>'
       + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ ' + L('Khởi động lại','Reboot') + '</button>'
+      + testNut(m)
       + '</div></div>';
   });
   return h + '</div></div>';
@@ -1665,16 +1678,26 @@ function veDieuKhien(){
  * Ghế bị KHÓA (firmware treo mã 'ghekhongchay'/'ghedungdotngot' bền) -> có nút "Mở khoá từ xa"
  * gửi lệnh 'mo_khoa'. Ghế kẹt tiền / mất kết nối -> nút Khởi động lại / Tắt.
  * ============================================================================================ */
+/* Nút bật/tắt CHẾ ĐỘ KỸ THUẬT (test) cho 1 ghế. Ghế trong chế độ này KHÔNG khoá lỗi:
+   dừng/lỗi thì báo ngay 5s rồi tự hết — để kỹ thuật test bật/tắt liên tục. Tự tắt sau 15 phút. */
+function testNut(m){
+  return m.kt
+    ? '<button class="on" data-testoff="' + esc(m.ma) + '">🔧 '
+        + L('Đang kiểm tra — Tắt','Testing — turn off') + '</button>'
+    : '<button data-teston="' + esc(m.ma) + '">🔧 '
+        + L('Ghế kỹ thuật (kiểm tra)','Technician test') + '</button>';
+}
+
 function veGheLoi(){
-  var KHOA_MA = { 'ghekhongchay': 1, 'ghedungdotngot': 1 };   // mã tương ứng ghế bị KHÓA
-  var ds = (D.may || []).filter(function(m){ return m.tm || !m.song; });
+  var KHOA_MA = { 'ghekhongchay': 1, 'ghedungdotngot': 1 };   // mã tương ứng ghế bị KHÓA (dự phòng)
+  var ds = (D.may || []).filter(function(m){ return m.khoa || m.tm || !m.song; });
   /* Sắp: ghế đang lỗi (còn kết nối) trước, rồi mất kết nối. */
   ds.sort(function(a,b){
     var la = (a.tm ? 0 : 1) + (a.song ? 0 : 2), lb = (b.tm ? 0 : 1) + (b.song ? 0 : 2);
     if (la !== lb) return la - lb;
     return (a.coso||'').localeCompare(b.coso||'') || (a.ma||'').localeCompare(b.ma||'');
   });
-  var soKhoa = ds.filter(function(m){ return m.tm && KHOA_MA[m.tm]; }).length;
+  var soKhoa = ds.filter(function(m){ return m.khoa || (m.tm && KHOA_MA[m.tm]); }).length;
   var soDut  = ds.filter(function(m){ return !m.song; }).length;
 
   var h = '<div class="card"><h2>🚨 ' + L('Ghế lỗi','Faulty chairs')
@@ -1697,7 +1720,7 @@ function veGheLoi(){
 
   h += '<div class="card"><div class="ghe-luoi">';
   ds.forEach(function(m){
-    var khoa = m.tm && KHOA_MA[m.tm];
+    var khoa = m.khoa || (m.tm && KHOA_MA[m.tm]);
     var lop = !m.song ? ' dut' : '';
     h += '<div class="ghe' + lop + '">'
       + '<div class="ghe-dau"><span class="ghe-ma">' + esc(m.ma) + '</span>'
@@ -1720,7 +1743,8 @@ function veGheLoi(){
       h += '<button class="on" data-mokhoa="' + esc(m.ma) + '">🔓 '
         + L('Mở khoá từ xa','Unlock remotely') + '</button>';
     }
-    h += '<button class="b-tat" data-tat="' + esc(m.ma) + '">■ ' + L('Tắt','Stop') + '</button>'
+    h += testNut(m)
+      + '<button class="b-tat" data-tat="' + esc(m.ma) + '">■ ' + L('Tắt','Stop') + '</button>'
       + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ ' + L('Khởi động lại','Reboot') + '</button>'
       + '</div></div>';
   });
@@ -2982,6 +3006,18 @@ function noi(){
           'Unlock chair ' + m + '?\n\nOnly unlock after checking the chair runs again — it will accept '
           + 'customers afterwards. The chair picks up the command in ~10s.'))) return;
       lam('mo_khoa', { ma_may: m }); };
+  });
+  [].forEach.call(document.querySelectorAll('[data-teston]'), function(b){
+    b.onclick = function(){ var m = b.getAttribute('data-teston');
+      if (!confirm(L('BẬT chế độ kỹ thuật cho ghế ' + m + '?\n\nGhế sẽ KHÔNG khoá lỗi khi dừng — '
+          + 'lỗi chỉ báo 5 giây rồi tự hết. Dùng khi đang sửa/test. Tự tắt sau 15 phút.',
+          'Enable technician mode for chair ' + m + '?\n\nThe chair will NOT lock on stop — errors show '
+          + 'for 5s then clear. Use while servicing/testing. Auto-off after 15 minutes.'))) return;
+      lam('test', { ma_may: m, bat: 1 }); };
+  });
+  [].forEach.call(document.querySelectorAll('[data-testoff]'), function(b){
+    b.onclick = function(){ var m = b.getAttribute('data-testoff');
+      lam('test', { ma_may: m, bat: 0 }); };
   });
   [].forEach.call(document.querySelectorAll('[data-gan]'), function(b){
     b.onclick = function(){

@@ -114,7 +114,7 @@ class VHG_Auth {
 
 	/** Việc của người GIÚP KHÁCH — bật ghế, mở khoá ghế lỗi, và tiêu ví hộ khách. */
 	const VIEC_GIUP_KHACH = array(
-		'bat', 'tat', 'khoi_dong_lai', 'mo_khoa',
+		'bat', 'tat', 'khoi_dong_lai', 'mo_khoa', 'test',
 		'vi_tra_nv', 'vi_tieu_nv',
 	);
 

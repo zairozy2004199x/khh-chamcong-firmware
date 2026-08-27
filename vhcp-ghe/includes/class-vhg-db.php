@@ -196,6 +196,8 @@ class VHG_DB {
 			tm_lan SMALLINT UNSIGNED NOT NULL DEFAULT 0,
 			tm_luc DATETIME NULL,
 			tm_to DATETIME NULL,
+			khoa TINYINT(1) NOT NULL DEFAULT 0,
+			kt TINYINT(1) NOT NULL DEFAULT 0,
 			luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_may (ma_may),
