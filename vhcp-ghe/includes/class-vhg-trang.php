@@ -1186,10 +1186,19 @@ class VHG_Trang {
     var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
     wrap.appendChild(bar);
 
+    // các mục phụ (nạp sau khi vẽ xong)
+    wrap.appendChild(boxId('bc-yc'));       // kế toán yêu cầu
+    wrap.appendChild(boxId('bc-recent'));   // báo cáo 24h — sửa
+    wrap.appendChild(boxId('bc-unpaid'));   // nộp bổ sung
+    wrap.appendChild(boxId('bc-dn'));       // đề nghị đổi/xoá chỉ số
+    wrap.appendChild(boxId('bc-hist'));     // lịch sử tháng
+
     app.appendChild(wrap);
     refreshPhien();
+    loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist();
     if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
   }
+  function boxId(id){ var d=el('div','bc-card'); d.id=id; return d; }
 
   function elEmptyRow(txt){ var tr=el('tr'); var td=el('td'); td.colSpan=8; td.style.cssText='text-align:center;color:#64748b;padding:22px'; td.textContent=txt; tr.appendChild(td); return tr; }
 
@@ -1366,6 +1375,226 @@ class VHG_Trang {
   }
   function tdT(x){ var td=el('td'); td.appendChild(el('b',null,x)); return td; }
   function tdN(n,lech){ var td=el('td'); var s=el('span'); s.style.cssText='display:block;text-align:right;font-variant-numeric:tabular-nums'; if(lech&&Number(n)!==0){ s.style.color='#b91c1c'; s.style.fontWeight='700'; } else if(lech){ s.className='bc-khop'; } s.textContent=money(n); td.appendChild(s); return td; }
+
+  // ---------------- KẾ TOÁN YÊU CẦU ----------------
+  function loadYeuCau(){
+    var box=$('bc-yc'); if(!box) return;
+    goi('bc_yeucau',{},function(r){
+      var rows=(r&&r.ds)||[]; box.textContent='';
+      if(!rows.length){ box.style.display='none'; return; }
+      box.style.display='';
+      box.appendChild(el('h3','bc-h','Kế toán yêu cầu làm bổ sung / sửa'));
+      rows.forEach(function(y){
+        var it=el('div'); it.style.cssText='border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-top:8px';
+        it.appendChild(el('b',null,(y.loaiChu||y.loai)+' · '+y.coSo+' · ngày '+y.ngay));
+        it.appendChild(el('div','bc-mut',(y.noiDung||'')+(y.taoLuc?('  ('+y.taoLuc+')'):'')));
+        var b=el('button','bc-btn','Làm ngay'); b.style.marginTop='6px';
+        b.onclick=function(){
+          NGAY=y.ngay;
+          var iN=document.querySelector('#bc-app input[type=date]'); if(iN) iN.value=NGAY;
+          var sL=document.querySelector('#bc-app select'); // ô cơ sở là select đầu tiên? an toàn: tìm theo option
+          // đặt cơ sở: tìm select có option = y.coSo
+          document.querySelectorAll('#bc-app select').forEach(function(s){
+            for(var i=0;i<s.options.length;i++){ if(s.options[i].value===y.coSo){ s.value=y.coSo; } }
+          });
+          if((BC.coso||[]).indexOf(y.coSo)<0){ alert('Cơ sở "'+y.coSo+'" không thuộc phạm vi PIN của bạn.'); return; }
+          LOC=y.coSo; selectLoc(LOC);
+          window.scrollTo({top:0,behavior:'smooth'});
+        };
+        it.appendChild(b); box.appendChild(it);
+      });
+    });
+  }
+
+  // ---------------- BÁO CÁO 24H — SỬA ----------------
+  function loadRecent(){
+    var box=$('bc-recent'); if(!box) return;
+    box.textContent=''; box.appendChild(el('h3','bc-h','Báo cáo trong 24h — sửa được'));
+    var wrapl=el('div'); box.appendChild(wrapl);
+    goi('bc_recent',{},function(r){
+      var ds=(r&&r.ds)||[]; wrapl.textContent='';
+      if(!ds.length){ wrapl.appendChild(el('div','bc-mut','Chưa có báo cáo nào trong 24 giờ qua.')); return; }
+      ds.forEach(function(rp){ wrapl.appendChild(recentItem(rp)); });
+    });
+  }
+  function recentItem(rp){
+    var d=el('div'); d.style.cssText='border:1px solid #e2e8f0;border-radius:10px;padding:10px;margin-top:8px';
+    var head=el('div'); head.style.cssText='display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center';
+    head.appendChild(el('b',null,rp.date+' · '+rp.locName+' · '+rp.rows+' ghế · '+money(rp.total)+'đ'));
+    var b=el('button','bc-btn','Sửa'); head.appendChild(b); d.appendChild(head);
+    var body=el('div'); body.style.display='none'; body.style.marginTop='8px'; d.appendChild(body);
+    b.onclick=function(){
+      if(body.style.display===''){ body.style.display='none'; b.textContent='Sửa'; return; }
+      body.style.display=''; b.textContent='Đóng';
+      if(body.dataset.built==='1') return; body.dataset.built='1';
+      (rp.chairs||[]).forEach(function(c){ body.appendChild(theGheSua(rp,c)); });
+    };
+    return d;
+  }
+  function theGheSua(rp,c){
+    var card=el('div'); card.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:9px;margin-top:6px';
+    card.appendChild(el('b',null,c.chairName||c.chairCode));
+    card.appendChild(el('div','bc-mut','Chỉ số trước: '+((c.meterBefore==null||c.meterBefore==='')?'—':money(c.meterBefore))+' (khoá)'));
+    var g=el('div'); g.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px';
+    function f(lbl,cls,val){ var w=el('label','bc-f'); w.appendChild(el('span',null,lbl)); var i=inp(cls,''); i.value=(val==null?'':val); w.appendChild(i); return w; }
+    g.appendChild(f('Chỉ số sau','e-after',c.meterAfter));
+    g.appendChild(f('QR','e-qr',c.qr));
+    g.appendChild(f('Tăng/Giảm','e-adjust',c.adjust));
+    g.appendChild(f('Ghi chú','e-note',c.note));
+    card.appendChild(g);
+    var bar=el('div'); bar.style.cssText='display:flex;gap:8px;align-items:center;margin-top:6px';
+    var s=el('button','bc-btn pri','Lưu ghế này'); var m=el('span','bc-mut');
+    bar.appendChild(s); bar.appendChild(m); card.appendChild(bar);
+    s.onclick=function(){
+      var patch={};
+      var af=meterVal(card.querySelector('.e-after').value);
+      var qr=snum(card.querySelector('.e-qr').value);
+      var ad=snum(card.querySelector('.e-adjust').value);
+      var nt=(card.querySelector('.e-note').value||'').trim();
+      if(String(c.meterAfter)!==String(af)) patch.meterAfter = af===''?'':af;
+      if(Number(c.qr||0)!==qr) patch.qr=qr;
+      if(Number(c.adjust||0)!==ad) patch.adjust=ad;
+      if(String(c.note||'')!==nt) patch.note=nt;
+      if(!Object.keys(patch).length){ m.textContent='Không có gì đổi.'; return; }
+      s.disabled=true; m.textContent='Đang lưu…';
+      goi('bc_edit',{report_id:rp.reportId,ma_may:c.chairCode,patch:patch},function(r){
+        s.disabled=false;
+        if(!r||!r.ok){ m.textContent=(r&&r.message)||'Lỗi.'; m.className='bc-mut bc-err'; return; }
+        m.textContent='Đã lưu.'; m.className='bc-mut bc-ok';
+        c.meterAfter=patch.meterAfter!==undefined?patch.meterAfter:c.meterAfter;
+        c.qr=patch.qr!==undefined?patch.qr:c.qr; c.adjust=patch.adjust!==undefined?patch.adjust:c.adjust;
+        c.note=patch.note!==undefined?patch.note:c.note;
+        loadUnpaid();
+      });
+    };
+    return card;
+  }
+
+  // ---------------- NỘP BỔ SUNG ----------------
+  var UNPAID=[];
+  function loadUnpaid(){
+    var box=$('bc-unpaid'); if(!box) return;
+    goi('bc_unpaid',{},function(r){
+      UNPAID=(r&&r.ds)||[]; box.textContent='';
+      box.appendChild(el('h3','bc-h','Nộp bổ sung (báo cáo hôm trước chưa nộp đủ)'));
+      if(!UNPAID.length){ box.appendChild(el('div','bc-mut','Không còn báo cáo chưa nộp đủ.')); return; }
+      var row=el('div','bc-row'); row.style.marginTop='8px';
+      var fS=el('label','bc-f'); fS.appendChild(el('span',null,'Báo cáo còn thiếu'));
+      var sel=el('select'); sel.id='bc-sup-sel';
+      UNPAID.forEach(function(u){ sel.appendChild(new Option(u.date+' · '+u.locName+' · thiếu '+money(u.need-u.paid)+'đ', u.reportId)); });
+      fS.appendChild(sel); row.appendChild(fS);
+      var fA=el('label','bc-f'); fA.appendChild(el('span',null,'Số tiền (trống = đủ)'));
+      var iA=el('input'); iA.id='bc-sup-amt'; iA.type='text'; iA.inputMode='numeric'; iA.placeholder='Để trống = đủ số còn thiếu';
+      fA.appendChild(iA); row.appendChild(fA);
+      var fM=el('label','bc-f'); fM.appendChild(el('span',null,'Hình thức'));
+      var sM=el('select'); sM.id='bc-sup-ht'; sM.appendChild(new Option('Tiền mặt','cash')); sM.appendChild(new Option('Chuyển khoản','transfer'));
+      fM.appendChild(sM); row.appendChild(fM);
+      var b=el('button','bc-btn pri','Lưu nộp bổ sung'); b.style.alignSelf='flex-end';
+      row.appendChild(b); box.appendChild(row);
+      var m=el('div','bc-msg'); box.appendChild(m);
+      b.onclick=function(){
+        var rid=sel.value; if(!rid){ m.textContent='Chưa chọn báo cáo.'; m.className='bc-msg bc-err'; return; }
+        var raw=(iA.value||'').trim();
+        b.disabled=true; m.textContent='Đang lưu…'; m.className='bc-msg';
+        goi('bc_supplement',{report_id:rid,ngay:NGAY,so_tien: raw===''?'':snum(raw),hinhthuc:sM.value},function(r){
+          b.disabled=false;
+          if(!r||!r.ok){ m.textContent=(r&&r.message)||'Lỗi.'; m.className='bc-msg bc-err'; return; }
+          m.textContent='Đã ghi nộp bổ sung '+money(r.add)+'đ.'; m.className='bc-msg bc-ok';
+          loadUnpaid();
+        });
+      };
+    });
+  }
+
+  // ---------------- ĐỀ NGHỊ ĐỔI / XOÁ CHỈ SỐ ----------------
+  function veDenghi(){
+    var box=$('bc-dn'); if(!box) return; box.textContent='';
+    box.appendChild(el('h3','bc-h','Đề nghị đổi / xoá chỉ số — kế toán duyệt'));
+    box.appendChild(el('div','bc-mut','Dùng khi thay máy / đổi điểm / chỉ số sai. Bạn không tự đổi được — gửi đề nghị, kế toán duyệt mới có hiệu lực từ ngày áp dụng.'));
+    var row=el('div','bc-row'); row.style.marginTop='8px';
+    var fG=el('label','bc-f'); fG.appendChild(el('span',null,'Ghế'));
+    var sG=el('select'); sG.id='bc-dn-ghe';
+    (BC.ghe||[]).filter(function(g){ return !LOC || String(g.coso||'').trim()===LOC; })
+      .forEach(function(g){ sG.appendChild(new Option((g.ten||g.ma)+' ('+g.ma+')', g.ma)); });
+    if(!sG.options.length) (BC.ghe||[]).forEach(function(g){ sG.appendChild(new Option((g.ten||g.ma)+' ('+g.ma+')', g.ma)); });
+    fG.appendChild(sG); row.appendChild(fG);
+    var fL=el('label','bc-f'); fL.appendChild(el('span',null,'Loại'));
+    var sL2=el('select'); sL2.id='bc-dn-loai';
+    sL2.appendChild(new Option('Xoá chỉ số — về 0 (thay máy)','xoa'));
+    sL2.appendChild(new Option('Đặt lại chỉ số cụ thể','dat_lai'));
+    fL.appendChild(sL2); row.appendChild(fL);
+    var fF=el('label','bc-f'); fF.appendChild(el('span',null,'Áp dụng từ'));
+    var iF=el('input'); iF.id='bc-dn-from'; iF.type='date'; iF.value=BC.today||''; fF.appendChild(iF); row.appendChild(fF);
+    var fS=el('label','bc-f'); fS.id='bc-dn-so-wrap'; fS.style.display='none'; fS.appendChild(el('span',null,'Chỉ số đề nghị'));
+    var iS=el('input'); iS.id='bc-dn-so'; iS.type='text'; iS.inputMode='numeric'; fS.appendChild(iS); row.appendChild(fS);
+    box.appendChild(row);
+    var fLy=el('label','bc-f'); fLy.style.marginTop='8px'; fLy.appendChild(el('span',null,'Lý do (bắt buộc)'));
+    var iLy=el('input'); iLy.id='bc-dn-ly'; iLy.type='text'; iLy.placeholder='VD: thay máy mới 03/08, chỉ số cũ 1240'; fLy.appendChild(iLy);
+    box.appendChild(fLy);
+    sL2.onchange=function(){ fS.style.display = sL2.value==='dat_lai' ? '' : 'none'; };
+    var b=el('button','bc-btn pri','Gửi đề nghị'); b.style.marginTop='8px'; box.appendChild(b);
+    var m=el('div','bc-msg'); box.appendChild(m);
+    var list=el('div'); list.id='bc-dn-list'; list.style.marginTop='8px'; box.appendChild(list);
+    b.onclick=function(){
+      var code=sG.value, from=iF.value, ly=(iLy.value||'').trim(), loai=sL2.value;
+      if(!code){ m.textContent='Chưa chọn ghế.'; m.className='bc-msg bc-err'; return; }
+      if(!from){ m.textContent='Chưa chọn ngày.'; m.className='bc-msg bc-err'; return; }
+      if(!ly){ m.textContent='Phải ghi lý do.'; m.className='bc-msg bc-err'; return; }
+      var so=''; if(loai==='dat_lai'){ so=(iS.value||'').trim(); if(so===''){ m.textContent='Nhập chỉ số đề nghị.'; m.className='bc-msg bc-err'; return; } }
+      b.disabled=true; m.textContent='Đang gửi…'; m.className='bc-msg';
+      goi('bc_denghi_gui',{chairCode:code,fromDate:from,loai:loai,meterOpening:so,lyDo:ly},function(r){
+        b.disabled=false;
+        m.textContent=(r&&r.message)||((r&&r.ok)?'Đã gửi.':'Không gửi được.'); m.className='bc-msg '+((r&&r.ok)?'bc-ok':'bc-err');
+        if(r&&r.ok){ iLy.value=''; iS.value=''; loadDenghiList(); }
+      });
+    };
+    loadDenghiList();
+  }
+  function loadDenghiList(){
+    var list=$('bc-dn-list'); if(!list) return; list.textContent='Đang tải…';
+    goi('bc_denghi_ds',{coso:LOC||''},function(r){
+      var ds=(r&&r.ds)||[]; list.textContent='';
+      if(!ds.length){ list.appendChild(el('div','bc-mut','Chưa có đề nghị nào.')); return; }
+      ds.forEach(function(d){
+        var it=el('div'); it.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:8px;margin-top:6px';
+        var tt=d.trangThai==='da_duyet'?'Đã duyệt':(d.trangThai==='tu_choi'?'Từ chối':'Chờ duyệt');
+        it.appendChild(el('b',null,(d.chairName||d.chairCode)+' · '+(d.loai==='xoa'?'Xoá về 0':'Đặt '+money(d.meterOpening))+' · từ '+d.fromDate+' · '+tt));
+        it.appendChild(el('div','bc-mut','Lý do: '+(d.lyDo||'—')+(d.ghiChuKeToan?(' · KT: '+d.ghiChuKeToan):'')));
+        list.appendChild(it);
+      });
+    });
+  }
+
+  // ---------------- LỊCH SỬ THÁNG ----------------
+  function veHist(){
+    var box=$('bc-hist'); if(!box) return; box.textContent='';
+    box.appendChild(el('h3','bc-h','Lịch sử báo cáo trong tháng'));
+    var row=el('div','bc-row'); row.style.marginTop='8px';
+    var iM=el('input'); iM.type='month'; iM.id='bc-hist-m'; iM.value=(BC.today||'').slice(0,7);
+    row.appendChild(iM);
+    var b=el('button','bc-btn','Xem'); row.appendChild(b); box.appendChild(row);
+    var out=el('div'); out.id='bc-hist-out'; out.style.marginTop='8px'; out.className='bc-mut'; box.appendChild(out);
+    b.onclick=function(){
+      out.textContent='Đang tải…';
+      goi('bc_history',{thang:iM.value},function(r){
+        var ds=(r&&r.ds)||[]; out.textContent=''; out.className='';
+        if(!ds.length){ out.className='bc-mut'; out.textContent='Tháng này chưa có báo cáo.'; return; }
+        var g={}, order=[], tot=0;
+        ds.forEach(function(x){ var k=x.date+'|'+x.locName; if(!g[k]){ g[k]={date:x.date,loc:x.locName,cash:0,qr:0,total:0}; order.push(k); }
+          g[k].cash+=Number(x.cash||0); g[k].qr+=Number(x.qr||0); g[k].total+=Number(x.total||0); });
+        var sc=el('div','bc-scroll'); var tb=el('table','bc-t');
+        tb.innerHTML='<thead><tr><th>Ngày</th><th>Cơ sở</th><th>Tiền mặt</th><th>QR</th><th>Tổng</th></tr></thead>';
+        var bo=el('tbody');
+        order.forEach(function(k){ var o=g[k]; tot+=o.total; var tr=el('tr');
+          tr.appendChild(tdCell(o.date)); tr.appendChild(tdCell(o.loc));
+          tr.appendChild(tdCell(money(o.cash),1)); tr.appendChild(tdCell(money(o.qr),1)); tr.appendChild(tdCell(money(o.total),1));
+          bo.appendChild(tr); });
+        tb.appendChild(bo); sc.appendChild(tb); out.appendChild(sc);
+        out.appendChild(el('div',null,'Tổng tháng: '+money(tot)+'đ · '+order.length+' lượt'));
+      });
+    };
+  }
+  function tdCell(x,r){ var td=el('td'); if(r){ td.style.textAlign='right'; td.style.fontVariantNumeric='tabular-nums'; } td.textContent=x; return td; }
 
   window.VHG_BaoCao = { mo: moBaoCao };
 })();
