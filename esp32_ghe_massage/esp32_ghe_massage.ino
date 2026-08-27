@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-26d (OTA bang WiFiServer, bo WebServer.h loi)"
+#define FW_VERSION "ghe-massage 2026-08-27a (TX22->GPIO26 chong gian lan: tra tien ma ghe khong bat)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -231,16 +231,32 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
       chuỗi xung. -> Phát hiện theo XUNG, KHÔNG theo mức: có nhấp nháy = chạy; đứng yên
       (dù 3.3V hay 0V) = dừng. Nhờ vậy CẮT NGUỒN ghế (hết xung) cũng thành 'dừng' ->
       KHÔNG cần trở kéo, không phụ thuộc cực. */
-/* 🔴 KHÓA CHÂN 34: DO_GHECHAY=0 -> KHÔNG đụng gì tới IO34 (không pinMode, không đọc),
-   đồng hồ đếm giờ BÌNH THƯỜNG (real-time). Khi nào tìm được 1 nguồn "bật" mức logic
-   rõ (0/3.3V) thì: đặt GHECHAY_PIN = chân đó, DO_GHECHAY=1 và GATE_BY_PIN=1 để bật lại
-   (đếm theo ghế + dừng theo ghế + cảnh báo 'ghekhongchay'). */
-#define DO_GHECHAY         0
-#define GATE_BY_PIN        0         // 1 = gate đồng hồ theo chân ghế (cần DO_GHECHAY=1)
-#define GHECHAY_PIN        34        // chân đọc trạng thái chạy (khi có tín hiệu dùng được)
-#define GHECHAY_DUTY_NGUONG 50       // %low >= ngưỡng này = ĐANG CHẠY (chỉnh theo số đo thật)
-#define GHECHAY_CHET_MS    10000     // paid mà ghế CHƯA TỪNG chạy quá lâu này -> cảnh báo web
-#define GHE_DUNG_MS        1500       // ghế ĐÃ chạy rồi mà DỪNG lâu ngần này -> KẾT THÚC phiên (QR dừng theo)
+/* 🔴 TX22 (bo ghế) -> GPIO26 (qua chia áp): ĐO THẬT (anh Thắng) -> TX22 phát 1 KHUNG UART
+   mỗi khi ghế NHẬN LỆNH BẬT, rồi IM (chạy hay dừng đều im). Vì là tín hiệu SỰ KIỆN "vừa
+   bật", KHÔNG phải trạng thái liên tục, nên:
+     - GATE_BY_PIN=0: KHÔNG gate đồng hồ theo chân (QR đếm REAL-TIME như thường).
+     - DO_GHECHAY=1 : DÙNG để CHỐNG GIAN LẬN — trả tiền mà GHECHAY_CHET_MS không thấy TX22
+       phát khung => ghế KHÔNG thật sự chạy => cảnh báo web 'ghekhongchay'.
+   Đọc bằng ĐẾM CẠNH (interrupt) trên GPIO26: có cạnh = TX22 vừa phát khung => ghế đã bật.
+   Khỏi cần UART thứ 4 / đúng baud / giải mã.
+   (Muốn 'QR dừng theo ghế' thì cần 1 chân MỨC liên tục chạy/dừng — TX22 không cho.) */
+#define DO_GHECHAY         1
+#define GATE_BY_PIN        0         // 1 = gate đồng hồ theo chân ghế (cần chân MỨC liên tục; TX22 không hợp)
+#define GHECHAY_PIN        26        // GPIO26 <- TX22 bo ghế (qua chia áp 5V->3.3V). Rảnh trên CYD.
+#define GHECHAY_CANH_NGUONG 5        // > ngần này cạnh trong cửa sổ = TX22 đã phát khung (ghế bật)
+#define GHECHAY_DUTY_NGUONG 50       // (cũ, cho gheDangChay duty — không dùng khi GATE_BY_PIN=0)
+#define GHECHAY_CHET_MS    10000     // trả tiền mà ngần này ms không thấy TX22 phát -> cảnh báo web
+#define GHE_DUNG_MS        1500       // (dùng cho GATE_BY_PIN — ghế dừng lâu ngần này thì QR dừng theo)
+
+#if DO_GHECHAY
+/* Đếm cạnh trên GPIO26 (<- TX22). ISR chỉ tăng biến đếm; loop so mốc để biết TX22 có
+   vừa phát khung "ghế bật" hay không. IRAM_ATTR: ISR nằm trong RAM, chạy được khi flash bận. */
+volatile uint32_t g_gheCanh = 0;
+void IRAM_ATTR onGheCanh(){ g_gheCanh++; }
+uint32_t g_gheCanhMoc = 0;    // số cạnh lúc BẮT ĐẦU theo dõi (mỗi phiên trả tiền)
+uint32_t g_theoDoiTu  = 0;    // millis bắt đầu chờ TX22 báo bật (0 = không theo dõi)
+bool     g_daThayBat  = false;// đã thấy TX22 phát khung bật trong phiên này chưa
+#endif
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -1613,6 +1629,9 @@ void ketThucPhien(const char* lyDo){
   state = ST_IDLE; g_srcCode = 0; g_statusDirty = true; screenDrawn = false;
   g_runTotalVnd = 0; setAcceptorEnabled(true);
   g_conLaiMs = 0; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; lastShownSec = -1;
+#if DO_GHECHAY
+  g_theoDoiTu = 0; g_daThayBat = false;   // hết phiên -> thôi theo dõi TX22
+#endif
   if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
   Serial.printf("[RUN] ket thuc phien: %s\n", lyDo);
 }
@@ -1656,6 +1675,12 @@ void henChay(int minutes, char src){
   g_conLaiMs = (long)minutes * 60000L;                    // giờ còn lại, đếm khi ghế chạy
   g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0;     // phiên mới: chờ ghế lên mức chạy
   if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+#if DO_GHECHAY
+  /* Phiên mới trả tiền -> bắt đầu theo dõi TX22: nếu ngần GHECHAY_CHET_MS không thấy phát
+     khung => ghế không thật sự bật => cảnh báo. */
+  { uint32_t c; noInterrupts(); c = g_gheCanh; interrupts();
+    g_gheCanhMoc = c; g_theoDoiTu = millis(); g_daThayBat = false; }
+#endif
   state = ST_CAMON; screenDrawn = false;
   g_henLuc = millis() + CAMON_MS;                         // hết ngần này thì phóng to đồng hồ
   if(g_henLuc == 0) g_henLuc = 1;
@@ -1986,7 +2011,9 @@ void setup(){
   /* IO34 nay dung doc chan bao-chay cua bo ghe (3.3V chay / 0V tat) -> canh bao
      'ghekhongchay'. (Bo huong doc wire B 3E/5E qua ADuM vi doc-mem nhieu.) */
 #if DO_GHECHAY
-  pinMode(GHECHAY_PIN, INPUT);   // đọc chân báo-chạy của bo ghế (CHẠY=có xung / DỪNG=đứng yên)
+  pinMode(GHECHAY_PIN, INPUT);   // GPIO26 <- TX22 (qua chia áp). Đếm cạnh -> biết ghế có bật.
+  attachInterrupt(digitalPinToInterrupt(GHECHAY_PIN), onGheCanh, CHANGE);
+  Serial.printf("[GHE] doi TX22 tren GPIO%d (chong gian lan: tra tien ma ghe khong bat)\n", GHECHAY_PIN);
 #endif
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
   if(CASH_ENABLE){ pinMode(CASH_PULSE_PIN, INPUT_PULLUP);
@@ -2090,6 +2117,24 @@ void loop(){
 #endif
   }
 
+#if DO_GHECHAY
+  /* CHỐNG GIAN LẬN: TX22 phát 1 khung khi ghế THẬT SỰ BẬT. Trả tiền rồi mà quá
+     GHECHAY_CHET_MS không thấy khung nào (không có cạnh trên GPIO26) => ghế không chạy
+     (nhân viên cố nhét tiền tăng chỉ số / bo ghế hỏng) => đẩy web cảnh báo. */
+  if((state == ST_CAMON || state == ST_RUNNING) && g_theoDoiTu && !g_daThayBat){
+    uint32_t nowG = millis(), c;
+    noInterrupts(); c = g_gheCanh; interrupts();
+    if(c - g_gheCanhMoc > GHECHAY_CANH_NGUONG){         // TX22 đã phát khung -> ghế bật thật
+      g_daThayBat = true; g_gheDaChay = true; g_theoDoiTu = 0;
+      if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
+      Serial.println("[GHE] TX22 bao ghe DA BAT -> ok");
+    } else if(nowG - g_theoDoiTu > GHECHAY_CHET_MS){    // trả tiền mà im -> cảnh báo
+      if(!g_baoGheChet){ g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
+        Serial.println("[GHE] tra tien ma TX22 KHONG bao bat -> canh bao web (ghe khong chay)"); }
+    }
+  }
+#endif
+
   /* Hết màn cảm ơn -> chuyển sang màn đếm ngược (phóng to đồng hồ). Đồng hồ đã đếm
      theo chân ghế ở khối pin-master trên nên số hiện ra khớp phần ghế đã chạy. */
   if(g_henLuc && state == ST_CAMON && (int32_t)(millis() - g_henLuc) >= 0){
@@ -2102,6 +2147,9 @@ void loop(){
     if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false; g_henLuc=0;
       g_runTotalVnd=0; setAcceptorEnabled(true); g_statusDirty=true; screenDrawn=false;
       g_conLaiMs=0; g_gheDaChay=false; g_dungTu=0; g_tickTruoc=0; lastShownSec=-1;
+#if DO_GHECHAY
+      g_theoDoiTu = 0; g_daThayBat = false;   // tắt từ xa -> thôi theo dõi TX22
+#endif
       if(g_baoGheChet){ g_baoGheChet=false; loiTienCong("ghekhongchay", false); }
       Serial.println("[CMD] -> da TAT may"); }
   }
