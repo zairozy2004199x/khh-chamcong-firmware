@@ -545,7 +545,9 @@ function vhcc_may_gui( $goi, $khoa = 'khoa-thu-nghiem-123', $phuong_thuc = 'POST
 	$GLOBALS['VHCC_THAN']         = is_string( $goi ) ? $goi : json_encode( $goi );
 	$_SERVER['REQUEST_METHOD']    = $phuong_thuc;
 	$_SERVER['REQUEST_URI']       = '/' . VHCC_Nhan::DUONG;
-	$_SERVER['HTTP_X_VHCC_KEY']   = $khoa;
+	/* `null` = máy KHÔNG gửi khoá nào cả (header bị cắt giữa đường). Khác hẳn khoá sai. */
+	if ( null === $khoa ) { unset( $_SERVER['HTTP_X_VHCC_KEY'] ); }
+	else { $_SERVER['HTTP_X_VHCC_KEY'] = $khoa; }
 	$_SERVER['CONTENT_LENGTH']    = isset( $GLOBALS['VHCC_DAI_KHAI'] )
 		? $GLOBALS['VHCC_DAI_KHAI'] : strlen( $GLOBALS['VHCC_THAN'] );
 	$GLOBALS['VHCP_QVAR']['vhcc_nhan'] = 1;
@@ -2178,6 +2180,102 @@ t( 'và được ghi vào bảng', null !== vhcc_hang( 'TUTU_BT', '2026-08-22', 
 // ---- 21k. Việc lạ: KHÔNG bắt máy đẩy lại vô hạn ----
 t( 'việc máy chủ chưa biết: bỏ qua chứ không báo lỗi (firmware cũ hơn máy chủ là chuyện thường)',
 	! empty( VHCC_MayCong::phuc_vu( 'viec-tu-ban-sau', array() )['boQua'] ) );
+
+// ---- 21l. SAI KHOÁ PHẢI ĐỂ LẠI DẤU VẾT --------------------------------------------------------
+/* 🔴 Trước 2.75.0 nhánh sai khoá trả 401 rồi IM. Nên hai trạng thái khác hẳn nhau lại trông y
+   hệt từ màn quản trị — nhật ký trống cả hai:
+      • máy chưa chạy / chưa nạp firmware / chưa vào được mạng
+      • máy chạy tốt, gói đi hết đường về tới PHP, chỉ mang sai khoá
+   Cái đầu chữa ở cửa hàng, cái sau chữa bằng một dòng trong wp-config.php. Không phân biệt được
+   là chỉ người ta đi sai đường, và mỗi ngày đi sai là một ngày cả cơ sở mất công. */
+vhcc_dung_bang();
+delete_option( 'vhcc_nhat_ky_may' );
+list( $ma_sk ) = vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-hoan-toan-khac-han' );
+teq( 'sai khoá vẫn là 401', 401, $ma_sk );
+$nk_sk = (array) get_option( 'vhcc_nhat_ky_may', array() );
+t( '🔴 sai khoá ĐỂ LẠI dòng nhật ký, không im lặng',
+	! empty( $nk_sk ) && 'SAI_KHOA' === $nk_sk[0]['ma'], $nk_sk );
+t( '🔴 và nói rõ GÓI ĐÃ TỚI ĐƯỢC CỔNG — đừng để người ta đi sửa ESP32',
+	strpos( (string) $nk_sk[0]['loi'], 'tới được cổng' ) !== false, $nk_sk );
+/* 🔴 TUYỆT ĐỐI KHÔNG IN KHOÁ. Nhật ký hiện trên màn quản trị ngoài internet; ảnh chụp màn hình
+   đi khắp nơi. Lộ khoá là ai cũng đẩy được lượt chấm công giả vào bảng lương. */
+t( '🔴 KHÔNG in khoá máy gửi lên, dù chỉ một phần',
+	strpos( (string) $nk_sk[0]['loi'], 'khoa-hoan-toan-khac-han' ) === false, $nk_sk );
+t( '🔴 KHÔNG in khoá thật của máy chủ',
+	strpos( (string) $nk_sk[0]['loi'], 'khoa-thu-nghiem-123' ) === false, $nk_sk );
+/* Độ dài thì được, và cần: "máy gửi 18 ký tự" đủ để nhận ra secrets.h còn nguyên chuỗi mẫu. */
+t( 'nhưng CÓ kể độ dài khoá máy gửi, để còn nhận ra chuỗi mẫu',
+	strpos( (string) $nk_sk[0]['loi'], (string) strlen( 'khoa-hoan-toan-khac-han' ) ) !== false, $nk_sk );
+t( 'và tách "khác cả độ dài" khỏi "chỉ sai vài ký tự"',
+	strpos( (string) $nk_sk[0]['loi'], 'cũng KHÁC' ) !== false, $nk_sk );
+
+delete_option( 'vhcc_nhat_ky_may' );
+vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-thu-nghiem-124' );
+$nk_sk = (array) get_option( 'vhcc_nhat_ky_may', array() );
+t( 'khoá cùng độ dài: đoán là gõ nhầm vài ký tự chứ không phải chuỗi mẫu',
+	strpos( (string) $nk_sk[0]['loi'], 'thì KHỚP' ) !== false, $nk_sk );
+
+/* 🔴 KHÔNG MANG KHOÁ NÀO LÀ CA KHÁC HẲN, VÀ HAY BỊ ĐỔ OAN CHO FIRMWARE. Firmware LUÔN gửi ở
+   header `X-VHCC-Key`. Không thấy header nghĩa là có thứ gì đó giữa máy và PHP cắt nó đi — CDN,
+   tường lửa, hay PHP chạy dạng CGI. Nạp lại firmware bao nhiêu lần cũng không chữa được. */
+delete_option( 'vhcc_nhat_ky_may' );
+list( $ma_kh ) = vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), null );
+teq( 'không mang khoá: vẫn 401', 401, $ma_kh );
+$nk_kh = (array) get_option( 'vhcc_nhat_ky_may', array() );
+t( '🔴 và chỉ đúng thủ phạm: có thứ gì đó cắt mất header, không phải firmware',
+	strpos( (string) $nk_kh[0]['loi'], 'cắt mất header' ) !== false, $nk_kh );
+t( 'kèm đường vòng: cho máy gửi khoá trong thân gói',
+	strpos( (string) $nk_kh[0]['loi'], 'thân gói' ) !== false, $nk_kh );
+/* 🔴 CA NÀY CŨNG PHẢI NÓI "GÓI ĐÃ TỚI ĐƯỢC CỔNG". Thiếu khoá hay sai khoá thì kết luận quan
+   trọng nhất vẫn y nhau: máy chạy, mạng thông, đừng đi lục ESP32. */
+t( '🔴 và cũng nói rõ gói ĐÃ TỚI ĐƯỢC CỔNG',
+	strpos( (string) $nk_kh[0]['loi'], 'tới được cổng' ) !== false, $nk_kh );
+
+// ---- 21m. SỔ 200 DÒNG KHÔNG ĐƯỢC TỰ HUỶ ------------------------------------------------------
+/* 🔴 Một máy hỏng cấu hình đẩy lại mỗi vài phút và KHÔNG BAO GIỜ THÔI. Xếp chồng thì trong vài
+   giờ nó đầy 200 dòng y hệt nhau và đẩy văng mọi dòng khác — đúng lúc cổng hỏng nặng nhất thì
+   sổ chẩn đoán mất sạch manh mối. Gộp dòng liên tiếp giống hệt nhau, đếm bằng `lan`. */
+delete_option( 'vhcc_nhat_ky_may' );
+for ( $i_sk = 0; $i_sk < 30; $i_sk++ ) {
+	vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-bay-bay' );
+}
+$nk_g = (array) get_option( 'vhcc_nhat_ky_may', array() );
+teq( '🔴 30 lượt sai khoá giống hệt nhau: gộp thành ĐÚNG MỘT dòng', 1, count( $nk_g ) );
+teq( 'và đếm đủ 30 lần', 30, (int) $nk_g[0]['lan'] );
+t( 'giữ mốc lần đầu để còn đo được nhịp', ! empty( $nk_g[0]['dau'] ), $nk_g );
+
+/* 🔴 `dau` PHẢI LÀ LẦN ĐẦU THẬT, không phải lần gần nhất. Cả phần "đọc hộ cái nhịp" dựng trên
+   hiệu `luc - dau`; để `dau` trôi theo `luc` thì hiệu ấy luôn bằng 0 và màn chẩn đoán không bao
+   giờ nhận ra một cái máy đang bắn liên tục. Đẩy đồng hồ thử để bắt đúng chỗ đó. */
+delete_option( 'vhcc_nhat_ky_may' );
+vhcp_test_dat_gio( '2026-08-27 08:00:00' );
+vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-bay-bay' );
+vhcp_test_dat_gio( '2026-08-27 09:00:00' );
+vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-bay-bay' );
+vhcp_test_dat_gio( null );
+$nk_d = (array) get_option( 'vhcc_nhat_ky_may', array() );
+teq( '🔴 `dau` giữ nguyên LẦN ĐẦU', '2026-08-27 08:00:00', (string) $nk_d[0]['dau'] );
+teq( 'còn `luc` chạy theo lần gần nhất', '2026-08-27 09:00:00', (string) $nk_d[0]['luc'] );
+
+/* ⚠️ GỘP THEO CẢ `ma` LẪN `loi`. Gộp theo mỗi `ma` là gom mất chi tiết: hai dòng GIO_SAI_KHUON
+   của hai người khác nhau kể hai chuyện khác nhau. */
+delete_option( 'vhcc_nhat_ky_may' );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-0001', 'mac' => 'AA:BB:CC:DD:EE:01',
+	'cua_hang' => 'TUTU_BT' ) );
+vhcc_may_gui( vhcc_goi( 'NVX1', 'gio bay ba mot' ) );
+vhcc_may_gui( vhcc_goi( 'NVX2', 'gio bay ba hai' ) );
+$nk_h = (array) get_option( 'vhcc_nhat_ky_may', array() );
+teq( '🔴 hai lỗi cùng mã nhưng khác chi tiết: KHÔNG gộp', 2, count( $nk_h ) );
+
+/* Xen một dòng khác vào giữa thì thôi gộp — gộp là gộp LIÊN TIẾP, không gom cả sổ. */
+delete_option( 'vhcc_nhat_ky_may' );
+vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-bay-bay' );
+vhcc_may_gui( vhcc_goi( 'NVX1', 'gio bay ba' ) );
+vhcc_may_gui( vhcc_goi( 'NV88', '2026-08-22 08:00:00' ), 'khoa-bay-bay' );
+$nk_x = (array) get_option( 'vhcc_nhat_ky_may', array() );
+teq( 'có dòng khác xen vào giữa thì không gộp qua nó', 3, count( $nk_x ) );
+delete_option( 'vhcc_nhat_ky_may' );
+vhcc_dung_bang();
 
 // ============================================================ 22. Màn máy: mỏng, không tự tính
 $ad4 = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
@@ -11908,11 +12006,15 @@ t( 'và chỉ đúng chỗ chữa: kể ra ĐÚNG địa chỉ cổng, và cấm
 /* ⚠️ ĐẾM PHẢI ĐÚNG LOẠI DÒNG. Nhật ký cổng chứa đủ thứ: giờ sai khuôn, máy chưa gán, sai khoá.
    Đếm bừa cả nhật ký thành "lượt GET" là vẽ ra một cơn hỏng không có thật, rồi người ta đi
    sửa địa chỉ nạp máy trong khi địa chỉ vốn đúng. */
+/* ⚠️ Sổ này MỚI NHẤT ĐỨNG ĐẦU (`ghi_loi` dùng `array_unshift`) — dựng cảnh ngược thứ tự là
+   phép thử canh nhầm mốc, mà vẫn xanh. */
 update_option( 'vhcc_nhat_ky_may', array(
-	array( 'luc' => '2026-08-27 08:00:00', 'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
-	array( 'luc' => '2026-08-27 08:01:00', 'ma' => 'GIO_SAI_KHUON', 'loi' => 'gio bay ba' ),
+	array( 'luc' => '2026-08-27 08:03:00', 'dau' => '2026-08-27 08:03:00', 'lan' => 1,
+		'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
 	array( 'luc' => '2026-08-27 08:02:00', 'ma' => 'MAY_CHUA_GAN', 'loi' => 'chua gan co so' ),
-	array( 'luc' => '2026-08-27 08:03:00', 'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
+	array( 'luc' => '2026-08-27 08:01:00', 'ma' => 'GIO_SAI_KHUON', 'loi' => 'gio bay ba' ),
+	array( 'luc' => '2026-08-27 08:00:00', 'dau' => '2026-08-27 08:00:00', 'lan' => 1,
+		'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
 ) );
 $h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
 t( '🔴 đếm ĐÚNG 2 lượt GET, không đếm cả 4 dòng nhật ký',
@@ -11920,6 +12022,69 @@ t( '🔴 đếm ĐÚNG 2 lượt GET, không đếm cả 4 dòng nhật ký',
 	&& strpos( $h_cd, '<b>4 lượt GET</b>' ) === false, $h_cd );
 t( 'và kể mốc GET gần nhất để còn soi nhịp',
 	strpos( $h_cd, '2026-08-27 08:03:00' ) !== false, $h_cd );
+t( 'thưa thì nói là thưa, không doạ người ta',
+	strpos( $h_cd, 'nhiều khả năng là người mở tay' ) !== false, $h_cd );
+
+/* 🔴 MỘT DÒNG GỘP CÓ THỂ LÀ HÀNG NGHÌN LƯỢT. `ghi_loi` gộp dòng liên tiếp giống hệt nhau để một
+   máy hỏng cấu hình khỏi đẩy văng cả sổ 200 dòng. Đếm số DÒNG thay vì cộng `lan` là đọc "một
+   máy đang bắn 40 phát mỗi giờ" thành "có một lượt lẻ". */
+update_option( 'vhcc_nhat_ky_may', array(
+	array( 'luc' => '2026-08-27 09:00:00', 'dau' => '2026-08-27 08:00:00', 'lan' => 40,
+		'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
+) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 dòng gộp: cộng theo `lan`, không đếm số dòng',
+	strpos( $h_cd, '<b>40 lượt GET</b>' ) !== false
+	&& strpos( $h_cd, '<b>1 lượt GET</b>' ) === false, $h_cd );
+t( '🔴 và ĐỌC HỘ cái nhịp: dày như vậy là firmware, không phải người bấm tay',
+	strpos( $h_cd, 'giống firmware' ) !== false, $h_cd );
+t( 'kèm khoảng cách trung bình, để còn cãi lại được',
+	strpos( $h_cd, 'trung bình mỗi' ) !== false, $h_cd );
+t( 'và nói ra NGƯỠNG đã dùng, chứ không phán trống không',
+	strpos( $h_cd, 'Ngưỡng đang dùng' ) !== false, $h_cd );
+
+/* 🔴 SAI KHOÁ LÀ CÂU TRẢ LỜI DỨT KHOÁT, VÀ PHẢI ĐỨNG TRƯỚC MỌI THỨ KHÁC. Nó trả lời đúng câu
+   hỏi đắt nhất của màn này — "máy có chạy không" — và câu trả lời là CÓ: gói đã đi hết quãng
+   đường từ cửa hàng về tới PHP. Để nó lẫn xuống dưới mấy khả năng "chưa nạp firmware" là chỉ
+   người ta đi sai đường, mà đường ấy dài mấy ngày. */
+update_option( 'vhcc_nhat_ky_may', array(
+	array( 'luc' => '2026-08-27 09:00:00', 'dau' => '2026-08-27 08:00:00', 'lan' => 12,
+		'ma' => 'SAI_KHOA', 'loi' => 'gói tới được cổng và CÓ mang khoá, nhưng không khớp' ),
+	array( 'luc' => '2026-08-27 07:00:00', 'dau' => '2026-08-27 07:00:00', 'lan' => 3,
+		'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
+) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 có sai khoá: nói TÌM RA RỒI, kèm số lượt',
+	strpos( $h_cd, 'SAI KHOÁ' ) !== false && strpos( $h_cd, '12 lượt' ) !== false, $h_cd );
+t( '🔴 và nói thẳng: máy VẪN CHẠY, đừng đi sửa ESP32',
+	strpos( $h_cd, 'máy vẫn chạy và vẫn tới được cổng' ) !== false
+	&& strpos( $h_cd, 'Không phải đi sửa ESP32' ) !== false, $h_cd );
+t( 'kể lại đúng lời nhật ký, để biết hỏng kiểu gì',
+	strpos( $h_cd, 'nhưng không khớp' ) !== false, $h_cd );
+t( 'kèm lần đầu và lần gần nhất', strpos( $h_cd, '2026-08-27 08:00:00' ) !== false
+	&& strpos( $h_cd, '2026-08-27 09:00:00' ) !== false, $h_cd );
+/* ⚠️ VÀ TRẤN AN ĐÚNG CHỖ: lượt bấm chưa mất, còn nằm trong đầu đọc. Không nói thì người ta
+   tưởng mất trắng mấy ngày công rồi đi khai tay cả bảng. */
+t( 'nói rõ lượt bấm CHƯA MẤT, lấy lại được bằng lệnh Tải lại',
+	strpos( $h_cd, 'Tải lại' ) !== false && strpos( $h_cd, 'chưa mất gì cả' ) !== false, $h_cd );
+/* 🔴 Và ĐỪNG chỉ sang đường GET nữa — có sai khoá thì mấy lượt GET kia là chuyện phụ. */
+t( '🔴 thôi chỉ đường chuyển hướng: đã có câu trả lời chắc chắn hơn',
+	strpos( $h_cd, 'Hai cách đọc' ) === false, $h_cd );
+
+/* Có dữ liệu thật RỒI mà vẫn còn máy sai khoá: 25 cửa hàng xanh không cứu được cửa hàng thứ 26. */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'CD-MAY0', 'mac' => '', 'cua_hang' => $M_CS2 ) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 đã có máy chạy nhưng còn máy sai khoá: vẫn phải kêu lên',
+	strpos( $h_cd, 'Cổng ĐÃ nhận được dữ liệu thật' ) !== false
+	&& strpos( $h_cd, 'bị chối vì SAI KHOÁ' ) !== false, $h_cd );
+t( 'và nói rõ máy lẻ ấy đang KHÔNG lên được lượt nào',
+	strpos( $h_cd, 'KHÔNG lên được lượt nào' ) !== false, $h_cd );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial = 'CD-MAY0'" );
+/* Dựng lại cảnh CHỈ có lượt GET cho mấy phép thử dưới — bỏ hết dòng sai khoá. */
+update_option( 'vhcc_nhat_ky_may', array(
+	array( 'luc' => '2026-08-27 07:02:00', 'dau' => '2026-08-27 07:00:00', 'lan' => 3,
+		'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
+) );
 
 /* ⚠️ HAI ĐƯỜNG ĐỀU LÀ "ĐÃ CHẠY". Có hàng chấm công mang nguồn máy mà bảng máy trống là chuyện
    có thật: sổ máy dựng lại, hoặc dữ liệu chuyển từ nơi khác sang. Chỉ nhìn bảng máy thì màn
@@ -11943,6 +12108,18 @@ t( 'và thôi kêu chưa nhận được gì',
 	strpos( $h_cd, 'Cổng chưa nhận được lượt chấm công nào' ) === false, $h_cd );
 /* Mấy lượt GET lẫn vào lúc ấy chỉ là ghi chú, không phải cảnh báo. */
 t( 'lượt GET lúc này chỉ là ghi chú', strpos( $h_cd, 'Chỉ đáng lo nếu' ) !== false, $h_cd );
+
+/* 🔴 BẢNG NHẬT KÝ PHẢI HIỆN SỐ LẦN. Từ 2.75.0 một DÒNG ở đó có thể là hàng nghìn lượt đã gộp
+   lại; giấu con số ấy đi là biến "một máy đang bắn 40 phát mỗi giờ" thành "có một lượt lẻ". */
+update_option( 'vhcc_nhat_ky_may', array(
+	array( 'luc' => '2026-08-27 09:00:00', 'dau' => '2026-08-27 08:00:00', 'lan' => 40,
+		'ma' => 'SAI_KHOA', 'loi' => 'khoa khong khop' ),
+) );
+$h_nk = vhcc_hr( $tok_cd, array( 'man' => 'may' ) );
+t( '🔴 bảng nhật ký hiện SỐ LẦN của dòng gộp',
+	strpos( $h_nk, '<b>×40</b>' ) !== false, $h_nk );
+t( 'và hiện cả mốc lần đầu, để đọc được quãng',
+	strpos( $h_nk, 'từ 2026-08-27 08:00:00' ) !== false, $h_nk );
 delete_option( 'vhcc_nhat_ky_may' );
 
 vhcc_dung_bang();

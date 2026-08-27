@@ -161,6 +161,11 @@ class VHCC_Nhan {
 			/* Sai khoá KHÔNG được trả SUCCESS: người gọi hợp lệ mà cấu hình thiếu khoá thì phải
 			   thấy hỏng ngay, chứ không phải im lặng mất chấm công cả cơ sở. 401 để phân biệt với
 			   máy chủ hỏng. */
+			/* 🔴 VÀ PHẢI GHI LẠI. Trước bản 2.75.0 nhánh này trả 401 rồi im — nên trạng thái "máy
+			   ĐANG tới được cổng, chỉ sai khoá" trông y hệt trạng thái "máy chưa chạy": nhật ký
+			   trống cả hai. Màn chẩn đoán khi ấy chỉ đường đi sửa ESP32, trong khi ESP32 đang
+			   chạy tốt và thứ hỏng nằm ở một dòng trong `wp-config.php`. Mất mấy ngày ở đó. */
+			self::ghi_loi( 'SAI_KHOA', self::vi_sao_khoa_hong( $d ) );
 			self::loi( 'Sai khoa hoac chua cau hinh VHCC_KHOA_MAY.', 401 );
 			return;
 		}
@@ -822,11 +827,71 @@ class VHCC_Nhan {
 		return '' !== $gui && hash_equals( $that, $gui );
 	}
 
-	/** Nhật ký sự cố của cổng. Bản dịch `_fbGhiLoi` — ghi để đọc được, không để im lặng. */
+	/**
+	 * VÌ SAO KHOÁ KHÔNG QUA — nói đủ để sửa được, mà TUYỆT ĐỐI không in khoá ra.
+	 *
+	 * 🔴 KHÔNG IN GIÁ TRỊ KHOÁ, DÙ CHỈ MỘT PHẦN. Nhật ký này hiện trên màn quản trị, mà màn quản
+	 *    trị thì nằm ngoài internet và ảnh chụp màn hình đi khắp nơi. Lộ khoá là ai cũng đẩy
+	 *    được lượt chấm công giả vào bảng lương.
+	 *
+	 * ⚠️ ĐỘ DÀI thì được, và cần: "máy gửi 18 ký tự" đủ để người ta nhận ra mình còn để nguyên
+	 *    chuỗi mẫu trong `secrets.h`. Còn phía máy chủ chỉ nói KHỚP hay KHÔNG KHỚP độ dài — một
+	 *    bit, đủ tách "gõ nhầm một ký tự" khỏi "hai chuỗi khác hẳn nhau", mà không kể ra gì.
+	 */
+	private static function vi_sao_khoa_hong( $d ) {
+		$that = defined( 'VHCC_KHOA_MAY' ) ? (string) VHCC_KHOA_MAY : '';
+		if ( '' === $that ) {
+			return 'gói tới được cổng, nhưng máy chủ CHƯA khai VHCC_KHOA_MAY trong wp-config.php '
+				. '— cổng đang đóng với mọi máy. Đây là lỗi ở máy chủ, không phải ở máy.';
+		}
+		$co_header = isset( $_SERVER['HTTP_X_VHCC_KEY'] );
+		$co_than   = isset( $d['key'] );
+		if ( ! $co_header && ! $co_than ) {
+			/* 🔴 CA NÀY HAY BỊ ĐỔ OAN CHO FIRMWARE. Firmware LUÔN gửi khoá ở header
+			   `X-VHCC-Key`. Không thấy header nghĩa là có thứ gì đó giữa máy và PHP đã cắt nó
+			   đi — CDN, tường lửa, hoặc PHP chạy dạng CGI mà máy chủ web không chuyển tiếp
+			   header lạ. Nạp lại firmware bao nhiêu lần cũng không chữa được. */
+			return 'gói tới được cổng nhưng KHÔNG mang khoá nào: thiếu cả header X-VHCC-Key lẫn '
+				. 'trường "key" trong thân. Firmware luôn gửi ở header — nên gần như chắc là có '
+				. 'thứ gì đó giữa máy và PHP cắt mất header (CDN, tường lửa, hoặc PHP chạy dạng '
+				. 'CGI không chuyển tiếp header lạ). Cách vòng: cho máy gửi khoá trong thân gói.';
+		}
+		$gui = $co_header ? (string) $_SERVER['HTTP_X_VHCC_KEY'] : (string) $d['key'];
+		return 'gói tới được cổng và CÓ mang khoá (' . ( $co_header ? 'ở header X-VHCC-Key' : 'ở thân gói' )
+			. ', dài ' . strlen( $gui ) . ' ký tự) nhưng khoá không khớp — độ dài '
+			. ( strlen( $gui ) === strlen( $that ) ? 'thì KHỚP, nên nhiều khả năng chỉ sai vài ký tự '
+				. 'hoặc lẫn dấu cách ở đầu/cuối' : 'cũng KHÁC, nên là hai chuỗi khác hẳn nhau — '
+				. 'gần như chắc là secrets.h còn để nguyên chuỗi mẫu' )
+			. '. Sửa cho khớp VHCC_KHOA_MAY trong wp-config.php. (Giá trị khoá cố ý không ghi ra đây.)';
+	}
+
+	/**
+	 * Nhật ký sự cố của cổng. Bản dịch `_fbGhiLoi` — ghi để đọc được, không để im lặng.
+	 *
+	 * 🔴 GỘP DÒNG LIÊN TIẾP GIỐNG HỆT NHAU, KHÔNG XẾP CHỒNG. Sổ này chỉ giữ 200 dòng gần nhất.
+	 *    Một cái máy hỏng cấu hình thì đẩy lại mỗi vài phút, không bao giờ thôi: xếp chồng thì
+	 *    trong vài giờ nó đầy 200 dòng y hệt nhau và ĐẨY VĂNG mọi dòng khác — tức là đúng lúc
+	 *    cổng hỏng nặng nhất thì sổ chẩn đoán mất sạch mọi manh mối khác.
+	 *
+	 * ⚠️ Gộp theo CẢ `ma` LẪN `loi`. Gộp theo mỗi `ma` là gom mất chi tiết: hai dòng
+	 *    `GIO_SAI_KHUON` của hai người khác nhau kể hai chuyện khác nhau, đè lên nhau thì mất
+	 *    một chuyện.
+	 *
+	 * Dòng gộp giữ `dau` (lần đầu), `luc` (lần gần nhất) và `lan` (số lần) — chính ba con số ấy
+	 * mới trả lời được câu "rải rác hay dày đặc", thứ mà đếm số DÒNG không bao giờ nói ra.
+	 */
 	private static function ghi_loi( $ma, $loi ) {
 		$ds = get_option( 'vhcc_nhat_ky_may', array() );
 		if ( ! is_array( $ds ) ) { $ds = array(); }
-		array_unshift( $ds, array( 'luc' => current_time( 'mysql' ), 'ma' => $ma, 'loi' => $loi ) );
+		$luc = current_time( 'mysql' );
+		if ( isset( $ds[0]['ma'], $ds[0]['loi'] ) && $ma === $ds[0]['ma'] && $loi === $ds[0]['loi'] ) {
+			$ds[0]['lan'] = ( isset( $ds[0]['lan'] ) ? (int) $ds[0]['lan'] : 1 ) + 1;
+			if ( ! isset( $ds[0]['dau'] ) ) { $ds[0]['dau'] = $ds[0]['luc']; }
+			$ds[0]['luc'] = $luc;
+		} else {
+			array_unshift( $ds, array( 'luc' => $luc, 'dau' => $luc, 'ma' => $ma,
+				'loi' => $loi, 'lan' => 1 ) );
+		}
 		update_option( 'vhcc_nhat_ky_may', array_slice( $ds, 0, 200 ), false );
 	}
 }

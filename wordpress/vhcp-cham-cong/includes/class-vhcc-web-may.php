@@ -172,20 +172,23 @@ class VHCC_WebMay {
 	 */
 	private static function the_chan_doan() {
 		$nk = (array) get_option( 'vhcc_nhat_ky_may', array() );
-		$dem = array( 'get' => 0, 'khoa' => 0, 'khac' => 0 );
-		$get_dau = '';
-		$get_cuoi = '';
+		/* Mỗi dòng nhật ký mang `lan` — số lần chính nó lặp lại (xem `VHCC_Nhan::ghi_loi`). Đếm
+		   số DÒNG là đếm nhầm: một máy hỏng đẩy lại nghìn lần vẫn nằm gọn trong một dòng. */
+		$dem = array( 'get' => 0, 'khoa' => 0 );
+		$moc = array( 'get' => array( '', '' ), 'khoa' => array( '', '' ) );
+		$loi_khoa = '';
 		foreach ( $nk as $x ) {
-			$ma = isset( $x['ma'] ) ? (string) $x['ma'] : '';
-			if ( 'GET_VAO_CONG_MAY' === $ma ) {
-				$dem['get']++;
-				$luc = isset( $x['luc'] ) ? (string) $x['luc'] : '';
-				if ( '' === $get_dau ) { $get_dau = $luc; }
-				$get_cuoi = $luc;
-			} elseif ( 'SAI_KHOA' === $ma || 'KHOA_SAI' === $ma ) {
-				$dem['khoa']++;
-			} else {
-				$dem['khac']++;
+			$ma  = isset( $x['ma'] ) ? (string) $x['ma'] : '';
+			$k   = 'GET_VAO_CONG_MAY' === $ma ? 'get' : ( 'SAI_KHOA' === $ma ? 'khoa' : '' );
+			if ( '' === $k ) { continue; }
+			$lan = isset( $x['lan'] ) ? max( 1, (int) $x['lan'] ) : 1;
+			$dem[ $k ] += $lan;
+			$dau = isset( $x['dau'] ) ? (string) $x['dau'] : ( isset( $x['luc'] ) ? (string) $x['luc'] : '' );
+			$cuoi = isset( $x['luc'] ) ? (string) $x['luc'] : '';
+			if ( '' === $moc[ $k ][1] ) { $moc[ $k ][1] = $cuoi; }   // dòng đầu mảng = mới nhất
+			$moc[ $k ][0] = $dau;                                     // đi tiếp về quá khứ
+			if ( 'khoa' === $k && '' === $loi_khoa ) {
+				$loi_khoa = isset( $x['loi'] ) ? (string) $x['loi'] : '';
 			}
 		}
 
@@ -200,6 +203,14 @@ class VHCC_WebMay {
 			echo '<p><span class="chu-luc">✓ Cổng ĐÃ nhận được dữ liệu thật.</span> '
 				. esc_html( $so_may ) . ' máy đã tự hiện ra · '
 				. esc_html( number_format( $so_luot ) ) . ' hàng chấm công mang nguồn máy.</p>';
+			if ( $dem['khoa'] > 0 ) {
+				/* ⚠️ CÓ DỮ LIỆU THẬT KHÔNG CÓ NGHĨA LÀ MỌI MÁY ĐỀU QUA. 25 máy chạy tốt mà máy
+				   thứ 26 sai khoá thì màn này vẫn xanh, còn một cửa hàng thì mất công cả tháng. */
+				echo '<div class="bao loi"><b>Nhưng vẫn có ' . (int) $dem['khoa'] . ' lượt bị chối vì '
+					. 'SAI KHOÁ.</b> Máy khác đang gửi được, nên nhiều khả năng còn một máy lẻ '
+					. 'mang khoá cũ — nó đang KHÔNG lên được lượt nào.<br>'
+					. esc_html( $loi_khoa ) . '</div>';
+			}
 			if ( $dem['get'] > 0 ) {
 				echo '<p class="mo">Có ' . (int) $dem['get'] . ' lượt GET lẫn vào — thường là người '
 					. 'mở địa chỉ ấy bằng trình duyệt để thử. Chỉ đáng lo nếu chúng dày đặc và '
@@ -213,9 +224,25 @@ class VHCC_WebMay {
 		echo '<div class="bao canh"><b>Cổng chưa nhận được lượt chấm công nào.</b> '
 			. 'Khoá đã cấu hình và cổng đang mở, nhưng chưa máy nào gửi được gói POST hợp lệ.</div>';
 
+		/* 🔴 SAI KHOÁ ĐỨNG TRƯỚC MỌI THỨ KHÁC. Nó là câu trả lời DỨT KHOÁT cho câu hỏi đắt nhất
+		   của màn này — "máy có chạy không" — và câu trả lời là CÓ: gói đã đi hết quãng đường
+		   từ cửa hàng về tới PHP. Còn lại chỉ là một dòng trong `wp-config.php`. Để nó lẫn
+		   xuống dưới mấy khả năng "chưa nạp firmware" là chỉ người ta đi sai đường. */
+		if ( $dem['khoa'] > 0 ) {
+			echo '<p><span class="chu-luc">🔑 Tìm ra rồi: ' . (int) $dem['khoa'] . ' lượt bị chối vì '
+				. 'SAI KHOÁ.</span> Nghĩa là <b>máy vẫn chạy và vẫn tới được cổng</b> — gói đi hết '
+				. 'quãng đường từ cửa hàng về tới đây. Không phải đi sửa ESP32.</p>';
+			echo '<p class="mo">' . esc_html( $loi_khoa ) . '</p>';
+			echo '<p class="mo">Lần đầu <b>' . esc_html( $moc['khoa'][0] ) . '</b> · gần nhất <b>'
+				. esc_html( $moc['khoa'][1] ) . '</b>. Sửa xong thì lượt bấm đang nằm trong đầu đọc '
+				. 'lấy lại được bằng lệnh <b>Tải lại</b> — chưa mất gì cả.</p>';
+			echo '</div>';
+			return;
+		}
+
 		if ( $dem['get'] > 0 ) {
 			echo '<p>Nhật ký có <b>' . (int) $dem['get'] . ' lượt GET</b> vào cổng'
-				. ( '' !== $get_cuoi ? ' (gần nhất <b>' . esc_html( $get_cuoi ) . '</b>)' : '' ) . '. '
+				. ( '' !== $moc['get'][1] ? ' (gần nhất <b>' . esc_html( $moc['get'][1] ) . '</b>)' : '' ) . '. '
 				. 'Hai cách đọc, và cách phân biệt:</p>';
 			echo '<ul class="mo" style="margin:6px 0 0 18px">';
 			echo '<li><b>Vài lượt rải rác</b> — gần như chắc là chính anh/chị mở địa chỉ ấy bằng '
@@ -227,6 +254,9 @@ class VHCC_WebMay {
 				. '<code>/</code> cuối, đúng <code>https</code>, đúng có hay không có '
 				. '<code>www</code> như tên miền thật.</li>';
 			echo '</ul>';
+			/* ⚠️ ĐỪNG BẮT NGƯỜI TA TỰ ĐOÁN NHỊP. Ba con số `dau`/`luc`/`lan` đã có sẵn trong sổ,
+			   nên chia ra là xong. Nói kèm ngưỡng đã dùng, để ai không đồng ý còn cãi lại được. */
+			echo self::doc_nhip( $dem['get'], $moc['get'][0], $moc['get'][1] );
 		} else {
 			echo '<p class="mo">Nhật ký <b>trống trơn</b> — chưa có lượt nào chạm tới cổng, kể cả '
 				. 'lượt hỏng. Nghĩa là gói của máy chưa ra khỏi cửa hàng: ESP32 chưa chạy, chưa nạp '
@@ -238,6 +268,39 @@ class VHCC_WebMay {
 			. '<b>405</b>. Ra trang khác, ra trang chủ, hay ra 404 thì địa chỉ đang sai — và đó '
 			. 'đúng là cái làm firmware mất gói.</p>';
 		echo '</div>';
+	}
+
+	/**
+	 * ĐỌC HỘ CÁI NHỊP: "rải rác" hay "dày đặc"?
+	 *
+	 * ⚠️ NÓI RA NGƯỠNG ĐÃ DÙNG. Đây là suy đoán, không phải phép đo — máy chỉ có ba con số và
+	 *    khoảng cách TRUNG BÌNH thì che mất mọi thứ gồ ghề. Nói kèm ngưỡng thì người đọc còn
+	 *    cãi lại được; nói trống không thì thành một lời phán không kiểm chứng nổi.
+	 */
+	private static function doc_nhip( $lan, $dau, $cuoi ) {
+		if ( $lan < 2 || '' === $dau || '' === $cuoi ) {
+			return '<p class="mo">Mới <b>' . (int) $lan . ' lượt</b> — quá ít để đọc ra nhịp.</p>';
+		}
+		$giay = strtotime( $cuoi ) - strtotime( $dau );
+		if ( $giay <= 0 ) { return ''; }
+		$cach = (int) round( $giay / ( $lan - 1 ) );
+		$mo   = $lan >= 6 && $cach <= 1800;
+		return '<p class="' . ( $mo ? 'bao loi' : 'mo' ) . '">'
+			. ( $mo ? '<b>Nhịp đang giống firmware, không giống người bấm tay.</b> ' : '' )
+			. (int) $lan . ' lượt trong ' . esc_html( self::doc_khoang( $giay ) )
+			. ', trung bình mỗi ' . esc_html( self::doc_khoang( $cach ) ) . ' một lượt'
+			. ( $mo ? ' — đều và dày như vậy thì gần như chắc là firmware đang bị chuyển hướng. '
+					. 'Đi sửa địa chỉ nạp vào máy trước.'
+					: '. Thưa như vậy thì nhiều khả năng là người mở tay.' )
+			. ' <span class="mo">(Ngưỡng đang dùng: từ 6 lượt trở lên và cách nhau dưới 30 phút.)</span></p>';
+	}
+
+	private static function doc_khoang( $giay ) {
+		$giay = max( 0, (int) $giay );
+		if ( $giay < 90 ) { return $giay . ' giây'; }
+		if ( $giay < 5400 ) { return round( $giay / 60 ) . ' phút'; }
+		if ( $giay < 172800 ) { return round( $giay / 3600 ) . ' giờ'; }
+		return round( $giay / 86400 ) . ' ngày';
 	}
 
 	/** 2. MÁY MẤT NHỊP — lên trên, vì đây là thứ phải biết ngay. */
@@ -294,10 +357,18 @@ class VHCC_WebMay {
 			echo '<p class="mo"><i>Chưa có gì. Cổng chưa nhận lượt nào, hoặc mọi lượt đều vào sổ '
 				. 'trót lọt.</i></p>';
 		} else {
-			echo '<div class="cuon"><table><thead><tr><th>Lúc</th><th>Mã</th><th>Chi tiết</th>'
-				. '</tr></thead><tbody>';
+			/* ⚠️ CỘT "SỐ LẦN" KHÔNG PHẢI TRANG TRÍ. Từ 2.75.0 sổ gộp dòng liên tiếp giống hệt
+			   nhau, nên một DÒNG ở đây có thể là hàng nghìn lượt. Không hiện `lan` thì người
+			   đọc trừ đi mất đúng cái con số nói lên mức độ nặng nhẹ. */
+			echo '<div class="cuon"><table><thead><tr><th>Lúc</th><th>Số lần</th><th>Mã</th>'
+				. '<th>Chi tiết</th></tr></thead><tbody>';
 			foreach ( $nk as $d ) {
-				echo '<tr><td>' . esc_html( isset( $d['luc'] ) ? $d['luc'] : '' ) . '</td>'
+				$lan = isset( $d['lan'] ) ? max( 1, (int) $d['lan'] ) : 1;
+				$dau = isset( $d['dau'] ) ? (string) $d['dau'] : '';
+				echo '<tr><td>' . esc_html( isset( $d['luc'] ) ? $d['luc'] : '' )
+					. ( $lan > 1 && '' !== $dau ? '<br><span class="mo">từ ' . esc_html( $dau )
+						. '</span>' : '' ) . '</td>'
+					. '<td>' . ( $lan > 1 ? '<b>×' . $lan . '</b>' : '1' ) . '</td>'
 					. '<td><code>' . esc_html( isset( $d['ma'] ) ? $d['ma'] : '' ) . '</code></td>'
 					. '<td>' . esc_html( isset( $d['loi'] ) ? $d['loi'] : '' ) . '</td></tr>';
 			}
