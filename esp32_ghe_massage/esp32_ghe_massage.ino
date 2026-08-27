@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27d (PULSE->GPIO26: bu tre khoi dong QR_BU_MS -> QR khop ghe)"
+#define FW_VERSION "ghe-massage 2026-08-27e (QR_BU_MS=1000: tinh chinh QR khop ghe)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -251,7 +251,7 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
    quay -> QR nhanh hơn ghế ~2s. Bỏ qua ngần này (kể từ lúc ghế báo chạy LẦN ĐẦU) mới bắt đầu
    trừ giờ -> QR về 0 khớp ghế, màn vẫn hiện đúng mm:00. Anh Thắng đo chênh 2s -> để 2000.
    Chỉnh số này nếu còn lệch (QR nhanh -> tăng; QR chậm -> giảm). 0 = không bù. */
-#define QR_BU_MS           2000
+#define QR_BU_MS           1000
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
