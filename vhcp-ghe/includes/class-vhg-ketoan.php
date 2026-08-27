@@ -384,4 +384,114 @@ class VHG_KeToan {
 		$wpdb->update( VHG_DB::t( 'bc_undo' ), array( 'da_hoan_tac' => 1 ), array( 'id' => $id ) );
 		return array( 'ok' => true, 'changed' => $n, 'message' => 'Đã hoàn tác ' . $n . ' ghế.' );
 	}
+
+	// ══════════════════════════════════════════════════════════════════ DUYỆT ĐỀ NGHỊ CHỈ SỐ
+
+	/** Danh sách đề nghị đổi/xoá chỉ số. $tatca=false → chỉ 'cho_duyet'. */
+	public static function denghi_ds( $tatca ) {
+		global $wpdb;
+		$sql = $tatca
+			? 'SELECT * FROM ' . VHG_DB::t( 'bc_denghi' ) . ' ORDER BY id DESC LIMIT 100'
+			: $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_denghi' ) . ' WHERE trang_thai=%s ORDER BY id DESC LIMIT 100', 'cho_duyet' );
+		$rows = $wpdb->get_results( $sql, ARRAY_A );
+		$ra = array();
+		foreach ( (array) $rows as $d ) {
+			$chan = (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE ma_may=%s AND ngay>=%s AND chi_so_sau IS NOT NULL',
+				$d['ma_may'], self::ngay_( $d['tu_ngay'] ) ) );
+			$ra[] = array( 'id' => $d['id'], 'chairCode' => $d['ma_may'], 'chairName' => $d['ten'],
+				'coso' => $d['coso'], 'nhanVien' => $d['nhan_vien'], 'fromDate' => self::ngay_( $d['tu_ngay'] ),
+				'loai' => $d['loai'], 'meterOpening' => self::songuyen_( $d['chi_so'] ), 'lyDo' => $d['ly_do'],
+				'trangThai' => $d['trang_thai'], 'duyetBoi' => $d['duyet_boi'], 'ghiChuKeToan' => $d['ghi_chu_kt'],
+				'taoLuc' => (string) $d['tao_luc'], 'banGhiChan' => $chan );
+		}
+		return array( 'ok' => true, 'rows' => $ra );
+	}
+
+	/**
+	 * DUYỆT đề nghị — đặt mốc chỉ số (may.moc_chiso/moc_chiso_ngay) hiệu lực TỪ NGÀY áp dụng.
+	 * KHÔNG đụng dòng doanh thu cũ. loai 'xoa' → mốc 0. Cảnh báo nếu ghế đã có bản ghi từ ngày đó.
+	 */
+	public static function denghi_duyet( $id, $ghichu, $boi ) {
+		global $wpdb;
+		$id = (string) $id;
+		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_denghi' ) . ' WHERE id=%s LIMIT 1', $id ), ARRAY_A );
+		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy đề nghị.' ); }
+		if ( 'cho_duyet' !== $d['trang_thai'] ) { return array( 'ok' => false, 'message' => 'Đề nghị đã xử lý (' . $d['trang_thai'] . ').' ); }
+		$from = self::ngay_( $d['tu_ngay'] );
+		$so = ( 'xoa' === $d['loai'] ) ? 0 : (int) $d['chi_so'];
+		$ma = strtoupper( trim( (string) $d['ma_may'] ) );
+		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT ma FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s', $ma ) );
+		if ( ! $co ) { return array( 'ok' => false, 'message' => 'Ghế ' . $ma . ' không có trong danh mục.' ); }
+		$wpdb->update( VHG_DB::t( 'may' ), array( 'moc_chiso' => $so, 'moc_chiso_ngay' => $from ), array( 'ma' => $ma ) );
+		$wpdb->update( VHG_DB::t( 'bc_denghi' ), array( 'trang_thai' => 'duyet', 'duyet_boi' => (string) $boi,
+			'duyet_luc' => current_time( 'mysql' ), 'ghi_chu_kt' => mb_substr( trim( (string) $ghichu ), 0, 250 ) ),
+			array( 'id' => $id ) );
+		$chan = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE ma_may=%s AND ngay>=%s AND chi_so_sau IS NOT NULL', $ma, $from ) );
+		return array( 'ok' => true,
+			'message' => 'Đã duyệt: ghế ' . $ma . ' mốc chỉ số ' . number_format( $so, 0, ',', '.' ) . ' từ ' . $from . '.',
+			'canhBao' => $chan ? ( 'Ghế này đã có ' . $chan . ' bản ghi từ ' . $from . ' trở đi — mốc mới KHÔNG áp cho các bản ghi đó.' ) : '' );
+	}
+
+	public static function denghi_tuchoi( $id, $ghichu, $boi ) {
+		global $wpdb;
+		$id = (string) $id; $ly = trim( (string) $ghichu );
+		if ( '' === $ly ) { return array( 'ok' => false, 'message' => 'Từ chối thì phải ghi lý do cho nhân viên.' ); }
+		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT trang_thai FROM ' . VHG_DB::t( 'bc_denghi' ) . ' WHERE id=%s LIMIT 1', $id ), ARRAY_A );
+		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy đề nghị.' ); }
+		if ( 'cho_duyet' !== $d['trang_thai'] ) { return array( 'ok' => false, 'message' => 'Đề nghị đã xử lý.' ); }
+		$wpdb->update( VHG_DB::t( 'bc_denghi' ), array( 'trang_thai' => 'tu_choi', 'duyet_boi' => (string) $boi,
+			'duyet_luc' => current_time( 'mysql' ), 'ghi_chu_kt' => mb_substr( $ly, 0, 250 ) ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'message' => 'Đã từ chối đề nghị. Nhân viên đọc được lý do.' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ YÊU CẦU CƠ SỞ
+
+	/** Kế toán gửi yêu cầu cơ sở làm bổ sung / sửa. loai 'bo_sung' | 'sua'. */
+	public static function yeucau_tao( $coso, $ngay, $loai, $noidung, $boi ) {
+		global $wpdb;
+		$coso = trim( (string) $coso ); $d = self::ngay_( $ngay );
+		$loai = ( 'sua' === $loai ) ? 'sua' : 'bo_sung';
+		$nd = trim( (string) $noidung );
+		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu cơ sở.' ); }
+		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $d ) ) { return array( 'ok' => false, 'message' => 'Ngày không đúng dạng.' ); }
+		if ( '' === $nd ) { return array( 'ok' => false, 'message' => 'Ghi rõ yêu cầu gì để nhân viên biết.' ); }
+		$trung = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_yeucau' ) . ' WHERE coso_key=%s AND ngay=%s AND trang_thai=%s',
+			self::squash( $coso ), $d, 'cho_lam' ) );
+		if ( $trung ) { return array( 'ok' => false, 'message' => 'Cơ sở này đã có yêu cầu đang chờ cho ngày ' . $d . '.' ); }
+		$id = 'YC-' . current_time( 'YmdHis' ) . '-' . wp_rand( 100, 999 );
+		$wpdb->insert( VHG_DB::t( 'bc_yeucau' ), array( 'id' => $id, 'tao_luc' => current_time( 'mysql' ),
+			'coso' => $coso, 'coso_key' => self::squash( $coso ), 'ngay' => $d, 'loai' => $loai,
+			'noi_dung' => mb_substr( $nd, 0, 500 ), 'tao_boi' => (string) $boi, 'trang_thai' => 'cho_lam' ) );
+		return array( 'ok' => true, 'id' => $id, 'message' => 'Đã gửi yêu cầu cho ' . $coso . ' ngày ' . $d . '.' );
+	}
+
+	public static function yeucau_ds( $thang ) {
+		global $wpdb;
+		$th = trim( (string) $thang );
+		$rows = $wpdb->get_results( 'SELECT * FROM ' . VHG_DB::t( 'bc_yeucau' ) . ' ORDER BY id DESC LIMIT 200', ARRAY_A );
+		$ra = array();
+		foreach ( (array) $rows as $y ) {
+			$ng = self::ngay_( $y['ngay'] );
+			if ( '' !== $th && substr( $ng, 0, 7 ) !== self::thang_( $th ) ) { continue; }
+			$ra[] = array( 'id' => $y['id'], 'coSo' => $y['coso'], 'ngay' => $ng, 'loai' => $y['loai'],
+				'loaiChu' => ( 'sua' === $y['loai'] ? 'Sửa báo cáo' : 'Làm bổ sung' ), 'noiDung' => $y['noi_dung'],
+				'trangThai' => $y['trang_thai'], 'taoBoi' => $y['tao_boi'], 'taoLuc' => (string) $y['tao_luc'],
+				'xongBoi' => $y['xong_boi'], 'xongLuc' => (string) $y['xong_luc'] );
+		}
+		return array( 'ok' => true, 'rows' => $ra );
+	}
+
+	public static function yeucau_huy( $id, $boi ) {
+		global $wpdb;
+		$id = (string) $id;
+		$y = $wpdb->get_row( $wpdb->prepare( 'SELECT trang_thai FROM ' . VHG_DB::t( 'bc_yeucau' ) . ' WHERE id=%s LIMIT 1', $id ), ARRAY_A );
+		if ( ! $y ) { return array( 'ok' => false, 'message' => 'Không thấy yêu cầu.' ); }
+		if ( 'huy' === $y['trang_thai'] ) { return array( 'ok' => false, 'message' => 'Đã rút lại trước đó.' ); }
+		$wpdb->update( VHG_DB::t( 'bc_yeucau' ), array( 'trang_thai' => 'huy', 'xong_luc' => current_time( 'mysql' ),
+			'xong_boi' => (string) $boi ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'message' => 'Đã rút lại yêu cầu.' );
+	}
 }
