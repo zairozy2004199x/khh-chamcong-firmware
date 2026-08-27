@@ -316,13 +316,20 @@ class VHG_BaoCao {
 		}
 
 		$dong_yc = self::dong_yeucau_( $coso, $ngay, $q['ten'] . ' · ' . $rid );
+		$phien = self::phien_upsert_( $pin, $ngay );   // cập nhật tiến độ phiên thu ngày
 		return array( 'ok' => true, 'reportId' => $rid, 'rows' => count( $rows ), 'updated' => (bool) $prev,
-			'boGhe' => $bo, 'dongYeuCau' => $dong_yc,
+			'boGhe' => $bo, 'dongYeuCau' => $dong_yc, 'phien' => $phien,
 			'message' => ( $prev ? ( 'Đã CẬP NHẬT báo cáo ' . $coso . ' ngày ' . $ngay . '.' )
 				: ( 'Đã gửi báo cáo ' . $coso . ' ngày ' . $ngay . '.' ) )
 				. ( count( $bo ) ? ( ' Đã bỏ ' . count( $bo ) . ' ghế.' ) : '' )
 				. ( $dong_yc ? ( ' Hoàn thành ' . $dong_yc . ' yêu cầu kế toán.' ) : '' )
-				. ( $kt_locked ? ' (Giữ số kế toán đã đối soát.)' : '' ) );
+				. ( $kt_locked ? ' (Giữ số kế toán đã đối soát.)' : '' )
+				. ( ( $phien && ! empty( $phien['du'] ) )
+					? ( ' ✓ ĐỦ BÁO CÁO cả ' . $phien['so_coso'] . ' cơ sở hôm nay — đã gộp gửi kế toán (tổng '
+						. number_format( (int) $phien['tong'], 0, ',', '.' ) . 'đ).' )
+					: ( ( $phien && $phien['so_coso'] > 0 )
+						? ( ' Đã thu ' . $phien['so_coso_xong'] . '/' . $phien['so_coso'] . ' cơ sở hôm nay.' )
+						: '' ) ) );
 	}
 
 	private static function doc_payment_( $pm, $rows ) {
@@ -619,6 +626,135 @@ class VHG_BaoCao {
 		return (int) $wpdb->query( $wpdb->prepare(
 			'UPDATE ' . VHG_DB::t( 'bc_yeucau' ) . " SET trang_thai='da_lam', xong_luc=%s, xong_boi=%s WHERE trang_thai=%s AND coso_key=%s AND ngay=%s",
 			current_time( 'mysql' ), (string) $boi, 'cho_lam', self::squash( $coso ), self::ngay_( $ngay ) ) );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ PHIÊN THU MỘT NGÀY
+
+	/**
+	 * TÌNH TRẠNG PHIÊN THU của một nhân viên trong một ngày.
+	 *
+	 * Anh Thắng 27/08/2026: nhập tới máy cuối → hệ thống báo ĐỦ BÁO CÁO rồi gộp cả ngày gửi kế
+	 * toán. Nên phải biết: nhân viên phải thu MẤY cơ sở (phạm vi PIN), đã gửi được mấy, còn thiếu
+	 * cơ sở nào, tổng tiền tới giờ. Suy TRỰC TIẾP từ dữ liệu (bảng `bc`) + dòng phiên (`bc_phien`),
+	 * không giữ hai bản số dễ lệch.
+	 */
+	public static function phien_tinh( $pin, $ngay ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return null; }
+		$ngay = self::ngay_( $ngay );
+		if ( '' === $ngay ) { $ngay = current_time( 'Y-m-d' ); }
+
+		/* Phạm vi cơ sở phải thu = các cơ sở có ghế thuộc PIN (gồm cả ghế lẻ). */
+		$scope_key = array();
+		foreach ( self::ds_ghe( $q ) as $g ) {
+			$c = (string) $g['coso'];
+			if ( '' !== $c ) { $scope_key[ self::squash( $c ) ] = $c; }
+		}
+
+		/* Cơ sở ĐÃ gửi báo cáo hôm nay (có ít nhất 1 ghế thực nhập), trong phạm vi. */
+		$done = array(); $tm = 0; $qr = 0; $tg = 0;
+		$hs = $wpdb->get_results( $wpdb->prepare(
+			'SELECT report_id, coso, coso_key FROM ' . VHG_DB::t( 'bc' ) . ' WHERE ngay=%s', $ngay ), ARRAY_A );
+		foreach ( (array) $hs as $h ) {
+			if ( ! isset( $scope_key[ $h['coso_key'] ] ) ) { continue; }
+			$s = self::tong_bc_( $h['report_id'] );
+			if ( $s['so'] <= 0 ) { continue; }
+			$done[ $h['coso_key'] ] = $h['coso'];
+			$tm += $s['tien_mat']; $qr += $s['qr']; $tg += $s['tong'];
+		}
+
+		$conlai = array();
+		foreach ( $scope_key as $k => $ten ) { if ( ! isset( $done[ $k ] ) ) { $conlai[] = $ten; } }
+		$so = count( $scope_key ); $xong = count( $done );
+
+		$row = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_phien' ) . ' WHERE pin=%s AND ngay=%s',
+			trim( (string) $pin ), $ngay ), ARRAY_A );
+
+		return array(
+			'ngay' => $ngay, 'staff' => $q['ten'],
+			'so_coso' => $so, 'so_coso_xong' => $xong,
+			'du' => ( $so > 0 && $xong >= $so ),
+			'coso_scope' => array_values( $scope_key ),
+			'coso_xong'  => array_values( $done ),
+			'coso_conlai' => $conlai,
+			'tong_tien_mat' => $tm, 'tong_qr' => $qr, 'tong' => $tg,
+			'trang_thai' => $row ? (string) $row['trang_thai'] : ( ( $so > 0 && $xong >= $so ) ? 'da_gui' : 'dang_thu' ),
+			'chot_som' => $row ? (int) $row['chot_som'] : 0,
+			'ly_do' => $row ? (string) $row['ly_do'] : '',
+			'bo_qua' => $row ? array_values( array_filter( array_map( 'trim', preg_split( '/[;,]/', (string) $row['bo_qua'] ) ) ) ) : array(),
+			'gui_luc' => $row ? (string) $row['gui_luc'] : '',
+		);
+	}
+
+	/** Ghi/cập nhật dòng phiên sau mỗi lần gửi báo cáo. Trả tình trạng đã tính. */
+	private static function phien_upsert_( $pin, $ngay ) {
+		global $wpdb;
+		$st = self::phien_tinh( $pin, $ngay );
+		if ( ! $st ) { return null; }
+		$pin = trim( (string) $pin );
+		$now = current_time( 'mysql' );
+		$cur = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_phien' ) . ' WHERE pin=%s AND ngay=%s', $pin, $st['ngay'] ), ARRAY_A );
+		/* Đã chốt sớm thì GIỮ nguyên trạng thái đó (không tự lật lại); chưa mà đủ cơ sở → 'da_gui'. */
+		$tt = ( $cur && 'chot_som' === $cur['trang_thai'] ) ? 'chot_som' : ( $st['du'] ? 'da_gui' : 'dang_thu' );
+		$data = array( 'pin' => $pin, 'ngay' => $st['ngay'], 'nhan_vien' => $st['staff'],
+			'trang_thai' => $tt, 'so_coso' => $st['so_coso'], 'so_coso_xong' => $st['so_coso_xong'],
+			'tong_tien_mat' => $st['tong_tien_mat'], 'tong_qr' => $st['tong_qr'], 'tong' => $st['tong'], 'sua_luc' => $now );
+		if ( $cur ) {
+			if ( 'da_gui' === $tt && empty( $cur['gui_luc'] ) ) { $data['gui_luc'] = $now; }
+			$wpdb->update( VHG_DB::t( 'bc_phien' ), $data, array( 'pin' => $pin, 'ngay' => $st['ngay'] ) );
+		} else {
+			$data['tao_luc'] = $now;
+			if ( 'da_gui' === $tt ) { $data['gui_luc'] = $now; }
+			$wpdb->insert( VHG_DB::t( 'bc_phien' ), $data );
+		}
+		$st['trang_thai'] = $tt;
+		return $st;
+	}
+
+	/** Tình trạng phiên cho giao diện (endpoint riêng). */
+	public static function phien( $pin, $ngay ) {
+		$st = self::phien_tinh( $pin, $ngay );
+		if ( ! $st ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ.' ); }
+		$st['ok'] = true;
+		return $st;
+	}
+
+	/**
+	 * XIN CHỐT CA SỚM — còn 1–2 điểm chưa thu được thì chốt luôn phần đã thu, gửi kế toán.
+	 *
+	 * Anh Thắng 27/08/2026. Bắt buộc lý do (điểm nào chưa thu, vì sao). Ghi lại danh sách cơ sở
+	 * BỎ QUA để kế toán biết còn thiếu, KHÔNG âm thầm coi như xong.
+	 */
+	public static function chot_som( $ngay, $ly_do, $pin ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ — đăng nhập lại.' ); }
+		$ly = trim( (string) $ly_do );
+		if ( '' === $ly ) { return array( 'ok' => false, 'message' => 'Phải ghi lý do xin chốt sớm (điểm nào chưa thu, vì sao).' ); }
+		$st = self::phien_tinh( $pin, $ngay );
+		if ( ! $st ) { return array( 'ok' => false, 'message' => 'Không đọc được phiên thu.' ); }
+		if ( $st['so_coso_xong'] <= 0 ) {
+			return array( 'ok' => false, 'message' => 'Chưa gửi báo cáo cơ sở nào — không có gì để chốt.' );
+		}
+		$pin = trim( (string) $pin ); $now = current_time( 'mysql' );
+		$bo = implode( ', ', $st['coso_conlai'] );
+		$data = array( 'pin' => $pin, 'ngay' => $st['ngay'], 'nhan_vien' => $st['staff'],
+			'trang_thai' => 'chot_som', 'chot_som' => 1, 'ly_do' => mb_substr( $ly, 0, 250 ),
+			'bo_qua' => mb_substr( $bo, 0, 1000 ),
+			'so_coso' => $st['so_coso'], 'so_coso_xong' => $st['so_coso_xong'],
+			'tong_tien_mat' => $st['tong_tien_mat'], 'tong_qr' => $st['tong_qr'], 'tong' => $st['tong'],
+			'gui_luc' => $now, 'sua_luc' => $now );
+		$cur = $wpdb->get_var( $wpdb->prepare(
+			'SELECT pin FROM ' . VHG_DB::t( 'bc_phien' ) . ' WHERE pin=%s AND ngay=%s', $pin, $st['ngay'] ) );
+		if ( $cur ) { $wpdb->update( VHG_DB::t( 'bc_phien' ), $data, array( 'pin' => $pin, 'ngay' => $st['ngay'] ) ); }
+		else { $data['tao_luc'] = $now; $wpdb->insert( VHG_DB::t( 'bc_phien' ), $data ); }
+		$st['trang_thai'] = 'chot_som'; $st['chot_som'] = 1; $st['bo_qua'] = $st['coso_conlai'];
+		return array( 'ok' => true, 'phien' => $st,
+			'message' => 'Đã chốt ca sớm ngày ' . $st['ngay'] . ' — gửi kế toán ' . $st['so_coso_xong']
+				. '/' . $st['so_coso'] . ' cơ sở.' . ( count( $st['coso_conlai'] ) ? ( ' Bỏ qua: ' . $bo . '.' ) : '' ) );
 	}
 
 	// ══════════════════════════════════════════════════════════════════ QUẢN LÝ PIN (Admin)

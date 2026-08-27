@@ -181,6 +181,15 @@ class VHG_Trang {
 			if ( 'bc_yeucau' === $viec ) {
 				self::tra( VHG_BaoCao::yeucau_ds( $pin ) ); return;
 			}
+			if ( 'bc_phien' === $viec ) {
+				self::tra( VHG_BaoCao::phien( $pin, isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return;
+			}
+			if ( 'bc_chot_som' === $viec ) {
+				self::tra( VHG_BaoCao::chot_som(
+					isset( $d['ngay'] ) ? $d['ngay'] : '',
+					isset( $d['ly_do'] ) ? $d['ly_do'] : '', $pin ) );
+				return;
+			}
 			self::tra( array( 'ok' => false, 'error' => 'Việc báo cáo không rõ: ' . $viec ) );
 			return;
 		}

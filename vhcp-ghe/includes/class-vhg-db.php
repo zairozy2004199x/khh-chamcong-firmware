@@ -681,6 +681,30 @@ class VHG_DB {
 			tao_luc DATETIME NULL,
 			PRIMARY KEY  (pin)";
 
+		/* PHIÊN THU MỘT NGÀY của một nhân viên (theo PIN). Anh Thắng 27/08/2026: nhập tới máy cuối
+		   thì hệ thống báo ĐỦ BÁO CÁO rồi gộp cả ngày gửi kế toán; còn 1–2 điểm chưa thu được thì
+		   xin CHỐT CA SỚM để chốt luôn. Một dòng / (pin, ngày).
+		   trang_thai: 'dang_thu' | 'da_gui' (đủ cơ sở) | 'chot_som' (chốt khi còn thiếu điểm).
+		   bo_qua = danh sách cơ sở chưa thu lúc chốt sớm (ngăn bởi phẩy). */
+		$b['bc_phien'] = "
+			pin VARCHAR(20) NOT NULL,
+			ngay DATE NOT NULL,
+			nhan_vien VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'dang_thu',
+			chot_som TINYINT(1) NOT NULL DEFAULT 0,
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			bo_qua VARCHAR(1000) NOT NULL DEFAULT '',
+			so_coso INT NOT NULL DEFAULT 0,
+			so_coso_xong INT NOT NULL DEFAULT 0,
+			tong_tien_mat BIGINT(20) NOT NULL DEFAULT 0,
+			tong_qr BIGINT(20) NOT NULL DEFAULT 0,
+			tong BIGINT(20) NOT NULL DEFAULT 0,
+			gui_luc DATETIME NULL,
+			tao_luc DATETIME NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (pin,ngay),
+			KEY ngay (ngay)";
+
 		return $b;
 	}
 
