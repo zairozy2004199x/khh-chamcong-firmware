@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27m (man khoa loi dung bang mau COL_ - het bi xanh)"
+#define FW_VERSION "ghe-massage 2026-08-27n (invertDisplay -> mau dung thiet ke, het am xanh)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -2128,7 +2128,15 @@ void setup(){
   startOtaAP();   // BẬT SỚM: AP "POSH_QR-<mã>" lên ngay, KHÔNG chờ 4G (4G lâu/kẹt vẫn có AP để nạp)
 #endif
 
-  tft.init(); tft.setRotation(1); tft.fillScreen(COL_BG);
+  tft.init(); tft.setRotation(1);
+  /* Panel màn ghế này (TPM408-2.8) ĐẢO MÀU so với User_Setup: nền nâu tối ra xanh, chữ tối ra
+     sáng... -> ép invertDisplay cho về ĐÚNG tone thiết kế. Nếu nạp xong màu vẫn sai (ngược),
+     đổi MAN_DAO_MAU sang false rồi nạp lại. */
+#ifndef MAN_DAO_MAU
+#define MAN_DAO_MAU true
+#endif
+  tft.invertDisplay(MAN_DAO_MAU);
+  tft.fillScreen(COL_BG);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(0xCE40, COL_BG); tft.setTextSize(2); tft.drawString("K&H", 160, 76, 4); tft.setTextSize(1);
   tft.setTextColor(COL_ACC, COL_BG); tft.drawString("POSH massage", 160, 128, 4);
