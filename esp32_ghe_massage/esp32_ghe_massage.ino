@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27b (chan PULSE->GPIO26: QR dem/dung theo ghe + canh bao ghe khong chay)"
+#define FW_VERSION "ghe-massage 2026-08-27c (PULSE->GPIO26: dong bo man dem nguoc luc ghe chay + canh bao tai man)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1200,8 +1200,15 @@ void drawCamOn(){
   char b[8]; snprintf(b, sizeof(b), "%02d:00", payMinutes);
   tft.setTextColor(COL_KEM, COL_BG);
   tft.drawString(b, 160, 150, 4);
-  tft.setTextColor(COL_MO, COL_BG);
-  tft.drawString("Phien massage bat dau...", 160, 200, 2);
+  /* Dòng dưới ĐỒNG BỘ VỚI GHẾ: chờ ghế chạy; nếu đã trả tiền mà ghế không chạy (g_baoGheChet)
+     thì báo đỏ ngay tại màn để nhân viên biết (mạng chập chờn / ghế lỗi / cố nhét tiền). */
+  if(g_baoGheChet){
+    tft.setTextColor(TFT_RED, COL_BG);
+    tft.drawString("! GHE CHUA CHAY - kiem tra ghe/mang", 160, 200, 2);
+  } else {
+    tft.setTextColor(COL_MO, COL_BG);
+    tft.drawString("Dang cho ghe chay...", 160, 200, 2);
+  }
 }
 
 // ======================= Touch =======================
@@ -2097,12 +2104,22 @@ void loop(){
 #endif
   }
 
-  /* Hết màn cảm ơn -> chuyển sang màn đếm ngược (phóng to đồng hồ). Đồng hồ đã đếm
-     theo chân ghế ở khối pin-master trên nên số hiện ra khớp phần ghế đã chạy. */
-  if(g_henLuc && state == ST_CAMON && (int32_t)(millis() - g_henLuc) >= 0){
+  /* Chuyển màn "cảm ơn" -> màn ĐẾM NGƯỢC. ĐỒNG BỘ VỚI GHẾ:
+     - Có gate theo chân (GATE_BY_PIN): phóng to đồng hồ ĐÚNG LÚC ghế bắt đầu chạy
+       (g_gheDaChay) -> giây trên màn khớp thời điểm ghế thật sự chạy. Nếu ghế chưa chạy thì
+       GIỮ màn cảm ơn (đang chờ ghế); quá GHECHAY_CHET_MS mà chưa chạy -> đã cảnh báo ở khối trên.
+       Chốt chặn: dù ghế chưa báo chạy, quá 2x màn cảm ơn vẫn phóng to để không kẹt màn.
+     - Không gate: theo màn cảm ơn CAMON_MS như cũ. */
+  bool phongTo;
+#if DO_GHECHAY && GATE_BY_PIN
+  phongTo = g_gheDaChay;                 // chỉ phóng to đồng hồ khi ghế THẬT SỰ chạy -> đồng bộ
+#else
+  phongTo = (g_henLuc && (int32_t)(millis() - g_henLuc) >= 0);
+#endif
+  if(state == ST_CAMON && phongTo){
     g_henLuc = 0;
     relaySet(true); state = ST_RUNNING; screenDrawn = false; lastShownSec = -1; g_statusDirty = true;
-    Serial.println("[HEN] het man cam on -> man dem nguoc");
+    Serial.println("[HEN] -> man dem nguoc (dong bo luc ghe chay)");
   }
 
   if(g_remoteStop){ g_remoteStop=false;
@@ -2173,7 +2190,9 @@ void loop(){
     }
   }
   else if(state==ST_CAMON){
-    if(!screenDrawn){ drawCamOn(); screenDrawn=true; }   // hết CAMON_MS thì khối g_henLuc ở trên chuyển sang ST_RUNNING (phóng to)
+    /* Vẽ lại khi trạng thái cảnh báo đổi -> dòng "đang chờ ghế chạy" tự thành "! GHE CHUA CHAY". */
+    static bool _camCanh = false;
+    if(!screenDrawn || _camCanh != g_baoGheChet){ drawCamOn(); screenDrawn=true; _camCanh = g_baoGheChet; }
   }
   else if(state==ST_WAIT_PAY){
     if(!screenDrawn){ drawQRScreen(); screenDrawn=true; }
