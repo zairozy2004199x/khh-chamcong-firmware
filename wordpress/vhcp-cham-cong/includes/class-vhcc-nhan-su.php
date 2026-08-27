@@ -285,6 +285,54 @@ class VHCC_NhanSu {
 			'SELECT * FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', trim( (string) $ma_nv ) ), ARRAY_A );
 	}
 
+	/**
+	 * MÃ TRÊN MÁY -> MÃ NHÂN SỰ THẬT.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 27/08/2026: *"bắt đầu kết nối máy chấm công để tránh mất dữ liệu"*.
+	 * =============================================================================================
+	 * 🔴 HAI BỘ MÃ KHÁC HẲN NHAU, VÀ ĐÓ LÀ CHỖ DỮ LIỆU MÁY SẼ RƠI HẾT.
+	 *    Máy ZKTeco ở xưởng trả `employeeNo` dạng `20000601` — mã ấy do người dựng máy gõ vào
+	 *    từng đầu đọc, không ai đối chiếu với sổ nhân sự. Hồ sơ ở đây dùng mã dạng
+	 *    `MNNV1CTY0002`. Đẩy thẳng mã máy vào bảng chấm công thì cả tháng công của cả xưởng nằm
+	 *    dưới một dãy số không có hồ sơ nào: bảng đầy số, mà không số nào ra lương của ai.
+	 *    Ảnh phần mềm HR V5.2 anh gửi cho thấy đúng chuyện ấy — cột Họ tên trống trơn, mỗi dòng
+	 *    ghi "Chưa phân phòng", và có hẳn một nút tên là *"Phân nhân viên vào phòng / ghép mã NV"*.
+	 *
+	 * 🔴 KHAI, KHÔNG ĐOÁN. Bảng `ma_song_song` sinh ra đúng cho việc này và câu chú thích của nó
+	 *    vẫn đúng nguyên: *"Hai mã của cùng một người, PHẢI KHAI chứ không đoán: tên người Việt
+	 *    trùng rất nhiều, đoán sai là gộp lương hai người khác nhau"*. Ghép theo tên là ghép
+	 *    Nguyễn Văn A này sang Nguyễn Văn A kia, và tiền đi theo.
+	 *
+	 * ⚠️ KHÔNG CẦN QUY ƯỚC CHIỀU `ma_a` / `ma_b`. Bảng ấy không nói bên nào là mã máy, và bắt
+	 *    người khai nhớ đúng chiều là sớm muộn có dòng khai ngược — im lặng. Luật ở đây tự suy
+	 *    ra: mã đến mà ĐÃ CÓ hồ sơ thì giữ nguyên; không có hồ sơ thì tìm đầu kia của cặp, và
+	 *    chỉ nhận nếu đầu kia CÓ hồ sơ. Khai ngược cũng chạy đúng.
+	 *
+	 * ⚠️ KHÔNG TÌM THẤY THÌ TRẢ LẠI CHÍNH NÓ, đừng trả rỗng. Lượt ấy phải đi tiếp đúng đường cũ
+	 *    — vào bảng với mã máy và được kể ra ở khối "chưa có hồ sơ" — chứ không biến mất. Mất
+	 *    một lượt bấm là mất công của người thật.
+	 */
+	public static function ma_that( $ma_nv ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		/* ⚠️ Chốt mã rỗng là PHÒNG XA, không phải chốt canh hành vi: tra với mã rỗng cũng chẳng
+		   khớp dòng nào nên kết quả y hệt — chỉ tốn thêm hai lượt hỏi cơ sở dữ liệu. Đã phá thử
+		   và ghi lại để người sau khỏi đi tìm phép thử canh nó: KHÔNG CÓ. */
+		if ( '' === $ma ) { return ''; }
+		if ( self::ho_so( $ma ) ) { return $ma; }
+
+		$cap = VHCC_DB::rows( $wpdb->prepare(
+			'SELECT ma_a, ma_b FROM ' . VHCC_DB::t( 'ma_song_song' )
+			. ' WHERE LOWER(ma_a)=LOWER(%s) OR LOWER(ma_b)=LOWER(%s)', $ma, $ma ) );
+		foreach ( (array) $cap as $c ) {
+			$kia = ( 0 === strcasecmp( (string) $c['ma_a'], $ma ) ) ? (string) $c['ma_b'] : (string) $c['ma_a'];
+			$kia = trim( $kia );
+			if ( '' !== $kia && 0 !== strcasecmp( $kia, $ma ) && self::ho_so( $kia ) ) { return $kia; }
+		}
+		return $ma;
+	}
+
 	/** Cơ sở đã biết: gộp từ bảng máy, bảng chấm công và hồ sơ — không tự tạo cơ sở nào. */
 	/**
 	 * MỌI BẢNG ĐANG TRỎ TỚI MÃ NHÂN VIÊN — dò từ CHÍNH sơ đồ bảng, không gõ tay danh sách.

@@ -11741,6 +11741,122 @@ teq( 'và lượt trùng vẫn đếm riêng', 1, $lo_de['trung'] );
 
 vhcc_dung_bang();
 
+/* ======================================================================================
+ *  70. MÃ TRÊN MÁY -> MÃ NHÂN SỰ THẬT — chỗ dữ liệu máy sẽ rơi hết nếu không có
+ *
+ *  Anh Thắng 27/08/2026: *"bắt đầu kết nối máy chấm công để tránh mất dữ liệu"*.
+ *
+ *  🔴 HAI BỘ MÃ KHÁC HẲN NHAU. Máy ZKTeco ở xưởng trả `employeeNo` dạng `20000601` — mã do
+ *     người dựng máy gõ vào từng đầu đọc, không ai đối chiếu với sổ nhân sự (hồ sơ ở đây dùng
+ *     `MNNV1CTY0002`). Ghi thẳng mã máy vào bảng chấm công thì cả tháng công của cả xưởng nằm
+ *     dưới một dãy số không có hồ sơ nào: bảng đầy số mà không số nào ra lương của ai.
+ *     Ảnh phần mềm HR V5.2 anh gửi cho thấy đúng chuyện ấy — cột Họ tên trống trơn, mỗi dòng
+ *     ghi "Chưa phân phòng", và có hẳn một nút tên là *"Phân nhân viên vào phòng / ghép mã NV"*.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$M_CS = 'MAY_CS';
+vhcc_bo_phan( $M_CS, 'Khu vui chơi' );
+$u_ma = array( 'role' => 'Admin', 'name' => 'Anh Admin', 'ma_nv' => 'MAAD' );
+VHCC_NhanSu::luu_ho_so( $u_ma, array( 'ma_nv' => 'MNNV1CTY0002', 'ho_ten' => 'Huỳnh Quang Thắng',
+	'cua_hang' => $M_CS, 'sdt' => '0900' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'ZK-LAPRAP', 'mac' => '', 'cua_hang' => $M_CS ) );
+
+/* ---- Lõi dịch mã ---- */
+/* Mã ĐÃ CÓ hồ sơ thì giữ nguyên — đừng đi tra một bảng ghép không liên quan. */
+teq( 'mã đã có hồ sơ: giữ nguyên', 'MNNV1CTY0002', VHCC_NhanSu::ma_that( 'MNNV1CTY0002' ) );
+/* 🔴 Chưa khai ghép thì TRẢ LẠI CHÍNH NÓ, không trả rỗng: lượt ấy vẫn phải vào bảng và vẫn
+   được kể ở khối "chưa có hồ sơ". Mất một lượt bấm là mất công của người thật. */
+teq( 'chưa khai ghép: trả lại chính mã máy', '20000601', VHCC_NhanSu::ma_that( '20000601' ) );
+teq( 'mã rỗng: trả rỗng', '', VHCC_NhanSu::ma_that( '' ) );
+
+VHCC_NhanSu::khai_ma_song_song( $u_ma, '20000601', 'MNNV1CTY0002', 'Huỳnh Quang Thắng',
+	'mã trên máy Lắp Ráp' );
+teq( '🔴 khai xong thì mã máy dịch ra mã nhân sự', 'MNNV1CTY0002',
+	VHCC_NhanSu::ma_that( '20000601' ) );
+
+/* ⚠️ KHÔNG CẦN QUY ƯỚC CHIỀU `ma_a`/`ma_b`. Bảng ấy không nói bên nào là mã máy, và bắt người
+   khai nhớ đúng chiều là sớm muộn có dòng khai ngược — im lặng. Luật tự suy ra: mã đến mà đã có
+   hồ sơ thì giữ; không có thì tìm đầu kia, và chỉ nhận nếu đầu kia CÓ hồ sơ. */
+VHCC_NhanSu::luu_ho_so( $u_ma, array( 'ma_nv' => 'MNNV1CTY0009', 'ho_ten' => 'Người Chín',
+	'cua_hang' => $M_CS, 'sdt' => '0900' ) );
+VHCC_NhanSu::khai_ma_song_song( $u_ma, 'MNNV1CTY0009', '20000999', 'Người Chín', 'khai ngược chiều' );
+teq( '🔴 khai NGƯỢC CHIỀU vẫn dịch đúng', 'MNNV1CTY0009', VHCC_NhanSu::ma_that( '20000999' ) );
+
+/* 🔴 MÃ ĐÃ CÓ HỒ SƠ THÌ GIỮ NGUYÊN, đừng đi tra bảng ghép.
+   Cảnh thật: một người đổi mã, mã CŨ vẫn còn hồ sơ và được khai song song với mã MỚI. Nếu cứ
+   thấy có cặp là dịch thì mọi lượt chấm dưới mã này chui hết sang hồ sơ kia — cả hai đều là
+   người thật, nên bảng vẫn đầy số và không ô nào đỏ. Đã phá thử để thấy: bỏ chốt mà bộ thử
+   vẫn xanh, vì cảnh cũ chưa có ai mang hai mã cùng có hồ sơ. */
+VHCC_NhanSu::luu_ho_so( $u_ma, array( 'ma_nv' => 'MNNV1CTY0055', 'ho_ten' => 'Người Năm Năm',
+	'cua_hang' => $M_CS, 'sdt' => '0900' ) );
+VHCC_NhanSu::luu_ho_so( $u_ma, array( 'ma_nv' => 'MNNV1CTY0056', 'ho_ten' => 'Người Năm Sáu',
+	'cua_hang' => $M_CS, 'sdt' => '0900' ) );
+VHCC_NhanSu::khai_ma_song_song( $u_ma, 'MNNV1CTY0055', 'MNNV1CTY0056', 'Cùng một người',
+	'mã cũ và mã mới, cả hai còn hồ sơ' );
+teq( '🔴 cả hai đầu đều có hồ sơ: KHÔNG dịch, giữ nguyên mã đến',
+	'MNNV1CTY0055', VHCC_NhanSu::ma_that( 'MNNV1CTY0055' ) );
+teq( 'và chiều kia cũng giữ nguyên', 'MNNV1CTY0056', VHCC_NhanSu::ma_that( 'MNNV1CTY0056' ) );
+
+/* Cặp mà CẢ HAI đầu đều không có hồ sơ -> không dịch. Dịch bừa là ghi công vào một mã cũng
+   chẳng ai nhận, chỉ khác chỗ. */
+VHCC_NhanSu::khai_ma_song_song( $u_ma, '20001111', '20002222', 'Không rõ', 'cặp mồ côi' );
+teq( 'cặp mà đầu kia cũng không có hồ sơ: giữ nguyên', '20001111',
+	VHCC_NhanSu::ma_that( '20001111' ) );
+
+/* ---- Cổng nhận: lượt từ máy vào ĐÚNG hồ sơ ---- */
+list( , $lo_ma ) = vhcc_may_gui( array(
+	'macAddress' => 'PC:MAY:CHINH', 'stationName' => 'May chinh',
+	'logs' => array(
+		array( 'hikSerial' => 'ZK-LAPRAP', 'employeeNo' => '20000601', 'name' => 'HQTHANG',
+			'time' => '2026-08-26 06:27:01' ),
+		array( 'hikSerial' => 'ZK-LAPRAP', 'employeeNo' => '20000601', 'name' => 'HQTHANG',
+			'time' => '2026-08-26 17:05:00' ),
+	),
+) );
+teq( 'cổng nhận đủ hai lượt', 2, $lo_ma['ghi'] );
+$h_ma = vhcc_hang( $M_CS, '2026-08-26', 'MNNV1CTY0002' );
+t( '🔴 lượt máy vào ĐÚNG hàng của mã nhân sự, không phải mã máy', null !== $h_ma, $h_ma );
+t( 'và KHÔNG đẻ ra hàng mang mã máy',
+	null === vhcc_hang( $M_CS, '2026-08-26', '20000601' ), 'còn hàng mã máy' );
+/* 🔴 DỊCH MÃ THÌ LẤY LUÔN TÊN TỪ HỒ SƠ. Tên trên máy do người dựng máy gõ — viết tắt, không
+   dấu, có khi chỉ là "NV601". Giữ tên ấy là bảng công hiện một cái tên mà sổ nhân sự không có,
+   và người đọc bảng không nối được nó với ai. */
+teq( '🔴 tên lấy từ HỒ SƠ, không lấy tên viết tắt trên máy', 'Huỳnh Quang Thắng',
+	(string) $h_ma['ho_ten'] );
+
+/* Chưa khai ghép thì lượt ấy VẪN VÀO BẢNG, mang mã máy — để còn thấy mà đi khai. */
+list( , $lo_ma2 ) = vhcc_may_gui( array(
+	'macAddress' => 'PC:MAY:CHINH',
+	'logs' => array(
+		array( 'hikSerial' => 'ZK-LAPRAP', 'employeeNo' => '20007777', 'name' => 'AI DO',
+			'time' => '2026-08-26 07:00:00' ),
+	),
+) );
+teq( 'lượt chưa khai ghép vẫn được ghi', 1, $lo_ma2['ghi'] );
+t( '🔴 và nằm dưới chính mã máy, không biến mất',
+	null !== vhcc_hang( $M_CS, '2026-08-26', '20007777' ), 'mất lượt' );
+
+/* ⚠️ DỊCH NGAY TRƯỚC KHI GHI, không dịch sớm hơn: nhật ký của mấy nhánh trên (gói thử, giờ sai
+   khuôn, máy chưa gán) phải kể ra ĐÚNG cái mã máy gửi lên — người đi soi nhật ký đang cầm cái
+   máy trong tay chứ không cầm sổ nhân sự. */
+vhcc_may_gui( array(
+	'logs' => array(
+		array( 'hikSerial' => 'ZK-LAPRAP', 'employeeNo' => '20000601', 'name' => 'HQTHANG',
+			'time' => 'gio bay ba' ),
+	),
+) );
+/* ⚠️ Nhật ký cổng nằm trong `option`, không phải một bảng — đọc đúng chỗ nó ở. */
+$nk_ma = (array) get_option( 'vhcc_nhat_ky_may', array() );
+$nk_dong = '';
+foreach ( $nk_ma as $x_nk ) {
+	if ( 'GIO_SAI_KHUON' === $x_nk['ma'] ) { $nk_dong = (string) $x_nk['loi']; break; }
+}
+t( 'dựng cảnh: có dòng nhật ký giờ sai khuôn', '' !== $nk_dong, $nk_ma );
+t( '🔴 nhật ký kể ĐÚNG mã máy, không kể mã nhân sự đã dịch',
+	strpos( $nk_dong, '20000601' ) !== false && strpos( $nk_dong, 'MNNV1CTY0002' ) === false, $nk_dong );
+
+vhcc_dung_bang();
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

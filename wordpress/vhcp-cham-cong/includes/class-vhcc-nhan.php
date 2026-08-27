@@ -389,7 +389,29 @@ class VHCC_Nhan {
 		}
 		$coso = $gm['station'];
 
-		$kq = self::ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh );
+		/* 🔴 DỊCH MÃ MÁY SANG MÃ NHÂN SỰ trước khi ghi.
+		   Anh Thắng 27/08/2026: *"bắt đầu kết nối máy chấm công để tránh mất dữ liệu"*.
+		   Máy ZKTeco ở xưởng trả `employeeNo` dạng `20000601` — mã do người dựng máy gõ vào từng
+		   đầu đọc, không ai đối chiếu với sổ nhân sự (hồ sơ ở đây dùng `MNNV1CTY0002`). Ghi thẳng
+		   mã máy vào bảng chấm công thì cả tháng công của cả xưởng nằm dưới một dãy số không có
+		   hồ sơ nào: bảng đầy số mà không số nào ra lương của ai.
+		   ⚠️ Dịch NGAY TRƯỚC KHI GHI, không dịch sớm hơn: mấy nhánh trên (gói thử, giờ sai khuôn,
+		      máy chưa gán cơ sở) đều nên kể ra ĐÚNG cái mã máy gửi lên, vì người đi soi nhật ký
+		      đang cầm cái máy trong tay chứ không cầm sổ nhân sự.
+		   ⚠️ Không khai ghép thì `ma_that()` trả lại chính mã máy — lượt ấy vẫn vào bảng và vẫn
+		      được kể ở khối "chưa có hồ sơ", chứ không biến mất. Mất một lượt bấm là mất công
+		      của người thật. */
+		$ma_ghi = VHCC_NhanSu::ma_that( $ma_nv );
+		if ( 0 !== strcasecmp( $ma_ghi, $ma_nv ) ) {
+			/* 🔴 DỊCH MÃ THÌ LẤY LUÔN TÊN TỪ HỒ SƠ. Tên trên máy do người dựng máy gõ — viết tắt,
+			   không dấu, có khi chỉ là "NV601". Giữ tên ấy là bảng công hiện một cái tên mà sổ
+			   nhân sự không có, và người đọc bảng không nối được nó với ai.
+			   ⚠️ Hồ sơ chắc chắn có: `ma_that()` chỉ đổi mã khi đầu kia CÓ hồ sơ. */
+			$hs_ghi = VHCC_NhanSu::ho_so( $ma_ghi );
+			$ho_ten = $hs_ghi ? (string) $hs_ghi['ho_ten'] : $ho_ten;
+		}
+
+		$kq = self::ghi_gio( $coso, $ngay, $ma_ghi, $ho_ten, $giay, $anh );
 		if ( isset( $kq['loi'] ) ) {
 			/* Cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất phải để firmware thử lại. */
 			self::ghi_loi( 'GHI_HONG', $kq['loi'] );
