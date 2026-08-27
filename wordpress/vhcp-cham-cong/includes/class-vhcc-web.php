@@ -170,6 +170,18 @@ class VHCC_Web {
 
 		if ( ! $toi ) { self::trang_dang_nhap(); return; }
 
+		/* 🔴 CHỐT "AI VÀO ĐƯỢC TRANG NÀO" — khai ở trang Quản lý nhân sự (`VHCC_TrangNS`).
+		   Đặt SAU cửa đăng nhập và TRƯỚC mọi việc: người bị khoá riêng phải dừng ở đây, không
+		   phải dừng ở từng nút bên trong. Mặc định vẫn là thang vai, nên bản này không siết
+		   thêm của ai — chỉ những người đã bị khai `khoa` mới đổi.
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi (luật `tools/test/kiem-goi-cheo.php`). */
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'duoc_vao' ) ) {
+			if ( ! VHCC_Cong::duoc_vao( $toi, 'cham_cong' ) ) {
+				self::trang_bi_khoa( VHCC_Cong::vi_sao_khong( $toi, 'cham_cong' ) );
+				return;
+			}
+		}
+
 		/* 🔴 TẢI TỆP XỬ TRƯỚC MỌI THỨ KHÁC — trước cả `trang_chinh()`, vì gửi tệp đòi đặt
 		   header, mà header chỉ đặt được khi CHƯA in ra một byte nào. Để nhánh này xuống dưới là
 		   PHP báo "headers already sent" và trình duyệt nhận về một tệp .xlsx có lẫn cả trang
@@ -925,7 +937,15 @@ class VHCC_Web {
 		return $h;
 	}
 
-	private static function css() {
+	/**
+	 * BẢNG MÀU & KIỂU DÙNG CHUNG CHO MỌI TRANG NGOÀI WEB CỦA HỆ CHẤM CÔNG.
+	 *
+	 * 🔴 CÔNG KHAI CÓ CHỦ Ý. Trang Quản lý nhân sự (`VHCC_TrangNS`) là một địa chỉ riêng nhưng
+	 *    phải trông y hệt trang này — hai trang cùng một hệ mà lệch font, lệch nút, lệch màu báo
+	 *    lỗi thì người dùng tưởng mình lạc sang chỗ khác. Chép CSS sang tệp thứ hai là hôm nào
+	 *    sửa một bên thì bên kia lệch, và không có gì báo.
+	 */
+	public static function css() {
 		return ':root{--nen:#f1f5f9;--the:#fff;--vien:#e2e8f0;--chu:#0f172a;--mo:#64748b;'
 			. '--xanh:#2563eb;--do:#dc2626;--vang:#f59e0b;--luc:#16a34a}'
 			. '*{box-sizing:border-box}'
@@ -1114,6 +1134,24 @@ class VHCC_Web {
 		self::dat_cookie( $tok );
 		self::ve( self::url() );
 		return true;
+	}
+
+	/**
+	 * BỊ KHOÁ RIÊNG — nói ra vì sao và ai gỡ được, rồi cho đường thoát.
+	 *
+	 * ⚠️ VẪN CÓ NÚT THOÁT. Không có nó thì người bị khoá mắc kẹt với một phiên họ không dùng
+	 *    được và cũng không bỏ được — phải xoá cookie bằng tay mới đăng nhập tài khoản khác.
+	 */
+	private static function trang_bi_khoa( $loi ) {
+		$tok = isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+		echo self::dau( 'Không vào được' );
+		echo '<div class="bo" style="max-width:520px;padding-top:56px"><div class="the">';
+		echo '<h2>Không vào được trang này</h2>';
+		echo '<div class="bao canh">' . esc_html( $loi ) . '</div>';
+		echo '<form method="post" style="margin:0">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( self::chu_ky( $tok ) ) . '">'
+			. '<button name="viec" value="thoat">Thoát</button></form>';
+		self::dong_trang( 2 );
 	}
 
 	private static function trang_dang_nhap() {
@@ -1351,6 +1389,14 @@ class VHCC_Web {
 		   liên kết chứ không phải một màn. Vẫn để chung thanh: với người dùng thì đó vẫn là
 		   "một hệ thống, bấm qua lại được", đúng thứ anh Thắng hỏi. */
 		echo '<a class="nut" href="' . esc_url( VHCC_Tram::url() ) . '">📷 Chấm công</a>';
+		/* Quản lý nhân sự cũng là TRANG KHÁC (địa chỉ riêng, anh Thắng chốt vậy) nên là liên
+		   kết. Chỉ vẽ cho người mở được nó — vẽ cho cả người không vào được thì bấm vào chỉ
+		   nhận một câu chối, mà cái nút thì cứ nằm đó mời gọi mỗi ngày.
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi (`tools/test/kiem-goi-cheo.php`). */
+		if ( class_exists( 'VHCC_TrangNS' ) && method_exists( 'VHCC_TrangNS', 'url' )
+			&& method_exists( 'VHCC_TrangNS', 'toi' ) && VHCC_TrangNS::toi() ) {
+			echo '<a class="nut" href="' . esc_url( VHCC_TrangNS::url() ) . '">👥 Quản lý nhân sự</a>';
+		}
 		echo '</div></div>';
 	}
 

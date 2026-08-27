@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           2.47.0
+ * Version:           2.48.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '2.47.0' );
+define( 'VHCC_VERSION', '2.48.0' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -69,6 +69,10 @@ require_once VHCC_DIR . 'includes/class-vhcc-nap-csv.php';
 require_once VHCC_DIR . 'includes/class-vhcc-trang.php';
 require_once VHCC_DIR . 'includes/class-vhcc-tram.php';
 require_once VHCC_DIR . 'includes/class-vhcc-web.php';
+/* Sổ "ai vào được trang nào" + trang khai nó. Nạp SAU class-vhcc-web.php vì trang khai dùng
+   chung phiên và bảng kiểu của trang quản trị. */
+require_once VHCC_DIR . 'includes/class-vhcc-cong.php';
+require_once VHCC_DIR . 'includes/class-vhcc-trang-ns.php';
 require_once VHCC_DIR . 'includes/class-vhcc-admin.php';
 require_once VHCC_DIR . 'includes/class-vhcc-man.php';
 
@@ -91,6 +95,9 @@ add_action( 'wp_ajax_nopriv_vhcc_call', array( 'VHCC_API', 'ajax' ) );
 
 add_action( 'init', array( 'VHCC_Trang', 'init' ), 5 );
 add_action( 'init', array( 'VHCC_Web', 'init' ), 5 );
+/* Trang Quản lý nhân sự — khai ai vào được trang nào. Anh Thắng 26/08/2026: *"để điều phối
+   nó dễ hơn"*. */
+add_action( 'init', array( 'VHCC_TrangNS', 'init' ), 5 );
 /* Trạm chấm công của nhân viên — trang họ mở hàng ngày bằng điện thoại. */
 add_action( 'init', array( 'VHCC_Tram', 'init' ), 5 );
 /* Cổng nhận chấm công của máy. Gài ở ưu tiên 4 — TRƯỚC trang (5) và trước lượt nạp lại luật

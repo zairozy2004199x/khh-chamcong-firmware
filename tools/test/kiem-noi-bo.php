@@ -705,6 +705,27 @@ ob_start(); VHNB_Trang::ve( $U_QQL ); $_h_vao = ob_get_clean();
 t( 'đủ bậc thì vào bình thường', false !== strpos( $_h_vao, 'class="giua"' ) );
 
 delete_option( VHNB_Quyen::O );
+
+/* ---- chốt THỨ HAI: khoá riêng TỪNG NGƯỜI, khai ở trang Quản lý nhân sự ----
+   🔴 Hai chốt cùng đứng ở cửa và KHÔNG thay nhau: `VHNB_Quyen` khoá theo VAI, `VHCC_Cong` khoá
+   theo NGƯỜI. Phép thử này phải là phép thử HÀNH VI (vẽ trang ra rồi soi), không phải một phép
+   grep tìm chữ `VHCC_Cong::duoc_vao` trong mã: bọc lời gọi ấy trong `if ( false && … )` là mã
+   vẫn còn nguyên chữ mà chốt thì không còn — grep xanh, cửa mở toang. */
+t( 'đã nạp được sổ quyền vào trang của plugin chấm công', class_exists( 'VHCC_Cong' ) );
+$_U_KHOA = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Người Bị Khoá', 'Admin', 'CS_VIVO', 'NBK1' ) );
+ob_start(); VHNB_Trang::ve( $_U_KHOA ); $_h_truoc = ob_get_clean();
+t( 'chưa khoá thì Admin vào nội bộ bình thường', false !== strpos( $_h_truoc, 'class="giua"' ) );
+update_option( VHCC_Cong::O, array( 'NBK1' => array( 'noi_bo' => 'khoa' ) ) );
+ob_start(); VHNB_Trang::ve( $_U_KHOA ); $_h_sau = ob_get_clean();
+t( '🔴 khoá riêng ở trang Quản lý nhân sự thì KHÔNG vẽ bảng tin ra, kể cả với Admin',
+	false === strpos( $_h_sau, 'class="giua"' ), $_h_sau );
+t( 'và nói rõ là bị khoá riêng, không đổ cho vai',
+	false !== strpos( $_h_sau, 'khoá riêng' ), $_h_sau );
+/* Khoá một người KHÔNG được lây sang người khác. */
+ob_start(); VHNB_Trang::ve( $U_QQL ); $_h_khac = ob_get_clean();
+t( 'người khác không bị ảnh hưởng', false !== strpos( $_h_khac, 'class="giua"' ) );
+delete_option( VHCC_Cong::O );
+
 vhnb_dung_bang();
 
 /* ============================================================ CHUÔNG THÔNG BÁO */

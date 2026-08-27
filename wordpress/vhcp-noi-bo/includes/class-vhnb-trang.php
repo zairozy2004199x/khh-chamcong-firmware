@@ -248,6 +248,22 @@ class VHNB_Trang {
 		/* 🔴 CHỐT "AI ĐƯỢC VÀO" ĐỨNG NGAY SAU CHỐT ĐĂNG NHẬP, trước mọi thứ khác.
 		   Đặt sau là đã lỡ vẽ bảng tin ra rồi mới chối — mà nội dung thì đã nằm trong HTML gửi
 		   xuống máy người ta. Xem `VHNB_Quyen`. */
+		/* 🔴 CHỐT THỨ HAI, TỪ TRANG QUẢN LÝ NHÂN SỰ — khoá riêng cho TỪNG NGƯỜI, trong khi
+		   `VHNB_Quyen` khoá theo VAI. Hai chốt cùng đứng đây và KHÔNG thay nhau: một người có
+		   thể đúng vai mà vẫn bị khoá riêng, hoặc ngược lại được mở riêng dù vai chưa tới.
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi — plugin chấm công gỡ ra thì nội bộ vẫn
+		      phải chạy, chứ không trắng trang. */
+		if ( $toi && class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'duoc_vao' )
+			&& method_exists( 'VHCC_Cong', 'vi_sao_khong' )
+			&& ! VHCC_Cong::duoc_vao( $toi, 'noi_bo' ) ) {
+			echo '<div class="bo"><div class="the" style="max-width:520px;margin:40px auto">'
+				. '<h2>Không vào được trang này</h2>'
+				. '<p class="mo">' . esc_html( VHCC_Cong::vi_sao_khong( $toi, 'noi_bo' ) ) . '</p>'
+				. '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() ) . '">← Về trang chấm công</a></p>'
+				. '</div>';
+			self::dong_trang();
+			return;
+		}
 		if ( $toi && ! VHNB_Quyen::duoc( $toi, 'vao' ) ) {
 			echo '<div class="bo"><div class="the" style="max-width:520px;margin:40px auto">'
 				. '<h2>Chưa mở cho vai này</h2>'

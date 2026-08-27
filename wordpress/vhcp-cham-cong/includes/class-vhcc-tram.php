@@ -313,6 +313,20 @@ class VHCC_Tram {
 		   dùng được cả ở trang quản trị: cửa hàng trưởng chấm công xong bấm sang xem bảng công
 		   cơ sở mình, không phải gõ lại PIN ở một trang khác. */
 		$vai = '' !== $r['vai_tro'] ? $r['vai_tro'] : VHCC_Vai::TEN[ VHCC_Vai::NV ];
+
+		/* 🔴 CHỐT "AI VÀO ĐƯỢC TRANG NÀO" — khai ở trang Quản lý nhân sự (`VHCC_TrangNS`).
+		   Gác Ở ĐÂY chứ không ở `maybe_render()`: trạm là một trang JavaScript, người mở nó ra
+		   CHƯA có phiên nào — gác ở cửa trang thì chối cả người chưa kịp gõ PIN. Đúng chỗ chối
+		   là lúc PHÁT THẺ: PIN đúng, biết là ai rồi, mới nói được "người này bị khoá".
+		   ⚠️ Gác `method_exists` cùng hàm với lời gọi (luật `tools/test/kiem-goi-cheo.php`). */
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'duoc_vao' ) ) {
+			$ai = array( 'ma_nv' => $r['ma_nv'], 'role' => $vai );
+			if ( ! VHCC_Cong::duoc_vao( $ai, 'tram' ) ) {
+				/* KHÔNG đếm lượt sai: PIN gõ đúng thì không phải là dò mật khẩu. */
+				return array( 'ok' => false, 'error' => VHCC_Cong::vi_sao_khong( $ai, 'tram' ) );
+			}
+		}
+
 		return array(
 			'ok'    => true,
 			'hoTen' => $r['ho_ten'],

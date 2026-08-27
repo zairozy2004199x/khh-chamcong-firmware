@@ -7570,6 +7570,316 @@ $than_web_qtc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/cl
 t( 've_luoi_cham (lưới cũ) đã bỏ hẳn, không còn nằm chết trong tệp',
 	strpos( $than_web_qtc, 've_luoi_cham' ) === false );
 
+/* ==========================================================================================
+ *  60. TRANG QUẢN LÝ NHÂN SỰ — "AI VÀO ĐƯỢC TRANG NÀO"
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 26/08/2026: *"Giờ anh muốn tạo 1 trang Quản lý nhân sự riêng, để cấu hình nhân sự
+ *  có thể xem những trang nào trong tất cả các trang anh làm"* — *"để điều phối nó dễ hơn"*.
+ *
+ *  🔴 CHỖ NGUY HIỂM NHẤT CỦA TÍNH NĂNG NÀY KHÔNG PHẢI LÀ "KHOÁ HỤT" MÀ LÀ "KHOÁ NHẦM".
+ *  Một cái sổ quyền vào trang, viết ẩu, có ba cách giết cả công ty trong im lặng:
+ *    1. Khai cả trang CÔNG KHAI vào sổ  -> khách quét QR ghế massage bị chối, tiền không vào.
+ *    2. Mặc định là "chưa khai = cấm"   -> ngày bản mới lên là 240 người mất đường vào.
+ *    3. Lưu một trang 50 người mà GHI ĐÈ cả sổ -> xoá sạch ngoại lệ của 190 người còn lại.
+ *  Phần lớn phép thử dưới đây canh đúng ba chuyện đó.
+ * ======================================================================================== */
+
+/* ---- 60a. SỔ TRANG: chỉ những trang CÓ CỬA ĐĂNG NHẬP BẰNG PHIÊN CHẤM CÔNG ---- */
+$ns_ds = VHCC_Cong::ds();
+t( 'sổ trang dò được trang quản trị chấm công', isset( $ns_ds['cham_cong'] ) );
+t( 'sổ trang dò được trạm chấm công',           isset( $ns_ds['tram'] ) );
+/* 🔴 BỐN TRANG NÀY PHẢI VẮNG MẶT. Xem khối chú thích ở `VHCC_Cong::SO` — mỗi cái là một cách
+   làm hỏng việc kinh doanh mà màn hình không nói được gì cho người bị chối. */
+foreach ( array( 'ghe' => 'trang của KHÁCH quét QR ghế massage',
+	'cong' => 'cửa trước công khai',
+	'hop_dong' => 'giao diện Apps Script tự đăng nhập bên trong',
+	'chi_phi' => 'app có sổ người dùng RIÊNG, không có Mã NV' ) as $ns_k => $ns_ly ) {
+	t( '🔴 "' . $ns_k . '" KHÔNG được nằm trong sổ quyền — ' . $ns_ly,
+		! isset( VHCC_Cong::SO[ $ns_k ] ) );
+}
+/* Sổ khai lớp nào thì lớp ấy phải có thật hàm `url()` — khai hụt là Fatal error, trắng trang. */
+foreach ( VHCC_Cong::SO as $ns_k => $ns_t ) {
+	t( 'lớp "' . $ns_t['lop'] . '" khai trong sổ có thật hàm url()',
+		! class_exists( $ns_t['lop'] ) || method_exists( $ns_t['lop'], 'url' ) );
+	t( 'quyền "' . $ns_t['quyen'] . '" của trang "' . $ns_k . '" có khai trong thang vai',
+		isset( VHCC_Vai::QUYEN[ $ns_t['quyen'] ] ) );
+}
+
+/* ---- 60b. MẶC ĐỊNH LÀ THANG VAI, KHÔNG PHẢI BẢNG TRẮNG ---- */
+delete_option( VHCC_Cong::O );
+$ns_nv  = array( 'ma_nv' => 'QN1', 'role' => 'Nhân viên' );
+$ns_ad  = array( 'ma_nv' => 'QN2', 'role' => 'Admin' );
+$ns_kt  = array( 'ma_nv' => 'QN3', 'role' => 'Kế toán' );
+t( '🔴 chưa khai gì thì nhân viên VẪN vào được trạm chấm công (không phải bảng trắng)',
+	VHCC_Cong::duoc_vao( $ns_nv, 'tram' ) );
+t( 'chưa khai gì thì Admin vẫn vào được màn quản trị', VHCC_Cong::duoc_vao( $ns_ad, 'cham_cong' ) );
+/* Trang KHÔNG có trong sổ thì CHO QUA — sổ này để siết có chủ ý, không phải một cánh cửa mới. */
+t( '🔴 trang lạ / chưa khai thì CHO QUA, không chặn', VHCC_Cong::duoc_vao( $ns_nv, 'mot_trang_chua_khai' ) );
+teq( 'và không có câu chối nào cho trang lạ', '', VHCC_Cong::vi_sao_khong( $ns_nv, 'mot_trang_chua_khai' ) );
+
+/* ---- 60c. NGOẠI LỆ ĐÈ LÊN VAI, CẢ HAI CHIỀU ---- */
+$ns_kq = VHCC_Cong::dat( $ns_kt, 'QN2', 'cham_cong', 'khoa' );
+t( 'Kế toán khai được ngoại lệ', ! empty( $ns_kq['ok'] ), $ns_kq );
+t( '🔴 khoá riêng CHẶN được cả Admin — vai cao không phá được ngoại lệ',
+	! VHCC_Cong::duoc_vao( $ns_ad, 'cham_cong' ) );
+t( 'và câu chối nói rõ là bị KHOÁ RIÊNG, không đổ cho vai',
+	strpos( VHCC_Cong::vi_sao_khong( $ns_ad, 'cham_cong' ), 'khoá riêng' ) !== false,
+	VHCC_Cong::vi_sao_khong( $ns_ad, 'cham_cong' ) );
+/* Khoá một trang KHÔNG được lây sang trang khác của cùng người. */
+t( 'khoá màn quản trị thì trạm chấm công vẫn vào được', VHCC_Cong::duoc_vao( $ns_ad, 'tram' ) );
+/* ...và không lây sang NGƯỜI khác. */
+t( 'khoá QN2 thì QN1 không bị ảnh hưởng', VHCC_Cong::duoc_vao( $ns_nv, 'cham_cong' ) );
+
+VHCC_Cong::dat( $ns_kt, 'QN1', 'cham_cong', 'mo' );
+t( 'mở riêng cho vào dù vai chưa tới', VHCC_Cong::duoc_vao( $ns_nv, 'cham_cong' ) );
+
+/* ---- 60d. BA TRẠNG THÁI, KHÔNG PHẢI HAI: gỡ ngoại lệ phải về được "theo vai" ---- */
+teq( 'ô đang là khoa', 'khoa', VHCC_Cong::o( 'QN2', 'cham_cong' ) );
+VHCC_Cong::dat( $ns_kt, 'QN2', 'cham_cong', '' );
+teq( '🔴 gỡ ngoại lệ thì ô về TRỐNG (theo vai), không kẹt lại ở 0',
+	'', VHCC_Cong::o( 'QN2', 'cham_cong' ) );
+t( 'và Admin vào lại được', VHCC_Cong::duoc_vao( $ns_ad, 'cham_cong' ) );
+$ns_bang = get_option( VHCC_Cong::O );
+t( '🔴 gỡ hết ngoại lệ của một người thì XOÁ HẲN người đó khỏi sổ, không để ô rỗng',
+	! isset( $ns_bang['QN2'] ), $ns_bang );
+
+/* ---- 60e. CHỐT QUYỀN KHAI ---- */
+$ns_kq = VHCC_Cong::dat( $ns_nv, 'QN3', 'tram', 'khoa' );
+t( '🔴 Nhân viên KHÔNG khai được quyền vào trang cho người khác', empty( $ns_kq['ok'] ), $ns_kq );
+t( 'và sổ không bị đụng vào', '' === VHCC_Cong::o( 'QN3', 'tram' ) );
+$ns_kq = VHCC_Cong::dat( $ns_kt, 'QN3', 'mot_trang_khong_co', 'khoa' );
+t( 'khai cho một trang không có trên site thì bị chối', empty( $ns_kq['ok'] ), $ns_kq );
+$ns_kq = VHCC_Cong::dat( $ns_kt, 'QN3', 'tram', 'nua_mo_nua_khoa' );
+t( 'giá trị lạ bị chối, chỉ nhận mo / khoa / trống', empty( $ns_kq['ok'] ), $ns_kq );
+$ns_kq = VHCC_Cong::dat( $ns_kt, '', 'tram', 'khoa' );
+t( 'thiếu Mã NV thì chối', empty( $ns_kq['ok'] ), $ns_kq );
+
+/* ---- 60f. 🔴 LƯU CẢ BẢNG CHỈ ĐỘNG VÀO NGƯỜI ĐANG HIỆN ----
+   Đây là phép thử đắt nhất của cả khối. Màn hình có bộ lọc + phân trang, nên cái POST gửi lên
+   luôn là một LÁT CẮT. Viết `update_option( O, $bang )` cho gọn thì lưu trang 1 là xoá sạch
+   ngoại lệ của mọi người ở trang 2 trở đi — im lặng, và chỉ lộ ra khi có người kêu "sao tôi
+   lại vào được trang đó". */
+delete_option( VHCC_Cong::O );
+VHCC_Cong::dat( $ns_kt, 'NGOAI_TRANG', 'tram', 'khoa' );      // người ở "trang 2", không gửi lên
+$ns_kq = VHCC_Cong::luu_nhieu( $ns_kt, array(
+	'QN1' => array( 'cham_cong' => 'mo',  'tram' => '' ),
+	'QN2' => array( 'cham_cong' => 'khoa' ),
+) );
+t( 'lưu cả bảng chạy', ! empty( $ns_kq['ok'] ), $ns_kq );
+teq( 'đếm ĐÚNG số ô thật sự đổi (ô để trống mà vốn đã trống thì không tính)', 2, $ns_kq['doi'] );
+teq( '🔴 người KHÔNG có trong lát cắt vẫn giữ nguyên ngoại lệ', 'khoa',
+	VHCC_Cong::o( 'NGOAI_TRANG', 'tram' ) );
+teq( 'ô mở đã vào sổ', 'mo', VHCC_Cong::o( 'QN1', 'cham_cong' ) );
+teq( 'ô khoá đã vào sổ', 'khoa', VHCC_Cong::o( 'QN2', 'cham_cong' ) );
+
+/* Lưu lại y nguyên thì KHÔNG đổi ô nào — nếu không thì mỗi lần bấm Lưu đều báo "đã lưu N ô". */
+$ns_kq = VHCC_Cong::luu_nhieu( $ns_kt, array( 'QN1' => array( 'cham_cong' => 'mo' ) ) );
+teq( 'lưu lại y nguyên thì 0 ô đổi', 0, $ns_kq['doi'] );
+
+/* Trang lạ và giá trị lạ bị BỎ QUA lặng lẽ (biểu mẫu bị sửa tay), không ghi vào sổ. */
+$ns_kq = VHCC_Cong::luu_nhieu( $ns_kt, array(
+	'QN1' => array( 'trang_ma' => 'khoa', 'tram' => 'xoa_het_di' ) ) );
+teq( 'trang lạ + giá trị lạ không ghi được ô nào', 0, $ns_kq['doi'] );
+$ns_bang = get_option( VHCC_Cong::O );
+t( 'sổ không mọc thêm khoá lạ', ! isset( $ns_bang['QN1']['trang_ma'] ), $ns_bang );
+
+/* Chốt quyền cũng phải có ở đường lưu hàng loạt, không riêng đường lưu một ô. */
+$ns_kq = VHCC_Cong::luu_nhieu( $ns_nv, array( 'QN1' => array( 'cham_cong' => 'khoa' ) ) );
+t( '🔴 Nhân viên không lưu được cả bảng', empty( $ns_kq['ok'] ), $ns_kq );
+teq( 'và sổ giữ nguyên', 'mo', VHCC_Cong::o( 'QN1', 'cham_cong' ) );
+
+/* ---- 60g. DANH SÁCH SOÁT LẠI ---- */
+$ns_phang = VHCC_Cong::ngoai_le_phang();
+$ns_thay  = array();
+foreach ( $ns_phang as $ns_x ) { $ns_thay[ $ns_x['ma_nv'] . '|' . $ns_x['trang'] ] = $ns_x; }
+t( 'khối soát thấy ngoại lệ của người ngoài lát cắt', isset( $ns_thay['NGOAI_TRANG|tram'] ) );
+t( 'và thấy ngoại lệ vừa lưu', isset( $ns_thay['QN1|cham_cong'] ) );
+/* Dòng trỏ vào trang đã gỡ khỏi sổ phải CÒN và bị đánh dấu — lọc đi thì sổ trông sạch trong
+   khi vẫn còn rác, mà rác ấy sống lại đúng ngày plugin được cài lại. */
+$ns_b2 = get_option( VHCC_Cong::O );
+$ns_b2['QN9'] = array( 'mot_trang_da_go' => 'khoa' );
+update_option( VHCC_Cong::O, $ns_b2 );
+$ns_co = null;
+foreach ( VHCC_Cong::ngoai_le_phang() as $ns_x ) {
+	if ( 'QN9' === $ns_x['ma_nv'] ) { $ns_co = $ns_x; }
+}
+t( '🔴 ngoại lệ trỏ vào trang KHÔNG còn cài vẫn hiện ra', null !== $ns_co, $ns_co );
+t( 'và bị đánh dấu là trang không còn', $ns_co && false === $ns_co['co'], $ns_co );
+delete_option( VHCC_Cong::O );
+
+/* ---- 60h. CHỐT ĐÃ ĐƯỢC NỐI VÀO CỬA VÀO TỪNG TRANG ----
+   Khai một cái sổ mà không nơi nào hỏi nó thì màn hình cho tích, tích xong không có gì đổi, và
+   người khai tưởng mình đã khoá. Ba trang trong sổ, ba chỗ phải gọi. */
+foreach ( array(
+	'wordpress/vhcp-cham-cong/includes/class-vhcc-web.php'  => "'cham_cong'",
+	'wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' => "'tram'",
+	'wordpress/vhcp-noi-bo/includes/class-vhnb-trang.php'   => "'noi_bo'",
+) as $ns_f => $ns_khoa ) {
+	$ns_ma = file_get_contents( $goc . '/' . $ns_f );
+	t( '🔴 ' . basename( $ns_f ) . ' có gọi VHCC_Cong::duoc_vao(' . $ns_khoa . ')',
+		strpos( $ns_ma, 'VHCC_Cong::duoc_vao' ) !== false && strpos( $ns_ma, $ns_khoa ) !== false );
+	/* Gác `method_exists` phải nằm CÙNG TỆP với lời gọi — luật kiem-goi-cheo.php. */
+	t( basename( $ns_f ) . ' gác method_exists trước khi gọi',
+		strpos( $ns_ma, "method_exists( 'VHCC_Cong', 'duoc_vao' )" ) !== false );
+}
+/* ⚠️ BA PHÉP THỬ TRÊN CHỈ LÀ GREP, VÀ GREP KHÔNG ĐỦ. Bọc lời gọi trong `if ( false && … )` thì
+   mã vẫn còn nguyên chữ mà chốt thì không còn — grep xanh, cửa mở toang. Nên mỗi cửa còn phải
+   có một phép thử HÀNH VI: khoá một người rồi vẽ trang ra, xem có bị chối thật không.
+   Trạm đã có ở 60i; nội bộ có ở `kiem-noi-bo.php`; màn quản trị nằm ngay dưới đây. */
+delete_option( VHCC_Cong::O );
+/* Dựng thẻ phiên thẳng, không đi qua PIN: PIN của mấy tài khoản mẫu đã bị chính các phép thử ở
+   trên sửa đi nhiều lượt, mà phép thử này nói về CỬA VÀO chứ không nói về đăng nhập. */
+function vhcc_web_nhu( $ma_nv, $vai, $get = array() ) {
+	$_GET = $get; $_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người Thử', $vai, 'TUTU_BT', $ma_nv ) );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+$ns_h_web = vhcc_web_nhu( 'QADM', 'Admin', array( 'man' => 'ho_so' ) );
+t( 'chưa khoá thì Admin vào màn quản trị bình thường',
+	strpos( $ns_h_web, 'Không vào được trang này' ) === false );
+update_option( VHCC_Cong::O, array( 'QADM' => array( 'cham_cong' => 'khoa' ) ) );
+$ns_h_web = vhcc_web_nhu( 'QADM', 'Admin', array( 'man' => 'ho_so' ) );
+t( '🔴 khoá riêng thì Admin cũng dừng ở cửa màn quản trị chấm công',
+	strpos( $ns_h_web, 'Không vào được trang này' ) !== false, substr( $ns_h_web, 0, 1200 ) );
+t( 'và KHÔNG lộ một mẩu hồ sơ nào ra', strpos( $ns_h_web, 'name="ho_ten[' ) === false );
+/* ⚠️ VẪN PHẢI CÓ NÚT THOÁT. Không có thì người bị khoá mắc kẹt với một phiên không dùng được
+   và cũng không bỏ được — phải xoá cookie bằng tay mới đăng nhập tài khoản khác. */
+t( 'màn bị khoá vẫn có nút Thoát', strpos( $ns_h_web, 'value="thoat"' ) !== false );
+delete_option( VHCC_Cong::O );
+
+/* ---- 60i. TRẠM CHỐI ĐÚNG CHỖ: lúc PHÁT THẺ, không phải lúc mở trang ---- */
+global $wpdb;
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='QK1'" );
+VHCC_NhanSu::luu_ho_so( $U_MA, array( 'ma_nv' => 'QK1', 'ho_ten' => 'Người Bị Khoá',
+	'pin_dang_nhap' => '551133', 'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+delete_option( VHCC_Cong::O );
+$ns_dn = VHCC_Tram::dang_nhap( '551133' );
+t( 'chưa khoá thì PIN đúng vào được trạm', ! empty( $ns_dn['ok'] ), $ns_dn );
+VHCC_Cong::dat( $ns_kt, 'QK1', 'tram', 'khoa' );
+$ns_dn = VHCC_Tram::dang_nhap( '551133' );
+t( '🔴 khoá trạm thì PIN đúng cũng không phát thẻ', empty( $ns_dn['ok'] ), $ns_dn );
+t( 'và câu chối nói rõ vì sao, không phải "PIN không đúng"',
+	isset( $ns_dn['error'] ) && strpos( $ns_dn['error'], 'PIN' ) === false, $ns_dn );
+/* ⚠️ KHÔNG đếm lượt sai: gõ đúng PIN thì không phải là dò mật khẩu. Đếm nhầm thì khoá riêng
+   một trang lại thành khoá IP của cả cơ sở trong 10 phút. */
+$ns_dn = VHCC_Tram::dang_nhap( '551133' );
+t( 'gõ lại vẫn ra đúng câu chối ấy, không rơi vào "gõ sai quá nhiều lần"',
+	isset( $ns_dn['error'] ) && strpos( $ns_dn['error'], 'quá nhiều lần' ) === false, $ns_dn );
+delete_option( VHCC_Cong::O );
+
+/* ---- 60j. CỬA VÀO TRANG QUẢN LÝ NHÂN SỰ ---- */
+teq( 'đường dẫn mặc định là /nhan-su/', 'nhan-su', VHCC_TrangNS::slug() );
+$ns_u_nv = array( 'name' => 'Nhân', 'role' => 'Nhân viên', 'ma_nv' => 'QN1' );
+$ns_u_cht = array( 'name' => 'Trưởng', 'role' => 'Cửa hàng trưởng', 'ma_nv' => 'QN4' );
+teq( 'Kế toán vào được', '', VHCC_TrangNS::vi_sao_khong_vao( array( 'role' => 'Kế toán' ) ) );
+teq( 'Admin vào được', '', VHCC_TrangNS::vi_sao_khong_vao( array( 'role' => 'Admin' ) ) );
+t( '🔴 Nhân viên KHÔNG vào được', '' !== VHCC_TrangNS::vi_sao_khong_vao( $ns_u_nv ) );
+t( '🔴 Cửa hàng trưởng cũng KHÔNG', '' !== VHCC_TrangNS::vi_sao_khong_vao( $ns_u_cht ) );
+t( '🔴 Quản lý cũng KHÔNG — bảng này khai được cả quyền của Admin',
+	'' !== VHCC_TrangNS::vi_sao_khong_vao( array( 'role' => 'Quản lý' ) ) );
+t( 'chưa đăng nhập thì nói "chưa đăng nhập"',
+	strpos( VHCC_TrangNS::vi_sao_khong_vao( null ), 'Chưa đăng nhập' ) !== false );
+
+/** Vẽ trang /nhan-su/ với một phiên có sẵn. */
+function vhcc_ns( $vai = 'Kế toán', $get = array(), $post = array() ) {
+	$_GET = $get; $_POST = $post; $_COOKIE = array();
+	if ( null !== $vai ) {
+		$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người Khai', $vai, 'TUTU_BT', 'QN3' );
+		if ( $post ) { $_POST['ky'] = VHCC_Web::chu_ky( $_COOKIE[ VHCC_Web::COOKIE ] ); }
+	}
+	ob_start(); VHCC_TrangNS::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_POST = array(); $_COOKIE = array();
+	return $h;
+}
+
+$ns_h = vhcc_ns( null );
+t( 'chưa đăng nhập thì KHÔNG vẽ bảng người', strpos( $ns_h, 'name="o[' ) === false );
+t( 'và chỉ đường tới trang đăng nhập', strpos( $ns_h, 'Tới trang đăng nhập' ) !== false );
+/* 🔴 SOI CHÍNH HÀM GÁC CỬA. Soi "màn hình không có ô quyền nào" là chưa đủ: bảng ấy còn rỗng
+   vì bộ lọc cơ sở của `ds_nhan_vien` — nới cửa ra mà bảng vẫn rỗng thì phép thử vẫn xanh trong
+   khi cửa đã mở. Chốt thật nằm ở `toi()`. */
+function vhcc_ns_vao( $vai ) {
+	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Ai Đó', $vai, 'TUTU_BT', 'QN7' );
+	$u = VHCC_TrangNS::toi();
+	$_COOKIE = array();
+	return null !== $u;
+}
+t( 'Kế toán mở được cửa', vhcc_ns_vao( 'Kế toán' ) );
+t( 'Admin mở được cửa',   vhcc_ns_vao( 'Admin' ) );
+t( '🔴 Nhân viên KHÔNG mở được cửa',        ! vhcc_ns_vao( 'Nhân viên' ) );
+t( '🔴 Cửa hàng trưởng KHÔNG mở được cửa',  ! vhcc_ns_vao( 'Cửa hàng trưởng' ) );
+t( '🔴 Quản lý cũng KHÔNG mở được cửa',     ! vhcc_ns_vao( 'Quản lý' ) );
+$_COOKIE = array();
+t( 'không có thẻ phiên thì cửa đóng', null === VHCC_TrangNS::toi() );
+
+$ns_h = vhcc_ns( 'Nhân viên' );
+t( '🔴 Nhân viên mở trang ra thì thấy màn chối, không thấy bảng',
+	strpos( $ns_h, 'Quản lý nhân sự cần vai Kế toán' ) !== false, $ns_h );
+t( 'và không có một ô quyền nào', strpos( $ns_h, 'name="o[' ) === false, $ns_h );
+
+$ns_h = vhcc_ns( 'Kế toán' );
+t( 'Kế toán thấy bảng người × trang', strpos( $ns_h, 'name="o[' ) !== false );
+t( 'có nút lưu', strpos( $ns_h, 'value="luu_quyen"' ) !== false );
+t( 'có cột cho trang Trạm chấm công', strpos( $ns_h, 'Trạm chấm công' ) !== false );
+/* 🔴 Nói thẳng những trang KHÔNG khai được ở đây — kẻo anh Thắng đi tìm cột "Vận hành chi phí"
+   mà không thấy, rồi tưởng em quên chứ không phải là nó không thể có. */
+t( '🔴 có nói ra vì sao Ghế massage không khai được ở đây',
+	strpos( $ns_h, 'Ghế massage' ) !== false && strpos( $ns_h, 'khách' ) !== false, $ns_h );
+t( 'và vì sao Vận hành chi phí không khai được',
+	strpos( $ns_h, 'sổ người dùng riêng' ) !== false );
+/* ⚠️ Đúng lỗi anh Thắng vấp ở ô Tìm nhân sự (#49): biểu mẫu GET không chở theo thứ cho trang
+   biết nó là trang nào thì bấm Lọc là rơi về trang chủ. */
+$GLOBALS['vhcp_options']['permalink_structure'] = '';
+$ns_h2 = vhcc_ns( 'Kế toán' );
+t( '🔴 không có permalink thì ô Lọc vẫn chở theo vhcc_ns=1, không nhảy về trang chủ',
+	strpos( $ns_h2, 'name="vhcc_ns" value="1"' ) !== false, $ns_h2 );
+$GLOBALS['vhcp_options']['permalink_structure'] = '/%postname%/';
+
+/* ---- 60k. LUẬT CHUNG CỦA MÀN QUẢN TRỊ: KHÔNG MỘT DÒNG SCRIPT NÀO ---- */
+$ns_ma = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-trang-ns.php' );
+t( '🔴 tệp trang không có <script', stripos( $ns_ma, '<script' ) === false );
+t( '🔴 trang vẽ ra không có <script', stripos( $ns_h, '<script' ) === false );
+t( '🔴 và không có thuộc tính on...= nào',
+	preg_match( '/\son[a-z]+\s*=\s*["\']/i', $ns_h ) === 0, $ns_h );
+/* Gập/xổ bằng <details> của chính HTML — đúng cách những màn khác đang làm. */
+t( 'khối soát ngoại lệ gập được bằng <details>', strpos( $ns_h, '<details' ) !== false );
+/* MỘT chỗ đóng trang duy nhất — để nhãn phiên bản không thể thiếu ở một màn nào. */
+teq( '🔴 class-vhcc-trang-ns.php chỉ có ĐÚNG MỘT chỗ in </body></html>', 1,
+	substr_count( $ns_ma, "'</body></html>'" ) );
+/* ⚠️ SOI THẺ CHÂN TRANG, ĐỪNG SOI MỖI CHỮ `cty-bq`. Chuỗi ấy CŨNG nằm trong bảng kiểu dùng
+   chung (`VHCC_Web::css()` có luật `.cty-bq{…}`), nên tìm nó là luôn thấy — kể cả khi chân
+   trang đã bị bỏ hẳn. Đây đúng là cái bẫy phép-thử-xanh-mà-mã-hỏng: phá thử bỏ chân trang mà
+   phép thử vẫn xanh, và chỉ lộ ra khi đi phá thử. Soi `<footer class="cty"` thì không lẫn. */
+t( 'chân trang có nhãn phiên bản đang chạy (anh Thắng: "để theo dõi")',
+	strpos( $ns_h, '<footer class="cty"' ) !== false, substr( $ns_h, -400 ) );
+t( 'và nhãn ấy in ra SỐ phiên bản', strpos( $ns_h, 'class="cty-pb"' ) !== false );
+/* Cả màn CHỐI cũng phải có nhãn phiên bản — không thì đúng cái màn hay bị chụp lại gửi đi
+   là màn không nói được nó đang chạy bản nào. */
+t( 'màn chối cũng có nhãn phiên bản',
+	strpos( vhcc_ns( 'Nhân viên' ), '<footer class="cty"' ) !== false );
+
+/* ---- 60l. LƯU QUA MÀN HÌNH ---- */
+delete_option( VHCC_Cong::O );
+vhcc_ns( 'Kế toán', array(), array( 'viec' => 'luu_quyen',
+	'o' => array( 'QN1' => array( 'tram' => 'khoa' ) ) ) );
+teq( 'bấm Lưu trên màn hình thì vào sổ thật', 'khoa', VHCC_Cong::o( 'QN1', 'tram' ) );
+/* Không có chữ ký thì KHÔNG lưu — biểu mẫu từ trang khác POST sang cũng phải trượt. */
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người Khai', 'Kế toán', 'TUTU_BT', 'QN3' );
+$_POST = array( 'viec' => 'luu_quyen', 'o' => array( 'QN1' => array( 'tram' => '' ) ) );
+ob_start(); VHCC_TrangNS::phuc_vu(); ob_get_clean();
+$_POST = array(); $_COOKIE = array();
+teq( '🔴 thiếu chữ ký thì KHÔNG lưu gì', 'khoa', VHCC_Cong::o( 'QN1', 'tram' ) );
+/* Gỡ qua màn hình. */
+vhcc_ns( 'Kế toán', array(), array( 'viec' => 'go_ngoai_le', 'ma_nv' => 'QN1', 'trang' => 'tram' ) );
+teq( 'nút Gỡ trả ô về theo vai', '', VHCC_Cong::o( 'QN1', 'tram' ) );
+/* Việc lạ thì chối, không có nhánh "cho qua". */
+$ns_bao = VHCC_TrangNS::lam_viec( 'xoa_sach_moi_thu', array( 'role' => 'Admin' ) );
+t( '🔴 việc chưa khai thì bị chối', isset( $ns_bao[0]['loi'] ), $ns_bao );
+delete_option( VHCC_Cong::O );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
