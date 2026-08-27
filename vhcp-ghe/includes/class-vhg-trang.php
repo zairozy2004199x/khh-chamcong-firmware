@@ -974,10 +974,402 @@ class VHG_Trang {
 				. 'window.VHG_BAN=' . wp_json_encode( defined( 'VHG_VERSION' ) ? VHG_VERSION : '?' ) . ';'
 				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';</script>'
 			. '<script>' . self::js() . '</script>'
+			/* Module BÁO CÁO DOANH THU (thu tiền) — tự chứa, cổng bc-PIN riêng, không cần token.
+			   Tách script riêng để KHÔNG đụng SPA token; mở từ nút ở màn đăng nhập. */
+			. '<div id="bc-app"></div><script>' . self::js_baocao() . '</script>'
 			/* Chân trang pháp lý — DỰNG Ở MÁY CHỦ, ngoài `#app`. Nằm trong JS thì JS hỏng là
 			   thông tin công ty biến mất; xem VHG_Chan::html(). */
 			. VHG_Chan::html()
 			. '</body></html>';
+	}
+
+	/**
+	 * MODULE BÁO CÁO DOANH THU (thu tiền) — tự chứa, cổng bc-PIN riêng, gọi các việc `bc_*` bằng
+	 * `pin` (KHÔNG token). Port từ app Apps Script "POSH v3 · THU TIỀN". Giữ các bất biến:
+	 *   · actual = (chỉ số sau − trước) × đơn_vị ; tiền mặt = actual − QR ± tăng/giảm (server ép lại).
+	 *   · Chỉ số trước KHOÁ (lấy từ lần thu trước / máy đếm chung); chỉ nhập tay lần đầu.
+	 *   · Chỉ gửi ghế CÓ nhập chỉ số sau. Chống bấm gửi 2 lần.
+	 *   · Nhập tới cơ sở cuối → báo "ĐỦ BÁO CÁO"; còn điểm chưa thu → xin CHỐT CA SỚM.
+	 *   · Mọi chữ đặt bằng textContent (chống XSS từ ô dữ liệu).
+	 */
+	private static function js_baocao() {
+		return <<<'JS'
+(function(){
+  var API = window.VHG_API || '';
+  var PIN='', BC=null, NGAY='', LOC='', LAST={}, GUI_DANG=false;
+
+  function $(id){ return document.getElementById(id); }
+  function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
+  function money(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+  function snum(s){ s=String(s==null?'':s); var neg=/^\s*-/.test(s); var d=s.replace(/[^0-9]/g,'');
+    if(!d) return 0; return (neg?-1:1)*parseInt(d,10); }
+  function meterVal(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
+  function coThu(s){ return /[0-9]/.test(String(s==null?'':s)); }
+
+  function goi(viec,d,cb){
+    d=d||{}; if(!d.pin) d.pin=PIN;
+    var x=new XMLHttpRequest();
+    x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
+    x.setRequestHeader('Content-Type','application/json');
+    x.onreadystatechange=function(){
+      if(x.readyState!==4) return;
+      var r=null; try{ r=JSON.parse(x.responseText); }catch(e){}
+      cb(r || { ok:false, error:'Không đọc được trả lời của máy chủ (mạng hoặc tường lửa).' });
+    };
+    x.send(JSON.stringify(d));
+  }
+
+  function styleOnce(){
+    if($('bc-style')) return;
+    var s=el('style'); s.id='bc-style';
+    s.textContent = [
+      '#bc-app{position:fixed;inset:0;z-index:100000;display:none;overflow:auto;background:#f5f7fb;color:#0f172a;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}',
+      '#bc-app.mo{display:block}',
+      '.bc-wrap{width:100%;padding:16px clamp(12px,2vw,28px) 60px}',
+      '.bc-top{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#0f172a;color:#fff;padding:12px 16px;border-radius:0 0 12px 12px}',
+      '.bc-top b{color:#d4af37}',
+      '.bc-sp{flex:1}',
+      '.bc-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin:14px auto;max-width:1180px}',
+      '.bc-h{margin:0 0 4px;font-size:15px}',
+      '.bc-mut{color:#64748b;font-size:12.5px;margin:2px 0}',
+      '.bc-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}',
+      '.bc-f{display:flex;flex-direction:column;gap:5px;min-width:0}',
+      '.bc-f>span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#334155}',
+      '.bc-app-in input,.bc-app-in select,#bc-app input,#bc-app select{font:inherit;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:#0f172a}',
+      '#bc-app input:focus,#bc-app select:focus{outline:none;border-color:#4f46e5}',
+      '.bc-btn{font:inherit;font-weight:700;padding:10px 16px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer}',
+      '.bc-btn.pri{background:#4f46e5;border-color:#4f46e5;color:#fff}',
+      '.bc-btn.pri:disabled{opacity:.6;cursor:not-allowed}',
+      '.bc-btn.warn{background:#b45309;border-color:#b45309;color:#fff}',
+      '.bc-gate{max-width:340px;margin:60px auto;text-align:center}',
+      '.bc-gate input{width:100%;text-align:center;letter-spacing:10px;font-size:20px;margin:14px 0 8px}',
+      '.bc-err{color:#b91c1c;font-size:12.5px;min-height:18px}',
+      '.bc-ok{color:#059669}',
+      '.bc-scroll{overflow-x:auto;border:1px solid #e2e8f0;border-radius:12px;margin-top:12px}',
+      '.bc-t{width:100%;border-collapse:collapse;min-width:820px}',
+      '.bc-t th{background:#0f172a;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:10px;text-align:left;white-space:nowrap}',
+      '.bc-t td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}',
+      '.bc-t input{width:100%;min-width:78px;text-align:right;font-variant-numeric:tabular-nums}',
+      '.bc-t input.note{text-align:left;min-width:120px}',
+      '.bc-ro{display:block;text-align:right;font-weight:800;padding:9px 10px;border-radius:9px;background:#f1f5f9}',
+      '.bc-cash{background:#ecfdf5;color:#059669}',
+      '.bc-warn{font-size:11px;color:#b91c1c;font-weight:600;margin-top:3px}',
+      '.bc-tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px}',
+      '.bc-tt{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px}',
+      '.bc-tt span{display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b}',
+      '.bc-tt b{font-size:16px;font-variant-numeric:tabular-nums}',
+      '.bc-prog{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:10px 12px;margin-top:6px;font-size:13px}',
+      '.bc-prog.du{background:#ecfdf5;border-color:#a7f3d0}',
+      '.bc-chip{display:inline-block;padding:3px 9px;border-radius:12px;font-size:12px;background:#fff;border:1px solid #cbd5e1}',
+      '.bc-chip.x{background:#dcfce7;border-color:#86efac}',
+      '.bc-chip.o{background:#fee2e2;border-color:#fecaca}',
+      '.bc-msg{font-size:13px;font-weight:600;margin-top:10px}',
+      '.bc-lech{background:#fef2f2}', '.bc-khop{color:#059669}'
+    ].join('');
+    document.head.appendChild(s);
+  }
+
+  // ---------------- CỔNG PIN ----------------
+  function moBaoCao(){
+    styleOnce();
+    var app=$('bc-app'); app.className='mo'; app.textContent='';
+    var g=el('div','bc-card bc-gate');
+    g.appendChild(el('div',null,'📋'));
+    g.appendChild(el('h2','bc-h','Báo cáo doanh thu'));
+    g.appendChild(el('div','bc-mut','Nhập mã PIN nhân viên thu tiền'));
+    var inp=el('input'); inp.type='tel'; inp.inputMode='numeric'; inp.maxLength=10; inp.placeholder='PIN';
+    g.appendChild(inp);
+    var er=el('div','bc-err');
+    var b=el('button','bc-btn pri','Vào'); b.style.width='100%';
+    var back=el('button','bc-btn','← Quay lại đăng nhập'); back.style.cssText='width:100%;margin-top:8px';
+    back.onclick=function(){ app.className=''; };
+    g.appendChild(er); g.appendChild(b); g.appendChild(back);
+    app.appendChild(g);
+    function thu(){
+      var v=(inp.value||'').trim();
+      if(!v){ er.textContent='Nhập mã PIN.'; return; }
+      b.disabled=true; er.textContent='Đang kiểm tra…'; er.className='bc-err';
+      goi('bc_boot',{pin:v},function(r){
+        b.disabled=false;
+        if(!r){ er.textContent='Không nhận được trả lời máy chủ.'; return; }
+        if(!r.ok || !r.pinOk){ er.textContent=(r.error||'PIN không đúng.'); inp.value=''; inp.focus(); return; }
+        PIN=v; BC=r; NGAY=r.today||''; LOC='';
+        veChinh();
+      });
+    }
+    b.onclick=thu;
+    inp.addEventListener('keydown',function(e){ if(e.key==='Enter') thu(); });
+    inp.focus();
+  }
+
+  // ---------------- MÀN CHÍNH ----------------
+  function veChinh(){
+    var app=$('bc-app'); app.textContent='';
+    // thanh trên
+    var top=el('div','bc-top');
+    var t=el('div'); t.appendChild(el('b',null,'POSH ')); t.appendChild(document.createTextNode((BC.staff||'')));
+    top.appendChild(t);
+    top.appendChild(el('span','bc-sp'));
+    var out=el('button','bc-btn','Thoát'); out.onclick=function(){ PIN=''; BC=null; $('bc-app').className=''; };
+    top.appendChild(out);
+    app.appendChild(top);
+
+    var wrap=el('div','bc-wrap bc-app-in');
+
+    // tiến độ phiên
+    var prog=el('div'); prog.id='bc-prog'; wrap.appendChild(prog);
+
+    // chọn ngày + cơ sở
+    var c1=el('div','bc-card');
+    c1.appendChild(el('h3','bc-h','Báo cáo doanh thu theo cơ sở'));
+    c1.appendChild(el('div','bc-mut','Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
+    var r1=el('div','bc-row'); r1.style.marginTop='12px';
+    var fN=el('label','bc-f'); fN.appendChild(el('span',null,'Ngày báo cáo'));
+    var iN=el('input'); iN.type='date'; iN.value=NGAY; iN.max=BC.today||'';
+    iN.onchange=function(){ NGAY=iN.value; if(LOC) selectLoc(LOC); refreshPhien(); };
+    fN.appendChild(iN); r1.appendChild(fN);
+    var fL=el('label','bc-f'); fL.appendChild(el('span',null,'Cơ sở'));
+    var sL=el('select'); sL.appendChild(new Option('— Chọn cơ sở —',''));
+    (BC.coso||[]).forEach(function(cs){ sL.appendChild(new Option(cs,cs)); });
+    sL.onchange=function(){ LOC=sL.value; if(LOC) selectLoc(LOC); };
+    fL.appendChild(sL); r1.appendChild(fL);
+    c1.appendChild(r1);
+    var lock=el('div','bc-warn'); lock.id='bc-lock'; lock.style.display='none'; c1.appendChild(lock);
+    wrap.appendChild(c1);
+
+    // bảng ghế
+    var c2=el('div','bc-card');
+    c2.appendChild(el('h3','bc-h','Số liệu từng ghế'));
+    var sc=el('div','bc-scroll');
+    var tb=el('table','bc-t');
+    tb.innerHTML='<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th></tr></thead>';
+    var body=el('tbody'); body.id='bc-rows';
+    body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
+    tb.appendChild(body); sc.appendChild(tb); c2.appendChild(sc);
+    // tổng
+    var tot=el('div','bc-tot');
+    tot.innerHTML='<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
+      +'<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
+      +'<div class="bc-tt"><span>QR</span><b id="bc-s-qr">0</b></div>'
+      +'<div class="bc-tt"><span>Thực thu</span><b id="bc-s-total">0</b></div>';
+    c2.appendChild(tot);
+    wrap.appendChild(c2);
+
+    // nộp tiền
+    var c3=el('div','bc-card');
+    c3.appendChild(el('h3','bc-h','Nộp tiền'));
+    var r3=el('div','bc-row'); r3.style.marginTop='10px';
+    var fM=el('label','bc-f'); fM.appendChild(el('span',null,'Hình thức'));
+    var sM=el('select'); sM.id='bc-method';
+    sM.appendChild(new Option('Nộp tiền mặt','cash'));
+    sM.appendChild(new Option('Chuyển khoản','transfer'));
+    sM.appendChild(new Option('Chưa nộp','unpaid'));
+    fM.appendChild(sM); r3.appendChild(fM);
+    var fA=el('label','bc-f'); fA.appendChild(el('span',null,'Số tiền nộp (trống = đủ)'));
+    var iA=el('input'); iA.id='bc-amt'; iA.type='text'; iA.inputMode='numeric'; iA.placeholder='Để trống = nộp đủ tiền mặt';
+    fA.appendChild(iA); r3.appendChild(fA);
+    var fNo=el('label','bc-f'); fNo.appendChild(el('span',null,'Ghi chú'));
+    var iNo=el('input'); iNo.id='bc-paynote'; iNo.type='text';
+    fNo.appendChild(iNo); r3.appendChild(fNo);
+    c3.appendChild(r3);
+    wrap.appendChild(c3);
+
+    // nút gửi + chốt sớm + đối chiếu
+    var bar=el('div','bc-card');
+    var brow=el('div','bc-row');
+    var bGui=el('button','bc-btn pri','Gửi báo cáo cơ sở này'); bGui.id='bc-gui'; bGui.onclick=guiBaoCao;
+    var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
+    var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu;
+    brow.appendChild(bGui); brow.appendChild(bChot); brow.appendChild(bDoi);
+    bar.appendChild(brow);
+    var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
+    var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
+    wrap.appendChild(bar);
+
+    app.appendChild(wrap);
+    refreshPhien();
+    if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
+  }
+
+  function elEmptyRow(txt){ var tr=el('tr'); var td=el('td'); td.colSpan=8; td.style.cssText='text-align:center;color:#64748b;padding:22px'; td.textContent=txt; tr.appendChild(td); return tr; }
+
+  function khoaNgay(loc,ngay){
+    return (BC.khoa||[]).some(function(k){ return k.coso===loc && k.ngay===ngay; });
+  }
+
+  // ---------------- BẢNG GHẾ ----------------
+  function selectLoc(loc){
+    var body=$('bc-rows'); if(!body) return;
+    var ghe=(BC.ghe||[]).filter(function(g){ return String(g.coso||'').trim()===String(loc).trim(); });
+    var lk=$('bc-lock');
+    if(lk){ if(khoaNgay(loc,NGAY)){ lk.textContent='Cơ sở '+loc+' ngày '+NGAY+' đang KHOÁ — nhờ kế toán mở.'; lk.style.display=''; } else lk.style.display='none'; }
+    body.textContent='';
+    if(!ghe.length){ body.appendChild(elEmptyRow('Cơ sở này chưa có ghế.')); tinhTong(); return; }
+    var codes=ghe.map(function(g){ return g.ma; });
+    // vẽ trước với chỉ số trước rỗng, rồi lấy chỉ số trước
+    ghe.forEach(function(g){ body.appendChild(veDong(g,null)); });
+    tinhTong();
+    goi('bc_lastmeters',{codes:codes,ngay:NGAY},function(r){
+      LAST=(r&&r.map)||{};
+      body.textContent='';
+      ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
+      tinhTong();
+    });
+  }
+
+  function veDong(g,before){
+    var tr=el('tr'); tr.dataset.ma=g.ma; tr.dataset.ten=g.ten||g.ma;
+    var coBefore = (before!==null && before!==undefined && before!=='');
+    tr.dataset.lock = coBefore ? '1':'0';
+    tr.dataset.before = coBefore ? String(before) : '';
+    // tên
+    var tdN=el('td'); tdN.appendChild(el('b',null,g.ten||g.ma));
+    var w=el('div','bc-warn'); w.style.display='none'; tdN.appendChild(w); tr.appendChild(tdN);
+    // chỉ số trước
+    var tdB=el('td');
+    if(coBefore){ var sp=el('span','bc-ro'); sp.textContent=money(before); tdB.appendChild(sp); }
+    else { var ib=inp('before','Nhập lần đầu'); tdB.appendChild(ib); }
+    tr.appendChild(tdB);
+    tr.appendChild(cell(inp('after','Chỉ số sau')));
+    tr.appendChild(cellRo('actual'));
+    tr.appendChild(cellRo('cash',true));
+    tr.appendChild(cell(inp('qr','QR')));
+    tr.appendChild(cell(inp('adjust','VD 50000')));
+    tr.appendChild(cell(inp('note','Lý do…',true)));
+    calc(tr);
+    return tr;
+  }
+  function inp(cls,ph,isText){ var e=el('input',cls); e.type='text'; e.inputMode=isText?'text':'numeric'; e.placeholder=ph||''; return e; }
+  function cell(c){ var td=el('td'); td.appendChild(c); return td; }
+  function cellRo(cls,cash){ var td=el('td'); var s=el('span','bc-ro'+(cash?' bc-cash':'')); s.className='bc-ro'+(cash?' bc-cash':''); s.classList.add(cls); s.textContent='0'; td.appendChild(s); return td; }
+
+  function beforeOf(tr){ if(tr.dataset.lock==='1'){ var v=tr.dataset.before; return v===''?'':Number(v); } return meterVal(tr.querySelector('.before').value); }
+
+  function calc(tr){
+    var before=beforeOf(tr);
+    var after=meterVal(tr.querySelector('.after').value);
+    var qr=snum(tr.querySelector('.qr').value);
+    var adjust=snum(tr.querySelector('.adjust').value);
+    var dv=Number(BC.don_vi)||10000;
+    var actual=(before===''||after==='')?0:(after-before)*dv;
+    var cash=actual-qr+adjust;
+    tr.querySelector('.actual').textContent=money(actual);
+    tr.querySelector('.cash').textContent=money(cash);
+    tr.dataset.actual=actual; tr.dataset.cash=cash;
+    var w=tr.querySelector('.bc-warn');
+    if(before!==''&&after!==''&&after<before){ w.textContent='Chỉ số sau nhỏ hơn trước'; w.style.display=''; }
+    else w.style.display='none';
+  }
+
+  function tinhTong(){
+    var a=0,c=0,q=0;
+    document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
+      a+=Number(tr.dataset.actual||0); c+=Number(tr.dataset.cash||0);
+      q+=snum(tr.querySelector('.qr')?tr.querySelector('.qr').value:0);
+    });
+    if($('bc-s-actual')) $('bc-s-actual').textContent=money(a);
+    if($('bc-s-cash')) $('bc-s-cash').textContent=money(c);
+    if($('bc-s-qr')) $('bc-s-qr').textContent=money(q);
+    if($('bc-s-total')) $('bc-s-total').textContent=money(c+q);
+  }
+
+  // gõ ô nào cũng tính lại (uỷ quyền sự kiện)
+  document.addEventListener('input',function(ev){
+    if(!$('bc-app')||$('bc-app').className.indexOf('mo')<0) return;
+    var tr=ev.target.closest && ev.target.closest('#bc-rows tr[data-ma]');
+    if(tr){ calc(tr); tinhTong(); }
+  });
+
+  // ---------------- GỬI ----------------
+  function collect(){
+    var out=[];
+    document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
+      if(!coThu(tr.querySelector('.after').value)) return;
+      out.push({ chairCode:tr.dataset.ma, chairName:tr.dataset.ten,
+        meterBefore:beforeOf(tr), meterAfter:meterVal(tr.querySelector('.after').value),
+        qr:snum(tr.querySelector('.qr').value), adjust:snum(tr.querySelector('.adjust').value),
+        note:(tr.querySelector('.note').value||'').trim() });
+    });
+    return out;
+  }
+
+  function guiBaoCao(){
+    var msg=$('bc-msg'); msg.className='bc-msg'; msg.textContent='';
+    if(!NGAY){ msg.textContent='Chọn ngày.'; msg.className='bc-msg bc-err'; return; }
+    if(!LOC){ msg.textContent='Chọn cơ sở.'; msg.className='bc-msg bc-err'; return; }
+    var rows=collect();
+    if(!rows.length){ msg.textContent='Chưa nhập chỉ số sau cho ghế nào.'; msg.className='bc-msg bc-err'; return; }
+    for(var i=0;i<rows.length;i++){ var r=rows[i];
+      if(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore)){
+        msg.textContent='Ghế '+(r.chairName||r.chairCode)+': chỉ số sau nhỏ hơn trước. Máy vừa thay/đổi điểm thì gửi đề nghị đổi chỉ số.';
+        msg.className='bc-msg bc-err'; return; } }
+    var method=$('bc-method').value;
+    var amtRaw=($('bc-amt').value||'').trim();
+    var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:($('bc-paynote').value||'').trim() };
+    if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
+    msg.textContent='Đang gửi…';
+    goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment },function(r){
+      GUI_DANG=false; $('bc-gui').disabled=false;
+      if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
+      msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
+      if(r.phien) veProg(r.phien);
+      else refreshPhien();
+    });
+  }
+
+  // ---------------- PHIÊN / TIẾN ĐỘ ----------------
+  function refreshPhien(){ goi('bc_phien',{ngay:NGAY},function(r){ if(r&&r.ok) veProg(r); }); }
+  function veProg(p){
+    var box=$('bc-prog'); if(!box) return; box.textContent=''; box.className='bc-prog'+(p.du?' du':'');
+    var head=el('b',null, p.du ? ('✓ ĐỦ BÁO CÁO '+p.so_coso+'/'+p.so_coso+' cơ sở') : ('Tiến độ: '+p.so_coso_xong+'/'+p.so_coso+' cơ sở'));
+    box.appendChild(head);
+    (p.coso_xong||[]).forEach(function(c){ box.appendChild(el('span','bc-chip x',c)); });
+    (p.coso_conlai||[]).forEach(function(c){ box.appendChild(el('span','bc-chip o',c)); });
+    if(p.tong) box.appendChild(el('span',null,' · Tổng '+money(p.tong)+'đ'));
+    if(p.trang_thai==='chot_som') box.appendChild(el('span',null,' · ĐÃ CHỐT SỚM'+(p.bo_qua&&p.bo_qua.length?(' (bỏ: '+p.bo_qua.join(', ')+')'):'')));
+  }
+
+  function chotSom(){
+    var msg=$('bc-msg'); msg.className='bc-msg';
+    var ly=window.prompt('Xin chốt ca sớm ngày '+NGAY+'.\nGhi rõ điểm nào chưa thu được và vì sao:');
+    if(ly===null) return;
+    ly=(ly||'').trim();
+    if(!ly){ msg.textContent='Phải ghi lý do xin chốt sớm.'; msg.className='bc-msg bc-err'; return; }
+    goi('bc_chot_som',{ngay:NGAY,ly_do:ly},function(r){
+      if(!r||!r.ok){ msg.textContent=(r&&r.message)||'Không chốt được.'; msg.className='bc-msg bc-err'; return; }
+      msg.textContent=r.message||'Đã chốt ca sớm.'; msg.className='bc-msg bc-ok';
+      if(r.phien) veProg(r.phien);
+    });
+  }
+
+  // ---------------- ĐỐI CHIẾU ----------------
+  function doiChieu(){
+    var box=$('bc-doi'); box.textContent='Đang đối chiếu…';
+    goi('bc_doichieu',{ngay:NGAY},function(r){
+      box.textContent='';
+      if(!r||!r.ok){ box.textContent=(r&&r.message)||'Không đối chiếu được.'; return; }
+      if(!r.so_ghe){ box.textContent='Ngày '+r.ngay+' chưa có ghế nào để đối chiếu.'; return; }
+      var h=el('div','bc-mut', 'Đối chiếu ngày '+r.ngay+' — '+r.so_ghe+' ghế, '+r.so_lech+' ghế LỆCH so với máy online.');
+      box.appendChild(h);
+      var sc=el('div','bc-scroll'); var tb=el('table','bc-t');
+      tb.innerHTML='<thead><tr><th>Ghế</th><th>QR báo cáo</th><th>QR máy</th><th>Lệch QR</th><th>Tiền mặt (máy đếm)</th><th>Máy báo</th><th>Lệch</th></tr></thead>';
+      var bo=el('tbody');
+      (r.ghe||[]).forEach(function(g){
+        var tr=el('tr'); if(!g.khop) tr.className='bc-lech';
+        tr.appendChild(tdT(g.ten||g.ma_may));
+        tr.appendChild(tdN(g.bc_qr)); tr.appendChild(tdN(g.may_qr)); tr.appendChild(tdN(g.lech_qr,true));
+        tr.appendChild(tdN(g.bc_actual)); tr.appendChild(tdN(g.may_cash)); tr.appendChild(tdN(g.lech_cash,true));
+        bo.appendChild(tr);
+      });
+      tb.appendChild(bo); sc.appendChild(tb); box.appendChild(sc);
+    });
+  }
+  function tdT(x){ var td=el('td'); td.appendChild(el('b',null,x)); return td; }
+  function tdN(n,lech){ var td=el('td'); var s=el('span'); s.style.cssText='display:block;text-align:right;font-variant-numeric:tabular-nums'; if(lech&&Number(n)!==0){ s.style.color='#b91c1c'; s.style.fontWeight='700'; } else if(lech){ s.className='bc-khop'; } s.textContent=money(n); td.appendChild(s); return td; }
+
+  window.VHG_BaoCao = { mo: moBaoCao };
+})();
+JS;
 	}
 
 	private static function css() {
@@ -1397,10 +1789,16 @@ function veLogin(loi){
     + '</small></h1>'
     + '<input id="pin" type="tel" inputmode="numeric" maxlength="8" placeholder="PIN" autocomplete="off">'
     + '<button id="vao" class="on" style="width:100%">' + L('Vào','Sign in') + '</button>'
+    /* Cửa RIÊNG cho nhân viên thu tiền: họ dùng PIN báo cáo (bc_pin), KHÔNG có token /ghe.
+       Bấm là mở module báo cáo doanh thu tự chứa (cổng bc-PIN riêng). */
+    + '<button id="vao-bc" class="ghost" style="width:100%;margin-top:8px">📋 '
+      + L('Báo cáo doanh thu','Revenue report') + '</button>'
     + '<div class="err" id="e">' + esc(loi||'') + '</div>'
     + '<div class="nn-doi">' + nutNN() + '</div></div>';
   noiNN();
   var pin = document.getElementById('pin'), e = document.getElementById('e');
+  var vbc = document.getElementById('vao-bc');
+  if (vbc) { vbc.onclick = function(){ if (window.VHG_BaoCao) window.VHG_BaoCao.mo(); }; }
   function thu(){
     var v = (pin.value||'').trim();
     if (!v) { e.textContent = L('Chưa nhập PIN.','Please enter your PIN.'); return; }
