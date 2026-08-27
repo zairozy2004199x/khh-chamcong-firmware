@@ -186,7 +186,16 @@ class VHCC_Web {
 		   header, mà header chỉ đặt được khi CHƯA in ra một byte nào. Để nhánh này xuống dưới là
 		   PHP báo "headers already sent" và trình duyệt nhận về một tệp .xlsx có lẫn cả trang
 		   HTML ở đầu — Excel mở ra báo hỏng, mà chẳng ai đoán được vì sao. */
-		if ( isset( $_GET['xuat'] ) ) { self::xuat_tep( $toi ); }
+		/* ⚠️ `return` NGAY SAU. Trong bản thật hai hàm này kết bằng `exit` nên dòng return không
+		   bao giờ chạy; nhưng dưới bộ thử chúng chỉ `return`, và thiếu chỗ dừng ở đây thì luồng
+		   chạy tiếp rồi in NGUYÊN CẢ MÀN QUẢN TRỊ ra sau tờ giấy — hai trang HTML lồng nhau. */
+		if ( isset( $_GET['xuat'] ) ) { self::xuat_tep( $toi ); return; }
+
+		/* 🔴 TỜ IN CŨNG XỬ TRƯỚC MỌI THỨ. `VHCC_Pdf::trang_in()` trả về MỘT TRANG HTML HOÀN
+		   CHỈNH (có `<!DOCTYPE>`, `@page{size:A4}`, khuôn giấy riêng) — in nó ra giữa màn quản
+		   trị là hai trang HTML lồng nhau, và tờ giấy in ra hỏng khuôn. Cùng lý do với nhánh
+		   xuất .xlsx ngay trên. */
+		if ( isset( $_GET['to_in'] ) ) { self::to_in( $toi ); return; }
 
 		/* 🔴 POST → CHUYỂN HƯỚNG → GET. Anh Thắng: *"cứ bấm F5 là nó reset về ban đầu"*, và
 		   trình duyệt hiện hộp "Confirm Form Resubmission".
@@ -216,22 +225,83 @@ class VHCC_Web {
 		if ( '' === $th ) { $th = substr( (string) current_time( 'Y-m-d' ), 0, 7 ); }
 
 		$chan = self::vi_sao_khong_xuat( $toi, $loai, $cs );
-		if ( '' !== $chan ) { self::loi_xuat( $chan ); }
+		if ( '' !== $chan ) { self::loi_xuat( $chan ); return; }
 
 		$b = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
-		if ( empty( $b['ok'] ) ) { self::loi_xuat( $b['error'] ); }
+		if ( empty( $b['ok'] ) ) { self::loi_xuat( $b['error'] ); return; }
 		if ( empty( $b['hang'] ) ) {
 			self::loi_xuat( 'Tháng ' . $b['thang'] . ' chưa có dữ liệu chấm công nào ở ' . $cs
 				. ' — không có gì để xuất.' );
+			return;
 		}
 
 		$noi = VHCC_Xuat::xlsx( VHCC_Ca::to_xuat( $b, $cs ) );
-		if ( null === $noi ) { self::loi_xuat( 'Không dựng được tệp .xlsx.' ); }
+		if ( null === $noi ) { self::loi_xuat( 'Không dựng được tệp .xlsx.' ); return; }
 
 		/* Tên tệp chỉ giữ chữ/số/gạch — dấu tiếng Việt và khoảng trắng trong `Content-Disposition`
 		   là mỗi trình duyệt đặt tên một kiểu, có cái cắt cụt ngay chỗ dấu cách. */
 		$ten = 'cong-' . preg_replace( '/[^A-Za-z0-9_-]/', '', $cs ) . '-' . $b['thang'] . '.xlsx';
 		VHCC_Xuat::gui( $ten, $noi );
+	}
+
+	/**
+	 * TỜ IN BẢNG CHẤM CÔNG — khổ A4, in thẳng từ trình duyệt.
+	 *
+	 * Anh Thắng chốt: *"mọi việc anh thao tác trên web giao diện bên ngoài hết"*. Đây là màn
+	 * cuối trong nhóm việc hằng ngày còn kẹt trong wp-admin.
+	 *
+	 * 🔴 SỐ TRÊN TỜ GIẤY DO MÁY CHỦ TÍNH. Bản Apps Script cũ nhận số do trình duyệt tính rồi
+	 *    đẩy lên — tức ai sửa được yêu cầu là sửa được tờ giấy chấm công đem đi ký.
+	 *
+	 * ⚠️ Không dùng thư viện HTML→PDF nào. Tờ giấy in ra từ chính trình duyệt (Ctrl+P → Lưu
+	 *    thành PDF): đúng khổ A4, đúng khuôn, mà không phụ thuộc một thư viện có thể hỏng sau
+	 *    một lượt cập nhật PHP của hosting.
+	 */
+	private static function to_in( $toi ) {
+		$cs  = isset( $_GET['ics'] ) ? VHCC_NhanSu::chuan_coso( wp_unslash( $_GET['ics'] ) ) : '';
+		$tu  = isset( $_GET['itu'] ) ? sanitize_text_field( wp_unslash( $_GET['itu'] ) ) : '';
+		$den = isset( $_GET['iden'] ) ? sanitize_text_field( wp_unslash( $_GET['iden'] ) ) : '';
+
+		$chan = self::vi_sao_khong_in( $toi, $cs, $tu, $den );
+		if ( '' !== $chan ) { self::loi_xuat( $chan ); return; }
+
+		nocache_headers();
+		echo VHCC_Pdf::trang_in( $cs, $tu, $den,
+			isset( $toi['name'] ) ? (string) $toi['name'] : '' );
+		/* Bộ thử chạy trong CÙNG tiến trình — `exit` ở đây là giết luôn bài kiểm. */
+		if ( defined( 'VHCC_TEST' ) ) { return; }
+		exit;
+	}
+
+	/**
+	 * Người này có in được tờ ấy không? '' = được, hoặc câu từ chối.
+	 *
+	 * ⚠️ Tách khỏi `to_in()` vì hàm kia kết bằng `exit` — gọi nó trong bộ thử là giết cả lượt
+	 *    chạy, nên phần gác cửa sẽ vĩnh viễn không có phép thử nào. Cùng lối với
+	 *    `vi_sao_khong_xuat()`.
+	 */
+	public static function vi_sao_khong_in( $toi, $cs, $tu, $den ) {
+		/* Tờ in là BẢNG CHẤM CÔNG, không phải bảng lương — nên gác bằng `cong_coso` (Cửa hàng
+		   trưởng), đúng bằng cửa của màn Bảng công. Cửa hàng trưởng phải in được bảng công cơ
+		   sở mình để dán lên bảng tin và cho người ta ký. */
+		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
+			return 'In bảng chấm công cần quyền Cửa hàng trưởng trở lên.';
+		}
+		$cs = VHCC_NhanSu::chuan_coso( $cs );
+		if ( '' === $cs ) { return 'Chưa chọn cơ sở.'; }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return 'Không có quyền cơ sở này.'; }
+		/* 🔴 KHUÔN NGÀY PHẢI KIỂM Ở ĐÂY. Hai chuỗi này đi thẳng vào câu SQL của `VHCC_Pdf::gom()`;
+		   thả một chuỗi tuỳ ý xuống đó là mở một cửa mà không ai gác. */
+		$mau = '/^\d{4}-\d{2}-\d{2}$/';
+		if ( ! preg_match( $mau, (string) $tu ) )  { return 'Ngày bắt đầu không hợp lệ.'; }
+		if ( ! preg_match( $mau, (string) $den ) ) { return 'Ngày kết thúc không hợp lệ.'; }
+		/* Đảo ngày thì tờ giấy ra RỖNG mà không nói vì sao — người ta tưởng tháng ấy không ai
+		   đi làm. Nói thẳng còn hơn. */
+		if ( $den < $tu ) { return 'Ngày kết thúc đang trước ngày bắt đầu.'; }
+		if ( ! class_exists( 'VHCC_Pdf' ) || ! method_exists( 'VHCC_Pdf', 'trang_in' ) ) {
+			return 'Thiếu phần dựng tờ in (VHCC_Pdf).';
+		}
+		return '';
 	}
 
 	/**
@@ -264,6 +334,12 @@ class VHCC_Web {
 		echo '<div class="bao loi">' . esc_html( $loi ) . '</div>';
 		echo '<p><a class="nut chinh" href="' . esc_url( self::url() ) . '">Quay lại</a></p>';
 		self::dong_trang( 2 );
+		/* 🔴 BỘ THỬ CHẠY TRONG CÙNG TIẾN TRÌNH — `exit` ở đây là giết luôn bài kiểm, và bài kiểm
+		   chết thì KHÔNG in ra báo cáo: trông y như "phép thử không bắt được" trong khi nó bắt
+		   được, chỉ là báo cáo bị chôn cùng. Đã vấp đúng chuyện đó khi thêm tờ in. Cùng lối với
+		   `ve()`: một cái mối hẹp, có tên, hơn là để cả nhánh chối không ai thử.
+		   ⚠️ Mọi chỗ gọi hàm này PHẢI `return` ngay sau — trong bộ thử nó không còn dừng luồng. */
+		if ( defined( 'VHCC_TEST' ) ) { return; }
 		exit;
 	}
 
@@ -457,6 +533,23 @@ class VHCC_Web {
 					if ( ! $v ) { continue; }        // rỗng = bỏ khai
 				}
 				$cfg[ $k ] = $v;
+			}
+			/* Ô TÍCH VAI gửi lên dạng mảng (`ctv[ktVaiTro][]`), không phải một chuỗi.
+			   🔴 BỎ HẾT TÍCH = KHAI RỖNG, không phải "bỏ khai". Khác hẳn ô chữ để trống: người
+			      ta bỏ tích là CÓ Ý nói "không lấy theo vai nữa". Coi nó là bỏ khai thì giá trị
+			      cũ ở lại, bấm Lưu bao nhiêu lần cũng không gỡ được — mà màn hình thì hiện ô
+			      trống, nên trông như đã gỡ rồi. */
+			$gui_v = isset( $_POST['ctv'] ) ? wp_unslash( $_POST['ctv'] ) : array();
+			foreach ( (array) VHCC_Luong::VP_O as $k_v => $o_v ) {
+				if ( 'ktVaiTro' !== $k_v ) { continue; }
+				$ds_v = ( is_array( $gui_v ) && isset( $gui_v[ $k_v ] ) && is_array( $gui_v[ $k_v ] ) )
+					? $gui_v[ $k_v ] : array();
+				$sach_v = array();
+				foreach ( $ds_v as $x_v ) {
+					$x_v = sanitize_text_field( (string) $x_v );
+					if ( '' !== $x_v ) { $sach_v[] = $x_v; }
+				}
+				$cfg[ $k_v ] = $sach_v;
 			}
 			if ( '' === $khoi ) {
 				/* Bản CHUNG: ô để trống nghĩa là gì thì `dat_vp_cfg` đã có luật riêng của nó —
@@ -1065,6 +1158,11 @@ class VHCC_Web {
 			. 'table.cc tr.hang-sua label{font-size:12px}'
 			/* Khối thu gọn bằng <details> của chính HTML — không JavaScript. Phải cho `summary`
 			   trông ra một cái nút bấm được, kẻo nó nằm im như một dòng chữ và không ai bấm. */
+			/* Ô tích chọn vai: xuống dòng được, mỗi vai một nhãn bấm cả chữ. */
+			. '.o-vai-tick{display:flex;flex-wrap:wrap;gap:6px 12px;padding:4px 0}'
+			. '.o-vai-tick label{display:inline-flex;align-items:center;gap:5px;margin:0;'
+			. 'font-size:13px;color:var(--chu);cursor:pointer}'
+			. '.o-vai-tick input{width:auto;margin:0}'
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
 			. 'summary::marker{color:var(--xanh)}'
 			. 'summary:hover{color:var(--xanh)}'
@@ -1691,7 +1789,49 @@ class VHCC_Web {
 		      tới thứ mình cần.
 		   ⚠️ Và chỉ ở nhánh bảng công VẼ ĐƯỢC — bảng công lỗi mà vẫn in bảng tiền ra thì đó là
 		      tiền tính từ một tháng không đọc nổi. */
+		self::the_khoi_in( $toi, $cs, $th );
 		self::the_khoi_luong( $toi, $cs, $th );
+	}
+
+	/**
+	 * KHỐI IN — mở tờ giấy A4 của đúng cơ sở và tháng đang xem.
+	 *
+	 * ⚠️ KHÔNG ĐẺ Ô CHỌN CƠ SỞ RIÊNG, cùng luật với khối lương: cơ sở lấy thẳng từ màn Bảng
+	 *    công. Chỉ có hai ô NGÀY, vì tờ in tính theo khoảng ngày chứ không theo tháng — mặc
+	 *    định là đầu và cuối tháng đang xem, nên phần lớn lượt chỉ việc bấm.
+	 *
+	 * ⚠️ `target="_blank"`: tờ in là một trang HTML riêng khổ A4. Mở đè lên màn Bảng công thì
+	 *    in xong phải bấm Back và chọn lại cơ sở + tháng — đúng cái phiền mà việc gộp trang vừa
+	 *    dẹp xong.
+	 */
+	private static function the_khoi_in( $toi, $cs, $th ) {
+		if ( '' === $cs ) { return; }
+		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) { return; }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+
+		/* Đầu và cuối tháng đang xem. `t` của `date('t')` = số ngày trong tháng ấy — đừng gõ 31,
+		   tháng 2 sẽ ra một ngày không tồn tại và câu SQL trả rỗng. */
+		$tu  = $th . '-01';
+		$den = $th . '-' . gmdate( 't', (int) strtotime( $tu . ' 00:00:00' ) );
+
+		echo '<div class="the"><details>';
+		echo '<summary><b>In bảng chấm công</b> — tờ A4 của ' . esc_html( $cs ) . '</summary>';
+		echo '<p class="mo">Chọn khoảng ngày rồi bấm <b>Mở tờ in</b> — tờ giấy mở ở thẻ mới, '
+			. 'Ctrl+P là in hoặc lưu thành PDF. Số trên tờ giấy do <b>máy chủ</b> tính từ cơ sở '
+			. 'dữ liệu, không phải do trình duyệt.</p>';
+		echo '<form method="get" target="_blank" class="hang" style="margin:0">';
+		if ( ! get_option( 'permalink_structure' ) ) {
+			echo '<input type="hidden" name="vhcc_qt" value="1">';
+		}
+		echo '<input type="hidden" name="to_in" value="1">';
+		echo '<input type="hidden" name="ics" value="' . esc_attr( $cs ) . '">';
+		echo '<div><label>Từ ngày</label><input type="date" name="itu" value="'
+			. esc_attr( $tu ) . '" required></div>';
+		echo '<div><label>Đến ngày</label><input type="date" name="iden" value="'
+			. esc_attr( $den ) . '" required></div>';
+		echo '<button class="chinh">🖨 Mở tờ in</button>';
+		echo '</form>';
+		echo '</details></div>';
 	}
 
 	/**
@@ -2447,6 +2587,29 @@ class VHCC_Web {
 						. '>' . esc_html( $vn ) . '</option>';
 				}
 				echo '</select>';
+			} elseif ( 'ktVaiTro' === $k ) {
+				/* 🔴 VAI TRÒ THÌ TÍCH, ĐỪNG GÕ. Anh Thắng 27/08/2026: *"Lấy theo vai trò nhân
+				   viên là kế toán. hoặc vai trò khác, mình kích vào"*.
+				   Gõ tay tên vai là mời gõ sai: "Kế toán" / "ke toan" / "Kế Toán" — mà sai một
+				   chữ thì ô ấy không khớp ai, và bảng lương vẫn ra số nên chẳng ai nghi. Tích
+				   từ CHÍNH danh sách vai đang có (kể cả vai tự tạo như "Kế toán POSH") thì không
+				   có cách viết nào lọt.
+				   ⚠️ Ô tích thật, không phải ô xổ nhiều dòng: một người có thể thuộc nhiều vai
+				      được tính, và `<select multiple>` trên điện thoại là một cái bẫy — bấm một
+				      dòng là bỏ chọn hết mấy dòng kia. */
+				$dang = is_array( $gt ) ? $gt : preg_split( '/[\s,;]+/', (string) $gt, -1, PREG_SPLIT_NO_EMPTY );
+				$dang_ma = array();
+				foreach ( (array) $dang as $x ) { $dang_ma[ VHCC_Vai::ma( $x ) ] = true; }
+				echo '<div class="o-vai-tick">';
+				foreach ( VHCC_Vai::ds_ten() as $ten_vai ) {
+					$idv = $id . '_' . substr( md5( $ten_vai ), 0, 6 );
+					echo '<label for="' . esc_attr( $idv ) . '"><input type="checkbox"'
+						. ' id="' . esc_attr( $idv ) . '"'
+						. ' name="ctv[' . esc_attr( $k ) . '][]" value="' . esc_attr( $ten_vai ) . '"'
+						. checked( isset( $dang_ma[ VHCC_Vai::ma( $ten_vai ) ] ), true, false )
+						. '><span>' . esc_html( $ten_vai ) . '</span></label>';
+				}
+				echo '</div>';
 			} else {
 				$type = ( 'gio' === $kieu ) ? 'time' : 'text';
 				echo '<input id="' . esc_attr( $id ) . '" name="ct[' . esc_attr( $k ) . ']" type="'

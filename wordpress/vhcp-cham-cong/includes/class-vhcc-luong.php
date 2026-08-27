@@ -99,6 +99,39 @@ class VHCC_Luong {
 	}
 
 	/** Bộ phận của một cơ sở, ĐÃ chuẩn hoá về danh sách hợp lệ. */
+	/**
+	 * Mã NV của những người mang MỘT TRONG các vai đã chọn — chữ thường, để so thẳng.
+	 *
+	 * 🔴 SO BẰNG MÃ VAI, KHÔNG SO BẰNG TÊN. Hồ sơ do người gõ tay nên có đủ kiểu viết ("Kế
+	 *    toán", "ke toan", "KẾ TOÁN"), và công ty còn có vai TỰ TẠO ("Kế toán POSH") quy về
+	 *    cùng một bậc. `VHCC_Vai::ma()` nhận hết và trả về một mã duy nhất — so mã với mã thì
+	 *    không có cách viết nào lọt.
+	 *
+	 * ⚠️ Gác `method_exists` cùng hàm với lời gọi (luật `tools/test/kiem-goi-cheo.php`).
+	 */
+	public static function vp_ma_theo_vai( $vai_ds ) {
+		global $wpdb;
+		if ( ! is_array( $vai_ds ) ) { $vai_ds = explode( ',', (string) $vai_ds ); }
+		if ( ! class_exists( 'VHCC_Vai' ) || ! method_exists( 'VHCC_Vai', 'ma' ) ) { return array(); }
+
+		$can = array();
+		foreach ( $vai_ds as $v ) {
+			$v = trim( (string) $v );
+			if ( '' !== $v ) { $can[ VHCC_Vai::ma( $v ) ] = true; }
+		}
+		if ( ! $can ) { return array(); }
+
+		$t = VHCC_DB::t( 'nhan_vien' );
+		if ( ! VHCC_DB::co_bang( $t ) ) { return array(); }
+		$ra = array();
+		foreach ( VHCC_DB::rows( "SELECT ma_nv, vai_tro FROM $t WHERE ma_nv <> ''" ) as $r ) {
+			if ( isset( $can[ VHCC_Vai::ma( $r['vai_tro'] ) ] ) ) {
+				$ra[] = strtolower( trim( (string) $r['ma_nv'] ) );
+			}
+		}
+		return $ra;
+	}
+
 	public static function bo_phan_cua( $coso ) {
 		global $wpdb;
 		$coso = trim( preg_replace( '/^CS_/', '', (string) $coso ) );
@@ -480,7 +513,15 @@ class VHCC_Luong {
 		'ktThu7Tu'   => array( 'Kế toán — thứ Bảy từ', 'gio', '' ),
 		'ktThu7Den'  => array( 'Kế toán — thứ Bảy đến', 'gio', '' ),
 		'ktThu7Min'  => array( 'Kế toán — thứ Bảy đủ mấy tiếng = 1 công', 'so', '' ),
-		'ktMaNV'     => array( 'Mã NV thuộc Kế toán văn phòng (cách nhau dấu phẩy)', 'ds', '' ),
+		/* 🔴 LẤY THEO VAI TRÒ, KHÔNG GÕ TAY TỪNG MÃ. Anh Thắng 27/08/2026: *"Lấy theo vai trò
+		   nhân viên là kế toán. hoặc vai trò khác, mình kích vào"*.
+		   Anh đúng, và lý do sâu hơn chuyện gõ cho nhanh: danh sách mã gõ tay là CUỐN SỔ THỨ
+		   HAI về cùng một sự thật. Người mới vào làm kế toán mà quên thêm mã thì họ không được
+		   áp khung thứ Bảy 08:30–12:00 và luật Chủ nhật nghỉ — công thiếu, lương thiếu, im lặng,
+		   và chỉ lộ ra nếu chính họ đi đếm lại. Người nghỉ việc thì mã ở lại đó mãi.
+		   Hồ sơ nhân sự đã có ô Vai trò rồi; đọc thẳng nó thì sổ chỉ còn một cuốn. */
+		'ktVaiTro'   => array( 'Vai trò được tính là Kế toán văn phòng', 'ds', '' ),
+		'ktMaNV'     => array( 'Thêm Mã NV lẻ (cách nhau dấu phẩy) — cho người không mang vai ấy', 'ds', '' ),
 		'ktChuNhatNghi' => array( 'Kế toán — Chủ nhật là ngày nghỉ', 'tick',
 			'0 công ngày, nhưng vẫn giữ dòng để soi được là có đi làm.' ),
 	);
@@ -508,7 +549,7 @@ class VHCC_Luong {
 			'bacNua' => 4, 'bacMot' => 9, 'bacRuoi' => 12,
 			'demToiThieuGio' => 0, 'nuaTuGio' => 4, 'graceRaPhut' => 60,
 			'ktThu7Tu' => '08:30', 'ktThu7Den' => '12:00', 'ktThu7Min' => 3,
-			'ktMaNV' => array(), 'ktChuNhatNghi' => true,
+			'ktVaiTro' => array(), 'ktMaNV' => array(), 'ktChuNhatNghi' => true,
 			'demTu' => '21:00', 'demDen' => '06:00',
 			'demCong' => 1, 'demCongBu' => 1, 'demBuKhiDaLam' => 1, 'tangCaCong' => 0.5,
 			'ngayCongThang' => 0,
@@ -528,6 +569,25 @@ class VHCC_Luong {
 		}
 		$mac_dinh['ktMaNV'] = $sach;
 
+		/* Vai trò -> mã, gộp thành MỘT KHOÁ RIÊNG `ktMaTinh`.
+		 *
+		 * 🔴 KHÔNG GỘP VÀO `ktMaNV`. `dat_vp_cfg()` lưu lại chính kết quả của hàm này — gộp vào
+		 *    `ktMaNV` là mỗi lượt bấm Lưu lại ĐÓNG BĂNG danh sách mã suy ra từ vai vào cấu hình.
+		 *    Từ đó đổi vai của ai cũng không ăn nữa, người nghỉ việc vẫn nằm trong đó, và màn
+		 *    hình thì vẫn hiện đúng mấy ô tích vai — nên trông như đang chạy theo vai trong khi
+		 *    thực ra đang chạy theo một bản chụp cũ. Đúng loại lỗi không ai lần ra.
+		 *    `ktMaTinh` KHÔNG có tên trong danh sách ô được lưu của `dat_vp_cfg()`, nên nó được
+		 *    tính lại mỗi lượt đọc — luôn đúng với hồ sơ hôm nay.
+		 *
+		 * ⚠️ CỘNG DỒN, KHÔNG THAY THẾ. Ô mã lẻ vẫn còn tác dụng: có người làm việc kế toán mà hồ
+		 *    sơ ghi vai khác. Bỏ ô mã đi là mất đường xử trường hợp ấy; bỏ ô vai đi là quay lại
+		 *    cuốn sổ thứ hai.
+		 *
+		 * ⚠️ `ktVaiTro` giữ TÊN vai (thứ người ta tích trên màn), còn so thì so bằng MÃ vai qua
+		 *    `VHCC_Vai::ma()` — nhờ vậy vai tự tạo ("Kế toán POSH") khớp đúng bậc của nó, và
+		 *    chính tả hoa/thường/dấu không làm lệch. */
+		$mac_dinh['ktMaTinh'] = array();
+
 		/* Lớp thứ ba: khối riêng. Đặt SAU bản chung nên nó thắng — và chỉ thắng ở đúng những ô
 		   đã khai. */
 		$coso = trim( (string) $coso );
@@ -536,7 +596,25 @@ class VHCC_Luong {
 			foreach ( $rieng as $k => $v ) {
 				if ( array_key_exists( $k, $mac_dinh ) ) { $mac_dinh[ $k ] = $v; }
 			}
+			/* Khối riêng cũng khai `ktMaNV` được, nên rửa lại đúng như đã rửa bản chung — không
+			   rửa thì mã của khối riêng còn hoa/thường/khoảng trắng và không khớp ai. */
+			$kt_r = $mac_dinh['ktMaNV'];
+			if ( ! is_array( $kt_r ) ) { $kt_r = explode( ',', (string) $kt_r ); }
+			$sach = array();
+			foreach ( $kt_r as $x ) {
+				$x = strtolower( trim( (string) $x ) );
+				if ( '' !== $x ) { $sach[] = $x; }
+			}
+			$mac_dinh['ktMaNV'] = $sach;
 		}
+
+		/* 🔴 TÍNH `ktMaTinh` SAU CÙNG, sau khi khối riêng đã đè xong.
+		   Tính trước là khai vai riêng cho một khối không có tác dụng: `ktVaiTro` của khối thắng
+		   ở dòng trên, nhưng danh sách mã thì đã chốt từ `ktVaiTro` của bản CHUNG rồi. Màn hình
+		   hiện đúng mấy ô tích của khối, mà bảng lương chạy theo vai của bản chung — không lỗi,
+		   không cảnh báo, và chỉ lộ ra nếu có người ngồi đếm lại từng người. */
+		$mac_dinh['ktMaTinh'] = array_values( array_unique(
+			array_merge( $mac_dinh['ktMaNV'], self::vp_ma_theo_vai( $mac_dinh['ktVaiTro'] ) ) ) );
 		return $mac_dinh;
 	}
 
@@ -899,7 +977,9 @@ class VHCC_Luong {
 		$chi_tiet = array();
 		$tong = array( 'congNgay' => 0.0, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0, 'tong' => 0.0 );
 		foreach ( $nguoi as $ma => $theo_ngay ) {
-			$la_kt = in_array( strtolower( $ma ), $cfg['ktMaNV'], true );
+			/* Đọc `ktMaTinh` (mã gõ tay + mã suy từ vai), KHÔNG đọc `ktMaNV` (chỉ mã gõ tay).
+			   Xem chú thích ở `vp_cfg()` cho lý do hai khoá tách nhau. */
+			$la_kt = in_array( strtolower( $ma ), $cfg['ktMaTinh'], true );
 			$ngay_ds = self::vp_tinh_nguoi( $cfg, $la_kt, $theo_ngay );
 			$e = array( 'ma' => $ma, 'ten' => ( '' !== $ten[ $ma ] ? $ten[ $ma ] : $ma ), 'laKeToan' => $la_kt,
 				'congNgay' => 0.0, 'congTangCa' => 0.0, 'congDem' => 0.0, 'congBu' => 0.0, 'tong' => 0.0,
@@ -935,7 +1015,7 @@ class VHCC_Luong {
 		$tien = self::vp_gan_tien( $rows, self::vp_luong_co_ban(), $nc );
 		return array( 'station' => $coso, 'month' => $tt, 'cfg' => $cfg, 'rows' => $rows,
 			'detail' => $chi_tiet, 'tong' => $tong, 'tien' => $tien,
-			'chuaKhaiKeToan' => ( 0 === count( $cfg['ktMaNV'] ) ),
+			'chuaKhaiKeToan' => ( 0 === count( $cfg['ktMaTinh'] ) ),
 			'ncThang' => $tt, 'ncSo' => $nc,
 			'ncGoiY' => ( $nc > 0 ? null : self::vp_nc_goi_y( $coso, $tt ) ) );
 	}
@@ -1033,7 +1113,7 @@ class VHCC_Luong {
 		}
 		$cho_phep = array( 'ngayTu', 'ngayDen', 'ngayMin', 'ngayMax', 'duoiMin', 'gioChuan',
 			'bacNua', 'bacMot', 'bacRuoi', 'demToiThieuGio', 'nuaTuGio', 'graceRaPhut',
-			'ktThu7Tu', 'ktThu7Den', 'ktThu7Min', 'ktMaNV', 'ktChuNhatNghi',
+			'ktThu7Tu', 'ktThu7Den', 'ktThu7Min', 'ktVaiTro', 'ktMaNV', 'ktChuNhatNghi',
 			'demTu', 'demDen', 'demCong', 'demCongBu', 'demBuKhiDaLam', 'tangCaCong' );
 		$o = self::vp_cfg();
 		foreach ( $cho_phep as $k ) {

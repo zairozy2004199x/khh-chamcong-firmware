@@ -6409,6 +6409,17 @@ foreach ( $_ds_form as $_i => $_than ) {
 	/* Chỉ soi tới chỗ đóng biểu mẫu — ô `man` của biểu mẫu SAU không được tính cho cái này. */
 	$_het = strpos( $_than, "</form>" );
 	if ( false !== $_het ) { $_than = substr( $_than, 0, $_het ); }
+	/* ⚠️ NGOẠI LỆ CÓ TÊN: biểu mẫu KHÔNG dẫn tới một màn nào thì không cần `man`. Hiện có đúng
+	   một loại — tờ in (`to_in`), nó mở một trang HTML riêng khổ A4 ở thẻ mới. Ghi ngoại lệ
+	   bằng CHÍNH tham số đặc trưng của nó, đừng nới luật chung: nới luật là biểu mẫu GET thứ
+	   năm viết sau này lại sót `man`, và nó sót im lặng y như lần trước. */
+	if ( false !== strpos( $_than, 'name="to_in"' ) ) {
+		t( 'biểu mẫu tờ in #' . ( $_i + 1 ) . ' có mang tham số riêng của nó',
+			false !== strpos( $_than, 'name="ics"' ) && false !== strpos( $_than, 'name="itu"' ) );
+		/* Và nó phải mở ở THẺ MỚI — mở đè thì in xong phải bấm Back rồi chọn lại cơ sở + tháng,
+		   đúng cái phiền mà việc gộp trang vừa dẹp xong. */
+		continue;
+	}
 	t( '🔴 biểu mẫu GET #' . ( $_i + 1 ) . ' có chở ô ẩn `man`',
 		false !== strpos( $_than, 'name="man"' ), substr( $_than, 0, 220 ) );
 }
@@ -6595,7 +6606,13 @@ t( 'có thanh chọn khối', strpos( $h_ct, 'Bản chung' ) !== false
 t( 'và cho biết khối nào đang khai riêng mấy ô', strpos( $h_ct, 'ô riêng' ) !== false, $h_ct );
 /* Ô sinh ra TỪ bảng mô tả, không gõ tay — thêm ô mới thì màn tự có. */
 foreach ( array_keys( VHCC_Luong::VP_O ) as $k_o ) {
-	t( 'màn có ô "' . $k_o . '"', strpos( $h_ct, 'name="ct[' . $k_o . ']"' ) !== false );
+	/* ⚠️ Ô TÍCH NHIỀU LỰA CHỌN gửi lên dạng mảng nên mang tên `ctv[…][]`, không phải `ct[…]`.
+	   Nhận cả hai kiểu tên — luật ở đây là "mọi ô khai trong VP_O đều phải có mặt trên màn",
+	   không phải "mọi ô đều là một ô chữ". Soi mỗi `ct[…]` thì thêm một ô kiểu khác là phép
+	   thử đỏ oan, rồi có người "sửa" bằng cách bỏ ô ấy đi. */
+	t( 'màn có ô "' . $k_o . '"',
+		strpos( $h_ct, 'name="ct[' . $k_o . ']"' ) !== false
+		|| strpos( $h_ct, 'name="ctv[' . $k_o . '][]"' ) !== false, $k_o );
 }
 
 $h_ct_vp = vhcc_web( '135791', array(),
@@ -6620,6 +6637,27 @@ $_POST = array();
 teq( '🔴 lưu qua trang thật thì khối Văn phòng đổi theo',
 	'16:30', VHCC_Luong::vp_cfg( $CFG_CS )['ngayDen'] );
 teq( 'bản chung vẫn nguyên', '21:30', VHCC_Luong::vp_cfg()['ngayDen'] );
+
+/* ---- 🔴 Ô TÍCH VAI: BỎ HẾT TÍCH = KHAI RỖNG, không phải "bỏ khai" ----
+   Ô CHỮ để trống thì hiểu là "không đụng tới" — đúng, vì người ta hay để trống ô mình không
+   quan tâm. Ô TÍCH thì ngược hẳn: bỏ hết tích là một câu KHẲNG ĐỊNH — "không lấy theo vai nữa".
+   Coi nó là bỏ khai thì giá trị cũ ở lại, mà màn hình vẽ lại các ô đều trống — nên trông như
+   đã gỡ rồi, bấm Lưu bao nhiêu lượt cũng không gỡ được, và không có gì trên màn nói vì sao.
+   ⚠️ Phải đi qua ĐÚNG CỬA POST. Gọi thẳng `dat_vp_cfg( ['ktVaiTro' => array()] )` là thử một
+      thứ khác: chỗ dịch "biểu mẫu không gửi ô nào" thành "mảng rỗng" nằm ở lớp web, và nó
+      chính là chỗ hỏng được. */
+$_POST = array( 'viec' => 'cong_thuc', 'ky' => VHCC_Web::chu_ky( $tok_ct ),
+	'ctv' => array( 'ktVaiTro' => array( 'Kế toán' ) ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+teq( 'dựng cảnh: tích một vai qua trang thật thì vào sổ',
+	array( 'Kế toán' ), VHCC_Luong::vp_cfg()['ktVaiTro'] );
+/* Biểu mẫu HTML KHÔNG gửi ô tích nào khi người ta bỏ hết tích — không có `ctv` trong POST. */
+$_POST = array( 'viec' => 'cong_thuc', 'ky' => VHCC_Web::chu_ky( $tok_ct ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array();
+teq( '🔴 bỏ hết tích rồi bấm Lưu thì GỠ được, không phải giá trị cũ ở lại',
+	array(), VHCC_Luong::vp_cfg()['ktVaiTro'] );
 
 /* Nhân viên POST thẳng cũng không lọt. */
 $_POST = array( 'viec' => 'cong_thuc' );
@@ -9051,6 +9089,257 @@ t( '🔴 và không vẽ gì khi chưa có cơ sở',
 /* Màn quản trị KHÔNG có script — luật chung, khối mới không được phá lệ. */
 t( '🔴 màn có khối lương vẫn không có thẻ script nào', stripos( $lw_h, '<script' ) === false );
 t( 'và không có thuộc tính on...= nào', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $lw_h ) === 0, $lw_h );
+vhcc_dung_bang();
+
+/* ==========================================================================================
+ *  66. IN BẢNG CHẤM CÔNG — RA NGOÀI WEB
+ * ------------------------------------------------------------------------------------------
+ *  Màn cuối trong nhóm việc hằng ngày còn kẹt trong wp-admin. Anh Thắng: *"mọi việc anh thao
+ *  tác trên web giao diện bên ngoài hết"* — mà cửa hàng trưởng thì không có tài khoản
+ *  WordPress để vào wp-admin in bảng công cơ sở mình.
+ *
+ *  🔴 SỐ TRÊN TỜ GIẤY DO MÁY CHỦ TÍNH. Bản Apps Script cũ nhận số do trình duyệt tính rồi đẩy
+ *  lên — tức ai sửa được yêu cầu là sửa được tờ giấy chấm công đem đi ký.
+ * ======================================================================================== */
+vhcc_dung_bang();
+vhcc_cham( 'TUTU_BT', '2026-08-03', 'IN1', '', '08:00:00', '17:00:00' );
+$U_IN_CHT = array( 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT', 'ma_nv' => 'IC1' );
+
+/* ---- Chốt cửa: tách khỏi `to_in()` vì hàm kia kết bằng `exit` ---- */
+teq( 'Admin in được', '', VHCC_Web::vi_sao_khong_in( $U_AD, 'TUTU_BT', '2026-08-01', '2026-08-31' ) );
+/* Tờ in là BẢNG CHẤM CÔNG, không phải bảng lương — cửa hàng trưởng phải in được bảng công cơ
+   sở mình để dán lên bảng tin và cho người ta ký. */
+teq( '🔴 Cửa hàng trưởng in được bảng công cơ sở MÌNH', '',
+	VHCC_Web::vi_sao_khong_in( $U_IN_CHT, 'TUTU_BT', '2026-08-01', '2026-08-31' ) );
+t( '🔴 nhưng KHÔNG in được cơ sở khác',
+	'' !== VHCC_Web::vi_sao_khong_in( $U_IN_CHT, 'JP_HCM', '2026-08-01', '2026-08-31' ) );
+$in_nv = VHCC_Web::vi_sao_khong_in( $U_NV, 'TUTU_BT', '2026-08-01', '2026-08-31' );
+t( '🔴 Nhân viên không in được gì', '' !== $in_nv );
+/* 🔴 CHỐT `cong_coso` Ở ĐẦU HÀM TRÔNG NHƯ THỪA — `co_quyen_coso()` bên dưới cũng bắt đầu
+   bằng đúng chốt ấy, nên nó không bao giờ là chốt QUYẾT ĐỊNH. Giữ vì hai lẽ, và mỗi lẽ có một
+   phép thử canh ở đây:
+     1. Nó đổi CÂU TRẢ LỜI. Bỏ đi thì Nhân viên bị chối bằng câu "Không có quyền cơ sở này" —
+        sai chuyện, người ta sẽ đi xin cấp thêm cơ sở trong khi thứ thiếu là bậc vai.
+     2. `co_quyen_coso()` nằm ở LỚP KHÁC (`VHCC_NhanSu`). Ai nới nó ra một ngày nào đó — cho
+        người xem được cơ sở mình chẳng hạn — thì cửa tờ in vẫn đóng. Khác hẳn chốt chết trong
+        `dat_co_so()` đã bỏ: chốt ấy đứng CÙNG HÀM với chốt chặt hơn, không che được gì cả. */
+t( 'và câu chối nói ĐÚNG chuyện thiếu bậc vai, không đổ oan cho cơ sở',
+	strpos( $in_nv, 'Cửa hàng trưởng' ) !== false, $in_nv );
+teq( 'canh quan hệ hai lớp: `co_quyen_coso` vẫn đang gói trong `cong_coso`',
+	false, VHCC_NhanSu::co_quyen_coso( $U_NV, 'TUTU_BT' ) );
+t( 'chưa chọn cơ sở thì chối',
+	'' !== VHCC_Web::vi_sao_khong_in( $U_AD, '', '2026-08-01', '2026-08-31' ) );
+
+/* 🔴 KHUÔN NGÀY PHẢI KIỂM. Hai chuỗi ấy đi thẳng vào câu SQL của `VHCC_Pdf::gom()` — thả một
+   chuỗi tuỳ ý xuống đó là mở một cửa mà không ai gác. */
+foreach ( array( '2026-8-1', '01/08/2026', 'hôm qua', '2026-08-01 OR 1=1', '' ) as $in_xau ) {
+	t( '🔴 ngày sai khuôn "' . $in_xau . '" bị chối',
+		'' !== VHCC_Web::vi_sao_khong_in( $U_AD, 'TUTU_BT', $in_xau, '2026-08-31' ) );
+	t( 'và ở ô Đến ngày cũng vậy',
+		'' !== VHCC_Web::vi_sao_khong_in( $U_AD, 'TUTU_BT', '2026-08-01', $in_xau ) );
+}
+/* Đảo ngày thì tờ giấy ra RỖNG mà không nói vì sao — người ta tưởng tháng ấy không ai đi làm. */
+$in_ly = VHCC_Web::vi_sao_khong_in( $U_AD, 'TUTU_BT', '2026-08-31', '2026-08-01' );
+t( '🔴 đảo ngày thì NÓI RÕ, đừng trả tờ giấy rỗng', '' !== $in_ly, $in_ly );
+t( 'và câu chối nói đúng chuyện đảo ngày',
+	strpos( $in_ly, 'trước ngày bắt đầu' ) !== false, $in_ly );
+
+/* ---- Khối In trong màn Bảng công ---- */
+$in_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'TUTU_BT', 'cth' => '2026-08' ) );
+t( '🔴 màn Bảng công có khối In', strpos( $in_h, 'In bảng chấm công' ) !== false, $in_h );
+t( 'biểu mẫu trỏ đúng cửa tờ in', strpos( $in_h, 'name="to_in"' ) !== false );
+/* ⚠️ KHÔNG ĐẺ Ô CHỌN CƠ SỞ RIÊNG — cơ sở lấy thẳng từ màn Bảng công, cùng luật với khối lương.
+   Hai ô cho cùng một thứ thì người ta sẽ chọn lệch, và cả hai đều trông đúng. */
+t( '🔴 khối In KHÔNG có ô chọn cơ sở riêng',
+	preg_match( '/<select[^>]*name="ics"/', $in_h ) === 0, $in_h );
+t( 'mà mang thẳng cơ sở đang xem',
+	strpos( $in_h, 'name="ics" value="TUTU_BT"' ) !== false, $in_h );
+/* Mặc định đầu và cuối THÁNG ĐANG XEM — phần lớn lượt chỉ việc bấm. */
+t( 'ngày mặc định là đầu tháng đang xem',
+	strpos( $in_h, 'name="itu" value="2026-08-01"' ) !== false, $in_h );
+t( '🔴 và cuối tháng tính đúng số ngày của tháng ấy (không gõ cứng 31)',
+	strpos( $in_h, 'name="iden" value="2026-08-31"' ) !== false, $in_h );
+/* ⚠️ Mở ở THẺ MỚI: tờ in là trang HTML riêng khổ A4. Mở đè thì in xong phải bấm Back rồi chọn
+   lại cơ sở + tháng — đúng cái phiền mà việc gộp trang vừa dẹp xong. */
+t( '🔴 tờ in mở ở thẻ mới', strpos( $in_h, 'target="_blank"' ) !== false, $in_h );
+
+/* Tháng 2 — chỗ mà "gõ cứng 31" sẽ đẻ ra một ngày không tồn tại và câu SQL trả rỗng. */
+$in_h2 = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'TUTU_BT', 'cth' => '2026-02' ) );
+t( '🔴 tháng 2 ra ngày 28, không phải 31',
+	strpos( $in_h2, 'name="iden" value="2026-02-28"' ) !== false, $in_h2 );
+
+/* Chưa chọn cơ sở thì không vẽ khối In — không có cơ sở thì in của ai?
+   ⚠️ PHẢI CÓ ÍT NHẤT HAI CƠ SỞ TRONG SỔ mới dựng được cảnh này: `the_bang_cham()` TỰ CHỌN khi
+      danh sách chỉ còn đúng một dòng (tiện, và đúng). Sổ một cơ sở thì "chưa chọn" không tồn
+      tại, và phép thử đo phải một cảnh không có thật. */
+vhcc_cham( 'JP_HCM', '2026-08-04', 'IN2', '', '08:00:00', '17:00:00' );
+t( 'sổ có từ hai cơ sở trở lên (nếu một thì phép thử dưới vô nghĩa)',
+	count( VHCC_NhanSu::ds_coso() ) > 1, VHCC_NhanSu::ds_coso() );
+$in_h3 = vhcc_luong_web( 'Kế toán', array( 'cth' => '2026-08' ) );
+t( 'chưa chọn cơ sở thì không mọc ra khối In',
+	strpos( $in_h3, 'In bảng chấm công' ) === false, $in_h3 );
+
+/* ---- Tờ in thật ---- */
+$_GET = array( 'to_in' => '1', 'ics' => 'TUTU_BT', 'itu' => '2026-08-01', 'iden' => '2026-08-31' );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người In', 'Kế toán', 'TUTU_BT', 'KT9' );
+ob_start(); VHCC_Web::phuc_vu(); $in_to = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 tờ in là MỘT trang HTML hoàn chỉnh, không lồng trong màn quản trị',
+	substr_count( $in_to, '<!DOCTYPE html>' ) === 1, substr( $in_to, 0, 200 ) );
+t( 'và mang khuôn giấy A4', strpos( $in_to, '@page{size:A4' ) !== false );
+t( 'không dính thanh điều hướng của màn quản trị',
+	strpos( $in_to, 'class="hieu"' ) === false );
+t( 'có tên người in để biết tờ giấy do ai xuất',
+	strpos( $in_to, 'Người In' ) !== false, $in_to );
+
+/* Người không đủ quyền bấm thẳng đường ấy thì nhận màn chối, KHÔNG nhận tờ giấy. */
+$_GET = array( 'to_in' => '1', 'ics' => 'JP_HCM', 'itu' => '2026-08-01', 'iden' => '2026-08-31' );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'CHT', 'Cửa hàng trưởng', 'TUTU_BT', 'IC1' );
+ob_start(); VHCC_Web::phuc_vu(); $in_choi = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 gõ thẳng đường tờ in của cơ sở khác thì bị chối',
+	strpos( $in_choi, '@page{size:A4' ) === false, substr( $in_choi, 0, 400 ) );
+t( 'và nói rõ vì sao', strpos( $in_choi, 'Không có quyền cơ sở này' ) !== false, $in_choi );
+vhcc_dung_bang();
+
+/* ==========================================================================================
+ *  67. KẾ TOÁN VĂN PHÒNG — LẤY THEO VAI TRÒ, KHÔNG GÕ TAY TỪNG MÃ
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 27/08/2026: *"Lấy theo vai trò nhân viên là kế toán. hoặc vai trò khác, mình kích
+ *  vào"*.
+ *
+ *  🔴 VÌ SAO ĐÁNG ĐỔI. Danh sách mã gõ tay là CUỐN SỔ THỨ HAI về cùng một sự thật. Người mới
+ *  vào làm kế toán mà quên thêm mã thì họ không được áp khung thứ Bảy 08:30–12:00 và luật Chủ
+ *  nhật nghỉ — công thiếu, lương thiếu, im lặng, và chỉ lộ ra nếu chính họ ngồi đếm lại. Người
+ *  nghỉ việc thì mã ở lại đó mãi. Hồ sơ đã có ô Vai trò rồi; đọc thẳng nó thì sổ còn một cuốn.
+ * ======================================================================================== */
+/* ⚠️ CẤU HÌNH CÔNG NẰM Ở BẢNG `cai_dat`, KHÔNG PHẢI Ở OPTION. `delete_option()` không chạm
+   tới nó — dọn bằng lệnh sai thì cấu hình của các khối thử TRƯỚC còn nguyên, `ktVaiTro` cũ đè
+   lên, và phép thử đo phải một cảnh mình không dựng. */
+vhcc_dung_bang();
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
+foreach ( array(
+	array( 'KV1', 'Kế toán A',   'Kế toán cá nhân' ),
+	array( 'KV2', 'Kế toán B',   'Kế toán NCC' ),
+	array( 'KV3', 'Nhân viên C', 'Nhân viên' ),
+	array( 'KV4', 'Lẻ D',        'Nhân viên' ),
+) as $kv ) {
+	$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => $kv[0], 'ho_ten' => $kv[1],
+		'vai_tro' => $kv[2], 'cua_hang' => 'VP_KT' ) );
+}
+
+/* 🔴 SO BẰNG MÃ VAI, KHÔNG SO BẰNG TÊN. Hồ sơ do người gõ tay nên có đủ kiểu viết, và công ty
+   còn có vai TỰ TẠO quy về cùng một bậc. `VHCC_Vai::ma()` nhận hết và trả một mã duy nhất. */
+$kv_ds = VHCC_Luong::vp_ma_theo_vai( array( 'Kế toán' ) );
+sort( $kv_ds );
+teq( '🔴 chọn vai "Kế toán" thì bắt được CẢ hai kiểu ghi trong hồ sơ',
+	array( 'kv1', 'kv2' ), $kv_ds );
+teq( 'nhận cả kiểu viết không dấu', array( 'kv1', 'kv2' ),
+	( function () { $x = VHCC_Luong::vp_ma_theo_vai( array( 'ke toan' ) ); sort( $x ); return $x; } )() );
+teq( 'chọn vai Nhân viên thì ra đúng nhóm kia', 2,
+	count( VHCC_Luong::vp_ma_theo_vai( array( 'Nhân viên' ) ) ) );
+teq( 'không chọn vai nào thì rỗng', array(), VHCC_Luong::vp_ma_theo_vai( array() ) );
+teq( 'vai lạ thì rơi về Nhân viên (luật đáy thang), không ra rỗng oan', 2,
+	count( VHCC_Luong::vp_ma_theo_vai( array( 'Vai Không Có Thật' ) ) ) );
+
+/* Vai TỰ TẠO cũng phải khớp — "Kế toán POSH" kế thừa Kế toán nên nằm cùng nhóm. */
+VHCC_Vai::quen_nho();
+VHCC_Vai::dat_them( $U_AD, 'Kế toán POSH', VHCC_Vai::KE_TOAN );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'KV5', 'ho_ten' => 'Kế toán POSH E',
+	'vai_tro' => 'Kế toán POSH', 'cua_hang' => 'VP_KT' ) );
+t( '🔴 vai TỰ TẠO kế thừa Kế toán cũng vào nhóm',
+	in_array( 'kv5', VHCC_Luong::vp_ma_theo_vai( array( 'Kế toán' ) ), true ),
+	VHCC_Luong::vp_ma_theo_vai( array( 'Kế toán' ) ) );
+/* ⚠️ XOÁ CẢ HỒ SƠ KV5, không chỉ xoá vai tự tạo. Xoá vai đi thì tên "Kế toán POSH" vẫn khớp
+   nhánh "mọi thứ bắt đầu bằng ke toan" của bảng cứng — người ấy vẫn ở trong nhóm, và mấy phép
+   thử đếm bên dưới lệch một người. Mã đúng; cảnh dựng thiếu một bước dọn.
+   ⚠️ Và lệnh dọn phải chèn kèm NGỮ CẢNH RIÊNG: chuỗi `delete_option( VHCC_Vai::O_THEM )` có ở
+      nhiều khối, sửa "lần đầu tiên" là dọn nhầm khối khác — đúng bài học vừa rút ra ở vết phá. */
+delete_option( VHCC_Vai::O_THEM ); VHCC_Vai::quen_nho();
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='KV5'" );
+
+/* ---- Cộng dồn: vai + mã lẻ ---- */
+VHCC_Luong::dat_vp_cfg( $U_AD, array( 'ktVaiTro' => array( 'Kế toán' ), 'ktMaNV' => array( 'KV4' ) ) );
+$kv_cfg = VHCC_Luong::vp_cfg();
+sort( $kv_cfg['ktMaTinh'] );
+teq( '🔴 CỘNG DỒN vai và mã lẻ, không thay thế nhau',
+	array( 'kv1', 'kv2', 'kv4' ), $kv_cfg['ktMaTinh'] );
+teq( 'ô mã lẻ vẫn giữ đúng thứ người ta gõ, không lẫn mã suy từ vai',
+	array( 'kv4' ), $kv_cfg['ktMaNV'] );
+
+/* 🔴 KHÔNG ĐÓNG BĂNG. `dat_vp_cfg()` lưu lại chính kết quả `vp_cfg()` — gộp vai vào `ktMaNV`
+   là mỗi lượt bấm Lưu lại chụp một bản danh sách mã vào cấu hình. Từ đó đổi vai của ai cũng
+   không ăn nữa, người nghỉ việc vẫn nằm trong đó, mà màn hình vẫn hiện đúng mấy ô tích vai —
+   nên trông như đang chạy theo vai trong khi thực ra chạy theo một bản chụp cũ. */
+VHCC_Luong::dat_vp_cfg( $U_AD, array( 'ktChuNhatNghi' => true ) );   // một lượt Lưu bất kỳ
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Nhân viên' ), array( 'ma_nv' => 'KV1' ) );
+$kv_cfg = VHCC_Luong::vp_cfg();
+sort( $kv_cfg['ktMaTinh'] );
+teq( '🔴 đổi vai của một người thì danh sách theo NGAY, không đóng băng',
+	array( 'kv2', 'kv4' ), $kv_cfg['ktMaTinh'] );
+teq( 'và ô mã lẻ vẫn nguyên', array( 'kv4' ), $kv_cfg['ktMaNV'] );
+
+/* Bỏ hết tích = khai rỗng, KHÔNG phải "bỏ khai" — người ta bỏ tích là CÓ Ý nói không lấy theo
+   vai nữa. Coi là bỏ khai thì giá trị cũ ở lại, bấm Lưu bao nhiêu lần cũng không gỡ được. */
+VHCC_Luong::dat_vp_cfg( $U_AD, array( 'ktVaiTro' => array() ) );
+$kv_cfg = VHCC_Luong::vp_cfg();
+teq( '🔴 bỏ hết tích vai thì chỉ còn mã lẻ', array( 'kv4' ), $kv_cfg['ktMaTinh'] );
+
+/* ---- Màn hình ---- */
+/* ⚠️ HAI ĐIỀU KIỆN MỚI DỰNG ĐƯỢC CẢNH, cả hai đều đã làm em đỏ oan một lượt:
+   1. Dựng THẺ PHIÊN thẳng, đừng đăng nhập bằng PIN mẫu — PIN của mấy tài khoản mẫu đã bị chính
+      các khối thử ở trên sửa đi nhiều lượt, nên `vhcc_web('246813')` rơi vào màn nhập PIN.
+   2. Phải truyền `ccs` là một cơ sở đang tính THEO CÔNG. Khối Công thức cố ý chỉ hiện cho cơ sở
+      ấy — cơ sở tính theo GIỜ thì bộ công thức bậc thang/ca đêm không hề được dùng tới, bày ra
+      chỉ mời người ta khai một bộ số không ăn vào đâu. Không truyền `ccs` thì cả khối không vẽ,
+      và phép thử đỏ vì màn không có khối chứ không phải vì khối thiếu ô. */
+VHCC_NhanSu::xep_bo_phan( $U_AD, 'VP_KT', 'Văn phòng' );
+teq( 'cơ sở thử đang tính theo CÔNG', 'cong', VHCC_Luong::cach_tinh( 'VP_KT' ) );
+$h_kv = vhcc_web_nhu( 'KTADM', 'Kế toán', array( 'man' => 'cau_hinh', 'ccs' => 'VP_KT' ) );
+t( '🔴 ô vai là Ô TÍCH, không phải ô gõ chữ',
+	strpos( $h_kv, 'name="ctv[ktVaiTro][]"' ) !== false, $h_kv );
+t( 'và tích từ CHÍNH danh sách vai đang có',
+	strpos( $h_kv, 'value="Kế toán cá nhân"' ) !== false, $h_kv );
+t( 'ô mã lẻ vẫn còn, cho người không mang vai ấy',
+	strpos( $h_kv, 'name="ct[ktMaNV]"' ) !== false, $h_kv );
+t( 'nhãn ô mã nói rõ nó là phần THÊM, không phải nơi khai chính',
+	strpos( $h_kv, 'Thêm Mã NV lẻ' ) !== false, $h_kv );
+
+/* ---- 🔴 ĐI HẾT ĐƯỜNG: người mang VAI kế toán phải được áp khung thứ Bảy ----
+   Mấy phép thử trên mới soi tới `vp_cfg()['ktMaTinh']`. Chỗ TÍNH lại là một dòng khác, và nó
+   từng đọc nhầm sang `ktMaNV` mà cả bộ thử vẫn xanh: `ktMaNV` chỉ chứa mã GÕ TAY, nên người
+   được nhận vào nhóm bằng VAI rơi ra ngoài — bảng vẫn ra số, chỉ là số của một người thường.
+   Không có phép thử nào chạy hết đường từ hồ sơ → cấu hình → con số thì cái đọc nhầm ấy im. */
+VHCC_Luong::dat_vp_cfg( $U_AD, array( 'ktVaiTro' => array( 'Kế toán' ), 'ktMaNV' => array() ) );
+$kv_c = VHCC_Luong::vp_cfg();
+t( 'dựng cảnh: KV2 vào nhóm kế toán BẰNG VAI, không có tên trong ô mã lẻ',
+	in_array( 'kv2', $kv_c['ktMaTinh'], true ) && ! in_array( 'kv2', $kv_c['ktMaNV'], true ),
+	$kv_c['ktMaTinh'] );
+t( 'và KV3 (Nhân viên) thì không', ! in_array( 'kv3', $kv_c['ktMaTinh'], true ) );
+/* 01/08/2026 là thứ Bảy. Chọn giờ RA 15:00 có chủ ý: khung thứ Bảy của kế toán đóng lúc 12:00
+   nên người ấy được tính 3,5 tiếng — đủ mốc 3 tiếng, ra tròn 1 công; người thường thì khung
+   mở tới 17:00 nên được 6,5 tiếng, THIẾU mốc 7 tiếng, ra công lẻ. Ra 17:00 thì cả hai đều đủ
+   mốc của mình và cùng ra 1 công — phép thử xanh mà không chứng minh được gì. */
+vhcc_cham( 'VP_KT', '2026-08-01', 'KV2', '', '08:00:00', '15:00:00' );
+vhcc_cham( 'VP_KT', '2026-08-01', 'KV3', '', '08:00:00', '15:00:00' );
+$kv_b = VHCC_Luong::vp_bang_cong_va_luong( 'VP_KT', '2026-08' );
+$kv_h = array();
+foreach ( $kv_b['rows'] as $kv_r ) { $kv_h[ $kv_r['ma'] ] = $kv_r; }
+t( '🔴 người mang VAI kế toán được chỗ TÍNH nhận ra là kế toán',
+	! empty( $kv_h['KV2']['laKeToan'] ), array_keys( $kv_h ) );
+t( 'người vai Nhân viên thì không', empty( $kv_h['KV3']['laKeToan'] ) );
+/* Và cái nhãn ấy phải ĂN VÀO SỐ, không chỉ là một ô boolean nằm chơi: thứ Bảy của kế toán
+   dùng khung giờ riêng (`ktThu7Tu`/`ktThu7Den`) nên cùng một cặp giờ vào–ra ra công khác nhau. */
+t( 'dựng cảnh: khung thứ Bảy của kế toán khác khung ngày thường',
+	$kv_c['ktThu7Den'] !== $kv_c['ngayDen'] || $kv_c['ktThu7Tu'] !== $kv_c['ngayTu'],
+	$kv_c['ktThu7Tu'] . '-' . $kv_c['ktThu7Den'] . ' / ' . $kv_c['ngayTu'] . '-' . $kv_c['ngayDen'] );
+teq( '🔴 kế toán: đóng khung lúc 12:00, đủ mốc 3 tiếng -> tròn 1 công',
+	1.0, $kv_h['KV2']['congNgay'] );
+teq( 'người thường: khung tới 17:00, thiếu mốc 7 tiếng -> công lẻ',
+	0.81, $kv_h['KV3']['congNgay'] );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE coso='VP_KT'" );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
 vhcc_dung_bang();
 
 if ( count( $truot ) ) {
