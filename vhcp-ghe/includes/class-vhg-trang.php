@@ -3427,6 +3427,10 @@ function ktxMaMisa(){
 var KTN_ROWS = null;   // đã parse, sẵn sàng gửi
 
 function ktnParseCsv(text){
+  /* Tự nhận cột ngăn bằng TAB (dán từ Google Sheets/Excel) hay dấu PHẨY (file .csv). Ô json có
+     dấu phẩy nhưng không có tab → nếu dòng đầu có tab thì chắc chắn là TSV. */
+  var firstLine=String(text).split('\n')[0]||'';
+  var delim=(firstLine.indexOf('\t')>=0)?'\t':',';
   var rows=[], cur=[], val='', i=0, inQ=false, c, n=text.length;
   while(i<n){
     c=text[i];
@@ -3435,7 +3439,7 @@ function ktnParseCsv(text){
       val+=c; i++; continue;
     }
     if(c==='"'){ inQ=true; i++; continue; }
-    if(c===','){ cur.push(val); val=''; i++; continue; }
+    if(c===delim){ cur.push(val); val=''; i++; continue; }
     if(c==='\r'){ i++; continue; }
     if(c==='\n'){ cur.push(val); rows.push(cur); cur=[]; val=''; i++; continue; }
     val+=c; i++;
@@ -3444,17 +3448,20 @@ function ktnParseCsv(text){
   return rows.filter(function(r){ return r.length>1 || (r.length===1 && (r[0]||'').trim()!==''); });
 }
 function ktnNum(v){ var s=String(v==null?'':v).replace(/[^0-9-]/g,''); s=s.replace(/(?!^)-/g,''); return s===''||s==='-'?0:parseInt(s,10); }
+/* Thứ tự cột chuẩn của bảng xuất web THU TIỀN cũ — dùng khi file/dán KHÔNG có dòng tiêu đề. */
+var KTN_CANON=['date','locname','chairname','chaircode','staff','meterbefore','meterafter','actual',
+  'cash','qr','adjust','total','cashsubmitstatus','cashpaidamount','cashpaiddate','note','reportid',
+  'json','images','transferref','transferbank','proofimages'];
 function ktnMapRows(aoa){
   if(!aoa.length) return {rows:[],err:L('File rỗng.','Empty.')};
-  var head=aoa[0].map(function(x){ return String(x||'').trim().toLowerCase(); });
-  var ix={}; head.forEach(function(h,j){ ix[h]=j; });
-  function need(name){ return ix.hasOwnProperty(name); }
-  if(!need('date')||!need('locname')||!need('chaircode')){
-    return {rows:[],err:L('Không thấy cột date / locName / chairCode ở dòng đầu.','Missing date/locName/chairCode header.')};
-  }
+  var head0=aoa[0].map(function(x){ return String(x||'').trim().toLowerCase(); });
+  var coTieuDe = (head0.indexOf('date')>=0 && head0.indexOf('locname')>=0 && head0.indexOf('chaircode')>=0);
+  var head = coTieuDe ? head0 : KTN_CANON;   // không có tiêu đề → coi theo thứ tự cột chuẩn
+  var start = coTieuDe ? 1 : 0;
+  var ix={}; head.forEach(function(h,j){ if(ix[h]==null) ix[h]=j; });
   function g(r,name){ var j=ix[name]; return (j==null||j>=r.length)?'':r[j]; }
   var out=[];
-  for(var k=1;k<aoa.length;k++){
+  for(var k=start;k<aoa.length;k++){
     var r=aoa[k]; if(!r||!r.length) continue;
     var loc=String(g(r,'locname')).trim(), date=String(g(r,'date')).trim(), code=String(g(r,'chaircode')).trim();
     if(!loc&&!date&&!code) continue;
@@ -3482,10 +3489,13 @@ function ktnMapRows(aoa){
 }
 function veKtNhap(){
   return '<div class="card"><h2>📥 ' + L('Nhập doanh thu cũ (CSV web cũ)','Import old revenue (CSV)') + '</h2>'
-    + '<p class="mut">' + L('Dán nguyên bảng xuất từ web THU TIỀN cũ (có dòng tiêu đề date,locName,chairCode…). '
-        + 'Tiền được chép ĐÚNG như file — KHÔNG tính lại theo chỉ số (web cũ nhân ×10.000, hệ mới ×5.000). '
-        + 'Gộp 1 báo cáo mỗi cơ sở mỗi ngày.',
-        'Paste the old THU TIỀN export (with header row). Money copied verbatim — not recomputed. One report per branch/day.') + '</p>'
+    + '<p class="mut">' + L('Chọn FILE .csv (nhanh nhất) hoặc dán bảng vào ô dưới. Có/không có dòng tiêu đề '
+        + 'đều được — thiếu tiêu đề thì đọc theo thứ tự cột chuẩn. Tiền chép ĐÚNG như file — KHÔNG tính lại '
+        + 'theo chỉ số (web cũ ×10.000, hệ mới ×5.000). Gộp 1 báo cáo mỗi cơ sở mỗi ngày.',
+        'Pick a .csv file or paste below. Header row optional. Money copied verbatim — not recomputed. One report per branch/day.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px">'
+    + '<input type="file" id="ktn-file" accept=".csv,text/csv,text/plain">'
+    + '<span id="ktn-file-msg" class="mut"></span></div>'
     + '<textarea id="ktn-csv" rows="8" style="width:100%;font-family:monospace;font-size:12px" '
     + 'placeholder="date,locName,chairName,chairCode,staff,meterBefore,meterAfter,actual,cash,qr,adjust,total,…"></textarea>'
     + '<div class="act" style="flex-wrap:wrap;margin-top:8px">'
@@ -3500,10 +3510,27 @@ function ktnInit(){
   var msg=document.getElementById('ktn-msg'), box=document.getElementById('ktn-xem-kq');
   function doiText(){ KTN_ROWS=null; }
   document.getElementById('ktn-csv').addEventListener('input',doiText);
-  document.getElementById('ktn-xem').onclick=function(){
-    var t=(document.getElementById('ktn-csv').value||'').trim();
+  var fEl=document.getElementById('ktn-file');
+  if(fEl) fEl.onchange=function(){
+    var f=fEl.files&&fEl.files[0]; var fm=document.getElementById('ktn-file-msg');
+    if(!f){ return; }
+    fm.textContent=L('Đang đọc file…','Reading…'); fm.className='mut';
+    var rd=new FileReader();
+    rd.onerror=function(){ fm.textContent=L('Không đọc được file.','Read error.'); fm.className='mut err'; };
+    rd.onload=function(){
+      var t=String(rd.result||'');
+      fm.textContent=f.name+' · '+Math.round(f.size/1024)+' KB';
+      fm.className='mut ok';
+      /* File to đổ vào ô soạn dễ treo trình duyệt — chỉ hiện lại khi nhỏ, còn lại xem trước thẳng. */
+      document.getElementById('ktn-csv').value = (f.size<=300000) ? t : L('(File lớn đã nạp — xem bảng bên dưới)','(Large file loaded — see preview)');
+      ktnPreview(t);
+    };
+    rd.readAsText(f);
+  };
+  function ktnPreview(t){
+    t=String(t||'').trim();
     box.textContent=''; msg.textContent='';
-    if(!t){ msg.textContent=L('Chưa dán gì.','Nothing pasted.'); msg.className='mut err'; return; }
+    if(!t){ msg.textContent=L('Chưa có dữ liệu.','No data.'); msg.className='mut err'; KTN_ROWS=null; return; }
     var m=ktnMapRows(ktnParseCsv(t));
     if(m.err){ msg.textContent=m.err; msg.className='mut err'; KTN_ROWS=null; return; }
     if(!m.rows.length){ msg.textContent=L('Không có dòng dữ liệu nào.','No data rows.'); msg.className='mut err'; KTN_ROWS=null; return; }
@@ -3529,8 +3556,9 @@ function ktnInit(){
     if(m.rows.length>12) box.appendChild(ktEl('p','mut','… '+L('và','and')+' '+(m.rows.length-12)+' '+L('dòng nữa','more')));
     msg.textContent=L('Đã đọc xong — kiểm tra rồi bấm "Nhập vào hệ thống".','Parsed — review then Import.'); msg.className='mut ok';
   };
+  document.getElementById('ktn-xem').onclick=function(){ ktnPreview(document.getElementById('ktn-csv').value); };
   document.getElementById('ktn-nap').onclick=function(){
-    if(!KTN_ROWS){ document.getElementById('ktn-xem').onclick(); if(!KTN_ROWS) return; }
+    if(!KTN_ROWS){ ktnPreview(document.getElementById('ktn-csv').value); if(!KTN_ROWS) return; }
     if(!KTN_ROWS.length){ return; }
     var ghide=document.getElementById('ktn-ghide').checked;
     if(!confirm(L('Nhập '+KTN_ROWS.length+' dòng ghế vào hệ thống?'+(ghide?'\n\n⚠ GHI ĐÈ: báo cáo cơ sở/ngày đã có sẽ bị thay.':''),
