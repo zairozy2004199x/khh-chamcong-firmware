@@ -8748,6 +8748,42 @@ t( 'hàng của người ấy được đánh dấu để mắt tìm lại đư�
 t( 'có mỏ neo để trình duyệt cuộn thẳng tới hàng đó',
 	strpos( $sn_h, 'id="hs' . substr( md5( 'SN1' ), 0, 8 ) . '"' ) !== false, $sn_h );
 t( 'có nút Đóng', strpos( $sn_h, '>Đóng</a>' ) !== false );
+/* 🔴 NÚT ĐÓNG PHẢI QUAY VỀ CHÍNH TRANG NÀY, không nhảy sang trang khác — nếu không thì "đóng
+   gọn lại" hoá ra lại là rời trang, đúng cái anh Thắng muốn tránh.
+   ⚠️ Phép thử này TỪNG KHÔNG ĐO ĐƯỢC GÌ: bản giả `remove_query_arg()` trong `wp-stub.php` trả
+      về một HẰNG SỐ CỨNG (`?vhcc_qt=1`), nên mọi đường dẫn đi qua nó đều ra cùng một chuỗi bất
+      kể mã thật làm gì. Một bản giả sai còn tệ hơn không có bản giả: không có thì phép thử
+      chết và mình biết ngay, còn sai thì nó xanh và mình tin. Đã sửa bản giả cho đúng. */
+if ( preg_match( '/<a class="nut" href="([^"]+)">Đóng<\/a>/', $sn_h, $sn_d ) ) {
+	t( '🔴 nút Đóng quay về CHÍNH trang nhân sự, không sang trang khác',
+		strpos( $sn_d[1], 'vhcc_ns' ) !== false && strpos( $sn_d[1], 'vhcc_qt' ) === false, $sn_d[1] );
+	t( 'và bỏ hẳn tham số sua_o (đóng thật, không mở lại)',
+		strpos( $sn_d[1], 'sua_o' ) === false, $sn_d[1] );
+} else {
+	t( 'dò được đường dẫn của nút Đóng', false, $sn_h );
+}
+
+/* ---- 🔴 KHUNG KHÔNG ĐƯỢC LỆCH ----
+   Anh Thắng 27/08/2026: *"lệch khung"*. Chỗ lệch: `<label>Họ tên<input></label>` thì `<input>`
+   là inline, nên `width:100%` của nó bắt đầu NGAY SAU chữ "Họ tên" chứ không từ mép trái ô — ô
+   rộng bằng cả ô lưới mà lại đẩy sang phải một đoạn bằng độ dài cái nhãn, thành ra tràn ra
+   ngoài và đè lên nhãn kế bên. Nhãn dài bao nhiêu thì lệch bấy nhiêu, nên "Trạng thái làm việc"
+   lệch nặng nhất còn "Họ tên" trông gần như bình thường — đó là lý do lỗi này lọt: nhìn ô đầu
+   thì thấy ổn.
+
+   ⚠️ PHÉP THỬ NÀY YẾU VÀ EM BIẾT THẾ. Bộ thử chạy bằng PHP, không dựng được bố cục để đo xem
+      cái ô có tràn ra ngoài hay không. Nó chỉ canh được hai chuyện đã đủ để lỗi ấy không quay
+      lại: luật `display:block` CÓ MẶT, và bề ngang không còn bị gõ tay rải rác trong HTML. */
+t( '🔴 ô nhập trong hàng sửa được cho xuống dòng riêng (display:block)',
+	strpos( $sn_h, 'tr.hang-sua .luoi label input{display:block' ) !== false, $sn_h );
+t( 'và bề ngang do CSS lo, không gõ tay từng ô',
+	preg_match( '/<tr class="hang-sua">.*?<\/tr>/s', $sn_h, $sn_m ) === 1
+	&& strpos( $sn_m[0], 'style="width:100%"' ) === false,
+	isset( $sn_m[0] ) ? $sn_m[0] : '' );
+/* Ô ngày của trình duyệt có bề ngang riêng, không co theo ô lưới — không ghim lại thì riêng nó
+   phình ra và đẩy lệch cả hàng. Đúng ô "Ngày vào làm" trong ảnh anh gửi. */
+t( 'ô ngày bị ghim lại để không phình ra đẩy lệch cả hàng',
+	strpos( $sn_h, 'input[type="date"]{max-width:100%' ) !== false, $sn_h );
 /* 🔴 CHỈ MỞ ĐÚNG MỘT HÀNG. Mở hết là hàng sửa cao hơn cả màn hình và cái lợi "không rời trang"
    mất sạch. */
 teq( '🔴 chỉ MỘT hàng sửa được mở', 1, substr_count( $sn_h, 'value="sua_nhanh"' ) );

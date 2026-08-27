@@ -551,5 +551,27 @@ if ( ! function_exists( 'wp_get_current_user' ) ) {
 }
 
 if ( ! function_exists( 'remove_query_arg' ) ) {
-	function remove_query_arg( $k, $u = '' ) { return 'http://example.test/?vhcc_qt=1'; }
+	/**
+	 * 🔴 BẢN GIẢ CŨ TRẢ VỀ MỘT HẰNG SỐ CỨNG — tức là nó NÓI DỐI.
+	 * Mọi đường dẫn đi qua nó đều ra `?vhcc_qt=1`, bất kể gọi với gì. Nên mọi phép thử soi
+	 * "nút này trỏ đi đâu" đều đo phải cái hằng số ấy chứ không đo mã thật: nút Đóng của hàng
+	 * sửa trỏ sai sang trang khác mà bộ thử vẫn xanh. Một bản giả sai còn tệ hơn không có bản
+	 * giả — không có thì phép thử chết và mình biết ngay, còn sai thì nó xanh và mình tin.
+	 * Nay bỏ đúng khoá được yêu cầu, giữ nguyên phần còn lại — y như WordPress thật.
+	 */
+	function remove_query_arg( $k, $u = '' ) {
+		$u = (string) $u;
+		if ( '' === $u ) { return $u; }
+		$phan = explode( '?', $u, 2 );
+		if ( ! isset( $phan[1] ) || '' === $phan[1] ) { return $u; }
+		$bo = is_array( $k ) ? $k : array( $k );
+		$giu = array();
+		foreach ( explode( '&', $phan[1] ) as $doi ) {
+			if ( '' === $doi ) { continue; }
+			$kv = explode( '=', $doi, 2 );
+			if ( in_array( rawurldecode( $kv[0] ), $bo, true ) ) { continue; }
+			$giu[] = $doi;
+		}
+		return $giu ? $phan[0] . '?' . implode( '&', $giu ) : $phan[0];
+	}
 }

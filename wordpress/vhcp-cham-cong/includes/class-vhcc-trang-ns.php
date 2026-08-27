@@ -468,7 +468,25 @@ class VHCC_TrangNS {
 			/* Hàng đang mở: viền đậm để mắt tìm lại được nó giữa 50 hàng sau khi tải lại trang. */
 			. 'tr.dang-sua>td{box-shadow:inset 0 2px 0 var(--xanh)}'
 			. 'tr.hang-sua>td{background:#eff6ff;border:2px solid var(--xanh);padding:12px 14px}'
-			. 'tr.hang-sua .luoi{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}';
+			/* 🔴 Ô NHẬP PHẢI XUỐNG DÒNG DƯỚI NHÃN. Anh Thắng 27/08/2026: *"lệch khung"* — và đây
+			   là chỗ nó lệch: `<label>Họ tên<input></label>` thì `<input>` là inline, nên
+			   `width:100%` của nó bắt đầu NGAY SAU chữ "Họ tên" chứ không phải từ mép trái ô.
+			   Ô rộng bằng cả ô lưới mà lại đẩy sang phải một đoạn bằng độ dài cái nhãn, thành ra
+			   tràn ra ngoài và đè lên nhãn của ô kế bên. Nhãn dài bao nhiêu thì lệch bấy nhiêu —
+			   nên "Trạng thái làm việc" lệch nặng nhất, còn "Họ tên" trông gần như bình thường.
+			   Đó là lý do lỗi này lọt: nhìn ô đầu thì thấy ổn.
+			   `display:block` cho ô nhập là hết: nó bắt đầu từ mép trái, và `width:100%` đo đúng
+			   bề ngang ô lưới. */
+			. 'tr.hang-sua .luoi{grid-template-columns:repeat(auto-fit,minmax(215px,1fr));'
+			. 'align-items:start;gap:12px 14px}'
+			. 'tr.hang-sua .luoi label{display:block;margin:0;font-size:12px;line-height:1.35}'
+			. 'tr.hang-sua .luoi label input{display:block;width:100%;margin-top:4px}'
+			/* Ô ngày của trình duyệt có bề ngang riêng, không co theo ô lưới — không ghim lại
+			   thì riêng nó phình ra và đẩy lệch cả hàng. */
+			. 'tr.hang-sua .luoi label input[type="date"]{max-width:100%;min-width:0}'
+			/* Chú thích trong nhãn ("đang có 6 số…") xuống dòng riêng, đừng chen ngang làm nhãn
+			   dài gấp ba rồi kéo ô lưới rộng ra theo. */
+			. 'tr.hang-sua .luoi label .mo{display:block;font-size:11px;margin:1px 0 0}';
 	}
 
 	/**
@@ -938,8 +956,11 @@ class VHCC_TrangNS {
 			'ngay_vao_lam'        => array( 'Ngày vào làm', 'date' ),
 			'trang_thai_lam_viec' => array( 'Trạng thái làm việc', 'text' ),
 		) as $c => $o ) {
+			/* ⚠️ KHÔNG còn `style="width:100%"` gõ tay ở đây. Bề ngang do CSS của `tr.hang-sua`
+			   lo, cùng chỗ với `display:block` — tách hai thứ ấy ra hai nơi là sửa một bên rồi
+			   quên bên kia, và lệch khung quay lại. */
 			echo '<label>' . esc_html( $o[0] ) . '<input type="' . esc_attr( $o[1] ) . '" name="'
-				. esc_attr( $c ) . '" value="' . esc_attr( $g( $c ) ) . '" style="width:100%"></label>';
+				. esc_attr( $c ) . '" value="' . esc_attr( $g( $c ) ) . '"></label>';
 		}
 		if ( $luong ) {
 			/* Ô lương chỉ hiện với người có quyền xem — `luu_ho_so()` cũng chỉ nhận mấy ô này từ
@@ -952,18 +973,18 @@ class VHCC_TrangNS {
 			      xuống bậc 3, nó tự đứng ra chặn mà không ai phải nhớ. Bộ thử canh chính quan
 			      hệ hai bậc ấy. */
 			echo '<label>Lương cơ bản<input name="luong_co_ban" value="'
-				. esc_attr( $g( 'luong_co_ban' ) ) . '" style="width:100%"></label>';
+				. esc_attr( $g( 'luong_co_ban' ) ) . '"></label>';
 			echo '<label>Số tài khoản<input name="so_tai_khoan" value="'
-				. esc_attr( $g( 'so_tai_khoan' ) ) . '" style="width:100%"></label>';
+				. esc_attr( $g( 'so_tai_khoan' ) ) . '"></label>';
 			echo '<label>Ngân hàng<input name="ngan_hang" value="'
-				. esc_attr( $g( 'ngan_hang' ) ) . '" style="width:100%"></label>';
+				. esc_attr( $g( 'ngan_hang' ) ) . '"></label>';
 		}
 		/* 🔴 KHÔNG ĐIỀN SẴN PIN CŨ VÀO Ô. Trang này chạy ngoài internet và ảnh chụp màn hình đi
 		   khắp nơi — đúng luật màn Hồ sơ đang giữ. Để trống = giữ nguyên PIN cũ. */
 		echo '<label>PIN đăng nhập <span class="mo">('
 			. ( '' !== $g( 'pin_dang_nhap' ) ? 'đang có ' . strlen( $g( 'pin_dang_nhap' ) ) . ' số'
 				: 'chưa có' ) . ', để trống = giữ nguyên)</span>'
-			. '<input name="pin_dang_nhap" inputmode="numeric" style="width:100%"></label>';
+			. '<input name="pin_dang_nhap" inputmode="numeric"></label>';
 		echo '</div>';
 		echo '<div class="hang" style="margin-top:10px">';
 		echo '<button class="chinh" name="viec" value="sua_nhanh">Lưu hồ sơ này</button>';
