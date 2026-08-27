@@ -57,12 +57,13 @@ class VHCC_WebMay {
 	/**
 	 * NHẬN VIỆC POST.
 	 *
-	 * 🔴 Gác `he_thong` NGAY ĐÂY, đừng tin vào việc màn không vẽ nút cho người không đủ bậc.
+	 * 🔴 Gác quyền NGAY ĐÂY, đừng tin vào việc màn không vẽ nút cho người không đủ bậc.
 	 *    Nút không vẽ chỉ là không mời; POST thì ai gửi cũng tới.
 	 */
 	public static function viec( $viec, $toi ) {
-		if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
-			return array( array( 'loi' => 'Màn Máy & Firmware cần bậc Admin. '
+		if ( ! VHCC_Vai::duoc( $toi, 'may' ) ) {
+			return array( array( 'loi' => 'Màn Máy & Firmware cần đầu việc "Máy chấm công & firmware" '
+				. '— mặc định là bậc Admin, hoặc được khai riêng ở Quản lý nhân sự → Chia đầu việc. '
 				. 'Một nút ở đây đẩy firmware cho MỌI máy trong chuỗi — hỏng thì mất luôn đường '
 				. 'sửa từ xa và phải đi từng cửa hàng cắm USB.' ) );
 		}
@@ -96,11 +97,13 @@ class VHCC_WebMay {
 	// ===================================================================================== màn
 
 	public static function man( $ky, $toi ) {
-		if ( ! VHCC_Vai::duoc( $toi, 'he_thong' ) ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'may' ) ) {
 			echo '<div class="the"><h2>Không vào được màn này</h2>';
-			echo '<p class="mo">Màn <b>Máy &amp; Firmware</b> cần bậc <b>Admin</b>. Ở đây có nút đẩy '
-				. 'firmware cho <b>mọi máy trong chuỗi</b> — đẩy nhầm một bản là mất luôn đường sửa '
-				. 'từ xa của cả 26 cửa hàng.</p></div>';
+			echo '<p class="mo">Màn <b>Máy &amp; Firmware</b> cần đầu việc <b>Máy chấm công &amp; '
+				. 'firmware</b> — mặc định là bậc <b>Admin</b>. Người dựng máy không cần lên Admin: '
+				. 'khai riêng một dòng ở <b>Quản lý nhân sự → Chia đầu việc</b> là đủ. Ở đây có nút '
+				. 'đẩy firmware cho <b>mọi máy trong chuỗi</b> — đẩy nhầm một bản là mất luôn đường '
+				. 'sửa từ xa của cả 26 cửa hàng.</p></div>';
 			return;
 		}
 		$m  = VHCC_May::ds_may();

@@ -191,6 +191,7 @@ class VHCC_TrangNS {
 		if ( 'go_ngoai_le' === $viec ) { return self::viec_go( $toi ); }
 		if ( 'sua_nhanh' === $viec )   { return self::viec_sua_nhanh( $toi ); }
 		if ( 'them_vai' === $viec )    { return self::viec_them_vai( $toi ); }
+		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
@@ -371,6 +372,32 @@ class VHCC_TrangNS {
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		return array( array( 'ok' => 'Đã khai vai "' . $ten . '" — quyền y như '
 			. VHCC_Vai::TEN[ $goc ] . '. Gán được cho người ta ở cột Vai trò bên dưới.' ) );
+	}
+
+	/**
+	 * Lưu / gỡ một dòng chia đầu việc.
+	 *
+	 * ⚠️ Ô Mã NV có gõ thì nó THẮNG ô chọn vai. Người ta gõ mã vào ô ấy là đã có ý riêng cho một
+	 *    người; im lặng khai cho cả vai là làm ngược hẳn ý họ, và cả nhóm nhận quyền mà không ai
+	 *    định cho.
+	 */
+	private static function viec_dau_viec( $toi ) {
+		$ma   = isset( $_POST['dv_ma'] ) ? trim( (string) sanitize_text_field( wp_unslash( $_POST['dv_ma'] ) ) ) : '';
+		$dich = isset( $_POST['dv_dich'] ) ? sanitize_text_field( wp_unslash( $_POST['dv_dich'] ) ) : '';
+		if ( '' !== $ma ) { $dich = 'nv:' . $ma; }
+		$q    = isset( $_POST['dv_quyen'] ) ? sanitize_text_field( wp_unslash( $_POST['dv_quyen'] ) ) : '';
+		$dat  = isset( $_POST['dv_dat'] ) ? sanitize_text_field( wp_unslash( $_POST['dv_dat'] ) ) : '';
+		$kq   = VHCC_Vai::dat_ngoai_le( $toi, $dich, $q, $dat );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		$ai = ( 0 === strpos( $kq['dich'], 'vai:' ) )
+			? 'vai "' . substr( $kq['dich'], 4 ) . '"' : 'Mã NV ' . substr( $kq['dich'], 3 );
+		if ( '' === $kq['giaTri'] ) {
+			return array( array( 'ok' => 'Đã gỡ dòng "' . VHCC_Vai::ten_viec( $q ) . '" của ' . $ai
+				. ' — về lại theo thang vai.' ) );
+		}
+		return array( array( 'ok' => 'Đã ' . ( 'mo' === $kq['giaTri'] ? 'MỞ' : 'KHOÁ' ) . ' đầu việc "'
+			. VHCC_Vai::ten_viec( $q ) . '" cho ' . $ai . '. Có hiệu lực ngay ở mọi cửa hỏi quyền, '
+			. 'không chỉ ở chỗ hiện tab.' ) );
 	}
 
 	private static function viec_xoa_vai( $toi ) {
@@ -554,6 +581,7 @@ class VHCC_TrangNS {
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
 		self::the_dong_bo( $toi );
 		self::the_vai( $toi );
+		self::the_dau_viec( $toi );
 		self::the_ngoai_le();
 		self::the_ngoai_pham_vi();
 		self::the_mac_dinh( $ds_trang );
@@ -1264,6 +1292,85 @@ class VHCC_TrangNS {
 		}
 		echo '</select></div>';
 		echo '<button class="chinh" name="viec" value="them_vai">Thêm vai</button>';
+		echo '</form>';
+		echo '</details></div>';
+	}
+
+	/**
+	 * CHIA ĐẦU VIỆC — ai làm được việc gì, lệch khỏi thang vai.
+	 *
+	 * Anh Thắng 27/08/2026: *"Chia bộ phận ai xem được từng đầu việc của mình"* — sau khi kể ra
+	 * ba bộ phận dùng chung một đường: *"Nhân viên thì vào chấm công và xem công mình · Kế toán
+	 * thì vào check công tháng · Kỹ thuật thì vào setup máy chấm công online"*.
+	 *
+	 * 🔴 KHÁC BẢNG "AI VÀO ĐƯỢC TRANG NÀO" Ở TRÊN. Bảng kia mở/khoá CẢ MỘT TRANG. Bảng này nhỏ
+	 *    hơn một trang: trong cùng trang quản trị, ai thấy tab nào, ai bấm được việc nào. Người
+	 *    Kỹ thuật cần đúng một việc — máy chấm công — chứ không cần cả trang, và cũng không nên
+	 *    được nâng lên Admin chỉ để dựng một cái máy.
+	 */
+	private static function the_dau_viec( $toi ) {
+		$nl      = VHCC_Vai::ngoai_le();
+		$bac_toi = VHCC_Vai::bac( $toi );
+		$so      = 0;
+		foreach ( $nl as $ds_x ) { $so += count( (array) $ds_x ); }
+
+		echo '<div class="the"><details' . ( $so ? ' open' : '' ) . '>';
+		echo '<summary><b>Chia đầu việc</b> — đang có ' . (int) $so . ' dòng khác mặc định</summary>';
+		echo '<p class="mo">Thang vai vẫn quyết định mặc định. Bảng này chỉ giữ những chỗ '
+			. '<b>khác</b> mặc định — mở thêm một đầu việc cho một vai (VD vai <b>Kỹ thuật</b> '
+			. 'được <b>Máy chấm công &amp; firmware</b> mà không cần lên Admin), hoặc thu một đầu '
+			. 'việc của một người. Khai theo <b>vai</b> thì cả nhóm theo; khai theo <b>Mã NV</b> '
+			. 'thì đè lên dòng của vai, cho đúng một người.</p>';
+		echo '<p class="mo">⚠️ Không tự khai cho chính mình hay cho chính vai mình — nhờ người '
+			. 'khác khai. Và chỉ chia được đầu việc mà vai của mình đang làm được.</p>';
+
+		if ( $nl ) {
+			echo '<div class="cuon"><table><thead><tr><th>Cho ai</th><th>Đầu việc</th>'
+				. '<th>Đang đặt</th><th></th></tr></thead><tbody>';
+			foreach ( $nl as $dich => $ds_x ) {
+				foreach ( $ds_x as $q => $v ) {
+					echo '<tr><td>' . ( 0 === strpos( $dich, 'vai:' )
+						? 'vai <b>' . esc_html( substr( $dich, 4 ) ) . '</b>'
+						: 'Mã NV <b>' . esc_html( substr( $dich, 3 ) ) . '</b>' ) . '</td>';
+					echo '<td>' . esc_html( VHCC_Vai::ten_viec( $q ) )
+						. ' <span class="mo">(' . esc_html( $q ) . ')</span></td>';
+					echo '<td>' . ( 'mo' === $v ? '<span class="co">Mở</span>'
+						: '<span class="chua">Khoá</span>' ) . '</td>';
+					echo '<td><form method="post" style="margin:0">'
+						. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
+						. self::o_loc()
+						. '<input type="hidden" name="dv_dich" value="' . esc_attr( $dich ) . '">'
+						. '<input type="hidden" name="dv_quyen" value="' . esc_attr( $q ) . '">'
+						. '<input type="hidden" name="dv_dat" value="">'
+						. '<button name="viec" value="dau_viec">Gỡ</button></form></td></tr>';
+				}
+			}
+			echo '</tbody></table></div>';
+		}
+
+		echo '<form method="post" class="hang" style="margin-top:12px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+		echo '<div><label for="dv_ai">Cho ai</label><select id="dv_ai" name="dv_dich">';
+		foreach ( VHCC_Vai::ds_ten() as $t_vai ) {
+			echo '<option value="vai:' . esc_attr( $t_vai ) . '">vai ' . esc_html( $t_vai ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><label for="dv_ma">…hoặc riêng Mã NV</label>'
+			. '<input id="dv_ma" type="text" name="dv_ma" maxlength="20" placeholder="để trống nếu khai theo vai"></div>';
+		echo '<div><label for="dv_q">Đầu việc</label><select id="dv_q" name="dv_quyen">';
+		/* ⚠️ CẮT Ở BẬC NGƯỜI ĐANG KHAI, y như ô chọn vai gốc ở khối trên. Kế toán không thấy
+		   dòng "Cài đặt hệ thống" — vẽ ra rồi chối là mời người ta bấm vào một việc không làm
+		   được. `VHCC_Vai::dat_ngoai_le()` vẫn chặn ở tầng dưới; đây chỉ là không mời gọi. */
+		foreach ( VHCC_Vai::QUYEN as $q_x => $bac_x ) {
+			if ( VHCC_Vai::BAC[ $bac_x ] > $bac_toi ) { continue; }
+			echo '<option value="' . esc_attr( $q_x ) . '">' . esc_html( VHCC_Vai::ten_viec( $q_x ) )
+				. ' — mặc định từ ' . esc_html( VHCC_Vai::TEN[ $bac_x ] ) . '</option>';
+		}
+		echo '</select></div>';
+		echo '<div><label for="dv_d">Đặt thành</label><select id="dv_d" name="dv_dat">'
+			. '<option value="mo">Mở</option><option value="khoa">Khoá</option></select></div>';
+		echo '<button class="chinh" name="viec" value="dau_viec">Lưu dòng</button>';
 		echo '</form>';
 		echo '</details></div>';
 	}

@@ -1635,7 +1635,7 @@ class VHCC_Web {
 		   trị; đưa ra web là bỏ mất lớp gác ấy, nên phải dựng lại bằng bậc vai. Trong đó có nút
 		   đẩy firmware cho MỌI máy trong chuỗi — đẩy nhầm một bản là mất luôn đường sửa từ xa
 		   của cả 26 cửa hàng và phải đi từng nơi cắm USB. */
-		if ( VHCC_Vai::duoc( $toi, 'he_thong' ) )   { $ds['may']      = 'Máy & Firmware'; }
+		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
 	}

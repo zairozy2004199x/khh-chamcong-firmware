@@ -8341,10 +8341,14 @@ if ( preg_match_all( '/<input type="radio" id="([^"]+)"/', $nt_h, $nt_m ) ) {
 	teq( '🔴 mọi id của nút quyền đều DUY NHẤT trong trang',
 		count( $nt_m[1] ), count( array_unique( $nt_m[1] ) ) );
 	t( 'và có kha khá nút (bảng đang có người)', count( $nt_m[1] ) >= 3, count( $nt_m[1] ) );
-	/* Mỗi <label for=…> phải trỏ tới một id CÓ THẬT — trỏ hụt là bấm vào chữ không ăn gì. */
+	/* Mỗi <label for=…> phải trỏ tới một id CÓ THẬT — trỏ hụt là bấm vào chữ không ăn gì.
+	   ⚠️ Gom id của MỌI ô nhập, không riêng nút radio. Gom mỗi radio thì trang có thêm một khối
+	      dùng <select id=…> là phép thử báo hỏng oan — và cái đỏ ấy chẳng nói gì về nhãn cả. */
 	$nt_thieu = 0;
+	preg_match_all( '/<(?:input|select|textarea)[^>]*\bid="([^"]+)"/', $nt_h, $nt_ido );
+	$nt_ids = isset( $nt_ido[1] ) ? $nt_ido[1] : array();
 	if ( preg_match_all( '/<label for="([^"]+)"/', $nt_h, $nt_l ) ) {
-		foreach ( $nt_l[1] as $nt_id ) { if ( ! in_array( $nt_id, $nt_m[1], true ) ) { $nt_thieu++; } }
+		foreach ( $nt_l[1] as $nt_id ) { if ( ! in_array( $nt_id, $nt_ids, true ) ) { $nt_thieu++; } }
 	}
 	teq( 'mọi nhãn đều trỏ tới một ô có thật', 0, $nt_thieu );
 } else {
@@ -10749,6 +10753,280 @@ t( 'ca đêm đủ cặp: KHÔNG đỏ vì chuyện thiếu giờ',
 	'' !== $o_dem2 && strpos( $o_dem2, '🌙0' ) === false, $o_dem2 );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='" . VHCC_Luong::GHEP_O . "'" );
+vhcc_dung_bang();
+
+/* ======================================================================================
+ *  66. CHIA ĐẦU VIỆC THEO VAI · và vai Kỹ thuật setup máy mà không cần lên Admin
+ *
+ *  Anh Thắng 27/08/2026, khi chuyển `/cham-cong/` thành trang dùng chung, kể ra ba bộ phận đi
+ *  chung một đường: *"Nhân viên thì vào chấm công và xem công mình · Kế toán thì vào check công
+ *  tháng · Kỹ thuật thì vào setup máy chấm công online"*. Rồi chốt một câu:
+ *  *"Chia bộ phận ai xem được từng đầu việc của mình"*.
+ *
+ *  🔴 CHỖ NÓ VỠ: quyền `he_thong` gộp MÁY CHẤM CÔNG với XOÁ SẠCH SỔ HỒ SƠ, ĐỔI MÃ NV, XEM PIN
+ *     NGƯỜI KHÁC. Muốn cho người dựng máy vào được thì phải nâng họ lên Admin — tức trao luôn
+ *     mấy việc kia. Hai chuyện chẳng liên quan gì nhau bị buộc vào một chìa khoá.
+ *
+ *  Cách chữa: tách `may` thành đầu việc riêng (mặc định VẪN Admin — không nới của ai), rồi
+ *  thêm bảng NGOẠI LỆ để khai đúng chỗ lệch, có tên, có chỗ soát lại.
+ * ====================================================================================== */
+vhcc_dung_bang();
+delete_option( VHCC_Vai::O_NGOAI_LE );
+delete_option( VHCC_Vai::O_THEM );
+VHCC_Vai::quen_nho();
+VHCC_Vai::quen_nho_nl();
+
+/* ---- Bảng tên đầu việc phải phủ ĐỦ bảng quyền ---- */
+/* Thiếu một dòng thì đầu việc ấy vẫn gác thật nhưng KHÔNG hiện trên bảng chia — một quyền tồn
+   tại mà không ai chia được, và cũng không ai biết là nó có. */
+$dv_thieu = array();
+foreach ( array_keys( VHCC_Vai::QUYEN ) as $q_x ) {
+	if ( ! isset( VHCC_Vai::VIEC_TEN[ $q_x ] ) ) { $dv_thieu[] = $q_x; }
+}
+teq( '🔴 mọi đầu việc đều có tên đọc được', array(), $dv_thieu );
+$dv_thua = array();
+foreach ( array_keys( VHCC_Vai::VIEC_TEN ) as $q_x ) {
+	if ( ! isset( VHCC_Vai::QUYEN[ $q_x ] ) ) { $dv_thua[] = $q_x; }
+}
+teq( 'và không có tên nào trỏ vào một đầu việc không tồn tại', array(), $dv_thua );
+
+/* ---- `may` đã tách khỏi `he_thong`, nhưng mặc định KHÔNG nới của ai ---- */
+$dv_ad  = array( 'role' => 'Admin', 'ma_nv' => 'DVAD' );
+$dv_kt  = array( 'role' => 'Kế toán', 'ma_nv' => 'DVKT' );
+$dv_nv  = array( 'role' => 'Nhân viên', 'ma_nv' => 'DVNV' );
+$dv_cht_dv = array( 'role' => 'Cửa hàng trưởng', 'ma_nv' => 'DVCH' );
+t( 'Admin vẫn làm được việc máy', VHCC_Vai::duoc( $dv_ad, 'may' ) );
+t( '🔴 Kế toán vẫn KHÔNG — tách quyền không phải là nới quyền', ! VHCC_Vai::duoc( $dv_kt, 'may' ) );
+t( 'và Nhân viên càng không', ! VHCC_Vai::duoc( $dv_nv, 'may' ) );
+
+/* ---- Vai Kỹ thuật: gốc Nhân viên + MỞ đúng một đầu việc ---- */
+VHCC_Vai::dat_them( $dv_ad, 'Kỹ thuật', VHCC_Vai::NV );
+VHCC_Vai::quen_nho();
+$dv_ky = array( 'role' => 'Kỹ thuật', 'ma_nv' => 'DVKY' );
+teq( 'vai Kỹ thuật kế thừa bậc Nhân viên', 1, VHCC_Vai::bac( $dv_ky ) );
+t( 'chưa khai gì thì Kỹ thuật KHÔNG làm được việc máy', ! VHCC_Vai::duoc( $dv_ky, 'may' ) );
+
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Kỹ thuật', 'may', 'mo' );
+t( 'khai được dòng ngoại lệ', ! empty( $r_dv['ok'] ), $r_dv );
+t( '🔴 Kỹ thuật NAY làm được việc máy', VHCC_Vai::duoc( $dv_ky, 'may' ) );
+/* 🔴 ĐÂY LÀ TOÀN BỘ LÝ DO TÁCH QUYỀN. Mở việc máy mà kéo theo xoá sổ hồ sơ thì đã chẳng cần
+   tách — cứ nâng họ lên Admin cho nhanh. */
+t( '🔴 nhưng KHÔNG kéo theo cài đặt hệ thống', ! VHCC_Vai::duoc( $dv_ky, 'he_thong' ) );
+t( 'không kéo theo xem PIN người khác', ! VHCC_Vai::duoc( $dv_ky, 'xem_pin' ) );
+t( 'không kéo theo xoá hồ sơ', ! VHCC_Vai::duoc( $dv_ky, 'xoa_ho_so' ) );
+t( 'không kéo theo bảng lương', ! VHCC_Vai::duoc( $dv_ky, 'luong' ) );
+t( 'và vẫn tự chấm công được như mọi người', VHCC_Vai::duoc( $dv_ky, 'cham_online' ) );
+
+/* ⚠️ Ngoại lệ ăn theo TÊN VAI, không theo bậc. Hai vai cùng gốc Nhân viên là hai vai khác nhau
+   — anh Thắng tạo vai riêng chính là để phân biệt. Ăn theo bậc thì mở cho Kỹ thuật là mở cho
+   mọi Nhân viên trong công ty. */
+VHCC_Vai::dat_them( $dv_ad, 'Tạp vụ', VHCC_Vai::NV );
+VHCC_Vai::quen_nho();
+t( '🔴 vai khác cùng bậc KHÔNG ăn theo',
+	! VHCC_Vai::duoc( array( 'role' => 'Tạp vụ', 'ma_nv' => 'DVTV' ), 'may' ) );
+t( 'và Nhân viên trơn cũng không', ! VHCC_Vai::duoc( $dv_nv, 'may' ) );
+/* Gõ tên vai lệch dấu/hoa thường vẫn phải nhận ra — sổ sách người ta gõ lúc có dấu lúc không. */
+t( 'tên vai lệch dấu vẫn khớp đúng dòng ngoại lệ',
+	VHCC_Vai::duoc( array( 'role' => 'ky thuat', 'ma_nv' => 'DVKY2' ), 'may' ) );
+
+/* ---- KHOÁ: chiều ngược lại, thu một đầu việc của một vai ---- */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Kế toán', 'luong', 'khoa' );
+t( 'khoá được một đầu việc của cả vai', ! empty( $r_dv['ok'] ), $r_dv );
+t( '🔴 Kế toán bị khoá thì KHÔNG xem được bảng lương nữa', ! VHCC_Vai::duoc( $dv_kt, 'luong' ) );
+t( 'nhưng các việc khác của họ vẫn nguyên', VHCC_Vai::duoc( $dv_kt, 'ho_so' ) );
+
+/* ---- NGƯỜI ĐÈ VAI ---- */
+/* Dòng khai riêng cho một Mã NV là dòng người ta viết SAU khi đã nhìn thấy dòng của cả vai —
+   nên nó phải thắng. Ngược lại thì gỡ quyền của đúng một người trong nhóm là không làm được. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DVKT', 'luong', 'mo' );
+t( 'khai riêng cho một Mã NV', ! empty( $r_dv['ok'] ), $r_dv );
+t( '🔴 dòng theo NGƯỜI thắng dòng theo VAI', VHCC_Vai::duoc( $dv_kt, 'luong' ) );
+t( 'người khác cùng vai vẫn theo dòng của vai',
+	! VHCC_Vai::duoc( array( 'role' => 'Kế toán', 'ma_nv' => 'DVKT9' ), 'luong' ) );
+/* Mã NV so KHÔNG phân biệt hoa thường — hồ sơ gõ tay thì lúc hoa lúc thường. */
+t( 'Mã NV lệch hoa thường vẫn khớp',
+	VHCC_Vai::duoc( array( 'role' => 'Kế toán', 'ma_nv' => 'dvkt' ), 'luong' ) );
+
+/* ---- Gỡ dòng: về lại theo thang ---- */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DVKT', 'luong', '' );
+t( 'gỡ được dòng', ! empty( $r_dv['ok'] ), $r_dv );
+t( 'gỡ xong thì rơi lại vào dòng của vai (đang khoá)', ! VHCC_Vai::duoc( $dv_kt, 'luong' ) );
+VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Kế toán', 'luong', '' );
+t( '🔴 gỡ nốt dòng của vai thì về đúng thang, không sót vết', VHCC_Vai::duoc( $dv_kt, 'luong' ) );
+
+/* ---- Dữ liệu rác trong kho không được biến thành quyền ---- */
+update_option( VHCC_Vai::O_NGOAI_LE, array(
+	'vai:Kỹ thuật' => array( 'may' => 'mo', 'quyen_khong_co' => 'mo', 'luong' => 'bay_gio' ),
+	'lung tung'    => array( 'he_thong' => 'mo' ),
+	'nv:'          => array( 'he_thong' => 'mo' ),
+) );
+VHCC_Vai::quen_nho_nl();
+t( 'dòng đúng vẫn ăn', VHCC_Vai::duoc( $dv_ky, 'may' ) );
+/* 🔴 Quyền KHÔNG có trong bảng QUYEN thì bỏ hẳn khỏi kho — giữ lại là để một dòng gõ nhầm nằm
+   mãi trong đó, và ngày có người khai đúng tên ấy thì nó bật lên mà chẳng ai nhớ đã khai. */
+$nl_sach = VHCC_Vai::ngoai_le();
+t( 'quyền lạ bị bỏ', ! isset( $nl_sach['vai:ky thuat']['quyen_khong_co'] ), $nl_sach );
+t( 'giá trị lạ bị bỏ', ! isset( $nl_sach['vai:ky thuat']['luong'] ), $nl_sach );
+/* ⚠️ ĐO BẰNG DANH SÁCH KHOÁ, không bằng `! isset( $nl['lung tung'] )`. Một đích rác được "nhận"
+   thì nó vào kho dưới một khoá ĐÃ CHUẨN HOÁ (`nv:LUNG TUNG`), nên khoá gốc vẫn không tồn tại và
+   phép thử kia xanh trơn. Đã phá thử để thấy. */
+teq( '🔴 kho sạch chỉ còn ĐÚNG dòng hợp lệ — đích rác không lọt dưới bất kỳ tên nào',
+	array( 'vai:ky thuat' ), array_keys( $nl_sach ) );
+teq( 'và dòng ấy chỉ giữ đúng quyền hợp lệ', array( 'may' ), array_keys( $nl_sach['vai:ky thuat'] ) );
+t( 'và Kế toán KHÔNG vì mấy dòng rác ấy mà có he_thong', ! VHCC_Vai::duoc( $dv_kt, 'he_thong' ) );
+
+/* ---- Chốt an toàn ---- */
+delete_option( VHCC_Vai::O_NGOAI_LE );
+VHCC_Vai::quen_nho_nl();
+/* 🔴 KHÔNG MỞ ĐƯỢC ĐẦU VIỆC CAO HƠN BẬC MÌNH. Thiếu chốt này thì một Kế toán mở `he_thong` cho
+   một vai, gán vai đó cho mình, và thành Admin trong ba bước không bước nào bị chối. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_kt, 'vai:Kỹ thuật', 'he_thong', 'mo' );
+t( '🔴 Kế toán KHÔNG mở được đầu việc bậc Admin', empty( $r_dv['ok'] ), $r_dv );
+t( 'và kho không có dòng nào được ghi', ! VHCC_Vai::duoc( $dv_ky, 'he_thong' ) );
+/* ⚠️ Chốt bậc áp cho CẢ chiều KHOÁ. Chỉ chặn chiều mở thì một người bậc thấp khoá được
+   `he_thong` của vai Admin — nhốt cả nhà bằng một quyền mà mình không có. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_kt, 'vai:Admin', 'he_thong', 'khoa' );
+t( '🔴 Kế toán cũng KHÔNG khoá được đầu việc bậc Admin', empty( $r_dv['ok'] ), $r_dv );
+t( 'Admin vẫn vào được cài đặt hệ thống', VHCC_Vai::duoc( $dv_ad, 'he_thong' ) );
+/* 🔴 KHÔNG KHOÁ ĐƯỢC `ho_so` — đó là chìa để mở lại chính bảng này. Khoá nó cho Admin rồi khoá
+   nốt cho Kế toán là bảng tự khoá chính nó, không đường nào gỡ trừ vào thẳng cơ sở dữ liệu. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Admin', 'ho_so', 'khoa' );
+t( '🔴 không khoá được đầu việc Hồ sơ nhân sự', empty( $r_dv['ok'] ), $r_dv );
+t( 'và nói rõ vì sao', strpos( isset( $r_dv['error'] ) ? $r_dv['error'] : '', 'chìa để mở lại' ) !== false, $r_dv );
+t( 'Admin vẫn còn ho_so', VHCC_Vai::duoc( $dv_ad, 'ho_so' ) );
+/* Mở `ho_so` thì vẫn được — chỉ chiều khoá mới là cái bẫy. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Kỹ thuật', 'ho_so', 'mo' );
+t( 'nhưng MỞ ho_so thì được', ! empty( $r_dv['ok'] ), $r_dv );
+VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Kỹ thuật', 'ho_so', '' );
+
+/* 🔴 KHÔNG TỰ KHAI CHO CHÍNH MÌNH. Chốt bậc đã chặn leo lên cao hơn, nhưng vẫn còn đường tự
+   khoá rồi tự mở lại để xoá một dòng khoá người khác đặt cho mình. Bắt đi qua người thứ hai. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DVAD', 'may', 'mo' );
+t( '🔴 không tự khai cho Mã NV của chính mình', empty( $r_dv['ok'] ), $r_dv );
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'vai:Admin', 'may', 'mo' );
+t( '🔴 cũng không tự khai cho chính vai mình', empty( $r_dv['ok'] ), $r_dv );
+/* Người khác thì khai bình thường — chốt trên không được chặn nhầm cả việc điều phối. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DVKT', 'may', 'mo' );
+t( 'khai cho người khác vẫn được', ! empty( $r_dv['ok'] ), $r_dv );
+VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DVKT', 'may', '' );
+
+/* Nhân viên thì không tới được cửa này.
+   ⚠️ Thử bằng một đầu việc BẬC 1 (`cham_online`). Thử bằng `cham_bu` (bậc 2) thì chốt BẬC bắt
+      trước, và chốt "phải có ho_so mới khai được" gỡ đi vẫn xanh — tức cửa mở toang mà bộ thử
+      không thấy. Đã phá thử để thấy. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_nv, 'vai:Kỹ thuật', 'cham_online', 'khoa' );
+t( '🔴 Nhân viên không khai được dòng nào, kể cả đầu việc bậc 1', empty( $r_dv['ok'] ), $r_dv );
+t( 'và nói rõ cần vai nào', strpos( isset( $r_dv['error'] ) ? $r_dv['error'] : '', 'Kế toán' ) !== false, $r_dv );
+t( 'Kỹ thuật vẫn tự chấm công được — không dòng nào lọt vào kho',
+	VHCC_Vai::duoc( $dv_ky, 'cham_online' ) );
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_cht_dv, 'vai:Kỹ thuật', 'cham_online', 'khoa' );
+t( '🔴 Cửa hàng trưởng cũng không', empty( $r_dv['ok'] ), $r_dv );
+
+/* Trần số dòng — quá con số này thì cái sai không còn là thiếu ngoại lệ nữa. */
+$nl_day = array();
+for ( $i_dv = 0; $i_dv < VHCC_Vai::NGOAI_LE_TOI_DA; $i_dv++ ) {
+	$nl_day[ 'nv:DAY' . $i_dv ] = array( 'cham_bu' => 'mo' );
+}
+update_option( VHCC_Vai::O_NGOAI_LE, $nl_day );
+VHCC_Vai::quen_nho_nl();
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DVKT', 'cham_bu', 'mo' );
+t( '🔴 tới trần thì chối, không ghi thêm', empty( $r_dv['ok'] ), $r_dv );
+t( 'và nói ra con số trần', strpos( isset( $r_dv['error'] ) ? $r_dv['error'] : '',
+	(string) VHCC_Vai::NGOAI_LE_TOI_DA ) !== false, $r_dv );
+/* ⚠️ SỬA một dòng ĐÃ CÓ thì vẫn phải được, kể cả khi đang đầy — không thì tới trần là không gỡ
+   nổi cái gì nữa, mà gỡ mới đúng là việc người ta cần làm lúc ấy. */
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DAY0', 'cham_bu', 'khoa' );
+t( 'nhưng sửa dòng đã có thì vẫn được dù đang đầy', ! empty( $r_dv['ok'] ), $r_dv );
+$r_dv = VHCC_Vai::dat_ngoai_le( $dv_ad, 'nv:DAY0', 'cham_bu', '' );
+t( 'và gỡ dòng thì luôn được', ! empty( $r_dv['ok'] ), $r_dv );
+
+/* ---- Màn khai trên trang /nhan-su/ ---- */
+delete_option( VHCC_Vai::O_NGOAI_LE );
+VHCC_Vai::quen_nho_nl();
+VHCC_Vai::dat_ngoai_le( array( 'role' => 'Admin', 'ma_nv' => 'ZZAD' ), 'vai:Kỹ thuật', 'may', 'mo' );
+$h_dv = vhcc_ns( 'Admin' );
+t( 'màn Quản lý nhân sự có khối Chia đầu việc', strpos( $h_dv, 'Chia đầu việc' ) !== false, $h_dv );
+t( 'khối ấy kể ra dòng đang có', strpos( $h_dv, 'Máy chấm công &amp; firmware' ) !== false, $h_dv );
+t( 'và nói rõ nó cho vai nào', strpos( $h_dv, 'Kỹ thuật' ) !== false, $h_dv );
+t( 'có ô chọn đầu việc', strpos( $h_dv, 'name="dv_quyen"' ) !== false, $h_dv );
+t( 'có ô gõ riêng Mã NV', strpos( $h_dv, 'name="dv_ma"' ) !== false, $h_dv );
+t( 'và có nút Gỡ từng dòng', strpos( $h_dv, 'value="dau_viec"' ) !== false, $h_dv );
+
+/* 🔴 Ô CHỌN CẮT Ở BẬC NGƯỜI ĐANG KHAI. Vẽ ra rồi chối là mời người ta bấm vào một việc không
+   làm được — mà lõi vẫn chặn ở tầng dưới, nên đây chỉ là chuyện không mời gọi. */
+$h_dv_kt = vhcc_ns( 'Kế toán' );
+t( 'Kế toán KHÔNG thấy dòng "Cài đặt hệ thống" trong ô chọn',
+	strpos( $h_dv_kt, '>Cài đặt hệ thống, nguồn người dùng —' ) === false, $h_dv_kt );
+t( 'nhưng vẫn thấy dòng của bậc mình', strpos( $h_dv_kt, 'Lịch nghỉ lễ' ) !== false, $h_dv_kt );
+t( 'Admin thì thấy đủ', strpos( $h_dv, 'Cài đặt hệ thống, nguồn người dùng' ) !== false, $h_dv );
+
+/* Gửi thật một lượt khai qua màn hình — lõi chạy đúng thì màn hình mới có nghĩa. */
+$h_dv2 = vhcc_ns( 'Admin', array(), array( 'viec' => 'dau_viec', 'dv_dich' => 'vai:Tạp vụ',
+	'dv_quyen' => 'cham_bu', 'dv_dat' => 'mo' ) );
+t( 'khai qua màn hình: báo xong', strpos( $h_dv2, 'Đã MỞ đầu việc' ) !== false, $h_dv2 );
+t( '🔴 và có hiệu lực thật ở lõi',
+	VHCC_Vai::duoc( array( 'role' => 'Tạp vụ', 'ma_nv' => 'DVTV2' ), 'cham_bu' ) );
+/* Ô Mã NV có gõ thì nó THẮNG ô chọn vai — người ta gõ mã vào đó là đã có ý riêng cho một người,
+   im lặng khai cho cả vai là làm ngược hẳn ý họ. */
+$h_dv3 = vhcc_ns( 'Admin', array(), array( 'viec' => 'dau_viec', 'dv_dich' => 'vai:Tạp vụ',
+	'dv_ma' => 'DVRIENG', 'dv_quyen' => 'bao_loi', 'dv_dat' => 'mo' ) );
+t( 'gõ Mã NV thì khai cho ĐÚNG người ấy', strpos( $h_dv3, 'Mã NV DVRIENG' ) !== false, $h_dv3 );
+t( 'và cả vai KHÔNG bị khai lây',
+	! VHCC_Vai::duoc( array( 'role' => 'Tạp vụ', 'ma_nv' => 'DVTV3' ), 'bao_loi' ) );
+
+/* 🔴 MÀN QUẢN TRỊ KHÔNG CÓ MỘT DÒNG SCRIPT NÀO — luật của cả hệ. */
+t( 'khối mới không kéo theo script nào', stripos( $h_dv, '<script' ) === false );
+t( 'và không có thuộc tính onXxx=', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_dv ) === 0 );
+
+/* ---- Kỹ thuật vào được ĐÚNG tab Máy, không thêm gì ---- */
+delete_option( VHCC_Vai::O_NGOAI_LE );
+VHCC_Vai::quen_nho_nl();
+VHCC_Vai::dat_ngoai_le( array( 'role' => 'Admin', 'ma_nv' => 'ZZAD' ), 'vai:Kỹ thuật', 'may', 'mo' );
+function vhcc_web_vai( $vai, $ma, $get = array() ) {
+	$_GET = $get; $_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người ' . $ma, $vai, '', $ma ) );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+$h_ky = vhcc_web_vai( 'Kỹ thuật', 'KYT1', array( 'man' => 'may' ) );
+/* 🔴 GỌI ĐÚNG TÊN VAI NGƯỜI TA ĐÃ KHAI. Đầu trang ghi "Nhân viên" cho người mang vai "Kỹ thuật"
+   là hệ đang nói một đằng, hồ sơ ghi một nẻo — và câu bị chối cũng sẽ nói sai theo. Người đọc
+   không nối được hai thứ ấy, rồi đi hỏi vì sao hệ đổi vai của mình. */
+t( '🔴 đầu trang gọi đúng tên vai tự tạo, không phải tên vai gốc',
+	strpos( $h_ky, 'Người KYT1 · Kỹ thuật' ) !== false, substr( $h_ky, 0, 900 ) );
+teq( 'nhưng BẬC vẫn là bậc của vai gốc', 1, VHCC_Vai::bac( array( 'role' => 'Kỹ thuật' ) ) );
+teq( 'vai gốc thì vẫn gọi tên gốc', 'Kế toán', VHCC_Vai::ten( array( 'role' => 'Kế toán' ) ) );
+/* ⚠️ Soi chuỗi ĐÃ ESCAPE. Tên tab in ra là `Máy &amp; Firmware` — soi `Máy & Firmware` là phép
+   thử đỏ vì dấu `&`, chẳng liên quan gì tới quyền. */
+t( '🔴 Kỹ thuật vào được tab Máy & Firmware', strpos( $h_ky, 'Máy &amp; Firmware' ) !== false, $h_ky );
+t( 'và thấy được ruột của nó', strpos( $h_ky, 'Cổng nhận từ máy' ) !== false
+	|| strpos( $h_ky, 'Firmware' ) !== false, substr( $h_ky, 0, 400 ) );
+/* 🔴 VÀ BẤM ĐƯỢC NÚT, không chỉ NHÌN được màn. Cửa POST gác riêng một lần nữa (nút không vẽ
+   chỉ là không mời; POST thì ai gửi cũng tới) — nếu cửa ấy vẫn hỏi `he_thong` thì Kỹ thuật xem
+   được mọi thứ mà bấm gì cũng bị đá ra, tức là mở cho họ một màn vô dụng. Đã phá thử để thấy:
+   trả cửa POST về `he_thong` mà bộ thử vẫn xanh. */
+$b_ky = VHCC_WebMay::viec( 'may_gan', array( 'role' => 'Kỹ thuật', 'ma_nv' => 'KYT1' ) );
+t( '🔴 Kỹ thuật BẤM được nút ở màn Máy, không chỉ nhìn',
+	! ( isset( $b_ky[0]['loi'] ) && strpos( $b_ky[0]['loi'], 'cần đầu việc' ) !== false ), $b_ky );
+$b_tv = VHCC_WebMay::viec( 'may_gan', array( 'role' => 'Tạp vụ', 'ma_nv' => 'TVU1' ) );
+t( 'vai không được khai thì cửa POST vẫn chối',
+	isset( $b_tv[0]['loi'] ) && strpos( $b_tv[0]['loi'], 'cần đầu việc' ) !== false, $b_tv );
+/* Câu chối phải chỉ đường: bảo người ta đi xin ở đâu, chứ không chỉ nói "cần bậc Admin" — nay
+   không cần lên Admin nữa, mà câu cũ vẫn bảo thế thì người ta đi xin nhầm thứ. */
+t( 'và chỉ đúng chỗ đi khai',
+	strpos( $b_tv[0]['loi'], 'Chia đầu việc' ) !== false, $b_tv );
+
+/* Người cùng bậc mà KHÔNG có dòng ngoại lệ thì vẫn bị chối — không thì cái mở ra là mở cho cả
+   công ty chứ không phải cho một vai. */
+$h_tv = vhcc_web_vai( 'Tạp vụ', 'TVU1', array( 'man' => 'may' ) );
+t( '🔴 vai khác cùng bậc KHÔNG vào được tab Máy',
+	strpos( $h_tv, 'Cổng nhận từ máy' ) === false, substr( $h_tv, 0, 400 ) );
+
+delete_option( VHCC_Vai::O_NGOAI_LE );
+delete_option( VHCC_Vai::O_THEM );
+VHCC_Vai::quen_nho();
+VHCC_Vai::quen_nho_nl();
 vhcc_dung_bang();
 
 if ( count( $truot ) ) {

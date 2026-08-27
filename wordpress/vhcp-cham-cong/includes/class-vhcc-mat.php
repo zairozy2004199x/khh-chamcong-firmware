@@ -249,8 +249,8 @@ class VHCC_Mat {
 	 * ⚠️ Chỉ Admin. Đây là lệnh bảo máy chủ đi tải tệp từ internet về thư mục mã nguồn.
 	 */
 	public static function tai_ve( $u ) {
-		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
-			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'he_thong', 'Tải thư viện nhận diện' ) );
+		if ( ! VHCC_Vai::duoc( $u, 'may' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'may', 'Tải thư viện nhận diện' ) );
 		}
 		/* ⚠️ Soi CHỖ MỚI, không hỏi `thu_vien()`. `thu_vien()` trả "đủ rồi" khi tệp còn nằm ở
 		   thư mục cũ trong plugin — mà chỗ ấy sẽ bị xoá ở lần cập nhật plugin tới. Bấm nút này
@@ -358,8 +358,8 @@ class VHCC_Mat {
 
 	/** Xoá sạch thư viện đã tải — để tải lại từ đầu khi nghi tệp hỏng. */
 	public static function xoa_thu_vien( $u ) {
-		if ( ! VHCC_Vai::duoc( $u, 'he_thong' ) ) {
-			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'he_thong', 'Xoá thư viện nhận diện' ) );
+		if ( ! VHCC_Vai::duoc( $u, 'may' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'may', 'Xoá thư viện nhận diện' ) );
 		}
 		$bo = self::bo_file();
 		$so = 0;

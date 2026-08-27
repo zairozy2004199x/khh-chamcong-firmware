@@ -111,7 +111,19 @@ class VHCC_Vai {
 		'xem_luong_hs' => self::KE_TOAN,  // ô Lương cơ bản / số tài khoản trong hồ sơ
 
 		/* --- bậc 5: admin --- */
-		'he_thong'     => self::ADMIN,    // máy chấm công, cài đặt, nguồn người dùng
+		'he_thong'     => self::ADMIN,    // cài đặt hệ thống, nguồn người dùng, xoá sạch sổ
+		'may'          => self::ADMIN,    // MÁY CHẤM CÔNG: gán máy, nạp firmware/OTA, thư viện
+		                                  // khuôn mặt, cổng nhận từ máy.
+		                                  // 🔴 TÁCH KHỎI `he_thong` (27/08/2026). Anh Thắng khi
+		                                  // chuyển /cham-cong/ thành trang dùng chung: *"Kỹ thuật
+		                                  // thì vào setup máy chấm công online"*.
+		                                  // Gộp chung thì muốn cho người dựng máy vào được phải
+		                                  // nâng họ lên Admin — mà Admin còn xoá sạch sổ hồ sơ,
+		                                  // đổi Mã NV, xem PIN người khác. Hai việc chẳng liên
+		                                  // quan gì nhau bị buộc vào một chìa khoá.
+		                                  // Mặc định VẪN là Admin, y như đang chạy — bản này
+		                                  // không nới của ai. Nới thì khai một dòng ngoại lệ ở
+		                                  // bảng dưới, có tên, có chỗ soát lại.
 		'sua_gio'      => self::ADMIN,    // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
 		                                  // ⚠️ Cố ý ĐẶT TRÊN cả `nap_cong`. Bù và nạp chỉ THÊM
 		                                  // vào ô trống; việc này ĐÈ LÊN thứ máy đã ghi, tức là
@@ -133,6 +145,227 @@ class VHCC_Vai {
 		                                  // vẫn chặn thêm khi người đó CÒN chấm công — hai
 		                                  // tầng, không thay nhau.
 	);
+
+	/**
+	 * TÊN ĐẦU VIỆC — thứ hiện ra cho người khai đọc.
+	 *
+	 * ⚠️ Khai ĐỦ mọi khoá của `QUYEN`. Thiếu một dòng thì đầu việc ấy vẫn có thật, vẫn gác thật,
+	 *    nhưng KHÔNG hiện trên bảng chia — tức là một quyền tồn tại mà không ai chia được, và
+	 *    cũng không ai biết là nó có. Bộ thử canh hai bảng khớp nhau.
+	 */
+	const VIEC_TEN = array(
+		'cham_online'  => 'Tự chấm công online',
+		'cong_minh'    => 'Xem bảng công của chính mình',
+		'cong_coso'    => 'Xem bảng công cơ sở mình',
+		'cham_bu'      => 'Chấm công bù vào ô trống',
+		'lich_lam'     => 'Lên lịch làm việc',
+		'bao_loi'      => 'Gắn cờ báo lỗi lên trên',
+		'ho_so_xem'    => 'Xem hồ sơ người cơ sở mình',
+		'cong_tat_ca'  => 'Xem bảng công MỌI cơ sở',
+		'xu_ly_loi'    => 'Kết luận / đóng cờ',
+		'nap_cong'     => 'Nạp cả tháng công từ .csv',
+		'ngoai_coso'   => 'Việc ảnh hưởng ngoài một cửa hàng',
+		'luong'        => 'Bảng lương, đơn giá, ngày công chuẩn',
+		'ngay_le'      => 'Lịch nghỉ lễ',
+		'ho_so'        => 'Hồ sơ nhân sự, cấp PIN',
+		'xem_luong_hs' => 'Ô Lương cơ bản / số tài khoản',
+		'he_thong'     => 'Cài đặt hệ thống, nguồn người dùng',
+		'may'          => 'Máy chấm công & firmware',
+		'sua_gio'      => 'SỬA ĐÈ lên giờ đã có',
+		'xem_pin'      => 'Nhìn thấy PIN người khác',
+		'doi_ma_nv'    => 'Đổi Mã NV của một người',
+		'xoa_ho_so'    => 'Xoá hẳn một hồ sơ',
+	);
+
+	/** Tên đọc được của một đầu việc; chưa khai thì trả chính khoá, đừng trả rỗng. */
+	public static function ten_viec( $quyen ) {
+		$q = (string) $quyen;
+		return isset( self::VIEC_TEN[ $q ] ) ? self::VIEC_TEN[ $q ] : $q;
+	}
+
+	/* ================================================================== ngoại lệ quyền */
+
+	/**
+	 * NGOẠI LỆ QUYỀN — chia từng đầu việc cho từng vai, từng người.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 27/08/2026, ngay sau khi chuyển `/cham-cong/` thành trang dùng chung:
+	 *   *"Chia bộ phận ai xem được từng đầu việc của mình"* — và trước đó đã kể ra ba bộ phận:
+	 *   *"Nhân viên thì vào chấm công và xem công mình · Kế toán thì vào check công tháng ·
+	 *   Kỹ thuật thì vào setup máy chấm công online"*.
+	 * =============================================================================================
+	 * 🔴 THANG VẪN LÀ LUẬT. BẢNG NÀY CHỈ GHI CHỖ LỆCH.
+	 *    Cách sai — và trông "đầy đủ" hơn — là bỏ thang đi, cho mỗi vai một bảng 20 ô tích. Đừng.
+	 *    Thang năm bậc là thứ KHÔNG CÓ TỔ HỢP NÀO LỆCH ĐƯỢC; mở ô tích rời thì tới vai thứ tư là
+	 *    có người tích cho một vai vừa xem được bảng lương vừa không xem được công cơ sở mình, và
+	 *    không ai giải thích nổi vì sao. Bảng này giữ đúng những dòng KHÁC mặc định, mỗi dòng là
+	 *    một câu đọc được: "vai Kỹ thuật — MỞ việc máy chấm công".
+	 *
+	 * 🔴 VÌ SAO KHÔNG NHÉT VÀO `VHCC_Cong`. Lớp ấy trả lời "vào được TRANG nào" — cả trang, một
+	 *    cửa. Câu hỏi ở đây nhỏ hơn một trang: trong cùng trang quản trị, ai thấy tab nào, ai bấm
+	 *    được việc nào. Và nó phải cắn ở tận `duoc()`, tức chỗ MỌI cửa đều hỏi — chỉ giấu tab đi
+	 *    thì người ta vẫn gõ thẳng địa chỉ vào được. Đặt ngay trong `VHCC_Vai` để hệ vẫn có ĐÚNG
+	 *    MỘT nơi trả lời "ai được làm gì" — đúng cái mà đầu tệp này dựng lên để chữa.
+	 *
+	 * Hình dạng: [ 'vai:<khoá tên vai>' | 'nv:<MÃ NV>' => [ '<tên quyền>' => 'mo' | 'khoa' ] ]
+	 *
+	 * ⚠️ BA TRẠNG THÁI, không phải hai: mở · khoá · chưa khai (theo thang). Dùng 1/0 rồi coi
+	 *    "không có khoá" là 0 thì không có cách nào nói "người này theo mặc định", mà không nói
+	 *    được thế thì gỡ một ngoại lệ đã đặt là không gỡ được nữa.
+	 */
+	const O_NGOAI_LE = 'vhcc_quyen_ngoai_le';
+
+	/** Trần số dòng. Quá con số này thì cái sai không còn là thiếu ngoại lệ nữa. */
+	const NGOAI_LE_TOI_DA = 60;
+
+	private static $nho_nl = null;
+
+	/** Bảng ngoại lệ đã lọc sạch: đích lạ, quyền lạ, giá trị lạ đều bị bỏ. */
+	public static function ngoai_le() {
+		if ( null === self::$nho_nl ) {
+			$ra = array();
+			foreach ( (array) get_option( self::O_NGOAI_LE ) as $dich => $ds ) {
+				$dich = self::chuan_dich( $dich );
+				if ( '' === $dich || ! is_array( $ds ) ) { continue; }
+				foreach ( $ds as $q => $v ) {
+					$q = (string) $q;
+					$v = (string) $v;
+					/* Quyền KHÔNG khai trong bảng QUYEN thì bỏ — giữ lại là để một dòng gõ nhầm
+					   nằm mãi trong kho, và ngày có người khai đúng tên ấy thì nó bật lên. */
+					if ( ! isset( self::QUYEN[ $q ] ) ) { continue; }
+					if ( 'mo' !== $v && 'khoa' !== $v ) { continue; }
+					$ra[ $dich ][ $q ] = $v;
+				}
+			}
+			self::$nho_nl = $ra;
+		}
+		return self::$nho_nl;
+	}
+
+	/**
+	 * Chuẩn hoá một ĐÍCH.
+	 *
+	 * ⚠️ Vai thì so bằng KHOÁ TÊN (bỏ dấu, hạ chữ) chứ không bằng mã bậc: hai vai tự tạo cùng gốc
+	 *    Kế toán vẫn là hai vai khác nhau, và anh Thắng tạo chúng chính là để phân biệt. So bằng
+	 *    mã bậc là mở cho "Kế toán POSH" thì "Kế toán nhân sự" cũng được — không ai muốn thế.
+	 */
+	public static function chuan_dich( $dich ) {
+		$d = trim( (string) $dich );
+		if ( 0 === strpos( $d, 'vai:' ) ) {
+			$t = self::khoa_ten( substr( $d, 4 ) );
+			return '' === $t ? '' : 'vai:' . $t;
+		}
+		if ( 0 === strpos( $d, 'nv:' ) ) {
+			$m = strtoupper( trim( substr( $d, 3 ) ) );
+			return '' === $m ? '' : 'nv:' . $m;
+		}
+		return '';
+	}
+
+	public static function quen_nho_nl() { self::$nho_nl = null; }
+
+	/**
+	 * Ngoại lệ áp cho người này với quyền này: 'mo' · 'khoa' · '' (không có).
+	 *
+	 * 🔴 NGƯỜI ĐÈ VAI. Dòng khai riêng cho một Mã NV là dòng người ta viết sau khi đã nhìn thấy
+	 *    dòng khai cho cả vai — nên nó phải thắng. Ngược lại thì gỡ quyền của đúng một người
+	 *    trong nhóm là không làm được, phải tách người ấy ra một vai riêng.
+	 */
+	public static function ngoai_le_cua( $u, $quyen ) {
+		$nl = self::ngoai_le();
+		if ( ! $nl ) { return ''; }
+		$q = (string) $quyen;
+
+		$ma = '';
+		if ( is_array( $u ) || is_object( $u ) ) {
+			$a  = (array) $u;
+			$ma = isset( $a['ma_nv'] ) ? strtoupper( trim( (string) $a['ma_nv'] ) ) : '';
+		}
+		if ( '' !== $ma && isset( $nl[ 'nv:' . $ma ][ $q ] ) ) { return $nl[ 'nv:' . $ma ][ $q ]; }
+
+		$ten = '';
+		if ( is_string( $u ) ) {
+			$ten = $u;
+		} else {
+			$a = (array) $u;
+			if ( isset( $a['role'] ) && '' !== trim( (string) $a['role'] ) ) { $ten = (string) $a['role']; }
+			elseif ( isset( $a['vai_tro'] ) ) { $ten = (string) $a['vai_tro']; }
+		}
+		$k = self::khoa_ten( $ten );
+		return ( '' !== $k && isset( $nl[ 'vai:' . $k ][ $q ] ) ) ? $nl[ 'vai:' . $k ][ $q ] : '';
+	}
+
+	/**
+	 * Khai / gỡ một dòng ngoại lệ. `$gia_tri` = 'mo' · 'khoa' · '' (gỡ dòng).
+	 *
+	 * ⚠️ Ai khai được: bậc Kế toán trở lên (cùng cửa với khai vai tự tạo). Nhưng KHÔNG mở được
+	 *    quyền cao hơn bậc của chính mình — thiếu chốt ấy thì một Kế toán mở `he_thong` cho một
+	 *    vai, gán vai đó cho mình, và thành Admin trong ba bước không bước nào bị chối.
+	 */
+	public static function dat_ngoai_le( $u, $dich, $quyen, $gia_tri ) {
+		if ( ! self::duoc( $u, 'ho_so' ) ) {
+			return array( 'ok' => false, 'error' => 'Chia đầu việc cần vai Kế toán trở lên.' );
+		}
+		$d = self::chuan_dich( $dich );
+		if ( '' === $d ) {
+			return array( 'ok' => false, 'error' => 'Đích không hợp lệ — phải là "vai:<tên vai>" hoặc "nv:<Mã NV>".' );
+		}
+		$q = (string) $quyen;
+		if ( ! isset( self::QUYEN[ $q ] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có đầu việc tên "' . $q . '".' );
+		}
+		$v = (string) $gia_tri;
+		if ( 'mo' !== $v && 'khoa' !== $v && '' !== $v ) {
+			return array( 'ok' => false, 'error' => 'Giá trị phải là mo · khoa · rỗng (theo mặc định).' );
+		}
+		/* 🔴 KHÔNG KHOÁ ĐƯỢC `ho_so` — ĐÓ LÀ CHÌA ĐỂ MỞ LẠI.
+		   Khoá `ho_so` cho vai Admin rồi khoá nốt cho Kế toán là không còn ai qua nổi cửa
+		   `dat_ngoai_le`, tức bảng này tự khoá chính nó và không đường nào gỡ trừ vào thẳng cơ
+		   sở dữ liệu. Một cái bẫy mà người khai không có cách nào biết trước khi bấm. */
+		if ( 'khoa' === $v && 'ho_so' === $q ) {
+			return array( 'ok' => false, 'error' => 'Không khoá được đầu việc "Hồ sơ nhân sự" bằng bảng '
+				. 'này — đó chính là chìa để mở lại các dòng ở đây. Muốn thu quyền ấy thì hạ vai của '
+				. 'người đó ở màn Hồ sơ.' );
+		}
+		/* ⚠️ Chốt bậc áp cho CẢ mở LẪN khoá. Chỉ chặn chiều "mở" thì một người bậc thấp (đang
+		   cầm `ho_so` nhờ chính bảng này) khoá được `he_thong` của vai Admin — nhốt cả nhà bằng
+		   một quyền mà mình không có. Ai đủ bậc LÀM việc ấy thì mới được chia hay thu việc ấy. */
+		$can = isset( self::BAC[ self::QUYEN[ $q ] ] ) ? self::BAC[ self::QUYEN[ $q ] ] : 99;
+		if ( '' !== $v && $can > self::bac( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Không chia được đầu việc cần bậc cao hơn vai của '
+				. 'chính mình (' . self::ten( $u ) . ').' );
+		}
+		/* 🔴 KHÔNG TỰ MỞ CHO CHÍNH MÌNH. Chốt trên đã chặn việc leo lên cao hơn bậc mình, nhưng
+		   vẫn còn đường tự khoá rồi tự mở lại để xoá một dòng khoá người khác đặt cho mình. Bắt
+		   đi qua người thứ hai — mất mười giây, và có hai người biết. */
+		$a  = (array) $u;
+		$ma_toi = isset( $a['ma_nv'] ) ? strtoupper( trim( (string) $a['ma_nv'] ) ) : '';
+		if ( '' !== $ma_toi && 'nv:' . $ma_toi === $d ) {
+			return array( 'ok' => false, 'error' => 'Không tự khai đầu việc cho chính mình — nhờ người khác khai.' );
+		}
+		$k_toi = self::khoa_ten( isset( $a['role'] ) ? $a['role'] : ( isset( $a['vai_tro'] ) ? $a['vai_tro'] : '' ) );
+		if ( '' !== $k_toi && 'vai:' . $k_toi === $d ) {
+			return array( 'ok' => false, 'error' => 'Không tự khai đầu việc cho chính vai mình — nhờ người khác khai.' );
+		}
+
+		$x = (array) get_option( self::O_NGOAI_LE );
+		if ( '' === $v ) {
+			unset( $x[ $d ][ $q ] );
+			if ( isset( $x[ $d ] ) && ! $x[ $d ] ) { unset( $x[ $d ] ); }
+		} else {
+			if ( ! isset( $x[ $d ] ) ) { $x[ $d ] = array(); }
+			$dem = 0;
+			foreach ( $x as $ds_x ) { $dem += count( (array) $ds_x ); }
+			if ( ! isset( $x[ $d ][ $q ] ) && $dem >= self::NGOAI_LE_TOI_DA ) {
+				return array( 'ok' => false, 'error' => 'Đã tới trần ' . self::NGOAI_LE_TOI_DA
+					. ' dòng ngoại lệ. Gỡ bớt dòng cũ, hoặc sửa vai cho đúng thay vì khai thêm ngoại lệ.' );
+			}
+			$x[ $d ][ $q ] = $v;
+		}
+		update_option( self::O_NGOAI_LE, $x );
+		self::quen_nho_nl();
+		return array( 'ok' => true, 'dich' => $d, 'quyen' => $q, 'giaTri' => $v );
+	}
 
 	/* ====================================================================== vai tự tạo */
 
@@ -375,10 +608,33 @@ class VHCC_Vai {
 		return isset( self::BAC[ $m ] ) ? self::BAC[ $m ] : 1;
 	}
 
-	/** Tên hiện ra màn hình của vai người này. */
+	/**
+	 * Tên hiện ra màn hình của vai người này.
+	 *
+	 * 🔴 VAI TỰ TẠO GIỮ TÊN CỦA NÓ. Trả tên vai GỐC thì người mang vai "Kỹ thuật" thấy đầu trang
+	 *    ghi "Nhân viên", và câu bị chối cũng nói "tài khoản của anh/chị đang là Nhân viên" —
+	 *    trong khi hồ sơ họ ghi Kỹ thuật. Người đọc không có cách nào nối hai thứ ấy lại, và đi
+	 *    hỏi vì sao hệ đổi vai của mình. Bậc thì vẫn là bậc của vai gốc; đây chỉ là chuyện GỌI
+	 *    ĐÚNG TÊN người ta đã khai.
+	 */
 	public static function ten( $u ) {
-		$m = self::cua( $u );
-		return isset( self::TEN[ $m ] ) ? self::TEN[ $m ] : self::TEN[ self::NV ];
+		$goc = self::cua( $u );
+		$them = self::them();
+		if ( $them ) {
+			$ten_u = '';
+			if ( is_string( $u ) ) {
+				$ten_u = $u;
+			} else {
+				$a = (array) $u;
+				if ( isset( $a['role'] ) && '' !== trim( (string) $a['role'] ) ) { $ten_u = (string) $a['role']; }
+				elseif ( isset( $a['vai_tro'] ) ) { $ten_u = (string) $a['vai_tro']; }
+			}
+			$k = self::khoa_ten( $ten_u );
+			foreach ( $them as $t_them => $g_them ) {
+				if ( '' !== $k && self::khoa_ten( $t_them ) === $k ) { return $t_them; }
+			}
+		}
+		return isset( self::TEN[ $goc ] ) ? self::TEN[ $goc ] : self::TEN[ self::NV ];
 	}
 
 	/**
@@ -389,6 +645,13 @@ class VHCC_Vai {
 	public static function duoc( $u, $quyen ) {
 		$q = (string) $quyen;
 		if ( ! isset( self::QUYEN[ $q ] ) ) { return false; }
+		/* 🔴 NGOẠI LỆ TRA TRƯỚC BẬC — và ở ĐÂY, không phải ở chỗ vẽ tab.
+		   Giấu tab đi mà không cắn ở `duoc()` thì người ta gõ thẳng địa chỉ vẫn vào được, và
+		   người khai tưởng mình đã khoá. Mọi cửa trong hệ đều hỏi qua hàm này — đó chính là lý
+		   do ngoại lệ phải nằm đây chứ không nằm trong lớp vẽ màn hình. */
+		$nl = self::ngoai_le_cua( $u, $q );
+		if ( 'mo' === $nl )   { return true; }
+		if ( 'khoa' === $nl ) { return false; }
 		$can = self::QUYEN[ $q ];
 		$can = isset( self::BAC[ $can ] ) ? self::BAC[ $can ] : 99;
 		return self::bac( $u ) >= $can;
