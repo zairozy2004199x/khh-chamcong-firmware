@@ -160,9 +160,16 @@ class VHCC_TrangNS {
 
 		/* 🔴 POST → CHUYỂN HƯỚNG → GET. Bấm F5 sau khi Lưu không được lưu lại lần nữa, và bộ
 		   lọc / số trang không được biến mất. Cùng luật với `VHCC_Web::phuc_vu()`. */
-		if ( ! empty( $_POST ) && isset( $_POST['viec'] ) ) {
+		/* ⚠️ NÚT ÁP CẢ CỘT KHÔNG GỬI `viec`. Một biểu mẫu chỉ gửi tên/giá trị của ĐÚNG cái nút
+		   vừa bấm — bấm nút cột thì `viec` (của nút Lưu) không có mặt. Chỉ nghe mỗi `viec` là
+		   nút cột bấm xong không xảy ra gì cả, và không có gì báo. */
+		$viec_gui = '';
+		if ( isset( $_POST['viec'] ) )     { $viec_gui = (string) wp_unslash( $_POST['viec'] ); }
+		elseif ( isset( $_POST['cot'] ) )  { $viec_gui = 'ap_cot'; }
+
+		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
 			$bao = self::ky_dung()
-				? self::lam_viec( sanitize_text_field( wp_unslash( $_POST['viec'] ) ), $toi )
+				? self::lam_viec( sanitize_text_field( $viec_gui ), $toi )
 				: array( array( 'loi' => 'Phiên đã hết hoặc biểu mẫu không hợp lệ. Tải lại trang rồi làm lại.' ) );
 			self::cat_bao( $bao );
 			self::ve( self::url_hien() );
@@ -177,14 +184,21 @@ class VHCC_TrangNS {
 	 *    chối — thấy ngay. Ngược lại là thêm một cửa không ai gác.
 	 */
 	public static function lam_viec( $viec, $toi ) {
-		if ( 'luu_quyen' === $viec )  { return self::viec_luu( $toi ); }
+		if ( 'luu_quyen' === $viec )   { return self::viec_luu( $toi ); }
+		if ( 'ap_cot' === $viec )      { return self::viec_cot( $toi ); }
 		if ( 'go_ngoai_le' === $viec ) { return self::viec_go( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
-	private static function viec_luu( $toi ) {
+	/**
+	 * Đọc bảng ô quyền từ biểu mẫu, đã rửa sạch.
+	 *
+	 * ⚠️ Tách ra vì CẢ HAI nút — Lưu và Áp cả cột — đều gửi lên cùng một bảng `o[]`. Đọc riêng
+	 *    mỗi chỗ một kiểu là sớm muộn hai chỗ rửa khác nhau.
+	 */
+	private static function doc_o() {
 		$o = isset( $_POST['o'] ) ? wp_unslash( $_POST['o'] ) : array();
-		if ( ! is_array( $o ) ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
+		if ( ! is_array( $o ) ) { return array(); }
 		$sach = array();
 		foreach ( $o as $ma => $cac ) {
 			if ( ! is_array( $cac ) ) { continue; }
@@ -194,11 +208,57 @@ class VHCC_TrangNS {
 				$sach[ $ma_s ][ sanitize_key( (string) $trang ) ] = sanitize_text_field( (string) $dat );
 			}
 		}
+		return $sach;
+	}
+
+	private static function viec_luu( $toi ) {
+		$sach = self::doc_o();
+		if ( ! $sach ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		$doi = (int) $kq['doi'];
 		if ( ! $doi ) { return array( array( 'canh' => 'Không có ô nào đổi — chưa lưu gì.' ) ); }
 		return array( array( 'ok' => 'Đã lưu ' . $doi . ' ô quyền vào trang.' ) );
+	}
+
+	/**
+	 * ÁP MỘT GIÁ TRỊ CHO CẢ MỘT CỘT — những người đang hiện trên màn.
+	 *
+	 * 🔴 ĐÈ LÊN BẢNG VỪA GỬI, KHÔNG THAY NÓ. Người ta có thể đã bấm tay vài ô ở cột KHÁC rồi
+	 *    mới bấm nút cột này. Bỏ `o[]` đi mà chỉ ghi mỗi cột được bấm thì mấy ô kia im lặng
+	 *    mất — người dùng thấy nút mình bấm chạy đúng, nên không ai nghĩ tới chuyện đi kiểm
+	 *    lại mấy ô đã đổi trước đó.
+	 *
+	 * ⚠️ Danh sách người lấy từ CHÍNH `o[]` chứ không phải một ô ẩn riêng: `o[]` vốn đã có đúng
+	 *    những người đang hiện, nên không cần cuốn sổ thứ hai để rồi lệch với cuốn thứ nhất.
+	 */
+	private static function viec_cot( $toi ) {
+		$gui = isset( $_POST['cot'] ) ? sanitize_text_field( wp_unslash( $_POST['cot'] ) ) : '';
+		$phan = explode( '|', $gui, 2 );
+		$trang = sanitize_key( isset( $phan[0] ) ? $phan[0] : '' );
+		$dat   = isset( $phan[1] ) ? (string) $phan[1] : '';
+		if ( ! in_array( $dat, array( 'mo', 'khoa', '' ), true ) ) {
+			return array( array( 'loi' => 'Chỉ nhận: mo · khoa · (trống).' ) );
+		}
+		if ( ! VHCC_Cong::co( $trang ) ) {
+			return array( array( 'loi' => 'Không có trang "' . $trang . '" trên site này.' ) );
+		}
+		$sach = self::doc_o();
+		if ( ! $sach ) { return array( array( 'loi' => 'Không có người nào đang hiện để áp.' ) ); }
+		foreach ( $sach as $ma => $cac ) { $sach[ $ma ][ $trang ] = $dat; }
+
+		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		$ten = VHCC_Cong::ds();
+		$ten = isset( $ten[ $trang ]['ten'] ) ? $ten[ $trang ]['ten'] : $trang;
+		$nhan = ( 'mo' === $dat ) ? 'Mở' : ( ( 'khoa' === $dat ) ? 'Khoá' : 'Theo vai' );
+		$doi  = (int) $kq['doi'];
+		if ( ! $doi ) {
+			return array( array( 'canh' => 'Cột "' . $ten . '" vốn đã là «' . $nhan . '» cho '
+				. count( $sach ) . ' người đang hiện — không có gì đổi.' ) );
+		}
+		return array( array( 'ok' => 'Đã đặt «' . $nhan . '» cho cột "' . $ten . '" — '
+			. $doi . ' ô đổi trên ' . count( $sach ) . ' người đang hiện.' ) );
 	}
 
 	private static function viec_go( $toi ) {
@@ -226,13 +286,52 @@ class VHCC_TrangNS {
 	/** Vài luật riêng của màn này — phần còn lại dùng chung với trang quản trị. */
 	private static function css_them() {
 		return '.o-vai{color:var(--mo)}'
-			/* Ba trạng thái ba màu: theo vai (nhạt) · mở (lục) · khoá (đỏ). Màu ở đây là để
-			   LIẾC RA NGAY dòng nào khác mặc định giữa 350 ô — không phải trang trí. */
-			. 'select.o-q{padding:4px 6px;font-size:12.5px;border-radius:6px}'
-			. 'select.o-q.mo{background:#f0fdf4;border-color:#86efac;color:#15803d;font-weight:600}'
-			. 'select.o-q.khoa{background:#fef2f2;border-color:#fca5a5;color:var(--do);font-weight:600}'
-			. 'td.o-q-td{text-align:center}'
-			. 'th.tr-doc{white-space:normal;min-width:118px}'
+			/* ==============================================================================
+			 * BA NÚT BẤM LIỀN NHAU, KHÔNG PHẢI Ô XỔ
+			 * ==============================================================================
+			 * Anh Thắng 27/08/2026: *"dạng tích chọn cho nhanh được không"*. Anh đúng: ô xổ
+			 * tốn HAI lần bấm cho mỗi ô — mở ra, rồi chọn — mà một màn có tới 150 ô.
+			 *
+			 * 🔴 NHƯNG KHÔNG PHẢI Ô TÍCH ☑. Ô tích chỉ có HAI trạng thái, mà ô này có BA:
+			 *    theo vai · mở · khoá. Ép xuống hai là mất đúng cái trạng thái "theo vai" —
+			 *    mà mất nó thì gỡ một ngoại lệ đã đặt là không gỡ được nữa, và cả bảng biến
+			 *    thành 700 ô phải tích tay thay vì mấy dòng ngoại lệ.
+			 *
+			 * Nên: ba `radio` nằm liền nhau, trông như một dải nút. Một lần bấm là xong, giữ
+			 * đủ ba trạng thái, và vẫn KHÔNG một dòng script nào.
+			 * ============================================================================== */
+			. '.ba{display:inline-flex;vertical-align:middle}'
+			/* Ẩn chấm tròn nhưng KHÔNG dùng `display:none` — ẩn kiểu ấy là bàn phím không tab
+			   tới được và trình đọc màn hình cũng không thấy. Đẩy ra khỏi tầm nhìn thì nó vẫn
+			   là một ô chọn thật. */
+			. '.ba input{position:absolute;opacity:0;width:1px;height:1px;margin:0}'
+			. '.ba label{display:block;margin:0}'
+			. '.ba span{display:block;padding:4px 9px;font-size:12px;line-height:1.2;cursor:pointer;'
+			. 'border:1px solid #cbd5e1;background:#fff;color:var(--mo);white-space:nowrap;'
+			. '-webkit-user-select:none;user-select:none}'
+			. '.ba label:first-child span{border-radius:6px 0 0 6px}'
+			. '.ba label:last-child span{border-radius:0 6px 6px 0}'
+			. '.ba label+label span{border-left:0}'
+			. '.ba span:hover{background:#f1f5f9}'
+			/* Ba trạng thái ba màu: theo vai (xám) · mở (lục) · khoá (đỏ). Màu ở đây là để
+			   LIẾC RA NGAY dòng nào khác mặc định giữa hàng trăm ô — không phải trang trí. */
+			. '.ba input:checked+span{background:#e2e8f0;color:var(--chu);font-weight:600;'
+			. 'box-shadow:inset 0 0 0 1px #94a3b8}'
+			. '.ba input.v-mo:checked+span{background:#dcfce7;color:#15803d;box-shadow:inset 0 0 0 1px #16a34a}'
+			. '.ba input.v-khoa:checked+span{background:#fee2e2;color:var(--do);box-shadow:inset 0 0 0 1px #dc2626}'
+			/* Viền khi đi bằng bàn phím. Thiếu nó là tab qua cả bảng mà không biết đang ở ô nào. */
+			. '.ba input:focus-visible+span{outline:2px solid var(--xanh);outline-offset:1px;'
+			. 'position:relative;z-index:1}'
+			. 'td.o-q-td{text-align:center;padding:4px 6px}'
+			. 'th.tr-doc{white-space:normal;min-width:150px}'
+			/* Nút áp cả cột nằm ngay dưới tên cột — nhỏ và nhạt, để không tranh chỗ với tên. */
+			. '.cot-nut{display:inline-flex;margin-top:5px;font-weight:400}'
+			. '.cot-nut button{padding:2px 7px;font-size:11px;font-weight:600;border:1px solid #cbd5e1;'
+			. 'background:#fff;border-radius:0;color:var(--mo)}'
+			. '.cot-nut button:first-child{border-radius:5px 0 0 5px}'
+			. '.cot-nut button:last-child{border-radius:0 5px 5px 0}'
+			. '.cot-nut button+button{border-left:0}'
+			. '.cot-nut button:hover{background:#f1f5f9;color:var(--chu)}'
 			. '.chua-ma{color:var(--do);font-size:12px}';
 	}
 
@@ -386,7 +485,21 @@ class VHCC_TrangNS {
 		echo self::o_loc();
 		echo '<div class="cuon"><table><thead><tr>';
 		echo '<th>Mã NV</th><th>Họ tên</th><th>Cơ sở</th><th>Vai trò</th>';
-		foreach ( $ds_trang as $t ) { echo '<th class="tr-doc">' . esc_html( $t['ten'] ) . '</th>'; }
+		/* 🔴 NÚT ÁP CẢ CỘT — thứ thật sự tiết kiệm thời gian. Anh Thắng: *"cho nhanh"*. Đổi ô
+		   xổ thành nút bấm mới bớt được một lần bấm mỗi ô; còn khoá cả một cơ sở cho một trang
+		   thì vẫn là 50 lần bấm. Nút này làm cả cột trong MỘT lần.
+		   ⚠️ Chỉ áp cho người ĐANG HIỆN — cùng luật với nút Lưu. Bảng có lọc và phân trang, nên
+		      "cả cột" nghĩa là cả cột của lát cắt này, không phải của 240 người. */
+		foreach ( $ds_trang as $k_t => $t ) {
+			echo '<th class="tr-doc">' . esc_html( $t['ten'] ) . '<br>';
+			echo '<span class="cot-nut">';
+			foreach ( array( '' => 'vai', 'mo' => 'Mở', 'khoa' => 'Khoá' ) as $gt => $ten ) {
+				echo '<button type="submit" name="cot" value="' . esc_attr( $k_t . '|' . $gt ) . '"'
+					. ' title="Áp «' . esc_attr( $ten ) . '» cho tất cả người đang hiện, rồi lưu luôn">'
+					. esc_html( $ten ) . '</button>';
+			}
+			echo '</span></th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		foreach ( $lat as $r ) {
@@ -408,21 +521,13 @@ class VHCC_TrangNS {
 				/* Mặc định THEO VAI — tính với người KHÔNG mang ngoại lệ, nên phải hỏi thẳng
 				   `VHCC_Vai`, không gọi `duoc_vao()` (nó đã tính cả ngoại lệ vào rồi). */
 				$mac  = VHCC_Vai::duoc( $gia, $t['quyen'] );
-				$nhan = 'Theo vai (' . ( $mac ? 'vào được' : 'không' ) . ')';
-				$lop  = ( 'mo' === $dat || 'khoa' === $dat ) ? ' ' . $dat : '';
 				/* ⚠️ Không có mã NV thì ngoại lệ không bám vào đâu được — thẻ phiên mang mã
 				   rỗng, nên `duoc_vao()` bỏ qua sạch. Nói ra, đừng vẽ một ô chọn vô tác dụng. */
 				if ( '' === $ma ) {
 					echo '<td class="o-q-td"><span class="chua-ma">chưa có Mã NV</span></td>';
 					continue;
 				}
-				echo '<td class="o-q-td"><select class="o-q' . $lop . '" name="o['
-					. esc_attr( $ma ) . '][' . esc_attr( $k ) . ']">';
-				foreach ( array( '' => $nhan, 'mo' => 'Mở', 'khoa' => 'Khoá' ) as $gt => $ten ) {
-					echo '<option value="' . esc_attr( $gt ) . '"' . selected( $dat, $gt, false ) . '>'
-						. esc_html( $ten ) . '</option>';
-				}
-				echo '</select></td>';
+				echo '<td class="o-q-td">' . self::ba_nut( $ma, $k, $dat, $mac ) . '</td>';
 			}
 			echo '</tr>';
 		}
@@ -435,6 +540,43 @@ class VHCC_TrangNS {
 
 		self::thanh_trang( $p, $so_tr, $tong );
 		echo '</div>';
+	}
+
+	/**
+	 * MỘT Ô QUYỀN — ba nút bấm liền nhau thay cho ô xổ.
+	 *
+	 * @param string $ma  Mã NV — cũng là thứ làm tên trường, nên phải khác rỗng.
+	 * @param string $k   Khoá trang.
+	 * @param string $dat Đang đặt: '' | 'mo' | 'khoa'.
+	 * @param bool   $mac Theo vai thì người này CÓ vào được không — để in ✓ hay ✕ lên nút đầu.
+	 *
+	 * ⚠️ NÚT ĐẦU PHẢI NÓI RA THEO VAI LÀ VÀO ĐƯỢC HAY KHÔNG. Chỉ viết "vai" thì cả cột trông
+	 *    giống hệt nhau, và người khai không biết bỏ ô ấy ở mặc định thì người ta vào được hay
+	 *    không — tức là không quyết được có cần ngoại lệ hay không, đúng câu hỏi họ mở trang
+	 *    này ra để trả lời.
+	 *
+	 * ⚠️ `id` phải DUY NHẤT trong cả trang: `<label>` bọc `<input>` thì bấm vào chữ là trúng ô,
+	 *    nhưng trùng `id` là trình duyệt nhảy về ô ĐẦU TIÊN mang id ấy — bấm ở hàng 40 mà đổi
+	 *    hàng 1. Ghép cả mã lẫn khoá trang, rồi băm cho sạch ký tự lạ.
+	 */
+	private static function ba_nut( $ma, $k, $dat, $mac ) {
+		$goc = 'q' . substr( md5( $ma . '|' . $k ), 0, 10 );
+		$h   = '<span class="ba">';
+		$cac = array(
+			''     => array( 'ten' => 'vai ' . ( $mac ? '✓' : '✕' ), 'lop' => 'v-vai',
+				'chu' => 'Theo vai — ' . ( $mac ? 'vai hiện tại vào được' : 'vai hiện tại không vào được' ) ),
+			'mo'   => array( 'ten' => 'Mở',   'lop' => 'v-mo',   'chu' => 'Mở riêng cho người này, dù vai chưa tới' ),
+			'khoa' => array( 'ten' => 'Khoá', 'lop' => 'v-khoa', 'chu' => 'Khoá riêng người này, dù vai đã đủ' ),
+		);
+		foreach ( $cac as $gt => $c ) {
+			$id = $goc . ( '' === $gt ? 'v' : $gt );
+			$h .= '<label for="' . esc_attr( $id ) . '" title="' . esc_attr( $c['chu'] ) . '">'
+				. '<input type="radio" id="' . esc_attr( $id ) . '" class="' . esc_attr( $c['lop'] ) . '"'
+				. ' name="o[' . esc_attr( $ma ) . '][' . esc_attr( $k ) . ']"'
+				. ' value="' . esc_attr( $gt ) . '"' . checked( $dat, $gt, false ) . '>'
+				. '<span>' . esc_html( $c['ten'] ) . '</span></label>';
+		}
+		return $h . '</span>';
 	}
 
 	private static function o_tim( $cs, $q, $vai ) {

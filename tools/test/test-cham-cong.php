@@ -7936,6 +7936,114 @@ t( '🔴 đặt chốt một-giờ TRƯỚC khi bật cờ nạp lại — đặ
 	strpos( $dd_than, "set_transient( 'vhcc_da_nap_duong'" )
 		< strpos( $dd_than, "update_option( 'vhcc_flush_rewrite', 1 )" ), $dd_than );
 
+/* ---- 60n. Ô QUYỀN LÀ BA NÚT BẤM, KHÔNG PHẢI Ô XỔ ----
+   Anh Thắng 27/08/2026: *"dạng tích chọn cho nhanh được không"*. Ô xổ tốn HAI lần bấm mỗi ô
+   (mở ra, rồi chọn) mà một màn có tới 150 ô.
+
+   🔴 NHƯNG KHÔNG PHẢI Ô TÍCH ☑. Ô tích chỉ có HAI trạng thái, ô này có BA. Ép xuống hai là
+   mất trạng thái "theo vai" — mà mất nó thì gỡ một ngoại lệ đã đặt là không gỡ được nữa. */
+delete_option( VHCC_Cong::O );
+$nt_h = vhcc_ns( 'Kế toán' );
+t( '🔴 ô quyền là radio, không còn ô xổ', strpos( $nt_h, '<select class="o-q' ) === false );
+t( 'ô quyền dùng radio', strpos( $nt_h, 'type="radio"' ) !== false );
+foreach ( array( 'value=""' => 'theo vai', 'value="mo"' => 'mở', 'value="khoa"' => 'khoá' ) as $nt_v => $nt_ten ) {
+	t( 'vẫn đủ ba trạng thái — có nút "' . $nt_ten . '"', strpos( $nt_h, $nt_v ) !== false );
+}
+/* 🔴 Nút đầu phải NÓI RA theo vai là vào được hay không. Chỉ viết "vai" thì cả cột trông giống
+   hệt nhau, và người khai không quyết được có cần đặt ngoại lệ hay không — đúng câu hỏi họ mở
+   trang này ra để trả lời. */
+t( '🔴 nút "theo vai" in ra ✓ hoặc ✕, không chỉ mỗi chữ "vai"',
+	strpos( $nt_h, 'vai ✓' ) !== false || strpos( $nt_h, 'vai ✕' ) !== false, $nt_h );
+
+/* ⚠️ `id` phải DUY NHẤT: `<label for=…>` mà trùng id thì bấm ở hàng 40 lại đổi hàng 1 — người
+   dùng thấy có gì đó nhảy, nhưng không thấy mình vừa sửa nhầm hồ sơ của ai. */
+if ( preg_match_all( '/<input type="radio" id="([^"]+)"/', $nt_h, $nt_m ) ) {
+	teq( '🔴 mọi id của nút quyền đều DUY NHẤT trong trang',
+		count( $nt_m[1] ), count( array_unique( $nt_m[1] ) ) );
+	t( 'và có kha khá nút (bảng đang có người)', count( $nt_m[1] ) >= 3, count( $nt_m[1] ) );
+	/* Mỗi <label for=…> phải trỏ tới một id CÓ THẬT — trỏ hụt là bấm vào chữ không ăn gì. */
+	$nt_thieu = 0;
+	if ( preg_match_all( '/<label for="([^"]+)"/', $nt_h, $nt_l ) ) {
+		foreach ( $nt_l[1] as $nt_id ) { if ( ! in_array( $nt_id, $nt_m[1], true ) ) { $nt_thieu++; } }
+	}
+	teq( 'mọi nhãn đều trỏ tới một ô có thật', 0, $nt_thieu );
+} else {
+	t( 'dò được nút quyền trong trang', false, $nt_h );
+}
+
+/* ---- 60o. NÚT ÁP CẢ CỘT ----
+   Đổi ô xổ thành nút mới bớt được MỘT lần bấm mỗi ô; khoá cả một cơ sở cho một trang vẫn là 50
+   lần bấm. Nút này làm cả cột trong một lần. */
+t( 'đầu mỗi cột có nút áp cả cột', strpos( $nt_h, 'name="cot" value="tram|khoa"' ) !== false, $nt_h );
+t( 'và nút đưa cả cột về theo vai', strpos( $nt_h, 'name="cot" value="tram|"' ) !== false );
+
+/* 🔴 NÚT CỘT KHÔNG GỬI `viec`. Một biểu mẫu chỉ gửi tên/giá trị của ĐÚNG cái nút vừa bấm — bấm
+   nút cột thì `viec` (của nút Lưu) không có mặt. Chỉ nghe mỗi `viec` là nút cột bấm xong không
+   xảy ra gì cả, và không có gì báo. */
+function vhcc_ns_cot( $cot, $o ) {
+	$_GET = array(); $_POST = array();
+	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người Khai', 'Kế toán', 'TUTU_BT', 'QN3' );
+	$_POST = array( 'cot' => $cot, 'o' => $o, 'ky' => VHCC_Web::chu_ky( $_COOKIE[ VHCC_Web::COOKIE ] ) );
+	ob_start(); VHCC_TrangNS::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_COOKIE = array();
+	return $h;
+}
+delete_option( VHCC_Cong::O );
+VHCC_Cong::dat( array( 'role' => 'Admin' ), 'NGOAI', 'tram', 'mo' );   // người ở trang khác
+vhcc_ns_cot( 'tram|khoa', array(
+	'C1' => array( 'tram' => '', 'cham_cong' => '' ),
+	'C2' => array( 'tram' => '', 'cham_cong' => '' ),
+) );
+teq( '🔴 bấm nút cột (không có `viec`) VẪN chạy — C1 bị khoá', 'khoa', VHCC_Cong::o( 'C1', 'tram' ) );
+teq( 'và C2 cũng vậy', 'khoa', VHCC_Cong::o( 'C2', 'tram' ) );
+teq( '🔴 người KHÔNG đang hiện thì không bị đụng', 'mo', VHCC_Cong::o( 'NGOAI', 'tram' ) );
+teq( 'cột khác của chính người ấy cũng không bị đụng', '', VHCC_Cong::o( 'C1', 'cham_cong' ) );
+
+/* 🔴 ĐÈ LÊN BẢNG VỪA GỬI, KHÔNG THAY NÓ. Người ta có thể đã bấm tay vài ô ở cột KHÁC rồi mới
+   bấm nút cột. Bỏ `o[]` đi mà chỉ ghi mỗi cột được bấm thì mấy ô kia im lặng mất — mà nút vừa
+   bấm thì chạy đúng, nên không ai nghĩ tới chuyện đi kiểm lại. */
+delete_option( VHCC_Cong::O );
+vhcc_ns_cot( 'tram|khoa', array( 'C3' => array( 'tram' => '', 'cham_cong' => 'mo' ) ) );
+teq( 'nút cột áp đúng cột của nó', 'khoa', VHCC_Cong::o( 'C3', 'tram' ) );
+teq( '🔴 và GIỮ ô người ta vừa bấm tay ở cột khác', 'mo', VHCC_Cong::o( 'C3', 'cham_cong' ) );
+
+/* Đưa cả cột về theo vai — đường gỡ nhanh, phải xoá hẳn khoá chứ không để ô rỗng. */
+vhcc_ns_cot( 'tram|', array( 'C3' => array( 'tram' => 'khoa', 'cham_cong' => 'mo' ) ) );
+teq( 'nút "vai" đưa cả cột về mặc định', '', VHCC_Cong::o( 'C3', 'tram' ) );
+
+/* ---- Trang lạ và giá trị lạ: PHÒNG THỦ HAI TẦNG, và mỗi tầng có việc RIÊNG ----
+   ⚠️ Chỗ này em viết hụt một lần rồi, tìm ra khi phá thử. Bản đầu chỉ soi cuốn sổ: "bấm nút
+   cột với trang lạ thì sổ vẫn sạch". Phép thử ấy XANH kể cả khi bỏ hẳn chốt ở `viec_cot` —
+   vì `VHCC_Cong::luu_nhieu()` bên dưới cũng bỏ qua trang lạ, nên sổ sạch nhờ TẦNG DƯỚI chứ
+   không nhờ cái chốt đang được kiểm. Phép thử khen nhầm người.
+
+   Hai tầng đều cần, và mỗi tầng giữ một thứ khác nhau:
+     • `luu_nhieu()` giữ CUỐN SỔ — không bao giờ ghi rác, dù ai gọi vào bằng đường nào.
+     • `viec_cot()` giữ CÂU BÁO — nói thẳng "không có trang đó" thay vì "không có gì đổi".
+   Bỏ chốt trên thì người khai bấm nút, nhận về "không có gì đổi", và không đoán ra vì sao.
+   Nên soi cả hai: sổ sạch, VÀ câu báo đúng. */
+delete_option( VHCC_Cong::O );
+$nt_b = vhcc_ns_cot( 'trang_ma|khoa', array( 'C4' => array( 'tram' => '' ) ) );
+teq( 'nút cột trỏ vào trang không có thì không ghi gì', '', VHCC_Cong::o( 'C4', 'tram' ) );
+t( '🔴 và NÓI RÕ là không có trang đó, không phải "không có gì đổi"',
+	strpos( $nt_b, 'Không có trang' ) !== false, $nt_b );
+$nt_b = vhcc_ns_cot( 'tram|xoa_het', array( 'C4' => array( 'tram' => '' ) ) );
+teq( 'giá trị lạ cũng không ghi gì', '', VHCC_Cong::o( 'C4', 'tram' ) );
+t( '🔴 và nói rõ chỉ nhận mo · khoa · trống',
+	strpos( $nt_b, 'Chỉ nhận' ) !== false, $nt_b );
+$nt_bang = get_option( VHCC_Cong::O );
+t( 'sổ vẫn sạch sau hai lượt sửa tay biểu mẫu', empty( $nt_bang ), $nt_bang );
+
+/* Chốt quyền vẫn nguyên ở đường nút cột — không phải chỉ ở nút Lưu. */
+$_GET = array(); $_POST = array();
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Nhân', 'Nhân viên', 'TUTU_BT', 'QN1' );
+$_POST = array( 'cot' => 'tram|khoa', 'o' => array( 'C5' => array( 'tram' => '' ) ),
+	'ky' => VHCC_Web::chu_ky( $_COOKIE[ VHCC_Web::COOKIE ] ) );
+ob_start(); VHCC_TrangNS::phuc_vu(); ob_get_clean();
+$_POST = array(); $_COOKIE = array();
+teq( '🔴 Nhân viên bấm nút cột cũng không ghi được gì', '', VHCC_Cong::o( 'C5', 'tram' ) );
+delete_option( VHCC_Cong::O );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
