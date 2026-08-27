@@ -140,10 +140,18 @@ class VHCC_Cham {
 		/* Dựng chỗ trống cho câu truy vấn theo ĐÚNG số mã, đừng nối chuỗi mã vào câu lệnh. */
 		$ds  = array_keys( $ma );
 		$cho = implode( ',', array_fill( 0, count( $ds ), '%s' ) );
+		/* 🔴 LOẠI CẢ CHÙM, KHÔNG CHỈ MÃ CHÍNH. Cơ sở đã ghép vào bảng này (ca đêm `SETUP_VP` của
+		   Văn phòng chẳng hạn) KHÔNG phải "cơ sở khác": công của nó đã nằm trong chính bảng đang
+		   xem. Để nó lọt vào đây là ngày ấy vừa được cộng vào TỔNG, vừa hiện thêm một dòng xám
+		   nói "chỗ khác" — người đọc thấy hai lần một ngày công và không biết tin cái nào. */
+		$chum = method_exists( 'VHCC_Luong', 'chum_cua' )
+			? VHCC_Luong::chum_cua( $coso ) : array( $coso );
+		if ( ! $chum ) { $chum = array( $coso ); }
+		$cho_cs = implode( ',', array_fill( 0, count( $chum ), '%s' ) );
 		$sql = 'SELECT ngay, ma_nv, coso, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
-			. ' WHERE ngay LIKE %s AND coso <> %s AND hau_to = %s AND UPPER(ma_nv) IN (' . $cho . ')'
-			. ' ORDER BY ngay, ma_nv';
-		$tham = array_merge( array( $tt . '-%', $coso, '' ), $ds );
+			. ' WHERE ngay LIKE %s AND coso NOT IN (' . $cho_cs . ') AND hau_to = %s'
+			. ' AND UPPER(ma_nv) IN (' . $cho . ') ORDER BY ngay, ma_nv';
+		$tham = array_merge( array( $tt . '-%' ), $chum, array( '' ), $ds );
 		$out  = array();
 		foreach ( VHCC_DB::rows( $wpdb->prepare( $sql, $tham ) ) as $r ) {
 			$m = strtoupper( trim( (string) $r['ma_nv'] ) );

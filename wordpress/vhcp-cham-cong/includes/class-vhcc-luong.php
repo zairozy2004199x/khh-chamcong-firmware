@@ -224,6 +224,127 @@ class VHCC_Luong {
 		return array( 'ok' => true, 'so_khai' => $so, 'so_co_so' => count( $m ) );
 	}
 
+	// =============================================================================================
+	//  CƠ SỞ GHÉP CHUNG BẢNG CÔNG
+	// =============================================================================================
+	/**
+	 * Anh Thắng 27/08/2026: *"muốn ghép 2 bảng công lại thì như nào, vì VP_HCM có công SETUP
+	 * (tức công đêm đó em)"*.
+	 *
+	 * Ca đêm của Văn phòng HCM được chấm vào một MÃ CƠ SỞ RIÊNG (`SETUP_VP`), nên engine coi nó
+	 * là một cơ sở và dựng cho nó một bảng công riêng. Nhưng nó không phải một nơi làm việc
+	 * khác: cùng người, cùng bảng lương, chỉ khác ca. Để hai bảng là mỗi tháng phải mở hai chỗ
+	 * rồi cộng tay — mà cộng tay bảng lương là chỗ sinh lỗi đắt nhất.
+	 *
+	 * 🔴 KHÁC HẲN "CƠ SỞ KHÁC" (`ngay_o_coso_khac`). Cơ sở khác là nơi làm việc THẬT SỰ khác:
+	 *    đơn giá khác, bảng lương khác, nên công của nó bày ra để nhìn mà KHÔNG cộng vào. Cơ sở
+	 *    GHÉP thì ngược lại — nó là một phần của chính bảng này, nên phải CỘNG VÀO. Trộn hai
+	 *    khái niệm là hoặc trả thiếu tiền (không cộng thứ đáng cộng), hoặc trả thừa (cộng thứ
+	 *    thuộc bảng của người khác).
+	 *
+	 * 🔴 MỘT CẤP, KHÔNG DÂY CHUYỀN. A ghép vào B, B ghép vào C thì công của A rơi vào đâu là
+	 *    câu không ai trả lời được chắc — và nếu ai đó khai vòng (A→B, B→A) thì bảng chạy vô
+	 *    hạn. `dat_ghep()` chặn cả hai: đích phải là cơ sở CHƯA ghép đi đâu, và cơ sở đã có
+	 *    người ghép vào thì không được ghép tiếp.
+	 */
+	const GHEP_O = 'COSO_GHEP';
+
+	/** [ cơ sở PHỤ => cơ sở CHÍNH ]. */
+	public static function ban_do_ghep() {
+		$m = self::cai_dat( self::GHEP_O, array() );
+		if ( ! is_array( $m ) ) { return array(); }
+		$out = array();
+		foreach ( $m as $phu => $chinh ) {
+			$phu   = VHCC_NhanSu::chuan_coso( $phu );
+			$chinh = VHCC_NhanSu::chuan_coso( $chinh );
+			if ( '' !== $phu && '' !== $chinh && 0 !== strcasecmp( $phu, $chinh ) ) {
+				$out[ $phu ] = $chinh;
+			}
+		}
+		return $out;
+	}
+
+	/** Cơ sở này ghép vào đâu — '' nếu nó đứng riêng. */
+	public static function ghep_vao( $coso ) {
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		foreach ( self::ban_do_ghep() as $phu => $chinh ) {
+			if ( 0 === strcasecmp( $phu, $coso ) ) { return $chinh; }
+		}
+		return '';
+	}
+
+	/** Những cơ sở PHỤ đang ghép vào cơ sở này. */
+	public static function phu_cua( $coso ) {
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$out  = array();
+		foreach ( self::ban_do_ghep() as $phu => $chinh ) {
+			if ( 0 === strcasecmp( $chinh, $coso ) ) { $out[] = $phu; }
+		}
+		sort( $out );
+		return $out;
+	}
+
+	/**
+	 * Cả CHÙM cơ sở của một bảng công: chính nó + mọi cơ sở phụ ghép vào.
+	 *
+	 * Dùng ở mọi chỗ đọc dữ liệu của "bảng công cơ sở X". Trả về mảng LUÔN có ít nhất một phần
+	 * tử (chính nó), nên chỗ gọi không phải viết hai nhánh.
+	 */
+	public static function chum_cua( $coso ) {
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		if ( '' === $coso ) { return array(); }
+		return array_merge( array( $coso ), self::phu_cua( $coso ) );
+	}
+
+	/**
+	 * Khai ghép. `$dat` = [ cơ sở PHỤ => cơ sở CHÍNH ]; giá trị rỗng = BỎ ghép.
+	 *
+	 * Trả về `bo_qua` kể đích danh dòng nào không nhận và vì sao — khai một bảng ghép mà im lặng
+	 * bỏ một dòng là cuối tháng thiếu công của cả một ca, và màn hình đã báo "đã lưu".
+	 */
+	public static function dat_ghep( $u, $dat ) {
+		if ( ! VHCC_Vai::duoc( $u, 'ngoai_coso' ) ) {
+			return array( 'ok' => false,
+				'error' => 'Ghép bảng công của hai cơ sở cần quyền Quản lý trở lên — nó đổi con số ra tiền.' );
+		}
+		$m      = self::ban_do_ghep();
+		$bo_qua = array();
+		foreach ( (array) $dat as $phu => $chinh ) {
+			$phu   = VHCC_NhanSu::chuan_coso( $phu );
+			$chinh = VHCC_NhanSu::chuan_coso( $chinh );
+			if ( '' === $phu ) { continue; }
+			if ( '' === $chinh ) { unset( $m[ $phu ] ); continue; }   // bỏ ghép
+			if ( 0 === strcasecmp( $phu, $chinh ) ) {
+				$bo_qua[] = $phu . ': không ghép một cơ sở vào chính nó.';
+				continue;
+			}
+			/* 🔴 MỘT CẤP. Đích đang ghép đi nơi khác -> chối; nếu không thì công của cơ sở này
+			   rơi vào một bảng mà chính nó cũng không phải bảng cuối. */
+			$dich_ghep = '';
+			foreach ( $m as $p2 => $c2 ) {
+				if ( 0 === strcasecmp( $p2, $chinh ) ) { $dich_ghep = $c2; break; }
+			}
+			if ( '' !== $dich_ghep ) {
+				$bo_qua[] = $phu . ': ' . $chinh . ' đang ghép vào ' . $dich_ghep
+					. ' — ghép dây chuyền thì không ai nói chắc được công rơi vào bảng nào. '
+					. 'Ghép thẳng vào ' . $dich_ghep . '.';
+				continue;
+			}
+			/* Và cơ sở PHỤ này đang có ai ghép vào nó thì cũng không được ghép tiếp. */
+			$co_con = false;
+			foreach ( $m as $p3 => $c3 ) {
+				if ( 0 === strcasecmp( $c3, $phu ) ) { $co_con = true; break; }
+			}
+			if ( $co_con ) {
+				$bo_qua[] = $phu . ': đang có cơ sở khác ghép VÀO nó, nên nó phải là bảng cuối.';
+				continue;
+			}
+			$m[ $phu ] = $chinh;
+		}
+		self::dat_cai_dat( self::GHEP_O, $m, $u );
+		return array( 'ok' => true, 'so' => count( $m ), 'bo_qua' => $bo_qua );
+	}
+
 	/** Cơ sở được tích "tính theo giờ". Khoá so sánh đã bỏ dấu để gõ kiểu nào cũng trúng. */
 	public static function coso_tinh_theo_gio( $coso ) {
 		$k = self::bo_chu( preg_replace( '/^CS_/', '', (string) $coso ) );
@@ -290,13 +411,30 @@ class VHCC_Luong {
 	// ======================================================================= đọc dữ liệu
 
 	/** Mọi hàng chấm công của (cơ sở, tháng). Giờ trả về là SỐ GIÂY (đã trải phẳng nếu là -CD). */
+	/**
+	 * Đọc cả tháng của một bảng công.
+	 *
+	 * 🔴 ĐỌC CẢ CHÙM, không chỉ một mã cơ sở. Anh Thắng 27/08/2026: *"VP_HCM có công SETUP (tức
+	 *    công đêm đó em)"* — ca đêm của Văn phòng được chấm vào một mã cơ sở riêng, nhưng nó là
+	 *    một phần của CHÍNH bảng này. Đọc mỗi mã chính là bảng thiếu hẳn ca đêm, mà bảng vẫn
+	 *    đầy số nên không có gì báo.
+	 *
+	 * Cơ sở không khai ghép gì thì `chum_cua()` trả đúng một phần tử — câu lệnh y như cũ.
+	 *
+	 * ⚠️ Cột `coso` đi kèm trong kết quả, để chỗ vẽ còn nói được ô này đến từ mã nào. Thiếu nó
+	 *    thì bảng ghép xong không ai soi lại được công đêm nằm ở đâu.
+	 */
 	public static function doc_thang( $coso, $tt ) {
 		global $wpdb;
+		$chum = self::chum_cua( $coso );
+		if ( ! $chum ) { return array(); }
+		$cho  = implode( ',', array_fill( 0, count( $chum ), '%s' ) );
+		$tham = array_merge( $chum, array( $tt . '-%' ) );
 		return VHCC_DB::rows( $wpdb->prepare(
-			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay FROM '
+			'SELECT ngay, ma_nv, hau_to, ho_ten, gio_vao_giay, gio_ra_giay, coso FROM '
 			. VHCC_DB::t( 'cham_cong' )
-			. ' WHERE coso=%s AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
-			$coso, $tt . '-%' ) );
+			. ' WHERE coso IN (' . $cho . ') AND ngay LIKE %s ORDER BY ngay, ma_nv, hau_to',
+			$tham ) );
 	}
 
 	// ======================================================================= engine MTD
@@ -960,8 +1098,9 @@ class VHCC_Luong {
 		/* Gom theo NGƯỜI rồi theo NGÀY. Hàng chính -> 'chinh', hàng -CD -> 'dem'.
 		   ⚠️ Hàng -CT (công tối, hậu tố CŨ không còn ghi mới) cũng gom vào 'dem': bản gốc giữ nó
 		      để hàng lỡ tạo vẫn đọc được, bỏ đi là mất công của ngày đó. */
-		$nguoi = array();
-		$ten   = array();
+		$nguoi  = array();
+		$ten    = array();
+		$tu_dau = array();          // [mã][ngày] => mã cơ sở PHỤ mà ngày ấy đến từ đó
 		foreach ( self::doc_thang( $coso, $tt ) as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
@@ -971,6 +1110,11 @@ class VHCC_Luong {
 			if ( ! isset( $nguoi[ $ma ] ) ) { $nguoi[ $ma ] = array(); }
 			if ( ! isset( $ten[ $ma ] ) || '' === $ten[ $ma ] ) { $ten[ $ma ] = (string) $r['ho_ten']; }
 			$nguoi[ $ma ][ $r['ngay'] ][ $khe ] = array( $r['gio_vao_giay'], $r['gio_ra_giay'] );
+			/* Nhớ ngày này đến từ MÃ CƠ SỞ nào. Bảng ghép cộng công của nhiều mã lại; không giữ
+			   dấu vết thì con số đúng mà không ai soi lại được ca đêm nằm ở đâu. */
+			if ( isset( $r['coso'] ) && 0 !== strcasecmp( (string) $r['coso'], (string) $coso ) ) {
+				$tu_dau[ $ma ][ $r['ngay'] ] = VHCC_NhanSu::chuan_coso( $r['coso'] );
+			}
 		}
 
 		$rows = array();
@@ -995,7 +1139,9 @@ class VHCC_Luong {
 				if ( $d['caLa'] ) { $e['soNgayCaLa']++; }
 				if ( $d['demThieuGio'] ) { $e['soNgayDemThieuGio']++; }
 				if ( $d['demChuaDuCap'] ) { $e['soNgayDemChuaDuCap']++; }
-				$chi_tiet[] = array_merge( array( 'ma' => $ma, 'ten' => $e['ten'] ), $d );
+				$chi_tiet[] = array_merge( array( 'ma' => $ma, 'ten' => $e['ten'],
+					/* '' = mã cơ sở chính. Chỉ ghi khi ngày ấy đến từ một cơ sở PHỤ. */
+					'tuCoSo' => isset( $tu_dau[ $ma ][ $ngay ] ) ? $tu_dau[ $ma ][ $ngay ] : '' ), $d );
 			}
 			$e['tong'] = round( $e['congNgay'] + $e['congTangCa'] + $e['congDem'] + $e['congBu'], 2 );
 			$rows[] = $e;

@@ -9909,6 +9909,128 @@ teq( '🔴 lô mà sai khoá thì bị chối, không phải cửa sau', 401, $l
 t( 'và KHÔNG ghi được gì', null === vhcc_hang( 'TUTU_BT', '2026-07-11', 'ZE1' ) );
 vhcc_dung_bang();
 
+
+/* ======================================================================================
+ *  63. GHÉP BẢNG CÔNG CỦA HAI CƠ SỞ
+ *
+ *  Anh Thắng 27/08/2026: *"muốn ghép 2 bảng công lại thì như nào, vì VP_HCM có công SETUP
+ *  (tức công đêm đó em), hay giờ add vào khó thì anh sửa tay"*.
+ *
+ *  Ca đêm của Văn phòng được chấm vào một MÃ CƠ SỞ RIÊNG, nên engine dựng cho nó một bảng
+ *  riêng. Nhưng nó không phải nơi làm việc khác: cùng người, cùng bảng lương, chỉ khác ca.
+ *
+ *  🔴 KHÁC HẲN "CƠ SỞ KHÁC" (khối 60). Cơ sở khác thì bày ra mà KHÔNG cộng — lương tính theo
+ *     cơ sở. Cơ sở GHÉP thì phải CỘNG VÀO. Trộn hai khái niệm là hoặc trả thiếu tiền, hoặc
+ *     trả thừa — và cả hai đều ra một bảng đầy số trông rất bình thường.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$G_VP = 'GH_VP_HCM';
+$G_SU = 'GH_SETUP_VP';
+vhcc_bo_phan( $G_VP, 'Văn phòng' );
+vhcc_bo_phan( $G_SU, 'Văn phòng' );
+$u_gh = array( 'role' => 'Admin' );
+
+/* ---- Lõi khai ghép ---- */
+$r_gh = VHCC_Luong::dat_ghep( $u_gh, array( $G_SU => $G_VP ) );
+t( 'khai ghép: xong', ! empty( $r_gh['ok'] ), $r_gh );
+teq( 'cơ sở phụ biết mình ghép vào đâu', $G_VP, VHCC_Luong::ghep_vao( $G_SU ) );
+teq( 'cơ sở chính biết ai ghép vào mình', array( $G_SU ), VHCC_Luong::phu_cua( $G_VP ) );
+teq( '🔴 chùm của bảng chính gồm CẢ HAI mã', array( $G_VP, $G_SU ), VHCC_Luong::chum_cua( $G_VP ) );
+teq( 'cơ sở đứng riêng thì chùm chỉ có chính nó', array( 'TUTU_BT' ), VHCC_Luong::chum_cua( 'TUTU_BT' ) );
+
+/* 🔴 MỘT CẤP, KHÔNG DÂY CHUYỀN. A→B rồi B→C thì công của A rơi vào bảng nào là câu không ai
+   trả lời chắc; khai vòng (A→B, B→A) thì bảng chạy vô hạn. */
+$r_day = VHCC_Luong::dat_ghep( $u_gh, array( $G_VP => 'TUTU_BT' ) );
+t( '🔴 cơ sở đang CÓ người ghép vào thì không được ghép tiếp',
+	! empty( $r_day['bo_qua'] ), $r_day );
+teq( 'và nó vẫn đứng nguyên là bảng chính', '', VHCC_Luong::ghep_vao( $G_VP ) );
+$r_vong = VHCC_Luong::dat_ghep( $u_gh, array( 'TUTU_BT' => $G_SU ) );
+t( '🔴 không ghép vào một cơ sở vốn đang ghép đi nơi khác', ! empty( $r_vong['bo_qua'] ), $r_vong );
+teq( 'nên TUTU_BT vẫn đứng riêng', '', VHCC_Luong::ghep_vao( 'TUTU_BT' ) );
+/* ⚠️ Dùng một cơ sở CHƯA ghép đi đâu. Lấy `$G_SU` (đang ghép vào `$G_VP`) thì chốt "ghép dây
+   chuyền" bắt trước, và chốt "ghép vào chính nó" không bao giờ là chốt quyết định — bỏ hẳn nó
+   đi phép thử vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
+teq( 'dựng cảnh: TUTU_BT chưa ghép đi đâu', '', VHCC_Luong::ghep_vao( 'TUTU_BT' ) );
+$r_minh = VHCC_Luong::dat_ghep( $u_gh, array( 'TUTU_BT' => 'TUTU_BT' ) );
+t( '🔴 không ghép một cơ sở vào chính nó', ! empty( $r_minh['bo_qua'] ), $r_minh );
+teq( 'và nó vẫn đứng riêng', '', VHCC_Luong::ghep_vao( 'TUTU_BT' ) );
+/* 🔴 Bỏ dòng nào thì KÊU ĐÍCH DANH. Im lặng bỏ là cuối tháng thiếu công cả một ca, mà màn hình
+   đã báo "đã lưu". */
+t( 'và mỗi dòng bị bỏ đều nói rõ vì sao',
+	is_string( $r_day['bo_qua'][0] ) && strlen( $r_day['bo_qua'][0] ) > 20, $r_day );
+/* Quyền: đổi ghép là đổi con số ra tiền của cả cơ sở. */
+$r_nv = VHCC_Luong::dat_ghep( array( 'role' => 'Cửa hàng trưởng' ), array( $G_SU => $G_VP ) );
+t( '🔴 Cửa hàng trưởng KHÔNG khai ghép được', empty( $r_nv['ok'] ), $r_nv );
+
+/* ---- Bảng công thật sự CỘNG cả hai mã ---- */
+vhcc_cham( $G_VP, '2026-07-01', 'GN1', '', '08:30:00', '17:00:00' );   // ca ngày, mã chính
+vhcc_cham( $G_SU, '2026-07-02', 'GN1', '', '08:30:00', '17:00:00' );   // ca "SETUP", mã phụ
+$b_gh = VHCC_Luong::vp_bang_cong_va_luong( $G_VP, '2026-07' );
+$h_gh = array();
+foreach ( $b_gh['rows'] as $r_g ) { $h_gh[ $r_g['ma'] ] = $r_g; }
+teq( '🔴 bảng của cơ sở CHÍNH gồm luôn công của cơ sở phụ (1 + 1 = 2)',
+	2.0, (float) $h_gh['GN1']['tong'] );
+/* Và ngày ấy phải còn dấu vết đến từ đâu — cộng đúng mà không soi lại được là con số không
+   kiểm được. */
+$tu_gh = '';
+foreach ( $b_gh['detail'] as $d_g ) {
+	if ( '2026-07-02' === $d_g['ngay'] && 'GN1' === $d_g['ma'] ) { $tu_gh = (string) $d_g['tuCoSo']; }
+}
+teq( '🔴 ngày đến từ cơ sở phụ còn giữ dấu vết mã cơ sở ấy', $G_SU, $tu_gh );
+
+/* 🔴 CƠ SỞ ĐÃ GHÉP KHÔNG CÒN LÀ "CƠ SỞ KHÁC". Lọt vào đó là ngày ấy vừa được cộng vào TỔNG,
+   vừa hiện thêm một dòng xám nói "chỗ khác" — người đọc thấy hai lần một ngày công. */
+$ck_gh = VHCC_Cham::ngay_o_coso_khac( array( 'GN1' ), $G_VP, '2026-07' );
+teq( '🔴 cơ sở đã ghép KHÔNG hiện ra như cơ sở khác', array(), $ck_gh );
+$tk_gh = VHCC_Cham::tong_o_coso_khac( array( 'GN1' ), $G_VP, '2026-07' );
+teq( 'và cũng không có dòng TỔNG cơ sở khác', array(), $tk_gh );
+
+/* ---- Trên màn ---- */
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU, 'GHAD' );
+$_GET = array( 'man' => 'vp', 'ccs' => $G_VP, 'cth' => '2026-07' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_ghw = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 bảng ghép NÓI RA nó đang gồm những cơ sở nào',
+	strpos( $h_ghw, 'Bảng này <b>đã gồm</b>' ) !== false, $h_ghw );
+t( 'và kể tên cơ sở phụ', strpos( $h_ghw, $G_SU ) !== false, $h_ghw );
+t( '🔴 ô đến từ cơ sở phụ có nhãn ngay trong ô',
+	preg_match( '~<div class="mghep"[^>]*>' . preg_quote( $G_SU, '~' ) . '</div>~', $h_ghw ) === 1, $h_ghw );
+t( 'nhãn ấy nói rõ công ĐÃ nằm trong cột TỔNG',
+	strpos( $h_ghw, 'ĐÃ nằm trong cột TỔNG' ) !== false, $h_ghw );
+/* 🔴 Mở thẳng cơ sở PHỤ: vẫn xem được để soi, nhưng phải nói ngay là số ở đây ĐÃ tính vào bảng
+   kia — không thì có người lấy cả hai bảng rồi cộng lại, và trả gấp đôi. */
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU, 'GHAD' );
+$_GET = array( 'man' => 'vp', 'ccs' => $G_SU, 'cth' => '2026-07' );
+ob_start(); VHCC_Web::phuc_vu(); $h_ghp = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 mở thẳng cơ sở phụ thì màn CẢNH BÁO là số đã tính vào bảng kia',
+	strpos( $h_ghp, 'đã được tính vào bảng kia' ) !== false, $h_ghp );
+t( 'và cho đường sang bảng chính', strpos( $h_ghp, 'Mở bảng ' . $G_VP ) !== false, $h_ghp );
+
+/* ---- Khối khai trên màn Cấu hình, và lưu qua đúng cửa POST ---- */
+$tok_gh = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU . ',TUTU_BT', 'GHAD' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_gh;
+$_GET = array( 'man' => 'cau_hinh' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_ghc = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( 'màn Cấu hình có khối Ghép bảng công',
+	strpos( $h_ghc, 'Ghép bảng công của hai cơ sở' ) !== false, $h_ghc );
+t( '🔴 và nói rõ chỗ khác nhau với dòng xám "cơ sở khác"',
+	strpos( $h_ghc, 'Chỉ ghép khi ĐÚNG LÀ MỘT BẢNG LƯƠNG' ) !== false, $h_ghc );
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_gh;
+$_POST = array( 'viec' => 'ghep_cs', 'ky' => VHCC_Web::chu_ky( $tok_gh ),
+	'gh' => array( $G_SU => '' ) );                       // bỏ ghép
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_POST = array(); $_COOKIE = array();
+teq( '🔴 bỏ ghép qua TRANG THẬT thì cơ sở phụ về lại bảng riêng', '', VHCC_Luong::ghep_vao( $G_SU ) );
+$b_bo = VHCC_Luong::vp_bang_cong_va_luong( $G_VP, '2026-07' );
+$h_bo = array();
+foreach ( $b_bo['rows'] as $r_b ) { $h_bo[ $r_b['ma'] ] = $r_b; }
+teq( 'và bảng chính hết cộng công của cơ sở ấy (còn 1)', 1.0, (float) $h_bo['GN1']['tong'] );
+vhcc_dung_bang();
+
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
 vhcc_dung_bang();
 

@@ -630,6 +630,25 @@ class VHCC_Web {
 				. 'nào bị sửa.' ) );
 		}
 
+		if ( 'ghep_cs' === $viec ) {
+			$g = isset( $_POST['gh'] ) ? (array) wp_unslash( $_POST['gh'] ) : array();
+			$sach_g = array();
+			foreach ( $g as $phu_g => $chinh_g ) {
+				$sach_g[ sanitize_text_field( $phu_g ) ] = sanitize_text_field( $chinh_g );
+			}
+			$r = VHCC_Luong::dat_ghep( $toi, $sach_g );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* 🔴 KHAI MỘT DÒNG MÀ IM LẶNG BỎ NÓ LÀ CUỐI THÁNG THIẾU CÔNG CẢ MỘT CA, mà màn hình
+			   đã báo "đã lưu". Kể đích danh dòng nào không nhận và vì sao. */
+			$bao_g = array( array( 'xong' => 'Đã lưu ghép bảng công: ' . (int) $r['so'] . ' cơ sở '
+				. 'đang ghép vào bảng khác. Bảng công đọc lại ngay — không giờ chấm nào bị sửa.' ) );
+			if ( ! empty( $r['bo_qua'] ) ) {
+				$bao_g[] = array( 'canh' => 'KHÔNG nhận ' . count( $r['bo_qua'] ) . ' dòng: '
+					. implode( ' · ', $r['bo_qua'] ) );
+			}
+			return $bao_g;
+		}
+
 		if ( 'xem_cong' === $viec || 'nap_cong' === $viec ) {
 			$f = self::doc_tep();
 			if ( empty( $f['ok'] ) ) { return array( array( 'loi' => $f['error'] ) ); }
@@ -1166,6 +1185,11 @@ class VHCC_Web {
 			. '.duoi.ngoai{background:#f1f5f9;color:#475569}'
 			/* Dòng TỔNG của cơ sở khác: xám, nghiêng, có vạch ngăn — để mắt không đọc nhầm nó
 			   là một phần của con số lớn phía trên. */
+			/* Nhãn cơ sở PHỤ đã ghép: xanh nhạt, KHÁC hẳn dòng xám của cơ sở khác. Con số này
+			   ĐÃ nằm trong TỔNG; dòng xám thì không. Cho chúng giống nhau là mời người ta trừ
+			   nhầm một trong hai. */
+			. '.mghep{font-size:9.5px;font-weight:700;line-height:1.15;margin-top:2px;padding:0 3px;'
+			. 'border-radius:3px;background:#e0f2fe;color:#0369a1;letter-spacing:.2px}'
 			. '.tk-ngoai{font-size:10.5px;font-weight:600;line-height:1.25;margin-top:3px;padding-top:2px;'
 			. 'border-top:1px dotted var(--vien);color:#475569;font-style:italic;white-space:nowrap}'
 			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
@@ -2261,6 +2285,25 @@ class VHCC_Web {
 				. '">⬇ Xuất Excel (.xlsx)</a> <span class="mo">— ba trang: chi tiết từng ca '
 				. '(ca nào, từ mấy giờ đến mấy giờ, mấy tiếng) · tổng theo ca · từng lượt chấm.</span></p>';
 		}
+		/* 🔴 BẢNG GHÉP PHẢI NÓI RA NÓ ĐANG GỒM NHỮNG GÌ. Một bảng lặng lẽ cộng thêm công của một
+		   mã cơ sở khác là con số đúng mà không ai kiểm được — người đọc cộng tay lại theo mã
+		   chính thì ra thiếu, và không hiểu vì sao. */
+		$cs_phu = method_exists( 'VHCC_Luong', 'phu_cua' ) ? VHCC_Luong::phu_cua( $cs ) : array();
+		if ( $cs_phu ) {
+			echo '<p class="mo">🔗 Bảng này <b>đã gồm</b> công của ' . count( $cs_phu ) . ' cơ sở ghép '
+				. 'vào: <b>' . esc_html( implode( ' · ', $cs_phu ) ) . '</b>. Ô nào đến từ đó có nhãn '
+				. 'nhỏ ngay trong ô. Đổi ở khối <b>Ghép bảng công của hai cơ sở</b> tại tab Cấu hình.</p>';
+		}
+		$cs_ghep = method_exists( 'VHCC_Luong', 'ghep_vao' ) ? VHCC_Luong::ghep_vao( $cs ) : '';
+		if ( '' !== $cs_ghep ) {
+			/* Mở thẳng cơ sở PHỤ: vẫn xem được (để soi), nhưng phải nói ngay rằng con số ở đây
+			   ĐÃ nằm trong bảng kia — không thì có người lấy cả hai bảng rồi cộng lại. */
+			echo '<div class="bao canh" style="margin:10px 0 0">🔗 Cơ sở này đang <b>ghép vào bảng '
+				. 'công của ' . esc_html( $cs_ghep ) . '</b>. Số ở đây <b>đã được tính vào bảng kia</b> '
+				. '— đừng cộng hai bảng lại. <a href="'
+				. esc_url( add_query_arg( array( 'man' => 'cham', 'ccs' => $cs_ghep, 'cth' => $th ), self::url() ) )
+				. '">Mở bảng ' . esc_html( $cs_ghep ) . '</a></div>';
+		}
 		echo '<p class="mo">Đổi đơn vị ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
 		echo '</div>';
 
@@ -2294,6 +2337,72 @@ class VHCC_Web {
 	 *    được bức tranh chung, và chỗ sai thường lộ ra đúng lúc nhìn cả bảng: "ủa sao cái kho này
 	 *    lại đang tính theo công".
 	 */
+	/**
+	 * GHÉP BẢNG CÔNG CỦA HAI CƠ SỞ.
+	 *
+	 * Anh Thắng 27/08/2026: *"muốn ghép 2 bảng công lại thì như nào, vì VP_HCM có công SETUP
+	 * (tức công đêm đó em), hay giờ add vào khó thì anh sửa tay"*.
+	 *
+	 * Sửa tay được, nhưng sửa tay MỖI THÁNG cho cả bảng lương là chỗ sinh lỗi đắt nhất — và cái
+	 * sai ấy không ai soi lại được, vì con số cuối cùng nằm trong đầu người cộng.
+	 *
+	 * 🔴 KHÁC HẲN KHỐI "CƠ SỞ KHÁC" TRONG LƯỚI. Cơ sở khác là nơi làm việc THẬT SỰ khác — bày ra
+	 *    để nhìn, KHÔNG cộng vào, vì lương tính theo cơ sở. Cơ sở GHÉP là một phần của chính
+	 *    bảng này (ca đêm của cùng người, cùng bảng lương) nên phải CỘNG VÀO. Màn phải nói rõ
+	 *    chỗ khác nhau ấy, kẻo người khai chọn nhầm và trả sai tiền theo cả hai hướng.
+	 */
+	private static function the_ghep_cs( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		$ds = self::ds_coso_xem( $toi );
+		if ( count( $ds ) < 2 ) { return; }   // một cơ sở thì không có gì để ghép
+		$ban_do = VHCC_Luong::ban_do_ghep();
+
+		echo '<div class="the" id="ghepcs"><details' . ( $ban_do ? ' open' : '' ) . '>';
+		echo '<summary><b>Ghép bảng công của hai cơ sở</b> <span class="mo">('
+			. count( $ban_do ) . ' cơ sở đang ghép · bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Dùng khi một cơ sở thật ra là <b>một phần của cơ '
+			. 'sở khác</b> — ca đêm được chấm vào mã riêng chẳng hạn (<code>SETUP_VP</code> là ca '
+			. 'đêm của <code>VP_HCM</code>). Khai xong thì bảng công của cơ sở chính <b>gồm luôn</b> '
+			. 'công của cơ sở phụ, không phải mở hai bảng rồi cộng tay.</p>';
+		echo '<div class="bao canh"><b>Chỉ ghép khi ĐÚNG LÀ MỘT BẢNG LƯƠNG.</b> Người làm ở hai '
+			. 'cơ sở <b>khác nhau</b> thì đừng ghép — lương tính theo cơ sở (đơn giá, khung ca, cách '
+			. 'tính công đều riêng), và lưới đã có sẵn <b>dòng xám</b> bày ra những ngày ấy mà không '
+			. 'cộng vào. Ghép nhầm là cộng công của bảng người khác vào bảng này.</div>';
+		echo '<p class="mo">Cơ sở phụ vẫn mở riêng được để soi; màn của nó sẽ nói nó đang ghép vào đâu.</p>';
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="ghep_cs">' . self::o_loc();
+		echo '<div class="cuon"><table><thead><tr><th>Cơ sở</th><th>Ghép vào bảng công của</th>'
+			. '<th>Đang là gì</th></tr></thead><tbody>';
+		foreach ( $ds as $x ) {
+			$chon = VHCC_Luong::ghep_vao( $x );
+			$phu  = VHCC_Luong::phu_cua( $x );
+			echo '<tr><td><b>' . esc_html( $x ) . '</b></td>';
+			echo '<td><select name="gh[' . esc_attr( $x ) . ']">';
+			echo '<option value="">— bảng riêng —</option>';
+			foreach ( $ds as $y ) {
+				if ( 0 === strcasecmp( (string) $x, (string) $y ) ) { continue; }
+				echo '<option value="' . esc_attr( $y ) . '"'
+					. ( 0 === strcasecmp( (string) $chon, (string) $y ) ? ' selected' : '' ) . '>'
+					. esc_html( $y ) . '</option>';
+			}
+			echo '</select></td>';
+			echo '<td>';
+			if ( '' !== $chon ) {
+				echo '<span class="k ca3">ghép vào <b>' . esc_html( $chon ) . '</b></span>';
+			} elseif ( $phu ) {
+				echo '<span class="k ca2">bảng CHÍNH — gồm ' . count( $phu ) . ' cơ sở phụ: <b>'
+					. esc_html( implode( ' · ', $phu ) ) . '</b></span>';
+			} else {
+				echo '<span class="mo">bảng riêng</span>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p style="margin-top:10px"><button class="chinh">Lưu ghép bảng</button></p>';
+		echo '</form></details></div>';
+	}
+
 	private static function the_cach_tinh( $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
 		$ds = self::ds_coso_xem( $toi );
@@ -3268,6 +3377,15 @@ class VHCC_Web {
 				}
 				$ngoai = isset( $ck_nguoi[ $i ] )
 					? self::o_coso_khac( $ck_nguoi[ $i ], $e['ten'], $ngay_o ) : '';
+				/* 🔴 NGÀY ĐẾN TỪ CƠ SỞ PHỤ ĐÃ GHÉP: một nhãn nhỏ, KHÁC HẲN dòng xám "cơ sở khác".
+				   Con số này ĐÃ cộng vào TỔNG (nó là một phần của chính bảng này), nên nhãn chỉ
+				   để soi lại được — đừng để nó trông giống dòng xám vốn KHÔNG cộng vào. Hai thứ
+				   trông giống nhau là người đọc lại đi trừ ra. */
+				if ( ! empty( $d['tuCoSo'] ) ) {
+					$ngoai .= '<div class="mghep" title="' . esc_attr( 'Ngày này chấm ở ' . $d['tuCoSo']
+						. ' — cơ sở ấy đã GHÉP vào bảng này, nên công của nó ĐÃ nằm trong cột TỔNG.' )
+						. '">' . esc_html( $d['tuCoSo'] ) . '</div>';
+				}
 				if ( '' !== $dem_o ) {
 					/* Chú thích của ô nay phải nói CẢ HAI phần — hàng ca đêm không còn ô riêng
 					   để mang chú thích của nó nữa. */
@@ -3317,7 +3435,10 @@ class VHCC_Web {
 			. '<br>Dòng nhỏ <b>nền xám nghiêng</b> (VD <i>FF_SC 8</i>) là ngày người ấy chấm ở '
 			. '<b>cơ sở khác</b> — bày ra để ô ấy khỏi trông như ngày nghỉ. '
 			. '<b>KHÔNG cộng vào cột TỔNG ở đây</b>: lương tính theo cơ sở, công của ngày ấy '
-			. 'thuộc bảng của cơ sở kia.';
+			. 'thuộc bảng của cơ sở kia.'
+			. '<br>Nhãn <b>nền xanh nhạt</b> (VD <i>SETUP_VP</i>) thì ngược lại: cơ sở ấy đã '
+			. '<b>ghép vào bảng này</b> (ca đêm chấm ở mã riêng chẳng hạn), nên công của nó '
+			. '<b>ĐÃ nằm trong cột TỔNG</b> — nhãn chỉ để soi lại được nó đến từ đâu.';
 		echo $lech
 			? '<br><b class="chu-hong">⚠️ ' . (int) $lech . ' người có tổng ở lưới KHÁC tổng của phép '
 				. 'tính — đừng dùng số nào cả, báo lại để tra.</b></p>'
@@ -3665,6 +3786,7 @@ class VHCC_Web {
 
 		self::the_bo_phan( $ky, $toi );
 		self::the_cach_tinh( $ky, $toi );
+		self::the_ghep_cs( $ky, $toi );
 
 		if ( '' === $cs ) {
 			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để khai <b>ca làm việc</b> '
