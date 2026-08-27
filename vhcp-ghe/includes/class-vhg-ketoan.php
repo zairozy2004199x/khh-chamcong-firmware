@@ -929,6 +929,52 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'them' => $them, 'message' => 'Đã mồi ' . $them . ' cơ sở (điền Unit ID rồi lưu).' );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ SELF-TEST (chỉ đọc)
+
+	/**
+	 * KIỂM TRA NHANH logic thuần (không đụng CSDL) — port các bất biến từ app gốc (11_KiemTraNhanh).
+	 * Chạy được cả trên web (Admin bấm) lẫn ngoài dòng lệnh. Canh đúng chỗ dễ vỡ: phân bổ tiền
+	 * (ổn định), mã lô (chống áp trùng), dịch tháng, đọc ngày, gộp mã.
+	 */
+	public static function selftest() {
+		$t = array();
+		$ok = function ( $name, $cond, $detail = '' ) use ( &$t ) { $t[] = array( 'name' => $name, 'pass' => (bool) $cond, 'detail' => (string) $detail ); };
+		$eq = function ( $name, $got, $want ) use ( &$t ) {
+			$g = wp_json_encode( $got ); $w = wp_json_encode( $want );
+			$t[] = array( 'name' => $name, 'pass' => $g === $w, 'detail' => $g === $w ? '' : ( 'ra ' . $g . ' · cần ' . $w ) );
+		};
+
+		$eq( 'Đọc ngày yyyy-mm-dd', self::ngay_( '2026-08-05x' ), '2026-08-05' );
+		$eq( 'Tháng dịch +1 qua năm', self::thang_dich_( '2026-12', 1 ), '2027-01' );
+		$eq( 'Tháng dịch -1 qua năm', self::thang_dich_( '2026-01', -1 ), '2025-12' );
+		$eq( 'Gộp mã bỏ khoảng trắng', self::squash( 'KH00119 MTDMN 0001' ), 'KH00119MTDMN0001' );
+
+		$chairs = array(
+			array( 'report_id' => 'R', 'ma' => 'B', 'ngay' => '2026-08-02', 'cash' => 50000 ),
+			array( 'report_id' => 'R', 'ma' => 'A', 'ngay' => '2026-08-01', 'cash' => 30000 ),
+			array( 'report_id' => 'R', 'ma' => 'C', 'ngay' => '2026-08-03', 'cash' => 20000 ),
+		);
+		$nhan = function ( $al ) { return array_map( function ( $x ) { return $x['ma'] . ':' . $x['paid']; }, $al['rows'] ); };
+		$a1 = self::allocate_( $chairs, 100000 );
+		$eq( 'Nộp đủ: chia hết 3 ghế', $nhan( $a1 ), array( 'A:30000', 'B:50000', 'C:20000' ) );
+		$eq( 'Nộp đủ: không dư', $a1['left'], 0 );
+		$a2 = self::allocate_( $chairs, 60000 );
+		$eq( 'Nộp thiếu: ưu tiên ngày sớm', $nhan( $a2 ), array( 'A:30000', 'B:30000' ) );
+		$eq( 'Nộp thừa: giữ phần dư', self::allocate_( $chairs, 120000 )['left'], 20000 );
+		$eq( 'Phân bổ ỔN ĐỊNH (chạy lại y nguyên)', self::allocate_( $chairs, 60000 ), $a2 );
+		$eq( 'Nộp 0 không ghi ô nào', count( self::allocate_( $chairs, 0 )['rows'] ), 0 );
+
+		$f1 = array( array( 'date' => '2026-08-01', 'amount' => 1500000, 'desc' => 'KH119 nop' ), array( 'date' => '2026-08-02', 'amount' => 30000, 'desc' => 'QR SBCD1' ) );
+		$f2 = array( $f1[1], $f1[0] );
+		$f3 = array( array( 'date' => '2026-08-01', 'amount' => 1500001, 'desc' => 'KH119 nop' ), $f1[1] );
+		$eq( 'Cùng dữ liệu khác thứ tự = CÙNG lô', self::batch_( 'CK', $f1 ), self::batch_( 'CK', $f2 ) );
+		$ok( 'Lệch 1 đồng = KHÁC lô', self::batch_( 'CK', $f1 ) !== self::batch_( 'CK', $f3 ) );
+		$ok( 'Khác loại đối soát = KHÁC lô', self::batch_( 'CK', $f1 ) !== self::batch_( 'TAY', $f1 ) );
+
+		$pass = 0; foreach ( $t as $x ) { if ( $x['pass'] ) { $pass++; } }
+		return array( 'ok' => true, 'passed' => $pass, 'total' => count( $t ), 'failed' => count( $t ) - $pass, 'tests' => $t );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ XUẤT MISA (chứng từ)
 
 	private static function dmy_( $d ) {

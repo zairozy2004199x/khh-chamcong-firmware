@@ -280,6 +280,7 @@ class VHG_Trang {
 			if ( 'kt_ma_misa_seed' === $viec ) { self::tra( VHG_KeToan::ma_misa_seed() ); return; }
 			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
+			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
 			return;
 		}
@@ -3316,9 +3317,21 @@ function veKtXuat(){
     + '<div class="card"><h2>' + L('Unit ID MISA (theo cơ sở)','MISA Unit IDs') + '</h2>'
     + '<div class="act"><button id="ktx-seed" class="ghost">' + L('Mồi từ danh mục ghế','Seed from chairs') + '</button>'
     + '<span id="ktx-seed-msg" class="mut"></span></div>'
-    + '<div id="ktx-manop-wrap" style="margin-top:10px"></div></div>';
+    + '<div id="ktx-manop-wrap" style="margin-top:10px"></div></div>'
+    + '<div class="card"><h2>🧪 ' + L('Kiểm tra nhanh (self-test)','Self-test') + '</h2>'
+    + '<div class="act"><button id="ktx-test" class="ghost">' + L('Chạy kiểm tra','Run') + '</button>'
+    + '<span id="ktx-test-msg" class="mut"></span></div><div id="ktx-test-kq" style="margin-top:8px"></div></div>';
 }
 function ktxInit(){
+  document.getElementById('ktx-test').onclick=function(){
+    var m=document.getElementById('ktx-test-msg'), kq=document.getElementById('ktx-test-kq');
+    m.textContent=L('Đang chạy…','Running…'); m.className='mut'; kq.textContent='';
+    goi('kt_selftest',{},function(r){
+      if(!r||!r.ok){ m.textContent=(r&&r.error)||'Lỗi.'; m.className='mut err'; return; }
+      m.textContent=r.passed+'/'+r.total+(r.failed?(' — '+r.failed+' LỖI'):' ĐẠT'); m.className='mut '+(r.failed?'err':'ok');
+      (r.tests||[]).forEach(function(x){ kq.appendChild(ktEl('div',x.pass?'mut':'mut err',(x.pass?'✓ ':'✗ ')+x.name+(x.detail?(' — '+x.detail):''))); });
+    });
+  };
   document.getElementById('ktx-misa').onclick=function(){
     var m=document.getElementById('ktx-misa-msg'); m.textContent=L('Đang dựng…','Building…'); m.className='mut';
     goi('kt_misa',{from:document.getElementById('ktx-tu').value,to:document.getElementById('ktx-den').value,
