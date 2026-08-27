@@ -372,7 +372,8 @@ class VHCC_Web {
 	/* ⚠️ `msoma` là của màn Máy & Firmware — khai ở đây chứ không chỉ ở `VHCC_WebMay::THAM_SO`:
 	      danh sách này là thứ `o_loc()` đọc để chở tham số qua một lượt POST, và thiếu nó thì
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
-	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk', 'lcs', 'lth', 'msoma' );
+	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk',
+		'lcs', 'lth', 'ltu', 'lden', 'msoma' );
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -453,16 +454,30 @@ class VHCC_Web {
 		   chốt này là mở toang đúng những thứ `VAI_TRO` sinh ra để giữ.
 		   Viết theo hướng CHỐI TRƯỚC: thêm một việc mới mà quên khai thì nó bị chối, chứ không
 		   lọt. Ngược lại (danh sách đen) thì quên một dòng là mở một cửa, và cửa đó im lặng. */
+		/* 🔴 ĐỊNH TUYẾN HAI MÀN RỜI **TRƯỚC** CHỐT DƯỚI, và cố ý.
+		   Chốt dưới là danh sách trắng chống việc HỒ SƠ: ai không có bậc hồ sơ thì mọi việc lạ
+		   đều bị chối. Đúng cho màn Hồ sơ, nhưng SAI cho hai màn này — việc của chúng chẳng dính
+		   gì tới hồ sơ, và người cần chúng nhất lại là người KHÔNG có bậc hồ sơ:
+		     • Cửa hàng trưởng xếp lịch cửa hàng mình (mô hình anh Thắng chốt giao đúng việc ấy);
+		     • Nhân viên xem lịch của mình và xin đổi;
+		     • vai Kỹ thuật dựng máy (2.67.0) — bậc 1, mở riêng đúng một đầu việc.
+		   Để sau chốt thì cả ba bị đá ra bằng một câu nói về màn Hồ sơ, mà họ không hề đụng tới
+		   hồ sơ — câu trả lời sai chỗ, và người đọc đi xin nhầm quyền.
+		   ⚠️ Đứng trước chốt KHÔNG phải là không có gác: `VHCC_WebLich::viec()` và
+		      `VHCC_WebMay::viec()` mỗi cái tự hỏi quyền ngay dòng đầu của mình. Chép mã sang đây
+		      mới là chỗ hỏng — hai nơi cùng giữ một luật thì sớm muộn hiểu khác nhau. */
+		if ( VHCC_WebLich::la_viec( $viec ) ) {
+			return VHCC_WebLich::viec( $viec, $toi );
+		}
+
+		if ( VHCC_WebMay::la_viec( $viec ) ) {
+			return VHCC_WebMay::viec( $viec, $toi );
+		}
+
 		if ( ! in_array( $viec, self::VIEC_CHAM, true ) && ! self::co_ho_so( $toi ) ) {
 			return array( array( 'loi' => 'Tài khoản ' . ( isset( $toi['name'] ) ? $toi['name'] : '' )
 				. ' (' . VHCC_Vai::ten( $toi ) . ') chỉ xem được bảng chấm công. '
 				. 'Việc này thuộc màn Hồ sơ — cần bậc Kế toán trở lên.' ) );
-		}
-
-		/* Việc của màn Máy & Firmware. Định tuyến ở đây chứ không chép mã sang: `VHCC_WebMay`
-		   tự gác `he_thong` lần nữa bên trong, nên nó không phụ thuộc vào chốt nào ở đây. */
-		if ( VHCC_WebMay::la_viec( $viec ) ) {
-			return VHCC_WebMay::viec( $viec, $toi );
 		}
 
 		if ( 'co' === $viec ) {
@@ -505,6 +520,20 @@ class VHCC_Web {
 				$noi .= ' BỎ QUA ' . implode( ', ', $r['boQua'] ) . ': bù không đè lên giờ đã có.';
 			}
 			return array( array( 'xong' => $noi ) );
+		}
+
+		if ( 'ten_cs' === $viec ) {
+			$o = isset( $_POST['tcs'] ) ? (array) wp_unslash( $_POST['tcs'] ) : array();
+			$sach = array();
+			foreach ( $o as $ma_x => $ten_x ) {
+				$sach[ sanitize_text_field( $ma_x ) ] = sanitize_text_field( is_array( $ten_x ) ? '' : $ten_x );
+			}
+			$r = VHCC_NhanSu::dat_ten_coso( $toi, $sach );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => $r['doi']
+				? 'Đã đổi tên ' . (int) $r['doi'] . ' cơ sở — nay còn ' . (int) $r['so']
+					. ' mã có tên. Mã KHÔNG đổi: mọi bảng cũ vẫn trỏ đúng chỗ.'
+				: 'Không có tên nào đổi.' ) );
 		}
 
 		if ( 'bo_phan' === $viec ) {
@@ -1144,6 +1173,12 @@ class VHCC_Web {
 			. '.the h2{font-size:15px;margin:0 0 4px}'
 			. '.mo{color:var(--mo);font-size:13px;margin:4px 0}'
 			. 'label{display:block;font-size:13px;color:var(--mo);margin:0 0 3px}'
+			/* Nhãn CHO TRÌNH ĐỌC MÀN HÌNH, không hiện ra. Bảng tên cơ sở có 21 ô nhập giống hệt
+			   nhau; không có nhãn thì người dùng trình đọc nghe 21 lần "ô nhập" mà không biết ô
+			   nào của mã nào. `display:none` thì trình đọc cũng bỏ qua — phải kéo ra ngoài khung
+			   nhìn chứ không được ẩn hẳn. */
+			. '.an{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);'
+			. 'white-space:nowrap}'
 			. 'input,select,textarea{font:inherit;padding:7px 9px;border:1px solid #cbd5e1;'
 			. 'border-radius:7px;background:#fff;color:var(--chu);max-width:100%}'
 			. 'input:focus,select:focus{outline:2px solid var(--xanh);outline-offset:1px}'
@@ -1536,6 +1571,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'lich' === $man ) {
+			VHCC_WebLich::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
@@ -1591,7 +1632,7 @@ class VHCC_Web {
 	   rơi vào nhánh đoán mò ở cuối hàm. */
 	/* 'may' đứng CUỐI, cùng lối với hai màn khai cấu hình: Admin mở app ra là để xem bảng công,
 	   không phải để rơi thẳng vào màn có nút đẩy firmware cả chuỗi. Nhưng vẫn phải có tên. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu', 'may' );
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu', 'lich', 'may' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -1635,6 +1676,11 @@ class VHCC_Web {
 		   trị; đưa ra web là bỏ mất lớp gác ấy, nên phải dựng lại bằng bậc vai. Trong đó có nút
 		   đẩy firmware cho MỌI máy trong chuỗi — đẩy nhầm một bản là mất luôn đường sửa từ xa
 		   của cả 26 cửa hàng và phải đi từng nơi cắm USB. */
+		/* 🔴 TAB LỊCH HIỆN CHO MỌI NGƯỜI ĐĂNG NHẬP ĐƯỢC — không riêng người xếp lịch.
+		   Nhân viên vào đây không để xếp lịch cho ai; họ hỏi "mai tôi làm ca nào", và màn này
+		   trả lời được câu ấy mà không cần quyền gì thêm. Gác bằng `lich_lam` là đúng một nửa:
+		   nửa kia (xem lịch của chính mình, xin đổi) bị khoá mất mà chẳng vì lý do nào. */
+		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
@@ -2992,6 +3038,50 @@ class VHCC_Web {
 	}
 
 	/**
+	 * ĐẶT TÊN ĐẦY ĐỦ CHO MÃ CƠ SỞ.
+	 *
+	 * Mã trong sổ là thứ máy đọc: `FARM_PT`, `FF_SC`, `PINPALL_HCM`. Người đọc bảng phải tự dịch
+	 * trong đầu, người mới thì không dịch nổi — mà trên một ô chọn hai mươi mấy dòng, đoán sai
+	 * một dòng là xếp lịch hoặc nạp công cho cửa hàng khác.
+	 *
+	 * 🔴 CHỈ THÊM MỘT LỚP TÊN ĐỂ HIỆN RA, KHÔNG ĐỔI MÃ. Mã cơ sở là KHOÁ: chấm công, lịch, máy,
+	 *    lương đều trỏ vào nó, và cái máy ngoài cửa hàng cũng khai bằng chính mã ấy. Đổi mã cho
+	 *    dễ đọc là cắt đứt mọi dòng cũ — và cắt im lặng, vì bảng mới vẫn đầy số.
+	 */
+	private static function the_ten_cs( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		$ds  = VHCC_NhanSu::ds_coso();
+		if ( ! $ds ) { return; }
+		$ten = VHCC_NhanSu::ten_coso_bang();
+		$chua = 0;
+		foreach ( $ds as $x ) { if ( ! isset( $ten[ $x ] ) ) { $chua++; } }
+
+		echo '<div class="the" id="tencs"><details' . ( $chua ? '' : '' ) . '><summary>'
+			. '<b>Tên đầy đủ của cơ sở</b> <span class="mo">(' . count( $ds ) . ' mã'
+			. ( $chua ? ' · <b>' . (int) $chua . ' chưa đặt tên</b>' : ' · đã đặt tên hết' )
+			. ')</span></summary>';
+		echo '<p class="mo">Mã là thứ <b>máy</b> đọc và là <b>khoá</b> của mọi bảng — nó không đổi. '
+			. 'Tên ở đây chỉ để <b>hiện ra cho người đọc</b>, và luôn hiện kèm mã (<code>FF_SC — '
+			. 'Fun Fair Sense City</code>) để còn đối chiếu với tệp .csv của máy và với cái nhãn dán '
+			. 'trên máy chấm công. Để trống là gỡ tên đi.</p>';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo self::o_loc();
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Mã cơ sở</th><th>Tên đầy đủ</th>'
+			. '</tr></thead><tbody>';
+		foreach ( $ds as $x ) {
+			$id = 'tcs_' . preg_replace( '/[^A-Za-z0-9]+/', '_', $x );
+			echo '<tr><td><b>' . esc_html( $x ) . '</b></td>';
+			echo '<td style="text-align:left"><label class="an" for="' . esc_attr( $id ) . '">Tên của '
+				. esc_html( $x ) . '</label>'
+				. '<input id="' . esc_attr( $id ) . '" name="tcs[' . esc_attr( $x ) . ']" maxlength="60" '
+				. 'style="width:100%" value="' . esc_attr( isset( $ten[ $x ] ) ? $ten[ $x ] : '' ) . '"></td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p><button class="chinh" name="viec" value="ten_cs">Lưu tên cơ sở</button></p>';
+		echo '</form></details></div>';
+	}
+
+	/**
 	 * XẾP CƠ SỞ VÀO BỘ PHẬN.
 	 *
 	 * Anh Thắng 26/08/2026: *"bổ sung set cơ sở thuộc bộ phận nào"* — kèm ảnh ô lọc Bộ phận và
@@ -4124,6 +4214,7 @@ class VHCC_Web {
 		self::the_bo_phan( $ky, $toi );
 		self::the_cach_tinh( $ky, $toi );
 		self::the_ghep_cs( $ky, $toi );
+		self::the_ten_cs( $ky, $toi );
 
 		if ( '' === $cs ) {
 			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để khai <b>ca làm việc</b> '

@@ -11029,6 +11029,263 @@ VHCC_Vai::quen_nho();
 VHCC_Vai::quen_nho_nl();
 vhcc_dung_bang();
 
+/* ======================================================================================
+ *  67. PHÂN LỊCH LÀM RA WEB · và tên đầy đủ cho mã cơ sở
+ *
+ *  Anh Thắng 27/08/2026, khi chuyển `/cham-cong/` thành trang dùng chung: *"mọi người truy cập
+ *  vào link này"*. Phân lịch là màn wp-admin CUỐI CÙNG còn sót — mà nó lại thuộc về người ít có
+ *  tài khoản WordPress nhất: **cửa hàng trưởng**. Mô hình năm bậc giao cho họ đúng bốn việc,
+ *  trong đó có *"lên lịch làm cho cửa hàng"*; để màn ấy sau `manage_options` là giao một việc
+ *  rồi khoá mất cửa vào.
+ *
+ *  🔴 HAI MẶT CỦA CÙNG MỘT MÀN. Người xếp lịch và người BỊ xếp lịch nhìn cùng một thứ theo hai
+ *     hướng ngược nhau. Nhân viên vào tab này mà thấy "không đủ quyền" là câu trả lời vô ích:
+ *     họ không định xếp lịch cho ai, họ hỏi "mai tôi làm ca nào".
+ * ====================================================================================== */
+vhcc_dung_bang();
+$L_CS = 'LI_TUTU_BT';
+$L_C2 = 'LI_KHAC';
+vhcc_bo_phan( $L_CS, 'Khu vui chơi' );
+vhcc_bo_phan( $L_C2, 'Khu vui chơi' );
+$l_ad  = array( 'role' => 'Admin', 'name' => 'Anh Admin', 'ma_nv' => 'LADM' );
+
+/* ---- Tên đầy đủ của mã cơ sở ---- */
+/* Mã là thứ MÁY đọc và là KHOÁ của mọi bảng — nó không đổi. Tên chỉ là lớp hiện ra. */
+teq( 'chưa khai thì nhãn chính là MÃ', $L_CS, VHCC_NhanSu::ten_coso( $L_CS ) );
+$r_tc = VHCC_NhanSu::dat_ten_coso( $l_ad, array( $L_CS => 'Tutu Bình Tân' ) );
+t( 'khai được tên', ! empty( $r_tc['ok'] ), $r_tc );
+VHCC_NhanSu::quen_ten_coso();
+/* 🔴 GIỮ CẢ MÃ, đừng thay hẳn bằng tên. Người đối chiếu với tệp .csv của máy, với bảng lương cũ,
+   với cái nhãn dán trên máy chấm công — họ tra bằng MÃ. Thay hẳn là bắt họ dịch ngược. */
+teq( '🔴 nhãn là MÃ — TÊN, không phải chỉ tên', $L_CS . ' — Tutu Bình Tân',
+	VHCC_NhanSu::ten_coso( $L_CS ) );
+teq( 'cơ sở chưa khai vẫn ra mã trơn', $L_C2, VHCC_NhanSu::ten_coso( $L_C2 ) );
+/* Tên rỗng = GỠ dòng, không phải ghi một tên rỗng (nhãn sẽ thành "MÃ — "). */
+VHCC_NhanSu::dat_ten_coso( $l_ad, array( $L_CS => '' ) );
+VHCC_NhanSu::quen_ten_coso();
+teq( 'để trống thì gỡ tên, nhãn về lại mã trơn', $L_CS, VHCC_NhanSu::ten_coso( $L_CS ) );
+/* 🔴 GỠ HẲN KHỎI KHO, không để lại một dòng rỗng. Soi mỗi cái nhãn thì không thấy khác biệt —
+   `ten_coso_bang()` cũng lọc dòng rỗng, nên hai lớp lọc che nhau và bỏ lớp trong vẫn xanh. Đã
+   phá thử để thấy. Dòng rỗng nằm lại là rác tích dần, và ngày có ai đọc thẳng kho ấy (xuất
+   .csv, đồng bộ sang app khác) thì nó thành một cơ sở tên rỗng. */
+$kho_tc = (array) VHCC_Luong::cai_dat( VHCC_NhanSu::TEN_CS_O, array() );
+t( '🔴 gỡ tên là gỡ hẳn dòng khỏi kho, không để lại dòng rỗng',
+	! array_key_exists( $L_CS, $kho_tc ), $kho_tc );
+VHCC_NhanSu::dat_ten_coso( $l_ad, array( $L_CS => 'Tutu Bình Tân' ) );
+VHCC_NhanSu::quen_ten_coso();
+/* Cửa hàng trưởng KHÔNG đặt tên: tên hiện trên bảng của MỌI cửa hàng, không phải việc riêng
+   của một cửa hàng nào. */
+$r_tc = VHCC_NhanSu::dat_ten_coso( array( 'role' => 'Cửa hàng trưởng', 'cua_hang' => $L_CS ),
+	array( $L_CS => 'Tên bậy' ) );
+t( '🔴 Cửa hàng trưởng KHÔNG đặt được tên cơ sở', empty( $r_tc['ok'] ), $r_tc );
+VHCC_NhanSu::quen_ten_coso();
+teq( 'và tên cũ còn nguyên', $L_CS . ' — Tutu Bình Tân', VHCC_NhanSu::ten_coso( $L_CS ) );
+
+/* ---- Màn Phân lịch: mặt của NGƯỜI XẾP ---- */
+$tok_l = VHCC_Auth::phat_token( 'Chị Trưởng', 'Cửa hàng trưởng', $L_CS, 'LCHT' );
+function vhcc_lich_web( $tok, $get = array(), $post = array() ) {
+	$_GET = array_merge( array( 'man' => 'lich' ), $get );
+	$_POST = $post ? array_merge( array( 'ky' => VHCC_Web::chu_ky( $tok ) ), $post ) : array();
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_POST = array(); $_COOKIE = array();
+	return $h;
+}
+$h_l = vhcc_lich_web( $tok_l, array( 'lcs' => $L_CS ) );
+t( '🔴 Cửa hàng trưởng vào được tab Lịch làm việc',
+	strpos( $h_l, 'Phân lịch làm việc' ) !== false, substr( $h_l, 0, 400 ) );
+t( 'và có tab ấy trên thanh màn', strpos( $h_l, '>Lịch làm việc<' ) !== false, $h_l );
+t( 'có khối xếp một ô lịch', strpos( $h_l, 'value="lich_xep"' ) !== false, $h_l );
+/* 🔴 NÓI RÕ LỊCH ≠ CHẤM CÔNG. Trộn hai thứ là trả tiền theo dự định. */
+t( 'nói rõ lịch là DỰ ĐỊNH, không ghi vào bảng chấm công',
+	strpos( $h_l, 'không ghi gì' ) !== false, $h_l );
+/* Ô chọn cơ sở hiện NHÃN có tên, để khỏi chọn nhầm cửa hàng. */
+t( 'ô chọn cơ sở hiện tên đầy đủ', strpos( $h_l, 'Tutu Bình Tân' ) !== false, $h_l );
+
+/* 🔴 Ô CHỌN CƠ SỞ CẮT THEO QUYỀN. Bày cả 21 cơ sở cho cửa hàng trưởng rồi chối khi họ chọn là
+   một câu trả lời không giải thích được: vì sao tên ấy lại nằm trong ô chọn ngay từ đầu? */
+/* ⚠️ Khoá cơ sở trong thẻ phiên là `coso`, không phải `cua_hang` (`cua_hang` là cột của bảng
+   hồ sơ). Dựng cảnh bằng khoá sai thì `ds_coso_cua()` trả rỗng và phép thử đỏ vì một lý do
+   chẳng liên quan gì tới thứ nó định đo. */
+$ds_l = VHCC_WebLich::ds_coso_xep( array( 'role' => 'Cửa hàng trưởng', 'coso' => $L_CS ) );
+t( '🔴 Cửa hàng trưởng chỉ thấy cơ sở của mình trong ô chọn',
+	in_array( $L_CS, $ds_l, true ) && ! in_array( $L_C2, $ds_l, true ), $ds_l );
+$ds_l2 = VHCC_WebLich::ds_coso_xep( $l_ad );
+t( 'Admin thì thấy mọi cơ sở', in_array( $L_C2, $ds_l2, true ), $ds_l2 );
+
+/* ---- Xếp một ô lịch qua màn hình ---- */
+$h_l = vhcc_lich_web( $tok_l, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_xep', 'lcs' => $L_CS,
+	'l_ngay' => '2026-09-03', 'l_ma' => 'LNV1', 'l_ten' => 'Bạn Một',
+	'l_ca' => 'Sáng', 'l_viec' => 'Trực quầy' ) );
+t( 'xếp được ô lịch', strpos( $h_l, 'Đã xếp ô lịch' ) !== false, $h_l );
+$ds_o = VHCC_Lich::ds_lich( $L_CS, '2026-09-01', '2026-09-30' );
+teq( '🔴 ô lịch vào kho thật', 1, count( $ds_o ) );
+teq( 'đúng ca', 'Sáng', $ds_o[0]['ca'] );
+/* ⚠️ Lịch KHÔNG được đụng vào bảng chấm công — ghi vào đó là bảng lương thấy ngày "có hàng mà
+   không có giờ", trông y như đi làm mà quên chấm, và thành trả tiền theo dự định. */
+global $wpdb;
+teq( '🔴 xếp lịch KHÔNG sinh hàng nào trong bảng chấm công', '0',
+	(string) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+
+/* Thiếu ngày hoặc thiếu mã -> `xep_lich` bỏ qua ô ấy. Báo "đã lưu" cho một lượt không ghi gì là
+   người ta đóng màn đi và tưởng lịch đã có. */
+$h_l = vhcc_lich_web( $tok_l, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_xep', 'lcs' => $L_CS, 'l_ngay' => '2026-09-04', 'l_ma' => '' ) );
+t( '🔴 thiếu Mã NV thì báo LỖI, không báo đã lưu',
+	strpos( $h_l, 'Chưa ghi ô nào' ) !== false && strpos( $h_l, 'Đã xếp ô lịch' ) === false, $h_l );
+
+/* ---- Nhân viên: thấy lịch CỦA MÌNH, không thấy nút xếp ---- */
+$tok_n = VHCC_Auth::phat_token( 'Bạn Một', 'Nhân viên', $L_CS, 'LNV1' );
+$h_n = vhcc_lich_web( $tok_n, array( 'ltu' => '2026-09-01', 'lden' => '2026-09-30' ) );
+t( '🔴 Nhân viên cũng vào được tab Lịch', strpos( $h_n, 'Phân lịch làm việc' ) !== false, $h_n );
+t( 'và thấy khối "Lịch của tôi"', strpos( $h_n, 'Lịch của tôi' ) !== false, $h_n );
+t( '🔴 thấy đúng ô lịch của mình', strpos( $h_n, '2026-09-03' ) !== false, $h_n );
+/* 🔴 KHÔNG thấy nút xếp lịch — thấy nút rồi bấm vào bị chối là mời người ta làm một việc không
+   làm được, và câu chối chẳng nói được gì hơn. */
+t( '🔴 KHÔNG có nút xếp lịch', strpos( $h_n, 'value="lich_xep"' ) === false, $h_n );
+t( 'không có nút duyệt', strpos( $h_n, 'value="lich_duyet"' ) === false, $h_n );
+t( 'nhưng CÓ khối xin đổi lịch', strpos( $h_n, 'value="lich_xin"' ) !== false, $h_n );
+
+/* Người khác KHÔNG thấy lịch của người này — cùng cơ sở, khác mã. */
+$tok_n2 = VHCC_Auth::phat_token( 'Bạn Hai', 'Nhân viên', $L_CS, 'LNV2' );
+$h_n2 = vhcc_lich_web( $tok_n2, array( 'ltu' => '2026-09-01', 'lden' => '2026-09-30' ) );
+t( '🔴 chỉ lọc ra lịch của CHÍNH MÌNH, không bày lịch người khác',
+	strpos( $h_n2, 'Chưa có ô lịch nào' ) !== false, $h_n2 );
+
+/* ---- Xin đổi lịch: mã NV lấy từ THẺ PHIÊN, không từ ô nhập ---- */
+/* 🔴 `xin_doi_lich` cố ý không đòi quyền quản lý (chính họ xin cho họ), nên nó nhận `ma_nv` từ
+   lời gọi. Lớp web phải ép mã ấy bằng mã trong thẻ — không ép thì ai cũng gửi được một yêu cầu
+   đứng tên người khác, và người duyệt ký vào một chuyện người kia không hề xin. */
+$h_n = vhcc_lich_web( $tok_n, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_xin', 'lcs' => $L_CS,
+	'ma_nv' => 'LNV2', 'l_ma' => 'LNV2',          // <- cố tình gửi mã người KHÁC
+	'l_ngay' => '2026-09-03', 'l_ca' => 'Sáng', 'l_sang' => '2026-09-05',
+	'l_viec' => 'Trực quầy', 'l_ly_do' => 'nhà có việc, đã nhờ được người đổi ca' ) );
+t( 'gửi được yêu cầu', strpos( $h_n, 'Đã gửi yêu cầu' ) !== false, $h_n );
+$yc_l = VHCC_Lich::ds_doi_lich( $l_ad, true );
+teq( 'có đúng một yêu cầu chờ duyệt', 1, count( $yc_l ) );
+teq( '🔴 yêu cầu đứng tên CHÍNH NGƯỜI GỬI, không phải mã họ gõ vào', 'LNV1', $yc_l[0]['ma_nv'] );
+
+/* ---- Duyệt: phải GHI THẬT vào lịch ---- */
+$h_l = vhcc_lich_web( $tok_l, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_duyet', 'lcs' => $L_CS, 'l_ma_yc' => $yc_l[0]['ma_yc'] ) );
+t( 'duyệt xong báo rõ là đã ghi thật', strpos( $h_l, 'ĐÃ GHI THẬT' ) !== false, $h_l );
+$ds_o = VHCC_Lich::ds_lich( $L_CS, '2026-09-01', '2026-09-30' );
+$o_cu = '';
+$o_moi = '';
+foreach ( $ds_o as $r_o ) {
+	if ( '2026-09-03' === $r_o['ngay'] ) { $o_cu = (string) $r_o['viec']; }
+	if ( '2026-09-05' === $r_o['ngay'] ) { $o_moi = (string) $r_o['viec']; }
+}
+/* ⚠️ CÓ "đổi sang ngày" thì phải ghi HAI ô: ngày cũ để TRỐNG việc, ngày mới nhận việc. Chỉ ghi
+   ngày mới là người đó bị xếp cả hai ngày. */
+teq( '🔴 ngày cũ được để TRỐNG việc', '', $o_cu );
+teq( '🔴 ngày mới nhận việc', 'Trực quầy', $o_moi );
+teq( 'không còn yêu cầu nào chờ duyệt', 0, count( VHCC_Lich::ds_doi_lich( $l_ad, true ) ) );
+
+/* ---- Gác quyền ở CỬA POST, không chỉ ở chỗ vẽ nút ---- */
+/* Ở wp-admin cửa là `manage_options`; ra web là mất lớp ấy. Chỉ gác lúc vẽ thì ai đoán ra tên
+   `viec` là gửi thẳng POST được — mà xoá một ô lịch thì người ta mất ca làm hôm đó. */
+$b_l = VHCC_WebLich::viec( 'lich_xep', array( 'role' => 'Nhân viên', 'ma_nv' => 'LNV1', 'coso' => $L_CS ) );
+t( '🔴 Nhân viên gửi thẳng POST xếp lịch vẫn bị chối',
+	isset( $b_l[0]['loi'] ) && strpos( $b_l[0]['loi'], 'Xếp lịch làm việc' ) !== false, $b_l );
+$b_l = VHCC_WebLich::viec( 'lich_xoa', array( 'role' => 'Nhân viên', 'ma_nv' => 'LNV1', 'coso' => $L_CS ) );
+t( 'và xoá ô lịch cũng bị chối', isset( $b_l[0]['loi'] ), $b_l );
+teq( 'không ô nào bị xoá', 2, count( VHCC_Lich::ds_lich( $L_CS, '2026-09-01', '2026-09-30' ) ) );
+
+/* 🔴 VIỆC CỦA MÀN LỊCH PHẢI ĐI QUA ĐƯỢC CHỐT "chỉ xem được bảng chấm công".
+   Chốt ấy là danh sách trắng chống việc HỒ SƠ — đúng cho màn Hồ sơ, nhưng người cần màn lịch
+   nhất lại chính là người KHÔNG có bậc hồ sơ. Để định tuyến sau chốt thì cửa hàng trưởng bị đá
+   ra bằng một câu nói về màn Hồ sơ, mà họ không hề đụng tới hồ sơ. */
+t( '🔴 câu chối (nếu có) KHÔNG phải câu nói về màn Hồ sơ',
+	strpos( $h_l, 'Việc này thuộc màn Hồ sơ' ) === false, $h_l );
+
+/* ---- Cấu hình lịch: dùng chung cả chuỗi nên gác cao hơn ---- */
+$h_l = vhcc_lich_web( $tok_l, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_ca', 'lcs' => $L_CS, 'l_ds' => "Sáng\nChiều" ) );
+t( '🔴 Cửa hàng trưởng KHÔNG sửa được danh sách ca (dùng chung mọi cơ sở)',
+	strpos( $h_l, 'Không có quyền sửa danh sách ca' ) !== false, $h_l );
+$tok_a = VHCC_Auth::phat_token( 'Anh Admin', 'Admin', '', 'LADM' );
+$h_a = vhcc_lich_web( $tok_a, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_ca', 'lcs' => $L_CS, 'l_ds' => "Sáng\nChiều" ) );
+t( 'Admin thì sửa được', strpos( $h_a, 'Đã lưu danh sách ca' ) !== false, $h_a );
+/* 🔴 Ô LỊCH MỒ CÔI PHẢI ĐƯỢC KÊU RA. `ca` là một phần KHOÁ của ô lịch, nên bỏ tên "Tối" khỏi
+   danh sách KHÔNG đổi những ô đã xếp bằng tên ấy — chúng giữ tên cũ và trông như ca lạ. */
+VHCC_Lich::xep_lich( $l_ad, $L_CS, array( array( 'ngay' => '2026-09-09', 'ma_nv' => 'LNV3',
+	'ho_ten' => 'Bạn Ba', 'ca' => 'Tối', 'viec' => 'Trực đêm' ) ) );
+$h_a = vhcc_lich_web( $tok_a, array( 'lcs' => $L_CS ), array(
+	'viec' => 'lich_ca', 'lcs' => $L_CS, 'l_ds' => "Sáng\nChiều" ) );
+t( '🔴 bỏ một tên ca thì kêu ra số ô lịch đang dùng tên ấy',
+	strpos( $h_a, 'Tối: 1 ô' ) !== false, $h_a );
+t( 'và nói rõ đổi tên ca KHÔNG đổi ô đã xếp',
+	strpos( $h_a, 'KHÔNG đổi' ) !== false, $h_a );
+
+/* ---- Khoảng ngày: gõ bậy thì về mặc định, gõ ngược thì đảo lại ---- */
+/* Bảng rỗng trông y hệt "chưa xếp lịch ngày nào" — người ta sẽ đi xếp lại lịch đã có. */
+$_GET = array( 'ltu' => 'hom qua', 'lden' => '2026-09-30' );
+list( $k_tu, $k_den ) = VHCC_WebLich::khoang();
+teq( 'ngày gõ bậy rơi về mặc định (đầu tháng)', gmdate( 'Y-m-01' ), $k_tu );
+$_GET = array( 'ltu' => '2026-09-30', 'lden' => '2026-09-01' );
+list( $k_tu, $k_den ) = VHCC_WebLich::khoang();
+teq( '🔴 gõ ngược đầu đuôi thì ĐẢO lại, không trả khoảng rỗng', '2026-09-01', $k_tu );
+teq( 'và đuôi là ngày sau', '2026-09-30', $k_den );
+$_GET = array();
+
+/* ---- Khối khai tên cơ sở nằm ở màn Cấu hình ---- */
+$h_cf = vhcc_lich_web( $tok_a, array( 'man' => 'cau_hinh' ) );
+t( 'màn Cấu hình có khối Tên đầy đủ của cơ sở',
+	strpos( $h_cf, 'Tên đầy đủ của cơ sở' ) !== false, $h_cf );
+t( 'có ô nhập cho từng mã', strpos( $h_cf, 'name="tcs[' . $L_CS . ']"' ) !== false, $h_cf );
+t( 'và nói rõ MÃ không đổi', strpos( $h_cf, 'nó không đổi' ) !== false, $h_cf );
+/* Cửa hàng trưởng gõ thẳng `?man=cau_hinh` cũng không tới được: `phuc_vu()` đẩy mọi màn không
+   nằm trong `man_cua()` về màn mặc định. */
+$h_cf_cht = vhcc_lich_web( $tok_l, array( 'man' => 'cau_hinh' ) );
+t( 'Cửa hàng trưởng gõ thẳng ?man=cau_hinh thì KHÔNG thấy khối tên cơ sở',
+	strpos( $h_cf_cht, 'Tên đầy đủ của cơ sở' ) === false, $h_cf_cht );
+
+/* ⚠️ CHỐT TRONG `the_ten_cs()` TRÔNG THỪA — VÀ VẪN GIỮ. Đã phá thử: bỏ nó đi mà bộ thử vẫn
+   xanh, vì cửa màn Cấu hình ở trên đã chặt hơn (`ngoai_coso` mới có tab, và màn lạ bị đẩy về
+   mặc định). Giữ vì hai lẽ: nó đứng cùng hàng với `the_bo_phan()` và `the_ghep_cs()` vốn cũng
+   tự gác — bỏ đúng một khối là tạo ra ngoại lệ không ai nhớ; và ngày cửa trên được nới ra (đã
+   nới một lần rồi, xem `nguoi_vao()`) thì khối này không đi theo.
+   Thay vì canh cái vỏ, canh QUAN HỆ HAI BẬC: bậc để THẤY tab Cấu hình không được thấp hơn bậc
+   để ĐẶT TÊN cơ sở. Lệch quan hệ ấy là khối lọt ra ngoài tầm gác của nó. */
+/* ⚠️ `dat_ten_coso( $u, array() )` với người ĐỦ QUYỀN sẽ GHI một kho rỗng — tức xoá sạch tên
+   đã khai. Đó là hành vi đúng của hàm (bảng gửi lên rỗng = không còn tên nào), nhưng ở đây nó
+   là tác dụng phụ, nên khai lại ngay sau vòng lặp. */
+$bac_cf = 0;
+foreach ( array( 'Nhân viên', 'Cửa hàng trưởng', 'Quản lý', 'Kế toán', 'Admin' ) as $v_cf ) {
+	$u_cf = array( 'role' => $v_cf, 'ma_nv' => 'CF' . $bac_cf );
+	$thay_tab = isset( VHCC_Web::man_cua( $u_cf )['cau_hinh'] );
+	$dat_duoc = ! empty( VHCC_NhanSu::dat_ten_coso( $u_cf, array() )['ok'] );
+	t( 'vai "' . $v_cf . '": thấy tab Cấu hình và đặt được tên là MỘT, không lệch',
+		$thay_tab === $dat_duoc, $v_cf . ' tab=' . ( $thay_tab ? 1 : 0 ) . ' dat=' . ( $dat_duoc ? 1 : 0 ) );
+	$bac_cf++;
+}
+VHCC_NhanSu::dat_ten_coso( $l_ad, array( $L_CS => 'Tutu Bình Tân' ) );
+VHCC_NhanSu::quen_ten_coso();
+teq( 'khai lại xong thì tên còn nguyên', $L_CS . ' — Tutu Bình Tân', VHCC_NhanSu::ten_coso( $L_CS ) );
+/* ⚠️ 21 ô nhập giống hệt nhau thì người dùng trình đọc màn hình nghe 21 lần "ô nhập" mà không
+   biết ô nào của mã nào. Nhãn phải CÓ, chỉ là không hiện ra. */
+t( '🔴 mỗi ô có nhãn cho trình đọc màn hình',
+	strpos( $h_cf, 'class="an" for="tcs_' ) !== false, $h_cf );
+t( 'và lớp ấy kéo ra ngoài khung nhìn chứ không display:none (display:none thì trình đọc bỏ qua)',
+	strpos( $h_cf, '.an{position:absolute' ) !== false, $h_cf );
+$h_cf = vhcc_lich_web( $tok_a, array( 'man' => 'cau_hinh' ), array(
+	'viec' => 'ten_cs', 'tcs' => array( $L_C2 => 'Cơ sở Khác' ) ) );
+t( 'lưu được tên qua màn hình', strpos( $h_cf, 'Đã đổi tên' ) !== false, $h_cf );
+VHCC_NhanSu::quen_ten_coso();
+teq( 'và có hiệu lực thật', $L_C2 . ' — Cơ sở Khác', VHCC_NhanSu::ten_coso( $L_C2 ) );
+
+/* 🔴 MÀN QUẢN TRỊ KHÔNG CÓ MỘT DÒNG SCRIPT NÀO. */
+t( 'màn lịch không kéo theo script nào', stripos( $h_n, '<script' ) === false );
+t( 'và không có thuộc tính onXxx=', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_n ) === 0 );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa IN ('COSO_TEN','LICH_CA','LICH_LOAI_VIEC','LICH_CO_SO')" );
+VHCC_NhanSu::quen_ten_coso();
+vhcc_dung_bang();
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

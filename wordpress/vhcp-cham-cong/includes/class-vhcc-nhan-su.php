@@ -521,6 +521,94 @@ class VHCC_NhanSu {
 		return $ds;
 	}
 
+	/* ====================================================================== tên cơ sở */
+
+	/**
+	 * TÊN ĐẦY ĐỦ CỦA MỘT MÃ CƠ SỞ.
+	 *
+	 * =============================================================================================
+	 * Mã cơ sở trong sổ là thứ máy đọc: `FARM_PT`, `FF_SC`, `PINPALL_HCM`, `VP_KH-HCM`. Chúng ngắn
+	 * vì phải nằm vừa một cột và phải gõ được vào máy chấm công — nhưng người đọc bảng thì phải tự
+	 * dịch trong đầu, và người mới thì không dịch nổi. Trên một ô chọn 21 dòng, đoán sai một dòng
+	 * là xếp lịch cho cửa hàng khác.
+	 *
+	 * 🔴 KHÔNG ĐỔI MÃ ĐỂ CHO DỄ ĐỌC. Mã cơ sở là KHOÁ: bảng chấm công, bảng lịch, bảng máy, bảng
+	 *    lương đều trỏ vào nó, và máy chấm công ngoài cửa hàng cũng khai bằng chính mã ấy. Đổi mã
+	 *    là cắt đứt mọi dòng cũ. Nên bảng này chỉ thêm một lớp TÊN để HIỆN RA, mã giữ nguyên.
+	 *
+	 * ⚠️ Chưa khai thì trả lại chính MÃ, không trả rỗng. Trả rỗng là ô chọn có mấy dòng trắng
+	 *    trơn — người ta không chọn được mà cũng không biết vì sao.
+	 */
+	const TEN_CS_O = 'COSO_TEN';
+
+	private static $nho_ten_cs = null;
+
+	/** Bảng [ MÃ => tên đầy đủ ], đã lọc sạch. */
+	public static function ten_coso_bang() {
+		if ( null === self::$nho_ten_cs ) {
+			$ra = array();
+			foreach ( (array) VHCC_Luong::cai_dat( self::TEN_CS_O, array() ) as $ma => $ten ) {
+				$ma  = self::chuan_coso( $ma );
+				$ten = trim( (string) ( is_array( $ten ) ? '' : $ten ) );
+				if ( '' === $ma || '' === $ten ) { continue; }
+				$ra[ $ma ] = $ten;
+			}
+			self::$nho_ten_cs = $ra;
+		}
+		return self::$nho_ten_cs;
+	}
+
+	public static function quen_ten_coso() { self::$nho_ten_cs = null; }
+
+	/**
+	 * Nhãn hiện ra màn hình: `Mã — Tên` nếu có khai, còn không thì chỉ `Mã`.
+	 *
+	 * 🔴 GIỮ CẢ MÃ, đừng chỉ hiện tên. Người đối chiếu với tệp .csv của máy, với bảng lương cũ,
+	 *    với cái nhãn dán trên máy chấm công — họ tra bằng MÃ. Thay hẳn bằng tên là bắt họ dịch
+	 *    ngược, và bảng nào cũng phải mở thêm một bảng nữa mới đọc được.
+	 */
+	public static function ten_coso( $ma ) {
+		$m = self::chuan_coso( $ma );
+		if ( '' === $m ) { return ''; }
+		$b = self::ten_coso_bang();
+		return isset( $b[ $m ] ) ? $m . ' — ' . $b[ $m ] : $m;
+	}
+
+	/**
+	 * Khai / gỡ tên. `$ds` = [ MÃ => tên ]; tên rỗng thì gỡ dòng ấy.
+	 *
+	 * ⚠️ Bậc Quản lý (`ngoai_coso`): tên cơ sở hiện trên bảng của MỌI cửa hàng, không phải việc
+	 *    riêng của một cửa hàng nào.
+	 */
+	public static function dat_ten_coso( $u, $ds ) {
+		if ( ! VHCC_Vai::duoc( $u, 'ngoai_coso' ) ) {
+			return array( 'ok' => false,
+				'error' => VHCC_Vai::loi( $u, 'ngoai_coso', 'Đặt tên cơ sở' ) );
+		}
+		$cu   = self::ten_coso_bang();
+		$sach = array();
+		$doi  = 0;
+		foreach ( (array) $ds as $ma => $ten ) {
+			$ma  = self::chuan_coso( $ma );
+			$ten = trim( (string) ( is_array( $ten ) ? '' : $ten ) );
+			if ( '' === $ma ) { continue; }
+			if ( mb_strlen( $ten, 'UTF-8' ) > 60 ) { $ten = mb_substr( $ten, 0, 60, 'UTF-8' ); }
+			if ( '' !== $ten ) { $sach[ $ma ] = $ten; }
+			$truoc = isset( $cu[ $ma ] ) ? $cu[ $ma ] : '';
+			if ( $truoc !== $ten ) { $doi++; }
+		}
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cai_dat' );
+		$ghi  = array( 'khoa' => self::TEN_CS_O, 'gia_tri' => wp_json_encode( $sach ),
+			'cap_nhat' => current_time( 'mysql' ),
+			'nguoi_sua' => isset( $u['name'] ) ? (string) $u['name'] : '' );
+		$id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE khoa=%s", self::TEN_CS_O ) );
+		if ( $id ) { $wpdb->update( $bang, $ghi, array( 'id' => (int) $id ) ); }
+		else       { $wpdb->insert( $bang, $ghi ); }
+		self::quen_ten_coso();
+		return array( 'ok' => true, 'so' => count( $sach ), 'doi' => $doi );
+	}
+
 	// ======================================================================= ghi
 
 	/**
