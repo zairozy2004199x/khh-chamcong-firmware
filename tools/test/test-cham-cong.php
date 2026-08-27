@@ -7880,6 +7880,62 @@ $ns_bao = VHCC_TrangNS::lam_viec( 'xoa_sach_moi_thu', array( 'role' => 'Admin' )
 t( '🔴 việc chưa khai thì bị chối', isset( $ns_bao[0]['loi'] ), $ns_bao );
 delete_option( VHCC_Cong::O );
 
+/* ---- 60m. TỰ NẠP LẠI LUẬT ĐƯỜNG DẪN KHI THIẾU ----
+   🔴 Anh Thắng 27/08/2026 mở /nhan-su/ ra và thấy TRANG BLOG mặc định của WordPress: không
+   lỗi, không 404, không một dòng nào nói rằng có gì chưa xong. `add_rewrite_rule()` chỉ khai
+   luật cho lượt tải trang này; phải `flush_rewrite_rules()` một lần thì WordPress mới ghi bảng
+   luật xuống CSDL. Plugin vốn chỉ làm chuyện đó khi thấy số phiên bản đổi — mà cái cờ ấy hụt
+   được ở nhiều chỗ, và lần nào hụt cũng ra đúng triệu chứng ấy.
+
+   ⚠️ PHẦN NGUY HIỂM KHÔNG PHẢI "NẠP HỤT" MÀ LÀ "NẠP MỖI LƯỢT". `flush_rewrite_rules()` là một
+   lượt ghi nặng; gọi nó ở mọi lượt tải trang là hạ cả website xuống. Ba chốt dưới đây là để
+   chuyện đó không xảy ra, nên mỗi chốt có một phép thử riêng. */
+$dd_khai = array( '^nhan-su/?$' => 'index.php?vhcc_ns=1',
+	'^cham-cong/?$' => 'index.php?vhcc_tram=1' );
+$dd_du   = array( '^nhan-su/?$' => 'index.php?vhcc_ns=1',
+	'^cham-cong/?$' => 'index.php?vhcc_tram=1', '^ai-do/?$' => 'index.php?p=1' );
+$dd_thieu = array( '^cham-cong/?$' => 'index.php?vhcc_tram=1', '^ai-do/?$' => 'index.php?p=1' );
+
+t( '🔴 thiếu luật của trang mới thì PHẢI nạp lại',
+	VHCC_Cong::can_nap_lai_duong( '/%postname%/', $dd_khai, $dd_thieu, false ) );
+t( 'đủ luật thì KHÔNG nạp lại',
+	! VHCC_Cong::can_nap_lai_duong( '/%postname%/', $dd_khai, $dd_du, false ) );
+
+/* Chốt 1 — đường dẫn kiểu "thô": WordPress không dùng bảng luật, bảng rỗng là ĐÚNG chứ không
+   phải thiếu. Không có chốt này là nạp lại MỖI LƯỢT TẢI TRANG, vĩnh viễn. */
+t( '🔴 đường dẫn kiểu thô thì KHÔNG nạp lại, dù bảng luật trống trơn',
+	! VHCC_Cong::can_nap_lai_duong( '', $dd_khai, $dd_thieu, false ) );
+/* Chốt 2 — bảng luật chưa dựng: WordPress tự dựng lại ở lượt sau. */
+t( '🔴 bảng luật chưa dựng thì KHÔNG chen vào',
+	! VHCC_Cong::can_nap_lai_duong( '/%postname%/', $dd_khai, false, false ) );
+t( 'bảng luật rỗng cũng vậy',
+	! VHCC_Cong::can_nap_lai_duong( '/%postname%/', $dd_khai, array(), false ) );
+/* Chốt 3 — đã thử trong một giờ qua. Nạp lại mà luật VẪN không vào được CSDL (thiếu quyền ghi,
+   plugin khác ghi đè) thì chốt này giữ cho hỏng-một-trang không thành hỏng-cả-website. */
+t( '🔴 đã thử trong một giờ qua thì thôi, không thử lại',
+	! VHCC_Cong::can_nap_lai_duong( '/%postname%/', $dd_khai, $dd_thieu, true ) );
+
+/* Chỉ soi luật CỦA PLUGIN NÀY — luật plugin khác thiếu hay đủ không phải việc mình. Hai plugin
+   cùng nạp lại là hai bên ghi đè nhau, không bên nào thắng. */
+t( '🔴 luật của plugin KHÁC thiếu thì mặc kệ, không nạp lại giùm',
+	! VHCC_Cong::can_nap_lai_duong( '/%postname%/',
+		array( '^shop/?$' => 'index.php?wc_shop=1' ), $dd_du, false ) );
+
+/* Keo dán hook phải gọi đúng hàm quyết định, và phải đặt chốt một-giờ TRƯỚC khi bật cờ. */
+$dd_ma = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/vhcp-cham-cong.php' );
+t( 'tệp chính có gọi can_nap_lai_duong()', strpos( $dd_ma, 'VHCC_Cong::can_nap_lai_duong' ) !== false );
+t( 'và chạy TRƯỚC lượt nạp lại (98 < 99)',
+	strpos( $dd_ma, "'vhcc_kiem_duong_dan', 98" ) !== false
+	&& strpos( $dd_ma, "'vhcc_flush_rewrite', 99" ) !== false );
+/* ⚠️ Soi TRONG THÂN HÀM, không soi cả tệp: `update_option( 'vhcc_flush_rewrite', 1 )` còn nằm
+   ở `vhcc_maybe_upgrade()` phía trên, nên so vị trí trên cả tệp là so nhầm hai chỗ khác nhau —
+   phép thử đỏ oan, hoặc tệ hơn, xanh oan. */
+$dd_than = substr( $dd_ma, strpos( $dd_ma, 'function vhcc_kiem_duong_dan()' ) );
+$dd_than = substr( $dd_than, 0, strpos( $dd_than, "add_action( 'init', 'vhcc_flush_rewrite'" ) );
+t( '🔴 đặt chốt một-giờ TRƯỚC khi bật cờ nạp lại — đặt sau là mỗi lượt tải trang một lượt nạp',
+	strpos( $dd_than, "set_transient( 'vhcc_da_nap_duong'" )
+		< strpos( $dd_than, "update_option( 'vhcc_flush_rewrite', 1 )" ), $dd_than );
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

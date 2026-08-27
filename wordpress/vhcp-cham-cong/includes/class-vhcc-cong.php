@@ -273,6 +273,63 @@ class VHCC_Cong {
 		return $ra;
 	}
 
+	/* ====================================================================== luật đường dẫn */
+
+	/**
+	 * CÓ PHẢI NẠP LẠI LUẬT ĐƯỜNG DẪN KHÔNG.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO CÓ HÀM NÀY — "trang mới ra trang blog", và không có gì báo
+	 * =========================================================================================
+	 * Anh Thắng 27/08/2026 mở `/nhan-su/` ra và thấy trang blog mặc định của WordPress. Không
+	 * lỗi, không 404, không một dòng nào nói rằng có gì đó chưa xong.
+	 *
+	 * `add_rewrite_rule()` chỉ khai luật cho LƯỢT TẢI TRANG NÀY. Muốn nó sống thì phải
+	 * `flush_rewrite_rules()` một lần để WordPress ghi cả bảng luật xuống CSDL. Plugin vẫn làm
+	 * chuyện đó — nhưng chỉ khi thấy số phiên bản đổi. Mà cái cờ ấy hụt được ở nhiều chỗ: cài
+	 * lại đúng cùng một bản, khôi phục CSDL từ bản lưu, một plugin khác gọi
+	 * `flush_rewrite_rules()` sau mình rồi ghi đè bằng bảng luật cũ, hay một plugin cache giữ
+	 * `vhcc_ver` ở tầng nhớ tạm. Lần nào hụt cũng ra đúng một triệu chứng: TRANG BLOG.
+	 *
+	 * Nên đừng chờ cái cờ nữa: đối chiếu luật plugin VỪA KHAI với bảng luật đang nằm trong CSDL.
+	 *
+	 * ⚠️ TÁCH RA THÀNH HÀM THUẦN, NHẬN ĐỦ BỐN THỨ QUA THAM SỐ. Để nguyên trong tệp chính thì nó
+	 *    nằm cạnh `add_action` và đọc thẳng `get_option` — mà phần đó bộ thử không với tới được,
+	 *    nên ba cái chốt bên dưới sẽ vĩnh viễn không có phép thử nào. Chốt không thử được là
+	 *    chốt sớm muộn hở, và chỗ này hở thì hở về phía "nạp lại mỗi lượt tải trang".
+	 *
+	 * 🔴 BA CHỐT CHỐNG NẠP LẠI VÔ HẠN. `flush_rewrite_rules()` là một lượt ghi nặng; gọi nó ở
+	 *    MỌI lượt tải trang là hạ cả website xuống.
+	 *
+	 * @param string $permalink Kiểu đường dẫn đang đặt (`permalink_structure`).
+	 * @param array  $vua_khai  Luật plugin vừa khai lượt này (`$wp_rewrite->extra_rules_top`).
+	 * @param mixed  $dang_co   Bảng luật đang nằm trong CSDL (`rewrite_rules`).
+	 * @param bool   $da_thu    Đã thử nạp lại trong một giờ qua chưa.
+	 */
+	public static function can_nap_lai_duong( $permalink, $vua_khai, $dang_co, $da_thu ) {
+		/* Chốt 1 — đường dẫn kiểu "thô": WordPress KHÔNG dùng bảng luật, bảng rỗng là ĐÚNG chứ
+		   không phải thiếu. Không có chốt này là nạp lại mỗi lượt tải trang, vĩnh viễn. */
+		if ( '' === trim( (string) $permalink ) ) { return false; }
+
+		/* Chốt 2 — bảng luật chưa dựng: WordPress tự dựng lại ở lượt sau. Chen vào là giành
+		   việc với nó, và cũng là một đường nạp-lại-vô-hạn nữa. */
+		if ( ! is_array( $dang_co ) || ! $dang_co ) { return false; }
+
+		/* Chốt 3 — đã thử trong một giờ qua. Nếu vì lý do nào đó nạp lại mà luật vẫn không vào
+		   được CSDL (thiếu quyền ghi, một plugin khác ghi đè), chốt này giữ cho hỏng-một-trang
+		   không biến thành hỏng-cả-website. */
+		if ( $da_thu ) { return false; }
+
+		foreach ( (array) $vua_khai as $mau => $dich ) {
+			/* Chỉ soi luật CỦA PLUGIN NÀY. Mọi đường của nó đều dẫn tới một biến `vhcc_…`; luật
+			   của plugin khác thiếu hay đủ không phải việc mình, và nạp lại giùm họ là giành
+			   việc — hai plugin cùng nạp lại là hai bên ghi đè nhau, không bên nào thắng. */
+			if ( strpos( (string) $dich, 'vhcc_' ) === false ) { continue; }
+			if ( ! isset( $dang_co[ $mau ] ) ) { return true; }
+		}
+		return false;
+	}
+
 	/** Trạng thái hiện tại của một ô trong bảng: 'mo' · 'khoa' · '' (theo vai). */
 	public static function o( $ma_nv, $trang ) {
 		$ng = self::ngoai_le_cua( $ma_nv );

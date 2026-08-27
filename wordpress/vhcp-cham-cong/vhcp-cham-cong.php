@@ -3,7 +3,7 @@
  * Plugin Name:       Chấm Công (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống chấm công chạy THẲNG trên host: máy chấm công, hàng đợi lệnh, cập nhật firmware và toàn bộ nghiệp vụ đều nằm trên MySQL của chính website. Không Firebase, không Google Sheet.
- * Version:           2.48.0
+ * Version:           2.48.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHCC_VERSION', '2.48.0' );
+define( 'VHCC_VERSION', '2.48.1' );
 define( 'VHCC_FILE', __FILE__ );
 define( 'VHCC_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCC_URL', plugin_dir_url( __FILE__ ) );
@@ -104,6 +104,58 @@ add_action( 'init', array( 'VHCC_Tram', 'init' ), 5 );
    đường dẫn (99) — để luật đường của máy có mặt sớm nhất. Đường của máy là đường duy nhất trong
    plugin này mà một lượt bị chuyển hướng đồng nghĩa MẤT chấm công, xem class-vhcc-nhan.php. */
 add_action( 'init', array( 'VHCC_Nhan', 'init' ), 4 );
+/**
+ * TỰ PHÁT HIỆN LUẬT ĐƯỜNG DẪN BỊ THIẾU, RỒI NẠP LẠI.
+ *
+ * =============================================================================================
+ * 🔴 VÌ SAO CẦN — "trang mới ra trang blog", và không có gì báo
+ * =============================================================================================
+ * Anh Thắng 27/08/2026 nạp bản có trang `/nhan-su/`, mở ra thì thấy trang blog mặc định của
+ * WordPress. Không lỗi, không 404, không một dòng nào nói rằng có gì đó chưa xong.
+ *
+ * Chuyện xảy ra là: `add_rewrite_rule()` chỉ khai luật cho LƯỢT TẢI TRANG NÀY. Muốn nó sống thì
+ * phải `flush_rewrite_rules()` một lần để WordPress ghi cả bảng luật vào CSDL. Plugin vẫn làm
+ * chuyện đó — nhưng chỉ khi thấy số phiên bản đổi (`vhcc_maybe_upgrade`). Mà cái cờ ấy hụt
+ * được ở nhiều chỗ: cài lại đúng cùng một bản, khôi phục CSDL từ bản lưu, một plugin khác gọi
+ * `flush_rewrite_rules()` sau mình và ghi đè bằng bảng luật cũ, hoặc một plugin cache giữ
+ * `vhcc_ver` ở tầng nhớ tạm. Lần nào hụt cũng ra đúng một triệu chứng ấy: TRANG BLOG.
+ *
+ * Nên đừng chờ cái cờ nữa: mỗi lượt tải trang, ĐỐI CHIẾU luật plugin vừa khai với bảng luật
+ * đang nằm trong CSDL. Thiếu cái nào thì tự nạp lại.
+ *
+ * ⚠️ ĐỌC TỪ CHÍNH THỨ PLUGIN VỪA KHAI, KHÔNG GÕ TAY DANH SÁCH. `$wp_rewrite->extra_rules_top`
+ *    đang giữ đúng những luật mà mấy hàm `init` ở trên vừa thêm vào. Gõ tay năm đường dẫn ở đây
+ *    thì thêm trang thứ sáu mà quên khai là nó lại rơi vào đúng cái bẫy này — mà bẫy này thì
+ *    không kêu tiếng nào.
+ *
+ * 🔴 BA CHỐT CHỐNG NẠP LẠI VÔ HẠN. `flush_rewrite_rules()` là một lượt ghi nặng; gọi nó ở MỌI
+ *    lượt tải trang là hạ cả website xuống. Nên:
+ *      1. Đường dẫn đang để kiểu "thô" (`permalink_structure` rỗng) thì THÔI — lúc ấy WordPress
+ *         không dùng bảng luật, bảng rỗng là ĐÚNG chứ không phải thiếu. Không có chốt này là
+ *         nạp lại mỗi lượt, vĩnh viễn.
+ *      2. Bảng luật chưa dựng (`rewrite_rules` không phải mảng) thì THÔI — WordPress tự dựng
+ *         lại ở lượt sau, chen vào là giành việc với nó.
+ *      3. Đã thử trong một giờ qua thì THÔI. Nếu vì lý do nào đó nạp lại mà luật vẫn không vào
+ *         được CSDL (quyền ghi, một plugin khác ghi đè), chốt này giữ cho hỏng-một-trang không
+ *         biến thành hỏng-cả-website.
+ */
+add_action( 'init', 'vhcc_kiem_duong_dan', 98 );
+function vhcc_kiem_duong_dan() {
+	global $wp_rewrite;
+	if ( ! $wp_rewrite || ! isset( $wp_rewrite->extra_rules_top ) ) { return; }
+	/* ⚠️ QUYẾT ĐỊNH nằm ở `VHCC_Cong::can_nap_lai_duong()`, không nằm ở đây — chỗ này là keo
+	   dán hook, mà keo dán thì bộ thử không với tới được. Xem chú thích dài ở hàm ấy. */
+	$can = VHCC_Cong::can_nap_lai_duong(
+		(string) get_option( 'permalink_structure' ),
+		$wp_rewrite->extra_rules_top,
+		get_option( 'rewrite_rules' ),
+		(bool) get_transient( 'vhcc_da_nap_duong' )
+	);
+	if ( ! $can ) { return; }
+	set_transient( 'vhcc_da_nap_duong', 1, HOUR_IN_SECONDS );
+	update_option( 'vhcc_flush_rewrite', 1 );
+}
+
 add_action( 'init', 'vhcc_flush_rewrite', 99 );
 function vhcc_flush_rewrite() {
 	if ( ! get_option( 'vhcc_flush_rewrite' ) ) { return; }
