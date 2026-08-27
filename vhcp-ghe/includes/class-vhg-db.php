@@ -614,6 +614,8 @@ class VHG_DB {
 			nop_trang_thai VARCHAR(30) NOT NULL DEFAULT '',
 			nop_hinhthuc VARCHAR(20) NOT NULL DEFAULT '',
 			nop_ngay DATE NULL,
+			kt_duyet TINYINT(1) NOT NULL DEFAULT 0,
+			kt_duyet_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY dong (report_id,ma_may),
 			KEY may_ngay (ma_may,ngay)";
@@ -704,6 +706,70 @@ class VHG_DB {
 			sua_luc DATETIME NULL,
 			PRIMARY KEY  (pin,ngay),
 			KEY ngay (ngay)";
+
+		/* ===== TRANG KẾ TOÁN (chặng 2) ===== */
+
+		/* Mã nộp tiền (nội dung chuyển khoản) ↔ cơ sở — cho đối soát CK. Kế toán nhập/sửa. */
+		$b['bc_ma_nop'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			code VARCHAR(120) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY code (code),
+			KEY coso (coso_key)";
+
+		/* Unit ID MISA ↔ cơ sở kế toán — cho báo cáo ngày (DAILY SALES). Kế toán nhập; có mồi. */
+		$b['bc_ma_misa'] = "
+			coso_key VARCHAR(190) NOT NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			unit_id VARCHAR(40) NOT NULL DEFAULT '',
+			unit_name VARCHAR(190) NOT NULL DEFAULT '',
+			vung VARCHAR(80) NOT NULL DEFAULT '',
+			thu_tu INT NOT NULL DEFAULT 0,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (coso_key)";
+
+		/* Dư đầu kỳ công nợ (số chốt) — sổ công nợ lấy làm gốc rồi cộng lũy kế các tháng sau. */
+		$b['bc_congno_dau'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			thang VARCHAR(7) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			so_tien BIGINT(20) NOT NULL DEFAULT 0,
+			chot_luc DATETIME NULL,
+			boi VARCHAR(190) NOT NULL DEFAULT '',
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY coso_thang (coso_key,thang)";
+
+		/* Nhật ký thao tác kế toán CÓ THỂ HOÀN TÁC (sửa ô, áp QR…) — giữ giá trị cũ dạng JSON. */
+		$b['bc_undo'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			viec VARCHAR(40) NOT NULL DEFAULT '',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			chi_tiet LONGTEXT NULL,
+			da_hoan_tac TINYINT(1) NOT NULL DEFAULT 0,
+			boi VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY luc (tao_luc)";
+
+		/* THÙNG RÁC: dòng bc_dong đã xoá — GIỮ trọn dạng JSON để hoàn tác (bài học mất 1279 dòng). */
+		$b['bc_rac'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			report_id VARCHAR(40) NOT NULL DEFAULT '',
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			ngay DATE NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			snapshot LONGTEXT NULL,
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			boi VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			hoan_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY luc (tao_luc)";
 
 		return $b;
 	}
