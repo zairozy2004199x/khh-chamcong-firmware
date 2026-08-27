@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27l (man khoa loi nhay 5s: hotline <-> dung tien mat)"
+#define FW_VERSION "ghe-massage 2026-08-27m (man khoa loi dung bang mau COL_ - het bi xanh)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1235,26 +1235,29 @@ void drawRunning(int secLeft){
 /* MÀN "GHẾ LỖI" — khi ghế bị KHÓA lỗi (g_gheLoi). Chặn khách, hiện hotline. Chỉ hotline mở
    lại từ xa (lệnh 'mokhoa') mới về màn thường. */
 void drawGheLoi(bool matTienMat){
-  tft.fillScreen(TFT_RED);
+  /* Dùng ĐÚNG bảng màu COL_* của ghế (hiển thị chuẩn trên panel này) — không dùng macro
+     TFT_RED/TFT_WHITE thô (panel đảo màu -> đỏ ra xanh). Nền vàng-thương-hiệu SÁNG để nổi
+     bật (khác hẳn nền tối của màn thường), chữ tối cho tương phản. */
+  tft.fillScreen(COL_VANG);
   tft.setTextDatum(MC_DATUM);
   if(!matTienMat){
     /* Mặt 1: tạm ngưng + hotline. */
-    tft.setTextColor(TFT_WHITE, TFT_RED);
+    tft.setTextColor(COL_BG, COL_VANG);
     tft.drawString("GHE TAM NGUNG", 160, 60, 4);
     tft.drawString("PHUC VU QR", 160, 94, 4);
-    tft.setTextColor(TFT_YELLOW, TFT_RED);
+    tft.setTextColor(COL_CHU, COL_VANG);
     tft.drawString("Vui long lien he hotline:", 160, 134, 2);
-    tft.setTextColor(TFT_WHITE, TFT_RED);
+    tft.setTextColor(COL_BG, COL_VANG);
     tft.drawString(HOTLINE, 160, 166, 4);
   } else {
     /* Mặt 2: hướng khách sang TIỀN MẶT (cục ICT qua rơ-le fail-safe vẫn nhận). */
-    tft.setTextColor(TFT_YELLOW, TFT_RED);
+    tft.setTextColor(COL_CHU, COL_VANG);
     tft.drawString("QR TAM NGUNG", 160, 64, 4);
-    tft.setTextColor(TFT_WHITE, TFT_RED);
+    tft.setTextColor(COL_BG, COL_VANG);
     tft.drawString("VUI LONG", 160, 108, 4);
     tft.drawString("SU DUNG TIEN MAT", 160, 146, 4);
   }
-  tft.setTextColor(TFT_WHITE, TFT_RED);
+  tft.setTextColor(COL_CHU, COL_VANG);
   tft.drawString(String("Ghe ") + (CHAIR_ID.length()?CHAIR_ID:String("--")) + "  -  K&H", 160, 216, 2);
 }
 
