@@ -53,6 +53,7 @@ bool  webLogin(const String& pin);
 bool  webGoi(const String& viec, const String& body, String& raOut);
 void  cheDoOTA();
 void  cheDoChotCa();
+void  cheDoKiemTra();   // xem chỉ số như chốt ca nhưng CHỈ XEM, không ghi
 // 4G (bê từ esp32_ghe_massage.ino)
 void   modemPowerOn();
 bool   atProbe(int txPin, int rxPin, long baud);
@@ -96,7 +97,7 @@ const char* SIM_APN     = "v-internet";         // Viettel; đổi nếu SIM nh�
 int TS_MINX = 200, TS_MAXX = 3700, TS_MINY = 240, TS_MAXY = 3800;
 #define SD_CS  5                                 // thẻ SD trên CYD: SPI SCK18/MISO19/MOSI23
 #define BL_PIN 21                                // đèn nền
-#define FW_VERSION "may-tram 2026-08-27a (prefetch ca co so: ghe sau chot ngay tu bo nho)"
+#define FW_VERSION "may-tram 2026-08-27b (them KIEM TRA CHI SO: chi xem, khong chot)"
 // ═════════════════════════════════════════════════════════════════════════════
 
 TFT_eSPI tft = TFT_eSPI();
@@ -706,15 +707,108 @@ void cheDoChotCa(){
   }
 }
 
+// ═══════════════════════════════ KIỂM TRA CHỈ SỐ (CHỈ XEM) ═══════════════════
+/* Anh Thắng 27/08/2026: *"Kiểm tra chỉ số máy (như thu tiền nhưng chỉ xem không chốt) để quản
+ * lý đi kiểm tra chỉ số"*.
+ *
+ * 🔴 KHÁC CHỐT CA Ở ĐÚNG MỘT ĐIỂM: KHÔNG gọi `chot_luu`. Quản lý đi rà chỉ số các máy mà không
+ *    được vô tình đóng mốc — đóng mốc nhầm là cắt quãng của người thu thật, và số tiền của họ
+ *    hôm sau tự hụt đi. Nên đường này KHÔNG có nút lưu, KHÔNG đụng vào cơ sở dữ liệu.
+ *
+ * Cho nhập chỉ số hiện tại để XEM chênh ước tính (theo máy đếm) so với lần chốt trước — con số
+ * để đối chiếu tại chỗ, không ghi đi đâu cả. */
+void cheDoKiemTra(){
+  quetAp(true);
+  if(g_dsN == 0) return;
+  int sel = chonGheTuDanhSach("Chon ghe KIEM TRA");
+  if(sel < 0) return;
+  String ma = g_ds[sel].ma;
+
+  if(!noiInternet()) return;
+  if(g_token.length() == 0){
+    long pin = banPhimSo("Nhap PIN", 0, 0);
+    if(pin < 0) return;
+    if(!webLogin(String(pin))) return;
+  }
+
+  /* Lấy số liệu: dùng chung bộ nhớ prefetch với chốt ca -> đi rà nhiều máy vẫn nhanh. */
+  String coso; long hethong = 0, csTruoc = 0; int donVi = 5000, lanDau = 0;
+  int ci = chotTimTrongCache(ma);
+  if(ci < 0){
+    bao("Dang tai ca co so...", COL_ACC, "Lan dau - cho chut", "");
+    prefetchCoSo();
+    ci = chotTimTrongCache(ma);
+  }
+  if(ci >= 0){
+    coso = g_chot[ci].coso; hethong = g_chot[ci].hethong; csTruoc = g_chot[ci].csTruoc;
+    donVi = g_chot[ci].donVi; lanDau = g_chot[ci].lanDau;
+  } else {
+    bao("Dang lay so lieu...", COL_ACC, "Ghe " + ma, "");
+    String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
+    String body; serializeJson(b, body);
+    if(!webGoi("chot_xem", body, r)){ bao("Loi mang", COL_DO, "chot_xem", ""); delay(1600); return; }
+    StaticJsonDocument<1024> d;
+    if(deserializeJson(d, r)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return; }
+    if(!(d["ok"] | false)){
+      String e = String((const char*)(d["error"] | "Loi"));
+      bao("Khong xem duoc", COL_DO, e.substring(0, 34), ""); delay(2400); return;
+    }
+    coso = String((const char*)(d["coso"] | "")); hethong = (long)(d["theo_he_thong"] | 0);
+    csTruoc = (long)(d["chi_so_truoc"] | 0); donVi = (int)(d["don_vi"] | 5000);
+    lanDau = (int)(d["lan_dau"] | 0);
+  }
+
+  // Màn tóm tắt (CHỈ XEM)
+  tft.fillScreen(COL_BG); tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("KIEM TRA - Ghe " + ma, 14, 12, 4);
+  tft.setTextColor(COL_XAM, COL_BG); tft.drawString(coso, 14, 46, 2);
+  tft.setTextColor(TFT_WHITE, COL_BG);
+  tft.drawString("Chi so lan chot truoc: " + String(csTruoc), 14, 72, 2);
+  tft.drawString("Tien mat he thong ghi: " + String(hethong) + " d", 14, 94, 2);
+  tft.drawString("Don vi: " + String(donVi) + " d / 1 chi so", 14, 116, 2);
+  if(lanDau){ tft.setTextColor(COL_OK, COL_BG); tft.drawString("Ghe chua chot lan nao", 14, 138, 2); }
+  tft.setTextColor(COL_OK, COL_BG);
+  tft.drawString("Cham de nhap chi so hien tai (xem chenh)", 14, 168, 2);
+  tft.setTextColor(COL_XAM, COL_BG);
+  tft.drawString("Huy o ban phim = thoat, KHONG chot", 14, 190, 2);
+  { int cx, cy; cho4Cham(cx, cy, 0); }
+
+  // Nhập chỉ số hiện tại để XEM chênh ước tính (KHÔNG lưu)
+  long chiSo = banPhimSo("Chi so hien tai (chi xem)", csTruoc, 0);
+  if(chiSo < 0) return;   // huỷ -> thoát, không ghi gì
+  long chenh   = lanDau ? 0 : (chiSo - csTruoc);
+  long tienUoc = chenh > 0 ? chenh * donVi : 0;
+
+  tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
+  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("KIEM TRA CHI SO", 160, 30, 4);
+  tft.setTextColor(TFT_WHITE, COL_BG);
+  tft.drawString("Ghe " + ma + (coso.length() ? "  |  " + coso : ""), 160, 70, 2);
+  tft.drawString("Truoc: " + String(csTruoc) + "    Nay: " + String(chiSo), 160, 98, 2);
+  if(lanDau){
+    tft.setTextColor(COL_XAM, COL_BG);
+    tft.drawString("Lan dau - chua co moc de tinh chenh", 160, 128, 2);
+  } else {
+    tft.setTextColor(COL_OK, COL_BG);
+    tft.drawString("Chenh: " + String(chenh) + " chi so = " + String(tienUoc) + " d", 160, 128, 2);
+    tft.setTextColor(COL_XAM, COL_BG);
+    tft.drawString("(uoc theo may dem - chua doi soat tien mat)", 160, 150, 2);
+  }
+  tft.setTextColor(COL_DO, COL_BG); tft.drawString("CHI XEM - KHONG CHOT CA", 160, 180, 2);
+  tft.setTextColor(COL_XAM, COL_BG); tft.drawString("Cham de tiep tuc", 160, 208, 2);
+  int x, y; cho4Cham(x, y, 0);
+}
+
 // ═══════════════════════════════ MÀN CHÍNH ═══════════════════════════════════
 void manChinh(){
   tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("MAY TRAM POSH", 160, 24, 4);
-  // 2 nút lớn
-  tft.fillRoundRect(24, 60, 272, 70, 10, 0x2145);
-  tft.setTextColor(TFT_WHITE, 0x2145); tft.drawString("NAP FIRMWARE", 160, 95, 4);
-  tft.fillRoundRect(24, 148, 272, 70, 10, 0x0341);
-  tft.setTextColor(TFT_WHITE, 0x0341); tft.drawString("THU TIEN / CHOT CA", 160, 183, 4);
+  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("MAY TRAM POSH", 160, 18, 4);
+  // 3 nút lớn (mỗi nút cao 54, cách 8) — xem vùng chạm khớp trong loop()
+  tft.fillRoundRect(24, 40, 272, 54, 10, 0x2145);
+  tft.setTextColor(TFT_WHITE, 0x2145); tft.drawString("NAP FIRMWARE", 160, 67, 4);
+  tft.fillRoundRect(24, 102, 272, 54, 10, 0x0341);
+  tft.setTextColor(TFT_WHITE, 0x0341); tft.drawString("THU TIEN / CHOT CA", 160, 129, 4);
+  tft.fillRoundRect(24, 164, 272, 54, 10, 0x03A0);
+  tft.setTextColor(TFT_WHITE, 0x03A0); tft.drawString("KIEM TRA CHI SO", 160, 191, 4);
 }
 
 void setup(){
@@ -742,10 +836,12 @@ void loop(){
   { int lx, ly; unsigned long t = millis(); while(getTouch(lx, ly) && millis() - t < 1200) delay(10); }
   delay(40);
 
-  if(x >= 24 && x <= 296 && y >= 60 && y <= 130){        // NẠP FIRMWARE
+  if(x >= 24 && x <= 296 && y >= 40 && y <= 94){         // NẠP FIRMWARE
     cheDoOTA();
-  } else if(x >= 24 && x <= 296 && y >= 148 && y <= 218){ // THU TIỀN / CHỐT CA
+  } else if(x >= 24 && x <= 296 && y >= 102 && y <= 156){ // THU TIỀN / CHỐT CA
     cheDoChotCa();
+  } else if(x >= 24 && x <= 296 && y >= 164 && y <= 218){ // KIỂM TRA CHỈ SỐ (chỉ xem)
+    cheDoKiemTra();
   }
   manChinh();
 }
