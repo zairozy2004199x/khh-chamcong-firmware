@@ -145,10 +145,10 @@ class VHG_Trang {
 			return;
 		}
 
-		if ( 'bat' === $viec || 'tat' === $viec || 'khoi_dong_lai' === $viec ) {
+		if ( 'bat' === $viec || 'tat' === $viec || 'khoi_dong_lai' === $viec || 'mo_khoa' === $viec ) {
 			$r = VHG_May::dat_lenh(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
-				'bat' === $viec ? 'on' : ( 'tat' === $viec ? 'off' : 'reboot' ),
+				'bat' === $viec ? 'on' : ( 'tat' === $viec ? 'off' : ( 'mo_khoa' === $viec ? 'mokhoa' : 'reboot' ) ),
 				isset( $d['phut'] ) ? $d['phut'] : 0,
 				/* Ghi TÊN NGƯỜI ĐANG CẦM PHIÊN, không lấy tên từ gói gửi lên. Luật 3: bật tay là
 				   cho không một lượt, nên chữ ký phải là thứ người bấm không tự khai được. */
@@ -1191,7 +1191,7 @@ function datNN(n){
  * Và số đếm ngược tự trừ MỖI GIÂY giữa hai lượt hỏi, chứ không đứng im rồi nhảy 5 giây một
  * lần: một con số đứng im là dấu hiệu ghế treo, đừng để giao diện tự tạo ra dấu hiệu đó.
  * ============================================================================================ */
-var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000 };
+var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000 };
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
@@ -1349,6 +1349,7 @@ function ve(){
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
      Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
   if (GK) TABS.push(['dieu-khien', '🎛 ' + L('Điều khiển ghế','Chair control')]);
+  if (GK) TABS.push(['ghe-loi', '🚨 ' + L('Ghế lỗi','Faulty chairs')]);
   if (QT) TABS.push(['cau-hinh', '⚙️ ' + L('Cấu hình','Settings')]);
   h += '<div class="nav">'
     + TABS.map(function(x){
@@ -1423,6 +1424,7 @@ function ve(){
   }
 
   if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'ghe-loi')    { h += veGheLoi()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
@@ -1647,6 +1649,78 @@ function veDieuKhien(){
       /* Tên nút phải nói đúng việc: nó KHÔNG ghi doanh thu nữa, nó chốt ngăn tiền. Giữ tên cũ
          là người bấm vẫn tưởng mình đang ghi một lượt bán hàng. */
       + '<button data-mat="' + esc(m.ma) + '">🧾 ' + L('Chốt ca / thu ngăn','Close shift') + '</button>'
+      + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ ' + L('Khởi động lại','Reboot') + '</button>'
+      + '</div></div>';
+  });
+  return h + '</div></div>';
+}
+
+/* ============================================================================================
+ * TAB GHẾ LỖI — cho HOTLINE theo dõi ghế nào đang lỗi gì, và MỞ KHOÁ từ xa.
+ *
+ * Anh Thắng 27/08/2026: *"Bổ sung Tab: Ghế cảnh báo Lỗi — ghế nào lỗi gì đẩy vào đó để Hotline
+ * biết"*, và *"ghế lỗi -> màn hiện hotline + KHÓA; hotline mở lại từ xa mới cho chạy QR"*.
+ *
+ * Gom TẤT CẢ ghế bất thường: đang có mã lỗi (m.tm) HOẶC mất kết nối (!m.song).
+ * Ghế bị KHÓA (firmware treo mã 'ghekhongchay'/'ghedungdotngot' bền) -> có nút "Mở khoá từ xa"
+ * gửi lệnh 'mo_khoa'. Ghế kẹt tiền / mất kết nối -> nút Khởi động lại / Tắt.
+ * ============================================================================================ */
+function veGheLoi(){
+  var KHOA_MA = { 'ghekhongchay': 1, 'ghedungdotngot': 1 };   // mã tương ứng ghế bị KHÓA
+  var ds = (D.may || []).filter(function(m){ return m.tm || !m.song; });
+  /* Sắp: ghế đang lỗi (còn kết nối) trước, rồi mất kết nối. */
+  ds.sort(function(a,b){
+    var la = (a.tm ? 0 : 1) + (a.song ? 0 : 2), lb = (b.tm ? 0 : 1) + (b.song ? 0 : 2);
+    if (la !== lb) return la - lb;
+    return (a.coso||'').localeCompare(b.coso||'') || (a.ma||'').localeCompare(b.ma||'');
+  });
+  var soKhoa = ds.filter(function(m){ return m.tm && KHOA_MA[m.tm]; }).length;
+  var soDut  = ds.filter(function(m){ return !m.song; }).length;
+
+  var h = '<div class="card"><h2>🚨 ' + L('Ghế lỗi','Faulty chairs')
+    + ' — ' + ds.length + ' ' + L('ghế','chairs') + '</h2>'
+    + '<p class="mut" style="margin:0 0 10px">'
+    + L('Ghế bị khoá lỗi tự chặn khách và hiện hotline trên màn. Hotline kiểm rồi bấm '
+        + '<b>Mở khoá từ xa</b> để cho ghế nhận khách lại.',
+        'A locked chair blocks customers and shows the hotline on its screen. After checking, '
+        + 'the hotline presses <b>Unlock remotely</b> to let it serve customers again.')
+    + '</p>'
+    + '<div class="act" style="gap:16px;flex-wrap:wrap">'
+    + '<span>🔒 ' + L('Khoá lỗi','Locked') + ': <b>' + soKhoa + '</b></span>'
+    + '<span>📴 ' + L('Mất kết nối','Offline') + ': <b>' + soDut + '</b></span>'
+    + '</div></div>';
+
+  if (!ds.length) {
+    return h + '<div class="card"><p class="mut" style="text-align:center;padding:20px 0">✅ '
+      + L('Không có ghế nào đang lỗi.','No chairs are currently faulty.') + '</p></div>';
+  }
+
+  h += '<div class="card"><div class="ghe-luoi">';
+  ds.forEach(function(m){
+    var khoa = m.tm && KHOA_MA[m.tm];
+    var lop = !m.song ? ' dut' : '';
+    h += '<div class="ghe' + lop + '">'
+      + '<div class="ghe-dau"><span class="ghe-ma">' + esc(m.ma) + '</span>'
+      + '<span class="pill ' + (khoa ? 'p-off' : (!m.song ? 'p-off' : 'p-run')) + '">'
+      + (khoa ? '🔒 ' + L('KHOÁ LỖI','LOCKED') : (!m.song ? '📴 ' + L('Mất kết nối','Offline')
+                 : '⚠ ' + L('Lỗi','Error'))) + '</span></div>'
+      + '<div class="ghe-cs">' + esc(m.coso || L('(chưa gán cơ sở)','(no branch)')) + '</div>';
+
+    if (m.tm) {
+      h += '<div class="ghe-tien-loi dang">⚠ ' + esc(m.tm)
+        + '<div>' + esc(L(m.tm_chu, m.tm_chu_en || m.tm_chu)) + '</div></div>';
+    } else if (!m.song) {
+      h += '<div class="ghe-tien-loi cu">'
+        + L('Ghế không gửi nhịp về máy chủ. Kiểm nguồn / 4G / SIM của ghế.',
+            'The chair is not sending a heartbeat. Check its power / 4G / SIM.') + '</div>';
+    }
+
+    h += '<div class="ghe-nut">';
+    if (khoa) {
+      h += '<button class="on" data-mokhoa="' + esc(m.ma) + '">🔓 '
+        + L('Mở khoá từ xa','Unlock remotely') + '</button>';
+    }
+    h += '<button class="b-tat" data-tat="' + esc(m.ma) + '">■ ' + L('Tắt','Stop') + '</button>'
       + '<button class="b-kd" data-kd="' + esc(m.ma) + '">⟳ ' + L('Khởi động lại','Reboot') + '</button>'
       + '</div></div>';
   });
@@ -2900,6 +2974,14 @@ function noi(){
     b.onclick = function(){ var m = b.getAttribute('data-tat');
       if (!confirm(L('Tắt ghế ' + m + ' ngay?','Stop chair ' + m + ' now?'))) return;
       lam('tat', { ma_may: m }); };
+  });
+  [].forEach.call(document.querySelectorAll('[data-mokhoa]'), function(b){
+    b.onclick = function(){ var m = b.getAttribute('data-mokhoa');
+      if (!confirm(L('Mở khoá lỗi ghế ' + m + '?\n\nChỉ mở khi đã kiểm và ghế chạy lại bình thường '
+          + '— mở khoá xong ghế nhận khách lại. Ghế nhận lệnh trong ~10 giây.',
+          'Unlock chair ' + m + '?\n\nOnly unlock after checking the chair runs again — it will accept '
+          + 'customers afterwards. The chair picks up the command in ~10s.'))) return;
+      lam('mo_khoa', { ma_may: m }); };
   });
   [].forEach.call(document.querySelectorAll('[data-gan]'), function(b){
     b.onclick = function(){

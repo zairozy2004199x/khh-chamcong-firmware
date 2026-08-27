@@ -1068,9 +1068,9 @@ class VHG_May {
 		global $wpdb;
 		$ma_may = trim( (string) $ma_may );
 		if ( '' === $ma_may ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
-		if ( ! in_array( $viec, array( 'on', 'off', 'reboot' ), true ) ) {
-			return array( 'ok' => false, 'error' => 'Lệnh chỉ có thể là bật (on), tắt (off) '
-				. 'hoặc khởi động lại (reboot).' );
+		if ( ! in_array( $viec, array( 'on', 'off', 'reboot', 'mokhoa' ), true ) ) {
+			return array( 'ok' => false, 'error' => 'Lệnh chỉ có thể là bật (on), tắt (off), '
+				. 'khởi động lại (reboot) hoặc mở khoá lỗi (mokhoa).' );
 		}
 		$nguoi = trim( (string) $nguoi );
 		if ( '' === $nguoi ) { return array( 'ok' => false, 'error' => 'Thiếu tên người đặt lệnh.' ); }
@@ -1095,6 +1095,10 @@ class VHG_May {
 		if ( 'reboot' === $viec ) {
 			return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh KHỞI ĐỘNG LẠI máy ' . $ma_may
 				. '. Máy nhận trong ~10 giây rồi tự khởi động, mất khoảng 30 giây mới gửi nhịp lại.' );
+		}
+		if ( 'mokhoa' === $viec ) {
+			return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh MỞ KHOÁ LỖI máy ' . $ma_may
+				. '. Máy nhận trong ~10 giây rồi cho quét QR lại.' );
 		}
 		return array( 'ok' => true, 'thong_bao' => 'Đã đặt lệnh TẮT máy ' . $ma_may . '.' );
 	}

@@ -112,9 +112,9 @@ class VHG_Auth {
 	 *    những thứ đó; nó đi kèm vì danh sách chỉ có một nhóm.
 	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
 
-	/** Việc của người GIÚP KHÁCH — bật ghế, và tiêu ví hộ khách. */
+	/** Việc của người GIÚP KHÁCH — bật ghế, mở khoá ghế lỗi, và tiêu ví hộ khách. */
 	const VIEC_GIUP_KHACH = array(
-		'bat', 'tat', 'khoi_dong_lai',
+		'bat', 'tat', 'khoi_dong_lai', 'mo_khoa',
 		'vi_tra_nv', 'vi_tieu_nv',
 	);
 
