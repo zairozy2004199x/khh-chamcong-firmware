@@ -576,26 +576,88 @@ class VHCC_Web {
 		}
 
 		if ( 'sua_gio' === $viec ) {
-			$r = VHCC_Bu::sua( $toi, array(
-				'coso'    => isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
-				'ngay'    => isset( $_POST['ngay'] ) ? wp_unslash( $_POST['ngay'] ) : '',
-				'ma_nv'   => isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '',
-				'vao'     => isset( $_POST['sg_vao'] ) ? wp_unslash( $_POST['sg_vao'] ) : '',
-				'ra'      => isset( $_POST['sg_ra'] ) ? wp_unslash( $_POST['sg_ra'] ) : '',
-				'xoa_vao' => ! empty( $_POST['sg_xoa_vao'] ),
-				'xoa_ra'  => ! empty( $_POST['sg_xoa_ra'] ),
-				'ly_do'   => isset( $_POST['ly_do'] ) ? wp_unslash( $_POST['ly_do'] ) : '',
-			) );
-			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
-			/* Câu báo nói CŨ -> MỚI, không chỉ nói "đã lưu". Người vừa sửa giờ công của người
-			   khác phải đọc lại được đúng thứ mình vừa làm, ngay lúc còn nhớ mình định làm gì. */
-			$chu = array();
-			foreach ( $r['doi'] as $o => $d ) {
-				$chu[] = ( 'vao' === $o ? 'giờ vào ' : 'giờ ra ' ) . $d['cu'] . ' → ' . $d['moi'];
+			$cs_g  = isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '';
+			$ngay_g = isset( $_POST['ngay'] ) ? wp_unslash( $_POST['ngay'] ) : '';
+			$ma_g   = isset( $_POST['ma_nv'] ) ? wp_unslash( $_POST['ma_nv'] ) : '';
+			$ly_g   = isset( $_POST['ly_do'] ) ? wp_unslash( $_POST['ly_do'] ) : '';
+			$v_g    = isset( $_POST['sg_vao'] ) ? wp_unslash( $_POST['sg_vao'] ) : '';
+			$r_g    = isset( $_POST['sg_ra'] ) ? wp_unslash( $_POST['sg_ra'] ) : '';
+
+			/* 🔴 MỘT LƯỢT SỬA CÓ THỂ CHẠM NHIỀU DÒNG (anh Thắng 27/08/2026: *"nếu cơ sở được ghép
+			   từ 2 cơ sở, thì khi sửa sẽ sửa luôn được cả 2 là 4 giờ vào ra"*).
+			   Dạng ô ĐƠN vẫn phải chạy: biểu mẫu đang mở sẵn trên máy ai đó trước lúc cập nhật
+			   plugin sẽ gửi lên đúng dạng cũ, và bắt người ta bấm lại là mất luôn cả ô Vì sao. */
+			if ( ! is_array( $v_g ) && ! is_array( $r_g ) ) {
+				$r = VHCC_Bu::sua( $toi, array(
+					'coso'    => $cs_g,
+					'ngay'    => $ngay_g,
+					'ma_nv'   => $ma_g,
+					'vao'     => $v_g,
+					'ra'      => $r_g,
+					'xoa_vao' => ! empty( $_POST['sg_xoa_vao'] ),
+					'xoa_ra'  => ! empty( $_POST['sg_xoa_ra'] ),
+					'ly_do'   => $ly_g,
+				) );
+				if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+				return array( array( 'xong' => self::chu_sua( array( $r ) ) ) );
 			}
-			return array( array( 'xong' => 'Đã sửa ' . implode( ' · ', $chu ) . ' cho ' . $r['maNV']
-				. ' ngày ' . $r['ngay'] . '. Dòng này nay mang nhãn nguồn "sửa" (thôi tính là lượt '
-				. 'máy ghi) và đã vào sổ nhật ký kèm giờ cũ — xoá không được.' ) );
+
+			$v_g = (array) $v_g;
+			$r_g = (array) $r_g;
+			$xv  = isset( $_POST['sg_xoa_vao'] ) ? (array) wp_unslash( $_POST['sg_xoa_vao'] ) : array();
+			$xr  = isset( $_POST['sg_xoa_ra'] ) ? (array) wp_unslash( $_POST['sg_xoa_ra'] ) : array();
+			/* ⚠️ CHỈ CHO SỬA TRONG ĐÚNG CHÙM CƠ SỞ CỦA `ccs`. Khoá ô là do biểu mẫu gửi lên, tức
+			   là người gửi đổi được — không chặn ở đây thì gõ một tên cơ sở bất kỳ vào khoá là
+			   sửa được bảng công của cơ sở mình không có quyền xem. `VHCC_Bu::sua()` có gác quyền
+			   riêng, nhưng gác hai lớp mới là gác. */
+			$chum = array_map( 'strtoupper', VHCC_Luong::chum_cua( $cs_g ) );
+			$ma_goc = VHCC_Nhan::tach_hau_to( $ma_g );
+			$ma_goc = $ma_goc[0];
+
+			$xong = array();
+			$loi  = array();
+			foreach ( array_keys( $v_g + $r_g ) as $khoa ) {
+				$khoa = (string) $khoa;
+				$phan = explode( '~', $khoa, 2 );
+				$cs_i = VHCC_NhanSu::chuan_coso( $phan[0] );
+				$ht_i = isset( $phan[1] ) ? strtoupper( trim( $phan[1] ) ) : '';
+				if ( ! in_array( strtoupper( $cs_i ), $chum, true ) ) {
+					$loi[] = $phan[0] . ': không thuộc chùm cơ sở đang xem';
+					continue;
+				}
+				if ( '' !== $ht_i && ! in_array( $ht_i, array( 'TT', 'TG', 'CD', 'CT', 'TC' ), true ) ) {
+					$loi[] = $cs_i . ': hậu tố lạ "' . $ht_i . '"';
+					continue;
+				}
+				$vao_i = isset( $v_g[ $khoa ] ) ? (string) $v_g[ $khoa ] : '';
+				$ra_i  = isset( $r_g[ $khoa ] ) ? (string) $r_g[ $khoa ] : '';
+				$xv_i  = ! empty( $xv[ $khoa ] );
+				$xr_i  = ! empty( $xr[ $khoa ] );
+				/* Dòng KHÔNG ĐỘNG TỚI thì bỏ qua LẶNG LẼ. Gọi `sua()` cho nó là ăn ngay câu
+				   "Không có gì thay đổi" và cả lượt sửa hỏng vì một dòng người ta cố ý để yên. */
+				if ( '' === trim( $vao_i ) && '' === trim( $ra_i ) && ! $xv_i && ! $xr_i ) { continue; }
+				$r = VHCC_Bu::sua( $toi, array(
+					'coso'    => $cs_i,
+					'ngay'    => $ngay_g,
+					'ma_nv'   => $ma_goc . ( '' !== $ht_i ? '-' . $ht_i : '' ),
+					'vao'     => $vao_i,
+					'ra'      => $ra_i,
+					'xoa_vao' => $xv_i,
+					'xoa_ra'  => $xr_i,
+					'ly_do'   => $ly_g,
+				) );
+				if ( empty( $r['ok'] ) ) { $loi[] = self::ten_dong_sua( $cs_i, $ht_i ) . ': ' . $r['error']; }
+				else { $xong[] = $r; }
+			}
+			/* 🔴 SỬA ĐƯỢC DÒNG NÀO THÌ BÁO DÒNG ẤY, HỎNG DÒNG NÀO BÁO DÒNG ẤY. Nuốt lỗi đi là
+			   người ta đọc "Đã sửa" rồi bỏ đi, trong khi ca đêm vẫn nguyên giờ cũ. */
+			if ( ! $xong && ! $loi ) {
+				return array( array( 'loi' => 'Không ô giờ nào được điền — gõ giờ mới hoặc tích Xoá trắng.' ) );
+			}
+			if ( ! $xong ) { return array( array( 'loi' => implode( ' · ', $loi ) ) ); }
+			$noi = self::chu_sua( $xong );
+			if ( $loi ) { $noi .= ' CHƯA sửa được: ' . implode( ' · ', $loi ) . '.'; }
+			return array( array( 'xong' => $noi ) );
 		}
 
 		if ( 'ca' === $viec ) {
@@ -2775,6 +2837,70 @@ class VHCC_Web {
 	 *      có giờ -> `sua_gio` (đè lên giờ đã có · quyền Admin)
 	 *      trống  -> `bu`      (điền vào ô còn trống · quyền Cửa hàng trưởng)
 	 */
+	/**
+	 * Câu báo sau khi sửa giờ: nói CŨ -> MỚI cho TỪNG dòng, không chỉ nói "đã lưu".
+	 *
+	 * Người vừa sửa giờ công của người khác phải đọc lại được đúng thứ mình vừa làm, ngay lúc còn
+	 * nhớ mình định làm gì. Một lượt nay chạm được nhiều dòng (ca chính ở cơ sở này, ca đêm ở cơ
+	 * sở đã ghép), nên câu báo phải kể ra dòng nào đổi gì — gộp lại thành một câu là người đọc
+	 * không biết giờ mình gõ rơi vào ca nào.
+	 */
+	private static function chu_sua( $ds ) {
+		$phan = array();
+		$ma   = '';
+		$ngay = '';
+		foreach ( $ds as $r ) {
+			$ma   = isset( $r['maNV'] ) ? (string) $r['maNV'] : $ma;
+			$ngay = isset( $r['ngay'] ) ? (string) $r['ngay'] : $ngay;
+			$chu  = array();
+			foreach ( $r['doi'] as $o => $d ) {
+				$chu[] = ( 'vao' === $o ? 'giờ vào ' : 'giờ ra ' ) . $d['cu'] . ' → ' . $d['moi'];
+			}
+			list( , $ht ) = VHCC_Nhan::tach_hau_to( isset( $r['maNV'] ) ? $r['maNV'] : '' );
+			$phan[] = ( count( $ds ) > 1
+				? self::ten_dong_sua( isset( $r['coSo'] ) ? (string) $r['coSo'] : '', $ht ) . ': ' : '' )
+				. implode( ' · ', $chu );
+		}
+		return 'Đã sửa ' . implode( ' | ', $phan ) . ' cho ' . $ma . ' ngày ' . $ngay
+			. '. Dòng này nay mang nhãn nguồn "sửa" (thôi tính là lượt máy ghi) và đã vào sổ nhật '
+			. 'ký kèm giờ cũ — xoá không được.';
+	}
+
+	/**
+	 * Tên dễ đọc của một dòng trong chùm: cơ sở + ca nào.
+	 *
+	 * Hậu tố trần (`TC`, `CD`) chỉ người dựng bảng mới hiểu. Người sửa lương cần đọc ra "ca đêm"
+	 * — sửa nhầm ca là sửa nhầm tiền, mà hai ô giờ trông giống hệt nhau.
+	 */
+	private static function ten_dong_sua( $coso, $hau_to ) {
+		$ten = array( 'TT' => 'thu tiền', 'TG' => 'trực ghế', 'CD' => 'ca đêm / tăng ca',
+			'CT' => 'công tối', 'TC' => 'tăng cường / ca đêm' );
+		return $coso . ( '' === $hau_to ? ' · ca chính'
+			: ' · ' . ( isset( $ten[ $hau_to ] ) ? $ten[ $hau_to ] : $hau_to ) . ' (-' . $hau_to . ')' );
+	}
+
+	/** Một cặp ô giờ vào / giờ ra. `$khoa` rỗng = dạng ô ĐƠN cũ; có khoá = dạng mảng theo dòng. */
+	private static function o_cap_gio( $co_gio, $khoa ) {
+		$tv = ( $co_gio ? 'sg_vao' : 'bu_vao' ) . ( '' === $khoa ? '' : '[' . $khoa . ']' );
+		$tr = ( $co_gio ? 'sg_ra' : 'bu_ra' ) . ( '' === $khoa ? '' : '[' . $khoa . ']' );
+		$id = 'iv_' . preg_replace( '/[^A-Za-z0-9]+/', '_', ( $co_gio ? 'sg' : 'bu' ) . '_' . $khoa );
+		$h  = '<div><label for="' . esc_attr( $id . '_v' ) . '">Giờ vào' . ( $co_gio ? ' mới' : '' ) . '</label>'
+			. '<input id="' . esc_attr( $id . '_v' ) . '" name="' . esc_attr( $tv ) . '" type="time"></div>';
+		$h .= '<div><label for="' . esc_attr( $id . '_r' ) . '">Giờ ra' . ( $co_gio ? ' mới' : '' ) . '</label>'
+			. '<input id="' . esc_attr( $id . '_r' ) . '" name="' . esc_attr( $tr ) . '" type="time"></div>';
+		if ( $co_gio ) {
+			/* Ô trống = GIỮ NGUYÊN. Muốn xoá trắng phải tích — một hành động riêng, cố ý. */
+			$xv = 'sg_xoa_vao' . ( '' === $khoa ? '' : '[' . $khoa . ']' );
+			$xr = 'sg_xoa_ra' . ( '' === $khoa ? '' : '[' . $khoa . ']' );
+			$h .= '<div style="flex:0 0 auto"><label>Xoá trắng</label>'
+				. '<label style="display:inline;font-size:12px;margin-right:10px">'
+				. '<input type="checkbox" name="' . esc_attr( $xv ) . '" value="1"> vào</label>'
+				. '<label style="display:inline;font-size:12px">'
+				. '<input type="checkbox" name="' . esc_attr( $xr ) . '" value="1"> ra</label></div>';
+		}
+		return $h;
+	}
+
 	private static function hang_sua( $so_cot, $cs, $ngay, $ma_dd, $co_gio, $ky, $toi ) {
 		$duoc = $co_gio ? VHCC_Vai::duoc( $toi, 'sua_gio' ) : VHCC_Vai::duoc( $toi, 'cham_bu' );
 		/* 🔴 HÀNG SỬA PHẢI DÍNH BÊN TRÁI, KHÔNG TRẢI THEO BỀ RỘNG BẢNG.
@@ -2796,7 +2922,16 @@ class VHCC_Web {
 			return;
 		}
 
-		$dg = VHCC_Bu::gio_hien_tai( $cs, $ngay, $ma_dd );
+		/* 🔴 SỬA CẢ CHÙM CƠ SỞ TRONG MỘT LƯỢT.
+		   Anh Thắng 27/08/2026: *"nếu cơ sở được ghép từ 2 cơ sở, thì khi sửa sẽ sửa luôn được
+		   cả 2 là 4 giờ vào ra"*.
+		   Lưới nay gộp VP_KH-HCM + SETUP_VP thành một hàng, nhưng dòng ca đêm nằm ở cơ sở PHỤ.
+		   Chỉ dựng một cặp ô cho cơ sở đang xem thì bấm sửa ngày có ca đêm sẽ bị máy chủ đáp
+		   "chưa có dòng chấm công nào để sửa" — trong khi ô ấy đang hiện số. */
+		$chum = VHCC_Luong::chum_cua( $cs );
+		$dong = $co_gio ? VHCC_Bu::cac_o( $chum, $ngay, $ma_dd ) : array();
+		$dg   = VHCC_Bu::gio_hien_tai( $cs, $ngay, $ma_dd );
+
 		echo '<form method="post" class="hang" style="margin:0;align-items:flex-end">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="' . ( $co_gio ? 'sua_gio' : 'bu' ) . '">'
@@ -2812,21 +2947,40 @@ class VHCC_Web {
 			. '<div class="mo" style="font-size:11.5px">đang có: vào <b>' . esc_html( $dg['vao'] )
 			. '</b> · ra <b>' . esc_html( $dg['ra'] ) . '</b></div></div>';
 
-		$tv = $co_gio ? 'sg_vao' : 'bu_vao';
-		$tr = $co_gio ? 'sg_ra' : 'bu_ra';
-		echo '<div><label for="iv_' . esc_attr( $tv ) . '">Giờ vào' . ( $co_gio ? ' mới' : '' ) . '</label>'
-			. '<input id="iv_' . esc_attr( $tv ) . '" name="' . esc_attr( $tv ) . '" type="time"></div>';
-		echo '<div><label for="iv_' . esc_attr( $tr ) . '">Giờ ra' . ( $co_gio ? ' mới' : '' ) . '</label>'
-			. '<input id="iv_' . esc_attr( $tr ) . '" name="' . esc_attr( $tr ) . '" type="time"></div>';
-
-		if ( $co_gio ) {
-			/* Ô trống = GIỮ NGUYÊN. Muốn xoá trắng phải tích — một hành động riêng, cố ý. */
-			echo '<div style="flex:0 0 auto"><label>Xoá trắng</label>'
-				. '<label style="display:inline;font-size:12px;margin-right:10px">'
-				. '<input type="checkbox" name="sg_xoa_vao" value="1"> vào</label>'
-				. '<label style="display:inline;font-size:12px">'
-				. '<input type="checkbox" name="sg_xoa_ra" value="1"> ra</label></div>';
+		if ( count( $dong ) > 1 ) {
+			/* Hơn một dòng thật -> mỗi dòng một cặp ô, KHÔNG gộp. Gộp lại là bắt người ta đoán
+			   giờ mình gõ sẽ rơi vào ca nào — mà hai ca ấy trả tiền khác nhau. */
+			foreach ( $dong as $d_i ) {
+				$khoa = $d_i['coso'] . '~' . $d_i['hauTo'];
+				echo '<div style="flex:1 1 100%;border-top:1px dashed #cbd5e1;margin-top:6px;padding-top:6px">'
+					. '<div class="mo" style="font-size:11.5px;margin-bottom:2px"><b>'
+					. esc_html( self::ten_dong_sua( $d_i['coso'], $d_i['hauTo'] ) ) . '</b>'
+					. ' — đang có: vào <b>' . esc_html( $d_i['vao'] ) . '</b> · ra <b>'
+					. esc_html( $d_i['ra'] ) . '</b></div>'
+					. '<div class="hang" style="margin:0;align-items:flex-end">'
+					. self::o_cap_gio( $co_gio, $khoa ) . '</div></div>';
+			}
+		} else {
+			/* Đúng một dòng (hoặc chưa có dòng nào) -> giữ nguyên dạng ô ĐƠN. */
+			echo self::o_cap_gio( $co_gio, '' );
+			/* Chế độ BÙ chỉ ghi vào cơ sở đang xem, nhưng vẫn phải NÓI RA ngày ấy cơ sở ghép có
+			   gì — nếu không, người ta bù một ca vào đây trong khi ca kia đã có giờ ở cơ sở phụ,
+			   thành một ngày hai ca chồng nhau mà không ai thấy. */
+			if ( ! $co_gio && count( $chum ) > 1 ) {
+				$khac = VHCC_Bu::cac_o( $chum, $ngay, $ma_dd );
+				$noi  = array();
+				foreach ( $khac as $k_i ) {
+					if ( 0 === strcasecmp( $k_i['coso'], $cs ) && '' === $k_i['hauTo'] ) { continue; }
+					$noi[] = self::ten_dong_sua( $k_i['coso'], $k_i['hauTo'] )
+						. ': vào ' . $k_i['vao'] . ' · ra ' . $k_i['ra'];
+				}
+				if ( $noi ) {
+					echo '<div class="mo" style="flex:1 1 100%;font-size:11.5px">Ngày này ở cơ sở đã '
+						. 'ghép cũng đang có: ' . esc_html( implode( ' | ', $noi ) ) . '</div>';
+				}
+			}
 		}
+
 		echo '<div style="flex:1 1 240px"><label for="iv_ly">Vì sao *</label>'
 			. '<input id="iv_ly" name="ly_do" required minlength="5" style="width:100%" '
 			. 'placeholder="' . esc_attr( $co_gio ? 'VD: máy lệch đồng hồ 2 tiếng — đối chiếu camera'
@@ -3499,9 +3653,17 @@ class VHCC_Web {
 				   ô có số trông y hệt một ngày bình thường — không đánh dấu là nó lẫn vào giữa
 				   ba mươi ô khác và không ai đi tìm nữa.
 				   ⚠️ Xét CẢ HÀNG 2: ca đêm quên bấm ra cũng là quên bấm. */
-				$thieu_ra = ( '' !== $d['vao'] && '' === $d['ra'] )
-					|| ( '' !== $d['h2vao'] && '' === $d['h2ra'] );
+				/* ⚠️ THIẾU MỘT ĐẦU GIỜ, chiều nào cũng vậy. Bản trước chỉ bắt "có vào, không ra"
+				   — nên ô ca đêm `05:51 → —` (dấu vết của lượt bấm lúc RA) không đỏ, không có
+				   dấu ?, và người ta không có gì để đi tìm. */
+				$thieu_ra = ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) )
+					|| ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) );
 
+				/* ⚠️ KHÔNG thêm `demChuaDuCap` vào đây: `$thieu_ra` đã bao trọn nó. Ca đêm thiếu
+				   cặp nghĩa là đúng một trong `h2vao`/`h2ra` rỗng, mà đó chính là vế thứ hai của
+				   `$thieu_ra`. Thêm vào là một chốt KHÔNG BAO GIỜ chạy — đã phá thử để thấy:
+				   bỏ nó đi mà bộ thử vẫn xanh. Chốt chết đứng cạnh chốt thật thì lần sau có
+				   người sửa `$thieu_ra` sẽ tưởng ô vẫn còn được chốt kia đỡ. */
 				$lop = '';
 				if ( $thieu_ra || ! empty( $d['caLa'] ) || ! empty( $d['demThieuGio'] ) ) { $lop = ' hong'; }
 				elseif ( ! empty( $d['ktCnNghi'] ) )   { $lop = ' vang'; }
@@ -3522,7 +3684,11 @@ class VHCC_Web {
 				$lam_d = ( '' !== $d['h2vao'] || '' !== $d['h2ra'] );
 				if ( $d['congDem'] ) {
 					$dem_o = '🌙' . self::so_vp( $d['congDem'] );
-				} elseif ( ! empty( $d['demThieuGio'] ) ) {
+				} elseif ( ! empty( $d['demThieuGio'] ) || ! empty( $d['demChuaDuCap'] ) ) {
+					/* 🔴 `🌙0` — CÓ LÀM ĐÊM MÀ KHÔNG RA CÔNG. Hai nguyên do khác nhau (không đủ
+					   giờ tối thiểu · thiếu một đầu giờ) nhưng hậu quả trên bảng lương giống
+					   hệt: đêm ấy 0 công. `🌙` trơn nghĩa là "đêm đó có làm" và người đọc hiểu
+					   là công nằm ở ô ngày mai — để nó ở đây là hứa một công không tồn tại. */
 					$dem_o = '🌙0';
 				} elseif ( $lam_d ) {
 					$dem_o = '🌙';
@@ -3560,7 +3726,8 @@ class VHCC_Web {
 						   Chỉ tô đỏ thì ba nguyên do đỏ khác nhau trông giống hệt nhau. */
 						. ( $thieu_ra ? '<span class="chu-hong"> ?</span>' : '' )
 						. ( '' !== $dem_o
-							? '<div class="mdem' . ( ! empty( $d['demThieuGio'] ) ? ' chu-hong' : '' )
+							? '<div class="mdem' . ( ! empty( $d['demThieuGio'] ) || ! empty( $d['demChuaDuCap'] )
+								? ' chu-hong' : '' )
 								. '">' . esc_html( $dem_o ) . '</div>' : '' ),
 						$ngay_o, $ma, true, $duoc_sua, $duoc_bu )
 					. $ngoai . '</td>';
@@ -3593,7 +3760,10 @@ class VHCC_Web {
 			. '<br>Dòng nhỏ <b>🌙</b> nằm <b>ngay trong ô</b> là phần ca đêm của ngày đó — mỗi '
 			. 'người chỉ một hàng. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
 			. 'đêm được tính vào ngày đó (ca đêm đêm trước cho công sang hôm sau) · '
-			. '<b class="chu-hong">🌙0</b> = có làm mà KHÔNG đủ giờ tối thiểu nên không ra công. '
+			. '<b class="chu-hong">🌙0</b> = đêm đó CÓ làm mà KHÔNG ra công — hoặc không đủ giờ '
+			. 'tối thiểu, hoặc <b>thiếu một đầu giờ</b> (chỉ bấm vào, hoặc chỉ bấm ra). '
+			. 'Thiếu một đầu giờ thì <b>không tính công đêm</b>: một lần bấm lẻ không chứng minh '
+			. 'được có ca đêm. Bù nốt giờ còn thiếu (bấm thẳng vào ô) là ca ấy tính đủ ngay. '
 			. 'Số lớn phía trên đã là TỔNG công của ngày, gồm cả phần đêm.'
 			. '<br>Dòng nhỏ <b>nền xám nghiêng</b> (VD <i>FF_SC 8</i>) là ngày người ấy chấm ở '
 			. '<b>cơ sở khác</b> — bày ra để ô ấy khỏi trông như ngày nghỉ. '
@@ -3637,6 +3807,16 @@ class VHCC_Web {
 		if ( '' !== $d['h2vao'] && '' === $d['h2ra'] ) {
 			$c[] = '⚠ hàng 2 (ca đêm) có giờ vào mà KHÔNG có giờ ra — quên bấm lúc về, cần bù';
 		}
+		/* CHIỀU NGƯỢC LẠI cũng phải bắt: chỉ có giờ RA là quên bấm lúc VÀO. Ảnh anh Thắng gửi
+		   27/08 chính là ô ấy — ca đêm `05:51 → —` đọc xuôi trông như quên bấm về, nhưng một ca
+		   đêm bắt đầu lúc 5 giờ 51 sáng thì nhiều phần là dấu vết của LƯỢT BẤM LÚC RA. Không bắt
+		   chiều này thì ô không đỏ, không có dấu ?, và ca đêm ấy im lặng mất công. */
+		if ( '' === $d['h2vao'] && '' !== $d['h2ra'] ) {
+			$c[] = '⚠ hàng 2 (ca đêm) có giờ ra mà KHÔNG có giờ vào — quên bấm lúc vào, cần bù';
+		}
+		if ( '' === $d['vao'] && '' !== $d['ra'] ) {
+			$c[] = '⚠ CÓ giờ ra mà KHÔNG có giờ vào — quên bấm lúc vào, cần bù';
+		}
 		if ( ! empty( $d['caLa'] ) )       { $c[] = '⚠ hàng 2 nằm trong ca ngày → KHÔNG tính'; }
 		if ( ! empty( $d['demThieuGio'] ) ) {
 			$c[] = '⚠ ca đêm ' . self::so_vp( $d['gioDemThuc'] ) . 'h < mức tối thiểu';
@@ -3657,7 +3837,14 @@ class VHCC_Web {
 		if ( ! empty( $d['demThieuGio'] ) ) {
 			$c[] = '⚠ ca đêm chỉ ' . self::so_vp( $d['gioDemThuc'] ) . 'h < mức tối thiểu → KHÔNG tính';
 		}
-		if ( ! empty( $d['demChuaDuCap'] ) ) { $c[] = '⚠ thiếu giờ vào hoặc giờ ra → không đo được, vẫn tính đủ'; }
+		/* Anh Thắng 27/08/2026: *"thiếu có thể do bấm nhầm, không được cộng vào nhé, trừ khi có
+		   thêm giờ ra"*. Câu chú thích phải nói ĐÚNG cái engine vừa làm — bản trước ghi "vẫn
+		   tính đủ" đúng lúc engine cộng đủ; nay engine KHÔNG cộng, mà câu ấy còn nguyên thì màn
+		   hình đang nói dối người kiểm lương. */
+		if ( ! empty( $d['demChuaDuCap'] ) ) {
+			$c[] = '⚠ ca đêm THIẾU một đầu giờ → KHÔNG tính công đêm. Bù nốt giờ còn thiếu thì '
+				. 'tính đủ ngay (bấm vào ô này).';
+		}
 		return implode( "\n", $c );
 	}
 

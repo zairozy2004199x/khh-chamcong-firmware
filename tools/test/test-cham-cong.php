@@ -1357,15 +1357,60 @@ vhcc_cham_dem( 'VP_HCM', '2026-09-10', 'V5', '22:00:00', '23:30:00' );   // ch�
 $r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
 teq( 'ca đêm 1.5 giờ < ngưỡng 3 giờ: KHÔNG được công đêm', 0.0, $r['vp']['rows'][0]['congDem'] );
 teq( 'và có đếm số ngày bị loại để soi', 1, $r['vp']['rows'][0]['soNgayDemThieuGio'] );
-/* ⚠️ CHỈ CÓ MỘT GIỜ (quên chấm ra): KHÔNG được lấy cớ đó để cắt công — cắt ngầm là trừ tiền một
-   người vì cái máy chấm công lỗi. Vẫn tính, nhưng đánh dấu. */
+/* 🔴 CA ĐÊM CHỈ CÓ MỘT GIỜ -> KHÔNG CỘNG CÔNG ĐÊM. Bù thêm giờ còn thiếu thì tính đủ ngay.
+   Anh Thắng 27/08/2026, chỉ vào ô ca đêm `05:51 → —`: *"thiếu có thể do bấm nhầm, không được
+   cộng vào nhé, trừ khi có thêm giờ ra"*.
+   ⚠️ ĐÂY LÀ ĐẢO CHÍNH SÁCH, không phải sửa lỗi. Bản trước cộng đủ công với lý do "không cắt
+      tiền vì máy lỗi" — và phép thử này từng pin đúng chiều ngược lại. Chiều cũ bỏ qua một
+      chuyện: MỘT LẦN BẤM LẺ KHÔNG CHỨNG MINH ĐƯỢC CÓ CA ĐÊM. Người đi ngang máy lúc 5 giờ sáng
+      bấm nhầm một cái cũng để lại đúng dấu vết ấy, và cộng đủ công cho nó là trả một công đêm
+      cho một lần bấm nhầm. Ai làm thật thì bù nốt giờ kia — mất một dòng giải thích, không mất
+      công. */
 vhcc_dung_bang();
 vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
 vhcc_cai_dat( 'VP_CONG_CFG', array( 'demToiThieuGio' => 3 ) );
 vhcc_cham( 'VP_HCM', '2026-09-10', 'V6', 'CD', '22:00:00', null );
 $r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
-teq( 'quên chấm ra ca đêm: VẪN được công đêm, không cắt ngầm', 1.0, $r['vp']['rows'][0]['congDem'] );
-teq( 'nhưng có đánh dấu để soi', 1, $r['vp']['rows'][0]['soNgayDemChuaDuCap'] );
+teq( '🔴 ca đêm thiếu một giờ: KHÔNG cộng công đêm', 0.0, $r['vp']['rows'][0]['congDem'] );
+teq( 'và có đánh dấu để người ta biết đường đi bù', 1, $r['vp']['rows'][0]['soNgayDemChuaDuCap'] );
+/* Không được xoá dấu vết ca đêm ấy đi: dòng vẫn phải còn để có chỗ mà bấm bù. */
+$co_v6 = false;
+foreach ( $r['vp']['detail'] as $d_v6 ) {
+	if ( '2026-09-10' === $d_v6['ngay'] && $d_v6['demChuaDuCap'] ) { $co_v6 = true; }
+}
+t( 'dòng ca đêm thiếu giờ VẪN còn trong bảng để bấm bù', $co_v6 );
+/* ⚠️ KHÔNG ĐƯỢC nói "ca đêm này cho công vào ngày mai" khi nó KHÔNG cho công nào. Câu ấy nằm
+   ngay trên ô, và nói sai một câu ở đây là người kiểm lương đi tìm một công không tồn tại. */
+$noi_sang = '';
+foreach ( $r['vp']['detail'] as $d_v6 ) {
+	if ( '2026-09-10' === $d_v6['ngay'] ) { $noi_sang = (string) $d_v6['demSangNgay']; }
+}
+teq( 'và KHÔNG hứa cho công sang ngày hôm sau', '', $noi_sang );
+/* Bù nốt giờ ra -> ĐỦ CẶP -> tính đủ công đêm ngay, không cần ai duyệt lại. Đây là nửa sau của
+   câu anh Thắng: *"trừ khi có thêm giờ ra"*. Thiếu phép thử này thì "không bao giờ cộng công
+   đêm" cũng xanh — mà thế là cắt trắng ca đêm của cả công ty. */
+/* Bù ĐÚNG ĐƯỜNG THẬT: `dat_gio()` là hàm mà `VHCC_Bu::sua()` gọi xuống. Gieo lại bằng
+   `vhcc_cham()` thì `insert` đụng khoá UNIQUE và im lặng không ghi gì — phép thử xanh/đỏ vì
+   một chuyện hoàn toàn khác. */
+VHCC_Nhan::dat_gio( 'VP_HCM', '2026-09-10', 'V6-CD', 'Người V6',
+	VHCC_DB::giay( '22:00:00' ),
+	VHCC_Online::trai_phang( VHCC_DB::giay( '05:00:00' ), VHCC_Luong::vp_cfg() ),
+	'Sửa: bù nốt giờ ra ca đêm' );
+$r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
+teq( '🔴 bù thêm giờ ra -> ca đêm ấy được tính đủ công', 1.0, $r['vp']['rows'][0]['congDem'] );
+teq( 'và thôi bị đánh dấu thiếu cặp', 0, $r['vp']['rows'][0]['soNgayDemChuaDuCap'] );
+/* ⚠️ Chặn này KHÔNG dựa vào ngưỡng giờ tối thiểu. Cơ sở không khai ngưỡng (demToiThieuGio = 0)
+   vẫn phải chặn — thiếu giờ là thiếu BẰNG CHỨNG, không liên quan tới ca dài hay ngắn. Gác bằng
+   `$toi_thieu > 0` là mọi cơ sở chưa khai ngưỡng (phần lớn) vẫn cộng công cho lần bấm lẻ. */
+vhcc_dung_bang();
+vhcc_bo_phan( 'VP_HCM', 'Văn phòng' );
+vhcc_cai_dat( 'VP_CONG_CFG', array( 'demToiThieuGio' => 0 ) );
+vhcc_cham( 'VP_HCM', '2026-09-10', 'V6B', 'CD', '22:00:00', null );
+$r = VHCC_Luong::bang_cong_va_luong( 'VP_HCM', '2026-09' );
+teq( '🔴 cơ sở KHÔNG khai giờ tối thiểu: vẫn không cộng công cho ca đêm thiếu giờ',
+	0.0, $r['vp']['rows'][0]['congDem'] );
+teq( 'vẫn đánh dấu thiếu cặp dù không khai ngưỡng',
+	1, $r['vp']['rows'][0]['soNgayDemChuaDuCap'] );
 
 /* Giờ ca NGÀY lọt vào hàng 2 -> 'la', KHÔNG tính thành tăng ca. Tính bừa là tự cộng tiền cho một
    cái sai (sửa tay hoặc chấm sai chỗ). */
@@ -10410,6 +10455,300 @@ t( 'và gọi tên phần thứ hai là CA ĐÊM', strpos( $h_vp, '🌙 CA ĐÊM
 t( 'không còn dấu gạch ngắn cũ', strpos( $h_vp, '— ca đêm —' ) === false, $h_vp );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
+vhcc_dung_bang();
+
+/* ======================================================================================
+ *  65. SỬA GIỜ CẢ CHÙM CƠ SỞ TRONG MỘT LƯỢT · và ca đêm thiếu giờ thì KHÔNG cộng công
+ *
+ *  Hai việc anh Thắng giao 27/08/2026, nối nhau trong một buổi:
+ *
+ *  (A) *"nếu cơ sở được ghép từ 2 cơ sở, thì khi sửa sẽ sửa luôn được cả 2 là 4 giờ vào ra"*.
+ *      Lưới nay gộp VP + SETUP thành một hàng, nhưng dòng ca đêm nằm ở cơ sở PHỤ. Hàng sửa cũ
+ *      chỉ dựng một cặp ô cho cơ sở ĐANG XEM, nên bấm sửa một ngày có ca đêm thì máy chủ đáp
+ *      "chưa có dòng chấm công nào để sửa" — trong khi ô ấy đang hiện số.
+ *
+ *  (B) *"thiếu có thể do bấm nhầm, không được cộng vào nhé, trừ khi có thêm giờ ra"* — kèm ảnh
+ *      ô ca đêm `05:51 → —` mà chú thích vẫn ghi "vẫn tính đủ".
+ *      🔴 ĐÂY LÀ ĐẢO CHÍNH SÁCH. Bản trước cộng đủ một công đêm cho lượt bấm lẻ, lý do là
+ *         "không cắt tiền vì máy lỗi". Anh Thắng chỉ ra chiều ngược lại: MỘT LẦN BẤM LẺ KHÔNG
+ *         CHỨNG MINH ĐƯỢC CÓ CA ĐÊM. Ai làm thật thì bù nốt giờ kia — mất một dòng giải thích,
+ *         không mất công.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$S_VP = 'SU_VP_HCM';
+$S_SU = 'SU_SETUP_VP';
+vhcc_bo_phan( $S_VP, 'Văn phòng' );
+vhcc_bo_phan( $S_SU, 'Văn phòng' );
+$u_su = array( 'role' => 'Admin' );
+$r_su = VHCC_Luong::dat_ghep( $u_su, array( $S_SU => $S_VP ) );
+t( 'dựng cảnh: ghép SETUP vào VP', ! empty( $r_su['ok'] ), $r_su );
+
+/* ⚠️ PHẢI CÓ HỒ SƠ. `VHCC_Bu` từ chối bù/sửa cho một mã không có hồ sơ — cố ý, vì bù cho một
+   mã gõ nhầm là dựng ra một người không có thật và cái công ấy đi thẳng vào bảng lương. Cảnh
+   dựng thiếu hồ sơ thì mọi lượt gửi đều rớt ở cửa đó, và phép thử đo nhầm sang chuyện khác. */
+foreach ( array( 'SU1' => $S_VP, 'SU9' => 'TUTU_BT' ) as $ma_su => $cs_su ) {
+	VHCC_NhanSu::luu_ho_so( $u_su, array( 'ma_nv' => $ma_su, 'ho_ten' => 'Người ' . $ma_su,
+		'cua_hang' => $cs_su, 'sdt' => '0900' ) );
+}
+
+/* Ca chính ở cơ sở CHÍNH, ca đêm ở cơ sở PHỤ với hậu tố TC — đúng hình dạng thật của bảng
+   anh Thắng (tệp CSV `CS_SETUP_VP` anh gửi 27/08 dùng hậu tố `-TC`). */
+vhcc_cham( $S_VP, '2026-07-06', 'SU1', '', '08:30:00', '17:00:00' );
+/* ⚠️ Giờ ra ca đêm lưu ở dạng TRẢI PHẲNG (05:30 hôm sau = 29h30), đúng như cổng online ghi.
+   Gieo `05:30` thẳng là dựng một dòng KHÔNG GIỐNG dòng thật, và mọi phép đo sau đó đo trên
+   một hình dạng dữ liệu không tồn tại ngoài đời. */
+vhcc_cham( $S_SU, '2026-07-06', 'SU1', 'TC', '21:30:00', null );
+$wpdb->query( 'UPDATE ' . VHCC_DB::t( 'cham_cong' ) . ' SET gio_ra_giay='
+	. ( VHCC_DB::giay( '05:30:00' ) + VHCC_DB::NGAY_GIAY )
+	. " WHERE coso='" . $S_SU . "' AND ngay='2026-07-06' AND hau_to='TC'" );
+
+/* ---- Lõi: liệt kê mọi dòng thật trong chùm ---- */
+$o_su = VHCC_Bu::cac_o( VHCC_Luong::chum_cua( $S_VP ), '2026-07-06', 'SU1' );
+teq( '🔴 tìm được ĐỦ HAI dòng trên cả chùm, không chỉ cơ sở đang xem', 2, count( $o_su ) );
+$co_chinh = false;
+$co_dem   = false;
+foreach ( $o_su as $x_su ) {
+	if ( $x_su['coso'] === $S_VP && '' === $x_su['hauTo'] && '08:30' === $x_su['vao'] ) { $co_chinh = true; }
+	if ( $x_su['coso'] === $S_SU && 'TC' === $x_su['hauTo'] && '21:30' === $x_su['vao'] ) { $co_dem = true; }
+}
+t( 'dòng ca chính đúng cơ sở, đúng giờ', $co_chinh, $o_su );
+t( '🔴 dòng ca đêm ở CƠ SỞ PHỤ cũng có mặt, kèm hậu tố của nó', $co_dem, $o_su );
+/* ⚠️ Mã trả về phải là mã ĐẦY ĐỦ (`SU1-TC`), vì đó là thứ `VHCC_Bu::sua()` dùng để tìm hàng.
+   Trả mã gốc thì lượt sửa ca đêm rơi vào hàng ca chính — sửa nhầm ca là sửa nhầm tiền. */
+$ma_dem_su = '';
+foreach ( $o_su as $x_su ) {
+	if ( 'TC' === $x_su['hauTo'] ) { $ma_dem_su = $x_su['ma']; }
+}
+teq( 'mã của dòng ca đêm là mã ĐẦY ĐỦ kèm hậu tố', 'SU1-TC', $ma_dem_su );
+/* Cơ sở NGOÀI chùm không được lọt vào — đó là ranh giới giữa "ghép" và "cơ sở khác". */
+vhcc_cham( 'TUTU_BT', '2026-07-06', 'SU1', '', '09:00:00', '18:00:00' );
+$o_su2 = VHCC_Bu::cac_o( VHCC_Luong::chum_cua( $S_VP ), '2026-07-06', 'SU1' );
+teq( '🔴 cơ sở NGOÀI chùm không lọt vào danh sách sửa', 2, count( $o_su2 ) );
+
+/* ---- Hàng sửa trên web: 4 ô giờ, mỗi dòng một cặp ---- */
+/* Dựng thẻ phiên THẲNG, không đi qua PIN: PIN của mấy tài khoản mẫu đã bị các khối trên sửa đi
+   nhiều lượt, mà khối này nói về hàng sửa chứ không nói về đăng nhập.
+   ⚠️ Giữ NGUYÊN một thẻ cho cả khối: chữ ký chống giả mạo (`chu_ky`) tính theo thẻ, nên phát
+      thẻ mới cho mỗi lượt là mọi lượt gửi đều rớt ở cửa chữ ký — và phép thử sẽ đỏ vì một lý do
+      chẳng liên quan gì tới thứ nó định đo. */
+$tok_su = VHCC_Auth::phat_token( 'Người Sửa', 'Admin', '', 'SUADM' );
+function vhcc_web_sua( $get = array(), $post = array() ) {
+	global $tok_su;
+	$_GET = $get;
+	$_POST = $post ? array_merge( array( 'ky' => VHCC_Web::chu_ky( $tok_su ) ), $post ) : array();
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok_su );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_POST = array(); $_COOKIE = array();
+	return $h;
+}
+$h_su = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'SU1' ) );
+t( 'dựng cảnh: hàng sửa mở ra', strpos( $h_su, 'id="suaday"' ) !== false, substr( $h_su, 0, 400 ) );
+/* 🔴 BỐN Ô GIỜ, đúng chữ anh Thắng dùng: *"sửa luôn được cả 2 là 4 giờ vào ra"*. */
+t( '🔴 có ô giờ vào của CA CHÍNH ở cơ sở chính',
+	strpos( $h_su, 'name="sg_vao[' . $S_VP . '~]"' ) !== false, $h_su );
+t( '🔴 và ô giờ ra của ca chính',
+	strpos( $h_su, 'name="sg_ra[' . $S_VP . '~]"' ) !== false, $h_su );
+t( '🔴 có ô giờ vào của CA ĐÊM ở cơ sở PHỤ',
+	strpos( $h_su, 'name="sg_vao[' . $S_SU . '~TC]"' ) !== false, $h_su );
+t( '🔴 và ô giờ ra của ca đêm',
+	strpos( $h_su, 'name="sg_ra[' . $S_SU . '~TC]"' ) !== false, $h_su );
+/* Mỗi cụm phải NÓI RÕ nó là ca nào. Bốn ô giờ giống hệt nhau xếp thành hàng thì người sửa gõ
+   vào ô nào cũng thấy hợp lý — và hai ca ấy trả tiền khác nhau. */
+t( 'cụm ca đêm gọi đúng tên cơ sở phụ', strpos( $h_su, $S_SU ) !== false, $h_su );
+t( 'và nói ra hậu tố để khỏi đoán', strpos( $h_su, '(-TC)' ) !== false, $h_su );
+/* Giờ ĐANG CÓ của từng dòng phải hiện ngay cạnh ô của dòng ấy — nhớ sai một chữ số là ghi đè
+   mất một giờ công thật, mà không có gì trên màn hình mâu thuẫn với con số vừa gõ. */
+/* ⚠️ CẮT ĐÚNG KHỐI HÀNG SỬA rồi mới soi. Giờ `21:30`/`05:30` còn xuất hiện ở bảng "Chi tiết
+   từng lượt" phía dưới, nên soi cả trang bằng `.*?` là phép thử luôn xanh — kể cả khi cụm ô
+   chẳng hiện giờ nào. Đúng cái bẫy đã cắn ở khối lưới. */
+$hs_khoi = preg_match( '~<tr class="hang-sua".*?</tr>~s', $h_su, $m_hs ) ? $m_hs[0] : '';
+t( 'dựng cảnh: cắt được đúng khối hàng sửa', '' !== $hs_khoi, substr( $h_su, 0, 300 ) );
+t( 'hiện giờ đang có của ca đêm ngay tại cụm ấy',
+	preg_match( '~' . preg_quote( $S_SU, '~' ) . '(?:(?!</div>).)*\(-TC\)(?:(?!</div>).)*21:30'
+		. '(?:(?!</div>).)*05:30~s', $hs_khoi ) === 1,
+	$hs_khoi );
+/* Và giờ của ca CHÍNH cũng phải có mặt ngay tại cụm của nó — hai cụm, hai cặp giờ khác nhau. */
+t( 'và giờ đang có của ca chính ở cụm ca chính',
+	preg_match( '~' . preg_quote( $S_VP, '~' ) . ' · ca chính(?:(?!</div>).)*08:30'
+		. '(?:(?!</div>).)*17:00~s', $hs_khoi ) === 1,
+	$hs_khoi );
+
+/* Cơ sở ĐỨNG RIÊNG (không ghép) thì giữ nguyên dạng ô ĐƠN — không bắt người ta đọc thêm một
+   lớp nhãn cho một dòng duy nhất. */
+vhcc_cham( 'TUTU_BT', '2026-07-07', 'SU9', '', '08:00:00', '17:00:00' );
+$h_don = vhcc_web_sua( array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
+	'sgn' => '2026-07-07', 'sgm' => 'SU9' ) );
+t( 'cơ sở đứng riêng: vẫn là ô đơn `sg_vao`',
+	strpos( $h_don, 'name="sg_vao"' ) !== false, $h_don );
+t( 'và KHÔNG dựng ô dạng mảng cho nó', strpos( $h_don, 'name="sg_vao[' ) === false, $h_don );
+
+/* ---- Gửi lượt sửa CẢ HAI DÒNG trong một lượt ---- */
+$h_gui = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-06',
+	'ma_nv'  => 'SU1',
+	'sg_vao' => array( $S_VP . '~' => '08:00', $S_SU . '~TC' => '21:00' ),
+	'sg_ra'  => array( $S_VP . '~' => '', $S_SU . '~TC' => '' ),
+	'ly_do'  => 'máy lệch đồng hồ nửa tiếng, đối chiếu camera',
+) );
+/* ⚠️ Soi trong ĐÚNG khối báo kết quả. Chữ "Đã sửa" có sẵn trong phần mô tả sổ nhật ký ở cuối
+   màn, nên `strpos` cả trang là phép thử luôn xanh — kể cả khi lượt gửi rớt sạch. */
+$bao_su = preg_match( '~<div class="bao (?:ok|loi)">(.*?)</div>~s', $h_gui, $m_su )
+	? strip_tags( $m_su[1] ) : '';
+t( 'lượt sửa cả chùm: máy chủ báo xong', 0 === strpos( $bao_su, 'Đã sửa' ), $bao_su );
+$sau_su = VHCC_Bu::cac_o( VHCC_Luong::chum_cua( $S_VP ), '2026-07-06', 'SU1' );
+$v_chinh = '';
+$v_dem   = '';
+$r_dem   = '';
+foreach ( $sau_su as $x_su ) {
+	if ( '' === $x_su['hauTo'] ) { $v_chinh = $x_su['vao']; }
+	if ( 'TC' === $x_su['hauTo'] ) { $v_dem = $x_su['vao']; $r_dem = $x_su['ra']; }
+}
+teq( '🔴 ca chính ở cơ sở CHÍNH đã đổi', '08:00', $v_chinh );
+teq( '🔴 ca đêm ở cơ sở PHỤ cũng đổi TRONG CÙNG LƯỢT', '21:00', $v_dem );
+/* ⚠️ Ô GIỜ RA để trống = GIỮ NGUYÊN, không phải xoá. Hiểu ô trống thành xoá là mỗi lượt sửa
+   một ô lại âm thầm xoá ô kia — mất giờ công mà không ai bấm nút xoá nào. */
+teq( 'ô giờ ra để trống thì GIỮ NGUYÊN, không bị xoá', '05:30', $r_dem );
+/* Câu báo phải kể ra TỪNG dòng. Gộp thành một câu là người đọc không biết giờ mình gõ rơi vào
+   ca nào — mà đó đúng là thứ họ vừa lo. */
+t( 'câu báo kể tên cả hai dòng', strpos( $bao_su, '(-TC)' ) !== false
+	&& strpos( $bao_su, 'ca chính' ) !== false, $bao_su );
+
+/* 🔴 CHỈ ĐƯỢC SỬA TRONG ĐÚNG CHÙM. Khoá ô là do biểu mẫu gửi lên — người gửi đổi được. Không
+   chặn thì gõ tên cơ sở bất kỳ vào khoá là sửa được bảng công của cơ sở mình không có quyền
+   xem, và `ccs` (thứ duy nhất được gác) chẳng còn nghĩa gì. */
+vhcc_cham( 'TUTU_BT', '2026-07-08', 'SU1', '', '08:00:00', '17:00:00' );
+$h_gian = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-08',
+	'ma_nv'  => 'SU1',
+	'sg_vao' => array( 'TUTU_BT~' => '06:00' ),
+	'ly_do'  => 'thử chèn một cơ sở ngoài chùm',
+) );
+$o_gian = VHCC_Bu::cac_o( array( 'TUTU_BT' ), '2026-07-08', 'SU1' );
+teq( '🔴 cơ sở ngoài chùm KHÔNG bị sửa', '08:00', $o_gian[0]['vao'] );
+t( 'và màn hình nói thẳng là không thuộc chùm',
+	strpos( $h_gian, 'không thuộc chùm' ) !== false, $h_gian );
+
+/* Không điền ô nào mà bấm Lưu -> phải nói ra, chứ không im lặng báo "Đã sửa". */
+$h_rong = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-06',
+	'ma_nv'  => 'SU1',
+	'sg_vao' => array( $S_VP . '~' => '', $S_SU . '~TC' => '' ),
+	'sg_ra'  => array( $S_VP . '~' => '', $S_SU . '~TC' => '' ),
+	'ly_do'  => 'bấm nhầm nút Lưu, không gõ gì',
+) );
+t( 'không điền ô nào thì báo lỗi, không báo "Đã sửa"',
+	strpos( $h_rong, 'Không ô giờ nào được điền' ) !== false
+	&& strpos( $h_rong, 'Đã sửa' ) === false, $h_rong );
+
+/* 🔴 MỘT DÒNG XONG, MỘT DÒNG HỎNG — phải báo CẢ HAI.
+   Nuốt lỗi đi là người ta đọc "Đã sửa" rồi bỏ đi, trong khi ca đêm vẫn nguyên giờ cũ. Đây là
+   nửa nguy hiểm của việc gộp nhiều dòng vào một lượt: trước đây một lượt là một dòng, hỏng thì
+   cả câu báo là câu lỗi và không ai hiểu nhầm được.
+   Dòng hỏng dựng bằng một hậu tố KHÔNG có dòng thật (`-TT`): `sua()` chỉ sửa được dòng đã có. */
+$h_nua = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-06',
+	'ma_nv'  => 'SU1',
+	'sg_vao' => array( $S_VP . '~' => '07:45', $S_VP . '~TT' => '10:00' ),
+	'ly_do'  => 'một dòng có thật, một dòng không',
+) );
+$bao_nua = preg_match( '~<div class="bao (?:ok|loi)">(.*?)</div>~s', $h_nua, $m_nua )
+	? strip_tags( $m_nua[1] ) : '';
+t( 'dòng sửa được thì vẫn báo đã sửa', strpos( $bao_nua, 'Đã sửa' ) !== false, $bao_nua );
+t( '🔴 và dòng HỎNG cũng được kể ra, không nuốt',
+	strpos( $bao_nua, 'CHƯA sửa được' ) !== false
+	&& strpos( $bao_nua, 'thu tiền' ) !== false, $bao_nua );
+
+/* 🔴 SỬA GIỜ RA CA ĐÊM: `05:00` là 5 giờ sáng HÔM SAU, không phải "sớm hơn giờ vào".
+   Ca đêm lưu giờ ra ở dạng trải phẳng (29h30). Người sửa gõ `05:00` vào ô giờ ra là ra một con
+   số nhỏ hơn giờ vào, và chốt cũ đá thẳng lượt sửa ra với câu "Ca đêm thì sửa ở hàng ca đêm" —
+   trong khi họ ĐANG sửa đúng hàng ca đêm. Từ khi hàng sửa mở sẵn 4 ô ngay trên ca đêm thì đây
+   là đường người ta đi hằng ngày, không còn là góc khuất. */
+$h_ra = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-06',
+	'ma_nv'  => 'SU1',
+	'sg_ra'  => array( $S_SU . '~TC' => '05:00' ),
+	'ly_do'  => 'camera cho thấy về lúc 5 giờ sáng, không phải 5 rưỡi',
+) );
+$bao_ra = preg_match( '~<div class="bao (?:ok|loi)">(.*?)</div>~s', $h_ra, $m_ra )
+	? strip_tags( $m_ra[1] ) : '';
+t( '🔴 sửa giờ ra ca đêm KHÔNG còn bị chối', strpos( $bao_ra, 'Đã sửa' ) !== false, $bao_ra );
+$sau_ra = VHCC_Bu::cac_o( VHCC_Luong::chum_cua( $S_VP ), '2026-07-06', 'SU1' );
+$r_ra = '';
+foreach ( $sau_ra as $x_ra ) {
+	if ( 'TC' === $x_ra['hauTo'] ) { $r_ra = $x_ra['ra']; }
+}
+teq( 'và ghi đúng 05:00 của ngày hôm sau', '05:00', $r_ra );
+/* ⚠️ Chốt cũ vẫn phải đứng nguyên cho hàng CHÍNH: gõ giờ ca đêm vào hàng ca ngày là dấu hiệu
+   chấm nhầm chỗ, và trải phẳng bừa cho nó là bịa ra một ca 20 tiếng. */
+$h_chinh = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-06',
+	'ma_nv'  => 'SU1',
+	'sg_vao' => array( $S_VP . '~' => '21:00' ),
+	'sg_ra'  => array( $S_VP . '~' => '05:00' ),
+	'ly_do'  => 'thử gõ giờ ca đêm vào hàng ca ngày',
+) );
+t( '🔴 hàng CHÍNH thì vẫn chối giờ ra sớm hơn giờ vào',
+	strpos( $h_chinh, 'Giờ ra phải muộn hơn giờ vào' ) !== false, $h_chinh );
+
+/* ---- (B) Ca đêm thiếu một đầu giờ: KHÔNG cộng công, và bày thật rõ trên lưới ---- */
+vhcc_dung_bang();
+/* ⚠️ `vhcc_dung_bang()` dựng lại kho, nên thẻ phiên cũ hết hiệu lực — phát lại, không thì mọi
+   lượt sau rơi về màn nhập PIN và phép thử đo một trang trắng. */
+$tok_su = VHCC_Auth::phat_token( 'Người Sửa', 'Admin', '', 'SUADM' );
+$D_CS = 'SU_DEM_CS';
+vhcc_bo_phan( $D_CS, 'Văn phòng' );
+/* Đúng ô trong ảnh anh Thắng gửi: hàng 2 chỉ có MỘT giờ, và nó là giờ lúc 05:51 sáng. */
+vhcc_cham( $D_CS, '2026-07-08', 'DEM1', 'CD', '05:51:00', null );
+/* 🔴 CHIỀU NGƯỢC LẠI: chỉ có giờ RA, không có giờ vào — quên bấm lúc VÀO.
+   Người về lúc 5 giờ sáng bấm một cái rồi đi ngủ. Bản trước chỉ bắt chiều "có vào, không ra",
+   nên dòng này rơi thẳng khỏi bảng: không công, không dấu vết, không chỗ nào để bấm bù. Đã phá
+   thử để thấy — thu `$thieu_ra` về một chiều mà bộ thử vẫn xanh. */
+vhcc_cham( $D_CS, '2026-07-12', 'DEM3', 'CD', null, '05:00:00' );
+
+/* Một người làm đêm ĐỦ CẶP để so — không có người này thì "không bao giờ cộng công đêm" cũng
+   xanh, mà thế là cắt trắng ca đêm của cả công ty. */
+vhcc_cham_dem( $D_CS, '2026-07-10', 'DEM2', '21:30:00', '05:30:00' );
+$h_dem = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $D_CS, 'cth' => '2026-07' ) );
+$o_dem1 = vp_o_dau_tien( $h_dem, 'Người DEM1' );
+t( 'dựng cảnh: tìm được ô ca đêm thiếu giờ', '' !== $o_dem1, substr( $h_dem, 0, 300 ) );
+t( '🔴 ô ấy ĐỎ', strpos( $o_dem1, 'class="oc hong' ) !== false, $o_dem1 );
+/* `🌙` trơn nghĩa là "đêm đó có làm" và người đọc hiểu công nằm ở ô ngày mai. Để nó ở đây là
+   hứa một công không tồn tại — phải là `🌙0`. */
+t( '🔴 hiện 🌙0, không phải 🌙 trơn (đêm ấy KHÔNG ra công)',
+	strpos( $o_dem1, '🌙0' ) !== false, $o_dem1 );
+t( 'chú thích nói rõ KHÔNG tính công đêm',
+	strpos( $o_dem1, 'KHÔNG tính công đêm' ) !== false, $o_dem1 );
+t( 'và chỉ đường đi bù', strpos( $o_dem1, 'Bù nốt giờ còn thiếu' ) !== false, $o_dem1 );
+/* ⚠️ Câu "vẫn tính đủ" của bản trước phải đi hẳn: engine nay KHÔNG cộng, mà câu ấy còn nguyên
+   thì màn hình đang nói dối người kiểm lương. */
+t( '🔴 KHÔNG còn câu "vẫn tính đủ" ở đâu trên màn',
+	strpos( $h_dem, 'vẫn tính đủ' ) === false, $h_dem );
+/* Và dòng CHỈ CÓ GIỜ RA cũng phải còn, cũng đỏ — cùng một chuyện, chỉ khác đầu giờ nào thiếu. */
+$o_dem3 = vp_o_dau_tien( $h_dem, 'Người DEM3' );
+t( '🔴 ca đêm chỉ có giờ RA: dòng VẪN CÒN trong bảng', '' !== $o_dem3, substr( $h_dem, 0, 300 ) );
+t( '🔴 và ô ấy cũng ĐỎ', strpos( $o_dem3, 'class="oc hong' ) !== false, $o_dem3 );
+t( 'chú thích gọi đúng tên chuyện: quên bấm lúc vào',
+	strpos( $o_dem3, 'quên bấm lúc vào' ) !== false, $o_dem3 );
+
+/* Người làm đêm ĐỦ CẶP vẫn được công như thường — chặn ở trên không được đụng tới họ. */
+$o_dem2 = vp_o_dau_tien( $h_dem, 'Người DEM2' );
+t( 'ca đêm đủ cặp: KHÔNG đỏ vì chuyện thiếu giờ',
+	'' !== $o_dem2 && strpos( $o_dem2, '🌙0' ) === false, $o_dem2 );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='" . VHCC_Luong::GHEP_O . "'" );
 vhcc_dung_bang();
 
 if ( count( $truot ) ) {

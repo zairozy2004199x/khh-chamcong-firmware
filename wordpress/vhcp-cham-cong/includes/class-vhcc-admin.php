@@ -1265,7 +1265,7 @@ class VHCC_Admin {
 			if ( $d['demSangNgay'] ) { $gc[] = 'ca đêm → công ghi cho ' . $d['demSangNgay']; }
 			if ( $d['demTuNgay'] ) { $gc[] = 'công đêm từ ' . $d['demTuNgay']; }
 			if ( $d['demThieuGio'] ) { $gc[] = 'đêm ' . $d['gioDemThuc'] . 'h < ngưỡng, KHÔNG được công'; }
-			if ( $d['demChuaDuCap'] ) { $gc[] = 'đêm thiếu cặp giờ — vẫn tính, cần soi'; }
+			if ( $d['demChuaDuCap'] ) { $gc[] = 'đêm thiếu cặp giờ — KHÔNG tính công đêm, cần bù nốt'; }
 			echo '<tr><td>' . esc_html( $d['ngay'] ) . '</td><td>' . esc_html( $d['ma'] ) . '</td>'
 				. '<td>' . esc_html( $d['khung'] ) . '</td><td>' . esc_html( $d['phutNgay'] ) . '</td>'
 				. '<td>' . esc_html( $d['congNgay'] ) . '</td><td>' . esc_html( $d['congTangCa'] ) . '</td>'

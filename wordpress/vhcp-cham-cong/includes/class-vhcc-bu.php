@@ -281,6 +281,19 @@ class VHCC_Bu {
 		if ( $vao_moi === $vao_cu && $ra_moi === $ra_cu ) {
 			return array( 'ok' => false, 'error' => 'Không có gì thay đổi — giờ mới trùng giờ cũ.' );
 		}
+		/* 🔴 HÀNG CA ĐÊM: GIỜ RA SAU NỬA ĐÊM KHÔNG PHẢI LÀ "SỚM HƠN GIỜ VÀO".
+		   Ca đêm lưu giờ ra ở dạng TRẢI PHẲNG (05:30 hôm sau = 29 giờ 30), nên người sửa gõ
+		   `05:30` vào ô giờ ra là ra một con số nhỏ hơn giờ vào — và chốt bên dưới đá thẳng lượt
+		   sửa ra với câu "Ca đêm thì sửa ở hàng ca đêm", trong khi họ ĐANG sửa đúng hàng ca đêm.
+		   Chốt ấy sinh ra để chặn chuyện khác: gõ giờ ca đêm vào hàng CHÍNH. Với hàng chính nó
+		   vẫn đúng và giữ nguyên; với hàng ca đêm thì trải phẳng, y như cổng online vẫn làm.
+		   ⚠️ Chỉ trải phẳng ĐÚNG MỘT NGÀY. Ca dài hơn 24 tiếng không phải ca đêm, nó là dấu hiệu
+		      gõ nhầm — và cộng bừa thêm ngày nữa là bịa ra giờ làm. */
+		list( , $ht_sua ) = VHCC_Nhan::tach_hau_to( $ma_nv );
+		if ( null !== $vao_moi && null !== $ra_moi && $ra_moi <= $vao_moi
+			&& in_array( $ht_sua, array( 'CD', 'CT', 'TC' ), true ) ) {
+			$ra_moi += VHCC_DB::NGAY_GIAY;
+		}
 		if ( null !== $vao_moi && null !== $ra_moi && $ra_moi <= $vao_moi ) {
 			return array( 'ok' => false,
 				'error' => 'Giờ ra phải muộn hơn giờ vào. Ca đêm thì sửa ở hàng ca đêm (mã kèm -CD).' );
@@ -320,6 +333,60 @@ class VHCC_Bu {
 		$r = ( null !== $cu['gio_ra_giay'] && '' !== $cu['gio_ra_giay'] ) ? (int) $cu['gio_ra_giay'] : null;
 		return array( 'co' => true, 'vao' => self::hhmm_hoac_trong( $v ),
 			'ra' => self::hhmm_hoac_trong( $r ), 'nguon' => (string) $cu['nguon'] );
+	}
+
+	/**
+	 * MỌI DÒNG CHẤM CÔNG CỦA MỘT NGƯỜI, MỘT NGÀY, TRÊN CẢ CHÙM CƠ SỞ ĐÃ GHÉP.
+	 *
+	 * Anh Thắng 27/08/2026: *"nếu cơ sở được ghép từ 2 cơ sở, thì khi sửa sẽ sửa luôn được cả 2
+	 * là 4 giờ vào ra"*.
+	 *
+	 * 🔴 KHÔNG CÓ HÀM NÀY THÌ HÀNG SỬA CHỈ VỚI TỚI MỘT NỬA BẢNG.
+	 *    Lưới cả tháng nay gộp cả chùm (VP_KH-HCM + SETUP_VP) vào một hàng — nhìn thì liền một
+	 *    mạch, nhưng dòng ca đêm nằm ở cơ sở PHỤ với hậu tố riêng. Hàng sửa cũ chỉ dựng đúng một
+	 *    cặp ô cho cơ sở ĐANG XEM, nên bấm sửa một ngày có ca đêm thì máy chủ đáp "Ngày này chưa
+	 *    có dòng chấm công nào để sửa" — trong khi trên màn hình ô ấy đang có số. Người ta thấy
+	 *    số, bấm sửa, và bị bảo là không có gì.
+	 *
+	 * ⚠️ TRẢ VỀ DÒNG THẬT, KHÔNG ĐOÁN. Mỗi dòng là một (cơ sở · hậu tố) có thật trong kho, nên
+	 *    hàng sửa dựng đúng bấy nhiêu cặp ô — không thừa ô cho ca không tồn tại, không thiếu ô
+	 *    cho ca đang có giờ.
+	 *
+	 * `$ds_coso` là CẢ CHÙM (`VHCC_Luong::chum_cua`). Trả:
+	 *   array( array( 'coso','hauTo','ma','vao','ra' ) ) — giờ đã dạng 'HH:mm' hoặc '—'.
+	 */
+	public static function cac_o( $ds_coso, $ngay, $ma_nv ) {
+		global $wpdb;
+		$sach = array();
+		foreach ( (array) $ds_coso as $x ) {
+			$x = VHCC_NhanSu::chuan_coso( $x );
+			if ( '' !== $x && ! in_array( $x, $sach, true ) ) { $sach[] = $x; }
+		}
+		if ( ! $sach ) { return array(); }
+		list( $ma_goc, ) = VHCC_Nhan::tach_hau_to( $ma_nv );
+		if ( '' === trim( (string) $ma_goc ) ) { return array(); }
+
+		$cho = implode( ',', array_fill( 0, count( $sach ), '%s' ) );
+		$ds  = $wpdb->get_results( $wpdb->prepare(
+			'SELECT coso, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			. ' WHERE coso IN (' . $cho . ') AND ngay=%s AND ma_nv=%s ORDER BY coso, hau_to',
+			array_merge( $sach, array( $ngay, $ma_goc ) ) ), ARRAY_A );
+		if ( ! is_array( $ds ) ) { return array(); }
+
+		$out = array();
+		foreach ( $ds as $d ) {
+			$ht = strtoupper( trim( (string) $d['hau_to'] ) );
+			$v  = ( null !== $d['gio_vao_giay'] && '' !== $d['gio_vao_giay'] ) ? (int) $d['gio_vao_giay'] : null;
+			$r  = ( null !== $d['gio_ra_giay'] && '' !== $d['gio_ra_giay'] ) ? (int) $d['gio_ra_giay'] : null;
+			$out[] = array(
+				'coso'  => (string) $d['coso'],
+				'hauTo' => $ht,
+				'ma'    => $ma_goc . ( '' !== $ht ? '-' . $ht : '' ),
+				'vao'   => self::hhmm_hoac_trong( $v ),
+				'ra'    => self::hhmm_hoac_trong( $r ),
+			);
+		}
+		return $out;
 	}
 
 	/** 'HH:mm' hoặc '—'. Dùng cho câu báo và cho sổ nhật ký, để hai nơi nói giống nhau. */

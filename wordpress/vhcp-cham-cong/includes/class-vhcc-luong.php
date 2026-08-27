@@ -983,13 +983,26 @@ class VHCC_Luong {
 				$out[ $ngay ]['gioDemThuc'] = $du_cap
 					? round( self::vp_phut_trong_khung( self::pm( $dem[0] ), self::pm( $dem[1] ),
 						$cfg['demTu'], $cfg['demDen'] ) / 60, 2 ) : 0.0;
-				/* ⚠️ CHỈ CÓ MỘT GIỜ (quên chấm ra) thì không cách nào biết ca dài bao lâu. KHÔNG
-				   được lấy cớ đó để cắt công — cắt ngầm là trừ tiền một người vì cái máy lỗi. Vẫn
-				   tính, nhưng đánh dấu để người ta tự soi. */
-				$out[ $ngay ]['demChuaDuCap'] = ( $toi_thieu > 0 && ! $du_cap );
+				/* 🔴 CHỈ CÓ MỘT GIỜ THÌ **KHÔNG CỘNG CÔNG ĐÊM**.
+				   Anh Thắng 27/08/2026, chỉ vào ô ca đêm `05:51 → —`: *"thiếu có thể do bấm nhầm,
+				   không được cộng vào nhé, trừ khi có thêm giờ ra"*.
+
+				   Bản trước làm ngược: thiếu một giờ thì vẫn cộng đủ một công đêm, lấy lý do
+				   "không được cắt tiền vì máy lỗi". Lý do ấy nghe được, nhưng nó bỏ qua một
+				   chuyện: MỘT LẦN BẤM LẺ KHÔNG CHỨNG MINH ĐƯỢC CÓ CA ĐÊM. Người đi ngang máy
+				   lúc 5 giờ sáng bấm nhầm một cái cũng ra đúng dấu vết ấy. Cộng đủ công cho nó
+				   là trả một công đêm cho một lần bấm nhầm, và người thật sự làm đêm hôm đó
+				   không có cách nào phân biệt với người không làm.
+				   Chiều đúng là NGƯỢC LẠI: chưa đủ cặp thì chưa tính, và bày thật rõ để người
+				   ta đi bù nốt giờ còn thiếu — bù xong là ca ấy được tính đủ ngay, có dấu vết
+				   ai bù, vì sao. Không mất công của ai, chỉ đòi một dòng giải thích.
+
+				   ⚠️ KHÔNG phụ thuộc `demToiThieuGio`. Cơ sở không khai giờ tối thiểu vẫn phải
+				      chặn — thiếu giờ là thiếu bằng chứng, không liên quan tới ngưỡng dài ngắn. */
+				$out[ $ngay ]['demChuaDuCap'] = ! $du_cap;
 				$out[ $ngay ]['demThieuGio']  = ( $toi_thieu > 0 && $du_cap
 					&& $out[ $ngay ]['gioDemThuc'] < $toi_thieu );
-				if ( ! $out[ $ngay ]['demThieuGio'] ) {
+				if ( ! $out[ $ngay ]['demThieuGio'] && ! $out[ $ngay ]['demChuaDuCap'] ) {
 					$sau = self::ngay_sau( $ngay );
 					$o( $sau );
 					$out[ $sau ]['congDem']  += (float) $cfg['demCong'];
@@ -1050,8 +1063,12 @@ class VHCC_Luong {
 			   khi ấy hiện dấu `·`, mà dấu ấy có nghĩa rất cụ thể: *không có dữ liệu chấm công*.
 			   Tức một ngày người ta ĐI LÀM trông y hệt một ngày NGHỈ — và đó đúng là ngày cần
 			   đi bù nhất. Không giữ dòng lại thì không có gì để tô đỏ, và cũng không ai đi tìm. */
-			$thieu_ra = ( '' !== $r['vao'] && '' === $r['ra'] )
-				|| ( '' !== $r['h2vao'] && '' === $r['h2ra'] );
+			/* ⚠️ THIẾU ĐẦU GIỜ NÀO CŨNG PHẢI GIỮ. Bản trước chỉ bắt chiều "có vào, không ra" —
+			   nên một lượt bấm DUY NHẤT lúc ra (ca đêm về lúc 5 giờ sáng, quên bấm lúc vào) làm
+			   dòng ấy rơi thẳng khỏi bảng: không công, không dấu vết, không chỗ nào để bấm bù.
+			   Đúng cái ô anh Thắng chụp gửi 27/08. */
+			$thieu_ra = ( ( '' !== $r['vao'] ) !== ( '' !== $r['ra'] ) )
+				|| ( ( '' !== $r['h2vao'] ) !== ( '' !== $r['h2ra'] ) );
 			if ( $r['tong'] <= 0 && ! $r['caLa'] && '' === $r['demSangNgay'] && ! $r['demThieuGio']
 				&& ! $thieu_ra
 				&& ! ( $r['ktCnNghi'] && $r['phutNgay'] > 0 ) ) {
