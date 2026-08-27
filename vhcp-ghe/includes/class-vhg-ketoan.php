@@ -34,6 +34,42 @@ class VHG_KeToan {
 
 	private static function songuyen_( $v ) { return ( '' === $v || null === $v ) ? null : (int) $v; }
 
+	/** Ngày đầu kỳ ('Y-m-d') cho today/week/month/year; '' = all. Khớp quy ước VHG_Thu::dau_ky. */
+	private static function dau_ngay_( $ky ) {
+		$nay = current_time( 'timestamp' );
+		switch ( $ky ) {
+			case 'today': return current_time( 'Y-m-d' );
+			case 'week':  $thu = (int) gmdate( 'N', $nay ); return gmdate( 'Y-m-d', $nay - ( $thu - 1 ) * 86400 );
+			case 'month': return gmdate( 'Y-m-01', $nay );
+			case 'year':  return gmdate( 'Y-01-01', $nay );
+		}
+		return '';
+	}
+
+	/**
+	 * Doanh thu BÁO CÁO (bc/bc_dong) theo cơ sở trong một kỳ — để dashboard vận hành hiện số cho
+	 * những cơ sở/tháng chưa có webhook (nhập liệu cũ). Trả [coso_key => {coso,tong,qr,tien_mat,so_luot}].
+	 */
+	public static function doanhthu_ky( $ky ) {
+		global $wpdb;
+		$tu  = self::dau_ngay_( $ky );
+		$sql = 'SELECT h.coso_key ck, h.coso coso, COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr, '
+			. 'COALESCE(SUM(d.tong),0) tg, COUNT(*) n FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN '
+			. VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id WHERE d.chi_so_sau IS NOT NULL';
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND d.ngay >= %s', $tu ); }
+		$sql .= ' GROUP BY h.coso_key, h.coso';
+		$ra = array();
+		foreach ( VHG_DB::rows( $sql ) as $r ) {
+			$ck = (string) $r['ck'];
+			if ( ! isset( $ra[ $ck ] ) ) { $ra[ $ck ] = array( 'coso' => (string) $r['coso'], 'tong' => 0, 'qr' => 0, 'tien_mat' => 0, 'so_luot' => 0 ); }
+			$ra[ $ck ]['tong']     += (int) $r['tg'];
+			$ra[ $ck ]['qr']       += (int) $r['qr'];
+			$ra[ $ck ]['tien_mat'] += (int) $r['tm'];
+			$ra[ $ck ]['so_luot']  += (int) $r['n'];
+		}
+		return $ra;
+	}
+
 	private static function dang_khoa( $coso, $ngay ) {
 		global $wpdb;
 		return (int) $wpdb->get_var( $wpdb->prepare(

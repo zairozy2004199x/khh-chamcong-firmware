@@ -657,6 +657,40 @@ class VHG_Trang {
 		if ( empty( $q['quan_tri'] ) ) { return self::so_lieu_khong_quan_tri( $ky, $ai, $q ); }
 
 		$t   = VHG_Thu::tong_hop( $ky );
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * DOANH THU DASHBOARD: WEBHOOK THIẾU THÌ LẤY BÁO-CÁO (anh Thắng 27/08/2026).
+		 *
+		 * "Doanh thu kỳ" + bảng địa điểm vốn chỉ tính TIỀN THẬT VÀO (webhook QR + chốt-ca) từ bảng
+		 * `thu`. Tháng cũ nhập tay chưa có webhook → cơ sở hiện 0đ. Với cơ sở nào trong kỳ KHÔNG có
+		 * tiền thật (tong=0) thì thay bằng tổng BÁO-CÁO (bc) của cơ sở đó — KHÔNG cộng đôi với cơ sở
+		 * đã có webhook. Ô lấy từ báo cáo gắn cờ `nguon_bc` để giao diện ghi rõ nguồn.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( class_exists( 'VHG_KeToan' ) ) {
+			$bc_ct = VHG_KeToan::doanhthu_ky( $ky );
+			if ( ! empty( $bc_ct ) ) {
+				$idx = array();
+				foreach ( $t['theo_coso'] as $i => $c ) { $idx[ VHG_BaoCao::squash( $c['coso'] ) ] = $i; }
+				foreach ( $bc_ct as $ck => $b ) {
+					if ( (int) $b['tong'] <= 0 ) { continue; }
+					if ( isset( $idx[ $ck ] ) ) {
+						$i = $idx[ $ck ];
+						if ( (int) $t['theo_coso'][ $i ]['tong'] > 0 ) { continue; }   // đã có webhook → không đụng
+						$t['theo_coso'][ $i ]['tong']     = (int) $b['tong'];
+						$t['theo_coso'][ $i ]['qr']       = (int) $b['qr'];
+						$t['theo_coso'][ $i ]['tien_mat'] = (int) $b['tien_mat'];
+						$t['theo_coso'][ $i ]['so_luot']  = (int) $b['so_luot'];
+						$t['theo_coso'][ $i ]['nguon_bc'] = 1;
+					} else {
+						$t['theo_coso'][] = array( 'coso' => $b['coso'], 'so_may' => 0,
+							'so_luot' => (int) $b['so_luot'], 'qr' => (int) $b['qr'],
+							'tien_mat' => (int) $b['tien_mat'], 'tong' => (int) $b['tong'], 'nguon_bc' => 1 );
+					}
+					$t['tong']     += (int) $b['tong'];
+					$t['qr']       += (int) $b['qr'];
+					$t['tien_mat'] += (int) $b['tien_mat'];
+				}
+			}
+		}
 		/* Chỉ số máy đếm lần chốt gần nhất, MỘT lượt hỏi cho tất cả ghế — xem
 		   VHG_Quy::chot_cuoi_theo_may(). */
 		$cs_cuoi = VHG_Quy::chot_cuoi_theo_may();
@@ -1499,7 +1533,7 @@ class VHG_Trang {
       var h=el('div','bc-mut', 'Đối chiếu ngày '+r.ngay+' — '+r.so_ghe+' ghế, '+r.so_lech+' ghế LỆCH so với máy online.');
       box.appendChild(h);
       var sc=el('div','bc-scroll'); var tb=el('table','bc-t');
-      tb.innerHTML='<thead><tr><th>Ghế</th><th>QR báo cáo</th><th>QR máy</th><th>Lệch QR</th><th>Tiền mặt (máy đếm)</th><th>Máy báo</th><th>Lệch</th></tr></thead>';
+      tb.innerHTML='<thead><tr><th>Ghế</th><th style="text-align:right">QR báo cáo</th><th style="text-align:right">QR máy</th><th style="text-align:right">Lệch QR</th><th style="text-align:right">Tiền mặt (máy đếm)</th><th style="text-align:right">Máy báo</th><th style="text-align:right">Lệch</th></tr></thead>';
       var bo=el('tbody');
       (r.ghe||[]).forEach(function(g){
         var tr=el('tr'); if(!g.khop) tr.className='bc-lech';
@@ -1721,7 +1755,7 @@ class VHG_Trang {
         ds.forEach(function(x){ var k=x.date+'|'+x.locName; if(!g[k]){ g[k]={date:x.date,loc:x.locName,cash:0,qr:0,total:0}; order.push(k); }
           g[k].cash+=Number(x.cash||0); g[k].qr+=Number(x.qr||0); g[k].total+=Number(x.total||0); });
         var sc=el('div','bc-scroll'); var tb=el('table','bc-t');
-        tb.innerHTML='<thead><tr><th>Ngày</th><th>Cơ sở</th><th>Tiền mặt</th><th>QR</th><th>Tổng</th></tr></thead>';
+        tb.innerHTML='<thead><tr><th>Ngày</th><th>Cơ sở</th><th style="text-align:right">Tiền mặt</th><th style="text-align:right">QR</th><th style="text-align:right">Tổng</th></tr></thead>';
         var bo=el('tbody');
         order.forEach(function(k){ var o=g[k]; tot+=o.total; var tr=el('tr');
           tr.appendChild(tdCell(o.date)); tr.appendChild(tdCell(o.loc));
@@ -2384,11 +2418,13 @@ function ve(){
   /* LUẬT 2: hỏng để TRÊN CÙNG, trên cả con số doanh thu. */
   var dut = D.may.filter(function(m){ return !m.song; });
   if (dut.length) {
+    /* Danh sách dài (đang dựng hệ, chưa cắm ghế nào) thì cuộn trong ô nhỏ, không để tràn kín màn. */
+    var dsDut = esc(dut.map(function(m){ return m.ma + (m.coso ? ' (' + m.coso + ')' : ''); }).join(', '));
     h += '<div class="warn"><b>' + dut.length + ' ' + L('ghế mất kết nối','chairs offline') + '</b> — '
-      + esc(dut.map(function(m){ return m.ma + (m.coso ? ' (' + m.coso + ')' : ''); }).join(', '))
-      + '. ' + L('Khách vẫn quét được tem QR trên ghế, tiền vẫn vào, nhưng ghế KHÔNG chạy.',
-                 'Customers can still scan the QR sticker on the chair and the money still arrives, '
-                 + 'but the chair will NOT run.') + '</div>';
+      + L('Khách vẫn quét được tem QR, tiền vẫn vào, nhưng ghế KHÔNG chạy.',
+          'Customers can still scan the QR, money still arrives, but the chair will NOT run.')
+      + '<div style="max-height:56px;overflow:auto;margin-top:6px;font-size:12px;opacity:.85;'
+      + 'line-height:1.5;padding:4px 8px;border-radius:8px;background:rgba(0,0,0,.18)">' + dsDut + '</div></div>';
   }
   if (D.cho.length) {
     h += '<div class="note"><b>' + D.cho.length + ' '
@@ -3270,26 +3306,45 @@ function ktiQr(){
     box.appendChild(ktEl('div','mut', L('Khớp','Match')+' '+r.khop+' ghế · '+L('lệch','off')+' '+r.soLech
       +' ghế · QR báo cáo '+ktVnd(r.tongBc)+'đ / webhook '+ktVnd(r.tongWeb)+'đ'));
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Không có ghế lệch.','No mismatches.'))); return; }
-    var sel={};
+    var rows=r.rows;
+    /* Chọn mặc định HẾT (theo khoá report_id|ma_may) — giữ qua các trang, không mất khi lật trang. */
+    var sel={}; rows.forEach(function(x){ sel[x.report_id+'|'+x.ma_may]=x; });
+    var PER=20, QR_PG=0, pages=Math.max(1, Math.ceil(rows.length/PER));
     var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='640px';
-    tb.innerHTML='<tr><th></th><th>'+L('Ghế','Chair')+'</th><th>'+L('Ngày','Date')
-      +'</th><th style="text-align:right">'+L('QR báo cáo','Reported')
-      +'</th><th style="text-align:right">'+L('QR webhook','Bank')
-      +'</th><th style="text-align:right">'+L('Lệch','Off')+'</th></tr>';
-    r.rows.forEach(function(x,i){
-      var tr=ktEl('tr');
-      var td0=ktEl('td'); var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; sel[i]=x;
-      cb.onchange=function(){ if(cb.checked) sel[i]=x; else delete sel[i]; }; td0.appendChild(cb); tr.appendChild(td0);
-      var tn=ktEl('td'); tn.appendChild(ktEl('b',null,x.ten||x.ma_may)); tn.appendChild(ktEl('div','mut',x.coso)); tr.appendChild(tn);
-      tr.appendChild(ktEl('td',null,x.ngay));
-      function c(v){ var e=ktEl('td',null,ktVnd(v)); e.style.textAlign='right'; return e; }
-      tr.appendChild(c(x.bcQr)); tr.appendChild(c(x.webQr));
-      var el2=ktEl('td',null,ktVnd(x.lech)); el2.style.textAlign='right'; el2.style.color='#ff8087'; tr.appendChild(el2);
-      tb.appendChild(tr);
-    });
+    var thR=' style="text-align:right"';
+    var thead='<tr><th></th><th>'+L('Ghế','Chair')+'</th><th>'+L('Ngày','Date')
+      +'</th><th'+thR+'>'+L('QR báo cáo','Reported')+'</th><th'+thR+'>'+L('QR webhook','Bank')
+      +'</th><th'+thR+'>'+L('Lệch','Off')+'</th></tr>';
     sc.appendChild(tb); box.appendChild(sc);
+    var pager=ktEl('div','act'); pager.style.cssText='margin-top:8px;align-items:center'; box.appendChild(pager);
+    function veTrang(){
+      if(QR_PG>=pages) QR_PG=pages-1; if(QR_PG<0) QR_PG=0;
+      tb.innerHTML=thead;
+      var from=QR_PG*PER, to=Math.min(rows.length, from+PER);
+      for(var i=from;i<to;i++){ (function(x){
+        var key=x.report_id+'|'+x.ma_may;
+        var tr=ktEl('tr');
+        var td0=ktEl('td'); var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=(sel[key]!=null);
+        cb.onchange=function(){ if(cb.checked) sel[key]=x; else delete sel[key]; }; td0.appendChild(cb); tr.appendChild(td0);
+        var tn=ktEl('td'); tn.appendChild(ktEl('b',null,x.ten||x.ma_may)); tn.appendChild(ktEl('div','mut',x.coso)); tr.appendChild(tn);
+        tr.appendChild(ktEl('td',null,x.ngay));
+        function c(v){ var e=ktEl('td',null,ktVnd(v)); e.style.textAlign='right'; return e; }
+        tr.appendChild(c(x.bcQr)); tr.appendChild(c(x.webQr));
+        var el2=ktEl('td',null,ktVnd(x.lech)); el2.style.textAlign='right'; el2.style.color='#ff8087'; tr.appendChild(el2);
+        tb.appendChild(tr);
+      })(rows[i]); }
+      pager.textContent='';
+      var bTr=ktEl('button','ghost','‹ '+L('Trước','Prev')); bTr.style.cssText='padding:4px 10px'; bTr.disabled=(QR_PG<=0);
+      bTr.onclick=function(){ QR_PG--; veTrang(); };
+      var bSa=ktEl('button','ghost',L('Sau','Next')+' ›'); bSa.style.cssText='padding:4px 10px'; bSa.disabled=(QR_PG>=pages-1);
+      bSa.onclick=function(){ QR_PG++; veTrang(); };
+      pager.appendChild(bTr);
+      pager.appendChild(ktEl('span','mut', L('Trang','Page')+' '+(QR_PG+1)+'/'+pages+' · '+rows.length+' '+L('ghế lệch','off')+' · '+L('dòng','rows')+' '+(from+1)+'–'+to));
+      pager.appendChild(bSa);
+    }
+    veTrang();
     var bar=ktEl('div','act'); bar.style.marginTop='8px'; var m=ktEl('span','mut');
-    var b=ktEl('button','on',L('Áp sửa QR (đã chọn)','Apply QR (selected)'));
+    var b=ktEl('button','on',L('Áp sửa QR (tất cả đã chọn)','Apply QR (all selected)'));
     b.onclick=function(){
       var ts=Object.keys(sel).map(function(k){ var x=sel[k]; return {report_id:x.report_id,ma_may:x.ma_may}; });
       if(!ts.length){ m.textContent=L('Chưa chọn ghế nào.','None selected.'); m.className='mut err'; return; }
@@ -3307,9 +3362,9 @@ function ktiCongNo(){
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     KTI_THANG=r.thang;
     var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='820px';
-    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>'+L('Dư đầu','Opening')+'</th><th>'+L('Phát sinh','Charged')
-      +'</th><th>'+L('Đã nhận TM','Cash in')+'</th><th>'+L('Đã nhận CK','Transfer in')+'</th><th>'+L('Chưa nộp','Unpaid')
-      +'</th><th>'+L('Dư cuối','Closing')+'</th></tr>';
+    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th class="r">'+L('Dư đầu','Opening')+'</th><th class="r">'+L('Phát sinh','Charged')
+      +'</th><th class="r">'+L('Đã nhận TM','Cash in')+'</th><th class="r">'+L('Đã nhận CK','Transfer in')+'</th><th class="r">'+L('Chưa nộp','Unpaid')
+      +'</th><th class="r">'+L('Dư cuối','Closing')+'</th></tr>';
     (r.rows||[]).forEach(function(o){
       var tr=ktEl('tr');
       function c(x,red){ var e=ktEl('td',null,x); e.style.textAlign='right'; e.style.fontVariantNumeric='tabular-nums'; if(red&&x&&x!=='0') e.style.color='#ff8087'; return e; }
@@ -4398,7 +4453,9 @@ function veQuanLy(){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
     h += '<tr><td><b>' + esc(c.ten) + '</b></td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
-      + '<td class="r"><b>' + tien(r.tong) + '</b></td>'
+      + '<td class="r"><b>' + tien(r.tong) + '</b>'
+      + (r.nguon_bc ? ' <span class="pill p-wait" title="' + L('Chưa có webhook — lấy từ báo cáo doanh thu','No webhook — from revenue reports') + '">' + L('báo cáo','report') + '</span>' : '')
+      + '</td>'
       + '<td class="r hide-sm">' + tien(r.qr) + '</td>'
       + '<td class="r hide-sm">' + tien(r.tien_mat) + '</td>'
       + '<td class="r" style="white-space:nowrap">'
