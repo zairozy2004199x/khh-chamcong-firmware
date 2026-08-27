@@ -281,13 +281,19 @@ class VHG_BaoCao {
 
 		$anh_ghe = self::chia_anh_ghe_( isset( $p['images'] ) ? $p['images'] : array(), count( $rows ), $rid );
 
+		$chia_nop = self::chia_nop_( $rows, $pay );
+
 		$gui_ma = array();
 		foreach ( $rows as $i => $r ) {
 			$gui_ma[ $r['ma_may'] ] = true;
+			$np = isset( $chia_nop[ $r['ma_may'] ] ) ? $chia_nop[ $r['ma_may'] ]
+				: array( 'nop_so_tien' => 0, 'nop_trang_thai' => '', 'nop_hinhthuc' => '', 'nop_ngay' => null );
 			$data = array( 'report_id' => $rid, 'ma_may' => $r['ma_may'], 'ten' => $r['ten'], 'ngay' => $ngay,
 				'chi_so_truoc' => $r['chi_so_truoc'], 'chi_so_sau' => $r['chi_so_sau'], 'actual' => $r['actual'],
 				'tien_mat' => $r['tien_mat'], 'qr' => $r['qr'], 'dieu_chinh' => $r['dieu_chinh'],
-				'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'] );
+				'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'],
+				'nop_so_tien' => $np['nop_so_tien'], 'nop_trang_thai' => $np['nop_trang_thai'],
+				'nop_hinhthuc' => $np['nop_hinhthuc'], 'nop_ngay' => $np['nop_ngay'] );
 			if ( isset( $anh_ghe[ $i ] ) && count( $anh_ghe[ $i ] ) ) { $data['anh'] = wp_json_encode( $anh_ghe[ $i ] ); }
 			$cu = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s', $rid, $r['ma_may'] ) );
 			if ( $cu ) { $wpdb->update( VHG_DB::t( 'bc_dong' ), $data, array( 'id' => (int) $cu ) ); }
@@ -302,7 +308,8 @@ class VHG_BaoCao {
 				if ( isset( $gui_ma[ $ma ] ) ) { continue; }
 				$wpdb->update( VHG_DB::t( 'bc_dong' ),
 					array( 'chi_so_sau' => null, 'actual' => 0, 'tien_mat' => 0, 'qr' => 0, 'dieu_chinh' => 0, 'tong' => 0,
-						'ghi_chu' => 'bỏ khỏi báo cáo lúc gửi lại ' . current_time( 'Y-m-d' ) ),
+						'ghi_chu' => 'bỏ khỏi báo cáo lúc gửi lại ' . current_time( 'Y-m-d' ),
+						'nop_so_tien' => 0, 'nop_trang_thai' => '', 'nop_hinhthuc' => '', 'nop_ngay' => null ),
 					array( 'report_id' => $rid, 'ma_may' => $ma ) );
 				$bo[] = $ma;
 			}
@@ -333,6 +340,47 @@ class VHG_BaoCao {
 			'unpaid_lydo' => ( 'unpaid' === $tt ) ? mb_substr( trim( (string) ( isset( $pm['unpaidReason'] ) ? $pm['unpaidReason'] : '' ) ), 0, 250 ) : '',
 			'ck_ref' => mb_substr( trim( (string) ( isset( $pm['ref'] ) ? $pm['ref'] : '' ) ), 0, 120 ),
 			'ck_bank' => mb_substr( trim( (string) ( isset( $pm['bank'] ) ? $pm['bank'] : '' ) ), 0, 60 ) );
+	}
+
+	/**
+	 * NỘP THEO GHẾ — phân bổ số tiền nhân viên khai nộp xuống TỪNG ghế theo `tien_mat` phải nộp.
+	 *
+	 * Anh Thắng 27/08/2026 chốt *"nộp theo ghế"*. App gốc lưu tiền-đã-nộp ở từng dòng ghế, và đối
+	 * soát/công nợ cộng theo ghế — nên số tiền khai lúc gửi phải rải xuống ghế ngay, y cách
+	 * `allocatePaid_` của kế toán (ổn định: chạy lại ra y nguyên).
+	 *
+	 * `nop_hinhthuc` ghi RÕ 'cash'/'transfer' (không nhét vào chuỗi trạng thái) → sổ công nợ tách
+	 * cột TM/CK theo cột này, khỏi vụ đoán ' (CK)' như bản Sheet.
+	 *
+	 * Trả map [ ma_may => ['nop_so_tien','nop_trang_thai','nop_hinhthuc','nop_ngay'] ].
+	 */
+	private static function chia_nop_( $rows, $pay ) {
+		$out = array();
+		$method = isset( $pay['hinhthuc'] ) ? $pay['hinhthuc'] : 'cash';
+		$ngay_nop = ( isset( $pay['ngay'] ) && $pay['ngay'] ) ? $pay['ngay'] : null;
+		if ( 'unpaid' === $method ) {
+			foreach ( $rows as $r ) {
+				$out[ $r['ma_may'] ] = array( 'nop_so_tien' => 0, 'nop_trang_thai' => 'unpaid',
+					'nop_hinhthuc' => '', 'nop_ngay' => null );
+			}
+			return $out;
+		}
+		$hthuc = ( 'transfer' === $method ) ? 'transfer' : 'cash';
+		$con = max( 0, (int) ( isset( $pay['so_tien'] ) ? $pay['so_tien'] : 0 ) );
+		$ds = $rows;
+		usort( $ds, function ( $a, $b ) { return strcmp( (string) $a['ma_may'], (string) $b['ma_may'] ); } );
+		foreach ( $ds as $r ) {
+			$can = max( 0, (int) $r['tien_mat'] );
+			$cap = min( $con, $can );
+			$con -= $cap;
+			$tt = ( $can > 0 && $cap >= $can ) ? 'paid' : ( $cap > 0 ? 'thieu' : 'unpaid' );
+			$out[ $r['ma_may'] ] = array(
+				'nop_so_tien' => $cap,
+				'nop_trang_thai' => $tt,
+				'nop_hinhthuc' => $cap > 0 ? $hthuc : '',
+				'nop_ngay' => ( $cap > 0 && $ngay_nop ) ? $ngay_nop : null );
+		}
+		return $out;
 	}
 
 	// ══════════════════════════════════════════════════════════════════ ẢNH -> thư viện WP

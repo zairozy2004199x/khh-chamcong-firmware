@@ -610,6 +610,10 @@ class VHG_DB {
 			tong BIGINT(20) NOT NULL DEFAULT 0,
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			anh TEXT NULL,
+			nop_so_tien BIGINT(20) NOT NULL DEFAULT 0,
+			nop_trang_thai VARCHAR(30) NOT NULL DEFAULT '',
+			nop_hinhthuc VARCHAR(20) NOT NULL DEFAULT '',
+			nop_ngay DATE NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY dong (report_id,ma_may),
 			KEY may_ngay (ma_may,ngay)";

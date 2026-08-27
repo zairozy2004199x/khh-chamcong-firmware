@@ -80,6 +80,43 @@ class VHG_Quy {
 	}
 
 	/**
+	 * MỐC CHỈ SỐ TRƯỚC DÙNG CHUNG — MỘT MÁY ĐẾM cho cả chốt ca LẪN báo cáo doanh thu.
+	 *
+	 * Anh Thắng 27/08/2026: *"nối hai chiều luôn"*. Trước bản này mốc chốt ca chỉ lấy từ bảng
+	 * `chot`; nay lấy chỉ số sau gần nhất từ CẢ `chot` LẪN `bc_dong` (nhân viên nhập báo cáo).
+	 * Nhờ vậy: nhân viên nhập báo cáo trước → máy trạm chốt sau lấy đúng số đó làm mốc, và ngược
+	 * lại — không đếm đôi một quãng.
+	 *
+	 * $chot_truoc = dòng chốt gần nhất (đã đọc sẵn ở nơi gọi để khỏi truy vấn hai lần).
+	 * Trả [ 'cs'=>int, 'nguon'=>''|'chot'|'bao_cao', 'ngay'=>'Y-m-d', 'lan_dau'=>0/1 ].
+	 *
+	 * ⚠️ MÁY ĐẾM KHÔNG CHẠY LÙI: chỉ nhận mốc báo cáo mới hơn khi nó KHÔNG nhỏ hơn mốc chốt —
+	 *    tránh một chỉ số báo cáo cũ kéo mốc tụt xuống rồi `theo_may` phình lên giả.
+	 * ⚠️ Bằng ngày thì ưu tiên CHỐT (đếm phần cứng thật), để không đảo hành vi chốt cùng ngày.
+	 */
+	public static function moc_chi_so( $ma_may, $chot_truoc ) {
+		global $wpdb;
+		$m = strtoupper( trim( (string) $ma_may ) );
+		$cs_chot   = $chot_truoc ? (int) $chot_truoc['chi_so'] : null;
+		$ngay_chot = $chot_truoc ? substr( (string) $chot_truoc['tao_luc'], 0, 10 ) : '';
+		$bc = '' === $m ? null : $wpdb->get_row( $wpdb->prepare(
+			'SELECT chi_so_sau cs, ngay FROM ' . VHG_DB::t( 'bc_dong' )
+			. ' WHERE ma_may=%s AND chi_so_sau IS NOT NULL ORDER BY ngay DESC, id DESC LIMIT 1', $m ), ARRAY_A );
+		$cs_bc   = $bc ? (int) $bc['cs'] : null;
+		$ngay_bc = $bc ? substr( (string) $bc['ngay'], 0, 10 ) : '';
+
+		if ( null === $cs_chot && null === $cs_bc ) {
+			return array( 'cs' => 0, 'nguon' => '', 'ngay' => '', 'lan_dau' => 1 );
+		}
+		if ( null === $cs_bc )   { return array( 'cs' => $cs_chot, 'nguon' => 'chot', 'ngay' => $ngay_chot, 'lan_dau' => 0 ); }
+		if ( null === $cs_chot ) { return array( 'cs' => $cs_bc, 'nguon' => 'bao_cao', 'ngay' => $ngay_bc, 'lan_dau' => 0 ); }
+		if ( $ngay_bc > $ngay_chot && $cs_bc >= $cs_chot ) {
+			return array( 'cs' => $cs_bc, 'nguon' => 'bao_cao', 'ngay' => $ngay_bc, 'lan_dau' => 0 );
+		}
+		return array( 'cs' => $cs_chot, 'nguon' => 'chot', 'ngay' => $ngay_chot, 'lan_dau' => 0 );
+	}
+
+	/**
 	 * Tổng tiền mặt GHẾ TỰ BÁO VỀ trong một quãng thời gian.
 	 *
 	 * ⚠️ Chỉ đường "ghế nuốt" (`ND_GHE_NUOT`). Tiền người thu bấm tay ở quầy KHÔNG nằm trong
@@ -157,9 +194,13 @@ class VHG_Quy {
 		}
 
 		$tr = self::chot_truoc( $m );
+		/* Mốc chỉ số DÙNG CHUNG (chốt ca + báo cáo doanh thu) — xem `moc_chi_so`. */
+		$moc = self::moc_chi_so( $m, $tr );
 		/* 🔴 ĐÓNG MỐC TRƯỚC, RỒI MỚI CỘNG. Lấy `den_id` xong mới cộng trong khoảng
 		   (tu_id, den_id] thì một dòng rơi vào đúng lúc này sẽ nằm trọn trong kỳ SAU — không
-		   mất, không lặp. Cộng trước rồi mới đóng mốc thì dòng đó lọt ra ngoài cả hai kỳ. */
+		   mất, không lặp. Cộng trước rồi mới đóng mốc thì dòng đó lọt ra ngoài cả hai kỳ.
+		   `tu_id`/`den_id` là quãng của bảng `thu` (đo bằng số dòng), độc lập với mốc chỉ số —
+		   nên mốc dùng chung KHÔNG đụng tới hai con số này. */
 		$den = self::thu_moi_nhat();
 		$tu  = $tr ? (int) $tr['den_id'] : 0;
 		return array(
@@ -169,8 +210,9 @@ class VHG_Quy {
 			   `so_may` nữa (việc đó nay chỉ quản trị làm được), nên nó phải tự đủ. */
 			'coso'          => (string) ( isset( $may_['coso_ten'] ) ? $may_['coso_ten'] : '' ),
 			'song'          => ! empty( $may_['con_song'] ) ? 1 : 0,
-			'lan_dau'       => $tr ? 0 : 1,
-			'chi_so_truoc'  => $tr ? (int) $tr['chi_so'] : 0,
+			'lan_dau'       => $moc['lan_dau'],
+			'chi_so_truoc'  => (int) $moc['cs'],
+			'chi_so_truoc_nguon' => $moc['nguon'],   // 'chot' | 'bao_cao' — mốc lấy từ đâu
 			'chot_truoc_luc' => $tr ? (string) $tr['tao_luc'] : '',
 			'chot_truoc_ai' => $tr ? (string) $tr['nguoi'] : '',
 			'don_vi'        => self::don_vi(),
@@ -216,13 +258,15 @@ class VHG_Quy {
 			if ( '' !== $loc && $cs_ghe !== $loc ) { continue; }
 			$m  = (string) $may_['ma'];
 			$tr = self::chot_truoc( $m );
+			$moc = self::moc_chi_so( $m, $tr );   // mốc dùng chung chốt ca + báo cáo
 			$tu = $tr ? (int) $tr['den_id'] : 0;
 			$ds[] = array(
 				'ma_may'        => $m,
 				'coso'          => $cs_ghe,
 				'song'          => ! empty( $may_['con_song'] ) ? 1 : 0,
-				'lan_dau'       => $tr ? 0 : 1,
-				'chi_so_truoc'  => $tr ? (int) $tr['chi_so'] : 0,
+				'lan_dau'       => $moc['lan_dau'],
+				'chi_so_truoc'  => (int) $moc['cs'],
+				'chi_so_truoc_nguon' => $moc['nguon'],
 				'chot_truoc_luc' => $tr ? (string) $tr['tao_luc'] : '',
 				'chot_truoc_ai' => $tr ? (string) $tr['nguoi'] : '',
 				'don_vi'        => $dv,
