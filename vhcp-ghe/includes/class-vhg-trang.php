@@ -274,6 +274,12 @@ class VHG_Trang {
 			if ( 'kt_congno_dat' === $viec ) { self::tra( VHG_KeToan::cong_no_dat( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['so_tien'] ) ? $d['so_tien'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', $boi ) ); return; }
 			if ( 'kt_qr_ds' === $viec )      { self::tra( VHG_KeToan::qr_ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_qr_ap' === $viec )      { self::tra( VHG_KeToan::qr_ap( isset( $d['targets'] ) ? $d['targets'] : array(), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
+			if ( 'kt_ma_misa_ds' === $viec )  { self::tra( VHG_KeToan::ma_misa_ds() ); return; }
+			if ( 'kt_ma_misa_luu' === $viec ) { self::tra( VHG_KeToan::ma_misa_luu( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['unit_id'] ) ? $d['unit_id'] : '', isset( $d['unit_name'] ) ? $d['unit_name'] : '', isset( $d['vung'] ) ? $d['vung'] : '', isset( $d['thu_tu'] ) ? $d['thu_tu'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) ); return; }
+			if ( 'kt_ma_misa_xoa' === $viec ) { self::tra( VHG_KeToan::ma_misa_xoa( isset( $d['coso_key'] ) ? $d['coso_key'] : '' ) ); return; }
+			if ( 'kt_ma_misa_seed' === $viec ) { self::tra( VHG_KeToan::ma_misa_seed() ); return; }
+			if ( 'kt_misa' === $viec )        { self::tra( VHG_KeToan::misa_chungtu( isset( $d['from'] ) ? $d['from'] : '', isset( $d['to'] ) ? $d['to'] : '', isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_tien_mat'] ), isset( $d['so_ct_dau'] ) ? $d['so_ct_dau'] : '' ) ); return; }
+			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
 			return;
 		}
@@ -2176,6 +2182,7 @@ function ve(){
   if (QT || KT) TABS.push(['kt-duyet', '📈 ' + L('Duyệt báo cáo','Review reports')]);
   if (QT || KT) TABS.push(['kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')]);
   if (QT || KT) TABS.push(['kt-tien', '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')]);
+  if (QT || KT) TABS.push(['kt-xuat', '📤 ' + L('Xuất MISA','Export MISA')]);
   /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
      Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
@@ -2263,6 +2270,7 @@ function ve(){
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'kt-xuat')    { h += veKtXuat()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
@@ -3235,6 +3243,89 @@ function ktiMaNop(){
     b.onclick=function(){ if(!(iC.value||'').trim()||!(iL.value||'').trim()){ m.textContent=L('Thiếu mã/cơ sở.','Missing.'); m.className='mut err'; return; }
       ktAct('kt_ma_nop_luu',{id:0,code:iC.value.trim(),coso:iL.value.trim()},m,function(){ iC.value=''; iL.value=''; ktiMaNop(); }); };
     row.appendChild(iC); row.appendChild(iL); row.appendChild(b); row.appendChild(m); box.appendChild(row);
+  });
+}
+
+/* ---- TAB KẾ TOÁN: XUẤT MISA + BÁO CÁO NGÀY + UNIT ID ---- */
+function ktCsvTaiVe(aoa, fileName){
+  var esc2=function(v){ v=(v==null?'':String(v)); if(/[",\n]/.test(v)) v='"'+v.replace(/"/g,'""')+'"'; return v; };
+  var csv=aoa.map(function(row){ return row.map(esc2).join(','); }).join('\r\n');
+  var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fileName||'export.csv';
+  document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },100);
+}
+function veKtXuat(){
+  var thg=(D&&D.luc?String(D.luc).slice(0,7):'');
+  return '<div class="card"><h2>' + L('Xuất chứng từ MISA','Export MISA vouchers') + '</h2>'
+    + '<p class="mut">' + L('CHỈ ghế đã duyệt. Tiền mặt 1 dòng, QR 1 dòng. Tải file CSV (mở Excel rồi dán vào MISA).',
+      'Confirmed chairs only. Cash + QR lines. Downloads CSV.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<label class="mut">' + L('Từ','From') + ' <input type="date" id="ktx-tu" style="max-width:150px"></label>'
+    + '<label class="mut">' + L('Đến','To') + ' <input type="date" id="ktx-den" style="max-width:150px"></label>'
+    + '<label class="mut">' + L('hoặc tháng','or month') + ' <input type="month" id="ktx-thang" value="' + thg + '" style="max-width:150px"></label>'
+    + '<label class="mut">' + L('Số CT đầu','First voucher') + ' <input type="text" id="ktx-soct" placeholder="VD NVKMN1542" style="max-width:150px"></label>'
+    + '<label class="mut"><input type="checkbox" id="ktx-chitm"> ' + L('chỉ tiền mặt','cash only') + '</label>'
+    + '<button id="ktx-misa" class="on">' + L('Tải chứng từ','Download') + '</button>'
+    + '<span id="ktx-misa-msg" class="mut"></span></div></div>'
+    + '<div class="card"><h2>' + L('Báo cáo ngày (DAILY SALES)','Daily sales report') + '</h2>'
+    + '<p class="mut">' + L('Chéo: mỗi dòng một cơ sở, mỗi cột một ngày. Cần Unit ID (bên dưới).',
+      'Cross-tab: branch × day. Needs Unit IDs below.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<input type="month" id="ktx-bn-thang" value="' + thg + '" style="max-width:150px">'
+    + '<label class="mut"><input type="checkbox" id="ktx-bn-duyet"> ' + L('chỉ đã duyệt','confirmed only') + '</label>'
+    + '<button id="ktx-bn" class="on">' + L('Tải báo cáo ngày','Download') + '</button>'
+    + '<span id="ktx-bn-msg" class="mut"></span></div></div>'
+    + '<div class="card"><h2>' + L('Unit ID MISA (theo cơ sở)','MISA Unit IDs') + '</h2>'
+    + '<div class="act"><button id="ktx-seed" class="ghost">' + L('Mồi từ danh mục ghế','Seed from chairs') + '</button>'
+    + '<span id="ktx-seed-msg" class="mut"></span></div>'
+    + '<div id="ktx-manop-wrap" style="margin-top:10px"></div></div>';
+}
+function ktxInit(){
+  document.getElementById('ktx-misa').onclick=function(){
+    var m=document.getElementById('ktx-misa-msg'); m.textContent=L('Đang dựng…','Building…'); m.className='mut';
+    goi('kt_misa',{from:document.getElementById('ktx-tu').value,to:document.getElementById('ktx-den').value,
+      thang:document.getElementById('ktx-thang').value,chi_tien_mat:document.getElementById('ktx-chitm').checked?1:0,
+      so_ct_dau:document.getElementById('ktx-soct').value},function(r){
+      if(!r||!r.ok){ m.textContent=(r&&r.error)||'Lỗi.'; m.className='mut err'; return; }
+      if(r.rows<=0){ m.textContent=L('Không có ghế đã duyệt trong khoảng này.','No confirmed chairs.'); m.className='mut err'; return; }
+      ktCsvTaiVe(r.aoa,r.fileName);
+      m.textContent=L('Đã tải: ','Downloaded: ')+r.rows+' dòng · tiền mặt '+ktVnd(r.tienMat)+'đ'+(r.chiTienMat?'':(' · QR '+ktVnd(r.tienQr)+'đ')); m.className='mut ok';
+    });
+  };
+  document.getElementById('ktx-bn').onclick=function(){
+    var m=document.getElementById('ktx-bn-msg'); m.textContent=L('Đang dựng…','Building…'); m.className='mut';
+    goi('kt_baocao_ngay',{thang:document.getElementById('ktx-bn-thang').value,chi_da_duyet:document.getElementById('ktx-bn-duyet').checked?1:0},function(r){
+      if(!r||!r.ok){ m.textContent=(r&&r.error)||'Lỗi.'; m.className='mut err'; return; }
+      ktCsvTaiVe(r.aoa,r.fileName);
+      var w=(r.thieuUnitId&&r.thieuUnitId.length)?(' · ⚠ '+r.thieuUnitId.length+' cơ sở thiếu Unit ID (dồn cuối)'):'';
+      m.textContent=L('Đã tải: ','Downloaded: ')+r.soCoSo+' cơ sở · tổng '+ktVnd(r.tong)+'đ'+w; m.className='mut ok';
+    });
+  };
+  document.getElementById('ktx-seed').onclick=function(){
+    var m=document.getElementById('ktx-seed-msg');
+    ktAct('kt_ma_misa_seed',{},m,function(){ ktxMaMisa(); });
+  };
+  ktxMaMisa();
+}
+function ktxMaMisa(){
+  var box=document.getElementById('ktx-manop-wrap'); if(!box) return; box.textContent='';
+  goi('kt_ma_misa_ds',{},function(r){
+    box.textContent='';
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='680px';
+    tb.innerHTML='<tr><th>'+L('Cơ sở','Branch')+'</th><th>Unit ID</th><th>'+L('Tên MISA','MISA name')+'</th><th>'+L('Vùng','Region')+'</th><th>'+L('TT','#')+'</th><th></th></tr>';
+    (r&&r.rows||[]).forEach(function(x){
+      var tr=ktEl('tr'); tr.appendChild(ktEl('td',null,x.coso));
+      function inp(v,w){ var i=document.createElement('input'); i.value=(v==null?'':v); i.style.width=(w||90)+'px'; return i; }
+      var iU=inp(x.unit_id,90), iN=inp(x.unit_name,150), iV=inp(x.vung,110), iT=inp(x.thu_tu,50);
+      [iU,iN,iV,iT].forEach(function(el){ var td=ktEl('td'); td.appendChild(el); tr.appendChild(td); });
+      var td=ktEl('td'); var m=ktEl('span','mut'); var b=ktEl('button','on',L('Lưu','Save')); b.style.cssText='padding:4px 8px;font-size:12px';
+      b.onclick=function(){ ktAct('kt_ma_misa_luu',{coso:x.coso,unit_id:iU.value,unit_name:iN.value,vung:iV.value,thu_tu:(iT.value||'').replace(/[^0-9]/g,'')||0},m,function(){}); };
+      var bx=ktEl('button','ghost',L('Xoá','Del')); bx.style.cssText='padding:4px 8px;font-size:12px;margin-left:4px';
+      bx.onclick=function(){ if(!confirm('Xoá '+x.coso+'?')) return; goi('kt_ma_misa_xoa',{coso_key:x.coso_key},function(){ ktxMaMisa(); }); };
+      td.appendChild(b); td.appendChild(bx); td.appendChild(m); tr.appendChild(td); tb.appendChild(tr);
+    });
+    sc.appendChild(tb); box.appendChild(sc);
+    if(!(r&&r.rows&&r.rows.length)) box.appendChild(ktEl('p','mut',L('Chưa có — bấm "Mồi từ danh mục ghế".','Empty — click Seed.')));
   });
 }
 
@@ -4407,6 +4498,7 @@ function noi(){
   if (document.getElementById('ktd-list')) ktdInit();
   if (document.getElementById('ktdn-list')) ktdnInit();
   if (document.getElementById('kti-congno')) ktiInit();
+  if (document.getElementById('ktx-manop-wrap')) ktxInit();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');

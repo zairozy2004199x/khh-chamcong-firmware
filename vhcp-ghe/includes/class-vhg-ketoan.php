@@ -884,6 +884,177 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'message' => 'Đã mở lại: xoá ' . $n . ' dòng dư đầu kỳ của ' . $next . '.' );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ UNIT ID MISA
+
+	public static function ma_misa_ds() {
+		global $wpdb;
+		$r = $wpdb->get_results( 'SELECT coso_key, coso, unit_id, unit_name, vung, thu_tu, ghi_chu FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' ORDER BY thu_tu ASC, coso ASC', ARRAY_A );
+		return array( 'ok' => true, 'rows' => $r ? $r : array() );
+	}
+	public static function ma_misa_luu( $coso, $unit_id, $unit_name, $vung, $thu_tu, $ghichu ) {
+		global $wpdb;
+		$coso = trim( (string) $coso );
+		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Thiếu cơ sở.' ); }
+		$ck = self::squash( $coso );
+		$data = array( 'coso_key' => $ck, 'coso' => $coso, 'unit_id' => mb_substr( trim( (string) $unit_id ), 0, 40 ),
+			'unit_name' => mb_substr( trim( (string) $unit_name ), 0, 190 ), 'vung' => mb_substr( trim( (string) $vung ), 0, 80 ),
+			'thu_tu' => (int) $thu_tu, 'ghi_chu' => mb_substr( trim( (string) $ghichu ), 0, 250 ) );
+		$co = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
+		if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_ma_misa' ), $data, array( 'coso_key' => $ck ) ); }
+		else { $wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), $data ); }
+		return array( 'ok' => true, 'message' => 'Đã lưu Unit ID cho ' . $coso . '.' );
+	}
+	public static function ma_misa_xoa( $coso_key ) {
+		global $wpdb;
+		$wpdb->delete( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => (string) $coso_key ) );
+		return array( 'ok' => true, 'message' => 'Đã xoá.' );
+	}
+	/** Mồi: tạo một dòng cho mỗi cơ sở đang có trong danh mục ghế (unit_id để trống, kế toán điền). */
+	public static function ma_misa_seed() {
+		global $wpdb;
+		$them = 0;
+		$seen = array();
+		foreach ( VHG_May::ds_may() as $m ) {
+			$coso = trim( (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' ) );
+			if ( '' === $coso ) { continue; }
+			$ck = self::squash( $coso );
+			if ( isset( $seen[ $ck ] ) ) { continue; }
+			$seen[ $ck ] = true;
+			$co = $wpdb->get_var( $wpdb->prepare( 'SELECT coso_key FROM ' . VHG_DB::t( 'bc_ma_misa' ) . ' WHERE coso_key=%s', $ck ) );
+			if ( $co ) { continue; }
+			$wpdb->insert( VHG_DB::t( 'bc_ma_misa' ), array( 'coso_key' => $ck, 'coso' => $coso,
+				'unit_id' => '', 'unit_name' => $coso, 'vung' => '', 'thu_tu' => 0, 'ghi_chu' => 'điền Unit ID' ) );
+			$them++;
+		}
+		return array( 'ok' => true, 'them' => $them, 'message' => 'Đã mồi ' . $them . ' cơ sở (điền Unit ID rồi lưu).' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ XUẤT MISA (chứng từ)
+
+	private static function dmy_( $d ) {
+		$m = self::ngay_( $d );
+		return preg_match( '/^(\d{4})-(\d{2})-(\d{2})$/', $m, $x ) ? ( $x[3] . '/' . $x[2] . '/' . $x[1] ) : $m;
+	}
+
+	/**
+	 * CHỨNG TỪ MISA — CHỈ ghế ĐÃ DUYỆT. Tiền mặt 1 dòng, QR 1 dòng (bản chỉ-tiền-mặt bỏ dòng QR).
+	 * Trả AoA (mảng dòng) + meta; client dựng CSV tải về. Số chứng từ: 1 số/1 ngày (tuỳ chọn).
+	 */
+	public static function misa_chungtu( $from, $to, $thang, $chi_tien_mat, $so_ct_dau ) {
+		global $wpdb;
+		$f = self::ngay_( $from ); $t = self::ngay_( $to );
+		$where = 'd.kt_duyet=1 AND d.chi_so_sau IS NOT NULL';
+		$args = array();
+		if ( '' !== $f && '' !== $t ) { $where .= ' AND d.ngay BETWEEN %s AND %s'; $args[] = $f; $args[] = $t; }
+		else { $where .= ' AND DATE_FORMAT(d.ngay,%s)=%s'; $args[] = '%Y-%m'; $args[] = self::thang_( $thang ); }
+		$sql = 'SELECT d.ngay, d.ma_may, d.ten, d.tien_mat, d.qr, d.dieu_chinh, d.ghi_chu, d.nop_trang_thai, h.coso'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE ' . $where . ' ORDER BY d.ngay ASC, d.ma_may ASC';
+		$rows = $wpdb->get_results( $args ? $wpdb->prepare( $sql, $args ) : $sql, ARRAY_A );
+
+		/* Số chứng từ: tách 'NVKMN1542' → tiền tố + số + độ rộng. */
+		$goc = null;
+		$s = trim( (string) $so_ct_dau );
+		if ( '' !== $s && preg_match( '/^(.*?)(\d+)\s*$/', $s, $mm ) ) {
+			$goc = array( 'tien' => $mm[1], 'so' => (int) $mm[2], 'rong' => strlen( $mm[2] ) );
+		}
+		$soCt = function ( $i ) use ( $goc ) {
+			if ( ! $goc ) { return ''; }
+			return $goc['tien'] . str_pad( (string) ( $goc['so'] + $i ), $goc['rong'], '0', STR_PAD_LEFT );
+		};
+
+		$head = array( 'Ngày chứng từ', 'Ngày hạch toán', 'Số chứng từ', 'Diễn giải', 'Diễn giải (Hạch toán)',
+			'TK Nợ', 'TK Có', 'Số tiền', 'Số tiền quy đổi', 'Mã đối tượng Nợ', 'Mã đơn vị',
+			'Tên đơn vị', 'Tên đối tượng nợ', 'Tên cơ sở', 'Ghi chú' );
+		$aoa = array( $head );
+		$ngayCua = ''; $iNgay = -1; $tm = 0; $qr = 0; $soCtTheoNgay = array();
+		foreach ( (array) $rows as $r ) {
+			$d = self::ngay_( $r['ngay'] );
+			$dg = 'Doanh thu Posh MN ' . self::dmy_( $d );
+			$cash = (int) $r['tien_mat']; $q = (int) $r['qr'];
+			$dong = function ( $sotien, $ghichu ) use ( &$aoa, &$ngayCua, &$iNgay, &$soCtTheoNgay, $d, $soCt, $dg, $r ) {
+				if ( $d !== $ngayCua ) { $ngayCua = $d; $iNgay++; }
+				$sc = $soCt( $iNgay );
+				if ( '' !== $sc ) { $soCtTheoNgay[ $d ] = $sc; }
+				$aoa[] = array( $d, $d, $sc, $dg, $dg, '131', '5113', (int) $sotien, '', '', (string) $r['ma_may'],
+					(string) $r['ten'], '', (string) $r['coso'], $ghichu );
+			};
+			if ( $cash ) {
+				$gc = 'Nộp tiền mặt';
+				$st = strtolower( (string) $r['nop_trang_thai'] );
+				if ( 'transfer' === $r['nop_trang_thai'] || strpos( $st, 'transfer' ) !== false ) { $gc = 'Chuyển khoản'; }
+				$tm += $cash; $dong( $cash, $gc );
+			}
+			if ( $q && ! $chi_tien_mat ) { $qr += $q; $dong( $q, 'QR ngân hàng' ); }
+		}
+		return array( 'ok' => true, 'aoa' => $aoa, 'soCot' => count( $head ), 'rows' => count( $aoa ) - 1,
+			'soNgay' => $iNgay + 1, 'soCtTheoNgay' => $soCtTheoNgay, 'tienMat' => $tm, 'tienQr' => $qr,
+			'tong' => $tm + $qr, 'chiTienMat' => (bool) $chi_tien_mat,
+			'fileName' => 'Chung_Tu_Doanh_Thu_POSH' . ( $chi_tien_mat ? '_CHI_TIEN_MAT' : '' ) . '.csv' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ BÁO CÁO NGÀY (cross-tab)
+
+	public static function baocao_ngay( $thang, $chi_da_duyet ) {
+		global $wpdb;
+		$th = self::thang_( $thang );
+		list( $y, $mo ) = array_map( 'intval', explode( '-', $th ) );
+		$soNgay = (int) gmdate( 't', gmmktime( 0, 0, 0, $mo, 1, $y ) );
+		$w = 'd.chi_so_sau IS NOT NULL AND DATE_FORMAT(d.ngay,%s)=%s' . ( $chi_da_duyet ? ' AND d.kt_duyet=1' : '' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT h.coso, h.coso_key, DAY(d.ngay) ng, d.tong FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id WHERE ' . $w, '%Y-%m', $th ), ARRAY_A );
+		$ma = array();
+		foreach ( $wpdb->get_results( 'SELECT coso_key, unit_id, unit_name, vung, thu_tu FROM ' . VHG_DB::t( 'bc_ma_misa' ), ARRAY_A ) as $m ) {
+			$ma[ $m['coso_key'] ] = $m;
+		}
+		$cs = array();
+		foreach ( (array) $rows as $r ) {
+			$k = $r['coso_key'];
+			if ( ! isset( $cs[ $k ] ) ) {
+				$m = isset( $ma[ $k ] ) ? $ma[ $k ] : array();
+				$cs[ $k ] = array( 'coso' => $r['coso'], 'unit_id' => isset( $m['unit_id'] ) ? $m['unit_id'] : '',
+					'unit_name' => ! empty( $m['unit_name'] ) ? $m['unit_name'] : $r['coso'],
+					'vung' => isset( $m['vung'] ) ? $m['vung'] : '', 'thu_tu' => isset( $m['thu_tu'] ) ? (int) $m['thu_tu'] : 0,
+					'ngay' => array(), 'tong' => 0 );
+			}
+			$cs[ $k ]['ngay'][ (int) $r['ng'] ] = ( isset( $cs[ $k ]['ngay'][ (int) $r['ng'] ] ) ? $cs[ $k ]['ngay'][ (int) $r['ng'] ] : 0 ) + (int) $r['tong'];
+			$cs[ $k ]['tong'] += (int) $r['tong'];
+		}
+		/* Xếp theo vùng (thu_tu nhỏ trước, rồi tên), thiếu unit_id dồn cuối. */
+		$ds = array_values( $cs );
+		usort( $ds, function ( $a, $b ) {
+			$va = $a['unit_id'] ? 0 : 1; $vb = $b['unit_id'] ? 0 : 1;
+			if ( $va !== $vb ) { return $va - $vb; }
+			if ( $a['vung'] !== $b['vung'] ) { return strcmp( $a['vung'], $b['vung'] ); }
+			if ( $a['thu_tu'] !== $b['thu_tu'] ) { return $a['thu_tu'] - $b['thu_tu']; }
+			return strcmp( (string) $a['unit_id'], (string) $a['unit_id'] );
+		} );
+		$head = array( 'Unit ID', 'Tên cơ sở' );
+		for ( $i = 1; $i <= $soNgay; $i++ ) { $head[] = str_pad( (string) $i, 2, '0', STR_PAD_LEFT ); }
+		$head[] = 'Total';
+		$aoa = array( $head );
+		$tongNgay = array(); $tongCong = 0; $thieu = array();
+		foreach ( $ds as $o ) {
+			$r = array( $o['unit_id'], $o['unit_name'] );
+			$t = 0;
+			for ( $i = 1; $i <= $soNgay; $i++ ) {
+				$v = isset( $o['ngay'][ $i ] ) ? (int) $o['ngay'][ $i ] : 0;
+				$r[] = $v ? $v : '';
+				$t += $v; $tongNgay[ $i ] = ( isset( $tongNgay[ $i ] ) ? $tongNgay[ $i ] : 0 ) + $v;
+			}
+			$r[] = $t; $tongCong += $t;
+			$aoa[] = $r;
+			if ( ! $o['unit_id'] ) { $thieu[] = $o['coso']; }
+		}
+		$tr = array( 'TỔNG', '' );
+		for ( $i = 1; $i <= $soNgay; $i++ ) { $tr[] = isset( $tongNgay[ $i ] ) ? (int) $tongNgay[ $i ] : 0; }
+		$tr[] = $tongCong; $aoa[] = $tr;
+		return array( 'ok' => true, 'aoa' => $aoa, 'soCot' => count( $head ), 'thang' => $th,
+			'soCoSo' => count( $ds ), 'tong' => $tongCong, 'thieuUnitId' => $thieu, 'chiDaDuyet' => (bool) $chi_da_duyet,
+			'fileName' => 'Bao_Cao_Ngay_POSH_' . str_replace( '-', '_', $th ) . ( $chi_da_duyet ? '_da_duyet' : '' ) . '.csv' );
+	}
+
 	public static function cong_no_dat( $thang, $coso, $so_tien, $ghichu, $boi ) {
 		global $wpdb;
 		$th = self::thang_( $thang ); $coso = trim( (string) $coso );
