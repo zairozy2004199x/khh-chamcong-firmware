@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27o (nhat ky bat/tat may: bao chay/dung tu chan bao-chay)"
+#define FW_VERSION "ghe-massage 2026-08-27p (QR to het co: o 182 om sat + tieu de gon)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1117,34 +1117,36 @@ static void qrDrawCb(esp_qrcode_handle_t qr){
 void drawQRScreen(){
   tft.fillScreen(COL_BG);
 
-  /* Dải tiêu đề */
-  tft.fillRect(0, 0, 320, 30, COL_KHUNG);
-  tft.drawFastHLine(0, 30, 320, COL_VANG2);
+  /* Dải tiêu đề GỌN (0..24) — chừa đất cho mã QR to hết cỡ.
+     Anh Thắng 27/08/2026: *"Chỉnh QR full lên"*. Nén tiêu đề + bỏ dòng hướng dẫn thừa + ôm sát
+     ô -> mã QR to hơn hẳn, không còn viền trắng rộng như bản trước. */
+  tft.fillRect(0, 0, 320, 24, COL_KHUNG);
+  tft.drawFastHLine(0, 24, 320, COL_VANG2);
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(COL_VANG, COL_KHUNG);
-  tft.drawString("MA QR DE THANH TOAN & BAT DAU PHIEN MASSAGE", 160, 10, 1);
+  tft.drawString("MA QR DE THANH TOAN & BAT DAU PHIEN MASSAGE", 160, 6, 1);
   tft.setTextColor(COL_KEM, COL_KHUNG);
-  tft.drawString(tienVN(payAmount) + "   -   " + String(payMinutes) + " PHUT", 160, 22, 1);
+  tft.drawString(tienVN(payAmount) + "   -   " + String(payMinutes) + " PHUT", 160, 16, 1);
 
-  /* Ô trắng cho mã QR. Vẽ TRƯỚC khi sinh mã: callback vẽ đè lên đúng chỗ này. */
-  tft.fillRoundRect(78, 36, 164, 158, 8, TFT_WHITE);
-  tft.drawRoundRect(78, 36, 164, 158, 8, COL_VANG);
+  /* Ô QR TO: vuông 182, ôm sát mã. Vẽ TRƯỚC khi sinh mã: callback vẽ đè lên đúng chỗ này. */
+  const int QBX = 69, QBY = 26, QBOX = 182;   // ô: x 69..251, y 26..208
+  tft.fillRoundRect(QBX, QBY, QBOX, QBOX, 8, TFT_WHITE);
+  tft.drawRoundRect(QBX, QBY, QBOX, QBOX, 8, COL_VANG);
 
-  /* Vùng của màn thanh toán: ô trắng 164x158 ở giữa, trừ viền còn 150x150. */
-  qrDatVung(160 - 75, 40, 150, 150, 4);
+  /* Vùng vẽ mã = trong viền ô (trừ 4px mỗi bên). pxToiDa 6: mã version thấp phóng to gần kín ô,
+     mã version cao (chuỗi VietQR dài) thì tự về mức px lớn nhất mà vẫn đủ vùng lặng để quét. */
+  qrDatVung(QBX + 4, QBY + 4, QBOX - 8, QBOX - 8, 6);
   esp_qrcode_config_t qcfg = ESP_QRCODE_CONFIG_DEFAULT();
   qcfg.display_func       = qrDrawCb;
   qcfg.max_qrcode_version = 11;
   qcfg.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;
   esp_qrcode_generate(&qcfg, qrPayload.c_str());
 
-  /* Câu hướng dẫn + mã lượt. Mã lượt phải HIỆN RA: app ngân hàng nào không tự điền nội dung
-     thì khách gõ tay đúng chuỗi này, và không có nó thì tiền vào mà ghế không chạy. */
+  /* Mã lượt (nội dung CK) — HIỆN RA ngay dưới ô: app ngân hàng nào không tự điền thì khách gõ
+     tay đúng chuỗi này; thiếu nó là tiền vào mà ghế không chạy. */
   tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(COL_MO, COL_BG);
-  tft.drawString("Quet bang ung dung Ngan hang hoac Vi dien tu", 160, 199, 1);
   tft.setTextColor(COL_VANG, COL_BG);
-  tft.drawString("Noi dung: " + payND, 160, 210, 1);
+  tft.drawString("Noi dung: " + payND, 160, 214, 1);
 
   /* Nút huỷ nhỏ, góc trái dưới: nó KHÔNG phải việc chính của màn này. Để to ở giữa như bản cũ
      là mời khách bấm nhầm ngay lúc vừa quét xong. */
