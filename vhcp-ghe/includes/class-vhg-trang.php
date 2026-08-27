@@ -2973,10 +2973,12 @@ function veBcPin(){
     return '<div class="card"><p class="mut">' + L('Đang tải…','Loading…') + '</p></div>';
   }
   var h = '<div class="card"><h2>📋 ' + L('PIN nhân viên báo cáo','Report staff PINs') + '</h2>'
-    + '<p class="mut">' + L('PIN RIÊNG để nhân viên vào màn Báo cáo doanh thu — không cần tài khoản '
-      + '/ghe. Mỗi người một PIN, gán cơ sở (nhiều cơ sở ngăn bởi dấu phẩy). Chỉ Admin sửa được.',
-      'Separate PINs for staff to open the Revenue report — no /ghe account needed. One PIN each, '
-      + 'assign branches (comma-separated). Admin only.') + '</p>'
+    + '<p class="mut">' + L('Dùng CHÍNH PIN nhân sự / chấm công của nhân viên (hai hệ đồng bộ) để vào '
+      + 'màn Báo cáo doanh thu — không cần tài khoản /ghe. Tích cơ sở người này phụ trách. Chỉ Admin sửa. '
+      + 'PIN nhân viên đã có sẵn trong hệ nhân sự vẫn đăng nhập được dù chưa khai ở đây; khai ở đây khi '
+      + 'muốn đổi phạm vi hoặc khoá riêng.',
+      'Use the staff member\'s existing HR / attendance PIN (the two systems sync). Tick the branches '
+      + 'they cover. Admin only.') + '</p>'
     + '<table><tr><th>PIN</th><th>' + L('Tên','Name') + '</th><th>' + L('Cơ sở','Branches')
     + '</th><th class="hide-sm">' + L('Ghế riêng','Chairs') + '</th><th>' + L('Bật','On')
     + '</th><th class="r"></th></tr>';
@@ -2989,34 +2991,63 @@ function veBcPin(){
       + '<td class="r"><button data-bcpsua="' + esc(p.pin) + '" class="ghost">' + L('Sửa','Edit') + '</button> '
       + '<button data-bcpxoa="' + esc(p.pin) + '" class="ghost">' + L('Xoá','Del') + '</button></td></tr>';
   });
+  var dsCoso = (D && D.coso) || [];
   h += '</table>'
     + '<h3 style="margin:16px 0 8px">' + L('Thêm / sửa PIN','Add / edit PIN') + '</h3>'
     + '<div class="act" style="flex-wrap:wrap">'
     + '<input id="bcp-pin" type="tel" inputmode="numeric" placeholder="PIN 3–10 ' + L('số','digits')
       + '" style="flex:1;min-width:110px">'
     + '<input id="bcp-ten" type="text" placeholder="' + L('Tên nhân viên','Staff name') + '" style="flex:2;min-width:150px">'
-    + '<input id="bcp-coso" type="text" placeholder="' + L('Cơ sở (phẩy ngăn cách)','Branches, comma-sep')
-      + '" style="flex:2;min-width:170px">'
+    + '</div>'
+    /* Cơ sở dạng TÍCH CHỌN — nhanh, khỏi gõ, khỏi sai chính tả tên cơ sở. */
+    + '<div class="ph-nhom" style="margin-top:10px"><div class="nh" style="margin-bottom:6px">'
+      + L('Cơ sở phụ trách (tích chọn)','Branches (tick)') + '</div><div class="ph-o" id="bcp-coso-box">'
+    + (dsCoso.length
+        ? dsCoso.map(function(c){ return '<label class="ph-tick"><input type="checkbox" class="bcp-cs" value="'
+            + esc(c.ten) + '"> ' + esc(c.ten) + (c.tinh ? ' <span class="mut">· ' + esc(c.tinh) + '</span>' : '') + '</label>'; }).join('')
+        : '<span class="mut">' + L('Chưa có cơ sở — thêm ở tab Quản lý ghế trước.','No branches yet — add them in Chairs & sites first.') + '</span>')
+    + '</div></div>'
+    + '<div class="act" style="flex-wrap:wrap;margin-top:10px">'
     + '<input id="bcp-ghe" type="text" placeholder="' + L('Ghế riêng (tuỳ chọn)','Specific chairs (optional)')
       + '" style="flex:2;min-width:150px">'
     + '<label class="ph-tick"><input type="checkbox" id="bcp-active" checked> ' + L('Bật','Active') + '</label>'
-    + '<button id="bcp-luu" class="on">' + L('Lưu','Save') + '</button></div>'
-    + '<p class="mut" style="margin-top:8px">' + L('Để trống "Ghế riêng" = nhận TOÀN BỘ ghế của các cơ '
-      + 'sở đã gán. Chỉ điền khi người này chỉ thu vài ghế trong cơ sở.',
-      'Leave "Chairs" empty = all chairs of the assigned branches. Fill only when the person '
-      + 'collects a few chairs within a branch.') + '</p>'
+    + '<button id="bcp-luu" class="on">' + L('Lưu','Save') + '</button>'
+    + '<button id="bcp-moi" class="ghost">' + L('Nhập mới','New') + '</button></div>'
+    + '<p class="mut" style="margin-top:8px">' + L('Không tích cơ sở nào = nhận TOÀN BỘ phạm vi (dùng cho quản '
+      + 'lý). Để trống "Ghế riêng" = toàn bộ ghế của các cơ sở đã tích; chỉ điền khi người này chỉ thu vài ghế.',
+      'No branch ticked = full scope (for managers). Empty "Chairs" = all chairs of the ticked branches.') + '</p>'
     + '<div class="err" id="bcp-e"></div></div>';
   return h;
 }
 
+function bcpCosoTicked(){
+  var cs = [];
+  [].forEach.call(document.querySelectorAll('.bcp-cs:checked'), function(c){ cs.push(c.value); });
+  return cs.join('; ');
+}
+function bcpTickCoso(coso){
+  var cur = String(coso || '').split(/[;,]/).map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
+  [].forEach.call(document.querySelectorAll('.bcp-cs'), function(c){
+    c.checked = cur.indexOf(String(c.value).trim().toLowerCase()) >= 0;
+  });
+}
 function noiBcPin(){
   var e = document.getElementById('bcp-e');
   var luu = document.getElementById('bcp-luu');
+  var moi = document.getElementById('bcp-moi');
+  if (moi) moi.onclick = function(){
+    document.getElementById('bcp-pin').value = '';
+    document.getElementById('bcp-ten').value = '';
+    document.getElementById('bcp-ghe').value = '';
+    document.getElementById('bcp-active').checked = true;
+    bcpTickCoso('');
+    if (e) e.textContent = '';
+  };
   if (luu) luu.onclick = function(){
     var d = {
       pin:  (document.getElementById('bcp-pin').value || '').trim(),
       ten:  (document.getElementById('bcp-ten').value || '').trim(),
-      coso: (document.getElementById('bcp-coso').value || '').trim(),
+      coso: bcpCosoTicked(),
       ghe:  (document.getElementById('bcp-ghe').value || '').trim(),
       active: document.getElementById('bcp-active').checked ? 1 : 0
     };
@@ -3050,7 +3081,7 @@ function noiBcPin(){
       if (!p) return;
       document.getElementById('bcp-pin').value = p.pin;
       document.getElementById('bcp-ten').value = p.ten || '';
-      document.getElementById('bcp-coso').value = p.coso || '';
+      bcpTickCoso(p.coso || '');
       document.getElementById('bcp-ghe').value = p.ghe || '';
       document.getElementById('bcp-active').checked = !!p.active;
       document.getElementById('bcp-pin').focus();
