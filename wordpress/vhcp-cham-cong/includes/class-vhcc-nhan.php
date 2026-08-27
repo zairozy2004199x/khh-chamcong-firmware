@@ -266,7 +266,7 @@ class VHCC_Nhan {
 			if ( isset( $d[ $k ] ) ) { $chung[ $k ] = $d[ $k ]; }
 		}
 
-		$dem = array( 'ghi' => 0, 'trung' => 0, 'choGan' => 0, 'boQua' => 0 );
+		$dem = array( 'ghi' => 0, 'trung' => 0, 'choGan' => 0, 'boQua' => 0, 'giuTay' => 0 );
 		$hong = array();
 		$xu   = 0;
 		foreach ( $logs as $i => $mot ) {
@@ -297,6 +297,11 @@ class VHCC_Nhan {
 				continue;
 			}
 			if ( isset( $kq['loai'] ) && 'trung' === $kq['loai'] ) { $dem['trung']++; continue; }
+			/* 🔴 GIỮ GIỜ NGƯỜI TA ĐÃ SỬA — đếm RIÊNG, đừng gộp vào 'trung'.
+			   "Trùng" là gói lặp, chuyện thường, không ai cần biết. "Giữ tay" nghĩa là máy vừa
+			   MUỐN đè lên một quyết định của người và bị chặn — đó là chuyện đáng nói: hoặc máy
+			   lệch đồng hồ thật, hoặc lượt sửa kia sai. Gộp vào một con số là không ai đi tìm. */
+			if ( isset( $kq['loai'] ) && 'giu-tay' === $kq['loai'] ) { $dem['giuTay']++; continue; }
 			$dem['ghi']++;
 		}
 
@@ -305,6 +310,11 @@ class VHCC_Nhan {
 			/* 🔴 CẮT THÌ PHẢI NÓI RA. Cắt im lặng là gói trông "xong" trong khi thiếu người. */
 			self::ghi_loi( 'LO_QUA_DAI', 'lô ' . $tong . ' dòng vượt trần ' . self::LO_TOI_DA
 				. ' — đã xử ' . $xu . ', CÒN ' . $con . ' dòng chưa xử. Máy chính đẩy nốt phần còn lại.' );
+		}
+		if ( $dem['giuTay'] > 0 ) {
+			self::ghi_loi( 'LO_GIU_TAY', $dem['giuTay'] . ' lượt trong lô ĐỊNH ĐÈ lên giờ đã có '
+				. 'người sửa hoặc bù — đã giữ nguyên giờ của người. Nếu máy đúng còn lượt sửa kia '
+				. 'sai thì Admin sửa lại tay; cổng không tự quyết chuyện đó.' );
 		}
 		if ( $dem['choGan'] > 0 ) {
 			self::ghi_loi( 'LO_CHO_GAN', $dem['choGan'] . ' lượt trong lô đến từ máy CHƯA gán cơ sở — '
@@ -317,6 +327,7 @@ class VHCC_Nhan {
 			'conLai' => $con,
 			'ghi'    => $dem['ghi'],
 			'trung'  => $dem['trung'],
+			'giuTay' => $dem['giuTay'],
 			'choGan' => $dem['choGan'],
 			'boQua'  => $dem['boQua'],
 			/* Chỉ kể 50 dòng đầu: gói đáp phải nhỏ, mà 50 dòng đã quá đủ để thấy KIỂU lỗi. */
@@ -457,6 +468,64 @@ class VHCC_Nhan {
 		$qd = self::quyet_dinh_gio( $vao, $ra, $giay );
 		if ( 'trung' === $qd['loai'] || 'giua' === $qd['loai'] ) {
 			return array( 'loai' => $qd['loai'], 'anh' => 'khong-doi' );
+		}
+
+		/* 🔴 LƯỢT MÁY KHÔNG ĐÈ LÊN Ô NGƯỜI TA ĐÃ SỬA HOẶC BÙ.
+		   Anh Thắng 27/08/2026: *"Nhớ bổ sung dữ liệu lên, chỉ đè dữ liệu khi nó trống, tránh đè
+		   lần 2"*.
+		   `quyet_dinh_gio()` đã lo phần "không thu hẹp": trùng thì bỏ, nằm giữa thì bỏ, chỉ nới
+		   ra hai đầu. Nhưng NỚI RA cũng là đè, khi cái nó đè lên là một quyết định của người:
+		     • Admin sửa giờ ra 22:00 → 17:00 (máy lệch đồng hồ, đối chiếu camera). Nạp lại tệp
+		       .csv cũ có lượt 22:00 → 22:00 muộn hơn 17:00 nên vào nhánh "ra", và giờ ra thật
+		       bị thay lại bằng con số vừa bị bác bỏ.
+		     • Cửa hàng trưởng bù giờ vào 08:00 (máy hỏng sáng ấy). Máy sống lại, đẩy nốt lô cũ
+		       có lượt 07:45 → sớm hơn nên vào nhánh "đảo thứ tự", và lượt bù bị thay.
+		   Cả hai đều IM LẶNG, và cả hai đều xoá mất một quyết định có lý do, có người ký, có
+		   dòng nhật ký. Lần nạp thứ hai không được phép làm chuyện đó.
+
+		   ⚠️ CHẶN THEO TỪNG Ô, không theo cả ngày. Bù giờ vào rồi máy gửi giờ ra thật thì giờ ra
+		      ấy VẪN PHẢI VÀO — ô đó còn trống, và chặn nó là bắt người ta bù tay cả cặp trong
+		      khi máy đã có sẵn con số đúng. Đúng chữ anh: *chỉ đè khi nó trống*.
+		   ⚠️ MIỄN cho chính hai đường tay ấy (`bu` · `sua`) là PHÒNG XA, không phải chốt đang
+		      canh gì: hôm nay `bu` tự gác "chỉ điền ô trống" nên nó không bao giờ tới được nhánh
+		      đè, còn `sua` đi đường `dat_gio()` chứ không qua đây. Đã phá thử và ghi lại để
+		      người sau khỏi đi tìm phép thử canh nó — KHÔNG CÓ. Giữ vì ngày nào đó `bu` được nới
+		      cho đè (kèm lý do chẳng hạn) thì chốt này sẽ chặn nó, và chặn IM LẶNG.
+		   ⚠️ Chỉ hỏi sổ khi THẬT SỰ sắp đè lên một ô đã có số — lô 2000 lượt thì hầu hết là ô
+		      trống hoặc trùng, và chúng không tốn thêm truy vấn nào. */
+		$de_len = ( array_key_exists( 'vao', $qd ) && null !== $vao )
+			|| ( array_key_exists( 'ra', $qd ) && null !== $ra );
+		if ( $cu && $de_len && 'bu' !== $nguon && 'sua' !== $nguon
+			&& class_exists( 'VHCC_Bu' ) && method_exists( 'VHCC_Bu', 'o_da_dong_tay' ) ) {
+			$tay = VHCC_Bu::o_da_dong_tay( $coso, $ngay, $ma_goc );
+			$giu = array();
+			foreach ( array( 'vao', 'ra' ) as $o_x ) {
+				/* ⚠️ KHÔNG đòi ô phải ĐANG CÓ SỐ. Ô có dấu tay mà đang trống là ô người ta cố ý
+				   XOÁ TRẮNG — Admin xoá một giờ ra sai chẳng hạn. Máy đẩy lại lô cũ rồi dựng
+				   đúng con số vừa bị xoá là làm hỏng chính cái quyết định ấy, và lần này còn
+				   khó thấy hơn: bảng lại đủ cặp giờ như chưa có chuyện gì. */
+				if ( array_key_exists( $o_x, $qd ) && ! empty( $tay[ $o_x ] ) ) {
+					unset( $qd[ $o_x ] );
+					$giu[] = $o_x;
+				}
+			}
+			/* 🔴 GIỮ Ô `vao` THÌ PHẢI BỎ LUÔN Ô `ra` SUY RA TỪ NÓ.
+			   Nhánh `daoThuTu` (lượt mới sớm hơn giờ vào) làm hai việc một lúc: đặt giờ vào mới,
+			   và ĐẨY GIỜ VÀO CŨ XUỐNG LÀM GIỜ RA khi ô ra còn trống. Giữ ô `vao` mà để nguyên ô
+			   `ra` là máy vừa dựng ra một "giờ ra" bằng đúng con số người ta BÙ — một giờ ra
+			   không ai bấm, sinh từ một lượt bù giờ vào.
+			   Ví dụ thật: bù giờ vào 08:00 → máy đẩy lô cũ có 07:45 → ô ra (đang trống) thành
+			   08:00. Ngày ấy hoá ra "vào 08:00, ra 08:00", tức 0 giờ làm, mà nhìn bảng thì đủ
+			   cặp giờ nên không ô nào đỏ. Đã phá thử mới thấy. */
+			if ( in_array( 'vao', $giu, true ) && 'daoThuTu' === $qd['loai'] ) {
+				unset( $qd['ra'], $qd['chuyen_anh_vao_sang_ra'] );
+			}
+			/* Không còn ô nào đổi -> lượt này không có việc gì để làm. Trả một loại RIÊNG, đừng
+			   gộp vào 'trung': hai chuyện khác hẳn nhau, và người soi nhật ký cổng cần phân biệt
+			   "gói lặp" với "đã giữ giờ người ta sửa". */
+			if ( $giu && ! array_key_exists( 'vao', $qd ) && ! array_key_exists( 'ra', $qd ) ) {
+				return array( 'loai' => 'giu-tay', 'anh' => 'khong-doi', 'giuO' => $giu );
+			}
 		}
 
 		$anh_moi = '';

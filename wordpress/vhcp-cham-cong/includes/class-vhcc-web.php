@@ -1361,6 +1361,10 @@ class VHCC_Web {
 			. 'table.cc tr.hong>td{background:#fef2f2}'
 			. 'table.cc td.cco{box-shadow:inset 0 0 0 2px var(--vang)}'
 			. 'table.cc td.tong{font-weight:700;background:#f8fafc}'
+			/* Tên người trong lưới là ĐƯỜNG SANG HỒ SƠ. Gạch chân chấm để thấy là bấm được mà
+			   không hoá thành một dãy chữ xanh chạy dọc cả cột — cột này có mấy chục dòng. */
+			. 'a.ten-nv{color:inherit;text-decoration:none;border-bottom:1px dotted #94a3b8}'
+			. 'a.ten-nv:hover{color:var(--xanh);border-bottom-color:var(--xanh)}'
 			. '.duoi{background:#e0e7ff;color:#3730a3;border-radius:4px;padding:0 5px;font-size:11px;font-weight:600}'
 			. '.chu-hong{color:var(--do);font-weight:600}.chu-co{color:var(--vang);font-weight:600}'
 			/* Lưới Công Văn phòng. Màu ở đây là LÝ DO chứ không phải trang trí, nên mỗi lớp phải
@@ -3246,6 +3250,67 @@ class VHCC_Web {
 	}
 
 	/**
+	 * CÒN THIẾU GÌ ĐỂ RA ĐƯỢC TIỀN — ba dải cảnh báo, dời từ màn Bảng công sang đây.
+	 *
+	 * Anh Thắng 27/08/2026, kèm hai ảnh: *"bỏ chỗ này"*.
+	 *
+	 * 🔴 CHÚNG ĐÚNG, NHƯNG ĐỨNG NHẦM CHỖ. Bảng công là màn người ta mở HẰNG NGÀY để ĐỌC; ba dải
+	 *    ấy nói về việc KHAI MỘT LẦN, và cái dài nhất dán tên hai mươi mấy người ra giữa màn,
+	 *    mỗi lần mở lại đọc lại. Người xem công không khai được gì với chúng — họ không có
+	 *    quyền, và cũng không phải việc của họ. Ở đây thì ngược lại: người mở màn Cấu hình đang
+	 *    đi khai, và mấy ô để khai nằm ngay bên dưới.
+	 *
+	 * ⚠️ TRA THẲNG, KHÔNG CHẠY ENGINE LƯƠNG. Ba câu hỏi này chỉ cần ba phép tra rẻ; gọi
+	 *    `bang_cong_va_luong()` để lấy chúng là tính lại cả tháng của cả cơ sở chỉ để biết một ô
+	 *    cấu hình có trống hay không.
+	 */
+	private static function the_thieu_khai( $ky, $toi, $cs ) {
+		if ( '' === $cs ) { return; }
+		if ( ! VHCC_Vai::duoc( $toi, 'luong' ) ) { return; }
+
+		global $wpdb;
+		$cfg = VHCC_Luong::vp_cfg( $cs );
+		$ds  = array();
+
+		/* 🔴 KHÔNG ĐOÁN MẪU SỐ. Đoán là sai tiền của MỌI người cùng lúc, mà bảng vẫn có số nên
+		   chẳng ai nghi. Nên chưa khai thì cột Tiền hiện “—”, và phải nói ra vì sao. */
+		if ( empty( $cfg['ngayCongThang'] ) ) {
+			$ds[] = array( 'loi', 'Chưa khai <b>số ngày công chuẩn của tháng</b> — cột Tiền hiện “—”. '
+				. 'Hệ thống KHÔNG đoán mẫu số: đoán là sai tiền của mọi người cùng lúc, mà bảng vẫn '
+				. 'có số nên chẳng ai nghi. Khai ở khối <b>Công thức tính công</b> bên dưới.' );
+		}
+		if ( empty( $cfg['ktMaNV'] ) ) {
+			$ds[] = array( 'canh', 'Chưa khai mã NV thuộc <b>Kế toán văn phòng</b> (<code>ktMaNV</code>) '
+				. '— nên chưa ai được áp khung thứ Bảy 08:30–12:00 và luật Chủ nhật nghỉ.' );
+		}
+
+		/* Đếm thôi, KHÔNG dán tên ra. Hai mươi mấy cái tên chạy ba dòng là thứ người ta lướt qua
+		   chứ không đọc; một CON SỐ kèm đường tới đúng bảng để sửa mới là thứ dùng được. */
+		$thieu = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. ' WHERE cua_hang=%s AND (luong_co_ban IS NULL OR luong_co_ban<=0)', $cs ) );
+		if ( $thieu > 0 ) {
+			$ds[] = array( 'canh', 'Có <b>' . $thieu . ' người</b> ở cơ sở này chưa khai '
+				. '<b>lương cơ bản</b> — tiền của họ ra 0. Khai ở màn <b>Hồ sơ &amp; tài khoản</b>, '
+				. 'cột Lương cơ bản.' );
+		}
+
+		echo '<div class="the" id="thieukhai"><h2>Còn thiếu để ra được tiền</h2>';
+		if ( ! $ds ) {
+			echo '<p class="mo">Đủ cả: đã khai ngày công chuẩn, đã khai mã kế toán văn phòng, và '
+				. 'mọi người ở cơ sở này đều có lương cơ bản.</p></div>';
+			return;
+		}
+		/* ⚠️ Chuỗi ở đây do CHÍNH HÀM NÀY dựng — không có mẩu nào đến từ người dùng, nên in
+		   thẳng. `wp_kses()` là để lọc chữ người khác gõ; gọi nó cho chuỗi của mình vừa thừa vừa
+		   kéo theo một hàm mà bộ thử không có (và trang trắng ngay lần đầu ai đó mở màn này). */
+		foreach ( $ds as $x ) {
+			echo '<div class="bao ' . esc_attr( $x[0] ) . '">' . $x[1] . '</div>';
+		}
+		echo '</div>';
+	}
+
+	/**
 	 * ĐẶT TÊN ĐẦY ĐỦ CHO MÃ CƠ SỞ.
 	 *
 	 * Mã trong sổ là thứ máy đọc: `FARM_PT`, `FF_SC`, `PINPALL_HCM`. Người đọc bảng phải tự dịch
@@ -3742,7 +3807,7 @@ class VHCC_Web {
 			   trong tầm mắt, đúng thứ tự mắt đọc. */
 			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
 				? ' id="suaday"' : '' ) . '>';
-			echo '<td>' . esc_html( $ho_ten )
+			echo '<td>' . self::ten_nguoi( $ma, $ho_ten, $toi )
 				. ( isset( $khong_cham[ $ma ] )
 					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
 						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' )
@@ -3928,7 +3993,7 @@ class VHCC_Web {
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 
 			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
-				? ' id="suaday"' : '' ) . '><td>' . esc_html( $e['ten'] )
+				? ' id="suaday"' : '' ) . '><td>' . self::ten_nguoi( $ma, $e['ten'], $toi )
 				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$cong = 0.0;
@@ -4131,6 +4196,34 @@ class VHCC_Web {
 		}
 		if ( ! empty( $d['ktCnNghi'] ) )   { $c[] = '⚠ kế toán chấm chủ nhật → 0 công'; }
 		return implode( "\n", $c );
+	}
+
+	/**
+	 * TÊN NGƯỜI TRONG LƯỚI — bấm vào là sang thẳng hồ sơ của đúng người ấy.
+	 *
+	 * Anh Thắng 27/08/2026, chỉ vào cột Nhân viên: *"Khi bấm vào thông tin nhân sự chỗ này, nó sẽ
+	 * nhảy sang tab thông tin nhân sự đó, để tiện chỉnh thông tin nhân, set cơ sở, hay liên kết
+	 * các web khác lại theo cấu hình"*.
+	 *
+	 * 🔴 ĐƯỜNG ĐI VỐN DÀI VÀ DỄ LẠC. Đang xem lưới, thấy một người sai cơ sở hoặc thiếu lương cơ
+	 *    bản, muốn sửa thì phải: sang tab Hồ sơ → gõ tên vào ô tìm → dò trong danh sách vài trăm
+	 *    người → bấm Sửa. Bốn bước, và bước "gõ tên" là bước hay lạc nhất: tên trùng, tên có dấu
+	 *    gõ khác nhau, người ta gõ "Thắng" mà sổ ghi "Thăng".
+	 *    Cái tên đang nằm sẵn trước mắt CHÍNH LÀ khoá — dùng nó, đừng bắt gõ lại.
+	 *
+	 * ⚠️ CHỈ VẼ LIÊN KẾT CHO NGƯỜI MỞ ĐƯỢC HỒ SƠ. Vẽ cho cả người không có quyền thì bấm vào chỉ
+	 *    nhận một câu chối — mà cái liên kết thì cứ nằm đó mời gọi mỗi ngày. Cùng luật với cột
+	 *    dọc và thẻ Truy cập nhanh.
+	 * ⚠️ Mã rỗng thì trả tên trơn: không có khoá thì không có chỗ để tới.
+	 */
+	private static function ten_nguoi( $ma, $ten, $toi, $duoi = '' ) {
+		$ten_h = esc_html( (string) $ten );
+		$ma    = trim( (string) $ma );
+		if ( '' === $ma || ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return $ten_h . $duoi; }
+		$url = add_query_arg( array( 'man' => 'ho_so', 'sua' => $ma ), self::url() );
+		return '<a class="ten-nv" href="' . esc_url( $url ) . '" title="'
+			. esc_attr( 'Mở hồ sơ ' . $ma . ' — sửa cơ sở, bộ phận, lương cơ bản, PIN' ) . '">'
+			. $ten_h . '</a>' . $duoi;
 	}
 
 	/** Chú thích rê chuột của ô dòng ca đêm. */
@@ -4356,25 +4449,17 @@ class VHCC_Web {
 	/** Văn phòng — tính theo NGÀY CÔNG, có tăng ca / ca đêm / công bù. */
 	private static function luong_vp( $v ) {
 		echo '<div class="the">';
-		if ( $v['tien']['chuaKhaiNgayCong'] ) {
-			/* 🔴 KHÔNG ĐOÁN MẪU SỐ. Đoán là sai tiền của MỌI người cùng lúc, mà bảng vẫn có số
-			   nên chẳng ai nghi. */
-			echo '<div class="bao loi"><b>Chưa khai số ngày công của ' . esc_html( $v['ncThang'] )
-				. '</b> — cột Tiền hiện “—”. Hệ thống KHÔNG đoán mẫu số: đoán là sai tiền của mọi '
-				. 'người cùng lúc, mà bảng vẫn có số nên chẳng ai nghi.'
-				. ( $v['ncGoiY'] ? ' Tháng gần nhất đã khai tại cơ sở này: <b>'
-					. esc_html( $v['ncGoiY'] ) . '</b> (chỉ để tham khảo, chưa dùng để tính).' : '' )
-				. '</div>';
-		}
-		if ( $v['chuaKhaiKeToan'] ) {
-			echo '<div class="bao canh">Chưa khai mã NV thuộc <b>Kế toán văn phòng</b> '
-				. '(<code>ktMaNV</code>) — nên chưa ai được áp khung thứ Bảy 08:30–12:00 và luật '
-				. 'Chủ nhật nghỉ.</div>';
-		}
-		if ( ! empty( $v['tien']['thieuLuong'] ) ) {
-			echo '<div class="bao canh">Chưa khai lương cơ bản: '
-				. esc_html( implode( ', ', $v['tien']['thieuLuong'] ) ) . '</div>';
-		}
+		/* 🔴 BA DẢI CẢNH BÁO LƯƠNG ĐÃ RỜI KHỎI ĐÂY.
+		   Anh Thắng 27/08/2026, kèm hai ảnh: *"bỏ chỗ này"* — dải "chưa khai số ngày công",
+		   dải "chưa khai ktMaNV", và dải "chưa khai lương cơ bản" liệt kê thẳng tên 24 người.
+
+		   Chúng đúng, nhưng đứng nhầm chỗ. Bảng công là màn người ta mở HẰNG NGÀY để ĐỌC; ba
+		   dải ấy nói về việc KHAI MỘT LẦN, và cái dài nhất trong đó dán tên hai mươi mấy người
+		   ra giữa màn, mỗi lần mở lại đọc lại. Người xem công không khai được gì với chúng —
+		   họ không có quyền, và cũng không phải việc của họ.
+		   Chúng nay nằm ở màn **Cấu hình**, cạnh đúng mấy ô dùng để khai. Xem `the_thieu_khai()`.
+		   ⚠️ KHÔNG XOÁ HẲN, chỉ dời. Xoá là chưa khai số ngày công thì cột Tiền hiện "—" mà
+		      không câu nào nói vì sao, và người kiểm lương đi tìm một lỗi không có thật. */
 		/* 🔴 CẢ HAI BẢNG DƯỚI ĐÂY ĐÃ BỎ — LƯỚI NÓI HẾT RỒI.
 		   Anh Thắng 27/08/2026, hai lượt liền: *"bỏ bảng này đi, không cần thiết"* (bảng lương
 		   người-theo-người) và *"này cũng bỏ đi, không cần thiết"* (Chi tiết từng ngày, 355 dòng
@@ -4433,6 +4518,7 @@ class VHCC_Web {
 		self::the_cach_tinh( $ky, $toi );
 		self::the_ghep_cs( $ky, $toi );
 		self::the_ten_cs( $ky, $toi );
+		self::the_thieu_khai( $ky, $toi, $cs );
 
 		if ( '' === $cs ) {
 			echo '<div class="the"><p class="mo">Chọn một cơ sở ở trên để khai <b>ca làm việc</b> '

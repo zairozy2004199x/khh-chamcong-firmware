@@ -6273,7 +6273,10 @@ t( '🔴 người cả tháng chưa chấm lần nào VẪN có hàng trong lư�
 t( 'và hàng ấy có ô bấm được để bù giờ',
 	strpos( $h_trong_luoi, 'gma=QTC9' ) !== false, $h_trong_luoi );
 t( 'hàng ấy gắn nhãn "chưa chấm" — kẻo trông như một hàng lỗi',
-	preg_match( '/Người Chưa Chấm[^<]*<span class="duoi"[^>]*>chưa chấm<\/span>/', $h_trong_luoi ) === 1,
+	/* ⚠️ `[^<]*` không qua nổi thẻ đóng của liên kết bọc quanh tên. Cho phép vài thẻ xen giữa,
+	   nhưng KHÔNG cho vượt qua `</td>` — vượt là bắt nhãn của người ở hàng dưới. */
+	preg_match( '~Người Chưa Chấm(?:(?!</td>).)*<span class="duoi"[^>]*>chưa chấm</span>~s',
+		$h_trong_luoi ) === 1,
 	$h_trong_luoi );
 /* Và bấm vào ô của họ thì mở được hàng bù, y như người đã có giờ. */
 $h_bu_trong = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
@@ -6936,8 +6939,11 @@ t( 'và là một CON SỐ, không phải ô trống — đúng cái bẫy congT
       "tìm được ô" luôn xanh, và mọi phép đo sau đó đo nhầm người. Đã phá thử để thấy: bỏ hẳn
       chuyện giữ dòng thiếu giờ ra mà bộ thử vẫn xanh. */
 function vp_hang_cua( $h, $ten ) {
-	return preg_match( '~<tr[^>]*><td>' . preg_quote( $ten, '~' ) . '</td>(?:(?!</tr>).)*</tr>~s',
-		$h, $m ) ? $m[0] : '';
+	/* ⚠️ TÊN NAY CÓ THỂ BỌC TRONG MỘT LIÊN KẾT (anh Thắng 27/08: bấm tên là sang hồ sơ). Ghim
+	   `<td>TÊN</td>` là mọi phép thử của lưới đỏ cùng lúc vì một chuyện trang trí — 26 phép đỏ
+	   trong đúng một lượt. Nhận cả hai dạng: có thẻ bọc và không. */
+	return preg_match( '~<tr[^>]*><td>(?:<a[^>]*>)?' . preg_quote( $ten, '~' )
+		. '(?:</a>)?(?:(?!</tr>).)*</tr>~s', $h, $m ) ? $m[0] : '';
 }
 function vp_o_dau_tien( $h, $ten ) {
 	$hang = vp_hang_cua( $h, $ten );
@@ -9312,9 +9318,18 @@ t( '🔴 KHÔNG còn khối Chi tiết từng ngày', strpos( $lw_h, 'Chi tiết
 t( 'nhưng còn con số tổng của cả cơ sở', strpos( $lw_h, '<b>Cả cơ sở:</b>' ) !== false, $lw_h );
 t( 'và chỉ đường sang cột TỔNG của lưới',
 	strpos( $lw_h, 'nằm ở cột <b>TỔNG</b> của lưới' ) !== false, $lw_h );
-/* Ba khối cảnh báo GIỮ NGUYÊN: chúng không phải bảng, chúng là câu chỉ đường "còn thiếu cái
-   này thì cột Tiền mới ra số". Bỏ theo là mất luôn chỗ biết vì sao tiền chưa tính được. */
-t( 'ba khối cảnh báo còn nguyên', strpos( $lw_h, 'Chưa khai số ngày công' ) !== false, $lw_h );
+/* 🔴 BA DẢI CẢNH BÁO ĐÃ RỜI SANG MÀN CẤU HÌNH.
+   Anh Thắng 27/08/2026, kèm hai ảnh: *"bỏ chỗ này"*. Chúng đúng, nhưng đứng nhầm chỗ: bảng công
+   là màn người ta mở HẰNG NGÀY để ĐỌC, còn ba dải ấy nói về việc KHAI MỘT LẦN — và cái dài nhất
+   dán tên hai mươi mấy người ra giữa màn, mỗi lần mở lại đọc lại. Người xem công không khai
+   được gì với chúng: họ không có quyền, và cũng không phải việc của họ.
+   ⚠️ KHÔNG XOÁ HẲN, chỉ dời. Xoá là chưa khai ngày công chuẩn thì cột Tiền hiện "—" mà không
+      câu nào nói vì sao, và người kiểm lương đi tìm một lỗi không có thật. */
+t( '🔴 màn Bảng công KHÔNG còn dải cảnh báo lương',
+	strpos( $lw_h, 'Chưa khai số ngày công' ) === false, $lw_h );
+t( 'cũng không còn dải ktMaNV', strpos( $lw_h, 'ktMaNV' ) === false, $lw_h );
+t( 'và KHÔNG dán tên người chưa khai lương ra giữa màn',
+	strpos( $lw_h, 'Chưa khai lương cơ bản' ) === false, $lw_h );
 /* 🔴 KHÔNG ĐẺ RA Ô LỌC THỨ HAI. Hai ô cho cùng một thứ thì người ta sẽ chọn lệch, và cả hai
    bảng đều trông đúng. Đó là toàn bộ điểm của việc gộp. */
 t( '🔴 khối lương KHÔNG có ô chọn cơ sở riêng', strpos( $lw_h, 'name="lcs"' ) === false, $lw_h );
@@ -10463,7 +10478,7 @@ t( '🔴 neo đứng TRƯỚC hàng sửa', false !== $vt_neo && false !== $vt_s
 /* Và nó phải là hàng của ĐÚNG người đang sửa — neo lên nhầm hàng thì cuộn tới một người khác,
    mà biểu mẫu thì ở tận đâu. */
 t( 'neo nằm trên hàng của ĐÚNG người đang sửa',
-	preg_match( '~<tr id="suaday"><td>Người LS1~', $h_ls ) === 1, $h_ls );
+	preg_match( '~<tr id="suaday"><td>(?:<a[^>]*>)?Người LS1~', $h_ls ) === 1, $h_ls );
 t( 'và khối ấy được ghim thật trong bảng kiểu',
 	strpos( $h_ls, '.hs-in{position:sticky;left:0;' ) !== false, $h_ls );
 t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
@@ -11460,6 +11475,32 @@ t( '🔴 cột dọc chỉ bật từ 1000px trở lên',
 t( 'mặc định (màn hẹp) thì KHÔNG phải lưới hai cột',
 	strpos( $h_hr, '.ung{display:block}' ) !== false, $h_hr );
 
+/* ---- Tên người trong lưới là ĐƯỜNG SANG HỒ SƠ ---- */
+/* Anh Thắng 27/08/2026, chỉ vào cột Nhân viên: *"Khi bấm vào thông tin nhân sự chỗ này, nó sẽ
+   nhảy sang tab thông tin nhân sự đó, để tiện chỉnh thông tin nhân, set cơ sở, hay liên kết các
+   web khác lại theo cấu hình"*.
+   🔴 Đường đi cũ dài và dễ lạc: sang tab Hồ sơ → gõ tên vào ô tìm → dò trong danh sách vài trăm
+      người → bấm Sửa. Bước "gõ tên" là bước hay lạc nhất: tên trùng, dấu gõ khác nhau, người ta
+      gõ "Thắng" mà sổ ghi "Thăng". Cái tên đang nằm sẵn trước mắt CHÍNH LÀ khoá. */
+vhcc_cham( 'HR_CS', '2026-08-06', 'LNV1', '', '08:00:00', '17:00:00' );
+$h_ln = vhcc_hr( $tok_hr, array( 'man' => 'cham', 'ccs' => 'HR_CS', 'cth' => '2026-08' ) );
+t( 'dựng cảnh: lưới có người', strpos( $h_ln, 'Người LNV1' ) !== false, substr( $h_ln, 0, 300 ) );
+t( '🔴 tên người là một liên kết', strpos( $h_ln, 'class="ten-nv"' ) !== false, $h_ln );
+/* 🔴 TRỎ ĐÚNG NGƯỜI. Bỏ tham số `sua` thì mọi tên dẫn về cùng một danh sách trơn — vẫn là liên
+   kết, vẫn bấm được, và vẫn phải đi tìm lại từ đầu. */
+t( '🔴 và trỏ tới ĐÚNG hồ sơ của người ấy',
+	preg_match( '~<a class="ten-nv" href="[^"]*man=ho_so[^"]*sua=LNV1[^"]*"~', $h_ln ) === 1, $h_ln );
+
+/* ⚠️ CHỈ VẼ CHO NGƯỜI MỞ ĐƯỢC HỒ SƠ. Vẽ cho cả người không có quyền thì bấm vào chỉ nhận một
+   câu chối — mà cái liên kết thì cứ nằm đó mời gọi mỗi ngày. Cùng luật với cột dọc và thẻ. */
+$tok_cht_ln = VHCC_Auth::phat_token( 'Chị Trưởng', 'Cửa hàng trưởng', 'HR_CS', 'HRCHT' );
+$h_ln_cht = vhcc_hr( $tok_cht_ln, array( 'man' => 'cham', 'ccs' => 'HR_CS', 'cth' => '2026-08' ) );
+t( 'dựng cảnh: Cửa hàng trưởng cũng thấy lưới', strpos( $h_ln_cht, 'Người LNV1' ) !== false,
+	substr( $h_ln_cht, 0, 300 ) );
+t( '🔴 Cửa hàng trưởng KHÔNG thấy tên thành liên kết',
+	strpos( $h_ln_cht, 'class="ten-nv"' ) === false, $h_ln_cht );
+t( 'nhưng tên vẫn hiện đủ', strpos( $h_ln_cht, 'Người LNV1' ) !== false, $h_ln_cht );
+
 /* ---- Nhãn khối (ảnh 2) ---- */
 /* 🔴 Màn Máy & Firmware có CHÍN khối liền nhau, màn Cấu hình có năm. Không có nhãn thì chúng là
    chín cái thẻ trắng nối đuôi, tiêu đề chìm vào giữa đám chữ, và cuộn xuống là mất dấu mình
@@ -11501,6 +11542,161 @@ t( '🔴 lưới cả tháng KHÔNG khai lớp stt',
 /* 🔴 KHÔNG một dòng script — cùng luật với cả màn quản trị. */
 t( 'khung mới không kéo theo script nào', stripos( $h_hr, '<script' ) === false );
 t( 'và không có thuộc tính onXxx=', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_hr ) === 0 );
+
+vhcc_dung_bang();
+
+/* ======================================================================================
+ *  69. NẠP LẦN HAI KHÔNG ĐÈ LÊN GIỜ NGƯỜI TA ĐÃ SỬA HOẶC BÙ
+ *
+ *  Anh Thắng 27/08/2026: *"Nhớ bổ sung dữ liệu lên, chỉ đè dữ liệu khi nó trống, tránh đè lần 2"*.
+ *
+ *  `quyet_dinh_gio()` vốn đã lo phần "không thu hẹp": trùng thì bỏ, nằm giữa thì bỏ, chỉ nới ra
+ *  hai đầu. Nhưng NỚI RA cũng là đè, khi cái nó đè lên là một quyết định của người — và cả hai
+ *  đường dưới đây đều IM LẶNG, xoá mất một quyết định có lý do, có người ký, có nhật ký.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$D_CS2 = 'DE_CS';
+vhcc_bo_phan( $D_CS2, 'Khu vui chơi' );
+$u_de = array( 'role' => 'Admin', 'name' => 'Anh Admin', 'ma_nv' => 'DEAD' );
+VHCC_NhanSu::luu_ho_so( $u_de, array( 'ma_nv' => 'DE1', 'ho_ten' => 'Người DE1',
+	'cua_hang' => $D_CS2, 'sdt' => '0900' ) );
+VHCC_NhanSu::luu_ho_so( $u_de, array( 'ma_nv' => 'DE2', 'ho_ten' => 'Người DE2',
+	'cua_hang' => $D_CS2, 'sdt' => '0900' ) );
+
+/* ---- Cảnh 1: Admin SỬA giờ ra, rồi máy đẩy lại lượt cũ ---- */
+/* Máy ghi 08:00 và 22:00. Camera cho thấy người ấy về lúc 17:00 — máy lệch đồng hồ. */
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-06', 'DE1', 'Người DE1', VHCC_DB::giay( '08:00:00' ), '', 'may' );
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-06', 'DE1', 'Người DE1', VHCC_DB::giay( '22:00:00' ), '', 'may' );
+$r_de = VHCC_Bu::sua( $u_de, array( 'coso' => $D_CS2, 'ngay' => '2026-07-06', 'ma_nv' => 'DE1',
+	'ra' => '17:00', 'ly_do' => 'máy lệch đồng hồ 5 tiếng, đối chiếu camera' ) );
+t( 'dựng cảnh: Admin sửa được giờ ra', ! empty( $r_de['ok'] ), $r_de );
+$o_de = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-06', 'DE1' );
+teq( 'giờ ra nay là 17:00', '17:00', $o_de[0]['ra'] );
+
+/* 🔴 NẠP LẠI tệp .csv cũ (hoặc máy đẩy lại lô cũ) có đúng lượt 22:00. */
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-06', 'DE1', 'Người DE1', VHCC_DB::giay( '22:00:00' ), '', 'sheet' );
+$o_de = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-06', 'DE1' );
+teq( '🔴 lượt nạp lại KHÔNG đè lên giờ Admin vừa sửa', '17:00', $o_de[0]['ra'] );
+teq( 'và giờ vào cũng nguyên', '08:00', $o_de[0]['vao'] );
+/* Cổng phải NÓI RA là đã giữ, đừng im lặng — hoặc máy lệch đồng hồ thật, hoặc lượt sửa kia sai,
+   và cả hai đều cần người nhìn. */
+$kq_de = VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-06', 'DE1', 'Người DE1',
+	VHCC_DB::giay( '22:30:00' ), '', 'may' );
+teq( '🔴 trả về loại RIÊNG "giu-tay", không gộp vào "trung"', 'giu-tay', $kq_de['loai'] );
+t( 'và kể ra ô nào bị giữ', in_array( 'ra', (array) $kq_de['giuO'], true ), $kq_de );
+
+/* ---- Cảnh 2: Cửa hàng trưởng BÙ giờ vào, rồi máy sống lại đẩy lô cũ ---- */
+$u_cht_de = array( 'role' => 'Cửa hàng trưởng', 'name' => 'Chị Trưởng', 'coso' => $D_CS2, 'ma_nv' => 'DECHT' );
+$r_de = VHCC_Bu::ghi( $u_cht_de, array( 'coso' => $D_CS2, 'ngay' => '2026-07-07', 'ma_nv' => 'DE2',
+	'vao' => '08:00', 'ly_do' => 'máy hỏng sáng nay, có camera' ) );
+t( 'dựng cảnh: bù được giờ vào', ! empty( $r_de['ok'] ), $r_de );
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-07', 'DE2', 'Người DE2', VHCC_DB::giay( '07:45:00' ), '', 'may' );
+$o_de2 = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-07', 'DE2' );
+teq( '🔴 lượt máy sớm hơn KHÔNG đè lên giờ vừa bù', '08:00', $o_de2[0]['vao'] );
+
+/* 🔴 VÀ MÁY KHÔNG ĐƯỢC DỰNG RA MỘT "GIỜ RA" TỪ CHÍNH CON SỐ NGƯỜI TA BÙ.
+   Nhánh "đảo thứ tự" làm hai việc một lúc: đặt giờ vào mới, và ĐẨY GIỜ VÀO CŨ XUỐNG LÀM GIỜ RA
+   khi ô ra còn trống. Giữ ô `vao` mà để nguyên ô `ra` thì ngày ấy hoá ra "vào 08:00, ra 08:00"
+   — 0 giờ làm, mà nhìn bảng thì đủ cặp giờ nên KHÔNG ô nào đỏ, không ai đi tìm.
+   Phá thử mới lộ ra: cả hai đường đều cho kết quả CUỐI giống nhau (17:10), nên phép thử ở dưới
+   không phân biệt được. Phải đo ngay sau lượt 07:45, lúc ô ra còn đang trống. */
+$o_de2 = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-07', 'DE2' );
+teq( '🔴 ô giờ ra vẫn TRỐNG — máy không tự bịa một giờ ra từ lượt bù', '—', $o_de2[0]['ra'] );
+
+/* ---- 🔴 NHƯNG Ô CÒN TRỐNG THÌ VẪN PHẢI VÀO ---- */
+/* Đúng chữ anh Thắng: *chỉ đè khi nó trống*. Bù giờ vào rồi máy gửi giờ ra thật thì giờ ra ấy
+   VẪN PHẢI VÀO — chặn nó là bắt người ta bù tay cả cặp trong khi máy đã có sẵn con số đúng. */
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-07', 'DE2', 'Người DE2', VHCC_DB::giay( '17:10:00' ), '', 'may' );
+$o_de2 = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-07', 'DE2' );
+teq( '🔴 ô giờ ra còn TRỐNG thì máy vẫn ghi được', '17:10', $o_de2[0]['ra'] );
+teq( 'và giờ vào đã bù vẫn nguyên', '08:00', $o_de2[0]['vao'] );
+
+/* ---- 🔴 XOÁ TRẮNG RỒI MÁY DỰNG LẠI ĐÚNG CON SỐ VỪA XOÁ ---- */
+/* Ô có dấu tay mà đang TRỐNG là ô người ta cố ý xoá — Admin xoá một giờ ra sai chẳng hạn. Máy
+   đẩy lại lô cũ rồi dựng đúng con số ấy là làm hỏng chính quyết định vừa rồi, và lần này còn
+   khó thấy hơn: bảng lại đủ cặp giờ như chưa có chuyện gì.
+   Nhánh "đảo thứ tự" là đường nó đi: lượt mới sớm hơn giờ vào thì giờ vào CŨ tụt xuống làm giờ
+   ra — đúng vào ô vừa bị xoá. */
+vhcc_cham( $D_CS2, '2026-07-11', 'DE1', '', '09:00:00', '18:00:00' );
+$r_xt = VHCC_Bu::sua( $u_de, array( 'coso' => $D_CS2, 'ngay' => '2026-07-11', 'ma_nv' => 'DE1',
+	'xoa_ra' => true, 'ly_do' => 'giờ ra 18:00 là của máy khác, xoá đi để bù lại' ) );
+t( 'dựng cảnh: Admin xoá trắng được giờ ra', ! empty( $r_xt['ok'] ), $r_xt );
+$o_xt = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-11', 'DE1' );
+teq( 'ô giờ ra đang trống', '—', $o_xt[0]['ra'] );
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-11', 'DE1', 'Người DE1', VHCC_DB::giay( '07:30:00' ), '', 'may' );
+$o_xt = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-11', 'DE1' );
+teq( '🔴 máy KHÔNG dựng lại giờ ra vừa bị xoá', '—', $o_xt[0]['ra'] );
+/* ⚠️ Nhưng ô `vao` thì KHÔNG có dấu tay, nên lượt 07:30 vẫn phải vào — đó là một lượt bấm
+   thật, sớm hơn giờ vào đang có. Chốt chỉ giữ ô người ta ĐÃ ĐỘNG TỚI, không đóng băng cả
+   ngày: đóng băng cả ngày là mỗi lượt sửa một ô làm cả ngày ấy thôi nhận giờ từ máy. */
+teq( 'còn giờ vào vẫn được nới bình thường (ô ấy chưa ai động)', '07:30', $o_xt[0]['vao'] );
+
+/* ---- Ngày KHÔNG ai động tay thì máy nới bình thường ---- */
+/* Chốt này chỉ được cắn đúng chỗ nó phải cắn. Cắn cả những ngày bình thường là cổng thôi nhận
+   giờ ra — mà đó là đường đi hằng ngày của cả chuỗi. */
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-08', 'DE1', 'Người DE1', VHCC_DB::giay( '08:05:00' ), '', 'may' );
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-08', 'DE1', 'Người DE1', VHCC_DB::giay( '17:20:00' ), '', 'may' );
+VHCC_Nhan::ghi_gio( $D_CS2, '2026-07-08', 'DE1', 'Người DE1', VHCC_DB::giay( '22:40:00' ), '', 'may' );
+$o_de3 = VHCC_Bu::cac_o( array( $D_CS2 ), '2026-07-08', 'DE1' );
+teq( '🔴 ngày không ai động tay: máy vẫn NỚI giờ ra như cũ', '22:40', $o_de3[0]['ra'] );
+teq( 'giờ vào giữ lượt sớm nhất', '08:05', $o_de3[0]['vao'] );
+
+/* ---- Sổ chỉ nhớ ĐÚNG CƠ SỞ, đúng ngày ---- */
+/* 🔴 Bỏ lọc cơ sở là một lượt sửa ở cửa hàng A khoá luôn ô cùng ngày cùng mã ở cửa hàng B —
+   mà người làm hai cơ sở là chuyện thường (xem khối 60). Lúc ấy máy ở B im lặng không ghi
+   được gì, và không câu nào nói vì sao. */
+vhcc_bo_phan( 'DE_CS_B', 'Khu vui chơi' );
+VHCC_Nhan::ghi_gio( 'DE_CS_B', '2026-07-06', 'DE1', 'Người DE1', VHCC_DB::giay( '08:10:00' ), '', 'may' );
+VHCC_Nhan::ghi_gio( 'DE_CS_B', '2026-07-06', 'DE1', 'Người DE1', VHCC_DB::giay( '16:00:00' ), '', 'may' );
+$tay_b = VHCC_Bu::o_da_dong_tay( 'DE_CS_B', '2026-07-06', 'DE1' );
+t( '🔴 sổ KHÔNG nhớ nhầm sang cơ sở khác',
+	empty( $tay_b['vao'] ) && empty( $tay_b['ra'] ), $tay_b );
+VHCC_Nhan::ghi_gio( 'DE_CS_B', '2026-07-06', 'DE1', 'Người DE1', VHCC_DB::giay( '18:30:00' ), '', 'may' );
+$o_b = VHCC_Bu::cac_o( array( 'DE_CS_B' ), '2026-07-06', 'DE1' );
+teq( 'nên máy ở cơ sở kia vẫn nới giờ ra bình thường', '18:30', $o_b[0]['ra'] );
+/* Sang NGÀY KHÁC cũng vậy — lượt sửa ngày 06 không được khoá ngày 09. */
+$tay_n = VHCC_Bu::o_da_dong_tay( $D_CS2, '2026-07-09', 'DE1' );
+t( 'và không nhớ nhầm sang ngày khác',
+	empty( $tay_n['vao'] ) && empty( $tay_n['ra'] ), $tay_n );
+
+/* ---- Sổ nhật ký là NGUỒN THẬT, không phải cột `nguon` ---- */
+/* 🔴 Cột `nguon` bị NỚI thành `hon-hop` ngay khi một lượt máy chạm vào — dấu vết "ô này người ta
+   đã sửa" tan mất sau đúng một lượt, và lượt thứ hai đè thoải mái. Bảng `cham_bu` thì ngược
+   lại: mỗi lượt bù và mỗi lượt sửa đều ghi MỘT DÒNG CHO MỖI Ô, và bảng ấy không có đường xoá. */
+$tay_de = VHCC_Bu::o_da_dong_tay( $D_CS2, '2026-07-06', 'DE1' );
+t( '🔴 sổ nhớ đúng ô đã sửa', ! empty( $tay_de['ra'] ), $tay_de );
+t( 'và KHÔNG nhớ nhầm ô kia', empty( $tay_de['vao'] ), $tay_de );
+$tay_de = VHCC_Bu::o_da_dong_tay( $D_CS2, '2026-07-08', 'DE1' );
+t( 'ngày không ai động tay thì sổ trống', empty( $tay_de['vao'] ) && empty( $tay_de['ra'] ), $tay_de );
+/* Mã rỗng / cơ sở rỗng -> trả rỗng.
+   ⚠️ Chốt `if ( '' === $coso || '' === $ma ) return` là PHÒNG XA, không phải chốt canh hành vi:
+      truy vấn với khoá rỗng cũng trả rỗng, nên bỏ nó đi thì kết quả y hệt — chỉ tốn thêm một
+      lượt hỏi cơ sở dữ liệu. Đã phá thử và ghi lại ở đây để người sau khỏi đi tìm phép thử
+      canh nó: KHÔNG CÓ, và cố dựng một phép thử như thế là đo số truy vấn, thứ mà bản giả của
+      bộ thử không đếm. Giữ chốt vì nó rẻ và nói ra ý định. */
+$tay_de = VHCC_Bu::o_da_dong_tay( '', '2026-07-06', '' );
+t( 'thiếu khoá thì trả rỗng', empty( $tay_de['vao'] ) && empty( $tay_de['ra'] ), $tay_de );
+
+/* ---- Lô của máy chính: đếm RIÊNG số lượt bị giữ ---- */
+/* ⚠️ GÁN MÁY VÀO CƠ SỞ TRƯỚC. Máy chưa gán thì mọi lượt rơi vào `choGan` và không lượt nào chạm
+   tới bảng chấm công — phép thử sẽ đo một cái lô rỗng và kết luận sai về chốt. */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'DE-MAY', 'mac' => '',
+	'cua_hang' => $D_CS2 ) );
+/* "Trùng" là gói lặp, chuyện thường, không ai cần biết. "Giữ tay" nghĩa là máy vừa MUỐN đè lên
+   một quyết định của người và bị chặn — gộp vào một con số là không ai đi tìm. */
+/* ⚠️ Đi qua ĐÚNG CỬA THẬT: `vhcc_may_gui()` dựng cả phương thức, đường dẫn, khoá và thân gói —
+   gọi thẳng `phuc_vu()` là nó đọc `$_SERVER` của lượt trước và trả `null`. */
+list( , $lo_de ) = vhcc_may_gui( array(
+	'logs' => array(
+		array( 'hikSerial' => 'DE-MAY', 'station' => $D_CS2, 'employeeNo' => 'DE1',
+			'name' => 'Người DE1', 'time' => '2026-07-06 23:00:00' ),
+		array( 'hikSerial' => 'DE-MAY', 'station' => $D_CS2, 'employeeNo' => 'DE1',
+			'name' => 'Người DE1', 'time' => '2026-07-08 08:05:00' ),
+	),
+) );
+t( 'dựng cảnh: cổng nhận được lô', is_array( $lo_de ) && ! empty( $lo_de['lo'] ), $lo_de );
+teq( '🔴 lô kể riêng số lượt bị giữ vì ô đã có người sửa', 1, $lo_de['giuTay'] );
+teq( 'và lượt trùng vẫn đếm riêng', 1, $lo_de['trung'] );
 
 vhcc_dung_bang();
 

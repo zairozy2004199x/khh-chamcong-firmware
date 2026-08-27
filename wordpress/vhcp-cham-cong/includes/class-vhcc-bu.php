@@ -394,6 +394,40 @@ class VHCC_Bu {
 		return ( null === $giay ) ? '—' : VHCC_DB::hhmm( (int) $giay );
 	}
 
+	/**
+	 * Ô GIỜ NÀO CỦA NGÀY NÀY ĐÃ CÓ NGƯỜI ĐỘNG TAY — bù hoặc sửa.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 27/08/2026: *"Nhớ bổ sung dữ liệu lên, chỉ đè dữ liệu khi nó trống, tránh đè lần 2"*.
+	 * =============================================================================================
+	 * 🔴 SỔ NHẬT KÝ LÀ NGUỒN THẬT, KHÔNG PHẢI CỘT `nguon`.
+	 *    Cột `nguon` của hàng chấm công bị NỚI thành `hon-hop` ngay khi một lượt máy chạm vào —
+	 *    tức là dấu vết "ô này người ta đã sửa" tan mất sau đúng một lượt, và lượt thứ hai đè
+	 *    thoải mái. Bảng `cham_bu` thì ngược lại: mỗi lượt bù và mỗi lượt sửa đều ghi vào đó MỘT
+	 *    DÒNG CHO MỖI Ô, và bảng ấy KHÔNG có đường xoá. Hỏi đúng nơi giữ sự thật.
+	 *
+	 * ⚠️ Trả về mảng theo Ô (`vao` / `ra`), không phải một cờ chung cho cả ngày. Bù giờ vào rồi
+	 *    máy gửi giờ ra thật thì giờ ra ấy VẪN PHẢI VÀO — ô đó còn trống, và chặn nó là bắt
+	 *    người ta bù tay cả cặp trong khi máy đã có sẵn con số đúng.
+	 *
+	 * @return array( 'vao' => bool, 'ra' => bool )
+	 */
+	public static function o_da_dong_tay( $coso, $ngay, $ma_nv ) {
+		global $wpdb;
+		$out = array( 'vao' => false, 'ra' => false );
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$ma   = trim( (string) $ma_nv );
+		if ( '' === $coso || '' === $ma ) { return $out; }
+		$ds = $wpdb->get_col( $wpdb->prepare(
+			'SELECT DISTINCT o_gio FROM ' . VHCC_DB::t( 'cham_bu' )
+			. ' WHERE coso=%s AND ngay=%s AND ma_nv=%s', $coso, $ngay, $ma ) );
+		foreach ( (array) $ds as $o ) {
+			$o = trim( (string) $o );
+			if ( 'vao' === $o || 'ra' === $o ) { $out[ $o ] = true; }
+		}
+		return $out;
+	}
+
 	/* ===================================================================== nhật ký */
 
 	/** Một dòng nhật ký cho MỘT ô giờ. Bảng này không có đường xoá — xem chú thích đầu tệp. */
