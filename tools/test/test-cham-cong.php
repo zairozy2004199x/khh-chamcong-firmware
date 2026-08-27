@@ -5224,7 +5224,9 @@ VHCC_NguoiDung::luu( '', 'Anh CHT', '579135', 'Cửa hàng trưởng', 'TUTU_BT'
 $h_w = vhcc_web( '579135' );
 t( 'Cửa hàng trưởng mang phiên thật thì VÀO ĐƯỢC',
 	strpos( $h_w, 'name="pin"' ) === false, $h_w );
-t( 'và thấy màn Bảng chấm công', strpos( $h_w, 'Bảng chấm công' ) !== false );
+/* ⚠️ Tên tab là "Bảng công" từ lượt gộp hai tab (26/08). Pin chuỗi "Bảng chấm công" là phép
+   thử đỏ vì một cái tên, trong khi cửa vào vẫn mở đúng. */
+t( 'và thấy màn Bảng công', strpos( $h_w, '>Bảng công<' ) !== false );
 t( 'nhưng KHÔNG thấy một mẩu hồ sơ nào', strpos( $h_w, 'Nguyễn Thu Hiền' ) === false, $h_w );
 t( 'không thấy CCCD', strpos( $h_w, '049304007231' ) === false );
 t( 'không có nút vào màn Hồ sơ', strpos( $h_w, 'Hồ sơ &amp; tài khoản' ) === false, $h_w );
@@ -7592,9 +7594,14 @@ t( 'Nhân viên thấy việc chấm công', strpos( $h_nha_nv, 'Chấm công</b
 t( 'và thấy việc xem công của mình', strpos( $h_nha_nv, 'Công của tôi</b>' ) !== false, $h_nha_nv );
 t( 'nhưng KHÔNG thấy việc nạp công', strpos( $h_nha_nv, 'Nạp công từ .csv</b>' ) === false, $h_nha_nv );
 t( 'không thấy việc hồ sơ', strpos( $h_nha_nv, 'Hồ sơ &amp; tài khoản</b>' ) === false, $h_nha_nv );
-t( 'không thấy việc khai ca', strpos( $h_nha_nv, 'Khai ca làm việc</b>' ) === false, $h_nha_nv );
+/* Thẻ "Khai ca làm việc" đã đi cùng lượt gộp tab — khai ca nay nằm TRONG màn Bảng công, và
+   lịch làm việc có tab riêng. Canh thẻ Lịch: nhân viên THẤY nó (xem lịch của mình) nhưng thẻ
+   Cấu hình thì không. */
+t( 'không thấy việc cấu hình', strpos( $h_nha_nv, 'Cấu hình</b>' ) === false, $h_nha_nv );
 t( 'Cửa hàng trưởng thấy việc chấm công bù', strpos( $h_nha_ch, 'Chấm công bù</b>' ) !== false, $h_nha_ch );
-t( 'và thấy việc khai ca', strpos( $h_nha_ch, 'Khai ca làm việc</b>' ) !== false, $h_nha_ch );
+t( 'và thấy việc lịch làm việc', strpos( $h_nha_ch, 'Lịch làm việc</b>' ) !== false, $h_nha_ch );
+t( 'nhân viên cũng thấy thẻ Lịch (xem ca của mình)',
+	strpos( $h_nha_nv, 'Lịch làm việc</b>' ) !== false, $h_nha_nv );
 t( 'nhưng KHÔNG thấy việc nạp công (bậc Quản lý)',
 	strpos( $h_nha_ch, 'Nạp công từ .csv</b>' ) === false, $h_nha_ch );
 t( 'Admin thấy đủ, kể cả hồ sơ', strpos( $h_nha_ad, 'Hồ sơ &amp; tài khoản</b>' ) !== false, $h_nha_ad );
@@ -7661,7 +7668,11 @@ t( 'bảng rộng vẫn cuộn ngang được trong khung riêng',
 
 /* ---- phần nhìn ---- */
 t( 'đầu trang mang tên K&H', strpos( $h_nha_ad, '<b>K&amp;H</b> Chấm công' ) !== false, $h_nha_ad );
-t( 'bấm tên là về trang chính', strpos( $h_nha_ad, 'class="hieu"' ) !== false, $h_nha_ad );
+/* ⚠️ ĐO CÁI LIÊN KẾT, đừng đo TÊN LỚP. `class="hieu"` khớp hụt ngay khi thêm một lớp thứ hai
+   (`class="hieu canh-hieu"`) — mà cái nút vẫn nằm đó và vẫn bấm về đúng chỗ. Đo tên lớp trần là
+   phép thử đỏ vì chuyện trang trí, và xanh trở lại chỉ vì ai đó đổi lớp cho khớp. */
+t( 'bấm tên là về trang chính',
+	preg_match( '~<a[^>]*class="[^"]*\bhieu\b[^"]*"[^>]*href="[^"]*"~', $h_nha_ad ) === 1, $h_nha_ad );
 t( 'trang chào KHÔNG dùng JavaScript',
 	stripos( $h_nha_ad, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_nha_ad ),
 	$h_nha_ad );
@@ -10432,9 +10443,27 @@ $_POST = array();
 ob_start(); VHCC_Web::phuc_vu(); $h_ls = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
 t( 'dựng cảnh: hàng sửa mở ra', strpos( $h_ls, 'class="hang-sua"' ) !== false, substr( $h_ls, 0, 400 ) );
+/* ⚠️ Neo `#suaday` nay nằm trên hàng NGƯỜI, không trên hàng sửa (xem khối dưới) — nên đừng pin
+   nó vào regex này, kẻo phép thử về chuyện GHIM BÊN TRÁI lại đỏ vì một chuyện về CUỘN. */
 t( '🔴 ruột hàng sửa nằm trong khối GHIM BÊN TRÁI',
-	preg_match( '~<tr class="hang-sua" id="suaday"><td colspan="\d+"><div class="hs-in">~', $h_ls ) === 1,
+	preg_match( '~<tr class="hang-sua"[^>]*><td colspan="\d+"><div class="hs-in">~', $h_ls ) === 1,
 	$h_ls );
+/* 🔴 NEO ĐẶT TRÊN HÀNG CỦA NGƯỜI, KHÔNG TRÊN HÀNG SỬA.
+   Anh Thắng 27/08/2026: *"bấm vào nó vẫn cứ nhảy chỗ sửa"* — kèm ảnh hàng người đang sửa bị cắt
+   mất nửa ở mép trên. Neo trên hàng sửa thì trình duyệt kéo đúng hàng ấy lên đỉnh và đẩy hàng
+   người (cùng cái ô vừa bấm) khuất lên trên: mở biểu mẫu ra rồi mất luôn chỗ đứng. */
+t( '🔴 hàng SỬA không còn mang neo', strpos( $h_ls, 'class="hang-sua" id="suaday"' ) === false, $h_ls );
+t( 'và neo nằm đúng một chỗ trong trang', 1 === substr_count( $h_ls, 'id="suaday"' ), $h_ls );
+/* Neo phải đứng TRƯỚC hàng sửa trong luồng HTML — đứng sau thì cuộn tới nó là biểu mẫu nằm
+   ngoài tầm nhìn phía trên, hỏng y như cũ, chỉ theo chiều ngược lại. */
+$vt_neo = strpos( $h_ls, 'id="suaday"' );
+$vt_sua = strpos( $h_ls, 'class="hang-sua"' );
+t( '🔴 neo đứng TRƯỚC hàng sửa', false !== $vt_neo && false !== $vt_sua && $vt_neo < $vt_sua,
+	$vt_neo . ' / ' . $vt_sua );
+/* Và nó phải là hàng của ĐÚNG người đang sửa — neo lên nhầm hàng thì cuộn tới một người khác,
+   mà biểu mẫu thì ở tận đâu. */
+t( 'neo nằm trên hàng của ĐÚNG người đang sửa',
+	preg_match( '~<tr id="suaday"><td>Người LS1~', $h_ls ) === 1, $h_ls );
 t( 'và khối ấy được ghim thật trong bảng kiểu',
 	strpos( $h_ls, '.hs-in{position:sticky;left:0;' ) !== false, $h_ls );
 t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
@@ -11284,6 +11313,143 @@ t( 'và không có thuộc tính onXxx=', preg_match( '/\son[a-z]+\s*=\s*["\']/i
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa IN ('COSO_TEN','LICH_CA','LICH_LOAI_VIEC','LICH_CO_SO')" );
 VHCC_NhanSu::quen_ten_coso();
+vhcc_dung_bang();
+
+/* ======================================================================================
+ *  68. KHUNG QUẢN TRỊ THEO MẪU HR V5.2 — cột dọc, tiêu đề màn, thẻ có biểu tượng
+ *
+ *  Anh Thắng 27/08/2026, gửi ba ảnh phần mềm HR V5.2 của Mr Trung: *"Chỗ phần giao diện và
+ *  tính năng của trang chấm công thiết kế đẹp mắt y như này"*.
+ *
+ *  🔴 THANH NÚT NGANG HỎNG DẦN THEO SỐ MÀN, VÀ HỎNG IM LẶNG. Nay đã tám mục; trên màn hẹp
+ *     chúng xuống hai hàng và mục nào rơi hàng dưới thì mắt không quét tới. Người dùng không
+ *     báo "thiếu nút" — họ chỉ không bao giờ bấm vào nó, và cái tính năng ấy coi như không có.
+ * ====================================================================================== */
+vhcc_dung_bang();
+vhcc_bo_phan( 'HR_CS', 'Khu vui chơi' );
+$tok_hr = VHCC_Auth::phat_token( 'Anh Quản Trị', 'Admin', '', 'HRAD' );
+function vhcc_hr( $tok, $get = array() ) {
+	$_GET = $get; $_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+$h_hr = vhcc_hr( $tok_hr, array( 'man' => 'cham', 'ccs' => 'HR_CS', 'cth' => '2026-08' ) );
+
+/* ---- Cột dọc ---- */
+t( '🔴 có cột dọc bên trái', strpos( $h_hr, '<aside class="canh">' ) !== false, substr( $h_hr, 0, 400 ) );
+t( 'và nó nằm trong khung lưới hai cột', strpos( $h_hr, '<div class="ung">' ) !== false, $h_hr );
+t( 'vùng nội dung là <main>', strpos( $h_hr, '<main class="vung">' ) !== false, $h_hr );
+/* 🔴 KHUNG PHẢI ĐÓNG LẠI. Thiếu thẻ đóng thì trình duyệt tự vá — không ai thấy gì, cho tới
+   ngày một thẻ khác bị nuốt theo và nửa trang biến mất. */
+teq( 'khung mở và đóng đúng một lần', 1, substr_count( $h_hr, '<main class="vung">' ) );
+teq( 'và có đúng một </main>', 1, substr_count( $h_hr, '</main>' ) );
+
+/* Mỗi màn một dòng, có biểu tượng, và mục ĐANG MỞ nổi hẳn lên — cột tám mục thì người ta liếc
+   chứ không đọc. */
+t( 'mỗi mục có biểu tượng riêng', strpos( $h_hr, '<span class="bt">' ) !== false, $h_hr );
+t( '🔴 mục đang mở được đánh dấu', strpos( $h_hr, '<a class="dang"' ) !== false, $h_hr );
+teq( '🔴 CHỈ MỘT mục được đánh dấu đang mở', 1, substr_count( $h_hr, '<a class="dang"' ) );
+/* Đúng mục đang xem, không phải mục nào khác — đánh dấu nhầm còn tệ hơn không đánh dấu. */
+t( 'và đúng là mục của màn đang xem',
+	preg_match( '~<a class="dang" href="[^"]*man=cham"~', $h_hr ) === 1, $h_hr );
+
+/* ⚠️ VẼ THEO QUYỀN, y như thanh cũ. Ai không mở được màn nào thì màn ấy KHÔNG có mặt — chứ
+   không hiện rồi chối. Hiện rồi chối là dạy người dùng rằng màn này hay nói dối. */
+$tok_nv_hr = VHCC_Auth::phat_token( 'Bạn Nhân Viên', 'Nhân viên', 'HR_CS', 'HRNV' );
+$h_nv_hr = vhcc_hr( $tok_nv_hr );
+t( '🔴 Nhân viên KHÔNG thấy mục Hồ sơ trong cột dọc',
+	strpos( $h_nv_hr, 'man=ho_so' ) === false, $h_nv_hr );
+t( 'không thấy mục Máy & Firmware', strpos( $h_nv_hr, 'man=may' ) === false, $h_nv_hr );
+t( 'nhưng vẫn thấy mục Công của tôi', strpos( $h_nv_hr, 'man=cong_toi' ) !== false, $h_nv_hr );
+t( 'Admin thì thấy mục Máy & Firmware', strpos( $h_hr, 'man=may' ) !== false, $h_hr );
+
+/* Chân cột: ai đang đăng nhập · nút Thoát · phiên bản đang chạy. */
+t( 'chân cột nói ai đang đăng nhập',
+	strpos( $h_hr, 'Anh Quản Trị · Admin' ) !== false, $h_hr );
+t( 'có nút Thoát', strpos( $h_hr, 'value="thoat"' ) !== false, $h_hr );
+t( 'và phiên bản đang chạy nằm ngay trong tầm mắt',
+	strpos( $h_hr, 'class="canh-pb"' ) !== false, $h_hr );
+/* Tên hệ vẫn là ĐƯỜNG VỀ TRANG CHÍNH — người ta bấm logo để về nhà ở mọi trang web trên đời. */
+t( '🔴 logo vẫn là liên kết về trang chính',
+	preg_match( '~<a[^>]*class="[^"]*\bhieu\b[^"]*"[^>]*href="[^"]*"~', $h_hr ) === 1, $h_hr );
+
+/* ---- Tiêu đề màn ---- */
+/* 🔴 Không có nó thì tám màn mở ra trông giống hệt nhau — cùng nền, cùng thẻ trắng, cùng bảng.
+   Bấm một mục ở cột dọc rồi không chắc mình đã sang màn khác chưa. */
+t( '🔴 màn nào cũng tự xưng tên', strpos( $h_hr, '<div class="tieu-man">' ) !== false, $h_hr );
+t( 'và đúng tên màn đang mở',
+	preg_match( '~<div class="tieu-man"><h1>Bảng công</h1>~', $h_hr ) === 1, $h_hr );
+$h_hs = vhcc_hr( $tok_hr, array( 'man' => 'ho_so' ) );
+t( 'sang màn khác thì tiêu đề đổi theo',
+	preg_match( '~<div class="tieu-man"><h1>Hồ sơ &amp; tài khoản</h1>~', $h_hs ) === 1, $h_hs );
+t( 'kèm một câu nói màn ấy để làm gì',
+	strpos( $h_hs, 'Khai người, cấp PIN' ) !== false, $h_hs );
+
+/* Mọi màn khai được đều phải có biểu tượng và một câu mô tả — thiếu là mục ấy trơ ra giữa cột. */
+$thieu_bt = array();
+$thieu_ch = array();
+foreach ( array_keys( VHCC_Web::man_cua( array( 'role' => 'Admin' ) ) ) as $k_hr ) {
+	if ( '▪' === VHCC_Web::bieu_man( $k_hr ) ) { $thieu_bt[] = $k_hr; }
+	if ( '' === VHCC_Web::chu_man( $k_hr ) )   { $thieu_ch[] = $k_hr; }
+}
+teq( '🔴 mọi màn đều có biểu tượng riêng', array(), $thieu_bt );
+teq( 'và đều có một câu nói mình để làm gì', array(), $thieu_ch );
+
+/* ---- Thẻ Truy cập nhanh ở Trang chính ---- */
+$h_nha_hr = vhcc_hr( $tok_hr, array( 'man' => 'nha' ) );
+/* ⚠️ CẮT ĐÚNG KHỐI THẺ rồi mới soi. Cột dọc cũng dùng `<span class="bt">`, nên soi cả trang là
+   phép thử luôn xanh — kể cả khi thẻ chẳng còn vòng tròn nào. Đã phá thử để thấy. */
+$khoi_the = preg_match( '~<div class="the-viec">.*?</div></div>~s', $h_nha_hr, $m_the ) ? $m_the[0] : '';
+t( 'dựng cảnh: cắt được đúng khối thẻ', '' !== $khoi_the, substr( $h_nha_hr, 0, 300 ) );
+t( 'thẻ có vòng tròn biểu tượng', strpos( $khoi_the, '<span class="bt">' ) !== false, $khoi_the );
+teq( '🔴 mỗi thẻ đúng một vòng tròn',
+	substr_count( $khoi_the, 'class="viec' ), substr_count( $khoi_the, '<span class="bt">' ) );
+t( '🔴 và có dòng "Mở chức năng →" như mẫu',
+	strpos( $h_nha_hr, 'Mở chức năng →' ) !== false, $h_nha_hr );
+/* ⚠️ BIỂU TƯỢNG RA KHỎI TÊN. Trước đây tên là "📷 Chấm công" — hình dán liền chữ nên nó trôi
+   theo chữ khi tên xuống dòng, và không xếp thẳng hàng với các thẻ khác. */
+t( 'biểu tượng KHÔNG còn dính vào tên', strpos( $h_nha_hr, '<b>📷 Chấm công</b>' ) === false, $h_nha_hr );
+t( 'mà tên là tên', strpos( $h_nha_hr, '<b>Chấm công</b>' ) !== false, $h_nha_hr );
+/* Thẻ dựng theo QUYỀN, y như cột dọc. */
+$h_nha_nv_hr = vhcc_hr( $tok_nv_hr, array( 'man' => 'nha' ) );
+t( '🔴 Nhân viên KHÔNG thấy thẻ Máy & Firmware',
+	strpos( $h_nha_nv_hr, 'Máy &amp; Firmware</b>' ) === false, $h_nha_nv_hr );
+t( 'Admin thì thấy', strpos( $h_nha_hr, 'Máy &amp; Firmware</b>' ) !== false, $h_nha_hr );
+
+/* ---- Chân trang nằm TRONG vùng nội dung ---- */
+/* 🔴 Đóng khung trước khi in chân trang là chân trang rơi ra ngoài: trên màn rộng nó trải hết
+   bề ngang, chui xuống dưới cả cột dọc, và lệch hẳn so với mọi thứ phía trên. Đúng cái anh
+   Thắng đã bắt một lần rồi — *"bị lệch"*, 26/08 — chỉ khác chỗ lệch. */
+$vt_cty  = strpos( $h_hr, 'class="cty"' );
+$vt_dong = strpos( $h_hr, '</main>' );
+t( '🔴 chân trang nằm TRƯỚC chỗ đóng khung, tức trong vùng nội dung',
+	false !== $vt_cty && false !== $vt_dong && $vt_cty < $vt_dong, $vt_cty . ' / ' . $vt_dong );
+
+/* ---- Màn ĐĂNG NHẬP không có cột dọc, và không thừa thẻ đóng ---- */
+/* Chưa biết người là ai thì lấy gì vẽ menu. Đóng khung vô điều kiện là mỗi trang ấy thừa hai
+   thẻ đóng — trình duyệt tự sửa nên không ai thấy, cho tới ngày một thẻ khác bị nuốt theo. */
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_pin = ob_get_clean();
+t( 'màn nhập PIN KHÔNG có cột dọc', strpos( $h_pin, '<aside class="canh">' ) === false, $h_pin );
+teq( '🔴 và KHÔNG thừa thẻ </main> nào', 0, substr_count( $h_pin, '</main>' ) );
+
+/* ---- Dải kết quả có chấm tròn (mẫu ảnh 1) ---- */
+t( 'dải báo có chấm tròn đầu dòng', strpos( $h_hr, '.bao::before' ) !== false, $h_hr );
+
+/* ---- Cột dọc chỉ dựng cột trên MÀN RỘNG ---- */
+/* ⚠️ Anh Thắng mở bằng điện thoại nhiều hơn máy tính, mà một cột 232px trên màn 390px là ăn
+   hơn nửa bề ngang. Dưới 1000px thì nó nằm ngang trên đầu và cuộn ngang được. */
+t( '🔴 cột dọc chỉ bật từ 1000px trở lên',
+	strpos( $h_hr, '@media(min-width:1000px){.ung{display:grid' ) !== false, $h_hr );
+t( 'mặc định (màn hẹp) thì KHÔNG phải lưới hai cột',
+	strpos( $h_hr, '.ung{display:block}' ) !== false, $h_hr );
+
+/* 🔴 KHÔNG một dòng script — cùng luật với cả màn quản trị. */
+t( 'khung mới không kéo theo script nào', stripos( $h_hr, '<script' ) === false );
+t( 'và không có thuộc tính onXxx=', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_hr ) === 0 );
+
 vhcc_dung_bang();
 
 if ( count( $truot ) ) {

@@ -355,6 +355,11 @@ class VHCC_Web {
 	 */
 	private static function dong_trang( $so_div = 1 ) {
 		echo str_repeat( '</div>', max( 0, (int) $so_div ) );
+		/* 🔴 ĐÓNG KHUNG CỘT DỌC — và chỉ khi nó ĐÃ ĐƯỢC MỞ.
+		   Màn đăng nhập, tờ in, trang xuất tệp đều gọi `dau()` mà KHÔNG có cột dọc (chưa biết
+		   người là ai thì lấy gì vẽ menu). Đóng vô điều kiện là mỗi trang ấy thừa hai thẻ đóng —
+		   trình duyệt tự sửa nên không ai thấy gì, cho tới ngày có một thẻ khác bị nuốt theo. */
+
 		/* ⚠️ Gác `method_exists` cùng hàm với lời gọi — xem `tools/test/kiem-goi-cheo.php`.
 		   `VHCC_Cty` cùng plugin nên chắc chắn có, nhưng ai đó gỡ tệp ra khỏi bản cài thì
 		   trang vẫn phải chạy: thiếu chân trang là thiếu một đoạn chữ, không phải trắng trang. */
@@ -364,6 +369,16 @@ class VHCC_Web {
 			   lại thụt vào. Khung `.bo` là thứ giữ mọi thứ thẳng hàng; ra ngoài nó là lệch. */
 			$h_cty = VHCC_Cty::html();
 			if ( '' !== $h_cty ) { echo '<div class="bo">' . $h_cty . '</div>'; }
+		}
+		/* 🔴 ĐÓNG KHUNG CỘT DỌC SAU CHÂN TRANG, không trước.
+		   Đóng trước là chân trang rơi ra NGOÀI vùng nội dung: trên màn rộng nó trải hết bề
+		   ngang, chui xuống dưới cả cột dọc, và lệch hẳn so với mọi thứ phía trên. Đúng cái anh
+		   Thắng đã bắt một lần rồi — *"bị lệch"*, 26/08 — chỉ khác chỗ lệch.
+		   ⚠️ Và chỉ đóng khi nó ĐÃ ĐƯỢC MỞ. Màn đăng nhập, tờ in, trang xuất tệp đều gọi `dau()`
+		      mà không có cột dọc (chưa biết người là ai thì lấy gì vẽ menu). */
+		if ( ! empty( $GLOBALS['VHCC_CO_COT'] ) ) {
+			echo '</main></div>';
+			$GLOBALS['VHCC_CO_COT'] = false;
 		}
 		echo '</body></html>';
 	}
@@ -1170,6 +1185,57 @@ class VHCC_Web {
 			. 'header .bo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px}'
 			. 'h1{font-size:17px;margin:0;flex:1}'
 			. '.the{background:var(--the);border:1px solid var(--vien);border-radius:10px;padding:16px;margin:0 0 16px}'
+			/* ==================================================================== khung HR V5.2
+			   Anh Thắng 27/08/2026, kèm ba ảnh phần mềm HR V5.2 của Mr Trung: *"Chỗ phần giao
+			   diện và tính năng của trang chấm công thiết kế đẹp mắt y như này"*.
+
+			   Mẫu ấy là một khung QUẢN TRỊ đúng nghĩa: cột dọc tối bên trái giữ mọi đầu việc,
+			   vùng nội dung sáng bên phải, và mỗi màn mở đầu bằng một tiêu đề có gạch chân.
+			   Thanh nút NGANG cũ hỏng dần theo số màn: nay đã tám mục, chúng xuống hai hàng,
+			   và mục nào nằm hàng dưới thì mắt không quét tới.
+
+			   ⚠️ CỘT DỌC CHỈ TRÊN MÀN RỘNG. Anh mở bằng điện thoại nhiều hơn máy tính, mà một
+			      cột 220px trên màn 390px là ăn hơn nửa bề ngang. Dưới 1000px thì cột ấy nằm
+			      ngang trên đầu và cuộn ngang được — vẫn đủ mọi mục, không mất mục nào.
+			   ⚠️ KHÔNG một dòng script — cùng luật với cả màn quản trị. Cột dọc, thẻ, gập/xổ đều
+			      là CSS thuần. */
+			. '.ung{display:block}'
+			. '.canh{background:#0f2744;color:#cbd5e1;display:flex;flex-direction:column}'
+			. '.canh-hieu{padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}'
+			. 'a.canh-hieu{display:block;text-decoration:none;color:#fff;font-size:16px}'
+			. '.canh-hieu b{font-size:21px;color:#fff;letter-spacing:.5px;line-height:1.2}'
+			. '.canh-hieu span{display:block;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;'
+			. 'color:#7c9cc4;margin-top:3px}'
+			. '.canh-nav{display:flex;gap:2px;overflow-x:auto;padding:8px}'
+			. '.canh-nav a{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;'
+			. 'color:#cbd5e1;text-decoration:none;font-size:14px;font-weight:600;white-space:nowrap}'
+			. '.canh-nav a:hover{background:rgba(255,255,255,.07);color:#fff}'
+			/* Mục ĐANG MỞ phải khác hẳn, không chỉ đậm hơn một chút: cột này có tám mục và người
+			   ta liếc chứ không đọc. */
+			. '.canh-nav a.dang{background:var(--xanh);color:#fff}'
+			. '.canh-nav a .bt{font-size:15px;line-height:1;width:18px;text-align:center}'
+			. '.canh-duoi{padding:10px 12px;border-top:1px solid rgba(255,255,255,.08);font-size:12px}'
+			. '.canh-ai{background:rgba(255,255,255,.06);border-radius:8px;padding:8px 10px;margin-bottom:8px}'
+			. '.canh-ai b{display:block;color:#fff;font-size:13px}'
+			. '.canh-ai span{color:#7c9cc4}'
+			. '.canh-duoi form{margin:0}'
+			. '.canh-duoi button{width:100%;background:var(--do);border-color:var(--do);color:#fff}'
+			. '.canh-pb{color:#5c7ba3;font-size:11px;margin-top:8px;line-height:1.5}'
+			. '@media(min-width:1000px){'
+			. '.ung{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}'
+			. '.canh{position:sticky;top:0;height:100vh;overflow-y:auto}'
+			. '.canh-nav{flex-direction:column;overflow:visible;padding:10px 8px;flex:1}'
+			. '.canh-duoi{padding:12px}'
+			. '}'
+			/* Tiêu đề màn — chữ hoa, gạch chân xanh chạy dưới đúng bề rộng chữ. Mỗi màn phải tự
+			   nói mình là màn nào; không có nó thì tám màn mở ra trông giống hệt nhau. */
+			. '.tieu-man{background:var(--the);border:1px solid var(--vien);border-radius:10px;'
+			. 'padding:12px 16px;margin:0 0 16px;display:flex;align-items:center;'
+			. 'gap:12px;flex-wrap:wrap}'
+			. '.tieu-man h1{font-size:17px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;'
+			. 'margin:0;padding-bottom:5px;border-bottom:3px solid var(--xanh);flex:0 0 auto}'
+			. '.tieu-man .mo{margin:0}'
+
 			. '.the h2{font-size:15px;margin:0 0 4px}'
 			. '.mo{color:var(--mo);font-size:13px;margin:4px 0}'
 			. 'label{display:block;font-size:13px;color:var(--mo);margin:0 0 3px}'
@@ -1213,7 +1279,15 @@ class VHCC_Web {
 			. '.cuon td:last-child{white-space:nowrap}'
 			. '.cuon input,.cuon select{padding:6px 8px}'
 			. '.bao{border-radius:9px;padding:11px 13px;margin:0 0 12px;border:1px solid}'
-			. '.bao.ok{background:#f0fdf4;border-color:#bbf7d0}'
+			/* Dải kết quả theo mẫu HR V5.2 (ảnh 1): một chấm tròn màu ở đầu dòng rồi tới chữ.
+			   Chấm ấy làm dải báo nhận ra được TRƯỚC KHI đọc — người vừa bấm Lưu chỉ cần biết
+			   "xanh hay đỏ", và họ liếc chứ không đọc. */
+			. '.bao{position:relative;padding-left:30px}'
+			. '.bao::before{content:"";position:absolute;left:12px;top:1.05em;width:9px;height:9px;'
+			. 'border-radius:50%;background:currentColor;opacity:.75}'
+			. '.bao.ok{background:#f0fdf4;border-color:#bbf7d0;color:#15803d}'
+			. '.bao.ok b,.bao.loi b,.bao.canh b{color:var(--chu)}'
+			. '.bao.loi{color:var(--do)}.bao.canh{color:#b45309}'
 			. '.bao.loi{background:#fef2f2;border-color:#fecaca}'
 			. '.bao.canh{background:#fffbeb;border-color:#fde68a}'
 			. '.bao ul{margin:6px 0 0 18px;padding:0}'
@@ -1316,7 +1390,9 @@ class VHCC_Web {
 			   `scroll-margin-top` bảo trình duyệt chừa sẵn khoảng ấy: hàng sửa dừng ngay dưới
 			   thanh, cùng với hàng của người đó còn trong tầm mắt. Ghim cho cả ô đang sửa, vì
 			   nhánh chấm bù nhảy tới `#bucong` chứ không phải `#suaday`. */
-			. 'table.cc tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:96px}'
+			/* Chừa chỗ cho thanh đầu trang khi trình duyệt nhảy tới neo. Neo nay nằm trên hàng
+			   NGƯỜI (`#suaday`), nên hàng ấy dừng dưới thanh chứ không chui vào sau nó. */
+			. 'table.cc tr#suaday,table.cc tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:96px}'
 			. 'table.cc td.dang-sua{outline:3px solid var(--do);outline-offset:-3px}'
 			/* Hàng sửa nội tuyến: nền khác hẳn, và chữ về cỡ thường (lưới đang 11.5px). */
 			/* 🔴 RUỘT HÀNG SỬA DÍNH BÊN TRÁI. Anh Thắng 27/08/2026: *"lệch ô sửa"*.
@@ -1352,6 +1428,14 @@ class VHCC_Web {
 			. '.viec:hover{border-color:var(--xanh);background:#f8fafc}'
 			. '.viec b{display:block;font-size:15px;margin-bottom:3px}'
 			. '.viec span{display:block;font-size:13px;color:var(--mo);line-height:1.45}'
+			/* Thẻ Truy cập nhanh theo mẫu HR V5.2: một vòng tròn nhạt mang biểu tượng, rồi tên,
+			   rồi một câu, rồi dòng "Mở →". Vòng tròn không phải trang trí — tám thẻ chữ giống
+			   nhau thì mắt phải ĐỌC từng cái; có hình thì nhận ra thẻ mình cần mà chưa đọc. */
+			. '.viec{position:relative;padding-left:62px}'
+			. '.viec .bt{position:absolute;left:14px;top:13px;width:36px;height:36px;border-radius:50%;'
+			. 'background:#eff6ff;display:flex;align-items:center;justify-content:center;font-size:18px}'
+			. '.viec .mo-cn{display:block;margin-top:7px;font-size:13px;font-weight:700;color:var(--xanh)}'
+			. '.viec-chinh .bt{background:#dbeafe}'
 			. '.viec-chinh{border-color:var(--xanh);background:#eff6ff}'
 			. '.viec-chinh b{color:var(--xanh)}'
 			. 'input.link{width:100%;min-width:220px;font-size:12px;font-family:ui-monospace,Menlo,Consolas,monospace}'
@@ -1508,32 +1592,23 @@ class VHCC_Web {
 		$GLOBALS['VHCC_FORM_ROI'] = '';
 
 		echo self::dau( 'Quản trị Chấm Công' );
-		echo '<header><div class="bo">'
-			. '<a class="hieu" href="' . esc_url( self::url() ) . '"><b>K&amp;H</b> Chấm công</a>'
-			. '<span class="mo ai">' . esc_html( $toi['name'] ) . ' · '
-			. esc_html( VHCC_Vai::ten( $toi ) ) . '</span>'
-			. '<form method="post" style="margin:0"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
-			. '<button name="viec" value="thoat">Thoát</button></form></div></header>';
+		$ds_man = self::man_cua( $toi );
+		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
+		if ( 'vp' === $man )    { $man = 'cham'; }
+		if ( 'luong' === $man ) { $man = 'cham'; }
+		if ( ! isset( $ds_man[ $man ] ) ) { $man = self::man_mac_dinh( $ds_man ); }
+
+		self::cot_doc( $man, $ds_man, $ky, $toi );
 		echo '<div class="bo">';
 
 		$bao = array_merge( self::lay_bao(), (array) $bao );
 		foreach ( $bao as $b ) { self::ve_bao( $b ); }
+		self::tieu_man( $man, $ds_man, $toi );
 
 		/* ------------------------------------------------------------------ chọn màn
 		   Thanh màn dựng theo QUYỀN, không theo tên vai trò: mỗi người chỉ thấy những màn mình
 		   mở được, nên không có chuyện bấm vào một mục rồi bị chối. Người chỉ có đúng một màn
 		   thì không vẽ thanh — một cái thanh một mục chỉ tổ chiếm chỗ. */
-		$ds_man = self::man_cua( $toi );
-		$man    = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
-		/* 🔴 `?man=vp` LÀ ĐƯỜNG CŨ, VẪN PHẢI MỞ ĐƯỢC. Anh Thắng đã gửi link kèm `man=vp` cho các
-		   bộ phận rồi; gộp tab mà để đường cũ rơi về màn mặc định thì người nhận bấm vào không
-		   thấy thứ người gửi bảo họ xem, và chẳng ai đoán ra vì sao. Quy về tab đã gộp. */
-		if ( 'vp' === $man ) { $man = 'cham'; }
-		/* Địa chỉ cũ `?man=luong` nay dẫn về Bảng công — khối lương nằm trong đó. Ai đã lưu lại
-		   đường ấy thì vẫn tới đúng chỗ, thay vì rơi về màn mặc định mà không hiểu vì sao. */
-		if ( 'luong' === $man ) { $man = 'cham'; }
-		if ( ! isset( $ds_man[ $man ] ) ) { $man = self::man_mac_dinh( $ds_man ); }
-		if ( count( $ds_man ) > 1 ) { self::thanh_man( $man, $ds_man ); }
 
 		if ( 'nha' === $man ) {
 			self::the_nha( $toi );
@@ -1687,27 +1762,108 @@ class VHCC_Web {
 	}
 
 	/** Người này có được vào màn HỒ SƠ / TÀI KHOẢN không. Giữ tên cũ, hỏi bảng vai. */
-	private static function thanh_man( $man, $ds ) {
-		echo '<div class="the" style="padding:8px 10px;margin-bottom:14px"><div class="hang" style="gap:8px;flex-wrap:wrap">';
+	/**
+	 * Biểu tượng của từng màn. Khai một chỗ để cột dọc và lưới thẻ ở Trang chính dùng CHUNG —
+	 * hai nơi vẽ hai bộ icon khác nhau là cùng một mục trông như hai mục.
+	 */
+	const MAN_BIEU = array(
+		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
+		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
+	);
+
+	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
+	const MAN_CHU = array(
+		'nha'      => 'Đường vào mọi đầu việc anh/chị làm được',
+		'cong_toi' => 'Tháng này mình đi làm bao nhiêu ngày, bao nhiêu giờ',
+		'cham'     => 'Lưới cả tháng, giờ vào / giờ ra, sửa ngay tại ô',
+		'ho_so'    => 'Khai người, cấp PIN, đặt vai trò và cơ sở',
+		'cau_hinh' => 'Bộ phận, cách tính công, ghép bảng, tên cơ sở',
+		'du_lieu'  => 'Nạp bảng công cũ từ .csv, xem trước rồi mới ghi',
+		'lich'     => 'Xếp ca cho cửa hàng, duyệt xin đổi lịch',
+		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
+	);
+
+	public static function bieu_man( $k )  {
+		return isset( self::MAN_BIEU[ $k ] ) ? self::MAN_BIEU[ $k ] : '▪';
+	}
+	public static function chu_man( $k ) {
+		return isset( self::MAN_CHU[ $k ] ) ? self::MAN_CHU[ $k ] : '';
+	}
+
+	/**
+	 * CỘT DỌC BÊN TRÁI — khung của cả màn quản trị.
+	 *
+	 * Anh Thắng 27/08/2026, kèm ba ảnh phần mềm HR V5.2: *"Chỗ phần giao diện và tính năng của
+	 * trang chấm công thiết kế đẹp mắt y như này"*.
+	 *
+	 * 🔴 VÌ SAO BỎ THANH NÚT NGANG. Nó hỏng dần theo số màn, và hỏng im lặng: nay đã tám mục,
+	 *    trên màn hẹp chúng xuống hai hàng, mục nào rơi hàng dưới thì mắt không quét tới. Người
+	 *    dùng không báo "thiếu nút" — họ chỉ không bao giờ bấm vào nó. Cột dọc thì mỗi mục một
+	 *    dòng, thứ tự cố định, và mục đang mở nổi hẳn lên.
+	 *
+	 * ⚠️ VẼ THEO QUYỀN, y như thanh cũ. Ai không mở được màn nào thì màn ấy KHÔNG có mặt — chứ
+	 *    không hiện rồi chối. Hiện rồi chối là dạy người dùng rằng màn này hay nói dối.
+	 */
+	private static function cot_doc( $man, $ds, $ky, $toi ) {
+		echo '<div class="ung"><aside class="canh">';
+		/* Tên hệ vẫn là ĐƯỜNG VỀ TRANG CHÍNH — người ta bấm vào logo để về nhà ở mọi trang web
+		   trên đời, và bỏ mất thói quen ấy là bắt họ đi tìm một mục trong danh sách. */
+		echo '<a class="hieu canh-hieu" href="' . esc_url( self::url() ) . '">'
+			. '<b>K&amp;H</b> Chấm công<span>Nhân sự · Chấm công · Lương</span></a>';
+
+		echo '<nav class="canh-nav">';
 		foreach ( $ds as $k => $ten ) {
 			$url = add_query_arg( array( 'man' => $k ), self::url() );
-			echo '<a class="nut' . ( $k === $man ? ' chinh' : '' ) . '" href="' . esc_url( $url ) . '">'
-				. esc_html( $ten ) . '</a>';
+			echo '<a class="' . ( $k === $man ? 'dang' : '' ) . '" href="' . esc_url( $url ) . '">'
+				. '<span class="bt">' . self::bieu_man( $k ) . '</span>' . esc_html( $ten ) . '</a>';
 		}
 		/* Chấm công là TRANG KHÁC (cần camera, và phải nhẹ để mở bằng 3G ở cơ sở) nên là một
-		   liên kết chứ không phải một màn. Vẫn để chung thanh: với người dùng thì đó vẫn là
+		   liên kết chứ không phải một màn. Vẫn để chung cột: với người dùng thì đó vẫn là
 		   "một hệ thống, bấm qua lại được", đúng thứ anh Thắng hỏi. */
-		echo '<a class="nut" href="' . esc_url( VHCC_Tram::url() ) . '">📷 Chấm công</a>';
-		/* Quản lý nhân sự cũng là TRANG KHÁC (địa chỉ riêng, anh Thắng chốt vậy) nên là liên
-		   kết. Chỉ vẽ cho người mở được nó — vẽ cho cả người không vào được thì bấm vào chỉ
-		   nhận một câu chối, mà cái nút thì cứ nằm đó mời gọi mỗi ngày.
+		echo '<a href="' . esc_url( VHCC_Tram::url() ) . '"><span class="bt">📷</span>Chấm công</a>';
+		/* Quản lý nhân sự cũng là TRANG KHÁC. Chỉ vẽ cho người mở được nó — vẽ cho cả người
+		   không vào được thì bấm vào chỉ nhận một câu chối, mà cái nút thì cứ nằm đó mời gọi.
 		   ⚠️ Gác `method_exists` cùng hàm với lời gọi (`tools/test/kiem-goi-cheo.php`). */
 		if ( class_exists( 'VHCC_TrangNS' ) && method_exists( 'VHCC_TrangNS', 'url' )
 			&& method_exists( 'VHCC_TrangNS', 'toi' ) && VHCC_TrangNS::toi() ) {
-			echo '<a class="nut" href="' . esc_url( VHCC_TrangNS::url() ) . '">👥 Quản lý nhân sự</a>';
+			echo '<a href="' . esc_url( VHCC_TrangNS::url() ) . '"><span class="bt">👥</span>Quản lý nhân sự</a>';
 		}
-		echo '</div></div>';
+		echo '</nav>';
+
+		echo '<div class="canh-duoi">';
+		/* ⚠️ TÊN VÀ VAI ĐI LIỀN MỘT CHUỖI (`Tên · Vai`), không tách làm hai thẻ rời. Đó là cách
+		   đầu trang cũ viết, và là thứ người ta quen liếc để biết mình đang vào bằng tài khoản
+		   nào — nhất là mấy máy dùng chung ở cửa hàng. */
+		echo '<div class="canh-ai"><b>' . esc_html( isset( $toi['name'] ) ? $toi['name'] : '' )
+			. ' · ' . esc_html( VHCC_Vai::ten( $toi ) ) . '</b>'
+			. ( ! empty( $toi['ma_nv'] ) ? '<span>Mã NV ' . esc_html( $toi['ma_nv'] ) . '</span>' : '' )
+			. '</div>';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<button name="viec" value="thoat">Thoát</button></form>';
+		/* Phiên bản đang chạy — để đối chiếu khi vừa cài đè bản mới. Cùng con số với chân trang,
+		   chỉ khác chỗ đứng: ở đây nó luôn trong tầm mắt, không phải cuộn xuống đáy. */
+		if ( defined( 'VHCC_VERSION' ) ) {
+			echo '<div class="canh-pb">Chấm công ' . esc_html( VHCC_VERSION ) . '</div>';
+		}
+		echo '</div></aside><main class="vung">';
+		$GLOBALS['VHCC_CO_COT'] = true;
 	}
+
+	/**
+	 * TIÊU ĐỀ CỦA MÀN ĐANG MỞ.
+	 *
+	 * 🔴 Không có nó thì tám màn mở ra trông giống hệt nhau — cùng nền, cùng thẻ trắng, cùng
+	 *    bảng. Người ta bấm một mục ở cột dọc rồi không chắc mình đã sang màn khác chưa, nhất
+	 *    là khi màn mới cũng mở đầu bằng một ô chọn cơ sở y như màn cũ.
+	 */
+	private static function tieu_man( $man, $ds, $toi ) {
+		$ten = isset( $ds[ $man ] ) ? $ds[ $man ] : '';
+		if ( '' === $ten ) { return; }
+		$chu = self::chu_man( $man );
+		echo '<div class="tieu-man"><h1>' . esc_html( $ten ) . '</h1>'
+			. ( '' !== $chu ? '<p class="mo">' . esc_html( $chu ) . '</p>' : '' ) . '</div>';
+	}
+
 
 	/**
 	 * Cơ sở người này được xem — ai có `cong_tat_ca` thấy hết, còn lại thấy cơ sở mình phụ trách.
@@ -2243,32 +2399,38 @@ class VHCC_Web {
 			. 'chưa mở, không phải hỏng.</p>';
 		echo '</div>';
 
-		/* Danh sách việc. Mỗi việc: quyền cần có · tên · một câu "để làm gì" · đường tới. */
+		/* Danh sách việc. Mỗi việc: quyền cần có · biểu tượng · tên · một câu "để làm gì" · đường tới.
+		   ⚠️ BIỂU TƯỢNG RA KHỎI TÊN. Trước đây tên là "📷 Chấm công" — hình dán liền chữ nên nó
+		      trôi theo chữ khi tên xuống dòng, và không xếp thẳng hàng với các thẻ khác. Nay hình
+		      nằm trong vòng tròn riêng, tên là tên. */
 		$viec = array();
-		$viec[] = array( 'q' => 'cham_online', 'ten' => '📷 Chấm công',
+		$viec[] = array( 'q' => 'cham_online', 'bt' => '📷', 'ten' => 'Chấm công',
 			'chu' => 'Bấm giờ vào / giờ ra bằng điện thoại, có ảnh và vị trí.',
 			'url' => VHCC_Tram::url(), 'chinh' => true );
-		$viec[] = array( 'q' => 'cong_minh', 'ten' => 'Công của tôi',
+		$viec[] = array( 'q' => 'cong_minh', 'bt' => self::bieu_man( 'cong_toi' ), 'ten' => 'Công của tôi',
 			'chu' => 'Xem tháng này mình đi làm bao nhiêu ngày, bao nhiêu giờ.',
 			'url' => add_query_arg( array( 'man' => 'cong_toi' ), self::url() ) );
-		$viec[] = array( 'q' => 'cong_coso', 'ten' => 'Bảng chấm công',
-			'chu' => 'Giờ vào / giờ ra từng ngày của cơ sở. Chỉ đọc — thấy sai thì gắn cờ.',
+		$viec[] = array( 'q' => 'cong_coso', 'bt' => self::bieu_man( 'cham' ), 'ten' => 'Bảng công',
+			'chu' => 'Lưới cả tháng và từng lượt chấm. Bấm thẳng vào ô để bù hoặc sửa giờ.',
 			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) );
-		$viec[] = array( 'q' => 'cong_coso', 'ten' => 'Bảng công tháng',
-			'chu' => 'Lưới cả tháng: ai làm ca nào, mấy giờ. Xuất được ra Excel.',
-			'url' => add_query_arg( array( 'man' => 'vp', 'cth' => $th_nay ), self::url() ) );
-		$viec[] = array( 'q' => 'cham_bu', 'ten' => 'Chấm công bù',
+		$viec[] = array( 'q' => 'cham_bu', 'bt' => '✏️', 'ten' => 'Chấm công bù',
 			'chu' => 'Máy hỏng hoặc nhân viên quên bấm thì bù vào — có ghi lại ai bù, vì sao.',
 			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) . '#bucong' );
-		$viec[] = array( 'q' => 'lich_lam', 'ten' => 'Khai ca làm việc',
-			'chu' => 'Cơ sở chạy mấy ca, mỗi ca từ mấy giờ đến mấy giờ.',
-			'url' => add_query_arg( array( 'man' => 'vp', 'cth' => $th_nay ), self::url() ) . '#khaica' );
-		$viec[] = array( 'q' => 'nap_cong', 'ten' => 'Nạp công từ .csv',
+		$viec[] = array( 'q' => 'cham_online', 'bt' => self::bieu_man( 'lich' ), 'ten' => 'Lịch làm việc',
+			'chu' => 'Xem ca của mình, xin đổi lịch. Cửa hàng trưởng thì xếp ca cho cả cửa hàng.',
+			'url' => add_query_arg( array( 'man' => 'lich' ), self::url() ) );
+		$viec[] = array( 'q' => 'nap_cong', 'bt' => self::bieu_man( 'du_lieu' ), 'ten' => 'Dữ liệu đầu vào',
 			'chu' => 'Đưa bảng công cũ từ Google Sheets vào. Có nút Xem trước, chưa ghi gì.',
-			'url' => add_query_arg( array( 'man' => 'cham', 'cth' => $th_nay ), self::url() ) . '#napcong' );
-		$viec[] = array( 'q' => 'ho_so', 'ten' => 'Hồ sơ & tài khoản',
+			'url' => add_query_arg( array( 'man' => 'du_lieu' ), self::url() ) );
+		$viec[] = array( 'q' => 'ngoai_coso', 'bt' => self::bieu_man( 'cau_hinh' ), 'ten' => 'Cấu hình',
+			'chu' => 'Bộ phận, cách tính công, ghép bảng công, tên đầy đủ của cơ sở.',
+			'url' => add_query_arg( array( 'man' => 'cau_hinh' ), self::url() ) );
+		$viec[] = array( 'q' => 'ho_so', 'bt' => self::bieu_man( 'ho_so' ), 'ten' => 'Hồ sơ & tài khoản',
 			'chu' => 'Khai người, cấp PIN, đặt vai trò và cơ sở phụ trách.',
 			'url' => add_query_arg( array( 'man' => 'ho_so' ), self::url() ) );
+		$viec[] = array( 'q' => 'may', 'bt' => self::bieu_man( 'may' ), 'ten' => 'Máy & Firmware',
+			'chu' => 'Thiết bị ở cửa hàng, cổng nhận từ máy, nạp firmware từ xa.',
+			'url' => add_query_arg( array( 'man' => 'may' ), self::url() ) );
 
 		echo '<div class="the"><h3 style="margin:0 0 10px">Việc anh/chị làm được</h3>';
 		echo '<div class="the-viec">';
@@ -2276,8 +2438,10 @@ class VHCC_Web {
 			if ( ! VHCC_Vai::duoc( $toi, $v['q'] ) ) { continue; }
 			echo '<a class="viec' . ( empty( $v['chinh'] ) ? '' : ' viec-chinh' ) . '" href="'
 				. esc_url( $v['url'] ) . '">';
+			echo '<span class="bt">' . ( isset( $v['bt'] ) ? $v['bt'] : '▪' ) . '</span>';
 			echo '<b>' . esc_html( $v['ten'] ) . '</b>';
 			echo '<span>' . esc_html( $v['chu'] ) . '</span>';
+			echo '<span class="mo-cn">Mở chức năng →</span>';
 			echo '</a>';
 		}
 		echo '</div></div>';
@@ -2959,7 +3123,7 @@ class VHCC_Web {
 		   Cách chữa: bọc ruột trong một khối DÍNH BÊN TRÁI (`position:sticky;left:0`) rộng đúng
 		   bằng khung nhìn — cuộn ngang tới đâu thì hàng sửa vẫn nằm nguyên chỗ mắt đang nhìn.
 		   Cùng cơ chế với cột Nhân viên vốn đã ghim bên trái. */
-		echo '<tr class="hang-sua" id="suaday"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
+		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '"><div class="hs-in">';
 
 		if ( ! $duoc ) {
 			echo '<div class="bao canh" style="margin:0">' . esc_html( $co_gio
@@ -3524,7 +3688,16 @@ class VHCC_Web {
 			foreach ( $hts as $ht ) {
 				if ( '' !== $ht ) { $phu[] = $ht; }
 			}
-			echo '<tr>';
+			/* 🔴 NEO ĐẶT TRÊN HÀNG CỦA NGƯỜI, KHÔNG TRÊN HÀNG SỬA.
+			   Anh Thắng 27/08/2026, sau lượt chữa trước: *"bấm vào nó vẫn cứ nhảy chỗ sửa"* —
+			   kèm ảnh hàng "Huỳnh Minh Nhật" bị cắt mất nửa ở mép trên.
+			   Neo trên hàng SỬA thì trình duyệt kéo đúng hàng ấy lên đỉnh, và hàng của người
+			   đang sửa — cùng cái ô vừa bấm — bị đẩy khuất lên trên. Người ta mở biểu mẫu ra
+			   rồi mất luôn chỗ đứng: không còn thấy mình đang sửa ngày nào của ai.
+			   Neo trên hàng NGƯỜI thì hàng ấy lên đỉnh và hàng sửa nằm ngay dưới — cả hai cùng
+			   trong tầm mắt, đúng thứ tự mắt đọc. */
+			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
+				? ' id="suaday"' : '' ) . '>';
 			echo '<td>' . esc_html( $ho_ten )
 				. ( isset( $khong_cham[ $ma ] )
 					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
@@ -3710,7 +3883,8 @@ class VHCC_Web {
 			$ngd = isset( $o[ $ma ] ) ? $o[ $ma ] : array();
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 
-			echo '<tr><td>' . esc_html( $e['ten'] )
+			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
+				? ' id="suaday"' : '' ) . '><td>' . esc_html( $e['ten'] )
 				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$cong = 0.0;

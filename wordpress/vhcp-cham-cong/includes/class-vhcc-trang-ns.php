@@ -565,6 +565,11 @@ class VHCC_TrangNS {
 			. '</div></header>';
 		echo '<div class="bo">';
 
+		/* Tiêu đề màn — cùng kiểu với màn quản trị chấm công. Hai trang là một hệ; lệch tiêu đề
+		   là người dùng tưởng mình lạc sang chỗ khác. */
+		echo '<div class="tieu-man"><h1>Quản lý nhân sự</h1>'
+			. '<p class="mo">Ai vào được trang nào · bảng vai trò · chia đầu việc</p></div>';
+
 		foreach ( self::lay_bao() as $b ) { self::ve_bao( $b ); }
 
 		self::the_duong_di( $toi, $ds_trang );
