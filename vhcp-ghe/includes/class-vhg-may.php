@@ -200,9 +200,10 @@ class VHG_May {
 			. 'cục nhận 10 giây rồi cắm lại; còn nữa thì kiểm dây bus tiền và mạch chia mức về ghế.',
 		'qr'    => 'Bơm QR mà ghế KHÔNG ăn — ghế không đáp xác nhận. Kiểm dây bus tiền (IO27 sang '
 			. 'ghế), rơ-le bypass có đang ở chế độ ESP không, và mạch chia mức 3,3→5V.',
-		'ghekhongchay' => 'ĐÃ TÍNH GIỜ NHƯNG GHẾ KHÔNG CHẠY — khách đã trả tiền, đồng hồ đang chạy '
-			. 'mà motor ghế không hoạt động (chân báo-chạy của bo ghế vẫn ở mức tắt). Ghế có thể lỗi, '
-			. 'kẹt cơ, hoặc mất nguồn động cơ. RA KIỂM NGAY kẻo khách trả tiền mà không được dùng.',
+		'ghekhongchay' => 'ĐÃ TRẢ TIỀN MÀ GHẾ KHÔNG CHẠY — khách đã trả tiền nhưng motor ghế không '
+			. 'hoạt động (chân báo-chạy của bo ghế vẫn ở mức tắt), nên đồng hồ QR ĐANG CHỜ, CHƯA trừ '
+			. 'giờ. Nguyên nhân: ghế lỗi/kẹt cơ/mất nguồn động cơ, hoặc lệnh chưa xuống (mạng chập '
+			. 'chờn). RA KIỂM NGAY kẻo khách trả tiền mà không được dùng.',
 		/* --- Cục nhận tiền ICT tự báo bệnh (mã 0x2X đo thật trên bus) ---------------------- */
 		'ictgiay' => 'Cục nhận tiền báo: có tờ NHÉT VÀO nhưng KHÔNG PHẢI TIỀN (giấy lạ/tờ giả/rách '
 			. 'quá). Rút tờ đó ra. Nếu tờ tiền thật vẫn báo vậy thì lau cảm biến hoặc kiểm cấu hình mệnh giá.',

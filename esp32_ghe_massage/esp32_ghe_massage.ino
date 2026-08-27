@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27c (PULSE->GPIO26: dong bo man dem nguoc luc ghe chay + canh bao tai man)"
+#define FW_VERSION "ghe-massage 2026-08-27d (PULSE->GPIO26: bu tre khoi dong QR_BU_MS -> QR khop ghe)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -247,6 +247,11 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
 #define GHECHAY_DUTY_NGUONG 50       // %low >= ngưỡng = ĐANG CHẠY. Đo thật: chạy low=100%, dừng low=0% -> 50 dư sức
 #define GHECHAY_CHET_MS    10000     // trả tiền mà ngần này ms ghế chưa chạy -> cảnh báo web 'ghekhongchay'
 #define GHE_DUNG_MS        1500       // ghế ĐÃ chạy rồi mà DỪNG lâu ngần này -> KẾT THÚC phiên (QR dừng theo)
+/* BÙ TRỄ KHỞI ĐỘNG: chân pulse xuống LOW ngay khi bo ghế NHẬN LỆNH, nhưng motor mất ~2s mới
+   quay -> QR nhanh hơn ghế ~2s. Bỏ qua ngần này (kể từ lúc ghế báo chạy LẦN ĐẦU) mới bắt đầu
+   trừ giờ -> QR về 0 khớp ghế, màn vẫn hiện đúng mm:00. Anh Thắng đo chênh 2s -> để 2000.
+   Chỉnh số này nếu còn lệch (QR nhanh -> tăng; QR chậm -> giảm). 0 = không bù. */
+#define QR_BU_MS           2000
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -362,6 +367,7 @@ unsigned long lastPayPoll = 0;
    kết thúc phiên (QR dừng theo). Bỏ 'runUntil' đồng hồ độc lập cũ + QR_TRE_MS. */
 long     g_conLaiMs   = 0;      // thời gian còn lại (ms) của phiên
 bool     g_gheDaChay  = false;  // chân ghế đã lên mức chạy ít nhất 1 lần trong phiên
+uint32_t g_chayDauTu  = 0;      // millis lúc ghế chạy LẦN ĐẦU trong phiên (0=chưa) -> bù trễ QR_BU_MS
 bool     g_baoGheChet = false;  // đang treo cảnh báo 'ghekhongchay' (paid mà chưa chạy)
 uint32_t g_tickTruoc  = 0;      // millis lần trừ trước (0 = chưa bắt đầu, dt=0)
 uint32_t g_dungTu     = 0;      // millis ghế bắt đầu ở trạng thái DỪNG (để debounce dừng)
@@ -1613,7 +1619,7 @@ void startRunning(int minutes){
   }
 
   /* Nhánh này gần như không dùng (henChay đi qua ST_CAMON). Giữ để an toàn. */
-  g_conLaiMs = (long)minutes * 60000L; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0;
+  g_conLaiMs = (long)minutes * 60000L; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; g_chayDauTu = 0;
   relaySet(true);
   Serial.printf("[RUN] Ghế chạy %d phút\n", minutes);
   state = ST_RUNNING; screenDrawn=false; lastShownSec=-1; g_statusDirty=true;
@@ -1625,7 +1631,7 @@ void ketThucPhien(const char* lyDo){
   relaySet(false);
   state = ST_IDLE; g_srcCode = 0; g_statusDirty = true; screenDrawn = false;
   g_runTotalVnd = 0; setAcceptorEnabled(true);
-  g_conLaiMs = 0; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; lastShownSec = -1;
+  g_conLaiMs = 0; g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; g_chayDauTu = 0; lastShownSec = -1;
   if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
   Serial.printf("[RUN] ket thuc phien: %s\n", lyDo);
 }
@@ -1667,7 +1673,7 @@ void henChay(int minutes, char src){
   g_srcCode = src; g_henSrc = src; g_henPhut = minutes;
   payMinutes = minutes;                                   // để màn đếm hiện đúng TỔNG
   g_conLaiMs = (long)minutes * 60000L;                    // giờ còn lại, đếm khi ghế chạy
-  g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0;     // phiên mới: chờ ghế lên mức chạy
+  g_gheDaChay = false; g_dungTu = 0; g_tickTruoc = 0; g_chayDauTu = 0;   // phiên mới: chờ ghế lên mức chạy
   if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
   state = ST_CAMON; screenDrawn = false;
   g_henLuc = millis() + CAMON_MS;                         // hết ngần này thì phóng to đồng hồ
@@ -2089,8 +2095,13 @@ void loop(){
     g_tickTruoc = now;
     if(gheChay){
       g_gheDaChay = true; g_dungTu = 0;
+      if(g_chayDauTu == 0) g_chayDauTu = now;   // ghế chạy lần đầu -> mốc bù trễ khởi động
       if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
-      g_conLaiMs -= (long)dt;                // ĐẾM
+#if DO_GHECHAY && GATE_BY_PIN
+      if(now - g_chayDauTu >= (uint32_t)QR_BU_MS) g_conLaiMs -= (long)dt;   // qua bù trễ mới ĐẾM
+#else
+      g_conLaiMs -= (long)dt;                // không gate -> đếm real-time
+#endif
     }
 #if DO_GHECHAY && GATE_BY_PIN
     else {
@@ -2125,7 +2136,7 @@ void loop(){
   if(g_remoteStop){ g_remoteStop=false;
     if(state!=ST_IDLE){ relaySet(false); state=ST_IDLE; g_srcCode=0; g_payWaiting=false; g_henLuc=0;
       g_runTotalVnd=0; setAcceptorEnabled(true); g_statusDirty=true; screenDrawn=false;
-      g_conLaiMs=0; g_gheDaChay=false; g_dungTu=0; g_tickTruoc=0; lastShownSec=-1;
+      g_conLaiMs=0; g_gheDaChay=false; g_dungTu=0; g_tickTruoc=0; g_chayDauTu=0; lastShownSec=-1;
       if(g_baoGheChet){ g_baoGheChet=false; loiTienCong("ghekhongchay", false); }
       Serial.println("[CMD] -> da TAT may"); }
   }
