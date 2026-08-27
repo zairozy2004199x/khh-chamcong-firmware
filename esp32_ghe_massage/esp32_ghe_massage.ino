@@ -42,6 +42,7 @@
 #include <SPI.h>
 #include <Preferences.h>
 #include "qrcode.h"
+#include "font_viet.h"   // font VLW tiếng Việt (vietLon 22 bold / vietVua 16) cho màn cảnh báo
 #include <time.h>
 #include <sys/time.h>
 #include <esp_mac.h>
@@ -50,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27p (QR to het co: o 182 om sat + tieu de gon)"
+#define FW_VERSION "ghe-massage 2026-08-27q (man canh bao/khoa tieng Viet co dau - font VLW)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1210,11 +1211,13 @@ void drawRunning(int secLeft){
     if(g_baoDungDot){
       tft.fillRoundRect(20, 156, 280, 44, 8, 0x9800);        // nền đỏ đậm
       tft.drawRoundRect(20, 156, 280, 44, 8, TFT_RED);
-      tft.fillCircle(42, 178, 8, TFT_RED);
-      tft.setTextDatum(ML_DATUM);
+      /* Cảnh báo tiếng Việt CÓ DẤU (font VLW), canh giữa để dùng hết bề ngang dải. */
+      tft.setTextDatum(MC_DATUM);
+      tft.loadFont(vietVua);
       tft.setTextColor(TFT_WHITE, 0x9800);
-      tft.drawString("! GHE DUNG DOT NGOT", 60, 170, 1);
-      tft.drawString("Dong ho tam dung - kiem tra ghe.", 60, 186, 1);
+      tft.drawString("GHẾ DỪNG ĐỘT NGỘT", 160, 170);
+      tft.drawString("Đồng hồ tạm dừng - kiểm tra ghế", 160, 189);
+      tft.unloadFont();
     } else
 #endif
     {
@@ -1257,24 +1260,31 @@ void drawGheLoi(bool matTienMat){
   tft.fillScreen(COL_VANG);
   tft.setTextDatum(MC_DATUM);
   if(!matTienMat){
-    /* Mặt 1: tạm ngưng + hotline. */
+    /* Mặt 1: tạm ngưng + hotline. Chữ tiếng Việt CÓ DẤU (font VLW). */
+    tft.loadFont(vietLon);
     tft.setTextColor(COL_BG, COL_VANG);
-    tft.drawString("GHE TAM NGUNG", 160, 60, 4);
-    tft.drawString("PHUC VU QR", 160, 94, 4);
+    tft.drawString("GHẾ TẠM NGƯNG", 160, 52);
+    tft.drawString("PHỤC VỤ QR", 160, 84);
+    tft.drawString(HOTLINE, 160, 160);
+    tft.unloadFont();
+    tft.loadFont(vietVua);
     tft.setTextColor(COL_CHU, COL_VANG);
-    tft.drawString("Vui long lien he hotline:", 160, 134, 2);
-    tft.setTextColor(COL_BG, COL_VANG);
-    tft.drawString(HOTLINE, 160, 166, 4);
+    tft.drawString("Vui lòng liên hệ hotline:", 160, 124);
+    tft.unloadFont();
   } else {
     /* Mặt 2: hướng khách sang TIỀN MẶT (cục ICT qua rơ-le fail-safe vẫn nhận). */
+    tft.loadFont(vietLon);
     tft.setTextColor(COL_CHU, COL_VANG);
-    tft.drawString("QR TAM NGUNG", 160, 64, 4);
+    tft.drawString("QR TẠM NGƯNG", 160, 56);
     tft.setTextColor(COL_BG, COL_VANG);
-    tft.drawString("VUI LONG", 160, 108, 4);
-    tft.drawString("SU DUNG TIEN MAT", 160, 146, 4);
+    tft.drawString("VUI LÒNG", 160, 100);
+    tft.drawString("SỬ DỤNG TIỀN MẶT", 160, 140);
+    tft.unloadFont();
   }
+  tft.loadFont(vietVua);
   tft.setTextColor(COL_CHU, COL_VANG);
-  tft.drawString(String("Ghe ") + (CHAIR_ID.length()?CHAIR_ID:String("--")) + "  -  K&H", 160, 216, 2);
+  tft.drawString(String("Ghế ") + (CHAIR_ID.length()?CHAIR_ID:String("--")) + "  -  K&H", 160, 214);
+  tft.unloadFont();
 }
 
 /* MÀN "CẢM ƠN" — hiện khi ghế vừa nhận tiền, trước khi phóng to đồng hồ đếm ngược.

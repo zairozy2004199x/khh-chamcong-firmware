@@ -41,6 +41,7 @@
 #include <XPT2046_Touchscreen.h>
 #include <ArduinoJson.h>
 #include <Preferences.h>   // nhớ PIN đăng nhập qua mất điện (khỏi gõ lại mỗi lần)
+#include "font_viet.h"     // font VLW tiếng Việt (vietLon 22 bold / vietVua 16) — chữ có dấu
 
 // ── Khai báo trước (arduino-cli thôi tự sinh prototype khi đã có sẵn) ──────────
 struct ApGhe;
@@ -98,7 +99,7 @@ const char* SIM_APN     = "v-internet";         // Viettel; đổi nếu SIM nh�
 int TS_MINX = 200, TS_MAXX = 3700, TS_MINY = 240, TS_MAXY = 3800;
 #define SD_CS  5                                 // thẻ SD trên CYD: SPI SCK18/MISO19/MOSI23
 #define BL_PIN 21                                // đèn nền
-#define FW_VERSION "may-tram 2026-08-27c (nho PIN dang nhap: tu login, khoi go lai)"
+#define FW_VERSION "may-tram 2026-08-27d (chu tieng Viet co dau - font VLW; nho PIN)"
 // ═════════════════════════════════════════════════════════════════════════════
 
 TFT_eSPI tft = TFT_eSPI();
@@ -180,19 +181,30 @@ bool cho4Cham(int& x, int& y, unsigned long chuMs){
 }
 
 // ═══════════════════════════════ MÀN HÌNH ═══════════════════════════════════
+/* Vẽ một dòng chữ TIẾNG VIỆT CÓ DẤU bằng font VLW. Tải/gỡ font ngay trong hàm cho tiện gọi.
+   veLon = bold 22 (tiêu đề/nút), veVua = 16 (dòng phụ). datum mặc định canh giữa. */
+void veLon(const String& s, int x, int y, uint16_t fg, uint16_t bg, uint8_t datum = MC_DATUM){
+  tft.loadFont(vietLon); tft.setTextDatum(datum); tft.setTextColor(fg, bg);
+  tft.drawString(s, x, y); tft.unloadFont();
+}
+void veVua(const String& s, int x, int y, uint16_t fg, uint16_t bg, uint8_t datum = MC_DATUM){
+  tft.loadFont(vietVua); tft.setTextDatum(datum); tft.setTextColor(fg, bg);
+  tft.drawString(s, x, y); tft.unloadFont();
+}
+
 void manChao(){
   tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
   tft.setTextColor(0xCE40, COL_BG); tft.setTextSize(2);
-  tft.drawString("K&H", 160, 66, 4); tft.setTextSize(1);
-  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("MAY TRAM POSH", 160, 118, 4);
-  tft.setTextColor(COL_XAM, COL_BG); tft.drawString("Nap firmware & Thu tien", 160, 150, 2);
+  tft.drawString("K&H", 160, 60, 4); tft.setTextSize(1);
+  veLon("MÁY TRẠM POSH", 160, 118, COL_ACC, COL_BG);
+  veVua("Nạp firmware & Thu tiền", 160, 152, COL_XAM, COL_BG);
 }
 
 void bao(const String& l1, uint16_t c1, const String& l2, const String& l3){
-  tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(c1, COL_BG);   tft.drawString(l1, 160, 70, 4);
-  if(l2.length()){ tft.setTextColor(TFT_WHITE, COL_BG); tft.drawString(l2, 160, 120, 2); }
-  if(l3.length()){ tft.setTextColor(COL_XAM, COL_BG);  tft.drawString(l3, 160, 150, 2); }
+  tft.fillScreen(COL_BG);
+  veLon(l1, 160, 70, c1, COL_BG);
+  if(l2.length()) veVua(l2, 160, 118, TFT_WHITE, COL_BG);
+  if(l3.length()) veVua(l3, 160, 148, COL_XAM, COL_BG);
 }
 
 // Thanh tiến trình
@@ -273,7 +285,7 @@ long banPhimSo(const char* nhan, long macDinh, long toiDa){
 // ═══════════════════════════ DÒ & CHỌN GHẾ (AP) ══════════════════════════════
 /* Quét WiFi, lọc AP "POSH_QR-*" ở gần, xếp theo sóng. Trả số ghế tìm được. */
 int quetAp(bool phaiCoGhe){
-  bao("Dang do ghe...", COL_ACC, "Quet WiFi POSH_QR", "");
+  bao("Đang dò ghế...", COL_ACC, "Quét WiFi POSH_QR", "");
   WiFi.mode(WIFI_STA); WiFi.disconnect(true); delay(300);
   int n = WiFi.scanNetworks();          // đồng bộ; mặc định quét mọi kênh
   Serial.printf("[QUET] thay %d AP:\n", n);
@@ -296,7 +308,7 @@ int quetAp(bool phaiCoGhe){
   for(int i = 0; i < g_dsN; i++) for(int j = i + 1; j < g_dsN; j++)
     if(g_ds[j].rssi > g_ds[i].rssi){ ApGhe t = g_ds[i]; g_ds[i] = g_ds[j]; g_ds[j] = t; }
   if(g_dsN == 0 && phaiCoGhe){
-    bao("Khong thay ghe", COL_DO, "Lai gan hop QR hon", "Cham de do lai");
+    bao("Không thấy ghế", COL_DO, "Lại gần hộp QR hơn", "Chạm để dò lại");
     int x, y; cho4Cham(x, y, 0);
   }
   return g_dsN;
@@ -332,24 +344,24 @@ int chonGheTuDanhSach(const char* tieuDe){
 // ═══════════════════════════ NẠP FIRMWARE VÀO GHẾ ════════════════════════════
 /* Nối AP ghế đã chọn, POST body THÔ .bin lên /update kèm X-OTA-Key. */
 bool napFirmwareVaoGhe(const ApGhe& g){
-  if(!g_sdOk){ bao("Chua co the SD", COL_DO, "Cam the co firmware.bin", ""); delay(1600); return false; }
+  if(!g_sdOk){ bao("Chưa có thẻ SD", COL_DO, "Cắm thẻ có firmware.bin", ""); delay(1600); return false; }
   File f = SD.open(FW_PATH, FILE_READ);
-  if(!f){ bao("Khong thay file", COL_DO, String(FW_PATH), "Chep .bin vao the truoc"); delay(1800); return false; }
+  if(!f){ bao("Không thấy file", COL_DO, String(FW_PATH), "Chép .bin vào thẻ trước"); delay(1800); return false; }
   long fsize = f.size();
-  if(fsize <= 0){ f.close(); bao("File rong", COL_DO, "", ""); delay(1600); return false; }
+  if(fsize <= 0){ f.close(); bao("File rỗng", COL_DO, "", ""); delay(1600); return false; }
 
-  bao("Ket noi ghe...", COL_ACC, g.ma, g.bssid);
+  bao("Kết nối ghế...", COL_ACC, g.ma, g.bssid);
   WiFi.mode(WIFI_STA); WiFi.disconnect(true); delay(150);
   WiFi.begin(g.ssid.c_str(), GHE_AP_PASS);
   unsigned long t0 = millis();
   while(WiFi.status() != WL_CONNECTED && millis() - t0 < 15000){ delay(250); }
   if(WiFi.status() != WL_CONNECTED){
-    f.close(); bao("Noi that bai", COL_DO, g.ma, "Lai gan hon roi thu lai"); delay(1800); return false;
+    f.close(); bao("Nối thất bại", COL_DO, g.ma, "Lại gần hơn rồi thử lại"); delay(1800); return false;
   }
 
   WiFiClient cl; cl.setTimeout(20000);
   if(!cl.connect(GHE_IP, GHE_PORT)){
-    f.close(); bao("Khong noi 192.168.4.1", COL_DO, "", ""); WiFi.disconnect(true); delay(1600); return false;
+    f.close(); bao("Không nối 192.168.4.1", COL_DO, "", ""); WiFi.disconnect(true); delay(1600); return false;
   }
   cl.print("POST /update HTTP/1.1\r\n");
   cl.print("Host: 192.168.4.1\r\n");
@@ -391,8 +403,8 @@ bool napFirmwareVaoGhe(const ApGhe& g){
   bool ok = sendOk && (sent == fsize) && (status == 200)
             && (resp.indexOf("OK") >= 0 || resp.indexOf("khoi dong") >= 0);
   Serial.printf("[NAP] %s: %ld/%ld byte http%d -> %s\n", g.ma.c_str(), sent, fsize, status, ok ? "OK" : "FAIL");
-  if(ok){ g_okCount++; bao("NAP XONG", COL_OK, "Ghe " + g.ma + " dang khoi dong lai", "OK:" + String(g_okCount) + " Loi:" + String(g_failCount)); }
-  else  { g_failCount++; bao("NAP LOI", COL_DO, "Ghe " + g.ma, "Giu firmware cu - thu lai"); }
+  if(ok){ g_okCount++; bao("NẠP XONG", COL_OK, "Ghế " + g.ma + " đang khởi động lại", "OK:" + String(g_okCount) + " Lỗi:" + String(g_failCount)); }
+  else  { g_failCount++; bao("NẠP LỖI", COL_DO, "Ghế " + g.ma, "Giữ firmware cũ - thử lại"); }
   delay(2000);
   return ok;
 }
@@ -527,11 +539,11 @@ int net4gPostOpen(const String& url, const String& body, int* datalen){
 bool bat4G(){
   if(g_4gReady) return true;
   WiFi.disconnect(true); WiFi.mode(WIFI_OFF); delay(100);
-  bao("Dang bat 4G...", COL_ACC, "Cho ~15-30s", "Lan dau hoi lau");
+  bao("Đang bật 4G...", COL_ACC, "Chờ ~15-30s", "Lần đầu hơi lâu");
   return net4gConnect();
 }
 bool noiInternet(){
-  if(!bat4G()){ bao("4G chua san sang", COL_DO, "Kiem SIM / song", "Xem log Serial [4G]"); delay(2000); return false; }
+  if(!bat4G()){ bao("4G chưa sẵn sàng", COL_DO, "Kiểm SIM / sóng", "Xem log Serial [4G]"); delay(2000); return false; }
   return true;
 }
 
@@ -558,12 +570,12 @@ bool webGoi(const String& viec, const String& body, String& raOut){
 bool webLogin(const String& pin){
   String r; StaticJsonDocument<128> b; b["pin"] = pin;
   String body; serializeJson(b, body);
-  if(!webGoi("login", body, r)){ bao("Loi mang", COL_DO, "Khong goi duoc web", ""); delay(1600); return false; }
+  if(!webGoi("login", body, r)){ bao("Lỗi mạng", COL_DO, "Không gọi được web", ""); delay(1600); return false; }
   StaticJsonDocument<512> d;
-  if(deserializeJson(d, r)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return false; }
+  if(deserializeJson(d, r)){ bao("Web trả rác", COL_DO, "", ""); delay(1600); return false; }
   if(!(d["ok"] | false)){
     String e = String((const char*)(d["error"] | "Sai PIN"));
-    bao("Dang nhap loi", COL_DO, e.substring(0, 34), ""); delay(2000); return false;
+    bao("Đăng nhập lỗi", COL_DO, e.substring(0, 34), ""); delay(2000); return false;
   }
   g_token = String((const char*)(d["token"] | ""));
   return g_token.length() > 0;
@@ -605,7 +617,7 @@ bool prefetchCoSo(){
 bool damBaoDangNhap(){
   if(g_token.length()) return true;
   if(g_pinLuu.length()){
-    bao("Dang nhap tu dong...", COL_ACC, "PIN da luu", "");
+    bao("Đang nhập tự động...", COL_ACC, "PIN đã lưu", "");
     if(webLogin(g_pinLuu)) return true;
     g_pinLuu = ""; prefsTram.remove("pin");     // PIN lưu không còn đúng -> bỏ, hỏi lại
   }
@@ -634,7 +646,7 @@ void cheDoChotCa(){
   { String coso; long hethong = 0, csTruoc = 0; int donVi = 5000, lanDau = 0;
     int ci = chotTimTrongCache(ma);
     if(ci < 0){
-      bao("Dang tai ca co so...", COL_ACC, "Lan dau - cho chut", "");
+      bao("Đang tải cả cơ sở...", COL_ACC, "Lần đầu - chờ chút", "");
       prefetchCoSo();
       ci = chotTimTrongCache(ma);
     }
@@ -647,15 +659,15 @@ void cheDoChotCa(){
       lanDau  = g_chot[ci].lanDau;
     } else {
       // Không nằm trong cơ sở của mình (hoặc prefetch trượt) -> hỏi riêng ghế này như cũ.
-      bao("Dang lay so lieu...", COL_ACC, "Ghe " + ma, "");
+      bao("Đang lấy số liệu...", COL_ACC, "Ghế " + ma, "");
       String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
       String body; serializeJson(b, body);
-      if(!webGoi("chot_xem", body, r)){ bao("Loi mang", COL_DO, "chot_xem", ""); delay(1600); return; }
+      if(!webGoi("chot_xem", body, r)){ bao("Lỗi mạng", COL_DO, "chot_xem", ""); delay(1600); return; }
       StaticJsonDocument<1024> d;
-      if(deserializeJson(d, r)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return; }
+      if(deserializeJson(d, r)){ bao("Web trả rác", COL_DO, "", ""); delay(1600); return; }
       if(!(d["ok"] | false)){
         String e = String((const char*)(d["error"] | "Loi"));
-        bao("Khong chot duoc", COL_DO, e.substring(0, 34), ""); delay(2400); return;
+        bao("Không chốt được", COL_DO, e.substring(0, 34), ""); delay(2400); return;
       }
       coso    = String((const char*)(d["coso"] | ""));
       hethong = (long)(d["theo_he_thong"] | 0);   // tiền mặt hệ thống ghi nhận từ lần chốt trước
@@ -681,15 +693,13 @@ void cheDoChotCa(){
       } }
 
     // Màn tóm tắt trước khi đếm
-    tft.fillScreen(COL_BG); tft.setTextDatum(TL_DATUM);
-    tft.setTextColor(COL_ACC, COL_BG); tft.drawString("Ghe " + ma, 14, 12, 4);
-    tft.setTextColor(COL_XAM, COL_BG); tft.drawString(coso, 14, 46, 2);
-    tft.setTextColor(TFT_WHITE, COL_BG);
-    tft.drawString("Tien mat (he thong): " + String(hethong) + " d", 14, 72, 2);
-    if(qrHomNay >= 0) tft.drawString("QR hom nay: " + String(qrHomNay) + " d", 14, 94, 2);
-    tft.drawString("Chi so truoc: " + String(csTruoc) + "  |  don vi " + String(donVi) + "d", 14, 116, 2);
-    tft.setTextColor(COL_OK, COL_BG);
-    tft.drawString(lanDau ? "Lan chot dau tien - cham de dem" : "Cham de dem tien >>", 14, 148, 2);
+    tft.fillScreen(COL_BG);
+    veLon("Ghế " + ma, 14, 20, COL_ACC, COL_BG, TL_DATUM);
+    veVua(coso, 14, 48, COL_XAM, COL_BG, TL_DATUM);
+    veVua("Tiền mặt (hệ thống): " + String(hethong) + " đ", 14, 74, TFT_WHITE, COL_BG, TL_DATUM);
+    if(qrHomNay >= 0) veVua("QR hôm nay: " + String(qrHomNay) + " đ", 14, 98, TFT_WHITE, COL_BG, TL_DATUM);
+    veVua("Chỉ số trước: " + String(csTruoc) + "  |  đơn vị " + String(donVi) + "đ", 14, 122, TFT_WHITE, COL_BG, TL_DATUM);
+    veVua(lanDau ? "Lần chốt đầu tiên - chạm để đếm" : "Chạm để đếm tiền >>", 14, 150, COL_OK, COL_BG, TL_DATUM);
     { int x, y; cho4Cham(x, y, 0); }
 
     // 4) Nhân viên đếm tiền -> nhập chỉ số + tiền đếm
@@ -699,16 +709,16 @@ void cheDoChotCa(){
     if(tienDem < 0) return;
 
     // 5) chot_luu
-    bao("Dang chot ca...", COL_ACC, "Ghe " + ma, "");
+    bao("Đang chốt ca...", COL_ACC, "Ghế " + ma, "");
     String r2; StaticJsonDocument<256> b2;
     b2["token"] = g_token; b2["ma_may"] = ma; b2["chi_so"] = chiSo; b2["tien_dem"] = tienDem;
     String body2; serializeJson(b2, body2);
     if(!webGoi("chot_luu", body2, r2)){ bao("Loi mang", COL_DO, "chot_luu", ""); delay(1600); return; }
     StaticJsonDocument<1024> d2;
-    if(deserializeJson(d2, r2)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return; }
+    if(deserializeJson(d2, r2)){ bao("Web trả rác", COL_DO, "", ""); delay(1600); return; }
     if(!(d2["ok"] | false)){
       String e = String((const char*)(d2["error"] | "Loi"));
-      bao("Chot that bai", COL_DO, e.substring(0, 34), ""); delay(2600); return;
+      bao("Chốt thất bại", COL_DO, e.substring(0, 34), ""); delay(2600); return;
     }
     /* Chốt xong -> số liệu prefetch của ghế này đã cũ (mốc chỉ số vừa đổi). Bỏ khỏi bộ nhớ để
        nếu có chốt lại ghế này trong buổi thì tải lại số mới, không hiện con số đã lỗi thời. */
@@ -716,13 +726,12 @@ void cheDoChotCa(){
     long theoMay = (long)(d2["theo_may"] | 0);
     long lechDem = (long)(d2["lech_dem"] | 0);
     String cb = String((const char*)(d2["canh_bao"] | ""));
-    tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_OK, COL_BG); tft.drawString("DA CHOT CA", 160, 40, 4);
-    tft.setTextColor(TFT_WHITE, COL_BG);
-    tft.drawString("Ghe " + ma + "  |  theo may " + String(theoMay) + " d", 160, 90, 2);
-    tft.drawString("Dem: " + String(tienDem) + " d   lech: " + String(lechDem) + " d", 160, 118, 2);
-    if(cb.length()){ tft.setTextColor(COL_DO, COL_BG); tft.drawString(cb.substring(0, 40), 160, 150, 2); }
-    tft.setTextColor(COL_XAM, COL_BG); tft.drawString("Cham de tiep tuc", 160, 190, 2);
+    tft.fillScreen(COL_BG);
+    veLon("ĐÃ CHỐT CA", 160, 40, COL_OK, COL_BG);
+    veVua("Ghế " + ma + "  |  theo máy " + String(theoMay) + " đ", 160, 88, TFT_WHITE, COL_BG);
+    veVua("Đếm: " + String(tienDem) + " đ   lệch: " + String(lechDem) + " đ", 160, 114, TFT_WHITE, COL_BG);
+    if(cb.length()) veVua(cb.substring(0, 34), 160, 146, COL_DO, COL_BG);
+    veVua("Chạm để tiếp tục", 160, 188, COL_XAM, COL_BG);
     int x, y; cho4Cham(x, y, 0);
   }
 }
@@ -751,7 +760,7 @@ void cheDoKiemTra(){
   String coso; long hethong = 0, csTruoc = 0; int donVi = 5000, lanDau = 0;
   int ci = chotTimTrongCache(ma);
   if(ci < 0){
-    bao("Dang tai ca co so...", COL_ACC, "Lan dau - cho chut", "");
+    bao("Đang tải cả cơ sở...", COL_ACC, "Lần đầu - chờ chút", "");
     prefetchCoSo();
     ci = chotTimTrongCache(ma);
   }
@@ -759,15 +768,15 @@ void cheDoKiemTra(){
     coso = g_chot[ci].coso; hethong = g_chot[ci].hethong; csTruoc = g_chot[ci].csTruoc;
     donVi = g_chot[ci].donVi; lanDau = g_chot[ci].lanDau;
   } else {
-    bao("Dang lay so lieu...", COL_ACC, "Ghe " + ma, "");
+    bao("Đang lấy số liệu...", COL_ACC, "Ghế " + ma, "");
     String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
     String body; serializeJson(b, body);
-    if(!webGoi("chot_xem", body, r)){ bao("Loi mang", COL_DO, "chot_xem", ""); delay(1600); return; }
+    if(!webGoi("chot_xem", body, r)){ bao("Lỗi mạng", COL_DO, "chot_xem", ""); delay(1600); return; }
     StaticJsonDocument<1024> d;
-    if(deserializeJson(d, r)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return; }
+    if(deserializeJson(d, r)){ bao("Web trả rác", COL_DO, "", ""); delay(1600); return; }
     if(!(d["ok"] | false)){
       String e = String((const char*)(d["error"] | "Loi"));
-      bao("Khong xem duoc", COL_DO, e.substring(0, 34), ""); delay(2400); return;
+      bao("Không xem được", COL_DO, e.substring(0, 34), ""); delay(2400); return;
     }
     coso = String((const char*)(d["coso"] | "")); hethong = (long)(d["theo_he_thong"] | 0);
     csTruoc = (long)(d["chi_so_truoc"] | 0); donVi = (int)(d["don_vi"] | 5000);
@@ -775,18 +784,15 @@ void cheDoKiemTra(){
   }
 
   // Màn tóm tắt (CHỈ XEM)
-  tft.fillScreen(COL_BG); tft.setTextDatum(TL_DATUM);
-  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("KIEM TRA - Ghe " + ma, 14, 12, 4);
-  tft.setTextColor(COL_XAM, COL_BG); tft.drawString(coso, 14, 46, 2);
-  tft.setTextColor(TFT_WHITE, COL_BG);
-  tft.drawString("Chi so lan chot truoc: " + String(csTruoc), 14, 72, 2);
-  tft.drawString("Tien mat he thong ghi: " + String(hethong) + " d", 14, 94, 2);
-  tft.drawString("Don vi: " + String(donVi) + " d / 1 chi so", 14, 116, 2);
-  if(lanDau){ tft.setTextColor(COL_OK, COL_BG); tft.drawString("Ghe chua chot lan nao", 14, 138, 2); }
-  tft.setTextColor(COL_OK, COL_BG);
-  tft.drawString("Cham de nhap chi so hien tai (xem chenh)", 14, 168, 2);
-  tft.setTextColor(COL_XAM, COL_BG);
-  tft.drawString("Huy o ban phim = thoat, KHONG chot", 14, 190, 2);
+  tft.fillScreen(COL_BG);
+  veLon("KIỂM TRA - Ghế " + ma, 14, 20, COL_ACC, COL_BG, TL_DATUM);
+  veVua(coso, 14, 48, COL_XAM, COL_BG, TL_DATUM);
+  veVua("Chỉ số lần chốt trước: " + String(csTruoc), 14, 74, TFT_WHITE, COL_BG, TL_DATUM);
+  veVua("Tiền mặt hệ thống ghi: " + String(hethong) + " đ", 14, 98, TFT_WHITE, COL_BG, TL_DATUM);
+  veVua("Đơn vị: " + String(donVi) + " đ / 1 chỉ số", 14, 122, TFT_WHITE, COL_BG, TL_DATUM);
+  if(lanDau) veVua("Ghế chưa chốt lần nào", 14, 146, COL_OK, COL_BG, TL_DATUM);
+  veVua("Chạm để nhập chỉ số hiện tại (xem chênh)", 14, 172, COL_OK, COL_BG, TL_DATUM);
+  veVua("Huỷ ở bàn phím = thoát, KHÔNG chốt", 14, 196, COL_XAM, COL_BG, TL_DATUM);
   { int cx, cy; cho4Cham(cx, cy, 0); }
 
   // Nhập chỉ số hiện tại để XEM chênh ước tính (KHÔNG lưu)
@@ -795,36 +801,32 @@ void cheDoKiemTra(){
   long chenh   = lanDau ? 0 : (chiSo - csTruoc);
   long tienUoc = chenh > 0 ? chenh * donVi : 0;
 
-  tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("KIEM TRA CHI SO", 160, 30, 4);
-  tft.setTextColor(TFT_WHITE, COL_BG);
-  tft.drawString("Ghe " + ma + (coso.length() ? "  |  " + coso : ""), 160, 70, 2);
-  tft.drawString("Truoc: " + String(csTruoc) + "    Nay: " + String(chiSo), 160, 98, 2);
+  tft.fillScreen(COL_BG);
+  veLon("KIỂM TRA CHỈ SỐ", 160, 30, COL_ACC, COL_BG);
+  veVua("Ghế " + ma + (coso.length() ? "  |  " + coso : ""), 160, 68, TFT_WHITE, COL_BG);
+  veVua("Trước: " + String(csTruoc) + "    Nay: " + String(chiSo), 160, 96, TFT_WHITE, COL_BG);
   if(lanDau){
-    tft.setTextColor(COL_XAM, COL_BG);
-    tft.drawString("Lan dau - chua co moc de tinh chenh", 160, 128, 2);
+    veVua("Lần đầu - chưa có mốc để tính chênh", 160, 126, COL_XAM, COL_BG);
   } else {
-    tft.setTextColor(COL_OK, COL_BG);
-    tft.drawString("Chenh: " + String(chenh) + " chi so = " + String(tienUoc) + " d", 160, 128, 2);
-    tft.setTextColor(COL_XAM, COL_BG);
-    tft.drawString("(uoc theo may dem - chua doi soat tien mat)", 160, 150, 2);
+    veVua("Chênh: " + String(chenh) + " chỉ số = " + String(tienUoc) + " đ", 160, 126, COL_OK, COL_BG);
+    veVua("(ước theo máy đếm - chưa đối soát tiền mặt)", 160, 150, COL_XAM, COL_BG);
   }
-  tft.setTextColor(COL_DO, COL_BG); tft.drawString("CHI XEM - KHONG CHOT CA", 160, 180, 2);
-  tft.setTextColor(COL_XAM, COL_BG); tft.drawString("Cham de tiep tuc", 160, 208, 2);
+  veVua("CHỈ XEM - KHÔNG CHỐT CA", 160, 180, COL_DO, COL_BG);
+  veVua("Chạm để tiếp tục", 160, 208, COL_XAM, COL_BG);
   int x, y; cho4Cham(x, y, 0);
 }
 
 // ═══════════════════════════════ MÀN CHÍNH ═══════════════════════════════════
 void manChinh(){
-  tft.fillScreen(COL_BG); tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(COL_ACC, COL_BG); tft.drawString("MAY TRAM POSH", 160, 18, 4);
+  tft.fillScreen(COL_BG);
+  veLon("MÁY TRẠM POSH", 160, 18, COL_ACC, COL_BG);
   // 3 nút lớn (mỗi nút cao 54, cách 8) — xem vùng chạm khớp trong loop()
   tft.fillRoundRect(24, 40, 272, 54, 10, 0x2145);
-  tft.setTextColor(TFT_WHITE, 0x2145); tft.drawString("NAP FIRMWARE", 160, 67, 4);
+  veLon("NẠP FIRMWARE", 160, 67, TFT_WHITE, 0x2145);
   tft.fillRoundRect(24, 102, 272, 54, 10, 0x0341);
-  tft.setTextColor(TFT_WHITE, 0x0341); tft.drawString("THU TIEN / CHOT CA", 160, 129, 4);
+  veLon("THU TIỀN / CHỐT CA", 160, 129, TFT_WHITE, 0x0341);
   tft.fillRoundRect(24, 164, 272, 54, 10, 0x03A0);
-  tft.setTextColor(TFT_WHITE, 0x03A0); tft.drawString("KIEM TRA CHI SO", 160, 191, 4);
+  veLon("KIỂM TRA CHỈ SỐ", 160, 191, TFT_WHITE, 0x03A0);
 }
 
 void setup(){
