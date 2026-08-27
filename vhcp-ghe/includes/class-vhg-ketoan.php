@@ -34,14 +34,23 @@ class VHG_KeToan {
 
 	private static function songuyen_( $v ) { return ( '' === $v || null === $v ) ? null : (int) $v; }
 
-	/** Ngày đầu kỳ ('Y-m-d') cho today/week/month/year; '' = all. Khớp quy ước VHG_Thu::dau_ky. */
+	/** Ngày đầu kỳ ('Y-m-d') cho today/week/month/year và tháng bất kỳ 'YYYY-MM'; '' = all. */
 	private static function dau_ngay_( $ky ) {
 		$nay = current_time( 'timestamp' );
+		if ( is_string( $ky ) && preg_match( '/^(\d{4})-(\d{2})$/', $ky, $mm ) ) { return $mm[1] . '-' . $mm[2] . '-01'; }
 		switch ( $ky ) {
 			case 'today': return current_time( 'Y-m-d' );
 			case 'week':  $thu = (int) gmdate( 'N', $nay ); return gmdate( 'Y-m-d', $nay - ( $thu - 1 ) * 86400 );
 			case 'month': return gmdate( 'Y-m-01', $nay );
 			case 'year':  return gmdate( 'Y-01-01', $nay );
+		}
+		return '';
+	}
+	/** Ngày cuối kỳ (loại trừ) — CHỈ tháng cụ thể 'YYYY-MM' (= ngày 1 tháng kế); còn lại ''. */
+	private static function cuoi_ngay_( $ky ) {
+		if ( is_string( $ky ) && preg_match( '/^(\d{4})-(\d{2})$/', $ky, $mm ) ) {
+			$y = (int) $mm[1]; $m = (int) $mm[2] + 1; if ( $m > 12 ) { $m = 1; $y++; }
+			return sprintf( '%04d-%02d-01', $y, $m );
 		}
 		return '';
 	}
@@ -53,10 +62,12 @@ class VHG_KeToan {
 	public static function doanhthu_ky( $ky ) {
 		global $wpdb;
 		$tu  = self::dau_ngay_( $ky );
+		$den = self::cuoi_ngay_( $ky );
 		$sql = 'SELECT h.coso_key ck, h.coso coso, COALESCE(SUM(d.tien_mat),0) tm, COALESCE(SUM(d.qr),0) qr, '
 			. 'COALESCE(SUM(d.tong),0) tg, COUNT(*) n FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN '
 			. VHG_DB::t( 'bc' ) . ' h ON h.report_id = d.report_id WHERE (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)';
-		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND d.ngay >= %s', $tu ); }
+		if ( '' !== $tu )  { $sql = $wpdb->prepare( $sql . ' AND d.ngay >= %s', $tu ); }
+		if ( '' !== $den ) { $sql = $wpdb->prepare( $sql . ' AND d.ngay < %s', $den ); }
 		$sql .= ' GROUP BY h.coso_key, h.coso';
 		$ra = array();
 		foreach ( VHG_DB::rows( $sql ) as $r ) {
@@ -95,7 +106,7 @@ class VHG_KeToan {
 		}
 		$g = array();
 		foreach ( (array) $rows as $r ) {
-			if ( null === $r['chi_so_sau'] ) { continue; }   // dòng đã void (bỏ khỏi báo cáo)
+			if ( null === $r['chi_so_sau'] && 0 === (int) $r['tong'] && 0 === (int) $r['actual'] ) { continue; }   // dòng đã void (bỏ khỏi báo cáo)
 			$k = $r['coso_key'] . '|' . self::ngay_( $r['ngay'] );
 			if ( ! isset( $g[ $k ] ) ) {
 				$g[ $k ] = array( 'key' => $k, 'coso' => $r['coso'], 'ngay' => self::ngay_( $r['ngay'] ),
@@ -133,7 +144,7 @@ class VHG_KeToan {
 		$ghe = array(); $sum = array( 'actual' => 0, 'cash' => 0, 'qr' => 0, 'adjust' => 0, 'total' => 0, 'paid' => 0 );
 		$rid = '';
 		foreach ( (array) $rows as $r ) {
-			if ( null === $r['chi_so_sau'] ) { continue; }
+			if ( null === $r['chi_so_sau'] && 0 === (int) $r['tong'] && 0 === (int) $r['actual'] ) { continue; }
 			$rid = (string) $r['report_id'];
 			$anh = trim( (string) $r['anh'] );
 			$ghe[] = array( 'reportId' => $r['report_id'], 'chairCode' => $r['ma_may'], 'chairName' => $r['ten'],

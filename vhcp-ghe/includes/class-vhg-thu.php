@@ -436,6 +436,10 @@ class VHG_Thu {
 	 */
 	public static function dau_ky( $ky ) {
 		$nay = current_time( 'timestamp' );
+		/* Tháng bất kỳ 'YYYY-MM' — mốc đầu = ngày 1 của tháng đó (xem cuoi_ky cho mốc cuối). */
+		if ( is_string( $ky ) && preg_match( '/^(\d{4})-(\d{2})$/', $ky, $mm ) ) {
+			return $mm[1] . '-' . $mm[2] . '-01 00:00:00';
+		}
 		switch ( $ky ) {
 			case 'today': return gmdate( 'Y-m-d 00:00:00', $nay );
 			case 'week':
@@ -445,6 +449,19 @@ class VHG_Thu {
 				return gmdate( 'Y-m-d 00:00:00', $nay - ( $thu - 1 ) * 86400 );
 			case 'month': return gmdate( 'Y-m-01 00:00:00', $nay );
 			case 'year':  return gmdate( 'Y-01-01 00:00:00', $nay );
+		}
+		return '';
+	}
+
+	/**
+	 * Mốc CUỐI kỳ (loại trừ). CHỈ tháng cụ thể 'YYYY-MM' mới có (= ngày 1 tháng kế); các kỳ
+	 * today/week/month/year/all là "mở tới hiện tại" nên trả rỗng = không chặn trên.
+	 */
+	public static function cuoi_ky( $ky ) {
+		if ( is_string( $ky ) && preg_match( '/^(\d{4})-(\d{2})$/', $ky, $mm ) ) {
+			$y = (int) $mm[1]; $m = (int) $mm[2] + 1;
+			if ( $m > 12 ) { $m = 1; $y++; }
+			return sprintf( '%04d-%02d-01 00:00:00', $y, $m );
 		}
 		return '';
 	}
@@ -466,10 +483,12 @@ class VHG_Thu {
 		if ( '' === $ma_may ) { return $ra; }
 		$bang = VHG_DB::t( 'thu' );
 		$tu   = self::dau_ky( $ky );
+		$den  = self::cuoi_ky( $ky );
 		$sql  = "SELECT nguon, COUNT(*) AS n, COALESCE(SUM(so_tien),0) AS t FROM $bang"
 			. ' WHERE huy=0 AND ma_may=%s';
 		$tham = array( $ma_may );
-		if ( '' !== $tu ) { $sql .= ' AND luc >= %s'; $tham[] = $tu; }
+		if ( '' !== $tu )  { $sql .= ' AND luc >= %s'; $tham[] = $tu; }
+		if ( '' !== $den ) { $sql .= ' AND luc < %s';  $tham[] = $den; }
 		$sql .= ' GROUP BY nguon';
 		foreach ( VHG_DB::rows( $wpdb->prepare( $sql, $tham ) ) as $r ) {
 			$t = (int) $r['t'];
@@ -487,8 +506,10 @@ class VHG_Thu {
 		/* `huy=0` LỌC Ở ĐÂY, không ở từng nơi gọi. `ds()` là cửa duy nhất mọi báo cáo đi qua
 		   (`tong_hop` gọi lại chính nó), nên lọc một chỗ là cả hệ thống theo. Lọc rải rác từng
 		   nơi thì thêm một màn mới là quên một chỗ, và chỗ quên đó cộng tiền đã huỷ vào doanh thu. */
+		$den = self::cuoi_ky( $ky );
 		$sql = 'SELECT * FROM ' . VHG_DB::t( 'thu' ) . ' WHERE huy=0';
-		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND luc >= %s', $tu ); }
+		if ( '' !== $tu )  { $sql = $wpdb->prepare( $sql . ' AND luc >= %s', $tu ); }
+		if ( '' !== $den ) { $sql = $wpdb->prepare( $sql . ' AND luc < %s', $den ); }
 		$sql .= ' ORDER BY luc DESC, id DESC LIMIT ' . (int) $gioi_han;
 		return VHG_DB::rows( $sql );
 	}

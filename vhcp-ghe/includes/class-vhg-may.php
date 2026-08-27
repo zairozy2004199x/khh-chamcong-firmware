@@ -121,8 +121,10 @@ class VHG_May {
 		global $wpdb;
 		$t  = VHG_DB::t( 'lenh' );
 		$tu = VHG_Thu::dau_ky( $ky );
+		$den = VHG_Thu::cuoi_ky( $ky );
 		$sql = "SELECT * FROM $t WHERE viec='on'";
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+			if ( '' !== $den ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc < %s', $den ); }
 		$sql .= ' ORDER BY tao_luc DESC, id DESC LIMIT ' . (int) $gioi_han;
 		return VHG_DB::rows( $sql );
 	}
@@ -137,9 +139,11 @@ class VHG_May {
 		global $wpdb;
 		$t  = VHG_DB::t( 'lenh' );
 		$tu = VHG_Thu::dau_ky( $ky );
+		$den = VHG_Thu::cuoi_ky( $ky );
 		$sql = "SELECT DATE(tao_luc) AS ngay, COUNT(*) AS so_lan, SUM(phut) AS tong_phut"
 			. " FROM $t WHERE viec='on'";
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+			if ( '' !== $den ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc < %s', $den ); }
 		$sql .= ' GROUP BY DATE(tao_luc) ORDER BY ngay DESC LIMIT 400';
 		$ra = array();
 		foreach ( VHG_DB::rows( $sql ) as $r ) {
@@ -160,9 +164,11 @@ class VHG_May {
 		global $wpdb;
 		$t  = VHG_DB::t( 'lenh' );
 		$tu = VHG_Thu::dau_ky( $ky );
+		$den = VHG_Thu::cuoi_ky( $ky );
 		$sql = "SELECT ma_may, COUNT(*) AS so_lan, SUM(phut) AS tong_phut, MAX(tao_luc) AS lan_cuoi"
 			. " FROM $t WHERE viec='on'";
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+			if ( '' !== $den ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc < %s', $den ); }
 		$sql .= ' GROUP BY ma_may ORDER BY so_lan DESC, tong_phut DESC LIMIT 200';
 		$ra  = array();
 		$may = self::ds_may_theo_ma();
@@ -181,9 +187,11 @@ class VHG_May {
 		global $wpdb;
 		$t  = VHG_DB::t( 'lenh' );
 		$tu = VHG_Thu::dau_ky( $ky );
+		$den = VHG_Thu::cuoi_ky( $ky );
 		$sql = "SELECT COUNT(*) AS so_lan, SUM(phut) AS tong_phut, COUNT(DISTINCT ma_may) AS so_ghe"
 			. " FROM $t WHERE viec='on'";
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc >= %s', $tu ); }
+			if ( '' !== $den ) { $sql = $wpdb->prepare( $sql . ' AND tao_luc < %s', $den ); }
 		$r = $wpdb->get_row( $sql, ARRAY_A );
 		return array( 'so_lan' => (int) ( $r ? $r['so_lan'] : 0 ),
 			'tong_phut' => (int) ( $r ? $r['tong_phut'] : 0 ),
@@ -1138,9 +1146,11 @@ class VHG_May {
 		global $wpdb;
 		$t  = VHG_DB::t( 'bat_tat' );
 		$tu = VHG_Thu::dau_ky( $ky );
+		$den = VHG_Thu::cuoi_ky( $ky );
 		$gh = max( 1, min( 1000, (int) $gioi_han ) );
 		$sql = "SELECT * FROM $t";
 		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' WHERE luc >= %s', $tu ); }
+		if ( '' !== $den ) { $sql .= ( '' !== $tu ? ' AND' : ' WHERE' ) . $wpdb->prepare( ' luc < %s', $den ); }
 		$sql .= ' ORDER BY id DESC LIMIT ' . $gh;
 		$may = self::ds_may_theo_ma();
 		$ra  = array();
@@ -1166,7 +1176,9 @@ class VHG_May {
 		global $wpdb;
 		$t  = VHG_DB::t( 'bat_tat' );
 		$tu = VHG_Thu::dau_ky( $ky );
+		$den = VHG_Thu::cuoi_ky( $ky );
 		$dk = '' !== $tu ? $wpdb->prepare( ' AND luc >= %s', $tu ) : '';
+		if ( '' !== $den ) { $dk .= $wpdb->prepare( ' AND luc < %s', $den ); }
 		$sql = "SELECT ma_may,
 			SUM(CASE WHEN su_kien='bat' THEN 1 ELSE 0 END) AS so_lan,
 			SUM(CASE WHEN su_kien='tat' THEN giay ELSE 0 END) AS tong_giay,

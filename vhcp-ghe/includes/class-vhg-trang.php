@@ -534,7 +534,8 @@ class VHG_Trang {
 		if ( 'nhat_ky_may' === $viec ) {
 			/* Lịch sử bật/tắt ghế — chỉ quản trị (đã chặn ở duoc_lam qua VIEC_QUAN_TRI). */
 			$ky = isset( $d['ky'] ) ? (string) $d['ky'] : 'week';
-			$ky = in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true ) ? $ky : 'week';
+			$ky = ( in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true )
+				|| preg_match( '/^\d{4}-\d{2}$/', (string) $ky ) ) ? $ky : 'week';
 			self::tra( array( 'ok' => true, 'ky' => $ky,
 				'ds'  => VHG_May::ds_bat_tat( $ky, 500 ),
 				'gom' => VHG_May::tong_bat_tat_may( $ky ) ) );
@@ -638,7 +639,8 @@ class VHG_Trang {
 	 * hiện nửa vời — doanh thu có mà tình trạng ghế trống, người đọc không biết đang xem cái gì.
 	 */
 	private static function so_lieu( $ky, $ai ) {
-		$ky  = in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true ) ? $ky : 'today';
+		$ky  = ( in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true )
+			|| preg_match( '/^\d{4}-\d{2}$/', (string) $ky ) ) ? $ky : 'today';   // cho phép tháng bất kỳ
 
 		/* ══════════════════════════════════════════════════════════════════════════════════════
 		 * 🔴 NHÂN VIÊN NHẬN MỘT GÓI TIN KHÁC HẲN, KHÔNG PHẢI CÙNG GÓI RỒI GIẤU BỚT Ở GIAO DIỆN.
@@ -2182,6 +2184,7 @@ var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
 var QL_PG = 0, QL_PER = 10;   // Quản lý ghế: trang danh sách ghế (10 ghế/trang)
+var TM_PG = 0;   // Thu tiền: trang "từng lượt tiền mặt" (20/trang)
 var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
 var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
@@ -2404,10 +2407,14 @@ function ve(){
   /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
      ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
   if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'quy' || TAB === 'kich-hoat' || TAB === 'ma' || TAB === 'nhat-ky-may') {
-    h += '<div class="tabs">';
+    var kyThang = /^\d{4}-\d{2}$/.test(KY);   // đang xem một THÁNG cụ thể?
+    h += '<div class="tabs" style="align-items:center">';
     [['today',L('Hôm nay','Today')],['week',L('Tuần này','This week')],['month',L('Tháng này','This month')],
      ['year',L('Năm nay','This year')],['all',L('Tất cả','All time')]]
       .forEach(function(k){ h += '<button data-ky="' + k[0] + '"' + (KY===k[0]?' class="on"':'') + '>' + k[1] + '</button>'; });
+    h += '<span class="mut" style="margin-left:4px">' + L('hoặc tháng','or month') + '</span>'
+      + '<input type="month" id="ky-thang" value="' + (kyThang ? KY : '') + '" style="width:auto;max-width:150px"'
+      + (kyThang ? ' class="on"' : '') + '>';
     h += '</div>';
   }
 
@@ -4239,21 +4246,39 @@ function veThuTien(){
   });
   h += '</table></div>';
 
-  h += '<div class="card"><h2>' + L('Từng lượt tiền mặt','Every cash entry') + '</h2><table><tr><th>'
-    + L('Lúc','Time') + '</th><th>' + L('Ghế','Chair') + '</th><th>' + L('Kiểu','Kind') + '</th>'
-    + '<th class="hide-sm">' + L('Ai thu','Collected by') + '</th><th class="r">'
+  h += '<div class="card"><h2>' + L('Từng lượt tiền mặt','Every cash entry') + '</h2>'
+    + '<div id="tm-wrap"></div></div>';
+  return h;
+}
+
+/* Từng lượt tiền mặt (tab Thu tiền): 20 lượt/trang — vẽ tại chỗ vào #tm-wrap. */
+function tmRender(){
+  var box = document.getElementById('tm-wrap'); if (!box) return;
+  var ds = ((D && D.thu && D.thu.ds) || []);
+  var pages = Math.max(1, Math.ceil(ds.length / 20));
+  if (TM_PG >= pages) TM_PG = pages - 1; if (TM_PG < 0) TM_PG = 0;
+  var from = TM_PG * 20, to = Math.min(ds.length, from + 20);
+  var h = '<table><tr><th>' + L('Lúc','Time') + '</th><th>' + L('Ghế','Chair') + '</th><th>'
+    + L('Kiểu','Kind') + '</th><th class="hide-sm">' + L('Ai thu','Collected by') + '</th><th class="r">'
     + L('Số tiền','Amount') + '</th></tr>';
-  if (!t.ds.length) h += '<tr><td colspan="5" class="mut">'
-    + L('Chưa có lượt tiền mặt nào.','No cash entries yet.') + '</td></tr>';
-  t.ds.forEach(function(r){
-    var ng = r.kieu === 'nguoi';
+  if (!ds.length) h += '<tr><td colspan="5" class="mut">' + L('Chưa có lượt tiền mặt nào.','No cash entries yet.') + '</td></tr>';
+  for (var i = from; i < to; i++){ var r = ds[i]; var ng = r.kieu === 'nguoi';
     h += '<tr><td>' + esc(r.luc) + '</td><td><b>' + esc(r.ma_may || '—') + '</b></td>'
       + '<td><span class="pill ' + (ng ? 'p-run' : 'p-ok') + '">'
         + (ng ? L('người thu','staff') : L('ghế nuốt','acceptor')) + '</span></td>'
       + '<td class="hide-sm">' + esc(r.nguoi || '—') + '</td>'
       + '<td class="r">' + tien(r.so_tien) + '</td></tr>';
-  });
-  return h + '</table></div>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+  var pg = document.createElement('div'); pg.className = 'act'; pg.style.cssText = 'margin-top:8px;align-items:center';
+  var bT = document.createElement('button'); bT.className = 'ghost'; bT.textContent = '‹ ' + L('Trước','Prev');
+  bT.style.padding = '4px 10px'; bT.disabled = TM_PG <= 0; bT.onclick = function(){ TM_PG--; tmRender(); };
+  var bS = document.createElement('button'); bS.className = 'ghost'; bS.textContent = L('Sau','Next') + ' ›';
+  bS.style.padding = '4px 10px'; bS.disabled = TM_PG >= pages - 1; bS.onclick = function(){ TM_PG++; tmRender(); };
+  var sp = document.createElement('span'); sp.className = 'mut';
+  sp.textContent = L('Trang','Page') + ' ' + (TM_PG + 1) + '/' + pages + ' · ' + ds.length + ' ' + L('lượt','entries');
+  pg.appendChild(bT); pg.appendChild(sp); pg.appendChild(bS); box.appendChild(pg);
 }
 
 /* ============================================================================================
@@ -5013,6 +5038,8 @@ function noi(){
   [].forEach.call(document.querySelectorAll('[data-ky]'), function(b){
     b.onclick = function(){ KY = b.getAttribute('data-ky'); tai(); };
   });
+  var kyTh = document.getElementById('ky-thang');
+  if (kyTh) kyTh.onchange = function(){ if (/^\d{4}-\d{2}$/.test(kyTh.value)) { KY = kyTh.value; tai(); } };
   [].forEach.call(document.querySelectorAll('[data-tab]'), function(b){
     b.onclick = function(){
       TAB = b.getAttribute('data-tab');
@@ -5030,6 +5057,7 @@ function noi(){
   if (document.getElementById('ktn-csv')) ktnInit();
   if (document.getElementById('tt-wrap')) ttWire();
   if (document.getElementById('ql-wrap')) qlGheRender();
+  if (document.getElementById('tm-wrap')) tmRender();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');
