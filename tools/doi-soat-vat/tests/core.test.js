@@ -376,6 +376,37 @@ eq('cộng đúng theo ngày', theoNgayBang['2026-08-02'].tong, 250);
 eq('ngày không phát sinh thì không có khoá', theoNgayBang['2026-08-03'], undefined);
 eq('tách được theo luồng trong ngày', theoNgayBang['2026-08-01'].theoLuong.QR, 100);
 
+/* ------------------------------------------------- cột của file đầu ra */
+
+/*
+ * Cột đầu ra phải chép đúng file VAT mẫu, kể cả chỗ tên cột không khớp nội dung
+ * ("Số hợp đồng (nếu có)" chứa hình thức hợp tác, "Mã điểm nội bộ" chứa tên
+ * điểm). Khoá cứng ở đây để không ai đổi tên cột cho "dễ hiểu" rồi làm hỏng
+ * bước dán vào Misa.
+ */
+global.XLSX = {};
+require('../web/js/report.js');
+var R = global.VatRecReport;
+
+eq('DS xuất HĐ MTT đúng 22 cột', R.DS_HEADER.length, 22);
+eq('DS xuất HĐ MTT đúng tên cột', R.DS_HEADER.join('|'),
+  'STT|Ngày HĐ|Số HĐ|Tên khách hàng|Mã số thuế khách hàng|Địa chỉ khách hàng|' +
+  'Email nhận hóa đơn|Nội dung xuất hóa đơn|Số lượng|ĐVT|Thành tiền|Chưa VAT|VAT|' +
+  'Có VAT|Khu vực|Dịch vụ|Số hợp đồng (nếu có)|Mã điểm nội bộ|Mã điểm misa|Ghi chú||Địa chỉ');
+
+eq('bản kê đúng 22 cột cố định', R.KE_HEADER.length, 22);
+eq('bản kê đúng tên cột', R.KE_HEADER.join('|'),
+  'STT|Tháng|Ngày HĐ|lọc trùng|Số HĐ|Tên khách hàng|Mã số thuế khách hàng|' +
+  'Địa chỉ khách hàng|Email nhận hóa đơn|Nội dung hóa đơn|Tổng TT HĐ htoan Misa|' +
+  'đã xuất hóa đơn|Khu vực|Dịch vụ|Số hợp đồng|Mã đối tượng nội bộ|' +
+  'Mã điểm ghi chú HT Misa|Mã NCC HT Misa|ghi chú|Dịch vụ thu hộ|' +
+  'Những lưu ý khác (thời hạn hợp đồng, …)|Pháp nhân');
+
+eq('cột tiền của bản kê nằm ở "Tổng TT HĐ htoan Misa"',
+  R.KE_HEADER[10], 'Tổng TT HĐ htoan Misa');
+eq('cột Chưa VAT / VAT / Có VAT liền nhau',
+  R.DS_HEADER.slice(11, 14).join('|'), 'Chưa VAT|VAT|Có VAT');
+
 /* ----------------------------------------------------------------- kết quả */
 
 console.log(passed + ' kiểm tra đạt, ' + failed.length + ' lỗi');

@@ -5,6 +5,7 @@ Không cần pytest — chỉ dùng assert để chạy được ở mọi máy.
 """
 
 import datetime as dt
+import re
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from vatrec.catalog import Catalog, Point  # noqa: E402
 from vatrec.excel import column_index, date_blocks, find_header  # noqa: E402
 from vatrec.invoices import build_invoices, split_vat  # noqa: E402
 from vatrec.normalize import clean_text, key_text, to_date, to_int  # noqa: E402
+from vatrec import report  # noqa: E402
 from vatrec.sources import Txn  # noqa: E402
 
 _passed = 0
@@ -401,6 +403,52 @@ def test_by_date():
     per_date = result.points_per_date()
     check("đếm đúng số điểm trong ngày", per_date[dt.date(2026, 8, 1)] == 2)
     check("ngày chỉ một điểm", per_date[dt.date(2026, 8, 3)] == 1)
+
+
+# ------------------------------------------------- cột của file đầu ra
+
+DS_MONG_DOI = [
+    "STT", "Ngày HĐ", "Số HĐ", "Tên khách hàng", "Mã số thuế khách hàng",
+    "Địa chỉ khách hàng", "Email nhận hóa đơn", "Nội dung xuất hóa đơn", "Số lượng", "ĐVT",
+    "Thành tiền", "Chưa VAT", "VAT", "Có VAT", "Khu vực", "Dịch vụ", "Số hợp đồng (nếu có)",
+    "Mã điểm nội bộ", "Mã điểm misa", "Ghi chú", "", "Địa chỉ",
+]
+
+KE_MONG_DOI = [
+    "STT", "Tháng", "Ngày HĐ", "lọc trùng", "Số HĐ", "Tên khách hàng",
+    "Mã số thuế khách hàng", "Địa chỉ khách hàng", "Email nhận hóa đơn", "Nội dung hóa đơn",
+    "Tổng TT HĐ htoan Misa", "đã xuất hóa đơn", "Khu vực", "Dịch vụ", "Số hợp đồng",
+    "Mã đối tượng nội bộ", "Mã điểm ghi chú HT Misa", "Mã NCC HT Misa", "ghi chú",
+    "Dịch vụ thu hộ", "Những lưu ý khác (thời hạn hợp đồng, …)", "Pháp nhân",
+]
+
+
+def test_cot_dau_ra():
+    """Cột đầu ra phải chép đúng file VAT mẫu.
+
+    Kể cả chỗ tên cột không khớp nội dung ("Số hợp đồng (nếu có)" chứa hình thức
+    hợp tác, "Mã điểm nội bộ" chứa tên điểm). Khoá cứng ở đây để không ai đổi
+    tên cột cho "dễ hiểu" rồi làm hỏng bước dán vào Misa.
+    """
+    ds = [name for name, _ in report.DS_COLUMNS]
+    ke = [name for name, _ in report.KE_COLUMNS]
+    check("DS xuất HĐ MTT đúng 22 cột", len(ds) == 22, str(len(ds)))
+    check("DS xuất HĐ MTT đúng tên cột", ds == DS_MONG_DOI, str(ds))
+    check("bản kê đúng 22 cột cố định", len(ke) == 22, str(len(ke)))
+    check("bản kê đúng tên cột", ke == KE_MONG_DOI, str(ke))
+    check("cột Chưa VAT / VAT / Có VAT liền nhau", ds[11:14] == ["Chưa VAT", "VAT", "Có VAT"])
+    check("cột tiền của bản kê nằm ở Tổng TT HĐ htoan Misa", ke[10] == "Tổng TT HĐ htoan Misa")
+    check("hai bản lõi cùng bộ cột", ds == _cot_trong_js("DS_HEADER") and ke == _cot_trong_js("KE_HEADER"),
+          "web/js/report.js lệch với vatrec/report.py")
+
+
+def _cot_trong_js(ten: str) -> list[str]:
+    """Đọc lại danh sách cột khai trong web/js/report.js để so hai bản lõi."""
+    source = (Path(__file__).resolve().parent.parent / "web" / "js" / "report.js").read_text("utf-8")
+    start = source.index(f"var {ten} = [")
+    end = source.index("];", start)
+    # Cắt theo dấu nháy chứ không theo dấu phẩy — có tên cột chứa sẵn dấu phẩy.
+    return re.findall(r"'([^']*)'", source[start:end])
 
 
 # ----------------------------------------------------------------------- chạy

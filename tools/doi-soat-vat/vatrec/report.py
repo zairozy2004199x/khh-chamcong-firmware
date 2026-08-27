@@ -21,26 +21,61 @@ _THIN = Side(style="thin", color="BFBFBF")
 _BORDER = Border(left=_THIN, right=_THIN, top=_THIN, bottom=_THIN)
 _THU = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
 
+# Thứ tự và tên cột chép đúng theo file VAT mẫu, kể cả chỗ tên cột không khớp
+# nội dung: "Số hợp đồng (nếu có)" trong file gốc đang chứa hình thức hợp tác
+# (CSE), còn "Mã điểm nội bộ" chứa tên điểm xuất hoá đơn. Giữ nguyên như vậy để
+# dán thẳng vào quy trình cũ được, không phải sắp lại cột.
 DS_COLUMNS = [
-    ("STT", 6),
+    ("STT", 5),
     ("Ngày HĐ", 12),
-    ("Số HĐ", 10),
-    ("Tên khách hàng", 26),
-    ("Mã số thuế khách hàng", 18),
-    ("Địa chỉ khách hàng", 18),
-    ("Email nhận hóa đơn", 18),
-    ("Nội dung xuất hóa đơn", 26),
-    ("Số lượng", 9),
-    ("ĐVT", 7),
-    ("Đơn giá", 12),
+    ("Số HĐ", 9),
+    ("Tên khách hàng", 24),
+    ("Mã số thuế khách hàng", 17),
+    ("Địa chỉ khách hàng", 17),
+    ("Email nhận hóa đơn", 17),
+    ("Nội dung xuất hóa đơn", 25),
+    ("Số lượng", 8),
+    ("ĐVT", 6),
+    ("Thành tiền", 13),
     ("Chưa VAT", 15),
     ("VAT", 13),
     ("Có VAT", 15),
     ("Khu vực", 11),
     ("Dịch vụ", 10),
-    ("Hình thức hợp tác", 15),
-    ("Tên điểm xuất hóa đơn", 32),
-    ("Mã điểm trên misa thuế", 24),
+    ("Số hợp đồng (nếu có)", 16),
+    ("Mã điểm nội bộ", 32),
+    ("Mã điểm misa", 24),
+    ("Ghi chú", 12),
+    ("", 4),
+    ("Địa chỉ", 14),
+]
+
+# 21 cột đầu của bản kê cũng chép đúng file mẫu; phần pháp nhân và tách theo
+# luồng tiền nối thêm phía sau, để dán 21 cột đầu vào quy trình cũ mà vẫn giữ
+# chỗ đối chiếu ngược.
+KE_COLUMNS = [
+    ("STT", 5),
+    ("Tháng", 7),
+    ("Ngày HĐ", 12),
+    ("lọc trùng", 9),
+    ("Số HĐ", 9),
+    ("Tên khách hàng", 24),
+    ("Mã số thuế khách hàng", 17),
+    ("Địa chỉ khách hàng", 17),
+    ("Email nhận hóa đơn", 17),
+    ("Nội dung hóa đơn", 25),
+    ("Tổng TT HĐ htoan Misa", 18),
+    ("đã xuất hóa đơn", 12),
+    ("Khu vực", 11),
+    ("Dịch vụ", 10),
+    ("Số hợp đồng", 15),
+    ("Mã đối tượng nội bộ", 32),
+    ("Mã điểm ghi chú HT Misa", 24),
+    ("Mã NCC HT Misa", 14),
+    ("ghi chú", 10),
+    ("Dịch vụ thu hộ", 24),
+    ("Những lưu ý khác (thời hạn hợp đồng, …)", 26),
+    ("Pháp nhân", 12),
 ]
 
 
@@ -61,7 +96,7 @@ def write_workbook(
     book.remove(book.active)
 
     _sheet_ds_xuat_hd(book, invoices, noi_dung, ten_khach)
-    _sheet_ke_ds(book, invoices, ky_tu, ky_den, noi_dung, ten_khach)
+    _sheet_ke_ds(book, invoices, noi_dung, ten_khach)
     for stream in result.streams:
         # Luồng không phát sinh đồng nào thì bỏ sheet, khỏi rác file.
         if result.total(stream=stream):
@@ -99,23 +134,26 @@ def _sheet_ds_xuat_hd(book: Workbook, invoices: list[Invoice], noi_dung: str, te
         values = [
             invoice.stt,
             invoice.ngay_hd,
-            None,  # Số HĐ do Misa cấp
+            None,  # Số HĐ do Misa cấp khi nhập
             ten_khach,
-            None,
-            None,
-            None,
+            None,  # Mã số thuế khách hàng
+            None,  # Địa chỉ khách hàng
+            None,  # Email nhận hóa đơn
             noi_dung,
             1,
             "Kỳ",
-            None,
+            None,  # Thành tiền — để trống như file mẫu
             invoice.chua_vat,
             invoice.vat,
             invoice.co_vat,
             invoice.khu_vuc,
             invoice.dich_vu,
-            invoice.hinh_thuc_hop_tac,
-            invoice.diem.ten_diem,
+            invoice.hinh_thuc_hop_tac,  # cột "Số hợp đồng (nếu có)"
+            invoice.diem.ten_diem,      # cột "Mã điểm nội bộ"
             invoice.diem.ma_misa,
+            None,  # Ghi chú
+            None,
+            None,  # Địa chỉ
         ]
         for column, value in enumerate(values, start=1):
             cell = sheet.cell(row=row, column=column, value=value)
@@ -128,54 +166,43 @@ def _sheet_ds_xuat_hd(book: Workbook, invoices: list[Invoice], noi_dung: str, te
     _total_row(sheet, len(invoices) + 2, len(DS_COLUMNS), {12: "L", 13: "M", 14: "N"}, len(invoices))
 
 
-def _sheet_ke_ds(
-    book: Workbook, invoices: list[Invoice], ky_tu: _dt.date, ky_den: _dt.date, noi_dung: str, ten_khach: str
-) -> None:
+def _sheet_ke_ds(book: Workbook, invoices: list[Invoice], noi_dung: str, ten_khach: str) -> None:
     """Bản kê chi tiết: thêm cột tách theo từng luồng tiền để đối chiếu ngược."""
     sheet = book.create_sheet("kê ds xuất HĐ MTT")
     streams = sorted({stream for invoice in invoices for stream in invoice.chi_tiet_luong})
-    labels = [
-        "STT",
-        "Tháng",
-        "Ngày HĐ",
-        "Số HĐ",
-        "Tên khách hàng",
-        "Nội dung xuất hóa đơn",
-        "Tổng TT HĐ htoan Misa",
-        "Khu vực",
-        "Dịch vụ",
-        "Hình thức hợp tác",
-        "Tên điểm xuất hóa đơn",
-        "Mã điểm trên misa thuế",
-        "Pháp nhân",
-        "Kỳ",
-        *streams,
-    ]
+    labels = [name for name, _ in KE_COLUMNS] + streams
     _header(sheet, labels)
-    widths = [6, 8, 12, 10, 24, 26, 18, 11, 10, 15, 32, 24, 12, 20]
-    for index, width in enumerate(widths, start=1):
+    for index, (_, width) in enumerate(KE_COLUMNS, start=1):
         sheet.column_dimensions[get_column_letter(index)].width = width
-    for index in range(len(widths) + 1, len(labels) + 1):
+    for index in range(len(KE_COLUMNS) + 1, len(labels) + 1):
         sheet.column_dimensions[get_column_letter(index)].width = 18
 
-    ky = f"{ky_tu:%d/%m/%Y} - {ky_den:%d/%m/%Y}"
     for offset, invoice in enumerate(invoices):
         row = offset + 2
+        ngay = invoice.ngay_hd
         values = [
             invoice.stt,
-            invoice.ngay_hd.month,
-            invoice.ngay_hd,
-            None,
+            ngay.month,
+            ngay,
+            None,  # lọc trùng
+            None,  # Số HĐ do Misa cấp khi nhập
             ten_khach,
+            None,  # Mã số thuế khách hàng
+            None,  # Địa chỉ khách hàng
+            None,  # Email nhận hóa đơn
             noi_dung,
             invoice.co_vat,
+            None,  # đã xuất hóa đơn
             invoice.khu_vuc,
             invoice.dich_vu,
-            invoice.hinh_thuc_hop_tac,
-            invoice.diem.ten_diem,
+            invoice.hinh_thuc_hop_tac,  # cột "Số hợp đồng"
+            invoice.diem.ten_diem,      # cột "Mã đối tượng nội bộ"
             invoice.diem.ma_misa,
+            None,  # Mã NCC HT Misa
+            f"t{ngay:%m/%y}",
+            ", ".join(invoice.chi_tiet_luong),
+            None,  # Những lưu ý khác
             invoice.diem.phap_nhan,
-            ky,
             *[invoice.chi_tiet_luong.get(stream, 0) for stream in streams],
         ]
         for column, value in enumerate(values, start=1):
@@ -183,11 +210,14 @@ def _sheet_ke_ds(
             cell.border = _BORDER
             if column == 3:
                 cell.number_format = _NGAY
-            elif column == 7 or column > len(widths):
+            elif column == 11 or column > len(KE_COLUMNS):
                 cell.number_format = _TIEN
 
-    money = {7: "G"}
-    money.update({len(widths) + i + 1: get_column_letter(len(widths) + i + 1) for i in range(len(streams))})
+    money = {11: "K"}
+    money.update({
+        len(KE_COLUMNS) + i + 1: get_column_letter(len(KE_COLUMNS) + i + 1)
+        for i in range(len(streams))
+    })
     _total_row(sheet, len(invoices) + 2, len(labels), money, len(invoices))
 
 

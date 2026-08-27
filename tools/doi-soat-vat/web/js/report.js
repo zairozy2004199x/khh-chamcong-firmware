@@ -10,12 +10,29 @@
   var TIEN = '#,##0';
   var NGAY = 'dd/mm/yyyy';
 
+  /*
+   * Thứ tự và tên cột chép đúng theo file VAT mẫu, kể cả chỗ tên cột không khớp
+   * nội dung: "Số hợp đồng (nếu có)" trong file gốc đang chứa hình thức hợp tác
+   * (CSE), còn "Mã điểm nội bộ" chứa tên điểm xuất hoá đơn. Giữ nguyên như vậy để
+   * dán thẳng vào quy trình cũ được, không phải sắp lại cột.
+   */
   var DS_HEADER = ['STT', 'Ngày HĐ', 'Số HĐ', 'Tên khách hàng', 'Mã số thuế khách hàng',
     'Địa chỉ khách hàng', 'Email nhận hóa đơn', 'Nội dung xuất hóa đơn', 'Số lượng', 'ĐVT',
-    'Đơn giá', 'Chưa VAT', 'VAT', 'Có VAT', 'Khu vực', 'Dịch vụ', 'Hình thức hợp tác',
-    'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế'];
+    'Thành tiền', 'Chưa VAT', 'VAT', 'Có VAT', 'Khu vực', 'Dịch vụ', 'Số hợp đồng (nếu có)',
+    'Mã điểm nội bộ', 'Mã điểm misa', 'Ghi chú', '', 'Địa chỉ'];
 
-  var DS_WIDTHS = [5, 12, 9, 24, 17, 17, 17, 25, 8, 6, 11, 15, 13, 15, 11, 9, 15, 32, 24];
+  /*
+   * 22 cột đầu của bản kê cũng chép đúng file mẫu (21 cột gốc + "Pháp nhân");
+   * phần tách theo từng luồng tiền nối thêm phía sau, để dán 21 cột đầu vào quy
+   * trình cũ mà vẫn giữ chỗ đối chiếu ngược.
+   */
+  var KE_HEADER = ['STT', 'Tháng', 'Ngày HĐ', 'lọc trùng', 'Số HĐ', 'Tên khách hàng',
+    'Mã số thuế khách hàng', 'Địa chỉ khách hàng', 'Email nhận hóa đơn', 'Nội dung hóa đơn',
+    'Tổng TT HĐ htoan Misa', 'đã xuất hóa đơn', 'Khu vực', 'Dịch vụ', 'Số hợp đồng',
+    'Mã đối tượng nội bộ', 'Mã điểm ghi chú HT Misa', 'Mã NCC HT Misa', 'ghi chú',
+    'Dịch vụ thu hộ', 'Những lưu ý khác (thời hạn hợp đồng, …)', 'Pháp nhân'];
+
+  var DS_WIDTHS = [5, 12, 9, 24, 17, 17, 17, 25, 8, 6, 13, 15, 13, 15, 11, 10, 16, 32, 24, 12, 4, 14];
 
   /**
    * Dựng workbook hoàn chỉnh.
@@ -81,21 +98,26 @@
       rows.push([
         invoice.stt,
         excelDate(invoice.ngay || opts.ngayHoaDon),
-        null, // Số HĐ do Misa cấp
+        null,                            // Số HĐ - Misa cấp khi nhập
         opts.tenKhach,
-        null, null, null,
+        null,                            // Mã số thuế khách hàng
+        null,                            // Địa chỉ khách hàng
+        null,                            // Email nhận hóa đơn
         opts.noiDung,
         1,
         'Kỳ',
-        null,
+        null,                            // Thành tiền - để trống như file mẫu
         invoice.chuaVat,
         invoice.vat,
         invoice.coVat,
         invoice.diem.khuVuc,
         invoice.diem.dichVu,
-        invoice.diem.hinhThucHopTac,
-        invoice.diem.tenDiem,
-        invoice.diem.maMisa
+        invoice.diem.hinhThucHopTac,     // cột "Số hợp đồng (nếu có)"
+        invoice.diem.tenDiem,            // cột "Mã điểm nội bộ"
+        invoice.diem.maMisa,
+        null,                            // Ghi chú
+        null,
+        null                             // Địa chỉ
       ]);
       formats[r + ',1'] = NGAY;
       [11, 12, 13].forEach(function (c) { formats[r + ',' + c] = TIEN; });
@@ -114,28 +136,46 @@
     });
     streams.sort();
 
-    var header = ['STT', 'Tháng', 'Ngày HĐ', 'Số HĐ', 'Tên khách hàng', 'Nội dung xuất hóa đơn',
-      'Tổng TT HĐ htoan Misa', 'Khu vực', 'Dịch vụ', 'Hình thức hợp tác',
-      'Tên điểm xuất hóa đơn', 'Mã điểm trên misa thuế', 'Pháp nhân', 'Kỳ'].concat(streams);
+    var header = KE_HEADER.concat(streams);
     var rows = [header];
     var formats = {};
-    var moneyColumns = [6].concat(streams.map(function (_, i) { return 14 + i; }));
-    var ky = viDate(opts.kyTu) + ' - ' + viDate(opts.kyDen);
+    var moneyColumns = [10].concat(streams.map(function (_, i) {
+      return KE_HEADER.length + i;
+    }));
 
     opts.invoices.forEach(function (invoice, i) {
       var r = i + 1;
+      var ngay = invoice.ngay || opts.ngayHoaDon;
       rows.push([
         invoice.stt,
-        Number((invoice.ngay || opts.ngayHoaDon).slice(5, 7)),
-        excelDate(invoice.ngay || opts.ngayHoaDon), null, opts.tenKhach, opts.noiDung,
-        invoice.coVat, invoice.diem.khuVuc, invoice.diem.dichVu, invoice.diem.hinhThucHopTac,
-        invoice.diem.tenDiem, invoice.diem.maMisa, invoice.diem.phapNhan, ky
-      ].concat(streams.map(function (stream) { return invoice.chiTietLuong[stream] || 0; })));
+        Number(ngay.slice(5, 7)),
+        excelDate(ngay),
+        null,                              // lọc trùng
+        null,                              // Số HĐ - Misa cấp khi nhập
+        opts.tenKhach,
+        null, null, null,                  // MST / địa chỉ / email khách hàng
+        opts.noiDung,
+        invoice.coVat,
+        null,                              // đã xuất hóa đơn
+        invoice.diem.khuVuc,
+        invoice.diem.dichVu,
+        invoice.diem.hinhThucHopTac,       // cột "Số hợp đồng"
+        invoice.diem.tenDiem,              // cột "Mã đối tượng nội bộ"
+        invoice.diem.maMisa,
+        null,                              // Mã NCC HT Misa
+        't' + ngay.slice(5, 7) + '/' + ngay.slice(2, 4),
+        Object.keys(invoice.chiTietLuong).join(', '),
+        null                               // Những lưu ý khác
+      ].concat([invoice.diem.phapNhan])
+       .concat(streams.map(function (stream) { return invoice.chiTietLuong[stream] || 0; })));
       formats[r + ',2'] = NGAY;
       moneyColumns.forEach(function (c) { formats[r + ',' + c] = TIEN; });
     });
     pushTotal(rows, formats, moneyColumns, header.length);
-    return { rows: rows, formats: formats, widths: [5, 7, 12, 9, 24, 25, 18, 11, 9, 15, 32, 24, 12, 22] };
+    return {
+      rows: rows, formats: formats,
+      widths: [5, 7, 12, 9, 9, 24, 17, 17, 17, 25, 18, 12, 11, 10, 15, 32, 24, 14, 10, 24, 26, 12]
+    };
   }
 
   /** Một sheet cho mỗi luồng tiền: điểm xuất hoá đơn x ngày. */
@@ -451,5 +491,8 @@
     return cleaned.slice(0, 28) + '~';
   }
 
-  root.VatRecReport = { buildWorkbook: buildWorkbook, safeTitle: safeTitle };
+  root.VatRecReport = {
+    buildWorkbook: buildWorkbook, safeTitle: safeTitle,
+    DS_HEADER: DS_HEADER, KE_HEADER: KE_HEADER
+  };
 }(typeof self !== 'undefined' ? self : this));

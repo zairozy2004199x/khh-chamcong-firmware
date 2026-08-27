@@ -353,6 +353,44 @@ mã vẫn được coi là hai giao dịch thật.
 | `Tổng theo ngày` | Mỗi ngày trong kỳ một dòng: tổng, chưa VAT, VAT, số điểm phát sinh, tách theo luồng |
 | `Đối soát` | Tổng theo luồng, số hoá đơn, và **toàn bộ cảnh báo ở mục 3.5** |
 
+### 5.1. Cột của hai sheet chính
+
+Tên và thứ tự cột chép **đúng nguyên văn** file VAT mẫu, để dán thẳng vào quy
+trình cũ mà không phải sắp lại cột.
+
+`DS xuất HĐ MTT` — 22 cột:
+
+```
+STT · Ngày HĐ · Số HĐ · Tên khách hàng · Mã số thuế khách hàng · Địa chỉ khách hàng ·
+Email nhận hóa đơn · Nội dung xuất hóa đơn · Số lượng · ĐVT · Thành tiền ·
+Chưa VAT · VAT · Có VAT · Khu vực · Dịch vụ · Số hợp đồng (nếu có) ·
+Mã điểm nội bộ · Mã điểm misa · Ghi chú · (trống) · Địa chỉ
+```
+
+`kê ds xuất HĐ MTT` — 21 cột gốc, rồi `Pháp nhân`, rồi mỗi luồng tiền một cột:
+
+```
+STT · Tháng · Ngày HĐ · lọc trùng · Số HĐ · Tên khách hàng · Mã số thuế khách hàng ·
+Địa chỉ khách hàng · Email nhận hóa đơn · Nội dung hóa đơn · Tổng TT HĐ htoan Misa ·
+đã xuất hóa đơn · Khu vực · Dịch vụ · Số hợp đồng · Mã đối tượng nội bộ ·
+Mã điểm ghi chú HT Misa · Mã NCC HT Misa · ghi chú · Dịch vụ thu hộ ·
+Những lưu ý khác (thời hạn hợp đồng, …)   ||   Pháp nhân · <từng luồng tiền>
+```
+
+**Hai chỗ tên cột không khớp nội dung — giữ nguyên theo file gốc, đừng sửa:**
+
+| Cột | Thật ra chứa |
+|---|---|
+| `Số hợp đồng (nếu có)` / `Số hợp đồng` | Hình thức hợp tác (`CSE`, …) |
+| `Mã điểm nội bộ` / `Mã đối tượng nội bộ` | Tên điểm xuất hoá đơn |
+
+Cột `ghi chú` của bản kê tự điền kỳ dạng `t08/26`; cột `Dịch vụ thu hộ` liệt kê
+các luồng tiền đã cộng vào dòng đó. Cột `Số HĐ` luôn để trống vì số do Misa cấp.
+
+Bộ cột này được khoá cứng trong cả hai bộ test (`tests/test_vatrec.py` và
+`tests/core.test.js`), và test còn so hai bản lõi Python / JavaScript với nhau —
+đổi tên cột ở một bên mà quên bên kia là test đỏ ngay.
+
 Dòng `TỔNG` cuối mỗi bảng dùng công thức `SUM()`, nên sửa số trong file thì tổng
 tự cập nhật.
 
