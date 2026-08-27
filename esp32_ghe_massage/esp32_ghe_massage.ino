@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27g (QR_BU_MS=1500 khop ghe; ghe dung dot ngot canh bao man+web)"
+#define FW_VERSION "ghe-massage 2026-08-27h (dung stop 1p khong chay lai -> bao web + tat QR, chan tu chay lai)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -254,10 +254,11 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
 #define QR_BU_MS           1500
 /* GHẾ DỪNG ĐỘT NGỘT giữa chừng (đã chạy rồi, CÒN giờ): giữ giờ (QR tạm dừng), chờ chạy lại.
    - Dừng > GHE_DUNG_MS      -> CẢNH BÁO NGAY TRÊN MÀN (đỏ) cho nhân viên gần đó.
-   - Dừng >= GHE_BAOWEB_MS   -> ĐẨY LỖI VỀ WEB 'ghedungdotngot' (văn phòng/quản lý xa biết).
-   - Ghế chạy lại            -> gỡ cảnh báo (màn + web), đếm tiếp.
-   Không tự kết thúc phiên -> giữ giờ cho khách; kết thúc khi hết giờ hoặc lệnh tắt từ xa. */
-#define GHE_BAOWEB_MS      60000     // dừng liên tục 1 phút -> báo lỗi về web
+   - Ghế ĐẢO CHẠY LẠI < 1 phút -> gỡ cảnh báo (màn + web), đếm tiếp (kẹt tạm).
+   - Dừng >= GHE_BAOWEB_MS (không đảo chạy lại) -> BÁO LỖI VỀ WEB 'ghedungdotngot' + KẾT THÚC
+     phiên (tắt QR). Đóng phiên nên ghế/chân pulse tự xuống LOW sau đó cũng KHÔNG tự chạy đếm
+     lại (phải trả tiền mới). Đúng ý: bấm stop, 1 phút không chạy lại -> báo lỗi + tắt QR. */
+#define GHE_BAOWEB_MS      60000     // dừng liên tục 1 phút không chạy lại -> báo web + tắt QR (kết thúc)
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -2137,8 +2138,15 @@ void loop(){
         if(!g_baoDungDot && now - g_dungTu > GHE_DUNG_MS){   // >1.5s -> cảnh báo NGAY TRÊN MÀN
           g_baoDungDot = true; g_statusDirty = true;
           Serial.println("[GHE] DUNG DOT NGOT (con gio) -> canh bao man"); }
-        if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){        // >=1 phút -> báo lỗi VỀ WEB
-          ghiLoiTien("ghedungdotngot", true); }              // (ghiLoiTien tự chống lặp)
+        if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){        // >=1 phút -> báo web + KẾT THÚC phiên
+          /* Dừng đủ lâu = coi như xong/bỏ. KẾT THÚC luôn để ghế (hoặc chân pulse) có TỰ XUỐNG
+             LOW lại sau đó cũng KHÔNG tự chạy đếm lại — phải trả tiền mới. tm_cuoi giữ dấu vết
+             'ghedungdotngot' cho web thấy sau khi đóng phiên. (Kẹt tạm <1 phút thì đã chạy lại
+             đếm tiếp ở nhánh gheChay, không tới đây.) */
+          ghiLoiTien("ghedungdotngot", true);
+          Serial.println("[GHE] dung >1 phut -> bao web + KET THUC phien (chan QR tu chay lai)");
+          ketThucPhien("ghe dung dot ngot qua 1 phut");
+        }
       }
     }
 #endif
