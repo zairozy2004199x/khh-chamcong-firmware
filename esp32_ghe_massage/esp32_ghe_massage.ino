@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27k (khoa loi nho ma qua reboot + che do ky thuat khong khoa)"
+#define FW_VERSION "ghe-massage 2026-08-27l (man khoa loi nhay 5s: hotline <-> dung tien mat)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -388,6 +388,8 @@ bool     g_baoGheChet = false;  // đang treo cảnh báo 'ghekhongchay' (paid m
 bool     g_baoDungDot = false;  // đang treo cảnh báo 'ghedungdotngot' (đang chạy mà DỪNG đột ngột, còn giờ)
 bool          g_gheLoi     = false;  // KHÓA ghế lỗi (persistent NVS) - chỉ 'mokhoa' từ web mới gỡ
 volatile bool g_remoteMoKhoa = false;// web (hotline) gửi lệnh mở khóa lỗi
+uint32_t g_gheLoiLuc  = 0;      // millis lần đổi mặt màn khóa lỗi (nhảy 5s: hotline <-> tiền mặt)
+bool     g_gheLoiMat2 = false;  // false = mặt hotline, true = mặt "dùng tiền mặt"
 volatile bool g_kyThuat    = false;  // CHẾ ĐỘ KỸ THUẬT (test): không chờ 30s, không khóa, báo 5s tự gỡ
 uint32_t g_ktHetHan   = 0;      // millis chế độ kỹ thuật tự tắt (0 = không bật)
 volatile bool g_remoteKtOn = false, g_remoteKtOff = false;  // web bật/tắt chế độ kỹ thuật
@@ -1232,18 +1234,28 @@ void drawRunning(int secLeft){
 
 /* MÀN "GHẾ LỖI" — khi ghế bị KHÓA lỗi (g_gheLoi). Chặn khách, hiện hotline. Chỉ hotline mở
    lại từ xa (lệnh 'mokhoa') mới về màn thường. */
-void drawGheLoi(){
+void drawGheLoi(bool matTienMat){
   tft.fillScreen(TFT_RED);
   tft.setTextDatum(MC_DATUM);
+  if(!matTienMat){
+    /* Mặt 1: tạm ngưng + hotline. */
+    tft.setTextColor(TFT_WHITE, TFT_RED);
+    tft.drawString("GHE TAM NGUNG", 160, 60, 4);
+    tft.drawString("PHUC VU QR", 160, 94, 4);
+    tft.setTextColor(TFT_YELLOW, TFT_RED);
+    tft.drawString("Vui long lien he hotline:", 160, 134, 2);
+    tft.setTextColor(TFT_WHITE, TFT_RED);
+    tft.drawString(HOTLINE, 160, 166, 4);
+  } else {
+    /* Mặt 2: hướng khách sang TIỀN MẶT (cục ICT qua rơ-le fail-safe vẫn nhận). */
+    tft.setTextColor(TFT_YELLOW, TFT_RED);
+    tft.drawString("QR TAM NGUNG", 160, 64, 4);
+    tft.setTextColor(TFT_WHITE, TFT_RED);
+    tft.drawString("VUI LONG", 160, 108, 4);
+    tft.drawString("SU DUNG TIEN MAT", 160, 146, 4);
+  }
   tft.setTextColor(TFT_WHITE, TFT_RED);
-  tft.drawString("GHE TAM NGUNG", 160, 66, 4);
-  tft.drawString("PHUC VU", 160, 100, 4);
-  tft.setTextColor(TFT_YELLOW, TFT_RED);
-  tft.drawString("Vui long lien he hotline:", 160, 140, 2);
-  tft.setTextColor(TFT_WHITE, TFT_RED);
-  tft.drawString(HOTLINE, 160, 172, 4);
-  tft.setTextColor(TFT_WHITE, TFT_RED);
-  tft.drawString(String("Ghe ") + (CHAIR_ID.length()?CHAIR_ID:String("--")) + "  -  K&H", 160, 214, 2);
+  tft.drawString(String("Ghe ") + (CHAIR_ID.length()?CHAIR_ID:String("--")) + "  -  K&H", 160, 216, 2);
 }
 
 /* MÀN "CẢM ƠN" — hiện khi ghế vừa nhận tiền, trước khi phóng to đồng hồ đếm ngược.
@@ -2303,8 +2315,11 @@ void loop(){
       delay(1200);
       ESP.restart();
     }
-    if(g_gheLoi){                                  // ĐANG KHÓA LỖI -> màn hotline, CHẶN khách quét
-      if(!screenDrawn){ drawGheLoi(); screenDrawn=true; }
+    if(g_gheLoi){                                  // ĐANG KHÓA LỖI -> màn cảnh báo, CHẶN khách quét
+      uint32_t nowL = millis();
+      if(!screenDrawn){ g_gheLoiLuc = nowL; g_gheLoiMat2 = false; drawGheLoi(false); screenDrawn = true; }
+      else if(nowL - g_gheLoiLuc >= 5000){         // nhảy 5s: hotline <-> "dùng tiền mặt"
+        g_gheLoiLuc = nowL; g_gheLoiMat2 = !g_gheLoiMat2; drawGheLoi(g_gheLoiMat2); }
       delay(20); return;                           // bỏ qua chọn gói/QR tới khi hotline mở khóa từ xa
     }
     if(!screenDrawn){ drawIdle(); screenDrawn=true; }
