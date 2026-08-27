@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27s (the goi 3D + de giu phong to QR o man thanh toan)"
+#define FW_VERSION "ghe-massage 2026-08-27t (doi tong SANG: nen xanh bien, the teal tuoi, gia trang)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -858,19 +858,20 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 /* ===== TÔNG XANH cho màn CHỌN GÓI (ảnh mẫu anh Thắng 27/08): nền teal tối, thẻ viền sáng,
    giá cyan nổi. Đây là MÀU HIỂN THỊ — panel này đảo màu (invertDisplay) nên giá trị đặt ra sẽ
    hiện đúng như vậy, giống bộ COL_* sẵn có. Chỉnh số nếu nạp lên thấy lệch tông. ===== */
-#define COL_T_BG    0x0124   // nền toàn màn (xanh đen)
-#define COL_T_NEN   0x0208   // nền thẻ gói (teal tối)
-#define COL_T_VIEN  0x05FF   // viền sáng thẻ (glow) — cyan
-#define COL_T_VIEN2 0x02D4   // viền lớp ngoài mờ hơn (giả quầng sáng)
-#define COL_T_GIA   0x07FF   // số tiền — cyan sáng
-#define COL_T_TEN   0xCE79   // tên gói — xám sáng
-#define COL_T_PHU   0x4E92   // phút / mô tả — teal mờ
-#define COL_T_ID    0x07E0   // mã ghế góc phải — xanh lá
-#define COL_T_BAR   0x0186   // dải tiêu đề / dải chân — teal tối
-/* Khối 3D cho thẻ gói: chuyển màu đỉnh->đáy + bóng đổ. */
-#define COL_T_DINH  0x1CB6   // đỉnh thẻ (teal sáng)
-#define COL_T_DAY   0x0208   // đáy thẻ (teal tối)
-#define COL_T_BONG  0x0000   // bóng đổ sau thẻ (đen)
+/* Tông SÁNG (anh Thắng: "màu sáng đi") — nền xanh biển, thẻ teal tươi, chữ trắng, glow cyan. */
+#define COL_T_BG    0x1A6B   // nền toàn màn (xanh biển vừa)
+#define COL_T_NEN   0x2C30   // nền thẻ (teal tươi)
+#define COL_T_VIEN  0x5FFF   // viền sáng thẻ (glow) — cyan nhạt
+#define COL_T_VIEN2 0x2E5F   // viền lớp ngoài mờ hơn
+#define COL_T_GIA   0xFFFF   // số tiền — TRẮNG (rõ nhất)
+#define COL_T_TEN   0xFFFF   // tên gói — trắng
+#define COL_T_PHU   0xB6FD   // phút / mô tả — xanh nhạt
+#define COL_T_ID    0x27E9   // mã ghế góc phải — xanh lá sáng
+#define COL_T_BAR   0x22EE   // dải tiêu đề / dải chân — teal sáng
+/* Khối 3D cho thẻ gói: chuyển màu đỉnh (sáng) -> đáy (tối hơn) + bóng đổ. */
+#define COL_T_DINH  0x3EBB   // đỉnh thẻ (teal-xanh sáng)
+#define COL_T_DAY   0x1C90   // đáy thẻ (teal vừa)
+#define COL_T_BONG  0x0882   // bóng đổ sau thẻ (xanh tối)
 
 /* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
 Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,122,150,84} };
