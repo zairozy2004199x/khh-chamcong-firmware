@@ -2819,14 +2819,57 @@ function veKtDuyet(){
     + '<div class="act" style="flex-wrap:wrap"><input type="month" id="ktd-thang" style="max-width:170px">'
     + '<button id="ktd-xem" class="on">' + L('Xem','Load') + '</button>'
     + '<span id="ktd-msg" class="mut"></span></div>'
-    + '<div id="ktd-list" style="margin-top:12px"></div></div>';
+    + '<div id="ktd-list" style="margin-top:12px"></div></div>'
+    + '<div class="card"><h2>🗑 ' + L('Thùng rác','Trash') + '</h2>'
+    + '<p class="mut">' + L('Ghế đã xoá — hoàn tác được.','Deleted chairs — restorable.') + '</p><div id="ktd-rac"></div></div>'
+    + '<div class="card"><h2>↩ ' + L('Nhật ký hoàn tác','Undo log') + '</h2><div id="ktd-undo"></div></div>';
 }
 function ktdInit(){
   var iT=document.getElementById('ktd-thang');
   if(!KTD_THANG) KTD_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
   if(iT&&KTD_THANG) iT.value=KTD_THANG;
   document.getElementById('ktd-xem').onclick=function(){ KTD_THANG=iT.value; ktdLoad(); };
-  ktdLoad();
+  ktdLoad(); ktdRac(); ktdUndo();
+}
+function ktdRac(){
+  var box=document.getElementById('ktd-rac'); if(!box) return; box.textContent='';
+  goi('kt_rac_ds',{},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Thùng rác trống.','Empty.'))); return; }
+    r.rows.forEach(function(x){
+      var it=ktEl('div','act'); it.style.cssText='flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);padding:6px 0';
+      var t=ktEl('div'); t.style.flex='1';
+      t.appendChild(ktEl('b',null,(x.chairCode)+' · '+x.coso+' · '+x.ngay));
+      t.appendChild(ktEl('div','mut',L('Lý do','Reason')+': '+(x.ly_do||'—')+(x.boi?(' · '+x.boi):'')));
+      it.appendChild(t);
+      var m=ktEl('span','mut'); var b=ktEl('button','ghost',L('Hoàn tác','Restore')); b.style.cssText='padding:4px 9px;font-size:12px';
+      b.onclick=function(){ ktAct('kt_rac_hoan',{ids:[x.id]},m,function(){ ktdRac(); ktdLoad(); }); };
+      it.appendChild(b); it.appendChild(m); box.appendChild(it);
+    });
+  });
+}
+function ktdUndo(){
+  var box=document.getElementById('ktd-undo'); if(!box) return; box.textContent='';
+  goi('kt_undo_ds',{},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Chưa có thao tác nào.','Nothing yet.'))); return; }
+    var ten={sua:'Sửa số liệu',qr:'Áp QR',doisoat:'Đối soát nộp',doi_ngay:'Đổi ngày'};
+    r.rows.forEach(function(x){
+      var it=ktEl('div','act'); it.style.cssText='flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);padding:6px 0';
+      var t=ktEl('div'); t.style.flex='1';
+      t.appendChild(ktEl('b',null,(ten[x.viec]||x.viec)+(x.daHoanTac?' · ĐÃ HOÀN TÁC':'')));
+      t.appendChild(ktEl('div','mut',(x.ly_do||'')+(x.boi?(' · '+x.boi):'')+' · '+x.luc));
+      it.appendChild(t);
+      if(!x.daHoanTac && (x.viec==='sua'||x.viec==='qr'||x.viec==='doisoat')){
+        var m=ktEl('span','mut'); var b=ktEl('button','ghost',L('Hoàn tác','Undo')); b.style.cssText='padding:4px 9px;font-size:12px';
+        b.onclick=function(){ if(!confirm(L('Hoàn tác thao tác này?','Undo this?'))) return; ktAct('kt_undo',{id:x.id},m,function(){ ktdUndo(); ktdLoad(); }); };
+        it.appendChild(b); it.appendChild(m);
+      }
+      box.appendChild(it);
+    });
+  });
 }
 function ktdLoad(){
   var box=document.getElementById('ktd-list'); if(!box) return;
