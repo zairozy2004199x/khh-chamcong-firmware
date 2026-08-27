@@ -8861,6 +8861,139 @@ t( '🔴 sua_o có trong danh sách tham số chở qua lượt POST',
 	in_array( 'sua_o', VHCC_TrangNS::THAM_SO, true ), VHCC_TrangNS::THAM_SO );
 vhcc_dung_bang();
 
+/* ==========================================================================================
+ *  65. MÀN GIỜ & LƯƠNG RA NGOÀI WEB
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng chốt từ đầu: *"mọi việc anh thao tác trên web giao diện bên ngoài hết, không làm
+ *  bên trong wp-admin"*. Màn này kế toán mở mỗi cuối tháng, mà wp-admin đòi một tài khoản
+ *  WordPress họ không có — và cũng không nên có: tài khoản wp-admin mở ra cả website chứ không
+ *  riêng chấm công.
+ *
+ *  🔴 MÀN NÀY CHỈ VẼ. Mọi phép tính tiền nằm ở `VHCC_Luong::bang_cong_va_luong()` — đúng hàm mà
+ *  màn wp-admin vẫn gọi. Hai nơi cùng tính lương là hai nơi sớm muộn ra hai con số, mà không ai
+ *  biết tin cái nào.
+ * ======================================================================================== */
+$lw_ma = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+$lw_i  = strpos( $lw_ma, 'private static function the_man_luong' );
+$lw_j  = strpos( $lw_ma, 'private static function the_man_cau_hinh' );
+$lw_than = substr( $lw_ma, $lw_i, $lw_j - $lw_i );
+t( 'màn lương gọi ĐÚNG hàm nghiệp vụ đang dùng ở wp-admin',
+	strpos( $lw_than, 'VHCC_Luong::bang_cong_va_luong(' ) !== false );
+/* 🔴 KHÔNG MỘT CÔNG THỨC NÀO Ở PHẦN VẼ. Nhân, chia, cộng tiền ở đây là bắt đầu con đường hai
+   nơi ra hai con số. `number_format` thì được — đó là định dạng, không phải phép tính.
+   ⚠️ Mẫu phải nuốt cả chuỗi chỉ số LỒNG (`$e['cong']['thuong']`), không chỉ một tầng: bản đầu
+      chỉ bắt một tầng nên `$e['cong']['thuong'] * 100` lọt — phá thử tìm ra. */
+t( '🔴 phần vẽ KHÔNG có phép nhân/chia nào (không tự tính tiền)',
+	preg_match( '#\$[a-z_]+(\[[^]]+\])+\s*[*/]\s*#i', $lw_than ) === 0, $lw_than );
+
+/* 🔴 MÀN WEB VÀ MÀN WP-ADMIN PHẢI ĐỌC ĐÚNG CÙNG BỘ KHOÁ.
+   Cả hai gọi cùng `bang_cong_va_luong()`, nên chúng đọc cùng một mảng kết quả. Gõ nhầm một tên
+   khoá thì `esc_html()` nhận null và in ra ô TRỐNG: không lỗi, không cảnh báo — chỉ là một cột
+   trắng trơn trong bảng soi lương. Mà bảng soi lương trắng một cột thì người đọc tưởng tháng ấy
+   không ai tăng ca, chứ không nghĩ là phần mềm gõ nhầm chữ.
+
+   Em vấp đúng chỗ này lúc bê màn ra: gõ `tangCa`/`bu` thay vì `congTangCa`/`congBu`. Phép so
+   dưới đây canh cả những khoá em chưa nghĩ tới — và canh cả chiều ngược lại, tức là ngày nào
+   màn wp-admin thêm cột mà màn web quên theo. */
+$lw_adm  = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
+$lw_ai   = strpos( $lw_adm, 'public static function trang_luong' );
+$lw_aj   = strpos( $lw_adm, 'public static function trang_cong_may' );
+$lw_a_th = substr( $lw_adm, $lw_ai, $lw_aj - $lw_ai );
+preg_match_all( "/\\$[dvem]\['([a-zA-Z]+)'\]/", $lw_a_th, $lw_ma_a );
+preg_match_all( "/\\$[dvem]\['([a-zA-Z]+)'\]/", $lw_than, $lw_ma_w );
+$lw_ka = array_unique( $lw_ma_a[1] );
+$lw_kw = array_unique( $lw_ma_w[1] );
+sort( $lw_ka ); sort( $lw_kw );
+t( 'dò được kha khá khoá ở cả hai màn (nếu 0 thì phép so này vô nghĩa)',
+	count( $lw_ka ) >= 20 && count( $lw_kw ) >= 20, array( count( $lw_ka ), count( $lw_kw ) ) );
+teq( '🔴 màn web KHÔNG thiếu khoá nào so với màn wp-admin', array(),
+	array_values( array_diff( $lw_ka, $lw_kw ) ) );
+teq( '🔴 và KHÔNG đọc khoá lạ nào wp-admin không có (gõ nhầm tên)', array(),
+	array_values( array_diff( $lw_kw, $lw_ka ) ) );
+
+/* ---- Màn hiện ra ---- */
+vhcc_dung_bang();
+VHCC_NhanSu::xep_bo_phan( $U_AD, 'LW_VP', 'Văn phòng' );
+/* ⚠️ CƠ SỞ "MÁY TỰ ĐỘNG" NHẬN THEO TÊN NHÓM, KHÔNG THEO Ô "BỘ PHẬN" ĐÃ XẾP.
+   `VHCC_Luong::la_may_tu_dong()` hỏi `nhom_coso()` — mà hàm ấy khớp TIỀN TỐ TÊN cơ sở
+   (POSH_/JP_…) hoặc ô tích "tính theo giờ". Xếp bộ phận "Máy tự động" cho một cơ sở tên
+   `LW_MTD` thì `bo_phan_cua()` trả đúng "Máy tự động" nhưng `la_may_tu_dong()` vẫn false, và
+   bảng rơi về kiểu `tho`. Bản nháp đầu của phép thử này vấp đúng chỗ đó — nó dựng cảnh sai chứ
+   màn không sai. Dùng `POSH_HCM`: tên thuộc nhóm MTD thật. */
+VHCC_NhanSu::xep_bo_phan( $U_AD, 'LW_MTD', 'Máy tự động' );
+t( 'xếp bộ phận KHÔNG đủ để thành Máy tự động — còn phải thuộc nhóm tên',
+	! VHCC_Luong::la_may_tu_dong( 'LW_MTD' ) && VHCC_Luong::la_may_tu_dong( 'POSH_HCM' ) );
+vhcc_cham( 'LW_VP', '2026-08-03', 'LW1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'POSH_HCM', '2026-08-03', 'LW2', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'LW_THO', '2026-08-03', 'LW3', '', '08:00:00', '17:00:00' );
+
+t( '🔴 Kế toán có màn "Giờ & Lương" trên thanh',
+	isset( VHCC_Web::man_cua( $U_KT )['luong'] ), VHCC_Web::man_cua( $U_KT ) );
+t( 'Admin cũng có', isset( VHCC_Web::man_cua( $U_AD )['luong'] ) );
+/* 🔴 BẢNG NÀY IN RA LƯƠNG TỪNG NGƯỜI. Mở cho Cửa hàng trưởng là mở bảng lương của cả cơ sở cho
+   người cùng cơ sở — nên gác bằng `luong` (bậc Kế toán), KHÔNG phải `cong_coso`. */
+t( '🔴 Cửa hàng trưởng KHÔNG có màn ấy', ! isset( VHCC_Web::man_cua( $U_CHT )['luong'] ) );
+t( '🔴 Quản lý cũng KHÔNG', ! isset( VHCC_Web::man_cua( array( 'role' => 'Quản lý' ) )['luong'] ) );
+t( 'Nhân viên lại càng không', ! isset( VHCC_Web::man_cua( $U_NV )['luong'] ) );
+
+$lw_h = vhcc_web( null, array(), array( 'man' => 'luong' ) );
+t( 'chưa đăng nhập thì không thấy gì', strpos( $lw_h, 'Giờ &amp; Lương' ) === false );
+
+function vhcc_luong_web( $vai, $get = array() ) {
+	$_GET = array_merge( array( 'man' => 'luong' ), $get ); $_POST = array();
+	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Kế', $vai, 'TUTU_BT', 'KT9' );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+$lw_h = vhcc_luong_web( 'Kế toán' );
+t( 'mở màn ra thì có ô chọn cơ sở', strpos( $lw_h, 'name="lcs"' ) !== false, $lw_h );
+t( 'và ô chọn tháng', strpos( $lw_h, 'name="lth"' ) !== false );
+t( 'chưa chọn cơ sở thì nhắc chọn, không vẽ bảng rỗng',
+	strpos( $lw_h, 'Chọn cơ sở rồi bấm' ) !== false, $lw_h );
+/* ⚠️ Đúng lỗi anh Thắng từng vấp ở ô Tìm nhân sự: biểu mẫu GET không chở theo thứ cho trang
+   biết đang ở màn nào thì bấm Xem là rơi về màn mặc định. */
+t( '🔴 ô lọc chở theo man=luong, bấm Xem không nhảy sang màn khác',
+	strpos( $lw_h, 'name="man" value="luong"' ) !== false, $lw_h );
+
+/* ---- Ba kiểu cơ sở, ba bảng khác nhau ---- */
+$lw_h = vhcc_luong_web( 'Kế toán', array( 'lcs' => 'LW_VP', 'lth' => '2026-08' ) );
+t( 'cơ sở Văn phòng ra bảng theo NGÀY CÔNG', strpos( $lw_h, 'Đơn giá 1 công' ) !== false, $lw_h );
+t( 'và có khối chi tiết từng ngày để soi lại', strpos( $lw_h, 'Chi tiết từng ngày' ) !== false );
+/* Gập lại chứ không mở sẵn: cả nghìn dòng đè lên bảng tổng, thứ người ta mở màn này ra để xem. */
+t( 'khối chi tiết GẬP lại mặc định',
+	preg_match( '/<details>\s*<summary><b>Chi tiết từng ngày/', $lw_h ) === 1, $lw_h );
+
+$lw_h = vhcc_luong_web( 'Kế toán', array( 'lcs' => 'POSH_HCM', 'lth' => '2026-08' ) );
+t( 'cơ sở Máy tự động ra bảng theo CÔNG + GIỜ',
+	strpos( $lw_h, 'Công cuối tuần' ) !== false && strpos( $lw_h, 'Tiền giờ' ) !== false, $lw_h );
+
+/* 🔴 CƠ SỞ CHƯA CÓ CÔNG THỨC thì KHÔNG bịa ra tiền. Bịa một công thức là đưa ra con số tiền mà
+   không ai biết từ đâu — mà bảng thì vẫn có số nên chẳng ai nghi. */
+$lw_h = vhcc_luong_web( 'Kế toán', array( 'lcs' => 'LW_THO', 'lth' => '2026-08' ) );
+t( '🔴 cơ sở chưa khai bộ phận thì nói thẳng là CHƯA CÓ công thức lương',
+	strpos( $lw_h, 'chưa có công thức lương' ) !== false, $lw_h );
+t( 'và chỉ in giờ vào / giờ ra thô, không có cột tiền nào',
+	strpos( $lw_h, 'Đơn giá 1 công' ) === false && strpos( $lw_h, 'Tiền giờ' ) === false, $lw_h );
+t( 'kèm đường chỉ ra chỗ khai bộ phận', strpos( $lw_h, 'Cấu hình' ) !== false );
+
+/* ---- Chốt cơ sở ----
+   `bang_cong_va_luong()` KHÔNG nhận người dùng nên nó không gác gì; màn wp-admin gác bằng
+   `current_user_can`, mà ngoài web thì không có thứ đó.
+   ⚠️ Nhánh ấy hiện chưa từng chối ai: cửa vào màn là `luong` (bậc 4), mà bậc 4 đã có
+      `cong_tat_ca` (bậc 3) nên xem được mọi cơ sở. Vẫn giữ — nó bảo vệ trước một thay đổi ở
+      CHỖ KHÁC: ngày nào `luong` được nới xuống cho Cửa hàng trưởng thì nó chặn ngay. Phép thử
+      canh chính quan hệ hai bậc ấy, đúng bài học từ cái chốt chết ở `dat_co_so()`. */
+t( '🔴 quyền "luong" phải CAO HƠN "cong_tat_ca" — chốt cơ sở của màn dựa vào chuyện đó',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['luong'] ] > VHCC_Vai::BAC[ VHCC_Vai::QUYEN['cong_tat_ca'] ] );
+t( 'màn có gác cơ sở bằng co_quyen_coso',
+	strpos( $lw_than, 'VHCC_NhanSu::co_quyen_coso( $toi, $cs )' ) !== false );
+
+/* Màn quản trị KHÔNG có script — luật chung, và màn mới không được phá lệ. */
+t( '🔴 màn lương không có thẻ script nào', stripos( $lw_h, '<script' ) === false );
+t( 'và không có thuộc tính on...= nào', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $lw_h ) === 0, $lw_h );
+vhcc_dung_bang();
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
