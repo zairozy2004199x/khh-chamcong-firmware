@@ -819,6 +819,55 @@ class VHG_BaoCao {
 			'so_lech' => $tong['so_lech'], 'tong' => $tong, 'ghe' => $ds );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ HỎI-ĐÁP (hướng dẫn)
+
+	/** Mồi bảng hỏi-đáp nếu trống — CHỈ hướng dẫn thao tác, không dữ liệu nhạy cảm. */
+	private static function hoidap_seed_() {
+		global $wpdb;
+		if ( (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHG_DB::t( 'bc_hoidap' ) ) > 0 ) { return; }
+		$seed = array(
+			array( 'dang nhap, pin, vao', 'Đăng nhập thế nào?', 'Nhập mã PIN Admin cấp cho bạn. Vào đúng là thấy các cơ sở bạn phụ trách.' ),
+			array( 'chi so truoc, khoa, doi chi so, sua chi so', 'Chỉ số trước bị khoá, muốn sửa?', 'Chỉ số trước hệ thống tự lấy từ lần thu trước, không tự sửa. Máy vừa thay/đổi điểm thì vào mục "Đề nghị đổi/xoá chỉ số" gửi kế toán duyệt.' ),
+			array( 'du bao cao, gui ke toan, xong', 'Khi nào là "đủ báo cáo"?', 'Nhập xong cơ sở CUỐI trong ngày, hệ thống báo "ĐỦ BÁO CÁO" và gộp gửi kế toán kèm tổng kết tiền.' ),
+			array( 'chot som, chua thu, thieu diem', 'Còn điểm chưa thu được thì sao?', 'Bấm "Xin chốt ca sớm", ghi rõ điểm nào chưa thu và lý do — hệ thống chốt phần đã thu, phần còn lại ghi bỏ qua.' ),
+			array( 'nop bo sung, nop bu, chua nop', 'Nộp bù báo cáo hôm trước?', 'Vào mục "Nộp bổ sung", chọn báo cáo còn thiếu rồi nhập số đã nộp (tiền mặt hoặc chuyển khoản).' ),
+			array( 'sua, 24h, nham', 'Nhập nhầm, sửa được không?', 'Báo cáo trong 24 giờ sửa được ở mục "Báo cáo trong 24h": bung ra sửa chỉ số sau/QR/tăng-giảm/ghi chú rồi Lưu.' ),
+			array( 'anh, hinh, chup', 'Gửi ảnh thế nào?', 'Ở thẻ "Ảnh báo cáo" chọn ảnh theo thứ tự ghế (2 ảnh/ghế). Ảnh chứng từ nộp tiền chọn ở ô bên dưới. Web tự nén trước khi gửi.' ),
+			array( 'doi chieu, may, lech', 'Đối chiếu máy là gì?', 'Bấm "Đối chiếu máy" để so QR và tiền mặt bạn nhập với số máy/ngân hàng báo về. Ghế nào lệch sẽ tô đỏ để kiểm lại.' ),
+		);
+		foreach ( $seed as $i => $s ) {
+			$wpdb->insert( VHG_DB::t( 'bc_hoidap' ), array( 'tu_khoa' => $s[0], 'cau_hoi' => $s[1],
+				'tra_loi' => $s[2], 'thu_tu' => $i + 1, 'active' => 1 ) );
+		}
+	}
+
+	/** Trả lời câu hỏi hướng dẫn — khớp từ khoá. Rỗng → trả gợi ý. Không khớp → truot. */
+	public static function hoi_dap( $pin, $cau ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ.' ); }
+		self::hoidap_seed_();
+		$rows = $wpdb->get_results( 'SELECT tu_khoa, cau_hoi, tra_loi FROM ' . VHG_DB::t( 'bc_hoidap' )
+			. ' WHERE active=1 ORDER BY thu_tu ASC, id ASC', ARRAY_A );
+		$goiY = array();
+		foreach ( (array) $rows as $r ) { if ( count( $goiY ) < 6 ) { $goiY[] = (string) $r['cau_hoi']; } }
+		$c = trim( (string) $cau );
+		if ( '' === $c ) { return array( 'ok' => true, 'goiY' => $goiY ); }
+		$sq = self::squash( $c );
+		$best = null; $diem = 0;
+		foreach ( (array) $rows as $r ) {
+			$s = 0;
+			foreach ( preg_split( '/[;,]/', (string) $r['tu_khoa'] ) as $kw ) {
+				$k = self::squash( $kw );
+				if ( '' !== $k && strpos( $sq, $k ) !== false ) { $s++; }
+			}
+			if ( '' !== self::squash( $r['cau_hoi'] ) && $sq === self::squash( $r['cau_hoi'] ) ) { $s += 5; }
+			if ( $s > $diem ) { $diem = $s; $best = $r; }
+		}
+		if ( ! $best || $diem <= 0 ) { return array( 'ok' => true, 'truot' => true, 'goiY' => $goiY ); }
+		return array( 'ok' => true, 'cauHoi' => (string) $best['cau_hoi'], 'traLoi' => (string) $best['tra_loi'], 'goiY' => $goiY );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ QUẢN LÝ PIN (Admin)
 
 	/** Danh sách PIN (cho màn Admin). CHỈ Admin gọi (gác ở tầng trang). */

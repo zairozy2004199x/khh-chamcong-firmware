@@ -771,6 +771,18 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			KEY luc (tao_luc)";
 
+		/* Hỏi-đáp hướng dẫn dùng web (nhân viên). Web tự trả lời từ bảng này (khớp từ khoá),
+		   KHÔNG gọi ra ngoài. Chỉ hướng dẫn thao tác, KHÔNG tra số liệu. */
+		$b['bc_hoidap'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tu_khoa VARCHAR(255) NOT NULL DEFAULT '',
+			cau_hoi VARCHAR(255) NOT NULL DEFAULT '',
+			tra_loi TEXT NULL,
+			thu_tu INT NOT NULL DEFAULT 0,
+			active TINYINT(1) NOT NULL DEFAULT 1,
+			PRIMARY KEY  (id),
+			KEY tt (active,thu_tu)";
+
 		return $b;
 	}
 

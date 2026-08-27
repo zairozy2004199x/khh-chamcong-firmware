@@ -1076,28 +1076,57 @@ class VHG_KeToan {
 			if ( $a['thu_tu'] !== $b['thu_tu'] ) { return $a['thu_tu'] - $b['thu_tu']; }
 			return strcmp( (string) $a['unit_id'], (string) $a['unit_id'] );
 		} );
+		$tuan_ = function ( $d ) { return $d <= 7 ? 0 : ( $d <= 14 ? 1 : ( $d <= 21 ? 2 : 3 ) ); };
+		$tg = (int) get_option( 'vhg_sgd_ty_gia', 20000 ); if ( $tg <= 0 ) { $tg = 20000; }
+
 		$head = array( 'Unit ID', 'Tên cơ sở' );
 		for ( $i = 1; $i <= $soNgay; $i++ ) { $head[] = str_pad( (string) $i, 2, '0', STR_PAD_LEFT ); }
 		$head[] = 'Total';
-		$aoa = array( $head );
-		$tongNgay = array(); $tongCong = 0; $thieu = array();
-		foreach ( $ds as $o ) {
-			$r = array( $o['unit_id'], $o['unit_name'] );
-			$t = 0;
-			for ( $i = 1; $i <= $soNgay; $i++ ) {
-				$v = isset( $o['ngay'][ $i ] ) ? (int) $o['ngay'][ $i ] : 0;
-				$r[] = $v ? $v : '';
-				$t += $v; $tongNgay[ $i ] = ( isset( $tongNgay[ $i ] ) ? $tongNgay[ $i ] : 0 ) + $v;
+		for ( $w = 1; $w <= 4; $w++ ) { $head[] = 'Week ' . $w; }
+		$head[] = 'Total';
+
+		$tongNgay = array(); $tongTuan = array( 0, 0, 0, 0 ); $tongCong = 0; $thieu = array();
+		/* Dựng MỘT khối theo hệ số $chia (1 = VND, $tg = SGD). Cùng dữ liệu, khác chia. */
+		$khoi = function ( $chia, $nhan ) use ( $ds, $soNgay, $tuan_, &$tongNgay, &$tongTuan, &$tongCong, &$thieu ) {
+			$lam_dau = ( 1 === $chia );
+			$so = function ( $v ) use ( $chia ) { return 1 === $chia ? (int) $v : round( $v / $chia, 1 ); };
+			$aoa = array();
+			$d0 = array( 'DAILY REPORT', $nhan ); for ( $i = 0; $i < $soNgay + 6; $i++ ) { $d0[] = ''; } $aoa[] = $d0;
+			$head2 = array( 'Unit ID', "Unit's name" );
+			for ( $i = 1; $i <= $soNgay; $i++ ) { $head2[] = str_pad( (string) $i, 2, '0', STR_PAD_LEFT ); }
+			$head2[] = 'Total'; for ( $w = 1; $w <= 4; $w++ ) { $head2[] = 'Week ' . $w; } $head2[] = 'Total';
+			$aoa[] = $head2;
+			foreach ( $ds as $o ) {
+				$r = array( $o['unit_id'], $o['unit_name'] );
+				$t = 0; $tw = array( 0, 0, 0, 0 );
+				for ( $i = 1; $i <= $soNgay; $i++ ) {
+					$v = isset( $o['ngay'][ $i ] ) ? (int) $o['ngay'][ $i ] : 0;
+					$r[] = $v ? $so( $v ) : '';
+					$t += $v; $tw[ $tuan_( $i ) ] += $v;
+					if ( $lam_dau ) { $tongNgay[ $i ] = ( isset( $tongNgay[ $i ] ) ? $tongNgay[ $i ] : 0 ) + $v; }
+				}
+				$r[] = $so( $t );
+				for ( $w = 0; $w < 4; $w++ ) { $r[] = $so( $tw[ $w ] ); if ( $lam_dau ) { $tongTuan[ $w ] += $tw[ $w ]; } }
+				$r[] = $so( $t );
+				if ( $lam_dau ) { $tongCong += $t; if ( ! $o['unit_id'] ) { $thieu[] = $o['coso']; } }
+				$aoa[] = $r;
 			}
-			$r[] = $t; $tongCong += $t;
-			$aoa[] = $r;
-			if ( ! $o['unit_id'] ) { $thieu[] = $o['coso']; }
-		}
-		$tr = array( 'TỔNG', '' );
-		for ( $i = 1; $i <= $soNgay; $i++ ) { $tr[] = isset( $tongNgay[ $i ] ) ? (int) $tongNgay[ $i ] : 0; }
-		$tr[] = $tongCong; $aoa[] = $tr;
+			$tr = array( 'TỔNG', $nhan );
+			for ( $i = 1; $i <= $soNgay; $i++ ) { $tr[] = $so( isset( $tongNgay[ $i ] ) ? $tongNgay[ $i ] : 0 ); }
+			$tr[] = $so( $tongCong );
+			for ( $w = 0; $w < 4; $w++ ) { $tr[] = $so( $tongTuan[ $w ] ); }
+			$tr[] = $so( $tongCong );
+			$aoa[] = $tr;
+			return $aoa;
+		};
+
+		$aoa = $khoi( 1, 'VND' );
+		$aoa[] = array_fill( 0, $soNgay + 8, '' );          // dòng trống ngăn hai khối
+		foreach ( $khoi( $tg, 'SGD' ) as $r ) { $aoa[] = $r; }
+
 		return array( 'ok' => true, 'aoa' => $aoa, 'soCot' => count( $head ), 'thang' => $th,
-			'soCoSo' => count( $ds ), 'tong' => $tongCong, 'thieuUnitId' => $thieu, 'chiDaDuyet' => (bool) $chi_da_duyet,
+			'soCoSo' => count( $ds ), 'tong' => $tongCong, 'tyGiaSgd' => $tg, 'tongSgd' => round( $tongCong / $tg, 1 ),
+			'thieuUnitId' => $thieu, 'chiDaDuyet' => (bool) $chi_da_duyet,
 			'fileName' => 'Bao_Cao_Ngay_POSH_' . str_replace( '-', '_', $th ) . ( $chi_da_duyet ? '_da_duyet' : '' ) . '.csv' );
 	}
 

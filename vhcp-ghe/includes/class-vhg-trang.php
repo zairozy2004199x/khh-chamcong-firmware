@@ -193,6 +193,9 @@ class VHG_Trang {
 			if ( 'bc_doichieu' === $viec ) {
 				self::tra( VHG_BaoCao::doi_chieu( $pin, isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return;
 			}
+			if ( 'bc_hoidap' === $viec ) {
+				self::tra( VHG_BaoCao::hoi_dap( $pin, isset( $d['cau'] ) ? $d['cau'] : '' ) ); return;
+			}
 			self::tra( array( 'ok' => false, 'error' => 'Việc báo cáo không rõ: ' . $viec ) );
 			return;
 		}
@@ -1258,10 +1261,11 @@ class VHG_Trang {
     wrap.appendChild(boxId('bc-unpaid'));   // nộp bổ sung
     wrap.appendChild(boxId('bc-dn'));       // đề nghị đổi/xoá chỉ số
     wrap.appendChild(boxId('bc-hist'));     // lịch sử tháng
+    wrap.appendChild(boxId('bc-hoidap'));   // hỏi đáp về web
 
     app.appendChild(wrap);
     refreshPhien();
-    loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist();
+    loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veHoiDap();
     if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
   }
   function boxId(id){ var d=el('div','bc-card'); d.id=id; return d; }
@@ -1686,6 +1690,29 @@ class VHG_Trang {
     };
   }
   function tdCell(x,r){ var td=el('td'); if(r){ td.style.textAlign='right'; td.style.fontVariantNumeric='tabular-nums'; } td.textContent=x; return td; }
+
+  // ---------------- HỎI ĐÁP ----------------
+  function veHoiDap(){
+    var box=$('bc-hoidap'); if(!box) return; box.textContent='';
+    box.appendChild(el('h3','bc-h','Hỏi đáp về web'));
+    var thread=el('div'); thread.style.cssText='max-height:220px;overflow:auto;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:8px;margin-top:6px'; box.appendChild(thread);
+    var chips=el('div'); chips.style.marginTop='6px'; box.appendChild(chips);
+    var row=el('div','bc-row'); row.style.marginTop='6px';
+    var i=el('input'); i.type='text'; i.placeholder='Hỏi gì về web…'; i.style.flex='1';
+    var b=el('button','bc-btn','Gửi'); row.appendChild(i); row.appendChild(b); box.appendChild(row);
+    function them(ai,chu,tieu){ var d=el('div'); d.style.cssText='margin-bottom:6px;padding:7px 9px;border-radius:8px;font-size:13px;white-space:pre-wrap;'+(ai==='toi'?'background:#4f46e5;color:#fff;margin-left:auto;max-width:85%':'background:#fff;border:1px solid #e4e4e7;max-width:90%');
+      if(tieu) d.appendChild(el('b',null,tieu)); d.appendChild(el('span',null,chu)); thread.appendChild(d); thread.scrollTop=thread.scrollHeight; return d; }
+    function chipsVe(ds){ chips.textContent=''; (ds||[]).forEach(function(c){ var s=el('span'); s.textContent=c; s.style.cssText='display:inline-block;margin:3px 4px 0 0;padding:5px 9px;border-radius:14px;border:1px solid #cbd5e1;background:#fff;font-size:12px;cursor:pointer'; s.onclick=function(){ hoi(c); }; chips.appendChild(s); }); }
+    function hoi(cau){ if(cau) them('toi',cau); var cho=them('web','Đang tìm…');
+      goi('bc_hoidap',{cau:cau||''},function(r){ if(cho.parentNode) cho.parentNode.removeChild(cho);
+        if(!r||!r.ok){ them('web','Không đọc được hỏi đáp.'); return; }
+        if(cau){ if(r.truot) them('web','Câu này chưa có sẵn câu trả lời. Thử chọn một mục bên dưới, hoặc hỏi cách khác.'); else them('web',r.traLoi,r.cauHoi); }
+        else them('web','Chọn một câu bên dưới, hoặc gõ câu hỏi.');
+        chipsVe(r.goiY); }); }
+    b.onclick=function(){ var v=(i.value||'').trim(); if(!v) return; i.value=''; hoi(v); };
+    i.addEventListener('keydown',function(e){ if(e.key==='Enter'){ e.preventDefault(); b.onclick(); } });
+    hoi('');
+  }
 
   window.VHG_BaoCao = { mo: moBaoCao };
 })();
