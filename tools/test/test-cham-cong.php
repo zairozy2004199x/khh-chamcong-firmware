@@ -9101,9 +9101,39 @@ function vhcc_luong_web( $vai, $get = array(), $coso_the = 'TUTU_BT' ) {
 
 /* ---- Ba kiểu cơ sở, ba bảng khác nhau — dùng CHUNG bộ lọc của Bảng công (ccs/cth) ---- */
 $lw_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'LW_VP', 'cth' => '2026-08' ) );
-t( '🔴 khối Giờ & Lương hiện ngay trong màn Bảng công',
-	strpos( $lw_h, 'Giờ &amp; Lương' ) !== false, $lw_h );
+/* ⚠️ Khối này ĐỔI TÊN từ "Giờ & Lương" thành "Lương" ở bản 2.63.0: bốn cột công (ngày · tăng
+   ca · đêm · bù) đã dời lên cột TỔNG của lưới, nên nó không còn phần "giờ" nào nữa. */
+t( '🔴 khối Lương hiện ngay trong màn Bảng công',
+	strpos( $lw_h, '<b>Lương</b>' ) !== false, $lw_h );
 t( 'cơ sở Văn phòng ra bảng theo NGÀY CÔNG', strpos( $lw_h, 'Đơn giá 1 công' ) !== false, $lw_h );
+/* 🔴 BỐN CỘT CÔNG ĐÃ DỜI LÊN LƯỚI — KHÔNG ĐƯỢC IN LẠI Ở ĐÂY.
+   Anh Thắng 27/08/2026: *"chưa bỏ bảng này đi à em"*. Cùng một con số in ở hai chỗ trên cùng
+   một màn là mời người ta so hai chỗ, và ngày nào hai chỗ lệch nhau thì không ai biết tin cái
+   nào.
+   ⚠️ Soi TIÊU ĐỀ CỘT trong bảng lương, không soi chuỗi trần: mấy chữ ấy còn nằm trong bảng
+      "Chi tiết từng ngày" ngay dưới (bảng ấy là TỪNG NGÀY, không trùng với lưới vốn là tổng
+      tháng) và trong chú giải của lưới. */
+$lw_bang = preg_match( '~<table><thead><tr><th>Mã</th>.*?</thead>~s', $lw_h, $m_lw ) ? $m_lw[0] : '';
+t( 'dựng cảnh: cắt được đúng tiêu đề bảng lương', '' !== $lw_bang, substr( $lw_h, 0, 300 ) );
+foreach ( array( 'Công ngày', 'Tăng ca', 'Công đêm', 'Công bù' ) as $lw_c ) {
+	t( '🔴 bảng lương KHÔNG còn cột "' . $lw_c . '" — nó đã ở cột TỔNG của lưới',
+		strpos( $lw_bang, '<th>' . $lw_c . '</th>' ) === false, $lw_bang );
+}
+/* Nhưng `Tổng công` thì GIỮ: nó là mốc đối chiếu với cột TỔNG của lưới. Hai chỗ cùng in một con
+   số ở đây là CÓ CHỦ Ý — lệch nhau nghĩa là một trong hai phép tính sai. */
+t( 'nhưng GIỮ cột Tổng công làm mốc đối chiếu với lưới',
+	strpos( $lw_bang, '<th>Tổng công</th>' ) !== false, $lw_bang );
+/* Và phần tiền phải còn nguyên — bỏ hết là mất chỗ DUY NHẤT xem tiền. */
+foreach ( array( 'Lương tháng', 'Đơn giá 1 công', 'Tiền', 'Cần soi' ) as $lw_t ) {
+	t( 'phần tiền còn nguyên: cột "' . $lw_t . '"',
+		strpos( $lw_bang, '<th>' . $lw_t . '</th>' ) !== false, $lw_bang );
+}
+/* 🔴 `colspan` của chân bảng phải đi theo số cột. Quên là cả chân bảng lệch sang phải và con số
+   Tiền tổng nằm dưới cột Đơn giá — vẫn là một bảng đọc được, chỉ là đọc sai. */
+t( '🔴 chân bảng gộp đúng HAI cột đầu (Mã · Tên), không phải sáu',
+	strpos( $lw_h, '<th colspan="2">Tổng</th>' ) !== false, $lw_h );
+t( 'và màn chỉ đường sang lưới cho ai đi tìm bốn con số ấy',
+	strpos( $lw_h, 'nay nằm ngay ' ) !== false, $lw_h );
 t( 'và có khối chi tiết từng ngày để soi lại', strpos( $lw_h, 'Chi tiết từng ngày' ) !== false );
 /* Gập lại chứ không mở sẵn: cả nghìn dòng đè lên bảng tổng, thứ người ta mở màn này ra để xem. */
 t( 'khối chi tiết GẬP lại mặc định',
@@ -9186,7 +9216,7 @@ t( 'ds_coso_xem hỏi QUYỀN chứ không so tên vai',
    định mà không hiểu vì sao. */
 $lw_h = vhcc_luong_web( 'Kế toán', array( 'man' => 'luong', 'ccs' => 'LW_VP', 'cth' => '2026-08' ) );
 t( '🔴 địa chỉ cũ ?man=luong dẫn về Bảng công, không rơi về màn mặc định',
-	strpos( $lw_h, 'Giờ &amp; Lương' ) !== false && strpos( $lw_h, 'Chấm công' ) !== false, $lw_h );
+	strpos( $lw_h, '<b>Lương</b>' ) !== false && strpos( $lw_h, 'Chấm công' ) !== false, $lw_h );
 
 /* ⚠️ Chốt cơ sở của khối: `bang_cong_va_luong()` không nhận người dùng nên nó không gác gì.
    Nhánh ấy hiện chưa từng chối ai (bậc `luong` = 4 đã có `cong_tat_ca` = 3), nhưng giữ — nó
@@ -10028,6 +10058,37 @@ teq( '🔴 cơ sở đã ghép KHÔNG hiện ra như cơ sở khác', array(), $
 $tk_gh = VHCC_Cham::tong_o_coso_khac( array( 'GN1' ), $G_VP, '2026-07' );
 teq( 'và cũng không có dòng TỔNG cơ sở khác', array(), $tk_gh );
 
+/* ---- 🔴 HẬU TỐ `-TC` (TĂNG CƯỜNG) PHẢI ĐƯỢC TÍNH ----
+   Anh Thắng 27/08/2026: *"đã ghép nhưng sao bảng phụ không hiện ra"* — `SETUP_VP` ghép vào Văn
+   phòng, dữ liệu vào đủ, mà lưới không có một ô nào của nó. Vì mã trong sổ ấy đều mang hậu tố
+   `-TC`, và engine Văn phòng chỉ nhận `CD`/`CT`.
+   `TC` là hậu tố CÓ THẬT, đã khai trong `class-vhcc-db.php`: *tăng cường (người của cơ sở khác
+   sang làm)*. Người đi làm thật, giờ nằm trong sổ thật — bỏ nó là mất công của người thật, mà
+   bảng vẫn đầy số nên không ai nghi. Đây là dữ liệu THẬT anh gửi: 21:30 → 04:00, tức ca đêm. */
+vhcc_cham( $G_SU, '2026-07-05', 'GN2', 'TC', '21:30:00', '04:00:00' );
+$b_tc = VHCC_Luong::vp_bang_cong_va_luong( $G_VP, '2026-07' );
+$h_tc = array();
+foreach ( $b_tc['rows'] as $r_t ) { $h_tc[ $r_t['ma'] ] = $r_t; }
+t( '🔴 hàng -TC vào được bảng, không bị bỏ im lặng', isset( $h_tc['GN2'] ), array_keys( $h_tc ) );
+t( 'và ra CÔNG ĐÊM — 21:30–04:00 nằm trong khung đêm, `vp_ca_hang2` phân theo GIỜ',
+	(float) $h_tc['GN2']['congDem'] > 0, $h_tc['GN2'] );
+teq( 'không có hàng chính nên công ngày là 0', 0.0, (float) $h_tc['GN2']['congNgay'] );
+
+/* 🔴 NHƯNG `TT` (Thu Tiền) và `TG` (Trực Ghế) VẪN PHẢI LOẠI: hai cái đó là nhiệm vụ MTD, có
+   engine riêng và đơn giá riêng — kéo vào bảng Văn phòng là tính hai lần. */
+vhcc_cham( $G_SU, '2026-07-06', 'GN3', 'TT', '08:00:00', '17:00:00' );
+vhcc_cham( $G_SU, '2026-07-06', 'GN4', 'TG', '08:00:00', '17:00:00' );
+$b_tt = VHCC_Luong::vp_bang_cong_va_luong( $G_VP, '2026-07' );
+$h_tt = array();
+foreach ( $b_tt['rows'] as $r_2 ) { $h_tt[ $r_2['ma'] ] = $r_2; }
+t( '🔴 hàng -TT (nhiệm vụ MTD) KHÔNG lọt vào bảng Văn phòng', ! isset( $h_tt['GN3'] ), array_keys( $h_tt ) );
+t( 'hàng -TG cũng vậy', ! isset( $h_tt['GN4'] ), array_keys( $h_tt ) );
+/* 🔴 BỎ THÌ PHẢI ĐẾM. Im lặng bỏ đúng là cái đã làm cả sổ SETUP_VP biến mất mà không ai biết. */
+t( 'engine ĐẾM số hàng bị bỏ theo hậu tố', ! empty( $b_tt['boHauTo'] ), $b_tt['boHauTo'] );
+teq( 'đếm đúng một hàng -TT', 1, (int) $b_tt['boHauTo']['TT'] );
+teq( 'và một hàng -TG', 1, (int) $b_tt['boHauTo']['TG'] );
+t( 'KHÔNG đếm -TC vào đó, vì nó ĐƯỢC tính', ! isset( $b_tt['boHauTo']['TC'] ), $b_tt['boHauTo'] );
+
 /* ---- Trên màn ---- */
 $_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU, 'GHAD' );
 $_GET = array( 'man' => 'vp', 'ccs' => $G_VP, 'cth' => '2026-07' );
@@ -10041,6 +10102,14 @@ t( '🔴 ô đến từ cơ sở phụ có nhãn ngay trong ô',
 	preg_match( '~<div class="mghep"[^>]*>' . preg_quote( $G_SU, '~' ) . '</div>~', $h_ghw ) === 1, $h_ghw );
 t( 'nhãn ấy nói rõ công ĐÃ nằm trong cột TỔNG',
 	strpos( $h_ghw, 'ĐÃ nằm trong cột TỔNG' ) !== false, $h_ghw );
+/* 🔴 Và lưới KÊU LÊN số hàng bị bỏ vì hậu tố — thiếu câu này là cả một cơ sở biến mất mà bảng
+   vẫn đầy số. Chính chỗ đã làm anh Thắng phải đi hỏi. */
+t( '🔴 lưới kêu lên số hàng KHÔNG vào bảng vì hậu tố',
+	strpos( $h_ghw, 'hàng KHÔNG vào bảng này' ) !== false, $h_ghw );
+t( 'và kể ĐÍCH DANH hậu tố nào, bao nhiêu hàng',
+	preg_match( '~<code>-TT</code> \(1 hàng\)~u', $h_ghw ) === 1, $h_ghw );
+t( 'kèm câu chỉ đường: hậu tố lạ thì sửa mã trong tệp rồi nạp lại',
+	strpos( $h_ghw, 'nạp lại' ) !== false, $h_ghw );
 /* 🔴 Mở thẳng cơ sở PHỤ: vẫn xem được để soi, nhưng phải nói ngay là số ở đây ĐÃ tính vào bảng
    kia — không thì có người lấy cả hai bảng rồi cộng lại, và trả gấp đôi. */
 $_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU, 'GHAD' );

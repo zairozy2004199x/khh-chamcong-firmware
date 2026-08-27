@@ -1101,12 +1101,31 @@ class VHCC_Luong {
 		$nguoi  = array();
 		$ten    = array();
 		$tu_dau = array();          // [mã][ngày] => mã cơ sở PHỤ mà ngày ấy đến từ đó
+		$bo_hau_to = array();       // [hậu tố] => số hàng bị bỏ vì engine này không nhận
 		foreach ( self::doc_thang( $coso, $tt ) as $r ) {
 			$ma = trim( (string) $r['ma_nv'] );
 			if ( '' === $ma ) { continue; }
 			$hau_to = strtoupper( trim( (string) $r['hau_to'] ) );
-			$khe    = ( 'CD' === $hau_to || 'CT' === $hau_to ) ? 'dem' : ( '' === $hau_to ? 'chinh' : null );
-			if ( null === $khe ) { continue; }         // hậu tố nhiệm vụ MTD -> không thuộc Văn phòng
+			/* 🔴 `TC` (TĂNG CƯỜNG) LÀ HÀNG 2, KHÔNG PHẢI HÀNG BỎ ĐI.
+			   Anh Thắng 27/08/2026: *"đã ghép nhưng sao bảng phụ không hiện ra"* — cơ sở
+			   `SETUP_VP` ghép vào Văn phòng, dữ liệu vào đủ, mà lưới không có một ô nào. Vì mã
+			   trong sổ ấy đều mang hậu tố `-TC`, và danh sách trắng ở đây chỉ nhận `CD`/`CT`.
+			   `TC` là hậu tố CÓ THẬT, đã khai trong `class-vhcc-db.php`: *tăng cường (người của
+			   cơ sở khác sang làm)*. Người ta đi làm thật, giờ nằm trong sổ thật — bỏ nó là mất
+			   công của người thật, mà bảng vẫn đầy số nên không ai nghi.
+			   ⚠️ VẪN LOẠI `TT` (Thu Tiền) và `TG` (Trực Ghế): hai cái đó là nhiệm vụ MTD, có
+			      engine riêng và đơn giá riêng. Kéo chúng vào bảng Văn phòng là tính hai lần.
+			   Khe chỉ nói "hàng chính hay hàng 2"; phân loại ngày/đêm/tăng ca là việc của
+			   `vp_ca_hang2()` và nó phân theo GIỜ, nên `-TC` lúc 21:30–04:00 tự vào ca đêm. */
+			$khe = ( 'CD' === $hau_to || 'CT' === $hau_to || 'TC' === $hau_to )
+				? 'dem' : ( '' === $hau_to ? 'chinh' : null );
+			if ( null === $khe ) {
+				/* 🔴 BỎ THÌ PHẢI ĐẾM. Im lặng bỏ đúng là cái đã làm cả sổ `SETUP_VP` biến mất mà
+				   không có một dòng nào nói ra. Đếm rồi trả lên để lưới còn kêu được. */
+				if ( ! isset( $bo_hau_to[ $hau_to ] ) ) { $bo_hau_to[ $hau_to ] = 0; }
+				$bo_hau_to[ $hau_to ]++;
+				continue;
+			}
 			if ( ! isset( $nguoi[ $ma ] ) ) { $nguoi[ $ma ] = array(); }
 			if ( ! isset( $ten[ $ma ] ) || '' === $ten[ $ma ] ) { $ten[ $ma ] = (string) $r['ho_ten']; }
 			$nguoi[ $ma ][ $r['ngay'] ][ $khe ] = array( $r['gio_vao_giay'], $r['gio_ra_giay'] );
@@ -1160,6 +1179,8 @@ class VHCC_Luong {
 		$nc   = self::vp_nc_lay( $coso, $tt );
 		$tien = self::vp_gan_tien( $rows, self::vp_luong_co_ban(), $nc );
 		return array( 'station' => $coso, 'month' => $tt, 'cfg' => $cfg, 'rows' => $rows,
+			/* Hậu tố bị bỏ, để lưới NÓI RA. Xem chú thích ở chỗ lọc khe. */
+			'boHauTo' => $bo_hau_to,
 			'detail' => $chi_tiet, 'tong' => $tong, 'tien' => $tien,
 			'chuaKhaiKeToan' => ( 0 === count( $cfg['ktMaTinh'] ) ),
 			'ncThang' => $tt, 'ncSo' => $nc,

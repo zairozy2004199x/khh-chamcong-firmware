@@ -3396,6 +3396,23 @@ class VHCC_Web {
 			return;
 		}
 
+		/* 🔴 HÀNG BỊ BỎ VÌ HẬU TỐ PHẢI ĐƯỢC KÊU LÊN.
+		   Anh Thắng 27/08/2026: *"đã ghép nhưng sao bảng phụ không hiện ra"* — cả sổ `SETUP_VP`
+		   biến mất khỏi lưới vì mã trong đó mang hậu tố engine này không nhận, và không có một
+		   dòng nào nói ra. Bảng vẫn đầy số, chỉ là thiếu hẳn một cơ sở. */
+		if ( ! empty( $b['boHauTo'] ) ) {
+			$bh = array();
+			$so_bh = 0;
+			foreach ( (array) $b['boHauTo'] as $ht_b => $so_b ) {
+				$bh[] = '<code>-' . esc_html( $ht_b ) . '</code> (' . (int) $so_b . ' hàng)';
+				$so_bh += (int) $so_b;
+			}
+			echo '<div class="bao canh"><b>' . (int) $so_bh . ' hàng KHÔNG vào bảng này</b> vì mang '
+				. 'hậu tố nhiệm vụ khác: ' . implode( ' · ', $bh ) . '.<br>'
+				. '<code>-TT</code> (Thu Tiền) và <code>-TG</code> (Trực Ghế) là nhiệm vụ của khối '
+				. 'MTD — chúng có bảng lương riêng, kéo vào đây là tính hai lần. Hậu tố lạ khác thì '
+				. 'gần như chắc là gõ sai lúc nạp .csv: sửa mã trong tệp rồi nạp lại.</div>';
+		}
 		echo '<div class="cuon"><table class="cc"><thead><tr>';
 		echo '<th>Nhân viên</th>';
 		for ( $i = 1; $i <= $so_ngay; $i++ ) {
@@ -3705,15 +3722,23 @@ class VHCC_Web {
 		$r = VHCC_Luong::bang_cong_va_luong( $cs, $th );
 
 		echo '<div class="the"><details>';
-		echo '<summary><b>Giờ &amp; Lương</b> — ' . esc_html( $cs ) . ' · tháng '
+		/* 🔴 TÊN PHẢI THEO NỘI DUNG. Anh Thắng 27/08/2026: *"chưa bỏ bảng này đi à em"* — sau khi
+		   bốn cột công (ngày · tăng ca · đêm · bù) dời lên cột TỔNG của lưới, khối này không còn
+		   là "bảng công" nữa: nó chỉ còn phần QUY RA TIỀN. Giữ tên cũ là mời người ta mở ra tìm
+		   công rồi thấy một bảng khác hẳn thứ mình định tìm. */
+		echo '<summary><b>Lương</b> — ' . esc_html( $cs ) . ' · tháng '
 			. esc_html( $th ) . ( empty( $r['ok'] ) ? '' : ' · cách tính <code>'
 				. esc_html( $r['kieu'] ) . '</code>' ) . '</summary>';
 		if ( empty( $r['ok'] ) ) {
 			echo '<div class="bao loi">' . esc_html( $r['error'] ) . '</div></details></div>';
 			return;
 		}
-		echo '<p class="mo">Bảng công ở trên quy ra tiền. Cách tính do <b>bộ phận</b> của cơ sở '
-			. 'quyết định (' . esc_html( $r['boPhan'] ) . ') — khai ở màn <b>Cấu hình</b>.</p>';
+		echo '<p class="mo">Lấy <b>tổng công</b> của lưới ở trên nhân ra tiền. Cách tính do '
+			. '<b>bộ phận</b> của cơ sở quyết định (' . esc_html( $r['boPhan'] )
+			. ') — khai ở màn <b>Cấu hình</b>.</p>';
+		echo '<p class="mo">Bốn con số <b>công ngày · tăng ca · công đêm · công bù</b> nay nằm ngay '
+			. 'trong cột <b>TỔNG</b> của lưới, ở đúng hàng của từng người — không phải cuộn xuống '
+			. 'đây rồi dò lại tên.</p>';
 		echo '</details></div>';
 
 		if ( 'tho' === $r['kieu'] ) { self::luong_tho( $r['tho'] ); return; }
@@ -3800,8 +3825,16 @@ class VHCC_Web {
 			echo '<div class="bao canh">Chưa khai lương cơ bản: '
 				. esc_html( implode( ', ', $v['tien']['thieuLuong'] ) ) . '</div>';
 		}
-		echo '<div class="cuon"><table><thead><tr><th>Mã</th><th>Tên</th><th>Công ngày</th>'
-			. '<th>Tăng ca</th><th>Công đêm</th><th>Công bù</th><th>Tổng công</th>'
+		/* 🔴 BỐN CỘT CÔNG ĐÃ DỜI LÊN LƯỚI — BỎ Ở ĐÂY.
+		   Anh Thắng 27/08/2026: *"chưa bỏ bảng này đi à em"*, ngay sau khi bốn con số ấy hiện ra
+		   ở cột TỔNG của lưới. Anh đúng: cùng một con số in ở hai chỗ trên cùng một màn là mời
+		   người ta so hai chỗ, và ngày nào hai chỗ lệch nhau thì không ai biết tin cái nào.
+		   ⚠️ NHƯNG KHÔNG BỎ CẢ BẢNG. Bốn cột còn lại (Lương tháng · Đơn giá · Tiền · Cần soi)
+		      không có ở đâu khác — bỏ hết là mất chỗ DUY NHẤT xem tiền.
+		   `Tổng công` thì GIỮ: nó là mốc để đối chiếu với cột TỔNG của lưới. Hai chỗ cùng in một
+		   con số ở đây là CÓ CHỦ Ý — lệch nhau nghĩa là một trong hai phép tính sai, và đó đúng
+		   là thứ cần lộ ra. Khác hẳn bốn cột vừa bỏ: chúng chỉ chép lại, không đối chiếu gì. */
+		echo '<div class="cuon"><table><thead><tr><th>Mã</th><th>Tên</th><th>Tổng công</th>'
 			. '<th>Lương tháng</th><th>Đơn giá 1 công</th><th>Tiền</th><th>Cần soi</th>'
 			. '</tr></thead><tbody>';
 		foreach ( $v['rows'] as $e ) {
@@ -3812,10 +3845,6 @@ class VHCC_Web {
 			echo '<tr' . ( $soi ? ' class="hong"' : '' ) . '>';
 			echo '<td><b>' . esc_html( $e['ma'] ) . '</b></td>'
 				. '<td>' . esc_html( $e['ten'] ) . ( $e['laKeToan'] ? ' <span class="mo">(kế toán)</span>' : '' ) . '</td>'
-				. '<td>' . esc_html( $e['congNgay'] ) . '</td>'
-				. '<td>' . esc_html( $e['congTangCa'] ) . '</td>'
-				. '<td>' . esc_html( $e['congDem'] ) . '</td>'
-				. '<td>' . esc_html( $e['congBu'] ) . '</td>'
 				. '<td><b>' . esc_html( $e['tong'] ) . '</b></td>'
 				. '<td>' . esc_html( $e['luongThang'] ? number_format( $e['luongThang'] ) : '—' ) . '</td>'
 				. '<td>' . esc_html( $e['donGiaCong'] ? number_format( $e['donGiaCong'] ) : '—' ) . '</td>'
@@ -3823,7 +3852,10 @@ class VHCC_Web {
 				. '<td>' . ( $soi ? '<span class="chua">' . esc_html( implode( ' · ', $soi ) ) . '</span>' : '' )
 				. '</td></tr>';
 		}
-		echo '</tbody><tfoot><tr><th colspan="6">Tổng</th><th>' . esc_html( $v['tong']['tong'] )
+		/* ⚠️ `colspan` phải đi theo số cột. Bỏ bốn cột mà quên chỗ này là cả chân bảng lệch sang
+		   phải, và con số Tiền tổng nằm dưới cột Đơn giá — vẫn là một bảng đọc được, chỉ là đọc
+		   sai. Hai cột đầu (Mã · Tên) -> colspan 2. */
+		echo '</tbody><tfoot><tr><th colspan="2">Tổng</th><th>' . esc_html( $v['tong']['tong'] )
 			. '</th><th colspan="2"></th><th>'
 			. esc_html( $v['tien']['tongTien'] ? number_format( $v['tien']['tongTien'] ) : '—' )
 			. '</th><th></th></tr></tfoot></table></div>';
