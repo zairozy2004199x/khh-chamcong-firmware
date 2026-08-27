@@ -3507,7 +3507,8 @@ function ktnMapRows(aoa){
     var imgs=String(g(r,'images')||'').split('|').map(function(s){return s.trim();}).filter(Boolean);
     out.push({
       date:date, loc:loc, chairCode:code, chairName:String(g(r,'chairname')).trim(), staff:String(g(r,'staff')).trim(),
-      before:ktnNum(g(r,'meterbefore')), after:ktnNum(g(r,'meterafter')),
+      before:(String(g(r,'meterbefore')).trim()===''?null:ktnNum(g(r,'meterbefore'))),
+      after:(String(g(r,'meterafter')).trim()===''?null:ktnNum(g(r,'meterafter'))),
       actual:ktnNum(g(r,'actual')), cash:ktnNum(g(r,'cash')), qr:ktnNum(g(r,'qr')),
       adjust:ktnNum(g(r,'adjust')), total:ktnNum(g(r,'total')),
       reportId:String(g(r,'reportid')).trim(), note:String(g(r,'note')).trim(),
@@ -3579,13 +3580,16 @@ function ktnInit(){
       +Object.keys(cs).length+' '+L('cơ sở','branches')+' · '+Object.keys(ngays).length+' '+L('ngày','days')
       +(dmin?(' ('+dmin+' → '+dmax+')'):'')));
     box.appendChild(ktEl('div','mut', L('Tổng tiền mặt','Total cash')+' '+ktVnd(tm)+'đ · QR '+ktVnd(qr)+'đ'));
-    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='620px';
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='720px';
     tb.innerHTML='<tr><th>'+L('Ngày','Date')+'</th><th>'+L('Cơ sở','Branch')+'</th><th>'+L('Ghế','Chair')
+      +'</th><th class="r">'+L('CS trước','Meter before')+'</th><th class="r">'+L('CS sau','Meter after')
       +'</th><th class="r">'+L('T.mặt','Cash')+'</th><th class="r">QR</th><th class="r">'+L('Tổng','Total')+'</th></tr>';
     m.rows.slice(0,12).forEach(function(x){
       var tr=ktEl('tr');
       tr.appendChild(ktEl('td',null,x.date)); tr.appendChild(ktEl('td',null,x.loc));
       tr.appendChild(ktEl('td',null,x.chairCode));
+      tr.appendChild(ktEl('td','r', x.before==null?'—':String(x.before)));
+      tr.appendChild(ktEl('td','r', x.after==null?'—':String(x.after)));
       var a=ktEl('td','r',ktVnd(x.cash)), b=ktEl('td','r',ktVnd(x.qr)), c=ktEl('td','r',ktVnd(x.total));
       tr.appendChild(a); tr.appendChild(b); tr.appendChild(c); tb.appendChild(tr);
     });
