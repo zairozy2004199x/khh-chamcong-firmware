@@ -386,6 +386,65 @@ class VHG_Trang {
 		}
 
 		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * BÁO CÁO DOANH THU THEO CƠ SỞ (port app Apps Script "thu tiền" của nhân viên).
+		 * Phạm vi theo CƠ SỞ của user ($ai['coso']); server ép chỉ số trước, tự tính tiền.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 'bc_boot' === $viec ) {
+			self::tra( VHG_BaoCao::boot( $ai ) ); return;
+		}
+		if ( 'bc_lastmeters' === $viec ) {
+			self::tra( array( 'ok' => true, 'map' => VHG_BaoCao::lay_chiso_truoc(
+				isset( $d['codes'] ) ? (array) $d['codes'] : array(),
+				isset( $d['ngay'] ) ? $d['ngay'] : '' ) ) );
+			return;
+		}
+		if ( 'bc_checkday' === $viec ) {
+			self::tra( VHG_BaoCao::kiem_ngay(
+				isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '', $ai ) );
+			return;
+		}
+		if ( 'bc_submit' === $viec ) {
+			self::tra( VHG_BaoCao::luu( $d, $ai ) ); return;
+		}
+		if ( 'bc_recent' === $viec ) {
+			self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::ds_24h( $ai ) ) ); return;
+		}
+		if ( 'bc_edit' === $viec ) {
+			self::tra( VHG_BaoCao::sua_dong(
+				isset( $d['report_id'] ) ? $d['report_id'] : '',
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
+				isset( $d['patch'] ) ? $d['patch'] : array(), $ai ) );
+			return;
+		}
+		if ( 'bc_history' === $viec ) {
+			self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::lich_su(
+				isset( $d['thang'] ) ? $d['thang'] : '', $ai ) ) );
+			return;
+		}
+		if ( 'bc_unpaid' === $viec ) {
+			self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::chua_nop( $ai ) ) ); return;
+		}
+		if ( 'bc_supplement' === $viec ) {
+			self::tra( VHG_BaoCao::nop_bosung(
+				isset( $d['report_id'] ) ? $d['report_id'] : '',
+				isset( $d['ngay'] ) ? $d['ngay'] : '',
+				isset( $d['so_tien'] ) ? $d['so_tien'] : '',
+				isset( $d['hinhthuc'] ) ? $d['hinhthuc'] : 'cash', $ai ) );
+			return;
+		}
+		if ( 'bc_denghi_gui' === $viec ) {
+			self::tra( VHG_BaoCao::denghi_gui( $d, $ai ) ); return;
+		}
+		if ( 'bc_denghi_ds' === $viec ) {
+			self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::denghi_ds(
+				isset( $d['coso'] ) ? $d['coso'] : '', $ai ) ) );
+			return;
+		}
+		if ( 'bc_yeucau' === $viec ) {
+			self::tra( VHG_BaoCao::yeucau_ds( $ai ) ); return;
+		}
+
+		/* ══════════════════════════════════════════════════════════════════════════════════════
 		 * CẤU HÌNH NHÂN SỰ NGAY TRÊN TRANG /ghe.
 		 *
 		 * Anh Thắng 23/08/2026: *"chưa thấy tab cấu hình trên wed"*.

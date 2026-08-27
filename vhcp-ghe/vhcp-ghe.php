@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           1.41.0
+ * Version:           1.42.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '1.41.0' );
+define( 'VHG_VERSION', '1.42.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -51,6 +51,10 @@ require_once VHG_DIR . 'includes/class-vhg-vi.php';
 /* Quỹ tiền mặt phải nạp SAU class-vhg-thu.php và class-vhg-may.php: VHG_Quy đọc thẳng bảng
    `thu` qua hằng của VHG_Thu, và hỏi VHG_May xem ghế có thật không. */
 require_once VHG_DIR . 'includes/class-vhg-quy.php';
+/* Báo cáo doanh thu theo cơ sở (port app Apps Script "thu tiền"). Nạp SAU class-vhg-quy.php và
+   class-vhg-may.php: VHG_BaoCao dùng VHG_Quy::don_vi() và VHG_May::ds_may(), và đọc chung bảng
+   `chot` để lấy chỉ số trước. */
+require_once VHG_DIR . 'includes/class-vhg-baocao.php';
 require_once VHG_DIR . 'includes/class-vhg-chan.php';
 require_once VHG_DIR . 'includes/class-vhg-qrve.php';
 require_once VHG_DIR . 'includes/class-vhg-nhap.php';

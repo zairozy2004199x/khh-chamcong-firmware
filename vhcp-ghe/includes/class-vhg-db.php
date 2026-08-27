@@ -70,6 +70,8 @@ class VHG_DB {
 			ten_khai VARCHAR(190) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			cap_nhat DATETIME NULL,
+			moc_chiso BIGINT(20) NULL,
+			moc_chiso_ngay DATE NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma (ma),
 			KEY mac (mac),
@@ -555,6 +557,111 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			KEY may (ma_may,id),
 			KEY luc (luc)";
+
+		/* ===== 17. BÁO CÁO DOANH THU THEO CƠ SỞ (port từ web Apps Script "thu tiền") ===========
+		   Anh Thắng 27/08/2026: đưa app thu-tiền-nhập-báo-cáo của nhân viên vào web ghế.
+
+		   🔴 CÔNG THỨC BẤT BIẾN (giữ y app gốc): actual=(chỉ số sau − trước)×đơn_vị ;
+		      tiền_mặt = actual − QR ± điều_chỉnh ; tổng = tiền_mặt + QR. Server tự tính, ép chỉ số
+		      trước — KHÔNG tin số client. (App gốc cứng ×10000; ở đây dùng đơn_vị chốt-ca cấu hình
+		      sẵn để KHỚP với chốt ca máy trạm — hai bên cùng một máy đếm.)
+
+		   🔴 1 BÁO CÁO / CƠ SỞ / NGÀY: UNIQUE(coso_key, ngay) chặn ở tầng CSDL; gửi lại = cập nhật.
+		   `coso_key` = tên cơ sở đã bỏ dấu/khoảng trắng (so khớp bất kể cách gõ), `coso` giữ tên hiện.
+
+		   TÁCH HEADER (`bc`) / DÒNG GHẾ (`bc_dong`) — sạch hơn bản Sheet phẳng: tiền nộp nằm ở
+		   header (không còn mẹo "nhét vào dòng đầu"), mỗi ghế một dòng chi tiết. */
+		$b['bc'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			report_id VARCHAR(40) NOT NULL,
+			ngay DATE NOT NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			nhan_vien VARCHAR(190) NOT NULL DEFAULT '',
+			nop_hinhthuc VARCHAR(20) NOT NULL DEFAULT '',
+			nop_trang_thai VARCHAR(30) NOT NULL DEFAULT '',
+			nop_so_tien BIGINT(20) NOT NULL DEFAULT 0,
+			nop_ngay DATE NULL,
+			nop_ghichu VARCHAR(255) NOT NULL DEFAULT '',
+			unpaid_lydo VARCHAR(255) NOT NULL DEFAULT '',
+			ck_ref VARCHAR(120) NOT NULL DEFAULT '',
+			ck_bank VARCHAR(60) NOT NULL DEFAULT '',
+			chung_tu TEXT NULL,
+			kt_doi_soat TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY report_id (report_id),
+			UNIQUE KEY coso_ngay (coso_key,ngay),
+			KEY ngay (ngay)";
+
+		$b['bc_dong'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			report_id VARCHAR(40) NOT NULL,
+			ma_may VARCHAR(40) NOT NULL,
+			ten VARCHAR(190) NOT NULL DEFAULT '',
+			ngay DATE NOT NULL,
+			chi_so_truoc BIGINT(20) NULL,
+			chi_so_sau BIGINT(20) NULL,
+			actual BIGINT(20) NOT NULL DEFAULT 0,
+			tien_mat BIGINT(20) NOT NULL DEFAULT 0,
+			qr BIGINT(20) NOT NULL DEFAULT 0,
+			dieu_chinh BIGINT(20) NOT NULL DEFAULT 0,
+			tong BIGINT(20) NOT NULL DEFAULT 0,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			anh TEXT NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY dong (report_id,ma_may),
+			KEY may_ngay (ma_may,ngay)";
+
+		/* Đề nghị đổi/xoá chỉ số — nhân viên gửi, kế toán duyệt (trang kế toán làm sau). Duyệt xong
+		   ghi `moc_chiso`/`moc_chiso_ngay` vào bảng `may`; `chi_so_truoc()` tự áp từ ngày hiệu lực. */
+		$b['bc_denghi'] = "
+			id VARCHAR(40) NOT NULL,
+			tao_luc DATETIME NULL,
+			nhan_vien VARCHAR(190) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			ten VARCHAR(190) NOT NULL DEFAULT '',
+			tu_ngay DATE NULL,
+			chi_so BIGINT(20) NULL,
+			loai VARCHAR(10) NOT NULL DEFAULT 'dat_lai',
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho_duyet',
+			duyet_boi VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
+			ghi_chu_kt VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY may_tt (ma_may,trang_thai),
+			KEY coso (coso)";
+
+		/* Ngày KHOÁ theo cơ sở (kế toán ghi ở trang kế toán; nhân viên chỉ đọc). Khoá thì chặn
+		   gửi/sửa/nộp bổ sung đúng cơ sở+ngày đó. */
+		$b['bc_khoa'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			ngay DATE NOT NULL,
+			khoa_luc DATETIME NULL,
+			boi VARCHAR(190) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			UNIQUE KEY coso_ngay (coso_key,ngay)";
+
+		/* Yêu cầu của kế toán (làm bổ sung / sửa). Nhân viên gửi/sửa đúng cơ sở+ngày là tự đóng. */
+		$b['bc_yeucau'] = "
+			id VARCHAR(40) NOT NULL,
+			tao_luc DATETIME NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			ngay DATE NULL,
+			loai VARCHAR(20) NOT NULL DEFAULT 'bo_sung',
+			noi_dung VARCHAR(500) NOT NULL DEFAULT '',
+			tao_boi VARCHAR(190) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(20) NOT NULL DEFAULT 'cho_lam',
+			xong_luc DATETIME NULL,
+			xong_boi VARCHAR(190) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY loc (coso_key,ngay,trang_thai)";
 
 		return $b;
 	}
