@@ -190,6 +190,9 @@ class VHG_Trang {
 					isset( $d['ly_do'] ) ? $d['ly_do'] : '', $pin ) );
 				return;
 			}
+			if ( 'bc_doichieu' === $viec ) {
+				self::tra( VHG_BaoCao::doi_chieu( $pin, isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return;
+			}
 			self::tra( array( 'ok' => false, 'error' => 'Việc báo cáo không rõ: ' . $viec ) );
 			return;
 		}

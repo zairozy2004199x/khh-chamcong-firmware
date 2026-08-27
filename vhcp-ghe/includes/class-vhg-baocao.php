@@ -757,6 +757,68 @@ class VHG_BaoCao {
 				. '/' . $st['so_coso'] . ' cơ sở.' . ( count( $st['coso_conlai'] ) ? ( ' Bỏ qua: ' . $bo . '.' ) : '' ) );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ ĐỐI CHIẾU MÁY ONLINE
+
+	/**
+	 * ĐỐI CHIẾU BÁO CÁO ↔ MÁY ONLINE — "xem nhân viên thu đúng các giá trị chưa" (anh Thắng 27/08).
+	 *
+	 * So từng ghế trong ngày:
+	 *   · QR:       báo cáo nhân viên nhập  ↔  QR webhook ngân hàng đẩy về (số CHUẨN, khớp phải bằng).
+	 *   · Tiền mặt: `actual` (máy đếm = (sau−trước)×đơn_vị)  ↔  tiền mặt ghế TỰ BÁO về (`ND_GHE_NUOT`).
+	 *               Lệch = ghế mất mạng / sót xung — cùng bản chất `lech_may` của chốt ca.
+	 *
+	 * CHỈ ĐỌC, không ghi gì. Trả cả số khớp lẫn số lệch để giao diện tô ghế lệch cho nhân viên soát.
+	 *
+	 * ⚠️ Cắt theo NGÀY (`DATE(luc)`). Máy chủ hệ này lệch múi ~7h (xem VHG_Quy::may_bao), nên giao
+	 *    dịch sát nửa đêm có thể rơi lệch ngày một chút — con số tiền mặt ở đây là để SOÁT, không
+	 *    phải để ghi sổ. QR đối chiếu theo cùng ngày báo cáo nên vẫn là thước chính.
+	 */
+	public static function doi_chieu( $pin, $ngay ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ.' ); }
+		$ngay = self::ngay_( $ngay );
+		if ( '' === $ngay ) { $ngay = current_time( 'Y-m-d' ); }
+
+		$scope_key = array();
+		foreach ( self::ds_ghe( $q ) as $g ) {
+			if ( '' !== (string) $g['coso'] ) { $scope_key[ self::squash( $g['coso'] ) ] = true; }
+		}
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.qr, d.actual, d.ma_may, d.ten, h.coso, h.coso_key FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
+			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE d.ngay=%s AND d.chi_so_sau IS NOT NULL', $ngay ), ARRAY_A );
+
+		$tThu = VHG_DB::t( 'thu' );
+		$ds = array();
+		$tong = array( 'bc_qr' => 0, 'may_qr' => 0, 'bc_actual' => 0, 'may_cash' => 0,
+			'lech_qr' => 0, 'lech_cash' => 0, 'so_lech' => 0 );
+		foreach ( (array) $rows as $r ) {
+			if ( ! isset( $scope_key[ $r['coso_key'] ] ) ) { continue; }
+			$ma = (string) $r['ma_may'];
+			$may_qr = (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT COALESCE(SUM(so_tien),0) FROM $tThu WHERE ma_may=%s AND DATE(luc)=%s AND huy=0 AND nguon<>%s",
+				$ma, $ngay, VHG_Thu::TIEN_MAT ) );
+			$may_cash = (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT COALESCE(SUM(so_tien),0) FROM $tThu WHERE ma_may=%s AND DATE(luc)=%s AND huy=0 AND nguon=%s AND noi_dung=%s",
+				$ma, $ngay, VHG_Thu::TIEN_MAT, VHG_Thu::ND_GHE_NUOT ) );
+			$bc_qr = (int) $r['qr']; $bc_actual = (int) $r['actual'];
+			$lq = $bc_qr - $may_qr; $lc = $bc_actual - $may_cash;
+			$khop = ( 0 === $lq && 0 === $lc );
+			if ( ! $khop ) { $tong['so_lech']++; }
+			$tong['bc_qr'] += $bc_qr; $tong['may_qr'] += $may_qr;
+			$tong['bc_actual'] += $bc_actual; $tong['may_cash'] += $may_cash;
+			$tong['lech_qr'] += $lq; $tong['lech_cash'] += $lc;
+			$ds[] = array( 'ma_may' => $ma, 'ten' => (string) $r['ten'], 'coso' => (string) $r['coso'],
+				'bc_qr' => $bc_qr, 'may_qr' => $may_qr, 'lech_qr' => $lq,
+				'bc_actual' => $bc_actual, 'may_cash' => $may_cash, 'lech_cash' => $lc,
+				'khop' => $khop ? 1 : 0 );
+		}
+		return array( 'ok' => true, 'ngay' => $ngay, 'so_ghe' => count( $ds ),
+			'so_lech' => $tong['so_lech'], 'tong' => $tong, 'ghe' => $ds );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ QUẢN LÝ PIN (Admin)
 
 	/** Danh sách PIN (cho màn Admin). CHỈ Admin gọi (gác ở tầng trang). */
