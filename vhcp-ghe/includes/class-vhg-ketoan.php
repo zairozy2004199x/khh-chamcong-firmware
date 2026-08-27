@@ -370,15 +370,25 @@ class VHG_KeToan {
 		$u = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_undo' ) . ' WHERE id=%d LIMIT 1', $id ), ARRAY_A );
 		if ( ! $u ) { return array( 'ok' => false, 'message' => 'Không thấy dòng nhật ký.' ); }
 		if ( (int) $u['da_hoan_tac'] ) { return array( 'ok' => false, 'message' => 'Đã hoàn tác trước đó.' ); }
-		if ( 'sua' !== $u['viec'] ) { return array( 'ok' => false, 'message' => 'Chỉ hoàn tác được thao tác sửa số liệu ở đây.' ); }
+		if ( ! in_array( $u['viec'], array( 'sua', 'qr', 'doisoat' ), true ) ) {
+			return array( 'ok' => false, 'message' => 'Thao tác này không hoàn tác được ở đây.' );
+		}
 		$ct = json_decode( (string) $u['chi_tiet'], true );
 		if ( ! is_array( $ct ) ) { return array( 'ok' => false, 'message' => 'Nhật ký không đọc được.' ); }
 		$n = 0;
 		foreach ( $ct as $o ) {
-			$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
-				'chi_so_truoc' => $o['chi_so_truoc'], 'chi_so_sau' => $o['chi_so_sau'], 'actual' => $o['actual'],
-				'tien_mat' => $o['tien_mat'], 'qr' => $o['qr'], 'dieu_chinh' => $o['dieu_chinh'], 'tong' => $o['tong'],
-				'ghi_chu' => $o['ghi_chu'] ), array( 'report_id' => $o['report_id'], 'ma_may' => $o['ma_may'] ) );
+			$key = array( 'report_id' => $o['report_id'], 'ma_may' => $o['ma_may'] );
+			if ( 'sua' === $u['viec'] ) {
+				$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
+					'chi_so_truoc' => $o['chi_so_truoc'], 'chi_so_sau' => $o['chi_so_sau'], 'actual' => $o['actual'],
+					'tien_mat' => $o['tien_mat'], 'qr' => $o['qr'], 'dieu_chinh' => $o['dieu_chinh'], 'tong' => $o['tong'],
+					'ghi_chu' => $o['ghi_chu'] ), $key );
+			} elseif ( 'qr' === $u['viec'] ) {
+				$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'qr' => $o['qr'], 'tong' => $o['tong'] ), $key );
+			} else { // doisoat — trả lại ô nộp tiền
+				$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'nop_so_tien' => $o['nop_so_tien'],
+					'nop_trang_thai' => $o['nop_trang_thai'], 'nop_hinhthuc' => $o['nop_hinhthuc'], 'nop_ngay' => $o['nop_ngay'] ), $key );
+			}
 			$n++;
 		}
 		$wpdb->update( VHG_DB::t( 'bc_undo' ), array( 'da_hoan_tac' => 1 ), array( 'id' => $id ) );
@@ -707,6 +717,74 @@ class VHG_KeToan {
 		global $wpdb;
 		$wpdb->delete( VHG_DB::t( 'bc_ma_nop' ), array( 'id' => (int) $id ) );
 		return array( 'ok' => true, 'message' => 'Đã xoá.' );
+	}
+
+	// ══════════════════════════════════════════════════════════════════ ĐỐI CHIẾU QR
+
+	/** QR webhook (ngân hàng đẩy về) của một ghế trong một ngày — số CHUẨN. */
+	private static function qr_web_( $ma, $ngay ) {
+		global $wpdb;
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COALESCE(SUM(so_tien),0) FROM ' . VHG_DB::t( 'thu' )
+			. ' WHERE ma_may=%s AND DATE(luc)=%s AND huy=0 AND nguon<>%s', $ma, self::ngay_( $ngay ), VHG_Thu::TIEN_MAT ) );
+	}
+
+	/** Đối chiếu QR tháng: QR nhân viên nhập ↔ QR webhook. Trả các ghế LỆCH (để áp sửa). */
+	public static function qr_ds( $thang ) {
+		global $wpdb;
+		$th = self::thang_( $thang );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.report_id, d.ma_may, d.ten, d.ngay, d.qr, h.coso'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE DATE_FORMAT(d.ngay,%s)=%s AND d.chi_so_sau IS NOT NULL', '%Y-%m', $th ), ARRAY_A );
+		$ra = array(); $khop = 0; $tongBc = 0; $tongWeb = 0;
+		foreach ( (array) $rows as $r ) {
+			$web = self::qr_web_( $r['ma_may'], $r['ngay'] );
+			$bc = (int) $r['qr'];
+			$tongBc += $bc; $tongWeb += $web;
+			if ( $bc === $web ) { $khop++; continue; }
+			$ra[] = array( 'report_id' => $r['report_id'], 'ma_may' => $r['ma_may'], 'ten' => $r['ten'],
+				'coso' => $r['coso'], 'ngay' => self::ngay_( $r['ngay'] ), 'bcQr' => $bc, 'webQr' => $web, 'lech' => $web - $bc );
+		}
+		usort( $ra, function ( $a, $b ) { return abs( $b['lech'] ) - abs( $a['lech'] ); } );
+		return array( 'ok' => true, 'thang' => $th, 'soLech' => count( $ra ), 'khop' => $khop,
+			'tongBc' => $tongBc, 'tongWeb' => $tongWeb, 'rows' => array_slice( $ra, 0, 300 ) );
+	}
+
+	/**
+	 * ÁP SỬA QR — SET qr = QR webhook, tổng = tiền mặt + qr mới. TIỀN MẶT GIỮ NGUYÊN (bất biến #4).
+	 * $targets=[{report_id, ma_may, ngay}]. Ngày khoá thì bỏ. Ghi undo. Cảnh báo (tiền mặt+QR)≠actual.
+	 */
+	public static function qr_ap( $targets, $reason, $boi ) {
+		global $wpdb;
+		$list = is_array( $targets ) ? $targets : array();
+		if ( ! count( $list ) ) { return array( 'ok' => false, 'message' => 'Chưa chọn ghế nào.' ); }
+		$before = array(); $n = 0; $khoa = 0; $warn = array();
+		foreach ( $list as $t ) {
+			$rid = (string) ( isset( $t['report_id'] ) ? $t['report_id'] : '' );
+			$ma  = (string) ( isset( $t['ma_may'] ) ? $t['ma_may'] : '' );
+			if ( '' === $rid || '' === $ma ) { continue; }
+			$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
+			if ( ! $d ) { continue; }
+			$h = $wpdb->get_row( $wpdb->prepare( 'SELECT coso, ngay FROM ' . VHG_DB::t( 'bc' ) . ' WHERE report_id=%s LIMIT 1', $rid ), ARRAY_A );
+			if ( $h && self::dang_khoa( $h['coso'], $h['ngay'] ) ) { $khoa++; continue; }
+			$web = self::qr_web_( $ma, $d['ngay'] );
+			$cash = (int) $d['tien_mat'];
+			$before[] = array( 'report_id' => $rid, 'ma_may' => $ma, 'qr' => $d['qr'], 'tong' => $d['tong'] );
+			$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'qr' => $web, 'tong' => $cash + $web ),
+				array( 'id' => (int) $d['id'] ) );
+			$n++;
+			$expect = (int) $d['actual'] - $web + (int) $d['dieu_chinh'];
+			if ( $expect !== $cash ) { $warn[] = array( 'ma_may' => $ma, 'gap' => $cash - $expect ); }
+		}
+		if ( count( $before ) ) {
+			$wpdb->insert( VHG_DB::t( 'bc_undo' ), array( 'viec' => 'qr', 'ly_do' => mb_substr( (string) $reason, 0, 250 ),
+				'chi_tiet' => wp_json_encode( $before ), 'da_hoan_tac' => 0, 'boi' => (string) $boi, 'tao_luc' => current_time( 'mysql' ) ) );
+		}
+		return array( 'ok' => true, 'changed' => $n, 'skippedLocked' => $khoa, 'warn' => $warn,
+			'message' => 'Đã áp QR cho ' . $n . ' ghế (tiền mặt giữ nguyên).'
+				. ( $khoa ? ( ' Bỏ ' . $khoa . ' ghế ngày khoá.' ) : '' )
+				. ( count( $warn ) ? ( ' ⚠ ' . count( $warn ) . ' ghế (tiền mặt+QR)≠actual.' ) : '' ) );
 	}
 
 	// ══════════════════════════════════════════════════════════════════ SỔ CÔNG NỢ

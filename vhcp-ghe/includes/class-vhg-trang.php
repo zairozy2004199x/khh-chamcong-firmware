@@ -272,6 +272,8 @@ class VHG_Trang {
 			if ( 'kt_congno_chot' === $viec ) { self::tra( VHG_KeToan::cong_no_chot( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
 			if ( 'kt_congno_mo' === $viec )  { self::tra( VHG_KeToan::cong_no_mo( isset( $d['thang'] ) ? $d['thang'] : '', $boi ) ); return; }
 			if ( 'kt_congno_dat' === $viec ) { self::tra( VHG_KeToan::cong_no_dat( isset( $d['thang'] ) ? $d['thang'] : '', isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['so_tien'] ) ? $d['so_tien'] : 0, isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', $boi ) ); return; }
+			if ( 'kt_qr_ds' === $viec )      { self::tra( VHG_KeToan::qr_ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_qr_ap' === $viec )      { self::tra( VHG_KeToan::qr_ap( isset( $d['targets'] ) ? $d['targets'] : array(), isset( $d['ly_do'] ) ? $d['ly_do'] : '', $boi ) ); return; }
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
 			return;
 		}
@@ -3036,16 +3038,56 @@ function veKtTien(){
     + '<div class="act" style="margin-top:8px"><button id="kti-ck-xem" class="ghost">' + L('Xem trước','Preview') + '</button>'
     + '<button id="kti-ck-ap" class="on">' + L('Áp ghi nộp','Apply') + '</button><span id="kti-ck-msg" class="mut"></span></div>'
     + '<div id="kti-ck-kq" style="margin-top:8px"></div></div>'
+    + '<div class="card"><h2>' + L('Đối chiếu QR (báo cáo ↔ webhook)','QR reconcile') + '</h2>'
+    + '<p class="mut">' + L('QR ngân hàng đẩy về là số CHUẨN. Áp sửa = ghi đúng ô QR, TIỀN MẶT GIỮ NGUYÊN.',
+      'Bank QR is authoritative. Apply writes the QR cell only; cash unchanged.') + '</p>'
+    + '<div id="kti-qr"></div></div>'
     + '<div class="card"><h2>' + L('Mã nộp tiền (nội dung CK ↔ cơ sở)','Pay codes') + '</h2><div id="kti-manop"></div></div>';
 }
 function ktiInit(){
   var iT=document.getElementById('kti-thang');
   if(!KTI_THANG) KTI_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
   if(iT&&KTI_THANG) iT.value=KTI_THANG;
-  document.getElementById('kti-xem').onclick=function(){ KTI_THANG=iT.value; ktiCongNo(); ktiCanNop(); };
+  document.getElementById('kti-xem').onclick=function(){ KTI_THANG=iT.value; ktiCongNo(); ktiCanNop(); ktiQr(); };
   document.getElementById('kti-ck-xem').onclick=function(){ ktiCk(false); };
   document.getElementById('kti-ck-ap').onclick=function(){ ktiCk(true); };
-  ktiCongNo(); ktiCanNop(); ktiMaNop();
+  ktiCongNo(); ktiCanNop(); ktiQr(); ktiMaNop();
+}
+function ktiQr(){
+  var box=document.getElementById('kti-qr'); if(!box) return;
+  box.textContent=''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
+  goi('kt_qr_ds',{thang:KTI_THANG},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    box.appendChild(ktEl('div','mut', L('Khớp','Match')+' '+r.khop+' ghế · '+L('lệch','off')+' '+r.soLech
+      +' ghế · QR báo cáo '+ktVnd(r.tongBc)+'đ / webhook '+ktVnd(r.tongWeb)+'đ'));
+    if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Không có ghế lệch.','No mismatches.'))); return; }
+    var sel={};
+    var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='640px';
+    tb.innerHTML='<tr><th></th><th>'+L('Ghế','Chair')+'</th><th>'+L('Ngày','Date')+'</th><th>'+L('QR báo cáo','Reported')
+      +'</th><th>'+L('QR webhook','Bank')+'</th><th>'+L('Lệch','Off')+'</th></tr>';
+    r.rows.forEach(function(x,i){
+      var tr=ktEl('tr');
+      var td0=ktEl('td'); var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; sel[i]=x;
+      cb.onchange=function(){ if(cb.checked) sel[i]=x; else delete sel[i]; }; td0.appendChild(cb); tr.appendChild(td0);
+      var tn=ktEl('td'); tn.appendChild(ktEl('b',null,x.ten||x.ma_may)); tn.appendChild(ktEl('div','mut',x.coso)); tr.appendChild(tn);
+      tr.appendChild(ktEl('td',null,x.ngay));
+      function c(v){ var e=ktEl('td',null,ktVnd(v)); e.style.textAlign='right'; return e; }
+      tr.appendChild(c(x.bcQr)); tr.appendChild(c(x.webQr));
+      var el2=ktEl('td',null,ktVnd(x.lech)); el2.style.textAlign='right'; el2.style.color='#ff8087'; tr.appendChild(el2);
+      tb.appendChild(tr);
+    });
+    sc.appendChild(tb); box.appendChild(sc);
+    var bar=ktEl('div','act'); bar.style.marginTop='8px'; var m=ktEl('span','mut');
+    var b=ktEl('button','on',L('Áp sửa QR (đã chọn)','Apply QR (selected)'));
+    b.onclick=function(){
+      var ts=Object.keys(sel).map(function(k){ var x=sel[k]; return {report_id:x.report_id,ma_may:x.ma_may}; });
+      if(!ts.length){ m.textContent=L('Chưa chọn ghế nào.','None selected.'); m.className='mut err'; return; }
+      var ly=prompt(L('Lý do áp sửa QR:','Reason:')); if(ly===null) return;
+      ktAct('kt_qr_ap',{targets:ts,ly_do:ly},m,function(rr){ if(rr.warn&&rr.warn.length) alert('⚠ '+rr.warn.length+' ghế (tiền mặt+QR)≠actual — kiểm lại.'); ktiQr(); ktiCongNo(); });
+    };
+    bar.appendChild(b); bar.appendChild(m); box.appendChild(bar);
+  });
 }
 function ktiCongNo(){
   var box=document.getElementById('kti-congno'); if(!box) return;
