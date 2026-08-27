@@ -546,6 +546,7 @@ la( 'CHT KHÔNG vào cơ sở khác', false,
 la( 'Admin vào cơ sở bất kỳ',   true,
 	VCG_Quyen::duoc_co_so( 'ADMIN', array(), 'CO_SO_MOI_TINH' ) );
 
+
 echo "\n";
 if ( $hong ) { printf( "🔴 HỎNG: %d | ĐẠT: %d\n", $hong, $dat ); exit( 1 ); }
 printf( "✓ SẠCH — %d phép, chạy trên tệp CSV THẬT\n", $dat );

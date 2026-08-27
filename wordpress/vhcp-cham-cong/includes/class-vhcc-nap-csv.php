@@ -37,8 +37,20 @@ class VHCC_NapCsv {
 	 * đều ra `hovaten`. Nhiều cách gọi cùng trỏ về một cột — sổ mỗi cơ sở gõ một kiểu.
 	 */
 	const BAN_DO = array(
+		/* 🔴 KHÔNG NHẬN 'id' LÀM MÃ NV. Anh Thắng 26/08/2026: *"Hồ sơ nhân sự đang bị lỗi giữa
+		   các nhân sự"* — và đây là chỗ nó bắt đầu.
+
+		   Sổ xuất từ Google Sheets gần như luôn có một cột đánh số dòng, đặt tên `ID` hoặc `STT`.
+		   Nhận nó làm Mã NV thì cả sổ mang mã 1, 2, 3… lẫn với mã thật (`MNLX1CTY0001`). Mà MÃ LÀ
+		   KHOÁ: nạp file thứ hai, dòng 15 của file mới GHI ĐÈ lên người đang mang mã 15 — hai
+		   người khác nhau, cùng một khoá. Hồ sơ người này lẫn sang người kia, và không có gì kêu.
+		   Chấm công cũng khoá theo mã, nên một người bị tách làm hai mã thì công cũng tách đôi.
+
+		   ⚠️ BỎ HẲN CÒN AN TOÀN HƠN ĐOÁN. Sổ nào thật sự đặt tên cột mã là `ID` thì nạp vào sẽ
+		      dừng lại với câu "Không thấy cột MÃ NV" — hỏng TO TIẾNG, sửa tiêu đề một lần là
+		      xong. Còn nhận bừa thì hỏng IM LẶNG, và chỉ lộ ra ở bảng lương. */
 		'manv' => 'ma_nv', 'ma' => 'ma_nv', 'manhanvien' => 'ma_nv', 'mann' => 'ma_nv',
-		'employeeno' => 'ma_nv', 'id' => 'ma_nv',
+		'employeeno' => 'ma_nv',
 
 		'hoten' => 'ho_ten', 'hovaten' => 'ho_ten', 'ten' => 'ho_ten', 'tennhanvien' => 'ho_ten',
 		'name' => 'ho_ten',
@@ -98,7 +110,11 @@ class VHCC_NapCsv {
 	 *    một ô `cap_nhat` — 240 dòng nhiễu che sạch những ô đổi THẬT, đúng thứ bảng đó sinh ra
 	 *    để cho thấy. Bỏ nó đi thì còn lại toàn là thay đổi có nghĩa.
 	 */
-	const COT_BO_QUA = array( 'capnhat' => 'Cập nhật', 'lancapnhat' => 'Cập nhật' );
+	/* Cột BỎ QUA CÓ CHỦ Ý — khác với "cột lạ": cột lạ thì màn hình kể tên ra để người ta soi,
+	   còn mấy cột này thì bỏ im lặng vì chắc chắn không mang dữ liệu nhân sự nào.
+	   `stt` / `id` / `#` là SỐ THỨ TỰ DÒNG của bảng tính — xem khối cảnh báo ở `BAN_DO`. */
+	const COT_BO_QUA = array( 'capnhat' => 'Cập nhật', 'lancapnhat' => 'Cập nhật',
+		'stt' => 'STT', 'sothutu' => 'Số thứ tự', 'id' => 'ID', 'no' => 'No', 'index' => 'Index' );
 	/** Cột kiểu số tiền. */
 	const COT_TIEN  = array( 'luong_co_ban' );
 
@@ -385,6 +401,27 @@ class VHCC_NapCsv {
 					. 'Sheets đã cắt mất số 0 ở đầu. Định dạng cột PIN thành Văn bản rồi tải lại; '
 					. 'hệ thống KHÔNG tự thêm số 0 vì đoán sai là đặt cho người ta một PIN họ không biết.';
 			}
+		}
+
+		/* 🔴 CỘT MÃ NV TRÔNG NHƯ SỐ THỨ TỰ THÌ KÊU LÊN, ĐỪNG NẠP LẶNG LẼ.
+		   Bỏ `id` khỏi bản đồ cột chặn được cái tên phổ biến nhất, nhưng người ta còn đặt tên cột
+		   là `Mã` rồi đổ số thứ tự vào đó. Mã là KHOÁ: nạp file sau, dòng 15 ghi đè lên người
+		   đang mang mã 15 — hai người khác nhau, cùng một khoá.
+		   Nên soi CHÍNH GIÁ TRỊ: gần như cả cột là số nguyên ngắn thì đó không phải mã nhân viên.
+		   ⚠️ Đây là CẢNH BÁO ở bước xem trước, không phải chối. Có nơi đánh mã bằng số thật; chối
+		      thẳng là khoá cửa của họ. Nói ra để người bấm quyết định. */
+		/* `$doi` khoá BẰNG CHÍNH MÃ, nên lấy khoá — đừng tìm một ô 'ma' không tồn tại trong đó. */
+		$ma_thay = array_map( 'strval', array_keys( (array) $doi ) );
+		if ( ! $ma_thay ) { $ma_thay = array_map( 'strval', (array) $ma_them ); }
+		$so_ngan = 0;
+		foreach ( $ma_thay as $_m ) {
+			if ( preg_match( '/^\\d{1,4}$/', $_m ) ) { $so_ngan++; }
+		}
+		if ( count( $ma_thay ) >= 5 && $so_ngan >= (int) ceil( count( $ma_thay ) * 0.8 ) ) {
+			$canh[] = '⚠️ Cột MÃ NV toàn số ngắn (' . $so_ngan . '/' . count( $ma_thay ) . ' dòng) — '
+				. 'nhiều khả năng đây là cột SỐ THỨ TỰ chứ không phải mã nhân viên. Mã là KHOÁ: nạp '
+				. 'lần sau, dòng số 15 sẽ GHI ĐÈ lên người đang mang mã 15 — hai người khác nhau. '
+				. 'Kiểm lại tiêu đề cột trước khi bấm Nạp thật.';
 		}
 
 		return array( 'ok' => true, 'them' => $them, 'sua' => $sua, 'bo' => $bo, 'canh' => $canh,

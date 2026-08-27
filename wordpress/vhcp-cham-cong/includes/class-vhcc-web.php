@@ -3506,6 +3506,13 @@ class VHCC_Web {
 		echo '<div class="the"><h2>👤 Hồ sơ nhân sự</h2>';
 		echo '<form method="get" class="hang" style="margin-bottom:10px">';
 		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		/* 🔴 BIỂU MẪU `method="get"` PHẢI TỰ CHỞ LẤY MÀN CỦA NÓ.
+		   Anh Thắng 26/08/2026: *"Bấm gõ tìm kiếm nhân sự nó cứ nhảy sang trang chính"*.
+		   Gửi biểu mẫu GET là trình duyệt dựng LẠI thanh địa chỉ CHỈ TỪ các ô trong biểu mẫu —
+		   mọi tham số đang có trên địa chỉ cũ, kể cả `man=ho_so`, biến mất. Không còn `man` thì
+		   `man_mac_dinh()` trả về 'nha', và người ta rơi vào Trang chính đúng lúc vừa gõ xong một
+		   câu tìm. Ba biểu mẫu GET khác trên màn này đều đã chở `man`; đây là cái duy nhất sót. */
+		echo '<input type="hidden" name="man" value="ho_so">';
 		echo '<div><label for="fcs">Cơ sở</label><select id="fcs" name="cs"><option value="">— mọi cơ sở —</option>';
 		foreach ( VHCC_DB::rows( "SELECT DISTINCT cua_hang FROM $bang WHERE cua_hang<>'' ORDER BY cua_hang" ) as $x ) {
 			echo '<option value="' . esc_attr( $x['cua_hang'] ) . '"' . selected( $x['cua_hang'], $cs, false )

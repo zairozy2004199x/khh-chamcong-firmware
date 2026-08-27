@@ -6333,6 +6333,76 @@ t( 'bộ phận đứng TRƯỚC cách tính', $_vt_bp < $_vt_ct, array( $_vt_bp
 $_vt_ba = max( (int) strpos( $h_bp . 'x', 'id="khaica"' ), (int) strpos( $h_bp . 'x', 'id="congthuc"' ) );
 t( 'và khối của riêng cơ sở đứng SAU cả hai', $_vt_ba > $_vt_ct, $_vt_ba );
 
+/* ============================================================ CỘT "ID" KHÔNG PHẢI MÃ NV */
+/* 🔴 Anh Thắng 26/08/2026: *"Hồ sơ nhân sự đang bị lỗi giữa các nhân sự"*.
+   Sổ xuất từ Google Sheets gần như luôn có một cột đánh số dòng tên `ID` hoặc `STT`. Bản đồ cột
+   cũ nhận `id` làm Mã NV, nên cả sổ mang mã 1, 2, 3… lẫn với mã thật (`MNLX1CTY0001`).
+   Mà MÃ LÀ KHOÁ: nạp file thứ hai, dòng 15 của file mới GHI ĐÈ lên người đang mang mã 15 —
+   hai người khác nhau, cùng một khoá. Hồ sơ người này lẫn sang người kia, không có gì kêu. */
+
+t( '🔴 "id" KHÔNG còn được nhận làm Mã NV',
+	! isset( VHCC_NapCsv::BAN_DO['id'] ) || 'ma_nv' !== VHCC_NapCsv::BAN_DO['id'] );
+foreach ( array( 'stt', 'id', 'sothutu', 'index' ) as $_k ) {
+	t( 'cột "' . $_k . '" bỏ qua CÓ CHỦ Ý (không kể là cột lạ)',
+		isset( VHCC_NapCsv::COT_BO_QUA[ $_k ] ) );
+}
+/* Mã thật vẫn phải nhận bình thường — sửa cái này không được làm hỏng đường nạp đang chạy. */
+foreach ( array( 'manv', 'ma', 'manhanvien', 'employeeno' ) as $_k ) {
+	teq( 'cột "' . $_k . '" vẫn là Mã NV', 'ma_nv', VHCC_NapCsv::BAN_DO[ $_k ] );
+}
+
+/* Tệp CHỈ có cột ID + Họ tên -> phải DỪNG LẠI, không được nạp bừa theo số dòng. */
+$_csv_id = "ID,Họ và tên,Cơ sở\n1,Nguyễn Văn Một,CS_A\n2,Trần Thị Hai,CS_A\n";
+$_r_id   = VHCC_NapCsv::nap( $_csv_id, true );
+t( '🔴 tệp chỉ có cột ID thì CHỐI, không nạp theo số dòng', empty( $_r_id['ok'] ) );
+t( 'và nói rõ là thiếu cột MÃ NV',
+	false !== strpos( (string) ( isset( $_r_id['error'] ) ? $_r_id['error'] : '' ), 'MÃ NV' ) );
+
+/* Cột tên là "Mã" nhưng ruột toàn số ngắn -> VẪN nạp được (có nơi đánh mã bằng số thật),
+   nhưng phải KÊU LÊN ở bước xem trước. Chối thẳng là khoá cửa của họ. */
+$_csv_so = "Mã,Họ và tên\n1,Người Một\n2,Người Hai\n3,Người Ba\n4,Người Bốn\n5,Người Năm\n6,Người Sáu\n";
+$_r_so   = VHCC_NapCsv::nap( $_csv_so, true );
+t( 'mã toàn số ngắn thì vẫn xem trước được', ! empty( $_r_so['ok'] ) );
+$_canh = implode( ' | ', (array) ( isset( $_r_so['canh'] ) ? $_r_so['canh'] : array() ) );
+t( '🔴 nhưng KÊU LÊN là trông như số thứ tự',
+	false !== strpos( $_canh, 'SỐ THỨ TỰ' ) );
+t( 'và nói ra hậu quả: ghi đè lên người khác',
+	false !== strpos( $_canh, 'GHI ĐÈ' ) );
+
+/* Mã thật thì KHÔNG kêu — cảnh báo kêu oan là cảnh báo người ta học cách bỏ qua. */
+$_csv_that = "Mã NV,Họ và tên\nMNLX1CTY0001,Người Một\nMNKT8CTY0001,Người Hai\n"
+	. "KHKT1CTY0001,Người Ba\nMNVH1MTD0001,Người Bốn\nMNKY2MTD0001,Người Năm\nMNMK2KVC0001,Người Sáu\n";
+$_r_that = VHCC_NapCsv::nap( $_csv_that, true );
+$_c_that = implode( ' | ', (array) ( isset( $_r_that['canh'] ) ? $_r_that['canh'] : array() ) );
+t( 'mã thật thì KHÔNG kêu oan', false === strpos( $_c_that, 'SỐ THỨ TỰ' ) );
+
+
+/* 🔴 MỌI BIỂU MẪU `method="get"` PHẢI TỰ CHỞ LẤY `man` CỦA NÓ.
+   Anh Thắng 26/08: *"Bấm gõ tìm kiếm nhân sự nó cứ nhảy sang trang chính"*. Gửi biểu mẫu GET
+   là trình duyệt dựng LẠI thanh địa chỉ CHỈ TỪ các ô trong biểu mẫu — mọi tham số đang có trên
+   địa chỉ cũ, kể cả `man=…`, biến mất. Không còn `man` thì rơi về màn mặc định.
+
+   ⚠️ CANH BẰNG CÁCH ĐẾM TRÊN MÃ NGUỒN, không canh từng màn một. Canh từng màn thì biểu mẫu GET
+      thứ năm viết sau này lại sót, và nó sót im lặng y như lần này. */
+$_ma_form = vhcc_bo_chu_thich( file_get_contents( VHCC_DIR . 'includes/class-vhcc-web.php' ) );
+$_ds_form = explode( "<form method=\"get\"", $_ma_form );
+array_shift( $_ds_form );
+t( 'màn quản trị có nhiều biểu mẫu GET để canh', count( $_ds_form ) >= 4, count( $_ds_form ) );
+foreach ( $_ds_form as $_i => $_than ) {
+	/* Chỉ soi tới chỗ đóng biểu mẫu — ô `man` của biểu mẫu SAU không được tính cho cái này. */
+	$_het = strpos( $_than, "</form>" );
+	if ( false !== $_het ) { $_than = substr( $_than, 0, $_het ); }
+	t( '🔴 biểu mẫu GET #' . ( $_i + 1 ) . ' có chở ô ẩn `man`',
+		false !== strpos( $_than, 'name="man"' ), substr( $_than, 0, 220 ) );
+}
+
+/* Và canh trên MÀN THẬT: gõ tìm ở Hồ sơ thì biểu mẫu phải giữ người ta ở lại Hồ sơ. */
+$_h_hs = vhcc_web( '135791', array(), array( 'man' => 'ho_so' ) );
+t( 'màn Hồ sơ vẽ được', strpos( $_h_hs, 'Hồ sơ nhân sự' ) !== false, substr( $_h_hs, 0, 200 ) );
+t( '🔴 ô Tìm nhân sự chở `man=ho_so`, không nhảy về Trang chính',
+	preg_match( '/<form method="get"[^>]*>(?:(?!<\/form>).)*?name="man" value="ho_so"/s', $_h_hs ) === 1,
+	'biểu mẫu Tìm không chở man' );
+
 /* 🔴 PHIÊN BẢN ĐANG CHẠY Ở CUỐI MỖI TRANG.
    Anh Thắng 26/08: *"Cuối mỗi tất cả các trang bổ sung tên phiên bản đang chạy để theo dõi"*.
    Mỗi lần sửa xong là cài đè một tệp .zip lên hosting; không có số trên màn thì không cách nào
