@@ -6726,6 +6726,17 @@ t( 'và trỏ XUỐNG khối cùng màn, không sang tab khác',
 	strpos( $h_qtc, 'href="#luoithang"' ) !== false, $h_qtc );
 t( 'lưới thật sự có mặt ngay trên màn ấy, khỏi phải chọn cơ sở lần hai',
 	strpos( $h_qtc, 'id="luoithang"' ) !== false, $h_qtc );
+/* 🔴 LƯỚI ĐỨNG TRƯỚC BẢNG TỔNG. Anh Thắng 27/08/2026: *"cho bảng này lên trên"*.
+   Bảng tổng trả lời "cả tháng được mấy công" — đọc lúc chốt lương, mỗi tháng một lần. Lưới trả
+   lời "ngày nào ai đi làm, ô nào sai" — thứ mở màn này ra là để soi, ngày nào cũng soi. Thứ
+   dùng nhiều nằm dưới thì mỗi lượt phải cuộn qua thứ dùng ít.
+   ⚠️ So VỊ TRÍ hai mốc, không chỉ hỏi "có mặt không": cả hai khối vẫn còn nguyên sau khi đổi
+      thứ tự, nên phép thử có-mặt vẫn xanh dù xếp ngược. */
+$vt_luoi = strpos( $h_qtc, 'id="luoithang"' );
+$vt_tong = strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' );
+t( 'dựng cảnh: màn có cả hai khối', false !== $vt_luoi && false !== $vt_tong );
+t( '🔴 lưới cả tháng đứng TRƯỚC bảng tổng theo nhân viên',
+	$vt_luoi < $vt_tong, $vt_luoi . ' vs ' . $vt_tong );
 t( 'lưới vẽ ra được', strpos( $h_vp, 'Nhân viên' ) !== false, $h_vp );
 /* Đủ 31 cột ngày cho tháng 7 + cột Nhân viên + cột TỔNG. Đếm số THẬT, không gõ tay con số. */
 $sn_vp = (int) gmdate( 't', strtotime( '2026-07-01' ) );
@@ -6737,7 +6748,12 @@ t( 'nhãn thứ đúng với ngày thật (01/07/2026 là T4)',
 t( 'cuối tuần được tô khác', strpos( $h_vp, 'class="ng cn"' ) !== false, $h_vp );
 
 /* 🔴 Hai ký hiệu KHÁC NHAU cho hai chuyện khác nhau. */
-t( 'ngày nghỉ hẳn -> dấu chấm', strpos( $h_vp, '<td class="o">·</td>' ) !== false, $h_vp );
+/* ⚠️ Soi Ô THẬT, không soi chuỗi `·` trần: dấu ấy còn nằm trong phần chú giải dưới lưới.
+   Và ô trống là ô BẤM ĐƯỢC (bấm để chấm bù) nên ruột nó bọc trong một thẻ <a> — bản trước
+   của phép thử này soi `<td class="o">·</td>` không có thẻ <a>, và nó xanh chỉ vì hàng ca
+   đêm cũ in dấu chấm TRẦN. Bỏ hàng ấy đi là phép thử đỏ, dù ô trống vẫn đúng y nguyên. */
+t( 'ngày nghỉ hẳn -> dấu chấm',
+	preg_match( '~<td class="o"[^>]*>(<a[^>]*>)?·(</a>)?</td>~', $h_vp ) === 1, $h_vp );
 t( 'ngày CÓ giờ mà không ra công -> số 0 nền đỏ, không phải dấu chấm',
 	strpos( $h_vp, '<span class="chu-hong">0</span>' ) !== false, $h_vp );
 t( 'và chú thích nói rõ vì sao không tính',
@@ -6752,13 +6768,41 @@ t( 'ô có chú thích kèm giờ vào → giờ ra',
 	strpos( $h_vp, '08:30 → 17:00' ) !== false, $h_vp );
 t( 'và nói rõ mấy giờ nằm trong khung', strpos( $h_vp, 'h trong khung' ) !== false, $h_vp );
 
-/* Dòng con ca đêm: ngày LÀM hiện 🌙, ngày ĐƯỢC TÍNH hiện số. */
-/* ⚠️ Canh đúng Ô TRONG LƯỚI, không canh chữ chung: cả '↳ ca đêm' lẫn '🌙' đều xuất hiện trong
-   phần CHÚ GIẢI dưới lưới, nên tìm chuỗi trần thì bỏ hẳn dòng con đi phép thử vẫn xanh. Đã phá
-   thử để thấy đúng chuyện đó. */
-t( 'có dòng con ca đêm -CD (ô đầu dòng, không phải chữ trong chú giải)',
-	strpos( $h_vp, 'padding-left:20px">↳ ca đêm' ) !== false, $h_vp );
-t( 'đêm có làm thì ô hiện mặt trăng', strpos( $h_vp, '>🌙</td>' ) !== false, $h_vp );
+/* 🔴 CA ĐÊM NẰM TRONG CHÍNH Ô ẤY, không phải một hàng thứ hai bên dưới.
+   Anh Thắng 27/08/2026: *"ghép ... lại 1 bảng"*. Ngày LÀM hiện 🌙, ngày ĐƯỢC TÍNH hiện 🌙 kèm số.
+   ⚠️ Canh đúng Ô TRONG LƯỚI, không canh chữ chung: cả '🌙' lẫn 'ca đêm' đều xuất hiện trong phần
+      CHÚ GIẢI dưới lưới, nên tìm chuỗi trần thì bỏ hẳn dòng phụ đi phép thử vẫn xanh. Đã phá thử
+      để thấy đúng chuyện đó — và đó cũng là lý do soi `class="mdem"` ở chỗ DÙNG chứ không soi
+      tên lớp trần, vì tên lớp nào cũng có mặt trong khối <style>. */
+t( 'ca đêm là DÒNG PHỤ ngay trong ô, không phải hàng riêng',
+	strpos( $h_vp, '<div class="mdem">🌙' ) !== false, $h_vp );
+t( 'đêm có làm thì dòng phụ hiện mặt trăng trơn',
+	strpos( $h_vp, '<div class="mdem">🌙</div>' ) !== false, $h_vp );
+t( 'ngày được tính công đêm thì mặt trăng kèm SỐ',
+	preg_match( '~<div class="mdem">🌙[0-9]~u', $h_vp ) === 1, $h_vp );
+/* 🔴 MỘT NGƯỜI = MỘT HÀNG. Còn sót một ô đầu dòng '↳' nghĩa là vẫn còn hàng riêng. */
+t( '🔴 không còn hàng ↳ riêng nào trong lưới',
+	strpos( $h_vp, 'padding-left:20px">↳' ) === false, $h_vp );
+
+/* 🔴 ĐÊM CÓ LÀM MÀ KHÔNG ĐỦ GIỜ TỐI THIỂU -> 🌙 KÈM SỐ 0, NỀN ĐỎ.
+   Đây là ô đắt nhất của cả lưới: người ta ĐÃ thức trắng một đêm mà công không vào. Để nó giống
+   hệt một đêm bình thường thì tháng nào cũng có người mất công mà không ai thấy — mà chính chủ
+   thì chỉ biết lúc nhận lương.
+   ⚠️ Cảnh riêng, THÁNG RIÊNG: mặc định `demToiThieuGio = 0` (không xét) nên tháng 7 ở trên
+      không bao giờ chạm nhánh này. Đổi cấu hình chung rồi để đó là mọi phép thử lương phía dưới
+      đọc một bộ số khác — nên đặt xong phải TRẢ LẠI ngay. */
+VHCC_Luong::dat_vp_cfg( $u_ad_cfg, array( 'demToiThieuGio' => 4 ), '', '' );
+teq( 'dựng cảnh: ca đêm nay đòi tối thiểu 4 tiếng', 4.0, (float) VHCC_Luong::vp_cfg()['demToiThieuGio'] );
+vhcc_cham( $VP_CS, '2026-09-07', 'VPB', '', '08:30:00', '17:00:00' );
+vhcc_cham_dem( $VP_CS, '2026-09-07', 'VPB', '22:00:00', '23:30:00' );   /* 1.5h < 4h */
+$h_td = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $VP_CS, 'cth' => '2026-09' ) );
+t( '🔴 đêm thiếu giờ tối thiểu -> dòng phụ hiện 🌙0 và được tô ĐỎ',
+	strpos( $h_td, '<div class="mdem chu-hong">🌙0</div>' ) !== false, $h_td );
+t( 'và chú thích nói rõ thiếu bao nhiêu so với mức tối thiểu',
+	strpos( $h_td, 'mức tối thiểu' ) !== false, $h_td );
+VHCC_Luong::dat_vp_cfg( $u_ad_cfg, array( 'demToiThieuGio' => 0 ), '', '' );
+teq( 'trả lại cấu hình chung, kẻo mấy phép thử lương phía dưới đọc một bộ số khác',
+	0.0, (float) VHCC_Luong::vp_cfg()['demToiThieuGio'] );
 t( 'và chú thích nói ca đêm cho công sang ngày nào',
 	strpos( $h_vp, 'cho công vào ngày' ) !== false, $h_vp );
 
@@ -6898,6 +6942,19 @@ t( 'ô đang sửa được tô viền', strpos( $h_iv, 'dang-sua' ) !== false, 
 teq( 'chỉ mở ĐÚNG MỘT hàng sửa', 1, substr_count( $h_iv, 'class="hang-sua"' ) );
 t( 'và có nút Đóng để trả lưới về như cũ', strpos( $h_iv, '>Đóng</a>' ) !== false, $h_iv );
 
+/* 🔴 BẤM DÒNG PHỤ `-CD` CŨNG PHẢI MỞ HÀNG SỬA — và mở cho ĐÚNG hàng `-CD`, không phải hàng
+   chính. Từ khi hai hàng gộp làm một, vòng dò "dòng nào đang được sửa" phải xét CẢ hậu tố;
+   xét mỗi hàng chính thì bấm dòng phụ ra một trang không có gì đổi, và người ta bấm lại mấy
+   lượt rồi bỏ cuộc — không có lỗi nào để mà tra. */
+$h_cd = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-07',
+	'sgn' => '2026-07-01', 'sgm' => 'GIO1-CD' ) );
+t( 'bấm dòng phụ -CD -> hàng sửa mở ra', strpos( $h_cd, 'class="hang-sua"' ) !== false, $h_cd );
+t( '🔴 và mở cho ĐÚNG hàng -CD, không phải hàng chính',
+	strpos( $h_cd, 'name="ma_nv" value="GIO1-CD"' ) !== false, $h_cd );
+t( 'nhắc lại giờ đang có của chính hàng -CD (21:00)',
+	strpos( $h_cd, '21:00' ) !== false, $h_cd );
+teq( 'vẫn chỉ mở ĐÚNG MỘT hàng sửa', 1, substr_count( $h_cd, 'class="hang-sua"' ) );
+
 /* Ô TRỐNG -> biểu mẫu BÙ, không phải biểu mẫu sửa. Hai việc khác nhau. */
 $h_ib = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
 	'gnd' => '2026-07-20', 'gma' => 'QTC1' ) );
@@ -6943,13 +7000,38 @@ t( 'ô bấm được KHÔNG dùng JavaScript',
 	stripos( $h_gio, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_gio ), $h_gio );
 t( 'và chú thích nói rõ là quên bấm lúc về',
 	strpos( $h_gio, 'quên bấm lúc về' ) !== false, $h_gio );
-/* Hàng -CD là hàng RIÊNG, và tổng của dòng chính phải gồm cả nó. */
-t( 'hàng -CD hiện thành dòng riêng', strpos( $h_gio, '↳ <code>-CD</code>' ) !== false, $h_gio );
-t( 'và nói rõ tổng dòng chính đã gồm hàng dưới',
-	strpos( $h_gio, 'gồm cả hàng dưới' ) !== false, $h_gio );
-/* 9.5h (hàng chính) + 2h (hàng -CD) = 11h 30m. Lấy CÙNG phép tính với màn Bảng chấm công. */
-t( 'tổng của người cộng cả hai hàng (9.5h + 2h = 11h 30m)',
-	strpos( $h_gio, '11h 30m' ) !== false, $h_gio );
+/* 🔴 HÀNG -CD NAY LÀ DÒNG PHỤ TRONG Ô, cùng luật với lưới CÔNG.
+   Anh Thắng 27/08/2026, ngay sau khi chốt kiểu gộp: *"với cơ sở khác ... cũng nhớ ghép lại
+   giúp anh"* — "cơ sở khác" là cơ sở tính THEO GIỜ, tức chính lưới này. */
+t( '🔴 hàng -CD là dòng phụ ngay trong ô, không phải hàng riêng',
+	preg_match( '~<div class="mdem[^"]*"[^>]*>(<a[^>]*>)?<code>-CD</code>~', $h_gio ) === 1, $h_gio );
+t( 'và không còn hàng ↳ riêng nào', strpos( $h_gio, '↳ <code>' ) === false, $h_gio );
+/* Con số của riêng hàng phụ trước đây nằm ở ô TỔNG của hàng riêng — bỏ hàng ấy thì phải kể
+   lại ở đây, kẻo mất hẳn "hàng -CD của người này cả tháng mấy tiếng". */
+t( 'ô TỔNG kể ra hậu tố nào mấy tiếng', strpos( $h_gio, '>-CD 2h</div>' ) !== false, $h_gio );
+/* 9.5h (hàng chính) + 2h (hàng -CD) = 11h 30m. Lấy CÙNG phép tính với màn Bảng chấm công.
+   ⚠️ Soi Ô TỔNG, không soi chuỗi '11h 30m' trần: bảng "Tổng giờ theo ca" ngay dưới lưới cũng
+      in đúng con số ấy, nên đo chuỗi trần thì ô TỔNG có ra 0 phép thử vẫn xanh. Đã phá thử để
+      thấy đúng chuyện đó. */
+/* ⚠️ Và soi ô TỔNG CỦA LƯỚI, không phải ô TỔNG bất kỳ: bảng "Tổng giờ làm theo nhân viên" ngay
+   trên lưới cũng có cột TỔNG, cũng ra 11h 30m cho đúng người ấy, cũng dùng `<td class="tong">`.
+   Nên phải bám vào thứ CHỈ lưới mới có — dòng kể hậu tố ngay dưới con số. Bản trước của phép
+   thử này chỉ soi `<td class="tong"><b>11h 30m</b>` và nó xanh cả khi ô TỔNG của lưới ra 0h. */
+t( '🔴 ô TỔNG của LƯỚI cộng cả hai hàng (9.5h + 2h = 11h 30m)',
+	strpos( $h_gio, '<b>11h 30m</b><div class="mo" style="font-size:10px">-CD 2h</div>' ) !== false,
+	$h_gio );
+/* 🔴 BA KÝ HIỆU CHO BA CHUYỆN. Gộp `?` với `—` là xoá mất phân biệt "quên bấm lúc về" (chuyện
+   thường, bù là xong) với "giờ ra sớm hơn giờ vào" (dữ liệu ghi sai, phải tra lại nguồn).
+   GIO1 ngày 02/07 thiếu giờ ra -> `?`; ô ghi sai -> `—`. */
+t( 'ngày thiếu giờ ra hiện dấu hỏi', preg_match( '~>\?</a></td>~', $h_gio ) === 1, $h_gio );
+/* Tháng riêng cho cảnh này: nhét một lượt ghi sai vào tháng 7 là mọi phép đếm giờ / tổng theo
+   ca ở trên lệch theo, và lúc ấy phép thử đỏ vì cảnh dựng chứ không phải vì mã. */
+vhcc_cham( $CS_GIO, '2026-09-02', 'GIO1', '', '17:00:00', '08:00:00' );   /* ra SỚM hơn vào */
+$h_sai = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'cth' => '2026-09' ) );
+t( '🔴 ngày giờ ra SỚM HƠN giờ vào hiện dấu gạch, không phải dấu hỏi',
+	preg_match( '~>—</a></td>~', $h_sai ) === 1, $h_sai );
+t( 'và chú thích nói đúng chuyện ghi sai, không đổ cho quên bấm',
+	strpos( $h_sai, 'giờ ra sớm hơn giờ vào' ) !== false, $h_sai );
 /* Nói thẳng chuyện giờ làm khác giờ được trả tiền, đừng để lộ ra lúc đối lương. */
 t( 'nói rõ đây là giờ LÀM, không phải giờ được trả tiền',
 	strpos( $h_gio, 'không phải giờ được trả tiền' ) !== false, $h_gio );
@@ -6990,8 +7072,13 @@ t( 'ô được tô màu theo ca chính', preg_match( '/class="oc ca[1-4]"/', $h
 /* 🔴 Tô theo ca ĂN NHIỀU GIỜ NHẤT, không phải ca ĐẦU TIÊN chạm vào. Lượt 21:30 → 05:30 chạm
    Ca 2 đúng 30 phút rồi nằm trong Ca 3 suốt 7h 30m — tô theo ca đầu là cả tháng ca đêm hiện màu
    ca chiều, và người rà bảng đọc ngược hoàn toàn. */
+/* ⚠️ Ca đêm nay nằm ở DÒNG PHỤ trong ô, nên màu và chú thích của nó ở trên thẻ <div> ấy chứ
+   không còn trên <td>. Gộp mà bỏ mất hai thứ này là ca đêm mất màu — mà màu theo ca chính là
+   thứ để lướt mắt nhận ra ai chạy ca nào, và ca đêm là ca cần nhận ra nhất. */
 t( 'ca đêm được tô theo Ca 3 (7h 30m), không theo Ca 2 (30 phút chạm đầu)',
-	preg_match( '/class="oc ca3" title="[^"]*Ca 3 7h 30m/', $h_gio ) === 1, $h_gio );
+	preg_match( '/class="mdem ca3" title="[^"]*Ca 3 7h 30m/', $h_gio ) === 1, $h_gio );
+t( 'và dòng phụ giữ nguyên chú thích giờ vào → giờ ra của riêng nó',
+	preg_match( '/class="mdem ca3" title="[^"]*21:30:00 → 05:30:00/', $h_gio ) === 1, $h_gio );
 /* Mã trong ô là C1/C2/C3 theo VỊ TRÍ, nên bắt buộc phải có bảng quy đổi ngay dưới lưới. */
 t( 'có bảng quy đổi mã ca ngay dưới lưới',
 	strpos( $h_gio, 'Mã ca trong ô' ) !== false, $h_gio );

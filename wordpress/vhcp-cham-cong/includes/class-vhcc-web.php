@@ -1144,6 +1144,15 @@ class VHCC_Web {
 			/* Mã ca nằm DƯỚI số giờ, nhỏ và nhạt hơn: số giờ vẫn là thứ đọc trước, mã ca là thứ
 			   liếc thấy. Đảo ngược cỡ chữ là cả lưới trông như một rừng mã. */
 			. '.mca{font-size:10px;font-weight:600;opacity:.75;line-height:1.1;margin-top:1px}'
+			/* Dòng phụ TRONG ô: hàng ca đêm / tăng cường nay nằm cùng ô với hàng chính thay vì
+			   chiếm một hàng riêng. Nhỏ hơn và có vạch ngăn mảnh ở trên — để mắt vẫn tách được
+			   "số của hàng chính" với "số của hàng phụ", thứ mà trước đây cái hàng riêng lo. */
+			. '.mdem{font-size:10px;font-weight:600;line-height:1.15;margin-top:2px;padding-top:1px;'
+			. 'border-top:1px dotted var(--vien);opacity:.95;border-radius:0 0 3px 3px}'
+			. '.mdem code{font-size:9px;opacity:.8}'
+			. '.mdem.hong{background:#fef2f2;color:var(--do)}'
+			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
+			. '.mdem.ca3{background:#f3e8ff;color:#7e22ce}.mdem.ca4{background:#ffedd5;color:#c2410c}'
 			/* Ô bấm được: đường liên kết phủ KÍN ô, giữ nguyên màu chữ. Chỉ tô nền khi rê chuột
 			   — tô sẵn thì cả lưới 600 ô xanh lè, không còn nhìn ra màu theo ca nữa. */
 			. 'table.cc a.o-sua{display:block;margin:-3px -4px;padding:3px 4px;color:inherit;'
@@ -1894,13 +1903,17 @@ class VHCC_Web {
 			. '<a href="' . esc_url( add_query_arg( array( 'man' => 'du_lieu' ), self::url() ) )
 			. '"><b>Dữ liệu đầu vào</b></a>.</p>';
 
-		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
-
-		/* 🔴 LƯỚI NGANG NGAY DƯỚI BẢNG TỔNG, CÙNG MỘT MÀN.
-		   Trước đây nó là tab riêng ("Bảng công tháng"), và anh Thắng đứng ngay màn này nói
-		   *"anh chưa thấy lưới"*. Nay cả hai cách bày cùng một tháng nằm chung một chỗ, chọn cơ
-		   sở và tháng đúng MỘT lần — chọn hai lần là có ngày hai màn nói về hai chỗ khác nhau. */
+		/* 🔴 LƯỚI ĐỨNG TRƯỚC BẢNG TỔNG. Anh Thắng 27/08/2026: *"cho bảng này lên trên"*.
+		   Trước đây lưới là tab riêng ("Bảng công tháng"), rồi được kéo về cùng màn nhưng xếp
+		   DƯỚI bảng tổng. Nhầm thứ tự: bảng tổng trả lời "cả tháng được mấy công" — một con số
+		   người ta đọc lúc chốt lương, mỗi tháng một lần; còn lưới trả lời "ngày nào ai đi làm,
+		   ô nào sai" — thứ mở màn này ra là để soi, ngày nào cũng soi. Thứ dùng nhiều nằm dưới
+		   thì mỗi lượt phải cuộn qua thứ dùng ít.
+		   Cả hai vẫn CÙNG MỘT MÀN, cùng một ô chọn cơ sở và tháng — chọn hai lần là có ngày hai
+		   bảng nói về hai chỗ khác nhau. */
 		self::the_luoi_thang( $cs, $th, $ky, $toi );
+
+		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
 
 		/* Bảng chi tiết THU GỌN SẴN. Dùng thẻ <details> của chính HTML, không phải JavaScript:
 		   cả màn quản trị này không có lấy một dòng script, và thứ chỉ chạy khi trình duyệt chịu
@@ -2315,6 +2328,66 @@ class VHCC_Web {
 	 * ⚠️ KHÔNG dùng JavaScript — cả màn này không có lấy một dòng script. Một đường liên kết
 	 *    mang sẵn tham số thì bấm Lùi vẫn đúng, và bộ thử PHP soi được.
 	 */
+	/**
+	 * MỘT LƯỢT CHẤM -> phần ruột của một dòng trong ô lưới GIỜ.
+	 *
+	 * Tách ra vì từ khi hàng `-CD` / `-TC` gộp vào cùng ô với hàng chính, đoạn dựng này chạy
+	 * HAI lần cho cùng một ô. Để nguyên tại chỗ thì phải chép đôi, và chép đôi cái đoạn phân
+	 * biệt `?` với `—` là chuyện sớm muộn hai bản lệch nhau — lúc ấy dòng chính và dòng phụ
+	 * đọc cùng một dữ liệu ra hai ký hiệu khác nhau mà không ai hiểu vì sao.
+	 *
+	 * Trả về: noi (ruột đầy đủ, có mã ca) · noi_tho (chỉ con số, cho dòng phụ chật chỗ) ·
+	 *         chu (chú thích rê chuột) · lop (hậu tố lớp CSS) · phut (null = không đo được).
+	 *
+	 * `$r === null` = ngày ấy không có lượt chấm nào -> dấu `·`.
+	 */
+	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca ) {
+		if ( null === $r ) {
+			return array( 'noi' => '·', 'noi_tho' => '·', 'chu' => '', 'lop' => '', 'phut' => null );
+		}
+		/* Ba trạng thái khác nhau, ba ký hiệu khác nhau — gộp lại là xoá mất đúng những ngày
+		   cần soi:
+		     thiếu giờ ra   -> `?`  (quên bấm lúc về)
+		     ra sớm hơn vào -> `—`  (dấu hiệu ghi sai)
+		     bình thường    -> số giờ */
+		if ( null === $r['phut'] ) {
+			$thieu_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
+			$k = $thieu_ra ? '?' : '—';
+			return array(
+				'noi' => $k, 'noi_tho' => $k, 'lop' => ' hong', 'phut' => null,
+				'chu' => self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
+					. "\n" . ( '' !== $r['vao'] ? $r['vao'] : '—' ) . ' → '
+					. ( '' !== $r['ra'] ? $r['ra'] : '—' ) . "\n"
+					. ( $thieu_ra ? '⚠ thiếu giờ ra — quên bấm lúc về'
+						: '⚠ giờ ra sớm hơn giờ vào — dấu hiệu ghi sai' ) );
+		}
+		/* Chú thích nói luôn ngày đó rơi vào ca nào, mỗi ca mấy tiếng — đúng câu anh Thắng hỏi:
+		   *"làm ca nào, ca đó mấy tiếng, từ ca nào đến ca nào"*. */
+		$tc  = VHCC_Ca::tach( $ds_ca, $r['vaoGiay'], $r['raGiay'],
+			VHCC_Ca::la_cuoi_tuan( $r['ngay'] ) );
+		$chu = self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
+			. "\n" . $r['vao'] . ' → ' . $r['ra']
+			. "\n" . VHCC_Cham::chu_gio( $r['phut'] );
+		$td = VHCC_Ca::tu_den( $tc );
+		if ( '' !== $td ) { $chu .= "\n" . $td; }
+		$chu_ca = VHCC_Ca::chu( $tc );
+		if ( '' !== $chu_ca ) { $chu .= "\n" . $chu_ca; }
+		/* 🔴 MÃ CA IN THẲNG VÀO Ô, không giấu trong chú thích rê chuột.
+		   Anh Thắng 26/08: *"hiện sẵn bạn ca nào ca nào luôn nhé, đi rà này rất khó"*. Đúng: một
+		   tháng của 21 người là hơn 600 ô, rê chuột từng ô để biết ca thì không ai rà nổi. Số
+		   giờ nằm trên, mã ca nằm dưới, và MÀU NỀN theo ca chính — nhìn một cái là thấy cả
+		   tháng ai chạy ca nào. */
+		$i_ca = VHCC_Ca::ca_chinh( $ds_ca, $tc );
+		$ma_o = VHCC_Ca::ma_o( $ds_ca, $tc );
+		$so   = '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>';
+		return array(
+			'noi'     => $so . ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
+			'noi_tho' => $so,
+			'chu'     => $chu,
+			'lop'     => ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' ),
+			'phut'    => (int) $r['phut'] );
+	}
+
 	private static function o_sua( $noi_dung, $ngay, $ma_day_du, $co_gio, $duoc_sua, $duoc_bu ) {
 		$duoc = $co_gio ? $duoc_sua : $duoc_bu;
 		if ( ! $duoc ) { return $noi_dung; }
@@ -2838,83 +2911,93 @@ class VHCC_Web {
 			}
 			$tong_cs += $tong_nguoi;
 
-			foreach ( $hts as $k_ht => $ht ) {
-				$chinh = ( '' === $ht );
-				echo '<tr>';
-				echo $chinh
-					? '<td>' . esc_html( $ho_ten )
-						. ( isset( $khong_cham[ $ma ] )
-							? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
-								. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' ) . '</td>'
-					: '<td class="o" style="padding-left:20px">↳ <code>-' . esc_html( $ht ) . '</code></td>';
-				$phut_dong = 0;
-				for ( $i = 1; $i <= $so_ngay; $i++ ) {
-					$ma_dd  = $ma . ( '' !== $ht ? '-' . $ht : '' );
-					$ngay_o = sprintf( '%s-%02d', $tt, $i );
-					$dang   = ( $ngay_o === $sg_n && 0 === strcasecmp( $ma_dd, (string) $sg_m ) );
-					if ( ! isset( $o[ $ma ][ $ht ][ $i ] ) ) {
-						echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '">'
-							. self::o_sua( '·', $ngay_o, $ma_dd, false, $duoc_sua, $duoc_bu )
-							. '</td>';
-						continue;
+			/* 🔴 MỘT NGƯỜI = MỘT HÀNG. Hàng `-CD` / `-TC` nay là DÒNG PHỤ TRONG Ô, không còn
+			   là một hàng riêng bên dưới.
+			   Anh Thắng 27/08/2026: *"ghép ... lại 1 bảng"*, rồi nhắc thêm *"với cơ sở khác ...
+			   cũng nhớ ghép lại giúp anh"* — nên lưới GIỜ đi cùng luật với lưới CÔNG.
+			   Vì sao đổi: một người có hàng phụ là chiếm hai hàng, nên mắt phải nhảy xuống hàng
+			   dưới rồi ngược lên mới ghép được một ngày; mà cột ngày thì ở tận trên đầu bảng.
+			   ⚠️ GỘP CHỖ ĐỨNG, KHÔNG GỘP CON SỐ. Giờ của hàng chính và giờ của hàng phụ vẫn là
+			      hai dòng riêng trong ô, mỗi dòng mang nhãn của nó. Cộng thành một số là mất
+			      chỗ để nhìn ra ca đêm và người tăng cường — đúng thứ hai hàng ấy sinh ra để
+			      chỉ. Và mỗi dòng vẫn là một đường bấm RIÊNG: bấm dòng `-CD` là sửa đúng hàng
+			      `-CD`, không phải sửa hàng chính. */
+			$phu = array();
+			foreach ( $hts as $ht ) {
+				if ( '' !== $ht ) { $phu[] = $ht; }
+			}
+			echo '<tr>';
+			echo '<td>' . esc_html( $ho_ten )
+				. ( isset( $khong_cham[ $ma ] )
+					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
+						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' ) . '</td>';
+			$phut_phu = array();
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				$ngay_o = sprintf( '%s-%02d', $tt, $i );
+				/* Ô sáng lên khi ĐÚNG ngày ấy VÀ đúng người ấy đang mở hàng sửa — bất kể đang
+				   sửa hàng chính hay một hàng phụ, vì cả hai nay nằm chung một ô. */
+				$dang = false;
+				if ( $ngay_o === $sg_n ) {
+					foreach ( $hts as $ht_d ) {
+						if ( 0 === strcasecmp( $ma . ( '' !== $ht_d ? '-' . $ht_d : '' ), (string) $sg_m ) ) {
+							$dang = true;
+							break;
+						}
 					}
-					$r = $o[ $ma ][ $ht ][ $i ];
-					/* Ba trạng thái khác nhau, ba ký hiệu khác nhau — gộp lại là xoá mất đúng
-					   những ngày cần soi:
-					     thiếu giờ ra   -> `?`  (quên bấm lúc về)
-					     ra sớm hơn vào -> `—`  (dấu hiệu ghi sai)
-					     bình thường    -> số giờ */
-					if ( null === $r['phut'] ) {
-						$thieu_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
-						echo '<td class="oc hong' . ( $dang ? ' dang-sua' : '' ) . '" title="' . esc_attr( self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
-							. "\n" . ( '' !== $r['vao'] ? $r['vao'] : '—' ) . ' → '
-							. ( '' !== $r['ra'] ? $r['ra'] : '—' ) . "\n"
-							. ( $thieu_ra ? '⚠ thiếu giờ ra — quên bấm lúc về'
-								: '⚠ giờ ra sớm hơn giờ vào — dấu hiệu ghi sai' ) ) . '">'
-							. self::o_sua( ( $thieu_ra ? '?' : '—' ), (string) $r['ngay'], $ma_dd, true,
-								$duoc_sua, $duoc_bu ) . '</td>';
-						continue;
+				}
+
+				$r_chinh = isset( $o[ $ma ][''][ $i ] ) ? $o[ $ma ][''][ $i ] : null;
+				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca );
+
+				/* Dòng phụ: chỉ vẽ hậu tố nào NGÀY ẤY có lượt chấm. Vẽ hết mọi hậu tố cho mọi
+				   ngày là mỗi ô ba dòng dấu chấm, lưới cao gấp ba mà không thêm một tin nào. */
+				$duoi = '';
+				foreach ( $phu as $ht_p ) {
+					if ( ! isset( $o[ $ma ][ $ht_p ][ $i ] ) ) { continue; }
+					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca );
+					if ( null !== $c_p['phut'] ) {
+						if ( ! isset( $phut_phu[ $ht_p ] ) ) { $phut_phu[ $ht_p ] = 0; }
+						$phut_phu[ $ht_p ] += (int) $c_p['phut'];
 					}
-					$phut_dong += (int) $r['phut'];
-					/* Chú thích nói luôn ngày đó rơi vào ca nào, mỗi ca mấy tiếng — đúng câu anh
-					   Thắng hỏi: *"làm ca nào, ca đó mấy tiếng, từ ca nào đến ca nào"*. */
-					$tc  = VHCC_Ca::tach( $ds_ca, $r['vaoGiay'], $r['raGiay'],
-						VHCC_Ca::la_cuoi_tuan( $r['ngay'] ) );
-					$chu = self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
-						. "\n" . $r['vao'] . ' → ' . $r['ra']
-						. "\n" . VHCC_Cham::chu_gio( $r['phut'] );
-					$td = VHCC_Ca::tu_den( $tc );
-					if ( '' !== $td ) { $chu .= "\n" . $td; }
-					$chu_ca = VHCC_Ca::chu( $tc );
-					if ( '' !== $chu_ca ) { $chu .= "\n" . $chu_ca; }
-					/* 🔴 MÃ CA IN THẲNG VÀO Ô, không giấu trong chú thích rê chuột.
-					   Anh Thắng 26/08: *"hiện sẵn bạn ca nào ca nào luôn nhé, đi rà này rất khó"*.
-					   Đúng: một tháng của 21 người là hơn 600 ô, rê chuột từng ô để biết ca thì
-					   không ai rà nổi. Số giờ nằm trên, mã ca nằm dưới, và MÀU NỀN theo ca chính
-					   — nhìn một cái là thấy cả tháng ai chạy ca nào. */
-					$i_ca = VHCC_Ca::ca_chinh( $ds_ca, $tc );
-					$ma_o = VHCC_Ca::ma_o( $ds_ca, $tc );
-					echo '<td class="oc' . ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' )
-						. ( $dang ? ' dang-sua' : '' ) . '" title="' . esc_attr( $chu ) . '">'
-						. self::o_sua( '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>'
-							. ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
-							(string) $r['ngay'], $ma_dd, true, $duoc_sua, $duoc_bu )
-						. '</td>';
+					/* 🔴 DÒNG PHỤ GIỮ NGUYÊN MÀU THEO CA và giữ NGUYÊN chú thích của nó.
+					   Trước khi gộp, hàng `-CD` là một `<td>` riêng nên nó có nền tô theo ca và
+					   có chú thích rê chuột của riêng nó. Gộp vào ô mà bỏ hai thứ ấy là ca đêm
+					   mất màu — mà màu theo ca chính là thứ để lướt mắt nhận ra ai chạy ca nào,
+					   và ca đêm là ca người ta cần nhận ra nhất. */
+					$duoi .= '<div class="mdem' . $c_p['lop'] . '"'
+						. ( '' !== $c_p['chu'] ? ' title="' . esc_attr( $c_p['chu'] ) . '"' : '' ) . '>'
+						. self::o_sua( '<code>-' . esc_html( $ht_p ) . '</code> ' . $c_p['noi_tho'],
+							$ngay_o, $ma . '-' . $ht_p, true, $duoc_sua, $duoc_bu )
+						. '</div>';
 				}
-				echo $chinh && 1 === count( $hts )
-					? '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b></td>'
-					: ( $chinh
-						? '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b>'
-							. '<br><span class="mo">gồm cả hàng dưới</span></td>'
-						: '<td class="tong"><span class="mo">' . esc_html( VHCC_Cham::chu_gio( $phut_dong ) )
-							. '</span></td>' );
-				echo '</tr>';
-				/* Hàng sửa nội tuyến: chỉ mở cho ĐÚNG dòng vừa bấm, ngay dưới dòng ấy. */
-				if ( '' !== $sg_n && 0 === strcasecmp( $ma . ( '' !== $ht ? '-' . $ht : '' ), (string) $sg_m ) ) {
-					self::hang_sua( $so_ngay + 2, (string) $b['coSo'], $sg_n,
-						$ma . ( '' !== $ht ? '-' . $ht : '' ), $sg_co, $ky, $toi );
+
+				$lop_o = ( null === $r_chinh && '' === $duoi ) ? 'o' : ( 'oc' . $c_chinh['lop'] );
+				$chu_o = $c_chinh['chu'];
+				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' ) . '"'
+					. ( '' !== $chu_o ? ' title="' . esc_attr( $chu_o ) . '"' : '' ) . '>'
+					. self::o_sua( $c_chinh['noi'], $ngay_o, $ma, null !== $r_chinh, $duoc_sua, $duoc_bu )
+					. $duoi . '</td>';
+			}
+			/* TỔNG vẫn là tổng CẢ NGƯỜI (mọi hàng), y như trước — chỉ khác chỗ nó không còn phải
+			   nói "gồm cả hàng dưới" nữa, vì không còn hàng dưới. Có hàng phụ thì kể ra từng
+			   hậu tố mấy tiếng: đó là con số trước đây nằm ở ô TỔNG của hàng riêng. */
+			echo '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b>';
+			foreach ( $phut_phu as $ht_p => $p_p ) {
+				echo '<div class="mo" style="font-size:10px">-' . esc_html( $ht_p ) . ' '
+					. esc_html( VHCC_Cham::chu_gio( $p_p ) ) . '</div>';
+			}
+			echo '</td></tr>';
+			/* Hàng sửa nội tuyến: mở ngay dưới hàng của ĐÚNG người vừa bấm — dù bấm dòng chính
+			   hay một dòng phụ, vì cả hai nay là một hàng. Mã truyền xuống vẫn là mã ĐẦY ĐỦ đọc
+			   từ địa chỉ, nên sửa vẫn ăn đúng hàng `-CD`. */
+			if ( '' !== $sg_n ) {
+				foreach ( $hts as $ht_s ) {
+					if ( 0 === strcasecmp( $ma . ( '' !== $ht_s ? '-' . $ht_s : '' ), (string) $sg_m ) ) {
+						self::hang_sua( $so_ngay + 2, (string) $b['coSo'], $sg_n,
+							(string) $sg_m, $sg_co, $ky, $toi );
+						break;
+					}
 				}
-				unset( $k_ht );
 			}
 		}
 		echo '<tr class="tong"><td>' . count( $ten ) . ' người</td>';
@@ -2937,8 +3020,10 @@ class VHCC_Web {
 			. 'vào) · dấu <b>·</b> = không có dữ liệu chấm công · '
 			. '<span class="k hong">?</span> = thiếu giờ ra (quên bấm lúc về) · '
 			. '<span class="k hong">—</span> = giờ ra sớm hơn giờ vào, dấu hiệu ghi sai.'
-			. '<br>Dòng <b>↳ <code>-CD</code></b> / <b><code>-TC</code></b> là hàng riêng của người đó '
-			. '(ca đêm · tăng cường); TỔNG của dòng chính đã gồm cả mấy hàng ấy.'
+			. '<br>Dòng nhỏ <b><code>-CD</code></b> / <b><code>-TC</code></b> nằm <b>ngay trong ô</b> '
+			. 'là hàng riêng của người đó (ca đêm · tăng cường) — mỗi người chỉ một hàng, không '
+			. 'phải tìm xuống hàng dưới nữa. Bấm thẳng dòng nhỏ ấy là sửa đúng hàng ấy. '
+			. 'TỔNG đã gồm cả mấy dòng nhỏ, và kể ra bên dưới mỗi hậu tố mấy tiếng.'
 			. '<br>⚠️ Đây là <b>giờ làm thực tế</b>, không phải giờ được trả tiền: tiền tính theo phần '
 			. 'giao với khung ca đã xếp, nên hai số có thể lệch.</p>';
 		echo '</div>';
@@ -3011,11 +3096,41 @@ class VHCC_Web {
 				elseif ( $d['congDem'] )               { $lop = ' tim'; }
 				elseif ( $d['congTangCa'] )            { $lop = ' luc'; }
 
+				/* 🔴 CA ĐÊM NẰM TRONG CHÍNH Ô ẤY, không phải một hàng thứ hai.
+				   Anh Thắng 27/08/2026: *"ghép ... lại 1 bảng"* — và chọn kiểu hai dòng nhỏ
+				   trong cùng ô. Trước đây mỗi người có làm đêm là chiếm HAI hàng, nên một cơ
+				   sở 24 người ra 40-mấy hàng và mắt phải nhảy xuống hàng dưới rồi ngược lên để
+				   ghép một ngày. Nay một người đúng một hàng.
+				   ⚠️ GỘP CHỖ ĐỨNG, KHÔNG GỘP CON SỐ. Số công ngày và số công đêm vẫn là hai
+				      dòng riêng trong ô: cộng chúng thành một số là xoá mất chỗ để nhìn ra
+				      "đêm đó có làm mà không được công". Đúng thứ khối này sinh ra để soi.
+				   Hai NGÀY khác nhau trong cùng một hàng: đêm 04/08 hiện 🌙 ở ô ngày 4, còn
+				   công của nó hiện SỐ ở ô ngày 5 — ca đêm cho công sang hôm sau. */
+				$dem_o = '';
+				$lam_d = ( '' !== $d['h2vao'] || '' !== $d['h2ra'] );
+				if ( $d['congDem'] ) {
+					$dem_o = '🌙' . self::so_vp( $d['congDem'] );
+				} elseif ( ! empty( $d['demThieuGio'] ) ) {
+					$dem_o = '🌙0';
+				} elseif ( $lam_d ) {
+					$dem_o = '🌙';
+				}
+				if ( '' !== $dem_o ) {
+					/* Chú thích của ô nay phải nói CẢ HAI phần — hàng ca đêm không còn ô riêng
+					   để mang chú thích của nó nữa. */
+					$chu_o = self::chu_o_vp( $d, $e['ten'] ) . "\n— ca đêm —\n"
+						. self::chu_dem_vp( $d, $e['ten'] );
+				} else {
+					$chu_o = self::chu_o_vp( $d, $e['ten'] );
+				}
 				echo '<td class="oc' . $lop . ( $dang ? ' dang-sua' : '' ) . '" title="'
-					. esc_attr( self::chu_o_vp( $d, $e['ten'] ) ) . '">'
+					. esc_attr( $chu_o ) . '">'
 					. self::o_sua(
 						( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
-							: '<span class="chu-hong">0</span>' ),
+							: '<span class="chu-hong">0</span>' )
+						. ( '' !== $dem_o
+							? '<div class="mdem' . ( ! empty( $d['demThieuGio'] ) ? ' chu-hong' : '' )
+								. '">' . esc_html( $dem_o ) . '</div>' : '' ),
 						$ngay_o, $ma, true, $duoc_sua, $duoc_bu )
 					. '</td>';
 			}
@@ -3031,28 +3146,6 @@ class VHCC_Web {
 				self::hang_sua( $so_ngay + 2, (string) $b['station'], $sg_n, $ma, $sg_co, $ky, $toi );
 			}
 
-			/* Dòng con hàng -CD. Trong sổ mỗi người có thể chiếm nhiều hàng; lưới chỉ vẽ một dòng
-			   thì hàng ca đêm biến mất khỏi tầm mắt dù công của nó ĐÃ cộng vào tổng.
-			   Hai ngày KHÁC NHAU trong cùng dòng: ngày LÀM ca đêm hiện 🌙, ngày ĐƯỢC TÍNH công
-			   hiện SỐ (ca đêm 04/08 cho công vào 05/08). */
-			if ( ! $co_dem ) { continue; }
-			echo '<tr><td class="o" style="padding-left:20px">↳ ca đêm <code>-CD</code></td>';
-			$cong_d = 0.0;
-			for ( $i = 1; $i <= $so_ngay; $i++ ) {
-				if ( ! isset( $ngd[ $i ] ) ) { echo '<td class="o">·</td>'; continue; }
-				$d = $ngd[ $i ];
-				$lam = ( '' !== $d['h2vao'] || '' !== $d['h2ra'] );
-				if ( ! $lam && ! $d['congDem'] && empty( $d['demThieuGio'] ) && empty( $d['demChuaDuCap'] ) ) {
-					echo '<td class="o">·</td>';
-					continue;
-				}
-				$cong_d += (float) $d['congDem'];
-				$lop = ! empty( $d['demThieuGio'] ) ? ' hong' : ( $d['congDem'] ? ' tim' : '' );
-				echo '<td class="oc' . $lop . '" title="' . esc_attr( self::chu_dem_vp( $d, $e['ten'] ) ) . '">'
-					. ( $d['congDem'] ? '<b>' . self::so_vp( $d['congDem'] ) . '</b>'
-						: ( ! empty( $d['demThieuGio'] ) ? '0' : ( $lam ? '🌙' : '·' ) ) ) . '</td>';
-			}
-			echo '<td class="tong">' . self::so_vp( $cong_d ) . '</td></tr>';
 		}
 		echo '</tbody></table></div>';
 
@@ -3061,9 +3154,11 @@ class VHCC_Web {
 			. '<span class="k luc">có tăng ca</span> <span class="k tim">có công đêm</span> '
 			. '<span class="k vang">kế toán chấm chủ nhật</span> '
 			. '<span class="k hong">có giờ nhưng KHÔNG ra công</span>'
-			. '<br>Dòng <b>↳ ca đêm <code>-CD</code></b> là hàng thứ hai của người đó: '
-			. '<b>🌙</b> = đêm đó CÓ làm · <b>số</b> = công đêm được tính vào ngày đó '
-			. '(ca đêm đêm trước cho công sang hôm sau).';
+			. '<br>Dòng nhỏ <b>🌙</b> nằm <b>ngay trong ô</b> là phần ca đêm của ngày đó — mỗi '
+			. 'người chỉ một hàng. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
+			. 'đêm được tính vào ngày đó (ca đêm đêm trước cho công sang hôm sau) · '
+			. '<b class="chu-hong">🌙0</b> = có làm mà KHÔNG đủ giờ tối thiểu nên không ra công. '
+			. 'Số lớn phía trên đã là TỔNG công của ngày, gồm cả phần đêm.';
 		echo $lech
 			? '<br><b class="chu-hong">⚠️ ' . (int) $lech . ' người có tổng ở lưới KHÁC tổng của phép '
 				. 'tính — đừng dùng số nào cả, báo lại để tra.</b></p>'
