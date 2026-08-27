@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27r (man chon goi tong xanh + gia co 'd' + tieu de co dau)"
+#define FW_VERSION "ghe-massage 2026-08-27s (the goi 3D + de giu phong to QR o man thanh toan)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -169,6 +169,14 @@ String tienVN(long v){
 
 /* Giá kèm ký tự "đ" Unicode — CHỈ dùng khi vẽ bằng font VLW (font ASCII không vẽ được 'đ'). */
 String tienVNd(long v){ String s = tienVN(v); if(s.endsWith("d")) s.remove(s.length()-1); return s + "đ"; }
+
+/* Trộn hai màu RGB565 theo tỉ lệ t (0..255) — dùng vẽ dải chuyển màu (khối 3D). */
+uint16_t lerp565(uint16_t a, uint16_t b, uint8_t t){
+  int ar=(a>>11)&0x1F, ag=(a>>5)&0x3F, ab=a&0x1F;
+  int br=(b>>11)&0x1F, bg=(b>>5)&0x3F, bb=b&0x1F;
+  int r=ar+(br-ar)*t/255, g=ag+(bg-ag)*t/255, bl=ab+(bb-ab)*t/255;
+  return (uint16_t)((r<<11)|(g<<5)|bl);
+}
 
 /* Số phút của một gói: khai cứng nếu máy chủ có gửi, không thì tính theo tỉ lệ quy đổi.
    MỘT chỗ tính duy nhất — trước đây phép này chép ở bốn nơi (vẽ nút, mở phiên, nhận tiền mặt,
@@ -427,6 +435,8 @@ volatile char g_srcCode = 0;          // 0=none 'q'=QR 'c'=tiền mặt 'r'=lệ
 volatile bool g_statusDirty = true;
 unsigned long lastNhipMs = 0;
 int     lastShownSec = -1;
+bool    g_qrPhongTo = false;          // màn thanh toán: khách ĐÈ GIỮ -> phóng to QR full màn cho dễ quét
+#define QR_TO_MS 500                  // giữ >= ngần này (ms) coi là "đè giữ", dưới ngần này là chạm (huỷ)
 unsigned long last4gTry = 0;
 volatile int  g_netFails = 0;
 unsigned long lastRegCheck = 0;
@@ -857,6 +867,10 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 #define COL_T_PHU   0x4E92   // phút / mô tả — teal mờ
 #define COL_T_ID    0x07E0   // mã ghế góc phải — xanh lá
 #define COL_T_BAR   0x0186   // dải tiêu đề / dải chân — teal tối
+/* Khối 3D cho thẻ gói: chuyển màu đỉnh->đáy + bóng đổ. */
+#define COL_T_DINH  0x1CB6   // đỉnh thẻ (teal sáng)
+#define COL_T_DAY   0x0208   // đáy thẻ (teal tối)
+#define COL_T_BONG  0x0000   // bóng đổ sau thẻ (đen)
 
 /* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
 Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,122,150,84} };
@@ -943,37 +957,41 @@ void veTheGoi(int i){
   Btn  b    = PKG_BTN[i];
   bool vip  = (PKG_VIP[i] != 0);
   int  cx   = b.x + b.w / 2;
-  uint16_t nen = COL_T_NEN;
 
-  /* Thẻ nền teal tối + viền sáng HAI lớp (giả quầng sáng như ảnh mẫu). */
-  tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, nen);
-  tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_T_VIEN);
-  tft.drawRoundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 7, COL_T_VIEN2);
+  /* ===== KHỐI 3D =====
+     1) bóng đổ (vẽ TRƯỚC, lệch xuống-phải)  2) thân thẻ chuyển màu đỉnh->đáy
+     3) viền sáng 2 lớp (giả quầng glow). Chữ vẽ NỀN TRONG SUỐT (setTextColor 1 tham số) để
+        không đè hộp màu phẳng lên dải chuyển màu. */
+  tft.fillRoundRect(b.x + 2, b.y + 3, b.w, b.h, 8, COL_T_BONG);
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, COL_T_DAY);
+  for(int yy = b.y + 3; yy < b.y + b.h - 3; yy++){
+    uint8_t t = (uint8_t)((long)(yy - (b.y + 3)) * 255 / (b.h - 6));
+    tft.drawFastHLine(b.x + 3, yy, b.w - 6, lerp565(COL_T_DINH, COL_T_DAY, t));
+  }
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_T_VIEN);          // viền trong sáng
+  tft.drawRoundRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, 9, COL_T_VIEN2);  // quầng ngoài mờ
 
   tft.setTextDatum(TC_DATUM);
-  /* Tên gói (máy chủ gửi xuống, đã bỏ dấu + cắt cho vừa 150px ở font 1). */
-  tft.setTextColor(vip ? COL_T_GIA : COL_T_TEN, nen);
+  /* Tên gói (máy chủ gửi xuống). Nền trong suốt -> không có hộp phẳng trên dải chuyển màu. */
+  tft.setTextColor(vip ? COL_T_GIA : COL_T_TEN);
   tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 8, 1);
 
-  /* Số phút ngay dưới tên. */
-  tft.setTextColor(COL_T_PHU, nen);
+  tft.setTextColor(COL_T_PHU);
   tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 20, 1);
 
-  /* SỐ TIỀN to nhất, cyan sáng, có ký tự "đ" (font VLW). Đây là thứ khách quyết định. */
+  /* SỐ TIỀN to nhất, cyan sáng, có "đ" (font VLW, nền trong suốt -> hoà vào dải chuyển màu). */
   tft.loadFont(vietLon);
   tft.setTextDatum(MC_DATUM);
-  tft.setTextColor(COL_T_GIA, nen);
+  tft.setTextColor(COL_T_GIA);
   tft.drawString(tienVNd(PKG_AMT[i]), cx, b.y + 48);
   tft.unloadFont();
 
-  /* Mô tả một dòng, dưới cùng. Rỗng thì bỏ trống. */
   if(PKG_MOTA[i].length()){
     tft.setTextDatum(TC_DATUM);
-    tft.setTextColor(COL_T_PHU, nen);
+    tft.setTextColor(COL_T_PHU);
     tft.drawString(PKG_MOTA[i], cx, b.y + b.h - 13, 1);
   }
   if(vip){
-    /* Nhãn VVIP góc phải trên, nền viền sáng. */
     tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_T_VIEN);
     tft.setTextDatum(MC_DATUM);
     tft.setTextColor(COL_T_NEN, COL_T_VIEN);
@@ -1128,6 +1146,23 @@ static void qrDrawCb(esp_qrcode_handle_t qr){
 }
 
 void drawQRScreen(){
+  /* ĐÈ GIỮ -> PHÓNG TO: QR chiếm gần trọn màn cho khách dễ quét (nhất là khi đứng xa/ánh sáng
+     kém). Chạm lần nữa để về màn thanh toán thường. Vẫn đang chờ tiền như bình thường. */
+  if(g_qrPhongTo){
+    tft.fillScreen(TFT_WHITE);
+    int side = 224;                                  // vuông lớn nhất vừa chiều cao 240 (chừa mép)
+    qrDatVung((320 - side)/2, (240 - side)/2 - 4, side, side, 9);
+    esp_qrcode_config_t qc = ESP_QRCODE_CONFIG_DEFAULT();
+    qc.display_func       = qrDrawCb;
+    qc.max_qrcode_version = 11;
+    qc.qrcode_ecc_level   = ESP_QRCODE_ECC_LOW;
+    esp_qrcode_generate(&qc, qrPayload.c_str());
+    tft.setTextDatum(BC_DATUM);
+    tft.setTextColor(TFT_BLACK, TFT_WHITE);
+    tft.drawString("Cham de thu nho", 160, 238, 2);
+    return;
+  }
+
   tft.fillScreen(COL_BG);
 
   /* Dải tiêu đề GỌN (0..24) — chừa đất cho mã QR to hết cỡ.
@@ -1693,6 +1728,7 @@ void startSession(int idx){
   }
   payAmount     = PKG_AMT[idx];
   payMinutes    = phutGoi(idx);
+  g_qrPhongTo   = false;   // mỗi phiên bắt đầu ở màn thanh toán THƯỜNG (khách đè giữ mới phóng to)
   g_goiDangChay = idx;   // để màn đếm ngược in đúng tên gói khách vừa chọn
   genCode(payCode);
   /* Tiền tố đứng TRƯỚC: ngân hàng nào cắt bớt nội dung thì cắt từ cuối, mà mất tiền tố là mất
@@ -2442,10 +2478,28 @@ void loop(){
     if((long)(waitUntil - millis()) <= 0){
       Serial.println("[PAY] hết hạn -> về màn chính (còn theo dõi tiền ~20s)");
       g_payWaiting=false; state=ST_IDLE; g_srcCode=0; g_statusDirty=true; screenDrawn=false; return; }
-    if(secLeft != lastShownSec){ lastShownSec=secLeft; drawWaitCountdown(secLeft); }
-    int x,y; if(getTouch(x,y)){ Serial.println("[PAY] khách hủy -> van theo doi tien ~20s");
-      g_payWaiting=false; g_watchPayUntil = millis() + PAY_GRACE_MS;
-      state=ST_IDLE; g_srcCode=0; g_statusDirty=true; screenDrawn=false; delay(300); return; }
+    if(!g_qrPhongTo && secLeft != lastShownSec){ lastShownSec=secLeft; drawWaitCountdown(secLeft); }
+    int x,y;
+    if(getTouch(x,y)){
+      if(g_qrPhongTo){
+        /* Đang phóng to -> chạm bất kỳ để thu nhỏ về màn thanh toán thường (vẫn đang chờ tiền). */
+        g_qrPhongTo=false; screenDrawn=false; lastShownSec=-1;
+        while(getTouch(x,y)) delay(10);
+      } else {
+        /* Màn thường: ĐO thời gian giữ. Giữ lâu -> PHÓNG TO QR; chạm nhanh -> HUỶ (như cũ). */
+        uint32_t t0=millis(); bool giu=false;
+        while(getTouch(x,y)){ if((uint32_t)(millis()-t0) >= QR_TO_MS){ giu=true; break; } delay(10); }
+        if(giu){
+          Serial.println("[PAY] de giu -> phong to QR");
+          g_qrPhongTo=true; screenDrawn=false; lastShownSec=-1;
+          while(getTouch(x,y)) delay(10);   // chờ nhả tay, khỏi thu nhỏ ngay
+        } else {
+          Serial.println("[PAY] khach huy -> van theo doi tien ~20s");
+          g_payWaiting=false; g_watchPayUntil = millis() + PAY_GRACE_MS;
+          state=ST_IDLE; g_srcCode=0; g_statusDirty=true; screenDrawn=false; delay(300); return;
+        }
+      }
+    }
   }
   else if(state==ST_RUNNING){
     /* Hết giờ (đã đếm theo chân ghế) -> kết thúc bình thường. */
