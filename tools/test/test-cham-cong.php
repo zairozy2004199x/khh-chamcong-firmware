@@ -6756,6 +6756,18 @@ vhcc_cham( $VP_CS, '2026-07-08', 'VPC', 'CD', '10:00:00', '11:00:00' );
 /* Ca đêm: hàng -CD đêm 06/07, công dồn sang 07/07. */
 vhcc_cham( $VP_CS, '2026-07-06', 'VPB', '', '08:30:00', '17:00:00' );
 vhcc_cham_dem( $VP_CS, '2026-07-06', 'VPB', '21:30:00', '05:30:00' );
+/* 🔴 MỘT NGÀY CÓ GIỜ VÀO MÀ KHÔNG CÓ GIỜ RA — quên bấm lúc về.
+   Anh Thắng 27/08/2026, ngay khi bảo bỏ hai bảng phụ: *"vì bảng này khi có giờ vào mà không có
+   giờ ra, thì sẽ đỏ ô đó là được"*. Đó chính là thứ làm hai bảng kia thành thừa: người ta mở
+   chúng ra để đi tìm đúng mấy ngày này.
+   ⚠️ Ngày ấy VẪN RA CÔNG (engine tính từ phần giờ nằm trong khung), nên ô có số trông y hệt một
+      ngày bình thường — không đánh dấu là nó lẫn vào giữa ba mươi ô khác. */
+vhcc_cham( $VP_CS, '2026-07-10', 'VPE', '', '08:30:00', null );
+/* Và một người quên bấm ra ở HÀNG 2 (ca đêm). Không dựng cảnh này thì bỏ nửa sau của điều kiện
+   `|| ('' !== h2vao && '' === h2ra)` đi mà bộ thử vẫn xanh — tức ca đêm quên bấm ra lại lặng lẽ
+   biến mất khỏi bảng, đúng cái vừa chữa. Đã phá thử để thấy. */
+vhcc_cham( $VP_CS, '2026-07-11', 'VPF', 'CD', '22:00:00', null );
+
 /* 🔴 MỘT NGƯỜI CÓ TĂNG CA. Không có ai tăng ca thì cột ấy luôn 0, và gõ nhầm khoá
    `congTangCa` thành `tangCa` vẫn xanh — đúng cái bẫy đã cắn một lần ở bảng soi lương:
    `esc_html(null)` in ra ô TRỐNG, không lỗi, không cảnh báo, chỉ là cột trắng trơn.
@@ -6854,25 +6866,100 @@ t( 'chú thích cộng lại đủ bốn phần cho ai muốn soi',
 	strpos( $h_vp, 'Bốn phần cộng lại thành con số lớn' ) !== false, $h_vp );
 /* 🔴 KHÔNG HIỆN GÌ KHI CẢ THÁNG CHỈ CÓ CÔNG NGÀY — lúc ấy "ngày 23" chỉ chép lại con số lớn
    ngay trên nó. VPA làm hai ngày thường, không đêm không tăng ca không bù. */
-$tach_vpa = preg_match( '~<td>Người VPA</td>.*?<td class="tong[^"]*">(.*?)</td>~s', $h_vp, $m_tv )
-	? $m_tv[1] : '';
+$tach_vpa = vp_hang_cua( $h_vp, 'Người VPA' );
 t( 'dựng cảnh: tìm được ô TỔNG của người chỉ có công ngày', '' !== $tach_vpa, substr( $h_vp, 0, 300 ) );
 t( '🔴 người chỉ có công ngày thì KHÔNG có dòng tách — đừng chép lại con số vừa nói',
 	strpos( $tach_vpa, 'tach-cong' ) === false, $tach_vpa );
 /* Còn VPB có ca đêm thì PHẢI có. */
-$tach_vpb = preg_match( '~<td>Người VPB</td>.*?<td class="tong[^"]*">(.*?)</td>~s', $h_vp, $m_tb )
-	? $m_tb[1] : '';
+$tach_vpb = vp_hang_cua( $h_vp, 'Người VPB' );
 t( 'dựng cảnh: tìm được ô TỔNG của người CÓ ca đêm', '' !== $tach_vpb, substr( $h_vp, 0, 300 ) );
 t( '🔴 người có công đêm thì ô TỔNG tách ra',
 	strpos( $tach_vpb, 'tach-cong' ) !== false, $tach_vpb );
 t( 'và nói rõ mấy công đêm', strpos( $tach_vpb, '🌙' ) !== false, $tach_vpb );
 /* Và người có TĂNG CA thì phần ấy cũng phải hiện. */
-$tach_vpd = preg_match( '~<td>Người VPD</td>.*?<td class="tong[^"]*">(.*?)</td>~s', $h_vp, $m_td )
-	? $m_td[1] : '';
+$tach_vpd = vp_hang_cua( $h_vp, 'Người VPD' );
 t( 'dựng cảnh: tìm được ô TỔNG của người CÓ tăng ca', '' !== $tach_vpd, substr( $h_vp, 0, 300 ) );
 t( '🔴 phần TĂNG CA hiện ra ở ô TỔNG', strpos( $tach_vpd, 'TC <b>' ) !== false, $tach_vpd );
 t( 'và là một CON SỐ, không phải ô trống — đúng cái bẫy congTangCa/tangCa đã cắn một lần',
 	preg_match( '~TC <b>[0-9]~', $tach_vpd ) === 1, $tach_vpd );
+
+/* ---- 🔴 Ô THIẾU GIỜ RA -> ĐỎ, KÈM DẤU `?` ----
+   ⚠️ CẮT ĐÚNG HÀNG rồi mới soi. `<td>Người X</td>.*?<td class="oc…"` với `.*?` không chặn là
+      nó XUYÊN QUA `</tr>` sang hàng người kế tiếp và bắt ô của người khác — lúc ấy phép thử
+      "tìm được ô" luôn xanh, và mọi phép đo sau đó đo nhầm người. Đã phá thử để thấy: bỏ hẳn
+      chuyện giữ dòng thiếu giờ ra mà bộ thử vẫn xanh. */
+function vp_hang_cua( $h, $ten ) {
+	return preg_match( '~<tr[^>]*><td>' . preg_quote( $ten, '~' ) . '</td>(?:(?!</tr>).)*</tr>~s',
+		$h, $m ) ? $m[0] : '';
+}
+function vp_o_dau_tien( $h, $ten ) {
+	$hang = vp_hang_cua( $h, $ten );
+	return ( '' !== $hang && preg_match( '~<td class="oc[^"]*"[^>]*>.*?</td>~s', $hang, $m ) )
+		? $m[0] : '';
+}
+
+$o_thieu = vp_o_dau_tien( $h_vp, 'Người VPE' );
+t( 'dựng cảnh: tìm được ô của ngày thiếu giờ ra', '' !== $o_thieu, substr( $h_vp, 0, 300 ) );
+t( '🔴 ô ấy được tô ĐỎ', strpos( $o_thieu, 'class="oc hong' ) !== false, $o_thieu );
+/* Chỉ tô đỏ thì ba nguyên do đỏ khác nhau (ca lạ · đêm thiếu giờ · thiếu giờ ra) trông giống
+   hệt nhau — dấu `?` nói ra chuyện gì. */
+t( '🔴 và có dấu ? ngay cạnh số', strpos( $o_thieu, '<span class="chu-hong"> ?</span>' ) !== false, $o_thieu );
+t( 'chú thích nói rõ quên bấm lúc về, cần bù',
+	strpos( $o_thieu, 'quên bấm lúc về' ) !== false, $o_thieu );
+/* Ngày ấy ra 0 công — ĐÚNG, vì không có giờ ra thì không biết người ta về lúc mấy giờ, mà đoán
+   là đoán ra tiền. Chỗ phải giữ là DÒNG VẪN CÒN TRONG BẢNG: trước đây `tong <= 0` thì dòng bị
+   xoá, ô hiện dấu `·` — mà dấu ấy nghĩa là *không có dữ liệu chấm công*. Tức một ngày người ta
+   ĐI LÀM trông y hệt một ngày NGHỈ, và đó đúng là ngày cần đi bù nhất.
+   Cắt ngầm là XOÁ DÒNG ĐI; bày ra số 0 kèm dấu `?` thì ngược lại — nó mời người ta đi bù. */
+t( '🔴 ngày ấy hiện SỐ 0, không phải dấu chấm — dòng vẫn còn trong bảng',
+	strpos( $o_thieu, '<span class="chu-hong">0</span>' ) !== false, $o_thieu );
+t( 'và ô KHÔNG phải ô trống', strpos( $o_thieu, '>·<' ) === false, $o_thieu );
+/* Ngày bình thường thì KHÔNG đỏ — đỏ cả bảng là đỏ hết nghĩa. */
+$o_thuong = vp_o_dau_tien( $h_vp, 'Người VPA' );
+t( 'ngày đủ cặp giờ thì KHÔNG đỏ và KHÔNG có dấu ?',
+	strpos( $o_thuong, 'hong' ) === false && strpos( $o_thuong, ' ?' ) === false, $o_thuong );
+t( 'chú giải nói dấu ? nghĩa là gì',
+	strpos( $h_vp, '? = có giờ vào mà THIẾU giờ ra' ) !== false, $h_vp );
+/* 🔴 CA ĐÊM QUÊN BẤM RA CŨNG LÀ QUÊN BẤM. Xét mỗi hàng chính là hàng 2 lặng lẽ biến mất — mà
+   ca đêm mới là ca dễ quên bấm nhất: người ta về lúc 4 giờ sáng. */
+$o_dem = vp_o_dau_tien( $h_vp, 'Người VPF' );
+t( 'dựng cảnh: tìm được ô ca đêm quên bấm ra', '' !== $o_dem, substr( $h_vp, 0, 300 ) );
+t( '🔴 ca đêm quên bấm ra cũng ĐỎ và có dấu ?',
+	strpos( $o_dem, 'class="oc hong' ) !== false
+	&& strpos( $o_dem, '<span class="chu-hong"> ?</span>' ) !== false, $o_dem );
+t( 'và chú thích nói rõ là HÀNG 2', strpos( $o_dem, 'hàng 2 (ca đêm) có giờ vào' ) !== false, $o_dem );
+
+/* 🔴 HÀNG 2 QUÊN BẤM RA MÀ CA ẤY KHÔNG CHO CÔNG NÀO — dòng vẫn phải còn.
+   Cảnh ở lưới trên (VPF) chưa đủ để canh nửa sau của điều kiện giữ dòng: ca đêm quên bấm ra
+   luôn kèm `demSangNgay`, còn tăng ca thì `tangCaCong` mặc định 0.5 nên `tong > 0` — cả hai
+   đều tự giữ dòng bằng đường khác. Đã phá thử để thấy: bỏ hẳn nhánh `h2vao && !h2ra` mà bộ
+   thử vẫn xanh.
+   Chỗ nó thật sự cắn: cơ sở khai **tăng ca = 0 công** (nhiều nơi trả tăng ca bằng tiền, không
+   quy ra công). Lúc ấy một người vào 18:00 rồi quên bấm ra sẽ cho `tong = 0`, không `caLa`,
+   không `demSangNgay` — dòng bị xoá sạch, ô hiện dấu `·` y như ngày NGHỈ. Người quên bấm bị
+   coi là người không đi làm.
+   Gọi thẳng lõi vì đây là hàm THUẦN — dựng cấu hình riêng cho cơ sở chỉ để thử một số là đắt. */
+$cfg_tc0 = VHCC_Luong::vp_cfg( '' );
+$cfg_tc0['tangCaCong'] = 0;
+$r_tc0 = VHCC_Luong::vp_tinh_nguoi( $cfg_tc0, false, array(
+	'2026-07-14' => array( 'dem' => array( VHCC_DB::giay( '18:00:00' ), null ) ),
+) );
+t( '🔴 tăng ca 0 công + hàng 2 quên bấm ra: NGÀY ẤY VẪN CÒN DÒNG, không bị xoá',
+	isset( $r_tc0['2026-07-14'] ), implode( ',', array_keys( $r_tc0 ) ) );
+if ( isset( $r_tc0['2026-07-14'] ) ) {
+	teq( 'và đúng là 0 công — giữ dòng KHÔNG phải là bịa thêm công',
+		0.0, (float) $r_tc0['2026-07-14']['tong'] );
+	teq( 'giờ vào hàng 2 còn nguyên để người ta biết bù cho ai',
+		'18:00', $r_tc0['2026-07-14']['h2vao'] );
+	teq( 'và giờ ra hàng 2 rỗng', '', $r_tc0['2026-07-14']['h2ra'] );
+}
+/* Ngược lại: hàng 2 ĐỦ CẶP mà 0 công thì không có gì để bù — dòng ấy xoá đi là đúng, giữ lại
+   chỉ tổ rác bảng. Không có phép thử này thì "giữ mọi dòng" cũng xanh. */
+$r_tc0b = VHCC_Luong::vp_tinh_nguoi( $cfg_tc0, false, array(
+	'2026-07-15' => array( 'dem' => array( VHCC_DB::giay( '18:00:00' ), VHCC_DB::giay( '20:00:00' ) ) ),
+) );
+t( 'hàng 2 đủ cặp mà 0 công thì KHÔNG giữ dòng',
+	! isset( $r_tc0b['2026-07-15'] ), implode( ',', array_keys( $r_tc0b ) ) );
 
 /* 🔴 MỘT NGƯỜI = MỘT HÀNG. Còn sót một ô đầu dòng '↳' nghĩa là vẫn còn hàng riêng. */
 t( '🔴 không còn hàng ↳ riêng nào trong lưới',
@@ -9112,27 +9199,16 @@ t( 'khối lương gọi ĐÚNG hàm nghiệp vụ đang dùng ở wp-admin',
 t( '🔴 phần vẽ KHÔNG có phép nhân/chia nào (không tự tính tiền)',
 	preg_match( '#\$[a-z_]+(\[[^]]+\])+\s*[*/]\s*#i', $lw_than ) === 0, $lw_than );
 
-/* 🔴 KHỐI WEB VÀ MÀN WP-ADMIN PHẢI ĐỌC ĐÚNG CÙNG BỘ KHOÁ.
-   Cả hai gọi cùng `bang_cong_va_luong()` nên đọc cùng một mảng kết quả. Gõ nhầm một tên khoá
-   thì `esc_html()` nhận null và in ra ô TRỐNG: không lỗi, không cảnh báo — chỉ là một cột trắng
-   trơn trong bảng soi lương. Mà bảng soi lương trắng một cột thì người đọc tưởng tháng ấy không
-   ai tăng ca, chứ không nghĩ là phần mềm gõ nhầm chữ. Em vấp đúng chỗ này lúc bê màn ra: gõ
-   `tangCa`/`bu` thay vì `congTangCa`/`congBu`. */
-$lw_adm  = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-admin.php' );
-$lw_ai   = strpos( $lw_adm, 'public static function trang_luong' );
-$lw_aj   = strpos( $lw_adm, 'public static function trang_cong_may' );
-$lw_a_th = substr( $lw_adm, $lw_ai, $lw_aj - $lw_ai );
-preg_match_all( "/\\\$[dvem]\['([a-zA-Z]+)'\]/", $lw_a_th, $lw_ma_a );
-preg_match_all( "/\\\$[dvem]\['([a-zA-Z]+)'\]/", $lw_than, $lw_ma_w );
-$lw_ka = array_unique( $lw_ma_a[1] );
-$lw_kw = array_unique( $lw_ma_w[1] );
-sort( $lw_ka ); sort( $lw_kw );
-t( 'dò được kha khá khoá ở cả hai bên (nếu 0 thì phép so này vô nghĩa)',
-	count( $lw_ka ) >= 20 && count( $lw_kw ) >= 20, array( count( $lw_ka ), count( $lw_kw ) ) );
-teq( '🔴 khối web KHÔNG thiếu khoá nào so với màn wp-admin', array(),
-	array_values( array_diff( $lw_ka, $lw_kw ) ) );
-teq( '🔴 và KHÔNG đọc khoá lạ nào wp-admin không có (gõ nhầm tên)', array(),
-	array_values( array_diff( $lw_kw, $lw_ka ) ) );
+/* 🔴 PHÉP SO BỘ KHOÁ WEB ↔ WP-ADMIN ĐÃ BỎ CÙNG VỚI BẢNG NÓ CANH.
+   Nó canh cái bẫy `congTangCa` gõ nhầm thành `tangCa`: `esc_html()` nhận null và in ra ô TRỐNG
+   — không lỗi, không cảnh báo, chỉ là một cột trắng trơn trong bảng soi lương, mà cột trắng thì
+   người đọc tưởng tháng ấy không ai tăng ca.
+   Từ 27/08/2026 khối web không còn bảng người-theo-người nữa (anh Thắng: *"bỏ bảng này đi,
+   không cần thiết"*), nên không còn chỗ nào bên web đọc bộ khoá ấy để mà so.
+   ⚠️ NHƯNG CÁI BẪY THÌ CHƯA MẤT: `tach_cong()` ở cột TỔNG của lưới vẫn đọc `congNgay` ·
+      `congTangCa` · `congDem` · `congBu`. Phép thử canh nó nằm ở khối lưới — cảnh dựng có một
+      người CÓ tăng ca, đúng để gõ nhầm tên khoá là đỏ. Bỏ phép so này mà không có cái kia thì
+      cái bẫy quay lại ngay, nên nói thẳng ra đây. */
 
 /* ---- GỘP: không còn tab riêng ---- */
 vhcc_dung_bang();
@@ -9164,39 +9240,21 @@ $lw_h = vhcc_luong_web( 'Kế toán', array( 'ccs' => 'LW_VP', 'cth' => '2026-08
    ca · đêm · bù) đã dời lên cột TỔNG của lưới, nên nó không còn phần "giờ" nào nữa. */
 t( '🔴 khối Lương hiện ngay trong màn Bảng công',
 	strpos( $lw_h, '<b>Lương</b>' ) !== false, $lw_h );
-t( 'cơ sở Văn phòng ra bảng theo NGÀY CÔNG', strpos( $lw_h, 'Đơn giá 1 công' ) !== false, $lw_h );
-/* 🔴 BỐN CỘT CÔNG ĐÃ DỜI LÊN LƯỚI — KHÔNG ĐƯỢC IN LẠI Ở ĐÂY.
-   Anh Thắng 27/08/2026: *"chưa bỏ bảng này đi à em"*. Cùng một con số in ở hai chỗ trên cùng
-   một màn là mời người ta so hai chỗ, và ngày nào hai chỗ lệch nhau thì không ai biết tin cái
-   nào.
-   ⚠️ Soi TIÊU ĐỀ CỘT trong bảng lương, không soi chuỗi trần: mấy chữ ấy còn nằm trong bảng
-      "Chi tiết từng ngày" ngay dưới (bảng ấy là TỪNG NGÀY, không trùng với lưới vốn là tổng
-      tháng) và trong chú giải của lưới. */
-$lw_bang = preg_match( '~<table><thead><tr><th>Mã</th>.*?</thead>~s', $lw_h, $m_lw ) ? $m_lw[0] : '';
-t( 'dựng cảnh: cắt được đúng tiêu đề bảng lương', '' !== $lw_bang, substr( $lw_h, 0, 300 ) );
-foreach ( array( 'Công ngày', 'Tăng ca', 'Công đêm', 'Công bù' ) as $lw_c ) {
-	t( '🔴 bảng lương KHÔNG còn cột "' . $lw_c . '" — nó đã ở cột TỔNG của lưới',
-		strpos( $lw_bang, '<th>' . $lw_c . '</th>' ) === false, $lw_bang );
-}
-/* Nhưng `Tổng công` thì GIỮ: nó là mốc đối chiếu với cột TỔNG của lưới. Hai chỗ cùng in một con
-   số ở đây là CÓ CHỦ Ý — lệch nhau nghĩa là một trong hai phép tính sai. */
-t( 'nhưng GIỮ cột Tổng công làm mốc đối chiếu với lưới',
-	strpos( $lw_bang, '<th>Tổng công</th>' ) !== false, $lw_bang );
-/* Và phần tiền phải còn nguyên — bỏ hết là mất chỗ DUY NHẤT xem tiền. */
-foreach ( array( 'Lương tháng', 'Đơn giá 1 công', 'Tiền', 'Cần soi' ) as $lw_t ) {
-	t( 'phần tiền còn nguyên: cột "' . $lw_t . '"',
-		strpos( $lw_bang, '<th>' . $lw_t . '</th>' ) !== false, $lw_bang );
-}
-/* 🔴 `colspan` của chân bảng phải đi theo số cột. Quên là cả chân bảng lệch sang phải và con số
-   Tiền tổng nằm dưới cột Đơn giá — vẫn là một bảng đọc được, chỉ là đọc sai. */
-t( '🔴 chân bảng gộp đúng HAI cột đầu (Mã · Tên), không phải sáu',
-	strpos( $lw_h, '<th colspan="2">Tổng</th>' ) !== false, $lw_h );
-t( 'và màn chỉ đường sang lưới cho ai đi tìm bốn con số ấy',
-	strpos( $lw_h, 'nay nằm ngay ' ) !== false, $lw_h );
-t( 'và có khối chi tiết từng ngày để soi lại', strpos( $lw_h, 'Chi tiết từng ngày' ) !== false );
-/* Gập lại chứ không mở sẵn: cả nghìn dòng đè lên bảng tổng, thứ người ta mở màn này ra để xem. */
-t( 'khối chi tiết GẬP lại mặc định',
-	preg_match( '/<details>\s*<summary><b>Chi tiết từng ngày/', $lw_h ) === 1, $lw_h );
+/* 🔴 HAI BẢNG PHỤ ĐÃ BỎ — LƯỚI NÓI HẾT.
+   Anh Thắng 27/08/2026, hai lượt liền: *"bỏ bảng này đi, không cần thiết"* (bảng lương
+   người-theo-người) và *"này cũng bỏ đi, không cần thiết"* (Chi tiết từng ngày, 355 dòng cho
+   một tháng). Chúng trả lời câu "vì sao ô kia ra con số đó" bằng hàng trăm dòng xếp theo NGÀY,
+   trong khi người hỏi đang chỉ tay vào MỘT ô. */
+t( '🔴 KHÔNG còn bảng lương người-theo-người', strpos( $lw_h, '<th>Đơn giá 1 công</th>' ) === false, $lw_h );
+t( '🔴 KHÔNG còn khối Chi tiết từng ngày', strpos( $lw_h, 'Chi tiết từng ngày' ) === false, $lw_h );
+/* Nhưng con số tổng của CẢ CƠ SỞ thì phải còn — bỏ hết là mất luôn chỗ biết tháng này ra bao
+   nhiêu công, bao nhiêu tiền. */
+t( 'nhưng còn con số tổng của cả cơ sở', strpos( $lw_h, '<b>Cả cơ sở:</b>' ) !== false, $lw_h );
+t( 'và chỉ đường sang cột TỔNG của lưới',
+	strpos( $lw_h, 'nằm ở cột <b>TỔNG</b> của lưới' ) !== false, $lw_h );
+/* Ba khối cảnh báo GIỮ NGUYÊN: chúng không phải bảng, chúng là câu chỉ đường "còn thiếu cái
+   này thì cột Tiền mới ra số". Bỏ theo là mất luôn chỗ biết vì sao tiền chưa tính được. */
+t( 'ba khối cảnh báo còn nguyên', strpos( $lw_h, 'Chưa khai số ngày công' ) !== false, $lw_h );
 /* 🔴 KHÔNG ĐẺ RA Ô LỌC THỨ HAI. Hai ô cho cùng một thứ thì người ta sẽ chọn lệch, và cả hai
    bảng đều trông đúng. Đó là toàn bộ điểm của việc gộp. */
 t( '🔴 khối lương KHÔNG có ô chọn cơ sở riêng', strpos( $lw_h, 'name="lcs"' ) === false, $lw_h );
@@ -10332,6 +10390,15 @@ t( 'và khối ấy được ghim thật trong bảng kiểu',
 	strpos( $h_ls, '.hs-in{position:sticky;left:0;' ) !== false, $h_ls );
 t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
 	strpos( $h_ls, 'width:calc(100vw - 56px)' ) !== false, $h_ls );
+/* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN SÁT ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ nhảy
+   lên như này, chỉnh đứng yên cho anh"*.
+   Đường bấm mang neo `#suaday` nên trình duyệt cuộn hàng sửa lên sát đỉnh — mà đỉnh thì có
+   thanh đầu trang DÍNH đè lên, và cả hàng của người đang sửa cũng bị đẩy khuất.
+   `scroll-margin-top` bảo trình duyệt chừa sẵn khoảng ấy. */
+t( '🔴 hàng sửa chừa chỗ cho thanh đầu trang khi nhảy tới',
+	strpos( $h_ls, 'tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:' ) !== false, $h_ls );
+t( 'và ô đang sửa cũng vậy — nhánh chấm bù nhảy tới #bucong chứ không phải #suaday',
+	preg_match( '~td\.dang-sua\{scroll-margin-top:\d+px\}~', $h_ls ) === 1, $h_ls );
 
 /* ---- Gạch ngăn hai phần trong chú thích ô ----
    Anh Thắng: *"tách ra 2 ô, bằng gạch ngang, cho dễ nhìn"*. `title` là văn bản THUẦN — không tô

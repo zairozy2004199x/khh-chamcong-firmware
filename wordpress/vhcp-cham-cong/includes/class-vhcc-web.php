@@ -1212,6 +1212,14 @@ class VHCC_Web {
 			. 'table.cc a.o-sua:hover{background:#1d4ed8;color:#fff;box-shadow:0 0 0 2px #1d4ed8}'
 			. 'table.cc a.o-sua:focus-visible{outline:2px solid var(--xanh);outline-offset:1px}'
 			/* Ô đang mở để sửa: viền đậm để mắt tìm lại được nó giữa 600 ô. */
+			/* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ
+			   nhảy lên như này, chỉnh đứng yên cho anh"*.
+			   Đường bấm mang neo `#suaday`, nên trình duyệt cuộn hàng sửa lên SÁT đỉnh — mà đỉnh
+			   thì có thanh đầu trang dính đè lên, và cả hàng của người đang sửa cũng bị đẩy khuất.
+			   `scroll-margin-top` bảo trình duyệt chừa sẵn khoảng ấy: hàng sửa dừng ngay dưới
+			   thanh, cùng với hàng của người đó còn trong tầm mắt. Ghim cho cả ô đang sửa, vì
+			   nhánh chấm bù nhảy tới `#bucong` chứ không phải `#suaday`. */
+			. 'table.cc tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:96px}'
 			. 'table.cc td.dang-sua{outline:3px solid var(--do);outline-offset:-3px}'
 			/* Hàng sửa nội tuyến: nền khác hẳn, và chữ về cỡ thường (lưới đang 11.5px). */
 			/* 🔴 RUỘT HÀNG SỬA DÍNH BÊN TRÁI. Anh Thắng 27/08/2026: *"lệch ô sửa"*.
@@ -3483,8 +3491,19 @@ class VHCC_Web {
 
 				/* Màu = LÝ DO, không phải trang trí. Đỏ là chỗ CÓ giờ mà KHÔNG ra công — đúng
 				   thứ cần soi. */
+				/* 🔴 CÓ GIỜ VÀO MÀ KHÔNG CÓ GIỜ RA -> Ô ĐỎ, kèm dấu `?`.
+				   Anh Thắng 27/08/2026, ngay khi bảo bỏ hai bảng phụ: *"vì bảng này khi có giờ
+				   vào mà không có giờ ra, thì sẽ đỏ ô đó là được"*. Đó chính là thứ làm cho hai
+				   bảng kia thành thừa: người ta mở chúng ra để đi tìm đúng mấy ngày này.
+				   Ngày quên bấm lúc về vẫn RA CÔNG (engine tính từ phần giờ nằm trong khung), nên
+				   ô có số trông y hệt một ngày bình thường — không đánh dấu là nó lẫn vào giữa
+				   ba mươi ô khác và không ai đi tìm nữa.
+				   ⚠️ Xét CẢ HÀNG 2: ca đêm quên bấm ra cũng là quên bấm. */
+				$thieu_ra = ( '' !== $d['vao'] && '' === $d['ra'] )
+					|| ( '' !== $d['h2vao'] && '' === $d['h2ra'] );
+
 				$lop = '';
-				if ( ! empty( $d['caLa'] ) || ! empty( $d['demThieuGio'] ) ) { $lop = ' hong'; }
+				if ( $thieu_ra || ! empty( $d['caLa'] ) || ! empty( $d['demThieuGio'] ) ) { $lop = ' hong'; }
 				elseif ( ! empty( $d['ktCnNghi'] ) )   { $lop = ' vang'; }
 				elseif ( $d['congDem'] )               { $lop = ' tim'; }
 				elseif ( $d['congTangCa'] )            { $lop = ' luc'; }
@@ -3537,6 +3556,9 @@ class VHCC_Web {
 					. self::o_sua(
 						( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
 							: '<span class="chu-hong">0</span>' )
+						/* Dấu `?` ngay cạnh số: màu đỏ nói "có chuyện", dấu này nói "chuyện gì".
+						   Chỉ tô đỏ thì ba nguyên do đỏ khác nhau trông giống hệt nhau. */
+						. ( $thieu_ra ? '<span class="chu-hong"> ?</span>' : '' )
 						. ( '' !== $dem_o
 							? '<div class="mdem' . ( ! empty( $d['demThieuGio'] ) ? ' chu-hong' : '' )
 								. '">' . esc_html( $dem_o ) . '</div>' : '' ),
@@ -3566,7 +3588,8 @@ class VHCC_Web {
 			. '<b>·</b> = không có dữ liệu chấm công · '
 			. '<span class="k luc">có tăng ca</span> <span class="k tim">có công đêm</span> '
 			. '<span class="k vang">kế toán chấm chủ nhật</span> '
-			. '<span class="k hong">có giờ nhưng KHÔNG ra công</span>'
+			. '<span class="k hong">có giờ nhưng KHÔNG ra công</span> '
+			. '<span class="k hong">? = có giờ vào mà THIẾU giờ ra</span>'
 			. '<br>Dòng nhỏ <b>🌙</b> nằm <b>ngay trong ô</b> là phần ca đêm của ngày đó — mỗi '
 			. 'người chỉ một hàng. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
 			. 'đêm được tính vào ngày đó (ca đêm đêm trước cho công sang hôm sau) · '
@@ -3606,6 +3629,14 @@ class VHCC_Web {
 		if ( $d['congTangCa'] ) { $c[] = 'tăng ca ' . self::so_vp( $d['congTangCa'] ); }
 		if ( $d['congDem'] )    { $c[] = 'đêm ' . self::so_vp( $d['congDem'] ); }
 		if ( $d['congBu'] )     { $c[] = 'bù ' . self::so_vp( $d['congBu'] ); }
+		/* Nói ra ngay dòng đầu của chú thích, đừng để lẫn giữa mấy dòng khác: đây là ngày phải
+		   đi bù, và bù được thì lương mới đúng. */
+		if ( '' !== $d['vao'] && '' === $d['ra'] ) {
+			$c[] = '⚠ CÓ giờ vào mà KHÔNG có giờ ra — quên bấm lúc về, cần bù';
+		}
+		if ( '' !== $d['h2vao'] && '' === $d['h2ra'] ) {
+			$c[] = '⚠ hàng 2 (ca đêm) có giờ vào mà KHÔNG có giờ ra — quên bấm lúc về, cần bù';
+		}
 		if ( ! empty( $d['caLa'] ) )       { $c[] = '⚠ hàng 2 nằm trong ca ngày → KHÔNG tính'; }
 		if ( ! empty( $d['demThieuGio'] ) ) {
 			$c[] = '⚠ ca đêm ' . self::so_vp( $d['gioDemThuc'] ) . 'h < mức tối thiểu';
@@ -3849,72 +3880,33 @@ class VHCC_Web {
 			echo '<div class="bao canh">Chưa khai lương cơ bản: '
 				. esc_html( implode( ', ', $v['tien']['thieuLuong'] ) ) . '</div>';
 		}
-		/* 🔴 BỐN CỘT CÔNG ĐÃ DỜI LÊN LƯỚI — BỎ Ở ĐÂY.
-		   Anh Thắng 27/08/2026: *"chưa bỏ bảng này đi à em"*, ngay sau khi bốn con số ấy hiện ra
-		   ở cột TỔNG của lưới. Anh đúng: cùng một con số in ở hai chỗ trên cùng một màn là mời
-		   người ta so hai chỗ, và ngày nào hai chỗ lệch nhau thì không ai biết tin cái nào.
-		   ⚠️ NHƯNG KHÔNG BỎ CẢ BẢNG. Bốn cột còn lại (Lương tháng · Đơn giá · Tiền · Cần soi)
-		      không có ở đâu khác — bỏ hết là mất chỗ DUY NHẤT xem tiền.
-		   `Tổng công` thì GIỮ: nó là mốc để đối chiếu với cột TỔNG của lưới. Hai chỗ cùng in một
-		   con số ở đây là CÓ CHỦ Ý — lệch nhau nghĩa là một trong hai phép tính sai, và đó đúng
-		   là thứ cần lộ ra. Khác hẳn bốn cột vừa bỏ: chúng chỉ chép lại, không đối chiếu gì. */
-		echo '<div class="cuon"><table><thead><tr><th>Mã</th><th>Tên</th><th>Tổng công</th>'
-			. '<th>Lương tháng</th><th>Đơn giá 1 công</th><th>Tiền</th><th>Cần soi</th>'
-			. '</tr></thead><tbody>';
-		foreach ( $v['rows'] as $e ) {
-			$soi = array();
-			if ( $e['soNgayCaLa'] )          { $soi[] = $e['soNgayCaLa'] . ' ngày ca lạ'; }
-			if ( $e['soNgayDemThieuGio'] )   { $soi[] = $e['soNgayDemThieuGio'] . ' đêm thiếu giờ'; }
-			if ( $e['soNgayDemChuaDuCap'] )  { $soi[] = $e['soNgayDemChuaDuCap'] . ' đêm thiếu cặp giờ'; }
-			echo '<tr' . ( $soi ? ' class="hong"' : '' ) . '>';
-			echo '<td><b>' . esc_html( $e['ma'] ) . '</b></td>'
-				. '<td>' . esc_html( $e['ten'] ) . ( $e['laKeToan'] ? ' <span class="mo">(kế toán)</span>' : '' ) . '</td>'
-				. '<td><b>' . esc_html( $e['tong'] ) . '</b></td>'
-				. '<td>' . esc_html( $e['luongThang'] ? number_format( $e['luongThang'] ) : '—' ) . '</td>'
-				. '<td>' . esc_html( $e['donGiaCong'] ? number_format( $e['donGiaCong'] ) : '—' ) . '</td>'
-				. '<td><b>' . esc_html( $e['tien'] ? number_format( $e['tien'] ) : '—' ) . '</b></td>'
-				. '<td>' . ( $soi ? '<span class="chua">' . esc_html( implode( ' · ', $soi ) ) . '</span>' : '' )
-				. '</td></tr>';
-		}
-		/* ⚠️ `colspan` phải đi theo số cột. Bỏ bốn cột mà quên chỗ này là cả chân bảng lệch sang
-		   phải, và con số Tiền tổng nằm dưới cột Đơn giá — vẫn là một bảng đọc được, chỉ là đọc
-		   sai. Hai cột đầu (Mã · Tên) -> colspan 2. */
-		echo '</tbody><tfoot><tr><th colspan="2">Tổng</th><th>' . esc_html( $v['tong']['tong'] )
-			. '</th><th colspan="2"></th><th>'
-			. esc_html( $v['tien']['tongTien'] ? number_format( $v['tien']['tongTien'] ) : '—' )
-			. '</th><th></th></tr></tfoot></table></div>';
-		echo '</div>';
+		/* 🔴 CẢ HAI BẢNG DƯỚI ĐÂY ĐÃ BỎ — LƯỚI NÓI HẾT RỒI.
+		   Anh Thắng 27/08/2026, hai lượt liền: *"bỏ bảng này đi, không cần thiết"* (bảng lương
+		   người-theo-người) và *"này cũng bỏ đi, không cần thiết"* (Chi tiết từng ngày, 355 dòng
+		   cho một tháng). Rồi anh nói luôn lý do, và lý do ấy mới là chỗ đáng nghe:
+		   *"vì bảng này khi có giờ vào mà không có giờ ra, thì sẽ đỏ ô đó là được"*.
 
-		/* 🔴 CHI TIẾT TỪNG NGÀY — GẬP LẠI, NHƯNG PHẢI CÓ. Không soi được thì không kiểm được
-		   lương; mà mở sẵn thì cả nghìn dòng đè lên bảng tổng, thứ người ta mở màn này ra để xem. */
-		echo '<div class="the"><details>';
-		echo '<summary><b>Chi tiết từng ngày</b> — ' . count( $v['detail'] ) . ' dòng, để soi lại '
-			. 'từng con số công ở trên</summary>';
-		echo '<p class="mo">Ngày ca đêm được GIỮ lại dù 0 công, để đọc được công của hôm sau từ '
-			. 'đâu ra — không soi được là không kiểm được lương.</p>';
-		echo '<div class="cuon"><table><thead><tr><th>Ngày</th><th>Mã</th><th>Khung</th>'
-			. '<th>Phút ca ngày</th><th>Công ngày</th><th>Tăng ca</th><th>Công đêm</th><th>Bù</th>'
-			. '<th>Ghi chú</th></tr></thead><tbody>';
-		foreach ( $v['detail'] as $d ) {
-			$gc = array();
-			if ( $d['kt7'] )           { $gc[] = 'kế toán thứ Bảy'; }
-			if ( $d['ktCnNghi'] )      { $gc[] = 'Chủ nhật — lịch nghỉ'; }
-			if ( $d['caLa'] )          { $gc[] = 'giờ ca ngày lọt hàng 2, KHÔNG tính'; }
-			if ( $d['demSangNgay'] )   { $gc[] = 'ca đêm → công ghi cho ' . $d['demSangNgay']; }
-			if ( $d['demTuNgay'] )     { $gc[] = 'công đêm từ ' . $d['demTuNgay']; }
-			if ( $d['demThieuGio'] )   { $gc[] = 'đêm ' . $d['gioDemThuc'] . 'h < ngưỡng, KHÔNG được công'; }
-			if ( $d['demChuaDuCap'] )  { $gc[] = 'đêm thiếu cặp giờ — vẫn tính, cần soi'; }
-			echo '<tr><td>' . esc_html( $d['ngay'] ) . '</td><td>' . esc_html( $d['ma'] ) . '</td>'
-				. '<td>' . esc_html( $d['khung'] ) . '</td><td>' . esc_html( $d['phutNgay'] ) . '</td>'
-				/* ⚠️ `congTangCa` / `congBu` — KHÔNG phải `tangCa` / `bu`. Gõ nhầm tên khoá thì
-				   `esc_html()` nhận null và in ra ô TRỐNG: không lỗi, không cảnh báo, chỉ là
-				   cột Tăng ca và cột Bù trắng trơn trong bảng soi lương. Mà bảng soi lương
-				   trắng một cột thì người đọc tưởng tháng ấy không ai tăng ca. */
-				. '<td>' . esc_html( $d['congNgay'] ) . '</td><td>' . esc_html( $d['congTangCa'] ) . '</td>'
-				. '<td>' . esc_html( $d['congDem'] ) . '</td><td>' . esc_html( $d['congBu'] ) . '</td>'
-				. '<td class="mo">' . esc_html( implode( ' · ', $gc ) ) . '</td></tr>';
-		}
-		echo '</tbody></table></div></details></div>';
+		   Đúng. Hai bảng ấy sinh ra để trả lời câu *"vì sao ô kia ra con số đó"* — nhưng chúng
+		   trả lời bằng hàng trăm dòng xếp theo NGÀY, trong khi người hỏi đang chỉ tay vào MỘT ô.
+		   Muốn dùng được phải dò ngày rồi dò mã, giữa một bảng dài hơn cả màn hình.
+		   Nay lưới tự trả lời NGAY TẠI Ô: rê chuột ra khung giờ · số phút · vì sao ra công đó ·
+		   phần ca đêm; và ô nào THIẾU GIỜ RA thì đỏ kèm dấu `?`. Cùng một câu trả lời, ở đúng
+		   chỗ người ta hỏi.
+
+		   ⚠️ EM CÓ NÊU LO NGẠI về phần TIỀN và anh vẫn chốt bỏ, nên ghi lại cho người đọc sau:
+		      lương tháng · đơn giá · tiền TỪNG NGƯỜI không còn màn nào bày ra nữa. Con số tổng
+		      của cả cơ sở vẫn còn ngay dưới đây. Cần lại bảng chi tiết thì dựng lại — dữ liệu
+		      vẫn nguyên trong `vp_gan_tien()`, chỉ là không vẽ.
+
+		   Ba khối cảnh báo phía trên GIỮ NGUYÊN: chúng không phải bảng, chúng là câu chỉ đường
+		   *"còn thiếu cái này thì cột Tiền mới ra số"*. Bỏ theo là mất luôn chỗ biết vì sao tiền
+		   chưa tính được. */
+		$vp_tt = isset( $v['tien']['tongTien'] ) ? (float) $v['tien']['tongTien'] : 0.0;
+		echo '<p class="mo" style="margin:10px 0 0"><b>Cả cơ sở:</b> '
+			. esc_html( $v['tong']['tong'] ) . ' công'
+			. ( $vp_tt > 0 ? ' · <b>' . esc_html( number_format( $vp_tt ) ) . '</b> đồng' : '' )
+			. '. Số công của từng người nằm ở cột <b>TỔNG</b> của lưới phía trên.</p>';
+		echo '</div>';
 	}
 
 	private static function the_man_cau_hinh( $ky, $toi ) {

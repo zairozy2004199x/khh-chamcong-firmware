@@ -1041,8 +1041,19 @@ class VHCC_Luong {
 			$r = &$out[ $ngay ];
 			$r['tong'] = round( $r['congNgay'] + $r['congTangCa'] + $r['congDem'] + $r['congBu'], 2 );
 			/* `demThieuGio` cũng phải GIỮ dòng lại: đó là ngày người ta CÓ đi làm đêm mà không được
-			   công. Xoá đi thì ca đêm bị loại biến mất khỏi bảng, không ai biết mà kiểm. */
+			   công. Xoá đi thì ca đêm bị loại biến mất khỏi bảng, không ai biết mà kiểm.
+
+			   🔴 NGÀY THIẾU GIỜ RA CŨNG VẬY — và đây là ca nặng nhất trong mấy ca ở đây.
+			   Anh Thắng 27/08/2026: *"khi có giờ vào mà không có giờ ra, thì sẽ đỏ ô đó là được"*.
+			   Người ta CÓ đi làm — máy đã ghi giờ vào — chỉ là quên bấm lúc về. Không có giờ ra
+			   thì không tính được phút trong khung, nên `tong` ra 0 và dòng bị xoá. Ô trên lưới
+			   khi ấy hiện dấu `·`, mà dấu ấy có nghĩa rất cụ thể: *không có dữ liệu chấm công*.
+			   Tức một ngày người ta ĐI LÀM trông y hệt một ngày NGHỈ — và đó đúng là ngày cần
+			   đi bù nhất. Không giữ dòng lại thì không có gì để tô đỏ, và cũng không ai đi tìm. */
+			$thieu_ra = ( '' !== $r['vao'] && '' === $r['ra'] )
+				|| ( '' !== $r['h2vao'] && '' === $r['h2ra'] );
 			if ( $r['tong'] <= 0 && ! $r['caLa'] && '' === $r['demSangNgay'] && ! $r['demThieuGio']
+				&& ! $thieu_ra
 				&& ! ( $r['ktCnNghi'] && $r['phutNgay'] > 0 ) ) {
 				unset( $out[ $ngay ] );
 			}
