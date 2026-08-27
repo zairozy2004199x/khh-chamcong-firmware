@@ -9554,6 +9554,172 @@ $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='hc1'" 
 
 vhcc_dung_bang();
 
+
+/* ======================================================================================
+ *  61. MÀN MÁY & FIRMWARE TRÊN WEB — hai màn wp-admin cuối cùng ra ngoài
+ *
+ *  Anh Thắng 27/08/2026: *"Máy & Firmware · Cổng nhận từ máy"*.
+ *
+ *  🔴 Chốt nặng nhất: ở wp-admin cửa là `manage_options` — phải có tài khoản WordPress quản
+ *     trị mới vào được. Đưa ra web là BỎ MẤT lớp gác ấy, nên phải dựng lại bằng bậc vai, và
+ *     dựng ở CẢ HAI chỗ: lúc vẽ màn và lúc nhận việc POST. Chỉ gác lúc vẽ thì ai đoán ra tên
+ *     `viec` là gửi thẳng POST được — mà một trong mấy việc ấy là đẩy firmware cho cả 26 máy,
+ *     và đẩy nhầm một bản là mất luôn đường sửa từ xa của cả chuỗi.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'WM-1', 'mac' => 'W1', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'WM-2', 'mac' => 'W2', 'cua_hang' => '' ) );
+$wm_id = (int) $wpdb->get_var( "SELECT id FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='WM-1'" );
+$wpdb->insert( VHCC_DB::t( 'cho_gan' ), array( 'nhan_luc' => '2026-08-20 08:00:00',
+	'serial' => 'WM-2', 'mac' => 'W2', 'ma_nv' => 'WMX', 'ho_ten' => 'Chờ Gán Web',
+	'thoi_diem' => '2026-08-20 08:00:00', 'da_chuyen' => '' ) );
+
+/* ⚠️ Phải có MỘT LỆNH ĐANG CHỜ. Bảng lệnh chỉ vẽ khi hàng đợi khác rỗng, nên không có lệnh nào
+   thì cả nhánh vẽ bảng ấy không chạy — và phép thử "không có dòng script nào" soi một trang
+   thiếu mất nguyên một khối. Đã phá thử để thấy đúng chuyện đó: nhét một thẻ <script> vào giữa
+   bảng lệnh mà bộ thử vẫn xanh. */
+VHCC_May::yeu_cau_quet( $wm_id );
+
+function vhcc_may_web( $vai, $get = array(), $post = array() ) {
+	$_GET  = array_merge( array( 'man' => 'may' ), $get );
+	$_POST = $post;
+	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người Thử', $vai, 'TUTU_BT', 'WMA' );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_POST = array(); $_COOKIE = array();
+	return $h;
+}
+
+/* ---- Thanh tab ---- */
+$wm_ad = vhcc_may_web( 'Admin' );
+t( 'Admin có tab Máy & Firmware', strpos( $wm_ad, '>Máy &amp; Firmware<' ) !== false, $wm_ad );
+t( '🔴 Kế toán KHÔNG có tab ấy',
+	strpos( vhcc_may_web( 'Kế toán' ), '>Máy &amp; Firmware<' ) === false );
+t( 'Cửa hàng trưởng cũng không', strpos( vhcc_may_web( 'Cửa hàng trưởng' ), '>Máy &amp; Firmware<' ) === false );
+
+/* ---- Màn vẽ ra đủ chín khối ---- */
+foreach ( array( 'Cổng nhận chấm công từ máy', 'Nhật ký cổng', 'Danh sách máy',
+	'Tải lại sổ chấm công từ đầu đọc', 'Sổ mặt đang nằm trong đầu đọc', 'Lượt bấm chờ gán',
+	'Lệnh đang chờ xuống máy', 'Cập nhật firmware' ) as $wm_k ) {
+	t( 'màn có khối "' . $wm_k . '"', strpos( $wm_ad, $wm_k ) !== false, $wm_k );
+}
+t( 'máy hiện ra trong danh sách', strpos( $wm_ad, 'WM-1' ) !== false, $wm_ad );
+/* ⚠️ Soi Ô CỦA BẢNG, không soi chuỗi '(chưa gán)' trần: ô xổ chọn máy ở ba khối dưới cũng in
+   đúng chữ ấy, nên soi trần thì bỏ hẳn nhãn đỏ ở bảng đi phép thử vẫn xanh. */
+t( '🔴 máy chưa gán cơ sở được kêu tên NGAY TRONG BẢNG, và bằng chữ đỏ',
+	strpos( $wm_ad, '<span class="chu-hong">(chưa gán)</span>' ) !== false, $wm_ad );
+t( 'lượt bấm chờ gán hiện ra', strpos( $wm_ad, 'Chờ Gán Web' ) !== false, $wm_ad );
+/* Cả màn quản trị này không có lấy một dòng script — gập/xổ dùng <details> của chính HTML. */
+t( '🔴 màn Máy KHÔNG có một dòng script nào',
+	stripos( $wm_ad, '<script' ) === false
+	&& ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $wm_ad ), $wm_ad );
+
+/* ---- 🔴 KHÔNG IN KHOÁ RA MÀN HÌNH ----
+   Trang này chạy ngoài internet và ảnh chụp màn hình đi khắp nơi. Lộ `VHCC_KHOA_MAY` là ai cũng
+   đẩy được lượt chấm công GIẢ vào bảng lương — cùng lối với luật không bao giờ in PIN. */
+/* ⚠️ `VHCC_KHOA_MAY` là HẰNG SỐ, và bộ thử đã khai nó ở đầu tệp — không gỡ ra được giữa chừng.
+   Nên cảnh "chưa khai khoá" soi ở MÃ NGUỒN, còn cảnh "đã khai" soi ở màn thật. */
+t( 'có khoá thì màn báo đã cấu hình', strpos( $wm_ad, 'Đã cấu hình khoá' ) !== false, $wm_ad );
+t( '🔴 nhưng KHÔNG in giá trị khoá ra màn hình',
+	strpos( $wm_ad, VHCC_KHOA_MAY ) === false, $wm_ad );
+$wm_goc = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web-may.php' );
+t( 'màn có nhánh kêu lên khi chưa khai khoá',
+	strpos( $wm_goc, 'cổng đang ĐÓNG' ) !== false );
+t( 'và nhánh ấy chỉ đúng chỗ khai: wp-config.php, không phải cơ sở dữ liệu',
+	strpos( $wm_goc, 'wp-config.php' ) !== false );
+/* 🔴 Và mã KHÔNG được có chỗ nào NỐI hằng số ấy vào chuỗi in ra. Phép thử trên chỉ soi màn ở
+   đúng một nhánh; một dòng `echo '…' . VHCC_KHOA_MAY` nằm trong nhánh khác thì nó không thấy.
+   ⚠️ Soi dạng NỐI CHUỖI (`. VHCC_KHOA_MAY`), không soi chữ `VHCC_KHOA_MAY` trần: cái tên ấy có
+      mặt hợp lệ ở hai chỗ — trong `defined()` và trong câu chỉ đường "khai vào wp-config" — nên
+      soi tên trần là đỏ oan, rồi có người "sửa" bằng cách bỏ câu chỉ đường đi. */
+t( '🔴 mã màn không NỐI giá trị khoá vào chuỗi in ra ở bất kỳ nhánh nào',
+	! preg_match( '/\.\s*(?:esc_\w+\(\s*)?(?:\(string\)\s*)?VHCC_KHOA_MAY/', $wm_goc ), $wm_goc );
+
+/* ---- 🔴 CHỐT POST: không vẽ nút không có nghĩa là không gửi được ---- */
+$wm_r = vhcc_goi_rieng( 'VHCC_WebMay', 'viec',
+	array( 'may_ota', array( 'name' => 'KT', 'role' => 'Kế toán', 'coso' => 'TUTU_BT' ) ) );
+t( '🔴 Kế toán POST thẳng việc đẩy firmware bị CHỐI',
+	is_array( $wm_r ) && isset( $wm_r[0]['loi'] ), $wm_r );
+foreach ( array( 'may_gan', 'may_quet', 'may_tai_lai', 'may_xoa_lenh', 'may_ota_mot',
+	'may_go_ota', 'may_dung_tai_lai', 'may_sim' ) as $wm_v ) {
+	$wm_x = vhcc_goi_rieng( 'VHCC_WebMay', 'viec',
+		array( $wm_v, array( 'name' => 'Q', 'role' => 'Quản lý', 'coso' => 'TUTU_BT' ) ) );
+	t( 'việc "' . $wm_v . '" cũng chối người dưới bậc Admin',
+		is_array( $wm_x ) && isset( $wm_x[0]['loi'] ), $wm_v );
+}
+/* Và màn cũng phải chối, không chỉ việc — người mò được `?man=may` thì thấy gì. */
+$wm_ke = vhcc_may_web( 'Kế toán', array( 'man' => 'may' ) );
+t( 'Kế toán mò thẳng ?man=may cũng không thấy nút firmware',
+	strpos( $wm_ke, 'may_ota' ) === false, $wm_ke );
+/* 🔴 CHỐT LÚC VẼ MÀN PHẢI THỬ BẰNG CÁCH GỌI THẲNG HÀM.
+   Đi qua `?man=may` thì `man_cua()` đã không khai màn ấy cho Kế toán, nên `$man` rơi về màn mặc
+   định và hàm vẽ KHÔNG BAO GIỜ chạy — phép thử trên xanh vì một lý do khác hẳn thứ nó tưởng
+   đang canh. Bỏ hẳn chốt trong `VHCC_WebMay::man()` mà bộ thử vẫn xanh; đã phá thử để thấy.
+   Chốt ấy vẫn phải giữ và phải có phép thử: nó che một hàm ở LỚP KHÁC (`man_cua` bên
+   `VHCC_Web`), nên ai nới bảng tab một ngày nào đó thì cửa này vẫn đóng. */
+ob_start();
+VHCC_WebMay::man( 'ky-thu', array( 'name' => 'KT', 'role' => 'Kế toán', 'coso' => 'TUTU_BT' ) );
+$wm_ve = ob_get_clean();
+t( '🔴 gọi thẳng hàm vẽ màn với bậc Kế toán: bị chối',
+	strpos( $wm_ve, 'Không vào được màn này' ) !== false, $wm_ve );
+t( 'và không vẽ ra một nút firmware nào', strpos( $wm_ve, 'may_ota' ) === false, $wm_ve );
+t( 'cũng không lộ danh sách máy', strpos( $wm_ve, 'WM-1' ) === false, $wm_ve );
+
+/* ---- Danh sách trắng của việc: tên lạ KHÔNG phải việc của màn này ---- */
+t( '🔴 tên việc lạ không lọt vào màn Máy', ! VHCC_WebMay::la_viec( 'ota' ) );
+t( 'và tên việc thật thì nhận', VHCC_WebMay::la_viec( 'may_ota' ) );
+/* 🔴 DANH SÁCH TRẮNG, KHÔNG PHẢI SO TIỀN TỐ. So bằng tiền tố `may` thì mọi tên bịa bắt đầu bằng
+   chữ ấy đều được nhận vào — và một việc được nhận vào nhưng không có nhánh xử là màn trả về
+   rỗng, tức người bấm không thấy gì xảy ra và cũng không thấy lỗi. Tệ hơn: nó CHẶN mất nhánh
+   xử của các màn khác nếu sau này có việc nào trùng tiền tố. */
+foreach ( array( 'may_xoa_het', 'mayota', 'may_', 'may_ota_tat_ca' ) as $wm_la ) {
+	t( 'tên bịa "' . $wm_la . '" KHÔNG được nhận là việc của màn Máy',
+		! VHCC_WebMay::la_viec( $wm_la ), $wm_la );
+}
+
+/* ---- Việc chạy thật qua đúng cửa POST của trang ---- */
+$wm_tok = VHCC_Auth::phat_token( 'Quản trị', 'Admin', 'TUTU_BT', 'WMA' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $wm_tok;
+$_GET  = array( 'man' => 'may' );
+$_POST = array( 'viec' => 'may_gan', 'ky' => VHCC_Web::chu_ky( $wm_tok ),
+	'may_id' => (int) $wpdb->get_var( "SELECT id FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='WM-2'" ),
+	'coso' => 'POSH_HCM' );
+ob_start(); VHCC_Web::phuc_vu(); ob_end_clean();
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+teq( '🔴 gán cơ sở qua TRANG THẬT thì bảng máy đổi theo', 'POSH_HCM',
+	$wpdb->get_var( "SELECT cua_hang FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='WM-2'" ) );
+t( 'và lượt bấm đang chờ tự vào bảng chấm công', null !== $wpdb->get_row(
+	"SELECT * FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='WMX'", ARRAY_A ) );
+
+/* ---- OTA: nút thử MỘT máy đứng trước, và không đòi gõ xác nhận ---- */
+t( 'màn có nút thử riêng một máy', strpos( $wm_ad, 'may_ota_mot' ) !== false, $wm_ad );
+t( 'và nút đẩy cả chuỗi', strpos( $wm_ad, 'may_ota"' ) !== false, $wm_ad );
+/* 🔴 Nút THỬ MỘT MÁY phải đứng TRƯỚC nút đẩy cả chuỗi. Đây không phải chuyện bày biện: bản hỏng
+   đẩy cho cả 26 máy thì không còn đường gọi về, phải đi từng cửa hàng cắm USB. Thứ tự trên màn
+   là thứ quyết định người ta bấm cái nào trước. */
+t( '🔴 nút thử một máy đứng TRƯỚC nút đẩy cả chuỗi',
+	strpos( $wm_ad, 'may_ota_mot' ) < strpos( $wm_ad, 'value="may_ota"' ), $wm_ad );
+t( 'và màn cảnh báo trước khi đẩy cả chuỗi',
+	strpos( $wm_ad, 'Đọc trước khi đẩy' ) !== false, $wm_ad );
+/* Đẩy cả chuỗi mà không gõ xác nhận thì phải chối — chốt nằm ở `dat_ota`, ở đây canh nó CÒN
+   ĐƯỢC GỌI TỚI, kẻo màn web lặng lẽ bỏ qua tham số xác nhận. */
+/* ⚠️ Phải truyền ver + url HỢP LỆ, không thì `dat_ota` chối vì THIẾU Ô chứ không phải vì thiếu
+   xác nhận — và lúc ấy phép thử xanh cả khi màn web lặng lẽ tự điền "DONG Y" hộ người dùng.
+   Đã phá thử để thấy đúng chuyện đó. */
+$_POST = array( 'ver' => '9.9.9', 'url' => 'https://raw.githubusercontent.com/chu/repo/bin/fw.bin' );
+$wm_ota = VHCC_WebMay::viec( 'may_ota', array( 'name' => 'A', 'role' => 'Admin' ) );
+$_POST = array();
+t( '🔴 đẩy cả chuỗi mà không gõ DONG Y thì chối',
+	is_array( $wm_ota ) && empty( $wm_ota[0]['ok'] ), $wm_ota );
+/* Còn nút THỬ MỘT MÁY thì cố ý KHÔNG đòi xác nhận — đây chính là bước nên làm trước, đừng dựng
+   rào ở đúng cái việc mình muốn người ta làm. */
+$_POST = array( 'ver' => '9.9.9', 'url' => 'https://raw.githubusercontent.com/chu/repo/bin/fw.bin',
+	'may_id' => $wm_id );
+$wm_ota1 = VHCC_WebMay::viec( 'may_ota_mot', array( 'name' => 'A', 'role' => 'Admin' ) );
+$_POST = array();
+t( '🔴 nhưng thử RIÊNG MỘT MÁY thì không cần gõ xác nhận',
+	is_array( $wm_ota1 ) && ! empty( $wm_ota1[0]['ok'] ), $wm_ota1 );
+vhcc_dung_bang();
+
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
 vhcc_dung_bang();
 

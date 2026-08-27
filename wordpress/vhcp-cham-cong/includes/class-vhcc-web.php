@@ -369,7 +369,10 @@ class VHCC_Web {
 	}
 
 	/** Các tham số phải sống sót qua một lượt POST — bộ lọc, ô tìm, màn đang mở. */
-	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk', 'lcs', 'lth' );
+	/* ⚠️ `msoma` là của màn Máy & Firmware — khai ở đây chứ không chỉ ở `VHCC_WebMay::THAM_SO`:
+	      danh sách này là thứ `o_loc()` đọc để chở tham số qua một lượt POST, và thiếu nó thì
+	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
+	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk', 'lcs', 'lth', 'msoma' );
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -454,6 +457,12 @@ class VHCC_Web {
 			return array( array( 'loi' => 'Tài khoản ' . ( isset( $toi['name'] ) ? $toi['name'] : '' )
 				. ' (' . VHCC_Vai::ten( $toi ) . ') chỉ xem được bảng chấm công. '
 				. 'Việc này thuộc màn Hồ sơ — cần bậc Kế toán trở lên.' ) );
+		}
+
+		/* Việc của màn Máy & Firmware. Định tuyến ở đây chứ không chép mã sang: `VHCC_WebMay`
+		   tự gác `he_thong` lần nữa bên trong, nên nó không phụ thuộc vào chốt nào ở đây. */
+		if ( VHCC_WebMay::la_viec( $viec ) ) {
+			return VHCC_WebMay::viec( $viec, $toi );
 		}
 
 		if ( 'co' === $viec ) {
@@ -1403,6 +1412,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'may' === $man ) {
+			VHCC_WebMay::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
@@ -1456,7 +1471,9 @@ class VHCC_Web {
 	   cấu hình / nạp dữ liệu đứng CUỐI: chúng là việc làm một lần, không ai muốn mở app ra là
 	   rơi thẳng vào bảng khai cấu hình. Nhưng vẫn phải có tên, kẻo người CHỈ có hai màn ấy lại
 	   rơi vào nhánh đoán mò ở cuối hàm. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu' );
+	/* 'may' đứng CUỐI, cùng lối với hai màn khai cấu hình: Admin mở app ra là để xem bảng công,
+	   không phải để rơi thẳng vào màn có nút đẩy firmware cả chuỗi. Nhưng vẫn phải có tên. */
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu', 'may' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -1494,6 +1511,13 @@ class VHCC_Web {
 		   Xem khối lương ở cuối `the_bang_cham()`. */
 		if ( VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { $ds['cau_hinh'] = 'Cấu hình'; }
 		if ( VHCC_Vai::duoc( $toi, 'nap_cong' ) )   { $ds['du_lieu']  = 'Dữ liệu đầu vào'; }
+		/* 🔴 MÁY & FIRMWARE LÀ BẬC ADMIN (`he_thong`), không nới.
+		   Anh Thắng 27/08/2026: *"Máy & Firmware · Cổng nhận từ máy"* — hai màn wp-admin cuối
+		   cùng ra web. Ở wp-admin cửa là `manage_options`, tức phải có tài khoản WordPress quản
+		   trị; đưa ra web là bỏ mất lớp gác ấy, nên phải dựng lại bằng bậc vai. Trong đó có nút
+		   đẩy firmware cho MỌI máy trong chuỗi — đẩy nhầm một bản là mất luôn đường sửa từ xa
+		   của cả 26 cửa hàng và phải đi từng nơi cắm USB. */
+		if ( VHCC_Vai::duoc( $toi, 'he_thong' ) )   { $ds['may']      = 'Máy & Firmware'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
 		return $ds;
 	}
