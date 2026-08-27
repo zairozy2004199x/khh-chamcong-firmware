@@ -1811,123 +1811,120 @@ JS;
  * khác về: trang này mở trên 4G ở trung tâm thương mại, và một ảnh nền không tải được sẽ để lại
  * đúng cái nền trắng chữ trắng đó.
  * ============================================================================================ */
+/* ============================================================================================
+ * GIAO DIỆN THEO "QUẢN LÝ NHÂN SỰ V5.2" (HR): nền sáng, thẻ trắng, tiêu đề navy + vạch xanh,
+ * nút phẳng (xanh dương chính, cam nhấn, xanh lá/đỏ/xám), bảng header xám nhạt. Anh Thắng 27/08.
+ * Giữ NGUYÊN tên lớp để không phải sửa JS — chỉ đổi màu/kiểu.
+ * ============================================================================================ */
+:root{--bg:#eef1f5;--card:#ffffff;--line:#e3e8ef;--ink:#243a5e;--ink2:#4a5b78;--mut:#7a879e;
+  --blue:#2f6fb0;--blue-d:#255c95;--blue-bg:#eef4fb;--navy:#213a5e;--amber:#e8912a;--amber-d:#cf7c19;
+  --green:#2e9b57;--red:#d64545}
 body::before{content:"";position:fixed;inset:0;z-index:-2;
-  background:radial-gradient(1200px 620px at 78% 8%,#3a2f1c 0%,transparent 62%),
-             radial-gradient(900px 520px at 12% 92%,#1d2647 0%,transparent 60%),
-             linear-gradient(160deg,#12141f 0%,#171a2e 46%,#0f1120 100%);
-  background-size:cover;background-position:center}
+  background:linear-gradient(180deg,#f3f5f9 0%,#eaeef4 100%);background-size:cover;background-position:center}
 body.co-anh::before{background-image:var(--nen);background-size:cover;background-position:center}
-/* Lớp phủ tối RIÊNG, không trộn vào ảnh: trộn thì mỗi lần đổi ảnh lại phải chỉnh lại độ tối. */
+/* Ảnh nền (nếu có) phủ MÀN SÁNG để chữ tối vẫn đọc được — HR vốn nền phẳng nên veil khá đặc. */
 body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
-  background:linear-gradient(180deg,rgba(9,10,18,.80) 0%,rgba(9,10,18,.68) 38%,rgba(9,10,18,.86) 100%)}
-body{margin:0;background:#12141f;color:#e8ebff;min-height:100vh;
+  background:linear-gradient(180deg,rgba(238,241,245,.90) 0%,rgba(238,241,245,.82) 40%,rgba(238,241,245,.92) 100%)}
+body{margin:0;background:var(--bg);color:var(--ink2);min-height:100vh;
   font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 .wrap{max-width:1180px;margin:0 auto;padding:14px}
-h1{font-size:19px;margin:0}
-h1 small{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#a79a7d;font-weight:400;margin-top:3px}
+h1{font-size:19px;margin:0;color:var(--ink)}
+h1 small{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);font-weight:400;margin-top:3px}
 
 /* --- Dải đầu trang: khối kính, dính trên cùng ---
    Dính vì đây là chỗ có nút Thoát và đồng hồ; cuộn xuống bảng giao dịch dài rồi phải cuộn
    ngược lên mới thoát được là một cái phiền không đáng có. */
 .top{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0 0 14px;
   position:sticky;top:0;z-index:20;padding:11px 14px;
-  background:rgba(16,18,30,.80);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
-  border:1px solid rgba(240,180,41,.20);border-radius:14px;
-  box-shadow:0 10px 30px rgba(0,0,0,.42)}
+  background:#fff;border:1px solid var(--line);border-radius:12px;
+  box-shadow:0 2px 8px rgba(31,45,74,.06)}
 .top .sp{flex:1}
 .hieu{display:flex;align-items:center;gap:11px;min-width:0}
-/* Ô biểu tượng: viền vàng mảnh, nền vàng rất nhạt — cùng ngôn ngữ với các nhãn vàng khác. */
+/* Ô biểu tượng: nền xanh nhạt, chữ xanh — đồng bộ với nhấn xanh dương của HR. */
 .hieu-o{width:38px;height:38px;flex:none;display:flex;align-items:center;justify-content:center;
-  border-radius:11px;font-size:19px;background:rgba(240,180,41,.13);
-  border:1px solid rgba(240,180,41,.34)}
-.dh-top{font-variant-numeric:tabular-nums;font-weight:600;color:#f0b429;letter-spacing:.04em}
+  border-radius:10px;font-size:19px;background:var(--blue-bg);
+  border:1px solid #cfe0f2;color:var(--blue)}
+.dh-top{font-variant-numeric:tabular-nums;font-weight:700;color:var(--blue);letter-spacing:.04em}
 /* Nút đổi ngôn ngữ: hai ô dính nhau, ô đang chọn tô vàng. Để cạnh đồng hồ vì cả hai là thứ
    người ta liếc chứ không bấm thường xuyên. */
-.nn{display:inline-flex;border:1px solid rgba(255,255,255,.15);border-radius:9px;overflow:hidden}
-.nn button{border:0;border-radius:0;padding:6px 10px;font-size:12px;font-weight:600;letter-spacing:.06em}
-.nn button+button{border-left:1px solid rgba(255,255,255,.15)}
+.nn{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.nn button{border:0;border-radius:0;padding:6px 10px;font-size:12px;font-weight:600;letter-spacing:.06em;background:#fff;color:var(--ink2)}
+.nn button+button{border-left:1px solid var(--line)}
+.nn button.on{background:var(--navy);color:#fff}
 .nn-doi{margin-top:14px;display:flex;justify-content:center}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-button{font:inherit;cursor:pointer;border-radius:9px;border:1px solid rgba(255,255,255,.15);
-  background:rgba(255,255,255,.07);color:#e8ebff;padding:7px 13px;transition:background .15s,border-color .15s}
-button:hover{background:rgba(255,255,255,.13);border-color:rgba(240,180,41,.4)}
-button.on{background:#f0b429;border-color:#f0b429;color:#221a00;font-weight:600}
-button.on:hover{background:#f7c246}
-button.ghost{background:transparent}
-input,select{font:inherit;border-radius:9px;border:1px solid rgba(255,255,255,.15);
-  background:rgba(10,12,22,.55);color:#e8ebff;padding:7px 10px;width:100%}
-input:focus,select:focus{outline:none;border-color:#f0b429}
+button{font:inherit;cursor:pointer;border-radius:8px;border:1px solid var(--line);
+  background:#fff;color:var(--ink);padding:7px 13px;transition:background .15s,border-color .15s,box-shadow .15s}
+button:hover{background:#f4f7fb;border-color:#c4d3e6}
+button.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+button.on:hover{background:var(--blue-d)}
+button.ghost{background:#fff}
+input,select{font:inherit;border-radius:8px;border:1px solid #c9d3e0;
+  background:#fff;color:var(--ink);padding:8px 11px;width:100%}
+input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,111,176,.12)}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:14px}
-.kpi{background:rgba(24,27,44,.72);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:12px 14px}
-.kpi .lb{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#a79a7d}
-.kpi .vl{font-size:21px;font-weight:700;margin-top:3px;word-break:break-all}
-.kpi .sb{font-size:12px;color:#8d93c4}
-.vl.a{color:#f0b429}.vl.b{color:#5fa8ff}.vl.c{color:#4ade80}.vl.d{color:#e8ebff}
-.card{background:rgba(22,25,40,.74);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
-  border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:13px 15px;margin-bottom:14px;
-  box-shadow:0 8px 26px rgba(0,0,0,.34)}
-/* Tiêu đề khối: chữ hoa, giãn chữ, một vạch vàng bên trái — để mắt bắt được ranh giới giữa các
-   khối ngay cả khi tất cả cùng là kính mờ trên một tấm ảnh. */
-.card h2{font-size:12px;margin:0 0 11px;letter-spacing:.12em;text-transform:uppercase;
-  color:#f0b429;font-weight:700;padding-left:10px;border-left:3px solid #f0b429;line-height:1.25}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 14px;
+  box-shadow:0 1px 4px rgba(31,45,74,.05)}
+.kpi .lb{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut)}
+.kpi .vl{font-size:21px;font-weight:700;margin-top:3px;word-break:break-all;color:var(--ink)}
+.kpi .sb{font-size:12px;color:var(--mut)}
+.vl.a{color:var(--amber)}.vl.b{color:var(--blue)}.vl.c{color:var(--green)}.vl.d{color:var(--ink)}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px;
+  box-shadow:0 2px 8px rgba(31,45,74,.06)}
+/* Tiêu đề khối: chữ hoa navy, một vạch xanh bên trái — đúng phong cách HR. */
+.card h2{font-size:12.5px;margin:0 0 12px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--navy);font-weight:700;padding-left:10px;border-left:3px solid var(--blue);line-height:1.25}
 table{width:100%;border-collapse:collapse;font-size:13px}
-th{text-align:left;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#a79a7d;font-weight:500;padding:0 8px 7px 0;border-bottom:1px solid rgba(240,180,41,.22)}
-td{padding:8px 8px 8px 0;border-bottom:1px solid rgba(255,255,255,.07);vertical-align:middle}
+th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);font-weight:700;
+  background:#eef2f7;padding:9px 10px 9px 8px;border-bottom:1px solid #dbe2ec}
+td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:var(--ink2)}
 tr:last-child td{border-bottom:0}
 .r{text-align:right}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
-.p-ok{background:#12351f;color:#4ade80}.p-run{background:#2a2410;color:#f0b429}
-.p-wait{background:#111f3d;color:#5fa8ff}.p-off{background:#3a1418;color:#ff8087}
-.warn{background:rgba(58,20,24,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid #7c2732;border-radius:14px;padding:12px 14px;margin-bottom:14px}
-.warn b{color:#ff8087}
-.note{background:rgba(42,36,16,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid #6b551a;border-radius:14px;padding:12px 14px;margin-bottom:14px}
-.note b{color:#f0b429}
-.mut{color:#9aa0c2;font-size:12px}
-.login{max-width:360px;margin:12vh auto;padding:28px 24px;background:rgba(20,23,38,.80);
-  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
-  border:1px solid rgba(240,180,41,.26);border-radius:18px;text-align:center;
-  box-shadow:0 22px 60px rgba(0,0,0,.55)}
+.p-ok{background:#e6f6ec;color:#1f8f4d}.p-run{background:#fdf0dc;color:#c07a12}
+.p-wait{background:#e9f1fb;color:#2f6fb0}.p-off{background:#fbe6e6;color:#c23b3b}
+.warn{background:#fdeaea;border:1px solid #f3c7c7;border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#7a2e2e}
+.warn b{color:#c23b3b}
+.note{background:#fdf4e3;border:1px solid #f0d9ac;border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#7a5a1e}
+.note b{color:var(--amber-d)}
+.mut{color:var(--mut);font-size:12px}
+.login{max-width:360px;margin:12vh auto;padding:28px 24px;background:#fff;
+  border:1px solid var(--line);border-radius:16px;text-align:center;
+  box-shadow:0 12px 40px rgba(31,45,74,.14)}
 .login .hieu-o{margin:0 auto 12px;width:46px;height:46px;font-size:23px}
 .login h1{margin-bottom:6px}
 .login input{text-align:center;letter-spacing:.5em;font-size:21px;margin:16px 0 10px}
-.err{color:#ff8087;font-size:13px;min-height:19px;margin-top:8px}
+.err{color:var(--red);font-size:13px;min-height:19px;margin-top:8px}
 .act{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 /* --- Tab chính --- */
-.nav{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid rgba(240,180,41,.2);padding-bottom:10px}
-.nav button{border-radius:9px 9px 0 0}
+.nav{display:flex;gap:6px;margin-bottom:14px;border-bottom:2px solid var(--line);padding-bottom:10px}
+.nav button{border-radius:8px 8px 0 0}
 /* --- Thẻ ghế (tab Điều khiển) ---
    Bảng hợp cho đối soát (so số theo cột), nhưng KHÔNG hợp cho điều khiển: người bấm đang đứng
    cạnh một con ghế cụ thể và cần thấy đúng nó, to và rõ, chứ không dò theo hàng. */
 .ghe-luoi{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px}
-.ghe{background:rgba(20,23,38,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
-  border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:14px;
-  box-shadow:0 6px 20px rgba(0,0,0,.3)}
-.ghe.dut{border-color:#7c2732;background:rgba(38,20,26,.78)}
-/* Ghế đang chạy: viền vàng ĐẬM hơn hẳn, vì trong một lưới 26 thẻ kính mờ giống nhau thì cái
-   đang chạy phải bắt được mắt từ đầu bên kia quầy. */
-.ghe.chay{border-color:rgba(240,180,41,.65);box-shadow:0 0 0 1px rgba(240,180,41,.18),0 6px 22px rgba(0,0,0,.36)}
+.ghe{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;
+  box-shadow:0 2px 8px rgba(31,45,74,.06)}
+.ghe.dut{border-color:#f0c2c2;background:#fdf5f5}
+/* Ghế đang chạy: viền xanh lá đậm để bắt mắt trong lưới nhiều thẻ trắng. */
+.ghe.chay{border-color:#8fd3a9;box-shadow:0 0 0 1px rgba(46,155,87,.25),0 2px 10px rgba(31,45,74,.08)}
 .ghe-dau{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-.ghe-ma{font-size:17px;font-weight:700}
-.ghe-cs{font-size:12px;color:#a79a7d;margin-bottom:10px}
-.ghe-dh{font-size:31px;font-weight:700;color:#f0b429;margin:6px 0 2px;
+.ghe-ma{font-size:17px;font-weight:700;color:var(--ink)}
+.ghe-cs{font-size:12px;color:var(--mut);margin-bottom:10px}
+.ghe-dh{font-size:31px;font-weight:700;color:var(--green);margin:6px 0 2px;
   font-variant-numeric:tabular-nums;letter-spacing:.01em}
 .ghe-tien-loi{margin:8px 0;padding:8px 10px;border-radius:8px;font-size:12px;line-height:1.45}
 .ghe-tien-loi div{font-weight:400;margin-top:3px;opacity:.92}
-.ghe-tien-loi.dang{background:rgba(220,60,50,.16);border:1px solid rgba(220,60,50,.5);
-  color:#ffb4ae;font-weight:700}
-.ghe-tien-loi.cu{background:rgba(240,180,41,.12);border:1px solid rgba(240,180,41,.4);
-  color:#f0c76b;font-weight:600}
+.ghe-tien-loi.dang{background:#fbe6e6;border:1px solid #f1bcbc;color:#b02b2b;font-weight:700}
+.ghe-tien-loi.cu{background:#fdf4e3;border:1px solid #f0d9ac;color:#8a6416;font-weight:600}
 .ghe-nut{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:11px}
 .ghe-nut button{padding:9px 6px;font-size:13px}
-.b-bat{background:#12351f;border-color:#2f6b45;color:#8ff0b0}
-.b-tat{background:#3a1418;border-color:#7c2732;color:#ff8087}
-.b-kd{background:#111f3d;border-color:#2b4a80;color:#9ecbff}
+.b-bat{background:#e8f6ee;border-color:#9bd6b3;color:#1f7a44}
+.b-tat{background:#fbe9e9;border-color:#eeb6b6;color:#b23636}
+.b-kd{background:#eaf2fb;border-color:#b6d0ec;color:#2a5f9e}
 .ghe-hang{display:flex;gap:6px;align-items:center;margin-top:8px}
 .ghe-hang input{width:70px}
-.ghe-hang label{font-size:11px;color:#a79a7d}
+.ghe-hang label{font-size:11px;color:var(--mut)}
 /* --- Bảng chốt ca thu tiền --- */
 /* Khung camera quét QR. Vuông, bo góc, và cao vừa đủ để cầm một tay trong lúc tay kia giữ
    ngăn tiền — cao hơn nữa thì nút Đóng tụt xuống dưới mép màn trên điện thoại nhỏ. */
@@ -1937,54 +1934,54 @@ tr:last-child td{border-bottom:0}
    tay kia đang giữ ngăn tiền, và mắt thì đang nhìn qua nhìn lại giữa màn máy đếm và màn này. */
 /* Dải báo lỗi. Đỏ, dính đầu trang, không cuộn mất — người dùng phải thấy nó mà không phải tìm. */
 /* Số bản: nhỏ, mờ, cạnh đồng hồ — không tranh chỗ với số liệu, nhưng luôn đọc được. */
-.ban-top{font-size:11px;color:#7f7768;letter-spacing:.04em;padding:0 4px}
-.bao-loi{position:sticky;top:0;z-index:99;padding:10px 14px;background:#5b1418;color:#ffd7d7;
-  font-size:13px;line-height:1.5;border-bottom:1px solid #8a2026}
+.ban-top{font-size:11px;color:var(--mut);letter-spacing:.04em;padding:0 4px}
+.bao-loi{position:sticky;top:0;z-index:99;padding:10px 14px;background:#fbe6e6;color:#8a1f1f;
+  font-size:13px;line-height:1.5;border-bottom:1px solid #eeb6b6}
 .cs-hop{margin:8px 0 2px;padding:9px 11px;border-radius:10px;
-  background:rgba(240,180,41,.08);border:1px solid rgba(240,180,41,.28)}
-.cs-hop.chua{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.12)}
-.cs-nh{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:#a79a7d}
+  background:var(--blue-bg);border:1px solid #cfe0f2}
+.cs-hop.chua{background:#f4f6f9;border-color:var(--line)}
+.cs-nh{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--mut)}
 .cs-so{display:flex;align-items:baseline;gap:8px;margin:2px 0 1px;
   font-variant-numeric:tabular-nums}
-.cs-so .cu{font-size:16px;color:#8d8577}
-.cs-so .mui{font-size:14px;color:#8d8577}
-.cs-so .moi{font-size:22px;font-weight:800;color:#f0b429}
-.cs-p{font-size:11.5px;color:#9aa0c2}
-.ph-nhom{padding:12px 13px;border-radius:12px;margin:0 0 10px;
-  background:rgba(10,12,22,.5);border:1px solid rgba(255,255,255,.1)}
-.ph-nhom .nh{color:#e8dcc4;font-weight:700;font-size:14px}
+.cs-so .cu{font-size:16px;color:var(--mut)}
+.cs-so .mui{font-size:14px;color:var(--mut)}
+.cs-so .moi{font-size:22px;font-weight:800;color:var(--blue)}
+.cs-p{font-size:11.5px;color:var(--mut)}
+.ph-nhom{padding:12px 13px;border-radius:10px;margin:0 0 10px;
+  background:#f4f6f9;border:1px solid var(--line)}
+.ph-nhom .nh{color:var(--ink);font-weight:700;font-size:14px}
 .ph-o{display:flex;flex-wrap:wrap;gap:8px 16px}
-.ph-tick{display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer}
+.ph-tick{display:flex;align-items:center;gap:6px;font-size:13.5px;cursor:pointer;color:var(--ink2)}
 .ph-tick.khoa{opacity:.6;cursor:not-allowed}
 .quet-hop{margin-top:12px}
 .quet-hop video{width:100%;max-height:280px;object-fit:cover;border-radius:12px;
-  background:#000;border:1px solid rgba(255,255,255,.14)}
+  background:#000;border:1px solid var(--line)}
 .quet-hop button{width:100%;margin-top:8px}
-.man{position:fixed;inset:0;background:rgba(8,10,22,.82);display:flex;align-items:center;
+.man{position:fixed;inset:0;background:rgba(20,30,50,.55);display:flex;align-items:center;
   justify-content:center;padding:14px;z-index:50;overflow:auto}
-.hop{background:#1e2240;border:1px solid #3a4170;border-radius:14px;
-  padding:18px;max-width:440px;width:100%}
-.hop h3{margin:0 0 2px;font-size:18px}
-.hop .cs{font-size:12px;color:#8d93c4;margin-bottom:14px}
+.hop{background:#fff;border:1px solid var(--line);border-radius:14px;
+  padding:18px;max-width:440px;width:100%;box-shadow:0 20px 60px rgba(31,45,74,.28)}
+.hop h3{margin:0 0 2px;font-size:18px;color:var(--ink)}
+.hop .cs{font-size:12px;color:var(--mut);margin-bottom:14px}
 .so-hang{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;
-  border-bottom:1px solid #252a4b}
+  border-bottom:1px solid #eef1f5}
 .so-hang:last-of-type{border-bottom:0}
-.so-hang .nh{font-size:13px;color:#8d93c4}
-.so-hang .gt{font-size:16px;font-weight:700}
-.so-hang.to{border-top:1px solid #3a4170;margin-top:6px;padding-top:12px}
-.so-hang.to .nh{color:#e8ebff;font-weight:600}
-.so-hang.to .gt{font-size:21px;color:#f0b429}
+.so-hang .nh{font-size:13px;color:var(--mut)}
+.so-hang .gt{font-size:16px;font-weight:700;color:var(--ink)}
+.so-hang.to{border-top:1px solid var(--line);margin-top:6px;padding-top:12px}
+.so-hang.to .nh{color:var(--ink);font-weight:600}
+.so-hang.to .gt{font-size:21px;color:var(--blue)}
 .o-thu{margin:14px 0 8px}
 .o-thu input{font-size:23px;text-align:right;padding:11px 13px;font-weight:700}
 .phim{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}
 .phim button{padding:13px 0;font-size:17px}
 .hop-nut{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
 .hop-nut button{padding:12px 0}
-.canh{background:#3a1418;border:1px solid #7c2732;border-radius:9px;padding:9px 11px;
-  font-size:12px;color:#ff8087;margin-top:10px}
+.canh{background:#fbe6e6;border:1px solid #eeb6b6;border-radius:9px;padding:9px 11px;
+  font-size:12px;color:#b23636;margin-top:10px}
 .act input{width:66px;padding:5px 7px}
-.act select{font:inherit;border-radius:8px;border:1px solid #343a63;background:#151831;color:#e8ebff;padding:5px 7px;max-width:130px}
-.note code{background:#151831;padding:1px 5px;border-radius:5px}
+.act select{font:inherit;border-radius:8px;border:1px solid #c9d3e0;background:#fff;color:var(--ink);padding:6px 8px;max-width:130px}
+.note code{background:#fff;border:1px solid var(--line);padding:1px 5px;border-radius:5px;color:var(--ink)}
 .act button{padding:5px 10px;font-size:12px}
 @media(max-width:560px){.hide-sm{display:none}.wrap{padding:10px}}
 
@@ -2026,6 +2023,7 @@ CSS;
 (function(){
 var API = window.VHG_API, TOK = null, KY = 'today', D = null, ban = false;
 var BAN_APP = window.VHG_BAN || '?';
+var TT_Q = '', TT_PG = 0, TT_PER = 20;   // Tình trạng ghế: từ khoá tìm + trang
 
 /* ════════════════════════════════════════════════════════════════════════════════════════════
  * 🔴 LỖI JAVASCRIPT PHẢI HIỆN RA MÀN, KHÔNG ĐƯỢC NUỐT IM.
@@ -2463,20 +2461,12 @@ function ve(){
         L('đã trả, chưa chạy','paid, not started'), 'd')
     + '</div>';
 
-  // --- tình trạng ghế: chỉ LIỆT KÊ ở tab đối soát; bấm nút thì sang tab Điều khiển
-  h += '<div class="card"><h2>' + L('Tình trạng ghế','Chair status') + '</h2><table><tr><th>'
-    + L('Ghế','Chair') + '</th><th class="hide-sm">' + L('Cơ sở','Branch') + '</th>'
-    + '<th>' + L('Trạng thái','State') + '</th><th class="r">' + L('Còn lại','Remaining') + '</th></tr>';
-  if (!D.may.length) h += '<tr><td colspan="4" class="mut">'
-    + L('Chưa khai ghế nào.','No chairs registered yet.') + '</td></tr>';
-  D.may.forEach(function(m){
-    var p = trangThai(m);
-    h += '<tr><td><b>' + esc(m.ma) + '</b></td>'
-      + '<td class="hide-sm">' + esc(m.coso || L('(chưa gán)','(unassigned)')) + '</td>'
-      + '<td><span class="pill ' + p[0] + '">' + p[1] + '</span></td>'
-      + '<td class="r">' + (m.tt === 'running' && m.song ? mmss(m.con_lai) : '') + '</td></tr>';
-  });
-  h += '</table><p class="mut" style="margin:9px 0 0">'
+  // --- tình trạng ghế: LIỆT KÊ (tìm kiếm + phân trang 20). Bấm nút thì sang tab Điều khiển.
+  h += '<div class="card"><h2>' + L('Tình trạng ghế','Chair status') + '</h2>'
+    + '<div class="act" style="margin-bottom:10px"><input id="tt-q" placeholder="'
+    + L('Tìm theo mã ghế hoặc cơ sở…','Search chair or branch…') + '" style="max-width:340px" value="' + esc(TT_Q) + '"></div>'
+    + '<div id="tt-wrap"></div>'
+    + '<p class="mut" style="margin:9px 0 0">'
     + L('Bật/tắt ghế ở tab <b>🎛 Điều khiển ghế</b>.',
         'Turn chairs on/off in the <b>🎛 Chair control</b> tab.') + '</p></div>';
 
@@ -2505,6 +2495,43 @@ function ve(){
   h += '</div>';
   app.innerHTML = h;
   noi();
+}
+
+/* Tình trạng ghế: lọc theo mã ghế / cơ sở, phân trang 20 — vẽ tại chỗ vào #tt-wrap, giữ được
+   từ khoá qua các lượt làm mới (TT_Q ở phạm vi module; auto-refresh hoãn khi đang gõ). */
+function ttLoc(){
+  var q = TT_Q.trim().toLowerCase(); var ds = (D && D.may) || [];
+  if (!q) return ds;
+  return ds.filter(function(m){ return ((m.ma||'') + ' ' + (m.coso||'')).toLowerCase().indexOf(q) >= 0; });
+}
+function ttRender(){
+  var box = document.getElementById('tt-wrap'); if (!box) return;
+  var ds = ttLoc(); var pages = Math.max(1, Math.ceil(ds.length / TT_PER));
+  if (TT_PG >= pages) TT_PG = pages - 1; if (TT_PG < 0) TT_PG = 0;
+  var from = TT_PG * TT_PER, to = Math.min(ds.length, from + TT_PER);
+  var h = '<table><tr><th>' + L('Ghế','Chair') + '</th><th class="hide-sm">' + L('Cơ sở','Branch')
+    + '</th><th>' + L('Trạng thái','State') + '</th><th class="r">' + L('Còn lại','Remaining') + '</th></tr>';
+  if (!ds.length) h += '<tr><td colspan="4" class="mut">' + L('Không có ghế khớp.','No chairs match.') + '</td></tr>';
+  for (var i = from; i < to; i++){ var m = ds[i]; var p = trangThai(m);
+    h += '<tr><td><b>' + esc(m.ma) + '</b></td><td class="hide-sm">' + esc(m.coso || L('(chưa gán)','(unassigned)'))
+      + '</td><td><span class="pill ' + p[0] + '">' + p[1] + '</span></td><td class="r">'
+      + ((m.tt === 'running' && m.song) ? mmss(m.con_lai) : '') + '</td></tr>';
+  }
+  h += '</table>';
+  box.innerHTML = h;
+  var pg = document.createElement('div'); pg.className = 'act'; pg.style.cssText = 'margin-top:8px;align-items:center';
+  var bT = document.createElement('button'); bT.className = 'ghost'; bT.textContent = '‹ ' + L('Trước','Prev');
+  bT.style.padding = '4px 10px'; bT.disabled = TT_PG <= 0; bT.onclick = function(){ TT_PG--; ttRender(); };
+  var bS = document.createElement('button'); bS.className = 'ghost'; bS.textContent = L('Sau','Next') + ' ›';
+  bS.style.padding = '4px 10px'; bS.disabled = TT_PG >= pages - 1; bS.onclick = function(){ TT_PG++; ttRender(); };
+  var sp = document.createElement('span'); sp.className = 'mut';
+  sp.textContent = L('Trang','Page') + ' ' + (TT_PG + 1) + '/' + pages + ' · ' + ds.length + ' ' + L('ghế','chairs');
+  pg.appendChild(bT); pg.appendChild(sp); pg.appendChild(bS); box.appendChild(pg);
+}
+function ttWire(){
+  var q = document.getElementById('tt-q');
+  if (q) { q.oninput = function(){ TT_Q = q.value; TT_PG = 0; ttRender(); }; }
+  ttRender();
 }
 
 /* Trạng thái một ghế -> [lớp CSS, chữ]. MỘT chỗ duy nhất: hai tab cùng hiện trạng thái này,
@@ -4894,6 +4921,7 @@ function noi(){
   if (document.getElementById('kti-congno')) ktiInit();
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
   if (document.getElementById('ktn-csv')) ktnInit();
+  if (document.getElementById('tt-wrap')) ttWire();
   [].forEach.call(document.querySelectorAll('[data-kd]'), function(b){
     b.onclick = function(){
       var m = b.getAttribute('data-kd');
