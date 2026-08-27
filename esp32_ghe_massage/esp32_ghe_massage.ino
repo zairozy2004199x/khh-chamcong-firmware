@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27n (invertDisplay -> mau dung thiet ke, het am xanh)"
+#define FW_VERSION "ghe-massage 2026-08-27o (nhat ky bat/tat may: bao chay/dung tu chan bao-chay)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -259,6 +259,15 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
      phiên (tắt QR). Đóng phiên nên ghế/chân pulse tự xuống LOW sau đó cũng KHÔNG tự chạy đếm
      lại (phải trả tiền mới). Đúng ý: bấm stop, 30s không chạy lại -> báo lỗi + tắt QR. */
 #define GHE_BAOWEB_MS      30000     // dừng liên tục 30s không chạy lại -> báo web + tắt QR (kết thúc)
+/* NHẬT KÝ BẬT/TẮT MÁY (báo web mỗi lần ghế THẬT SỰ chạy/dừng, đo từ chân báo-chạy).
+   Anh Thắng 27/08/2026: *"Nhật ký bật tắt máy, bật máy thì bộ QR gửi về, tắt thì từ lúc mất tín
+   hiệu QR"*. Chống rung hai đầu để không ghi những cạnh giả lúc motor mới quay / vừa tắt:
+   - Chân báo-chạy liên tục >= RUN_LOG_ON_MS  -> ghi BẬT.
+   - Chân báo-dừng  liên tục >= RUN_LOG_OFF_MS -> ghi TẮT.
+   Đổi trạng thái thì ép gửi nhịp NGAY (g_statusDirty) để web ghi đúng thời điểm, không gộp
+   mất một cặp bật–tắt ngắn vào một lượt nhịp. */
+#define RUN_LOG_ON_MS      800       // chạy liên tục >=0.8s mới tính "bật" (bỏ qua motor rung lúc khởi động)
+#define RUN_LOG_OFF_MS     1500      // dừng liên tục >=1.5s mới tính "tắt" (khớp GHE_DUNG_MS)
 /* KHÓA GHẾ LỖI: lỗi kéo dài 30s không phục hồi -> KHÓA cứng (tắt QR, nhớ qua mất điện). Màn hiện
    "GHẾ LỖI + hotline", CHẶN khách quét mới. CHỈ lệnh 'mokhoa' từ web (hotline bấm) mới gỡ. */
 #ifndef HOTLINE
@@ -399,6 +408,11 @@ uint32_t g_tickTruoc  = 0;      // millis lần trừ trước (0 = chưa bắt 
 uint32_t g_dungTu     = 0;      // millis ghế bắt đầu ở trạng thái DỪNG (để debounce dừng)
 int      g_pctLow     = 0;      // % thời gian chân ghế ở mức THẤP (duty) — chạy vs tắt khác nhau?
 int      g_hz         = 0;      // tần số xung (Hz) đo trên chân ghế — chạy vs tắt khác nhau?
+/* NHẬT KÝ BẬT/TẮT: trạng thái chạy ĐÃ LỌC để báo web, và mốc thời điểm đổi (khai tuổi cho web). */
+bool     g_runLog     = false;  // trạng thái CHẠY đã lọc (đã/đang báo web) - false=tắt, true=bật
+uint32_t g_runDoiLuc  = 0;      // millis lúc g_runLog đổi lần cuối (0=chưa) -> web đổi ra giờ tuyệt đối
+uint32_t g_runOnTu    = 0;      // millis chân bắt đầu báo CHẠY liên tục (0=đang không chạy)
+uint32_t g_runOffTu   = 0;      // millis chân bắt đầu báo DỪNG liên tục (0=đang chạy)
 /* HẸN bắt đầu đếm giờ: ghế hiện đồng hồ ngay khi nhận tiền nhưng ~QR_TRE_MS sau
    mới ĐẾM. Nên hoãn khởi động đồng hồ trên ESP/web đúng ngần đó cho khớp (không
    chặn màn). Áp cho cả tiền mặt/QR/từ xa. */
@@ -1421,7 +1435,7 @@ void guiNhip(){
   /* Báo ngược TIỀN TỐ ghế đang thật sự dùng. Không có nó thì từ web không cách nào biết ghế đã
      nạp firmware mới chưa — người ta sửa ô trên web rồi tưởng xong, mà ghế vẫn dựng nội dung
      thiếu tiền tố, và tiền vẫn biến mất y như cũ. */
-  String r = wpGoi("nhip", String("\"trang_thai\":\"") + st + "\",\"nguon\":\"" + src
+  String nd = String("\"trang_thai\":\"") + st + "\",\"nguon\":\"" + src
     + "\",\"con_lai\":" + String(conLai) + ",\"tre\":" + String(g_rttMs)
     + ",\"tm_loi\":\"" + String(g_tmLoi) + "\",\"tm_cuoi\":\"" + String(g_tmLoiCuoi)
     + "\",\"tm_lan\":" + String(g_tmLan)
@@ -1429,8 +1443,16 @@ void guiNhip(){
     + ",\"tm_to\":"   + String(g_tmLucTo  ? (long)((millis()-g_tmLucTo )/1000) : -1L)
     + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
     + "\",\"khoa\":" + String(g_gheLoi ? 1 : 0)   // 1 = đang KHÓA lỗi (chờ hotline mở từ xa)
-    + ",\"kt\":" + String(g_kyThuat ? 1 : 0)      // 1 = đang CHẾ ĐỘ KỸ THUẬT (test)
-    + ",\"fw\":\"" FW_VERSION "\"");
+    + ",\"kt\":" + String(g_kyThuat ? 1 : 0);     // 1 = đang CHẾ ĐỘ KỸ THUẬT (test)
+#if DO_GHECHAY
+  /* Nhật ký bật/tắt: trạng thái chạy đã lọc + TUỔI của lần đổi gần nhất (giây). Web so với nhịp
+     trước, đổi thì ghi một dòng bật/tắt đúng thời điểm. Firmware không bật DO_GHECHAY thì KHÔNG
+     gửi trường này -> web hiểu là "ghế không đo được" và không ghi nhật ký (xem VHG_May::nhip). */
+  nd += String(",\"chay\":") + (g_runLog ? 1 : 0)
+    + ",\"chay_giay\":" + String(g_runDoiLuc ? (long)((millis()-g_runDoiLuc)/1000) : -1L);
+#endif
+  nd += String(",\"fw\":\"") + FW_VERSION + "\"";
+  String r = wpGoi("nhip", nd);
   static int nhipHong = 0;
   if(r.length()==0){
     /* Nhịp HỎNG (rớt 4G lúc đang chạy): KHÔNG coi như đã gửi. Giữ g_statusDirty và lùi
@@ -1746,6 +1768,32 @@ bool gheDangChay(){
     cache = (g_pctLow >= GHECHAY_DUTY_NGUONG);         // (tạm quyết theo duty; xem số rồi chốt)
   }
   return cache;
+}
+
+/* NHẬT KÝ BẬT/TẮT: theo dõi chân báo-chạy, chống rung hai đầu, ép gửi nhịp khi ĐỔI trạng thái.
+   Gọi mỗi vòng loop (gheDangChay() đã tự cache 300ms nên gọi dày cũng không tốn thêm mẫu).
+
+   🔴 Mốc `g_runDoiLuc` là thời điểm chân ĐỔI THẬT (g_runOnTu/g_runOffTu), KHÔNG phải lúc xác
+      nhận xong chống rung — web khai tuổi từ mốc này nên nó phải là lúc bắt đầu, trừ đi phần
+      chờ chống rung. Không có nó thì mọi mốc trễ đúng RUN_LOG_*_MS. */
+void capNhatRunLog(){
+  bool phys = gheDangChay();
+  uint32_t now = millis();
+  if(phys){
+    g_runOffTu = 0;
+    if(g_runOnTu == 0) g_runOnTu = now;
+    if(!g_runLog && (uint32_t)(now - g_runOnTu) >= RUN_LOG_ON_MS){
+      g_runLog = true; g_runDoiLuc = g_runOnTu; g_statusDirty = true;   // BẬT -> ép nhịp
+      Serial.println("[RUNLOG] BAT (ghe bat dau chay)");
+    }
+  } else {
+    g_runOnTu = 0;
+    if(g_runOffTu == 0) g_runOffTu = now;
+    if(g_runLog && (uint32_t)(now - g_runOffTu) >= RUN_LOG_OFF_MS){
+      g_runLog = false; g_runDoiLuc = g_runOffTu; g_statusDirty = true;  // TẮT -> ép nhịp
+      Serial.println("[RUNLOG] TAT (ghe dung / mat tin hieu)");
+    }
+  }
 }
 #endif
 
@@ -2176,6 +2224,11 @@ void loop(){
   mdbTask();
   congTien.datChay(state == ST_RUNNING);   // ghế đang chạy -> bỏ tờ bị từ chối là bình thường, không báo 'ket'
   congTien.tick();     // relay tiền mặt ICT->ghế + phát hiện tờ tiền + dò kẹt
+#if DO_GHECHAY
+  /* NHẬT KÝ BẬT/TẮT: theo dõi chân báo-chạy MỌI LÚC (kể cả ghế chạy do bấm tay/từ xa, không chỉ
+     phiên QR) -> ghi bật/tắt vận hành thật. Ép nhịp ngay khi đổi trạng thái. */
+  capNhatRunLog();
+#endif
 
   /* ĐỒNG HỒ: trong phiên đã trả tiền (CAMON/RUNNING) thì trừ giờ. Mặc định đếm
      REAL-TIME (không phụ thuộc chân nào). Khi bật cả DO_GHECHAY && GATE_BY_PIN thì

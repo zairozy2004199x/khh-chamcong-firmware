@@ -96,7 +96,7 @@ const char* SIM_APN     = "v-internet";         // Viettel; đổi nếu SIM nh�
 int TS_MINX = 200, TS_MAXX = 3700, TS_MINY = 240, TS_MAXY = 3800;
 #define SD_CS  5                                 // thẻ SD trên CYD: SPI SCK18/MISO19/MOSI23
 #define BL_PIN 21                                // đèn nền
-#define FW_VERSION "may-tram 2026-08-26b (OTA POSH_QR + chot ca qua 4G)"
+#define FW_VERSION "may-tram 2026-08-27a (prefetch ca co so: ghe sau chot ngay tu bo nho)"
 // ═════════════════════════════════════════════════════════════════════════════
 
 TFT_eSPI tft = TFT_eSPI();
@@ -113,6 +113,35 @@ volatile int  g_netFails = 0;
 // Một AP ghế dò được
 struct ApGhe { String ssid; String ma; String bssid; int rssi; int kenh; };
 ApGhe g_ds[24]; int g_dsN = 0;
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * PREFETCH CẢ CƠ SỞ.
+ *
+ * Anh Thắng 26/08/2026: *"khi lấy máy đầu tiên thì mã trạm sẽ phải lấy sẵn thông tin của cơ sở
+ * đó trước. Để máy sau chỉ bấm phát ăn ngay."*
+ *
+ * Ghế ĐẦU tiên chốt: sau khi login, gọi MỘT lượt `chot_coso` -> tải số liệu chốt của MỌI ghế
+ * cùng cơ sở vào mảng này. Ghế SAU: dò AP lấy mã -> tra thẳng trong mảng, hiện ngay, không phải
+ * chờ thêm 3–6 giây một lượt AT-HTTP nữa.
+ *
+ * ⚠️ CHỈ ĐỂ HIỆN, KHÔNG ĐỂ GHI. `chot_luu` vẫn tự đóng mốc chỉ số theo giờ máy chủ lúc chốt thật
+ *    (xem VHG_Quy::chot) — nên tiền vào ngăn GIỮA lúc prefetch và lúc chốt không bị bỏ sót. Con
+ *    số trong mảng này chỉ là cái nhân viên nhìn để đối chiếu.
+ * ═════════════════════════════════════════════════════════════════════════════════════════ */
+struct GheChot {
+  String ma, coso;
+  long   hethong;    // tiền mặt hệ thống ghi nhận từ lần chốt trước (theo_he_thong)
+  long   csTruoc;    // chỉ số máy đếm lần chốt trước
+  int    donVi;      // đồng / một đơn vị chỉ số
+  int    lanDau;     // 1 = ghế chưa chốt bao giờ
+};
+GheChot g_chot[40]; int g_chotN = 0;   // bộ nhớ prefetch (đủ cho một cơ sở lớn)
+
+/* Tra một ghế trong bộ nhớ prefetch. -1 nếu chưa có. */
+int chotTimTrongCache(const String& ma){
+  for(int i = 0; i < g_chotN; i++) if(g_chot[i].ma == ma) return i;
+  return -1;
+}
 
 // ── Màu (giống bảng màu con ghế cho đồng bộ) ──────────────────────────────────
 #define COL_BG   TFT_BLACK
@@ -536,6 +565,32 @@ bool webLogin(const String& pin){
   return g_token.length() > 0;
 }
 
+/* PREFETCH: một lượt gọi `chot_coso` -> tải số liệu chốt của MỌI ghế cùng cơ sở vào g_chot[].
+   Cơ sở lấy theo PHIÊN ở máy chủ (không gửi lên) — người gắn cơ sở chỉ tải được cơ sở mình. */
+bool prefetchCoSo(){
+  String r; StaticJsonDocument<128> b; b["token"] = g_token;
+  String body; serializeJson(b, body);
+  if(!webGoi("chot_coso", body, r)) return false;
+  /* Cả cơ sở có thể vài chục ghế -> để trên HEAP (DynamicJsonDocument), đừng ngốn stack. */
+  DynamicJsonDocument d(12288);
+  if(deserializeJson(d, r)){ Serial.println("[CHOT] prefetch: web tra rac"); return false; }
+  if(!(d["ok"] | false)) return false;
+  JsonArray arr = d["ghe"].as<JsonArray>();
+  g_chotN = 0;
+  for(JsonObject g : arr){
+    if(g_chotN >= 40) break;
+    g_chot[g_chotN].ma      = String((const char*)(g["ma_may"] | ""));
+    g_chot[g_chotN].coso    = String((const char*)(g["coso"] | ""));
+    g_chot[g_chotN].hethong = (long)(g["theo_he_thong"] | 0);
+    g_chot[g_chotN].csTruoc = (long)(g["chi_so_truoc"] | 0);
+    g_chot[g_chotN].donVi   = (int)(g["don_vi"] | 5000);
+    g_chot[g_chotN].lanDau  = (int)(g["lan_dau"] | 0);
+    g_chotN++;
+  }
+  Serial.printf("[CHOT] prefetch co so: %d ghe\n", g_chotN);
+  return g_chotN > 0;
+}
+
 // ═══════════════════════════════ CHẾ ĐỘ CHỐT CA ══════════════════════════════
 void cheDoChotCa(){
   // 1) Dò AP để biết mã ghế (khỏi gõ tay)
@@ -553,28 +608,50 @@ void cheDoChotCa(){
     if(!webLogin(String(pin))) return;
   }
 
-  // 3) chot_xem: hiện tiền hệ thống ghi nhận
-  bao("Dang lay so lieu...", COL_ACC, "Ghe " + ma, "");
-  { String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
-    String body; serializeJson(b, body);
-    if(!webGoi("chot_xem", body, r)){ bao("Loi mang", COL_DO, "chot_xem", ""); delay(1600); return; }
-    StaticJsonDocument<1024> d;
-    if(deserializeJson(d, r)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return; }
-    if(!(d["ok"] | false)){
-      String e = String((const char*)(d["error"] | "Loi"));
-      bao("Khong chot duoc", COL_DO, e.substring(0, 34), ""); delay(2400); return;
+  // 3) Số liệu chốt: LẤY TỪ BỘ NHỚ PREFETCH nếu có; chưa có thì tải CẢ CƠ SỞ một lượt.
+  //    Ghế đầu tiên chốt sẽ tải cả cơ sở; ghế sau tra thẳng bộ nhớ, hiện ngay.
+  { String coso; long hethong = 0, csTruoc = 0; int donVi = 5000, lanDau = 0;
+    int ci = chotTimTrongCache(ma);
+    if(ci < 0){
+      bao("Dang tai ca co so...", COL_ACC, "Lan dau - cho chut", "");
+      prefetchCoSo();
+      ci = chotTimTrongCache(ma);
     }
-    String coso = String((const char*)(d["coso"] | ""));
-    long hethong = (long)(d["theo_he_thong"] | 0);   // tiền mặt hệ thống ghi nhận từ lần chốt trước
-    long csTruoc = (long)(d["chi_so_truoc"] | 0);
-    int  donVi   = (int)(d["don_vi"] | 5000);
-    int  lanDau  = (int)(d["lan_dau"] | 0);
+    if(ci >= 0){
+      // Trúng bộ nhớ -> hiện NGAY, không gọi thêm mạng.
+      coso    = g_chot[ci].coso;
+      hethong = g_chot[ci].hethong;
+      csTruoc = g_chot[ci].csTruoc;
+      donVi   = g_chot[ci].donVi;
+      lanDau  = g_chot[ci].lanDau;
+    } else {
+      // Không nằm trong cơ sở của mình (hoặc prefetch trượt) -> hỏi riêng ghế này như cũ.
+      bao("Dang lay so lieu...", COL_ACC, "Ghe " + ma, "");
+      String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
+      String body; serializeJson(b, body);
+      if(!webGoi("chot_xem", body, r)){ bao("Loi mang", COL_DO, "chot_xem", ""); delay(1600); return; }
+      StaticJsonDocument<1024> d;
+      if(deserializeJson(d, r)){ bao("Web tra rac", COL_DO, "", ""); delay(1600); return; }
+      if(!(d["ok"] | false)){
+        String e = String((const char*)(d["error"] | "Loi"));
+        bao("Khong chot duoc", COL_DO, e.substring(0, 34), ""); delay(2400); return;
+      }
+      coso    = String((const char*)(d["coso"] | ""));
+      hethong = (long)(d["theo_he_thong"] | 0);   // tiền mặt hệ thống ghi nhận từ lần chốt trước
+      csTruoc = (long)(d["chi_so_truoc"] | 0);
+      donVi   = (int)(d["don_vi"] | 5000);
+      lanDau  = (int)(d["lan_dau"] | 0);
+    }
 
     /* QR hôm nay: gọi so_may cho có "QR bao nhiêu / tiền mặt bao nhiêu" như yêu cầu.
        BEST-EFFORT — so_may là việc chỉ quản trị làm được; nhân viên thu thường chỉ
-       chốt được ca, nên thất bại thì bỏ qua, không chặn luồng chốt. */
+       chốt được ca, nên thất bại thì bỏ qua, không chặn luồng chốt.
+       🔴 CHỈ GỌI KHI KHÔNG TRÚNG BỘ NHỚ (ci<0). Trúng bộ nhớ nghĩa là ghế thứ 2 trở đi — mục
+          đích prefetch là "bấm phát ăn ngay", nên đừng thêm một lượt AT-HTTP 3–6 giây cho một
+          con số phụ mà nhân viên phần lớn không có quyền lấy. */
     long qrHomNay = -1;
-    { String rq; StaticJsonDocument<192> bq; bq["token"] = g_token; bq["ma_may"] = ma;
+    if(ci < 0){
+      String rq; StaticJsonDocument<192> bq; bq["token"] = g_token; bq["ma_may"] = ma;
       String bodyq; serializeJson(bq, bodyq);
       if(webGoi("so_may", bodyq, rq)){
         StaticJsonDocument<1024> dq;
@@ -612,6 +689,9 @@ void cheDoChotCa(){
       String e = String((const char*)(d2["error"] | "Loi"));
       bao("Chot that bai", COL_DO, e.substring(0, 34), ""); delay(2600); return;
     }
+    /* Chốt xong -> số liệu prefetch của ghế này đã cũ (mốc chỉ số vừa đổi). Bỏ khỏi bộ nhớ để
+       nếu có chốt lại ghế này trong buổi thì tải lại số mới, không hiện con số đã lỗi thời. */
+    if(ci >= 0){ g_chot[ci].ma = ""; }
     long theoMay = (long)(d2["theo_may"] | 0);
     long lechDem = (long)(d2["lech_dem"] | 0);
     String cb = String((const char*)(d2["canh_bao"] | ""));

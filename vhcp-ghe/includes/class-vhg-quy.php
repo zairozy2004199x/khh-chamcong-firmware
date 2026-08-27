@@ -181,6 +181,61 @@ class VHG_Quy {
 	}
 
 	/**
+	 * PREFETCH CẢ CƠ SỞ — số liệu chốt của MỌI ghế trong một cơ sở, trong MỘT lượt gọi.
+	 *
+	 * Anh Thắng 26/08/2026: *"khi lấy máy đầu tiên thì máy trạm sẽ phải lấy sẵn thông tin của cơ
+	 * sở đó trước. Để máy sau chỉ bấm phát ăn ngay."*
+	 *
+	 * 🔴 VÌ SAO GỘP MỘT LƯỢT. Máy trạm chạy 4G, mỗi lượt AT-HTTP mất 3–6 giây. Hỏi `chot_xem` cho
+	 *    từng ghế là nhân viên đứng chờ chừng ấy giây MỖI GHẾ. Gọi một lần lúc chốt ghế đầu, tải
+	 *    sẵn cả cơ sở vào bộ nhớ máy trạm, thì ghế sau chỉ dò AP lấy mã rồi hiện ngay.
+	 *
+	 * 🔴 VẪN GIỮ RÀO CƠ SỞ. Trả về đúng những ghế người này được chốt: người gắn cơ sở chỉ thấy
+	 *    ghế cơ sở mình. Đây là cùng luật với `truoc_khi_chot`, chỉ khác là làm hàng loạt.
+	 *    `den_id` (mốc đóng quãng) lấy MỘT LẦN cho cả cơ sở — cùng một thời điểm, nên mọi ghế cùng
+	 *    một mốc, không lệch nhau vì gọi trước gọi sau.
+	 *
+	 * ⚠️ `den_id`/`theo_he_thong` ở đây là ẢNH CHỤP lúc prefetch. Lúc chốt thật, `chot()` tự đóng
+	 *    mốc lại theo `thu_moi_nhat()` mới nhất — nên tiền vào ngăn giữa lúc prefetch và lúc chốt
+	 *    KHÔNG bị bỏ sót. Con số prefetch chỉ để HIỆN cho nhân viên đối chiếu, không phải để ghi.
+	 *
+	 * @param string|null $coso_cua_toi Cơ sở của người gọi (từ phiên). null = không giới hạn.
+	 * @param string      $chi_coso     Lọc thêm về đúng một cơ sở (tên). Rỗng = mọi cơ sở được phép.
+	 */
+	public static function chot_coso( $coso_cua_toi = null, $chi_coso = '' ) {
+		$cs_toi = null !== $coso_cua_toi ? trim( (string) $coso_cua_toi ) : null;
+		$loc    = trim( (string) $chi_coso );
+		$den    = self::thu_moi_nhat();
+		$dv     = self::don_vi();
+		$ds     = array();
+		foreach ( VHG_May::ds_may() as $may_ ) {
+			$cs_ghe = trim( (string) ( isset( $may_['coso_ten'] ) ? $may_['coso_ten'] : '' ) );
+			/* Rào cơ sở của người gọi: cơ sở RỖNG (Admin/Quản lý vùng) = đi cả chuỗi. */
+			if ( null !== $cs_toi && '' !== $cs_toi && $cs_ghe !== $cs_toi ) { continue; }
+			/* Lọc thêm nếu nơi gọi chỉ định một cơ sở. */
+			if ( '' !== $loc && $cs_ghe !== $loc ) { continue; }
+			$m  = (string) $may_['ma'];
+			$tr = self::chot_truoc( $m );
+			$tu = $tr ? (int) $tr['den_id'] : 0;
+			$ds[] = array(
+				'ma_may'        => $m,
+				'coso'          => $cs_ghe,
+				'song'          => ! empty( $may_['con_song'] ) ? 1 : 0,
+				'lan_dau'       => $tr ? 0 : 1,
+				'chi_so_truoc'  => $tr ? (int) $tr['chi_so'] : 0,
+				'chot_truoc_luc' => $tr ? (string) $tr['tao_luc'] : '',
+				'chot_truoc_ai' => $tr ? (string) $tr['nguoi'] : '',
+				'don_vi'        => $dv,
+				'tu_id'         => $tu,
+				'den_id'        => $den,
+				'theo_he_thong' => self::may_bao( $m, $tu, $den ),
+			);
+		}
+		return array( 'ok' => true, 'den_id' => $den, 'don_vi' => $dv,
+			'so_ghe' => count( $ds ), 'ghe' => $ds );
+	}
+
+	/**
 	 * GHI MỘT LƯỢT CHỐT CA.
 	 *
 	 * @param string $ma_may  Ghế — đến từ mã QR dán trên ghế, không phải từ một ô chọn.

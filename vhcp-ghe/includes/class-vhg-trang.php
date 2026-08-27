@@ -367,6 +367,24 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'chot_coso' === $viec ) {
+			/* PREFETCH: máy trạm lấy số liệu chốt của CẢ CƠ SỞ trong một lượt, để ghế sau chốt
+			   ngay không phải hỏi lại. Cơ sở lấy TỪ PHIÊN — cùng rào với chot_xem/chot_luu, nên
+			   người gắn cơ sở chỉ tải được cơ sở mình. */
+			self::tra( VHG_Quy::chot_coso( (string) $ai['coso'] ) );
+			return;
+		}
+
+		if ( 'nhat_ky_may' === $viec ) {
+			/* Lịch sử bật/tắt ghế — chỉ quản trị (đã chặn ở duoc_lam qua VIEC_QUAN_TRI). */
+			$ky = isset( $d['ky'] ) ? (string) $d['ky'] : 'week';
+			$ky = in_array( $ky, array( 'today', 'week', 'month', 'year', 'all' ), true ) ? $ky : 'week';
+			self::tra( array( 'ok' => true, 'ky' => $ky,
+				'ds'  => VHG_May::ds_bat_tat( $ky, 500 ),
+				'gom' => VHG_May::tong_bat_tat_may( $ky ) ) );
+			return;
+		}
+
 		/* ══════════════════════════════════════════════════════════════════════════════════════
 		 * CẤU HÌNH NHÂN SỰ NGAY TRÊN TRANG /ghe.
 		 *
@@ -1203,7 +1221,7 @@ function datNN(n){
  * Và số đếm ngược tự trừ MỖI GIÂY giữa hai lượt hỏi, chứ không đứng im rồi nhảy 5 giây một
  * lần: một con số đứng im là dấu hiệu ghế treo, đừng để giao diện tự tạo ra dấu hiệu đó.
  * ============================================================================================ */
-var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000 };
+var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky-may': 20000 };
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
@@ -1356,6 +1374,7 @@ function ve(){
   TABS.push(['quy', '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')]);
   if (QT) TABS.push(['kich-hoat', '⚡ ' + L('Kích hoạt ghế','Chair activation')]);
   if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
+  if (QT) TABS.push(['nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')]);
   if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
   /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
      Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
@@ -1377,7 +1396,7 @@ function ve(){
 
   /* Ba tab BÁO CÁO đều xem theo kỳ, nên bộ chọn kỳ hiện cho cả ba. Tab Điều khiển thì không:
      ở đó không có con số nào theo kỳ, để bộ chọn ra là mời người ta bấm rồi tự hỏi vừa đổi gì. */
-  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'quy' || TAB === 'kich-hoat' || TAB === 'ma') {
+  if (TAB === 'doi-soat' || TAB === 'thu-tien' || TAB === 'quy' || TAB === 'kich-hoat' || TAB === 'ma' || TAB === 'nhat-ky-may') {
     h += '<div class="tabs">';
     [['today',L('Hôm nay','Today')],['week',L('Tuần này','This week')],['month',L('Tháng này','This month')],
      ['year',L('Năm nay','This year')],['all',L('Tất cả','All time')]]
@@ -1442,6 +1461,7 @@ function ve(){
   if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
 
   h += '<div class="kpis">'
@@ -1503,6 +1523,84 @@ function trangThai(m){
   if (m.tt === 'running')   return ['p-run',L('Đang chạy','Running')];
   if (m.tt === 'wait_pay')  return ['p-wait',L('Chờ trả tiền','Awaiting payment')];
   return ['p-ok',L('Rảnh','Idle')];
+}
+
+/* ============================================================================================
+ * TAB LỊCH SỬ TẮT MỞ MÁY — ghế THẬT SỰ chạy/dừng, đo từ chân báo-chạy của bo ghế.
+ *
+ * Anh Thắng 27/08/2026: *"Nhật ký bật tắt máy, bật máy thì bộ QR gửi về, tắt thì từ lúc mất tín
+ * hiệu QR. Trên wed thêm 1 tab Lịch sử tắt mở máy"*.
+ *
+ * 🔴 KHÁC TAB KÍCH HOẠT. Kích hoạt = ai đó BẤM cho chạy (ý định người). Tab này = ghế có chạy
+ *    THẬT không, bất kể vì QR, tiền mặt hay bấm tay — để đối chiếu "web bảo bật mà ghế chạy chưa".
+ *
+ * Dữ liệu tải RIÊNG (api `nhat_ky_may`), không nằm trong `so_lieu`: nó chỉ cần khi mở tab này,
+ * còn `so_lieu` chạy mỗi lần tải trang. Làm mới ~mỗi 20 giây (theo NHIP_MS) hoặc khi đổi kỳ. */
+var NK = null, NK_LUC = 0, NK_DANG = false;
+
+function chayLau(giay){
+  var g = Math.max(0, Number(giay) || 0);
+  if (g <= 0) return '';
+  var ph = Math.floor(g / 60), gy = g % 60;
+  if (ph > 0) return ph + L(' phút',' min') + (gy ? ' ' + gy + L(' giây',' s') : '');
+  return gy + L(' giây',' s');
+}
+
+function veNhatKyMay(){
+  /* Tải khi: chưa có, đổi kỳ, hoặc dữ liệu cũ hơn ~18 giây. Có dữ liệu cũ thì VẪN vẽ nó trong
+     lúc tải bản mới — đừng nháy về "Đang tải…" mỗi lượt làm mới. */
+  var moi = !NK || NK.ky !== KY || (Date.now() - NK_LUC > 18000);
+  if (moi && !NK_DANG) {
+    NK_DANG = true;
+    goi('nhat_ky_may', { ky: KY }, function(r){
+      NK_DANG = false;
+      if (!r || !r.ok) { if (!NK) { NK = { ky: KY, ds: [], gom: [] }; NK_LUC = Date.now(); ve(); } return; }
+      NK = r; NK_LUC = Date.now(); ve();
+    });
+    if (!NK) return '<div class="card"><p class="mut">' + L('Đang tải…','Loading…') + '</p></div>';
+  }
+
+  var gom = NK.gom || [], ds = NK.ds || [];
+  var h = '';
+
+  /* ---- 1. TỔNG THEO GHẾ ------------------------------------------------------------------- */
+  h += '<div class="card"><h2>' + L('Tổng theo ghế','By chair') + '</h2>'
+    + '<p class="mut" style="margin:0 0 8px">'
+    + L('Số lần ghế chạy và tổng thời gian chạy thật trong kỳ. Đo từ chân báo-chạy của bo ghế.',
+        'How many times each chair ran and total run time in the period, from the chair board\'s run pin.')
+    + '</p><table><tr><th>' + L('Ghế','Chair') + '</th><th class="hide-sm">' + L('Cơ sở','Branch')
+    + '</th><th class="r">' + L('Số lần chạy','Runs') + '</th><th class="r">'
+    + L('Tổng chạy','Total run') + '</th><th class="r hide-sm">' + L('Lần cuối','Last') + '</th></tr>';
+  if (!gom.length) h += '<tr><td colspan="5" class="mut">'
+    + L('Chưa có ghi nhận nào trong kỳ này.','No records in this period yet.') + '</td></tr>';
+  gom.forEach(function(m){
+    h += '<tr><td><b>' + esc(m.ma) + '</b></td>'
+      + '<td class="hide-sm">' + esc(m.coso || L('(chưa gán)','(unassigned)')) + '</td>'
+      + '<td class="r">' + (Number(m.so_lan)||0) + '</td>'
+      + '<td class="r">' + (Number(m.tong_phut)||0) + L(' phút',' min') + '</td>'
+      + '<td class="r hide-sm mut">' + esc(m.lan_cuoi || '') + '</td></tr>';
+  });
+  h += '</table></div>';
+
+  /* ---- 2. DÒNG THỜI GIAN ------------------------------------------------------------------ */
+  h += '<div class="card"><h2>' + L('Dòng thời gian bật/tắt','On/off timeline') + '</h2>'
+    + '<table><tr><th>' + L('Lúc','Time') + '</th><th>' + L('Ghế','Chair')
+    + '</th><th class="hide-sm">' + L('Cơ sở','Branch') + '</th><th>' + L('Sự kiện','Event')
+    + '</th><th class="r">' + L('Chạy được','Ran for') + '</th></tr>';
+  if (!ds.length) h += '<tr><td colspan="5" class="mut">'
+    + L('Chưa có sự kiện bật/tắt nào.','No on/off events yet.') + '</td></tr>';
+  ds.forEach(function(e){
+    var bat = (e.su_kien === 'bat');
+    h += '<tr><td class="mut">' + esc(e.luc) + '</td>'
+      + '<td><b>' + esc(e.ma) + '</b></td>'
+      + '<td class="hide-sm">' + esc(e.coso || '') + '</td>'
+      + '<td><span class="pill ' + (bat ? 'p-run' : 'p-off') + '">'
+        + (bat ? '▶ ' + L('BẬT','ON') : '⏹ ' + L('TẮT','OFF')) + '</span></td>'
+      + '<td class="r">' + (bat ? '' : esc(chayLau(e.giay))) + '</td></tr>';
+  });
+  h += '</table></div>';
+
+  return h;
 }
 
 /* TAB ĐIỀU KHIỂN — mỗi ghế một thẻ, không phải một hàng bảng.

@@ -1056,10 +1056,125 @@ class VHG_May {
 			'fw'         => mb_substr( (string) ( isset( $d['fw'] ) ? $d['fw'] : '' ), 0, 80 ),
 			'luc'        => current_time( 'mysql' ),
 		);
-		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ma_may=%s LIMIT 1", $ma_may ) );
-		if ( $co ) { $wpdb->update( $bang, $hang, array( 'id' => (int) $co ) ); }
-		else { $wpdb->insert( $bang, $hang ); }
+
+		/* ══════════════════════════════════════════════════════════════════════════════════
+		 * TRẠNG THÁI CHẠY THẬT (chân báo-chạy của bo ghế) -> NHẬT KÝ BẬT/TẮT.
+		 *
+		 * ⚠️ CHỈ XÉT KHI GHẾ CÓ KHAI `chay`. Firmware cũ (chưa bật DO_GHECHAY) không gửi trường
+		 *    này — coi vắng mặt là 0 thì mỗi nhịp của ghế cũ ghi một lượt "tắt" giả. Vắng mặt =
+		 *    -1 = "ghế không đo được", KHÔNG đụng vào cột `chay` và KHÔNG ghi nhật ký.
+		 * ⚠️ Chỉ ghi khi TRẠNG THÁI ĐỔI so với nhịp trước. Nhịp lặp lại cùng trạng thái không phải
+		 *    một lần bật/tắt mới. Lần đầu một ghế gửi nhịp thì chưa có mốc để so -> không ghi
+		 *    (tránh một lượt "bật" giả ngay sau khi nâng cấp cho ghế đang chạy). */
+		$chay_moi = array_key_exists( 'chay', $d ) ? ( empty( $d['chay'] ) ? 0 : 1 ) : -1;
+		if ( $chay_moi >= 0 ) { $hang['chay'] = $chay_moi; }
+
+		$cu = $wpdb->get_row( $wpdb->prepare(
+			"SELECT id, chay FROM $bang WHERE ma_may=%s LIMIT 1", $ma_may ), ARRAY_A );
+		if ( $cu ) {
+			if ( $chay_moi >= 0 && (int) $cu['chay'] !== $chay_moi ) {
+				/* Ghế khai tuổi của lần đổi trạng thái (`chay_giay`); đổi ra giờ tuyệt đối. Không
+				   khai được thì lấy giờ nhận làm mốc — trễ vài giây, vẫn đúng thứ tự. */
+				$luc_doi = self::luc_tu_tuoi( isset( $d['chay_giay'] ) ? $d['chay_giay'] : -1 );
+				if ( null === $luc_doi ) { $luc_doi = current_time( 'mysql' ); }
+				self::ghi_bat_tat( $ma_may, $chay_moi ? 'bat' : 'tat', $luc_doi );
+			}
+			$wpdb->update( $bang, $hang, array( 'id' => (int) $cu['id'] ) );
+		} else {
+			$wpdb->insert( $bang, $hang );
+		}
 		return true;
+	}
+
+	/**
+	 * GHI MỘT LẦN BẬT/TẮT vào nhật ký vận hành.
+	 *
+	 * `giay` chỉ có nghĩa cho dòng 'tat': đo từ lần 'bat' gần nhất của CHÍNH ghế đó tới lượt tắt
+	 * này. Tính sẵn ở đây thay vì ghép cặp lúc đọc — bảng lịch sử mở trên 4G, ghép cặp mỗi lần
+	 * mở là quét cả bảng chỉ để hiện một cột.
+	 */
+	public static function ghi_bat_tat( $ma_may, $su_kien, $luc ) {
+		global $wpdb;
+		$ma_may  = mb_substr( trim( (string) $ma_may ), 0, 40 );
+		$su_kien = ( 'bat' === $su_kien ) ? 'bat' : 'tat';
+		if ( '' === $ma_may ) { return; }
+		$t   = VHG_DB::t( 'bat_tat' );
+		$luc = '' !== trim( (string) $luc ) ? $luc : current_time( 'mysql' );
+
+		$giay = 0;
+		if ( 'tat' === $su_kien ) {
+			$bat = $wpdb->get_var( $wpdb->prepare(
+				"SELECT luc FROM $t WHERE ma_may=%s AND su_kien='bat' ORDER BY id DESC LIMIT 1", $ma_may ) );
+			if ( $bat ) {
+				$g = strtotime( (string) $luc ) - strtotime( (string) $bat );
+				/* Chặn 0..24h: mốc lỗi hoặc ghế chạy vắt ngày làm ra con số vô lý — thà để 0 (không
+				   biết) còn hơn một cột "chạy 3 ngày" mà không ai tin nổi. */
+				if ( $g > 0 && $g <= 86400 ) { $giay = (int) $g; }
+			}
+		}
+		$wpdb->insert( $t, array(
+			'ma_may'  => $ma_may,
+			'su_kien' => $su_kien,
+			'luc'     => $luc,
+			'giay'    => $giay,
+			'tao_luc' => current_time( 'mysql' ),
+		) );
+	}
+
+	/**
+	 * LỊCH SỬ BẬT/TẮT — mới nhất trước, kèm tên cơ sở.
+	 *
+	 * ⚠️ Trả cả `coso` để màn lọc/gom theo cơ sở được ngay, không phải tra lại từng dòng.
+	 */
+	public static function ds_bat_tat( $ky = 'week', $gioi_han = 500 ) {
+		global $wpdb;
+		$t  = VHG_DB::t( 'bat_tat' );
+		$tu = VHG_Thu::dau_ky( $ky );
+		$gh = max( 1, min( 1000, (int) $gioi_han ) );
+		$sql = "SELECT * FROM $t";
+		if ( '' !== $tu ) { $sql = $wpdb->prepare( $sql . ' WHERE luc >= %s', $tu ); }
+		$sql .= ' ORDER BY id DESC LIMIT ' . $gh;
+		$may = self::ds_may_theo_ma();
+		$ra  = array();
+		foreach ( VHG_DB::rows( $sql ) as $r ) {
+			$m = (string) $r['ma_may'];
+			$ra[] = array(
+				'id'      => (int) $r['id'],
+				'ma'      => $m,
+				'coso'    => isset( $may[ $m ] ) ? (string) $may[ $m ]['coso_ten'] : '',
+				'su_kien' => (string) $r['su_kien'],
+				'luc'     => (string) $r['luc'],
+				'giay'    => (int) $r['giay'],
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * Gộp theo GHẾ trong kỳ: mấy lần chạy, tổng bao nhiêu phút chạy thật, lần cuối khi nào.
+	 * Đếm số lần chạy = số dòng 'bat'; tổng phút = tổng `giay` của các dòng 'tat'.
+	 */
+	public static function tong_bat_tat_may( $ky = 'week' ) {
+		global $wpdb;
+		$t  = VHG_DB::t( 'bat_tat' );
+		$tu = VHG_Thu::dau_ky( $ky );
+		$dk = '' !== $tu ? $wpdb->prepare( ' AND luc >= %s', $tu ) : '';
+		$sql = "SELECT ma_may,
+			SUM(CASE WHEN su_kien='bat' THEN 1 ELSE 0 END) AS so_lan,
+			SUM(CASE WHEN su_kien='tat' THEN giay ELSE 0 END) AS tong_giay,
+			MAX(luc) AS lan_cuoi
+			FROM $t WHERE 1=1$dk GROUP BY ma_may ORDER BY so_lan DESC LIMIT 200";
+		$may = self::ds_may_theo_ma();
+		$ra  = array();
+		foreach ( VHG_DB::rows( $sql ) as $r ) {
+			$m = (string) $r['ma_may'];
+			$ra[] = array( 'ma' => $m,
+				'coso' => isset( $may[ $m ] ) ? (string) $may[ $m ]['coso_ten'] : '',
+				'so_lan' => (int) $r['so_lan'],
+				'tong_phut' => (int) round( (int) $r['tong_giay'] / 60 ),
+				'lan_cuoi' => (string) $r['lan_cuoi'] );
+		}
+		return $ra;
 	}
 
 	// ======================================================================= lệnh bật/tắt tay

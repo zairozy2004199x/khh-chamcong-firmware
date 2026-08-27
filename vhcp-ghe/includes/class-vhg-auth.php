@@ -87,6 +87,8 @@ class VHG_Auth {
 		'gan_ma',
 		'ma_huy',
 		'so_may',
+		'nhat_ky_may',   // lịch sử bật/tắt ghế — số liệu vận hành cả chuỗi, chỉ quản trị
+
 		/* Tab QUẢN LÝ GHẾ: thêm/xoá địa điểm, thêm/xoá ghế. Chỉ quản trị. */
 		'coso_luu',
 		'coso_xoa',

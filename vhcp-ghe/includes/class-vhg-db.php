@@ -198,6 +198,7 @@ class VHG_DB {
 			tm_to DATETIME NULL,
 			khoa TINYINT(1) NOT NULL DEFAULT 0,
 			kt TINYINT(1) NOT NULL DEFAULT 0,
+			chay TINYINT(1) NOT NULL DEFAULT 0,
 			luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_may (ma_may),
@@ -525,6 +526,35 @@ class VHG_DB {
 			UNIQUE KEY ma_lan (ma_lan),
 			KEY nguoi (nguoi,trang_thai),
 			KEY cho (trang_thai,tao_luc)";
+
+		/* ===== 16. NHẬT KÝ BẬT/TẮT GHẾ — GHI TỪ CHÂN BÁO-CHẠY CỦA BO GHẾ ====================
+		   Anh Thắng 27/08/2026: *"Nhật ký bật tắt máy, bật máy thì bộ QR gửi về, tắt thì từ lúc
+		   mất tín hiệu QR"*.
+
+		   🔴 ĐÂY LÀ NHẬT KÝ VẬN HÀNH THẬT, KHÁC HẲN BẢNG `lenh`.
+		      · `lenh`   = có người BẤM cho ghế chạy (cho không một lượt). Ý định của người.
+		      · `bat_tat`= ghế THẬT SỰ chạy/dừng, đo từ chân báo-chạy của bo ghế (GHECHAY_PIN).
+		        Không quan tâm vì sao chạy — QR trả tiền, tiền mặt, hay ai đó bấm tay đều vào đây.
+		      Ghép hai thứ là mất đúng cái để đối chiếu: "web bảo bật mà ghế có chạy thật không".
+
+		   🔴 MỖI LẦN CHUYỂN TRẠNG THÁI MỘT DÒNG, không đè. Đây là nhật ký (chỉ thêm), khác bảng
+		      `nhip` (một hàng một máy, đè lên). Cần để xem lại cả chuỗi bật/tắt trong ngày.
+
+		   `luc` = thời điểm chuyển trạng thái THẬT — ghế khai TUỔI (mấy giây trước), máy chủ đổi ra
+		   giờ tuyệt đối của mình, y hệt cách `tm_luc` làm. Ghế không có đồng hồ thật.
+
+		   `giay` = chỉ điền cho dòng 'tat': ghế vừa chạy được bao nhiêu giây (từ 'bat' gần nhất tới
+		   'tat' này). Tính SẴN lúc ghi để bảng lịch sử khỏi phải ghép cặp bật–tắt mỗi lần mở. */
+		$b['bat_tat'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			su_kien VARCHAR(10) NOT NULL DEFAULT '',
+			luc DATETIME NULL,
+			giay INT NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY may (ma_may,id),
+			KEY luc (luc)";
 
 		return $b;
 	}
