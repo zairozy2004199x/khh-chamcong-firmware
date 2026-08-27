@@ -11475,6 +11475,47 @@ t( '🔴 cột dọc chỉ bật từ 1000px trở lên',
 t( 'mặc định (màn hẹp) thì KHÔNG phải lưới hai cột',
 	strpos( $h_hr, '.ung{display:block}' ) !== false, $h_hr );
 
+/* ---- Bấm 👁 xem PIN thì ĐỨNG NGUYÊN CHỖ ---- */
+/* Anh Thắng 27/08/2026: *"bấm là hiện ra luôn nhé, đây nó hiện nhưng cứ nhảy lên đầu trang, xong
+   phải kéo lại"*.
+   Bấm 👁 là tải lại cả trang (màn này KHÔNG có một dòng script nào), nên trình duyệt về đỉnh.
+   Bảng hồ sơ dài mấy trăm dòng: người ta cuộn tới hàng thứ 180, bấm 👁, rồi phải cuộn lại từ đầu
+   để đọc con số vừa hiện ra. */
+VHCC_NhanSu::luu_ho_so( array( 'role' => 'Admin', 'ma_nv' => 'HRAD' ), array(
+	'ma_nv' => 'HRPIN1', 'ho_ten' => 'Người Có PIN', 'cua_hang' => 'HR_CS', 'sdt' => '0900',
+	'pin_dang_nhap' => '779776' ) );
+$h_pn = vhcc_hr( $tok_hr, array( 'man' => 'ho_so', 'q' => 'HRPIN1' ) );
+t( 'dựng cảnh: thấy hàng của người có PIN', strpos( $h_pn, 'HRPIN1' ) !== false, substr( $h_pn, 0, 300 ) );
+t( '🔴 hàng ấy mang neo riêng', strpos( $h_pn, 'id="hs-HRPIN1"' ) !== false, $h_pn );
+t( '🔴 nút 👁 trỏ về đúng hàng ấy',
+	preg_match( '~<a href="[^"]*pin=HRPIN1[^"]*#hs-HRPIN1"~', $h_pn ) === 1, $h_pn );
+/* 🔴 NEO PHẢI KHỚP CHÍNH XÁC VỚI `id`. Lệch một ký tự là neo trỏ vào hư không, và trình duyệt
+   lặng lẽ đứng yên ở đỉnh — y như chưa chữa gì, mà không có gì báo. */
+if ( preg_match( '~href="[^"]*(#hs-[^"]*)"~', $h_pn, $m_pn ) ) {
+	t( '🔴 neo trỏ tới một id CÓ THẬT trong trang',
+		strpos( $h_pn, 'id="' . substr( $m_pn[1], 1 ) . '"' ) !== false, $m_pn[1] );
+}
+/* Bấm rồi thì PIN hiện ra, và nút "ẩn" cũng phải giữ chỗ — không thì đóng lại là nhảy lần nữa. */
+$h_pn2 = vhcc_hr( $tok_hr, array( 'man' => 'ho_so', 'q' => 'HRPIN1', 'pin' => 'HRPIN1' ) );
+t( '🔴 PIN hiện ra', strpos( $h_pn2, '779776' ) !== false, $h_pn2 );
+t( 'và nút ẩn cũng trỏ về đúng hàng',
+	preg_match( '~<a href="[^"]*#hs-HRPIN1">ẩn</a>~', $h_pn2 ) === 1, $h_pn2 );
+/* Hàng hồ sơ phải chừa chỗ cho thanh đầu trang, không thì nó dừng ngay sau thanh và bị che. */
+t( 'hàng hồ sơ chừa chỗ cho thanh đầu trang',
+	strpos( $h_pn, 'tr[id^="hs-"]{scroll-margin-top' ) !== false, $h_pn );
+/* ⚠️ KHÔNG IN PIN RA khi người xem không có quyền — trang này chạy ngoài internet và ảnh chụp
+   màn hình đi khắp nơi.
+   ⚠️ DỰNG CẢNH BẰNG **KẾ TOÁN**, không phải Cửa hàng trưởng. `xem_pin` ở bậc Admin còn `ho_so`
+      ở bậc Kế toán — nên Kế toán VÀO ĐƯỢC màn hồ sơ mà KHÔNG xem được PIN, đúng khe cần canh.
+      Cửa hàng trưởng thì cửa MÀN đã chặn từ trước: bỏ hẳn chốt PIN đi mà phép thử vẫn xanh, vì
+      họ có thấy cái bảng nào đâu. Đã phá thử để thấy. */
+$tok_kt_pn = VHCC_Auth::phat_token( 'Chị Kế Toán', 'Kế toán', '', 'HRKT' );
+$h_pn3 = vhcc_hr( $tok_kt_pn, array( 'man' => 'ho_so', 'q' => 'HRPIN1', 'pin' => 'HRPIN1' ) );
+t( 'dựng cảnh: Kế toán VÀO ĐƯỢC màn hồ sơ', strpos( $h_pn3, 'HRPIN1' ) !== false,
+	substr( $h_pn3, 0, 300 ) );
+t( '🔴 nhưng KHÔNG thấy con số PIN', strpos( $h_pn3, '779776' ) === false, $h_pn3 );
+t( 'và cũng không có nút 👁 để bấm', strpos( $h_pn3, '>👁</a>' ) === false, $h_pn3 );
+
 /* ---- Tên người trong lưới là ĐƯỜNG SANG HỒ SƠ ---- */
 /* Anh Thắng 27/08/2026, chỉ vào cột Nhân viên: *"Khi bấm vào thông tin nhân sự chỗ này, nó sẽ
    nhảy sang tab thông tin nhân sự đó, để tiện chỉnh thông tin nhân, set cơ sở, hay liên kết các

@@ -1441,6 +1441,8 @@ class VHCC_Web {
 			/* Chừa chỗ cho thanh đầu trang khi trình duyệt nhảy tới neo. Neo nay nằm trên hàng
 			   NGƯỜI (`#suaday`), nên hàng ấy dừng dưới thanh chứ không chui vào sau nó. */
 			. 'table.cc tr#suaday,table.cc tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:96px}'
+			/* Hàng hồ sơ cũng chừa chỗ cho thanh đầu trang khi trình duyệt nhảy tới neo `#hs-…`. */
+			. 'tr[id^="hs-"]{scroll-margin-top:96px}'
 			. 'table.cc td.dang-sua{outline:3px solid var(--do);outline-offset:-3px}'
 			/* Hàng sửa nội tuyến: nền khác hẳn, và chữ về cỡ thường (lưới đang 11.5px). */
 			/* 🔴 RUỘT HÀNG SỬA DÍNH BÊN TRÁI. Anh Thắng 27/08/2026: *"lệch ô sửa"*.
@@ -4199,6 +4201,19 @@ class VHCC_Web {
 	}
 
 	/**
+	 * Neo tới hàng của một người trong bảng hồ sơ.
+	 *
+	 * ⚠️ Tách riêng vì nó phải khớp CHÍNH XÁC với `id` đặt trên `<tr>` — hai chỗ dựng cùng một
+	 *    chuỗi bằng hai đoạn mã chép tay là sớm muộn lệch nhau, và lệch thì neo trỏ vào hư không:
+	 *    trình duyệt lặng lẽ đứng yên ở đỉnh, y như chưa chữa gì.
+	 * ⚠️ `esc_url()` đã chạy ở nơi gọi cho phần địa chỉ; phần neo nối SAU nên phải tự sạch — mã
+	 *    NV chỉ còn chữ và số nên không có gì để thoát.
+	 */
+	private static function neo_hs( $ma ) {
+		return '#hs-' . preg_replace( '/[^A-Za-z0-9]+/', '_', (string) $ma );
+	}
+
+	/**
 	 * TÊN NGƯỜI TRONG LƯỚI — bấm vào là sang thẳng hồ sơ của đúng người ấy.
 	 *
 	 * Anh Thắng 27/08/2026, chỉ vào cột Nhân viên: *"Khi bấm vào thông tin nhân sự chỗ này, nó sẽ
@@ -5153,7 +5168,15 @@ class VHCC_Web {
 		foreach ( $rows as $r ) {
 			$id = 'vhcc-bang';
 			$k  = '[' . esc_attr( $r['ma_nv'] ) . ']';
-			echo '<tr><td><code>' . esc_html( $r['ma_nv'] ) . '</code></td>';
+			/* 🔴 NEO TRÊN HÀNG CỦA NGƯỜI ẤY — bấm 👁 để hiện PIN thì đứng nguyên chỗ.
+			   Anh Thắng 27/08/2026: *"bấm là hiện ra luôn nhé, đây nó hiện nhưng cứ nhảy lên đầu
+			   trang, xong phải kéo lại"*.
+			   Bấm 👁 là tải lại cả trang (màn này KHÔNG có một dòng script nào — xem đầu tệp),
+			   nên trình duyệt về đỉnh. Bảng hồ sơ dài mấy trăm dòng: người ta cuộn tới hàng thứ
+			   180, bấm 👁, rồi phải cuộn lại từ đầu để đọc con số vừa hiện ra. Neo đưa họ về
+			   đúng hàng ấy — cùng cách đã chữa cho hàng sửa giờ. */
+			echo '<tr id="hs-' . esc_attr( preg_replace( '/[^A-Za-z0-9]+/', '_', (string) $r['ma_nv'] ) )
+				. '"><td><code>' . esc_html( $r['ma_nv'] ) . '</code></td>';
 			echo '<td><input form="' . $id . '" name="ho_ten' . $k . '" value="' . esc_attr( $r['ho_ten'] ) . '" style="width:170px"></td>';
 			echo '<td><input form="' . $id . '" name="cua_hang' . $k . '" list="dl_ch" value="' . esc_attr( $r['cua_hang'] ) . '" style="width:120px"></td>';
 			echo '<td><input form="' . $id . '" name="coso_phu' . $k . '" list="dl_cp" value="' . esc_attr( (string) $r['coso_phu'] ) . '" style="width:140px"></td>';
@@ -5187,11 +5210,13 @@ class VHCC_Web {
 			echo '<div style="font-size:11.5px;margin-top:3px;white-space:nowrap">';
 			if ( $dang_ho ) {
 				echo '<b class="pin-ho">' . esc_html( $r['pin_dang_nhap'] ) . '</b> '
-					. '<a href="' . esc_url( remove_query_arg( 'pin' ) ) . '">ẩn</a>';
+					. '<a href="' . esc_url( remove_query_arg( 'pin' ) ) . self::neo_hs( $r['ma_nv'] )
+					. '">ẩn</a>';
 			} elseif ( $co_pin ) {
 				echo '<span class="co">✔ có ' . strlen( (string) $r['pin_dang_nhap'] ) . ' số</span>';
 				if ( VHCC_Vai::duoc( $toi, 'xem_pin' ) ) {
-					echo ' <a href="' . esc_url( add_query_arg( 'pin', $r['ma_nv'] ) ) . '">👁</a>';
+					echo ' <a href="' . esc_url( add_query_arg( 'pin', $r['ma_nv'] ) )
+						. self::neo_hs( $r['ma_nv'] ) . '">👁</a>';
 				}
 				echo ' <label style="display:inline;color:var(--do)"><input form="' . $id . '" '
 					. 'type="checkbox" name="xoa_pin' . $k . '" value="1" style="vertical-align:-1px"> xoá</label>';
