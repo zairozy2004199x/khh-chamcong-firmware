@@ -40,6 +40,7 @@
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
 #include <ArduinoJson.h>
+#include <Preferences.h>   // nhớ PIN đăng nhập qua mất điện (khỏi gõ lại mỗi lần)
 
 // ── Khai báo trước (arduino-cli thôi tự sinh prototype khi đã có sẵn) ──────────
 struct ApGhe;
@@ -97,14 +98,16 @@ const char* SIM_APN     = "v-internet";         // Viettel; đổi nếu SIM nh�
 int TS_MINX = 200, TS_MAXX = 3700, TS_MINY = 240, TS_MAXY = 3800;
 #define SD_CS  5                                 // thẻ SD trên CYD: SPI SCK18/MISO19/MOSI23
 #define BL_PIN 21                                // đèn nền
-#define FW_VERSION "may-tram 2026-08-27b (them KIEM TRA CHI SO: chi xem, khong chot)"
+#define FW_VERSION "may-tram 2026-08-27c (nho PIN dang nhap: tu login, khoi go lai)"
 // ═════════════════════════════════════════════════════════════════════════════
 
 TFT_eSPI tft = TFT_eSPI();
 SPIClass tsSPI = SPIClass(HSPI);
 XPT2046_Touchscreen ts(T_CS, T_IRQ);
 bool   g_sdOk = false;
-String g_token = "";                            // token web sau khi login (phần chốt ca)
+String g_token = "";                            // token web sau khi login (phần chốt ca) - chỉ RAM
+Preferences prefsTram;                          // NVS: nhớ PIN đăng nhập
+String g_pinLuu = "";                           // PIN đã lưu (nạp trong setup) - tự đăng nhập lại
 int    g_okCount = 0, g_failCount = 0;
 // 4G
 int  g_simTx = SIM_TX_PIN, g_simRx = SIM_RX_PIN; long g_simBaud = 115200;
@@ -592,6 +595,27 @@ bool prefetchCoSo(){
   return g_chotN > 0;
 }
 
+/* ĐẢM BẢO ĐÃ ĐĂNG NHẬP — tự dùng PIN đã lưu, chỉ hỏi khi chưa lưu hoặc PIN sai.
+ *
+ * Anh Thắng 27/08/2026: *"Máy trạm cho tính năng tự lưu lại mật khẩu đăng nhập"*.
+ *
+ * PIN lưu trong NVS (qua mất điện vẫn còn). Token thì KHÔNG lưu — token có hạn, hết hạn là hỏng;
+ * giữ PIN rồi tự login lại mới chắc. Login bằng PIN lưu mà trượt (admin đổi PIN) -> xoá PIN cũ,
+ * hỏi lại rồi lưu PIN mới. Trả false nếu người dùng bấm huỷ ở bàn phím. */
+bool damBaoDangNhap(){
+  if(g_token.length()) return true;
+  if(g_pinLuu.length()){
+    bao("Dang nhap tu dong...", COL_ACC, "PIN da luu", "");
+    if(webLogin(g_pinLuu)) return true;
+    g_pinLuu = ""; prefsTram.remove("pin");     // PIN lưu không còn đúng -> bỏ, hỏi lại
+  }
+  long pin = banPhimSo("Nhap PIN", 0, 0);
+  if(pin < 0) return false;
+  if(!webLogin(String(pin))) return false;
+  g_pinLuu = String(pin); prefsTram.putString("pin", g_pinLuu);   // lưu cho lần sau
+  return true;
+}
+
 // ═══════════════════════════════ CHẾ ĐỘ CHỐT CA ══════════════════════════════
 void cheDoChotCa(){
   // 1) Dò AP để biết mã ghế (khỏi gõ tay)
@@ -603,11 +627,7 @@ void cheDoChotCa(){
 
   // 2) Nối Internet + đăng nhập
   if(!noiInternet()) return;
-  if(g_token.length() == 0){
-    long pin = banPhimSo("Nhap PIN", 0, 0);
-    if(pin < 0) return;
-    if(!webLogin(String(pin))) return;
-  }
+  if(!damBaoDangNhap()) return;
 
   // 3) Số liệu chốt: LẤY TỪ BỘ NHỚ PREFETCH nếu có; chưa có thì tải CẢ CƠ SỞ một lượt.
   //    Ghế đầu tiên chốt sẽ tải cả cơ sở; ghế sau tra thẳng bộ nhớ, hiện ngay.
@@ -725,11 +745,7 @@ void cheDoKiemTra(){
   String ma = g_ds[sel].ma;
 
   if(!noiInternet()) return;
-  if(g_token.length() == 0){
-    long pin = banPhimSo("Nhap PIN", 0, 0);
-    if(pin < 0) return;
-    if(!webLogin(String(pin))) return;
-  }
+  if(!damBaoDangNhap()) return;
 
   /* Lấy số liệu: dùng chung bộ nhớ prefetch với chốt ca -> đi rà nhiều máy vẫn nhanh. */
   String coso; long hethong = 0, csTruoc = 0; int donVi = 5000, lanDau = 0;
@@ -815,6 +831,10 @@ void setup(){
   Serial.begin(115200); delay(200);
   Serial.println("\n\n=== " FW_VERSION " ===");
   pinMode(BL_PIN, OUTPUT); digitalWrite(BL_PIN, HIGH);
+
+  prefsTram.begin("tram", false);
+  g_pinLuu = prefsTram.getString("pin", "");   // PIN đã lưu -> tự đăng nhập, khỏi gõ lại
+  Serial.printf("[TRAM] PIN da luu: %s\n", g_pinLuu.length() ? "co" : "chua");
 
   tft.init(); tft.setRotation(1);
   tsSPI.begin(T_CLK, T_DO, T_DIN, T_CS);
