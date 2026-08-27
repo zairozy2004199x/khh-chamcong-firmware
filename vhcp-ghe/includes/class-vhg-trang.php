@@ -2222,11 +2222,45 @@ function henLai(){
   if (TAB === 'quan-ly') return;
   hen = setTimeout(function(){
     /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
-       xoá mất số họ đang gõ), hoặc trang đang ẩn (điện thoại trong túi — hỏi cũng không ai đọc,
-       chỉ tốn 4G). */
-    if (ban || CHOT || document.hidden) { henLai(); return; }
+       xoá mất số họ đang gõ), đang GÕ vào một ô nào đó, hoặc trang đang ẩn (điện thoại trong túi
+       — hỏi cũng không ai đọc, chỉ tốn 4G). */
+    if (ban || CHOT || document.hidden || dangGoField()) { henLai(); return; }
+    /* Tab Điều khiển: CHỈ cập nhật lưới ghế TẠI CHỖ (ghế chạy/mất kết nối/đếm ngược), KHÔNG vẽ
+       lại cả trang — vẽ lại mỗi 2 giây là xoá số phút/tiền mặt anh vừa gõ trên thẻ ghế. */
+    if (TAB === 'dieu-khien') { capNhatDieuKhien(); return; }
     tai(true);
   }, NHIP_MS[TAB] || 30000);
+}
+
+/* Có đang gõ vào ô nhập nào không (input/textarea/select đang được chọn). Đang gõ thì hoãn lượt
+   làm mới tự động để không giật con trỏ / mất chữ. */
+function dangGoField(){
+  var a = document.activeElement;
+  if (!a) return false;
+  var t = (a.tagName || '').toUpperCase();
+  return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT';
+}
+
+/* Làm mới TAB ĐIỀU KHIỂN mà KHÔNG vẽ lại cả trang: chỉ thay lưới ghế, giữ nguyên ô Số phút/Tiền
+   mặt đang gõ dở và form "tiêu ví hộ khách". */
+function capNhatDieuKhien(){
+  goi('so_lieu', { ky: KY }, function(r){
+    if (!r || !r.ok) { henLai(); return; }
+    D = r;
+    var g = document.getElementById('dk-grid');
+    if (TAB !== 'dieu-khien' || !g) { ve(); return; }   // đã đổi tab trong lúc chờ mạng → vẽ lại bình thường
+    var keep = {};
+    [].forEach.call(g.querySelectorAll('input[data-phut],input[data-tien]'), function(i){
+      var k = i.getAttribute('data-phut') ? ('p:' + i.getAttribute('data-phut')) : ('t:' + i.getAttribute('data-tien'));
+      keep[k] = i.value;
+    });
+    g.innerHTML = dkLuoiHtml();
+    [].forEach.call(g.querySelectorAll('input[data-phut],input[data-tien]'), function(i){
+      var k = i.getAttribute('data-phut') ? ('p:' + i.getAttribute('data-phut')) : ('t:' + i.getAttribute('data-tien'));
+      if (keep[k] != null && keep[k] !== '') i.value = keep[k];
+    });
+    noi();   // gắn lại các nút trong lưới + hẹn lượt kế + đồng hồ đếm ngược
+  });
 }
 
 /* Đồng hồ đếm ngược chạy TẠI CHỖ giữa hai lượt hỏi. Chỉ đụng vào phần chữ của con số, không
@@ -2589,8 +2623,19 @@ function veDieuKhien(){
         + 'còn giải thích được vì sao một ghế chạy nhiều hơn số tiền thu.',
         'Turning a chair on by hand is <b>a free session</b> — the system records who pressed it and '
         + 'when, so at month end you can still explain why a chair ran more than it took in.')
-    + '</p>' + dkFilter + '<div class="ghe-luoi">';
+    + '</p>' + dkFilter + '<div class="ghe-luoi" id="dk-grid">' + dkLuoiHtml() + '</div></div>';
+  return h;
+}
 
+/* CHỈ phần lưới ghế — tách riêng để lượt làm mới 2 giây CHỈ vẽ lại lưới, giữ nguyên ô đang gõ
+   (Số phút/Tiền mặt) và form "tiêu ví hộ khách" bên trên. Xem capNhatDieuKhien(). */
+function dkLuoiHtml(){
+  var dsMay = D.may.filter(function(m){
+    if (DK_LOC === '') return true;
+    if (DK_LOC === '__none__') return !m.coso;
+    return m.coso === DK_LOC;
+  });
+  var h = '';
   dsMay.forEach(function(m){
     var p = trangThai(m);
     var lop = !m.song ? ' dut' : (m.tt === 'running' ? ' chay' : '');
@@ -2686,7 +2731,7 @@ function veDieuKhien(){
       + testNut(m)
       + '</div></div>';
   });
-  return h + '</div></div>';
+  return h;
 }
 
 /* ============================================================================================
@@ -3047,9 +3092,10 @@ function ktdDetail(o,box){
     // bảng ghế
     var sc=ktEl('div','table-scroll');
     var tb=ktEl('table'); tb.style.minWidth='760px';
-    tb.innerHTML='<tr><th>'+L('Ghế','Chair')+'</th><th>'+L('Trước','Before')+'</th><th>'+L('Sau','After')
-      +'</th><th>Actual</th><th>'+L('Tiền mặt','Cash')+'</th><th>QR</th><th>'+L('Nộp','Paid')+'</th>'
-      +'<th>'+L('Duyệt','OK')+'</th><th></th></tr>';
+    var thR=' style="text-align:right"';
+    tb.innerHTML='<tr><th>'+L('Ghế','Chair')+'</th><th'+thR+'>'+L('Trước','Before')+'</th><th'+thR+'>'+L('Sau','After')
+      +'</th><th'+thR+'>Actual</th><th'+thR+'>'+L('Tiền mặt','Cash')+'</th><th'+thR+'>QR</th><th'+thR+'>'+L('Nộp','Paid')+'</th>'
+      +'<th style="text-align:center">'+L('Duyệt','OK')+'</th><th></th></tr>';
     (r.rows||[]).forEach(function(c){ tb.appendChild(ktdRow(o,c,m,reload,r.locked)); });
     sc.appendChild(tb); box.appendChild(sc);
     var sum=r.sum||{};
@@ -3226,8 +3272,10 @@ function ktiQr(){
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Không có ghế lệch.','No mismatches.'))); return; }
     var sel={};
     var sc=ktEl('div','table-scroll'); var tb=ktEl('table'); tb.style.minWidth='640px';
-    tb.innerHTML='<tr><th></th><th>'+L('Ghế','Chair')+'</th><th>'+L('Ngày','Date')+'</th><th>'+L('QR báo cáo','Reported')
-      +'</th><th>'+L('QR webhook','Bank')+'</th><th>'+L('Lệch','Off')+'</th></tr>';
+    tb.innerHTML='<tr><th></th><th>'+L('Ghế','Chair')+'</th><th>'+L('Ngày','Date')
+      +'</th><th style="text-align:right">'+L('QR báo cáo','Reported')
+      +'</th><th style="text-align:right">'+L('QR webhook','Bank')
+      +'</th><th style="text-align:right">'+L('Lệch','Off')+'</th></tr>';
     r.rows.forEach(function(x,i){
       var tr=ktEl('tr');
       var td0=ktEl('td'); var cb=document.createElement('input'); cb.type='checkbox'; cb.checked=true; sel[i]=x;
