@@ -50,7 +50,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27j (khoa ghe loi: man hotline + chan khach, hotline mo tu xa)"
+#define FW_VERSION "ghe-massage 2026-08-27k (khoa loi nho ma qua reboot + che do ky thuat khong khoa)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -264,6 +264,10 @@ const unsigned long NHIP_RETRY_MS = 2000;  // nhịp HỎNG (rớt mạng) -> th
 #ifndef HOTLINE
 #define HOTLINE            "0977548601"   // số hotline hiện trên màn khi ghế lỗi
 #endif
+/* CHẾ ĐỘ KỸ THUẬT (hotline/kỹ thuật tích trên web): ghế KHÔNG chờ 30s và KHÔNG khóa — lỗi thì
+   báo NGAY (màn + web) rồi 5s sau tự gỡ. Tự hết hạn sau KT_HETHAN_MS để không kẹt chế độ test. */
+#define KT_HETHAN_MS       900000UL       // 15 phút -> tự tắt chế độ kỹ thuật (phòng quên tắt)
+#define KT_BAO_MS          5000           // báo lỗi test xong, 5s sau tự trở lại bình thường
 
 // --- Nhận TIỀN MẶT ---
 /* 🔴 ĐỔI 25/08/2026 — BỎ ĐƯỜNG XUNG, DÙNG CỔNG TIỀN SERIAL (cong_tien.h).
@@ -384,6 +388,11 @@ bool     g_baoGheChet = false;  // đang treo cảnh báo 'ghekhongchay' (paid m
 bool     g_baoDungDot = false;  // đang treo cảnh báo 'ghedungdotngot' (đang chạy mà DỪNG đột ngột, còn giờ)
 bool          g_gheLoi     = false;  // KHÓA ghế lỗi (persistent NVS) - chỉ 'mokhoa' từ web mới gỡ
 volatile bool g_remoteMoKhoa = false;// web (hotline) gửi lệnh mở khóa lỗi
+volatile bool g_kyThuat    = false;  // CHẾ ĐỘ KỸ THUẬT (test): không chờ 30s, không khóa, báo 5s tự gỡ
+uint32_t g_ktHetHan   = 0;      // millis chế độ kỹ thuật tự tắt (0 = không bật)
+volatile bool g_remoteKtOn = false, g_remoteKtOff = false;  // web bật/tắt chế độ kỹ thuật
+uint32_t g_testBaoTu  = 0;      // millis lúc báo lỗi trong chế độ test (để 5s tự gỡ)
+bool     g_testXong   = false;  // đã báo test xong đợt dừng này (khỏi lặp tới khi ghế chạy lại)
 uint32_t g_tickTruoc  = 0;      // millis lần trừ trước (0 = chưa bắt đầu, dt=0)
 uint32_t g_dungTu     = 0;      // millis ghế bắt đầu ở trạng thái DỪNG (để debounce dừng)
 int      g_pctLow     = 0;      // % thời gian chân ghế ở mức THẤP (duty) — chạy vs tắt khác nhau?
@@ -1405,6 +1414,7 @@ void guiNhip(){
     + ",\"tm_to\":"   + String(g_tmLucTo  ? (long)((millis()-g_tmLucTo )/1000) : -1L)
     + ",\"nd\":\"" + jsonEsc(ND_TIEN_TO)
     + "\",\"khoa\":" + String(g_gheLoi ? 1 : 0)   // 1 = đang KHÓA lỗi (chờ hotline mở từ xa)
+    + ",\"kt\":" + String(g_kyThuat ? 1 : 0)      // 1 = đang CHẾ ĐỘ KỸ THUẬT (test)
     + ",\"fw\":\"" FW_VERSION "\"");
   static int nhipHong = 0;
   if(r.length()==0){
@@ -1565,6 +1575,9 @@ void checkRemoteCmd(){
     Serial.printf("[CMD] web MO may +%d phut (cho: %d)\n", (phut>0?phut:MINUTES), g_remoteStartMin); }
   else if(viec == "off"){ g_remoteStop = true; Serial.println("[CMD] web TAT may"); }
   else if(viec == "mokhoa"){ g_remoteMoKhoa = true; Serial.println("[CMD] web (hotline) MO KHOA loi"); }
+  else if(viec == "test"){   // phut=1 bật chế độ kỹ thuật, 0 tắt
+    if(phut == 1){ g_remoteKtOn = true; Serial.println("[CMD] web BAT che do ky thuat"); }
+    else { g_remoteKtOff = true; Serial.println("[CMD] web TAT che do ky thuat"); } }
   else if(viec == "reboot"){
     /* 🔴 KHỞI ĐỘNG LẠI TỪ XA — nhưng KHÔNG cắt ngang một lượt khách đang massage.
      *
@@ -1688,6 +1701,7 @@ void ketThucPhien(const char* lyDo){
 void khoaGheLoi(const char* ma){
   ketThucPhien("ghe loi -> khoa cho hotline mo tu xa");   // dọn phiên (xoá cảnh báo tạm trước)
   g_gheLoi = true; prefs.putBool("gheLoi", true);         // đặt SAU ketThucPhien để không bị xoá
+  prefs.putString("loiMa", ma);                           // nhớ mã lỗi để reboot xong treo lại (web vẫn thấy)
   ghiLoiTien(ma, true);                                   // treo mã lỗi lên web (tm_loi + tm_cuoi)
   g_statusDirty = true;
   Serial.printf("[GHE] === KHOA LOI '%s' -> cho hotline mo tu xa (hotline %s) ===\n", ma, HOTLINE);
@@ -2079,7 +2093,12 @@ void setup(){
   prefs.begin("ghe", false);
   CHAIR_ID = prefs.getString("chair", "");   // nhớ mã ghế máy chủ đã gán, để mất mạng vẫn hiện đúng
   g_gheLoi = prefs.getBool("gheLoi", false); // KHÓA lỗi nhớ qua mất điện -> mất điện xong vẫn khóa tới khi hotline mở
-  if(g_gheLoi) Serial.println("[GHE] khoi phuc trang thai KHOA LOI (cho hotline mo tu xa)");
+  if(g_gheLoi){
+    /* Treo lại mã lỗi (RAM mất khi reboot) để nhịp vẫn đẩy lên web -> web luôn thấy ghế đang khóa. */
+    String lm = prefs.getString("loiMa", "ghedungdotngot");
+    ghiLoiTien(lm.c_str(), true);
+    Serial.println("[GHE] khoi phuc KHOA LOI (" + lm + ") -> cho hotline mo tu xa");
+  }
   /* Khôi phục TIỀN MẶT CHƯA GỬI (mất điện lúc offline): đọc lại để netTask gửi tiếp. */
   { long noCu = prefs.getLong("noTien", 0); String rf = prefs.getString("noRef", "");
     if(noCu > 0){
@@ -2158,6 +2177,7 @@ void loop(){
       if(g_baoGheChet){ g_baoGheChet = false; loiTienCong("ghekhongchay", false); }
       if(g_baoDungDot){ g_baoDungDot = false; g_statusDirty = true; loiTienCong("ghedungdotngot", false);
         Serial.println("[GHE] ghe chay lai -> go canh bao dung dot ngot, dem tiep"); }
+      g_testXong = false;   // ghế chạy lại -> cho phép báo test lại ở đợt dừng sau (chế độ kỹ thuật)
 #if DO_GHECHAY && GATE_BY_PIN
       if(now - g_chayDauTu >= (uint32_t)QR_BU_MS) g_conLaiMs -= (long)dt;   // qua bù trễ mới ĐẾM
 #else
@@ -2167,20 +2187,28 @@ void loop(){
 #if DO_GHECHAY && GATE_BY_PIN
     else {
       if(g_dungTu == 0) g_dungTu = now;
-      if(!g_gheDaChay){                       // paid mà ghế CHƯA TỪNG chạy -> ghekhongchay
-        if(!g_baoGheChet && now - g_dungTu > GHECHAY_CHET_MS){
-          g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
-          Serial.println("[GHE] paid ma ghe CHUA chay -> canh bao web"); }
-        if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){       // 30s vẫn chưa chạy -> KHÓA lỗi
-          khoaGheLoi("ghekhongchay"); }
-      } else if(g_conLaiMs > 0){              // ĐÃ chạy rồi mà DỪNG khi CÒN giờ -> DỪNG ĐỘT NGỘT
-        if(!g_baoDungDot && now - g_dungTu > GHE_DUNG_MS){   // >1.5s -> cảnh báo NGAY TRÊN MÀN
-          g_baoDungDot = true; g_statusDirty = true;
-          Serial.println("[GHE] DUNG DOT NGOT (con gio) -> canh bao man"); }
-        if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){        // 30s không chạy lại -> KHÓA lỗi
-          /* Dừng đủ lâu = lỗi thật. KHÓA cứng (tắt QR + nhớ NVS) -> ghế/pulse tự xuống LOW sau
-             đó cũng KHÔNG tự chạy lại; CHỈ hotline mở từ xa mới cho chạy. */
-          khoaGheLoi("ghedungdotngot");
+      const char* maLoi = g_gheDaChay ? "ghedungdotngot" : "ghekhongchay";
+      if(g_kyThuat){
+        /* CHẾ ĐỘ KỸ THUẬT: báo NGAY (khỏi chờ 30s) + 5s sau tự gỡ + KHÔNG khóa. Để kỹ thuật
+           test bật/tắt ghế liên tục mà không bị khóa cứng. */
+        if(!g_testXong){
+          if(!g_baoDungDot){ g_baoDungDot = true; g_statusDirty = true; ghiLoiTien(maLoi, true);
+            g_testBaoTu = now; Serial.println("[GHE][KT] bao loi NGAY (che do ky thuat)"); }
+          else if(now - g_testBaoTu >= (uint32_t)KT_BAO_MS){
+            g_baoDungDot = false; loiTienCong(maLoi, false); g_statusDirty = true; g_testXong = true;
+            Serial.println("[GHE][KT] tu go canh bao sau 5s, KHONG khoa"); }
+        }
+      } else {
+        if(!g_gheDaChay){                     // paid mà ghế CHƯA TỪNG chạy -> ghekhongchay
+          if(!g_baoGheChet && now - g_dungTu > GHECHAY_CHET_MS){
+            g_baoGheChet = true; ghiLoiTien("ghekhongchay", true);
+            Serial.println("[GHE] paid ma ghe CHUA chay -> canh bao web"); }
+          if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){ khoaGheLoi("ghekhongchay"); }   // 30s -> KHÓA
+        } else if(g_conLaiMs > 0){            // ĐÃ chạy rồi mà DỪNG khi CÒN giờ -> DỪNG ĐỘT NGỘT
+          if(!g_baoDungDot && now - g_dungTu > GHE_DUNG_MS){   // >1.5s -> cảnh báo NGAY TRÊN MÀN
+            g_baoDungDot = true; g_statusDirty = true;
+            Serial.println("[GHE] DUNG DOT NGOT (con gio) -> canh bao man"); }
+          if(now - g_dungTu >= (uint32_t)GHE_BAOWEB_MS){ khoaGheLoi("ghedungdotngot"); }  // 30s -> KHÓA
         }
       }
     }
@@ -2216,13 +2244,20 @@ void loop(){
   /* Hotline mở khóa lỗi từ xa -> gỡ KHÓA, về màn thường, cho chạy QR lại. */
   if(g_remoteMoKhoa){ g_remoteMoKhoa=false;
     if(g_gheLoi){
-      g_gheLoi=false; prefs.putBool("gheLoi", false);
+      g_gheLoi=false; prefs.putBool("gheLoi", false); prefs.remove("loiMa");
       /* gỡ mã lỗi đang treo trên web (cả 2 loại) để bảng điều khiển sạch. */
       loiTienCong("ghekhongchay", false); loiTienCong("ghedungdotngot", false);
       g_statusDirty=true; screenDrawn=false;
       Serial.println("[CMD] -> da MO KHOA loi (hotline), cho chay QR lai");
     }
   }
+  /* Bật/tắt CHẾ ĐỘ KỸ THUẬT (test). Tự hết hạn sau KT_HETHAN_MS phòng quên tắt. */
+  if(g_remoteKtOn){ g_remoteKtOn=false; g_kyThuat=true; g_ktHetHan=millis()+KT_HETHAN_MS;
+    g_statusDirty=true; Serial.println("[GHE] BAT che do ky thuat (test)"); }
+  if(g_remoteKtOff){ g_remoteKtOff=false; g_kyThuat=false; g_testXong=false;
+    g_statusDirty=true; Serial.println("[GHE] TAT che do ky thuat (test)"); }
+  if(g_kyThuat && (int32_t)(millis() - g_ktHetHan) >= 0){ g_kyThuat=false; g_testXong=false;
+    g_statusDirty=true; Serial.println("[GHE] che do ky thuat TU HET HAN"); }
   /* ĐANG KHÓA LỖI: bỏ mọi lệnh chạy / tiền QR tới (ghế đang hỏng, chờ hotline mở khóa).
      Web nên KHÔNG cho quét QR ghế đang khóa; đây là chốt chặn cuối ở ghế. */
   if(g_gheLoi){
