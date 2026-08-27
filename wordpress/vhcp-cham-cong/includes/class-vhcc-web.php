@@ -1151,6 +1151,10 @@ class VHCC_Web {
 			. 'border-top:1px dotted var(--vien);opacity:.95;border-radius:0 0 3px 3px}'
 			. '.mdem code{font-size:9px;opacity:.8}'
 			. '.mdem.hong{background:#fef2f2;color:var(--do)}'
+			/* Ngày đứng ở CƠ SỞ KHÁC: xám, không mang màu ca nào — để mắt tách ngay khỏi mấy
+			   dòng thuộc về bảng đang đọc. Con số ở đây KHÔNG nằm trong cột TỔNG. */
+			. '.mdem.ngoai{background:#f1f5f9;color:#475569;font-style:italic}'
+			. '.duoi.ngoai{background:#f1f5f9;color:#475569}'
 			. '.mdem.ca1{background:#dbeafe;color:#1d4ed8}.mdem.ca2{background:#dcfce7;color:#15803d}'
 			. '.mdem.ca3{background:#f3e8ff;color:#7e22ce}.mdem.ca4{background:#ffedd5;color:#c2410c}'
 			/* Ô bấm được: đường liên kết phủ KÍN ô, giữ nguyên màu chữ. Chỉ tô nền khi rê chuột
@@ -2341,6 +2345,57 @@ class VHCC_Web {
 	 *
 	 * `$r === null` = ngày ấy không có lượt chấm nào -> dấu `·`.
 	 */
+	/**
+	 * NGÀY NGƯỜI ẤY ĐỨNG Ở CƠ SỞ KHÁC -> một dòng phụ trong chính ô ngày đó.
+	 *
+	 * Anh Thắng 27/08/2026: *"nhân viên mà làm từ 2 cơ sở trở lên thì cũng nhớ ghép lại"*.
+	 *
+	 * 🔴 KHÔNG CỘNG VÀO TỔNG của cơ sở đang xem, và phải NÓI RA là của cơ sở nào. Lương tính
+	 *    theo cơ sở (đơn giá, khung ca, cách tính công đều riêng), nên cộng vào là trả sai tiền
+	 *    ở cả hai nơi. Dòng này chỉ trả lời một câu: *hôm ấy người ta CÓ đi làm, chỉ là ở chỗ
+	 *    khác* — thay cho một ô trống trông y hệt ngày nghỉ.
+	 *
+	 * Nền xám nhạt, khác hẳn màu theo ca của mấy dòng kia: nhìn cái là biết dòng này không
+	 * thuộc bảng đang đọc.
+	 */
+	/**
+	 * Nhãn cạnh TÊN: người này tháng ấy còn chạy ở cơ sở nào nữa.
+	 *
+	 * Phải có nhãn ở đầu hàng chứ không chỉ mấy dòng nhỏ rải trong ô: một người làm hai nơi mà
+	 * ở lưới này chỉ có ba ngày thì nhìn hàng ấy tưởng người ta nghỉ gần hết tháng. Nhãn nói
+	 * ngay: *phần còn lại nằm ở bảng cơ sở kia*.
+	 */
+	private static function chip_coso_khac( $ck_nguoi ) {
+		if ( ! is_array( $ck_nguoi ) || ! $ck_nguoi ) { return ''; }
+		$cs = array();
+		foreach ( $ck_nguoi as $x ) {
+			$t = (string) $x['coso'];
+			if ( '' !== $t ) { $cs[ $t ] = true; }
+		}
+		if ( ! $cs ) { return ''; }
+		$ds = array_keys( $cs );
+		sort( $ds );
+		return ' <span class="duoi ngoai" title="Tháng này còn chấm công ở: ' . esc_attr( implode( ' · ', $ds ) )
+			. "\n" . 'Những ngày ấy hiện thành dòng xám trong ô, và KHÔNG cộng vào cột TỔNG ở đây — '
+			. 'công của chúng thuộc bảng của cơ sở kia.">cũng làm ở ' . esc_html( implode( ' · ', $ds ) )
+			. '</span>';
+	}
+
+	private static function o_coso_khac( $ck, $ho_ten, $ngay ) {
+		if ( ! is_array( $ck ) || '' === (string) $ck['coso'] ) { return ''; }
+		$chu = self::ngay_vn( $ngay ) . ' · ' . $ho_ten
+			. "\n" . 'chấm ở cơ sở ' . $ck['coso']
+			. "\n" . ( '' !== $ck['vao'] ? $ck['vao'] : '—' ) . ' → '
+			. ( '' !== $ck['ra'] ? $ck['ra'] : '—' )
+			. "\n" . VHCC_Cham::chu_gio( $ck['phut'] )
+			. "\n" . '⚠ KHÔNG cộng vào tổng của cơ sở đang xem — công của ngày này thuộc bảng '
+			. 'của cơ sở kia.';
+		return '<div class="mdem ngoai" title="' . esc_attr( $chu ) . '">'
+			. esc_html( $ck['coso'] ) . ' '
+			. ( null === $ck['phut'] ? '—' : self::so_vp( round( (int) $ck['phut'] / 60, 1 ) ) )
+			. '</div>';
+	}
+
 	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca ) {
 		if ( null === $r ) {
 			return array( 'noi' => '·', 'noi_tho' => '·', 'chu' => '', 'lop' => '', 'phut' => null );
@@ -2901,8 +2956,14 @@ class VHCC_Web {
 		}
 		echo '<th>TỔNG</th></tr></thead><tbody>';
 
+		/* ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật của `kiem-goi-cheo.php`. Thiếu hàm
+		   thì lưới chạy y như trước, chỉ là không có dòng cơ sở khác. */
+		$ck_ds = method_exists( 'VHCC_Cham', 'ngay_o_coso_khac' )
+			? VHCC_Cham::ngay_o_coso_khac( array_keys( $ten ), (string) $b['coSo'], $tt ) : array();
+
 		$tong_cs = 0;
 		foreach ( $ten as $ma => $ho_ten ) {
+			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 			$hts = array_keys( $o[ $ma ] );
 			sort( $hts );                       /* hàng chính ('') luôn đứng đầu */
 			$tong_nguoi = 0;
@@ -2930,7 +2991,8 @@ class VHCC_Web {
 			echo '<td>' . esc_html( $ho_ten )
 				. ( isset( $khong_cham[ $ma ] )
 					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
-						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' ) . '</td>';
+						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' )
+				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$phut_phu = array();
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
 				$ngay_o = sprintf( '%s-%02d', $tt, $i );
@@ -2971,6 +3033,10 @@ class VHCC_Web {
 						. '</div>';
 				}
 
+				/* Ngày ấy người này đứng ở cơ sở khác -> nói ra, đừng để ô trống trông như nghỉ. */
+				if ( isset( $ck_nguoi[ $i ] ) ) {
+					$duoi .= self::o_coso_khac( $ck_nguoi[ $i ], $ho_ten, $ngay_o );
+				}
 				$lop_o = ( null === $r_chinh && '' === $duoi ) ? 'o' : ( 'oc' . $c_chinh['lop'] );
 				$chu_o = $c_chinh['chu'];
 				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' ) . '"'
@@ -3024,6 +3090,10 @@ class VHCC_Web {
 			. 'là hàng riêng của người đó (ca đêm · tăng cường) — mỗi người chỉ một hàng, không '
 			. 'phải tìm xuống hàng dưới nữa. Bấm thẳng dòng nhỏ ấy là sửa đúng hàng ấy. '
 			. 'TỔNG đã gồm cả mấy dòng nhỏ, và kể ra bên dưới mỗi hậu tố mấy tiếng.'
+			. '<br>Dòng nhỏ <b>nền xám nghiêng</b> (VD <i>FF_SC 8</i>) là ngày người ấy chấm ở '
+			. '<b>cơ sở khác</b> — bày ra để ô ấy khỏi trông như ngày nghỉ. '
+			. '<b>KHÔNG cộng vào cột TỔNG ở đây</b>: lương tính theo cơ sở, công của ngày ấy '
+			. 'thuộc bảng của cơ sở kia.'
 			. '<br>⚠️ Đây là <b>giờ làm thực tế</b>, không phải giờ được trả tiền: tiền tính theo phần '
 			. 'giao với khung ca đã xếp, nên hai số có thể lệch.</p>';
 		echo '</div>';
@@ -3067,21 +3137,36 @@ class VHCC_Web {
 		echo '<th>TỔNG</th></tr></thead><tbody>';
 
 		list( $sg_n, $sg_m, $sg_co ) = self::o_dang_sua( $tt );
+
+		/* ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$ma_ds = array();
+		foreach ( $rows as $e_m ) { $ma_ds[] = (string) $e_m['ma']; }
+		$ck_ds = method_exists( 'VHCC_Cham', 'ngay_o_coso_khac' )
+			? VHCC_Cham::ngay_o_coso_khac( $ma_ds, (string) $b['station'], $tt ) : array();
+
 		$lech = 0;
 		foreach ( $rows as $e ) {
 			$ma  = (string) $e['ma'];
 			$ngd = isset( $o[ $ma ] ) ? $o[ $ma ] : array();
+			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 
 			echo '<tr><td>' . esc_html( $e['ten'] )
-				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' ) . '</td>';
+				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' )
+				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$cong = 0.0;
 			$co_dem = false;
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
 				$ngay_o = sprintf( '%s-%02d', $tt, $i );
 				$dang   = ( $ngay_o === $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) );
 				if ( ! isset( $ngd[ $i ] ) ) {
+					/* Ngày ấy người này đứng ở CƠ SỞ KHÁC. Không nói ra thì ô này là dấu chấm,
+					   và dấu chấm ở đây nghĩa là "không có dữ liệu chấm công" — sai hẳn: có,
+					   chỉ là ở chỗ khác. */
+					$ngoai = isset( $ck_nguoi[ $i ] )
+						? self::o_coso_khac( $ck_nguoi[ $i ], $e['ten'], $ngay_o ) : '';
 					echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '">'
-						. self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu ) . '</td>';
+						. self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu )
+						. $ngoai . '</td>';
 					continue;
 				}
 				$d = $ngd[ $i ];
@@ -3115,6 +3200,8 @@ class VHCC_Web {
 				} elseif ( $lam_d ) {
 					$dem_o = '🌙';
 				}
+				$ngoai = isset( $ck_nguoi[ $i ] )
+					? self::o_coso_khac( $ck_nguoi[ $i ], $e['ten'], $ngay_o ) : '';
 				if ( '' !== $dem_o ) {
 					/* Chú thích của ô nay phải nói CẢ HAI phần — hàng ca đêm không còn ô riêng
 					   để mang chú thích của nó nữa. */
@@ -3132,7 +3219,7 @@ class VHCC_Web {
 							? '<div class="mdem' . ( ! empty( $d['demThieuGio'] ) ? ' chu-hong' : '' )
 								. '">' . esc_html( $dem_o ) . '</div>' : '' ),
 						$ngay_o, $ma, true, $duoc_sua, $duoc_bu )
-					. '</td>';
+					. $ngoai . '</td>';
 			}
 			/* 🔴 Ô đối chiếu. Lưới cộng ra khác bảng tổng của engine = một trong hai chỗ sai,
 			   phải kêu ngay chứ không im lặng in ra hai con số. */
@@ -3158,7 +3245,11 @@ class VHCC_Web {
 			. 'người chỉ một hàng. <b>🌙</b> một mình = đêm đó CÓ làm · <b>🌙 kèm số</b> = công '
 			. 'đêm được tính vào ngày đó (ca đêm đêm trước cho công sang hôm sau) · '
 			. '<b class="chu-hong">🌙0</b> = có làm mà KHÔNG đủ giờ tối thiểu nên không ra công. '
-			. 'Số lớn phía trên đã là TỔNG công của ngày, gồm cả phần đêm.';
+			. 'Số lớn phía trên đã là TỔNG công của ngày, gồm cả phần đêm.'
+			. '<br>Dòng nhỏ <b>nền xám nghiêng</b> (VD <i>FF_SC 8</i>) là ngày người ấy chấm ở '
+			. '<b>cơ sở khác</b> — bày ra để ô ấy khỏi trông như ngày nghỉ. '
+			. '<b>KHÔNG cộng vào cột TỔNG ở đây</b>: lương tính theo cơ sở, công của ngày ấy '
+			. 'thuộc bảng của cơ sở kia.';
 		echo $lech
 			? '<br><b class="chu-hong">⚠️ ' . (int) $lech . ' người có tổng ở lưới KHÁC tổng của phép '
 				. 'tính — đừng dùng số nào cả, báo lại để tra.</b></p>'

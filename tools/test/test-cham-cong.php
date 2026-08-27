@@ -9426,6 +9426,134 @@ teq( 'người thường: khung tới 17:00, thiếu mốc 7 tiếng -> công l�
 	0.81, $kv_h['KV3']['congNgay'] );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE coso='VP_KT'" );
 
+
+/* ======================================================================================
+ *  60. NGƯỜI LÀM TỪ HAI CƠ SỞ TRỞ LÊN — ghép vào cùng một hàng
+ *
+ *  Anh Thắng 27/08/2026: *"nhân viên mà làm từ 2 cơ sở trở lên thì cũng nhớ ghép lại giúp anh"*.
+ *
+ *  Trước đó lưới chỉ đọc đúng một cơ sở, nên ở lưới cơ sở A những ngày người ta làm tại B là ô
+ *  TRỐNG — mà dấu chấm ở lưới này có nghĩa rất cụ thể: *không có dữ liệu chấm công*. Người rà
+ *  bảng đi tìm "sao hôm ấy nghỉ mà không xin phép", còn người ấy thì đang đứng ở cơ sở kia.
+ *
+ *  🔴 Chốt nặng nhất của khối này: BÀY RA MÀ KHÔNG CỘNG VÀO. Lương tính theo cơ sở — đơn giá,
+ *     khung ca, cách tính công đều của riêng cơ sở đó — nên cộng giờ của B vào bảng A là trả
+ *     sai tiền ở CẢ HAI nơi, mà bảng thì trông đầy đủ hơn trước.
+ * ====================================================================================== */
+vhcc_dung_bang();
+$CS_A = 'HAI_CS_A';
+$CS_B = 'HAI_CS_B';
+/* HC1 làm cả hai nơi; HC2 chỉ làm ở A — để canh cả chiều ngược lại. */
+vhcc_cham( $CS_A, '2026-07-01', 'HC1', '', '08:00:00', '17:00:00' );
+vhcc_cham( $CS_B, '2026-07-02', 'HC1', '', '09:00:00', '15:00:00' );   /* 6h ở cơ sở KIA */
+vhcc_cham( $CS_A, '2026-07-01', 'HC2', '', '08:00:00', '17:00:00' );
+
+$hc = VHCC_Cham::ngay_o_coso_khac( array( 'HC1', 'HC2' ), $CS_A, '2026-07' );
+t( '🔴 tìm ra ngày người ấy đứng ở cơ sở khác', isset( $hc['HC1'][2] ), $hc );
+teq( 'và nói đúng là cơ sở nào', $CS_B, $hc['HC1'][2]['coso'] );
+teq( 'kèm số phút của ngày ấy', 360, (int) $hc['HC1'][2]['phut'] );
+t( '🔴 KHÔNG kể ngày làm ở CHÍNH cơ sở đang xem — nếu không thì ngày nào cũng có dòng thừa',
+	! isset( $hc['HC1'][1] ), $hc );
+t( 'người chỉ làm một nơi thì không có gì', ! isset( $hc['HC2'] ), $hc );
+/* Chỉ tra ĐÚNG những mã được truyền vào. Truyền mã lạ mà nó trả về dữ liệu là một cửa rò: hàm
+   này cố ý không gác quyền, chỗ gác nằm ở lưới (`co_quyen_coso`) trước khi gọi. */
+teq( '🔴 mã không nằm trong danh sách truyền vào thì không trả gì', array(),
+	VHCC_Cham::ngay_o_coso_khac( array( 'HC2' ), $CS_A, '2026-07' ) );
+teq( 'danh sách mã rỗng -> rỗng, không phải quét cả bảng', array(),
+	VHCC_Cham::ngay_o_coso_khac( array(), $CS_A, '2026-07' ) );
+teq( 'tháng khác -> rỗng', array(), VHCC_Cham::ngay_o_coso_khac( array( 'HC1' ), $CS_A, '2026-08' ) );
+
+/* ---- Trên lưới ---- */
+/* ⚠️ DỰNG THẺ PHIÊN THẲNG, đừng đăng nhập bằng PIN mẫu: khối này mở đầu bằng `vhcc_dung_bang()`
+   nên sổ nhân sự vừa bị dọn sạch — `vhcc_web('135791')` sẽ rơi vào màn nhập PIN, và mọi phép
+   thử dưới đây đỏ vì không có lưới chứ không phải vì lưới thiếu dòng. Đã vấp đúng chuyện này. */
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $CS_A . ',' . $CS_B, 'HCAD' );
+$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_hc = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( 'dựng cảnh: lưới cơ sở A vẽ ra được', strpos( $h_hc, 'Lưới cả tháng' ) !== false,
+	substr( $h_hc, 0, 600 ) );
+t( '🔴 ô của ngày ấy có dòng xám ghi CƠ SỞ KIA, không phải dấu chấm trơn',
+	strpos( $h_hc, '<div class="mdem ngoai"' ) !== false, $h_hc );
+t( 'dòng ấy in thẳng mã cơ sở kia ra, khỏi phải rê chuột',
+	preg_match( '~<div class="mdem ngoai"[^>]*>HAI_CS_B ~', $h_hc ) === 1, $h_hc );
+t( 'và chú thích nói rõ KHÔNG cộng vào tổng của cơ sở đang xem',
+	strpos( $h_hc, 'KHÔNG cộng vào tổng của cơ sở đang xem' ) !== false, $h_hc );
+/* 🔴 Nhãn ở ĐẦU HÀNG. Một người làm hai nơi mà lưới này chỉ có vài ngày thì nhìn hàng ấy
+   tưởng người ta nghỉ gần hết tháng — nhãn nói ngay phần còn lại nằm ở đâu. */
+t( '🔴 tên người mang nhãn "cũng làm ở <cơ sở kia>"',
+	strpos( $h_hc, 'cũng làm ở HAI_CS_B' ) !== false, $h_hc );
+t( 'người chỉ làm một nơi thì KHÔNG bị gắn nhãn',
+	substr_count( $h_hc, 'cũng làm ở' ) === 1, $h_hc );
+/* 🔴 TỔNG KHÔNG ĐỔI. Đây là con số ra tiền — bày thêm một dòng để nhìn mà làm nó nhích lên là
+   hỏng đúng thứ khối này hứa không đụng tới. */
+$hc_b = VHCC_Cham::bang_cham_cong( $U_AD, $CS_A, '2026-07' );
+$hc_t = 0;
+foreach ( $hc_b['hang'] as $hc_r ) {
+	if ( 'HC1' === $hc_r['maNV'] ) { $hc_t += (int) $hc_r['phut']; }
+}
+teq( '🔴 tổng giờ của người ấy ở cơ sở này vẫn đúng 9 tiếng, không ăn thêm 6 tiếng của cơ sở kia',
+	540, $hc_t );
+t( 'và ô TỔNG trên lưới vẫn in đúng con số ấy',
+	strpos( $h_hc, '<td class="tong"><b>9h</b>' ) !== false, $h_hc );
+t( 'lưới KHÔNG in ra con số 15h (9h + 6h) ở bất cứ đâu',
+	strpos( $h_hc, '>15h<' ) === false, $h_hc );
+
+/* ---- 🔴 CÙNG LUẬT Ở LƯỚI CÔNG. Hai lưới là HAI HÀM khác nhau (`ve_luoi_gio` / `ve_luoi_vp`),
+   nên thử một cái không nói gì về cái kia. Cơ sở A ở trên không khai bộ phận nên tính THEO GIỜ
+   — cả khối trên chưa hề chạm `ve_luoi_vp`. Đã phá thử để thấy đúng chuyện đó: bỏ hẳn dòng cơ
+   sở khác ra khỏi lưới CÔNG mà bộ thử vẫn xanh. ---- */
+$CS_VPA = 'HAI_VP_A';
+vhcc_bo_phan( $CS_VPA, 'Văn phòng' );
+teq( 'dựng cảnh: cơ sở này tính THEO CÔNG', 'cong', VHCC_Luong::cach_tinh( $CS_VPA ) );
+vhcc_cham( $CS_VPA, '2026-07-01', 'HV1', '', '08:30:00', '17:00:00' );
+vhcc_cham( $CS_B,   '2026-07-02', 'HV1', '', '09:00:00', '15:00:00' );   /* ngày ở cơ sở KIA */
+vhcc_cham( $CS_VPA, '2026-07-01', 'HV2', '', '08:30:00', '17:00:00' );   /* chỉ làm một nơi */
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $CS_VPA . ',' . $CS_B, 'HCAD' );
+$_GET = array( 'man' => 'vp', 'ccs' => $CS_VPA, 'cth' => '2026-07' );
+$_POST = array();
+ob_start(); VHCC_Web::phuc_vu(); $h_hv = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( 'dựng cảnh: lưới CÔNG vẽ ra được', strpos( $h_hv, 'Ô là <b>số công</b>' ) !== false,
+	substr( $h_hv, 0, 600 ) );
+t( '🔴 lưới CÔNG cũng có dòng xám ghi cơ sở kia',
+	preg_match( '~<div class="mdem ngoai"[^>]*>HAI_CS_B ~', $h_hv ) === 1, $h_hv );
+t( 'và cũng gắn nhãn "cũng làm ở" cạnh tên', strpos( $h_hv, 'cũng làm ở HAI_CS_B' ) !== false, $h_hv );
+/* 🔴 Nhãn gắn cho ĐÚNG NGƯỜI. Gắn nhầm cả hàng là bảo người rà bảng đi tìm những ngày không
+   tồn tại ở một cơ sở người ta chưa từng đặt chân tới. */
+teq( '🔴 chỉ MỘT người mang nhãn, không phải cả bảng', 1, substr_count( $h_hv, 'cũng làm ở' ) );
+
+/* ---- Lõi: mấy chỗ dễ sai mà nhìn màn hình không thấy ---- */
+/* Một ngày chấm ở HAI nơi khác nữa: ô chỉ đủ chỗ một dòng, giữ nơi làm NHIỀU giờ hơn. Giữ nơi
+   ít giờ thì dòng ấy nói một nửa sự thật mà nghe như cả sự thật. */
+/* ⚠️ Phải thử CẢ HAI CHIỀU, và cả hai đều phải NGƯỢC thứ tự đọc của câu truy vấn:
+     · nơi NHIỀU giờ hơn nằm SAU (C 8h sau B 6h)  -> "giữ cái đầu tiên" thì sai
+     · nơi ÍT giờ hơn nằm SAU  (D 2h sau C 8h)    -> "giữ cái cuối cùng" thì sai
+   Chỉ thử một chiều thì phép thử xanh với đúng cái lỗi nó định canh — bản đầu của khối này
+   đặt nơi ít giờ hơn ở sau, mà thứ tự đọc lại vốn đã trả nơi đúng ra trước, nên vết phá "giữ
+   cái đầu tiên" không đỏ. */
+$CS_C = 'HAI_CS_C';
+$CS_D = 'HAI_CS_D';
+vhcc_cham( $CS_C, '2026-07-02', 'HC1', '', '07:00:00', '15:00:00' );   /* 8h, NHIỀU hơn 6h ở B */
+vhcc_cham( $CS_D, '2026-07-02', 'HC1', '', '18:00:00', '20:00:00' );   /* 2h, ít nhất, vào sau chót */
+$hc3 = VHCC_Cham::ngay_o_coso_khac( array( 'HC1' ), $CS_A, '2026-07' );
+teq( '🔴 một ngày chấm ở nhiều nơi khác -> giữ nơi làm NHIỀU giờ nhất', $CS_C, $hc3['HC1'][2]['coso'] );
+teq( 'và giữ luôn số phút của chính nơi ấy', 480, (int) $hc3['HC1'][2]['phut'] );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' )
+	. " WHERE coso='" . $CS_C . "' OR coso='" . $CS_D . "'" );
+
+/* 🔴 Mã NV trong sổ có đủ kiểu viết hoa thường — máy đẩy về một kiểu, người nạp .csv gõ kiểu
+   khác. Tra không chuẩn hoá thì người có mã chữ thường rơi ra ngoài: lưới im lặng không có
+   dòng nào, y hệt như người ấy chỉ làm một nơi. */
+vhcc_cham( $CS_B, '2026-07-03', 'hc1', '', '08:00:00', '12:00:00' );
+$hc_th = VHCC_Cham::ngay_o_coso_khac( array( 'HC1' ), $CS_A, '2026-07' );
+t( '🔴 mã chữ thường trong sổ vẫn khớp với mã chữ hoa của lưới',
+	isset( $hc_th['HC1'][3] ), $hc_th );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='hc1'" );
+
+vhcc_dung_bang();
+
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cai_dat' ) . " WHERE khoa='VP_CONG_CFG'" );
 vhcc_dung_bang();
 

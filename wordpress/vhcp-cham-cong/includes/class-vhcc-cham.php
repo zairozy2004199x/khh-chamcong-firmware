@@ -107,6 +107,58 @@ class VHCC_Cham {
 			'co' => self::ds_ghi_chu( $u, $coso, $tt ) );
 	}
 
+	/**
+	 * NGƯỜI NÀY THÁNG NÀY CÒN CHẤM Ở CƠ SỞ NÀO KHÁC KHÔNG.
+	 *
+	 * Anh Thắng 27/08/2026: *"nhân viên mà làm từ 2 cơ sở trở lên thì cũng nhớ ghép lại giúp
+	 * anh"*. Trước đó lưới chỉ đọc đúng một cơ sở, nên một người chạy hai nơi thì ở lưới cơ sở
+	 * A những ngày làm tại B là ô TRỐNG — nhìn y hệt ngày nghỉ. Người rà bảng đi tìm "sao hôm
+	 * ấy nghỉ mà không xin phép", còn người ấy thì đang đứng ở cơ sở kia.
+	 *
+	 * 🔴 CHỈ ĐỂ NHÌN, KHÔNG CỘNG VÀO TIỀN. Trả về riêng một mảng, không trộn vào `hang` —
+	 *    lương tính THEO CƠ SỞ (đơn giá, khung ca, cách tính công đều của riêng cơ sở đó), nên
+	 *    cộng giờ của cơ sở B vào bảng cơ sở A là trả sai tiền cho cả hai nơi. Lưới bày ra để
+	 *    biết hôm ấy người ta có đi làm, còn công của ngày ấy thuộc về bảng của cơ sở kia.
+	 *
+	 * ⚠️ KHÔNG gác quyền ở đây. Hàm chỉ trả về CƠ SỞ và SỐ GIỜ của chính những mã đã có mặt
+	 *    trong lưới — nghĩa là người gọi đã qua cửa `co_quyen_coso` cho cơ sở đang xem rồi.
+	 *    Đổi lại, người gọi PHẢI truyền danh sách mã lấy từ chính lưới, đừng truyền mã tuỳ ý.
+	 *
+	 * Trả: [ MÃ ][ số ngày ] => array( 'coso' => …, 'phut' => …, 'vao' => …, 'ra' => … )
+	 * Một người một ngày chấm ở hai nơi khác nữa thì giữ nơi có GIỜ NHIỀU NHẤT — ô chỉ đủ chỗ
+	 * cho một dòng, và nơi làm nhiều hơn là nơi đáng nói tới.
+	 */
+	public static function ngay_o_coso_khac( $ds_ma, $coso, $tt ) {
+		global $wpdb;
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
+		$ma   = array();
+		foreach ( (array) $ds_ma as $x ) {
+			$x = trim( (string) $x );
+			if ( '' !== $x ) { $ma[ strtoupper( $x ) ] = true; }
+		}
+		if ( ! $ma || '' === $coso || '' === (string) $tt ) { return array(); }
+		/* Dựng chỗ trống cho câu truy vấn theo ĐÚNG số mã, đừng nối chuỗi mã vào câu lệnh. */
+		$ds  = array_keys( $ma );
+		$cho = implode( ',', array_fill( 0, count( $ds ), '%s' ) );
+		$sql = 'SELECT ngay, ma_nv, coso, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
+			. ' WHERE ngay LIKE %s AND coso <> %s AND hau_to = %s AND UPPER(ma_nv) IN (' . $cho . ')'
+			. ' ORDER BY ngay, ma_nv';
+		$tham = array_merge( array( $tt . '-%', $coso, '' ), $ds );
+		$out  = array();
+		foreach ( VHCC_DB::rows( $wpdb->prepare( $sql, $tham ) ) as $r ) {
+			$m = strtoupper( trim( (string) $r['ma_nv'] ) );
+			$n = (int) substr( (string) $r['ngay'], 8, 2 );
+			$p = self::phut_lam( $r['gio_vao_giay'], $r['gio_ra_giay'] );
+			if ( isset( $out[ $m ][ $n ] ) && (int) $out[ $m ][ $n ]['phut'] >= (int) $p ) { continue; }
+			$out[ $m ][ $n ] = array(
+				'coso' => VHCC_NhanSu::chuan_coso( $r['coso'] ),
+				'phut' => $p,
+				'vao'  => VHCC_DB::hhmmss( $r['gio_vao_giay'] ),
+				'ra'   => VHCC_DB::hhmmss( $r['gio_ra_giay'] ) );
+		}
+		return $out;
+	}
+
 	/** Phút -> "8h 30m". Bản dịch `_fmtHrsTxt`; null -> "—" để dấu hiệu sai lộ ra. */
 	public static function chu_gio( $phut ) {
 		if ( null === $phut || '' === $phut ) { return '—'; }
