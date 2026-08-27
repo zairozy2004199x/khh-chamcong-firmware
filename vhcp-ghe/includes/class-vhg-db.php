@@ -663,6 +663,20 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			KEY loc (coso_key,ngay,trang_thai)";
 
+		/* PIN nhân viên báo cáo — DANH TÍNH RIÊNG, KHÔNG dùng token /ghe. Mỗi PIN: tên + danh sách
+		   cơ sở (`coso`, nhiều mục ngăn bởi , hoặc ;) + ghế riêng (`ghe`) nếu cần vượt cơ sở.
+		   Đăng nhập báo cáo = nhập PIN. Về sau nối `pin` này sang PIN chấm công K&H là một mối
+		   (chấm công + nộp báo cáo + ghi chi phí chung một danh tính) — anh Thắng 27/08/2026.
+		   ⛔ REPO CÔNG KHAI → KHÔNG seed PIN trong mã; Admin tự nhập ở màn quản lý. */
+		$b['bc_pin'] = "
+			pin VARCHAR(20) NOT NULL,
+			ten VARCHAR(190) NOT NULL DEFAULT '',
+			coso VARCHAR(2000) NOT NULL DEFAULT '',
+			ghe VARCHAR(1000) NOT NULL DEFAULT '',
+			active TINYINT(1) NOT NULL DEFAULT 1,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (pin)";
+
 		return $b;
 	}
 
