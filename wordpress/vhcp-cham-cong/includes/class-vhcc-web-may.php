@@ -110,6 +110,7 @@ class VHCC_WebMay {
 		$ds = ! empty( $m['ok'] ) ? (array) $m['data'] : array();
 
 		self::the_cong();
+		self::the_chan_doan();
 		self::the_mat_nhip( $ds );
 		self::the_nhat_ky();
 		self::the_ds_may( $ds, $ky );
@@ -141,6 +142,101 @@ class VHCC_WebMay {
 				. 'Đặt trong <code>wp-config.php</code> chứ không trong cơ sở dữ liệu: bảng cài đặt '
 				. 'thì app đọc được, mà app thì có màn hình.</div>';
 		}
+		echo '</div>';
+	}
+
+	/**
+	 * CỔNG ĐANG Ở TRẠNG THÁI NÀO — đọc từ chính nhật ký, không bắt người ta tự suy.
+	 *
+	 * =============================================================================================
+	 * Anh Thắng 27/08/2026: *"bắt đầu kết nối máy chấm công để tránh mất dữ liệu"*, kèm ảnh màn
+	 * này: khoá đã cấu hình, *"Chưa có máy nào"*, và nhật ký chỉ có ba dòng `GET_VAO_CONG_MAY`.
+	 * =============================================================================================
+	 * 🔴 BA DÒNG ẤY LÀ MANH MỐI DUY NHẤT, VÀ NÓ ĐANG NẰM IM.
+	 *    Người nhìn màn này thấy "khoá ✓" và "chưa có máy nào" thì kết luận sai gần như chắc
+	 *    chắn: *chắc firmware chưa nạp*. Nhưng cổng còn có mấy trạng thái khác trông y hệt từ
+	 *    bên ngoài, mà chữa thì mỗi cái một đường:
+	 *
+	 *      • Chưa từng có gói POST nào  -> ESP32 chưa chạy, hoặc chưa nạp firmware, hoặc sai WiFi
+	 *      • Có POST nhưng SAI KHOÁ      -> khoá trong firmware khác `VHCC_KHOA_MAY`
+	 *      • Chỉ toàn GET               -> firmware BỊ CHUYỂN HƯỚNG: nó gọi lại bằng GET và mất
+	 *                                       trọn thân gói. Địa chỉ nạp vào máy sai dạng — thừa
+	 *                                       dấu `/` cuối, hoặc `http` thay vì `https`, hoặc
+	 *                                       thiếu `www`. WordPress chuẩn hoá đường dẫn bằng
+	 *                                       chuyển hướng, và đó là chỗ lượt bấm chết.
+	 *
+	 * ⚠️ ĐỌC MỖI DÒNG GET LÀ CHƯA ĐỦ ĐỂ KẾT LUẬN. Chính người quản trị mở địa chỉ ấy bằng trình
+	 *    duyệt để thử cũng sinh ra đúng dòng ấy. Phân biệt bằng NHỊP: firmware gọi mỗi vài phút
+	 *    nên hỏng thì sinh ra hàng chục dòng dày đặc; người mở tay thì được vài dòng rải rác.
+	 *    Nói ra cả hai khả năng, đừng chọn hộ.
+	 */
+	private static function the_chan_doan() {
+		$nk = (array) get_option( 'vhcc_nhat_ky_may', array() );
+		$dem = array( 'get' => 0, 'khoa' => 0, 'khac' => 0 );
+		$get_dau = '';
+		$get_cuoi = '';
+		foreach ( $nk as $x ) {
+			$ma = isset( $x['ma'] ) ? (string) $x['ma'] : '';
+			if ( 'GET_VAO_CONG_MAY' === $ma ) {
+				$dem['get']++;
+				$luc = isset( $x['luc'] ) ? (string) $x['luc'] : '';
+				if ( '' === $get_dau ) { $get_dau = $luc; }
+				$get_cuoi = $luc;
+			} elseif ( 'SAI_KHOA' === $ma || 'KHOA_SAI' === $ma ) {
+				$dem['khoa']++;
+			} else {
+				$dem['khac']++;
+			}
+		}
+
+		global $wpdb;
+		$so_luot = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+			. " WHERE nguon IN ('may','hon-hop')" );
+		$so_may  = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'may' ) );
+
+		echo '<div class="the" id="chandoan"><h2>Cổng đang ở trạng thái nào</h2>';
+
+		if ( $so_may > 0 || $so_luot > 0 ) {
+			echo '<p><span class="chu-luc">✓ Cổng ĐÃ nhận được dữ liệu thật.</span> '
+				. esc_html( $so_may ) . ' máy đã tự hiện ra · '
+				. esc_html( number_format( $so_luot ) ) . ' hàng chấm công mang nguồn máy.</p>';
+			if ( $dem['get'] > 0 ) {
+				echo '<p class="mo">Có ' . (int) $dem['get'] . ' lượt GET lẫn vào — thường là người '
+					. 'mở địa chỉ ấy bằng trình duyệt để thử. Chỉ đáng lo nếu chúng dày đặc và '
+					. 'liên tục.</p>';
+			}
+			echo '</div>';
+			return;
+		}
+
+		/* Chưa có gì cả — nói ra ĐÚNG mấy khả năng, kèm cách phân biệt. */
+		echo '<div class="bao canh"><b>Cổng chưa nhận được lượt chấm công nào.</b> '
+			. 'Khoá đã cấu hình và cổng đang mở, nhưng chưa máy nào gửi được gói POST hợp lệ.</div>';
+
+		if ( $dem['get'] > 0 ) {
+			echo '<p>Nhật ký có <b>' . (int) $dem['get'] . ' lượt GET</b> vào cổng'
+				. ( '' !== $get_cuoi ? ' (gần nhất <b>' . esc_html( $get_cuoi ) . '</b>)' : '' ) . '. '
+				. 'Hai cách đọc, và cách phân biệt:</p>';
+			echo '<ul class="mo" style="margin:6px 0 0 18px">';
+			echo '<li><b>Vài lượt rải rác</b> — gần như chắc là chính anh/chị mở địa chỉ ấy bằng '
+				. 'trình duyệt để thử. Không sao cả, nhưng cũng không nói lên được gì về firmware.</li>';
+			echo '<li><b>Hàng chục lượt dày đặc, cách nhau vài phút</b> — firmware ĐANG bị chuyển '
+				. 'hướng. Nó POST, máy chủ đáp “đi chỗ khác”, nó gọi lại bằng GET và <b>mất trọn '
+				. 'thân gói</b>. Chữa ở địa chỉ nạp vào máy: phải đúng <code>'
+				. esc_html( home_url( '/' . VHCC_Nhan::DUONG ) ) . '</code> — không thừa dấu '
+				. '<code>/</code> cuối, đúng <code>https</code>, đúng có hay không có '
+				. '<code>www</code> như tên miền thật.</li>';
+			echo '</ul>';
+		} else {
+			echo '<p class="mo">Nhật ký <b>trống trơn</b> — chưa có lượt nào chạm tới cổng, kể cả '
+				. 'lượt hỏng. Nghĩa là gói của máy chưa ra khỏi cửa hàng: ESP32 chưa chạy, chưa nạp '
+				. 'firmware, hoặc nó chưa vào được WiFi / 4G.</p>';
+		}
+
+		echo '<p class="mo">Thử nhanh ngay từ máy tính: mở địa chỉ cổng bằng trình duyệt. Đáp lại '
+			. 'phải là <code>{"status":"ERROR","message":"Cong nay chi nhan POST."}</code> kèm mã '
+			. '<b>405</b>. Ra trang khác, ra trang chủ, hay ra 404 thì địa chỉ đang sai — và đó '
+			. 'đúng là cái làm firmware mất gói.</p>';
 		echo '</div>';
 	}
 

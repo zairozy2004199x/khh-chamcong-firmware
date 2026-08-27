@@ -11855,6 +11855,96 @@ t( 'dựng cảnh: có dòng nhật ký giờ sai khuôn', '' !== $nk_dong, $nk_
 t( '🔴 nhật ký kể ĐÚNG mã máy, không kể mã nhân sự đã dịch',
 	strpos( $nk_dong, '20000601' ) !== false && strpos( $nk_dong, 'MNNV1CTY0002' ) === false, $nk_dong );
 
+/* ---- Màn chẩn đoán: cổng đang ở trạng thái nào ---- */
+/* 🔴 Anh Thắng 27/08/2026, kèm ảnh màn Máy & Firmware: khoá đã cấu hình, "Chưa có máy nào", và
+   nhật ký chỉ ba dòng `GET_VAO_CONG_MAY`. Người nhìn màn ấy kết luận sai gần như chắc chắn —
+   "chắc firmware chưa nạp" — trong khi cổng còn mấy trạng thái khác trông y hệt từ bên ngoài mà
+   chữa thì mỗi cái một đường. */
+/* ⚠️ Khối này phải chạy SAU mấy phép thử cổng ở trên, và dựng lại bảng SẠCH cho riêng nó: ba
+   trạng thái cần canh đều là trạng thái "chưa có gì", mà khối trên vừa đẩy dữ liệu thật vào.
+   Đặt nó TRƯỚC khối kia thì `vhcc_dung_bang()` xoá mất cảnh của khối kia — đã vấp đúng vậy. */
+vhcc_dung_bang();
+delete_option( 'vhcc_nhat_ky_may' );
+$M_CS2 = 'CD_CS';
+vhcc_bo_phan( $M_CS2, 'Khu vui chơi' );
+$tok_cd = VHCC_Auth::phat_token( 'Anh Quản Trị', 'Admin', '', 'CDAD' );
+/* ⚠️ CẮT ĐÚNG KHỐI RỒI HÃY SOI. Cả màn này có mấy chỗ khác cũng in địa chỉ cổng (khối "Cổng
+   nhận chấm công từ máy") và cũng in mốc giờ (bảng nhật ký). Soi cả trang thì phép thử bắt
+   nhầm chuỗi ở khối khác, và vết phá đúng chỗ vẫn xanh — đã vấp đúng vậy. */
+function vp_khoi_cd( $h ) {
+	$i = strpos( $h, 'id="chandoan"' );
+	if ( false === $i ) { return ''; }
+	$j = strpos( $h, '<div class="the"', $i + 10 );
+	return false === $j ? substr( $h, $i ) : substr( $h, $i, $j - $i );
+}
+
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( 'có khối chẩn đoán', strpos( $h_cd, 'Cổng đang ở trạng thái nào' ) !== false, $h_cd );
+t( '🔴 chưa gì cả: nói CỔNG CHƯA NHẬN ĐƯỢC LƯỢT NÀO',
+	strpos( $h_cd, 'Cổng chưa nhận được lượt chấm công nào' ) !== false, $h_cd );
+/* Nhật ký trống trơn = gói chưa ra khỏi cửa hàng. Khác hẳn "có gói mà hỏng". */
+t( 'và nói rõ nhật ký trống nghĩa là gói chưa ra khỏi cửa hàng',
+	strpos( $h_cd, 'chưa có lượt nào chạm tới cổng' ) !== false, $h_cd );
+
+/* Có lượt GET -> nói ra HAI cách đọc và cách phân biệt, đừng chọn hộ: chính người quản trị mở
+   địa chỉ ấy bằng trình duyệt cũng sinh ra đúng dòng ấy. */
+vhcc_may_gui( array( 'logs' => array() ), 'khoa-thu-nghiem-123', 'GET' );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 có lượt GET thì kể ra', strpos( $h_cd, 'lượt GET</b> vào cổng' ) !== false, $h_cd );
+t( 'nói cách đọc thứ nhất: người mở tay bằng trình duyệt',
+	strpos( $h_cd, 'mở địa chỉ ấy bằng' ) !== false, $h_cd );
+t( '🔴 và cách đọc thứ hai: firmware bị CHUYỂN HƯỚNG, mất trọn thân gói',
+	strpos( $h_cd, 'mất trọn' ) !== false && strpos( $h_cd, 'chuyển hướng' ) !== false, $h_cd );
+t( 'kèm cách phân biệt bằng NHỊP (rải rác vs dày đặc)',
+	strpos( $h_cd, 'dày đặc' ) !== false, $h_cd );
+/* Chỉ đường chữa: địa chỉ nạp vào máy phải đúng dạng. */
+/* 🔴 CHỈ CHỖ CHỮA THÌ PHẢI CHỈ ĐỦ: đúng địa chỉ nào, và cấm cái gì. Câu "địa chỉ phải đúng
+   dạng" không chữa được gì cho người đang cầm cái máy — họ cần đọc thấy chuỗi để dán vào. */
+t( 'và chỉ đúng chỗ chữa: kể ra ĐÚNG địa chỉ cổng, và cấm dấu gạch chéo cuối',
+	strpos( $h_cd, esc_html( home_url( '/' . VHCC_Nhan::DUONG ) ) ) !== false
+	&& strpos( $h_cd, 'không thừa dấu' ) !== false
+	&& strpos( $h_cd, '<code>/</code> cuối' ) !== false, $h_cd );
+
+/* ⚠️ ĐẾM PHẢI ĐÚNG LOẠI DÒNG. Nhật ký cổng chứa đủ thứ: giờ sai khuôn, máy chưa gán, sai khoá.
+   Đếm bừa cả nhật ký thành "lượt GET" là vẽ ra một cơn hỏng không có thật, rồi người ta đi
+   sửa địa chỉ nạp máy trong khi địa chỉ vốn đúng. */
+update_option( 'vhcc_nhat_ky_may', array(
+	array( 'luc' => '2026-08-27 08:00:00', 'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
+	array( 'luc' => '2026-08-27 08:01:00', 'ma' => 'GIO_SAI_KHUON', 'loi' => 'gio bay ba' ),
+	array( 'luc' => '2026-08-27 08:02:00', 'ma' => 'MAY_CHUA_GAN', 'loi' => 'chua gan co so' ),
+	array( 'luc' => '2026-08-27 08:03:00', 'ma' => 'GET_VAO_CONG_MAY', 'loi' => '' ),
+) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 đếm ĐÚNG 2 lượt GET, không đếm cả 4 dòng nhật ký',
+	strpos( $h_cd, '<b>2 lượt GET</b>' ) !== false
+	&& strpos( $h_cd, '<b>4 lượt GET</b>' ) === false, $h_cd );
+t( 'và kể mốc GET gần nhất để còn soi nhịp',
+	strpos( $h_cd, '2026-08-27 08:03:00' ) !== false, $h_cd );
+
+/* ⚠️ HAI ĐƯỜNG ĐỀU LÀ "ĐÃ CHẠY". Có hàng chấm công mang nguồn máy mà bảng máy trống là chuyện
+   có thật: sổ máy dựng lại, hoặc dữ liệu chuyển từ nơi khác sang. Chỉ nhìn bảng máy thì màn
+   này kêu "chưa nhận được gì" trong khi công đã vào sổ đủ — và người ta đi chữa cái không hỏng. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array(
+	'coso' => $M_CS2, 'ngay' => '2026-08-27', 'ma_nv' => 'CDNV0001',
+	'ho_ten' => 'Người Thử', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+	'nguon' => 'may',
+) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 chưa có hàng máy nhưng đã có công nguồn máy: vẫn là ĐÃ NHẬN ĐƯỢC',
+	strpos( $h_cd, 'Cổng ĐÃ nhận được dữ liệu thật' ) !== false, $h_cd );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv = 'CDNV0001'" );
+
+/* Có dữ liệu THẬT rồi thì đổi giọng hẳn — đừng doạ người ta khi mọi thứ đang chạy. */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'CD-MAY', 'mac' => '', 'cua_hang' => $M_CS2 ) );
+$h_cd = vp_khoi_cd( vhcc_hr( $tok_cd, array( 'man' => 'may' ) ) );
+t( '🔴 có máy rồi thì báo ĐÃ NHẬN ĐƯỢC dữ liệu thật',
+	strpos( $h_cd, 'Cổng ĐÃ nhận được dữ liệu thật' ) !== false, $h_cd );
+t( 'và thôi kêu chưa nhận được gì',
+	strpos( $h_cd, 'Cổng chưa nhận được lượt chấm công nào' ) === false, $h_cd );
+/* Mấy lượt GET lẫn vào lúc ấy chỉ là ghi chú, không phải cảnh báo. */
+t( 'lượt GET lúc này chỉ là ghi chú', strpos( $h_cd, 'Chỉ đáng lo nếu' ) !== false, $h_cd );
+delete_option( 'vhcc_nhat_ky_may' );
+
 vhcc_dung_bang();
 
 if ( count( $truot ) ) {
