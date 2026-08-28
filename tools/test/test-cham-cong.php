@@ -9627,6 +9627,75 @@ $tt_h = vhcc_ns( 'Kế toán' );
 t( '🔴 viết cơ sở lệch HOA/THƯỜNG vẫn nhận ra là cùng một chỗ',
 	strpos( $tt_h, 'một người hai hồ sơ' ) !== false, $tt_h );
 
+/* ---- PHÂN QUYỀN TRANG NỘI BỘ, NGAY TẠI TRANG NGOÀI -----------------------------------------
+   🔴 Anh Thắng 28/08/2026, ảnh một Quản lý bị chối ở trang Nội bộ: *"Trang nội bộ là trang
+      chung thì ai vẫn được vào mà"*. Đúng — mặc định của `VHNB_Quyen::VIEC` là Nhân viên. Nhưng
+      ô ấy trên host đang đặt Admin, và chỗ đổi lại nằm trong wp-admin.
+   ⚠️ Trang này đã là nơi trả lời "ai vào được trang nào". Để một trang trong hệ khai quyền ở
+      chỗ khác thì người đi tìm sẽ tìm ở đây trước, không thấy, rồi kết luận là không đổi được. */
+require_once $goc . '/wordpress/vhcp-noi-bo/includes/class-vhnb-quyen.php';
+delete_option( VHNB_Quyen::O );
+$tt_h = vhcc_ns( 'Kế toán' );
+t( '🔴 trang ngoài có bảng phân quyền Nội bộ',
+	strpos( $tt_h, 'Phân quyền trang Nội bộ' ) !== false, $tt_h );
+t( 'có ô xổ cho việc "vào trang"', strpos( $tt_h, 'name="nb[vao]"' ) !== false, $tt_h );
+t( 'và cho cả bốn việc',
+	strpos( $tt_h, 'name="nb[dang]"' ) !== false && strpos( $tt_h, 'name="nb[nhom]"' ) !== false
+	&& strpos( $tt_h, 'name="nb[don]"' ) !== false, $tt_h );
+/* ⚠️ Nói ra MẶC ĐỊNH ngay cạnh, để người khai biết mình đang lệch khỏi nó bao xa. */
+t( 'nói rõ trang Nội bộ vốn là trang CHUNG',
+	strpos( $tt_h, 'trang chung</b>' ) !== false, $tt_h );
+/* 🔴 QUAN HỆ HAI BẬC — cùng bài với khối ghép mã. Chốt quyền trong `the_quyen_noi_bo()` chưa
+   từng rẽ sang false (cửa vào màn cũng là `ho_so`), nên không dựng nổi cảnh và mọi vết phá đều
+   xanh. Chốt vẫn giữ vì nó che thay đổi ở chỗ khác; canh chính quan hệ ấy. */
+t( '🔴 quyền khai phân quyền Nội bộ không được cao hơn quyền VÀO trang',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ] <= VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ] );
+
+/* Lưu qua ĐÚNG đường màn hình dùng. Luật vẫn ở `VHNB_Quyen` — đây chỉ là ô xổ gọi vào nó. */
+$_POST = array( 'nb' => array( 'vao' => 'NHAN_VIEN', 'don' => 'QUAN_LY' ) );
+$tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
+$_POST = array();
+$tt_c = VHNB_Quyen::cai_dat();
+teq( '🔴 lưu được: mở lại cửa vào cho Nhân viên', 'NHAN_VIEN', (string) $tt_c['vao'] );
+teq( 'và ô khác cũng lưu theo', 'QUAN_LY', (string) $tt_c['don'] );
+t( 'Quản lý nay vào được trang Nội bộ',
+	VHNB_Quyen::duoc( array( 'role' => 'Quản lý' ), 'vao' ) );
+
+/* 🔴 SIẾT Ô "VÀO TRANG" LÀ ĐÓNG CỬA CẢ TRANG — phải nói ra, vì nó im lặng cho tới khi có
+   người bị chối. Đúng chuyện anh Thắng vừa vấp. */
+$_POST = array( 'nb' => array( 'vao' => 'ADMIN' ) );
+$tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
+$_POST = array();
+$tt_txt = (string) wp_json_encode( $tt_bao );
+t( '🔴 siết cửa vào thì cảnh báo ngay',
+	strpos( $tt_txt, 'KHÔNG vào được trang Nội bộ' ) !== false, $tt_bao );
+t( 'và gọi đúng tên bậc vừa đặt', strpos( $tt_txt, 'Admin' ) !== false, $tt_bao );
+t( 'dựng cảnh: lúc ấy Quản lý bị chối thật',
+	! VHNB_Quyen::duoc( array( 'role' => 'Quản lý' ), 'vao' ) );
+
+/* Đặt về Nhân viên thì THÔI cảnh báo — cảnh báo thừa là cảnh báo bị bỏ qua. */
+$_POST = array( 'nb' => array( 'vao' => 'NHAN_VIEN' ) );
+$tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
+$_POST = array();
+t( 'để mở cho Nhân viên thì thôi cảnh báo',
+	strpos( (string) wp_json_encode( $tt_bao ), 'KHÔNG vào được' ) === false, $tt_bao );
+
+/* ⚠️ Bậc lạ thì `VHNB_Quyen::dat()` tự bỏ — trang này KHÔNG lọc lại, để luật nằm một chỗ. */
+$_POST = array( 'nb' => array( 'vao' => 'MOT_BAC_BIA_RA' ) );
+VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
+$_POST = array();
+teq( '🔴 bậc lạ bị bỏ, giữ nguyên giá trị cũ', 'NHAN_VIEN',
+	(string) VHNB_Quyen::cai_dat()['vao'] );
+
+/* Cửa hàng trưởng gọi thẳng đường ấy vẫn bị chối — giấu khối không phải là chặn. */
+$_POST = array( 'nb' => array( 'vao' => 'ADMIN' ) );
+$tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo',
+	array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' ) );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng gọi thẳng vẫn bị chối', isset( $tt_bao[0]['loi'] ), $tt_bao );
+teq( 'và cửa vào KHÔNG bị siết', 'NHAN_VIEN', (string) VHNB_Quyen::cai_dat()['vao'] );
+delete_option( VHNB_Quyen::O );
+
 /* ---- GHÉP HAI MÃ VỀ MỘT NGƯỜI, NGAY TẠI TRANG NGOÀI ---------------------------------------
    🔴 Nhãn ở trên chỉ NGHI. Người phát hiện ra cặp trùng đang đứng ở đây, nhìn đúng cái nhãn ấy
       — bắt họ rời trang, đăng nhập WordPress, đi tìm một màn khác thì gần như chắc là để đấy.

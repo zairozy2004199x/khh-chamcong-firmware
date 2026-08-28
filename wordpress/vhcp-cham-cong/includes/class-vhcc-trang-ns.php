@@ -194,6 +194,7 @@ class VHCC_TrangNS {
 		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
+		if ( 'quyen_noi_bo' === $viec ) { return self::viec_quyen_noi_bo( $toi ); }
 		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
 		if ( 'bo_ghep_ma' === $viec )  { return self::viec_bo_ghep_ma( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
@@ -229,6 +230,37 @@ class VHCC_TrangNS {
 	 *    không có trang tên "ghe" trong sổ của nó — bỏ qua IM LẶNG, và người bấm thấy "đã lưu"
 	 *    trong khi không ai được đẩy đi đâu cả.
 	 */
+	private static function viec_quyen_noi_bo( $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) {
+			return array( array( 'loi' => 'Khai quyền trang Nội bộ cần vai Kế toán trở lên.' ) );
+		}
+		/* ⚠️ Gác CÙNG HÀM với lời gọi sang plugin khác. */
+		if ( ! class_exists( 'VHNB_Quyen' ) || ! method_exists( 'VHNB_Quyen', 'dat' ) ) {
+			return array( array( 'loi' => 'Chưa cài plugin Nội bộ trên site này.' ) );
+		}
+		$gui = isset( $_POST['nb'] ) ? wp_unslash( $_POST['nb'] ) : array();
+		if ( ! is_array( $gui ) ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
+		$sach = array();
+		foreach ( $gui as $k => $v ) {
+			$sach[ sanitize_key( (string) $k ) ] = sanitize_text_field( (string) $v );
+		}
+		/* Luật nằm ở `VHNB_Quyen::dat()` — nó tự bỏ việc lạ và bậc lạ. Đây không lọc lại. */
+		$moi = VHNB_Quyen::dat( $sach );
+
+		/* 🔴 NÓI RA CHỖ VỪA ĐÓNG CỬA. Siết ô "Vào trang Nội bộ" lên trên Nhân viên là đóng cửa
+		   cả trang với mọi người dưới bậc ấy — đúng chuyện anh Thắng vừa vấp, và nó im lặng cho
+		   tới khi có người bị chối. */
+		$bao = array( array( 'ok' => 'Đã lưu phân quyền trang Nội bộ.' ) );
+		$vao = isset( $moi['vao'] ) ? (string) $moi['vao'] : '';
+		if ( '' !== $vao && VHCC_Vai::NV !== $vao ) {
+			$bac = constant( 'VHNB_Quyen::BAC_DS' );
+			$bao[] = array( 'canh' => 'Ô "Vào trang Nội bộ" đang đặt là '
+				. ( isset( $bac[ $vao ] ) ? $bac[ $vao ] : $vao )
+				. ' — mọi người dưới bậc ấy sẽ KHÔNG vào được trang Nội bộ nữa.' );
+		}
+		return $bao;
+	}
+
 	private static function viec_ghep_ma( $toi ) {
 		$p = function ( $k ) {
 			return isset( $_POST[ $k ] ) ? sanitize_text_field( wp_unslash( $_POST[ $k ] ) ) : '';
@@ -710,6 +742,7 @@ class VHCC_TrangNS {
 
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
 		self::the_dong_bo( $toi );
+		self::the_quyen_noi_bo( $toi );
 		self::the_ghep_ma( $toi );
 		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
@@ -746,6 +779,68 @@ class VHCC_TrangNS {
 	 *    nhập liệu, và ngày nào lật nguồn sang "hồ sơ" là mọi thứ khai ở đây có hiệu lực ngay.
 	 *    Chặn lại thì mất luôn đường chuẩn bị trước.
 	 */
+	/**
+	 * PHÂN QUYỀN TRANG NỘI BỘ — kéo ra đây thay vì bắt vào wp-admin.
+	 *
+	 * =========================================================================================
+	 * 🔴 CHỖ KHAI QUYỀN PHẢI NẰM CẠNH CHỖ NGƯỜI TA NHÌN THẤY VẤN ĐỀ.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026, ảnh một Quản lý bị chối ở trang Nội bộ: *"Trang nội bộ là trang
+	 * chung thì ai vẫn được vào mà"*. Đúng — mặc định của `VHNB_Quyen::VIEC` là Nhân viên. Nhưng
+	 * ô ấy trên host đang đặt Admin, và chỗ đổi lại nằm trong wp-admin.
+	 *
+	 * Trang này đã là nơi trả lời "ai vào được trang nào". Để một trang trong hệ khai quyền ở
+	 * chỗ khác thì người đi tìm sẽ tìm ở đây trước, không thấy, rồi kết luận là không đổi được.
+	 *
+	 * ⚠️ KHÔNG DỰNG LẠI LUẬT. `VHNB_Quyen` vẫn là nơi duy nhất giữ luật; đây chỉ là một cái ô
+	 *    xổ gọi vào `dat()` của nó. Chép luật sang là hai bảng cùng nói về một cửa.
+	 *
+	 * ⚠️ Gác `method_exists` CÙNG HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`, cho mọi
+	 *    lời gọi sang plugin KHÁC. Chưa cài plugin Nội bộ thì đừng vẽ khối này ra.
+	 */
+	private static function the_quyen_noi_bo( $toi ) {
+		if ( ! class_exists( 'VHNB_Quyen' ) || ! method_exists( 'VHNB_Quyen', 'cai_dat' )
+			|| ! defined( 'VHNB_Quyen::VIEC' ) ) { return; }
+		/* ⛔ Chốt này hôm nay CHƯA TỪNG rẽ sang false: cửa vào màn là `ho_so`, và đây cũng
+		   `ho_so` — ai vào nổi trang đều thấy khối. Phá thử xác nhận là mã tương đương. Giữ vì
+		   nó bảo vệ trước thay đổi ở CHỖ KHÁC: ngày cửa vào trang nới xuống bậc thấp hơn, nó
+		   tự đứng ra chặn mà không ai phải nhớ. Quan hệ hai bậc ấy có phép thử canh riêng. */
+		if ( ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
+
+		$dang = VHNB_Quyen::cai_dat();
+		$viec = constant( 'VHNB_Quyen::VIEC' );
+		$bac  = constant( 'VHNB_Quyen::BAC_DS' );
+
+		echo '<div class="the"><details><summary><b>Phân quyền trang Nội bộ</b> — '
+			. 'ai vào được, ai đăng bài, ai dọn</summary>';
+		echo '<p class="mo">Trang Nội bộ là <b>trang chung</b>: mặc định ai cũng vào và cũng đăng '
+			. 'được. Siết lên thì siết ở đây — và nhớ rằng siết ô <b>Vào trang Nội bộ</b> là đóng '
+			. 'cửa cả trang với mọi người dưới bậc ấy.</p>';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Việc</th><th>Cần vai từ</th>'
+			. '<th>Mặc định</th></tr></thead><tbody>';
+		foreach ( $viec as $k => $v ) {
+			$hien = isset( $dang[ $k ] ) ? (string) $dang[ $k ] : (string) $v['md'];
+			echo '<tr><td>' . esc_html( (string) $v['nhan'] ) . '</td><td>';
+			echo '<select name="nb[' . esc_attr( $k ) . ']">';
+			foreach ( $bac as $ma_b => $ten_b ) {
+				echo '<option value="' . esc_attr( $ma_b ) . '"'
+					. selected( $ma_b, $hien, false ) . '>' . esc_html( $ten_b ) . '</option>';
+			}
+			echo '</select></td>';
+			/* Nói ra MẶC ĐỊNH ngay cạnh — để người khai biết mình đang lệch khỏi nó bao xa. */
+			$md = isset( $bac[ $v['md'] ] ) ? $bac[ $v['md'] ] : $v['md'];
+			echo '<td class="mo">' . esc_html( $md )
+				. ( $hien !== $v['md'] ? ' <span class="chu-hong">(đang khác)</span>' : '' )
+				. '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<div class="hang" style="margin-top:10px">'
+			. '<button class="chinh" name="viec" value="quyen_noi_bo">Lưu phân quyền Nội bộ</button>'
+			. '</div></form></details></div>';
+	}
+
 	/**
 	 * GHÉP HAI MÃ VỀ MỘT NGƯỜI — "mã song song".
 	 *
