@@ -237,6 +237,16 @@ class VHCC_DayGhe {
 			}
 		}
 
+		/* 🔴 GHÉP CƠ SỞ PHỤ VÀO — anh Thắng 28/08/2026: *"Nhân viên bên cơ sở phụ lại không đẩy
+		   thông tin sang, nó chỉ đang lấy thông tin chính."* Ô "coso" bên ghế đã tách theo dấu
+		   ';' / ',' ở cả `VHG_BaoCao::pham_vi_()` lẫn ô chọn nhân viên PIN báo cáo — CHỈ THIẾU
+		   cột `coso_phu` của hồ sơ chưa được gộp vào đây. Ghép SAU khối "đường lui" ở trên, vì
+		   `coso_phu` chỉ có ở hồ sơ mới (`nhan_vien`), sổ `phan_quyen` cũ không có cột này. */
+		$coso_phu = $hs && isset( $hs['coso_phu'] ) ? trim( (string) $hs['coso_phu'] ) : '';
+		if ( '' !== $coso_phu ) {
+			$coso = '' === $coso ? $coso_phu : $coso . '; ' . $coso_phu;
+		}
+
 		/* 🔴 RỬA ĐUÔI ".0" CỦA BẢNG TÍNH. Google Sheets coi PIN là SỐ nên `571394` xuất ra thành
 		   "571394.0" — tám KÝ TỰ, không phải tám CHỮ SỐ, nên trượt luật 4–8 chữ số của
 		   `VHG_Auth::login()` ngay dòng đầu. Đúng lỗi đã khoá cửa toàn bộ người dùng trang chấm
