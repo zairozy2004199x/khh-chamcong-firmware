@@ -197,6 +197,7 @@ class VHCC_TrangNS {
 		if ( 'quyen_noi_bo' === $viec ) { return self::viec_quyen_noi_bo( $toi ); }
 		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
 		if ( 'bo_ghep_ma' === $viec )  { return self::viec_bo_ghep_ma( $toi ); }
+		if ( 'don_ma' === $viec )      { return self::viec_don_ma( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -270,6 +271,23 @@ class VHCC_TrangNS {
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		return array( array( 'ok' => 'Đã ghép ' . $p( 'ma_b' ) . ' về ' . $p( 'ma_a' )
 			. '. Lượt chấm công của mã phụ nay chảy về mã chính.' ) );
+	}
+
+	private static function viec_don_ma( $toi ) {
+		$a = isset( $_POST['ma_a'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_a'] ) ) : '';
+		$b = isset( $_POST['ma_b'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_b'] ) ) : '';
+		$kq = VHCC_NhanSu::don_ma( $toi, $a, $b );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		$c = (int) $kq['chuyen'];
+		$g = (int) $kq['gop'];
+		if ( ! $c && ! $g ) {
+			return array( array( 'canh' => 'Mã ' . $b . ' không còn hàng nào để dồn.' ) );
+		}
+		/* ⚠️ Kể riêng hai con số: "chuyển" là đổi mã, "gộp" là hai hàng cùng ngày nhập làm một —
+		   người đọc cần biết có bao nhiêu ngày bị nhập lại, vì đó là chỗ giờ có thể đổi. */
+		return array( array( 'ok' => 'Đã dồn ' . $b . ' về ' . $a . ': chuyển ' . $c . ' hàng'
+			. ( $g ? ', gộp ' . $g . ' hàng trùng ngày (giờ vào lấy sớm nhất, giờ ra lấy muộn nhất)' : '' )
+			. '. Lưới nay chỉ còn một dòng cho người này.' ) );
 	}
 
 	private static function viec_bo_ghep_ma( $toi ) {
@@ -873,6 +891,14 @@ class VHCC_TrangNS {
 			. 'nửa, mỗi hồ sơ một PIN. Khai cặp ở đây là lượt chấm công của mã phụ tự chảy về mã '
 			. 'chính.<br><b>Chưa lỡ thì đừng dùng cái này</b> — người làm hai cơ sở chỉ cần khai '
 			. 'ô <b>Cơ sở phụ</b> trong hồ sơ đầy đủ, vẫn một mã.</p>';
+		/* 🔴 NÓI RÕ HAI MỨC. Khai cặp chỉ chữa từ nay về sau; lưới vẫn vẽ hai dòng cho tới khi
+		   dồn nốt phần cũ. Không nói ra thì người khai tưởng xong, rồi mở lưới lên vẫn thấy hai
+		   dòng và tin là chức năng hỏng. */
+		echo '<p class="mo"><b>Hai mức, hai hậu quả.</b> <b>Ghép</b> chỉ chữa từ nay về sau — lượt '
+			. 'mới của mã phụ sẽ tự chảy về mã chính, còn hàng đã nằm trong bảng thì vẫn mang mã '
+			. 'cũ, nên lưới vẫn vẽ ra hai dòng. Bấm thêm <b>Dồn … hàng cũ</b> để gom nốt phần đã '
+			. 'có. <span class="chu-hong">Dồn thì KHÔNG đảo lại được</span> — bỏ ghép sau đó cũng '
+			. 'không tách ra như cũ.</p>';
 
 		if ( $ds ) {
 			echo '<div class="cuon"><table class="stt"><thead><tr><th>Mã chính</th><th>Mã phụ</th>'
@@ -888,7 +914,21 @@ class VHCC_TrangNS {
 					. self::o_loc()
 					. '<input type="hidden" name="ma_a" value="' . esc_attr( (string) $r['ma_a'] ) . '">'
 					. '<input type="hidden" name="ma_b" value="' . esc_attr( (string) $r['ma_b'] ) . '">'
-					. '<button name="viec" value="bo_ghep_ma">Bỏ ghép</button></form></td></tr>';
+					. '<button name="viec" value="bo_ghep_ma">Bỏ ghép</button>';
+			/* 🔴 KHAI CẶP CHỈ CHỮA TỪ NAY VỀ SAU — hàng đã nằm trong bảng từ trước vẫn mang mã
+			   máy, nên lưới vẫn vẽ ra hai người. Nút này dồn nốt phần cũ. Đứng RIÊNG, không chạy
+			   kèm lúc khai: khai cặp là việc nhẹ và bỏ được, dồn thì KHÔNG ĐẢO ĐƯỢC. */
+			$dem = VHCC_NhanSu::dem_don_ma( (string) $r['ma_a'], (string) $r['ma_b'] );
+			$con = (int) $dem['chuyen'] + (int) $dem['gop'];
+			if ( $con ) {
+				echo ' <button name="viec" value="don_ma" class="chinh" '
+					. 'title="' . esc_attr( 'Chuyển ' . (int) $dem['chuyen'] . ' hàng sang mã chính, '
+						. 'gộp ' . (int) $dem['gop'] . ' hàng trùng ngày. KHÔNG đảo lại được.' ) . '">'
+					. 'Dồn ' . $con . ' hàng cũ</button>';
+			} else {
+				echo ' <span class="mo">đã dồn xong</span>';
+			}
+			echo '</form></td></tr>';
 			}
 			echo '</tbody></table></div>';
 		}

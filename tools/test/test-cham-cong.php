@@ -9758,6 +9758,101 @@ t( '🔴 Cửa hàng trưởng gọi thẳng đường ghép vẫn bị chối',
 	isset( $tt_bao[0]['loi'] ), $tt_bao );
 teq( 'và không có cặp nào thêm', 'MOT9', VHCC_NhanSu::ma_that( 'MOT9' ) );
 
+/* ---- DỒN LƯỢT CŨ CỦA MÃ PHỤ VỀ MÃ CHÍNH ---------------------------------------------------
+   🔴 Anh Thắng 28/08/2026, ảnh lưới cả tháng mỗi người hiện thành HAI hàng — một có giờ, một
+      "chưa chấm": *"Trên máy chấm công là 1 mã, trên web là 1 mã… nên cần đồng bộ 2 mã chạy
+      song song được không, chứ nó đang nhân 2 nhân viên ra"*.
+   Cơ chế đồng bộ đã có, nhưng `ma_that()` CHỈ được gọi lúc GHI một lượt mới. Hàng đã nằm trong
+   bảng từ trước thì không ai đụng tới — vẫn mang mã máy, và lưới vẫn vẽ ra hai người. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'DON_A', 'ho_ten' => 'Người Hai Mã',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+/* Mã MÁY: cố ý KHÔNG có hồ sơ — đúng cảnh thật, máy mang một dãy số của riêng nó. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-01',
+	'ma_nv' => 'DON_B', 'ho_ten' => 'Người Hai Mã', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'nguon' => 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-02',
+	'ma_nv' => 'DON_B', 'ho_ten' => 'Người Hai Mã', 'gio_vao_giay' => 30000,
+	'gio_ra_giay' => 62000, 'nguon' => 'may' ) );
+/* Ngày 02 mã CHÍNH cũng có hàng -> đụng UNIQUE KEY, phải GỘP chứ không bỏ. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-02',
+	'ma_nv' => 'DON_A', 'ho_ten' => 'Người Hai Mã', 'gio_vao_giay' => 32000,
+	'gio_ra_giay' => 59000, 'nguon' => 'online' ) );
+
+$dm = VHCC_NhanSu::dem_don_ma( 'DON_A', 'DON_B' );
+teq( 'đếm đúng số hàng chỉ việc đổi mã', 1, (int) $dm['chuyen'] );
+teq( 'và số hàng phải gộp vì trùng ngày', 1, (int) $dm['gop'] );
+
+/* 🔴 CHỈ DỒN CẶP ĐÃ KHAI. Cho dồn hai mã bất kỳ là mở đường ném công của người này sang người
+   khác chỉ bằng hai ô gõ tay. */
+$kq_d = VHCC_NhanSu::don_ma( $U_AD, 'DON_A', 'DON_B' );
+t( '🔴 chưa khai cặp thì KHÔNG dồn được', empty( $kq_d['ok'] ), $kq_d );
+t( 'và bảo đi khai ghép trước',
+	strpos( (string) $kq_d['error'], 'khai ghép trước' ) !== false, $kq_d );
+
+VHCC_NhanSu::khai_ma_song_song( $U_AD, 'DON_A', 'DON_B', 'Người Hai Mã', 'mã máy cũ' );
+$kq_d = VHCC_NhanSu::don_ma( $U_AD, 'DON_A', 'DON_B' );
+t( 'khai rồi thì dồn được', ! empty( $kq_d['ok'] ), $kq_d );
+teq( 'chuyển 1 hàng', 1, (int) $kq_d['chuyen'] );
+teq( 'gộp 1 hàng', 1, (int) $kq_d['gop'] );
+
+teq( '🔴 mã phụ KHÔNG còn hàng nào — lưới thôi vẽ hai dòng', 0, (int) $wpdb->get_var(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DON_B'" ) );
+teq( 'và mã chính có đủ hai ngày', 2, (int) $wpdb->get_var(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DON_A'" ) );
+
+/* 🔴 TRÙNG NGÀY THÌ GỘP, KHÔNG BỎ. Hai mã là MỘT người, một ngày họ chỉ có một ca — nên giờ
+   vào lấy SỚM NHẤT, giờ ra lấy MUỘN NHẤT. Bỏ hàng phụ đi là mất giờ thật. */
+$h_don = vhcc_hang( 'TUTU_BT', '2026-08-02', 'DON_A' );
+teq( '🔴 ngày trùng: giờ vào lấy SỚM NHẤT', 30000, (int) $h_don['gio_vao_giay'] );
+teq( '🔴 và giờ ra lấy MUỘN NHẤT', 62000, (int) $h_don['gio_ra_giay'] );
+teq( 'nguồn thành hỗn hợp vì hai bên khác nguồn', 'hon-hop', (string) $h_don['nguon'] );
+
+/* ---- Nút trên MÀN HÌNH và đường lưu thật ---- */
+/* ⚠️ Dựng lại cảnh còn hàng để soi nút — phần trên vừa dồn sạch rồi. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-05',
+	'ma_nv' => 'DON_B', 'ho_ten' => 'Người Hai Mã', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'nguon' => 'may' ) );
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 còn hàng cũ thì bày nút Dồn, kèm SỐ hàng',
+	strpos( $tt_h, 'Dồn 1 hàng cũ' ) !== false, $tt_h );
+t( 'và nút mang việc "don_ma"', strpos( $tt_h, 'value="don_ma"' ) !== false, $tt_h );
+
+$_POST = array( 'ma_a' => 'DON_A', 'ma_b' => 'DON_B' );
+$tt_bao = VHCC_TrangNS::lam_viec( 'don_ma', $U_AD );
+$_POST = array();
+$tt_txt = (string) wp_json_encode( $tt_bao );
+t( '🔴 bấm nút thì dồn THẬT', strpos( $tt_txt, 'Đã dồn' ) !== false, $tt_bao );
+teq( 'và hàng ấy sang mã chính', 0, (int) $wpdb->get_var(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv='DON_B'" ) );
+/* ⚠️ Kể riêng hai con số — "gộp" là chỗ giờ có thể đổi, người đọc cần biết có bao nhiêu ngày
+   bị nhập lại. */
+t( 'kể riêng số hàng chuyển', strpos( $tt_txt, 'chuyển 1 hàng' ) !== false, $tt_bao );
+
+/* Dồn lần hai: không còn gì. */
+$kq_d = VHCC_NhanSu::don_ma( $U_AD, 'DON_A', 'DON_B' );
+teq( 'dồn lần hai thì không còn hàng nào', 0, (int) $kq_d['chuyen'] + (int) $kq_d['gop'] );
+
+/* Cửa hàng trưởng gọi thẳng vẫn bị chối — dồn ảnh hưởng cả chuỗi. */
+$kq_d = VHCC_NhanSu::don_ma(
+	array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' ), 'DON_A', 'DON_B' );
+t( '🔴 Cửa hàng trưởng KHÔNG dồn được', empty( $kq_d['ok'] ), $kq_d );
+
+/* ---- Trên MÀN HÌNH ---- */
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 khối ghép nói rõ HAI MỨC: ghép chỉ chữa từ nay về sau',
+	strpos( $tt_h, 'chỉ chữa từ nay về sau' ) !== false, $tt_h );
+/* ⚠️ Và nói rõ HẬU QUẢ của việc chỉ ghép mà không dồn: lưới vẫn vẽ ra hai dòng. Không nói thì
+   người khai tưởng xong, mở lưới lên vẫn thấy hai dòng và tin là chức năng hỏng. */
+t( 'và nói rõ vì sao lưới vẫn vẽ hai dòng nếu chưa dồn',
+	strpos( $tt_h, 'vẫn mang mã ' ) !== false && strpos( $tt_h, 'vẽ ra hai dòng' ) !== false, $tt_h );
+t( 'và nói rõ dồn thì KHÔNG đảo lại được',
+	strpos( $tt_h, 'KHÔNG đảo lại được' ) !== false, $tt_h );
+t( 'cặp đã dồn xong thì thôi bày nút',
+	strpos( $tt_h, 'đã dồn xong' ) !== false, $tt_h );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv IN ('DON_A','DON_B')" );
+VHCC_NhanSu::bo_ma_song_song( $U_AD, 'DON_A', 'DON_B' );
+
 /* Bỏ ghép — và phải nói ra HẬU QUẢ, đừng chỉ báo "đã bỏ". */
 $_POST = array( 'ma_a' => 'MOT1', 'ma_b' => 'MOT2' );
 $tt_bao = VHCC_TrangNS::lam_viec( 'bo_ghep_ma', $U_AD );

@@ -1128,6 +1128,115 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * ĐẾM XEM DỒN MÃ PHỤ VỀ MÃ CHÍNH THÌ ĐỘNG VÀO BAO NHIÊU HÀNG.
+	 *
+	 * Trả [ 'chuyen' => số hàng chỉ việc đổi mã, 'gop' => số hàng phải gộp vì trùng ngày ].
+	 */
+	public static function dem_don_ma( $ma_chinh, $ma_phu ) {
+		global $wpdb;
+		$t = VHCC_DB::t( 'cham_cong' );
+		$a = trim( (string) $ma_chinh );
+		$b = trim( (string) $ma_phu );
+		if ( '' === $a || '' === $b || 0 === strcasecmp( $a, $b ) ) {
+			return array( 'chuyen' => 0, 'gop' => 0 );
+		}
+		$gop = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $t p JOIN $t c ON p.coso=c.coso AND p.ngay=c.ngay"
+			. ' AND p.hau_to=c.hau_to WHERE p.ma_nv=%s AND c.ma_nv=%s', $b, $a ) );
+		$tong = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $t WHERE ma_nv=%s", $b ) );
+		return array( 'chuyen' => max( 0, $tong - $gop ), 'gop' => $gop );
+	}
+
+	/**
+	 * DỒN LƯỢT CHẤM CÔNG CŨ CỦA MÃ PHỤ VỀ MÃ CHÍNH.
+	 *
+	 * =========================================================================================
+	 * 🔴 KHAI CẶP MÃ CHỈ CHỮA TỪ NAY VỀ SAU. DỮ LIỆU CŨ VẪN TÁCH ĐÔI.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026, ảnh lưới cả tháng với mỗi người hiện thành HAI hàng — một hàng có
+	 * giờ, một hàng "chưa chấm": *"Trên máy chấm công là 1 mã, trên web là 1 mã (trên máy thì
+	 * không sửa được), trên web thì mã chuẩn công ty, nên cần đồng bộ 2 mã chạy song song được
+	 * không, chứ nó đang nhân 2 nhân viên ra"*.
+	 *
+	 * Cơ chế đồng bộ đã có: khai cặp ở `ma_song_song`, rồi `ma_that()` dịch mã máy về mã chính.
+	 * Nhưng `ma_that()` CHỈ được gọi ở `VHCC_Nhan::mot_luot()` — tức là lúc GHI một lượt mới.
+	 * Hàng đã nằm trong bảng từ trước thì không ai đụng tới, nên vẫn mang mã máy, và lưới vẫn
+	 * vẽ ra hai người.
+	 *
+	 * ⚠️ VIỆC NÀY KHÔNG ĐẢO ĐƯỢC. Bỏ ghép sau đó cũng không tách lại được — hàng đã mang mã
+	 *    chính rồi thì không còn dấu vết nó từng thuộc mã nào. Vì thế nó là một NÚT RIÊNG, đứng
+	 *    sau việc khai cặp, chứ không chạy kèm: khai cặp là việc nhẹ và bỏ được, dồn thì không.
+	 *
+	 * 🔴 TRÙNG NGÀY THÌ GỘP, KHÔNG BỎ. Bảng có `UNIQUE KEY o (coso,ngay,ma_nv,hau_to)` nên đổi
+	 *    mã thẳng sẽ đụng khoá ở những ngày cả hai mã cùng có giờ. Bỏ hàng phụ đi là mất giờ
+	 *    thật. Hai mã là MỘT người, một ngày họ chỉ có một ca — nên gộp: giờ vào lấy SỚM NHẤT,
+	 *    giờ ra lấy MUỘN NHẤT. Đó là khoảng người ấy thật sự có mặt.
+	 */
+	public static function don_ma( $u, $ma_chinh, $ma_phu ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Dồn lượt chấm công ảnh hưởng cả chuỗi — ' . self::LOI_QT );
+		}
+		$a = trim( (string) $ma_chinh );
+		$b = trim( (string) $ma_phu );
+		if ( '' === $a || '' === $b ) { return array( 'ok' => false, 'error' => 'Thiếu một trong hai mã.' ); }
+		if ( 0 === strcasecmp( $a, $b ) ) {
+			return array( 'ok' => false, 'error' => 'Hai mã giống nhau.' );
+		}
+		/* ⚠️ CHỈ DỒN CẶP ĐÃ KHAI. Cho dồn hai mã bất kỳ là mở đường ném công của người này sang
+		   người khác chỉ bằng hai ô gõ tay. */
+		$da = $wpdb->get_var( $wpdb->prepare(
+			'SELECT 1 FROM ' . VHCC_DB::t( 'ma_song_song' )
+			. ' WHERE (LOWER(ma_a)=LOWER(%s) AND LOWER(ma_b)=LOWER(%s))'
+			. ' OR (LOWER(ma_a)=LOWER(%s) AND LOWER(ma_b)=LOWER(%s)) LIMIT 1', $a, $b, $b, $a ) );
+		if ( ! $da ) {
+			return array( 'ok' => false, 'error' => 'Cặp mã này chưa khai — khai ghép trước rồi mới dồn.' );
+		}
+
+		$t   = VHCC_DB::t( 'cham_cong' );
+		$phu = VHCC_DB::rows( $wpdb->prepare( "SELECT * FROM $t WHERE ma_nv=%s", $b ) );
+		$chuyen = 0;
+		$gop    = 0;
+		foreach ( (array) $phu as $r ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				"SELECT * FROM $t WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s LIMIT 1",
+				$r['coso'], $r['ngay'], $a, $r['hau_to'] ), ARRAY_A );
+			if ( ! $cu ) {
+				$wpdb->update( $t, array( 'ma_nv' => $a ), array( 'id' => (int) $r['id'] ) );
+				$chuyen++;
+				continue;
+			}
+			/* Gộp: vào SỚM NHẤT, ra MUỘN NHẤT. `null` nghĩa là ô trống — bên nào có thì lấy. */
+			$vao = self::nho_hon( $cu['gio_vao_giay'], $r['gio_vao_giay'] );
+			$ra  = self::lon_hon( $cu['gio_ra_giay'],  $r['gio_ra_giay'] );
+			$ng  = ( (string) $cu['nguon'] !== (string) $r['nguon'] && '' !== trim( (string) $r['nguon'] ) )
+				? 'hon-hop' : $cu['nguon'];
+			$wpdb->update( $t, array(
+				'gio_vao_giay' => $vao, 'gio_ra_giay' => $ra, 'nguon' => $ng,
+				'chuan' => trim( VHCC_DB::hhmm( $vao ) . ' ' . VHCC_DB::hhmm( $ra ) ),
+			), array( 'id' => (int) $cu['id'] ) );
+			$wpdb->delete( $t, array( 'id' => (int) $r['id'] ) );
+			$gop++;
+		}
+		return array( 'ok' => true, 'chuyen' => $chuyen, 'gop' => $gop );
+	}
+
+	/** Nhỏ hơn, bỏ qua null. Cả hai null -> null. */
+	private static function nho_hon( $x, $y ) {
+		if ( null === $x || '' === $x ) { return ( '' === $y ) ? null : $y; }
+		if ( null === $y || '' === $y ) { return $x; }
+		return min( (int) $x, (int) $y );
+	}
+
+	/** Lớn hơn, bỏ qua null. */
+	private static function lon_hon( $x, $y ) {
+		if ( null === $x || '' === $x ) { return ( '' === $y ) ? null : $y; }
+		if ( null === $y || '' === $y ) { return $x; }
+		return max( (int) $x, (int) $y );
+	}
+
+	/**
 	 * Khai MÃ SONG SONG (một người, hai mã: máy cũ chưa nhận lệnh đổi mã).
 	 * ⚠️ PHẢI KHAI, hệ thống KHÔNG được tự suy "hai mã này chắc là một người" từ tên — tên người
 	 *    Việt trùng rất nhiều, đoán sai là gộp lương hai người khác nhau.
