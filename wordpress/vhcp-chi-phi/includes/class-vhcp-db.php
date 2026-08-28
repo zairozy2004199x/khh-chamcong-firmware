@@ -351,6 +351,12 @@ class VHCP_DB {
 		update_option( 'vhcp_db_version', self::SCHEMA_VERSION );
 		update_option( 'vhcp_flush_rewrite', 1 );   // để vhcp_flush_rewrite() nạp lại /chi-phi/ và /hop-dong/
 		VHCP_Cfg::seed();
+		/* Bật "Xác nhận quyết toán" cho các vai kế toán trên bảng quyền ĐANG LƯU — xem chú
+		   thích dài ở `VHCP_Cfg::va_quyen_quyet_toan()`. Đặt SAU `seed()` vì bảng quyền phải
+		   có mặt trước đã. */
+		if ( method_exists( 'VHCP_Cfg', 'va_quyen_quyet_toan' ) ) {
+			VHCP_Cfg::va_quyen_quyet_toan();
+		}
 	}
 
 	/**

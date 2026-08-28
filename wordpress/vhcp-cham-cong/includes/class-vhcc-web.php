@@ -683,7 +683,7 @@ class VHCC_Web {
 	   đi xin đúng cái quyền mà họ không cần. Phần gác thật nằm trong
 	   `VHCC_NhanSu::them_nv_cua_hang()`, hỏi đúng đầu việc `them_nv`. */
 	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh',
-		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre' );
+		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre', 'cho_tra' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -1019,6 +1019,19 @@ class VHCC_Web {
 				. ( empty( $r['muon'] ) ? ''
 					: ' ⚠ Ngày này đã qua nên đơn được ghi là NỘP MUỘN — xin phép trước khi tới '
 						. 'cửa hàng thì mới đúng nghĩa xin phép.' ) ) );
+		}
+
+		if ( 'cho_tra' === $viec ) {
+			$r = VHCC_TraVe::dat( $toi,
+				isset( $_POST['tv_ma'] ) ? wp_unslash( $_POST['tv_ma'] ) : '',
+				isset( $_POST['tv_bat'] ) && '1' === (string) wp_unslash( $_POST['tv_bat'] ) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => $r['bat']
+				? 'Đã đánh dấu ' . $r['ma_nv'] . ( '' !== $r['ho_ten'] ? ' — ' . $r['ho_ten'] : '' )
+					. ' chờ trả về nhân sự. Người này VẪN ở ' . $r['coSo'] . ', chỉ nằm riêng ở '
+					. 'cuối bảng. Tháng nào đã hết mà không phát sinh công thì hệ tự trả về kho '
+					. 'nhân sự — hồ sơ và công cũ vẫn còn nguyên.'
+				: 'Đã bỏ đánh dấu ' . $r['ma_nv'] . ' — người này ở lại ' . $r['coSo'] . ' như cũ.' ) );
 		}
 
 		if ( 'cach_tinh' === $viec ) {
@@ -1637,6 +1650,11 @@ class VHCC_Web {
 			   trắng trơn — còn một gạch chân xanh để cửa hàng trưởng nhìn ra chỗ nào là do đơn,
 			   chứ không phải chỗ nào cũng đủ giờ. */
 			. 'td.xin-tre{box-shadow:inset 0 -3px 0 #86efac}'
+			/* Hàng của người chờ trả về nhân sự: nền xám nhạt + nút tích đổi màu. Nhạt chứ
+			   không đỏ — đây không phải lỗi, chỉ là một chỗ đứng khác. */
+			. 'td.cho-tra{background:#f8fafc}'
+			. '.cho-tra-nhan{color:#7c3aed;border-color:#ddd6fe}'
+			. 'button.mo-hs{background:none;cursor:pointer;font-family:inherit}'
 			. '.bao ul{margin:6px 0 0 18px;padding:0}'
 			. '.cu{color:var(--do);text-decoration:line-through}'
 			. '.moi{color:var(--luc);font-weight:600}'
@@ -3726,6 +3744,43 @@ class VHCC_Web {
 		return $h;
 	}
 
+	/**
+	 * DẤU TÍCH "CHỜ TRẢ VỀ NHÂN SỰ" trên hàng của từng người.
+	 *
+	 * Anh Thắng 28/08/2026: *"Thêm dấu tích, nhân viên nghỉ việc, trong tháng đó không phát sinh
+	 * công, nó tự đẩy ngược về nhân sự. Khi tích thì trong cửa hàng đó vẫn có, nhưng nằm phía là
+	 * chờ trả về nhân sự"*.
+	 *
+	 * ⚠️ KHÔNG MỞ `<form>` BAO CẢ BẢNG. Lưới cả tháng là một `<table>` lớn; một form bọc ngoài
+	 *    rồi mỗi hàng một nút thì bấm nút hàng ba lại gửi cả bảng. Mỗi dấu tích là MỘT form nhỏ
+	 *    nằm gọn trong `<td>` của chính hàng ấy — và lưới này không nằm trong form nào khác
+	 *    (khác hẳn bảng ở màn Quản lý nhân sự, xem chú thích dài ở `hang_sua()`).
+	 */
+	private static function o_cho_tra( $ma, $dang_cho, $ky, $toi, $cs ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) {
+			/* Người không có quyền tích vẫn phải THẤY ai đang chờ trả — nếu không, họ đọc bảng
+			   mà không hiểu vì sao mấy hàng cuối lại nằm tách ra. */
+			return $dang_cho ? ' <span class="duoi cho-tra-nhan" title="Đang chờ trả về nhân sự">'
+				. 'chờ trả về</span>' : '';
+		}
+		$h  = ' <form method="post" style="display:inline">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. self::o_loc()
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+			. '<input type="hidden" name="tv_ma" value="' . esc_attr( $ma ) . '">'
+			. '<input type="hidden" name="tv_bat" value="' . ( $dang_cho ? '0' : '1' ) . '">';
+		$h .= '<button class="mo-hs' . ( $dang_cho ? ' cho-tra-nhan' : '' ) . '"'
+			. ' name="viec" value="cho_tra"'
+			. ' title="' . esc_attr( $dang_cho
+				? 'Đang chờ trả về nhân sự. Bấm để bỏ đánh dấu — người này ở lại cửa hàng như cũ.'
+				: 'Đánh dấu chờ trả về nhân sự. Người này VẪN ở trong cửa hàng, chỉ nằm riêng ở '
+					. 'cuối bảng; tháng nào đã hết mà không phát sinh công thì hệ tự trả về kho '
+					. 'nhân sự.' ) . '">'
+			. ( $dang_cho ? '☑ chờ trả về' : '☐ chờ trả về' ) . '</button>';
+		$h .= '</form>';
+		return $h;
+	}
+
 	private static function chip_coso_khac( $ck_nguoi ) {
 		if ( ! is_array( $ck_nguoi ) || ! $ck_nguoi ) { return ''; }
 		$cs = array();
@@ -4710,7 +4765,45 @@ class VHCC_Web {
 		}
 		uasort( $ten, function ( $a, $c ) { return strcasecmp( $a, $c ); } );
 
+		/* 🔴 NGƯỜI CHỜ TRẢ VỀ NHÂN SỰ XUỐNG CUỐI BẢNG, KHÔNG BIẾN MẤT.
+		   Anh Thắng 28/08/2026: *"Khi tích thì trong cửa hàng đó vẫn có, nhưng nằm phía là chờ
+		   trả về nhân sự"*. Đúng: người nghỉ giữa tháng vẫn còn công của những ngày đã làm, và
+		   bảng lương tháng ấy vẫn phải tra ra tên họ. Cho biến mất là bảng lương có mã mà không
+		   có người. */
+		$cs_luoi = (string) $b['coSo'];
+		/* 🔴 TỰ TRẢ VỀ NHÂN SỰ — nhưng CHỈ khi tháng đang xem đã hết hẳn.
+		   Anh Thắng 28/08/2026: *"trong tháng đó không phát sinh công, nó tự đẩy ngược về nhân
+		   sự"*. Đọc câu ấy vào tháng ĐANG CHẠY thì nó luôn đúng vào ngày mùng một — và cả cửa
+		   hàng bị trả về nhân sự sạch trong một buổi sáng. `VHCC_TraVe::quet()` tự giữ chốt ấy;
+		   ở đây chỉ cần nói ra ai vừa được trả, vì đó là thay đổi dữ liệu xảy ra sau lưng người
+		   đang xem — im lặng là sáng hôm sau họ mở bảng và thiếu người mà không hiểu vì sao. */
+		$vua_tra = ( class_exists( 'VHCC_TraVe' ) && method_exists( 'VHCC_TraVe', 'quet' ) )
+			? VHCC_TraVe::quet( $cs_luoi, $tt, isset( $toi['name'] ) ? $toi['name'] : '' )
+			: array();
+		$cho_tra = ( class_exists( 'VHCC_TraVe' ) && method_exists( 'VHCC_TraVe', 'ds_cho' ) )
+			? VHCC_TraVe::ds_cho( $cs_luoi ) : array();
+		if ( $cho_tra ) {
+			$tren = array();
+			$duoi = array();
+			foreach ( $ten as $ma_s => $t_s ) {
+				if ( isset( $cho_tra[ $ma_s ] ) ) { $duoi[ $ma_s ] = $t_s; }
+				else { $tren[ $ma_s ] = $t_s; }
+			}
+			$ten = $tren + $duoi;
+		}
+
 		echo '<div class="the">';
+		if ( $vua_tra ) {
+			$ten_tra = array();
+			foreach ( $vua_tra as $x ) {
+				$ten_tra[] = $x['ma_nv'] . ( '' !== $x['ho_ten'] ? ' — ' . $x['ho_ten'] : '' );
+			}
+			echo '<div class="bao canh"><b>Đã trả ' . count( $vua_tra ) . ' người về nhân sự.</b> '
+				. esc_html( implode( ' · ', $ten_tra ) ) . '. Tháng ' . esc_html( $tt ) . ' đã hết '
+				. 'mà những người này không phát sinh công nào, và họ đã được đánh dấu '
+				. '<b>chờ trả về</b>. Hồ sơ và toàn bộ công cũ <b>vẫn còn nguyên</b> — chỉ ô '
+				. '<b>Cửa hàng</b> được xoá trắng, bên nhân sự xếp tiếp.</div>';
+		}
 		if ( ! $ten ) {
 			echo '<p class="mo">Tháng ' . esc_html( $tt ) . ' chưa có dữ liệu chấm công nào ở cơ sở này, '
 				. 'mà sổ nhân sự cũng chưa có ai thuộc cơ sở này. Nạp công từ .csv ở màn '
@@ -4777,10 +4870,12 @@ class VHCC_Web {
 			   trong tầm mắt, đúng thứ tự mắt đọc. */
 			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
 				? ' id="suaday"' : '' ) . '>';
-			echo '<td>' . self::ten_nguoi( $ma, $ho_ten, $toi )
+			echo '<td' . ( isset( $cho_tra[ $ma ] ) ? ' class="cho-tra"' : '' ) . '>'
+				. self::ten_nguoi( $ma, $ho_ten, $toi )
 				. ( isset( $khong_cham[ $ma ] )
 					? ' <span class="duoi" title="Cả tháng chưa có lượt chấm nào — '
 						. 'bấm vào một ô để bù giờ">chưa chấm</span>' : '' )
+				. self::o_cho_tra( $ma, isset( $cho_tra[ $ma ] ), $ky, $toi, $cs_luoi )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$phut_phu = array();
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {

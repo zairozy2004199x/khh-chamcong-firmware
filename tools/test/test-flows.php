@@ -2806,6 +2806,74 @@ t( 'mặc định Quản lý được duyệt tạm ứng', ! empty( $q0['duyetT
 t( 'mặc định Kế toán cá nhân được cấp tạm ứng', ! empty( $q0['capTU']['Kế toán cá nhân'] ) );
 t( 'mặc định Nhân viên được gửi quyết toán', ! empty( $q0['guiQT']['Nhân viên'] ) );
 t( 'mặc định Kế toán xác nhận quyết toán', ! empty( $q0['xacNhanQT']['Kế toán cá nhân'] ) );
+/* 🔴 CẢ HAI VAI KẾ TOÁN ĐỀU QUYẾT TOÁN ĐƯỢC.
+   Anh Thắng 28/08/2026 gửi hai ảnh cùng một khối "Chờ quyết toán": bên tài khoản của anh có
+   nút ✔ Duyệt, bên tài khoản kế toán chỉ còn "Chi tiết" — *"Sao tài khoản kế toán lại không
+   được quyết toán. bật kế toán quyết toán."*
+   Chữ "(cá nhân)" trong tên hành động nói về PHẦN TIỀN của đơn (đối ứng 141 cá nhân, khác
+   phần 331 nhà cung cấp), không phải nói về vai. Hai thứ trùng chữ nên dễ đọc nhầm — và đã
+   đọc nhầm suốt từ bản đầu. */
+t( '🔴 mặc định Kế toán NCC CŨNG xác nhận quyết toán được',
+	! empty( $q0['xacNhanQT']['Kế toán NCC'] ), $q0['xacNhanQT'] );
+t( 'nhưng Nhân viên thì không', empty( $q0['xacNhanQT']['Nhân viên'] ) );
+/* Và ĐỔI LUÔN TÊN hành động: "Xác nhận quyết toán (cá nhân)" đọc như tên một vai. */
+$ten_qt = '';
+foreach ( VHCP_Cfg::actions() as $a_qt ) {
+	if ( 'xacNhanQT' === $a_qt['key'] ) { $ten_qt = $a_qt['ten']; }
+}
+t( 'tên hành động nói rõ "cá nhân" là PHẦN TIỀN, không phải tên vai',
+	strpos( $ten_qt, 'phần cá nhân của đơn' ) !== false, $ten_qt );
+
+/* ---- VÁ MỘT LẦN cho site ĐÃ LƯU bảng quyền ----
+   Đổi `def` chỉ ăn với site chưa từng lưu bảng quyền. Site của anh Thắng đã lưu, nên `def` bị
+   bỏ qua hoàn toàn và nút Duyệt vẫn không hiện — đó là chỗ "sửa mặc định" trông như đã sửa
+   xong mà thực ra chưa đụng tới gì. */
+delete_option( VHCP_Cfg::CO_VA_QT );
+VHCP_Cfg::set_quyen( array( 'xacNhanQT' => array( 'Kế toán cá nhân' => 1 ) ) );  /* NCC = 0 */
+$q_truoc = VHCP_Cfg::get_quyen();
+t( 'dựng lại đúng cảnh: bảng đã lưu, Kế toán NCC KHÔNG có quyền',
+	empty( $q_truoc['xacNhanQT']['Kế toán NCC'] ), $q_truoc['xacNhanQT'] );
+$so_va = VHCP_Cfg::va_quyen_quyet_toan();
+t( 'bản vá chạy và có bật ô nào đó', (int) $so_va > 0, $so_va );
+$q_sau = VHCP_Cfg::get_quyen();
+t( '🔴 vá xong thì Kế toán NCC quyết toán được',
+	! empty( $q_sau['xacNhanQT']['Kế toán NCC'] ), $q_sau['xacNhanQT'] );
+t( 'Kế toán cá nhân vẫn nguyên', ! empty( $q_sau['xacNhanQT']['Kế toán cá nhân'] ) );
+/* 🔴 CHỈ BẬT, KHÔNG BAO GIỜ TẮT, VÀ CHỈ ĐỤNG ĐÚNG MỘT HÀNH ĐỘNG. */
+t( 'Nhân viên KHÔNG tự dưng quyết toán được', empty( $q_sau['xacNhanQT']['Nhân viên'] ) );
+t( 'các ô của hành động KHÁC giữ nguyên từng con số',
+	empty( $q_sau['duyetTU']['Nhân viên'] ) && empty( $q_sau['capTU']['Nhân viên'] ) );
+/* 🔴 SOI ĐÚNG CỘT KẾ TOÁN CỦA HÀNH ĐỘNG KHÁC. Bản vá bật theo CỘT (vai kế toán), nên nếu nó
+   quét nhầm sang mọi HÀNG thì chỗ lộ ra là ô [hành động khác × vai kế toán] — soi cột Nhân
+   viên thì không bao giờ thấy, vì cột ấy vốn không nằm trong tầm với của bản vá. */
+t( '🔴 "Duyệt tạm ứng" của Kế toán NCC vẫn tắt như trước',
+	empty( $q_sau['duyetTU']['Kế toán NCC'] ), $q_sau['duyetTU'] );
+t( 'và "Cấp tạm ứng" của Kế toán NCC cũng vậy',
+	empty( $q_sau['capTU']['Kế toán NCC'] ), $q_sau['capTU'] );
+
+/* Site CHƯA TỪNG lưu bảng quyền: `def` mới đã đủ, bản vá không có gì để làm — và tuyệt đối
+   không được ghi đè một bảng rỗng lên chỗ chưa có gì. */
+delete_option( VHCP_Cfg::CO_VA_QT );
+VHCP_Cfg::write( VHCP_Cfg::QUYEN, array(), false );
+teq( '🔴 site chưa lưu bảng quyền thì bản vá không làm gì', 0, VHCP_Cfg::va_quyen_quyet_toan() );
+$q_trong = VHCP_Cfg::get_quyen();
+t( 'và quyền vẫn chạy theo mặc định mới',
+	! empty( $q_trong['xacNhanQT']['Kế toán NCC'] ), $q_trong['xacNhanQT'] );
+delete_option( VHCP_Cfg::CO_VA_QT );
+VHCP_Cfg::reset_quyen();
+VHCP_Cfg::set_quyen( array( 'xacNhanQT' => array( 'Kế toán cá nhân' => 1 ) ) );
+VHCP_Cfg::va_quyen_quyet_toan();
+$q_sau2 = VHCP_Cfg::get_quyen();
+t( 'dựng lại trạng thái đã vá để phép thử sau chạy tiếp',
+	! empty( $q_sau2['xacNhanQT']['Kế toán NCC'] ) );
+/* ⚠️ CHẠY ĐÚNG MỘT LẦN. Chạy lại mỗi lần nạp trang thì ai bỏ tích hôm nay, sáng mai nó lại tự
+   bật — và không ai hiểu vì sao bảng phân quyền không nghe lời. */
+VHCP_Cfg::set_quyen( array( 'xacNhanQT' => array( 'Kế toán cá nhân' => 1 ) ) );
+teq( '🔴 gọi lại lần hai thì KHÔNG làm gì nữa', 0, VHCP_Cfg::va_quyen_quyet_toan() );
+t( 'và ô người ta vừa bỏ tích vẫn ở nguyên trạng thái bỏ tích',
+	empty( VHCP_Cfg::get_quyen()['xacNhanQT']['Kế toán NCC'] ) );
+delete_option( VHCP_Cfg::CO_VA_QT );
+VHCP_Cfg::reset_quyen();
 // Bỏ tích "sửa số tạm ứng" thì quyền xin tạm ứng KHÔNG bị mất theo
 VHCP_Cfg::set_quyen( array( 'xinTU' => array( 'Nhân viên' => 1 ), 'duyetTU' => array( 'Quản lý' => 1 ) ) );
 $q0b = VHCP_Cfg::get_quyen();

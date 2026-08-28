@@ -209,7 +209,16 @@ class VHCP_Cfg {
 			array( 'key' => 'suaDong',   'ten' => 'Sửa / thêm / xóa dòng chi',    'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'guiQT',     'ten' => 'Gửi quyết toán / gửi hóa đơn', 'def' => array( 'Quản lý' => 1, 'Nhân viên' => 1 ) ),
 			array( 'key' => 'gom',       'ten' => 'Gom & đẩy cho kế toán',        'def' => array( 'Quản lý' => 1 ) ),
-			array( 'key' => 'xacNhanQT', 'ten' => 'Xác nhận quyết toán (cá nhân)','def' => array( 'Kế toán cá nhân' => 1 ) ),
+			/* 🔴 CẢ HAI VAI KẾ TOÁN ĐỀU QUYẾT TOÁN ĐƯỢC.
+			   Anh Thắng 28/08/2026 gửi hai ảnh cùng một khối "Chờ quyết toán": bên tài khoản
+			   của anh có nút ✔ Duyệt, bên tài khoản kế toán chỉ còn "Chi tiết" — *"Sao tài
+			   khoản kế toán lại không được quyết toán. bật kế toán quyết toán."*
+			   Mặc định cũ chỉ mở cho "Kế toán cá nhân", nên người mang vai "Kế toán NCC" mở
+			   đúng cái tab sinh ra cho mình mà không bấm được gì. Chữ "(cá nhân)" trong tên
+			   nói về PHẦN TIỀN của đơn (đối ứng 141 cá nhân, khác phần 331 nhà cung cấp),
+			   không phải nói về vai — hai thứ ấy trùng chữ nên dễ đọc nhầm, và đã đọc nhầm. */
+			array( 'key' => 'xacNhanQT', 'ten' => 'Xác nhận quyết toán (phần cá nhân của đơn)',
+				'def' => array( 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'duyetNCC',  'ten' => 'Duyệt NCC',                    'def' => array( 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'traDon',    'ten' => 'Trả lại đơn',                  'def' => array( 'Quản lý' => 1, 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
 			array( 'key' => 'xuatMISA',  'ten' => 'Xuất / chốt MISA',             'def' => array( 'Kế toán cá nhân' => 1, 'Kế toán NCC' => 1 ) ),
@@ -769,6 +778,56 @@ class VHCP_Cfg {
 			$out[] = array( 'key' => $a['key'], 'ten' => $a['ten'], 'perms' => $q[ $a['key'] ] );
 		}
 		return array( 'roles' => self::roles(), 'actions' => $out );
+	}
+
+	/**
+	 * VÁ MỘT LẦN: bật "Xác nhận quyết toán" cho MỌI VAI KẾ TOÁN trong bảng quyền ĐANG LƯU.
+	 *
+	 * Đổi `def` ở trên chỉ ăn với site chưa từng lưu bảng quyền — site của anh Thắng đã lưu,
+	 * nên `def` bị bỏ qua hoàn toàn và nút Duyệt vẫn không hiện. Đó là chỗ mà "sửa mặc định"
+	 * trông như đã sửa xong mà thực ra chưa đụng tới gì.
+	 *
+	 * 🔴 CHỈ BẬT, KHÔNG BAO GIỜ TẮT. Đây là nới một quyền theo lệnh của chủ hệ thống; tắt bớt
+	 *    thì phải do người ta tự tích. Và chỉ đụng đúng MỘT hành động, đúng các vai có gốc kế
+	 *    toán — mọi ô khác giữ nguyên từng con số.
+	 *
+	 * ⚠️ CHẠY ĐÚNG MỘT LẦN (có cờ). Chạy lại mỗi lần nạp trang thì ai bỏ tích đi hôm nay,
+	 *    sáng mai nó lại tự bật — và không ai hiểu vì sao bảng phân quyền không nghe lời.
+	 */
+	const CO_VA_QT = 'vhcp_va_qt_ke_toan';
+
+	public static function va_quyen_quyet_toan() {
+		if ( get_option( self::CO_VA_QT ) ) { return 0; }
+		update_option( self::CO_VA_QT, 1, false );
+
+		/* Site CHƯA TỪNG lưu bảng quyền thì `read()` trả rỗng, vòng dưới chạy 0 lượt, `$so`
+		   ở nguyên 0 và không có lượt ghi nào — `def` mới đã đủ cho site ấy. Cố ý KHÔNG thêm
+		   một dòng `if ( ! $rows ) return 0;`: nó không đổi hành vi, mà một dòng không phép
+		   thử nào phân biệt được là một dòng không ai dám sửa về sau. */
+		$rows  = self::read( self::QUYEN );
+		$roles = self::roles();
+		$mo    = array();
+		foreach ( $roles as $i => $role ) {
+			$g = self::vai_goc( $role );
+			if ( 'Kế toán cá nhân' === $g || 'Kế toán NCC' === $g ) { $mo[] = 2 + $i; }
+		}
+		if ( ! $mo ) { return 0; }
+
+		$so  = 0;
+		$moi = array();
+		foreach ( $rows as $r ) {
+			$r = array_values( (array) $r );
+			if ( 'xacNhanQT' === trim( (string) ( isset( $r[0] ) ? $r[0] : '' ) ) ) {
+				foreach ( $mo as $c ) {
+					if ( empty( $r[ $c ] ) ) { $r[ $c ] = 1; $so++; }
+				}
+			}
+			$moi[] = $r;
+		}
+		/* `write()` tự dọn bộ nhớ đệm rồi — gọi thêm `clear_cache()` ở đây là một dòng không
+		   phép thử nào phân biệt được, tức một dòng không ai dám sửa về sau. */
+		if ( $so ) { self::write( self::QUYEN, $moi, false ); }
+		return $so;
 	}
 
 	public static function set_quyen( $matrix ) {

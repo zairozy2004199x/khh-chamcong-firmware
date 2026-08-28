@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.8.0';
+	const SCHEMA_VERSION = '2.9.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -271,6 +271,9 @@ class VHCC_DB {
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			anh_the LONGTEXT NULL,
+			cho_tra_ve TINYINT(1) NOT NULL DEFAULT 0,
+			cho_tra_luc DATETIME NULL,
+			cho_tra_boi VARCHAR(190) NOT NULL DEFAULT '',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY cua_hang (cua_hang),

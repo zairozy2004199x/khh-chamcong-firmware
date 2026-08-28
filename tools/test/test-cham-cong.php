@@ -477,8 +477,16 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
-t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the',
-	count( $cot_thuc['nhan_vien'] ) === 29 ); // 26 + id + vai_tro + anh_the
+t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the + ba ô chờ trả về',
+	count( $cot_thuc['nhan_vien'] ) === 32 ); // 26 + id + vai_tro + anh_the + cho_tra_ve/luc/boi
+/* 🔴 BA Ô "CHỜ TRẢ VỀ NHÂN SỰ" nằm ngay trong hồ sơ, không ở một sổ rời.
+   Anh Thắng 28/08/2026: *"Khi tích thì trong cửa hàng đó vẫn có, nhưng nằm phía là chờ trả về
+   nhân sự"*. Dấu ấy là thuộc tính của CHÍNH con người ấy — để ở sổ rời thì xoá hồ sơ, đổi mã,
+   hay nạp lại sổ là dấu mồ côi, và nó lại âm thầm đẩy một người khác ra khỏi cửa hàng. */
+t( 'nhan_vien có ô đánh dấu chờ trả về', in_array( 'cho_tra_ve', $cot_thuc['nhan_vien'], true ) );
+t( 'và ghi lại ai đánh dấu, lúc nào',
+	in_array( 'cho_tra_luc', $cot_thuc['nhan_vien'], true )
+	&& in_array( 'cho_tra_boi', $cot_thuc['nhan_vien'], true ) );
 /* 🔴 ẢNH THẺ NẰM TRONG BẢNG, KHÔNG NẰM TRONG THƯ VIỆN MEDIA. Mọi thứ trong Media mở công khai
    theo URL — ai đoán trúng đường dẫn là xem được mặt cả chuỗi. */
 t( 'nhan_vien có cột ảnh thẻ', in_array( 'anh_the', $cot_thuc['nhan_vien'], true ) );
@@ -8958,6 +8966,21 @@ foreach ( array(
 delete_option( VHCC_Cong::O );
 /* Dựng thẻ phiên thẳng, không đi qua PIN: PIN của mấy tài khoản mẫu đã bị chính các phép thử ở
    trên sửa đi nhiều lượt, mà phép thử này nói về CỬA VÀO chứ không nói về đăng nhập. */
+/**
+ * THÂN của lưới cả tháng — từ `<tbody>` ngay sau hàng tiêu đề tới `</tbody>` đầu tiên.
+ *
+ * 🔴 Soi thứ tự người trên CẢ TRANG là bắt nhầm: mấy khối khác (thiếu ảnh thẻ, cơ sở khác,
+ *    chọn người…) cũng in đúng những cái tên ấy, và mỗi khối xếp một kiểu.
+ */
+function vhcc_than_luoi( $html ) {
+	$i = strpos( $html, 'TỔNG</th>' );
+	if ( false === $i ) { return ''; }
+	$a = strpos( $html, '<tbody>', $i );
+	if ( false === $a ) { return ''; }
+	$b = strpos( $html, '</tbody>', $a );
+	return ( false === $b ) ? substr( $html, $a ) : substr( $html, $a, $b - $a );
+}
+
 /** Như `vhcc_web_nhu` nhưng chọn được CƠ SỞ — cần cho các phép thử soi chốt cơ sở. */
 function vhcc_web_nhu2( $ma_nv, $vai, $coso, $get = array() ) {
 	$_GET = $get; $_POST = array();
@@ -15146,6 +15169,154 @@ t( '🔴 người chưa có Mã NV thì không thấy biểu mẫu xin phép', '
 ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_xin_tre', array( $xt_nv, 'ky' ) );
 $k_xin = ob_get_clean();
 t( 'còn người có mã thì thấy', strpos( $k_xin, 'id="xintre"' ) !== false, $k_xin );
+
+vhcc_dung_bang();
+
+
+/* ==================================================================================
+   CHỜ TRẢ VỀ NHÂN SỰ
+
+   Anh Thắng 28/08/2026: *"Thêm dấu tích, nhân viên nghỉ việc, trong tháng đó không phát sinh
+   công, nó tự đẩy ngược về nhân sự. Khi tích thì trong cửa hàng đó vẫn có, nhưng nằm phía là
+   chờ trả về nhân sự"*.
+   ================================================================================== */
+vhcc_dung_bang();
+$cs_tv  = 'FZ_SC_TRAVE';
+$tv_ad  = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => $cs_tv, 'ma_nv' => 'TVAD' );
+$tv_cht = array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => $cs_tv, 'ma_nv' => 'TVCHT' );
+$tv_nv  = array( 'name' => 'NV',  'role' => 'Nhân viên', 'coso' => $cs_tv, 'ma_nv' => 'TV1' );
+foreach ( array( 'TV1' => 'Người Nghỉ', 'TV2' => 'Người Ở Lại' ) as $m_tv => $t_tv ) {
+	VHCC_NhanSu::luu_ho_so( $tv_ad, array( 'ma_nv' => $m_tv, 'ho_ten' => $t_tv,
+		'cua_hang' => $cs_tv, 'vai_tro' => 'Nhân viên' ) );
+}
+
+/* ---- 1. TÍCH / BỎ TÍCH ---- */
+t( 'chưa tích thì không ai đang chờ trả', ! VHCC_TraVe::ds_cho( $cs_tv ) );
+$r_tv = VHCC_TraVe::dat( $tv_cht, 'TV1', true );
+t( '🔴 Cửa hàng trưởng tích được người của cửa hàng mình', ! empty( $r_tv['ok'] ), $r_tv );
+t( 'người ấy vào danh sách chờ trả', isset( VHCC_TraVe::ds_cho( $cs_tv )['TV1'] ) );
+t( 'và hồ sơ mang dấu ấy', VHCC_TraVe::dang_cho( VHCC_NhanSu::ho_so( 'TV1' ) ) );
+/* 🔴 TÍCH KHÔNG PHẢI LÀ XOÁ, VÀ CŨNG KHÔNG PHẢI LÀ TRẢ NGAY. */
+teq( '🔴 tích xong người ấy VẪN Ở TRONG CỬA HÀNG', $cs_tv,
+	VHCC_NhanSu::chuan_coso( VHCC_NhanSu::ho_so( 'TV1' )['cua_hang'] ) );
+t( 'người kia không bị đụng tới', ! VHCC_TraVe::dang_cho( VHCC_NhanSu::ho_so( 'TV2' ) ) );
+
+t( '🔴 nhân viên thường KHÔNG tích được', empty( VHCC_TraVe::dat( $tv_nv, 'TV2', true )['ok'] ) );
+/* 🔴 HAI CHỐT CÙNG BẬC CÙNG CHẶN MỘT CA. `lich_lam` và `cong_coso` (cửa của `co_quyen_coso`)
+   đều đứng ở bậc Cửa hàng trưởng, nên nhân viên bị chặn hai lần — bỏ một chốt đi vẫn không
+   lộ. Dựng đúng một người ở giữa: MỞ `cong_coso`, KHOÁ `lich_lam`. */
+$ma_giua_tv = 'TVGIUA1';
+VHCC_Vai::dat_ngoai_le( $tv_ad, 'nv:' . $ma_giua_tv, 'cong_coso', 'mo' );
+VHCC_Vai::dat_ngoai_le( $tv_ad, 'nv:' . $ma_giua_tv, 'lich_lam', 'khoa' );
+$u_giua_tv = array( 'name' => 'Người giữa', 'role' => 'Nhân viên',
+	'coso' => $cs_tv, 'ma_nv' => $ma_giua_tv );
+t( 'người giữa QUA được cửa cơ sở', VHCC_NhanSu::co_quyen_coso( $u_giua_tv, $cs_tv ) );
+t( 'nhưng KHÔNG có quyền đánh dấu', ! VHCC_Vai::duoc( $u_giua_tv, 'lich_lam' ) );
+t( '🔴 nên vẫn không tích được ai', empty( VHCC_TraVe::dat( $u_giua_tv, 'TV2', true )['ok'] ),
+	VHCC_TraVe::dat( $u_giua_tv, 'TV2', true ) );
+VHCC_Vai::dat_ngoai_le( $tv_ad, 'nv:' . $ma_giua_tv, 'cong_coso', '' );
+VHCC_Vai::dat_ngoai_le( $tv_ad, 'nv:' . $ma_giua_tv, 'lich_lam', '' );
+/* Cơ sở đọc từ CHÍNH HỒ SƠ, không từ biểu mẫu — mã gõ tay được. */
+$cht_la_tv = array( 'name' => 'CHT khác', 'role' => 'Cửa hàng trưởng', 'coso' => 'CS_KHAC_HAN' );
+t( '🔴 Cửa hàng trưởng cửa hàng khác cũng không tích được người này',
+	empty( VHCC_TraVe::dat( $cht_la_tv, 'TV1', true )['ok'] ) );
+t( 'mã không có hồ sơ thì báo rõ',
+	empty( VHCC_TraVe::dat( $tv_cht, 'KHONG_CO', true )['ok'] ) );
+
+VHCC_TraVe::dat( $tv_cht, 'TV1', false );
+t( 'bỏ tích được', ! VHCC_TraVe::dang_cho( VHCC_NhanSu::ho_so( 'TV1' ) ) );
+VHCC_TraVe::dat( $tv_cht, 'TV1', true );
+
+/* ---- 2. QUYẾT ĐỊNH TRẢ VỀ LÀ HÀM THUẦN ---- */
+t( '🔴 chưa tích thì không trả, dù tháng đã hết và không có công',
+	! VHCC_TraVe::nen_tra( false, 0, '2026-01', '2026-08-28' ) );
+t( '🔴 tháng ấy CÓ công thì không trả',
+	! VHCC_TraVe::nen_tra( true, 3, '2026-01', '2026-08-28' ) );
+/* 🔴 "Trong tháng đó không phát sinh công" đọc vào tháng ĐANG CHẠY thì luôn đúng vào ngày mùng
+   một — và cả cửa hàng bị trả về nhân sự sạch trong một buổi sáng. */
+t( '🔴 tháng ĐANG CHẠY thì KHÔNG trả, dù chưa ai chấm ngày nào',
+	! VHCC_TraVe::nen_tra( true, 0, '2026-08', '2026-08-01' ) );
+t( 'tháng đã hết + không công + đã tích -> trả',
+	VHCC_TraVe::nen_tra( true, 0, '2026-07', '2026-08-01' ) );
+t( 'tháng sau nữa cũng không trả (chưa tới)',
+	! VHCC_TraVe::nen_tra( true, 0, '2026-09', '2026-08-28' ) );
+t( 'tháng viết sai thì không trả', ! VHCC_TraVe::nen_tra( true, 0, 'xxx', '2026-08-28' ) );
+t( 'tháng trước đã hết', VHCC_TraVe::thang_da_het( '2026-07', '2026-08-01' ) );
+t( 'tháng này chưa', ! VHCC_TraVe::thang_da_het( '2026-08', '2026-08-31' ) );
+
+/* ---- 3. QUÉT THẬT ---- */
+$thang_nay_tv = substr( (string) current_time( 'Y-m-d' ), 0, 7 );
+teq( '🔴 quét tháng ĐANG CHẠY thì không trả ai', 0,
+	count( VHCC_TraVe::quet( $cs_tv, $thang_nay_tv ) ) );
+t( 'và người ấy vẫn ở cửa hàng', '' !== VHCC_NhanSu::ho_so( 'TV1' )['cua_hang'] );
+
+$thang_cu = '2026-01';
+$da_tra = VHCC_TraVe::quet( $cs_tv, $thang_cu, 'Sếp' );
+teq( '🔴 quét tháng ĐÃ HẾT, không công, đã tích -> trả về nhân sự', 1, count( $da_tra ) );
+teq( 'đúng người', 'TV1', $da_tra[0]['ma_nv'] );
+/* 🔴 TRẢ VỀ = GỠ KHỎI CỬA HÀNG, KHÔNG PHẢI XOÁ HỒ SƠ. */
+t( '🔴 hồ sơ VẪN CÒN trong sổ nhân sự', (bool) VHCC_NhanSu::ho_so( 'TV1' ) );
+teq( 'chỉ ô Cửa hàng được xoá trắng', '', VHCC_NhanSu::ho_so( 'TV1' )['cua_hang'] );
+/* 🔴 VỀ KHO THÌ BỎ LUÔN CÁI TÍCH — để nguyên là lần sau xếp họ vào cửa hàng mới, cái tích cũ
+   lại âm thầm đẩy họ ra. */
+t( '🔴 và dấu chờ trả được gỡ theo', ! VHCC_TraVe::dang_cho( VHCC_NhanSu::ho_so( 'TV1' ) ) );
+t( 'người không tích thì không bị đụng',
+	'' !== VHCC_NhanSu::ho_so( 'TV2' )['cua_hang'] );
+
+/* Người có công trong tháng ấy thì giữ lại, dù đã tích. */
+VHCC_NhanSu::luu_ho_so( $tv_ad, array( 'ma_nv' => 'TV3', 'ho_ten' => 'Người Có Công',
+	'cua_hang' => $cs_tv, 'vai_tro' => 'Nhân viên' ) );
+VHCC_TraVe::dat( $tv_cht, 'TV3', true );
+vhcc_cham( $cs_tv, '2026-01-15', 'TV3', '', '08:00', '17:00' );
+teq( '🔴 tháng ấy có công thì KHÔNG trả, dù đã tích', 0,
+	count( VHCC_TraVe::quet( $cs_tv, $thang_cu ) ) );
+t( 'và người ấy còn nguyên ở cửa hàng', '' !== VHCC_NhanSu::ho_so( 'TV3' )['cua_hang'] );
+
+/* ---- 4. TRÊN MÀN ---- */
+VHCC_TraVe::dat( $tv_cht, 'TV2', true );
+/* 🔴 NGƯỜI DỰNG RIÊNG ĐỂ SO THỨ TỰ: tên bắt đầu bằng "Z" nên xếp theo bảng chữ cái thì đứng
+   CUỐI — nhưng vì không tích, họ phải đứng TRÊN hai người đã tích. Lấy một người tên vần đầu
+   thì không phân biệt được: họ đứng trên là do bảng chữ cái, không phải do luật mới. */
+VHCC_NhanSu::luu_ho_so( $tv_ad, array( 'ma_nv' => 'TV4', 'ho_ten' => 'Zz Người Thường',
+	'cua_hang' => $cs_tv, 'vai_tro' => 'Nhân viên' ) );
+$h_tv = vhcc_web_nhu2( 'TVCHT', 'Cửa hàng trưởng', $cs_tv,
+	array( 'man' => 'cham', 'ccs' => $cs_tv, 'cth' => $thang_nay_tv ) );
+t( 'Cửa hàng trưởng thấy dấu tích chờ trả về',
+	strpos( $h_tv, 'value="cho_tra"' ) !== false, $h_tv );
+t( 'người đã tích hiện dấu đã tích', strpos( $h_tv, '☑ chờ trả về' ) !== false, $h_tv );
+t( 'người chưa tích hiện ô trống', strpos( $h_tv, '☐ chờ trả về' ) !== false, $h_tv );
+t( 'hàng của người chờ trả có nền riêng', strpos( $h_tv, 'class="cho-tra"' ) !== false, $h_tv );
+/* 🔴 XUỐNG CUỐI BẢNG, KHÔNG BIẾN MẤT — bảng lương tháng ấy vẫn phải tra ra tên họ. */
+t( '🔴 người chờ trả VẪN CÓ trong bảng', strpos( $h_tv, 'Người Ở Lại' ) !== false, $h_tv );
+/* ⚠️ CẮT ĐÚNG THÂN LƯỚI RỒI MỚI SO THỨ TỰ. Soi cả trang thì bắt trúng tên ở khối KHÁC —
+   khối "thiếu ảnh thẻ" cũng liệt kê đúng những người này, và nó xếp theo bảng chữ cái, nên
+   phép thử đỏ oan về một chỗ chẳng có gì sai. Cùng cái bẫy đã cắn nhiều lần. */
+$than_tv = vhcc_than_luoi( $h_tv );
+$vt_2 = strpos( $than_tv, 'Người Ở Lại' );
+$vt_4 = strpos( $than_tv, 'Zz Người Thường' );
+t( '🔴 và nằm SAU người bình thường — dù người kia tên vần Z, xếp abc thì lẽ ra đứng cuối',
+	$vt_4 !== false && $vt_2 !== false && $vt_4 < $vt_2, array( $vt_4, $vt_2 ) );
+
+/* Nhân viên thường vẫn THẤY ai đang chờ trả (đọc bảng mới hiểu), nhưng không bấm được. */
+ob_start(); echo vhcc_goi_rieng( 'VHCC_Web', 'o_cho_tra', array( 'TV2', true, 'ky', $tv_nv, $cs_tv ) );
+$o_nv = ob_get_clean();
+t( '🔴 nhân viên KHÔNG có nút tích', strpos( $o_nv, 'value="cho_tra"' ) === false, $o_nv );
+t( 'nhưng vẫn thấy nhãn chờ trả về', strpos( $o_nv, 'chờ trả về' ) !== false, $o_nv );
+ob_start(); echo vhcc_goi_rieng( 'VHCC_Web', 'o_cho_tra', array( 'TV2', false, 'ky', $tv_nv, $cs_tv ) );
+teq( 'người không chờ trả thì nhân viên chẳng thấy gì', '', trim( ob_get_clean() ) );
+
+/* ---- 5. BẤM NÚT THẬT ---- */
+$_POST = array( 'viec' => 'cho_tra', 'tv_ma' => 'TV3', 'tv_bat' => '0', 'ccs' => $cs_tv );
+$b_tv = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'cho_tra', $tv_cht ) );
+$_POST = array();
+t( '🔴 bấm bỏ tích trên trang thì dấu mất thật',
+	! VHCC_TraVe::dang_cho( VHCC_NhanSu::ho_so( 'TV3' ) ), $b_tv );
+$_POST = array( 'viec' => 'cho_tra', 'tv_ma' => 'TV3', 'tv_bat' => '1', 'ccs' => $cs_tv );
+$b_tv2 = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'cho_tra', $tv_cht ) );
+$_POST = array();
+t( 'bấm tích lại cũng vậy', VHCC_TraVe::dang_cho( VHCC_NhanSu::ho_so( 'TV3' ) ) );
+t( 'và lời báo nói rõ người ấy VẪN ở cửa hàng', isset( $b_tv2[0]['xong'] )
+	&& strpos( $b_tv2[0]['xong'], 'VẪN ở ' . $cs_tv ) !== false, $b_tv2 );
 
 vhcc_dung_bang();
 
