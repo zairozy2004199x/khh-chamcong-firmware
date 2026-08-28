@@ -193,6 +193,7 @@ class VHCC_TrangNS {
 		if ( 'them_vai' === $viec )    { return self::viec_them_vai( $toi ); }
 		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
+		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -217,9 +218,59 @@ class VHCC_TrangNS {
 		return $sach;
 	}
 
+	/**
+	 * TÁCH CỘT GHẾ RA KHỎI BẢNG Ô, TRẢ VỀ [bảng còn lại, bảng ghế].
+	 *
+	 * 🔴 HAI SỔ, HAI HÀM LƯU. Cột ghế đi chung một biểu mẫu với ba cột kia cho tiện tay người
+	 *    bấm, nhưng bên dưới nó ghi sang một chỗ khác hẳn (`vhg_nguoidung`, không phải sổ ngoại
+	 *    lệ). Để nguyên nó trong bảng giao cho `VHCC_Cong::luu_nhieu()` thì hàm ấy bỏ qua vì
+	 *    không có trang tên "ghe" trong sổ của nó — bỏ qua IM LẶNG, và người bấm thấy "đã lưu"
+	 *    trong khi không ai được đẩy đi đâu cả.
+	 */
+	private static function viec_ghe_rieng( $toi ) {
+		$kq = VHCC_DayGhe::chuyen_sang_rieng( $toi );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		if ( isset( $kq['note'] ) ) { return array( array( 'canh' => $kq['note'] ) ); }
+		$chep = (int) $kq['chep'];
+		return array( array( 'ok' => 'Hệ ghế nay dùng SỔ RIÊNG'
+			. ( $chep ? ' — đã chép sẵn ' . $chep . ' người đang đăng nhập được sang, để không ai '
+				. 'bị đá ra.' : '. Sổ chung vốn không có ai nên không phải chép.' ) ) );
+	}
+
+	private static function tach_ghe( $sach ) {
+		$ghe = array();
+		foreach ( $sach as $ma => $cac ) {
+			if ( ! is_array( $cac ) || ! array_key_exists( VHCC_DayGhe::COT, $cac ) ) { continue; }
+			$ghe[ $ma ] = (string) $cac[ VHCC_DayGhe::COT ];
+			unset( $sach[ $ma ][ VHCC_DayGhe::COT ] );
+		}
+		return array( $sach, $ghe );
+	}
+
+	/** Đẩy/gỡ theo bảng vừa tách, rồi kể lại thành mấy dòng báo. */
+	private static function luu_ghe( $toi, $ghe ) {
+		if ( ! $ghe || ! self::cot_ghe( $toi ) ) { return array(); }
+		$kq  = VHCC_DayGhe::luu_nhieu( $toi, $ghe );
+		$bao = array();
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		if ( ! empty( $kq['doi'] ) ) {
+			$bao[] = array( 'ok' => 'Hệ ghế: đã đẩy/gỡ ' . (int) $kq['doi'] . ' người.' );
+		}
+		foreach ( (array) $kq['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
+		/* ⚠️ ĐẨY XONG MÀ HỆ GHẾ ĐANG ĐỌC SỔ KHÁC LÀ ĐẨY VÀO HƯ KHÔNG — nhắc lại ngay tại chỗ
+		   vừa bấm, đừng bắt người ta cuộn lên tìm dải cảnh báo ở đầu trang. */
+		if ( ! empty( $kq['doi'] ) && ! VHCC_DayGhe::nguon_dung() ) {
+			$bao[] = array( 'canh' => 'Nhưng hệ ghế đang đọc SỔ CHUNG với app Chi phí, nên mấy '
+				. 'người vừa đẩy CHƯA đăng nhập được. Bấm nút chuyển nguồn ở đầu trang.' );
+		}
+		return $bao;
+	}
+
 	private static function viec_luu( $toi ) {
 		$sach = self::doc_o();
 		if ( ! $sach ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
+		list( $sach, $ghe ) = self::tach_ghe( $sach );
+		$bao_ghe = self::luu_ghe( $toi, $ghe );
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 
@@ -245,6 +296,7 @@ class VHCC_TrangNS {
 		   người bấm ĐỌC ĐƯỢC câu chối. Nuốt đi thì màn hình báo "đã lưu", ô vai trở về giá trị
 		   cũ, và người ta tưởng hệ thống hỏng chứ không biết mình vừa bị chặn. */
 		foreach ( $vai['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
+		foreach ( $bao_ghe as $b ) { $bao[] = $b; }
 		if ( ! $bao ) { return array( array( 'canh' => 'Không có ô nào đổi — chưa lưu gì.' ) ); }
 		return $bao;
 	}
@@ -319,6 +371,21 @@ class VHCC_TrangNS {
 		$dat   = isset( $phan[1] ) ? (string) $phan[1] : '';
 		if ( ! in_array( $dat, array( 'mo', 'khoa', '' ), true ) ) {
 			return array( array( 'loi' => 'Chỉ nhận: mo · khoa · (trống).' ) );
+		}
+		/* Cột ghế đi đường riêng — xem `tach_ghe()`. Chặn ở đây chứ đừng để nó rơi xuống
+		   `VHCC_Cong::co()`: khoá "ghe" không có trong sổ trang, nên nó sẽ bị chối bằng một câu
+		   sai hẳn ("Không có trang ghe trên site này") trong khi cột ấy đang hiện rành rành. */
+		if ( VHCC_DayGhe::COT === $trang ) {
+			if ( ! self::cot_ghe( $toi ) ) {
+				return array( array( 'loi' => 'Đẩy người sang hệ ghế cần vai Admin.' ) );
+			}
+			$sach = self::doc_o();
+			if ( ! $sach ) { return array( array( 'loi' => 'Không có người nào đang hiện để áp.' ) ); }
+			$ghe = array();
+			foreach ( $sach as $ma_g => $x_g ) { $ghe[ $ma_g ] = ( 'mo' === $dat ) ? 'mo' : ''; }
+			$bao_g = self::luu_ghe( $toi, $ghe );
+			return $bao_g ? $bao_g : array( array( 'canh' => 'Cột "Ghế massage" vốn đã như vậy cho '
+				. count( $ghe ) . ' người đang hiện — không có gì đổi.' ) );
 		}
 		if ( ! VHCC_Cong::co( $trang ) ) {
 			return array( array( 'loi' => 'Không có trang "' . $trang . '" trên site này.' ) );
@@ -574,6 +641,7 @@ class VHCC_TrangNS {
 
 		self::the_duong_di( $toi, $ds_trang );
 		self::canh_nguon();
+		self::canh_ghe( $toi );
 
 		if ( ! $ds_trang ) {
 			echo '<div class="the"><div class="bao loi">Không dò thấy trang nào trên site này. '
@@ -619,6 +687,28 @@ class VHCC_TrangNS {
 	 *    nhập liệu, và ngày nào lật nguồn sang "hồ sơ" là mọi thứ khai ở đây có hiệu lực ngay.
 	 *    Chặn lại thì mất luôn đường chuẩn bị trước.
 	 */
+	/**
+	 * HỆ GHẾ ĐANG ĐỌC SỔ NÀO — và nút chuyển, nếu đang đọc sai chỗ.
+	 *
+	 * 🔴 ĐẨY VÀO SỔ RIÊNG TRONG KHI HỆ GHẾ ĐANG ĐỌC SỔ CHUNG = ĐẨY VÀO HƯ KHÔNG. Màn hình báo
+	 *    "đã đẩy 12 người", 12 người ấy gõ PIN và không ai vào được, mà không có một dòng nào
+	 *    nói vì sao. Nên trạng thái này phải hiện ra TRƯỚC khi anh bấm, không phải sau.
+	 *
+	 * ⚠️ NÚT CHUYỂN CÓ CHÉP NGƯỜI ĐANG DÙNG SANG TRƯỚC — xem `VHCC_DayGhe::chuyen_sang_rieng()`.
+	 *    Đổi cờ trần là ngay khoảnh khắc ấy KHÔNG AI vào được `/ghe`, kể cả người vừa bấm nút.
+	 *    Nói ra chuyện đó ngay trên nút, để người bấm biết mình đang bấm cái gì.
+	 */
+	private static function canh_ghe( $toi ) {
+		if ( ! self::cot_ghe( $toi ) || VHCC_DayGhe::nguon_dung() ) { return; }
+		echo '<div class="bao canh"><b>Hệ ghế đang đọc SỔ CHUNG với app Vận hành chi phí.</b><br>'
+			. 'Cột <b>Ghế massage</b> ở bảng dưới đẩy người vào <b>sổ riêng của hệ ghế</b>, mà sổ ấy '
+			. 'thì hệ ghế chưa đọc tới — nên đẩy bây giờ là đẩy vào chỗ không ai hỏi đến.<br>'
+			. '<button class="chinh" name="viec" value="ghe_rieng" style="margin-top:6px">'
+			. 'Chuyển hệ ghế sang dùng sổ riêng</button> '
+			. '<span class="mo">Nút này <b>chép sẵn những người đang đăng nhập được</b> sang sổ riêng '
+			. 'trước khi đổi — không ai bị đá ra giữa chừng, kể cả anh.</span></div>';
+	}
+
 	private static function canh_nguon() {
 		if ( ! class_exists( 'VHCC_Auth' ) || ! method_exists( 'VHCC_Auth', 'nguon' ) ) { return; }
 		$n = VHCC_Auth::nguon();
@@ -776,8 +866,14 @@ class VHCC_TrangNS {
 		echo '<div class="the"><details>';
 		echo '<summary>Những trang <b>không</b> khai được ở đây — và vì sao</summary>';
 		echo '<ul class="mo" style="margin:6px 0 0 18px;padding:0">';
-		echo '<li><b>Ghế massage</b> — trang của <b>khách</b>. Khách quét QR rồi trả tiền, '
-			. 'không đăng nhập và không có Mã NV. Khoá được nó là ghế đứng im, tiền không vào.</li>';
+		/* ⚠️ `/ghe` CÓ HAI MẶT, VÀ CHỈ MỘT MẶT KHAI ĐƯỢC. Nói gọn thành "trang của khách" như
+		   bản trước là sai từ ngày màn quản trị ghế ra đời — người đọc đi tìm cột Ghế, thấy
+		   dòng này, rồi tin rằng nó không thể có. */
+		echo '<li><b>Màn khách của Ghế massage</b> — khách quét QR trên ghế rồi trả tiền, không '
+			. 'đăng nhập và không có Mã NV. Khoá được nó là ghế đứng im, tiền không vào. '
+			. '<span class="mo">Còn <b>màn quản trị</b> của hệ ghế thì khai được — bằng cột '
+			. '<b>Ghế massage</b> ở bảng trên. Nó không ghi ngoại lệ như ba cột kia mà <b>đẩy '
+			. 'người thật</b> sang sổ người dùng của hệ ghế, vì `/ghe` có phiên riêng.</span></li>';
 		echo '<li><b>Cổng K&amp;H</b> — cửa trước, công khai, chỉ liệt kê các hệ. Khoá cửa trước '
 			. 'là khoá cả nhà.</li>';
 		echo '<li><b>Thư viện hợp đồng</b> — giao diện lấy thẳng từ Apps Script và tự đăng nhập '
@@ -862,6 +958,22 @@ class VHCC_TrangNS {
 			}
 			echo '</span></th>';
 		}
+		/* 🔴 CỘT GHẾ TRÔNG GIỐNG BA CỘT KIA NHƯNG LÀ MỘT CƠ CHẾ KHÁC — xem đầu `VHCC_DayGhe`.
+		   Ba cột kia ghi một NGOẠI LỆ vào sổ quyền; cột này ĐẨY NGƯỜI THẬT sang sổ người dùng
+		   của hệ ghế, vì `/ghe` có phiên riêng và không đọc `ma_nv`. Nên nó chỉ có HAI nút:
+		   đẩy sang, hoặc gỡ ra. Không có "theo vai" — bên ấy không hỏi vai bên này bao giờ. */
+		$co_ghe = self::cot_ghe( $toi );
+		if ( $co_ghe ) {
+			echo '<th class="tr-doc">Ghế massage<br><span class="cot-nut">';
+			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
+				echo '<button type="submit" name="cot" value="' . esc_attr( VHCC_DayGhe::COT . '|' . $gt ) . '"'
+					. ' title="' . esc_attr( 'mo' === $gt
+						? 'Đẩy tất cả người đang hiện sang hệ ghế, rồi lưu luôn'
+						: 'Gỡ tất cả người đang hiện khỏi hệ ghế, rồi lưu luôn' ) . '">'
+					. esc_html( $ten ) . '</button>';
+			}
+			echo '</span></th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		foreach ( $lat as $r ) {
@@ -932,8 +1044,15 @@ class VHCC_TrangNS {
 				}
 				echo '<td class="o-q-td">' . self::ba_nut( $ma, $k, $dat, $mac ) . '</td>';
 			}
+			if ( $co_ghe ) {
+				echo '<td class="o-q-td">'
+					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
+						: self::hai_nut_ghe( $ma ) ) . '</td>';
+			}
 			echo '</tr>';
-			if ( $dang_sua === $ma ) { self::hang_sua( $toi, $r, 4 + count( $ds_trang ) ); }
+			if ( $dang_sua === $ma ) {
+				self::hang_sua( $toi, $r, 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) );
+			}
 		}
 		echo '</tbody></table></div>';
 		echo '<div class="hang" style="margin-top:12px">'
@@ -1152,6 +1271,42 @@ class VHCC_TrangNS {
 			$h .= '<label for="' . esc_attr( $id ) . '" title="' . esc_attr( $c['chu'] ) . '">'
 				. '<input type="radio" id="' . esc_attr( $id ) . '" class="' . esc_attr( $c['lop'] ) . '"'
 				. ' name="o[' . esc_attr( $ma ) . '][' . esc_attr( $k ) . ']"'
+				. ' value="' . esc_attr( $gt ) . '"' . checked( $dat, $gt, false ) . '>'
+				. '<span>' . esc_html( $c['ten'] ) . '</span></label>';
+		}
+		return $h . '</span>';
+	}
+
+	/**
+	 * Cột Ghế có được vẽ ra không.
+	 *
+	 * 🔴 VẼ MỘT CỘT MÀ NGƯỜI XEM KHÔNG BẤM NỔI LÀ TỆ HƠN KHÔNG VẼ. Quyền đẩy đặt ở `he_thong`
+	 *    (Admin) vì đó là màn có ngăn tiền, và vì PIN dùng chung — đẩy nhầm một người là trao
+	 *    cho họ chìa khoá mà chính họ cũng không biết mình đang cầm.
+	 */
+	private static function cot_ghe( $toi ) {
+		return VHCC_DayGhe::co_he_ghe() && VHCC_Vai::duoc( $toi, VHCC_DayGhe::QUYEN );
+	}
+
+	/**
+	 * HAI nút, không phải ba. Bên ghế không có khái niệm "theo vai" — người ấy hoặc có mặt
+	 * trong sổ người dùng của nó, hoặc không.
+	 */
+	private static function hai_nut_ghe( $ma ) {
+		$dat = VHCC_DayGhe::o( $ma );
+		$goc = 'g' . substr( md5( $ma . '|ghe' ), 0, 10 );
+		$h   = '<span class="ba">';
+		$cac = array(
+			'mo' => array( 'ten' => 'Đẩy ✓', 'lop' => 'v-mo',
+				'chu' => 'Có mặt trong sổ người dùng của hệ ghế — đăng nhập /ghe bằng chính PIN chấm công' ),
+			''   => array( 'ten' => 'Gỡ', 'lop' => 'v-khoa',
+				'chu' => 'Không có trong sổ người dùng của hệ ghế' ),
+		);
+		foreach ( $cac as $gt => $c ) {
+			$id = $goc . ( '' === $gt ? 'g' : $gt );
+			$h .= '<label for="' . esc_attr( $id ) . '" title="' . esc_attr( $c['chu'] ) . '">'
+				. '<input type="radio" id="' . esc_attr( $id ) . '" class="' . esc_attr( $c['lop'] ) . '"'
+				. ' name="o[' . esc_attr( $ma ) . '][' . esc_attr( VHCC_DayGhe::COT ) . ']"'
 				. ' value="' . esc_attr( $gt ) . '"' . checked( $dat, $gt, false ) . '>'
 				. '<span>' . esc_html( $c['ten'] ) . '</span></label>';
 		}

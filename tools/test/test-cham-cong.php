@@ -8104,6 +8104,298 @@ t( 'chưa khai gì thì Admin vẫn vào được màn quản trị', VHCC_Cong:
 t( '🔴 trang lạ / chưa khai thì CHO QUA, không chặn', VHCC_Cong::duoc_vao( $ns_nv, 'mot_trang_chua_khai' ) );
 teq( 'và không có câu chối nào cho trang lạ', '', VHCC_Cong::vi_sao_khong( $ns_nv, 'mot_trang_chua_khai' ) );
 
+/* ---- 60b2. ĐẨY NGƯỜI SANG HỆ GHẾ -----------------------------------------------------------
+   🔴 Anh Thắng 28/08/2026: *"anh muốn đẩy nhân sự liên kết hệ thống ghế"*, rồi chốt cách làm:
+      *"để tránh mở vai trò thì mình làm từng hệ phân quyền mở / khóa như này"*.
+
+   Cột thứ tư trông giống ba cột kia nhưng bên dưới là cơ chế KHÁC HẲN. `/ghe` có phiên riêng
+   bằng PIN và không đọc `ma_nv`, nên ngoại lệ ở `VHCC_Cong` không bám vào đâu — "Mở" ở đây
+   phải là ĐẨY NGƯỜI THẬT sang sổ người dùng của hệ ghế. */
+/**
+ * Nạp màn Quản lý nhân sự bằng một thẻ phiên.
+ *
+ * ⚠️ Trang này dùng CHUNG cookie với màn quản trị chấm công (`VHCC_Web::COOKIE`) — nó là một
+ *    hệ, không phải hai. Đặt cookie khác là `toi()` trả rỗng và mọi phép thử dưới đây soi
+ *    trang chối chứ không soi bảng.
+ */
+function vhcc_hr_ns( $tok, $get = array() ) {
+	$_GET = $get; $_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => $tok );
+	ob_start(); VHCC_TrangNS::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+
+/* ⚠️ Nạp lớp thật của plugin ghế. `VHCC_DayGhe::co_he_ghe()` hỏi `class_exists('VHG_Auth')` —
+   đúng như nó phải hỏi, vì site không cài plugin ghế thì cột kia đừng vẽ ra làm gì. Không nạp
+   ở đây thì cả khối này chạy trên nhánh "chưa cài", và mọi phép thử đều xanh vì lý do sai. */
+/* `VHG_Auth::users()` đọc bảng qua `VHG_DB` khi nguồn là 'chung' — nạp cả hai, không thì
+   phép thử chuyển nguồn chết giữa đường vì thiếu lớp chứ không vì lỗi thật. */
+require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-db.php';
+require_once $goc . '/wordpress/vhcp-ghe/includes/class-vhg-auth.php';
+t( 'dựng cảnh: có plugin ghế trên site thì cột mới có nghĩa', VHCC_DayGhe::co_he_ghe() );
+
+delete_option( VHCC_DayGhe::O_SO );
+delete_option( VHCC_DayGhe::O_NGUON );
+t( 'cột ghế cố ý KHÔNG nằm trong sổ trang của VHCC_Cong',
+	! isset( VHCC_Cong::SO[ VHCC_DayGhe::COT ] ), VHCC_DayGhe::COT );
+
+$g_ad = array( 'ma_nv' => 'GH_AD', 'role' => 'Admin' );
+$g_kt = array( 'ma_nv' => 'GH_KT', 'role' => 'Kế toán' );
+
+/* Dựng một người có PIN chấm công — PIN nằm ở bảng `phan_quyen`, không ở `nhan_vien`. */
+vhcc_bo_phan( 'GHE_CS', 'Khu vui chơi' );
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV01', 'ho_ten' => 'Trần Ghế Một',
+	'cua_hang' => 'GHE_CS', 'vai_tro' => 'Cửa hàng trưởng' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '778899',
+	'ho_ten' => 'Trần Ghế Một', 'vai_tro' => 'Cửa hàng trưởng',
+	'cua_hang' => 'GHE_CS', 'ma_cc_online' => 'GHNV01', 'coso_cc_online' => 'GHE_CS' ) );
+
+teq( 'chưa đẩy thì ô để trống', '', VHCC_DayGhe::o( 'GHNV01' ) );
+$g_kq = VHCC_DayGhe::dat( $g_ad, 'GHNV01', 'mo' );
+t( 'Admin đẩy được', ! empty( $g_kq['ok'] ), $g_kq );
+teq( 'và ô thành «đã đẩy»', 'mo', VHCC_DayGhe::o( 'GHNV01' ) );
+
+$g_so = VHCC_DayGhe::so();
+teq( 'sổ ghế có đúng một hàng', 1, count( $g_so ) );
+teq( '🔴 chép đúng PIN chấm công sang — anh Thắng chọn dùng chung một PIN',
+	'778899', (string) $g_so[0]['pin'] );
+teq( 'kèm họ tên', 'Trần Ghế Một', (string) $g_so[0]['ten'] );
+teq( 'kèm cơ sở', 'GHE_CS', (string) $g_so[0]['coso'] );
+/* 🔴 SỢI DÂY NỐI VỀ SỔ NHÂN SỰ. Thiếu `maNV` thì "gỡ người này ra" phải dò theo họ tên, mà hai
+   người trùng tên là chuyện có thật trong 400 nhân sự. */
+teq( '🔴 giữ mã NV làm sợi dây nối về sổ nhân sự', 'GHNV01', (string) $g_so[0]['maNV'] );
+
+/* ⚠️ HAI HỆ HAI THANG VAI. Cửa hàng trưởng bên chấm công -> đúng vai ấy bên ghế. */
+teq( 'vai trò dịch đúng sang thang của hệ ghế', 'Cửa hàng trưởng', (string) $g_so[0]['vaiTro'] );
+teq( 'Admin -> Admin', 'Admin', VHCC_DayGhe::vai_ghe( 'Admin' ) );
+teq( 'Quản lý -> Quản lý', 'Quản lý', VHCC_DayGhe::vai_ghe( 'Quản lý' ) );
+teq( 'Kế toán -> Kế toán cá nhân', 'Kế toán cá nhân', VHCC_DayGhe::vai_ghe( 'Kế toán' ) );
+/* 🔴 KHÔNG ĐOÁN RỘNG KHI KHÔNG KHỚP. Vai lạ rơi về vai HẸP NHẤT bên ghế — đoán rộng ra là trao
+   quyền xem tiền cả chuỗi cho một người chỉ vì gõ sai một chữ trong ô vai trò. */
+teq( '🔴 vai lạ rơi về vai HẸP NHẤT, không đoán rộng', 'Nhân viên',
+	VHCC_DayGhe::vai_ghe( 'Một vai chưa ai nghe bao giờ' ) );
+/* Và 'Hotline' bên ghế không có đối ứng bên chấm công — không bao giờ đẩy ra vai đó. */
+$g_hot = array();
+foreach ( array( 'Admin', 'Quản lý', 'Kế toán', 'Cửa hàng trưởng', 'Nhân viên', 'Lạ hoắc' ) as $g_v ) {
+	$g_hot[] = VHCC_DayGhe::vai_ghe( $g_v );
+}
+t( '🔴 không bao giờ đẩy ai ra vai Hotline — vai ấy khai tay bên hệ ghế',
+	! in_array( 'Hotline', $g_hot, true ), $g_hot );
+
+/* 🔴 PHÉP THỬ CANH QUAN HỆ HAI BẬC. `vai_ghe()` có một đường lui cho bậc lạ, nhưng hôm nay
+   `VHCC_Vai::ma()` luôn trả về đúng một trong năm bậc đã khai — nên đường lui ấy KHÔNG BAO GIỜ
+   chạy, và vết phá "đổi đường lui thành Quản lý" vẫn xanh. Đường lui phải GIỮ (nó che một hàm
+   ở lớp KHÁC, ngày mai `VHCC_Vai` thêm bậc thứ sáu là nó cứu), nhưng phải có thứ canh đúng cái
+   quan hệ ấy: mọi bậc `ma()` trả ra đều phải có tên bên hệ ghế. */
+foreach ( VHCC_Vai::TEN as $g_bac => $g_ten_vai ) {
+	$g_ra = VHCC_DayGhe::vai_ghe( $g_ten_vai );
+	t( 'bậc "' . $g_ten_vai . '" có tên tương ứng bên hệ ghế',
+		in_array( $g_ra, VHG_Auth::VAI_TRO_TAT_CA, true ), $g_ra );
+	/* ⚠️ VÀ KHÔNG ĐƯỢC RƠI XUỐNG ĐƯỜNG LUI. Rơi xuống nghĩa là bậc ấy chưa được khai trong
+	   bảng ánh xạ — người mang vai đó bị hạ xuống Nhân viên mà không có gì báo. */
+	if ( VHCC_Vai::NV !== $g_bac ) {
+		t( '🔴 và KHÔNG rơi xuống đường lui "Nhân viên"', 'Nhân viên' !== $g_ra, $g_ten_vai . ' -> ' . $g_ra );
+	}
+}
+
+/* ⚠️ ĐẨY LẠI = CẬP NHẬT, KHÔNG ĐẺ HÀNG THỨ HAI. Đổi vai rồi đẩy lại là chuyện thường; đẻ thêm
+   hàng thì bên ghế có hai người trùng tên, và cái nào thắng lúc đăng nhập thì tuỳ thứ tự đọc. */
+$wpdb->update( VHCC_DB::t( 'phan_quyen' ), array( 'vai_tro' => 'Quản lý' ),
+	array( 'ma_cc_online' => 'GHNV01' ) );
+VHCC_DayGhe::dat( $g_ad, 'GHNV01', 'mo' );
+$g_so = VHCC_DayGhe::so();
+teq( '🔴 đẩy lại KHÔNG đẻ hàng thứ hai', 1, count( $g_so ) );
+teq( 'mà cập nhật vai mới', 'Quản lý', (string) $g_so[0]['vaiTro'] );
+
+/* Gỡ ra. */
+VHCC_DayGhe::dat( $g_ad, 'GHNV01', '' );
+teq( 'gỡ thì sổ ghế rỗng lại', 0, count( VHCC_DayGhe::so() ) );
+teq( 'và ô trở về trống', '', VHCC_DayGhe::o( 'GHNV01' ) );
+
+/* 🔴 CHƯA CÓ PIN THÌ KHÔNG ĐẨY ĐƯỢC — VÀ PHẢI NÓI RA ĐÚNG LÝ DO. Lặng lẽ bỏ qua thì người đi
+   khai tưởng mình bấm hụt, bấm lại mười lần vẫn thế. */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV02', 'ho_ten' => 'Trần Ghế Hai',
+	'cua_hang' => 'GHE_CS', 'vai_tro' => 'Nhân viên' ) );
+$g_kq = VHCC_DayGhe::dat( $g_ad, 'GHNV02', 'mo' );
+t( '🔴 chưa có PIN chấm công thì chối', empty( $g_kq['ok'] ), $g_kq );
+/* ⚠️ HAI CẢNH KHÁC NHAU, PHẢI THỬ CẢ HAI: người CHƯA CÓ hàng trong sổ tài khoản, và người CÓ
+   hàng nhưng ô PIN còn TRỐNG. Chỉ thử cảnh đầu thì chốt "PIN rỗng" thành mã không ai canh —
+   bỏ nó đi vẫn xanh, mà bỏ nó là đẩy sang một người không đăng nhập nổi. */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV03', 'ho_ten' => 'Trần Ghế Ba',
+	'cua_hang' => 'GHE_CS', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '',
+	'ho_ten' => 'Trần Ghế Ba', 'vai_tro' => 'Nhân viên',
+	'cua_hang' => 'GHE_CS', 'ma_cc_online' => 'GHNV03', 'coso_cc_online' => 'GHE_CS' ) );
+$g_kq = VHCC_DayGhe::dat( $g_ad, 'GHNV03', 'mo' );
+t( '🔴 có hàng tài khoản nhưng ô PIN còn TRỐNG: cũng chối', empty( $g_kq['ok'] ), $g_kq );
+t( 'và nói rõ vì sao, kèm chỗ đi cấp PIN',
+	strpos( (string) $g_kq['error'], 'chưa có PIN' ) !== false
+	&& strpos( (string) $g_kq['error'], 'Hồ sơ' ) !== false, $g_kq );
+
+/* 🔴 QUYỀN ĐẨY CAO HƠN QUYỀN KHAI BA CỘT KIA. Ba cột kia mở đường vào mấy màn xem giờ công;
+   cột này mở đường vào màn có NGĂN TIỀN — và vì PIN dùng chung, đẩy nhầm một người là trao cho
+   họ chìa khoá mà chính họ cũng không biết mình đang cầm. */
+$g_kq = VHCC_DayGhe::dat( $g_kt, 'GHNV01', 'mo' );
+t( '🔴 Kế toán khai được ba cột kia nhưng KHÔNG đẩy được sang hệ ghế', empty( $g_kq['ok'] ), $g_kq );
+t( 'dựng cảnh: chính Kế toán ấy VẪN khai được cột thường',
+	! empty( VHCC_Cong::dat( $g_kt, 'GHNV01', 'tram', 'khoa' )['ok'] ) );
+VHCC_Cong::dat( $g_kt, 'GHNV01', 'tram', '' );
+
+/* ---- Lưu cả cột một lượt: gom lỗi lại rồi trả hết ---- */
+/* ⚠️ Anh Thắng tích 20 người rồi bấm Lưu; dừng ở người đầu tiên thiếu PIN là 19 người kia im
+   lặng không đi đâu cả, mà màn hình chỉ kể một cái tên. */
+delete_option( VHCC_DayGhe::O_SO );
+/* ⚠️ ĐỂ NGƯỜI THIẾU PIN ĐỨNG TRƯỚC. Xếp họ đứng sau thì `break` và `continue` cho ra kết quả
+   y hệt nhau, và vết phá "dừng ở người đầu tiên lỗi" vẫn xanh. */
+$g_kq = VHCC_DayGhe::luu_nhieu( $g_ad, array( 'GHNV02' => 'mo', 'GHNV01' => 'mo' ) );
+teq( '🔴 người có PIN vẫn đi, không dừng vì người kia thiếu PIN', 1, (int) $g_kq['doi'] );
+teq( 'và lỗi của người thiếu PIN vẫn được kể ra', 1, count( (array) $g_kq['loi'] ) );
+
+/* ---- NGUỒN NGƯỜI DÙNG CỦA HỆ GHẾ ---- */
+/* 🔴 ĐẨY VÀO SỔ RIÊNG TRONG KHI HỆ GHẾ ĐANG ĐỌC SỔ CHUNG = ĐẨY VÀO HƯ KHÔNG. */
+delete_option( VHCC_DayGhe::O_NGUON );
+t( 'mặc định hệ ghế đọc SỔ CHUNG, nên đẩy chưa ăn', ! VHCC_DayGhe::nguon_dung() );
+update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
+t( 'đổi sang sổ riêng thì đẩy mới ăn', VHCC_DayGhe::nguon_dung() );
+
+/* 🔴 CHÉP TRƯỚC, ĐỔI SAU. Hệ ghế đang đọc sổ chung và trong đó có người đang dùng thật. Đổi cờ
+   trần là ngay khoảnh khắc ấy KHÔNG AI vào được /ghe — kể cả người vừa bấm nút. Tự khoá mình
+   ra ngoài một màn có doanh thu, giữa giờ làm. */
+delete_option( VHCC_DayGhe::O_NGUON );
+update_option( VHCC_DayGhe::O_SO, array() );
+update_option( 'vhg_nguon_nguoidung_canh_thu', 1 );   // chỉ để nhớ đây là cảnh dựng tay
+$g_kq = VHCC_DayGhe::chuyen_sang_rieng( $g_ad );
+t( 'chuyển nguồn được', ! empty( $g_kq['ok'] ), $g_kq );
+t( '🔴 và chuyển XONG thì hệ ghế đọc sổ riêng', VHCC_DayGhe::nguon_dung() );
+/* Gọi lại lần nữa: không được chép chồng thêm lần thứ hai. */
+$g_kq2 = VHCC_DayGhe::chuyen_sang_rieng( $g_ad );
+t( 'gọi lại lần hai thì nói thẳng là vốn đã dùng sổ riêng',
+	! empty( $g_kq2['ok'] ) && isset( $g_kq2['note'] ), $g_kq2 );
+/* Kế toán không được đụng vào nguồn của một màn có doanh thu. */
+$g_kq3 = VHCC_DayGhe::chuyen_sang_rieng( $g_kt );
+t( '🔴 Kế toán KHÔNG đổi được nguồn người dùng của hệ ghế', empty( $g_kq3['ok'] ), $g_kq3 );
+
+/* 🔴 CHÉP TRƯỚC, ĐỔI CỜ SAU — CANH BẰNG CHÍNH THỨ TỰ TRONG MÃ. Dựng cảnh thật cho chuyện này
+   đòi một bảng `vhcp_cfg` có người trong đó; mà bất biến cần canh chỉ là THỨ TỰ HAI DÒNG, nên
+   soi thẳng vào đấy trung thực hơn là dựng nửa vời rồi tưởng mình đã thử.
+   Đảo thứ tự là: ngay khoảnh khắc đổi cờ, sổ riêng còn rỗng và KHÔNG AI vào được /ghe — kể cả
+   người vừa bấm nút. Tự khoá mình ra ngoài một màn có doanh thu, giữa giờ làm. */
+$g_ma = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-day-ghe.php' );
+$g_i_so   = strpos( $g_ma, "update_option( self::O_SO, \$so, false );" );
+$g_i_nguon = strpos( $g_ma, "update_option( self::O_NGUON, 'rieng', false );" );
+t( 'dựng cảnh: tìm thấy cả hai dòng ghi', false !== $g_i_so && false !== $g_i_nguon );
+t( '🔴 chép người sang sổ riêng TRƯỚC, rồi mới đổi cờ nguồn',
+	$g_i_so < $g_i_nguon, array( $g_i_so, $g_i_nguon ) );
+delete_option( 'vhg_nguon_nguoidung_canh_thu' );
+
+/* ---- CỘT THỨ TƯ TRÊN MÀN HÌNH ---- */
+update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
+$g_tok = VHCC_Auth::phat_token( 'Anh Quản Trị', 'Admin', '', 'GH_AD' );
+$g_h   = vhcc_hr_ns( $g_tok );
+/* ⚠️ SOI CHUỖI RIÊNG CỦA ĐẦU CỘT, ĐỪNG SOI TÊN TRẦN. Chữ "Ghế massage" còn nằm trong khối
+   "những trang không khai được" ở cuối trang — khối ấy hiện cho MỌI người, kể cả người không
+   có quyền đẩy. Soi tên trần thì phép thử "Kế toán không thấy cột" bắt nhầm chuỗi ở khối kia
+   và đỏ oan; mà vết phá đúng chỗ thì lại xanh. Đã vấp đúng vậy. */
+t( '🔴 màn nhân sự có cột Ghế massage',
+	strpos( $g_h, 'class="tr-doc">Ghế massage' ) !== false, $g_h );
+/* HAI nút, không phải ba — bên ghế không có khái niệm "theo vai". */
+t( 'ô cột ghế chỉ có Đẩy / Gỡ, không có «theo vai»',
+	strpos( $g_h, 'Đẩy ✓' ) !== false && strpos( $g_h, 'name="o[GHNV01][ghe]"' ) !== false, $g_h );
+/* ⚠️ Nút áp cả cột cũng phải có, kẻo đẩy 200 người là 200 lần bấm. */
+t( 'có nút áp cả cột cho hệ ghế', strpos( $g_h, 'value="ghe|mo"' ) !== false, $g_h );
+
+/* 🔴 KẾ TOÁN KHÔNG ĐƯỢC THẤY CỘT ẤY. Vẽ một cột mà người xem bấm vào là bị chối thì tệ hơn
+   không vẽ — họ bấm, thấy câu chối, và tưởng hệ thống hỏng. */
+$g_tok_kt = VHCC_Auth::phat_token( 'Chị Kế Toán', 'Kế toán', '', 'GH_KT' );
+$g_h_kt   = vhcc_hr_ns( $g_tok_kt );
+t( 'dựng cảnh: Kế toán vẫn vào được màn nhân sự',
+	strpos( $g_h_kt, 'Quản lý nhân sự' ) !== false, $g_h_kt );
+t( '🔴 nhưng KHÔNG thấy cột Ghế massage',
+	strpos( $g_h_kt, 'class="tr-doc">Ghế massage' ) === false
+	&& strpos( $g_h_kt, 'value="ghe|mo"' ) === false
+	&& strpos( $g_h_kt, '][ghe]"' ) === false, $g_h_kt );
+
+/* Đang đọc sổ chung thì phải cảnh báo TRƯỚC khi bấm, kèm nút chuyển. */
+delete_option( VHCC_DayGhe::O_NGUON );
+$g_h = vhcc_hr_ns( $g_tok );
+t( '🔴 đọc sổ chung thì cảnh báo ngay đầu trang',
+	strpos( $g_h, 'đang đọc SỔ CHUNG' ) !== false, $g_h );
+t( 'kèm nút chuyển sang sổ riêng',
+	strpos( $g_h, 'value="ghe_rieng"' ) !== false, $g_h );
+/* ⚠️ Và nói rõ nút ấy CHÉP NGƯỜI TRƯỚC — không thì ai dám bấm giữa giờ làm. */
+t( 'và nói rõ nút ấy chép sẵn người đang đăng nhập được sang trước',
+	strpos( $g_h, 'chép sẵn' ) !== false, $g_h );
+update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
+$g_h = vhcc_hr_ns( $g_tok );
+t( 'đọc sổ riêng rồi thì thôi cảnh báo', strpos( $g_h, 'đang đọc SỔ CHUNG' ) === false, $g_h );
+
+/* 🔴 KHỐI "NHỮNG TRANG KHÔNG KHAI ĐƯỢC" PHẢI THÔI NÓI NGƯỢC. Bản trước ghi gọn "Ghế massage —
+   trang của khách", nên người đọc đi tìm cột Ghế, thấy dòng ấy, rồi tin rằng nó không thể có. */
+/* ---- ĐƯỜNG LƯU THẬT: BẤM LƯU / BẤM ÁP CẢ CỘT ----------------------------------------------
+   🔴 Cột ghế đi CHUNG một biểu mẫu với ba cột kia cho tiện tay người bấm, nhưng bên dưới nó ghi
+      sang một sổ khác hẳn. Không tách ra thì `VHCC_Cong::luu_nhieu()` gặp khoá "ghe", thấy nó
+      không có trong sổ trang của mình, và BỎ QUA IM LẶNG — màn hình báo "đã lưu" trong khi
+      không ai được đẩy đi đâu cả. Phép thử gọi thẳng `lam_viec()` để đi đúng đường ấy. */
+update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
+delete_option( VHCC_DayGhe::O_SO );
+$_POST = array( 'o' => array(
+	'GHNV01' => array( 'ghe' => 'mo', 'tram' => 'khoa' ),
+) );
+$g_bao = VHCC_TrangNS::lam_viec( 'luu_quyen', $g_ad );
+$_POST = array();
+t( '🔴 bấm Lưu thì người tích cột ghế ĐƯỢC ĐẨY THẬT', VHCC_DayGhe::da_day( 'GHNV01' ),
+	VHCC_DayGhe::so() );
+t( 'và ô của ba cột kia trong cùng lượt vẫn lưu bình thường',
+	'khoa' === VHCC_Cong::o( 'GHNV01', 'tram' ), VHCC_Cong::o( 'GHNV01', 'tram' ) );
+/* ⚠️ VÀ PHẢI KỂ RA. Đẩy xong mà màn hình không nói gì thì người bấm không biết mình vừa làm gì. */
+$g_txt = wp_json_encode( $g_bao );
+t( '🔴 và màn hình kể lại việc đẩy', strpos( (string) $g_txt, 'Hệ ghế' ) !== false, $g_bao );
+VHCC_Cong::dat( $g_ad, 'GHNV01', 'tram', '' );
+
+/* Bấm Lưu lần nữa với ô ghế bỏ trống = gỡ ra. */
+$_POST = array( 'o' => array( 'GHNV01' => array( 'ghe' => '' ) ) );
+VHCC_TrangNS::lam_viec( 'luu_quyen', $g_ad );
+$_POST = array();
+t( 'bỏ tích rồi Lưu thì gỡ khỏi hệ ghế', ! VHCC_DayGhe::da_day( 'GHNV01' ), VHCC_DayGhe::so() );
+
+/* ---- NÚT ÁP CẢ CỘT ---- */
+/* ⚠️ Khoá "ghe" KHÔNG có trong sổ trang, nên để nó rơi xuống nhánh `VHCC_Cong::co()` là bị chối
+   bằng một câu SAI HẲN ("Không có trang ghe trên site này") trong khi cột ấy đang hiện rành
+   rành — người bấm sẽ đi tìm lỗi ở chỗ không có lỗi. */
+$_POST = array( 'cot' => 'ghe|mo', 'o' => array(
+	'GHNV01' => array( 'ghe' => '' ),
+	'GHNV02' => array( 'ghe' => '' ),
+) );
+$g_bao = VHCC_TrangNS::lam_viec( 'ap_cot', $g_ad );
+$_POST = array();
+t( '🔴 áp cả cột đẩy được người có PIN', VHCC_DayGhe::da_day( 'GHNV01' ), VHCC_DayGhe::so() );
+$g_txt = wp_json_encode( $g_bao );
+t( '🔴 và KHÔNG chối bằng câu "không có trang ghe"',
+	strpos( (string) $g_txt, 'Không có trang' ) === false, $g_bao );
+t( 'người thiếu PIN vẫn được kể ra chứ không nuốt',
+	strpos( (string) $g_txt, 'chưa có PIN' ) !== false, $g_bao );
+
+/* Gỡ cả cột. */
+$_POST = array( 'cot' => 'ghe|', 'o' => array( 'GHNV01' => array( 'ghe' => 'mo' ) ) );
+VHCC_TrangNS::lam_viec( 'ap_cot', $g_ad );
+$_POST = array();
+t( 'áp cả cột «Gỡ» thì gỡ hết', ! VHCC_DayGhe::da_day( 'GHNV01' ), VHCC_DayGhe::so() );
+
+/* 🔴 KẾ TOÁN BẤM ÁP CẢ CỘT GHẾ THÌ BỊ CHỐI — cửa thật nằm ở lõi, không phải ở chỗ giấu nút. */
+$_POST = array( 'cot' => 'ghe|mo', 'o' => array( 'GHNV01' => array( 'ghe' => '' ) ) );
+$g_bao = VHCC_TrangNS::lam_viec( 'ap_cot', $g_kt );
+$_POST = array();
+t( '🔴 Kế toán gọi thẳng đường áp cột ghế vẫn bị chối', ! VHCC_DayGhe::da_day( 'GHNV01' ), VHCC_DayGhe::so() );
+
+t( '🔴 khối "không khai được" tách rõ MÀN KHÁCH khỏi màn quản trị',
+	strpos( $g_h, 'Màn khách của Ghế massage' ) !== false, $g_h );
+/* ⚠️ Nói "không khai được" thì phải nói luôn CHỖ khai được, không thì người đọc dừng ở nửa
+   câu đầu và đi ra. */
+t( 'và chỉ sang cột Ghế massage cho màn quản trị',
+	strpos( $g_h, '<b>màn quản trị</b> của hệ ghế thì khai được' ) !== false
+	&& strpos( $g_h, 'người thật</b> sang sổ người dùng của hệ ghế' ) !== false, $g_h );
+
 /* ---- 60c. NGOẠI LỆ ĐÈ LÊN VAI, CẢ HAI CHIỀU ---- */
 $ns_kq = VHCC_Cong::dat( $ns_kt, 'QN2', 'cham_cong', 'khoa' );
 t( 'Kế toán khai được ngoại lệ', ! empty( $ns_kq['ok'] ), $ns_kq );

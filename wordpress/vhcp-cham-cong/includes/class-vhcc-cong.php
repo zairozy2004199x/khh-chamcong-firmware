@@ -47,10 +47,17 @@ class VHCC_Cong {
 	 * =========================================================================================
 	 * Bản nháp đầu của sổ này có đủ bảy trang, và nó SAI ở mức làm hỏng việc kinh doanh:
 	 *
-	 *   • `/ghe/` — TRANG CỦA KHÁCH. Khách quét QR trên ghế massage rồi trả tiền; không đăng
-	 *     nhập, không có mã nhân viên, không có vai. Gác nó bằng thang vai là mọi khách đều bị
-	 *     chối, ghế đứng im, và tiền không vào — mà trên màn hình chỉ hiện một câu "không đủ
-	 *     quyền" mà khách không hiểu nổi.
+	 *   • `/ghe/` — MÀN KHÁCH là trang công khai: khách quét QR trên ghế massage rồi trả tiền,
+	 *     không đăng nhập, không có mã nhân viên, không có vai. Gác nó bằng thang vai là mọi
+	 *     khách đều bị chối, ghế đứng im, và tiền không vào — mà trên màn hình chỉ hiện một câu
+	 *     "không đủ quyền" mà khách không hiểu nổi.
+	 *     🔴 MÀN QUẢN TRỊ của hệ ghế thì có đăng nhập, nhưng vẫn KHÔNG khai được ở sổ này: nó
+	 *        có PHIÊN RIÊNG bằng PIN và cố ý như vậy (xem đầu `VHG_Auth` — đó là màn có doanh
+	 *        thu, phải đá được một người ra ngay mà không kéo theo app kia). Nó không đọc
+	 *        `ma_nv`, nên ngoại lệ ở đây không bám vào đâu. Cách khai đúng là ĐẨY NGƯỜI THẬT
+	 *        sang sổ người dùng của nó — `VHCC_DayGhe`, cột "Ghế massage" ở màn Quản lý nhân
+	 *        sự. Đừng thêm một dòng `'ghe' => …` vào mảng dưới đây: nó sẽ cho tích, và tích
+	 *        xong không có gì đổi.
 	 *   • `/` (Cổng K&H) — CỬA TRƯỚC, công khai, không có phiên. Nó chỉ là bảng liệt kê các hệ.
 	 *     Gác cửa trước là khoá cả nhà, kể cả người có chìa.
 	 *   • `/hop-dong/` — giao diện lấy thẳng từ Apps Script và TỰ đăng nhập bên trong. Người vào
