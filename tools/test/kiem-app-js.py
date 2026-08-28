@@ -317,6 +317,49 @@ api = io.open(PHP_API, encoding='utf-8').read()
 for ham in ('getDonLog', 'timDon', 'dsLoaiChiPhi'):
     la('máy chủ có khai "%s"' % ham, ("'%s'" % ham) in api)
 
+# 🔴 XỔ RA THÌ PHẢI GẬP LẠI ĐƯỢC — TỪ CHỖ ĐANG ĐỨNG.
+# Anh Thắng 28/08/2026: *"bấm nút xổ lịch sử chỉnh đơn, nó xổ ra và không tắt gọn lại được"*,
+# kèm ảnh một đơn có 38 dòng sử. <details> vẫn gập được — chỉ là gập bằng đúng cái <summary>
+# vừa bị 33 dòng đẩy trôi lên khỏi màn hình, và cái mũi tên ▸ mặc định bé đến mức không ai đọc
+# nó là một cái nút. Đọc xong ở đáy danh sách thì không còn manh mối nào bảo rằng bấm lại là
+# đóng, mà trang thì đã dài gấp ba.
+_i_su = src.find('id="suCu"')
+# ⚠️ CẮT ĐÚNG TỚI `</details>`, ĐỪNG CẮT THEO SỐ KÝ TỰ. Cắt 1400 ký tự thì đoạn ấy trùm luôn
+#    sang thân hàm `suThuGon` nằm ngay dưới — và vết phá "bỏ onclick khỏi nút" vẫn xanh, vì
+#    tên hàm vẫn còn ở chỗ khai báo. Đã vấp đúng vậy.
+_j_su = src.find('</details>', _i_su) if _i_su >= 0 else -1
+_khoi_su = src[_i_su:_j_su] if _i_su >= 0 and _j_su > _i_su else ''
+la('khối "dòng cũ hơn" có id để gập được từ nơi khác', _i_su >= 0)
+la('dựng cảnh: cắt được đúng khối, không trùm sang hàm bên cạnh',
+   _khoi_su != '' and 'function suThuGon' not in _khoi_su)
+# Phần xổ ra tự cuộn trong khung riêng -> không kéo dài trang nữa, dù 33 hay 300 dòng.
+la('phần xổ ra tự cuộn, không đẩy dài cả trang',
+   'max-height:260px;overflow:auto' in _khoi_su)
+# Nút thu gọn nằm NGAY DƯỚI khung cuộn -> đọc xong là gập tại chỗ, khỏi cuộn ngược lên.
+la('có nút Thu gọn ngay dưới khung, gập được tại chỗ',
+   'suThuGon()' in _khoi_su and 'Thu gọn' in _khoi_su)
+# 🔴 CÓ MẶT TRONG MÃ KHÁC VỚI NHÌN THẤY ĐƯỢC. Giấu nút đi bằng `display:none` thì mọi phép thử
+#    canh chuỗi ở trên vẫn xanh, mà người dùng thì vẫn không gập lại được — đúng chuyện đang sửa.
+la('và nút ấy thật sự hiện ra, không bị giấu',
+   '<div style="text-align:center;padding:6px 0 2px">' in _khoi_su)
+la('và hàm ấy có thật, đóng <details> chứ không chỉ cuộn',
+   'function suThuGon()' in src and 'd.open=false' in src)
+# ⚠️ Gập xong phải kéo màn hình về đúng chỗ cái nút vừa nằm — không thì người ta đang lơ lửng
+#    giữa trang, không biết mình vừa ở đâu.
+la('gập xong kéo màn hình về đúng chỗ', 'scrollIntoView' in src[src.find('function suThuGon()'):
+                                                               src.find('function suThuGon()') + 300])
+# Chữ trên <summary> đổi theo trạng thái — nói thẳng "bấm lại để gập".
+la('chữ trên nút xổ đổi theo trạng thái mở/đóng',
+   'su-mo' in _khoi_su and 'su-dong' in _khoi_su)
+la('và nói thẳng bấm lại là gập', 'bấm lại để gập' in _khoi_su)
+# 🔴 Đổi chữ bằng CSS thì CSS phải có thật — thiếu luật là hiện CẢ HAI câu cùng lúc.
+_CSS = os.path.join(GOC, 'wordpress', 'vhcp-chi-phi', 'assets', 'css', 'vhcp.css')
+_css = io.open(_CSS, encoding='utf-8').read()
+la('CSS giấu câu "thu gọn" lúc đang đóng', '.su-tt .su-dong{display:none}' in _css)
+la('CSS đổi hẳn câu lúc đang mở',
+   'details[open] > .su-tt .su-mo{display:none}' in _css
+   and 'details[open] > .su-tt .su-dong{display:inline}' in _css)
+
 # 2) Ô tiền nổi màu.
 la('ô Tạm ứng nổi màu', 'id="qtTU"' in src and '#eff6ff' in src)
 la('ô Thực mua nổi màu', 'id="qtThucMua"' in src and '#f0fdf4' in src)

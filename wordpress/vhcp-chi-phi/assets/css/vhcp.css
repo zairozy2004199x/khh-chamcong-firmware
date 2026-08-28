@@ -147,3 +147,12 @@
      bỏ ô ở dòng — bỏ lệch nhau là cả bảng trượt cột. Đơn cũ còn trộn cơ sở thì JS gỡ lớp
      này ra để cột hiện lại, kèm tô đỏ dòng lệch. */
   #lineTable.anCoso .colCoso{display:none}
+
+  /* NÚT XỔ "DÒNG CŨ HƠN" CỦA LỊCH SỬ CHỈNH ĐƠN.
+     🔴 Anh Thắng 28/08/2026: *"bấm nút xổ lịch sử chỉnh đơn, nó xổ ra và không tắt gọn lại
+        được"*. <details> vẫn gập được — chỉ là cái mũi tên ▸ mặc định bé đến mức không ai
+        đọc nó là một cái nút, nên mở ra rồi thì không còn manh mối nào bảo rằng bấm lại là
+        đóng. Đổi hẳn CHỮ theo trạng thái thì không phải đoán nữa. */
+  .su-tt .su-dong{display:none}
+  details[open] > .su-tt .su-mo{display:none}
+  details[open] > .su-tt .su-dong{display:inline}

@@ -4296,8 +4296,26 @@
         +'<div style="font-size:11.5px;font-weight:800;color:#334155;margin-bottom:5px">🕘 Lịch sử chỉnh đơn ('+it.length+')</div>';
       h+=_suDongHtml(it.slice(0,5));
       if(it.length>5){
-        h+='<details style="margin-top:4px"><summary style="font-size:11px;color:#64748b;cursor:pointer">xem '+(it.length-5)+' dòng cũ hơn</summary>'
-          +_suDongHtml(it.slice(5))+'</details>';
+        /* 🔴 XỔ RA THÌ PHẢI GẬP LẠI ĐƯỢC — TỪ CHỖ ĐANG ĐỨNG.
+           Anh Thắng 28/08/2026: *"khi bấm nút xổ lịch sử chỉnh đơn, nó xổ ra và không tắt gọn
+           lại được"*, kèm ảnh một đơn có 38 dòng sử. <details> vẫn gập được — nhưng gập bằng
+           đúng cái <summary> vừa bị 33 dòng đẩy trôi lên khỏi màn hình. Người ta đọc xong ở
+           đáy danh sách, ngẩng lên thì không còn thấy nút đâu, và trang thì đã dài gấp ba.
+           Ba thứ chữa cùng một chuyện đó:
+             • phần xổ ra tự cuộn trong khung riêng -> KHÔNG kéo dài trang nữa, dù 33 hay 300 dòng
+             • có nút "Thu gọn" ngay DƯỚI khung ấy -> đọc xong là gập được tại chỗ
+             • chữ trên <summary> đổi theo trạng thái -> nói thẳng "bấm lại để gập", vì cái mũi
+               tên ▸ mặc định bé quá, không ai đọc nó là một cái nút. */
+        h+='<details id="suCu" style="margin-top:4px">'
+          +'<summary class="su-tt" style="font-size:11px;color:#64748b;cursor:pointer">'
+            +'<span class="su-mo">xem '+(it.length-5)+' dòng cũ hơn</span>'
+            +'<span class="su-dong">thu gọn '+(it.length-5)+' dòng cũ · bấm lại để gập</span>'
+          +'</summary>'
+          +'<div style="max-height:260px;overflow:auto;margin-top:2px">'+_suDongHtml(it.slice(5))+'</div>'
+          +'<div style="text-align:center;padding:6px 0 2px">'
+            +'<button type="button" class="btn b-x" style="font-size:11px;padding:3px 10px" '
+            +'onclick="suThuGon()">▲ Thu gọn</button></div>'
+          +'</details>';
       }
       box.innerHTML=h+'</div>';
     }).withFailureHandler(function(){
@@ -4305,6 +4323,14 @@
       box.innerHTML='<div style="font-size:11.5px;color:#dc2626">Không đọc được lịch sử.</div>';
     }).getDonLog(maDon, 50);
   }
+  /* Gập khối "dòng cũ hơn" lại và kéo màn hình về đúng chỗ cái nút vừa nằm — không thì gập
+     xong người ta đang lơ lửng giữa trang, không biết mình vừa ở đâu. */
+  function suThuGon(){
+    var d=el('suCu'); if(!d) return;
+    d.open=false;
+    if(d.scrollIntoView) d.scrollIntoView({block:'nearest'});
+  }
+
   function _suDongHtml(ds){
     return ds.map(function(x){
       return '<div style="font-size:11.5px;line-height:1.5;padding:3px 0;border-top:1px dashed #f1f5f9">'
