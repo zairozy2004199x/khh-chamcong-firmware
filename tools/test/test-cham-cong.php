@@ -10590,6 +10590,60 @@ t( 'không dính thanh điều hướng của màn quản trị',
 t( 'có tên người in để biết tờ giấy do ai xuất',
 	strpos( $in_to, 'Người In' ) !== false, $in_to );
 
+/* 🔴 PHẦN CHI TIẾT GOM THEO NGƯỜI, KHÔNG THEO NGÀY.
+   Anh Thắng 28/08/2026: *"in theo ngày hàng dọc theo 1 nhân viên cho dễ nhìn nhé em"*. Tờ này
+   đưa cho nhân viên KÝ vào công của chính mình — các ngày của một người phải nằm liền khối. */
+t( '🔴 mục 2 đổi tên thành theo từng nhân viên',
+	strpos( $in_to, 'Chi tiết theo từng nhân viên' ) !== false, $in_to );
+t( 'và không còn xếp theo ngày', strpos( $in_to, 'Chi tiết từng ngày' ) === false );
+t( '🔴 có hàng gom tên người', strpos( $in_to, 'class="nhom"' ) !== false, $in_to );
+/* ⚠️ Hàng tên người không được đứng lẻ ở cuối trang: tên ở tờ này, các ngày sang tờ sau, thì
+   người đọc tưởng người ấy không có ngày nào. */
+t( '🔴 hàng tên người không rơi lẻ cuối trang',
+	strpos( $in_to, 'tr.nhom{page-break-after:avoid' ) !== false );
+/* Gom rồi thì mỗi dòng ngày lặp lại mã + tên là thừa chỗ trên tờ A4. */
+t( 'bảng chi tiết bỏ hai cột Mã NV / Họ tên khỏi từng dòng',
+	substr_count( $in_to, '<th>Họ và tên</th>' ) === 1, $in_to );
+/* Số ngày và tổng giờ của mỗi người in ngay ở hàng tên — đó là con số họ ký vào. */
+t( 'hàng tên người kèm số ngày', preg_match( '/\d+ ngày<\/td>/', $in_to ) === 1, $in_to );
+
+/* ---- Khối chi tiết là hàm THUẦN — thử bằng dữ liệu trần, không phải dựng 500 hồ sơ ---- */
+$pdf_th = array(
+	array( 'ma' => 'B02', 'ten' => 'Bê Hai', 'soNgay' => 2, 'thieuRa' => 0, 'phut' => 600 ),
+	array( 'ma' => 'A01', 'ten' => 'A Một',  'soNgay' => 1, 'thieuRa' => 1, 'phut' => 300 ),
+);
+$pdf_ct = array(
+	array( 'ngay' => '2026-08-01', 'ma' => 'A01', 'ten' => 'A Một', 'vao' => '08:00:00',
+		'ra' => '', 'gio' => '5.00h' ),
+	array( 'ngay' => '2026-08-01', 'ma' => 'B02', 'ten' => 'Bê Hai', 'vao' => '08:00:00',
+		'ra' => '13:00:00', 'gio' => '5.00h' ),
+	array( 'ngay' => '2026-08-02', 'ma' => 'B02', 'ten' => 'Bê Hai', 'vao' => '08:00:00',
+		'ra' => '13:00:00', 'gio' => '5.00h' ),
+	/* Người CHỈ có ở phần chi tiết — cảnh mục 1 bị cắt vì quá 500 người. */
+	array( 'ngay' => '2026-08-03', 'ma' => 'C03', 'ten' => 'Xê Ba', 'vao' => '09:00:00',
+		'ra' => '17:00:00', 'gio' => '8.00h' ),
+);
+$pdf_k = VHCC_PDF::khoi_theo_nguoi( $pdf_th, $pdf_ct );
+/* 🔴 THỨ TỰ NGƯỜI ĐI THEO MỤC 1, không sắp lại: hai mục trên cùng tờ giấy mà xếp khác nhau thì
+   người đọc phải dò lại từ đầu mỗi lần liếc qua liếc lại. Mục 1 để "Bê Hai" TRƯỚC "A Một". */
+t( '🔴 thứ tự người bám theo mục 1, không tự sắp lại',
+	strpos( $pdf_k, 'Bê Hai' ) < strpos( $pdf_k, 'A Một' ), $pdf_k );
+/* 🔴 Người chỉ có ở chi tiết vẫn phải in — cắt im lặng là tờ giấy trông đầy đủ mà thiếu người. */
+t( '🔴 người không có trong mục 1 vẫn được in ra',
+	strpos( $pdf_k, 'Xê Ba' ) !== false, $pdf_k );
+t( 'và xếp sau những người có trong mục 1',
+	strpos( $pdf_k, 'Xê Ba' ) > strpos( $pdf_k, 'A Một' ), $pdf_k );
+/* Tổng giờ là con số nhân viên KÝ VÀO — thiếu nó thì khối này chỉ là một danh sách ngày. */
+t( '🔴 hàng tên người in tổng giờ của người ấy',
+	strpos( $pdf_k, '>10.00h</td>' ) !== false && strpos( $pdf_k, '>5.00h</td>' ) !== false, $pdf_k );
+t( 'người không có ở mục 1 thì tổng để 0h, không bịa',
+	substr_count( $pdf_k, '>0.00h</td>' ) === 1, $pdf_k );
+t( 'ngày của mỗi người nằm liền khối',
+	strpos( $pdf_k, '02/08/2026' ) < strpos( $pdf_k, 'A Một' ), $pdf_k );
+t( 'thiếu giờ ra vẫn đánh dấu THIẾU', strpos( $pdf_k, 'THIẾU' ) !== false, $pdf_k );
+t( 'khối rỗng thì nói không có dữ liệu, không nổ',
+	strpos( VHCC_PDF::khoi_theo_nguoi( array(), array() ), 'Không có dữ liệu' ) !== false );
+
 /* Người không đủ quyền bấm thẳng đường ấy thì nhận màn chối, KHÔNG nhận tờ giấy. */
 $_GET = array( 'to_in' => '1', 'ics' => 'JP_HCM', 'itu' => '2026-08-01', 'iden' => '2026-08-31' );
 $_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'CHT', 'Cửa hàng trưởng', 'TUTU_BT', 'IC1' );

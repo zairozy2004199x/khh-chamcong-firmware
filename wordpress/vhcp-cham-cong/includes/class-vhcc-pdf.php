@@ -162,6 +162,11 @@ class VHCC_Pdf {
 		$h[] = 'tr{page-break-inside:avoid}';
 		$h[] = '.c{text-align:center}.r{text-align:right}.b{font-weight:bold}';
 		$h[] = '.thieu{color:#b00;font-weight:bold}';
+		/* Hàng tên người: nền xám để tách khối, và KHÔNG được đứng lẻ ở cuối trang — một cái
+		   tên nằm cuối tờ này còn các ngày của người ấy sang tờ sau là đúng thứ làm người đọc
+		   tưởng người đó không có ngày nào. */
+		$h[] = 'tr.nhom td{background:#dde5ee;border-top:2px solid #666}';
+		$h[] = 'tr.nhom{page-break-after:avoid;page-break-inside:avoid}';
 		$h[] = '.ghi{font-size:9px;color:#666;margin-top:6px}';
 		$h[] = '.ky{margin-top:22px;width:100%}';
 		$h[] = '.ky td{border:none;text-align:center;font-size:10px;padding-top:4px}';
@@ -198,23 +203,21 @@ class VHCC_Pdf {
 		}
 		$h[] = '</tbody></table>';
 
-		$h[] = '<h2>2. Chi tiết từng ngày</h2>';
-		$h[] = '<table><thead><tr><th style="width:70px">Ngày</th><th style="width:70px">Mã NV</th>'
-			. '<th>Họ và tên</th><th style="width:65px">Giờ vào</th><th style="width:65px">Giờ ra</th>'
-			. '<th style="width:70px">Giờ làm</th></tr></thead><tbody>';
-		if ( ! $d['chiTiet'] ) {
-			$h[] = '<tr><td colspan="6" class="c">(Không có dữ liệu)</td></tr>';
-		}
-		foreach ( $d['chiTiet'] as $r ) {
-			$co_ra = '' !== trim( (string) $r['ra'] );
-			$h[] = '<tr><td class="c">' . self::esc( self::ngay_vn( $r['ngay'] ) ) . '</td>'
-				. '<td class="c">' . self::esc( $r['ma'] ) . '</td><td>' . self::esc( $r['ten'] ) . '</td>'
-				. '<td class="c">' . self::esc( $r['vao'] ) . '</td>'
-				. '<td class="c' . ( $co_ra ? '' : ' thieu' ) . '">'
-				. ( $co_ra ? self::esc( $r['ra'] ) : 'THIẾU' ) . '</td>'
-				. '<td class="c">' . self::esc( $r['gio'] ) . '</td></tr>';
-		}
-		$h[] = '</tbody></table>';
+		/* =====================================================================================
+		 * 🔴 GOM THEO NGƯỜI, KHÔNG PHẢI THEO NGÀY.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026: *"in theo ngày hàng dọc theo 1 nhân viên cho dễ nhìn nhé em"*.
+		 *
+		 * Bản cũ xếp theo NGÀY, nên mỗi ngày là một cụm lẫn lộn hai chục người, và muốn xem một
+		 * người làm những ngày nào thì phải rà mắt qua cả 355 dòng nhặt ra tên ấy. Tờ giấy này
+		 * đưa cho NHÂN VIÊN KÝ — mà chữ ký là ký vào công của CHÍNH MÌNH, nên các ngày của một
+		 * người phải nằm liền một khối.
+		 *
+		 * ⚠️ Bỏ hai cột Mã NV / Họ tên ở từng dòng: gom rồi thì mỗi dòng lặp lại tên là thừa,
+		 *    mà tờ A4 thì hết chỗ. Tên nằm ở hàng đầu mỗi khối, in đậm.
+		 */
+		$h[] = '<h2>2. Chi tiết theo từng nhân viên</h2>';
+		$h[] = self::khoi_theo_nguoi( $d['tongHop'], $d['chiTiet'] );
 
 		/* Cắt bớt thì phải IN HẲN lên giấy. Cắt im lặng là tờ giấy trông đầy đủ trong khi thiếu người. */
 		if ( $d['biCat'] ) {
@@ -235,4 +238,64 @@ class VHCC_Pdf {
 		$h[] = '</body></html>';
 		return implode( '', $h );
 	}
+
+	/**
+	 * PHẦN CHI TIẾT CỦA TỜ IN, GOM THEO NGƯỜI.
+	 *
+	 * Tách thành hàm THUẦN (vào: hai mảng · ra: một chuỗi) để thử được bằng dữ liệu trần —
+	 * cảnh "mục 1 bị cắt vì quá 500 người" mà phải dựng 500 hồ sơ thật thì không ai thử, và
+	 * đúng cái nhánh ấy là nhánh dễ bỏ sót người nhất.
+	 */
+	public static function khoi_theo_nguoi( $tong_hop, $chi_tiet ) {
+		$out = array();
+		/* Thứ tự người ĐI THEO MỤC 1, không sắp lại: hai mục trên cùng tờ giấy mà xếp khác nhau
+		   thì người đọc phải dò lại từ đầu mỗi lần liếc qua liếc lại. */
+		$thu_tu = array();
+		$ten_cua = array();
+		$phut_cua = array();
+		foreach ( $tong_hop as $r ) {
+			$k = (string) $r['ma'];
+			$thu_tu[]        = $k;
+			$ten_cua[ $k ]   = (string) $r['ten'];
+			$phut_cua[ $k ]  = (int) $r['phut'];
+		}
+		$theo_ma = array();
+		foreach ( $chi_tiet as $r ) {
+			$theo_ma[ (string) $r['ma'] ][] = $r;
+		}
+		/* Người có dòng chi tiết mà KHÔNG có trong mục 1 (mục 1 bị cắt vì quá đông) vẫn phải in
+		   ra — cắt im lặng là tờ giấy trông đầy đủ trong khi thiếu người. */
+		foreach ( array_keys( $theo_ma ) as $k ) {
+			if ( ! in_array( $k, $thu_tu, true ) ) { $thu_tu[] = $k; }
+		}
+
+		$out[] = '<table><thead><tr><th style="width:80px">Ngày</th>'
+			. '<th style="width:80px">Giờ vào</th><th style="width:80px">Giờ ra</th>'
+			. '<th style="width:80px">Giờ làm</th><th>Ghi chú</th></tr></thead><tbody>';
+		if ( ! $chi_tiet ) {
+			$out[] = '<tr><td colspan="5" class="c">(Không có dữ liệu)</td></tr>';
+		}
+		foreach ( $thu_tu as $ma_ng ) {
+			if ( empty( $theo_ma[ $ma_ng ] ) ) { continue; }
+			$ten_ng = isset( $ten_cua[ $ma_ng ] ) ? $ten_cua[ $ma_ng ]
+				: (string) $theo_ma[ $ma_ng ][0]['ten'];
+			$tong_ng = isset( $phut_cua[ $ma_ng ] ) ? $phut_cua[ $ma_ng ] : 0;
+			$out[] = '<tr class="nhom"><td colspan="3"><b>' . self::esc( $ten_ng ) . '</b> · '
+				. self::esc( $ma_ng ) . '</td>'
+				. '<td class="c b">' . esc_html( number_format( $tong_ng / 60, 2 ) ) . 'h</td>'
+				. '<td class="c">' . count( $theo_ma[ $ma_ng ] ) . ' ngày</td></tr>';
+			foreach ( $theo_ma[ $ma_ng ] as $r ) {
+				$co_ra = '' !== trim( (string) $r['ra'] );
+				$out[] = '<tr><td class="c">' . self::esc( self::ngay_vn( $r['ngay'] ) ) . '</td>'
+					. '<td class="c">' . self::esc( $r['vao'] ) . '</td>'
+					. '<td class="c' . ( $co_ra ? '' : ' thieu' ) . '">'
+					. ( $co_ra ? self::esc( $r['ra'] ) : 'THIẾU' ) . '</td>'
+					. '<td class="c">' . self::esc( $r['gio'] ) . '</td>'
+					. '<td>' . ( $co_ra ? '' : 'Quên check-out' ) . '</td></tr>';
+			}
+		}
+		$out[] = '</tbody></table>';
+		return implode( '', $out );
+	}
+
 }
