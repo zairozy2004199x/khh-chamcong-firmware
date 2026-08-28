@@ -267,11 +267,23 @@ class VHG_BaoCao {
 		if ( class_exists( 'VHG_Auth' ) ) {
 			$users = VHG_Auth::users();
 			if ( ! is_wp_error( $users ) ) {
+				/* 🔴 KHỚP CẢ TÊN LẪN CƠ SỞ TRƯỚC, TÊN SUÔNG SAU. Vũ Nguyễn Hồng Nhung 28/08/2026,
+				   bấm tab "Báo cáo doanh thu" trong trang chính (ĐÃ đăng nhập token) vẫn rớt về
+				   cổng PIN cũ — khớp cứng CẢ HAI ô (tên + cơ sở) là quá chặt: hồ sơ nhân sự đổi
+				   cơ sở SAU lúc đăng nhập, hoặc cơ sở trong hồ sơ ghi khác cách với cơ sở phiên
+				   đang giữ (khoảng trắng, thứ tự trong chuỗi nhiều cơ sở…) là trượt khớp ngay, và
+				   người dùng thấy y hệt như tính năng chưa làm gì cả — không có gì báo lỗi rõ.
+				   Ưu tiên khớp cả hai (chắc nhất, đúng đúng người), khớp KHÔNG được thì hạ xuống
+				   khớp TÊN SUÔNG — chấp nhận rủi ro hiếm (hai người trùng tên) còn hơn tính năng
+				   lặng lẽ không chạy cho gần hết mọi người. */
+				$theo_ten = array();
 				foreach ( (array) $users as $u ) {
-					if ( trim( (string) $u['ten'] ) === $ten
-						&& trim( (string) $u['coso'] ) === $coso_ai
-						&& '' !== (string) $u['pin'] ) { $pin = (string) $u['pin']; break; }
+					if ( '' === (string) $u['pin'] ) { continue; }
+					if ( trim( (string) $u['ten'] ) !== $ten ) { continue; }
+					if ( trim( (string) $u['coso'] ) === $coso_ai ) { $pin = (string) $u['pin']; break; }
+					$theo_ten[] = $u;
 				}
+				if ( '' === $pin && 1 === count( $theo_ten ) ) { $pin = (string) $theo_ten[0]['pin']; }
 			}
 		}
 		if ( '' === $pin ) {
@@ -348,7 +360,12 @@ class VHG_BaoCao {
 				'ngay' => $ngay, 'chi_so_truoc' => $before, 'chi_so_sau' => (int) $after,
 				'qr' => (int) ( isset( $r0['qr'] ) ? $r0['qr'] : 0 ),
 				'dieu_chinh' => (int) ( isset( $r0['adjust'] ) ? $r0['adjust'] : 0 ),
-				'ghi_chu' => mb_substr( trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) ), 0, 250 ) );
+				'ghi_chu' => mb_substr( trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) ), 0, 250 ),
+				/* Ảnh gắn CỨNG vào đúng ghế này — {chiso, vesinh}, mỗi ô một dataUrl hoặc vắng
+				   mặt. Thay cho cách cũ chia đều một xấp ảnh chung theo THỨ TỰ ghế trong bảng
+				   (`chia_anh_ghe_()`, nay bỏ) — chụp lộn thứ tự với 20 ghế là chuyện dễ xảy ra,
+				   và ảnh gán nhầm ghế chỉ lộ ra khi kế toán soát thấy sai. */
+				'images' => ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) ? $r0['images'] : array() );
 			self::tinh_( $r );
 			if ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] ) {
 				return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': chỉ số sau (' . $r['chi_so_sau']
@@ -378,8 +395,6 @@ class VHG_BaoCao {
 		$ct = self::luu_nhieu_anh_( isset( $p['proofs'] ) ? $p['proofs'] : null, $rid, 'chungtu' );
 		if ( count( $ct ) ) { $wpdb->update( VHG_DB::t( 'bc' ), array( 'chung_tu' => wp_json_encode( $ct ) ), array( 'report_id' => $rid ) ); }
 
-		$anh_ghe = self::chia_anh_ghe_( isset( $p['images'] ) ? $p['images'] : array(), count( $rows ), $rid );
-
 		$chia_nop = self::chia_nop_( $rows, $pay );
 
 		$gui_ma = array();
@@ -393,7 +408,21 @@ class VHG_BaoCao {
 				'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'],
 				'nop_so_tien' => $np['nop_so_tien'], 'nop_trang_thai' => $np['nop_trang_thai'],
 				'nop_hinhthuc' => $np['nop_hinhthuc'], 'nop_ngay' => $np['nop_ngay'] );
-			if ( isset( $anh_ghe[ $i ] ) && count( $anh_ghe[ $i ] ) ) { $data['anh'] = wp_json_encode( $anh_ghe[ $i ] ); }
+			/* Ảnh chỉ số + ảnh vệ sinh của ĐÚNG ghế này — gắn theo nhãn, không chia đều theo thứ
+			   tự nữa (xem chỗ khai 'images' ở $r phía trên). Giữ NGUYÊN dạng JSON mảng URL cho
+			   cột `anh` (ktdRow() bên class-vhg-trang.php đang đọc mảng phẳng) — chỉ đổi CÁCH
+			   NÓ ĐƯỢC ĐIỀN, ảnh nào vào đúng ghế đó thay vì đoán theo thứ tự. */
+			$anh_urls = array();
+			$imgs_r = isset( $r['images'] ) && is_array( $r['images'] ) ? $r['images'] : array();
+			if ( ! empty( $imgs_r['chiso'] ) ) {
+				$u = self::luu_anh_( array( 'dataUrl' => $imgs_r['chiso'], 'name' => 'chiso.jpg' ), $rid, $r['ma_may'] . '-chiso' );
+				if ( '' !== $u ) { $anh_urls[] = $u; }
+			}
+			if ( ! empty( $imgs_r['vesinh'] ) ) {
+				$u = self::luu_anh_( array( 'dataUrl' => $imgs_r['vesinh'], 'name' => 'vesinh.jpg' ), $rid, $r['ma_may'] . '-vesinh' );
+				if ( '' !== $u ) { $anh_urls[] = $u; }
+			}
+			if ( count( $anh_urls ) ) { $data['anh'] = wp_json_encode( $anh_urls ); }
 			$cu = $wpdb->get_var( $wpdb->prepare( 'SELECT id FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s', $rid, $r['ma_may'] ) );
 			if ( $cu ) { $wpdb->update( VHG_DB::t( 'bc_dong' ), $data, array( 'id' => (int) $cu ) ); }
 			else { $wpdb->insert( VHG_DB::t( 'bc_dong' ), $data ); }
@@ -512,23 +541,6 @@ class VHG_BaoCao {
 				$u = self::luu_anh_( $img, $rid, $tt . '-' . $nhom . '-' . ( ++$i ) );
 				if ( '' !== $u ) { $out[] = $u; }
 			}
-		}
-		return $out;
-	}
-	private static function chia_anh_ghe_( $images, $so_ghe, $rid ) {
-		$imgs = is_array( $images ) ? array_values( $images ) : array();
-		$n = count( $imgs ); $out = array();
-		if ( $n <= 0 || $so_ghe <= 0 ) { return $out; }
-		$per = max( 1, (int) round( $n / $so_ghe ) ); $k = 0;
-		for ( $i = 0; $i < $so_ghe; $i++ ) {
-			$from = $i * $per;
-			$den = ( $i === $so_ghe - 1 ) ? $n : min( $from + $per, $n );
-			$urls = array();
-			for ( $j = $from; $j < $den; $j++ ) {
-				$u = self::luu_anh_( $imgs[ $j ], $rid, 'ghe' . ( $i + 1 ) . '-' . ( ++$k ) );
-				if ( '' !== $u ) { $urls[] = $u; }
-			}
-			if ( count( $urls ) ) { $out[ $i ] = $urls; }
 		}
 		return $out;
 	}

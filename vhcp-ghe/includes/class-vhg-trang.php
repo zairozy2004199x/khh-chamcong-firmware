@@ -1331,7 +1331,8 @@ class VHG_Trang {
     var tb=el('table','bc-t');
     tb.innerHTML = GON
       ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>QR</th></tr></thead>'
-      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th></tr></thead>';
+      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th>'
+        + '<th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
     tb.appendChild(body); sc.appendChild(tb); c2.appendChild(sc);
@@ -1368,16 +1369,19 @@ class VHG_Trang {
     c3.appendChild(r3);
     wrap.appendChild(c3);
 
-    // ảnh báo cáo — chỉ chế độ đầy đủ (điện thoại gọn thì bỏ cho nhẹ)
+    /* Ảnh chỉ số + ảnh vệ sinh giờ nằm NGAY TRONG DÒNG của từng ghế (cột 📷 Chỉ số / 🧹 Vệ
+       sinh ở bảng "Số liệu từng ghế") — anh Thắng: "Chèn thêm ảnh cho nhân viên thu tiền theo
+       từng ghế (mỗi ghế 2 ảnh: 1 ảnh chỉ số, 1 ảnh vệ sinh)". Trước đây chỉ có MỘT ô chọn nhiều
+       ảnh dùng chung cho cả báo cáo, chia đều theo THỨ TỰ ghế trong bảng — nhân viên chụp lộn
+       thứ tự (rất dễ với 20 ghế) là ảnh gán nhầm sang ghế khác, không ai biết cho tới khi kế
+       toán soát thấy sai. Mỗi ô ảnh giờ gắn CỨNG vào đúng ghế đang gõ số liệu, không đoán nữa.
+       Card này chỉ còn ảnh chứng từ nộp tiền (QR/bill) — không phải theo ghế. */
     if(!GON){
       var c4=el('div','bc-card');
-      c4.appendChild(el('h3','bc-h','Ảnh báo cáo (tuỳ chọn)'));
-      c4.appendChild(el('div','bc-mut','2 ảnh/ghế theo thứ tự ghế trong bảng. Ảnh được nén trước khi gửi.'));
-      var iImg=el('input'); iImg.type='file'; iImg.id='bc-imgs'; iImg.accept='image/*'; iImg.multiple=true; iImg.style.marginTop='8px';
-      c4.appendChild(iImg);
+      c4.appendChild(el('h3','bc-h','Ảnh chứng từ nộp tiền (tuỳ chọn)'));
+      c4.appendChild(el('div','bc-mut','QR chuyển khoản, hoá đơn… — không phải ảnh ghế (ảnh ghế nằm ngay trong bảng số liệu ở trên).'));
       var iPrf=el('input'); iPrf.type='file'; iPrf.id='bc-proofs'; iPrf.accept='image/*'; iPrf.multiple=true; iPrf.style.marginTop='8px';
-      var lp=el('label','bc-f'); lp.style.marginTop='8px'; lp.appendChild(el('span',null,'Ảnh chứng từ nộp tiền (QR/bill)')); lp.appendChild(iPrf);
-      c4.appendChild(lp);
+      c4.appendChild(iPrf);
       wrap.appendChild(c4);
     }
 
@@ -1504,9 +1508,28 @@ class VHG_Trang {
     if(!GON){
       tr.appendChild(cell(inp('adjust','VD 50000')));
       tr.appendChild(cell(inp('note','Lý do…',true)));
+      tr.appendChild(celAnh('anh-chiso'));
+      tr.appendChild(celAnh('anh-vesinh'));
     }
     calc(tr);
     return tr;
+  }
+  /* Ô chọn MỘT ảnh gắn thẳng vào đúng ghế (chỉ số hoặc vệ sinh) — thay cho ô chọn nhiều ảnh
+     dùng chung trước đây (chia theo thứ tự, dễ gán nhầm ghế). `capture=environment` mở thẳng
+     camera sau trên điện thoại thay vì trình chọn tệp. Xem trước tại chỗ bằng object URL của
+     chính máy, không tải lên đâu cả cho tới lúc bấm Gửi. */
+  function celAnh(cls){
+    var td=el('td');
+    var i=el('input',cls); i.type='file'; i.accept='image/*'; i.capture='environment'; i.style.width='90px';
+    var prev=el('img'); prev.style.cssText='display:none;width:36px;height:36px;object-fit:cover;border-radius:6px;margin-top:4px;vertical-align:middle';
+    i.addEventListener('change',function(){
+      if(prev.dataset.url){ try{ URL.revokeObjectURL(prev.dataset.url); }catch(e){} }
+      var f=i.files&&i.files[0];
+      if(f){ var u=URL.createObjectURL(f); prev.src=u; prev.dataset.url=u; prev.style.display='inline-block'; }
+      else { prev.style.display='none'; delete prev.dataset.url; }
+    });
+    td.appendChild(i); td.appendChild(prev);
+    return td;
   }
   function inp(cls,ph,isText){ var e=el('input',cls); e.type='text'; e.inputMode=isText?'text':'numeric'; e.placeholder=ph||''; return e; }
   function cell(c){ var td=el('td'); td.appendChild(c); return td; }
@@ -1564,6 +1587,29 @@ class VHG_Trang {
     });
     return out;
   }
+  /* Nén + đọc ảnh chỉ số/vệ sinh CỦA TỪNG GHẾ (cột 📷/🧹 ngay trong dòng) — gắn thẳng vào đúng
+     `rows[i]` bằng chairCode, không còn chia đều một xấp ảnh theo thứ tự như trước. Chạy sau
+     collect() vì cần biết đúng danh sách ghế đang gửi (ghế bị bỏ qua ở collect() thì ảnh của nó
+     — nếu lỡ chọn — cũng không gửi theo). */
+  function gomAnhTungGhe_(rows,cb){
+    var can=[];
+    rows.forEach(function(r){
+      var tr=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
+      var fC=tr&&tr.querySelector('.anh-chiso'), fV=tr&&tr.querySelector('.anh-vesinh');
+      var c=fC&&fC.files&&fC.files[0], v=fV&&fV.files&&fV.files[0];
+      if(c||v) can.push({ r:r, c:c, v:v });
+    });
+    if(!can.length) return cb();
+    var done=0;
+    can.forEach(function(x){
+      function xongMotAnh(){ if(++done===can.length) cb(); }
+      var images={};
+      var conCho=(x.c?1:0)+(x.v?1:0), xongCon=0;
+      function motXong(){ if(++xongCon===conCho) { x.r.images=images; xongMotAnh(); } }
+      if(x.c) nenAnh_(x.c,function(du){ if(du) images.chiso=du; motXong(); });
+      if(x.v) nenAnh_(x.v,function(du){ if(du) images.vesinh=du; motXong(); });
+    });
+  }
 
   function guiBaoCao(){
     var msg=$('bc-msg'); msg.className='bc-msg'; msg.textContent='';
@@ -1581,15 +1627,17 @@ class VHG_Trang {
     var payment={ method:method, amount: amtRaw===''?'':snum(amtRaw), note:nEl?(nEl.value||'').trim():'' };
     if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
     msg.textContent='Đang đọc ảnh…';
-    docAnh_('bc-imgs',function(images){
+    gomAnhTungGhe_(rows,function(){
       docAnh_('bc-proofs',function(proofs){
         msg.textContent='Đang gửi…';
-        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, images:images, proofs:{qr:proofs} },function(r){
+        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs} },function(r){
           GUI_DANG=false; $('bc-gui').disabled=false;
           if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
           msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
-          var iI=$('bc-imgs'), iP=$('bc-proofs'); if(iI) iI.value=''; if(iP) iP.value='';
+          document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; });
+          document.querySelectorAll('#bc-rows img').forEach(function(im){ im.style.display='none'; });
+          var iP=$('bc-proofs'); if(iP) iP.value='';
           if(r.phien) veProg(r.phien);
           else refreshPhien();
         });
