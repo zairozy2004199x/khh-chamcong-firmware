@@ -3241,6 +3241,8 @@ function noiBcPin(){
  * Danh sách theo tháng → bung chi tiết ghế → sửa / duyệt / khoá / xoá / đổi ngày.
  * ============================================================================================ */
 var KTD_THANG = '';
+var KTD_TRANG = 1;
+var KTD_TRANG_CO = 10;   // anh Thắng: "Chỉ hiện 10 cơ sở 1 trang" — để nguyên cả tháng là lag.
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 /* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
    VHCC_Ketoan::dong_moi_/dien_o_ nhận thẳng r0.images, không tải lại lên WP như luu_anh_()).
@@ -3267,7 +3269,7 @@ function ktdInit(){
   var iT=document.getElementById('ktd-thang');
   if(!KTD_THANG) KTD_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
   if(iT&&KTD_THANG) iT.value=KTD_THANG;
-  document.getElementById('ktd-xem').onclick=function(){ KTD_THANG=iT.value; ktdLoad(); };
+  document.getElementById('ktd-xem').onclick=function(){ KTD_THANG=iT.value; KTD_TRANG=1; ktdLoad(); };
   ktdLoad(); ktdRac(); ktdUndo();
 }
 function ktdRac(){
@@ -3326,6 +3328,28 @@ function ktdLoad(){
       var xb = b.confirmedChairs < b.chairs ? 0 : 1;
       return xa - xb;
     });
+    /* Phân trang — anh Thắng: "Chỉ hiện 10 cơ sở 1 trang, nó đang để nguyên nên bị lag". Tháng
+       đông cơ sở mà vẽ + tải hết một lượt (dù đã tuần tự) vẫn là hàng chục thẻ to cùng nằm
+       trong DOM một lúc — cuộn/thao tác ì trên máy yếu. Cắt trang TRƯỚC khi tải, nên trang sau
+       không hề gọi kt_ct cho các báo cáo trang trước. */
+    var tongTrang = Math.max(1, Math.ceil(rows.length / KTD_TRANG_CO));
+    if (KTD_TRANG > tongTrang) KTD_TRANG = tongTrang;
+    if (KTD_TRANG < 1) KTD_TRANG = 1;
+    var trangRows = rows.slice((KTD_TRANG-1)*KTD_TRANG_CO, KTD_TRANG*KTD_TRANG_CO);
+
+    function veTrang(){
+      var p=ktEl('div','act'); p.style.cssText='flex-wrap:wrap;align-items:center;margin-bottom:10px';
+      var bT=ktEl('button','ghost','‹ '+L('Trước','Prev')); bT.disabled = (KTD_TRANG<=1);
+      bT.onclick=function(){ KTD_TRANG--; ktdLoad(); };
+      var sp=ktEl('span','mut', L('Trang','Page')+' '+KTD_TRANG+'/'+tongTrang
+        +' · '+rows.length+' '+L('cơ sở','branches'));
+      var bS=ktEl('button','ghost',L('Sau','Next')+' ›'); bS.disabled = (KTD_TRANG>=tongTrang);
+      bS.onclick=function(){ KTD_TRANG++; ktdLoad(); };
+      p.appendChild(bT); p.appendChild(sp); p.appendChild(bS);
+      return p;
+    }
+    if (tongTrang > 1) box.appendChild(veTrang());
+
     /* Bung sẵn (anh Thắng) nhưng TẢI TUẦN TỰ từng báo cáo một — không bắn N lượt gọi kt_ct
        cùng lúc. Nhân viên ở cơ sở thường mạng yếu; N lượt chạy song song chiếm hết hàng đợi
        kết nối của trình duyệt (~6 đường/host), nên một cú bấm Duyệt của người dùng phải XẾP
@@ -3334,8 +3358,8 @@ function ktdLoad(){
        đường trống mà đi. */
     var i=0;
     function ke(){
-      if(i>=rows.length) return;
-      box.appendChild(ktdCard(rows[i++], ke));
+      if(i>=trangRows.length){ if (tongTrang > 1) box.appendChild(veTrang()); return; }
+      box.appendChild(ktdCard(trangRows[i++], ke));
     }
     ke();
   });
