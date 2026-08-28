@@ -12930,6 +12930,87 @@ vhcc_dung_bang();
 /* ⚠️ KHỐI NÀY DỰNG LẠI BẢNG SẠCH, NÊN PHẢI ĐỨNG CUỐI. Đặt nó giữa file thì
    `vhcc_dung_bang()` của nó xoá cảnh của mọi khối bên dưới — đã vấp đúng vậy: 14 phép
    thử của khối vai trò và khối ghép mã cùng đỏ một lượt, mà lỗi thì nằm ở đây. */
+/* ---- CỬA HÀNG TRƯỞNG XEM FULL THÁNG NHÂN VIÊN CÙNG CƠ SỞ ----------------------------------
+   Anh Thắng 28/08/2026: *"cửa hàng trưởng sẽ xem được full tháng của nhân viên tại cửa hàng
+   đang cùng cơ sở"*, rồi *"hiện tại chưa xem được"*. */
+vhcc_dung_bang();
+vhcc_bo_phan( 'CHT_CS', 'Khu vui chơi' );
+vhcc_bo_phan( 'CHT_CS2', 'Khu vui chơi' );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CHTNV1', 'ho_ten' => 'Nhân Viên Cùng Chỗ',
+	'cua_hang' => 'CHT_CS' ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CHTNV2', 'ho_ten' => 'Người Cơ Sở Khác',
+	'cua_hang' => 'CHT_CS2' ) );
+vhcc_may_gui( vhcc_goi( 'CHTNV1', '2026-08-03 08:00:00', 'CHT_CS' ) );
+vhcc_may_gui( vhcc_goi( 'CHTNV1', '2026-08-03 17:30:00', 'CHT_CS' ) );
+vhcc_may_gui( vhcc_goi( 'CHTNV2', '2026-08-03 08:00:00', 'CHT_CS2' ) );
+
+$tok_cht = VHCC_Auth::phat_token( 'Chị Cửa Hàng Trưởng', 'Cửa hàng trưởng', 'CHT_CS', 'CHTSEP' );
+$h_cht   = vhcc_hr( $tok_cht, array( 'man' => 'cham', 'ccs' => 'CHT_CS', 'cth' => '2026-08' ) );
+t( '🔴 Cửa hàng trưởng có tab Bảng công', strpos( $h_cht, 'Bảng công' ) !== false, $h_cht );
+t( '🔴 và thấy CẢ THÁNG của nhân viên cùng cơ sở',
+	strpos( $h_cht, 'Nhân Viên Cùng Chỗ' ) !== false, $h_cht );
+t( 'kèm lưới cả tháng', strpos( $h_cht, 'LƯỚI CẢ THÁNG' ) !== false
+	|| strpos( $h_cht, 'Lưới cả tháng' ) !== false, $h_cht );
+/* ⚠️ NHƯNG CHỈ CƠ SỞ MÌNH. Cửa hàng trưởng không phải quản lý chuỗi. */
+$h_cht2 = vhcc_hr( $tok_cht, array( 'man' => 'cham', 'ccs' => 'CHT_CS2', 'cth' => '2026-08' ) );
+t( '🔴 nhưng KHÔNG xem được cơ sở khác',
+	strpos( $h_cht2, 'Người Cơ Sở Khác' ) === false, $h_cht2 );
+
+/* ---- HỒ SƠ GHI MỘT VAI, PHIÊN LẠI MANG VAI KHÁC -------------------------------------------
+   🔴 Đây là gốc của chuyện trên: hồ sơ chị Mỹ Tiên ghi Cửa hàng trưởng, mà thẻ phiên mang
+      Nhân viên — nên cột dọc thiếu tab Bảng công, và không có gì báo. Vai lúc đăng nhập đọc từ
+      NGUỒN NGƯỜI DÙNG; nguồn không phải `ho_so` thì đổi vai trong hồ sơ chẳng đi tới đâu. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'LECH1', 'ho_ten' => 'Người Bị Lệch Vai',
+	'cua_hang' => 'CHT_CS' ) );
+VHCC_NhanSu::dat_vai_tro( $U_AD, 'LECH1', 'Cửa hàng trưởng' );
+$tok_lech = VHCC_Auth::phat_token( 'Người Bị Lệch Vai', 'Nhân viên', 'CHT_CS', 'LECH1' );
+$h_lech = vhcc_hr( $tok_lech, array( 'man' => 'cong_toi' ) );
+t( '🔴 màn hình nói ngay là hồ sơ ghi vai khác',
+	strpos( $h_lech, 'Hồ sơ của anh/chị ghi vai' ) !== false, $h_lech );
+t( 'gọi đúng cả hai vai',
+	strpos( $h_lech, 'Cửa hàng trưởng' ) !== false && strpos( $h_lech, 'Nhân viên' ) !== false, $h_lech );
+/* ⚠️ Nói rõ HẬU QUẢ đang xảy ra, không chỉ "có gì đó lệch". */
+t( 'và nói màn hình đang THIẾU mục của vai kia',
+	strpos( $h_lech, 'đang thiếu những mục' ) !== false, $h_lech );
+t( '🔴 kèm đúng chỗ chữa: Cấu hình → Nguồn người dùng',
+	strpos( $h_lech, 'Cấu hình → Nguồn người dùng' ) !== false
+	&& strpos( $h_lech, 'hồ sơ nhân sự' ) !== false, $h_lech );
+/* ⚠️ Và nói rõ vì sao đổi vai trong hồ sơ lại chưa ăn — không thì người ta đổi vai lần nữa. */
+t( 'nói rõ vai lúc đăng nhập đọc từ Nguồn người dùng',
+	strpos( $h_lech, 'Vai lúc đăng nhập đọc từ' ) !== false, $h_lech );
+t( 'và bảo đăng nhập lại sau khi đổi',
+	strpos( $h_lech, 'đăng nhập lại' ) !== false, $h_lech );
+
+/* Vai phiên CAO hơn hồ sơ cũng là lệch, nhưng hậu quả ngược — nói đúng cái đang xảy ra. */
+$tok_cao = VHCC_Auth::phat_token( 'Người Bị Lệch Vai', 'Quản lý', 'CHT_CS', 'LECH1' );
+$h_cao = vhcc_hr( $tok_cao, array( 'man' => 'cong_toi' ) );
+t( 'phiên cao hơn hồ sơ: nói là đang MỞ RỘNG hơn',
+	strpos( $h_cao, 'mở rộng hơn' ) !== false, $h_cao );
+
+/* 🔴 KHỚP BẬC THÌ IM. So TÊN vai thì "Kế toán" với "Kế toán cá nhân" thành lệch, mà hai cái ấy
+   cùng bậc — kêu lên là báo động giả, và báo động giả thì người ta tắt đi. */
+/* ⚠️ "Kế toán" TRẦN không có trong `VHCC_Auth::VAI_TRO_TAT_CA` nên `dat_vai_tro()` chối nó —
+   dựng cảnh bằng tên ấy là hồ sơ không đổi, và phép thử đo nhầm một cảnh khác. Dùng hai tên
+   THẬT khác nhau mà cùng bậc: "Kế toán cá nhân" và "Kế toán NCC". */
+$r_kt2 = VHCC_NhanSu::dat_vai_tro( $U_AD, 'LECH1', 'Kế toán cá nhân' );
+t( 'dựng cảnh: đổi được vai sang Kế toán cá nhân', ! empty( $r_kt2['ok'] ), $r_kt2 );
+$tok_kt2 = VHCC_Auth::phat_token( 'Người Bị Lệch Vai', 'Kế toán NCC', 'CHT_CS', 'LECH1' );
+$h_kt2 = vhcc_hr( $tok_kt2, array( 'man' => 'cong_toi' ) );
+t( '🔴 hai tên khác nhau mà CÙNG BẬC thì KHÔNG kêu',
+	strpos( $h_kt2, 'Hồ sơ của anh/chị ghi vai' ) === false, $h_kt2 );
+/* 🔴 KHÔNG CÓ MÃ NV THÌ KHÔNG ĐỐI CHIẾU ĐƯỢC — VÀ SỔ CÓ HỒ SƠ MÃ RỖNG LÀ CHUYỆN THẬT
+   (nạp .csv thiếu cột, tạo hồ sơ dở dang). Bỏ chốt mã rỗng thì `ho_so('')` móc đúng cái hồ sơ
+   ấy ra, rồi đem vai của nó so với MỌI người chưa có mã — kêu bừa cho cả một đám người, mà
+   không ai trong số đó sửa được gì. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => '', 'ho_ten' => 'Hồ Sơ Dở Dang',
+	'vai_tro' => 'Admin', 'cua_hang' => 'CHT_CS' ) );
+$tok_khong = VHCC_Auth::phat_token( 'Ai Đó', 'Nhân viên', 'CHT_CS', '' );
+$h_khong = vhcc_hr( $tok_khong, array( 'man' => 'cong_toi' ) );
+t( '🔴 không có Mã NV thì không kêu, dù sổ có hồ sơ mã rỗng mang vai khác',
+	strpos( $h_khong, 'Hồ sơ của anh/chị ghi vai' ) === false, $h_khong );
+
+vhcc_dung_bang();
+
 /* ---- LẤY LẠI PIN BẰNG HỌ TÊN + CĂN CƯỚC ---------------------------------------------------
    Anh Thắng 28/08/2026: *"Thiếu phần lấy lại mã PIN ( Để lấy lại mã PIN nhập Họ Tên và số Căn
    Cước Công Dân )"*, chốt phạm vi: MỌI VAI, kể cả Admin.

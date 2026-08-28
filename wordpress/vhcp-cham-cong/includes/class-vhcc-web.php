@@ -1746,6 +1746,7 @@ class VHCC_Web {
 		$bao = array_merge( self::lay_bao(), (array) $bao );
 		foreach ( $bao as $b ) { self::ve_bao( $b ); }
 		self::tieu_man( $man, $ds_man, $toi );
+		self::canh_lech_vai( $toi );
 
 		/* ------------------------------------------------------------------ chọn màn
 		   Thanh màn dựng theo QUYỀN, không theo tên vai trò: mỗi người chỉ thấy những màn mình
@@ -1857,6 +1858,55 @@ class VHCC_Web {
 		}
 		$khoa = array_keys( (array) $ds_man );
 		return $khoa ? $khoa[0] : 'cong_toi';
+	}
+
+	/**
+	 * HỒ SƠ GHI MỘT VAI, PHIÊN NÀY LẠI MANG VAI KHÁC — NÓI RA NGAY TRÊN MÀN NGƯỜI ẤY ĐANG ĐỨNG.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐÂY LÀ LỖI IM LẶNG ĐÃ CẮN NHIỀU LẦN.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"cửa hàng trưởng sẽ xem được full tháng của nhân viên tại cửa hàng
+	 * đang cùng cơ sở"*, rồi *"hiện tại chưa xem được"* — kèm ảnh chị Mỹ Tiên đăng nhập: hồ sơ
+	 * ghi **Cửa hàng trưởng**, mà góc màn ghi **Nhân viên**, và cột dọc không có tab Bảng công.
+	 *
+	 * Luật thì đúng: `man_cua()` mở tab Bảng công cho ai có `cong_coso` (bậc Cửa hàng trưởng).
+	 * Vai trong THẺ PHIÊN mới là thứ nó hỏi — mà thẻ ấy lấy vai từ NGUỒN NGƯỜI DÙNG đang đặt.
+	 * Nguồn không phải `ho_so` thì đổi vai trong hồ sơ chẳng đi tới đâu: hồ sơ nói một đằng,
+	 * cửa vào tính một nẻo, và KHÔNG CÓ GÌ BÁO.
+	 *
+	 * ⚠️ Màn Quản lý nhân sự đã có dải cảnh báo cho chuyện này (`VHCC_TrangNS::canh_nguon()`).
+	 *    Nhưng người BỊ ẢNH HƯỞNG không đứng ở đó — họ đứng ở đây, nhìn một cột dọc thiếu mục và
+	 *    không biết vì sao. Nói ở cả hai chỗ mới đủ.
+	 *
+	 * ⚠️ CHỈ KÊU KHI THẬT SỰ LỆCH BẬC. So tên vai thì "Kế toán" với "Kế toán cá nhân" thành lệch,
+	 *    mà hai cái ấy cùng bậc — kêu lên là báo động giả, và báo động giả thì người ta tắt đi.
+	 */
+	private static function canh_lech_vai( $toi ) {
+		$ma = trim( isset( $toi['ma_nv'] ) ? (string) $toi['ma_nv'] : '' );
+		if ( '' === $ma ) { return; }
+		$hs = VHCC_NhanSu::ho_so( $ma );
+		if ( ! $hs ) { return; }
+
+		$vai_hs = trim( (string) $hs['vai_tro'] );
+		if ( '' === $vai_hs ) { return; }
+		$bac_hs = VHCC_Vai::bac( array( 'role' => $vai_hs ) );
+		$bac_ps = VHCC_Vai::bac( $toi );
+		if ( $bac_hs === $bac_ps ) { return; }
+
+		$ten_hs = VHCC_Vai::TEN[ VHCC_Vai::ma( $vai_hs ) ];
+		$ten_ps = VHCC_Vai::ten( $toi );
+		/* Cao hơn hay thấp hơn đều là lệch, nhưng hậu quả khác nhau — nói đúng cái đang xảy ra. */
+		$thap = ( $bac_ps < $bac_hs );
+		echo '<div class="bao ' . ( $thap ? 'loi' : 'canh' ) . '">'
+			. '<b>Hồ sơ của anh/chị ghi vai ' . esc_html( $ten_hs ) . ', nhưng phiên này đang là '
+			. esc_html( $ten_ps ) . '.</b><br>'
+			. ( $thap
+				? 'Nên màn hình đang thiếu những mục của vai ' . esc_html( $ten_hs ) . '. '
+				: 'Nên màn hình đang mở rộng hơn vai ghi trong hồ sơ. ' )
+			. '<span class="mo">Vai lúc đăng nhập đọc từ <b>Nguồn người dùng</b>, mà nguồn đang đặt '
+			. 'không phải hồ sơ nhân sự. Nhờ Admin vào <b>Cấu hình → Nguồn người dùng</b> đổi sang '
+			. '<b>“hồ sơ nhân sự”</b>, rồi đăng nhập lại.</span></div>';
 	}
 
 	public static function man_cua( $toi ) {
