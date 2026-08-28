@@ -668,6 +668,7 @@ class VHCC_TrangNS {
 
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
 		self::the_dong_bo( $toi );
+		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
 		self::the_dau_viec( $toi );
 		self::the_ngoai_le();
@@ -702,6 +703,76 @@ class VHCC_TrangNS {
 	 *    nhập liệu, và ngày nào lật nguồn sang "hồ sơ" là mọi thứ khai ở đây có hiệu lực ngay.
 	 *    Chặn lại thì mất luôn đường chuẩn bị trước.
 	 */
+	/**
+	 * AI ĐANG MANG MỘT VAI HỆ PHẢI ĐOÁN — chứ không khai chính thức.
+	 *
+	 * =========================================================================================
+	 * 🔴 SỬA DÒNG ĐỎ KÊU OAN XONG THÌ PHẢI NÓI RA CHUYỆN THẬT NẰM SAU NÓ.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026 thấy *"MNKT4CTY0001: Vai trò «Kế Toán MTD» không có trong hệ"* mỗi
+	 * lần bấm Lưu bảng, dù không đổi vai ai. `VHCC_NhanSu::dat_vai_tro()` nay thôi kêu khi
+	 * không có gì đổi — đúng, nhưng dừng ở đó là GIẤU mất chuyện thật.
+	 *
+	 * ⚠️ VÀ CHUYỆN THẬT KHÔNG PHẢI LÀ "HỌ BỊ HẠ XUỐNG NHÂN VIÊN". Bản nháp của khối này viết
+	 *    đúng câu ấy, và nó SAI: `VHCC_Vai::ma('Kế Toán MTD')` trả về KE_TOAN, vì nhánh đoán
+	 *    theo tên bắt được tiền tố "ke toan". Người ấy đang ở đúng bậc.
+	 *
+	 * 🔴 CHUYỆN THẬT LÀ: BẬC ẤY ĐANG DO ĐOÁN MÀ RA. Đoán đúng hôm nay không có nghĩa đoán đúng
+	 *    mai. Chính `VHCC_Vai::ma()` đã ghi: một vai tên "Điều phối POSH" gốc Quản lý thì nhánh
+	 *    đoán không nhận ra, và người ấy rơi xuống Nhân viên mà không có gì báo. Khối này liệt
+	 *    kê mọi chuỗi đang phải đoán, kèm BẬC HỆ ĐANG TÍNH CHO HỌ — để anh soi xem đoán ấy có
+	 *    đúng ý mình không, và khai lại cho chắc.
+	 *
+	 * ⚠️ ĐẾM TRÊN CẢ SỔ, KHÔNG CHỈ TRANG ĐANG HIỆN. Bảng có lọc và phân trang; một người mang
+	 *    chuỗi lạ ở trang 4 thì không ai nhìn thấy nữa — mà đó đúng là người cần thấy nhất.
+	 */
+	private static function canh_vai_la( $toi ) {
+		$ds  = VHCC_Vai::ds_ten();
+		$la  = array();
+		$roi = 0;
+		$rows = VHCC_DB::rows( 'SELECT ma_nv, ho_ten, vai_tro, cua_hang FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . " WHERE TRIM(vai_tro) <> ''" );
+		foreach ( (array) $rows as $r ) {
+			$v = trim( (string) $r['vai_tro'] );
+			if ( in_array( $v, $ds, true ) ) { continue; }
+			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $r['cua_hang'] ) ) { continue; }
+			$bac = VHCC_Vai::ma( $v );
+			$r['bac'] = VHCC_Vai::TEN[ $bac ];
+			/* Rơi xuống bậc thấp nhất = gần như chắc là đoán TRẬT, vì không ai đặt tên một vai
+			   rồi mong nó thành Nhân viên. Đếm riêng để nói nặng nhẹ cho đúng. */
+			$r['roi'] = ( VHCC_Vai::NV === $bac );
+			if ( $r['roi'] ) { $roi++; }
+			$la[] = $r;
+		}
+		if ( ! $la ) { return; }
+
+		echo '<div class="the"><details' . ( $roi ? ' open' : '' ) . '>';
+		echo '<summary><b>' . count( $la ) . ' người mang vai hệ phải ĐOÁN</b>'
+			. ( $roi ? ' — <span class="chu-hong">' . $roi . ' người trong đó rơi xuống Nhân viên'
+				. '</span>' : '' ) . '</summary>';
+		echo '<p class="mo">Hồ sơ ghi một chuỗi không có trong danh sách vai (thường là dữ liệu cũ '
+			. 'nạp sang). Hệ vẫn cho họ một bậc, nhưng bằng cách <b>đoán theo tên</b> — đúng hôm '
+			. 'nay không có nghĩa đúng mai. Khai chuỗi ấy thành <b>vai tự tạo</b> ở khối ngay bên '
+			. 'dưới là hết đoán; hoặc đổi ô <b>Vai trò</b> của họ sang một vai đã có.</p>';
+		if ( $roi ) {
+			echo '<div class="bao loi">' . $roi . ' người rơi xuống <b>Nhân viên</b> — bậc thấp '
+				. 'nhất. Không ai đặt tên một vai rồi mong nó thành Nhân viên, nên đây gần như '
+				. 'chắc là đoán trật, và họ đang bị hạ quyền mỗi lần đăng nhập.</div>';
+		}
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+			. '<th>Cơ sở</th><th>Hồ sơ đang ghi</th><th>Hệ đang tính là</th>'
+			. '</tr></thead><tbody>';
+		foreach ( $la as $r ) {
+			echo '<tr><td><code>' . esc_html( (string) $r['ma_nv'] ) . '</code></td>'
+				. '<td>' . esc_html( (string) $r['ho_ten'] ) . '</td>'
+				. '<td>' . esc_html( (string) $r['cua_hang'] ) . '</td>'
+				. '<td>' . esc_html( trim( (string) $r['vai_tro'] ) ) . '</td>'
+				. '<td>' . ( $r['roi'] ? '<span class="chu-hong">' . esc_html( $r['bac'] ) . '</span>'
+					: esc_html( $r['bac'] ) ) . '</td></tr>';
+		}
+		echo '</tbody></table></div></details></div>';
+	}
+
 	/**
 	 * HỆ GHẾ ĐANG ĐỌC SỔ NÀO — và nút chuyển, nếu đang đọc sai chỗ.
 	 *

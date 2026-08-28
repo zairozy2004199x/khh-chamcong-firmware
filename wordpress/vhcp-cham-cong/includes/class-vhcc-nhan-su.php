@@ -450,14 +450,37 @@ class VHCC_NhanSu {
 		$ma  = trim( (string) $ma_nv );
 		$vai = trim( (string) $vai );
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		$cu = self::ho_so( $ma );
+		if ( ! $cu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+
+		/* =====================================================================================
+		 * 🔴 "KHÔNG ĐỔI GÌ" PHẢI XÉT TRƯỚC MỌI CHỐT KHÁC, KỂ CẢ DANH SÁCH TRẮNG.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026, ảnh màn nhân sự sau một lần bấm Lưu bảng:
+		 *     Đã lưu 2 ô quyền vào trang.
+		 *     MNKT4CTY0001: Vai trò "Kế Toán MTD" không có trong hệ.
+		 *     Hệ ghế: đã đẩy/gỡ 1 người.
+		 * Anh không hề định đổi vai ai. Hồ sơ ấy ĐANG mang chuỗi "Kế Toán MTD" — một vai còn
+		 * sót từ dữ liệu cũ, chưa khai vào hệ. Ô xổ cố ý giữ nguyên chuỗi ấy làm lựa chọn đang
+		 * chọn (xem `VHCC_TrangNS::o_vai()`), vì thả nó ra là ô tự nhảy về dòng đầu và một cú
+		 * bấm Lưu đổi vai cả trang. Nhưng lúc lưu, chuỗi ấy gửi lên và chốt danh sách trắng
+		 * chối nó — nên MỖI LẦN bấm Lưu bảng lại đẻ ra một dòng đỏ cho một việc không xảy ra.
+		 *
+		 * ⚠️ DÒNG ĐỎ KÊU OAN LÀ THỨ DẠY NGƯỜI TA THÔI ĐỌC DÒNG ĐỎ. Trong 400 nhân sự còn nhiều
+		 *    vai sót như vậy; để nguyên thì mỗi lần lưu là mấy chục dòng đỏ vô nghĩa, và ngày
+		 *    có một dòng đỏ THẬT thì nó nằm lẫn trong đám ấy.
+		 *
+		 * Danh sách trắng vẫn giữ nguyên hiệu lực cho mọi lần ĐỔI THẬT: gửi lên một chuỗi lạ
+		 * KHÁC vai đang có thì vẫn bị chối ở ngay dưới đây.
+		 */
+		if ( trim( (string) $cu['vai_tro'] ) === $vai ) { return array( 'ok' => true, 'doi' => false ); }
+
 		/* Danh sách TRẮNG, đọc từ `VHCC_Auth` — nơi duy nhất khai tên vai của cả hệ. Nhận bừa
 		   một chuỗi lạ thì `VHCC_Vai::ma()` đẩy nó về Nhân viên, tức là ô vai trò thành một
 		   đường HẠ quyền người khác mà không ai gọi tên được việc vừa xảy ra. */
 		if ( ! in_array( $vai, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) {
 			return array( 'ok' => false, 'error' => 'Vai trò "' . $vai . '" không có trong hệ.' );
 		}
-		$cu = self::ho_so( $ma );
-		if ( ! $cu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
 		if ( ! self::co_quyen_coso( $u, $cu['cua_hang'] ) ) {
 			return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
 		}
@@ -480,7 +503,9 @@ class VHCC_NhanSu {
 				. ' — cao hơn vai của bạn, nên không đổi được.' );
 		}
 
-		if ( trim( (string) $cu['vai_tro'] ) === $vai ) { return array( 'ok' => true, 'doi' => false ); }
+		/* ⛔ Chốt "không đổi thì thôi" từng nằm ở ĐÂY. Nay nó đứng trên đầu hàm, trước danh sách
+		   trắng — để lại một bản thứ hai ở đây là mã chết: mọi lối tới dòng này đều đã qua bản
+		   kia rồi. */
 		$ok = $wpdb->update( VHCC_DB::t( 'nhan_vien' ),
 			array( 'vai_tro' => $vai, 'cap_nhat' => current_time( 'mysql' ) ),
 			array( 'ma_nv' => $ma ) );

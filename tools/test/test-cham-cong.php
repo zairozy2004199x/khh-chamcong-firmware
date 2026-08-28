@@ -8396,6 +8396,81 @@ t( 'đọc sổ riêng rồi thì thôi cảnh báo', strpos( $g_h, 'đang đọ
 
 /* 🔴 KHỐI "NHỮNG TRANG KHÔNG KHAI ĐƯỢC" PHẢI THÔI NÓI NGƯỢC. Bản trước ghi gọn "Ghế massage —
    trang của khách", nên người đọc đi tìm cột Ghế, thấy dòng ấy, rồi tin rằng nó không thể có. */
+/* ---- VAI SÓT TỪ DỮ LIỆU CŨ ------------------------------------------------------------------
+   🔴 Anh Thắng 28/08/2026, ảnh màn nhân sự sau một lần bấm Lưu bảng:
+        Đã lưu 2 ô quyền vào trang.
+        MNKT4CTY0001: Vai trò "Kế Toán MTD" không có trong hệ.
+        Hệ ghế: đã đẩy/gỡ 1 người.
+   Anh không hề định đổi vai ai. Hồ sơ ấy ĐANG mang chuỗi "Kế Toán MTD" — vai sót từ dữ liệu
+   cũ. Ô xổ cố ý giữ nguyên chuỗi ấy (thả ra là ô nhảy về dòng đầu và một cú Lưu đổi vai cả
+   trang), nên nó gửi lên và chốt danh sách trắng chối — mỗi lần bấm Lưu lại một dòng đỏ cho
+   một việc KHÔNG xảy ra.
+   ⚠️ Dòng đỏ kêu oan là thứ dạy người ta thôi đọc dòng đỏ. */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHVAI1', 'ho_ten' => 'Người Vai Sót',
+	'cua_hang' => 'GHE_CS' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Kế Toán MTD' ),
+	array( 'ma_nv' => 'GHVAI1' ) );
+$g_kq = VHCC_NhanSu::dat_vai_tro( $g_ad, 'GHVAI1', 'Kế Toán MTD' );
+t( '🔴 gửi lên ĐÚNG vai đang có thì im lặng cho qua, dù vai ấy hệ không công nhận',
+	! empty( $g_kq['ok'] ) && empty( $g_kq['doi'] ), $g_kq );
+/* Danh sách trắng vẫn giữ nguyên hiệu lực cho mọi lần ĐỔI THẬT. */
+$g_kq = VHCC_NhanSu::dat_vai_tro( $g_ad, 'GHVAI1', 'Một Vai Bịa Ra' );
+t( '🔴 nhưng đổi sang một chuỗi lạ KHÁC thì vẫn bị chối', empty( $g_kq['ok'] ), $g_kq );
+t( 'và câu chối gọi đúng tên chuỗi ấy',
+	strpos( (string) $g_kq['error'], 'Một Vai Bịa Ra' ) !== false, $g_kq );
+/* Đổi sang vai thật thì chạy bình thường. */
+$g_kq = VHCC_NhanSu::dat_vai_tro( $g_ad, 'GHVAI1', 'Quản lý' );
+t( 'đổi sang vai có thật thì đổi được', ! empty( $g_kq['ok'] ) && ! empty( $g_kq['doi'] ), $g_kq );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Kế Toán MTD' ),
+	array( 'ma_nv' => 'GHVAI1' ) );
+
+/* 🔴 SỬA DÒNG ĐỎ KÊU OAN XONG THÌ PHẢI NÓI RA CHUYỆN THẬT NẰM SAU NÓ.
+   ⚠️ VÀ CHUYỆN THẬT KHÔNG PHẢI "HỌ BỊ HẠ XUỐNG NHÂN VIÊN". Bản nháp của khối cảnh báo viết
+      đúng câu ấy và nó SAI: `VHCC_Vai::ma('Kế Toán MTD')` trả KE_TOAN, vì nhánh đoán theo tên
+      bắt được tiền tố "ke toan". Người ấy đang ở đúng bậc.
+   🔴 Chuyện thật là BẬC ẤY DO ĐOÁN MÀ RA — đúng hôm nay không có nghĩa đúng mai. */
+teq( 'dựng cảnh: "Kế Toán MTD" được ĐOÁN thành Kế toán, không rơi xuống Nhân viên',
+	VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'Kế Toán MTD' ) );
+teq( 'còn một tên hệ không đoán nổi thì rơi thật', VHCC_Vai::NV, VHCC_Vai::ma( 'Điều Phối POSH' ) );
+
+$g_h = vhcc_hr_ns( $g_tok );
+t( '🔴 màn hình kể ra ai đang mang vai hệ phải ĐOÁN',
+	strpos( $g_h, 'người mang vai hệ phải ĐOÁN' ) !== false, $g_h );
+t( 'kể đúng mã, chuỗi đang ghi, và BẬC hệ đang tính cho họ',
+	strpos( $g_h, 'GHVAI1' ) !== false && strpos( $g_h, 'Kế Toán MTD' ) !== false
+	&& strpos( $g_h, 'Hệ đang tính là' ) !== false, $g_h );
+/* ⚠️ Đoán ra đúng bậc thì ĐỪNG doạ. Người này ở Kế toán — không có gì hỏng ngay. */
+t( 'đoán ra đúng bậc thì không kêu "rơi xuống Nhân viên"',
+	strpos( $g_h, 'rơi xuống Nhân viên' ) === false, $g_h );
+t( 'và chỉ hai đường chữa',
+	strpos( $g_h, 'vai tự tạo' ) !== false && strpos( $g_h, 'Vai trò</b> của họ' ) !== false, $g_h );
+
+/* 🔴 CÒN NGƯỜI RƠI XUỐNG NHÂN VIÊN THÌ PHẢI NÓI NẶNG HƠN HẲN. Không ai đặt tên một vai rồi
+   mong nó thành Nhân viên — đó gần như chắc là đoán trật, và họ đang bị hạ quyền thật. */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHVAI2', 'ho_ten' => 'Người Rơi Bậc',
+	'cua_hang' => 'GHE_CS' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Điều Phối POSH' ),
+	array( 'ma_nv' => 'GHVAI2' ) );
+$g_h = vhcc_hr_ns( $g_tok );
+t( '🔴 người rơi xuống Nhân viên thì kêu hẳn lên',
+	strpos( $g_h, 'rơi xuống Nhân viên' ) !== false, $g_h );
+t( 'và nói rõ vì sao đó gần như chắc là đoán trật',
+	strpos( $g_h, 'gần như chắc là đoán trật' ) !== false, $g_h );
+/* ⚠️ Có người rơi bậc thì khối phải MỞ SẴN — thứ duy nhất nói ra chuyện ấy không được nằm sau
+   một cú bấm. */
+t( 'và khối mở sẵn, không gập lại',
+	strpos( $g_h, '<details open><summary><b>2 người mang vai hệ phải ĐOÁN' ) !== false, $g_h );
+
+/* Khai chuỗi ấy thành vai tự tạo thì người ấy thôi nằm trong danh sách. */
+/* ⚠️ `dat_them()` nhận vai gốc bằng KHOÁ BẬC (`VHCC_Vai::QL`), không phải tên hiển thị. */
+$g_kq = VHCC_Vai::dat_them( $g_ad, 'Điều Phối POSH', VHCC_Vai::QL );
+t( 'dựng cảnh: khai được vai tự tạo', ! empty( $g_kq['ok'] ), $g_kq );
+$g_h = vhcc_hr_ns( $g_tok );
+t( '🔴 khai thành vai tự tạo rồi thì người ấy thôi nằm trong danh sách',
+	strpos( $g_h, '1 người mang vai hệ phải ĐOÁN' ) !== false, $g_h );
+t( 'và thôi kêu rơi bậc', strpos( $g_h, 'rơi xuống Nhân viên' ) === false, $g_h );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('GHVAI1','GHVAI2')" );
+
 /* ---- BẢN SAO BÊN GHẾ PHẢI THEO BẢN GỐC -----------------------------------------------------
    🔴 Bản sao chỉ đúng vào đúng khoảnh khắc đẩy. Sau đó hồ sơ còn sống tiếp: đổi PIN, đổi vai,
       chuyển cơ sở. Không đồng bộ thì mỗi lần sửa là hai bên lệch thêm một chút, và không có gì
