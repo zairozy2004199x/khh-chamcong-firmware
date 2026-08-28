@@ -186,9 +186,14 @@ class VHG_KeToan {
 		/* Ép chỉ số trước từ dòng thời gian dùng chung (không tin số cũ nếu có mốc mới hơn). */
 		$truoc = VHG_BaoCao::chi_so_truoc( $ma, $h['ngay'] );
 		$before = ( null !== $truoc ) ? $truoc : self::songuyen_( $d['chi_so_truoc'] );
-		if ( null !== $before && null !== $after && $after < $before ) {
-			return array( 'ok' => false, 'message' => 'Chỉ số sau (' . $after . ') nhỏ hơn trước (' . $before . '). Nếu thay máy thì duyệt đề nghị đổi chỉ số.' );
-		}
+		/* 🔴 KHÔNG CHẶN "chỉ số sau nhỏ hơn trước" Ở ĐÂY — anh Thắng 28/08: "Đối với tài khoản
+		   kế toán và quản lý, hotline có quyền sửa báo cáo mà không lý do máy lỗi". Hàm này chỉ
+		   tới được từ tab Duyệt báo cáo (`kt_sua`, chốt quyền QT||KT ở đầu api() — xem "TRANG KẾ
+		   TOÁN" trong class-vhg-trang.php), tức là Admin/Quản lý/Kế toán đang SỬA LẠI một số họ
+		   đã xác nhận là sai — bắt họ qua cùng luồng "lý do + Thực thu" dựng cho NHÂN VIÊN thu
+		   tiền tự nộp báo cáo (VHG_BaoCao::luu()) là bắt người đang sửa lỗi phải tự khai lỗi của
+		   người khác. Chốt an toàn đó vẫn còn nguyên vẹn ở luu() cho đường nộp gốc; ở đây chỉ bỏ
+		   CHẶN CỨNG, không đụng gì bên kia. */
 		$actual = ( null === $before || null === $after ) ? 0 : ( $after - $before ) * $dv;
 		$cash = $actual - $qr + $adj;
 		$tong = $cash + $qr;
