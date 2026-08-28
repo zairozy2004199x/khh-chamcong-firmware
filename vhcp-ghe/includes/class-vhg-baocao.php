@@ -356,20 +356,33 @@ class VHG_BaoCao {
 			if ( '' === (string) $after || null === $after ) { continue; }
 			$truoc_ht = self::chi_so_truoc( $ma, $ngay );
 			$before = ( null !== $truoc_ht ) ? $truoc_ht : self::songuyen_( isset( $r0['meterBefore'] ) ? $r0['meterBefore'] : '' );
+			/* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy
+			   lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo (nó sẽ báo
+			   về cho kế toán để check doanh thu)". Trước đây CHẶN CỨNG luôn — đúng cho máy thật
+			   sự đổi điểm (đã có đường riêng "Đề nghị đổi chỉ số"), nhưng nặng cho lỗi gõ nhầm.
+			   Có lý do thì cho qua, và GHÉP LÝ DO VÀO GHI CHÚ có tiền tố cảnh báo dễ nhận — kế
+			   toán mở báo cáo ra là thấy ngay, không cần đoán ô nào bất thường. ⚠️ VẪN CHỈ TIN
+			   "CÓ LÝ DO HAY KHÔNG", không phải tin số liệu đúng — chốt "fail closed" giữ nguyên
+			   khi KHÔNG có lý do, y hệt trước giờ. */
+			$ly_do_bt = mb_substr( trim( (string) ( isset( $r0['abnormalReason'] ) ? $r0['abnormalReason'] : '' ) ), 0, 200 );
+			$ghi_chu  = trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) );
+			if ( '' !== $ly_do_bt ) {
+				$ghi_chu = trim( '⚠ CHỈ SỐ BẤT THƯỜNG: ' . $ly_do_bt . ( '' !== $ghi_chu ? ' · ' . $ghi_chu : '' ) );
+			}
 			$r = array( 'ma_may' => $ma, 'ten' => (string) ( isset( $r0['chairName'] ) ? $r0['chairName'] : $ma ),
 				'ngay' => $ngay, 'chi_so_truoc' => $before, 'chi_so_sau' => (int) $after,
 				'qr' => (int) ( isset( $r0['qr'] ) ? $r0['qr'] : 0 ),
 				'dieu_chinh' => (int) ( isset( $r0['adjust'] ) ? $r0['adjust'] : 0 ),
-				'ghi_chu' => mb_substr( trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) ), 0, 250 ),
+				'ghi_chu' => mb_substr( $ghi_chu, 0, 250 ),
 				/* Ảnh gắn CỨNG vào đúng ghế này — {chiso, vesinh}, mỗi ô một dataUrl hoặc vắng
 				   mặt. Thay cho cách cũ chia đều một xấp ảnh chung theo THỨ TỰ ghế trong bảng
 				   (`chia_anh_ghe_()`, nay bỏ) — chụp lộn thứ tự với 20 ghế là chuyện dễ xảy ra,
 				   và ảnh gán nhầm ghế chỉ lộ ra khi kế toán soát thấy sai. */
 				'images' => ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) ? $r0['images'] : array() );
 			self::tinh_( $r );
-			if ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] ) {
+			if ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] && '' === $ly_do_bt ) {
 				return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': chỉ số sau (' . $r['chi_so_sau']
-					. ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . '). Máy vừa thay/đổi điểm thì gửi đề nghị đổi chỉ số.' );
+					. ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . '). Ghi lý do ở ô đỏ dưới tên ghế rồi gửi lại.' );
 			}
 			$rows[] = $r;
 		}

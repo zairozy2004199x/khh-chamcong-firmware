@@ -1549,8 +1549,23 @@ class VHG_Trang {
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
-    if(before!==''&&after!==''&&after<before){ w.textContent='Chỉ số sau nhỏ hơn trước'; w.style.display=''; }
-    else w.style.display='none';
+    /* Chỉ số bất thường: hiện ô nhập LÝ DO ngay tại hàng đó — anh Thắng: "hiện ra lý do lỗi
+       tại hàng máy lỗi, nhân viên nhập lý do". Tạo ô MỘT LẦN (không dựng lại mỗi lần gõ số
+       khác, kẻo mất chữ đang gõ dở trong chính ô lý do khi calc() chạy lại do sự kiện input
+       của CHÍNH ô đó). */
+    if(before!==''&&after!==''&&after<before){
+      w.style.display='';
+      if(!w.querySelector('.ly-do-bt')){
+        w.textContent='';
+        w.appendChild(document.createTextNode('⚠ Chỉ số sau nhỏ hơn trước — ghi lý do:'));
+        var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm…';
+        iLy.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
+        w.appendChild(iLy);
+      }
+    } else {
+      w.style.display='none';
+      if(w.querySelector('.ly-do-bt')) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch ô lý do
+    }
   }
 
   function tinhTong(){
@@ -1617,10 +1632,26 @@ class VHG_Trang {
     if(!LOC){ msg.textContent='Chọn cơ sở.'; msg.className='bc-msg bc-err'; return; }
     var rows=collect();
     if(!rows.length){ msg.textContent='Chưa nhập chỉ số sau cho ghế nào.'; msg.className='bc-msg bc-err'; return; }
+    /* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy lỗi,
+       nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo". Trước đây chặn CỨNG
+       ngay lần đầu, bắt đi vòng qua "Đề nghị đổi chỉ số" — đúng cho máy thật sự đổi điểm, nhưng
+       nặng cho lỗi gõ nhầm một số. Giờ: thiếu lý do thì CHẶN (như cũ, không lặng lẽ cho qua —
+       xem chốt an toàn ở server), có lý do (gõ ở ô đỏ ngay dưới tên ghế, do calc() tự hiện ra)
+       thì cho gửi, kèm lý do để kế toán soát. */
+    var canhBao=[];
     for(var i=0;i<rows.length;i++){ var r=rows[i];
       if(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore)){
-        msg.textContent='Ghế '+(r.chairName||r.chairCode)+': chỉ số sau nhỏ hơn trước. Máy vừa thay/đổi điểm thì gửi đề nghị đổi chỉ số.';
-        msg.className='bc-msg bc-err'; return; } }
+        var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
+        var iLy=trR&&trR.querySelector('.ly-do-bt');
+        var ly=iLy?(iLy.value||'').trim():'';
+        if(!ly){ canhBao.push(r.chairName||r.chairCode); continue; }
+        r.abnormalReason=ly;
+      }
+    }
+    if(canhBao.length){
+      msg.textContent='Chỉ số sau nhỏ hơn trước ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do vào ô đỏ ngay dưới tên ghế rồi bấm Gửi lại.';
+      msg.className='bc-msg bc-err'; return;
+    }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
     var aEl=$('bc-amt'); var amtRaw=aEl?(aEl.value||'').trim():'';   // gọn: không có ô số tiền → nộp đủ
     var nEl=$('bc-paynote');
@@ -3686,6 +3717,14 @@ function ktdRow(o,c,m,reload,locked){
       a.appendChild(img); wrapA.appendChild(a);
     });
     tdN.appendChild(wrapA);
+  }
+  /* Lý do chỉ số bất thường hiện ngay dưới tên ghế — anh Thắng: "báo về cho kế toán để check
+     doanh thu". Trước đây ghi_chu chỉ thấy khi bấm Sửa mở form ra; giờ hiện thẳng ra bảng nên
+     không cần mở từng dòng mới biết ghế nào có vấn đề. */
+  if(c.note){
+    var noB=ktEl('div', /^⚠/.test(c.note)?'mut err':'mut', c.note);
+    noB.style.cssText='margin-top:4px;max-width:220px;white-space:normal';
+    tdN.appendChild(noB);
   }
   tr.appendChild(tdN);
   tr.appendChild(td(c.meterBefore==null?'—':ktVnd(c.meterBefore),1));
