@@ -1945,8 +1945,11 @@ tr:last-child td{border-bottom:0}
 .bd-row{display:grid;grid-template-columns:minmax(72px,32%) 1fr auto;align-items:center;gap:9px}
 .bd-lb{font-size:12.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bd-track{height:15px;background:var(--blue-bg);border-radius:5px;overflow:hidden}
-.bd-bar{height:100%;border-radius:5px;min-width:3px;transition:width .3s ease}
+.bd-bar{height:100%;border-radius:5px;min-width:3px;transition:width .3s ease;overflow:hidden}
+.bd-seg{height:100%}
 .bd-val{font-size:12px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bd-chu{display:flex;gap:16px;margin-bottom:9px;font-size:12px;color:var(--ink2)}
+.bd-chu .bd-lg2{display:inline-flex;align-items:center;gap:6px}
 .login{max-width:360px;margin:12vh auto;padding:28px 24px;background:#fff;
   border:1px solid var(--line);border-radius:16px;text-align:center;
   box-shadow:0 12px 40px rgba(31,45,74,.14)}
@@ -3499,7 +3502,8 @@ function klsLoad(){
     var thangTang = r.thang.slice().sort(function(a,b){ return a.thang < b.thang ? -1 : (a.thang > b.thang ? 1 : 0); });
     var cd = ktEl('div', 'card'); cd.style.marginBottom = '12px';
     cd.innerHTML = '<h2>' + L('Doanh thu theo tháng','Revenue by month') + '</h2>'
-      + bdCot(thangTang.map(function(T){ return { ten: T.thang.slice(5) + '/' + T.thang.slice(0,4), gt: Number(T.tong)||0 }; }), 'var(--blue)', 12);
+      + bdCotStack(thangTang.map(function(T){ return { ten: T.thang.slice(5) + '/' + T.thang.slice(0,4),
+          tm: Number(T.tien_mat)||0, qr: Number(T.qr)||0 }; }), 12);
     box.appendChild(cd);
     r.thang.forEach(function(T){ box.appendChild(klsThang(T)); });
   });
@@ -3528,6 +3532,16 @@ function klsThang(T){
   return card;
 }
 function klsBody(body, T){
+  /* Biểu đồ doanh thu theo NGÀY trong tháng (giữ thứ tự ngày), xếp chồng Tiền mặt/QR. */
+  if ((T.ngay || []).length) {
+    var cd = ktEl('div'); cd.style.marginBottom = '12px';
+    cd.innerHTML = '<div class="mut" style="margin-bottom:6px">' + L('Doanh thu theo ngày','Revenue by day') + '</div>'
+      + bdCotStack((T.ngay || []).map(function(n){
+          var nh = /^\d{4}-\d{2}-\d{2}/.test(String(n.ngay)) ? (String(n.ngay).slice(8,10) + '/' + String(n.ngay).slice(5,7)) : String(n.ngay);
+          return { ten: nh, tm: Number(n.tien_mat)||0, qr: Number(n.qr)||0 };
+        }), 40);
+    body.appendChild(cd);
+  }
   body.appendChild(ktEl('div', 'mut', L('Theo ghế (chỉ số máy đầu → cuối tháng)','By chair (meter start → end of month)')));
   var sc1 = ktEl('div', 'table-scroll'); var t1 = ktEl('table'); t1.style.minWidth = '620px';
   t1.innerHTML = '<tr><th>' + L('Ghế','Chair') + '</th><th>' + L('Chỉ số đầu→cuối','Meter start→end')
@@ -4954,17 +4968,24 @@ function bdDonut(parts){
   }).join('');
   return '<div class="bd-donut-wrap">' + svg + '<div class="bd-legend">' + leg + '</div></div>';
 }
-/* Thanh ngang: rows = [{ten, gt}] (đã sắp giảm dần). mau = màu thanh. gioi = số dòng tối đa. */
-function bdCot(rows, mau, gioi){
-  rows = (rows || []).filter(function(r){ return (Number(r.gt)||0) > 0; });
+/* Thanh ngang XẾP CHỒNG Tiền mặt (xanh lá) + QR (xanh dương) trong một thanh.
+ * rows = [{ten, tm, qr}]; GIỮ nguyên thứ tự truyền vào (để chuỗi thời gian không bị xáo). */
+function bdCotStack(rows, gioi){
+  rows = (rows || []).map(function(r){ var tm = Number(r.tm)||0, qr = Number(r.qr)||0;
+      return { ten: r.ten, tm: tm, qr: qr, gt: tm + qr }; })
+    .filter(function(r){ return r.gt > 0; });
   if (!rows.length) return '<p class="mut">' + L('Chưa có số liệu kỳ này.','No data for this period.') + '</p>';
   var them = (gioi && rows.length > gioi) ? (rows.length - gioi) : 0;
   if (them) rows = rows.slice(0, gioi);
-  var max = rows.reduce(function(a,r){ return Math.max(a, Number(r.gt)||0); }, 0) || 1;
-  var h = '<div class="bd-cot">' + rows.map(function(r){
-    var pc = Math.max(3, Math.round((Number(r.gt)||0)/max*100));
+  var max = rows.reduce(function(a,r){ return Math.max(a, r.gt); }, 0) || 1;
+  var chu = '<div class="bd-chu"><span class="bd-lg2"><span class="bd-dot" style="background:var(--green)"></span>'
+      + L('Tiền mặt','Cash') + '</span><span class="bd-lg2"><span class="bd-dot" style="background:var(--blue)"></span>QR</span></div>';
+  var h = chu + '<div class="bd-cot">' + rows.map(function(r){
+    var wTot = Math.max(3, Math.round(r.gt/max*100));
+    var wTm = r.gt ? Math.round(r.tm/r.gt*100) : 0;
     return '<div class="bd-row"><div class="bd-lb" title="' + esc(r.ten) + '">' + esc(r.ten) + '</div>'
-      + '<div class="bd-track"><div class="bd-bar" style="width:' + pc + '%;background:' + mau + '"></div></div>'
+      + '<div class="bd-track"><div class="bd-bar" style="width:' + wTot + '%;background:var(--blue)">'
+      + '<div class="bd-seg" style="width:' + wTm + '%;background:var(--green)"></div></div></div>'
       + '<div class="bd-val">' + tienGon(r.gt) + 'đ</div></div>';
   }).join('') + '</div>';
   if (them) h += '<p class="mut" style="margin:8px 0 0">' + L('… và ' + them + ' mục khác','… and ' + them + ' more') + '</p>';
@@ -4974,15 +4995,17 @@ function bdCot(rows, mau, gioi){
 function veBieuDo(t){
   if (!t) return '';
   var cs = Object.keys(t.theo_coso || {}).map(function(k){ var c = t.theo_coso[k];
-      return { ten: c.coso, gt: Number(c.tong)||0 }; })
+      return { ten: c.coso, tm: Number(c.tien_mat)||0, qr: Number(c.qr)||0, gt: Number(c.tong)||0 }; })
     .sort(function(a,b){ return b.gt - a.gt; });
   var may = Object.keys(t.theo_may || {}).map(function(k){ var m = t.theo_may[k];
-      return { ten: m.may, gt: Number(m.tong)||0 }; })
+      return { ten: m.may, tm: Number(m.tien_mat)||0, qr: Number(m.qr)||0, gt: Number(m.tong)||0 }; })
     .sort(function(a,b){ return b.gt - a.gt; });
   var mt = {}; ((D && D.coso) || []).forEach(function(c){ mt[c.ten] = c.tinh || ''; });
   var byT = {};
-  cs.forEach(function(r){ var k = mt[r.ten] || L('(chưa gán tỉnh)','(no province)'); byT[k] = (byT[k]||0) + r.gt; });
-  var tinh = Object.keys(byT).map(function(k){ return { ten: k, gt: byT[k] }; })
+  cs.forEach(function(r){ var k = mt[r.ten] || L('(chưa gán tỉnh)','(no province)');
+    if (!byT[k]) byT[k] = { ten: k, tm: 0, qr: 0, gt: 0 };
+    byT[k].tm += r.tm; byT[k].qr += r.qr; byT[k].gt += r.gt; });
+  var tinh = Object.keys(byT).map(function(k){ return byT[k]; })
     .sort(function(a,b){ return b.gt - a.gt; });
 
   var h = '<div class="bd-grid">';
@@ -4992,11 +5015,11 @@ function veBieuDo(t){
         { ten: L('Chuyển khoản (QR)','Bank transfer (QR)'), gt: t.qr, mau: 'var(--blue)' }
       ]) + '</div>';
   h += '<div class="card"><h2>' + L('Doanh thu theo khu vực','Revenue by region') + '</h2>'
-    + bdCot(tinh, 'var(--navy)', 12) + '</div>';
+    + bdCotStack(tinh, 12) + '</div>';
   h += '<div class="card"><h2>' + L('Top cơ sở theo doanh thu','Top branches by revenue') + '</h2>'
-    + bdCot(cs, 'var(--blue)', 10) + '</div>';
+    + bdCotStack(cs, 10) + '</div>';
   h += '<div class="card"><h2>' + L('Top ghế theo doanh thu','Top chairs by revenue') + '</h2>'
-    + bdCot(may, 'var(--amber)', 10) + '</div>';
+    + bdCotStack(may, 10) + '</div>';
   h += '</div>';
   return h;
 }
