@@ -247,6 +247,52 @@ class VHCC_Web {
 		$chan = self::vi_sao_khong_xuat( $toi, $loai, $cs );
 		if ( '' !== $chan ) { self::loi_xuat( $chan ); return; }
 
+		/* =====================================================================================
+		 * 🔴 XUẤT LÀ CHỖ DỄ CHẾT NHẤT CỦA CẢ TRANG, VÀ NÓ CHẾT KHÔNG NÓI GÌ.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026 gửi ảnh: bấm Xuất Excel ở TUTU_BT ra *"Đã có một lỗi nghiêm trọng
+		 * trên trang web của bạn"* — trang trắng, không một chữ nào cho biết vướng ở đâu.
+		 *
+		 * Lượt xuất phải giữ CẢ THÁNG của CẢ CƠ SỞ trong bộ nhớ hai lần: một lần là mảng dữ
+		 * liệu, một lần là chuỗi XML dựng ra từ nó. Một cơ sở 20 người × 31 ngày là chuyện
+		 * thường; nhưng cùng chỗ ấy trên hosting chia sẻ có thể chỉ được cấp 40 MB. Vượt là PHP
+		 * chết giữa chừng — mà lúc ấy `loi_xuat()` không bao giờ được gọi tới.
+		 *
+		 * Nên: NÂNG trần trước, và ĐÓN cái chết nếu vẫn xảy ra.
+		 */
+		if ( function_exists( 'wp_raise_memory_limit' ) ) { wp_raise_memory_limit( 'admin' ); }
+		/* ⚠️ `@` vì hosting bật `safe_mode`/`disable_functions` sẽ ném cảnh báo ra giữa tệp
+		   .xlsx — và một tệp .xlsx có mấy dòng chữ ở đầu thì Excel báo hỏng. */
+		if ( function_exists( 'set_time_limit' ) ) { @set_time_limit( 120 ); }
+
+		/* 🔴 ĐÓN CÁI CHẾT. Không chặn được nó, nhưng nói ra được vướng gì — và câu ấy là thứ
+		   duy nhất người dùng có thể chụp màn hình gửi đi. Trang trắng thì không. */
+		$da_gui = false;
+		register_shutdown_function( function () use ( &$da_gui, $cs, $th ) {
+			if ( $da_gui ) { return; }
+			$e = error_get_last();
+			if ( ! $e || ! in_array( $e['type'],
+				array( E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR ), true ) ) { return; }
+			if ( headers_sent() ) { return; }
+			$het = ( false !== stripos( (string) $e['message'], 'memory' ) );
+			status_header( 500 );
+			header( 'Content-Type: text/html; charset=utf-8' );
+			echo '<!DOCTYPE html><meta charset="utf-8"><title>Xuất Excel không xong</title>';
+			echo '<div style="font:15px/1.6 system-ui,Arial;max-width:640px;margin:60px auto;'
+				. 'padding:20px;border:1px solid #fde68a;background:#fffbeb;border-radius:10px">';
+			echo '<h2 style="margin:0 0 8px">Xuất Excel không xong</h2>';
+			echo '<p>Cơ sở <b>' . esc_html( $cs ) . '</b> · tháng <b>' . esc_html( $th ) . '</b>.</p>';
+			echo $het
+				? '<p><b>Máy chủ hết bộ nhớ</b> giữa chừng. Xuất theo <b>từng tháng một</b>, hoặc '
+					. 'nhờ bên hosting nâng <code>memory_limit</code> lên 256M.</p>'
+				: '<p>Máy chủ dừng giữa chừng: <code>' . esc_html( substr( (string) $e['message'], 0, 200 ) )
+					. '</code></p>';
+			echo '<p style="color:#78716c;font-size:13px">Giới hạn bộ nhớ đang là <b>'
+				. esc_html( (string) ini_get( 'memory_limit' ) ) . '</b>, lúc dừng đã dùng <b>'
+				. esc_html( size_format( memory_get_peak_usage( true ) ) ) . '</b>.</p>';
+			echo '<p><a href="' . esc_url( self::url() ) . '">← Quay lại bảng công</a></p></div>';
+		} );
+
 		$b = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
 		if ( empty( $b['ok'] ) ) { self::loi_xuat( $b['error'] ); return; }
 		if ( empty( $b['hang'] ) ) {
@@ -255,8 +301,33 @@ class VHCC_Web {
 			return;
 		}
 
+		/* Đường CHẨN ĐOÁN: `&thu=1` — in ra con số thay vì dựng tệp. Mở được bằng trình duyệt,
+		   đọc được bằng mắt, chụp màn hình gửi đi được. Không in gì bí mật: chỉ tình trạng máy. */
+		if ( ! empty( $_GET['thu'] ) ) {
+			$da_gui = true;
+			nocache_headers();
+			header( 'Content-Type: text/plain; charset=utf-8' );
+			echo "== XUAT EXCEL: CHAN DOAN ==\n";
+			echo 'co so        : ' . $cs . "\n";
+			echo 'thang        : ' . $b['thang'] . "\n";
+			echo 'so nguoi     : ' . count( (array) $b['hang'] ) . "\n";
+			echo 'so luot      : ' . ( isset( $b['ds'] ) ? count( (array) $b['ds'] ) : 0 ) . "\n";
+			echo 'ZipArchive   : ' . ( VHCC_Xuat::co_xlsx() ? 'co' : 'CHUA CO' ) . "\n";
+			echo 'memory_limit : ' . (string) ini_get( 'memory_limit' ) . "\n";
+			echo 'dang dung    : ' . size_format( memory_get_usage( true ) ) . "\n";
+			echo 'dinh cao     : ' . size_format( memory_get_peak_usage( true ) ) . "\n";
+			echo 'php          : ' . PHP_VERSION . "\n";
+			echo "\nDoc duoc dong nay tuc la buoc DOC DU LIEU da xong; cho chet (neu co) nam o\n";
+			echo "buoc dung tep .xlsx ngay sau day.\n";
+			/* Bài kiểm chạy trong CÙNG một tiến trình; `exit` ở đây là giết luôn cả bài kiểm,
+			   nên không phép thử nào chạm được vào đường này — y như chốt ở `ve()`. */
+			if ( defined( 'VHCC_TEST' ) ) { return; }
+			exit;
+		}
+
 		$noi = VHCC_Xuat::xlsx( VHCC_Ca::to_xuat( $b, $cs ) );
 		if ( null === $noi ) { self::loi_xuat( 'Không dựng được tệp .xlsx.' ); return; }
+		$da_gui = true;
 
 		/* Tên tệp chỉ giữ chữ/số/gạch — dấu tiếng Việt và khoảng trắng trong `Content-Disposition`
 		   là mỗi trình duyệt đặt tên một kiểu, có cái cắt cụt ngay chỗ dấu cách. */

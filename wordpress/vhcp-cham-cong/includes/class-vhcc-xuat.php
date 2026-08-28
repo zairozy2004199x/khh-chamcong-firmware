@@ -190,6 +190,12 @@ class VHCC_Xuat {
 		header( 'Content-Disposition: attachment; filename="' . $ten_tep . '"' );
 		header( 'Content-Length: ' . strlen( $noi_dung ) );
 		echo $noi_dung; // phpcs:ignore WordPress.Security.EscapeOutput -- nhị phân .xlsx
+		/* 🔴 `exit` GIỮA BÀI KIỂM LÀ MỘT CÁI BẪY IM LẶNG. Bài kiểm chạy trong cùng một tiến
+		   trình: `exit` ở đây kết thúc luôn cả bài, mọi phép thử phía sau biến mất, mà mã trả
+		   về vẫn là 0 — nên bài kiểm báo "đạt" trong khi nó chỉ chạy được nửa chừng.
+		   Phá thử phát hiện: bỏ đường chẩn đoán xuất đi mà không phép thử nào đỏ, vì luồng rơi
+		   xuống đây rồi tắt máy. Cùng cái mối hẹp đã dùng ở `VHCC_Web::ve()`. */
+		if ( defined( 'VHCC_TEST' ) ) { return; }
 		exit;
 	}
 }

@@ -208,10 +208,43 @@ VHCC_Nhan::ghi_gio( 'TUTU_BT', $ND, 'NV009', 'Người NV009', VHCC_DB::giay( '1
 teq( 'dựng được ngày có đủ giờ, nguồn máy', 'may', hang( 'NV009' )['nguon'] );
 
 /* ---- gác cửa ---- */
+/* 🔴 CỬA HÀNG TRƯỞNG NAY SỬA ĐÈ ĐƯỢC — anh Thắng 28/08/2026: *"Cửa hàng trưởng được phép sửa
+   cả giờ công đã chấm"*. Trước đó (26/08) chính anh chốt Admin; đây là anh đổi ý.
+   ⚠️ ĐỔI BẬC KHÔNG ĐƯỢC KÉO THEO ĐỔI PHẠM VI hay bỏ dấu vết — ba chốt còn lại canh ngay dưới. */
 $r = sua( $CHT, array( 'vao' => '09:00' ) );
-t( '🔴 Cửa hàng trưởng KHÔNG sửa đè được (chỉ bù vào ô trống)',
-	empty( $r['ok'] ) && false !== strpos( $r['error'], 'Admin' ), $r );
-teq( 'và giờ cũ còn nguyên', VHCC_DB::giay( '08:00:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
+t( '🔴 Cửa hàng trưởng sửa đè được giờ của cơ sở mình', ! empty( $r['ok'] ), $r );
+teq( 'và giờ mới vào đúng ô', VHCC_DB::giay( '09:00:00' ), (int) hang( 'NV009' )['gio_vao_giay'] );
+/* Trả lại cảnh cũ cho những phép thử phía dưới. */
+sua( $ADMIN, array( 'vao' => '08:00' ) );
+teq( 'trả lại giờ cũ để chạy tiếp', VHCC_DB::giay( '08:00:00' ),
+	(int) hang( 'NV009' )['gio_vao_giay'] );
+
+/* 🔴 CƠ SỞ KHÁC THÌ VẪN CHỐI — đây là chốt còn lại sau khi bậc đã hạ. */
+$r_xa = VHCC_Bu::sua( $CHT, array( 'coso' => 'JP_HCM', 'ngay' => $ND, 'ma_nv' => 'NV009',
+	'vao' => '09:00', 'ly_do' => 'thử sửa sang cơ sở khác' ) );
+t( '🔴 nhưng KHÔNG sửa được cơ sở khác', empty( $r_xa['ok'] ), $r_xa );
+/* 🔴 VẪN BẮT GHI VÌ SAO. Bậc hạ xuống thì lý do người ta gõ vào là thứ duy nhất còn tra ngược
+   được — mất nó là bảng công sửa được mà không ai biết vì sao. */
+$r_kolydo = VHCC_Bu::sua( $CHT, array( 'coso' => 'TUTU_BT', 'ngay' => $ND, 'ma_nv' => 'NV009',
+	'vao' => '09:00', 'ly_do' => '' ) );
+t( '🔴 và vẫn bắt ghi vì sao', empty( $r_kolydo['ok'] ), $r_kolydo );
+
+/* 🔴 CHỐT `sua_gio` PHẢI LÀ MỘT ĐẦU VIỆC RIÊNG, không nhập vào `vi_sao_khong_duoc()`.
+   Sau khi bậc hạ xuống Cửa hàng trưởng thì hai chốt đòi CÙNG một bậc — nên chỉ có NGOẠI LỆ
+   KHOÁ RIÊNG mới tách được chúng ra. Giữ tách để Admin khoá lẻ được cho từng người, và để mai
+   kia siết lại thì sửa MỘT dòng trong bảng vai. */
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', 'khoa' );
+$r_khoa = sua( $CHT, array( 'vao' => '09:30' ) );
+t( '🔴 khoá riêng sua_gio thì cửa hàng trưởng ấy không sửa được nữa',
+	empty( $r_khoa['ok'] ), $r_khoa );
+teq( 'và giờ cũ còn nguyên', VHCC_DB::giay( '08:00:00' ),
+	(int) hang( 'NV009' )['gio_vao_giay'] );
+VHCC_Vai::dat_ngoai_le( $ADMIN, 'nv:' . $CHT['ma_nv'], 'sua_gio', '' );
+/* ⚠️ Sửa sang một giờ KHÁC giờ đang có: `VHCC_Bu::sua` coi "không đổi gì" là không có việc để
+   làm, nên đặt lại đúng 08:00 thì nó chối — mà chối ấy không nói gì về khoá quyền. */
+$r_mo = sua( $CHT, array( 'vao' => '08:15' ) );
+t( 'bỏ khoá thì sửa lại được', ! empty( $r_mo['ok'] ), $r_mo );
+sua( $ADMIN, array( 'vao' => '08:00' ) );
 $r = sua( $NV, array( 'vao' => '09:00' ) );
 t( 'Nhân viên càng không', empty( $r['ok'] ), $r );
 

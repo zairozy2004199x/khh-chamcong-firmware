@@ -129,7 +129,20 @@ class VHCC_Vai {
 		                                  // Mặc định VẪN là Admin, y như đang chạy — bản này
 		                                  // không nới của ai. Nới thì khai một dòng ngoại lệ ở
 		                                  // bảng dưới, có tên, có chỗ soát lại.
-		'sua_gio'      => self::ADMIN,    // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
+		'sua_gio'      => self::CHT,      // SỬA ĐÈ lên giờ đã có (kể cả giờ máy ghi), và xoá giờ
+		                                  /* 🔴 HẠ TỪ ADMIN XUỐNG CỬA HÀNG TRƯỞNG — 28/08/2026.
+		                                     Anh Thắng 26/08 chốt Admin, rồi 28/08 đổi ý:
+		                                     *"Cửa hàng trưởng được phép sửa cả giờ công đã
+		                                     chấm"*. Đây là quyết định của anh, không phải em
+		                                     nới, và nó có giá: cửa hàng trưởng viết lại được
+		                                     bảng công của chính cửa hàng mình.
+		                                     Ba thứ GIỮ NGUYÊN, không được bỏ theo:
+		                                     · chốt cơ sở (`VHCC_Bu::vi_sao_khong_duoc`) — chỉ
+		                                       sửa người cơ sở mình;
+		                                     · bắt ghi VÌ SAO, tối thiểu 5 ký tự;
+		                                     · mọi lượt sửa vào sổ "Đã động vào giờ công", giữ
+		                                       giờ cũ, và KHÔNG xoá được.
+		                                     Đó là ba thứ khiến việc này còn tra ngược được. */
 		                                  // ⚠️ Cố ý ĐẶT TRÊN cả `nap_cong`. Bù và nạp chỉ THÊM
 		                                  // vào ô trống; việc này ĐÈ LÊN thứ máy đã ghi, tức là
 		                                  // xoá mất bằng chứng gốc. Anh Thắng 26/08 chốt: *"admin

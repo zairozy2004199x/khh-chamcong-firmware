@@ -221,13 +221,15 @@ class VHCC_Bu {
 		$coso  = VHCC_NhanSu::chuan_coso( isset( $dat['coso'] ) ? $dat['coso'] : '' );
 		$ma_nv = trim( (string) ( isset( $dat['ma_nv'] ) ? $dat['ma_nv'] : '' ) );
 
-		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC. `vi_sao_khong_duoc()` chỉ đòi bậc Cửa hàng trưởng —
-		   gọi mỗi nó là mở việc sửa đè cho cả Cửa hàng trưởng, tức là mỗi cửa hàng có một người
-		   viết lại được bảng công của chính cửa hàng mình. */
+		/* 🔴 Gác quyền RIÊNG, gác TRƯỚC — và vẫn giữ nguyên dù ngưỡng đã hạ.
+		   `sua_gio` nay ở bậc Cửa hàng trưởng (anh Thắng 28/08/2026: *"Cửa hàng trưởng được
+		   phép sửa cả giờ công đã chấm"*), nhưng nó vẫn là một đầu việc RIÊNG, tách khỏi
+		   `vi_sao_khong_duoc()`. Giữ tách vì hai lý do: khoá lẻ được cho từng người ở màn Quản
+		   lý nhân sự, và nếu mai anh Thắng muốn siết lại thì sửa MỘT dòng trong bảng vai. */
 		if ( ! VHCC_Vai::duoc( $u, 'sua_gio' ) ) {
 			return array( 'ok' => false,
-				'error' => 'Sửa giờ đã có cần quyền Admin. Cửa hàng trưởng chỉ bù được vào ô còn '
-					. 'trống; thấy giờ sai thì gắn cờ để Admin sửa.' );
+				'error' => VHCC_Vai::loi( $u, 'sua_gio', 'Sửa giờ đã có' )
+					. ' Trong lúc chờ mở, thấy giờ sai thì gắn cờ để cấp trên sửa.' );
 		}
 		$chan = self::vi_sao_khong_duoc( $u, $coso, $ma_nv );
 		if ( '' !== $chan ) { return array( 'ok' => false, 'error' => $chan ); }

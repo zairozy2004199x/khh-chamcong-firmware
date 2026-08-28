@@ -984,6 +984,17 @@ class VHCC_NhanSu {
 	 * ⚠️ VẪN PHẢI CÓ ĐƯỜNG GÕ TAY. Cửa hàng mới mở thì sổ chưa có chức vụ nào; ô chọn rỗng mà
 	 *    không gõ được là bế tắc, và người ta bỏ trống luôn ô ấy.
 	 */
+	/**
+	 * Chức vụ khai sẵn — có ngay cả khi sổ chưa có gì để gợi ý.
+	 *
+	 * 🔴 PHẢI CÓ DANH SÁCH NÀY, KHÔNG CHỈ DỰA VÀO SỔ. Anh Thắng 28/08/2026 nhìn ô gợi ý và nói
+	 *    *"Nhầm chức vụ rồi"* — nó bày ra "Khu vui chơi", vốn là một BỘ PHẬN. Đúng dữ liệu: sổ
+	 *    thật nạp từ Sheets cũ có cột `chuc_vu` chứa lẫn tên bộ phận. Lấy nguyên xi ra là dạy
+	 *    người dùng khai tiếp cái sai ấy cho người mới.
+	 */
+	const CHUC_VU_SAN = array( 'Nhân viên', 'Nhân viên bán hàng', 'Thu ngân', 'Ca trưởng',
+		'Giám sát', 'Kỹ thuật', 'Bảo vệ', 'Tạp vụ', 'Pha chế', 'Phục vụ' );
+
 	public static function chuc_vu_cho( $u, $coso ) {
 		$cs = self::chuan_coso( $coso );
 		if ( '' === $cs ) { return array(); }
@@ -1001,14 +1012,45 @@ class VHCC_NhanSu {
 			}
 			$cv = trim( (string) $r['chuc_vu'] );
 			if ( '' === $cv ) { continue; }
+			/* 🔴 BỎ NHỮNG GIÁ TRỊ VỐN LÀ TÊN BỘ PHẬN. Sổ cũ trộn hai thứ vào một cột, và bày
+			   "Khu vui chơi" ra ô Chức vụ là mời người ta chép tiếp cái nhầm ấy sang người mới.
+			   Lọc ở ĐÂY chứ không đi sửa sổ: sổ là dữ liệu thật của anh Thắng, sửa hàng loạt là
+			   việc khác và phải anh quyết. */
+			if ( self::la_ten_bo_phan( $cv ) ) { continue; }
 			/* ⚠️ GIỮ CÁCH VIẾT GẶP TRƯỚC, không để bản sau đè. Hai hồ sơ ghi "Thu ngân" và
 			   "THU NGÂN" là CÙNG một chức vụ — gom làm một dòng gợi ý là đúng, nhưng bày ra bản
 			   nào thì phải ổn định. Đè bừa thì danh sách đổi mặt mỗi lần có người mới nhập ẩu. */
 			$k_cv = self::chu_thuong( $cv );
 			if ( ! isset( $ra[ $k_cv ] ) ) { $ra[ $k_cv ] = $cv; }
 		}
+		/* Danh sách khai sẵn đứng TRƯỚC, rồi mới tới cái dò từ sổ — người mở ô ra thấy ngay
+		   những chức vụ đúng nghĩa, không phải cuộn qua một mớ tên bộ phận cũ. */
 		ksort( $ra );
-		return array_values( $ra );
+		$dau = array();
+		foreach ( self::CHUC_VU_SAN as $x ) {
+			$k = self::chu_thuong( $x );
+			if ( isset( $ra[ $k ] ) ) { unset( $ra[ $k ] ); }
+			$dau[] = $x;
+		}
+		return array_merge( $dau, array_values( $ra ) );
+	}
+
+	/**
+	 * Chuỗi này có phải tên một BỘ PHẬN không.
+	 *
+	 * ⚠️ So bằng `chu_thuong` chứ không `strtolower`: `strtolower` của PHP không hạ được chữ CÓ
+	 *    DẤU, nên "KHU VUI CHƠI" viết hoa lọt qua và vẫn hiện ra ô Chức vụ.
+	 */
+	public static function la_ten_bo_phan( $s ) {
+		$k = self::chu_thuong( trim( (string) $s ) );
+		if ( '' === $k ) { return false; }
+		if ( ! class_exists( 'VHCC_Luong' ) || ! defined( 'VHCC_Luong::BP_DS' ) ) { return false; }
+		$ds = (array) constant( 'VHCC_Luong::BP_DS' );
+		if ( defined( 'VHCC_Luong::BP_CHUA_XEP' ) ) { $ds[] = constant( 'VHCC_Luong::BP_CHUA_XEP' ); }
+		foreach ( $ds as $x ) {
+			if ( self::chu_thuong( $x ) === $k ) { return true; }
+		}
+		return false;
 	}
 
 	/** Ai trong cơ sở này CHƯA có ảnh thẻ — để bày ra mà bù sau. */

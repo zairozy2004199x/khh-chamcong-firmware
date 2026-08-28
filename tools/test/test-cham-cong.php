@@ -6489,15 +6489,32 @@ t( 'và bấm ✏️ thì điền sẵn ngày + mã',
 t( 'neo trỏ vào hàng sửa trong lưới, không phải khối đã bỏ',
 	strpos( $h_qtc, '#suaday' ) !== false && strpos( $h_qtc, '#suagio' ) === false, $h_qtc );
 
-/* 🔴 CỬA HÀNG TRƯỞNG KHÔNG SỬA ĐƯỢC — kể cả POST thẳng. Ẩn cái nút không phải là gác cửa. */
-t( 'và bảng chi tiết của họ KHÔNG có cột Sửa', strpos( $h_cht, '<th>Sửa</th>' ) === false, $h_cht );
+/* 🔴 CỬA HÀNG TRƯỞNG NAY SỬA ĐƯỢC GIỜ ĐÃ CHẤM — anh Thắng 28/08/2026: *"Cửa hàng trưởng được
+   phép sửa cả giờ công đã chấm"*. Trước đó (26/08) chính anh chốt Admin; đây là anh đổi ý, và
+   cái giá của nó là mỗi cửa hàng có một người viết lại được bảng công của cửa hàng mình.
+   ⚠️ ĐỔI QUYỀN KHÔNG ĐƯỢC KÉO THEO ĐỔI PHẠM VI: vẫn chỉ cơ sở mình, vẫn bắt ghi vì sao, vẫn
+      vào sổ không xoá được. Ba chốt ấy canh ngay bên dưới. */
+t( 'bảng chi tiết của cửa hàng trưởng CÓ cột Sửa', strpos( $h_cht, '<th>Sửa</th>' ) !== false, $h_cht );
 $_POST = array( 'viec' => 'sua_gio' );
 $r_sg  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
 	array( 'sua_gio', array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT',
 		'ma_nv' => 'NVCHT' ) ) );
-t( 'POST thẳng việc sua_gio cũng KHÔNG lọt',
+/* Không lọt ở đây là vì THIẾU DỮ LIỆU (chưa có ngày, chưa có lý do), không phải vì thiếu quyền
+   — nên câu chối KHÔNG được nói về quyền nữa. */
+t( 'POST rỗng vẫn không lọt (thiếu ngày, thiếu lý do)',
 	is_array( $r_sg ) && ! isset( $r_sg[0]['xong'] ), $r_sg );
+t( '🔴 và câu chối KHÔNG còn nói cần quyền Admin',
+	is_array( $r_sg ) && ( ! isset( $r_sg[0]['loi'] )
+		|| strpos( $r_sg[0]['loi'], 'cần quyền Admin' ) === false ), $r_sg );
 $_POST = array();
+
+/* 🔴 CƠ SỞ KHÁC THÌ VẪN CHỐI. Đây là chốt còn lại sau khi bậc đã hạ — mất nó là một cửa hàng
+   trưởng sửa được bảng công của 25 cửa hàng kia. */
+$r_sg_xa = VHCC_Bu::sua(
+	array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT', 'ma_nv' => 'NVCHT' ),
+	array( 'coso' => 'JP_HCM', 'ngay' => '2026-08-01', 'ma_nv' => 'QTC1',
+		'vao' => '08:00', 'ra' => '17:00', 'ly_do' => 'thử sửa cơ sở khác' ) );
+t( '🔴 cửa hàng trưởng KHÔNG sửa được cơ sở khác', empty( $r_sg_xa['ok'] ), $r_sg_xa );
 
 /* ---- chạy thật một lượt sửa, qua đúng cửa POST của trang ---- */
 /* Mã phải có hồ sơ thật — sửa cho một mã không tồn tại là viết công cho một người không có. */
@@ -7327,10 +7344,15 @@ t( '🔴 ngày lạc tháng thì KHÔNG mở hàng sửa trong lưới',
 VHCC_NguoiDung::luu( '', 'CHT Lưới', '357913', 'Cửa hàng trưởng', 'TUTU_BT' );
 $h_ic = vhcc_web( '357913', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07',
 	'sgn' => '2026-07-06', 'sgm' => 'QTC1' ) );
-t( 'Cửa hàng trưởng bấm ô có giờ -> nói rõ cần quyền Admin',
-	strpos( $h_ic, 'cần quyền Admin' ) !== false, $h_ic );
-t( 'và KHÔNG bày ra ô nhập giờ để bấm Lưu rồi bị chối',
-	strpos( $h_ic, 'name="sg_vao"' ) === false, $h_ic );
+/* 🔴 NAY BÀY RA Ô NHẬP THẬT. Anh Thắng 28/08/2026 mở `sua_gio` cho Cửa hàng trưởng, nên bấm
+   vào ô có giờ phải mở đúng biểu mẫu sửa — chứ không phải một câu chối. */
+t( '🔴 cửa hàng trưởng bấm ô có giờ thì mở được ô nhập',
+	strpos( $h_ic, 'name="sg_vao"' ) !== false, $h_ic );
+t( 'và không còn câu chối cần quyền Admin',
+	strpos( $h_ic, 'cần quyền Admin' ) === false, $h_ic );
+/* ⚠️ Ô VÌ SAO vẫn bắt buộc — bậc hạ xuống thì cái duy nhất còn tra ngược được là lý do người
+   ta gõ vào. Mất nó là bảng công sửa được mà không ai biết vì sao. */
+t( '🔴 và vẫn bắt ghi VÌ SAO', strpos( $h_ic, 'name="ly_do"' ) !== false, $h_ic );
 
 /* Hàng -CD là hàng RIÊNG: đường bấm phải mang mã KÈM hậu tố, không thì sửa nhầm sang hàng chính. */
 t( '🔴 ô của hàng -CD mang mã KÈM hậu tố',
@@ -10595,6 +10617,61 @@ $in_h3 = vhcc_luong_web( 'Kế toán', array( 'cth' => '2026-08' ) );
 t( 'chưa chọn cơ sở thì không mọc ra khối In',
 	strpos( $in_h3, 'In bảng chấm công' ) === false, $in_h3 );
 
+/* ==========================================================================================
+ * 🔴 XUẤT EXCEL CHẾT KHÔNG NÓI GÌ — anh Thắng 28/08/2026 gửi ảnh "Đã có một lỗi nghiêm trọng
+ *    trên trang web của bạn" khi bấm Xuất Excel ở TUTU_BT.
+ * ==========================================================================================
+ * Lượt xuất giữ cả tháng của cả cơ sở trong bộ nhớ HAI lần (mảng dữ liệu + chuỗi XML dựng ra
+ * từ nó). Vượt trần là PHP chết giữa chừng, và lúc ấy `loi_xuat()` không bao giờ được gọi tới.
+ * Không chặn được cái chết, nhưng phải NÓI RA được vướng gì.
+ */
+$_GET = array( 'xuat' => 'ca', 'ccs' => 'TUTU_BT', 'cth' => '2026-08', 'thu' => '1' );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người Xuất', 'Kế toán', 'TUTU_BT', 'KTX' );
+ob_start(); VHCC_Web::phuc_vu(); $x_cd = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 có đường chẩn đoán đọc được bằng mắt',
+	strpos( $x_cd, 'XUAT EXCEL: CHAN DOAN' ) !== false, substr( $x_cd, 0, 300 ) );
+t( 'nói ra giới hạn bộ nhớ đang có', strpos( $x_cd, 'memory_limit' ) !== false, $x_cd );
+t( 'và có ZipArchive hay không', strpos( $x_cd, 'ZipArchive' ) !== false, $x_cd );
+t( 'kể ra bao nhiêu người, bao nhiêu lượt',
+	strpos( $x_cd, 'so nguoi' ) !== false && strpos( $x_cd, 'so luot' ) !== false, $x_cd );
+/* ⚠️ KHÔNG IN GÌ BÍ MẬT. Đường này ai gõ trúng cũng mở được — nó chỉ được nói về TÌNH TRẠNG
+   MÁY, không nói về người. */
+t( '🔴 đường chẩn đoán KHÔNG in tên người hay mã NV',
+	strpos( $x_cd, 'Người X' ) === false && strpos( $x_cd, 'ho_ten' ) === false, $x_cd );
+/* ⚠️ Và KHÔNG được đổ nguyên mảng dữ liệu ra: một `wp_json_encode( $b['hang'] )` đặt nhầm chỗ
+   là in sạch họ tên + mã NV cả cơ sở lên một trang ai gõ trúng cũng mở được. Canh bằng hình
+   dạng: trang này chỉ có dòng "khoá : giá trị", không có dấu ngoặc của JSON. */
+t( '🔴 và không đổ nguyên mảng dữ liệu ra',
+	strpos( $x_cd, '{' ) === false && strpos( $x_cd, '[' ) === false, $x_cd );
+/* Mỗi dòng là một con số hoặc một chữ ngắn — không dòng nào dài quá một dòng màn hình. */
+$x_dai = 0;
+foreach ( explode( "\n", $x_cd ) as $x_d ) { $x_dai = max( $x_dai, strlen( $x_d ) ); }
+t( 'mỗi dòng chẩn đoán đủ ngắn để đọc bằng mắt', $x_dai < 90, $x_dai );
+/* Và nó vẫn phải qua đúng cửa quyền như lượt xuất thật — không thành một cửa sau. */
+$_GET = array( 'xuat' => 'ca', 'ccs' => 'JP_HCM', 'cth' => '2026-08', 'thu' => '1' );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'CHT', 'Cửa hàng trưởng', 'TUTU_BT', 'CHX' );
+ob_start(); VHCC_Web::phuc_vu(); $x_cam = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 đường chẩn đoán vẫn gác quyền cơ sở như lượt xuất thật',
+	strpos( $x_cam, 'XUAT EXCEL: CHAN DOAN' ) === false, substr( $x_cam, 0, 300 ) );
+/* ⚠️ VÀ PHẢI CHỐI ĐÚNG CÂU của cửa quyền, không phải rơi xuống một câu chối khác ở dưới. Hai
+   chốt cùng chặn thì bỏ mất chốt trên vẫn "an toàn" — cho tới ngày chốt dưới đổi. */
+t( 'và chối bằng đúng câu của cửa quyền cơ sở',
+	strpos( $x_cam, 'Không có quyền cơ sở này' ) !== false, substr( $x_cam, 0, 600 ) );
+
+/* Lớp chống chết phải có mặt trong mã — không dựng được cảnh hết bộ nhớ trong bài kiểm, nên
+   canh bằng cách soi rằng ba thứ ấy tồn tại. */
+$src_xuat = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 lượt xuất có nâng trần bộ nhớ trước',
+	strpos( $src_xuat, 'wp_raise_memory_limit' ) !== false );
+t( '🔴 và đón cái chết bằng register_shutdown_function',
+	strpos( $src_xuat, 'register_shutdown_function' ) !== false );
+/* ⚠️ Đón rồi phải NÓI ĐÚNG BỆNH: hết bộ nhớ thì bảo xuất từng tháng / nâng memory_limit, chứ
+   không phải một câu chung chung mà người đọc không làm gì được. */
+t( 'và nói đúng bệnh khi hết bộ nhớ',
+	strpos( $src_xuat, 'Máy chủ hết bộ nhớ' ) !== false );
+
 /* ---- Tờ in thật ---- */
 $_GET = array( 'to_in' => '1', 'ics' => 'TUTU_BT', 'itu' => '2026-08-01', 'iden' => '2026-08-31' );
 $_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người In', 'Kế toán', 'TUTU_BT', 'KT9' );
@@ -13597,7 +13674,41 @@ t( '🔴 lấy được chức vụ đang có ở cơ sở', in_array( 'Thu ngâ
 	&& in_array( 'Nhân viên bán hàng', $cv, true ), $cv );
 t( '🔴 KHÔNG bày chức vụ của người mang vai cao hơn',
 	! in_array( 'Giám sát vùng', $cv, true ), $cv );
-t( '🔴 và KHÔNG bày chức vụ của cơ sở khác', ! in_array( 'Pha chế', $cv, true ), $cv );
+/* ⚠️ "Pha chế" nay nằm trong danh sách KHAI SẴN, nên nó có mặt vì lý do khác — canh bằng một
+   chức vụ chỉ có ở cơ sở kia. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVA6', 'ho_ten' => 'Người Xa Nữa',
+	'cua_hang' => 'JP_HCM', 'chuc_vu' => 'Trực bãi xe', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$cv = VHCC_NhanSu::chuc_vu_cho( $U_TN, 'TUTU_BT' );
+t( '🔴 và KHÔNG bày chức vụ của cơ sở khác', ! in_array( 'Trực bãi xe', $cv, true ), $cv );
+
+/* ==========================================================================================
+ * 🔴 "Nhầm chức vụ rồi" — anh Thắng 28/08/2026 nhìn ô gợi ý thấy "Khu vui chơi".
+ * ==========================================================================================
+ * Đúng dữ liệu, sai kỳ vọng: sổ thật nạp từ Sheets cũ có cột `chuc_vu` chứa lẫn TÊN BỘ PHẬN.
+ * Lấy nguyên xi ra là dạy người dùng khai tiếp cái sai ấy cho người mới.
+ */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVBP', 'ho_ten' => 'Người Bộ Phận',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'Khu vui chơi', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVBP2', 'ho_ten' => 'Người Bộ Phận Hoa',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'MÁY TỰ ĐỘNG', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$cv_bp = VHCC_NhanSu::chuc_vu_cho( $U_TN, 'TUTU_BT' );
+t( '🔴 tên BỘ PHẬN không được bày ra ô Chức vụ',
+	! in_array( 'Khu vui chơi', $cv_bp, true ), $cv_bp );
+/* ⚠️ `strtolower` của PHP không hạ được chữ CÓ DẤU — "MÁY TỰ ĐỘNG" viết hoa phải lọt lưới nếu
+   so bằng nó. Đây là chỗ đã cắn một lần ở `da_nghi`. */
+t( '🔴 kể cả viết HOA có dấu', ! in_array( 'MÁY TỰ ĐỘNG', $cv_bp, true ), $cv_bp );
+teq( 'và hàm nhận diện nói đúng', true, VHCC_NhanSu::la_ten_bo_phan( 'khu vui chơi' ) );
+teq( 'chức vụ thật thì không bị nhận nhầm', false, VHCC_NhanSu::la_ten_bo_phan( 'Thu ngân' ) );
+teq( 'chuỗi rỗng không phải bộ phận', false, VHCC_NhanSu::la_ten_bo_phan( '  ' ) );
+
+/* 🔴 CÓ DANH SÁCH KHAI SẴN, không chỉ dựa vào sổ — cửa hàng mới mở thì sổ chưa có gì để gợi ý. */
+t( '🔴 luôn có danh sách chức vụ khai sẵn',
+	in_array( 'Thu ngân', $cv_bp, true ) && in_array( 'Ca trưởng', $cv_bp, true ), $cv_bp );
+/* Và chúng đứng TRƯỚC — người mở ô ra thấy ngay chức vụ đúng nghĩa, không phải cuộn qua mớ cũ. */
+teq( '🔴 danh sách khai sẵn đứng đầu', 'Nhân viên', isset( $cv_bp[0] ) ? $cv_bp[0] : '' );
+/* Không lặp: chức vụ vừa có trong sổ vừa có trong danh sách khai sẵn chỉ hiện MỘT lần. */
+teq( 'không bày trùng một chức vụ hai lần', 1, count( array_filter( $cv_bp,
+	function ( $x ) { return 'Thu ngân' === $x; } ) ) );
 /* Admin đứng trên thì thấy đủ — luật là "từ bậc mình đổ xuống", không phải "giấu của Quản lý". */
 t( 'Admin thì thấy cả chức vụ của Quản lý', in_array( 'Giám sát vùng',
 	VHCC_NhanSu::chuc_vu_cho( $U_AD, 'TUTU_BT' ), true ) );

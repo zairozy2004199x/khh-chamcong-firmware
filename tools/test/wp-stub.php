@@ -63,6 +63,14 @@ function get_query_var( $k, $d = '' ) { return array_key_exists( $k, $GLOBALS['V
 function __return_false() { return false; }
 function __return_true() { return true; }
 function status_header( $m ) { $GLOBALS['VHCP_MA_HTTP'] = (int) $m; }
+function size_format( $b, $le = 0 ) {
+	$b = (float) $b;
+	foreach ( array( 'GB' => 1073741824, 'MB' => 1048576, 'KB' => 1024 ) as $t => $n ) {
+		if ( $b >= $n ) { return number_format( $b / $n, $le ) . ' ' . $t; }
+	}
+	return (int) $b . ' B';
+}
+function wp_raise_memory_limit( $ngu = 'admin' ) { return false; }
 function nocache_headers() { return true; }
 /* Bài kiểm PHẢI đặt được "bây giờ": chấm công online lấy giờ ở MÁY CHỦ, nên không đặt được giờ
    thì không thử nổi ca đêm, ân hạn tan làm, hay lượt 00:30 lùi về ngày hôm trước. */
