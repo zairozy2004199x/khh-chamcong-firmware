@@ -3046,11 +3046,18 @@ function veBcPin(){
     + '<input id="bcp-ten" type="text" placeholder="' + L('Tên nhân viên','Staff name') + '" style="flex:2;min-width:150px">'
     + '</div>'
     /* Cơ sở dạng TÍCH CHỌN — nhanh, khỏi gõ, khỏi sai chính tả tên cơ sở. */
-    + '<div class="ph-nhom" style="margin-top:10px"><div class="nh" style="margin-bottom:6px">'
-      + L('Cơ sở phụ trách (tích chọn)','Branches (tick)') + '</div><div class="ph-o" id="bcp-coso-box">'
+    + '<div class="ph-nhom" style="margin-top:10px">'
+    + '<div class="act" style="margin-bottom:8px;flex-wrap:wrap;align-items:center"><b>' + L('Cơ sở phụ trách','Branches') + ':</b>'
+    + '<input id="bcp-cs-q" placeholder="' + L('lọc cơ sở / tỉnh…','filter…') + '" style="max-width:200px">'
+    + '<button type="button" id="bcp-cs-all" class="ghost" style="padding:5px 10px;font-size:12px">' + L('Chọn tất','All') + '</button>'
+    + '<button type="button" id="bcp-cs-none" class="ghost" style="padding:5px 10px;font-size:12px">' + L('Bỏ tất','None') + '</button>'
+    + '<span class="mut" id="bcp-cs-dem"></span></div>'
+    + '<div id="bcp-coso-box" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:2px 10px;max-height:260px;overflow:auto;padding:6px;border:1px solid var(--line);border-radius:8px;background:#fff">'
     + (dsCoso.length
-        ? dsCoso.map(function(c){ return '<label class="ph-tick"><input type="checkbox" class="bcp-cs" value="'
-            + esc(c.ten) + '"> ' + esc(c.ten) + (c.tinh ? ' <span class="mut">· ' + esc(c.tinh) + '</span>' : '') + '</label>'; }).join('')
+        ? dsCoso.map(function(c){ return '<label class="bcp-cs-cell" data-q="' + esc((c.ten + ' ' + (c.tinh || '')).toLowerCase())
+            + '" style="display:flex;align-items:flex-start;gap:7px;padding:5px 6px;border-radius:6px;font-size:13px;cursor:pointer;line-height:1.25">'
+            + '<input type="checkbox" class="bcp-cs" value="' + esc(c.ten) + '" style="width:auto;margin-top:2px;flex:none">'
+            + '<span>' + esc(c.ten) + (c.tinh ? '<br><span class="mut" style="font-size:11px">📍 ' + esc(c.tinh) + '</span>' : '') + '</span></label>'; }).join('')
         : '<span class="mut">' + L('Chưa có cơ sở — thêm ở tab Quản lý ghế trước.','No branches yet — add them in Chairs & sites first.') + '</span>')
     + '</div></div>'
     + '<div class="act" style="flex-wrap:wrap;margin-top:10px">'
@@ -3071,11 +3078,18 @@ function bcpCosoTicked(){
   [].forEach.call(document.querySelectorAll('.bcp-cs:checked'), function(c){ cs.push(c.value); });
   return cs.join('; ');
 }
+function bcpDem(){
+  var d = document.getElementById('bcp-cs-dem'); if (!d) return;
+  var n = document.querySelectorAll('.bcp-cs:checked').length;
+  var t = document.querySelectorAll('.bcp-cs').length;
+  d.textContent = n ? (n + '/' + t + ' ' + L('cơ sở','sites')) : L('chưa tích = toàn phạm vi','none = full scope');
+}
 function bcpTickCoso(coso){
   var cur = String(coso || '').split(/[;,]/).map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
   [].forEach.call(document.querySelectorAll('.bcp-cs'), function(c){
     c.checked = cur.indexOf(String(c.value).trim().toLowerCase()) >= 0;
   });
+  bcpDem();
 }
 function noiBcPin(){
   var e = document.getElementById('bcp-e');
@@ -3090,6 +3104,19 @@ function noiBcPin(){
     bcpTickCoso(u.coso || '');   // cơ sở trống = không tích ô nào (toàn phạm vi)
     if (e) e.textContent = u.pin ? '' : L('Người này chưa có PIN trong nhân sự — nhập PIN tay.','No HR PIN — enter PIN manually.');
   };
+  // Lọc + chọn tất/bỏ tất + đếm cho lưới cơ sở
+  var csQ = document.getElementById('bcp-cs-q');
+  if (csQ) csQ.oninput = function(){ var q = csQ.value.trim().toLowerCase();
+    [].forEach.call(document.querySelectorAll('.bcp-cs-cell'), function(c){
+      c.style.display = (!q || (c.getAttribute('data-q') || '').indexOf(q) >= 0) ? 'flex' : 'none'; }); };
+  var csAll = document.getElementById('bcp-cs-all'), csNone = document.getElementById('bcp-cs-none');
+  function csDatVisible(on){ [].forEach.call(document.querySelectorAll('.bcp-cs-cell'), function(c){
+    if (c.style.display !== 'none') { var i = c.querySelector('.bcp-cs'); if (i) i.checked = on; } }); bcpDem(); }
+  if (csAll) csAll.onclick = function(){ csDatVisible(true); };
+  if (csNone) csNone.onclick = function(){ csDatVisible(false); };
+  var csBox = document.getElementById('bcp-coso-box');
+  if (csBox) csBox.addEventListener('change', bcpDem);
+  bcpDem();
   if (moi) moi.onclick = function(){
     document.getElementById('bcp-pin').value = '';
     document.getElementById('bcp-ten').value = '';
