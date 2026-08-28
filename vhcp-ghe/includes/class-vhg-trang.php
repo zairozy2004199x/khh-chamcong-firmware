@@ -1545,15 +1545,24 @@ class VHG_Trang {
     var dv=Number(BC.don_vi)||10000;
     var actual=(before===''||after==='')?0:(after-before)*dv;
     var cash=actual-qr+adjust;
+    var batThuong=(before!==''&&after!==''&&after<before);
+    /* THỰC THU GHI ĐÈ khi ghế lỗi — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho kế toán,
+       chứ không lấy theo chỉ số máy". Chỉ số bất thường thì actual/cash tính theo công thức ra
+       số ÂM/rác (sau < trước) — không đáng tin, và không được đưa thẳng vào sổ. Ô "Thực thu"
+       xuất hiện cùng ô lý do; có gõ thì THAY THẾ hẳn số tiền mặt phải nộp, actual vẫn hiện để
+       đối chiếu nhưng không còn là căn cứ tính tiền. */
+    var iTT=tr.querySelector('.thuc-thu-bt');
+    var coTT=batThuong && iTT && '' !== (iTT.value||'').trim();
+    if(coTT) cash=snum(iTT.value);
     var elA=tr.querySelector('.actual'); if(elA) elA.textContent=money(actual);   // gọn: ẩn
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
-    /* Chỉ số bất thường: hiện ô nhập LÝ DO ngay tại hàng đó — anh Thắng: "hiện ra lý do lỗi
-       tại hàng máy lỗi, nhân viên nhập lý do". Tạo ô MỘT LẦN (không dựng lại mỗi lần gõ số
-       khác, kẻo mất chữ đang gõ dở trong chính ô lý do khi calc() chạy lại do sự kiện input
-       của CHÍNH ô đó). */
-    if(before!==''&&after!==''&&after<before){
+    /* Chỉ số bất thường: hiện ô nhập LÝ DO + THỰC THU ngay tại hàng đó — anh Thắng: "hiện ra
+       lý do lỗi tại hàng máy lỗi, nhân viên nhập lý do". Tạo MỘT LẦN (không dựng lại mỗi lần gõ
+       số khác, kẻo mất chữ đang gõ dở trong chính hai ô này khi calc() chạy lại do sự kiện
+       input của CHÍNH chúng). */
+    if(batThuong){
       w.style.display='';
       if(!w.querySelector('.ly-do-bt')){
         w.textContent='';
@@ -1561,10 +1570,14 @@ class VHG_Trang {
         var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm…';
         iLy.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
         w.appendChild(iLy);
+        w.appendChild(document.createTextNode('Thực thu (số tiền nộp thật, thay cho tính theo chỉ số):'));
+        var iTt=el('input','thuc-thu-bt'); iTt.type='text'; iTt.inputMode='numeric'; iTt.placeholder='VD 500000';
+        iTt.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
+        w.appendChild(iTt);
       }
     } else {
       w.style.display='none';
-      if(w.querySelector('.ly-do-bt')) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch ô lý do
+      if(w.querySelector('.ly-do-bt')) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch cả hai ô
     }
   }
 
@@ -1635,21 +1648,28 @@ class VHG_Trang {
     /* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy lỗi,
        nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo". Trước đây chặn CỨNG
        ngay lần đầu, bắt đi vòng qua "Đề nghị đổi chỉ số" — đúng cho máy thật sự đổi điểm, nhưng
-       nặng cho lỗi gõ nhầm một số. Giờ: thiếu lý do thì CHẶN (như cũ, không lặng lẽ cho qua —
-       xem chốt an toàn ở server), có lý do (gõ ở ô đỏ ngay dưới tên ghế, do calc() tự hiện ra)
-       thì cho gửi, kèm lý do để kế toán soát. */
+       nặng cho lỗi gõ nhầm một số. Giờ: thiếu lý do HOẶC thiếu Thực thu thì CHẶN (như cũ, không
+       lặng lẽ cho qua — xem chốt an toàn ở server), có đủ cả hai (gõ ở ô đỏ ngay dưới tên ghế,
+       do calc() tự hiện ra) thì cho gửi.
+       ⚠️ THỰC THU BẮT BUỘC, KHÔNG CHỈ LÝ DO — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho
+       kế toán, chứ không lấy theo chỉ số máy". Chỉ số bất thường thì actual/tiền mặt tính theo
+       công thức ra số ÂM/rác; không bắt Thực thu thì số rác đó vẫn lọt vào sổ mà không ai biết
+       cho tới khi kế toán soát ra. */
     var canhBao=[];
     for(var i=0;i<rows.length;i++){ var r=rows[i];
       if(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore)){
         var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
         var iLy=trR&&trR.querySelector('.ly-do-bt');
+        var iTt=trR&&trR.querySelector('.thuc-thu-bt');
         var ly=iLy?(iLy.value||'').trim():'';
-        if(!ly){ canhBao.push(r.chairName||r.chairCode); continue; }
+        var tt=iTt?(iTt.value||'').trim():'';
+        if(!ly||!tt){ canhBao.push(r.chairName||r.chairCode); continue; }
         r.abnormalReason=ly;
+        r.actualOverride=snum(tt);
       }
     }
     if(canhBao.length){
-      msg.textContent='Chỉ số sau nhỏ hơn trước ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do vào ô đỏ ngay dưới tên ghế rồi bấm Gửi lại.';
+      msg.textContent='Chỉ số sau nhỏ hơn trước ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi ĐỦ lý do và Thực thu ở ô đỏ ngay dưới tên ghế rồi bấm Gửi lại.';
       msg.className='bc-msg bc-err'; return;
     }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';

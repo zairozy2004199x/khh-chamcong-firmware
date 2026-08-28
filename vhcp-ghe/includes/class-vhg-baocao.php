@@ -380,9 +380,26 @@ class VHG_BaoCao {
 				   và ảnh gán nhầm ghế chỉ lộ ra khi kế toán soát thấy sai. */
 				'images' => ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) ? $r0['images'] : array() );
 			self::tinh_( $r );
-			if ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] && '' === $ly_do_bt ) {
-				return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': chỉ số sau (' . $r['chi_so_sau']
-					. ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . '). Ghi lý do ở ô đỏ dưới tên ghế rồi gửi lại.' );
+			$bat_thuong = ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] );
+			if ( $bat_thuong ) {
+				if ( '' === $ly_do_bt ) {
+					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': chỉ số sau (' . $r['chi_so_sau']
+						. ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . '). Ghi lý do và Thực thu ở ô đỏ dưới tên ghế rồi gửi lại.' );
+				}
+				/* THỰC THU GHI ĐÈ — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho kế toán, chứ
+				   không lấy theo chỉ số máy". `actual`/`tien_mat` vừa tính ở tinh_() dựa trên chỉ
+				   số bất thường (sau < trước) ra số ÂM/RÁC — không được đưa vào sổ. Bắt buộc có
+				   Thực thu (như client đã bắt buộc), rồi THAY THẲNG vào tien_mat; QR giữ nguyên
+				   (điện tử, vẫn đối chiếu ngân hàng được, không phụ thuộc chỉ số máy đếm). */
+				$thuc_thu = isset( $r0['actualOverride'] ) ? self::songuyen_( $r0['actualOverride'] ) : null;
+				if ( null === $thuc_thu ) {
+					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten']
+						. ': cần nhập Thực thu (số tiền nộp thật) vì chỉ số bất thường không tính được theo công thức.' );
+				}
+				$r['tien_mat'] = $thuc_thu;
+				$r['tong']     = $r['tien_mat'] + $r['qr'];
+				$r['ghi_chu']  = mb_substr( trim( $r['ghi_chu'] . ' · Thực thu ghi đè: '
+					. number_format( $thuc_thu, 0, ',', '.' ) . 'đ' ), 0, 250 );
 			}
 			$rows[] = $r;
 		}
