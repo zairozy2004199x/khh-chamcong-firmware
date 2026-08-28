@@ -10667,6 +10667,22 @@ t( '🔴 lượt xuất có nâng trần bộ nhớ trước',
 	strpos( $src_xuat, 'wp_raise_memory_limit' ) !== false );
 t( '🔴 và đón cái chết bằng register_shutdown_function',
 	strpos( $src_xuat, 'register_shutdown_function' ) !== false );
+
+/* 🔴 BẮT `Throwable` NGAY TẠI CHỖ. Anh Thắng 28/08/2026 cài bản có lớp đón-cái-chết mà VẪN
+   thấy trang trắng: WordPress có bộ bắt lỗi riêng đăng ký shutdown TRƯỚC mình, in trang lỗi
+   xong thì `headers_sent()` thành true và hàm của mình lặng lẽ bỏ qua.
+   Chẩn đoán trên máy anh: bộ nhớ 2G mới dùng 6 MB, ZipArchive có — nên KHÔNG phải hết bộ nhớ,
+   mà là lỗi MÃ lúc dựng tệp. `try/catch` bắt được loại ấy và nói ra tệp nào, dòng nào. */
+t( '🔴 lượt xuất bọc trong try/catch Throwable',
+	strpos( $src_xuat, 'catch ( \\Throwable $e )' ) !== false );
+t( 'và câu báo chỉ thẳng tệp + dòng hỏng',
+	strpos( $src_xuat, 'getLine()' ) !== false
+	&& strpos( $src_xuat, 'basename( $e->getFile() )' ) !== false );
+/* ⚠️ Không dựng được tệp mà KHÔNG ném lỗi thì cũng phải nói ra vì sao — trước đây chỉ có câu
+   "Không dựng được tệp .xlsx." trống trơn, đọc xong không biết làm gì. */
+t( 'không dựng được tệp thì nói ra có ZipArchive hay không',
+	strpos( $src_xuat, 'nhờ hosting bật phần mở rộng zip' ) !== false );
+
 /* ⚠️ Đón rồi phải NÓI ĐÚNG BỆNH: hết bộ nhớ thì bảo xuất từng tháng / nâng memory_limit, chứ
    không phải một câu chung chung mà người đọc không làm gì được. */
 t( 'và nói đúng bệnh khi hết bộ nhớ',

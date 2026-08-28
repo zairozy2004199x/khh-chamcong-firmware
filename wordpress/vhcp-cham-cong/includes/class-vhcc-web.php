@@ -325,8 +325,36 @@ class VHCC_Web {
 			exit;
 		}
 
-		$noi = VHCC_Xuat::xlsx( VHCC_Ca::to_xuat( $b, $cs ) );
-		if ( null === $noi ) { self::loi_xuat( 'Không dựng được tệp .xlsx.' ); return; }
+		/* =====================================================================================
+		 * 🔴 BẮT `Throwable`, KHÔNG CHỈ TRÔNG VÀO `register_shutdown_function`.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026 cài bản có lớp đón-cái-chết mà VẪN thấy trang trắng "Đã có một
+		 * lỗi nghiêm trọng trên trang web của bạn". Lý do: WordPress có bộ bắt lỗi riêng
+		 * (`WP_Fatal_Error_Handler`) đăng ký shutdown TRƯỚC mình, nên nó in trang lỗi xong,
+		 * `headers_sent()` thành true, và hàm của mình lặng lẽ bỏ qua.
+		 *
+		 * `try/catch ( \Throwable )` chạy NGAY tại chỗ, trước khi WordPress kịp xen vào — và
+		 * nó bắt được `Error`, tức mọi lỗi do MÃ (gọi hàm không có, sai kiểu, chia cho 0). Đó
+		 * là loại lỗi mà một tệp .xlsx dựng từ dữ liệu thật hay vấp nhất.
+		 *
+		 * ⚠️ Hết bộ nhớ thì `catch` KHÔNG bắt được — cái đó vẫn phải trông vào lớp shutdown ở
+		 *    trên và vào việc nâng trần. Hai lớp cho hai loại chết khác nhau, không thay nhau.
+		 */
+		try {
+			$noi = VHCC_Xuat::xlsx( VHCC_Ca::to_xuat( $b, $cs ) );
+		} catch ( \Throwable $e ) {
+			$da_gui = true;
+			self::loi_xuat( 'Dựng tệp .xlsx thì gặp lỗi: ' . $e->getMessage()
+				. ' (' . basename( $e->getFile() ) . ' dòng ' . $e->getLine() . ').'
+				. ' Gửi nguyên câu này cho người viết phần mềm — nó chỉ thẳng chỗ hỏng.' );
+			return;
+		}
+		if ( null === $noi ) {
+			self::loi_xuat( 'Không dựng được tệp .xlsx. Máy chủ có ZipArchive: '
+				. ( VHCC_Xuat::co_xlsx() ? 'có' : 'CHƯA CÓ — nhờ hosting bật phần mở rộng zip của PHP' )
+				. '.' );
+			return;
+		}
 		$da_gui = true;
 
 		/* Tên tệp chỉ giữ chữ/số/gạch — dấu tiếng Việt và khoảng trắng trong `Content-Disposition`
