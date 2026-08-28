@@ -50,7 +50,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
-	const SCHEMA_VERSION = '2.6.0';
+	const SCHEMA_VERSION = '2.7.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -203,6 +203,17 @@ class VHCC_DB {
 		   `vai_tro` là quyền trên trang web: Admin, Quản lý, Kế toán cá nhân, Kế toán NCC,
 		   Cửa hàng trưởng, Nhân viên. Trước bản này chỉ có `chuc_vu`, nên nạp sổ nhân viên xong
 		   là CẢ SỔ rơi về Nhân viên và KHÔNG AI đăng nhập được, mà màn hình vẫn báo đã nạp đủ. */
+		/* ⚠️ CHÚ THÍCH ĐỂ NGOÀI CHUỖI, KHÔNG ĐỂ TRONG THÂN CREATE TABLE. Hai lý do, cả hai đều
+		   đã cắn một lần: (1) thân bảng nằm trong một chuỗi nháy kép của PHP, chú thích có nháy
+		   kép là chuỗi đóng sớm và cả tệp không dịch được; (2) phép thử đếm cột đọc thẳng chuỗi
+		   này, chú thích nhiều dòng chen vào làm nó đếm lệch.
+
+		   `anh_the` — ảnh thẻ dạng data URI ảnh JPEG đã thu nhỏ ở máy chủ (xem
+		   `VHCC_NhanSu::rua_anh_the`). Anh Thắng 28/08/2026 xin thêm, để đẩy lên máy chấm công
+		   và làm mẫu đối chiếu khuôn mặt cho chấm công online.
+		   Để THẲNG trong bảng chứ không ném vào Thư viện Media: ảnh thẻ nhân viên là dữ liệu
+		   nhân sự, mà mọi thứ trong Media đều mở công khai theo URL — ai đoán trúng đường dẫn là
+		   xem được mặt cả chuỗi. Cỡ đã ép xuống vài chục KB nên cột này không phình. */
 		$b['nhan_vien'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma_nv VARCHAR(40) NOT NULL,
@@ -232,6 +243,7 @@ class VHCC_DB {
 			coso_phu TEXT NULL,
 			pin_dang_nhap VARCHAR(20) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
+			anh_the LONGTEXT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma_nv (ma_nv),
 			KEY cua_hang (cua_hang),

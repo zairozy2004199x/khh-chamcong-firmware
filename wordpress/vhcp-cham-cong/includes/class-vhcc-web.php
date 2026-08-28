@@ -648,7 +648,13 @@ class VHCC_Web {
 
 		/* CỬA HÀNG TRƯỞNG THÊM NGƯỜI MỚI — xem `VHCC_NhanSu::them_nv_cua_hang()`. */
 		if ( 'them_nv' === $viec ) {
+			/* ⚠️ ẢNH RỬA TRƯỚC, TẠO HỒ SƠ SAU — nhưng ảnh HỎNG thì VẪN tạo hồ sơ.
+			   Ảnh là phần không bắt buộc (anh Thắng chốt thế); chối cả lượt thêm người chỉ vì
+			   một tấm ảnh sai định dạng là đổi một tiện ích thành một cửa chặn. */
+			$anh_kq = VHCC_NhanSu::rua_anh_the(
+				isset( $_FILES['tn_anh'] ) ? $_FILES['tn_anh'] : array() );
 			$r = VHCC_NhanSu::them_nv_cua_hang( $toi, array(
+				'anh_the'   => ! empty( $anh_kq['ok'] ) ? $anh_kq['anh'] : '',
 				'ho_ten'    => isset( $_POST['tn_ho_ten'] ) ? wp_unslash( $_POST['tn_ho_ten'] ) : '',
 				'cccd'      => isset( $_POST['tn_cccd'] ) ? wp_unslash( $_POST['tn_cccd'] ) : '',
 				'sdt'       => isset( $_POST['tn_sdt'] ) ? wp_unslash( $_POST['tn_sdt'] ) : '',
@@ -660,9 +666,15 @@ class VHCC_Web {
 			/* 🔴 NÓI RA BƯỚC TIẾP THEO, KHÔNG CHỈ NÓI "ĐÃ THÊM". Hồ sơ mở xong mà người mới
 			   chưa có mã PIN thì họ vẫn chưa chấm công được — mà cửa hàng trưởng thì tưởng đã
 			   xong. Câu này là chỗ duy nhất họ đọc sau khi bấm. */
-			return array( array( 'xong' => 'Đã thêm ' . $r['ma_nv'] . ' vào ' . $r['coso'] . '. '
+			$bao_tn = array( array( 'xong' => 'Đã thêm ' . $r['ma_nv'] . ' vào ' . $r['coso'] . '. '
 				. $r['day_may'] . ' Bảo người mới vào trang Chấm công → "Quên PIN?" → gõ họ tên '
 				. 'và số căn cước của mình để tự đặt mã PIN.' ) );
+			if ( empty( $anh_kq['ok'] ) ) {
+				$bao_tn[] = array( 'canh' => 'Hồ sơ đã tạo, nhưng ẢNH THẺ không nhận được: '
+					. ( isset( $anh_kq['error'] ) ? $anh_kq['error'] : 'lỗi không rõ' )
+					. ' Mở hồ sơ người này rồi tải ảnh lên sau.' );
+			}
+			return $bao_tn;
 		}
 
 		if ( 'sua_gio' === $viec ) {
@@ -2281,7 +2293,10 @@ class VHCC_Web {
 			. '<b>Quên PIN?</b> → gõ <b>họ tên + số căn cước</b> của chính mình để tự đặt mã PIN. '
 			. 'Không ai phải đọc mã PIN của ai.</p>';
 
-		echo '<form method="post" class="hang" style="gap:8px;flex-wrap:wrap">';
+		/* ⚠️ `enctype` PHẢI CÓ, không thì ô ảnh gửi lên chỉ còn cái TÊN TỆP — biểu mẫu vẫn chạy,
+		   vẫn báo "đã thêm", mà ảnh biến mất không dấu vết. */
+		echo '<form method="post" class="hang" enctype="multipart/form-data" '
+			. 'style="gap:8px;flex-wrap:wrap">';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 		echo '<input type="hidden" name="man" value="cham">';
 		echo '<div><label for="tn_ten">Họ tên</label>'
@@ -2293,8 +2308,24 @@ class VHCC_Web {
 		echo '<div><label for="tn_gt">Giới tính</label><select id="tn_gt" name="tn_gioi_tinh">'
 			. '<option value="">—</option><option value="male">Nam</option>'
 			. '<option value="female">Nữ</option></select></div>';
+		/* 🔴 CHỨC VỤ CHỌN SẴN TỪ SỔ, KHÔNG GÕ TAY TỰ DO.
+		   Anh Thắng 28/08/2026: *"Thiếu chức vụ, lấy sẵn từ hệ thống (chức vụ lấy từ chức vụ của
+		   cửa hàng trưởng đi xuống)"*. Gõ tay thì mỗi người một cách viết — "Thu ngân", "thu
+		   ngan", "TN" — và bảng lương gom theo chức vụ ra ba nhóm cho cùng một việc.
+		   ⚠️ `<datalist>` chứ không phải `<select>`: cửa hàng mới mở thì sổ chưa có chức vụ nào,
+		      ô chọn rỗng mà không gõ được là bế tắc và người ta bỏ trống luôn. Đây là ô gõ CÓ
+		      GỢI Ý — chọn cho nhanh, gõ mới cũng được. Và vẫn không cần một dòng script nào. */
+		$cv_ds = VHCC_NhanSu::chuc_vu_cho( $toi, '' !== $cs ? $cs
+			: ( isset( $ds_cs[0] ) ? (string) $ds_cs[0] : '' ) );
 		echo '<div><label for="tn_cv">Chức vụ</label>'
-			. '<input id="tn_cv" name="tn_chuc_vu" style="width:130px"></div>';
+			. '<input id="tn_cv" name="tn_chuc_vu" list="tn_cv_ds" style="width:150px"'
+			. ( $cv_ds ? ' placeholder="chọn hoặc gõ"' : '' ) . '>';
+		if ( $cv_ds ) {
+			echo '<datalist id="tn_cv_ds">';
+			foreach ( $cv_ds as $x ) { echo '<option value="' . esc_attr( $x ) . '">'; }
+			echo '</datalist>';
+		}
+		echo '</div>';
 		/* Phụ trách một cơ sở thì không phải chọn; nhiều cơ sở thì PHẢI chọn — đoán hộ là đoán
 		   sai vào đúng cái cột quyết định công và lương chảy về cửa hàng nào. */
 		if ( count( (array) $ds_cs ) > 1 ) {
@@ -2313,9 +2344,90 @@ class VHCC_Web {
 					. esc_html( $mot ) . '</b></div></div>';
 			}
 		}
+		/* =====================================================================================
+		 * 🔴 ẢNH THẺ — KHÔNG ÉP, NHƯNG PHẢI NÓI RÕ THIẾU THÌ MẤT GÌ.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026 xin thêm ảnh thẻ, để đẩy lên máy chấm công và làm mẫu đối chiếu
+		 * khuôn mặt cho chấm công online — *"không ép buộc, nhưng không có là phải đưa ra cảnh
+		 * báo bù sau. hiện ảnh thẻ mẫu cho cửa hàng trưởng biết"*.
+		 *
+		 * ⚠️ MẪU VẼ THẲNG BẰNG SVG, không nhúng ảnh một người thật. Ảnh mẫu là ảnh MẶT — dùng
+		 *    mặt của một nhân viên nào đó làm mẫu cho cả chuỗi là chuyện không xin phép được.
+		 */
+		echo '<div style="flex:0 0 100%;display:flex;gap:14px;align-items:flex-start;'
+			. 'margin-top:6px;padding-top:10px;border-top:1px dashed var(--vien)">';
+		echo self::anh_the_mau();
+		echo '<div><label for="tn_anh"><b>Ảnh thẻ</b> <span class="mo">— không bắt buộc</span></label>'
+			. '<input id="tn_anh" name="tn_anh" type="file" accept="image/*" capture="user">'
+			. '<p class="mo" style="margin:6px 0 0;max-width:520px">Có ảnh thì <b>máy chấm công '
+			. 'tự nhận khuôn mặt</b>, không phải gọi người ra máy chụp lại. '
+			. 'Chụp <b>chính diện</b>, thấy rõ cả khuôn mặt, nền trơn, không đeo kính râm hay '
+			. 'khẩu trang. Ảnh to cũng được — hệ tự thu nhỏ.<br>'
+			. 'Bỏ trống vẫn thêm người được, nhưng tên người ấy sẽ nằm trong khối '
+			. '<b>Chưa có ảnh thẻ</b> ngay dưới cho tới khi bù.</p></div>';
+		echo '</div>';
+
 		echo '<div><button class="chinh" name="viec" value="them_nv">Thêm người</button></div>';
 		echo '</form>';
 		echo '</details>';
+	}
+
+	/**
+	 * ẢNH THẺ MẪU — vẽ bằng SVG, không nhúng mặt người thật.
+	 *
+	 * Anh Thắng 28/08/2026: *"hiện ảnh thẻ mẫu cho cửa hàng trưởng biết"*. Một câu chữ "chụp
+	 * chính diện" thì ai cũng gật, rồi vẫn gửi lên ảnh chụp nghiêng trong quán cà phê. Hình vẽ
+	 * nói được cái mà câu chữ nói không xong: khuôn mặt chiếm bao nhiêu phần khung, cắt tới đâu.
+	 */
+	private static function anh_the_mau() {
+		$sv = '<svg width="104" height="132" viewBox="0 0 104 132" role="img" '
+			. 'aria-label="Ảnh thẻ mẫu: chụp chính diện, ngang vai, nền trơn" '
+			. 'style="border:1px solid var(--vien);border-radius:6px;background:#f8fafc;flex:0 0 auto">'
+			. '<rect x="0" y="0" width="104" height="132" fill="#f8fafc"/>'
+			/* Vai + cổ áo — cắt ngang ngực, đúng khuôn ảnh thẻ. */
+			. '<path d="M14 132 C14 106 32 96 52 96 C72 96 90 106 90 132 Z" fill="#cbd5e1"/>'
+			. '<path d="M44 96 L52 108 L60 96 Z" fill="#fff"/>'
+			/* Tóc + đầu chính diện, chiếm chừng nửa chiều cao khung. */
+			. '<path d="M22 60 C22 34 36 24 52 24 C68 24 82 34 82 60 L82 74 '
+			. 'C78 70 78 52 74 48 C66 56 38 56 30 48 C26 52 26 70 22 74 Z" fill="#475569"/>'
+			. '<circle cx="52" cy="58" r="26" fill="#e2e8f0"/>'
+			. '<circle cx="43" cy="55" r="2.8" fill="#334155"/>'
+			. '<circle cx="61" cy="55" r="2.8" fill="#334155"/>'
+			. '<path d="M44 70 Q52 76 60 70" stroke="#334155" stroke-width="2.4" fill="none" '
+			. 'stroke-linecap="round"/>'
+			/* Khung ngắm: mặt phải nằm gọn trong khung, không sát mép. */
+			. '<rect x="18" y="20" width="68" height="80" fill="none" stroke="#2563eb" '
+			. 'stroke-width="1.5" stroke-dasharray="4 3"/>'
+			. '</svg>';
+		return '<div style="text-align:center;flex:0 0 auto">' . $sv
+			. '<div class="mo" style="font-size:11px;margin-top:3px">Ảnh mẫu</div></div>';
+	}
+
+	/**
+	 * AI Ở CƠ SỞ NÀY CHƯA CÓ ẢNH THẺ — cảnh báo để bù sau.
+	 *
+	 * Anh Thắng chốt ảnh thẻ *"không ép buộc, nhưng không có là phải đưa ra cảnh báo bù sau"*.
+	 * Không ép là đúng: bắt buộc thì người ta gửi bừa một tấm cho qua cửa, và tấm ấy còn tệ hơn
+	 * không có — máy nhận nhầm mặt thì lượt chấm công của người khác mang tên mình.
+	 */
+	private static function khoi_thieu_anh( $toi, $cs ) {
+		if ( '' === $cs ) { return; }
+		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) && ! VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
+		/* 🔴 CHỐT CƠ SỞ, VÀ ĐÂY LÀ CHỖ SUÝT RÒ. `$cs` đến thẳng từ thanh địa chỉ; bảng công bên
+		   dưới có chối cơ sở lạ, nhưng khối này vẽ TRƯỚC chỗ chối ấy — nên gõ tay `ccs` của một
+		   cửa hàng khác là đọc được HỌ TÊN + MÃ NV cả cơ sở đó, dù màn chính vẫn báo "Không có
+		   quyền cơ sở này". */
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+		$ds = VHCC_NhanSu::thieu_anh_the( $cs );
+		if ( ! $ds ) { return; }
+		echo '<div class="bao canh" style="margin-top:10px"><b>' . count( $ds )
+			. ' người ở cơ sở này chưa có ảnh thẻ.</b> '
+			. '<span class="mo">Chưa có ảnh thì khuôn mặt phải lấy trực tiếp tại máy chấm công, '
+			. 'và chấm công online không có gì để đối chiếu. Bù dần cũng được — mở hồ sơ từng '
+			. 'người rồi tải ảnh lên.</span><br><span class="mo">';
+		$ten = array();
+		foreach ( $ds as $x ) { $ten[] = $x['ho_ten'] . ' (' . $x['ma_nv'] . ')'; }
+		echo esc_html( implode( ' · ', $ten ) ) . '</span></div>';
 	}
 
 	private static function the_bang_cham( $ky, $toi ) {
@@ -2419,6 +2531,7 @@ class VHCC_Web {
 		echo '</form>';
 
 		self::khoi_them_nv( $ky, $toi, $cs, $ds_cs );
+		self::khoi_thieu_anh( $toi, $cs );
 
 		if ( '' === $cs ) {
 			echo '<p class="mo" style="margin-top:12px">'
@@ -2778,6 +2891,15 @@ class VHCC_Web {
 		if ( $co( 'VHNB_Trang', 'url' ) ) {
 			$ds[] = array( 'ten' => '💬 Nội bộ', 'url' => VHNB_Trang::url(),
 				'chu' => 'Bảng tin công ty: thông báo, trao đổi theo bộ phận. Dùng chung PIN với trang này.' );
+		}
+		/* 🔴 VẬN HÀNH CHI PHÍ — anh Thắng 28/08/2026: *"https://khmatrix.com/chi-phi/ liên kết
+		   trang vận hành chi phí vào nhé"*. Đây mới là cái LIÊN KẾT; phần đăng nhập một lần
+		   (SSO) sang bên ấy là việc riêng, chưa làm — nên nói thẳng trong dòng mô tả rằng bên
+		   ấy đăng nhập riêng, kẻo người bấm sang tưởng hệ hỏng khi bị hỏi mật khẩu. */
+		if ( $co( 'VHCP_App', 'app_url' ) ) {
+			$ds[] = array( 'ten' => '💰 Vận hành chi phí', 'url' => VHCP_App::app_url(),
+				'chu' => 'Đề nghị chi, duyệt chi, quyết toán theo cơ sở. Hiện đăng nhập riêng — '
+					. 'chưa dùng chung mã PIN với trang này.' );
 		}
 		if ( $co( 'VHTC_Trang', 'url' ) ) {
 			$ds[] = array( 'ten' => '🏠 Cổng K&H', 'url' => VHTC_Trang::url(),
@@ -5004,6 +5126,14 @@ class VHCC_Web {
 		}
 		if ( isset( $b['xong'] ) ) {
 			echo '<div class="bao ok">' . esc_html( $b['xong'] ) . '</div>';
+			return;
+		}
+		/* 🔴 CÓ HẠNG BÁO THỨ BA: việc XONG nhưng một phần bên trong hỏng.
+		   Ảnh thẻ là ca đầu tiên cần nó — hồ sơ tạo xong mà ảnh không nhận được thì "Không xong"
+		   là sai (người ĐÃ được thêm), mà nền xanh "xong" cũng sai (ảnh mất mà không ai biết).
+		   Thiếu nhánh này thì mảng báo cứ trả về rồi rơi vào im lặng. */
+		if ( isset( $b['canh'] ) ) {
+			echo '<div class="bao canh">' . esc_html( $b['canh'] ) . '</div>';
 			return;
 		}
 		if ( isset( $b['pin_moi'] ) ) {

@@ -877,13 +877,155 @@ class VHCC_NhanSu {
 			'trang_thai_lam_viec'  => 'Đang làm',
 			'cap_nhat'             => current_time( 'mysql' ),
 		);
+		/* ⚠️ ẢNH THẺ KHÔNG BẮT BUỘC — anh Thắng 28/08/2026 chốt *"không ép buộc, nhưng không có
+		   là phải đưa ra cảnh báo bù sau"*. Nên thiếu ảnh vẫn tạo hồ sơ xong; chỗ nhắc nằm ở
+		   khối "chưa có ảnh thẻ" trên màn Bảng công. */
+		$anh = isset( $dat['anh_the'] ) ? trim( (string) $dat['anh_the'] ) : '';
+		if ( '' !== $anh ) { $ghi['anh_the'] = $anh; }
 		$ok = $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi );
 		if ( false === $ok ) {
 			return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
 		}
 
-		$day = self::day_len_may( $ma, $ten, $coso, $ghi['gioi_tinh'], $u );
-		return array( 'ok' => true, 'ma_nv' => $ma, 'coso' => $coso, 'day_may' => $day );
+		$day = self::day_len_may( $ma, $ten, $coso, $ghi['gioi_tinh'], $u, $anh );
+		return array( 'ok' => true, 'ma_nv' => $ma, 'coso' => $coso, 'day_may' => $day,
+			'co_anh' => ( '' !== $anh ) );
+	}
+
+	/** Ảnh thẻ tối đa sau khi thu nhỏ — cạnh dài, và cỡ chuỗi data URI. */
+	const ANH_CANH   = 480;
+	const ANH_TOI_DA = 400000;   // ~400 KB chuỗi: quá cỡ này thì máy chấm công cũng nuốt không nổi
+
+	/**
+	 * NHẬN MỘT TỆP ẢNH THẺ TỪ BIỂU MẪU, TRẢ VỀ data URI ĐÃ THU NHỎ.
+	 *
+	 * =========================================================================================
+	 * 🔴 THU NHỎ Ở MÁY CHỦ, VÌ MÀN QUẢN TRỊ KHÔNG CÓ MỘT DÒNG SCRIPT NÀO.
+	 * =========================================================================================
+	 * Bình thường ảnh được thu nhỏ ngay trên trình duyệt trước khi gửi (trạm chấm công làm thế).
+	 * Màn quản trị thì cố ý không có JavaScript — nên ảnh từ điện thoại lên đây vẫn là ảnh gốc
+	 * 3–5 MB. Không thu nhỏ thì cột `anh_the` phình, và cái ảnh ấy còn phải chui qua hàng đợi
+	 * xuống một con ESP32 có vài trăm KB bộ nhớ.
+	 *
+	 * ⚠️ TRẢ VỀ LỖI CÓ CHỮ, KHÔNG TRẢ VỀ RỖNG. Ảnh là phần KHÔNG BẮT BUỘC, nên một lỗi nuốt im
+	 *    sẽ thành "đã thêm người xong" mà ảnh biến mất — và không ai biết để chụp lại.
+	 *
+	 * @return array [ 'ok' => bool, 'anh' => data URI, 'error' => câu chối ]
+	 */
+	public static function rua_anh_the( $tep ) {
+		$tep = (array) $tep;
+		$loi = isset( $tep['error'] ) ? (int) $tep['error'] : UPLOAD_ERR_NO_FILE;
+		if ( UPLOAD_ERR_NO_FILE === $loi ) { return array( 'ok' => true, 'anh' => '' ); }
+		if ( UPLOAD_ERR_OK !== $loi ) {
+			return array( 'ok' => false, 'anh' => '',
+				'error' => 'Ảnh không tải lên được (mã lỗi ' . $loi . ') — thử ảnh nhỏ hơn.' );
+		}
+		$duong = isset( $tep['tmp_name'] ) ? (string) $tep['tmp_name'] : '';
+		if ( '' === $duong || ! is_readable( $duong ) ) {
+			return array( 'ok' => false, 'anh' => '', 'error' => 'Không đọc được tệp ảnh vừa gửi.' );
+		}
+		/* ⚠️ Tin phần đuôi tên tệp là tin người gửi. Hỏi CHÍNH TỆP xem nó là ảnh gì. */
+		$co = @getimagesize( $duong );
+		if ( ! $co || empty( $co['mime'] ) ) {
+			return array( 'ok' => false, 'anh' => '', 'error' => 'Tệp này không phải ảnh.' );
+		}
+		if ( ! in_array( $co['mime'], array( 'image/jpeg', 'image/png', 'image/webp' ), true ) ) {
+			return array( 'ok' => false, 'anh' => '',
+				'error' => 'Chỉ nhận ảnh JPG, PNG hoặc WEBP — tệp này là ' . $co['mime'] . '.' );
+		}
+
+		/* ⚠️ Gác `function_exists` cùng chỗ với lời gọi. Hosting thiếu bộ ảnh của WordPress thì
+		   nói thẳng, đừng lưu đại ảnh gốc 5 MB vào cột dữ liệu. */
+		if ( ! function_exists( 'wp_get_image_editor' ) ) {
+			return array( 'ok' => false, 'anh' => '',
+				'error' => 'Máy chủ chưa có bộ xử lý ảnh — nhờ Admin bật GD hoặc Imagick.' );
+		}
+		$bt = wp_get_image_editor( $duong );
+		if ( is_wp_error( $bt ) ) {
+			return array( 'ok' => false, 'anh' => '',
+				'error' => 'Không mở được ảnh: ' . $bt->get_error_message() );
+		}
+		$bt->resize( self::ANH_CANH, self::ANH_CANH, false );   // false = giữ nguyên tỉ lệ
+		if ( method_exists( $bt, 'set_quality' ) ) { $bt->set_quality( 82 ); }
+		$tam = wp_tempnam( 'vhcc-anh-the.jpg' );
+		$luu = $bt->save( $tam, 'image/jpeg' );
+		if ( is_wp_error( $luu ) || empty( $luu['path'] ) || ! is_readable( $luu['path'] ) ) {
+			return array( 'ok' => false, 'anh' => '', 'error' => 'Không lưu được ảnh sau khi thu nhỏ.' );
+		}
+		$noi = file_get_contents( $luu['path'] );
+		@unlink( $luu['path'] );
+		if ( $tam !== $luu['path'] ) { @unlink( $tam ); }
+		if ( false === $noi || '' === $noi ) {
+			return array( 'ok' => false, 'anh' => '', 'error' => 'Ảnh sau khi thu nhỏ bị rỗng.' );
+		}
+		$uri = 'data:image/jpeg;base64,' . base64_encode( $noi );
+		if ( strlen( $uri ) > self::ANH_TOI_DA ) {
+			return array( 'ok' => false, 'anh' => '',
+				'error' => 'Ảnh vẫn quá nặng sau khi thu nhỏ — chụp lại bằng ảnh thường, đừng dùng ảnh RAW.' );
+		}
+		return array( 'ok' => true, 'anh' => $uri );
+	}
+
+	/**
+	 * CHỨC VỤ ĐỂ CHỌN SẴN, TỪ BẬC NGƯỜI ĐANG THÊM ĐỔ XUỐNG.
+	 *
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"Thiếu chức vụ, lấy sẵn từ hệ thống (chức vụ lấy từ chức vụ của
+	 * cửa hàng trưởng đi xuống)"*.
+	 *
+	 * Chức vụ trong sổ là chữ tự do — "Nhân viên bán hàng", "Thu ngân", "Ca trưởng"… Không có
+	 * thang bậc nào cho nó, nên KHÔNG suy ra được cái nào "cao hơn" cái nào. Cái CÓ thang là
+	 * VAI TRÒ. Nên luật ở đây đọc là: bày ra những chức vụ đang có thật ở cơ sở này, TRỪ chức
+	 * vụ của những người mang vai CAO HƠN người đang thêm.
+	 *
+	 * ⚠️ LẤY TỪ CƠ SỞ NÀY, KHÔNG LẤY CẢ CHUỖI. Danh sách cả chuỗi có "Kế toán trưởng", "Giám
+	 *    sát vùng" — bày ra là mời người ta chọn nhầm, và chức vụ ấy đi thẳng vào bảng lương.
+	 *
+	 * ⚠️ VẪN PHẢI CÓ ĐƯỜNG GÕ TAY. Cửa hàng mới mở thì sổ chưa có chức vụ nào; ô chọn rỗng mà
+	 *    không gõ được là bế tắc, và người ta bỏ trống luôn ô ấy.
+	 */
+	public static function chuc_vu_cho( $u, $coso ) {
+		$cs = self::chuan_coso( $coso );
+		if ( '' === $cs ) { return array(); }
+		$bac_toi = class_exists( 'VHCC_Vai' ) && method_exists( 'VHCC_Vai', 'bac' )
+			? (int) VHCC_Vai::bac( $u ) : 99;
+		$ra = array();
+		foreach ( (array) VHCC_DB::rows( 'SELECT chuc_vu, cua_hang, vai_tro, trang_thai_lam_viec'
+			. ' FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE TRIM(chuc_vu) <> ''" ) as $r ) {
+			if ( strtolower( self::chuan_coso( (string) $r['cua_hang'] ) ) !== strtolower( $cs ) ) { continue; }
+			if ( self::da_nghi( $r['trang_thai_lam_viec'] ) ) { continue; }
+			/* Người mang vai cao hơn mình thì chức vụ của họ cũng không phải thứ mình cấp được. */
+			if ( class_exists( 'VHCC_Vai' ) && method_exists( 'VHCC_Vai', 'bac' ) ) {
+				$bac_ho = (int) VHCC_Vai::bac( array( 'role' => (string) $r['vai_tro'] ) );
+				if ( $bac_ho > $bac_toi ) { continue; }
+			}
+			$cv = trim( (string) $r['chuc_vu'] );
+			if ( '' === $cv ) { continue; }
+			/* ⚠️ GIỮ CÁCH VIẾT GẶP TRƯỚC, không để bản sau đè. Hai hồ sơ ghi "Thu ngân" và
+			   "THU NGÂN" là CÙNG một chức vụ — gom làm một dòng gợi ý là đúng, nhưng bày ra bản
+			   nào thì phải ổn định. Đè bừa thì danh sách đổi mặt mỗi lần có người mới nhập ẩu. */
+			$k_cv = self::chu_thuong( $cv );
+			if ( ! isset( $ra[ $k_cv ] ) ) { $ra[ $k_cv ] = $cv; }
+		}
+		ksort( $ra );
+		return array_values( $ra );
+	}
+
+	/** Ai trong cơ sở này CHƯA có ảnh thẻ — để bày ra mà bù sau. */
+	public static function thieu_anh_the( $coso ) {
+		$cs = self::chuan_coso( $coso );
+		if ( '' === $cs ) { return array(); }
+		$ra = array();
+		foreach ( (array) VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cua_hang, trang_thai_lam_viec,'
+			. " anh_the FROM " . VHCC_DB::t( 'nhan_vien' )
+			. " WHERE TRIM(ma_nv) <> ''" ) as $r ) {
+			if ( strtolower( self::chuan_coso( (string) $r['cua_hang'] ) ) !== strtolower( $cs ) ) { continue; }
+			/* Người đã nghỉ thì thôi — nhắc chụp ảnh một người không còn đi làm là nhiễu. */
+			if ( self::da_nghi( $r['trang_thai_lam_viec'] ) ) { continue; }
+			if ( '' !== trim( (string) $r['anh_the'] ) ) { continue; }
+			$ra[] = array( 'ma_nv' => (string) $r['ma_nv'], 'ho_ten' => (string) $r['ho_ten'] );
+		}
+		return $ra;
 	}
 
 	/** Hồ sơ mang số căn cước này — null là chưa ai. So bằng CHỮ SỐ, bỏ mọi dấu cách / gạch. */
@@ -937,7 +1079,7 @@ class VHCC_NhanSu {
 	 * ⚠️ Máy chỉ nhận TÊN và MÃ. Khuôn mặt vẫn phải lấy tại máy — không đường nào đẩy mặt từ
 	 *    web xuống được, và nói khác đi là hứa một thứ không có.
 	 */
-	private static function day_len_may( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u ) {
+	private static function day_len_may( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh = '' ) {
 		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'ds_may' ) ) {
 			return 'Chưa cài phần máy chấm công — hồ sơ đã tạo, chấm công online dùng được ngay.';
 		}
@@ -946,12 +1088,20 @@ class VHCC_NhanSu {
 		$so = 0;
 		foreach ( (array) ( isset( $ds['data'] ) ? $ds['data'] : array() ) as $m ) {
 			if ( strtolower( self::chuan_coso( (string) $m['cua_hang'] ) ) !== $cs ) { continue; }
-			$kq = VHCC_May::dat_lenh( (string) $m['tram'], 'add', array(
+			/* Ảnh đi kèm LỆNH chứ không phải đi kèm hồ sơ: firmware hỏi ảnh bằng `opId` ở một
+			   lượt gọi RIÊNG (xem `VHCC_MayCong::anh_cua_lenh`), vì con ESP32 không đủ bộ nhớ
+			   nhận cả JSON lệnh lẫn ảnh trong một lượt. Cột `anh_b64` bị xoá ngay khi máy báo
+			   xong — ảnh gốc vẫn nằm trong hồ sơ, đây chỉ là bản đi đường. */
+			$kem = array(
 				'ma_nv'     => $ma_nv,
 				'ho_ten'    => $ho_ten,
 				'cua_hang'  => $coso,
 				'gioi_tinh' => in_array( $gioi_tinh, array( 'male', 'female' ), true ) ? $gioi_tinh : '',
-			), isset( $u['name'] ) ? (string) $u['name'] : '' );
+				'co_anh'    => ( '' !== $anh ) ? 1 : 0,
+			);
+			if ( '' !== $anh ) { $kem['anh_b64'] = $anh; }
+			$kq = VHCC_May::dat_lenh( (string) $m['tram'], 'add', $kem,
+				isset( $u['name'] ) ? (string) $u['name'] : '' );
 			if ( ! empty( $kq['ok'] ) ) { $so++; }
 		}
 		if ( 0 === $so ) {
@@ -959,7 +1109,9 @@ class VHCC_NhanSu {
 				. 'chấm công bằng điện thoại dùng được ngay.';
 		}
 		return 'Đã đặt lệnh ghi tên xuống ' . $so . ' máy (máy nhận trong ~10 giây nếu đang online). '
-			. 'Khuôn mặt vẫn phải lấy trực tiếp tại máy.';
+			. ( '' !== $anh
+				? 'Ảnh thẻ đi kèm — máy tự nhận khuôn mặt, không phải gọi người ra máy chụp lại.'
+				: 'CHƯA có ảnh thẻ nên khuôn mặt vẫn phải lấy trực tiếp tại máy.' );
 	}
 
 	/**

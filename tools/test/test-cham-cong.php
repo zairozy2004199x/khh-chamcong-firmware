@@ -477,8 +477,13 @@ t( 'vp_ngay_cong.ngay_cong cho phép NULL và KHÔNG có mặc định — khôn
 	&& stripos( $so_do['vp_ngay_cong'], 'ngay_cong DECIMAL(5,2) NULL DEFAULT' ) === false );
 t( 'phan_quyen.vai_tro là VARCHAR (Apps Script ghi chuỗi tự do), không ENUM',
 	preg_match( '/vai_tro VARCHAR\(60\)/', $so_do['phan_quyen'] ) === 1 );
-t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro',
-	count( $cot_thuc['nhan_vien'] ) === 28 ); // 26 + id + vai_tro
+t( 'nhan_vien giữ đủ 26 cột nghiệp vụ của NV_HEADERS + vai_tro + anh_the',
+	count( $cot_thuc['nhan_vien'] ) === 29 ); // 26 + id + vai_tro + anh_the
+/* 🔴 ẢNH THẺ NẰM TRONG BẢNG, KHÔNG NẰM TRONG THƯ VIỆN MEDIA. Mọi thứ trong Media mở công khai
+   theo URL — ai đoán trúng đường dẫn là xem được mặt cả chuỗi. */
+t( 'nhan_vien có cột ảnh thẻ', in_array( 'anh_the', $cot_thuc['nhan_vien'], true ) );
+t( 'và là LONGTEXT (data URI), không phải đường dẫn tệp',
+	preg_match( '/anh_the LONGTEXT/', $so_do['nhan_vien'] ) === 1 );
 /* 🔴 `vai_tro` PHẢI LÀ CỘT RIÊNG, không dùng chung `chuc_vu`. `chuc_vu` là công việc ("Khu vui
    chơi", "Máy tự động"); `vai_tro` là quyền trên trang web. Nhập nhèm hai thứ là nạp sổ nhân
    viên xong CẢ SỔ rơi về "Nhân viên" và KHÔNG AI đăng nhập được — đúng thứ anh Thắng gặp. */
@@ -7727,8 +7732,19 @@ t( 'Nhân viên KHÔNG có khối link gửi bộ phận', strpos( $h_nha_nv, 'i
    Anh Thắng 26/08: *"làm 1 trang chủ ghép các trang chấm công chung lại… tạo 1 trang chủ công ty
    K&H để liên kết đến các trang con"*. Trang chào ghép xong phần chấm công; khối này là đường ra.
    🔴 CHƯA CÀI thì KHÔNG được in khung rỗng: một tiêu đề không có gì bên dưới trông y như hỏng. */
-t( 'chưa cài trang nội bộ / cổng K&H thì KHÔNG in khung rỗng',
-	strpos( $h_nha_ad, 'Trang khác của công ty' ) === false, $h_nha_ad );
+/* 🔴 VẬN HÀNH CHI PHÍ CÓ MẶT TỪ ĐẦU — anh Thắng 28/08/2026: *"https://khmatrix.com/chi-phi/
+   liên kết trang vận hành chi phí vào nhé"*. Plugin chi phí luôn được nạp trong bài kiểm này,
+   nên khối "Trang khác" KHÔNG còn rỗng ngay cả khi chưa cài Nội bộ / Cổng K&H. */
+t( '🔴 trang chào có đường sang Vận hành chi phí',
+	strpos( $h_nha_ad, 'Vận hành chi phí' ) !== false, $h_nha_ad );
+/* ⚠️ Đường dẫn lấy TỪ CHÍNH plugin kia (`VHCP_App::app_url()`), không gõ cứng — gõ cứng là hôm
+   nào đổi đường dẫn bên ấy, ô này vẫn trỏ về đường cũ và bấm vào ra 404. */
+t( 'và lấy đúng đường dẫn của plugin chi phí',
+	strpos( $h_nha_ad, esc_url( VHCP_App::app_url() ) ) !== false, $h_nha_ad );
+/* 🔴 NÓI THẲNG LÀ BÊN ẤY ĐĂNG NHẬP RIÊNG. Chưa làm đăng nhập một lần sang đó; im lặng thì người
+   bấm sang bị hỏi mật khẩu và tưởng hệ hỏng. */
+t( '🔴 nói rõ bên ấy còn đăng nhập riêng',
+	strpos( $h_nha_ad, 'đăng nhập riêng' ) !== false, $h_nha_ad );
 
 /* ⚠️ Khai bằng eval() vì PHP NÂNG mọi khai báo lớp ở cấp cao nhất lên lúc biên dịch tệp — khai
    thẳng thì `class_exists` đã trả true ngay từ dòng đầu và phép thử "chưa cài" ở trên không bao
@@ -7741,8 +7757,10 @@ $h_nha_cu = vhcc_web( '135791' );
 t( 'cổng K&H bản cũ (lớp CÓ, hàm url KHÔNG) -> trang chào vẫn vẽ được, không trắng trang',
 	strpos( $h_nha_cu, 'Việc anh/chị làm được' ) !== false, substr( $h_nha_cu, 0, 200 ) );
 t( 'và KHÔNG dựng ô trỏ sang cổng K&H', strpos( $h_nha_cu, 'Cổng K&amp;H' ) === false, $h_nha_cu );
-t( 'chưa có trang nào dùng được thì vẫn không in khung rỗng',
-	strpos( $h_nha_cu, 'Trang khác của công ty' ) === false, $h_nha_cu );
+/* Cổng K&H bản cũ không dựng được ô của nó, nhưng khối vẫn còn ô Vận hành chi phí — nên khối
+   có mặt là ĐÚNG ở đây. Chốt "không in khung rỗng" nay canh ở chính hàm: xem phá thử. */
+t( 'khối vẫn còn vì Vận hành chi phí dùng được',
+	strpos( $h_nha_cu, 'Vận hành chi phí' ) !== false, $h_nha_cu );
 
 eval( 'class VHNB_Trang { public static function url() { return "https://khmatrix.com/noi-bo/"; } }' );
 $h_nha_2 = vhcc_web( '135791' );
@@ -13547,6 +13565,277 @@ t( 'bị khoá riêng vẫn vào được màn Bảng công',
 t( '🔴 nhưng KHÔNG còn khối thêm người',
 	strpos( $h_tn_kh, 'Thêm người mới vào cửa hàng' ) === false );
 VHCC_Vai::dat_ngoai_le( $U_AD, 'nv:CHTTN1', 'them_nv', '' );
+
+/* ==========================================================================================
+ * 🔴 ẢNH THẺ — KHÔNG ÉP, NHƯNG THIẾU THÌ PHẢI KÊU.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026: *"Bổ sung thêm ảnh thẻ để sau này đẩy lên máy chấm công và đưa vào quét
+ * nhận diện khuôn mặt qua chấm công online (không ép buộc, nhưng không có là phải đưa ra cảnh
+ * báo bù sau. hiện ảnh thẻ mẫu cho cửa hàng trưởng biết"*.
+ */
+/* ==========================================================================================
+ * 🔴 CHỨC VỤ CHỌN SẴN TỪ SỔ, TỪ BẬC NGƯỜI ĐANG THÊM ĐỔ XUỐNG.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026: *"Thiếu chức vụ, lấy sẵn từ hệ thống (chức vụ lấy từ chức vụ của cửa
+ * hàng trưởng đi xuống)"*. Gõ tay thì mỗi người một cách viết — "Thu ngân", "thu ngan", "TN" —
+ * và bảng lương gom theo chức vụ ra ba nhóm cho cùng một việc.
+ */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVA1', 'ho_ten' => 'Bạn Thu Ngân',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'Thu ngân', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVA2', 'ho_ten' => 'Bạn Bán Hàng',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'Nhân viên bán hàng', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* Chức vụ của người mang vai CAO HƠN thì cửa hàng trưởng không cấp được. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVA3', 'ho_ten' => 'Sếp Vùng',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'Giám sát vùng', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_NhanSu::dat_vai_tro( $U_AD, 'CVA3', 'Quản lý' );
+/* Chức vụ ở CƠ SỞ KHÁC cũng không được bày ra — bày là mời chọn nhầm, và nó vào bảng lương. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVA4', 'ho_ten' => 'Người Xa',
+	'cua_hang' => 'JP_HCM', 'chuc_vu' => 'Pha chế', 'trang_thai_lam_viec' => 'Đang làm' ) );
+
+$cv = VHCC_NhanSu::chuc_vu_cho( $U_TN, 'TUTU_BT' );
+t( '🔴 lấy được chức vụ đang có ở cơ sở', in_array( 'Thu ngân', $cv, true )
+	&& in_array( 'Nhân viên bán hàng', $cv, true ), $cv );
+t( '🔴 KHÔNG bày chức vụ của người mang vai cao hơn',
+	! in_array( 'Giám sát vùng', $cv, true ), $cv );
+t( '🔴 và KHÔNG bày chức vụ của cơ sở khác', ! in_array( 'Pha chế', $cv, true ), $cv );
+/* Admin đứng trên thì thấy đủ — luật là "từ bậc mình đổ xuống", không phải "giấu của Quản lý". */
+t( 'Admin thì thấy cả chức vụ của Quản lý', in_array( 'Giám sát vùng',
+	VHCC_NhanSu::chuc_vu_cho( $U_AD, 'TUTU_BT' ), true ) );
+t( 'cơ sở rỗng thì trả rỗng, không nổ', array() === VHCC_NhanSu::chuc_vu_cho( $U_TN, '' ) );
+/* Trùng cách viết hoa/thường thì gom làm một — đó chính là cái đang muốn dẹp. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CVA5', 'ho_ten' => 'Bạn Nữa',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'THU NGÂN', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* ⚠️ `strcasecmp` KHÔNG hạ được chữ CÓ DẤU — "THU NGÂN" và "thu ngân" so bằng nó ra khác nhau.
+   Dùng đúng bộ hạ chữ của hệ (`chu_thuong`), y như chính hàm đang thử. */
+$cv_lai = VHCC_NhanSu::chuc_vu_cho( $U_TN, 'TUTU_BT' );
+teq( '🔴 "Thu ngân" và "THU NGÂN" gom làm MỘT dòng gợi ý', 1, count( array_filter( $cv_lai,
+	function ( $x ) { return VHCC_NhanSu::chu_thuong( $x ) === VHCC_NhanSu::chu_thuong( 'Thu ngân' ); } ) ) );
+/* Và giữ CÁCH VIẾT GẶP TRƯỚC — danh sách gợi ý không được đổi mặt mỗi lần có người nhập ẩu. */
+t( 'giữ cách viết gặp trước, không để bản viết hoa đè',
+	in_array( 'Thu ngân', $cv_lai, true ), $cv_lai );
+
+$h_cv = vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng', array( 'man' => 'cham', 'ccs' => 'TUTU_BT' ) );
+t( '🔴 màn bày danh sách gợi ý chức vụ',
+	strpos( $h_cv, 'list="tn_cv_ds"' ) !== false
+	&& strpos( $h_cv, '<datalist id="tn_cv_ds">' ) !== false, substr( $h_cv, 0, 400 ) );
+t( 'và có chức vụ thật trong đó', strpos( $h_cv, 'value="Thu ngân"' ) !== false, $h_cv );
+/* ⚠️ `<datalist>` chứ không phải `<select>`: cửa hàng mới mở thì sổ chưa có chức vụ nào, ô chọn
+   rỗng mà không gõ được là bế tắc — người ta bỏ trống luôn ô ấy. */
+t( '🔴 vẫn là ô GÕ ĐƯỢC, không phải ô chọn cứng',
+	preg_match( '/<input id="tn_cv"[^>]*list="tn_cv_ds"/', $h_cv ) === 1, $h_cv );
+
+t( '🔴 màn có ô tải ảnh thẻ', strpos( $h_tn, 'name="tn_anh"' ) !== false, $h_tn );
+/* ⚠️ Thiếu `enctype` thì ô ảnh chỉ gửi lên cái TÊN TỆP — biểu mẫu vẫn chạy, vẫn báo "đã thêm",
+   mà ảnh biến mất không dấu vết. Đây là lỗi im lặng nhất của cả khối này. */
+t( '🔴 biểu mẫu khai enctype multipart, không thì ảnh mất im lặng',
+	strpos( $h_tn, 'enctype="multipart/form-data"' ) !== false, $h_tn );
+t( 'nói rõ ảnh KHÔNG bắt buộc', strpos( $h_tn, 'không bắt buộc' ) !== false );
+/* 🔴 Ảnh mẫu VẼ bằng SVG, không nhúng mặt một người thật — dùng mặt nhân viên nào đó làm mẫu
+   cho cả chuỗi là chuyện không xin phép được. */
+t( '🔴 có ảnh thẻ mẫu vẽ sẵn', strpos( $h_tn, 'Ảnh mẫu' ) !== false
+	&& strpos( $h_tn, '<svg' ) !== false, $h_tn );
+t( 'và nói ra vì sao nên có ảnh',
+	strpos( $h_tn, 'tự nhận khuôn mặt' ) !== false, $h_tn );
+
+/* ---- Rửa ảnh ---- */
+$ra_trong = VHCC_NhanSu::rua_anh_the( array( 'error' => UPLOAD_ERR_NO_FILE ) );
+t( '🔴 không gửi ảnh thì KHÔNG phải lỗi — ảnh là phần tuỳ chọn',
+	! empty( $ra_trong['ok'] ) && '' === $ra_trong['anh'], $ra_trong );
+$ra_rac = VHCC_NhanSu::rua_anh_the( array( 'error' => UPLOAD_ERR_OK,
+	'tmp_name' => __FILE__ ) );
+t( '🔴 tệp không phải ảnh thì chối', empty( $ra_rac['ok'] ), $ra_rac );
+/* ⚠️ Câu chối phải CÓ CHỮ. Nuốt im là "đã thêm người xong" mà ảnh biến mất, không ai biết. */
+t( 'và câu chối có chữ để người ta biết đường sửa',
+	isset( $ra_rac['error'] ) && '' !== $ra_rac['error'], $ra_rac );
+t( 'tệp không đọc được cũng chối, không nổ',
+	empty( VHCC_NhanSu::rua_anh_the( array( 'error' => UPLOAD_ERR_OK,
+		'tmp_name' => '/khong/co/duong/nay.jpg' ) )['ok'] ) );
+/* ⚠️ Câu chối phải NÓI ĐÚNG BỆNH. "Không phải ảnh" và "không đọc được tệp" là hai việc phải làm
+   khác nhau — gộp làm một câu chung thì người ta thử lại đúng cái vừa hỏng. */
+t( 'và nói đúng bệnh: không đọc được tệp',
+	strpos( (string) VHCC_NhanSu::rua_anh_the( array( 'error' => UPLOAD_ERR_OK,
+		'tmp_name' => '/khong/co/duong/nay.jpg' ) )['error'], 'Không đọc được' ) !== false );
+t( 'tệp có thật nhưng không phải ảnh thì nói đúng bệnh ấy',
+	strpos( (string) $ra_rac['error'], 'không phải ảnh' ) !== false, $ra_rac );
+
+/* 🔴 NHÁNH THÀNH CÔNG — ảnh THẬT, thu nhỏ THẬT. Nhánh này là nhánh duy nhất chạy trên máy thật;
+   không thử được nó thì cả khối rửa ảnh chỉ có mấy câu chối là có người canh. */
+$anh_to = imagecreatetruecolor( 1200, 1600 );
+imagefill( $anh_to, 0, 0, imagecolorallocate( $anh_to, 200, 180, 160 ) );
+$tep_to = tempnam( sys_get_temp_dir(), 'vhcc-thu' ) . '.jpg';
+imagejpeg( $anh_to, $tep_to, 92 );
+imagedestroy( $anh_to );
+$ra_that = VHCC_NhanSu::rua_anh_the( array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => $tep_to ) );
+t( '🔴 ảnh thật thì nhận', ! empty( $ra_that['ok'] ), $ra_that );
+t( 'và trả về data URI ảnh JPEG',
+	strpos( (string) $ra_that['anh'], 'data:image/jpeg;base64,' ) === 0,
+	substr( (string) $ra_that['anh'], 0, 40 ) );
+/* ⚠️ THU NHỎ THẬT, không chỉ đổi tên. Ảnh 1200×1600 từ điện thoại mà giữ nguyên thì cột dữ liệu
+   phình, và tấm ấy còn phải chui qua hàng đợi xuống một con ESP32 vài trăm KB bộ nhớ. */
+$goc_anh = base64_decode( substr( (string) $ra_that['anh'], strlen( 'data:image/jpeg;base64,' ) ) );
+$co_anh_that = getimagesizefromstring( $goc_anh );
+t( '🔴 cạnh dài đã ép về mức khai trong ANH_CANH',
+	max( $co_anh_that[0], $co_anh_that[1] ) <= VHCC_NhanSu::ANH_CANH,
+	array( $co_anh_that[0], $co_anh_that[1] ) );
+t( 'và giữ nguyên tỉ lệ 3:4, không bóp méo mặt người',
+	abs( ( $co_anh_that[0] / $co_anh_that[1] ) - 0.75 ) < 0.02,
+	array( $co_anh_that[0], $co_anh_that[1] ) );
+t( 'chuỗi ảnh nằm dưới ngưỡng đã khai',
+	strlen( (string) $ra_that['anh'] ) <= VHCC_NhanSu::ANH_TOI_DA );
+@unlink( $tep_to );
+
+/* ---- Ảnh có thì đi kèm LỆNH xuống máy ---- */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'MAYTN1', 'mac' => '',
+	'cua_hang' => 'TUTU_BT', 'ten_tu_khai' => 'Máy thử' ) );
+$anh_gia = 'data:image/jpeg;base64,' . base64_encode( 'anh-gia-de-thu' );
+$r_anh = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Có Ảnh Thẻ',
+	'cccd' => '012345678920', 'anh_the' => $anh_gia ) );
+t( 'thêm được người kèm ảnh', ! empty( $r_anh['ok'] ), $r_anh );
+teq( '🔴 ảnh vào thẳng hồ sơ', $anh_gia,
+	(string) VHCC_NhanSu::ho_so( $r_anh['ma_nv'] )['anh_the'] );
+$lenh_anh = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' )
+	. " WHERE ma_nv='" . $r_anh['ma_nv'] . "'" );
+t( '🔴 và đặt lệnh xuống máy của cơ sở', count( $lenh_anh ) === 1, $lenh_anh );
+teq( 'lệnh bật cờ có ảnh', '1', (string) $lenh_anh[0]['co_anh'] );
+/* ⚠️ Ảnh đi kèm LỆNH chứ không đi kèm hồ sơ: firmware hỏi ảnh bằng `opId` ở một lượt gọi RIÊNG
+   vì ESP32 không đủ bộ nhớ nhận cả JSON lệnh lẫn ảnh trong một lượt. */
+teq( 'và mang theo ảnh để máy tải về', $anh_gia, (string) $lenh_anh[0]['anh_b64'] );
+t( '🔴 câu báo nói máy tự nhận mặt, không phải gọi người ra chụp lại',
+	strpos( $r_anh['day_may'], 'tự nhận khuôn mặt' ) !== false, $r_anh );
+
+/* Không ảnh thì lệnh vẫn đi, nhưng phải nói THẲNG là mặt còn phải lấy tại máy. */
+$r_koanh = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Không Ảnh',
+	'cccd' => '012345678921' ) );
+$lenh_ko = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' )
+	. " WHERE ma_nv='" . $r_koanh['ma_nv'] . "'" );
+teq( 'không ảnh thì cờ ảnh tắt', '0', (string) $lenh_ko[0]['co_anh'] );
+t( '🔴 và nói thẳng là mặt vẫn phải lấy tại máy',
+	strpos( $r_koanh['day_may'], 'phải lấy trực tiếp tại máy' ) !== false, $r_koanh );
+
+/* ---- Cảnh báo bù sau ----
+ * ⚠️ CANH Ở TẦNG HÀM TRƯỚC, rồi mới canh trên màn. Màn hình có cả chục người khác lẫn vào, nên
+ *    một phép thử soi màn dễ xanh/đỏ vì lý do khác hẳn cái đang canh. */
+/* ⚠️ Tiền tố Z9 chứ không phải "TA": `LIKE 'TA%'` quét trúng luôn mã tạm `TAM-…` và xoá mất
+   những người vừa dựng ở khối trên — phép thử bên dưới xanh vì cảnh đã bị dọn sạch. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv LIKE 'Z9%'" );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'Z9_KO', 'ho_ten' => 'Z9 Không Ảnh',
+	'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'Z9_NGHI', 'ho_ten' => 'Z9 Đã Nghỉ',
+	'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'Z9_XA', 'ho_ten' => 'Z9 Cơ Sở Khác',
+	'cua_hang' => 'JP_HCM', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'anh_the' => 'data:image/jpeg;base64,xx' ),
+	array( 'ma_nv' => 'Z9_KO' ) );
+$z9 = function ( $cs ) {
+	$r = array();
+	foreach ( VHCC_NhanSu::thieu_anh_the( $cs ) as $x ) { $r[] = $x['ma_nv']; }
+	return $r;
+};
+t( '🔴 người ĐÃ có ảnh thì không nằm trong danh sách thiếu',
+	! in_array( 'Z9_KO', $z9( 'TUTU_BT' ), true ), $z9( 'TUTU_BT' ) );
+t( 'người chưa có ảnh thì có', in_array( 'Z9_NGHI', $z9( 'TUTU_BT' ), true ), $z9( 'TUTU_BT' ) );
+/* 🔴 NGƯỜI ĐÃ NGHỈ THÌ THÔI NHẮC. Nhắc chụp ảnh một người không còn đi làm là nhiễu, và nhiễu
+   nhiều lần thì người ta thôi đọc cả khối này. */
+VHCC_NhanSu::dat_nghi_viec( $U_AD, 'Z9_NGHI', '2026-08-20', 'thử' );
+t( '🔴 người đã nghỉ rơi khỏi danh sách',
+	! in_array( 'Z9_NGHI', $z9( 'TUTU_BT' ), true ), $z9( 'TUTU_BT' ) );
+/* 🔴 CHỈ CƠ SỞ ĐƯỢC HỎI. Không lọc thì khối cảnh báo kể tên người cả chuỗi — vừa sai việc, vừa
+   là rò hồ sơ sang cửa hàng khác. */
+t( '🔴 người cơ sở khác không lọt vào',
+	! in_array( 'Z9_XA', $z9( 'TUTU_BT' ), true ), $z9( 'TUTU_BT' ) );
+t( 'nhưng hỏi đúng cơ sở ấy thì thấy', in_array( 'Z9_XA', $z9( 'JP_HCM' ), true ), $z9( 'JP_HCM' ) );
+
+/* 🔴 GÕ TAY `ccs` CỦA CỬA HÀNG KHÁC THÌ KHỐI PHẢI CÂM — chốt trên MÀN, tách khỏi chốt trong hàm.
+   Bảng công bên dưới có chối cơ sở lạ, nhưng khối này vẽ TRƯỚC chỗ chối ấy, nên thiếu chốt là
+   đọc được HỌ TÊN + MÃ NV cả cơ sở đó dù màn chính vẫn báo "Không có quyền cơ sở này". */
+$h_xa = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
+	array( 'man' => 'cham', 'ccs' => 'JP_HCM' ) ) );
+t( '🔴 gõ tay cơ sở khác thì khối ảnh không vẽ ra', '' === $h_xa, $h_xa );
+
+
+/* ⚠️ CẮT ĐÚNG KHỐI RỒI MỚI SOI. Bảng công bên dưới liệt kê TÊN MỌI NHÂN VIÊN, nên soi cả trang
+   thì "Có Ảnh Thẻ" luôn tìm thấy — phép thử xanh/đỏ vì một khối khác hẳn. */
+function vhcc_khoi_anh( $h ) {
+	$i = strpos( $h, 'chưa có ảnh thẻ' );
+	if ( false === $i ) { return ''; }
+	$d = strrpos( substr( $h, 0, $i ), '<div class="bao canh"' );
+	$c = strpos( $h, '</div>', $i );
+	return substr( $h, $d, ( false === $c ? strlen( $h ) : $c + 6 ) - $d );
+}
+$h_anh = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT' ) ) );
+t( '🔴 màn kêu người chưa có ảnh thẻ', '' !== $h_anh, $h_anh );
+t( 'và kể tên ra để còn biết gọi ai',
+	strpos( $h_anh, 'Không Ảnh' ) !== false, $h_anh );
+t( '🔴 người ĐÃ có ảnh thì không bị kêu oan',
+	strpos( $h_anh, 'Có Ảnh Thẻ' ) === false, $h_anh );
+/* 🔴 CHỈ CƠ SỞ NÀY. Không lọc thì khối cảnh báo kể tên người của cả chuỗi — vừa sai việc, vừa
+   là rò hồ sơ sang cửa hàng khác. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'ANHCS2', 'ho_ten' => 'Người Cửa Hàng Khác',
+	'cua_hang' => 'JP_HCM', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$h_anh_lc = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT' ) ) );
+t( '🔴 không kể tên người của cơ sở khác',
+	strpos( $h_anh_lc, 'Người Cửa Hàng Khác' ) === false, $h_anh_lc );
+teq( 'và hàm lõi cũng chỉ trả người cơ sở ấy', 0, count( array_filter(
+	VHCC_NhanSu::thieu_anh_the( 'TUTU_BT' ),
+	function ( $x ) { return 'ANHCS2' === $x['ma_nv']; } ) ) );
+teq( 'hỏi đúng cơ sở kia thì thấy', 1, count( array_filter(
+	VHCC_NhanSu::thieu_anh_the( 'JP_HCM' ),
+	function ( $x ) { return 'ANHCS2' === $x['ma_nv']; } ) ) );
+/* 🔴 GÕ TAY `ccs` CỦA CỬA HÀNG KHÁC THÌ KHỐI ẢNH PHẢI CÂM. Bảng công bên dưới có chối, nhưng
+   khối này vẽ TRƯỚC chỗ chối ấy — thiếu chốt là đọc được họ tên + mã NV cả cơ sở đó. */
+$h_anh_lam = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
+	array( 'man' => 'cham', 'ccs' => 'JP_HCM' ) ) );
+t( '🔴 gõ tay cơ sở khác thì khối ảnh không vẽ ra', '' === $h_anh_lam, $h_anh_lam );
+
+/* 🔴 ẢNH HỎNG THÌ VẪN THÊM ĐƯỢC NGƯỜI. Ảnh là phần không bắt buộc; chối cả lượt thêm người chỉ
+   vì một tấm ảnh sai định dạng là đổi một tiện ích thành một cửa chặn. */
+$tok_ah = VHCC_Auth::phat_token( 'CHT Thêm', 'Cửa hàng trưởng', 'TUTU_BT', 'CHTTN1' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_ah );
+$_GET  = array( 'man' => 'cham' );
+$_POST = array( 'viec' => 'them_nv', 'ky' => VHCC_Web::chu_ky( $tok_ah ),
+	'tn_ho_ten' => 'Ảnh Hỏng', 'tn_cccd' => '012345678930', 'tn_coso' => 'TUTU_BT' );
+$_FILES = array( 'tn_anh' => array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => __FILE__,
+	'name' => 'khong-phai-anh.php' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_ah = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array(); $_FILES = array();
+t( '🔴 ảnh hỏng vẫn tạo được hồ sơ',
+	null !== VHCC_NhanSu::ho_so_theo_cccd( '012345678930' ), substr( $h_ah, -2500 ) );
+t( '🔴 nhưng màn phải kêu lên là ảnh không nhận được',
+	strpos( $h_ah, 'ẢNH THẺ không nhận được' ) !== false, substr( $h_ah, -2500 ) );
+
+/* 🔴 VÀ ẢNH ĐÚNG THÌ PHẢI VÀO HỒ SƠ QUA ĐƯỜNG MÀN HÌNH, không chỉ qua hàm lõi. */
+$anh_ok = imagecreatetruecolor( 600, 800 );
+imagefill( $anh_ok, 0, 0, imagecolorallocate( $anh_ok, 210, 190, 170 ) );
+$tep_ok = tempnam( sys_get_temp_dir(), 'vhcc-ok' ) . '.jpg';
+imagejpeg( $anh_ok, $tep_ok, 90 );
+imagedestroy( $anh_ok );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_ah );
+$_GET  = array( 'man' => 'cham' );
+$_POST = array( 'viec' => 'them_nv', 'ky' => VHCC_Web::chu_ky( $tok_ah ),
+	'tn_ho_ten' => 'Ảnh Qua Màn', 'tn_cccd' => '012345678931', 'tn_coso' => 'TUTU_BT' );
+$_FILES = array( 'tn_anh' => array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => $tep_ok,
+	'name' => 'the.jpg' ) );
+ob_start(); VHCC_Web::phuc_vu(); ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array(); $_FILES = array();
+@unlink( $tep_ok );
+$hs_qm = VHCC_NhanSu::ho_so_theo_cccd( '012345678931' );
+t( '🔴 bấm nút kèm ảnh thật thì ảnh vào hồ sơ',
+	$hs_qm && strpos( (string) VHCC_NhanSu::ho_so( $hs_qm['ma_nv'] )['anh_the'],
+		'data:image/jpeg;base64,' ) === 0, $hs_qm );
+
+/* Người đã nghỉ thì thôi nhắc — nhắc chụp ảnh một người không còn đi làm là nhiễu, và nhiễu
+   nhiều lần thì người ta thôi đọc cả khối này. */
+VHCC_NhanSu::dat_nghi_viec( $U_AD, $r_koanh['ma_nv'], '2026-08-20', 'thử' );
+$h_anh2 = vhcc_khoi_anh( vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT' ) ) );
+t( '🔴 người đã nghỉ thì không nhắc chụp ảnh nữa',
+	strpos( $h_anh2, 'Không Ảnh' ) === false, $h_anh2 );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) );
 
 $h_tn_nv = vhcc_web_nhu( 'NVTN1', 'Nhân viên', array( 'man' => 'cham' ) );
 t( '🔴 nhân viên KHÔNG thấy khối ấy',

@@ -132,6 +132,53 @@ function esc_textarea( $s ) { return (string) $s; }
 function wp_tempnam( $p = '' ) { return tempnam( sys_get_temp_dir(), 'vhcp' ); }
 
 /**
+ * BỘ XỬ LÝ ẢNH GIẢ — nhưng làm việc THẬT bằng GD.
+ *
+ * 🔴 KHÔNG trả về một vật giả luôn thành công. `VHCC_NhanSu::rua_anh_the()` thu nhỏ ảnh rồi đọc
+ *    lại tệp đã lưu; một vật giả chỉ gật đầu sẽ để cả nhánh "thu nhỏ xong, đọc lại, ra data URI"
+ *    không bao giờ chạy trong bài kiểm — mà đó là nhánh duy nhất chạy trên máy thật.
+ *
+ * ⚠️ Thiếu hàm này thì `function_exists` trả false và MỌI lượt rửa ảnh dừng ngay ở câu "máy chủ
+ *    chưa có bộ xử lý ảnh" — phá thử vết nào ở phía trên cũng không đỏ, vì không đường nào đi
+ *    qua chúng. Đã xảy ra một lần, và đó là lý do khối này tồn tại.
+ */
+class VHCP_Stub_Anh {
+	private $duong; private $im; private $chat = 90;
+	public function __construct( $duong ) { $this->duong = $duong; }
+	public function mo() {
+		$co = @getimagesize( $this->duong );
+		if ( ! $co ) { return false; }
+		$this->im = @imagecreatefromstring( (string) file_get_contents( $this->duong ) );
+		return (bool) $this->im;
+	}
+	public function resize( $w, $h, $cat = false ) {
+		if ( ! $this->im ) { return new WP_Error( 'anh', 'chưa mở ảnh' ); }
+		$rw = imagesx( $this->im ); $rh = imagesy( $this->im );
+		$ti = min( $w / max( 1, $rw ), $h / max( 1, $rh ), 1 );
+		$nw = max( 1, (int) round( $rw * $ti ) ); $nh = max( 1, (int) round( $rh * $ti ) );
+		$moi = imagecreatetruecolor( $nw, $nh );
+		imagecopyresampled( $moi, $this->im, 0, 0, 0, 0, $nw, $nh, $rw, $rh );
+		imagedestroy( $this->im );
+		$this->im = $moi;
+		return true;
+	}
+	public function set_quality( $q ) { $this->chat = (int) $q; return true; }
+	public function save( $duong, $mime = 'image/jpeg' ) {
+		if ( ! $this->im ) { return new WP_Error( 'anh', 'chưa mở ảnh' ); }
+		if ( ! @imagejpeg( $this->im, $duong, $this->chat ) ) {
+			return new WP_Error( 'anh', 'không ghi được' );
+		}
+		return array( 'path' => $duong, 'mime-type' => 'image/jpeg' );
+	}
+}
+
+function wp_get_image_editor( $duong, $args = array() ) {
+	$e = new VHCP_Stub_Anh( $duong );
+	if ( ! $e->mo() ) { return new WP_Error( 'anh', 'Không mở được ảnh.' ); }
+	return $e;
+}
+
+/**
  * Giả lập gọi mạng: bài kiểm không ra Internet, nên $GLOBALS['VHCP_HTTP'] đóng vai
  * Google Sheet — khóa là địa chỉ (khớp một phần cũng được), giá trị là nội dung trả về.
  */
