@@ -830,12 +830,21 @@ class VHG_Trang {
 			$ds = array();
 			foreach ( (array) get_option( 'vhg_nguoidung' ) as $i => $x ) {
 				$x = (array) $x;
+				$ten  = (string) ( isset( $x['ten'] ) ? $x['ten'] : '' );
+				$vt   = (string) ( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' );
+				$coso = (string) ( isset( $x['coso'] ) ? $x['coso'] : '' );
+				/* "Bạn" = ĐÚNG dòng đang đăng nhập (tên+cơ sở+vai trò), không phải mọi dòng trùng tên.
+				   Trùng tên (vd hệ nhân sự đẩy sang thêm 1 bản) thì bản kia vẫn xoá được. */
+				$la_ban = ( $ten === (string) $ai['name']
+					&& $coso === (string) ( isset( $ai['coso'] ) ? $ai['coso'] : '' )
+					&& $vt === (string) ( isset( $ai['role'] ) ? $ai['role'] : '' ) );
 				$ds[] = array(
-					'i'      => (int) $i,
-					'ten'    => (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ),
-					'vai_tro' => (string) ( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' ),
-					'coso'   => (string) ( isset( $x['coso'] ) ? $x['coso'] : '' ),
+					'i'       => (int) $i,
+					'ten'     => $ten,
+					'vai_tro' => $vt,
+					'coso'    => $coso,
 					'pin_dai' => strlen( (string) ( isset( $x['pin'] ) ? $x['pin'] : '' ) ),
+					'la_ban'  => $la_ban ? 1 : 0,
 				);
 			}
 			$cs = array();
@@ -867,10 +876,16 @@ class VHG_Trang {
 			$i  = isset( $d['i'] ) ? (int) $d['i'] : -1;
 			if ( ! isset( $ds[ $i ] ) ) { return array( 'ok' => false, 'error' => 'Không thấy người này.' ); }
 			$x = (array) $ds[ $i ];
-			/* 🔴 KHÔNG XOÁ ĐƯỢC CHÍNH MÌNH. Xoá xong là mất phiên ngay lượt gọi sau, và nếu đó
-			   là Admin cuối cùng thì không còn đường nào vào lại ngoài cơ sở dữ liệu. */
-			if ( (string) ( isset( $x['ten'] ) ? $x['ten'] : '' ) === (string) $ai['name'] ) {
-				return array( 'ok' => false, 'error' => 'Không xoá được chính mình.' );
+			/* 🔴 CHỈ CHẶN XOÁ ADMIN CUỐI CÙNG. Xoá một dòng KHÔNG cắt phiên đang chạy (token nằm ở
+			   bảng `phien`, không tra lại danh sách người), nên xoá bản trùng tên/của chính mình là
+			   an toàn miễn CÒN một Admin khác để đăng nhập lại về sau. Mất Admin cuối là hết đường
+			   vào ngoài cơ sở dữ liệu. */
+			if ( 'Admin' === (string) ( isset( $x['vaiTro'] ) ? $x['vaiTro'] : '' ) ) {
+				$so_admin = 0;
+				foreach ( $ds as $u ) { if ( 'Admin' === (string) ( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' ) ) { $so_admin++; } }
+				if ( $so_admin <= 1 ) {
+					return array( 'ok' => false, 'error' => 'Không xoá Admin cuối cùng — sẽ không còn ai đăng nhập lại được.' );
+				}
 			}
 			$ten = (string) ( isset( $x['ten'] ) ? $x['ten'] : '' );
 			array_splice( $ds, $i, 1 );
@@ -3950,8 +3965,10 @@ function veCauHinh(){
       + '</td><td>' + esc(n.vai_tro) + '</td>'
       + '<td>' + esc(n.coso || L('cả chuỗi','all branches')) + '</td>'
       + '<td class="hide-sm mut">' + n.pin_dai + ' ' + L('số','digits') + '</td>'
-      + '<td class="r">' + (n.ten === CH.toi_la ? '<span class="mut">' + L('bạn','you') + '</span>'
-          : '<button data-chxoa="' + n.i + '" class="ghost">' + L('Xoá','Remove') + '</button>')
+      + '<td class="r" style="white-space:nowrap">'
+      + (n.la_ban ? '<span class="mut" style="margin-right:6px">' + L('bạn','you') + '</span>' : '')
+      + '<button data-chxoa="' + n.i + '"' + (n.la_ban ? ' data-chban="1"' : '')
+        + ' data-chten="' + esc(n.ten) + '" class="ghost">' + L('Xoá','Remove') + '</button>'
       + '</td></tr>';
   });
   h += '</table>';
@@ -5323,8 +5340,14 @@ function noi(){
   [].forEach.call(document.querySelectorAll('[data-chxoa]'), function(b){
     b.onclick = function(){
       if (ban) return;
-      if (!confirm(L('Xoá người này? Họ sẽ không đăng nhập được nữa.',
-                     'Remove this person? They will no longer be able to sign in.'))) return;
+      var ten = b.getAttribute('data-chten') || '';
+      var laBan = b.getAttribute('data-chban') === '1';
+      var hoi = laBan
+        ? L('Xoá dòng "' + ten + '" — ĐÂY LÀ TÀI KHOẢN BẠN ĐANG ĐĂNG NHẬP.\nPhiên hiện tại vẫn chạy, nhưng PIN này sẽ không đăng nhập lại được. Chỉ xoá khi còn Admin khác. Tiếp tục?',
+                'Remove "' + ten + '" — THIS IS YOUR OWN LOGIN. Your current session stays, but this PIN can no longer sign in. Only do this if another Admin exists. Continue?')
+        : L('Xoá "' + ten + '"? Họ sẽ không đăng nhập được nữa.',
+                'Remove "' + ten + '"? They will no longer be able to sign in.');
+      if (!confirm(hoi)) return;
       CH = null;
       lam('ch_xoa', { i: Number(b.getAttribute('data-chxoa')) });
     };
