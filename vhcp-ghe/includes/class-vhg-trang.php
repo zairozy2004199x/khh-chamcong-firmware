@@ -3275,7 +3275,15 @@ function ktdLoad(){
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     KTD_THANG=r.thang;
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Tháng này chưa có báo cáo.','No reports this month.'))); return; }
-    r.rows.forEach(function(o){ box.appendChild(ktdCard(o)); });
+    /* Đơn chưa duyệt hết (confirmedChairs < chairs) lên đầu, để không phải lướt qua đơn đã
+       xong mới tới đơn cần xử lý. Sort ổn định (Array.prototype.sort) nên trong mỗi nhóm vẫn
+       giữ nguyên thứ tự server trả về. */
+    var rows = r.rows.slice().sort(function(a,b){
+      var xa = a.confirmedChairs < a.chairs ? 0 : 1;
+      var xb = b.confirmedChairs < b.chairs ? 0 : 1;
+      return xa - xb;
+    });
+    rows.forEach(function(o){ box.appendChild(ktdCard(o)); });
   });
 }
 function ktdCard(o){
