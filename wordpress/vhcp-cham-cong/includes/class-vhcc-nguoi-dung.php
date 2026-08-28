@@ -175,7 +175,7 @@ class VHCC_NguoiDung {
 		/* Vai trò mặc định cho dòng KHÔNG đọc ra được vai trò. Để rỗng thì rơi về 'Nhân viên' —
 		   bậc thấp nhất, tức là nạp xong KHÔNG AI đăng nhập được. Đó là hỏng im lặng, nên phải
 		   ĐẾM lại và kể ra ở màn hình. */
-		if ( ! in_array( $vt_mac_dinh, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { $vt_mac_dinh = 'Nhân viên'; }
+		if ( ! in_array( $vt_mac_dinh, VHCC_Vai::ds_ten(), true ) ) { $vt_mac_dinh = 'Nhân viên'; }
 		$lech = 0; $them = 0; $bo = array(); $yeu = array(); $ten_moi = array(); $vt_trong = 0;
 
 		foreach ( (array) $nguoi as $x ) {
@@ -201,7 +201,7 @@ class VHCC_NguoiDung {
 				continue;
 			}
 			$vt = isset( $x['vaiTro'] ) ? (string) $x['vaiTro'] : '';
-			if ( ! in_array( $vt, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { $vt = $vt_mac_dinh; $vt_trong++; }
+			if ( ! in_array( $vt, VHCC_Vai::ds_ten(), true ) ) { $vt = $vt_mac_dinh; $vt_trong++; }
 			if ( '' !== self::pin_hop_le( $pin ) ) { $yeu[] = $ten; }
 			$pin_co[ $pin ] = $ten;
 			$ten_moi[]      = $ten;
@@ -634,7 +634,8 @@ class VHCC_NguoiDung {
 		$coso    = trim( (string) $coso );
 
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu họ tên.' ); }
-		if ( ! in_array( $vai_tro, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) {
+		/* Gộp cả vai tự tạo — xem `VHCC_NhanSu::dat_vai_tro()`. */
+		if ( ! in_array( $vai_tro, VHCC_Vai::ds_ten(), true ) ) {
 			return array( 'ok' => false, 'error' => 'Vai trò không hợp lệ.' );
 		}
 

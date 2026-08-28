@@ -1185,7 +1185,10 @@ class VHCC_Web {
 
 		if ( 'vai_tro_hang_loat' === $viec ) {
 			$vt = isset( $_POST['vt_hl'] ) ? sanitize_text_field( wp_unslash( $_POST['vt_hl'] ) ) : '';
-			if ( ! in_array( $vt, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) {
+			/* Danh sách trắng phải gộp cả vai tự tạo (`VHCC_Vai::ds_ten()`) — xem lý do đầy đủ ở
+			   `VHCC_NhanSu::dat_vai_tro()`. Dùng `VHCC_Auth::VAI_TRO_TAT_CA` không thôi thì đặt
+			   hàng loạt một vai vừa khai ở "Bảng vai trò" luôn bị chối "không hợp lệ". */
+			if ( ! in_array( $vt, VHCC_Vai::ds_ten(), true ) ) {
 				return array( array( 'loi' => 'Vai trò không hợp lệ.' ) );
 			}
 			$n = self::vai_tro_hang_loat( $vt );
@@ -1324,7 +1327,8 @@ class VHCC_Web {
 				}
 
 				if ( 'vai_tro' === $c ) {
-					if ( '' !== $v && ! in_array( $v, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { continue; }
+					/* Gộp cả vai tự tạo — xem `VHCC_NhanSu::dat_vai_tro()`. */
+					if ( '' !== $v && ! in_array( $v, VHCC_Vai::ds_ten(), true ) ) { continue; }
 					$ghi[ $c ] = $v;
 					continue;
 				}
@@ -1414,8 +1418,9 @@ class VHCC_Web {
 			} elseif ( 'vai_tro' === $c ) {
 				/* Rỗng = chưa khai, ghi được (đó là một trạng thái thật). Nhưng giá trị LẠ thì
 				   bỏ hẳn — ghi bừa một vai trò hệ thống không hiểu là người đó vừa không đăng
-				   nhập được, vừa nhìn như đã khai xong. */
-				if ( '' !== $v && ! in_array( $v, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) { continue; }
+				   nhập được, vừa nhìn như đã khai xong. Gộp cả vai tự tạo — xem
+				   `VHCC_NhanSu::dat_vai_tro()`. */
+				if ( '' !== $v && ! in_array( $v, VHCC_Vai::ds_ten(), true ) ) { continue; }
 				$ghi[ $c ] = $v;
 			} else { $ghi[ $c ] = $v; }
 		}

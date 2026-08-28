@@ -1506,7 +1506,7 @@ class VHCC_Admin {
 		$cho = VHCC_Auth::vai_tro_vao();
 		$h   = '<label>Vai trò nếu sổ không ghi<br><select name="vt" form="' . esc_attr( $form )
 			. '" style="max-width:200px">';
-		foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt ) {
+		foreach ( VHCC_Vai::ds_ten() as $vt ) {
 			$h .= '<option value="' . esc_attr( $vt ) . '"' . selected( $vt, 'Nhân viên', false ) . '>'
 				. esc_html( $vt ) . ( in_array( $vt, $cho, true ) ? '' : ' — không vào được' ) . '</option>';
 		}
@@ -2082,7 +2082,7 @@ class VHCC_Admin {
 			echo '<label>Họ tên<br><input name="ten" form="vhcc-them-nd" required style="width:190px" /></label>';
 			echo '<label>PIN (4–8 số)<br><input name="pin" form="vhcc-them-nd" inputmode="numeric" required style="width:120px" /></label>';
 			echo '<label>Vai trò<br><select name="vai_tro" form="vhcc-them-nd">';
-			foreach ( VHCC_Auth::VAI_TRO_TAT_CA as $vt_r ) {
+			foreach ( VHCC_Vai::ds_ten() as $vt_r ) {
 				echo '<option value="' . esc_attr( $vt_r ) . '"' . selected( $vt_r, 'Admin', false ) . '>'
 					. esc_html( $vt_r ) . ( in_array( $vt_r, $cho_r, true ) ? '' : ' — không vào được' )
 					. '</option>';

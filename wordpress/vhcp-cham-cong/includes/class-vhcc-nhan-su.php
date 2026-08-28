@@ -482,7 +482,7 @@ class VHCC_NhanSu {
 	 *
 	 * @param array  $u      Người đang khai.
 	 * @param string $ma_nv  Mã NV của người bị đổi vai.
-	 * @param string $vai    Tên vai, phải nằm trong `VHCC_Auth::VAI_TRO_TAT_CA`.
+	 * @param string $vai    Tên vai, phải nằm trong `VHCC_Vai::ds_ten()`.
 	 */
 	public static function dat_vai_tro( $u, $ma_nv, $vai ) {
 		global $wpdb;
@@ -517,10 +517,13 @@ class VHCC_NhanSu {
 		 */
 		if ( trim( (string) $cu['vai_tro'] ) === $vai ) { return array( 'ok' => true, 'doi' => false ); }
 
-		/* Danh sách TRẮNG, đọc từ `VHCC_Auth` — nơi duy nhất khai tên vai của cả hệ. Nhận bừa
-		   một chuỗi lạ thì `VHCC_Vai::ma()` đẩy nó về Nhân viên, tức là ô vai trò thành một
-		   đường HẠ quyền người khác mà không ai gọi tên được việc vừa xảy ra. */
-		if ( ! in_array( $vai, VHCC_Auth::VAI_TRO_TAT_CA, true ) ) {
+		/* 🔴 DANH SÁCH TRẮNG PHẢI LÀ `VHCC_Vai::ds_ten()`, KHÔNG PHẢI `VHCC_Auth::VAI_TRO_TAT_CA`.
+		   Hằng số kia CỐ ĐỊNH, không bao giờ biết tới vai tự tạo — nghĩa là khai một vai mới ở
+		   "Bảng vai trò" ("Kế Toán MTD"…) xong thì KHÔNG BAO GIỜ gán được cho ai, vì đúng chỗ
+		   gán lại chối nó là "lạ". Anh Thắng 28/08/2026 tạo vai "Kế Toán MTD" xong bấm Lưu bảng
+		   vẫn ăn đúng câu "không có trong hệ" — `ds_ten()` gộp cả `VAI_TRO_TAT_CA` lẫn vai tự
+		   tạo nên vẫn chối được chuỗi thật sự lạ, chỉ khác là không còn chối nhầm vai vừa khai. */
+		if ( ! in_array( $vai, VHCC_Vai::ds_ten(), true ) ) {
 			return array( 'ok' => false, 'error' => 'Vai trò "' . $vai . '" không có trong hệ.' );
 		}
 		if ( ! self::co_quyen_coso( $u, $cu['cua_hang'] ) ) {
