@@ -1161,13 +1161,20 @@ class VHG_Trang {
   function goi(viec,d,cb){
     d=d||{}; if(!d.pin) d.pin=PIN;
     var x=new XMLHttpRequest();
+    /* 🔴 KHÔNG CÓ timeout/onerror TRƯỚC ĐÂY = TREO VĨNH VIỄN khi mạng rớt giữa chừng (site
+       chạy ở cơ sở, wifi/4G yếu). readyState không bao giờ lên 4 thì cb() không bao giờ gọi,
+       nút "Đang lưu…" đứng mãi và không có cách nào tự phục hồi ngoài tải lại trang. */
+    var xongMotLan=false; function xong(r){ if(xongMotLan) return; xongMotLan=true; cb(r); }
     x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
     x.setRequestHeader('Content-Type','application/json');
+    x.timeout=25000;
     x.onreadystatechange=function(){
       if(x.readyState!==4) return;
       var r=null; try{ r=JSON.parse(x.responseText); }catch(e){}
-      cb(r || { ok:false, error:'Không đọc được trả lời của máy chủ (mạng hoặc tường lửa).' });
+      xong(r || { ok:false, error:'Không đọc được trả lời của máy chủ (mạng hoặc tường lửa).' });
     };
+    x.ontimeout=function(){ xong({ ok:false, error:'Máy chủ không trả lời — mạng yếu hoặc quá tải. Thử lại.' }); };
+    x.onerror=function(){ xong({ ok:false, error:'Mất kết nối mạng khi gửi. Thử lại.' }); };
     x.send(JSON.stringify(d));
   }
 
@@ -2269,11 +2276,16 @@ function docCho(giay){
 function mmss(s){ s=Math.max(0,Number(s)||0);
   return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); }
 
-function goi(viec, d, xong){
+function goi(viec, d, xong0){
   d = d || {}; d.token = TOK;
   var x = new XMLHttpRequest();
+  /* 🔴 KHÔNG CÓ timeout/onerror TRƯỚC ĐÂY = TREO VĨNH VIỄN khi mạng rớt giữa chừng. Nút
+     "Đang lưu…" (ktAct) đứng mãi vì readyState không bao giờ lên 4 nên xong() không bao giờ
+     gọi — ban=true khoá luôn mọi nút khác, không cách nào tự phục hồi ngoài tải lại trang. */
+  var xongMotLan=false; function xong(r){ if(xongMotLan) return; xongMotLan=true; xong0(r); }
   x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
   x.setRequestHeader('Content-Type','application/json');
+  x.timeout = 25000;
   x.onreadystatechange = function(){
     if (x.readyState !== 4) return;
     var r = null;
@@ -2285,6 +2297,10 @@ function goi(viec, d, xong){
     if (r.ma === 'het_phien') { TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){} veLogin(L('Phiên đã hết — đăng nhập lại.','Session expired — please sign in again.')); return; }
     xong(r);
   };
+  x.ontimeout = function(){ xong({ ok:false, error:L('Máy chủ không trả lời — mạng yếu hoặc quá tải. Thử lại.',
+    'Server did not respond — weak network or overload. Try again.') }); };
+  x.onerror = function(){ xong({ ok:false, error:L('Mất kết nối mạng khi gửi. Thử lại.',
+    'Network connection lost while sending. Try again.') }); };
   x.send(JSON.stringify(d));
 }
 
@@ -3209,6 +3225,16 @@ function noiBcPin(){
  * ============================================================================================ */
 var KTD_THANG = '';
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
+/* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
+   VHCC_Ketoan::dong_moi_/dien_o_ nhận thẳng r0.images, không tải lại lên WP như luu_anh_()).
+   Link "…/file/d/<id>/view" là trang xem của Drive, KHÔNG PHẢI ảnh — nhét thẳng vào <img> ra
+   khung vỡ. Đổi sang cổng thumbnail chính chủ của Drive để hiện được (cần file chia sẻ "Bất kỳ
+   ai có link"); <a href> vẫn giữ link gốc để bấm mở đúng trang xem Drive như cũ. */
+function ktAnhSrc(u){
+  u = String(u||'');
+  var m = /drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:export=[a-z]+&)?id=)([a-zA-Z0-9_-]+)/.exec(u);
+  return m ? ('https://drive.google.com/thumbnail?id='+m[1]+'&sz=w200') : u;
+}
 function ktEl(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
 function veKtDuyet(){
   return '<div class="card"><h2>📈 ' + L('Duyệt báo cáo doanh thu','Review revenue reports') + '</h2>'
@@ -3356,7 +3382,7 @@ function ktdRow(o,c,m,reload,locked){
     var wrapA=ktEl('div'); wrapA.style.cssText='display:flex;gap:4px;margin-top:4px;flex-wrap:wrap';
     c.anh.forEach(function(u){
       var a=document.createElement('a'); a.href=u; a.target='_blank'; a.title='Xem ảnh cỡ đầy đủ';
-      var img=document.createElement('img'); img.src=u; img.loading='lazy'; img.alt='';
+      var img=document.createElement('img'); img.src=ktAnhSrc(u); img.loading='lazy'; img.alt='';
       img.style.cssText='width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15)';
       a.appendChild(img); wrapA.appendChild(a);
     });
