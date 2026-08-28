@@ -233,6 +233,17 @@ class VHG_Trang {
 			return;
 		}
 
+		/* Mở tab "Báo cáo doanh thu" (sidebar chính) mà KHỎI phải gõ lại PIN — anh Thắng 28/08:
+		   "2 trang này là 1 cơ sở dữ liệu, tại sao qua trang báo cáo lại phải đăng nhập lại".
+		   Đúng — PIN báo cáo với PIN /ghe là CÙNG một PIN nhân sự (xem đầu class-vhg-baocao.php).
+		   Người đã có token /ghe hợp lệ coi như đã chứng minh xong danh tính; suy PIN của họ từ
+		   chính hồ sơ nhân sự rồi gọi thẳng `VHG_BaoCao::boot()` — vẫn qua ĐÚNG luật cũ (ngoại lệ
+		   bc_pin, khoá PIN…), chỉ khỏi bắt gõ lại. */
+		if ( 'bc_boot_tu_token' === $viec ) {
+			self::tra( VHG_BaoCao::boot_tu_ai( $ai ) );
+			return;
+		}
+
 		/* ══════════════════════════════════════════════════════════════════════════════════════
 		 * TRANG KẾ TOÁN (kt_*) — token + vai trò CHỐT hoặc QUẢN TRỊ (Admin/Quản lý).
 		 * Kế toán = người "Chốt doanh số"; quản lý/Admin cũng vào được. Người thu (chỉ giúp khách)
@@ -1897,7 +1908,18 @@ class VHG_Trang {
     hoi('');
   }
 
-  window.VHG_BaoCao = { mo: moBaoCao };
+  /* Mở thẳng bằng dữ liệu đăng nhập đã có (token /ghe suy ra PIN — xem `bc_boot_tu_token` ở
+     class-vhg-trang.php và `VHG_BaoCao::boot_tu_ai()`), KHỎI qua cổng PIN của moBaoCao(). Rớt
+     về cổng PIN cũ nếu vì lý do gì đó chưa suy ra được (hồ sơ chưa có PIN, PIN bị khoá…) — vẫn
+     có đường vào, chỉ là phải gõ tay như trước. */
+  function moBaoCaoTuDuLieu(r){
+    if (!r || !r.ok || !r.pinOk) { moBaoCao(); return; }
+    styleOnce();
+    PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
+    var app=$('bc-app'); app.className='mo'; app.textContent='';
+    veChinh();
+  }
+  window.VHG_BaoCao = { mo: moBaoCao, moTuDuLieu: moBaoCaoTuDuLieu };
 })();
 JS;
 	}
@@ -2161,6 +2183,17 @@ tr:last-child td{border-bottom:0}
   .nav button.on{background:rgba(255,255,255,.15);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 var(--amber)}
   .wrap{margin:0 0 0 216px;max-width:none;padding:16px 26px}
   .top{border-radius:12px}
+  /* 🔴 Chân trang (VHG_Chan::html()) là ANH EM của #app trong <body>, không nằm trong `.wrap`,
+     nên không tự né sidebar cố định như .wrap. Cửa sổ thu nhỏ về đúng ngưỡng sidebar hiện ra
+     (901–~1400px) là đầu mỗi dòng chân trang (tên công ty, MST, tên người đại diện…) bị sidebar
+     navy đè lên — anh Thắng chụp đúng cảnh này. Né giống hệt .wrap. KHÔNG đặt rule này vào
+     VHG_Chan::css() (dùng chung với /mua-ma, trang khách không có sidebar) — chỉ khai riêng ở
+     đây, đúng trang có sidebar.
+     ⚠️ Thêm tiền tố `body` để CHẮC THẮNG `.vhg-chan{margin:34px auto 0}` gốc trong
+     VHG_Chan::css() — CSS của lớp đó nối SAU CSS này trong cùng một <style>, và margin RÚT GỌN
+     ở đó đặt lại margin-left=auto; cùng specificity một lớp thì luật đứng sau thắng, nên chỉ
+     `.vhg-chan{margin-left:216px}` suông ở đây sẽ bị đè mất, không thấy tác dụng gì. */
+  body .vhg-chan{margin-left:216px}
 }
 @media(min-width:1500px){ .wrap{margin-left:216px;max-width:none} }
 /* ============================================================================================
@@ -2420,6 +2453,12 @@ function henLai(){
   /* Tab QUẢN LÝ không tự hỏi lại: vẽ lại giữa chừng sẽ xoá ô đang gõ (thêm ghế/địa điểm).
      Dữ liệu quản lý ít đổi; muốn mới thì bấm ↻, còn mỗi thao tác thêm/xoá đã tự tải lại. */
   if (TAB === 'quan-ly') return;
+  /* Tab DUYỆT BÁO CÁO cũng không tự vẽ lại cả trang — anh Thắng: "vẫn còn tình trạng F5 trang…
+     chỉ f5 chỗ đó thôi" (chỗ đó = phần máy/kết nối, không phải cả trang). `veKtDuyet()` tự quản
+     lý dữ liệu của nó qua KTD_THANG/KTD_TRANG/KTD_COSO và tự tải lại đúng lúc (đổi tháng, đổi
+     trang, Duyệt/Khoá/Đổi ngày) — vẽ lại CẢ TRANG mỗi 30 giây sẽ bung lại mọi thẻ đã "Đóng",
+     nhảy về trang 1, và có thể cắt ngang đúng lúc đang bấm Duyệt. */
+  if (TAB === 'kt-duyet') return;
   hen = setTimeout(function(){
     /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
        xoá mất số họ đang gõ), đang GÕ vào một ô nào đó, hoặc trang đang ẩn (điện thoại trong túi
@@ -2596,14 +2635,20 @@ function ve(){
 
   /* LUẬT 2: hỏng để TRÊN CÙNG, trên cả con số doanh thu. */
   var dut = D.may.filter(function(m){ return !m.song; });
-  /* Chỉ hiện ghế mất kết nối của CƠ SỞ MÌNH QUẢN LÝ — anh Thắng: người quản lý một cơ sở mở
-     Đối soát ra thấy cả trăm ghế mất kết nối của cơ sở khác thì không phân biệt được đâu là
-     việc của mình. `D.ai.coso` rỗng = quản lý cả chuỗi (Admin…) — giữ nguyên xem hết, như cũ.
-     Có giá trị thì lọc; tách ';' / ',' vì một người có thể phụ trách nhiều cơ sở (xem cách
-     hồ sơ nhân sự đẩy "Cơ sở phụ" — cùng quy ước). */
+  /* Chỉ hiện ghế mất kết nối của CƠ SỞ MÌNH QUẢN LÝ — anh Thắng: người quản lý MỘT cơ sở (Quản
+     lý/Cửa hàng trưởng scoped riêng) mở Đối soát ra thấy cả trăm ghế mất kết nối của cơ sở khác
+     thì không phân biệt được đâu là việc của mình. `D.ai.coso` rỗng = quản lý cả chuỗi (Admin…)
+     — giữ nguyên xem hết, như cũ.
+     🔴 NHƯNG "Kế toán thì được xem hết các cơ sở" (Lê Thị Hồng Trinh, 28/08) — với vai Kế toán,
+        ô "coso" trong hồ sơ chỉ là NƠI HỌ NGỒI (VD "VP_KH-HCM" — một văn phòng, không phải chi
+        nhánh ghế nào cả), không phải phạm vi họ được phép thấy. Lọc cứng theo coso cho MỌI vai
+        là bản vá 1.53.1 hiểu sai — Kế toán/Hotline vốn cần xem CẢ CHUỖI để đối soát/hỗ trợ, bất
+        kể ô coso hồ sơ họ ghi gì. Chỉ áp lọc cho vai KHÔNG phải Kế toán/Hotline (Quản lý/Cửa
+        hàng trưởng scoped — đúng nhóm anh Thắng nhắc tới lúc đầu). */
+  var VAI_XEM_HET = ['Kế toán cá nhân','Kế toán NCC','Hotline'];
   var coSoToi = (D.ai && D.ai.coso ? String(D.ai.coso) : '').split(/[;,]/)
     .map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
-  if (coSoToi.length) {
+  if (coSoToi.length && VAI_XEM_HET.indexOf(D.ai && D.ai.role) < 0) {
     dut = dut.filter(function(m){ return coSoToi.indexOf(String(m.coso||'').trim().toLowerCase()) >= 0; });
   }
   if (dut.length) {
@@ -3384,14 +3429,15 @@ function ktdUndo(){
     if (KTU_TRANG < 1) KTU_TRANG = 1;
     var trangRows = r.rows.slice((KTU_TRANG-1)*KTU_TRANG_CO, KTU_TRANG*KTU_TRANG_CO);
 
+    function doiTrangKtu(){ box.scrollIntoView({ block:'start' }); ktdUndo(); }
     function veTrangU(){
       var p=ktEl('div','act'); p.style.cssText='flex-wrap:wrap;align-items:center;margin-bottom:6px';
       var bT=ktEl('button','ghost','‹ '+L('Trước','Prev')); bT.disabled = (KTU_TRANG<=1);
-      bT.onclick=function(){ KTU_TRANG--; ktdUndo(); };
+      bT.onclick=function(){ KTU_TRANG--; doiTrangKtu(); };
       var sp=ktEl('span','mut', L('Trang','Page')+' '+KTU_TRANG+'/'+tongTrang
         +' · '+r.rows.length+' '+L('thông báo','entries'));
       var bS=ktEl('button','ghost',L('Sau','Next')+' ›'); bS.disabled = (KTU_TRANG>=tongTrang);
-      bS.onclick=function(){ KTU_TRANG++; ktdUndo(); };
+      bS.onclick=function(){ KTU_TRANG++; doiTrangKtu(); };
       p.appendChild(bT); p.appendChild(sp); p.appendChild(bS);
       return p;
     }
@@ -3464,14 +3510,18 @@ function ktdLoad(){
     if (KTD_TRANG < 1) KTD_TRANG = 1;
     var trangRows = rows.slice((KTD_TRANG-1)*KTD_TRANG_CO, KTD_TRANG*KTD_TRANG_CO);
 
+    /* Bấm Trước/Sau ở THANH DƯỚI xong trang vẫn đứng nguyên chỗ cuộn cũ — mà nội dung đã đổi
+       hết, nên người bấm thấy mình "nhảy xuống cuối trang" của danh sách MỚI, không phải trang
+       mình vừa xem. Cuộn `box` lên đầu ngay khi bấm, trước cả khi tải xong trang kế. */
+    function doiTrangKtd(){ box.scrollIntoView({ block:'start' }); ktdLoad(); }
     function veTrang(){
       var p=ktEl('div','act'); p.style.cssText='flex-wrap:wrap;align-items:center;margin-bottom:10px';
       var bT=ktEl('button','ghost','‹ '+L('Trước','Prev')); bT.disabled = (KTD_TRANG<=1);
-      bT.onclick=function(){ KTD_TRANG--; ktdLoad(); };
+      bT.onclick=function(){ KTD_TRANG--; doiTrangKtd(); };
       var sp=ktEl('span','mut', L('Trang','Page')+' '+KTD_TRANG+'/'+tongTrang
         +' · '+rows.length+' '+L('cơ sở','branches'));
       var bS=ktEl('button','ghost',L('Sau','Next')+' ›'); bS.disabled = (KTD_TRANG>=tongTrang);
-      bS.onclick=function(){ KTD_TRANG++; ktdLoad(); };
+      bS.onclick=function(){ KTD_TRANG++; doiTrangKtd(); };
       p.appendChild(bT); p.appendChild(sp); p.appendChild(bS);
       return p;
     }
@@ -3521,7 +3571,14 @@ function ktdDetail(o,box,xong){
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); if(xong) xong(); return; }
     // thanh thao tác báo cáo
     var bar=ktEl('div','act'); bar.style.cssText='flex-wrap:wrap;margin-bottom:8px';
-    var bDuyet=ktEl('button','on',L('Duyệt cả báo cáo','Confirm all'));
+    /* "Đơn nào đã duyệt thì chìm chữ duyệt báo cáo đi, để tránh không biết bấm lại" — anh Thắng.
+       Cả báo cáo đã duyệt xong (mọi ghế confirmed) thì nút "Duyệt cả" chìm màu xuống (ghost,
+       mờ), khỏi đứng sáng y hệt báo cáo còn chưa duyệt — nhìn một giây là biết đơn nào xong,
+       đơn nào chưa, không lăn tăn bấm lại. Vẫn bấm được (đề phòng sửa số liệu rồi cần duyệt lại
+       một vài ghế), chỉ đổi màu chứ không khoá nút. */
+    var daDuyetHet = r.rows.length>0 && r.rows.every(function(c){ return !!c.confirmed; });
+    var bDuyet=ktEl('button', daDuyetHet?'ghost':'on', L('Duyệt cả báo cáo','Confirm all'));
+    if (daDuyetHet) { bDuyet.style.opacity='.55'; bDuyet.title=L('Cả báo cáo đã duyệt xong.','All chairs already confirmed.'); }
     var bBo=ktEl('button','ghost',L('Bỏ duyệt cả','Unconfirm all'));
     var bKhoa=ktEl('button','ghost', r.locked?L('Mở ngày','Unlock day'):L('Khoá ngày','Lock day'));
     var bDoi=ktEl('button','ghost',L('Đổi ngày','Change date'));
@@ -5611,7 +5668,16 @@ function noi(){
     };
   });
   var bMoBc = document.getElementById('bc-mo-tai-day');
-  if (bMoBc) bMoBc.onclick = function(){ if (window.VHG_BaoCao) window.VHG_BaoCao.mo(); };
+  /* Đăng nhập /ghe rồi thì khỏi gõ lại PIN báo cáo — suy PIN từ CHÍNH token đang có (cùng một
+     PIN nhân sự, xem VHG_BaoCao::boot_tu_ai()). Rớt về cổng PIN cũ trong moTuDuLieu() nếu suy
+     không ra (VD hồ sơ chưa có PIN). */
+  if (bMoBc) bMoBc.onclick = function(){
+    bMoBc.disabled = true;
+    goi('bc_boot_tu_token', {}, function(r){
+      bMoBc.disabled = false;
+      if (window.VHG_BaoCao) window.VHG_BaoCao.moTuDuLieu(r);
+    });
+  };
   if (document.getElementById('bcp-luu') || document.querySelector('[data-bcpxoa]')) noiBcPin();
   if (document.getElementById('ktd-list')) ktdInit();
   if (document.getElementById('ktdn-list')) ktdnInit();

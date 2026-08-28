@@ -238,6 +238,51 @@ class VHG_BaoCao {
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc );
 	}
 
+	/**
+	 * Đăng nhập báo cáo THẲNG bằng danh tính đã xác thực qua token /ghe — không hỏi lại PIN.
+	 *
+	 * Anh Thắng 28/08/2026: *"2 trang này là 1 cơ sở dữ liệu, tại sao qua trang báo cáo lại phải
+	 * đăng nhập lại"*. Đúng — PIN báo cáo với PIN /ghe là CÙNG một PIN nhân sự (xem đầu tệp).
+	 *
+	 * ⚠️ KHÔNG SUY PHẠM VI THẲNG TỪ `$ai` (tên+cơ sở của token). Làm vậy là ĐI VÒNG qua toàn bộ
+	 *    luật ở `pin_info()`: ngoại lệ `bc_pin` (Admin mở phạm vi khác hồ sơ, hoặc KHOÁ PIN khỏi
+	 *    riêng trang báo cáo) sẽ không còn được xét — một người bị Admin khoá báo cáo tường minh
+	 *    (bc_pin.active=0) vẫn lọt vào được nếu đi đường tắt này.
+	 *
+	 * → Thay vào đó: tìm PIN THẬT của người này trong hồ sơ nhân sự (khớp CẢ tên lẫn cơ sở —
+	 *    chỉ khớp tên có thể trùng giữa hai người khác nhau trong 400 nhân sự, "GO BÀ RỊA" ×
+	 *    trùng tên là chuyện đã gặp), rồi gọi thẳng `boot()` với đúng PIN đó — đi lại NGUYÊN VẸN
+	 *    con đường cũ, chỉ khỏi bắt người dùng gõ tay.
+	 *
+	 * ⚠️ TRẢ PIN VỀ CHO CLIENT. Nghe ngược với "không bao giờ IN PIN ra màn hình" ở đầu tệp,
+	 *    nhưng đó là nói về HIỂN THỊ — client vẫn cần giữ PIN trong biến JS để đính kèm mọi lượt
+	 *    gọi sau (`goi()` tự thêm `d.pin=PIN`), giống hệt như nếu người dùng tự gõ. Không hiển
+	 *    thị nó ra đâu cả, và kênh đã xác thực bằng token trước khi tới được đây.
+	 */
+	public static function boot_tu_ai( $ai ) {
+		$ten = trim( (string) ( isset( $ai['name'] ) ? $ai['name'] : '' ) );
+		if ( '' === $ten ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'Không xác định được người dùng.' ); }
+		$coso_ai = trim( (string) ( isset( $ai['coso'] ) ? $ai['coso'] : '' ) );
+		$pin = '';
+		if ( class_exists( 'VHG_Auth' ) ) {
+			$users = VHG_Auth::users();
+			if ( ! is_wp_error( $users ) ) {
+				foreach ( (array) $users as $u ) {
+					if ( trim( (string) $u['ten'] ) === $ten
+						&& trim( (string) $u['coso'] ) === $coso_ai
+						&& '' !== (string) $u['pin'] ) { $pin = (string) $u['pin']; break; }
+				}
+			}
+		}
+		if ( '' === $pin ) {
+			return array( 'ok' => false, 'pinOk' => false,
+				'error' => 'Chưa có PIN trong hồ sơ nhân sự — nhờ Admin cấp PIN rồi vào lại.' );
+		}
+		$r = self::boot( $pin );
+		if ( ! empty( $r['ok'] ) ) { $r['pin'] = $pin; }
+		return $r;
+	}
+
 	// ══════════════════════════════════════════════════════════════════ 1 BÁO CÁO/NGÀY
 
 	private static function header_( $coso, $ngay ) {
