@@ -3243,6 +3243,8 @@ function noiBcPin(){
 var KTD_THANG = '';
 var KTD_TRANG = 1;
 var KTD_TRANG_CO = 10;   // anh Thắng: "Chỉ hiện 10 cơ sở 1 trang" — để nguyên cả tháng là lag.
+var KTD_COSO = '';       // anh Thắng: "Chỗ lọc duyệt báo cáo, cho lọc theo cơ sở". '' = tất cả.
+var KTU_TRANG = 1;       // anh Thắng: "Nhật ký cũng đẻ gọn 10 thông báo 1 trang".
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 /* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
    VHCC_Ketoan::dong_moi_/dien_o_ nhận thẳng r0.images, không tải lại lên WP như luu_anh_()).
@@ -3258,6 +3260,11 @@ function ktEl(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(t
 function veKtDuyet(){
   return '<div class="card"><h2>📈 ' + L('Duyệt báo cáo doanh thu','Review revenue reports') + '</h2>'
     + '<div class="act" style="flex-wrap:wrap"><input type="month" id="ktd-thang" style="max-width:170px">'
+    + '<select id="ktd-coso" style="max-width:220px"><option value="">— '
+      + L('Tất cả cơ sở','All branches') + ' —</option>'
+      + (D.coso||[]).slice().sort(function(a,b){ return a.ten.localeCompare(b.ten); })
+        .map(function(c){ return '<option value="'+esc(c.ten)+'">'+esc(c.ten)+'</option>'; }).join('')
+      + '</select>'
     + '<button id="ktd-xem" class="on">' + L('Xem','Load') + '</button>'
     + '<span id="ktd-msg" class="mut"></span></div>'
     + '<div id="ktd-list" style="margin-top:12px"></div></div>'
@@ -3269,6 +3276,11 @@ function ktdInit(){
   var iT=document.getElementById('ktd-thang');
   if(!KTD_THANG) KTD_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
   if(iT&&KTD_THANG) iT.value=KTD_THANG;
+  var iCs=document.getElementById('ktd-coso');
+  if(iCs) iCs.value=KTD_COSO;
+  /* Lọc cơ sở đổi là xem ngay, khỏi bấm thêm Xem — người dùng đang xem đúng tháng rồi, chỉ
+     muốn thu hẹp theo cơ sở. */
+  if(iCs) iCs.onchange=function(){ KTD_COSO=iCs.value; KTD_TRANG=1; ktdLoad(); };
   document.getElementById('ktd-xem').onclick=function(){ KTD_THANG=iT.value; KTD_TRANG=1; ktdLoad(); };
   ktdLoad(); ktdRac(); ktdUndo();
 }
@@ -3290,6 +3302,7 @@ function ktdRac(){
     });
   });
 }
+var KTU_TRANG_CO = 10;
 function ktdUndo(){
   var box=document.getElementById('ktd-undo'); if(!box) return; box.textContent='';
   goi('kt_undo_ds',{},function(r){
@@ -3297,7 +3310,27 @@ function ktdUndo(){
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Chưa có thao tác nào.','Nothing yet.'))); return; }
     var ten={sua:'Sửa số liệu',qr:'Áp QR',doisoat:'Đối soát nộp',doi_ngay:'Đổi ngày',nhap:'Nhập doanh thu cũ'};
-    r.rows.forEach(function(x){
+    /* Phân trang — anh Thắng: "Nhật ký cũng đẻ gọn 10 thông báo 1 trang". Danh sách server đã
+       giới hạn gh=40 dòng, nên cắt trang ở đây là đủ, khỏi cần đổi cổng API thêm tham số trang. */
+    var tongTrang = Math.max(1, Math.ceil(r.rows.length / KTU_TRANG_CO));
+    if (KTU_TRANG > tongTrang) KTU_TRANG = tongTrang;
+    if (KTU_TRANG < 1) KTU_TRANG = 1;
+    var trangRows = r.rows.slice((KTU_TRANG-1)*KTU_TRANG_CO, KTU_TRANG*KTU_TRANG_CO);
+
+    function veTrangU(){
+      var p=ktEl('div','act'); p.style.cssText='flex-wrap:wrap;align-items:center;margin-bottom:6px';
+      var bT=ktEl('button','ghost','‹ '+L('Trước','Prev')); bT.disabled = (KTU_TRANG<=1);
+      bT.onclick=function(){ KTU_TRANG--; ktdUndo(); };
+      var sp=ktEl('span','mut', L('Trang','Page')+' '+KTU_TRANG+'/'+tongTrang
+        +' · '+r.rows.length+' '+L('thông báo','entries'));
+      var bS=ktEl('button','ghost',L('Sau','Next')+' ›'); bS.disabled = (KTU_TRANG>=tongTrang);
+      bS.onclick=function(){ KTU_TRANG++; ktdUndo(); };
+      p.appendChild(bT); p.appendChild(sp); p.appendChild(bS);
+      return p;
+    }
+    if (tongTrang > 1) box.appendChild(veTrangU());
+
+    trangRows.forEach(function(x){
       var it=ktEl('div','act'); it.style.cssText='flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08);padding:6px 0';
       var t=ktEl('div'); t.style.flex='1';
       t.appendChild(ktEl('b',null,(ten[x.viec]||x.viec)+(x.daHoanTac?' · ĐÃ HOÀN TÁC':'')));
@@ -3310,6 +3343,7 @@ function ktdUndo(){
       }
       box.appendChild(it);
     });
+    if (tongTrang > 1) box.appendChild(veTrangU());
   });
 }
 function ktdLoad(){
@@ -3320,10 +3354,17 @@ function ktdLoad(){
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     KTD_THANG=r.thang;
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Tháng này chưa có báo cáo.','No reports this month.'))); return; }
+    /* Lọc theo cơ sở — anh Thắng: "Chỗ lọc duyệt báo cáo, cho lọc theo cơ sở". Lọc TRƯỚC khi
+       cắt trang, nên "Trang 1/N" luôn tính trên đúng tập đang lọc, không tính trên cả tháng. */
+    var rows0 = KTD_COSO ? r.rows.filter(function(o){ return o.coso === KTD_COSO; }) : r.rows;
+    if(!rows0.length){
+      box.appendChild(ktEl('p','mut',L('Cơ sở này chưa có báo cáo trong tháng.','No reports for this branch this month.')));
+      return;
+    }
     /* Đơn chưa duyệt hết (confirmedChairs < chairs) lên đầu, để không phải lướt qua đơn đã
        xong mới tới đơn cần xử lý. Sort ổn định (Array.prototype.sort) nên trong mỗi nhóm vẫn
        giữ nguyên thứ tự server trả về. */
-    var rows = r.rows.slice().sort(function(a,b){
+    var rows = rows0.slice().sort(function(a,b){
       var xa = a.confirmedChairs < a.chairs ? 0 : 1;
       var xb = b.confirmedChairs < b.chairs ? 0 : 1;
       return xa - xb;
