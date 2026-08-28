@@ -1929,6 +1929,24 @@ tr:last-child td{border-bottom:0}
 .note{background:#fdf4e3;border:1px solid #f0d9ac;border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#7a5a1e}
 .note b{color:var(--amber-d)}
 .mut{color:var(--mut);font-size:12px}
+/* --- Biểu đồ dashboard (SVG donut + thanh ngang thuần CSS, không thư viện ngoài) --- */
+.bd-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:14px}
+.bd-grid .card{margin-bottom:0}
+.bd-donut-wrap{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.bd-donut{flex:none}
+.bd-c1{font-size:15px;font-weight:700;fill:var(--ink)}
+.bd-c2{font-size:9px;fill:var(--mut);letter-spacing:.08em;text-transform:uppercase}
+.bd-legend{flex:1;min-width:140px;display:flex;flex-direction:column;gap:8px}
+.bd-lg{display:flex;align-items:center;gap:8px;font-size:12.5px}
+.bd-dot{width:11px;height:11px;border-radius:3px;flex:none}
+.bd-lg-t{color:var(--ink2)}
+.bd-lg-v{margin-left:auto;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bd-cot{display:flex;flex-direction:column;gap:9px}
+.bd-row{display:grid;grid-template-columns:minmax(72px,32%) 1fr auto;align-items:center;gap:9px}
+.bd-lb{font-size:12.5px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-track{height:15px;background:var(--blue-bg);border-radius:5px;overflow:hidden}
+.bd-bar{height:100%;border-radius:5px;min-width:3px;transition:width .3s ease}
+.bd-val{font-size:12px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
 .login{max-width:360px;margin:12vh auto;padding:28px 24px;background:#fff;
   border:1px solid var(--line);border-radius:16px;text-align:center;
   box-shadow:0 12px 40px rgba(31,45,74,.14)}
@@ -2532,6 +2550,9 @@ function ve(){
     + kpi(L('Đang chờ ghế nhận','Waiting for a chair'), String(D.cho.length),
         L('đã trả, chưa chạy','paid, not started'), 'd')
     + '</div>';
+
+  // --- biểu đồ: cơ cấu tiền, theo khu vực, top cơ sở, top ghế (kỳ đang chọn).
+  h += veBieuDo(t);
 
   // --- tình trạng ghế: LIỆT KÊ (tìm kiếm + phân trang 20). Bấm nút thì sang tab Điều khiển.
   h += '<div class="card"><h2>' + L('Tình trạng ghế','Chair status') + '</h2>'
@@ -3474,6 +3495,12 @@ function klsLoad(){
     box.appendChild(ktEl('div', 'mut', L('Cả năm','Year') + ' ' + r.nam + (KLS_COSO ? (' · ' + KLS_COSO) : (' · ' + L('tất cả cơ sở','all sites')))
       + ' — ' + L('tổng','total') + ' ' + ktVnd(tn.tong) + 'đ · ' + L('tiền mặt','cash') + ' ' + ktVnd(tn.tien_mat) + 'đ · QR ' + ktVnd(tn.qr) + 'đ'));
     if (!r.thang || !r.thang.length) { box.appendChild(ktEl('p', 'mut', L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
+    /* Biểu đồ doanh thu theo tháng (giữ thứ tự tháng, không sắp theo giá trị) — nhìn cả năm một mắt. */
+    var thangTang = r.thang.slice().sort(function(a,b){ return a.thang < b.thang ? -1 : (a.thang > b.thang ? 1 : 0); });
+    var cd = ktEl('div', 'card'); cd.style.marginBottom = '12px';
+    cd.innerHTML = '<h2>' + L('Doanh thu theo tháng','Revenue by month') + '</h2>'
+      + bdCot(thangTang.map(function(T){ return { ten: T.thang.slice(5) + '/' + T.thang.slice(0,4), gt: Number(T.tong)||0 }; }), 'var(--blue)', 12);
+    box.appendChild(cd);
     r.thang.forEach(function(T){ box.appendChild(klsThang(T)); });
   });
 }
@@ -4884,6 +4911,94 @@ function bang(ten, cot, hang){
     h += '<tr>' + r.map(function(o,i){ return '<td' + (i>=cot.length-3?' class="r"':'') + '>' + o + '</td>'; }).join('') + '</tr>';
   });
   return h + '</table></div>';
+}
+
+/* ============================================================================================
+ * BIỂU ĐỒ DASHBOARD — doanh thu theo tổng số, cơ sở, ghế, khu vực.
+ *
+ * Anh Thắng 28/08/2026: *"Thêm một số biểu đồ dashboard… doanh thu theo điểm, theo ghế, theo cơ
+ * sở, theo tổng số, theo khu vực"*.
+ *
+ * 🔴 KHÔNG THƯ VIỆN NGOÀI. Donut vẽ bằng SVG (cung tròn qua stroke-dasharray), thanh ngang vẽ
+ *    bằng div CSS — nhẹ, hợp chủ đề (dùng biến màu --blue/--green/--amber), và không kéo theo
+ *    một file JS ngoài vào một trang chạy trên host của khách. Số liệu lấy từ `t = D.tong` (kỳ
+ *    đang chọn) và bản đồ cơ sở→tỉnh từ `D.coso`; không cần gọi thêm cổng nào.
+ * ============================================================================================ */
+function tienGon(n){
+  n = Number(n) || 0; var s = n < 0 ? '-' : ''; n = Math.abs(n);
+  if (n >= 1e9) return s + (n/1e9).toFixed(n >= 1e10 ? 1 : 2).replace('.', ',') + L(' tỷ',' bn');
+  if (n >= 1e6) return s + (n/1e6).toFixed(n >= 1e8 ? 0 : 1).replace('.', ',') + L(' tr',' m');
+  if (n >= 1e3) return s + Math.round(n/1e3) + 'k';
+  return s + String(n);
+}
+/* Donut theo phần: parts = [{ten, gt, mau}]. Rỗng/tổng 0 → báo chưa có số liệu. */
+function bdDonut(parts){
+  var tong = parts.reduce(function(a,p){ return a + (Number(p.gt)||0); }, 0);
+  if (tong <= 0) return '<p class="mut">' + L('Chưa có số liệu kỳ này.','No data for this period.') + '</p>';
+  var r = 54, C = 2 * Math.PI * r, off = 0;
+  var segs = parts.filter(function(p){ return (Number(p.gt)||0) > 0; }).map(function(p){
+    var len = (Number(p.gt)/tong) * C;
+    var s = '<circle cx="70" cy="70" r="' + r + '" fill="none" stroke="' + p.mau + '" stroke-width="21" '
+      + 'stroke-dasharray="' + len.toFixed(2) + ' ' + (C - len).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '"/>';
+    off += len; return s;
+  }).join('');
+  var svg = '<svg viewBox="0 0 140 140" class="bd-donut" width="128" height="128" role="img">'
+    + '<g transform="rotate(-90 70 70)">' + segs + '</g>'
+    + '<text x="70" y="67" text-anchor="middle" class="bd-c1">' + tienGon(tong) + 'đ</text>'
+    + '<text x="70" y="83" text-anchor="middle" class="bd-c2">' + L('tổng','total') + '</text></svg>';
+  var leg = parts.map(function(p){
+    var pc = tong ? Math.round((Number(p.gt)||0)/tong*100) : 0;
+    return '<div class="bd-lg"><span class="bd-dot" style="background:' + p.mau + '"></span>'
+      + '<span class="bd-lg-t">' + esc(p.ten) + '</span>'
+      + '<span class="bd-lg-v">' + tienGon(p.gt) + 'đ · ' + pc + '%</span></div>';
+  }).join('');
+  return '<div class="bd-donut-wrap">' + svg + '<div class="bd-legend">' + leg + '</div></div>';
+}
+/* Thanh ngang: rows = [{ten, gt}] (đã sắp giảm dần). mau = màu thanh. gioi = số dòng tối đa. */
+function bdCot(rows, mau, gioi){
+  rows = (rows || []).filter(function(r){ return (Number(r.gt)||0) > 0; });
+  if (!rows.length) return '<p class="mut">' + L('Chưa có số liệu kỳ này.','No data for this period.') + '</p>';
+  var them = (gioi && rows.length > gioi) ? (rows.length - gioi) : 0;
+  if (them) rows = rows.slice(0, gioi);
+  var max = rows.reduce(function(a,r){ return Math.max(a, Number(r.gt)||0); }, 0) || 1;
+  var h = '<div class="bd-cot">' + rows.map(function(r){
+    var pc = Math.max(3, Math.round((Number(r.gt)||0)/max*100));
+    return '<div class="bd-row"><div class="bd-lb" title="' + esc(r.ten) + '">' + esc(r.ten) + '</div>'
+      + '<div class="bd-track"><div class="bd-bar" style="width:' + pc + '%;background:' + mau + '"></div></div>'
+      + '<div class="bd-val">' + tienGon(r.gt) + 'đ</div></div>';
+  }).join('') + '</div>';
+  if (them) h += '<p class="mut" style="margin:8px 0 0">' + L('… và ' + them + ' mục khác','… and ' + them + ' more') + '</p>';
+  return h;
+}
+/* Khối biểu đồ của dashboard Đối soát — dựng từ t = D.tong (kỳ đang chọn). */
+function veBieuDo(t){
+  if (!t) return '';
+  var cs = Object.keys(t.theo_coso || {}).map(function(k){ var c = t.theo_coso[k];
+      return { ten: c.coso, gt: Number(c.tong)||0 }; })
+    .sort(function(a,b){ return b.gt - a.gt; });
+  var may = Object.keys(t.theo_may || {}).map(function(k){ var m = t.theo_may[k];
+      return { ten: m.may, gt: Number(m.tong)||0 }; })
+    .sort(function(a,b){ return b.gt - a.gt; });
+  var mt = {}; ((D && D.coso) || []).forEach(function(c){ mt[c.ten] = c.tinh || ''; });
+  var byT = {};
+  cs.forEach(function(r){ var k = mt[r.ten] || L('(chưa gán tỉnh)','(no province)'); byT[k] = (byT[k]||0) + r.gt; });
+  var tinh = Object.keys(byT).map(function(k){ return { ten: k, gt: byT[k] }; })
+    .sort(function(a,b){ return b.gt - a.gt; });
+
+  var h = '<div class="bd-grid">';
+  h += '<div class="card"><h2>' + L('Cơ cấu doanh thu','Revenue mix') + '</h2>'
+    + bdDonut([
+        { ten: L('Tiền mặt','Cash'), gt: t.tien_mat, mau: 'var(--green)' },
+        { ten: L('Chuyển khoản (QR)','Bank transfer (QR)'), gt: t.qr, mau: 'var(--blue)' }
+      ]) + '</div>';
+  h += '<div class="card"><h2>' + L('Doanh thu theo khu vực','Revenue by region') + '</h2>'
+    + bdCot(tinh, 'var(--navy)', 12) + '</div>';
+  h += '<div class="card"><h2>' + L('Top cơ sở theo doanh thu','Top branches by revenue') + '</h2>'
+    + bdCot(cs, 'var(--blue)', 10) + '</div>';
+  h += '<div class="card"><h2>' + L('Top ghế theo doanh thu','Top chairs by revenue') + '</h2>'
+    + bdCot(may, 'var(--amber)', 10) + '</div>';
+  h += '</div>';
+  return h;
 }
 
 /* ============================================================================================
