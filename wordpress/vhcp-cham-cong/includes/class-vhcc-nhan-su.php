@@ -875,6 +875,14 @@ class VHCC_NhanSu {
 			'chuc_vu'              => trim( (string) ( isset( $dat['chuc_vu'] ) ? $dat['chuc_vu'] : '' ) ),
 			'ngay_vao_lam'         => current_time( 'Y-m-d' ),
 			'trang_thai_lam_viec'  => 'Đang làm',
+			/* 🔴 PHẢI ĐẶT VAI, KHÔNG ĐƯỢC ĐỂ TRỐNG.
+			   Anh Thắng 28/08/2026: *"cửa hàng đã thêm nhân viên mới, mà bên nhân sự chưa thấy
+			   thông tin nhân viên đó"* — kèm ảnh hàng `TAM-FZSCVIVO-001` với cột Vai trò ghi
+			   «— chưa khai —». Hồ sơ CÓ sang, nhưng trống vai.
+			   Vai rỗng không phải là "chưa quyết": nó là một hồ sơ mà mọi cửa trong hệ đều phải
+			   ĐOÁN xem người ấy bậc mấy — và mỗi cửa đoán một kiểu. Người mới vào làm thì vai
+			   là Nhân viên; Admin nâng lên sau nếu cần. */
+			'vai_tro'              => VHCC_Vai::TEN[ VHCC_Vai::NV ],
 			'cap_nhat'             => current_time( 'mysql' ),
 		);
 		/* ⚠️ ẢNH THẺ KHÔNG BẮT BUỘC — anh Thắng 28/08/2026 chốt *"không ép buộc, nhưng không có
@@ -1104,11 +1112,22 @@ class VHCC_NhanSu {
 
 	/** Mã này đã có lượt chấm công nào chưa — kể cả khi hồ sơ đã bị xoá. */
 	public static function co_cham_cong( $ma_nv ) {
+		return self::so_luot_cham( $ma_nv ) > 0;
+	}
+
+	/**
+	 * ĐẾM lượt chấm công của một mã.
+	 *
+	 * Cùng phép đếm mà `xoa_ho_so()` dùng để chối — cố ý dùng chung một hàm, để màn hỏi trước
+	 * khi xoá nói ra ĐÚNG con số hệ sẽ dựa vào. Hai phép đếm viết rời nhau thì có ngày màn báo
+	 * "chưa có lượt nào" mà bấm xong lại bị chối, và không ai hiểu vì sao.
+	 */
+	public static function so_luot_cham( $ma_nv ) {
 		global $wpdb;
 		$ma = trim( (string) $ma_nv );
-		if ( '' === $ma ) { return false; }
+		if ( '' === $ma ) { return 0; }
 		return (int) $wpdb->get_var( $wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $ma ) ) > 0;
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $ma ) );
 	}
 
 	/**
@@ -1172,8 +1191,7 @@ class VHCC_NhanSu {
 				. 'cũ mang mã ấy — chỉ Admin xoá được. Cho nghỉ việc thì đổi "Trạng thái làm việc".' );
 		}
 		$ma = trim( (string) $ma_nv );
-		$so = (int) $wpdb->get_var( $wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $ma ) );
+		$so = self::so_luot_cham( $ma );
 		if ( $so > 0 ) {
 			return array( 'ok' => false, 'error' => 'Người này còn ' . $so . ' lượt chấm công. '
 				. 'Xoá hồ sơ là bảng lương có mã mà không tra ra tên. Muốn cho nghỉ thì đổi '

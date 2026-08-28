@@ -189,17 +189,34 @@ class VHCC_DayChiPhi {
 			return array( 'ok' => false, 'error' => 'Người mang mã ' . $ma . ' chưa có PIN chấm công '
 				. '(4–8 số) — cấp PIN cho họ ở màn Hồ sơ & tài khoản rồi đẩy lại.' );
 		}
-		/* PIN trùng người khác bên ấy là hai người chung một cửa: cổng đăng nhập tra theo PIN,
-		   nên ai gõ vào cũng rơi vào hàng đứng trước. Chối, và chỉ ra ai đang giữ. */
-		$ten_cu = isset( $ds_day[ $ma ] ) ? (string) $ds_day[ $ma ] : $hs['ho_ten'];
-		foreach ( $rows as $r ) {
+		/* =====================================================================================
+		 * 🔴 PIN TRÙNG NGƯỜI KHÁC: SỔ NHÂN SỰ THẮNG, HÀNG BÊN KIA BỊ XOÁ PIN.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026: *"Sau khi đẩy qua sẽ lấy PIN bên nhân sự luôn"* — và khi được
+		 * hỏi phải làm gì với hàng bị trùng, anh chốt: xoá PIN của hàng bên kia.
+		 *
+		 * Vì sao không để hai hàng cùng PIN: cổng đăng nhập bên ấy tra THEO PIN, nên ai gõ vào
+		 * cũng rơi vào hàng đứng trước — một trong hai người mất tài khoản mà không có gì báo.
+		 * Bản trước chối cả lượt đẩy; anh phải tự đi tìm và sửa từng ca.
+		 *
+		 * ⚠️ XOÁ PIN, KHÔNG XOÁ HÀNG. Hàng ấy có thể mang TK Có, Mã đối tượng, Đơn vị do kế
+		 *    toán khai — xoá hàng là mất bảng khai ấy. Xoá PIN thì người đó tạm thời không đăng
+		 *    nhập được, còn mọi thứ khác nguyên vẹn; cấp PIN mới là dùng lại được ngay.
+		 *
+		 * ⚠️ PHẢI KỂ TÊN NGƯỜI BỊ XOÁ PIN RA. Im lặng là sáng hôm sau có người gõ PIN không vào
+		 *    được và không ai biết vì sao — đúng kiểu hỏng mà cả khối này sinh ra để tránh.
+		 */
+		$ten_cu   = isset( $ds_day[ $ma ] ) ? (string) $ds_day[ $ma ] : $hs['ho_ten'];
+		$mat_pin  = array();
+		foreach ( $rows as $i_r => $r ) {
 			$r = (array) $r;
 			$t = trim( (string) ( isset( $r[ self::C_TEN ] ) ? $r[ self::C_TEN ] : '' ) );
 			$p = trim( (string) ( isset( $r[ self::C_PIN ] ) ? $r[ self::C_PIN ] : '' ) );
-			if ( $p === $hs['pin'] && 0 !== strcasecmp( $t, $ten_cu ) && 0 !== strcasecmp( $t, $hs['ho_ten'] ) ) {
-				return array( 'ok' => false, 'error' => 'PIN của người này trùng với "' . $t
-					. '" đang có bên Vận hành chi phí — đổi PIN một trong hai rồi đẩy lại.' );
-			}
+			if ( $p !== $hs['pin'] ) { continue; }
+			if ( 0 === strcasecmp( $t, $ten_cu ) || 0 === strcasecmp( $t, $hs['ho_ten'] ) ) { continue; }
+			$r[ self::C_PIN ] = '';
+			$rows[ $i_r ]     = $r;
+			$mat_pin[]        = $t;
 		}
 
 		$thay = false;
@@ -230,7 +247,8 @@ class VHCC_DayChiPhi {
 		VHCP_Cfg::write( VHCP_Cfg::USER, array_values( $rows ) );
 		$ds_day[ $ma ] = $hs['ho_ten'];
 		update_option( self::O_DA_DAY, $ds_day, false );
-		return array( 'ok' => true, 'doi' => 1, 'viec' => $thay ? 'capnhat' : 'them' );
+		return array( 'ok' => true, 'doi' => 1, 'viec' => $thay ? 'capnhat' : 'them',
+			'mat_pin' => $mat_pin );
 	}
 
 	/**
@@ -255,8 +273,9 @@ class VHCC_DayChiPhi {
 			return array( 'ok' => false, 'doi' => 0,
 				'error' => 'Đẩy người sang hệ Vận hành chi phí cần vai Admin.' );
 		}
-		$doi = 0;
-		$loi = array();
+		$doi     = 0;
+		$loi     = array();
+		$mat_pin = array();
 		foreach ( (array) $bang as $ma => $dat ) {
 			$ma  = trim( (string) $ma );
 			$dat = (string) $dat;
@@ -265,8 +284,12 @@ class VHCC_DayChiPhi {
 			$kq = self::dat( $u, $ma, $dat );
 			if ( empty( $kq['ok'] ) ) { $loi[] = $kq['error']; continue; }
 			$doi += (int) ( isset( $kq['doi'] ) ? $kq['doi'] : 0 );
+			foreach ( (array) ( isset( $kq['mat_pin'] ) ? $kq['mat_pin'] : array() ) as $t_mp ) {
+				$mat_pin[ $t_mp ] = true;
+			}
 		}
-		return array( 'ok' => true, 'doi' => $doi, 'loi' => $loi );
+		return array( 'ok' => true, 'doi' => $doi, 'loi' => $loi,
+			'mat_pin' => array_keys( $mat_pin ) );
 	}
 
 	public static function dong_bo( $ma_nv ) {

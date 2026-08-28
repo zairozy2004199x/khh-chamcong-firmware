@@ -7471,8 +7471,14 @@ $h_ch_gio = vhcc_web( '135791', array(),
 	array( 'man' => 'cau_hinh', 'ccs' => $CS_GIO, 'cth' => '2026-07' ) );
 /* Khối khai ca — Cửa hàng trưởng trở lên. */
 t( 'có khối Khai ca làm việc', strpos( $h_ch_gio, 'id="khaica"' ) !== false, $h_ch_gio );
-t( 'khối khai ca thu gọn sẵn (màn đã dài rồi)',
-	preg_match( '/id="khaica"><details>/', $h_ch_gio ) === 1, $h_ch_gio );
+/* 🔴 CHƯA KHAI RIÊNG THÌ PHẢI MỞ SẴN. Anh Thắng 28/08/2026 gửi ảnh bảng Tổng giờ theo ca:
+   *"Anh thấy ca làm nó có nè, nhưng nó đang lấy chung từ cửa hàng khác nên bị sai"*. Cửa hàng
+   ấy đang mượn khung mặc định, và khối để sửa thì gập kín. Gập kín một việc CHƯA LÀM là cách
+   chắc chắn nhất để nó không bao giờ được làm. Khai rồi mới thu gọn — thử cả hai chiều ở dưới. */
+t( 'chưa khai riêng thì khối khai ca MỞ SẴN',
+	preg_match( '/id="khaica"><details open>/', $h_ch_gio ) === 1, $h_ch_gio );
+t( 'và tiêu đề khối nói rõ đang khai cho cơ sở nào',
+	strpos( $h_ch_gio, 'Khai ca làm việc của ' . $CS_GIO ) !== false, $h_ch_gio );
 t( 'có ô nhập tên ca', strpos( $h_ch_gio, 'name="ca_ten[0]"' ) !== false, $h_ch_gio );
 t( 'và ô giờ cuối tuần riêng', strpos( $h_ch_gio, 'name="ca_tuw[0]"' ) !== false, $h_ch_gio );
 /* Luôn thừa hai dòng trống để thêm ca mà KHÔNG cần JavaScript — cả màn này không có script. */
@@ -7501,6 +7507,104 @@ t( 'giờ không thuộc ca nào hiện ở cột Ngoài ca, không bị nuốt'
 	strpos( $h_ca2, 'oc vang' ) !== false, $h_ca2 );
 t( 'và nói rõ đó là dấu hiệu khung ca khai chưa khớp',
 	strpos( $h_ca2, 'khung ca khai chưa khớp' ) !== false, $h_ca2 );
+
+/* ==================================================================================
+   KHAI CA NGAY TRÊN MÀN BẢNG CÔNG — việc của CỬA HÀNG TRƯỞNG
+
+   Anh Thắng 28/08/2026 gửi ảnh bảng Tổng giờ theo ca của một cửa hàng, chú "Khung ca đang
+   dùng: mặc định (chưa ai khai)": *"Anh thấy ca làm nó có nè, nhưng nó đang lấy chung từ cửa
+   hàng khác nên bị sai"*.
+
+   🔴 GỐC RỄ KHÔNG PHẢI Ở BẢNG, MÀ Ở CHỖ KHAI. Khối "Khai ca làm việc" vốn chỉ có ở màn Cấu
+      hình, mà màn ấy gác `ngoai_coso` (bậc Quản lý). Cửa hàng trưởng — đúng người biết cửa
+      hàng mình vào ca mấy giờ — KHÔNG có cửa nào để khai, nên mọi cửa hàng cứ chạy bằng khung
+      mặc định và bảng nào cũng ra số sai một cách im lặng. Anh Thắng 27/08 đã giao thẳng:
+      *"Cho qua bên Tài khoản cửa hàng trưởng tự set giờ ca vào ra của cửa hàng"*.
+
+   Thêm CHỖ VẼ, không nới quyền: chốt bên trong khối vẫn là `lich_lam` + `co_quyen_coso`.
+   ================================================================================== */
+$cs_ca_cht = 'FZ_SC_CATEST';
+$_COOKIE = array();
+$h_cham_cht = vhcc_web_nhu2( 'CHTCA1', 'CUA_HANG_TRUONG', $cs_ca_cht,
+	array( 'man' => 'cham', 'ccs' => $cs_ca_cht, 'cth' => '2026-07' ) );
+t( 'Cửa hàng trưởng khai ca được NGAY trên màn Bảng công',
+	strpos( $h_cham_cht, 'id="khaica"' ) !== false, $h_cham_cht );
+t( 'và khối ấy mở sẵn vì cửa hàng chưa khai riêng',
+	preg_match( '/id="khaica"><details open>/', $h_cham_cht ) === 1, $h_cham_cht );
+t( 'có ô nhập giờ vào ca ngay tại đó',
+	strpos( $h_cham_cht, 'name="ca_tu[0]"' ) !== false, $h_cham_cht );
+/* Bảng vẫn ra số đẹp nên nhìn qua tưởng đúng — phải có khối VÀNG nói thẳng là đang mượn khung. */
+t( 'bảng Tổng giờ theo ca kêu lên rằng cửa hàng chưa có khung ca riêng',
+	strpos( $h_cham_cht, 'chưa có khung ca riêng' ) !== false, $h_cham_cht );
+t( 'và nói rõ hậu quả: số ở đây sai',
+	strpos( $h_cham_cht, 'số ở đây sai' ) !== false, $h_cham_cht );
+t( 'cảnh báo ấy là khối vàng, không phải chữ xám',
+	preg_match( '/class="bao canh"[^>]*><b>' . preg_quote( $cs_ca_cht, '/' ) . ' chưa có/', $h_cham_cht ) === 1,
+	$h_cham_cht );
+t( 'và chỉ đường xuống thẳng khối khai ca',
+	strpos( $h_cham_cht, 'href="#khaica"' ) !== false, $h_cham_cht );
+
+/* 🔴 THÊM CHỖ VẼ THÌ THÊM CỬA — HAI CHỐT PHẢI ĐỨNG NGAY TẠI KHỐI, VÀ PHẢI SOI THẲNG VÀO KHỐI.
+   Soi qua cả trang thì KHÔNG phân biệt được: mã cơ sở lạ bị `ds_coso_xem` lọc mất từ tầng
+   trên, nên trang chẳng vẽ tới đây, và bỏ chốt đi phép thử vẫn xanh — đúng kiểu mã tương
+   đương. Gọi thẳng `the_khai_ca` là cách duy nhất hỏi được chính nó: *mày có tự giữ cửa
+   không, hay đang sống nhờ hàng rào của người khác?* Hàng rào tầng trên có ngày bị dời. */
+$cht_ca = array( 'name' => 'CHT ca', 'role' => 'CUA_HANG_TRUONG', 'coso' => $cs_ca_cht );
+$nv_ca  = array( 'name' => 'NV ca',  'role' => 'NHAN_VIEN',       'coso' => $cs_ca_cht );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_khai_ca', array( $cs_ca_cht, '2026-07', $cht_ca ) );
+$k_minh = ob_get_clean();
+t( 'gọi thẳng: Cửa hàng trưởng khai được ca cửa hàng MÌNH',
+	strpos( $k_minh, 'id="khaica"' ) !== false, $k_minh );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_khai_ca', array( $CS_GIO, '2026-07', $cht_ca ) );
+$k_lac = ob_get_clean();
+t( 'gọi thẳng: Cửa hàng trưởng KHÔNG bày được khung ca của cửa hàng KHÁC',
+	'' === trim( $k_lac ), $k_lac );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_khai_ca', array( '', '2026-07', $cht_ca ) );
+t( 'gọi thẳng: cơ sở rỗng thì không vẽ gì', '' === trim( ob_get_clean() ) );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_khai_ca', array( $cs_ca_cht, '2026-07', $nv_ca ) );
+$k_nv = ob_get_clean();
+t( 'gọi thẳng: nhân viên thường không khai ca được, dù đúng cửa hàng mình',
+	'' === trim( $k_nv ), $k_nv );
+
+/* 🔴 HAI CHỐT CÙNG CHẶN MỘT CA THÌ KHÔNG PHÉP THỬ NÀO PHÂN BIỆT ĐƯỢC.
+   `lich_lam` và `cong_coso` (cửa của `co_quyen_coso`) cùng đứng ở bậc Cửa hàng trưởng, nên
+   nhân viên bị chặn hai lần và bỏ đi một chốt vẫn không lộ ra — phá thử gọi đó là mã tương
+   đương, và mã tương đương là chỗ chốt chết âm thầm về sau. Dựng đúng một người ở giữa: MỞ
+   `cong_coso` cho họ (qua được cửa cơ sở) nhưng KHOÁ `lich_lam`. Ai lọt tới ô khai ca lúc này
+   là do chốt `lich_lam` đã mất. */
+$ma_giua = 'CAGIUA1';
+VHCC_Vai::dat_ngoai_le( $ADMIN_W, 'nv:' . $ma_giua, 'cong_coso', 'mo' );
+VHCC_Vai::dat_ngoai_le( $ADMIN_W, 'nv:' . $ma_giua, 'lich_lam', 'khoa' );
+$u_giua = array( 'name' => 'Người giữa', 'role' => 'NHAN_VIEN',
+	'coso' => $cs_ca_cht, 'ma_nv' => $ma_giua );
+t( 'người giữa QUA được cửa cơ sở', VHCC_NhanSu::co_quyen_coso( $u_giua, $cs_ca_cht ), $u_giua );
+t( 'nhưng KHÔNG có quyền khai ca', ! VHCC_Vai::duoc( $u_giua, 'lich_lam' ), $u_giua );
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_khai_ca', array( $cs_ca_cht, '2026-07', $u_giua ) );
+$k_giua = ob_get_clean();
+t( 'nên khối khai ca vẫn không vẽ cho người ấy', '' === trim( $k_giua ), $k_giua );
+VHCC_Vai::dat_ngoai_le( $ADMIN_W, 'nv:' . $ma_giua, 'cong_coso', '' );
+VHCC_Vai::dat_ngoai_le( $ADMIN_W, 'nv:' . $ma_giua, 'lich_lam', '' );
+
+/* Và trên trang thật cũng vậy — nhân viên thấy bảng, không thấy ô khai. */
+$h_cham_nv = vhcc_web_nhu2( 'NVCA1', 'NHAN_VIEN', $cs_ca_cht,
+	array( 'man' => 'cham', 'ccs' => $cs_ca_cht, 'cth' => '2026-07' ) );
+t( 'nhân viên thường không thấy khối khai ca',
+	strpos( $h_cham_nv, 'id="khaica"' ) === false, $h_cham_nv );
+
+/* Khai xong thì khối thu gọn lại — màn Bảng công vốn đã dài. */
+$r_ca_cht = VHCC_Ca::luu( array( 'name' => 'CHT ca', 'role' => 'CUA_HANG_TRUONG', 'coso' => $cs_ca_cht ),
+	$cs_ca_cht, array( array( 'ten' => 'Ca sáng', 'tu' => '08:00', 'den' => '16:00', 'tuW' => '', 'denW' => '' ) ) );
+t( 'Cửa hàng trưởng LƯU được ca của chính cửa hàng mình', ! empty( $r_ca_cht['ok'] ), $r_ca_cht );
+$h_cham_cht2 = vhcc_web_nhu2( 'CHTCA1', 'CUA_HANG_TRUONG', $cs_ca_cht,
+	array( 'man' => 'cham', 'ccs' => $cs_ca_cht, 'cth' => '2026-07' ) );
+t( 'khai rồi thì khối khai ca thu gọn lại',
+	preg_match( '/id="khaica"><details>/', $h_cham_cht2 ) === 1, $h_cham_cht2 );
+t( 'và khối vàng "chưa có khung ca riêng" biến mất',
+	strpos( $h_cham_cht2, 'chưa có khung ca riêng' ) === false, $h_cham_cht2 );
 
 /* ---- CÔNG TẮC: cơ sở nào tính THEO GIỜ, cơ sở nào THEO CÔNG ---- */
 /* Anh Thắng 26/08: *"bổ sung phần cấu hình để phân biệt cơ sở nào tính theo giờ, cơ sở nào tính
@@ -8850,6 +8954,15 @@ foreach ( array(
 delete_option( VHCC_Cong::O );
 /* Dựng thẻ phiên thẳng, không đi qua PIN: PIN của mấy tài khoản mẫu đã bị chính các phép thử ở
    trên sửa đi nhiều lượt, mà phép thử này nói về CỬA VÀO chứ không nói về đăng nhập. */
+/** Như `vhcc_web_nhu` nhưng chọn được CƠ SỞ — cần cho các phép thử soi chốt cơ sở. */
+function vhcc_web_nhu2( $ma_nv, $vai, $coso, $get = array() ) {
+	$_GET = $get; $_POST = array();
+	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người Thử', $vai, $coso, $ma_nv ) );
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	return $h;
+}
+
 function vhcc_web_nhu( $ma_nv, $vai, $get = array() ) {
 	$_GET = $get; $_POST = array();
 	$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'Người Thử', $vai, 'TUTU_BT', $ma_nv ) );
@@ -13595,6 +13708,19 @@ $hs_tn = VHCC_NhanSu::ho_so( $r_tn['ma_nv'] );
 teq( 'hồ sơ vào đúng cơ sở của cửa hàng trưởng', 'TUTU_BT', (string) $hs_tn['cua_hang'] );
 teq( 'giữ nguyên căn cước để còn tự lấy PIN', '012345678901', (string) $hs_tn['cccd'] );
 teq( 'và ghi là đang làm', 'Đang làm', (string) $hs_tn['trang_thai_lam_viec'] );
+/* 🔴 PHẢI ĐẶT VAI, KHÔNG ĐƯỢC ĐỂ TRỐNG. Anh Thắng 28/08/2026: *"cửa hàng đã thêm nhân viên mới,
+   mà bên nhân sự chưa thấy thông tin nhân viên đó"* — kèm ảnh hàng mã tạm với cột Vai trò ghi
+   «— chưa khai —». Hồ sơ CÓ sang, nhưng trống vai.
+   Vai rỗng không phải "chưa quyết": nó là hồ sơ mà mọi cửa trong hệ đều phải ĐOÁN xem người ấy
+   bậc mấy — và mỗi cửa đoán một kiểu. */
+teq( '🔴 người mới có vai Nhân viên, không để trống', 'Nhân viên',
+	(string) $hs_tn['vai_tro'] );
+/* Và bảng Quản lý nhân sự phải thấy đúng vai ấy, không hiện «chưa khai». */
+$h_vai_tn = vhcc_ns( 'Admin' );
+t( '🔴 bảng nhân sự không hiện «chưa khai» cho người mới',
+	false === strpos( $h_vai_tn, $r_tn['ma_nv'] . '</b>' )
+	|| false === strpos( substr( $h_vai_tn, (int) strpos( $h_vai_tn, $r_tn['ma_nv'] ), 1200 ),
+		'chưa khai' ), $r_tn['ma_nv'] );
 /* 🔴 KHÔNG CẤP PIN QUA TAY AI. Người mới tự đặt PIN bằng họ tên + căn cước của chính mình. */
 teq( '🔴 KHÔNG cấp sẵn PIN cho ai cầm hộ', '', trim( (string) $hs_tn['pin_dang_nhap'] ) );
 $tra_tn = VHCC_QuenPin::tra( 'Nguyễn Văn Mới', '012345678901' );
@@ -14207,10 +14333,39 @@ teq( 'và vẫn chỉ một hàng cho người ấy', 3, count( VHCP_Cfg::read( 
 /* 🔴 PIN TRÙNG NGƯỜI KHÁC BÊN ẤY LÀ HAI NGƯỜI CHUNG MỘT CỬA — cổng đăng nhập tra theo PIN. */
 VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP2', 'ho_ten' => 'Người Trùng PIN',
 	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '1111', 'trang_thai_lam_viec' => 'Đang làm' ) );
+/* 🔴 SỔ NHÂN SỰ THẮNG, HÀNG BÊN KIA BỊ XOÁ PIN — anh Thắng chốt 28/08/2026:
+   *"Sau khi đẩy qua sẽ lấy PIN bên nhân sự luôn"*, và khi được hỏi phải làm gì với hàng bị
+   trùng thì anh chọn xoá PIN của hàng ấy.
+   Vì sao không để hai hàng cùng PIN: cổng đăng nhập bên ấy tra THEO PIN, nên ai gõ vào cũng rơi
+   vào hàng đứng trước — một trong hai người mất tài khoản mà không có gì báo. */
 $r_trung = VHCC_DayChiPhi::dat( $U_AD, 'CP2', 'mo' );
-t( '🔴 PIN trùng người bên ấy thì chối', empty( $r_trung['ok'] ), $r_trung );
-t( 'và chỉ ra ai đang giữ PIN ấy',
-	isset( $r_trung['error'] ) && strpos( $r_trung['error'], 'Admin' ) !== false, $r_trung );
+t( '🔴 PIN trùng thì VẪN đẩy được', ! empty( $r_trung['ok'] ), $r_trung );
+t( 'và kể tên người bị xoá PIN ra',
+	in_array( 'Admin', (array) $r_trung['mat_pin'], true ), $r_trung );
+$ad_mat = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Admin' === $x[0] ) { $ad_mat = $x; } }
+teq( '🔴 hàng Admin bên ấy bị xoá PIN', '', (string) $ad_mat[1] );
+/* ⚠️ XOÁ PIN, KHÔNG XOÁ HÀNG: hàng ấy mang TK Có / Mã đối tượng do kế toán khai — xoá hàng là
+   mất bảng khai ấy, mà cấp lại PIN thì dùng lại được ngay. */
+t( '🔴 nhưng HÀNG vẫn còn', null !== $ad_mat, VHCP_Cfg::read( VHCP_Cfg::USER ) );
+teq( 'và TK Có của kế toán còn nguyên', '1411', (string) $ad_mat[4] );
+$cp2 = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Trùng PIN' === $x[0] ) { $cp2 = $x; } }
+teq( 'người vừa đẩy giữ đúng PIN bên nhân sự', '1111', (string) $cp2[1] );
+/* ⚠️ VÀ KHÔNG ĐƯỢC KỂ TÊN CHÍNH NGƯỜI VỪA ĐẨY vào danh sách "bị xoá PIN". Hàng của họ có bị
+   chạm qua trong lúc ghi cũng không sao — nhưng nói ra là câu báo bảo anh Thắng đi cấp PIN mới
+   cho đúng người vừa được đẩy, tức là bảo anh đi sửa một thứ không hỏng. */
+$r_lai = VHCC_DayChiPhi::dat( $U_AD, 'CP2', 'mo' );
+teq( '🔴 đẩy lại người đã đẩy thì không ai bị xoá PIN', 0,
+	count( (array) $r_lai['mat_pin'] ) );
+$cp2b = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Trùng PIN' === $x[0] ) { $cp2b = $x; } }
+teq( 'và PIN của chính họ còn nguyên', '1111', (string) $cp2b[1] );
+VHCC_DayChiPhi::dat( $U_AD, 'CP2', '' );
+/* Trả lại PIN cho Admin để những phép thử sau chạy trên cảnh cũ. */
+$so_tl = VHCP_Cfg::read( VHCP_Cfg::USER );
+foreach ( $so_tl as $i_tl => $x_tl ) { if ( 'Admin' === $x_tl[0] ) { $so_tl[ $i_tl ][1] = '1111'; } }
+VHCP_Cfg::write( VHCP_Cfg::USER, $so_tl );
 
 /* Chưa có PIN thì không đẩy được — bên ấy đăng nhập bằng PIN, hàng không PIN là hàng chết. */
 VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP3', 'ho_ten' => 'Người Không PIN',
@@ -14254,6 +14409,135 @@ t( 'và KHÔNG còn nằm trong phần đi vào sổ quyền',
 t( 'trong khi ô quyền thật vẫn đi tiếp',
 	isset( $sach_t['CP1']['cham_cong'] ), $sach_t );
 
+delete_option( VHCC_DayChiPhi::O_DA_DAY );
+vhcc_dung_bang();
+
+
+/* ==================================================================================
+   XOÁ HẲN MỘT HỒ SƠ NGAY TRÊN TRANG QUẢN LÝ NHÂN SỰ
+
+   Anh Thắng 28/08/2026, sau khi thử thêm một người từ màn cửa hàng rồi thấy hàng rác
+   `TAM-…` nằm lại trong sổ: *"Giờ anh muốn xóa nhân viên đó đi"*.
+
+   `VHCC_NhanSu::xoa_ho_so()` vốn đã có, nhưng lời gọi DUY NHẤT nằm ở wp-admin — tức là muốn
+   xoá một hàng rác thì phải rời trang, vào bảng quản trị WordPress. Nay có nút ngay tại hàng.
+
+   🔴 XOÁ ĐI HAI NHỊP. Nhịp một là một ĐƯỜNG DẪN (GET) chỉ mở ra lời hỏi — bấm nhầm không mất
+      gì. Nhịp hai là nút gửi. Không dùng hộp thoại xác nhận bằng JavaScript: cả trang này
+      không có lấy một dòng script, mà thứ bộ thử PHP không với tới thì không phải là chốt.
+   ================================================================================== */
+vhcc_dung_bang();
+$xh_ad = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => 'TUTU_BT' );
+VHCC_NhanSu::luu_ho_so( $xh_ad, array( 'ma_nv' => 'XH1', 'ho_ten' => 'Người Bỏ',
+	'cua_hang' => 'TUTU_BT', 'vai_tro' => 'Nhân viên' ) );
+VHCC_NhanSu::luu_ho_so( $xh_ad, array( 'ma_nv' => 'XH2', 'ho_ten' => 'Người Có Công',
+	'cua_hang' => 'TUTU_BT', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => 'XH2', 'ho_ten' => 'Người Có Công',
+	'coso' => 'TUTU_BT', 'ngay' => '2026-07-01', 'hau_to' => '',
+	'gio_vao_giay' => VHCC_DB::giay( '08:00' ), 'gio_ra_giay' => VHCC_DB::giay( '17:00' ) ) );
+
+teq( 'đếm lượt chấm dùng CHUNG một phép với lời chối của xoa_ho_so', 1,
+	VHCC_NhanSu::so_luot_cham( 'XH2' ) );
+teq( 'người chưa chấm lần nào thì đếm ra 0', 0, VHCC_NhanSu::so_luot_cham( 'XH1' ) );
+
+/* Nhịp một: bảng phải có đường "xoá", và chỉ Admin thấy. */
+$h_xh_ad = vhcc_ns( 'Admin' );
+t( 'Admin thấy đường xoá ở hàng người', strpos( $h_xh_ad, '>xoá 🗑</a>' ) !== false, $h_xh_ad );
+$h_xh_kt = vhcc_ns( 'Kế toán' );
+t( '🔴 Kế toán KHÔNG thấy đường xoá', strpos( $h_xh_kt, '>xoá 🗑</a>' ) === false, $h_xh_kt );
+t( 'nhưng Kế toán vẫn vào được trang (chỉ mất đúng đường xoá)',
+	strpos( $h_xh_kt, 'sửa ▾' ) !== false, $h_xh_kt );
+/* 🔴 GIẤU ĐƯỜNG DẪN KHÔNG PHẢI LÀ GÁC CỬA. `?xoa_o=` gõ tay được, nên hàng hỏi phải TỰ hỏi
+   quyền chứ không dựa vào việc người ta không tìm ra đường bấm. */
+$h_kt_hoi = vhcc_ns( 'Kế toán', array( 'xoa_o' => 'XH1' ) );
+t( '🔴 Kế toán gõ tay ?xoa_o= cũng KHÔNG mở được hàng hỏi',
+	strpos( $h_kt_hoi, 'name="xoa_ma"' ) === false, $h_kt_hoi );
+
+/* Nhịp hai: mở lời hỏi bằng `?xoa_o=` — chưa xoá gì cả. */
+$h_hoi = vhcc_ns( 'Admin', array( 'xoa_o' => 'XH1' ) );
+t( 'mở lời hỏi trước khi xoá', strpos( $h_hoi, 'Xoá hẳn hồ sơ XH1' ) !== false, $h_hoi );
+t( 'lời hỏi nói rõ là không lấy lại được',
+	strpos( $h_hoi, 'không lấy lại được' ) !== false, $h_hoi );
+t( 'và chỉ ra đường ĐÚNG thay cho xoá: đổi trạng thái sang Đã nghỉ',
+	strpos( $h_hoi, 'Đã nghỉ' ) !== false, $h_hoi );
+t( 'có nút Thôi để rút lui', strpos( $h_hoi, 'Thôi, giữ lại' ) !== false, $h_hoi );
+t( 'nút xoá mang THEO mã, không dùng ô ẩn dùng chung',
+	strpos( $h_hoi, 'name="xoa_ma" value="XH1"' ) !== false, $h_hoi );
+t( '🔴 chỉ MỞ lời hỏi thôi thì hồ sơ vẫn còn nguyên', (bool) VHCC_NhanSu::ho_so( 'XH1' ) );
+
+/* Lời hỏi phải nói TRƯỚC con số sẽ khiến hệ chối — biết trước hơn bấm rồi mới đọc lời từ chối. */
+$h_hoi2 = vhcc_ns( 'Admin', array( 'xoa_o' => 'XH2' ) );
+t( 'người còn chấm công thì lời hỏi báo trước là sẽ bị chối',
+	strpos( $h_hoi2, 'còn 1 lượt chấm công' ) !== false, $h_hoi2 );
+t( 'người chưa chấm lần nào thì lời hỏi nói là xoá không bỏ rơi dữ liệu',
+	strpos( $h_hoi, 'chưa có lượt chấm công nào' ) !== false, $h_hoi );
+
+/* 🔴 CÒN CHẤM CÔNG THÌ CHỐI — bảng lương tháng cũ sẽ có mã mà không tra ra tên. */
+$b_xh2 = VHCC_TrangNS::lam_viec( 'xoa_hs', $xh_ad );
+$_POST = array( 'xoa_ma' => 'XH2' );
+$b_xh2 = VHCC_TrangNS::lam_viec( 'xoa_hs', $xh_ad );
+$_POST = array();
+t( 'xoá người còn chấm công bị CHỐI', isset( $b_xh2[0]['loi'] ), $b_xh2 );
+t( 'và hồ sơ ấy vẫn còn', (bool) VHCC_NhanSu::ho_so( 'XH2' ) );
+
+/* 🔴 BẤM NÚT THẬT, KHÔNG CHỈ GỌI HÀM. Nút Xoá không gửi `viec` — nó mang tên riêng `xoa_ma`,
+   nên bộ điều phối phải tự nhận ra. Quên khai một dòng ở đó thì nút bấm xong KHÔNG XẢY RA GÌ
+   CẢ, mà mọi phép thử gọi thẳng `lam_viec('xoa_hs', …)` vẫn xanh. Đúng cái bẫy đã cắn một lần
+   với nút Thêm nhân viên. */
+VHCC_NhanSu::luu_ho_so( $xh_ad, array( 'ma_nv' => 'XH3', 'ho_ten' => 'Người Bấm Nút',
+	'cua_hang' => 'TUTU_BT', 'vai_tro' => 'Nhân viên' ) );
+vhcc_ns( 'Admin', array(), array( 'xoa_ma' => 'XH3' ) );
+t( '🔴 bấm ĐÚNG cái nút trên trang thì hồ sơ mất thật', ! VHCC_NhanSu::ho_so( 'XH3' ) );
+
+/* Kế toán bấm thẳng vào việc (gõ tay POST) cũng phải bị chối — chốt nằm ở lõi, không ở nút vẽ. */
+$xh_kt = array( 'name' => 'KT', 'role' => 'Kế toán', 'coso' => 'TUTU_BT' );
+$_POST = array( 'xoa_ma' => 'XH1' );
+$b_xh_kt = VHCC_TrangNS::lam_viec( 'xoa_hs', $xh_kt );
+$_POST = array();
+t( '🔴 Kế toán gõ tay lệnh xoá cũng bị chối', isset( $b_xh_kt[0]['loi'] ), $b_xh_kt );
+t( 'và hồ sơ vẫn còn nguyên', (bool) VHCC_NhanSu::ho_so( 'XH1' ) );
+
+/* Thiếu mã thì nói thiếu mã, đừng xoá bừa. */
+$_POST = array( 'xoa_ma' => '' );
+$b_xh_r = VHCC_TrangNS::lam_viec( 'xoa_hs', $xh_ad );
+$_POST = array();
+t( 'thiếu mã thì báo thiếu mã', isset( $b_xh_r[0]['loi'] )
+	&& strpos( $b_xh_r[0]['loi'], 'Thiếu Mã NV' ) !== false, $b_xh_r );
+
+/* 🔴 XOÁ BỊ CHỐI THÌ KHÔNG ĐƯỢC GỠ GÌ HẾT. Gỡ bản sao trước khi biết xoá có đi qua được không
+   thì gặp người còn chấm công: hồ sơ vẫn nguyên, mà đường đăng nhập của họ đã mất — im lặng,
+   và họ chỉ biết vào sáng hôm sau. */
+update_option( VHCC_DayChiPhi::O_DA_DAY, array( 'XH2' => 'Người Có Công' ) );
+update_option( VHCC_DayGhe::O_SO, array( array( 'ten' => 'Người Có Công', 'pin' => '778899',
+	'vaiTro' => 'Nhân viên', 'coso' => 'TUTU_BT', 'maNV' => 'XH2' ) ) );
+$_POST = array( 'xoa_ma' => 'XH2' );
+VHCC_TrangNS::lam_viec( 'xoa_hs', $xh_ad );
+$_POST = array();
+t( '🔴 xoá bị chối thì bản sao bên Vận hành chi phí VẪN CÒN', VHCC_DayChiPhi::da_day( 'XH2' ) );
+t( '🔴 và bản sao bên hệ Ghế cũng vẫn còn', VHCC_DayGhe::da_day( 'XH2' ) );
+delete_option( VHCC_DayGhe::O_SO );
+
+/* Xoá thật — và gỡ luôn bản sao ở hai hệ kia, kẻo còn đường đăng nhập trỏ vào người đã mất hồ sơ. */
+update_option( VHCC_DayChiPhi::O_DA_DAY, array( 'XH1' => 'Người Bỏ' ) );
+update_option( VHCC_DayGhe::O_SO, array( array( 'ten' => 'Người Bỏ', 'pin' => '445566',
+	'vaiTro' => 'Nhân viên', 'coso' => 'TUTU_BT', 'maNV' => 'XH1' ) ) );
+t( 'dựng sẵn: XH1 đang có bản sao bên hệ Ghế', VHCC_DayGhe::da_day( 'XH1' ) );
+$_POST = array( 'xoa_ma' => 'XH1' );
+$b_xh1 = VHCC_TrangNS::lam_viec( 'xoa_hs', $xh_ad );
+$_POST = array();
+t( 'Admin xoá được hồ sơ chưa có chấm công', isset( $b_xh1[0]['ok'] ), $b_xh1 );
+t( 'lời báo nhắc luôn tên người vừa xoá', isset( $b_xh1[0]['ok'] )
+	&& strpos( $b_xh1[0]['ok'], 'Người Bỏ' ) !== false, $b_xh1 );
+t( '🔴 hồ sơ biến mất thật', ! VHCC_NhanSu::ho_so( 'XH1' ) );
+t( '🔴 và bản sao bên Vận hành chi phí cũng được gỡ', ! VHCC_DayChiPhi::da_day( 'XH1' ),
+	get_option( VHCC_DayChiPhi::O_DA_DAY ) );
+t( '🔴 bản sao bên hệ Ghế cũng được gỡ', ! VHCC_DayGhe::da_day( 'XH1' ),
+	get_option( VHCC_DayGhe::O_SO ) );
+t( 'và lời báo kể ra đã gỡ khỏi những đâu', isset( $b_xh1[0]['ok'] )
+	&& strpos( $b_xh1[0]['ok'], 'hệ Ghế' ) !== false
+	&& strpos( $b_xh1[0]['ok'], 'Vận hành chi phí' ) !== false, $b_xh1 );
+
+delete_option( VHCC_DayGhe::O_SO );
 delete_option( VHCC_DayChiPhi::O_DA_DAY );
 vhcc_dung_bang();
 

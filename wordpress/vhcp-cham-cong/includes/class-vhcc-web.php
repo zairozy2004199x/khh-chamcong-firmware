@@ -3223,7 +3223,19 @@ class VHCC_Web {
 		}
 		$b_gio = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
 		self::ve_luoi_gio( $b_gio, $th, $duoc_sua, $duoc_bu, $ky, $toi );
-		self::the_tong_ca( $b_gio, $cs );
+		self::the_tong_ca( $b_gio, $cs, $toi );
+		/* 🔴 KHỐI KHAI CA PHẢI ĐỨNG NGAY ĐÂY, KHÔNG PHẢI CHỈ Ở MÀN CẤU HÌNH.
+		   Nó vốn nằm một mình trong màn Cấu hình, mà màn ấy gác `ngoai_coso` — bậc Quản lý. Tức
+		   là Cửa hàng trưởng, đúng người biết cửa hàng mình vào ca mấy giờ, KHÔNG có cửa nào để
+		   khai. Kết quả là mọi cửa hàng cứ chạy bằng khung ca mặc định và không ai sửa được.
+		   Anh Thắng 27/08/2026 đã giao thẳng: *"Cho qua bên Tài khoản cửa hàng trưởng tự set giờ
+		   ca vào ra của cửa hàng"*.
+		   Đặt cạnh chính cái bảng bị sai vì nó: thấy số lệch → cuộn xuống một khối là sửa được.
+		   Chốt bên trong khối là `lich_lam` + `co_quyen_coso`, nên Quản lý vẫn khai như cũ và
+		   Cửa hàng trưởng chỉ khai được cửa hàng mình — thêm chỗ vẽ, không nới quyền. */
+		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
+			self::the_khai_ca( $cs, $ky, $toi );
+		}
 	}
 
 	/**
@@ -4142,7 +4154,7 @@ class VHCC_Web {
 	 * Một dòng một người, một cột một ca. Cột cuối là phần giờ KHÔNG thuộc ca nào — cột ấy có số
 	 * là dấu hiệu khung ca đang khai lệch với giờ người ta làm thật, không phải lỗi của ai.
 	 */
-	private static function the_tong_ca( $b, $cs ) {
+	private static function the_tong_ca( $b, $cs, $toi = array() ) {
 		if ( empty( $b['ok'] ) ) { return; }
 		$ds_ca = VHCC_Ca::cua( $cs );
 		if ( ! $ds_ca ) { return; }
@@ -4171,7 +4183,25 @@ class VHCC_Web {
 			. ( 'rieng' === $nguon ? '<b>khai riêng cho ' . esc_html( $cs ) . '</b>'
 				: ( 'chung' === $nguon ? '<b>khai chung</b> cho mọi cơ sở'
 					: '<b>mặc định</b> (chưa ai khai)' ) )
-			. ' — ' . esc_html( self::chu_ds_ca( $ds_ca ) ) . '. Khai lại ở khối dưới cùng.</p>';
+			. ' — ' . esc_html( self::chu_ds_ca( $ds_ca ) ) . '.</p>';
+		/* 🔴 MƯỢN KHUNG CA CỦA NGƯỜI KHÁC LÀ SỐ SAI, PHẢI NÓI THẲNG RA LÀ SAI.
+		   Anh Thắng 28/08/2026: *"Anh thấy ca làm nó có nè, nhưng nó đang lấy chung từ cửa hàng
+		   khác nên bị sai"*. Bảng vẫn ra số đẹp, cột nào cũng có giờ — nên nhìn qua tưởng đúng.
+		   Một dòng chữ xám nói "mặc định (chưa ai khai)" thì không ai đọc. Cả bảng chỉ đúng khi
+		   khung ca đúng, nên chỗ chưa khai phải là một khối vàng có đường bấm thẳng tới ô khai,
+		   chứ không phải một câu chú thích. */
+		if ( 'rieng' !== $nguon ) {
+			echo '<div class="bao canh" style="margin:0 0 10px"><b>' . esc_html( $cs ) . ' chưa có '
+				. 'khung ca riêng.</b> Bảng dưới đang chia giờ theo khung '
+				. ( 'chung' === $nguon ? '<b>khai chung cho mọi cơ sở</b>' : '<b>mặc định của hệ</b>' )
+				. ' — cửa hàng nào giờ vào ra khác khung đó thì <b>số ở đây sai</b>, và phần lệch '
+				. 'sẽ rơi hết vào cột <b>Ngoài ca</b>. '
+				. ( VHCC_Vai::duoc( $toi, 'lich_lam' )
+					? 'Khai giờ ca thật của cửa hàng ở khối <b>Khai ca làm việc</b> ngay dưới bảng này — '
+						. '<a href="#khaica">xuống đó ↓</a>'
+					: 'Nhờ Cửa hàng trưởng khai giờ ca thật của cửa hàng' )
+				. '.</div>';
+		}
 		if ( ! $nguoi ) { echo '<p class="mo">Chưa có dữ liệu.</p></div>'; return; }
 
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Nhân viên</th>';
@@ -4216,11 +4246,24 @@ class VHCC_Web {
 	 */
 	private static function the_khai_ca( $cs, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
+		/* 🔴 CHỐT CƠ SỞ NGAY TẠI KHỐI VẼ. Khối này nay còn được vẽ trên màn Bảng công (xem
+		   `the_man_cham`), nơi mã cơ sở đến từ `?ccs=` gõ tay được. `VHCC_Ca::luu` có chốt riêng
+		   nên lưu thì không lọt, nhưng bày ra khung ca của cửa hàng người khác đã là rò rồi. */
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
 		$ds  = VHCC_Ca::cua( $cs );
 		$ngu = VHCC_Ca::nguon_ca( $cs );
 
-		echo '<div class="the" id="khaica"><details><summary><b>Khai ca làm việc</b> — '
-			. count( $ds ) . ' ca <span class="mo">(bấm để mở)</span></summary>';
+		/* Chưa khai riêng thì MỞ SẴN. Anh Thắng 28/08/2026 gửi ảnh bảng Tổng giờ theo ca của một
+		   cửa hàng: *"Anh thấy ca làm nó có nè, nhưng nó đang lấy chung từ cửa hàng khác nên bị
+		   sai"*. Khung ca ấy là khung MẶC ĐỊNH — cửa hàng chưa ai khai nên mượn tạm. Khối khai
+		   ca thì nằm gập kín trong một màn mà Cửa hàng trưởng còn không vào được. Gập kín một
+		   việc CHƯA LÀM là cách chắc chắn nhất để nó không bao giờ được làm. */
+		$mo = ( 'rieng' !== $ngu )
+			|| ( isset( $_GET['khaica'] ) && '1' === (string) wp_unslash( $_GET['khaica'] ) );
+		echo '<div class="the" id="khaica"><details' . ( $mo ? ' open' : '' ) . '>'
+			. '<summary><b>Khai ca làm việc của ' . esc_html( $cs ) . '</b> — '
+			. count( $ds ) . ' ca <span class="mo">(bấm để '
+			. ( $mo ? 'gập lại' : 'mở' ) . ')</span></summary>';
 		echo '<p class="mo" style="margin:10px 0">Mỗi ca có giờ <b>ngày thường</b> và giờ '
 			. '<b>cuối tuần</b> (T7–CN). Để trống ô cuối tuần = dùng như ngày thường. '
 			. 'Ca qua nửa đêm cứ khai thẳng (VD 22:00 → 06:00), hệ hiểu là kết thúc hôm sau.</p>';

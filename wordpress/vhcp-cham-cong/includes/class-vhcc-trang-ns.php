@@ -168,6 +168,9 @@ class VHCC_TrangNS {
 		$viec_gui = '';
 		if ( isset( $_POST['viec'] ) )     { $viec_gui = (string) wp_unslash( $_POST['viec'] ); }
 		elseif ( isset( $_POST['cot'] ) )  { $viec_gui = 'ap_cot'; }
+		/* Nút Xoá cũng không gửi `viec` — nó mang tên riêng `xoa_ma` để CHỈ lượt bấm đúng nó
+		   mới kéo theo một mã. Cùng lý do với nút áp cả cột ở trên. */
+		elseif ( isset( $_POST['xoa_ma'] ) ) { $viec_gui = 'xoa_hs'; }
 
 		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
 			$bao = self::ky_dung()
@@ -198,6 +201,7 @@ class VHCC_TrangNS {
 		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
 		if ( 'bo_ghep_ma' === $viec )  { return self::viec_bo_ghep_ma( $toi ); }
 		if ( 'don_ma' === $viec )      { return self::viec_don_ma( $toi ); }
+		if ( 'xoa_hs' === $viec )      { return self::viec_xoa_hs( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -288,6 +292,49 @@ class VHCC_TrangNS {
 		return array( array( 'ok' => 'Đã dồn ' . $b . ' về ' . $a . ': chuyển ' . $c . ' hàng'
 			. ( $g ? ', gộp ' . $g . ' hàng trùng ngày (giờ vào lấy sớm nhất, giờ ra lấy muộn nhất)' : '' )
 			. '. Lưới nay chỉ còn một dòng cho người này.' ) );
+	}
+
+	/**
+	 * XOÁ HẲN MỘT HỒ SƠ — nhịp cuối, sau khi hàng hỏi ở `hang_xoa()` đã nói ra cái sẽ mất.
+	 *
+	 * ⚠️ ĐI QUA `VHCC_NhanSu::xoa_ho_so()`, KHÔNG GỌI `$wpdb->delete` ở đây. Hai chốt nằm trong
+	 *    hàm ấy: bậc Admin, và "còn lượt chấm công thì chối". Đây là cửa THỨ HAI vào cùng một
+	 *    việc (cửa thứ nhất ở wp-admin) — cửa thứ hai mà tự xoá lấy là cửa không ai gác.
+	 */
+	private static function viec_xoa_hs( $toi ) {
+		$ma = isset( $_POST['xoa_ma'] ) ? sanitize_text_field( wp_unslash( $_POST['xoa_ma'] ) ) : '';
+		if ( '' === $ma ) { return array( array( 'loi' => 'Thiếu Mã NV cần xoá.' ) ); }
+		$hs  = VHCC_NhanSu::ho_so( $ma );
+		$ten = $hs ? trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) ) : '';
+
+		/* 🔴 GỠ BẢN SAO Ở HAI HỆ KIA TRƯỚC, VÀ CHỈ KHI XOÁ ĐÃ CHẮC CHẮN ĐI QUA ĐƯỢC.
+		   Người đã đẩy sang hệ Ghế / Vận hành chi phí thì bên ấy còn một dòng người dùng mang
+		   mã này. Xoá sổ nhân sự mà để lại hai dòng đó là còn hai đường đăng nhập trỏ vào một
+		   người không còn hồ sơ — không ai nhìn thấy, và không ai gỡ.
+		   Nhưng gỡ TRƯỚC khi biết xoá có được không thì gặp người còn chấm công: xoá bị chối,
+		   mà đường đăng nhập của họ đã mất. Nên hỏi `xoa_ho_so()` trước bằng chính phép đếm nó
+		   dùng, rồi mới gỡ. */
+		$so = VHCC_NhanSu::so_luot_cham( $ma );
+		if ( $so > 0 || ! VHCC_Vai::duoc( $toi, 'xoa_ho_so' ) ) {
+			$kq = VHCC_NhanSu::xoa_ho_so( $toi, $ma );   // để chính nó nói ra lời chối
+			return array( array( 'loi' => isset( $kq['error'] ) ? $kq['error'] : 'Không xoá được.' ) );
+		}
+		$go = array();
+		if ( VHCC_DayGhe::da_day( $ma ) ) {
+			$r = VHCC_DayGhe::dat( $toi, $ma, false );
+			if ( ! empty( $r['ok'] ) ) { $go[] = 'hệ Ghế'; }
+		}
+		if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'da_day' )
+			&& method_exists( 'VHCC_DayChiPhi', 'dat' ) && VHCC_DayChiPhi::da_day( $ma ) ) {
+			$r = VHCC_DayChiPhi::dat( $toi, $ma, false );
+			if ( ! empty( $r['ok'] ) ) { $go[] = 'Vận hành chi phí'; }
+		}
+
+		$kq = VHCC_NhanSu::xoa_ho_so( $toi, $ma );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã xoá hẳn hồ sơ ' . $ma
+			. ( '' !== $ten ? ' — ' . $ten : '' ) . '.'
+			. ( $go ? ' Đã gỡ luôn khỏi ' . implode( ' và ', $go ) . '.' : '' ) ) );
 	}
 
 	private static function viec_bo_ghep_ma( $toi ) {
@@ -702,6 +749,14 @@ class VHCC_TrangNS {
 			. '.mo-hs{font-size:11px;color:var(--mo);text-decoration:none;white-space:nowrap;'
 			. 'border:1px solid var(--vien);border-radius:5px;padding:1px 5px;margin-left:4px}'
 			. '.mo-hs:hover{color:var(--xanh);border-color:var(--xanh)}'
+			/* Đường "xoá" đỏ ngay từ lúc chưa rê chuột — nó là đường DUY NHẤT ở cột này dẫn tới
+			   một việc không đảo lại được, nên không được trông giống ba đường kia. */
+			. '.xoa-hs{color:var(--do);border-color:#fecaca}'
+			. '.xoa-hs:hover{color:#fff;background:var(--do);border-color:var(--do)}'
+			/* Nút xoá thật (nhịp hai): đỏ đặc, không lẫn với nút Lưu xanh. */
+			. '.nut-do{background:var(--do);color:#fff;border:1px solid var(--do);border-radius:8px;'
+			. 'padding:8px 14px;font-size:14px;font-weight:600;cursor:pointer}'
+			. 'tr.hang-xoa>td{background:#fff7f7}'
 			/* Hàng trùng: nền vàng nhạt + nhãn đỏ. Màu KHÔNG đứng một mình — nhãn có chữ, để
 			   người mù màu và bản in đen trắng vẫn đọc ra. */
 			. 'tr.hang-trung>td{background:#fffbeb}'
@@ -1321,6 +1376,7 @@ class VHCC_TrangNS {
 
 	private static function the_bang( $toi, $ds_trang, $cs, $q, $vai, $p ) {
 		$dang_sua = isset( $_GET['sua_o'] ) ? sanitize_text_field( wp_unslash( $_GET['sua_o'] ) ) : '';
+		$dang_xoa = isset( $_GET['xoa_o'] ) ? sanitize_text_field( wp_unslash( $_GET['xoa_o'] ) ) : '';
 		$nguoi = VHCC_NhanSu::ds_nhan_vien( $toi, $cs, $q );
 		if ( '' !== $vai ) {
 			$loc = array();
@@ -1478,6 +1534,19 @@ class VHCC_TrangNS {
 				echo ' <a class="mo-hs" title="Mở hồ sơ đầy đủ — CCCD, địa chỉ, hợp đồng…"'
 					. ' href="' . esc_url( add_query_arg(
 						array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() ) ) . '">đầy đủ ↗</a>';
+				/* 🔴 XOÁ LÀ VIỆC KHÔNG ĐẢO LẠI ĐƯỢC, NÊN NÓ ĐI HAI NHỊP.
+				   Anh Thắng 28/08/2026, sau khi thử thêm một người rồi thấy hàng rác trong sổ:
+				   *"Giờ anh muốn xóa nhân viên đó đi"*. Trước nay chỉ wp-admin xoá được, nên
+				   hàng rác cứ nằm đấy.
+				   Nhịp một là một ĐƯỜNG DẪN (GET) — bấm nhầm thì không mất gì, chỉ mở ra lời
+				   hỏi. Nhịp hai mới là nút gửi. Không dùng hộp thoại xác nhận bằng JavaScript:
+				   cả màn này không có lấy một dòng script, mà thứ bộ thử PHP không với tới thì
+				   không phải là chốt. */
+				if ( VHCC_Vai::duoc( $toi, 'xoa_ho_so' ) ) {
+					echo ' <a class="mo-hs xoa-hs" title="Xoá hẳn hồ sơ này khỏi sổ"'
+						. ' href="' . esc_url( self::url_xoa( $ma ) . '#hs' . substr( md5( $ma ), 0, 8 ) )
+						. '">xoá 🗑</a>';
+				}
 			}
 			echo '</td>';
 			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'] ) . '</td>';
@@ -1512,9 +1581,12 @@ class VHCC_TrangNS {
 						: self::hai_nut_chi_phi( $ma ) ) . '</td>';
 			}
 			echo '</tr>';
+			$so_cot_hang = 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 );
 			if ( $dang_sua === $ma ) {
-				self::hang_sua( $toi, $r,
-					4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 ) );
+				self::hang_sua( $toi, $r, $so_cot_hang );
+			}
+			if ( '' !== $ma && $dang_xoa === $ma ) {
+				self::hang_xoa( $toi, $r, $so_cot_hang );
 			}
 		}
 		echo '</tbody></table></div>';
@@ -1535,6 +1607,11 @@ class VHCC_TrangNS {
 		return ( '' === $ma ) ? $u : add_query_arg( 'sua_o', $ma, $u );
 	}
 
+	private static function url_xoa( $ma ) {
+		$u = remove_query_arg( array( 'sua_o', 'xoa_o' ), self::url_hien() );
+		return ( '' === $ma ) ? $u : add_query_arg( 'xoa_o', $ma, $u );
+	}
+
 	/**
 	 * HÀNG SỬA — chèn ngay dưới người đang mở, trong CHÍNH bảng này.
 	 *
@@ -1552,6 +1629,48 @@ class VHCC_TrangNS {
 	 * ⚠️ KHÔNG CÓ Ô MÃ NV. Mã là khoá của mọi lượt chấm công; đổi nó là việc riêng, chỉ Admin,
 	 *    và có màn xem trước hẳn hoi (`VHCC_NhanSu::xem_truoc_doi_ma`).
 	 */
+	/**
+	 * HÀNG HỎI TRƯỚC KHI XOÁ — nhịp hai của việc xoá hồ sơ.
+	 *
+	 * Anh Thắng 28/08/2026: *"Giờ anh muốn xóa nhân viên đó đi"* (một hàng thử anh vừa thêm từ
+	 * màn cửa hàng). Trước nay chỉ wp-admin xoá được, nên hàng rác nằm lại trong sổ.
+	 *
+	 * 🔴 NÓI RA CÁI SẼ MẤT, KHÔNG CHỈ HỎI "CÓ CHẮC KHÔNG". Một câu "Bạn có chắc?" thì ai cũng
+	 *    bấm Có. Ở đây liệt kê thẳng: mã, tên, cửa hàng, và người ấy đang có bao nhiêu lượt
+	 *    chấm công — vì còn lượt chấm nào thì `VHCC_NhanSu::xoa_ho_so()` sẽ CHỐI, và biết
+	 *    trước vẫn hơn bấm rồi mới đọc lời từ chối.
+	 *
+	 * ⚠️ CŨNG KHÔNG MỞ `<form>` — xem chú thích dài ở `hang_sua()`. Nút xoá mang luôn tên và
+	 *    giá trị (`name="xoa_ma"`), nên chỉ khi bấm ĐÚNG nút ấy mã mới được gửi lên; các nút
+	 *    khác của bảng gửi lượt của mình mà không kéo theo lệnh xoá nào.
+	 */
+	private static function hang_xoa( $toi, $r, $so_cot ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'xoa_ho_so' ) ) { return; }
+		$ma  = trim( (string) $r['ma_nv'] );
+		$ten = trim( (string) ( isset( $r['ho_ten'] ) ? $r['ho_ten'] : '' ) );
+		$so  = VHCC_NhanSu::so_luot_cham( $ma );
+
+		echo '<tr class="hang-sua hang-xoa"><td colspan="' . (int) $so_cot . '">';
+		echo '<div class="bao ' . ( $so > 0 ? 'loi' : 'canh' ) . '" style="margin:0 0 10px">'
+			. '<b>Xoá hẳn hồ sơ ' . esc_html( $ma )
+			. ( '' !== $ten ? ' — ' . esc_html( $ten ) : '' ) . '?</b> '
+			. 'Hồ sơ biến mất khỏi sổ nhân sự và <b>không lấy lại được</b>. '
+			. 'Muốn giữ lại lịch sử thì đừng xoá — đổi <b>Trạng thái làm việc</b> thành '
+			. '<b>Đã nghỉ</b> ở ô <b>sửa ▾</b>.';
+		if ( $so > 0 ) {
+			echo ' <br><b>Người này còn ' . (int) $so . ' lượt chấm công</b>, nên hệ sẽ CHỐI: '
+				. 'bảng lương tháng cũ sẽ có mã mà không tra ra tên.';
+		} else {
+			echo ' Người này <b>chưa có lượt chấm công nào</b>, nên xoá đi không bỏ rơi dữ liệu cũ.';
+		}
+		echo '</div>';
+		echo '<div class="hang">';
+		echo '<button class="nut-do" name="xoa_ma" value="' . esc_attr( $ma ) . '">'
+			. 'Xoá hẳn ' . esc_html( $ma ) . '</button>';
+		echo '<a class="nut" href="' . esc_url( self::url_xoa( '' ) ) . '">Thôi, giữ lại</a>';
+		echo '</div></td></tr>';
+	}
+
 	private static function hang_sua( $toi, $r, $so_cot ) {
 		$ma  = trim( (string) $r['ma_nv'] );
 		$luong = VHCC_NhanSu::co_xem_luong( $toi );
