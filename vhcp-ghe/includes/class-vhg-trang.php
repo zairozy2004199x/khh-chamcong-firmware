@@ -1019,9 +1019,19 @@ class VHG_Trang {
 			'quyen_nhan' => $ke_toan ? 1 : 0,
 		);
 
+		/* Kế toán cần danh sách cơ sở cho ô lọc ở tab Duyệt báo cáo (kt-duyet) — trước đây gửi
+		   rỗng cho MỌI người không phải quản trị, kể cả kế toán, nên ô lọc luôn trống dù đúng
+		   tab của họ. Người thu/Hotline không có tab dùng tới nó nên vẫn giữ rỗng cho gọn. */
+		$ds_coso = array();
+		if ( $ke_toan ) {
+			foreach ( VHG_May::ds_coso() as $c ) {
+				$ds_coso[] = array( 'id' => (int) $c['id'], 'ten' => (string) $c['ten'],
+					'tinh' => (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' ) );
+			}
+		}
 		$ra = array( 'ok' => true, 'ky' => $ky, 'ai' => $ai,
 			'may' => $may, 'cho' => array(), 'gd' => array(),
-			'choGan' => array(), 'coso' => array(),
+			'choGan' => array(), 'coso' => $ds_coso,
 			'quy' => $quy, 'quyen' => $q,
 			'luc' => current_time( 'H:i:s' ) );
 
