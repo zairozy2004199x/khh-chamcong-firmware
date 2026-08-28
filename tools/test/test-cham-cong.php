@@ -8396,6 +8396,52 @@ t( 'đọc sổ riêng rồi thì thôi cảnh báo', strpos( $g_h, 'đang đọ
 
 /* 🔴 KHỐI "NHỮNG TRANG KHÔNG KHAI ĐƯỢC" PHẢI THÔI NÓI NGƯỢC. Bản trước ghi gọn "Ghế massage —
    trang của khách", nên người đọc đi tìm cột Ghế, thấy dòng ấy, rồi tin rằng nó không thể có. */
+/* ---- ĐẾM NGƯỜI MANG MỘT VAI: PHẢI CÙNG THƯỚC VỚI `ma()` ------------------------------------
+   🔴 `xoa_them()` dùng `dem_nguoi()` để CHẶN xoá một vai còn người dùng — đó là chốt bảo vệ duy
+      nhất. Bản trước so `vai_tro = <tên>` thẳng trong SQL, trong khi `ma()` — nơi quyết định
+      một người thật sự hưởng quyền gì — nhận diện bằng `khoa_ten()`: bỏ dấu, gộp khoảng trắng.
+      Hai thước đo khác nhau cho cùng một câu hỏi, và chỗ lệch rơi đúng vào chốt ấy:
+        • `ma()` VẪN tra ra vai      -> người đó đang hưởng quyền, thật
+        • `dem_nguoi()` trả 0         -> bảng ghi "chưa ai", nút Bỏ mở toang
+        • bấm Bỏ -> họ rơi xuống Nhân viên, IM LẶNG
+      Đúng cái chú thích của `xoa_them()` bảo phải tránh. */
+VHCC_Vai::dat_them( $g_ad, 'Kế toán MTD', VHCC_Vai::KE_TOAN );
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHDEM1', 'ho_ten' => 'Người Đếm Một',
+	'cua_hang' => 'GHE_CS' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Kế toán MTD' ),
+	array( 'ma_nv' => 'GHDEM1' ) );
+teq( 'dựng cảnh: viết y hệt thì đếm được', 1, VHCC_Vai::dem_nguoi( 'Kế toán MTD' ) );
+
+/* Viết KHÔNG DẤU — `ma()` vẫn tra ra vai ấy, nên `dem_nguoi()` cũng phải thấy. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Ke toan MTD' ),
+	array( 'ma_nv' => 'GHDEM1' ) );
+teq( 'dựng cảnh: `ma()` vẫn nhận ra vai khi hồ sơ viết KHÔNG DẤU',
+	VHCC_Vai::KE_TOAN, VHCC_Vai::ma( 'Ke toan MTD' ) );
+teq( '🔴 nên `dem_nguoi()` cũng phải đếm được — cùng một thước', 1,
+	VHCC_Vai::dem_nguoi( 'Kế toán MTD' ) );
+
+/* Thừa khoảng trắng cũng vậy. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Kế  toán   MTD ' ),
+	array( 'ma_nv' => 'GHDEM1' ) );
+teq( '🔴 thừa/lặp khoảng trắng cũng đếm được', 1, VHCC_Vai::dem_nguoi( 'Kế toán MTD' ) );
+
+/* 🔴 VÀ CHỐT XOÁ PHẢI CHẶN THẬT. Đây mới là chỗ con số ấy có giá. */
+$g_kq = VHCC_Vai::xoa_them( $g_ad, 'Kế toán MTD' );
+t( '🔴 còn người mang vai (viết lệch) thì KHÔNG xoá được vai',
+	empty( $g_kq['ok'] ), $g_kq );
+t( 'và câu chối nói rõ còn bao nhiêu người',
+	strpos( (string) $g_kq['error'], 'Còn 1 người' ) !== false, $g_kq );
+
+/* Đổi vai cho họ rồi thì xoá được. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Nhân viên' ),
+	array( 'ma_nv' => 'GHDEM1' ) );
+teq( 'đổi vai cho họ thì thôi đếm', 0, VHCC_Vai::dem_nguoi( 'Kế toán MTD' ) );
+t( 'và lúc ấy xoá được', ! empty( VHCC_Vai::xoa_them( $g_ad, 'Kế toán MTD' )['ok'] ) );
+/* ⚠️ Vai không ai mang mà cũng bị tính là "có người" thì không xoá nổi vai nào — đếm quá tay
+   cũng là hỏng, chỉ hỏng theo chiều kia. */
+teq( 'một vai chẳng ai mang thì đếm 0', 0, VHCC_Vai::dem_nguoi( 'Vai Chẳng Ai Mang' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv = 'GHDEM1'" );
+
 /* ---- VAI SÓT TỪ DỮ LIỆU CŨ ------------------------------------------------------------------
    🔴 Anh Thắng 28/08/2026, ảnh màn nhân sự sau một lần bấm Lưu bảng:
         Đã lưu 2 ô quyền vào trang.

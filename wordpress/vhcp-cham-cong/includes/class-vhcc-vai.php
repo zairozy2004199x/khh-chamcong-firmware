@@ -520,12 +520,43 @@ class VHCC_Vai {
 		return array( 'ok' => true );
 	}
 
-	/** Bao nhiêu hồ sơ đang mang vai này. */
+	/**
+	 * Bao nhiêu hồ sơ đang mang vai này.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐẾM BẰNG `khoa_ten()`, KHÔNG SO CHUỖI TRẦN — PHẢI CÙNG THƯỚC VỚI `ma()`.
+	 * =========================================================================================
+	 * Bản trước so `vai_tro = <tên>` thẳng trong SQL, trong khi `ma()` — nơi quyết định một
+	 * người thật sự được hưởng quyền gì — nhận diện bằng `khoa_ten()`: bỏ dấu, gộp khoảng
+	 * trắng, bỏ ký tự lạ. Hai thước đo khác nhau cho cùng một câu hỏi "ai đang mang vai này".
+	 *
+	 * Và chỗ lệch ấy rơi đúng vào chốt nguy hiểm nhất của lớp này. `xoa_them()` dùng con số
+	 * này để CHẶN xoá một vai còn người dùng. Hồ sơ ghi "Ke toan MTD" (không dấu) hay
+	 * "Kế toán MTD " (thừa một khoảng trắng) thì:
+	 *
+	 *   • `ma()` VẪN tra ra vai ấy  -> người đó đang hưởng quyền Kế toán, thật
+	 *   • `dem_nguoi()` trả 0        -> bảng ghi "chưa ai", nút Bỏ mở toang
+	 *   • bấm Bỏ -> `ma()` thôi tra ra -> họ rơi xuống Nhân viên, IM LẶNG
+	 *
+	 * Đúng cái mà chú thích của `xoa_them()` bảo phải tránh: *"mất sạch quyền, im lặng, và chỉ
+	 * lộ ra khi từng người kêu lên"*.
+	 *
+	 * ⚠️ GOM THEO NHÓM RỒI SO TRONG PHP, đừng kéo cả 400 hàng về. `khoa_ten()` bỏ dấu tiếng
+	 *    Việt — MySQL không làm được việc ấy bằng một câu WHERE, nên phải so ở đây; nhưng số
+	 *    chuỗi vai_tro KHÁC NHAU thì chỉ vài chục, gom lại là đủ.
+	 */
 	public static function dem_nguoi( $ten ) {
 		global $wpdb;
 		if ( ! class_exists( 'VHCC_DB' ) || ! method_exists( 'VHCC_DB', 't' ) ) { return 0; }
-		return (int) $wpdb->get_var( $wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE vai_tro=%s', trim( (string) $ten ) ) );
+		$k = self::khoa_ten( $ten );
+		if ( '' === $k ) { return 0; }
+		$rows = $wpdb->get_results( 'SELECT vai_tro, COUNT(*) AS so FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . " WHERE TRIM(vai_tro) <> '' GROUP BY vai_tro", ARRAY_A );
+		$so = 0;
+		foreach ( (array) $rows as $r ) {
+			if ( self::khoa_ten( $r['vai_tro'] ) === $k ) { $so += (int) $r['so']; }
+		}
+		return $so;
 	}
 
 	/**
