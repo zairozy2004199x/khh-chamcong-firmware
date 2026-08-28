@@ -14041,6 +14041,37 @@ t( 'và vẫn còn hai kiểu cũ', strpos( $h_ct, 'Theo giờ' ) !== false
 vhcc_dung_bang();
 
 
+/* ==========================================================================================
+ * 🔴 CẢ TRANG PHẢI NÓI RA ĐƯỢC LỖI, KHÔNG ĐỂ TRANG TRẮNG.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026 gặp "Đã có một lỗi nghiêm trọng" ba lần trong một ngày — nút Xuất Excel,
+ * màn Bảng công, khối Thêm người mới. Lần đầu tìm ra chỗ hỏng CHỈ VÌ có try/catch ở đúng nút
+ * ấy: câu lỗi nói thẳng tệp nào dòng nào, sửa xong trong một lượt.
+ */
+$src_pv = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 phuc_vu() bọc cả trang trong try/catch',
+	preg_match( '/function phuc_vu\(\)\s*\{\s*try\s*\{/', $src_pv ) === 1 );
+t( 'và bắt Throwable, không chỉ Exception',
+	strpos( $src_pv, 'catch ( \\Throwable $e )' ) !== false );
+/* ⚠️ Trang báo hỏng phải nói TỆP NÀO, DÒNG NÀO — đó là thứ duy nhất rút ngắn được một vòng
+   đoán mò. Một câu "có lỗi xảy ra" thì y hệt trang trắng. */
+t( '🔴 trang báo hỏng nói ra tệp và dòng',
+	strpos( $src_pv, 'basename( $e->getFile() )' ) !== false
+	&& strpos( $src_pv, '$e->getLine()' ) !== false );
+t( 'và in bản đang chạy để biết máy đang dùng bản nào',
+	strpos( $src_pv, 'VHCC_VERSION' ) !== false );
+/* ⚠️ KHÔNG in dấu vết gọi hàm: dài, khó đọc, và lộ đường dẫn máy chủ. */
+t( '🔴 KHÔNG in dấu vết gọi hàm ra trang',
+	strpos( $src_pv, 'getTraceAsString' ) === false );
+
+/* Chạy thật: ném một lỗi từ trong màn rồi xem trang có nói ra không. */
+$_COOKIE = array( VHCC_Web::COOKIE => VHCC_Auth::phat_token( 'A', 'Admin', 'TUTU_BT', 'ADH' ) );
+$_GET = array( 'man' => 'nem-loi-thu' );
+ob_start(); VHCC_Web::phuc_vu(); $h_thu = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( 'màn không có thật thì vẫn vẽ được trang, không trắng', '' !== $h_thu );
+
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

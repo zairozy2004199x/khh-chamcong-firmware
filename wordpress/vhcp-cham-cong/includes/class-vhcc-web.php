@@ -178,7 +178,61 @@ class VHCC_Web {
 
 	// ======================================================================= phục vụ
 
+	/**
+	 * =========================================================================================
+	 * 🔴 CẢ TRANG PHẢI NÓI RA ĐƯỢC LỖI, KHÔNG ĐỂ TRANG TRẮNG.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026 gặp *"Đã có một lỗi nghiêm trọng trên trang web của bạn"* ba lần trong
+	 * một ngày — ở nút Xuất Excel, rồi ở màn Bảng công, rồi ở khối Thêm người mới. Mỗi lần là
+	 * một trang trắng không nói gì, và mỗi lần em phải đoán.
+	 *
+	 * Lần đầu tìm ra chỗ hỏng CHỈ VÌ có `try/catch` ở đúng nút ấy: câu lỗi nói thẳng
+	 * *"Call to undefined function wp_tempnam() (class-vhcc-xuat.php dòng 40)"*. Sửa xong trong
+	 * một lượt. Nên đưa cái lưới ấy ra CẢ TRANG.
+	 *
+	 * ⚠️ VÌ SAO KHÔNG DỰA VÀO `register_shutdown_function`: WordPress có bộ bắt lỗi riêng đăng
+	 *    ký shutdown TRƯỚC mình — nó in trang lỗi xong thì `headers_sent()` thành true và hàm
+	 *    của mình lặng lẽ bỏ qua. `try/catch` chạy NGAY tại chỗ, không bị giành.
+	 *
+	 * ⚠️ HẾT BỘ NHỚ THÌ `catch` KHÔNG BẮT ĐƯỢC — cái đó là một loại chết khác. Nhưng lỗi do MÃ
+	 *    (gọi hàm không có, sai kiểu, chia cho 0) thì bắt hết, và đó là loại hay gặp nhất.
+	 */
 	public static function phuc_vu() {
+		try {
+			self::phuc_vu_that();
+		} catch ( \Throwable $e ) {
+			self::trang_hong( $e );
+		}
+	}
+
+	/**
+	 * Trang báo hỏng — đọc được bằng mắt, chụp màn hình gửi đi được.
+	 *
+	 * ⚠️ KHÔNG in dấu vết gọi hàm (stack trace): nó dài, khó đọc, và có thể lộ đường dẫn máy chủ.
+	 *    Một dòng "tệp nào, dòng nào" là đủ để tìm ra chỗ hỏng — đã chứng minh một lần.
+	 */
+	private static function trang_hong( $e ) {
+		if ( headers_sent() ) { return; }
+		status_header( 500 );
+		nocache_headers();
+		header( 'Content-Type: text/html; charset=utf-8' );
+		echo '<!DOCTYPE html><meta charset="utf-8"><title>Trang chấm công gặp lỗi</title>';
+		echo '<div style="font:15px/1.6 system-ui,Arial;max-width:680px;margin:60px auto;'
+			. 'padding:20px;border:1px solid #fecaca;background:#fef2f2;border-radius:10px">';
+		echo '<h2 style="margin:0 0 8px">Trang chấm công gặp lỗi</h2>';
+		echo '<p style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13.5px;'
+			. 'background:#fff;padding:10px;border-radius:7px;border:1px solid #fecaca">'
+			. esc_html( $e->getMessage() ) . '<br><b>' . esc_html( basename( $e->getFile() ) )
+			. '</b> dòng <b>' . (int) $e->getLine() . '</b></p>';
+		echo '<p><b>Chụp nguyên khung trên gửi cho người viết phần mềm</b> — nó chỉ thẳng chỗ hỏng, '
+			. 'không phải đoán.</p>';
+		echo '<p style="color:#78716c;font-size:13px">Bản đang chạy: '
+			. esc_html( defined( 'VHCC_VERSION' ) ? VHCC_VERSION : '?' ) . ' · PHP '
+			. esc_html( PHP_VERSION ) . '</p>';
+		echo '<p><a href="' . esc_url( self::url() ) . '">← Về trang chính</a></p></div>';
+	}
+
+	private static function phuc_vu_that() {
 		/* Cửa VÀO rộng — xem `nguoi_vao()`. Màn nào hẹp thì chính màn đó gác. */
 		$toi = self::nguoi_vao();
 
