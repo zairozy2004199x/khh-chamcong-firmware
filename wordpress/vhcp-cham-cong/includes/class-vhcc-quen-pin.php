@@ -174,6 +174,10 @@ class VHCC_QuenPin {
 		/* Người này đã được đẩy sang hệ ghế thì bản sao bên ấy phải theo — xem `VHCC_DayGhe`. */
 		if ( class_exists( 'VHCC_DayGhe' ) && method_exists( 'VHCC_DayGhe', 'dong_bo' ) ) {
 			VHCC_DayGhe::dong_bo( $ma );
+			/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
+			if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
+				VHCC_DayChiPhi::dong_bo( $ma );
+			}
 		}
 		self::ghi( $ma, (string) $hs['ho_ten'] );
 		return array( 'ok' => true, 'ma_nv' => $ma, 'ho_ten' => (string) $hs['ho_ten'] );

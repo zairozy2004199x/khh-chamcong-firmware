@@ -14072,6 +14072,151 @@ $_GET = array(); $_COOKIE = array();
 t( 'màn không có thật thì vẫn vẽ được trang, không trắng', '' !== $h_thu );
 
 
+/* ==========================================================================================
+ * 🔴 ĐẨY NGƯỜI SANG HỆ VẬN HÀNH CHI PHÍ.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026: *"bên quản lý nhân sự chưa cho đẩy nhân sự sang vận hành chi phí"*, rồi
+ * *"Đồng bộ nhân sự với hệ thống vận hành chi phí luôn nhé em"*.
+ *
+ * Khác hệ ghế ở một điểm cốt tử: sổ `CH_NguoiDung` bên chi phí ĐANG CHẠY, có người thật đang gõ
+ * PIN hằng ngày. Nên mọi phép thử dưới đây xoay quanh một câu: đẩy một người có làm hỏng hàng
+ * của người khác không.
+ */
+vhcc_dung_bang();
+delete_option( VHCC_DayChiPhi::O_DA_DAY );
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Admin', '1111', 'Admin', '', '1411', 'NV001', '', 'HN', 'tất cả' ),
+	array( 'Kế Toán Chị Nhân', '2222', 'Kế toán cá nhân', '', '1421', 'NV009', '', '', '' ),
+) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP1', 'ho_ten' => 'Người Đẩy Chi Phí',
+	'cua_hang' => 'TUTU_BT', 'chuc_vu' => 'Thu ngân', 'pin_dang_nhap' => '778899',
+	'trang_thai_lam_viec' => 'Đang làm' ) );
+
+teq( 'chưa đẩy thì ô trống', '', VHCC_DayChiPhi::o( 'CP1' ) );
+$r_cp = VHCC_DayChiPhi::dat( $U_AD, 'CP1', 'mo' );
+t( '🔴 đẩy được sang chi phí', ! empty( $r_cp['ok'] ), $r_cp );
+teq( 'và ô thành đã đẩy', 'mo', VHCC_DayChiPhi::o( 'CP1' ) );
+
+$so_cp = VHCP_Cfg::read( VHCP_Cfg::USER );
+teq( '🔴 sổ bên ấy thêm ĐÚNG một hàng', 3, count( $so_cp ) );
+$hang_cp = null;
+foreach ( $so_cp as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
+t( 'hàng mới mang đúng tên', null !== $hang_cp, $so_cp );
+teq( 'và đúng PIN chấm công', '778899', (string) $hang_cp[1] );
+teq( 'cơ sở theo hồ sơ', 'TUTU_BT', (string) $hang_cp[3] );
+/* 🔴 CỬA HÀNG TRƯỞNG -> 'Nhân viên', KHÔNG phải 'Quản lý': bên chi phí 'Quản lý' duyệt được chi
+   của MỌI cơ sở, mà cửa hàng trưởng là người ĐỀ NGHỊ chi. */
+teq( 'nhân viên sang vai Nhân viên', 'Nhân viên', (string) $hang_cp[2] );
+VHCC_NhanSu::dat_vai_tro( $U_AD, 'CP1', 'Cửa hàng trưởng' );
+VHCC_DayChiPhi::dong_bo( 'CP1' );
+$hang_cp = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
+teq( '🔴 cửa hàng trưởng sang vai Nhân viên, KHÔNG phải Quản lý', 'Nhân viên', (string) $hang_cp[2] );
+teq( 'Admin thì sang Admin', 'Admin', VHCC_DayChiPhi::vai_chi_phi( 'Admin' ) );
+teq( 'Kế toán sang Kế toán cá nhân', 'Kế toán cá nhân', VHCC_DayChiPhi::vai_chi_phi( 'Kế toán' ) );
+teq( 'Quản lý sang Quản lý', 'Quản lý', VHCC_DayChiPhi::vai_chi_phi( 'Quản lý' ) );
+
+/* 🔴 KHÔNG ĐỤNG HÀNG CỦA NGƯỜI KHÁC. Ghi đè cả sổ là xoá sạch PIN của những người bên ấy tự
+   khai — và họ chỉ phát hiện ra lúc đứng gõ PIN vào sáng hôm sau. */
+$ad_cp = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Admin' === $x[0] ) { $ad_cp = $x; } }
+teq( '🔴 hàng Admin bên ấy còn nguyên PIN', '1111', (string) $ad_cp[1] );
+teq( 'và còn nguyên TK Có do kế toán khai', '1411', (string) $ad_cp[4] );
+teq( 'và Mã đối tượng', 'NV001', (string) $ad_cp[5] );
+
+/* 🔴 ĐỔI PIN BÊN NÀY THÌ BẢN SAO PHẢI THEO — không thì người ta gõ PIN mới và không vào được. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP1', 'pin_dang_nhap' => '990011' ) );
+VHCC_DayChiPhi::dong_bo( 'CP1' );
+$hang_cp = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
+teq( '🔴 bản sao bên chi phí theo PIN mới', '990011', (string) $hang_cp[1] );
+/* 🔴 CẬP NHẬT PHẢI GIỮ NGUYÊN CỘT CỦA KẾ TOÁN. TK Có · Mã đối tượng · Đơn vị · Xem đơn vị là
+   bảng khai bên ấy — sổ nhân sự không biết và không được đoán. Dựng lại cả hàng là kế toán mất
+   bảng khai của mình mà không ai báo. */
+$wpdb->query( 'SELECT 1' );
+$so_ke = VHCP_Cfg::read( VHCP_Cfg::USER );
+foreach ( $so_ke as $i_ke => $x_ke ) {
+	if ( 'Người Đẩy Chi Phí' === $x_ke[0] ) {
+		$so_ke[ $i_ke ][4] = '1388';
+		$so_ke[ $i_ke ][5] = 'NV777';
+		$so_ke[ $i_ke ][7] = 'HCM';
+	}
+}
+VHCP_Cfg::write( VHCP_Cfg::USER, $so_ke );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP1', 'pin_dang_nhap' => '445566' ) );
+VHCC_DayChiPhi::dong_bo( 'CP1' );
+$hang_cp = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
+teq( 'PIN đã theo bản gốc', '445566', (string) $hang_cp[1] );
+teq( '🔴 nhưng TK Có của kế toán còn nguyên', '1388', (string) $hang_cp[4] );
+teq( 'và Mã đối tượng còn nguyên', 'NV777', (string) $hang_cp[5] );
+teq( 'và Đơn vị còn nguyên', 'HCM', (string) $hang_cp[7] );
+
+/* 🔴 PIN NẠP TỪ SHEETS CŨ RA "1234.0" — rửa đuôi, không thì bên kia nhận một chuỗi không ai gõ
+   được, mà màn hình vẫn báo đã đẩy xong. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP1', 'pin_dang_nhap' => '223344.0' ) );
+VHCC_DayChiPhi::dong_bo( 'CP1' );
+$hang_cp = null;
+foreach ( VHCP_Cfg::read( VHCP_Cfg::USER ) as $x ) { if ( 'Người Đẩy Chi Phí' === $x[0] ) { $hang_cp = $x; } }
+teq( '🔴 PIN kiểu 223344.0 rửa thành 223344', '223344', (string) $hang_cp[1] );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP1', 'pin_dang_nhap' => '990011' ) );
+VHCC_DayChiPhi::dong_bo( 'CP1' );
+teq( 'và vẫn chỉ một hàng cho người ấy', 3, count( VHCP_Cfg::read( VHCP_Cfg::USER ) ) );
+
+/* 🔴 PIN TRÙNG NGƯỜI KHÁC BÊN ẤY LÀ HAI NGƯỜI CHUNG MỘT CỬA — cổng đăng nhập tra theo PIN. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP2', 'ho_ten' => 'Người Trùng PIN',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '1111', 'trang_thai_lam_viec' => 'Đang làm' ) );
+$r_trung = VHCC_DayChiPhi::dat( $U_AD, 'CP2', 'mo' );
+t( '🔴 PIN trùng người bên ấy thì chối', empty( $r_trung['ok'] ), $r_trung );
+t( 'và chỉ ra ai đang giữ PIN ấy',
+	isset( $r_trung['error'] ) && strpos( $r_trung['error'], 'Admin' ) !== false, $r_trung );
+
+/* Chưa có PIN thì không đẩy được — bên ấy đăng nhập bằng PIN, hàng không PIN là hàng chết. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CP3', 'ho_ten' => 'Người Không PIN',
+	'cua_hang' => 'TUTU_BT', 'trang_thai_lam_viec' => 'Đang làm' ) );
+t( '🔴 chưa có PIN thì chối, và nói ra phải cấp PIN ở đâu',
+	empty( ( $r_kp = VHCC_DayChiPhi::dat( $U_AD, 'CP3', 'mo' ) )['ok'] )
+	&& strpos( $r_kp['error'], 'Hồ sơ & tài khoản' ) !== false, $r_kp );
+
+/* 🔴 GỠ thì lấy đúng hàng của người ấy ra, không đụng ai khác. */
+$r_go = VHCC_DayChiPhi::dat( $U_AD, 'CP1', '' );
+t( 'gỡ được', ! empty( $r_go['ok'] ), $r_go );
+teq( '🔴 sổ bên ấy về lại hai hàng gốc', 2, count( VHCP_Cfg::read( VHCP_Cfg::USER ) ) );
+teq( 'và ô về trống', '', VHCC_DayChiPhi::o( 'CP1' ) );
+
+/* Bậc: đẩy sang màn có ngăn TIỀN nên cần Admin. */
+t( '🔴 Kế toán KHÔNG đẩy được', empty( VHCC_DayChiPhi::dat(
+	array( 'name' => 'KT', 'role' => 'Kế toán', 'coso' => '' ), 'CP1', 'mo' )['ok'] ) );
+t( 'Cửa hàng trưởng càng không', empty( VHCC_DayChiPhi::dat(
+	array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' ), 'CP1', 'mo' )['ok'] ) );
+
+/* ---- Trên MÀN Quản lý nhân sự ---- */
+$h_cp = vhcc_ns( 'Admin' );
+t( '🔴 bảng có cột Vận hành chi phí',
+	strpos( $h_cp, 'Vận hành chi phí' ) !== false, substr( $h_cp, 0, 400 ) );
+t( 'và có nút Đẩy / Gỡ áp cả cột',
+	strpos( $h_cp, 'value="' . VHCC_DayChiPhi::COT . '|mo"' ) !== false
+	&& strpos( $h_cp, 'value="' . VHCC_DayChiPhi::COT . '|"' ) !== false, $h_cp );
+t( 'mỗi hàng có ô chọn của cột ấy',
+	strpos( $h_cp, '][' . VHCC_DayChiPhi::COT . ']' ) !== false, $h_cp );
+/* 🔴 CỘT NÀY KHÔNG PHẢI NGOẠI LỆ QUYỀN — phải tách khỏi bảng trước khi phần còn lại đi vào sổ
+   ngoại lệ, không thì `VHCC_Cong::dat()` chối nó bằng câu "không có trang tên chi_phi" và người
+   bấm không hiểu vì sao ô mình vừa chọn lại mất. */
+$_POST = array( 'o' => array( 'CP1' => array( VHCC_DayChiPhi::COT => 'mo' ) ) );
+list( $sach_t, $ghe_t, $cp_t ) = vhcc_goi_rieng( 'VHCC_TrangNS', 'tach_ghe',
+	array( array( 'CP1' => array( VHCC_DayChiPhi::COT => 'mo', 'cham_cong' => 'khoa' ) ) ) );
+$_POST = array();
+teq( '🔴 cột chi phí tách ra khỏi bảng ngoại lệ', 'mo',
+	isset( $cp_t['CP1'] ) ? $cp_t['CP1'] : '(thiếu)' );
+t( 'và KHÔNG còn nằm trong phần đi vào sổ quyền',
+	! isset( $sach_t['CP1'][ VHCC_DayChiPhi::COT ] ), $sach_t );
+t( 'trong khi ô quyền thật vẫn đi tiếp',
+	isset( $sach_t['CP1']['cham_cong'] ), $sach_t );
+
+delete_option( VHCC_DayChiPhi::O_DA_DAY );
+vhcc_dung_bang();
+
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

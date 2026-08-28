@@ -313,12 +313,36 @@ class VHCC_TrangNS {
 
 	private static function tach_ghe( $sach ) {
 		$ghe = array();
+		$chi_phi = array();
 		foreach ( $sach as $ma => $cac ) {
-			if ( ! is_array( $cac ) || ! array_key_exists( VHCC_DayGhe::COT, $cac ) ) { continue; }
-			$ghe[ $ma ] = (string) $cac[ VHCC_DayGhe::COT ];
-			unset( $sach[ $ma ][ VHCC_DayGhe::COT ] );
+			if ( ! is_array( $cac ) ) { continue; }
+			/* Hai cột này KHÔNG phải ngoại lệ quyền — chúng đẩy người thật sang hệ khác. Tách ra
+			   trước khi phần còn lại đi vào sổ ngoại lệ, không thì `VHCC_Cong::dat()` chối chúng
+			   bằng câu "không có trang tên ghe/chi_phi" và người bấm không hiểu vì sao. */
+			if ( array_key_exists( VHCC_DayGhe::COT, $cac ) ) {
+				$ghe[ $ma ] = (string) $cac[ VHCC_DayGhe::COT ];
+				unset( $sach[ $ma ][ VHCC_DayGhe::COT ] );
+			}
+			if ( array_key_exists( VHCC_DayChiPhi::COT, $cac ) ) {
+				$chi_phi[ $ma ] = (string) $cac[ VHCC_DayChiPhi::COT ];
+				unset( $sach[ $ma ][ VHCC_DayChiPhi::COT ] );
+			}
 		}
-		return array( $sach, $ghe );
+		return array( $sach, $ghe, $chi_phi );
+	}
+
+	/** Đẩy/gỡ sang app Vận hành chi phí, rồi kể lại thành mấy dòng báo. */
+	private static function luu_chi_phi( $toi, $ds ) {
+		if ( ! $ds || ! self::cot_chi_phi( $toi ) ) { return array(); }
+		$kq = VHCC_DayChiPhi::luu_nhieu( $toi, $ds );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		$bao = array();
+		if ( ! empty( $kq['doi'] ) ) {
+			$bao[] = array( 'ok' => 'Vận hành chi phí: đã đẩy/gỡ ' . (int) $kq['doi'] . ' người. '
+				. 'Họ đăng nhập /chi-phi bằng chính PIN chấm công.' );
+		}
+		foreach ( (array) $kq['loi'] as $l ) { $bao[] = array( 'loi' => $l ); }
+		return $bao;
 	}
 
 	/** Đẩy/gỡ theo bảng vừa tách, rồi kể lại thành mấy dòng báo. */
@@ -343,8 +367,8 @@ class VHCC_TrangNS {
 	private static function viec_luu( $toi ) {
 		$sach = self::doc_o();
 		if ( ! $sach ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
-		list( $sach, $ghe ) = self::tach_ghe( $sach );
-		$bao_ghe = self::luu_ghe( $toi, $ghe );
+		list( $sach, $ghe, $chi_phi ) = self::tach_ghe( $sach );
+		$bao_ghe = array_merge( self::luu_ghe( $toi, $ghe ), self::luu_chi_phi( $toi, $chi_phi ) );
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 
@@ -399,6 +423,10 @@ class VHCC_TrangNS {
 				/* Cơ sở đổi thì bản sao bên hệ ghế phải theo: cơ sở là thứ quyết định người ấy
 				   chốt ca được ở đâu, nên để lệch là họ chốt nhầm ghế của cơ sở cũ. */
 				VHCC_DayGhe::dong_bo( $ma_s );
+				/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
+				if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
+					VHCC_DayChiPhi::dong_bo( $ma_s );
+				}
 			}
 		}
 		$ra['loi'] = array_values( $ra['loi'] );
@@ -431,6 +459,10 @@ class VHCC_TrangNS {
 				/* Vai đổi thì bản sao bên hệ ghế phải theo — xem `VHCC_DayGhe::dong_bo()`. Người
 				   chưa đẩy sang thì hàm ấy không đụng tới. */
 				VHCC_DayGhe::dong_bo( $ma_s );
+				/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
+				if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
+					VHCC_DayChiPhi::dong_bo( $ma_s );
+				}
 			}
 		}
 		$ra['loi'] = array_values( $ra['loi'] );
@@ -459,6 +491,18 @@ class VHCC_TrangNS {
 		/* Cột ghế đi đường riêng — xem `tach_ghe()`. Chặn ở đây chứ đừng để nó rơi xuống
 		   `VHCC_Cong::co()`: khoá "ghe" không có trong sổ trang, nên nó sẽ bị chối bằng một câu
 		   sai hẳn ("Không có trang ghe trên site này") trong khi cột ấy đang hiện rành rành. */
+		if ( VHCC_DayChiPhi::COT === $trang ) {
+			if ( ! self::cot_chi_phi( $toi ) ) {
+				return array( array( 'loi' => 'Đẩy người sang hệ Vận hành chi phí cần vai Admin.' ) );
+			}
+			$sach = self::doc_o();
+			if ( ! $sach ) { return array( array( 'loi' => 'Không có người nào đang hiện để áp.' ) ); }
+			$cp = array();
+			foreach ( $sach as $ma_p => $x_p ) { $cp[ $ma_p ] = ( 'mo' === $dat ) ? 'mo' : ''; }
+			$bao_p = self::luu_chi_phi( $toi, $cp );
+			return $bao_p ? $bao_p : array( array( 'canh' => 'Cột "Vận hành chi phí" vốn đã như vậy '
+				. 'cho ' . count( $cp ) . ' người đang hiện — không có gì đổi.' ) );
+		}
 		if ( VHCC_DayGhe::COT === $trang ) {
 			if ( ! self::cot_ghe( $toi ) ) {
 				return array( array( 'loi' => 'Đẩy người sang hệ ghế cần vai Admin.' ) );
@@ -516,6 +560,10 @@ class VHCC_TrangNS {
 		   giữ PIN cũ là người ta đứng ở quầy, gõ PIN mới, và cửa không mở — im lặng, và họ chỉ
 		   biết khi đã hỏng việc. */
 		$db_ghe = VHCC_DayGhe::dong_bo( $ma );
+		/* Bản sao bên Vận hành chi phí cũng phải theo — cùng lý do, cùng lúc. */
+		if ( class_exists( 'VHCC_DayChiPhi' ) && method_exists( 'VHCC_DayChiPhi', 'dong_bo' ) ) {
+			VHCC_DayChiPhi::dong_bo( $ma );
+		}
 		$bao = array( array( 'ok' => 'Đã lưu hồ sơ ' . $ma . '.'
 			. ( '' !== $pin ? ' PIN đã đổi.' : '' )
 			. ( $db_ghe ? ' Hệ ghế đã cập nhật theo.' : '' ) ) );
@@ -1358,6 +1406,19 @@ class VHCC_TrangNS {
 			}
 			echo '</span></th>';
 		}
+		$co_cp = self::cot_chi_phi( $toi );
+		if ( $co_cp ) {
+			echo '<th class="tr-doc">Vận hành chi phí<br><span class="cot-nut">';
+			foreach ( array( 'mo' => 'Đẩy', '' => 'Gỡ' ) as $gt => $ten ) {
+				echo '<button type="submit" name="cot" value="'
+					. esc_attr( VHCC_DayChiPhi::COT . '|' . $gt ) . '"'
+					. ' title="' . esc_attr( 'mo' === $gt
+						? 'Đẩy tất cả người đang hiện sang app Vận hành chi phí, rồi lưu luôn'
+						: 'Gỡ tất cả người đang hiện khỏi app Vận hành chi phí, rồi lưu luôn' ) . '">'
+					. esc_html( $ten ) . '</button>';
+			}
+			echo '</span></th>';
+		}
 		echo '</tr></thead><tbody>';
 
 		foreach ( $lat as $r ) {
@@ -1445,9 +1506,15 @@ class VHCC_TrangNS {
 					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
 						: self::hai_nut_ghe( $ma ) ) . '</td>';
 			}
+			if ( $co_cp ) {
+				echo '<td class="o-q-td">'
+					. ( '' === $ma ? '<span class="chua-ma">chưa có Mã NV</span>'
+						: self::hai_nut_chi_phi( $ma ) ) . '</td>';
+			}
 			echo '</tr>';
 			if ( $dang_sua === $ma ) {
-				self::hang_sua( $toi, $r, 4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) );
+				self::hang_sua( $toi, $r,
+					4 + count( $ds_trang ) + ( $co_ghe ? 1 : 0 ) + ( $co_cp ? 1 : 0 ) );
 			}
 		}
 		echo '</tbody></table></div>';
@@ -1702,6 +1769,40 @@ class VHCC_TrangNS {
 	 */
 	private static function cot_ghe( $toi ) {
 		return VHCC_DayGhe::co_he_ghe() && VHCC_Vai::duoc( $toi, VHCC_DayGhe::QUYEN );
+	}
+
+	/**
+	 * CỘT VẬN HÀNH CHI PHÍ — anh Thắng 28/08/2026: *"bên quản lý nhân sự chưa cho đẩy nhân sự
+	 * sang vận hành chi phí"*, rồi *"Đồng bộ nhân sự với hệ thống vận hành chi phí luôn nhé em"*.
+	 *
+	 * Cùng cơ chế với cột Ghế: ĐẨY NGƯỜI THẬT sang sổ người dùng của app chi phí, chứ không ghi
+	 * một ngoại lệ vào sổ quyền — app ấy có phiên riêng và không đọc `ma_nv` bên này.
+	 */
+	private static function cot_chi_phi( $toi ) {
+		return VHCC_DayChiPhi::co_he_chi_phi() && VHCC_Vai::duoc( $toi, VHCC_DayChiPhi::QUYEN );
+	}
+
+	/** HAI nút, y như cột Ghế: có mặt bên ấy, hoặc không. */
+	private static function hai_nut_chi_phi( $ma ) {
+		$dat = VHCC_DayChiPhi::o( $ma );
+		$goc = 'p' . substr( md5( $ma . '|chiphi' ), 0, 10 );
+		$h   = '<span class="ba">';
+		$cac = array(
+			'mo' => array( 'ten' => 'Đẩy ✓', 'lop' => 'v-mo',
+				'chu' => 'Có mặt trong sổ Người dùng & Phân quyền của app Vận hành chi phí — '
+					. 'đăng nhập /chi-phi bằng chính PIN chấm công' ),
+			''   => array( 'ten' => 'Gỡ', 'lop' => 'v-khoa',
+				'chu' => 'Không có trong sổ người dùng của app Vận hành chi phí' ),
+		);
+		foreach ( $cac as $gt => $c ) {
+			$id = $goc . ( '' === $gt ? 'g' : $gt );
+			$h .= '<label for="' . esc_attr( $id ) . '" title="' . esc_attr( $c['chu'] ) . '">'
+				. '<input type="radio" id="' . esc_attr( $id ) . '" class="' . esc_attr( $c['lop'] ) . '"'
+				. ' name="o[' . esc_attr( $ma ) . '][' . esc_attr( VHCC_DayChiPhi::COT ) . ']"'
+				. ' value="' . esc_attr( $gt ) . '"' . checked( $dat, $gt, false ) . '>'
+				. '<span>' . esc_html( $c['ten'] ) . '</span></label>';
+		}
+		return $h . '</span>';
 	}
 
 	/**
