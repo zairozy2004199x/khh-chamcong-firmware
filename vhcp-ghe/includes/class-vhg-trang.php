@@ -3386,7 +3386,8 @@ function veKtDuyet(){
 }
 function ktdInit(){
   var iT=document.getElementById('ktd-thang');
-  if(!KTD_THANG) KTD_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
+  /* `D.luc` là GIỜ TRONG NGÀY, không phải ngày tháng — xem thangHomNay(). */
+  if(!KTD_THANG) KTD_THANG=thangHomNay();
   if(iT&&KTD_THANG) iT.value=KTD_THANG;
   var iCs=document.getElementById('ktd-coso');
   if(iCs) iCs.value=KTD_COSO;
@@ -3546,8 +3547,17 @@ function ktdCard(o, xong){
   var head=ktEl('div'); head.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center';
   var t=ktEl('div'); t.style.flex='1';
   t.appendChild(ktEl('b',null,o.coso+' · '+o.ngay));
-  var sub=ktEl('div','mut', o.chairs+' ghế · '+ktVnd(o.total)+'đ · duyệt '+o.confirmedChairs+'/'+o.chairs
-    +(o.chairsNoPhoto?(' · '+o.chairsNoPhoto+' ghế thiếu ảnh'):'')+(o.staff?(' · '+o.staff):''));
+  /* "Chỗ chữ đã duyệt đổi màu để phân biệt được không" — anh Thắng. Tô màu riêng đoạn "duyệt
+     X/Y": xanh lá khi đủ hết, cam khi còn thiếu — nhìn dòng tóm tắt là biết ngay, khỏi phải mở
+     thẻ ra đếm. */
+  var sub=ktEl('div','mut');
+  sub.appendChild(document.createTextNode(o.chairs+' ghế · '+ktVnd(o.total)+'đ · '));
+  var daXongHet = o.confirmedChairs >= o.chairs;
+  var spDuyet=ktEl('b',null,'duyệt '+o.confirmedChairs+'/'+o.chairs);
+  spDuyet.style.color = daXongHet ? 'var(--green)' : 'var(--amber)';
+  sub.appendChild(spDuyet);
+  if(o.chairsNoPhoto) sub.appendChild(document.createTextNode(' · '+o.chairsNoPhoto+' ghế thiếu ảnh'));
+  if(o.staff) sub.appendChild(document.createTextNode(' · '+o.staff));
   t.appendChild(sub);
   head.appendChild(t);
   if(o.locked){ var lk=ktEl('span','pill p-off',L('KHOÁ','LOCKED')); head.appendChild(lk); }
@@ -3636,7 +3646,12 @@ function ktdRow(o,c,m,reload,locked){
   tr.appendChild(td(ktVnd(c.qr),1));
   tr.appendChild(td(ktVnd(c.paid),1));
   var tdD=ktEl('td'); var cb=ktEl('input'); cb.type='checkbox'; cb.checked=!!c.confirmed;
-  cb.onchange=function(){ ktAct('kt_duyet',{targets:[{report_id:c.reportId,ma_may:c.chairCode}],on:cb.checked?1:0},m,function(){}); };
+  /* Duyệt LẺ từng ghế — anh Thắng: cơ sở tới 20 máy, cần thấy máy nào duyệt máy đó, không phải
+     bấm "Duyệt cả". Callback trước đây bỏ trống (function(){}) nên tích xong không có gì báo
+     lại: dòng tóm tắt "duyệt X/Y" trên đầu thẻ và màu nút "Duyệt cả báo cáo" (chìm khi đã đủ)
+     đứng yên tới khi đóng/mở lại mới đúng số — dùng `reload()` như mọi thao tác khác trong bảng
+     này để mọi chỗ luôn khớp ngay sau một cú tích. */
+  cb.onchange=function(){ ktAct('kt_duyet',{targets:[{report_id:c.reportId,ma_may:c.chairCode}],on:cb.checked?1:0},m,reload); };
   tdD.appendChild(cb); tr.appendChild(tdD);
   var tdA=ktEl('td');
   if(!locked){
@@ -3756,7 +3771,9 @@ var KTI_THANG = '';
 var KLS_COSO = '', KLS_NAM = '', KLS_MO = {};   // cơ sở, năm, tháng nào đang mở
 function veKtLichSu(){
   var coso = (D && D.coso) || [];
-  if (!KLS_NAM) KLS_NAM = (D && D.luc ? String(D.luc).slice(0, 4) : '2026');
+  /* `D.luc` là GIỜ TRONG NGÀY, không phải ngày tháng — cắt ra rác kiểu "23:5" (không phải năm),
+     nên ô "Năm" luôn trống dù đã "có mặc định". Lấy thẳng năm hiện tại. */
+  if (!KLS_NAM) KLS_NAM = String(new Date().getFullYear());
   var opt = '<option value="">' + L('Tất cả cơ sở','All sites') + '</option>'
     + coso.map(function(c){ return '<option value="' + esc(c.ten) + '"' + (KLS_COSO === c.ten ? ' selected' : '') + '>'
         + esc(c.ten) + (c.tinh ? ' · ' + esc(c.tinh) : '') + '</option>'; }).join('');
@@ -3877,7 +3894,8 @@ function veKtTien(){
 }
 function ktiInit(){
   var iT=document.getElementById('kti-thang');
-  if(!KTI_THANG) KTI_THANG=(D&&D.luc?String(D.luc).slice(0,7):'');
+  /* `D.luc` là GIỜ TRONG NGÀY, không phải ngày tháng — xem thangHomNay(). */
+  if(!KTI_THANG) KTI_THANG=thangHomNay();
   if(iT&&KTI_THANG) iT.value=KTI_THANG;
   document.getElementById('kti-xem').onclick=function(){ KTI_THANG=iT.value; ktiCongNo(); ktiCanNop(); ktiQr(); };
   document.getElementById('kti-ck-xem').onclick=function(){ ktiCk(false); };
@@ -4062,8 +4080,16 @@ function ktCsvTaiVe(aoa, fileName){
   var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=fileName||'export.csv';
   document.body.appendChild(a); a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },100);
 }
+/* Tháng hiện tại dạng "YYYY-MM" cho input type=month — anh Thắng: "Lúc nào cũng chọn sẵn ngày
+   hiện tại làm ngày hiện". `D.luc` là GIỜ TRONG NGÀY ("H:i:s", đồng hồ góc phải trên màn), không
+   phải ngày tháng — `String(D.luc).slice(0,7)` cắt ra rác kiểu "14:23:0", input type=month coi
+   là giá trị không hợp lệ nên bỏ trống, không phải để trống có chủ ý. */
+function thangHomNay(){
+  var d=new Date(); var m=d.getMonth()+1;
+  return d.getFullYear()+'-'+(m<10?'0':'')+m;
+}
 function veKtXuat(){
-  var thg=(D&&D.luc?String(D.luc).slice(0,7):'');
+  var thg=thangHomNay();
   return '<div class="card"><h2>' + L('Xuất chứng từ MISA','Export MISA vouchers') + '</h2>'
     + '<p class="mut">' + L('CHỈ ghế đã duyệt. Tiền mặt 1 dòng, QR 1 dòng. Tải file CSV (mở Excel rồi dán vào MISA).',
       'Confirmed chairs only. Cash + QR lines. Downloads CSV.') + '</p>'
