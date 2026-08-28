@@ -186,13 +186,23 @@ class VHCC_Luong {
 	 *
 	 * @return string 'gio' | 'cong' | 'ngay'
 	 */
-	const CACH_TINH_DS = array( 'gio', 'cong', 'ngay' );
+	const CACH_TINH_DS = array( 'gio', 'cong', 'ngay', 'ca' );
 
 	/** Tên hiện ra màn cho từng kiểu — khai một chỗ, để ba màn không gọi ba tên khác nhau. */
 	const CACH_TINH_TEN = array(
 		'gio'  => 'Theo giờ',
 		'cong' => 'Theo công',
 		'ngay' => 'Có đi là được',
+		'ca'   => 'Theo khung ca (làm tròn)',
+	);
+
+	/** Một dòng giải thích cho từng kiểu — để người chọn biết mình đang đổi cái gì ra tiền. */
+	const CACH_TINH_CHU = array(
+		'gio'  => 'Giờ ra trừ giờ vào, đúng như máy ghi. Bấm sớm ba phút là có thêm ba phút.',
+		'cong' => 'Bộ công thức bậc thang của Văn phòng — ca đêm, công bù, ngày lễ.',
+		'ngay' => 'Có giờ vào và giờ ra là tính một công, không đếm giờ.',
+		'ca'   => 'Lấy GIỜ CA làm giờ công: chấm trong ca là đủ giờ ca, không còn số lẻ. '
+			. 'Thiếu quá ngưỡng trễ của cửa hàng thì ô vàng lên và tính đúng phần có mặt.',
 	);
 
 	public static function cach_tinh( $coso ) {

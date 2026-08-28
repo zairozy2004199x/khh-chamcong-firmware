@@ -7797,8 +7797,12 @@ t( 'lọc rỗng thì không vẽ hàng bù mang cơ sở cũ',
 /* Còn ở hàng bù nội tuyến: ô ccs cuối cùng trong form phải là cơ sở ĐANG HIỆN. */
 teq( 'hàng bù gửi đúng cơ sở đang hiện', 'TUTU_BT',
 	vhcc_ccs_cuoi( $h_o_bu, 'value="bu"' ) );
+/* ⚠️ MỐC PHẢI LÀ `name="viec" value="ca"`, KHÔNG PHẢI `value="ca"` TRẦN. Từ khi khối Cách tính
+   công có thêm lựa chọn "Theo khung ca", trên cùng màn ấy còn một `<option value="ca">` đứng
+   TRƯỚC — mốc trần bắt trúng nó, rồi cắt tới `</form>` của form KHÁC, và phép thử đỏ oan về một
+   chỗ chẳng có gì sai. Cùng cái bẫy "soi cả trang, bắt nhầm chuỗi ở khối khác". */
 teq( 'form khai ca gửi đúng cơ sở đang hiện', $CS_GIO,
-	vhcc_ccs_cuoi( $h_ch_gio, 'value="ca"' ) );
+	vhcc_ccs_cuoi( $h_ch_gio, 'name="viec" value="ca"' ) );
 /* 🔴 Ca phân biệt được "ô nào thắng": địa chỉ mang tiền tố `CS_` (app cũ viết vậy). `$cs` đã
    qua `chuan_coso()` nên là `FZ_SC_THU`, còn `o_loc()` chở nguyên `CS_FZ_SC_THU`. Ô của MÀN phải
    thắng — để o_loc thắng là khai ca cho một chuỗi cơ sở không tồn tại, và bảng công vẫn dùng ca
@@ -7806,7 +7810,7 @@ teq( 'form khai ca gửi đúng cơ sở đang hiện', $CS_GIO,
 $h_tien_to = vhcc_web( '135791', array(),
 	array( 'man' => 'cau_hinh', 'ccs' => 'CS_' . $CS_GIO, 'cth' => '2026-07' ) );
 teq( 'địa chỉ có tiền tố CS_ thì form khai ca vẫn gửi mã cơ sở ĐÃ CHUẨN HOÁ', $CS_GIO,
-	vhcc_ccs_cuoi( $h_tien_to, 'value="ca"' ) );
+	vhcc_ccs_cuoi( $h_tien_to, 'name="viec" value="ca"' ) );
 teq( 'và hàng bù cũng vậy', 'TUTU_BT',
 	vhcc_ccs_cuoi( vhcc_web( '135791', array(),
 		array( 'man' => 'cham', 'ccs' => 'CS_TUTU_BT', 'cth' => '2026-07',
@@ -14539,6 +14543,266 @@ t( 'và lời báo kể ra đã gỡ khỏi những đâu', isset( $b_xh1[0]['ok
 
 delete_option( VHCC_DayGhe::O_SO );
 delete_option( VHCC_DayChiPhi::O_DA_DAY );
+vhcc_dung_bang();
+
+
+/* ==================================================================================
+   LÀM TRÒN GIỜ CÔNG THEO KHUNG CA
+
+   Anh Thắng 28/08/2026, gửi ảnh lưới đầy 5.1 · 6.9 · 8.2 · 13.1: *"Chưa làm tròn giờ theo
+   ca"*. Và 27/08 đã nói luật: *"lấy giờ ca làm giờ công, cứ chấm trong ca (bao gồm vào ra)
+   phần công đủ giờ (nhưng nếu bạn nào chấm thiếu giờ thì hiện cảnh báo ô vàng)"*.
+
+   🔴 Phần lõi là HÀM THUẦN `VHCC_Ca::lam_tron` — thử được bằng con số trần, không cần dựng
+      bảng, không cần đăng nhập. Chỗ nào tính ra tiền mà chỉ soi được qua HTML thì sớm muộn
+      không ai dám sửa.
+   ================================================================================== */
+$lt_ca = array(
+	array( 'ten' => 'Ca 1', 'tu' => '06:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 2', 'tu' => '14:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 3', 'tu' => '22:00', 'den' => '06:00', 'tuW' => '', 'denW' => '' ),
+);
+teq( 'độ dài ca thường tính đúng', 480, VHCC_Ca::dai_ca( $lt_ca[0] ) );
+teq( '🔴 ca QUA NỬA ĐÊM cũng ra 8 tiếng, không ra số âm', 480, VHCC_Ca::dai_ca( $lt_ca[2] ) );
+
+/* Vào sớm 3 phút, về muộn 3 phút -> giờ thô 8.1, giờ theo ca đúng 8. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '05:57' ), VHCC_DB::giay( '14:03' ), false, 15 );
+teq( '🔴 bấm sớm/muộn vài phút vẫn đúng MỘT ca, không thành 8.1', 480, $lt['phut'] );
+t( 'và không kêu thiếu giờ', ! $lt['thieu'] );
+
+/* Vào trễ 10 phút, ngưỡng 15 -> vẫn đủ ca, không cảnh báo. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:10' ), VHCC_DB::giay( '14:00' ), false, 15 );
+teq( 'trễ TRONG ngưỡng thì làm tròn lên đủ ca', 480, $lt['phut'] );
+t( 'có ghi nhận là đã làm tròn', ! empty( $lt['tron'] ) );
+t( 'và không kêu thiếu', ! $lt['thieu'] );
+
+/* Vào trễ 40 phút, ngưỡng 15 -> tính đúng phần có mặt, VÀ kêu thiếu. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:40' ), VHCC_DB::giay( '14:00' ), false, 15 );
+teq( '🔴 trễ QUÁ ngưỡng thì KHÔNG được làm tròn lên', 440, $lt['phut'] );
+teq( 'và kêu đúng một ca thiếu', 1, count( $lt['thieu'] ) );
+teq( 'nói đúng ca nào', 'Ca 1', $lt['thieu'][0]['ten'] );
+teq( 'và thiếu bao nhiêu phút', 40, $lt['thieu'][0]['phut'] );
+
+/* 🔴 BIÊN: thiếu ĐÚNG BẰNG ngưỡng vẫn là "đủ ca". Ngưỡng 15 nghĩa là *"trễ tới 15 phút thì
+   thôi"*, không phải *"trễ tới 14 phút"* — đổi `<=` thành `<` là mỗi ngày trễ đúng 15 phút của
+   mỗi người bị trừ một ca, và không ai nhìn ra vì con số trông vẫn hợp lý. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:15' ), VHCC_DB::giay( '14:00' ), false, 15 );
+teq( 'thiếu ĐÚNG BẰNG ngưỡng vẫn tính đủ ca', 480, $lt['phut'] );
+t( 'và không kêu thiếu', ! $lt['thieu'] );
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:16' ), VHCC_DB::giay( '14:00' ), false, 15 );
+teq( 'quá ngưỡng một phút là hết đủ ca', 464, $lt['phut'] );
+
+/* Ngưỡng 0 = "phải đủ giờ mới là đủ ca" — con số 0 là một lựa chọn thật, không phải chưa khai. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:05' ), VHCC_DB::giay( '14:00' ), false, 0 );
+teq( 'ngưỡng 0 thì thiếu 5 phút cũng là thiếu', 475, $lt['phut'] );
+t( 'và kêu lên', (bool) $lt['thieu'] );
+
+/* Vắt hai ca: 06:00 -> 22:00 là trọn Ca 1 + trọn Ca 2. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '05:58' ), VHCC_DB::giay( '22:01' ), false, 15 );
+teq( 'vắt hai ca thì cộng trọn cả hai', 960, $lt['phut'] );
+
+/* 🔴 KHUNG CA KHAI LỆCH: cả lượt rơi ra ngoài. KHÔNG được trả 0 — trả 0 là cả tháng của cả cửa
+   hàng thành số không, mà bảng vẫn trông bình thường. */
+$ca_lech = array( array( 'ten' => 'Ca sáng', 'tu' => '06:00', 'den' => '10:00', 'tuW' => '', 'denW' => '' ) );
+$lt = VHCC_Ca::lam_tron( $ca_lech, VHCC_DB::giay( '14:00' ), VHCC_DB::giay( '22:00' ), false, 15 );
+teq( '🔴 lượt nằm ngoài mọi ca thì GIỮ NGUYÊN giờ thật, không thành 0', 480, $lt['phut'] );
+t( 'và kêu lên là ngoài mọi ca', ! empty( $lt['ngoai_moi_ca'] ) );
+
+/* Lượt chấm hỏng (thiếu giờ ra) thì không có gì để kêu. */
+$lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:00' ), null, false, 15 );
+teq( 'thiếu giờ ra thì ra 0 phút', 0, $lt['phut'] );
+t( 'và KHÔNG kêu "ngoài mọi ca" (không có gì để kêu)', empty( $lt['ngoai_moi_ca'] ) );
+
+/* Ca cuối tuần khai riêng thì độ dài lấy theo giờ cuối tuần. */
+$ca_ct = array( array( 'ten' => 'Ca 1', 'tu' => '06:00', 'den' => '14:00',
+	'tuW' => '08:00', 'denW' => '12:00' ) );
+teq( 'cuối tuần lấy độ dài của khung cuối tuần', 240, VHCC_Ca::dai_ca( $ca_ct[0], true ) );
+$lt = VHCC_Ca::lam_tron( $ca_ct, VHCC_DB::giay( '08:03' ), VHCC_DB::giay( '12:00' ), true, 15 );
+teq( 'và làm tròn theo khung cuối tuần', 240, $lt['phut'] );
+
+/* ---- Trên MÀN: cơ sở khai "Theo khung ca" thì ô hết số lẻ, thiếu giờ thì ô vàng ---- */
+$cs_tron = 'FZ_SC_TRON';
+VHCC_Ca::luu( $ADMIN_W, $cs_tron, $lt_ca );
+VHCC_Tre::dat( $ADMIN_W, $cs_tron, 15 );
+VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $cs_tron => 'ca' ) );
+teq( 'cơ sở khai được kiểu "theo khung ca"', 'ca', VHCC_Luong::cach_tinh( $cs_tron ) );
+vhcc_cham( $cs_tron, '2026-07-01', 'TR1', '', '05:57', '14:03' );  /* thô 8.1 -> đúng 8 */
+vhcc_cham( $cs_tron, '2026-07-02', 'TR1', '', '06:40', '14:00' );  /* trễ 40 phút -> 7.3 + ô vàng */
+vhcc_cham( $cs_tron, '2026-07-03', 'TR1', '', '06:10', '14:00' );  /* trễ 10 phút -> vẫn đủ 8 */
+/* ⚠️ Vào bằng TOKEN, không bằng PIN. Khối trước vừa `vhcc_dung_bang()` nên sổ nhân sự trắng —
+   đăng nhập bằng PIN lúc này rơi ra màn đăng nhập, và mọi phép thử dưới soi nhầm một trang
+   không có bảng nào. */
+$h_tron = vhcc_web_nhu2( 'TRAD1', 'Admin', $cs_tron,
+	array( 'man' => 'cham', 'ccs' => $cs_tron, 'cth' => '2026-07' ) );
+t( '🔴 ô hết số lẻ: 8.1 thành 8', strpos( $h_tron, '>8.1<' ) === false, $h_tron );
+t( 'và in ra đúng 8', strpos( $h_tron, '<b>8</b>' ) !== false, $h_tron );
+/* Bấm sớm/về muộn: ô bị CẮT xuống đúng ca — chú thích phải nói ra, để còn đối chiếu được với
+   giờ máy ghi. */
+t( 'chú thích nói giờ công theo ca khác giờ chấm thật',
+	strpos( $h_tron, 'giờ công theo ca: 8h (giờ chấm thật 8h 6m)' ) !== false, $h_tron );
+/* Trễ 10 phút, ngưỡng 15: ô được làm TRÒN LÊN đủ ca. */
+t( 'chú thích nói đã làm tròn lên đủ ca', strpos( $h_tron, 'đã làm tròn lên đủ ca' ) !== false, $h_tron );
+/* ⚠️ SOI ĐÚNG CÁI Ô, đừng soi chữ "vang" trong cả trang — bảng màu ở đầu trang có biến
+   `--vang`, nên `strpos($html,'vang')` luôn tìm thấy và phép thử xanh vĩnh viễn. */
+t( '🔴 ngày trễ quá ngưỡng thì Ô vàng lên',
+	preg_match( '/class="oc ca1 vang"/', $h_tron ) === 1, $h_tron );
+t( 'còn ngày đủ giờ thì ô KHÔNG vàng',
+	preg_match( '/class="oc ca1"[^>]*title="[^"]*8h \(giờ chấm thật 8h 6m\)/', $h_tron ) === 1, $h_tron );
+t( 'và chú thích nói thiếu bao nhiêu, của ca nào',
+	strpos( $h_tron, 'thiếu 0h 40m của Ca 1' ) !== false, $h_tron );
+t( 'khối Cách tính công bày ra lựa chọn mới',
+	strpos( vhcc_web_nhu2( 'TRAD1', 'Admin', $cs_tron, array( 'man' => 'cau_hinh' ) ),
+		'Theo khung ca (làm tròn)' ) !== false );
+
+/* 🔴 ĐỔI KIỂU LÀ ĐỔI CÁCH ĐỌC, KHÔNG ĐỔI DỮ LIỆU. Trả về "theo giờ" thì số lẻ quay lại y như cũ
+   — nếu không thì việc "làm tròn" đã ghi đè lên giờ máy chấm, và giờ gốc mất luôn. */
+VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $cs_tron => 'gio' ) );
+$h_tho = vhcc_web_nhu2( 'TRAD1', 'Admin', $cs_tron,
+	array( 'man' => 'cham', 'ccs' => $cs_tron, 'cth' => '2026-07' ) );
+t( 'trả về theo giờ thì số lẻ quay lại nguyên vẹn', strpos( $h_tho, '>8.1<' ) !== false, $h_tho );
+
+
+/* ==================================================================================
+   XUẤT BẢNG CÔNG RA MỘT TẤM ẢNH (.svg), KÈM GIỜ VÀO – GIỜ RA
+
+   Anh Thắng 28/08/2026: *"Thêm xuất dạng ảnh ra ( kèm thêm giờ vào ra nữa nhé )"*.
+
+   🔴 SOI TỪNG Ô CỦA TẤM ẢNH, KHÔNG CHỈ ĐẾM BYTE. `VHCC_Anh::svg` là hàm THUẦN nên phép thử
+      hỏi thẳng nó bằng dữ liệu dựng tay — một tấm ảnh "có dựng ra" mà số trong ô sai thì
+      không khác gì không có.
+   ================================================================================== */
+$anh_ca = array(
+	array( 'ten' => 'Ca 1', 'tu' => '06:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 2', 'tu' => '14:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+);
+$anh_b = array(
+	'ok' => true, 'thang' => '2026-07', 'coSo' => 'K&H_TEST',
+	'hang' => array(
+		array( 'maNV' => 'A1', 'hoTen' => 'NGUYỄN HUỲNH TƯỜNG VY', 'hauTo' => '',
+			'ngay' => '2026-07-01', 'vao' => '05:57:12', 'ra' => '14:03:40',
+			'vaoGiay' => VHCC_DB::giay( '05:57' ), 'raGiay' => VHCC_DB::giay( '14:03' ), 'phut' => 486 ),
+		array( 'maNV' => 'A1', 'hoTen' => 'NGUYỄN HUỲNH TƯỜNG VY', 'hauTo' => '',
+			'ngay' => '2026-07-02', 'vao' => '06:40:00', 'ra' => '14:00:00',
+			'vaoGiay' => VHCC_DB::giay( '06:40' ), 'raGiay' => VHCC_DB::giay( '14:00' ), 'phut' => 440 ),
+		array( 'maNV' => 'A2', 'hoTen' => 'LÊ PHẠM THUỲ VÂN', 'hauTo' => '',
+			'ngay' => '2026-07-01', 'vao' => '14:00:00', 'ra' => '',
+			'vaoGiay' => VHCC_DB::giay( '14:00' ), 'raGiay' => null, 'phut' => null ),
+	),
+);
+$anh = VHCC_Anh::svg( $anh_b, $anh_ca, 'gio', 15, '28/08/2026 10:00' );
+
+t( 'dựng ra một tấm SVG', strpos( $anh, '<svg' ) !== false && strpos( $anh, '</svg>' ) !== false );
+t( 'có khai bề ngang và chiều cao (thiếu là trình xem bỏ trắng)',
+	preg_match( '/<svg[^>]*width="\d+"[^>]*height="\d+"/', $anh ) === 1, substr( $anh, 0, 300 ) );
+/* 🔴 Dấu `&` trong tên cơ sở là đủ để cả tệp thành XML hỏng — trình duyệt bỏ trắng, không báo. */
+t( '🔴 dấu & trong tên cơ sở được rào lại', strpos( $anh, 'K&amp;H_TEST' ) !== false, $anh );
+t( 'và KHÔNG còn dấu & trần nào', preg_match( '/&(?!amp;|lt;|gt;|quot;|#39;|#\d+;)/', $anh ) === 0, $anh );
+t( 'tên tiếng Việt có dấu giữ nguyên', strpos( $anh, 'NGUYỄN HUỲNH TƯỜNG VY' ) !== false, $anh );
+
+/* 🔴 ĐÚNG THỨ ANH DẶN: mỗi ô có giờ vào–giờ ra, cắt bỏ giây cho vừa ô. */
+t( '🔴 ô có giờ vào–giờ ra', strpos( $anh, '05:57–14:03' ) !== false, $anh );
+t( 'và bỏ giây đi cho vừa ô', strpos( $anh, '05:57:12' ) === false, $anh );
+t( 'ngày thiếu giờ ra thì ghi rõ là thiếu', strpos( $anh, '14:00–?' ) !== false, $anh );
+t( 'và ô ấy mang dấu ?', strpos( $anh, '>?</text>' ) !== false, $anh );
+t( 'tấm ảnh nói tháng nào, cơ sở nào', strpos( $anh, 'Tháng 2026-07' ) !== false, $anh );
+t( 'và nói mình được xuất lúc nào', strpos( $anh, '28/08/2026 10:00' ) !== false, $anh );
+t( 'có chú giải nói ô vàng nghĩa là gì', strpos( $anh, 'Ô vàng' ) !== false, $anh );
+
+/* Kiểu 'gio': in đúng giờ thô 8.1, KHÔNG làm tròn. */
+t( 'kiểu theo giờ in đúng số thô 8.1', strpos( $anh, '>8.1</text>' ) !== false, $anh );
+
+/* Kiểu 'ca': cùng dữ liệu ấy phải ra 8, và ngày trễ 40 phút thì ô VÀNG. */
+$anh_ct = VHCC_Anh::svg( $anh_b, $anh_ca, 'ca', 15, '' );
+t( '🔴 kiểu theo khung ca thì ô thành 8, hết số lẻ', strpos( $anh_ct, '>8</text>' ) !== false, $anh_ct );
+t( 'và 8.1 biến mất', strpos( $anh_ct, '>8.1</text>' ) === false, $anh_ct );
+t( '🔴 ngày chấm thiếu giờ thì ô VÀNG', strpos( $anh_ct, 'fill="#fffbeb"' ) !== false, $anh_ct );
+t( 'ảnh nói rõ đang dùng ngưỡng trễ mấy phút',
+	strpos( $anh_ct, 'ngưỡng trễ 15 phút' ) !== false, $anh_ct );
+/* 🔴 GIỜ VÀO–RA VẪN LÀ GIỜ THẬT, kể cả khi con số đã làm tròn. Giấu giờ thật đi thì tấm ảnh
+   chỉ còn là một bảng số không ai kiểm được. */
+t( '🔴 làm tròn rồi thì giờ vào–ra vẫn là giờ máy ghi',
+	strpos( $anh_ct, '05:57–14:03' ) !== false, $anh_ct );
+
+/* Tháng không đọc được thì trả rỗng, đừng dựng một tấm ảnh vô nghĩa. */
+teq( 'tháng hỏng thì không dựng ảnh', '',
+	VHCC_Anh::svg( array( 'ok' => true, 'thang' => 'xxxx', 'coSo' => 'X', 'hang' => array() ), $anh_ca ) );
+/* Tên quá dài bị cắt — cột tên rộng cố định, chữ tràn là đè lên cột ngày đầu. */
+teq( 'tên dài bị cắt kèm dấu ba chấm', 'ABCD…', VHCC_Anh::cat( 'ABCDEFGH', 5 ) );
+teq( 'tên vừa thì để nguyên', 'ABC', VHCC_Anh::cat( 'ABC', 5 ) );
+teq( '🔴 cắt theo KÝ TỰ chứ không theo byte (tiếng Việt mỗi chữ nhiều byte)',
+	'NGUYỄ…', VHCC_Anh::cat( 'NGUYỄN VĂN A', 6 ) );
+
+/* ---- Trên trang: nút xuất ảnh, và đường xuất chạy thật ---- */
+$cs_anh = 'FZ_SC_ANH';
+VHCC_Ca::luu( $ADMIN_W, $cs_anh, $anh_ca );
+vhcc_cham( $cs_anh, '2026-07-01', 'AN1', '', '05:57', '14:03' );
+$h_anh = vhcc_web_nhu2( 'ANAD1', 'Admin', $cs_anh,
+	array( 'man' => 'cham', 'ccs' => $cs_anh, 'cth' => '2026-07' ) );
+t( 'màn Bảng công có nút Xuất ảnh', strpos( $h_anh, 'xuat=anh' ) !== false, $h_anh );
+t( 'và nói rõ ảnh có kèm giờ vào–giờ ra',
+	strpos( $h_anh, 'giờ vào–giờ ra' ) !== false, $h_anh );
+
+/* ⚠️ `vhcc_web_nhu2` đã tự hứng đầu ra rồi TRẢ VỀ — bọc thêm một lớp `ob_start()` ở ngoài thì
+   bắt được đúng chuỗi rỗng, và phép thử đỏ về một chỗ chẳng có gì sai. */
+$tep_anh = vhcc_web_nhu2( 'ANAD1', 'Admin', $cs_anh,
+	array( 'xuat' => 'anh', 'ccs' => $cs_anh, 'cth' => '2026-07' ) );
+t( '🔴 bấm nút thì ra một tấm SVG thật, không phải trang lỗi',
+	strpos( $tep_anh, '<svg' ) !== false, substr( $tep_anh, 0, 400 ) );
+t( 'và trong đó có giờ vào–giờ ra của ngày đã chấm',
+	strpos( $tep_anh, '05:57–14:03' ) !== false, substr( $tep_anh, 0, 4000 ) );
+
+/* 🔴 XUẤT ẢNH KHÔNG ĐƯỢC ĐI QUA CHỐT ZipArchive. Ảnh là chuỗi chữ máy chủ tự ghép; bắt nó qua
+   chốt của Excel là hosting thiếu `php-zip` thì mất luôn đường xuất duy nhất còn chạy được. */
+$u_anh = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => $cs_anh );
+teq( 'xuất ảnh không bị chối', '', VHCC_Web::vi_sao_khong_xuat( $u_anh, 'anh', $cs_anh ) );
+t( 'lời chối của xuất ảnh KHÔNG nhắc tới ZipArchive',
+	strpos( VHCC_Web::vi_sao_khong_xuat( $u_anh, 'anh', $cs_anh ), 'ZipArchive' ) === false );
+/* 🔴 Máy nào chạy bộ thử cũng CÓ ZipArchive, nên phải hỏi thẳng hàm quyết định — chứ soi lời
+   chối thì trên máy này không bao giờ phân biệt được có chốt hay không. */
+t( '🔴 xuất ảnh KHÔNG cần ZipArchive', ! VHCC_Web::xuat_can_zip( 'anh' ) );
+t( 'còn xuất Excel thì có', VHCC_Web::xuat_can_zip( 'ca' ) );
+
+/* Kiểu MIME cũng vậy: `header()` gọi trong CLI chẳng ghi lại đâu cả, nên hỏi thẳng hàm thuần. */
+teq( '🔴 ảnh gửi đi dưới đúng MIME của SVG', 'image/svg+xml', VHCC_Xuat::mime( 'image/svg+xml' ) );
+t( 'còn để trống thì vẫn là MIME của .xlsx',
+	strpos( VHCC_Xuat::mime( '' ), 'spreadsheetml' ) !== false, VHCC_Xuat::mime( '' ) );
+/* Và lượt gửi THẬT phải mang đúng MIME ấy — không phải chỉ hàm tính ra đúng rồi thân `gui()`
+   lại gửi một thứ khác. */
+VHCC_Xuat::$mime_da_gui = '';
+vhcc_web_nhu2( 'ANAD1', 'Admin', $cs_anh,
+	array( 'xuat' => 'anh', 'ccs' => $cs_anh, 'cth' => '2026-07' ) );
+teq( '🔴 lượt gửi thật mang MIME của SVG', 'image/svg+xml', VHCC_Xuat::$mime_da_gui );
+/* Và soi NGUYÊN VĂN dòng đầu tệp sắp truyền cho `header()` — hàm tính đúng mà thân `gui()`
+   truyền đi một chuỗi khác thì trình duyệt vẫn nhận nhầm, và không ai thấy. */
+t( '🔴 dòng Content-Type gửi đi đúng là của SVG',
+	in_array( 'Content-Type: image/svg+xml', VHCC_Xuat::$dau_da_gui, true ), VHCC_Xuat::$dau_da_gui );
+t( 'tên tệp gửi kèm có đuôi .svg',
+	(bool) preg_grep( '/^Content-Disposition:.*\.svg"$/', VHCC_Xuat::$dau_da_gui ),
+	VHCC_Xuat::$dau_da_gui );
+
+/* 🔴 DỰNG LẠI ĐÚNG HOÀN CẢNH ĐƯỜNG XUẤT ẢNH SINH RA ĐỂ CỨU: hosting thiếu `php-zip`.
+   Máy chạy bộ thử luôn có ZipArchive, nên không ép thì nhánh này không bao giờ được đi qua —
+   và chốt "ảnh không cần zip" là chốt bỏ đi vẫn xanh. */
+VHCC_Xuat::$ep_khong_zip = true;
+t( '🔴 hosting thiếu php-zip thì Excel bị chối',
+	strpos( VHCC_Web::vi_sao_khong_xuat( $u_anh, 'ca', $cs_anh ), 'ZipArchive' ) !== false,
+	VHCC_Web::vi_sao_khong_xuat( $u_anh, 'ca', $cs_anh ) );
+teq( '🔴 nhưng xuất ẢNH vẫn chạy — đó là cả điểm của nó', '',
+	VHCC_Web::vi_sao_khong_xuat( $u_anh, 'anh', $cs_anh ) );
+$tep_khong_zip = vhcc_web_nhu2( 'ANAD1', 'Admin', $cs_anh,
+	array( 'xuat' => 'anh', 'ccs' => $cs_anh, 'cth' => '2026-07' ) );
+t( 'và vẫn ra một tấm SVG thật', strpos( $tep_khong_zip, '<svg' ) !== false,
+	substr( $tep_khong_zip, 0, 300 ) );
+VHCC_Xuat::$ep_khong_zip = false;
+t( '🔴 nhân viên thường không xuất ảnh được',
+	'' !== VHCC_Web::vi_sao_khong_xuat(
+		array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => $cs_anh ), 'anh', $cs_anh ) );
+t( '🔴 và không xuất được ảnh của cơ sở KHÁC',
+	'' !== VHCC_Web::vi_sao_khong_xuat(
+		array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'CO_SO_KHAC' ), 'anh', $cs_anh ) );
+t( 'kiểu xuất lạ vẫn bị chối',
+	'' !== VHCC_Web::vi_sao_khong_xuat( $u_anh, 'linh_tinh', $cs_anh ) );
+
 vhcc_dung_bang();
 
 

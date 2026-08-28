@@ -355,6 +355,34 @@ class VHCC_Web {
 			return;
 		}
 
+		/* ---------------------------------------------------------------------------------
+		 * XUẤT ẢNH (.svg) — anh Thắng 28/08/2026: *"Thêm xuất dạng ảnh ra (kèm thêm giờ vào ra
+		 * nữa nhé)"*. Rẽ ở đây, TRƯỚC đường dựng .xlsx: ảnh không dùng ZipArchive, không dùng
+		 * `VHCC_Xuat`, nên không có lý gì bắt nó đi chung khúc dễ chết ấy.
+		 * ------------------------------------------------------------------------------- */
+		if ( 'anh' === $loai ) {
+			$ng_tre = ( class_exists( 'VHCC_Tre' ) && method_exists( 'VHCC_Tre', 'cua' ) )
+				? (int) VHCC_Tre::cua( $cs ) : 0;
+			try {
+				$svg = VHCC_Anh::svg( $b, VHCC_Ca::cua( $cs ), VHCC_Luong::cach_tinh( $cs ),
+					$ng_tre, (string) current_time( 'd/m/Y H:i' ) );
+			} catch ( \Throwable $e ) {
+				$da_gui = true;
+				self::loi_xuat( 'Dựng ảnh thì gặp lỗi: ' . $e->getMessage()
+					. ' (' . basename( $e->getFile() ) . ' dòng ' . $e->getLine() . ').' );
+				return;
+			}
+			if ( '' === $svg ) {
+				$da_gui = true;
+				self::loi_xuat( 'Tháng "' . $th . '" không đọc ra ngày nào — không dựng được ảnh.' );
+				return;
+			}
+			$da_gui = true;
+			VHCC_Xuat::gui( 'cong-' . preg_replace( '/[^A-Za-z0-9_-]/', '', $cs ) . '-'
+				. $b['thang'] . '.svg', $svg, 'image/svg+xml' );
+			return;
+		}
+
 		/* Đường CHẨN ĐOÁN: `&thu=1` — in ra con số thay vì dựng tệp. Mở được bằng trình duyệt,
 		   đọc được bằng mắt, chụp màn hình gửi đi được. Không in gì bí mật: chỉ tình trạng máy. */
 		if ( ! empty( $_GET['thu'] ) ) {
@@ -484,15 +512,32 @@ class VHCC_Web {
 	 *    luôn cả lượt chạy, nên phần gác cửa sẽ vĩnh viễn không có phép thử nào. Một cửa không
 	 *    thử được là một cửa sớm muộn hở.
 	 */
+	/**
+	 * Kiểu xuất này có cần ZipArchive không.
+	 *
+	 * 🔴 ZipArchive CHỈ CẦN CHO .xlsx. Ảnh .svg là chuỗi chữ máy chủ tự ghép — không cần một
+	 *    phần mở rộng nào. Bắt nó qua cùng một chốt là hosting thiếu `php-zip` thì mất luôn
+	 *    đường xuất DUY NHẤT còn chạy được, mà lời chối lại nói về Excel.
+	 *
+	 * ⚠️ Tách thành hàm THUẦN chứ không viết thẳng vào `vi_sao_khong_xuat()`: máy nào chạy bộ
+	 *    thử cũng CÓ ZipArchive, nên một dòng `if` nằm trong đó là dòng không phép thử nào phân
+	 *    biệt được — bỏ đi vẫn xanh. Hỏi thẳng hàm này thì hỏi được cả trên máy có lẫn máy không.
+	 */
+	public static function xuat_can_zip( $loai ) {
+		return 'ca' === $loai;
+	}
+
 	public static function vi_sao_khong_xuat( $toi, $loai, $cs ) {
-		if ( 'ca' !== $loai ) { return 'Không biết xuất kiểu "' . $loai . '".'; }
+		if ( ! in_array( $loai, array( 'ca', 'anh' ), true ) ) {
+			return 'Không biết xuất kiểu "' . $loai . '".';
+		}
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
 			return 'Xuất bảng công cần quyền Cửa hàng trưởng trở lên.';
 		}
 		$cs = VHCC_NhanSu::chuan_coso( $cs );
 		if ( '' === $cs ) { return 'Chưa chọn cơ sở.'; }
 		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return 'Không có quyền cơ sở này.'; }
-		if ( ! VHCC_Xuat::co_xlsx() ) {
+		if ( self::xuat_can_zip( $loai ) && ! VHCC_Xuat::co_xlsx() ) {
 			return 'Máy chủ này thiếu phần mở rộng ZipArchive của PHP nên không dựng được tệp '
 				. '.xlsx. Nhờ bên hosting bật `php-zip` giúp — bật xong là nút này chạy ngay, '
 				. 'không phải cài lại gì.';
@@ -3183,6 +3228,14 @@ class VHCC_Web {
 				. esc_url( add_query_arg( array( 'xuat' => 'ca', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
 				. '">⬇ Xuất Excel (.xlsx)</a> <span class="mo">— ba trang: chi tiết từng ca '
 				. '(ca nào, từ mấy giờ đến mấy giờ, mấy tiếng) · tổng theo ca · từng lượt chấm.</span></p>';
+			/* Anh Thắng 28/08/2026: *"Thêm xuất dạng ảnh ra ( kèm thêm giờ vào ra nữa nhé )"*.
+			   Một tấm ảnh gửi đi được ngay — không cần người nhận có Excel, không cần họ có tài
+			   khoản vào trang. Và mỗi ô có sẵn giờ vào–giờ ra nên cầm ảnh là đối chiếu được. */
+			echo '<p style="margin:8px 0 0"><a class="nut" href="'
+				. esc_url( add_query_arg( array( 'xuat' => 'anh', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
+				. '">🖼 Xuất ảnh (.svg)</a> <span class="mo">— cả tháng trên một tấm, mỗi ô có '
+				. '<b>giờ vào–giờ ra</b> ngay dưới số giờ công. Mở bằng trình duyệt hoặc kéo thẳng '
+				. 'vào Word / Zalo; muốn ra .png thì mở lên rồi chuột phải → lưu ảnh.</span></p>';
 		}
 		/* 🔴 BẢNG GHÉP PHẢI NÓI RA NÓ ĐANG GỒM NHỮNG GÌ. Một bảng lặng lẽ cộng thêm công của một
 		   mã cơ sở khác là con số đúng mà không ai kiểm được — người đọc cộng tay lại theo mã
@@ -3409,8 +3462,20 @@ class VHCC_Web {
 				echo '<option value="' . esc_attr( $k ) . '"' . selected( $k, $chon, false ) . '>'
 					. esc_html( $n ) . '</option>';
 			}
-			echo '</select></td>';
-			$nhan_ct = array( 'cong' => array( 'ca2', 'số công' ), 'ngay' => array( 'ca3', 'công / ngày' ) );
+			echo '</select>';
+			/* Một dòng nói kiểu ĐANG dùng nghĩa là gì. Tên kiểu ("Theo giờ", "Theo khung ca")
+			   nghe thì rõ, nhưng khác nhau ở chỗ nào thì chỉ người viết ra mới biết — mà đây là
+			   ô đổi con số ra tiền của cả cơ sở.
+			   ⚠️ Dòng này đứng SAU `</select>`, không phải trước. Một `<div>` nằm trong thân
+			      `<select>` là HTML sai: trình duyệt vứt nó ra ngoài theo cách riêng của mỗi
+			      bản, và không có gì báo. */
+			if ( isset( VHCC_Luong::CACH_TINH_CHU[ $dang ] ) ) {
+				echo '<div class="mo" style="font-size:11.5px;max-width:420px">'
+					. esc_html( VHCC_Luong::CACH_TINH_CHU[ $dang ] ) . '</div>';
+			}
+			echo '</td>';
+			$nhan_ct = array( 'cong' => array( 'ca2', 'số công' ), 'ngay' => array( 'ca3', 'công / ngày' ),
+				'ca' => array( 'ca4', 'giờ theo ca' ) );
 			$n_ct    = isset( $nhan_ct[ $dang ] ) ? $nhan_ct[ $dang ] : array( 'ca1', 'số giờ' );
 			echo '<td><span class="k ' . esc_attr( $n_ct[0] ) . '">' . esc_html( $n_ct[1] ) . '</span>'
 				. ( '' === $chon ? ' <span class="mo">(suy theo bộ phận)</span>' : '' ) . '</td>';
@@ -3568,7 +3633,7 @@ class VHCC_Web {
 	/**
 	 * @param string $kieu Cách tính của cơ sở: 'gio' | 'cong' | 'ngay'. Xem `VHCC_Luong::cach_tinh`.
 	 */
-	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca, $kieu = 'gio' ) {
+	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca, $kieu = 'gio', $nguong_tre = 0 ) {
 		if ( null === $r ) {
 			return array( 'noi' => '·', 'noi_tho' => '·', 'chu' => '', 'lop' => '', 'phut' => null );
 		}
@@ -3615,16 +3680,54 @@ class VHCC_Web {
 		   ⚠️ SỐ GIỜ VẪN GIỮ trong chú thích rê chuột: đổi cách ĐỌC chứ không giấu dữ liệu, và
 		      đổi kiểu tính lại là ra lại đúng như cũ. */
 		$cong = ( 'ngay' === $kieu ) ? VHCC_Luong::cong_co_di( $r['vaoGiay'], $r['raGiay'] ) : 0;
-		$so   = ( 'ngay' === $kieu )
+
+		/* 🔴 "THEO KHUNG CA": LẤY GIỜ CA LÀM GIỜ CÔNG, HẾT SỐ LẺ.
+		   Anh Thắng 28/08/2026, nhìn lưới đầy 5.1 · 6.9 · 13.1: *"Chưa làm tròn giờ theo ca"*.
+		   Người vào 05:57 về 14:03 không làm 8.1 tiếng — họ làm đúng MỘT CA. Sáu phút ấy là
+		   quãng đi từ cửa vào máy; cộng vào là trả tiền cho việc bấm máy sớm, mà người bấm muộn
+		   ba phút thì bị trừ. Sai hai hướng nên tổng tháng nhìn vẫn "hợp lý".
+		   Ngưỡng lấy từ chính ngưỡng đi trễ của cửa hàng (`VHCC_Tre`) — anh đã set nó ở đó rồi,
+		   và hai câu hỏi vốn là một: trễ bao nhiêu phút thì còn coi như đủ ca. */
+		$phut_o = (int) $r['phut'];
+		$lop_th = '';
+		if ( 'ca' === $kieu ) {
+			$lt = VHCC_Ca::lam_tron( $ds_ca, $r['vaoGiay'], $r['raGiay'],
+				VHCC_Ca::la_cuoi_tuan( $r['ngay'] ), $nguong_tre );
+			$phut_o = (int) $lt['phut'];
+			/* 🔴 NÓI RA MỖI KHI CON SỐ TRONG Ô KHÁC GIỜ MÁY GHI — cả khi tròn LÊN (trễ trong
+			   ngưỡng) lẫn khi cắt XUỐNG (bấm sớm/về muộn vài phút). Người đọc bảng lương phải
+			   đối chiếu được ô với giờ chấm thật; một con số đã bị đổi mà không nói là con số
+			   không ai kiểm được. */
+			if ( $phut_o !== (int) $r['phut'] ) {
+				$chu .= "\n✓ giờ công theo ca: " . VHCC_Cham::chu_gio( $phut_o )
+					. ' (giờ chấm thật ' . VHCC_Cham::chu_gio( (int) $r['phut'] ) . ')';
+			}
+			if ( ! empty( $lt['tron'] ) ) {
+				$chu .= "\n✓ đã làm tròn lên đủ ca";
+			}
+			/* 🔴 THIẾU GIỜ THÌ Ô VÀNG. Anh Thắng 27/08: *"nếu bạn nào chấm thiếu giờ thì hiện
+			   cảnh báo ô vàng cho cửa hàng trưởng biết"*. Vàng chứ không đỏ: thiếu giờ chưa
+			   chắc là lỗi của ai — có thể là xin nghỉ nửa ca, có thể là máy hỏng. */
+			foreach ( (array) $lt['thieu'] as $x ) {
+				$lop_th = ' vang';
+				$chu   .= "\n⚠ thiếu " . VHCC_Cham::chu_gio( (int) $x['phut'] ) . ' của ' . $x['ten'];
+			}
+			if ( ! empty( $lt['ngoai_moi_ca'] ) ) {
+				$lop_th = ' vang';
+				$chu   .= "\n⚠ cả lượt nằm NGOÀI mọi khung ca — giữ nguyên giờ thật. "
+					. 'Khung ca của cửa hàng có thể đang khai lệch.';
+			}
+		}
+		$so = ( 'ngay' === $kieu )
 			? '<b>' . (int) $cong . '</b>'
-			: '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>';
+			: '<b>' . self::so_vp( round( $phut_o / 60, 1 ) ) . '</b>';
 		return array(
 			'noi'     => $so . ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
 			'noi_tho' => $so,
 			'chu'     => $chu,
-			'lop'     => ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' ),
+			'lop'     => ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' ) . $lop_th,
 			'cong'    => (int) $cong,
-			'phut'    => (int) $r['phut'] );
+			'phut'    => $phut_o );
 	}
 
 	private static function o_sua( $noi_dung, $ngay, $ma_day_du, $co_gio, $duoc_sua, $duoc_bu ) {
@@ -4325,6 +4428,10 @@ class VHCC_Web {
 		$ds_ca   = VHCC_Ca::cua( (string) $b['coSo'] );
 		/* Cách tính của CƠ SỞ ĐANG XEM — quyết định ô in số giờ hay in 1 công. */
 		$kieu_ct = VHCC_Luong::cach_tinh( (string) $b['coSo'] );
+		/* Ngưỡng "thiếu bao nhiêu phút thì vẫn coi là đủ ca" — CÙNG con số với ngưỡng đi trễ của
+		   cửa hàng, vì hai câu hỏi vốn là một. Gác `class_exists` cùng thân hàm với lời gọi. */
+		$nguong_tre = ( class_exists( 'VHCC_Tre' ) && method_exists( 'VHCC_Tre', 'cua' ) )
+			? (int) VHCC_Tre::cua( (string) $b['coSo'] ) : 0;
 		/* Ô đang được chọn để sửa / bù — đọc từ chính địa chỉ, nên bấm Lùi vẫn đúng. */
 		list( $sg_n, $sg_m, $sg_co ) = self::o_dang_sua( $tt );
 
@@ -4451,14 +4558,14 @@ class VHCC_Web {
 				}
 
 				$r_chinh = isset( $o[ $ma ][''][ $i ] ) ? $o[ $ma ][''][ $i ] : null;
-				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca, $kieu_ct );
+				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca, $kieu_ct, $nguong_tre );
 
 				/* Dòng phụ: chỉ vẽ hậu tố nào NGÀY ẤY có lượt chấm. Vẽ hết mọi hậu tố cho mọi
 				   ngày là mỗi ô ba dòng dấu chấm, lưới cao gấp ba mà không thêm một tin nào. */
 				$duoi = '';
 				foreach ( $phu as $ht_p ) {
 					if ( ! isset( $o[ $ma ][ $ht_p ][ $i ] ) ) { continue; }
-					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca, $kieu_ct );
+					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca, $kieu_ct, $nguong_tre );
 					if ( null !== $c_p['phut'] ) {
 						if ( ! isset( $phut_phu[ $ht_p ] ) ) { $phut_phu[ $ht_p ] = 0; }
 						$phut_phu[ $ht_p ] += (int) $c_p['phut'];

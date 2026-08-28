@@ -22,7 +22,25 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 class VHCC_Xuat {
 
 	/** Máy chủ có dựng được .xlsx không (cần ZipArchive). */
+	/**
+	 * ⚠️ HAI Ô NÀY LÀ ĐỂ SOI, KHÔNG PHẢI ĐỂ ĐIỀU KHIỂN.
+	 *
+	 * `$ep_khong_zip` cho bộ thử dựng lại đúng cái hoàn cảnh không dựng được trên máy nào chạy
+	 * bộ thử: **hosting thiếu `php-zip`**. Đó là hoàn cảnh THẬT — anh Thắng đang ở hosting chia
+	 * sẻ — và là hoàn cảnh mà đường xuất ảnh sinh ra để cứu. Không có nó thì nhánh "ảnh không
+	 * cần ZipArchive" là nhánh không phép thử nào phân biệt được: bỏ chốt đi vẫn xanh.
+	 *
+	 * `$mime_da_gui` giữ lại kiểu MIME của lượt gửi gần nhất, vì `header()` gọi trong CLI
+	 * không ghi lại đâu cả — gửi ảnh dưới tên MIME của Excel là cái sai mà không cách nào
+	 * chạm tới nếu không có ô này.
+	 */
+	public static $ep_khong_zip = false;
+	public static $mime_da_gui  = '';
+	/** Nguyên văn các dòng đầu tệp của lượt gửi gần nhất — xem chú thích ở `dau()`. */
+	public static $dau_da_gui   = array();
+
 	public static function co_xlsx() {
+		if ( self::$ep_khong_zip ) { return false; }
 		return class_exists( 'ZipArchive' );
 	}
 
@@ -184,11 +202,40 @@ class VHCC_Xuat {
 
 	/* ==================================================================== gửi về trình duyệt */
 
-	public static function gui( $ten_tep, $noi_dung ) {
+	/**
+	 * Kiểu MIME sẽ gửi đi. Hàm THUẦN, tách riêng vì `header()` không soi được từ bộ thử: gọi
+	 * nó trong CLI thì chẳng ghi lại đâu cả, nên gửi ảnh dưới tên MIME của Excel là một cái sai
+	 * không phép thử nào chạm tới được nếu để nguyên trong thân `gui()`.
+	 *
+	 * @param string $kieu  kiểu MIME. Mặc định là .xlsx — nhưng cùng lối gửi này nay còn chở
+	 *                      tấm ảnh .svg của bảng công, và gửi ảnh dưới tên MIME của Excel thì
+	 *                      trình duyệt tải về xong không mở được bằng gì.
+	 */
+	public static function mime( $kieu = '' ) {
+		return ( '' !== trim( (string) $kieu ) ) ? trim( (string) $kieu )
+			: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+	}
+
+	/**
+	 * MỌI DÒNG ĐẦU TỆP ĐI QUA ĐÂY — đây là RANH GIỚI QUAN SÁT của lượt gửi.
+	 *
+	 * `header()` là hàm của PHP: gọi trong CLI thì không ghi lại đâu cả, nên mọi cái sai nằm ở
+	 * ĐỐI SỐ truyền cho nó đều là cái sai không phép thử nào chạm tới. Ghi lại đúng chuỗi sắp
+	 * truyền đi, ngay tại một chỗ duy nhất, là cách kéo ranh giới ấy sát vào `header()` nhất
+	 * có thể — dưới dòng này thì chỉ còn PHP, không còn mã của mình để mà sai.
+	 */
+	private static function dau( $dong ) {
+		self::$dau_da_gui[] = (string) $dong;
+		header( (string) $dong );
+	}
+
+	public static function gui( $ten_tep, $noi_dung, $kieu = '' ) {
 		nocache_headers();
-		header( 'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' );
-		header( 'Content-Disposition: attachment; filename="' . $ten_tep . '"' );
-		header( 'Content-Length: ' . strlen( $noi_dung ) );
+		self::$dau_da_gui  = array();
+		self::$mime_da_gui = self::mime( $kieu );
+		self::dau( 'Content-Type: ' . self::$mime_da_gui );
+		self::dau( 'Content-Disposition: attachment; filename="' . $ten_tep . '"' );
+		self::dau( 'Content-Length: ' . strlen( $noi_dung ) );
 		echo $noi_dung; // phpcs:ignore WordPress.Security.EscapeOutput -- nhị phân .xlsx
 		/* 🔴 `exit` GIỮA BÀI KIỂM LÀ MỘT CÁI BẪY IM LẶNG. Bài kiểm chạy trong cùng một tiến
 		   trình: `exit` ở đây kết thúc luôn cả bài, mọi phép thử phía sau biến mất, mà mã trả

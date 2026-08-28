@@ -159,6 +159,82 @@ class VHCC_Ca {
 	}
 
 	/**
+	 * ĐỘ DÀI của một ca, tính bằng phút. Ca qua nửa đêm đếm sang ngày hôm sau.
+	 * Hàm thuần — vào là một khai báo ca, ra là một con số.
+	 */
+	public static function dai_ca( $s, $cuoi_tuan = false ) {
+		$s   = (array) $s;
+		$tu  = ( $cuoi_tuan && ! empty( $s['tuW'] ) )  ? $s['tuW']  : ( isset( $s['tu'] ) ? $s['tu'] : '' );
+		$den = ( $cuoi_tuan && ! empty( $s['denW'] ) ) ? $s['denW'] : ( isset( $s['den'] ) ? $s['den'] : '' );
+		$b1  = self::phut( $tu );
+		$b2  = self::phut( $den );
+		if ( null === $b1 || null === $b2 ) { return 0; }
+		if ( $b2 <= $b1 ) { $b2 += 1440; }
+		return $b2 - $b1;
+	}
+
+	/**
+	 * LÀM TRÒN GIỜ CÔNG THEO KHUNG CA.
+	 *
+	 * Anh Thắng 27/08/2026: *"lấy giờ ca làm giờ công, cứ chấm trong ca (bao gồm vào ra) phần
+	 * công đủ giờ (nhưng nếu bạn nào chấm thiếu giờ thì hiện cảnh báo ô vàng)"*. Và 28/08, khi
+	 * nhìn lưới đầy 5.1 · 6.9 · 13.1: *"Chưa làm tròn giờ theo ca"*.
+	 *
+	 * 🔴 CON SỐ LẺ LÀ CON SỐ SAI Ở CỬA HÀNG TÍNH THEO CA. Người vào 05:57 và về 14:03 không làm
+	 *    8.1 tiếng — họ làm ĐÚNG MỘT CA. Sáu phút thừa ấy là thời gian đi bộ từ cửa vào máy, và
+	 *    cộng nó vào là trả tiền cho việc bấm máy sớm; ngược lại người bấm muộn ba phút bị trừ.
+	 *    Cả hai đều sai, và sai theo hai hướng nên tổng tháng nhìn vẫn "hợp lý".
+	 *
+	 * Luật, đúng như anh nói:
+	 *   • Có mặt trong ca, THIẾU không quá ngưỡng  -> tính TRỌN ca. Không cảnh báo.
+	 *   • Thiếu QUÁ ngưỡng                          -> tính đúng phần có mặt, và BÁO thiếu (ô vàng).
+	 *   • Lượt chấm không chạm ca nào               -> giữ nguyên giờ thật, và báo "ngoài mọi ca".
+	 *
+	 * ⚠️ NHÁNH "NGOÀI MỌI CA" KHÔNG ĐƯỢC TRẢ 0. Khung ca khai sai (hoặc chưa khai) thì mọi lượt
+	 *    rơi ra ngoài — trả 0 là cả tháng của cả cửa hàng thành số không, mà bảng vẫn trông
+	 *    bình thường. Giữ giờ thật và kêu lên là cách duy nhất để chuyện ấy lộ ra ngay.
+	 *
+	 * ⚠️ Giờ NGOÀI ca (làm thêm đầu/cuối) KHÔNG cộng vào — đây là "lấy giờ ca làm giờ công".
+	 *    Nó vẫn nằm nguyên ở cột "Ngoài ca" của bảng Tổng giờ theo ca, không bị nuốt.
+	 *
+	 * Hàm THUẦN: vào là khai báo ca + hai mốc giây + ngưỡng, ra là một mảng con số.
+	 *
+	 * @return array phut (giờ công sau khi làm tròn, tính bằng phút) · tron (có ca nào được làm
+	 *               tròn lên không) · thieu (mảng [ten, thieu_phut] của ca thiếu quá ngưỡng) ·
+	 *               ngoai_moi_ca (bool).
+	 */
+	public static function lam_tron( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan = false, $nguong = 0 ) {
+		$ra = array( 'phut' => 0, 'tron' => false, 'thieu' => array(), 'ngoai_moi_ca' => false );
+		$tc = self::tach( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan );
+		if ( ! $tc['ds'] ) {
+			/* Không chạm ca nào: giữ giờ thật. `tong_phut` là 0 khi lượt chấm không hợp lệ, và
+			   lúc ấy `ngoai_moi_ca` cũng chẳng có gì để kêu. */
+			$ra['phut']         = (int) $tc['tong_phut'];
+			$ra['ngoai_moi_ca'] = ( $ra['phut'] > 0 );
+			return $ra;
+		}
+		$nguong = max( 0, (int) $nguong );
+		foreach ( $tc['ds'] as $o ) {
+			$dai = 0;
+			foreach ( (array) $ds_ca as $c ) {
+				if ( (string) $c['ten'] === (string) $o['ten'] ) { $dai = self::dai_ca( $c, $cuoi_tuan ); break; }
+			}
+			$co    = (int) $o['phut'];
+			$thieu = $dai - $co;
+			if ( $dai > 0 && $thieu > 0 && $thieu <= $nguong ) {
+				$ra['phut'] += $dai;
+				$ra['tron']  = true;
+				continue;
+			}
+			$ra['phut'] += $co;
+			if ( $dai > 0 && $thieu > $nguong ) {
+				$ra['thieu'][] = array( 'ten' => (string) $o['ten'], 'phut' => (int) $thieu );
+			}
+		}
+		return $ra;
+	}
+
+	/**
 	 * Mã ngắn của ca theo VỊ TRÍ: ca thứ nhất -> C1, thứ hai -> C2…
 	 *
 	 * Dùng vị trí chứ không cắt từ tên, vì tên ca do người dùng đặt: "Ca sáng" và "Ca chiều" cắt
