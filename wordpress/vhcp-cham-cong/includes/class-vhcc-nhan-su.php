@@ -1128,6 +1128,85 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * DÒ SẴN CÁC CẶP MÃ ĐÁNG NGỜ LÀ MỘT NGƯỜI — theo họ tên.
+	 *
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"cách dò tên nhân viên trùng để ghép mã được không: theo họ tên
+	 * nhân viên"*. Đúng — 400 nhân sự mà gõ tay từng cặp thì không ai làm nổi.
+	 * =========================================================================================
+	 *
+	 * 🔴 GỢI Ý THÌ ĐƯỢC, TỰ GHÉP THÌ KHÔNG. Tên người Việt trùng rất nhiều; đoán sai là gộp
+	 *    lương hai người khác nhau — và gộp xong thì `don_ma()` không đảo lại được. Hàm này chỉ
+	 *    dọn sẵn danh sách; người vẫn là bên bấm nút.
+	 *
+	 * CÁCH DÒ, DỰA ĐÚNG VÀO HÌNH DẠNG CỦA CHỖ HỎNG:
+	 *   • Mã MÁY  — có lượt chấm công, KHÔNG có hồ sơ nhân sự (máy mang một dãy số của riêng nó)
+	 *   • Mã CÔNG TY — có hồ sơ, thường chưa có lượt nào
+	 * Nên đi từ mã lạ trong bảng chấm công, lấy tên mà máy gửi kèm, rồi tìm hồ sơ trùng tên.
+	 *
+	 * ⚠️ TÊN KHỚP NHIỀU HỒ SƠ THÌ KHÔNG GỢI Ý — nói ra là "khớp N hồ sơ" rồi thôi. Chọn đại một
+	 *    cái là đúng kiểu sai mà bình luận ở `khai_ma_song_song()` đã dặn phải tránh.
+	 *
+	 * ⚠️ BỎ QUA CẶP ĐÃ KHAI. Bày lại một việc vừa làm xong là người ta bấm hai lần rồi ngờ chính
+	 *    mình.
+	 *
+	 * @return array [ ['maMay','maCty','ten','coso','soLuot','soHoSoKhop'], … ]
+	 */
+	public static function goi_y_ghep_ma( $u, $toi_da = 200 ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) { return array(); }
+		$t_cc = VHCC_DB::t( 'cham_cong' );
+		$t_nv = VHCC_DB::t( 'nhan_vien' );
+
+		/* Mã có lượt chấm công mà KHÔNG có hồ sơ — gần như chắc là mã của máy. */
+		$la = VHCC_DB::rows( "SELECT c.ma_nv, COUNT(*) AS so, MAX(c.ho_ten) AS ho_ten,"
+			. " MAX(c.coso) AS coso FROM $t_cc c"
+			. " LEFT JOIN $t_nv n ON n.ma_nv = c.ma_nv"
+			. " WHERE n.ma_nv IS NULL AND TRIM(c.ma_nv) <> ''"
+			. ' GROUP BY c.ma_nv ORDER BY so DESC LIMIT ' . max( 1, (int) $toi_da ) );
+		if ( ! $la ) { return array(); }
+
+		/* Sổ nhân sự gom theo khoá tên — một khoá có thể ứng với nhiều hồ sơ, phải giữ cả cụm. */
+		$theo_ten = array();
+		foreach ( (array) VHCC_DB::rows( "SELECT ma_nv, ho_ten, cua_hang FROM $t_nv"
+			. " WHERE TRIM(ma_nv) <> ''" ) as $r ) {
+			$k = self::khoa_so( (string) $r['ho_ten'] );
+			if ( '' === $k ) { continue; }
+			$theo_ten[ $k ][] = $r;
+		}
+
+		$da_khai = array();
+		foreach ( (array) self::ds_ma_song_song() as $r ) {
+			$da_khai[ strtoupper( trim( (string) $r['ma_a'] ) ) . '|' . strtoupper( trim( (string) $r['ma_b'] ) ) ] = 1;
+			$da_khai[ strtoupper( trim( (string) $r['ma_b'] ) ) . '|' . strtoupper( trim( (string) $r['ma_a'] ) ) ] = 1;
+		}
+
+		$ra = array();
+		foreach ( $la as $x ) {
+			$ten = trim( (string) $x['ho_ten'] );
+			$k   = self::khoa_so( $ten );
+			if ( '' === $k || ! isset( $theo_ten[ $k ] ) ) { continue; }
+			$khop = $theo_ten[ $k ];
+			$mot  = ( 1 === count( $khop ) ) ? $khop[0] : null;
+			$ma_cty = $mot ? trim( (string) $mot['ma_nv'] ) : '';
+			if ( '' !== $ma_cty && isset( $da_khai[ strtoupper( $ma_cty ) . '|' . strtoupper( (string) $x['ma_nv'] ) ] ) ) {
+				continue;
+			}
+			$ra[] = array(
+				'maMay'      => (string) $x['ma_nv'],
+				'maCty'      => $ma_cty,
+				'ten'        => $ten,
+				'tenHoSo'    => $mot ? trim( (string) $mot['ho_ten'] ) : '',
+				'coso'       => (string) $x['coso'],
+				'cosoHoSo'   => $mot ? trim( (string) $mot['cua_hang'] ) : '',
+				'soLuot'     => (int) $x['so'],
+				'soHoSoKhop' => count( $khop ),
+			);
+		}
+		return $ra;
+	}
+
+	/**
 	 * ĐẾM XEM DỒN MÃ PHỤ VỀ MÃ CHÍNH THÌ ĐỘNG VÀO BAO NHIÊU HÀNG.
 	 *
 	 * Trả [ 'chuyen' => số hàng chỉ việc đổi mã, 'gop' => số hàng phải gộp vì trùng ngày ].

@@ -9758,6 +9758,87 @@ t( '🔴 Cửa hàng trưởng gọi thẳng đường ghép vẫn bị chối',
 	isset( $tt_bao[0]['loi'] ), $tt_bao );
 teq( 'và không có cặp nào thêm', 'MOT9', VHCC_NhanSu::ma_that( 'MOT9' ) );
 
+/* ---- DÒ SẴN CẶP MÃ THEO HỌ TÊN ------------------------------------------------------------
+   Anh Thắng 28/08/2026: *"cách dò tên nhân viên trùng để ghép mã được không: theo họ tên nhân
+   viên"*. Hai ô gõ tay đủ cho một cặp, không đủ cho một chuỗi 26 cửa hàng.
+   🔴 GỢI Ý THÌ ĐƯỢC, TỰ GHÉP THÌ KHÔNG — tên người Việt trùng rất nhiều, đoán sai là gộp lương
+      hai người khác nhau, mà dồn xong thì không đảo lại được.
+   ⚠️ KHÔNG `vhcc_dung_bang()` Ở ĐÂY. Khối "bỏ ghép" bên dưới dùng cặp MOT1/MOT2 khai từ khối
+      trên — đập bảng là xoá mất cảnh của nó, và hai phép thử ở đó đỏ vì lý do sai. Dựng cảnh
+      riêng rồi dọn tay. */
+vhcc_bo_phan( 'GY_CS', 'Khu vui chơi' );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'GYCTY01', 'ho_ten' => 'Nguyễn Bảo Khang',
+	'cua_hang' => 'GY_CS' ) );
+/* Mã máy: có lượt, KHÔNG có hồ sơ — đúng hình dạng chỗ hỏng. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'GY_CS', 'ngay' => '2026-08-01',
+	'ma_nv' => '80412', 'ho_ten' => 'NGUYEN BAO KHANG', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'nguon' => 'may' ) );
+
+$gy = VHCC_NhanSu::goi_y_ghep_ma( $U_AD );
+teq( '🔴 dò ra đúng một cặp', 1, count( $gy ) );
+teq( 'mã máy', '80412', (string) $gy[0]['maMay'] );
+teq( '🔴 và khớp về đúng mã công ty dù máy gửi tên KHÔNG DẤU, chữ HOA',
+	'GYCTY01', (string) $gy[0]['maCty'] );
+teq( 'kèm số lượt của mã máy — để biết dồn thì động vào bao nhiêu', 1, (int) $gy[0]['soLuot'] );
+
+/* ⚠️ TÊN KHỚP NHIỀU HỒ SƠ THÌ KHÔNG GỢI Ý. Chọn đại một cái là đúng kiểu sai mà cả khối này
+   sinh ra để tránh. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'GYCTY02', 'ho_ten' => 'Nguyễn Bảo Khang',
+	'cua_hang' => 'GY_CS' ) );
+$gy = VHCC_NhanSu::goi_y_ghep_ma( $U_AD );
+teq( '🔴 khớp hai hồ sơ thì KHÔNG chọn hộ', '', (string) $gy[0]['maCty'] );
+teq( 'mà nói ra là khớp mấy hồ sơ', 2, (int) $gy[0]['soHoSoKhop'] );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='GYCTY02'" );
+
+/* ⚠️ CẶP ĐÃ KHAI THÌ THÔI BÀY LẠI — bày lại một việc vừa làm xong là người ta bấm hai lần rồi
+   ngờ chính mình. */
+VHCC_NhanSu::khai_ma_song_song( $U_AD, 'GYCTY01', '80412', 'Nguyễn Bảo Khang', 'dò tên' );
+teq( '🔴 khai rồi thì thôi gợi ý cặp ấy', 0, count( VHCC_NhanSu::goi_y_ghep_ma( $U_AD ) ) );
+VHCC_NhanSu::bo_ma_song_song( $U_AD, 'GYCTY01', '80412' );
+
+/* Mã đã CÓ hồ sơ thì không phải mã máy — đừng bày ra. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'GY_CS', 'ngay' => '2026-08-02',
+	'ma_nv' => 'GYCTY01', 'ho_ten' => 'Nguyễn Bảo Khang', 'gio_vao_giay' => 28800,
+	'gio_ra_giay' => 61200, 'nguon' => 'online' ) );
+$gy = VHCC_NhanSu::goi_y_ghep_ma( $U_AD );
+teq( 'mã đã có hồ sơ thì không nằm trong danh sách dò', 1, count( $gy ) );
+teq( 'vẫn đúng mã máy', '80412', (string) $gy[0]['maMay'] );
+
+/* Cửa hàng trưởng không được dò — ghép ảnh hưởng cả chuỗi. */
+teq( '🔴 Cửa hàng trưởng không dò được', 0, count( VHCC_NhanSu::goi_y_ghep_ma(
+	array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'GY_CS' ) ) ) );
+
+/* ---- Trên MÀN HÌNH ---- */
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 màn hình bày bảng dò', strpos( $tt_h, 'Dò theo họ tên' ) !== false, $tt_h );
+t( 'kể ra mã máy và mã công ty',
+	strpos( $tt_h, '80412' ) !== false && strpos( $tt_h, 'GYCTY01' ) !== false, $tt_h );
+t( '🔴 và nói thẳng là hệ KHÔNG tự ghép hộ',
+	strpos( $tt_h, 'không tự ghép hộ' ) !== false, $tt_h );
+t( 'nút Ghép điền sẵn hai mã', strpos( $tt_h, 'name="ma_a" value="GYCTY01"' ) !== false
+	&& strpos( $tt_h, 'name="ma_b" value="80412"' ) !== false, $tt_h );
+
+/* 🔴 TRÊN MÀN HÌNH cũng phải im lặng khi tên khớp NHIỀU hồ sơ: bày nút Ghép điền sẵn một cái
+   trong hai là chọn hộ — mà dồn xong thì không đảo lại được. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'GYCTY02', 'ho_ten' => 'Nguyễn Bảo Khang',
+	'cua_hang' => 'GY_CS', 'bo_phan' => 'Bán hàng' ) );
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 khớp hai hồ sơ thì màn nói ra, không chọn hộ',
+	strpos( $tt_h, 'khớp 2 hồ sơ' ) !== false, $tt_h );
+t( '🔴 và KHÔNG bày nút Ghép điền sẵn cho hàng ấy',
+	strpos( $tt_h, 'name="ma_b" value="80412"' ) === false, $tt_h );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='GYCTY02'" );
+$tt_h = vhcc_ns( 'Admin' );
+
+/* 🔴 LỆCH CƠ SỞ LÀ DẤU HIỆU MẠNH RẰNG ĐÂY LÀ HAI NGƯỜI KHÁC NHAU TRÙNG TÊN — phải kêu lên. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cua_hang' => 'TUTU_BT' ),
+	array( 'ma_nv' => 'GYCTY01' ) );
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 hai bên khác cơ sở thì đánh dấu ngay',
+	strpos( $tt_h, 'khác cơ sở!' ) !== false, $tt_h );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv IN ('80412','GYCTY01')" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='GYCTY01'" );
+
 /* ---- DỒN LƯỢT CŨ CỦA MÃ PHỤ VỀ MÃ CHÍNH ---------------------------------------------------
    🔴 Anh Thắng 28/08/2026, ảnh lưới cả tháng mỗi người hiện thành HAI hàng — một có giờ, một
       "chưa chấm": *"Trên máy chấm công là 1 mã, trên web là 1 mã… nên cần đồng bộ 2 mã chạy

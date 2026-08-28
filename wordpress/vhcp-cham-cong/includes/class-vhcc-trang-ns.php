@@ -933,6 +933,59 @@ class VHCC_TrangNS {
 			echo '</tbody></table></div>';
 		}
 
+		/* =====================================================================================
+		 * 🔴 DÒ SẴN, ĐỪNG BẮT GÕ TAY 400 CẶP.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026: *"cách dò tên nhân viên trùng để ghép mã được không: theo họ tên
+		 * nhân viên"*. Đúng — hai ô gõ tay là đủ cho một cặp, không đủ cho một chuỗi 26 cửa hàng.
+		 *
+		 * ⚠️ GỢI Ý THÌ ĐƯỢC, TỰ GHÉP THÌ KHÔNG. Tên người Việt trùng rất nhiều; đoán sai là gộp
+		 *    lương hai người khác nhau, mà dồn xong thì không đảo lại được. Bảng này bày ra ĐỦ
+		 *    BẰNG CHỨNG để người bấm tự quyết: mỗi bên đang ở cơ sở nào, mã máy có bao nhiêu
+		 *    lượt, và tên ấy khớp mấy hồ sơ.
+		 */
+		$gy = VHCC_NhanSu::goi_y_ghep_ma( $toi );
+		if ( $gy ) {
+			echo '<div class="bao canh" style="margin-top:12px"><b>Dò theo họ tên: '
+				. count( $gy ) . ' mã lạ đang có lượt chấm công mà không có hồ sơ.</b><br>'
+				. '<span class="mo">Gần như chắc là mã của máy chấm công. Soi hai cột cơ sở rồi '
+				. 'bấm Ghép — <b>hệ không tự ghép hộ</b>, vì trùng tên chưa chắc là một người.'
+				. '</span></div>';
+			echo '<div class="cuon"><table class="stt"><thead><tr><th>Tên máy gửi</th>'
+				. '<th>Mã trên máy</th><th>Lượt</th><th>Cơ sở (máy)</th>'
+				. '<th>Mã công ty</th><th>Cơ sở (hồ sơ)</th><th></th></tr></thead><tbody>';
+			foreach ( $gy as $g ) {
+				$lech_cs = ( '' !== $g['maCty'] && 0 !== strcasecmp(
+					VHCC_NhanSu::chuan_coso( $g['coso'] ), VHCC_NhanSu::chuan_coso( $g['cosoHoSo'] ) ) );
+				echo '<tr><td>' . esc_html( $g['ten'] ) . '</td>'
+					. '<td><code>' . esc_html( $g['maMay'] ) . '</code></td>'
+					. '<td>' . (int) $g['soLuot'] . '</td>'
+					. '<td>' . esc_html( $g['coso'] ) . '</td>';
+				if ( '' === $g['maCty'] ) {
+					/* ⚠️ Tên khớp NHIỀU hồ sơ thì KHÔNG gợi ý — chọn đại một cái là đúng kiểu sai
+					   mà cả khối này sinh ra để tránh. */
+					echo '<td colspan="3"><span class="chu-hong">tên này khớp '
+						. (int) $g['soHoSoKhop'] . ' hồ sơ</span> '
+						. '<span class="mo">— tự chọn rồi gõ tay bên dưới</span></td></tr>';
+					continue;
+				}
+				echo '<td><code>' . esc_html( $g['maCty'] ) . '</code></td>'
+					. '<td>' . esc_html( $g['cosoHoSo'] )
+					/* Lệch cơ sở là dấu hiệu MẠNH rằng đây là hai người khác nhau trùng tên. */
+					. ( $lech_cs ? ' <span class="chu-hong">(khác cơ sở!)</span>' : '' ) . '</td>';
+				echo '<td><form method="post" style="margin:0">'
+					. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
+					. self::o_loc()
+					. '<input type="hidden" name="ma_a" value="' . esc_attr( $g['maCty'] ) . '">'
+					. '<input type="hidden" name="ma_b" value="' . esc_attr( $g['maMay'] ) . '">'
+					. '<input type="hidden" name="gm_ten" value="' . esc_attr( $g['ten'] ) . '">'
+					. '<input type="hidden" name="gm_ly_do" value="mã máy, dò theo họ tên">'
+					. '<button name="viec" value="ghep_ma"' . ( $lech_cs ? '' : ' class="chinh"' ) . '>'
+					. 'Ghép</button></form></td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+
 		echo '<form method="post" class="hang" style="margin-top:10px;gap:8px;flex-wrap:wrap">';
 		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
 		echo self::o_loc();
