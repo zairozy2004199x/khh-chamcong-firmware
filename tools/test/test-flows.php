@@ -2851,6 +2851,69 @@ t( '🔴 "Duyệt tạm ứng" của Kế toán NCC vẫn tắt như trước',
 t( 'và "Cấp tạm ứng" của Kế toán NCC cũng vậy',
 	empty( $q_sau['capTU']['Kế toán NCC'] ), $q_sau['capTU'] );
 
+/* 🔴 VAI TỰ TẠO KẾ THỪA KẾ TOÁN CŨNG PHẢI ĐƯỢC BẬT.
+   Tài khoản anh Thắng chụp mang vai *"Kế Toán ( Chị Nhân )"* — một vai TỰ TẠO, gốc "Kế toán
+   cá nhân". `canDo()` tra theo TÊN VAI trước, nên ô riêng của vai ấy đang là 0 thì vai gốc có
+   quyền cũng không cứu được. Bản vá phải bật theo VAI GỐC, không theo tên. */
+delete_option( VHCP_Cfg::CO_VA_QT );
+VHCP_Cfg::write( VHCP_Cfg::VAI, array( array( 'Kế Toán ( Chị Nhân )', 'Kế toán cá nhân' ) ), false );
+$so_cot_truoc = count( VHCP_Cfg::headers( VHCP_Cfg::QUYEN ) );
+/* Đặt sẵn một dấu mốc ở hành động KHÁC để soi lệch cột: `duyetTU` chỉ Quản lý = 1. */
+VHCP_Cfg::set_quyen( array(
+	'xacNhanQT' => array(),                        /* mọi vai = 0, kể cả vai tự tạo */
+	'duyetTU'   => array( 'Quản lý' => 1 ),
+) );
+t( 'dựng lại đúng cảnh: vai tự tạo KHÔNG có quyền',
+	empty( VHCP_Cfg::get_quyen()['xacNhanQT']['Kế Toán ( Chị Nhân )'] ) );
+VHCP_Cfg::va_quyen_quyet_toan();
+$q_tt = VHCP_Cfg::get_quyen();
+t( '🔴 vá xong thì VAI TỰ TẠO gốc kế toán cũng quyết toán được',
+	! empty( $q_tt['xacNhanQT']['Kế Toán ( Chị Nhân )'] ), $q_tt['xacNhanQT'] );
+t( 'và vai gốc cũng vậy', ! empty( $q_tt['xacNhanQT']['Kế toán cá nhân'] ) );
+/* ⚠️ Bản vá gán theo CHỈ SỐ CỘT. Hàng ngắn hơn số cột mà gán vào chỉ số xa là mảng thưa, rồi
+   `array_values()` lúc ghi dồn cột lại — cả bảng phân quyền lệch một ô, và mỗi vai nhận quyền
+   của vai bên cạnh. Soi bằng chính hành động đứng NGAY SAU trong danh sách. */
+t( '🔴 dấu mốc ở hành động khác không xê dịch: Quản lý vẫn duyệt tạm ứng',
+	! empty( $q_tt['duyetTU']['Quản lý'] ), $q_tt['duyetTU'] );
+t( 'và cột bên cạnh không bị kéo theo',
+	empty( $q_tt['duyetTU']['Kế toán cá nhân'] ) && empty( $q_tt['duyetTU']['Nhân viên'] )
+	&& empty( $q_tt['duyetTU']['Kế Toán ( Chị Nhân )'] ), $q_tt['duyetTU'] );
+VHCP_Cfg::write( VHCP_Cfg::VAI, array(), false );
+delete_option( VHCP_Cfg::CO_VA_QT );
+VHCP_Cfg::reset_quyen();
+
+/* 🔴 BẢN VÁ PHẢI ĐỨNG NGOÀI CHỐT PHIÊN BẢN CSDL.
+   Anh Thắng cài b1.50.0 xong vẫn báo *"anh chưa thấy nút duyệt"*: bản vá nằm trong
+   `VHCP_DB::install()`, mà hàm ấy chỉ chạy khi `vhcp_db_version` KHÁC `SCHEMA_VERSION` — bản
+   ấy không đổi sơ đồ bảng nên số y nguyên và bản vá không được gọi lấy một lần. */
+/* ⚠️ BỎ CHÚ THÍCH TRƯỚC KHI SOI. Ngay phía trên lời gọi có một đoạn chú thích dài nhắc đúng
+   tên hàm ấy — soi cả tệp thì bắt trúng chú thích, và bỏ hẳn lời gọi đi phép thử vẫn xanh.
+   Cùng luật với `tools/test/kiem-goi-cheo.php`. */
+$than_plugin = preg_replace( '#/\*.*?\*/#s', '',
+	(string) file_get_contents( VHCP_DIR . 'vhcp-chi-phi.php' ) );
+$than_plugin = preg_replace( '#//[^\n]*#', '', $than_plugin );
+$i_ver = strpos( $than_plugin, "get_option( 'vhcp_db_version' )" );
+$i_va  = strpos( $than_plugin, 'VHCP_Cfg::va_quyen_quyet_toan();' );
+t( '🔴 plugin có THẬT SỰ gọi bản vá lúc nạp (không phải chỉ nhắc trong chú thích)',
+	false !== $i_va, substr( $than_plugin, 0, 200 ) );
+/* Khớp ngoặc để tìm ĐÚNG chỗ khối `if` so phiên bản kết thúc, rồi hỏi: lời gọi nằm trong hay
+   ngoài khối ấy? Đếm ngoặc giữa hai mốc thì không trả lời được — lời gọi có khối `if` riêng
+   của nó, nên số ngoặc luôn lệch dù đặt ở đâu. */
+$mo_if = strpos( $than_plugin, '{', $i_ver );
+$sau   = $mo_if;
+$sau_if = false;
+$do_sau = 0;
+for ( $i_c = $mo_if; $i_c < strlen( $than_plugin ); $i_c++ ) {
+	if ( '{' === $than_plugin[ $i_c ] ) { $do_sau++; }
+	elseif ( '}' === $than_plugin[ $i_c ] ) {
+		$do_sau--;
+		if ( 0 === $do_sau ) { $sau_if = $i_c; break; }
+	}
+}
+t( 'tìm được chỗ khối if phiên bản kết thúc', false !== $sau_if );
+t( '🔴 và lời gọi bản vá nằm NGOÀI khối ấy — bên trong là nó không bao giờ chạy trên site '
+	. 'không đổi sơ đồ bảng', $i_va > $sau_if, array( $i_va, $sau_if ) );
+
 /* Site CHƯA TỪNG lưu bảng quyền: `def` mới đã đủ, bản vá không có gì để làm — và tuyệt đối
    không được ghi đè một bảng rỗng lên chỗ chưa có gì. */
 delete_option( VHCP_Cfg::CO_VA_QT );

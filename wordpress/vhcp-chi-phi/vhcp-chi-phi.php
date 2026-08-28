@@ -3,7 +3,7 @@
  * Plugin Name:       Vận Hành Chi Phí (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       App Chi Phí Cơ Sở / Vận Hành Chi Phí dựng lại trên WordPress — đơn tạm ứng theo tuần, chi phí kỹ thuật, marketing, công tác/setup, quyết toán thừa/thiếu và xuất MISA. Dữ liệu nằm trong bảng MySQL riêng (không phụ thuộc Google Sheet).
- * Version:           1.50.0
+ * Version:           1.50.1
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -21,7 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
  * này còn đứng ở 1.31.0 — nghĩa là suốt từ đó tới giờ, cài đè KHÔNG chạy bước nâng cấp nào và
  * trình duyệt vẫn dùng CSS/JS cũ. Có phép thử chốt hai số bằng nhau: tools/test/kiem-phien-ban.py
  */
-define( 'VHCP_VERSION', '1.50.0' );
+define( 'VHCP_VERSION', '1.50.1' );
 define( 'VHCP_FILE', __FILE__ );
 define( 'VHCP_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHCP_URL', plugin_dir_url( __FILE__ ) );
@@ -62,6 +62,16 @@ function vhcp_maybe_upgrade() {
 	if ( get_option( 'vhcp_ver' ) !== VHCP_VERSION ) {
 		update_option( 'vhcp_ver', VHCP_VERSION );
 		update_option( 'vhcp_flush_rewrite', 1 );
+	}
+	/* 🔴 BẢN VÁ PHÂN QUYỀN PHẢI ĐỨNG NGOÀI CHỐT PHIÊN BẢN CSDL.
+	   Anh Thắng 28/08/2026 cài b1.50.1 xong vẫn báo *"anh chưa thấy nút duyệt"*. Lý do: bản vá
+	   được đặt trong `VHCP_DB::install()`, mà hàm ấy chỉ chạy khi `vhcp_db_version` KHÁC
+	   `SCHEMA_VERSION` — bản trước không đổi sơ đồ bảng nên số ấy y nguyên, và bản vá không
+	   bao giờ được gọi. Cài đè xong trông như đã sửa mà thực ra chưa chạy một dòng nào.
+	   Đặt ở đây thì nó chạy đúng một lần cho MỌI site, dù sơ đồ bảng có đổi hay không —
+	   `va_quyen_quyet_toan()` tự giữ cờ, nên lần nạp thứ hai trở đi chỉ tốn một `get_option`. */
+	if ( method_exists( 'VHCP_Cfg', 'va_quyen_quyet_toan' ) ) {
+		VHCP_Cfg::va_quyen_quyet_toan();
 	}
 }
 
