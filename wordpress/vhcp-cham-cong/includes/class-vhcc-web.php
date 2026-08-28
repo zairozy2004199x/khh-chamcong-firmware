@@ -683,7 +683,7 @@ class VHCC_Web {
 	   đi xin đúng cái quyền mà họ không cần. Phần gác thật nằm trong
 	   `VHCC_NhanSu::them_nv_cua_hang()`, hỏi đúng đầu việc `them_nv`. */
 	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh',
-		'them_nv' );
+		'them_nv', 'muc_tre', 'duyet_tre', 'choi_tre', 'xin_tre' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -977,6 +977,48 @@ class VHCC_Web {
 			return array( array( 'xong' => $r['so_ca']
 				? 'Đã khai ' . $r['so_ca'] . ' ca cho ' . $r['coSo'] . '. Giờ công tách lại theo ca mới ngay.'
 				: 'Đã bỏ khai ca riêng của ' . $r['coSo'] . ' — quay về dùng ca chung.' ) );
+		}
+
+		/* ---------------------------------------------------------------------------------
+		 * ĐI TRỄ: mức cho phép của cửa hàng · duyệt đơn · không duyệt · nhân viên nộp đơn.
+		 * ------------------------------------------------------------------------------- */
+		if ( 'muc_tre' === $viec ) {
+			$r = VHCC_Tre::dat( $toi, isset( $_POST['ccs'] ) ? wp_unslash( $_POST['ccs'] ) : '',
+				isset( $_POST['muc'] ) ? wp_unslash( $_POST['muc'] ) : '' );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => empty( $r['bo_khai'] )
+				? 'Từ giờ ai vào trễ quá ' . (int) $r['phut'] . ' phút mà không có đơn thì ô ngày '
+					. 'đó vàng lên. Số giờ không đổi.'
+				: 'Đã bỏ mức riêng — cửa hàng này quay về dùng mức ' . (int) $r['phut'] . ' phút.' ) );
+		}
+
+		if ( 'duyet_tre' === $viec || 'choi_tre' === $viec ) {
+			$dat = ( 'duyet_tre' === $viec ) ? VHCC_XinTre::DUYET : VHCC_XinTre::TU_CHOI;
+			$r   = VHCC_XinTre::duyet( $toi, isset( $_POST['don'] ) ? wp_unslash( $_POST['don'] ) : 0,
+				$dat, isset( $_POST['ly_do_choi'] ) ? wp_unslash( $_POST['ly_do_choi'] ) : '' );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* Nói ra HẬU QUẢ, không chỉ "đã duyệt": người bấm cần biết cái ô vàng kia có tắt
+			   hay không, vì đó mới là lý do họ bấm. */
+			return array( array( 'xong' => ( VHCC_XinTre::DUYET === $dat )
+				? 'Đã duyệt đơn của ' . $r['ma_nv'] . ' ngày ' . $r['ngay']
+					. '. Ô vàng của đúng ngày đó thôi kêu — số giờ giữ nguyên.'
+				: 'Đã ghi KHÔNG duyệt đơn của ' . $r['ma_nv'] . ' ngày ' . $r['ngay']
+					. '. Ô vàng vẫn còn.' ) );
+		}
+
+		if ( 'xin_tre' === $viec ) {
+			$r = VHCC_XinTre::nop( $toi, array(
+				'ngay'    => isset( $_POST['xt_ngay'] ) ? wp_unslash( $_POST['xt_ngay'] ) : '',
+				'so_phut' => isset( $_POST['xt_phut'] ) ? wp_unslash( $_POST['xt_phut'] ) : '',
+				'ly_do'   => isset( $_POST['xt_ly_do'] ) ? wp_unslash( $_POST['xt_ly_do'] ) : '',
+			) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			return array( array( 'xong' => ( empty( $r['lai'] ) ? 'Đã gửi đơn' : 'Đã gửi lại đơn' )
+				. ' xin phép đi trễ ' . (int) $r['phut'] . ' phút ngày ' . $r['ngay']
+				. '. Cửa hàng trưởng ' . $r['coSo'] . ' sẽ thấy nó trong mục Lệnh đi trễ.'
+				. ( empty( $r['muon'] ) ? ''
+					: ' ⚠ Ngày này đã qua nên đơn được ghi là NỘP MUỘN — xin phép trước khi tới '
+						. 'cửa hàng thì mới đúng nghĩa xin phép.' ) ) );
 		}
 
 		if ( 'cach_tinh' === $viec ) {
@@ -1591,6 +1633,10 @@ class VHCC_Web {
 			. '.bao.loi{color:var(--do)}.bao.canh{color:#b45309}'
 			. '.bao.loi{background:#fef2f2;border-color:#fecaca}'
 			. '.bao.canh{background:#fffbeb;border-color:#fde68a}'
+			/* Ô "thiếu giờ NHƯNG đã có đơn được duyệt": không vàng (thôi kêu), nhưng cũng không
+			   trắng trơn — còn một gạch chân xanh để cửa hàng trưởng nhìn ra chỗ nào là do đơn,
+			   chứ không phải chỗ nào cũng đủ giờ. */
+			. 'td.xin-tre{box-shadow:inset 0 -3px 0 #86efac}'
 			. '.bao ul{margin:6px 0 0 18px;padding:0}'
 			. '.cu{color:var(--do);text-decoration:line-through}'
 			. '.moi{color:var(--luc);font-weight:600}'
@@ -2018,6 +2064,9 @@ class VHCC_Web {
 
 		if ( 'cong_toi' === $man ) {
 			self::the_cong_toi( $toi );
+			/* Khối xin phép đứng NGAY DƯỚI bảng công của chính mình: thấy ngày nào mình vào trễ
+			   thì xin phép ngay tại đó, không phải đi tìm màn khác. */
+			self::the_xin_tre( $toi, $ky );
 			self::dong_trang();
 			return;
 		}
@@ -2361,6 +2410,83 @@ class VHCC_Web {
 	 * ⚠️ Đọc MÃ NV từ THẺ PHIÊN, không nhận từ `$_GET`. Nhận từ URL là mở đường cho một nhân
 	 *    viên gõ mã người khác vào thanh địa chỉ và xem công của họ.
 	 */
+	/**
+	 * XIN PHÉP ĐI TRỄ — chỗ nhân viên nộp đơn, và chỗ họ xem đơn mình đã nộp ra sao.
+	 *
+	 * Anh Thắng 27/08/2026: *"tại trang chấm công online nhân viên sẽ chọn Xin Phép đi trễ
+	 * TRƯỚC KHI TỚI cửa hàng"*.
+	 *
+	 * 🔴 NGÀY MẶC ĐỊNH LÀ HÔM NAY, không phải ô trống. Người ta mở màn này lúc đang trên đường
+	 *    tới cửa hàng — bắt gõ ngày là thêm một chỗ gõ sai, mà gõ sai ngày thì đơn xin phép cho
+	 *    một hôm khác, và ô vàng của hôm nay vẫn nguyên.
+	 *
+	 * 🔴 KHÔNG CÓ Ô "MÃ NV". Mã lấy từ phiên đăng nhập (xem `VHCC_XinTre::nop`). Để người gửi
+	 *    tự khai mã là ai cũng nộp được đơn đứng tên người khác.
+	 */
+	private static function the_xin_tre( $toi, $ky ) {
+		$ma_nv = trim( isset( $toi['ma_nv'] ) ? (string) $toi['ma_nv'] : '' );
+		if ( '' === $ma_nv ) { return; }
+		if ( ! class_exists( 'VHCC_XinTre' ) || ! method_exists( 'VHCC_XinTre', 'cua_nguoi' ) ) { return; }
+
+		$ds     = VHCC_XinTre::cua_nguoi( $ma_nv );
+		$hom_nay = substr( (string) current_time( 'Y-m-d' ), 0, 10 );
+		$cho_sl = 0;
+		foreach ( $ds as $d ) {
+			if ( VHCC_XinTre::CHO === (string) $d['trang_thai'] ) { $cho_sl++; }
+		}
+
+		echo '<div class="the" id="xintre"><details' . ( $cho_sl ? ' open' : '' ) . '>';
+		echo '<summary><b>Xin phép đi trễ</b>'
+			. ( $cho_sl ? ' — <b style="color:#b45309">' . $cho_sl . ' đơn đang chờ duyệt</b>' : '' )
+			. ' <span class="mo">(bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Nộp <b>trước khi tới cửa hàng</b>. Cửa hàng '
+			. 'trưởng duyệt thì cảnh báo đi trễ của ngày đó được bỏ — <b>số giờ công không đổi</b>, '
+			. 'đơn không cộng bù giờ cho ai cả.</p>';
+
+		echo '<form method="post" class="hang">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="xin_tre">';
+		echo '<div><label for="xt_ngay">Ngày</label><input id="xt_ngay" name="xt_ngay" type="date"'
+			. ' value="' . esc_attr( $hom_nay ) . '" required></div>';
+		echo '<div><label for="xt_phut">Xin trễ (phút)</label><input id="xt_phut" name="xt_phut"'
+			. ' type="number" min="1" max="' . VHCC_Tre::TOI_DA . '" value="15" required'
+			. ' style="width:110px"></div>';
+		echo '<div style="flex:1;min-width:220px"><label for="xt_ly_do">Lý do</label>'
+			. '<input id="xt_ly_do" name="xt_ly_do" maxlength="250" required'
+			. ' placeholder="VD: kẹt xe cầu Sài Gòn" style="width:100%"></div>';
+		echo '<div><button class="chinh">Gửi đơn</button></div>';
+		echo '</form>';
+
+		if ( ! $ds ) {
+			echo '<p class="mo" style="margin-top:10px">Chưa nộp đơn nào.</p>';
+			echo '</details></div>';
+			return;
+		}
+		echo '<div class="cuon" style="margin-top:12px"><table class="cc"><thead><tr>'
+			. '<th>Ngày</th><th>Xin trễ</th><th>Lý do</th><th>Kết quả</th>'
+			. '</tr></thead><tbody>';
+		foreach ( $ds as $d ) {
+			$tt = (string) $d['trang_thai'];
+			echo '<tr><td><b>' . esc_html( self::ngay_vn( (string) $d['ngay'] ) ) . '</b></td>';
+			echo '<td class="oc">' . (int) $d['so_phut'] . ' phút</td>';
+			echo '<td>' . esc_html( (string) $d['ly_do'] ) . '</td>';
+			$mau = ( VHCC_XinTre::DUYET === $tt ) ? 'ca2'
+				: ( ( VHCC_XinTre::TU_CHOI === $tt ) ? 'ca4' : 'ca1' );
+			echo '<td><span class="k ' . esc_attr( $mau ) . '">'
+				. esc_html( isset( VHCC_XinTre::TEN_TT[ $tt ] ) ? VHCC_XinTre::TEN_TT[ $tt ] : $tt )
+				. '</span>';
+			if ( VHCC_XinTre::TU_CHOI === $tt && '' !== trim( (string) $d['ly_do_choi'] ) ) {
+				echo '<div class="mo" style="font-size:11.5px">'
+					. esc_html( (string) $d['ly_do_choi'] ) . '</div>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo" style="margin-top:8px">Mỗi ngày <b>một đơn</b>. Nộp lại cho cùng một '
+			. 'ngày là <b>đè lên</b> đơn cũ và quay về chờ duyệt.</p>';
+		echo '</details></div>';
+	}
+
 	private static function the_cong_toi( $toi ) {
 		$ma_nv = trim( isset( $toi['ma_nv'] ) ? (string) $toi['ma_nv'] : '' );
 		$th    = isset( $_GET['cth'] ) ? sanitize_text_field( wp_unslash( $_GET['cth'] ) ) : '';
@@ -3288,6 +3414,7 @@ class VHCC_Web {
 		   Cửa hàng trưởng chỉ khai được cửa hàng mình — thêm chỗ vẽ, không nới quyền. */
 		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
 			self::the_khai_ca( $cs, $ky, $toi );
+			self::the_lenh_tre( $cs, $ky, $toi );
 		}
 	}
 
@@ -3633,7 +3760,8 @@ class VHCC_Web {
 	/**
 	 * @param string $kieu Cách tính của cơ sở: 'gio' | 'cong' | 'ngay'. Xem `VHCC_Luong::cach_tinh`.
 	 */
-	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca, $kieu = 'gio', $nguong_tre = 0 ) {
+	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca, $kieu = 'gio', $nguong_tre = 0,
+		$don_tre = array() ) {
 		if ( null === $r ) {
 			return array( 'noi' => '·', 'noi_tho' => '·', 'chu' => '', 'lop' => '', 'phut' => null );
 		}
@@ -3705,12 +3833,34 @@ class VHCC_Web {
 			if ( ! empty( $lt['tron'] ) ) {
 				$chu .= "\n✓ đã làm tròn lên đủ ca";
 			}
+			/* 🔴 NÓI RA NGƯỜI NÀY NHẬN TỪ CA NÀO ĐẾN CA NÀO.
+			   Anh Thắng 28/08/2026: *"giờ như này là bạn đang làm từ ca 2 đến ca 3. lấy giờ ca
+			   tính đầu và đuôi thì biết bạn đó bắt đầu từ ca nào"*. Dòng "Ca 1 → Ca 3" ở trên
+			   kể MỌI ca lượt chấm chạm vào, kể cả ca chỉ chạm 59 phút ở rìa — nên nó nói khác
+			   với con số trong ô, và người đọc không hiểu vì sao. */
+			if ( '' !== $lt['ca_dau'] ) {
+				$chu .= "\n▸ nhận ca: " . $lt['ca_dau']
+					. ( $lt['ca_cuoi'] !== $lt['ca_dau'] ? ' → ' . $lt['ca_cuoi'] : '' );
+			}
+			foreach ( (array) $lt['ria'] as $x ) {
+				$chu .= "\n· " . VHCC_Cham::chu_gio( (int) $x['phut'] ) . ' chạm ' . $x['ten']
+					. ' — ngoài ca nhận, không tính công';
+			}
 			/* 🔴 THIẾU GIỜ THÌ Ô VÀNG. Anh Thắng 27/08: *"nếu bạn nào chấm thiếu giờ thì hiện
 			   cảnh báo ô vàng cho cửa hàng trưởng biết"*. Vàng chứ không đỏ: thiếu giờ chưa
 			   chắc là lỗi của ai — có thể là xin nghỉ nửa ca, có thể là máy hỏng. */
+			/* 🔴 ĐƠN XIN PHÉP ĐI TRỄ ĐÃ DUYỆT THÌ THÔI VÀNG — nhưng SỐ KHÔNG ĐỔI.
+			   Anh Thắng 27/08: *"cửa hàng trưởng duyệt đơn thì cảnh báo đó sẽ bỏ"*. Bỏ CẢNH
+			   BÁO, không bỏ giờ: nếu đơn cộng bù giờ thì nó thành một cửa cấp công không đi qua
+			   chấm công, và cửa ấy không có ai gác. Ô vẫn ghi đúng số giờ có mặt, chỉ là thôi
+			   kêu — vì đã có người chịu trách nhiệm cho chỗ thiếu ấy. */
+			$xin_ok = ( class_exists( 'VHCC_XinTre' ) && method_exists( 'VHCC_XinTre', 'da_duyet' ) )
+				&& VHCC_XinTre::da_duyet( $don_tre, (string) $r['maNV'], (string) $r['ngay'] );
 			foreach ( (array) $lt['thieu'] as $x ) {
-				$lop_th = ' vang';
-				$chu   .= "\n⚠ thiếu " . VHCC_Cham::chu_gio( (int) $x['phut'] ) . ' của ' . $x['ten'];
+				$lop_th = $xin_ok ? ' xin-tre' : ' vang';
+				$chu   .= "\n" . ( $xin_ok ? '✓' : '⚠' ) . ' thiếu '
+					. VHCC_Cham::chu_gio( (int) $x['phut'] ) . ' của ' . $x['ten']
+					. ( $xin_ok ? ' — đã có đơn xin phép đi trễ được duyệt' : '' );
 			}
 			if ( ! empty( $lt['ngoai_moi_ca'] ) ) {
 				$lop_th = ' vang';
@@ -4341,6 +4491,92 @@ class VHCC_Web {
 	}
 
 	/**
+	 * LỆNH ĐI TRỄ — đơn xin phép của cửa hàng, và ô đặt mức trễ cho phép.
+	 *
+	 * Anh Thắng 27/08/2026: *"bên tài khoản cửa hàng trưởng sẽ hiện trong phần Lệnh đi trễ, cửa
+	 * hàng trưởng duyệt đơn thì cảnh báo đó sẽ bỏ"*; và khi được hỏi trễ bao nhiêu phút thì kêu:
+	 * *"trễ tầm bao nhiêu phút (do cửa hàng trưởng set)"*.
+	 *
+	 * 🔴 NGƯỠNG VÀ ĐƠN ĐỨNG CHUNG MỘT KHỐI, CỐ Ý. Hai thứ trả lời cùng một câu hỏi — "chỗ thiếu
+	 *    này có đáng kêu không" — chỉ khác đường: ngưỡng là luật chung của cửa hàng, đơn là
+	 *    ngoại lệ của một người một ngày. Tách ra hai màn thì người sửa ngưỡng không thấy mình
+	 *    vừa làm cả chồng đơn thành thừa, và ngược lại.
+	 *
+	 * ⚠️ KHỐI TỰ MỞ khi có đơn đang chờ. Đơn chờ duyệt mà nằm trong một khối gập kín thì nó chờ
+	 *    mãi — và người nộp đơn thì đang đứng ở cửa hàng.
+	 */
+	private static function the_lenh_tre( $cs, $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'lich_lam' ) ) { return; }
+		if ( '' === $cs || ! VHCC_NhanSu::co_quyen_coso( $toi, $cs ) ) { return; }
+		if ( ! class_exists( 'VHCC_XinTre' ) || ! method_exists( 'VHCC_XinTre', 'cho_duyet' ) ) { return; }
+
+		$cho  = VHCC_XinTre::cho_duyet( $cs );
+		$muc  = VHCC_Tre::cua( $cs );
+		$ngu  = VHCC_Tre::nguon( $cs );
+		$mo   = ( $cho || ( isset( $_GET['tre'] ) && '1' === (string) wp_unslash( $_GET['tre'] ) ) );
+
+		echo '<div class="the" id="lenhtre"><details' . ( $mo ? ' open' : '' ) . '>';
+		echo '<summary><b>Lệnh đi trễ</b> — '
+			. ( $cho ? '<b style="color:#b45309">' . count( $cho ) . ' đơn đang chờ duyệt</b>'
+				: 'không có đơn nào chờ' )
+			. ' <span class="mo">(mức cho phép hiện tại: ' . (int) $muc . ' phút)</span></summary>';
+
+		/* ---- ô đặt ngưỡng ---- */
+		echo '<form method="post" class="hang" style="margin:10px 0 4px">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="muc_tre">' . self::o_loc()
+			. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">';
+		echo '<div><label for="mtre">Trễ bao nhiêu phút thì cảnh báo</label>'
+			. '<input id="mtre" name="muc" type="number" min="0" max="' . VHCC_Tre::TOI_DA . '"'
+			. ' value="' . esc_attr( (string) $muc ) . '" style="width:110px"></div>';
+		echo '<div><button class="chinh">Lưu mức trễ</button></div>';
+		echo '<div><span class="mo">Đang dùng mức '
+			. ( 'rieng' === $ngu ? '<b>riêng của ' . esc_html( $cs ) . '</b>'
+				: ( 'chung' === $ngu ? '<b>khai chung</b> cho mọi cơ sở'
+					: '<b>mặc định</b> ' . VHCC_Tre::MAC_DINH . ' phút' ) )
+			. '. Để trống rồi lưu = bỏ mức riêng.</span></div>';
+		echo '</form>';
+		echo '<p class="mo" style="margin:0 0 12px">Ai vào trễ quá mức này mà <b>không có đơn</b> '
+			. 'thì ô ngày đó <b>vàng lên</b> trong bảng công. Số giờ vẫn giữ nguyên — đây là cảnh '
+			. 'báo để anh chị hỏi lại, không phải máy tự trừ tiền. Số <b>0</b> nghĩa là trễ một '
+			. 'phút cũng kêu.</p>';
+
+		/* ---- đơn chờ duyệt ---- */
+		if ( ! $cho ) {
+			echo '<p class="mo">Chưa có đơn nào chờ. Nhân viên nộp đơn ở trang <b>chấm công '
+				. 'online</b>, mục <b>Xin phép đi trễ</b>, <b>trước khi</b> tới cửa hàng.</p>';
+			echo '</details></div>';
+			return;
+		}
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Ngày</th><th>Nhân viên</th>'
+			. '<th>Xin trễ</th><th>Lý do</th><th>Nộp lúc</th><th>Duyệt</th></tr></thead><tbody>';
+		foreach ( $cho as $d ) {
+			echo '<tr><td><b>' . esc_html( self::ngay_vn( (string) $d['ngay'] ) ) . '</b></td>';
+			echo '<td>' . esc_html( (string) $d['ho_ten'] )
+				. ' <span class="mo">' . esc_html( (string) $d['ma_nv'] ) . '</span></td>';
+			echo '<td class="oc"><b>' . (int) $d['so_phut'] . '</b> phút</td>';
+			echo '<td>' . esc_html( (string) $d['ly_do'] ) . '</td>';
+			echo '<td class="mo">' . esc_html( (string) $d['tao_luc'] ) . '</td>';
+			/* Mỗi hàng một biểu mẫu RIÊNG — hai nút cùng một hàng, mỗi nút mang việc của nó.
+			   Gom cả bảng vào một form thì bấm Duyệt ở hàng ba lại gửi cả chín hàng. */
+			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">'
+				. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+				. self::o_loc()
+				. '<input type="hidden" name="ccs" value="' . esc_attr( $cs ) . '">'
+				. '<input type="hidden" name="don" value="' . (int) $d['id'] . '">'
+				. '<button class="chinh" name="viec" value="duyet_tre">Duyệt</button>'
+				. '<button class="nut-do" name="viec" value="choi_tre">Không duyệt</button>'
+				. '</form></td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p class="mo" style="margin-top:8px">Duyệt xong, ô vàng của đúng ngày đó trong bảng '
+			. 'công <b>thôi kêu</b> — nhưng số giờ <b>không đổi</b>, và ô ấy còn một gạch xanh dưới '
+			. 'chân để anh chị vẫn nhìn ra chỗ nào là do đơn.</p>';
+		echo '</details></div>';
+	}
+
+	/**
 	 * KHAI CA cho một cơ sở.
 	 *
 	 * Luôn vẽ thêm HAI dòng trống để thêm ca mà không cần JavaScript — cả màn này không có lấy
@@ -4432,6 +4668,10 @@ class VHCC_Web {
 		   cửa hàng, vì hai câu hỏi vốn là một. Gác `class_exists` cùng thân hàm với lời gọi. */
 		$nguong_tre = ( class_exists( 'VHCC_Tre' ) && method_exists( 'VHCC_Tre', 'cua' ) )
 			? (int) VHCC_Tre::cua( (string) $b['coSo'] ) : 0;
+		/* Đơn xin phép đi trễ của cả tháng, hỏi MỘT LƯỢT. Lưới có hơn 600 ô; để mỗi ô tự hỏi
+		   một câu là 600 lượt truy vấn cho một lần mở trang. */
+		$don_tre = ( class_exists( 'VHCC_XinTre' ) && method_exists( 'VHCC_XinTre', 'ban_do_thang' ) )
+			? VHCC_XinTre::ban_do_thang( (string) $b['coSo'], $tt ) : array();
 		/* Ô đang được chọn để sửa / bù — đọc từ chính địa chỉ, nên bấm Lùi vẫn đúng. */
 		list( $sg_n, $sg_m, $sg_co ) = self::o_dang_sua( $tt );
 
@@ -4558,14 +4798,16 @@ class VHCC_Web {
 				}
 
 				$r_chinh = isset( $o[ $ma ][''][ $i ] ) ? $o[ $ma ][''][ $i ] : null;
-				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca, $kieu_ct, $nguong_tre );
+				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca, $kieu_ct, $nguong_tre,
+					$don_tre );
 
 				/* Dòng phụ: chỉ vẽ hậu tố nào NGÀY ẤY có lượt chấm. Vẽ hết mọi hậu tố cho mọi
 				   ngày là mỗi ô ba dòng dấu chấm, lưới cao gấp ba mà không thêm một tin nào. */
 				$duoi = '';
 				foreach ( $phu as $ht_p ) {
 					if ( ! isset( $o[ $ma ][ $ht_p ][ $i ] ) ) { continue; }
-					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca, $kieu_ct, $nguong_tre );
+					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca, $kieu_ct,
+						$nguong_tre, $don_tre );
 					if ( null !== $c_p['phut'] ) {
 						if ( ! isset( $phut_phu[ $ht_p ] ) ) { $phut_phu[ $ht_p ] = 0; }
 						$phut_phu[ $ht_p ] += (int) $c_p['phut'];

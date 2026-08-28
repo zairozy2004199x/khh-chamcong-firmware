@@ -14597,6 +14597,71 @@ $lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '06:05' ), VHCC_DB::giay( '14:00
 teq( 'ngưỡng 0 thì thiếu 5 phút cũng là thiếu', 475, $lt['phut'] );
 t( 'và kêu lên', (bool) $lt['thieu'] );
 
+/* ==================================================================================
+   🔴 CHẠM VÀO MỘT CA KHÔNG PHẢI LÀ NHẬN CA ĐÓ — ca thật anh Thắng gửi ảnh 28/08/2026.
+
+   Khung ca của cửa hàng ấy: Ca 1 09–14 · Ca 2 14–17 · Ca 3 17–22. Bạn LÊ PHẠM THUỲ VÂN vào
+   13:01, ra 21:28. Bản trước tách ra ba ca rồi kêu *"thiếu 4h 1m của Ca 1"*.
+
+   Anh nói thẳng: *"giờ như này là bạn đang làm từ ca 2 đến ca 3. lấy giờ ca tính đầu và đuôi
+   thì biết bạn đó bắt đầu từ ca nào"*. Đúng: 59 phút chạm đuôi Ca 1 là VÀO SỚM trước Ca 2,
+   không phải một ca làm dở. Kêu thiếu ở đó là biến người đi sớm thành người đi thiếu — và cái
+   ô vàng ấy sai tới mức chỉ vài ngày là không ai nhìn nó nữa.
+   ================================================================================== */
+$ca_vn = array(
+	array( 'ten' => 'Ca 1', 'tu' => '09:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 2', 'tu' => '14:00', 'den' => '17:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca 3', 'tu' => '17:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+);
+$vn = VHCC_Ca::lam_tron( $ca_vn, VHCC_DB::giay( '13:01' ), VHCC_DB::giay( '21:28' ), false, 15 );
+teq( '🔴 nhận ca ĐẦU là Ca 2, không phải Ca 1', 'Ca 2', $vn['ca_dau'] );
+teq( 'và ca CUỐI là Ca 3', 'Ca 3', $vn['ca_cuoi'] );
+teq( '🔴 KHÔNG còn kêu thiếu 4h1m của Ca 1 — chỉ còn một chỗ thiếu', 1, count( $vn['thieu'] ) );
+teq( 'và chỗ thiếu ấy là của Ca 3', 'Ca 3', $vn['thieu'][0]['ten'] );
+teq( 'thiếu đúng 32 phút', 32, $vn['thieu'][0]['phut'] );
+/* Ca 2 trọn 3h + Ca 3 có mặt 4h28m = 7h28m. 59 phút chạm Ca 1 KHÔNG cộng — đây là "lấy giờ ca
+   làm giờ công", mà ca ấy người ta không nhận. */
+teq( 'giờ công = Ca 2 trọn + phần có mặt của Ca 3', 448, $vn['phut'] );
+teq( 'và 59 phút chạm rìa được kể riêng, không nuốt', 59, $vn['ngoai_dai'] );
+teq( 'kể đúng tên ca bị chạm', 'Ca 1', $vn['ria'][0]['ten'] );
+
+/* Hàm chọn dải là hàm THUẦN — hỏi thẳng được bằng con số trần. */
+$tc_vn = VHCC_Ca::tach( $ca_vn, VHCC_DB::giay( '13:01' ), VHCC_DB::giay( '21:28' ) );
+teq( 'lượt ấy vẫn CHẠM cả ba ca', 3, count( $tc_vn['ds'] ) );
+$dai_vn = VHCC_Ca::dai_nhan( $tc_vn, VHCC_DB::giay( '13:01' ), VHCC_DB::giay( '21:28' ) );
+teq( 'nhưng dải NHẬN bắt đầu từ ca thứ hai', 1, $dai_vn[0] );
+teq( 'và kết thúc ở ca thứ ba', 2, $dai_vn[1] );
+
+/* 🔴 CA KHAI KHÔNG THEO THỨ TỰ THỜI GIAN LÀ CHUYỆN CÓ THẬT — người khai gõ ca chiều trước ca
+   sáng, và không có gì bắt họ gõ đúng thứ tự. Lúc ấy ca đầu có chỉ số LỚN HƠN ca cuối; không
+   đảo lại thì dải thành rỗng, mọi ca rơi ra "ngoài dải", và cả ngày công của người ta thành 0
+   — trong khi bảng vẫn trông bình thường. */
+$ca_nguoc = array(
+	array( 'ten' => 'Ca chiều', 'tu' => '14:00', 'den' => '22:00', 'tuW' => '', 'denW' => '' ),
+	array( 'ten' => 'Ca sáng',  'tu' => '06:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+);
+$vn_ng = VHCC_Ca::lam_tron( $ca_nguoc, VHCC_DB::giay( '06:00' ), VHCC_DB::giay( '22:00' ), false, 15 );
+teq( '🔴 ca khai ngược thứ tự vẫn ra đủ 16 tiếng, không thành 0', 960, $vn_ng['phut'] );
+teq( 'và không có giờ nào bị đẩy ra ngoài dải', 0, $vn_ng['ngoai_dai'] );
+
+/* Người nhận ĐÚNG Ca 1 thì vẫn phải kêu như thường — chốt mới không được nuốt cảnh báo thật. */
+$vn2 = VHCC_Ca::lam_tron( $ca_vn, VHCC_DB::giay( '09:00' ), VHCC_DB::giay( '13:00' ), false, 15 );
+teq( 'người nhận Ca 1 mà về sớm thì VẪN kêu', 1, count( $vn2['thieu'] ) );
+teq( 'đúng tên ca', 'Ca 1', $vn2['thieu'][0]['ten'] );
+teq( 'và đúng số phút thiếu', 60, $vn2['thieu'][0]['phut'] );
+
+/* 🔴 CA ĐÊM: người vào 21:30 ra 05:30 chạm 30 phút vào Ca 2, nhưng nhận Ca 3. */
+$vn3 = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '21:30' ), VHCC_DB::giay( '05:30' ) + 86400, false, 15 );
+teq( 'ca đêm: nhận ca đầu là Ca 3', 'Ca 3', $vn3['ca_dau'] );
+teq( '🔴 KHÔNG kêu thiếu của Ca 2 — 30 phút ấy là vào sớm, không phải ca làm dở',
+	'Ca 3', $vn3['thieu'][0]['ten'] );
+teq( 'chỉ còn đúng một chỗ thiếu', 1, count( $vn3['thieu'] ) );
+/* Vào 21:30 (sớm 30') và ra 05:30 (sớm 30') — họ thiếu đúng 30 phút CUỐI ca đêm. Đó là cảnh
+   báo thật, phải giữ. */
+teq( 'và đó là 30 phút cuối ca đêm', 30, $vn3['thieu'][0]['phut'] );
+teq( 'giờ công là phần có mặt trong ca đêm', 450, $vn3['phut'] );
+teq( '30 phút chạm Ca 2 kể riêng, không cộng', 30, $vn3['ngoai_dai'] );
+
 /* Vắt hai ca: 06:00 -> 22:00 là trọn Ca 1 + trọn Ca 2. */
 $lt = VHCC_Ca::lam_tron( $lt_ca, VHCC_DB::giay( '05:58' ), VHCC_DB::giay( '22:01' ), false, 15 );
 teq( 'vắt hai ca thì cộng trọn cả hai', 960, $lt['phut'] );
@@ -14802,6 +14867,285 @@ t( '🔴 và không xuất được ảnh của cơ sở KHÁC',
 		array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'CO_SO_KHAC' ), 'anh', $cs_anh ) );
 t( 'kiểu xuất lạ vẫn bị chối',
 	'' !== VHCC_Web::vi_sao_khong_xuat( $u_anh, 'linh_tinh', $cs_anh ) );
+
+vhcc_dung_bang();
+
+
+/* ==================================================================================
+   ĐI TRỄ: MỨC CHO PHÉP · ĐƠN XIN PHÉP · CỬA HÀNG TRƯỞNG DUYỆT · Ô VÀNG TẮT
+
+   Anh Thắng 27/08/2026, nguyên văn: *"nếu bạn nào chấm thiếu giờ thì hiện cảnh báo ô vàng cho
+   cửa hàng trưởng biết (để khỏi bị cảnh báo, thì tại trang chấm công online nhân viên sẽ chọn
+   Xin Phép đi trễ TRƯỚC KHI TỚI cửa hàng. lúc này bên tài khoản cửa hàng trưởng sẽ hiện trong
+   phần Lệnh đi trễ, cửa hàng trưởng duyệt đơn thì cảnh báo đó sẽ bỏ"*; và *"trễ tầm bao nhiêu
+   phút (do cửa hàng trưởng set)"*.
+   ================================================================================== */
+vhcc_dung_bang();
+$xt_ca = array(
+	array( 'ten' => 'Ca 1', 'tu' => '06:00', 'den' => '14:00', 'tuW' => '', 'denW' => '' ),
+);
+$cs_xt  = 'FZ_SC_TRE';
+$xt_ad  = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => $cs_xt, 'ma_nv' => 'XTAD' );
+$xt_cht = array( 'name' => 'CHT trễ', 'role' => 'Cửa hàng trưởng', 'coso' => $cs_xt, 'ma_nv' => 'XTCHT' );
+$xt_nv  = array( 'name' => 'Bạn Trễ', 'role' => 'Nhân viên', 'coso' => $cs_xt, 'ma_nv' => 'XT1' );
+VHCC_Ca::luu( $xt_ad, $cs_xt, $xt_ca );
+VHCC_Luong::dat_cach_tinh( $xt_ad, array( $cs_xt => 'ca' ) );
+VHCC_NhanSu::luu_ho_so( $xt_ad, array( 'ma_nv' => 'XT1', 'ho_ten' => 'Bạn Trễ',
+	'cua_hang' => $cs_xt, 'vai_tro' => 'Nhân viên' ) );
+
+/* ---- 1. MỨC TRỄ DO CỬA HÀNG TRƯỞNG ĐẶT ---- */
+teq( 'chưa khai thì dùng mức mặc định', VHCC_Tre::MAC_DINH, VHCC_Tre::cua( $cs_xt ) );
+teq( 'và nguồn là mặc định', 'mac_dinh', VHCC_Tre::nguon( $cs_xt ) );
+$r_mt = VHCC_Tre::dat( $xt_cht, $cs_xt, 30 );
+t( '🔴 Cửa hàng trưởng đặt được mức trễ cho cửa hàng MÌNH', ! empty( $r_mt['ok'] ), $r_mt );
+teq( 'mức mới ăn ngay', 30, VHCC_Tre::cua( $cs_xt ) );
+teq( 'và nguồn thành riêng', 'rieng', VHCC_Tre::nguon( $cs_xt ) );
+t( '🔴 nhưng KHÔNG đặt được cho cửa hàng khác',
+	empty( VHCC_Tre::dat( $xt_cht, 'CS_LA', 30 )['ok'] ) );
+t( '🔴 nhân viên thường không đặt được', empty( VHCC_Tre::dat( $xt_nv, $cs_xt, 30 )['ok'] ) );
+/* 🔴 SỐ 0 LÀ LỰA CHỌN THẬT — "trễ một phút cũng kêu" — không phải "chưa khai". */
+VHCC_Tre::dat( $xt_cht, $cs_xt, 0 );
+teq( 'mức 0 giữ được, không bị hiểu là chưa khai', 0, VHCC_Tre::cua( $cs_xt ) );
+teq( 'và vẫn là mức RIÊNG', 'rieng', VHCC_Tre::nguon( $cs_xt ) );
+/* Để trống rồi lưu = bỏ mức riêng, quay về mặc định. Khác hẳn với đặt 0. */
+$r_bo = VHCC_Tre::dat( $xt_cht, $cs_xt, '' );
+t( 'để trống thì bỏ mức riêng', ! empty( $r_bo['bo_khai'] ), $r_bo );
+teq( 'và quay về mặc định', VHCC_Tre::MAC_DINH, VHCC_Tre::cua( $cs_xt ) );
+t( 'mức quá trần bị chối', empty( VHCC_Tre::dat( $xt_cht, $cs_xt, VHCC_Tre::TOI_DA + 1 )['ok'] ) );
+VHCC_Tre::dat( $xt_cht, $cs_xt, 15 );
+
+/* ---- 2. NHÂN VIÊN NỘP ĐƠN ---- */
+$hom_nay = substr( (string) current_time( 'Y-m-d' ), 0, 10 );
+/* 🔴 NGÀY THỬ PHẢI BÁM THEO HÔM NAY, KHÔNG ĐƯỢC GÕ CỨNG.
+   Đơn xin phép có hai cái trần thật: xin trước tối đa 31 ngày, nộp muộn tối đa 14 ngày. Gõ
+   cứng "2026-07-02" thì bài thử chạy được đúng vài tuần rồi tự đỏ khi lịch trôi qua — mà lúc
+   ấy trông y như tính năng hỏng. Lấy ba ngày khác nhau NGAY TRONG THÁNG NÀY, đủ gần hôm nay
+   để lọt cả hai trần. */
+$xt_d   = (int) substr( $hom_nay, 8, 2 );
+$xt_th  = substr( $hom_nay, 0, 7 );
+$xt_huong = ( $xt_d <= 25 ) ? 1 : -1;
+$xt_ng = function ( $b ) use ( $xt_th, $xt_d, $xt_huong ) {
+	return sprintf( '%s-%02d', $xt_th, $xt_d + $xt_huong * $b );
+};
+$ng1 = $xt_ng( 1 );
+$ng2 = $xt_ng( 2 );
+$ng3 = $xt_ng( 3 );
+$r_nop = VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $hom_nay, 'so_phut' => 40,
+	'ly_do' => 'kẹt xe cầu Sài Gòn' ) );
+t( 'nhân viên nộp được đơn', ! empty( $r_nop['ok'] ), $r_nop );
+teq( 'đơn về đúng cửa hàng của người ấy', $cs_xt, $r_nop['coSo'] );
+$don = VHCC_XinTre::cua_ngay( 'XT1', $hom_nay );
+teq( 'đơn nằm ở trạng thái chờ duyệt', VHCC_XinTre::CHO, $don['trang_thai'] );
+teq( 'và ghi đúng tên người nộp', 'Bạn Trễ', $don['ho_ten'] );
+
+/* 🔴 MÃ NV LẤY TỪ PHIÊN, KHÔNG TỪ BIỂU MẪU. Để người gửi tự khai mã là ai cũng nộp được đơn
+   đứng tên người khác — và đơn ấy được duyệt thì cảnh báo của người khác biến mất. */
+$r_gia = VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $hom_nay, 'so_phut' => 40,
+	'ly_do' => 'thử mạo danh', 'ma_nv' => 'XTCHT' ) );
+t( 'nộp đơn vẫn đứng tên chính mình', ! empty( $r_gia['ok'] ) );
+t( '🔴 không tạo ra đơn nào đứng tên người khác',
+	null === VHCC_XinTre::cua_ngay( 'XTCHT', $hom_nay ) );
+
+/* Tài khoản chưa có Mã NV thì nói rõ thiếu ở đâu, đừng lặng lẽ tạo đơn rỗng. */
+$r_khong_ma = VHCC_XinTre::nop( array( 'name' => 'Vô danh', 'role' => 'Nhân viên',
+	'coso' => $cs_xt ), array( 'ngay' => $hom_nay, 'so_phut' => 10, 'ly_do' => 'x' ) );
+t( 'chưa có Mã NV thì bị chối, và nói rõ vì sao', empty( $r_khong_ma['ok'] )
+	&& strpos( $r_khong_ma['error'], 'Mã NV' ) !== false, $r_khong_ma );
+
+/* Thiếu lý do thì chối — cửa hàng trưởng duyệt theo lý do, không theo số phút. */
+t( 'thiếu lý do thì chối', empty( VHCC_XinTre::nop( $xt_nv,
+	array( 'ngay' => $hom_nay, 'so_phut' => 10, 'ly_do' => '' ) )['ok'] ) );
+t( 'xin trễ 0 phút là không xin gì — chối', null === VHCC_XinTre::phut( '0' ) );
+teq( 'xin 1 phút thì được', 1, VHCC_XinTre::phut( '1' ) );
+t( 'quá trần thì chối', null === VHCC_XinTre::phut( (string) ( VHCC_Tre::TOI_DA + 1 ) ) );
+
+/* Hàm đếm ngày là hàm THUẦN — thử được bằng con số trần, không phải chờ tới mai mới biết. */
+teq( 'ngày mai là +1', 1, VHCC_XinTre::cach_hom_nay( '2026-08-29', '2026-08-28' ) );
+teq( 'hôm qua là -1', -1, VHCC_XinTre::cach_hom_nay( '2026-08-27', '2026-08-28' ) );
+teq( 'chính hôm nay là 0', 0, VHCC_XinTre::cach_hom_nay( '2026-08-28', '2026-08-28' ) );
+
+/* 🔴 MỘT NGƯỜI MỘT NGÀY MỘT ĐƠN — nộp lại là ĐÈ, không xếp thêm. */
+$so_truoc = count( VHCC_XinTre::cua_nguoi( 'XT1', 50 ) );
+$r_lai = VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $hom_nay, 'so_phut' => 25,
+	'ly_do' => 'đổi lý do' ) );
+t( 'nộp lại được', ! empty( $r_lai['ok'] ) && ! empty( $r_lai['lai'] ), $r_lai );
+teq( '🔴 và KHÔNG sinh thêm đơn thứ hai', $so_truoc, count( VHCC_XinTre::cua_nguoi( 'XT1', 50 ) ) );
+teq( 'đơn nay mang số phút mới', 25, (int) VHCC_XinTre::cua_ngay( 'XT1', $hom_nay )['so_phut'] );
+
+/* ---- 3. CỬA HÀNG TRƯỞNG DUYỆT ---- */
+$don_id = (int) VHCC_XinTre::cua_ngay( 'XT1', $hom_nay )['id'];
+t( 'đơn hiện trong danh sách chờ duyệt của cửa hàng',
+	(bool) VHCC_XinTre::cho_duyet( $cs_xt ), VHCC_XinTre::cho_duyet( $cs_xt ) );
+t( '🔴 nhân viên thường KHÔNG duyệt được',
+	empty( VHCC_XinTre::duyet( $xt_nv, $don_id )['ok'] ) );
+/* 🔴 HAI CHỐT CÙNG CHẶN MỘT CA THÌ KHÔNG PHÉP THỬ NÀO PHÂN BIỆT ĐƯỢC. `lich_lam` và `cong_coso`
+   (cửa của `co_quyen_coso`) cùng đứng ở bậc Cửa hàng trưởng, nên nhân viên bị chặn hai lần và
+   bỏ đi một chốt vẫn không lộ. Dựng đúng một người ở giữa: MỞ `cong_coso`, KHOÁ `lich_lam`. */
+$ma_giua_t = 'TREGIUA1';
+VHCC_Vai::dat_ngoai_le( $xt_ad, 'nv:' . $ma_giua_t, 'cong_coso', 'mo' );
+VHCC_Vai::dat_ngoai_le( $xt_ad, 'nv:' . $ma_giua_t, 'lich_lam', 'khoa' );
+$u_giua_t = array( 'name' => 'Người giữa', 'role' => 'Nhân viên',
+	'coso' => $cs_xt, 'ma_nv' => $ma_giua_t );
+t( 'người giữa QUA được cửa cơ sở', VHCC_NhanSu::co_quyen_coso( $u_giua_t, $cs_xt ) );
+t( 'nhưng KHÔNG có quyền duyệt đơn', ! VHCC_Vai::duoc( $u_giua_t, 'lich_lam' ) );
+t( '🔴 nên vẫn không duyệt được đơn nào',
+	empty( VHCC_XinTre::duyet( $u_giua_t, $don_id )['ok'] ),
+	VHCC_XinTre::duyet( $u_giua_t, $don_id ) );
+t( 'và cũng không đặt được mức trễ', empty( VHCC_Tre::dat( $u_giua_t, $cs_xt, 40 )['ok'] ) );
+VHCC_Vai::dat_ngoai_le( $xt_ad, 'nv:' . $ma_giua_t, 'cong_coso', '' );
+VHCC_Vai::dat_ngoai_le( $xt_ad, 'nv:' . $ma_giua_t, 'lich_lam', '' );
+/* Chốt cơ sở đọc từ CHÍNH ĐƠN: id gõ tay được, và một cửa hàng trưởng gõ đúng id là duyệt được
+   đơn của cửa hàng khác. */
+$cht_la = array( 'name' => 'CHT khác', 'role' => 'Cửa hàng trưởng', 'coso' => 'CS_HOAN_TOAN_KHAC' );
+t( '🔴 Cửa hàng trưởng cửa hàng KHÁC cũng không duyệt được',
+	empty( VHCC_XinTre::duyet( $cht_la, $don_id )['ok'] ) );
+$r_duyet = VHCC_XinTre::duyet( $xt_cht, $don_id );
+t( 'Cửa hàng trưởng của cửa hàng ấy duyệt được', ! empty( $r_duyet['ok'] ), $r_duyet );
+teq( 'đơn thành ĐÃ DUYỆT', VHCC_XinTre::DUYET,
+	VHCC_XinTre::cua_ngay( 'XT1', $hom_nay )['trang_thai'] );
+t( 'và ghi lại ai duyệt', 'CHT trễ' === VHCC_XinTre::cua_ngay( 'XT1', $hom_nay )['nguoi_duyet'] );
+t( 'đơn đã duyệt thì rời khỏi danh sách chờ', ! VHCC_XinTre::cho_duyet( $cs_xt ) );
+
+/* 🔴 NỘP LẠI SAU KHI ĐÃ DUYỆT THÌ VỀ CHỜ DUYỆT. Xin 10 phút, được duyệt, rồi sửa thành 90 mà
+   vẫn còn dấu "đã duyệt" là không ai duyệt cái 90 ấy cả. */
+VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $hom_nay, 'so_phut' => 90, 'ly_do' => 'sửa to lên' ) );
+teq( '🔴 sửa đơn đã duyệt thì quay về chờ duyệt', VHCC_XinTre::CHO,
+	VHCC_XinTre::cua_ngay( 'XT1', $hom_nay )['trang_thai'] );
+VHCC_XinTre::duyet( $xt_cht, $don_id );
+
+/* Không duyệt: ghi lại lý do chối để người nộp đọc được. */
+VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $ng1, 'so_phut' => 30, 'ly_do' => 'ngủ quên' ) );
+$id_choi = (int) VHCC_XinTre::cua_ngay( 'XT1', $ng1 )['id'];
+VHCC_XinTre::duyet( $xt_cht, $id_choi, VHCC_XinTre::TU_CHOI, 'tuần này trễ ba lần rồi' );
+$d_choi = VHCC_XinTre::cua_ngay( 'XT1', $ng1 );
+teq( 'ghi được KHÔNG duyệt', VHCC_XinTre::TU_CHOI, $d_choi['trang_thai'] );
+teq( 'và giữ lý do chối để người nộp đọc', 'tuần này trễ ba lần rồi', $d_choi['ly_do_choi'] );
+
+/* ---- 4. Ô VÀNG TẮT KHI ĐƠN ĐÃ DUYỆT ---- */
+/* Hàm quyết định là hàm THUẦN, nhận sẵn bản đồ — lưới hơn 600 ô, để mỗi ô tự hỏi CSDL một câu
+   là 600 lượt truy vấn cho một lần mở trang. */
+$bd = VHCC_XinTre::ban_do_thang( $cs_xt, substr( $hom_nay, 0, 7 ) );
+t( '🔴 ngày có đơn ĐÃ DUYỆT thì trả đúng', VHCC_XinTre::da_duyet( $bd, 'XT1', $hom_nay ), $bd );
+t( 'ngày không có đơn thì không', ! VHCC_XinTre::da_duyet( $bd, 'XT1', '2026-01-01' ) );
+t( 'người khác thì không', ! VHCC_XinTre::da_duyet( $bd, 'XTCHT', $hom_nay ) );
+$bd7 = VHCC_XinTre::ban_do_thang( $cs_xt, $xt_th );
+t( '🔴 đơn BỊ TỪ CHỐI thì KHÔNG tính là đã duyệt',
+	! VHCC_XinTre::da_duyet( $bd7, 'XT1', $ng1 ), $bd7 );
+
+/* Trên lưới thật: ngày trễ 40 phút (ngưỡng 15) mà CHƯA có đơn -> ô vàng. */
+vhcc_cham( $cs_xt, $ng2, 'XT1', '', '06:40', '14:00' );
+$h_xt = vhcc_web_nhu2( 'XTAD', 'Admin', $cs_xt,
+	array( 'man' => 'cham', 'ccs' => $cs_xt, 'cth' => $xt_th ) );
+t( '🔴 chưa có đơn thì ô VÀNG', preg_match( '/class="oc ca1 vang"/', $h_xt ) === 1, $h_xt );
+
+/* Nộp đơn cho đúng ngày ấy rồi DUYỆT -> ô thôi vàng, nhưng SỐ KHÔNG ĐỔI. */
+VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $ng2, 'so_phut' => 40, 'ly_do' => 'kẹt xe' ) );
+$h_cho = vhcc_web_nhu2( 'XTAD', 'Admin', $cs_xt,
+	array( 'man' => 'cham', 'ccs' => $cs_xt, 'cth' => $xt_th ) );
+t( '🔴 đơn mới CHỜ duyệt thì ô VẪN vàng — chưa ai chịu trách nhiệm',
+	preg_match( '/class="oc ca1 vang"/', $h_cho ) === 1, $h_cho );
+VHCC_XinTre::duyet( $xt_cht, (int) VHCC_XinTre::cua_ngay( 'XT1', $ng2 )['id'] );
+$h_sau = vhcc_web_nhu2( 'XTAD', 'Admin', $cs_xt,
+	array( 'man' => 'cham', 'ccs' => $cs_xt, 'cth' => $xt_th ) );
+t( '🔴 duyệt xong thì ô THÔI VÀNG', strpos( $h_sau, 'class="oc ca1 vang"' ) === false, $h_sau );
+t( 'và mang dấu riêng để còn nhìn ra chỗ nào là do đơn',
+	strpos( $h_sau, 'xin-tre' ) !== false, $h_sau );
+/* 🔴 BỎ CẢNH BÁO, KHÔNG BỎ SỐ. Nếu đơn cộng bù giờ thì nó thành một cửa cấp công không qua
+   chấm công, và cửa ấy không có ai gác. 06:40–14:00 = 7h20m, làm tròn không được vì trễ quá
+   ngưỡng -> ô vẫn phải là 7.3. */
+t( '🔴 số giờ trong ô KHÔNG đổi vì có đơn', strpos( $h_sau, '<b>7.3</b>' ) !== false, $h_sau );
+t( 'chú thích nói rõ là nhờ đơn được duyệt',
+	strpos( $h_sau, 'đã có đơn xin phép đi trễ được duyệt' ) !== false, $h_sau );
+
+/* ---- 5. TRÊN MÀN: khối Lệnh đi trễ của cửa hàng trưởng ---- */
+VHCC_XinTre::nop( $xt_nv, array( 'ngay' => $ng3, 'so_phut' => 20, 'ly_do' => 'xe hỏng' ) );
+$h_lenh = vhcc_web_nhu2( 'XTCHT', 'Cửa hàng trưởng', $cs_xt,
+	array( 'man' => 'cham', 'ccs' => $cs_xt, 'cth' => $xt_th ) );
+t( 'Cửa hàng trưởng thấy khối Lệnh đi trễ', strpos( $h_lenh, 'id="lenhtre"' ) !== false, $h_lenh );
+t( '🔴 có đơn chờ thì khối MỞ SẴN — đơn gập kín là đơn chờ mãi',
+	preg_match( '/id="lenhtre"><details open>/', $h_lenh ) === 1, $h_lenh );
+t( 'khối nói có mấy đơn đang chờ', strpos( $h_lenh, 'đơn đang chờ duyệt' ) !== false, $h_lenh );
+t( 'hiện lý do người ta xin', strpos( $h_lenh, 'xe hỏng' ) !== false, $h_lenh );
+t( 'có nút Duyệt', strpos( $h_lenh, 'value="duyet_tre"' ) !== false, $h_lenh );
+t( 'và nút Không duyệt', strpos( $h_lenh, 'value="choi_tre"' ) !== false, $h_lenh );
+t( 'có ô đặt mức trễ ngay tại đó', strpos( $h_lenh, 'name="muc"' ) !== false, $h_lenh );
+t( 'và nói rõ đây là cảnh báo, không phải trừ tiền',
+	strpos( $h_lenh, 'không phải máy tự trừ tiền' ) !== false, $h_lenh );
+/* 🔴 SOI THẲNG VÀO KHỐI, KHÔNG SOI QUA CẢ TRANG. Nhân viên bị hàng rào của TẦNG TRÊN chặn từ
+   trước khi tới đây, nên "trang không có khối" là chuyện đúng vì lý do khác — bỏ chốt trong
+   khối đi thì phép thử vẫn xanh. Hỏi thẳng khối là hỏi được: *mày có tự giữ cửa không?* */
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_lenh_tre', array( $cs_xt, 'ky', $xt_cht ) );
+$k_lenh_cht = ob_get_clean();
+t( 'gọi thẳng: Cửa hàng trưởng thấy khối Lệnh đi trễ',
+	strpos( $k_lenh_cht, 'id="lenhtre"' ) !== false, $k_lenh_cht );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_lenh_tre', array( $cs_xt, 'ky', $xt_nv ) );
+$k_lenh_nv = ob_get_clean();
+t( '🔴 gọi thẳng: nhân viên KHÔNG mở được khối duyệt đơn của cả cửa hàng',
+	'' === trim( $k_lenh_nv ), $k_lenh_nv );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_lenh_tre', array( 'CS_HOAN_TOAN_KHAC', 'ky', $xt_cht ) );
+$k_lenh_lac = ob_get_clean();
+t( '🔴 gọi thẳng: Cửa hàng trưởng KHÔNG mở được Lệnh đi trễ của cửa hàng khác',
+	'' === trim( $k_lenh_lac ), $k_lenh_lac );
+
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_lenh_tre', array( '', 'ky', $xt_cht ) );
+t( 'gọi thẳng: cơ sở rỗng thì không vẽ gì', '' === trim( ob_get_clean() ) );
+
+/* Và trên trang thật cũng vậy. */
+$h_lenh_nv = vhcc_web_nhu2( 'XT1', 'Nhân viên', $cs_xt,
+	array( 'man' => 'cham', 'ccs' => $cs_xt, 'cth' => $xt_th ) );
+t( '🔴 nhân viên KHÔNG thấy khối Lệnh đi trễ',
+	strpos( $h_lenh_nv, 'id="lenhtre"' ) === false, $h_lenh_nv );
+
+/* ---- 6. BẤM NÚT THẬT trên trang, không chỉ gọi hàm ---- */
+$id_bam = (int) VHCC_XinTre::cua_ngay( 'XT1', $ng3 )['id'];
+vhcc_web_nhu2( 'XTCHT', 'Cửa hàng trưởng', $cs_xt, array() );   /* dựng phiên để lấy chữ ký */
+$_POST = array( 'viec' => 'duyet_tre', 'don' => $id_bam, 'ccs' => $cs_xt );
+$b_duyet = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'duyet_tre', $xt_cht ) );
+$_POST = array();
+t( '🔴 bấm nút Duyệt trên trang thì đơn đổi trạng thái thật',
+	VHCC_XinTre::DUYET === VHCC_XinTre::cua_ngay( 'XT1', $ng3 )['trang_thai'], $b_duyet );
+t( 'và lời báo nói ra hậu quả: ô vàng thôi kêu, số giữ nguyên',
+	isset( $b_duyet[0]['xong'] ) && strpos( $b_duyet[0]['xong'], 'số giờ giữ nguyên' ) !== false,
+	$b_duyet );
+
+$_POST = array( 'viec' => 'muc_tre', 'muc' => '25', 'ccs' => $cs_xt );
+$b_muc = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'muc_tre', $xt_cht ) );
+$_POST = array();
+teq( '🔴 bấm nút Lưu mức trễ thì mức đổi thật', 25, VHCC_Tre::cua( $cs_xt ) );
+t( 'và báo lại mức mới', isset( $b_muc[0]['xong'] )
+	&& strpos( $b_muc[0]['xong'], '25 phút' ) !== false, $b_muc );
+
+$_POST = array( 'viec' => 'xin_tre', 'xt_ngay' => $ng1, 'xt_phut' => '35',
+	'xt_ly_do' => 'đưa con đi học' );
+$b_xin = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec', array( 'xin_tre', $xt_nv ) );
+$_POST = array();
+t( '🔴 bấm nút Gửi đơn trên trang thì đơn vào sổ thật',
+	null !== VHCC_XinTre::cua_ngay( 'XT1', $ng1 ), $b_xin );
+teq( 'đúng số phút đã xin', 35, (int) VHCC_XinTre::cua_ngay( 'XT1', $ng1 )['so_phut'] );
+
+/* ---- 7. Màn Công của tôi: chỗ nhân viên nộp đơn ---- */
+$h_toi = vhcc_web_nhu2( 'XT1', 'Nhân viên', $cs_xt, array( 'man' => 'cong_toi' ) );
+t( 'nhân viên có khối Xin phép đi trễ', strpos( $h_toi, 'id="xintre"' ) !== false, $h_toi );
+t( 'có ô ngày, ô số phút, ô lý do',
+	strpos( $h_toi, 'name="xt_ngay"' ) !== false && strpos( $h_toi, 'name="xt_phut"' ) !== false
+	&& strpos( $h_toi, 'name="xt_ly_do"' ) !== false, $h_toi );
+/* 🔴 KHÔNG CÓ Ô MÃ NV — mã lấy từ phiên. Có ô ấy là mở cửa cho mạo danh. */
+t( '🔴 KHÔNG có ô Mã NV trong biểu mẫu xin phép',
+	preg_match( '/id="xintre".*?name="ma_nv"/s', $h_toi ) !== 1, $h_toi );
+t( 'ngày mặc định là hôm nay', strpos( $h_toi, 'value="' . $hom_nay . '"' ) !== false, $h_toi );
+t( 'thấy lại đơn mình đã nộp và kết quả', strpos( $h_toi, 'đưa con đi học' ) !== false, $h_toi );
+t( 'và nói rõ đơn không cộng bù giờ cho ai',
+	strpos( $h_toi, 'không cộng bù giờ' ) !== false, $h_toi );
+/* 🔴 CHƯA CÓ MÃ NV THÌ KHÔNG BÀY BIỂU MẪU. Mã lấy từ phiên, nên người chưa có mã bấm Gửi là
+   nhận một câu chối — bày ra một cái nút chỉ để chối là mời người ta gõ xong rồi mất công. */
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_xin_tre',
+	array( array( 'name' => 'Vô danh', 'role' => 'Nhân viên', 'coso' => $cs_xt ), 'ky' ) );
+t( '🔴 người chưa có Mã NV thì không thấy biểu mẫu xin phép', '' === trim( ob_get_clean() ) );
+ob_start(); vhcc_goi_rieng( 'VHCC_Web', 'the_xin_tre', array( $xt_nv, 'ky' ) );
+$k_xin = ob_get_clean();
+t( 'còn người có mã thì thấy', strpos( $k_xin, 'id="xintre"' ) !== false, $k_xin );
 
 vhcc_dung_bang();
 

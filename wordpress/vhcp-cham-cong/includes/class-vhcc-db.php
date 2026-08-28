@@ -77,7 +77,7 @@ class VHCC_DB {
 		return $t ? $t : '';
 	}
 
-	const SCHEMA_VERSION = '2.7.0';
+	const SCHEMA_VERSION = '2.8.0';
 
 	public static function t( $name ) {
 		global $wpdb;
@@ -349,6 +349,39 @@ class VHCC_DB {
 			KEY thang (coso,ngay),
 			KEY nguoi (ma_nv,ngay),
 			KEY ai (ma_nguoi_bu)";
+
+		/* ===== 5c. ĐƠN XIN PHÉP ĐI TRỄ ======================================================
+		   Anh Thắng 27/08/2026: *"để khỏi bị cảnh báo, thì tại trang chấm công online nhân viên
+		   sẽ chọn Xin Phép đi trễ TRƯỚC KHI TỚI cửa hàng… lúc này bên tài khoản cửa hàng trưởng
+		   sẽ hiện trong phần Lệnh đi trễ, cửa hàng trưởng duyệt đơn thì cảnh báo đó sẽ bỏ"*.
+
+		   🔴 ĐƠN LÀ MỘT SỔ RIÊNG, KHÔNG PHẢI MỘT CỘT TRONG `cham_cong`.
+		      Đơn được nộp TRƯỚC khi tới cửa hàng, tức là trước khi có lượt chấm nào — nhét vào
+		      hàng chấm công thì phải tạo sẵn một hàng rỗng cho một ngày chưa xảy ra, và hàng
+		      rỗng ấy lập tức trông y như "quên bấm giờ ra". Ngược lại, một hàng chấm công bị
+		      sửa hay xoá không được kéo theo cái đơn: đơn là lời người ta đã nói, nó không mất
+		      đi vì giờ chấm thay đổi.
+
+		   ⚠️ UNIQUE theo (ma_nv, ngay): mỗi người mỗi ngày một đơn. Nộp lại là ĐÈ lên đơn cũ —
+		      chứ không phải xếp thêm một đơn nữa cho cửa hàng trưởng phải duyệt hai lần. */
+		$b['xin_tre'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			coso VARCHAR(120) NOT NULL,
+			ngay DATE NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL,
+			ho_ten VARCHAR(190) NOT NULL DEFAULT '',
+			so_phut INT NOT NULL DEFAULT 0,
+			ly_do VARCHAR(255) NOT NULL DEFAULT '',
+			trang_thai VARCHAR(12) NOT NULL DEFAULT 'cho',
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			ma_nguoi_duyet VARCHAR(40) NOT NULL DEFAULT '',
+			ly_do_choi VARCHAR(255) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			duyet_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY don (ma_nv,ngay),
+			KEY cua_hang (coso,ngay),
+			KEY cho_duyet (coso,trang_thai)";
 
 		/* ===== 6. NHIỆM VỤ THEO NGÀY (sheet ChamCongNhiemVu) ================================= */
 		$b['cham_cong_nhiem_vu'] = "

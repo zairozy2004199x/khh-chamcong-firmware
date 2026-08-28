@@ -174,6 +174,54 @@ class VHCC_Ca {
 	}
 
 	/**
+	 * NGƯỜI NÀY NHẬN TỪ CA NÀO ĐẾN CA NÀO — đọc từ GIỜ VÀO và GIỜ RA.
+	 *
+	 * 🔴 CHẠM VÀO MỘT CA KHÔNG CÓ NGHĨA LÀ NHẬN CA ĐÓ.
+	 *    Anh Thắng 28/08/2026 gửi ảnh một ô: vào 13:01, ra 21:28, khung ca 09–14 · 14–17 ·
+	 *    17–22. Bản trước tách ra ba ca rồi kêu *"thiếu 4h 1m của Ca 1"* — vô lý, vì bạn ấy có
+	 *    nhận Ca 1 đâu. Anh nói thẳng: *"giờ như này là bạn đang làm từ ca 2 đến ca 3. lấy giờ
+	 *    ca tính đầu và đuôi thì biết bạn đó bắt đầu từ ca nào"*.
+	 *
+	 *    59 phút bạn ấy chạm vào đuôi Ca 1 là VÀO SỚM trước Ca 2, không phải một ca làm dở.
+	 *    Kêu thiếu ở đó là biến người đi sớm thành người đi thiếu — và cái ô vàng ấy sai tới mức
+	 *    chỉ vài ngày là không ai nhìn nó nữa.
+	 *
+	 * Cách đọc, đúng như anh nói: ca ĐẦU là ca có giờ bắt đầu gần GIỜ VÀO nhất; ca CUỐI là ca
+	 * có giờ kết thúc gần GIỜ RA nhất. Mọi ca giữa hai mốc ấy là ca người ta nhận; ca nằm ngoài
+	 * chỉ bị chạm ở rìa, và phần ấy là giờ ngoài ca.
+	 *
+	 * ⚠️ So trên trục PHÚT TUYỆT ĐỐI với cả ba vị trí (hôm qua · hôm nay · ngày mai) — y như
+	 *    `tach()`. Không thế thì ca đêm 22:00→06:00 không bao giờ được chọn làm ca đầu.
+	 *
+	 * @return array [ chỉ số ca đầu, chỉ số ca cuối ] TRONG `$tach['ds']`; [-1,-1] nếu rỗng.
+	 */
+	public static function dai_nhan( $tach, $vao_giay, $ra_giay ) {
+		$ds = isset( $tach['ds'] ) ? (array) $tach['ds'] : array();
+		if ( ! $ds ) { return array( -1, -1 ); }
+		$va = intdiv( (int) $vao_giay, 60 );
+		$ra = intdiv( (int) $ra_giay, 60 );
+
+		$i_dau  = 0;   $l_dau  = null;
+		$i_cuoi = 0;   $l_cuoi = null;
+		foreach ( $ds as $i => $o ) {
+			$b1 = self::phut( $o['tu'] );
+			$b2 = self::phut( $o['den'] );
+			if ( null === $b1 || null === $b2 ) { continue; }
+			if ( $b2 <= $b1 ) { $b2 += 1440; }
+			foreach ( array( -1440, 0, 1440 ) as $dich ) {
+				$x = abs( $va - ( $b1 + $dich ) );
+				if ( null === $l_dau || $x < $l_dau )  { $l_dau  = $x; $i_dau  = (int) $i; }
+				$y = abs( $ra - ( $b2 + $dich ) );
+				if ( null === $l_cuoi || $y < $l_cuoi ) { $l_cuoi = $y; $i_cuoi = (int) $i; }
+			}
+		}
+		/* Đầu đứng sau đuôi thì đảo lại — chứ không trả một dải rỗng. Dải rỗng nghĩa là "không
+		   nhận ca nào", và lúc ấy cả lượt chấm biến thành giờ ngoài ca. */
+		if ( $i_cuoi < $i_dau ) { $t = $i_dau; $i_dau = $i_cuoi; $i_cuoi = $t; }
+		return array( $i_dau, $i_cuoi );
+	}
+
+	/**
 	 * LÀM TRÒN GIỜ CÔNG THEO KHUNG CA.
 	 *
 	 * Anh Thắng 27/08/2026: *"lấy giờ ca làm giờ công, cứ chấm trong ca (bao gồm vào ra) phần
@@ -204,7 +252,8 @@ class VHCC_Ca {
 	 *               ngoai_moi_ca (bool).
 	 */
 	public static function lam_tron( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan = false, $nguong = 0 ) {
-		$ra = array( 'phut' => 0, 'tron' => false, 'thieu' => array(), 'ngoai_moi_ca' => false );
+		$ra = array( 'phut' => 0, 'tron' => false, 'thieu' => array(), 'ngoai_moi_ca' => false,
+			'ca_dau' => '', 'ca_cuoi' => '', 'ngoai_dai' => 0, 'ria' => array() );
 		$tc = self::tach( $ds_ca, $vao_giay, $ra_giay, $cuoi_tuan );
 		if ( ! $tc['ds'] ) {
 			/* Không chạm ca nào: giữ giờ thật. `tong_phut` là 0 khi lượt chấm không hợp lệ, và
@@ -214,11 +263,24 @@ class VHCC_Ca {
 			return $ra;
 		}
 		$nguong = max( 0, (int) $nguong );
-		foreach ( $tc['ds'] as $o ) {
+		/* 🔴 CHỈ TÍNH CÁC CA NGƯỜI TA NHẬN — xem `dai_nhan()`. Ca chỉ bị chạm ở rìa (vào sớm
+		   trước ca đầu, về muộn sau ca cuối) KHÔNG phải ca làm dở, nên không được kêu thiếu. */
+		list( $i_dau, $i_cuoi ) = self::dai_nhan( $tc, $vao_giay, $ra_giay );
+		foreach ( $tc['ds'] as $i => $o ) {
+			if ( $i < $i_dau || $i > $i_cuoi ) {
+				/* Ngoài dải nhận: giữ lại để nói ra, nhưng KHÔNG cộng vào giờ công — đây là
+				   "lấy giờ ca làm giờ công", mà ca này người ta không nhận. */
+				$ra['ngoai_dai'] += (int) $o['phut'];
+				$ra['ria'][]      = array( 'ten' => (string) $o['ten'], 'phut' => (int) $o['phut'] );
+				continue;
+			}
 			$dai = 0;
 			foreach ( (array) $ds_ca as $c ) {
 				if ( (string) $c['ten'] === (string) $o['ten'] ) { $dai = self::dai_ca( $c, $cuoi_tuan ); break; }
 			}
+			if ( '' === $ra['ca_dau'] )  { $ra['ca_dau'] = (string) $o['ten']; }
+			$ra['ca_cuoi'] = (string) $o['ten'];
+
 			$co    = (int) $o['phut'];
 			$thieu = $dai - $co;
 			if ( $dai > 0 && $thieu > 0 && $thieu <= $nguong ) {
