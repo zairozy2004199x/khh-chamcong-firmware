@@ -3296,15 +3296,17 @@ function ktdCard(o){
   t.appendChild(sub);
   head.appendChild(t);
   if(o.locked){ var lk=ktEl('span','pill p-off',L('KHOÁ','LOCKED')); head.appendChild(lk); }
-  var bXem=ktEl('button','ghost',L('Xem','Detail')); head.appendChild(bXem);
+  /* Bung sẵn ngay khi vẽ danh sách — anh Thắng: khỏi phải bấm Xem từng báo cáo một mới thấy
+     chi tiết ghế. Nút chỉ còn tác dụng ĐÓNG BỚT lại cho gọn, không còn ý nghĩa "tải lần đầu". */
+  var bXem=ktEl('button','ghost',L('Đóng','Close')); head.appendChild(bXem);
   d.appendChild(head);
-  var body=ktEl('div'); body.style.cssText='display:none;margin-top:10px'; d.appendChild(body);
+  var body=ktEl('div'); body.style.cssText='margin-top:10px'; d.appendChild(body);
+  body.dataset.built='1';
   bXem.onclick=function(){
-    if(body.style.display===''){ body.style.display='none'; bXem.textContent=L('Xem','Detail'); return; }
-    body.style.display=''; bXem.textContent=L('Đóng','Close');
-    if(body.dataset.built==='1') return; body.dataset.built='1';
-    ktdDetail(o,body);
+    if('none'===body.style.display){ body.style.display=''; bXem.textContent=L('Đóng','Close'); return; }
+    body.style.display='none'; bXem.textContent=L('Xem','Detail');
   };
+  ktdDetail(o,body);
   return d;
 }
 function ktdDetail(o,box){
@@ -3348,7 +3350,18 @@ function ktdRow(o,c,m,reload,locked){
   var tr=ktEl('tr'); tr.dataset.ma=c.chairCode;
   function td(x,r){ var e=ktEl('td',null,x); if(r){e.style.textAlign='right';e.style.fontVariantNumeric='tabular-nums';} return e; }
   var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,c.chairName||c.chairCode));
-  if(c.anh && c.anh.length){ var a=document.createElement('a'); a.href=c.anh[0]; a.target='_blank'; a.textContent=' 📷'+c.anh.length; a.style.marginLeft='4px'; a.title='Xem ảnh'; tdN.appendChild(a); }
+  /* Ảnh chỉ số hiện thumbnail ngay dưới tên ghế — khỏi bấm mới thấy, đỡ phải đoán ảnh nào
+     đúng ghế trước khi mở tab mới. Bấm thumbnail vẫn mở ảnh gốc cỡ đầy đủ ở tab mới. */
+  if(c.anh && c.anh.length){
+    var wrapA=ktEl('div'); wrapA.style.cssText='display:flex;gap:4px;margin-top:4px;flex-wrap:wrap';
+    c.anh.forEach(function(u){
+      var a=document.createElement('a'); a.href=u; a.target='_blank'; a.title='Xem ảnh cỡ đầy đủ';
+      var img=document.createElement('img'); img.src=u; img.loading='lazy'; img.alt='';
+      img.style.cssText='width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15)';
+      a.appendChild(img); wrapA.appendChild(a);
+    });
+    tdN.appendChild(wrapA);
+  }
   tr.appendChild(tdN);
   tr.appendChild(td(c.meterBefore==null?'—':ktVnd(c.meterBefore),1));
   tr.appendChild(td(c.meterAfter==null?'—':ktVnd(c.meterAfter),1));
