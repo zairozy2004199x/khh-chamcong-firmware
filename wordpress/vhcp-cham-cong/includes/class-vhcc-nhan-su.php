@@ -224,16 +224,58 @@ class VHCC_NhanSu {
 			/* Mã so theo chữ HOA + bỏ hết khoảng trắng — không bỏ dấu, vì mã không có dấu và
 			   một mã lỡ có dấu thì đó là chuyện khác, phải thấy nó là khác. */
 			$k_ma  = strtoupper( preg_replace( '/\s+/', '', trim( $ma ) ) );
-			$khoa[] = array( 'ma' => $ma, 'k_ten' => $k_ten, 'k_ma' => $k_ma );
+			$khoa[] = array( 'ma' => $ma, 'k_ten' => $k_ten, 'k_ma' => $k_ma,
+				'coso' => isset( $r['cua_hang'] ) ? (string) $r['cua_hang'] : '' );
 			if ( '' !== $k_ten ) { $dem_ten[ $k_ten ] = ( isset( $dem_ten[ $k_ten ] ) ? $dem_ten[ $k_ten ] : 0 ) + 1; }
 			if ( '' !== $k_ma )  { $dem_ma[ $k_ma ]   = ( isset( $dem_ma[ $k_ma ] ) ? $dem_ma[ $k_ma ] : 0 ) + 1; }
+		}
+
+		/* =====================================================================================
+		 * 🔴 TRÙNG TÊN CÙNG MỘT CƠ SỞ LÀ CHUYỆN KHÁC HẲN TRÙNG TÊN KHÁC CƠ SỞ.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026: *"1 nhân viên mà làm 2 cơ sở, nên hệ thống báo trùng. có ảnh
+		 * hưởng gì không"*.
+		 *
+		 * Có, và nặng — nhưng chỉ ở MỘT trong hai kiểu, mà nhãn cũ gộp cả hai làm một:
+		 *
+		 *   • Khác cơ sở  -> rất có thể là hai người thật, tình cờ trùng tên. Bình thường.
+		 *   • CÙNG cơ sở  -> gần như chắc là MỘT người bị tạo hai hồ sơ. Với cả hệ, hai mã NV
+		 *     là hai người khác nhau: công chia đôi (không mã nào đủ ngày công chuẩn), lương
+		 *     tính theo hai nửa, mỗi hồ sơ một PIN nên đăng nhập bằng PIN nào chỉ thấy nửa ấy.
+		 *
+		 * ⚠️ Gộp hai kiểu vào một nhãn là bắt người đọc tự phân loại 400 hồ sơ. Mà cái gì bắt
+		 *    người ta tự phân loại thì họ phân loại một lần rồi thôi đọc.
+		 *
+		 * ⚠️ CƠ SỞ SO CÙNG THƯỚC VỚI CẢ HỆ: `strtoupper( chuan_coso() )`. Bỏ qua hoa/thường,
+		 *    nhưng KHÔNG gộp "POSH_HCM" với "posh hcm" — và đúng ra là không được gộp: bảng
+		 *    công, chùm cơ sở, quyền theo cơ sở đều coi hai chuỗi ấy là HAI cơ sở. Nới riêng ở
+		 *    đây là màn này nói một đằng, bảng công tính một nẻo.
+		 */
+		$cs_theo_ten = array();
+		foreach ( (array) $ds as $r ) {
+			$k_ten = self::khoa_so( isset( $r['ho_ten'] ) ? (string) $r['ho_ten'] : '' );
+			if ( '' === $k_ten ) { continue; }
+			$cs = strtoupper( self::chuan_coso( isset( $r['cua_hang'] ) ? $r['cua_hang'] : '' ) );
+			if ( ! isset( $cs_theo_ten[ $k_ten ] ) ) { $cs_theo_ten[ $k_ten ] = array(); }
+			$cs_theo_ten[ $k_ten ][ $cs ] = ( isset( $cs_theo_ten[ $k_ten ][ $cs ] )
+				? $cs_theo_ten[ $k_ten ][ $cs ] : 0 ) + 1;
 		}
 
 		$ra = array();
 		foreach ( $khoa as $x ) {
 			$t = ( '' !== $x['k_ten'] && $dem_ten[ $x['k_ten'] ] > 1 );
 			$m = ( '' !== $x['k_ma'] && $dem_ma[ $x['k_ma'] ] > 1 );
-			if ( $t || $m ) { $ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m ); }
+			if ( ! $t && ! $m ) { continue; }
+			/* Trùng tên NGAY TRONG cơ sở của chính hồ sơ này — không phải "có ai đó cùng tên ở
+			   đâu đó". Hai người cùng tên ở hai cơ sở khác nhau thì mỗi người vẫn đứng một
+			   mình ở cơ sở của họ, và đó là chuyện bình thường. */
+			$mot_nguoi = false;
+			if ( $t ) {
+				$cs_x = strtoupper( self::chuan_coso( isset( $x['coso'] ) ? $x['coso'] : '' ) );
+				$mot_nguoi = ( isset( $cs_theo_ten[ $x['k_ten'] ][ $cs_x ] )
+					&& $cs_theo_ten[ $x['k_ten'] ][ $cs_x ] > 1 );
+			}
+			$ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m, 'motNguoi' => $mot_nguoi );
 		}
 		return $ra;
 	}

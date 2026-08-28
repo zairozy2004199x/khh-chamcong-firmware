@@ -194,6 +194,8 @@ class VHCC_TrangNS {
 		if ( 'dau_viec' === $viec )    { return self::viec_dau_viec( $toi ); }
 		if ( 'xoa_vai' === $viec )     { return self::viec_xoa_vai( $toi ); }
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
+		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
+		if ( 'bo_ghep_ma' === $viec )  { return self::viec_bo_ghep_ma( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -227,6 +229,28 @@ class VHCC_TrangNS {
 	 *    không có trang tên "ghe" trong sổ của nó — bỏ qua IM LẶNG, và người bấm thấy "đã lưu"
 	 *    trong khi không ai được đẩy đi đâu cả.
 	 */
+	private static function viec_ghep_ma( $toi ) {
+		$p = function ( $k ) {
+			return isset( $_POST[ $k ] ) ? sanitize_text_field( wp_unslash( $_POST[ $k ] ) ) : '';
+		};
+		$kq = VHCC_NhanSu::khai_ma_song_song( $toi, $p( 'ma_a' ), $p( 'ma_b' ),
+			$p( 'gm_ten' ), $p( 'gm_ly_do' ) );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã ghép ' . $p( 'ma_b' ) . ' về ' . $p( 'ma_a' )
+			. '. Lượt chấm công của mã phụ nay chảy về mã chính.' ) );
+	}
+
+	private static function viec_bo_ghep_ma( $toi ) {
+		$a = isset( $_POST['ma_a'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_a'] ) ) : '';
+		$b = isset( $_POST['ma_b'] ) ? sanitize_text_field( wp_unslash( $_POST['ma_b'] ) ) : '';
+		$kq = VHCC_NhanSu::bo_ma_song_song( $toi, $a, $b );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		/* ⚠️ Nói ra HẬU QUẢ, đừng chỉ báo "đã bỏ". Bỏ ghép là từ đây lượt của mã phụ lại ở
+		   nguyên chỗ nó — công của người ấy tách làm hai trở lại. */
+		return array( array( 'ok' => 'Đã bỏ ghép ' . $b . ' khỏi ' . $a
+			. '. Từ giờ lượt chấm công của ' . $b . ' lại nằm riêng, không chảy về nữa.' ) );
+	}
+
 	private static function viec_ghe_rieng( $toi ) {
 		$kq = VHCC_DayGhe::chuyen_sang_rieng( $toi );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
@@ -587,6 +611,11 @@ class VHCC_TrangNS {
 			. 'background:#fee2e2;color:var(--do);font-size:10.5px;font-weight:700;'
 			. 'letter-spacing:.2px;vertical-align:middle}'
 			. '.chip-n{margin-left:0}'
+			/* 🔴 HAI KIỂU TRÙNG TÊN, HAI MÀU. "Khác cơ sở" nhiều khả năng là hai người thật —
+			   để nó đỏ như báo động thì người ta tắt mắt với cả hai. Còn "một người hai hồ sơ"
+			   thì đúng là hỏng: công chia đôi, lương tính theo hai nửa. */
+			. '.chip-t{background:#fef3c7;color:#92400e}'
+			. '.chip-nang{background:#fee2e2;color:var(--do)}'
 			/* Hàng đang mở: viền đậm để mắt tìm lại được nó giữa 50 hàng sau khi tải lại trang. */
 			. 'tr.dang-sua>td{box-shadow:inset 0 2px 0 var(--xanh)}'
 			. 'tr.hang-sua>td{background:#eff6ff;border:2px solid var(--xanh);padding:12px 14px}'
@@ -681,6 +710,7 @@ class VHCC_TrangNS {
 
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
 		self::the_dong_bo( $toi );
+		self::the_ghep_ma( $toi );
 		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
 		self::the_dau_viec( $toi );
@@ -716,6 +746,73 @@ class VHCC_TrangNS {
 	 *    nhập liệu, và ngày nào lật nguồn sang "hồ sơ" là mọi thứ khai ở đây có hiệu lực ngay.
 	 *    Chặn lại thì mất luôn đường chuẩn bị trước.
 	 */
+	/**
+	 * GHÉP HAI MÃ VỀ MỘT NGƯỜI — "mã song song".
+	 *
+	 * =========================================================================================
+	 * 🔴 LỠ TẠO HAI HỒ SƠ CHO MỘT NGƯỜI THÌ CHỮA Ở ĐÂY.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"1 nhân viên mà làm 2 cơ sở, nên hệ thống báo trùng"*. Cách ĐÚNG
+	 * là một người một mã, cơ sở thứ hai khai vào ô **Cơ sở phụ**. Nhưng khi đã lỡ tạo hai mã
+	 * rồi thì không xoá bớt được — mỗi mã đã có công, có lương, có lịch sử.
+	 *
+	 * `ma_song_song` là đường chữa: khai một cặp mã là "cùng một người", rồi
+	 * `VHCC_NhanSu::ma_that()` dịch mã kia về mã chính khi lượt chấm công đi vào.
+	 *
+	 * ⚠️ TRƯỚC BẢN NÀY CHỈ KHAI ĐƯỢC TRONG wp-admin. Mà người phát hiện ra cặp trùng lại đang
+	 *    đứng ở ĐÂY, nhìn đúng cái nhãn "một người hai hồ sơ" — bắt họ rời trang, đăng nhập
+	 *    WordPress, đi tìm một màn khác, là gần như chắc chắn họ để đấy.
+	 *
+	 * 🔴 PHẢI KHAI TAY, HỆ KHÔNG ĐƯỢC TỰ SUY TỪ TÊN. Tên người Việt trùng rất nhiều; đoán sai
+	 *    là gộp lương hai người khác nhau. Nhãn ở bảng trên chỉ NGHI, còn quyết thì là người.
+	 */
+	private static function the_ghep_ma( $toi ) {
+		if ( ! VHCC_NhanSu::co_quan_tri_nv( $toi ) ) { return; }
+		$ds = VHCC_NhanSu::ds_ma_song_song();
+
+		echo '<div class="the"><details' . ( $ds ? ' open' : '' ) . '>';
+		echo '<summary><b>Ghép hai mã về một người</b> — '
+			. ( $ds ? count( $ds ) . ' cặp đã khai' : 'chưa khai cặp nào' ) . '</summary>';
+		echo '<p class="mo">Một người lỡ có hai Mã NV (thường vì làm ở hai cơ sở và bị tạo hồ sơ '
+			. 'hai lần) thì với cả hệ họ là <b>hai người</b>: công chia đôi, lương tính theo hai '
+			. 'nửa, mỗi hồ sơ một PIN. Khai cặp ở đây là lượt chấm công của mã phụ tự chảy về mã '
+			. 'chính.<br><b>Chưa lỡ thì đừng dùng cái này</b> — người làm hai cơ sở chỉ cần khai '
+			. 'ô <b>Cơ sở phụ</b> trong hồ sơ đầy đủ, vẫn một mã.</p>';
+
+		if ( $ds ) {
+			echo '<div class="cuon"><table class="stt"><thead><tr><th>Mã chính</th><th>Mã phụ</th>'
+				. '<th>Họ tên</th><th>Lý do</th><th>Ai khai</th><th></th></tr></thead><tbody>';
+			foreach ( $ds as $r ) {
+				echo '<tr><td><code>' . esc_html( (string) $r['ma_a'] ) . '</code></td>'
+					. '<td><code>' . esc_html( (string) $r['ma_b'] ) . '</code></td>'
+					. '<td>' . esc_html( (string) $r['ho_ten'] ) . '</td>'
+					. '<td class="mo">' . esc_html( (string) $r['ly_do'] ) . '</td>'
+					. '<td class="mo">' . esc_html( (string) $r['nguoi_khai'] ) . '</td>'
+					. '<td><form method="post" style="margin:0">'
+					. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
+					. self::o_loc()
+					. '<input type="hidden" name="ma_a" value="' . esc_attr( (string) $r['ma_a'] ) . '">'
+					. '<input type="hidden" name="ma_b" value="' . esc_attr( (string) $r['ma_b'] ) . '">'
+					. '<button name="viec" value="bo_ghep_ma">Bỏ ghép</button></form></td></tr>';
+			}
+			echo '</tbody></table></div>';
+		}
+
+		echo '<form method="post" class="hang" style="margin-top:10px;gap:8px;flex-wrap:wrap">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
+		echo self::o_loc();
+		echo '<div><label for="gm_a">Mã CHÍNH (giữ lại)</label>'
+			. '<input id="gm_a" name="ma_a" placeholder="VD: MNNV2MTD0014"></div>';
+		echo '<div><label for="gm_b">Mã PHỤ (chảy về mã chính)</label>'
+			. '<input id="gm_b" name="ma_b" placeholder="VD: MNNV2MTD0022"></div>';
+		echo '<div><label for="gm_t">Họ tên</label><input id="gm_t" name="gm_ten"></div>';
+		echo '<div><label for="gm_l">Lý do</label>'
+			. '<input id="gm_l" name="gm_ly_do" placeholder="VD: tạo hồ sơ hai lần"></div>';
+		echo '<div><button class="chinh" name="viec" value="ghep_ma">Ghép hai mã</button></div>';
+		echo '</form>';
+		echo '</details></div>';
+	}
+
 	/**
 	 * AI ĐANG MANG MỘT VAI HỆ PHẢI ĐOÁN — chứ không khai chính thức.
 	 *
@@ -1088,7 +1185,19 @@ class VHCC_TrangNS {
 				   mà hai kiểu trùng này cần hai cách xử khác hẳn nhau: trùng tên thì gộp hai hồ
 				   sơ, trùng mã thì phải cấp lại mã cho một bên. */
 				if ( $co_trung['ma'] )  { echo '<span class="chip-t">trùng mã</span>'; }
-				if ( $co_trung['ten'] ) { echo '<span class="chip-t">trùng tên</span>'; }
+				/* 🔴 TRÙNG TÊN CÙNG CƠ SỞ ĐỌC KHÁC HẲN TRÙNG TÊN KHÁC CƠ SỞ — anh Thắng
+				   28/08/2026: *"1 nhân viên mà làm 2 cơ sở, nên hệ thống báo trùng. có ảnh
+				   hưởng gì không"*. Khác cơ sở thì rất có thể là hai người thật; CÙNG cơ sở thì
+				   gần như chắc là MỘT người bị tạo hai hồ sơ — và với cả hệ, hai mã NV là hai
+				   người khác nhau: công chia đôi, lương tính theo hai nửa, mỗi hồ sơ một PIN. */
+				if ( ! empty( $co_trung['motNguoi'] ) ) {
+					echo '<span class="chip-t chip-nang" title="Cùng tên VÀ cùng cơ sở — gần như '
+						. 'chắc là một người bị tạo hai hồ sơ. Công sẽ chia đôi giữa hai mã.">'
+						. 'một người hai hồ sơ?</span>';
+				} elseif ( $co_trung['ten'] ) {
+					echo '<span class="chip-t" title="Có người cùng tên ở CƠ SỞ KHÁC — nhiều khả '
+						. 'năng là hai người thật, không phải lỗi.">trùng tên (khác cơ sở)</span>';
+				}
 			}
 			echo '</td>';
 			/* Nút mở thẳng hồ sơ người này ở màn Hồ sơ & tài khoản. Anh Thắng: *"bổ sung thêm

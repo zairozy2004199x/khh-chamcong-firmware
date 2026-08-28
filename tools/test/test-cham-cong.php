@@ -9561,7 +9561,7 @@ t( '🔴 hồ sơ trùng (tên xếp cuối) nhảy lên TRƯỚC người sạc
 $tt_h = vhcc_ns( 'Kế toán' );
 t( 'màn hình báo có bao nhiêu hồ sơ trùng', strpos( $tt_h, 'trùng tên hoặc trùng' ) !== false, $tt_h );
 t( 'và gắn nhãn "trùng mã" lên hàng', strpos( $tt_h, 'trùng mã' ) !== false );
-t( 'và nhãn "trùng tên"', strpos( $tt_h, 'trùng tên</span>' ) !== false );
+t( 'và nhãn "trùng tên"', strpos( $tt_h, 'trùng tên' ) !== false, $tt_h );
 t( 'hàng trùng có lớp riêng để tô nền', strpos( $tt_h, 'class="hang-trung"' ) !== false );
 /* Nhãn phải có CHỮ, không chỉ có màu — người mù màu và bản in đen trắng vẫn phải đọc ra. */
 t( 'nhãn là chữ chứ không chỉ là màu', strpos( $tt_h, '>trùng mã<' ) !== false );
@@ -9587,7 +9587,120 @@ $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CS2', 'ho_ten' => '
 $tt_h = vhcc_ns( 'Kế toán', array( 'ncs' => 'TUTU_BT' ) );
 t( 'lọc TUTU_BT thì chỉ thấy một trong hai người', strpos( $tt_h, '<b>CS2</b>' ) === false, $tt_h );
 t( '🔴 nhưng VẪN báo người ấy trùng tên với người ở cơ sở KHÁC',
-	strpos( $tt_h, 'trùng tên</span>' ) !== false, $tt_h );
+	strpos( $tt_h, 'trùng tên (khác cơ sở)' ) !== false, $tt_h );
+
+/* 🔴 VÀ NÓI RÕ ĐÓ LÀ KIỂU NHẸ. Anh Thắng 28/08/2026: *"1 nhân viên mà làm 2 cơ sở, nên hệ
+   thống báo trùng. có ảnh hưởng gì không"*. Hai người cùng tên ở hai cơ sở khác nhau thì mỗi
+   người vẫn đứng một mình ở cơ sở của họ — bình thường, không phải lỗi. Gộp nó chung một nhãn
+   đỏ với kiểu nặng là bắt người đọc tự phân loại 400 hồ sơ, mà cái gì bắt tự phân loại thì họ
+   phân một lần rồi thôi đọc. */
+t( 'và KHÔNG kêu đây là một người hai hồ sơ',
+	strpos( $tt_h, 'một người hai hồ sơ' ) === false, $tt_h );
+
+/* 🔴 CÙNG TÊN + CÙNG CƠ SỞ MỚI LÀ HỎNG THẬT: một người bị tạo hai hồ sơ. Với cả hệ, hai mã NV
+   là hai người khác nhau — công chia đôi (không mã nào đủ ngày công chuẩn), lương tính theo
+   hai nửa, mỗi hồ sơ một PIN nên đăng nhập bằng PIN nào chỉ thấy nửa ấy. */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'MOT1', 'ho_ten' => 'Phạm Văn Công',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'MOT2', 'ho_ten' => 'Phạm Văn Công',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$tt_h = vhcc_ns( 'Kế toán' );
+t( '🔴 cùng tên VÀ cùng cơ sở: kêu là một người hai hồ sơ',
+	strpos( $tt_h, 'một người hai hồ sơ' ) !== false, $tt_h );
+t( 'và thôi dùng nhãn nhẹ "khác cơ sở" cho cặp ấy',
+	strpos( $tt_h, 'trùng tên (khác cơ sở)' ) === false, $tt_h );
+/* ⚠️ Nhãn nặng phải có lớp riêng để tô khác màu — nhãn nhẹ đỏ như báo động thì người ta tắt
+   mắt với cả hai. */
+/* ⚠️ SOI ĐÚNG THẺ, ĐỪNG SOI TÊN LỚP TRẦN — chuỗi "chip-nang" còn nằm trong khối CSS ở đầu
+   trang, nên soi trần thì vết "bỏ lớp khỏi thẻ" vẫn xanh vì bắt nhầm sang CSS. */
+t( 'nhãn nặng có lớp riêng trên THẺ',
+	strpos( $tt_h, 'class="chip-t chip-nang"' ) !== false, $tt_h );
+t( 'và có CSS cho lớp ấy', strpos( $tt_h, '.chip-nang{' ) !== false, $tt_h );
+/* ⚠️ CƠ SỞ SO CÙNG THƯỚC VỚI CẢ HỆ: `strtoupper( chuan_coso() )`. Thước ấy bỏ qua hoa/thường
+   nhưng KHÔNG gộp "TUTU_BT" với "tutu bt" — và đúng ra là không được gộp: phần còn lại của hệ
+   (bảng công, chùm cơ sở, quyền theo cơ sở) cũng coi hai chuỗi ấy là HAI cơ sở. Nới riêng ở
+   đây là màn này nói một đằng, bảng công tính một nẻo. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cua_hang' => 'tutu_bt' ),
+	array( 'ma_nv' => 'MOT2' ) );
+$tt_h = vhcc_ns( 'Kế toán' );
+t( '🔴 viết cơ sở lệch HOA/THƯỜNG vẫn nhận ra là cùng một chỗ',
+	strpos( $tt_h, 'một người hai hồ sơ' ) !== false, $tt_h );
+
+/* ---- GHÉP HAI MÃ VỀ MỘT NGƯỜI, NGAY TẠI TRANG NGOÀI ---------------------------------------
+   🔴 Nhãn ở trên chỉ NGHI. Người phát hiện ra cặp trùng đang đứng ở đây, nhìn đúng cái nhãn ấy
+      — bắt họ rời trang, đăng nhập WordPress, đi tìm một màn khác thì gần như chắc là để đấy.
+   ⚠️ PHẢI KHAI TAY, hệ KHÔNG được tự suy từ tên: tên người Việt trùng rất nhiều, đoán sai là
+      gộp lương hai người khác nhau. Nhãn nghi, người quyết. */
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 trang ngoài có khối ghép hai mã',
+	strpos( $tt_h, 'Ghép hai mã về một người' ) !== false, $tt_h );
+t( 'nói rõ hậu quả của hai mã: công chia đôi, lương tính theo hai nửa',
+	strpos( $tt_h, 'công chia đôi' ) !== false, $tt_h );
+t( 'và nói rõ khi nào ĐỪNG dùng nó — người làm hai cơ sở chỉ cần khai Cơ sở phụ',
+	strpos( $tt_h, 'Cơ sở phụ' ) !== false
+	&& strpos( $tt_h, 'Chưa lỡ thì đừng dùng' ) !== false, $tt_h );
+t( 'có ô nhập cả hai mã', strpos( $tt_h, 'name="ma_a"' ) !== false
+	&& strpos( $tt_h, 'name="ma_b"' ) !== false, $tt_h );
+
+/* ⚠️ Ghép ảnh hưởng CẢ CHUỖI (công của một mã chảy sang mã khác) nên cửa là `co_quan_tri_nv()`
+   = quyền `ngoai_coso` = bậc Quản lý trở lên. Kế toán bậc 4 CAO HƠN Quản lý bậc 3 nên vẫn
+   được — thang bậc, bậc trên làm được mọi việc bậc dưới. Người bị chối là Cửa hàng trưởng. */
+$tt_kt = vhcc_ns( 'Kế toán' );
+t( 'Kế toán thấy khối — bậc 4 cao hơn Quản lý bậc 3',
+	strpos( $tt_kt, 'Ghép hai mã về một người' ) !== false, $tt_kt );
+/* 🔴 PHÉP THỬ CANH QUAN HỆ HAI BẬC, KHÔNG CANH HÀNH VI.
+   Chốt `co_quan_tri_nv()` trong `the_ghep_ma()` hôm nay CHƯA TỪNG rẽ sang false: cửa vào màn
+   này là `ho_so` (bậc 4 Kế toán), còn ghép cần `ngoai_coso` (bậc 3 Quản lý) — ai vào nổi trang
+   đều ghép được. Nên không dựng nổi cảnh "vào được trang mà không ghép được", và mọi vết phá
+   bỏ chốt ấy đều xanh.
+   Chốt vẫn phải GIỮ: nó bảo vệ trước thay đổi ở CHỖ KHÁC — ngày nào cửa vào trang nới xuống
+   bậc 3 hay thấp hơn, nó tự đứng ra chặn mà không ai phải nhớ. Nên canh chính quan hệ ấy. */
+t( '🔴 quyền GHÉP không được cao hơn quyền VÀO trang — nếu không, chốt ở khối ghép thành mã chết',
+	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ngoai_coso'] ] <= VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ],
+	array( VHCC_Vai::QUYEN['ngoai_coso'], VHCC_Vai::QUYEN['ho_so'] ) );
+t( 'và người đủ bậc vào trang thì cũng đủ bậc ghép',
+	VHCC_NhanSu::co_quan_tri_nv( array( 'role' => 'Kế toán' ) ) );
+
+/* Khai một cặp qua ĐÚNG đường màn hình dùng. */
+$_POST = array( 'ma_a' => 'MOT1', 'ma_b' => 'MOT2', 'gm_ten' => 'Phạm Văn Công',
+	'gm_ly_do' => 'tạo hồ sơ hai lần' );
+$tt_bao = VHCC_TrangNS::lam_viec( 'ghep_ma', $U_AD );
+$_POST = array();
+$tt_txt = (string) wp_json_encode( $tt_bao );
+t( 'Admin ghép được', strpos( $tt_txt, 'Đã ghép' ) !== false, $tt_bao );
+/* ⚠️ `ma_that()` CHỈ dịch khi mã ấy KHÔNG có hồ sơ — mã có hồ sơ là mã thật, trả chính nó.
+   Đó là chốt đúng: dịch một mã đang có hồ sơ là ném công của người ta sang hồ sơ khác. Nên
+   dựng cảnh dịch bằng một mã máy chưa có hồ sơ. */
+teq( 'mã CÓ hồ sơ thì trả chính nó, không dịch', 'MOT2', VHCC_NhanSu::ma_that( 'MOT2' ) );
+VHCC_NhanSu::khai_ma_song_song( $U_AD, 'MOT1', 'MAYCU9', 'Phạm Văn Công', 'mã cũ trên máy' );
+teq( '🔴 mã máy chưa có hồ sơ thì chảy về mã chính', 'MOT1', VHCC_NhanSu::ma_that( 'MAYCU9' ) );
+$tt_h = vhcc_ns( 'Admin' );
+t( 'cặp vừa khai hiện ra trong bảng',
+	strpos( $tt_h, 'tạo hồ sơ hai lần' ) !== false, $tt_h );
+
+/* Cửa hàng trưởng gọi THẲNG đường ấy vẫn bị chối — cửa thật ở lõi, không phải ở chỗ giấu khối.
+   ⚠️ Giấu nút không phải là chặn: ai đọc được gói tin thì gọi thẳng được. */
+$U_CHT_G = array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' );
+$_POST = array( 'ma_a' => 'MOT1', 'ma_b' => 'MOT9', 'gm_ten' => 'X', 'gm_ly_do' => 'y' );
+$tt_bao = VHCC_TrangNS::lam_viec( 'ghep_ma', $U_CHT_G );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng gọi thẳng đường ghép vẫn bị chối',
+	isset( $tt_bao[0]['loi'] ), $tt_bao );
+teq( 'và không có cặp nào thêm', 'MOT9', VHCC_NhanSu::ma_that( 'MOT9' ) );
+
+/* Bỏ ghép — và phải nói ra HẬU QUẢ, đừng chỉ báo "đã bỏ". */
+$_POST = array( 'ma_a' => 'MOT1', 'ma_b' => 'MOT2' );
+$tt_bao = VHCC_TrangNS::lam_viec( 'bo_ghep_ma', $U_AD );
+$_POST = array();
+$tt_txt = (string) wp_json_encode( $tt_bao );
+t( 'bỏ ghép được', strpos( $tt_txt, 'Đã bỏ ghép' ) !== false, $tt_bao );
+t( '🔴 và nói rõ hậu quả: công của người ấy tách làm hai trở lại',
+	strpos( $tt_txt, 'lại nằm riêng' ) !== false, $tt_bao );
+$_POST = array( 'ma_a' => 'MOT1', 'ma_b' => 'MAYCU9' );
+VHCC_TrangNS::lam_viec( 'bo_ghep_ma', $U_AD );
+$_POST = array();
+teq( 'mã phụ thôi chảy về', 'MAYCU9', VHCC_NhanSu::ma_that( 'MAYCU9' ) );
 
 /* Sổ sạch thì KHÔNG báo gì — cảnh báo thừa là cảnh báo bị bỏ qua. */
 vhcc_dung_bang();
