@@ -320,7 +320,12 @@ class VHCC_TrangNS {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
 			}
-			if ( ! empty( $r['doi'] ) ) { $ra['doi']++; $ra['go'] += (int) $r['go']; }
+			if ( ! empty( $r['doi'] ) ) {
+				$ra['doi']++; $ra['go'] += (int) $r['go'];
+				/* Cơ sở đổi thì bản sao bên hệ ghế phải theo: cơ sở là thứ quyết định người ấy
+				   chốt ca được ở đâu, nên để lệch là họ chốt nhầm ghế của cơ sở cũ. */
+				VHCC_DayGhe::dong_bo( $ma_s );
+			}
 		}
 		$ra['loi'] = array_values( $ra['loi'] );
 		return $ra;
@@ -347,7 +352,12 @@ class VHCC_TrangNS {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
 			}
-			if ( ! empty( $r['doi'] ) ) { $ra['doi']++; }
+			if ( ! empty( $r['doi'] ) ) {
+				$ra['doi']++;
+				/* Vai đổi thì bản sao bên hệ ghế phải theo — xem `VHCC_DayGhe::dong_bo()`. Người
+				   chưa đẩy sang thì hàm ấy không đụng tới. */
+				VHCC_DayGhe::dong_bo( $ma_s );
+			}
 		}
 		$ra['loi'] = array_values( $ra['loi'] );
 		return $ra;
@@ -428,8 +438,13 @@ class VHCC_TrangNS {
 
 		$kq = VHCC_NhanSu::luu_ho_so( $toi, $dat );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		/* 🔴 NGƯỜI ĐÃ ĐẨY SANG HỆ GHẾ THÌ BẢN SAO BÊN ẤY PHẢI THEO. Đổi PIN ở đây mà bên ghế
+		   giữ PIN cũ là người ta đứng ở quầy, gõ PIN mới, và cửa không mở — im lặng, và họ chỉ
+		   biết khi đã hỏng việc. */
+		$db_ghe = VHCC_DayGhe::dong_bo( $ma );
 		return array( array( 'ok' => 'Đã lưu hồ sơ ' . $ma . '.'
-			. ( '' !== $pin ? ' PIN đã đổi.' : '' ) ) );
+			. ( '' !== $pin ? ' PIN đã đổi.' : '' )
+			. ( $db_ghe ? ' Hệ ghế đã cập nhật theo.' : '' ) ) );
 	}
 
 	private static function viec_them_vai( $toi ) {
@@ -1140,6 +1155,11 @@ class VHCC_TrangNS {
 		echo '</div>';
 		echo '<div class="hang" style="margin-top:10px">';
 		echo '<button class="chinh" name="viec" value="sua_nhanh">Lưu hồ sơ này</button>';
+		/* ⚠️ HAI NÚT LƯU TRÊN CÙNG MỘT BIỂU MẪU LÀ MỘT CÁI BẪY. Anh Thắng 28/08/2026 vấp ngay:
+		   tích cột Ghế rồi bấm nút này, thấy "Đã lưu hồ sơ", tưởng xong — nhưng nút này chỉ lưu
+		   mấy ô ngay trên nó, mọi ô quyền vừa tích thì mất im lặng. Nói ra ngay cạnh nút. */
+		echo '<span class="mo" style="margin-left:4px">Nút này chỉ lưu <b>mấy ô ngay trên đây</b>. '
+			. 'Ô quyền vừa tích ở bảng thì bấm <b>Lưu bảng này</b> ở cuối bảng.</span>';
 		echo '<a class="nut" href="' . esc_url( self::url_sua( '' ) ) . '">Đóng</a>';
 		echo '<span class="mo">Còn CCCD, địa chỉ, hợp đồng… thì mở <b>đầy đủ ↗</b> ở cột Họ tên.</span>';
 		echo '</div></form></td></tr>';

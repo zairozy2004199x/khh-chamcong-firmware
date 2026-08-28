@@ -188,30 +188,64 @@ class VHCC_DayGhe {
 	/**
 	 * Hồ sơ cần để đẩy một người: [ho_ten, pin, vai_cc, coso] — hoặc null nếu không đủ.
 	 *
-	 * ⚠️ PIN NẰM Ở BẢNG `phan_quyen`, KHÔNG Ở `nhan_vien`. Người có hồ sơ nhân sự mà chưa được
-	 *    cấp PIN chấm công thì chưa đẩy sang được — và phải NÓI RA đúng lý do ấy, chứ không
-	 *    lặng lẽ bỏ qua: người đi khai sẽ tưởng mình bấm hụt.
+	 * =========================================================================================
+	 * 🔴 PIN NẰM Ở `nhan_vien.pin_dang_nhap`, KHÔNG Ở `phan_quyen.pin`.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026, ngay lần đầu dùng cột này: *"Anh thấy lưu mà bên Posh chưa qua"* —
+	 * kèm ảnh một hồ sơ vừa đổi PIN xong ("Đã lưu hồ sơ MNVH1MTD0001. PIN đã đổi.") mà cột Ghế
+	 * vẫn nằm nguyên ở «Gỡ».
+	 *
+	 * Bản đầu của hàm này tra `phan_quyen WHERE ma_cc_online = <mã>` và thế là sai chỗ. Site có
+	 * HAI cuốn sổ giữ PIN, và chúng không phải một:
+	 *
+	 *   • `nhan_vien.pin_dang_nhap` — sổ THẬT của hồ sơ nhân sự. Màn Hồ sơ & tài khoản ghi vào
+	 *     đây, ô "PIN đăng nhập" ở hàng sửa nhanh cũng ghi vào đây, và `VHCC_Auth` nguồn
+	 *     'ho_so' đọc từ đây. Đây là chỗ PIN của người ta thật sự nằm.
+	 *   • `phan_quyen.pin` — bản sao sổ PhanQuyen của app Apps Script cũ, chỉ còn dùng khi
+	 *     nguồn người dùng đặt là 'app'. Trên site đang chạy nó có thể rỗng, hoặc có hàng mà cột
+	 *     `ma_cc_online` chưa ai điền — nên tra theo mã ở đó là tra vào chỗ không có gì.
+	 *
+	 * ⚠️ ĐỌC HỒ SƠ TRƯỚC, `phan_quyen` CHỈ LÀ ĐƯỜNG LUI. Đảo lại thứ tự là ngày anh đổi PIN ở
+	 *    màn hồ sơ, hệ ghế vẫn nhận PIN cũ trong sổ Apps Script — hai bên lệch nhau mà không có
+	 *    gì báo, và người ta gõ PIN mới thì không vào được.
+	 *
+	 * ⚠️ Người có hồ sơ mà chưa được cấp PIN thì chưa đẩy sang được — và phải NÓI RA đúng lý do
+	 *    ấy, chứ không lặng lẽ bỏ qua: người đi khai sẽ tưởng mình bấm hụt.
 	 */
 	public static function ho_so_day( $ma_nv ) {
 		global $wpdb;
 		$ma = trim( (string) $ma_nv );
 		if ( '' === $ma ) { return null; }
-		$r = $wpdb->get_row( $wpdb->prepare(
-			'SELECT pin, ho_ten, vai_tro, cua_hang, coso_cc_online FROM '
-			. VHCC_DB::t( 'phan_quyen' ) . ' WHERE ma_cc_online=%s LIMIT 1', $ma ), ARRAY_A );
-		if ( ! $r || '' === trim( (string) $r['pin'] ) ) { return null; }
 
 		$hs   = VHCC_NhanSu::ho_so( $ma );
-		$ten  = trim( (string) $r['ho_ten'] );
-		if ( '' === $ten && $hs ) { $ten = trim( (string) $hs['ho_ten'] ); }
-		$coso = trim( (string) $r['coso_cc_online'] );
-		if ( '' === $coso ) { $coso = trim( (string) $r['cua_hang'] ); }
-		if ( '' === $coso && $hs ) { $coso = trim( (string) $hs['cua_hang'] ); }
-		$vai  = trim( (string) $r['vai_tro'] );
-		if ( '' === $vai && $hs ) { $vai = trim( (string) $hs['vai_tro'] ); }
+		$ten  = $hs ? trim( (string) $hs['ho_ten'] ) : '';
+		$vai  = $hs ? trim( (string) $hs['vai_tro'] ) : '';
+		$coso = $hs ? trim( (string) $hs['cua_hang'] ) : '';
+		$pin  = ( $hs && isset( $hs['pin_dang_nhap'] ) ) ? trim( (string) $hs['pin_dang_nhap'] ) : '';
 
-		if ( '' === $ten ) { return null; }
-		return array( 'ho_ten' => $ten, 'pin' => (string) $r['pin'], 'vai_cc' => $vai, 'coso' => $coso );
+		/* Đường lui: sổ cũ của app Apps Script. Chỉ dùng để BÙ Ô CÒN TRỐNG, không đè lên hồ sơ. */
+		if ( '' === $pin || '' === $ten || '' === $vai || '' === $coso ) {
+			$r = $wpdb->get_row( $wpdb->prepare(
+				'SELECT pin, ho_ten, vai_tro, cua_hang, coso_cc_online FROM '
+				. VHCC_DB::t( 'phan_quyen' ) . ' WHERE ma_cc_online=%s LIMIT 1', $ma ), ARRAY_A );
+			if ( $r ) {
+				if ( '' === $pin )  { $pin  = trim( (string) $r['pin'] ); }
+				if ( '' === $ten )  { $ten  = trim( (string) $r['ho_ten'] ); }
+				if ( '' === $vai )  { $vai  = trim( (string) $r['vai_tro'] ); }
+				if ( '' === $coso ) { $coso = trim( (string) $r['coso_cc_online'] ); }
+				if ( '' === $coso ) { $coso = trim( (string) $r['cua_hang'] ); }
+			}
+		}
+
+		/* 🔴 RỬA ĐUÔI ".0" CỦA BẢNG TÍNH. Google Sheets coi PIN là SỐ nên `571394` xuất ra thành
+		   "571394.0" — tám KÝ TỰ, không phải tám CHỮ SỐ, nên trượt luật 4–8 chữ số của
+		   `VHG_Auth::login()` ngay dòng đầu. Đúng lỗi đã khoá cửa toàn bộ người dùng trang chấm
+		   công ngày 22/08/2026. Rửa lúc chép sang, chứ đừng đẩy một PIN không đăng nhập nổi. */
+		if ( preg_match( '/^(\d+)\.0*$/', $pin, $m_pin ) ) { $pin = $m_pin[1]; }
+		$pin = preg_replace( '/\D+/', '', $pin );
+
+		if ( '' === $ten || '' === $pin ) { return null; }
+		return array( 'ho_ten' => $ten, 'pin' => $pin, 'vai_cc' => $vai, 'coso' => $coso );
 	}
 
 	/**
@@ -261,6 +295,57 @@ class VHCC_DayGhe {
 		);
 		update_option( self::O_SO, $moi, false );
 		return array( 'ok' => true, 'doi' => 1, 'viec' => $thay ? 'capnhat' : 'them' );
+	}
+
+	/**
+	 * BẢN SAO BÊN GHẾ PHẢI THEO BẢN GỐC — gọi sau mỗi lần sửa hồ sơ / đổi vai / chuyển cơ sở.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐỔI PIN Ở MÀN HỒ SƠ MÀ BÊN GHẾ GIỮ PIN CŨ = NGƯỜI TA GÕ PIN MỚI VÀ KHÔNG VÀO ĐƯỢC.
+	 * =========================================================================================
+	 * Bản sao chỉ đúng vào đúng khoảnh khắc đẩy. Sau đó hồ sơ còn sống tiếp: đổi PIN, đổi vai,
+	 * chuyển cơ sở. Không có hàm này thì mỗi lần sửa là hai bên lệch thêm một chút, và không có
+	 * gì báo — cho tới ngày người ấy đứng ở quầy, gõ PIN mới, và cửa không mở.
+	 *
+	 * 🔴 CỐ Ý KHÔNG KIỂM QUYỀN ĐẨY. Hàm này không MỞ đường cho ai: nó chỉ giữ cho bản sao của
+	 *    một người ĐÃ ĐƯỢC ĐẨY khớp với bản gốc. Bắt nó đòi vai Admin thì Cửa hàng trưởng đổi
+	 *    PIN cho nhân viên mình xong, bản sao đứng im — tức là cái chốt quyền ấy không bảo vệ
+	 *    được gì mà chỉ đẻ ra lệch. Người CHƯA được đẩy thì hàm này không đụng tới.
+	 *
+	 * ⚠️ HỒ SƠ MẤT PIN THÌ GỠ LUÔN, đừng để lại bản sao mang PIN cũ. Xoá PIN của một người là
+	 *    hành động có chủ ý — thường là chặn họ đăng nhập; giữ nguyên bản sao bên ghế là để hở
+	 *    đúng cánh cửa vừa định đóng.
+	 */
+	public static function dong_bo( $ma_nv ) {
+		$ma = trim( (string) $ma_nv );
+		/* ⛔ `! da_day()` ở đây là chốt TIẾT KIỆM, không phải chốt an toàn: bỏ nó đi thì vòng
+		   lặp dưới cũng không tìm thấy hàng nào của người chưa đẩy, nên kết quả y hệt (phá thử
+		   xác nhận: mã tương đương). Giữ vì nó chặn một truy vấn `ho_so_day()` cho mỗi lần sửa
+		   hồ sơ của 400 người chưa ai đẩy sang — và móc này gọi ở mọi lần lưu. */
+		if ( '' === $ma || ! self::da_day( $ma ) || ! self::co_he_ghe() ) { return false; }
+
+		$hs  = self::ho_so_day( $ma );
+		$so  = self::so();
+		$moi = array();
+		$doi = false;
+		foreach ( $so as $x ) {
+			$cua = isset( $x['maNV'] ) ? trim( (string) $x['maNV'] ) : '';
+			if ( '' === $cua || 0 !== strcasecmp( $cua, $ma ) ) { $moi[] = $x; continue; }
+			if ( ! $hs ) { $doi = true; continue; }        // mất PIN -> gỡ khỏi sổ ghế
+			$sau = array(
+				'ten'    => $hs['ho_ten'],
+				'pin'    => $hs['pin'],
+				'vaiTro' => self::vai_ghe( $hs['vai_cc'] ),
+				'coso'   => $hs['coso'],
+				'maNV'   => $ma,
+			);
+			foreach ( $sau as $k_s => $v_s ) {
+				if ( ! isset( $x[ $k_s ] ) || (string) $x[ $k_s ] !== (string) $v_s ) { $doi = true; }
+			}
+			$moi[] = $sau;
+		}
+		if ( $doi ) { update_option( self::O_SO, $moi, false ); }
+		return $doi;
 	}
 
 	/**

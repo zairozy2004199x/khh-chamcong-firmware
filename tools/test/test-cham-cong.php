@@ -8151,6 +8151,70 @@ $wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '778899',
 	'ho_ten' => 'Trần Ghế Một', 'vai_tro' => 'Cửa hàng trưởng',
 	'cua_hang' => 'GHE_CS', 'ma_cc_online' => 'GHNV01', 'coso_cc_online' => 'GHE_CS' ) );
 
+/* 🔴 CẢNH THẬT CỦA ANH THẮNG: PIN CẤP Ở MÀN HỒ SƠ, TỨC `nhan_vien.pin_dang_nhap`.
+   28/08/2026, ngay lần đầu dùng cột này: *"Anh thấy lưu mà bên Posh chưa qua"* — kèm ảnh một
+   hồ sơ vừa đổi PIN xong mà cột Ghế vẫn nằm nguyên ở «Gỡ». Bản đầu tra `phan_quyen`, là sổ cũ
+   của app Apps Script — trên site đang chạy nó rỗng, hoặc có hàng mà `ma_cc_online` chưa ai
+   điền. Dựng cảnh chỉ bằng `phan_quyen` là dựng đúng cái đường lui, và cả khối thử xanh trong
+   khi đường CHÍNH chưa ai đi qua. */
+/* ⚠️ `luu_ho_so()` KHÔNG ghi `vai_tro` — danh sách trắng của nó cố ý không có ô ấy, vì đổi vai
+   là việc của `dat_vai_tro()` (có chốt bậc riêng). Dựng cảnh bằng `luu_ho_so` rồi tin là vai
+   đã đổi thì phép thử canh một thứ chưa hề được đặt. */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV10', 'ho_ten' => 'Trần Ghế Mười',
+	'cua_hang' => 'GHE_CS', 'pin_dang_nhap' => '445566' ) );
+VHCC_NhanSu::dat_vai_tro( $g_ad, 'GHNV10', 'Quản lý' );
+$g_kq = VHCC_DayGhe::dat( $g_ad, 'GHNV10', 'mo' );
+t( '🔴 PIN cấp ở màn hồ sơ thì đẩy được — không cần sổ phan_quyen', ! empty( $g_kq['ok'] ), $g_kq );
+$g_m10 = null;
+foreach ( VHCC_DayGhe::so() as $g_x ) { if ( 'GHNV10' === $g_x['maNV'] ) { $g_m10 = $g_x; } }
+teq( 'và chép đúng PIN của hồ sơ', '445566', (string) $g_m10['pin'] );
+teq( 'kèm vai trò của hồ sơ', 'Quản lý', (string) $g_m10['vaiTro'] );
+
+/* ⚠️ HỒ SƠ THẮNG SỔ CŨ. Đảo thứ tự là ngày anh đổi PIN ở màn hồ sơ, hệ ghế vẫn nhận PIN cũ
+   trong sổ Apps Script — hai bên lệch nhau mà không có gì báo, và người ta gõ PIN mới thì
+   không vào được. */
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '999000',
+	'ho_ten' => 'Tên Cũ Trong Sổ Apps Script', 'vai_tro' => 'Nhân viên',
+	'cua_hang' => 'CS_CU', 'ma_cc_online' => 'GHNV10', 'coso_cc_online' => 'CS_CU' ) );
+VHCC_DayGhe::dat( $g_ad, 'GHNV10', 'mo' );
+foreach ( VHCC_DayGhe::so() as $g_x ) { if ( 'GHNV10' === $g_x['maNV'] ) { $g_m10 = $g_x; } }
+teq( '🔴 hồ sơ THẮNG sổ Apps Script cũ khi cả hai đều có PIN', '445566', (string) $g_m10['pin'] );
+teq( 'và tên cũng lấy từ hồ sơ', 'Trần Ghế Mười', (string) $g_m10['ten'] );
+
+/* ⚠️ VÀ PHẢI THỬ CẢ LÚC SỔ CŨ THẬT SỰ ĐƯỢC ĐỌC. Sổ cũ chỉ được tra khi hồ sơ còn ô TRỐNG; hồ
+   sơ đầy đủ thì nhánh ấy không chạy, nên vết phá "sổ cũ đè lên hồ sơ" vẫn xanh vì lý do sai.
+   Dựng người CÓ PIN mà CHƯA gán cơ sở — cảnh có thật, và là cảnh duy nhất canh được chuyện
+   "bù ô trống" không biến thành "ghi đè". */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV12', 'ho_ten' => 'Trần Ghế Mười Hai',
+	'cua_hang' => '', 'pin_dang_nhap' => '778800' ) );
+$wpdb->insert( VHCC_DB::t( 'phan_quyen' ), array( 'pin' => '000111',
+	'ho_ten' => 'Tên Cũ', 'vai_tro' => 'Nhân viên',
+	'cua_hang' => 'CS_TRONG_SO_CU', 'ma_cc_online' => 'GHNV12', 'coso_cc_online' => 'CS_TRONG_SO_CU' ) );
+VHCC_DayGhe::dat( $g_ad, 'GHNV12', 'mo' );
+$g_m12 = null;
+foreach ( VHCC_DayGhe::so() as $g_x ) { if ( 'GHNV12' === $g_x['maNV'] ) { $g_m12 = $g_x; } }
+teq( '🔴 sổ cũ chỉ BÙ ô trống, KHÔNG đè PIN của hồ sơ', '778800', (string) $g_m12['pin'] );
+teq( 'nhưng ô cơ sở còn trống thì bù từ sổ cũ', 'CS_TRONG_SO_CU', (string) $g_m12['coso'] );
+teq( 'và tên vẫn của hồ sơ', 'Trần Ghế Mười Hai', (string) $g_m12['ten'] );
+VHCC_DayGhe::dat( $g_ad, 'GHNV12', '' );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) . " WHERE ma_cc_online = 'GHNV12'" );
+
+/* 🔴 RỬA ĐUÔI ".0" CỦA BẢNG TÍNH. Google Sheets coi PIN là SỐ nên `571394` xuất ra thành
+   "571394.0" — tám KÝ TỰ chứ không phải tám CHỮ SỐ, nên trượt luật 4–8 chữ số của
+   `VHG_Auth::login()` ngay dòng đầu. Đúng lỗi đã khoá cửa toàn bộ người dùng trang chấm công
+   ngày 22/08/2026 — đẩy nguyên đuôi sang là dựng lại đúng cái bẫy ấy ở hệ ghế. */
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV11', 'ho_ten' => 'Trần Ghế Mười Một',
+	'cua_hang' => 'GHE_CS', 'vai_tro' => 'Nhân viên', 'pin_dang_nhap' => '571394.0' ) );
+VHCC_DayGhe::dat( $g_ad, 'GHNV11', 'mo' );
+$g_m11 = null;
+foreach ( VHCC_DayGhe::so() as $g_x ) { if ( 'GHNV11' === $g_x['maNV'] ) { $g_m11 = $g_x; } }
+teq( '🔴 rửa sạch đuôi ".0" trước khi chép sang', '571394', (string) $g_m11['pin'] );
+t( 'và PIN chép sang đăng nhập được ở hệ ghế (đúng 4–8 chữ số)',
+	(bool) preg_match( '/^\d{4,8}$/', (string) $g_m11['pin'] ), $g_m11 );
+VHCC_DayGhe::dat( $g_ad, 'GHNV10', '' );
+VHCC_DayGhe::dat( $g_ad, 'GHNV11', '' );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'phan_quyen' ) . " WHERE ma_cc_online = 'GHNV10'" );
+
 teq( 'chưa đẩy thì ô để trống', '', VHCC_DayGhe::o( 'GHNV01' ) );
 $g_kq = VHCC_DayGhe::dat( $g_ad, 'GHNV01', 'mo' );
 t( 'Admin đẩy được', ! empty( $g_kq['ok'] ), $g_kq );
@@ -8332,6 +8396,56 @@ t( 'đọc sổ riêng rồi thì thôi cảnh báo', strpos( $g_h, 'đang đọ
 
 /* 🔴 KHỐI "NHỮNG TRANG KHÔNG KHAI ĐƯỢC" PHẢI THÔI NÓI NGƯỢC. Bản trước ghi gọn "Ghế massage —
    trang của khách", nên người đọc đi tìm cột Ghế, thấy dòng ấy, rồi tin rằng nó không thể có. */
+/* ---- BẢN SAO BÊN GHẾ PHẢI THEO BẢN GỐC -----------------------------------------------------
+   🔴 Bản sao chỉ đúng vào đúng khoảnh khắc đẩy. Sau đó hồ sơ còn sống tiếp: đổi PIN, đổi vai,
+      chuyển cơ sở. Không đồng bộ thì mỗi lần sửa là hai bên lệch thêm một chút, và không có gì
+      báo — cho tới ngày người ấy đứng ở quầy, gõ PIN mới, và cửa không mở. */
+update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
+delete_option( VHCC_DayGhe::O_SO );
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV20', 'ho_ten' => 'Trần Ghế Hai Mươi',
+	'cua_hang' => 'GHE_CS', 'pin_dang_nhap' => '111222' ) );
+VHCC_DayGhe::dat( $g_ad, 'GHNV20', 'mo' );
+
+/* Người CHƯA đẩy thì đồng bộ không đụng tới — nó không được tự mở đường cho ai. */
+t( '🔴 người chưa đẩy sang thì đồng bộ không đụng tới',
+	false === VHCC_DayGhe::dong_bo( 'GHNV02' ) && ! VHCC_DayGhe::da_day( 'GHNV02' ) );
+
+/* Đổi PIN qua đúng đường màn hình dùng: nút "Lưu hồ sơ này". */
+$_POST = array( 'ma_nv' => 'GHNV20', 'pin_dang_nhap' => '333444' );
+$g_bao = VHCC_TrangNS::lam_viec( 'sua_nhanh', $g_ad );
+$_POST = array();
+$g_m20 = null;
+foreach ( VHCC_DayGhe::so() as $g_x ) { if ( 'GHNV20' === $g_x['maNV'] ) { $g_m20 = $g_x; } }
+teq( '🔴 đổi PIN ở màn hồ sơ thì bên ghế đổi theo', '333444', (string) $g_m20['pin'] );
+t( 'và màn hình nói ra là hệ ghế đã cập nhật',
+	strpos( (string) wp_json_encode( $g_bao ), 'Hệ ghế đã cập nhật' ) !== false, $g_bao );
+
+/* Đổi vai — qua ĐÚNG đường màn hình dùng (ô Vai trò trên bảng + nút Lưu bảng này). Gọi
+   `dong_bo()` bằng tay ở đây thì phép thử canh chính nó, không canh cái móc trong `luu_vai()`. */
+/* ⚠️ `viec_luu()` thoát sớm nếu bảng ô RỖNG ("Biểu mẫu không hợp lệ") — nên phải gửi ít nhất
+   một ô thật, không thì `luu_vai()` không bao giờ chạy và phép thử canh hụt. */
+$_POST = array( 'o' => array( 'GHNV20' => array( 'tram' => '' ) ),
+	'vai' => array( 'GHNV20' => 'Quản lý' ) );
+VHCC_TrangNS::lam_viec( 'luu_quyen', $g_ad );
+$_POST = array();
+foreach ( VHCC_DayGhe::so() as $g_x ) { if ( 'GHNV20' === $g_x['maNV'] ) { $g_m20 = $g_x; } }
+teq( 'đổi vai thì bên ghế đổi theo', 'Quản lý', (string) $g_m20['vaiTro'] );
+
+/* 🔴 HỒ SƠ MẤT PIN THÌ GỠ LUÔN. Xoá PIN của một người là hành động có chủ ý — thường là chặn
+   họ đăng nhập; giữ nguyên bản sao bên ghế là để hở đúng cánh cửa vừa định đóng. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'pin_dang_nhap' => '' ),
+	array( 'ma_nv' => 'GHNV20' ) );
+VHCC_DayGhe::dong_bo( 'GHNV20' );
+t( '🔴 hồ sơ bị xoá PIN thì GỠ luôn khỏi hệ ghế, không để lại PIN cũ',
+	! VHCC_DayGhe::da_day( 'GHNV20' ), VHCC_DayGhe::so() );
+
+/* ⚠️ NÚT "LƯU HỒ SƠ NÀY" KHÔNG LƯU BẢNG — và phải nói ra ngay cạnh nút. Anh Thắng 28/08/2026
+   vấp đúng chỗ này: tích cột Ghế rồi bấm nút ấy, thấy "Đã lưu hồ sơ", tưởng xong. */
+$g_h = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01', 'ncs' => 'GHE_CS' ) );
+t( '🔴 cạnh nút "Lưu hồ sơ này" có câu nhắc nó KHÔNG lưu ô quyền',
+	strpos( $g_h, 'chỉ lưu <b>mấy ô ngay trên đây</b>' ) !== false, $g_h );
+t( 'và chỉ sang đúng nút phải bấm', strpos( $g_h, 'Lưu bảng này</b> ở cuối bảng' ) !== false, $g_h );
+
 /* ---- ĐƯỜNG LƯU THẬT: BẤM LƯU / BẤM ÁP CẢ CỘT ----------------------------------------------
    🔴 Cột ghế đi CHUNG một biểu mẫu với ba cột kia cho tiện tay người bấm, nhưng bên dưới nó ghi
       sang một sổ khác hẳn. Không tách ra thì `VHCC_Cong::luu_nhieu()` gặp khoá "ghe", thấy nó
