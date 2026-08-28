@@ -17,6 +17,23 @@ defined( 'ABSPATH' ) || exit;
 
 class VHCP_Sheet {
 
+	/**
+	 * MỘT TỆP TẠM — KHÔNG DÙNG `wp_tempnam()`.
+	 *
+	 * 🔴 `wp_tempnam()` nằm ở `wp-admin/includes/file.php`, chỉ nạp khi đang ở trang quản trị
+	 *    WordPress. Trang app chi phí là trang THƯỜNG, nên gọi nó là Fatal — và Fatal ở
+	 *    front-end thì WordPress chỉ in "Đã có một lỗi nghiêm trọng", không nói tệp nào.
+	 *    Vết này đã cắn thật bên chấm công ngày 28/08/2026 (nút Xuất Excel).
+	 *
+	 * `get_temp_dir()` nằm ở `wp-includes/functions.php` — có ở mọi trang.
+	 */
+	public static function tep_tam( $dau = 'vhcp' ) {
+		$thu = function_exists( 'get_temp_dir' ) ? get_temp_dir() : sys_get_temp_dir();
+		$t   = @tempnam( $thu, $dau );
+		if ( ! $t ) { $t = @tempnam( sys_get_temp_dir(), $dau ); }
+		return $t ? $t : '';
+	}
+
 	/** Lấy ID bảng tính từ link dán vào (hoặc chính ID). */
 	public static function doc_id( $url ) {
 		$url = trim( (string) $url );
@@ -69,7 +86,7 @@ class VHCP_Sheet {
 			if ( ! class_exists( 'ZipArchive' ) ) { return array( 'loi' => 'máy chủ không có ZipArchive' ); }
 			$r = self::tai( $goc . '/export?format=xlsx' );
 			if ( ! empty( $r['loi'] ) ) { return array( 'loi' => $r['loi'] ); }
-			$tmp = wp_tempnam( 'vhcp-sheet' );
+			$tmp = self::tep_tam( 'vhcp-sheet' );
 			if ( ! $tmp ) { return array( 'loi' => 'không tạo được file tạm' ); }
 			file_put_contents( $tmp, $r['body'] );
 			$zip = new ZipArchive();
@@ -199,7 +216,7 @@ class VHCP_Sheet {
 		if ( ! class_exists( 'ZipArchive' ) ) { return array(); }
 		$r = self::tai( 'https://docs.google.com/spreadsheets/d/' . $id . '/export?format=xlsx' );
 		if ( ! empty( $r['loi'] ) ) { return array(); }
-		$tmp = wp_tempnam( 'vhcp-xlsx' );
+		$tmp = self::tep_tam( 'vhcp-xlsx' );
 		if ( ! $tmp ) { return array(); }
 		file_put_contents( $tmp, $r['body'] );
 

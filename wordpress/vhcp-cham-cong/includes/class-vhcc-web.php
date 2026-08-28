@@ -3321,13 +3321,18 @@ class VHCC_Web {
 			echo '<tr><td><b>' . esc_html( $x ) . '</b></td>';
 			echo '<td>' . esc_html( VHCC_Luong::bo_phan_cua( $x ) ) . '</td>';
 			echo '<td><select name="ct[' . esc_attr( $x ) . ']">';
-			foreach ( array( '' => '— theo bộ phận —', 'gio' => 'Theo giờ', 'cong' => 'Theo công' ) as $k => $n ) {
+			/* Tên kiểu lấy từ MỘT bảng khai trong `VHCC_Luong` — ba màn nói cùng một tên, và
+			   thêm kiểu mới thì không phải đi sửa từng chỗ. */
+			$ds_kieu = array( '' => '— theo bộ phận —' );
+			foreach ( VHCC_Luong::CACH_TINH_TEN as $k_ct => $n_ct ) { $ds_kieu[ $k_ct ] = $n_ct; }
+			foreach ( $ds_kieu as $k => $n ) {
 				echo '<option value="' . esc_attr( $k ) . '"' . selected( $k, $chon, false ) . '>'
 					. esc_html( $n ) . '</option>';
 			}
 			echo '</select></td>';
-			echo '<td><span class="k ' . ( 'cong' === $dang ? 'ca2' : 'ca1' ) . '">'
-				. ( 'cong' === $dang ? 'số công' : 'số giờ' ) . '</span>'
+			$nhan_ct = array( 'cong' => array( 'ca2', 'số công' ), 'ngay' => array( 'ca3', 'công / ngày' ) );
+			$n_ct    = isset( $nhan_ct[ $dang ] ) ? $nhan_ct[ $dang ] : array( 'ca1', 'số giờ' );
+			echo '<td><span class="k ' . esc_attr( $n_ct[0] ) . '">' . esc_html( $n_ct[1] ) . '</span>'
 				. ( '' === $chon ? ' <span class="mo">(suy theo bộ phận)</span>' : '' ) . '</td>';
 			echo '</tr>';
 		}
@@ -3480,7 +3485,10 @@ class VHCC_Web {
 			. '</div>';
 	}
 
-	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca ) {
+	/**
+	 * @param string $kieu Cách tính của cơ sở: 'gio' | 'cong' | 'ngay'. Xem `VHCC_Luong::cach_tinh`.
+	 */
+	private static function o_luoi_gio_mot( $r, $ho_ten, $ds_ca, $kieu = 'gio' ) {
 		if ( null === $r ) {
 			return array( 'noi' => '·', 'noi_tho' => '·', 'chu' => '', 'lop' => '', 'phut' => null );
 		}
@@ -3492,8 +3500,10 @@ class VHCC_Web {
 		if ( null === $r['phut'] ) {
 			$thieu_ra = ( '' !== $r['vao'] && '' === $r['ra'] );
 			$k = $thieu_ra ? '?' : '—';
+			/* Thiếu giờ ra thì KHÔNG tính công, kể cả ở kiểu "có đi là được": tính đại 1 công
+			   cho ngày quên check-out là biến một lỗi bấm máy thành tiền. */
 			return array(
-				'noi' => $k, 'noi_tho' => $k, 'lop' => ' hong', 'phut' => null,
+				'noi' => $k, 'noi_tho' => $k, 'lop' => ' hong', 'phut' => null, 'cong' => 0,
 				'chu' => self::ngay_vn( $r['ngay'] ) . ' · ' . $ho_ten
 					. "\n" . ( '' !== $r['vao'] ? $r['vao'] : '—' ) . ' → '
 					. ( '' !== $r['ra'] ? $r['ra'] : '—' ) . "\n"
@@ -3518,12 +3528,22 @@ class VHCC_Web {
 		   tháng ai chạy ca nào. */
 		$i_ca = VHCC_Ca::ca_chinh( $ds_ca, $tc );
 		$ma_o = VHCC_Ca::ma_o( $ds_ca, $tc );
-		$so   = '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>';
+		/* 🔴 "CÓ ĐI LÀ ĐƯỢC": in 1 CÔNG, không in số giờ.
+		   Anh Thắng 28/08/2026: *"1 số cửa hàng chấm công theo có đi là được… có giờ vào và giờ
+		   ra là được"*. Với những cửa hàng ấy, ô ghi `0.41` hay `0.03` không nói lên điều gì —
+		   mà lại trông như người ta chỉ làm mười lăm phút.
+		   ⚠️ SỐ GIỜ VẪN GIỮ trong chú thích rê chuột: đổi cách ĐỌC chứ không giấu dữ liệu, và
+		      đổi kiểu tính lại là ra lại đúng như cũ. */
+		$cong = ( 'ngay' === $kieu ) ? VHCC_Luong::cong_co_di( $r['vaoGiay'], $r['raGiay'] ) : 0;
+		$so   = ( 'ngay' === $kieu )
+			? '<b>' . (int) $cong . '</b>'
+			: '<b>' . self::so_vp( round( $r['phut'] / 60, 1 ) ) . '</b>';
 		return array(
 			'noi'     => $so . ( '' !== $ma_o ? '<div class="mca">' . esc_html( $ma_o ) . '</div>' : '' ),
 			'noi_tho' => $so,
 			'chu'     => $chu,
 			'lop'     => ( $i_ca >= 0 ? ' ca' . ( ( $i_ca % 4 ) + 1 ) : '' ),
+			'cong'    => (int) $cong,
 			'phut'    => (int) $r['phut'] );
 	}
 
@@ -4192,6 +4212,8 @@ class VHCC_Web {
 		$so_ngay = (int) gmdate( 't', $moc );
 		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
 		$ds_ca   = VHCC_Ca::cua( (string) $b['coSo'] );
+		/* Cách tính của CƠ SỞ ĐANG XEM — quyết định ô in số giờ hay in 1 công. */
+		$kieu_ct = VHCC_Luong::cach_tinh( (string) $b['coSo'] );
 		/* Ô đang được chọn để sửa / bù — đọc từ chính địa chỉ, nên bấm Lùi vẫn đúng. */
 		list( $sg_n, $sg_m, $sg_co ) = self::o_dang_sua( $tt );
 
@@ -4261,7 +4283,14 @@ class VHCC_Web {
 			sort( $hts );                       /* hàng chính ('') luôn đứng đầu */
 			$tong_nguoi = 0;
 			foreach ( $o[ $ma ] as $ds_ngay ) {
-				foreach ( $ds_ngay as $r ) { $tong_nguoi += (int) $r['phut']; }
+				foreach ( $ds_ngay as $r ) {
+					/* Kiểu "có đi là được" thì TỔNG là số NGÀY CÔNG, không phải số giờ — cộng
+					   giờ ở một cửa hàng trả theo ngày là ra một con số không ai dùng vào việc
+					   gì, mà lại nằm ngay cột TỔNG. */
+					$tong_nguoi += ( 'ngay' === $kieu_ct )
+						? VHCC_Luong::cong_co_di( $r['vaoGiay'], $r['raGiay'] )
+						: (int) $r['phut'];
+				}
 			}
 			$tong_cs += $tong_nguoi;
 
@@ -4311,14 +4340,14 @@ class VHCC_Web {
 				}
 
 				$r_chinh = isset( $o[ $ma ][''][ $i ] ) ? $o[ $ma ][''][ $i ] : null;
-				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca );
+				$c_chinh = self::o_luoi_gio_mot( $r_chinh, $ho_ten, $ds_ca, $kieu_ct );
 
 				/* Dòng phụ: chỉ vẽ hậu tố nào NGÀY ẤY có lượt chấm. Vẽ hết mọi hậu tố cho mọi
 				   ngày là mỗi ô ba dòng dấu chấm, lưới cao gấp ba mà không thêm một tin nào. */
 				$duoi = '';
 				foreach ( $phu as $ht_p ) {
 					if ( ! isset( $o[ $ma ][ $ht_p ][ $i ] ) ) { continue; }
-					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca );
+					$c_p = self::o_luoi_gio_mot( $o[ $ma ][ $ht_p ][ $i ], $ho_ten, $ds_ca, $kieu_ct );
 					if ( null !== $c_p['phut'] ) {
 						if ( ! isset( $phut_phu[ $ht_p ] ) ) { $phut_phu[ $ht_p ] = 0; }
 						$phut_phu[ $ht_p ] += (int) $c_p['phut'];
@@ -4349,7 +4378,9 @@ class VHCC_Web {
 			/* TỔNG vẫn là tổng CẢ NGƯỜI (mọi hàng), y như trước — chỉ khác chỗ nó không còn phải
 			   nói "gồm cả hàng dưới" nữa, vì không còn hàng dưới. Có hàng phụ thì kể ra từng
 			   hậu tố mấy tiếng: đó là con số trước đây nằm ở ô TỔNG của hàng riêng. */
-			echo '<td class="tong"><b>' . esc_html( VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b>';
+			echo '<td class="tong"><b>' . esc_html( 'ngay' === $kieu_ct
+				? ( (int) $tong_nguoi . ' công' )
+				: VHCC_Cham::chu_gio( $tong_nguoi ) ) . '</b>';
 			foreach ( $phut_phu as $ht_p => $p_p ) {
 				echo '<div class="mo" style="font-size:10px">-' . esc_html( $ht_p ) . ' '
 					. esc_html( VHCC_Cham::chu_gio( $p_p ) ) . '</div>';
@@ -4374,7 +4405,9 @@ class VHCC_Web {
 		}
 		echo '<tr class="tong"><td>' . count( $ten ) . ' người</td>';
 		echo '<td colspan="' . (int) $so_ngay . '"></td>';
-		echo '<td><b>' . esc_html( VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td></tr>';
+		echo '<td><b>' . esc_html( 'ngay' === $kieu_ct
+			? ( (int) $tong_cs . ' công' )
+			: VHCC_Cham::chu_gio( $tong_cs ) ) . '</b></td></tr>';
 		echo '</tbody></table></div>';
 
 		/* Chú giải mã ca — bắt buộc phải có, vì mã trong ô là C1/C2/C3 theo VỊ TRÍ, không phải
@@ -4388,6 +4421,15 @@ class VHCC_Web {
 		echo '<br>Ô có <b>hai mã</b> (VD <b>C1·C2</b>) là ngày đó vắt qua hai ca; nền tô theo ca '
 			. '<b>ăn nhiều giờ nhất</b>. Rê chuột lên ô để đọc mỗi ca mấy tiếng.</p>';
 
+		if ( 'ngay' === $kieu_ct ) {
+			/* 🔴 NÓI RA ĐƠN VỊ NGAY DƯỚI LƯỚI. Một bảng toàn số 1 mà không có câu nào giải
+			   thích thì người đọc tưởng máy hỏng — nhất là người vừa quen nhìn số giờ. */
+			echo '<p class="mo" style="margin-top:8px"><b>' . esc_html( (string) $b['coSo'] )
+				. '</b> đang tính <b>CÓ ĐI LÀ ĐƯỢC</b>: mỗi ô là <b>số công</b> — có đủ giờ vào '
+				. 'và giờ ra thì tính <b>1 công</b>, không quy ra số giờ. Thiếu giờ ra thì '
+				. '<b>không tính</b> (rê chuột lên ô để xem giờ thật). Đổi kiểu tính ở tab '
+				. '<b>Cấu hình</b> → khối <b>Cách tính công của từng cơ sở</b>.</p>';
+		}
 		echo '<p class="mo" style="margin-top:8px">Ô là <b>số giờ làm</b> của ngày đó (giờ ra trừ giờ '
 			. 'vào) · dấu <b>·</b> = không có dữ liệu chấm công · '
 			. '<span class="k hong">?</span> = thiếu giờ ra (quên bấm lúc về) · '

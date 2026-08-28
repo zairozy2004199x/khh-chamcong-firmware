@@ -947,7 +947,7 @@ class VHCC_NhanSu {
 		}
 		$bt->resize( self::ANH_CANH, self::ANH_CANH, false );   // false = giữ nguyên tỉ lệ
 		if ( method_exists( $bt, 'set_quality' ) ) { $bt->set_quality( 82 ); }
-		$tam = wp_tempnam( 'vhcc-anh-the.jpg' );
+		$tam = VHCC_DB::tep_tam( 'vhcc-anh-the' );
 		$luu = $bt->save( $tam, 'image/jpeg' );
 		if ( is_wp_error( $luu ) || empty( $luu['path'] ) || ! is_readable( $luu['path'] ) ) {
 			return array( 'ok' => false, 'anh' => '', 'error' => 'Không lưu được ảnh sau khi thu nhỏ.' );

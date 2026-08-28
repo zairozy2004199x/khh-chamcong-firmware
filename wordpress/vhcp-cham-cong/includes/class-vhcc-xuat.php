@@ -37,7 +37,7 @@ class VHCC_Xuat {
 		$to = array_values( (array) $to );
 		if ( ! $to ) { return null; }
 
-		$tam = wp_tempnam( 'vhcc-xuat' );
+		$tam = VHCC_DB::tep_tam( 'vhcc-xuat' );
 		if ( ! $tam ) { return null; }
 		$zip = new ZipArchive();
 		if ( true !== $zip->open( $tam, ZipArchive::OVERWRITE ) ) { @unlink( $tam ); return null; }

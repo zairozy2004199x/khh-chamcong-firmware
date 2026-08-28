@@ -50,6 +50,33 @@ if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 class VHCC_DB {
 
+	/**
+	 * MỘT TỆP TẠM — KHÔNG DÙNG `wp_tempnam()`.
+	 *
+	 * =========================================================================================
+	 * 🔴 `wp_tempnam()` NẰM Ở wp-admin, KHÔNG CÓ Ở FRONT-END.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026 bấm Xuất Excel ở `/quan-tri-cham-cong/` và nhận:
+	 * *"Call to undefined function wp_tempnam() (class-vhcc-xuat.php dòng 40)"*.
+	 *
+	 * Hàm ấy sống trong `wp-admin/includes/file.php`, chỉ được nạp khi đang ở trang quản trị của
+	 * WordPress. Mọi trang của bộ này đều là trang THƯỜNG (front-end) — cố ý, để nhân viên không
+	 * cần tài khoản WordPress. Nên gọi nó là Fatal, và Fatal ở front-end thì WordPress in
+	 * "Đã có một lỗi nghiêm trọng" rồi thôi, không nói tệp nào dòng nào.
+	 *
+	 * ⚠️ CÁI BẪY THẬT NẰM Ở BÀI KIỂM: `tools/test/wp-stub.php` có khai `wp_tempnam`, nên trong
+	 *    bài kiểm hàm ấy LUÔN tồn tại và không phép thử nào chạm được vào cảnh thật. Stub ấy đã
+	 *    bị gỡ, và có một phép thử soi rằng không tệp nào trong bộ gọi hàm của wp-admin nữa.
+	 *
+	 * `get_temp_dir()` thì nằm ở `wp-includes/functions.php` — có ở mọi trang.
+	 */
+	public static function tep_tam( $dau = 'vhcc' ) {
+		$thu = function_exists( 'get_temp_dir' ) ? get_temp_dir() : sys_get_temp_dir();
+		$t   = @tempnam( $thu, $dau );
+		if ( ! $t ) { $t = @tempnam( sys_get_temp_dir(), $dau ); }
+		return $t ? $t : '';
+	}
+
 	const SCHEMA_VERSION = '2.7.0';
 
 	public static function t( $name ) {

@@ -168,22 +168,61 @@ class VHCC_Luong {
 	 * Nay: khai THẲNG, mỗi cơ sở một ô. Chưa khai thì vẫn theo luật cũ (bộ phận) để mọi cơ sở
 	 * đang chạy không đổi kết quả sau khi cài bản này.
 	 *
-	 * @return string 'gio' | 'cong'
+	 * =============================================================================================
+	 * 🔴 KIỂU THỨ BA: 'ngay' — CÓ ĐI LÀ ĐƯỢC.
+	 * =============================================================================================
+	 * Anh Thắng 28/08/2026: *"1 số cửa hàng chấm công theo có đi là được, thêm giúp anh trạng thái
+	 * set cho cửa hàng đó, có giờ vào và giờ ra là được"*.
+	 *
+	 * Nhìn bảng công của anh thì rõ vì sao: những cửa hàng ấy đang ra `0.41`, `0.14`, `0.03` — số
+	 * giờ thật, nhưng với kiểu trả công theo NGÀY thì mấy con số ấy không nói lên điều gì, mà lại
+	 * trông như người ta chỉ làm mười lăm phút.
+	 *
+	 * Luật: một ngày có ĐỦ giờ vào VÀ giờ ra = 1 công. Thiếu một trong hai = 0, và phải kêu lên
+	 * (thiếu giờ ra vốn đã là dấu hiệu quên bấm).
+	 *
+	 * ⚠️ KHÔNG ĐỘNG VÀO GIỜ ĐÃ GHI. Kiểu tính chỉ đổi cách ĐỌC con số, không đổi con số. Giờ vào
+	 *    và giờ ra vẫn nằm nguyên trong sổ, đổi kiểu tính lại là ra lại đúng như cũ.
+	 *
+	 * @return string 'gio' | 'cong' | 'ngay'
 	 */
+	const CACH_TINH_DS = array( 'gio', 'cong', 'ngay' );
+
+	/** Tên hiện ra màn cho từng kiểu — khai một chỗ, để ba màn không gọi ba tên khác nhau. */
+	const CACH_TINH_TEN = array(
+		'gio'  => 'Theo giờ',
+		'cong' => 'Theo công',
+		'ngay' => 'Có đi là được',
+	);
+
 	public static function cach_tinh( $coso ) {
 		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		$m    = self::ban_do_cach_tinh();
-		if ( isset( $m[ $coso ] ) && in_array( $m[ $coso ], array( 'gio', 'cong' ), true ) ) {
+		if ( isset( $m[ $coso ] ) && in_array( $m[ $coso ], self::CACH_TINH_DS, true ) ) {
 			return $m[ $coso ];
 		}
 		return self::la_van_phong( $coso ) ? 'cong' : 'gio';
+	}
+
+	/**
+	 * MỘT NGÀY NÀY ĐƯỢC MẤY CÔNG, THEO KIỂU 'ngay'.
+	 *
+	 * Hàm THUẦN — vào là hai giá trị giây, ra là 0 hoặc 1. Thử được bằng con số trần.
+	 *
+	 * ⚠️ Thiếu giờ RA thì KHÔNG tính, dù có giờ vào. Tính đại 1 công cho ngày quên check-out là
+	 *    biến một lỗi bấm máy thành tiền — và người ta sẽ thôi bấm giờ ra.
+	 */
+	public static function cong_co_di( $vao_giay, $ra_giay ) {
+		$co_vao = ( null !== $vao_giay && '' !== $vao_giay );
+		$co_ra  = ( null !== $ra_giay && '' !== $ra_giay );
+		return ( $co_vao && $co_ra ) ? 1 : 0;
 	}
 
 	/** Cơ sở này đã KHAI THẲNG chưa, hay đang suy từ bộ phận? */
 	public static function cach_tinh_da_khai( $coso ) {
 		$m = self::ban_do_cach_tinh();
 		$k = VHCC_NhanSu::chuan_coso( $coso );
-		return isset( $m[ $k ] ) && in_array( $m[ $k ], array( 'gio', 'cong' ), true );
+		return isset( $m[ $k ] ) && in_array( $m[ $k ], self::CACH_TINH_DS, true );
 	}
 
 	public static function ban_do_cach_tinh() {
@@ -217,7 +256,7 @@ class VHCC_Luong {
 			   người đọc sau tưởng cơ sở đang được gác từng cái một. */
 			if ( ! VHCC_NhanSu::co_quyen_coso( $u, $cs ) ) { continue; }
 			$kieu = trim( (string) $kieu );
-			if ( in_array( $kieu, array( 'gio', 'cong' ), true ) ) { $m[ $cs ] = $kieu; $so++; }
+			if ( in_array( $kieu, self::CACH_TINH_DS, true ) ) { $m[ $cs ] = $kieu; $so++; }
 			else { unset( $m[ $cs ] ); }
 		}
 		self::dat_cai_dat( self::CACH_TINH_O, $m, $u );

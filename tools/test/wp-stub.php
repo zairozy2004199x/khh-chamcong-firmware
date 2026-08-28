@@ -137,7 +137,17 @@ function esc_attr( $s ) { return esc_html( $s ); }
 function esc_url( $s ) { return (string) $s; }
 function esc_url_raw( $s ) { return (string) $s; }
 function esc_textarea( $s ) { return (string) $s; }
-function wp_tempnam( $p = '' ) { return tempnam( sys_get_temp_dir(), 'vhcp' ); }
+/* 🔴 KHÔNG KHAI `wp_tempnam` Ở ĐÂY — VÀ ĐÓ LÀ CHỦ Ý.
+ *
+ * Hàm ấy nằm trong `wp-admin/includes/file.php`, chỉ được nạp khi đang ở trang quản trị của
+ * WordPress. Mọi trang của bộ này đều là trang THƯỜNG, nên gọi nó là Fatal — "Đã có một lỗi
+ * nghiêm trọng", không nói tệp nào dòng nào.
+ *
+ * Trước 28/08/2026 chỗ này CÓ khai nó, nên trong bài kiểm hàm luôn tồn tại và nút Xuất Excel
+ * "chạy tốt" suốt — cho tới khi anh Thắng bấm trên máy thật. Một stub khai rộng hơn đời thật
+ * là một phép thử luôn xanh về một thứ không bao giờ chạy.
+ *
+ * Dùng `VHCC_DB::tep_tam()` / `VHCP_Sheet::tep_tam()` thay cho nó. */
 
 /**
  * BỘ XỬ LÝ ẢNH GIẢ — nhưng làm việc THẬT bằng GD.

@@ -13975,6 +13975,71 @@ t( '🔴 Admin cũng không thấy — họ tạo hồ sơ ở tab Hồ sơ, c�
 
 vhcc_dung_bang();
 
+/* ==========================================================================================
+ * 🔴 "CÓ ĐI LÀ ĐƯỢC" — kiểu tính thứ ba.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026: *"1 số cửa hàng chấm công theo có đi là được, thêm giúp anh trạng thái
+ * set cho cửa hàng đó, có giờ vào và giờ ra là được"*. Bảng công của anh đang ra 0.41, 0.14,
+ * 0.03 ở những cửa hàng ấy — số giờ thật, nhưng vô nghĩa với kiểu trả công theo ngày.
+ */
+vhcc_dung_bang();
+teq( '🔴 đủ vào + ra thì 1 công', 1, VHCC_Luong::cong_co_di( 28800, 61200 ) );
+/* ⚠️ Thiếu giờ RA thì KHÔNG tính, dù có giờ vào — tính đại 1 công cho ngày quên check-out là
+   biến một lỗi bấm máy thành tiền, và người ta sẽ thôi bấm giờ ra. */
+teq( '🔴 thiếu giờ ra thì 0 công', 0, VHCC_Luong::cong_co_di( 28800, null ) );
+teq( 'thiếu giờ vào cũng 0 công', 0, VHCC_Luong::cong_co_di( null, 61200 ) );
+teq( 'không có gì cũng 0 công', 0, VHCC_Luong::cong_co_di( null, null ) );
+teq( 'chuỗi rỗng tính như không có', 0, VHCC_Luong::cong_co_di( '', '' ) );
+/* Làm 15 phút vẫn là 1 công — đó chính là ý "có đi là được". */
+teq( '🔴 làm 15 phút vẫn đủ 1 công', 1, VHCC_Luong::cong_co_di( 28800, 29700 ) );
+
+VHCC_Luong::dat_cach_tinh( $U_AD, array( 'CODI_CS' => 'ngay' ) );
+teq( '🔴 khai được kiểu ngay', 'ngay', VHCC_Luong::cach_tinh( 'CODI_CS' ) );
+teq( 'và tính là ĐÃ KHAI THẲNG', true, VHCC_Luong::cach_tinh_da_khai( 'CODI_CS' ) );
+/* Kiểu lạ thì bỏ khai, quay về suy theo bộ phận — không nhận bừa. */
+VHCC_Luong::dat_cach_tinh( $U_AD, array( 'CODI_CS' => 'linh-tinh' ) );
+teq( '🔴 kiểu lạ thì không nhận', false, VHCC_Luong::cach_tinh_da_khai( 'CODI_CS' ) );
+VHCC_Luong::dat_cach_tinh( $U_AD, array( 'CODI_CS' => 'ngay' ) );
+/* Đổi cách tính vẫn là việc bậc Quản lý — nó đổi con số ra tiền của cả cơ sở. */
+t( '🔴 cửa hàng trưởng KHÔNG đổi được cách tính', empty( VHCC_Luong::dat_cach_tinh(
+	array( 'role' => 'Cửa hàng trưởng', 'coso' => 'CODI_CS' ),
+	array( 'CODI_CS' => 'gio' ) )['ok'] ) );
+
+/* ---- Trên LƯỚI ---- */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CODI1', 'ho_ten' => 'Người Có Đi',
+	'cua_hang' => 'CODI_CS', 'trang_thai_lam_viec' => 'Đang làm' ) );
+vhcc_cham( 'CODI_CS', '2026-08-03', 'CODI1', 'Người Có Đi', '08:00:00', '08:15:00' );
+vhcc_cham( 'CODI_CS', '2026-08-04', 'CODI1', 'Người Có Đi', '08:00:00', '17:00:00' );
+vhcc_cham( 'CODI_CS', '2026-08-05', 'CODI1', 'Người Có Đi', '08:00:00', '' );
+$h_codi = vhcc_web_nhu( 'ADCODI', 'Admin',
+	array( 'man' => 'cham', 'ccs' => 'CODI_CS', 'cth' => '2026-08' ) );
+t( '🔴 lưới nói ra đang tính CÓ ĐI LÀ ĐƯỢC',
+	strpos( $h_codi, 'CÓ ĐI LÀ ĐƯỢC' ) !== false, substr( $h_codi, 0, 300 ) );
+/* ⚠️ Ba ngày: 15 phút, cả ngày, thiếu giờ ra → 1 + 1 + 0 = 2 công. Con số này là thứ ra tiền. */
+t( '🔴 tổng ra SỐ CÔNG, không phải số giờ',
+	strpos( $h_codi, '2 công' ) !== false, substr( $h_codi, -6000 ) );
+/* ⚠️ Bảng "Tổng giờ làm theo nhân viên" ở dưới VẪN nói giờ — nó là bảng khác, và giờ thật thì
+   vẫn phải tra được. Chỉ LƯỚI cả tháng đổi đơn vị. Nên canh đúng ô TỔNG của lưới. */
+t( 'ô tổng của lưới mang đơn vị công',
+	preg_match( '/<td class="tong"><b>\d+ công<\/b>/', $h_codi ) === 1, substr( $h_codi, -6000 ) );
+/* Số giờ thật vẫn giữ trong chú thích rê chuột — đổi cách ĐỌC, không giấu dữ liệu. */
+t( '🔴 giờ thật vẫn còn trong chú thích',
+	strpos( $h_codi, '08:00:00 → 17:00:00' ) !== false, substr( $h_codi, -6000 ) );
+
+/* Cơ sở tính THEO GIỜ thì không đổi gì — kiểu mới không được lây sang cơ sở khác. */
+$h_gio_cu = vhcc_web_nhu( 'ADCODI', 'Admin',
+	array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-08' ) );
+t( '🔴 cơ sở theo giờ vẫn hiện số giờ như cũ',
+	strpos( $h_gio_cu, 'CÓ ĐI LÀ ĐƯỢC' ) === false );
+
+/* Màn Cấu hình phải bày kiểu thứ ba ra, không thì khai bằng gì. */
+$h_ct = vhcc_web_nhu( 'ADCODI', 'Admin', array( 'man' => 'cau_hinh' ) );
+t( '🔴 màn Cấu hình có ô chọn "Có đi là được"',
+	strpos( $h_ct, 'Có đi là được' ) !== false, substr( $h_ct, 0, 300 ) );
+t( 'và vẫn còn hai kiểu cũ', strpos( $h_ct, 'Theo giờ' ) !== false
+	&& strpos( $h_ct, 'Theo công' ) !== false );
+vhcc_dung_bang();
+
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
