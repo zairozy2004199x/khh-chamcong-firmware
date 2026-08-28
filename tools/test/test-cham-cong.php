@@ -10950,18 +10950,45 @@ ob_start(); VHCC_Web::phuc_vu(); $h_hc = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
 t( 'dựng cảnh: lưới cơ sở A vẽ ra được', strpos( $h_hc, 'Lưới cả tháng' ) !== false,
 	substr( $h_hc, 0, 600 ) );
-t( '🔴 ô của ngày ấy có dòng xám ghi CƠ SỞ KIA, không phải dấu chấm trơn',
-	strpos( $h_hc, '<div class="mdem ngoai"' ) !== false, $h_hc );
-t( 'dòng ấy in thẳng mã cơ sở kia ra, khỏi phải rê chuột',
-	preg_match( '~<div class="mdem ngoai"[^>]*>HAI_CS_B ~', $h_hc ) === 1, $h_hc );
-t( 'và chú thích nói rõ KHÔNG cộng vào tổng của cơ sở đang xem',
-	strpos( $h_hc, 'KHÔNG cộng vào tổng của cơ sở đang xem' ) !== false, $h_hc );
+/* 🔴 NGÀY Ở CƠ SỞ KHÁC NAY LÀ MỘT HÀNG RIÊNG, KHÔNG CÒN LÀ DÒNG XÁM TRONG Ô.
+   Anh Thắng 28/08/2026: *"khi ghép cửa hàng phụ, thì hiện ra 2 hàng chấm công riêng nhé"* —
+   kèm ảnh một hàng đang trộn `TUTU_TP 12.6` vào ô của cơ sở đang xem. Anh đúng: hai cơ sở trên
+   MỘT dòng thì đọc một hàng mà phải tự tách xem số nào của ai. */
+t( '🔴 có HÀNG RIÊNG cho cơ sở phụ', strpos( $h_hc, 'class="hang-phu"' ) !== false, $h_hc );
+t( 'hàng ấy mang tên cơ sở kia',
+	preg_match( '~class="hang-phu"><td>.{0,80}HAI_CS_B~su', $h_hc ) === 1, $h_hc );
+/* ⚠️ VÀ KHÔNG CÒN dòng xám nhét trong ô — bày cả hai là nói hai lần một chuyện, mà lại làm ô
+   của cơ sở đang xem trông như có thêm giờ. */
+t( '🔴 và KHÔNG còn dòng xám trong ô của cơ sở đang xem',
+	strpos( $h_hc, '<div class="mdem ngoai"' ) === false, $h_hc );
+/* ⚠️ Hàng phụ CHỈ ĐỌC: công của những ngày ấy thuộc bảng của cơ sở kia, sửa từ đây là sửa vào
+   bảng người khác đang quản. */
+t( 'hàng phụ nói rõ là CHỈ ĐỌC', strpos( $h_hc, 'Hàng CHỈ ĐỌC' ) !== false, $h_hc );
+t( 'và tổng của nó không cộng vào tổng trên',
+	strpos( $h_hc, 'không cộng vào tổng trên' ) !== false, $h_hc );
+/* 🔴 TỔNG HÀNG PHỤ TÍNH BẰNG ĐƠN VỊ CỦA CHÍNH CƠ SỞ ẤY, không phải của cơ sở đang xem. Hai cơ
+   sở khai hai cách tính khác nhau là chuyện thường — cơ sở A theo giờ, cơ sở B "có đi là được".
+   Lấy đơn vị của bên đang xem là in ra một con số không thuộc về đâu cả. */
+VHCC_Luong::dat_cach_tinh( $U_AD, array( 'HAI_CS_B' => 'ngay' ) );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Admin', 'Admin', '', 'ADHC' );
+$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07' );
+ob_start(); VHCC_Web::phuc_vu(); $h_hc2 = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
+t( '🔴 cơ sở phụ khai "có đi là được" thì hàng phụ ra SỐ CÔNG',
+	preg_match( '/<td class="tong"><b>\d+ công<\/b>/', $h_hc2 ) === 1, substr( $h_hc2, -5000 ) );
+/* Trong khi cơ sở đang xem vẫn theo giờ — hai đơn vị trên cùng một bảng, mỗi hàng một đơn vị
+   của nó, và đó là điều đúng. */
+t( 'còn cơ sở đang xem vẫn ra số giờ',
+	strpos( $h_hc2, 'CÓ ĐI LÀ ĐƯỢC' ) === false, substr( $h_hc2, 0, 3000 ) );
+VHCC_Luong::dat_cach_tinh( $U_AD, array( 'HAI_CS_B' => '' ) );
 /* 🔴 Nhãn ở ĐẦU HÀNG. Một người làm hai nơi mà lưới này chỉ có vài ngày thì nhìn hàng ấy
    tưởng người ta nghỉ gần hết tháng — nhãn nói ngay phần còn lại nằm ở đâu. */
 t( '🔴 tên người mang nhãn "cũng làm ở <cơ sở kia>"',
 	strpos( $h_hc, 'cũng làm ở HAI_CS_B' ) !== false, $h_hc );
+/* ⚠️ Chữ "cũng làm ở" nay xuất hiện HAI chỗ cho cùng một người: nhãn ở tên, và đầu hàng phụ.
+   Nên đếm theo NHÃN (`class="duoi ngoai"`), đừng đếm chữ. */
 t( 'người chỉ làm một nơi thì KHÔNG bị gắn nhãn',
-	substr_count( $h_hc, 'cũng làm ở' ) === 1, $h_hc );
+	substr_count( $h_hc, 'class="duoi ngoai"' ) === 1, $h_hc );
 /* 🔴 TỔNG KHÔNG ĐỔI. Đây là con số ra tiền — bày thêm một dòng để nhìn mà làm nó nhích lên là
    hỏng đúng thứ khối này hứa không đụng tới. */
 $hc_b = VHCC_Cham::bang_cham_cong( $U_AD, $CS_A, '2026-07' );
@@ -13759,8 +13786,22 @@ t( '🔴 biểu mẫu khai enctype multipart, không thì ảnh mất im lặng'
 t( 'nói rõ ảnh KHÔNG bắt buộc', strpos( $h_tn, 'không bắt buộc' ) !== false );
 /* 🔴 Ảnh mẫu VẼ bằng SVG, không nhúng mặt một người thật — dùng mặt nhân viên nào đó làm mẫu
    cho cả chuỗi là chuyện không xin phép được. */
-t( '🔴 có ảnh thẻ mẫu vẽ sẵn', strpos( $h_tn, 'Ảnh mẫu' ) !== false
+t( '🔴 có ảnh thẻ mẫu vẽ sẵn', strpos( $h_tn, 'Ảnh thẻ mẫu' ) !== false
 	&& strpos( $h_tn, '<svg' ) !== false, $h_tn );
+/* 🔴 VẼ THEO ĐÚNG TẤM ANH THẮNG GỬI 28/08/2026: nền XANH, ngang vai, áo sơ mi. Nền xanh là chi
+   tiết đáng vẽ nhất — nó nói ngay "ảnh thẻ chụp ở tiệm", không phải ảnh cắt từ điện thoại. */
+/* ⚠️ Canh đúng thẻ NỀN, không canh mã màu trần: màu ấy còn dùng cho cổ áo, nên soi chuỗi
+   không thôi thì đổi nền đi vẫn xanh. */
+t( 'mẫu có nền xanh như ảnh thẻ thật',
+	preg_match( '/<rect x="0" y="0" width="118" height="150" fill="#1f6fc4"/', $h_tn ) === 1, $h_tn );
+/* ⚠️ VẼ, không nhúng ảnh người thật: dùng mặt một nhân viên làm mẫu cho cả chuỗi là chuyện
+   không xin phép được. */
+t( '🔴 mẫu là hình VẼ, không phải ảnh nhúng',
+	strpos( $h_tn, 'data:image' ) === false, substr( $h_tn, 0, 200 ) );
+/* Chỉ cách chụp bằng chữ nữa — hình nói bố cục, chữ nói mấy điều hình không nói được. */
+t( 'nói rõ nền trơn một màu', strpos( $h_tn, 'nền trơn một màu' ) !== false );
+t( 'và dặn đừng dùng ảnh nghiêng / selfie / cắt từ ảnh tập thể',
+	strpos( $h_tn, 'ảnh cắt từ ảnh tập thể' ) !== false );
 t( 'và nói ra vì sao nên có ảnh',
 	strpos( $h_tn, 'tự nhận khuôn mặt' ) !== false, $h_tn );
 

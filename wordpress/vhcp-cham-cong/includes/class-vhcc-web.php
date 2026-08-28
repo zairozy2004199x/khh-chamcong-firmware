@@ -2514,8 +2514,11 @@ class VHCC_Web {
 			. '<input id="tn_anh" name="tn_anh" type="file" accept="image/*" capture="user">'
 			. '<p class="mo" style="margin:6px 0 0;max-width:520px">Có ảnh thì <b>máy chấm công '
 			. 'tự nhận khuôn mặt</b>, không phải gọi người ra máy chụp lại. '
-			. 'Chụp <b>chính diện</b>, thấy rõ cả khuôn mặt, nền trơn, không đeo kính râm hay '
-			. 'khẩu trang. Ảnh to cũng được — hệ tự thu nhỏ.<br>'
+			. 'Chụp như <b>ảnh thẻ bên cạnh</b>: chính diện, ngang vai, <b>nền trơn một màu</b> '
+			. '(xanh hoặc trắng), thấy rõ cả khuôn mặt, tóc vén gọn, <b>không</b> kính râm, '
+			. '<b>không</b> khẩu trang, <b>không</b> đội mũ. Ảnh to cũng được — hệ tự thu nhỏ.<br>'
+			. '<b>Đừng</b> dùng ảnh chụp nghiêng, ảnh selfie góc cao, hay ảnh cắt từ ảnh tập thể: '
+			. 'máy chấm công lấy khuôn mặt từ tấm này, lấy nhầm là người ấy quẹt mãi không nhận.<br>'
 			. 'Bỏ trống vẫn thêm người được, nhưng tên người ấy sẽ nằm trong khối '
 			. '<b>Chưa có ảnh thẻ</b> ngay dưới cho tới khi bù.</p></div>';
 		echo '</div>';
@@ -2533,27 +2536,38 @@ class VHCC_Web {
 	 * nói được cái mà câu chữ nói không xong: khuôn mặt chiếm bao nhiêu phần khung, cắt tới đâu.
 	 */
 	private static function anh_the_mau() {
-		$sv = '<svg width="104" height="132" viewBox="0 0 104 132" role="img" '
-			. 'aria-label="Ảnh thẻ mẫu: chụp chính diện, ngang vai, nền trơn" '
-			. 'style="border:1px solid var(--vien);border-radius:6px;background:#f8fafc;flex:0 0 auto">'
-			. '<rect x="0" y="0" width="104" height="132" fill="#f8fafc"/>'
-			/* Vai + cổ áo — cắt ngang ngực, đúng khuôn ảnh thẻ. */
-			. '<path d="M14 132 C14 106 32 96 52 96 C72 96 90 106 90 132 Z" fill="#cbd5e1"/>'
-			. '<path d="M44 96 L52 108 L60 96 Z" fill="#fff"/>'
-			/* Tóc + đầu chính diện, chiếm chừng nửa chiều cao khung. */
-			. '<path d="M22 60 C22 34 36 24 52 24 C68 24 82 34 82 60 L82 74 '
-			. 'C78 70 78 52 74 48 C66 56 38 56 30 48 C26 52 26 70 22 74 Z" fill="#475569"/>'
-			. '<circle cx="52" cy="58" r="26" fill="#e2e8f0"/>'
-			. '<circle cx="43" cy="55" r="2.8" fill="#334155"/>'
-			. '<circle cx="61" cy="55" r="2.8" fill="#334155"/>'
-			. '<path d="M44 70 Q52 76 60 70" stroke="#334155" stroke-width="2.4" fill="none" '
+		/* Vẽ theo đúng tấm ảnh anh Thắng gửi 28/08/2026: nền XANH, chính diện, ngang vai, áo sơ
+		   mi trắng, tóc buộc gọn. Nền xanh là chi tiết đáng vẽ nhất — nó nói ngay "ảnh thẻ chụp
+		   ở tiệm", chứ không phải ảnh cắt từ điện thoại. */
+		$sv = '<svg width="118" height="150" viewBox="0 0 118 150" role="img" '
+			. 'aria-label="Ảnh thẻ mẫu: nền xanh, chụp chính diện, ngang vai, áo sơ mi" '
+			. 'style="border:1px solid var(--vien);border-radius:6px;flex:0 0 auto">'
+			. '<rect x="0" y="0" width="118" height="150" fill="#1f6fc4"/>'
+			/* Vai + áo sơ mi trắng, cắt ngang ngực. */
+			. '<path d="M16 150 C16 120 34 108 59 108 C84 108 102 120 102 150 Z" fill="#f1f5f9"/>'
+			. '<path d="M49 108 L59 124 L69 108 Z" fill="#1f6fc4" opacity=".35"/>'
+			/* Cổ. */
+			. '<rect x="50" y="92" width="18" height="20" rx="7" fill="#e8c9ad"/>'
+			/* Tóc buộc gọn: khối tóc ôm đầu, không xoã ra ngoài khung. */
+			. '<path d="M28 66 C28 36 42 24 59 24 C76 24 90 36 90 66 L90 80 '
+			. 'C86 74 86 52 82 47 C73 57 45 57 36 47 C32 52 32 74 28 80 Z" fill="#2f2a28"/>'
+			/* Khuôn mặt. */
+			. '<ellipse cx="59" cy="64" rx="25" ry="29" fill="#f0d3ba"/>'
+			. '<ellipse cx="49" cy="61" rx="3" ry="3.4" fill="#3b2f2a"/>'
+			. '<ellipse cx="69" cy="61" rx="3" ry="3.4" fill="#3b2f2a"/>'
+			. '<path d="M44 54 Q49 51 54 54" stroke="#3b2f2a" stroke-width="1.8" fill="none" '
 			. 'stroke-linecap="round"/>'
-			/* Khung ngắm: mặt phải nằm gọn trong khung, không sát mép. */
-			. '<rect x="18" y="20" width="68" height="80" fill="none" stroke="#2563eb" '
-			. 'stroke-width="1.5" stroke-dasharray="4 3"/>'
+			. '<path d="M64 54 Q69 51 74 54" stroke="#3b2f2a" stroke-width="1.8" fill="none" '
+			. 'stroke-linecap="round"/>'
+			. '<path d="M59 66 L59 73" stroke="#d9ab8a" stroke-width="1.6" stroke-linecap="round"/>'
+			. '<path d="M52 80 Q59 84 66 80" stroke="#c4756b" stroke-width="2.4" fill="none" '
+			. 'stroke-linecap="round"/>'
+			/* Khung ngắm: mặt nằm gọn trong khung, chừa lề trên và hai bên. */
+			. '<rect x="21" y="18" width="76" height="96" fill="none" stroke="#ffffff" '
+			. 'stroke-width="1.4" stroke-dasharray="5 4" opacity=".85"/>'
 			. '</svg>';
 		return '<div style="text-align:center;flex:0 0 auto">' . $sv
-			. '<div class="mo" style="font-size:11px;margin-top:3px">Ảnh mẫu</div></div>';
+			. '<div class="mo" style="font-size:11px;margin-top:3px">Ảnh thẻ mẫu</div></div>';
 	}
 
 	/**
@@ -4418,10 +4432,11 @@ class VHCC_Web {
 						. '</div>';
 				}
 
-				/* Ngày ấy người này đứng ở cơ sở khác -> nói ra, đừng để ô trống trông như nghỉ. */
-				if ( isset( $ck_nguoi[ $i ] ) ) {
-					$duoi .= self::o_coso_khac( $ck_nguoi[ $i ], $ho_ten, $ngay_o );
-				}
+				/* 🔴 NGÀY Ở CƠ SỞ KHÁC NAY LÀ MỘT HÀNG RIÊNG, KHÔNG CÒN LÀ DÒNG XÁM TRONG Ô.
+				   Anh Thắng 28/08/2026: *"khi ghép cửa hàng phụ, thì hiện ra 2 hàng chấm công
+				   riêng nhé"*. Anh đúng: dòng xám nhỏ `TUTU_TP 12.6` nhét vào ô của cơ sở đang
+				   xem làm hai cơ sở trộn trên MỘT dòng — đọc một hàng mà phải tự tách xem số
+				   nào của ai. Xem khối "hàng riêng cho từng cơ sở phụ" ngay dưới vòng lặp này. */
 				$lop_o = ( null === $r_chinh && '' === $duoi ) ? 'o' : ( 'oc' . $c_chinh['lop'] );
 				$chu_o = $c_chinh['chu'];
 				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' ) . '"'
@@ -4444,6 +4459,62 @@ class VHCC_Web {
 			echo self::tong_coso_khac( isset( $tk_ds[ strtoupper( $ma ) ] )
 				? $tk_ds[ strtoupper( $ma ) ] : array() );
 			echo '</td></tr>';
+
+			/* =============================================================================
+			 * 🔴 HÀNG RIÊNG CHO TỪNG CƠ SỞ PHỤ.
+			 * =============================================================================
+			 * Anh Thắng 28/08/2026: *"khi ghép cửa hàng phụ, thì hiện ra 2 hàng chấm công riêng
+			 * nhé"*, kèm ảnh hàng "Mai Quốc Hương" đang trộn `TUTU_TP 12.6` vào ô của cơ sở
+			 * đang xem.
+			 *
+			 * ⚠️ HÀNG NÀY CHỈ ĐỌC, KHÔNG BẤM SỬA ĐƯỢC. Công của những ngày ấy thuộc bảng của cơ
+			 *    sở kia; sửa từ đây là sửa vào bảng người khác đang quản. Muốn sửa thì mở đúng
+			 *    cơ sở ấy — và đó cũng là nơi có người chịu trách nhiệm về con số.
+			 *
+			 * ⚠️ VÀ KHÔNG CỘNG VÀO TỔNG CỦA CƠ SỞ ĐANG XEM. Tổng của hàng phụ là tổng của RIÊNG
+			 *    nó, tính bằng đơn vị của chính cơ sở ấy (giờ hay công) — hai cơ sở có thể khai
+			 *    hai cách tính khác nhau.
+			 */
+			$cs_phu = array();
+			foreach ( (array) $ck_nguoi as $i_ck => $x_ck ) {
+				$c_ck = trim( (string) $x_ck['coso'] );
+				if ( '' === $c_ck ) { continue; }
+				$cs_phu[ $c_ck ][ $i_ck ] = $x_ck;
+			}
+			ksort( $cs_phu );
+			foreach ( $cs_phu as $ten_cs_p => $ngay_cs_p ) {
+				$kieu_p = VHCC_Luong::cach_tinh( $ten_cs_p );
+				$tong_p = 0;
+				echo '<tr class="hang-phu"><td><span class="mo">↳ cũng làm ở</span> <b>'
+					. esc_html( $ten_cs_p ) . '</b>';
+				echo '<div class="mo" style="font-size:10.5px">' . esc_html( $ho_ten ) . '</div></td>';
+				for ( $i_p = 1; $i_p <= $so_ngay; $i_p++ ) {
+					if ( ! isset( $ngay_cs_p[ $i_p ] ) ) { echo '<td class="o">·</td>'; continue; }
+					$x_p  = $ngay_cs_p[ $i_p ];
+					$ng_p = $tt . '-' . str_pad( (string) $i_p, 2, '0', STR_PAD_LEFT );
+					$p_p  = ( null === $x_p['phut'] || '' === $x_p['phut'] ) ? null : (int) $x_p['phut'];
+					if ( 'ngay' === $kieu_p ) {
+						$c_p     = ( null !== $p_p && '' !== trim( (string) $x_p['ra'] ) ) ? 1 : 0;
+						$tong_p += $c_p;
+						$so_p    = '<b>' . (int) $c_p . '</b>';
+					} else {
+						$tong_p += (int) $p_p;
+						$so_p    = ( null === $p_p ) ? '?' : '<b>' . self::so_vp( round( $p_p / 60, 1 ) ) . '</b>';
+					}
+					$chu_p = self::ngay_vn( $ng_p ) . ' · ' . $ho_ten
+						. "\n" . 'chấm ở cơ sở ' . $ten_cs_p
+						. "\n" . ( '' !== $x_p['vao'] ? $x_p['vao'] : '—' ) . ' → '
+						. ( '' !== $x_p['ra'] ? $x_p['ra'] : '—' )
+						. "\n" . VHCC_Cham::chu_gio( $p_p )
+						. "\n" . '⚠ Hàng CHỈ ĐỌC. Công của ngày này thuộc bảng của cơ sở '
+						. $ten_cs_p . ' — muốn sửa thì mở đúng cơ sở ấy.';
+					echo '<td class="oc" title="' . esc_attr( $chu_p ) . '">' . $so_p . '</td>';
+				}
+				echo '<td class="tong"><b>' . esc_html( 'ngay' === $kieu_p
+					? ( (int) $tong_p . ' công' )
+					: VHCC_Cham::chu_gio( $tong_p ) ) . '</b>'
+					. '<div class="mo" style="font-size:10px">không cộng vào tổng trên</div></td></tr>';
+			}
 			/* Hàng sửa nội tuyến: mở ngay dưới hàng của ĐÚNG người vừa bấm — dù bấm dòng chính
 			   hay một dòng phụ, vì cả hai nay là một hàng. Mã truyền xuống vẫn là mã ĐẦY ĐỦ đọc
 			   từ địa chỉ, nên sửa vẫn ăn đúng hàng `-CD`. */
