@@ -2446,6 +2446,12 @@ function ve(){
   if (QT) TABS.push(['doi-soat', '📊 ' + L('Đối soát','Reconciliation')]);
   if (QT) TABS.push(['thu-tien', '💵 ' + L('Thu tiền','Cash collection')]);
   TABS.push(['quy', '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')]);
+  /* Anh Thắng: hệ chốt ca quét QR tạm chưa chạy được — cho Người thu một lối vào MÀN BÁO CÁO
+     DOANH THU ngay trong trang chính (không phải đăng xuất rồi bấm nút riêng ở màn đăng nhập).
+     Tab này KHÔNG tự làm báo cáo — nó chỉ mở lại đúng module bc-app đã có (`moBaoCao()`, lộ ra
+     ngoài qua `window.VHG_BaoCao.mo`), vẫn đòi PIN báo cáo (`bc_pin`) như cũ. Cố ý KHÔNG tự
+     đăng nhập bằng token /ghe đang có — hai cổng PIN vẫn tách biệt, xem lý do ở đầu `VHG_Auth`. */
+  TABS.push(['bc-doanhthu', '📋 ' + L('Báo cáo doanh thu','Revenue report')]);
   if (QT) TABS.push(['kich-hoat', '⚡ ' + L('Kích hoạt ghế','Chair activation')]);
   if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
   if (QT) TABS.push(['nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')]);
@@ -2523,6 +2529,16 @@ function ve(){
 
   /* LUẬT 2: hỏng để TRÊN CÙNG, trên cả con số doanh thu. */
   var dut = D.may.filter(function(m){ return !m.song; });
+  /* Chỉ hiện ghế mất kết nối của CƠ SỞ MÌNH QUẢN LÝ — anh Thắng: người quản lý một cơ sở mở
+     Đối soát ra thấy cả trăm ghế mất kết nối của cơ sở khác thì không phân biệt được đâu là
+     việc của mình. `D.ai.coso` rỗng = quản lý cả chuỗi (Admin…) — giữ nguyên xem hết, như cũ.
+     Có giá trị thì lọc; tách ';' / ',' vì một người có thể phụ trách nhiều cơ sở (xem cách
+     hồ sơ nhân sự đẩy "Cơ sở phụ" — cùng quy ước). */
+  var coSoToi = (D.ai && D.ai.coso ? String(D.ai.coso) : '').split(/[;,]/)
+    .map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
+  if (coSoToi.length) {
+    dut = dut.filter(function(m){ return coSoToi.indexOf(String(m.coso||'').trim().toLowerCase()) >= 0; });
+  }
   if (dut.length) {
     /* Danh sách dài (đang dựng hệ, chưa cắm ghế nào) thì cuộn trong ô nhỏ, không để tràn kín màn. */
     var dsDut = esc(dut.map(function(m){ return m.ma + (m.coso ? ' (' + m.coso + ')' : ''); }).join(', '));
@@ -2549,6 +2565,7 @@ function ve(){
   if (TAB === 'ghe-loi')    { h += veGheLoi()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'bc-doanhthu'){ h += veBcDoanhThu() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'cau-hinh')   { h += veCauHinh()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'bc-pin')     { h += veBcPin()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
@@ -3309,10 +3326,21 @@ function ktdLoad(){
       var xb = b.confirmedChairs < b.chairs ? 0 : 1;
       return xa - xb;
     });
-    rows.forEach(function(o){ box.appendChild(ktdCard(o)); });
+    /* Bung sẵn (anh Thắng) nhưng TẢI TUẦN TỰ từng báo cáo một — không bắn N lượt gọi kt_ct
+       cùng lúc. Nhân viên ở cơ sở thường mạng yếu; N lượt chạy song song chiếm hết hàng đợi
+       kết nối của trình duyệt (~6 đường/host), nên một cú bấm Duyệt của người dùng phải XẾP
+       SAU cả đám tải nền đó — đúng cảm giác "luồng duyệt rất chậm" dù mỗi lượt gọi tự nó
+       không chậm. Tải xong thẻ này mới xin thẻ kế, để lượt bấm tay của người dùng luôn có
+       đường trống mà đi. */
+    var i=0;
+    function ke(){
+      if(i>=rows.length) return;
+      box.appendChild(ktdCard(rows[i++], ke));
+    }
+    ke();
   });
 }
-function ktdCard(o){
+function ktdCard(o, xong){
   var d=ktEl('div'); d.style.cssText='border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:11px 13px;margin-bottom:10px';
   var head=ktEl('div'); head.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:center';
   var t=ktEl('div'); t.style.flex='1';
@@ -3332,14 +3360,14 @@ function ktdCard(o){
     if('none'===body.style.display){ body.style.display=''; bXem.textContent=L('Đóng','Close'); return; }
     body.style.display='none'; bXem.textContent=L('Xem','Detail');
   };
-  ktdDetail(o,body);
+  ktdDetail(o,body,xong);
   return d;
 }
-function ktdDetail(o,box){
+function ktdDetail(o,box,xong){
   box.textContent=''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
   goi('kt_ct',{coso:o.coso,ngay:o.ngay},function(r){
     box.textContent='';
-    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); if(xong) xong(); return; }
     // thanh thao tác báo cáo
     var bar=ktEl('div','act'); bar.style.cssText='flex-wrap:wrap;margin-bottom:8px';
     var bDuyet=ktEl('button','on',L('Duyệt cả báo cáo','Confirm all'));
@@ -3370,6 +3398,7 @@ function ktdDetail(o,box){
     sc.appendChild(tb); box.appendChild(sc);
     var sum=r.sum||{};
     box.appendChild(ktEl('div','mut','Tổng: tiền mặt '+ktVnd(sum.cash)+'đ · QR '+ktVnd(sum.qr)+'đ · đã nộp '+ktVnd(sum.paid)+'đ'));
+    if(xong) xong();
   });
 }
 function ktdRow(o,c,m,reload,locked){
@@ -4465,6 +4494,19 @@ function veQuy(){
   return h + '</table></div>';
 }
 
+/* Chỉ mở lại module bc-app đã có (`moBaoCao()` trong js_baocao(), lộ ra qua `window.VHG_BaoCao`)
+   — không tự làm lại màn nhập báo cáo ở đây. Vẫn đòi PIN báo cáo riêng như khi bấm từ màn đăng
+   nhập; tab này chỉ đỡ việc phải Thoát rồi bấm lại nút ở màn đăng nhập cho ai lỡ vào thẳng
+   trang chính bằng token /ghe. */
+function veBcDoanhThu(){
+  return '<div class="card"><h2>📋 ' + L('Báo cáo doanh thu','Revenue report') + '</h2>'
+    + '<p class="mut">' + L('Chọn cơ sở, nhập chỉ số/tiền mặt/QR cho từng ghế — không cần quét mã QR '
+        + 'trên ghế để chốt ca.', 'Pick a branch, enter meter/cash/QR readings per chair — no need to '
+        + 'scan the QR on the chair.') + '</p>'
+    + '<button id="bc-mo-tai-day" class="on">' + L('Mở màn Báo cáo doanh thu','Open the revenue report screen')
+    + '</button></div>';
+}
+
 function veThuTien(){
   var t = (D.thu || { ds: [], may: [] });
   var mat_ghe = 0, mat_ng = 0, qr = 0, lan = 0, canh = [];
@@ -5414,6 +5456,8 @@ function noi(){
       ve();
     };
   });
+  var bMoBc = document.getElementById('bc-mo-tai-day');
+  if (bMoBc) bMoBc.onclick = function(){ if (window.VHG_BaoCao) window.VHG_BaoCao.mo(); };
   if (document.getElementById('bcp-luu') || document.querySelector('[data-bcpxoa]')) noiBcPin();
   if (document.getElementById('ktd-list')) ktdInit();
   if (document.getElementById('ktdn-list')) ktdnInit();
