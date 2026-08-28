@@ -115,6 +115,26 @@ class VHCC_Web {
 	 * ⚠️ Chỉ nhận thẻ do chính hệ phát ra (kiểm bằng `user_by_token`). Nhận bừa là ai gửi một
 	 *    chuỗi 64 ký tự cũng mở được phiên.
 	 */
+	/**
+	 * Thẻ đang nằm trong cookie của trang này — '' là chưa đăng nhập.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO PHẢI CÓ ĐƯỜNG ĐỌC NGƯỢC LẠI.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"nhân viên đăng nhập bên quản trị chấm công, nhưng qua chấm công
+	 * đăng nhập online lại bắt đăng nhập lại"*. Thẻ thì đã là MỘT loại chung từ 25/08 — cùng
+	 * `phat_token()`, cùng bảng phiên. Cái còn rời nhau là CHỖ CẤT: trang này để ở cookie, trạm
+	 * để ở localStorage. Chiều trạm → quản trị đã bắc cầu bằng `mo_phien()`; chiều ngược lại
+	 * thì trang trạm không có cách nào biết cookie đang có gì, vì cookie HttpOnly.
+	 *
+	 * ⚠️ HÀM NÀY TRẢ RA MỘT THỨ BÍ MẬT. Chỉ được gọi từ trong máy chủ, và chỉ để trao lại cho
+	 *    ĐÚNG người đang cầm cookie ấy — tức là người đã đăng nhập rồi. Không bao giờ in nó ra
+	 *    trang, không ghi vào nhật ký, không gửi cho lời gọi đến từ tên miền khác.
+	 */
+	public static function the_phien() {
+		return isset( $_COOKIE[ self::COOKIE ] ) ? (string) $_COOKIE[ self::COOKIE ] : '';
+	}
+
 	public static function mo_phien( $tok ) {
 		$tok = (string) $tok;
 		if ( ! preg_match( '/^[0-9a-f]{64}$/', $tok ) ) { return false; }

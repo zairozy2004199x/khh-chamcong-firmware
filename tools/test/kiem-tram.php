@@ -441,6 +441,85 @@ t( 'mo_phien chối thẻ rác', false === VHCC_Web::mo_phien( str_repeat( 'a', 
 t( 'mo_phien chối chuỗi sai khuôn', false === VHCC_Web::mo_phien( 'abc' ) );
 t( 'mo_phien nhận thẻ thật', true === VHCC_Web::mo_phien( $r_lk['token'] ) );
 
+/* =====================================================================================
+ * 🔴 CHIỀU QUẢN TRỊ → TRẠM: ĐÃ ĐĂNG NHẬP MỘT BÊN THÌ KHÔNG GÕ PIN LẦN HAI.
+ * =====================================================================================
+ * Anh Thắng 28/08/2026: *"nhân viên đăng nhập bên quản trị chấm công, nhưng qua chấm công
+ * đăng nhập online lại bắt đăng nhập lại, tự vào chung luôn"*.
+ *
+ * Chiều trạm → quản trị đã có (`mo_phien` ngay trên). Chiều này là đường đọc ngược: cookie
+ * HttpOnly thì JavaScript của trạm không đọc được, nên máy chủ đọc hộ rồi trao lại thẻ.
+ */
+$cookie_cu = isset( $_COOKIE[ VHCC_Web::COOKIE ] ) ? $_COOKIE[ VHCC_Web::COOKIE ] : null;
+
+unset( $_COOKIE[ VHCC_Web::COOKIE ] );
+$ps = VHCC_Tram::phien_tu_cookie();
+t( 'không có cookie thì nói "chưa có", không nổ', empty( $ps['ok'] ) && 'chua_co' === $ps['ma'], $ps );
+
+$_COOKIE[ VHCC_Web::COOKIE ] = str_repeat( 'a', 64 );
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 cookie mang thẻ rác thì chối', empty( $ps['ok'] ), $ps );
+
+$_COOKIE[ VHCC_Web::COOKIE ] = 'khong-phai-the';
+$ps = VHCC_Tram::phien_tu_cookie();
+t( 'cookie sai khuôn thì chối', empty( $ps['ok'] ), $ps );
+
+/* Thẻ thật, của người đang đăng nhập bên quản trị. */
+$_COOKIE[ VHCC_Web::COOKIE ] = $r_lk['token'];
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 có phiên quản trị thì vào thẳng trạm', ! empty( $ps['ok'] ), $ps );
+/* ⚠️ TRAO LẠI CHÍNH THẺ, KHÔNG PHÁT THẺ MỚI: hai thẻ song song thì bấm Thoát ở trạm chỉ giết
+   một cái, cookie vẫn mở — người ta tưởng đã thoát mà máy vẫn đang đăng nhập. */
+t( '🔴 và trao lại ĐÚNG thẻ đang có, không phát thẻ mới',
+	isset( $ps['token'] ) && $ps['token'] === $r_lk['token'] );
+t( 'kèm mã NV để lượt chấm biết ghi cho ai', ! empty( $ps['maNV'] ), $ps );
+
+/* Thẻ KHÔNG có mã NV — chấm được mà công không vào hồ sơ ai cả, nên phải chối. */
+$tok_trong = VHCC_Auth::phat_token( 'Không Mã', 'NHAN_VIEN', 'VIVO', '' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_trong;
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 thẻ không có Mã NV thì chối, không cho vào thẳng', empty( $ps['ok'] ), $ps );
+
+/* 🔴 CHỐT CỬA TRẠM VẪN PHẢI CHẠY. Có cookie không có nghĩa là được vào trạm — người bị khoá
+   riêng ở màn "Quản lý nhân sự" phải bị chối ở đây y như lúc gõ PIN. */
+$ma_lk = $u_lk['ma_nv'];
+VHCC_Cong::dat( array( 'role' => 'Admin' ), $ma_lk, 'tram', 'khoa' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $r_lk['token'];
+$ps = VHCC_Tram::phien_tu_cookie();
+t( '🔴 bị khoá cửa trạm thì cookie cũng không đi vòng qua được', empty( $ps['ok'] ), $ps );
+t( 'và nói ra là bị khoá riêng, không nói "chưa có phiên"',
+	isset( $ps['error'] ) && strpos( $ps['error'], 'khoá riêng' ) !== false, $ps );
+VHCC_Cong::dat( array( 'role' => 'Admin' ), $ma_lk, 'tram', '' );
+$ps = VHCC_Tram::phien_tu_cookie();
+t( 'bỏ khoá thì vào lại được', ! empty( $ps['ok'] ), $ps );
+
+if ( null === $cookie_cu ) { unset( $_COOKIE[ VHCC_Web::COOKIE ] ); }
+else { $_COOKIE[ VHCC_Web::COOKIE ] = $cookie_cu; }
+
+/* ⚠️ Hàm đúng mà cổng không khai việc thì trang vẫn hỏi PIN — soi cả chỗ KHAI, không chỉ chỗ
+   LÀM. Bản đầu chỉ soi hàm, và phá thử bỏ hẳn dòng khai ở cổng vẫn xanh. */
+$src_tram = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-tram.php' );
+t( '🔴 cổng có khai việc "phien"',
+	preg_match( "/'phien' === \\\$viec[^\n]*phien_tu_cookie\(\)/", $src_tram ) === 1 );
+/* Và khai ở khúc CÔNG KHAI: đặt sau chốt "phải có thẻ phiên" thì việc này không bao giờ chạy
+   được — người chưa có thẻ mới là người cần nó. */
+t( 'khai TRƯỚC chốt "phải có thẻ phiên của TRẠM"',
+	strpos( $src_tram, "'phien' === \$viec" ) < strpos( $src_tram, '--- từ đây phải có thẻ phiên' ) );
+
+/* ---- Trên TRANG TRẠM ---- */
+$tram_ph = js_sach( file_get_contents( $goc . '/wordpress/vhcp-cham-cong/templates/tram.php' ) );
+t( '🔴 trang trạm có hỏi phiên sẵn có', strpos( $tram_ph, "goi('phien'" ) !== false );
+t( '🔴 và khởi động dùng nó thay cho màn PIN trần',
+	preg_match( "/if\(token\(\)\)\{ moManChinh\(\); \}\s*\n\s*else \{ thuPhienSan\(\); \}/", $tram_ph ) === 1 );
+/* ⚠️ Hiện màn PIN TRƯỚC rồi mới hỏi: người không có phiên sẵn — gần như tất cả nhân viên đứng
+   ở quầy — mà phải nhìn trang trắng chờ mạng thì tệ hơn hẳn cái đang sửa. */
+t( 'hiện màn PIN trước, không để trang trắng chờ mạng',
+	preg_match( "/function thuPhienSan\(\)\{\s*\n\s*hien\('mVao',true\);/", $tram_ph ) === 1 );
+/* ⚠️ Lời đáp về muộn mà nhảy màn giữa lúc người ta gõ là mất mấy chữ vừa gõ. */
+t( '🔴 đang gõ PIN dở thì không giật màn hình',
+	strpos( $tram_ph, "if(el('oPin').value.trim() !== ''){" ) !== false );
+t( 'gọi hỏng thì vẫn về màn PIN, không treo', strpos( $tram_ph, ".catch(function(){ bao('loiVao','',null); el('oPin').focus(); });" ) !== false );
+
 /* Chiều ngược: thanh màn của trang quản trị phải có đường ra trạm. */
 $src_web = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 'thanh màn có nút mở trang chấm công', strpos( $src_web, 'VHCC_Tram::url()' ) !== false );

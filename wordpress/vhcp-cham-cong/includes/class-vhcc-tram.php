@@ -195,6 +195,9 @@ class VHCC_Tram {
 			self::ra( $kq );
 		}
 
+		/* ĐANG CÓ PHIÊN Ở TRANG QUẢN TRỊ THÌ VÀO THẲNG — xem `phien_tu_cookie()`. */
+		if ( 'phien' === $viec ) { self::ra( self::phien_tu_cookie() ); }
+
 		if ( 'quenpin' === $viec ) {
 			/* Bộ đếm chống dò nằm TRONG VHCC_Quyen::tra_pin_theo_cccd — không nhân bản ở đây.
 			   Hai bộ đếm cho cùng một cửa là hai con số khác nhau và không con nào đúng. */
@@ -335,6 +338,67 @@ class VHCC_Tram {
 			'vaiTro' => VHCC_Vai::ten( $vai ),
 			'kho'   => $r['kho'],
 			'token' => VHCC_Auth::phat_token( $r['ho_ten'], $vai, $r['coso'], $r['ma_nv'] ),
+		);
+	}
+
+	/**
+	 * ĐANG CÓ PHIÊN Ở TRANG QUẢN TRỊ THÌ VÀO THẲNG, KHÔNG GÕ PIN LẦN HAI.
+	 *
+	 * =========================================================================================
+	 * 🔴 CÁI RỜI NHAU LÀ CHỖ CẤT THẺ, KHÔNG PHẢI CÁI THẺ.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"nhân viên đăng nhập bên quản trị chấm công, nhưng qua chấm công
+	 * đăng nhập online lại bắt đăng nhập lại, tự vào chung luôn"*.
+	 *
+	 * Thẻ đã dùng chung từ 25/08 — cùng `VHCC_Auth::phat_token()`, cùng bảng phiên, mang vai
+	 * thật. Nhưng trang quản trị cất thẻ ở COOKIE HttpOnly, còn trạm cất ở localStorage, mà
+	 * cookie HttpOnly thì JavaScript của trạm không đọc được. Nên trạm mở ra là thấy trống, và
+	 * hỏi PIN — trong khi cookie ngay bên cạnh đang giữ một phiên còn hạn.
+	 *
+	 * Việc này là đường đọc ngược: máy chủ đọc cookie giúp, rồi trao lại CHÍNH thẻ ấy.
+	 *
+	 * ⚠️ TRAO LẠI CHÍNH THẺ, KHÔNG PHÁT THẺ MỚI. Phát thẻ mới thì cùng một người có hai thẻ
+	 *    sống song song: bấm "Thoát" ở trạm chỉ giết một cái, cookie vẫn mở — người ta tưởng đã
+	 *    thoát mà máy vẫn đang đăng nhập. Một lần đăng nhập thì phải là một cái thẻ, để một lần
+	 *    thoát là thoát hẳn. Đổi lại, thẻ HttpOnly chảy sang localStorage của trạm — đúng mức
+	 *    phơi ra mà chiều ngược lại (`vao` gọi `VHCC_Web::mo_phien`) vốn đã chấp nhận.
+	 *
+	 * ⚠️ CHỐT CỬA TRẠM VẪN PHẢI CHẠY. Có cookie không có nghĩa là được vào trạm: người bị khoá
+	 *    ở màn "Ai vào được trang nào" phải bị chối ở đây y như lúc gõ PIN. Bỏ khúc này là mở
+	 *    một cửa sau đi vòng qua đúng cái màn sinh ra để đóng nó.
+	 *
+	 * ⚠️ THẺ KHÔNG CÓ MÃ NHÂN VIÊN THÌ CHỐI. Lượt chấm công ghi theo mã NV; thẻ cũ phát từ
+	 *    trước khi có cột ấy mà cho vào thì người ta chấm được mà công không vào hồ sơ ai cả.
+	 */
+	public static function phien_tu_cookie() {
+		$chua = array( 'ok' => false, 'ma' => 'chua_co', 'error' => 'Chưa có phiên sẵn.' );
+		/* ⚠️ Gác `method_exists` cùng hàm với lời gọi (luật `tools/test/kiem-goi-cheo.php`). */
+		if ( ! class_exists( 'VHCC_Web' ) || ! method_exists( 'VHCC_Web', 'the_phien' ) ) {
+			return $chua;
+		}
+		$tok = (string) VHCC_Web::the_phien();
+		if ( '' === $tok ) { return $chua; }
+		$u = VHCC_Auth::user_by_token( $tok );
+		if ( ! $u ) { return $chua; }
+
+		$ma_nv = isset( $u['ma_nv'] ) ? trim( (string) $u['ma_nv'] ) : '';
+		if ( '' === $ma_nv ) { return $chua; }
+
+		$vai = isset( $u['role'] ) ? (string) $u['role'] : '';
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'duoc_vao' ) ) {
+			$ai = array( 'ma_nv' => $ma_nv, 'role' => $vai );
+			if ( ! VHCC_Cong::duoc_vao( $ai, 'tram' ) ) {
+				return array( 'ok' => false, 'error' => VHCC_Cong::vi_sao_khong( $ai, 'tram' ) );
+			}
+		}
+
+		return array(
+			'ok'     => true,
+			'hoTen'  => isset( $u['name'] ) ? (string) $u['name'] : '',
+			'maNV'   => $ma_nv,
+			'coSo'   => isset( $u['coso'] ) ? (string) $u['coso'] : '',
+			'vaiTro' => VHCC_Vai::ten( $u ),
+			'token'  => $tok,
 		);
 	}
 

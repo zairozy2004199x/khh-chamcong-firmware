@@ -1197,9 +1197,38 @@ function soiMat(anh, ngay, coSo){
 	}).catch(function(){ /* im — xem chú thích ở đầu khối */ });
 }
 
+/* --------------------------------------------------- vào thẳng khi đã đăng nhập bên quản trị
+ *
+ * 🔴 Anh Thắng 28/08/2026: *"đăng nhập bên quản trị chấm công, nhưng qua chấm công đăng nhập
+ *    online lại bắt đăng nhập lại, tự vào chung luôn"*. Thẻ vốn dùng chung; chỉ là cookie của
+ *    trang quản trị thì JavaScript ở đây không đọc được. Nên hỏi máy chủ hộ.
+ *
+ * ⚠️ HIỆN MÀN PIN TRƯỚC, ĐỪNG ĐỂ TRANG TRẮNG. Người không có phiên sẵn — tức gần như tất cả
+ *    nhân viên đứng ở quầy — mà phải nhìn một trang trắng chờ mạng thì tệ hơn hẳn cái phải sửa.
+ *
+ * ⚠️ ĐANG GÕ PIN DỞ THÌ KHÔNG GIẬT MÀN HÌNH. Lời đáp về muộn mà nhảy màn giữa lúc người ta gõ
+ *    là mất mấy chữ vừa gõ, và không ai hiểu vì sao.
+ */
+function thuPhienSan(){
+	hien('mVao',true);
+	bao('loiVao','vang','Đang tìm phiên đăng nhập sẵn có…');
+	goi('phien',{}).then(function(j){
+		if(!j || !j.ok || !j.token){
+			bao('loiVao','',null);
+			if(j && j.error && j.ma !== 'chua_co'){ bao('loiVao','dong', j.error); }
+			el('oPin').focus();
+			return;
+		}
+		if(el('oPin').value.trim() !== ''){ bao('loiVao','',null); return; }
+		datToken(j.token);
+		bao('loiVao','',null);
+		moManChinh();
+	}).catch(function(){ bao('loiVao','',null); el('oPin').focus(); });
+}
+
 /* ---------------------------------------------------------------- khởi động */
 if(token()){ moManChinh(); }
-else { hien('mVao',true); el('oPin').focus(); }
+else { thuPhienSan(); }
 })();
 </script>
 </body>
