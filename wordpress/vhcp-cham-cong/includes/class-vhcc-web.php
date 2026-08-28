@@ -1564,6 +1564,10 @@ class VHCC_Web {
 	private static function trang_dang_nhap() {
 		self::vao_bang_wp();
 		$loi = '';
+		/* Quên PIN: hai bước, xem `VHCC_QuenPin`. Kết quả để riêng, không trộn vào `$loi` của ô
+		   PIN — hai ô khác nhau mà chung một dòng báo thì người ta không biết nó nói về ô nào. */
+		$qp = array( 'loi' => '', 'ok' => '', 'the' => '', 'ten' => '' );
+		if ( isset( $_POST['qp_viec'] ) ) { $qp = self::viec_quen_pin(); }
 		if ( isset( $_POST['pin'] ) ) {
 			$kq = VHCC_Auth::login( (string) wp_unslash( $_POST['pin'] ) );
 			if ( ! empty( $kq['ok'] ) ) {
@@ -1592,6 +1596,9 @@ class VHCC_Web {
 			. esc_html( implode( ' · ', VHCC_Auth::vai_tro_vao() ) ) . '</b>. '
 			. 'Màn <b>Hồ sơ &amp; tài khoản</b> chỉ Admin / Quản lý mở được.</p>';
 		if ( '' !== $loi ) { echo '<div class="bao loi">' . esc_html( $loi ) . '</div>'; }
+
+		if ( '' !== $qp['loi'] ) { echo '<div class="bao loi">' . esc_html( $qp['loi'] ) . '</div>'; }
+		if ( '' !== $qp['ok'] )  { echo '<div class="bao ok">' . esc_html( $qp['ok'] ) . '</div>'; }
 
 		/* CHƯA AI ĐĂNG NHẬP ĐƯỢC thì nói thẳng ra, kèm đường vào — đừng để người ta gõ PIN mãi
 		   vào một danh sách vốn rỗng. */
@@ -1629,7 +1636,92 @@ class VHCC_Web {
 			. '<input id="pin" name="pin" type="password" inputmode="numeric" autocomplete="off" '
 			. 'autofocus required style="width:100%;font-size:19px;letter-spacing:3px;text-align:center">'
 			. '<button class="chinh" style="width:100%;margin-top:10px">Vào</button></form>';
+		self::khoi_quen_pin( $qp );
 		self::dong_trang( 2 );
+	}
+
+	/**
+	 * KHỐI "QUÊN PIN" — hai bước, gập sẵn.
+	 *
+	 * Anh Thắng 28/08/2026: *"Thiếu phần lấy lại mã PIN ( Để lấy lại mã PIN nhập Họ Tên và số
+	 * Căn Cước Công Dân )"*.
+	 *
+	 * 🔴 KHÔNG HIỆN PIN CŨ — luật của trang này từ đầu. Khớp danh tính thì cho ĐẶT PIN MỚI.
+	 * ⚠️ Gập sẵn: người vào đây chín trên mười là để gõ PIN, không phải để lấy lại. Mở sẵn khi
+	 *    đang dở bước 2, kẻo họ vừa khớp danh tính xong lại phải đi tìm cái ô.
+	 */
+	private static function khoi_quen_pin( $qp ) {
+		$dang = ( '' !== $qp['the'] );
+		echo '<div class="the" style="margin-top:14px"><details' . ( $dang ? ' open' : '' ) . '>';
+		echo '<summary><b>Quên PIN?</b> — lấy lại bằng họ tên và số căn cước</summary>';
+
+		if ( ! $dang ) {
+			/* Không ai khai CCCD thì đường này vô dụng — nói ra, đừng để người ta gõ mãi. */
+			$co = VHCC_QuenPin::so_co_cccd();
+			if ( ! $co ) {
+				echo '<div class="bao canh">Chưa hồ sơ nào khai <b>số căn cước</b>, nên chưa ai lấy '
+					. 'lại PIN bằng đường này được. Nhờ quản lý khai ô <b>CCCD</b> trong hồ sơ nhân '
+					. 'sự trước.</div></details></div>';
+				return;
+			}
+			echo '<p class="mo">Gõ đúng như trong hồ sơ nhân sự. Khớp rồi thì đặt PIN mới ngay — '
+				. '<b>hệ thống không hiện PIN cũ ra màn hình</b> bao giờ.</p>';
+			echo '<form method="post"><input type="hidden" name="qp_viec" value="tra">';
+			echo '<div><label for="qp_ten">Họ tên</label>'
+				. '<input id="qp_ten" name="qp_ten" required style="width:100%"></div>';
+			echo '<div style="margin-top:8px"><label for="qp_cccd">Số căn cước công dân</label>'
+				. '<input id="qp_cccd" name="qp_cccd" inputmode="numeric" required style="width:100%"></div>';
+			echo '<button class="chinh" style="width:100%;margin-top:10px">Tra hồ sơ</button></form>';
+			echo '</details></div>';
+			return;
+		}
+
+		echo '<p><span class="chu-luc">✓ Khớp hồ sơ ' . esc_html( $qp['ten'] ) . '.</span> '
+			. 'Đặt PIN mới ngay bây giờ — <b>ô này sống 5 phút</b>.</p>';
+		echo '<form method="post"><input type="hidden" name="qp_viec" value="dat">';
+		echo '<input type="hidden" name="qp_the" value="' . esc_attr( $qp['the'] ) . '">';
+		echo '<div><label for="qp_moi">PIN mới (4–8 chữ số)</label>'
+			. '<input id="qp_moi" name="qp_moi" type="password" inputmode="numeric" required '
+			. 'autocomplete="off" style="width:100%;font-size:19px;letter-spacing:3px;text-align:center">'
+			. '</div>';
+		echo '<button class="chinh" style="width:100%;margin-top:10px">Đặt PIN mới</button></form>';
+		echo '</details></div>';
+	}
+
+	/** Hai bước của "quên PIN". Lõi ở `VHCC_QuenPin`; đây chỉ đọc biểu mẫu và kể lại. */
+	private static function viec_quen_pin() {
+		$ra = array( 'loi' => '', 'ok' => '', 'the' => '', 'ten' => '' );
+		$p  = function ( $k ) {
+			return isset( $_POST[ $k ] ) ? sanitize_text_field( wp_unslash( $_POST[ $k ] ) ) : '';
+		};
+		$viec = $p( 'qp_viec' );
+
+		if ( 'tra' === $viec ) {
+			$kq = VHCC_QuenPin::tra( $p( 'qp_ten' ), $p( 'qp_cccd' ) );
+			if ( empty( $kq['ok'] ) ) { $ra['loi'] = $kq['error']; return $ra; }
+			$ra['the'] = $kq['the'];
+			$ra['ten'] = $kq['ho_ten'];
+			return $ra;
+		}
+		if ( 'dat' === $viec ) {
+			$kq = VHCC_QuenPin::dat( $p( 'qp_the' ), $p( 'qp_moi' ) );
+			if ( empty( $kq['ok'] ) ) {
+				$ra['loi'] = $kq['error'];
+				/* ⚠️ THẺ CÒN HẠN THÌ GIỮ Ô LẠI. PIN trùng người khác hay sai khuôn là lỗi gõ,
+				   không phải lỗi danh tính — bắt tra lại CCCD từ đầu chỉ vì gõ hụt một số là
+				   thừa, và người ta sẽ chọn một PIN dễ đoán cho xong. */
+				$the = VHCC_QuenPin::doc_the( $p( 'qp_the' ) );
+				if ( '' !== $the ) {
+					$hs = VHCC_NhanSu::ho_so( $the );
+					$ra['the'] = $p( 'qp_the' );
+					$ra['ten'] = $hs ? (string) $hs['ho_ten'] : $the;
+				}
+				return $ra;
+			}
+			$ra['ok'] = 'Đã đặt PIN mới cho ' . $kq['ho_ten'] . '. Đăng nhập bằng PIN mới ngay bên trên.';
+			return $ra;
+		}
+		return $ra;
 	}
 
 	private static function trang_chinh( $toi, $bao ) {

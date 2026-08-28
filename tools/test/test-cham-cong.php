@@ -12858,6 +12858,148 @@ delete_option( 'vhcc_nhat_ky_may' );
 
 vhcc_dung_bang();
 
+/* ⚠️ KHỐI NÀY DỰNG LẠI BẢNG SẠCH, NÊN PHẢI ĐỨNG CUỐI. Đặt nó giữa file thì
+   `vhcc_dung_bang()` của nó xoá cảnh của mọi khối bên dưới — đã vấp đúng vậy: 14 phép
+   thử của khối vai trò và khối ghép mã cùng đỏ một lượt, mà lỗi thì nằm ở đây. */
+/* ---- LẤY LẠI PIN BẰNG HỌ TÊN + CĂN CƯỚC ---------------------------------------------------
+   Anh Thắng 28/08/2026: *"Thiếu phần lấy lại mã PIN ( Để lấy lại mã PIN nhập Họ Tên và số Căn
+   Cước Công Dân )"*, chốt phạm vi: MỌI VAI, kể cả Admin.
+
+   🔴 KHÔNG HIỆN PIN CŨ — luật của trang này từ đầu: trang chạy ngoài internet, ảnh chụp màn
+      hình đi khắp nơi. "Lấy lại" ở đây là khớp danh tính rồi cho ĐẶT PIN MỚI.
+   🔴 VÀ HỌ TÊN + CCCD LÀ DANH TÍNH, KHÔNG PHẢI BÍ MẬT. Họ tên công khai, CCCD lộ khắp nơi. Anh
+      Thắng biết và chọn vậy — nên mấy chốt dưới đây là thứ DUY NHẤT còn lại. */
+vhcc_dung_bang();
+delete_option( VHCC_QuenPin::O_NHAT_KY );
+VHCC_QuenPin::mo_khoa();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QP1', 'ho_ten' => 'Lê Thị Hồng Trinh',
+	'vai_tro' => 'Admin', 'cua_hang' => 'TUTU_BT', 'cccd' => '079123456789',
+	'pin_dang_nhap' => '334400' ) );
+
+teq( 'dựng cảnh: có hồ sơ khai CCCD', 1, VHCC_QuenPin::so_co_cccd() );
+
+/* Bước 1: khớp danh tính. Tên so bằng khoá BỎ DẤU, CCCD so bằng chữ số — bắt gõ đúng từng dấu
+   là không ai qua nổi, còn CCCD thì người ta hay chèn khoảng trắng. */
+$qp = VHCC_QuenPin::tra( 'le thi hong trinh', '079 123 456 789' );
+t( '🔴 gõ không dấu và CCCD có khoảng trắng vẫn khớp', ! empty( $qp['ok'] ), $qp );
+teq( 'và tra ra đúng người', 'QP1', (string) $qp['ma_nv'] );
+t( 'phát thẻ cho bước 2', ! empty( $qp['the'] ), $qp );
+/* 🔴 KHÔNG ĐƯỢC TRẢ PIN CŨ VỀ, DÙ CHỈ TRONG DỮ LIỆU. */
+t( '🔴 kết quả tra KHÔNG mang PIN cũ',
+	strpos( (string) wp_json_encode( $qp ), '334400' ) === false, $qp );
+
+/* Bước 2: đặt PIN mới. */
+$kq = VHCC_QuenPin::dat( $qp['the'], '778811' );
+t( 'đặt được PIN mới', ! empty( $kq['ok'] ), $kq );
+$hs_qp = VHCC_NhanSu::ho_so( 'QP1' );
+teq( '🔴 PIN trong HỒ SƠ đã đổi — một nguồn, mọi trang đọc theo',
+	'778811', (string) $hs_qp['pin_dang_nhap'] );
+
+/* ⚠️ THẺ CHỈ SỐNG 5 PHÚT, VÀ KÝ CẢ MÃ LẪN HẠN. Ký mỗi mã thì thẻ sống mãi; ký mỗi hạn thì đổi
+   mã trong thẻ là đặt lại PIN của người khác. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QP2', 'ho_ten' => 'Người Khác',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT', 'cccd' => '079999888777',
+	'pin_dang_nhap' => '112233' ) );
+$the_gia = 'QP2.' . ( time() + 300 ) . '.' . substr( (string) $qp['the'], strrpos( (string) $qp['the'], '.' ) + 1 );
+$kq = VHCC_QuenPin::dat( $the_gia, '999000' );
+t( '🔴 đổi mã trong thẻ mà giữ chữ ký cũ: bị chối', empty( $kq['ok'] ), $kq );
+teq( 'và PIN người kia KHÔNG bị đụng', '112233',
+	(string) VHCC_NhanSu::ho_so( 'QP2' )['pin_dang_nhap'] );
+
+$the_het = 'QP1.' . ( time() - 10 ) . '.'
+	. hash_hmac( 'sha256', 'QP1.' . ( time() - 10 ), wp_salt( 'auth' ) . '|vhcc-quen-pin' );
+$kq = VHCC_QuenPin::dat( $the_het, '555000' );
+t( '🔴 thẻ hết hạn thì chối', empty( $kq['ok'] ), $kq );
+t( 'và nói rõ phải nhập lại họ tên + căn cước',
+	strpos( (string) $kq['error'], 'hết hạn' ) !== false, $kq );
+
+/* PIN trùng người khác = hai người chung một cửa: cổng tra theo PIN, ai gõ vào cũng rơi vào hồ
+   sơ đứng trước, và người kia mất tài khoản mà không hiểu vì sao. */
+$qp2 = VHCC_QuenPin::tra( 'Lê Thị Hồng Trinh', '079123456789' );
+$kq  = VHCC_QuenPin::dat( $qp2['the'], '112233' );
+t( '🔴 PIN trùng người khác: chối', empty( $kq['ok'] ), $kq );
+t( 'và nói rõ vì sao', strpos( (string) $kq['error'], 'đã có người dùng' ) !== false, $kq );
+/* PIN sai khuôn. */
+$kq = VHCC_QuenPin::dat( $qp2['the'], '12' );
+t( 'PIN dưới 4 chữ số: chối', empty( $kq['ok'] ), $kq );
+
+/* 🔴 CÂU CHỐI GIỐNG NHAU CHO MỌI CA HỎNG. Nói "không có ai tên đó" khác với "tên đúng mà CCCD
+   sai" là biến ô này thành máy dò xem một người có trong công ty hay không. */
+VHCC_QuenPin::mo_khoa();
+$a = VHCC_QuenPin::tra( 'Không Có Ai Tên Này', '111111111111' );
+VHCC_QuenPin::mo_khoa();
+$b = VHCC_QuenPin::tra( 'Lê Thị Hồng Trinh', '000000000000' );
+teq( '🔴 tên lạ và CCCD sai cho ra ĐÚNG một câu chối', (string) $a['error'], (string) $b['error'] );
+
+/* 🔴 HÃM DÒ. Không có nó thì quét CCCD là chuyện của một buổi chiều. */
+VHCC_QuenPin::mo_khoa();
+for ( $i_qp = 0; $i_qp < VHCC_QuenPin::SAI_TOI_DA; $i_qp++ ) {
+	VHCC_QuenPin::tra( 'Ai Đó', '000000000' . $i_qp );
+}
+t( '🔴 sai quá số lần cho phép thì khoá', VHCC_QuenPin::bi_khoa() );
+$kq = VHCC_QuenPin::tra( 'Lê Thị Hồng Trinh', '079123456789' );
+t( 'và lúc bị khoá thì gõ ĐÚNG cũng không qua', empty( $kq['ok'] ), $kq );
+t( 'câu chối nói rõ phải chờ', strpos( (string) $kq['error'], 'thử lại sau' ) !== false, $kq );
+
+/* ⚠️ KHỚP RỒI THÌ XOÁ ĐẾM SAI — không thì người gõ nhầm hai lần rồi gõ đúng vẫn bị khoá ở lần
+   sau, và hãm dò quay ra hãm chính người có quyền. */
+VHCC_QuenPin::mo_khoa();
+VHCC_QuenPin::tra( 'Ai Đó', '000000001' );
+VHCC_QuenPin::tra( 'Ai Đó', '000000002' );
+VHCC_QuenPin::tra( 'Lê Thị Hồng Trinh', '079123456789' );
+for ( $i_qp = 0; $i_qp < VHCC_QuenPin::SAI_TOI_DA - 1; $i_qp++ ) {
+	VHCC_QuenPin::tra( 'Ai Đó', '00000001' . $i_qp );
+}
+t( '🔴 tra khớp thì đếm sai về 0, không cộng dồn từ mấy lần gõ nhầm trước',
+	! VHCC_QuenPin::bi_khoa() );
+
+/* 🔴 HỒ SƠ CHƯA KHAI CCCD THÌ KHÔNG DÙNG ĐƯỢC ĐƯỜNG NÀY. Nhận hồ sơ CCCD rỗng là ai gõ đúng
+   tên rồi để trống ô CCCD cũng qua. */
+VHCC_QuenPin::mo_khoa();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QP3', 'ho_ten' => 'Chưa Khai Căn Cước',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT', 'cccd' => '', 'pin_dang_nhap' => '445500' ) );
+$kq = VHCC_QuenPin::tra( 'Chưa Khai Căn Cước', '' );
+t( '🔴 CCCD để trống: chối', empty( $kq['ok'] ), $kq );
+
+/* 🔴 NHẬT KÝ — đây là đường vào DUY NHẤT không cần biết PIN cũ. Không có sổ thì ngày ai đó
+   dùng CCCD của người khác để chiếm tài khoản, không còn một dấu vết nào để lần. */
+$nk_qp = VHCC_QuenPin::nhat_ky();
+t( 'có ghi nhật ký mỗi lần đổi PIN qua đường này', count( $nk_qp ) >= 1, $nk_qp );
+t( 'kể đúng người', 'QP1' === (string) $nk_qp[0]['ma_nv'], $nk_qp );
+/* 🔴 VÀ KHÔNG GHI PIN VÀO SỔ. */
+t( '🔴 nhật ký KHÔNG chứa PIN',
+	strpos( (string) wp_json_encode( $nk_qp ), '778811' ) === false, $nk_qp );
+
+/* ---- Trên MÀN ĐĂNG NHẬP ---- */
+$h_qp = vhcc_hr( '', array() );
+t( '🔴 màn đăng nhập có khối Quên PIN', strpos( $h_qp, 'Quên PIN?' ) !== false, $h_qp );
+t( 'có ô họ tên và ô căn cước',
+	strpos( $h_qp, 'name="qp_ten"' ) !== false && strpos( $h_qp, 'name="qp_cccd"' ) !== false, $h_qp );
+t( '🔴 và nói thẳng là KHÔNG hiện PIN cũ',
+	strpos( $h_qp, 'không hiện PIN cũ' ) !== false, $h_qp );
+/* ⚠️ Màn đăng nhập TUYỆT ĐỐI không được rò một PIN nào ra. */
+t( '🔴 màn đăng nhập không in PIN của ai',
+	strpos( $h_qp, '778811' ) === false && strpos( $h_qp, '112233' ) === false, $h_qp );
+
+/* 🔴 KHÔNG AI KHAI CCCD THÌ ĐƯỜNG NÀY VÔ DỤNG — NÓI RA, ĐỪNG BÀY Ô NHẬP.
+   Bày ô ra rồi để người ta gõ đúng tên mình mà vẫn bị chối là kiểu tệ nhất: họ tin là mình gõ
+   sai, gõ lại năm lần, rồi tự khoá mình mười phút. */
+vhcc_dung_bang();
+VHCC_QuenPin::mo_khoa();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'QPX', 'ho_ten' => 'Không Có Căn Cước',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT', 'cccd' => '', 'pin_dang_nhap' => '667700' ) );
+teq( 'dựng cảnh: sổ không ai khai CCCD', 0, VHCC_QuenPin::so_co_cccd() );
+$h_qp = vhcc_hr( '', array() );
+t( '🔴 nói thẳng là chưa ai khai căn cước',
+	strpos( $h_qp, 'Chưa hồ sơ nào khai' ) !== false, $h_qp );
+t( '🔴 và KHÔNG bày ô nhập ra để người ta gõ vô ích',
+	strpos( $h_qp, 'name="qp_ten"' ) === false, $h_qp );
+
+vhcc_dung_bang();
+VHCC_QuenPin::mo_khoa();
+delete_option( VHCC_QuenPin::O_NHAT_KY );
+
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }
