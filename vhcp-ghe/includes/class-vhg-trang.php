@@ -555,7 +555,21 @@ class VHG_Trang {
 				return;
 			}
 			if ( 'bc_pin_ds' === $viec ) {
-				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::pin_ds() ) ); return;
+				/* Kèm danh sách nhân viên từ nhân sự (Admin-only) để chọn nhanh: điền tên + PIN +
+				   tích cơ sở của đúng người. Bỏ PIN rỗng. */
+				$ns = array();
+				$us = VHG_Auth::users();
+				if ( ! is_wp_error( $us ) ) {
+					foreach ( (array) $us as $u ) {
+						$pin = (string) ( isset( $u['pin'] ) ? $u['pin'] : '' );
+						$ten = (string) ( isset( $u['ten'] ) ? $u['ten'] : '' );
+						if ( '' === $ten ) { continue; }
+						$ns[] = array( 'ten' => $ten, 'pin' => $pin,
+							'coso' => (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ),
+							'vaiTro' => (string) ( isset( $u['vaiTro'] ) ? $u['vaiTro'] : '' ) );
+					}
+				}
+				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::pin_ds(), 'nhan_su' => $ns ) ); return;
 			}
 			if ( 'bc_pin_luu' === $viec ) {
 				$r = VHG_BaoCao::pin_luu( $d );
@@ -2987,13 +3001,14 @@ var CH = null;   // số liệu cấu hình vừa tải
  * TAB PIN BÁO CÁO (chỉ Admin) — cấp/sửa/xoá bc_pin cho nhân viên vào màn Báo cáo doanh thu.
  * Gọi bc_pin_* qua `goi()` (kèm token) — endpoint gác token + Admin ở máy chủ.
  * ============================================================================================ */
-var BCP = null;   // danh sách PIN báo cáo vừa tải
+var BCP = null;     // danh sách PIN báo cáo vừa tải
+var BCP_NS = [];    // danh sách nhân viên từ nhân sự (để chọn nhanh)
 function veBcPin(){
   if (!BCP) {
     goi('bc_pin_ds', {}, function(r){
       if (!r || !r.ok) { alert((r && r.error) || L('Không tải được PIN (chỉ Admin xem được).',
         'Could not load PINs (Admin only).')); BCP = []; ve(); return; }
-      BCP = r.ds || []; ve();
+      BCP = r.ds || []; BCP_NS = r.nhan_su || []; ve();
     });
     return '<div class="card"><p class="mut">' + L('Đang tải…','Loading…') + '</p></div>';
   }
@@ -3017,8 +3032,14 @@ function veBcPin(){
       + '<button data-bcpxoa="' + esc(p.pin) + '" class="ghost">' + L('Xoá','Del') + '</button></td></tr>';
   });
   var dsCoso = (D && D.coso) || [];
+  var nsOpt = '<option value="">' + L('— Chọn nhân viên từ nhân sự —','— Pick staff from HR —') + '</option>'
+    + (BCP_NS || []).map(function(u, i){ return '<option value="' + i + '">' + esc(u.ten)
+        + (u.vaiTro ? ' · ' + esc(u.vaiTro) : '') + (u.coso ? ' · ' + esc(u.coso) : '') + '</option>'; }).join('');
   h += '</table>'
     + '<h3 style="margin:16px 0 8px">' + L('Thêm / sửa PIN','Add / edit PIN') + '</h3>'
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:8px"><b>' + L('Nhân viên','Staff') + ':</b>'
+    + '<select id="bcp-nv" style="flex:2;min-width:220px">' + nsOpt + '</select>'
+    + '<span class="mut">' + L('chọn để tự điền PIN + tên + cơ sở','pick to auto-fill') + '</span></div>'
     + '<div class="act" style="flex-wrap:wrap">'
     + '<input id="bcp-pin" type="tel" inputmode="numeric" placeholder="PIN 3–10 ' + L('số','digits')
       + '" style="flex:1;min-width:110px">'
@@ -3060,11 +3081,21 @@ function noiBcPin(){
   var e = document.getElementById('bcp-e');
   var luu = document.getElementById('bcp-luu');
   var moi = document.getElementById('bcp-moi');
+  var nv = document.getElementById('bcp-nv');
+  if (nv) nv.onchange = function(){
+    var u = (BCP_NS || [])[Number(nv.value)];
+    if (!u) return;
+    if (u.pin) document.getElementById('bcp-pin').value = u.pin;
+    document.getElementById('bcp-ten').value = u.ten || '';
+    bcpTickCoso(u.coso || '');   // cơ sở trống = không tích ô nào (toàn phạm vi)
+    if (e) e.textContent = u.pin ? '' : L('Người này chưa có PIN trong nhân sự — nhập PIN tay.','No HR PIN — enter PIN manually.');
+  };
   if (moi) moi.onclick = function(){
     document.getElementById('bcp-pin').value = '';
     document.getElementById('bcp-ten').value = '';
     document.getElementById('bcp-ghe').value = '';
     document.getElementById('bcp-active').checked = true;
+    if (nv) nv.value = '';
     bcpTickCoso('');
     if (e) e.textContent = '';
   };
