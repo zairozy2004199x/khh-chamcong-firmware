@@ -544,14 +544,17 @@ class VHG_Trang {
 		}
 
 		/* ══════════════════════════════════════════════════════════════════════════════════════
-		 * QUẢN LÝ PIN BÁO CÁO (bc_pin_*) — CHỈ ADMIN. Đây là chỗ CẤP DANH TÍNH thu tiền: cấp một
-		 * PIN gán sai cơ sở là cho người ta xem/nhập doanh thu cơ sở không phải của họ. Vì thế các
-		 * việc này GIỮ cổng token + Admin (khác các `bc_*` của nhân viên chạy trước cổng bằng PIN
-		 * riêng). Admin nhập 28 PIN thật ở đây — KHÔNG seed trong mã (repo công khai). */
+		 * QUẢN LÝ PIN BÁO CÁO (bc_pin_*) — ADMIN hoặc vai trò QUẢN TRỊ. Đây là chỗ CẤP DANH TÍNH
+		 * thu tiền: cấp một PIN gán sai cơ sở là cho người ta xem/nhập doanh thu cơ sở không phải
+		 * của họ. Vì thế các việc này GIỮ cổng token + quyền Quản trị (khác các `bc_*` của nhân
+		 * viên chạy trước cổng bằng PIN riêng).
+		 * 🔴 Anh Thắng 28/08/2026: nhóm "Quản trị" được set PIN báo cáo cho nhân viên mình quản lý.
+		 *    Mặc định nhóm này = Admin + Quản lý; Admin khai thêm vai trò khác ở bảng phân quyền.
+		 *    PIN thật do người dùng nhập ở đây — KHÔNG seed trong mã (repo công khai). */
 		if ( 0 === strpos( $viec, 'bc_pin_' ) ) {
-			if ( 'Admin' !== $ai['role'] ) {
+			if ( ! VHG_Auth::la_quan_tri( $ai['role'] ) ) {
 				self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
-					'error' => 'Chỉ Admin mới quản lý được PIN báo cáo.' ) );
+					'error' => 'Chỉ Admin hoặc vai trò Quản trị mới quản lý được PIN báo cáo.' ) );
 				return;
 			}
 			if ( 'bc_pin_ds' === $viec ) {
@@ -870,6 +873,7 @@ class VHG_Trang {
 				'vao'        => VHG_Auth::vai_tro_vao(),
 				'chot'       => VHG_Auth::vai_tro_chot(),
 				'giup'       => VHG_Auth::vai_tro_giup_khach(),
+				'quantri'    => VHG_Auth::vai_tro_quan_tri(),
 				'nguon'      => (string) get_option( 'vhg_nguon_nguoidung', 'chung' ),
 				'don_vi'     => VHG_Quy::don_vi(),
 				'toi_la'     => (string) $ai['name'] );
@@ -918,21 +922,24 @@ class VHG_Trang {
 				}
 				return $ra;
 			};
-			$vao  = $loc( isset( $d['vao'] ) ? $d['vao'] : array() );
-			$chot = $loc( isset( $d['chot'] ) ? $d['chot'] : array() );
-			$giup = $loc( isset( $d['giup'] ) ? $d['giup'] : array() );
-			/* 🔴 ADMIN LUÔN CÓ, ở cả ba danh sách. Lưu một danh sách thiếu Admin là tự khoá mình
+			$vao     = $loc( isset( $d['vao'] ) ? $d['vao'] : array() );
+			$chot    = $loc( isset( $d['chot'] ) ? $d['chot'] : array() );
+			$giup    = $loc( isset( $d['giup'] ) ? $d['giup'] : array() );
+			$quantri = $loc( isset( $d['quantri'] ) ? $d['quantri'] : array() );
+			/* 🔴 ADMIN LUÔN CÓ, ở cả bốn danh sách. Lưu một danh sách thiếu Admin là tự khoá mình
 			   ra khỏi chính cái màn vừa dùng để lưu nó, và không có đường tự mở lại. */
 			$them_admin = function ( $ds ) {
 				if ( ! in_array( 'Admin', $ds, true ) ) { array_unshift( $ds, 'Admin' ); }
 				return $ds;
 			};
-			$vao  = $them_admin( $vao );
-			$chot = $them_admin( $chot );
-			$giup = $them_admin( $giup );
+			$vao     = $them_admin( $vao );
+			$chot    = $them_admin( $chot );
+			$giup    = $them_admin( $giup );
+			$quantri = $them_admin( $quantri );
 			update_option( 'vhg_vai_tro_vao', $vao );
 			update_option( 'vhg_vai_tro_chot', $chot );
 			update_option( 'vhg_vai_tro_giup', $giup );
+			update_option( 'vhg_vai_tro_quantri', $quantri );
 			return array( 'ok' => true, 'thong_bao' => 'Đã lưu phân quyền.' );
 		}
 
@@ -2406,8 +2413,8 @@ function ve(){
   if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
   if (QT) TABS.push(['nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')]);
   if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
-  /* PIN nhân viên báo cáo — CHỈ Admin (cấp danh tính thu tiền là việc nhạy cảm). */
-  if (D.ai && D.ai.role === 'Admin') TABS.push(['bc-pin', '📋 ' + L('PIN báo cáo','Report PINs')]);
+  /* PIN nhân viên báo cáo — Admin hoặc vai trò Quản trị (cấp PIN cho nhân viên mình quản lý). */
+  if (QT) TABS.push(['bc-pin', '📋 ' + L('PIN báo cáo','Report PINs')]);
   /* Trang kế toán: duyệt báo cáo doanh thu — vai trò Chốt doanh số / Quản lý / Admin. */
   if (QT || KT) TABS.push(['kt-duyet', '📈 ' + L('Duyệt báo cáo','Review reports')]);
   if (QT || KT) TABS.push(['kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')]);
@@ -2998,23 +3005,23 @@ function CHOT_DS(){ return !!(D && D.quyen && D.quyen.chot_doanh_so); }
 var CH = null;   // số liệu cấu hình vừa tải
 
 /* ============================================================================================
- * TAB PIN BÁO CÁO (chỉ Admin) — cấp/sửa/xoá bc_pin cho nhân viên vào màn Báo cáo doanh thu.
- * Gọi bc_pin_* qua `goi()` (kèm token) — endpoint gác token + Admin ở máy chủ.
+ * TAB PIN BÁO CÁO (Admin hoặc Quản trị) — cấp/sửa/xoá bc_pin cho nhân viên vào màn Báo cáo.
+ * Gọi bc_pin_* qua `goi()` (kèm token) — endpoint gác token + quyền Quản trị ở máy chủ.
  * ============================================================================================ */
 var BCP = null;     // danh sách PIN báo cáo vừa tải
 var BCP_NS = [];    // danh sách nhân viên từ nhân sự (để chọn nhanh)
 function veBcPin(){
   if (!BCP) {
     goi('bc_pin_ds', {}, function(r){
-      if (!r || !r.ok) { alert((r && r.error) || L('Không tải được PIN (chỉ Admin xem được).',
-        'Could not load PINs (Admin only).')); BCP = []; ve(); return; }
+      if (!r || !r.ok) { alert((r && r.error) || L('Không tải được PIN (cần quyền Quản trị).',
+        'Could not load PINs (needs Manage permission).')); BCP = []; ve(); return; }
       BCP = r.ds || []; BCP_NS = r.nhan_su || []; ve();
     });
     return '<div class="card"><p class="mut">' + L('Đang tải…','Loading…') + '</p></div>';
   }
   var h = '<div class="card"><h2>📋 ' + L('PIN nhân viên báo cáo','Report staff PINs') + '</h2>'
     + '<p class="mut">' + L('Dùng CHÍNH PIN nhân sự / chấm công của nhân viên (hai hệ đồng bộ) để vào '
-      + 'màn Báo cáo doanh thu — không cần tài khoản /ghe. Tích cơ sở người này phụ trách. Chỉ Admin sửa. '
+      + 'màn Báo cáo doanh thu — không cần tài khoản /ghe. Tích cơ sở người này phụ trách. Admin/Quản trị sửa. '
       + 'PIN nhân viên đã có sẵn trong hệ nhân sự vẫn đăng nhập được dù chưa khai ở đây; khai ở đây khi '
       + 'muốn đổi phạm vi hoặc khoá riêng.',
       'Use the staff member\'s existing HR / attendance PIN (the two systems sync). Tick the branches '
@@ -4077,7 +4084,15 @@ function veCauHinh(){
                'The hotline staff: customers call because a chair will not start. No revenue access.')],
     ['chot', L('Chốt doanh số (nhận tiền nhân viên nộp)','Close revenue (receive staff hand-ins)'),
              L('Kế toán xuống nhận tiền. Không kèm quyền huỷ mã hay gán ghế.',
-               'The accountant receiving the cash. Does not include cancelling codes or assigning chairs.')]
+               'The accountant receiving the cash. Does not include cancelling codes or assigning chairs.')],
+    ['quantri', L('Quản trị (thêm/xoá cơ sở & ghế, cấp PIN báo cáo)',
+                  'Manage (add/remove sites & chairs, issue report PINs)'),
+             L('Vận hành cả chuỗi: thêm/xoá/sửa cơ sở & ghế, gán/huỷ mã, xem doanh thu toàn chuỗi, '
+               + 'và cấp PIN báo cáo cho nhân viên mình quản lý. <b>KHÔNG</b> kèm quyền khai nhân sự '
+               + 'hay sửa chính bảng phân quyền này — hai việc đó vẫn chỉ Admin.',
+               'Chain-wide operations: add/remove/edit sites & chairs, assign/cancel codes, see '
+               + 'chain-wide revenue, and issue report PINs to staff you manage. Does <b>not</b> '
+               + 'include managing users or editing this permission table — both stay Admin-only.')]
   ];
   h += '<div class="card"><h2>' + L('Phân quyền','Permissions') + '</h2>';
   nhom.forEach(function(g){
@@ -4097,10 +4112,12 @@ function veCauHinh(){
     + L('Lưu phân quyền','Save permissions') + '</button>'
     /* ⚠️ Admin bị khoá ở cả ba nhóm — bỏ sót Admin là tự khoá mình ra khỏi chính màn này. */
     + '<p class="mut" style="margin-top:8px">'
-    + L('Admin luôn có đủ ba quyền — bỏ sót là tự khoá mình ra khỏi chính màn này, và không có '
-        + 'đường tự mở lại ngoài cơ sở dữ liệu.',
-        'Admin always keeps all three — dropping it locks you out of this very screen, with no '
-        + 'way back except the database.')
+    + L('Admin luôn có đủ bốn quyền — bỏ sót là tự khoá mình ra khỏi chính màn này, và không có '
+        + 'đường tự mở lại ngoài cơ sở dữ liệu. Nhóm <b>Quản trị</b> chưa khai bao giờ = Admin + '
+        + 'Quản lý (giữ như cũ); tích thêm vai trò để trao quyền vận hành cho họ.',
+        'Admin always keeps all four — dropping it locks you out of this very screen, with no '
+        + 'way back except the database. The <b>Manage</b> group, if never set, defaults to Admin '
+        + '+ Manager; tick more roles to grant them operational rights.')
     + '</p><div class="err" id="ch-e2"></div></div>';
 
   /* ---- 3. CHỈ SỐ MÁY ĐẾM ------------------------------------------------------------------ */
@@ -5413,7 +5430,7 @@ function noi(){
   var chVt = document.getElementById('ch-luu-vt');
   if (chVt) chVt.onclick = function(){
     if (ban) return;
-    var g = { vao: [], giup: [], chot: [] };
+    var g = { vao: [], giup: [], chot: [], quantri: [] };
     [].forEach.call(document.querySelectorAll('[data-ph]'), function(o){
       if (o.checked) g[o.getAttribute('data-ph')].push(o.value);
     });

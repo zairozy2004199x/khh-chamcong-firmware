@@ -158,8 +158,37 @@ class VHG_Auth {
 		);
 	}
 
+	/**
+	 * Vai trò QUẢN TRỊ — khai được, cùng lối với `vai_tro_chot()` / `vai_tro_giup_khach()`.
+	 *
+	 * Anh Thắng 28/08/2026: *"Bổ sung thêm phân quyền — Quản lý được, Xoá, Thêm cơ sở, set được
+	 * sử dụng tính năng nào (PIN Báo Cáo), và cấp một số quyền khác cho nhân viên mình quản lý"*.
+	 *
+	 * → Nhóm này cấp quyền VẬN HÀNH cho vai trò ngoài Admin/Quản lý (ví dụ Cửa hàng trưởng quản lý
+	 *   cơ sở của mình): thêm/xoá/sửa cơ sở & ghế, gán/huỷ mã, xem doanh thu cả chuỗi, và cấp PIN
+	 *   báo cáo cho nhân viên (`bc_pin_*`).
+	 *
+	 * ⚠️ CHƯA KHAI BAO GIỜ = Admin + Quản lý, đúng như hệ đang chạy trước bản này (const QUAN_TRI).
+	 * ⚠️ Admin LUÔN nằm trong danh sách dù khai kiểu gì — khai sót Admin là tự khoá mình khỏi mọi
+	 *    việc quản trị, kể cả màn sửa chính danh sách này, và không có đường mở lại ngoài CSDL.
+	 * 🔴 KHAI NHÂN SỰ và SỬA CHÍNH BẢNG PHÂN QUYỀN vẫn CHỈ Admin (gác ở lớp `ch_` của VHG_Trang):
+	 *    người được cấp quyền quản trị KHÔNG tự nâng quyền cho mình hay người khác được.
+	 */
+	public static function vai_tro_quan_tri() {
+		$ds = get_option( 'vhg_vai_tro_quantri' );
+		if ( ! is_array( $ds ) ) { return self::QUAN_TRI; }   // chưa khai = Admin + Quản lý
+		$ra = array( 'Admin' );
+		foreach ( $ds as $v ) {
+			$v = (string) $v;
+			if ( in_array( $v, self::VAI_TRO_TAT_CA, true ) && ! in_array( $v, $ra, true ) ) {
+				$ra[] = $v;
+			}
+		}
+		return $ra;
+	}
+
 	public static function la_quan_tri( $vai_tro ) {
-		return in_array( (string) $vai_tro, self::QUAN_TRI, true );
+		return in_array( (string) $vai_tro, self::vai_tro_quan_tri(), true );
 	}
 
 	/* ══════════════════════════════════════════════════════════════════════════════════════════
