@@ -802,6 +802,167 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * CỬA HÀNG TRƯỞNG THÊM NGƯỜI MỚI VÀO CƠ SỞ CỦA MÌNH.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO KHÔNG NỚI `luu_ho_so()` RA MÀ LÀM MỘT ĐƯỜNG RIÊNG.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"thêm phần cửa hàng trưởng bổ sung nhân sự cho cửa hàng mình"*, và
+	 * trước đó: *"Khi thêm nó sẽ đẩy sang nhân sự và tự tạo mã NV tạm (Admin sẽ sửa lại sau),
+	 * để tài khoản có thể dùng được ngay và đẩy lên máy chấm công"*.
+	 *
+	 * `luu_ho_so()` chặn tạo mới ở bậc Quản lý, và chốt ấy ĐÚNG: mã NV là mã dùng chung cả
+	 * chuỗi, cấp bừa thì hai cửa hàng cấp trùng nhau và không ai biết cho tới kỳ lương. Hạ chốt
+	 * đó xuống bậc Cửa hàng trưởng là mở luôn cả đường sửa lương, đổi cơ sở, cấp mã chuẩn.
+	 *
+	 * Nên: một cửa HẸP riêng. Cửa này chỉ làm được đúng một việc — mở hồ sơ TẠM cho người vừa
+	 * vào làm ở CƠ SỞ MÌNH — và mã nó cấp mang tiền tố `TAM-` để Admin lọc ra đổi lại sau.
+	 *
+	 * ⚠️ BẮT BUỘC CĂN CƯỚC, VÀ ĐÓ LÀ ĐIỀU KIỆN ĐỂ "DÙNG ĐƯỢC NGAY".
+	 *    Hệ không cấp PIN qua tay ai cả: người mới tự vào trang chấm công → "Quên PIN" → gõ Họ
+	 *    tên + Căn cước của chính mình → tự đặt PIN. Thiếu căn cước là đường ấy tắc, và tài
+	 *    khoản vừa tạo thành một hồ sơ chết mà cửa hàng trưởng tưởng đã xong.
+	 *    Cách này cũng có nghĩa KHÔNG AI phải đọc PIN của ai — kể cả cửa hàng trưởng.
+	 *
+	 * ⚠️ CĂN CƯỚC TRÙNG THÌ CHỐI, VÀ CHỈ RA NGƯỜI ĐANG CÓ. Một người làm hai cơ sở là chuyện
+	 *    thường ở chuỗi này (anh Thắng hỏi 28/08); nhưng đó là MỘT hồ sơ khai thêm Cơ sở phụ,
+	 *    không phải hai hồ sơ. Tạo hồ sơ thứ hai là nhân đôi người trên bảng lương.
+	 */
+	public static function them_nv_cua_hang( $u, $dat ) {
+		global $wpdb;
+		if ( ! VHCC_Vai::duoc( $u, 'them_nv' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'them_nv', 'Thêm người mới' ) );
+		}
+		$ten = trim( (string) ( isset( $dat['ho_ten'] ) ? $dat['ho_ten'] : '' ) );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu họ tên.' ); }
+
+		/* Cơ sở: lấy ô người ta chọn, bỏ trống thì hiểu là cơ sở của chính mình. Dù đường nào
+		   cũng phải qua `co_quyen_coso` — ô chọn trên màn hình không phải là chốt. */
+		$coso = self::chuan_coso( isset( $dat['cua_hang'] ) ? $dat['cua_hang'] : '' );
+		if ( '' === $coso ) { $coso = self::chuan_coso( isset( $u['coso'] ) ? $u['coso'] : '' ); }
+		if ( '' === $coso ) {
+			return array( 'ok' => false, 'error' => 'Chưa rõ thêm vào cơ sở nào.' );
+		}
+		if ( ! self::co_quyen_coso( $u, $coso ) ) {
+			return array( 'ok' => false, 'error' => 'Bạn không phụ trách cơ sở "' . $coso . '".' );
+		}
+
+		$cccd = preg_replace( '/\D+/', '', (string) ( isset( $dat['cccd'] ) ? $dat['cccd'] : '' ) );
+		if ( strlen( $cccd ) < 9 || strlen( $cccd ) > 12 ) {
+			return array( 'ok' => false, 'error' => 'Phải có số căn cước (12 số, hoặc 9 số nếu là '
+				. 'CMND cũ) — đó là thứ để người mới tự lấy mã PIN ở màn "Quên PIN".' );
+		}
+		$trung = self::ho_so_theo_cccd( $cccd );
+		if ( $trung ) {
+			return array( 'ok' => false, 'error' => 'Số căn cước này đã có hồ sơ: '
+				. $trung['ho_ten'] . ' (' . $trung['ma_nv'] . ', cơ sở ' . $trung['cua_hang'] . '). '
+				. 'Người làm ở hai cơ sở thì khai thêm vào ô "Cơ sở phụ" của hồ sơ ấy, '
+				. 'đừng mở hồ sơ thứ hai — bảng lương sẽ tính người đó hai lần.' );
+		}
+
+		$ma = self::ma_tam( $coso );
+		if ( '' === $ma ) {
+			return array( 'ok' => false, 'error' => 'Không cấp được mã tạm — thử lại.' );
+		}
+
+		$ghi = array(
+			'ma_nv'                => $ma,
+			'ho_ten'               => $ten,
+			'cua_hang'             => $coso,
+			'cccd'                 => $cccd,
+			'sdt'                  => trim( (string) ( isset( $dat['sdt'] ) ? $dat['sdt'] : '' ) ),
+			'gioi_tinh'            => trim( (string) ( isset( $dat['gioi_tinh'] ) ? $dat['gioi_tinh'] : '' ) ),
+			'chuc_vu'              => trim( (string) ( isset( $dat['chuc_vu'] ) ? $dat['chuc_vu'] : '' ) ),
+			'ngay_vao_lam'         => current_time( 'Y-m-d' ),
+			'trang_thai_lam_viec'  => 'Đang làm',
+			'cap_nhat'             => current_time( 'mysql' ),
+		);
+		$ok = $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi );
+		if ( false === $ok ) {
+			return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
+		}
+
+		$day = self::day_len_may( $ma, $ten, $coso, $ghi['gioi_tinh'], $u );
+		return array( 'ok' => true, 'ma_nv' => $ma, 'coso' => $coso, 'day_may' => $day );
+	}
+
+	/** Hồ sơ mang số căn cước này — null là chưa ai. So bằng CHỮ SỐ, bỏ mọi dấu cách / gạch. */
+	public static function ho_so_theo_cccd( $cccd ) {
+		$so = preg_replace( '/\D+/', '', (string) $cccd );
+		if ( '' === $so ) { return null; }
+		foreach ( (array) VHCC_DB::rows( 'SELECT ma_nv, ho_ten, cua_hang, cccd FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . " WHERE TRIM(cccd) <> ''" ) as $r ) {
+			if ( preg_replace( '/\D+/', '', (string) $r['cccd'] ) === $so ) { return $r; }
+		}
+		return null;
+	}
+
+	/**
+	 * Cấp một mã TẠM chưa ai dùng, dạng `TAM-<CƠ SỞ>-<số>`.
+	 *
+	 * ⚠️ TIỀN TỐ `TAM-` LÀ CỐ Ý, KHÔNG PHẢI CHO ĐẸP. Mã tạm mà trông giống mã chuẩn thì không ai
+	 *    lọc ra được để đổi, và nó nằm lại trong bảng lương vài tháng. Nhìn là biết ngay.
+	 *
+	 * ⚠️ ĐẾM TỪ SỐ ĐANG CÓ, KHÔNG PHẢI TỪ SỐ HỒ SƠ. Xoá một hồ sơ tạm rồi tạo lại là cấp trùng
+	 *    mã vừa xoá — mà lượt chấm công cũ vẫn mang mã ấy, nên công của người cũ chảy sang
+	 *    người mới. Nên: dò tới khi gặp một mã chưa ai dùng.
+	 */
+	public static function ma_tam( $coso ) {
+		$cs = strtoupper( preg_replace( '/[^A-Za-z0-9]+/', '', self::chuan_coso( $coso ) ) );
+		if ( '' === $cs ) { $cs = 'CS'; }
+		$cs = substr( $cs, 0, 8 );
+		for ( $i = 1; $i <= 999; $i++ ) {
+			$thu = 'TAM-' . $cs . '-' . str_pad( (string) $i, 3, '0', STR_PAD_LEFT );
+			if ( ! self::ho_so( $thu ) && ! self::co_cham_cong( $thu ) ) { return $thu; }
+		}
+		return '';
+	}
+
+	/** Mã này đã có lượt chấm công nào chưa — kể cả khi hồ sơ đã bị xoá. */
+	public static function co_cham_cong( $ma_nv ) {
+		global $wpdb;
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return false; }
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE ma_nv=%s', $ma ) ) > 0;
+	}
+
+	/**
+	 * Đặt lệnh ghi người này xuống ĐẦU ĐỌC của cơ sở.
+	 *
+	 * ⚠️ KHÔNG CÓ MÁY THÌ KHÔNG PHẢI LỖI. Cơ sở chưa gắn máy, hay máy đang mất mạng, thì hồ sơ
+	 *    vẫn phải tạo xong — người mới chấm công bằng điện thoại được ngay. Trả về câu nói rõ
+	 *    tình trạng để màn hình bày ra, chứ không nuốt lời rồi để người ta tưởng đã xong.
+	 *
+	 * ⚠️ Máy chỉ nhận TÊN và MÃ. Khuôn mặt vẫn phải lấy tại máy — không đường nào đẩy mặt từ
+	 *    web xuống được, và nói khác đi là hứa một thứ không có.
+	 */
+	private static function day_len_may( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u ) {
+		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'ds_may' ) ) {
+			return 'Chưa cài phần máy chấm công — hồ sơ đã tạo, chấm công online dùng được ngay.';
+		}
+		$ds = VHCC_May::ds_may();
+		$cs = strtolower( self::chuan_coso( $coso ) );
+		$so = 0;
+		foreach ( (array) ( isset( $ds['data'] ) ? $ds['data'] : array() ) as $m ) {
+			if ( strtolower( self::chuan_coso( (string) $m['cua_hang'] ) ) !== $cs ) { continue; }
+			$kq = VHCC_May::dat_lenh( (string) $m['tram'], 'add', array(
+				'ma_nv'     => $ma_nv,
+				'ho_ten'    => $ho_ten,
+				'cua_hang'  => $coso,
+				'gioi_tinh' => in_array( $gioi_tinh, array( 'male', 'female' ), true ) ? $gioi_tinh : '',
+			), isset( $u['name'] ) ? (string) $u['name'] : '' );
+			if ( ! empty( $kq['ok'] ) ) { $so++; }
+		}
+		if ( 0 === $so ) {
+			return 'Cơ sở này chưa gắn máy chấm công nào — hồ sơ đã tạo, '
+				. 'chấm công bằng điện thoại dùng được ngay.';
+		}
+		return 'Đã đặt lệnh ghi tên xuống ' . $so . ' máy (máy nhận trong ~10 giây nếu đang online). '
+			. 'Khuôn mặt vẫn phải lấy trực tiếp tại máy.';
+	}
+
+	/**
 	 * XOÁ hồ sơ.
 	 * ⚠️ CHẶN khi người đó CÒN chấm công. Xoá hồ sơ mà giữ lại chấm công là bảng lương có mã
 	 *    không tra ra được tên — người thật, công thật, mà không biết trả cho ai. Muốn cho nghỉ

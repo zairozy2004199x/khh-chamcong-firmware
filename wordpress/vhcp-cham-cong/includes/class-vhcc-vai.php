@@ -92,6 +92,11 @@ class VHCC_Vai {
 		'lich_lam'     => self::CHT,      // lên lịch làm việc cho cửa hàng
 		'bao_loi'      => self::CHT,      // gắn cờ / báo lỗi lên trên
 		'ho_so_xem'    => self::CHT,      // xem hồ sơ người CỦA CƠ SỞ MÌNH (không có ô lương)
+		'them_nv'      => self::CHT,      // thêm người mới VÀO CƠ SỞ MÌNH, mã NV tạm
+		                                  // ⚠️ Cố ý ĐẶT DƯỚI ho_so: đây KHÔNG phải cấp mã chuẩn
+		                                  // của công ty (`luu_ho_so` vẫn chặn ở Quản lý), mà là
+		                                  // mở một hồ sơ TẠM cho người vừa vào làm, để họ chấm
+		                                  // công được ngay. Admin đổi sang mã chuẩn sau.
 
 		/* --- bậc 3: quản lý --- */
 		'cong_tat_ca'  => self::QL,       // xem công MỌI cơ sở, không cần khai cơ sở
@@ -161,6 +166,7 @@ class VHCC_Vai {
 		'lich_lam'     => 'Lên lịch làm việc',
 		'bao_loi'      => 'Gắn cờ báo lỗi lên trên',
 		'ho_so_xem'    => 'Xem hồ sơ người cơ sở mình',
+		'them_nv'      => 'Thêm người mới vào cơ sở mình (mã tạm)',
 		'cong_tat_ca'  => 'Xem bảng công MỌI cơ sở',
 		'xu_ly_loi'    => 'Kết luận / đóng cờ',
 		'nap_cong'     => 'Nạp cả tháng công từ .csv',

@@ -478,7 +478,14 @@ class VHCC_Web {
 	 *    `nap_cong` bậc 3). Hai tầng ấy khác nhau — bỏ tầng sau vì "đã có tầng trước" là để
 	 *    Cửa hàng trưởng nạp đè cả tháng công của cơ sở khác.
 	 */
-	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh' );
+	/* ⚠️ `them_nv` NẰM TRONG DANH SÁCH NÀY, và đó là chỗ dễ quên nhất của cả tính năng ấy.
+	   Chốt bên dưới chối mọi việc của người không có bậc hồ sơ — đúng cho việc hồ sơ, nhưng
+	   `them_nv` là cửa RIÊNG mở cho Cửa hàng trưởng (anh Thắng 28/08/2026). Quên khai vào đây
+	   thì nút vẫn vẽ ra, vẫn bấm được, và câu trả lời là một dòng nói về màn Hồ sơ — người dùng
+	   đi xin đúng cái quyền mà họ không cần. Phần gác thật nằm trong
+	   `VHCC_NhanSu::them_nv_cua_hang()`, hỏi đúng đầu việc `them_nv`. */
+	const VIEC_CHAM = array( 'co', 'xu_ly_co', 'bu', 'xem_cong', 'nap_cong', 'ca', 'cach_tinh',
+		'them_nv' );
 
 	private static function lam_viec( $viec, $toi ) {
 		$bao = array();
@@ -637,6 +644,25 @@ class VHCC_Web {
 			   phải thấy ca chuẩn nay ra mấy công — đó là chỗ sai đắt nhất của cả màn này. */
 			return array( array( 'xong' => ( isset( $r['thongBao'] ) ? $r['thongBao'] : 'Đã lưu công thức.' )
 				. ' Ca chuẩn của khối này nay: ' . $cc['gio'] . ' tiếng → ' . $cc['cong'] . ' công.' ) );
+		}
+
+		/* CỬA HÀNG TRƯỞNG THÊM NGƯỜI MỚI — xem `VHCC_NhanSu::them_nv_cua_hang()`. */
+		if ( 'them_nv' === $viec ) {
+			$r = VHCC_NhanSu::them_nv_cua_hang( $toi, array(
+				'ho_ten'    => isset( $_POST['tn_ho_ten'] ) ? wp_unslash( $_POST['tn_ho_ten'] ) : '',
+				'cccd'      => isset( $_POST['tn_cccd'] ) ? wp_unslash( $_POST['tn_cccd'] ) : '',
+				'sdt'       => isset( $_POST['tn_sdt'] ) ? wp_unslash( $_POST['tn_sdt'] ) : '',
+				'gioi_tinh' => isset( $_POST['tn_gioi_tinh'] ) ? wp_unslash( $_POST['tn_gioi_tinh'] ) : '',
+				'chuc_vu'   => isset( $_POST['tn_chuc_vu'] ) ? wp_unslash( $_POST['tn_chuc_vu'] ) : '',
+				'cua_hang'  => isset( $_POST['tn_coso'] ) ? wp_unslash( $_POST['tn_coso'] ) : '',
+			) );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			/* 🔴 NÓI RA BƯỚC TIẾP THEO, KHÔNG CHỈ NÓI "ĐÃ THÊM". Hồ sơ mở xong mà người mới
+			   chưa có mã PIN thì họ vẫn chưa chấm công được — mà cửa hàng trưởng thì tưởng đã
+			   xong. Câu này là chỗ duy nhất họ đọc sau khi bấm. */
+			return array( array( 'xong' => 'Đã thêm ' . $r['ma_nv'] . ' vào ' . $r['coso'] . '. '
+				. $r['day_may'] . ' Bảo người mới vào trang Chấm công → "Quên PIN?" → gõ họ tên '
+				. 'và số căn cước của mình để tự đặt mã PIN.' ) );
 		}
 
 		if ( 'sua_gio' === $viec ) {
@@ -1220,7 +1246,8 @@ class VHCC_Web {
 			   ⚠️ KHÔNG một dòng script — cùng luật với cả màn quản trị. Cột dọc, thẻ, gập/xổ đều
 			      là CSS thuần. */
 			. '.ung{display:block}'
-			. '.canh{background:#0f2744;color:#cbd5e1;display:flex;flex-direction:column}'
+			. '/* 🔴 `aside.canh`, KHÔNG PHẢI `.canh` TRẦN. Anh Thắng 28/08/2026 gửi ảnh hai khối cảnh báo cao vống gần hết màn hình: *"không có mã mà sao ra rộng thế"*. Lý do là hai class KHÁC NGHĨA trùng tên: `.canh` của thanh điều hướng bên (cạnh trang), và `.bao canh` của thẻ cảnh báo. Thẻ cảnh báo ăn phải `height:100vh` của thanh bên nên khối nào cũng cao đúng một màn hình, dù bên trong chỉ có một dòng chữ. Buộc vào đúng thẻ `<aside>` thì hai thứ thôi giẫm lên nhau, mà không phải đổi tên class ở hàng chục chỗ đang dùng. */'
+			. 'aside.canh{background:#0f2744;color:#cbd5e1;display:flex;flex-direction:column}'
 			. '.canh-hieu{padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.08)}'
 			/* 🔴 `flex:1` CỦA `.hieu` PHẢI BỊ GỠ Ở ĐÂY.
 			   Anh Thắng 27/08/2026, kèm ảnh cột dọc: *"bị lệch"* — một khoảng đen mênh mông giữa
@@ -1252,7 +1279,7 @@ class VHCC_Web {
 			. '.canh-pb{color:#5c7ba3;font-size:11px;margin-top:8px;line-height:1.5}'
 			. '@media(min-width:1000px){'
 			. '.ung{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}'
-			. '.canh{position:sticky;top:0;height:100vh;overflow-y:auto}'
+			. 'aside.canh{position:sticky;top:0;height:100vh;overflow-y:auto}'
 			. '.canh-nav{flex-direction:column;overflow:visible;padding:10px 8px;flex:1}'
 			. '.canh-duoi{padding:12px}'
 			. '}'
@@ -2222,6 +2249,75 @@ class VHCC_Web {
 	 *    nhân viên). Chọn một ngày để soi chi tiết thì bảng tổng vẫn là tổng CẢ THÁNG; nếu nó
 	 *    tụt xuống còn một ngày thì cột "Ngày công" luôn bằng 1 và mất hết ý nghĩa.
 	 */
+	/**
+	 * KHỐI "THÊM NGƯỜI MỚI" — cho cửa hàng trưởng, ngay trên màn Bảng công.
+	 *
+	 * =========================================================================================
+	 * 🔴 ĐẶT Ở ĐÂY VÌ ĐÂY LÀ MÀN HỌ MỞ HẰNG NGÀY.
+	 * =========================================================================================
+	 * Anh Thắng 28/08/2026: *"thêm phần cửa hàng trưởng bổ sung nhân sự cho cửa hàng mình"*.
+	 * Cửa hàng trưởng không có tab Hồ sơ (đó là bậc Kế toán trở lên), nên khối này phải nằm
+	 * trong một màn họ vào được — và Bảng công là màn duy nhất họ mở mỗi ngày.
+	 *
+	 * ⚠️ GẬP LẠI, KHÔNG BÀY SẴN. Thêm người là việc vài tháng một lần; bảng công là việc hằng
+	 *    ngày. Bày sẵn một biểu mẫu tạo hồ sơ ngay giữa đường đọc hằng ngày là sớm muộn có
+	 *    người điền nhầm vào đó.
+	 */
+	private static function khoi_them_nv( $ky, $toi, $cs, $ds_cs ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'them_nv' ) ) { return; }
+		/* Người đã có tab Hồ sơ thì tạo hồ sơ ở đó — đầy đủ ô hơn, và cấp được mã CHUẨN. Bày
+		   thêm một cửa hẹp bên cạnh một cửa rộng chỉ làm người ta phân vân chọn cửa nào. */
+		if ( VHCC_Vai::duoc( $toi, 'ho_so' ) ) { return; }
+
+		echo '<details class="gap" style="margin-top:12px"><summary><b>Thêm người mới vào cửa hàng'
+			. '</b> — người vừa vào làm, chấm công được ngay</summary>';
+		echo '<p class="mo">Hệ cấp một <b>mã tạm</b> (bắt đầu bằng <code>TAM-</code>) để người mới '
+			. 'đi làm được ngay; Admin đổi sang mã chuẩn của công ty sau, công đã chấm vẫn theo '
+			. 'sang mã mới.</p>';
+		/* 🔴 NÓI RA ĐƯỜNG LẤY PIN NGAY TẠI ĐÂY. Không màn nào cấp PIN qua tay cửa hàng trưởng —
+		   cố ý, để không ai phải cầm mã của người khác. Nhưng người bấm nút phải biết bước tiếp
+		   theo là gì, không thì họ đứng chờ một mã PIN không bao giờ tới. */
+		echo '<p class="mo">Xong rồi, bảo người mới vào trang <b>Chấm công</b> → bấm '
+			. '<b>Quên PIN?</b> → gõ <b>họ tên + số căn cước</b> của chính mình để tự đặt mã PIN. '
+			. 'Không ai phải đọc mã PIN của ai.</p>';
+
+		echo '<form method="post" class="hang" style="gap:8px;flex-wrap:wrap">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<input type="hidden" name="man" value="cham">';
+		echo '<div><label for="tn_ten">Họ tên</label>'
+			. '<input id="tn_ten" name="tn_ho_ten" required></div>';
+		echo '<div><label for="tn_cc">Số căn cước</label>'
+			. '<input id="tn_cccd" name="tn_cccd" required placeholder="12 số" style="width:150px"></div>';
+		echo '<div><label for="tn_sdt">Điện thoại</label>'
+			. '<input id="tn_sdt" name="tn_sdt" style="width:130px"></div>';
+		echo '<div><label for="tn_gt">Giới tính</label><select id="tn_gt" name="tn_gioi_tinh">'
+			. '<option value="">—</option><option value="male">Nam</option>'
+			. '<option value="female">Nữ</option></select></div>';
+		echo '<div><label for="tn_cv">Chức vụ</label>'
+			. '<input id="tn_cv" name="tn_chuc_vu" style="width:130px"></div>';
+		/* Phụ trách một cơ sở thì không phải chọn; nhiều cơ sở thì PHẢI chọn — đoán hộ là đoán
+		   sai vào đúng cái cột quyết định công và lương chảy về cửa hàng nào. */
+		if ( count( (array) $ds_cs ) > 1 ) {
+			echo '<div><label for="tn_cs">Cơ sở</label><select id="tn_cs" name="tn_coso" required>';
+			echo '<option value="">— chọn —</option>';
+			foreach ( (array) $ds_cs as $x ) {
+				echo '<option value="' . esc_attr( $x ) . '"' . selected( $x, $cs, false ) . '>'
+					. esc_html( $x ) . '</option>';
+			}
+			echo '</select></div>';
+		} else {
+			$mot = isset( $ds_cs[0] ) ? (string) $ds_cs[0] : '';
+			echo '<input type="hidden" name="tn_coso" value="' . esc_attr( $mot ) . '">';
+			if ( '' !== $mot ) {
+				echo '<div><label>Cơ sở</label><div style="padding-top:6px"><b>'
+					. esc_html( $mot ) . '</b></div></div>';
+			}
+		}
+		echo '<div><button class="chinh" name="viec" value="them_nv">Thêm người</button></div>';
+		echo '</form>';
+		echo '</details>';
+	}
+
 	private static function the_bang_cham( $ky, $toi ) {
 		$ds_cs = self::ds_coso_xem( $toi );
 		$bp    = isset( $_GET['cbp'] ) ? sanitize_text_field( wp_unslash( $_GET['cbp'] ) ) : '';
@@ -2321,6 +2417,8 @@ class VHCC_Web {
 			. esc_attr( $ma_nv ) . '" placeholder="mã NV — trống = tất cả" style="width:170px"></div>';
 		echo '<div><button class="chinh">Xem</button></div>';
 		echo '</form>';
+
+		self::khoi_them_nv( $ky, $toi, $cs, $ds_cs );
 
 		if ( '' === $cs ) {
 			echo '<p class="mo" style="margin-top:12px">'

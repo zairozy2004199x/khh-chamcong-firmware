@@ -13325,6 +13325,186 @@ vhcc_dung_bang();
 VHCC_QuenPin::mo_khoa();
 delete_option( VHCC_QuenPin::O_NHAT_KY );
 
+/* ==========================================================================================
+ * 🔴 HAI CLASS KHÁC NGHĨA TRÙNG TÊN — thanh bên `.canh` và thẻ cảnh báo `.bao canh`.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026 gửi ảnh khối cảnh báo cao vống gần hết màn hình: *"không có mã mà sao
+ * ra rộng thế"*. Thẻ cảnh báo ăn phải `height:100vh` của thanh điều hướng bên, nên khối nào
+ * cũng cao đúng một màn hình dù bên trong chỉ một dòng chữ.
+ *
+ * Lỗi CSS thì phép thử soi HTML không bắt được — nên soi thẳng bảng kiểu.
+ */
+$css_w = VHCC_Web::css();
+t( '🔴 luật thanh bên buộc vào đúng thẻ <aside>, không phải mọi .canh',
+	strpos( $css_w, 'aside.canh{position:sticky' ) !== false
+	&& strpos( $css_w, 'aside.canh{background:#0f2744' ) !== false );
+/* ⚠️ Canh cả chiều ngược: không còn luật `.canh{` TRẦN nào đặt chiều cao hay bố cục — một luật
+   sót lại là thẻ cảnh báo lại cao vống, y như cũ. */
+t( '🔴 không còn luật .canh trần nào đặt chiều cao',
+	preg_match( '/(^|[};])\.canh\{[^}]*height:/', $css_w ) === 0 );
+t( 'và không còn luật .canh trần nào đặt bố cục',
+	preg_match( '/(^|[};])\.canh\{[^}]*(display:flex|position:sticky)/', $css_w ) === 0 );
+/* Nhưng MÀU của thẻ cảnh báo thì vẫn phải còn — sửa chiều cao mà làm mất màu vàng là đổi một
+   lỗi lấy một lỗi khác. */
+t( 'thẻ cảnh báo vẫn giữ nền vàng',
+	strpos( $css_w, '.bao.canh{background:#fffbeb' ) !== false );
+
+/* ==========================================================================================
+ * 🔴 CỬA HÀNG TRƯỞNG THÊM NGƯỜI MỚI VÀO CƠ SỞ MÌNH.
+ * ==========================================================================================
+ * Anh Thắng 28/08/2026: *"thêm phần cửa hàng trưởng bổ sung nhân sự cho cửa hàng mình"*, và
+ * trước đó: *"tự tạo mã NV tạm (Admin sẽ sửa lại sau), để tài khoản có thể dùng được ngay và
+ * đẩy lên máy chấm công"*.
+ *
+ * Đây là cửa DUY NHẤT cho phép bậc Cửa hàng trưởng mở một hồ sơ mới — nên nó phải hẹp đúng
+ * bằng việc ấy, không rộng thêm một phân nào.
+ */
+vhcc_dung_bang();
+$U_TN = array( 'name' => 'CHT Thêm', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT',
+	'ma_nv' => 'CHTTN1' );
+
+teq( '🔴 cửa hàng trưởng ĐƯỢC thêm người', true, VHCC_Vai::duoc( $U_TN, 'them_nv' ) );
+teq( 'nhân viên thì KHÔNG', false, VHCC_Vai::duoc(
+	array( 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ), 'them_nv' ) );
+/* ⚠️ Cửa hẹp này KHÔNG được nới sang cửa rộng: thêm người ≠ sửa hồ sơ, ≠ cấp mã chuẩn. */
+teq( '🔴 nhưng vẫn KHÔNG sửa được hồ sơ', false, VHCC_NhanSu::co_sua_ho_so( $U_TN ) );
+teq( 'và vẫn KHÔNG cấp được mã chuẩn qua luu_ho_so', false,
+	(bool) VHCC_NhanSu::luu_ho_so( $U_TN, array( 'ma_nv' => 'MNNV9XX0001',
+		'ho_ten' => 'Lách Cửa', 'cua_hang' => 'TUTU_BT' ) )['ok'] );
+
+/* ⚠️ SOI BẢNG QUYỀN LÀ CHƯA ĐỦ — phải gọi THẲNG hàm bằng vai không đủ bậc. Bảng khai đúng mà
+   hàm quên hỏi bảng thì bảng chỉ là một tờ giấy. Phá thử bỏ chốt trong hàm vẫn xanh nếu ở đây
+   chỉ hỏi `VHCC_Vai::duoc`. */
+$r_tn_nv = VHCC_NhanSu::them_nv_cua_hang(
+	array( 'name' => 'NV thường', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT', 'ma_nv' => 'NVTN1' ),
+	array( 'ho_ten' => 'Lách Bằng Vai', 'cccd' => '012345678909' ) );
+t( '🔴 nhân viên gọi thẳng hàm cũng bị chối', empty( $r_tn_nv['ok'] ), $r_tn_nv );
+/* ⚠️ CA NÀY MỚI TÁCH ĐƯỢC HAI CHỐT RA KHỎI NHAU. Nhân viên bị chối bởi CẢ `them_nv` LẪN chốt
+   cơ sở (`co_quyen_coso` dừng ở bậc Cửa hàng trưởng), nên bỏ chốt `them_nv` đi mà thử bằng
+   nhân viên thì vẫn xanh — chốt kia đỡ hộ. Khoá riêng `them_nv` cho một Cửa hàng trưởng thì
+   chỉ còn đúng một chốt cắn: người ấy vẫn phụ trách cơ sở của mình như thường. */
+VHCC_Vai::dat_ngoai_le( $U_AD, 'nv:CHTTN1', 'them_nv', 'khoa' );
+$r_tn_kh = VHCC_NhanSu::them_nv_cua_hang( $U_TN,
+	array( 'ho_ten' => 'Bị Khoá Riêng', 'cccd' => '012345678908' ) );
+t( '🔴 khoá riêng đầu việc thì cửa hàng trưởng ấy cũng không thêm được',
+	empty( $r_tn_kh['ok'] ), $r_tn_kh );
+teq( 'và cơ sở vẫn là cơ sở của họ (chốt kia không phải thứ chặn)', true,
+	VHCC_NhanSu::co_quyen_coso( $U_TN, 'TUTU_BT' ) );
+VHCC_Vai::dat_ngoai_le( $U_AD, 'nv:CHTTN1', 'them_nv', '' );
+
+$r_tn = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array(
+	'ho_ten' => 'Nguyễn Văn Mới', 'cccd' => '012345678901', 'sdt' => '0900000001',
+	'gioi_tinh' => 'male', 'chuc_vu' => 'Nhân viên bán hàng' ) );
+t( '🔴 thêm được người mới', ! empty( $r_tn['ok'] ), $r_tn );
+/* Mã TẠM phải NHÌN LÀ BIẾT — mã tạm trông giống mã chuẩn thì không ai lọc ra để đổi. */
+t( '🔴 mã cấp ra mang tiền tố TAM-',
+	isset( $r_tn['ma_nv'] ) && strpos( $r_tn['ma_nv'], 'TAM-' ) === 0, $r_tn );
+$hs_tn = VHCC_NhanSu::ho_so( $r_tn['ma_nv'] );
+teq( 'hồ sơ vào đúng cơ sở của cửa hàng trưởng', 'TUTU_BT', (string) $hs_tn['cua_hang'] );
+teq( 'giữ nguyên căn cước để còn tự lấy PIN', '012345678901', (string) $hs_tn['cccd'] );
+teq( 'và ghi là đang làm', 'Đang làm', (string) $hs_tn['trang_thai_lam_viec'] );
+/* 🔴 KHÔNG CẤP PIN QUA TAY AI. Người mới tự đặt PIN bằng họ tên + căn cước của chính mình. */
+teq( '🔴 KHÔNG cấp sẵn PIN cho ai cầm hộ', '', trim( (string) $hs_tn['pin_dang_nhap'] ) );
+$tra_tn = VHCC_QuenPin::tra( 'Nguyễn Văn Mới', '012345678901' );
+t( '🔴 và người mới TỰ lấy được PIN ngay — tài khoản dùng được luôn',
+	! empty( $tra_tn['ok'] ) && $tra_tn['ma_nv'] === $r_tn['ma_nv'], $tra_tn );
+
+/* Cơ sở KHÁC thì chối — ô chọn trên màn hình không phải là chốt. */
+$r_tn2 = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Người Cửa Khác',
+	'cccd' => '012345678902', 'cua_hang' => 'POSH_HCM' ) );
+t( '🔴 không thêm được vào cơ sở mình không phụ trách', empty( $r_tn2['ok'] ), $r_tn2 );
+
+/* 🔴 CĂN CƯỚC LÀ BẮT BUỘC — thiếu nó là đường tự lấy PIN tắc, và hồ sơ thành hồ sơ chết. */
+$r_tn3 = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Thiếu Căn Cước' ) );
+t( '🔴 thiếu căn cước thì chối', empty( $r_tn3['ok'] ), $r_tn3 );
+t( 'và nói ra vì sao cần nó',
+	isset( $r_tn3['error'] ) && strpos( $r_tn3['error'], 'Quên PIN' ) !== false, $r_tn3 );
+t( 'họ tên rỗng cũng chối', empty( VHCC_NhanSu::them_nv_cua_hang( $U_TN,
+	array( 'ho_ten' => '  ', 'cccd' => '012345678903' ) )['ok'] ) );
+
+/* 🔴 MỘT NGƯỜI MỘT HỒ SƠ. Người làm hai cơ sở thì khai Cơ sở phụ, không mở hồ sơ thứ hai —
+   hai hồ sơ là bảng lương tính người ấy hai lần. */
+$r_tn4 = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Nguyễn Văn Mới',
+	'cccd' => '0123 4567 8901' ) );
+t( '🔴 căn cước trùng thì chối, dù gõ có dấu cách', empty( $r_tn4['ok'] ), $r_tn4 );
+t( 'và chỉ ra hồ sơ đang có',
+	isset( $r_tn4['error'] ) && strpos( $r_tn4['error'], $r_tn['ma_nv'] ) !== false, $r_tn4 );
+t( 'kèm lối đi đúng là ô Cơ sở phụ',
+	isset( $r_tn4['error'] ) && strpos( $r_tn4['error'], 'Cơ sở phụ' ) !== false, $r_tn4 );
+/* 🔴 VÀ HỒ SƠ TRONG SỔ CŨNG CÓ THỂ LƯU KÈM DẤU CÁCH — nạp .csv từ Excel ra đúng như thế. So
+   chuỗi thô thì hai bên cùng một số mà không nhận ra nhau, và người ấy có hồ sơ thứ hai. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cccd' => '0123-4567-8905' ),
+	array( 'ma_nv' => $r_tn['ma_nv'] ) );
+$r_tn4b = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Người Nữa',
+	'cccd' => '012345678905' ) );
+t( '🔴 sổ lưu kèm gạch nối vẫn nhận ra là trùng', empty( $r_tn4b['ok'] ), $r_tn4b );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cccd' => '012345678901' ),
+	array( 'ma_nv' => $r_tn['ma_nv'] ) );
+
+/* 🔴 MÃ TẠM KHÔNG CẤP TRÙNG MÃ ĐÃ CÓ LƯỢT CHẤM CÔNG — kể cả khi hồ sơ ấy đã bị xoá. Cấp trùng
+   là công của người cũ chảy sang người mới, và không có gì báo. */
+$ma_tam_1 = $r_tn['ma_nv'];
+VHCC_NhanSu::xoa_ho_so( $U_AD, $ma_tam_1 );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'ma_nv' => $ma_tam_1, 'ho_ten' => 'Người Cũ',
+	'coso' => 'TUTU_BT', 'ngay' => '2026-08-01', 'gio_vao_giay' => 28800, 'gio_ra_giay' => 61200,
+	'hau_to' => '', 'nguon' => 'may' ) );
+$r_tn5 = VHCC_NhanSu::them_nv_cua_hang( $U_TN, array( 'ho_ten' => 'Người Sau',
+	'cccd' => '012345678904' ) );
+t( 'vẫn thêm được người sau', ! empty( $r_tn5['ok'] ), $r_tn5 );
+t( '🔴 nhưng KHÔNG cấp lại mã đã có lượt chấm công',
+	$r_tn5['ma_nv'] !== $ma_tam_1, array( $ma_tam_1, $r_tn5['ma_nv'] ) );
+
+/* ---- Trên MÀN HÌNH ---- */
+$h_tn = vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng', array( 'man' => 'cham' ) );
+t( '🔴 cửa hàng trưởng thấy khối thêm người',
+	strpos( $h_tn, 'Thêm người mới vào cửa hàng' ) !== false, substr( $h_tn, 0, 600 ) );
+t( 'có ô căn cước', strpos( $h_tn, 'name="tn_cccd"' ) !== false );
+t( 'và nút gửi', strpos( $h_tn, 'value="them_nv"' ) !== false );
+/* ⚠️ Người bấm phải biết BƯỚC TIẾP THEO, không thì họ đứng chờ một mã PIN không bao giờ tới. */
+t( '🔴 và màn nói ra đường tự lấy PIN', strpos( $h_tn, 'Quên PIN' ) !== false );
+/* 🔴 KHỐI GẬP, không bày sẵn giữa đường đọc hằng ngày. */
+t( 'khối gập lại, không bày sẵn', strpos( $h_tn, '<details class="gap"' ) !== false );
+
+/* 🔴 GỬI THẬT MỘT LƯỢT POST. Khối vẽ đúng mà bộ điều phối không khai việc thì bấm nút xong
+   không có gì xảy ra — và phá thử bỏ dòng khai ấy vẫn xanh nếu ở đây chỉ soi HTML. */
+$tok_tn = VHCC_Auth::phat_token( 'CHT Thêm', 'Cửa hàng trưởng', 'TUTU_BT', 'CHTTN1' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_tn );
+$_GET  = array( 'man' => 'cham' );
+$_POST = array( 'viec' => 'them_nv', 'ky' => VHCC_Web::chu_ky( $tok_tn ),
+	'tn_ho_ten' => 'Gửi Qua Màn', 'tn_cccd' => '012345678910', 'tn_coso' => 'TUTU_BT' );
+/* ⚠️ Trong bài kiểm `ve()` KHÔNG exit (xem chú thích ở đó), nên lượt POST này chuyển hướng
+   xong vẫn vẽ tiếp — và tiêu thụ luôn câu báo. Đọc ngay ở lượt này, đừng đợi lượt sau. */
+ob_start(); VHCC_Web::phuc_vu(); $h_tn_post = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+t( '🔴 bấm nút trên màn thì hồ sơ vào sổ thật',
+	null !== VHCC_NhanSu::ho_so_theo_cccd( '012345678910' ),
+	( preg_match( '#<div class="bao loi">(.{0,300}?)</div>#s', $h_tn_post, $m_tn )
+		? trim( wp_strip_all_tags( $m_tn[1] ) ) : 'KHÔNG THẤY CÂU NÀO' ) );
+t( 'và màn báo lại kèm đường tự lấy PIN',
+	strpos( $h_tn_post, 'Quên PIN' ) !== false, substr( $h_tn_post, 0, 1500 ) );
+
+/* 🔴 KHOÁ RIÊNG MỘT NGƯỜI THÌ KHỐI BIẾN MẤT, dù họ vẫn vào được màn Bảng công. Đây là phép duy
+   nhất tách được "khối gác đúng" khỏi "cả màn không vẽ" — nhân viên không vào nổi màn này, nên
+   họ không thấy khối vì lý do khác hẳn. */
+VHCC_Vai::dat_ngoai_le( $U_AD, 'nv:CHTTN1', 'them_nv', 'khoa' );
+$h_tn_kh = vhcc_web_nhu( 'CHTTN1', 'Cửa hàng trưởng', array( 'man' => 'cham' ) );
+t( 'bị khoá riêng vẫn vào được màn Bảng công',
+	strpos( $h_tn_kh, 'Chấm công' ) !== false, substr( $h_tn_kh, 0, 400 ) );
+t( '🔴 nhưng KHÔNG còn khối thêm người',
+	strpos( $h_tn_kh, 'Thêm người mới vào cửa hàng' ) === false );
+VHCC_Vai::dat_ngoai_le( $U_AD, 'nv:CHTTN1', 'them_nv', '' );
+
+$h_tn_nv = vhcc_web_nhu( 'NVTN1', 'Nhân viên', array( 'man' => 'cham' ) );
+t( '🔴 nhân viên KHÔNG thấy khối ấy',
+	strpos( $h_tn_nv, 'Thêm người mới vào cửa hàng' ) === false );
+/* Người đã có tab Hồ sơ thì tạo ở đó — cấp được mã CHUẨN, đủ ô hơn. Bày thêm một cửa hẹp bên
+   cạnh cửa rộng chỉ làm người ta phân vân chọn cửa nào. */
+$h_tn_ad = vhcc_web_nhu( 'ADTN1', 'Admin', array( 'man' => 'cham' ) );
+t( '🔴 Admin cũng không thấy — họ tạo hồ sơ ở tab Hồ sơ, cấp mã chuẩn',
+	strpos( $h_tn_ad, 'Thêm người mới vào cửa hàng' ) === false );
+
+vhcc_dung_bang();
+
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
