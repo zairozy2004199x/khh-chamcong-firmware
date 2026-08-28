@@ -196,6 +196,14 @@ class VHG_KeToan {
 		   CHẶN CỨNG, không đụng gì bên kia. */
 		$actual = ( null === $before || null === $after ) ? 0 : ( $after - $before ) * $dv;
 		$cash = $actual - $qr + $adj;
+		/* THỰC THU GHI ĐÈ — anh Thắng: "thiếu nhập chỉ số thực thu cho chỉ số máy". Bỏ chặn cứng
+		   ở trên chỉ mở khoá LƯU được, nhưng chỉ số sai vẫn kéo tiền mặt tính theo công thức ra
+		   số âm/khổng lồ y nguyên nếu không có cách ghi thẳng số thật. Có patch.actualOverride
+		   thì THAY HẲN cash bằng số đó — QR giữ nguyên (điện tử, không phụ thuộc chỉ số máy). */
+		if ( array_key_exists( 'actualOverride', $patch ) && '' !== trim( (string) $patch['actualOverride'] ) ) {
+			$cash = (int) $patch['actualOverride'];
+			$note = trim( $note . ( '' !== $note ? ' · ' : '' ) . 'Thực thu ghi đè: ' . number_format( $cash, 0, ',', '.' ) . 'đ' );
+		}
 		$tong = $cash + $qr;
 
 		self::undo_ghi_( 'sua', $rid . '·' . $ma, array( array(

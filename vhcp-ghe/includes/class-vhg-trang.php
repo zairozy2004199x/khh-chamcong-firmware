@@ -3788,17 +3788,27 @@ function ktdRow(o,c,m,reload,locked){
 }
 function ktdSuaRow(o,c,tr,m,reload){
   var td=tr.lastChild; td.textContent='';
-  var wrap=ktEl('div'); wrap.style.cssText='display:flex;gap:4px;flex-wrap:wrap';
+  var wrap=ktEl('div'); wrap.style.cssText='display:flex;gap:4px;flex-wrap:wrap;align-items:center';
   function inb(ph,val){ var i=document.createElement('input'); i.type='text'; i.inputMode='numeric'; i.placeholder=ph; i.style.cssText='width:70px'; i.value=(val==null?'':val); return i; }
   var iAf=inb('sau',c.meterAfter), iQr=inb('QR',c.qr), iAd=inb('±',c.adjust);
   var iNo=document.createElement('input'); iNo.type='text'; iNo.placeholder='ghi chú'; iNo.style.width='110px'; iNo.value=c.note||'';
+  /* Ô "Thực thu" ghi đè — anh Thắng: "thiếu nhập chỉ số thực thu cho chỉ số máy". Bỏ chặn cứng
+     ở 1.59.2 chỉ mở khoá cho LƯU được, nhưng chưa cho kế toán cách nào SỬA ĐÚNG số tiền mặt khi
+     chỉ số (sau) không đáng tin — công thức actual=(sau-trước)×đơn_vị vẫn chạy y nguyên, gõ sai
+     một số là tiền mặt vẫn ra âm/khổng lồ hệt như trước, chỉ khác là giờ LƯU ĐƯỢC con số sai đó.
+     Thêm ô "Thực thu" y hệt bên màn nhân viên (bcLuuNhap/calc()): có gõ thì THAY THẲNG tiền mặt,
+     không còn tính theo chỉ số. */
+  var iTt=document.createElement('input'); iTt.type='text'; iTt.inputMode='numeric'; iTt.placeholder='Thực thu'; iTt.style.cssText='width:90px;border-color:#e08a3c';
   var bL=ktEl('button','on',L('Lưu','Save')); bL.style.cssText='padding:4px 8px;font-size:12px';
-  wrap.appendChild(iAf); wrap.appendChild(iQr); wrap.appendChild(iAd); wrap.appendChild(iNo); wrap.appendChild(bL);
+  wrap.appendChild(iAf); wrap.appendChild(iQr); wrap.appendChild(iAd); wrap.appendChild(iNo);
+  wrap.appendChild(ktEl('span','mut','Thực thu (nếu chỉ số sai):')); wrap.appendChild(iTt);
+  wrap.appendChild(bL);
   td.appendChild(wrap);
   bL.onclick=function(){
     function sn(s){ s=String(s==null?'':s); var neg=/^\s*-/.test(s); var dd=s.replace(/[^0-9]/g,''); return dd===''?0:(neg?-1:1)*parseInt(dd,10); }
     function mv(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
     var patch={ meterAfter:mv(iAf.value), qr:sn(iQr.value), adjust:sn(iAd.value), note:(iNo.value||'').trim() };
+    if(''!==(iTt.value||'').trim()) patch.actualOverride=sn(iTt.value);
     ktAct('kt_sua',{report_id:c.reportId,ma_may:c.chairCode,patch:patch},m,reload);
   };
 }
