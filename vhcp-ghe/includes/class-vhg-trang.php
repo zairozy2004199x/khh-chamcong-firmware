@@ -1417,13 +1417,58 @@ class VHG_Trang {
     // vẽ trước với chỉ số trước rỗng, rồi lấy chỉ số trước
     ghe.forEach(function(g){ body.appendChild(veDong(g,null)); });
     tinhTong();
+    bcDocNhap();
     goi('bc_lastmeters',{codes:codes,ngay:NGAY},function(r){
       LAST=(r&&r.map)||{};
       body.textContent='';
       ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
       tinhTong();
+      bcDocNhap();
     });
   }
+
+  /* ---------------- NHỚ TẠM (localStorage) ----------------
+   * Anh Thắng: nhân viên thu tiền hay dùng điện thoại yếu, dễ thao tác lỡ tay thoát app giữa
+   * chừng khi đang gõ dở một cơ sở nhiều ghế — gõ lại từ đầu là mất công thật. Lưu bản NHÁP vào
+   * localStorage của máy (không gửi lên máy chủ), khoá theo CƠ SỞ + NGÀY đang chọn, và tự điền
+   * lại mỗi khi bảng ghế của cùng cơ sở/ngày đó được vẽ ra (chọn lại cơ sở, đổi ngày rồi đổi lại,
+   * hay mở app lại từ đầu trên cùng máy). Xoá nháp khi gửi báo cáo THÀNH CÔNG — báo cáo lúc đó đã
+   * nằm ở máy chủ, giữ nháp cũ lại chỉ để lỡ tay điền chồng lên bản mới sau này. */
+  function bcKhoaNhap_(){ return 'bc_nhap_'+String(LOC||'').trim()+'|'+String(NGAY||'').trim(); }
+  function bcLuuNhap(){
+    if(!LOC||!NGAY) return;
+    var dat={};
+    document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
+      var iB=tr.querySelector('.before'), iA=tr.querySelector('.after'), iQ=tr.querySelector('.qr'),
+          iAd=tr.querySelector('.adjust'), iNo=tr.querySelector('.note');
+      dat[tr.dataset.ma]={ before:iB?iB.value:'', after:iA?iA.value:'', qr:iQ?iQ.value:'',
+        adjust:iAd?iAd.value:'', note:iNo?iNo.value:'' };
+    });
+    var mEl=$('bc-method'), aEl=$('bc-amt'), pnEl=$('bc-paynote');
+    try{ localStorage.setItem(bcKhoaNhap_(), JSON.stringify({ rows:dat,
+      method:mEl?mEl.value:'', amt:aEl?aEl.value:'', paynote:pnEl?pnEl.value:'' })); }catch(e){}
+  }
+  function bcDocNhap(){
+    if(!LOC||!NGAY) return;
+    var raw; try{ raw=localStorage.getItem(bcKhoaNhap_()); }catch(e){ raw=null; }
+    if(!raw) return;
+    var tra; try{ tra=JSON.parse(raw); }catch(e){ return; }
+    if(!tra||!tra.rows) return;
+    document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
+      var d=tra.rows[tr.dataset.ma]; if(!d) return;
+      var iB=tr.querySelector('.before'); if(iB && d.before) iB.value=d.before;
+      var iA=tr.querySelector('.after'); if(iA && d.after) iA.value=d.after;
+      var iQ=tr.querySelector('.qr'); if(iQ && d.qr) iQ.value=d.qr;
+      var iAd=tr.querySelector('.adjust'); if(iAd && d.adjust) iAd.value=d.adjust;
+      var iNo=tr.querySelector('.note'); if(iNo && d.note) iNo.value=d.note;
+      calc(tr);
+    });
+    var mEl=$('bc-method'); if(mEl && tra.method) mEl.value=tra.method;
+    var aEl=$('bc-amt'); if(aEl && tra.amt) aEl.value=tra.amt;
+    var pnEl=$('bc-paynote'); if(pnEl && tra.paynote) pnEl.value=tra.paynote;
+    tinhTong();
+  }
+  function bcXoaNhap(){ if(!LOC||!NGAY) return; try{ localStorage.removeItem(bcKhoaNhap_()); }catch(e){} }
 
   function veDong(g,before){
     var tr=el('tr'); tr.dataset.ma=g.ma; tr.dataset.ten=g.ten||g.ma;
@@ -1485,11 +1530,13 @@ class VHG_Trang {
     if($('bc-s-total')) $('bc-s-total').textContent=money(c+q);
   }
 
-  // gõ ô nào cũng tính lại (uỷ quyền sự kiện)
+  // gõ ô nào cũng tính lại (uỷ quyền sự kiện), và lưu nháp cho khỏi mất khi lỡ thoát app
   document.addEventListener('input',function(ev){
     if(!$('bc-app')||$('bc-app').className.indexOf('mo')<0) return;
     var tr=ev.target.closest && ev.target.closest('#bc-rows tr[data-ma]');
-    if(tr){ calc(tr); tinhTong(); }
+    if(tr){ calc(tr); tinhTong(); bcLuuNhap(); return; }
+    var id=ev.target && ev.target.id;
+    if(id==='bc-method'||id==='bc-amt'||id==='bc-paynote') bcLuuNhap();
   });
 
   // ---------------- GỬI ----------------
@@ -1529,6 +1576,7 @@ class VHG_Trang {
           GUI_DANG=false; $('bc-gui').disabled=false;
           if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
           msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
+          bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
           var iI=$('bc-imgs'), iP=$('bc-proofs'); if(iI) iI.value=''; if(iP) iP.value='';
           if(r.phien) veProg(r.phien);
           else refreshPhien();
@@ -2115,6 +2163,15 @@ tr:last-child td{border-bottom:0}
   .top{border-radius:12px}
 }
 @media(min-width:1500px){ .wrap{margin-left:216px;max-width:none} }
+/* ============================================================================================
+ * RÊ CHUỘT PHÓNG TO ẢNH CHỈ SỐ (tab Duyệt báo cáo) — anh Thắng: kế toán soát ảnh nhanh, khỏi
+ * mở tab mới cho từng tấm. Thuần CSS transform trên chính thẻ <img> đang có, không tải thêm
+ * ảnh nào khác — phóng to là phóng đúng file gốc trình duyệt đã tải, không vỡ nét vô cớ.
+ * ============================================================================================ */
+.kt-anh-zoom{display:inline-block;position:relative}
+.kt-anh-zoom img{transition:transform .12s ease;transform-origin:top left;position:relative;z-index:1}
+.kt-anh-zoom:hover{z-index:50}
+.kt-anh-zoom:hover img{transform:scale(6);box-shadow:0 10px 28px rgba(20,30,50,.35);z-index:50}
 CSS;
 	}
 
@@ -3379,6 +3436,25 @@ function ktdLoad(){
       var xb = b.confirmedChairs < b.chairs ? 0 : 1;
       return xa - xb;
     });
+    /* Tách doanh thu CHƯA duyệt / ĐÃ duyệt — anh Thắng: "Thêm phần doanh thu chưa duyệt và
+       doanh thu đã duyệt tách ra". Tính trên CẢ TẬP đang lọc (rows), không phải chỉ trang đang
+       xem — kế toán cần biết tổng còn treo của cả tháng/cơ sở, không phải chỉ 10 dòng trước mắt.
+       "Đã duyệt" = mọi ghế của báo cáo đó đã tích (confirmedChairs === chairs); còn lại tính
+       chưa duyệt, kể cả báo cáo duyệt dở dang (1/3 ghế…). */
+    var tongChua=0, tongDa=0, soChua=0, soDa=0;
+    rows.forEach(function(o){
+      if (o.confirmedChairs < o.chairs) { tongChua += Number(o.total)||0; soChua++; }
+      else { tongDa += Number(o.total)||0; soDa++; }
+    });
+    var tomTat=ktEl('div','act'); tomTat.style.cssText='flex-wrap:wrap;gap:14px;margin-bottom:12px';
+    var oChua=ktEl('div'); oChua.style.cssText='padding:8px 14px;border-radius:10px;background:rgba(255,140,80,.12);border:1px solid rgba(255,140,80,.3)';
+    oChua.appendChild(ktEl('div','mut',L('Doanh thu CHƯA duyệt','NOT yet confirmed')));
+    oChua.appendChild(ktEl('b',null,ktVnd(tongChua)+'đ · '+soChua+' '+L('cơ sở','branches')));
+    var oDa=ktEl('div'); oDa.style.cssText='padding:8px 14px;border-radius:10px;background:rgba(80,200,120,.12);border:1px solid rgba(80,200,120,.3)';
+    oDa.appendChild(ktEl('div','mut',L('Doanh thu ĐÃ duyệt','Confirmed')));
+    oDa.appendChild(ktEl('b',null,ktVnd(tongDa)+'đ · '+soDa+' '+L('cơ sở','branches')));
+    tomTat.appendChild(oChua); tomTat.appendChild(oDa);
+    box.appendChild(tomTat);
     /* Phân trang — anh Thắng: "Chỉ hiện 10 cơ sở 1 trang, nó đang để nguyên nên bị lag". Tháng
        đông cơ sở mà vẽ + tải hết một lượt (dù đã tuần tự) vẫn là hàng chục thẻ to cùng nằm
        trong DOM một lúc — cuộn/thao tác ì trên máy yếu. Cắt trang TRƯỚC khi tải, nên trang sau
@@ -3481,11 +3557,14 @@ function ktdRow(o,c,m,reload,locked){
   function td(x,r){ var e=ktEl('td',null,x); if(r){e.style.textAlign='right';e.style.fontVariantNumeric='tabular-nums';} return e; }
   var tdN=ktEl('td'); tdN.appendChild(ktEl('b',null,c.chairName||c.chairCode));
   /* Ảnh chỉ số hiện thumbnail ngay dưới tên ghế — khỏi bấm mới thấy, đỡ phải đoán ảnh nào
-     đúng ghế trước khi mở tab mới. Bấm thumbnail vẫn mở ảnh gốc cỡ đầy đủ ở tab mới. */
+     đúng ghế trước khi mở tab mới. Bấm thumbnail vẫn mở ảnh gốc cỡ đầy đủ ở tab mới; RÊ CHUỘT
+     vào thì phóng to tại chỗ (CSS ".kt-anh-zoom", xem css() trong PHP) — anh Thắng: kế toán
+     soát ảnh nhanh, khỏi mở tab mới cho từng tấm. */
   if(c.anh && c.anh.length){
     var wrapA=ktEl('div'); wrapA.style.cssText='display:flex;gap:4px;margin-top:4px;flex-wrap:wrap';
     c.anh.forEach(function(u){
       var a=document.createElement('a'); a.href=u; a.target='_blank'; a.title='Xem ảnh cỡ đầy đủ';
+      a.className='kt-anh-zoom';
       var img=document.createElement('img'); img.src=ktAnhSrc(u); img.loading='lazy'; img.alt='';
       img.style.cssText='width:44px;height:44px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.15)';
       a.appendChild(img); wrapA.appendChild(a);
