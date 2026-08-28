@@ -8514,12 +8514,79 @@ VHCC_DayGhe::dong_bo( 'GHNV20' );
 t( '🔴 hồ sơ bị xoá PIN thì GỠ luôn khỏi hệ ghế, không để lại PIN cũ',
 	! VHCC_DayGhe::da_day( 'GHNV20' ), VHCC_DayGhe::so() );
 
-/* ⚠️ NÚT "LƯU HỒ SƠ NÀY" KHÔNG LƯU BẢNG — và phải nói ra ngay cạnh nút. Anh Thắng 28/08/2026
-   vấp đúng chỗ này: tích cột Ghế rồi bấm nút ấy, thấy "Đã lưu hồ sơ", tưởng xong. */
+/* ---- HÀNG SỬA NHANH: KHÔNG ĐƯỢC MỞ FORM LỒNG FORM -----------------------------------------
+   🔴 Anh Thắng 28/08/2026: *"nút sửa nhanh này nó không lưu được"*.
+   Bản trước mở một `<form>` thứ hai ngay trong `<td>`, mà cả bảng đã nằm trong một `<form>`.
+   HTML CẤM form lồng form: trình duyệt bỏ thẻ mở bên trong, nhưng khớp thẻ `</form>` đóng của
+   nó với form ĐANG mở — tức form của BẢNG. Hàng sửa nhanh chèn ở GIỮA bảng, nên từ chỗ ấy trở
+   đi mọi thứ rơi ra ngoài form: nút "Lưu bảng này" ở cuối bảng thành mồ côi.
+   ⚠️ HTML sai KHÔNG ném lỗi — nó chỉ lặng lẽ cho ra một cây DOM khác cái mình viết. Nên phép
+      thử phải canh CHÍNH con số: cả trang có đúng bao nhiêu form, và mở/đóng có cân không. */
 $g_h = vhcc_hr_ns( $g_tok, array( 'sua_o' => 'GHNV01', 'ncs' => 'GHE_CS' ) );
-t( '🔴 cạnh nút "Lưu hồ sơ này" có câu nhắc nó KHÔNG lưu ô quyền',
-	strpos( $g_h, 'chỉ lưu <b>mấy ô ngay trên đây</b>' ) !== false, $g_h );
-t( 'và chỉ sang đúng nút phải bấm', strpos( $g_h, 'Lưu bảng này</b> ở cuối bảng' ) !== false, $g_h );
+t( 'dựng cảnh: hàng sửa nhanh đang mở', strpos( $g_h, 'Sửa nhanh GHNV01' ) !== false, $g_h );
+teq( '🔴 mở hàng sửa nhanh KHÔNG đẻ thêm form nào',
+	substr_count( $g_h, '<form' ), substr_count( $g_h, '</form>' ) );
+$g_h2 = vhcc_hr_ns( $g_tok, array( 'ncs' => 'GHE_CS' ) );
+teq( '🔴 và số form ĐÚNG BẰNG lúc hàng ấy đóng',
+	substr_count( $g_h2, '<form' ), substr_count( $g_h, '<form' ) );
+/* Ô của hàng sửa nhanh phải nằm TRONG form của bảng — tức là trước thẻ `</form>` của nó. */
+$g_i_ma  = strpos( $g_h, 'name="ma_nv"' );
+$g_i_luu = strpos( $g_h, 'value="luu_quyen"' );
+t( '🔴 ô sửa nhanh nằm TRƯỚC nút "Lưu bảng này", tức cùng một form',
+	false !== $g_i_ma && false !== $g_i_luu && $g_i_ma < $g_i_luu, array( $g_i_ma, $g_i_luu ) );
+/* Và `ky` không được khai lại lần hai trong cùng form — hai giá trị lệch nhau là chối phiên. */
+teq( 'không khai lại ô ký lần hai trong hàng sửa nhanh',
+	substr_count( $g_h2, 'name="ky"' ), substr_count( $g_h, 'name="ky"' ) );
+
+/* 🔴 BẤM "LƯU HỒ SƠ NÀY" PHẢI LƯU LUÔN Ô QUYỀN ĐÃ TÍCH. Hàng sửa nhanh nằm TRONG form của
+   bảng, nên mọi ô quyền / vai / cơ sở đã tích đều gửi lên cùng lượt. Không lưu chúng là chúng
+   mất im lặng, mà màn hình vẫn báo "Đã lưu hồ sơ" nên người bấm tin là xong.
+   ⚠️ Bản trước vá bằng một câu nhắc. Nhắc là bắt người ta nhớ, mà cái gì bắt nhớ thì sớm muộn
+      có người quên — nhất là khi hai nút nằm cách nhau nửa màn hình. */
+update_option( VHCC_DayGhe::O_NGUON, 'rieng' );
+delete_option( VHCC_DayGhe::O_SO );
+VHCC_NhanSu::luu_ho_so( $g_ad, array( 'ma_nv' => 'GHNV30', 'ho_ten' => 'Người Ba Mươi',
+	'cua_hang' => 'GHE_CS', 'pin_dang_nhap' => '556677' ) );
+VHCC_Cong::dat( $g_ad, 'GHNV30', 'tram', '' );
+$_POST = array(
+	'ma_nv'  => 'GHNV30',
+	'ho_ten' => 'Người Ba Mươi Đã Sửa',
+	'o'      => array( 'GHNV30' => array( 'tram' => 'khoa', 'ghe' => 'mo' ) ),
+);
+$g_bao = VHCC_TrangNS::lam_viec( 'sua_nhanh', $g_ad );
+$_POST = array();
+$g_hs30 = VHCC_NhanSu::ho_so( 'GHNV30' );
+teq( 'ô hồ sơ vẫn lưu như cũ', 'Người Ba Mươi Đã Sửa', (string) $g_hs30['ho_ten'] );
+teq( '🔴 và ô quyền tích cùng lượt KHÔNG mất im lặng', 'khoa', VHCC_Cong::o( 'GHNV30', 'tram' ) );
+t( '🔴 cột Ghế tích cùng lượt cũng ăn', VHCC_DayGhe::da_day( 'GHNV30' ), VHCC_DayGhe::so() );
+$g_txt = (string) wp_json_encode( $g_bao );
+t( 'màn hình kể cả hai việc',
+	strpos( $g_txt, 'Đã lưu hồ sơ' ) !== false && strpos( $g_txt, 'ô quyền' ) !== false, $g_bao );
+/* ⚠️ Bảng không có gì đổi thì ĐỪNG kèm dòng "chưa lưu gì" — nó nói ngược lại dòng "Đã lưu hồ
+   sơ" ngay trên, và người đọc không biết tin dòng nào. */
+/* ⚠️ HAI CÁCH "BẢNG KHÔNG ĐỔI GÌ", VÀ `viec_luu()` TRẢ HAI CÂU KHÁC NHAU:
+     • không gửi ô nào  -> "Biểu mẫu không hợp lệ."
+     • gửi ô ĐÚNG như đang có -> "Không có ô nào đổi — chưa lưu gì."
+   Chỉ dựng cảnh đầu thì nhánh lọc câu thứ hai thành mã không ai canh. */
+$_POST = array( 'ma_nv' => 'GHNV30', 'ho_ten' => 'Người Ba Mươi Đã Sửa Lần Hai',
+	'o' => array( 'GHNV30' => array( 'tram' => VHCC_Cong::o( 'GHNV30', 'tram' ) ) ) );
+$g_bao = VHCC_TrangNS::lam_viec( 'sua_nhanh', $g_ad );
+$_POST = array();
+$g_txt = (string) wp_json_encode( $g_bao );
+t( '🔴 gửi ô đúng như đang có: không kèm dòng "chưa lưu gì" nói ngược',
+	strpos( $g_txt, 'chưa lưu gì' ) === false && strpos( $g_txt, 'Đã lưu hồ sơ' ) !== false, $g_bao );
+
+$_POST = array( 'ma_nv' => 'GHNV30', 'ho_ten' => 'Người Ba Mươi Đã Sửa Lần Hai' );
+$g_bao = VHCC_TrangNS::lam_viec( 'sua_nhanh', $g_ad );
+$_POST = array();
+$g_txt = (string) wp_json_encode( $g_bao );
+t( '🔴 bảng không đổi gì thì không kèm dòng "chưa lưu gì" nói ngược',
+	strpos( $g_txt, 'chưa lưu gì' ) === false && strpos( $g_txt, 'Đã lưu hồ sơ' ) !== false, $g_bao );
+t( 'và cũng không kèm "Biểu mẫu không hợp lệ"',
+	strpos( $g_txt, 'không hợp lệ' ) === false, $g_bao );
+VHCC_DayGhe::dat( $g_ad, 'GHNV30', '' );
+VHCC_Cong::dat( $g_ad, 'GHNV30', 'tram', '' );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv = 'GHNV30'" );
 
 /* ---- ĐƯỜNG LƯU THẬT: BẤM LƯU / BẤM ÁP CẢ CỘT ----------------------------------------------
    🔴 Cột ghế đi CHUNG một biểu mẫu với ba cột kia cho tiện tay người bấm, nhưng bên dưới nó ghi

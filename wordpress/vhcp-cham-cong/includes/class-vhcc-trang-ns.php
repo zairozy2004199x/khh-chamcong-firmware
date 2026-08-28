@@ -442,9 +442,22 @@ class VHCC_TrangNS {
 		   giữ PIN cũ là người ta đứng ở quầy, gõ PIN mới, và cửa không mở — im lặng, và họ chỉ
 		   biết khi đã hỏng việc. */
 		$db_ghe = VHCC_DayGhe::dong_bo( $ma );
-		return array( array( 'ok' => 'Đã lưu hồ sơ ' . $ma . '.'
+		$bao = array( array( 'ok' => 'Đã lưu hồ sơ ' . $ma . '.'
 			. ( '' !== $pin ? ' PIN đã đổi.' : '' )
 			. ( $db_ghe ? ' Hệ ghế đã cập nhật theo.' : '' ) ) );
+
+		/* 🔴 LƯU LUÔN CẢ BẢNG — hàng sửa nhanh nằm TRONG form của bảng, nên mọi ô quyền / vai /
+		   cơ sở đã tích đều gửi lên cùng lượt này. Không lưu chúng là chúng mất im lặng, và
+		   người bấm thấy "Đã lưu hồ sơ" nên tin là xong. Bản trước vá bằng một câu nhắc; nhắc
+		   là bắt người ta nhớ, mà cái gì bắt nhớ thì sớm muộn có người quên. */
+		foreach ( self::viec_luu( $toi ) as $b ) {
+			/* Bảng không có gì đổi thì `viec_luu()` trả một dòng "chưa lưu gì" — đúng cho nút
+			   kia, nhưng ở đây nó nói ngược lại dòng "Đã lưu hồ sơ" ngay trên. Bỏ riêng dòng ấy. */
+			if ( isset( $b['canh'] ) && false !== strpos( (string) $b['canh'], 'chưa lưu gì' ) ) { continue; }
+			if ( isset( $b['loi'] ) && 'Biểu mẫu không hợp lệ.' === $b['loi'] ) { continue; }
+			$bao[] = $b;
+		}
+		return $bao;
 	}
 
 	private static function viec_them_vai( $toi ) {
@@ -1180,9 +1193,24 @@ class VHCC_TrangNS {
 		$luong = VHCC_NhanSu::co_xem_luong( $toi );
 		$g = function ( $c ) use ( $r ) { return isset( $r[ $c ] ) ? (string) $r[ $c ] : ''; };
 
+		/* =====================================================================================
+		 * 🔴 KHÔNG MỞ `<form>` Ở ĐÂY. HÀNG NÀY NẰM TRONG FORM CỦA BẢNG RỒI.
+		 * =====================================================================================
+		 * Anh Thắng 28/08/2026: *"nút sửa nhanh này nó không lưu được"*.
+		 *
+		 * Bản trước mở một `<form>` thứ hai ngay trong `<td>` — mà cả bảng đã nằm trong một
+		 * `<form>` mở từ `the_bang()`. HTML CẤM form lồng form: trình duyệt bỏ thẻ mở bên trong,
+		 * nhưng vẫn khớp thẻ `</form>` đóng của nó với form ĐANG mở — tức là form của BẢNG. Hàng
+		 * sửa nhanh chèn ở GIỮA bảng, nên từ chỗ ấy trở đi mọi thứ rơi ra ngoài form: nút "Lưu
+		 * bảng này" ở cuối bảng thành mồ côi, và cả khối sửa nhanh chạy trên một cấu trúc mà
+		 * mỗi trình duyệt vá một kiểu.
+		 *
+		 * ⚠️ Không có gì báo, vì HTML sai không ném lỗi — nó chỉ lặng lẽ cho ra một cây DOM khác
+		 *    cái mình viết. Đây là lý do bộ thử phải canh CHÍNH chuyện "chỉ có một form".
+		 *
+		 * Nay dùng chung form của bảng. `ky` và ô lọc đã có sẵn ở đó, không khai lại.
+		 */
 		echo '<tr class="hang-sua"><td colspan="' . (int) $so_cot . '">';
-		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-		echo self::o_loc();
 		echo '<input type="hidden" name="ma_nv" value="' . esc_attr( $ma ) . '">';
 		echo '<b>Sửa nhanh ' . esc_html( $ma ) . '</b>';
 		echo '<div class="luoi" style="margin-top:8px">';
@@ -1226,14 +1254,14 @@ class VHCC_TrangNS {
 		echo '</div>';
 		echo '<div class="hang" style="margin-top:10px">';
 		echo '<button class="chinh" name="viec" value="sua_nhanh">Lưu hồ sơ này</button>';
-		/* ⚠️ HAI NÚT LƯU TRÊN CÙNG MỘT BIỂU MẪU LÀ MỘT CÁI BẪY. Anh Thắng 28/08/2026 vấp ngay:
-		   tích cột Ghế rồi bấm nút này, thấy "Đã lưu hồ sơ", tưởng xong — nhưng nút này chỉ lưu
-		   mấy ô ngay trên nó, mọi ô quyền vừa tích thì mất im lặng. Nói ra ngay cạnh nút. */
-		echo '<span class="mo" style="margin-left:4px">Nút này chỉ lưu <b>mấy ô ngay trên đây</b>. '
-			. 'Ô quyền vừa tích ở bảng thì bấm <b>Lưu bảng này</b> ở cuối bảng.</span>';
+		/* ⚠️ HAI NÚT LƯU TRÊN CÙNG MỘT BIỂU MẪU TỪNG LÀ MỘT CÁI BẪY: tích ô quyền ở bảng rồi bấm
+		   nút này thì mấy ô ấy mất im lặng. Bản trước vá bằng một câu nhắc — nhắc là bắt người
+		   ta nhớ, mà cái gì bắt nhớ thì sớm muộn có người quên. Nay `viec_sua_nhanh()` lưu LUÔN
+		   cả bảng (dữ liệu đã nằm sẵn trong cùng biểu mẫu), nên bấm nút nào cũng không mất gì —
+		   và câu nhắc kia thành thừa, bỏ đi. */
 		echo '<a class="nut" href="' . esc_url( self::url_sua( '' ) ) . '">Đóng</a>';
 		echo '<span class="mo">Còn CCCD, địa chỉ, hợp đồng… thì mở <b>đầy đủ ↗</b> ở cột Họ tên.</span>';
-		echo '</div></form></td></tr>';
+		echo '</div></td></tr>';
 	}
 
 	/**
