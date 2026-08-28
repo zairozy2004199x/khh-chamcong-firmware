@@ -296,6 +296,7 @@ class VHG_Trang {
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
 			if ( 'kt_lichsu' === $viec )      { self::tra( VHG_KeToan::lich_su( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
+			if ( 'kt_bangcheo' === $viec )    { self::tra( VHG_KeToan::bang_cheo( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
 			if ( 'kt_import' === $viec ) {
 				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
 				if ( empty( $q['quan_tri'] ) ) {
@@ -3785,12 +3786,52 @@ function veKtLichSu(){
     + '<b style="margin-left:6px">' + L('Năm','Year') + ':</b>'
     + '<input type="number" id="kls-nam" min="2020" max="2100" value="' + esc(KLS_NAM) + '" style="max-width:110px">'
     + '<button id="kls-xem" class="on">' + L('Xem','Load') + '</button></div>'
-    + '<div id="kls-wrap" style="margin-top:12px"></div></div>';
+    + '<div id="kls-wrap" style="margin-top:12px"></div></div>'
+    /* Bảng chéo Ngày × Ghế — anh Thắng 28/08, gửi ảnh báo cáo cũ (Sheets): mỗi ngày một dòng,
+       mỗi ghế một cặp cột (chỉ số + Actual), xem CẢ NĂM liên tục — không bấm mở từng tháng như
+       khối trên. Dùng chung ô Cơ sở/Năm/nút Xem ở trên, khỏi có hai bộ lọc trùng nhau. Bắt buộc
+       chọn MỘT cơ sở cụ thể (không có "tất cả") — bảng sẽ rộng vô hạn nếu gộp nhiều cơ sở khác
+       ghế khác nhau vào cùng cột. */
+    + '<div class="card"><h2>📋 ' + L('Bảng chéo Ngày × Ghế (cả năm)','Day × chair grid (whole year)') + '</h2>'
+    + '<p class="mut">' + L('Mỗi ngày một dòng, mỗi ghế một cặp cột (chỉ số máy · Actual) — liên tục cả năm, không ngắt theo tháng. Chọn một cơ sở cụ thể ở ô trên rồi bấm Xem.',
+      'One row per day, one column pair per chair (meter · Actual) — continuous through the year, no month breaks. Pick one specific site above then click Xem.') + '</p>'
+    + '<div id="kcg-wrap" style="margin-top:12px"></div></div>';
 }
 function klsInit(){
   var s = document.getElementById('kls-coso'), n = document.getElementById('kls-nam'), b = document.getElementById('kls-xem');
-  if (b) b.onclick = function(){ KLS_COSO = s ? s.value : ''; KLS_NAM = (n && n.value) ? n.value : KLS_NAM; KLS_MO = {}; klsLoad(); };
+  if (b) b.onclick = function(){ KLS_COSO = s ? s.value : ''; KLS_NAM = (n && n.value) ? n.value : KLS_NAM; KLS_MO = {}; klsLoad(); kcgLoad(); };
   klsLoad();
+  kcgLoad();
+}
+function kcgLoad(){
+  var box = document.getElementById('kcg-wrap'); if (!box) return;
+  box.textContent = '';
+  if (!KLS_COSO) { box.appendChild(ktEl('p','mut',L('Chọn một cơ sở cụ thể ở ô trên để xem bảng này.','Pick one specific site above to see this table.'))); return; }
+  box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
+  goi('kt_bangcheo', { coso: KLS_COSO, nam: KLS_NAM }, function(r){
+    box.textContent = '';
+    if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
+    if (!r.ngay.length || !r.ghe.length) { box.appendChild(ktEl('p','mut',L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
+    var sc = ktEl('div','table-scroll'); var t = ktEl('table');
+    t.style.minWidth = (120 + r.ghe.length*160) + 'px';
+    var h1 = '<tr><th rowspan="2">' + L('Ngày','Day') + '</th>'
+      + r.ghe.map(function(g){ return '<th colspan="2" style="text-align:center">' + esc(g.ma)
+          + (g.ten && g.ten !== g.ma ? '<br><span class="mut">' + esc(g.ten) + '</span>' : '') + '</th>'; }).join('')
+      + '</tr>';
+    var h2 = '<tr>' + r.ghe.map(function(){ return '<th class="r">' + L('Chỉ số','Meter') + '</th><th class="r">Actual</th>'; }).join('') + '</tr>';
+    var body = r.ngay.map(function(N){
+      var nh = /^\d{4}-\d{2}-\d{2}/.test(String(N.ngay)) ? (String(N.ngay).slice(8,10) + '/' + String(N.ngay).slice(5,7)) : String(N.ngay);
+      var td = '<td><b>' + esc(nh) + '</b></td>';
+      r.ghe.forEach(function(g){
+        var o = N.o[g.ma];
+        td += '<td class="r">' + (o && o.cs != null ? ktVnd(o.cs) : '<span class="mut">—</span>') + '</td>'
+          + '<td class="r">' + (o ? ktVnd(o.actual) : '<span class="mut">—</span>') + '</td>';
+      });
+      return '<tr>' + td + '</tr>';
+    }).join('');
+    t.innerHTML = h1 + h2 + body;
+    sc.appendChild(t); box.appendChild(sc);
+  });
 }
 function klsLoad(){
   var box = document.getElementById('kls-wrap'); if (!box) return;

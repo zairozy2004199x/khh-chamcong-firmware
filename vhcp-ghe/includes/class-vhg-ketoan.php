@@ -1271,6 +1271,54 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'coso' => (string) $coso, 'nam' => $nam, 'thang' => $ra, 'tong_nam' => $tong_nam );
 	}
 
+	/**
+	 * BẢNG CHÉO NGÀY × GHẾ — một cơ sở, cả năm liên tục, không ngắt theo tháng.
+	 *
+	 * Anh Thắng 28/08/2026, gửi kèm ảnh báo cáo cũ (Google Sheets "GO NGUYEN THI THAP"): mỗi
+	 * NGÀY một dòng, mỗi GHẾ một cặp cột (chỉ số máy + Actual) — *"Dữ liệu nó đi xuyên suốt 1
+	 * tháng"* rồi chốt xem CẢ NĂM liên tục, không bấm mở từng tháng như `lich_su()`.
+	 *
+	 * ⚠️ KHÁC `lich_su()`: hàm đó gộp theo THÁNG (ghế chỉ có chỉ số ĐẦU→CUỐI của cả tháng). Hàm
+	 *    này giữ NGUYÊN từng ngày, từng ghế — đúng dáng bảng cũ, để đối chiếu quen mắt.
+	 */
+	public static function bang_cheo( $coso, $nam ) {
+		global $wpdb;
+		$nam = preg_match( '/^\d{4}$/', (string) $nam ) ? (string) $nam : current_time( 'Y' );
+		$coso = trim( (string) $coso );
+		if ( '' === $coso ) { return array( 'ok' => false, 'error' => 'Chọn một cơ sở.' ); }
+		$ck = self::squash( $coso );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.ngay, d.ma_may, d.ten, d.chi_so_sau, d.actual'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE h.coso_key=%s AND DATE_FORMAT(d.ngay,%s)=%s'
+			. ' AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)'
+			. ' ORDER BY d.ngay ASC, d.ma_may ASC', $ck, '%Y', $nam ), ARRAY_A );
+
+		/* Cột GHẾ theo đúng thứ tự mã (khớp cách xếp trong ảnh cũ), gom từ CHÍNH dữ liệu năm này
+		   — cơ sở nào ghế đó, không lôi danh mục cả hệ vào làm bảng rộng vô ích. */
+		$ten_ghe = array();
+		$o_theo_ngay = array();
+		foreach ( (array) $rows as $r ) {
+			$ma = (string) $r['ma_may'];
+			$ng = self::ngay_( $r['ngay'] );
+			if ( ! isset( $ten_ghe[ $ma ] ) ) { $ten_ghe[ $ma ] = (string) $r['ten']; }
+			if ( ! isset( $o_theo_ngay[ $ng ] ) ) { $o_theo_ngay[ $ng ] = array(); }
+			$o_theo_ngay[ $ng ][ $ma ] = array(
+				'cs' => null !== $r['chi_so_sau'] ? (int) $r['chi_so_sau'] : null,
+				'actual' => (int) $r['actual'],
+			);
+		}
+		$ds_ghe = array();
+		foreach ( $ten_ghe as $ma => $ten ) { $ds_ghe[] = array( 'ma' => $ma, 'ten' => $ten ); }
+		usort( $ds_ghe, function ( $a, $b ) { return strcmp( (string) $a['ma'], (string) $b['ma'] ); } );
+
+		ksort( $o_theo_ngay );   // 'YYYY-MM-DD' so chuỗi vẫn đúng thứ tự thời gian
+		$ds_ngay = array();
+		foreach ( $o_theo_ngay as $ng => $o ) { $ds_ngay[] = array( 'ngay' => $ng, 'o' => $o ); }
+
+		return array( 'ok' => true, 'coso' => $coso, 'nam' => $nam, 'ghe' => $ds_ghe, 'ngay' => $ds_ngay );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ NHẬP DOANH THU CŨ (CSV)
 
 	/**
