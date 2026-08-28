@@ -1544,13 +1544,22 @@ class VHG_Trang {
     var aEl=tr.querySelector('.adjust'); var adjust=aEl?snum(aEl.value):0;   // gọn: không có cột này
     var dv=Number(BC.don_vi)||10000;
     var actual=(before===''||after==='')?0:(after-before)*dv;
-    var cash=actual-qr+adjust;
-    var batThuong=(before!==''&&after!==''&&after<before);
+    var rawCash=actual-qr+adjust;
+    var cash=rawCash;
+    /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR nhập lớn hơn cả
+       Actual — công thức tiền mặt = actual − QR + điều chỉnh, QR > actual thì trừ ra số âm dù
+       chỉ số hoàn toàn bình thường). Anh Thắng 28/08, ảnh AM-BD-1: TRƯỚC 597 → SAU 610 (đúng
+       chiều, actual 130.000) nhưng QR gõ 240.000 > actual, TIỀN MẶT ra -110.000 — "sao lại để
+       -110". Số âm không phải "để" — máy KHÔNG BAO GIỜ nộp tiền mặt âm; QR ghi lớn hơn actual
+       nghĩa là QR gõ sai (hoặc actual bị thiếu vì chỉ số đọc sai), cả hai đều cần người kiểm
+       tra, không phải cứ trừ ra âm rồi lặng lẽ ghi vào sổ. */
+    var chiSoNguoc=(before!==''&&after!==''&&after<before);
+    var batThuong=chiSoNguoc||(rawCash<0);
     /* THỰC THU GHI ĐÈ khi ghế lỗi — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho kế toán,
-       chứ không lấy theo chỉ số máy". Chỉ số bất thường thì actual/cash tính theo công thức ra
-       số ÂM/rác (sau < trước) — không đáng tin, và không được đưa thẳng vào sổ. Ô "Thực thu"
-       xuất hiện cùng ô lý do; có gõ thì THAY THẾ hẳn số tiền mặt phải nộp, actual vẫn hiện để
-       đối chiếu nhưng không còn là căn cứ tính tiền. */
+       chứ không lấy theo chỉ số máy". Bất thường thì actual/cash tính theo công thức không đáng
+       tin, và không được đưa thẳng vào sổ. Ô "Thực thu" xuất hiện cùng ô lý do; có gõ thì THAY
+       THẾ hẳn số tiền mặt phải nộp, actual vẫn hiện để đối chiếu nhưng không còn là căn cứ tính
+       tiền. */
     var iTT=tr.querySelector('.thuc-thu-bt');
     var coTT=batThuong && iTT && '' !== (iTT.value||'').trim();
     if(coTT) cash=snum(iTT.value);
@@ -1558,16 +1567,18 @@ class VHG_Trang {
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
-    /* Chỉ số bất thường: hiện ô nhập LÝ DO + THỰC THU ngay tại hàng đó — anh Thắng: "hiện ra
-       lý do lỗi tại hàng máy lỗi, nhân viên nhập lý do". Tạo MỘT LẦN (không dựng lại mỗi lần gõ
-       số khác, kẻo mất chữ đang gõ dở trong chính hai ô này khi calc() chạy lại do sự kiện
-       input của CHÍNH chúng). */
+    /* Bất thường: hiện ô nhập LÝ DO + THỰC THU ngay tại hàng đó — anh Thắng: "hiện ra lý do lỗi
+       tại hàng máy lỗi, nhân viên nhập lý do". Tạo MỘT LẦN (không dựng lại mỗi lần gõ số khác,
+       kẻo mất chữ đang gõ dở trong chính hai ô này khi calc() chạy lại do sự kiện input của
+       CHÍNH chúng). */
     if(batThuong){
       w.style.display='';
       if(!w.querySelector('.ly-do-bt')){
         w.textContent='';
-        w.appendChild(document.createTextNode('⚠ Chỉ số sau nhỏ hơn trước — ghi lý do:'));
-        var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm…';
+        w.appendChild(document.createTextNode(chiSoNguoc
+          ? '⚠ Chỉ số sau nhỏ hơn trước — ghi lý do:'
+          : '⚠ Tiền mặt tính ra ÂM (QR lớn hơn Actual) — ghi lý do:'));
+        var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm, gõ nhầm QR…';
         iLy.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
         w.appendChild(iLy);
         w.appendChild(document.createTextNode('Thực thu (số tiền nộp thật, thay cho tính theo chỉ số):'));
@@ -1645,19 +1656,19 @@ class VHG_Trang {
     if(!LOC){ msg.textContent='Chọn cơ sở.'; msg.className='bc-msg bc-err'; return; }
     var rows=collect();
     if(!rows.length){ msg.textContent='Chưa nhập chỉ số sau cho ghế nào.'; msg.className='bc-msg bc-err'; return; }
-    /* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy lỗi,
-       nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo". Trước đây chặn CỨNG
-       ngay lần đầu, bắt đi vòng qua "Đề nghị đổi chỉ số" — đúng cho máy thật sự đổi điểm, nhưng
-       nặng cho lỗi gõ nhầm một số. Giờ: thiếu lý do HOẶC thiếu Thực thu thì CHẶN (như cũ, không
-       lặng lẽ cho qua — xem chốt an toàn ở server), có đủ cả hai (gõ ở ô đỏ ngay dưới tên ghế,
-       do calc() tự hiện ra) thì cho gửi.
-       ⚠️ THỰC THU BẮT BUỘC, KHÔNG CHỈ LÝ DO — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho
-       kế toán, chứ không lấy theo chỉ số máy". Chỉ số bất thường thì actual/tiền mặt tính theo
-       công thức ra số ÂM/rác; không bắt Thực thu thì số rác đó vẫn lọt vào sổ mà không ai biết
-       cho tới khi kế toán soát ra. */
+    /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR > actual) — xem
+       lý do đầy đủ ở calc(). Anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy lỗi, nhân viên
+       nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo" + "thực thu đó là số tiền sẽ nộp
+       về cho kế toán, chứ không lấy theo chỉ số máy". Thiếu lý do HOẶC thiếu Thực thu thì CHẶN
+       (không lặng lẽ cho số âm/rác lọt vào sổ — chốt an toàn còn lặp lại ở server); đủ cả hai
+       (gõ ở ô đỏ ngay dưới tên ghế, do calc() tự hiện ra) thì cho gửi. */
+    var dv=Number(BC.don_vi)||10000;
     var canhBao=[];
     for(var i=0;i<rows.length;i++){ var r=rows[i];
-      if(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore)){
+      var chiSoNguoc=(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore));
+      var actualR=(r.meterBefore===''||r.meterAfter==='')?0:(Number(r.meterAfter)-Number(r.meterBefore))*dv;
+      var rawCashR=actualR-Number(r.qr||0)+Number(r.adjust||0);
+      if(chiSoNguoc||rawCashR<0){
         var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
         var iLy=trR&&trR.querySelector('.ly-do-bt');
         var iTt=trR&&trR.querySelector('.thuc-thu-bt');
@@ -1669,7 +1680,7 @@ class VHG_Trang {
       }
     }
     if(canhBao.length){
-      msg.textContent='Chỉ số sau nhỏ hơn trước ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi ĐỦ lý do và Thực thu ở ô đỏ ngay dưới tên ghế rồi bấm Gửi lại.';
+      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi ĐỦ lý do và Thực thu ở ô đỏ ngay dưới tên ghế rồi bấm Gửi lại.';
       msg.className='bc-msg bc-err'; return;
     }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';

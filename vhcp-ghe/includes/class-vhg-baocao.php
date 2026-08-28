@@ -380,11 +380,21 @@ class VHG_BaoCao {
 				   và ảnh gán nhầm ghế chỉ lộ ra khi kế toán soát thấy sai. */
 				'images' => ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) ? $r0['images'] : array() );
 			self::tinh_( $r );
-			$bat_thuong = ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] );
+			/* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR nhập lớn
+			   hơn actual — công thức tien_mat = actual − qr + điều_chỉnh). Anh Thắng 28/08, ảnh
+			   AM-BD-1: chỉ số ĐÚNG chiều (597→610, actual 130.000) nhưng QR gõ 240.000 > actual,
+			   tien_mat ra -110.000 — "sao lại để -110". Ghế không bao giờ nộp tiền mặt âm; QR
+			   lớn hơn actual là QR gõ sai hoặc actual thiếu, cả hai đều cần người xác nhận, không
+			   phải trừ ra âm rồi lặng lẽ ghi sổ — nên xét CẢ HAI điều kiện, không chỉ chỉ số. */
+			$chi_so_nguoc = ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] );
+			$bat_thuong = $chi_so_nguoc || $r['tien_mat'] < 0;
 			if ( $bat_thuong ) {
 				if ( '' === $ly_do_bt ) {
-					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': chỉ số sau (' . $r['chi_so_sau']
-						. ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . '). Ghi lý do và Thực thu ở ô đỏ dưới tên ghế rồi gửi lại.' );
+					$ly_ban_dau = $chi_so_nguoc
+						? ( 'chỉ số sau (' . $r['chi_so_sau'] . ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . ')' )
+						: ( 'tiền mặt tính ra ÂM (' . number_format( $r['tien_mat'], 0, ',', '.' ) . 'đ) — QR lớn hơn Actual' );
+					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': ' . $ly_ban_dau
+						. '. Ghi lý do và Thực thu ở ô đỏ dưới tên ghế rồi gửi lại.' );
 				}
 				/* THỰC THU GHI ĐÈ — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho kế toán, chứ
 				   không lấy theo chỉ số máy". `actual`/`tien_mat` vừa tính ở tinh_() dựa trên chỉ
