@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.3** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.67.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,27 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.67.0 — Cột "Tăng/Giảm" đổi thành "Thực thu": GHI ĐÈ, không còn cộng dồn
+
+Anh Thắng 29/08: *"cột này là cột thực thu"* rồi *"khi nhập thực thu ở cột này, tiền cộng sẽ lấy
+theo cột này"*. Trước đây cột "Tăng/Giảm" CỘNG vào công thức tiền mặt
+(`actual − QR + điều_chỉnh`). Nay đổi hẳn:
+
+- Đổi tên cột thành **"Thực thu"** ở màn nhập báo cáo chính, màn "Báo cáo trong 24h — sửa được",
+  và ô "±" ở màn kế toán duyệt lẻ từng ghế (`theGheSua`).
+- **Có gõ** ở cột này → tiền mặt phải nộp LẤY ĐÚNG số đó, ghi đè hẳn, không cộng vào công thức.
+  **Bỏ trống** → vẫn tính theo công thức `actual − QR` như cũ, y như chưa từng có cột này.
+- Áp dụng cho **mọi hàng**, không chỉ hàng bất thường (chỉ số ngược / công thức ra âm) như cơ chế
+  "Thực thu ghi đè" ban đầu — hàng bất thường vẫn bắt buộc phải có (kèm lý do), hàng thường thì
+  đây là lựa chọn. Gộp làm một với ô "Thực thu" trong khung cảnh báo cũ — không còn hai ô riêng.
+- Server (`tinh_()`, `luu()`, `sua_dong()`) đều đã cập nhật cùng luật; `bc_recent()` (dùng cho màn
+  Sửa 24h) chỉ trả số ra ô khi báo cáo ĐÃ thật sự ghi đè (đọc dấu "Thực thu ghi đè" trong ghi chú)
+  — báo cáo cũ trước bản này (có số ở cột `dieu_chinh` theo nghĩa cộng dồn) hiện ra Ô TRỐNG, không
+  bị hiểu nhầm thành một lượt ghi đè.
+- ⚠️ **Chưa động tới** màn kế toán duyệt HÀNG LOẠT (dán bảng CSV `KTN_CANON`, cột `adjust`) — đó
+  là màn NHẬP LẠI số liệu lịch sử đã chốt sẵn (actual/cash/total đã tính từ hệ cũ), không chạy qua
+  công thức nào ở đây nên không bị ảnh hưởng, nhưng cũng chưa đổi nhãn cột cho khớp.
 
 ### v1.66.3 — "Không đọc được trả lời của máy chủ" khi bấm "Đối chiếu máy"
 

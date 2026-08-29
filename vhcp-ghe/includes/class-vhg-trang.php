@@ -1431,7 +1431,7 @@ class VHG_Trang {
        vốn đã tính lại actual mỗi lần gõ (uỷ quyền sự kiện input) — chỉ thiếu ô hiện ra ở Gọn. */
     tb.innerHTML = GON
       ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>QR</th><th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>'
-      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th>'
+      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Thực thu</th><th>Ghi chú</th>'
         + '<th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
@@ -1636,7 +1636,7 @@ class VHG_Trang {
     }
     tr.appendChild(cell(inp('qr','QR')));
     if(!GON){
-      tr.appendChild(cell(inp('adjust','VD 50000')));
+      tr.appendChild(cell(inp('adjust','VD 500000')));
       tr.appendChild(cell(inp('note','Lý do…',true)));
     }
     /* Ảnh chỉ số + vệ sinh LUÔN hiện, kể cả chế độ Gọn (điện thoại): nhân viên chụp ảnh ngay tại
@@ -1696,7 +1696,7 @@ class VHG_Trang {
     var before=beforeOf(tr);
     var after=meterVal(tr.querySelector('.after').value);
     var qEl=tr.querySelector('.qr'); var qr=qEl?snum(qEl.value):0;
-    var aEl=tr.querySelector('.adjust'); var adjust=aEl?snum(aEl.value):0;   // gọn: không có cột này
+    var aEl=tr.querySelector('.adjust');   // gọn: không có cột này — cột "Thực thu"
     var dv=Number(BC.don_vi)||10000;
     var actualTho=(before===''||after==='')?0:(after-before)*dv;
     /* Trừ lượt kích ghế từ xa (cho không) — KICHXA nạp từ bc_kichxa, khớp đúng số server sẽ trừ
@@ -1708,51 +1708,46 @@ class VHG_Trang {
       if(kx.so_luot>0){ elKx.style.display=''; elKx.textContent='🔧 Đã trừ '+kx.so_luot+' lượt kích từ xa (-'+money(kx.tien)+'đ)'; }
       else { elKx.style.display='none'; elKx.textContent=''; }
     }
-    var rawCash=actual-qr+adjust;
-    var cash=rawCash;
-    /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR nhập lớn hơn cả
-       Actual — công thức tiền mặt = actual − QR + điều chỉnh, QR > actual thì trừ ra số âm dù
-       chỉ số hoàn toàn bình thường). Anh Thắng 28/08, ảnh AM-BD-1: TRƯỚC 597 → SAU 610 (đúng
-       chiều, actual 130.000) nhưng QR gõ 240.000 > actual, TIỀN MẶT ra -110.000 — "sao lại để
-       -110". Số âm không phải "để" — máy KHÔNG BAO GIỜ nộp tiền mặt âm; QR ghi lớn hơn actual
-       nghĩa là QR gõ sai (hoặc actual bị thiếu vì chỉ số đọc sai), cả hai đều cần người kiểm
-       tra, không phải cứ trừ ra âm rồi lặng lẽ ghi vào sổ. */
+    /* 🔴 "THỰC THU" LÀ SỐ GHI ĐÈ, KHÔNG PHẢI SỐ CỘNG THÊM. Anh Thắng 29/08/2026: *"cột này là
+       cột thực thu"* rồi *"khi nhập thực thu ở cột này, tiền cộng sẽ lấy theo cột này"* — đổi
+       hẳn cột "Tăng/Giảm" (trước đây CỘNG vào công thức: actual−QR+điều_chỉnh) thành cột "Thực
+       thu": có gõ thì đúng con số đó là tiền mặt phải nộp — GHI ĐÈ hẳn, không cộng dồn vào công
+       thức nữa. Bỏ trống thì vẫn tính theo công thức actual−QR như trước, y như chưa từng có
+       cột này. Dùng lại đúng cơ chế "Thực thu ghi đè" từng chỉ áp cho hàng bất thường (ô đỏ) —
+       nay mọi hàng đều dùng chung MỘT ô, không còn ô "Thực thu" thứ hai trong khung cảnh báo. */
+    var rawCash=actual-qr;
+    var coTT=aEl && '' !== (aEl.value||'').trim();
+    var cash=coTT ? snum(aEl.value) : rawCash;
+    /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC công thức tính ra ÂM (QR nhập lớn hơn cả
+       Actual). Xét trên CÔNG THỨC THÔ (`rawCash`, chưa ghi đè) — có gõ Thực thu hay không thì số
+       liệu máy đưa ra vẫn cần được giải thích nếu tự nó đã vô lý. Anh Thắng 28/08, ảnh AM-BD-1:
+       TRƯỚC 597 → SAU 610 (đúng chiều, actual 130.000) nhưng QR gõ 240.000 > actual, CÔNG THỨC ra
+       -110.000 — "sao lại để -110". Số âm không phải "để" — máy KHÔNG BAO GIỜ nộp tiền mặt âm; QR
+       ghi lớn hơn actual nghĩa là QR gõ sai (hoặc actual bị thiếu vì chỉ số đọc sai), cả hai đều
+       cần người kiểm tra, không phải cứ trừ ra âm rồi lặng lẽ ghi vào sổ. */
     var chiSoNguoc=(before!==''&&after!==''&&after<before);
     var batThuong=chiSoNguoc||(rawCash<0);
-    /* THỰC THU GHI ĐÈ khi ghế lỗi — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho kế toán,
-       chứ không lấy theo chỉ số máy". Bất thường thì actual/cash tính theo công thức không đáng
-       tin, và không được đưa thẳng vào sổ. Ô "Thực thu" xuất hiện cùng ô lý do; có gõ thì THAY
-       THẾ hẳn số tiền mặt phải nộp, actual vẫn hiện để đối chiếu nhưng không còn là căn cứ tính
-       tiền. */
-    var iTT=tr.querySelector('.thuc-thu-bt');
-    var coTT=batThuong && iTT && '' !== (iTT.value||'').trim();
-    if(coTT) cash=snum(iTT.value);
     var elA=tr.querySelector('.actual'); if(elA) elA.textContent=money(actual);   // gọn: ẩn
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
-    /* Bất thường: hiện ô nhập LÝ DO + THỰC THU ngay tại hàng đó — anh Thắng: "hiện ra lý do lỗi
-       tại hàng máy lỗi, nhân viên nhập lý do". Tạo MỘT LẦN (không dựng lại mỗi lần gõ số khác,
-       kẻo mất chữ đang gõ dở trong chính hai ô này khi calc() chạy lại do sự kiện input của
-       CHÍNH chúng). */
+    /* Bất thường: hiện ô nhập LÝ DO ngay tại hàng đó — Thực thu đã có sẵn ở cột chính, không
+       dựng thêm ô thứ hai trong khung cảnh báo nữa. */
     if(batThuong){
       w.style.display='';
       if(!w.querySelector('.ly-do-bt')){
         w.textContent='';
         w.appendChild(document.createTextNode(chiSoNguoc
           ? '⚠ Chỉ số sau nhỏ hơn trước — ghi lý do:'
-          : '⚠ Tiền mặt tính ra ÂM (QR lớn hơn Actual) — ghi lý do:'));
+          : '⚠ Công thức tính ra ÂM (QR lớn hơn Actual) — ghi lý do:'));
         var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm, gõ nhầm QR…';
         iLy.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
         w.appendChild(iLy);
-        w.appendChild(document.createTextNode('Thực thu (số tiền nộp thật, thay cho tính theo chỉ số):'));
-        var iTt=el('input','thuc-thu-bt'); iTt.type='text'; iTt.inputMode='numeric'; iTt.placeholder='VD 500000';
-        iTt.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
-        w.appendChild(iTt);
+        w.appendChild(document.createTextNode('Và nhập đúng số tiền thật vào cột "Thực thu" ở trên.'));
       }
     } else {
       w.style.display='none';
-      if(w.querySelector('.ly-do-bt')) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch cả hai ô
+      if(w.querySelector('.ly-do-bt')) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
     }
   }
 
@@ -1783,9 +1778,12 @@ class VHG_Trang {
     document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){
       if(!coThu(tr.querySelector('.after').value)) return;
       var qEl=tr.querySelector('.qr'), aEl=tr.querySelector('.adjust'), nEl=tr.querySelector('.note');
+      /* adjust: null = KHÔNG gõ (tính theo công thức); số = Thực thu ghi đè, kể cả khi gõ đúng
+         0đ — phải phân biệt được "bỏ trống" với "gõ số 0", nên không được mặc định về 0 ở đây. */
+      var coAd=aEl && '' !== (aEl.value||'').trim();
       out.push({ chairCode:tr.dataset.ma, chairName:tr.dataset.ten,
         meterBefore:beforeOf(tr), meterAfter:meterVal(tr.querySelector('.after').value),
-        qr:qEl?snum(qEl.value):0, adjust:aEl?snum(aEl.value):0,
+        qr:qEl?snum(qEl.value):0, adjust:coAd?snum(aEl.value):null,
         note:nEl?(nEl.value||'').trim():'' });
     });
     return out;
@@ -1820,12 +1818,13 @@ class VHG_Trang {
     if(!LOC){ msg.textContent='Chọn cơ sở.'; msg.className='bc-msg bc-err'; return; }
     var rows=collect();
     if(!rows.length){ msg.textContent='Chưa nhập chỉ số sau cho ghế nào.'; msg.className='bc-msg bc-err'; return; }
-    /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR > actual) — xem
-       lý do đầy đủ ở calc(). Anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy lỗi, nhân viên
-       nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo" + "thực thu đó là số tiền sẽ nộp
-       về cho kế toán, chứ không lấy theo chỉ số máy". Thiếu lý do HOẶC thiếu Thực thu thì CHẶN
-       (không lặng lẽ cho số âm/rác lọt vào sổ — chốt an toàn còn lặp lại ở server); đủ cả hai
-       (gõ ở ô đỏ ngay dưới tên ghế, do calc() tự hiện ra) thì cho gửi. */
+    /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC công thức thô tính ra ÂM (QR > actual) —
+       xét trên actual−QR, KHÔNG xét trên Thực thu đã ghi đè (xem lý do ở calc()). Anh Thắng
+       28/08: "hiện ra lý do lỗi tại hàng máy lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2
+       sẽ cho gửi báo cáo" + "thực thu đó là số tiền sẽ nộp về cho kế toán, chứ không lấy theo
+       chỉ số máy". Thiếu lý do HOẶC chưa gõ Thực thu thì CHẶN (không lặng lẽ cho số âm/rác lọt
+       vào sổ — chốt an toàn còn lặp lại ở server); đủ cả hai thì cho gửi. 29/08: Thực thu nay là
+       MỘT ô duy nhất — chính cột "Thực thu" ngay trong hàng, không còn ô riêng trong khung đỏ. */
     var dv=Number(BC.don_vi)||10000;
     var canhBao=[];
     for(var i=0;i<rows.length;i++){ var r=rows[i];
@@ -1833,20 +1832,19 @@ class VHG_Trang {
       var actualR=(r.meterBefore===''||r.meterAfter==='')?0:(Number(r.meterAfter)-Number(r.meterBefore))*dv;
       var kxR=KICHXA[r.chairCode]||{tien:0};
       actualR-=(Number(kxR.tien)||0);   // khớp đúng phần trừ lượt kích từ xa server sẽ tính, xem calc()
-      var rawCashR=actualR-Number(r.qr||0)+Number(r.adjust||0);
+      var rawCashR=actualR-Number(r.qr||0);
+      var coTTR=(r.adjust!==null && r.adjust!==undefined);
       if(chiSoNguoc||rawCashR<0){
         var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
         var iLy=trR&&trR.querySelector('.ly-do-bt');
-        var iTt=trR&&trR.querySelector('.thuc-thu-bt');
         var ly=iLy?(iLy.value||'').trim():'';
-        var tt=iTt?(iTt.value||'').trim():'';
-        if(!ly||!tt){ canhBao.push(r.chairName||r.chairCode); continue; }
+        if(!ly||!coTTR){ canhBao.push(r.chairName||r.chairCode); continue; }
         r.abnormalReason=ly;
-        r.actualOverride=snum(tt);
       }
+      r.actualOverride=coTTR?r.adjust:null;
     }
     if(canhBao.length){
-      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi ĐỦ lý do và Thực thu ở ô đỏ ngay dưới tên ghế rồi bấm Gửi lại.';
+      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột "Thực thu" của hàng đó rồi bấm Gửi lại.';
       msg.className='bc-msg bc-err'; return;
     }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
@@ -2035,7 +2033,7 @@ class VHG_Trang {
     function f(lbl,cls,val){ var w=el('label','bc-f'); w.appendChild(el('span',null,lbl)); var i=inp(cls,''); i.value=(val==null?'':val); w.appendChild(i); return w; }
     g.appendChild(f('Chỉ số sau','e-after',c.meterAfter));
     g.appendChild(f('QR','e-qr',c.qr));
-    g.appendChild(f('Tăng/Giảm','e-adjust',c.adjust));
+    g.appendChild(f('Thực thu','e-adjust',c.adjust));
     g.appendChild(f('Ghi chú','e-note',c.note));
     card.appendChild(g);
     var bar=el('div'); bar.style.cssText='display:flex;gap:8px;align-items:center;margin-top:6px';
@@ -2045,11 +2043,15 @@ class VHG_Trang {
       var patch={};
       var af=meterVal(card.querySelector('.e-after').value);
       var qr=snum(card.querySelector('.e-qr').value);
-      var ad=snum(card.querySelector('.e-adjust').value);
+      /* Thực thu: null = không ghi đè (ô để trống), số = ghi đè — kể cả gõ đúng 0đ. Ô nạp sẵn
+         cũng đã là null khi báo cáo chưa từng ghi đè (xem bc_recent()), nên so sánh chuỗi ở đây
+         phân biệt đúng "chưa đổi gì" với "vừa xoá trắng để bỏ ghi đè". */
+      var adRaw=(card.querySelector('.e-adjust').value||'').trim();
+      var ad=adRaw===''?null:snum(adRaw);
       var nt=(card.querySelector('.e-note').value||'').trim();
       if(String(c.meterAfter)!==String(af)) patch.meterAfter = af===''?'':af;
       if(Number(c.qr||0)!==qr) patch.qr=qr;
-      if(Number(c.adjust||0)!==ad) patch.adjust=ad;
+      if(String(c.adjust==null?'':c.adjust)!==String(ad==null?'':ad)) patch.adjust=ad;
       if(String(c.note||'')!==nt) patch.note=nt;
       if(!Object.keys(patch).length){ m.textContent='Không có gì đổi.'; return; }
       s.disabled=true; m.textContent='Đang lưu…';

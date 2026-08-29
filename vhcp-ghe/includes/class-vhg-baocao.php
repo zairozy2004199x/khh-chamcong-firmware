@@ -4,12 +4,23 @@
  *
  * Anh Thắng 27/08/2026: đưa app thu-tiền-nhập-báo-cáo vào web ghế (tab trên /ghe).
  *
- * 🔴 CÔNG THỨC BẤT BIẾN (giữ y app gốc):
+ * 🔴 CÔNG THỨC (giữ y app gốc, TRỪ "Thực thu" — xem cập nhật 29/08/2026 bên dưới):
  *      actual   = (chỉ số sau − chỉ số trước) × đơn_vị
- *      tiền mặt = actual − QR ± điều_chỉnh
+ *      tiền mặt = actual − QR
  *      tổng     = tiền mặt + QR
  *    Server TỰ TÍNH và TỰ ÉP chỉ số trước — KHÔNG tin số client gửi.
  *    App gốc cứng ×10000; ở đây dùng VHG_Quy::don_vi() để KHỚP với chốt ca máy trạm.
+ *
+ * 🔴 29/08/2026 — CỘT "TĂNG/GIẢM" ĐỔI THÀNH "THỰC THU": GHI ĐÈ, KHÔNG CÒN CỘNG DỒN.
+ *    Anh Thắng: *"cột này là cột thực thu"* rồi *"khi nhập thực thu ở cột này, tiền cộng sẽ lấy
+ *    theo cột này"*. Trước đây cột "Tăng/Giảm" (`dieu_chinh`) CỘNG vào công thức tiền mặt
+ *    (`actual − qr + điều_chỉnh`) — nay đổi hẳn: có gõ ở cột này thì tiền mặt LẤY ĐÚNG số đó
+ *    (`$r0['actualOverride']`, xem `luu()`), không còn tính theo actual−qr nữa; bỏ trống thì vẫn
+ *    tính theo công thức y như chưa từng có cột này. Áp dụng cho MỌI hàng, không chỉ hàng bất
+ *    thường (chỉ số ngược / công thức ra âm) như cơ chế "Thực thu ghi đè" ban đầu — hàng bất
+ *    thường vẫn BẮT BUỘC phải có (cộng thêm lý do), hàng thường thì đây là lựa chọn. Cột
+ *    `dieu_chinh` trong CSDL vẫn còn (lưu lại số đã gõ để đối chiếu), chỉ là không dùng nó trong
+ *    phép tính `tien_mat` ở `tinh_()` nữa — số ghi đè áp riêng ở `luu()`/`sua_dong()` sau đó.
  *
  * 🔴 "DÙNG CHUNG BẢNG CHỈ SỐ" với chốt ca: chi_so_truoc() lấy chỉ số sau gần nhất TRƯỚC ngày báo
  *    cáo từ CẢ `bc_dong` LẪN `chot` — một dòng thời gian chỉ số duy nhất, không đếm đôi.
@@ -329,6 +340,12 @@ class VHG_BaoCao {
 		$before = self::songuyen_( isset( $r['chi_so_truoc'] ) ? $r['chi_so_truoc'] : null );
 		$after  = self::songuyen_( isset( $r['chi_so_sau'] ) ? $r['chi_so_sau'] : null );
 		$qr = (int) ( isset( $r['qr'] ) ? $r['qr'] : 0 );
+		/* 🔴 `dieu_chinh` KHÔNG CÒN CỘNG VÀO TIỀN MẶT — anh Thắng 29/08/2026: "cột này là cột
+		   thực thu" + "khi nhập thực thu ở cột này, tiền cộng sẽ lấy theo cột này". Cột trước
+		   đây "Tăng/Giảm" cộng thẳng vào công thức; nay đổi thành "Thực thu" — GHI ĐÈ hẳn tiền
+		   mặt khi có gõ (xem khối `actualOverride` ở `luu()`), không cộng dồn nữa. Vẫn giữ cột
+		   `dieu_chinh` trong CSDL để lưu lại số đã gõ (đối chiếu/báo cáo cũ), chỉ là không dùng
+		   nó trong phép tính `tien_mat` ở đây nữa — số ghi đè do `luu()` áp SAU khi gọi hàm này. */
 		$adj = (int) ( isset( $r['dieu_chinh'] ) ? $r['dieu_chinh'] : 0 );
 		/* Trừ tiền lượt kích ghế từ xa (cho không) ra khỏi actual — xem kich_xa_tru() ở trên.
 		   luu() đổ số này vào $r['kich_tien'] TRƯỚC khi gọi tinh_(); không có lượt kích nào (đa
@@ -339,7 +356,7 @@ class VHG_BaoCao {
 		$r['qr'] = $qr; $r['dieu_chinh'] = $adj;
 		$r['kich_tien'] = $kich_tien;
 		$r['actual'] = $actual;
-		$r['tien_mat'] = $actual - $qr + $adj;
+		$r['tien_mat'] = $actual - $qr;
 		$r['tong'] = $r['tien_mat'] + $qr;
 		return $r;
 	}
@@ -628,32 +645,37 @@ class VHG_BaoCao {
 				   và ảnh gán nhầm ghế chỉ lộ ra khi kế toán soát thấy sai. */
 				'images' => ( isset( $r0['images'] ) && is_array( $r0['images'] ) ) ? $r0['images'] : array() );
 			self::tinh_( $r );
-			/* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR nhập lớn
-			   hơn actual — công thức tien_mat = actual − qr + điều_chỉnh). Anh Thắng 28/08, ảnh
-			   AM-BD-1: chỉ số ĐÚNG chiều (597→610, actual 130.000) nhưng QR gõ 240.000 > actual,
-			   tien_mat ra -110.000 — "sao lại để -110". Ghế không bao giờ nộp tiền mặt âm; QR
-			   lớn hơn actual là QR gõ sai hoặc actual thiếu, cả hai đều cần người xác nhận, không
-			   phải trừ ra âm rồi lặng lẽ ghi sổ — nên xét CẢ HAI điều kiện, không chỉ chỉ số. */
+			/* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC công thức thô tính ra ÂM (QR nhập
+			   lớn hơn actual — công thức tien_mat = actual − qr, KHÔNG còn cộng điều_chỉnh, xem
+			   tinh_()). Anh Thắng 28/08, ảnh AM-BD-1: chỉ số ĐÚNG chiều (597→610, actual 130.000)
+			   nhưng QR gõ 240.000 > actual, tien_mat ra -110.000 — "sao lại để -110". Ghế không
+			   bao giờ nộp tiền mặt âm; QR lớn hơn actual là QR gõ sai hoặc actual thiếu, cả hai
+			   đều cần người xác nhận, không phải trừ ra âm rồi lặng lẽ ghi sổ — nên xét CẢ HAI
+			   điều kiện, không chỉ chỉ số. */
 			$chi_so_nguoc = ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] );
 			$bat_thuong = $chi_so_nguoc || $r['tien_mat'] < 0;
+			/* 🔴 "THỰC THU" GHI ĐÈ CHO MỌI HÀNG, KHÔNG CHỈ HÀNG BẤT THƯỜNG. Anh Thắng 29/08/2026:
+			   "cột này là cột thực thu" + "khi nhập thực thu ở cột này, tiền cộng sẽ lấy theo cột
+			   này" — cột "Tăng/Giảm" cũ (chỉ cộng dồn) nay đổi hẳn thành "Thực thu": bất kỳ hàng
+			   nào có gõ, tiền mặt phải nộp LẤY ĐÚNG số đó, không còn tính theo actual−qr nữa. Hàng
+			   bất thường vẫn BẮT BUỘC phải có (như cũ, cộng thêm lý do) vì công thức của nó không
+			   đáng tin; hàng bình thường thì đây là lựa chọn — nhân viên gõ khi tiền mặt đếm thực
+			   tế khác số máy tính ra (thiếu/dư quỹ, làm tròn…). */
+			$thuc_thu = isset( $r0['actualOverride'] ) ? self::songuyen_( $r0['actualOverride'] ) : null;
 			if ( $bat_thuong ) {
 				if ( '' === $ly_do_bt ) {
 					$ly_ban_dau = $chi_so_nguoc
 						? ( 'chỉ số sau (' . $r['chi_so_sau'] . ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . ')' )
 						: ( 'tiền mặt tính ra ÂM (' . number_format( $r['tien_mat'], 0, ',', '.' ) . 'đ) — QR lớn hơn Actual' );
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': ' . $ly_ban_dau
-						. '. Ghi lý do và Thực thu ở ô đỏ dưới tên ghế rồi gửi lại.' );
+						. '. Ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột Thực thu rồi gửi lại.' );
 				}
-				/* THỰC THU GHI ĐÈ — anh Thắng: "thực thu đó là số tiền sẽ nộp về cho kế toán, chứ
-				   không lấy theo chỉ số máy". `actual`/`tien_mat` vừa tính ở tinh_() dựa trên chỉ
-				   số bất thường (sau < trước) ra số ÂM/RÁC — không được đưa vào sổ. Bắt buộc có
-				   Thực thu (như client đã bắt buộc), rồi THAY THẲNG vào tien_mat; QR giữ nguyên
-				   (điện tử, vẫn đối chiếu ngân hàng được, không phụ thuộc chỉ số máy đếm). */
-				$thuc_thu = isset( $r0['actualOverride'] ) ? self::songuyen_( $r0['actualOverride'] ) : null;
 				if ( null === $thuc_thu ) {
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten']
 						. ': cần nhập Thực thu (số tiền nộp thật) vì chỉ số bất thường không tính được theo công thức.' );
 				}
+			}
+			if ( null !== $thuc_thu ) {
 				$r['tien_mat'] = $thuc_thu;
 				$r['tong']     = $r['tien_mat'] + $r['qr'];
 				$r['ghi_chu']  = mb_substr( trim( $r['ghi_chu'] . ' · Thực thu ghi đè: '
@@ -853,10 +875,17 @@ class VHG_BaoCao {
 			$ghe = array(); $tong = 0;
 			foreach ( $dong as $d ) {
 				$tong += (int) $d['tong'];
+				/* 🔴 CHỈ TRẢ `adjust` KHI THẬT SỰ LÀ GHI ĐÈ. Cột `dieu_chinh` trước 29/08/2026 là số
+				   CỘNG DỒN (bản cũ), không phải Thực thu — đưa nguyên số cũ đó ra làm giá trị ghi
+				   đè là đổi hẳn ý nghĩa của một con số lịch sử mà không ai yêu cầu. Chỉ có báo cáo
+				   nào ĐÃ ghi đè thật (có dấu "Thực thu ghi đè" trong ghi chú, do `luu()`/`sua_dong()`
+				   gắn vào) mới trả số ra; còn lại trả `null` — màn Sửa hiện Ô TRỐNG, không phải 0,
+				   để không ai tưởng nhầm 0đ là một lượt ghi đè. */
+				$co_ghi_de = ( false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) );
 				$ghe[] = array( 'chairCode' => $d['ma_may'], 'chairName' => $d['ten'],
 					'meterBefore' => self::songuyen_( $d['chi_so_truoc'] ), 'meterAfter' => self::songuyen_( $d['chi_so_sau'] ),
 					'actual' => (int) $d['actual'], 'cash' => (int) $d['tien_mat'], 'qr' => (int) $d['qr'],
-					'adjust' => (int) $d['dieu_chinh'], 'note' => $d['ghi_chu'] );
+					'adjust' => $co_ghi_de ? (int) $d['dieu_chinh'] : null, 'note' => $d['ghi_chu'] );
 			}
 			$ra[] = array( 'reportId' => $h['report_id'], 'date' => self::ngay_( $h['ngay'] ),
 				'locName' => $h['coso'], 'rows' => count( $ghe ), 'total' => $tong, 'chairs' => $ghe );
@@ -878,16 +907,39 @@ class VHG_BaoCao {
 		$d = $wpdb->get_row( $wpdb->prepare( 'SELECT * FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND ma_may=%s LIMIT 1', $rid, $ma ), ARRAY_A );
 		if ( ! $d ) { return array( 'ok' => false, 'message' => 'Không thấy dòng cần sửa.' ); }
 		$patch = is_array( $patch ) ? $patch : array();
+		/* 🔴 "THỰC THU" QUA MÀN SỬA 24H CŨNG GHI ĐÈ, GIỐNG HỆT LÚC GỬI ĐẦU. Anh Thắng 29/08/2026:
+		   đổi cột "Tăng/Giảm" (cộng dồn) thành "Thực thu" (ghi đè) — sửa ở đây phải cùng luật,
+		   không thì cùng một cột lại xử khác nhau tuỳ màn sửa ở đâu.
+		   ⚠️ KHÔNG ĐỘNG PATCH THÌ GIỮ NGUYÊN TRẠNG THÁI GHI ĐÈ CŨ — đọc lại từ dấu "Thực thu ghi
+		   đè" trong ghi chú (bc_recent() cũng dùng đúng dấu này để biết có nên hiện số ra ô hay
+		   không), chứ không phải cứ có số trong cột `dieu_chinh` là ghi đè: cột đó còn giữ số CỘNG
+		   DỒN của những báo cáo cũ trước ngày đổi luật, đưa thẳng số đó ra làm ghi đè là đổi tiền
+		   một báo cáo cũ mà không ai bấm Lưu gì cả. */
+		$gt_de_cu = ( false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) ) ? (int) $d['dieu_chinh'] : null;
+		$co_doi_ad = array_key_exists( 'adjust', $patch );
+		$thuc_thu = $co_doi_ad
+			? ( ( null === $patch['adjust'] || '' === trim( (string) $patch['adjust'] ) ) ? null : (int) $patch['adjust'] )
+			: $gt_de_cu;
+		$ghi_chu_goc = array_key_exists( 'note', $patch ) ? mb_substr( trim( (string) $patch['note'] ), 0, 250 ) : (string) $d['ghi_chu'];
+		/* Bỏ dấu ghi đè CŨ trước khi tính lại — gắn lại mới bên dưới nếu vẫn còn ghi đè, tránh ghi
+		   chú phình ra nhiều lần "Thực thu ghi đè" khi sửa đi sửa lại cùng một dòng. */
+		$ghi_chu_goc = trim( preg_replace( '/\s*·?\s*Thực thu ghi đè:[^·]*/u', '', $ghi_chu_goc ) );
 		$r = array( 'ma_may' => $ma, 'ngay' => $h['ngay'],
 			'chi_so_sau' => array_key_exists( 'meterAfter', $patch ) ? $patch['meterAfter'] : $d['chi_so_sau'],
 			'qr' => array_key_exists( 'qr', $patch ) ? (int) $patch['qr'] : (int) $d['qr'],
-			'dieu_chinh' => array_key_exists( 'adjust', $patch ) ? (int) $patch['adjust'] : (int) $d['dieu_chinh'],
-			'ghi_chu' => array_key_exists( 'note', $patch ) ? mb_substr( trim( (string) $patch['note'] ), 0, 250 ) : $d['ghi_chu'] );
+			'dieu_chinh' => null !== $thuc_thu ? $thuc_thu : 0,
+			'ghi_chu' => $ghi_chu_goc );
 		$truoc = self::chi_so_truoc( $ma, $h['ngay'] );
 		$r['chi_so_truoc'] = ( null !== $truoc ) ? $truoc : self::songuyen_( $d['chi_so_truoc'] );
 		self::tinh_( $r );
 		if ( null !== $r['chi_so_truoc'] && null !== $r['chi_so_sau'] && $r['chi_so_sau'] < $r['chi_so_truoc'] ) {
 			return array( 'ok' => false, 'message' => 'Chỉ số sau nhỏ hơn chỉ số trước — gửi đề nghị đổi chỉ số nếu vừa thay máy.' );
+		}
+		if ( null !== $thuc_thu ) {
+			$r['tien_mat'] = $thuc_thu;
+			$r['tong']     = $r['tien_mat'] + $r['qr'];
+			$r['ghi_chu']  = mb_substr( trim( $r['ghi_chu'] . ( '' !== $r['ghi_chu'] ? ' · ' : '' ) . 'Thực thu ghi đè: '
+				. number_format( $thuc_thu, 0, ',', '.' ) . 'đ' ), 0, 250 );
 		}
 		$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'chi_so_truoc' => $r['chi_so_truoc'], 'chi_so_sau' => $r['chi_so_sau'],
 			'actual' => $r['actual'], 'tien_mat' => $r['tien_mat'], 'qr' => $r['qr'], 'dieu_chinh' => $r['dieu_chinh'],
