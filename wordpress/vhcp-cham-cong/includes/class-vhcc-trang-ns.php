@@ -993,11 +993,12 @@ class VHCC_TrangNS {
 		$ds = VHCC_NhanSu::ds_ma_song_song();
 
 		/* 🔴 KHÔNG tự vẽ khung `<div class="the">` — anh Thắng 29/08/2026: "đẩy 2 bảng về đây
-		   chung luôn cho gọn" rồi "sao chưa ghép lại thành 1 bảng". Nơi gọi (render()) bọc hàm
-		   này CHUNG một khung với the_bang() (bảng nhân sự chính) — một ô viền duy nhất, không
-		   còn hai ô viền riêng đứng cạnh nhau như trước. `<hr>` chỉ để tách mắt khỏi bảng chính
-		   ngay phía trên, vẫn trong CÙNG một khung. */
-		echo '<hr class="ngan">';
+		   chung luôn cho gọn" → "sao chưa ghép lại thành 1 bảng" → "Gộp gọn về 1 bảng luôn".
+		   Nơi gọi (render()) bọc hàm này CHUNG một khung với the_bang() (bảng nhân sự chính) —
+		   một ô viền duy nhất. KHÔNG chèn `<hr>`/khoảng cách riêng nữa (bản trước có, anh Thắng
+		   vẫn thấy là "còn hai bảng") — liền mạch ngay sau bảng chính, chỉ cách nhau đúng khoảng
+		   `<details>` tự có, giống mọi khối "…</table></div>" nối "<details>" khác trong CÙNG
+		   một khung `.the` ở trang này (VD `the_dau_viec()` nối liền `the_vai()` bên dưới). */
 		echo '<details' . ( $ds ? ' open' : '' ) . '>';
 		echo '<summary><b>Ghép hai mã về một người</b> — '
 			. ( $ds ? count( $ds ) . ' cặp đã khai' : 'chưa khai cặp nào' ) . '</summary>';

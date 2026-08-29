@@ -9937,18 +9937,21 @@ t( '🔴 "Ghép hai mã" đứng NGAY SAU bảng chính, trước "Đồng bộ 
 	false !== $vt_ghep && false !== $vt_dongbo && $vt_ghep < $vt_dongbo,
 	array( $vt_ghep, $vt_dongbo ) );
 
-/* 🔴 "SAO CHƯA GHÉP LẠI THÀNH 1 BẢNG" — đứng SÁT nhau chưa đủ, anh Thắng muốn CHUNG MỘT KHUNG
-   (một `<div class="the">`, không phải hai ô viền cạnh nhau). Soi bằng cách: giữa vạch `hr.ngan`
-   (kẻ ngay trước "Ghép hai mã") và chữ "Ghép hai mã về một người" KHÔNG được có thêm một
-   `<div class="the">` nào chen vào — nếu the_ghep_ma() lỡ tự vẽ khung riêng trở lại thì đúng
-   chuỗi `<div class="the">` sẽ xuất hiện lại ngay trong khoảng đó. */
-$vt_hr = strpos( $tt_h, '<hr class="ngan">' );
-t( '🔴 có vạch tách trong CÙNG một khung, không phải khung mới',
-	false !== $vt_hr && $vt_hr < $vt_ghep, array( $vt_hr, $vt_ghep ) );
-$doan_giua = ( false !== $vt_hr && false !== $vt_ghep && $vt_ghep > $vt_hr )
-	? substr( $tt_h, $vt_hr, $vt_ghep - $vt_hr ) : '';
-t( '🔴 KHÔNG có khung `.the` mới chen giữa vạch tách và "Ghép hai mã" — tức CHUNG một khung',
-	'' !== $doan_giua && strpos( $doan_giua, 'class="the"' ) === false, $doan_giua );
+/* 🔴 "SAO CHƯA GHÉP LẠI THÀNH 1 BẢNG" → "Gộp gọn về 1 bảng luôn" — đứng SÁT nhau chưa đủ, anh
+   Thắng muốn CHUNG MỘT KHUNG (một `<div class="the">`, không phải hai ô viền cạnh nhau), và
+   KHÔNG muốn có vạch/khoảng cách riêng ngăn hai phần (bản có `<hr>` vẫn bị chê là "còn hai
+   bảng"). Soi bằng cách: giữa nút "Lưu bảng này" (cuối bảng chính) và chữ "Ghép hai mã về một
+   người" KHÔNG được có thêm một `<div class="the">` nào chen vào, và cũng KHÔNG còn `<hr>` nào
+   — nếu the_ghep_ma() lỡ tự vẽ khung/vạch riêng trở lại thì đúng các chuỗi đó sẽ xuất hiện lại
+   ngay trong khoảng này. */
+$vt_luu = strpos( $tt_h, 'Lưu bảng này' );
+t( 'mốc "Lưu bảng này" đứng trước "Ghép hai mã"', false !== $vt_luu && $vt_luu < $vt_ghep,
+	array( $vt_luu, $vt_ghep ) );
+$doan_giua = ( false !== $vt_luu && false !== $vt_ghep && $vt_ghep > $vt_luu )
+	? substr( $tt_h, $vt_luu, $vt_ghep - $vt_luu ) : '';
+t( '🔴 KHÔNG có khung `.the` mới VÀ KHÔNG có `<hr>` chen giữa — tức CHUNG một khung, liền mạch',
+	'' !== $doan_giua && strpos( $doan_giua, 'class="the"' ) === false
+	&& strpos( $doan_giua, '<hr' ) === false, $doan_giua );
 
 /* ---- PHÂN QUYỀN TRANG NỘI BỘ, NGAY TẠI TRANG NGOÀI -----------------------------------------
    🔴 Anh Thắng 28/08/2026, ảnh một Quản lý bị chối ở trang Nội bộ: *"Trang nội bộ là trang
