@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.65.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.65.1** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,17 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.65.1 — Lịch sử chốt ca của nhân viên
+
+Anh Thắng 29/08: *"Bổ sung lịch sử chốt ca nhân viên"*. Màn "Báo cáo doanh thu" (chế độ Đầy đủ) đã
+có "Lịch sử báo cáo trong tháng" (doanh thu từng ghế/ngày) — nhưng KHÔNG có chỗ nào cho nhân viên
+tự xem lại mình đã CHỐT CA ra sao từng ngày (đủ hết cơ sở hay chốt sớm, lý do gì, bỏ qua cơ sở
+nào). Thêm khối mới **"Lịch sử chốt ca"** ngay dưới, đọc thẳng từ `bc_phien` (bảng đã có sẵn từ
+trước — một dòng/ngày/nhân viên, ghi mỗi lần gửi báo cáo hoặc chốt sớm) qua API mới
+`bc_lichsu_ca` → `VHG_BaoCao::lich_su_ca()`. Lọc theo đúng PIN đang đăng nhập — mỗi người chỉ thấy
+lịch sử của chính mình. Bảng hiện: ngày, trạng thái (Đủ báo cáo/CHỐT SỚM/Đang thu), số cơ sở đã
+xong/tổng, tổng tiền, giờ chốt, và chi tiết lý do + cơ sở bỏ qua nếu là chốt sớm.
 
 ### v1.65.0 — Sổ doanh thu ghế + ẩn ghế đã dọn · Cơ sở chưa nộp báo cáo + lịch tuần · lọc theo nhân viên
 

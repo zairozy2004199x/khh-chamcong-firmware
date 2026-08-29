@@ -184,6 +184,11 @@ class VHG_Trang {
 					isset( $d['thang'] ) ? $d['thang'] : '', $pin ) ) );
 				return;
 			}
+			if ( 'bc_lichsu_ca' === $viec ) {
+				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::lich_su_ca(
+					isset( $d['thang'] ) ? $d['thang'] : '', $pin ) ) );
+				return;
+			}
 			if ( 'bc_unpaid' === $viec ) {
 				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::chua_nop( $pin ) ) ); return;
 			}
@@ -1494,12 +1499,13 @@ class VHG_Trang {
       wrap.appendChild(boxId('bc-unpaid'));   // nộp bổ sung
       wrap.appendChild(boxId('bc-dn'));       // đề nghị đổi/xoá chỉ số
       wrap.appendChild(boxId('bc-hist'));     // lịch sử tháng
+      wrap.appendChild(boxId('bc-cachot'));   // lịch sử chốt ca
       wrap.appendChild(boxId('bc-hoidap'));   // hỏi đáp về web
     }
 
     app.appendChild(wrap);
     refreshPhien();
-    if(!GON){ loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veHoiDap(); }
+    if(!GON){ loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veLichSuCa(); veHoiDap(); }
     if(LOC && (BC.coso||[]).indexOf(LOC)>=0){ sL.value=LOC; selectLoc(LOC); }
     else if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
   }
@@ -2136,6 +2142,50 @@ class VHG_Trang {
     };
   }
   function tdCell(x,r){ var td=el('td'); if(r){ td.style.textAlign='right'; td.style.fontVariantNumeric='tabular-nums'; } td.textContent=x; return td; }
+
+  /* LỊCH SỬ CHỐT CA — anh Thắng 29/08/2026: "Bổ sung lịch sử chốt ca nhân viên". Khác với
+     "Lịch sử báo cáo trong tháng" ở trên (doanh thu từng ghế/ngày): đây là MỖI NGÀY nhân viên đã
+     chốt ca ra sao — đủ hết cơ sở hay chốt sớm (kèm lý do + cơ sở bỏ qua), đọc từ bc_phien qua
+     bc_lichsu_ca (mỗi PIN chỉ thấy đúng lịch sử của mình). */
+  function veLichSuCa(){
+    var box=$('bc-cachot'); if(!box) return; box.textContent='';
+    box.appendChild(el('h3','bc-h','Lịch sử chốt ca'));
+    var row=el('div','bc-row'); row.style.marginTop='8px';
+    var iM=el('input'); iM.type='month'; iM.id='bc-cachot-m'; iM.value=(BC.today||'').slice(0,7);
+    row.appendChild(iM);
+    var b=el('button','bc-btn','Xem'); row.appendChild(b); box.appendChild(row);
+    var out=el('div'); out.id='bc-cachot-out'; out.style.marginTop='8px'; out.className='bc-mut'; box.appendChild(out);
+    b.onclick=function(){
+      out.textContent='Đang tải…'; out.className='bc-mut';
+      goi('bc_lichsu_ca',{thang:iM.value},function(r){
+        var ds=(r&&r.ds)||[]; out.textContent=''; out.className='';
+        if(!ds.length){ out.className='bc-mut'; out.textContent='Tháng này chưa chốt ca ngày nào.'; return; }
+        var sc=el('div','bc-scroll'); var tb=el('table','bc-t');
+        tb.innerHTML='<thead><tr><th>Ngày</th><th>Trạng thái</th><th style="text-align:right">Cơ sở</th>'
+          +'<th style="text-align:right">Tổng</th><th>Giờ chốt</th><th>Chi tiết</th></tr></thead>';
+        var bo=el('tbody');
+        ds.forEach(function(x){
+          var tr=el('tr');
+          tr.appendChild(tdCell(x.ngay));
+          var trangThai = x.chotSom ? 'CHỐT SỚM' : (x.trangThai==='da_gui' ? 'Đủ báo cáo' : 'Đang thu');
+          var tdTt=el('td'); var spTt=el('span',null,trangThai);
+          spTt.style.cssText = x.chotSom ? 'color:#b45309;font-weight:700' : (x.trangThai==='da_gui' ? 'color:#046b2d;font-weight:700' : 'color:#64748b');
+          tdTt.appendChild(spTt); tr.appendChild(tdTt);
+          tr.appendChild(tdCell(x.soCoSoXong+'/'+x.soCoSo,1));
+          tr.appendChild(tdCell(money(x.tong)+'đ',1));
+          tr.appendChild(tdCell(x.guiLuc?x.guiLuc.slice(11,16):'—'));
+          var tdCt=el('td');
+          if(x.chotSom){
+            tdCt.appendChild(el('div',null,'Lý do: '+(x.lyDo||'—')));
+            if(x.boQua&&x.boQua.length) tdCt.appendChild(el('div','bc-mut','Bỏ qua: '+x.boQua.join(', ')));
+          } else { tdCt.textContent='—'; }
+          tr.appendChild(tdCt);
+          bo.appendChild(tr);
+        });
+        tb.appendChild(bo); sc.appendChild(tb); out.appendChild(sc);
+      });
+    };
+  }
 
   // ---------------- HỎI ĐÁP ----------------
   function veHoiDap(){

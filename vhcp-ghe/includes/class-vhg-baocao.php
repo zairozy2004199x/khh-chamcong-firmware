@@ -885,6 +885,39 @@ class VHG_BaoCao {
 		return $ra;
 	}
 
+	/**
+	 * LỊCH SỬ CHỐT CA của CHÍNH nhân viên đang xem — anh Thắng 29/08/2026: "Bổ sung lịch sử chốt
+	 * ca nhân viên". Khác với `lich_su()` (doanh thu từng ghế/ngày): đây là lịch sử TỪNG NGÀY đã
+	 * chốt ca ra sao — đủ báo cáo hết cơ sở hay chốt sớm (kèm lý do, cơ sở bỏ qua), đọc thẳng từ
+	 * `bc_phien` (một dòng/ngày/nhân viên, ghi mỗi lần gửi báo cáo — xem `phien_upsert_()`/
+	 * `chot_som()`). Lọc theo đúng PIN đang gọi — không cần `trong_pham_vi()` như các hàm khác,
+	 * vì `bc_phien.pin` vốn đã là PIN của chính người đó.
+	 */
+	public static function lich_su_ca( $thang, $pin ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array(); }
+		$pin  = trim( (string) $pin );
+		$thang = preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ? (string) $thang : current_time( 'Y-m' );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_phien' ) . ' WHERE pin=%s AND DATE_FORMAT(ngay,%s)=%s ORDER BY ngay DESC',
+			$pin, '%Y-%m', $thang ), ARRAY_A );
+		$ra = array();
+		foreach ( (array) $rows as $r ) {
+			$ra[] = array(
+				'ngay' => self::ngay_( $r['ngay'] ),
+				'trangThai' => (string) $r['trang_thai'],
+				'chotSom' => (bool) (int) $r['chot_som'],
+				'soCoSo' => (int) $r['so_coso'], 'soCoSoXong' => (int) $r['so_coso_xong'],
+				'tongTienMat' => (int) $r['tong_tien_mat'], 'tongQr' => (int) $r['tong_qr'], 'tong' => (int) $r['tong'],
+				'lyDo' => (string) $r['ly_do'],
+				'boQua' => array_values( array_filter( array_map( 'trim', preg_split( '/[;,]/', (string) $r['bo_qua'] ) ) ) ),
+				'guiLuc' => (string) $r['gui_luc'],
+			);
+		}
+		return $ra;
+	}
+
 	public static function chua_nop( $pin ) {
 		global $wpdb;
 		$q = self::pin_info( $pin );
