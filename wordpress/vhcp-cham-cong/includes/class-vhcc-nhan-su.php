@@ -281,6 +281,52 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * ĐẾM DỮ LIỆU CHẤM CÔNG CỦA MỘT LOẠT MÃ — MỘT LƯỢT GỌI, không hỏi từng mã.
+	 *
+	 * Anh Thắng 29/08/2026, đứng trước cặp "một người hai hồ sơ?" (MNNV2KVC0113/0177, cùng tên
+	 * Trần Minh Chiến, cùng cơ sở): *"giờ anh muốn xóa, nhưng không biết ai là thật, có ô nào
+	 * hiện ra người có dữ liệu và người không có dữ liệu không — dữ liệu chấm công... để biết
+	 * người đó có hoạt động"*.
+	 *
+	 * Nhãn "một người hai hồ sơ?" chỉ NGHI — nó không nói mã nào là mã dùng thật, mã nào là mã
+	 * tạo lỡ (bấm nhầm lúc nhập, test, hoặc cơ sở cũ không dùng nữa). Đếm số lượt CHẤM CÔNG THẬT
+	 * của mỗi mã trong cặp trả lời đúng câu đó: mã có hàng trăm lượt là mã đang dùng, mã 0 lượt
+	 * gần như chắc là hồ sơ rác — xoá mã đó không mất công của ai.
+	 *
+	 * ⚠️ CHỈ ĐẾM MÃ CẦN, KHÔNG ĐẾM CẢ SỔ. Trang Nhân sự có thể tới hàng trăm hồ sơ; đa số không
+	 *    trùng gì cả. Gọi hàm này với đúng danh sách mã đang bị gắn cờ trùng (`array_keys($trung)`
+	 *    ở nơi gọi) — một câu SQL `GROUP BY` cho đúng nhóm nhỏ đó, không quét toàn bảng chấm công
+	 *    theo từng mã một (N+1) và không đếm luôn cả những mã chẳng ai nghi ngờ.
+	 *
+	 * @param array $ds_ma Danh sách Mã NV cần đếm.
+	 * @return array [ ma_nv => [ 'luot'=>int, 'tu'=>'Y-m-d'|'', 'den'=>'Y-m-d'|'' ] ] — mã nào
+	 *   không có dòng nào trong bảng `cham_cong` thì KHÔNG có khoá trong mảng trả về (0 lượt).
+	 */
+	public static function dem_cham_cong_theo_ma( $ds_ma ) {
+		global $wpdb;
+		$ds = array();
+		foreach ( (array) $ds_ma as $m ) {
+			$m = trim( (string) $m );
+			if ( '' !== $m ) { $ds[ $m ] = true; }
+		}
+		$ds = array_keys( $ds );
+		if ( ! $ds ) { return array(); }
+
+		$t  = VHCC_DB::t( 'cham_cong' );
+		$ph = implode( ',', array_fill( 0, count( $ds ), '%s' ) );
+		$sql = $wpdb->prepare(
+			"SELECT ma_nv, COUNT(*) AS luot, MIN(ngay) AS tu, MAX(ngay) AS den
+			 FROM $t WHERE ma_nv IN ($ph) GROUP BY ma_nv", $ds );
+
+		$ra = array();
+		foreach ( VHCC_DB::rows( $sql ) as $r ) {
+			$ra[ (string) $r['ma_nv'] ] = array( 'luot' => (int) $r['luot'],
+				'tu' => (string) $r['tu'], 'den' => (string) $r['den'] );
+		}
+		return $ra;
+	}
+
+	/**
 	 * Khoá so sánh của một họ tên: BỎ DẤU, hạ chữ, gộp khoảng trắng, bỏ ký tự lạ.
 	 *
 	 * 🔴 PHẢI BỎ DẤU TRƯỚC KHI LỌC KÝ TỰ. `chu_thuong()` chỉ hạ chữ, không bỏ dấu — nên

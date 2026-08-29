@@ -862,13 +862,16 @@ class VHCC_TrangNS {
 		}
 
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
+		/* Anh Thắng 29/08/2026: "đẩy 2 bảng về đây chung luôn cho gọn" — "Ghép hai mã về một
+		   người" là công cụ CHỮA đúng cái nhãn "một người hai hồ sơ?" vừa thấy trong bảng trên;
+		   đặt ngay sau bảng đó thay vì để cách hai thẻ (Đồng bộ, Quyền nội bộ) mới tới, đỡ phải
+		   cuộn qua chỗ không liên quan để tìm nút chữa. */
+		self::the_ghep_ma( $toi );
 		self::the_dong_bo( $toi );
 		self::the_quyen_noi_bo( $toi );
-		self::the_ghep_ma( $toi );
 		self::canh_vai_la( $toi );
 		self::the_vai( $toi );
 		self::the_dau_viec( $toi );
-		self::the_ngoai_le();
 		self::the_ngoai_pham_vi();
 		self::the_mac_dinh( $ds_trang );
 		self::dong_trang();
@@ -1402,6 +1405,10 @@ class VHCC_TrangNS {
 		foreach ( $nguoi as $r_t ) {
 			if ( isset( $trung[ (string) $r_t['ma_nv'] ] ) ) { $so_trung++; }
 		}
+		/* Anh Thắng 29/08/2026: "có ô nào hiện ra người có dữ liệu và người không có dữ liệu
+		   không... để biết người đó có hoạt động" — chỉ đếm cho ĐÚNG những mã đang bị gắn cờ
+		   trùng (xem dem_cham_cong_theo_ma()), không quét cả sổ. */
+		$hoat_dong = VHCC_NhanSu::dem_cham_cong_theo_ma( array_keys( $trung ) );
 
 		$tong  = count( $nguoi );
 		$so_tr = max( 1, (int) ceil( $tong / self::MOI_TRANG ) );
@@ -1503,6 +1510,19 @@ class VHCC_TrangNS {
 					echo '<span class="chip-t chip-nang" title="Cùng tên VÀ cùng cơ sở — gần như '
 						. 'chắc là một người bị tạo hai hồ sơ. Công sẽ chia đôi giữa hai mã.">'
 						. 'một người hai hồ sơ?</span>';
+					/* 🔴 NHÃN CHỈ NGHI, KHÔNG NÓI MÃ NÀO LÀ MÃ THẬT. Đếm lượt chấm công THẬT của
+					   đúng mã này (xem dem_cham_cong_theo_ma()) trả lời câu "mã nào đang hoạt
+					   động, mã nào là hồ sơ rác an toàn để xoá" — mã 0 lượt gần như chắc là hồ sơ
+					   tạo lỡ; mã có lượt là mã đang dùng, xoá nhầm là mất công của người ta. */
+					$hd = isset( $hoat_dong[ $ma ] ) ? $hoat_dong[ $ma ] : null;
+					if ( $hd ) {
+						echo '<br><span class="mo">📋 ' . (int) $hd['luot'] . ' lượt chấm công'
+							. ( $hd['tu'] ? ( ' (' . esc_html( $hd['tu'] ) . ' → ' . esc_html( $hd['den'] ) . ')' ) : '' )
+							. '</span>';
+					} else {
+						echo '<br><span class="mo chu-hong">⚠ Chưa có lượt chấm công nào — '
+							. 'gần như chắc là hồ sơ tạo lỡ, an toàn để xoá.</span>';
+					}
 				} elseif ( $co_trung['ten'] ) {
 					echo '<span class="chip-t" title="Có người cùng tên ở CƠ SỞ KHÁC — nhiều khả '
 						. 'năng là hai người thật, không phải lỗi.">trùng tên (khác cơ sở)</span>';
@@ -2173,46 +2193,6 @@ class VHCC_TrangNS {
 		echo '<button class="chinh" name="viec" value="dau_viec">Lưu dòng</button>';
 		echo '</form>';
 		echo '</details></div>';
-	}
-
-	/* ------------------------------------------------------------------ soát ngoại lệ */
-
-	/**
-	 * MỌI NGOẠI LỆ ĐANG CÓ, GOM MỘT CHỖ.
-	 *
-	 * 🔴 Vì sao cần khối này: bảng chính có bộ lọc và phân trang, nên một ô "Khoá" đặt nhầm cho
-	 *    người ở trang 4 thì không ai nhìn thấy lại nữa — và người ấy chỉ biết mình bị chặn.
-	 *    Danh sách này là chỗ soát: ngắn, đầy đủ, gỡ được từng dòng.
-	 */
-	private static function the_ngoai_le() {
-		$ds = VHCC_Cong::ngoai_le_phang();
-		echo '<div class="the"><details' . ( $ds ? ' open' : '' ) . '>';
-		echo '<summary><b>Đang có ' . count( $ds ) . ' ngoại lệ</b> — những chỗ khác mặc định theo vai</summary>';
-		if ( ! $ds ) {
-			echo '<p class="mo">Chưa khai ngoại lệ nào. Cả công ty đang đi theo thang vai.</p>';
-			echo '</details></div>';
-			return;
-		}
-		echo '<div class="cuon"><table><thead><tr><th>Mã NV</th><th>Họ tên</th><th>Trang</th>'
-			. '<th>Đang đặt</th><th></th></tr></thead><tbody>';
-		foreach ( $ds as $x ) {
-			$hs  = VHCC_NhanSu::ho_so( $x['ma_nv'] );
-			$ten = $hs ? (string) $hs['ho_ten'] : '';
-			echo '<tr><td><b>' . esc_html( $x['ma_nv'] ) . '</b></td>';
-			echo '<td>' . ( '' !== $ten ? esc_html( $ten )
-				: '<span class="chua-ma">không thấy hồ sơ</span>' ) . '</td>';
-			echo '<td>' . esc_html( $x['ten'] )
-				. ( $x['co'] ? '' : ' <span class="chua-ma">(trang không còn cài)</span>' ) . '</td>';
-			echo '<td>' . ( 'mo' === $x['dat']
-				? '<span class="co">Mở</span>' : '<span class="chua">Khoá</span>' ) . '</td>';
-			echo '<td><form method="post" style="margin:0">'
-				. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
-				. self::o_loc()
-				. '<input type="hidden" name="ma_nv" value="' . esc_attr( $x['ma_nv'] ) . '">'
-				. '<input type="hidden" name="trang" value="' . esc_attr( $x['trang'] ) . '">'
-				. '<button name="viec" value="go_ngoai_le">Gỡ</button></form></td></tr>';
-		}
-		echo '</tbody></table></div></details></div>';
 	}
 
 	/* ------------------------------------------------------------------ bảng mặc định */

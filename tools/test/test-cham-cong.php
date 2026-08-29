@@ -9894,6 +9894,49 @@ $tt_h = vhcc_ns( 'Kế toán' );
 t( '🔴 viết cơ sở lệch HOA/THƯỜNG vẫn nhận ra là cùng một chỗ',
 	strpos( $tt_h, 'một người hai hồ sơ' ) !== false, $tt_h );
 
+/* ---- "MỘT NGƯỜI HAI HỒ SƠ" — MÃ NÀO ĐANG HOẠT ĐỘNG, MÃ NÀO LÀ HỒ SƠ RÁC ---------------------
+   Anh Thắng 29/08/2026, đứng trước đúng cặp MNNV2KVC0113/0177 (Trần Minh Chiến): *"giờ anh muốn
+   xóa, nhưng không biết ai là thật, có ô nào hiện ra người có dữ liệu và người không có dữ liệu
+   không — dữ liệu chấm công... để biết người đó có hoạt động"*.
+   Dùng lại NGUYÊN CẢNH MOT1/MOT2 (Phạm Văn Công, cùng cơ sở TUTU_BT, đã bị gắn "một người hai hồ
+   sơ" ở trên) — cho MOT1 có chấm công thật, để MOT2 trắng trơn, rồi soi đúng nhãn đó có nói ra
+   sự khác biệt hay không. */
+vhcc_cham( 'TUTU_BT', '2026-08-10', 'MOT1', '', '08:00', '17:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-20', 'MOT1', '', '08:00', '17:00' );
+$dh = VHCC_NhanSu::dem_cham_cong_theo_ma( array( 'MOT1', 'MOT2' ) );
+teq( '🔴 đếm đúng số lượt của mã có dữ liệu', 2, $dh['MOT1']['luot'], $dh );
+teq( 'và đúng ngày sớm nhất', '2026-08-10', $dh['MOT1']['tu'], $dh );
+teq( 'và đúng ngày muộn nhất', '2026-08-20', $dh['MOT1']['den'], $dh );
+t( 'mã KHÔNG có dữ liệu thì không có khoá trong mảng trả về (0 lượt)',
+	! isset( $dh['MOT2'] ), $dh );
+
+$tt_h = vhcc_ns( 'Kế toán' );
+t( '🔴 mã ĐANG hoạt động thì hiện số lượt chấm công ngay cạnh nhãn nghi',
+	strpos( $tt_h, '2 lượt chấm công' ) !== false, $tt_h );
+t( 'kèm khoảng ngày để đối chiếu nhanh, không phải mở hồ sơ',
+	strpos( $tt_h, '2026-08-10' ) !== false && strpos( $tt_h, '2026-08-20' ) !== false, $tt_h );
+t( '🔴 mã KHÔNG hoạt động thì nói thẳng là hồ sơ rác, an toàn để xoá',
+	strpos( $tt_h, 'Chưa có lượt chấm công nào' ) !== false
+	&& strpos( $tt_h, 'an toàn để xoá' ) !== false, $tt_h );
+
+/* ---- "ĐANG CÓ N NGOẠI LỆ" — BỎ HẲN BẢNG SOÁT, GIỮ NGUYÊN CƠ CHẾ GỠ TỪNG Ô -------------------
+   Anh Thắng 29/08/2026: "bỏ cái này đi" (chỉ đúng khối "Đang có N ngoại lệ — những chỗ khác mặc
+   định theo vai"). Khối bị bỏ là BẢN TÓM TẮT/soát toàn sổ; cơ chế đặt/gỡ ngoại lệ TỪNG Ô ngay
+   tại bảng chính (`ba_nut()`, viec `luu_quyen`) không đụng tới — chỉ dò trên trang render, không
+   dò tên hàm, vì hàm PHP `the_ngoai_le()` đã xoá hẳn (không còn ai gọi). */
+t( '🔴 KHÔNG còn khối tóm tắt "Đang có N ngoại lệ" trên trang',
+	strpos( $tt_h, 'ngoại lệ</b> — những chỗ khác mặc định theo vai' ) === false, $tt_h );
+
+/* ---- ĐẨY "GHÉP HAI MÃ" LÊN NGAY SAU BẢNG CHÍNH ------------------------------------------------
+   Anh Thắng 29/08/2026: "đẩy 2 bảng về đây chung luôn cho gọn" — "Ghép hai mã" là công cụ CHỮA
+   đúng cái nhãn "một người hai hồ sơ" vừa thấy trong bảng chính; đặt sát ngay sau bảng đó thay vì
+   cách hai thẻ (Đồng bộ, Quyền nội bộ) mới tới. */
+$vt_ghep = strpos( $tt_h, 'Ghép hai mã về một người' );
+$vt_dongbo = strpos( $tt_h, 'Đồng bộ chấm công' );
+t( '🔴 "Ghép hai mã" đứng NGAY SAU bảng chính, trước "Đồng bộ chấm công"',
+	false !== $vt_ghep && false !== $vt_dongbo && $vt_ghep < $vt_dongbo,
+	array( $vt_ghep, $vt_dongbo ) );
+
 /* ---- PHÂN QUYỀN TRANG NỘI BỘ, NGAY TẠI TRANG NGOÀI -----------------------------------------
    🔴 Anh Thắng 28/08/2026, ảnh một Quản lý bị chối ở trang Nội bộ: *"Trang nội bộ là trang
       chung thì ai vẫn được vào mà"*. Đúng — mặc định của `VHNB_Quyen::VIEC` là Nhân viên. Nhưng
