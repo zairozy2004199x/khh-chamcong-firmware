@@ -395,24 +395,38 @@ class VHG_BaoCao {
 	 *    nhưng đó là nói về HIỂN THỊ — client vẫn cần giữ PIN trong biến JS để đính kèm mọi lượt
 	 *    gọi sau (`goi()` tự thêm `d.pin=PIN`), giống hệt như nếu người dùng tự gõ. Không hiển
 	 *    thị nó ra đâu cả, và kênh đã xác thực bằng token trước khi tới được đây.
+	 *
+	 * 🔴 NGUỒN PIN: PHIÊN TRƯỚC, DÒ NGƯỢC LÀ ĐƯỜNG LUI.
+	 *    Bản đầu (28/08/2026) chỉ có đường dò ngược: khớp (tên, cơ sở) trong `VHG_Auth::users()`,
+	 *    khớp không ra thì hạ xuống khớp tên suông nếu đúng MỘT người trùng tên. Cách đó TRƯỢT ở
+	 *    đúng ca Võ Nguyễn Hồng Nhung 28–29/08/2026: `coso` trong phiên là ẢNH CHỤP lúc đăng
+	 *    nhập, còn `users()` luôn đọc SỐNG — hồ sơ đổi cơ sở sau khi đăng nhập (hoặc cơ sở phụ
+	 *    được gộp thêm vào chuỗi, xem `VHCC_DayGhe::ho_so_day()`) là lệch ngay khớp (1); mà khớp
+	 *    (2) cũng trượt nếu trùng tên với người khác trong 400+ nhân sự — cả hai lặng lẽ rớt về
+	 *    cổng PIN cũ, không có gì báo hiệu tính năng đã chạy mà chạy sai.
+	 *
+	 *    Từ bản này, `login()` ghi kèm PIN đã dùng vào chính phiên (`phien.pin`) — PIN đó đã qua
+	 *    xác thực đúng MỘT lần rồi, dùng lại thẳng là hết mọi kiểu trượt khớp ở trên. Đường dò
+	 *    ngược GIỮ LẠI làm cầu nối cho phiên cũ phát TRƯỚC bản này (chưa có `phien.pin`) — mất
+	 *    dần khi những phiên đó hết hạn hoặc người dùng đăng xuất/đăng nhập lại.
+	 *
+	 * ⚠️ `$pin_phien` ĐI RIÊNG, KHÔNG NẰM TRONG `$ai`. `$ai` (từ `VHG_Auth::user_by_token()`)
+	 *    được nhúng thẳng vào JSON trả cho trình duyệt ở `so_lieu()` — mọi lượt tải trang chính,
+	 *    của MỌI người. Nhét PIN vào đó là in PIN ra network tab của tất cả mọi phiên, đúng thứ
+	 *    cả tệp này tránh từ đầu ("KHÔNG bao giờ IN PIN ra màn hình"). Gọi riêng
+	 *    `VHG_Auth::pin_phien_tu_token()` đúng MỘT chỗ (dispatch `bc_boot_tu_token`) và truyền
+	 *    tay vào đây, thay vì để nó trôi theo `$ai` qua những chỗ không ngờ tới.
 	 */
-	public static function boot_tu_ai( $ai ) {
+	public static function boot_tu_ai( $ai, $pin_phien = '' ) {
 		$ten = trim( (string) ( isset( $ai['name'] ) ? $ai['name'] : '' ) );
 		if ( '' === $ten ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'Không xác định được người dùng.' ); }
+		$pin = trim( (string) $pin_phien );
 		$coso_ai = trim( (string) ( isset( $ai['coso'] ) ? $ai['coso'] : '' ) );
-		$pin = '';
-		if ( class_exists( 'VHG_Auth' ) ) {
+		if ( '' === $pin && class_exists( 'VHG_Auth' ) ) {
 			$users = VHG_Auth::users();
 			if ( ! is_wp_error( $users ) ) {
-				/* 🔴 KHỚP CẢ TÊN LẪN CƠ SỞ TRƯỚC, TÊN SUÔNG SAU. Vũ Nguyễn Hồng Nhung 28/08/2026,
-				   bấm tab "Báo cáo doanh thu" trong trang chính (ĐÃ đăng nhập token) vẫn rớt về
-				   cổng PIN cũ — khớp cứng CẢ HAI ô (tên + cơ sở) là quá chặt: hồ sơ nhân sự đổi
-				   cơ sở SAU lúc đăng nhập, hoặc cơ sở trong hồ sơ ghi khác cách với cơ sở phiên
-				   đang giữ (khoảng trắng, thứ tự trong chuỗi nhiều cơ sở…) là trượt khớp ngay, và
-				   người dùng thấy y hệt như tính năng chưa làm gì cả — không có gì báo lỗi rõ.
-				   Ưu tiên khớp cả hai (chắc nhất, đúng đúng người), khớp KHÔNG được thì hạ xuống
-				   khớp TÊN SUÔNG — chấp nhận rủi ro hiếm (hai người trùng tên) còn hơn tính năng
-				   lặng lẽ không chạy cho gần hết mọi người. */
+				/* 🔴 KHỚP CẢ TÊN LẪN CƠ SỞ TRƯỚC, TÊN SUÔNG SAU — xem khối 🔴 phía trên vì sao đây
+				   chỉ còn là đường lui cho phiên cũ, không phải đường chính. */
 				$theo_ten = array();
 				foreach ( (array) $users as $u ) {
 					if ( '' === (string) $u['pin'] ) { continue; }

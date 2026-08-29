@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.1** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,35 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.1 — "Mở màn Báo cáo doanh thu" vẫn bắt gõ lại PIN (Võ Nguyễn Hồng Nhung, 29/08)
+
+**Hiện tượng:** nhân viên đã đăng nhập token `/ghe` xong, bấm tab "📋 Báo cáo doanh thu" (nút mở
+thẳng khỏi gõ PIN, thêm ở v1.53.0), vẫn rơi về cổng "Nhập mã PIN nhân viên thu tiền".
+
+**Gốc:** `VHG_BaoCao::boot_tu_ai()` (đã có từ v1.53.0, sửa một lần hôm 28/08 cho ca Vũ Nguyễn Hồng
+Nhung) suy PIN bằng cách khớp **(tên, cơ sở)** trong `VHG_Auth::users()` — sổ nhân sự SỐNG — với
+`coso` ghi trong phiên đăng nhập lúc trước, tức một ẢNH CHỤP cũ. Hồ sơ đổi cơ sở (hoặc gộp thêm cơ
+sở phụ) SAU lúc đăng nhập là lệch khớp ngay; khớp lùi về tên suông thì lại trượt nếu trùng tên với
+ai khác trong 400+ nhân sự. Cả hai kiểu trượt đều IM LẶNG — màn hình trông như tính năng chưa hề
+chạy.
+
+**Sửa tận gốc, không vá thêm điều kiện khớp:** bảng phiên (`vhg_phien`) nay có thêm cột `pin` —
+`VHG_Auth::login()` ghi luôn PIN vừa xác thực đúng vào phiên. `boot_tu_ai()` dùng PIN đó trực tiếp
+qua hàm mới `VHG_Auth::pin_phien_tu_token()`, hết mọi kiểu khớp tên/cơ sở. Đường dò cũ (tên+cơ sở)
+**vẫn giữ lại** làm cầu nối cho phiên phát TRƯỚC bản 1.63.1 (chưa có `phien.pin`) — mất dần khi
+phiên đó hết hạn (30 ngày) hoặc người dùng đăng xuất/đăng nhập lại.
+
+⚠️ **PIN KHÔNG được gộp vào `$ai`/`user_by_token()`** dù tiện hơn — `$ai` bị nhúng thẳng vào JSON
+`so_lieu()` gửi cho MỌI người, MỌI lượt tải trang; gộp PIN vào đó là in PIN ra network tab của tất
+cả mọi phiên. Lấy PIN bằng hàm riêng (`pin_phien_tu_token()`), gọi tay đúng MỘT chỗ (dispatch
+`bc_boot_tu_token`) — xem khối 🔴 trong `class-vhg-auth.php` và `class-vhg-baocao.php` trước khi
+đụng lại chỗ này.
+
+**Cần test:** một tài khoản đã ĐĂNG NHẬP TRƯỚC khi cài 1.63.1 phải **đăng xuất/đăng nhập lại MỘT
+LẦN** để phiên mới mang theo `pin` — nếu chưa, `boot_tu_ai()` vẫn chạy đường dò cũ (vẫn có thể
+đúng, nhưng không phải đường chính đã sửa). Sau khi đăng nhập lại, bấm "Mở màn Báo cáo doanh thu"
+phải vào thẳng, không hỏi PIN — thử với đúng tài khoản Võ Nguyễn Hồng Nhung trước.
 
 ### v1.63.0 — Thu NHIỀU LẦN trong ngày (mỗi lần 1 bản ghi, chỉ số nối tiếp)
 Anh Thắng 29/08: *"thay vì 1 ngày 1 lần, cho thu nhiều lần; lần sau chỉ số tự đẩy chỉ số cũ vào"*.
@@ -223,6 +252,8 @@ mà không đọc.
   `VHG_BaoCao::noi_tiep()` vào hai hàm đó (class-vhg-ketoan.php). Chưa làm vì ngữ nghĩa restore của
   undo phức tạp, và xoá ngày giữa hiếm.
 - **v1.62.0 ô ảnh mọi chế độ** — đã anh xác nhận trực quan (điện thoại & PC đều thấy 📷/🧹). Coi như xong.
+- **v1.63.1 PIN phiên** — xem mục 1 ở trên. Cần Võ Nguyễn Hồng Nhung đăng xuất/đăng nhập lại rồi
+  thử "Mở màn Báo cáo doanh thu" một lần nữa để xác nhận đã vào thẳng.
 
 ---
 

@@ -347,19 +347,25 @@ class VHG_Auth {
 					. ') không được xem doanh thu ghế.' );
 			}
 			return array( 'ok' => true, 'name' => $u['ten'], 'role' => $role, 'coso' => $u['coso'],
-				'token' => self::phat_token( $u['ten'], $role, $u['coso'] ) );
+				'token' => self::phat_token( $u['ten'], $role, $u['coso'], $u['pin'] ) );
 		}
 		self::dem_sai();
 		return array( 'ok' => false, 'error' => 'PIN không đúng hoặc chưa được cấp' );
 	}
 
-	public static function phat_token( $ten, $role, $coso ) {
+	/**
+	 * $pin — PIN vừa xác thực đúng ở `login()`, ghi kèm vào phiên để `boot_tu_ai()` dùng lại
+	 * thẳng qua `pin_phien_tu_token()`, khỏi phải dò ngược theo (tên, cơ sở). Xem khối 🔴 ở
+	 * bảng `phien` (class-vhg-db.php). Rỗng vẫn nhận (tương thích chỗ gọi cũ nếu có) —
+	 * `pin_phien_tu_token()` trả rỗng, và `boot_tu_ai()` tự rớt về đường dò cũ trong ca đó.
+	 */
+	public static function phat_token( $ten, $role, $coso, $pin = '' ) {
 		global $wpdb;
 		$t = VHG_DB::t( 'phien' );
 		$wpdb->query( "DELETE FROM $t WHERE het_han < UTC_TIMESTAMP()" );
 		$tok = bin2hex( random_bytes( 32 ) );
 		$wpdb->insert( $t, array( 'token' => $tok, 'ten' => (string) $ten,
-			'vai_tro' => (string) $role, 'coso' => (string) $coso,
+			'vai_tro' => (string) $role, 'coso' => (string) $coso, 'pin' => (string) $pin,
 			'het_han' => gmdate( 'Y-m-d H:i:s', time() + self::TTL ) ) );
 		return $tok;
 	}
@@ -380,6 +386,23 @@ class VHG_Auth {
 		if ( ! $r ) { return null; }
 		if ( ! in_array( (string) $r['vai_tro'], self::vai_tro_vao(), true ) ) { return null; }
 		return array( 'name' => $r['ten'], 'role' => $r['vai_tro'], 'coso' => $r['coso'] );
+	}
+
+	/**
+	 * PIN đã dùng để mở phiên này — CHỈ cho `bc_boot_tu_token` (xem VHG_BaoCao::boot_tu_ai()),
+	 * KHÔNG gộp vào `user_by_token()`. Lý do tách riêng: kết quả `user_by_token()` (`$ai`) được
+	 * nhúng thẳng vào JSON trả cho trình duyệt ở `so_lieu()` (mọi lượt tải trang) — gộp PIN vào
+	 * đó là in PIN ra network tab của MỌI người, mọi lượt, đúng thứ cả tệp này tránh từ đầu.
+	 * Hàm này đứng riêng, chỉ gọi tường minh đúng một chỗ.
+	 */
+	public static function pin_phien_tu_token( $token ) {
+		global $wpdb;
+		$token = (string) $token;
+		if ( ! preg_match( '/^[0-9a-f]{64}$/', $token ) ) { return ''; }
+		$t = VHG_DB::t( 'phien' );
+		$p = $wpdb->get_var( $wpdb->prepare(
+			"SELECT pin FROM $t WHERE token=%s AND het_han > UTC_TIMESTAMP()", $token ) );
+		return null === $p ? '' : (string) $p;
 	}
 
 	public static function logout( $token ) {

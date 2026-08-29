@@ -254,7 +254,7 @@ class VHG_Trang {
 		   chính hồ sơ nhân sự rồi gọi thẳng `VHG_BaoCao::boot()` — vẫn qua ĐÚNG luật cũ (ngoại lệ
 		   bc_pin, khoá PIN…), chỉ khỏi bắt gõ lại. */
 		if ( 'bc_boot_tu_token' === $viec ) {
-			self::tra( VHG_BaoCao::boot_tu_ai( $ai ) );
+			self::tra( VHG_BaoCao::boot_tu_ai( $ai, VHG_Auth::pin_phien_tu_token( $tok ) ) );
 			return;
 		}
 

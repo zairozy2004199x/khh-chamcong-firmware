@@ -99,13 +99,24 @@ class VHG_DB {
 
 		   ⚠️ Phiên RIÊNG với plugin chấm công, dù dùng chung danh sách người. Hai hệ thống riêng
 		      thì thu hồi phiên bên này không được kéo bên kia xuống theo — mà đây là màn có
-		      DOANH THU, khả năng phải đá một người ra gấp là có thật. */
+		      DOANH THU, khả năng phải đá một người ra gấp là có thật.
+
+		   🔴 `pin` — GHI LẠI PIN ĐÃ DÙNG LÚC ĐĂNG NHẬP, để mở thẳng tab "Báo cáo doanh thu" mà
+		      KHỎI phải dò lại theo (tên, cơ sở) — xem VHG_BaoCao::boot_tu_ai(). Trước đây hàm đó
+		      tự suy PIN bằng cách so khớp tên+cơ sở trong danh sách nhân sự SỐNG (VHG_Auth::
+		      users()); so khớp đó trượt bất cứ khi nào hồ sơ đổi cơ sở SAU lúc đăng nhập (`coso`
+		      trong phiên là ẢNH CHỤP lúc đăng nhập, danh sách nhân sự thì luôn mới nhất) hoặc khi
+		      trùng tên (400+ nhân sự, "Nguyễn Thị..." trùng nhau không phải chuyện hiếm) — cả hai
+		      ca đều lặng lẽ rớt về cổng PIN cũ, đúng ca Võ Nguyễn Hồng Nhung gặp 28–29/08/2026.
+		      PIN đã qua `login()` xác thực đúng một lần rồi thì cứ giữ lại dùng tiếp, khỏi phải
+		      đoán lại — hết mọi kiểu trượt khớp ở trên. */
 		$b['phien'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			token CHAR(64) NOT NULL,
 			ten VARCHAR(190) NOT NULL DEFAULT '',
 			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
 			coso VARCHAR(190) NOT NULL DEFAULT '',
+			pin VARCHAR(20) NOT NULL DEFAULT '',
 			het_han DATETIME NOT NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY token (token),
