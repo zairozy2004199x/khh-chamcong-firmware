@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.67.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.68.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,26 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.68.0 — Báo cáo TỔNG (không chi tiết), hiện lại số tiền ở Sửa 24h, gọn 1 hàng
+
+Ba việc nhỏ, cùng theo yêu cầu anh Thắng 29/08:
+
+- **Báo cáo tổng**: ô "Ảnh chứng từ nộp tiền" sẵn có nay kiêm luôn đường nộp THAY THẾ khi nhân
+  viên không điền bảng chi tiết từng ghế — *"Ô này là nộp báo cáo tổng nếu không làm báo cáo
+  kia"*. Đính ảnh + gõ số vào ô "Số tiền nộp" (dùng lại, đóng vai "Tổng doanh thu") rồi bấm Gửi:
+  hệ thống ghi MỘT dòng `bc_dong` duy nhất (`ma_may=''`, không chỉ số/QR riêng), đánh dấu rõ trong
+  ghi chú là báo cáo tổng để kế toán biết đối chiếu qua ảnh chứng từ, không qua chỉ số máy. Ảnh
+  chứng từ là BẮT BUỘC trong luồng này (không có ảnh thì không tạo được báo cáo). Server:
+  `VHG_BaoCao::luu_tong()` (mới) + dispatch `bc_submit_tong`. Client: nhánh mới trong
+  `guiBaoCao()` khi bảng ghế trống nhưng có ảnh + có số tiền → gọi `guiBaoCaoTong()` (mới).
+  Còn bảng chi tiết từng ghế thì luồng cũ (`bc_submit`) không đổi gì.
+- **Sửa 24h hiện lại số tiền**: card sửa từng ghế trong "Báo cáo trong 24h — sửa được" nay có thêm
+  dòng tính SỐNG "Actual: …đ · Tiền mặt (đủ): …đ" (kèm "đang ghi đè bằng Thực thu" khi có), cập
+  nhật ngay khi gõ lại Chỉ số sau/QR/Thực thu — *"vẫn sẽ hiện số tiền thực thu và chỉ số tiền mặt
+  đủ như lúc nhập gửi báo cáo"*, không phải bấm Lưu mới biết đúng/sai.
+  Đồng thời 4 ô Chỉ số sau/QR/Thực thu/Ghi chú trong card này dồn từ 2 hàng x 2 cột thành **1 hàng
+  4 cột** cho gọn — *"điều chỉnh thành 1 hàng luôn cho nó gọn"*.
 
 ### v1.67.0 — Cột "Tăng/Giảm" đổi thành "Thực thu": GHI ĐÈ, không còn cộng dồn
 

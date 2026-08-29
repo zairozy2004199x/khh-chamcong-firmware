@@ -172,6 +172,9 @@ class VHG_Trang {
 			if ( 'bc_submit' === $viec ) {
 				self::tra( VHG_BaoCao::luu( $d, $pin ) ); return;
 			}
+			if ( 'bc_submit_tong' === $viec ) {
+				self::tra( VHG_BaoCao::luu_tong( $d, $pin ) ); return;
+			}
 			if ( 'bc_recent' === $viec ) {
 				self::tra( array( 'ok' => true, 'ds' => VHG_BaoCao::ds_24h( $pin ) ) ); return;
 			}
@@ -1480,6 +1483,10 @@ class VHG_Trang {
       var c4=el('div','bc-card');
       c4.appendChild(el('h3','bc-h','Ảnh chứng từ nộp tiền (tuỳ chọn)'));
       c4.appendChild(el('div','bc-mut','QR chuyển khoản, hoá đơn… — không phải ảnh ghế (ảnh ghế nằm ngay trong bảng số liệu ở trên).'));
+      /* Anh Thắng 29/08: "Ô này là nộp báo cáo tổng nếu không làm báo cáo kia" — nói rõ luôn ô
+         ảnh này còn kiêm đường nộp THAY THẾ khi không điền bảng chi tiết từng ghế: đính ảnh ở đây
+         + gõ Tổng doanh thu vào ô "Số tiền nộp" bên trên rồi bấm Gửi là đủ. */
+      c4.appendChild(el('div','bc-mut','Không điền bảng chi tiết từng ghế? Đính ảnh ở đây + gõ Tổng doanh thu vào ô "Số tiền nộp" bên trên rồi bấm Gửi — hệ thống ghi báo cáo TỔNG (không tách từng ghế).'));
       var iPrf=el('input'); iPrf.type='file'; iPrf.id='bc-proofs'; iPrf.accept='image/*'; iPrf.multiple=true; iPrf.style.marginTop='8px';
       c4.appendChild(iPrf);
       wrap.appendChild(c4);
@@ -1817,7 +1824,17 @@ class VHG_Trang {
     if(!NGAY){ msg.textContent='Chọn ngày.'; msg.className='bc-msg bc-err'; return; }
     if(!LOC){ msg.textContent='Chọn cơ sở.'; msg.className='bc-msg bc-err'; return; }
     var rows=collect();
-    if(!rows.length){ msg.textContent='Chưa nhập chỉ số sau cho ghế nào.'; msg.className='bc-msg bc-err'; return; }
+    if(!rows.length){
+      /* Anh Thắng 29/08: "Ô này là nộp báo cáo tổng nếu không làm báo cáo kia" — không nhập chỉ
+         số ghế nào, nhưng có đính ảnh chứng từ VÀ có gõ Tổng doanh thu thì cho gửi kiểu TỔNG
+         (không chi tiết từng ghế), không bắt lỗi "chưa nhập chỉ số" nữa. Thiếu MỘT trong hai (ảnh
+         hoặc số tiền) thì vẫn báo lỗi như cũ, nhưng nói rõ luôn cả hai đường. */
+      var pEl=$('bc-proofs'); var coAnh=!!(pEl&&pEl.files&&pEl.files.length);
+      var aEl0=$('bc-amt'); var coTong=aEl0 && ''!==(aEl0.value||'').trim();
+      if(coAnh&&coTong){ guiBaoCaoTong(); return; }
+      msg.textContent='Chưa nhập chỉ số sau cho ghế nào. Muốn gửi báo cáo TỔNG (không chi tiết) thì đính ảnh chứng từ + gõ Tổng doanh thu vào ô "Số tiền nộp" rồi gửi lại.';
+      msg.className='bc-msg bc-err'; return;
+    }
     /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC công thức thô tính ra ÂM (QR > actual) —
        xét trên actual−QR, KHÔNG xét trên Thực thu đã ghi đè (xem lý do ở calc()). Anh Thắng
        28/08: "hiện ra lý do lỗi tại hàng máy lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2
@@ -1871,6 +1888,34 @@ class VHG_Trang {
           else refreshPhien();
         },90000);
       });
+    });
+  }
+  /* Anh Thắng 29/08/2026: "Ô này là nộp báo cáo tổng nếu không làm báo cáo kia, chứ không phải
+     ảnh chứng từ nộp tiền" — đổi luôn ô ảnh #bc-proofs sẵn có thành đường nộp thay thế khi không
+     điền bảng chi tiết từng ghế, dùng lại đúng ô "Số tiền nộp" (#bc-amt) làm Tổng doanh thu (chỉ
+     1 số, không tách tiền mặt/QR). Gọi từ nhánh rows.length===0 trong guiBaoCao() ở trên. */
+  function guiBaoCaoTong(){
+    var msg=$('bc-msg');
+    var aEl=$('bc-amt'); var tong=snum((aEl&&aEl.value)||'');
+    if(!tong||tong<=0){ msg.textContent='Nhập đúng Tổng doanh thu vào ô "Số tiền nộp".'; msg.className='bc-msg bc-err'; return; }
+    var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
+    var nEl=$('bc-paynote');
+    var payment={ method:method, note:nEl?(nEl.value||'').trim():'' };
+    if(GUI_DANG) return; GUI_DANG=true; $('bc-gui').disabled=true;
+    msg.textContent='Đang đọc ảnh…';
+    docAnh_('bc-proofs',function(proofs){
+      if(!proofs.length){ GUI_DANG=false; $('bc-gui').disabled=false; msg.textContent='Cần đính ít nhất 1 ảnh chứng từ để gửi báo cáo tổng.'; msg.className='bc-msg bc-err'; return; }
+      msg.textContent='Đang gửi…';
+      goi('bc_submit_tong',{ date:NGAY, loc:LOC, tong:tong, payment:payment, proofs:{qr:proofs} },function(r){
+        GUI_DANG=false; $('bc-gui').disabled=false;
+        if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
+        msg.textContent=r.message||('Đã gửi báo cáo tổng '+LOC+'.'); msg.className='bc-msg bc-ok';
+        bcXoaNhap();
+        var iP=$('bc-proofs'); if(iP) iP.value='';
+        if(aEl) aEl.value='';
+        if(r.phien) veProg(r.phien);
+        else refreshPhien();
+      },90000);
     });
   }
   /* Nén ảnh trên máy (cạnh dài 1000, JPEG 0.5) rồi đọc base64 — anh Thắng 29/08/2026: "Lỗi khi
@@ -2029,13 +2074,37 @@ class VHG_Trang {
     var card=el('div'); card.style.cssText='border:1px solid #e2e8f0;border-radius:9px;padding:9px;margin-top:6px';
     card.appendChild(el('b',null,c.chairName||c.chairCode));
     card.appendChild(el('div','bc-mut','Chỉ số trước: '+((c.meterBefore==null||c.meterBefore==='')?'—':money(c.meterBefore))+' (khoá)'));
-    var g=el('div'); g.style.cssText='display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px';
+    /* 🔴 HIỆN LẠI TIỀN MẶT ĐỦ + THỰC THU NGAY TẠI ĐÂY — anh Thắng 29/08/2026: "chỗ báo cáo 24h
+       vẫn sẽ hiện số tiền thực thu và chỉ số tiền mặt đủ như lúc nhập gửi báo cáo". Trước đây
+       màn Sửa 24h chỉ có mấy ô nhập trần, không thấy lại con số tiền mặt sẽ ra bao nhiêu — sửa
+       xong bấm Lưu mới biết đúng/sai. Nay tính lại SỐNG y hệt công thức của calc() bên màn nhập
+       chính (actual = (sau−trước)×đơn_vị; tiền mặt = actual−QR, GHI ĐÈ bằng Thực thu nếu có gõ),
+       cập nhật mỗi khi gõ lại một trong ba ô Chỉ số sau/QR/Thực thu — không phải đợi bấm Lưu rồi
+       mới thấy số đổi. */
+    var xem=el('div','bc-mut'); xem.style.cssText='margin-top:2px;font-weight:600;color:#0f172a';
+    card.appendChild(xem);
+    /* Anh Thắng 29/08: "điều chỉnh thành 1 hàng luôn cho nó gọn" — 4 ô Chỉ số sau/QR/Thực thu/Ghi
+       chú trước đây chia 2 hàng x 2 cột, nay dồn hết vào MỘT hàng 4 cột. `minmax(0,1fr)` (không
+       phải `1fr` trần) để input bên trong co lại đúng cột thay vì đẩy tràn hàng trên máy hẹp. */
+    var g=el('div'); g.style.cssText='display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px';
     function f(lbl,cls,val){ var w=el('label','bc-f'); w.appendChild(el('span',null,lbl)); var i=inp(cls,''); i.value=(val==null?'':val); w.appendChild(i); return w; }
-    g.appendChild(f('Chỉ số sau','e-after',c.meterAfter));
-    g.appendChild(f('QR','e-qr',c.qr));
-    g.appendChild(f('Thực thu','e-adjust',c.adjust));
+    var fAfter=f('Chỉ số sau','e-after',c.meterAfter), fQr=f('QR','e-qr',c.qr), fAdj=f('Thực thu','e-adjust',c.adjust);
+    g.appendChild(fAfter); g.appendChild(fQr); g.appendChild(fAdj);
     g.appendChild(f('Ghi chú','e-note',c.note));
     card.appendChild(g);
+    var dv=Number(BC.don_vi)||10000;
+    function capNhatXem(){
+      var before=(c.meterBefore==null||c.meterBefore==='')?'':Number(c.meterBefore);
+      var after=meterVal(card.querySelector('.e-after').value);
+      var qr=snum(card.querySelector('.e-qr').value);
+      var actual=(before===''||after==='')?0:(after-before)*dv;
+      var adRaw=(card.querySelector('.e-adjust').value||'').trim();
+      var coTT=adRaw!=='';
+      var cash=coTT?snum(adRaw):(actual-qr);
+      xem.textContent='Actual: '+money(actual)+'đ · Tiền mặt (đủ): '+money(cash)+'đ'+(coTT?' (đang ghi đè bằng Thực thu)':'');
+    }
+    capNhatXem();
+    [fAfter,fQr,fAdj].forEach(function(w){ w.querySelector('input').addEventListener('input',capNhatXem); });
     var bar=el('div'); bar.style.cssText='display:flex;gap:8px;align-items:center;margin-top:6px';
     var s=el('button','bc-btn pri','Lưu ghế này'); var m=el('span','bc-mut');
     bar.appendChild(s); bar.appendChild(m); card.appendChild(bar);

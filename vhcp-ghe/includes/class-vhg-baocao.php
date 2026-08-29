@@ -769,6 +769,99 @@ class VHG_BaoCao {
 						: '' ) ) );
 	}
 
+	/**
+	 * BÁO CÁO TỔNG — nộp THAY bảng chi tiết từng ghế khi không làm được (máy hỏng, không kịp đo
+	 * từng ghế, khách đông không tách kịp…). Anh Thắng 29/08/2026: *"Ô này là nộp báo cáo tổng
+	 * nếu không làm báo cáo kia, chứ không phải ảnh chứng từ nộp tiền"* — ô ảnh vốn chỉ để đính
+	 * QR chuyển khoản/hoá đơn kèm báo cáo chi tiết, nay còn thêm vai trò thứ hai: MỘT MÌNH nó
+	 * (kèm ô "Số tiền nộp" đọc thành Tổng doanh thu) đủ để nộp cả báo cáo khi không có chi tiết.
+	 *
+	 * KHÔNG có chỉ số/QR riêng từng ghế — chỉ MỘT số Tổng doanh thu do nhân viên tự cộng, và ẢNH
+	 * CHỨNG TỪ LÀ BẮT BUỘC (không có gì khác làm bằng chứng cho một con số không có công thức
+	 * nào kiểm lại được). Ghi thành đúng MỘT dòng `bc_dong` với mã máy RỖNG, gắn cờ rõ trong ghi
+	 * chú để kế toán biết ngay đây là báo cáo không có chi tiết — "Đối chiếu máy"
+	 * (`VHG_BaoCao::doi_chieu()`) tự bỏ qua vì không tra ra máy nào khớp mã rỗng, không báo lệch
+	 * giả cho một dòng vốn không gắn với máy nào.
+	 */
+	public static function luu_tong( $payload, $pin ) {
+		global $wpdb;
+		$q = self::pin_info( $pin );
+		if ( ! $q ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ — đăng nhập lại.' ); }
+		$p = is_array( $payload ) ? $payload : array();
+
+		$ngay = self::ngay_( isset( $p['date'] ) ? $p['date'] : '' );
+		$coso = trim( (string) ( isset( $p['loc'] ) ? $p['loc'] : '' ) );
+		if ( '' === $ngay ) { return array( 'ok' => false, 'message' => 'Chọn ngày báo cáo.' ); }
+		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Chọn cơ sở.' ); }
+		if ( ! self::trong_pham_vi( $q, $coso ) ) { return array( 'ok' => false, 'message' => 'Cơ sở ' . $coso . ' không thuộc phạm vi PIN của bạn.' ); }
+		$ln = self::ngay_sai_( $ngay );
+		if ( '' !== $ln ) { return array( 'ok' => false, 'message' => $ln ); }
+		if ( self::dang_khoa( $coso, $ngay ) ) {
+			return array( 'ok' => false, 'message' => 'Cơ sở ' . $coso . ' ngày ' . $ngay . ' đang KHOÁ — nhờ kế toán mở lại.' );
+		}
+
+		$tong = self::songuyen_( isset( $p['tong'] ) ? $p['tong'] : null );
+		if ( null === $tong || $tong <= 0 ) {
+			return array( 'ok' => false, 'message' => 'Nhập đúng Tổng doanh thu (ô "Số tiền nộp") để gửi báo cáo tổng.' );
+		}
+		/* Ảnh là BẮT BUỘC cho báo cáo tổng — kiểm TRƯỚC khi tạo bất kỳ dòng nào, khỏi phải tạo
+		   rồi xoá report_id nếu thiếu ảnh. */
+		$co_anh = ! empty( $p['proofs'] ) && is_array( $p['proofs'] ) && ! empty( $p['proofs']['qr'] ) && is_array( $p['proofs']['qr'] );
+		if ( ! $co_anh ) {
+			return array( 'ok' => false, 'message' => 'Cần đính ít nhất 1 ảnh chứng từ để gửi báo cáo tổng.' );
+		}
+
+		$pm  = is_array( isset( $p['payment'] ) ? $p['payment'] : null ) ? $p['payment'] : array();
+		$rr  = array( 'ma_may' => '', 'tien_mat' => $tong );   // hàng "ảo" duy nhất, cho doc_payment_()/chia_nop_() chạy chung công thức với luu()
+		$pay = self::doc_payment_( $pm, array( $rr ) );
+
+		$ck  = self::squash( $coso );
+		$lan = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COALESCE(MAX(lan),0)+1 FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s', $ck, $ngay ) );
+		if ( $lan < 1 ) { $lan = 1; }
+		$rid = 'RPT-' . current_time( 'YmdHis' ) . '-' . wp_rand( 100, 999 );
+		$now = current_time( 'mysql' );
+
+		$header = array( 'report_id' => $rid, 'ngay' => $ngay, 'lan' => $lan, 'coso' => $coso, 'coso_key' => $ck,
+			'nhan_vien' => $q['ten'], 'sua_luc' => $now, 'tao_luc' => $now,
+			'nop_hinhthuc' => $pay['hinhthuc'], 'nop_trang_thai' => $pay['trang_thai'], 'nop_so_tien' => $pay['so_tien'],
+			'nop_ngay' => $pay['ngay'], 'nop_ghichu' => $pay['ghichu'], 'unpaid_lydo' => $pay['unpaid_lydo'],
+			'ck_ref' => $pay['ck_ref'], 'ck_bank' => $pay['ck_bank'] );
+		$wpdb->insert( VHG_DB::t( 'bc' ), $header );
+
+		$ct = self::luu_nhieu_anh_( $p['proofs'], $rid, 'chungtu' );
+		if ( ! count( $ct ) ) {
+			/* Nén/đọc ảnh lỗi hết cả (hiếm — dữ liệu ảnh hỏng) → không còn gì làm bằng chứng, huỷ
+			   report vừa tạo thay vì để lại một báo cáo tổng không có ảnh nào đính kèm. */
+			$wpdb->delete( VHG_DB::t( 'bc' ), array( 'report_id' => $rid ) );
+			return array( 'ok' => false, 'message' => 'Không đọc được ảnh chứng từ — thử chọn lại ảnh rồi gửi lại.' );
+		}
+		$wpdb->update( VHG_DB::t( 'bc' ), array( 'chung_tu' => wp_json_encode( $ct ) ), array( 'report_id' => $rid ) );
+
+		$chia_nop = self::chia_nop_( array( $rr ), $pay );
+		$np = isset( $chia_nop[''] ) ? $chia_nop[''] : array( 'nop_so_tien' => 0, 'nop_trang_thai' => '', 'nop_hinhthuc' => '', 'nop_ngay' => null );
+
+		$ghi_chu = '⚠ BÁO CÁO TỔNG — không có chi tiết từng ghế (chỉ số/QR riêng), xem ảnh chứng từ đính kèm để đối chiếu.';
+		$ghi_note = trim( (string) ( isset( $pm['note'] ) ? $pm['note'] : '' ) );
+		if ( '' !== $ghi_note ) { $ghi_chu .= ' · ' . $ghi_note; }
+
+		$wpdb->insert( VHG_DB::t( 'bc_dong' ), array(
+			'report_id' => $rid, 'ma_may' => '', 'ten' => '(Báo cáo tổng — không chi tiết)',
+			'ngay' => $ngay, 'lan' => $lan,
+			'chi_so_truoc' => null, 'chi_so_sau' => null, 'actual' => 0,
+			'tien_mat' => $tong, 'qr' => 0, 'dieu_chinh' => 0, 'tong' => $tong,
+			'ghi_chu' => mb_substr( $ghi_chu, 0, 250 ),
+			'nop_so_tien' => $np['nop_so_tien'], 'nop_trang_thai' => $np['nop_trang_thai'],
+			'nop_hinhthuc' => $np['nop_hinhthuc'], 'nop_ngay' => $np['nop_ngay'] ) );
+
+		$dong_yc = self::dong_yeucau_( $coso, $ngay, $q['ten'] . ' · ' . $rid );
+		$phien   = self::phien_upsert_( $pin, $ngay );
+		return array( 'ok' => true, 'reportId' => $rid, 'rows' => 1, 'dongYeuCau' => $dong_yc, 'phien' => $phien,
+			'message' => 'Đã gửi báo cáo TỔNG (không chi tiết) ' . $coso . ' ngày ' . $ngay
+				. ( $lan > 1 ? ( ' (lần ' . $lan . ')' ) : '' ) . ' — ' . number_format( $tong, 0, ',', '.' ) . 'đ.'
+				. ( $dong_yc ? ( ' Hoàn thành ' . $dong_yc . ' yêu cầu kế toán.' ) : '' ) );
+	}
+
 	private static function doc_payment_( $pm, $rows ) {
 		$method = in_array( isset( $pm['method'] ) ? $pm['method'] : 'cash', array( 'cash', 'transfer', 'unpaid' ), true ) ? $pm['method'] : 'cash';
 		$tong = 0; foreach ( $rows as $r ) { $tong += (int) $r['tien_mat']; }
