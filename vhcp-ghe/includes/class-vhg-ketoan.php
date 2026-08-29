@@ -224,6 +224,7 @@ class VHG_KeToan {
 			'tien_mat' => $cash, 'qr' => $qr, 'dieu_chinh' => $adj, 'tong' => $tong, 'ghi_chu' => $note ),
 			array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
+		VHG_BaoCao::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số → ngày kế tiếp tự nối lại chỉ số trước
 		return array( 'ok' => true, 'message' => 'Đã sửa ghế ' . $ma . '.',
 			'row' => array( 'meterBefore' => $before, 'meterAfter' => $after, 'actual' => $actual,
 				'cash' => $cash, 'qr' => $qr, 'adjust' => $adj, 'total' => $tong, 'note' => $note ) );
@@ -407,6 +408,17 @@ class VHG_KeToan {
 		$rid = (string) $h['report_id'];
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'ngay' => $dm, 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
 		$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'ngay' => $dm ), array( 'report_id' => $rid ) );
+		/* NỐI DÒNG THỜI GIAN sau khi chuyển ngày (đúng ca "chèn vào giữa"): cho từng ghế trong báo
+		   cáo — (1) chính báo cáo vừa chuyển tới ngày mới lấy lại chỉ số trước theo mốc ngày mới;
+		   (2) lần đọc kế tiếp sau NGÀY MỚI nối lại; (3) lần đọc kế tiếp sau NGÀY CŨ nối lại (vì mốc
+		   cũ đã rời đi). Xem VHG_BaoCao::noi_hang()/noi_tiep(). */
+		$mays = $wpdb->get_col( $wpdb->prepare(
+			'SELECT ma_may FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s', $rid ) );
+		foreach ( (array) $mays as $mm ) {
+			VHG_BaoCao::noi_hang( $mm, $dm );
+			VHG_BaoCao::noi_tiep( $mm, $dm );
+			VHG_BaoCao::noi_tiep( $mm, $dc );
+		}
 		self::undo_ghi_( 'doi_ngay', $rid, array( array( 'report_id' => $rid, 'ngay_cu' => $dc, 'ngay_moi' => $dm ) ), $boi );
 		return array( 'ok' => true, 'message' => 'Đã đổi ngày báo cáo ' . $coso . ': ' . $dc . ' → ' . $dm . '.' );
 	}

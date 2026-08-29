@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.61.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.62.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,24 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.62.0 — Ô ảnh ở mọi chế độ + nối dòng thời gian chỉ số
+- **Ô nhập ảnh (📷 Chỉ số / 🧹 Vệ sinh) LUÔN hiện**, cả chế độ Gọn (điện thoại) lẫn Đầy đủ. Trước
+  đây ảnh chỉ ở chế độ Đầy đủ → điện thoại để Gọn là mất đường đính ảnh; PC/điện thoại khác chế độ
+  thấy khác nhau. (`js_baocao()` trong `class-vhg-trang.php`: header Gọn thêm 2 cột, `celAnh` chuyển
+  ra ngoài khối `if(!GON)` xuống cuối hàng ở cả hai chế độ.)
+- **Nối dòng thời gian chỉ số** (anh Thắng 29/08: *"nhập vào ngày nằm giữa 2 ngày thì chỉ số tự chèn
+  vào giữa… chỉ số cũ ngày hôm sau tự nhảy chỉnh lại"*). Sau khi lưu/sửa/bỏ/đổi-ngày một ghế ở ngày
+  D, **lần đọc kế tiếp** (ngày > D, có chỉ số sau) tự lấy chỉ số sau vừa chốt của D làm chỉ số trước,
+  tính lại actual/tiền/tổng. Chỉ đụng đúng một hàng kế tiếp (mốc = chỉ số sau gần nhất trước ngày đó).
+  - Helper mới `VHG_BaoCao::noi_tiep($ma,$ngay)` (hàng kế tiếp), `noi_hang($ma,$ngay)` (chính hàng
+    tại ngày — dùng khi đổi ngày), và private `ap_moc_()` (chính sách áp mốc). Gọi từ: `VHG_BaoCao::luu()`
+    (ghế vừa gửi + ghế vừa bỏ), `VHG_BaoCao::sua_dong()` (nhân viên sửa 24h), `VHG_KeToan::sua()` và
+    `VHG_KeToan::doi_ngay()` (đổi ngày → nối cả ngày mới, ngày cũ, và chính báo cáo được chuyển).
+  - 🔴 AN TOÀN TIỀN: hàng kế tiếp là "Thực thu ghi đè" (đã chốt tay) hoặc nối xong hoá bất thường
+    (sau < trước mới / tiền mặt ra âm) → CHỈ đổi chỉ số trước, GIỮ tiền cũ, ghim ghi chú
+    "↺ Chỉ số trước tự nối lại…" để kế toán kiểm; không tự ghi tiền rác.
+  - Chưa nối ở `xoa()`/`undo()` (xoá/hoàn tác báo cáo) — xem mục "Cần kiểm/làm tiếp".
 
 ### v1.50.0 — Nhóm phân quyền "Quản trị" khai được
 - Trước đây quyền quản trị nhét cứng `Admin + Quản lý` (hằng `VHG_Auth::QUAN_TRI`). Nay thêm

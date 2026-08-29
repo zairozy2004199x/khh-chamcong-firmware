@@ -191,6 +191,89 @@ class VHG_BaoCao {
 		return $out;
 	}
 
+	/**
+	 * NỐI DÒNG THỜI GIAN — anh Thắng 29/08/2026: *"nhập vào ngày nằm giữa 2 ngày thì chỉ số tự
+	 * hiểu và chèn vào giữa… chỉ số cũ ngày hôm sau tự nhảy chỉnh lại"*.
+	 *
+	 * Sau khi lưu / sửa / bỏ / đổi ngày một ghế ở ngày D, LẦN ĐỌC KẾ TIẾP của đúng ghế đó (ngày >
+	 * D, có chỉ số sau) phải lấy chỉ số sau vừa chốt của D làm chỉ số trước. Chỉ đụng ĐÚNG một hàng
+	 * kế tiếp: chi_so_truoc = "chỉ số sau gần nhất TRƯỚC ngày đó", nên chèn ở D chỉ đổi mốc của lần
+	 * đọc đầu tiên sau D; các lần sau nữa mốc vẫn là hàng liền trước chúng, không cần dây chuyền.
+	 *
+	 * Lấy mốc mới bằng chi_so_truoc() SỐNG (đã tính cả hàng vừa lưu / đã bỏ hàng vừa xoá) nên dùng
+	 * chung cho cả chèn, sửa, lẫn bỏ ghế khỏi báo cáo.
+	 *
+	 * ⚠️ KHÔNG tự ghi tiền RÁC. Hàng kế tiếp là "Thực thu ghi đè" (đã chốt tay), hoặc nối xong hoá
+	 *    bất thường (sau < trước mới / tiền mặt ra âm) → CHỈ đổi chi_so_truoc, GIỮ tiền cũ, ghim ghi
+	 *    chú để kế toán kiểm; không im lặng đổi số nộp. Hàng thường thì tính lại actual/tiền/tổng.
+	 *    (kich_tien không lưu ở bc_dong nên coi như 0 khi nối lại — lượt kích hiếm; nếu có, số lệch
+	 *    nhẹ và lộ ra ở đối chiếu, không âm thầm sai sổ.)
+	 */
+	public static function noi_tiep( $ma_may, $ngay ) {
+		global $wpdb;
+		$ma = (string) $ma_may; $d = self::ngay_( $ngay );
+		if ( '' === $ma || '' === $d ) { return; }
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_dong' )
+			. ' WHERE ma_may=%s AND ngay > %s AND chi_so_sau IS NOT NULL ORDER BY ngay ASC LIMIT 1',
+			$ma, $d ), ARRAY_A );
+		if ( $r ) { self::ap_moc_( $r ); }
+	}
+
+	/**
+	 * Tính lại chỉ số trước của ĐÚNG hàng tại (ghế, ngày) từ dòng thời gian sống. Dùng khi CHÍNH
+	 * báo cáo đó vừa bị đổi ngày (doi_ngay) — chỉ số trước của nó phải theo mốc mới, không phải mốc
+	 * của ngày cũ. chi_so_truoc() luôn nhìn ngày < ngày hàng nên không tự lấy chính nó.
+	 */
+	public static function noi_hang( $ma_may, $ngay ) {
+		global $wpdb;
+		$ma = (string) $ma_may; $d = self::ngay_( $ngay );
+		if ( '' === $ma || '' === $d ) { return; }
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'bc_dong' )
+			. ' WHERE ma_may=%s AND ngay=%s AND chi_so_sau IS NOT NULL ORDER BY id ASC LIMIT 1',
+			$ma, $d ), ARRAY_A );
+		if ( $r ) { self::ap_moc_( $r ); }
+	}
+
+	/** Áp mốc chỉ số trước SỐNG cho một hàng bc_dong đã lấy về, theo đúng chính sách an toàn tiền. */
+	private static function ap_moc_( $r ) {
+		global $wpdb;
+		$ma = (string) $r['ma_may'];
+		$moi = self::chi_so_truoc( $ma, (string) $r['ngay'] );   // mốc sống (ngày < ngày hàng này)
+		if ( null === $moi ) { return; }
+		if ( (int) $r['chi_so_truoc'] === (int) $moi ) { return; }   // không đổi
+		$sau     = (int) $r['chi_so_sau'];
+		$ghi_de  = ( false !== mb_strpos( (string) $r['ghi_chu'], 'Thực thu ghi đè' ) );
+		$hoa_bt  = ( $sau < (int) $moi );
+		$co      = '↺ Chỉ số trước tự nối lại ' . (int) $r['chi_so_truoc'] . '→' . (int) $moi
+			. ' (chèn/sửa ngày trước đó) — kế toán kiểm Thực thu';
+		if ( $ghi_de || $hoa_bt ) {
+			$note = trim( (string) $r['ghi_chu'] );
+			if ( false === mb_strpos( $note, '↺ Chỉ số trước tự nối lại' ) ) {
+				$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
+			}
+			$wpdb->update( VHG_DB::t( 'bc_dong' ),
+				array( 'chi_so_truoc' => (int) $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
+			return;
+		}
+		$rr = array( 'chi_so_truoc' => (int) $moi, 'chi_so_sau' => $sau,
+			'qr' => (int) $r['qr'], 'dieu_chinh' => (int) $r['dieu_chinh'] );
+		self::tinh_( $rr );
+		if ( $rr['tien_mat'] < 0 ) {   // nối xong hoá âm → giữ tiền cũ, ghim ghi chú
+			$note = trim( (string) $r['ghi_chu'] );
+			if ( false === mb_strpos( $note, '↺ Chỉ số trước tự nối lại' ) ) {
+				$note = mb_substr( trim( ( '' !== $note ? $note . ' · ' : '' ) . $co ), 0, 250 );
+			}
+			$wpdb->update( VHG_DB::t( 'bc_dong' ),
+				array( 'chi_so_truoc' => (int) $moi, 'ghi_chu' => $note ), array( 'id' => (int) $r['id'] ) );
+			return;
+		}
+		$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
+			'chi_so_truoc' => (int) $moi, 'actual' => $rr['actual'],
+			'tien_mat' => $rr['tien_mat'], 'tong' => $rr['tong'] ), array( 'id' => (int) $r['id'] ) );
+	}
+
 	// ══════════════════════════════════════════════════════════════════ kích ghế từ xa (trừ chùa)
 
 	/**
@@ -544,6 +627,12 @@ class VHG_BaoCao {
 			}
 		}
 
+		/* Nối dòng thời gian: ghế vừa gửi VÀ ghế vừa bỏ đều có thể làm lệch mốc của lần đọc kế
+		   tiếp — chèn / sửa / bỏ ngày giữa thì chỉ số trước của ngày sau tự nối lại (anh Thắng
+		   29/08/2026). Đặt SAU khi mọi hàng của ngày này đã ghi/bỏ xong để mốc sống tính đúng. */
+		foreach ( array_keys( $gui_ma ) as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay ); }
+		foreach ( $bo as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay ); }
+
 		$dong_yc = self::dong_yeucau_( $coso, $ngay, $q['ten'] . ' · ' . $rid );
 		$phien = self::phien_upsert_( $pin, $ngay );   // cập nhật tiến độ phiên thu ngày
 		return array( 'ok' => true, 'reportId' => $rid, 'rows' => count( $rows ), 'updated' => (bool) $prev,
@@ -707,6 +796,7 @@ class VHG_BaoCao {
 			'actual' => $r['actual'], 'tien_mat' => $r['tien_mat'], 'qr' => $r['qr'], 'dieu_chinh' => $r['dieu_chinh'],
 			'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'] ), array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
+		self::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số sau → ngày kế tiếp tự nối lại chỉ số trước
 		$yc = self::dong_yeucau_( $h['coso'], $h['ngay'], $q['ten'] . ' · sửa 24h · ' . $rid );
 		return array( 'ok' => true, 'dongYeuCau' => $yc );
 	}

@@ -1375,7 +1375,7 @@ class VHG_Trang {
     var sc=el('div','bc-scroll');
     var tb=el('table','bc-t');
     tb.innerHTML = GON
-      ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>QR</th></tr></thead>'
+      ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>QR</th><th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>'
       : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th>'
         + '<th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
@@ -1565,9 +1565,12 @@ class VHG_Trang {
     if(!GON){
       tr.appendChild(cell(inp('adjust','VD 50000')));
       tr.appendChild(cell(inp('note','Lý do…',true)));
-      tr.appendChild(celAnh('anh-chiso'));
-      tr.appendChild(celAnh('anh-vesinh'));
     }
+    /* Ảnh chỉ số + vệ sinh LUÔN hiện, kể cả chế độ Gọn (điện thoại): nhân viên chụp ảnh ngay tại
+       ghế bằng điện thoại, ẩn đi ở chế độ gọn là mất luôn đường đính ảnh — nên để cuối hàng ở cả
+       hai chế độ (khớp thứ tự cột với header). */
+    tr.appendChild(celAnh('anh-chiso'));
+    tr.appendChild(celAnh('anh-vesinh'));
     calc(tr);
     return tr;
   }
