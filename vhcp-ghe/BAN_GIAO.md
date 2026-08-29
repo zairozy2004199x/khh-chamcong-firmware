@@ -212,6 +212,18 @@ Nếu anh Thắng báo lỗi ở hai việc này, đọc kỹ khối 🔴 trong 
 và đầu `class-vhg-hotline.php` trước khi sửa — cả hai đều có đúc kết lý do thiết kế, đừng đổi hướng
 mà không đọc.
 
+### Việc mới của phiên 29/08 (v1.62.0–1.63.0) — cần anh Thắng test thực tế
+- **v1.63.0 THU NHIỀU LẦN/NGÀY — quan trọng nhất, phải test kỹ vì ĐỔI CSDL.** Migration tự chạy khi
+  nâng cấp (`VHG_DB::migrate_()` bỏ UNIQUE cũ `coso_ngay`). Kịch bản test: một cơ sở gửi lần 1 →
+  bấm **➕ Thu lần nữa** (chỉ số trước phải nối tiếp chỉ số sau lần 1) → gửi lần 2 → mở **Duyệt báo
+  cáo** xem có ĐỦ 2 lần và **tổng cộng đúng** không. Nếu bảng Duyệt gộp/đếm ghế sai khi một ghế thu
+  2 lần, xem `VHG_KeToan::ds()` (gom theo `coso_key|ngày`) và `chi_tiet()`.
+- **v1.62.0 nối dòng thời gian — chưa nối ở `xoa()` / `undo()`** (xoá/hoàn tác cả báo cáo). Nếu xoá
+  một ngày GIỮA rồi thấy chỉ số trước ngày sau không tự lùi về mốc trước đó → thêm gọi
+  `VHG_BaoCao::noi_tiep()` vào hai hàm đó (class-vhg-ketoan.php). Chưa làm vì ngữ nghĩa restore của
+  undo phức tạp, và xoá ngày giữa hiếm.
+- **v1.62.0 ô ảnh mọi chế độ** — đã anh xác nhận trực quan (điện thoại & PC đều thấy 📷/🧹). Coi như xong.
+
 ---
 
 ## 4. Ghi chú kiến trúc nhanh (cho người tiếp nhận)
