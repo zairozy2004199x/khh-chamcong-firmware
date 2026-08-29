@@ -11903,15 +11903,20 @@ $_POST = array();
 ob_start(); VHCC_Web::phuc_vu(); $h_ls = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
 t( 'dựng cảnh: hàng sửa mở ra', strpos( $h_ls, 'class="hang-sua"' ) !== false, substr( $h_ls, 0, 400 ) );
-/* ⚠️ Neo `#suaday` nay nằm trên hàng NGƯỜI, không trên hàng sửa (xem khối dưới) — nên đừng pin
-   nó vào regex này, kẻo phép thử về chuyện GHIM BÊN TRÁI lại đỏ vì một chuyện về CUỘN. */
+/* ⚠️ Neo `#suaday` nay nằm trên ĐÚNG Ô đang sửa (một `<td class="dang-sua">` trong hàng
+   người), không trên hàng sửa (xem khối dưới) — nên đừng pin nó vào regex này, kẻo phép thử
+   về chuyện GHIM BÊN TRÁI lại đỏ vì một chuyện về CUỘN. */
 t( '🔴 ruột hàng sửa nằm trong khối GHIM BÊN TRÁI',
 	preg_match( '~<tr class="hang-sua"[^>]*><td colspan="\d+"><div class="hs-in">~', $h_ls ) === 1,
 	$h_ls );
-/* 🔴 NEO ĐẶT TRÊN HÀNG CỦA NGƯỜI, KHÔNG TRÊN HÀNG SỬA.
+/* 🔴 NEO ĐẶT TRÊN ĐÚNG Ô ĐANG SỬA (trong hàng của người), KHÔNG TRÊN HÀNG SỬA.
    Anh Thắng 27/08/2026: *"bấm vào nó vẫn cứ nhảy chỗ sửa"* — kèm ảnh hàng người đang sửa bị cắt
    mất nửa ở mép trên. Neo trên hàng sửa thì trình duyệt kéo đúng hàng ấy lên đỉnh và đẩy hàng
-   người (cùng cái ô vừa bấm) khuất lên trên: mở biểu mẫu ra rồi mất luôn chỗ đứng. */
+   người (cùng cái ô vừa bấm) khuất lên trên: mở biểu mẫu ra rồi mất luôn chỗ đứng.
+   29/08/2026: neo còn dời tiếp từ CẢ HÀNG người xuống ĐÚNG Ô — neo trên cả hàng chỉ cuộn dọc
+   (một hàng 31 cột luôn có mẩu "trong tầm nhìn" bất kể cuộn ngang đâu), nên khung `.cuon`
+   không cuộn NGANG sang đúng cột ngày — đúng ca "nhảy loạn xạ" anh báo. Neo trên đúng ô (hẹp)
+   thì trình duyệt bắt buộc cuộn cả hai chiều. */
 t( '🔴 hàng SỬA không còn mang neo', strpos( $h_ls, 'class="hang-sua" id="suaday"' ) === false, $h_ls );
 t( 'và neo nằm đúng một chỗ trong trang', 1 === substr_count( $h_ls, 'id="suaday"' ), $h_ls );
 /* Neo phải đứng TRƯỚC hàng sửa trong luồng HTML — đứng sau thì cuộn tới nó là biểu mẫu nằm
@@ -11920,10 +11925,15 @@ $vt_neo = strpos( $h_ls, 'id="suaday"' );
 $vt_sua = strpos( $h_ls, 'class="hang-sua"' );
 t( '🔴 neo đứng TRƯỚC hàng sửa', false !== $vt_neo && false !== $vt_sua && $vt_neo < $vt_sua,
 	$vt_neo . ' / ' . $vt_sua );
-/* Và nó phải là hàng của ĐÚNG người đang sửa — neo lên nhầm hàng thì cuộn tới một người khác,
-   mà biểu mẫu thì ở tận đâu. */
-t( 'neo nằm trên hàng của ĐÚNG người đang sửa',
-	preg_match( '~<tr id="suaday"><td>(?:<a[^>]*>)?Người LS1~', $h_ls ) === 1, $h_ls );
+/* Và nó phải nằm TRONG ĐÚNG HÀNG của người đang sửa — neo trên ô của người khác thì cuộn tới
+   sai người, mà biểu mẫu thì ở tận đâu. Kiểm bằng cách: tên "Người LS1" xuất hiện TRƯỚC neo, và
+   neo xuất hiện TRƯỚC khi hàng của LS1 đóng lại (`</tr>` kế tiếp) — tức cùng một hàng. */
+$vt_ten_ls1  = strpos( $h_ls, 'Người LS1' );
+$vt_dong_tr  = ( false !== $vt_ten_ls1 ) ? strpos( $h_ls, '</tr>', $vt_ten_ls1 ) : false;
+t( 'neo nằm TRONG hàng của ĐÚNG người đang sửa (không lọt sang hàng khác)',
+	false !== $vt_ten_ls1 && false !== $vt_neo && false !== $vt_dong_tr
+		&& $vt_ten_ls1 < $vt_neo && $vt_neo < $vt_dong_tr,
+	$vt_ten_ls1 . ' / ' . $vt_neo . ' / ' . $vt_dong_tr );
 t( 'và khối ấy được ghim thật trong bảng kiểu',
 	strpos( $h_ls, '.hs-in{position:sticky;left:0;' ) !== false, $h_ls );
 t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
@@ -11935,6 +11945,16 @@ t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
    chưa. Nêu tay `action="...#suaday"` thì trình duyệt tự cuộn lại đúng chỗ sau khi lưu. */
 t( '🔴 form sửa/bù tự nêu action mang sẵn #suaday (không để trống)',
 	preg_match( '~<form method="post" action="[^"]*sgn=2026-07-06[^"]*sgm=LS1[^"]*#suaday"~', $h_ls ) === 1,
+	$h_ls );
+/* 🔴 "NHẢY LOẠN XẠ" — anh Thắng 29/08/2026: *"vẫn bị tình trạng nhảy loạn xạ khi sửa công"*.
+   Neo `id="suaday"` PHẢI nằm trên đúng `<td class="...dang-sua...">` (một Ô hẹp, đúng cột
+   ngày) — KHÔNG phải trên `<tr>` (cả hàng dài 31 cột). Neo trên cả hàng thì trình duyệt chỉ
+   cần cuộn DỌC là coi như "đã trong tầm nhìn" (một hàng dài luôn có mẩu hiện ra dù cuộn ngang
+   ở đâu), nên khung `.cuon` không cuộn NGANG sang đúng cột ngày đang sửa — tiêu đề cột phía
+   trên và hàng sửa phía dưới nói về hai ngày khác nhau, đúng cảm giác "loạn xạ". */
+t( '🔴 neo nằm trên ĐÚNG Ô (td.dang-sua), không phải trên cả hàng (tr)',
+	preg_match( '~<td class="[^"]*dang-sua[^"]*" id="suaday"~', $h_ls ) === 1
+		&& strpos( $h_ls, '<tr id="suaday">' ) === false,
 	$h_ls );
 /* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN SÁT ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ nhảy
    lên như này, chỉnh đứng yên cho anh"*.

@@ -1792,14 +1792,20 @@ class VHCC_Web {
 			/* Ô đang mở để sửa: viền đậm để mắt tìm lại được nó giữa 600 ô. */
 			/* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ
 			   nhảy lên như này, chỉnh đứng yên cho anh"*.
-			   Đường bấm mang neo `#suaday`, nên trình duyệt cuộn hàng sửa lên SÁT đỉnh — mà đỉnh
-			   thì có thanh đầu trang dính đè lên, và cả hàng của người đang sửa cũng bị đẩy khuất.
-			   `scroll-margin-top` bảo trình duyệt chừa sẵn khoảng ấy: hàng sửa dừng ngay dưới
-			   thanh, cùng với hàng của người đó còn trong tầm mắt. Ghim cho cả ô đang sửa, vì
-			   nhánh chấm bù nhảy tới `#bucong` chứ không phải `#suaday`. */
-			/* Chừa chỗ cho thanh đầu trang khi trình duyệt nhảy tới neo. Neo nay nằm trên hàng
-			   NGƯỜI (`#suaday`), nên hàng ấy dừng dưới thanh chứ không chui vào sau nó. */
-			. 'table.cc tr#suaday,table.cc tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:96px}'
+			   Đường bấm mang neo `#suaday`, nên trình duyệt cuộn ô đang sửa lên SÁT đỉnh — mà
+			   đỉnh thì có thanh đầu trang dính đè lên. `scroll-margin-top` bảo trình duyệt chừa
+			   sẵn khoảng ấy: ô đang sửa dừng ngay dưới thanh, cùng hàng sửa mở ra kế bên vẫn
+			   trong tầm mắt.
+			   ⚠️ 29/08/2026: `id="suaday"` đã DỜI từ `<tr>` (cả hàng) xuống ĐÚNG `<td
+			   class="dang-sua">` (đúng ô/đúng ngày) — xem khối 🔴 "nhảy loạn xạ" ở o_sua()/vòng
+			   lặp vẽ hàng người. Neo trên cả hàng chỉ cuộn ĐÚNG chiều dọc; một hàng 31 cột luôn
+			   có một mẩu "đang trong tầm nhìn" bất kể cuộn ngang tới đâu, nên trình duyệt không
+			   buồn cuộn khung `.cuon` sang đúng cột ngày — bấm ngày 28 mà khung vẫn đứng ở cột
+			   1-14. Neo trên đúng ô (hẹp, một cột) thì trình duyệt BẮT BUỘC cuộn cả dọc lẫn
+			   ngang mới đưa được nó vào tầm nhìn — tự khớp đúng cột, hết còn "loạn xạ". Bảng
+			   `tr#suaday` phía dưới hết dùng (không còn `<tr>` nào mang id này) nhưng giữ CSS
+			   `td.dang-sua` là đủ. */
+			. 'table.cc tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:96px}'
 			/* Hàng hồ sơ cũng chừa chỗ cho thanh đầu trang khi trình duyệt nhảy tới neo `#hs-…`. */
 			. 'tr[id^="hs-"]{scroll-margin-top:96px}'
 			. 'table.cc td.dang-sua{outline:3px solid var(--do);outline-offset:-3px}'
@@ -4034,15 +4040,17 @@ class VHCC_Web {
 		if ( ! $duoc ) { return $noi_dung; }
 		/* 🔴 CẢ HAI NHÁNH PHẢI NEO VỀ `#suaday` — anh Thắng 29/08/2026: *"bấm sửa giờ hiện bảng
 		   đứng yên trang nhé, bấm vào là nó bay vị trí khác"*, đúng ca bấm Ô TRỐNG (bù).
-		   `id="suaday"` được gắn cho hàng của người vừa bấm ở CẢ HAI trường hợp (xem
-		   `o_dang_sua()` gộp chung `sgn/sgm` và `gnd/gma` thành một cặp `$sg_n/$sg_m`, rồi
-		   4965/5227 gắn `id="suaday"` theo đúng cặp đó) — nhưng nhánh bù ở đây vẫn neo về
-		   `#bucong`, cái tên CŨ từ hồi biểu mẫu Bù giờ còn là một khối RIÊNG nằm dưới lưới.
-		   `#bucong` bây giờ là id của khối "Sổ nhật ký giờ công" (xem the_so_nhat_ky()) — một
-		   khối HOÀN TOÀN KHÁC, nằm mãi dưới cuối trang. Bấm bù một ô giữa lưới 600 ô thì trình
-		   duyệt nhảy thẳng xuống sổ nhật ký, còn hàng bù thật sự (vừa mở ra ngay dưới hàng người
-		   đó) thì vẫn nằm ngoài tầm nhìn — đúng cảm giác "bay vị trí khác". Sửa giờ (nhánh trên)
-		   đã đổi đúng anchor từ hồi làm biểu mẫu nội tuyến; nhánh bù bị bỏ sót. */
+		   `id="suaday"` được gắn cho ĐÚNG Ô đang sửa ở CẢ HAI trường hợp (xem `o_dang_sua()`
+		   gộp chung `sgn/sgm` và `gnd/gma` thành một cặp `$sg_n/$sg_m`, rồi mỗi vòng lặp vẽ
+		   lưới tự so `$dang` và gắn `id="suaday"` vào đúng `<td class="dang-sua">` — KHÔNG còn
+		   gắn vào `<tr>` cả hàng nữa, xem khối 🔴 "nhảy loạn xạ" ở đầu vòng lặp vẽ hàng người)
+		   — nhưng nhánh bù ở đây trước kia vẫn neo về `#bucong`, cái tên CŨ từ hồi biểu mẫu Bù
+		   giờ còn là một khối RIÊNG nằm dưới lưới. `#bucong` bây giờ là id của khối "Sổ nhật ký
+		   giờ công" (xem the_so_nhat_ky()) — một khối HOÀN TOÀN KHÁC, nằm mãi dưới cuối trang.
+		   Bấm bù một ô giữa lưới 600 ô thì trình duyệt nhảy thẳng xuống sổ nhật ký, còn hàng bù
+		   thật sự (vừa mở ra ngay dưới hàng người đó) thì vẫn nằm ngoài tầm nhìn — đúng cảm giác
+		   "bay vị trí khác". Sửa giờ (nhánh trên) đã đổi đúng anchor từ hồi làm biểu mẫu nội
+		   tuyến; nhánh bù bị bỏ sót. */
 		$url = $co_gio
 			? ( add_query_arg( array( 'sgn' => $ngay, 'sgm' => $ma_day_du ), self::url_hien() ) . '#suaday' )
 			: ( add_query_arg( array( 'gnd' => $ngay, 'gma' => $ma_day_du ), self::url_hien() ) . '#suaday' );
@@ -4975,16 +4983,20 @@ class VHCC_Web {
 			foreach ( $hts as $ht ) {
 				if ( '' !== $ht ) { $phu[] = $ht; }
 			}
-			/* 🔴 NEO ĐẶT TRÊN HÀNG CỦA NGƯỜI, KHÔNG TRÊN HÀNG SỬA.
-			   Anh Thắng 27/08/2026, sau lượt chữa trước: *"bấm vào nó vẫn cứ nhảy chỗ sửa"* —
-			   kèm ảnh hàng "Huỳnh Minh Nhật" bị cắt mất nửa ở mép trên.
-			   Neo trên hàng SỬA thì trình duyệt kéo đúng hàng ấy lên đỉnh, và hàng của người
-			   đang sửa — cùng cái ô vừa bấm — bị đẩy khuất lên trên. Người ta mở biểu mẫu ra
-			   rồi mất luôn chỗ đứng: không còn thấy mình đang sửa ngày nào của ai.
-			   Neo trên hàng NGƯỜI thì hàng ấy lên đỉnh và hàng sửa nằm ngay dưới — cả hai cùng
-			   trong tầm mắt, đúng thứ tự mắt đọc. */
-			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
-				? ' id="suaday"' : '' ) . '>';
+			/* 🔴 NEO ĐẶT TRÊN HÀNG CỦA NGƯỜI, KHÔNG TRÊN HÀNG SỬA (giữ nguyên lý do gốc bên
+			   dưới) — nhưng KHÔNG còn đặt trên CẢ HÀNG `<tr>` nữa. Anh Thắng 29/08/2026: *"vẫn
+			   bị tình trạng nhảy loạn xạ khi sửa công"*. Đặt neo trên `<tr>` chỉ giải quyết
+			   cuộn DỌC: nguyên hàng luôn coi là "đã trong tầm nhìn" ở BẤT KỲ vị trí cuộn NGANG
+			   nào (một hàng dài 31 cột luôn có một mẩu hiển thị dù cuộn sang đâu), nên trình
+			   duyệt cuộn đúng hàng lên nhưng KHÔNG cuộn khung `.cuon` sang đúng cột ngày đang
+			   sửa — bấm ô ngày 28 mà khung vẫn đứng ở cột 1-14, hàng sửa hiện ra cho ngày 28
+			   trong khi tiêu đề cột phía trên lại là ngày khác hẳn: đúng cảm giác "loạn xạ".
+			   Nay dời neo xuống ĐÚNG Ô đang sửa (`<td class="dang-sua" id="suaday">`, xem vòng
+			   lặp bên dưới) — một ô hẹp thì trình duyệt PHẢI cuộn cả dọc lẫn NGANG mới đưa nó
+			   vào tầm nhìn, tự khớp đúng cột ngày. Vẫn giữ được lợi ích "thấy cả hàng người
+			   lẫn hàng sửa" của bản 27/08 vì `scroll-margin-top:96px` đã gán chung cho cả
+			   `td.dang-sua` (xem CSS), và ô đang sửa vốn nằm ngay TRONG hàng người đó. */
+			echo '<tr>';
 			echo '<td' . ( isset( $cho_tra[ $ma ] ) ? ' class="cho-tra"' : '' ) . '>'
 				. self::ten_nguoi( $ma, $ho_ten, $toi )
 				. ( isset( $khong_cham[ $ma ] )
@@ -5042,6 +5054,7 @@ class VHCC_Web {
 				$lop_o = ( null === $r_chinh && '' === $duoi ) ? 'o' : ( 'oc' . $c_chinh['lop'] );
 				$chu_o = $c_chinh['chu'];
 				echo '<td class="' . $lop_o . ( $dang ? ' dang-sua' : '' ) . '"'
+					. ( $dang ? ' id="suaday"' : '' )
 					. ( '' !== $chu_o ? ' title="' . esc_attr( $chu_o ) . '"' : '' ) . '>'
 					. self::o_sua( $c_chinh['noi'], $ngay_o, $ma, null !== $r_chinh, $duoc_sua, $duoc_bu )
 					. $duoi . '</td>';
@@ -5244,8 +5257,10 @@ class VHCC_Web {
 			$ngd = isset( $o[ $ma ] ) ? $o[ $ma ] : array();
 			$ck_nguoi = isset( $ck_ds[ strtoupper( $ma ) ] ) ? $ck_ds[ strtoupper( $ma ) ] : array();
 
-			echo '<tr' . ( ( '' !== $sg_n && 0 === strcasecmp( $ma, (string) $sg_m ) )
-				? ' id="suaday"' : '' ) . '><td>' . self::ten_nguoi( $ma, $e['ten'], $toi )
+			/* Neo `id="suaday"` KHÔNG còn đặt trên `<tr>` — xem khối 🔴 giải thích ở ve_luoi_gio()
+			   phía trên (nhảy loạn xạ vì neo trên cả hàng không cuộn NGANG đúng cột ngày). Đặt
+			   thẳng vào `<td class="dang-sua">` của đúng ngày đang sửa, trong vòng lặp dưới. */
+			echo '<tr><td>' . self::ten_nguoi( $ma, $e['ten'], $toi )
 				. ( ! empty( $e['laKeToan'] ) ? ' <span class="duoi">KT</span>' : '' )
 				. self::chip_coso_khac( $ck_nguoi ) . '</td>';
 			$cong = 0.0;
@@ -5259,7 +5274,8 @@ class VHCC_Web {
 					   chỉ là ở chỗ khác. */
 					$ngoai = isset( $ck_nguoi[ $i ] )
 						? self::o_coso_khac( $ck_nguoi[ $i ], $e['ten'], $ngay_o ) : '';
-					echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '">'
+					echo '<td class="o' . ( $dang ? ' dang-sua' : '' ) . '"'
+						. ( $dang ? ' id="suaday"' : '' ) . '>'
 						. self::o_sua( '·', $ngay_o, $ma, false, $duoc_sua, $duoc_bu )
 						. $ngoai . '</td>';
 					continue;
@@ -5342,7 +5358,8 @@ class VHCC_Web {
 				} else {
 					$chu_o = self::chu_o_vp( $d, $e['ten'] );
 				}
-				echo '<td class="oc' . $lop . ( $dang ? ' dang-sua' : '' ) . '" title="'
+				echo '<td class="oc' . $lop . ( $dang ? ' dang-sua' : '' ) . '"'
+					. ( $dang ? ' id="suaday"' : '' ) . ' title="'
 					. esc_attr( $chu_o ) . '">'
 					. self::o_sua(
 						( $d['tong'] ? '<b>' . self::so_vp( $d['tong'] ) . '</b>'
