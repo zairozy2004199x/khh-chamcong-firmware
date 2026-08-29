@@ -140,7 +140,14 @@ class VHG_KeToan {
 		$ck = self::squash( $coso ); $d = self::ngay_( $ngay );
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.* FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
-			. ' WHERE h.coso_key=%s AND d.ngay=%s ORDER BY d.ten ASC', $ck, $d ), ARRAY_A );
+			. ' WHERE h.coso_key=%s AND d.ngay=%s', $ck, $d ), ARRAY_A );
+		/* Sắp theo THỨ TỰ TỰ NHIÊN (strnatcmp), không phải ORDER BY chuỗi của SQL — anh Thắng:
+		   "Lưu thì vẫn nguyên thứ tự máy, không nhảy lộn xộn". `ORDER BY d.ten ASC` so chuỗi nên
+		   "AM-BD-10","AM-BD-11","AM-BD-12" rơi ngay sau "AM-BD-1", TRƯỚC "AM-BD-2" — mỗi lần Sửa
+		   xong tải lại là bảng trông như xáo trộn dù dữ liệu không đổi gì, vì nó vốn đã sắp kiểu
+		   đó từ đầu. strnatcmp coi cụm số là số nên ra đúng 1,2,3…9,10,11,12, và vì sắp lại xong
+		   mới trả về nên thứ tự luôn giống nhau ở mọi lượt tải — không "nhảy" giữa các lần Lưu. */
+		usort( $rows, function ( $a, $b ) { return strnatcmp( (string) $a['ten'], (string) $b['ten'] ); } );
 		$ghe = array(); $sum = array( 'actual' => 0, 'cash' => 0, 'qr' => 0, 'adjust' => 0, 'total' => 0, 'paid' => 0 );
 		$rid = '';
 		foreach ( (array) $rows as $r ) {
