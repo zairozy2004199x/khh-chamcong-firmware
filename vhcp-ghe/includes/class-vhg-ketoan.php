@@ -134,6 +134,62 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'thang' => $th, 'rows' => $ra );
 	}
 
+	// ══════════════════════════════════════════════════════════════════ CƠ SỞ CHƯA NỘP (LỊCH TUẦN)
+
+	/**
+	 * CƠ SỞ CHƯA NỘP BÁO CÁO — anh Thắng 29/08/2026: "Bổ sung Cơ sở chưa nộp báo cáo trong ngày.
+	 * Với mỗi cơ sở sẽ set lịch nộp báo cáo theo tuần, từ đó theo lịch cơ sở nào chưa nộp báo
+	 * cáo." Không phải MỌI cơ sở đều thu mỗi ngày (có chỗ chỉ mở cuối tuần) — báo thiếu mà không
+	 * biết lịch riêng của từng cơ sở thì kế toán nhắc nhầm chỗ không tới lịch, mất tin tưởng vào
+	 * cả danh sách. Đối chiếu với `coso.lich_bc` (xem class-vhg-db.php) trước khi tính là thiếu.
+	 *
+	 * @param string $ngay 'YYYY-MM-DD'; rỗng = hôm nay.
+	 */
+	public static function thieu_bao_cao( $ngay = '' ) {
+		global $wpdb;
+		$ngay = self::ngay_( $ngay );
+		if ( '' === $ngay ) { $ngay = current_time( 'Y-m-d' ); }
+		$thu = (int) gmdate( 'N', strtotime( $ngay ) );   // 1=Thứ Hai … 7=Chủ Nhật
+
+		$da_nop = array();
+		foreach ( $wpdb->get_col( $wpdb->prepare(
+			'SELECT DISTINCT coso_key FROM ' . VHG_DB::t( 'bc' ) . ' WHERE ngay=%s', $ngay ) ) as $k ) {
+			$da_nop[ $k ] = true;
+		}
+		/* Cơ sở còn ghế ĐANG DÙNG (chưa "đã dọn/điều chuyển", xem may.an) — cơ sở hết ghế thì
+		   không có gì để nhân viên thu, báo "thiếu" chỉ gây hoang mang vô ích. */
+		$co_ghe = array();
+		foreach ( VHG_May::ds_may() as $m ) {
+			if ( empty( $m['an'] ) && (int) $m['coso_id'] > 0 ) { $co_ghe[ (int) $m['coso_id'] ] = true; }
+		}
+
+		$ra = array();
+		foreach ( VHG_May::ds_coso() as $c ) {
+			if ( empty( $co_ghe[ (int) $c['id'] ] ) ) { continue; }
+			$ten = (string) $c['ten']; $ck = self::squash( $ten );
+			if ( isset( $da_nop[ $ck ] ) ) { continue; }
+			$lich = trim( (string) ( isset( $c['lich_bc'] ) ? $c['lich_bc'] : '' ) );
+			$ds_thu = array_values( array_filter( array_map( 'intval', explode( ',', $lich ) ),
+				function ( $x ) { return $x >= 1 && $x <= 7; } ) );
+			if ( ! in_array( $thu, $ds_thu, true ) ) { continue; }   // không tới lịch cơ sở này hôm nay
+			$ra[] = $ten;
+		}
+		sort( $ra, SORT_STRING | SORT_FLAG_CASE );
+		return array( 'ok' => true, 'ngay' => $ngay, 'thu' => $thu, 'thieu' => $ra );
+	}
+
+	/** Lịch nộp báo cáo hiện tại của MỌI cơ sở — dựng bảng cấu hình ở tab Duyệt báo cáo. */
+	public static function lich_coso_ds() {
+		$ra = array();
+		foreach ( VHG_May::ds_coso() as $c ) {
+			$lich = trim( (string) ( isset( $c['lich_bc'] ) ? $c['lich_bc'] : '' ) );
+			$ds_thu = array_values( array_filter( array_map( 'intval', explode( ',', $lich ) ),
+				function ( $x ) { return $x >= 1 && $x <= 7; } ) );
+			$ra[] = array( 'id' => (int) $c['id'], 'coso' => (string) $c['ten'], 'thu' => $ds_thu );
+		}
+		return array( 'ok' => true, 'rows' => $ra );
+	}
+
 	/** Chi tiết từng ghế của (cơ sở, ngày). */
 	public static function chi_tiet( $coso, $ngay ) {
 		global $wpdb;

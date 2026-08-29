@@ -62,17 +62,36 @@ class VHG_DB {
 		if ( ! $co_cot ) {
 			$wpdb->query( "ALTER TABLE $phien ADD COLUMN pin VARCHAR(20) NOT NULL DEFAULT '' AFTER coso" );
 		}
+
+		$may = self::t( 'may' );
+		$co_an = $wpdb->get_var( "SHOW COLUMNS FROM $may LIKE 'an'" );
+		if ( ! $co_an ) {
+			$wpdb->query( "ALTER TABLE $may ADD COLUMN an TINYINT(1) NOT NULL DEFAULT 0" );
+		}
+
+		$coso = self::t( 'coso' );
+		$co_lich = $wpdb->get_var( "SHOW COLUMNS FROM $coso LIKE 'lich_bc'" );
+		if ( ! $co_lich ) {
+			$wpdb->query( "ALTER TABLE $coso ADD COLUMN lich_bc VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7'" );
+		}
 	}
 
 	public static function bang() {
 		$b = array();
 
-		/* ===== 1. CƠ SỞ ===================================================================== */
+		/* ===== 1. CƠ SỞ =====================================================================
+		   🔴 `lich_bc` — LỊCH NỘP BÁO CÁO THEO TUẦN (anh Thắng 29/08/2026): danh sách số thứ
+		   (1=Thứ Hai … 7=Chủ Nhật, ISO-8601) mà cơ sở đó PHẢI nộp báo cáo, ngăn cách bởi dấu
+		   phẩy. Mặc định '1,2,3,4,5,6,7' (mọi ngày) — giữ đúng hành vi ngầm định trước đây, khi
+		   plugin chưa phân biệt được cơ sở nào không mở cửa/không thu ngày nào. Dùng ở
+		   `VHG_KeToan::thieu_bao_cao()` để biết cơ sở nào ĐÚNG LỊCH hôm nay mà CHƯA nộp — không
+		   báo nhầm cơ sở chỉ mở cuối tuần vào một ngày giữa tuần. */
 		$b['coso'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ten VARCHAR(190) NOT NULL,
 			tinh VARCHAR(120) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			lich_bc VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7',
 			PRIMARY KEY  (id),
 			UNIQUE KEY ten (ten)";
 
@@ -86,7 +105,13 @@ class VHG_DB {
 		   Vì sao cần: bản .bin do CI build là MỘT bản dùng cho MỌI ghế (nó nằm ở chỗ tải công
 		   khai, không được chứa gì riêng của ghế nào). Nếu mã ghế phải nạp cứng lúc biên dịch thì
 		   mỗi ghế một bản .bin, và cập nhật từ xa mất hết ý nghĩa. Nên ghế tự khai MAC, còn bảng
-		   này nói MAC đó là ghế số mấy — sửa trên web, không phải nạp lại firmware. */
+		   này nói MAC đó là ghế số mấy — sửa trên web, không phải nạp lại firmware.
+		   🔴 `an` — ghế ĐÃ DỌN/ĐIỀU CHUYỂN nơi khác (anh Thắng 29/08/2026): tích vào là ẩn NGAY
+		      khỏi danh sách ghế của trang thu tiền nhân viên (`VHG_BaoCao::ds_ghe()` lọc theo cờ
+		      này), nhân viên không còn thấy ghế đó để nhập chỉ số nữa. KHÔNG xoá gì cả — cấu hình
+		      máy, lịch sử `bc_dong`/`thu`/`cho` giữ nguyên 100%, và bảng "Máy (ghế)" ở trang quản
+		      trị vẫn liệt kê đủ (có đánh dấu) để còn tra doanh thu cũ. Giống hệt tinh thần cột
+		      `huy` ở bảng `thu`: ĐÁNH DẤU, KHÔNG XOÁ. */
 		$b['may'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ma VARCHAR(40) NOT NULL,
@@ -102,6 +127,7 @@ class VHG_DB {
 			cap_nhat DATETIME NULL,
 			moc_chiso BIGINT(20) NULL,
 			moc_chiso_ngay DATE NULL,
+			an TINYINT(1) NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY ma (ma),
 			KEY mac (mac),

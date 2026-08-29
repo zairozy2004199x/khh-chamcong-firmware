@@ -611,6 +611,8 @@ class VHG_Admin {
 					'bank_bin' => wp_unslash( $_POST['bank_bin'] ), 'ten_khai' => wp_unslash( $_POST['ten_khai'] ) ) );
 			} elseif ( 'xoa_may' === $viec ) {
 				$bao[] = VHG_May::xoa_may( wp_unslash( $_POST['ma'] ) );
+			} elseif ( 'an_may' === $viec ) {
+				$bao[] = VHG_May::dat_an( wp_unslash( $_POST['ma'] ), ! empty( $_POST['an'] ) );
 			} elseif ( 'gan_ma' === $viec ) {
 				$bao[] = VHG_May::gan_ma( wp_unslash( $_POST['ma_cu'] ), wp_unslash( $_POST['ma_moi'] ),
 					isset( $_POST['coso_id'] ) ? (int) $_POST['coso_id'] : null );
@@ -1127,11 +1129,23 @@ class VHG_Admin {
 			echo '</tbody></table>';
 		}
 
+		/* SỔ DOANH THU THEO GHẾ — anh Thắng 29/08/2026: "Sổ ra từng ghế theo điểm gồm các cột
+		   Doanh thu ghế trong tháng, Doanh thu QR, Doanh thu Tiền mặt". Chọn tháng qua GET (không
+		   POST) để bấm Xem không đụng gì tới các form Lưu/Xoá khác trên cùng trang. */
+		$thang_ghe = isset( $_GET['thang_ghe'] ) ? sanitize_text_field( wp_unslash( $_GET['thang_ghe'] ) ) : '';
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', $thang_ghe ) ) { $thang_ghe = current_time( 'Y-m' ); }
+		$dt_ghe = VHG_BaoCao::doanh_thu_thang_theo_may( $thang_ghe );
+
 		echo '<h2>Máy (ghế) — ' . count( $may ) . ' máy</h2>';
+		echo '<form method="get" style="margin-bottom:8px;display:flex;gap:8px;align-items:flex-end">'
+			. '<input type="hidden" name="page" value="' . esc_attr( isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : 'vhg-may' ) . '" />'
+			. '<label>Doanh thu tháng <input type="month" name="thang_ghe" value="' . esc_attr( $thang_ghe ) . '" /></label>'
+			. '<button class="button">Xem</button></form>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã</th><th>MAC</th><th>Nhịp cuối</th>'
 			. '<th>Cơ sở</th><th>Tỉ lệ quy đổi</th><th>Tài khoản nhận</th><th>QR</th>'
-			. '<th></th></tr></thead><tbody>';
-		if ( ! $may ) { echo '<tr><td colspan="8"><em>Chưa khai máy nào. Cắm ghế lên là nó tự hiện ở '
+			. '<th>Doanh thu tháng ' . esc_html( $thang_ghe ) . '</th><th>QR</th><th>Tiền mặt</th>'
+			. '<th>Đã dọn/điều chuyển</th><th></th></tr></thead><tbody>';
+		if ( ! $may ) { echo '<tr><td colspan="12"><em>Chưa khai máy nào. Cắm ghế lên là nó tự hiện ở '
 			. 'mục <b>Ghế chờ gán mã</b> phía trên.</em></td></tr>'; }
 		$co_im = false;
 		$canh_dai = array();
@@ -1187,13 +1201,31 @@ class VHG_Admin {
 					: '<br><span class="description">dùng chung</span>' ) . '</td>'
 				. '<td>' . ( ! empty( $qr['ok'] )
 					? '<code style="font-size:10px;word-break:break-all">' . esc_html( substr( $qr['chuoi'], 0, 40 ) ) . '…</code>'
-					: '<span style="color:#b32d2e">' . esc_html( $qr['error'] ) . '</span>' ) . '</td>'
-				. '<td><form method="post">';
+					: '<span style="color:#b32d2e">' . esc_html( $qr['error'] ) . '</span>' ) . '</td>';
+			$dt = isset( $dt_ghe[ $m['ma'] ] ) ? $dt_ghe[ $m['ma'] ] : array( 'tien_mat' => 0, 'qr' => 0, 'tong' => 0 );
+			echo '<td><strong>' . esc_html( self::tien( $dt['tong'] ) ) . '</strong></td>'
+				. '<td>' . esc_html( self::tien( $dt['qr'] ) ) . '</td>'
+				. '<td>' . esc_html( self::tien( $dt['tien_mat'] ) ) . '</td>';
+			$an_may = ! empty( $m['an'] );
+			/* Checkbox TỰ GỬI khi tích/bỏ tích (onchange submit) — khớp cách "mg_vip" đã làm ở
+			   khối mệnh giá: ô không tích thì trình duyệt bỏ hẳn khỏi POST, server đọc vắng mặt
+			   là tắt. Không cần nút Lưu riêng, tích là ăn ngay. */
+			echo '<td>' . ( $an_may ? '<span style="color:#b32d2e;font-weight:600">✔ Đã dọn</span>' : '<span class="description">Đang dùng</span>' )
+				. '<form method="post" style="margin-top:4px">';
+			echo wp_nonce_field( 'vhg', '_wpnonce', true, false );
+			echo '<input type="hidden" name="ma" value="' . esc_attr( $m['ma'] ) . '" />'
+				. '<input type="hidden" name="vhg" value="an_may" />'
+				. '<label><input type="checkbox" name="an" value="1" onchange="this.form.submit()"'
+				. ( $an_may ? ' checked' : '' ) . '> đã dọn/điều chuyển</label></form></td>';
+			echo '<td><form method="post">';
 			echo wp_nonce_field( 'vhg', '_wpnonce', true, false );
 			echo '<input type="hidden" name="ma" value="' . esc_attr( $m['ma'] ) . '" />'
 				. '<button class="button button-small" name="vhg" value="xoa_may">Xoá</button></form></td></tr>';
 		}
 		echo '</tbody></table>';
+		echo '<p><em>Tích <b>"đã dọn/điều chuyển"</b> để ẩn ghế đó khỏi trang thu tiền của nhân viên'
+			. ' (nhân viên hết thấy để nhập chỉ số) — <b>không xoá gì</b>, doanh thu cũ và cấu hình'
+			. ' máy vẫn giữ nguyên, bỏ tích là dùng lại bình thường.</em></p>';
 
 		/* Chỉ dẫn hiện ra ĐÚNG LÚC có ghế đang im. Bảng "nhịp cuối" nói ghế đang ở ca nào; khối
 		   này nói ca đó thì đi làm gì. Hiện thường trực là người ta thôi đọc. */

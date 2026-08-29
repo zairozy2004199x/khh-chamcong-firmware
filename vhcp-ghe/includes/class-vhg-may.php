@@ -65,6 +65,26 @@ class VHG_May {
 			. ( $so > 0 ? ' ' . $so . ' máy chuyển thành "chưa gán", KHÔNG bị xoá.' : '' ) );
 	}
 
+	/**
+	 * LỊCH NỘP BÁO CÁO THEO TUẦN của một cơ sở — anh Thắng 29/08/2026: "Với mỗi cơ sở sẽ set
+	 * lịch nộp báo cáo theo tuần, từ đó theo lịch cơ sở nào chưa nộp báo cáo". `$thu` là mảng số
+	 * thứ ISO (1=Thứ Hai…7=Chủ Nhật) — rỗng nghĩa là cơ sở KHÔNG được kỳ vọng nộp ngày nào (tạm
+	 * ngưng), khác với giá trị mặc định lúc chưa ai cấu hình (mọi ngày, xem cột `lich_bc`).
+	 */
+	public static function luu_lich_coso( $id, $thu ) {
+		global $wpdb;
+		$id = (int) $id;
+		if ( $id <= 0 ) { return array( 'ok' => false, 'error' => 'Thiếu cơ sở.' ); }
+		$ds = array();
+		foreach ( (array) $thu as $t ) {
+			$t = (int) $t;
+			if ( $t >= 1 && $t <= 7 && ! in_array( $t, $ds, true ) ) { $ds[] = $t; }
+		}
+		sort( $ds );
+		$wpdb->update( VHG_DB::t( 'coso' ), array( 'lich_bc' => implode( ',', $ds ) ), array( 'id' => $id ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã lưu lịch nộp báo cáo.' );
+	}
+
 	// ======================================================================= ô quảng cáo mã
 
 	/**
@@ -941,6 +961,26 @@ class VHG_May {
 		   máy không làm nó chưa xảy ra. */
 		return array( 'ok' => true, 'thong_bao' => 'Đã xoá cấu hình máy ' . $ma
 			. '. Doanh thu đã ghi của máy này giữ nguyên.' );
+	}
+
+	/**
+	 * GHẾ ĐÃ DỌN/ĐIỀU CHUYỂN nơi khác — anh Thắng 29/08/2026: "Tích chọn ghế đã dọn/điều chuyển
+	 * nơi khác: Ghế sẽ bị ẩn khỏi trang thu tiền của nhân viên, nhưng vẫn lưu trong dữ liệu."
+	 *
+	 * ĐÁNH DẤU, KHÔNG XOÁ (giống `huy` ở bảng `thu`) — cấu hình máy, doanh thu cũ, log kích/nhịp
+	 * đều giữ nguyên. Chỉ đúng MỘT chỗ đọc cờ này: `VHG_BaoCao::ds_ghe()`, nơi dựng danh sách
+	 * ghế cho nhân viên nhập chỉ số — trang quản trị (bảng "Máy (ghế)", đối chiếu, kế toán…) vẫn
+	 * gọi thẳng `ds_may()` không lọc, nên vẫn thấy đủ ghế kể cả đã dọn.
+	 */
+	public static function dat_an( $ma, $an ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã máy.' ); }
+		$wpdb->update( VHG_DB::t( 'may' ), array( 'an' => $an ? 1 : 0 ), array( 'ma' => $ma ) );
+		return array( 'ok' => true, 'thong_bao' => $an
+			? ( 'Đã đánh dấu ghế ' . $ma . ' ĐÃ DỌN/ĐIỀU CHUYỂN — nhân viên hết thấy ghế này ở trang '
+				. 'thu tiền. Dữ liệu cũ vẫn giữ nguyên.' )
+			: ( 'Ghế ' . $ma . ' dùng lại bình thường — đã hiện lại ở trang thu tiền của nhân viên.' ) );
 	}
 
 	/**

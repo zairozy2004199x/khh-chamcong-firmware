@@ -128,10 +128,15 @@ class VHG_BaoCao {
 		return false;
 	}
 
-	/** Ghế trong phạm vi PIN: [ ['ma','ten','coso'], ... ]. */
+	/** Ghế trong phạm vi PIN: [ ['ma','ten','coso'], ... ].
+	 *
+	 * 🔴 DUY NHẤT chỗ lọc cờ `may.an` (ghế đã dọn/điều chuyển — anh Thắng 29/08/2026). Trang quản
+	 * trị (bảng "Máy (ghế)", đối chiếu, kế toán…) đọc thẳng `VHG_May::ds_may()` không qua đây, nên
+	 * vẫn thấy đủ ghế kể cả đã dọn — chỉ MÀN NHÂN VIÊN NHẬP CHỈ SỐ (dùng đúng hàm này) mất ghế đó. */
 	public static function ds_ghe( $q ) {
 		$ra = array();
 		foreach ( VHG_May::ds_may() as $m ) {
+			if ( ! empty( $m['an'] ) ) { continue; }
 			$coso = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
 			if ( ! self::trong_pham_vi( $q, $coso, (string) $m['ma'] ) ) { continue; }
 			$ra[] = array(
@@ -486,6 +491,34 @@ class VHG_BaoCao {
 			'SELECT COUNT(*) so, COALESCE(SUM(tien_mat),0) tm, COALESCE(SUM(qr),0) qr, COALESCE(SUM(tong),0) tg'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s AND (chi_so_sau IS NOT NULL OR tong<>0 OR actual<>0)', (string) $rid ), ARRAY_A );
 		return array( 'so' => (int) $r['so'], 'tien_mat' => (int) $r['tm'], 'qr' => (int) $r['qr'], 'tong' => (int) $r['tg'] );
+	}
+
+	/**
+	 * Doanh thu THEO TỪNG GHẾ trong một tháng — dùng cho "Sổ ghế theo điểm" ở trang quản trị
+	 * (Máy & cơ sở). Anh Thắng 29/08/2026: "Doanh thu ghế trong tháng, Doanh thu QR, Doanh Thu
+	 * Tiền mặt". Gộp thẳng từ `bc_dong` theo `ma_may` — không giữ bản số riêng, khỏi lệch với
+	 * số kế toán đang duyệt.
+	 *
+	 * @param string $thang 'YYYY-MM'; rỗng = tháng hiện tại.
+	 * @return array [ ma_may => ['tien_mat'=>, 'qr'=>, 'tong'=>] ]
+	 */
+	public static function doanh_thu_thang_theo_may( $thang = '' ) {
+		global $wpdb;
+		$thang = trim( (string) $thang );
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', $thang ) ) { $thang = current_time( 'Y-m' ); }
+		$dau  = $thang . '-01';
+		$cuoi = gmdate( 'Y-m-t', strtotime( $dau ) );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT ma_may, COALESCE(SUM(tien_mat),0) tm, COALESCE(SUM(qr),0) qr, COALESCE(SUM(tong),0) tg'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE ngay BETWEEN %s AND %s GROUP BY ma_may',
+			$dau, $cuoi ), ARRAY_A );
+		$ra = array();
+		foreach ( (array) $rows as $r ) {
+			$ra[ (string) $r['ma_may'] ] = array(
+				'tien_mat' => (int) $r['tm'], 'qr' => (int) $r['qr'], 'tong' => (int) $r['tg'],
+			);
+		}
+		return $ra;
 	}
 
 	public static function kiem_ngay( $coso, $ngay, $pin ) {

@@ -283,6 +283,9 @@ class VHG_Trang {
 			}
 			$boi = (string) $ai['name'];
 			if ( 'kt_ds' === $viec )       { self::tra( VHG_KeToan::ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
+			if ( 'kt_thieu_bc' === $viec )    { self::tra( VHG_KeToan::thieu_bao_cao( isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
+			if ( 'kt_lich_coso_ds' === $viec )  { self::tra( VHG_KeToan::lich_coso_ds() ); return; }
+			if ( 'kt_lich_coso_luu' === $viec ) { self::tra( VHG_May::luu_lich_coso( isset( $d['id'] ) ? $d['id'] : 0, isset( $d['thu'] ) ? $d['thu'] : array() ) ); return; }
 			if ( 'kt_ct' === $viec )       { self::tra( VHG_KeToan::chi_tiet( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '' ) ); return; }
 			if ( 'kt_sua' === $viec )      { self::tra( VHG_KeToan::sua( isset( $d['report_id'] ) ? $d['report_id'] : '', isset( $d['ma_may'] ) ? $d['ma_may'] : '', isset( $d['patch'] ) ? $d['patch'] : array(), $boi ) ); return; }
 			if ( 'kt_duyet' === $viec )    { self::tra( VHG_KeToan::duyet( isset( $d['targets'] ) ? $d['targets'] : array(), ! empty( $d['on'] ), $boi ) ); return; }
@@ -3740,6 +3743,7 @@ var KTD_THANG = '';
 var KTD_TRANG = 1;
 var KTD_TRANG_CO = 10;   // anh Thắng: "Chỉ hiện 10 cơ sở 1 trang" — để nguyên cả tháng là lag.
 var KTD_COSO = '';       // anh Thắng: "Chỗ lọc duyệt báo cáo, cho lọc theo cơ sở". '' = tất cả.
+var KTD_NV = '';         // anh Thắng 29/08/2026: "lọc báo cáo theo nhân viên". '' = tất cả.
 var KTU_TRANG = 1;       // anh Thắng: "Nhật ký cũng đẻ gọn 10 thông báo 1 trang".
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 /* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
@@ -3754,13 +3758,27 @@ function ktAnhSrc(u){
 }
 function ktEl(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
 function veKtDuyet(){
-  return '<div class="card"><h2>📈 ' + L('Duyệt báo cáo doanh thu','Review revenue reports') + '</h2>'
+  /* CƠ SỞ CHƯA NỘP BÁO CÁO HÔM NAY + LỊCH NỘP THEO TUẦN — anh Thắng 29/08/2026: "Bổ sung Cơ sở
+     chưa nộp báo cáo trong ngày. Với mỗi cơ sở sẽ set lịch nộp báo cáo theo tuần, từ đó theo
+     lịch cơ sở nào chưa nộp báo cáo." Đặt TRÊN bảng tháng — đây là việc "phải làm ngay hôm nay",
+     khác hẳn việc duyệt/đối chiếu của cả tháng bên dưới. */
+  return '<div class="card"><h2>⚠ ' + L('Cơ sở chưa nộp báo cáo hôm nay','Branches missing today\'s report') + '</h2>'
+    + '<div id="ktd-thieu"></div>'
+    + '<div class="act" style="margin-top:8px"><button id="ktd-lich-tg" class="ghost">⚙ '
+      + L('Lịch nộp báo cáo theo cơ sở','Weekly reporting schedule') + '</button></div>'
+    + '<div id="ktd-lich" style="display:none;margin-top:8px"></div></div>'
+    + '<div class="card"><h2>📈 ' + L('Duyệt báo cáo doanh thu','Review revenue reports') + '</h2>'
     + '<div class="act" style="flex-wrap:wrap"><input type="month" id="ktd-thang" style="max-width:170px">'
     + '<select id="ktd-coso" style="max-width:220px"><option value="">— '
       + L('Tất cả cơ sở','All branches') + ' —</option>'
       + (D.coso||[]).slice().sort(function(a,b){ return a.ten.localeCompare(b.ten); })
         .map(function(c){ return '<option value="'+esc(c.ten)+'">'+esc(c.ten)+'</option>'; }).join('')
       + '</select>'
+    /* Lọc theo nhân viên — anh Thắng 29/08/2026: "lọc báo cáo theo nhân viên". Danh sách nhân
+       viên KHÔNG có sẵn như cơ sở (D.coso) — dựng lại mỗi lần tải tháng từ chính r.rows (xem
+       ktdLoad), vì chỉ biết ai đã nộp báo cáo SAU KHI tải xong tháng đó. */
+    + '<select id="ktd-nv" style="max-width:200px"><option value="">— '
+      + L('Tất cả nhân viên','All staff') + ' —</option></select>'
     + '<button id="ktd-xem" class="on">' + L('Xem','Load') + '</button>'
     + '<span id="ktd-msg" class="mut"></span></div>'
     + '<div id="ktd-list" style="margin-top:12px"></div></div>'
@@ -3778,8 +3796,77 @@ function ktdInit(){
   /* Lọc cơ sở đổi là xem ngay, khỏi bấm thêm Xem — người dùng đang xem đúng tháng rồi, chỉ
      muốn thu hẹp theo cơ sở. */
   if(iCs) iCs.onchange=function(){ KTD_COSO=iCs.value; KTD_TRANG=1; ktdLoad(); };
+  var iNv=document.getElementById('ktd-nv');
+  if(iNv) iNv.onchange=function(){ KTD_NV=iNv.value; KTD_TRANG=1; ktdLoad(); };
   document.getElementById('ktd-xem').onclick=function(){ KTD_THANG=iT.value; KTD_TRANG=1; ktdLoad(); };
-  ktdLoad(); ktdRac(); ktdUndo();
+  ktdLoad(); ktdRac(); ktdUndo(); ktdThieu();
+  var bLich=document.getElementById('ktd-lich-tg'), dLich=document.getElementById('ktd-lich');
+  if(bLich) bLich.onclick=function(){
+    var mo = dLich.style.display==='none';
+    dLich.style.display = mo ? '' : 'none';
+    if(mo && !dLich.dataset.built){ dLich.dataset.built='1'; ktdLich(); }
+  };
+}
+/* CƠ SỞ CHƯA NỘP BÁO CÁO HÔM NAY. */
+function ktdThieu(){
+  var box=document.getElementById('ktd-thieu'); if(!box) return;
+  box.textContent=''; box.appendChild(ktEl('p','mut',L('Đang kiểm…','Checking…')));
+  goi('kt_thieu_bc',{},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    if(!r.thieu.length){ box.appendChild(ktEl('div','mut','✓ '+L('Đủ báo cáo — mọi cơ sở tới lịch hôm nay đều đã nộp.','All scheduled branches have reported today.'))); return; }
+    var w=ktEl('div','warn');
+    w.appendChild(ktEl('b',null,r.thieu.length+' '+L('cơ sở CHƯA nộp báo cáo ngày','branches missing the')+' '+r.ngay));
+    var ul=ktEl('div'); ul.style.cssText='margin-top:6px;display:flex;flex-wrap:wrap;gap:6px';
+    r.thieu.forEach(function(c){ ul.appendChild(ktEl('span','pill p-off',c)); });
+    w.appendChild(ul);
+    box.appendChild(w);
+  });
+}
+var KTD_THU_TEN = ['Thứ Hai','Thứ Ba','Thứ Tư','Thứ Năm','Thứ Sáu','Thứ Bảy','Chủ Nhật'];
+var KTD_THU_VIET_TAT = ['T2','T3','T4','T5','T6','T7','CN'];
+var KTD_THU_TEN_EN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+/* LỊCH NỘP BÁO CÁO THEO TUẦN của MỌI cơ sở — bảng gọn (tên + 7 ô tích), tích/bỏ tích tự lưu
+   ngay (onchange), khỏi cần nút Lưu riêng. Có ô lọc tên vì danh sách cơ sở có thể vài trăm dòng
+   (xem "538 cơ sở" ở tab Duyệt báo cáo) — dựng hết một lần rồi lọc bằng CSS/JS tại chỗ, khỏi
+   phải gọi lại server mỗi lần gõ. */
+function ktdLich(){
+  var box=document.getElementById('ktd-lich'); if(!box) return;
+  box.textContent=''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
+  goi('kt_lich_coso_ds',{},function(r){
+    box.textContent='';
+    if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
+    var iLoc=ktEl('input'); iLoc.type='text'; iLoc.placeholder=L('Lọc theo tên cơ sở…','Filter by branch name…');
+    iLoc.style.cssText='width:100%;max-width:280px;margin-bottom:8px';
+    box.appendChild(iLoc);
+    var sc=ktEl('div','table-scroll');
+    var tb=ktEl('table'); tb.style.minWidth='480px';
+    var tenTat = (NN==='en') ? KTD_THU_TEN_EN : KTD_THU_VIET_TAT;
+    var thead='<thead><tr><th>'+L('Cơ sở','Branch')+'</th>'
+      + KTD_THU_TEN.map(function(t,i){ return '<th title="'+t+'">'+tenTat[i]+'</th>'; }).join('')
+      + '</tr></thead>';
+    tb.innerHTML = thead;
+    var tbody=ktEl('tbody');
+    r.rows.forEach(function(c){
+      var tr=ktEl('tr'); tr.dataset.ten=c.coso.toLowerCase();
+      tr.appendChild(ktEl('td',null,c.coso));
+      for(var t=1;t<=7;t++){
+        var td=ktEl('td'); td.style.textAlign='center';
+        var cb=ktEl('input'); cb.type='checkbox'; cb.checked = c.thu.indexOf(t)>=0;
+        cb.onchange=function(id,tr2){ return function(){
+          var chon=[]; tr2.querySelectorAll('input[type=checkbox]').forEach(function(x,i2){ if(x.checked) chon.push(i2+1); });
+          goi('kt_lich_coso_luu',{id:id,thu:chon},function(){});
+        }; }(c.id, tr);
+        td.appendChild(cb); tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+    tb.appendChild(tbody); sc.appendChild(tb); box.appendChild(sc);
+    iLoc.oninput=function(){
+      var q=iLoc.value.trim().toLowerCase();
+      tbody.querySelectorAll('tr').forEach(function(tr){ tr.style.display = (!q || tr.dataset.ten.indexOf(q)>=0) ? '' : 'none'; });
+    };
+  });
 }
 function ktdRac(){
   var box=document.getElementById('ktd-rac'); if(!box) return; box.textContent='';
@@ -3852,11 +3939,27 @@ function ktdLoad(){
     if(!r||!r.ok){ box.appendChild(ktEl('p','mut',(r&&r.error)||'Lỗi.')); return; }
     KTD_THANG=r.thang;
     if(!r.rows.length){ box.appendChild(ktEl('p','mut',L('Tháng này chưa có báo cáo.','No reports this month.'))); return; }
-    /* Lọc theo cơ sở — anh Thắng: "Chỗ lọc duyệt báo cáo, cho lọc theo cơ sở". Lọc TRƯỚC khi
-       cắt trang, nên "Trang 1/N" luôn tính trên đúng tập đang lọc, không tính trên cả tháng. */
-    var rows0 = KTD_COSO ? r.rows.filter(function(o){ return o.coso === KTD_COSO; }) : r.rows;
+    /* Danh sách nhân viên cho ô lọc — dựng lại mỗi lần tải tháng, vì chỉ biết SAU KHI có r.rows
+       (không có sẵn như D.coso). Giữ lại lựa chọn cũ (KTD_NV) nếu người đó vẫn còn báo cáo trong
+       tháng đang xem; hết thì coi như "Tất cả" — anh Thắng 29/08/2026: "lọc báo cáo theo nhân
+       viên". */
+    var iNv=document.getElementById('ktd-nv');
+    if(iNv){
+      var boNv={}; r.rows.forEach(function(o){ if(o.staff) boNv[o.staff]=1; });
+      var dsNv = Object.keys(boNv).sort(function(a,b){ return a.localeCompare(b); });
+      if(dsNv.indexOf(KTD_NV)<0) KTD_NV='';
+      iNv.innerHTML = '<option value="">— '+L('Tất cả nhân viên','All staff')+' —</option>'
+        + dsNv.map(function(nv){ return '<option value="'+esc(nv)+'">'+esc(nv)+'</option>'; }).join('');
+      iNv.value = KTD_NV;
+    }
+    /* Lọc theo cơ sở/nhân viên — anh Thắng: "Chỗ lọc duyệt báo cáo, cho lọc theo cơ sở"; 29/08:
+       "lọc báo cáo theo nhân viên". Lọc TRƯỚC khi cắt trang, nên "Trang 1/N" luôn tính trên đúng
+       tập đang lọc, không tính trên cả tháng. */
+    var rows0 = r.rows.filter(function(o){
+      return (!KTD_COSO || o.coso === KTD_COSO) && (!KTD_NV || o.staff === KTD_NV);
+    });
     if(!rows0.length){
-      box.appendChild(ktEl('p','mut',L('Cơ sở này chưa có báo cáo trong tháng.','No reports for this branch this month.')));
+      box.appendChild(ktEl('p','mut',L('Không có báo cáo nào khớp bộ lọc trong tháng.','No reports match the filter this month.')));
       return;
     }
     /* Đơn chưa duyệt hết (confirmedChairs < chairs) lên đầu, để không phải lướt qua đơn đã

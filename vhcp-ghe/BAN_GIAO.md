@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.64.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.65.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,39 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.65.0 — Sổ doanh thu ghế + ẩn ghế đã dọn · Cơ sở chưa nộp báo cáo + lịch tuần · lọc theo nhân viên
+
+Ba việc riêng, gộp chung một bản vì cùng lúc anh Thắng yêu cầu:
+
+**a) Trang quản trị "Máy & cơ sở" — sổ doanh thu theo ghế + ẩn ghế đã dọn.** Anh Thắng: *"Sổ ra
+từng ghế theo điểm gồm các cột (Doanh thu ghế trong tháng, Doanh thu QR, Doanh Thu Tiền mặt), (Tích
+chọn ghế đã dọn/điều chuyển nơi khác: Ghế sẽ bị ẩn khỏi trang thu tiền của nhân viên, nhưng vẫn lưu
+trong dữ liệu)"*.
+- Bảng "Máy (ghế)" thêm 3 cột doanh thu (chọn tháng qua ô "Doanh thu tháng" phía trên, mặc định
+  tháng hiện tại), gộp thẳng từ `bc_dong` theo `ma_may` (`VHG_BaoCao::doanh_thu_thang_theo_may()`)
+  — không giữ bản số riêng, khỏi lệch với số kế toán đang duyệt.
+- Cột mới **"Đã dọn/điều chuyển"**: tích là ẩn NGAY khỏi danh sách ghế cho nhân viên nhập chỉ số
+  (`may.an`, cột mới) — ĐÁNH DẤU, KHÔNG XOÁ, giống hệt tinh thần cột `huy` ở bảng `thu`. Bỏ tích là
+  dùng lại bình thường. Chỉ lọc ở **đúng một chỗ**: `VHG_BaoCao::ds_ghe()` — trang quản trị/kế toán
+  vẫn thấy đủ ghế kể cả đã dọn, chỉ MÀN NHÂN VIÊN mất ghế đó.
+
+**b) Tab "Duyệt báo cáo" — cảnh báo cơ sở chưa nộp hôm nay + lịch nộp theo tuần.** Anh Thắng:
+*"Bổ sung Cơ sở chưa nộp báo cáo trong ngày. Với mỗi cơ sở sẽ set lịch nộp báo cáo theo tuần, từ đó
+theo lịch cơ sở nào chưa nộp báo cáo."*
+- Cột mới `coso.lich_bc` — danh sách số thứ (1=Thứ Hai…7=Chủ Nhật) cơ sở đó PHẢI nộp; mặc định
+  `1,2,3,4,5,6,7` (mọi ngày, giữ đúng hành vi ngầm định cũ). Cấu hình qua khối gấp **"⚙ Lịch nộp
+  báo cáo theo cơ sở"** ngay trên tab Duyệt báo cáo (có ô lọc tên, vì có tới ~540 cơ sở) — tích/bỏ
+  tích ngày nào tự lưu ngay, không cần nút Lưu riêng.
+- Khối **"⚠ Cơ sở chưa nộp báo cáo hôm nay"** đặt TRÊN CÙNG tab (việc phải làm ngay hôm nay, khác
+  hẳn duyệt/đối chiếu cả tháng bên dưới) — đối chiếu đúng lịch riêng từng cơ sở (`lich_bc`) trước
+  khi báo thiếu, và bỏ qua cơ sở đã hết ghế đang dùng (toàn bộ ghế đã "đã dọn") vì không có gì để
+  thu. `VHG_KeToan::thieu_bao_cao()`.
+
+**c) Tab "Duyệt báo cáo" — lọc theo nhân viên.** Anh Thắng: *"lọc báo cáo theo nhân viên"*. Thêm ô
+chọn cạnh ô lọc cơ sở có sẵn; danh sách nhân viên KHÔNG có sẵn như cơ sở nên dựng lại từ chính
+`r.rows` mỗi lần tải tháng (chỉ biết ai đã nộp SAU KHI tải xong). Lọc kết hợp ĐƯỢC với cơ sở (chọn
+cả hai cùng lúc thu hẹp đúng giao của hai điều kiện).
 
 ### v1.64.0 — Tổng tiền mặt/QR THEO TỪNG CƠ SỞ ở khối Tiến độ
 
