@@ -9637,7 +9637,10 @@ $vth_c = vhcc_ns( 'Kế toán' );
 t( '🔴 nguồn KHÁC hồ sơ thì trang NÓI RA rằng đổi vai chưa có hiệu lực',
 	strpos( $vth_c, 'chưa có hiệu lực ngay' ) !== false, $vth_c );
 t( 'và nói rõ đang đọc từ sổ nào', strpos( $vth_c, 'Vận hành chi phí' ) !== false );
-t( 'kèm đường sang màn Cấu hình để đổi nguồn', strpos( $vth_c, 'man=cau_hinh' ) !== false );
+/* 🔴 KHÔNG PHẢI man=cau_hinh — tab đó không có ô Nguồn người dùng. Đường sửa đúng trỏ sang
+   man=ho_so, khối 🔑 Tài khoản đăng nhập (xem phép thử "HỒ SƠ GHI MỘT VAI..." ở cuối tệp). */
+t( 'kèm đường sang màn Hồ sơ & tài khoản để đổi nguồn (KHÔNG phải Cấu hình — tab đó không có mục này)',
+	strpos( $vth_c, 'man=ho_so' ) !== false && strpos( $vth_c, 'man=cau_hinh' ) === false, $vth_c );
 /* ⚠️ Nói ra cả cái KHÔNG bị ảnh hưởng, kẻo người đọc tưởng cả hệ đang hỏng. */
 t( 'và trấn an rằng trạm chấm công không dính', strpos( $vth_c, 'Trạm chấm công không bị ảnh hưởng' ) !== false );
 
@@ -13480,14 +13483,38 @@ t( 'gọi đúng cả hai vai',
 /* ⚠️ Nói rõ HẬU QUẢ đang xảy ra, không chỉ "có gì đó lệch". */
 t( 'và nói màn hình đang THIẾU mục của vai kia',
 	strpos( $h_lech, 'đang thiếu những mục' ) !== false, $h_lech );
-t( '🔴 kèm đúng chỗ chữa: Cấu hình → Nguồn người dùng',
-	strpos( $h_lech, 'Cấu hình → Nguồn người dùng' ) !== false
+
+/* 🔴 CHỖ CHỮA PHẢI ĐÚNG THẬT, KHÔNG PHẢI "CẤU HÌNH → NGUỒN NGƯỜI DÙNG".
+   Anh Thắng 29/08/2026, sau khi làm đúng theo câu chỉ dẫn CŨ mà vẫn *"chưa qua, nên phân quyền
+   vẫn thấy là nhân viên"*: câu cũ trỏ sang tab Cấu hình của TRANG NÀY (`man=cau_hinh`), mà tab
+   đó KHÔNG CÓ ô Nguồn người dùng nào — mục thật nằm ở tab Hồ sơ & tài khoản (`man=ho_so`), khối
+   🔑 Tài khoản đăng nhập. Đi tìm một ô không tồn tại thì "chưa qua" là đúng, không phải anh thao
+   tác sai. Phép thử này canh KHÔNG ĐƯỢC lặp lại đường trỏ sai đó. */
+t( '🔴 KHÔNG còn trỏ sang tab Cấu hình (ô đó không tồn tại ở đó)',
+	strpos( $h_lech, 'man=cau_hinh' ) === false, $h_lech );
+t( '🔴 mà trỏ ĐÚNG sang tab Hồ sơ & tài khoản, khối 🔑 Tài khoản đăng nhập',
+	strpos( $h_lech, 'man=ho_so' ) !== false && strpos( $h_lech, 'Tài khoản đăng nhập' ) !== false
 	&& strpos( $h_lech, 'hồ sơ nhân sự' ) !== false, $h_lech );
 /* ⚠️ Và nói rõ vì sao đổi vai trong hồ sơ lại chưa ăn — không thì người ta đổi vai lần nữa. */
 t( 'nói rõ vai lúc đăng nhập đọc từ Nguồn người dùng',
 	strpos( $h_lech, 'Vai lúc đăng nhập đọc từ' ) !== false, $h_lech );
 t( 'và bảo đăng nhập lại sau khi đổi',
 	strpos( $h_lech, 'đăng nhập lại' ) !== false, $h_lech );
+
+/* ---- 🔴 NHÁNH THỨ HAI: NGUỒN ĐÃ ĐÚNG LÀ HỒ SƠ, LỆCH CHỈ VÌ PHIÊN CŨ ------------------------
+   Đổi nguồn không giải quyết được gì nếu nguồn đã đúng sẵn — nói "đổi nguồn" trong ca này là
+   chỉ đường tới một việc vô nghĩa. Chỗ lệch thật là phiên đăng nhập cũ, phát trước khi vai trong
+   hồ sơ được sửa; cách chữa đúng là đăng xuất rồi vào lại, không phải đổi cấu hình. */
+$vth_nguon_cu2 = get_option( 'vhcc_nguon_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'ho_so' );
+$h_lech2 = vhcc_hr( $tok_lech, array( 'man' => 'cong_toi' ) );
+t( '🔴 nguồn ĐÃ đúng là hồ sơ: KHÔNG bảo đi đổi nguồn nữa (đổi cái đã đúng là vô nghĩa)',
+	strpos( $h_lech2, 'Nhờ Admin vào tab' ) === false, $h_lech2 );
+t( 'mà nói đúng nguyên nhân thật: phiên đăng nhập cũ, không phải cấu hình',
+	strpos( $h_lech2, 'phiên đăng nhập cũ' ) !== false, $h_lech2 );
+t( 'và bảo đúng cách chữa: thoát rồi đăng nhập lại',
+	strpos( $h_lech2, 'Thoát' ) !== false && strpos( $h_lech2, 'đăng nhập lại' ) !== false, $h_lech2 );
+update_option( 'vhcc_nguon_nguoidung', $vth_nguon_cu2 );
 
 /* Vai phiên CAO hơn hồ sơ cũng là lệch, nhưng hậu quả ngược — nói đúng cái đang xảy ra. */
 $tok_cao = VHCC_Auth::phat_token( 'Người Bị Lệch Vai', 'Quản lý', 'CHT_CS', 'LECH1' );

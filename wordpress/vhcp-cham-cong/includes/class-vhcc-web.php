@@ -2260,15 +2260,43 @@ class VHCC_Web {
 		$ten_ps = VHCC_Vai::ten( $toi );
 		/* Cao hơn hay thấp hơn đều là lệch, nhưng hậu quả khác nhau — nói đúng cái đang xảy ra. */
 		$thap = ( $bac_ps < $bac_hs );
+
+		/* 🔴 HAI NGUYÊN NHÂN KHÁC NHAU, HAI CÁCH SỬA KHÁC NHAU — ĐỪNG GỘP MỘT CÂU CHO CẢ HAI.
+		   Anh Thắng 29/08/2026, sau khi làm đúng theo câu chỉ dẫn cũ mà vẫn *"chưa qua, nên phân
+		   quyền vẫn thấy là nhân viên"*: câu cũ LUÔN đổ cho "Nguồn người dùng chưa phải hồ sơ nhân
+		   sự", và trỏ sang <b>Cấu hình → Nguồn người dùng</b> — một mục KHÔNG TỒN TẠI ở tab Cấu
+		   hình của trang này (mục thật nằm ở tab <b>Hồ sơ &amp; tài khoản</b>, khối 🔑 Tài khoản
+		   đăng nhập). Đi tìm một mục không có thì "chưa qua" là đúng, không phải lỗi thao tác.
+
+		   Nguyên nhân thật có HAI NHÁNH, tuỳ nguồn đang đặt:
+		     · Nguồn ≠ hồ sơ nhân sự: đúng như câu cũ, cổng đang đọc một sổ khác — sửa vai trong
+		       hồ sơ không có hiệu lực cho tới khi đổi nguồn. Trỏ ĐÚNG chỗ đổi (Hồ sơ & tài khoản).
+		     · Nguồn ĐÃ LÀ hồ sơ nhân sự: đổi nguồn không giải quyết được gì (đã đúng nguồn rồi).
+		       Chỗ lệch là PHIÊN ĐĂNG NHẬP đang dùng — thẻ phiên chỉ đọc vai lúc ĐĂNG NHẬP, nên
+		       sửa vai trong hồ sơ SAU KHI người ta đã đăng nhập thì phiên cũ vẫn giữ vai cũ tới
+		       khi đăng xuất/đăng nhập lại. Nói đúng "đăng xuất rồi vào lại", đừng bắt đi tìm một
+		       ô cấu hình đã đúng sẵn. */
+		$nguon_ht = class_exists( 'VHCC_Auth' ) && method_exists( 'VHCC_Auth', 'nguon' ) ? VHCC_Auth::nguon() : '';
+		$sua = ( 'ho_so' === $nguon_ht )
+			? 'Nguồn người dùng đã đúng là <b>hồ sơ nhân sự</b> rồi — vậy chỗ lệch là <b>phiên đăng '
+				. 'nhập cũ</b> của chính người này: vai đọc lúc đăng nhập, sửa hồ sơ SAU khi đã đăng '
+				. 'nhập thì phiên cũ không tự cập nhật. Nhờ người này bấm <b>Thoát</b> rồi đăng nhập '
+				. 'lại là xong, không cần đổi gì thêm.'
+			: 'Vai lúc đăng nhập đọc từ <b>Nguồn người dùng</b>, mà nguồn đang đặt không phải hồ sơ '
+				. 'nhân sự. Nhờ Admin vào tab <b>'
+				. ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' )
+					? '<a href="' . esc_url( add_query_arg( array( 'man' => 'ho_so' ), self::url() ) ) . '">'
+						. 'Hồ sơ &amp; tài khoản</a>'
+					: 'Hồ sơ &amp; tài khoản' )
+				. '</b>, khối <b>🔑 Tài khoản đăng nhập</b>, bấm nút cho cổng đọc thẳng hồ sơ nhân '
+				. 'sự — rồi đăng nhập lại.';
 		echo '<div class="bao ' . ( $thap ? 'loi' : 'canh' ) . '">'
 			. '<b>Hồ sơ của anh/chị ghi vai ' . esc_html( $ten_hs ) . ', nhưng phiên này đang là '
 			. esc_html( $ten_ps ) . '.</b><br>'
 			. ( $thap
 				? 'Nên màn hình đang thiếu những mục của vai ' . esc_html( $ten_hs ) . '. '
 				: 'Nên màn hình đang mở rộng hơn vai ghi trong hồ sơ. ' )
-			. '<span class="mo">Vai lúc đăng nhập đọc từ <b>Nguồn người dùng</b>, mà nguồn đang đặt '
-			. 'không phải hồ sơ nhân sự. Nhờ Admin vào <b>Cấu hình → Nguồn người dùng</b> đổi sang '
-			. '<b>“hồ sơ nhân sự”</b>, rồi đăng nhập lại.</span></div>';
+			. '<span class="mo">' . $sua . '</span></div>';
 	}
 
 	public static function man_cua( $toi ) {

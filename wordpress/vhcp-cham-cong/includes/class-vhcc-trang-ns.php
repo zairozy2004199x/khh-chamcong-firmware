@@ -1214,10 +1214,14 @@ class VHCC_TrangNS {
 			. 'vẫn được ghi vào hồ sơ, nhưng <b>vai lúc người ta đăng nhập thì đọc từ sổ kia</b> '
 			. '— nên chưa có hiệu lực ngay.';
 		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
-			echo ' Muốn khai ở đây là ăn ngay thì vào <a href="'
-				. esc_url( add_query_arg( array( 'man' => 'cau_hinh' ), VHCC_Web::url() ) ) . '">'
-				. 'Quản trị chấm công → Cấu hình</a>, đổi <b>Nguồn người dùng</b> sang '
-				. '<b>“hồ sơ nhân sự”</b>.';
+			/* 🔴 KHÔNG PHẢI TAB "CẤU HÌNH" — mục đó không có ở đó. Bản trước trỏ nhầm sang
+			   `man=cau_hinh`, và anh Thắng đi đúng đường ấy rồi báo *"vẫn chưa qua"*: tab Cấu
+			   hình của trang này không hề có ô Nguồn người dùng. Ô THẬT nằm ở tab Hồ sơ & tài
+			   khoản, khối 🔑 Tài khoản đăng nhập (VHCC_Web::the_tai_khoan()) — trỏ đúng chỗ đó. */
+			echo ' Muốn khai ở đây là ăn ngay thì vào tab <a href="'
+				. esc_url( add_query_arg( array( 'man' => 'ho_so' ), VHCC_Web::url() ) ) . '">'
+				. 'Hồ sơ &amp; tài khoản</a>, khối <b>🔑 Tài khoản đăng nhập</b>, bấm nút cho cổng '
+				. 'đọc thẳng <b>hồ sơ nhân sự</b>.';
 		}
 		/* ⚠️ Nói ra cái KHÔNG bị ảnh hưởng, kẻo người đọc tưởng cả hệ đang hỏng. Trạm chấm công
 		   đọc thẳng hồ sơ (xem `VHCC_Tram::tim_pin`), không đi qua `nguon()`. */
