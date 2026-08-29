@@ -5668,7 +5668,7 @@ $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('H1
    query mà POST không mang theo. */
 $web_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
 t( 'làm việc xong thì CHUYỂN HƯỚNG, không vẽ thẳng kết quả POST',
-	preg_match( '/self::cat_bao\( \$bao \);\s*\n\s*self::ve\( self::url_hien\(\) \);/', $web_src ) === 1 );
+	preg_match( '/self::cat_bao\( \$bao \);\s*\n\s*self::ve\( self::url_hien_sua\(\) \);/', $web_src ) === 1 );
 $GLOBALS['VHCP_CHUYEN'] = '';
 $_GET = array( 'cs' => 'JP_HCM', 'loc' => 'chua_vao' );
 vhcc_luu_bang( $tok_ad, array( 'ho_ten' => array( 'W1' => 'Đổi Tên Lần Nữa' ) ),
@@ -11968,6 +11968,53 @@ t( '🔴 hàng sửa chừa chỗ cho thanh đầu trang khi nhảy tới',
    giờ công" ở tận cuối trang), nên `td.dang-sua` cũng phải chừa chỗ giống hệt hàng sửa. */
 t( 'và ô đang sửa cũng chừa chỗ y hệt (cả nhánh sửa lẫn nhánh bù cùng neo về #suaday)',
 	preg_match( '~td\.dang-sua\{scroll-margin-top:\d+px\}~', $h_ls ) === 1, $h_ls );
+
+/* 🔴 "CÓ ĐÂU EM" — anh Thắng 29/08/2026, bấm Bù giờ (hoặc Lưu giờ) xong thì hàng đang sửa biến
+ * mất, y hệt như chưa bấm gì.
+ *
+ * `action="...#suaday"` (khối test ngay trên) chỉ giữ đúng neo cho LƯỢT POST — nhưng máy chủ trả
+ * lời một lượt POST bằng CHUYỂN HƯỚNG (POST → REDIRECT → GET, xem lý do ở `phuc_vu_that()`), và
+ * cái `url_hien()` dùng để dựng địa chỉ chuyển hướng ấy CHỈ chở đúng danh sách `THAM_SO` (cơ sở,
+ * tháng, ô Tìm, …) — `gnd/gma/sgn/sgm` không nằm trong đó, nên bị RỚT MẤT ngay khi tạo địa chỉ
+ * chuyển hướng. Trang tải lại sau đó KHÔNG còn `gnd/gma` trong địa chỉ → `o_dang_sua()` không
+ * còn khớp được ô nào → không `<td id="suaday">` nào được vẽ ra → hàng sửa cũng biến mất theo
+ * (nó chỉ hiện khi `$dang`/`sg_n===$gnd` khớp) — trình duyệt vẫn giữ `#suaday` cũ trên thanh địa
+ * chỉ nhưng nó trỏ vào một id không còn tồn tại, nên không cuộn tới đâu cả. Bấm Lưu xong mà y hệt
+ * như chưa bấm: "có đâu em".
+ *
+ * Vá bằng `url_hien_sua()`: chuyển hướng sau POST giữ riêng bốn khoá `gnd/gma/sgn/sgm` (đọc từ
+ * `$_GET` — chúng luôn có mặt ở đó vì nằm ngay trong địa chỉ `action` mà `hang_sua()` đã nêu,
+ * POST không mang chúng trong thân nhưng cũng không xoá được chúng khỏi URL của chính request),
+ * rồi tự nối thêm `#suaday`. Kiểm bằng cách đọc thẳng `$GLOBALS['VHCP_CHUYEN']` — đích chuyển
+ * hướng thật sự mà `wp_safe_redirect()` (bản giả) nhận được. */
+$GLOBALS['VHCP_CHUYEN'] = '';
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', 'LS_CS', 'LSAD' );
+$_GET = array( 'man' => 'cham', 'ccs' => 'LS_CS', 'cth' => '2026-07',
+	'sgn' => '2026-07-06', 'sgm' => 'LS1' );
+$_POST = array( 'ky' => VHCC_Web::chu_ky( (string) $_COOKIE[ VHCC_Web::COOKIE ] ),
+	'viec' => 'sua_gio', 'ccs' => 'LS_CS', 'ngay' => '2026-07-06', 'ma_nv' => 'LS1',
+	'sg_vao' => '08:30', 'sg_ra' => '17:30', 'ly_do' => 'doi chieu camera' );
+ob_start(); VHCC_Web::phuc_vu(); ob_get_clean();
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$tc_sua = (string) $GLOBALS['VHCP_CHUYEN'];
+t( '🔴 lưu giờ xong, chuyển hướng vẫn chở theo sgn/sgm — không "có đâu em"',
+	strpos( $tc_sua, 'sgn=2026-07-06' ) !== false && strpos( $tc_sua, 'sgm=LS1' ) !== false, $tc_sua );
+t( 'và tự nối #suaday để trình duyệt cuộn lại đúng chỗ',
+	substr( $tc_sua, -7 ) === '#suaday', $tc_sua );
+
+$GLOBALS['VHCP_CHUYEN'] = '';
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin', 'LS_CS', 'LSAD' );
+$_GET = array( 'man' => 'cham', 'ccs' => 'LS_CS', 'cth' => '2026-07',
+	'gnd' => '2026-07-08', 'gma' => 'LS2' );
+$_POST = array( 'ky' => VHCC_Web::chu_ky( (string) $_COOKIE[ VHCC_Web::COOKIE ] ),
+	'viec' => 'bu', 'ccs' => 'LS_CS', 'ngay' => '2026-07-08', 'ma_nv' => 'LS2',
+	'bu_vao' => '08:00', 'bu_ra' => '17:00', 'ly_do' => 'may hong sang do, co camera' );
+ob_start(); VHCC_Web::phuc_vu(); ob_get_clean();
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$tc_bu = (string) $GLOBALS['VHCP_CHUYEN'];
+t( '🔴 cùng lỗi ở nhánh CHẤM BÙ: chuyển hướng chở theo gnd/gma',
+	strpos( $tc_bu, 'gnd=2026-07-08' ) !== false && strpos( $tc_bu, 'gma=LS2' ) !== false, $tc_bu );
+t( 'và cũng tự nối #suaday', substr( $tc_bu, -7 ) === '#suaday', $tc_bu );
 
 /* ---- Gạch ngăn hai phần trong chú thích ô ----
    Anh Thắng: *"tách ra 2 ô, bằng gạch ngang, cho dễ nhìn"*. `title` là văn bản THUẦN — không tô

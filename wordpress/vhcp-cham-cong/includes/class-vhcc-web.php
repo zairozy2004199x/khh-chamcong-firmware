@@ -283,7 +283,7 @@ class VHCC_Web {
 				? self::lam_viec( sanitize_text_field( wp_unslash( $_POST['viec'] ) ), $toi )
 				: array( array( 'loi' => 'Phiên đã hết hoặc biểu mẫu không hợp lệ. Tải lại trang rồi làm lại.' ) );
 			self::cat_bao( $bao );
-			self::ve( self::url_hien() );
+			self::ve( self::url_hien_sua() );
 		}
 		self::trang_chinh( $toi, array() );
 	}
@@ -619,6 +619,36 @@ class VHCC_Web {
 			if ( '' !== $v ) { $them[ $k ] = $v; }
 		}
 		return $them ? add_query_arg( $them, self::url() ) : self::url();
+	}
+
+	/**
+	 * `url_hien()` CỐ Ý không chở `gnd/gma/sgn/sgm` — chúng không nằm trong `THAM_SO` vì hàng
+	 * sửa không phải "bộ lọc" sống lâu dài như cơ sở hay tháng đang xem. Nhưng đúng chỗ ấy lại
+	 * là chỗ cần chúng nhất: lượt CHUYỂN HƯỚNG SAU POST của một lần Bù giờ / Sửa giờ.
+	 *
+	 * 🔴 "CÓ ĐÂU EM" — anh Thắng 29/08/2026, bấm Bù giờ cho Lê Thanh Mẫn xong thì hàng đang sửa
+	 * biến mất, cứ như chưa bấm gì. `hang_sua()` đã nêu `action="...&gnd=...&gma=...#suaday"`
+	 * nên trình duyệt POST đúng tới địa chỉ mang sẵn `gnd/gma` — nhưng khi lưu xong, máy chủ
+	 * chuyển hướng (POST → REDIRECT → GET) VỀ `url_hien()`, mà hàm ấy lọc theo `THAM_SO` nên
+	 * bỏ mất đúng `gnd/gma` vừa nói. Trang tải lại KHÔNG còn `gnd/gma` trong địa chỉ → không ô
+	 * nào khớp `$dang` trong `o_dang_sua()` → không `<td id="suaday">` nào được vẽ ra → phần
+	 * neo `#suaday` (dù `wp_safe_redirect` không có neo, trình duyệt vẫn tự giữ neo cũ của địa
+	 * chỉ đang đứng, xem `o_sua()`) trỏ vào một id không tồn tại, nên KHÔNG cuộn tới đâu cả —
+	 * và vì hàng sửa cũng biến mất theo, người bấm Lưu thấy y hệt như chưa bấm: "có đâu em".
+	 * Vá: chuyển hướng sau POST GIỮ LẠI đúng bốn khoá này (nếu có trong `$_GET` — chúng luôn có,
+	 * vì nằm ngay trong URL đang đứng khi bấm Lưu/Bù, POST không mang chúng theo body nhưng
+	 * không xoá được chúng khỏi URL của chính request), và tự nối `#suaday` — cùng công thức
+	 * với `hang_sua()`/`o_sua()`, để hàng vừa sửa vẫn mở nguyên chỗ sau khi lưu.
+	 */
+	private static function url_hien_sua() {
+		$neo = array();
+		foreach ( array( 'gnd', 'gma', 'sgn', 'sgm' ) as $k ) {
+			if ( isset( $_GET[ $k ] ) && '' !== $_GET[ $k ] ) {
+				$neo[ $k ] = sanitize_text_field( (string) wp_unslash( $_GET[ $k ] ) );
+			}
+		}
+		$u = self::url_hien();
+		return $neo ? ( add_query_arg( $neo, $u ) . '#suaday' ) : $u;
 	}
 
 	/** Ô ẩn chở bộ lọc qua một lượt POST — thiếu nó là lưu xong nhảy về danh sách đầy đủ. */
