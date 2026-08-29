@@ -1849,10 +1849,31 @@ class VHG_Trang {
     var box=$('bc-prog'); if(!box) return; box.textContent=''; box.className='bc-prog'+(p.du?' du':'');
     var head=el('b',null, p.du ? ('✓ ĐỦ BÁO CÁO '+p.so_coso+'/'+p.so_coso+' cơ sở') : ('Tiến độ: '+p.so_coso_xong+'/'+p.so_coso+' cơ sở'));
     box.appendChild(head);
-    (p.coso_xong||[]).forEach(function(c){ box.appendChild(el('span','bc-chip x',c)); });
+    /* Chip cơ sở đã gửi mang thêm `title` (Tiền mặt/QR/Tổng của đúng cơ sở đó) để rê chuột xem
+       nhanh trên máy tính — xem thêm dòng chi tiết ĐẦY ĐỦ ngay dưới cho máy chạm không rê được. */
+    var theoCoso={}; (p.theo_coso||[]).forEach(function(t){ theoCoso[t.ten]=t; });
+    (p.coso_xong||[]).forEach(function(c){
+      var chip=el('span','bc-chip x',c); var t=theoCoso[c];
+      if(t) chip.title='Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ';
+      box.appendChild(chip);
+    });
     (p.coso_conlai||[]).forEach(function(c){ box.appendChild(el('span','bc-chip o',c)); });
     if(p.tong) box.appendChild(el('span',null,' · Tổng '+money(p.tong)+'đ'));
     if(p.trang_thai==='chot_som') box.appendChild(el('span',null,' · ĐÃ CHỐT SỚM'+(p.bo_qua&&p.bo_qua.length?(' (bỏ: '+p.bo_qua.join(', ')+')'):'')));
+    /* Tổng tiền mặt/QR THEO TỪNG CƠ SỞ — anh Thắng 29/08/2026: "Hiện tổng doanh thu tiền mặt và
+       QR theo cơ sở trên này". Trước đây chỉ có MỘT số Tổng gộp cả ngày, không tách được cơ sở
+       nào thu tiền mặt bao nhiêu/QR bao nhiêu — phải mở từng báo cáo mới biết. Thêm dòng riêng,
+       width:100% để tự xuống hàng dưới chip (bc-prog vốn flex-wrap), mỗi cơ sở một dòng. */
+    if((p.theo_coso||[]).length){
+      var det=el('div'); det.style.cssText='width:100%;margin-top:6px;font-size:12px;color:#475569';
+      p.theo_coso.forEach(function(t){
+        var line=el('div'); line.style.marginTop='2px';
+        line.appendChild(el('b',null,t.ten));
+        line.appendChild(document.createTextNode(': Tiền mặt '+money(t.tien_mat)+'đ · QR '+money(t.qr)+'đ · Tổng '+money(t.tong)+'đ'));
+        det.appendChild(line);
+      });
+      box.appendChild(det);
+    }
   }
 
   function chotSom(){

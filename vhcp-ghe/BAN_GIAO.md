@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.7** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.64.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,22 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.64.0 — Tổng tiền mặt/QR THEO TỪNG CƠ SỞ ở khối Tiến độ
+
+Anh Thắng 29/08, nhìn khối "Tiến độ: 6/9 cơ sở … · Tổng 5.880.000đ": *"Hiện tổng doanh thu tiền
+mặt và QR theo cơ sở trên này"*. Trước đây khối này chỉ có MỘT số Tổng gộp cả ngày — muốn biết cơ
+sở nào thu tiền mặt bao nhiêu/QR bao nhiêu phải mở từng báo cáo ra xem.
+
+- **Backend (`VHG_BaoCao::phien_tinh()`):** ngoài tổng gộp cả ngày (`tong_tien_mat`/`tong_qr`/
+  `tong`) như cũ, nay CỘNG DỒN thêm theo từng `coso_key` (một cơ sở có thể có NHIỀU report_id
+  trong ngày do thu nhiều lần — xem v1.63.0/1.63.4 — phải gộp hết các lần của cùng cơ sở mới ra
+  đúng tổng cơ sở đó), trả thêm mảng `theo_coso`: `[{ten, tien_mat, qr, tong}, …]`. Đi xuyên suốt
+  cả 3 đường trả về phiên (`bc_phien`, `bc_submit`, `bc_chot_som`) vì cả ba đều gọi qua
+  `phien_tinh()`, không cần sửa riêng từng chỗ.
+- **Client (`veProg()`):** mỗi cơ sở ĐÃ GỬI (chip xanh) nay có thêm `title` (rê chuột xem nhanh
+  trên máy tính) VÀ một dòng chi tiết luôn hiện ngay dưới hàng chip (máy chạm không rê được) —
+  "Tên cơ sở: Tiền mặt X đ · QR Y đ · Tổng Z đ", mỗi cơ sở một dòng.
 
 ### v1.63.7 — "Lệch hàng" ở nút Gửi/Chốt VẪN còn sau 1.63.5 — gốc thật là `align-items:flex-end`
 

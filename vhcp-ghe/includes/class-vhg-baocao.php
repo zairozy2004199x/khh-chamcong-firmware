@@ -988,8 +988,10 @@ class VHG_BaoCao {
 			if ( '' !== $c ) { $scope_key[ self::squash( $c ) ] = $c; }
 		}
 
-		/* Cơ sở ĐÃ gửi báo cáo hôm nay (có ít nhất 1 ghế thực nhập), trong phạm vi. */
-		$done = array(); $tm = 0; $qr = 0; $tg = 0;
+		/* Cơ sở ĐÃ gửi báo cáo hôm nay (có ít nhất 1 ghế thực nhập), trong phạm vi.
+		   Cộng dồn theo coso_key — một cơ sở có thể có NHIỀU report_id trong ngày (thu nhiều lần,
+		   xem v1.63.0/1.63.4), theo_coso phải GỘP hết các lần lại mới ra đúng tổng của cơ sở đó. */
+		$done = array(); $theo_coso = array(); $tm = 0; $qr = 0; $tg = 0;
 		$hs = $wpdb->get_results( $wpdb->prepare(
 			'SELECT report_id, coso, coso_key FROM ' . VHG_DB::t( 'bc' ) . ' WHERE ngay=%s', $ngay ), ARRAY_A );
 		foreach ( (array) $hs as $h ) {
@@ -997,6 +999,12 @@ class VHG_BaoCao {
 			$s = self::tong_bc_( $h['report_id'] );
 			if ( $s['so'] <= 0 ) { continue; }
 			$done[ $h['coso_key'] ] = $h['coso'];
+			if ( ! isset( $theo_coso[ $h['coso_key'] ] ) ) {
+				$theo_coso[ $h['coso_key'] ] = array( 'ten' => $h['coso'], 'tien_mat' => 0, 'qr' => 0, 'tong' => 0 );
+			}
+			$theo_coso[ $h['coso_key'] ]['tien_mat'] += $s['tien_mat'];
+			$theo_coso[ $h['coso_key'] ]['qr']       += $s['qr'];
+			$theo_coso[ $h['coso_key'] ]['tong']     += $s['tong'];
 			$tm += $s['tien_mat']; $qr += $s['qr']; $tg += $s['tong'];
 		}
 
@@ -1015,6 +1023,7 @@ class VHG_BaoCao {
 			'coso_scope' => array_values( $scope_key ),
 			'coso_xong'  => array_values( $done ),
 			'coso_conlai' => $conlai,
+			'theo_coso' => array_values( $theo_coso ),   // {ten,tien_mat,qr,tong} mỗi cơ sở đã gửi
 			'tong_tien_mat' => $tm, 'tong_qr' => $qr, 'tong' => $tg,
 			'trang_thai' => $row ? (string) $row['trang_thai'] : ( ( $so > 0 && $xong >= $so ) ? 'da_gui' : 'dang_thu' ),
 			'chot_som' => $row ? (int) $row['chot_som'] : 0,
