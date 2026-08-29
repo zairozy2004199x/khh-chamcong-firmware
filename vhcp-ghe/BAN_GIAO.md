@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.69.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.70.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,25 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.70.0 — Vá "Nộp" đứng số cũ sau khi ghi đè Thực thu + tô đỏ cho kế toán
+
+Anh Thắng 29/08 bắt được ở ghế VP-PQ-16 (màn kế toán, tab Duyệt báo cáo): Tiền mặt đã ghi đè xuống
+830.000đ nhưng cột "Nộp" vẫn đứng ở 990.000đ (số cũ trước khi ghi đè) — *"Chỗ này bị sai"*, kèm yêu
+cầu *"Chỉ số nào thực thu (báo đỏ lên cho kế toán biết)"*.
+
+- **Nguyên nhân**: `nop_so_tien` (cột "Nộp") được rải một lần lúc gửi báo cáo theo đúng `tien_mat`
+  tại thời điểm đó (`chia_nop_()`). Sửa `tien_mat` sau đó — qua "Sửa 24h" của nhân viên
+  (`VHG_BaoCao::sua_dong()`) hoặc qua màn kế toán (`VHG_KeToan::sua()`) — không tự kéo `nop_so_tien`
+  theo, vì đây là cột lưu riêng, không tính lại mỗi lần đọc.
+- **Vá**: cả hai hàm sửa trên nay TỰ CẬP NHẬT `nop_so_tien` theo số tiền mặt mới, nhưng CHỈ khi
+  dòng đó trước đó đã nộp **duy nhất vừa đủ** đúng số `tien_mat` cũ (case phổ biến nhất — "nộp đủ"
+  là mặc định). Nộp dở dang thì để nguyên — không đủ dữ kiện chia lại đúng giữa nhiều ghế cùng báo
+  cáo, sửa sai còn nguy hơn để kế toán tự đối chiếu.
+- **Hoàn tác** (`VHG_KeToan::undo()`, việc `'sua'`) cũng cập nhật theo: nhật ký sửa nay lưu thêm
+  `nop_so_tien` cũ để hoàn tác trả lại đúng, không chỉ trả lại chỉ số/tiền mặt mà bỏ quên cột Nộp.
+- **Tô đỏ**: màn kế toán (`ktdRow`) nay tô đỏ + đậm số "Tiền mặt" VÀ dòng ghi chú khi ghế đang có
+  "Thực thu ghi đè" (trước chỉ tô đỏ dòng ghi chú bắt đầu bằng ⚠, bỏ sót câu ghi đè đứng một mình).
 
 ### v1.69.0 — Bắt buộc ảnh khi Sửa 24h (tối thiểu 1 ảnh/ghế)
 

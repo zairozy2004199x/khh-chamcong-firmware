@@ -1065,6 +1065,21 @@ class VHG_BaoCao {
 		$data_up = array( 'chi_so_truoc' => $r['chi_so_truoc'], 'chi_so_sau' => $r['chi_so_sau'],
 			'actual' => $r['actual'], 'tien_mat' => $r['tien_mat'], 'qr' => $r['qr'], 'dieu_chinh' => $r['dieu_chinh'],
 			'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'] );
+		/* 🔴 "NỘP" (nop_so_tien) BỊ KẸT SỐ CŨ NẾU KHÔNG SỬA THEO — anh Thắng 29/08/2026 phát hiện ở
+		   màn kế toán: ghế VP-PQ-16 Tiền mặt đã ghi đè xuống 830.000đ nhưng cột "Nộp" vẫn đứng ở
+		   990.000đ (số actual TRƯỚC khi ghi đè). `nop_so_tien` được `chia_nop_()` rải MỘT LẦN lúc
+		   gửi báo cáo theo đúng `tien_mat` tại thời điểm đó; sửa `tien_mat` sau này (24h) không tự
+		   động kéo `nop_so_tien` theo, vì nó là một cột lưu riêng, không phải tính lại mỗi lần đọc.
+		   Chỉ tự sửa lại khi dòng này trước đó ĐÃ NỘP DUY NHẤT VỪA ĐỦ đúng số `tien_mat` cũ (case
+		   phổ biến nhất — "nộp đủ" là mặc định) → nộp cũng sửa theo đúng số MỚI, vẫn coi là đủ.
+		   Trường hợp nộp DỞ DANG (nop_so_tien khác tien_mat cũ) thì KHÔNG đụng vào — không đủ dữ
+		   kiện để biết phải cộng/trừ phần chênh vào đâu giữa nhiều ghế cùng report, để nguyên cho
+		   kế toán tự đối chiếu còn hơn đoán sai. */
+		$tien_mat_cu = (int) $d['tien_mat'];
+		if ( $tien_mat_cu !== (int) $r['tien_mat'] && 'unpaid' !== (string) $d['nop_trang_thai']
+			&& (int) $d['nop_so_tien'] === $tien_mat_cu ) {
+			$data_up['nop_so_tien'] = $r['tien_mat'];
+		}
 		if ( count( $anh_moi ) ) { $data_up['anh'] = wp_json_encode( $anh_tong ); }
 		$wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );

@@ -4357,11 +4357,15 @@ function ktdRow(o,c,m,reload,locked){
     });
     tdN.appendChild(wrapA);
   }
-  /* Lý do chỉ số bất thường hiện ngay dưới tên ghế — anh Thắng: "báo về cho kế toán để check
-     doanh thu". Trước đây ghi_chu chỉ thấy khi bấm Sửa mở form ra; giờ hiện thẳng ra bảng nên
-     không cần mở từng dòng mới biết ghế nào có vấn đề. */
+  /* Lý do chỉ số bất thường HOẶC Thực thu ghi đè hiện ngay dưới tên ghế — anh Thắng: "báo về cho
+     kế toán để check doanh thu". Trước đây ghi_chu chỉ thấy khi bấm Sửa mở form ra; giờ hiện thẳng
+     ra bảng nên không cần mở từng dòng mới biết ghế nào có vấn đề. Anh Thắng 29/08/2026 sau khi
+     bắt được ghế VP-PQ-16 (Tiền mặt ghi đè 830.000đ nhưng cột Nộp vẫn đứng số cũ): "Chỉ số nào
+     thực thu (báo đỏ lên cho kế toán biết)" — thêm dấu "Thực thu ghi đè" vào cùng điều kiện tô đỏ
+     (trước chỉ tô đỏ dòng bắt đầu bằng ⚠, không bắt được câu ghi đè đứng một mình không có ⚠). */
+  var coGhiDe=/Thực thu ghi đè/.test(c.note||'');
   if(c.note){
-    var noB=ktEl('div', /^⚠/.test(c.note)?'mut err':'mut', c.note);
+    var noB=ktEl('div', (/^⚠/.test(c.note)||coGhiDe)?'mut err':'mut', c.note);
     noB.style.cssText='margin-top:4px;max-width:220px;white-space:normal';
     tdN.appendChild(noB);
   }
@@ -4369,7 +4373,13 @@ function ktdRow(o,c,m,reload,locked){
   tr.appendChild(td(c.meterBefore==null?'—':ktVnd(c.meterBefore),1));
   tr.appendChild(td(c.meterAfter==null?'—':ktVnd(c.meterAfter),1));
   tr.appendChild(td(ktVnd(c.actual),1));
-  tr.appendChild(td(ktVnd(c.cash),1));
+  /* Số "Tiền mặt" TỰ NÓ cũng tô đỏ + đậm khi đang bị ghi đè — không chỉ dòng ghi chú nhỏ bên trên,
+     vì cột số mới là chỗ kế toán nhìn thẳng vào khi soát tiền, dễ lướt qua đúng chỗ đang sai lệch
+     với "Nộp" (cash ghi đè mà Nộp còn tính theo số cũ là bug riêng, đã vá ở VHG_KeToan::sua()/
+     VHG_BaoCao::sua_dong() — tô đỏ ở đây chỉ để kế toán TỰ NHÌN THẤY còn lệch hay không). */
+  var tdCash=td(ktVnd(c.cash),1);
+  if(coGhiDe){ tdCash.style.color='var(--red)'; tdCash.style.fontWeight='700'; tdCash.title='Thực thu ghi đè — không tính theo công thức chỉ số.'; }
+  tr.appendChild(tdCash);
   tr.appendChild(td(ktVnd(c.qr),1));
   tr.appendChild(td(ktVnd(c.paid),1));
   var tdD=ktEl('td'); var cb=ktEl('input'); cb.type='checkbox'; cb.checked=!!c.confirmed;

@@ -273,12 +273,20 @@ class VHG_KeToan {
 			'report_id' => $rid, 'ma_may' => $ma,
 			'chi_so_truoc' => $d['chi_so_truoc'], 'chi_so_sau' => $d['chi_so_sau'], 'actual' => $d['actual'],
 			'tien_mat' => $d['tien_mat'], 'qr' => $d['qr'], 'dieu_chinh' => $d['dieu_chinh'], 'tong' => $d['tong'],
-			'ghi_chu' => $d['ghi_chu'] ) ), $boi );
+			'ghi_chu' => $d['ghi_chu'], 'nop_so_tien' => $d['nop_so_tien'] ) ), $boi );
 
-		$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
-			'chi_so_truoc' => $before, 'chi_so_sau' => $after, 'actual' => $actual,
-			'tien_mat' => $cash, 'qr' => $qr, 'dieu_chinh' => $adj, 'tong' => $tong, 'ghi_chu' => $note ),
-			array( 'id' => (int) $d['id'] ) );
+		$data_up = array( 'chi_so_truoc' => $before, 'chi_so_sau' => $after, 'actual' => $actual,
+			'tien_mat' => $cash, 'qr' => $qr, 'dieu_chinh' => $adj, 'tong' => $tong, 'ghi_chu' => $note );
+		/* 🔴 "NỘP" (nop_so_tien) BỊ KẸT SỐ CŨ NẾU KHÔNG SỬA THEO — cùng lỗi và cùng cách vá như
+		   VHG_BaoCao::sua_dong() (màn nhân viên sửa 24h): anh Thắng 29/08/2026 phát hiện ở đúng
+		   màn kế toán này, ghế VP-PQ-16 Tiền mặt ghi đè xuống 830.000đ nhưng cột "Nộp" vẫn đứng ở
+		   990.000đ. Chỉ tự sửa khi dòng này trước đó ĐÃ NỘP DUY NHẤT VỪA ĐỦ đúng `tien_mat` cũ —
+		   nộp dở dang thì để nguyên, không đủ dữ kiện chia lại giữa nhiều ghế cùng report. */
+		if ( (int) $d['tien_mat'] !== $cash && 'unpaid' !== (string) $d['nop_trang_thai']
+			&& (int) $d['nop_so_tien'] === (int) $d['tien_mat'] ) {
+			$data_up['nop_so_tien'] = $cash;
+		}
+		$wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
 		VHG_BaoCao::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số → ngày kế tiếp tự nối lại chỉ số trước
 		return array( 'ok' => true, 'message' => 'Đã sửa ghế ' . $ma . '.',
@@ -528,10 +536,14 @@ class VHG_KeToan {
 		foreach ( $ct as $o ) {
 			$key = array( 'report_id' => $o['report_id'], 'ma_may' => $o['ma_may'] );
 			if ( 'sua' === $u['viec'] ) {
-				$wpdb->update( VHG_DB::t( 'bc_dong' ), array(
+				$up = array(
 					'chi_so_truoc' => $o['chi_so_truoc'], 'chi_so_sau' => $o['chi_so_sau'], 'actual' => $o['actual'],
 					'tien_mat' => $o['tien_mat'], 'qr' => $o['qr'], 'dieu_chinh' => $o['dieu_chinh'], 'tong' => $o['tong'],
-					'ghi_chu' => $o['ghi_chu'] ), $key );
+					'ghi_chu' => $o['ghi_chu'] );
+				/* `nop_so_tien` chỉ có trong nhật ký TỪ bản vá 29/08/2026 trở đi — nhật ký cũ hơn
+				   không có khoá này, `isset()` tránh ghi đè `null` lên cột đang có số hợp lệ. */
+				if ( isset( $o['nop_so_tien'] ) ) { $up['nop_so_tien'] = $o['nop_so_tien']; }
+				$wpdb->update( VHG_DB::t( 'bc_dong' ), $up, $key );
 			} elseif ( 'qr' === $u['viec'] ) {
 				$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'qr' => $o['qr'], 'tong' => $o['tong'] ), $key );
 			} else { // doisoat — trả lại ô nộp tiền
