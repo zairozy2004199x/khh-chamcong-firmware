@@ -33,6 +33,21 @@ class VHG_DB {
 		foreach ( self::bang() as $ten => $cot ) {
 			dbDelta( 'CREATE TABLE ' . self::t( $ten ) . " (\n" . $cot . "\n) $c" );
 		}
+		self::migrate_();
+	}
+
+	/**
+	 * Migration TAY cho những đổi mà dbDelta không làm được. Idempotent (chạy mỗi lần đổi phiên bản).
+	 *
+	 * 🔴 Bỏ UNIQUE cũ `coso_ngay (coso_key,ngay)` của bảng `bc` — nay cho THU NHIỀU LẦN/ngày, khoá
+	 *    mới là `coso_ngay_lan (coso_key,ngay,lan)` (dbDelta tự thêm). dbDelta THÊM được khoá mới
+	 *    nhưng KHÔNG BỎ khoá cũ; mà khoá cũ còn thì chèn lần thu thứ 2 trong ngày vẫn bị chặn.
+	 */
+	private static function migrate_() {
+		global $wpdb;
+		$bc = self::t( 'bc' );
+		$co = $wpdb->get_var( "SHOW INDEX FROM $bc WHERE Key_name='coso_ngay'" );
+		if ( $co ) { $wpdb->query( "ALTER TABLE $bc DROP INDEX coso_ngay" ); }
 	}
 
 	public static function bang() {
@@ -576,6 +591,7 @@ class VHG_DB {
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			report_id VARCHAR(40) NOT NULL,
 			ngay DATE NOT NULL,
+			lan SMALLINT NOT NULL DEFAULT 1,
 			coso VARCHAR(190) NOT NULL DEFAULT '',
 			coso_key VARCHAR(190) NOT NULL DEFAULT '',
 			nhan_vien VARCHAR(190) NOT NULL DEFAULT '',
@@ -593,7 +609,7 @@ class VHG_DB {
 			sua_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY report_id (report_id),
-			UNIQUE KEY coso_ngay (coso_key,ngay),
+			UNIQUE KEY coso_ngay_lan (coso_key,ngay,lan),
 			KEY ngay (ngay)";
 
 		$b['bc_dong'] = "
@@ -602,6 +618,7 @@ class VHG_DB {
 			ma_may VARCHAR(40) NOT NULL,
 			ten VARCHAR(190) NOT NULL DEFAULT '',
 			ngay DATE NOT NULL,
+			lan SMALLINT NOT NULL DEFAULT 1,
 			chi_so_truoc BIGINT(20) NULL,
 			chi_so_sau BIGINT(20) NULL,
 			actual BIGINT(20) NOT NULL DEFAULT 0,

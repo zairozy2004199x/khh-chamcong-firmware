@@ -131,9 +131,11 @@ class VHG_Trang {
 				self::tra( VHG_BaoCao::boot( $pin ) ); return;
 			}
 			if ( 'bc_lastmeters' === $viec ) {
+				/* toi=1 (chế độ "thu lần nữa"): lấy chỉ số sau MỚI NHẤT tính cả các lần thu trong
+				   chính ngày đó, để lần thu mới nối tiếp lần trước. Mặc định giữ như cũ (ngày trước). */
 				self::tra( array( 'ok' => true, 'map' => VHG_BaoCao::lay_chiso_truoc(
 					isset( $d['codes'] ) ? (array) $d['codes'] : array(),
-					isset( $d['ngay'] ) ? $d['ngay'] : '' ) ) );
+					isset( $d['ngay'] ) ? $d['ngay'] : '', ! empty( $d['toi'] ) ) ) );
 				return;
 			}
 			/* Xem trước lượt kích ghế từ xa cần trừ — cho nhân viên thấy TRƯỚC khi Gửi, khớp đúng
@@ -1208,7 +1210,7 @@ class VHG_Trang {
 		return <<<'JS'
 (function(){
   var API = window.VHG_API || '';
-  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false;
+  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false, LAN_MOI=false;
   /* GỌN = màn điện thoại: chỉ nhập chỉ số + gửi. ĐẦY ĐỦ = máy tính: hiện hết. Mặc định theo bề
      ngang màn hình, nhớ lựa chọn của người dùng. Anh Thắng 27/08: điện thoại ít thông tin thôi. */
   var GON = true;
@@ -1436,7 +1438,14 @@ class VHG_Trang {
     var bGui=el('button','bc-btn pri','Gửi báo cáo cơ sở này'); bGui.id='bc-gui'; bGui.onclick=guiBaoCao;
     var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
     brow.appendChild(bGui); brow.appendChild(bChot);
+    /* ➕ THU LẦN NỮA — thu nhiều lần trong ngày: mở một lần thu MỚI, chỉ số trước tự nối tiếp
+       chỉ số sau của lần vừa gửi (không đè lần cũ). Anh Thắng 29/08/2026. */
+    var bLan=el('button','bc-btn', LAN_MOI?'↩ Huỷ thu lần nữa':'➕ Thu lần nữa'); bLan.id='bc-lan';
+    bLan.onclick=function(){ LAN_MOI=!LAN_MOI; if(LOC) selectLoc(LOC); };
+    brow.appendChild(bLan);
     if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
+    if(LAN_MOI){ var lm=el('div','bc-mut'); lm.style.cssText='margin-top:6px;color:#166534;font-weight:600';
+      lm.textContent='Đang thu LẦN NỮA — chỉ số trước đã nối tiếp lần trước; nhập chỉ số sau mới rồi Gửi.'; bar.appendChild(lm); }
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
     var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
@@ -1479,12 +1488,12 @@ class VHG_Trang {
     ghe.forEach(function(g){ body.appendChild(veDong(g,null)); });
     tinhTong();
     bcDocNhap();
-    goi('bc_lastmeters',{codes:codes,ngay:NGAY},function(r){
+    goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:LAN_MOI?1:0},function(r){
       LAST=(r&&r.map)||{};
       body.textContent='';
       ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
       tinhTong();
-      bcDocNhap();
+      if(!LAN_MOI) bcDocNhap();   // lần thu mới: KHÔNG nạp nháp cũ (nhập mới từ đầu)
     });
     /* Lượt kích ghế từ xa cần trừ — xem trước cho nhân viên, xem khối 🔧 ở calc(). Gọi riêng
        (không chờ bc_lastmeters) vì đây chỉ là thông tin thêm, KHÔNG được làm chậm lúc vẽ bảng
@@ -1763,10 +1772,11 @@ class VHG_Trang {
     gomAnhTungGhe_(rows,function(){
       docAnh_('bc-proofs',function(proofs){
         msg.textContent='Đang gửi…';
-        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs} },function(r){
+        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs}, lan_moi: LAN_MOI?1:0 },function(r){
           GUI_DANG=false; $('bc-gui').disabled=false;
           if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
           msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
+          LAN_MOI=false;   // gửi xong lần thu → về chế độ thường (lần sau muốn thu tiếp bấm "Thu lần nữa")
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
           document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; });
           document.querySelectorAll('#bc-rows img').forEach(function(im){ im.style.display='none'; });

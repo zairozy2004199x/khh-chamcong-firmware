@@ -154,15 +154,19 @@ class VHG_BaoCao {
 	 * hạn đúng khoảng "lượt kích ghế từ xa" mà báo cáo NÀY bao phủ (xem kich_xa_tru() bên dưới)
 	 * — không có ngày mốc thì không biết trừ lượt kích từ đâu tới đâu, dễ đếm đôi với kỳ trước.
 	 */
-	private static function chi_so_truoc_ct_( $ma_may, $ngay ) {
+	private static function chi_so_truoc_ct_( $ma_may, $ngay, $toi = false ) {
 		global $wpdb;
 		$ma = (string) $ma_may;
 		$ngay = self::ngay_( $ngay );
 		if ( '' === $ma || '' === $ngay ) { return array( 'cs' => null, 'ngay' => '' ); }
 		$found_cs = null; $found_d = '';
+		/* $toi=true → tính CẢ chỉ số sau CỦA CHÍNH NGÀY ĐÓ (các lần thu trước trong ngày) làm mốc,
+		   để "thu lần nữa" nối tiếp lần trước; sắp lan DESC để lấy đúng lần thu MỚI NHẤT trong ngày.
+		   $toi=false (mặc định) giữ nguyên: chỉ lấy chỉ số sau của ngày TRƯỚC ngày báo cáo. */
+		$ss = $toi ? '<=' : '<';
 		$r1 = $wpdb->get_row( $wpdb->prepare(
 			'SELECT chi_so_sau cs, ngay d FROM ' . VHG_DB::t( 'bc_dong' )
-			. ' WHERE ma_may=%s AND ngay < %s AND chi_so_sau IS NOT NULL ORDER BY ngay DESC, chi_so_sau DESC LIMIT 1',
+			. " WHERE ma_may=%s AND ngay $ss %s AND chi_so_sau IS NOT NULL ORDER BY ngay DESC, lan DESC, chi_so_sau DESC LIMIT 1",
 			$ma, $ngay ), ARRAY_A );
 		if ( $r1 ) { $found_cs = (int) $r1['cs']; $found_d = (string) $r1['d']; }
 		$r2 = $wpdb->get_row( $wpdb->prepare(
@@ -181,13 +185,13 @@ class VHG_BaoCao {
 		return array( 'cs' => null === $found_cs ? null : (int) $found_cs, 'ngay' => $found_d );
 	}
 
-	public static function chi_so_truoc( $ma_may, $ngay ) {
-		return self::chi_so_truoc_ct_( $ma_may, $ngay )['cs'];
+	public static function chi_so_truoc( $ma_may, $ngay, $toi = false ) {
+		return self::chi_so_truoc_ct_( $ma_may, $ngay, $toi )['cs'];
 	}
 
-	public static function lay_chiso_truoc( $codes, $ngay ) {
+	public static function lay_chiso_truoc( $codes, $ngay, $toi = false ) {
 		$out = array();
-		foreach ( (array) $codes as $c ) { $out[ (string) $c ] = self::chi_so_truoc( $c, $ngay ); }
+		foreach ( (array) $codes as $c ) { $out[ (string) $c ] = self::chi_so_truoc( $c, $ngay, $toi ); }
 		return $out;
 	}
 
@@ -432,8 +436,9 @@ class VHG_BaoCao {
 
 	private static function header_( $coso, $ngay ) {
 		global $wpdb;
+		/* Nhiều lần thu/ngày: trả LẦN MỚI NHẤT (lan cao nhất) để "gửi lại" sửa đúng lần đang thu. */
 		return $wpdb->get_row( $wpdb->prepare(
-			'SELECT * FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s LIMIT 1',
+			'SELECT * FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s ORDER BY lan DESC LIMIT 1',
 			self::squash( $coso ), self::ngay_( $ngay ) ), ARRAY_A );
 	}
 	private static function header_theo_id_( $rid ) {
@@ -471,6 +476,7 @@ class VHG_BaoCao {
 
 		$ngay = self::ngay_( isset( $p['date'] ) ? $p['date'] : '' );
 		$coso = trim( (string) ( isset( $p['loc'] ) ? $p['loc'] : ( isset( $rows_in[0]['locName'] ) ? $rows_in[0]['locName'] : '' ) ) );
+		$lan_moi = ! empty( $p['lan_moi'] );   // "Thu lần nữa": tạo lần thu MỚI trong ngày, nối tiếp chỉ số
 		if ( '' === $ngay ) { return array( 'ok' => false, 'message' => 'Chọn ngày báo cáo.' ); }
 		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Chọn cơ sở.' ); }
 		if ( ! self::trong_pham_vi( $q, $coso ) ) { return array( 'ok' => false, 'message' => 'Cơ sở ' . $coso . ' không thuộc phạm vi PIN của bạn.' ); }
@@ -487,7 +493,8 @@ class VHG_BaoCao {
 			if ( ! self::trong_pham_vi( $q, $coso, $ma ) ) { continue; }
 			$after = isset( $r0['meterAfter'] ) ? $r0['meterAfter'] : ( isset( $r0['chi_so_sau'] ) ? $r0['chi_so_sau'] : '' );
 			if ( '' === (string) $after || null === $after ) { continue; }
-			$truoc_ht = self::chi_so_truoc( $ma, $ngay );
+			/* Lần thu mới trong ngày → mốc lấy CẢ chỉ số sau của các lần thu trước trong ngày (toi=true). */
+			$truoc_ht = self::chi_so_truoc( $ma, $ngay, $lan_moi );
 			$before = ( null !== $truoc_ht ) ? $truoc_ht : self::songuyen_( isset( $r0['meterBefore'] ) ? $r0['meterBefore'] : '' );
 			/* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy
 			   lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo (nó sẽ báo
@@ -559,13 +566,24 @@ class VHG_BaoCao {
 		}
 		if ( ! count( $rows ) ) { return array( 'ok' => false, 'message' => 'Chưa nhập chỉ số sau cho ghế nào.' ); }
 
-		$prev = self::header_( $coso, $ngay );
+		$ck = self::squash( $coso );
+		if ( $lan_moi ) {
+			/* THU LẦN NỮA: KHÔNG sửa báo cáo cũ trong ngày, tạo LẦN THU MỚI (report_id mới, lan +1).
+			   Chỉ số trước của lần này đã nối tiếp lần trước ở trên (chi_so_truoc toi=true). */
+			$prev = null;
+			$lan  = (int) $wpdb->get_var( $wpdb->prepare(
+				'SELECT COALESCE(MAX(lan),0)+1 FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s', $ck, $ngay ) );
+			if ( $lan < 1 ) { $lan = 1; }
+		} else {
+			$prev = self::header_( $coso, $ngay );   // lần mới nhất trong ngày (sửa/gửi lại)
+			$lan  = $prev ? (int) $prev['lan'] : 1;
+		}
 		$rid  = $prev ? (string) $prev['report_id'] : ( 'RPT-' . current_time( 'YmdHis' ) . '-' . wp_rand( 100, 999 ) );
 		$now  = current_time( 'mysql' );
 		$pay  = self::doc_payment_( isset( $p['payment'] ) ? $p['payment'] : array(), $rows );
 		$kt_locked = $prev && ! empty( $prev['kt_doi_soat'] );
 
-		$header = array( 'report_id' => $rid, 'ngay' => $ngay, 'coso' => $coso, 'coso_key' => self::squash( $coso ),
+		$header = array( 'report_id' => $rid, 'ngay' => $ngay, 'lan' => $lan, 'coso' => $coso, 'coso_key' => $ck,
 			'nhan_vien' => $q['ten'], 'sua_luc' => $now );
 		if ( ! $kt_locked ) {
 			$header = array_merge( $header, array(
@@ -586,7 +604,7 @@ class VHG_BaoCao {
 			$gui_ma[ $r['ma_may'] ] = true;
 			$np = isset( $chia_nop[ $r['ma_may'] ] ) ? $chia_nop[ $r['ma_may'] ]
 				: array( 'nop_so_tien' => 0, 'nop_trang_thai' => '', 'nop_hinhthuc' => '', 'nop_ngay' => null );
-			$data = array( 'report_id' => $rid, 'ma_may' => $r['ma_may'], 'ten' => $r['ten'], 'ngay' => $ngay,
+			$data = array( 'report_id' => $rid, 'ma_may' => $r['ma_may'], 'ten' => $r['ten'], 'ngay' => $ngay, 'lan' => $lan,
 				'chi_so_truoc' => $r['chi_so_truoc'], 'chi_so_sau' => $r['chi_so_sau'], 'actual' => $r['actual'],
 				'tien_mat' => $r['tien_mat'], 'qr' => $r['qr'], 'dieu_chinh' => $r['dieu_chinh'],
 				'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'],

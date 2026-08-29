@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.62.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,27 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.0 — Thu NHIỀU LẦN trong ngày (mỗi lần 1 bản ghi, chỉ số nối tiếp)
+Anh Thắng 29/08: *"thay vì 1 ngày 1 lần, cho thu nhiều lần; lần sau chỉ số tự đẩy chỉ số cũ vào"*.
+- **CSDL:** thêm cột `lan SMALLINT` vào `bc` và `bc_dong`; đổi UNIQUE của `bc` từ
+  `(coso_key,ngay)` → `(coso_key,ngay,lan)`. dbDelta KHÔNG tự bỏ khoá cũ nên có `VHG_DB::migrate_()`
+  (chạy trong `install()`, idempotent) `ALTER TABLE bc DROP INDEX coso_ngay` nếu còn.
+- **Nối chỉ số theo `(ngày, lần)`:** `chi_so_truoc_ct_()` thêm tham số `$toi`; `$toi=true` lấy CẢ
+  chỉ số sau của các lần thu TRONG chính ngày đó (sắp `ngày DESC, lan DESC`) để lần sau nối tiếp
+  lần trước. `chi_so_truoc()/lay_chiso_truoc()` thêm `$toi` truyền xuống.
+- **`luu()`:** đọc cờ `lan_moi`. Có cờ → tạo LẦN THU MỚI: `report_id` mới, `lan = MAX(lan ngày đó)+1`,
+  chỉ số trước tính với `toi=true` (nối lần trước); không cờ → sửa lần mới nhất trong ngày như cũ
+  (`header_()` nay `ORDER BY lan DESC`). Cột `lan` ghi vào cả `bc` lẫn `bc_dong`.
+- **Client `js_baocao()`:** nút **➕ Thu lần nữa** (`bc-lan`): bật `LAN_MOI`, tải lại chỉ số trước
+  với `toi=1` (nối tiếp), không nạp nháp cũ; khi Gửi kèm `lan_moi:1`; gửi xong tự tắt. `bc_lastmeters`
+  nhận thêm `toi`.
+- **Kế toán KHÔNG phải sửa gì:** `ds()` và `doanhthu_ky()` vốn GOM + CỘNG theo `coso_key|ngày`,
+  "Duyệt cả báo cáo"/"Khoá ngày" theo `coso+ngày` (bao mọi lần), checkbox duyệt lẻ theo
+  `(report_id,ma_may)` (mỗi lần một report_id) → nhiều lần/ngày tự cộng đúng.
+- ⚠️ **Còn để ý:** ngày đã KHOÁ vẫn chặn thu thêm (đúng ý — nhờ kế toán mở). Nối chỉ số GIỮA các
+  lần CÙNG NGÀY khi SỬA lần cũ chưa tự lan sang lần sau cùng ngày (hiếm; nối lúc tạo là đủ). Chi
+  tiết một ngày hiện mỗi lần một dòng cho cùng ghế (đúng, mỗi lần thu một dòng).
 
 ### v1.62.0 — Ô ảnh ở mọi chế độ + nối dòng thời gian chỉ số
 - **Ô nhập ảnh (📷 Chỉ số / 🧹 Vệ sinh) LUÔN hiện**, cả chế độ Gọn (điện thoại) lẫn Đầy đủ. Trước
