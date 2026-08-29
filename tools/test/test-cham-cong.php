@@ -10100,6 +10100,79 @@ t( '🔴 Cửa hàng trưởng gọi thẳng đường ghép vẫn bị chối',
 	isset( $tt_bao[0]['loi'] ), $tt_bao );
 teq( 'và không có cặp nào thêm', 'MOT9', VHCC_NhanSu::ma_that( 'MOT9' ) );
 
+/* ---- "SỬA LẠI TRÊN MÁY" / "GỠ KHỎI MÁY" — nút ở cột Họ tên --------------------------------
+   Anh Thắng 29/08/2026: *"thêm tinh năng, xóa, sửa trường hợp lỗi hoặc nhân viên nghỉ việc"*.
+   Sửa hồ sơ (tên/ảnh/giới tính) qua ô "sửa ▾" chỉ ghi lên WEB — máy chấm công không tự cập nhật
+   theo, vì nó chỉ nhận lệnh đúng MỘT lần lúc TẠO hồ sơ (xem day_len_may()). Hai nút này đẩy lại
+   / gỡ trên máy VẬT LÝ, không đụng gì tới hồ sơ hay lịch sử chấm công trên web.
+   Dùng lại GV1 (còn hồ sơ; GV2 đã xoá ở khối trên khi ghép). Dựng RIÊNG một máy mang serial
+   'SN-GV' cho TUTU_BT — không đụng máy của phép thử khác, và tự dọn (xoá 'SN-GV') ở cuối khối
+   để không làm lệch số đếm máy của các phép thử phía sau. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-GV', 'mac' => '', 'cua_hang' => 'TUTU_BT' ) );
+$may_cs_hien = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'may' ) . " WHERE cua_hang='TUTU_BT'" );
+t( '(dàn cảnh) TUTU_BT có ít nhất máy vừa gán', count( $may_cs_hien ) > 0, $may_cs_hien );
+
+$r_sua = VHCC_NhanSu::sua_lai_tren_may( $U_AD, 'GV1' );
+t( '🔴 Admin sửa lại trên máy: chạy được', ! empty( $r_sua['ok'] ), $r_sua );
+t( 'câu báo nói rõ là ĐANG SỬA LẠI, không phải tạo mới',
+	strpos( $r_sua['thong_bao'], 'sửa lại thông tin trên' ) !== false, $r_sua );
+$lenh_sua = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='GV1' AND action='edit'" );
+teq( '🔴 đặt đúng một lệnh edit cho MỖI máy đang gán ở cơ sở',
+	count( $may_cs_hien ), count( $lenh_sua ) );
+teq( 'lệnh edit mang đúng tên hiện có trong hồ sơ, không bịa', 'Đặng Duy Ghép', (string) $lenh_sua[0]['ho_ten'] );
+
+$_POST = array( 'sua_may' => 'GV1' );
+$tt_sua_bao = VHCC_TrangNS::lam_viec( 'sua_may_nv', $U_AD );
+$_POST = array();
+t( '🔴 nút "sửa lại trên máy" đi đúng qua đường sua_lai_tren_may()', isset( $tt_sua_bao[0]['ok'] ), $tt_sua_bao );
+
+$_POST = array( 'sua_may' => 'GV1' );
+$tt_sua_cht = VHCC_TrangNS::lam_viec( 'sua_may_nv', $U_CHT_G );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng KHÔNG sửa được trên máy — thiếu quyền "Hồ sơ nhân sự" (Kế toán+)',
+	isset( $tt_sua_cht[0]['loi'] ) && strpos( $tt_sua_cht[0]['loi'], 'Không có quyền' ) !== false,
+	$tt_sua_cht );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$r_xoa = VHCC_NhanSu::xoa_khoi_may( $U_AD, 'GV1' );
+t( '🔴 Admin gỡ khỏi máy: chạy được', ! empty( $r_xoa['ok'] ), $r_xoa );
+t( 'câu báo nói "gỡ khỏi", không nhắc chuyện tên/ảnh khuôn mặt',
+	strpos( $r_xoa['thong_bao'], 'gỡ khỏi' ) !== false, $r_xoa );
+$lenh_xoa = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='GV1' AND action='delete'" );
+teq( 'đặt đúng một lệnh delete cho MỖI máy đang gán ở cơ sở',
+	count( $may_cs_hien ), count( $lenh_xoa ) );
+t( '🔴 lệnh xoá KHÔNG mang tên/ảnh — chỉ cần mã để máy biết xoá ai',
+	empty( $lenh_xoa[0]['ho_ten'] ), $lenh_xoa );
+teq( '🔴 hồ sơ GV1 trên WEB không hề bị đụng — gỡ khỏi máy khác việc xoá hồ sơ',
+	'Đặng Duy Ghép', (string) VHCC_NhanSu::ho_so( 'GV1' )['ho_ten'] );
+
+$_POST = array( 'xoa_may' => 'GV1' );
+$tt_xoa_bao = VHCC_TrangNS::lam_viec( 'xoa_may_nv', $U_AD );
+$_POST = array();
+t( '🔴 nút "gỡ khỏi máy" đi đúng qua đường xoa_khoi_may()', isset( $tt_xoa_bao[0]['ok'] ), $tt_xoa_bao );
+
+$_POST = array( 'xoa_may' => 'GV1' );
+$tt_xoa_cht = VHCC_TrangNS::lam_viec( 'xoa_may_nv', $U_CHT_G );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng KHÔNG gỡ được trên máy — thiếu quyền "Hồ sơ nhân sự" (Kế toán+)',
+	isset( $tt_xoa_cht[0]['loi'] ) && strpos( $tt_xoa_cht[0]['loi'], 'Không có quyền' ) !== false,
+	$tt_xoa_cht );
+
+$r_khong_co = VHCC_NhanSu::sua_lai_tren_may( $U_AD, 'KHONGCOMA123' );
+t( '🔴 mã không có hồ sơ thì bị chối rõ ràng, không âm thầm bỏ qua',
+	isset( $r_khong_co['error'] ) && strpos( $r_khong_co['error'], 'Không thấy hồ sơ' ) !== false,
+	$r_khong_co );
+
+/* Hai nút hiện ngay tại hàng GV1 trên bảng nhân sự — bấm là gửi đúng mã, không phải gõ tay. */
+$tt_may_h = vhcc_ns( 'Admin' );
+t( '🔴 nút "sửa lại trên máy" có mặt tại hàng GV1',
+	strpos( $tt_may_h, 'name="sua_may" value="GV1"' ) !== false, $tt_may_h );
+t( '🔴 nút "gỡ khỏi máy" có mặt tại hàng GV1',
+	strpos( $tt_may_h, 'name="xoa_may" value="GV1"' ) !== false, $tt_may_h );
+$wpdb->query( "DELETE FROM " . VHCC_DB::t( 'may' ) . " WHERE serial='SN-GV'" );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+
 /* ---- DÒ SẴN CẶP MÃ THEO HỌ TÊN ------------------------------------------------------------
    Anh Thắng 28/08/2026: *"cách dò tên nhân viên trùng để ghép mã được không: theo họ tên nhân
    viên"*. Hai ô gõ tay đủ cho một cặp, không đủ cho một chuỗi 26 cửa hàng.

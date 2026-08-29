@@ -178,6 +178,10 @@ class VHCC_TrangNS {
 		   `ghep_voi` — CHỈ nút vừa bấm góp mặt trong `$_POST`, không đụng các ô quyền khác trong
 		   cùng form, y hệt cách `xoa_ma`/`cot` đã làm ở trên. Xem viec_ghep_voi(). */
 		elseif ( isset( $_POST['ghep_voi'] ) ) { $viec_gui = 'ghep_voi_nv'; }
+		/* Hai nút máy chấm công ở cột Họ tên ("sửa lại trên máy 🔄" / "gỡ khỏi máy 📵") — cùng lý
+		   do và cùng lối với `ghep_voi`/`xoa_ma` ở trên. Xem viec_sua_may()/viec_xoa_may(). */
+		elseif ( isset( $_POST['sua_may'] ) ) { $viec_gui = 'sua_may_nv'; }
+		elseif ( isset( $_POST['xoa_may'] ) ) { $viec_gui = 'xoa_may_nv'; }
 
 		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
 			$bao = self::ky_dung()
@@ -210,6 +214,8 @@ class VHCC_TrangNS {
 		if ( 'bo_ghep_ma' === $viec )  { return self::viec_bo_ghep_ma( $toi ); }
 		if ( 'don_ma' === $viec )      { return self::viec_don_ma( $toi ); }
 		if ( 'xoa_hs' === $viec )      { return self::viec_xoa_hs( $toi ); }
+		if ( 'sua_may_nv' === $viec )  { return self::viec_sua_may( $toi ); }
+		if ( 'xoa_may_nv' === $viec )  { return self::viec_xoa_may( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -315,6 +321,41 @@ class VHCC_TrangNS {
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		return array( array( 'ok' => 'Đã ghép ' . $b . ' về ' . $a
 			. '. Lượt chấm công của ' . $b . ' nay chảy về ' . $a . '.' ) );
+	}
+
+	/**
+	 * SỬA LẠI TRÊN MÁY — nút "sửa lại trên máy 🔄" ở cột Họ tên.
+	 *
+	 * Anh Thắng 29/08/2026: *"thêm tính năng xoá, sửa trường hợp lỗi hoặc nhân viên nghỉ việc"*.
+	 * Sửa hồ sơ (tên, ảnh, giới tính…) qua ô "sửa ▾"/"đầy đủ ↗" chỉ ghi lên web — máy chấm công
+	 * KHÔNG tự biết mà cập nhật lại, vì nó chỉ nhận lệnh lúc TẠO hồ sơ (xem `day_len_may()`). Nút
+	 * này đẩy LẠI đúng thông tin hiện có trong hồ sơ xuống mọi máy ở cơ sở người ấy.
+	 *
+	 * ⚠️ ĐỌC HỒ SƠ MỚI TỪ DB (`sua_lai_tren_may()` tự làm việc này), KHÔNG TIN GIÁ TRỊ CLIENT GỬI.
+	 *    Nút chỉ mang mã NV; tên/ảnh/giới tính lấy thẳng từ sổ để khỏi có đường gửi giả.
+	 */
+	private static function viec_sua_may( $toi ) {
+		$ma = isset( $_POST['sua_may'] ) ? sanitize_text_field( wp_unslash( $_POST['sua_may'] ) ) : '';
+		if ( '' === $ma ) { return array( array( 'loi' => 'Thiếu mã nhân viên.' ) ); }
+		$kq = VHCC_NhanSu::sua_lai_tren_may( $toi, $ma );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => $kq['thong_bao'] ) );
+	}
+
+	/**
+	 * GỠ KHỎI MÁY — nút "gỡ khỏi máy 📵" ở cột Họ tên.
+	 *
+	 * Dùng khi tạo hồ sơ lỡ đẩy nhầm xuống máy, hoặc nhân viên nghỉ việc mà vẫn còn quẹt được.
+	 * 🔴 CHỈ GỠ TRÊN MÁY VẬT LÝ — hồ sơ và lịch sử chấm công trên web KHÔNG bị đụng tới. Muốn xoá
+	 *    hẳn hồ sơ thì dùng nút "xoá 🗑" (nếu chưa có lượt chấm công) hoặc đổi Trạng thái làm việc
+	 *    thành "Đã nghỉ" ở ô "sửa ▾" (giữ lại lịch sử). Ba việc khác nhau, ba nút khác nhau.
+	 */
+	private static function viec_xoa_may( $toi ) {
+		$ma = isset( $_POST['xoa_may'] ) ? sanitize_text_field( wp_unslash( $_POST['xoa_may'] ) ) : '';
+		if ( '' === $ma ) { return array( array( 'loi' => 'Thiếu mã nhân viên.' ) ); }
+		$kq = VHCC_NhanSu::xoa_khoi_may( $toi, $ma );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => $kq['thong_bao'] ) );
 	}
 
 	private static function viec_don_ma( $toi ) {
@@ -1491,6 +1532,21 @@ class VHCC_TrangNS {
 				echo ' <a class="mo-hs" title="Mở hồ sơ đầy đủ — CCCD, địa chỉ, hợp đồng…"'
 					. ' href="' . esc_url( add_query_arg(
 						array( 'man' => 'ho_so', 'sua' => $ma ), VHCC_Web::url() ) ) . '">đầy đủ ↗</a>';
+				/* 🔴 HAI NÚT MÁY CHẤM CÔNG — anh Thắng 29/08/2026: *"thêm tính năng xoá, sửa trường
+				   hợp lỗi hoặc nhân viên nghỉ việc"*. Trước nay chỉ lúc TẠO hồ sơ mới có lệnh đẩy
+				   xuống máy (`day_len_may()`); sửa tên/ảnh sau đó hay cho nghỉ việc thì máy vẫn giữ
+				   nguyên thông tin cũ / vẫn cho quẹt — không có đường nào chữa lại hay gỡ ra.
+				   Firmware đã có sẵn `edit`/`delete` (xem `esp32_hik_chamcong_full.ino`), chỉ thiếu
+				   phía WordPress gọi tới — xem `VHCC_NhanSu::sua_lai_tren_may()` / `xoa_khoi_may()`.
+				   Không mở `<form>` riêng — cùng lối `ghep_voi`/`xoa_ma` ở trên, mỗi nút mang tên
+				   riêng nên chỉ lượt bấm đúng nó mới gửi giá trị lên. */
+				echo ' <button type="submit" class="mo-hs" name="sua_may" value="' . esc_attr( $ma ) . '"'
+					. ' title="Đẩy lại tên/ảnh/giới tính hiện có xuống các máy ở cơ sở này — dùng khi'
+					. ' sửa hồ sơ xong mà máy còn hiện thông tin cũ">sửa lại trên máy 🔄</button>';
+				echo ' <button type="submit" class="mo-hs" name="xoa_may" value="' . esc_attr( $ma ) . '"'
+					. ' title="Gỡ người này khỏi các máy chấm công ở cơ sở — hồ sơ và lịch sử chấm'
+					. ' công trên web KHÔNG bị đụng tới, chỉ máy vật lý thôi. Dùng khi tạo lỗi hoặc'
+					. ' khi nhân viên nghỉ việc.">gỡ khỏi máy 📵</button>';
 				/* 🔴 XOÁ LÀ VIỆC KHÔNG ĐẢO LẠI ĐƯỢC, NÊN NÓ ĐI HAI NHỊP.
 				   Anh Thắng 28/08/2026, sau khi thử thêm một người rồi thấy hàng rác trong sổ:
 				   *"Giờ anh muốn xóa nhân viên đó đi"*. Trước nay chỉ wp-admin xoá được, nên

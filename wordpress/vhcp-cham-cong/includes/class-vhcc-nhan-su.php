@@ -1196,48 +1196,111 @@ class VHCC_NhanSu {
 	}
 
 	/**
-	 * Đặt lệnh ghi người này xuống ĐẦU ĐỌC của cơ sở.
+	 * ĐẶT LỆNH XUỐNG ĐẦU ĐỌC CỦA CƠ SỞ — dùng chung cho cả ba việc add/edit/delete.
 	 *
-	 * ⚠️ KHÔNG CÓ MÁY THÌ KHÔNG PHẢI LỖI. Cơ sở chưa gắn máy, hay máy đang mất mạng, thì hồ sơ
-	 *    vẫn phải tạo xong — người mới chấm công bằng điện thoại được ngay. Trả về câu nói rõ
-	 *    tình trạng để màn hình bày ra, chứ không nuốt lời rồi để người ta tưởng đã xong.
+	 * Firmware (`esp32_hik_chamcong_full.ino`) đã nhận đủ cả ba action này từ trước (ISAPI
+	 * UserInfo add/edit, UserInfoDetail delete-by-employeeNo) — chỉ là phía web trước đây CHỈ
+	 * GỌI action `add` (lúc tạo hồ sơ), chưa có đường gọi `edit`/`delete`. Gộp chung một hàm để
+	 * ba việc luôn cùng một luật tìm máy/báo tình trạng, không lệch nhau khi sửa sau này.
 	 *
-	 * ⚠️ Máy chỉ nhận TÊN và MÃ. Khuôn mặt vẫn phải lấy tại máy — không đường nào đẩy mặt từ
-	 *    web xuống được, và nói khác đi là hứa một thứ không có.
+	 * ⚠️ KHÔNG CÓ MÁY THÌ KHÔNG PHẢI LỖI. Cơ sở chưa gắn máy, hay máy đang mất mạng, thì việc
+	 *    trên web (tạo/sửa/cho nghỉ) vẫn phải xong — trả về câu nói rõ tình trạng để màn hình bày
+	 *    ra, chứ không nuốt lời rồi để người ta tưởng đã xong.
+	 *
+	 * ⚠️ Máy chỉ nhận TÊN và MÃ (cùng ảnh nếu có). Khuôn mặt vẫn phải lấy tại máy khi KHÔNG có
+	 *    ảnh — không đường nào đẩy mặt từ web xuống được nếu thiếu ảnh, và nói khác đi là hứa
+	 *    một thứ không có.
+	 *
+	 * @param string $action 'add' | 'edit' | 'delete'.
 	 */
-	private static function day_len_may( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh = '' ) {
+	private static function lenh_may_( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh, $action ) {
 		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'ds_may' ) ) {
-			return 'Chưa cài phần máy chấm công — hồ sơ đã tạo, chấm công online dùng được ngay.';
+			return 'Chưa cài phần máy chấm công.';
 		}
 		$ds = VHCC_May::ds_may();
 		$cs = strtolower( self::chuan_coso( $coso ) );
 		$so = 0;
 		foreach ( (array) ( isset( $ds['data'] ) ? $ds['data'] : array() ) as $m ) {
 			if ( strtolower( self::chuan_coso( (string) $m['cua_hang'] ) ) !== $cs ) { continue; }
-			/* Ảnh đi kèm LỆNH chứ không phải đi kèm hồ sơ: firmware hỏi ảnh bằng `opId` ở một
-			   lượt gọi RIÊNG (xem `VHCC_MayCong::anh_cua_lenh`), vì con ESP32 không đủ bộ nhớ
-			   nhận cả JSON lệnh lẫn ảnh trong một lượt. Cột `anh_b64` bị xoá ngay khi máy báo
-			   xong — ảnh gốc vẫn nằm trong hồ sơ, đây chỉ là bản đi đường. */
-			$kem = array(
-				'ma_nv'     => $ma_nv,
-				'ho_ten'    => $ho_ten,
-				'cua_hang'  => $coso,
-				'gioi_tinh' => in_array( $gioi_tinh, array( 'male', 'female' ), true ) ? $gioi_tinh : '',
-				'co_anh'    => ( '' !== $anh ) ? 1 : 0,
-			);
-			if ( '' !== $anh ) { $kem['anh_b64'] = $anh; }
-			$kq = VHCC_May::dat_lenh( (string) $m['tram'], 'add', $kem,
+			/* Lệnh xoá chỉ cần mã — máy tự tra rồi bỏ đúng người, không cần tên/ảnh đi kèm. */
+			$kem = array( 'ma_nv' => $ma_nv, 'cua_hang' => $coso );
+			if ( 'delete' !== $action ) {
+				/* Ảnh đi kèm LỆNH chứ không phải đi kèm hồ sơ: firmware hỏi ảnh bằng `opId` ở một
+				   lượt gọi RIÊNG (xem `VHCC_MayCong::anh_cua_lenh`), vì con ESP32 không đủ bộ nhớ
+				   nhận cả JSON lệnh lẫn ảnh trong một lượt. Cột `anh_b64` bị xoá ngay khi máy báo
+				   xong — ảnh gốc vẫn nằm trong hồ sơ, đây chỉ là bản đi đường. */
+				$kem['ho_ten']    = $ho_ten;
+				$kem['gioi_tinh'] = in_array( $gioi_tinh, array( 'male', 'female' ), true ) ? $gioi_tinh : '';
+				$kem['co_anh']    = ( '' !== $anh ) ? 1 : 0;
+				if ( '' !== $anh ) { $kem['anh_b64'] = $anh; }
+			}
+			$kq = VHCC_May::dat_lenh( (string) $m['tram'], $action, $kem,
 				isset( $u['name'] ) ? (string) $u['name'] : '' );
 			if ( ! empty( $kq['ok'] ) ) { $so++; }
 		}
-		if ( 0 === $so ) {
-			return 'Cơ sở này chưa gắn máy chấm công nào — hồ sơ đã tạo, '
-				. 'chấm công bằng điện thoại dùng được ngay.';
+		if ( 0 === $so ) { return 'Cơ sở này chưa gắn máy chấm công nào.'; }
+		$viec = array( 'add' => 'ghi tên xuống', 'edit' => 'sửa lại thông tin trên', 'delete' => 'gỡ khỏi' );
+		$cau = 'Đã đặt lệnh ' . $viec[ $action ] . ' ' . $so . ' máy (máy nhận trong ~10 giây nếu đang online).';
+		if ( 'delete' === $action ) { return $cau; }
+		return $cau . ' ' . ( '' !== $anh
+			? 'Ảnh thẻ đi kèm — máy tự nhận khuôn mặt, không phải gọi người ra máy chụp lại.'
+			: 'CHƯA có ảnh thẻ nên khuôn mặt vẫn phải lấy trực tiếp tại máy.' );
+	}
+
+	/** Đặt lệnh ghi người này xuống đầu đọc của cơ sở — dùng lúc TẠO hồ sơ mới. */
+	private static function day_len_may( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh = '' ) {
+		$cau = self::lenh_may_( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh, 'add' );
+		/* Câu báo lúc TẠO MỚI khác câu chung: nói rõ hồ sơ web đã xong, máy chỉ là phần thêm —
+		   không có máy hay máy không nhận được cũng không phải là hồ sơ tạo hỏng. */
+		if ( 'Chưa cài phần máy chấm công.' === $cau ) {
+			return 'Chưa cài phần máy chấm công — hồ sơ đã tạo, chấm công online dùng được ngay.';
 		}
-		return 'Đã đặt lệnh ghi tên xuống ' . $so . ' máy (máy nhận trong ~10 giây nếu đang online). '
-			. ( '' !== $anh
-				? 'Ảnh thẻ đi kèm — máy tự nhận khuôn mặt, không phải gọi người ra máy chụp lại.'
-				: 'CHƯA có ảnh thẻ nên khuôn mặt vẫn phải lấy trực tiếp tại máy.' );
+		if ( 'Cơ sở này chưa gắn máy chấm công nào.' === $cau ) {
+			return 'Cơ sở này chưa gắn máy chấm công nào — hồ sơ đã tạo, chấm công bằng điện thoại dùng được ngay.';
+		}
+		return $cau;
+	}
+
+	/**
+	 * SỬA LẠI THÔNG TIN TRÊN MÁY — cho trường hợp gõ sai lúc tạo (tên, giới tính, ảnh thẻ).
+	 *
+	 * Anh Thắng 29/08/2026: *"thêm tính năng xóa, sửa trường hợp lỗi hoặc nhân viên nghỉ việc"*.
+	 * Firmware đã nhận action `edit` từ trước (ISAPI UserInfo edit) — hàm này chỉ là đường GỌI
+	 * nó từ web, đọc lại đúng hồ sơ hiện có (không tin dữ liệu cũ đã gửi lần trước) rồi gửi lại.
+	 *
+	 * ⚠️ AI ĐƯỢC SỬA THÌ ĐƯỢC GỌI LỆNH NÀY — cùng quyền với sửa hồ sơ (`co_sua_ho_so`), không
+	 *    phải một quyền riêng: đây chỉ là đẩy lại đúng cái đã lưu, không phải một việc mới.
+	 */
+	public static function sua_lai_tren_may( $u, $ma_nv ) {
+		$ma = trim( (string) $ma_nv );
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $hs['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền với hồ sơ này.' );
+		}
+		$anh = trim( (string) ( isset( $hs['anh_the'] ) ? $hs['anh_the'] : '' ) );
+		$cau = self::lenh_may_( $ma, (string) $hs['ho_ten'], (string) $hs['cua_hang'],
+			(string) ( isset( $hs['gioi_tinh'] ) ? $hs['gioi_tinh'] : '' ), $u, $anh, 'edit' );
+		return array( 'ok' => true, 'thong_bao' => $cau );
+	}
+
+	/**
+	 * GỠ KHỎI MÁY CHẤM CÔNG — cho trường hợp nhân viên nghỉ việc, không xoá hồ sơ/công đã chấm.
+	 *
+	 * Anh Thắng 29/08/2026: *"thêm tính năng xóa... trường hợp... nhân viên nghỉ việc"*. Xoá
+	 * HỒ SƠ WEB không phải đường đúng khi còn công đã chấm (xem `xoa_ho_so()`) — nhưng người đã
+	 * nghỉ thì vẫn cần GỠ KHỎI MÁY để không chấm công được nữa và nhường chỗ lưu khuôn mặt cho
+	 * người mới (đầu đọc Hikvision có giới hạn số khuôn mặt lưu được).
+	 */
+	public static function xoa_khoi_may( $u, $ma_nv ) {
+		$ma = trim( (string) $ma_nv );
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $hs['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền với hồ sơ này.' );
+		}
+		$cau = self::lenh_may_( $ma, '', (string) $hs['cua_hang'], '', $u, '', 'delete' );
+		return array( 'ok' => true, 'thong_bao' => $cau );
 	}
 
 	/**
