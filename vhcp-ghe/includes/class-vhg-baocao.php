@@ -975,10 +975,16 @@ class VHG_BaoCao {
 				   gắn vào) mới trả số ra; còn lại trả `null` — màn Sửa hiện Ô TRỐNG, không phải 0,
 				   để không ai tưởng nhầm 0đ là một lượt ghi đè. */
 				$co_ghi_de = ( false !== mb_strpos( (string) $d['ghi_chu'], 'Thực thu ghi đè' ) );
+				/* Ảnh đã đính từ lúc gửi ban đầu (nếu có) — cho màn Sửa 24h biết TRƯỚC khi bắt gõ gì,
+				   để không bắt đính lại ảnh cho ghế đã có sẵn ảnh rồi. Xem ràng buộc "tối thiểu 1 ảnh"
+				   ở sua_dong() bên dưới — anh Thắng 29/08/2026: "bổ sung thêm ảnh trong báo cáo 24h". */
+				$anh_ds = array();
+				$anh_raw = (string) ( isset( $d['anh'] ) ? $d['anh'] : '' );
+				if ( '' !== $anh_raw ) { $tmp = json_decode( $anh_raw, true ); if ( is_array( $tmp ) ) { $anh_ds = array_values( array_filter( $tmp ) ); } }
 				$ghe[] = array( 'chairCode' => $d['ma_may'], 'chairName' => $d['ten'],
 					'meterBefore' => self::songuyen_( $d['chi_so_truoc'] ), 'meterAfter' => self::songuyen_( $d['chi_so_sau'] ),
 					'actual' => (int) $d['actual'], 'cash' => (int) $d['tien_mat'], 'qr' => (int) $d['qr'],
-					'adjust' => $co_ghi_de ? (int) $d['dieu_chinh'] : null, 'note' => $d['ghi_chu'] );
+					'adjust' => $co_ghi_de ? (int) $d['dieu_chinh'] : null, 'note' => $d['ghi_chu'], 'anh' => $anh_ds );
 			}
 			$ra[] = array( 'reportId' => $h['report_id'], 'date' => self::ngay_( $h['ngay'] ),
 				'locName' => $h['coso'], 'rows' => count( $ghe ), 'total' => $tong, 'chairs' => $ghe );
@@ -1034,9 +1040,33 @@ class VHG_BaoCao {
 			$r['ghi_chu']  = mb_substr( trim( $r['ghi_chu'] . ( '' !== $r['ghi_chu'] ? ' · ' : '' ) . 'Thực thu ghi đè: '
 				. number_format( $thuc_thu, 0, ',', '.' ) . 'đ' ), 0, 250 );
 		}
-		$wpdb->update( VHG_DB::t( 'bc_dong' ), array( 'chi_so_truoc' => $r['chi_so_truoc'], 'chi_so_sau' => $r['chi_so_sau'],
+		/* 🔴 TỐI THIỂU 1 ẢNH MỖI GHẾ — anh Thắng 29/08/2026: "bổ sung thêm ảnh trong báo cáo 24h
+		   nhé (tối thiểu 1 ảnh nhé)". Ghế đã có sẵn ảnh từ lúc gửi ban đầu (`anh` JSON không rỗng)
+		   thì không bắt đính lại; ghế CHƯA có ảnh nào thì lượt Sửa này phải kèm ít nhất 1 ảnh mới
+		   (chỉ số hoặc vệ sinh) mới cho lưu — chốt an toàn lặp lại ở client (theGheSua()), server
+		   vẫn tự kiểm lại vì client có thể bị bỏ qua/lỗi thời. */
+		$anh_hien = array();
+		$anh_raw  = (string) ( isset( $d['anh'] ) ? $d['anh'] : '' );
+		if ( '' !== $anh_raw ) { $tmp = json_decode( $anh_raw, true ); if ( is_array( $tmp ) ) { $anh_hien = array_values( array_filter( $tmp ) ); } }
+		$anh_moi = array();
+		$imgs_p  = ( isset( $patch['images'] ) && is_array( $patch['images'] ) ) ? $patch['images'] : array();
+		if ( ! empty( $imgs_p['chiso'] ) ) {
+			$u = self::luu_anh_( array( 'dataUrl' => $imgs_p['chiso'], 'name' => 'chiso.jpg' ), $rid, $ma . '-sua-chiso-' . time() );
+			if ( '' !== $u ) { $anh_moi[] = $u; }
+		}
+		if ( ! empty( $imgs_p['vesinh'] ) ) {
+			$u = self::luu_anh_( array( 'dataUrl' => $imgs_p['vesinh'], 'name' => 'vesinh.jpg' ), $rid, $ma . '-sua-vesinh-' . time() );
+			if ( '' !== $u ) { $anh_moi[] = $u; }
+		}
+		$anh_tong = array_merge( $anh_hien, $anh_moi );
+		if ( ! count( $anh_tong ) ) {
+			return array( 'ok' => false, 'message' => 'Ghế này chưa có ảnh nào — cần đính ít nhất 1 ảnh (chỉ số hoặc vệ sinh) mới lưu được.' );
+		}
+		$data_up = array( 'chi_so_truoc' => $r['chi_so_truoc'], 'chi_so_sau' => $r['chi_so_sau'],
 			'actual' => $r['actual'], 'tien_mat' => $r['tien_mat'], 'qr' => $r['qr'], 'dieu_chinh' => $r['dieu_chinh'],
-			'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'] ), array( 'id' => (int) $d['id'] ) );
+			'tong' => $r['tong'], 'ghi_chu' => $r['ghi_chu'] );
+		if ( count( $anh_moi ) ) { $data_up['anh'] = wp_json_encode( $anh_tong ); }
+		$wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
 		self::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số sau → ngày kế tiếp tự nối lại chỉ số trước
 		$yc = self::dong_yeucau_( $h['coso'], $h['ngay'], $q['ten'] . ' · sửa 24h · ' . $rid );

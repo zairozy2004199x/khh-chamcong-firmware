@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.68.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.69.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,19 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.69.0 — Bắt buộc ảnh khi Sửa 24h (tối thiểu 1 ảnh/ghế)
+
+Anh Thắng 29/08: *"bổ sung thêm ảnh trong báo cáo 24h nhé (tối thiểu 1 ảnh nhé)"*. Card sửa từng
+ghế ở "Báo cáo trong 24h — sửa được" (`theGheSua`) nay có thêm 2 ô chọn ảnh (📷 Ảnh chỉ số / 🧹 Ảnh
+vệ sinh, cùng kiểu nút với bảng nhập chính):
+
+- Ghế **đã có sẵn ảnh** từ lúc gửi ban đầu → chỉ hiện số ảnh đã có, không bắt đính lại.
+- Ghế **chưa có ảnh nào** → bấm "Lưu ghế này" bị chặn (kèm cảnh báo đỏ) cho tới khi chọn ít nhất 1
+  trong 2 ảnh. Chọn xong thì ảnh được nén (giống ảnh ở bảng nhập chính) rồi gộp thêm vào đúng ghế.
+- Chốt lại lần nữa ở server (`VHG_BaoCao::sua_dong()`): dù client bị bỏ qua/lỗi thời, server vẫn
+  tự đếm ảnh cũ (cột `bc_dong.anh`) + ảnh mới trong `patch.images`, tổng bằng 0 thì từ chối lưu.
+- `ds_24h()` (bc_recent) nay trả thêm `anh` (mảng URL ảnh đã có) cho mỗi ghế để client biết trước.
 
 ### v1.68.0 — Báo cáo TỔNG (không chi tiết), hiện lại số tiền ở Sửa 24h, gọn 1 hàng
 
