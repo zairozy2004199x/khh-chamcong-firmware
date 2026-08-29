@@ -15321,6 +15321,140 @@ t( 'và lời báo nói rõ người ấy VẪN ở cửa hàng', isset( $b_tv2[
 vhcc_dung_bang();
 
 
+/* ==================================================================================
+   CƠ SỞ PHỤ: DANH SÁCH ĐỦ, VÀ CHỌN ĐƯỢC NHIỀU CƠ SỞ
+
+   Anh Thắng 28/08/2026, gửi ảnh ô Cơ sở phụ xổ xuống chỉ có mười mục trong khi sổ có nhiều cơ
+   sở hơn hẳn: *"Cơ sở phụ sao cơ sở có, cơ sở không"*. Rồi ngay sau: *"Nếu lÀM 2,3 cơ sở phụ
+   thì sao chọn"*.
+   ================================================================================== */
+vhcc_dung_bang();
+$cp_ad = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => 'FZ_ADV_TP', 'ma_nv' => 'CPAD' );
+/* Ba cơ sở chỉ xuất hiện ở cột CỬA HÀNG CHÍNH, chưa ai khai chúng làm cơ sở phụ bao giờ. */
+VHCC_NhanSu::luu_ho_so( $cp_ad, array( 'ma_nv' => 'CP1', 'ho_ten' => 'Người Một',
+	'cua_hang' => 'FZ_ADV_TP', 'vai_tro' => 'Nhân viên' ) );
+VHCC_NhanSu::luu_ho_so( $cp_ad, array( 'ma_nv' => 'CP2', 'ho_ten' => 'Người Hai',
+	'cua_hang' => 'TUTU_BT', 'vai_tro' => 'Nhân viên' ) );
+VHCC_NhanSu::luu_ho_so( $cp_ad, array( 'ma_nv' => 'CP3', 'ho_ten' => 'Người Ba',
+	'cua_hang' => 'VR_TA', 'vai_tro' => 'Nhân viên', 'coso_phu' => 'FARM_NT' ) );
+
+$h_cp = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP', array( 'man' => 'ho_so' ) );
+/* ⚠️ Cắt đúng datalist `dl_cp` rồi mới soi — cả trang có hàng chục chỗ in tên cơ sở. */
+$dl_cp = '';
+$i_dl  = strpos( $h_cp, '<datalist id="dl_cp">' );
+if ( false !== $i_dl ) {
+	$j_dl  = strpos( $h_cp, '</datalist>', $i_dl );
+	$dl_cp = substr( $h_cp, $i_dl, $j_dl - $i_dl );
+}
+t( 'có danh sách gợi ý cơ sở phụ', '' !== $dl_cp, substr( $h_cp, 0, 200 ) );
+/* 🔴 CƠ SỞ CHƯA AI KHAI PHỤ VẪN PHẢI CÓ MẶT. Bản trước gom `DISTINCT coso_phu`, nên danh sách
+   chỉ lớn lên được nếu ai đó gõ tay đúng chính tả một lần đầu — và đúng lúc người khai cần nó
+   nhất lại là lúc chưa ai khai. */
+t( '🔴 cơ sở mới chỉ có ở cột Cửa hàng vẫn nằm trong gợi ý cơ sở phụ',
+	strpos( $dl_cp, 'value="FZ_ADV_TP"' ) !== false, $dl_cp );
+t( 'cả cơ sở của người khác nữa', strpos( $dl_cp, 'value="TUTU_BT"' ) !== false, $dl_cp );
+t( 'và cơ sở đang được khai làm phụ cũng còn nguyên',
+	strpos( $dl_cp, 'value="FARM_NT"' ) !== false, $dl_cp );
+/* Ô Cửa hàng đi cùng một nguồn — hai ô hỏi cùng một câu mà xổ ra hai danh sách khác nhau thì
+   người khai phải tự nhớ mã nào gõ được ở ô nào. */
+$i_ch = strpos( $h_cp, '<datalist id="dl_ch">' );
+$dl_ch = ( false === $i_ch ) ? ''
+	: substr( $h_cp, $i_ch, strpos( $h_cp, '</datalist>', $i_ch ) - $i_ch );
+t( 'ô Cửa hàng cũng thấy cơ sở chỉ tồn tại ở cột phụ',
+	strpos( $dl_ch, 'value="FARM_NT"' ) !== false, $dl_ch );
+
+/* ---- CHỌN NHIỀU CƠ SỞ: lưới ô tích ở màn Sửa đủ ---- */
+$h_sua = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP',
+	array( 'man' => 'ho_so', 'sua' => 'CP3' ) );
+/* 🔴 CA PHÂN BIỆT cho nguồn của lưới ô tích: `FARM_NT` chỉ tồn tại ở cột PHỤ của CP3, không
+   cửa hàng nào mang mã ấy. Mở hồ sơ CP1 — người KHÔNG khai cơ sở phụ nào — thì `FARM_NT` chỉ
+   có thể tới từ vế UNION. Soi trên hồ sơ CP3 không phân biệt được: cơ sở ấy đã nằm sẵn trong
+   danh sách đang tích của chính họ. */
+$h_sua_1 = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP',
+	array( 'man' => 'ho_so', 'sua' => 'CP1' ) );
+t( '🔴 lưới ô tích thấy cả cơ sở chỉ tồn tại ở cột phụ của NGƯỜI KHÁC',
+	strpos( $h_sua_1, 'name="coso_phu_o[]" value="FARM_NT"' ) !== false, $h_sua_1 );
+t( 'và người này chưa tích cái nào',
+	strpos( $h_sua_1, 'value="FARM_NT" checked' ) === false, $h_sua_1 );
+
+t( '🔴 màn Sửa đủ dùng Ô TÍCH cho cơ sở phụ, không phải một ô gõ chữ',
+	strpos( $h_sua, 'name="coso_phu_o[]"' ) !== false, $h_sua );
+t( 'mỗi cơ sở một ô tích', substr_count( $h_sua, 'type="checkbox" name="coso_phu_o[]"' ) >= 3,
+	substr_count( $h_sua, 'type="checkbox" name="coso_phu_o[]"' ) );
+t( 'cơ sở đang khai thì ô ấy được tích sẵn',
+	preg_match( '/name="coso_phu_o\[\]" value="FARM_NT" checked/', $h_sua ) === 1, $h_sua );
+t( 'cơ sở chưa khai thì không tích',
+	preg_match( '/name="coso_phu_o\[\]" value="TUTU_BT" checked/', $h_sua ) !== 1, $h_sua );
+/* ⚠️ Vẫn giữ MỘT ô gõ chữ cho cơ sở chưa có trong sổ — lưới ô tích dựng từ dữ liệu đang có. */
+/* 🔴 Ô GÕ TAY PHẢI MANG ĐÚNG TÊN `coso_phu_o[]`. Mang tên khác thì nó vẫn hiện ra, vẫn gõ
+   được, mà giá trị không bao giờ tới nơi — và người khai chỉ biết khi mở lại hồ sơ. Soi cả
+   chuỗi `name=… placeholder=…` chứ không soi riêng placeholder. */
+t( 'còn một ô gõ tay cho cơ sở chưa có trong sổ, mang đúng tên gửi lên',
+	preg_match( '/name="coso_phu_o\[\]"[^>]*placeholder="cơ sở khác/', $h_sua ) === 1, $h_sua );
+/* 🔴 KHÔNG dùng `<select multiple>`: nó đòi giữ Ctrl, thứ không ai đoán ra nếu chưa được dạy,
+   và trên điện thoại gần như không bấm nổi. */
+t( '🔴 KHÔNG dùng select multiple', strpos( $h_sua, '<select multiple' ) === false, $h_sua );
+
+/* ---- LƯU: nhiều ô gộp lại thành một chuỗi ---- */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'FARM_NT', 'TUTU_BT', '' ) );
+$r_cp = vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+t( 'lưu được', ! empty( $r_cp['ok'] ), $r_cp );
+teq( '🔴 hai ô tích gộp thành một chuỗi ngăn bằng dấu phẩy', 'FARM_NT, TUTU_BT',
+	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+
+/* Ba cơ sở, trong đó một cái gõ tay ở ô cuối. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'FARM_NT', 'TUTU_BT', 'CO_SO_MOI' ) );
+vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+teq( '🔴 ba cơ sở cùng lúc, kể cả cái gõ tay ở ô cuối', 'FARM_NT, TUTU_BT, CO_SO_MOI',
+	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+
+/* 🔴 BỎ TRÙNG THEO CHỮ THƯỜNG CÓ DẤU. Tích một cơ sở rồi gõ lại chính nó ở ô cuối là chuyện
+   thường, mà "FZ_LTVT, FZ_LTVT" thì mọi phép đếm cơ sở đều lệch. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'FARM_NT', 'farm_nt', ' FARM_NT ' ) );
+vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+teq( '🔴 gõ trùng thì chỉ còn một', 'FARM_NT', VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+
+/* Ô cuối gõ luôn cả chuỗi có dấu phẩy (dán từ chỗ khác) cũng phải tách ra đúng. */
+/* ⚠️ Dán chuỗi KHÔNG CÓ khoảng trắng sau dấu phẩy — đây mới là ca phân biệt. Chuỗi đã có sẵn
+   ", " thì tách hay không tách cũng ra y hệt, nên nó không hỏi được gì. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'JP_HCM,POSH_HCM' ) );
+vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+teq( '🔴 dán cả chuỗi có dấu phẩy thì tách ra rồi ghép lại cho đều', 'JP_HCM, POSH_HCM',
+	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+
+/* 🔴 Ô TÍCH THẮNG Ô GÕ CHỮ CŨ. Một biểu mẫu cũ còn trong bộ nhớ trình duyệt (hoặc một lượt
+   gửi tay) vẫn có thể kèm theo ô `coso_phu` kiểu cũ; để nó chạy tiếp trong vòng lặp cột là nó
+   ghi đè mất kết quả vừa gom từ các ô tích, và người bấm thấy "Đã lưu" trong khi cơ sở phụ vừa
+   chọn biến mất. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu' => 'CU_KY_LAM_SAO',
+	'coso_phu_o' => array( 'FARM_NT', 'TUTU_BT' ) );
+vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+teq( '🔴 gửi kèm ô gõ chữ cũ thì ô tích vẫn thắng', 'FARM_NT, TUTU_BT',
+	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+
+/* 🔴 BỎ TÍCH HẾT RỒI LƯU = THÔI LÀM Ở CƠ SỞ PHỤ NÀO. Ô gõ tay ở cuối luôn có mặt trong biểu
+   mẫu nên `coso_phu_o` luôn được gửi lên, kể cả khi không tích ô nào. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( '' ) );
+vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+teq( '🔴 bỏ tích hết thì cột rỗng thật', '', VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+
+/* Cơ sở người này đang khai mà không cửa hàng nào mang mã ấy vẫn phải hiện ra và tích sẵn —
+   `ds_moi_coso()` quét cả cột phụ nên nó tới từ chính hồ sơ này. */
+VHCC_NhanSu::luu_ho_so( $cp_ad, array( 'ma_nv' => 'CP3', 'coso_phu' => 'CO_SO_DA_DONG' ) );
+$h_sua2 = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP',
+	array( 'man' => 'ho_so', 'sua' => 'CP3' ) );
+t( 'cơ sở không cửa hàng nào mang mã ấy vẫn hiện ra và vẫn được tích',
+	preg_match( '/name="coso_phu_o\[\]" value="CO_SO_DA_DONG" checked/', $h_sua2 ) === 1, $h_sua2 );
+
+vhcc_dung_bang();
+
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

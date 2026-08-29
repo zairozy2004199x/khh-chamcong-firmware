@@ -1395,7 +1395,40 @@ class VHCC_Web {
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
 		$xoa_pin = ! empty( $_POST['xoa_pin'] );
 		$ghi = array();
+
+		/* 🔴 CƠ SỞ PHỤ ĐẾN TỪ NHIỀU Ô, GOM LẠI THÀNH MỘT CHUỖI.
+		   Màn sửa đủ nay dùng lưới ô tích (xem `o_coso_phu()`), nên giá trị về dưới dạng MẢNG
+		   `coso_phu_o[]` — mỗi ô tích một phần tử, cộng thêm ô gõ tay ở cuối cho cơ sở chưa có
+		   trong sổ. Cột trong bảng vẫn là một chuỗi ngăn bằng dấu phẩy, y như cũ: đổi cách
+		   NHẬP chứ không đổi cách LƯU, nên mọi chỗ đang đọc cột này không phải sửa gì.
+
+		   ⚠️ Bỏ trùng theo CHỮ THƯỜNG CÓ DẤU (`chu_thuong`, không phải `strtolower` — hàm ấy
+		      không hạ được chữ có dấu). Tích một cơ sở rồi gõ lại chính nó ở ô cuối là chuyện
+		      thường, mà "FZ_LTVT, FZ_LTVT" thì mọi phép đếm cơ sở đều lệch.
+
+		   ⚠️ MẢNG RỖNG LÀ XOÁ HẾT, ĐÚNG Ý NGƯỜI BẤM: bỏ tích hết rồi Lưu nghĩa là người này
+		      thôi làm ở cơ sở phụ nào. Nhưng biểu mẫu KHÔNG gửi gì khi không có ô tích nào —
+		      nên ô gõ tay ở cuối luôn có mặt, và nó bảo đảm `coso_phu_o` luôn được gửi lên. */
+		if ( isset( $_POST['coso_phu_o'] ) && is_array( $_POST['coso_phu_o'] ) ) {
+			$cp  = array();
+			$da  = array();
+			foreach ( (array) wp_unslash( $_POST['coso_phu_o'] ) as $x ) {
+				foreach ( explode( ',', (string) $x ) as $m ) {
+					$m = trim( $m );
+					if ( '' === $m ) { continue; }
+					$k = VHCC_NhanSu::chu_thuong( $m );
+					if ( isset( $da[ $k ] ) ) { continue; }
+					$da[ $k ] = 1;
+					$cp[]     = $m;
+				}
+			}
+			$ghi['coso_phu'] = implode( ', ', $cp );
+		}
+
 		foreach ( self::COT_SUA as $c ) {
+			/* Ô tích ở trên đã lo cột này; một ô `coso_phu` gõ tay còn sót lại trong biểu mẫu
+			   sẽ ghi đè mất kết quả gom. */
+			if ( 'coso_phu' === $c && isset( $ghi['coso_phu'] ) ) { continue; }
 			if ( ! isset( $_POST[ $c ] ) ) { continue; }
 			$v = trim( (string) wp_unslash( $_POST[ $c ] ) );
 			if ( in_array( $c, VHCC_NapCsv::COT_TIEN, true ) )      { $ghi[ $c ] = VHCC_NapCsv::tien( $v ); }
@@ -6271,7 +6304,12 @@ class VHCC_Web {
 
 		   Dùng <datalist> chứ không <select>: nó vừa xổ ra danh sách đang có để bấm, vừa cho gõ
 		   một giá trị MỚI khi cần. <select> thuần thì khai một chức vụ mới là phải sửa mã. */
-		echo self::goi_y( 'dl_ch', "SELECT DISTINCT cua_hang AS v FROM $bang WHERE cua_hang<>''" );
+		/* Ô Cửa hàng đi cùng một nguồn với ô Cơ sở phụ — xem chú thích dưới. Hai ô hỏi cùng một
+		   câu ("cơ sở nào đang có?") mà xổ ra hai danh sách khác nhau thì người khai phải tự
+		   nhớ mã nào gõ được ở ô nào. */
+		$sql_cs = "SELECT DISTINCT cua_hang AS v FROM $bang WHERE cua_hang<>''"
+			. " UNION SELECT DISTINCT coso_phu AS v FROM $bang WHERE coso_phu<>''";
+		echo self::goi_y( 'dl_ch', $sql_cs, true );
 		echo self::goi_y( 'dl_cv', "SELECT DISTINCT chuc_vu  AS v FROM $bang WHERE chuc_vu<>''" );
 		/* 🔴 NHIỆM VỤ KHÔNG TỰ GOM TỪ DỮ LIỆU NỮA. Gom tự động thì cột Nhiệm vụ của sổ cũ đang
 		   chứa lẫn TÊN CƠ SỞ ("JP Aeon Mall Tân Phú", "JP VINCOM 3/2"), và chúng trôi hết vào
@@ -6282,7 +6320,16 @@ class VHCC_Web {
 		   Nên danh sách này do NGƯỜI KHAI, sửa ngay trên trang. Em không đoán thay — đoán sai
 		   một mục là 240 lần bấm nhầm. */
 		echo self::goi_y( 'dl_nv', '', false, self::ds_nhiem_vu() );
-		echo self::goi_y( 'dl_cp', "SELECT DISTINCT coso_phu AS v FROM $bang WHERE coso_phu<>''", true );
+		/* 🔴 CƠ SỞ PHỤ PHẢI XỔ RA **MỌI CƠ SỞ**, KHÔNG PHẢI CHỈ NHỮNG CƠ SỞ ĐÃ TỪNG BỊ KHAI PHỤ.
+		   Anh Thắng 28/08/2026, gửi ảnh ô Cơ sở phụ xổ xuống chỉ có mười mục:
+		   *"Cơ sở phụ sao cơ sở có, cơ sở không"*.
+		   Bản trước gom `DISTINCT coso_phu` — tức chỉ những cơ sở ĐÃ CÓ NGƯỜI khai làm phụ.
+		   Cơ sở mới, hay cơ sở chưa ai làm thêm ở đó, thì không bao giờ có mặt; mà đúng lúc
+		   người khai cần nó nhất lại là lúc chưa ai khai. Danh sách tự nuôi mình như vậy chỉ
+		   lớn lên được nếu ai đó gõ tay đúng chính tả một lần đầu — gõ sai một dấu là sinh ra
+		   một mã cơ sở thứ hai, im lặng, và bảng công của người ấy tách làm đôi.
+		   Nguồn đúng là HỢP của cả hai cột: cửa hàng chính và cơ sở phụ. */
+		echo self::goi_y( 'dl_cp', $sql_cs, true );
 
 		/* 🔴 MỘT FORM CHO CẢ BẢNG, MỘT NÚT LƯU. Anh Thắng: *"bấm khai 1 lần và lưu 1 lần được
 		   không"*. Có 237 người cần khai Vai trò; bấm Lưu 237 lần, mỗi lần một vòng tải trang,
@@ -6414,6 +6461,80 @@ class VHCC_Web {
 	 * @param bool $tach  ô nhiều giá trị cách nhau dấu phẩy (Nhiệm vụ, Cơ sở phụ) — tách ra
 	 *                    thành từng mục, không thì gợi ý cả cụm "FARM_PT, FZ_LTVT" là vô dụng.
 	 */
+	/**
+	 * CƠ SỞ PHỤ — LƯỚI Ô TÍCH, chọn bao nhiêu cơ sở cũng được.
+	 *
+	 * Anh Thắng 28/08/2026, sau khi thấy ô xổ xuống chỉ chọn được một mục:
+	 * *"Nếu lÀM 2,3 cơ sở phụ thì sao chọn"*.
+	 *
+	 * 🔴 MỘT Ô GÕ CHỮ KHÔNG PHẢI LÀ CHỖ KHAI NHIỀU GIÁ TRỊ.
+	 *    Cột này lưu chuỗi ngăn bằng dấu phẩy (`FARM_PT, FZ_LTVT`), nhưng ô `<input list=…>` là
+	 *    ô MỘT giá trị: bấm chọn mục thứ hai là trình duyệt THAY cả ô, mất luôn mục thứ nhất.
+	 *    Muốn hai cơ sở thì phải tự gõ dấu phẩy — mà gõ tay giữa 240 dòng là sớm muộn có một
+	 *    mã sai chính tả, và người ấy lặng lẽ rơi khỏi bảng công của cơ sở kia.
+	 *
+	 * 🔴 KHÔNG DÙNG `<select multiple>`. Nó đòi giữ Ctrl để chọn nhiều — thứ không ai đoán ra
+	 *    nếu chưa được dạy, và trên điện thoại thì gần như không bấm nổi. Ô tích thì bấm là
+	 *    xong, và nhìn một cái là thấy đang chọn những gì.
+	 *
+	 * ⚠️ Vẫn giữ MỘT Ô GÕ CHỮ ở cuối cho cơ sở CHƯA có trong sổ. Lưới ô tích dựng từ dữ liệu
+	 *    đang có, nên cơ sở mới mở tuần này chưa thể nằm trong đó — bỏ ô ấy là khai một cơ sở
+	 *    mới thành việc không làm được ở đây, và người ta quay lại gõ tay chỗ khác.
+	 *
+	 * Cả hai đi cùng một tên `coso_phu_o[]`, nên bộ nhận ở `luu_ho_so()` không cần biết giá trị
+	 * đến từ ô tích hay từ ô gõ.
+	 */
+	private static function o_coso_phu( $dang_co ) {
+		$chon = array();
+		foreach ( explode( ',', (string) $dang_co ) as $x ) {
+			$x = trim( $x );
+			if ( '' !== $x ) { $chon[ VHCC_NhanSu::chu_thuong( $x ) ] = $x; }
+		}
+		/* `ds_moi_coso()` quét CẢ hồ sơ đang sửa, nên mọi cơ sở người này đang khai đã nằm sẵn
+		   trong danh sách — kể cả cơ sở không còn ai khác làm ở đó. Cố ý KHÔNG thêm một vòng
+		   "bổ sung $chon vào $ds": nó không đổi kết quả trong bất kỳ ca nào, mà một dòng không
+		   phép thử nào phân biệt được là một dòng không ai dám sửa về sau. */
+		$ds = self::ds_moi_coso();
+		ksort( $ds );
+
+		$h = '<div style="border:1px solid var(--vien);border-radius:8px;padding:8px 10px;'
+			. 'background:var(--the,#fff)">';
+		if ( $ds ) {
+			$h .= '<div style="display:flex;flex-wrap:wrap;gap:4px 14px;max-height:180px;overflow:auto">';
+			foreach ( $ds as $k => $v ) {
+				$h .= '<label style="display:flex;align-items:center;gap:5px;font-size:13px;'
+					. 'font-weight:400;white-space:nowrap">'
+					. '<input type="checkbox" name="coso_phu_o[]" value="' . esc_attr( $v ) . '"'
+					. checked( isset( $chon[ $k ] ), true, false ) . '>'
+					. esc_html( $v ) . '</label>';
+			}
+			$h .= '</div>';
+		}
+		$h .= '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+			. '<input name="coso_phu_o[]" list="dl_cp" placeholder="cơ sở khác — gõ mã rồi Lưu"'
+			. ' style="flex:1;min-width:190px;font-size:13px">'
+			. '<span class="mo" style="font-size:11.5px">Tích bao nhiêu cơ sở cũng được.</span>'
+			. '</div></div>';
+		return $h;
+	}
+
+	/** Mọi mã cơ sở đang có trong sổ nhân sự: [ chữ thường => cách viết gốc ]. */
+	private static function ds_moi_coso() {
+		$b  = VHCC_DB::t( 'nhan_vien' );
+		$ra = array();
+		$sql = "SELECT DISTINCT cua_hang AS v FROM $b WHERE cua_hang<>''"
+			. " UNION SELECT DISTINCT coso_phu AS v FROM $b WHERE coso_phu<>''";
+		foreach ( VHCC_DB::rows( $sql ) as $x ) {
+			foreach ( explode( ',', (string) $x['v'] ) as $m ) {
+				$m = trim( $m );
+				if ( '' === $m ) { continue; }
+				$k = VHCC_NhanSu::chu_thuong( $m );
+				if ( ! isset( $ra[ $k ] ) ) { $ra[ $k ] = $m; }
+			}
+		}
+		return $ra;
+	}
+
 	private static function goi_y( $id, $sql, $tach = false, $luon_co = array() ) {
 		$ds = array();
 		foreach ( (array) $luon_co as $v ) { if ( '' !== trim( (string) $v ) ) { $ds[ trim( $v ) ] = 1; } }
@@ -6518,6 +6639,8 @@ class VHCC_Web {
 				} elseif ( in_array( $c, VHCC_NapCsv::COT_NGAY, true ) ) {
 					echo '<input type="date" name="' . esc_attr( $c ) . '" value="'
 						. esc_attr( $g( $c ) ) . '" style="width:100%">';
+				} elseif ( 'coso_phu' === $c ) {
+					echo self::o_coso_phu( $g( $c ) );
 				} else {
 					$dl = array( 'cua_hang' => 'dl_ch', 'chuc_vu' => 'dl_cv',
 						'nhiem_vu' => 'dl_nv', 'coso_phu' => 'dl_cp' );
