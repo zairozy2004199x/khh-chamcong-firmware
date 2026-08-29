@@ -507,11 +507,17 @@ class VHG_Quy {
 	/**
 	 * TIỀN MẶT ĐANG NẰM TRONG TAY MỘT NGƯỜI.
 	 *
-	 * Hai nguồn, và cả hai đều là tiền thật đang ở ngoài két:
-	 *   · `chot`  — xấp tiền vừa lấy ra khỏi ngăn ghế. KHÔNG phải doanh thu mới (ghế đã ghi sổ
-	 *               từ lúc nuốt), chỉ là một lần chuyển tay.
-	 *   · `thu`   — khách trả tiền mặt tại quầy, người thu bấm cho ghế chạy. Cái này VỪA là
-	 *               doanh thu VỪA là tiền trên tay.
+	 * BA nguồn, và cả ba đều là tiền thật đang ở ngoài két:
+	 *   · `chot`     — xấp tiền vừa lấy ra khỏi ngăn ghế. KHÔNG phải doanh thu mới (ghế đã ghi sổ
+	 *                  từ lúc nuốt), chỉ là một lần chuyển tay.
+	 *   · `thu`      — khách trả tiền mặt tại quầy, người thu bấm cho ghế chạy. Cái này VỪA là
+	 *                  doanh thu VỪA là tiền trên tay.
+	 *   · `bc`/`bc_dong` (thêm 29/08/2026) — tiền mặt nhân viên KHAI qua màn "Báo cáo doanh thu"
+	 *     (chỉ số/QR nhập tay, không quét QR ghế). Anh Thắng: *"Sau khi nhân viên chốt báo cáo
+	 *     doanh thu, thì nó sẽ hiển ở đây là doanh thu nhân viên đang cầm"* — báo cáo online
+	 *     KHÔNG đồng nghĩa tiền đã về tay quản lý, nên vẫn phải tính là "đang cầm" cho tới khi
+	 *     nhân viên bấm Nộp (`nop_id` khác 0, xem `nop()`). Xem chú thích cột `bc.nop_id` ở
+	 *     class-vhg-db.php để phân biệt với `bc.nop_so_tien` (con số TỰ KHAI, khác khái niệm).
 	 *
 	 * ⚠️ Bỏ dòng `thu` đã HUỶ. Huỷ nghĩa là lượt đó không có thật, mà tiền không có thật thì
 	 *    không ai phải nộp.
@@ -519,7 +525,9 @@ class VHG_Quy {
 	public static function dang_cam( $nguoi ) {
 		global $wpdb;
 		$ai = trim( (string) $nguoi );
-		if ( '' === $ai ) { return array( 'nguoi' => '', 'tong' => 0, 'tu_ghe' => 0, 'tu_quay' => 0, 'so_dong' => 0 ); }
+		if ( '' === $ai ) {
+			return array( 'nguoi' => '', 'tong' => 0, 'tu_ghe' => 0, 'tu_quay' => 0, 'tu_bao_cao' => 0, 'so_dong' => 0 );
+		}
 
 		$tc = VHG_DB::t( 'chot' );
 		$ghe = (int) $wpdb->get_var( $wpdb->prepare(
@@ -536,8 +544,17 @@ class VHG_Quy {
 			"SELECT COUNT(*) FROM $tt
 			 WHERE nguon=%s AND noi_dung=%s AND huy=0 AND nop_id=0", VHG_Thu::TIEN_MAT, $nd ) );
 
-		return array( 'nguoi' => $ai, 'tong' => $ghe + $quay, 'tu_ghe' => $ghe, 'tu_quay' => $quay,
-			'so_dong' => $n_ghe + $n_quay );
+		$tb  = VHG_DB::t( 'bc' );
+		$tbd = VHG_DB::t( 'bc_dong' );
+		$bao_cao = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COALESCE(SUM(d.tien_mat),0) FROM $tbd d JOIN $tb h ON h.report_id=d.report_id
+			 WHERE h.nhan_vien=%s AND h.nop_id=0", $ai ) );
+		$n_bao_cao = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $tb WHERE nhan_vien=%s AND nop_id=0", $ai ) );
+
+		return array( 'nguoi' => $ai, 'tong' => $ghe + $quay + $bao_cao,
+			'tu_ghe' => $ghe, 'tu_quay' => $quay, 'tu_bao_cao' => $bao_cao,
+			'so_dong' => $n_ghe + $n_quay + $n_bao_cao );
 	}
 
 	/**
@@ -555,7 +572,7 @@ class VHG_Quy {
 		foreach ( VHG_DB::rows( "SELECT nguoi, SUM(tien_dem) AS t, COUNT(*) AS n
 			FROM $tc WHERE nop_id=0 AND nguoi<>'' GROUP BY nguoi" ) as $r ) {
 			$k = (string) $r['nguoi'];
-			$ra[ $k ] = array( 'nguoi' => $k, 'tu_ghe' => (int) $r['t'], 'tu_quay' => 0,
+			$ra[ $k ] = array( 'nguoi' => $k, 'tu_ghe' => (int) $r['t'], 'tu_quay' => 0, 'tu_bao_cao' => 0,
 				'so_dong' => (int) $r['n'], 'tong' => (int) $r['t'] );
 		}
 
@@ -567,11 +584,28 @@ class VHG_Quy {
 			$k = VHG_Thu::nguoi_thu( $r['noi_dung'] );
 			if ( '' === $k ) { continue; }
 			if ( ! isset( $ra[ $k ] ) ) {
-				$ra[ $k ] = array( 'nguoi' => $k, 'tu_ghe' => 0, 'tu_quay' => 0, 'so_dong' => 0, 'tong' => 0 );
+				$ra[ $k ] = array( 'nguoi' => $k, 'tu_ghe' => 0, 'tu_quay' => 0, 'tu_bao_cao' => 0, 'so_dong' => 0, 'tong' => 0 );
 			}
 			$ra[ $k ]['tu_quay'] += (int) $r['t'];
 			$ra[ $k ]['so_dong'] += (int) $r['n'];
 			$ra[ $k ]['tong']    += (int) $r['t'];
+		}
+
+		/* Nguồn thứ ba (29/08/2026): tiền mặt khai qua "Báo cáo doanh thu" — xem chú thích đầy đủ
+		   ở dang_cam() phía trên và ở cột `bc.nop_id` (class-vhg-db.php). */
+		$tb  = VHG_DB::t( 'bc' );
+		$tbd = VHG_DB::t( 'bc_dong' );
+		$sqlBc = "SELECT h.nhan_vien AS nguoi, SUM(d.tien_mat) AS t, COUNT(DISTINCT h.report_id) AS n
+			FROM $tbd d JOIN $tb h ON h.report_id=d.report_id
+			WHERE h.nop_id=0 AND h.nhan_vien<>'' GROUP BY h.nhan_vien";
+		foreach ( VHG_DB::rows( $sqlBc ) as $r ) {
+			$k = (string) $r['nguoi'];
+			if ( ! isset( $ra[ $k ] ) ) {
+				$ra[ $k ] = array( 'nguoi' => $k, 'tu_ghe' => 0, 'tu_quay' => 0, 'tu_bao_cao' => 0, 'so_dong' => 0, 'tong' => 0 );
+			}
+			$ra[ $k ]['tu_bao_cao'] += (int) $r['t'];
+			$ra[ $k ]['so_dong']    += (int) $r['n'];
+			$ra[ $k ]['tong']       += (int) $r['t'];
 		}
 
 		$ds = array_values( $ra );
@@ -638,19 +672,30 @@ class VHG_Quy {
 
 		$tc = VHG_DB::t( 'chot' );
 		$tt = VHG_DB::t( 'thu' );
+		$tb = VHG_DB::t( 'bc' );
 		$wpdb->query( $wpdb->prepare(
 			"UPDATE $tc SET nop_id=%d WHERE nguoi=%s AND nop_id=0", $id, $ai ) );
 		$wpdb->query( $wpdb->prepare(
 			"UPDATE $tt SET nop_id=%d WHERE nguon=%s AND noi_dung=%s AND huy=0 AND nop_id=0",
 			$id, VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) );
+		/* Nguồn thứ ba (29/08/2026) — báo cáo doanh thu. Gắn theo HEADER (`bc.nop_id`), không phải
+		   theo từng dòng ghế: một báo cáo là một lần "nộp cả cụm", không tách lẻ từng ghế trong
+		   đó — khớp đúng cách chot/thu vẫn gắn theo TỪNG DÒNG hoàn chỉnh của chúng. */
+		$wpdb->query( $wpdb->prepare(
+			"UPDATE $tb SET nop_id=%d WHERE nhan_vien=%s AND nop_id=0", $id, $ai ) );
 
 		/* Cộng lại từ đúng những dòng vừa gắn được — không tin con số đã tính trước đó. */
+		$tbd = VHG_DB::t( 'bc_dong' );
 		$tong = (int) $wpdb->get_var( $wpdb->prepare(
 			"SELECT COALESCE(SUM(tien_dem),0) FROM $tc WHERE nop_id=%d", $id ) )
 			+ (int) $wpdb->get_var( $wpdb->prepare(
-				"SELECT COALESCE(SUM(so_tien),0) FROM $tt WHERE nop_id=%d", $id ) );
+				"SELECT COALESCE(SUM(so_tien),0) FROM $tt WHERE nop_id=%d", $id ) )
+			+ (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT COALESCE(SUM(d.tien_mat),0) FROM $tbd d JOIN $tb h ON h.report_id=d.report_id
+				 WHERE h.nop_id=%d", $id ) );
 		$dong = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tc WHERE nop_id=%d", $id ) )
-			+ (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tt WHERE nop_id=%d", $id ) );
+			+ (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tt WHERE nop_id=%d", $id ) )
+			+ (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $tb WHERE nop_id=%d", $id ) );
 
 		if ( $tong <= 0 ) {
 			/* Không gắn được đồng nào -> xoá luôn lượt nộp. Để lại một dòng 0 đồng là bảng chờ
@@ -729,6 +774,8 @@ class VHG_Quy {
 			'UPDATE ' . VHG_DB::t( 'chot' ) . ' SET nop_id=0 WHERE nop_id=%d', $id ) );
 		$wpdb->query( $wpdb->prepare(
 			'UPDATE ' . VHG_DB::t( 'thu' ) . ' SET nop_id=0 WHERE nop_id=%d', $id ) );
+		$wpdb->query( $wpdb->prepare(
+			'UPDATE ' . VHG_DB::t( 'bc' ) . ' SET nop_id=0 WHERE nop_id=%d', $id ) );
 		return array( 'ok' => true, 'thong_bao' => 'Đã huỷ lượt nộp — tiền quay lại tay người nộp.' );
 	}
 
@@ -769,7 +816,7 @@ class VHG_Quy {
 		global $wpdb;
 		$ai = trim( (string) $nguoi );
 		$ra = array( 'nguoi' => $ai, 'so_ghe' => 0, 'tien_dem' => 0, 'theo_may' => 0,
-			'theo_he_thong' => 0, 'lech_dem' => 0, 'lech_may' => 0, 'tu_quay' => 0,
+			'theo_he_thong' => 0, 'lech_dem' => 0, 'lech_may' => 0, 'tu_quay' => 0, 'tu_bao_cao' => 0,
 			'tu_luc' => '', 'ds' => array() );
 		if ( '' === $ai ) { return $ra; }
 
@@ -792,7 +839,16 @@ class VHG_Quy {
 			"SELECT COALESCE(SUM(so_tien),0) FROM $tt
 			 WHERE nguon=%s AND noi_dung=%s AND huy=0 AND nop_id=0",
 			VHG_Thu::TIEN_MAT, VHG_Thu::ND_THU_TAY . $ai ) );
-		$ra['tong'] = $ra['tien_dem'] + $ra['tu_quay'];
+
+		/* Nguồn thứ ba (29/08/2026) — báo cáo doanh thu, cộng vào cho khớp với dang_cam()/tổng
+		   "Tôi đang cầm" (xem chú thích ở đó). */
+		$tb  = VHG_DB::t( 'bc' );
+		$tbd = VHG_DB::t( 'bc_dong' );
+		$ra['tu_bao_cao'] = (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COALESCE(SUM(d.tien_mat),0) FROM $tbd d JOIN $tb h ON h.report_id=d.report_id
+			 WHERE h.nhan_vien=%s AND h.nop_id=0", $ai ) );
+
+		$ra['tong'] = $ra['tien_dem'] + $ra['tu_quay'] + $ra['tu_bao_cao'];
 		return $ra;
 	}
 

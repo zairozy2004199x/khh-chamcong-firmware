@@ -894,7 +894,14 @@ class VHG_Trang {
 				'nguoi'   => VHG_Quy::theo_nguoi( $ky ),
 				'don_vi'  => VHG_Quy::don_vi(),
 				'toi_la'  => (string) $ai['name'],
-				'quyen_nhan' => in_array( $ai['role'], array( 'Admin', 'Quản lý' ), true ) ? 1 : 0 ),
+				/* 🔴 XÁC NHẬN NỘP LÀ VIỆC "CHỐT DOANH SỐ", KHÔNG PHẢI VIỆC "QUẢN TRỊ". Trước đây
+				   nhét cứng Admin/Quản lý ở đúng nhánh quan_tri này — vai trò khác được CẤP quan_tri
+				   (VD Cửa hàng trưởng, xem vai_tro_quan_tri()) vẫn lọt vào nhánh so_lieu() này
+				   (đủ điều kiện quan_tri) nhưng bị giấu mất nút "Đã nhận" một cách vô lý, trong khi
+				   nhánh so_lieu_khong_quan_tri() bên dưới lại tính đúng qua duoc_chot_doanh_so().
+				   Dùng chung đúng MỘT hàm cho cả hai nhánh — không còn hai cách suy quyền khác
+				   nhau cho cùng một việc (xem lời dặn ở đầu VHG_Auth). */
+				'quyen_nhan' => VHG_Auth::duoc_chot_doanh_so( $ai['role'] ) ? 1 : 0 ),
 			/* Mã mua trước: tổng kỳ + khoản đang NỢ (mã không hết hạn nên nó chỉ cộng lên). */
 			'ma' => array( 'tong' => VHG_Ma::tong( $ky ), 'no' => VHG_Ma::tien_no(),
 				'ds' => VHG_Ma::ds( $ky, 120 ), 'quyen_huy' =>
@@ -1316,12 +1323,26 @@ class VHG_Trang {
       '.bc-gate input{width:100%;text-align:center;letter-spacing:10px;font-size:20px;margin:14px 0 8px}',
       '.bc-err{color:#b91c1c;font-size:12.5px;min-height:18px}',
       '.bc-ok{color:#059669}',
+      /* 🔴 TỰ CO GIÃN THEO MÀN HÌNH — anh Thắng 29/08/2026: "Điều chỉnh trang tự co giãn theo màn
+         hình máy tính và điện thoại". `.bc-t` TRƯỚC ĐÂY ép `min-width:820px` cho MỌI bảng, kể cả
+         3 bảng phụ chỉ 5-7 cột ngắn (Đối chiếu, Lịch sử tháng, Lịch sử chốt ca) và cả bảng ghế ở
+         CHẾ ĐỘ GỌN (7 cột, đã bớt "Tiền mặt/Thực thu/Ghi chú" cho gọn) — ép rộng 820px bắt điện
+         thoại nào cũng phải cuộn ngang mới xem hết, dù bảng thật sự đã đủ hẹp để vừa màn hình rồi.
+         Bỏ min-width khỏi luật chung, chỉ gắn lại cho bảng ghế ở CHẾ ĐỘ ĐẦY ĐỦ (`.full`, 10 cột,
+         có 2 ô nhập chữ dài "Thực thu"/"Ghi chú" thật sự cần bề ngang) qua lớp riêng — mọi bảng
+         khác (kể cả bảng ghế chế độ Gọn, lớp `.gon`) tự co theo đúng nội dung của nó. */
       '.bc-scroll{overflow-x:auto;border:1px solid #e2e8f0;border-radius:12px;margin-top:12px}',
-      '.bc-t{width:100%;border-collapse:collapse;min-width:820px}',
+      '.bc-t{width:100%;border-collapse:collapse}',
+      '.bc-t.full{min-width:820px}',
       '.bc-t th{background:#0f172a;color:#fff;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:10px;text-align:left;white-space:nowrap}',
       '.bc-t td{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top}',
       '.bc-t input{width:100%;min-width:78px;text-align:right;font-variant-numeric:tabular-nums}',
       '.bc-t input.note{text-align:left;min-width:120px}',
+      /* Chế độ Gọn: cột đã ít (7 thay vì 10) nhưng vẫn nên bớt đệm + bớt min-width từng ô cho vừa
+         khít điện thoại phổ thông (~360-390px ngang) mà không phải cuộn — 2 nút "Chọn ảnh" vốn đã
+         hẹp sẵn, chỉ input chỉ số/QR cần thu nhỏ. */
+      '.bc-t.gon th,.bc-t.gon td{padding:6px 5px}',
+      '.bc-t.gon input{min-width:52px}',
       '.bc-ro{display:block;text-align:right;font-weight:800;padding:9px 10px;border-radius:9px;background:#f1f5f9}',
       '.bc-cash{background:#ecfdf5;color:#059669}',
       '.bc-warn{font-size:11px;color:#b91c1c;font-weight:600;margin-top:3px}',
@@ -1394,7 +1415,16 @@ class VHG_Trang {
     tg.title = GON ? 'Chuyển sang chế độ đầy đủ (máy tính)' : 'Chuyển sang chế độ gọn (điện thoại)';
     tg.onclick=function(){ datGon(!GON); };
     top.appendChild(tg);
-    var out=el('button','bc-btn','Thoát'); out.onclick=function(){ PIN=''; BC=null; $('bc-app').className=''; };
+    var out=el('button','bc-btn','Thoát');
+    /* Thoát cả hai lớp trong MỘT lượt bấm — anh Thắng 29/08/2026: "2 trang này là 1, tại sao
+       thoát 2 lần, kiểm tra lỗi". Xem chú thích đầy đủ ở thoatNgoai()/window.VHG_Trang.thoat
+       trong js() (trang chính) — bc-app và trang chính cùng render trong một lần tải trang
+       nhưng là hai phiên đăng nhập TÁCH BIỆT; trước đây bấm Thoát ở đây chỉ đóng lớp phủ, để lộ
+       trang chính vẫn còn đăng nhập token, bắt bấm Thoát lần hai. */
+    out.onclick=function(){
+      PIN=''; BC=null; $('bc-app').className='';
+      if(window.VHG_Trang && window.VHG_Trang.thoat) window.VHG_Trang.thoat();
+    };
     top.appendChild(out);
     app.appendChild(top);
 
@@ -1427,7 +1457,11 @@ class VHG_Trang {
     var c2=el('div','bc-card');
     c2.appendChild(el('h3','bc-h','Số liệu từng ghế'));
     var sc=el('div','bc-scroll');
-    var tb=el('table','bc-t');
+    /* `.full`/`.gon` quyết định bảng có ép min-width:820px hay tự co theo màn hình — xem lý do
+       đầy đủ ở styleOnce() (anh Thắng 29/08/2026: "tự co giãn theo màn hình máy tính và điện
+       thoại"). Đầy đủ (máy tính) vẫn cần rộng vì có 2 ô nhập chữ "Thực thu"/"Ghi chú"; Gọn (điện
+       thoại) thì không, để `.bc-t.gon` tự vừa khít màn hình dọc thay vì bắt cuộn ngang. */
+    var tb=el('table','bc-t '+(GON?'gon':'full'));
     /* Cột Actual LUÔN hiện, kể cả chế độ Gọn — anh Thắng 29/08/2026: "Khi nhập số sau, sẽ hiện
        luôn ra số trừ". Trước đây Gọn không có cột này, nhân viên gõ chỉ số sau xong không thấy
        ngay số tiền tính ra (actual = (sau−trước)×đơn vị), phải đợi xem tổng cuối bảng. calc()
@@ -1515,10 +1549,24 @@ class VHG_Trang {
        Nút còn lại (Gửi + Chốt) đặt `flex:1 1 160px` để CHIA ĐỀU hết bề ngang hàng — bỏ nút
        thứ ba (➕ Thu lần nữa) mà không chỉnh lại độ rộng thì 2 nút co về bên trái, để lại một
        khoảng trắng lớn bên phải trông lệch hàng. */
-    if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.style.cssText='flex:1 1 160px'; bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
+    var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px';
+    /* 🔴 BẤM LÀ CHẠY, KHÔNG CÓ ĐƯỜNG ĐÓNG LẠI — anh Thắng 29/08/2026: "Lỡ xổ cái đối chiếu máy,
+       giờ đóng lại không được". Trước đây nút "Đối chiếu máy" gọi thẳng doiChieu(), đổ bảng vào
+       #bc-doi rồi đứng yên mãi — không có nút Đóng, không đổi chữ, không có cách nào thu gọn lại
+       ngoài tải lại cả trang. Nay bấm LẦN 1 chạy đối chiếu (như cũ) + đổi chữ nút thành "Đóng đối
+       chiếu"; bấm LẦN 2 chỉ xoá sạch #bc-doi + trả chữ nút về — giống hệt cách nút "Sửa/Đóng" ở
+       khung "Báo cáo trong 24h" (recentItem()) đang làm, không tự dựng kiểu mới. */
+    if(!GON){
+      var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.style.cssText='flex:1 1 160px';
+      bDoi.onclick=function(){
+        if(doi.dataset.mo==='1'){ doi.dataset.mo=''; doi.textContent=''; bDoi.textContent='Đối chiếu máy'; return; }
+        doi.dataset.mo='1'; bDoi.textContent='Đóng đối chiếu'; doiChieu();
+      };
+      brow.appendChild(bDoi);
+    }
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
-    var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
+    bar.appendChild(doi);
     wrap.appendChild(bar);
 
     // các mục phụ — chỉ chế độ đầy đủ (điện thoại gọn thì ẩn hết cho gọn mắt)
@@ -5345,7 +5393,8 @@ function veQuy(){
         + '</span><span class="gt">' + tien(ca.tien_dem) + '</span></div>'
       + hangSo(L('Máy đếm nói đã nuốt','Meters say they took'), tien(ca.theo_may))
       + hangSo(L('Sổ ghi nhận','On record'), tien(ca.theo_he_thong))
-      + (ca.tu_quay > 0 ? hangSo(L('Khách trả tại quầy','Paid at the counter'), tien(ca.tu_quay)) : '');
+      + (ca.tu_quay > 0 ? hangSo(L('Khách trả tại quầy','Paid at the counter'), tien(ca.tu_quay)) : '')
+      + (ca.tu_bao_cao > 0 ? hangSo(L('Từ báo cáo doanh thu','From revenue reports'), tien(ca.tu_bao_cao)) : '');
     /* Hai con lệch chỉ hiện khi KHÁC 0 — hiện cả hai dòng 0đ mỗi ca là mắt bỏ qua cả hai. */
     if (ca.lech_dem !== 0) {
       h += '<div class="so-hang"><span class="nh" style="color:#ff8087">'
@@ -5380,13 +5429,17 @@ function veQuy(){
     h += '</table></div>';
   }
 
-  var toi = q.toi || { tong: 0, tu_ghe: 0, tu_quay: 0, so_dong: 0 };
+  var toi = q.toi || { tong: 0, tu_ghe: 0, tu_quay: 0, tu_bao_cao: 0, so_dong: 0 };
   h += '<div class="card"><h2>' + L('Tôi đang cầm','I am holding') + ' — ' + esc(q.toi_la) + '</h2>';
   if (toi.tong > 0) {
     h += '<div class="so-hang to"><span class="nh">' + L('Tổng phải nộp','Total to hand in')
       + '</span><span class="gt">' + tien(toi.tong) + '</span></div>'
       + hangSo(L('Lấy từ ngăn ghế','From chair cash boxes'), tien(toi.tu_ghe))
       + hangSo(L('Khách trả tại quầy','Paid at the counter'), tien(toi.tu_quay))
+      /* Anh Thắng 29/08/2026: "Sau khi nhân viên chốt báo cáo doanh thu, thì nó sẽ hiển ở đây là
+         doanh thu nhân viên đang cầm" — dòng thứ ba, cùng kiểu hangSo() với 2 dòng trên, chỉ hiện
+         khi có số (đa số ghế chốt qua QR thì dòng này luôn 0, không cần chiếm chỗ màn hình). */
+      + (toi.tu_bao_cao > 0 ? hangSo(L('Từ báo cáo doanh thu','From revenue reports'), tien(toi.tu_bao_cao)) : '')
       + '<div class="act" style="margin-top:12px">'
       + '<input id="nop-gc" type="text" placeholder="'
       + L('ghi chú (không bắt buộc)','note (optional)') + '" style="flex:1">'
@@ -5404,10 +5457,14 @@ function veQuy(){
   }
   h += '<div class="err" id="nop-e"></div></div>';
 
-  /* ---- 2. CHỜ XÁC NHẬN -------------------------------------------------------------------- */
+  /* ---- 2. CHỜ XÁC NHẬN --------------------------------------------------------------------
+     Tô VÀNG (cùng tông với `.note`) — anh Thắng 29/08/2026: "nhân viên tích vào đã nộp thì nó
+     chuyển sang vàng". Trạng thái "cho" (chờ quản lý xác nhận) là trạng thái GIỮA, chưa hết nợ
+     thật (xem `nhan()` mới thật sự xoá nợ) — tô khác màu thẻ trắng bên trên/dưới để không ai
+     tưởng nhầm "đã tích nộp" là "đã xong", vẫn cần một bước xác nhận nữa mới hết nợ. */
   if ((q.cho || []).length) {
-    h += '<div class="card"><h2>' + L('Lượt nộp chờ xác nhận','Hand-ins awaiting confirmation')
-      + '</h2>';
+    h += '<div class="card" style="background:#fdf4e3;border-color:#f0d9ac"><h2>'
+      + L('Lượt nộp chờ xác nhận','Hand-ins awaiting confirmation') + '</h2>';
     if (!q.quyen_nhan) {
       h += '<p class="mut">' + L('Chỉ Admin hoặc Quản lý mới xác nhận được.',
                                  'Only an Admin or Manager can confirm these.') + '</p>';
@@ -5443,13 +5500,15 @@ function veQuy(){
   if (QUAN_TRI() || CHOT_DS()) {
   h += '<div class="card"><h2>' + L('Ai đang cầm tiền','Who is holding cash') + '</h2><table><tr><th>'
     + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
-    + '<th class="r">' + L('Tại quầy','Counter') + '</th><th class="r">'
+    + '<th class="r">' + L('Tại quầy','Counter') + '</th>'
+    + '<th class="r">' + L('Báo cáo doanh thu','Revenue reports') + '</th><th class="r">'
     + L('Tổng','Total') + '</th></tr>';
-  if (!(q.cam || []).length) h += '<tr><td colspan="4" class="mut">'
+  if (!(q.cam || []).length) h += '<tr><td colspan="5" class="mut">'
     + L('Không ai đang cầm tiền chưa nộp.','Nobody is holding uncollected cash.') + '</td></tr>';
   (q.cam || []).forEach(function(c){
     h += '<tr><td><b>' + esc(c.nguoi) + '</b></td>'
       + '<td class="r">' + tien(c.tu_ghe) + '</td><td class="r">' + tien(c.tu_quay) + '</td>'
+      + '<td class="r">' + tien(c.tu_bao_cao || 0) + '</td>'
       + '<td class="r"><b>' + tien(c.tong) + '</b></td></tr>';
   });
   h += '</table></div>';
@@ -6457,15 +6516,29 @@ function lam(viec, d){
   });
 }
 
+/* Tách riêng khỏi noi() và lộ ra window.VHG_Trang.thoat — anh Thắng 29/08/2026: "2 trang này là
+   1, tại sao thoát 2 lần". bc-app (js_baocao(), IIFE riêng ở TRÊN) và trang chính này (IIFE này)
+   luôn render CÙNG một trang (xem ve_ngoai() trong class-vhg-trang.php: một lần echo cả hai
+   script) nhưng là HAI phiên đăng nhập TÁCH BIỆT cố ý (PIN báo cáo riêng, token /ghe riêng — xem
+   đầu VHG_Auth). Trước đây "Thoát" trong bc-app chỉ đóng lớp phủ (#bc-app), để lộ ra trang chính
+   VẪN CÒN ĐĂNG NHẬP TOKEN — nhìn như hai lần thoát cho MỘT lượt ra vào. Bấm Thoát của bc-app nay
+   GỌI LUÔN hàm này để đăng xuất token cùng lúc — một cú bấm đủ, không đụng gì tới việc ĐĂNG NHẬP
+   (vẫn phải nhập đúng PIN/token riêng như cũ, chỉ thoát mới gộp). An toàn kể cả khi trang chính
+   CHƯA đăng nhập token (mở bc-app thẳng từ màn đăng nhập): gọi logout của một phiên vốn đã trống
+   chỉ vẽ lại đúng màn đăng nhập đang có sẵn, không có gì để hỏng. */
+function thoatNgoai(){
+  goi('logout', {}, function(){ TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){} veLogin(''); });
+}
+window.VHG_Trang = window.VHG_Trang || {};
+window.VHG_Trang.thoat = thoatNgoai;
+
 function noi(){
   henLai();
   chayDongHo();
   chayDongHoTop();
   noiNN();
   document.getElementById('lam-moi').onclick = function(){ tai(); };
-  document.getElementById('thoat').onclick = function(){
-    goi('logout', {}, function(){ TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){} veLogin(''); });
-  };
+  document.getElementById('thoat').onclick = thoatNgoai;
   [].forEach.call(document.querySelectorAll('[data-ky]'), function(b){
     b.onclick = function(){ KY = b.getAttribute('data-ky'); tai(); };
   });

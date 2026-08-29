@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.70.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.72.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,73 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.72.0 — Nối "Báo cáo doanh thu" vào Quỹ tiền mặt + thoát 1 lần + đóng được Đối chiếu máy
+
+Bốn việc, cùng đợt 29/08:
+
+**1. Doanh thu báo cáo nay tính vào "đang cầm" ở tab Quỹ & nộp tiền.** Anh Thắng: *"Sau khi nhân
+viên chốt báo cáo doanh thu, thì nó sẽ hiển ở đây là doanh thu nhân viên đang cầm. Trừ khi nhân
+viên tích vào đã nộp thì nó chuyển sang vàng, và kế toán tích vào thì đã hết nợ"*. Trước bản này,
+tab "Quỹ & nộp tiền" ("Tôi đang cầm"/"Ai đang cầm tiền") chỉ gom tiền từ 2 nguồn (`chot` — chốt ca
+quét QR ghế, `thu` — thu tại quầy); tiền khai qua "Báo cáo doanh thu" (chỉ số/QR nhập tay, việc cả
+phiên làm việc này xây) hoàn toàn KHÔNG nằm trong đó, dù nhân viên vẫn đang cầm tiền mặt thật cho
+tới khi nộp.
+
+- Thêm cột `bc.nop_id` (giống hệt cơ chế `chot.nop_id`/`thu.nop_id` có sẵn): 0 = báo cáo này tiền
+  còn trên tay nhân viên; khác 0 = đã gộp vào một lượt "Nộp về quầy", chờ xác nhận.
+- `VHG_Quy::dang_cam()`, `ai_dang_cam()`, `bao_cao_ca()`, `nop()`, `huy_nop()` đều nối thêm nguồn
+  thứ ba này — dùng lại NGUYÊN VẸN luồng trạng thái đã có: **đang cầm** (nop_id=0) → nhân viên bấm
+  **"Nộp về quầy"** → **chờ xác nhận** (tô nền vàng, cùng tông với các khung cảnh báo khác) → quản
+  lý/kế toán bấm **"Đã nhận"** → **hết nợ**. Không dựng cơ chế mới, chỉ nối thêm một đường ống vào
+  cơ chế cũ.
+- ⚠️ **Khớp theo TÊN** (`bc.nhan_vien` so với `chot.nguoi`/tên đăng nhập token) — cùng namespace
+  tên người mà `chot`/`thu` vẫn dùng. **Cần kiểm với anh Thắng**: PIN Báo cáo doanh thu của một
+  nhân viên phải có `ten` GIỐNG HỆT tên tài khoản `/ghe` (token) của chính người đó thì số mới gộp
+  đúng vào một dòng "đang cầm" — hai tên khác nhau (VD PIN ghi "Lan" nhưng tài khoản ghi "Lý Thị
+  Ngọc Lan") sẽ tách thành HAI người khác nhau trên bảng "Ai đang cầm tiền".
+- Tiện thể vá luôn 1 lỗi phát hiện khi soát code: cờ hiện nút "Đã nhận" (`quyen_nhan`) ở nhánh
+  quản trị đang nhét cứng "chỉ Admin/Quản lý", trong khi quyền THẬT (`nop_nhan`/`nop_huy`) là quyền
+  "chốt doanh số" — CẤU HÌNH ĐƯỢC, kế toán hoặc vai trò khác vẫn làm được mà không cần lên Quản lý.
+  Vai trò được cấp quan_tri kiểu khác Admin/Quản lý (VD Cửa hàng trưởng) trước đây bị giấu mất nút
+  dù đủ quyền — nay dùng chung đúng một hàm `duoc_chot_doanh_so()` như nhánh còn lại vẫn đang làm.
+
+**2. "Thoát" trong Báo cáo doanh thu nay thoát LUÔN cả trang chính.** Anh Thắng: *"2 trang này là
+1, tại sao thoát 2 lần"*. `/ghe` có HAI phiên đăng nhập tách biệt cố ý (PIN báo cáo riêng, token
+trang chính riêng) cùng hiện trên một trang — trước đây bấm Thoát trong màn Báo cáo doanh thu chỉ
+đóng lớp phủ, để lộ trang chính vẫn còn đăng nhập token, bắt bấm Thoát thêm lần nữa. Nay bấm Thoát
+ở Báo cáo doanh thu gọi luôn `window.VHG_Trang.thoat()` — một cú bấm thoát cả hai, không đụng gì
+tới việc ĐĂNG NHẬP (vẫn cần đúng PIN/token riêng như cũ).
+
+**3. Nút "Đối chiếu máy" đóng lại được.** Anh Thắng: *"Lỡ xổ cái đối chiếu máy, giờ đóng lại không
+được"*. Trước đây bấm là chạy, không có đường đóng — bảng đứng yên mãi tới khi tải lại cả trang.
+Nay bấm lần 1 chạy đối chiếu (đổi chữ nút "Đóng đối chiếu"), bấm lần 2 xoá bảng + trả chữ nút về.
+
+**4. Bảng tự co giãn theo màn hình máy tính/điện thoại** (nội dung gốc, giữ nguyên bên dưới).
+
+### v1.71.0 — Bảng tự co giãn theo màn hình máy tính/điện thoại
+
+Anh Thắng 29/08: *"Điều chỉnh trang tự co giãn theo màn hình máy tính và điện thoại"*.
+
+- **Nguyên nhân**: mọi bảng trong `/ghe` (bảng "Số liệu từng ghế", Đối chiếu, Lịch sử tháng, Lịch
+  sử chốt ca) dùng chung lớp `.bc-t`, và lớp này ép cứng `min-width:820px` — kể cả 3 bảng phụ chỉ
+  5-7 cột ngắn và cả bảng ghế ở CHẾ ĐỘ GỌN (điện thoại, đã bớt cột "Tiền mặt/Thực thu/Ghi chú").
+  Ép rộng 820px bắt điện thoại nào cũng phải cuộn ngang mới xem hết, dù nội dung thật sự đã đủ hẹp
+  để vừa màn hình.
+- **Vá**: bỏ `min-width` khỏi luật `.bc-t` chung; chỉ gắn lại (`.full`) cho đúng bảng ghế ở CHẾ ĐỘ
+  ĐẦY ĐỦ (máy tính, 10 cột, có 2 ô nhập chữ "Thực thu"/"Ghi chú" thật sự cần bề ngang). Bảng ghế ở
+  Gọn (`.gon`) và 3 bảng phụ nay tự co theo đúng nội dung, không còn bị ép rộng giả.
+  Đồng thời bớt đệm ô + thu nhỏ chiều rộng tối thiểu của ô nhập trong chế độ Gọn (`.bc-t.gon`) cho
+  vừa khít điện thoại phổ thông hơn.
+- **Chưa hết cuộn ngang 100%** trên điện thoại màn rất nhỏ (dưới ~390px) — bảng vẫn là bảng số
+  liệu dạng cột, không phải thẻ xếp dọc như màn "Sửa 24h". Anh Thắng test lại trên máy thật, còn
+  thấy cuộn khó chịu ở đâu thì báo tiếp, em vá thêm.
+
+Nhân tiện vá thêm 1 lỗi phát hiện cùng lúc: nút **"Đối chiếu máy"** trước đây bấm là CHẠY, không có
+đường đóng lại — anh Thắng: *"Lỡ xổ cái đối chiếu máy, giờ đóng lại không được"*. Bảng đối chiếu đổ
+ra rồi đứng yên mãi, muốn thu gọn lại phải tải lại cả trang. Nay bấm lần 1 chạy đối chiếu (như cũ,
+đổi chữ nút thành "Đóng đối chiếu"), bấm lần 2 xoá bảng + trả chữ nút về — cùng kiểu bật/tắt với nút
+"Sửa/Đóng" ở khung "Báo cáo trong 24h".
 
 ### v1.70.0 — Vá "Nộp" đứng số cũ sau khi ghi đè Thực thu + tô đỏ cho kế toán
 

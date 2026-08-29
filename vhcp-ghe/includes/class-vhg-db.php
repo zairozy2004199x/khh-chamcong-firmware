@@ -637,7 +637,22 @@ class VHG_DB {
 		   `coso_key` = tên cơ sở đã bỏ dấu/khoảng trắng (so khớp bất kể cách gõ), `coso` giữ tên hiện.
 
 		   TÁCH HEADER (`bc`) / DÒNG GHẾ (`bc_dong`) — sạch hơn bản Sheet phẳng: tiền nộp nằm ở
-		   header (không còn mẹo "nhét vào dòng đầu"), mỗi ghế một dòng chi tiết. */
+		   header (không còn mẹo "nhét vào dòng đầu"), mỗi ghế một dòng chi tiết.
+
+		   🔴 `nop_id` (thêm 29/08/2026) LÀ CHUYỆN KHÁC HẲN `nop_so_tien`/`nop_trang_thai` Ở TRÊN.
+		      Hai cột kia là con số NHÂN VIÊN TỰ KHAI lúc gửi báo cáo ("tôi đã nộp bao nhiêu") — một
+		      dòng sổ sách, không phải bằng chứng đã chuyển tay thật. `nop_id` là CẦU NỐI sang hệ
+		      "quỹ tiền mặt" (`chot`/`thu`/`nop` — xem VHG_Quy) đang theo dõi tiền mặt THẬT SỰ còn
+		      nằm trên tay ai: 0 = tiền báo cáo này vẫn đang trên tay nhân viên (`nhan_vien`), tính
+		      vào "Tôi đang cầm"/"Ai đang cầm tiền"; khác 0 = đã gộp vào một lượt Nộp về quầy
+		      (`VHG_Quy::nop()`), chờ quản lý bấm Đã nhận (`VHG_Quy::nhan()`) mới thật sự hết nợ.
+		      Anh Thắng 29/08: *"Sau khi nhân viên chốt báo cáo doanh thu, thì nó sẽ hiển ở đây là
+		      doanh thu nhân viên đang cầm. Trừ khi nhân viên tích vào đã nộp thì nó chuyển sang
+		      vàng, và kế toán tích vào thì đã hết nợ"* — khớp NGUYÊN VẸN vòng trạng thái nop_id=0
+		      (đang cầm) → nop.trang_thai='cho' (đã nộp, chờ xác nhận — tô vàng) → 'da_nhan' (kế
+		      toán xác nhận, hết nợ) mà `chot`/`thu` đã dùng từ trước, không phải dựng lại từ đầu.
+		      Khớp theo TÊN (`nhan_vien` = `chot.nguoi`/`thu`'s người) — cùng namespace tên người
+		      dùng chung cho quỹ tiền mặt, xem VHG_Quy::dang_cam()/ai_dang_cam(). */
 		$b['bc'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			report_id VARCHAR(40) NOT NULL,
@@ -658,10 +673,13 @@ class VHG_DB {
 			kt_doi_soat TINYINT(1) NOT NULL DEFAULT 0,
 			tao_luc DATETIME NULL,
 			sua_luc DATETIME NULL,
+			nop_id BIGINT(20) NOT NULL DEFAULT 0,
 			PRIMARY KEY  (id),
 			UNIQUE KEY report_id (report_id),
 			UNIQUE KEY coso_ngay_lan (coso_key,ngay,lan),
-			KEY ngay (ngay)";
+			KEY ngay (ngay),
+			KEY nhan_vien_nop (nhan_vien,nop_id),
+			KEY nop (nop_id)";
 
 		$b['bc_dong'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
