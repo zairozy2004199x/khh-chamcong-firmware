@@ -422,9 +422,17 @@ class VHG_BaoCao {
 		if ( '' === $ten ) { return array( 'ok' => false, 'pinOk' => false, 'error' => 'Không xác định được người dùng.' ); }
 		$pin = trim( (string) $pin_phien );
 		$coso_ai = trim( (string) ( isset( $ai['coso'] ) ? $ai['coso'] : '' ) );
+		/* 🔎 VÌ SAO CÓ `$vi_sao` — bản 1.63.1 im lặng rớt về đường dò cũ khi `$pin_phien` rỗng, và
+		   khi đường dò cũ CŨNG trượt thì lỗi trả về không nói được TRƯỢT Ở BƯỚC NÀO (phiên chưa
+		   có cột `pin`? không tìm ra tên? trùng tên?) — người ngồi máy chỉ thấy "vẫn bắt đăng
+		   nhập" và không ai đoán được lý do tiếp theo là gì. Ghi lại từng bước để câu lỗi cuối nói
+		   thẳng ra, thay vì một câu chung chung lặp lại y hệt bất kể nguyên nhân. */
+		$vi_sao = ( '' !== $pin_phien ) ? 'co_pin_phien' : 'thieu_pin_phien';
 		if ( '' === $pin && class_exists( 'VHG_Auth' ) ) {
 			$users = VHG_Auth::users();
-			if ( ! is_wp_error( $users ) ) {
+			if ( is_wp_error( $users ) ) {
+				$vi_sao .= '; loi_users:' . $users->get_error_message();
+			} else {
 				/* 🔴 KHỚP CẢ TÊN LẪN CƠ SỞ TRƯỚC, TÊN SUÔNG SAU — xem khối 🔴 phía trên vì sao đây
 				   chỉ còn là đường lui cho phiên cũ, không phải đường chính. */
 				$theo_ten = array();
@@ -435,14 +443,25 @@ class VHG_BaoCao {
 					$theo_ten[] = $u;
 				}
 				if ( '' === $pin && 1 === count( $theo_ten ) ) { $pin = (string) $theo_ten[0]['pin']; }
+				if ( '' === $pin ) {
+					$vi_sao .= '; ten="' . $ten . '" coso_phien="' . $coso_ai . '" trung_ten=' . count( $theo_ten )
+						. '; tong_users=' . count( $users );
+					if ( count( $theo_ten ) ) {
+						$cs_khac = array();
+						foreach ( $theo_ten as $u ) { $cs_khac[] = (string) $u['coso']; }
+						$vi_sao .= '; coso_ho_so=' . implode( ' | ', $cs_khac );
+					}
+				}
 			}
 		}
 		if ( '' === $pin ) {
 			return array( 'ok' => false, 'pinOk' => false,
-				'error' => 'Chưa có PIN trong hồ sơ nhân sự — nhờ Admin cấp PIN rồi vào lại.' );
+				'error' => 'Chưa có PIN trong hồ sơ nhân sự — nhờ Admin cấp PIN rồi vào lại.',
+				'viSao' => $vi_sao );
 		}
 		$r = self::boot( $pin );
 		if ( ! empty( $r['ok'] ) ) { $r['pin'] = $pin; }
+		else { $r['viSao'] = $vi_sao . '; boot_that_bai'; }
 		return $r;
 	}
 

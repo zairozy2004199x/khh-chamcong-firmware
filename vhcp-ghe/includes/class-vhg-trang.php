@@ -1298,13 +1298,21 @@ class VHG_Trang {
   }
 
   // ---------------- CỔNG PIN ----------------
-  function moBaoCao(){
+  function moBaoCao(ghiChuTuDong){
     styleOnce();
     var app=$('bc-app'); app.className='mo'; app.textContent='';
     var g=el('div','bc-card bc-gate');
     g.appendChild(el('div',null,'📋'));
     g.appendChild(el('h2','bc-h','Báo cáo doanh thu'));
     g.appendChild(el('div','bc-mut','Nhập mã PIN nhân viên thu tiền'));
+    /* Rớt về đây từ moBaoCaoTuDuLieu() (tự mở thất bại) thì NÓI RÕ VÌ SAO ngay trên màn — không
+       thì người ngồi máy chỉ thấy "vẫn bắt đăng nhập" và không đoán được bước tiếp theo là gì.
+       Xem VHG_BaoCao::boot_tu_ai(), trường `viSao`. */
+    if (ghiChuTuDong) {
+      var gc=el('div','bc-mut'); gc.style.cssText='background:#fef3c7;border-radius:6px;padding:6px 8px;margin-top:6px;font-size:11px;word-break:break-word';
+      gc.textContent='Tự động vào thất bại: '+ghiChuTuDong;
+      g.appendChild(gc);
+    }
     var inp=el('input'); inp.type='tel'; inp.inputMode='numeric'; inp.maxLength=10; inp.placeholder='PIN';
     g.appendChild(inp);
     var er=el('div','bc-err');
@@ -2105,7 +2113,10 @@ class VHG_Trang {
      về cổng PIN cũ nếu vì lý do gì đó chưa suy ra được (hồ sơ chưa có PIN, PIN bị khoá…) — vẫn
      có đường vào, chỉ là phải gõ tay như trước. */
   function moBaoCaoTuDuLieu(r){
-    if (!r || !r.ok || !r.pinOk) { moBaoCao(); return; }
+    if (!r || !r.ok || !r.pinOk) {
+      moBaoCao((r && (r.viSao || r.error)) || 'không nhận được trả lời máy chủ.');
+      return;
+    }
     styleOnce();
     PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
     var app=$('bc-app'); app.className='mo'; app.textContent='';

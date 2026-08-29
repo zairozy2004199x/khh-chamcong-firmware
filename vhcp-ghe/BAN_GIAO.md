@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.1** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.2** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -41,7 +41,31 @@ LẦN** để phiên mới mang theo `pin` — nếu chưa, `boot_tu_ai()` vẫn
 đúng, nhưng không phải đường chính đã sửa). Sau khi đăng nhập lại, bấm "Mở màn Báo cáo doanh thu"
 phải vào thẳng, không hỏi PIN — thử với đúng tài khoản Võ Nguyễn Hồng Nhung trước.
 
-### v1.63.0 — Thu NHIỀU LẦN trong ngày (mỗi lần 1 bản ghi, chỉ số nối tiếp)
+### v1.63.2 — 1.63.1 CHƯA HẾT: thêm chốt migration tay + báo lỗi rõ nguyên nhân
+
+Anh Thắng test lại sau khi cài 1.63.1 (đã xác nhận đúng bản, đã đăng xuất/đăng nhập lại đàng
+hoàng): **vẫn bắt đăng nhập**. Vậy lỗi không phải "phiên cũ chưa mang PIN" như 1.63.1 giả định.
+
+**Nghi vấn hàng đầu:** bảng `phien` là bảng ĐANG SỐNG (có người đang mở web ngay lúc cài), và
+`boot_tu_ai()` không cách nào tự phân biệt "cột `pin` rỗng vì phiên phát trước 1.63.1" với "cột
+`pin` KHÔNG TỒN TẠI vì dbDelta chưa kịp/không thêm được trên bảng đó" — cả hai đọc ra y hệt nhau
+(chuỗi rỗng). Trong khi bảng `bc` (thêm cột `lan` ở 1.63.0) là bảng có ÍT thao tác ghi đồng thời
+hơn `phien` (mỗi request có token đều SELECT/DELETE bảng này).
+
+**Đã thêm hai lớp, KHÔNG PHẢI ĐOÁN THÊM:**
+1. `VHG_DB::migrate_()`: thêm tay `ALTER TABLE ... ADD COLUMN pin ...` có chốt
+   `SHOW COLUMNS ... LIKE 'pin'` (idempotent), TÁCH KHỎI vòng lặp `dbDelta` chung — không còn dựa
+   vào dbDelta tự thêm cột trên một bảng đông người dùng thật nữa.
+2. `boot_tu_ai()` trả thêm trường **`viSao`** khi thất bại (bước nào trượt: có/thiếu `pin_phien`,
+   tên không khớp ai, trùng tên bao nhiêu người, cơ sở hồ sơ của những người trùng tên là gì…).
+   Client (`moBaoCao()`) hiện thẳng `viSao` lên MÀN HÌNH (ô vàng, ngay dưới tiêu đề "Báo cáo doanh
+   thu") thay vì im lặng rớt về cổng PIN như trước — **không cần mở DevTools**, chỉ cần chụp màn
+   hình là đọc được lý do.
+
+**Nếu 1.63.2 vẫn không vào thẳng được:** đọc đúng dòng `viSao` hiện trên màn (không phải đoán lại
+từ đầu) rồi mới sửa tiếp — dòng đó nói chính xác bước nào trượt.
+
+### v1.63.1 — "Mở màn Báo cáo doanh thu" vẫn bắt gõ lại PIN (Võ Nguyễn Hồng Nhung, 29/08)
 Anh Thắng 29/08: *"thay vì 1 ngày 1 lần, cho thu nhiều lần; lần sau chỉ số tự đẩy chỉ số cũ vào"*.
 - **CSDL:** thêm cột `lan SMALLINT` vào `bc` và `bc_dong`; đổi UNIQUE của `bc` từ
   `(coso_key,ngay)` → `(coso_key,ngay,lan)`. dbDelta KHÔNG tự bỏ khoá cũ nên có `VHG_DB::migrate_()`
@@ -252,8 +276,10 @@ mà không đọc.
   `VHG_BaoCao::noi_tiep()` vào hai hàm đó (class-vhg-ketoan.php). Chưa làm vì ngữ nghĩa restore của
   undo phức tạp, và xoá ngày giữa hiếm.
 - **v1.62.0 ô ảnh mọi chế độ** — đã anh xác nhận trực quan (điện thoại & PC đều thấy 📷/🧹). Coi như xong.
-- **v1.63.1 PIN phiên** — xem mục 1 ở trên. Cần Võ Nguyễn Hồng Nhung đăng xuất/đăng nhập lại rồi
-  thử "Mở màn Báo cáo doanh thu" một lần nữa để xác nhận đã vào thẳng.
+- **v1.63.1/1.63.2 PIN phiên** — xem mục 1 ở trên. 1.63.1 CHƯA hết lỗi dù đã đăng xuất/đăng nhập
+  lại đúng cách; 1.63.2 thêm chốt migration tay + hiện `viSao` (lý do trượt) thẳng lên màn hình
+  cổng PIN. Cần Võ Nguyễn Hồng Nhung thử lại "Mở màn Báo cáo doanh thu" — nếu vẫn hỏi PIN, đọc
+  đúng dòng vàng hiện trên màn (viSao) rồi báo lại nguyên văn, đừng đoán tiếp từ đầu.
 
 ---
 

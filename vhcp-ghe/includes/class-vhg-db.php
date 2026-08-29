@@ -42,12 +42,26 @@ class VHG_DB {
 	 * 🔴 Bỏ UNIQUE cũ `coso_ngay (coso_key,ngay)` của bảng `bc` — nay cho THU NHIỀU LẦN/ngày, khoá
 	 *    mới là `coso_ngay_lan (coso_key,ngay,lan)` (dbDelta tự thêm). dbDelta THÊM được khoá mới
 	 *    nhưng KHÔNG BỎ khoá cũ; mà khoá cũ còn thì chèn lần thu thứ 2 trong ngày vẫn bị chặn.
+	 *
+	 * 🔴 THÊM TAY cột `phien.pin` (v1.63.1) — bình thường dbDelta tự thêm cột thiếu (đã thấy đúng
+	 *    ở khoá `coso_ngay_lan` ngay trên), nhưng đây là bảng PHIÊN ĐANG SỐNG — có hàng, có
+	 *    người đang mở web ngay lúc cài — và ca "Mở màn Báo cáo doanh thu vẫn bắt gõ PIN" sau khi
+	 *    cài xong hệt quá giống dấu hiệu cột chưa lên: `boot_tu_ai()` không cách nào tự phân biệt
+	 *    "cột rỗng vì phiên phát trước bản này" với "cột không tồn tại" — cả hai đều đọc ra rỗng.
+	 *    Thêm tay ở đây, tách khỏi vòng lặp `dbDelta` chung, để chắc chắn nó CÓ, không phải ĐOÁN
+	 *    dbDelta đã làm xong việc của nó trên một bảng đông người dùng thật.
 	 */
 	private static function migrate_() {
 		global $wpdb;
 		$bc = self::t( 'bc' );
 		$co = $wpdb->get_var( "SHOW INDEX FROM $bc WHERE Key_name='coso_ngay'" );
 		if ( $co ) { $wpdb->query( "ALTER TABLE $bc DROP INDEX coso_ngay" ); }
+
+		$phien = self::t( 'phien' );
+		$co_cot = $wpdb->get_var( "SHOW COLUMNS FROM $phien LIKE 'pin'" );
+		if ( ! $co_cot ) {
+			$wpdb->query( "ALTER TABLE $phien ADD COLUMN pin VARCHAR(20) NOT NULL DEFAULT '' AFTER coso" );
+		}
 	}
 
 	public static function bang() {
