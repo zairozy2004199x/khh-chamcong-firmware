@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.1** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,17 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.66.1 — Nút chọn ảnh: chữ Việt cố định, không lệ thuộc ngôn ngữ trình duyệt
+
+Anh Thắng 29/08, ảnh PC hiện "Choose File" còn điện thoại hiện "Chọn tệp": *"tại sao trên web lại
+khác trên điện thoại"*. KHÔNG phải trang gửi hai bản khác nhau — nút của `<input type="file">` là
+chữ do CHÍNH TRÌNH DUYỆT vẽ theo ngôn ngữ hiển thị của trình duyệt đó (PC để tiếng Anh, điện thoại
+để tiếng Việt), trang không có cách nào ép chữ đó qua HTML/CSS thường.
+
+**Sửa:** ẩn hẳn nút xấu-xí đó (thu về 1×1px, vẫn bấm được qua `<label for="...">` phủ lên trên) và
+tự vẽ MỘT nút chữ Việt cố định "Chọn ảnh" — giống hệt nhau trên mọi máy, mọi trình duyệt, bất kể
+ngôn ngữ hệ thống người dùng đang để gì.
 
 ### v1.66.0 — Gọn/Đầy đủ đồng bộ theo PIN, không còn kẹt riêng từng máy
 

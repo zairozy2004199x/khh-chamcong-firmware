@@ -1650,10 +1650,28 @@ class VHG_Trang {
      chỉ cho nhân viên chụp bằng camera thôi". Ô có `capture='environment'` mở THẲNG camera trên
      điện thoại (đặc biệt Safari/iOS), bỏ qua hẳn màn chọn — không có đường nào lấy ảnh có sẵn
      trong thư viện, kể cả khi ảnh chụp lúc nãy đã có sẵn. Bỏ `capture` thì máy hiện đúng bảng
-     chọn "Chụp ảnh / Chọn từ thư viện / Duyệt tệp" như ô ảnh chứng từ nộp tiền bên dưới vẫn làm. */
+     chọn "Chụp ảnh / Chọn từ thư viện / Duyệt tệp" như ô ảnh chứng từ nộp tiền bên dưới vẫn làm.
+     🔴 CHỮ TRÊN NÚT "Choose File" TRÊN PC, "Chọn tệp" TRÊN ĐIỆN THOẠI — anh Thắng 29/08/2026:
+     "tại sao trên web lại khác trên điện thoại". Không phải mã của trang: nút của ô
+     `<input type="file">` là chữ do CHÍNH TRÌNH DUYỆT vẽ theo NGÔN NGỮ HIỂN THỊ của trình duyệt
+     đó (Cài đặt → Ngôn ngữ) — trang không có cách nào ép chữ đó, dù server luôn trả về đúng một
+     trang cho mọi máy. Máy tính để trình duyệt tiếng Anh thì ra "Choose File", điện thoại để
+     tiếng Việt thì ra "Chọn tệp" — cùng một web, khác NHAU vì khác ngôn ngữ trình duyệt của
+     từng người, không phải trang gửi hai bản khác nhau.
+     Sửa bằng cách ẨN hẳn nút xấu-xí đó (`opacity:0`, thu về 1x1px, vẫn BẤM ĐƯỢC qua `<label>`
+     phủ lên trên) và tự vẽ MỘT NÚT CHỮ VIỆT CỐ ĐỊNH — "Chọn ảnh" — giống hệt nhau trên mọi máy,
+     mọi trình duyệt, bất kể ngôn ngữ hệ thống của người dùng. */
+  var CEL_ANH_DEM = 0;
   function celAnh(cls){
     var td=el('td');
-    var i=el('input',cls); i.type='file'; i.accept='image/*'; i.style.width='90px';
+    var id='canh'+(++CEL_ANH_DEM);
+    var i=el('input',cls); i.type='file'; i.accept='image/*'; i.id=id;
+    i.style.cssText='position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;'
+      +'clip:rect(0,0,0,0);white-space:nowrap;border:0';
+    var lab=el('label',null,'Chọn ảnh');
+    lab.setAttribute('for',id);
+    lab.style.cssText='display:inline-block;cursor:pointer;font:inherit;font-weight:700;font-size:12px;'
+      +'padding:5px 9px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#0f172a';
     var prev=el('img'); prev.style.cssText='display:none;width:36px;height:36px;object-fit:cover;border-radius:6px;margin-top:4px;vertical-align:middle';
     i.addEventListener('change',function(){
       if(prev.dataset.url){ try{ URL.revokeObjectURL(prev.dataset.url); }catch(e){} }
@@ -1661,7 +1679,7 @@ class VHG_Trang {
       if(f){ var u=URL.createObjectURL(f); prev.src=u; prev.dataset.url=u; prev.style.display='inline-block'; }
       else { prev.style.display='none'; delete prev.dataset.url; }
     });
-    td.appendChild(i); td.appendChild(prev);
+    td.appendChild(i); td.appendChild(lab); td.appendChild(prev);
     return td;
   }
   function inp(cls,ph,isText){ var e=el('input',cls); e.type='text'; e.inputMode=isText?'text':'numeric'; e.placeholder=ph||''; return e; }
