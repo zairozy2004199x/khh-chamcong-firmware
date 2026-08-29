@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.2** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.3** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,23 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.66.3 — "Không đọc được trả lời của máy chủ" khi bấm "Đối chiếu máy"
+
+Anh Thắng 29/08, cơ sở POSH nhiều ghế bấm "Đối chiếu máy" ở màn báo cáo PIN thì báo *"Không đọc
+được trả lời của máy chủ (mạng hoặc tường lửa)"* — cùng câu lỗi với v1.66.2 nhưng ở một nút khác
+hẳn, nên là một nguyên nhân khác.
+
+- **Gốc thật:** `VHG_BaoCao::doi_chieu()` hỏi CSDL **hai lượt riêng cho MỖI ghế** (QR · tiền mặt),
+  cơ sở vài chục ghế thành vài chục lượt hỏi trong một lần bấm. Mỗi lượt lại lọc bằng
+  `DATE(luc)=%s` — bọc cột `luc` trong hàm nên MySQL không dùng được phần `luc` của khoá
+  `may (ma_may,luc)`, phải dò hết mọi hàng của riêng máy đó chứ không chỉ hàng trong ngày. Cộng
+  dồn là vượt hẳn thời gian chờ mặc định (25s), trình duyệt báo đúng như lỗi mạng dù đây là chậm ở
+  máy chủ.
+- **Sửa:** đổi `DATE(luc)=%s` sang dạng khoảng `luc>=... AND luc<...` (dùng được trọn khoá
+  `may`), và gom lại đúng **hai câu `GROUP BY ma_may` cho cả cơ sở trong một lượt** thay vì hỏi lại
+  từng ghế — tra kết quả bằng mã máy trong bộ nhớ. Không đổi số liệu trả về, chỉ nhanh hơn.
+- Thời gian chờ riêng cho lượt này cũng nâng 25s→45s làm lưới an toàn thứ hai.
 
 ### v1.66.2 — "Lỗi khi gửi báo cáo" ở cơ sở đính nhiều ảnh
 

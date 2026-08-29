@@ -1950,7 +1950,7 @@ class VHG_Trang {
   // ---------------- ĐỐI CHIẾU ----------------
   function doiChieu(){
     var box=$('bc-doi'); box.textContent='Đang đối chiếu…';
-    goi('bc_doichieu',{ngay:NGAY},function(r){
+    goi('bc_doichieu',{ngay:NGAY},function(r){ // 45s: cơ sở nhiều ghế, gom số cả ngày có thể lâu hơn mức mặc định
       box.textContent='';
       if(!r||!r.ok){ box.textContent=(r&&r.message)||'Không đối chiếu được.'; return; }
       if(!r.so_ghe){ box.textContent='Ngày '+r.ngay+' chưa có ghế nào để đối chiếu.'; return; }
@@ -1967,7 +1967,7 @@ class VHG_Trang {
         bo.appendChild(tr);
       });
       tb.appendChild(bo); sc.appendChild(tb); box.appendChild(sc);
-    });
+    },45000);
   }
   function tdT(x){ var td=el('td'); td.appendChild(el('b',null,x)); return td; }
   function tdN(n,lech){ var td=el('td'); var s=el('span'); s.style.cssText='display:block;text-align:right;font-variant-numeric:tabular-nums'; if(lech&&Number(n)!==0){ s.style.color='#b91c1c'; s.style.fontWeight='700'; } else if(lech){ s.className='bc-khop'; } s.textContent=money(n); td.appendChild(s); return td; }

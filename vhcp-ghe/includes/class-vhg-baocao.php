@@ -1220,6 +1220,10 @@ class VHG_BaoCao {
 		if ( ! $q ) { return array( 'ok' => false, 'ma' => 'het_phien', 'message' => 'PIN không hợp lệ.' ); }
 		$ngay = self::ngay_( $ngay );
 		if ( '' === $ngay ) { $ngay = current_time( 'Y-m-d' ); }
+		/* Mốc SAU cùng dạng 'Y-m-d 00:00:00' để so bằng khoảng — xem lý do đổi ở khối truy vấn
+		   bên dưới. DATETIME không mang múi giờ nên đây vẫn LÀ đúng ngày lịch được lưu, không
+		   phải một phép quy đổi múi giờ nào khác. */
+		$ngay_sau = gmdate( 'Y-m-d', strtotime( $ngay . ' +1 day' ) );
 
 		$scope_key = array();
 		foreach ( self::ds_ghe( $q ) as $g ) {
@@ -1230,20 +1234,52 @@ class VHG_BaoCao {
 			'SELECT d.qr, d.actual, d.ma_may, d.ten, h.coso, h.coso_key FROM ' . VHG_DB::t( 'bc_dong' ) . ' d'
 			. ' JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
 			. ' WHERE d.ngay=%s AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', $ngay ), ARRAY_A );
+		$rows = array_values( array_filter( (array) $rows, function ( $r ) use ( $scope_key ) {
+			return isset( $scope_key[ $r['coso_key'] ] );
+		} ) );
 
-		$tThu = VHG_DB::t( 'thu' );
+		/* 🔴 GOM MỘT LƯỢT CHO CẢ NGÀY, KHÔNG HỎI TỪNG GHẾ.
+		   Anh Thắng gặp "Không đọc được trả lời của máy chủ" khi bấm Đối chiếu máy ở cơ sở nhiều
+		   ghế. Bản cũ hỏi HAI câu riêng cho MỖI ghế (`WHERE ma_may=%s AND DATE(luc)=%s ...`) —
+		   cơ sở vài chục ghế thành vài chục lượt hỏi DB trong một lần bấm, mà `DATE(luc)=%s` lại
+		   bọc cột `luc` trong một hàm nên MySQL không dùng được phần `luc` của khoá `may
+		   (ma_may,luc)` để giới hạn khoảng — mỗi lượt phải dò hết mọi hàng của riêng máy đó,
+		   không chỉ hàng của ngày đang xem. Cộng dồn nhiều chục lượt như vậy là vượt hẳn 25 giây
+		   goi() chờ, và trình duyệt báo "mạng hoặc tường lửa" — đúng như lỗi anh Thắng gặp.
+		   Sửa hai chỗ cùng lúc: (1) đổi sang `luc>=... AND luc<...` — dạng khoảng, dùng được cả
+		   hai cột của khoá `may`; (2) gom lại đúng HAI câu `GROUP BY ma_may` cho MỌI ghế cần
+		   trong một lượt, tra kết quả bằng mã máy trong bộ nhớ thay vì hỏi lại DB từng ghế. */
+		$may_qr_map   = array();
+		$may_cash_map = array();
+		$ma_ds = array();
+		foreach ( $rows as $r ) { $ma_ds[ (string) $r['ma_may'] ] = true; }
+		$ma_ds = array_keys( $ma_ds );
+		if ( $ma_ds ) {
+			$tThu = VHG_DB::t( 'thu' );
+			$cho  = implode( ',', array_fill( 0, count( $ma_ds ), '%s' ) );
+			foreach ( $wpdb->get_results( $wpdb->prepare(
+				"SELECT ma_may, COALESCE(SUM(so_tien),0) AS tong FROM $tThu"
+				. " WHERE luc>=%s AND luc<%s AND huy=0 AND nguon<>%s AND ma_may IN ($cho) GROUP BY ma_may",
+				array_merge( array( $ngay . ' 00:00:00', $ngay_sau . ' 00:00:00', VHG_Thu::TIEN_MAT ), $ma_ds )
+			), ARRAY_A ) as $x ) {
+				$may_qr_map[ (string) $x['ma_may'] ] = (int) $x['tong'];
+			}
+			foreach ( $wpdb->get_results( $wpdb->prepare(
+				"SELECT ma_may, COALESCE(SUM(so_tien),0) AS tong FROM $tThu"
+				. " WHERE luc>=%s AND luc<%s AND huy=0 AND nguon=%s AND noi_dung=%s AND ma_may IN ($cho) GROUP BY ma_may",
+				array_merge( array( $ngay . ' 00:00:00', $ngay_sau . ' 00:00:00', VHG_Thu::TIEN_MAT, VHG_Thu::ND_GHE_NUOT ), $ma_ds )
+			), ARRAY_A ) as $x ) {
+				$may_cash_map[ (string) $x['ma_may'] ] = (int) $x['tong'];
+			}
+		}
+
 		$ds = array();
 		$tong = array( 'bc_qr' => 0, 'may_qr' => 0, 'bc_actual' => 0, 'may_cash' => 0,
 			'lech_qr' => 0, 'lech_cash' => 0, 'so_lech' => 0 );
-		foreach ( (array) $rows as $r ) {
-			if ( ! isset( $scope_key[ $r['coso_key'] ] ) ) { continue; }
+		foreach ( $rows as $r ) {
 			$ma = (string) $r['ma_may'];
-			$may_qr = (int) $wpdb->get_var( $wpdb->prepare(
-				"SELECT COALESCE(SUM(so_tien),0) FROM $tThu WHERE ma_may=%s AND DATE(luc)=%s AND huy=0 AND nguon<>%s",
-				$ma, $ngay, VHG_Thu::TIEN_MAT ) );
-			$may_cash = (int) $wpdb->get_var( $wpdb->prepare(
-				"SELECT COALESCE(SUM(so_tien),0) FROM $tThu WHERE ma_may=%s AND DATE(luc)=%s AND huy=0 AND nguon=%s AND noi_dung=%s",
-				$ma, $ngay, VHG_Thu::TIEN_MAT, VHG_Thu::ND_GHE_NUOT ) );
+			$may_qr   = isset( $may_qr_map[ $ma ] ) ? $may_qr_map[ $ma ] : 0;
+			$may_cash = isset( $may_cash_map[ $ma ] ) ? $may_cash_map[ $ma ] : 0;
 			$bc_qr = (int) $r['qr']; $bc_actual = (int) $r['actual'];
 			$lq = $bc_qr - $may_qr; $lc = $bc_actual - $may_cash;
 			$khop = ( 0 === $lq && 0 === $lc );
