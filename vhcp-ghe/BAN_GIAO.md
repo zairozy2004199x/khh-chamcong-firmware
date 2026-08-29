@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.5** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.6** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,17 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.6 — Chế độ Gọn (điện thoại) không thấy Actual khi gõ chỉ số sau
+
+Anh Thắng test chế độ Gọn (BỆNH VIỆN 175), chụp màn hình bảng ghế (Ghế/Chỉ số trước/Chỉ số
+sau/QR/📷/🧹 — không có cột Actual) kèm ảnh một cột "ACTUAL" riêng: *"Khi nhập số sau, sẽ hiện
+luôn ra số trừ nhé"*. Đúng — `calc()` vốn đã tính lại `actual = (sau−trước)×đơn vị` mỗi lần gõ
+(uỷ quyền sự kiện `input`), nhưng ô hiển thị (`cellRo('actual')`) chỉ được thêm vào bảng ở chế độ
+Đầy đủ (`if(!GON){...}`), nên chế độ Gọn tính đúng nhưng KHÔNG có ô nào để hiện ra — nhân viên gõ
+chỉ số sau xong không thấy gì ngay, phải cuộn xuống xem tổng "Thực thu" cuối bảng. Đã cho cột
+Actual hiện ở CẢ HAI chế độ (chỉ ẩn cột "Tiền mặt" riêng ở Gọn, giữ bảng gọn nhẹ) — gõ chỉ số sau
+là thấy Actual cập nhật ngay tại đúng hàng ghế đó.
 
 ### v1.63.5 — Hàng nút Gửi/Chốt lệch sau khi bỏ nút "➕ Thu lần nữa"
 

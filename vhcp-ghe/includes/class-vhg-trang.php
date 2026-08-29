@@ -1395,8 +1395,12 @@ class VHG_Trang {
     c2.appendChild(el('h3','bc-h','Số liệu từng ghế'));
     var sc=el('div','bc-scroll');
     var tb=el('table','bc-t');
+    /* Cột Actual LUÔN hiện, kể cả chế độ Gọn — anh Thắng 29/08/2026: "Khi nhập số sau, sẽ hiện
+       luôn ra số trừ". Trước đây Gọn không có cột này, nhân viên gõ chỉ số sau xong không thấy
+       ngay số tiền tính ra (actual = (sau−trước)×đơn vị), phải đợi xem tổng cuối bảng. calc()
+       vốn đã tính lại actual mỗi lần gõ (uỷ quyền sự kiện input) — chỉ thiếu ô hiện ra ở Gọn. */
     tb.innerHTML = GON
-      ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>QR</th><th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>'
+      ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>QR</th><th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>'
       : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Tăng/Giảm</th><th>Ghi chú</th>'
         + '<th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
@@ -1586,8 +1590,8 @@ class VHG_Trang {
     else { var ib=inp('before','Nhập lần đầu'); tdB.appendChild(ib); }
     tr.appendChild(tdB);
     tr.appendChild(cell(inp('after','Chỉ số sau')));
+    tr.appendChild(cellRo('actual'));
     if(!GON){
-      tr.appendChild(cellRo('actual'));
       tr.appendChild(cellRo('cash',true));
     }
     tr.appendChild(cell(inp('qr','QR')));
