@@ -15454,6 +15454,61 @@ t( 'cơ sở không cửa hàng nào mang mã ấy vẫn hiện ra và vẫn đ�
 
 vhcc_dung_bang();
 
+/* ==========================================================================================
+ *  68. CỬA HÀNG TRƯỞNG QUẢN NHIỀU GIAN HÀNG — BẢNG CÔNG HIỆN HẾT, KHỎI CHỌN TỪNG CÁI
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 29/08/2026, sau khi cơ sở phụ đã đẩy đúng cả hai cơ sở vào `ds_coso_xem()`:
+ *  *"nếu nhân viên làm cửa hàng trưởng 2 gian hàng thì sẽ hiện 2 bảng công của 2 cửa hàng mình
+ *  quản lý"*. Trước bản này, `ds_coso_xem()` đã trả đủ hai cơ sở, nhưng `the_bang_cham()` vẫn
+ *  bắt CHỌN MỘT qua ô lọc rồi mới vẽ bảng — cơ sở phụ có tới cũng như không, vì không ai đi bấm
+ *  chọn cái mình còn chưa biết là có.
+ * ======================================================================================== */
+vhcc_cham( 'HT_BC1', '2026-08-05', 'HTB1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'HT_BC2', '2026-08-06', 'HTB2', '', '08:00:00', '17:00:00' );
+$u_2cs = 'HT_BC1,HT_BC2';
+
+$h_2cs = vhcc_web_nhu2( 'HTBCHT', 'CUA_HANG_TRUONG', $u_2cs,
+	array( 'man' => 'cham', 'cth' => '2026-08' ) );
+t( '🔴 CHT 2 cơ sở, CHƯA chọn ô lọc: hiện HẾT, không bắt chọn từng cái',
+	strpos( $h_2cs, 'Chọn một cơ sở rồi bấm Xem.' ) === false, $h_2cs );
+t( 'thấy tên CẢ HAI cơ sở làm tiêu đề',
+	strpos( $h_2cs, 'HT_BC1' ) !== false && strpos( $h_2cs, 'HT_BC2' ) !== false, $h_2cs );
+t( 'và thấy mã người ở CẢ HAI cơ sở (dữ liệu thật, không phải chỉ tên)',
+	strpos( $h_2cs, 'HTB1' ) !== false && strpos( $h_2cs, 'HTB2' ) !== false, $h_2cs );
+
+/* Bấm chọn ĐÚNG MỘT cơ sở ở ô lọc thì vẫn phải ra đúng MỘT bảng — ô lọc không được trở thành
+   vô tác dụng chỉ vì tính năng "hiện hết" vừa thêm. */
+$h_2cs_1 = vhcc_web_nhu2( 'HTBCHT', 'CUA_HANG_TRUONG', $u_2cs,
+	array( 'man' => 'cham', 'cth' => '2026-08', 'ccs' => 'HT_BC1' ) );
+t( 'chọn đúng một cơ sở ở ô lọc thì CHỈ ra đúng cơ sở đó',
+	strpos( $h_2cs_1, 'HTB1' ) !== false && strpos( $h_2cs_1, 'HTB2' ) === false, $h_2cs_1 );
+
+/* 🔴 CONG_TAT_CA (Admin/Quản lý/Kế toán) KHÔNG ĐƯỢC "hiện hết" DÙ SỔ CHỈ ĐANG CÓ 2 CƠ SỞ —
+   họ quản lý có thể hàng chục cơ sở, tính năng này chỉ dành cho CHT một-vài-cửa-hàng. Đúng lúc
+   này sổ (toàn hệ) chỉ có 2 cơ sở (HT_BC1/HT_BC2) — nếu thiếu chốt `cong_tat_ca` thì Kế toán
+   cũng rơi vào nhánh "hiện hết" y hệt CHT, và phép thử dưới đây bắt đúng chỗ đó. */
+t( 'sổ (toàn hệ) đúng 2 cơ sở lúc này (nếu khác thì phép thử dưới vô nghĩa)',
+	count( VHCC_NhanSu::ds_coso() ) === 2, VHCC_NhanSu::ds_coso() );
+$h_kt_2cs = vhcc_web_nhu2( 'HTBKT', 'Kế toán', $u_2cs, array( 'man' => 'cham', 'cth' => '2026-08' ) );
+t( '🔴 Kế toán (cong_tat_ca) vẫn phải CHỌN, dù sổ chỉ 2 cơ sở',
+	strpos( $h_kt_2cs, 'Chọn một cơ sở rồi bấm Xem.' ) !== false, $h_kt_2cs );
+
+/* 🔴 QUÁ 3 CƠ SỞ THÌ QUAY LẠI LUẬT CHỌN MỘT — coi như một vai vận hành rộng hơn CHT một-vài-
+   cửa-hàng, dựng hết một lượt là một trang không ai cuộn nổi. */
+vhcc_cham( 'HT_BC3', '2026-08-07', 'HTB3', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'HT_BC4', '2026-08-08', 'HTB4', '', '08:00:00', '17:00:00' );
+$u_4cs = 'HT_BC1,HT_BC2,HT_BC3,HT_BC4';
+$h_4cs = vhcc_web_nhu2( 'HTBCHT2', 'CUA_HANG_TRUONG', $u_4cs,
+	array( 'man' => 'cham', 'cth' => '2026-08' ) );
+t( '🔴 quá 3 cơ sở thì QUAY LẠI luật chọn một qua ô lọc',
+	strpos( $h_4cs, 'Chọn một cơ sở rồi bấm Xem.' ) !== false, $h_4cs );
+
+/* Màn quản trị KHÔNG có script — luật chung, nhánh "hiện hết" không được phá lệ dù vẽ nhiều bảng. */
+t( '🔴 màn "hiện hết" vẫn không có thẻ script nào', stripos( $h_2cs, '<script' ) === false );
+t( 'và không có thuộc tính on...= nào', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_2cs ) === 0, $h_2cs );
+
+vhcc_dung_bang();
+
 
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

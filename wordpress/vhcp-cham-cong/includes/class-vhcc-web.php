@@ -2925,9 +2925,26 @@ class VHCC_Web {
 		echo '</form>';
 
 		self::khoi_them_nv( $ky, $toi, $cs, $ds_cs );
-		self::khoi_thieu_anh( $toi, $cs );
 
-		if ( '' === $cs ) {
+		/* 🔴 CỬA HÀNG TRƯỞNG QUẢN NHIỀU GIAN HÀNG: HIỆN HẾT, KHỎI BẮT CHỌN TỪNG CÁI.
+		   Anh Thắng 29/08/2026: *"nếu nhân viên làm cửa hàng trưởng 2 gian hàng thì sẽ hiện 2
+		   bảng công của 2 cửa hàng mình quản lý"* — cơ sở phụ đã đẩy đúng cả hai cơ sở vào
+		   `ds_coso_xem()` (xem đó), nhưng màn này vẫn bắt chọn MỘT qua ô lọc rồi mới vẽ bảng,
+		   nên cơ sở phụ có tới cũng như không: không ai đi bấm chọn cái mình còn chưa biết là có.
+
+		   ⚠️ CHỈ áp dụng khi KHÔNG có `cong_tat_ca` (Admin/Quản lý/Kế toán) VÀ số cơ sở đủ NHỎ
+		      (≤3 — khớp đúng mốc "chọn được 2–3 cơ sở" của bản 3.2.0 bên màn Sửa đủ). Những vai
+		      quản hàng chục cơ sở dựng hết một lượt là một trang không ai cuộn nổi; họ vẫn chọn
+		      từng cơ sở qua ô lọc như cũ — đây không phải nới quyền, chỉ đổi cách trình bày cho
+		      đúng một CHT một-vài-cửa-hàng.
+		   ⚠️ CHỈ tự hiện hết khi CHƯA CHỌN GÌ (`$cs` rỗng). Bấm chọn đúng MỘT cơ sở ở ô lọc (để
+		      lọc theo Nhân viên/Ngày cho gọn, hay để mở khối In/Lương của riêng cơ sở đó) vẫn
+		      phải ra đúng MỘT bảng — không thì ô lọc trên kia trở thành vô tác dụng. */
+		$hien_het = ( '' === $cs && $ds_cs && count( $ds_cs ) <= 3
+			&& ! VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) );
+
+		if ( '' === $cs && ! $hien_het ) {
+			self::khoi_thieu_anh( $toi, $cs );
 			echo '<p class="mo" style="margin-top:12px">'
 				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
 					: ( '' !== $bp
@@ -2949,22 +2966,33 @@ class VHCC_Web {
 		}
 		echo '</div>';
 
-		$b = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
-		if ( empty( $b['ok'] ) ) {
-			echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
-			return;
-		}
-		self::ve_bang_cham( $b, $cs, $th, $ngay, $ma_nv, $ky, $toi );
+		/* $hien_het thì vẽ HẾT các cơ sở của người này; ngược lại (đã chọn ở ô lọc) chỉ vẽ đúng
+		   một cơ sở — mảng một phần tử để dùng chung một vòng lặp, không tách hai nhánh mã. */
+		$ds_ve = $hien_het ? $ds_cs : array( $cs );
+		foreach ( $ds_ve as $mot_cs ) {
+			/* Tên cơ sở làm tiêu đề CHỈ khi có hơn một bảng — một bảng thì tiêu đề "Chấm công"
+			   ở trên đã đủ nói, thêm một dòng tên cơ sở nữa là lặp lại vô ích. */
+			if ( count( $ds_ve ) > 1 ) {
+				echo '<h3 style="margin:22px 0 4px">🏬 ' . esc_html( $mot_cs ) . '</h3>';
+			}
+			self::khoi_thieu_anh( $toi, $mot_cs );
+			$b = VHCC_Cham::bang_cham_cong( $toi, $mot_cs, $th );
+			if ( empty( $b['ok'] ) ) {
+				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
+				continue;
+			}
+			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
 
-		/* 🔴 GIỜ & LƯƠNG NẰM NGAY DƯỚI, CÙNG CƠ SỞ CÙNG THÁNG. Anh Thắng 27/08/2026: *"bảng
-		   công và giờ lương gộp lại thành 1 trang"*.
-		   ⚠️ Đặt SAU `ve_bang_cham` chứ không phải trước: người ta mở màn này ra để xem BẢNG
-		      CÔNG, còn lương là thứ soi sau. Đảo lại là mỗi lần mở phải cuộn qua bảng tiền mới
-		      tới thứ mình cần.
-		   ⚠️ Và chỉ ở nhánh bảng công VẼ ĐƯỢC — bảng công lỗi mà vẫn in bảng tiền ra thì đó là
-		      tiền tính từ một tháng không đọc nổi. */
-		self::the_khoi_in( $toi, $cs, $th );
-		self::the_khoi_luong( $toi, $cs, $th );
+			/* 🔴 GIỜ & LƯƠNG NẰM NGAY DƯỚI, CÙNG CƠ SỞ CÙNG THÁNG. Anh Thắng 27/08/2026: *"bảng
+			   công và giờ lương gộp lại thành 1 trang"*.
+			   ⚠️ Đặt SAU `ve_bang_cham` chứ không phải trước: người ta mở màn này ra để xem BẢNG
+			      CÔNG, còn lương là thứ soi sau. Đảo lại là mỗi lần mở phải cuộn qua bảng tiền mới
+			      tới thứ mình cần.
+			   ⚠️ Và chỉ ở nhánh bảng công VẼ ĐƯỢC — bảng công lỗi mà vẫn in bảng tiền ra thì đó là
+			      tiền tính từ một tháng không đọc nổi. */
+			self::the_khoi_in( $toi, $mot_cs, $th );
+			self::the_khoi_luong( $toi, $mot_cs, $th );
+		}
 	}
 
 	/**
