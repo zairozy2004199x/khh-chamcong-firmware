@@ -198,6 +198,34 @@ class VHG_May {
 			'so_ghe' => (int) ( $r ? $r['so_ghe'] : 0 ) );
 	}
 
+	/**
+	 * Đếm số lượt BẬT TAY (`viec='on'`) của một ghế trong khoảng NGÀY (SAU $tu_ngay, tới HẾT
+	 * $den_ngay) — dùng để trừ ra khỏi doanh thu ở VHG_BaoCao::kich_xa_tru(), xem khối 🔴 ở đó.
+	 *
+	 * $tu_ngay rỗng = không giới hạn đầu (tính hết mọi lượt TRƯỚC đó — báo cáo đầu tiên của ghế,
+	 * chưa ai trừ những lượt này bao giờ). $tu_ngay có giá trị thì LOẠI TRỪ chính ngày đó, vì đó
+	 * là mốc chỉ số của báo cáo TRƯỚC — lượt kích trong ngày đó coi như đã tính ở kỳ trước rồi.
+	 */
+	public static function dem_luot_kich( $ma_may, $tu_ngay, $den_ngay ) {
+		global $wpdb;
+		$ma  = trim( (string) $ma_may );
+		$den = trim( (string) $den_ngay );
+		if ( '' === $ma || '' === $den || ! preg_match( '/^\d{4}-\d{2}-\d{2}/', $den ) ) { return 0; }
+		$t = VHG_DB::t( 'lenh' );
+		/* Mốc CUỐI = đầu ngày HÔM SAU $den — "tới hết $den" viết bằng `<` cho chắc so với chuỗi
+		   giờ:phút:giây, khỏi lệ thuộc $den có kèm giờ hay không. */
+		$den_moc = gmdate( 'Y-m-d', strtotime( $den . ' +1 day' ) );
+		$tu = trim( (string) $tu_ngay );
+		if ( '' !== $tu && preg_match( '/^\d{4}-\d{2}-\d{2}/', $tu ) ) {
+			$tu_moc = gmdate( 'Y-m-d', strtotime( $tu . ' +1 day' ) );
+			return (int) $wpdb->get_var( $wpdb->prepare(
+				"SELECT COUNT(*) FROM $t WHERE ma_may=%s AND viec='on' AND tao_luc >= %s AND tao_luc < %s",
+				$ma, $tu_moc, $den_moc ) );
+		}
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $t WHERE ma_may=%s AND viec='on' AND tao_luc < %s", $ma, $den_moc ) );
+	}
+
 	// ======================================================================= cục nhận tiền
 
 	/**

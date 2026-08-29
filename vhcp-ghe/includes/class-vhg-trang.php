@@ -136,6 +136,18 @@ class VHG_Trang {
 					isset( $d['ngay'] ) ? $d['ngay'] : '' ) ) );
 				return;
 			}
+			/* Xem trước lượt kích ghế từ xa cần trừ — cho nhân viên thấy TRƯỚC khi Gửi, khớp đúng
+			   số server sẽ trừ khi lưu (VHG_BaoCao::kich_xa_tru). Anh Thắng 28/08: "nếu ghế nào
+			   có kích thì báo, không có thì thôi" — gọi cùng lúc với bc_lastmeters lúc chọn cơ sở. */
+			if ( 'bc_kichxa' === $viec ) {
+				$ma_map = array();
+				$ngay_kx = isset( $d['ngay'] ) ? $d['ngay'] : '';
+				foreach ( ( isset( $d['codes'] ) ? (array) $d['codes'] : array() ) as $c ) {
+					$ma_map[ (string) $c ] = VHG_BaoCao::kich_xa_tru( (string) $c, $ngay_kx );
+				}
+				self::tra( array( 'ok' => true, 'map' => $ma_map ) );
+				return;
+			}
 			if ( 'bc_checkday' === $viec ) {
 				self::tra( VHG_BaoCao::kiem_ngay(
 					isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '', $pin ) );
@@ -1163,7 +1175,7 @@ class VHG_Trang {
 		return <<<'JS'
 (function(){
   var API = window.VHG_API || '';
-  var PIN='', BC=null, NGAY='', LOC='', LAST={}, GUI_DANG=false;
+  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false;
   /* GỌN = màn điện thoại: chỉ nhập chỉ số + gửi. ĐẦY ĐỦ = máy tính: hiện hết. Mặc định theo bề
      ngang màn hình, nhớ lựa chọn của người dùng. Anh Thắng 27/08: điện thoại ít thông tin thôi. */
   var GON = true;
@@ -1441,6 +1453,14 @@ class VHG_Trang {
       tinhTong();
       bcDocNhap();
     });
+    /* Lượt kích ghế từ xa cần trừ — xem trước cho nhân viên, xem khối 🔧 ở calc(). Gọi riêng
+       (không chờ bc_lastmeters) vì đây chỉ là thông tin thêm, KHÔNG được làm chậm lúc vẽ bảng
+       chỉ số chính; tính lại calc() cho mọi hàng khi có kết quả về. */
+    goi('bc_kichxa',{codes:codes,ngay:NGAY},function(r){
+      KICHXA=(r&&r.map)||{};
+      document.querySelectorAll('#bc-rows tr[data-ma]').forEach(function(tr){ calc(tr); });
+      tinhTong();
+    });
   }
 
   /* ---------------- NHỚ TẠM (localStorage) ----------------
@@ -1493,6 +1513,10 @@ class VHG_Trang {
     tr.dataset.before = coBefore ? String(before) : '';
     // tên
     var tdN=el('td'); tdN.appendChild(el('b',null,g.ten||g.ma));
+    /* Ghi chú "đã trừ lượt kích ghế từ xa" — RIÊNG với .bc-warn (ô đó dành cho lý do/thực thu
+       khi bất thường); ghế có kích thì hiện, không có thì thôi (calc() bật/tắt). */
+    var kx=el('div','bc-kich'); kx.style.cssText='display:none;font-size:11px;color:#92600a;font-weight:600;margin-top:3px';
+    tdN.appendChild(kx);
     var w=el('div','bc-warn'); w.style.display='none'; tdN.appendChild(w); tr.appendChild(tdN);
     // chỉ số trước
     var tdB=el('td');
@@ -1543,7 +1567,16 @@ class VHG_Trang {
     var qEl=tr.querySelector('.qr'); var qr=qEl?snum(qEl.value):0;
     var aEl=tr.querySelector('.adjust'); var adjust=aEl?snum(aEl.value):0;   // gọn: không có cột này
     var dv=Number(BC.don_vi)||10000;
-    var actual=(before===''||after==='')?0:(after-before)*dv;
+    var actualTho=(before===''||after==='')?0:(after-before)*dv;
+    /* Trừ lượt kích ghế từ xa (cho không) — KICHXA nạp từ bc_kichxa, khớp đúng số server sẽ trừ
+       khi Gửi (VHG_BaoCao::kich_xa_tru). Không có lượt nào (đa số) thì kx.tien=0, y hệt trước. */
+    var kx=KICHXA[tr.dataset.ma]||{so_luot:0,tien:0};
+    var actual=actualTho-(Number(kx.tien)||0);
+    var elKx=tr.querySelector('.bc-kich');
+    if(elKx){
+      if(kx.so_luot>0){ elKx.style.display=''; elKx.textContent='🔧 Đã trừ '+kx.so_luot+' lượt kích từ xa (-'+money(kx.tien)+'đ)'; }
+      else { elKx.style.display='none'; elKx.textContent=''; }
+    }
     var rawCash=actual-qr+adjust;
     var cash=rawCash;
     /* BẤT THƯỜNG = chỉ số đi ngược (sau < trước) HOẶC tiền mặt tính ra ÂM (QR nhập lớn hơn cả
@@ -1667,6 +1700,8 @@ class VHG_Trang {
     for(var i=0;i<rows.length;i++){ var r=rows[i];
       var chiSoNguoc=(r.meterBefore!==''&&r.meterAfter!==''&&Number(r.meterAfter)<Number(r.meterBefore));
       var actualR=(r.meterBefore===''||r.meterAfter==='')?0:(Number(r.meterAfter)-Number(r.meterBefore))*dv;
+      var kxR=KICHXA[r.chairCode]||{tien:0};
+      actualR-=(Number(kxR.tien)||0);   // khớp đúng phần trừ lượt kích từ xa server sẽ tính, xem calc()
       var rawCashR=actualR-Number(r.qr||0)+Number(r.adjust||0);
       if(chiSoNguoc||rawCashR<0){
         var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');

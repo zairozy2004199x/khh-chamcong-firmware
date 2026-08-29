@@ -149,11 +149,16 @@ class VHG_BaoCao {
 	 * CHỈ SỐ TRƯỚC = chỉ số sau gần nhất có ngày < $ngay, lấy CẢ `bc_dong` LẪN `chot`; có mốc reset
 	 * (`may.moc_chiso`) hiệu lực ≤ $ngay và mới hơn thì lấy mốc. Trả (int) hoặc null (lần đầu).
 	 */
-	public static function chi_so_truoc( $ma_may, $ngay ) {
+	/**
+	 * Chi tiết đầy đủ của chi_so_truoc(): CẢ giá trị LẪN NGÀY của mốc đó. Ngày mốc dùng để giới
+	 * hạn đúng khoảng "lượt kích ghế từ xa" mà báo cáo NÀY bao phủ (xem kich_xa_tru() bên dưới)
+	 * — không có ngày mốc thì không biết trừ lượt kích từ đâu tới đâu, dễ đếm đôi với kỳ trước.
+	 */
+	private static function chi_so_truoc_ct_( $ma_may, $ngay ) {
 		global $wpdb;
 		$ma = (string) $ma_may;
 		$ngay = self::ngay_( $ngay );
-		if ( '' === $ma || '' === $ngay ) { return null; }
+		if ( '' === $ma || '' === $ngay ) { return array( 'cs' => null, 'ngay' => '' ); }
 		$found_cs = null; $found_d = '';
 		$r1 = $wpdb->get_row( $wpdb->prepare(
 			'SELECT chi_so_sau cs, ngay d FROM ' . VHG_DB::t( 'bc_dong' )
@@ -169,15 +174,55 @@ class VHG_BaoCao {
 			'SELECT moc_chiso cs, moc_chiso_ngay d FROM ' . VHG_DB::t( 'may' ) . ' WHERE ma=%s LIMIT 1', $ma ), ARRAY_A );
 		if ( $mo && null !== $mo['cs'] && $mo['d'] ) {
 			$od = self::ngay_( $mo['d'] );
-			if ( $od && $od <= $ngay && ( '' === $found_d || $found_d < $od ) ) { return (int) $mo['cs']; }
+			if ( $od && $od <= $ngay && ( '' === $found_d || $found_d < $od ) ) {
+				return array( 'cs' => (int) $mo['cs'], 'ngay' => $od );
+			}
 		}
-		return null === $found_cs ? null : (int) $found_cs;
+		return array( 'cs' => null === $found_cs ? null : (int) $found_cs, 'ngay' => $found_d );
+	}
+
+	public static function chi_so_truoc( $ma_may, $ngay ) {
+		return self::chi_so_truoc_ct_( $ma_may, $ngay )['cs'];
 	}
 
 	public static function lay_chiso_truoc( $codes, $ngay ) {
 		$out = array();
 		foreach ( (array) $codes as $c ) { $out[ (string) $c ] = self::chi_so_truoc( $c, $ngay ); }
 		return $out;
+	}
+
+	// ══════════════════════════════════════════════════════════════════ kích ghế từ xa (trừ chùa)
+
+	/**
+	 * TRỪ LƯỢT KÍCH GHẾ TỪ XA KHỎI DOANH THU.
+	 *
+	 * 🔴 Anh Thắng 28/08/2026: *"khi nhập chỉ số sau, máy sẽ đối chiếu thêm với hệ thống kích
+	 *    ghế từ xa, để trừ số lượt đã kích ghế cho khách ra. Nếu ghế nào có kích thì báo, không
+	 *    có thì thôi."* — mỗi lượt Hotline/Admin bấm Bật tay (bảng `lenh`, xem VHG_May) là CHO
+	 *    KHÔNG một lượt, không có tiền đi kèm, nhưng chỉ số cơ trên ghế vẫn nhảy y như khách trả
+	 *    tiền thật. Không trừ ra là doanh thu bị TÍNH THỪA đúng bằng số lượt cho không đó.
+	 *
+	 * 🔴 QUY ĐỔI đã chốt (anh Thắng chọn): *"mỗi lượt kích = đúng 1 đơn vị chỉ số (như giá tiền
+	 *    mỗi lần)"* — dùng ĐÚNG giá/phút RIÊNG của ghế đó (VHG_May::ty_le_cua, không phải giá
+	 *    chung) nhân số lượt, ra thẳng SỐ TIỀN cần trừ. Trừ tiền trực tiếp khỏi `actual`, không
+	 *    quy ngược ra "mấy đơn vị chỉ số" rồi nhân lại — quy hai chiều qua chia lấy tròn là chỗ
+	 *    vài trăm đồng biến mất mà không ai giải thích được.
+	 *
+	 * ⚠️ KHOẢNG THỜI GIAN đối chiếu = đúng quãng chỉ số báo cáo NÀY bao phủ: SAU mốc chỉ số
+	 *    trước (loại trừ, tránh đếm đôi với báo cáo trước) tới HẾT ngày báo cáo — xem
+	 *    dem_luot_kich() bên VHG_May.
+	 */
+	public static function kich_xa_tru( $ma_may, $ngay_bc ) {
+		$ma  = (string) $ma_may;
+		$den = self::ngay_( $ngay_bc );
+		$ra  = array( 'so_luot' => 0, 'tien' => 0 );
+		if ( '' === $ma || '' === $den ) { return $ra; }
+		$ct = self::chi_so_truoc_ct_( $ma, $den );
+		$so_luot = class_exists( 'VHG_May' ) ? VHG_May::dem_luot_kich( $ma, $ct['ngay'], $den ) : 0;
+		if ( $so_luot <= 0 ) { return $ra; }
+		$m   = VHG_May::may( $ma );
+		$gia = (int) VHG_May::ty_le_cua( $m ? $m : array() )['gia'];
+		return array( 'so_luot' => $so_luot, 'tien' => $gia * $so_luot );
 	}
 
 	// ══════════════════════════════════════════════════════════════════ tiện ích
@@ -193,9 +238,14 @@ class VHG_BaoCao {
 		$after  = self::songuyen_( isset( $r['chi_so_sau'] ) ? $r['chi_so_sau'] : null );
 		$qr = (int) ( isset( $r['qr'] ) ? $r['qr'] : 0 );
 		$adj = (int) ( isset( $r['dieu_chinh'] ) ? $r['dieu_chinh'] : 0 );
-		$actual = ( null === $before || null === $after ) ? 0 : ( $after - $before ) * $dv;
+		/* Trừ tiền lượt kích ghế từ xa (cho không) ra khỏi actual — xem kich_xa_tru() ở trên.
+		   luu() đổ số này vào $r['kich_tien'] TRƯỚC khi gọi tinh_(); không có lượt kích nào (đa
+		   số trường hợp) thì mặc định 0, công thức y hệt trước giờ. */
+		$kich_tien = (int) ( isset( $r['kich_tien'] ) ? $r['kich_tien'] : 0 );
+		$actual = ( null === $before || null === $after ) ? 0 : ( $after - $before ) * $dv - $kich_tien;
 		$r['chi_so_truoc'] = $before; $r['chi_so_sau'] = $after;
 		$r['qr'] = $qr; $r['dieu_chinh'] = $adj;
+		$r['kich_tien'] = $kich_tien;
 		$r['actual'] = $actual;
 		$r['tien_mat'] = $actual - $qr + $adj;
 		$r['tong'] = $r['tien_mat'] + $qr;
@@ -369,10 +419,21 @@ class VHG_BaoCao {
 			if ( '' !== $ly_do_bt ) {
 				$ghi_chu = trim( '⚠ CHỈ SỐ BẤT THƯỜNG: ' . $ly_do_bt . ( '' !== $ghi_chu ? ' · ' . $ghi_chu : '' ) );
 			}
+			/* ĐỐI CHIẾU LƯỢT KÍCH GHẾ TỪ XA — anh Thắng 28/08: "nếu ghế nào có kích thì báo,
+			   không có thì thôi". Tính TRƯỚC khi tinh_() để trừ thẳng vào actual; "báo" bằng cách
+			   ghép vào ghi chú, không im lặng sửa số — kế toán mở báo cáo là thấy vì sao actual
+			   không khớp thẳng công thức (sau-trước)×đơn_vị. Xem VHG_BaoCao::kich_xa_tru(). */
+			$kx = self::kich_xa_tru( $ma, $ngay );
+			if ( $kx['so_luot'] > 0 ) {
+				$ghi_chu = trim( '🔧 Đã trừ ' . $kx['so_luot'] . ' lượt kích ghế từ xa ('
+					. number_format( $kx['tien'], 0, ',', '.' ) . 'đ)'
+					. ( '' !== $ghi_chu ? ' · ' . $ghi_chu : '' ) );
+			}
 			$r = array( 'ma_may' => $ma, 'ten' => (string) ( isset( $r0['chairName'] ) ? $r0['chairName'] : $ma ),
 				'ngay' => $ngay, 'chi_so_truoc' => $before, 'chi_so_sau' => (int) $after,
 				'qr' => (int) ( isset( $r0['qr'] ) ? $r0['qr'] : 0 ),
 				'dieu_chinh' => (int) ( isset( $r0['adjust'] ) ? $r0['adjust'] : 0 ),
+				'kich_tien' => $kx['tien'],
 				'ghi_chu' => mb_substr( $ghi_chu, 0, 250 ),
 				/* Ảnh gắn CỨNG vào đúng ghế này — {chiso, vesinh}, mỗi ô một dataUrl hoặc vắng
 				   mặt. Thay cho cách cũ chia đều một xấp ảnh chung theo THỨ TỰ ghế trong bảng
