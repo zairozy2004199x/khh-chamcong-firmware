@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.1** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.2** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,23 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.66.2 — "Lỗi khi gửi báo cáo" ở cơ sở đính nhiều ảnh
+
+Anh Thắng 29/08, cơ sở đính 13 ảnh chứng từ báo *"Không đọc được trả lời của máy chủ (mạng hoặc
+tường lửa)"* khi bấm Gửi — xác nhận LẶP LẠI NHIỀU LẦN, riêng cơ sở nhiều ảnh mới bị. Đây là dấu
+hiệu gói tin gửi lên quá nặng bị cắt/chặn giữa chừng (giới hạn dung lượng một lượt gửi của hosting
+hoặc tường lửa), không phải mạng chập chờn ngẫu nhiên.
+
+- **Nén ảnh chặt hơn:** cạnh dài 1280→1000px, chất lượng JPEG 0.6→0.5 — cắt đáng kể dung lượng mỗi
+  ảnh, chứng từ (số tiền, mã QR) và ảnh chỉ số máy vẫn đọc được ở cỡ này.
+- **Thời gian chờ riêng cho lượt Gửi:** 25s mặc định → 90s — lượt gửi kèm hàng chục ảnh trên 4G
+  yếu có thể tải lâu hơn 25s dù ảnh đã nén, trước đây bị cắt ngang coi như lỗi dù vẫn đang tải.
+
+⚠️ **Nếu vẫn còn lỗi sau bản này:** rất có thể là giới hạn CỨNG phía hosting (`post_max_size` của
+PHP hoặc `client_max_body_size` của Nginx/tường lửa) — thứ KHÔNG sửa được từ trong mã plugin, phải
+nhờ bên hosting nâng lên. Lúc đó cần tách lượt gửi ảnh ra khỏi lượt gửi số liệu chính (đổi kiến
+trúc, việc lớn hơn) — báo lại nếu vẫn gặp để làm tiếp bước đó.
 
 ### v1.66.1 — Nút chọn ảnh: chữ Việt cố định, không lệ thuộc ngôn ngữ trình duyệt
 

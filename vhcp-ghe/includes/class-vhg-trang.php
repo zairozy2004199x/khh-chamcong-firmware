@@ -1263,7 +1263,7 @@ class VHG_Trang {
   function meterVal(s){ s=String(s==null?'':s).replace(/[^0-9]/g,''); return s===''?'':parseInt(s,10); }
   function coThu(s){ return /[0-9]/.test(String(s==null?'':s)); }
 
-  function goi(viec,d,cb){
+  function goi(viec,d,cb,timeoutMs){
     d=d||{}; if(!d.pin) d.pin=PIN;
     var x=new XMLHttpRequest();
     /* 🔴 KHÔNG CÓ timeout/onerror TRƯỚC ĐÂY = TREO VĨNH VIỄN khi mạng rớt giữa chừng (site
@@ -1272,7 +1272,11 @@ class VHG_Trang {
     var xongMotLan=false; function xong(r){ if(xongMotLan) return; xongMotLan=true; cb(r); }
     x.open('POST', API + (API.indexOf('?')<0?'?':'&') + 'api=' + viec, true);
     x.setRequestHeader('Content-Type','application/json');
-    x.timeout=25000;
+    /* Lượt gửi kèm nhiều ảnh (chứng từ + ảnh ghế) cần lâu hơn 25s bình thường trên 4G yếu —
+       anh Thắng 29/08/2026: "Lỗi khi gửi báo cáo" lặp lại nhiều lần ở cơ sở đính 13 ảnh chứng
+       từ. Cho gọi tuỳ chỉnh thời gian chờ (guiBaoCao() truyền lên tới 90s) thay vì ép cứng
+       25s cho mọi lượt gọi kể cả những lượt nặng ảnh nhất. */
+    x.timeout=timeoutMs||25000;
     x.onreadystatechange=function(){
       if(x.readyState!==4) return;
       var r=null; try{ r=JSON.parse(x.responseText); }catch(e){}
@@ -1854,6 +1858,9 @@ class VHG_Trang {
     gomAnhTungGhe_(rows,function(){
       docAnh_('bc-proofs',function(proofs){
         msg.textContent='Đang gửi…';
+        /* Timeout riêng 90s (thay vì 25s mặc định) — lượt gửi có thể kèm hàng chục ảnh (chứng
+           từ + ảnh ghế), 4G yếu tải xong có khi quá 25s dù ảnh đã nén, gây "Lỗi khi gửi báo
+           cáo" dù ảnh vẫn đang lên chứ chưa thật sự treo. */
         goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs} },function(r){
           GUI_DANG=false; $('bc-gui').disabled=false;
           if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
@@ -1864,18 +1871,24 @@ class VHG_Trang {
           var iP=$('bc-proofs'); if(iP) iP.value='';
           if(r.phien) veProg(r.phien);
           else refreshPhien();
-        });
+        },90000);
       });
     });
   }
-  // nén ảnh trên máy (cạnh dài 1280, JPEG 0.6) rồi đọc base64 — nhẹ ~10 lần, tránh HTTP 400.
+  /* Nén ảnh trên máy (cạnh dài 1000, JPEG 0.5) rồi đọc base64 — anh Thắng 29/08/2026: "Lỗi khi
+     gửi báo cáo" lặp lại nhiều lần ở cơ sở đính nhiều ảnh (13 ảnh chứng từ + ảnh từng ghế) —
+     "Không đọc được trả lời của máy chủ (mạng hoặc tường lửa)" đúng dạng lỗi khi gói tin quá
+     nặng bị chặn/cắt giữa chừng (hosting hoặc tường lửa có giới hạn dung lượng một lượt gửi),
+     không phải mạng chập chờn thường. Trước đây nén cạnh dài 1280/chất lượng 0.6; nay giảm còn
+     1000/0.5 — cắt khoảng NỬA dung lượng mỗi ảnh (ước chừng, không tuyến tính đúng nghĩa) mà
+     chứng từ (số tiền, mã QR) và ảnh chỉ số máy vẫn đọc được ở cỡ này. */
   function nenAnh_(file,cb){
     try{
       if(!file||!/^image\//.test(file.type)){ var f0=new FileReader(); f0.onload=function(){cb(String(f0.result));}; f0.onerror=function(){cb('');}; f0.readAsDataURL(file); return; }
       var url=URL.createObjectURL(file), img=new Image();
-      img.onload=function(){ try{ var mx=1280,s=Math.min(1,mx/Math.max(img.width,img.height));
+      img.onload=function(){ try{ var mx=1000,s=Math.min(1,mx/Math.max(img.width,img.height));
         var cv=document.createElement('canvas'); cv.width=Math.round(img.width*s); cv.height=Math.round(img.height*s);
-        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url); cb(cv.toDataURL('image/jpeg',0.6)); }
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height); URL.revokeObjectURL(url); cb(cv.toDataURL('image/jpeg',0.5)); }
         catch(e){ URL.revokeObjectURL(url); var fr=new FileReader(); fr.onload=function(){cb(String(fr.result));}; fr.onerror=function(){cb('');}; fr.readAsDataURL(file); } };
       img.onerror=function(){ URL.revokeObjectURL(url); var fr=new FileReader(); fr.onload=function(){cb(String(fr.result));}; fr.onerror=function(){cb('');}; fr.readAsDataURL(file); };
       img.src=url;
