@@ -731,6 +731,17 @@ class VHG_Trang {
 			return;
 		}
 
+		/* Xác nhận THAY cho dữ liệu cũ/đã nhập — cùng nhóm quyền "chốt doanh số" với nop_nhan/
+		   nop_huy ở trên (chốt ở VHG_Auth::VIEC_CHOT_DOANH_SO, kiểm ngay đầu hàm này rồi, không
+		   kiểm lại lần nữa). Xem VHG_Quy::nop_va_nhan_thay(). */
+		if ( 'quy_nop_thay' === $viec ) {
+			self::tra( VHG_Quy::nop_va_nhan_thay(
+				isset( $d['nguoi'] ) ? (string) $d['nguoi'] : '',
+				(string) $ai['name'],
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '' ) );
+			return;
+		}
+
 		self::tra( array( 'ok' => false, 'error' => 'Việc không rõ: ' . $viec ) );
 	}
 
@@ -5498,18 +5509,34 @@ function veQuy(){
    *    nhất vì không ai nghi ngờ nó.
    */
   if (QUAN_TRI() || CHOT_DS()) {
-  h += '<div class="card"><h2>' + L('Ai đang cầm tiền','Who is holding cash') + '</h2><table><tr><th>'
+  h += '<div class="card"><h2>' + L('Ai đang cầm tiền','Who is holding cash') + '</h2>'
+    /* Anh Thắng 29/08/2026: "một số lệnh nộp tiền cũ, thực ra mọi người đã nộp rồi. Làm sao để
+       duyệt nộp (dữ liệu import nên bên nhân viên không thấy)" — dữ liệu NHẬP CŨ (kt_nhap) không
+       gắn với phiên đăng nhập nào, nên KHÔNG có nhân viên nào để tự bấm "Nộp về quầy" cho nó.
+       Nút "Xác nhận đã nộp" ở đây cho kế toán/quản lý xử lý THAY, xem VHG_Quy::nop_va_nhan_thay()
+       — chỉ hiện khi có quyền (quyen_nhan, cùng quyền với nút "Đã nhận" ở khung Chờ xác nhận). */
+    + (q.quyen_nhan ? '<p class="mut" style="margin:0 0 10px">' + L('"Xác nhận đã nộp" dùng cho '
+      + 'lượt tiền CŨ đã thật sự về tay ngoài đời (VD dữ liệu nhập lại) — bấm là ghi hết nợ NGAY, '
+      + 'không qua bước chờ xác nhận.', '"Confirm received" is for OLD cash that has genuinely '
+      + 'changed hands already (e.g. re-imported data) — it clears the debt immediately, no '
+      + 'waiting step.') + '</p>' : '')
+    + '<table><tr><th>'
     + L('Người','Person') + '</th><th class="r">' + L('Từ ngăn ghế','Chair boxes') + '</th>'
     + '<th class="r">' + L('Tại quầy','Counter') + '</th>'
     + '<th class="r">' + L('Báo cáo doanh thu','Revenue reports') + '</th><th class="r">'
-    + L('Tổng','Total') + '</th></tr>';
-  if (!(q.cam || []).length) h += '<tr><td colspan="5" class="mut">'
+    + L('Tổng','Total') + '</th>' + (q.quyen_nhan ? '<th></th>' : '') + '</tr>';
+  if (!(q.cam || []).length) h += '<tr><td colspan="' + (q.quyen_nhan ? 6 : 5) + '" class="mut">'
     + L('Không ai đang cầm tiền chưa nộp.','Nobody is holding uncollected cash.') + '</td></tr>';
   (q.cam || []).forEach(function(c){
     h += '<tr><td><b>' + esc(c.nguoi) + '</b></td>'
       + '<td class="r">' + tien(c.tu_ghe) + '</td><td class="r">' + tien(c.tu_quay) + '</td>'
       + '<td class="r">' + tien(c.tu_bao_cao || 0) + '</td>'
-      + '<td class="r"><b>' + tien(c.tong) + '</b></td></tr>';
+      + '<td class="r"><b>' + tien(c.tong) + '</b></td>';
+    if (q.quyen_nhan) {
+      h += '<td class="r"><button data-nopthay="' + esc(c.nguoi) + '" class="ghost">'
+        + L('Xác nhận đã nộp','Confirm received') + '</button></td>';
+    }
+    h += '</tr>';
   });
   h += '</table></div>';
 
@@ -6815,6 +6842,22 @@ function noi(){
       if (!confirm(L('Huỷ lượt nộp này? Tiền quay lại tay người nộp.',
                      'Cancel this hand-in? The cash returns to the person who submitted it.'))) return;
       lam('nop_huy', { id: Number(b.getAttribute('data-nophuy')) });
+    };
+  });
+  /* ---- QUỸ: xác nhận đã nộp THAY (dữ liệu cũ/đã nhập, không ai để tự bấm) ------------------
+     Anh Thắng 29/08/2026: "một số lệnh nộp tiền cũ, thực ra mọi người đã nộp rồi... dữ liệu
+     import nên bên nhân viên không thấy". Ghi hết nợ NGAY (nop_va_nhan_thay = nop()+nhan() gộp
+     một lượt), không qua bước "chờ xác nhận" như nộp thật — nói rõ trong hộp xác nhận để không
+     ai bấm nhầm cho một khoản còn thật sự treo. */
+  [].forEach.call(document.querySelectorAll('[data-nopthay]'), function(b){
+    b.onclick = function(){
+      if (ban) return;
+      var nguoi = b.getAttribute('data-nopthay');
+      if (!confirm(L('Xác nhận ' + nguoi + ' đã nộp hết số tiền đang cầm ở trên (tiền cũ, đã về '
+          + 'tay ngoài đời)? Ghi hết nợ ngay, không có bước hoàn tác dễ dàng.',
+          'Confirm ' + nguoi + ' has handed in everything above (old cash, already changed hands)? '
+          + 'This clears the debt immediately with no easy undo.'))) return;
+      lam('quy_nop_thay', { nguoi: nguoi });
     };
   });
 

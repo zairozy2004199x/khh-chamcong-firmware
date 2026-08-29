@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.72.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.73.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,21 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.73.0 — "Xác nhận đã nộp" thay cho dữ liệu cũ/đã nhập ở "Ai đang cầm tiền"
+
+Sau khi v1.72.0 nối "Báo cáo doanh thu" vào Quỹ tiền mặt, dữ liệu CŨ/ĐÃ NHẬP (`kt_nhap`) hiện ra
+hàng loạt "đang cầm" hàng trăm triệu — anh Thắng: *"một số lệnh nộp tiền cũ, thực ra mọi người đã
+nộp rồi. Làm sao để duyệt nộp (dữ liệu import nên bên nhân viên không thấy)"*. Dữ liệu nhập không
+gắn với phiên đăng nhập nào nên không có ai để tự bấm "Nộp về quầy".
+
+- Nút **"Xác nhận đã nộp"** mới ở cuối mỗi dòng bảng "Ai đang cầm tiền" (chỉ kế toán/quản lý thấy,
+  cùng quyền với nút "Đã nhận") — bấm là ghi HẾT NỢ NGAY cho đúng người đó, không qua bước "chờ
+  xác nhận" như nộp thật (`VHG_Quy::nop_va_nhan_thay()` = gộp `nop()`+`nhan()` làm một, dùng lại
+  nguyên luật gộp 3 nguồn/chốt UNIQUE có sẵn, không viết lại).
+- Có hộp xác nhận nói rõ đây là ghi nợ hết NGAY LẬP TỨC, không hoàn tác dễ dàng — tránh bấm nhầm
+  cho một khoản còn thật sự treo (chỉ nên dùng cho dữ liệu CŨ đã chắc chắn nộp rồi ngoài đời).
+- Quyền mới `quy_nop_thay` xếp cùng nhóm "chốt doanh số" với `nop_nhan`/`nop_huy`.
 
 ### v1.72.0 — Nối "Báo cáo doanh thu" vào Quỹ tiền mặt + thoát 1 lần + đóng được Đối chiếu máy
 

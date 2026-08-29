@@ -779,6 +779,31 @@ class VHG_Quy {
 		return array( 'ok' => true, 'thong_bao' => 'Đã huỷ lượt nộp — tiền quay lại tay người nộp.' );
 	}
 
+	/**
+	 * XÁC NHẬN THAY — cho dữ liệu CŨ/ĐÃ NHẬP mà tiền thật đã về tay ngoài đời rồi.
+	 *
+	 * Anh Thắng 29/08/2026, sau khi thấy hàng chục người hiện "đang cầm" hàng trăm triệu ở "Ai
+	 * đang cầm tiền": *"một số lệnh nộp tiền cũ, thực ra mọi người đã nộp rồi. Làm sao để duyệt
+	 * nộp (dữ liệu import nên bên nhân viên không thấy)"*.
+	 *
+	 * 🔴 VÌ SAO KHÔNG TỰ ĐỘNG COI DỮ LIỆU IMPORT LÀ ĐÃ NỘP. Cột `bc.nop_id` (29/08/2026) áp dụng
+	 *    cho MỌI báo cáo đã có từ trước, không riêng dữ liệu import — mặc định 0 (đang cầm) là
+	 *    đúng luật cho báo cáo THẬT SỰ chưa nộp. Coi TẤT CẢ báo cáo cũ là "đã nộp" thì một khoản
+	 *    thật sự còn treo (nhân viên nghỉ việc, quên nộp) cũng biến mất theo — im lặng xoá đúng
+	 *    khoản nợ cần được thấy. Phải là một NGƯỜI đọc số rồi quyết định là đúng ngoài đời.
+	 *
+	 * 🔴 DÙNG LẠI NGUYÊN VẸN nop()+nhan() — không viết lại luật gộp 3 nguồn/chốt mốc UNIQUE ở một
+	 *    chỗ thứ hai. Khác `nop()` bình thường ở chỗ người XÁC NHẬN ($ai_xac_nhan, kế toán/quản
+	 *    lý đang bấm) không phải người NỘP ($nguoi, tên hiện trên "Ai đang cầm tiền") — vốn dĩ
+	 *    đúng ý nghĩa "nộp THAY", vì $nguoi thường không còn phiên nào để tự bấm (dữ liệu import
+	 *    không gắn với tài khoản đăng nhập nào — "(import)" thậm chí không phải tên người thật).
+	 */
+	public static function nop_va_nhan_thay( $nguoi, $ai_xac_nhan, $ghi_chu = '' ) {
+		$r = self::nop( $nguoi, trim( 'Kế toán xác nhận thay (dữ liệu cũ) · ' . trim( (string) $ghi_chu ), ' ·' ) );
+		if ( empty( $r['ok'] ) || ! empty( $r['lap_lai'] ) ) { return $r; }
+		return self::nhan( $r['id'], (int) $r['so_tien'], $ai_xac_nhan, $ghi_chu );
+	}
+
 	/** Các lượt nộp đang chờ xác nhận. */
 	public static function nop_cho( $gioi_han = 50 ) {
 		global $wpdb;

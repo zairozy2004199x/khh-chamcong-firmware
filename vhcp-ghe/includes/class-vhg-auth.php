@@ -120,8 +120,12 @@ class VHG_Auth {
 		'vi_tra_nv', 'vi_tieu_nv',
 	);
 
-	/** Việc CHỐT DOANH SỐ — kế toán làm được mà không cần quyền Quản lý. */
-	const VIEC_CHOT_DOANH_SO = array( 'nop_nhan', 'nop_huy' );
+	/** Việc CHỐT DOANH SỐ — kế toán làm được mà không cần quyền Quản lý.
+	 * `quy_nop_thay` (29/08/2026): xác nhận LUÔN một lượt "đang cầm" thành hết nợ, không cần
+	 * đợi chính người đó tự bấm Nộp trước — dùng cho dữ liệu CŨ/ĐÃ NHẬP (`kt_nhap`, nhân viên
+	 * không còn phiên nào để tự bấm) mà tiền thật đã về tay ngoài đời từ trước khi cột `nop_id`
+	 * ra đời, xem VHG_Quy::nop_va_nhan_thay(). */
+	const VIEC_CHOT_DOANH_SO = array( 'nop_nhan', 'nop_huy', 'quy_nop_thay' );
 
 	/**
 	 * Vai trò được giúp khách. Khai được, cùng lý do với `vai_tro_chot()`.
