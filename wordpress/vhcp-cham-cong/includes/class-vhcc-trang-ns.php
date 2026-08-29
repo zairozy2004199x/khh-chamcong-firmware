@@ -901,14 +901,18 @@ class VHCC_TrangNS {
 			return;
 		}
 
-		/* Anh Thắng 29/08/2026: "đẩy 2 bảng về đây chung luôn cho gọn", rồi sau khi thấy vẫn còn
-		   hai ô viền riêng: "sao chưa ghép lại thành 1 bảng" — "Ghép hai mã về một người" là công
-		   cụ CHỮA đúng cái nhãn "một người hai hồ sơ?" trong bảng nhân sự, nên bọc CHUNG một khung
-		   `<div class="the">` quanh cả hai (the_bang() và the_ghep_ma() không tự vẽ khung riêng
-		   nữa, xem chú thích ở đầu mỗi hàm) — một ô viền duy nhất, không phải hai ô đứng cạnh nhau. */
+		/* 🔴 KHỐI "GHÉP HAI MÃ VỀ MỘT NGƯỜI" (danh sách 44 cặp + form gõ tay + gợi ý mã máy) ĐÃ
+		   BỎ HẲN — anh Thắng 29/08/2026, sau ba lượt chỉnh chỗ đặt/khung vẫn không đúng ý ("cùng 1
+		   nv có khác gì đâu", "chả khác gì, cùng mã thì ghép lại thôi"), rồi chốt "xóa luôn" khi
+		   được hỏi lại rõ mất những gì (đã xác nhận: mất luôn cả xem/Bỏ ghép 44 cặp cũ, form gõ
+		   tay cho cặp hệ không tự dò ra, và gợi ý mã máy). Đường ghép DUY NHẤT còn lại là nút
+		   "Ghép với hồ sơ kia" ngay tại dòng "một người hai hồ sơ?" trong the_bang() (thêm ở bản
+		   trước) — chỉ dùng được khi hệ TỰ DÒ ra trùng tên+cùng cơ sở, không có đường gõ tay nữa.
+		   `khai_ma_song_song()`/`viec_ghep_ma()`/`viec_bo_ghep_ma()`/`viec_don_ma()` GIỮ NGUYÊN
+		   ở tầng máy chủ (không xoá) — cùng cách `go_ngoai_le`/`ngoai_le_phang()` được giữ khi bỏ
+		   `the_ngoai_le()` trước đó: bỏ MÀN HÌNH quản lý qua UI, không bỏ NĂNG LỰC ở lõi. */
 		echo '<div class="the">';
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
-		self::the_ghep_ma( $toi );
 		echo '</div>';
 		self::the_dong_bo( $toi );
 		self::the_quyen_noi_bo( $toi );
@@ -1006,156 +1010,6 @@ class VHCC_TrangNS {
 		echo '<div class="hang" style="margin-top:10px">'
 			. '<button class="chinh" name="viec" value="quyen_noi_bo">Lưu phân quyền Nội bộ</button>'
 			. '</div></form></details></div>';
-	}
-
-	/**
-	 * GHÉP HAI MÃ VỀ MỘT NGƯỜI — "mã song song".
-	 *
-	 * =========================================================================================
-	 * 🔴 LỠ TẠO HAI HỒ SƠ CHO MỘT NGƯỜI THÌ CHỮA Ở ĐÂY.
-	 * =========================================================================================
-	 * Anh Thắng 28/08/2026: *"1 nhân viên mà làm 2 cơ sở, nên hệ thống báo trùng"*. Cách ĐÚNG
-	 * là một người một mã, cơ sở thứ hai khai vào ô **Cơ sở phụ**. Nhưng khi đã lỡ tạo hai mã
-	 * rồi thì không xoá bớt được — mỗi mã đã có công, có lương, có lịch sử.
-	 *
-	 * `ma_song_song` là đường chữa: khai một cặp mã là "cùng một người", rồi
-	 * `VHCC_NhanSu::ma_that()` dịch mã kia về mã chính khi lượt chấm công đi vào.
-	 *
-	 * ⚠️ TRƯỚC BẢN NÀY CHỈ KHAI ĐƯỢC TRONG wp-admin. Mà người phát hiện ra cặp trùng lại đang
-	 *    đứng ở ĐÂY, nhìn đúng cái nhãn "một người hai hồ sơ" — bắt họ rời trang, đăng nhập
-	 *    WordPress, đi tìm một màn khác, là gần như chắc chắn họ để đấy.
-	 *
-	 * 🔴 PHẢI KHAI TAY, HỆ KHÔNG ĐƯỢC TỰ SUY TỪ TÊN. Tên người Việt trùng rất nhiều; đoán sai
-	 *    là gộp lương hai người khác nhau. Nhãn ở bảng trên chỉ NGHI, còn quyết thì là người.
-	 */
-	private static function the_ghep_ma( $toi ) {
-		if ( ! VHCC_NhanSu::co_quan_tri_nv( $toi ) ) { return; }
-		$ds = VHCC_NhanSu::ds_ma_song_song();
-
-		/* 🔴 KHÔNG tự vẽ khung `<div class="the">` — anh Thắng 29/08/2026: "đẩy 2 bảng về đây
-		   chung luôn cho gọn" → "sao chưa ghép lại thành 1 bảng" → "Gộp gọn về 1 bảng luôn".
-		   Nơi gọi (render()) bọc hàm này CHUNG một khung với the_bang() (bảng nhân sự chính) —
-		   một ô viền duy nhất. KHÔNG chèn `<hr>`/khoảng cách riêng nữa (bản trước có, anh Thắng
-		   vẫn thấy là "còn hai bảng") — liền mạch ngay sau bảng chính, chỉ cách nhau đúng khoảng
-		   `<details>` tự có, giống mọi khối "…</table></div>" nối "<details>" khác trong CÙNG
-		   một khung `.the` ở trang này (VD `the_dau_viec()` nối liền `the_vai()` bên dưới). */
-		echo '<details' . ( $ds ? ' open' : '' ) . '>';
-		echo '<summary><b>Ghép hai mã về một người</b> — '
-			. ( $ds ? count( $ds ) . ' cặp đã khai' : 'chưa khai cặp nào' ) . '</summary>';
-		echo '<p class="mo">Một người lỡ có hai Mã NV (thường vì làm ở hai cơ sở và bị tạo hồ sơ '
-			. 'hai lần) thì với cả hệ họ là <b>hai người</b>: công chia đôi, lương tính theo hai '
-			. 'nửa, mỗi hồ sơ một PIN. Khai cặp ở đây là lượt chấm công của mã phụ tự chảy về mã '
-			. 'chính.<br><b>Chưa lỡ thì đừng dùng cái này</b> — người làm hai cơ sở chỉ cần khai '
-			. 'ô <b>Cơ sở phụ</b> trong hồ sơ đầy đủ, vẫn một mã.</p>';
-		/* 🔴 NÓI RÕ HAI MỨC. Khai cặp chỉ chữa từ nay về sau; lưới vẫn vẽ hai dòng cho tới khi
-		   dồn nốt phần cũ. Không nói ra thì người khai tưởng xong, rồi mở lưới lên vẫn thấy hai
-		   dòng và tin là chức năng hỏng. */
-		echo '<p class="mo"><b>Hai mức, hai hậu quả.</b> <b>Ghép</b> chỉ chữa từ nay về sau — lượt '
-			. 'mới của mã phụ sẽ tự chảy về mã chính, còn hàng đã nằm trong bảng thì vẫn mang mã '
-			. 'cũ, nên lưới vẫn vẽ ra hai dòng. Bấm thêm <b>Dồn … hàng cũ</b> để gom nốt phần đã '
-			. 'có. <span class="chu-hong">Dồn thì KHÔNG đảo lại được</span> — bỏ ghép sau đó cũng '
-			. 'không tách ra như cũ.</p>';
-
-		if ( $ds ) {
-			echo '<div class="cuon"><table class="stt"><thead><tr><th>Mã chính</th><th>Mã phụ</th>'
-				. '<th>Họ tên</th><th>Lý do</th><th>Ai khai</th><th></th></tr></thead><tbody>';
-			foreach ( $ds as $r ) {
-				echo '<tr><td><code>' . esc_html( (string) $r['ma_a'] ) . '</code></td>'
-					. '<td><code>' . esc_html( (string) $r['ma_b'] ) . '</code></td>'
-					. '<td>' . esc_html( (string) $r['ho_ten'] ) . '</td>'
-					. '<td class="mo">' . esc_html( (string) $r['ly_do'] ) . '</td>'
-					. '<td class="mo">' . esc_html( (string) $r['nguoi_khai'] ) . '</td>'
-					. '<td><form method="post" style="margin:0">'
-					. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
-					. self::o_loc()
-					. '<input type="hidden" name="ma_a" value="' . esc_attr( (string) $r['ma_a'] ) . '">'
-					. '<input type="hidden" name="ma_b" value="' . esc_attr( (string) $r['ma_b'] ) . '">'
-					. '<button name="viec" value="bo_ghep_ma">Bỏ ghép</button>';
-			/* 🔴 KHAI CẶP CHỈ CHỮA TỪ NAY VỀ SAU — hàng đã nằm trong bảng từ trước vẫn mang mã
-			   máy, nên lưới vẫn vẽ ra hai người. Nút này dồn nốt phần cũ. Đứng RIÊNG, không chạy
-			   kèm lúc khai: khai cặp là việc nhẹ và bỏ được, dồn thì KHÔNG ĐẢO ĐƯỢC. */
-			$dem = VHCC_NhanSu::dem_don_ma( (string) $r['ma_a'], (string) $r['ma_b'] );
-			$con = (int) $dem['chuyen'] + (int) $dem['gop'];
-			if ( $con ) {
-				echo ' <button name="viec" value="don_ma" class="chinh" '
-					. 'title="' . esc_attr( 'Chuyển ' . (int) $dem['chuyen'] . ' hàng sang mã chính, '
-						. 'gộp ' . (int) $dem['gop'] . ' hàng trùng ngày. KHÔNG đảo lại được.' ) . '">'
-					. 'Dồn ' . $con . ' hàng cũ</button>';
-			} else {
-				echo ' <span class="mo">đã dồn xong</span>';
-			}
-			echo '</form></td></tr>';
-			}
-			echo '</tbody></table></div>';
-		}
-
-		/* =====================================================================================
-		 * 🔴 DÒ SẴN, ĐỪNG BẮT GÕ TAY 400 CẶP.
-		 * =====================================================================================
-		 * Anh Thắng 28/08/2026: *"cách dò tên nhân viên trùng để ghép mã được không: theo họ tên
-		 * nhân viên"*. Đúng — hai ô gõ tay là đủ cho một cặp, không đủ cho một chuỗi 26 cửa hàng.
-		 *
-		 * ⚠️ GỢI Ý THÌ ĐƯỢC, TỰ GHÉP THÌ KHÔNG. Tên người Việt trùng rất nhiều; đoán sai là gộp
-		 *    lương hai người khác nhau, mà dồn xong thì không đảo lại được. Bảng này bày ra ĐỦ
-		 *    BẰNG CHỨNG để người bấm tự quyết: mỗi bên đang ở cơ sở nào, mã máy có bao nhiêu
-		 *    lượt, và tên ấy khớp mấy hồ sơ.
-		 */
-		$gy = VHCC_NhanSu::goi_y_ghep_ma( $toi );
-		if ( $gy ) {
-			echo '<div class="bao canh" style="margin-top:12px"><b>Dò theo họ tên: '
-				. count( $gy ) . ' mã lạ đang có lượt chấm công mà không có hồ sơ.</b><br>'
-				. '<span class="mo">Gần như chắc là mã của máy chấm công. Soi hai cột cơ sở rồi '
-				. 'bấm Ghép — <b>hệ không tự ghép hộ</b>, vì trùng tên chưa chắc là một người.'
-				. '</span></div>';
-			echo '<div class="cuon"><table class="stt"><thead><tr><th>Tên máy gửi</th>'
-				. '<th>Mã trên máy</th><th>Lượt</th><th>Cơ sở (máy)</th>'
-				. '<th>Mã công ty</th><th>Cơ sở (hồ sơ)</th><th></th></tr></thead><tbody>';
-			foreach ( $gy as $g ) {
-				$lech_cs = ( '' !== $g['maCty'] && 0 !== strcasecmp(
-					VHCC_NhanSu::chuan_coso( $g['coso'] ), VHCC_NhanSu::chuan_coso( $g['cosoHoSo'] ) ) );
-				echo '<tr><td>' . esc_html( $g['ten'] ) . '</td>'
-					. '<td><code>' . esc_html( $g['maMay'] ) . '</code></td>'
-					. '<td>' . (int) $g['soLuot'] . '</td>'
-					. '<td>' . esc_html( $g['coso'] ) . '</td>';
-				if ( '' === $g['maCty'] ) {
-					/* ⚠️ Tên khớp NHIỀU hồ sơ thì KHÔNG gợi ý — chọn đại một cái là đúng kiểu sai
-					   mà cả khối này sinh ra để tránh. */
-					echo '<td colspan="3"><span class="chu-hong">tên này khớp '
-						. (int) $g['soHoSoKhop'] . ' hồ sơ</span> '
-						. '<span class="mo">— tự chọn rồi gõ tay bên dưới</span></td></tr>';
-					continue;
-				}
-				echo '<td><code>' . esc_html( $g['maCty'] ) . '</code></td>'
-					. '<td>' . esc_html( $g['cosoHoSo'] )
-					/* Lệch cơ sở là dấu hiệu MẠNH rằng đây là hai người khác nhau trùng tên. */
-					. ( $lech_cs ? ' <span class="chu-hong">(khác cơ sở!)</span>' : '' ) . '</td>';
-				echo '<td><form method="post" style="margin:0">'
-					. '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">'
-					. self::o_loc()
-					. '<input type="hidden" name="ma_a" value="' . esc_attr( $g['maCty'] ) . '">'
-					. '<input type="hidden" name="ma_b" value="' . esc_attr( $g['maMay'] ) . '">'
-					. '<input type="hidden" name="gm_ten" value="' . esc_attr( $g['ten'] ) . '">'
-					. '<input type="hidden" name="gm_ly_do" value="mã máy, dò theo họ tên">'
-					. '<button name="viec" value="ghep_ma"' . ( $lech_cs ? '' : ' class="chinh"' ) . '>'
-					. 'Ghép</button></form></td></tr>';
-			}
-			echo '</tbody></table></div>';
-		}
-
-		echo '<form method="post" class="hang" style="margin-top:10px;gap:8px;flex-wrap:wrap">';
-		echo '<input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
-		echo self::o_loc();
-		echo '<div><label for="gm_a">Mã CHÍNH (giữ lại)</label>'
-			. '<input id="gm_a" name="ma_a" placeholder="VD: MNNV2MTD0014"></div>';
-		echo '<div><label for="gm_b">Mã PHỤ (chảy về mã chính)</label>'
-			. '<input id="gm_b" name="ma_b" placeholder="VD: MNNV2MTD0022"></div>';
-		echo '<div><label for="gm_t">Họ tên</label><input id="gm_t" name="gm_ten"></div>';
-		echo '<div><label for="gm_l">Lý do</label>'
-			. '<input id="gm_l" name="gm_ly_do" placeholder="VD: tạo hồ sơ hai lần"></div>';
-		echo '<div><button class="chinh" name="viec" value="ghep_ma">Ghép hai mã</button></div>';
-		echo '</form>';
-		echo '</details>';
-		/* Không đóng `<div class="the">` — xem chú thích ở đầu hàm này, nơi gọi lo khung chung. */
 	}
 
 	/**
@@ -1466,10 +1320,11 @@ class VHCC_TrangNS {
 		$p     = min( $p, $so_tr );
 		$lat   = array_slice( $nguoi, ( $p - 1 ) * self::MOI_TRANG, self::MOI_TRANG );
 
-		/* 🔴 KHÔNG tự mở `<div class="the">` ở đây — anh Thắng 29/08/2026: "đẩy 2 bảng về đây
-		   chung luôn cho gọn" rồi "sao chưa ghép lại thành 1 bảng". Khung ngoài (mở/đóng) nay do
-		   NƠI GỌI (render()) lo, bọc CHUNG quanh cả the_bang() lẫn the_ghep_ma() — một khung duy
-		   nhất chứa cả hai, thay vì mỗi hàm tự vẽ khung riêng rồi hai khung nằm cạnh nhau. */
+		/* 🔴 KHÔNG tự mở `<div class="the">` ở đây — khung ngoài (mở/đóng) do NƠI GỌI (render())
+		   lo. Trước 29/08/2026 khung này còn bọc CHUNG the_bang() với the_ghep_ma() ("Ghép hai
+		   mã về một người") sau nhiều lượt chỉnh chỗ đặt/khung; the_ghep_ma() đã BỎ HẲN sau đó
+		   (anh Thắng: "xóa luôn"), nên khung giờ chỉ còn bọc mỗi the_bang() — vẫn giữ cách tách
+		   mở/đóng khung ra khỏi hàm này, phòng khi có khối khác cần ghép chung sau này. */
 		echo '<h2>Ai vào được trang nào</h2>';
 		echo '<p class="mo">Mặc định theo <b>vai trò</b> — bảng này chỉ ghi những chỗ <b>khác</b> '
 			. 'mặc định. Để ô ở «Theo vai» là người ấy đi theo thang vai, đổi vai là quyền đổi theo. '

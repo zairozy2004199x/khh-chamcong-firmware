@@ -9927,32 +9927,6 @@ t( '🔴 mã KHÔNG hoạt động thì nói thẳng là hồ sơ rác, an toàn
 t( '🔴 KHÔNG còn khối tóm tắt "Đang có N ngoại lệ" trên trang',
 	strpos( $tt_h, 'ngoại lệ</b> — những chỗ khác mặc định theo vai' ) === false, $tt_h );
 
-/* ---- ĐẨY "GHÉP HAI MÃ" LÊN NGAY SAU BẢNG CHÍNH ------------------------------------------------
-   Anh Thắng 29/08/2026: "đẩy 2 bảng về đây chung luôn cho gọn" — "Ghép hai mã" là công cụ CHỮA
-   đúng cái nhãn "một người hai hồ sơ" vừa thấy trong bảng chính; đặt sát ngay sau bảng đó thay vì
-   cách hai thẻ (Đồng bộ, Quyền nội bộ) mới tới. */
-$vt_ghep = strpos( $tt_h, 'Ghép hai mã về một người' );
-$vt_dongbo = strpos( $tt_h, 'Đồng bộ chấm công' );
-t( '🔴 "Ghép hai mã" đứng NGAY SAU bảng chính, trước "Đồng bộ chấm công"',
-	false !== $vt_ghep && false !== $vt_dongbo && $vt_ghep < $vt_dongbo,
-	array( $vt_ghep, $vt_dongbo ) );
-
-/* 🔴 "SAO CHƯA GHÉP LẠI THÀNH 1 BẢNG" → "Gộp gọn về 1 bảng luôn" — đứng SÁT nhau chưa đủ, anh
-   Thắng muốn CHUNG MỘT KHUNG (một `<div class="the">`, không phải hai ô viền cạnh nhau), và
-   KHÔNG muốn có vạch/khoảng cách riêng ngăn hai phần (bản có `<hr>` vẫn bị chê là "còn hai
-   bảng"). Soi bằng cách: giữa nút "Lưu bảng này" (cuối bảng chính) và chữ "Ghép hai mã về một
-   người" KHÔNG được có thêm một `<div class="the">` nào chen vào, và cũng KHÔNG còn `<hr>` nào
-   — nếu the_ghep_ma() lỡ tự vẽ khung/vạch riêng trở lại thì đúng các chuỗi đó sẽ xuất hiện lại
-   ngay trong khoảng này. */
-$vt_luu = strpos( $tt_h, 'Lưu bảng này' );
-t( 'mốc "Lưu bảng này" đứng trước "Ghép hai mã"', false !== $vt_luu && $vt_luu < $vt_ghep,
-	array( $vt_luu, $vt_ghep ) );
-$doan_giua = ( false !== $vt_luu && false !== $vt_ghep && $vt_ghep > $vt_luu )
-	? substr( $tt_h, $vt_luu, $vt_ghep - $vt_luu ) : '';
-t( '🔴 KHÔNG có khung `.the` mới VÀ KHÔNG có `<hr>` chen giữa — tức CHUNG một khung, liền mạch',
-	'' !== $doan_giua && strpos( $doan_giua, 'class="the"' ) === false
-	&& strpos( $doan_giua, '<hr' ) === false, $doan_giua );
-
 /* ---- PHÂN QUYỀN TRANG NỘI BỘ, NGAY TẠI TRANG NGOÀI -----------------------------------------
    🔴 Anh Thắng 28/08/2026, ảnh một Quản lý bị chối ở trang Nội bộ: *"Trang nội bộ là trang
       chung thì ai vẫn được vào mà"*. Đúng — mặc định của `VHNB_Quyen::VIEC` là Nhân viên. Nhưng
@@ -10022,42 +9996,24 @@ t( '🔴 Cửa hàng trưởng gọi thẳng vẫn bị chối', isset( $tt_bao[
 teq( 'và cửa vào KHÔNG bị siết', 'NHAN_VIEN', (string) VHNB_Quyen::cai_dat()['vao'] );
 delete_option( VHNB_Quyen::O );
 
-/* ---- GHÉP HAI MÃ VỀ MỘT NGƯỜI, NGAY TẠI TRANG NGOÀI ---------------------------------------
-   🔴 Nhãn ở trên chỉ NGHI. Người phát hiện ra cặp trùng đang đứng ở đây, nhìn đúng cái nhãn ấy
-      — bắt họ rời trang, đăng nhập WordPress, đi tìm một màn khác thì gần như chắc là để đấy.
-   ⚠️ PHẢI KHAI TAY, hệ KHÔNG được tự suy từ tên: tên người Việt trùng rất nhiều, đoán sai là
-      gộp lương hai người khác nhau. Nhãn nghi, người quyết. */
-$tt_h = vhcc_ns( 'Admin' );
-t( '🔴 trang ngoài có khối ghép hai mã',
-	strpos( $tt_h, 'Ghép hai mã về một người' ) !== false, $tt_h );
-t( 'nói rõ hậu quả của hai mã: công chia đôi, lương tính theo hai nửa',
-	strpos( $tt_h, 'công chia đôi' ) !== false, $tt_h );
-t( 'và nói rõ khi nào ĐỪNG dùng nó — người làm hai cơ sở chỉ cần khai Cơ sở phụ',
-	strpos( $tt_h, 'Cơ sở phụ' ) !== false
-	&& strpos( $tt_h, 'Chưa lỡ thì đừng dùng' ) !== false, $tt_h );
-t( 'có ô nhập cả hai mã', strpos( $tt_h, 'name="ma_a"' ) !== false
-	&& strpos( $tt_h, 'name="ma_b"' ) !== false, $tt_h );
-
+/* ---- GHÉP HAI MÃ VỀ MỘT NGƯỜI — NĂNG LỰC MÁY CHỦ, MÀN HÌNH ĐÃ BỎ ---------------------------
+   🔴 Anh Thắng 29/08/2026, sau ba lượt chỉnh chỗ đặt/khung khối "Ghép hai mã về một người" vẫn
+      không đúng ý, chốt "xóa luôn" khi được hỏi lại rõ mất những gì. Màn hình (the_ghep_ma()) đã
+      BỎ HẲN — không còn khối ấy trên trang, không còn form gõ tay, không còn bảng dò/danh sách
+      44 cặp. NĂNG LỰC ở tầng máy chủ (khai_ma_song_song()/viec_ghep_ma()/viec_bo_ghep_ma()/
+      viec_don_ma()/goi_y_ghep_ma()) GIỮ NGUYÊN — cùng cách go_ngoai_le/ngoai_le_phang() được
+      giữ khi the_ngoai_le() bị bỏ trước đó. Các phép thử dưới đây vì vậy gọi THẲNG các hàm/viec
+      đó, không còn qua vhcc_ns() để soi CHỮ trên màn — không có màn nào để soi nữa. */
 /* ⚠️ Ghép ảnh hưởng CẢ CHUỖI (công của một mã chảy sang mã khác) nên cửa là `co_quan_tri_nv()`
    = quyền `ngoai_coso` = bậc Quản lý trở lên. Kế toán bậc 4 CAO HƠN Quản lý bậc 3 nên vẫn
    được — thang bậc, bậc trên làm được mọi việc bậc dưới. Người bị chối là Cửa hàng trưởng. */
-$tt_kt = vhcc_ns( 'Kế toán' );
-t( 'Kế toán thấy khối — bậc 4 cao hơn Quản lý bậc 3',
-	strpos( $tt_kt, 'Ghép hai mã về một người' ) !== false, $tt_kt );
-/* 🔴 PHÉP THỬ CANH QUAN HỆ HAI BẬC, KHÔNG CANH HÀNH VI.
-   Chốt `co_quan_tri_nv()` trong `the_ghep_ma()` hôm nay CHƯA TỪNG rẽ sang false: cửa vào màn
-   này là `ho_so` (bậc 4 Kế toán), còn ghép cần `ngoai_coso` (bậc 3 Quản lý) — ai vào nổi trang
-   đều ghép được. Nên không dựng nổi cảnh "vào được trang mà không ghép được", và mọi vết phá
-   bỏ chốt ấy đều xanh.
-   Chốt vẫn phải GIỮ: nó bảo vệ trước thay đổi ở CHỖ KHÁC — ngày nào cửa vào trang nới xuống
-   bậc 3 hay thấp hơn, nó tự đứng ra chặn mà không ai phải nhớ. Nên canh chính quan hệ ấy. */
+t( 'và người đủ bậc vào trang thì cũng đủ bậc ghép',
+	VHCC_NhanSu::co_quan_tri_nv( array( 'role' => 'Kế toán' ) ) );
 t( '🔴 quyền GHÉP không được cao hơn quyền VÀO trang — nếu không, chốt ở khối ghép thành mã chết',
 	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ngoai_coso'] ] <= VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ],
 	array( VHCC_Vai::QUYEN['ngoai_coso'], VHCC_Vai::QUYEN['ho_so'] ) );
-t( 'và người đủ bậc vào trang thì cũng đủ bậc ghép',
-	VHCC_NhanSu::co_quan_tri_nv( array( 'role' => 'Kế toán' ) ) );
 
-/* Khai một cặp qua ĐÚNG đường màn hình dùng. */
+/* Khai một cặp qua đúng viec máy chủ — không còn "đường màn hình dùng" để nói tới nữa. */
 $_POST = array( 'ma_a' => 'MOT1', 'ma_b' => 'MOT2', 'gm_ten' => 'Phạm Văn Công',
 	'gm_ly_do' => 'tạo hồ sơ hai lần' );
 $tt_bao = VHCC_TrangNS::lam_viec( 'ghep_ma', $U_AD );
@@ -10070,9 +10026,9 @@ t( 'Admin ghép được', strpos( $tt_txt, 'Đã ghép' ) !== false, $tt_bao );
 teq( 'mã CÓ hồ sơ thì trả chính nó, không dịch', 'MOT2', VHCC_NhanSu::ma_that( 'MOT2' ) );
 VHCC_NhanSu::khai_ma_song_song( $U_AD, 'MOT1', 'MAYCU9', 'Phạm Văn Công', 'mã cũ trên máy' );
 teq( '🔴 mã máy chưa có hồ sơ thì chảy về mã chính', 'MOT1', VHCC_NhanSu::ma_that( 'MAYCU9' ) );
-$tt_h = vhcc_ns( 'Admin' );
-t( 'cặp vừa khai hiện ra trong bảng',
-	strpos( $tt_h, 'tạo hồ sơ hai lần' ) !== false, $tt_h );
+teq( 'cặp vừa khai nằm đúng trong sổ ma_song_song',
+	1, count( array_filter( VHCC_NhanSu::ds_ma_song_song(),
+		function ( $r ) { return 'tạo hồ sơ hai lần' === $r['ly_do']; } ) ) );
 
 /* ---- NÚT "GHÉP VỚI HỒ SƠ KIA" NGAY TẠI DÒNG — không bắt gõ tay ở khối "Ghép hai mã" ----------
    Anh Thắng 29/08/2026, sau ba lượt chỉnh chỗ đặt/khung bảng "Ghép hai mã" vẫn chê: *"cùng 1 nv
@@ -10194,34 +10150,20 @@ teq( 'vẫn đúng mã máy', '80412', (string) $gy[0]['maMay'] );
 teq( '🔴 Cửa hàng trưởng không dò được', 0, count( VHCC_NhanSu::goi_y_ghep_ma(
 	array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'GY_CS' ) ) ) );
 
-/* ---- Trên MÀN HÌNH ---- */
-$tt_h = vhcc_ns( 'Admin' );
-t( '🔴 màn hình bày bảng dò', strpos( $tt_h, 'Dò theo họ tên' ) !== false, $tt_h );
-t( 'kể ra mã máy và mã công ty',
-	strpos( $tt_h, '80412' ) !== false && strpos( $tt_h, 'GYCTY01' ) !== false, $tt_h );
-t( '🔴 và nói thẳng là hệ KHÔNG tự ghép hộ',
-	strpos( $tt_h, 'không tự ghép hộ' ) !== false, $tt_h );
-t( 'nút Ghép điền sẵn hai mã', strpos( $tt_h, 'name="ma_a" value="GYCTY01"' ) !== false
-	&& strpos( $tt_h, 'name="ma_b" value="80412"' ) !== false, $tt_h );
-
-/* 🔴 TRÊN MÀN HÌNH cũng phải im lặng khi tên khớp NHIỀU hồ sơ: bày nút Ghép điền sẵn một cái
-   trong hai là chọn hộ — mà dồn xong thì không đảo lại được. */
+/* 🔴 KHỚP NHIỀU HỒ SƠ THÌ VẪN PHẢI IM LẶNG (KHÔNG CHỌN HỘ) — hàm goi_y_ghep_ma() tự nó, không
+   phải màn hình, là nơi giữ chốt này (xem phép thử 'khớp hai hồ sơ thì KHÔNG chọn hộ' ở trên);
+   không còn màn hình để soi lại lần hai ở đây. */
 VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'GYCTY02', 'ho_ten' => 'Nguyễn Bảo Khang',
 	'cua_hang' => 'GY_CS', 'bo_phan' => 'Bán hàng' ) );
-$tt_h = vhcc_ns( 'Admin' );
-t( '🔴 khớp hai hồ sơ thì màn nói ra, không chọn hộ',
-	strpos( $tt_h, 'khớp 2 hồ sơ' ) !== false, $tt_h );
-t( '🔴 và KHÔNG bày nút Ghép điền sẵn cho hàng ấy',
-	strpos( $tt_h, 'name="ma_b" value="80412"' ) === false, $tt_h );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='GYCTY02'" );
-$tt_h = vhcc_ns( 'Admin' );
 
-/* 🔴 LỆCH CƠ SỞ LÀ DẤU HIỆU MẠNH RẰNG ĐÂY LÀ HAI NGƯỜI KHÁC NHAU TRÙNG TÊN — phải kêu lên. */
+/* 🔴 LỆCH CƠ SỞ LÀ DẤU HIỆU MẠNH RẰNG ĐÂY LÀ HAI NGƯỜI KHÁC NHAU TRÙNG TÊN — hàm dò vẫn phải
+   trả về đúng mã máy/mã công ty kể cả khi lệch cơ sở (màn hình từng tự đánh dấu "khác cơ sở!"
+   khi vẽ ra; hàm không đổi hành vi dò, chỉ mất chỗ vẽ chữ). */
 $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cua_hang' => 'TUTU_BT' ),
 	array( 'ma_nv' => 'GYCTY01' ) );
-$tt_h = vhcc_ns( 'Admin' );
-t( '🔴 hai bên khác cơ sở thì đánh dấu ngay',
-	strpos( $tt_h, 'khác cơ sở!' ) !== false, $tt_h );
+$gy = VHCC_NhanSu::goi_y_ghep_ma( $U_AD );
+teq( 'vẫn dò ra đúng cặp dù khác cơ sở', 'GYCTY01', (string) $gy[0]['maCty'] );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv IN ('80412','GYCTY01')" );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='GYCTY01'" );
 
@@ -10274,15 +10216,14 @@ teq( '🔴 ngày trùng: giờ vào lấy SỚM NHẤT', 30000, (int) $h_don['gi
 teq( '🔴 và giờ ra lấy MUỘN NHẤT', 62000, (int) $h_don['gio_ra_giay'] );
 teq( 'nguồn thành hỗn hợp vì hai bên khác nguồn', 'hon-hop', (string) $h_don['nguon'] );
 
-/* ---- Nút trên MÀN HÌNH và đường lưu thật ---- */
-/* ⚠️ Dựng lại cảnh còn hàng để soi nút — phần trên vừa dồn sạch rồi. */
+/* ---- Đường lưu thật (viec don_ma), không còn màn hình để soi nút ---- */
+/* ⚠️ Dựng lại cảnh còn hàng — phần trên vừa dồn sạch rồi. */
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'TUTU_BT', 'ngay' => '2026-08-05',
 	'ma_nv' => 'DON_B', 'ho_ten' => 'Người Hai Mã', 'gio_vao_giay' => 28800,
 	'gio_ra_giay' => 61200, 'nguon' => 'may' ) );
-$tt_h = vhcc_ns( 'Admin' );
-t( '🔴 còn hàng cũ thì bày nút Dồn, kèm SỐ hàng',
-	strpos( $tt_h, 'Dồn 1 hàng cũ' ) !== false, $tt_h );
-t( 'và nút mang việc "don_ma"', strpos( $tt_h, 'value="don_ma"' ) !== false, $tt_h );
+$dem_truoc = VHCC_NhanSu::dem_don_ma( 'DON_A', 'DON_B' );
+teq( '🔴 còn đúng 1 hàng cần dồn, đếm được TRƯỚC khi bấm', 1,
+	(int) $dem_truoc['chuyen'] + (int) $dem_truoc['gop'], $dem_truoc );
 
 $_POST = array( 'ma_a' => 'DON_A', 'ma_b' => 'DON_B' );
 $tt_bao = VHCC_TrangNS::lam_viec( 'don_ma', $U_AD );
@@ -10303,19 +10244,6 @@ teq( 'dồn lần hai thì không còn hàng nào', 0, (int) $kq_d['chuyen'] + (
 $kq_d = VHCC_NhanSu::don_ma(
 	array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' ), 'DON_A', 'DON_B' );
 t( '🔴 Cửa hàng trưởng KHÔNG dồn được', empty( $kq_d['ok'] ), $kq_d );
-
-/* ---- Trên MÀN HÌNH ---- */
-$tt_h = vhcc_ns( 'Admin' );
-t( '🔴 khối ghép nói rõ HAI MỨC: ghép chỉ chữa từ nay về sau',
-	strpos( $tt_h, 'chỉ chữa từ nay về sau' ) !== false, $tt_h );
-/* ⚠️ Và nói rõ HẬU QUẢ của việc chỉ ghép mà không dồn: lưới vẫn vẽ ra hai dòng. Không nói thì
-   người khai tưởng xong, mở lưới lên vẫn thấy hai dòng và tin là chức năng hỏng. */
-t( 'và nói rõ vì sao lưới vẫn vẽ hai dòng nếu chưa dồn',
-	strpos( $tt_h, 'vẫn mang mã ' ) !== false && strpos( $tt_h, 'vẽ ra hai dòng' ) !== false, $tt_h );
-t( 'và nói rõ dồn thì KHÔNG đảo lại được',
-	strpos( $tt_h, 'KHÔNG đảo lại được' ) !== false, $tt_h );
-t( 'cặp đã dồn xong thì thôi bày nút',
-	strpos( $tt_h, 'đã dồn xong' ) !== false, $tt_h );
 
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE ma_nv IN ('DON_A','DON_B')" );
 VHCC_NhanSu::bo_ma_song_song( $U_AD, 'DON_A', 'DON_B' );
