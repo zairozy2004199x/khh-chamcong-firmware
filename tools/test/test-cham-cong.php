@@ -10074,6 +10074,66 @@ $tt_h = vhcc_ns( 'Admin' );
 t( 'cặp vừa khai hiện ra trong bảng',
 	strpos( $tt_h, 'tạo hồ sơ hai lần' ) !== false, $tt_h );
 
+/* ---- NÚT "GHÉP VỚI HỒ SƠ KIA" NGAY TẠI DÒNG — không bắt gõ tay ở khối "Ghép hai mã" ----------
+   Anh Thắng 29/08/2026, sau ba lượt chỉnh chỗ đặt/khung bảng "Ghép hai mã" vẫn chê: *"cùng 1 nv
+   có khác gì đâu"*, *"chả khác gì, cùng mã thì ghép lại thôi"*. Dựng CẶP MÃ RIÊNG (GV1/GV2,
+   "Đặng Duy Ghép") — không đụng MOT1/MOT2 đã dùng cho phép thử `ghep_ma` ở trên, vì
+   khai_ma_song_song() từ chối một cặp ĐÃ khai; đụng vào MOT1/MOT2 sẽ làm hỏng phép thử đó nếu
+   thứ tự file đổi sau này. KHÔNG gọi vhcc_dung_bang() ở đây — hàm đó XOÁ SẠCH MỌI BẢNG (kể cả
+   `ma_song_song` của MOT1/MOT2 vừa khai xong ở trên), làm hỏng các phép thử "bỏ ghép" phía sau
+   dựa vào đúng cặp đó. Mã GV1/GV2 mới toanh, chèn thêm không đụng gì tới dữ liệu đang có. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GV1', 'ho_ten' => 'Đặng Duy Ghép',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GV2', 'ho_ten' => 'Đặng Duy Ghép',
+	'vai_tro' => 'Nhân viên', 'cua_hang' => 'TUTU_BT' ) );
+/* GV1 có chấm công, GV2 không — nút phải tự chọn GV1 làm mã CHÍNH (nhiều lượt hơn), không phải
+   cứ mã nào đứng trước trong bảng. */
+vhcc_cham( 'TUTU_BT', '2026-08-05', 'GV1', '', '08:00', '17:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-06', 'GV1', '', '08:00', '17:00' );
+vhcc_cham( 'TUTU_BT', '2026-08-07', 'GV1', '', '08:00', '17:00' );
+
+$tt_h = vhcc_ns( 'Admin' );
+t( '🔴 có nút "Ghép với GV2" ngay tại dòng, không phải mở bảng khác',
+	strpos( $tt_h, 'Ghép với GV2' ) !== false, $tt_h );
+t( '🔴 giá trị nút tự chọn mã NHIỀU chấm công hơn (GV1) làm mã CHÍNH',
+	strpos( $tt_h, 'name="ghep_voi" value="GV1|GV2"' ) !== false, $tt_h );
+t( 'không lộ chiều ngược (GV2 làm chính) ra nút nào',
+	strpos( $tt_h, 'value="GV2|GV1"' ) === false, $tt_h );
+
+/* ⚠️ Vai bậc thấp (Cửa hàng trưởng) gọi THẲNG đường ấy vẫn bị chối ở LÕI — cùng cách phép thử
+   "Cửa hàng trưởng gọi thẳng đường ấy vẫn bị chối" của khối "Ghép hai mã" đầy đủ đang làm ngay
+   bên dưới (mảng vai trò trần, không qua vhcc_ns()/token). Test TRƯỚC khi Admin ghép thật —
+   sau đó cặp coi như đã ghép, gọi lại sẽ luôn bị chối vì "đã khai rồi" chứ không phải vì thiếu
+   quyền, và hai lý do đó không được lẫn vào nhau. */
+$_POST = array( 'ghep_voi' => 'GV1|GV2' );
+$tt_bao_cht = VHCC_TrangNS::lam_viec( 'ghep_voi_nv',
+	array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT' ) );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng KHÔNG ghép được — chối vì THIẾU QUYỀN, không phải vì đã khai',
+	isset( $tt_bao_cht[0]['loi'] ) && strpos( $tt_bao_cht[0]['loi'], 'chỉ Admin / Quản lý' ) !== false,
+	$tt_bao_cht );
+
+/* Bấm nút = gửi đúng POST `ghep_voi=GV1|GV2` — không qua ô nhập tay `ma_a`/`ma_b`. */
+$_POST = array( 'ghep_voi' => 'GV1|GV2' );
+$tt_bao = VHCC_TrangNS::lam_viec( 'ghep_voi_nv', $U_AD );
+$_POST = array();
+$tt_txt = (string) wp_json_encode( $tt_bao );
+t( '🔴 bấm nút ghép được thật, không chỉ vẽ ra cho có',
+	strpos( $tt_txt, 'Đã ghép' ) !== false, $tt_bao );
+teq( 'và chảy đúng chiều: GV2 (phụ) dịch về GV1 (chính) khi GV2 hết hồ sơ',
+	'GV1', ( function () {
+		global $wpdb;
+		$wpdb->delete( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'GV2' ) );
+		return VHCC_NhanSu::ma_that( 'GV2' );
+	} )() );
+/* Bấm lần hai cùng cặp: khai_ma_song_song() phải từ chối (đã khai rồi) — không được âm thầm
+   ghi đè hay tạo thêm một dòng trùng trong sổ ma_song_song. */
+$_POST = array( 'ghep_voi' => 'GV1|GV2' );
+$tt_bao2 = VHCC_TrangNS::lam_viec( 'ghep_voi_nv', $U_AD );
+$_POST = array();
+t( 'bấm lại cùng cặp thì bị chối, không ghi đè',
+	isset( $tt_bao2[0]['loi'] ) && strpos( $tt_bao2[0]['loi'], 'đã khai rồi' ) !== false, $tt_bao2 );
+
 /* Cửa hàng trưởng gọi THẲNG đường ấy vẫn bị chối — cửa thật ở lõi, không phải ở chỗ giấu khối.
    ⚠️ Giấu nút không phải là chặn: ai đọc được gói tin thì gọi thẳng được. */
 $U_CHT_G = array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' );

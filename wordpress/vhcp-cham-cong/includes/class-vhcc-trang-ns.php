@@ -171,6 +171,13 @@ class VHCC_TrangNS {
 		/* Nút Xoá cũng không gửi `viec` — nó mang tên riêng `xoa_ma` để CHỈ lượt bấm đúng nó
 		   mới kéo theo một mã. Cùng lý do với nút áp cả cột ở trên. */
 		elseif ( isset( $_POST['xoa_ma'] ) ) { $viec_gui = 'xoa_hs'; }
+		/* Nút "Ghép với hồ sơ kia" ngay tại dòng "một người hai hồ sơ?" — anh Thắng 29/08/2026,
+		   sau khi thấy bảng "Ghép hai mã" đứng riêng vẫn bị chê là "còn hai bảng" dù đã gộp
+		   chung khung: *"cùng 1 nv có khác gì đâu"*, *"chả khác gì, cùng mã thì ghép lại thôi"*.
+		   Nút này SỐNG NGAY TRONG bảng chính (cùng `<form>` với "Lưu bảng này"), mang tên riêng
+		   `ghep_voi` — CHỈ nút vừa bấm góp mặt trong `$_POST`, không đụng các ô quyền khác trong
+		   cùng form, y hệt cách `xoa_ma`/`cot` đã làm ở trên. Xem viec_ghep_voi(). */
+		elseif ( isset( $_POST['ghep_voi'] ) ) { $viec_gui = 'ghep_voi_nv'; }
 
 		if ( ! empty( $_POST ) && '' !== $viec_gui ) {
 			$bao = self::ky_dung()
@@ -199,6 +206,7 @@ class VHCC_TrangNS {
 		if ( 'ghe_rieng' === $viec )   { return self::viec_ghe_rieng( $toi ); }
 		if ( 'quyen_noi_bo' === $viec ) { return self::viec_quyen_noi_bo( $toi ); }
 		if ( 'ghep_ma' === $viec )     { return self::viec_ghep_ma( $toi ); }
+		if ( 'ghep_voi_nv' === $viec ) { return self::viec_ghep_voi( $toi ); }
 		if ( 'bo_ghep_ma' === $viec )  { return self::viec_bo_ghep_ma( $toi ); }
 		if ( 'don_ma' === $viec )      { return self::viec_don_ma( $toi ); }
 		if ( 'xoa_hs' === $viec )      { return self::viec_xoa_hs( $toi ); }
@@ -275,6 +283,38 @@ class VHCC_TrangNS {
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		return array( array( 'ok' => 'Đã ghép ' . $p( 'ma_b' ) . ' về ' . $p( 'ma_a' )
 			. '. Lượt chấm công của mã phụ nay chảy về mã chính.' ) );
+	}
+
+	/**
+	 * GHÉP NHANH NGAY TẠI DÒNG "một người hai hồ sơ?" — không phải gõ tay ở khối "Ghép hai mã".
+	 *
+	 * Anh Thắng 29/08/2026, sau ba lượt chỉnh chỗ đặt/khung của bảng "Ghép hai mã" vẫn chưa vừa
+	 * ý: *"cùng 1 nv có khác gì đâu"*, *"chả khác gì, cùng mã thì ghép lại thôi"*. Đúng — cái anh
+	 * cần không phải là chỗ ĐẶT bảng, mà là ĐỠ PHẢI gõ tay hai mã vào một bảng khác. Nút này gộp
+	 * thẳng cặp mã ĐÃ BỊ HỆ PHÁT HIỆN (nhãn "một người hai hồ sơ?"), không bắt gõ lại.
+	 *
+	 * 🔴 GIÁ TRỊ NÚT MANG SẴN "MÃ_CHÍNH|MÃ_PHỤ", KHÔNG NHẬN TỪ Ô NHẬP TỰ DO. Nút được vẽ ở
+	 *    `the_bang()` với đúng cặp mã hệ đã dò ra (dau_hieu_trung()['doi']), thứ tự chính/phụ đã
+	 *    tính sẵn theo AI CÓ CHẤM CÔNG NHIỀU HƠN (xem the_bang()) — người bấm không tự gõ mã nên
+	 *    không có đường gõ nhầm mã của người khác. Vẫn đi qua khai_ma_song_song() để giữ NGUYÊN
+	 *    mọi chốt đã có (bậc quyền, hai mã không được trùng nhau, cặp chưa từng khai).
+	 */
+	private static function viec_ghep_voi( $toi ) {
+		$raw = isset( $_POST['ghep_voi'] ) ? sanitize_text_field( wp_unslash( $_POST['ghep_voi'] ) ) : '';
+		$cap = explode( '|', $raw, 2 );
+		$a   = isset( $cap[0] ) ? trim( $cap[0] ) : '';
+		$b   = isset( $cap[1] ) ? trim( $cap[1] ) : '';
+		if ( '' === $a || '' === $b ) { return array( array( 'loi' => 'Thiếu mã cần ghép.' ) ); }
+		/* Tên lấy THẲNG TỪ HỒ SƠ (mã chính), không tin chuỗi client gửi lên — hai hồ sơ trong
+		   một cặp "một người hai hồ sơ?" vốn đã cùng tên (đó là lý do bị gắn nhãn), nên lấy tên
+		   của bên nào cũng ra cùng một chuỗi. */
+		$hs  = VHCC_NhanSu::ho_so( $a );
+		$ten = $hs ? trim( (string) ( isset( $hs['ho_ten'] ) ? $hs['ho_ten'] : '' ) ) : '';
+		$kq  = VHCC_NhanSu::khai_ma_song_song( $toi, $a, $b, $ten,
+			'một người hai hồ sơ — ghép nhanh từ bảng nhân sự' );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => 'Đã ghép ' . $b . ' về ' . $a
+			. '. Lượt chấm công của ' . $b . ' nay chảy về ' . $a . '.' ) );
 	}
 
 	private static function viec_don_ma( $toi ) {
@@ -1536,6 +1576,30 @@ class VHCC_TrangNS {
 					} else {
 						echo '<br><span class="mo chu-hong">⚠ Chưa có lượt chấm công nào — '
 							. 'gần như chắc là hồ sơ tạo lỡ, an toàn để xoá.</span>';
+					}
+					/* 🔴 GHÉP NGAY TẠI ĐÂY, KHÔNG BẮT GÕ TAY Ở BẢNG KHÁC. Anh Thắng 29/08/2026,
+					   sau ba lượt chỉnh chỗ đặt/khung bảng "Ghép hai mã" vẫn chê: *"cùng 1 nv có
+					   khác gì đâu"*, *"chả khác gì, cùng mã thì ghép lại thôi"*. Nút này nằm
+					   NGAY TRONG `<form>` của bảng chính (không mở form mới — hai form lồng nhau
+					   là HTML không hợp lệ, trình duyệt tự đóng form ngoài sớm và nút "Lưu bảng
+					   này" sẽ hỏng), mang tên riêng `ghep_voi` để chỉ đúng lượt bấm nó mới có mặt
+					   trong $_POST — cùng cách `xoa_ma`/`cot` đã làm ở đầu lam_viec(). Giá trị
+					   nút đã đóng gói sẵn "mã_chính|mã_phụ": mã có NHIỀU lượt chấm công hơn giữ
+					   làm chính, mã ít/không có giữ làm phụ — người bấm không phải tự đoán ai
+					   là ai, xem viec_ghep_voi(). */
+					if ( VHCC_NhanSu::co_quan_tri_nv( $toi ) && ! empty( $co_trung['doi'] ) ) {
+						foreach ( $co_trung['doi'] as $ma_doi ) {
+							$luot_toi = isset( $hoat_dong[ $ma ] ) ? (int) $hoat_dong[ $ma ]['luot'] : 0;
+							$luot_doi = isset( $hoat_dong[ $ma_doi ] ) ? (int) $hoat_dong[ $ma_doi ]['luot'] : 0;
+							$chinh = ( $luot_doi > $luot_toi ) ? $ma_doi : $ma;
+							$phu   = ( $luot_doi > $luot_toi ) ? $ma : $ma_doi;
+							echo '<br><button type="submit" name="ghep_voi" '
+								. 'value="' . esc_attr( $chinh . '|' . $phu ) . '" class="nut" '
+								. 'style="margin-top:4px;padding:2px 8px;font-size:12px" '
+								. 'title="' . esc_attr( 'Gộp ' . $phu . ' (ít/không có chấm công hơn) '
+									. 'vào ' . $chinh . '. Không đảo lại được, giống nút Ghép ở bảng dưới.' ) . '">'
+								. 'Ghép với ' . esc_html( $ma_doi ) . '</button>';
+						}
 					}
 				} elseif ( $co_trung['ten'] ) {
 					echo '<span class="chip-t" title="Có người cùng tên ở CƠ SỞ KHÁC — nhiều khả '

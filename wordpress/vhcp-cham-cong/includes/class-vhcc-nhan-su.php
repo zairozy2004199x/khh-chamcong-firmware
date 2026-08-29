@@ -252,6 +252,11 @@ class VHCC_NhanSu {
 		 *    đây là màn này nói một đằng, bảng công tính một nẻo.
 		 */
 		$cs_theo_ten = array();
+		/* Nhóm theo (tên, cơ sở) — thêm 29/08/2026 để biết CHÍNH XÁC mã nào đứng cùng nhóm với
+		   mã nào, phục vụ nút "Ghép với hồ sơ kia" ngay tại dòng (xem viec_ghep_voi() ở
+		   class-vhcc-trang-ns.php) — trước đây hàm chỉ ĐẾM số lượng trong nhóm, không giữ lại
+		   DANH SÁCH mã trong nhóm nên không trỏ được sang "hồ sơ kia" là mã nào. */
+		$ma_theo_nhom = array();
 		foreach ( (array) $ds as $r ) {
 			$k_ten = self::khoa_so( isset( $r['ho_ten'] ) ? (string) $r['ho_ten'] : '' );
 			if ( '' === $k_ten ) { continue; }
@@ -259,6 +264,10 @@ class VHCC_NhanSu {
 			if ( ! isset( $cs_theo_ten[ $k_ten ] ) ) { $cs_theo_ten[ $k_ten ] = array(); }
 			$cs_theo_ten[ $k_ten ][ $cs ] = ( isset( $cs_theo_ten[ $k_ten ][ $cs ] )
 				? $cs_theo_ten[ $k_ten ][ $cs ] : 0 ) + 1;
+			$nhom_k = $k_ten . '·' . $cs;
+			if ( ! isset( $ma_theo_nhom[ $nhom_k ] ) ) { $ma_theo_nhom[ $nhom_k ] = array(); }
+			$ma_nv_r = isset( $r['ma_nv'] ) ? (string) $r['ma_nv'] : '';
+			if ( '' !== $ma_nv_r ) { $ma_theo_nhom[ $nhom_k ][] = $ma_nv_r; }
 		}
 
 		$ra = array();
@@ -270,12 +279,19 @@ class VHCC_NhanSu {
 			   đâu đó". Hai người cùng tên ở hai cơ sở khác nhau thì mỗi người vẫn đứng một
 			   mình ở cơ sở của họ, và đó là chuyện bình thường. */
 			$mot_nguoi = false;
+			$doi = array();
 			if ( $t ) {
 				$cs_x = strtoupper( self::chuan_coso( isset( $x['coso'] ) ? $x['coso'] : '' ) );
 				$mot_nguoi = ( isset( $cs_theo_ten[ $x['k_ten'] ][ $cs_x ] )
 					&& $cs_theo_ten[ $x['k_ten'] ][ $cs_x ] > 1 );
+				if ( $mot_nguoi ) {
+					$nhom_k = $x['k_ten'] . '·' . $cs_x;
+					foreach ( (array) ( isset( $ma_theo_nhom[ $nhom_k ] ) ? $ma_theo_nhom[ $nhom_k ] : array() ) as $ma_doi ) {
+						if ( $ma_doi !== $x['ma'] ) { $doi[] = $ma_doi; }
+					}
+				}
 			}
-			$ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m, 'motNguoi' => $mot_nguoi );
+			$ra[ $x['ma'] ] = array( 'ten' => $t, 'ma' => $m, 'motNguoi' => $mot_nguoi, 'doi' => $doi );
 		}
 		return $ra;
 	}
