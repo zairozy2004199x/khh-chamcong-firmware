@@ -6266,6 +6266,30 @@ t( 'và summary có CSS cho ra dáng bấm được', strpos( $h_qtc, 'summary{c
 t( 'thu gọn nhưng dữ liệu VẪN nằm trong trang (Ctrl+F vẫn thấy)',
 	strpos( $h_qtc, 'QTC1' ) !== false && strpos( $h_qtc, '<th>Giờ vào</th>' ) !== false, $h_qtc );
 
+/* ---- 🔴 CƠ SỞ TÍNH THEO CÔNG THÌ BỎ BẢNG "TỔNG GIỜ LÀM THEO NHÂN VIÊN" ----
+ * Anh Thắng 29/08/2026: *"cơ sở nào tính công theo giờ mới hiện, còn tính theo công thì bỏ đi
+ * nhé"* — nhìn đúng bảng này ở màn Chấm công của một cơ sở đang tính THEO CÔNG.
+ *
+ * Bảng "Tổng giờ làm theo nhân viên" cộng thẳng PHÚT THÔ (giờ ra trừ giờ vào) — đúng nghĩa với
+ * cơ sở tính THEO GIỜ, vì đó chính là công thức trả lương của nó. Cơ sở tính THEO CÔNG đã quy
+ * đổi qua một bộ công thức khác hẳn (khung giờ, bậc thang, ca đêm — xem
+ * `VHCC_Luong::vp_bang_cong_va_luong_voi()`), nên phút thô ở bảng này KHÔNG khớp với công đã
+ * chốt lương — bày ra chỉ thêm một con số dễ đọc nhầm là con số thật.
+ */
+$cs_cong_qtc = 'TUTU_VP_QTC';
+vhcc_cham( $cs_cong_qtc, '2026-07-06', 'VPQTC1', '', '08:00:00', '17:00:00' );
+$r_ct_qtc = VHCC_Luong::dat_cach_tinh( $u_qtc, array( $cs_cong_qtc => 'cong' ) );
+t( 'khai được cách tính THEO CÔNG cho cơ sở mới', ! empty( $r_ct_qtc['ok'] ), $r_ct_qtc );
+teq( 'và cơ sở ấy giờ đúng là "cong"', 'cong', VHCC_Luong::cach_tinh( $cs_cong_qtc ) );
+$h_qtc_cong = vhcc_web( '135791', array(),
+	array( 'man' => 'cham', 'ccs' => $cs_cong_qtc, 'cth' => '2026-07' ) );
+t( '🔴 cơ sở THEO CÔNG: bảng "Tổng giờ làm theo nhân viên" KHÔNG còn hiện',
+	strpos( $h_qtc_cong, 'Tổng giờ làm theo nhân viên' ) === false, $h_qtc_cong );
+t( 'nhưng bảng "Chi tiết từng lượt" (đọc thẳng chấm công) vẫn còn nguyên',
+	strpos( $h_qtc_cong, 'Chi tiết từng lượt' ) !== false, $h_qtc_cong );
+t( 'và cơ sở TUTU_BT (tính THEO GIỜ) không bị đụng — bảng tổng vẫn hiện như cũ',
+	strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' ) !== false, $h_qtc );
+
 /* ---- lọc theo NGÀY: kéo bảng chi tiết, KHÔNG kéo bảng tổng ---- */
 $g_ng = array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cng' => '2026-07-06' );
 $h_ng = vhcc_web( '135791', array(), $g_ng );

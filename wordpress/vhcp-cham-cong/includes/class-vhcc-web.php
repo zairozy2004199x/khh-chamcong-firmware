@@ -3170,7 +3170,16 @@ class VHCC_Web {
 		   bảng nói về hai chỗ khác nhau. */
 		self::the_luoi_thang( $cs, $th, $ky, $toi );
 
-		self::the_tong_cham( $loc_thang, $tt, $cs, $th );
+		/* 🔴 CHỈ CƠ SỞ TÍNH THEO GIỜ MỚI CẦN BẢNG NÀY. Anh Thắng 29/08/2026: *"cơ sở nào tính
+		   công theo giờ mới hiện, còn tính theo công thì bỏ đi"*.
+		   "Tổng giờ làm theo nhân viên" cộng thẳng số PHÚT thô — đúng nghĩa với cơ sở tính THEO
+		   GIỜ (giờ ra trừ giờ vào là chính con số trả lương). Cơ sở tính THEO CÔNG đã có bảng
+		   riêng của nó (Lưới cả tháng theo công + Công thức tính công, xem `the_cong_thuc_vp()`)
+		   — bảng phút thô ở đây không khớp với công đã quy đổi (ca đêm, bậc thang, khung giờ…),
+		   bày ra chỉ thêm một con số không dùng để chốt lương mà dễ bị đọc nhầm là con số thật. */
+		if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) {
+			self::the_tong_cham( $loc_thang, $tt, $cs, $th );
+		}
 
 		/* Bảng chi tiết THU GỌN SẴN. Dùng thẻ <details> của chính HTML, không phải JavaScript:
 		   cả màn quản trị này không có lấy một dòng script, và thứ chỉ chạy khi trình duyệt chịu
