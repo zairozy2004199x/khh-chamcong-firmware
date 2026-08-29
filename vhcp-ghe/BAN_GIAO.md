@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.6** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.7** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,26 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.7 — "Lệch hàng" ở nút Gửi/Chốt VẪN còn sau 1.63.5 — gốc thật là `align-items:flex-end`
+
+Bản 1.63.5 cho hai nút `flex:1 1 160px` để chia đều bề ngang, tưởng xong, nhưng anh Thắng chụp
+màn hình lại báo **vẫn lệch hàng**. Dựng lại y hệt bằng Playwright mới thấy: hai nút RỘNG BẰNG
+NHAU thật (đúng như 1.63.5 sửa), nhưng ở màn hẹp (điện thoại), chữ "Gửi báo cáo cơ sở này" dài hơn
+nên tự XUỐNG DÒNG bên trong nút (nút cao 2 dòng), còn "Xin chốt ca sớm" vẫn vừa 1 dòng (nút thấp
+hơn). `.bc-row` dùng chung `align-items:flex-end` — đúng cho các hàng có Ô NHẬP với NHÃN phía
+trên (dán mép dưới cho input ngang hàng với nhãn), nhưng ở hàng CHỈ TOÀN NÚT này, flex-end lại dán
+MÉP DƯỚI hai nút bằng nhau → nút thấp (1 dòng) bị đẩy tụt xuống so với nút cao (2 dòng), nhìn lệch
+hẳn dù chiều rộng đã bằng nhau — đúng cái anh Thắng thấy, chỉ là do CHIỀU CAO chứ không phải chiều
+rộng như 1.63.5 tưởng.
+
+**Sửa:** đặt riêng `align-items:stretch` cho ĐÚNG hàng nút này (không đụng `.bc-row` dùng chung ở
+những hàng khác) — cả hai nút cùng cao bằng nút cao nhất, mép trên/dưới thẳng hàng bất kể nút nào
+xuống dòng.
+
+⚠️ Bài học: đổi số lượng phần tử trong một hàng flex có `align-items` khác `stretch` (mặc định) mà
+không tự kiểm ở MÀN HẸP dễ vỡ layout theo cách không thấy được nếu chỉ test màn rộng (desktop) —
+1.63.5 test trên màn rộng nên KHÔNG thấy chữ xuống dòng, tưởng đã hết lệch.
 
 ### v1.63.6 — Chế độ Gọn (điện thoại) không thấy Actual khi gõ chỉ số sau
 

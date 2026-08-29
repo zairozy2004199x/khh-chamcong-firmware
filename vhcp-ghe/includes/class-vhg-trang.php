@@ -1458,6 +1458,15 @@ class VHG_Trang {
     // nút gửi + chốt sớm (+ đối chiếu ở chế độ đầy đủ)
     var bar=el('div','bc-card');
     var brow=el('div','bc-row');
+    /* 🔴 .bc-row dùng chung `align-items:flex-end` (đúng ý ở các hàng khác: input có nhãn phía
+       trên, cần dán mép dưới cho thẳng hàng với nhãn). Hàng CHỈ TOÀN NÚT này không có nhãn nào —
+       flex-end lại làm hại: ở màn hẹp, "Gửi báo cáo cơ sở này" dài chữ hơn nên XUỐNG DÒNG bên
+       trong nút (cao hơn), còn "Xin chốt ca sớm" vẫn 1 dòng (thấp hơn) — flex-end dán MÉP DƯỚI
+       của cả hai bằng nhau, khiến nút thấp bị đẩy xuống lệch hẳn so với nút cao, trông "lệch
+       hàng" dù rộng bằng nhau (anh Thắng 29/08/2026, hai lần chụp màn hình liền). Đặt riêng
+       `stretch` cho đúng hàng này: cả hai nút cùng cao bằng nút cao nhất, mép trên và dưới đều
+       thẳng nhau bất kể nút nào xuống dòng. */
+    brow.style.alignItems='stretch';
     var bGui=el('button','bc-btn pri','Gửi báo cáo cơ sở này'); bGui.id='bc-gui'; bGui.onclick=guiBaoCao;
     var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
     bGui.style.cssText='flex:1 1 160px'; bChot.style.cssText='flex:1 1 160px';
@@ -1466,9 +1475,9 @@ class VHG_Trang {
        đã có báo cáo thì tự hiểu là một lần thu MỚI nối tiếp (không bao giờ đè lên lần cũ).
        Trước đây có nút bật/tắt riêng nhưng chữ trên nút không tự vẽ lại theo lúc bấm, nhân
        viên tưởng bấm không ăn — nay bỏ hẳn nút, luôn nối tiếp. Anh Thắng 29/08/2026.
-       🔴 Nút còn lại (Gửi + Chốt) đặt `flex:1 1 160px` để CHIA ĐỀU hết bề ngang hàng — bỏ nút
+       Nút còn lại (Gửi + Chốt) đặt `flex:1 1 160px` để CHIA ĐỀU hết bề ngang hàng — bỏ nút
        thứ ba (➕ Thu lần nữa) mà không chỉnh lại độ rộng thì 2 nút co về bên trái, để lại một
-       khoảng trắng lớn bên phải trông lệch hàng (anh Thắng 29/08/2026, ảnh chụp màn hình). */
+       khoảng trắng lớn bên phải trông lệch hàng. */
     if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.style.cssText='flex:1 1 160px'; bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
