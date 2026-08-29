@@ -599,10 +599,18 @@ class VHCC_DB {
 			nguoi_dat VARCHAR(190) NOT NULL DEFAULT '',
 			gui_luc DATETIME NULL,
 			xong_luc DATETIME NULL,
+			nguoi_duyet VARCHAR(190) NOT NULL DEFAULT '',
+			duyet_luc DATETIME NULL,
 			PRIMARY KEY  (id),
 			UNIQUE KEY op_id (op_id),
 			KEY tra (cua_hang,trang_thai),
 			KEY hang (tram,trang_thai,id)";
+			/* `nguoi_duyet`/`duyet_luc` thêm 29/08/2026 cho lệnh CẦN ADMIN DUYỆT trước khi xuống
+			   máy (trạng thái `cho-duyet`, xem VHCC_MayCong::CHO_DUYET) — KHÁC `nguoi_dat`/`tao_luc`
+			   (ai ĐẶT lệnh, có thể là Cửa hàng trưởng) và KHÁC `xong_luc` (lúc MÁY báo đã làm xong,
+			   không phải lúc người duyệt). Ba mốc thời gian ba nghĩa khác nhau, không dùng chung.
+			   Lý do từ chối mượn tạm cột `ket_qua` (vốn để trống tới khi máy báo xong) — thêm cột
+			   riêng cho một câu chối ngắn là hơi phí. */
 
 		/* ===== 13b. NHỊP SỐNG CỦA MÁY (thay `/status` trên Firebase) =========================
 		   Mỗi máy đẩy một nhịp mỗi 60 giây. MỘT hàng cho MỘT máy — đè lên, không cộng dồn: đây

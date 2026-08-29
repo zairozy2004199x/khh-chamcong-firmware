@@ -295,6 +295,47 @@ t( 'mẫu biến mất thật', null === VHCC_Mat::mau( 'NV001' ) );
 $r = VHCC_Mat::soi( $U, vec( 0.9 ), '2026-08-31', 'VIVO' );
 t( 'lượt tới tự lấy mẫu mới', 'lay_mau' === $r['ket_qua'], $r );
 
+/* ============================================================ 8b. MẪU TỪ ẢNH THẺ LÚC TẠO HỒ SƠ
+ * Anh Thắng 29/08/2026: *"nếu chưa có máy thì ảnh chụp đó cũng dùng để xác định face qua chấm
+ * công online"*. `dat_mau_tu_anh_the()` là đường nối: `VHCC_NhanSu::them_nv_cua_hang()` gọi nó
+ * với dãy đặc trưng trình duyệt đã tính sẵn từ ảnh thẻ ngay lúc chụp (xem docblock của hàm và
+ * script mới ở `VHCC_Web::khoi_them_nv()`).
+ */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'mat_mau' ) . " WHERE ma_nv IN ('ATE01','ATE02')" );
+t( '🔴 seed mẫu từ ảnh thẻ: chạy được', VHCC_Mat::dat_mau_tu_anh_the( 'ATE01', vec( 0.2 ) ) );
+$mau_ate = VHCC_Mat::mau( 'ATE01' );
+t( '🔴 mẫu vào thẳng "đã duyệt" — KHÁC mẫu tự lấy từ chấm công (luôn bắt đầu "chờ duyệt")',
+	'duyet' === $mau_ate['trang_thai'], $mau_ate );
+teq( 'số lần gộp bắt đầu từ 1', 1, (int) $mau_ate['so_lan'] );
+t( 'ghi rõ nguồn gốc mẫu trong ghi chú, để người đọc "duyệt" sau này biết vì sao đã duyệt sẵn',
+	strpos( $mau_ate['ghi_chu'], 'ảnh thẻ' ) !== false, $mau_ate );
+/* Cách nhau CHƯA TỚI 1e-6 là do `luu_mau()` làm tròn 6 số lẻ trước khi lưu (xem hàm đó) — so
+   bằng `===` như $mong/$duoc thường làm ở đây sẽ đỏ oan vì nhiễu số thực, không phải vì lưu sai. */
+t( 'dãy đặc trưng lưu đúng như đưa vào (sai số làm tròn không đáng kể)',
+	VHCC_Mat::khoang_cach( VHCC_Mat::doc_vector( vec( 0.2 ) ), VHCC_Mat::doc_vector( $mau_ate['vector'] ) ) < 1e-5 );
+
+/* Có mẫu ảnh thẻ rồi thì lượt chấm công ONLINE đầu tiên của người đó SO NGAY với nó — khác hẳn
+   người chưa từng có ảnh thẻ (mục 1 ở trên: người mới luôn 'lay_mau' ở lượt đầu). */
+$U_ATE = array( 'ma_nv' => 'ATE01', 'ho_ten' => 'Ảnh Thẻ Trước', 'coso' => 'VIVO' );
+$r = VHCC_Mat::soi( $U_ATE, vec( 0.2 ), '2026-09-01', 'VIVO' );
+t( '🔴 lượt chấm công đầu tiên SO NGAY với ảnh thẻ, không lấy chính lượt đó làm mẫu mới',
+	'lay_mau' !== $r['ket_qua'], $r );
+t( 'khớp mẫu ảnh thẻ vì cùng khuôn mặt', 'khop' === $r['ket_qua'], $r );
+
+/* Vector hỏng thì bỏ qua, không âm thầm ghi rác vào kho — cùng chốt `doc_vector()` đã canh. */
+t( 'vector hỏng thì KHÔNG seed', false === VHCC_Mat::dat_mau_tu_anh_the( 'ATE02', 'rác' ) );
+t( 'và không để lại mẫu rác', null === VHCC_Mat::mau( 'ATE02' ) );
+t( 'thiếu mã NV thì cũng không seed', false === VHCC_Mat::dat_mau_tu_anh_the( '', vec( 0.2 ) ) );
+
+/* Đã có mẫu rồi thì KHÔNG ghi đè — chốt phòng thủ; đường gọi hiện tại (mã tạm luôn mới toanh)
+   chưa bao giờ chạm chốt này, nhưng hàm không được âm thầm phá mẫu đã trưởng thành nếu mai này
+   có đường gọi khác dùng lại mã cũ. */
+t( '🔴 đã có mẫu rồi thì không seed đè lên',
+	false === VHCC_Mat::dat_mau_tu_anh_the( 'ATE01', vec( 0.9 ) ) );
+t( 'mẫu cũ vẫn giữ nguyên, không bị đè',
+	VHCC_Mat::khoang_cach( VHCC_Mat::doc_vector( vec( 0.2 ) ),
+		VHCC_Mat::doc_vector( VHCC_Mat::mau( 'ATE01' )['vector'] ) ) < 1e-5 );
+
 /* ============================================================ 9. ĐẾM CHO MÀN QUẢN TRỊ */
 /* Đếm theo SỐ THẬT trong kho, không gõ tay một con số rồi sửa mỗi lần thêm mục thử mới —
    đó là kiểu phép thử vỡ vì lý do chẳng liên quan gì tới thứ nó canh. */

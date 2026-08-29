@@ -49,6 +49,16 @@ class VHCC_MayCong {
 	const CHO  = 'cho';
 	const GUI  = 'da-gui';
 	const XONG = 'xong';
+	/**
+	 * 🔴 CHỜ ADMIN DUYỆT — TRƯỚC cả `CHO`, không phải một dạng của `CHO`.
+	 * Anh Thắng 29/08/2026: *"trước khi đẩy xuống máy, nó sẽ gửi qua admin duyệt 1 lệnh để check
+	 * đạt yêu cầu chưa trước khi đẩy"*. `lay_lenh()`/`so_lenh_cho()` chỉ lọc `trang_thai IN ('',
+	 * CHO, GUI)` — một lệnh mang `CHO_DUYET` KHÔNG khớp điều kiện đó nên máy không thấy nó, không
+	 * cần sửa gì ở hai hàm đó. Admin duyệt xong mới đổi sang `CHO` để máy nhận được ở nhịp sau.
+	 * `TU_CHOI` là trạng thái CHẾT — không quay lại `CHO_DUYET`, muốn thử lại thì đặt lệnh mới.
+	 */
+	const CHO_DUYET = 'cho-duyet';
+	const TU_CHOI   = 'tu-choi';
 
 	/** Quá bao lâu không có nhịp thì coi là máy đứt (giây). Firmware đẩy nhịp mỗi 60s. */
 	const HET_SONG = 300;

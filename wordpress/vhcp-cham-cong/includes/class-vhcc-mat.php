@@ -439,6 +439,39 @@ class VHCC_Mat {
 		else       { $wpdb->insert( $bang, $ghi ); }
 	}
 
+	/**
+	 * MẪU TỪ ẢNH THẺ LÚC TẠO HỒ SƠ — duyệt NGAY, không qua hàng chờ như mẫu tự lấy từ chấm công.
+	 *
+	 * Anh Thắng 29/08/2026: *"nếu chưa có máy thì ảnh chụp đó cũng dùng để xác định face qua
+	 * chấm công online"*. Xem `VHCC_NhanSu::them_nv_cua_hang()` — nơi gọi hàm này với dãy đặc
+	 * trưng trình duyệt đã tính sẵn từ ảnh thẻ.
+	 *
+	 * 🔴 DUYỆT NGAY, KHÔNG PHẢI 'cho'. Mẫu tự lấy từ chấm công online (`soi()`) phải chờ duyệt vì
+	 *    không biết lượt đầu tiên có đúng người thật đứng chụp không — ai cũng chấm công được,
+	 *    kể cả chấm hộ. Ảnh thẻ thì khác: Cửa hàng trưởng chụp có mặt người đó, đã xác nhận đúng
+	 *    người ngay lúc tạo hồ sơ. Bắt Kế toán duyệt lại là bắt xác nhận việc CHT vừa làm xong.
+	 *
+	 * ⚠️ CHỈ SEED KHI CHƯA CÓ MẪU. Hồ sơ mới tạo (`ma_tam()`) chắc chắn là mã chưa từng dùng, nên
+	 *    chốt này thật ra không bao giờ chặn ở đường gọi hiện tại — giữ lại để hàm không lỡ ghi
+	 *    đè một mẫu đã trưởng thành (gộp nhiều lần) nếu sau này có đường gọi khác.
+	 *
+	 * @return bool true nếu vừa seed được, false nếu bỏ qua (vector hỏng, đã có mẫu, hoặc thiếu mã).
+	 */
+	public static function dat_mau_tu_anh_the( $ma_nv, $vector ) {
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return false; }
+		$v = self::doc_vector( $vector );
+		if ( null === $v ) { return false; }
+		if ( self::mau( $ma ) ) { return false; }
+		self::luu_mau( $ma, $v, array(
+			'so_lan'     => 1,
+			'trang_thai' => 'duyet',
+			'ghi_chu'    => 'Lấy từ ảnh thẻ lúc tạo hồ sơ — duyệt ngay, không qua hàng chờ.',
+			'tao_luc'    => current_time( 'mysql' ),
+		) );
+		return true;
+	}
+
 	// ==================================================================== việc chính
 
 	/**

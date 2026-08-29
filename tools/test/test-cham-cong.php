@@ -14344,6 +14344,89 @@ teq( 'không ảnh thì cờ ảnh tắt', '0', (string) $lenh_ko[0]['co_anh'] )
 t( '🔴 và nói thẳng là mặt vẫn phải lấy tại máy',
 	strpos( $r_koanh['day_may'], 'phải lấy trực tiếp tại máy' ) !== false, $r_koanh );
 
+/* ---- ADMIN DUYỆT TRƯỚC KHI XUỐNG MÁY ------------------------------------------------------
+   Anh Thắng 29/08/2026: *"trước khi đẩy xuống máy, nó sẽ gửi qua admin duyệt 1 lệnh để check đạt
+   yêu cầu chưa trước khi đẩy"*. Lệnh của $U_TN (Cửa hàng trưởng, "Thêm nhanh") ở khối ngay trên
+   PHẢI nằm chờ, KHÔNG đi thẳng xuống máy như trước — đây chính là hàng $lenh_anh vừa dựng. */
+teq( '🔴 lệnh do Cửa hàng trưởng đặt nằm ở trạng thái CHỜ DUYỆT, không phải CHỜ MÁY',
+	'cho-duyet', (string) $lenh_anh[0]['trang_thai'] );
+t( '🔴 câu báo nói rõ đang chờ Admin, máy CHƯA nhận được gì',
+	strpos( $r_anh['day_may'], 'tới Admin để duyệt' ) !== false, $r_anh );
+/* `lay_lenh()` nhận `hikSerial`/`macAddress` (đúng tên firmware gửi), không phải `tram` — và
+   MỖI LẦN gọi thành công là NÓ TỰ ĐỔI trang_thai CHO -> GUI (xem docblock của hàm). Gọi ở đây
+   khi cả hai lệnh còn 'cho-duyet' thì không match gì, nên không có tác dụng phụ nào cả. */
+$lay_truoc_duyet = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'MAYTN1' ) );
+t( '🔴 máy hỏi lệnh (lay_lenh) KHÔNG thấy lệnh còn đang chờ duyệt',
+	! empty( $lay_truoc_duyet['empty'] ), $lay_truoc_duyet );
+
+/* Cửa hàng trưởng KHÔNG tự duyệt được lệnh của chính mình — duyệt cần vai Kế toán trở lên. */
+$_POST = array( 'op_id' => $lenh_anh[0]['op_id'] );
+$tt_duyet_cht = VHCC_TrangNS::lam_viec( 'duyet_may', $U_TN );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng KHÔNG duyệt được lệnh của chính mình',
+	isset( $tt_duyet_cht[0]['loi'] ) && strpos( $tt_duyet_cht[0]['loi'], 'Kế toán trở lên' ) !== false,
+	$tt_duyet_cht );
+
+/* Admin duyệt: lệnh chuyển CHO_DUYET -> CHO, và TỚI LÚC ĐÓ máy mới thấy được. */
+$_POST = array( 'op_id' => $lenh_anh[0]['op_id'] );
+$tt_duyet = VHCC_TrangNS::lam_viec( 'duyet_may', $U_AD );
+$_POST = array();
+t( '🔴 Admin duyệt được', isset( $tt_duyet[0]['ok'] ), $tt_duyet );
+$lenh_anh_sau = VHCC_DB::rows( 'SELECT * FROM ' . VHCC_DB::t( 'queue' )
+	. " WHERE op_id='" . $lenh_anh[0]['op_id'] . "'" );
+teq( '🔴 sau khi duyệt, trạng thái đổi thành CHO', 'cho', (string) $lenh_anh_sau[0]['trang_thai'] );
+teq( 'ghi lại đúng người vừa duyệt', 'Admin', (string) $lenh_anh_sau[0]['nguoi_duyet'] );
+$lay_sau_duyet = VHCC_MayCong::lay_lenh( array( 'hikSerial' => 'MAYTN1' ) );
+teq( '🔴 và TỚI LÚC NÀY máy hỏi lệnh mới thấy', $lenh_anh[0]['op_id'],
+	isset( $lay_sau_duyet['opId'] ) ? $lay_sau_duyet['opId'] : '' );
+
+/* Duyệt/từ chối lại lệnh ĐÃ XỬ LÝ thì bị chối — không âm thầm ghi đè hai lần. */
+$_POST = array( 'op_id' => $lenh_anh[0]['op_id'] );
+$tt_duyet2 = VHCC_TrangNS::lam_viec( 'duyet_may', $U_AD );
+$_POST = array();
+t( '🔴 duyệt lại lệnh đã duyệt thì bị chối',
+	isset( $tt_duyet2[0]['loi'] ) && strpos( $tt_duyet2[0]['loi'], 'không còn ở trạng thái chờ duyệt' ) !== false,
+	$tt_duyet2 );
+
+/* Admin TỪ CHỐI một lệnh khác (dùng lệnh của Không Ảnh, còn nguyên CHO_DUYET). */
+$wpdb->update( VHCC_DB::t( 'queue' ), array( 'trang_thai' => VHCC_MayCong::CHO_DUYET ),
+	array( 'ma_nv' => $r_koanh['ma_nv'] ) );
+$op_ko = (string) $lenh_ko[0]['op_id'];
+$_POST = array( 'op_id' => $op_ko );
+$tt_choi_cht = VHCC_TrangNS::lam_viec( 'tu_choi_may', $U_TN );
+$_POST = array();
+t( '🔴 Cửa hàng trưởng cũng KHÔNG từ chối được', isset( $tt_choi_cht[0]['loi'] ), $tt_choi_cht );
+
+$_POST = array( 'op_id' => $op_ko );
+$tt_choi = VHCC_TrangNS::lam_viec( 'tu_choi_may', $U_AD );
+$_POST = array();
+t( '🔴 Admin từ chối được', isset( $tt_choi[0]['ok'] ), $tt_choi );
+$lenh_ko_sau = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE op_id='" . $op_ko . "'" );
+teq( '🔴 lệnh bị từ chối chuyển sang trạng thái CHẾT, không quay lại chờ duyệt',
+	'tu-choi', (string) $lenh_ko_sau[0]['trang_thai'] );
+t( 'giữ lại lý do từ chối làm dấu vết, không xoá hàng', '' !== trim( (string) $lenh_ko_sau[0]['ket_qua'] ),
+	$lenh_ko_sau );
+/* Không gọi lại lay_lenh() ở đây để soi "máy có thấy không": lệnh $lenh_anh phía trên đã bị nó
+   tự chuyển sang 'da-gui' ở bước trước, mà 'da-gui' VẪN nằm trong bộ lọc `IN('', CHO, GUI)` —
+   gọi lại sẽ vô tình trả về CHÍNH lệnh đó (chưa ai báo xong) chứ không phải rỗng, làm phép thử
+   đỏ vì hiểu sai hành vi "gửi lại lệnh chưa xác nhận", không phải vì tính năng từ chối hỏng.
+   Trạng thái 'tu-choi' vừa xác nhận ở trên đã đủ chứng minh: nó nằm NGOÀI danh sách `IN(...)`
+   của `lay_lenh()`/`so_lenh_cho()`, nên máy không bao giờ thấy — không cần gọi lại để soi. */
+
+/* Khối "Chờ duyệt" chỉ hiện trên MÀN khi CÒN lệnh đang chờ, và tự ẩn khi không còn. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$op_moi = VHCC_May::dat_lenh( 'maytn1', 'add', array( 'ma_nv' => $r_koanh['ma_nv'],
+	'ho_ten' => 'Không Ảnh', 'cua_hang' => 'TUTU_BT' ), 'CHT Thêm', true );
+$tt_cho_h = vhcc_ns( 'Admin' );
+t( '🔴 khối "Chờ duyệt" hiện ra khi có lệnh đang chờ',
+	strpos( $tt_cho_h, 'Chờ duyệt trước khi xuống máy chấm công' ) !== false, $tt_cho_h );
+t( 'mang đúng mã lệnh (op_id) trong ô ẩn để bấm Duyệt/Từ chối gửi đúng hàng',
+	strpos( $tt_cho_h, 'value="' . $op_moi['opId'] . '"' ) !== false, $tt_cho_h );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$tt_khong_cho_h = vhcc_ns( 'Admin' );
+t( '🔴 hết lệnh chờ thì khối tự ẩn, không còn hiện bảng rỗng',
+	strpos( $tt_khong_cho_h, 'Chờ duyệt trước khi xuống máy chấm công' ) === false, $tt_khong_cho_h );
+
 /* ---- Cảnh báo bù sau ----
  * ⚠️ CANH Ở TẦNG HÀM TRƯỚC, rồi mới canh trên màn. Màn hình có cả chục người khác lẫn vào, nên
  *    một phép thử soi màn dễ xanh/đỏ vì lý do khác hẳn cái đang canh. */

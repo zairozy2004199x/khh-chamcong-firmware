@@ -216,6 +216,8 @@ class VHCC_TrangNS {
 		if ( 'xoa_hs' === $viec )      { return self::viec_xoa_hs( $toi ); }
 		if ( 'sua_may_nv' === $viec )  { return self::viec_sua_may( $toi ); }
 		if ( 'xoa_may_nv' === $viec )  { return self::viec_xoa_may( $toi ); }
+		if ( 'duyet_may' === $viec )   { return self::viec_duyet_may( $toi ); }
+		if ( 'tu_choi_may' === $viec ) { return self::viec_tu_choi_may( $toi ); }
 		return array( array( 'loi' => 'Không biết việc "' . $viec . '".' ) );
 	}
 
@@ -354,6 +356,61 @@ class VHCC_TrangNS {
 		$ma = isset( $_POST['xoa_may'] ) ? sanitize_text_field( wp_unslash( $_POST['xoa_may'] ) ) : '';
 		if ( '' === $ma ) { return array( array( 'loi' => 'Thiếu mã nhân viên.' ) ); }
 		$kq = VHCC_NhanSu::xoa_khoi_may( $toi, $ma );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => $kq['thong_bao'] ) );
+	}
+
+	/**
+	 * DUYỆT LỆNH XUỐNG MÁY — nút "Duyệt" ở khối "Chờ duyệt trước khi xuống máy chấm công".
+	 *
+	 * Anh Thắng 29/08/2026: *"trước khi đẩy xuống máy, nó sẽ gửi qua admin duyệt 1 lệnh để check
+	 * đạt yêu cầu chưa trước khi đẩy"*. Lệnh do Cửa hàng trưởng đặt qua "Thêm nhanh" nằm ở trạng
+	 * thái `cho-duyet` (xem `VHCC_NhanSu::day_len_may()`) — máy KHÔNG thấy cho tới khi duyệt ở đây.
+	 *
+	 * ⚠️ ĐỌC LẠI HÀNG TRƯỚC KHI DUYỆT ĐỂ SOI QUYỀN CƠ SỞ. `op_id` không tự nói cơ sở nào — phải
+	 *    tra đúng hàng rồi so `co_quyen_coso()`, không thì Kế toán cơ sở A duyệt được cả lệnh của
+	 *    cơ sở B chỉ vì đoán đúng một `op_id`.
+	 */
+	private static function viec_duyet_may( $toi ) {
+		if ( ! VHCC_NhanSu::co_sua_ho_so( $toi ) ) {
+			return array( array( 'loi' => 'Duyệt lệnh xuống máy cần vai Kế toán trở lên.' ) );
+		}
+		$op = isset( $_POST['op_id'] ) ? sanitize_text_field( wp_unslash( $_POST['op_id'] ) ) : '';
+		if ( '' === $op ) { return array( array( 'loi' => 'Thiếu mã lệnh.' ) ); }
+		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'duyet_lenh' ) ) {
+			return array( array( 'loi' => 'Chưa cài phần máy chấm công.' ) );
+		}
+		global $wpdb;
+		$q = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE op_id=%s LIMIT 1', $op ), ARRAY_A );
+		if ( ! $q ) { return array( array( 'loi' => 'Không có lệnh nào mang mã đó.' ) ); }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, (string) $q['cua_hang'] ) ) {
+			return array( array( 'loi' => 'Không có quyền với cơ sở của lệnh này.' ) );
+		}
+		$kq = VHCC_May::duyet_lenh( $op, isset( $toi['name'] ) ? (string) $toi['name'] : '' );
+		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
+		return array( array( 'ok' => $kq['thong_bao'] ) );
+	}
+
+	/** TỪ CHỐI LỆNH XUỐNG MÁY — nút "Từ chối" cùng khối với `viec_duyet_may()`, cùng chốt quyền. */
+	private static function viec_tu_choi_may( $toi ) {
+		if ( ! VHCC_NhanSu::co_sua_ho_so( $toi ) ) {
+			return array( array( 'loi' => 'Từ chối lệnh xuống máy cần vai Kế toán trở lên.' ) );
+		}
+		$op = isset( $_POST['op_id'] ) ? sanitize_text_field( wp_unslash( $_POST['op_id'] ) ) : '';
+		if ( '' === $op ) { return array( array( 'loi' => 'Thiếu mã lệnh.' ) ); }
+		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'tu_choi_lenh' ) ) {
+			return array( array( 'loi' => 'Chưa cài phần máy chấm công.' ) );
+		}
+		global $wpdb;
+		$q = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE op_id=%s LIMIT 1', $op ), ARRAY_A );
+		if ( ! $q ) { return array( array( 'loi' => 'Không có lệnh nào mang mã đó.' ) ); }
+		if ( ! VHCC_NhanSu::co_quyen_coso( $toi, (string) $q['cua_hang'] ) ) {
+			return array( array( 'loi' => 'Không có quyền với cơ sở của lệnh này.' ) );
+		}
+		$kq = VHCC_May::tu_choi_lenh( $op, 'Admin từ chối lúc duyệt',
+			isset( $toi['name'] ) ? (string) $toi['name'] : '' );
 		if ( empty( $kq['ok'] ) ) { return array( array( 'loi' => $kq['error'] ) ); }
 		return array( array( 'ok' => $kq['thong_bao'] ) );
 	}
@@ -952,6 +1009,7 @@ class VHCC_TrangNS {
 		   `khai_ma_song_song()`/`viec_ghep_ma()`/`viec_bo_ghep_ma()`/`viec_don_ma()` GIỮ NGUYÊN
 		   ở tầng máy chủ (không xoá) — cùng cách `go_ngoai_le`/`ngoai_le_phang()` được giữ khi bỏ
 		   `the_ngoai_le()` trước đó: bỏ MÀN HÌNH quản lý qua UI, không bỏ NĂNG LỰC ở lõi. */
+		self::the_cho_duyet_may( $toi );
 		echo '<div class="the">';
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
 		echo '</div>';
@@ -1323,6 +1381,55 @@ class VHCC_TrangNS {
 			. 'cho app chi phí thì làm ở chính app ấy, tại màn Cấu hình → Người dùng.</li>';
 		echo '</ul>';
 		echo '</details></div>';
+	}
+
+	/**
+	 * "CHỜ ADMIN DUYỆT" — lệnh ghi tên xuống máy do Cửa hàng trưởng đặt qua form "Thêm nhanh",
+	 * CHƯA xuống máy cho tới khi có người duyệt ở đây.
+	 *
+	 * Anh Thắng 29/08/2026: *"trước khi đẩy xuống máy, nó sẽ gửi qua admin duyệt 1 lệnh để check
+	 * đạt yêu cầu chưa trước khi đẩy"*. Trước bản này, `VHCC_NhanSu::them_nv_cua_hang()` (đường
+	 * "Cửa hàng trưởng thêm nhanh") đẩy THẲNG xuống máy ngay khi tạo hồ sơ — Admin không có cơ
+	 * hội soi trước khi một khuôn mặt lạ được ghi vào đầu đọc.
+	 *
+	 * 🔴 MỖI HÀNG MỘT `<form>` RIÊNG, KHÔNG PHẢI TÊN NÚT RIÊNG. Khối này đứng NGOÀI `<form>` của
+	 *    `the_bang()` (gọi TRƯỚC nó ở `render()`), nên không đụng luật "không lồng form" của bảng
+	 *    kia — ở đây bấm Duyệt/Từ chối hàng nào chỉ gửi đúng hàng đó vì mỗi hàng có form của
+	 *    riêng nó. Cùng lối khối "đơn xin trễ" ở `VHCC_Web` (`name="viec"` bình thường).
+	 *
+	 * ⚠️ LỌC THEO QUYỀN CƠ SỞ CỦA NGƯỜI XEM, KHÔNG PHẢI CỦA NGƯỜI ĐẶT. Kế toán một cơ sở chỉ nên
+	 *    thấy (và duyệt được) lệnh của cơ sở mình; Quản lý/Admin (`co_quan_tri_nv`) thấy hết.
+	 */
+	private static function the_cho_duyet_may( $toi ) {
+		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'ds_cho_duyet' ) ) { return; }
+		$cua_toi = array();
+		foreach ( VHCC_May::ds_cho_duyet() as $r ) {
+			if ( VHCC_NhanSu::co_quyen_coso( $toi, (string) $r['cua_hang'] ) ) { $cua_toi[] = $r; }
+		}
+		if ( ! $cua_toi ) { return; }
+		echo '<div class="the"><h2>⏳ Chờ duyệt trước khi xuống máy chấm công</h2>';
+		echo '<p class="mo">Lệnh do <b>Cửa hàng trưởng</b> đặt qua form "Thêm người mới vào cửa '
+			. 'hàng" — máy <b>CHƯA nhận được gì</b> cho tới khi duyệt ở đây.</p>';
+		echo '<div class="cuon"><table class="cc"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
+			. '<th>Cơ sở</th><th>Việc</th><th>Ai đặt</th><th>Lúc đặt</th><th>Duyệt</th></tr></thead><tbody>';
+		$viec_ten = array( 'add' => 'Thêm mới', 'edit' => 'Sửa lại', 'delete' => 'Gỡ khỏi máy' );
+		foreach ( $cua_toi as $r ) {
+			echo '<tr><td><b>' . esc_html( (string) $r['ma_nv'] ) . '</b></td>';
+			echo '<td>' . esc_html( (string) $r['ho_ten'] ) . '</td>';
+			echo '<td>' . esc_html( (string) $r['cua_hang'] ) . '</td>';
+			echo '<td>' . esc_html( isset( $viec_ten[ $r['action'] ] ) ? $viec_ten[ $r['action'] ] : (string) $r['action'] ) . '</td>';
+			echo '<td>' . esc_html( (string) $r['nguoi_dat'] ) . '</td>';
+			echo '<td class="mo">' . esc_html( (string) $r['tao_luc'] ) . '</td>';
+			/* Mỗi hàng một biểu mẫu RIÊNG — hai nút cùng một hàng, mỗi nút mang việc của nó. Gom
+			   cả bảng vào một form thì bấm Duyệt ở hàng ba lại gửi cả chín hàng. */
+			echo '<td><form method="post" class="hang" style="gap:6px;margin:0">'
+				. '<input type="hidden" name="op_id" value="' . esc_attr( (string) $r['op_id'] ) . '">'
+				. '<button class="chinh" name="viec" value="duyet_may">Duyệt</button>'
+				. '<button class="nut-do" name="viec" value="tu_choi_may">Từ chối</button>'
+				. '</form></td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div></div>';
 	}
 
 	/* ------------------------------------------------------------------ bảng người × trang */

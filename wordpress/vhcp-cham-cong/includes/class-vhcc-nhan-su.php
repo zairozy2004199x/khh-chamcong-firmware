@@ -961,7 +961,39 @@ class VHCC_NhanSu {
 		}
 
 		$day = self::day_len_may( $ma, $ten, $coso, $ghi['gioi_tinh'], $u, $anh );
-		return array( 'ok' => true, 'ma_nv' => $ma, 'coso' => $coso, 'day_may' => $day,
+
+		/**
+		 * 🔴 ẢNH THẺ CŨNG LÀ MẪU ĐỐI CHIẾU KHUÔN MẶT CHO CHẤM CÔNG ONLINE.
+		 *
+		 * Anh Thắng 29/08/2026: *"nếu chưa có máy thì ảnh chụp đó cũng dùng để xác định face qua
+		 * chấm công online"*. Ý này đã được nhắc từ 28/08/2026 ở docblock của
+		 * `VHCC_Web::khoi_them_nv()` ("làm mẫu đối chiếu khuôn mặt cho chấm công online") nhưng
+		 * chưa có đường nối — trước bản này, mẫu (`VHCC_Mat`) CHỈ tự lấy từ lượt chấm công ONLINE
+		 * ĐẦU TIÊN, và phải qua `cho` (chờ duyệt) vì không chắc ngày đầu có đúng người thật đứng
+		 * chụp không (xem `VHCC_Mat::soi()`).
+		 *
+		 * `$dat['vector']` là dãy đặc trưng 128 số TRÌNH DUYỆT đã tính sẵn từ chính tấm ảnh thẻ
+		 * lúc chụp — máy chủ không tính lại được (không có thư viện nhận diện, xem đầu
+		 * `class-vhcc-mat.php`). Không có ô này (trình duyệt cũ, thư viện chưa tải kịp, ảnh không
+		 * thấy mặt) thì bỏ qua — hồ sơ vẫn tạo bình thường, mẫu để dành cho lượt chấm công đầu
+		 * tiên như trước giờ.
+		 *
+		 * ⚠️ SEED THẲNG THÀNH 'duyet', KHÔNG QUA 'cho'. Khác lượt chấm công ẩn danh, ảnh thẻ này
+		 *    chụp có Cửa hàng trưởng đứng cạnh xác nhận đúng người — bắt Kế toán duyệt lại là bắt
+		 *    xác nhận một việc CHT vừa làm xong trước mặt người đó rồi.
+		 *
+		 * ⚠️ KHÔNG PHÂN BIỆT CÓ MÁY HAY KHÔNG. Cơ sở có máy vẫn cần chấm công online làm phương
+		 *    án dự phòng lúc máy mất mạng hay đứt điện — seed mẫu luôn, không đợi biết cơ sở có
+		 *    máy hay chưa.
+		 */
+		$mau_mat = '';
+		if ( '' !== $anh && isset( $dat['vector'] ) && class_exists( 'VHCC_Mat' )
+			&& method_exists( 'VHCC_Mat', 'dat_mau_tu_anh_the' )
+			&& VHCC_Mat::dat_mau_tu_anh_the( $ma, $dat['vector'] ) ) {
+			$mau_mat = ' Đã lấy ảnh thẻ làm mẫu đối chiếu khuôn mặt cho chấm công online.';
+		}
+
+		return array( 'ok' => true, 'ma_nv' => $ma, 'coso' => $coso, 'day_may' => $day . $mau_mat,
 			'co_anh' => ( '' !== $anh ) );
 	}
 
@@ -1213,7 +1245,16 @@ class VHCC_NhanSu {
 	 *
 	 * @param string $action 'add' | 'edit' | 'delete'.
 	 */
-	private static function lenh_may_( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh, $action ) {
+	/**
+	 * ⚠️ `$can_duyet=true` GIỮ LỆNH LẠI CHỜ ADMIN, KHÔNG ĐƯA THẲNG CHO MÁY.
+	 * Anh Thắng 29/08/2026: *"trước khi đẩy xuống máy, nó sẽ gửi qua admin duyệt 1 lệnh để check
+	 * đạt yêu cầu chưa trước khi đẩy"*. Chỉ `day_len_may()` (đường "Cửa hàng trưởng thêm nhanh",
+	 * KHÔNG có quyền `ho_so`) truyền `true` — đó là đường DUY NHẤT một vai không có quyền hồ sơ
+	 * tự đẩy được xuống máy. `sua_lai_tren_may()`/`xoa_khoi_may()` không truyền, vì cả hai đã đòi
+	 * `co_sua_ho_so()` (Kế toán+) rồi — bắt Kế toán duyệt lại việc Kế toán vừa tự bấm là một vòng
+	 * không ai canh thêm được gì, chỉ thêm bước bấm.
+	 */
+	private static function lenh_may_( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh, $action, $can_duyet = false ) {
 		if ( ! class_exists( 'VHCC_May' ) || ! method_exists( 'VHCC_May', 'ds_may' ) ) {
 			return 'Chưa cài phần máy chấm công.';
 		}
@@ -1235,21 +1276,32 @@ class VHCC_NhanSu {
 				if ( '' !== $anh ) { $kem['anh_b64'] = $anh; }
 			}
 			$kq = VHCC_May::dat_lenh( (string) $m['tram'], $action, $kem,
-				isset( $u['name'] ) ? (string) $u['name'] : '' );
+				isset( $u['name'] ) ? (string) $u['name'] : '', $can_duyet );
 			if ( ! empty( $kq['ok'] ) ) { $so++; }
 		}
 		if ( 0 === $so ) { return 'Cơ sở này chưa gắn máy chấm công nào.'; }
 		$viec = array( 'add' => 'ghi tên xuống', 'edit' => 'sửa lại thông tin trên', 'delete' => 'gỡ khỏi' );
-		$cau = 'Đã đặt lệnh ' . $viec[ $action ] . ' ' . $so . ' máy (máy nhận trong ~10 giây nếu đang online).';
+		$cau = $can_duyet
+			? 'Đã gửi lệnh ' . $viec[ $action ] . ' ' . $so . ' máy tới Admin để duyệt — '
+				. 'máy CHƯA nhận được gì cho tới khi có người duyệt.'
+			: 'Đã đặt lệnh ' . $viec[ $action ] . ' ' . $so . ' máy (máy nhận trong ~10 giây nếu đang online).';
 		if ( 'delete' === $action ) { return $cau; }
 		return $cau . ' ' . ( '' !== $anh
 			? 'Ảnh thẻ đi kèm — máy tự nhận khuôn mặt, không phải gọi người ra máy chụp lại.'
 			: 'CHƯA có ảnh thẻ nên khuôn mặt vẫn phải lấy trực tiếp tại máy.' );
 	}
 
-	/** Đặt lệnh ghi người này xuống đầu đọc của cơ sở — dùng lúc TẠO hồ sơ mới. */
+	/**
+	 * Đặt lệnh ghi người này xuống đầu đọc của cơ sở — dùng lúc TẠO hồ sơ mới.
+	 *
+	 * 🔴 QUA ADMIN DUYỆT (`$can_duyet=true`) — đây là đường DUY NHẤT mà một Cửa hàng trưởng (vai
+	 *    không có quyền `ho_so`) tự đẩy được một khuôn mặt xuống máy chấm công, qua form "Thêm
+	 *    người mới vào cửa hàng" (`VHCC_NhanSu::them_nv_cua_hang()`). Trước 29/08/2026 lệnh này đi
+	 *    THẲNG xuống máy — Admin không có cơ hội soi trước khi một khuôn mặt lạ được ghi vào đầu
+	 *    đọc. Xem VHCC_May::duyet_lenh()/tu_choi_lenh() và khối "Chờ Admin duyệt" ở the_bang().
+	 */
 	private static function day_len_may( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh = '' ) {
-		$cau = self::lenh_may_( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh, 'add' );
+		$cau = self::lenh_may_( $ma_nv, $ho_ten, $coso, $gioi_tinh, $u, $anh, 'add', true );
 		/* Câu báo lúc TẠO MỚI khác câu chung: nói rõ hồ sơ web đã xong, máy chỉ là phần thêm —
 		   không có máy hay máy không nhận được cũng không phải là hồ sơ tạo hỏng. */
 		if ( 'Chưa cài phần máy chấm công.' === $cau ) {

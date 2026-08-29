@@ -889,6 +889,10 @@ class VHCC_Web {
 				'gioi_tinh' => isset( $_POST['tn_gioi_tinh'] ) ? wp_unslash( $_POST['tn_gioi_tinh'] ) : '',
 				'chuc_vu'   => isset( $_POST['tn_chuc_vu'] ) ? wp_unslash( $_POST['tn_chuc_vu'] ) : '',
 				'cua_hang'  => isset( $_POST['tn_coso'] ) ? wp_unslash( $_POST['tn_coso'] ) : '',
+				/* Dãy đặc trưng khuôn mặt trình duyệt tự tính từ ảnh thẻ lúc chọn tệp (xem script
+				   ở `khoi_them_nv()`) — chuỗi JSON, `VHCC_Mat::doc_vector()` tự giải mã. Trống thì
+				   `them_nv_cua_hang()` bỏ qua, không seed mẫu — không chặn việc tạo hồ sơ. */
+				'vector'    => isset( $_POST['tn_vector'] ) ? wp_unslash( $_POST['tn_vector'] ) : '',
 			) );
 			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
 			/* 🔴 NÓI RA BƯỚC TIẾP THEO, KHÔNG CHỈ NÓI "ĐÃ THÊM". Hồ sơ mở xong mà người mới
@@ -2813,6 +2817,86 @@ class VHCC_Web {
 			. 'Bỏ trống vẫn thêm người được, nhưng tên người ấy sẽ nằm trong khối '
 			. '<b>Chưa có ảnh thẻ</b> ngay dưới cho tới khi bù.</p></div>';
 		echo '</div>';
+
+		/**
+		 * 🔴 TÍNH SẴN "MẪU KHUÔN MẶT" TỪ ẢNH THẺ, NGAY TRONG TRÌNH DUYỆT.
+		 *
+		 * Anh Thắng 29/08/2026: *"nếu chưa có máy thì ảnh chụp đó cũng dùng để xác định face qua
+		 * chấm công online"*. Ý này vốn đã ghi ở docblock "ẢNH THẺ" ngay trên (28/08/2026: "làm
+		 * mẫu đối chiếu khuôn mặt cho chấm công online") nhưng trước bản này chưa có đường nối —
+		 * ảnh chỉ đi thẳng vào hồ sơ, chưa ai tính dãy đặc trưng cho nó.
+		 *
+		 * ⚠️ MÁY CHỦ KHÔNG BIẾT GÌ VỀ THƯ VIỆN NHẬN DIỆN (xem đầu `class-vhcc-mat.php`) — dãy đặc
+		 *    trưng 128 số PHẢI tính ở trình duyệt, đúng thư viện `face-api.js` mà trang Chấm công
+		 *    (`templates/tram.php`) đã dùng. Đoạn dưới đây là BẢN THU GỌN của `napThuVienMat()` /
+		 *    `soiMat()` ở đó — khác chỗ nguồn ảnh là một `File` vừa chọn, chưa phải data-URL.
+		 *
+		 * ⚠️ CHỈ IN RA KHI THƯ VIỆN ĐÃ SẴN SÀNG (`$tv['co']`). Trang này không phải trang Chấm
+		 *    công — không có gì bắt phải tải 3 model vài megabyte nếu chưa cài đủ tệp.
+		 *
+		 * ⚠️ KHÔNG CHẶN VIỆC TẠO HỒ SƠ. Model tải chậm, ảnh không thấy mặt, trình duyệt cũ không
+		 *    có `Promise`/camera API — mọi nhánh hỏng đều im lặng bỏ qua (`catch` rỗng), giữ đúng
+		 *    triết lý "gắn cờ, không gác cửa" của cả `VHCC_Mat`: chấm công (ở đây là TẠO HỒ SƠ)
+		 *    không bao giờ được chờ hay bị chặn bởi một tính năng phụ.
+		 */
+		if ( class_exists( 'VHCC_Mat' ) && method_exists( 'VHCC_Mat', 'thu_vien' ) && VHCC_Mat::bat() ) {
+			$tv_tn = VHCC_Mat::thu_vien();
+			if ( ! empty( $tv_tn['co'] ) ) {
+				echo '<input type="hidden" id="tn_vector" name="tn_vector" value="">';
+				echo '<script>(function(){'
+					. 'var TV_JS=' . wp_json_encode( $tv_tn['js'] ) . ',TV_MAU=' . wp_json_encode( $tv_tn['mau_url'] ) . ';'
+					. 'var taiXong=null;'
+					. 'function taiThuVien(){'
+						. 'if(taiXong) return taiXong;'
+						. 'taiXong=new Promise(function(xong,hong){'
+							. 'var s=document.createElement("script");'
+							. 's.src=TV_JS;s.onload=function(){xong();};'
+							. 's.onerror=function(){hong(new Error("khong tai duoc"));};'
+							. 'document.head.appendChild(s);'
+						. '}).then(function(){'
+							. 'if(!window.faceapi) throw new Error("thieu faceapi");'
+							. 'return Promise.all(['
+								. 'faceapi.nets.tinyFaceDetector.loadFromUri(TV_MAU),'
+								. 'faceapi.nets.faceLandmark68TinyNet.loadFromUri(TV_MAU),'
+								. 'faceapi.nets.faceRecognitionNet.loadFromUri(TV_MAU)'
+							. ']);'
+						. '});'
+						. 'taiXong.catch(function(){taiXong=null;});'
+						. 'return taiXong;'
+					. '}'
+					. 'var anhEl=document.getElementById("tn_anh"),vecEl=document.getElementById("tn_vector");'
+					. 'if(anhEl&&vecEl){'
+						. 'anhEl.addEventListener("change",function(){'
+							. 'vecEl.value="";'
+							. 'var f=anhEl.files&&anhEl.files[0];'
+							. 'if(!f) return;'
+							. 'var rd=new FileReader();'
+							. 'rd.onload=function(){'
+								. 'var dataUrl=rd.result;'
+								. 'taiThuVien().then(function(){'
+									. 'return new Promise(function(xong,hong){'
+										. 'var img=new Image();'
+										. 'img.onload=function(){xong(img);};'
+										. 'img.onerror=function(){hong(new Error("anh hong"));};'
+										. 'img.src=dataUrl;'
+									. '});'
+								. '}).then(function(img){'
+									. 'return faceapi.detectSingleFace(img,'
+										. 'new faceapi.TinyFaceDetectorOptions({inputSize:320}))'
+										. '.withFaceLandmarks(true).withFaceDescriptor();'
+								. '}).then(function(kq){'
+									. 'if(!kq||!kq.descriptor) return;'
+									. 'var v=[];'
+									. 'for(var i=0;i<kq.descriptor.length;i++){v.push(kq.descriptor[i]);}'
+									. 'vecEl.value=JSON.stringify(v);'
+								. '}).catch(function(){/* im — xem chú thích ở trên */});'
+							. '};'
+							. 'rd.readAsDataURL(f);'
+						. '});'
+					. '}'
+				. '})();</script>';
+			}
+		}
 
 		echo '<div><button class="chinh" name="viec" value="them_nv">Thêm người</button></div>';
 		echo '</form>';

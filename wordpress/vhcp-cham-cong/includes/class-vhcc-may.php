@@ -174,8 +174,15 @@ class VHCC_May {
 	 * `op_id` sinh ở ĐÂY chứ không để cơ sở dữ liệu tự đánh số, vì firmware giữ một sổ `opDone`
 	 * riêng theo chuỗi này để khỏi làm hai lần một lệnh. Số tự tăng thì sau khi dọn bảng sẽ cấp
 	 * lại số cũ, và máy sẽ bỏ qua lệnh mới vì tưởng đã làm rồi.
+	 *
+	 * 🔴 `$can_duyet=true` GIỮ LỆNH LẠI, KHÔNG ĐƯA CHO MÁY NGAY. Anh Thắng 29/08/2026: *"trước
+	 *    khi đẩy xuống máy, nó sẽ gửi qua admin duyệt 1 lệnh để check đạt yêu cầu chưa trước khi
+	 *    đẩy"*. Lệnh vào hàng với `trang_thai=CHO_DUYET` — `lay_lenh()` không thấy (nó chỉ lọc
+	 *    `'', CHO, GUI`) — cho tới khi `duyet_lenh()` đổi nó về `CHO`. Chỉ dùng cho đường "Cửa
+	 *    hàng trưởng thêm nhanh" (xem VHCC_NhanSu::day_len_may()); Admin/Kế toán tự sửa/gỡ hồ sơ
+	 *    của chính mình thì không cần vòng qua chính mình duyệt lại.
 	 */
-	public static function dat_lenh( $tram, $action, $them = array(), $nguoi = '' ) {
+	public static function dat_lenh( $tram, $action, $them = array(), $nguoi = '', $can_duyet = false ) {
 		global $wpdb;
 		$tram = strtolower( trim( (string) $tram ) );
 		if ( '' === $tram ) { return array( 'ok' => false, 'error' => 'Thiếu máy nhận lệnh.' ); }
@@ -186,14 +193,68 @@ class VHCC_May {
 			'op_id'      => self::op_id( $action ),
 			'action'     => $action,
 			'tram'       => $tram,
-			'trang_thai' => VHCC_MayCong::CHO,
+			'trang_thai' => $can_duyet ? VHCC_MayCong::CHO_DUYET : VHCC_MayCong::CHO,
 			'tao_luc'    => current_time( 'mysql' ),
 			'nguoi_dat'  => (string) $nguoi,
 		), (array) $them );
 		$ok = $wpdb->insert( VHCC_DB::t( 'queue' ), $hang );
 		if ( false === $ok ) { return array( 'ok' => false, 'error' => 'Không ghi được lệnh vào hàng đợi.' ); }
-		return array( 'ok' => true, 'opId' => $hang['op_id'], 'thong_bao' => 'Đã đặt lệnh "' . $action . '". '
-			. 'Máy nhận trong khoảng 10 giây nếu đang online.' );
+		return array( 'ok' => true, 'opId' => $hang['op_id'], 'thong_bao' => $can_duyet
+			? 'Đã gửi lệnh "' . $action . '" tới Admin để duyệt — máy CHƯA nhận được gì cho tới khi có người duyệt.'
+			: 'Đã đặt lệnh "' . $action . '". Máy nhận trong khoảng 10 giây nếu đang online.' );
+	}
+
+	/** Danh sách lệnh đang CHỜ ADMIN DUYỆT — rỗng `$coso` thì lấy mọi cơ sở. */
+	public static function ds_cho_duyet( $coso = '' ) {
+		global $wpdb;
+		$coso = trim( (string) $coso );
+		if ( '' !== $coso ) {
+			return VHCC_DB::rows( $wpdb->prepare(
+				'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE trang_thai=%s AND cua_hang=%s ORDER BY id ASC',
+				VHCC_MayCong::CHO_DUYET, $coso ) );
+		}
+		return VHCC_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE trang_thai=%s ORDER BY id ASC',
+			VHCC_MayCong::CHO_DUYET ) );
+	}
+
+	/** Admin DUYỆT — lệnh chuyển `CHO_DUYET` -> `CHO`, tới nhịp sau máy mới thấy. */
+	public static function duyet_lenh( $op_id, $nguoi = '' ) {
+		global $wpdb;
+		$op = trim( (string) $op_id );
+		$q  = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE op_id=%s LIMIT 1', $op ), ARRAY_A );
+		if ( ! $q ) { return array( 'ok' => false, 'error' => 'Không có lệnh nào mang mã đó.' ); }
+		if ( VHCC_MayCong::CHO_DUYET !== $q['trang_thai'] ) {
+			return array( 'ok' => false, 'error' => 'Lệnh này không còn ở trạng thái chờ duyệt — '
+				. 'có thể đã được duyệt/từ chối trước đó.' );
+		}
+		$wpdb->update( VHCC_DB::t( 'queue' ), array(
+			'trang_thai'  => VHCC_MayCong::CHO,
+			'nguoi_duyet' => (string) $nguoi,
+			'duyet_luc'   => current_time( 'mysql' ),
+		), array( 'id' => (int) $q['id'] ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã duyệt. Máy nhận trong khoảng 10 giây nếu đang online.' );
+	}
+
+	/** Admin TỪ CHỐI — trạng thái CHẾT, không quay lại chờ duyệt; đặt lệnh mới nếu cần thử lại. */
+	public static function tu_choi_lenh( $op_id, $ly_do = '', $nguoi = '' ) {
+		global $wpdb;
+		$op = trim( (string) $op_id );
+		$q  = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'queue' ) . ' WHERE op_id=%s LIMIT 1', $op ), ARRAY_A );
+		if ( ! $q ) { return array( 'ok' => false, 'error' => 'Không có lệnh nào mang mã đó.' ); }
+		if ( VHCC_MayCong::CHO_DUYET !== $q['trang_thai'] ) {
+			return array( 'ok' => false, 'error' => 'Lệnh này không còn ở trạng thái chờ duyệt — '
+				. 'có thể đã được duyệt/từ chối trước đó.' );
+		}
+		$wpdb->update( VHCC_DB::t( 'queue' ), array(
+			'trang_thai'  => VHCC_MayCong::TU_CHOI,
+			'ket_qua'     => trim( (string) $ly_do ),
+			'nguoi_duyet' => (string) $nguoi,
+			'duyet_luc'   => current_time( 'mysql' ),
+		), array( 'id' => (int) $q['id'] ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã từ chối — máy sẽ không nhận lệnh này.' );
 	}
 
 	/** Chuỗi op duy nhất. `uniqid` có phần thời gian nên vẫn xếp theo thứ tự đặt. */
