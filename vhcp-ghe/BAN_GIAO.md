@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.65.1** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.66.0** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,29 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.66.0 — Gọn/Đầy đủ đồng bộ theo PIN, không còn kẹt riêng từng máy
+
+Anh Thắng 29/08, ảnh chụp màn PC vẫn hiện đúng 7 cột (thiếu Tiền mặt/Tăng-giảm/Ghi chú):
+*"Trên PC sao lại không đồng bộ với web điện thoại, thiếu cột"*.
+
+**Gốc:** lựa chọn Gọn/Đầy đủ (nút 🖥/📱 góc phải) chỉ lưu trong `localStorage` — kho riêng của
+TỪNG TRÌNH DUYỆT. Đổi bên điện thoại (hoặc bấm nhầm một lần trên PC từ trước) không hề kéo theo
+máy khác, vì không có gì nối `localStorage` của máy này với máy kia. Máy nào chưa từng đổi thì
+tự đoán theo bề ngang cửa sổ đang mở (`max-width:860px`) — cửa sổ PC không tối đa hoá, hoặc từng
+bị bấm "Gọn" một lần, là kẹt vĩnh viễn ở chế độ ít cột, đúng ca trong ảnh.
+
+**Sửa — PIN là thứ chung duy nhất giữa các máy của một người:**
+- Bảng mới `bc_gon` (pin, gon) — trống nghĩa là CHƯA TỪNG đổi (giữ nguyên cách đoán theo bề
+  ngang màn hình như cũ, không ép ai).
+- `VHG_BaoCao::boot()` trả thêm `gon` (0/1/null) — client nhận được thì DÙNG NGAY, ghi đè cách
+  đoán cục bộ, trước khi vẽ màn chính.
+- `datGon()` (khi bấm nút 🖥/📱) nay vừa ghi `localStorage` như cũ, vừa gọi `bc_gon_luu` lưu lên
+  server theo PIN — đổi ở máy nào, máy khác mở `bc_boot` lần sau tự thấy đúng lựa chọn đó.
+
+**Cần test:** trên điện thoại bấm "🖥 Đầy đủ" một lần, sau đó mở lại trang trên máy tính (đăng
+nhập lại bằng cùng PIN, hoặc dùng "Mở màn Báo cáo doanh thu" từ `/ghe`) — máy tính phải TỰ hiện
+Đầy đủ (đủ 10 cột: …Tiền mặt, Tăng/Giảm, Ghi chú…), không cần bấm lại nút.
 
 ### v1.65.1 — Lịch sử chốt ca của nhân viên
 

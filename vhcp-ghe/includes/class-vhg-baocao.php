@@ -377,7 +377,37 @@ class VHG_BaoCao {
 		}
 		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
-			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc );
+			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
+			'gon' => self::gon_cua( $pin ) );
+	}
+
+	/**
+	 * GỌN/ĐẦY ĐỦ ĐỒNG BỘ THEO PIN — anh Thắng 29/08/2026: "Trên PC sao lại không đồng bộ với
+	 * web điện thoại, thiếu cột". Trước đây lựa chọn chỉ sống trong `localStorage` của từng máy,
+	 * nên đổi bên điện thoại không kéo theo máy tính. PIN là thứ chung duy nhất giữa các máy của
+	 * cùng một người — lưu ở đây, `boot()` trả về cho MỌI máy thấy đúng lựa chọn ở lần mở kế.
+	 *
+	 * @return int|null 0=Gọn, 1=Đầy đủ, null=CHƯA TỪNG đổi (client tự đoán theo bề ngang màn hình).
+	 */
+	public static function gon_cua( $pin ) {
+		global $wpdb;
+		$pin = trim( (string) $pin );
+		if ( '' === $pin ) { return null; }
+		$v = $wpdb->get_var( $wpdb->prepare(
+			'SELECT gon FROM ' . VHG_DB::t( 'bc_gon' ) . ' WHERE pin=%s', $pin ) );
+		return ( null === $v ) ? null : (int) $v;
+	}
+
+	public static function gon_luu( $pin, $gon ) {
+		global $wpdb;
+		$pin = trim( (string) $pin );
+		if ( '' === $pin ) { return array( 'ok' => false, 'error' => 'Thiếu PIN.' ); }
+		$data = array( 'pin' => $pin, 'gon' => $gon ? 1 : 0, 'sua_luc' => current_time( 'mysql' ) );
+		$co = $wpdb->get_var( $wpdb->prepare(
+			'SELECT pin FROM ' . VHG_DB::t( 'bc_gon' ) . ' WHERE pin=%s', $pin ) );
+		if ( $co ) { $wpdb->update( VHG_DB::t( 'bc_gon' ), $data, array( 'pin' => $pin ) ); }
+		else { $wpdb->insert( VHG_DB::t( 'bc_gon' ), $data ); }
+		return array( 'ok' => true );
 	}
 
 	/**

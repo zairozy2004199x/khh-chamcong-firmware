@@ -141,6 +141,9 @@ class VHG_Trang {
 			if ( 'bc_boot' === $viec ) {
 				self::tra( VHG_BaoCao::boot( $pin ) ); return;
 			}
+			if ( 'bc_gon_luu' === $viec ) {
+				self::tra( VHG_BaoCao::gon_luu( $pin, ! empty( $d['gon'] ) ) ); return;
+			}
 			if ( 'bc_lastmeters' === $viec ) {
 				/* toi=1 (chế độ "thu lần nữa"): lấy chỉ số sau MỚI NHẤT tính cả các lần thu trong
 				   chính ngày đó, để lần thu mới nối tiếp lần trước. Mặc định giữ như cũ (ngày trước). */
@@ -1236,7 +1239,21 @@ class VHG_Trang {
   try{ var _p=localStorage.getItem('bc_gon');
     GON = (_p==='0') ? false : (_p==='1') ? true : (!window.matchMedia || window.matchMedia('(max-width: 860px)').matches);
   }catch(e){ GON = true; }
-  function datGon(v){ GON=!!v; try{ localStorage.setItem('bc_gon', GON?'1':'0'); }catch(e){} veChinh(); }
+  function datGon(v){
+    GON=!!v; try{ localStorage.setItem('bc_gon', GON?'1':'0'); }catch(e){} veChinh();
+    /* Đồng bộ theo PIN — anh Thắng 29/08/2026: "Trên PC sao lại không đồng bộ với web điện
+       thoại, thiếu cột". localStorage chỉ sống trên đúng một máy; lưu thêm lên server theo PIN
+       thì máy khác mở lên (bc_boot) thấy đúng lựa chọn này, khỏi phải bấm lại từng máy. */
+    if(PIN) goi('bc_gon_luu',{gon:GON?1:0},function(){});
+  }
+  /* Server thắng máy — CHỈ khi đã có người từng đổi (r.gon là 0/1, không phải null/undefined).
+     Chưa ai đổi bao giờ thì giữ nguyên cách đoán cũ theo bề ngang màn hình đang mở. */
+  function apGonServer(r){
+    if(r && (0===r.gon || 1===r.gon)){
+      GON = (1===r.gon);
+      try{ localStorage.setItem('bc_gon', GON?'1':'0'); }catch(e){}
+    }
+  }
 
   function $(id){ return document.getElementById(id); }
   function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
@@ -1349,6 +1366,7 @@ class VHG_Trang {
         if(!r){ er.textContent='Không nhận được trả lời máy chủ.'; return; }
         if(!r.ok || !r.pinOk){ er.textContent=(r.error||'PIN không đúng.'); inp.value=''; inp.focus(); return; }
         PIN=v; BC=r; NGAY=r.today||''; LOC='';
+        apGonServer(r);
         veChinh();
       });
     }
@@ -2221,6 +2239,7 @@ class VHG_Trang {
     }
     styleOnce();
     PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
+    apGonServer(r);
     var app=$('bc-app'); app.className='mo'; app.textContent='';
     veChinh();
   }

@@ -776,6 +776,19 @@ class VHG_DB {
 			PRIMARY KEY  (pin,ngay),
 			KEY ngay (ngay)";
 
+		/* Ý THÍCH MÀN HÌNH của nhân viên (Gọn/Đầy đủ) — anh Thắng 29/08/2026: *"Trên PC sao lại
+		   không đồng bộ với web điện thoại, thiếu cột"*. Trước đây lựa chọn Gọn/Đầy đủ chỉ nằm
+		   trong `localStorage` của TỪNG TRÌNH DUYỆT — đổi trên điện thoại không kéo theo máy
+		   tính, vì mỗi máy một kho `localStorage` riêng, không có gì nối hai bên lại. PIN là thứ
+		   DUY NHẤT chung giữa các máy của cùng một người, nên lưu lựa chọn theo PIN ở đây: đổi ở
+		   đâu, `bc_boot()` trả về cho MỌI máy khác thấy đúng lựa chọn đó ở lần mở kế tiếp. Rỗng
+		   (chưa từng đổi) thì KHÔNG có dòng nào — client tự đoán theo bề ngang màn hình như cũ. */
+		$b['bc_gon'] = "
+			pin VARCHAR(20) NOT NULL,
+			gon TINYINT(1) NOT NULL DEFAULT 1,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (pin)";
+
 		/* ===== TRANG KẾ TOÁN (chặng 2) ===== */
 
 		/* Mã nộp tiền (nội dung chuyển khoản) ↔ cơ sở — cho đối soát CK. Kế toán nhập/sửa. */
