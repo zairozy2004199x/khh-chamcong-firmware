@@ -6376,8 +6376,12 @@ t( 'màn Bảng công KHÔNG còn khối nạp .csv', strpos( $h_qtc, 'id="napco
 /* ---- sổ nhật ký giờ công · nạp công từ .csv ---- */
 /* 🔴 KHỐI "CHẤM CÔNG BÙ" RỜI ĐÃ BỎ (anh Thắng 26/08: *"Vẫn còn"*, sau khi khối "Sửa giờ công"
    rời bị bỏ ở lượt trước). Bù và sửa nay làm NGAY TẠI Ô trong lưới cả tháng.
-   Chỗ `id="bucong"` giữ nguyên tên — mọi ô trong lưới đều trỏ tới `#bucong`, đổi tên là mọi
-   liên kết trong lưới rơi vào hư không. Nay nó là SỔ NHẬT KÝ, không phải biểu mẫu. */
+   Chỗ `id="bucong"` giữ nguyên tên, nay là SỔ NHẬT KÝ, không phải biểu mẫu.
+   ⚠️ CẢNH BÁO CŨ (đã sửa 29/08/2026): có một thời ô TRỐNG trong lưới trỏ nhầm neo về đúng
+   `#bucong` này (còn sót lại từ hồi nó còn là biểu mẫu) — bấm bù thì trang nhảy xuống tận sổ
+   nhật ký ở cuối trang thay vì dừng ở hàng vừa mở, đúng ca anh Thắng báo "bay vị trí khác".
+   Mọi ô trong lưới (cả sửa lẫn bù) nay đều neo về `#suaday` — xem khối "ô TRỐNG trỏ sang khối
+   Chấm công bù" phía dưới. */
 t( 'màn có khối sổ nhật ký giờ công', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
 t( 'sổ nói rõ ghi cả bù lẫn sửa và không xoá được',
 	strpos( $h_qtc, 'không xoá được' ) !== false, $h_qtc );
@@ -6469,6 +6473,38 @@ t( 'form nạp nhận được file', strpos( $h_dl, 'enctype="multipart/form-da
 t( 'có ô gõ cơ sở MỚI cho nơi chưa có trong danh sách',
 	strpos( $h_dl, 'name="ccs_moi"' ) !== false, $h_qtc );
 t( 'và nói rõ ô ấy thắng ô xổ xuống', strpos( $h_dl, 'thắng ô xổ xuống' ) !== false, $h_dl );
+
+/* 🔴 "ARRAY" IN RA MÀN "DỮ LIỆU ĐẦU VÀO" — anh Thắng 29/08/2026, ảnh chụp màn hình chỉ có đúng
+   một dòng "Array" thay vì kết quả Xem trước. VHCC_NapCong::nap()/VHCC_NapCsv::nap() LUÔN trả
+   kèm khoá `canh` ở cấp ngoài cùng dạng MẢNG (danh sách dòng cảnh báo, xem ve_bao_cong()/
+   ve_bao_csv() bên dưới, cả hai tự lặp qua bằng foreach) — trong khi ve_bao() còn có một nhánh
+   `canh` CHUNG khác dành cho MỘT CÂU cảnh báo (ca "ảnh thẻ" thiếu ở màn Hồ sơ). Nhánh chung đó
+   nếu đứng TRƯỚC nhánh xét `viec` thì chặn mất mọi kết quả xem_cong/nap_cong/xem_csv/nap_csv,
+   gọi thẳng esc_html() lên cả mảng — PHP tự ép mảng thành chuỗi và LUÔN ra đúng chữ "Array",
+   bất kể mảng cảnh báo đó rỗng hay không. Phép dưới dựng đúng hình dạng kết quả thật rồi gọi
+   thẳng ve_bao() (khỏi phải dựng cả một lượt tải file thật). */
+ob_start();
+vhcc_goi_rieng( 'VHCC_Web', 've_bao', array( array(
+	'ok' => true, 'viec' => 'xem_cong', 'chi_xem' => true, 'coSo' => 'TUTU_BT',
+	'so_khoi' => 1, 'thang' => '2026-07', 'so_ngay' => 1, 'so_nguoi' => 1, 'so_luot' => 1,
+	'canh' => array( 'dòng lạ không đọc được' ),
+) ) );
+$h_bug_cong = ob_get_clean();
+t( '🔴 kết quả Xem trước NẠP CÔNG không in ra chữ "Array"',
+	strpos( $h_bug_cong, 'Array' ) === false, $h_bug_cong );
+t( 'mà in đúng khối XEM TRƯỚC', strpos( $h_bug_cong, 'XEM TRƯỚC' ) !== false, $h_bug_cong );
+t( 'và liệt kê đúng dòng cảnh báo', strpos( $h_bug_cong, 'dòng lạ không đọc được' ) !== false, $h_bug_cong );
+
+ob_start();
+vhcc_goi_rieng( 'VHCC_Web', 've_bao', array( array(
+	'ok' => true, 'viec' => 'xem_csv', 'them' => 1, 'sua' => 0, 'bo' => array(), 'so_dong' => 1,
+	'cot' => array( 'Mã NV', 'Họ tên' ), 'cot_la' => array(), 'doi' => array(),
+	'canh' => array( 'hàng thiếu PIN' ),
+) ) );
+$h_bug_csv = ob_get_clean();
+t( '🔴 kết quả Xem trước NẠP CSV không in ra chữ "Array"',
+	strpos( $h_bug_csv, 'Array' ) === false, $h_bug_csv );
+t( 'và liệt kê đúng dòng cảnh báo của CSV', strpos( $h_bug_csv, 'hàng thiếu PIN' ) !== false, $h_bug_csv );
 
 /* ---- bù mở cho Cửa hàng trưởng, nạp công thì KHÔNG ---- */
 /* Hai việc trông giống nhau ("thêm giờ vào bảng") nhưng bù là sửa MỘT ô của một người, còn nạp
@@ -7297,8 +7333,12 @@ t( 'ô trong lưới là đường bấm được', strpos( $h_gio, 'class="o-su
 t( 'ô CÓ GIỜ trỏ sang khối Sửa giờ, mang sẵn ngày + mã',
 	preg_match( '/class="o-sua" href="[^"]*sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=[^"]*#suaday"/', $h_gio ) === 1,
 	$h_gio );
-t( 'ô TRỐNG trỏ sang khối Chấm công bù',
-	preg_match( '/class="o-sua" href="[^"]*gnd=\d{4}-\d{2}-\d{2}[^"]*gma=[^"]*#bucong"/', $h_gio ) === 1,
+/* 🔴 Neo `#suaday`, KHÔNG `#bucong` — anh Thắng 29/08/2026: *"bấm sửa giờ hiện bảng đứng yên
+   trang nhé, bấm vào là nó bay vị trí khác"*. `#bucong` là id của khối "Sổ nhật ký giờ công"
+   (nằm mãi dưới cuối trang) từ hồi biểu mẫu Bù giờ còn tách rời — id="suaday" mới là nơi hàng
+   bù thật sự mở ra ngay dưới hàng người, y hệt nhánh Sửa giờ ở trên. */
+t( 'ô TRỐNG trỏ sang khối Chấm công bù, neo đúng #suaday (không phải #bucong)',
+	preg_match( '/class="o-sua" href="[^"]*gnd=\d{4}-\d{2}-\d{2}[^"]*gma=[^"]*#suaday"/', $h_gio ) === 1,
 	$h_gio );
 t( 'và màn nói cho biết bấm vào ô thì được gì',
 	strpos( $h_gio, 'Bấm thẳng vào' ) !== false, $h_gio );
@@ -11888,6 +11928,14 @@ t( 'và khối ấy được ghim thật trong bảng kiểu',
 	strpos( $h_ls, '.hs-in{position:sticky;left:0;' ) !== false, $h_ls );
 t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
 	strpos( $h_ls, 'width:calc(100vw - 56px)' ) !== false, $h_ls );
+/* 🔴 FORM Bù/Sửa PHẢI TỰ MANG NEO TRONG `action` — anh Thắng 29/08/2026: *"Bấm thêm bù thì
+   thêm vào luôn chứ"*. Form không nêu `action` thì POST về đúng URL đang xem nhưng KHÔNG kèm
+   phần neo (`#...` không bao giờ đi theo khi form tự nộp) — trang MỚI sau khi lưu tải lại từ
+   đỉnh, người bấm Lưu/Bù giờ thấy trang nhảy lên đầu và phải tự cuộn xuống mới biết có ăn hay
+   chưa. Nêu tay `action="...#suaday"` thì trình duyệt tự cuộn lại đúng chỗ sau khi lưu. */
+t( '🔴 form sửa/bù tự nêu action mang sẵn #suaday (không để trống)',
+	preg_match( '~<form method="post" action="[^"]*sgn=2026-07-06[^"]*sgm=LS1[^"]*#suaday"~', $h_ls ) === 1,
+	$h_ls );
 /* 🔴 BẤM SỬA THÌ ĐỪNG NHẢY LÊN SÁT ĐỈNH. Anh Thắng 27/08/2026: *"khi bấm sửa công nó cứ nhảy
    lên như này, chỉnh đứng yên cho anh"*.
    Đường bấm mang neo `#suaday` nên trình duyệt cuộn hàng sửa lên sát đỉnh — mà đỉnh thì có
@@ -11895,7 +11943,10 @@ t( 'rộng theo KHUNG NHÌN, không theo bề rộng bảng',
    `scroll-margin-top` bảo trình duyệt chừa sẵn khoảng ấy. */
 t( '🔴 hàng sửa chừa chỗ cho thanh đầu trang khi nhảy tới',
 	strpos( $h_ls, 'tr.hang-sua,table.cc td.dang-sua{scroll-margin-top:' ) !== false, $h_ls );
-t( 'và ô đang sửa cũng vậy — nhánh chấm bù nhảy tới #bucong chứ không phải #suaday',
+/* 🔴 Nhánh CHẤM BÙ nay CŨNG neo về `#suaday` (đổi 29/08/2026, xem khối "ô TRỐNG trỏ sang khối
+   Chấm công bù" ở trên) — trước đó nhánh bù còn neo nhầm về `#bucong` (id của khối "Sổ nhật ký
+   giờ công" ở tận cuối trang), nên `td.dang-sua` cũng phải chừa chỗ giống hệt hàng sửa. */
+t( 'và ô đang sửa cũng chừa chỗ y hệt (cả nhánh sửa lẫn nhánh bù cùng neo về #suaday)',
 	preg_match( '~td\.dang-sua\{scroll-margin-top:\d+px\}~', $h_ls ) === 1, $h_ls );
 
 /* ---- Gạch ngăn hai phần trong chú thích ô ----

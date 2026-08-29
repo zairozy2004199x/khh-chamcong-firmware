@@ -4032,9 +4032,20 @@ class VHCC_Web {
 	private static function o_sua( $noi_dung, $ngay, $ma_day_du, $co_gio, $duoc_sua, $duoc_bu ) {
 		$duoc = $co_gio ? $duoc_sua : $duoc_bu;
 		if ( ! $duoc ) { return $noi_dung; }
+		/* 🔴 CẢ HAI NHÁNH PHẢI NEO VỀ `#suaday` — anh Thắng 29/08/2026: *"bấm sửa giờ hiện bảng
+		   đứng yên trang nhé, bấm vào là nó bay vị trí khác"*, đúng ca bấm Ô TRỐNG (bù).
+		   `id="suaday"` được gắn cho hàng của người vừa bấm ở CẢ HAI trường hợp (xem
+		   `o_dang_sua()` gộp chung `sgn/sgm` và `gnd/gma` thành một cặp `$sg_n/$sg_m`, rồi
+		   4965/5227 gắn `id="suaday"` theo đúng cặp đó) — nhưng nhánh bù ở đây vẫn neo về
+		   `#bucong`, cái tên CŨ từ hồi biểu mẫu Bù giờ còn là một khối RIÊNG nằm dưới lưới.
+		   `#bucong` bây giờ là id của khối "Sổ nhật ký giờ công" (xem the_so_nhat_ky()) — một
+		   khối HOÀN TOÀN KHÁC, nằm mãi dưới cuối trang. Bấm bù một ô giữa lưới 600 ô thì trình
+		   duyệt nhảy thẳng xuống sổ nhật ký, còn hàng bù thật sự (vừa mở ra ngay dưới hàng người
+		   đó) thì vẫn nằm ngoài tầm nhìn — đúng cảm giác "bay vị trí khác". Sửa giờ (nhánh trên)
+		   đã đổi đúng anchor từ hồi làm biểu mẫu nội tuyến; nhánh bù bị bỏ sót. */
 		$url = $co_gio
 			? ( add_query_arg( array( 'sgn' => $ngay, 'sgm' => $ma_day_du ), self::url_hien() ) . '#suaday' )
-			: ( add_query_arg( array( 'gnd' => $ngay, 'gma' => $ma_day_du ), self::url_hien() ) . '#bucong' );
+			: ( add_query_arg( array( 'gnd' => $ngay, 'gma' => $ma_day_du ), self::url_hien() ) . '#suaday' );
 		return '<a class="o-sua" href="' . esc_url( $url ) . '">' . $noi_dung . '</a>';
 	}
 
@@ -4175,7 +4186,17 @@ class VHCC_Web {
 		$dong = $co_gio ? VHCC_Bu::cac_o( $chum, $ngay, $ma_dd ) : array();
 		$dg   = VHCC_Bu::gio_hien_tai( $cs, $ngay, $ma_dd );
 
-		echo '<form method="post" class="hang" style="margin:0;align-items:flex-end">'
+		/* 🔴 FORM PHẢI NÊU RÕ `action` MANG SẴN `#suaday` — anh Thắng 29/08/2026: *"Bấm thêm bù thì
+		   thêm vào luôn chứ"*. Không nêu `action` thì trình duyệt POST về ĐÚNG địa chỉ đang xem,
+		   nhưng KHÔNG kèm phần neo (`#...`) — phần neo không bao giờ đi kèm khi form tự nộp, dù
+		   sgn/sgm hay gnd/gma vẫn còn nguyên trong $_GET nhờ action rỗng lặp lại đúng URL đang có.
+		   Thiếu neo thì trang MỚI (sau khi lưu) tải xong sẽ dừng ở ĐỈNH trang như mọi lượt tải
+		   thường — người bấm Bù giờ/Lưu giờ thấy trang nhảy lên đầu, phải cuộn lại xuống đúng
+		   hàng vừa sửa mới biết có ăn hay chưa, cảm giác y hệt bấm mà "không thêm vào luôn".
+		   Nêu tay `action="...#suaday"` thì trình duyệt tự cuộn same y như lúc bấm ô mở hàng này. */
+		$par_neo = $co_gio ? array( 'sgn' => $ngay, 'sgm' => $ma_dd ) : array( 'gnd' => $ngay, 'gma' => $ma_dd );
+		echo '<form method="post" action="' . esc_url( add_query_arg( $par_neo, self::url_hien() ) . '#suaday' )
+			. '" class="hang" style="margin:0;align-items:flex-end">'
 			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. '<input type="hidden" name="viec" value="' . ( $co_gio ? 'sua_gio' : 'bu' ) . '">'
 			. self::o_loc()
@@ -5967,30 +5988,15 @@ class VHCC_Web {
 	}
 
 	private static function ve_bao( $b ) {
-		if ( isset( $b['loi'] ) ) {
-			echo '<div class="bao loi"><b>Không xong.</b> ' . esc_html( $b['loi'] ) . '</div>';
-			return;
-		}
-		if ( isset( $b['xong'] ) ) {
-			echo '<div class="bao ok">' . esc_html( $b['xong'] ) . '</div>';
-			return;
-		}
-		/* 🔴 CÓ HẠNG BÁO THỨ BA: việc XONG nhưng một phần bên trong hỏng.
-		   Ảnh thẻ là ca đầu tiên cần nó — hồ sơ tạo xong mà ảnh không nhận được thì "Không xong"
-		   là sai (người ĐÃ được thêm), mà nền xanh "xong" cũng sai (ảnh mất mà không ai biết).
-		   Thiếu nhánh này thì mảng báo cứ trả về rồi rơi vào im lặng. */
-		if ( isset( $b['canh'] ) ) {
-			echo '<div class="bao canh">' . esc_html( $b['canh'] ) . '</div>';
-			return;
-		}
-		if ( isset( $b['pin_moi'] ) ) {
-			echo '<div class="bao canh"><b>Đã khai tài khoản Admin toàn quyền: '
-				. esc_html( $b['pin_moi']['ten'] ) . '</b><br>PIN — <span class="pin">'
-				. esc_html( $b['pin_moi']['pin'] ) . '</span><br>'
-				. '<span class="mo">Ghi lại NGAY. Rời trang này là không xem lại được, '
-				. 'và hệ thống không lưu chỗ nào khác để in ra.</span></div>';
-			return;
-		}
+		/* 🔴 CÁC KẾT QUẢ CÓ `viec` PHẢI ĐI TRƯỚC nhánh `canh` chung bên dưới — anh Thắng
+		   29/08/2026 gặp nguyên màn "Dữ liệu đầu vào" chỉ in ra chữ "Array": VHCC_NapCong::nap()
+		   (xem_cong/nap_cong) LUÔN trả kèm khoá `canh` ở CẤP NGOÀI CÙNG, nhưng đó là một MẢNG các
+		   dòng cảnh báo (xem ve_bao_cong() phía dưới, vốn tự lặp qua mảng này bằng foreach) — chứ
+		   không phải MỘT CÂU như nhánh `canh` chung sinh ra cho ca "ảnh thẻ" thiếu. Nhánh chung
+		   đứng TRƯỚC nên chặn mất mọi kết quả xem_cong/nap_cong (và nap_csv/xem_csv, cùng hình
+		   dạng), gọi thẳng `esc_html()` trên cả mảng — PHP tự ép mảng thành chuỗi và luôn ra đúng
+		   chữ "Array", bất kể mảng cảnh báo đó rỗng hay không, nên KHÔNG BAO GIỜ thấy được kết quả
+		   Xem trước/Nạp thật thật sự nữa. Phải xét đúng `viec` trước khi xét `canh` chung. */
 		if ( isset( $b['viec'] ) && ( 'nap_cong' === $b['viec'] || 'xem_cong' === $b['viec'] ) ) {
 			self::ve_bao_cong( $b );
 			return;
@@ -6014,6 +6020,33 @@ class VHCC_Web {
 				foreach ( (array) $b['bo'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
 				echo '</ul></div>';
 			}
+			return;
+		}
+		if ( isset( $b['loi'] ) ) {
+			echo '<div class="bao loi"><b>Không xong.</b> ' . esc_html( $b['loi'] ) . '</div>';
+			return;
+		}
+		if ( isset( $b['xong'] ) ) {
+			echo '<div class="bao ok">' . esc_html( $b['xong'] ) . '</div>';
+			return;
+		}
+		/* 🔴 CÓ HẠNG BÁO THỨ BA: việc XONG nhưng một phần bên trong hỏng.
+		   Ảnh thẻ là ca đầu tiên cần nó — hồ sơ tạo xong mà ảnh không nhận được thì "Không xong"
+		   là sai (người ĐÃ được thêm), mà nền xanh "xong" cũng sai (ảnh mất mà không ai biết).
+		   Thiếu nhánh này thì mảng báo cứ trả về rồi rơi vào im lặng.
+		   ⚠️ Nhánh này CHỈ dành cho `canh` là MỘT CÂU (string) — kết quả nào mang `canh` dạng
+		   MẢNG (nap_cong/xem_cong/nap_csv/xem_csv) đã được ba nhánh `viec` phía trên bắt trước,
+		   không bao giờ rơi tới đây nữa. */
+		if ( isset( $b['canh'] ) ) {
+			echo '<div class="bao canh">' . esc_html( $b['canh'] ) . '</div>';
+			return;
+		}
+		if ( isset( $b['pin_moi'] ) ) {
+			echo '<div class="bao canh"><b>Đã khai tài khoản Admin toàn quyền: '
+				. esc_html( $b['pin_moi']['ten'] ) . '</b><br>PIN — <span class="pin">'
+				. esc_html( $b['pin_moi']['pin'] ) . '</span><br>'
+				. '<span class="mo">Ghi lại NGAY. Rời trang này là không xem lại được, '
+				. 'và hệ thống không lưu chỗ nào khác để in ra.</span></div>';
 			return;
 		}
 	}
