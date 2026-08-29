@@ -9937,6 +9937,19 @@ t( '🔴 "Ghép hai mã" đứng NGAY SAU bảng chính, trước "Đồng bộ 
 	false !== $vt_ghep && false !== $vt_dongbo && $vt_ghep < $vt_dongbo,
 	array( $vt_ghep, $vt_dongbo ) );
 
+/* 🔴 "SAO CHƯA GHÉP LẠI THÀNH 1 BẢNG" — đứng SÁT nhau chưa đủ, anh Thắng muốn CHUNG MỘT KHUNG
+   (một `<div class="the">`, không phải hai ô viền cạnh nhau). Soi bằng cách: giữa vạch `hr.ngan`
+   (kẻ ngay trước "Ghép hai mã") và chữ "Ghép hai mã về một người" KHÔNG được có thêm một
+   `<div class="the">` nào chen vào — nếu the_ghep_ma() lỡ tự vẽ khung riêng trở lại thì đúng
+   chuỗi `<div class="the">` sẽ xuất hiện lại ngay trong khoảng đó. */
+$vt_hr = strpos( $tt_h, '<hr class="ngan">' );
+t( '🔴 có vạch tách trong CÙNG một khung, không phải khung mới',
+	false !== $vt_hr && $vt_hr < $vt_ghep, array( $vt_hr, $vt_ghep ) );
+$doan_giua = ( false !== $vt_hr && false !== $vt_ghep && $vt_ghep > $vt_hr )
+	? substr( $tt_h, $vt_hr, $vt_ghep - $vt_hr ) : '';
+t( '🔴 KHÔNG có khung `.the` mới chen giữa vạch tách và "Ghép hai mã" — tức CHUNG một khung',
+	'' !== $doan_giua && strpos( $doan_giua, 'class="the"' ) === false, $doan_giua );
+
 /* ---- PHÂN QUYỀN TRANG NỘI BỘ, NGAY TẠI TRANG NGOÀI -----------------------------------------
    🔴 Anh Thắng 28/08/2026, ảnh một Quản lý bị chối ở trang Nội bộ: *"Trang nội bộ là trang
       chung thì ai vẫn được vào mà"*. Đúng — mặc định của `VHNB_Quyen::VIEC` là Nhân viên. Nhưng

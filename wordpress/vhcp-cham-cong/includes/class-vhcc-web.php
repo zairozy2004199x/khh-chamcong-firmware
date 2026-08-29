@@ -1564,6 +1564,10 @@ class VHCC_Web {
 			. 'header .bo{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 16px}'
 			. 'h1{font-size:17px;margin:0;flex:1}'
 			. '.the{background:var(--the);border:1px solid var(--vien);border-radius:10px;padding:16px;margin:0 0 16px}'
+			/* Vạch tách hai khối NỘI DUNG đứng chung trong MỘT khung `.the` (VD bảng nhân sự +
+			   "Ghép hai mã", trang Nhân sự) — không dùng viền `<hr>` mặc định của trình duyệt
+			   (dày, đen, lệch tông) mà kẻ một sợi mảnh cùng màu viền thẻ. */
+			. 'hr.ngan{border:none;border-top:1px solid var(--vien);margin:16px 0}'
 			/* ==================================================================== khung HR V5.2
 			   Anh Thắng 27/08/2026, kèm ba ảnh phần mềm HR V5.2 của Mr Trung: *"Chỗ phần giao
 			   diện và tính năng của trang chấm công thiết kế đẹp mắt y như này"*.

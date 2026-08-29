@@ -861,12 +861,15 @@ class VHCC_TrangNS {
 			return;
 		}
 
+		/* Anh Thắng 29/08/2026: "đẩy 2 bảng về đây chung luôn cho gọn", rồi sau khi thấy vẫn còn
+		   hai ô viền riêng: "sao chưa ghép lại thành 1 bảng" — "Ghép hai mã về một người" là công
+		   cụ CHỮA đúng cái nhãn "một người hai hồ sơ?" trong bảng nhân sự, nên bọc CHUNG một khung
+		   `<div class="the">` quanh cả hai (the_bang() và the_ghep_ma() không tự vẽ khung riêng
+		   nữa, xem chú thích ở đầu mỗi hàm) — một ô viền duy nhất, không phải hai ô đứng cạnh nhau. */
+		echo '<div class="the">';
 		self::the_bang( $toi, $ds_trang, $cs, $q, $vai, $p );
-		/* Anh Thắng 29/08/2026: "đẩy 2 bảng về đây chung luôn cho gọn" — "Ghép hai mã về một
-		   người" là công cụ CHỮA đúng cái nhãn "một người hai hồ sơ?" vừa thấy trong bảng trên;
-		   đặt ngay sau bảng đó thay vì để cách hai thẻ (Đồng bộ, Quyền nội bộ) mới tới, đỡ phải
-		   cuộn qua chỗ không liên quan để tìm nút chữa. */
 		self::the_ghep_ma( $toi );
+		echo '</div>';
 		self::the_dong_bo( $toi );
 		self::the_quyen_noi_bo( $toi );
 		self::canh_vai_la( $toi );
@@ -989,7 +992,13 @@ class VHCC_TrangNS {
 		if ( ! VHCC_NhanSu::co_quan_tri_nv( $toi ) ) { return; }
 		$ds = VHCC_NhanSu::ds_ma_song_song();
 
-		echo '<div class="the"><details' . ( $ds ? ' open' : '' ) . '>';
+		/* 🔴 KHÔNG tự vẽ khung `<div class="the">` — anh Thắng 29/08/2026: "đẩy 2 bảng về đây
+		   chung luôn cho gọn" rồi "sao chưa ghép lại thành 1 bảng". Nơi gọi (render()) bọc hàm
+		   này CHUNG một khung với the_bang() (bảng nhân sự chính) — một ô viền duy nhất, không
+		   còn hai ô viền riêng đứng cạnh nhau như trước. `<hr>` chỉ để tách mắt khỏi bảng chính
+		   ngay phía trên, vẫn trong CÙNG một khung. */
+		echo '<hr class="ngan">';
+		echo '<details' . ( $ds ? ' open' : '' ) . '>';
 		echo '<summary><b>Ghép hai mã về một người</b> — '
 			. ( $ds ? count( $ds ) . ' cặp đã khai' : 'chưa khai cặp nào' ) . '</summary>';
 		echo '<p class="mo">Một người lỡ có hai Mã NV (thường vì làm ở hai cơ sở và bị tạo hồ sơ '
@@ -1104,7 +1113,8 @@ class VHCC_TrangNS {
 			. '<input id="gm_l" name="gm_ly_do" placeholder="VD: tạo hồ sơ hai lần"></div>';
 		echo '<div><button class="chinh" name="viec" value="ghep_ma">Ghép hai mã</button></div>';
 		echo '</form>';
-		echo '</details></div>';
+		echo '</details>';
+		/* Không đóng `<div class="the">` — xem chú thích ở đầu hàm này, nơi gọi lo khung chung. */
 	}
 
 	/**
@@ -1415,7 +1425,10 @@ class VHCC_TrangNS {
 		$p     = min( $p, $so_tr );
 		$lat   = array_slice( $nguoi, ( $p - 1 ) * self::MOI_TRANG, self::MOI_TRANG );
 
-		echo '<div class="the">';
+		/* 🔴 KHÔNG tự mở `<div class="the">` ở đây — anh Thắng 29/08/2026: "đẩy 2 bảng về đây
+		   chung luôn cho gọn" rồi "sao chưa ghép lại thành 1 bảng". Khung ngoài (mở/đóng) nay do
+		   NƠI GỌI (render()) lo, bọc CHUNG quanh cả the_bang() lẫn the_ghep_ma() — một khung duy
+		   nhất chứa cả hai, thay vì mỗi hàm tự vẽ khung riêng rồi hai khung nằm cạnh nhau. */
 		echo '<h2>Ai vào được trang nào</h2>';
 		echo '<p class="mo">Mặc định theo <b>vai trò</b> — bảng này chỉ ghi những chỗ <b>khác</b> '
 			. 'mặc định. Để ô ở «Theo vai» là người ấy đi theo thang vai, đổi vai là quyền đổi theo. '
@@ -1621,7 +1634,8 @@ class VHCC_TrangNS {
 		echo '</form>';
 
 		self::thanh_trang( $p, $so_tr, $tong );
-		echo '</div>';
+		/* Không đóng `<div class="the">` ở đây — xem chú thích ở đầu hàm này, nơi gọi lo cả mở
+		   lẫn đóng khung chung. */
 	}
 
 	/** Địa chỉ trang này với ô sửa mở ở `$ma` (rỗng = đóng), giữ nguyên bộ lọc và số trang. */
