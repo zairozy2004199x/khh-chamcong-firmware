@@ -469,7 +469,8 @@ class VHG_BaoCao {
 
 	private static function header_( $coso, $ngay ) {
 		global $wpdb;
-		/* Nhiều lần thu/ngày: trả LẦN MỚI NHẤT (lan cao nhất) để "gửi lại" sửa đúng lần đang thu. */
+		/* Nhiều lần thu/ngày: trả LẦN MỚI NHẤT (lan cao nhất) — dùng để hiển thị/kiểm tra, không
+		   còn dùng để "sửa đè" (xem 🔴 trong luu()). */
 		return $wpdb->get_row( $wpdb->prepare(
 			'SELECT * FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s ORDER BY lan DESC LIMIT 1',
 			self::squash( $coso ), self::ngay_( $ngay ) ), ARRAY_A );
@@ -509,7 +510,6 @@ class VHG_BaoCao {
 
 		$ngay = self::ngay_( isset( $p['date'] ) ? $p['date'] : '' );
 		$coso = trim( (string) ( isset( $p['loc'] ) ? $p['loc'] : ( isset( $rows_in[0]['locName'] ) ? $rows_in[0]['locName'] : '' ) ) );
-		$lan_moi = ! empty( $p['lan_moi'] );   // "Thu lần nữa": tạo lần thu MỚI trong ngày, nối tiếp chỉ số
 		if ( '' === $ngay ) { return array( 'ok' => false, 'message' => 'Chọn ngày báo cáo.' ); }
 		if ( '' === $coso ) { return array( 'ok' => false, 'message' => 'Chọn cơ sở.' ); }
 		if ( ! self::trong_pham_vi( $q, $coso ) ) { return array( 'ok' => false, 'message' => 'Cơ sở ' . $coso . ' không thuộc phạm vi PIN của bạn.' ); }
@@ -526,8 +526,9 @@ class VHG_BaoCao {
 			if ( ! self::trong_pham_vi( $q, $coso, $ma ) ) { continue; }
 			$after = isset( $r0['meterAfter'] ) ? $r0['meterAfter'] : ( isset( $r0['chi_so_sau'] ) ? $r0['chi_so_sau'] : '' );
 			if ( '' === (string) $after || null === $after ) { continue; }
-			/* Lần thu mới trong ngày → mốc lấy CẢ chỉ số sau của các lần thu trước trong ngày (toi=true). */
-			$truoc_ht = self::chi_so_truoc( $ma, $ngay, $lan_moi );
+			/* Mỗi lượt gửi LUÔN là một lần thu mới (xem khối 🔴 ở dưới) → mốc lấy CẢ chỉ số sau của
+			   các lần thu trước trong CHÍNH ngày đó (toi=true), để nối tiếp lần gần nhất. */
+			$truoc_ht = self::chi_so_truoc( $ma, $ngay, true );
 			$before = ( null !== $truoc_ht ) ? $truoc_ht : self::songuyen_( isset( $r0['meterBefore'] ) ? $r0['meterBefore'] : '' );
 			/* CHỈ SỐ BẤT THƯỜNG (sau < trước) — anh Thắng 28/08: "hiện ra lý do lỗi tại hàng máy
 			   lỗi, nhân viên nhập lý do. Khi nhập lý do thì lần 2 sẽ cho gửi báo cáo (nó sẽ báo
@@ -600,32 +601,29 @@ class VHG_BaoCao {
 		if ( ! count( $rows ) ) { return array( 'ok' => false, 'message' => 'Chưa nhập chỉ số sau cho ghế nào.' ); }
 
 		$ck = self::squash( $coso );
-		if ( $lan_moi ) {
-			/* THU LẦN NỮA: KHÔNG sửa báo cáo cũ trong ngày, tạo LẦN THU MỚI (report_id mới, lan +1).
-			   Chỉ số trước của lần này đã nối tiếp lần trước ở trên (chi_so_truoc toi=true). */
-			$prev = null;
-			$lan  = (int) $wpdb->get_var( $wpdb->prepare(
-				'SELECT COALESCE(MAX(lan),0)+1 FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s', $ck, $ngay ) );
-			if ( $lan < 1 ) { $lan = 1; }
-		} else {
-			$prev = self::header_( $coso, $ngay );   // lần mới nhất trong ngày (sửa/gửi lại)
-			$lan  = $prev ? (int) $prev['lan'] : 1;
-		}
-		$rid  = $prev ? (string) $prev['report_id'] : ( 'RPT-' . current_time( 'YmdHis' ) . '-' . wp_rand( 100, 999 ) );
+		/* 🔴 MỖI LẦN GỬI = MỘT LẦN THU MỚI, KHÔNG BAO GIỜ ĐÈ LÊN LẦN CŨ.
+		   Anh Thắng 29/08/2026: *"không nên bấm + thu lần nữa, mà sẽ tự hiểu và chèn vào giữa,
+		   nghĩa là chọn ngày đó thì doanh thu ngày đó thôi"*. Bản 1.63.0 bắt bấm nút "➕ Thu lần
+		   nữa" TRƯỚC khi nhập mới hiểu là thêm lần — quên bấm (hoặc không biết có nút đó) thì gửi
+		   lại vô tình SỬA ĐÈ lên lần trước, mất chỉ số/tiền của lần đó.
+		   Nay bỏ hẳn khái niệm "gửi lại = sửa đè" ở đúng màn nhập chính này: mọi lượt Gửi đều tạo
+		   report_id MỚI + `lan` kế tiếp trong ngày, chỉ số trước LUÔN nối tiếp lần gần nhất
+		   (`chi_so_truoc(..., true)` ở trên, không còn nhánh `$lan_moi` false/true nữa — luôn là
+		   true). Muốn SỬA một lần đã gửi (gõ nhầm) thì đi qua màn Sửa/Lịch sử 24h (`bc_edit`),
+		   không qua đường nhập chỉ số chính này — hai việc khác nhau, không được lẫn vào một nút. */
+		$lan = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COALESCE(MAX(lan),0)+1 FROM ' . VHG_DB::t( 'bc' ) . ' WHERE coso_key=%s AND ngay=%s', $ck, $ngay ) );
+		if ( $lan < 1 ) { $lan = 1; }
+		$rid  = 'RPT-' . current_time( 'YmdHis' ) . '-' . wp_rand( 100, 999 );
 		$now  = current_time( 'mysql' );
 		$pay  = self::doc_payment_( isset( $p['payment'] ) ? $p['payment'] : array(), $rows );
-		$kt_locked = $prev && ! empty( $prev['kt_doi_soat'] );
 
 		$header = array( 'report_id' => $rid, 'ngay' => $ngay, 'lan' => $lan, 'coso' => $coso, 'coso_key' => $ck,
-			'nhan_vien' => $q['ten'], 'sua_luc' => $now );
-		if ( ! $kt_locked ) {
-			$header = array_merge( $header, array(
-				'nop_hinhthuc' => $pay['hinhthuc'], 'nop_trang_thai' => $pay['trang_thai'], 'nop_so_tien' => $pay['so_tien'],
-				'nop_ngay' => $pay['ngay'], 'nop_ghichu' => $pay['ghichu'], 'unpaid_lydo' => $pay['unpaid_lydo'],
-				'ck_ref' => $pay['ck_ref'], 'ck_bank' => $pay['ck_bank'] ) );
-		}
-		if ( $prev ) { $wpdb->update( VHG_DB::t( 'bc' ), $header, array( 'report_id' => $rid ) ); }
-		else { $header['tao_luc'] = $now; $wpdb->insert( VHG_DB::t( 'bc' ), $header ); }
+			'nhan_vien' => $q['ten'], 'sua_luc' => $now, 'tao_luc' => $now,
+			'nop_hinhthuc' => $pay['hinhthuc'], 'nop_trang_thai' => $pay['trang_thai'], 'nop_so_tien' => $pay['so_tien'],
+			'nop_ngay' => $pay['ngay'], 'nop_ghichu' => $pay['ghichu'], 'unpaid_lydo' => $pay['unpaid_lydo'],
+			'ck_ref' => $pay['ck_ref'], 'ck_bank' => $pay['ck_bank'] );
+		$wpdb->insert( VHG_DB::t( 'bc' ), $header );
 
 		$ct = self::luu_nhieu_anh_( isset( $p['proofs'] ) ? $p['proofs'] : null, $rid, 'chungtu' );
 		if ( count( $ct ) ) { $wpdb->update( VHG_DB::t( 'bc' ), array( 'chung_tu' => wp_json_encode( $ct ) ), array( 'report_id' => $rid ) ); }
@@ -663,36 +661,21 @@ class VHG_BaoCao {
 			else { $wpdb->insert( VHG_DB::t( 'bc_dong' ), $data ); }
 		}
 
-		$bo = array();
-		if ( $prev ) {
-			$cu = $wpdb->get_results( $wpdb->prepare( 'SELECT ma_may FROM ' . VHG_DB::t( 'bc_dong' ) . ' WHERE report_id=%s', $rid ), ARRAY_A );
-			foreach ( (array) $cu as $c ) {
-				$ma = (string) $c['ma_may'];
-				if ( isset( $gui_ma[ $ma ] ) ) { continue; }
-				$wpdb->update( VHG_DB::t( 'bc_dong' ),
-					array( 'chi_so_sau' => null, 'actual' => 0, 'tien_mat' => 0, 'qr' => 0, 'dieu_chinh' => 0, 'tong' => 0,
-						'ghi_chu' => 'bỏ khỏi báo cáo lúc gửi lại ' . current_time( 'Y-m-d' ),
-						'nop_so_tien' => 0, 'nop_trang_thai' => '', 'nop_hinhthuc' => '', 'nop_ngay' => null ),
-					array( 'report_id' => $rid, 'ma_may' => $ma ) );
-				$bo[] = $ma;
-			}
-		}
-
-		/* Nối dòng thời gian: ghế vừa gửi VÀ ghế vừa bỏ đều có thể làm lệch mốc của lần đọc kế
-		   tiếp — chèn / sửa / bỏ ngày giữa thì chỉ số trước của ngày sau tự nối lại (anh Thắng
-		   29/08/2026). Đặt SAU khi mọi hàng của ngày này đã ghi/bỏ xong để mốc sống tính đúng. */
+		/* Nối dòng thời gian: ghế vừa gửi có thể làm lệch mốc của lần đọc kế tiếp — chèn/sửa ngày
+		   giữa thì chỉ số trước của ngày sau tự nối lại (anh Thắng 29/08/2026). Đặt SAU khi mọi
+		   hàng của lần này đã ghi xong để mốc sống tính đúng.
+		   ⚠️ KHÔNG còn khối "bỏ ghế khỏi báo cáo cũ" (`$bo`) — khối đó xử lý ca "gửi lại đè lên
+		   report_id cũ, ghế nào rớt khỏi lượt gửi này thì xoá số của ghế đó". Report_id giờ LUÔN
+		   MỚI (không còn `$prev`/"gửi lại = sửa đè"), nên một report_id vừa tạo không thể có ghế
+		   nào từ trước để mà "bỏ" — khối đó không còn đường nào chạy tới, xoá hẳn thay vì để chết. */
 		foreach ( array_keys( $gui_ma ) as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay ); }
-		foreach ( $bo as $ma_nt ) { self::noi_tiep( $ma_nt, $ngay ); }
 
 		$dong_yc = self::dong_yeucau_( $coso, $ngay, $q['ten'] . ' · ' . $rid );
 		$phien = self::phien_upsert_( $pin, $ngay );   // cập nhật tiến độ phiên thu ngày
-		return array( 'ok' => true, 'reportId' => $rid, 'rows' => count( $rows ), 'updated' => (bool) $prev,
-			'boGhe' => $bo, 'dongYeuCau' => $dong_yc, 'phien' => $phien,
-			'message' => ( $prev ? ( 'Đã CẬP NHẬT báo cáo ' . $coso . ' ngày ' . $ngay . '.' )
-				: ( 'Đã gửi báo cáo ' . $coso . ' ngày ' . $ngay . '.' ) )
-				. ( count( $bo ) ? ( ' Đã bỏ ' . count( $bo ) . ' ghế.' ) : '' )
+		return array( 'ok' => true, 'reportId' => $rid, 'rows' => count( $rows ), 'updated' => false,
+			'boGhe' => array(), 'dongYeuCau' => $dong_yc, 'phien' => $phien,
+			'message' => 'Đã gửi báo cáo ' . $coso . ' ngày ' . $ngay . ( $lan > 1 ? ( ' (lần ' . $lan . ')' ) : '' ) . '.'
 				. ( $dong_yc ? ( ' Hoàn thành ' . $dong_yc . ' yêu cầu kế toán.' ) : '' )
-				. ( $kt_locked ? ' (Giữ số kế toán đã đối soát.)' : '' )
 				. ( ( $phien && ! empty( $phien['du'] ) )
 					? ( ' ✓ ĐỦ BÁO CÁO cả ' . $phien['so_coso'] . ' cơ sở hôm nay — đã gộp gửi kế toán (tổng '
 						. number_format( (int) $phien['tong'], 0, ',', '.' ) . 'đ).' )

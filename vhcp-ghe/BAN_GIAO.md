@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.3** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.4** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,72 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.4 — TÌM RA GỐC THẬT của "vẫn bắt gõ lại PIN": lỗi ĐỊNH TUYẾN, không phải PIN/phiên
+
+Sau ba bản vá liên tiếp (1.63.1 lưu PIN vào phiên, 1.63.2 thêm migration tay + `viSao`) mà anh
+Thắng vẫn báo **vẫn bắt đăng nhập**, bản 1.63.2's `viSao` cuối cùng lộ ra câu lỗi thật trên màn:
+
+> *"Tự động vào thất bại: Việc báo cáo không rõ: bc_boot_tu_token"*
+
+**Gốc thật — bug định tuyến (dispatch) trong `class-vhg-trang.php::api()`, không liên quan gì tới
+PIN hay phiên:** ngay đầu hàm `api()` có một cổng chặn SỚM cho mọi việc PIN-riêng:
+
+```php
+if ( 0 === strpos( $viec, 'bc_' ) && 0 !== strpos( $viec, 'bc_pin_' ) ) { … trả lỗi "Việc báo
+cáo không rõ" cho mọi $viec lạ rồi return NGAY … }
+```
+
+`bc_boot_tu_token` (thêm từ v1.53.0, dùng token `/ghe` để suy PIN — KHÔNG dùng PIN-riêng) có tên
+bắt đầu bằng `bc_` và không bắt đầu bằng `bc_pin_`, nên **luôn luôn** rơi vào cổng này, luôn luôn
+rớt xuống "Việc báo cáo không rõ: bc_boot_tu_token", và **không bao giờ chạm được** tới cài đặt
+thật của nó nằm SAU cổng token (dòng ~267, dùng `$ai` từ `user_by_token()` + `pin_phien_tu_token()`
+— chính là chỗ 1.63.1/1.63.2 sửa). Nói cách khác: **tính năng "Mở màn Báo cáo doanh thu" đã là mã
+CHẾT — không thể chạy được — kể từ ngày ra đời ở v1.53.0.** Hai bản vá 1.63.1 và 1.63.2 đều ĐÚNG về
+mặt logic (PIN giờ đã nằm sẵn trong phiên, migration đã chắc chắn chạy, `viSao` đã sẵn sàng chẩn
+đoán) nhưng không có tác dụng gì vì đường gọi bị chặn từ bước định tuyến, trước khi tới được đoạn
+code dùng PIN đó.
+
+**Sửa:** khai `bc_boot_tu_token` là ngoại lệ thứ hai của cổng PIN-riêng, y hệt `bc_pin_*`:
+
+```php
+if ( 0 === strpos( $viec, 'bc_' ) && 0 !== strpos( $viec, 'bc_pin_' ) && 'bc_boot_tu_token' !== $viec ) {
+```
+
+⚠️ Đây là bài học chung cho MỌI việc `bc_*` mới thêm sau này mà không đi qua PIN-riêng: phải khai
+thêm vào đúng dòng `if` này ở đầu `api()`, không thì mọi sửa ở đoạn xử lý thật phía sau đều vô tác
+dụng — lặp lại y hệt lỗi này. Xem khối 🔴 chú thích ngay tại dòng `if` đó.
+
+**Cần test:** bấm "Mở màn Báo cáo doanh thu" khi đã đăng nhập `/ghe` — phải vào THẲNG bảng số liệu,
+không hỏi PIN, không còn banner vàng "Tự động vào thất bại".
+
+### v1.63.4 — Bỏ nút "➕ Thu lần nữa": LUÔN tự hiểu là thu thêm một lần mới
+
+Anh Thắng 29/08: *"không nên bấm + thu lần nữa, mà sẽ tự hiểu và chèn vào giữa, nghĩa là chọn ngày
+đó thì doanh thu ngày đó thôi"* → xác nhận qua câu hỏi làm rõ: **LUÔN tự hiểu là thêm một lần thu
+mới (nối tiếp), không bao giờ đè lên lần cũ** — bỏ hẳn khái niệm bật/tắt tay.
+
+- **`class-vhg-baocao.php::luu()`:** bỏ hẳn nhánh `$lan_moi` true/false — giờ MỌI lượt Gửi đều tạo
+  `report_id` mới + `lan = MAX(lan ngày đó)+1`, chỉ số trước LUÔN tính nối tiếp lần gần nhất
+  (`chi_so_truoc(..., true)`, không còn `false`). Đã bỏ hẳn khối "sửa đè lần cũ" (`header_()` tìm
+  lần mới nhất để UPDATE) — gửi lại cho cùng cơ sở/ngày giờ không còn cách nào đè lên báo cáo cũ từ
+  màn nhập chính này nữa. Muốn SỬA một lần đã gửi (gõ nhầm số) thì đi qua màn Sửa/Lịch sử 24h
+  (`bc_edit`) — khác việc, không lẫn vào cùng một nút Gửi.
+- **Client `js_baocao()`:** bỏ hẳn nút `bc-lan` ("➕ Thu lần nữa"), banner xanh "Đang thu LẦN NỮA…",
+  và biến `LAN_MOI`. `selectLoc()` giờ luôn gọi `bc_lastmeters` với `toi:1` (nối tiếp) và luôn đọc
+  lại nháp — không còn nhánh theo `LAN_MOI`. `bc_submit` không còn gửi cờ `lan_moi` (server không
+  đọc cờ này nữa).
+- **Cần test:** chọn một cơ sở/ngày ĐÃ có báo cáo, nhập số liệu mới rồi Gửi — không cần bấm nút gì
+  thêm, hệ thống phải tự tạo LẦN 2 nối tiếp lần 1 (chỉ số trước = chỉ số sau của lần 1), thông báo
+  "Đã gửi báo cáo … (lần 2)".
+
+### v1.63.4 — Ô ảnh báo cáo: cho chọn từ thư viện, không chỉ chụp camera
+
+Anh Thắng 29/08: *"Bổ sung thêm upload ảnh báo cáo, được chọn thêm ảnh từ thư viện thay vì việc chỉ
+cho nhân viên chụp bằng camera thôi"*. `celAnh()` (ô ảnh 📷 Chỉ số / 🧹 Vệ sinh mỗi ghế) trước có
+`capture='environment'` — thuộc tính này ép trình duyệt điện thoại mở THẲNG app camera, bỏ qua màn
+chọn "Chụp ảnh / Chọn từ thư viện / Duyệt tệp" mặc định của hệ điều hành. Bỏ thuộc tính này là đủ —
+`accept='image/*'` vẫn giữ, chỉ giới hạn loại tệp là ảnh.
 
 ### v1.63.3 — "➕ Thu lần nữa" bấm xong không thấy gì đổi (đúng ca cần test của 1.63.0)
 

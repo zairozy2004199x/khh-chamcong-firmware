@@ -124,8 +124,19 @@ class VHG_Trang {
 		 *
 		 * ⚠️ Đặt ở ĐÂY, trước `$tok`, là CỐ Ý. Để sau cổng token thì phải cấp token /ghe cho mọi
 		 *    nhân viên thu tiền — đúng thứ mô hình PIN-riêng dựng ra để khỏi phải làm.
-		 * ═════════════════════════════════════════════════════════════════════════════════════ */
-		if ( 0 === strpos( $viec, 'bc_' ) && 0 !== strpos( $viec, 'bc_pin_' ) ) {
+		 *
+		 * 🔴 NGOẠI LỆ THỨ HAI: `bc_boot_tu_token`. Anh Thắng 29/08/2026, sau ba bản vá PIN-phiên
+		 *    (1.63.1/1.63.2) không ăn thua gì: bản đồ vào thẳng cuối cùng lộ ra câu lỗi thật —
+		 *    *"Việc báo cáo không rõ: bc_boot_tu_token"*. Tên việc này BẮT ĐẦU BẰNG "bc_" và
+		 *    KHÔNG bắt đầu bằng "bc_pin_", nên rơi thẳng vào nhánh PIN-riêng này — nhưng nó KHÔNG
+		 *    được xử lý trong khối `if` bên dưới (cài đặt thật của nó nằm SAU cổng token, dùng
+		 *    `$ai` từ `user_by_token()`), nên luôn rớt xuống "Việc báo cáo không rõ" và return
+		 *    NGAY TẠI ĐÂY — không bao giờ chạm tới được đoạn code thật bên dưới. Cả ba bản vá
+		 *    trước (lưu PIN vào phiên, migration tay, hiện viSao) đều ĐÚNG về mặt logic nhưng
+		 *    KHÔNG THỂ NÀO có tác dụng, vì đường gọi bị chặn từ bước định tuyến, trước khi tới
+		 *    được chỗ dùng PIN đó. Phải khai riêng y hệt `bc_pin_*`, không thì mọi sửa ở
+		 *    `boot_tu_ai()` mãi mãi là mã chết. */
+		if ( 0 === strpos( $viec, 'bc_' ) && 0 !== strpos( $viec, 'bc_pin_' ) && 'bc_boot_tu_token' !== $viec ) {
 			$pin = (string) ( isset( $d['pin'] ) ? $d['pin'] : '' );
 			if ( 'bc_boot' === $viec ) {
 				self::tra( VHG_BaoCao::boot( $pin ) ); return;
@@ -1210,7 +1221,7 @@ class VHG_Trang {
 		return <<<'JS'
 (function(){
   var API = window.VHG_API || '';
-  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false, LAN_MOI=false;
+  var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false;
   /* GỌN = màn điện thoại: chỉ nhập chỉ số + gửi. ĐẦY ĐỦ = máy tính: hiện hết. Mặc định theo bề
      ngang màn hình, nhớ lựa chọn của người dùng. Anh Thắng 27/08: điện thoại ít thông tin thôi. */
   var GON = true;
@@ -1446,28 +1457,11 @@ class VHG_Trang {
     var bGui=el('button','bc-btn pri','Gửi báo cáo cơ sở này'); bGui.id='bc-gui'; bGui.onclick=guiBaoCao;
     var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
     brow.appendChild(bGui); brow.appendChild(bChot);
-    /* ➕ THU LẦN NỮA — thu nhiều lần trong ngày: mở một lần thu MỚI, chỉ số trước tự nối tiếp
-       chỉ số sau của lần vừa gửi (không đè lần cũ). Anh Thắng 29/08/2026.
-       🔴 BẤM XONG PHẢI THẤY NGAY — bản đầu chỉ đổi biến `LAN_MOI` trong JS rồi gọi lại
-       selectLoc(), nhưng CHỮ TRÊN NÚT và dòng banner xanh dựng MỘT LẦN lúc vẽ trang (dựa theo
-       LAN_MOI lúc đó, luôn là false) không tự vẽ lại theo — bấm nút xong nút vẫn ghi "➕ Thu lần
-       nữa", banner xanh không hiện, và nhân viên tưởng cái bấm không có tác dụng gì (dù bên dưới
-       bảng SỐ LIỆU đã âm thầm gọi lại đúng chỉ số nối tiếp). Đúng ca "vẫn ghi nhận chỉ số cũ" —
-       không hẳn sai số, mà không có gì XÁC NHẬN đã bật chế độ, nên khó biết bấm có ăn hay chưa.
-       Nay nút tự đổi chữ và banner tự hiện/ẩn ngay trong onclick, không đợi vẽ lại cả trang. */
-    var bLan=el('button','bc-btn', LAN_MOI?'↩ Huỷ thu lần nữa':'➕ Thu lần nữa'); bLan.id='bc-lan';
-    var lm=el('div','bc-mut'); lm.style.cssText='margin-top:6px;color:#166534;font-weight:600'
-      +(LAN_MOI?'':';display:none');
-    lm.textContent='Đang thu LẦN NỮA — chỉ số trước đã nối tiếp lần trước; nhập chỉ số sau mới rồi Gửi.';
-    bLan.onclick=function(){
-      LAN_MOI=!LAN_MOI;
-      bLan.textContent = LAN_MOI ? '↩ Huỷ thu lần nữa' : '➕ Thu lần nữa';
-      lm.style.display = LAN_MOI ? '' : 'none';
-      if(LOC) selectLoc(LOC);
-    };
-    brow.appendChild(bLan);
+    /* Thu nhiều lần trong ngày: KHÔNG còn nút "➕ Thu lần nữa" — gửi lại cho cùng cơ sở/ngày
+       đã có báo cáo thì tự hiểu là một lần thu MỚI nối tiếp (không bao giờ đè lên lần cũ).
+       Trước đây có nút bật/tắt riêng nhưng chữ trên nút không tự vẽ lại theo lúc bấm, nhân
+       viên tưởng bấm không ăn — nay bỏ hẳn nút, luôn nối tiếp. Anh Thắng 29/08/2026. */
     if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
-    bar.appendChild(lm);
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
     var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
@@ -1510,12 +1504,12 @@ class VHG_Trang {
     ghe.forEach(function(g){ body.appendChild(veDong(g,null)); });
     tinhTong();
     bcDocNhap();
-    goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:LAN_MOI?1:0},function(r){
+    goi('bc_lastmeters',{codes:codes,ngay:NGAY,toi:1},function(r){
       LAST=(r&&r.map)||{};
       body.textContent='';
       ghe.forEach(function(g){ body.appendChild(veDong(g, LAST[g.ma])); });
       tinhTong();
-      if(!LAN_MOI) bcDocNhap();   // lần thu mới: KHÔNG nạp nháp cũ (nhập mới từ đầu)
+      bcDocNhap();
     });
     /* Lượt kích ghế từ xa cần trừ — xem trước cho nhân viên, xem khối 🔧 ở calc(). Gọi riêng
        (không chờ bc_lastmeters) vì đây chỉ là thông tin thêm, KHÔNG được làm chậm lúc vẽ bảng
@@ -1606,12 +1600,16 @@ class VHG_Trang {
     return tr;
   }
   /* Ô chọn MỘT ảnh gắn thẳng vào đúng ghế (chỉ số hoặc vệ sinh) — thay cho ô chọn nhiều ảnh
-     dùng chung trước đây (chia theo thứ tự, dễ gán nhầm ghế). `capture=environment` mở thẳng
-     camera sau trên điện thoại thay vì trình chọn tệp. Xem trước tại chỗ bằng object URL của
-     chính máy, không tải lên đâu cả cho tới lúc bấm Gửi. */
+     dùng chung trước đây (chia theo thứ tự, dễ gán nhầm ghế). Xem trước tại chỗ bằng object URL
+     của chính máy, không tải lên đâu cả cho tới lúc bấm Gửi.
+     ⚠️ KHÔNG đặt `capture` — anh Thắng 29/08/2026: "được chọn thêm ảnh từ thư viện thay vì việc
+     chỉ cho nhân viên chụp bằng camera thôi". Ô có `capture='environment'` mở THẲNG camera trên
+     điện thoại (đặc biệt Safari/iOS), bỏ qua hẳn màn chọn — không có đường nào lấy ảnh có sẵn
+     trong thư viện, kể cả khi ảnh chụp lúc nãy đã có sẵn. Bỏ `capture` thì máy hiện đúng bảng
+     chọn "Chụp ảnh / Chọn từ thư viện / Duyệt tệp" như ô ảnh chứng từ nộp tiền bên dưới vẫn làm. */
   function celAnh(cls){
     var td=el('td');
-    var i=el('input',cls); i.type='file'; i.accept='image/*'; i.capture='environment'; i.style.width='90px';
+    var i=el('input',cls); i.type='file'; i.accept='image/*'; i.style.width='90px';
     var prev=el('img'); prev.style.cssText='display:none;width:36px;height:36px;object-fit:cover;border-radius:6px;margin-top:4px;vertical-align:middle';
     i.addEventListener('change',function(){
       if(prev.dataset.url){ try{ URL.revokeObjectURL(prev.dataset.url); }catch(e){} }
@@ -1794,11 +1792,10 @@ class VHG_Trang {
     gomAnhTungGhe_(rows,function(){
       docAnh_('bc-proofs',function(proofs){
         msg.textContent='Đang gửi…';
-        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs}, lan_moi: LAN_MOI?1:0 },function(r){
+        goi('bc_submit',{ date:NGAY, loc:LOC, rows:rows, payment:payment, proofs:{qr:proofs} },function(r){
           GUI_DANG=false; $('bc-gui').disabled=false;
           if(!r||!r.ok){ msg.textContent=(r&&r.message)||(r&&r.error)||'Gửi không thành công.'; msg.className='bc-msg bc-err'; return; }
           msg.textContent=r.message||('Đã gửi báo cáo '+LOC+'.'); msg.className='bc-msg bc-ok';
-          LAN_MOI=false;   // gửi xong lần thu → về chế độ thường (lần sau muốn thu tiếp bấm "Thu lần nữa")
           bcXoaNhap();   // gửi xong rồi thì bỏ nháp, khỏi lỡ tay điền chồng lên báo cáo mới sau
           document.querySelectorAll('#bc-rows .anh-chiso,#bc-rows .anh-vesinh').forEach(function(i){ i.value=''; });
           document.querySelectorAll('#bc-rows img').forEach(function(im){ im.style.display='none'; });
