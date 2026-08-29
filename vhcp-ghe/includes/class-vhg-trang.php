@@ -1447,13 +1447,27 @@ class VHG_Trang {
     var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
     brow.appendChild(bGui); brow.appendChild(bChot);
     /* ➕ THU LẦN NỮA — thu nhiều lần trong ngày: mở một lần thu MỚI, chỉ số trước tự nối tiếp
-       chỉ số sau của lần vừa gửi (không đè lần cũ). Anh Thắng 29/08/2026. */
+       chỉ số sau của lần vừa gửi (không đè lần cũ). Anh Thắng 29/08/2026.
+       🔴 BẤM XONG PHẢI THẤY NGAY — bản đầu chỉ đổi biến `LAN_MOI` trong JS rồi gọi lại
+       selectLoc(), nhưng CHỮ TRÊN NÚT và dòng banner xanh dựng MỘT LẦN lúc vẽ trang (dựa theo
+       LAN_MOI lúc đó, luôn là false) không tự vẽ lại theo — bấm nút xong nút vẫn ghi "➕ Thu lần
+       nữa", banner xanh không hiện, và nhân viên tưởng cái bấm không có tác dụng gì (dù bên dưới
+       bảng SỐ LIỆU đã âm thầm gọi lại đúng chỉ số nối tiếp). Đúng ca "vẫn ghi nhận chỉ số cũ" —
+       không hẳn sai số, mà không có gì XÁC NHẬN đã bật chế độ, nên khó biết bấm có ăn hay chưa.
+       Nay nút tự đổi chữ và banner tự hiện/ẩn ngay trong onclick, không đợi vẽ lại cả trang. */
     var bLan=el('button','bc-btn', LAN_MOI?'↩ Huỷ thu lần nữa':'➕ Thu lần nữa'); bLan.id='bc-lan';
-    bLan.onclick=function(){ LAN_MOI=!LAN_MOI; if(LOC) selectLoc(LOC); };
+    var lm=el('div','bc-mut'); lm.style.cssText='margin-top:6px;color:#166534;font-weight:600'
+      +(LAN_MOI?'':';display:none');
+    lm.textContent='Đang thu LẦN NỮA — chỉ số trước đã nối tiếp lần trước; nhập chỉ số sau mới rồi Gửi.';
+    bLan.onclick=function(){
+      LAN_MOI=!LAN_MOI;
+      bLan.textContent = LAN_MOI ? '↩ Huỷ thu lần nữa' : '➕ Thu lần nữa';
+      lm.style.display = LAN_MOI ? '' : 'none';
+      if(LOC) selectLoc(LOC);
+    };
     brow.appendChild(bLan);
     if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
-    if(LAN_MOI){ var lm=el('div','bc-mut'); lm.style.cssText='margin-top:6px;color:#166534;font-weight:600';
-      lm.textContent='Đang thu LẦN NỮA — chỉ số trước đã nối tiếp lần trước; nhập chỉ số sau mới rồi Gửi.'; bar.appendChild(lm); }
+    bar.appendChild(lm);
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
     var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);

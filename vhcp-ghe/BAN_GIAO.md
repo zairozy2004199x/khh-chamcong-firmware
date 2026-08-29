@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.2** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.3** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,28 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.3 — "➕ Thu lần nữa" bấm xong không thấy gì đổi (đúng ca cần test của 1.63.0)
+
+Anh Thắng test đúng kịch bản BAN_GIAO đã nêu ở 1.63.0 ("bấm ➕ Thu lần nữa, chỉ số trước phải nối
+tiếp") và báo: *"vẫn ghi nhận chỉ số cũ"* — bấm nút xong, chỉ số trước vẫn hiện số GỐC (330) chứ
+không nối tiếp lần 1 (340).
+
+**Gốc — LỖI HIỂN THỊ, không phải lỗi số liệu:** nút "➕ Thu lần nữa" và dòng banner xanh "Đang thu
+LẦN NỮA…" chỉ được DỰNG MỘT LẦN lúc vẽ trang (`veChinh()`), dựa theo `LAN_MOI` **tại đúng lúc đó**
+— luôn là `false` vì `veChinh()` chạy khi mở màn. `onclick` của nút chỉ đổi biến `LAN_MOI` trong bộ
+nhớ JS rồi gọi lại `selectLoc()` để tải chỉ số mới, nhưng KHÔNG tự vẽ lại chữ trên nút hay banner —
+nút vẫn ghi "➕ Thu lần nữa" y hệt trước khi bấm, banner xanh không hiện. Nhân viên bấm xong không
+thấy GÌ xác nhận là đã bật chế độ, nên **không biết bấm có ăn hay chưa** — đúng câu "vẫn ghi nhận
+chỉ số cũ" (không hẳn nhầm số, mà không có gì báo là đã đổi chế độ).
+
+⚠️ Bản 1.63.3 CHỈ sửa phần HIỂN THỊ (nút tự đổi chữ + banner tự hiện/ẩn ngay trong `onclick`, không
+đợi vẽ lại cả trang) — chưa đụng gì tới `chi_so_truoc_ct_()` (đọc lại kỹ thấy logic SQL đúng: lọc
+`ngay <= $ngay`, sắp `ngay DESC, lan DESC` thì phải ra đúng lần thu gần nhất trong ngày). Đợi anh
+Thắng test lại bản này để biết chắc: nếu bấm nút thấy banner xanh hiện ra VÀ chỉ số trước đổi đúng
+sang 340 → xong hẳn cả 1.63.0 lẫn 1.63.3. Nếu banner hiện ra mà chỉ số trước VẪN sai → lỗi số liệu
+thật nằm ở `chi_so_truoc_ct_()`/`bc_lastmeters`, cần đọc lại từ đầu với dữ liệu thật (mã ghế, ngày,
+report_id của cả hai lần) chứ không suy đoán tiếp từ xa được nữa.
 
 ### v1.63.1 — "Mở màn Báo cáo doanh thu" vẫn bắt gõ lại PIN (Võ Nguyễn Hồng Nhung, 29/08)
 
@@ -65,7 +87,7 @@ hơn `phien` (mỗi request có token đều SELECT/DELETE bảng này).
 **Nếu 1.63.2 vẫn không vào thẳng được:** đọc đúng dòng `viSao` hiện trên màn (không phải đoán lại
 từ đầu) rồi mới sửa tiếp — dòng đó nói chính xác bước nào trượt.
 
-### v1.63.1 — "Mở màn Báo cáo doanh thu" vẫn bắt gõ lại PIN (Võ Nguyễn Hồng Nhung, 29/08)
+### v1.63.0 — Thu NHIỀU LẦN trong ngày (mỗi lần 1 bản ghi, chỉ số nối tiếp)
 Anh Thắng 29/08: *"thay vì 1 ngày 1 lần, cho thu nhiều lần; lần sau chỉ số tự đẩy chỉ số cũ vào"*.
 - **CSDL:** thêm cột `lan SMALLINT` vào `bc` và `bc_dong`; đổi UNIQUE của `bc` từ
   `(coso_key,ngay)` → `(coso_key,ngay,lan)`. dbDelta KHÔNG tự bỏ khoá cũ nên có `VHG_DB::migrate_()`
@@ -271,6 +293,10 @@ mà không đọc.
   bấm **➕ Thu lần nữa** (chỉ số trước phải nối tiếp chỉ số sau lần 1) → gửi lần 2 → mở **Duyệt báo
   cáo** xem có ĐỦ 2 lần và **tổng cộng đúng** không. Nếu bảng Duyệt gộp/đếm ghế sai khi một ghế thu
   2 lần, xem `VHG_KeToan::ds()` (gom theo `coso_key|ngày`) và `chi_tiet()`.
+  ⚠️ **Test lần 1 (29/08) đã lộ lỗi HIỂN THỊ**: bấm "➕ Thu lần nữa" không thấy nút/banner đổi gì
+  → sửa ở v1.63.3 (mục 1 ở trên). **Test lại từ đầu** với bản 1.63.3: bấm nút phải THẤY banner
+  xanh hiện ra ngay, rồi mới xem chỉ số trước có đúng nối tiếp không — nếu banner hiện mà số vẫn
+  sai thì mới là lỗi `chi_so_truoc_ct_()` thật, báo lại kèm mã ghế/ngày/report_id cả hai lần.
 - **v1.62.0 nối dòng thời gian — chưa nối ở `xoa()` / `undo()`** (xoá/hoàn tác cả báo cáo). Nếu xoá
   một ngày GIỮA rồi thấy chỉ số trước ngày sau không tự lùi về mốc trước đó → thêm gọi
   `VHG_BaoCao::noi_tiep()` vào hai hàm đó (class-vhg-ketoan.php). Chưa làm vì ngữ nghĩa restore của
