@@ -4247,6 +4247,26 @@ t( "chọn nguồn 'ho_so' thì PIN trong hồ sơ vào được ngay, khỏi b�
 teq( 'và đúng vai trò khai trong hồ sơ', 'Admin', isset( $kq_hs['role'] ) ? $kq_hs['role'] : null );
 teq( 'đúng cơ sở', 'TUTU_BT', isset( $kq_hs['coso'] ) ? $kq_hs['coso'] : null );
 VHCC_Auth::mo_khoa();
+
+/* 🔴 CƠ SỞ PHỤ PHẢI GHÉP VÀO THẺ PHIÊN — anh Thắng 29/08/2026: "cơ sở phụ đã có, nhưng bạn
+   bên cở phụ cũng có chức năng cửa hàng trưởng... chưa thấy bản công gian hàng". Ca thật: chị
+   Thảo (Cửa hàng trưởng FZ_ADV_TP, cơ sở phụ TUTU_GV) đăng nhập được, thấy đúng tab Bảng công,
+   nhưng ô chọn cơ sở chỉ có FZ_ADV_TP — vì `users_cua('ho_so')` trước bản này chỉ lấy `cua_hang`,
+   bỏ sót `coso_phu`. `VHCC_DayGhe::ho_so_day()` (đẩy sang hệ ghế) đã ghép từ 28/08, nhưng đường
+   ĐĂNG NHẬP vào chính plugin này là một hàm khác, chưa ai sửa tới lúc đó. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'HS_PHU', 'ho_ten' => 'Chị Cơ Sở Phụ',
+	'pin_dang_nhap' => '024681', 'vai_tro' => 'Cửa hàng trưởng', 'cua_hang' => 'FZ_ADV_TP',
+	'coso_phu' => 'TUTU_GV' ) );
+VHCC_Auth::mo_khoa();
+$kq_phu = VHCC_Auth::login( '024681' );
+t( 'đăng nhập được', ! empty( $kq_phu['ok'] ), $kq_phu );
+teq( '🔴 thẻ phiên mang CẢ HAI cơ sở, không chỉ cơ sở chính',
+	'FZ_ADV_TP, TUTU_GV', isset( $kq_phu['coso'] ) ? $kq_phu['coso'] : null );
+$ds_phu = VHCC_NhanSu::ds_coso_cua( array( 'coso' => isset( $kq_phu['coso'] ) ? $kq_phu['coso'] : '' ) );
+t( 'và ds_coso_cua() tách được thành ĐÚNG HAI phần tử (nối bằng phẩy, không phải chấm phẩy)',
+	array( 'FZ_ADV_TP', 'TUTU_GV' ) === $ds_phu, $ds_phu );
+VHCC_Auth::mo_khoa();
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='HS_PHU'" );
 /* 🔴 Hồ sơ CHƯA khai vai trò -> 'Nhân viên', bậc THẤP NHẤT, KHÔNG đoán lên cao. Đoán nhầm lên
    Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả.
    Họ VÀO được (mô hình năm bậc: ai cũng vào) nhưng chỉ ở bậc đáy. */

@@ -160,18 +160,34 @@ class VHCC_Auth {
 		if ( 'ho_so' === $nguon ) {
 			$bang_hs = VHCC_DB::t( 'nhan_vien' );
 			$ra_hs   = array();
-			foreach ( VHCC_DB::rows( "SELECT ho_ten, pin_dang_nhap, vai_tro, chuc_vu, cua_hang"
+			foreach ( VHCC_DB::rows( "SELECT ho_ten, pin_dang_nhap, vai_tro, chuc_vu, cua_hang, coso_phu"
 				. " FROM $bang_hs WHERE pin_dang_nhap <> ''" ) as $r ) {
 				$ten_hs = trim( (string) $r['ho_ten'] );
 				if ( '' === $ten_hs ) { continue; }
 				/* Vai trò lạ / chưa khai -> 'Nhân viên', bậc THẤP NHẤT. KHÔNG đoán lên cao: đoán
 				   nhầm lên Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả. */
 				$vt_hs = VHCC_NguoiDung::vai_tro_biet( $r['vai_tro'] );
+				/* 🔴 GHÉP CƠ SỞ PHỤ VÀO THẺ PHIÊN — anh Thắng 29/08/2026: "cơ sở phụ đã có, nhưng
+				   bạn bên cở phụ cũng có chức năng cửa hàng trưởng... chưa thấy bản công gian
+				   hàng". Thiếu đúng MỘT dòng này: `VHCC_DayGhe::ho_so_day()` (đẩy sang hệ ghế) đã
+				   ghép `cua_hang` + `coso_phu` từ 28/08, nhưng đường ĐĂNG NHẬP vào CHÍNH plugin
+				   này lại là một hàm khác, chưa ai sửa — nên Cửa hàng trưởng quản 2 gian hàng vẫn
+				   đăng nhập được, thấy đúng tab Bảng công, nhưng thẻ phiên chỉ mang MỘT cơ sở
+				   (`cua_hang`), và `ds_coso_cua()` (dùng khắp `VHCC_NhanSu`) không bao giờ thấy cơ
+				   sở phụ. ⚠️ NỐI BẰNG DẤU PHẨY, KHÔNG PHẢI CHẤM PHẨY như `ho_so_day()` bên hệ
+				   ghế — `ds_coso_cua()` của CHÍNH plugin này chỉ `explode(',', ...)`, không nhận
+				   `;`. Nối sai dấu là cơ sở phụ vẫn nằm trong chuỗi mà không tách được thành
+				   phần tử riêng, và lỗi lại y hệt cũ dưới một hình dạng khác. */
+				$coso = trim( (string) $r['cua_hang'] );
+				$coso_phu = isset( $r['coso_phu'] ) ? trim( (string) $r['coso_phu'] ) : '';
+				if ( '' !== $coso_phu ) {
+					$coso = ( '' === $coso ) ? $coso_phu : $coso . ', ' . $coso_phu;
+				}
 				$ra_hs[] = array(
 					'ten'    => $ten_hs,
 					'pin'    => self::pin_sach( $r['pin_dang_nhap'] ),
 					'vaiTro' => '' !== $vt_hs ? $vt_hs : 'Nhân viên',
-					'coso'   => trim( (string) $r['cua_hang'] ),
+					'coso'   => $coso,
 				);
 			}
 			return $ra_hs;
