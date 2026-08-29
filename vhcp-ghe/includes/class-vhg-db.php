@@ -784,6 +784,26 @@ class VHG_DB {
 			PRIMARY KEY  (id),
 			KEY tt (active,thu_tu)";
 
+		/* ===== 18. SỔ TAY HOTLINE — HỖ TRỢ KHÁCH / KÍCH GHẾ TỪ XA ==========================
+		   Anh Thắng 28/08/2026: "nhập báo cáo đó hằng ngày để biết chỉ số kích thêm và chỉ số
+		   hoàn tiền cho khách." Xem khối 🔴 đầu class-vhg-hotline.php — KHÁC bảng `lenh` (đó là
+		   nhật ký TỰ ĐỘNG mỗi lần bấm Bật; đây là SỔ TAY Hotline tự tổng kết, và là nơi DUY NHẤT
+		   có số tiền hoàn khách). 1 dòng / cơ sở / ngày — gửi lại trong ngày là GHI ĐÈ. */
+		$b['hotline_bc'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ngay DATE NOT NULL,
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			coso_key VARCHAR(190) NOT NULL DEFAULT '',
+			so_luot_kich INT NOT NULL DEFAULT 0,
+			tien_hoan BIGINT(20) NOT NULL DEFAULT 0,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			nguoi VARCHAR(190) NOT NULL DEFAULT '',
+			tao_luc DATETIME NULL,
+			sua_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY coso_ngay (coso_key,ngay),
+			KEY ngay (ngay)";
+
 		return $b;
 	}
 

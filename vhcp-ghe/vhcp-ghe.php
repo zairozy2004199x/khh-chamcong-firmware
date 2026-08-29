@@ -3,7 +3,7 @@
  * Plugin Name:       Ghế Massage (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Hệ thống ghế massage QR chạy THẲNG trên host: nhận webhook tiền vào, ghi doanh thu, cho ghế chạy, đối soát theo cơ sở/máy. Không Firebase, không Apps Script.
- * Version:           1.60.0
+ * Version:           1.61.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -34,7 +34,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHG_VERSION', '1.60.0' );
+define( 'VHG_VERSION', '1.61.0' );
 define( 'VHG_FILE', __FILE__ );
 define( 'VHG_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHG_URL', plugin_dir_url( __FILE__ ) );
@@ -58,6 +58,10 @@ require_once VHG_DIR . 'includes/class-vhg-baocao.php';
 /* Trang kế toán (duyệt báo cáo, đối chiếu, công nợ, MISA…). Nạp SAU class-vhg-baocao.php và
    class-vhg-quy.php: VHG_KeToan dùng lại VHG_BaoCao::squash/ngay_/chi_so_truoc và VHG_Quy::don_vi. */
 require_once VHG_DIR . 'includes/class-vhg-ketoan.php';
+/* Sổ tay Hotline (hỗ trợ khách / kích ghế từ xa). Nạp SAU class-vhg-baocao.php và class-vhg-may.php:
+   VHG_Hotline dùng VHG_BaoCao::squash() để so khớp tên cơ sở, và tab của nó đối chiếu với
+   VHG_May::dem_luot_kich_coso_ngay(). */
+require_once VHG_DIR . 'includes/class-vhg-hotline.php';
 require_once VHG_DIR . 'includes/class-vhg-chan.php';
 require_once VHG_DIR . 'includes/class-vhg-qrve.php';
 require_once VHG_DIR . 'includes/class-vhg-nhap.php';

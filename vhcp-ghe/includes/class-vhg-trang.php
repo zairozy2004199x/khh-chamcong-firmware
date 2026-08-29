@@ -325,6 +325,39 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * TAB "BÁO CÁO HỖ TRỢ KHÁCH / KÍCH GHẾ TỪ XA" (hl_*) — token + quyền GIÚP KHÁCH (Hotline)
+		 * hoặc QUẢN TRỊ. Anh Thắng 28/08/2026: *"Bạn nhân viên hotline sẽ nhập báo cáo đó hằng
+		 * ngày để biết chỉ số kích thêm và chỉ số hoàn tiền cho khách."* Xem class-vhg-hotline.php.
+		 * ═════════════════════════════════════════════════════════════════════════════════════ */
+		if ( 0 === strpos( $viec, 'hl_' ) ) {
+			$q = VHG_Auth::quyen_cua( $ai['role'] );
+			if ( empty( $q['giup_khach'] ) && empty( $q['quan_tri'] ) ) {
+				self::tra( array( 'ok' => false, 'ma' => 'khong_du_quyen',
+					'error' => 'Trang hỗ trợ khách chỉ dành cho Hotline, Quản lý hoặc Admin.' ) );
+				return;
+			}
+			$boi = (string) $ai['name'];
+			if ( 'hl_luu' === $viec ) {
+				self::tra( VHG_Hotline::luu(
+					isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '',
+					isset( $d['so_luot'] ) ? $d['so_luot'] : 0, isset( $d['tien_hoan'] ) ? $d['tien_hoan'] : 0,
+					isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '', $boi ) );
+				return;
+			}
+			if ( 'hl_ds' === $viec ) {
+				self::tra( array( 'ok' => true, 'ds' => VHG_Hotline::ds( isset( $d['thang'] ) ? $d['thang'] : '' ) ) );
+				return;
+			}
+			if ( 'hl_ke' === $viec ) {
+				self::tra( array( 'ok' => true, 'so_luot' => VHG_May::dem_luot_kich_coso_ngay(
+					isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['ngay'] ) ? $d['ngay'] : '' ) ) );
+				return;
+			}
+			self::tra( array( 'ok' => false, 'error' => 'Việc hỗ trợ khách không rõ: ' . $viec ) );
+			return;
+		}
+
 		if ( 'bat' === $viec || 'tat' === $viec || 'khoi_dong_lai' === $viec || 'mo_khoa' === $viec ) {
 			$r = VHG_May::dat_lenh(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
@@ -2605,6 +2638,9 @@ function henLai(){
      trang, Duyệt/Khoá/Đổi ngày) — vẽ lại CẢ TRANG mỗi 30 giây sẽ bung lại mọi thẻ đã "Đóng",
      nhảy về trang 1, và có thể cắt ngang đúng lúc đang bấm Duyệt. */
   if (TAB === 'kt-duyet') return;
+  /* Tab HỖ TRỢ KHÁCH (Hotline) cũng không tự vẽ lại cả trang, cùng lý do 'quan-ly' ở trên: có
+     form nhập số lượt kích + tiền hoàn, vẽ lại giữa chừng là xoá số đang gõ dở. */
+  if (TAB === 'hl-hotro') return;
   hen = setTimeout(function(){
     /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
        xoá mất số họ đang gõ), đang GÕ vào một ô nào đó, hoặc trang đang ẩn (điện thoại trong túi
@@ -2722,6 +2758,9 @@ function ve(){
      Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
   if (GK) TABS.push(['dieu-khien', '🎛 ' + L('Điều khiển ghế','Chair control')]);
   if (GK) TABS.push(['ghe-loi', '🚨 ' + L('Ghế lỗi','Faulty chairs')]);
+  /* Việc 4/4 (anh Thắng 28/08): sổ tay Hotline ghi lượt kích thêm + tiền hoàn khách hằng ngày.
+     Cùng quyền GIÚP KHÁCH với tab Điều khiển/Ghế lỗi — không theo quyền quản trị. */
+  if (GK) TABS.push(['hl-hotro', '📞 ' + L('Hỗ trợ khách','Customer support')]);
   if (QT) TABS.push(['cau-hinh', '⚙️ ' + L('Cấu hình','Settings')]);
   h += '<div class="nav">'
     + '<div class="side-brand"><div class="hieu-o">💆</div><div class="side-brand-t"><b>POSH</b>'
@@ -2821,6 +2860,7 @@ function ve(){
 
   if (TAB === 'dieu-khien') { h += veDieuKhien() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ghe-loi')    { h += veGheLoi()    + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'hl-hotro')   { h += veHoTro()     + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'thu-tien')   { h += veThuTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quy')        { h += veQuy()       + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'bc-doanhthu'){ h += veBcDoanhThu() + '</div>'; app.innerHTML = h; noi(); return; }
@@ -3265,6 +3305,131 @@ function veGheLoi(){
       + '</div></div>';
   });
   return h + '</div></div>';
+}
+
+/* ============================================================================================
+ * TAB HỖ TRỢ KHÁCH / KÍCH GHẾ TỪ XA (việc 4/4) — anh Thắng 28/08/2026: *"Bạn nhân viên hotline
+ * sẽ nhập báo cáo đó hằng ngày để biết chỉ số kích thêm và chỉ số hoàn tiền cho khách."*
+ *
+ * 🔴 SỔ TAY, KHÔNG PHẢI NHẬT KÝ TỰ ĐỘNG. Nút "Bật" ở tab Điều khiển đã tự ghi mọi lượt vào bảng
+ *    `lenh` (VHG_May) — ô "tự đếm được" dưới đây đọc THẲNG từ đó, cho Hotline đối chiếu. Nhưng
+ *    KHÔNG có luồng nào tự bắt được số tiền hoàn khách, nên ô đó luôn phải gõ tay; và số lượt
+ *    kích cũng cho gõ tay đè lên, vì có lượt hỗ trợ khách không đi qua nút Bật (hướng dẫn qua
+ *    điện thoại chẳng hạn). Xem class-vhg-hotline.php.
+ *
+ * Không tự vẽ lại cả trang khi tab này đang mở (xem henLai(): 'hl-hotro' bị chặn), vì có form
+ * đang gõ dở — noi() gọi hlInit() một lần lúc mở tab, còn lại form tự quản lý qua các hàm dưới.
+ * ============================================================================================ */
+var HL_COSO = '', HL_NGAY = '', HL_DS = null;
+
+function hlNgayHomNay_(){
+  var d = new Date(); var m = d.getMonth()+1, day = d.getDate();
+  return d.getFullYear() + '-' + (m<10?'0':'') + m + '-' + (day<10?'0':'') + day;
+}
+
+function veHoTro(){
+  /* Lấy DANH SÁCH CƠ SỞ từ chính D.may, không phải D.coso: D.coso CHỈ được server gửi cho kế
+     toán (ô lọc tab Duyệt báo cáo) — Hotline gửi lên sẽ luôn rỗng, đúng lỗi "Sao bấm không thấy
+     cơ sở" đã sửa cho kế toán trước đây (xem so_lieu_khong_quan_tri()). D.may thì ai cũng có. */
+  var coso = [];
+  (function(){ var seen = {}; (D.may||[]).forEach(function(m){
+    var c = m.coso || ''; if (c && !seen[c]) { seen[c] = 1; coso.push(c); } }); coso.sort(); })();
+  if (!HL_NGAY) HL_NGAY = hlNgayHomNay_();
+  if (!HL_COSO && coso.length === 1) HL_COSO = coso[0];
+  var opt = '<option value="">' + L('— chọn cơ sở —','— pick a site —') + '</option>'
+    + coso.map(function(c){ return '<option value="' + esc(c) + '"' + (HL_COSO === c ? ' selected' : '') + '>'
+        + esc(c) + '</option>'; }).join('');
+  return '<div class="card"><h2>📞 ' + L('Hỗ trợ khách / Kích ghế từ xa','Customer support / remote activation') + '</h2>'
+    + '<p class="mut">' + L('Ghi lại HẰNG NGÀY: tổng số lượt kích thêm cho khách và số tiền đã hoàn. '
+        + 'Số lượt bấm nút <b>Bật</b> ở tab Điều khiển được hệ thống tự đếm — hiện tham khảo bên dưới; '
+        + 'gõ số THỰC TẾ (kể cả lượt không qua nút Bật) rồi bấm Lưu. Gửi lại trong cùng ngày là GHI ĐÈ.',
+        'Log this EVERY DAY: total extra activations given to customers and how much was refunded. '
+        + 'Presses on the Control tab\'s <b>Bật</b> button are counted automatically as a reference below — '
+        + 'enter the REAL total (including any not done via that button) then Save. Saving again the same '
+        + 'day OVERWRITES.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<b>' + L('Cơ sở','Site') + ':</b><select id="hl-coso" style="max-width:240px">' + opt + '</select>'
+    + '<b style="margin-left:6px">' + L('Ngày','Date') + ':</b>'
+    + '<input type="date" id="hl-ngay" value="' + esc(HL_NGAY) + '" style="max-width:160px">'
+    + '</div>'
+    + '<div id="hl-form-wrap" style="margin-top:12px"></div></div>'
+    + '<div class="card"><h2>' + L('Lịch sử','History') + '</h2><div id="hl-ds-wrap"></div></div>';
+}
+
+function hlInit(){
+  var s = document.getElementById('hl-coso'), n = document.getElementById('hl-ngay');
+  if (s) s.onchange = function(){ HL_COSO = s.value; hlFormLoad(); };
+  if (n) n.onchange = function(){ if (n.value) { HL_NGAY = n.value; hlFormLoad(); } };
+  hlFormLoad();   // vẽ khung ngay (không chờ mạng) — dùng HL_DS cũ (có thể rỗng lần đầu)
+  hlDsLoad();     // xong thì tự vẽ lại hlFormLoad() một lần nữa với HL_DS mới, xem cuối hàm đó
+}
+
+/* Vừa lấy số tự đếm (hl_ke) vừa dò xem NGÀY+CƠ SỞ này đã có báo cáo chưa (từ HL_DS, tải bởi
+   hlDsLoad) để tô lại đúng số cũ khi mở lại — không phải tra API riêng cho một dòng. */
+function hlFormLoad(){
+  var box = document.getElementById('hl-form-wrap'); if (!box) return;
+  if (!HL_COSO) { box.innerHTML = '<p class="mut">' + L('Chọn cơ sở ở trên.','Pick a site above.') + '</p>'; return; }
+  box.innerHTML = '<p class="mut">' + L('Đang tải…','Loading…') + '</p>';
+  var cu = (HL_DS || []).filter(function(r){ return r.coso === HL_COSO && String(r.ngay).slice(0,10) === HL_NGAY; })[0] || null;
+  goi('hl_ke', { coso: HL_COSO, ngay: HL_NGAY }, function(r){
+    var soTu = (r && r.ok) ? (Number(r.so_luot) || 0) : 0;
+    box.innerHTML = '<div class="mut" style="margin-bottom:8px">⚡ ' + L('Hệ thống tự đếm được','System auto-counted')
+      + ' <b>' + soTu + '</b> ' + L('lượt bấm Bật hôm nay tại cơ sở này.','Bật presses today at this site.') + '</div>'
+      + '<div class="act" style="flex-wrap:wrap">'
+      + '<label class="mut">' + L('Số lượt kích thêm','Extra activations') + '</label>'
+      + '<input type="text" inputmode="numeric" id="hl-soluot" style="max-width:120px" value="'
+        + esc(cu ? cu.so_luot_kich : soTu) + '">'
+      + '<label class="mut" style="margin-left:10px">' + L('Tiền hoàn khách','Customer refunds') + '</label>'
+      + '<input type="text" inputmode="numeric" id="hl-tienhoan" style="max-width:140px" placeholder="0" value="'
+        + esc(cu ? cu.tien_hoan : '') + '">'
+      + '</div>'
+      + '<input type="text" id="hl-ghichu" placeholder="' + esc(L('Ghi chú (không bắt buộc)','Note (optional)'))
+        + '" style="width:100%;margin-top:8px" value="' + esc(cu ? cu.ghi_chu : '') + '">'
+      + '<div class="act" style="margin-top:8px"><button id="hl-luu" class="on">💾 ' + L('Lưu','Save') + '</button>'
+      + '<span id="hl-msg" class="mut"></span></div>';
+    var b = document.getElementById('hl-luu');
+    if (b) b.onclick = function(){ hlSave(); };
+  });
+}
+
+function hlSave(){
+  var b = document.getElementById('hl-luu'); if (!b || b.disabled) return;
+  var soLuot = document.getElementById('hl-soluot'), tienHoan = document.getElementById('hl-tienhoan'),
+      ghiChu = document.getElementById('hl-ghichu'), msg = document.getElementById('hl-msg');
+  b.disabled = true; if (msg) { msg.textContent = L('Đang lưu…','Saving…'); msg.className = 'mut'; }
+  goi('hl_luu', { coso: HL_COSO, ngay: HL_NGAY,
+    so_luot: soLuot ? soLuot.value : 0, tien_hoan: tienHoan ? tienHoan.value : 0,
+    ghi_chu: ghiChu ? ghiChu.value : '' }, function(r){
+    b.disabled = false;
+    if (!r || !r.ok) { if (msg) { msg.textContent = (r && (r.error || r.message)) || L('Lỗi.','Error.'); msg.className = 'mut err'; } return; }
+    if (msg) { msg.textContent = r.thong_bao || L('Đã lưu.','Saved.'); msg.className = 'mut ok'; }
+    hlDsLoad();
+  });
+}
+
+function hlDsLoad(){
+  var box = document.getElementById('hl-ds-wrap'); if (!box) return;
+  box.innerHTML = '<p class="mut">' + L('Đang tải…','Loading…') + '</p>';
+  goi('hl_ds', {}, function(r){
+    HL_DS = (r && r.ok) ? (r.ds || []) : [];
+    /* HL_DS mới về — vẽ lại form một lần để điền đúng số CŨ của ngày/cơ sở đang chọn, phòng khi
+       hlFormLoad() lúc mở tab chạy trước khi có HL_DS (xem hlInit()). Chỉ khi KHÔNG ai đang gõ
+       dở trong form đó — vẽ lại giữa chừng là xoá số đang gõ. */
+    if (!dangGoField()) hlFormLoad();
+    if (!HL_DS.length) { box.innerHTML = '<p class="mut">' + L('Chưa có báo cáo nào.','No reports yet.') + '</p>'; return; }
+    var sc = ktEl('div', 'table-scroll'); var t = ktEl('table');
+    t.innerHTML = '<tr><th>' + L('Ngày','Date') + '</th><th>' + L('Cơ sở','Site') + '</th>'
+      + '<th class="r">' + L('Lượt kích','Activations') + '</th><th class="r">' + L('Tiền hoàn','Refunds') + '</th>'
+      + '<th>' + L('Ghi chú','Note') + '</th><th class="hide-sm">' + L('Người ghi','By') + '</th></tr>'
+      + HL_DS.map(function(r0){
+          return '<tr><td>' + esc(String(r0.ngay).slice(0,10)) + '</td><td>' + esc(r0.coso) + '</td>'
+            + '<td class="r">' + (Number(r0.so_luot_kich)||0) + '</td>'
+            + '<td class="r">' + ktVnd(r0.tien_hoan) + 'đ</td>'
+            + '<td class="mut">' + esc(r0.ghi_chu||'') + '</td>'
+            + '<td class="hide-sm mut">' + esc(r0.nguoi||'') + '</td></tr>';
+        }).join('');
+    sc.appendChild(t); box.innerHTML = ''; box.appendChild(sc);
+  });
 }
 
 /* ============================================================================================
@@ -5913,6 +6078,7 @@ function noi(){
   if (document.getElementById('ktdn-list')) ktdnInit();
   if (document.getElementById('kti-congno')) ktiInit();
   if (document.getElementById('kls-wrap')) klsInit();
+  if (document.getElementById('hl-form-wrap')) hlInit();
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
   if (document.getElementById('ktn-csv')) ktnInit();
   if (document.getElementById('tt-wrap')) ttWire();

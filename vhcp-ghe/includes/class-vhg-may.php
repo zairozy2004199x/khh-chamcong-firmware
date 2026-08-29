@@ -226,6 +226,24 @@ class VHG_May {
 			"SELECT COUNT(*) FROM $t WHERE ma_may=%s AND viec='on' AND tao_luc < %s", $ma, $den_moc ) );
 	}
 
+	/**
+	 * Đếm số lượt bật tay của CẢ CƠ SỞ trong ĐÚNG MỘT NGÀY — cho tab "Báo cáo hỗ trợ khách" (Hotline)
+	 * xem tham khảo, đối chiếu với số họ tự gõ. KHÁC dem_luot_kich() ở trên: hàm đó cộng dồn theo
+	 * MỘT GHẾ qua nhiều ngày (để trừ doanh thu); hàm này cộng theo MỘT NGÀY qua NHIỀU GHẾ của cùng
+	 * cơ sở (để đối chiếu sổ tay hằng ngày) — hai trục khác nhau, không dùng lẫn được.
+	 */
+	public static function dem_luot_kich_coso_ngay( $coso, $ngay ) {
+		global $wpdb;
+		$coso = trim( (string) $coso );
+		$ngay = trim( (string) $ngay );
+		if ( '' === $coso || ! preg_match( '/^\d{4}-\d{2}-\d{2}/', $ngay ) ) { return 0; }
+		$t_lenh = VHG_DB::t( 'lenh' ); $t_may = VHG_DB::t( 'may' ); $t_coso = VHG_DB::t( 'coso' );
+		return (int) $wpdb->get_var( $wpdb->prepare(
+			"SELECT COUNT(*) FROM $t_lenh l JOIN $t_may m ON m.ma=l.ma_may JOIN $t_coso c ON c.id=m.coso_id"
+			. " WHERE c.ten=%s AND l.viec='on' AND DATE(l.tao_luc)=%s",
+			$coso, substr( $ngay, 0, 10 ) ) );
+	}
+
 	// ======================================================================= cục nhận tiền
 
 	/**
