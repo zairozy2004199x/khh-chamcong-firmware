@@ -1,6 +1,6 @@
 # Bàn giao — plugin ghế `vhcp-ghe`
 
-Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.4** · Nhánh phát triển: `claude/posh-qr-kh1urz`
+Cập nhật: 2026-08-29 · Phiên bản hiện tại: **1.63.5** · Nhánh phát triển: `claude/posh-qr-kh1urz`
 (Chỉ commit/push lên nhánh này, không mở PR nếu chưa được yêu cầu.)
 
 Đây là plugin WordPress phục vụ trang ngoài `/ghe` (SPA đăng nhập bằng PIN) cho hệ thống thanh
@@ -11,6 +11,14 @@ từ đầu.
 ---
 
 ## 1. Việc đã làm gần đây
+
+### v1.63.5 — Hàng nút Gửi/Chốt lệch sau khi bỏ nút "➕ Thu lần nữa"
+
+Anh Thắng test bản 1.63.4, chụp màn hình: hai nút "Gửi báo cáo cơ sở này" / "Xin chốt ca sớm" dồn
+về bên trái, để lại một khoảng trắng lớn bên phải trong cùng khối — *"lệch hàng"*. Đúng: bỏ nút thứ
+ba (➕ Thu lần nữa) ở 1.63.4 mà quên chỉnh lại độ rộng hai nút còn lại — hàng flex vẫn để chúng ở độ
+rộng tự nhiên (theo chữ), không co giãn theo hàng. Đã cho cả hai nút (và nút "Đối chiếu máy" ở chế
+độ Đầy đủ) `flex:1 1 160px` để chia đều hết bề ngang hàng, không còn khoảng trắng thừa.
 
 ### v1.63.4 — TÌM RA GỐC THẬT của "vẫn bắt gõ lại PIN": lỗi ĐỊNH TUYẾN, không phải PIN/phiên
 

@@ -1456,12 +1456,16 @@ class VHG_Trang {
     var brow=el('div','bc-row');
     var bGui=el('button','bc-btn pri','Gửi báo cáo cơ sở này'); bGui.id='bc-gui'; bGui.onclick=guiBaoCao;
     var bChot=el('button','bc-btn warn','Xin chốt ca sớm'); bChot.onclick=chotSom;
+    bGui.style.cssText='flex:1 1 160px'; bChot.style.cssText='flex:1 1 160px';
     brow.appendChild(bGui); brow.appendChild(bChot);
     /* Thu nhiều lần trong ngày: KHÔNG còn nút "➕ Thu lần nữa" — gửi lại cho cùng cơ sở/ngày
        đã có báo cáo thì tự hiểu là một lần thu MỚI nối tiếp (không bao giờ đè lên lần cũ).
        Trước đây có nút bật/tắt riêng nhưng chữ trên nút không tự vẽ lại theo lúc bấm, nhân
-       viên tưởng bấm không ăn — nay bỏ hẳn nút, luôn nối tiếp. Anh Thắng 29/08/2026. */
-    if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
+       viên tưởng bấm không ăn — nay bỏ hẳn nút, luôn nối tiếp. Anh Thắng 29/08/2026.
+       🔴 Nút còn lại (Gửi + Chốt) đặt `flex:1 1 160px` để CHIA ĐỀU hết bề ngang hàng — bỏ nút
+       thứ ba (➕ Thu lần nữa) mà không chỉnh lại độ rộng thì 2 nút co về bên trái, để lại một
+       khoảng trắng lớn bên phải trông lệch hàng (anh Thắng 29/08/2026, ảnh chụp màn hình). */
+    if(!GON){ var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.style.cssText='flex:1 1 160px'; bDoi.onclick=doiChieu; brow.appendChild(bDoi); }
     bar.appendChild(brow);
     var msg=el('div','bc-msg'); msg.id='bc-msg'; bar.appendChild(msg);
     var doi=el('div'); doi.id='bc-doi'; doi.style.marginTop='10px'; bar.appendChild(doi);
