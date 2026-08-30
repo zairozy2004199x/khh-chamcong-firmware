@@ -190,6 +190,7 @@ const TRALOI = {
               vao: ['Admin', 'Quản lý'], chot: ['Admin'], giup: ['Admin', 'Hotline'] },
   bat: { ok: true, thong_bao: 'Đã bật' },
   tat: { ok: true, thong_bao: 'Đã tắt' },
+  logout: { ok: true },
   ma_tra: { ok: true, co_vi: 1, so_du: { dung: 0, cho: 0, con_cho: 0 }, chua_dung: [], da_dung: [] },
 };
 
@@ -207,17 +208,34 @@ XHR.prototype.send = function (b) {
 };
 
 global.document = DOC;
-global.window = { VHG_API: '/ghe?', VHG_TEN: 'POSH', addEventListener(){}, scrollTo(){} };
-global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+global.window = { VHG_API: '/ghe?', VHG_TEN: 'POSH', addEventListener(){}, scrollTo(){},
+  /* Nơi quay về sau khi Thoát — máy chủ tính rồi in ra hằng này. Xem
+     `VHG_Trang::noi_ve_sau_thoat()`. */
+  VHG_VE_SAU_THOAT: 'http://noi-bo.test/noi-bo/' };
+/* `location` giả: chỉ ghi lại địa chỉ được gán, không đi đâu cả. */
+global.location = { _di: '', get href(){ return this._di; }, set href(v){ this._di = String(v); } };
+/* Sổ ghi các khoá đã bị xoá — để soi được "Thoát có quên thẻ phiên không". Biến `TOK` nằm
+   trong scope của `eval`, phép thử ở đây KHÔNG nhìn thấy nó; viết `typeof TOK === 'undefined'
+   || TOK === null` là phép thử luôn xanh mà chẳng canh gì. */
+global.LS_DA_XOA = [];
+global.localStorage = { getItem: () => null, setItem() {},
+  removeItem(k) { global.LS_DA_XOA.push(String(k)); } };
 global.XMLHttpRequest = XHR;
 global.alert = (m) => LOG.push('ALERT: ' + m);
 global.confirm = () => true;
 global.prompt = () => 'x';
-global.setInterval = () => 0; global.clearInterval = () => {};
-/* ⚠️ `setTimeout` KHÔNG chạy hàm ngay: trang tự hẹn tải lại mỗi 10 giây, chạy ngay là đệ quy
-   vô hạn. Phép thử này soi lượt bấm, không soi bộ hẹn giờ. */
-global.setTimeout = () => 0;
-global.clearTimeout = () => {};
+/* ⚠️ `setTimeout`/`setInterval` KHÔNG chạy hàm ngay: trang tự hẹn tải lại mỗi 10 giây, chạy
+   ngay là đệ quy vô hạn.
+   🔴 NHƯNG PHẢI PHÁT ID THẬT VÀ GHI SỔ. Bản trước trả cứng 0 cho cả hai — mà `0` là giá trị
+      giả, nên `if (hen) clearTimeout(hen)` không bao giờ chạy, và không phép thử nào phân biệt
+      nổi "có dừng hẹn giờ" với "quên dừng". Trang này có bốn cái chạy song song; bỏ sót một cái
+      lúc Thoát là một lượt gọi máy chủ không còn thẻ, vẽ đè câu "hết phiên" lên màn hình. */
+let SEQ_HEN = 0;
+global.HEN_DANG_CHAY = new Set();
+global.setInterval = () => { const id = ++SEQ_HEN; global.HEN_DANG_CHAY.add(id); return id; };
+global.clearInterval = (id) => { global.HEN_DANG_CHAY.delete(id); };
+global.setTimeout = () => { const id = ++SEQ_HEN; global.HEN_DANG_CHAY.add(id); return id; };
+global.clearTimeout = (id) => { global.HEN_DANG_CHAY.delete(id); };
 global.navigator = { language: 'vi' };
 global.BarcodeDetector = undefined;
 
@@ -330,6 +348,48 @@ if (nutCh) {
   t('và có ô khai đơn vị chỉ số', !!DOC.getElementById('ch-dv'));
   t('🔴 dựng tab Cấu hình không ném lỗi', !DOC.getElementById('bao-loi'),
     DOC.getElementById('bao-loi') ? DOC.getElementById('bao-loi').textContent : '');
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BẤM THOÁT
+ *
+ * 🔴 Anh Thắng 30/08/2026: *"thoát trang ghế nó vẫn nằm lơ lửng giữa trang báo cáo doanh thu và
+ *    trang thu tiền ghế"*. Bấm Thoát chỉ vẽ lại màn PIN của chính trang này, nên người ta đứng
+ *    lại giữa mấy cái tab vừa rời khỏi, không có đường nào đi tiếp.
+ *
+ * ⚠️ PHÉP THỬ NÀY PHẢI BẤM THẬT, không dò chuỗi. Cả bài này ra đời đúng vì lý do ấy: chuỗi
+ *    `location.href` có nằm trong mã thì phép dò vẫn xanh kể cả khi nút không gọi tới nó.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+/* ⚠️ ĐỨNG Ở TAB ĐIỀU KHIỂN rồi mới bấm Thoát. Đồng hồ đếm ngược (`demGiay`) chỉ chạy ở đúng tab
+   này — thoát từ tab khác thì nó vốn đã dừng, và phép thử "dừng sạch hẹn giờ" bên dưới xanh mà
+   chẳng canh gì. Đây cũng là cảnh thật hay gặp nhất: người ta đang nhìn mấy con ghế chạy rồi
+   bấm Thoát. */
+const nutDk2 = DOC.querySelectorAll('[data-tab="dieu-khien"]')[0];
+if (nutDk2) { bam(nutDk2); }
+
+const bThoat = DOC.getElementById('thoat');
+t('🔴 dải đầu có nút Thoát', !!bThoat);
+if (bThoat) {
+  const truoc = GOI.length;
+  location._di = '';
+  bam(bThoat);
+  t('bấm Thoát thì gọi logout tới máy chủ',
+    GOI.slice(truoc).indexOf('logout') >= 0, GOI.slice(truoc).join(','));
+  t('🔴 rồi ĐI VỀ trang chủ, không đứng lại ở màn PIN của trang ghế',
+    location._di === 'http://noi-bo.test/noi-bo/', location._di);
+  /* ⚠️ Biến `TOK` nằm trong scope của `eval`, ở đây KHÔNG đọc được — nên soi dấu vết nó để
+     lại: thẻ phiên phải bị xoá khỏi localStorage. */
+  t('và quên thẻ phiên đi', global.LS_DA_XOA.indexOf('vhg_tok') >= 0, global.LS_DA_XOA.join(','));
+  /* 🔴 VÀ DỪNG HẾT MẤY CÁI HẸN GIỜ. Bốn cái chạy song song trên trang này; bỏ cái nào chạy tiếp
+     thì đúng lúc đang rời trang lại có một lượt vẽ đè lên, hoặc một lượt gọi máy chủ không còn
+     thẻ trả về "hết phiên". */
+  t('🔴 và dừng SẠCH mấy cái hẹn giờ đang chạy', global.HEN_DANG_CHAY.size === 0,
+    'còn ' + global.HEN_DANG_CHAY.size);
+  /* ⛔ MỘT NHÁNH KHÔNG DỰNG NỔI CẢNH Ở ĐÂY: `QUET.hen` (phiên quét mã bằng camera). Muốn nó
+     đang chạy thì phải có `BarcodeDetector` và `getUserMedia` giả — DOM thô của bài này không
+     dựng nổi video. Nên phá thử "dungHet bỏ sót phiên quét camera" luôn SỐNG. Nhánh ấy vẫn
+     giữ: trên máy thật camera có chạy, và bỏ sót nó là để trang bật camera sau khi người ta
+     đã thoát. Đừng xoá nó vì thấy phép thử không đỏ. */
 }
 
 xong();

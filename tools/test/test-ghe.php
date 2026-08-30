@@ -6970,6 +6970,39 @@ foreach ( $khoi as $ten => $vt ) {
 }
 teq( '⚠️ mọi khối hàm đều đóng ngoặc đúng', 0, $mo_nhon );
 
+// ============================================ THOÁT THÌ VỀ ĐÂU
+/* 🔴 Anh Thắng 30/08/2026: *"thoát trang ghế nó vẫn nằm lơ lửng giữa trang báo cáo doanh thu và
+      trang thu tiền ghế"*. Bấm Thoát chỉ vẽ lại màn PIN của CHÍNH TRANG NÀY, nên người ta đứng
+      lại giữa mấy cái tab vừa rời khỏi, không có đường nào đi tiếp. Hai trang kia (Chấm công,
+      Nội bộ) đã đưa về trang chủ từ bản trước; trang này thì chưa.
+
+   ⚠️ ĐẶT Ở CUỐI BÀI, sau mọi khối khác — vì nó khai một lớp `VHCC_Web` giả để dựng cảnh "có
+      plugin Chấm công". `class_exists` một khi đã true thì true mãi, nên khai sớm là đổi hoàn
+      cảnh của tất cả các khối phía sau. */
+
+/* Cảnh 1: CHƯA cài plugin Chấm công — plugin Ghế cài được một mình. */
+t( 'chưa cài Chấm công -> vẫn có nơi để về, không rỗng',
+	'' !== trim( (string) VHG_Trang::noi_ve_sau_thoat() ), VHG_Trang::noi_ve_sau_thoat() );
+t( '🔴 và nơi ấy KHÔNG phải chính trang ghế (không thì vẫn đứng lơ lửng ở đó)',
+	VHG_Trang::noi_ve_sau_thoat() !== VHG_Trang::url(), VHG_Trang::noi_ve_sau_thoat() );
+teq( 'chưa cài Chấm công thì về trang chủ website', home_url( '/' ), VHG_Trang::noi_ve_sau_thoat() );
+
+/* Cảnh 2: CÓ plugin Chấm công — nơi về là luật của cả hệ, phải hỏi bên đó chứ không tự quyết.
+   Khai lại ở trang ghế là ngày anh đổi trang chủ thì trang này vẫn trỏ về chỗ cũ. */
+if ( ! class_exists( 'VHCC_Web' ) ) {
+	eval( 'class VHCC_Web { public static function noi_ve_sau_thoat() '
+		. '{ return "http://vi-du.test/trang-chu-cua-he/"; } }' );
+}
+teq( '🔴 có Chấm công -> hỏi VHCC_Web, không tự quyết lấy',
+	'http://vi-du.test/trang-chu-cua-he/', VHG_Trang::noi_ve_sau_thoat() );
+
+/* 🔴 VÀ PHẢI ĐƯA XUỐNG TỚI TRANG. Tính đúng ở PHP mà quên in ra thì JS không có gì để dùng, và
+   nút Thoát rơi về nhánh cũ — đúng cái đang lỗi. */
+$h_vst = vhg_web_html();
+t( '🔴 máy chủ in nơi cần về ra trang', strpos( $h_vst, 'window.VHG_VE_SAU_THOAT=' ) !== false );
+t( 'và in đúng địa chỉ vừa tính',
+	strpos( $h_vst, wp_json_encode( VHG_Trang::noi_ve_sau_thoat() ) ) !== false, $h_vst );
+
 // ============================================================ kết
 if ( $truot ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

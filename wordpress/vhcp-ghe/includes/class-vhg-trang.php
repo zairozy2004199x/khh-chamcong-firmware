@@ -779,12 +779,38 @@ class VHG_Trang {
 				   số bản thì câu đó phải hỏi vòng qua ảnh chụp và phỏng đoán; hiện ra thì nhìn
 				   một giây là biết. */
 				. 'window.VHG_BAN=' . wp_json_encode( defined( 'VHG_VERSION' ) ? VHG_VERSION : '?' ) . ';'
-				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';</script>'
+				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';'
+				. 'window.VHG_VE_SAU_THOAT=' . wp_json_encode( self::noi_ve_sau_thoat() ) . ';</script>'
 			. '<script>' . self::js() . '</script>'
 			/* Chân trang pháp lý — DỰNG Ở MÁY CHỦ, ngoài `#app`. Nằm trong JS thì JS hỏng là
 			   thông tin công ty biến mất; xem VHG_Chan::html(). */
 			. VHG_Chan::html()
 			. '</body></html>';
+	}
+
+	/**
+	 * THOÁT XONG THÌ VỀ ĐÂU.
+	 *
+	 * Anh Thắng 30/08/2026: *"thoát trang ghế nó vẫn nằm lơ lửng giữa trang báo cáo doanh thu
+	 * và trang thu tiền ghế"*. Đúng: bấm Thoát thì trang chỉ vẽ lại màn PIN của CHÍNH NÓ, nên
+	 * người ta đứng lại giữa mấy cái tab vừa rời khỏi, không có đường nào đi tiếp. Hai trang kia
+	 * (Chấm công, Nội bộ) đã đưa về trang chủ từ bản trước; trang này thì chưa.
+	 *
+	 * ⚠️ HỎI `VHCC_Web` CHỨ KHÔNG TỰ QUYẾT. Nơi về sau khi thoát là một luật của cả hệ, không
+	 *    phải của riêng trang ghế — khai lại ở đây là ngày anh đổi trang chủ thì trang này vẫn
+	 *    trỏ về chỗ cũ, và không ai nghĩ tới nó.
+	 *
+	 * ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`.
+	 *    Plugin Ghế cài được một mình, không có plugin Chấm công thì về trang chủ website.
+	 *
+	 * 🔴 HÀM THUẦN — trả về một địa chỉ, không `header()`, không `exit`.
+	 */
+	public static function noi_ve_sau_thoat() {
+		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'noi_ve_sau_thoat' ) ) {
+			$u = (string) VHCC_Web::noi_ve_sau_thoat();
+			if ( '' !== $u ) { return $u; }
+		}
+		return (string) home_url( '/' );
 	}
 
 	private static function css() {
@@ -1065,6 +1091,8 @@ function bam(ten, f){
   };
 }
 var TEN_HT = window.VHG_TEN || 'POSH Massage';
+/* Nơi quay về sau khi Thoát — máy chủ tính, xem `VHG_Trang::noi_ve_sau_thoat()`. */
+var VE_SAU_THOAT = window.VHG_VE_SAU_THOAT || '';
 /* Tab đang mở. Nhớ lại giữa các lần tải: người đang điều khiển ghế bấm ↻ mà bị đá về tab đối
    soát là mỗi lượt bấm mất thêm một cú bấm nữa. */
 var TAB = 'doi-soat';
@@ -2662,6 +2690,24 @@ function lam(viec, d){
   });
 }
 
+/**
+ * DỪNG MỌI HẸN GIỜ ĐANG CHẠY.
+ *
+ * 🔴 Trang này có BỐN cái chạy song song: lượt tải lại số liệu (`hen`), đồng hồ đếm ngược từng
+ *    ghế (`demGiay`), đồng hồ dải đầu (`dhTop`), và phiên quét camera (`QUET.hen`). Không có
+ *    chỗ nào tắt hết chúng cùng lúc, nên lúc rời trang mỗi cái tự chạy tiếp một nhịp nữa —
+ *    và nhịp ấy có thể là một lượt gọi máy chủ KHÔNG CÒN THẺ, trả về "hết phiên", vẽ đè câu
+ *    báo lỗi lên đúng lúc người ta vừa bấm Thoát.
+ *
+ * ⚠️ Gọi được nhiều lần, không sao: mỗi cái đều kiểm trước khi xoá.
+ */
+function dungHet(){
+  if (hen) { clearTimeout(hen); hen = null; }
+  if (demGiay) { clearInterval(demGiay); demGiay = null; }
+  if (dhTop) { clearInterval(dhTop); dhTop = null; }
+  if (QUET && QUET.hen) { clearInterval(QUET.hen); QUET.hen = null; }
+}
+
 function noi(){
   henLai();
   chayDongHo();
@@ -2669,7 +2715,22 @@ function noi(){
   noiNN();
   document.getElementById('lam-moi').onclick = function(){ tai(); };
   document.getElementById('thoat').onclick = function(){
-    goi('logout', {}, function(){ TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){} veLogin(''); });
+    goi('logout', {}, function(){
+      TOK = null; try{localStorage.removeItem('vhg_tok');}catch(e){}
+      /* 🔴 DỪNG MỌI LƯỢT TẢI NỀN TRƯỚC ĐÃ. Trang này có bốn cái hẹn giờ chạy song song (tải lại
+         số liệu, hai đồng hồ, phiên quét camera). Bỏ chúng chạy tiếp thì đúng lúc đang rời
+         trang lại có một lượt vẽ đè lên — hoặc tệ hơn, một lượt gọi máy chủ không còn thẻ, trả
+         về "hết phiên", và màn hình nháy sang câu báo lỗi ngay khi người ta vừa bấm Thoát. */
+      dungHet();
+      /* Về trang chủ, không đứng lại ở màn PIN của chính trang này — anh Thắng 30/08/2026:
+         *"thoát trang ghế nó vẫn nằm lơ lửng giữa trang báo cáo doanh thu và trang thu tiền
+         ghế"*. */
+      if (VE_SAU_THOAT) { location.href = VE_SAU_THOAT; return; }
+      /* Không có nơi nào để về (chưa cài plugin Chấm công) thì vẫn phải cuộn lên đầu: màn PIN
+         ngắn hơn bảng vừa xem nhiều, giữ nguyên chỗ cuộn là người ta nhìn vào một khoảng trống. */
+      try { window.scrollTo(0, 0); } catch(e) {}
+      veLogin('');
+    });
   };
   [].forEach.call(document.querySelectorAll('[data-ky]'), function(b){
     b.onclick = function(){ KY = b.getAttribute('data-ky'); tai(); };
