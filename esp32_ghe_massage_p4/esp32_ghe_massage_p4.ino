@@ -35,6 +35,14 @@
   #define SEC_WIFI_SSID "__DIEN_SSID__"
   #define SEC_WIFI_PASS "__DIEN_PASS__"
 #endif
+/* Tài khoản nhận tiền để dựng VietQR THẬT (bước sau server sẽ tự cấp). Điền trong secrets.h:
+     #define SEC_BANK_BIN   "970436"      // BIN ngân hàng (VD 970436 = Vietcombank)
+     #define SEC_ACCOUNT_NO "0123456789"  // số tài khoản nhận
+   Chưa điền thì QR hiện chữ nhắc, không phải mã hợp lệ. */
+#ifndef SEC_BANK_BIN
+  #define SEC_BANK_BIN   ""
+  #define SEC_ACCOUNT_NO ""
+#endif
 
 /* ─── FRAMEBUFFER (panel dọc 480×800) ────────────────────────────────────── */
 static esp_lcd_panel_io_handle_t g_io    = nullptr;
@@ -86,10 +94,31 @@ static int lNum(int lx, int ly, long v, int sc, uint16_t c) {
   return x - lx;
 }
 
-/* ─── VẼ MÃ QR (thư viện QRCode) ─────────────────────────────────────────── */
+/* ─── VietQR (chuẩn EMV/Napas) — bê nguyên từ bản cũ esp32_ghe_massage ────── */
+static String _tlv(const char* id, const String& val) {
+  char len[3]; snprintf(len, sizeof len, "%02d", (int)val.length()); return String(id) + len + val;
+}
+static String _crc16(const String& s) {
+  uint16_t crc = 0xFFFF;
+  for (size_t i = 0; i < s.length(); i++) { crc ^= ((uint8_t)s[i]) << 8;
+    for (int b = 0; b < 8; b++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1); }
+  char o[5]; snprintf(o, sizeof o, "%04X", crc); return String(o);
+}
+static String buildVietQR(const String& bin, const String& acct, long amount, const String& addInfo) {
+  String s = _tlv("00","01") + _tlv("01", amount ? "12" : "11");
+  String ben = _tlv("00", bin) + _tlv("01", acct);
+  s += _tlv("38", _tlv("00","A000000727") + _tlv("01", ben) + _tlv("02","QRIBFTTA"));
+  s += _tlv("53","704");
+  if (amount) s += _tlv("54", String(amount));
+  s += _tlv("58","VN");
+  if (addInfo.length()) s += _tlv("62", _tlv("08", addInfo));
+  s += "6304"; return s + _crc16(s);
+}
+
+/* ─── VẼ MÃ QR (thư viện QRCode) — version 11 đủ chứa chuỗi VietQR ─────────── */
 static void lQR(int lx, int ly, int oPx, const char* text) {
-  QRCode qr; uint8_t buf[qrcode_getBufferSize(6)];
-  qrcode_initText(&qr, buf, 6, ECC_MEDIUM, text);   // version 6: đủ cho URL VietQR ngắn
+  QRCode qr; uint8_t buf[qrcode_getBufferSize(11)];
+  qrcode_initText(&qr, buf, 11, ECC_MEDIUM, text);   // version 11 (~177 byte): đủ cho VietQR
   int mod = (oPx) / qr.size; if (mod < 1) mod = 1;
   int side = mod * qr.size;
   lRect(lx, ly, side + 2 * mod, side + 2 * mod, RGB565(0xFF,0xFF,0xFF)); // nền trắng + viền
@@ -215,8 +244,15 @@ static void veManHinh() {
     lDigit(BTN_X + 26, y + 28, GOI[i].so, 8, RGB565(0xFF,0xFF,0xFF));       // số gói to
     lNum(BTN_X + 110, y + 44, GOI[i].gia, 5, RGB565(0xFF,0xFF,0xFF));       // giá
   }
-  // QR bên phải theo gói đang chọn
-  lQR(430, 70, 320, GOI[g_chon].url);
+  // QR bên phải: MÃ VietQR THẬT theo gói đang chọn (số tiền = giá gói).
+  // Nội dung CK gồm mã ghế + gói để server đối chiếu (tạm GHE01; GĐ2b-2 server cấp mã thật).
+  String memo = "GHE01 G" + String(GOI[g_chon].so);
+  String payload;
+  if (strlen(SEC_BANK_BIN) && strlen(SEC_ACCOUNT_NO))
+    payload = buildVietQR(SEC_BANK_BIN, SEC_ACCOUNT_NO, GOI[g_chon].gia, memo);
+  else
+    payload = "CHUA DIEN SEC_BANK_BIN / SEC_ACCOUNT_NO trong secrets.h";
+  lQR(430, 70, 320, payload.c_str());
 }
 
 /* ─── WiFi (giữ, hạ TX né brownout) ─────────────────────────────────────── */
