@@ -1529,6 +1529,87 @@ update_option( 'vhcc_nguon_nguoidung', $nguon_cu2 ? $nguon_cu2 : 'ho_so' );
 $_GET = array(); $_POST = array(); $_COOKIE = array();
 vhnb_dung_bang();
 
+/* ==================================================================================
+   KHUNG CHAT PHẢI ẨN ĐƯỢC
+
+   Anh Thắng 30/08/2026: *"chỗ tin nhắn chat không ẩn được"*.
+
+   🔴 LỖI THẬT: `[hidden]{display:none}` là quy tắc của TRÌNH DUYỆT, yếu hơn mọi quy tắc viết
+      trong trang. Ba khối của chat có `display:flex` đặt theo id, nên chúng đè thẳng lên
+      `hidden`. JS đặt `el.hidden=true` đúng chỗ đúng lúc mà phần tử vẫn hiện nguyên: bấm ✕
+      không đóng được khung, và vào một cuộc trò chuyện thì ô "Mã NV để nhắn tin mới" vẫn nằm
+      đó cùng lúc với ô "Nhắn gì đó".
+
+   ⚠️ PHÉP THỬ NÀY KHÔNG DÒ MỘT CHUỖI CSS. Dò chuỗi thì chỉ canh được đúng cái dòng vá hôm nay;
+      ngày mai ai thêm một khối chat mới có `display:` riêng là lỗi cũ quay lại y nguyên mà bài
+      kiểm vẫn xanh. Nên nó ĐỌC MÃ: tìm mọi id trong khối chat mà JS có đặt `.hidden`, rồi đòi
+      CSS phải có lưới phủ cho cả khối.
+   ================================================================================== */
+
+$src_nb = file_get_contents( VHNB_DIR . 'includes/class-vhnb-trang.php' );
+
+/* 1. Có lưới phủ cho cả khối chat. */
+t( '🔴 CSS có lưới phủ `#vhnb-chat [hidden]` cho cả khối',
+	1 === preg_match( '/#vhnb-chat \[hidden\]\{display:none!important\}/', $src_nb ) );
+
+/* 2. Mọi id mà JS ẩn bằng `.hidden` đều phải nằm TRONG `#vhnb-chat` — lưới phủ chỉ với tới con
+      cháu của nó. Một khối chat đặt ngoài `#vhnb-chat` là lọt lưới. */
+preg_match_all( '/getElementById\("(vhnb-chat[a-z-]*)"\)/', $src_nb, $m_id );
+$ids_chat = array_unique( $m_id[1] );
+t( 'đọc được danh sách id của khối chat', count( $ids_chat ) >= 6, $ids_chat );
+$ngoai = array();
+foreach ( $ids_chat as $id_c ) {
+	/* `#vhnb-chat` là chính cái bọc — nó không phải con của chính nó, nhưng JS cũng không ẩn nó. */
+	if ( 'vhnb-chat' === $id_c ) { continue; }
+	if ( false === strpos( $src_nb, 'id="' . $id_c . '"' ) ) { $ngoai[] = $id_c . ' (không thấy trong HTML)'; }
+}
+teq( '🔴 mọi id chat JS đụng tới đều có mặt trong HTML của khối', array(), $ngoai );
+
+/* 3. CHỐT ĐẮT NHẤT: khối `<div id="vhnb-chat" …>` phải BỌC hết mấy phần tử bị ẩn. Soi trên
+      TRANG VỪA VẼ, không soi mã nguồn — mã có thể đúng mà thứ tự in ra vẫn sai. */
+$_COOKIE = array();
+$U_CHAT = array( 'name' => 'Người Chat', 'role' => 'Admin', 'ma_nv' => 'NVCHAT' );
+ob_start(); VHNB_Trang::ve( $U_CHAT ); $h_chat2 = ob_get_clean();
+$i_mo  = strpos( $h_chat2, '<div id="vhnb-chat"' );
+$i_het = strpos( $h_chat2, '<!-- /vhnb-chat -->' );
+t( 'trang có dựng khối chat', false !== $i_mo && false !== $i_het && $i_het > $i_mo, array( $i_mo, $i_het ) );
+if ( false !== $i_mo && false !== $i_het ) {
+	$trong = substr( $h_chat2, $i_mo, $i_het - $i_mo );
+	foreach ( array( 'vhnb-chat-panel', 'vhnb-chat-thread', 'vhnb-chat-moimoi', 'vhnb-chat-dem' ) as $id_c ) {
+		t( '🔴 ' . $id_c . ' nằm TRONG #vhnb-chat (lưới phủ mới với tới)',
+			false !== strpos( $trong, 'id="' . $id_c . '"' ), $id_c );
+	}
+}
+
+/* 3b. VÀ PHẢI ĐÓNG SẴN LÚC MỞ TRANG. Lưới CSS chỉ giúp ẩn ĐƯỢC; nếu khối vào trang đã không
+      mang `hidden` thì nó bung ra ngay từ giây đầu, che mất góc phải màn hình mà chưa ai bấm
+      gì. Ba khối vào trang ở trạng thái đóng: khung chat, màn một cuộc trò chuyện, và huy
+      hiệu số tin chưa đọc. */
+if ( false !== $i_mo && false !== $i_het ) {
+	$trong2 = substr( $h_chat2, $i_mo, $i_het - $i_mo );
+	foreach ( array( 'vhnb-chat-panel', 'vhnb-chat-thread', 'vhnb-chat-dem' ) as $id_c ) {
+		$vt = strpos( $trong2, 'id="' . $id_c . '"' );
+		$the = ( false === $vt ) ? '' : substr( $trong2, $vt, (int) strpos( $trong2, '>', $vt ) - $vt );
+		t( '🔴 ' . $id_c . ' vào trang ở trạng thái ĐÓNG (mang hidden)',
+			false !== strpos( $the, 'hidden' ), $the );
+	}
+	/* Ngược lại: màn DANH SÁCH và ô nhắn mới phải MỞ sẵn — đóng cả hai thì bấm nút Tin nhắn ra
+	   một khung rỗng trơn, không có gì để bấm tiếp. */
+	foreach ( array( 'vhnb-chat-ds', 'vhnb-chat-moimoi' ) as $id_c ) {
+		$vt = strpos( $trong2, 'id="' . $id_c . '"' );
+		$the = ( false === $vt ) ? '' : substr( $trong2, $vt, (int) strpos( $trong2, '>', $vt ) - $vt );
+		t( $id_c . ' thì MỞ sẵn (không mang hidden)', '' !== $the && false === strpos( $the, 'hidden' ), $the );
+	}
+}
+
+/* 4. Và ba khối ấy đúng là có `display:` riêng — tức lưới phủ KHÔNG phải mã thừa. Bỏ nó ra là
+      `hidden` hết tác dụng ngay, đúng như lỗi anh gặp. */
+foreach ( array( 'vhnb-chat-panel', 'vhnb-chat-thread', 'vhnb-chat-moimoi' ) as $id_c ) {
+	t( $id_c . ' có đặt display riêng — nên PHẢI có lưới phủ',
+		1 === preg_match( '/#' . preg_quote( $id_c, '/' ) . '\{[^}]*display:/', $src_nb ), $id_c );
+}
+$_COOKIE = array();
+
 /* ================================================================= kết */
 
 echo "\n=== KIỂM TRANG NỘI BỘ ===\n";

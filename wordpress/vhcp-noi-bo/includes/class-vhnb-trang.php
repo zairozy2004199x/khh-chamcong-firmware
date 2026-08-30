@@ -1526,6 +1526,25 @@ class VHNB_Trang {
 			. '#vhnb-chat-form{display:flex;gap:6px;padding:8px;border-top:1px solid var(--vien);flex:none}'
 			. '#vhnb-chat-form input{flex:1;min-width:0;font-size:14px;border-radius:18px;'
 			. 'background:var(--ro);border-color:transparent}'
+			/* ═══════════════════════════════════════════════════════════════════════════════
+			 * 🔴 TRẢ LẠI SỨC CHO THUỘC TÍNH `hidden` — CHÍNH CSS Ở TRÊN ĐÃ VÔ HIỆU HOÁ NÓ.
+			 * ═══════════════════════════════════════════════════════════════════════════════
+			 * Anh Thắng 30/08/2026: *"chỗ tin nhắn chat không ẩn được"*.
+			 *
+			 * `[hidden]{display:none}` là quy tắc của TRÌNH DUYỆT, và quy tắc ấy yếu hơn MỌI
+			 * quy tắc viết trong trang. Ba khối của chat có `display:` đặt theo id —
+			 * `#vhnb-chat-panel{display:flex}`, `#vhnb-chat-moimoi{display:flex}`,
+			 * `#vhnb-chat-thread{display:flex}` — nên chúng đè thẳng lên `hidden`. JS đặt
+			 * `el.hidden=true` đúng chỗ đúng lúc, nhưng phần tử vẫn hiện nguyên:
+			 *   · bấm ✕ không đóng được khung chat;
+			 *   · vào một cuộc trò chuyện thì ô "Mã NV để nhắn tin mới" vẫn nằm đó, cùng lúc
+			 *     với ô "Nhắn gì đó" — hai ô nhập chồng nhau trong một khung 320px.
+			 *
+			 * ⚠️ ĐẶT SAU MỌI QUY TẮC CHAT Ở TRÊN, và có `!important`: đây là cái lưới cuối
+			 *    cùng cho CẢ KHỐI. Ngày mai thêm một khối chat khác có `display:` riêng thì nó
+			 *    vẫn ẩn được, không phải nhớ thêm một dòng nữa ở đây.
+			 */
+			. '#vhnb-chat [hidden]{display:none!important}'
 			. '@media(max-width:400px){#vhnb-chat-panel{right:8px;left:8px;width:auto;bottom:66px}'
 			. '#vhnb-chat-tab{right:10px;bottom:10px}}'
 
