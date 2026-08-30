@@ -7936,6 +7936,23 @@ t( 'nhân viên cũng thấy thẻ Lịch (xem ca của mình)',
 t( 'nhưng KHÔNG thấy việc nạp công (bậc Quản lý)',
 	strpos( $h_nha_ch, 'Nạp công từ .csv</b>' ) === false, $h_nha_ch );
 t( 'Admin thấy đủ, kể cả hồ sơ', strpos( $h_nha_ad, 'Hồ sơ &amp; tài khoản</b>' ) !== false, $h_nha_ad );
+
+/* ---- MỤC "NHÂN SỰ" + LỐI TẮT "THÊM NHÂN SỰ MỚI" -------------------------------------------
+   Anh Thắng 30/08/2026, gửi ảnh khối "Việc anh/chị làm được": *"bổ sung thêm mục nhân sự"*, rồi
+   *"THÊM NHÂN SỰ MỚI"* — trang /nhan-su/ (VHCC_TrangNS) trước đây chỉ có đường vào từ nút 👥 ở
+   thanh bên, không hiện ở khối tổng này nên dễ bị bỏ sót; và việc TẠO người mới (vừa được thêm ô
+   ảnh thẻ + đẩy máy ở bản 3.7.0) cũng cần một lối vào riêng thay vì chìm sau tile danh sách. */
+t( '🔴 Admin thấy mục "Nhân sự"', strpos( $h_nha_ad, 'Nhân sự</b>' ) !== false, $h_nha_ad );
+t( '🔴 dẫn đúng tới trang /nhan-su/ (VHCC_TrangNS::url())',
+	strpos( $h_nha_ad, 'href="' . esc_url( VHCC_TrangNS::url() ) . '"' ) !== false, $h_nha_ad );
+t( '🔴 Admin thấy lối tắt "Thêm nhân sự mới"', strpos( $h_nha_ad, 'Thêm nhân sự mới</b>' ) !== false, $h_nha_ad );
+t( '🔴 dẫn thẳng vào form tạo (man=ho_so&sua=+), không phải danh sách',
+	strpos( $h_nha_ad, 'href="' . esc_url( add_query_arg(
+		array( 'man' => 'ho_so', 'sua' => '+' ), VHCC_Web::url() ) ) . '"' ) !== false, $h_nha_ad );
+t( 'Nhân viên KHÔNG thấy mục Nhân sự (cùng quyền ho_so như Hồ sơ & tài khoản)',
+	strpos( $h_nha_nv, 'Nhân sự</b>' ) === false, $h_nha_nv );
+t( 'Nhân viên cũng KHÔNG thấy lối tắt Thêm nhân sự mới',
+	strpos( $h_nha_nv, 'Thêm nhân sự mới</b>' ) === false, $h_nha_nv );
 /* Mỗi thẻ phải có một câu nói việc đó ĐỂ LÀM GÌ — chỉ có tên thì vẫn phải đoán. */
 t( 'mỗi việc kèm một câu giải thích', substr_count( $h_nha_ad, '<span>' ) >= 5, $h_nha_ad );
 

@@ -3480,6 +3480,36 @@ class VHCC_Web {
 		$viec[] = array( 'q' => 'ho_so', 'bt' => self::bieu_man( 'ho_so' ), 'ten' => 'Hồ sơ & tài khoản',
 			'chu' => 'Khai người, cấp PIN, đặt vai trò và cơ sở phụ trách.',
 			'url' => add_query_arg( array( 'man' => 'ho_so' ), self::url() ) );
+		/**
+		 * 🔴 LỐI TẮT "THÊM NHÂN SỰ MỚI" — thẳng vào form tạo, không phải qua danh sách rồi mới
+		 * bấm "+ Hồ sơ mới". Anh Thắng 30/08/2026, ngay sau khi bản 3.7.0 đưa được ô ảnh thẻ +
+		 * đẩy máy + mẫu khuôn mặt vào tab Admin: *"THÊM NHÂN SỰ MỚI"* — muốn một lối vào riêng,
+		 * nổi bật, cho đúng việc vừa làm xong ở form đó, thay vì chìm trong tile "Hồ sơ & tài khoản"
+		 * (tile ấy mở ra DANH SÁCH, còn việc tạo người mới nằm sau một cú bấm nữa).
+		 */
+		$viec[] = array( 'q' => 'ho_so', 'bt' => '➕', 'ten' => 'Thêm nhân sự mới',
+			'chu' => 'Tạo hồ sơ mới ngay — có ô ảnh thẻ, tự đẩy xuống máy chấm công và làm mẫu '
+				. 'đối chiếu khuôn mặt cho chấm công online.',
+			'url' => add_query_arg( array( 'man' => 'ho_so', 'sua' => '+' ), self::url() ) );
+		/**
+		 * 🔴 "NHÂN SỰ" LÀ TRANG KHÁC (`VHCC_TrangNS`), NHƯNG VẪN LÀ MỘT VIỆC TRONG DANH SÁCH NÀY.
+		 *
+		 * Anh Thắng 30/08/2026: gửi ảnh khối "Việc anh/chị làm được" và nói *"bổ sung thêm mục
+		 * nhân sự"* — trang `/nhan-su/` trước đây chỉ có đường vào từ nút 👥 trên thanh bên,
+		 * không hiện ở khối tổng này nên dễ bị bỏ sót.
+		 *
+		 * ⚠️ Gác `class_exists`/`method_exists` CÙNG HÀM với lời gọi — luật
+		 *    `tools/test/kiem-goi-cheo.php` cho mọi lời gọi sang tệp khác. Chưa nạp `VHCC_TrangNS`
+		 *    (thứ tự require có vấn đề) thì đừng vẽ ra một việc gọi vào chỗ không tồn tại.
+		 *
+		 * ⚠️ QUYỀN `ho_so`, Y HỆT `VHCC_TrangNS::toi()`. Hai đường vào cùng một trang mà xét quyền
+		 *    khác nhau là sớm muộn một đường cho vào, một đường chối — người dùng thấy tuỳ hôm.
+		 */
+		if ( class_exists( 'VHCC_TrangNS' ) && method_exists( 'VHCC_TrangNS', 'url' ) ) {
+			$viec[] = array( 'q' => 'ho_so', 'bt' => '👥', 'ten' => 'Nhân sự',
+				'chu' => 'Ai vào được trang nào, bảng vai trò, ghép hồ sơ trùng, duyệt lệnh xuống máy.',
+				'url' => VHCC_TrangNS::url() );
+		}
 		$viec[] = array( 'q' => 'may', 'bt' => self::bieu_man( 'may' ), 'ten' => 'Máy & Firmware',
 			'chu' => 'Thiết bị ở cửa hàng, cổng nhận từ máy, nạp firmware từ xa.',
 			'url' => add_query_arg( array( 'man' => 'may' ), self::url() ) );
