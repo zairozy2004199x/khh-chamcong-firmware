@@ -142,26 +142,54 @@ static bool manKhoiTao() {
 }
 
 /* ─── CẢM ỨNG GT911 (I²C) ───────────────────────────────────────────────── */
+static uint8_t g_gt = 0;   // địa chỉ GT911 thật (tự dò: 0x5D hoặc 0x14), 0 = chưa thấy
+
 static bool gt911ReadReg(uint16_t reg, uint8_t* buf, size_t n) {
-  Wire.beginTransmission(P4_TOUCH_ADDR);
+  if (!g_gt) return false;
+  Wire.beginTransmission(g_gt);
   Wire.write((uint8_t)(reg >> 8)); Wire.write((uint8_t)(reg & 0xFF));
   if (Wire.endTransmission(false) != 0) return false;
-  size_t got = Wire.requestFrom((int)P4_TOUCH_ADDR, (int)n);
+  size_t got = Wire.requestFrom((int)g_gt, (int)n);
   for (size_t i = 0; i < n && Wire.available(); i++) buf[i] = Wire.read();
   return got == n;
 }
 static void gt911WriteReg(uint16_t reg, uint8_t v) {
-  Wire.beginTransmission(P4_TOUCH_ADDR);
+  if (!g_gt) return;
+  Wire.beginTransmission(g_gt);
   Wire.write((uint8_t)(reg >> 8)); Wire.write((uint8_t)(reg & 0xFF)); Wire.write(v);
   Wire.endTransmission();
 }
+// Thử đọc mã sản phẩm (reg 0x8140, 4 byte "911x") tại một địa chỉ để xác nhận GT911.
+static bool gt911Thu(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  Wire.write(0x81); Wire.write(0x40);
+  if (Wire.endTransmission(false) != 0) return false;
+  uint8_t id[4] = {0};
+  Wire.requestFrom((int)addr, 4);
+  for (int i = 0; i < 4 && Wire.available(); i++) id[i] = Wire.read();
+  Serial.printf("[GT911] thu @0x%02X -> ID '%c%c%c%c' (%02X %02X %02X %02X)\n",
+    addr, id[0]?id[0]:'.', id[1]?id[1]:'.', id[2]?id[2]:'.', id[3]?id[3]:'.', id[0],id[1],id[2],id[3]);
+  return id[0] == '9' && id[1] == '1' && id[2] == '1';   // "911"
+}
 static void gt911Init() {
-  // Reset GT911: giữ RST thấp rồi thả lên; địa chỉ mặc định 0x5D.
+  // Reset cứng GT911 (RST GPIO3): thả lên rồi chờ chip khởi động.
   gpio_config_t rc = { .pin_bit_mask = 1ULL << P4_TOUCH_RST, .mode = GPIO_MODE_OUTPUT };
   gpio_config(&rc);
-  gpio_set_level((gpio_num_t)P4_TOUCH_RST, 0); delay(10);
-  gpio_set_level((gpio_num_t)P4_TOUCH_RST, 1); delay(60);
+  gpio_set_level((gpio_num_t)P4_TOUCH_RST, 0); delay(20);
+  gpio_set_level((gpio_num_t)P4_TOUCH_RST, 1); delay(120);
   Wire.begin(P4_TOUCH_SDA, P4_TOUCH_SCL, 400000);
+
+  // Quét bus để nhìn thấy mọi thiết bị.
+  Serial.println("[I2C] quet bus SDA=7 SCL=8:");
+  for (uint8_t a = 1; a < 127; a++) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0) Serial.printf("[I2C]   @0x%02X\n", a);
+  }
+  // Tự dò địa chỉ GT911: thử 0x5D rồi 0x14.
+  if      (gt911Thu(0x5D)) g_gt = 0x5D;
+  else if (gt911Thu(0x14)) g_gt = 0x14;
+  if (g_gt) Serial.printf("[GT911] DUNG dia chi 0x%02X\n", g_gt);
+  else      Serial.println("[GT911] KHONG thay GT911 tren bus — kiem tra chan RST/INT hoac day I2C.");
 }
 // Trả số điểm chạm; nếu >0 điền x,y điểm đầu.
 static int gt911Doc(int* x, int* y) {
