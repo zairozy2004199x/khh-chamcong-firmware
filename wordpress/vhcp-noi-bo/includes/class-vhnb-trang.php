@@ -27,6 +27,114 @@ class VHNB_Trang {
 		return add_query_arg( 'vhnb', '1', home_url( '/' ) );
 	}
 
+	/**
+	 * PHẦN CÔNG KHAI — thứ người CHƯA đăng nhập nhìn thấy.
+	 *
+	 * Anh Thắng 30/08/2026: *"thấy trang chủ, nhưng thông tin chung, còn thông tin nội bộ thì
+	 * phải đăng nhập, thông tin chung như hướng dẫn sử dụng chẳng hạn"*.
+	 *
+	 * 🔴 KHÔNG MỘT DÒNG NÀO CỦA NỘI BỘ LỌT RA ĐÂY. Không bài đăng, không tên nhóm, không tên
+	 *    người, không con số. Trang này là trang chủ của một tên miền công khai — bất kỳ ai
+	 *    trên internet cũng mở được, và công cụ tìm kiếm cũng đọc được. Chỉ có: một câu giới
+	 *    thiệu, khối hướng dẫn dùng, và đường đăng nhập.
+	 *
+	 * 🔴 MỘT KHỐI TRỐNG TRƠN LÀ MỘT CÁI CỬA ĐÓNG. Bản trước chỉ có đúng một ô "Tới trang đăng
+	 *    nhập" giữa màn hình trắng: người mới vào không biết mình đang ở đâu, không biết lấy
+	 *    PIN ở đâu, và không có gì đọc trong lúc chưa có PIN.
+	 */
+	private static function phan_cong_khai() {
+		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `tools/test/kiem-goi-cheo.php`.
+		   Bốn plugin cài độc lập, bản có thể lệch nhau; `class_exists` chỉ nói CÓ PLUGIN, không
+		   nói CÓ HÀM. Gỡ plugin chấm công ra thì trang này vẫn phải chạy, chỉ mất đường đăng nhập. */
+		$co_cc  = ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) );
+		$url_cc = $co_cc ? VHCC_Web::url() : '';
+
+		echo '<div class="bo" style="max-width:760px;margin:0 auto;padding:34px 16px 60px">';
+
+		echo '<div class="the">';
+		echo '<h2 style="margin:0 0 6px">Nội bộ K&amp;H</h2>';
+		echo '<p class="mo" style="margin:0 0 16px">' . esc_html( self::loi_chao() ) . '</p>';
+		if ( $co_cc ) {
+			echo '<p style="margin:0"><a class="nut chinh" href="' . esc_url( $url_cc ) . '">'
+				. 'Đăng nhập bằng PIN chấm công</a></p>';
+			echo '<p class="mo" style="margin:12px 0 0;font-size:13px">Ba trang dùng chung một phiên — '
+				. 'đăng nhập một lần là vào được cả Nội bộ, Chấm công và Vận hành chi phí.</p>';
+		} else {
+			echo '<p class="mo" style="margin:0">Chưa cài plugin <b>Chấm công</b> trên site này, '
+				. 'nên chưa có đường đăng nhập. Nhờ quản trị cài rồi kích hoạt nó.</p>';
+		}
+		echo '</div>';
+
+		$hd = self::huong_dan();
+		if ( '' !== $hd ) {
+			echo '<div class="the">';
+			echo '<h3 style="margin:0 0 10px">Hướng dẫn sử dụng</h3>';
+			/* Mỗi DÒNG người khai gõ là một gạch đầu dòng. Không cho HTML: ô này nằm trên trang
+			   chủ công khai, và một thẻ script dán nhầm vào đây thì chạy trên máy mọi khách. */
+			echo '<ul style="margin:0;padding-left:20px">';
+			foreach ( preg_split( '/\r\n|\r|\n/', $hd ) as $dong ) {
+				$dong = trim( $dong );
+				if ( '' === $dong ) { continue; }
+				echo '<li style="margin:0 0 7px">' . esc_html( $dong ) . '</li>';
+			}
+			echo '</ul>';
+			echo '</div>';
+		}
+
+		/* Đường vào hai trang kia — người có PIN rồi thì đi thẳng, khỏi qua Nội bộ. */
+		echo '<div class="the">';
+		echo '<h3 style="margin:0 0 10px">Các trang khác</h3>';
+		echo '<p style="margin:0;display:flex;gap:10px;flex-wrap:wrap">';
+		if ( $co_cc ) {
+			echo '<a class="nut" href="' . esc_url( $url_cc ) . '">🕐 Chấm công</a>';
+		}
+		/* ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — chưa cài plugin chi phí thì trang
+		   này vẫn phải chạy, chỉ là thiếu đúng một cái nút. */
+		if ( class_exists( 'VHCP_App' ) && method_exists( 'VHCP_App', 'app_url' ) ) {
+			echo '<a class="nut" href="' . esc_url( VHCP_App::app_url() ) . '">💰 Vận hành chi phí</a>';
+		}
+		echo '</p></div>';
+
+		echo '</div>';
+	}
+
+	/** Có đang bật "dùng làm trang chủ" không. */
+	public static function lam_trang_chu() { return (bool) get_option( 'vhnb_trang_chu' ); }
+
+	/**
+	 * Hướng dẫn sử dụng hiện ở phần CÔNG KHAI của trang — người chưa đăng nhập cũng đọc được.
+	 *
+	 * Anh Thắng 30/08/2026: *"thấy trang chủ, nhưng thông tin chung, còn thông tin nội bộ thì
+	 * phải đăng nhập, thông tin chung như hướng dẫn sử dụng chẳng hạn"*.
+	 *
+	 * 🔴 NỘI DUNG DO NGƯỜI KHAI, KHÔNG GÕ CỨNG TRONG MÃ. Hướng dẫn là thứ đổi theo tháng —
+	 *    thêm một cửa hàng, đổi một quy trình là phải sửa. Gõ cứng thì mỗi lần sửa một câu chữ
+	 *    lại phải đóng gói và cài đè cả plugin.
+	 *
+	 * ⚠️ Mặc định KHÔNG để trống. Một khối hướng dẫn rỗng trên trang chủ trông như trang hỏng;
+	 *    và người vừa cài xong chưa kịp khai gì thì đó đúng là lúc cần hướng dẫn nhất.
+	 */
+	const HD_MAC_DINH = "Đăng nhập bằng mã PIN chấm công.\n"
+		. "Chưa có PIN, hoặc quên PIN: nhắn quản lý cửa hàng hoặc kế toán để được cấp lại.\n"
+		. "Đăng nhập một lần dùng được cả ba trang: Nội bộ, Chấm công, Vận hành chi phí.\n"
+		. "Vào Chấm công để xem công của mình trong tháng và xin phép đi trễ.\n"
+		. "Vào Vận hành chi phí để lên đơn tạm ứng và gửi quyết toán.";
+
+	public static function huong_dan() {
+		$v = get_option( 'vhnb_huong_dan', null );
+		if ( null === $v ) { return self::HD_MAC_DINH; }
+		$v = trim( (string) $v );
+		return ( '' === $v ) ? '' : $v;
+	}
+
+	/** Câu giới thiệu ngắn trên đầu phần công khai. */
+	public static function loi_chao() {
+		$v = trim( (string) get_option( 'vhnb_loi_chao', '' ) );
+		return ( '' !== $v ) ? $v
+			: 'Trang dùng chung của người nhà K&H: bảng tin, nhóm trao đổi, và đường vào chấm '
+				. 'công, vận hành chi phí.';
+	}
+
 	public static function init() {
 		add_rewrite_rule( '^' . self::slug() . '/?$', 'index.php?vhnb_trang=1', 'top' );
 		add_filter( 'query_vars', function ( $v ) { $v[] = 'vhnb_trang'; return $v; } );
@@ -40,10 +148,27 @@ class VHNB_Trang {
 	 *    giữa đường — nên toàn bộ phần vẽ trang sẽ không bao giờ có phép thử nào. Đúng cách
 	 *    `VHCC_Web` làm: `maybe_render` gác cửa và exit, `phuc_vu` chỉ in ra.
 	 */
+	/**
+	 * Yêu cầu này có phải trang Nội bộ không.
+	 *
+	 * Tách khỏi `hien_trang()` vì chỗ kia kết thúc bằng `exit` — mà `exit` thì không phép thử
+	 * nào chạy qua được. Phần đáng thử là QUYẾT ĐỊNH: chiếm cái gì, không chiếm cái gì.
+	 *
+	 * ⚠️ CHỈ chiếm ĐÚNG trang chủ khi được bật, không chiếm gì khác. `is_front_page()` là chốt
+	 *    duy nhất — thiếu nó thì mọi trang của site biến thành trang Nội bộ, kể cả trang của
+	 *    app khác, và người dùng không còn đường nào đi tiếp.
+	 *
+	 * ⚠️ `template_redirect` KHÔNG chạy trong wp-admin. Bật nhầm cũng không bao giờ khoá được
+	 *    anh ra khỏi wp-admin — luôn còn đường vào để tắt lại.
+	 */
+	public static function nen_ve() {
+		if ( (int) get_query_var( 'vhnb_trang' ) === 1 ) { return true; }
+		if ( isset( $_GET['vhnb'] ) ) { return true; }
+		return self::lam_trang_chu() && ! is_admin() && is_front_page();
+	}
+
 	public static function hien_trang() {
-		$la = ( (int) get_query_var( 'vhnb_trang' ) === 1 );
-		if ( ! $la && isset( $_GET['vhnb'] ) ) { $la = true; }
-		if ( ! $la ) { return; }
+		if ( ! self::nen_ve() ) { return; }
 		nocache_headers();
 		self::phuc_vu();
 		exit;
@@ -353,12 +478,7 @@ class VHNB_Trang {
 			return;
 		}
 		if ( ! $toi ) {
-			echo '<div class="bo"><div class="the" style="max-width:460px;margin:40px auto">'
-				. '<h2>Nội bộ K&amp;H</h2>'
-				. '<p class="mo">Đăng nhập bằng <b>mã PIN chấm công</b> ở trang chấm công, rồi quay '
-				. 'lại đây — hai trang dùng chung một phiên, không phải nhập PIN hai lần.</p>'
-				. '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() ) . '">Tới trang đăng nhập</a></p>'
-				. '</div>';
+			self::phan_cong_khai();
 			self::dong_trang();
 			return;
 		}

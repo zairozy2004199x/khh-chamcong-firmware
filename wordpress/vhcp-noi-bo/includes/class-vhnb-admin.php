@@ -46,12 +46,43 @@ class VHNB_Admin {
 			update_option( 'vhnb_slug', isset( $_POST['slug'] )
 				? sanitize_title( wp_unslash( $_POST['slug'] ) ) : '' );
 			update_option( 'vhnb_rw', 1 );   // đổi đường dẫn -> phải ghi lại bộ luật đường
+
+			/* Trang chủ + phần công khai. Anh Thắng 30/08/2026: *"cho trang này là trang chủ
+			   luôn, nhân viên đăng nhập vào sẽ thấy trang này"* và *"thấy trang chủ, nhưng
+			   thông tin chung… như hướng dẫn sử dụng chẳng hạn"*. */
+			$lam_tc = empty( $_POST['trang_chu'] ) ? 0 : 1;
+			update_option( 'vhnb_trang_chu', $lam_tc );
+			/* 🔴 MỘT TRANG CHỦ CHỈ CÓ MỘT CHỦ.
+			   Plugin Trang cổng cũng có ô "dùng làm trang chủ", cũng móc `template_redirect`,
+			   cũng kiểm `is_front_page()`. Bật cả hai thì cái nào chạy trước thắng — mà thứ tự
+			   ấy do thứ tự nạp plugin quyết định, tức là do TÊN THƯ MỤC. Không ai đoán được, và
+			   đổi tên thư mục một ngày nào đó là trang chủ đổi theo mà chẳng ai hiểu vì sao.
+			   Nên: bật cái này thì TẮT cái kia, và nói ra ngay. */
+			if ( $lam_tc && get_option( 'vhtc_trang_chu' ) ) {
+				update_option( 'vhtc_trang_chu', 0 );
+				$bao_them = ' Đã tắt "dùng làm trang chủ" của <b>Trang cổng</b> — một trang chủ '
+					. 'chỉ có một chủ. Trang cổng vẫn mở được ở đường dẫn riêng của nó.';
+			}
+			update_option( 'vhnb_loi_chao', isset( $_POST['loi_chao'] )
+				? sanitize_text_field( wp_unslash( $_POST['loi_chao'] ) ) : '' );
+			/* 🔴 HƯỚNG DẪN LÀ VĂN BẢN THUẦN, KHÔNG PHẢI HTML. Ô này in ra TRANG CHỦ CÔNG KHAI —
+			   ai trên internet cũng đọc được. `wp_kses_post` vẫn cho qua khá nhiều thẻ; ở đây
+			   không cần thẻ nào cả, nên cắt sạch bằng `sanitize_textarea_field` và để phần vẽ
+			   tự bẻ dòng thành gạch đầu dòng. */
+			update_option( 'vhnb_huong_dan', isset( $_POST['huong_dan'] )
+				? sanitize_textarea_field( wp_unslash( $_POST['huong_dan'] ) ) : '' );
 			$bao = 'Đã lưu.';
+			if ( isset( $bao_them ) ) { $bao .= $bao_them; }
 		}
 
 		$cf = VHNB_Quyen::cai_dat();
 		echo '<div class="wrap"><h1>Nội bộ K&amp;H</h1>';
-		if ( '' !== $bao ) { echo '<div class="notice notice-success"><p>' . esc_html( $bao ) . '</p></div>'; }
+		if ( '' !== $bao ) {
+			/* Lời báo có thể kèm một chữ <b> (tên plugin vừa bị tắt) — cho đúng thẻ ấy, không
+			   mở cửa cho thẻ nào khác. */
+			echo '<div class="notice notice-success"><p>'
+				. wp_kses( $bao, array( 'b' => array() ) ) . '</p></div>';
+		}
 
 		echo '<p>Trang nội bộ dùng chung mã PIN với hệ chấm công, và dùng chung <b>thang năm bậc</b> '
 			. 'của hệ đó: Nhân viên → Cửa hàng trưởng → Quản lý → Kế toán → Admin. '
@@ -89,6 +120,41 @@ class VHNB_Admin {
 			. 'placeholder="noi-bo" style="width:180px"> <code>/</code>'
 			. '<p class="description">Để trống = <code>noi-bo</code>. Đổi xong WordPress tự ghi lại bộ luật đường.</p>'
 			. '</td></tr>';
+		if ( ! VHNB_Trang::lam_trang_chu() && get_option( 'vhtc_trang_chu' ) ) {
+			echo '<div class="notice notice-info inline" style="margin:12px 0"><p>'
+				. '<b>Trang cổng</b> đang giữ trang chủ. Tích ô dưới đây là Nội bộ nhận trang chủ '
+				. 'và Trang cổng tự nhường — không phải vào bên kia tắt tay.</p></div>';
+		}
+		echo '<tr><th scope="row">Dùng làm trang chủ</th><td>'
+			. '<label><input type="checkbox" name="trang_chu" value="1"'
+			. checked( VHNB_Trang::lam_trang_chu(), true, false ) . '> Vào '
+			. esc_html( home_url( '/' ) ) . ' là ra thẳng trang Nội bộ</label>'
+			. '<p class="description">Người <b>chưa đăng nhập</b> thấy phần công khai: lời chào, '
+			. 'hướng dẫn sử dụng và nút đăng nhập — <b>không</b> thấy bài đăng, nhóm hay tên ai. '
+			. 'Đăng nhập rồi mới ra bảng tin.<br>'
+			/* Câu này để anh Thắng khỏi sợ bật rồi không lùi được — nỗi sợ đó làm người ta không
+			   dám bấm, rồi tính năng nằm đó không ai dùng. */
+			. '<b>Bật nhầm không sao:</b> wp-admin không bị ảnh hưởng, vào lại đây bỏ tích là xong. '
+			. 'Đường dẫn <code>/' . esc_html( VHNB_Trang::slug() ) . '</code> vẫn dùng được như cũ.</p>'
+			. '</td></tr>';
+
+		echo '<tr><th scope="row"><label for="loi_chao">Lời chào</label></th><td>'
+			. '<input id="loi_chao" name="loi_chao" class="large-text" value="'
+			. esc_attr( (string) get_option( 'vhnb_loi_chao', '' ) ) . '" placeholder="'
+			. esc_attr( VHNB_Trang::loi_chao() ) . '">'
+			. '<p class="description">Một câu dưới tiêu đề ở phần công khai. Để trống = dùng câu mặc định.</p>'
+			. '</td></tr>';
+
+		$hd_dang = get_option( 'vhnb_huong_dan', null );
+		echo '<tr><th scope="row"><label for="huong_dan">Hướng dẫn sử dụng</label></th><td>'
+			. '<textarea id="huong_dan" name="huong_dan" class="large-text" rows="7">'
+			. esc_textarea( null === $hd_dang ? VHNB_Trang::HD_MAC_DINH : (string) $hd_dang )
+			. '</textarea>'
+			. '<p class="description"><b>Mỗi dòng là một gạch đầu dòng</b> trên trang. '
+			. 'Chỉ chữ thường, không dùng thẻ HTML — khối này hiện trên trang chủ công khai. '
+			. 'Xoá hết rồi lưu = bỏ hẳn khối hướng dẫn.</p>'
+			. '</td></tr>';
+
 		echo '</tbody></table>';
 		submit_button( 'Lưu', 'primary', 'vhnb_luu' );
 		echo '</form>';

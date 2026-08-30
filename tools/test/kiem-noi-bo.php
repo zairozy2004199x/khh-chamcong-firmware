@@ -339,11 +339,108 @@ teq( 'bao_lau: giờ hỏng thì trả rỗng, không ghi 01/01/1970', '', VHNB_
 vhnb_dung_bang();
 $_GET = array(); $_POST = array(); $_COOKIE = array();
 
+/* ==================================================================================
+   PHẦN CÔNG KHAI — thứ người CHƯA đăng nhập nhìn thấy trên trang chủ
+
+   Anh Thắng 30/08/2026: *"cho trang này là trang chủ luôn, nhân viên đăng nhập vào sẽ thấy
+   trang này"*, rồi nói rõ thêm: *"thấy trang chủ, nhưng thông tin chung, còn thông tin nội bộ
+   thì phải đăng nhập, thông tin chung như hướng dẫn sử dụng chẳng hạn"*.
+   ================================================================================== */
 ob_start(); VHNB_Trang::ve( null ); $h_ra = ob_get_clean();
-t( 'chưa đăng nhập -> mời sang trang chấm công đăng nhập', false !== strpos( $h_ra, 'Tới trang đăng nhập' ) );
+t( 'chưa đăng nhập -> có đường đăng nhập bằng PIN chấm công',
+	false !== strpos( $h_ra, 'Đăng nhập bằng PIN chấm công' ), $h_ra );
 t( 'và KHÔNG có ô đăng bài', false === strpos( $h_ra, 'name="noi_dung"' ) );
 t( 'và KHÔNG hỏi PIN ở đây (một cửa PIN thôi, không mở cửa thứ hai)',
 	false === strpos( $h_ra, 'name="pin"' ), $h_ra );
+
+/* 🔴 THÔNG TIN CHUNG THÌ CÓ. Bản trước chỉ có đúng một cái nút giữa màn hình trắng: người mới
+   vào không biết mình đang ở đâu, không biết lấy PIN ở đâu, và không có gì đọc trong lúc chưa
+   có PIN. */
+t( '🔴 có khối Hướng dẫn sử dụng', false !== strpos( $h_ra, 'Hướng dẫn sử dụng' ), $h_ra );
+t( 'mỗi dòng người khai thành một gạch đầu dòng',
+	preg_match( '/<li[^>]*>Đăng nhập bằng mã PIN chấm công\.<\/li>/', $h_ra ) === 1, $h_ra );
+t( 'có lời chào giới thiệu trang', false !== strpos( $h_ra, 'Trang dùng chung của người nhà' ), $h_ra );
+t( 'và đường sang trang Chấm công', false !== strpos( $h_ra, 'Chấm công</a>' ), $h_ra );
+
+/* 🔴 KHÔNG MỘT DÒNG NÀO CỦA NỘI BỘ LỌT RA TRANG CHỦ CÔNG KHAI.
+   Đây là trang bất kỳ ai trên internet cũng mở được, và công cụ tìm kiếm cũng đọc được. Dựng
+   sẵn một bài đăng có tên người, một nhóm có tên, rồi soi xem có rò gì không. */
+/* ⚠️ DỌN LẠI SAU KHI SOI. Bài dựng thêm ở đây làm lệch mọi phép ĐẾM của các khối phía sau
+   ("admin thấy nút Xoá ở MỌI bài" đếm đúng số bài) — cái bẫy thứ tự khối thử đã cắn nhiều lần
+   trong dự án này. */
+$id_ro = VHNB_Bai::dang( $U_AD, 'Bài mật chỉ người nhà đọc' );
+ob_start(); VHNB_Trang::ve( null ); $h_ra2 = ob_get_clean();
+t( '🔴 nội dung bài KHÔNG lọt ra ngoài',
+	false === strpos( $h_ra2, 'Bài mật chỉ người nhà đọc' ), $h_ra2 );
+t( '🔴 tên người đăng cũng không',
+	false === strpos( $h_ra2, (string) $U_AD['name'] ), $h_ra2 );
+t( 'không có ô bình luận', false === strpos( $h_ra2, 'name="binh_luan"' ), $h_ra2 );
+t( 'không có cột nhóm', false === strpos( $h_ra2, 'NHÓM CỦA TÔI' ), $h_ra2 );
+VHNB_Bai::xoa( $U_AD, is_array( $id_ro ) ? (int) ( isset( $id_ro['id'] ) ? $id_ro['id'] : 0 ) : (int) $id_ro );
+
+/* Khai lại lời chào và hướng dẫn — cả hai phải ăn ngay ra trang. */
+update_option( 'vhnb_loi_chao', 'Chào bà con K&H' );
+update_option( 'vhnb_huong_dan', "Dòng một\nDòng hai" );
+ob_start(); VHNB_Trang::ve( null ); $h_ra3 = ob_get_clean();
+t( 'lời chào khai tay ăn ngay', false !== strpos( $h_ra3, 'Chào bà con K&amp;H' ), $h_ra3 );
+t( 'hướng dẫn khai tay cũng vậy', false !== strpos( $h_ra3, '<li style="margin:0 0 7px">Dòng hai</li>' ), $h_ra3 );
+t( 'và câu mặc định biến mất', false === strpos( $h_ra3, 'Chưa có PIN, hoặc quên PIN' ), $h_ra3 );
+
+/* ⚠️ Ô này in ra trang chủ CÔNG KHAI. Một thẻ dán nhầm vào đây thì chạy trên máy mọi khách. */
+update_option( 'vhnb_huong_dan', 'Bình thường<script>alert(1)</script>' );
+ob_start(); VHNB_Trang::ve( null ); $h_xss = ob_get_clean();
+t( '🔴 thẻ script trong ô hướng dẫn KHÔNG chạy được',
+	false === strpos( $h_xss, '<script>alert' ), $h_xss );
+
+/* Xoá hết rồi lưu = bỏ hẳn khối hướng dẫn, khác với "chưa khai bao giờ". */
+update_option( 'vhnb_huong_dan', '' );
+ob_start(); VHNB_Trang::ve( null ); $h_trong = ob_get_clean();
+t( 'xoá hết thì bỏ hẳn khối hướng dẫn',
+	false === strpos( $h_trong, 'Hướng dẫn sử dụng' ), $h_trong );
+teq( 'nhưng chưa khai bao giờ thì vẫn có mặc định', VHNB_Trang::HD_MAC_DINH,
+	( delete_option( 'vhnb_huong_dan' ) || true ) ? VHNB_Trang::huong_dan() : '' );
+delete_option( 'vhnb_loi_chao' );
+
+/* ---- DÙNG LÀM TRANG CHỦ ---- */
+delete_option( 'vhnb_trang_chu' );
+t( 'mặc định KHÔNG chiếm trang chủ', ! VHNB_Trang::lam_trang_chu() );
+update_option( 'vhnb_trang_chu', 1 );
+t( 'bật thì lam_trang_chu = true', VHNB_Trang::lam_trang_chu() );
+
+/* 🔴 CHIẾM ĐÚNG TRANG CHỦ, KHÔNG CHIẾM GÌ KHÁC.
+   `is_front_page()` là chốt duy nhất. Thiếu nó thì MỌI trang của site biến thành trang Nội bộ
+   — kể cả trang của app khác — và người dùng không còn đường nào đi tiếp. Đây là loại hỏng
+   không ai thử ra bằng mắt, vì trang chủ vẫn đúng. */
+$GLOBALS['VHCP_QVAR'] = array();
+$GLOBALS['VHCP_LA_ADMIN'] = 0;
+$GLOBALS['VHCP_LA_TRANG_CHU'] = 1;
+t( 'bật + đang ở trang chủ -> chiếm', VHNB_Trang::nen_ve() );
+$GLOBALS['VHCP_LA_TRANG_CHU'] = 0;
+t( '🔴 bật nhưng KHÔNG phải trang chủ -> KHÔNG chiếm', ! VHNB_Trang::nen_ve() );
+
+/* ⚠️ `template_redirect` không chạy trong wp-admin, nhưng chốt vẫn phải có: bật nhầm thì cũng
+   không bao giờ khoá được anh Thắng ra khỏi wp-admin. */
+$GLOBALS['VHCP_LA_TRANG_CHU'] = 1;
+$GLOBALS['VHCP_LA_ADMIN'] = 1;
+t( '🔴 trong wp-admin thì KHÔNG chiếm', ! VHNB_Trang::nen_ve() );
+$GLOBALS['VHCP_LA_ADMIN'] = 0;
+
+/* Chưa bật thì trang chủ vẫn là trang chủ của người khác. */
+delete_option( 'vhnb_trang_chu' );
+t( 'chưa bật -> trang chủ không bị đụng tới', ! VHNB_Trang::nen_ve() );
+
+/* Nhưng đường dẫn riêng `/noi-bo/` thì luôn chạy, bật hay không cũng vậy. */
+$GLOBALS['VHCP_LA_TRANG_CHU'] = 0;
+$GLOBALS['VHCP_QVAR'] = array( 'vhnb_trang' => 1 );
+t( 'đường dẫn riêng luôn chạy dù chưa bật trang chủ', VHNB_Trang::nen_ve() );
+$GLOBALS['VHCP_QVAR'] = array();
+/* Đường dự phòng `?vhnb=1` — dùng khi site chưa bật đường dẫn tĩnh (permalink), lúc ấy luật
+   `^noi-bo/?$` chưa có hiệu lực và đây là cửa DUY NHẤT vào trang. */
+$_GET['vhnb'] = '1';
+t( 'đường dự phòng ?vhnb=1 vẫn vào được', VHNB_Trang::nen_ve() );
+unset( $_GET['vhnb'] );
+t( 'bỏ tham số ra thì thôi', ! VHNB_Trang::nen_ve() );
+delete_option( 'vhnb_trang_chu' );
 
 $_COOKIE[ VHCC_Web::COOKIE ] = $TOK_NV;
 VHNB_Bai::dang( $U_CHT, "Dòng một\nDòng hai", 'Văn phòng' );
