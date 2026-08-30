@@ -25,6 +25,7 @@
 #include "esp_lcd_panel_io.h"
 #include "esp_lcd_panel_ops.h"
 #include "driver/gpio.h"
+#include "esp_ldo_regulator.h"   // 🔴 D-PHY của MIPI-DSI phải được cấp nguồn qua LDO nội (kênh 3)
 
 #include "cau_hinh_p4.h"
 #include "panel_jc4880p443.h"
@@ -65,6 +66,14 @@ static bool manKhoiTao() {
   gpio_config_t bl = { .pin_bit_mask = 1ULL << PANEL_BL_GPIO, .mode = GPIO_MODE_OUTPUT };
   gpio_config(&bl);
   gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 0);
+
+  // 🔴 CẤP NGUỒN D-PHY (LDO kênh 3, 2.5V) — thiếu bước này DSI không chạy, màn ĐEN.
+  static esp_ldo_channel_handle_t ldo = nullptr;
+  esp_ldo_channel_config_t ldo_cfg = {};
+  ldo_cfg.chan_id    = 3;
+  ldo_cfg.voltage_mv = 2500;
+  if (esp_ldo_acquire_channel(&ldo_cfg, &ldo) != ESP_OK) { Serial.println("[LCD] LOI: LDO D-PHY (kenh 3)"); return false; }
+  Serial.println("[LCD] LDO D-PHY 2.5V OK.");
 
   // Bus DSI (2 lane, 500 Mbps).
   esp_lcd_dsi_bus_handle_t dsi = nullptr;
@@ -116,6 +125,7 @@ static bool manKhoiTao() {
   if (esp_lcd_new_panel_dpi(dsi, &dpi, &g_panel) != ESP_OK) { Serial.println("[LCD] LOI: new_panel_dpi"); return false; }
   esp_lcd_panel_reset(g_panel);
   esp_lcd_panel_init(g_panel);
+  esp_lcd_panel_disp_on_off(g_panel, true);   // bật hiển thị (vài phiên bản không tự bật)
 
   // Lấy con trỏ framebuffer để vẽ thẳng.
   if (esp_lcd_dpi_panel_get_frame_buffer(g_panel, 1, (void**)&g_fb) != ESP_OK || !g_fb) {
