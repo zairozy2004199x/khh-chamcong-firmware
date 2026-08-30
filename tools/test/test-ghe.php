@@ -2228,6 +2228,70 @@ t( 'vẫn đi qua khoá chống bấm hai lần', strpos( $html_c, "lam('chot_lu
 t( '🔴 chốt ca không còn ghi doanh thu qua tien_mat',
 	strpos( $html_c, "lam('tien_mat'" ) === false );
 
+// ============================================ TAB ĐIỀU KHIỂN + KHỞI ĐỘNG LẠI TỪ XA
+/* Ghế ở 26 cửa hàng, không ai ở đó để rút điện. Khởi động lại từ xa là cách duy nhất dựng lại
+   một con ghế treo mà không phải chạy tới nơi. */
+vhg_dung_bang();
+VHG_May::luu_nhan_tien( '970418', '888815678', 'K&H' );
+$tok_dk = vhg_vao( '571394', 'Admin' );
+VHG_May::luu_may( array( 'ma' => 'AMTP01', 'coso_id' => 0, 'gia' => 50000, 'phut' => 15,
+	'so_tk' => '', 'ten_tk' => '', 'bank_bin' => '', 'ten_khai' => '', 'mac' => 'AA:BB:CC:DD:EE:01' ) );
+
+$r = vhg_web( 'khoi_dong_lai', array( 'token' => $tok_dk, 'ma_may' => 'AMTP01' ) );
+t( 'đặt được lệnh khởi động lại từ trang ngoài', ! empty( $r['ok'] ), $r );
+$l = VHG_May::ds_lenh( 3 );
+teq( 'lệnh ghi đúng loại', 'reboot', $l[0]['viec'] );
+teq( '🔴 ghi TÊN NGƯỜI CẦM PHIÊN, không lấy từ gói gửi lên', 'Anh Thắng', $l[0]['nguoi'] );
+list( , $lg ) = vhg_ghe( array( 'ma_may' => 'AMTP01', 'viec' => 'lenh' ) );
+teq( 'ghế lấy được lệnh đó', 'reboot', $lg['viec'] );
+/* Người bấm phải được nói trước là ghế KHÔNG khởi động ngay: nó chờ hết lượt khách đang chạy. */
+t( 'câu báo nói rõ ghế mất ~30 giây mới gửi nhịp lại',
+	strpos( $r['thong_bao'], '30 giây' ) !== false, $r );
+
+$r = VHG_May::dat_lenh( 'AMTP01', 'ba-la-bla', 0, 'Anh Thắng' );
+teq( 'lệnh lạ thì chối', false, $r['ok'] );
+t( 'và liệt kê đúng ba lệnh có thật', strpos( $r['error'], 'reboot' ) !== false );
+
+/* Không token thì KHÔNG được khởi động lại ghế của người khác. */
+$r = vhg_web( 'khoi_dong_lai', array( 'ma_may' => 'AMTP01' ) );
+teq( 'không token thì chối', false, $r['ok'] );
+teq( 'và chối bằng mã het_phien', 'het_phien', $r['ma'] );
+
+// ---- giao diện tab
+$html_dk = vhg_web_html();
+t( 'có thanh tab chính', strpos( $html_dk, 'data-tab="dieu-khien"' ) !== false );
+t( 'tab điều khiển vẽ THẺ từng ghế, không phải hàng bảng',
+	strpos( $html_dk, 'ghe-luoi' ) !== false && strpos( $html_dk, 'function veDieuKhien()' ) !== false );
+t( 'có nút khởi động lại', strpos( $html_dk, 'data-kd=' ) !== false );
+t( 'và hỏi lại trước khi khởi động', strpos( $html_dk, 'Khởi động lại ghế' ) !== false );
+/* ⚠️ Trạng thái ghế khai MỘT chỗ: hai tab cùng hiện nó, khai hai nơi là sớm muộn một tab nói
+      "Rảnh" còn tab kia nói "Đang chạy" — và người đọc không biết tin tab nào. */
+t( 'trạng thái ghế tính ở đúng một hàm',
+	substr_count( $html_dk, 'function trangThai(m)' ) === 1
+	&& substr_count( $html_dk, "'p-off','Mất kết nối'" ) === 1, $html_dk ? '' : '' );
+/* Đổi tab KHÔNG gọi lại máy chủ: đổi tab không phải đổi dữ liệu, và trên 4G mỗi lượt gọi thừa
+   là một lần chờ. */
+t( 'đổi tab vẽ lại từ dữ liệu đang có, không gọi lại máy chủ',
+	preg_match( '/localStorage\.setItem\(.vhg_tab.[^;]*;\s*\/\*[^*]*\*\/\s*ve\(\);/s', $html_dk ) === 1
+	|| strpos( $html_dk, "ve();\n    };\n  });" ) !== false );
+
+// ---- firmware: khởi động lại KHÔNG cắt ngang lượt khách
+$fw4 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
+t( 'firmware hiểu lệnh reboot', strpos( $fw4, 'viec == "reboot"' ) !== false );
+/* 🔴 KHÔNG khởi động ngay. Khách đang nằm trên ghế và đã trả tiền thì khởi động lại là cắt mất
+      lượt của họ, mà tiền đã vào sổ rồi — không dựng lại được. */
+t( 'đánh dấu chờ, không gọi ESP.restart() ngay trong checkRemoteCmd',
+	strpos( $fw4, 'g_rebootCho = true' ) !== false );
+$i_cmd = strpos( $fw4, 'void checkRemoteCmd()' );
+$i_end = strpos( $fw4, '}', strpos( $fw4, 'g_rebootCho = true' ) );
+t( 'trong checkRemoteCmd KHÔNG có ESP.restart()',
+	strpos( substr( $fw4, $i_cmd, $i_end - $i_cmd ), 'ESP.restart' ) === false );
+t( 'chỉ khởi động lại khi ghế RẢNH',
+	preg_match( '/state==ST_IDLE\)\{.{0,400}g_rebootCho.{0,600}ESP\.restart/s', $fw4 ) === 1 );
+/* Nói ra trên màn trước khi tắt: người đứng cạnh ghế thấy nó tối đi mà không có lý do thì
+   tưởng ghế hỏng và đi tháo dây. */
+t( 'và nói ra trên màn trước khi tắt', strpos( $fw4, 'DANG KHOI DONG LAI' ) !== false );
+
 // ============================================ MAC: MỘT DẠNG DUY NHẤT
 /* 🔴 Anh Thắng 22/08/2026: *"không có chỗ nhập mac, chỉ có mã"*. Dòng khai tay không có MAC là
       dòng KHÔNG GẮN VỚI GHẾ NÀO — ghế cắm điện lên đẻ ra dòng thứ hai, và dòng chạy thật là
