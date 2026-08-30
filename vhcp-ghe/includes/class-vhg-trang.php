@@ -1326,7 +1326,7 @@ class VHG_Trang {
       '.bc-f>span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#334155}',
       '.bc-app-in input,.bc-app-in select,#bc-app input,#bc-app select{font:inherit;padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;color:#0f172a}',
       '#bc-app input:focus,#bc-app select:focus{outline:none;border-color:#4f46e5}',
-      '.bc-btn{font:inherit;font-weight:700;padding:10px 16px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer}',
+      '.bc-btn{font:inherit;font-weight:700;padding:10px 16px;border-radius:10px;border:1px solid #e2e8f0;background:#fff;color:#0f172a;cursor:pointer;display:inline-block;text-decoration:none}',
       '.bc-btn.pri{background:#4f46e5;border-color:#4f46e5;color:#fff}',
       '.bc-btn.pri:disabled{opacity:.6;cursor:not-allowed}',
       '.bc-btn.warn{background:#b45309;border-color:#b45309;color:#fff}',
@@ -1422,6 +1422,15 @@ class VHG_Trang {
     var t=el('div'); t.appendChild(el('b',null,'POSH ')); t.appendChild(document.createTextNode((BC.staff||'')));
     top.appendChild(t);
     top.appendChild(el('span','bc-sp'));
+    /* Chấm công online — anh Thắng 30/08/2026: "bổ sung link chấm công online cho nhân viên
+       thao tác nhanh khi làm xong và chấm công đi về ... cạnh chữ gọn ... bấm là vào thẳng
+       trang check in luôn". Cùng MỘT hàm veChinh() vẽ cho cả PC lẫn điện thoại (khác nhau chỉ
+       ở CSS theo lớp .gon), nên đặt một lần ở đây là tự đồng bộ cả hai, không cần vẽ hai chỗ. */
+    if (BC.chamCongUrl) {
+      var cc=el('a','bc-btn','⏱ Chấm công'); cc.href=BC.chamCongUrl; cc.target='_blank'; cc.rel='noopener';
+      cc.title='Vào thẳng trang chấm công online để check in / check out';
+      top.appendChild(cc);
+    }
     var tg=el('button','bc-btn', GON ? '🖥 Đầy đủ' : '📱 Gọn');
     tg.title = GON ? 'Chuyển sang chế độ đầy đủ (máy tính)' : 'Chuyển sang chế độ gọn (điện thoại)';
     tg.onclick=function(){ datGon(!GON); };

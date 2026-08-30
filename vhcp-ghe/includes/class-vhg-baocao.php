@@ -395,7 +395,26 @@ class VHG_BaoCao {
 		return array( 'ok' => true, 'pinOk' => true, 'staff' => $q['ten'],
 			'today' => current_time( 'Y-m-d' ), 'don_vi' => self::don_vi(),
 			'coso' => array_keys( $cs ), 'ghe' => $ghe, 'khoa' => $khoa_loc,
-			'gon' => self::gon_cua( $pin ) );
+			'gon' => self::gon_cua( $pin ), 'chamCongUrl' => self::cham_cong_url() );
+	}
+
+	/**
+	 * Đường vào THẲNG trang chấm công online (trạm PIN của plugin Chấm Công) — anh Thắng
+	 * 30/08/2026: *"bổ sung link chấm công online cho nhân viên thao tác nhanh khi làm xong và
+	 * chấm công đi về ... bấm là vào thẳng trang check in luôn"*.
+	 *
+	 * ⚠️ Y HỆT LUẬT GỌI CHÉO CỦA CẢ HỆ (`tools/test/kiem-goi-cheo.php` ở nhánh chi phí): gác
+	 *    `class_exists && method_exists` NGAY TẠI ĐÂY, không giả định plugin Chấm Công có mặt —
+	 *    hai plugin cài ĐỘC LẬP nhau. `VHCC_Tram::url()` đọc đúng đường dẫn đã cấu hình (có thể
+	 *    khác mặc định nếu Admin đổi ở màn cấu hình), nên ưu tiên gọi thẳng; thiếu plugin thì lùi
+	 *    về đường mặc định `VHCC_Tram::SLUG_MD` (‘cham-cong-online’) — vẫn còn một đường vào hợp
+	 *    lý thay vì trơ nút bấm.
+	 */
+	private static function cham_cong_url() {
+		if ( class_exists( 'VHCC_Tram' ) && method_exists( 'VHCC_Tram', 'url' ) ) {
+			return VHCC_Tram::url();
+		}
+		return home_url( '/cham-cong-online/' );
 	}
 
 	/**
