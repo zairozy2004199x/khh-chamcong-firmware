@@ -1,31 +1,34 @@
 /* ============================================================================
- *  POSH QR — bản PORT sang GUITION JC4880P443C (ESP32-P4 + ESP32-C6)
+ *  POSH QR — bản PORT sang GUITION JC-ESP32-P4-M3-Dev (JC4880P443)
+ *  ESP32-P4 + ESP32-C6 · màn ST7701S 480×800 MIPI-DSI · cảm ứng GT911 · WiFi qua C6
  *  ----------------------------------------------------------------------------
- *  GIAI ĐOẠN 1a — BRING-UP (KHÔNG cần màn hình).
+ *  GIAI ĐOẠN 1b — BRING-UP PHẦN CỨNG (chưa có logic ghế).
+ *  Mục tiêu, nạp lên phải thấy:
+ *     · Màn SÁNG: nền xanh navy + 3 vạch màu (đỏ/lục/lam) + ô trắng ở giữa.
+ *     · CHẠM vào màn → vẽ ô vàng tại chỗ chạm + in toạ độ ra Serial.
+ *     · Serial in thông tin chip, WiFi (qua C6) nối được + IP.
+ *  Thấy đủ 3 cái trên = nền màn/cảm ứng/WiFi OK → GĐ2 bê logic ghế + cổng tiền vào.
  *
- *  Mục tiêu: xác nhận BO SỐNG trước khi bỏ công vào lớp màn DSI:
- *     · In thông tin chip P4 (model, heap, PSRAM, MAC).
- *     · Quét bus I²C (SDA 7 / SCL 8) — phải thấy GT911 @ 0x5D và codec ES8311.
- *     · Nối WiFi qua ESP32-C6 (ESP-Hosted) — in trạng thái + IP.
- *  (Cổng tiền / 4G / relay / dò xung để GĐ sau — cần chốt chân trong cau_hinh_p4.h.)
+ *  MÔI TRƯỜNG: Arduino-ESP32 ≥ 3.3.6, board "ESP32-P4 Dev Module", PSRAM bật.
+ *     WiFi qua C6 cần firmware ESP-Hosted đã nạp cho C6 (theo tài liệu bo). Nếu
+ *     WiFi không nối được thì lỗi ở C6/ESP-Hosted, KHÔNG phải code màn.
  *
- *  ⚠️ MÀN HÌNH (ST7701S MIPI-DSI) CHƯA có ở bước này — cố ý. Panel phải khởi tạo
- *     bằng ĐÚNG init-sequence + timing của bo; sẽ thêm ở GĐ1b khi có tham số panel
- *     chạy được (từ ví dụ vendor / ESPHome PR #12068 / Arduino_GFX ST7701 480x800).
- *
- *  MÔI TRƯỜNG: Arduino-ESP32 ≥ 3.3.6, chọn board ESP32-P4; WiFi qua C6 cần nạp sẵn
- *     firmware ESP-Hosted cho C6 (xem field-notes bo). Nếu WiFi.begin không nối được,
- *     kiểm tra phần C6/ESP-Hosted trước — KHÔNG phải lỗi code này.
- *
- *  Bí mật (SSID/mật khẩu, khoá ký QR, URL server) KHÔNG nằm trong repo — để ở
- *  secrets.h build tại máy (giống các firmware khác). Bring-up này chỉ cần WiFi.
+ *  ⚠️ ĐÂY LÀ BẢN CHẠY THỬ ĐẦU (không build/test được ở máy soạn code). Tên hàm/
+ *     struct của esp_lcd có thể lệch nhẹ theo phiên bản core — nếu báo lỗi biên
+ *     dịch ở khối DSI, đối chiếu ví dụ esp_lcd MIPI-DSI của core đang cài. Init
+ *     panel + timing đã đúng bo (panel_jc4880p443.h).
  * ========================================================================== */
+#include <Arduino.h>
 #include <Wire.h>
 #include <WiFi.h>
-#include "cau_hinh_p4.h"
+#include "esp_lcd_mipi_dsi.h"
+#include "esp_lcd_panel_io.h"
+#include "esp_lcd_panel_ops.h"
+#include "driver/gpio.h"
 
-/* secrets.h: chỉ cần SEC_WIFI_SSID / SEC_WIFI_PASS cho bring-up. Nếu chưa có file,
-   điền tạm ngay đây để nạp thử (ĐỪNG commit mật khẩu thật — repo công khai). */
+#include "cau_hinh_p4.h"
+#include "panel_jc4880p443.h"
+
 #if __has_include("secrets.h")
   #include "secrets.h"
 #endif
@@ -34,53 +37,180 @@
   #define SEC_WIFI_PASS "__DIEN_PASS__"
 #endif
 
-static void quetI2C() {
-  Serial.println("[I2C] quet bus SDA=7 SCL=8 ...");
-  Wire.begin(P4_TOUCH_SDA, P4_TOUCH_SCL);
-  int thay = 0;
-  for (uint8_t a = 1; a < 127; a++) {
-    Wire.beginTransmission(a);
-    if (Wire.endTransmission() == 0) {
-      Serial.printf("[I2C]   thay thiet bi @ 0x%02X%s\n", a,
-        a == P4_TOUCH_ADDR ? "  <- GT911 (cam ung)" : "");
-      thay++;
+/* ─── MÀN DSI ────────────────────────────────────────────────────────────── */
+static esp_lcd_panel_io_handle_t  g_io    = nullptr;
+static esp_lcd_panel_handle_t     g_panel = nullptr;
+static uint16_t*                  g_fb    = nullptr;   // framebuffer RGB565 (DPI tự quét)
+
+static inline uint16_t RGB565(uint8_t r, uint8_t g, uint8_t b) {
+  return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+}
+static void fbFill(uint16_t c) {
+  if (!g_fb) return;
+  for (int i = 0; i < PANEL_W * PANEL_H; i++) g_fb[i] = c;
+}
+static void fbRect(int x, int y, int w, int h, uint16_t c) {
+  if (!g_fb) return;
+  for (int j = y; j < y + h; j++) {
+    if (j < 0 || j >= PANEL_H) continue;
+    for (int i = x; i < x + w; i++) {
+      if (i < 0 || i >= PANEL_W) continue;
+      g_fb[j * PANEL_W + i] = c;
     }
   }
-  if (!thay) Serial.println("[I2C]   KHONG thay gi — kiem tra day/nguon cam ung.");
 }
 
+static bool manKhoiTao() {
+  // Đèn nền tắt trong lúc init cho khỏi thấy nhiễu.
+  gpio_config_t bl = { .pin_bit_mask = 1ULL << PANEL_BL_GPIO, .mode = GPIO_MODE_OUTPUT };
+  gpio_config(&bl);
+  gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 0);
+
+  // Bus DSI (2 lane, 500 Mbps).
+  esp_lcd_dsi_bus_handle_t dsi = nullptr;
+  esp_lcd_dsi_bus_config_t bus = {};
+  bus.bus_id             = 0;
+  bus.num_data_lanes     = PANEL_DSI_LANES;
+  bus.phy_clk_src        = MIPI_DSI_PHY_CLK_SRC_DEFAULT;
+  bus.lane_bit_rate_mbps = PANEL_DSI_LANE_MBPS;
+  if (esp_lcd_new_dsi_bus(&bus, &dsi) != ESP_OK) { Serial.println("[LCD] LOI: new_dsi_bus"); return false; }
+
+  // Kênh lệnh DBI (gửi init).
+  esp_lcd_dbi_io_config_t dbi = {};
+  dbi.virtual_channel = 0;
+  dbi.lcd_cmd_bits    = 8;
+  dbi.lcd_param_bits  = 8;
+  if (esp_lcd_new_panel_io_dbi(dsi, &dbi, &g_io) != ESP_OK) { Serial.println("[LCD] LOI: io_dbi"); return false; }
+
+  // Reset cứng panel (GPIO5).
+  gpio_config_t rs = { .pin_bit_mask = 1ULL << PANEL_RESET_GPIO, .mode = GPIO_MODE_OUTPUT };
+  gpio_config(&rs);
+  gpio_set_level((gpio_num_t)PANEL_RESET_GPIO, 0); delay(20);
+  gpio_set_level((gpio_num_t)PANEL_RESET_GPIO, 1); delay(130);
+
+  // Gửi bảng init ST7701S của đúng bo.
+  for (size_t i = 0; i < ST7701_JC4880P443_INIT_N; i++) {
+    const st7701_cmd_t* c = &ST7701_JC4880P443_INIT[i];
+    esp_lcd_panel_io_tx_param(g_io, c->cmd, c->len ? c->data : nullptr, c->len);
+  }
+  esp_lcd_panel_io_tx_param(g_io, 0x11, nullptr, 0);   // SLPOUT
+  delay(120);
+  esp_lcd_panel_io_tx_param(g_io, 0x29, nullptr, 0);   // DISPON
+
+  // Panel DPI (quét ảnh liên tục từ framebuffer).
+  esp_lcd_dpi_panel_config_t dpi = {};
+  dpi.virtual_channel     = 0;
+  dpi.dpi_clk_src         = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
+  dpi.dpi_clock_freq_mhz  = PANEL_DPI_HZ / 1000000;
+  dpi.pixel_format        = LCD_COLOR_PIXEL_FORMAT_RGB565;
+  dpi.num_fbs             = 1;
+  dpi.video_timing.h_size            = PANEL_W;
+  dpi.video_timing.v_size            = PANEL_H;
+  dpi.video_timing.hsync_back_porch  = PANEL_HSYNC_BACK;
+  dpi.video_timing.hsync_pulse_width = PANEL_HSYNC_PULSE;
+  dpi.video_timing.hsync_front_porch = PANEL_HSYNC_FRONT;
+  dpi.video_timing.vsync_back_porch  = PANEL_VSYNC_BACK;
+  dpi.video_timing.vsync_pulse_width = PANEL_VSYNC_PULSE;
+  dpi.video_timing.vsync_front_porch = PANEL_VSYNC_FRONT;
+  dpi.flags.use_dma2d = true;
+  if (esp_lcd_new_panel_dpi(dsi, &dpi, &g_panel) != ESP_OK) { Serial.println("[LCD] LOI: new_panel_dpi"); return false; }
+  esp_lcd_panel_reset(g_panel);
+  esp_lcd_panel_init(g_panel);
+
+  // Lấy con trỏ framebuffer để vẽ thẳng.
+  if (esp_lcd_dpi_panel_get_frame_buffer(g_panel, 1, (void**)&g_fb) != ESP_OK || !g_fb) {
+    Serial.println("[LCD] LOI: get_frame_buffer"); return false;
+  }
+  Serial.println("[LCD] DSI + ST7701S init OK.");
+  return true;
+}
+
+/* ─── CẢM ỨNG GT911 (I²C) ───────────────────────────────────────────────── */
+static bool gt911ReadReg(uint16_t reg, uint8_t* buf, size_t n) {
+  Wire.beginTransmission(P4_TOUCH_ADDR);
+  Wire.write((uint8_t)(reg >> 8)); Wire.write((uint8_t)(reg & 0xFF));
+  if (Wire.endTransmission(false) != 0) return false;
+  size_t got = Wire.requestFrom((int)P4_TOUCH_ADDR, (int)n);
+  for (size_t i = 0; i < n && Wire.available(); i++) buf[i] = Wire.read();
+  return got == n;
+}
+static void gt911WriteReg(uint16_t reg, uint8_t v) {
+  Wire.beginTransmission(P4_TOUCH_ADDR);
+  Wire.write((uint8_t)(reg >> 8)); Wire.write((uint8_t)(reg & 0xFF)); Wire.write(v);
+  Wire.endTransmission();
+}
+static void gt911Init() {
+  // Reset GT911: giữ RST thấp rồi thả lên; địa chỉ mặc định 0x5D.
+  gpio_config_t rc = { .pin_bit_mask = 1ULL << P4_TOUCH_RST, .mode = GPIO_MODE_OUTPUT };
+  gpio_config(&rc);
+  gpio_set_level((gpio_num_t)P4_TOUCH_RST, 0); delay(10);
+  gpio_set_level((gpio_num_t)P4_TOUCH_RST, 1); delay(60);
+  Wire.begin(P4_TOUCH_SDA, P4_TOUCH_SCL, 400000);
+}
+// Trả số điểm chạm; nếu >0 điền x,y điểm đầu.
+static int gt911Doc(int* x, int* y) {
+  uint8_t st = 0;
+  if (!gt911ReadReg(0x814E, &st, 1)) return 0;
+  if (!(st & 0x80)) return 0;                 // chưa sẵn sàng
+  int n = st & 0x0F;
+  if (n > 0) {
+    uint8_t p[8];
+    if (gt911ReadReg(0x8150, p, 8)) {
+      *x = p[1] | (p[2] << 8);
+      *y = p[3] | (p[4] << 8);
+    }
+  }
+  gt911WriteReg(0x814E, 0);                    // xoá cờ để lần đọc sau
+  return n;
+}
+
+/* ─── WiFi qua C6 ───────────────────────────────────────────────────────── */
 static void noiWiFi() {
-  Serial.printf("[WiFi] noi qua C6 (ESP-Hosted) toi SSID '%s' ...\n", SEC_WIFI_SSID);
+  Serial.printf("[WiFi] noi qua C6 toi '%s' ...\n", SEC_WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.begin(SEC_WIFI_SSID, SEC_WIFI_PASS);
   uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) {
-    delay(400); Serial.print('.');
-  }
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) { delay(400); Serial.print('.'); }
   Serial.println();
-  if (WiFi.status() == WL_CONNECTED)
-    Serial.printf("[WiFi] OK — IP %s, RSSI %d dBm\n", WiFi.localIP().toString().c_str(), WiFi.RSSI());
-  else
-    Serial.println("[WiFi] CHUA noi duoc — kiem tra firmware ESP-Hosted tren C6 + SSID/mat khau.");
+  if (WiFi.status() == WL_CONNECTED) Serial.printf("[WiFi] OK — IP %s\n", WiFi.localIP().toString().c_str());
+  else Serial.println("[WiFi] CHUA noi — kiem tra ESP-Hosted tren C6 + SSID/mat khau.");
 }
 
+/* ─── SETUP / LOOP ──────────────────────────────────────────────────────── */
 void setup() {
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n\n=== POSH QR P4 — BRING-UP GD1a ===");
-  Serial.printf("[chip] %s, %d nhan, rev %d\n", ESP.getChipModel(), ESP.getChipCores(), ESP.getChipRevision());
-  Serial.printf("[mem]  heap %u  |  PSRAM %u\n", ESP.getFreeHeap(), ESP.getPsramSize());
-  Serial.printf("[mac]  %s\n", WiFi.macAddress().c_str());
-  quetI2C();
+  Serial.println("\n\n=== POSH QR P4 — BRING-UP GD1b (man + cham + wifi) ===");
+  Serial.printf("[chip] %s  heap %u  PSRAM %u\n", ESP.getChipModel(), ESP.getFreeHeap(), ESP.getPsramSize());
+
+  gt911Init();
+
+  if (manKhoiTao()) {
+    fbFill(RGB565(0x21, 0x3A, 0x5E));                 // nền navy
+    fbRect(0,   40, PANEL_W, 20, RGB565(0xD6,0x45,0x45)); // đỏ
+    fbRect(0,   70, PANEL_W, 20, RGB565(0x2E,0x9B,0x57)); // lục
+    fbRect(0,  100, PANEL_W, 20, RGB565(0x2F,0x6F,0xB0)); // lam
+    fbRect(PANEL_W/2 - 60, PANEL_H/2 - 60, 120, 120, RGB565(0xFF,0xFF,0xFF)); // ô trắng giữa
+    gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1);      // bật đèn nền
+    Serial.println("[LCD] Da ve man test — cham vao de kiem GT911.");
+  } else {
+    Serial.println("[LCD] KHOI TAO MAN THAT BAI — xem log LOI o tren.");
+  }
+
   noiWiFi();
-  Serial.println("=== bring-up xong. Man hinh (DSI) + logic o giai doan sau. ===");
+  Serial.println("=== bring-up xong ===");
 }
 
 void loop() {
+  int x = 0, y = 0;
+  if (gt911Doc(&x, &y) > 0) {
+    Serial.printf("[cham] x=%d y=%d\n", x, y);
+    fbRect(x - 12, y - 12, 24, 24, RGB565(0xE8,0x91,0x2A));  // chấm vàng tại chỗ chạm
+  }
   static uint32_t t = 0;
   if (millis() - t > 5000) {
     t = millis();
-    Serial.printf("[song] uptime %lus  WiFi=%s  heap=%u\n",
-      millis() / 1000, WiFi.status() == WL_CONNECTED ? "on" : "off", ESP.getFreeHeap());
+    Serial.printf("[song] uptime %lus  WiFi=%s\n", millis()/1000, WiFi.status()==WL_CONNECTED?"on":"off");
   }
+  delay(15);
 }
