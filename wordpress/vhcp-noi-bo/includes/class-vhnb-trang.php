@@ -42,7 +42,7 @@ class VHNB_Trang {
 	 *    nhập" giữa màn hình trắng: người mới vào không biết mình đang ở đâu, không biết lấy
 	 *    PIN ở đâu, và không có gì đọc trong lúc chưa có PIN.
 	 */
-	private static function phan_cong_khai() {
+	private static function phan_cong_khai( $loi = '' ) {
 		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `tools/test/kiem-goi-cheo.php`.
 		   Bốn plugin cài độc lập, bản có thể lệch nhau; `class_exists` chỉ nói CÓ PLUGIN, không
 		   nói CÓ HÀM. Gỡ plugin chấm công ra thì trang này vẫn phải chạy, chỉ mất đường đăng nhập. */
@@ -54,11 +54,32 @@ class VHNB_Trang {
 		echo '<div class="the">';
 		echo '<h2 style="margin:0 0 6px">Nội bộ K&amp;H</h2>';
 		echo '<p class="mo" style="margin:0 0 16px">' . esc_html( self::loi_chao() ) . '</p>';
+		if ( '' !== $loi ) { echo '<div class="bao loi">' . esc_html( $loi ) . '</div>'; }
 		if ( $co_cc ) {
-			echo '<p style="margin:0"><a class="nut chinh" href="' . esc_url( $url_cc ) . '">'
-				. 'Đăng nhập bằng PIN chấm công</a></p>';
+			/* 🔴 Ô PIN NẰM NGAY ĐÂY, KHÔNG PHẢI MỘT CÁI NÚT NHẢY SANG TRANG KHÁC.
+			   Anh Thắng 30/08/2026: *"Đăng nhập 1 trang nội bộ là dùng được tất cả các trang"*.
+			   Trang này nay là TRANG CHỦ — bắt người ta bấm sang trang chấm công, gõ PIN ở đó,
+			   rồi tự tìm đường quay lại là ba bước cho một việc, và bước cuối thì không ai chỉ.
+
+			   ⚠️ MỘT CỬA PIN nghĩa là MỘT BỘ CHỐT, không phải một chỗ đặt ô nhập. Ô này đi qua
+			      đúng `VHCC_Auth::login()` — cùng bộ đếm sai, cùng khoá 10 phút, cùng cách phát
+			      thẻ. Viết cửa thứ hai ở đây là có hai bộ đếm sai rời nhau: khoá bên này thì
+			      bên kia vẫn cho dò tiếp.
+
+			   🔴 KHÔNG BAO GIỜ IN PIN RA. `type="password"`, và gõ sai thì ô về TRỐNG chứ không
+			      trả lại giá trị vừa gõ — trang này chạy ngoài internet, ảnh chụp màn hình đi
+			      khắp nơi. */
+			echo '<form method="post" style="margin:0;display:flex;gap:8px;flex-wrap:wrap;align-items:center">';
+			echo '<input type="hidden" name="viec" value="dang_nhap">';
+			echo '<input type="password" name="pin" inputmode="numeric" autocomplete="off" '
+				. 'placeholder="Mã PIN chấm công" required '
+				. 'style="flex:1;min-width:190px;padding:10px 12px;border:1px solid var(--vien);'
+				. 'border-radius:8px;font-size:15px">';
+			echo '<button class="nut chinh" type="submit">Đăng nhập</button>';
+			echo '</form>';
 			echo '<p class="mo" style="margin:12px 0 0;font-size:13px">Ba trang dùng chung một phiên — '
-				. 'đăng nhập một lần là vào được cả Nội bộ, Chấm công và Vận hành chi phí.</p>';
+				. 'đăng nhập một lần ở đây là vào được cả Nội bộ, Chấm công và Vận hành chi phí. '
+				. 'Quên PIN thì mở <a href="' . esc_url( $url_cc ) . '">trang chấm công</a> để lấy lại.</p>';
 		} else {
 			echo '<p class="mo" style="margin:0">Chưa cài plugin <b>Chấm công</b> trên site này, '
 				. 'nên chưa có đường đăng nhập. Nhờ quản trị cài rồi kích hoạt nó.</p>';
@@ -212,6 +233,96 @@ class VHNB_Trang {
 			&& method_exists( 'VHCC_Auth', 'user_by_token' );
 	}
 
+	/* ==================================================================== vào / ra */
+
+	/**
+	 * NHẬN PIN Ở NGAY TRANG NÀY, mở phiên dùng chung cho cả ba trang.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO KHÔNG TỰ VIẾT CỬA PIN THỨ HAI.
+	 * =========================================================================================
+	 * Anh Thắng 30/08/2026: *"Đăng nhập 1 trang nội bộ là dùng được tất cả các trang"*.
+	 * Cách nhanh là đọc bảng người dùng ở đây rồi tự so PIN. Cách ấy sai: bộ đếm nhập sai và
+	 * khoá 10 phút của `VHCC_Auth` nằm ở BÊN KIA. Có hai cửa với hai bộ đếm rời nhau thì kẻ dò
+	 * PIN bị khoá ở cửa này cứ sang cửa kia dò tiếp — tức là hàng rào chống dò biến mất, dù
+	 * nhìn vào mã cửa nào cũng thấy "có khoá".
+	 *
+	 * Nên: cửa vẫn là `VHCC_Auth::login()`, chỗ này chỉ là một cái ô nhập đặt gần người dùng
+	 * hơn. Đổi lại, mọi thứ đi kèm — đếm sai, khoá tạm, phát thẻ, gắn Mã NV vào thẻ — đúng một
+	 * bản, không có bản thứ hai để lệch.
+	 *
+	 * 🔴 HÀM NÀY KHÔNG `echo`, KHÔNG `wp_safe_redirect`, KHÔNG `exit`. Nó trả về một mảng, để
+	 *    bài kiểm gọi được thẳng. Chuyển hướng là việc của `phuc_vu()`.
+	 *
+	 * 🔴 KHÔNG BAO GIỜ ĐƯA PIN VÀO CÂU BÁO LỖI TRẢ RA. Câu báo hiện lên trang, và trang này ai
+	 *    cũng mở được.
+	 *
+	 * @param  string $pin PIN người gõ.
+	 * @return array  ok:bool · loi:string
+	 */
+	public static function dang_nhap( $pin ) {
+		if ( ! self::co_he_cham_cong() ) {
+			return array( 'ok' => false, 'loi' => 'Chưa cài plugin Chấm công trên site này, '
+				. 'nên chưa đăng nhập được. Nhờ quản trị cài rồi kích hoạt nó.' );
+		}
+		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`.
+		   Bốn plugin cài độc lập: bản chấm công cũ hơn có thể chưa có `dong_phien`/`mo_phien`,
+		   và gọi hụt một hàm tĩnh là Fatal error, TRẮNG CẢ TRANG CHỦ. */
+		if ( ! method_exists( 'VHCC_Auth', 'login' ) || ! method_exists( 'VHCC_Web', 'mo_phien' ) ) {
+			return array( 'ok' => false, 'loi' => 'Bản plugin Chấm công đang cài chưa mở đường '
+				. 'đăng nhập dùng chung. Nhờ quản trị cập nhật plugin Chấm công.' );
+		}
+
+		$kq = VHCC_Auth::login( (string) $pin );
+		if ( empty( $kq['ok'] ) ) {
+			return array( 'ok' => false,
+				'loi' => isset( $kq['error'] ) ? (string) $kq['error'] : 'PIN không đúng.' );
+		}
+
+		/* 🔴 GÁC BẰNG ĐÚNG DANH SÁCH MÀ `user_by_token` DÙNG. Lệch một cái là người ta gõ PIN
+		   đúng, cookie được đặt, rồi lượt sau `toi()` trả null — màn hình quay lại y như cũ,
+		   không một câu giải thích, và họ gõ lại mười lần cho tới lúc tự khoá mình. */
+		if ( method_exists( 'VHCC_Auth', 'vai_tro_vao' )
+			&& ! in_array( (string) $kq['role'], VHCC_Auth::vai_tro_vao(), true ) ) {
+			return array( 'ok' => false, 'loi' => 'Tài khoản ' . (string) $kq['name'] . ' ('
+				. (string) $kq['role'] . ') chưa được mở vào hệ thống. Vai vào được: '
+				. implode( ' · ', VHCC_Auth::vai_tro_vao() ) . '.' );
+		}
+
+		if ( ! VHCC_Web::mo_phien( (string) $kq['token'] ) ) {
+			return array( 'ok' => false, 'loi' => 'Không mở được phiên. Thử lại một lượt nữa.' );
+		}
+		return array( 'ok' => true, 'loi' => '' );
+	}
+
+	/**
+	 * THOÁT — và thoát ở đây là thoát THẬT, không phải chỉ quên cookie của trình duyệt này.
+	 *
+	 * Anh Thắng 30/08/2026: *"khi thoát thì nó trở về trang nội bộ, có đăng nhập thì lại từ
+	 * đầu, còn đã đăng nhập thì dùng đâu cũng được"*.
+	 *
+	 * 🔴 HUỶ THẺ TRƯỚC, XOÁ COOKIE SAU. Ba trang dùng chung MỘT thẻ, và trạm chấm công còn giữ
+	 *    chính thẻ ấy trong localStorage. Xoá mỗi cookie thì chỉ trang này quên, thẻ vẫn sống
+	 *    12 tiếng ở chỗ khác — người vừa bấm Thoát trên máy chung tưởng mình đã ra.
+	 *
+	 * ⚠️ `logout()` một mình cũng đã đủ cho việc thoát (thẻ chết thì cookie còn cũng vô dụng);
+	 *    `dong_phien()` là để trình duyệt đừng mang theo một chuỗi rác suốt 12 tiếng.
+	 */
+	public static function thoat() {
+		$tok = self::the_phien();
+		if ( '' === $tok ) { return false; }
+		$xong = false;
+		if ( class_exists( 'VHCC_Auth' ) && method_exists( 'VHCC_Auth', 'logout' ) ) {
+			VHCC_Auth::logout( $tok );
+			$xong = true;
+		}
+		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'dong_phien' ) ) {
+			VHCC_Web::dong_phien();
+			$xong = true;
+		}
+		return $xong;
+	}
+
 	/* ==================================================================== chữ ký biểu mẫu */
 
 	/**
@@ -319,6 +430,35 @@ class VHNB_Trang {
 
 	public static function phuc_vu() {
 		$toi = self::toi();
+		$viec_gui = isset( $_POST['viec'] ) ? sanitize_text_field( wp_unslash( $_POST['viec'] ) ) : '';
+
+		/* 🔴 ĐĂNG NHẬP ĐỨNG TRƯỚC CHỐT CHỮ KÝ. `ky_dung()` tính chữ ký theo THẺ PHIÊN — mà lượt
+		   này chưa có thẻ nào, nên chốt ấy chối sạch mọi lượt đăng nhập. Đặt nhầm thứ tự thì ô
+		   PIN nằm đó nhìn thấy được nhưng không bao giờ vào nổi.
+
+		   ⚠️ KHÔNG dùng transient để chở câu báo lỗi qua lượt chuyển hướng: `khoa_bao()` đặt
+		      tên theo thẻ phiên, mà lúc chưa đăng nhập thì thẻ rỗng — mọi khách trên internet
+		      dùng CHUNG một ô nhớ, và câu báo của người này hiện lên màn hình người kia. Nên
+		      gõ sai thì vẽ thẳng lại trang, không chuyển hướng. */
+		if ( ! $toi && 'dang_nhap' === $viec_gui ) {
+			$r = self::dang_nhap( isset( $_POST['pin'] ) ? wp_unslash( $_POST['pin'] ) : '' );
+			if ( ! empty( $r['ok'] ) ) {
+				/* Vào rồi thì về ĐÚNG trang này — anh Thắng: *"có đăng nhập thì lại từ đầu"*. */
+				wp_safe_redirect( self::url() );
+				return;
+			}
+			self::ve( null, (string) $r['loi'] );
+			return;
+		}
+
+		/* THOÁT — xử trước mọi việc khác, và về lại chính trang này chứ không sang trang chấm
+		   công. `lam_viec()` không biết việc này: nó chạy sau chốt chữ ký thì đúng, nhưng nó
+		   trả về một câu báo cất trong transient khoá theo thẻ — mà thẻ vừa bị huỷ xong. */
+		if ( $toi && 'thoat' === $viec_gui && self::ky_dung() ) {
+			self::thoat();
+			wp_safe_redirect( self::url() );
+			return;
+		}
 
 		if ( ! empty( $_POST['viec'] ) && $toi ) {
 			$bao = self::ky_dung()
@@ -419,7 +559,7 @@ class VHNB_Trang {
 
 	/* ==================================================================== vẽ */
 
-	public static function ve( $toi ) {
+	public static function ve( $toi, $loi_dn = '' ) {
 		$nhom = isset( $_GET['nhom'] ) ? sanitize_text_field( wp_unslash( $_GET['nhom'] ) ) : '';
 		$g    = isset( $_GET['g'] ) ? (int) $_GET['g'] : 0;
 
@@ -437,6 +577,12 @@ class VHNB_Trang {
 			if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
 				echo '<a class="nut" href="' . esc_url( VHCC_Web::url() ) . '">🕐 Chấm công</a>';
 			}
+			/* THOÁT. Là một FORM POST chứ không phải đường dẫn: một cái link đăng xuất thì chỉ
+			   cần ai đó dán ảnh có địa chỉ ấy vào bảng tin là cả phòng bị đá ra. Kèm chữ ký,
+			   như mọi biểu mẫu khác của trang. */
+			echo '<form method="post" style="margin:0">' . self::o_ky()
+				. '<input type="hidden" name="viec" value="thoat">'
+				. '<button class="nut" type="submit" title="Thoát khỏi cả ba trang">Thoát</button></form>';
 		}
 		echo '</div></header>';
 
@@ -478,7 +624,7 @@ class VHNB_Trang {
 			return;
 		}
 		if ( ! $toi ) {
-			self::phan_cong_khai();
+			self::phan_cong_khai( $loi_dn );
 			self::dong_trang();
 			return;
 		}

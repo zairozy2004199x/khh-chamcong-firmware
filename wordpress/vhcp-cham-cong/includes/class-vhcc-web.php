@@ -143,7 +143,63 @@ class VHCC_Web {
 		return true;
 	}
 
+	/**
+	 * Đóng phiên: xoá cookie của trang này.
+	 *
+	 * 🔴 CÔNG KHAI VÌ TRANG NỘI BỘ CŨNG CÓ NÚT THOÁT. Anh Thắng 30/08/2026: *"khi thoát thì nó
+	 *    trở về trang nội bộ"*. Ba trang dùng CHUNG một thẻ, nên chỗ nào cũng phải đóng được
+	 *    phiên chung ấy — chứ không phải mỗi trang tự xoá cookie theo cách riêng, rồi hôm nào
+	 *    đổi `path` hay `samesite` ở đây là bên kia xoá hụt và người ta thoát mà vẫn còn đăng
+	 *    nhập.
+	 *
+	 * ⚠️ Hàm này CHỈ quên cookie ở trình duyệt này. Muốn giết hẳn thẻ ở mọi nơi (trạm chấm công
+	 *    giữ cùng thẻ trong localStorage) thì gọi thêm `VHCC_Auth::logout( $tok )`.
+	 */
+	/**
+	 * THOÁT XONG THÌ VỀ ĐÂU.
+	 *
+	 * Anh Thắng 30/08/2026: *"khi thoát thì nó trở về trang nội bộ, có đăng nhập thì lại từ đầu,
+	 * còn đã đăng nhập thì dùng đâu cũng được"*.
+	 *
+	 * Khi trang Nội bộ đang được đặt làm TRANG CHỦ thì đó mới là cửa trước của cả hệ — thoát ra
+	 * mà đứng ở màn PIN của riêng trang chấm công là người ta mất luôn đường về nhà. Chưa bật
+	 * làm trang chủ thì giữ nguyên nếp cũ: về đúng trang này.
+	 *
+	 * 🔴 HÀM THUẦN — trả về một địa chỉ, không `header()`, không `exit`. Chỗ quyết định thì thử
+	 *    được; chỗ chuyển hướng thì không.
+	 *
+	 * ⚠️ Gác `method_exists` cùng thân hàm với lời gọi (luật `tools/test/kiem-goi-cheo.php`):
+	 *    plugin Nội bộ là plugin riêng, gỡ ra lúc nào cũng được.
+	 */
+	public static function noi_ve_sau_thoat() {
+		if ( class_exists( 'VHNB_Trang' ) && method_exists( 'VHNB_Trang', 'lam_trang_chu' )
+			&& method_exists( 'VHNB_Trang', 'url' ) && VHNB_Trang::lam_trang_chu() ) {
+			return VHNB_Trang::url();
+		}
+		return self::url();
+	}
+
+	public static function dong_phien() {
+		self::dat_cookie( '', false );
+		return true;
+	}
+
+	/**
+	 * SỔ GHI CÁC LƯỢT ĐẶT/XOÁ COOKIE — chỉ để bộ thử soi được.
+	 *
+	 * 🔴 KÉO RANH GIỚI QUAN SÁT VÀO SÁT CHỖ SAI. `setcookie()` không quan sát được từ bài kiểm:
+	 *    chạy dòng lệnh thì nó im lặng không làm gì, và `$_COOKIE` không hề đổi. Nên một lỗi
+	 *    kiểu "đăng nhập báo thành công nhưng quên đặt cookie" — người dùng gõ đúng PIN rồi
+	 *    màn hình quay về y như cũ — không có phép thử nào bắt được. Cùng lối với
+	 *    `VHCC_Xuat::$dau_da_gui` (sổ ghi các dòng `header()` đã gửi).
+	 *
+	 * ⚠️ CHỈ GHI CÓ HAY KHÔNG, KHÔNG GHI THẺ. Thẻ phiên là thứ bí mật; một cái sổ trong bộ nhớ
+	 *    thì vô hại, nhưng cái sổ ấy có ngày bị in ra để gỡ lỗi.
+	 */
+	public static $cookie_da_dat = array();
+
 	private static function dat_cookie( $tok, $song = true ) {
+		self::$cookie_da_dat[] = $song ? 'dat' : 'xoa';
 		$tuoi = $song ? ( time() + 12 * 3600 ) : ( time() - 3600 );
 		$args = array(
 			'expires'  => $tuoi,
@@ -239,7 +295,7 @@ class VHCC_Web {
 		/* Đăng xuất xử trước mọi thứ. */
 		if ( isset( $_POST['viec'] ) && 'thoat' === $_POST['viec'] ) {
 			self::dat_cookie( '', false );
-			self::ve( self::url() );
+			self::ve( self::noi_ve_sau_thoat() );
 		}
 
 		if ( ! $toi ) { self::trang_dang_nhap(); return; }

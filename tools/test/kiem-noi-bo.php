@@ -347,11 +347,23 @@ $_GET = array(); $_POST = array(); $_COOKIE = array();
    thì phải đăng nhập, thông tin chung như hướng dẫn sử dụng chẳng hạn"*.
    ================================================================================== */
 ob_start(); VHNB_Trang::ve( null ); $h_ra = ob_get_clean();
-t( 'chưa đăng nhập -> có đường đăng nhập bằng PIN chấm công',
-	false !== strpos( $h_ra, 'Đăng nhập bằng PIN chấm công' ), $h_ra );
+/* 🔴 Ô PIN NẰM NGAY TRÊN TRANG NÀY — anh Thắng 30/08/2026: *"Đăng nhập 1 trang nội bộ là dùng
+   được tất cả các trang"*. Trang này là trang chủ; bắt người ta bấm sang trang chấm công, gõ
+   PIN ở đó, rồi tự tìm đường quay lại là ba bước cho một việc.
+
+   ⚠️ PHÉP THỬ CŨ Ở ĐÂY ĐÒI NGƯỢC LẠI — *"KHÔNG hỏi PIN ở đây (một cửa PIN thôi)"*. Nó hiểu sai
+      chữ MỘT CỬA: một cửa nghĩa là một BỘ CHỐT (một bộ đếm nhập sai, một cái khoá 10 phút, một
+      cách phát thẻ), không phải một CHỖ ĐẶT Ô NHẬP. Chốt thật nằm ở phép thử ngay dưới: ô này
+      phải đi qua đúng `VHCC_Auth::login()`. */
+t( 'chưa đăng nhập -> có Ô GÕ PIN ngay tại trang này',
+	false !== strpos( $h_ra, 'name="pin"' )
+	&& false !== strpos( $h_ra, 'name="viec" value="dang_nhap"' ), $h_ra );
 t( 'và KHÔNG có ô đăng bài', false === strpos( $h_ra, 'name="noi_dung"' ) );
-t( 'và KHÔNG hỏi PIN ở đây (một cửa PIN thôi, không mở cửa thứ hai)',
-	false === strpos( $h_ra, 'name="pin"' ), $h_ra );
+/* 🔴 PIN KHÔNG BAO GIỜ HIỆN LÊN MÀN HÌNH — trang chạy ngoài internet, ảnh chụp đi khắp nơi. */
+t( 'ô PIN là type=password, không phải ô chữ thường',
+	false !== strpos( $h_ra, 'type="password" name="pin"' ), $h_ra );
+t( 'vẫn còn đường sang trang chấm công để lấy lại PIN quên',
+	false !== strpos( $h_ra, 'trang chấm công</a>' ), $h_ra );
 
 /* 🔴 THÔNG TIN CHUNG THÌ CÓ. Bản trước chỉ có đúng một cái nút giữa màn hình trắng: người mới
    vào không biết mình đang ở đâu, không biết lấy PIN ở đâu, và không có gì đọc trong lúc chưa
@@ -1135,6 +1147,178 @@ teq( 'đổi được đường dẫn', 'noi-bo-cong-ty', VHNB_Trang::slug() );
 update_option( 'vhnb_slug', '' );
 teq( 'để trống thì về mặc định, KHÔNG để rỗng (rỗng là trang không có địa chỉ)',
 	'noi-bo', VHNB_Trang::slug() );
+
+/* ==================================================================================
+   ĐĂNG NHẬP NGAY TẠI TRANG NÀY, VÀ THOÁT VỀ LẠI TRANG NÀY
+
+   Anh Thắng 30/08/2026: *"Đăng nhập 1 trang nội bộ là dùng được tất cả các trang"*, rồi nói rõ
+   thêm: *"khi thoát thì nó trở về trang nội bộ, có đăng nhập thì lại từ đầu, còn đã đăng nhập
+   thì dùng đâu cũng được"*.
+
+   🔴 CHỐT ĐẮT NHẤT CỦA CẢ KHỐI: ô PIN ở đây phải đi qua ĐÚNG `VHCC_Auth::login()`. Viết một cửa
+      PIN thứ hai thì có hai bộ đếm nhập sai rời nhau — kẻ dò PIN bị khoá ở cửa này cứ sang cửa
+      kia dò tiếp, và nhìn vào mã cửa nào cũng thấy "có khoá". Phép thử dưới chứng minh điều đó
+      bằng cách gõ sai 10 lượt Ở ĐÂY rồi xem cửa BÊN KIA có khoá theo không.
+   ================================================================================== */
+
+vhnb_dung_bang();
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$GLOBALS['VHCP_CHUYEN'] = '';
+
+$nguon_cu = get_option( 'vhcc_nguon_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+$bang_cfg_dn = $wpdb->prefix . 'vhcp_cfg';
+$wpdb->exec_raw( "DELETE FROM $bang_cfg_dn WHERE bang='CH_NguoiDung'" );
+foreach ( array(
+	array( 'Chị Vào Được', '778899', 'Quản lý',   'CS_VIVO' ),
+	array( 'Em Nhân Viên', '112233', 'Nhân viên', 'CS_VIVO' ),
+) as $i_dn => $x_dn ) {
+	$wpdb->insert( $bang_cfg_dn, array( 'bang' => 'CH_NguoiDung', 'stt' => $i_dn + 1,
+		'cols' => wp_json_encode( $x_dn ) ) );
+}
+VHCC_Auth::mo_khoa();
+
+VHCC_Web::$cookie_da_dat = array();
+$r_dn = VHNB_Trang::dang_nhap( '778899' );
+t( 'PIN đúng -> mở được phiên ngay tại trang Nội bộ', ! empty( $r_dn['ok'] ), $r_dn );
+teq( 'và không kèm câu báo lỗi nào', '', (string) $r_dn['loi'] );
+/* 🔴 BÁO "VÀO ĐƯỢC" MÀ QUÊN ĐẶT COOKIE là lỗi không ai lần ra: người dùng gõ đúng PIN, trang
+   nháy một cái rồi hiện lại y như cũ, không câu báo nào. `setcookie()` thì bài kiểm không soi
+   được (chạy dòng lệnh nó im lặng, `$_COOKIE` không đổi), nên soi sổ ghi của `VHCC_Web`. */
+teq( '🔴 và ĐẶT COOKIE phiên thật, không chỉ báo suông', array( 'dat' ), VHCC_Web::$cookie_da_dat );
+
+VHCC_Auth::mo_khoa();
+$r_sai = VHNB_Trang::dang_nhap( '000000' );
+t( 'PIN sai -> chối', empty( $r_sai['ok'] ), $r_sai );
+t( 'và nói ra lý do', '' !== (string) $r_sai['loi'], $r_sai );
+/* 🔴 KHÔNG BAO GIỜ ĐƯA PIN VÀO CÂU BÁO — câu này hiện lên một trang ai cũng mở được. */
+t( '🔴 câu báo KHÔNG chứa PIN vừa gõ', false === strpos( (string) $r_sai['loi'], '000000' ), $r_sai );
+
+/* 🔴 GÁC BẰNG ĐÚNG DANH SÁCH MÀ `user_by_token` DÙNG (`vai_tro_vao`). Lệch một cái là người ta
+   gõ PIN đúng, cookie được đặt, rồi lượt sau `toi()` trả null — màn hình quay lại y như cũ,
+   không một câu giải thích, và họ gõ lại mười lần cho tới lúc tự khoá mình. */
+VHCC_Auth::mo_khoa();
+$wpdb->insert( $bang_cfg_dn, array( 'bang' => 'CH_NguoiDung', 'stt' => 9,
+	'cols' => wp_json_encode( array( 'Bác Vai Lạ', '667788', 'Khách vãng lai', 'CS_VIVO' ) ) ) );
+VHCC_Web::$cookie_da_dat = array();
+$r_vai = VHNB_Trang::dang_nhap( '667788' );
+t( '🔴 PIN đúng nhưng vai KHÔNG vào được -> chối, và nói rõ là vì vai chứ không phải PIN sai',
+	empty( $r_vai['ok'] ) && false !== strpos( (string) $r_vai['loi'], 'Bác Vai Lạ' ), $r_vai );
+teq( 'và KHÔNG đặt cookie cho người bị chối', array(), VHCC_Web::$cookie_da_dat );
+
+VHCC_Auth::mo_khoa();
+$r_khuon = VHNB_Trang::dang_nhap( 'abc' );
+t( 'PIN sai khuôn -> chối bằng đúng câu của cửa cũ',
+	empty( $r_khuon['ok'] ) && false !== strpos( (string) $r_khuon['loi'], '4–8' ), $r_khuon );
+
+/* 🔴 MỘT BỘ CHỐT, KHÔNG PHẢI HAI. Gõ sai 10 lượt Ở TRANG NỘI BỘ thì cửa của hệ chấm công cũng
+   phải khoá theo — vì đó vốn là CÙNG một bộ đếm. Tự viết cửa riêng ở đây là phép thử này đỏ. */
+VHCC_Auth::mo_khoa();
+for ( $i_dn = 0; $i_dn < 10; $i_dn++ ) { VHNB_Trang::dang_nhap( '999999' ); }
+$kq_ben_kia = VHCC_Auth::login( '778899' );
+t( '🔴 dò sai 10 lượt ở trang Nội bộ thì cửa BÊN CHẤM CÔNG khoá theo (một bộ chốt, không phải hai)',
+	empty( $kq_ben_kia['ok'] ) && false !== strpos( (string) $kq_ben_kia['error'], '10 phút' ),
+	$kq_ben_kia );
+VHCC_Auth::mo_khoa();
+
+/* Lượt POST thật: chưa đăng nhập mà gửi `viec=dang_nhap` thì phải vào được, rồi chuyển hướng
+   VỀ CHÍNH TRANG NÀY — anh Thắng: *"có đăng nhập thì lại từ đầu"*. */
+$_POST = array( 'viec' => 'dang_nhap', 'pin' => '778899' );
+$GLOBALS['VHCP_CHUYEN'] = '';
+ob_start(); VHNB_Trang::phuc_vu(); $h_dn = ob_get_clean();
+teq( 'POST đăng nhập -> chuyển hướng về chính trang Nội bộ',
+	VHNB_Trang::url(), (string) $GLOBALS['VHCP_CHUYEN'] );
+teq( 'và không vẽ gì thêm ra', '', $h_dn );
+
+/* 🔴 CHỐT CHỮ KÝ KHÔNG ĐƯỢC CHẶN LƯỢT ĐĂNG NHẬP. `ky_dung()` tính chữ ký theo THẺ PHIÊN, mà
+   lượt này chưa có thẻ nào — đặt nhầm thứ tự thì ô PIN nằm đó nhìn thấy được nhưng không bao
+   giờ vào nổi, và không một câu báo nào giải thích. */
+t( '🔴 lượt đăng nhập KHÔNG bị chốt chữ ký chặn (không có thẻ thì lấy đâu ra chữ ký)',
+	'' === $h_dn && '' !== (string) $GLOBALS['VHCP_CHUYEN'] );
+
+/* PIN sai qua lượt POST: vẽ THẲNG lại trang kèm câu báo, KHÔNG chuyển hướng — vì câu báo cất
+   trong transient thì khoá tên theo thẻ phiên, mà chưa đăng nhập nghĩa là thẻ rỗng, tức mọi
+   khách trên internet dùng CHUNG một ô nhớ. */
+VHCC_Auth::mo_khoa();
+$_POST = array( 'viec' => 'dang_nhap', 'pin' => '000001' );
+$GLOBALS['VHCP_CHUYEN'] = '';
+ob_start(); VHNB_Trang::phuc_vu(); $h_sai = ob_get_clean();
+teq( 'PIN sai -> KHÔNG chuyển hướng', '', (string) $GLOBALS['VHCP_CHUYEN'] );
+t( 'mà vẽ lại trang kèm câu báo đỏ',
+	false !== strpos( $h_sai, 'bao loi' ) && false !== strpos( $h_sai, 'name="pin"' ),
+	substr( $h_sai, -1600 ) );
+t( '🔴 và KHÔNG trả lại PIN vừa gõ vào ô nhập', false === strpos( $h_sai, '000001' ),
+	substr( $h_sai, -1600 ) );
+$_POST = array();
+VHCC_Auth::mo_khoa();
+
+/* -------------------------------------------------------------------- THOÁT */
+
+$TOK_RA = VHCC_Auth::phat_token( 'Chị Vào Được', 'Quản lý', 'CS_VIVO', 'NV009' );
+$_COOKIE[ constant( 'VHCC_Web::COOKIE' ) ] = $TOK_RA;
+t( 'trước khi thoát: thẻ còn sống', null !== VHCC_Auth::user_by_token( $TOK_RA ) );
+
+$U_RA = VHNB_Trang::toi();
+t( 'và trang nhận ra người đang đăng nhập', is_array( $U_RA ), $U_RA );
+
+ob_start(); VHNB_Trang::ve( $U_RA ); $h_co = ob_get_clean();
+t( 'thanh đầu có nút Thoát', false !== strpos( $h_co, 'name="viec" value="thoat"' ), substr( $h_co, -2500 ) );
+/* Nút Thoát là FORM POST kèm chữ ký, không phải một đường dẫn: một cái link đăng xuất thì chỉ
+   cần dán địa chỉ ấy vào bảng tin là cả phòng bị đá ra. */
+t( 'nút Thoát là biểu mẫu POST có chữ ký, không phải đường dẫn',
+	preg_match( '#<form method="post"[^>]*>\s*<input type="hidden" name="ky"[^>]*>\s*'
+		. '<input type="hidden" name="viec" value="thoat">#', $h_co ) === 1, substr( $h_co, 0, 4000 ) );
+
+$_POST = array( 'viec' => 'thoat', 'ky' => VHNB_Trang::chu_ky( $TOK_RA ) );
+$GLOBALS['VHCP_CHUYEN'] = '';
+VHCC_Web::$cookie_da_dat = array();
+ob_start(); VHNB_Trang::phuc_vu(); $h_ra_x = ob_get_clean();
+teq( 'thoát -> quay về TRANG NỘI BỘ, không nhảy sang trang chấm công',
+	VHNB_Trang::url(), (string) $GLOBALS['VHCP_CHUYEN'] );
+/* 🔴 THOÁT LÀ THOÁT THẬT. Ba trang dùng chung MỘT thẻ, và trạm chấm công còn giữ chính thẻ ấy
+   trong localStorage. Xoá mỗi cookie thì người vừa bấm Thoát trên máy chung tưởng mình đã ra,
+   trong khi thẻ vẫn sống 12 tiếng ở chỗ khác. */
+teq( '🔴 thẻ bị HUỶ hẳn, không chỉ xoá cookie của trình duyệt này',
+	null, VHCC_Auth::user_by_token( $TOK_RA ) );
+/* Và cookie cũng phải được xoá — không thì trình duyệt còn mang một chuỗi rác suốt 12 tiếng. */
+t( '🔴 và cookie phiên bị XOÁ', in_array( 'xoa', VHCC_Web::$cookie_da_dat, true ),
+	VHCC_Web::$cookie_da_dat );
+$_POST = array();
+
+/* Không có chữ ký thì không thoát được — nếu không, dán một biểu mẫu ở trang ngoài là đá được
+   người khác ra khỏi hệ. */
+$TOK_R2 = VHCC_Auth::phat_token( 'Chị Vào Được', 'Quản lý', 'CS_VIVO', 'NV009' );
+$_COOKIE[ constant( 'VHCC_Web::COOKIE' ) ] = $TOK_R2;
+$_POST = array( 'viec' => 'thoat', 'ky' => 'chu-ky-gia' );
+$GLOBALS['VHCP_CHUYEN'] = '';
+ob_start(); VHNB_Trang::phuc_vu(); ob_get_clean();
+t( '🔴 chữ ký sai thì KHÔNG thoát được ai cả',
+	null !== VHCC_Auth::user_by_token( $TOK_R2 ), $GLOBALS['VHCP_CHUYEN'] );
+$_POST = array();
+
+/* `thoat()` khi chưa đăng nhập: không có gì để huỷ, và KHÔNG được ném lỗi. */
+$_COOKIE = array();
+teq( 'chưa đăng nhập mà bấm thoát -> false, không ném lỗi', false, VHNB_Trang::thoat() );
+
+/* -------------------------------------------- thoát ở TRANG CHẤM CÔNG thì về đâu
+
+   Anh Thắng: *"khi thoát thì nó trở về trang nội bộ"*. Khi Nội bộ đang là TRANG CHỦ thì đó mới
+   là cửa trước của cả hệ — thoát ra mà đứng ở màn PIN riêng của trang chấm công là người ta
+   mất luôn đường về nhà. */
+$tc_cu = get_option( 'vhnb_trang_chu' );
+update_option( 'vhnb_trang_chu', 0 );
+teq( 'chưa bật làm trang chủ -> thoát ở chấm công vẫn về trang chấm công',
+	VHCC_Web::url(), VHCC_Web::noi_ve_sau_thoat() );
+update_option( 'vhnb_trang_chu', 1 );
+teq( '🔴 bật làm trang chủ -> thoát ở chấm công về TRANG NỘI BỘ',
+	VHNB_Trang::url(), VHCC_Web::noi_ve_sau_thoat() );
+update_option( 'vhnb_trang_chu', $tc_cu ? 1 : 0 );
+
+/* Dọn lại nguồn người dùng — bẫy thứ tự khối thử đã cắn nhiều lần trong dự án này. */
+$wpdb->exec_raw( "DELETE FROM $bang_cfg_dn WHERE bang='CH_NguoiDung'" );
+update_option( 'vhcc_nguon_nguoidung', $nguon_cu ? $nguon_cu : 'ho_so' );
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+vhnb_dung_bang();
 
 /* ================================================================= kết */
 
