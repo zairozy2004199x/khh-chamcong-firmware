@@ -114,6 +114,82 @@ class VHNB_Trang {
 		return ( '' !== $tok && '' !== $gui && hash_equals( self::chu_ky( $tok ), $gui ) );
 	}
 
+	/* ==================================================================== chat mini (ajax) */
+
+	/**
+	 * VIỆC CHAT MINI, TÁCH RA THÀNH HÀM THUẦN — cùng lý do `lam_viec()` không tự `echo`/`exit`:
+	 * để bài kiểm gọi được thẳng, không phải giả một lượt HTTP đủ đầu đủ đuôi.
+	 *
+	 * @param array  $toi     người đang đăng nhập (đã qua `self::toi()` ở nơi gọi thật).
+	 * @param string $viec    'dem' · 'ds' · 'lay' · 'gui'.
+	 * @param array  $du_lieu ['voi'=>mã người kia, 'nd'=>nội dung định gửi, 'sau'=>mốc id polling].
+	 */
+	public static function xu_ly_ajax_tin( $toi, $viec, $du_lieu ) {
+		$ma_toi = trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) );
+
+		if ( 'dem' === $viec ) {
+			return array( 'ok' => true, 'demChuaDoc' => VHNB_Tin::dem_chua_doc( $ma_toi ) );
+		}
+		if ( 'ds' === $viec ) {
+			return array( 'ok' => true, 'cuoc' => VHNB_Tin::ds_cuoc_tro_chuyen( $ma_toi ),
+				'demChuaDoc' => VHNB_Tin::dem_chua_doc( $ma_toi ) );
+		}
+		if ( 'lay' === $viec ) {
+			$voi = isset( $du_lieu['voi'] ) ? trim( (string) $du_lieu['voi'] ) : '';
+			if ( '' === $voi ) { return array( 'ok' => false, 'error' => 'Thiếu mã người muốn xem.' ); }
+			$sau = isset( $du_lieu['sau'] ) ? (int) $du_lieu['sau'] : 0;
+			$ds  = ( $sau > 0 )
+				? VHNB_Tin::tin_moi( $ma_toi, $voi, $sau )
+				: VHNB_Tin::tin_gan_day( $ma_toi, $voi );
+			/* Mở/đọc lại một cuộc trò chuyện coi như đã đọc — cùng cách mọi ứng dụng chat làm.
+			   Đặt SAU khi lấy `$ds`, không phải trước: đặt trước thì tin vừa lấy ra đã mang cờ
+			   `da_doc=1`, làm mất dấu "tin nào mình chưa kịp thấy" trong chính lượt trả về này. */
+			VHNB_Tin::danh_dau_doc( $ma_toi, $voi );
+			return array( 'ok' => true, 'tin' => $ds, 'demChuaDoc' => VHNB_Tin::dem_chua_doc( $ma_toi ) );
+		}
+		if ( 'gui' === $viec ) {
+			return VHNB_Tin::gui( $toi,
+				isset( $du_lieu['voi'] ) ? $du_lieu['voi'] : '',
+				isset( $du_lieu['nd'] ) ? $du_lieu['nd'] : '' );
+		}
+		return array( 'ok' => false, 'error' => 'Không biết việc "' . $viec . '".' );
+	}
+
+	/**
+	 * CỬA VÀO THẬT của chat mini — `admin-ajax.php` gọi thẳng hàm này (xem `vhcp-noi-bo.php`).
+	 *
+	 * 🔴 `exit` NẰM Ở ĐÂY, KHÔNG NẰM TRONG `xu_ly_ajax_tin()` — cùng luật với `hien_trang()`/
+	 *    `phuc_vu()`: hàm có `exit` thì bài kiểm gọi nó là bài kiểm tự chết giữa đường.
+	 *
+	 * ⚠️ CHỮ KÝ BẮT BUỘC, KỂ CẢ LƯỢT CHỈ ĐỌC (`dem`/`ds`/`lay`). `admin-ajax.php` không tự chặn
+	 *    theo gốc (Origin) — thiếu chữ ký thì một trang ngoài dựng vài dòng JS đọc trộm được tin
+	 *    nhắn của bất kỳ ai đang có phiên mở trong cùng trình duyệt.
+	 */
+	public static function ajax_tin() {
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=utf-8' );
+		$toi = self::toi();
+		if ( ! $toi ) {
+			echo wp_json_encode( array( 'ok' => false, 'error' => 'Chưa đăng nhập.' ) );
+			exit;
+		}
+		$tok = self::the_phien();
+		$ky  = isset( $_REQUEST['ky'] ) ? (string) wp_unslash( $_REQUEST['ky'] ) : '';
+		if ( '' === $tok || '' === $ky || ! hash_equals( self::chu_ky( $tok ), $ky ) ) {
+			echo wp_json_encode( array( 'ok' => false,
+				'error' => 'Phiên đã hết hoặc yêu cầu không hợp lệ. Tải lại trang.' ) );
+			exit;
+		}
+		$viec    = isset( $_REQUEST['viec'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['viec'] ) ) : '';
+		$du_lieu = array(
+			'voi' => isset( $_REQUEST['voi'] ) ? wp_unslash( $_REQUEST['voi'] ) : '',
+			'nd'  => isset( $_REQUEST['nd'] ) ? wp_unslash( $_REQUEST['nd'] ) : '',
+			'sau' => isset( $_REQUEST['sau'] ) ? (int) $_REQUEST['sau'] : 0,
+		);
+		echo wp_json_encode( self::xu_ly_ajax_tin( $toi, $viec, $du_lieu ) );
+		exit;
+	}
+
 	/* ==================================================================== phục vụ */
 
 	public static function phuc_vu() {
@@ -328,6 +404,7 @@ class VHNB_Trang {
 		/* ---------------- cột PHẢI: thành viên / đường tắt ---------------- */
 		self::cot_phai( $toi, $n_hien );
 
+		self::chat_mini( $toi );
 		self::dong_trang();
 	}
 
@@ -433,6 +510,219 @@ class VHNB_Trang {
 	private static function ten_nguon( $x ) {
 		$m = array( 'noi_bo' => 'Nội bộ', 'cham_cong' => 'Chấm công', 'chi_phi' => 'Chi phí' );
 		return isset( $m[ $x ] ) ? $m[ $x ] : ( '' !== $x ? $x : 'Khác' );
+	}
+
+	/* ==================================================================== chat mini */
+
+	/**
+	 * TAB CHAT MINI — cố định góc dưới-phải, giống các ô chat nổi quen thuộc.
+	 *
+	 * Anh Thắng 30/08/2026: *"bổ sung tab chat mini bên dưới để chat với thành viên"*, chốt chạy
+	 * kiểu TỰ CẬP NHẬT — đây là chỗ DUY NHẤT của cả trang có JavaScript (mọi chỗ khác cố ý không
+	 * có, xem đầu tệp) vì tự cập nhật thì bắt buộc phải hỏi máy chủ nhiều lần mà không tải lại
+	 * trang. Server chỉ in ra CÁI KHUNG rỗng; toàn bộ nội dung (danh sách, tin nhắn) do JS tải
+	 * qua `admin-ajax.php` (xem `ajax_tin()`) — server-side không biết trước cuộc trò chuyện nào
+	 * sẽ mở, nên không có gì để render sẵn ngoài cái khung.
+	 *
+	 * ⚠️ CẦN MÃ NV, CÙNG CHỐT VỚI THẢ TIM/LẬP NHÓM. Không có mã thì `VHNB_Tin::gui()` chối thẳng
+	 *    — ẩn cả khối đi còn hơn để một cái tab bấm vào chỉ toàn báo lỗi.
+	 */
+	private static function chat_mini( $toi ) {
+		if ( ! VHNB_Quyen::duoc( $toi, 'dang' ) ) { return; }
+		$ma = trim( (string) ( isset( $toi['ma_nv'] ) ? $toi['ma_nv'] : '' ) );
+		if ( '' === $ma ) { return; }
+
+		$cfg = array(
+			'ajax' => admin_url( 'admin-ajax.php' ),
+			'ky'   => self::chu_ky( self::the_phien() ),
+			'dai'  => VHNB_Tin::DAI_TOI_DA,
+		);
+
+		/* ⚠️ HAI MỐC `<!-- vhnb-chat -->` / `<!-- /vhnb-chat -->` — bài kiểm `kiem-noi-bo.php` cắt
+		   đúng đoạn giữa hai mốc này ra trước khi soi "trang không có script lạ nào". Xê dịch
+		   hay xoá một trong hai mốc là bài kiểm hết cắt đúng chỗ, và mọi phép thử "không script"
+		   trong file đó tự đỏ dù chat mini không hề đổi gì. */
+		echo '<!-- vhnb-chat -->';
+		echo '<div id="vhnb-chat" data-cfg="' . esc_attr( wp_json_encode( $cfg ) ) . '">';
+		echo '<button id="vhnb-chat-tab" type="button">💬 Tin nhắn'
+			. '<span id="vhnb-chat-dem" hidden></span></button>';
+		echo '<div id="vhnb-chat-panel" hidden>';
+		echo '<div id="vhnb-chat-dau">'
+			. '<button id="vhnb-chat-lui" type="button" title="Về danh sách" hidden>←</button>'
+			. '<b id="vhnb-chat-tieu">Tin nhắn</b>'
+			. '<button id="vhnb-chat-dong" type="button" title="Đóng">✕</button>'
+			. '</div>';
+		echo '<div id="vhnb-chat-ds"><p class="mo" style="padding:14px;margin:0">Đang tải…</p></div>';
+		echo '<div id="vhnb-chat-moimoi">'
+			. '<input id="vhnb-chat-ma-moi" placeholder="Mã NV để nhắn tin mới…" maxlength="40">'
+			. '<button id="vhnb-chat-bat-dau" type="button">Nhắn</button></div>';
+		/* ⚠️ VẪN MANG `name="ky"`, DÙ JS KHÔNG ĐỌC TỪ ĐÓ (đọc thẳng `CFG.ky` để gửi qua fetch).
+		   Cùng luật với mọi biểu mẫu POST khác của trang: tắt JavaScript thì nút Gửi rơi về nộp
+		   biểu mẫu kiểu cũ, và biểu mẫu đó vẫn phải mang đủ chữ ký như mọi cửa ghi khác. */
+		echo '<div id="vhnb-chat-thread" hidden>'
+			. '<div id="vhnb-chat-tin"></div>'
+			. '<form id="vhnb-chat-form">' . self::o_ky()
+			. '<input id="vhnb-chat-o" placeholder="Nhắn gì đó…" autocomplete="off" maxlength="'
+			. (int) VHNB_Tin::DAI_TOI_DA . '">'
+			. '<button type="submit">Gửi</button></form></div>';
+		echo '</div></div>';
+
+		echo '<script>(function(){'
+			. 'var CFG=JSON.parse(document.getElementById("vhnb-chat").getAttribute("data-cfg"));'
+			. 'var man="ds";'          /* 'ds' = danh sách cuộc trò chuyện · 'thread' = đang xem một cuộc */
+			. 'var voiMa="",voiTen="";'
+			. 'var tinCuoiId=0;'
+			. 'var timerTin=null,timerDs=null;'
+			. 'var elTab=document.getElementById("vhnb-chat-tab");'
+			. 'var elPanel=document.getElementById("vhnb-chat-panel");'
+			. 'var elDem=document.getElementById("vhnb-chat-dem");'
+			. 'var elTieu=document.getElementById("vhnb-chat-tieu");'
+			. 'var elLui=document.getElementById("vhnb-chat-lui");'
+			. 'var elDs=document.getElementById("vhnb-chat-ds");'
+			. 'var elMoiMoi=document.getElementById("vhnb-chat-moimoi");'
+			. 'var elThread=document.getElementById("vhnb-chat-thread");'
+			. 'var elTin=document.getElementById("vhnb-chat-tin");'
+			. 'var elO=document.getElementById("vhnb-chat-o");'
+
+			/* ---- gọi máy chủ ---- */
+			. 'function goi(viec,them){'
+				. 'var d=Object.assign({action:"vhnb_tin",viec:viec,ky:CFG.ky},them||{});'
+				. 'var qs=Object.keys(d).map(function(k){return encodeURIComponent(k)+"="+encodeURIComponent(d[k]);}).join("&");'
+				. 'return fetch(CFG.ajax,{method:"POST",credentials:"same-origin",'
+					. 'headers:{"Content-Type":"application/x-www-form-urlencoded"},body:qs})'
+					. '.then(function(r){return r.json();});'
+			. '}'
+
+			/* ---- huy hiệu số tin chưa đọc, chạy liên tục dù panel đang đóng ---- */
+			. 'function veHuyHieu(n){'
+				. 'if(n>0){elDem.hidden=false;elDem.textContent=(n>99?"99+":String(n));}'
+				. 'else{elDem.hidden=true;}'
+			. '}'
+			. 'function capNhatHuyHieu(){'
+				. 'goi("dem",{}).then(function(k){if(k&&k.ok) veHuyHieu(k.demChuaDoc);}).catch(function(){});'
+			. '}'
+			. 'setInterval(capNhatHuyHieu,7000);'
+			. 'capNhatHuyHieu();'
+
+			/* ---- màn danh sách ---- */
+			. 'function gonHtml(s){'
+				. 'var d=document.createElement("div");d.textContent=String(s==null?"":s);return d.innerHTML;'
+			. '}'
+			. 'function veDanhSach(ds){'
+				. 'if(!ds.length){elDs.innerHTML=\'<p class="mo" style="padding:14px;margin:0">'
+					. 'Chưa nhắn với ai. Gõ Mã NV bên dưới để bắt đầu.</p>\';return;}'
+				. 'var h="";'
+				. 'for(var i=0;i<ds.length;i++){var c=ds[i];'
+					. 'h+=\'<button type="button" class="vhnb-cuoc\'+(c.chuaDoc>0?" chua-doc":"")+\'" '
+					. 'data-ma="\'+gonHtml(c.ma)+\'" data-ten="\'+gonHtml(c.ten||c.ma)+\'">\''
+					. '+\'<span class="vhnb-cuoc-chu"><span class="vhnb-cuoc-ten">\'+gonHtml(c.ten||c.ma)+\'</span>\''
+					. '+\'<span class="vhnb-cuoc-tin">\'+(c.tinCuoiToi?"Bạn: ":"")+gonHtml(c.tinCuoi)+\'</span></span>\''
+					. '+(c.chuaDoc>0?\'<span class="vhnb-cuoc-dem">\'+(c.chuaDoc>99?"99+":c.chuaDoc)+\'</span>\':"")'
+					. '+\'</button>\';'
+				. '}'
+				. 'elDs.innerHTML=h;'
+				. 'var nut=elDs.querySelectorAll(".vhnb-cuoc");'
+				. 'for(var j=0;j<nut.length;j++){nut[j].addEventListener("click",function(){'
+					. 'moCuocTroChuyen(this.getAttribute("data-ma"),this.getAttribute("data-ten"));'
+				. '});}'
+			. '}'
+			. 'function taiDanhSach(){'
+				. 'goi("ds",{}).then(function(k){'
+					. 'if(k&&k.ok){veDanhSach(k.cuoc);veHuyHieu(k.demChuaDoc);}'
+				. '}).catch(function(){});'
+			. '}'
+
+			/* ---- màn một cuộc trò chuyện ---- */
+			. 'function veBong(t){'
+				. 'var b=document.createElement("div");'
+				. 'b.className="vhnb-bong "+(String(t.tu).toUpperCase()===String(voiMa).toUpperCase()?"kia":"toi");'
+				. 'b.textContent=t.noi_dung;'
+				. 'elTin.appendChild(b);'
+			. '}'
+			. 'function moCuocTroChuyen(ma,ten){'
+				. 'man="thread";voiMa=ma;voiTen=ten||ma;tinCuoiId=0;'
+				. 'elTieu.textContent=voiTen;elLui.hidden=false;'
+				. 'elDs.hidden=true;elMoiMoi.hidden=true;elThread.hidden=false;'
+				. 'elTin.innerHTML=\'<p class="mo" style="padding:14px;margin:0">Đang tải…</p>\';'
+				. 'if(timerDs){clearInterval(timerDs);timerDs=null;}'
+				. 'goi("lay",{voi:voiMa,sau:0}).then(function(k){'
+					. 'elTin.innerHTML="";'
+					. 'if(k&&k.ok){'
+						. 'if(!k.tin.length){elTin.innerHTML=\'<p class="mo" style="padding:14px;margin:0">'
+							. 'Chưa có tin nào — gõ vài chữ bên dưới.</p>\';}'
+						. 'for(var i=0;i<k.tin.length;i++){veBong(k.tin[i]);tinCuoiId=Math.max(tinCuoiId,parseInt(k.tin[i].id,10));}'
+						. 'elTin.scrollTop=elTin.scrollHeight;'
+						. 'veHuyHieu(k.demChuaDoc);'
+					. '}'
+					. 'if(timerTin){clearInterval(timerTin);}'
+					. 'timerTin=setInterval(capNhatTin,3000);'
+				. '}).catch(function(){elTin.innerHTML=\'<p class="mo" style="padding:14px;margin:0">'
+					. 'Không tải được — kiểm tra mạng rồi thử lại.</p>\';});'
+			. '}'
+			. 'function capNhatTin(){'
+				. 'if("thread"!==man||!voiMa) return;'
+				. 'goi("lay",{voi:voiMa,sau:tinCuoiId}).then(function(k){'
+					. 'if(!k||!k.ok) return;'
+					. 'if(k.tin.length){'
+						. 'var duoi=(elTin.scrollTop+elTin.clientHeight>=elTin.scrollHeight-16);'
+						. 'for(var i=0;i<k.tin.length;i++){veBong(k.tin[i]);tinCuoiId=Math.max(tinCuoiId,parseInt(k.tin[i].id,10));}'
+						. 'if(duoi) elTin.scrollTop=elTin.scrollHeight;'
+					. '}'
+					. 'veHuyHieu(k.demChuaDoc);'
+				. '}).catch(function(){});'
+			. '}'
+			. 'function veDsLai(){'
+				. 'man="ds";voiMa="";voiTen="";'
+				. 'elTieu.textContent="Tin nhắn";elLui.hidden=true;'
+				. 'elThread.hidden=true;elDs.hidden=false;elMoiMoi.hidden=false;'
+				. 'if(timerTin){clearInterval(timerTin);timerTin=null;}'
+				. 'taiDanhSach();'
+				. 'if(timerDs){clearInterval(timerDs);}'
+				. 'timerDs=setInterval(taiDanhSach,7000);'
+			. '}'
+
+			/* ---- mở / đóng panel ---- */
+			. 'function moPanel(){'
+				. 'elPanel.hidden=false;'
+				. 'if("thread"===man&&voiMa){/* đang xem dở một cuộc thì mở lại đúng chỗ */'
+					. 'if(timerTin){clearInterval(timerTin);}timerTin=setInterval(capNhatTin,3000);capNhatTin();'
+				. '}else{veDsLai();}'
+			. '}'
+			. 'function dongPanel(){'
+				. 'elPanel.hidden=true;'
+				. 'if(timerTin){clearInterval(timerTin);timerTin=null;}'
+				. 'if(timerDs){clearInterval(timerDs);timerDs=null;}'
+			. '}'
+			. 'elTab.addEventListener("click",function(){'
+				. 'if(elPanel.hidden) moPanel(); else dongPanel();'
+			. '});'
+			. 'document.getElementById("vhnb-chat-dong").addEventListener("click",dongPanel);'
+			. 'elLui.addEventListener("click",veDsLai);'
+
+			/* ---- bắt đầu một cuộc trò chuyện mới bằng Mã NV ---- */
+			. 'document.getElementById("vhnb-chat-bat-dau").addEventListener("click",function(){'
+				. 'var ma=document.getElementById("vhnb-chat-ma-moi").value.trim();'
+				. 'if(!ma) return;'
+				. 'document.getElementById("vhnb-chat-ma-moi").value="";'
+				. 'moCuocTroChuyen(ma,ma);'
+			. '});'
+
+			/* ---- gửi tin ---- */
+			. 'document.getElementById("vhnb-chat-form").addEventListener("submit",function(e){'
+				. 'e.preventDefault();'
+				. 'var nd=elO.value;'
+				. 'if(!nd.trim()||!voiMa) return;'
+				. 'elO.value="";elO.disabled=true;'
+				. 'goi("gui",{voi:voiMa,nd:nd}).then(function(k){'
+					. 'elO.disabled=false;elO.focus();'
+					. 'if(k&&k.ok){'
+						. 'if(k.denTen) {voiTen=k.denTen;elTieu.textContent=voiTen;}'
+						. 'capNhatTin();'
+					. '}else{elO.value=nd;alert(k&&k.error?k.error:"Không gửi được, thử lại.");}'
+				. '}).catch(function(){elO.disabled=false;elO.value=nd;});'
+			. '});'
+		. '})();</script>';
+		echo '<!-- /vhnb-chat -->';
 	}
 
 	/* ==================================================================== cột trái */
@@ -841,6 +1131,53 @@ class VHNB_Trang {
 			. 'border-top:1px solid var(--vien);padding-top:10px}'
 			. '.moi input{flex:1;min-width:120px}'
 			. '.nq{margin:0;padding-left:18px;font-size:13px;color:var(--mo);line-height:1.7}'
+
+			/* ---------- chat mini (xem chat_mini()) ----------
+			   ⚠️ KIỂU CHỮ NẰM CHUNG KHỐI `<style>` NÀY, KHÔNG PHẢI MỘT `<style>` RIÊNG trong
+			   `chat_mini()`. Bài kiểm `kiem-noi-bo.php` canh "cả trang chỉ có MỘT khối kiểu chữ"
+			   — mở thêm `<style>` thứ hai là tự phá đúng chốt ấy dù CSS vẫn đúng. */
+			. '#vhnb-chat-tab{position:fixed;right:18px;bottom:18px;z-index:60;border:0;'
+			. 'background:var(--xanh);color:#fff;font:600 14px/1 inherit;padding:13px 18px;'
+			. 'border-radius:24px;box-shadow:0 6px 18px rgba(15,23,42,.22);cursor:pointer}'
+			. '#vhnb-chat-dem{background:var(--do);color:#fff;font-size:11px;font-weight:700;'
+			. 'border-radius:9px;padding:1px 6px;margin-left:6px}'
+			. '#vhnb-chat-panel{position:fixed;right:18px;bottom:78px;z-index:60;width:320px;'
+			. 'max-width:calc(100vw - 24px);height:440px;max-height:70vh;background:var(--the);'
+			. 'border:1px solid var(--vien);border-radius:12px;box-shadow:0 10px 30px rgba(15,23,42,.22);'
+			. 'display:flex;flex-direction:column;overflow:hidden}'
+			. '#vhnb-chat-dau{display:flex;align-items:center;gap:8px;background:var(--xanh);'
+			. 'color:#fff;padding:10px 12px;flex:none}'
+			. '#vhnb-chat-dau b{flex:1;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'
+			. '#vhnb-chat-dau button{background:none;border:0;color:#fff;font-size:16px;cursor:pointer;'
+			. 'padding:2px 4px;line-height:1}'
+			. '#vhnb-chat-ds{flex:1;overflow-y:auto}'
+			. '.vhnb-cuoc{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;'
+			. 'border-bottom:1px solid #f1f5f9;text-align:left;width:100%;background:none;border-left:0;'
+			. 'border-right:0;border-top:0;font:inherit;color:inherit}'
+			. '.vhnb-cuoc:hover{background:#f8fafc}'
+			. '.vhnb-cuoc-chu{min-width:0;flex:1}'
+			. '.vhnb-cuoc-ten{font-size:13.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;'
+			. 'white-space:nowrap}'
+			. '.vhnb-cuoc.chua-doc .vhnb-cuoc-ten{color:var(--xanh)}'
+			. '.vhnb-cuoc-tin{font-size:12.5px;color:var(--mo);overflow:hidden;text-overflow:ellipsis;'
+			. 'white-space:nowrap}'
+			. '.vhnb-cuoc.chua-doc .vhnb-cuoc-tin{color:var(--chu);font-weight:600}'
+			. '.vhnb-cuoc-dem{background:var(--do);color:#fff;font-size:10.5px;font-weight:700;'
+			. 'border-radius:8px;padding:1px 6px;flex:none}'
+			. '#vhnb-chat-moimoi{display:flex;gap:6px;padding:8px;border-top:1px solid var(--vien);flex:none}'
+			. '#vhnb-chat-moimoi input{flex:1;min-width:0;font-size:13px;padding:6px 8px}'
+			. '#vhnb-chat-moimoi button{font-size:13px;padding:6px 10px}'
+			. '#vhnb-chat-thread{flex:1;display:flex;flex-direction:column;min-height:0}'
+			. '#vhnb-chat-tin{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:6px}'
+			. '.vhnb-bong{max-width:78%;padding:7px 11px;border-radius:14px;font-size:13.5px;'
+			. 'line-height:1.4;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}'
+			. '.vhnb-bong.toi{align-self:flex-end;background:var(--xanh);color:#fff;border-bottom-right-radius:4px}'
+			. '.vhnb-bong.kia{align-self:flex-start;background:#f0f2f5;color:var(--chu);border-bottom-left-radius:4px}'
+			. '#vhnb-chat-form{display:flex;gap:6px;padding:8px;border-top:1px solid var(--vien);flex:none}'
+			. '#vhnb-chat-form input{flex:1;min-width:0;font-size:14px;border-radius:18px;'
+			. 'background:var(--ro);border-color:transparent}'
+			. '@media(max-width:400px){#vhnb-chat-panel{right:8px;left:8px;width:auto;bottom:66px}'
+			. '#vhnb-chat-tab{right:10px;bottom:10px}}'
 
 			/* ---------- màn hẹp ---------- */
 			/* 1024px: bỏ cột phải xuống DƯỚI cột giữa (vẫn còn, chỉ đổi chỗ), giữ cột trái. */

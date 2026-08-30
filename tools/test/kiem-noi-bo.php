@@ -39,6 +39,32 @@ function teq( $ten, $mong, $thuc ) {
 	t( $ten . ' (mong ' . json_encode( $mong, JSON_UNESCAPED_UNICODE ) . ')', $mong === $thuc, $thuc );
 }
 
+/**
+ * CẮT BỎ KHỐI "CHAT MINI" trước khi soi "trang không có script lạ nào".
+ *
+ * Anh Thắng 30/08/2026: *"bổ sung tab chat mini bên dưới để chat với thành viên"*, chốt chạy
+ * kiểu TỰ CẬP NHẬT — nên `class-vhnb-trang.php::chat_mini()` là chỗ DUY NHẤT của cả trang được
+ * phép có `<script>`. Mọi phép thử "không script nào lọt ra" trong bài này (viết từ trước khi
+ * chat mini tồn tại) phải soi phần TRANG CÒN LẠI sau khi cắt bỏ đúng khối ấy, không phải chối
+ * bỏ luôn tính năng người ta vừa xin.
+ *
+ * ⚠️ CẮT THEO MỐC `<!-- vhnb-chat -->` / `<!-- /vhnb-chat -->`, không đoán vị trí bằng cách khác.
+ *    Hai mốc này do chính `chat_mini()` in ra bọc quanh toàn bộ khối của nó (HTML + script) —
+ *    đây là hợp đồng giữa mã nguồn và bài kiểm; đổi tên/bỏ mốc ở bên kia thì hàm dưới đây không
+ *    cắt được gì và VÔ TÌNH LÀM CÁC PHÉP THỬ "KHÔNG SCRIPT" HOÁ RA KHÔNG CANH GÌ CẢ — nên nếu
+ *    một ngày hàm trả về y nguyên chuỗi đưa vào (không tìm thấy mốc), phải coi đó là bài kiểm
+ *    ĐANG HỎNG, không phải trang đã sạch.
+ */
+function vhnb_bo_chat( $h ) {
+	$dau = '<!-- vhnb-chat -->';
+	$cuoi = '<!-- /vhnb-chat -->';
+	$p = strpos( $h, $dau );
+	if ( false === $p ) { return $h; }
+	$q = strpos( $h, $cuoi, $p );
+	if ( false === $q ) { return $h; }
+	return substr( $h, 0, $p ) . substr( $h, $q + strlen( $cuoi ) );
+}
+
 /* ================================================================= nạp plugin nội bộ */
 
 define( 'VHNB_VERSION', 'test' );
@@ -336,7 +362,8 @@ t( 'có liên kết quay về trang chấm công', false !== strpos( $h, VHCC_We
 
 /* 🔴 THOÁT CHUỖI. Đây là phép thử đắt nhất của cả bài: một người gõ `<script>` vào bài, 240
    người mở bảng tin. Sót chỗ này là mất luôn thẻ phiên chấm công của cả công ty. */
-t( '🔴 không có thẻ <script> nào lọt ra', false === stripos( $h, '<script' ), 'CÓ <script> TRONG TRANG' );
+t( '🔴 không có thẻ <script> nào lọt ra NGOÀI khối chat mini',
+	false === stripos( vhnb_bo_chat( $h ), '<script' ), 'CÓ <script> TRONG TRANG' );
 t( '🔴 không có thuộc tính on*= nào (kể cả của bài người dùng gõ)',
 	! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h ), 'CÓ thuộc tính on*= trong trang' );
 t( 'không có javascript: nào', false === stripos( $h, 'javascript:' ) );
@@ -413,9 +440,11 @@ $_COOKIE = array();
 ob_start(); VHNB_Trang::ve( null ); $h_cn = ob_get_clean();
 t( 'màn chưa đăng nhập cũng có thông tin công ty',
 	strpos( $h_cn, '0106924989' ) !== false, substr( $h_cn, -600 ) );
-/* Chân trang là CHỮ — không được kéo theo script hay thuộc tính on*= nào. */
+/* Chân trang là CHỮ — không được kéo theo script hay thuộc tính on*= nào (ngoài khối chat mini,
+   thứ DUY NHẤT được phép có script — xem chú thích ở vhnb_bo_chat()). */
 t( 'chân trang không mang script nào',
-	stripos( $h_c, '<script' ) === false && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_c ) );
+	stripos( vhnb_bo_chat( $h_c ), '<script' ) === false
+		&& ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', vhnb_bo_chat( $h_c ) ) );
 teq( 'cả trang vẫn chỉ có MỘT khối kiểu chữ', 1, substr_count( $h_c, '<style>' ) );
 t( 'và khối ấy có kiểu chữ của chân trang', strpos( $h_c, '.cty-ten{' ) !== false );
 
@@ -794,9 +823,12 @@ t( 'đầu trang có chuông', false !== strpos( $_h_ch, 'class="chuong"' ), 'kh
 t( 'chuông hiện số tin chưa đọc', false !== strpos( $_h_ch, 'class="cham"' ) );
 t( 'và bày ra câu của tin', false !== strpos( $_h_ch, 'Đơn T8 đã được duyệt' ) );
 t( 'kèm nhãn nguồn để biết tin từ đâu', false !== strpos( $_h_ch, 'Chi phí' ) );
-/* 🔴 Chuông KHÔNG được dùng script — cùng luật với màn quản trị chấm công. */
-t( '🔴 chuông không dùng một dòng script nào',
-	false === stripos( $_h_ch, '<script' ) && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $_h_ch ), 'có script' );
+/* 🔴 Chuông KHÔNG được dùng script — cùng luật với màn quản trị chấm công. Chat mini (khối
+   RIÊNG, xem vhnb_bo_chat()) là ngoại lệ DUY NHẤT của cả trang, không phải của chuông. */
+t( '🔴 chuông không dùng một dòng script nào', ( function () use ( $_h_ch ) {
+	$h = vhnb_bo_chat( $_h_ch );
+	return false === stripos( $h, '<script' ) && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h );
+} )(), 'có script' );
 /* ⚠️ Mở trang KHÔNG được tự đánh dấu đã đọc: tải lại trang là con số về 0 dù chưa ai mở chuông. */
 t( '🔴 mở trang KHÔNG tự đánh dấu đã đọc', VHNB_Bao::chua_doc( 'NV001' ) > 0 );
 
@@ -859,9 +891,142 @@ t( 'bài có ảnh thì vẽ thẻ img', false !== strpos( $_h_anh, 'class="bai-
 t( 'và ảnh tải chậm (lazy) — bảng tin 20 bài không kéo 20 ảnh một lượt',
 	false !== strpos( $_h_anh, 'loading="lazy"' ) );
 t( 'ảnh có kiểu chữ thật', false !== strpos( $_h_anh, '.bai-anh img{' ) );
-/* Vẫn không một dòng script nào — người ở cơ sở mở bằng điện thoại cũ trên 3G. */
-t( 'thêm ảnh mà trang vẫn KHÔNG dùng script',
-	false === stripos( $_h_anh, '<script' ) && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $_h_anh ) );
+/* Vẫn không một dòng script LẠ nào — người ở cơ sở mở bằng điện thoại cũ trên 3G. Chat mini (xem
+   vhnb_bo_chat()) là script DUY NHẤT được phép có trên cả trang, cắt nó ra rồi mới soi phần còn
+   lại — bài đăng có ảnh không được kéo theo bất kỳ script nào của riêng nó. */
+t( 'thêm ảnh mà trang vẫn KHÔNG dùng script lạ', ( function () use ( $_h_anh ) {
+	$h = vhnb_bo_chat( $_h_anh );
+	return false === stripos( $h, '<script' ) && ! preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h );
+} )() );
+
+/* ================================================================= chat mini (tin nhắn riêng)
+   Anh Thắng 30/08/2026: *"bổ sung tab chat mini bên dưới để chat với thành viên"*, chốt kiểu tự
+   cập nhật. NV001/NV002/NV009 vẫn còn hồ sơ thật từ khối "nhóm riêng" ở trên (chưa
+   `vhnb_dung_bang()` lại `nhan_vien` — bảng đó thuộc plugin chấm công, không nằm trong
+   `VHNB_DB::bang()`) nên dùng lại được luôn, không phải dựng lại. */
+
+$r = VHNB_Tin::gui( array(), 'NV001', 'xin chào' );
+teq( 'chưa đăng nhập thì không gửi được', false, $r['ok'] );
+
+$r = VHNB_Tin::gui( array( 'name' => 'Không Mã', 'ma_nv' => '' ), 'NV001', 'xin chào' );
+t( 'chưa có Mã NV thì không gửi được', empty( $r['ok'] ), $r );
+t( 'và nói rõ vì sao', false !== strpos( $r['error'], 'Mã NV' ), $r['error'] );
+
+$r = VHNB_Tin::gui( $U_NV, '', 'xin chào' );
+t( 'thiếu người nhận thì chối', empty( $r['ok'] ), $r );
+
+$r = VHNB_Tin::gui( $U_NV, 'NV001', 'xin chào' );
+t( '🔴 tự nhắn cho chính mình thì chối', empty( $r['ok'] ), $r );
+
+$r = VHNB_Tin::gui( $U_NV, 'MA_KHONG_CO', 'xin chào' );
+t( 'nhắn cho mã không có hồ sơ thì chối', empty( $r['ok'] ), $r );
+t( 'và nói rõ gõ đúng mã, không phải tên', false !== strpos( $r['error'], 'Gõ đúng mã' ), $r['error'] );
+
+$r = VHNB_Tin::gui( $U_NV, 'NV002', "   \n\n  " );
+t( 'tin rỗng (toàn khoảng trắng) bị chối', empty( $r['ok'] ), $r );
+
+$r1 = VHNB_Tin::gui( $U_NV, 'NV002', 'Chào chị B, mai có ca không?' );
+t( 'gửi được tin cho người có hồ sơ thật', ! empty( $r1['ok'] ), $r1 );
+teq( 'trả về đúng tên người nhận (từ hồ sơ)', 'Lê Thị B', $r1['denTen'] );
+$M1 = (int) $r1['id'];
+t( 'trả về id thật', $M1 > 0, $M1 );
+
+$hang = $wpdb->get_row( 'SELECT * FROM ' . VHNB_DB::t( 'tin_nhan' ) . ' WHERE id=' . $M1, ARRAY_A );
+teq( 'người gửi lấy TỪ PHIÊN', 'NV001', $hang['tu'] );
+teq( 'tên người gửi lấy TỪ PHIÊN', 'Trần Văn A', $hang['tu_ten'] );
+teq( 'người nhận đúng mã đã gõ', 'NV002', $hang['den'] );
+teq( 'chưa đọc lúc mới gửi', 0, (int) $hang['da_doc'] );
+
+/* 🔴 KHÔNG cho gửi thay người khác — canh bằng chữ ký hàm, vì đó là thứ chặn thật. */
+$rf_tin = new ReflectionMethod( 'VHNB_Tin', 'gui' );
+$ten_ts = array();
+foreach ( $rf_tin->getParameters() as $p ) { $ten_ts[] = $p->getName(); }
+teq( 'gui() không có tham số nào nhận tên/mã người gửi tự do', array( 'u', 'den_ma', 'noi_dung' ), $ten_ts );
+
+/* ---- đọc một cuộc trò chuyện ---- */
+$r2 = VHNB_Tin::gui( $U_CHT, 'NV001', 'Ừ mai có ca sáng.' );
+t( 'người nhận trả lời được', ! empty( $r2['ok'] ), $r2 );
+
+$ct = VHNB_Tin::tin_gan_day( 'NV001', 'NV002' );
+teq( 'đọc đủ hai chiều, đúng thứ tự cũ trước mới sau', 2, count( $ct ) );
+teq( 'tin đầu là tin NV001 gửi trước', 'Chào chị B, mai có ca không?', $ct[0]['noi_dung'] );
+teq( 'tin sau là NV002 trả lời', 'Ừ mai có ca sáng.', $ct[1]['noi_dung'] );
+teq( '🔴 đọc CHIỀU NGƯỢC LẠI (từ NV002) ra cùng nội dung, cùng thứ tự',
+	$ct, VHNB_Tin::tin_gan_day( 'NV002', 'NV001' ) );
+
+t( '🔴 người NGOÀI cuộc trò chuyện không đọc được gì (mã sai)',
+	empty( VHNB_Tin::tin_gan_day( 'NV009', 'NV001' ) ) );
+
+/* ---- tin MỚI kể từ một mốc id (dùng cho polling) ---- */
+$id_dau = (int) $ct[0]['id'];
+$tin_moi_ds = VHNB_Tin::tin_moi( 'NV001', 'NV002', $id_dau );
+teq( 'chỉ lấy tin SAU mốc, không lấy lại tin đã có', 1, count( $tin_moi_ds ) );
+teq( 'đúng là tin thứ hai', 'Ừ mai có ca sáng.', $tin_moi_ds[0]['noi_dung'] );
+t( 'mốc = tin mới nhất thì không còn gì mới',
+	empty( VHNB_Tin::tin_moi( 'NV001', 'NV002', (int) $ct[1]['id'] ) ) );
+
+/* ---- đánh dấu đã đọc ---- */
+teq( 'NV001 có đúng 1 tin chưa đọc (tin NV002 vừa gửi)', 1, VHNB_Tin::dem_chua_doc( 'NV001' ) );
+teq( 'NV002 có đúng 1 tin chưa đọc (tin NV001 gửi trước đó)', 1, VHNB_Tin::dem_chua_doc( 'NV002' ) );
+VHNB_Tin::danh_dau_doc( 'NV001', 'NV002' );
+teq( 'đánh dấu xong thì NV001 hết tin chưa đọc', 0, VHNB_Tin::dem_chua_doc( 'NV001' ) );
+teq( '🔴 nhưng KHÔNG đụng tới tin chưa đọc của NV002', 1, VHNB_Tin::dem_chua_doc( 'NV002' ) );
+
+/* ---- danh sách cuộc trò chuyện ---- */
+VHNB_Tin::gui( $U_NV_LA, 'NV001', 'Anh ơi cho em hỏi lịch nghỉ lễ' );
+$ds_ct = VHNB_Tin::ds_cuoc_tro_chuyen( 'NV001' );
+teq( 'NV001 có 2 cuộc trò chuyện (NV002 và NV009)', 2, count( $ds_ct ) );
+teq( '🔴 cuộc MỚI NHẤT đứng đầu', 'NV009', $ds_ct[0]['ma'] );
+teq( 'kèm đúng tin cuối', 'Anh ơi cho em hỏi lịch nghỉ lễ', $ds_ct[0]['tinCuoi'] );
+teq( 'đánh dấu ĐÚNG là tin của người kia, không phải của tôi', false, $ds_ct[0]['tinCuoiToi'] );
+teq( 'cuộc với NV002 tụt xuống dưới', 'NV002', $ds_ct[1]['ma'] );
+teq( 'và đã đọc hết (0 chưa đọc) sau khi đánh dấu ở trên', 0, $ds_ct[1]['chuaDoc'] );
+teq( 'cuộc với NV009 còn 1 tin chưa đọc', 1, $ds_ct[0]['chuaDoc'] );
+
+t( 'người chưa từng nhắn với ai thì danh sách rỗng', empty( VHNB_Tin::ds_cuoc_tro_chuyen( 'CHUA_NHAN_AI' ) ) );
+
+/* ---- VHNB_Trang::xu_ly_ajax_tin(): việc thuần, không cần dựng cả lượt HTTP ---- */
+$kq = VHNB_Trang::xu_ly_ajax_tin( $U_NV, 'dem', array() );
+teq( 'viec "dem" trả đúng số tin chưa đọc (1, từ NV009 vừa gửi ở trên)', 1, $kq['demChuaDoc'] );
+
+$kq = VHNB_Trang::xu_ly_ajax_tin( $U_NV, 'ds', array() );
+t( 'viec "ds" trả về danh sách cuộc trò chuyện', ! empty( $kq['ok'] ) && 2 === count( $kq['cuoc'] ), $kq );
+
+$kq = VHNB_Trang::xu_ly_ajax_tin( $U_NV, 'lay', array( 'voi' => 'NV002' ) );
+t( 'viec "lay" trả về tin của đúng cuộc trò chuyện', ! empty( $kq['ok'] ) && 2 === count( $kq['tin'] ), $kq );
+
+$kq = VHNB_Trang::xu_ly_ajax_tin( $U_NV, 'lay', array() );
+t( 'viec "lay" thiếu "voi" thì chối', empty( $kq['ok'] ), $kq );
+
+$kq = VHNB_Trang::xu_ly_ajax_tin( $U_NV, 'gui', array( 'voi' => 'NV002', 'nd' => 'test qua ajax' ) );
+t( 'viec "gui" gọi đúng đường VHNB_Tin::gui()', ! empty( $kq['ok'] ), $kq );
+
+$kq = VHNB_Trang::xu_ly_ajax_tin( $U_NV, 'lung_tung', array() );
+t( 'việc lạ thì chối, không âm thầm bỏ qua', empty( $kq['ok'] ), $kq );
+
+/* ---- hiện/ẩn tab chat trên trang, theo Mã NV + quyền ---- */
+$_COOKIE[ VHCC_Web::COOKIE ] = $TOK_NV;
+ob_start(); VHNB_Trang::ve( $U_NV ); $h_chat = ob_get_clean();
+t( '🔴 người có Mã NV thấy tab chat mini', strpos( $h_chat, 'id="vhnb-chat-tab"' ) !== false );
+/* ⚠️ Soi `admin-ajax.php` KHÔNG KÈM DẤU `/` XUNG QUANH: `wp_json_encode()` mặc định thoát dấu
+   `/` thành `\/` trong chuỗi JSON, nên URL thật nằm trong `data-cfg` dưới dạng đã thoát — trình
+   duyệt `JSON.parse()` tự hiểu đúng lúc chạy, nhưng soi chuỗi thô ở đây mà kèm `/` thì trật. */
+t( 'mang đúng đường admin-ajax.php', strpos( $h_chat, 'admin-ajax.php' ) !== false );
+t( 'nút gửi bằng form vẫn mang chữ ký (tắt JS thì vẫn chối được form giả)',
+	1 === substr_count( $h_chat, 'id="vhnb-chat-form"' )
+	&& false !== strpos( substr( $h_chat, strpos( $h_chat, 'id="vhnb-chat-form"' ), 300 ), 'name="ky"' ), $h_chat );
+t( '🔴 vhnb_bo_chat() thật sự cắt được khối chat ra — nếu không, mọi phép thử "không script" '
+	. 'phía trên coi như không canh gì cả', strlen( vhnb_bo_chat( $h_chat ) ) < strlen( $h_chat ),
+	array( strlen( $h_chat ), strlen( vhnb_bo_chat( $h_chat ) ) ) );
+
+$U_KM = array( 'name' => 'Chưa Có Mã', 'role' => 'Nhân viên', 'ma_nv' => '' );
+ob_start(); VHNB_Trang::ve( $U_KM ); $h_km = ob_get_clean();
+t( '🔴 người CHƯA có Mã NV thì KHÔNG thấy tab chat — VHNB_Tin::gui() sẽ chối mọi lượt gửi',
+	strpos( $h_km, 'id="vhnb-chat-tab"' ) === false, substr( $h_km, -3000 ) );
+
+$_COOKIE = array();
+ob_start(); VHNB_Trang::ve( null ); $h_null = ob_get_clean();
+t( 'chưa đăng nhập thì cũng không thấy tab chat', strpos( $h_null, 'id="vhnb-chat-tab"' ) === false );
 
 vhnb_dung_bang();
 

@@ -123,6 +123,30 @@ class VHNB_DB {
 			UNIQUE KEY mot_viec (ma_nv,khoa),
 			KEY hop_thu (ma_nv,da_doc,tao_luc)";
 
+		/* ===== TIN NHẮN RIÊNG (chat mini) =====
+		   Anh Thắng 30/08/2026: *"bổ sung tab chat mini bên dưới để chat với thành viên"*.
+
+		   🔴 MỘT HÀNG MỘT CHIỀU, KHÔNG PHẢI MỘT HÀNG MỘT CUỘC TRÒ CHUYỆN. `tu`/`den` là hai mã cố
+		   định của MỘT tin — đọc cả cuộc trò chuyện thì hỏi `(tu=A AND den=B) OR (tu=B AND den=A)`.
+		   Cách này khỏi phải bịa một "id cuộc trò chuyện" riêng rồi lo hai người nhắn nhau lần đầu
+		   thì tạo cuộc trò chuyện ở đâu, ai tạo trước.
+
+		   `tu_ten`/`den_ten` chép lại tên NGAY LÚC GỬI — cùng lý do với `ho_ten` ở bảng `bai`: đổi
+		   tên trong hồ sơ sau này không viết lại lịch sử tin nhắn cũ. */
+		$b['tin_nhan'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			tu VARCHAR(40) NOT NULL DEFAULT '',
+			tu_ten VARCHAR(190) NOT NULL DEFAULT '',
+			den VARCHAR(40) NOT NULL DEFAULT '',
+			den_ten VARCHAR(190) NOT NULL DEFAULT '',
+			noi_dung TEXT NULL,
+			da_doc TINYINT(1) NOT NULL DEFAULT 0,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			KEY cuoc_di (tu,den,id),
+			KEY cuoc_ve (den,tu,id),
+			KEY hop_thu (den,da_doc)";
+
 		return $b;
 	}
 
