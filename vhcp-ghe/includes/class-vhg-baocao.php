@@ -687,11 +687,11 @@ class VHG_BaoCao {
 						? ( 'chỉ số sau (' . $r['chi_so_sau'] . ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . ')' )
 						: ( 'tiền mặt tính ra ÂM (' . number_format( $r['tien_mat'], 0, ',', '.' ) . 'đ) — QR lớn hơn Actual' );
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': ' . $ly_ban_dau
-						. '. Ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột Thực thu rồi gửi lại.' );
+						. '. Ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột Thực thu tiền mặt rồi gửi lại.' );
 				}
 				if ( null === $thuc_thu ) {
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten']
-						. ': cần nhập Thực thu (số tiền nộp thật) vì chỉ số bất thường không tính được theo công thức.' );
+						. ': cần nhập Thực thu tiền mặt (số tiền nộp thật) vì chỉ số bất thường không tính được theo công thức.' );
 				}
 			}
 			if ( null !== $thuc_thu ) {

@@ -1488,7 +1488,7 @@ class VHG_Trang {
        vốn đã tính lại actual mỗi lần gõ (uỷ quyền sự kiện input) — chỉ thiếu ô hiện ra ở Gọn. */
     tb.innerHTML = GON
       ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>QR</th><th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>'
-      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Thực thu</th><th>Ghi chú</th>'
+      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Thực thu tiền mặt</th><th>Ghi chú</th>'
         + '<th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
@@ -1834,7 +1834,7 @@ class VHG_Trang {
         var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm, gõ nhầm QR…';
         iLy.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
         w.appendChild(iLy);
-        w.appendChild(document.createTextNode('Và nhập đúng số tiền thật vào cột "Thực thu" ở trên.'));
+        w.appendChild(document.createTextNode('Và nhập đúng số tiền thật vào cột "Thực thu tiền mặt" ở trên.'));
       }
     } else {
       w.style.display='none';
@@ -1945,7 +1945,7 @@ class VHG_Trang {
       r.actualOverride=coTTR?r.adjust:null;
     }
     if(canhBao.length){
-      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột "Thực thu" của hàng đó rồi bấm Gửi lại.';
+      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột "Thực thu tiền mặt" của hàng đó rồi bấm Gửi lại.';
       msg.className='bc-msg bc-err'; return;
     }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
@@ -2224,7 +2224,7 @@ class VHG_Trang {
        phải `1fr` trần) để input bên trong co lại đúng cột thay vì đẩy tràn hàng trên máy hẹp. */
     var g=el('div'); g.style.cssText='display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:6px';
     function f(lbl,cls,val){ var w=el('label','bc-f'); w.appendChild(el('span',null,lbl)); var i=inp(cls,''); i.value=(val==null?'':val); w.appendChild(i); return w; }
-    var fAfter=f('Chỉ số sau','e-after',c.meterAfter), fQr=f('QR','e-qr',c.qr), fAdj=f('Thực thu','e-adjust',c.adjust);
+    var fAfter=f('Chỉ số sau','e-after',c.meterAfter), fQr=f('QR','e-qr',c.qr), fAdj=f('Thực thu tiền mặt','e-adjust',c.adjust);
     g.appendChild(fAfter); g.appendChild(fQr); g.appendChild(fAdj);
     g.appendChild(f('Ghi chú','e-note',c.note));
     card.appendChild(g);
