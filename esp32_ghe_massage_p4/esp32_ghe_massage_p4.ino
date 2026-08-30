@@ -251,16 +251,27 @@ void setup() {
 }
 
 void loop() {
-  int x = 0, y = 0;
-  if (gt911Doc(&x, &y) > 0) {
-    Serial.printf("[cham] x=%d y=%d\n", x, y);
-    fbRect(x - 12, y - 12, 24, 24, RGB565(0xE8,0x91,0x2A));  // chấm vàng tại chỗ chạm
-    fbFlush();
+  // Đọc cờ trạng thái GT911 (0x814E): bit7 = có dữ liệu mới, 4 bit thấp = số điểm.
+  uint8_t st = 0;
+  bool ok = gt911ReadReg(0x814E, &st, 1);
+  bool ready = ok && (st & 0x80);
+  int n = st & 0x0F;
+
+  // Ô góc trên-PHẢI: XANH DƯƠNG khi GT911 báo CÓ CHẠM, xám khi không.
+  fbRect(PANEL_W - 72, 12, 60, 60, ready ? RGB565(0x2F,0x6F,0xB0) : RGB565(0x30,0x40,0x55));
+
+  if (ready && n > 0) {
+    uint8_t p[8];
+    if (gt911ReadReg(0x8150, p, 8)) {
+      int x = p[1] | (p[2] << 8);
+      int y = p[3] | (p[4] << 8);
+      // Kẹp vào trong màn để chấm luôn hiện, dù toạ độ có bị đảo/xoay.
+      if (x < 0) x = 0; if (x >= PANEL_W) x = PANEL_W - 1;
+      if (y < 0) y = 0; if (y >= PANEL_H) y = PANEL_H - 1;
+      fbRect(x - 12, y - 12, 24, 24, RGB565(0xE8,0x91,0x2A));  // chấm vàng
+    }
   }
-  static uint32_t t = 0;
-  if (millis() - t > 5000) {
-    t = millis();
-    Serial.printf("[song] uptime %lus  WiFi=%s\n", millis()/1000, WiFi.status()==WL_CONNECTED?"on":"off");
-  }
+  if (ready) gt911WriteReg(0x814E, 0);   // xoá cờ để lần sau GT911 cập nhật điểm mới
+  fbFlush();
   delay(15);
 }
