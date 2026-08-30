@@ -4095,6 +4095,11 @@ var KTD_TRANG = 1;
 var KTD_TRANG_CO = 10;   // anh Thắng: "Chỉ hiện 10 cơ sở 1 trang" — để nguyên cả tháng là lag.
 var KTD_COSO = '';       // anh Thắng: "Chỗ lọc duyệt báo cáo, cho lọc theo cơ sở". '' = tất cả.
 var KTD_NV = '';         // anh Thắng 29/08/2026: "lọc báo cáo theo nhân viên". '' = tất cả.
+/* Lọc theo NGÀY BÁO CÁO — anh Thắng 30/08/2026: *"Bổ sung bộ lọc theo ngày"*. '' = cả tháng.
+   ⚠️ Ô tháng vẫn là thứ quyết định TẢI GÌ VỀ (`kt_ds` nhận tháng); ô ngày chỉ thu hẹp trong tập
+      đã tải. Nên chọn một ngày ngoài tháng đang xem thì phải kéo tháng theo — không thì lọc ra
+      rỗng và người dùng tưởng ngày đó không có báo cáo nào. */
+var KTD_NGAY = '';
 var KTU_TRANG = 1;       // anh Thắng: "Nhật ký cũng đẻ gọn 10 thông báo 1 trang".
 function ktVnd(n){ return (Number(n)||0).toLocaleString('vi-VN'); }
 /* Ảnh NHẬP DOANH THU CŨ giữ nguyên link Google Drive dán tay từ sheet cũ (xem
@@ -4120,6 +4125,13 @@ function veKtDuyet(){
     + '<div id="ktd-lich" style="display:none;margin-top:8px"></div></div>'
     + '<div class="card"><h2>📈 ' + L('Duyệt báo cáo doanh thu','Review revenue reports') + '</h2>'
     + '<div class="act" style="flex-wrap:wrap"><input type="month" id="ktd-thang" style="max-width:170px">'
+    /* Ô NGÀY đứng ngay cạnh ô tháng — anh Thắng 30/08/2026: *"Bổ sung bộ lọc theo ngày"*. Để
+       trống là xem cả tháng; nút ✕ bên cạnh xoá nhanh, vì ô `type=date` trên nhiều trình duyệt
+       không có cách xoá nào thấy được. */
+    + '<input type="date" id="ktd-ngay" style="max-width:170px" title="'
+      + L('Lọc theo ngày báo cáo','Filter by report date') + '">'
+    + '<button id="ktd-ngay-xoa" class="ghost" title="'
+      + L('Bỏ lọc ngày, xem cả tháng','Clear the date filter') + '">✕</button>'
     + '<select id="ktd-coso" style="max-width:220px"><option value="">— '
       + L('Tất cả cơ sở','All branches') + ' —</option>'
       + (D.coso||[]).slice().sort(function(a,b){ return a.ten.localeCompare(b.ten); })
@@ -4149,7 +4161,31 @@ function ktdInit(){
   if(iCs) iCs.onchange=function(){ KTD_COSO=iCs.value; KTD_TRANG=1; ktdLoad(); };
   var iNv=document.getElementById('ktd-nv');
   if(iNv) iNv.onchange=function(){ KTD_NV=iNv.value; KTD_TRANG=1; ktdLoad(); };
-  document.getElementById('ktd-xem').onclick=function(){ KTD_THANG=iT.value; KTD_TRANG=1; ktdLoad(); };
+  var iNg=document.getElementById('ktd-ngay'), bNgX=document.getElementById('ktd-ngay-xoa');
+  if(iNg){
+    iNg.value=KTD_NGAY;
+    iNg.onchange=function(){
+      KTD_NGAY=iNg.value; KTD_TRANG=1;
+      /* Chọn ngày thuộc tháng khác thì KÉO Ô THÁNG THEO rồi tải lại — `kt_ds` chỉ trả về đúng
+         một tháng, nên không kéo là lọc trên tập không chứa ngày ấy và ra rỗng. */
+      var th=(KTD_NGAY||'').slice(0,7);
+      if(th && th!==KTD_THANG){ KTD_THANG=th; if(iT) iT.value=th; }
+      ktdLoad();
+    };
+  }
+  if(bNgX) bNgX.onclick=function(){
+    if(!KTD_NGAY) return;
+    KTD_NGAY=''; if(iNg) iNg.value=''; KTD_TRANG=1; ktdLoad();
+  };
+  document.getElementById('ktd-xem').onclick=function(){
+    KTD_THANG=iT.value; KTD_TRANG=1;
+    /* Đổi sang tháng khác thì BỎ lọc ngày cũ — ngày ấy không nằm trong tháng mới, giữ lại là
+       danh sách rỗng trơn và người dùng tưởng tháng đó chưa có báo cáo nào. */
+    if(KTD_NGAY && KTD_NGAY.slice(0,7)!==KTD_THANG){
+      KTD_NGAY=''; var _iNg=document.getElementById('ktd-ngay'); if(_iNg) _iNg.value='';
+    }
+    ktdLoad();
+  };
   ktdLoad(); ktdRac(); ktdUndo(); ktdThieu();
   var bLich=document.getElementById('ktd-lich-tg'), dLich=document.getElementById('ktd-lich');
   if(bLich) bLich.onclick=function(){
@@ -4307,19 +4343,33 @@ function ktdLoad(){
        "lọc báo cáo theo nhân viên". Lọc TRƯỚC khi cắt trang, nên "Trang 1/N" luôn tính trên đúng
        tập đang lọc, không tính trên cả tháng. */
     var rows0 = r.rows.filter(function(o){
-      return (!KTD_COSO || o.coso === KTD_COSO) && (!KTD_NV || o.staff === KTD_NV);
+      return (!KTD_COSO || o.coso === KTD_COSO)
+          && (!KTD_NV   || o.staff === KTD_NV)
+          && (!KTD_NGAY || String(o.ngay||'') === KTD_NGAY);
     });
     if(!rows0.length){
       box.appendChild(ktEl('p','mut',L('Không có báo cáo nào khớp bộ lọc trong tháng.','No reports match the filter this month.')));
       return;
     }
-    /* Đơn chưa duyệt hết (confirmedChairs < chairs) lên đầu, để không phải lướt qua đơn đã
-       xong mới tới đơn cần xử lý. Sort ổn định (Array.prototype.sort) nên trong mỗi nhóm vẫn
-       giữ nguyên thứ tự server trả về. */
+    /* THỨ TỰ: chưa duyệt trước, rồi MỚI NỘP NHẤT trước.
+       Anh Thắng 30/08/2026: *"nhớ hiện đơn mới nhất lên đầu nhé (không quan trọng ngày, khi nào
+       duyệt thì sắp xếp theo đã duyệt hay chưa duyệt)"*.
+
+       🔴 MỐC "MỚI" LÀ LÚC NỘP (`taoLuc`), KHÔNG PHẢI NGÀY BÁO CÁO. Một báo cáo của ngày 27 nộp
+          muộn vào ngày 30 thì với kế toán nó là việc vừa mới tới, nhưng xếp theo ngày báo cáo
+          lại đẩy nó nằm lọt giữa danh sách — đúng chỗ không ai nhìn.
+
+       ⚠️ Sort ổn định thôi CHƯA ĐỦ ở đây: máy chủ đã xếp sẵn theo `taoLuc`, nhưng ô lọc và
+          phân trang cắt xén tập này, nên cứ so lại cho chắc — và để luật nằm ngay chỗ đọc
+          được, không phải suy ra từ thứ tự một truy vấn ở tệp khác. */
     var rows = rows0.slice().sort(function(a,b){
       var xa = a.confirmedChairs < a.chairs ? 0 : 1;
       var xb = b.confirmedChairs < b.chairs ? 0 : 1;
-      return xa - xb;
+      if (xa !== xb) return xa - xb;
+      var ta = String(a.taoLuc||''), tb = String(b.taoLuc||'');
+      if (ta && tb && ta !== tb) return ta < tb ? 1 : -1;
+      /* Không có mốc nộp (báo cáo cũ nạp từ sổ) thì rơi về ngày báo cáo, mới nhất trước. */
+      return String(a.ngay||'') < String(b.ngay||'') ? 1 : (String(a.ngay||'') > String(b.ngay||'') ? -1 : 0);
     });
     /* Tách doanh thu CHƯA duyệt / ĐÃ duyệt — anh Thắng: "Thêm phần doanh thu chưa duyệt và
        doanh thu đã duyệt tách ra". Tính trên CẢ TẬP đang lọc (rows), không phải chỉ trang đang

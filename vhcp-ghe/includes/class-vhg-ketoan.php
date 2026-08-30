@@ -95,7 +95,7 @@ class VHG_KeToan {
 		global $wpdb;
 		$th = self::thang_( $thang );
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT h.report_id, h.coso, h.coso_key, h.ngay, h.nhan_vien, h.nop_so_tien,'
+			'SELECT h.report_id, h.coso, h.coso_key, h.ngay, h.nhan_vien, h.nop_so_tien, h.tao_luc,'
 			. ' d.chi_so_sau, d.actual, d.tien_mat, d.qr, d.dieu_chinh, d.tong, d.nop_so_tien nd_nop,'
 			. ' d.kt_duyet, d.anh'
 			. ' FROM ' . VHG_DB::t( 'bc' ) . ' h JOIN ' . VHG_DB::t( 'bc_dong' ) . ' d ON d.report_id=h.report_id'
@@ -110,6 +110,11 @@ class VHG_KeToan {
 			$k = $r['coso_key'] . '|' . self::ngay_( $r['ngay'] );
 			if ( ! isset( $g[ $k ] ) ) {
 				$g[ $k ] = array( 'key' => $k, 'coso' => $r['coso'], 'ngay' => self::ngay_( $r['ngay'] ),
+					/* 🔴 LÚC NỘP, KHÁC NGÀY BÁO CÁO. Anh Thắng 30/08/2026: *"nhớ hiện đơn mới nhất
+					   lên đầu nhé (không quan trọng ngày…)"*. Một báo cáo của ngày 27 có thể được
+					   nộp muộn vào ngày 30 — xếp theo NGÀY BÁO CÁO thì nó nằm lọt giữa danh sách,
+					   trong khi với kế toán nó là việc vừa mới tới. */
+					'taoLuc' => (string) ( isset( $r['tao_luc'] ) ? $r['tao_luc'] : '' ),
 					'reportId' => $r['report_id'], 'staff' => $r['nhan_vien'],
 					'chairs' => 0, 'actual' => 0, 'cash' => 0, 'qr' => 0, 'adjust' => 0, 'total' => 0,
 					'paid' => 0, 'confirmedChairs' => 0, 'photos' => 0, 'chairsNoPhoto' => 0,
@@ -127,7 +132,12 @@ class VHG_KeToan {
 			unset( $o );
 		}
 		$ra = array_values( $g );
+		/* MỚI NỘP NHẤT LÊN ĐẦU. Mốc chính là `tao_luc`; báo cáo cũ nạp từ sổ trước khi có cột ấy
+		   thì rơi về `ngay` — không có mốc nào thì đừng đảo bừa, giữ chúng theo ngày như cũ. */
 		usort( $ra, function ( $a, $b ) {
+			$ta = (string) $a['taoLuc'];
+			$tb = (string) $b['taoLuc'];
+			if ( '' !== $ta && '' !== $tb && $ta !== $tb ) { return $ta < $tb ? 1 : -1; }
 			if ( $a['ngay'] !== $b['ngay'] ) { return $a['ngay'] < $b['ngay'] ? 1 : -1; }
 			return strcmp( $a['coso'], $b['coso'] );
 		} );
