@@ -263,15 +263,12 @@ void loop() {
   if (ready && n > 0) {
     uint8_t p[8];
     if (gt911ReadReg(0x8150, p, 8)) {
-      // Hai cách đọc để dò đúng bản đồ thanh ghi GT911:
-      //  A) 0x8150 = track-id → x=p[1..2], y=p[3..4]   (VÀNG)
-      //  B) 0x8150 = X_low     → x=p[0..1], y=p[2..3]   (XANH LƠ)
-      int xa = p[1] | (p[2] << 8), ya = p[3] | (p[4] << 8);
-      int xb = p[0] | (p[1] << 8), yb = p[2] | (p[3] << 8);
-      #define KEP(v,hi) do{ if((v)<0)(v)=0; if((v)>=(hi))(v)=(hi)-1; }while(0)
-      KEP(xa,PANEL_W); KEP(ya,PANEL_H); KEP(xb,PANEL_W); KEP(yb,PANEL_H);
-      fbRect(xa - 12, ya - 12, 24, 24, RGB565(0xE8,0x91,0x2A));  // VÀNG = cách A
-      fbRect(xb - 10, yb - 10, 20, 20, RGB565(0x22,0xD3,0xEE));  // XANH LƠ = cách B
+      // GT911 (bo này): 0x8150 = X_low → x=p[0..1], y=p[2..3]. (Đã dò khớp ngón tay.)
+      int x = p[0] | (p[1] << 8);
+      int y = p[2] | (p[3] << 8);
+      if (x < 0) x = 0; if (x >= PANEL_W) x = PANEL_W - 1;
+      if (y < 0) y = 0; if (y >= PANEL_H) y = PANEL_H - 1;
+      fbRect(x - 12, y - 12, 24, 24, RGB565(0xE8,0x91,0x2A));  // chấm vàng tại chỗ chạm
     }
   }
   if (ready) gt911WriteReg(0x814E, 0);   // xoá cờ để lần sau GT911 cập nhật điểm mới
