@@ -1711,7 +1711,13 @@ class VHG_Trang {
     }
     tr.appendChild(cell(inp('qr','QR')));
     if(!GON){
-      tr.appendChild(cell(inp('adjust','VD 500000')));
+      /* 🔴 GỢI Ý CỦA Ô "THỰC THU" LÀ CHÍNH CON SỐ CÔNG THỨC, KHÔNG PHẢI MỘT SỐ BỊA.
+         Anh Thắng 30/08/2026: *"Chỉ số tiền mặt là Actual − QR (nếu có vẫn sai thì = thực thu),
+         mặc định là công thức ra sẵn"*. Trước đây ô này gợi ý "VD 500000" — một con số không
+         liên quan gì tới hàng đang gõ, nên nhân viên không biết "để trống thì máy tính ra bao
+         nhiêu", và người soát cũng không biết số vừa gõ lệch khỏi công thức bao xa.
+         `calc()` thay gợi ý này mỗi lần tính lại — xem chỗ đặt `.placeholder` trong đó. */
+      tr.appendChild(cell(inp('adjust','')));
       tr.appendChild(cell(inp('note','Lý do…',true)));
     }
     /* Ảnh chỉ số + vệ sinh LUÔN hiện, kể cả chế độ Gọn (điện thoại): nhân viên chụp ảnh ngay tại
@@ -1804,6 +1810,16 @@ class VHG_Trang {
     var batThuong=chiSoNguoc||(rawCash<0);
     var elA=tr.querySelector('.actual'); if(elA) elA.textContent=money(actual);   // gọn: ẩn
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
+    /* 🔴 Ô "Thực thu" ĐỂ TRỐNG THÌ GỢI Ý SẴN SỐ CÔNG THỨC — anh Thắng 30/08/2026: *"mặc định là
+       công thức ra sẵn"*. Đây là GỢI Ý (placeholder), KHÔNG phải giá trị: điền số thật vào ô là
+       nó hoá "đã nhập", và số đó đứng yên trong khi QR/chỉ số còn đang gõ dở — hàng sẽ chốt theo
+       một con số cũ mà không ai thấy. Gợi ý thì tự đổi theo từng phím gõ, và ô vẫn "trống" đúng
+       nghĩa nên tiền mặt vẫn tính theo công thức.
+       ⚠️ CÔNG THỨC RA ÂM thì ĐỪNG gợi ý số âm: máy không bao giờ nộp tiền mặt âm, gợi một số âm
+          là mời người ta gõ đại nó vào. Lúc ấy nói thẳng phải nhập tay. */
+    if(aEl && !coTT){
+      aEl.placeholder = (rawCash<0) ? 'Nhập số tiền thật' : money(rawCash);
+    }
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
     /* Bất thường: hiện ô nhập LÝ DO ngay tại hàng đó — Thực thu đã có sẵn ở cột chính, không
