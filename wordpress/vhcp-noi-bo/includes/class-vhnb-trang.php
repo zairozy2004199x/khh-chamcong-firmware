@@ -698,9 +698,19 @@ class VHNB_Trang {
 			. '--xanh:#2563eb;--do:#dc2626;--luc:#16a34a;--ro:#e4e6eb}'
 			. '*{box-sizing:border-box}body{margin:0;font:15px/1.5 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;'
 			. 'background:var(--nen);color:var(--chu)}'
-			. '.bo{max-width:1180px;margin:0 auto;padding:16px}'
+			/**
+			 * 🔴 BỀ RỘNG TRANG — anh Thắng 30/08/2026, gửi ảnh màn hình rộng mà nội dung co lại
+			 * giữa hai dải xám: *"Điều chỉnh trang phù hợp màn hình"*. 1180px hợp một màn laptop
+			 * 13", nhưng màn desktop rộng thì bỏ phí gần một nửa bề ngang — đúng lúc bài đăng có
+			 * ảnh (như ảnh chụp một trang quản trị khác) càng cần chỗ để đọc được chữ trong đó.
+			 * Nới lên 1440px — vẫn cách xa 100% để dòng chữ không kéo dài quá mắt đọc nổi, nhưng
+			 * đủ rộng cho các màn hình thường gặp ở văn phòng.
+			 * ⚠️ HAI CHỖ CÙNG MỘT SỐ — `.bo` (thân trang) và `header .bo` (thanh đầu) phải khớp
+			 *    nhau, không thì thanh đầu và thân trang lệch mép khi cuộn ngang.
+			 */
+			. '.bo{max-width:1440px;margin:0 auto;padding:16px}'
 			. 'header{background:var(--the);border-bottom:1px solid var(--vien);position:sticky;top:0;z-index:5}'
-			. 'header .bo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;max-width:1180px}'
+			. 'header .bo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;max-width:1440px}'
 			. '.hieu{flex:1;font-size:17px;font-weight:700;text-decoration:none;color:var(--chu)}'
 			. '.hieu b{color:var(--xanh)}'
 			. '.ai{display:flex;align-items:center;gap:7px}'
