@@ -26,6 +26,14 @@ class VHCP_Auth {
 	private static $vai_hien = '';  // tên vai NHƯ NGƯỜI TA KHAI (có thể là vai tự tạo)
 	private static $nguoi   = '';
 	/**
+	 * CƠ SỞ NGƯỜI ĐANG GỌI PHỤ TRÁCH — chuỗi thô như đã khai, ví dụ "FARM PHAN THIẾT, ADV GO".
+	 *
+	 * 🔴 MỘT NGƯỜI PHỤ TRÁCH NHIỀU CƠ SỞ. Ô khai ở màn Cấu hình là hộp tích nhiều lựa chọn, lưu
+	 *    xuống thành một chuỗi ngăn bằng dấu phẩy — nên chỗ nào đọc nó cũng phải TÁCH RA, đừng
+	 *    so bằng `===`. So nguyên chuỗi là người khai ba cơ sở thì không khớp cơ sở nào cả.
+	 */
+	private static $coso    = '';
+	/**
 	 * 🔴 QUY VỀ VAI GỐC NGAY TẠI ĐÂY, một chỗ duy nhất.
 	 *
 	 * Vai tự tạo ("Nhân viên văn phòng") kế thừa quyền của một vai gốc ("Nhân viên"). Nếu để
@@ -34,14 +42,51 @@ class VHCP_Auth {
 	 *
 	 * Quy ở cửa vào nên mọi chỗ phía sau không cần biết vai tự tạo là gì.
 	 */
-	public static function dat_vai_tro( $r, $ten = '' ) {
+	public static function dat_vai_tro( $r, $ten = '', $coso = '' ) {
 		self::$vai_hien = (string) $r;
 		self::$vai_tro  = class_exists( 'VHCP_Cfg' ) ? VHCP_Cfg::vai_goc( (string) $r ) : (string) $r;
 		self::$nguoi    = (string) $ten;
+		self::$coso     = (string) $coso;
 	}
 	public static function vai_tro() { return self::$vai_tro; }
 	public static function vai_hien() { return self::$vai_hien; }
 	public static function nguoi() { return self::$nguoi; }
+
+	/**
+	 * CÁC CƠ SỞ NGƯỜI ĐANG GỌI PHỤ TRÁCH, đã tách sẵn thành mảng.
+	 *
+	 * Anh Thắng 30/08/2026: *"Nhân viên được cấu hình 3 cơ sở, nhưng đơn chỉ hiện 1 cơ sở"*.
+	 *
+	 * 🔴 HÀM THUẦN, MỘT CHỖ TÁCH DUY NHẤT. Trước đây chuỗi này chỉ được nhét vào thẻ phiên rồi
+	 *    thôi — không chỗ nào ở máy chủ đọc tới, nên khai ba cơ sở hay ba mươi cũng như nhau.
+	 *    Nay có chỗ đọc thì phải tách ở ĐÚNG MỘT NƠI: mỗi nơi tự `explode` lấy là sớm muộn một
+	 *    nơi quên `trim`, và " ADV GO" (thừa một dấu cách) không khớp "ADV GO".
+	 *
+	 * @return array danh sách tên cơ sở; rỗng nghĩa là KHÔNG khai cơ sở nào.
+	 */
+	public static function coso_ds() {
+		$ra = array();
+		foreach ( explode( ',', (string) self::$coso ) as $x ) {
+			$x = trim( $x );
+			if ( '' !== $x ) { $ra[] = $x; }
+		}
+		return $ra;
+	}
+
+	/**
+	 * Tên cơ sở này có nằm trong phạm vi người đang gọi phụ trách không.
+	 *
+	 * ⚠️ So KHÔNG PHÂN BIỆT HOA THƯỜNG và bỏ khoảng trắng thừa. Tên cơ sở do người gõ tay ở
+	 *    nhiều màn khác nhau, "Funzone Vũng Tàu" và "FUNZONE VŨNG TÀU" là một chỗ.
+	 */
+	public static function trong_coso( $ten ) {
+		$ten = mb_strtolower( trim( (string) $ten ) );
+		if ( '' === $ten ) { return false; }
+		foreach ( self::coso_ds() as $c ) {
+			if ( mb_strtolower( $c ) === $ten ) { return true; }
+		}
+		return false;
+	}
 
 	/** Người đang gọi là NHÂN VIÊN (chỉ được thấy / sửa đơn của chính mình)? */
 	public static function la_nhan_vien() {

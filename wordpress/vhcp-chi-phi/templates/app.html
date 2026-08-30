@@ -1537,7 +1537,29 @@
       return String((a&&a.nguoiLap)||'').localeCompare(String((b&&b.nguoiLap)||''),'vi');
     });
   }
-  function _myDons(){ var isNV=(CURUSER&&CURUSER.role==='Nhân viên'); return _sapDon((BOOT.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; })); }
+  /**
+   * PHẠM VI ĐƠN CỦA NGƯỜI ĐANG ĐĂNG NHẬP.
+   *
+   * Nhân viên thấy: đơn của MÌNH, cộng đơn của CƠ SỞ MÌNH PHỤ TRÁCH.
+   * Anh Thắng 30/08/2026: *"Nhân viên được cấu hình 3 cơ sở, nhưng đơn chỉ hiện 1 cơ sở"*.
+   *
+   * ⚠️ ĐÂY CHỈ LÀ DỌN MẮT. Chốt thật nằm ở máy chủ (`VHCP_Don::list_dons`) — nó lọc trước khi
+   *    gửi xuống, nên `BOOT.dons` vốn đã đúng phạm vi. Giữ bộ lọc này để hai bên khai cùng một
+   *    luật: bản plugin cũ hơn (chưa vá) vẫn gửi xuống đủ đơn, và lúc ấy màn hình vẫn đúng.
+   */
+  function _trongCoSoToi(d){
+    var my=String((CURUSER&&CURUSER.coso)||'').split(',').map(function(s){return s.trim().toLowerCase();}).filter(Boolean);
+    if(!my.length) return false;   // chưa khai cơ sở nào -> KHÔNG mở rộng gì cả
+    /* Một đơn có thể ghép nhiều cơ sở (`d.coso` là chuỗi "A, B" gom từ các dòng chi): chỉ cần
+       MỘT cái nằm trong phạm vi là thấy được. */
+    return String(d.coso||'').split(',').some(function(c){ return my.indexOf(c.trim().toLowerCase())>=0; });
+  }
+  function _trongPhamVi(d){
+    var isNV=(CURUSER&&CURUSER.role==='Nhân viên');
+    if(!isNV) return true;
+    return d.nguoiLap===CURUSER.name || _trongCoSoToi(d);
+  }
+  function _myDons(){ return _sapDon((BOOT.dons||[]).filter(_trongPhamVi)); }
   /** "T8/2026 (17/8-23/8/2026)" -> "T8/2026" (tháng) — phần trước dấu ngoặc. */
   function _thangCuaKy(ky){ return String(ky||'').split(' (')[0].trim(); }
   /**
@@ -1757,7 +1779,9 @@
       el('f_pltt').innerHTML=opts(BOOT.phanloai,'—');
       if(typeof renderNhomCp==='function') renderNhomCp();
       fillNhom(''); setProducts(BOOT.products); fillDoiTuongList();
-      var dons=_sapDon((b.dons||[]).filter(function(d){ return !isNV || d.nguoiLap===CURUSER.name; }));
+      /* Cùng một luật với `_myDons()` — hai chỗ lọc khác nhau là danh sách đơn và ô "Chọn đơn"
+         hiện hai tập khác nhau, mà người dùng thì tưởng mình mất đơn. */
+      var dons=_sapDon((b.dons||[]).filter(_trongPhamVi));
       el('donSel').innerHTML='<option value="">— Chọn đơn —</option>'+dons.map(function(d){
         return '<option value="'+esc(d.maDon)+'">'+esc(d.ky||d.maDon)+(d.coso?' · '+esc(d.coso):'')+(d.nguoiLap?' · '+esc(d.nguoiLap):'')+' · '+esc(d.trangThai)+' · CL '+money(d.chenhLech)+'đ</option>';}).join('');
       renderDonList(dons);

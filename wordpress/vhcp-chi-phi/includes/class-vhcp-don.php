@@ -560,14 +560,37 @@ class VHCP_Don {
 				'chenhLech'   => $tam_ung - $mua_cn,
 			);
 		}
-		// NHÂN VIÊN CHỈ THẤY ĐƠN CỦA CHÍNH MÌNH. Chặn ở đây, tức ở NGUỒN: mọi màn hình
-		// (danh sách đơn, duyệt tạm ứng, quyết toán, thừa/thiếu, báo cáo) đều lấy từ đây,
-		// nên không màn nào lỡ để lộ đơn của người khác. Lọc trên giao diện thì dữ liệu
-		// vẫn đã gửi xuống máy người ta rồi.
+		/* ═══════════════════════════════════════════════════════════════════════════════════
+		 * NHÂN VIÊN THẤY: ĐƠN CỦA MÌNH, CỘNG ĐƠN CỦA CƠ SỞ MÌNH PHỤ TRÁCH.
+		 * ═══════════════════════════════════════════════════════════════════════════════════
+		 * Chặn ở đây, tức ở NGUỒN: mọi màn (danh sách đơn · duyệt tạm ứng · quyết toán ·
+		 * thừa/thiếu · báo cáo) đều lấy từ đây, nên không màn nào lỡ để lộ đơn ngoài phạm vi.
+		 * Lọc trên giao diện thì dữ liệu vẫn đã gửi xuống máy người ta rồi.
+		 *
+		 * 🔴 CƠ SỞ PHỤ TRÁCH MỚI ĐƯỢC TÍNH VÀO PHẠM VI. Anh Thắng 30/08/2026: *"Nhân viên được
+		 *    cấu hình 3 cơ sở, nhưng đơn chỉ hiện 1 cơ sở"*. Trước đây ô khai cơ sở ở màn Cấu
+		 *    hình chỉ được nhét vào thẻ phiên rồi thôi — không chỗ nào ở máy chủ đọc tới, nên
+		 *    khai ba cơ sở hay ba mươi cũng như nhau: danh sách vẫn chỉ lọc theo NGƯỜI LẬP.
+		 *
+		 * ⚠️ VẪN GIỮ VẾ "ĐƠN CỦA MÌNH". Bỏ nó đi là người chưa khai cơ sở nào (hoặc lập đơn cho
+		 *    một cơ sở vừa bị gỡ khỏi danh sách phụ trách) mất luôn chính đơn mình đang làm dở.
+		 *
+		 * ⚠️ CHƯA KHAI CƠ SỞ NÀO thì `coso_ds()` rỗng, và mọi thứ rơi về đúng hành vi cũ — chỉ
+		 *    đơn của mình. KHÔNG được hiểu "rỗng" thành "tất cả": người quên khai sẽ đọc được
+		 *    đơn của cả công ty mà không ai nhận ra.
+		 *
+		 * ⚠️ MỘT ĐƠN CÓ THỂ MANG NHIỀU CƠ SỞ (`$x['coso']` là chuỗi "A, B" gom từ các dòng chi).
+		 *    Chỉ cần MỘT trong số đó nằm trong phạm vi là thấy được — đơn ghép nhiều cơ sở thì
+		 *    người phụ trách một trong các cơ sở ấy vẫn phải theo dõi được phần của mình.
+		 */
 		if ( VHCP_Auth::la_nhan_vien() ) {
 			$toi = mb_strtolower( trim( VHCP_Auth::nguoi() ) );
 			$out = array_values( array_filter( $out, function ( $x ) use ( $toi ) {
-				return mb_strtolower( trim( (string) $x['nguoiLap'] ) ) === $toi;
+				if ( mb_strtolower( trim( (string) $x['nguoiLap'] ) ) === $toi ) { return true; }
+				foreach ( explode( ',', (string) $x['coso'] ) as $cs ) {
+					if ( VHCP_Auth::trong_coso( $cs ) ) { return true; }
+				}
+				return false;
 			} ) );
 		}
 		/* 🔴 LỌC ĐƠN VỊ Ở ĐÚNG CHỖ NÀY, cạnh chốt trên, và vì đúng một lý do: mọi màn (danh
@@ -603,7 +626,16 @@ class VHCP_Don {
 		$cua = mb_strtolower( trim( (string) $d['nguoi_lap'] ) );
 		$toi = mb_strtolower( trim( VHCP_Auth::nguoi() ) );
 		if ( $cua === '' || $cua === $toi ) { return ''; }
-		return 'Đơn này của người khác — bạn chỉ làm việc trên đơn do mình lập.';
+
+		/* 🔴 CỬA MỞ ĐƠN PHẢI NỚI THEO ĐÚNG BẰNG DANH SÁCH. Thấy đơn trong danh sách mà bấm vào
+		   lại bị chối "đơn của người khác" thì tính năng coi như không có — và người dùng sẽ
+		   tưởng hệ thống hỏng chứ không nghĩ là hai chốt khai khác nhau.
+		   Phạm vi: đơn có ÍT NHẤT MỘT dòng chi thuộc cơ sở mình phụ trách. Dùng chính
+		   `cac_coso_cua_don()` — lấy ĐỦ mọi cơ sở của đơn, không phải mỗi dòng đầu. */
+		foreach ( self::cac_coso_cua_don( $ma_don ) as $cs ) {
+			if ( VHCP_Auth::trong_coso( $cs ) ) { return ''; }
+		}
+		return 'Đơn này của người khác, và không thuộc cơ sở anh/chị phụ trách.';
 	}
 
 	/** Như trên nhưng tra theo ID DÒNG (dòng nào cũng thuộc một đơn). */
@@ -1106,6 +1138,30 @@ class VHCP_Don {
 			(string) $ma_don
 		) );
 		return trim( (string) $v );
+	}
+
+	/**
+	 * TẤT CẢ cơ sở của một đơn — khác `coso_cua_don()` vốn chỉ trả cơ sở của DÒNG ĐẦU TIÊN.
+	 *
+	 * 🔴 MỘT ĐƠN CÓ THỂ GHÉP NHIỀU CƠ SỞ. Cơ sở nằm ở DÒNG CHI, không nằm ở đơn — một đơn tuần
+	 *    có thể có dòng của hai ba gian. Chốt phạm vi mà chỉ nhìn dòng đầu là người phụ trách
+	 *    gian thứ hai không mở nổi đơn có phần chi của chính gian mình.
+	 *
+	 * @return array tên cơ sở, đã bỏ trùng và bỏ rỗng.
+	 */
+	public static function cac_coso_cua_don( $ma_don ) {
+		global $wpdb;
+		$t  = VHCP_DB::t( 'chiphi' );
+		$rs = $wpdb->get_col( $wpdb->prepare(
+			"SELECT DISTINCT coso FROM $t WHERE ma_don=%s AND coso<>''",
+			(string) $ma_don
+		) );
+		$ra = array();
+		foreach ( (array) $rs as $x ) {
+			$x = trim( (string) $x );
+			if ( '' !== $x ) { $ra[] = $x; }
+		}
+		return $ra;
 	}
 
 	/** Cơ sở gửi lên có khớp cơ sở đã chốt của đơn? Trả câu lỗi, '' là hợp lệ. */

@@ -3556,6 +3556,175 @@ VHCP_Don::delete_don_admin( $_mk );
 VHCP_Cfg::write( VHCP_Cfg::USER, array( array( 'Admin', '1111', 'Admin', '', '', '', '', '', '' ) ) );
 VHCP_Auth::dat_vai_tro( $_vt_dv, 'Admin' );
 
+/* ==================================================================================
+   NHÂN VIÊN PHỤ TRÁCH NHIỀU CƠ SỞ THÌ THẤY ĐƠN CỦA CẢ MẤY CƠ SỞ ẤY
+
+   Anh Thắng 30/08/2026: *"Nhân viên được cấu hình 3 cơ sở, nhưng đơn chỉ hiện 1 cơ sở"*.
+
+   🔴 LỖI THẬT: ô khai cơ sở ở màn Cấu hình chỉ được nhét vào thẻ phiên rồi thôi — KHÔNG chỗ
+      nào ở máy chủ đọc tới, nên khai ba cơ sở hay ba mươi cũng như nhau: danh sách đơn vẫn chỉ
+      lọc theo NGƯỜI LẬP.
+   ================================================================================== */
+
+$_vt_cs = VHCP_Auth::vai_tro();
+
+/* Ba đơn ở ba cơ sở, ba người lập khác nhau — không đơn nào do "Chị Ba Cơ Sở" lập. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$cs_a = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Lập A' );
+$cs_b = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Lập B' );
+$cs_c = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Lập C' );
+foreach ( array(
+	array( $cs_a['maDon'], 'FARM PHAN THIẾT' ),
+	array( $cs_b['maDon'], 'FUNZONE ADVENTURE' ),
+	array( $cs_c['maDon'], 'TÀU TÂN PHÚ' ),
+) as $_x ) {
+	VHCP_Don::add_line( $_x[0], array( 'coso' => $_x[1], 'ngay' => $today,
+		'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở',
+		'noiDung' => 'Dòng của ' . $_x[1], 'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+}
+/* Và một đơn DO CHÍNH CHỊ ẤY lập, ở một cơ sở KHÔNG nằm trong phạm vi phụ trách. */
+$cs_toi = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Chị Ba Cơ Sở' );
+VHCP_Don::add_line( $cs_toi['maDon'], array( 'coso' => 'CƠ SỞ NGOÀI PHẠM VI', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở',
+	'noiDung' => 'Đơn của chính mình', 'soLuong' => 1, 'donGia' => 50000, 'thanhTien' => 50000 ) );
+
+$_ma_thay = function () {
+	$ra = array();
+	foreach ( VHCP_Don::list_dons() as $d ) { $ra[ (string) $d['maDon'] ] = true; }
+	return $ra;
+};
+
+/* ---- CHƯA khai cơ sở nào: giữ nguyên hành vi cũ, chỉ đơn của mình ----
+   ⚠️ KHÔNG được hiểu "rỗng" thành "tất cả": người quên khai sẽ đọc được đơn của cả công ty. */
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Ba Cơ Sở', '' );
+$_thay = $_ma_thay();
+t( '🔴 chưa khai cơ sở nào -> KHÔNG thấy đơn của người khác',
+	! isset( $_thay[ $cs_a['maDon'] ] ) && ! isset( $_thay[ $cs_b['maDon'] ] ), array_keys( $_thay ) );
+t( 'nhưng vẫn thấy đơn của chính mình', isset( $_thay[ $cs_toi['maDon'] ] ) );
+
+/* ---- KHAI BA CƠ SỞ: thấy đơn của cả ba, ai lập cũng thấy ---- */
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Ba Cơ Sở',
+	'FARM PHAN THIẾT, FUNZONE ADVENTURE, FUNZONE VŨNG TÀU' );
+teq( 'coso_ds() tách đúng ba cơ sở', 3, count( VHCP_Auth::coso_ds() ) );
+$_thay = $_ma_thay();
+t( '🔴 thấy đơn cơ sở thứ nhất, dù người khác lập', isset( $_thay[ $cs_a['maDon'] ] ), array_keys( $_thay ) );
+t( '🔴 thấy đơn cơ sở thứ hai, dù người khác lập',  isset( $_thay[ $cs_b['maDon'] ] ), array_keys( $_thay ) );
+t( '🔴 KHÔNG thấy đơn cơ sở ngoài phạm vi',        ! isset( $_thay[ $cs_c['maDon'] ] ), array_keys( $_thay ) );
+t( 'vẫn thấy đơn của chính mình dù cơ sở ngoài phạm vi',
+	isset( $_thay[ $cs_toi['maDon'] ] ), array_keys( $_thay ) );
+
+/* ---- ĐƠN CHƯA CÓ DÒNG NÀO THÌ CƠ SỞ RỖNG — VÀ RỖNG KHÔNG KHỚP VỚI AI ----
+   🔴 Đơn vừa tạo chưa có dòng chi thì `coso` là chuỗi rỗng. Nếu phép so coi rỗng là "khớp" thì
+      MỌI nhân viên có khai cơ sở đều đọc được mọi đơn mới của cả công ty — một lỗ thủng im
+      lặng, vì đơn nào rồi cũng đi qua trạng thái "chưa có dòng nào". */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$cs_rong = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Lập E' );
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Ba Cơ Sở', 'FARM PHAN THIẾT, FUNZONE ADVENTURE' );
+t( '🔴 đơn chưa có dòng nào (cơ sở rỗng) thì KHÔNG lọt vào phạm vi người khác',
+	! isset( $_ma_thay()[ $cs_rong['maDon'] ] ), 'thấy nhầm đơn rỗng' );
+teq( 'và trong_coso("") là FALSE, không phải true', false, VHCP_Auth::trong_coso( '' ) );
+teq( 'trong_coso("   ") cũng vậy', false, VHCP_Auth::trong_coso( '   ' ) );
+
+/* ---- CỬA MỞ ĐƠN PHẢI NỚI THEO ĐÚNG BẰNG DANH SÁCH ----
+   🔴 Thấy đơn trong danh sách mà bấm vào lại bị chối thì tính năng coi như không có — và người
+      dùng sẽ tưởng hệ thống hỏng chứ không nghĩ là hai chốt khai khác nhau. Lọc danh sách là để
+      MẮT thấy; chốt mở đơn là để TAY với tới. Thiếu cái thứ hai thì cái thứ nhất chỉ là lớp sơn
+      ngược — thấy mà không dùng được. */
+$_g = VHCP_Don::get_don( $cs_a['maDon'] );
+t( '🔴 MỞ ĐƯỢC đơn của cơ sở mình phụ trách', ! empty( $_g['ok'] ) || ! empty( $_g['don'] ), $_g );
+$_g2 = VHCP_Don::get_don( $cs_c['maDon'] );
+t( '🔴 và vẫn KHÔNG mở được đơn ngoài phạm vi',
+	empty( $_g2['ok'] ) && empty( $_g2['don'] ), $_g2 );
+
+/* ---- ĐƠN GHÉP NHIỀU CƠ SỞ: chỉ cần MỘT cơ sở trong phạm vi là thấy ----
+   Cơ sở nằm ở DÒNG CHI chứ không ở đơn, nên một đơn tuần có thể có dòng của hai ba gian. Chốt
+   mà chỉ nhìn dòng ĐẦU TIÊN là người phụ trách gian thứ hai không mở nổi đơn có phần chi của
+   chính gian mình — `coso_cua_don()` cũ đúng là chỉ trả dòng đầu. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$cs_ghep = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Lập D' );
+VHCP_Don::add_line( $cs_ghep['maDon'], array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dòng gian ngoài',
+	'soLuong' => 1, 'donGia' => 10000, 'thanhTien' => 10000 ) );
+/* ⚠️ `add_line()` có chốt "mỗi đơn chỉ nhập 1 cơ sở", nên không dựng cảnh này bằng đường
+   thường được. Đơn nhiều cơ sở vẫn CÓ THẬT trong kho: các đơn nạp từ sổ cũ có trước khi chốt
+   ấy ra đời. Nên ghi thẳng vào bảng để dựng đúng cảnh đó — chỗ cần canh là PHẠM VI ĐỌC, không
+   phải chốt nhập. */
+$_l_ghep = VHCP_Don::add_line( $cs_ghep['maDon'], array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dòng gian mình',
+	'soLuong' => 1, 'donGia' => 20000, 'thanhTien' => 20000 ) );
+$wpdb->update( VHCP_DB::t( 'chiphi' ), array( 'coso' => 'FARM PHAN THIẾT' ),
+	array( 'id' => $_l_ghep['id'] ) );
+teq( '🔴 cac_coso_cua_don() lấy ĐỦ hai cơ sở, không chỉ dòng đầu',
+	2, count( VHCP_Don::cac_coso_cua_don( $cs_ghep['maDon'] ) ) );
+/* ⚠️ `coso_cua_don()` cũ chỉ trả MỘT cơ sở (dòng đầu, `LIMIT 1`) — nên đừng dùng nó để gác
+   phạm vi. KHÔNG khẳng định nó trả đúng cái nào: thứ tự id là chuyện của kho, không phải luật;
+   phép thử buộc vào đó là phép thử vỡ mỗi khi ai đổi thứ tự chèn, mà chẳng canh thêm được gì. */
+$_cs_mot = VHCP_Don::coso_cua_don( $cs_ghep['maDon'] );
+t( '(coso_cua_don() cũ chỉ trả MỘT cơ sở — nên đừng dùng nó để gác phạm vi)',
+	'' !== $_cs_mot && false === strpos( $_cs_mot, ',' ), $_cs_mot );
+t( 'và nó bỏ sót cơ sở còn lại của đơn',
+	count( VHCP_Don::cac_coso_cua_don( $cs_ghep['maDon'] ) ) > 1, $_cs_mot );
+
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Ba Cơ Sở', 'FARM PHAN THIẾT' );
+$_thay = $_ma_thay();
+t( '🔴 đơn ghép nhiều cơ sở: thấy được vì có MỘT gian của mình',
+	isset( $_thay[ $cs_ghep['maDon'] ] ), array_keys( $_thay ) );
+$_g3 = VHCP_Don::get_don( $cs_ghep['maDon'] );
+t( 'và mở được nó', ! empty( $_g3['ok'] ) || ! empty( $_g3['don'] ), $_g3 );
+
+/* ---- SO TÊN CƠ SỞ KHÔNG PHÂN BIỆT HOA THƯỜNG / KHOẢNG TRẮNG THỪA ----
+   Tên cơ sở do người gõ tay ở nhiều màn khác nhau; " farm phan thiết " và "FARM PHAN THIẾT" là
+   một chỗ. So chằn chặn là khai đúng mà vẫn không thấy đơn nào, không câu nào giải thích. */
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Chị Ba Cơ Sở', '  farm phan thiết  ' );
+$_thay = $_ma_thay();
+t( '🔴 khai lệch hoa thường + thừa khoảng trắng vẫn khớp',
+	isset( $_thay[ $cs_a['maDon'] ] ), array_keys( $_thay ) );
+
+/* ---- VÀ PHẢI ĐI QUA ĐÚNG CỬA API ----
+   🔴 Mấy phép thử trên gọi thẳng `dat_vai_tro()`, nên chúng canh được LUẬT nhưng không canh
+      được ĐƯỜNG DẪN: cửa API quên truyền cơ sở xuống thì luật đúng mà vẫn hỏng y như cũ, và
+      không phép thử nào ở trên đỏ. Nên lượt này đi trọn vòng: login bằng PIN → gọi
+      getBootstrap bằng token vừa nhận → soi danh sách đơn trả về. */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+$_users_cu = VHCP_Cfg::read( VHCP_Cfg::USER );
+VHCP_Cfg::write( VHCP_Cfg::USER, array(
+	array( 'Admin', '1111', 'Admin', '', '', '', '', '', '' ),
+	/* ⚠️ THỨ TỰ CỘT THEO ĐÚNG `VHCP_Cfg::cfg_static()`:
+	     0 tên · 1 pin · 2 vai · 3 CƠ SỞ · 4 tk có · 5 mã đối tượng · 6 bộ phận · 7 đơn vị ·
+	     8 xem đơn vị. Đặt nhầm cột là ô cơ sở rỗng, và phép thử đỏ vì lý do chẳng liên quan. */
+	array( 'Chị Ba Cơ Sở', '778866', 'Nhân viên',
+		'FARM PHAN THIẾT, FUNZONE ADVENTURE', '', '', '', '', '' ),
+) );
+$_lg = api( 'login', array( '778866' ) );
+t( 'đăng nhập được bằng PIN vừa khai', ! empty( $_lg['body']['data']['token'] ), $_lg );
+$_tok_cs = isset( $_lg['body']['data']['token'] ) ? $_lg['body']['data']['token'] : '';
+teq( '🔴 API login trả về ĐỦ cả chuỗi ba cơ sở, không cắt bớt',
+	'FARM PHAN THIẾT, FUNZONE ADVENTURE',
+	isset( $_lg['body']['data']['coso'] ) ? $_lg['body']['data']['coso'] : '(thiếu)' );
+$_bt = api( 'getBootstrap', array(), $_tok_cs );
+$_ma_api = array();
+foreach ( (array) ( isset( $_bt['body']['data']['dons'] ) ? $_bt['body']['data']['dons'] : array() ) as $_d ) {
+	$_ma_api[ (string) $_d['maDon'] ] = true;
+}
+t( '🔴 qua CỬA API: thấy đơn của cơ sở mình phụ trách, dù người khác lập',
+	isset( $_ma_api[ $cs_a['maDon'] ] ) && isset( $_ma_api[ $cs_b['maDon'] ] ), array_keys( $_ma_api ) );
+t( '🔴 qua CỬA API: KHÔNG thấy đơn ngoài phạm vi',
+	! isset( $_ma_api[ $cs_c['maDon'] ] ), array_keys( $_ma_api ) );
+VHCP_Cfg::write( VHCP_Cfg::USER, $_users_cu );
+
+/* ---- VAI KHÁC KHÔNG BỊ SIẾT THEO ---- */
+VHCP_Auth::dat_vai_tro( 'Kế toán cá nhân', 'Chị Kế Toán', 'FARM PHAN THIẾT' );
+$_thay = $_ma_thay();
+t( 'Kế toán vẫn thấy đơn mọi cơ sở, không bị bó theo ô cơ sở',
+	isset( $_thay[ $cs_c['maDon'] ] ), array_keys( $_thay ) );
+
+/* dọn */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+foreach ( array( $cs_a, $cs_b, $cs_c, $cs_toi, $cs_ghep, $cs_rong ) as $_d ) {
+	VHCP_Don::delete_don_admin( $_d['maDon'] );
+}
+VHCP_Auth::dat_vai_tro( $_vt_cs, 'Admin' );
+
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {
 	echo 'HỎNG: ' . count( $GLOBALS['T_NG'] ) . "\n";

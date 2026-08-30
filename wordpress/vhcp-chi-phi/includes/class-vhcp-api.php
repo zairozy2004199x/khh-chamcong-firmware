@@ -321,7 +321,11 @@ class VHCP_API {
 				return new WP_REST_Response( array( 'ok' => false, 'error' => 'Phiên đã hết — đăng nhập lại bằng PIN', 'code' => 'no_session' ), 401 );
 			}
 			$role_ht = $user ? (string) $user['role'] : ( $wp_admin ? 'Admin' : '' );
-			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '' );
+			/* Cơ sở phụ trách đi kèm luôn: `list_dons()` cần nó để mở phạm vi đơn cho nhân viên
+			   phụ trách nhiều cơ sở (anh Thắng 30/08/2026). Không truyền thì `coso_ds()` rỗng,
+			   và mọi thứ rơi về đúng hành vi cũ — chỉ thấy đơn của chính mình. */
+			VHCP_Auth::dat_vai_tro( $role_ht, $user ? (string) $user['name'] : '',
+				$user && isset( $user['coso'] ) ? (string) $user['coso'] : '' );
 			$need = self::required_roles( $fn );
 			if ( $need ) {
 				/* So bằng VAI GỐC, không phải tên vai người ta khai. Vai tự tạo "Nhân viên văn
