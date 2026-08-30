@@ -1,22 +1,29 @@
 /* ============================================================================
  *  POSH QR — port sang GUITION JC-ESP32P4-M3-DEV (JC4880P443)
- *  ESP32-P4 + C6 · màn ST7701S 480×800 MIPI-DSI (DÙNG KIỂU NẰM NGANG 800×480)
- *  · cảm ứng GT911 · WiFi qua C6
+ *  ESP32-P4 + C6 · màn ST7701S 480×800 MIPI-DSI (DÙNG NGANG 800×480) · GT911 · WiFi C6
  *  ----------------------------------------------------------------------------
- *  GIAI ĐOẠN 2a — KHUNG GIAO DIỆN NGANG + NÚT CHỌN GÓI + VẼ MÃ QR THẬT.
- *  Nạp lên phải thấy (màn NẰM NGANG):
- *     · Trái: 3 nút gói (1 / 2 / 3), chạm để chọn — nút chọn sáng lên.
- *     · Phải: mã QR to (nội dung theo gói đang chọn) — QUÉT THỬ BẰNG ĐIỆN THOẠI
- *       để xác nhận QR vẽ đúng (bước này QR chỉ là URL thử, chưa nối tiền thật).
- *  Xong bước này = màn ngang + cảm ứng + QR đều chuẩn → GĐ2b nối server/tiền.
+ *  GIAI ĐOẠN 2b-2 — NỐI SERVER THẬT + BÊ NGUYÊN CẤU TRÚC LOGIC BẢN CŨ.
  *
- *  THƯ VIỆN CẦN CÀI: "QRCode" (Richard Moore) trong Arduino Library Manager.
+ *  Luồng (như esp32_ghe_massage, chạy mạng qua WiFi thay 4G AT):
+ *    IDLE  : hỏi server (nhịp) lấy MÃ GHẾ + tài khoản + bảng gói → hiện gói.
+ *    khách chạm gói → WAIT_PAY: dựng VietQR THẬT (số tiền + nội dung GHE<id> <mã>) →
+ *            poll server "luot" xem tiền vào chưa.
+ *    tiền vào → CẢM ƠN (~4s) → RUNNING: đếm ngược đúng số phút của gói.
+ *    hết giờ → IDLE.
+ *
+ *  ⚠️ RELAY / CỔNG TIỀN / DÒ XUNG (I/O vật lý) để GĐ3 — cần chốt chân trên bo.
+ *     Ở đây RUNNING chỉ đếm ngược trên màn + báo "running" cho server qua nhịp.
+ *
+ *  THƯ VIỆN: "QRCode" (Richard Moore) · "ArduinoJson" (Benoît Blanchon).
  *  Board: ESP32P4 Dev Module · PSRAM Enabled · Flash 16MB · USB CDC On Boot Enabled.
- *  Cấp nguồn: cắm CẢ HAI cổng USB-C (né brownout).
+ *  Nguồn: cắm CẢ HAI cổng USB-C.
  * ========================================================================== */
 #include <Arduino.h>
 #include <Wire.h>
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 #include <qrcode.h>
 #include "esp_lcd_mipi_dsi.h"
 #include "esp_lcd_panel_io.h"
@@ -24,6 +31,7 @@
 #include "driver/gpio.h"
 #include "esp_ldo_regulator.h"
 #include "esp_cache.h"
+#include "esp_mac.h"
 
 #include "cau_hinh_p4.h"
 #include "panel_jc4880p443.h"
@@ -35,20 +43,20 @@
   #define SEC_WIFI_SSID "__DIEN_SSID__"
   #define SEC_WIFI_PASS "__DIEN_PASS__"
 #endif
-/* Tài khoản nhận tiền để dựng VietQR THẬT (bước sau server sẽ tự cấp). Điền trong secrets.h:
-     #define SEC_BANK_BIN   "970436"      // BIN ngân hàng (VD 970436 = Vietcombank)
-     #define SEC_ACCOUNT_NO "0123456789"  // số tài khoản nhận
-   Chưa điền thì QR hiện chữ nhắc, không phải mã hợp lệ. */
+#ifndef SEC_WP_URL
+  #define SEC_WP_URL "https://khmatrix.com/ghe-may"   // đường /ghe-may của website
+  #define SEC_WP_KEY "__DIEN_KHOA_MAY__"              // khớp VHG_KHOA_MAY ở wp-config.php
+#endif
 #ifndef SEC_BANK_BIN
-  #define SEC_BANK_BIN   ""
+  #define SEC_BANK_BIN   ""    // dự phòng khi server chưa trả tài khoản
   #define SEC_ACCOUNT_NO ""
 #endif
 
-/* ─── FRAMEBUFFER (panel dọc 480×800) ────────────────────────────────────── */
-static esp_lcd_panel_io_handle_t g_io    = nullptr;
+/* ─── FRAMEBUFFER + phần cứng (như GĐ1, đã chạy) ─────────────────────────── */
+static esp_lcd_panel_io_handle_t g_io = nullptr;
 static esp_lcd_panel_handle_t    g_panel = nullptr;
-static uint16_t*                 g_fb    = nullptr;
-static uint8_t                   g_gt    = 0;   // địa chỉ GT911 (tự dò)
+static uint16_t*                 g_fb = nullptr;
+static uint8_t                   g_gt = 0;
 
 static inline uint16_t RGB565(uint8_t r, uint8_t g, uint8_t b) {
   return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
@@ -57,36 +65,31 @@ static void fbFlush() {
   if (g_fb) esp_cache_msync(g_fb, (size_t)PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 }
 
-/* ─── LỚP NẰM NGANG 800×480 (xoay 90° so với panel dọc 480×800) ──────────────
- * Nếu ảnh bị lộn (trái↔phải / trên↔dưới), đảo công thức trong lpx()/touchLandscape()
- * — em sẽ chỉnh 1 dòng theo phản hồi của anh. */
+/* ─── LỚP NGANG 800×480 (xoay 90° panel dọc) ─────────────────────────────── */
 #define LW 800
 #define LH 480
 static inline void lpx(int lx, int ly, uint16_t c) {
   if (lx < 0 || lx >= LW || ly < 0 || ly >= LH || !g_fb) return;
-  int px = LH - 1 - ly;   // cột panel dọc (0..479)
-  int py = lx;            // hàng panel dọc (0..799)
-  g_fb[py * PANEL_W + px] = c;
+  g_fb[lx * PANEL_W + (LH - 1 - ly)] = c;
 }
 static void lRect(int lx, int ly, int w, int h, uint16_t c) {
   for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) lpx(lx + i, ly + j, c);
 }
 static void lFill(uint16_t c) { lRect(0, 0, LW, LH, c); }
-// Hình chữ nhật BO GÓC (bán kính r) — cho giao diện mềm mắt.
 static void lRoundRect(int lx, int ly, int w, int h, int r, uint16_t c) {
   if (r * 2 > w) r = w / 2; if (r * 2 > h) r = h / 2;
   for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {
     int dx = -1, dy = -1;
-    if (i < r && j < r)             { dx = r - 1 - i; dy = r - 1 - j; }
-    else if (i >= w - r && j < r)   { dx = i - (w - r); dy = r - 1 - j; }
-    else if (i < r && j >= h - r)   { dx = r - 1 - i; dy = j - (h - r); }
+    if (i < r && j < r)              { dx = r - 1 - i; dy = r - 1 - j; }
+    else if (i >= w - r && j < r)    { dx = i - (w - r); dy = r - 1 - j; }
+    else if (i < r && j >= h - r)    { dx = r - 1 - i; dy = j - (h - r); }
     else if (i >= w - r && j >= h - r){ dx = i - (w - r); dy = j - (h - r); }
-    if (dx >= 0 && dx * dx + dy * dy > r * r) continue;   // ngoài cung tròn → bỏ
+    if (dx >= 0 && dx * dx + dy * dy > r * r) continue;
     lpx(lx + i, ly + j, c);
   }
 }
 
-/* Font số 5×7 (0–9) để hiện số gói / giá — vẽ phóng to. */
+/* Font số 5×7 + glyph "đ" + ":" */
 static const uint8_t FONT57[10][7] = {
   {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},{0x04,0x0C,0x04,0x04,0x04,0x04,0x0E},
   {0x0E,0x11,0x01,0x02,0x04,0x08,0x1F},{0x1F,0x02,0x04,0x02,0x01,0x11,0x0E},
@@ -94,7 +97,7 @@ static const uint8_t FONT57[10][7] = {
   {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},{0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
   {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},{0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
 };
-static const uint8_t GLYPH_D[7] = {0x01,0x0F,0x0F,0x11,0x11,0x11,0x0F};  // "đ"
+static const uint8_t GLYPH_D[7] = {0x01,0x0F,0x0F,0x11,0x11,0x11,0x0F};
 static void lBitmap(int lx, int ly, const uint8_t g[7], int sc, uint16_t c) {
   for (int r = 0; r < 7; r++) for (int b = 0; b < 5; b++)
     if (g[r] & (1 << (4 - b))) lRect(lx + b * sc, ly + r * sc, sc, sc, c);
@@ -102,20 +105,30 @@ static void lBitmap(int lx, int ly, const uint8_t g[7], int sc, uint16_t c) {
 static void lDigit(int lx, int ly, int d, int sc, uint16_t c) {
   if (d >= 0 && d <= 9) lBitmap(lx, ly, FONT57[d], sc, c);
 }
-// Vẽ GIÁ có dấu chấm nghìn + "đ" (căn trái), trả bề rộng đã vẽ (px).
-static int lPrice(int lx, int ly, long v, int sc, uint16_t c) {
-  char s[16]; int n = snprintf(s, sizeof s, "%ld", v);
-  int x = lx;
-  for (int i = 0; i < n; i++) {
-    lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc;
-    int rem = n - 1 - i;
-    if (rem > 0 && rem % 3 == 0) { lRect(x, ly + 6 * sc, sc, sc, c); x += 2 * sc; }  // dấu chấm nghìn
-  }
-  x += sc; lBitmap(x, ly, GLYPH_D, sc, c); x += 6 * sc;   // "đ"
+static int lNum(int lx, int ly, long v, int sc, uint16_t c) {   // số trơn, căn trái
+  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int x = lx;
+  for (int i = 0; i < n; i++) { lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc; }
   return x - lx;
 }
+static int lPrice(int lx, int ly, long v, int sc, uint16_t c) { // giá: chấm nghìn + "đ"
+  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int x = lx;
+  for (int i = 0; i < n; i++) {
+    lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc;
+    int rem = n - 1 - i; if (rem > 0 && rem % 3 == 0) { lRect(x, ly + 6 * sc, sc, sc, c); x += 2 * sc; }
+  }
+  x += sc; lBitmap(x, ly, GLYPH_D, sc, c); x += 6 * sc; return x - lx;
+}
+static void lColon(int lx, int ly, int sc, uint16_t c) {   // dấu ":" cho MM:SS
+  lRect(lx, ly + 2 * sc, sc, sc, c); lRect(lx, ly + 5 * sc, sc, sc, c);
+}
+static void lMMSS(int lx, int ly, int secs, int sc, uint16_t c) {
+  if (secs < 0) secs = 0; int mm = secs / 60, ss = secs % 60; int x = lx;
+  lDigit(x, ly, mm / 10, sc, c); x += 6 * sc; lDigit(x, ly, mm % 10, sc, c); x += 6 * sc;
+  lColon(x, ly, sc, c); x += 3 * sc;
+  lDigit(x, ly, ss / 10, sc, c); x += 6 * sc; lDigit(x, ly, ss % 10, sc, c);
+}
 
-/* ─── VietQR (chuẩn EMV/Napas) — bê nguyên từ bản cũ esp32_ghe_massage ────── */
+/* ─── VietQR (bê nguyên bản cũ) ──────────────────────────────────────────── */
 static String _tlv(const char* id, const String& val) {
   char len[3]; snprintf(len, sizeof len, "%02d", (int)val.length()); return String(id) + len + val;
 }
@@ -129,56 +142,43 @@ static String buildVietQR(const String& bin, const String& acct, long amount, co
   String s = _tlv("00","01") + _tlv("01", amount ? "12" : "11");
   String ben = _tlv("00", bin) + _tlv("01", acct);
   s += _tlv("38", _tlv("00","A000000727") + _tlv("01", ben) + _tlv("02","QRIBFTTA"));
-  s += _tlv("53","704");
-  if (amount) s += _tlv("54", String(amount));
-  s += _tlv("58","VN");
-  if (addInfo.length()) s += _tlv("62", _tlv("08", addInfo));
+  s += _tlv("53","704"); if (amount) s += _tlv("54", String(amount));
+  s += _tlv("58","VN"); if (addInfo.length()) s += _tlv("62", _tlv("08", addInfo));
   s += "6304"; return s + _crc16(s);
 }
-
-/* ─── VẼ MÃ QR (thư viện QRCode) — version 11 đủ chứa chuỗi VietQR ─────────── */
 static void lQR(int lx, int ly, int oPx, const char* text) {
   QRCode qr; uint8_t buf[qrcode_getBufferSize(11)];
-  qrcode_initText(&qr, buf, 11, ECC_MEDIUM, text);   // version 11 (~177 byte): đủ cho VietQR
-  int mod = (oPx) / qr.size; if (mod < 1) mod = 1;
+  qrcode_initText(&qr, buf, 11, ECC_MEDIUM, text);
+  int mod = oPx / qr.size; if (mod < 1) mod = 1;
   int side = mod * qr.size;
-  lRect(lx, ly, side + 2 * mod, side + 2 * mod, RGB565(0xFF,0xFF,0xFF)); // nền trắng + viền
-  for (int y = 0; y < qr.size; y++)
-    for (int x = 0; x < qr.size; x++)
-      if (qrcode_getModule(&qr, x, y))
-        lRect(lx + mod + x * mod, ly + mod + y * mod, mod, mod, RGB565(0,0,0));
+  lRect(lx, ly, side + 2 * mod, side + 2 * mod, RGB565(0xFF,0xFF,0xFF));
+  for (int y = 0; y < qr.size; y++) for (int x = 0; x < qr.size; x++)
+    if (qrcode_getModule(&qr, x, y)) lRect(lx + mod + x * mod, ly + mod + y * mod, mod, mod, 0x0000);
 }
 
-/* ─── KHỞI TẠO MÀN (như GĐ1, đã chạy) ────────────────────────────────────── */
+/* ─── PHẦN CỨNG: init màn + GT911 (như GĐ1) ─────────────────────────────── */
 static bool manKhoiTao() {
   gpio_config_t bl = { .pin_bit_mask = 1ULL << PANEL_BL_GPIO, .mode = GPIO_MODE_OUTPUT };
   gpio_config(&bl); gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 0);
-
   static esp_ldo_channel_handle_t ldo = nullptr;
   esp_ldo_channel_config_t lc = {}; lc.chan_id = 3; lc.voltage_mv = 2500;
   if (esp_ldo_acquire_channel(&lc, &ldo) != ESP_OK) return false;
-
   esp_lcd_dsi_bus_handle_t dsi = nullptr;
-  esp_lcd_dsi_bus_config_t bus = {};
-  bus.bus_id = 0; bus.num_data_lanes = PANEL_DSI_LANES;
+  esp_lcd_dsi_bus_config_t bus = {}; bus.bus_id = 0; bus.num_data_lanes = PANEL_DSI_LANES;
   bus.phy_clk_src = MIPI_DSI_PHY_CLK_SRC_DEFAULT; bus.lane_bit_rate_mbps = PANEL_DSI_LANE_MBPS;
   if (esp_lcd_new_dsi_bus(&bus, &dsi) != ESP_OK) return false;
-
   esp_lcd_dbi_io_config_t dbi = {}; dbi.virtual_channel = 0; dbi.lcd_cmd_bits = 8; dbi.lcd_param_bits = 8;
   if (esp_lcd_new_panel_io_dbi(dsi, &dbi, &g_io) != ESP_OK) return false;
-
   gpio_config_t rs = { .pin_bit_mask = 1ULL << PANEL_RESET_GPIO, .mode = GPIO_MODE_OUTPUT };
   gpio_config(&rs);
   gpio_set_level((gpio_num_t)PANEL_RESET_GPIO, 0); delay(20);
   gpio_set_level((gpio_num_t)PANEL_RESET_GPIO, 1); delay(130);
-
   for (size_t i = 0; i < ST7701_JC4880P443_INIT_N; i++) {
     const st7701_cmd_t* c = &ST7701_JC4880P443_INIT[i];
     esp_lcd_panel_io_tx_param(g_io, c->cmd, c->len ? c->data : nullptr, c->len);
   }
   esp_lcd_panel_io_tx_param(g_io, 0x11, nullptr, 0); delay(120);
   esp_lcd_panel_io_tx_param(g_io, 0x29, nullptr, 0);
-
   esp_lcd_dpi_panel_config_t dpi = {};
   dpi.virtual_channel = 0; dpi.dpi_clk_src = MIPI_DSI_DPI_CLK_SRC_DEFAULT;
   dpi.dpi_clock_freq_mhz = PANEL_DPI_HZ / 1000000;
@@ -193,8 +193,6 @@ static bool manKhoiTao() {
   if (esp_lcd_dpi_panel_get_frame_buffer(g_panel, 1, (void**)&g_fb) != ESP_OK || !g_fb) return false;
   return true;
 }
-
-/* ─── GT911 (như GĐ1, đọc toạ độ kiểu X_low @0x8150) ─────────────────────── */
 static bool gtRead(uint16_t reg, uint8_t* b, size_t n) {
   if (!g_gt) return false;
   Wire.beginTransmission(g_gt); Wire.write(reg >> 8); Wire.write(reg & 0xFF);
@@ -222,113 +220,255 @@ static void gtInit() {
   Wire.begin(P4_TOUCH_SDA, P4_TOUCH_SCL, 400000);
   if (gtProbe(0x5D)) g_gt = 0x5D; else if (gtProbe(0x14)) g_gt = 0x14;
 }
-// Lấy 1 điểm chạm ở toạ độ NGANG (0..799, 0..479). Trả true nếu đang chạm.
 static bool touchLandscape(int* lx, int* ly) {
   uint8_t st = 0;
   if (!gtRead(0x814E, &st, 1) || !(st & 0x80)) return false;
   int n = st & 0x0F; bool has = false;
-  if (n > 0) {
-    uint8_t p[8];
+  if (n > 0) { uint8_t p[8];
     if (gtRead(0x8150, p, 8)) {
-      int px = p[0] | (p[1] << 8);   // toạ độ theo panel DỌC (X: 0..479)
-      int py = p[2] | (p[3] << 8);   //                       (Y: 0..799)
-      // Nghịch đảo lpx: px = LH-1-ly, py = lx  →  lx = py, ly = LH-1-px
+      int px = p[0] | (p[1] << 8), py = p[2] | (p[3] << 8);
       *lx = py; *ly = LH - 1 - px;
       if (*lx < 0) *lx = 0; if (*lx >= LW) *lx = LW - 1;
       if (*ly < 0) *ly = 0; if (*ly >= LH) *ly = LH - 1;
       has = true;
     }
   }
-  gtWrite(0x814E, 0);
-  return has;
+  gtWrite(0x814E, 0); return has;
 }
 
-/* ─── GIAO DIỆN GĐ2a: 3 nút gói + QR ────────────────────────────────────── */
-struct Goi { int so; long gia; const char* url; };
-static const Goi GOI[3] = {
-  {1,  50000, "https://khmatrix.com/ghe?g=1"},
-  {2, 100000, "https://khmatrix.com/ghe?g=2"},
-  {3, 150000, "https://khmatrix.com/ghe?g=3"},
-};
-static int g_chon = 0;   // gói đang chọn (0..2)
+/* ─── TRẠNG THÁI + CẤU HÌNH TỪ SERVER ───────────────────────────────────── */
+enum State { ST_IDLE, ST_WAIT_PAY, ST_CAMON, ST_RUNNING, ST_NOACC };
+static State state = ST_IDLE;
 
-/* Bảng màu sang, hợp màn IPS. */
+static const int PKG_MAX = 4;
+static long PKG_AMT[PKG_MAX]  = {50000, 100000, 150000, 200000};
+static int  PKG_PHUT[PKG_MAX] = {0, 0, 0, 0};
+static int  PKG_N = 3;
+static long PRICE_VND = 50000; static int MINUTES = 6;   // tỉ lệ quy đổi phút
+static String CHAIR_ID = "", BANK_BIN = SEC_BANK_BIN, ACCOUNT_NO = SEC_ACCOUNT_NO, ND_TIEN_TO = "";
+static bool CHUA_GAN = true;
+
+static int  payIdx = 0; static long payAmount = 0; static int payMinutes = 0; static char payCode[8] = "";
+static uint32_t runUntil = 0, camonUntil = 0, waitUntil = 0, lastPoll = 0, lastNhip = 0, lastDrawSec = 0;
+
+static int phutGoi(int i) {
+  if (i < 0 || i >= PKG_N) return 0;
+  if (PKG_PHUT[i] > 0) return PKG_PHUT[i];
+  if (PRICE_VND <= 0) return 0;
+  return (int)(PKG_AMT[i] * (long)MINUTES / PRICE_VND);
+}
+static bool duNhanTien() { return ACCOUNT_NO.length() > 0 && BANK_BIN.length() > 0; }
+static void genCode(char* out) {
+  const char* A = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  for (int i = 0; i < 5; i++) out[i] = A[random(0, 32)]; out[5] = 0;
+}
+static String macBo() {
+  uint8_t m[6]; esp_read_mac(m, ESP_MAC_WIFI_STA);
+  char b[18]; snprintf(b, sizeof b, "%02X:%02X:%02X:%02X:%02X:%02X", m[0],m[1],m[2],m[3],m[4],m[5]);
+  return String(b);
+}
+static String jsonEsc(String s) { s.replace("\\","\\\\"); s.replace("\"","\\\""); return s; }
+
+/* ─── SERVER: POST /ghe-may qua WiFi (C6) ────────────────────────────────── */
+static String wpPost(const String& viec, const String& them) {
+  if (WiFi.status() != WL_CONNECTED) return "";
+  String body = "{\"key\":\"" + String(SEC_WP_KEY) + "\",\"viec\":\"" + viec + "\",\"mac\":\"" + macBo() + "\"";
+  if (CHAIR_ID.length()) body += ",\"ma_may\":\"" + jsonEsc(CHAIR_ID) + "\"";
+  if (them.length()) body += "," + them;
+  body += "}";
+  WiFiClientSecure cli; cli.setInsecure();   // GĐ2: bỏ qua kiểm cert cho gọn; siết lại sau nếu cần
+  HTTPClient http; http.setTimeout(12000);
+  if (!http.begin(cli, SEC_WP_URL)) return "";
+  http.addHeader("Content-Type", "application/json");
+  int code = http.POST(body);
+  String r = (code == 200) ? http.getString() : "";
+  http.end();
+  return r;
+}
+
+/* Vẽ trước — định nghĩa ở dưới */
+static void veIdle(); static void veWaitPay(); static void veCamon(); static void veRunning(); static void veNoAcc();
+static void sangTrangThai(State s);
+
+static void nhip() {
+  lastNhip = millis();
+  const char* stt = (state == ST_RUNNING || state == ST_CAMON) ? "running"
+                    : (state == ST_WAIT_PAY ? "wait_pay" : "idle");
+  long conLai = (state == ST_RUNNING && runUntil > millis()) ? (long)((runUntil - millis()) / 1000) : 0;
+  String nd = String("\"trang_thai\":\"") + stt + "\",\"con_lai\":" + String(conLai) + ",\"fw\":\"posh-qr-p4\"";
+  String r = wpPost("nhip", nd);
+  if (!r.length()) return;
+  DynamicJsonDocument d(2048);
+  if (deserializeJson(d, r)) return;
+  String ma = String((const char*)(d["maMay"] | "")); if (ma.length()) CHAIR_ID = ma;
+  CHUA_GAN = ((int)(d["chuaGan"] | 0) == 1);
+  long gia = (long)(d["gia"] | 0); int phut = (int)(d["phut"] | 0);
+  if (gia > 0) PRICE_VND = gia; if (phut > 0) MINUTES = phut;
+  String tk = String((const char*)(d["soTk"] | "")); if (tk.length()) ACCOUNT_NO = tk;
+  String bin = String((const char*)(d["bin"] | "")); if (bin.length()) BANK_BIN = bin;
+  if (d.containsKey("tienTo")) ND_TIEN_TO = String((const char*)(d["tienTo"] | ""));
+  JsonArrayConst goi = d["goi"];
+  if (!goi.isNull()) {
+    int n = 0;
+    for (JsonVariantConst v : goi) {
+      if (n >= PKG_MAX) break; long a; int ph = 0;
+      if (v.is<JsonObjectConst>()) { a = (long)(v["t"] | 0); ph = (int)(v["p"] | 0); }
+      else a = v.as<long>();
+      if (a >= 1000) { PKG_AMT[n] = a; PKG_PHUT[n] = ph; n++; }
+    }
+    if (n > 0) PKG_N = n;
+  }
+  // Tiền vào trong lúc chờ (server báo qua coTien) → chạy.
+  if (((int)(d["coTien"] | 0) == 1) && state == ST_WAIT_PAY) sangTrangThai(ST_CAMON);
+  if (state == ST_IDLE || state == ST_NOACC) sangTrangThai(duNhanTien() ? ST_IDLE : ST_NOACC);
+}
+static long checkPaid() {
+  String r = wpPost("luot", "\"cho\":4");
+  if (!r.length()) return 0;
+  DynamicJsonDocument d(512);
+  if (deserializeJson(d, r)) return 0;
+  if ((int)(d["co"] | 0) != 1) return 0;
+  return (long)(d["so_tien"] | 0);
+}
+
+/* ─── GIAO DIỆN (bảng màu sang) ─────────────────────────────────────────── */
 #define C_BG     RGB565(0xEC,0xF1,0xF7)
 #define C_INK    RGB565(0x22,0x30,0x45)
 #define C_BLUE   RGB565(0x2F,0x6F,0xB0)
 #define C_AMBER  RGB565(0xE8,0x91,0x2A)
+#define C_GREEN  RGB565(0x2E,0x9B,0x57)
+#define C_RED    RGB565(0xD6,0x45,0x45)
 #define C_BORDER RGB565(0xD3,0xDD,0xEA)
 #define C_SHADOW RGB565(0xD7,0xDE,0xE8)
 #define C_TINT   RGB565(0xFF,0xF3,0xDF)
 #define C_WHITE  0xFFFF
 
-// Vùng thẻ gói (ngang): 3 thẻ xếp dọc bên trái. Chạm cả thẻ = chọn.
-static const int BTN_X = 28, BTN_W = 340, BTN_H = 124, BTN_Y0 = 44, BTN_GAP = 20;
+static int g_chon = 0;
+struct Btn { int x, y, w, h; };
+static Btn g_btn[PKG_MAX];
 
-static void veManHinh() {
-  lFill(C_BG);
-  lRect(0, 0, LW, 6, C_BLUE);   // vạch thương hiệu mảnh trên cùng
-
-  for (int i = 0; i < 3; i++) {
-    int y = BTN_Y0 + i * (BTN_H + BTN_GAP);
+static void veIdle() {
+  lFill(C_BG); lRect(0, 0, LW, 6, C_BLUE);
+  int n = PKG_N < 1 ? 1 : (PKG_N > PKG_MAX ? PKG_MAX : PKG_N);
+  int top = 40, gap = 16, availH = LH - top - 24;
+  int h = (availH - (n - 1) * gap) / n; if (h > 130) h = 130;
+  for (int i = 0; i < n; i++) {
+    int y = top + i * (h + gap);
+    g_btn[i] = { 28, y, 340, h };
     bool sel = (i == g_chon);
-    lRoundRect(BTN_X + 2, y + 5, BTN_W, BTN_H, 18, C_SHADOW);                 // đổ bóng nhẹ
-    lRoundRect(BTN_X, y, BTN_W, BTN_H, 18, sel ? C_AMBER : C_BORDER);         // viền
-    lRoundRect(BTN_X + 4, y + 4, BTN_W - 8, BTN_H - 8, 15, sel ? C_TINT : C_WHITE); // nền thẻ
-    // Huy hiệu số gói (bo góc)
-    lRoundRect(BTN_X + 22, y + 24, 76, 76, 16, sel ? C_AMBER : C_BLUE);
-    lDigit(BTN_X + 40, y + 34, GOI[i].so, 8, C_WHITE);
-    // Giá (chấm nghìn + đ)
-    lPrice(BTN_X + 120, y + 44, GOI[i].gia, 5, C_INK);
+    lRoundRect(30, y + 5, 340, h, 18, C_SHADOW);
+    lRoundRect(28, y, 340, h, 18, sel ? C_AMBER : C_BORDER);
+    lRoundRect(32, y + 4, 332, h - 8, 15, sel ? C_TINT : C_WHITE);
+    int bs = h - 48; if (bs > 76) bs = 76;
+    lRoundRect(50, y + (h - bs) / 2, bs, bs, 14, sel ? C_AMBER : C_BLUE);
+    lDigit(50 + (bs - 40) / 2, y + (h - 56) / 2, i + 1, 8, C_WHITE);
+    lPrice(150, y + (h - 35) / 2, PKG_AMT[i], 5, C_INK);
   }
-
-  // Thẻ QR bên phải
-  const int QX = 400, QY = 44, QW = 372, QH = 392;
-  lRoundRect(QX + 3, QY + 6, QW, QH, 22, C_SHADOW);
-  lRoundRect(QX, QY, QW, QH, 22, C_WHITE);
-  lRoundRect(QX, QY, QW, 8, 0, C_AMBER);   // nẹp cam mảnh trên thẻ QR
-
-  // MÃ VietQR THẬT theo gói đang chọn (số tiền = giá gói). GĐ2b-2 server sẽ cấp mã ghế thật.
-  String memo = "GHE01 G" + String(GOI[g_chon].so);
-  String payload;
-  if (strlen(SEC_BANK_BIN) && strlen(SEC_ACCOUNT_NO))
-    payload = buildVietQR(SEC_BANK_BIN, SEC_ACCOUNT_NO, GOI[g_chon].gia, memo);
-  else
-    payload = "CHUA DIEN SEC_BANK_BIN / SEC_ACCOUNT_NO trong secrets.h";
-  int qsz = 300;
-  lQR(QX + (QW - qsz) / 2, QY + (QH - qsz) / 2 + 8, qsz, payload.c_str());
+  // Thẻ QR bên phải: trống ở IDLE, hiện khung để mời chạm.
+  lRoundRect(403, 46, 372, 392, 22, C_SHADOW);
+  lRoundRect(400, 40, 372, 392, 22, C_WHITE);
+  lRoundRect(400, 40, 372, 8, 0, C_BLUE);
+  // dấu QR mờ (khung) — chưa có mã tới khi chọn gói
+  lRoundRect(470, 130, 232, 232, 16, C_BG);
+}
+static void veWaitPay() {
+  lFill(C_BG); lRect(0, 0, LW, 6, C_AMBER);
+  // Bên trái: gói đã chọn + số tiền + phút
+  lRoundRect(30, 45, 340, 190, 18, C_SHADOW); lRoundRect(28, 40, 340, 190, 18, C_AMBER);
+  lRoundRect(32, 44, 332, 182, 15, C_TINT);
+  lRoundRect(60, 70, 80, 80, 16, C_AMBER); lDigit(80, 82, payIdx + 1, 9, C_WHITE);
+  lPrice(60, 170, payAmount, 6, C_INK);
+  // phút còn (cửa sổ chờ) — đồng hồ nhỏ
+  int left = (waitUntil > millis()) ? (int)((waitUntil - millis()) / 1000) : 0;
+  lMMSS(160, 90, left, 5, C_INK);
+  // Thẻ QR VietQR THẬT
+  lRoundRect(403, 46, 372, 392, 22, C_SHADOW); lRoundRect(400, 40, 372, 392, 22, C_WHITE);
+  lRoundRect(400, 40, 372, 8, 0, C_AMBER);
+  String memo = (ND_TIEN_TO.length() ? ND_TIEN_TO + " " : "") + "GHE" + (CHAIR_ID.length() ? CHAIR_ID : "01") + " " + String(payCode);
+  String payload = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, memo);
+  lQR(430, 78, 300, payload.c_str());
+}
+static void veCamon() {   // đã nhận tiền — nền xanh + dấu tích
+  lFill(C_GREEN);
+  int cx = LW / 2 - 70, cy = LH / 2 - 60;
+  // dấu tích to bằng 2 thanh
+  for (int i = 0; i < 40; i++) lRect(cx + i, cy + 60 + i, 14, 14, C_WHITE);
+  for (int i = 0; i < 90; i++) lRect(cx + 40 + i, cy + 100 - i, 14, 14, C_WHITE);
+}
+static void veRunning() {
+  lFill(RGB565(0x14,0x1E,0x30));
+  int left = (runUntil > millis()) ? (int)((runUntil - millis()) / 1000) : 0;
+  lMMSS(LW / 2 - 170, LH / 2 - 60, left, 16, C_WHITE);
+  // thanh tiến độ
+  long total = (long)payMinutes * 60; if (total < 1) total = 1;
+  int barW = (int)((long)(LW - 120) * left / total);
+  lRoundRect(60, LH - 70, LW - 120, 22, 10, RGB565(0x2A,0x3A,0x55));
+  lRoundRect(60, LH - 70, barW, 22, 10, C_GREEN);
+}
+static void veNoAcc() {   // chưa có tài khoản nhận (chưa hỏi được server) — nền đỏ
+  lFill(C_RED);
+  lRoundRect(LW / 2 - 40, LH / 2 - 60, 80, 80, 8, C_WHITE);   // hình chữ nhật báo
+  lRect(LW / 2 - 8, LH / 2 - 45, 16, 45, C_RED);
+  lRect(LW / 2 - 8, LH / 2 + 6, 16, 16, C_RED);
+}
+static void sangTrangThai(State s) {
+  state = s;
+  switch (s) {
+    case ST_IDLE:    veIdle();    break;
+    case ST_WAIT_PAY:veWaitPay(); break;
+    case ST_CAMON:   veCamon();   camonUntil = millis() + 4000; break;
+    case ST_RUNNING: runUntil = millis() + (uint32_t)payMinutes * 60000UL; veRunning(); lastDrawSec = 0; break;
+    case ST_NOACC:   veNoAcc();   break;
+  }
+  fbFlush();
+}
+static void startSession(int idx) {
+  if (!duNhanTien()) { sangTrangThai(ST_NOACC); return; }
+  payIdx = idx; payAmount = PKG_AMT[idx]; payMinutes = phutGoi(idx);
+  genCode(payCode);
+  waitUntil = millis() + 150000UL; lastPoll = 0;
+  sangTrangThai(ST_WAIT_PAY);
 }
 
-/* ─── WiFi (giữ, hạ TX né brownout) ─────────────────────────────────────── */
-static void noiWiFi() {
-  WiFi.mode(WIFI_STA);
-  WiFi.setTxPower(WIFI_POWER_8_5dBm);
+/* ─── SETUP / LOOP ──────────────────────────────────────────────────────── */
+void setup() {
+  Serial.begin(115200);
+  randomSeed(esp_random());
+  gtInit();
+  if (manKhoiTao()) { sangTrangThai(ST_IDLE); gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1); }
+  WiFi.mode(WIFI_STA); WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.begin(SEC_WIFI_SSID, SEC_WIFI_PASS);
 }
 
-void setup() {
-  Serial.begin(115200);
-  gtInit();
-  if (manKhoiTao()) {
-    veManHinh();
-    fbFlush();
-    gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1);   // bật đèn nền
-  }
-  noiWiFi();
-}
-
 void loop() {
+  uint32_t now = millis();
   int lx, ly;
-  if (touchLandscape(&lx, &ly)) {
-    // Chạm vào nút nào?
-    for (int i = 0; i < 3; i++) {
-      int y = BTN_Y0 + i * (BTN_H + BTN_GAP);
-      if (lx >= BTN_X && lx < BTN_X + BTN_W && ly >= y && ly < y + BTN_H) {
-        if (g_chon != i) { g_chon = i; veManHinh(); fbFlush(); }
-        break;
+  bool tch = touchLandscape(&lx, &ly);
+
+  if (state == ST_IDLE && tch) {
+    for (int i = 0; i < PKG_N; i++) {
+      Btn& b = g_btn[i];
+      if (lx >= b.x && lx < b.x + b.w && ly >= b.y && ly < b.y + b.h) {
+        if (g_chon != i) { g_chon = i; sangTrangThai(ST_IDLE); }
+        startSession(i); break;
       }
     }
-    delay(120);   // chống dội chạm
+    delay(150);
   }
+
+  if (state == ST_WAIT_PAY) {
+    if (now - lastPoll > 800) { lastPoll = now; if (checkPaid() > 0) sangTrangThai(ST_CAMON); }
+    if (state == ST_WAIT_PAY && now > waitUntil) sangTrangThai(ST_IDLE);
+    static uint32_t wd = 0; if (state == ST_WAIT_PAY && now - wd > 1000) { wd = now; veWaitPay(); fbFlush(); }
+  }
+  if (state == ST_CAMON && now > camonUntil) sangTrangThai(ST_RUNNING);
+  if (state == ST_RUNNING) {
+    if (now >= runUntil) sangTrangThai(ST_IDLE);
+    else if (now / 1000 != lastDrawSec) { lastDrawSec = now / 1000; veRunning(); fbFlush(); }
+  }
+
+  uint32_t nhipEvery = (state == ST_WAIT_PAY) ? 3000 : 6000;
+  if (now - lastNhip > nhipEvery) nhip();
+
   delay(15);
 }
