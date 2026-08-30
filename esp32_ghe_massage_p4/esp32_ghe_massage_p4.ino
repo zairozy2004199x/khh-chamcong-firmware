@@ -26,6 +26,7 @@
 #include "esp_lcd_panel_ops.h"
 #include "driver/gpio.h"
 #include "esp_ldo_regulator.h"   // 🔴 D-PHY của MIPI-DSI phải được cấp nguồn qua LDO nội (kênh 3)
+#include "esp_cache.h"           // 🔴 đẩy cache xuống PSRAM sau khi vẽ, kẻo DMA quét ra ảnh RÁC
 
 #include "cau_hinh_p4.h"
 #include "panel_jc4880p443.h"
@@ -45,6 +46,11 @@ static uint16_t*                  g_fb    = nullptr;   // framebuffer RGB565 (DP
 
 static inline uint16_t RGB565(uint8_t r, uint8_t g, uint8_t b) {
   return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
+}
+/* Sau khi ghi framebuffer PHẢI đẩy cache xuống PSRAM (C2M) — nếu không, khối quét màn (DMA) đọc
+   ra dữ liệu cũ/rác → màn "lèo nhèo". Kích thước là bội của dòng cache (768000/64) nên không lệch. */
+static void fbFlush() {
+  if (g_fb) esp_cache_msync(g_fb, (size_t)PANEL_W * PANEL_H * 2, ESP_CACHE_MSYNC_FLAG_DIR_C2M);
 }
 static void fbFill(uint16_t c) {
   if (!g_fb) return;
@@ -123,9 +129,9 @@ static bool manKhoiTao() {
   dpi.video_timing.vsync_front_porch = PANEL_VSYNC_FRONT;
   dpi.flags.use_dma2d = true;
   if (esp_lcd_new_panel_dpi(dsi, &dpi, &g_panel) != ESP_OK) { Serial.println("[LCD] LOI: new_panel_dpi"); return false; }
-  esp_lcd_panel_reset(g_panel);
+  /* KHÔNG gọi esp_lcd_panel_reset / disp_on_off cho panel DPI — panel này KHÔNG hỗ trợ (nó quét
+     ảnh liên tục từ framebuffer). Reset cứng đã làm bằng GPIO5 ở trên. Chỉ cần init. */
   esp_lcd_panel_init(g_panel);
-  esp_lcd_panel_disp_on_off(g_panel, true);   // bật hiển thị (vài phiên bản không tự bật)
 
   // Lấy con trỏ framebuffer để vẽ thẳng.
   if (esp_lcd_dpi_panel_get_frame_buffer(g_panel, 1, (void**)&g_fb) != ESP_OK || !g_fb) {
@@ -201,6 +207,7 @@ void setup() {
     fbRect(0,   70, PANEL_W, 20, RGB565(0x2E,0x9B,0x57)); // lục
     fbRect(0,  100, PANEL_W, 20, RGB565(0x2F,0x6F,0xB0)); // lam
     fbRect(PANEL_W/2 - 60, PANEL_H/2 - 60, 120, 120, RGB565(0xFF,0xFF,0xFF)); // ô trắng giữa
+    fbFlush();                                          // đẩy ảnh xuống PSRAM trước khi bật đèn
     gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1);      // bật đèn nền
     Serial.println("[LCD] Da ve man test — cham vao de kiem GT911.");
   } else {
@@ -216,6 +223,7 @@ void loop() {
   if (gt911Doc(&x, &y) > 0) {
     Serial.printf("[cham] x=%d y=%d\n", x, y);
     fbRect(x - 12, y - 12, 24, 24, RGB565(0xE8,0x91,0x2A));  // chấm vàng tại chỗ chạm
+    fbFlush();
   }
   static uint32_t t = 0;
   if (millis() - t > 5000) {
