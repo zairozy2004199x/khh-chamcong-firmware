@@ -795,7 +795,7 @@ $U_QAD  = VHCC_Auth::user_by_token( VHCC_Auth::phat_token( 'Q Admin',     'Admin
 /* ---- mặc định phải BẰNG ĐÚNG hành vi trước khi có màn này ---- */
 /* 🔴 Bản nâng cấp mà đặt mặc định chặt hơn hiện tại là sáng hôm sau cả công ty mất quyền đăng
    bài, trong khi họ không đổi gì cả. */
-foreach ( array( 'vao', 'dang', 'nhom' ) as $_v ) {
+foreach ( array( 'dang', 'nhom' ) as $_v ) {
 	t( 'mặc định: Nhân viên VẪN ' . $_v . ' được', VHNB_Quyen::duoc( $U_QNV, $_v ), $_v );
 }
 t( 'mặc định: Nhân viên KHÔNG dọn bài người khác', ! VHNB_Quyen::duoc( $U_QNV, 'don' ) );
@@ -811,7 +811,7 @@ t( 'bậc TRÊN luôn làm được việc của bậc dưới (Admin vẫn đă
 	VHNB_Quyen::duoc( $U_QAD, 'dang' ) );
 t( 'nới "dọn" xuống Quản lý: Quản lý dọn được', VHNB_Quyen::duoc( $U_QQL, 'don' ) );
 t( 'nhưng Cửa hàng trưởng thì chưa', ! VHNB_Quyen::duoc( $U_QCHT, 'don' ) );
-teq( 'việc không đụng tới thì giữ nguyên', 'NHAN_VIEN', VHNB_Quyen::cai_dat()['vao'] );
+teq( 'việc không đụng tới thì giữ nguyên', 'NHAN_VIEN', VHNB_Quyen::cai_dat()['nhom'] );
 
 /* Bậc lạ / việc lạ thì BỎ, không nhận bừa — một dòng gõ nhầm không được đổi luật. */
 VHNB_Quyen::dat( array( 'dang' => 'SIEU_NHAN', 'viec_la' => 'ADMIN' ) );
@@ -837,13 +837,32 @@ $_ly = VHNB_Quyen::vi_sao_khong( $U_QNV, 'dang' );
 t( 'câu chối nói rõ cần bậc nào', false !== strpos( $_ly, 'Cửa hàng trưởng' ), $_ly );
 teq( 'đủ quyền thì câu chối rỗng', '', VHNB_Quyen::vi_sao_khong( $U_QAD, 'dang' ) );
 
-/* ---- chốt "vào trang" ---- */
-VHNB_Quyen::dat( array( 'vao' => 'QUAN_LY' ) );
-ob_start(); VHNB_Trang::ve( $U_QCHT ); $_h_chan = ob_get_clean();
-t( '🔴 chưa đủ bậc thì KHÔNG vẽ bảng tin ra', false === strpos( $_h_chan, 'class="giua"' ), $_h_chan );
-t( 'và nói rõ cần bậc nào', false !== strpos( $_h_chan, 'Quản lý' ), $_h_chan );
-ob_start(); VHNB_Trang::ve( $U_QQL ); $_h_vao = ob_get_clean();
-t( 'đủ bậc thì vào bình thường', false !== strpos( $_h_vao, 'class="giua"' ) );
+/* ---- KHÔNG CÒN CHỐT VAI Ở CỬA VÀO ----
+   🔴 Anh Thắng 30/08/2026, khi một nhân viên đăng nhập xong bị chối *"Việc Vào trang Nội bộ cần
+      vai từ Admin trở lên"*: *"trang nội bộ là chung công ty nên ai cũng vào được hết, có mật
+      khẩu là vào, đó là lý do anh đặt trang chủ mà"*.
+
+   Bản trước có ô chọn bậc cho việc VÀO. Chỉ cần chọn nhầm một lần là cả công ty mất trang chủ,
+   mà người bị chối thì không hiểu vì sao — họ có PIN, họ đăng nhập được, rồi màn hình nói họ
+   không đủ vai. Đã xảy ra thật trên máy anh.
+
+   ⚠️ PHÉP THỬ NÀY PHẢI SỐNG SÓT QUA MỌI CÁCH KHAI. Kể cả khi bảng quyền đang siết chặt hết mức
+      (dọn bài = Admin, đăng bài = Admin), một Nhân viên vẫn phải VÀO được. */
+VHNB_Quyen::dat( array( 'dang' => 'ADMIN', 'nhom' => 'ADMIN', 'don' => 'ADMIN' ) );
+ob_start(); VHNB_Trang::ve( $U_QNV ); $_h_nv = ob_get_clean();
+t( '🔴 Nhân viên VÀO ĐƯỢC dù bảng quyền siết chặt hết mức',
+	false !== strpos( $_h_nv, 'class="giua"' ), substr( $_h_nv, -2000 ) );
+t( 'và KHÔNG còn màn "Chưa mở cho vai này"',
+	false === strpos( $_h_nv, 'Chưa mở cho vai này' ), substr( $_h_nv, -2000 ) );
+/* Siết vẫn phải có tác dụng với ĐĂNG BÀI — gỡ chốt vào không được kéo theo gỡ chốt đăng. */
+t( 'nhưng vẫn KHÔNG đăng được (chốt đăng bài còn nguyên)',
+	! VHNB_Quyen::duoc( $U_QNV, 'dang' ) );
+
+/* 🔴 'vao' KHÔNG ĐƯỢC quay lại bảng phân quyền. `duoc()` chối mọi việc không có tên, nên chỗ
+   nào lỡ hỏi `duoc( $u, 'vao' )` là chối sạch cả Admin — không còn ai vào để mở lại. */
+t( '🔴 "vao" đã bị gỡ khỏi bảng phân quyền theo vai',
+	! isset( VHNB_Quyen::VIEC['vao'] ) && ! isset( VHNB_Quyen::cai_dat()['vao'] ),
+	VHNB_Quyen::cai_dat() );
 
 delete_option( VHNB_Quyen::O );
 
@@ -1319,6 +1338,64 @@ $wpdb->exec_raw( "DELETE FROM $bang_cfg_dn WHERE bang='CH_NguoiDung'" );
 update_option( 'vhcc_nguon_nguoidung', $nguon_cu ? $nguon_cu : 'ho_so' );
 $_GET = array(); $_POST = array(); $_COOKIE = array();
 vhnb_dung_bang();
+
+/* ==================================================================================
+   CÁC TRANG KHÁC — một chỗ khai duy nhất
+
+   Anh Thắng 30/08/2026, nhìn khối "Các trang khác" chỉ có Chấm công và Vận hành chi phí:
+   *"em quên trang ghế à"*, rồi chốt: *"sau trang mới thì dùng chung hết, thiết lập sẵn luôn"*.
+
+   🔴 GÕ TAY TỪNG CÁI NÚT LÀ SAI TỪ GỐC. Mỗi lần dựng một trang mới lại phải nhớ đi sửa từng
+      chỗ liệt kê, và chỗ nào quên thì trang mới coi như không tồn tại với người dùng. Nên đọc
+      thẳng bảng trang của plugin Cổng K&H — thêm trang mới là thêm MỘT mục ở đó.
+   ================================================================================== */
+
+/* ---- nhánh DỰ PHÒNG: chưa cài plugin Cổng thì vẫn phải có đường đi ----
+   Dựng lớp giả cho plugin Ghế: nạp cả plugin ghế vào bài này thì nặng, mà thứ cần dựng lại chỉ
+   là hoàn cảnh "có plugin ấy, và nó có hàm url()". */
+if ( ! class_exists( 'VHG_Trang' ) ) {
+	eval( 'class VHG_Trang { public static function url() { return "http://example.test/?vhg=app"; } }' );
+}
+t( 'chưa cài plugin Cổng -> vẫn dò được các trang', count( VHNB_Trang::ds_trang_khac() ) >= 3 );
+$_map_du = array();
+foreach ( VHNB_Trang::ds_trang_khac() as $_x ) { $_map_du[ $_x['ten'] ] = $_x['url']; }
+t( '🔴 nhánh dự phòng CÓ trang Ghế', isset( $_map_du['Ghế massage'] ), array_keys( $_map_du ) );
+t( 'có trang Chấm công',        isset( $_map_du['Chấm công'] ), array_keys( $_map_du ) );
+t( 'có trang Vận hành chi phí', isset( $_map_du['Vận hành chi phí'] ), array_keys( $_map_du ) );
+t( '🔴 KHÔNG có nút trỏ về chính trang đang đứng',
+	! in_array( VHNB_Trang::url(), array_values( $_map_du ), true ), $_map_du );
+/* Chưa cài Thư viện hợp đồng thì đừng dựng nút cho nó — liên kết chết còn tệ hơn không có nút. */
+t( 'plugin chưa cài thì KHÔNG dựng nút', ! isset( $_map_du['Thư viện hợp đồng'] ), array_keys( $_map_du ) );
+
+/* ---- nhánh CHÍNH: đọc bảng trang của plugin Cổng K&H ---- */
+define( 'VHTC_VERSION', 'test' );
+define( 'VHTC_DIR', $goc . '/wordpress/vhcp-trang-chu/' );
+require_once VHTC_DIR . 'includes/class-vhtc-trang.php';
+t( 'nạp được plugin Cổng K&H', class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'ds_app' ) );
+
+$_ds_ch = VHNB_Trang::ds_trang_khac();
+$_map   = array();
+foreach ( $_ds_ch as $_x ) { $_map[ $_x['ten'] ] = $_x['url']; }
+t( '🔴 đọc bảng trang -> CÓ Ghế Massage', isset( $_map['Ghế Massage'] ), array_keys( $_map ) );
+t( 'và có Chấm Công',        isset( $_map['Chấm Công'] ), array_keys( $_map ) );
+t( 'và có Vận Hành Chi Phí', isset( $_map['Vận Hành Chi Phí'] ), array_keys( $_map ) );
+/* 🔴 BỎ CHÍNH TRANG NÀY RA. Bảng trang có mục "Nội Bộ" — một cái nút trỏ về đúng trang đang
+   đứng thì vô nghĩa, và người dùng bấm vào tưởng mình đi đâu đó rồi mới thấy vẫn ở chỗ cũ. */
+t( '🔴 bỏ chính trang Nội bộ ra khỏi danh sách',
+	! in_array( VHNB_Trang::url(), array_values( $_map ), true ), $_map );
+/* Plugin chưa cài -> `ds_app` trả mục có url rỗng. Lọt một mục như thế ra là một cái nút bấm
+   vào không đi đâu cả. */
+$_rong = 0;
+foreach ( $_ds_ch as $_x ) { if ( '' === trim( (string) $_x['url'] ) ) { $_rong++; } }
+teq( '🔴 KHÔNG lọt mục nào có địa chỉ rỗng (nút bấm vào không đi đâu)', 0, $_rong );
+t( 'plugin Hợp đồng chưa cài thì không có trong danh sách',
+	! isset( $_map['Thư Viện Hợp Đồng'] ), array_keys( $_map ) );
+
+/* Và trang phải VẼ RA mấy cái nút ấy, không phải chỉ tính ra rồi bỏ đó. */
+$_COOKIE = array();
+ob_start(); VHNB_Trang::ve( null ); $_h_nut = ob_get_clean();
+t( '🔴 màn chưa đăng nhập vẽ ra nút sang trang Ghế',
+	false !== strpos( $_h_nut, 'Ghế Massage</a>' ), substr( $_h_nut, -2200 ) );
 
 /* ================================================================= kết */
 

@@ -8,12 +8,12 @@
  * luật ấy, nên người quản trị đi tìm là đi tìm một thứ chưa từng tồn tại.
  *
  * =============================================================================================
- * 🔴 BỐN VIỆC, MỖI VIỆC MỘT BẬC — KHÔNG PHẢI BẢNG Ô TÍCH
+ * 🔴 BA VIỆC, MỖI VIỆC MỘT BẬC — KHÔNG PHẢI BẢNG Ô TÍCH
  * =============================================================================================
  * Đi theo đúng mô hình `VHCC_Vai` đã chốt: một THANG năm bậc, bậc trên làm được mọi việc của
  * bậc dưới. Ở đây chỉ khai "việc này cần từ bậc mấy trở lên".
  *
- * Bảng ô tích rời (5 vai × 4 việc = 20 ô) thì dựng được những tổ hợp vô nghĩa — Quản lý dọn
+ * Bảng ô tích rời (5 vai × 3 việc = 15 ô) thì dựng được những tổ hợp vô nghĩa — Quản lý dọn
  * được bài mà Admin thì không — và ngày nào đó có người tích nhầm.
  *
  * =============================================================================================
@@ -21,8 +21,11 @@
  * =============================================================================================
  * Trang này đang chạy thật, có người đang đăng bài trên đó. Bản nâng cấp mà đặt mặc định chặt
  * hơn hiện tại là sáng hôm sau cả công ty mất quyền đăng bài, và không ai hiểu vì sao — trong
- * khi họ không đổi gì cả. Nên: vào / đăng / lập nhóm = bậc Nhân viên (ai cũng được, y như
- * trước), dọn bài = bậc Admin (y như trước). Muốn siết thì Admin tự nâng lên, cố ý, thấy được.
+ * khi họ không đổi gì cả. Nên: đăng / lập nhóm = bậc Nhân viên (ai cũng được, y như trước),
+ * dọn bài = bậc Admin (y như trước). Muốn siết thì Admin tự nâng lên, cố ý, thấy được.
+ *
+ * 🔴 VÀO TRANG THÌ KHÔNG KHOÁ THEO VAI NỮA — xem khối `VIEC` bên dưới. Trang này là trang chủ
+ *    của cả công ty; ai có PIN là vào.
  *
  * ⚠️ CHƯA CÀI PLUGIN CHẤM CÔNG THÌ CHO QUA. `VHCC_Vai` nằm ở plugin khác; gỡ plugin ấy ra mà
  *    ở đây trả false là cả trang nội bộ đóng cửa với mọi người, kể cả Admin — không còn ai vào
@@ -35,9 +38,29 @@ class VHNB_Quyen {
 
 	const O = 'vhnb_quyen';
 
-	/** Bốn việc + bậc mặc định. Mặc định = ĐÚNG hành vi trước khi có màn này. */
+	/**
+	 * BA VIỆC + bậc mặc định. Mặc định = ĐÚNG hành vi trước khi có màn này.
+	 *
+	 * =========================================================================================
+	 * 🔴 "VÀO TRANG" ĐÃ BỊ GỠ KHỎI BẢNG NÀY — CỐ Ý.
+	 * =========================================================================================
+	 * Anh Thắng 30/08/2026, khi một nhân viên đăng nhập xong bị chối với câu *"Việc Vào trang
+	 * Nội bộ cần vai từ Admin trở lên"*: *"trang nội bộ là chung công ty nên ai cũng vào được
+	 * hết, có mật khẩu là vào, đó là lý do anh đặt trang chủ mà"*.
+	 *
+	 * Trang này là trang chủ của cả công ty. Một cái ô chọn bậc cho việc VÀO là một cái bẫy:
+	 * chỉ cần chọn nhầm một lần là cả công ty mất trang chủ, mà người bị chối thì không hiểu vì
+	 * sao — họ có PIN, họ đăng nhập được, rồi màn hình nói họ không đủ vai. Đã xảy ra thật.
+	 *
+	 * ⚠️ CHẶN RIÊNG MỘT NGƯỜI THÌ VẪN CÒN ĐƯỜNG, và đó mới là chỗ đúng để chặn: màn Quản lý
+	 *    nhân sự (`VHCC_Cong::duoc_vao( $u, 'noi_bo' )`) khoá theo TỪNG NGƯỜI. Khoá một người
+	 *    thì chỉ một người bị ảnh hưởng, và người khoá nhìn thấy đúng tên mình vừa khoá.
+	 *
+	 * ⚠️ ĐỪNG THÊM 'vao' TRỞ LẠI. `duoc()` trả false cho việc không có trong bảng, nên chỗ nào
+	 *    lỡ hỏi `duoc( $u, 'vao' )` là chối sạch mọi người — kể cả Admin, và không còn ai vào
+	 *    được để mở lại.
+	 */
 	const VIEC = array(
-		'vao'  => array( 'nhan' => 'Vào trang Nội bộ',                'md' => 'NHAN_VIEN' ),
 		'dang' => array( 'nhan' => 'Đăng bài · bình luận · thả tim',  'md' => 'NHAN_VIEN' ),
 		'nhom' => array( 'nhan' => 'Lập nhóm riêng',                  'md' => 'NHAN_VIEN' ),
 		'don'  => array( 'nhan' => 'Ghim bài · xoá bài của người khác', 'md' => 'ADMIN' ),

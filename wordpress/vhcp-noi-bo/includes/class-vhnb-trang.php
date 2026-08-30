@@ -102,21 +102,94 @@ class VHNB_Trang {
 			echo '</div>';
 		}
 
-		/* Đường vào hai trang kia — người có PIN rồi thì đi thẳng, khỏi qua Nội bộ. */
-		echo '<div class="the">';
-		echo '<h3 style="margin:0 0 10px">Các trang khác</h3>';
-		echo '<p style="margin:0;display:flex;gap:10px;flex-wrap:wrap">';
-		if ( $co_cc ) {
-			echo '<a class="nut" href="' . esc_url( $url_cc ) . '">🕐 Chấm công</a>';
+		/* Đường vào các trang kia — người có PIN rồi thì đi thẳng, khỏi qua Nội bộ. */
+		$ds_khac = self::ds_trang_khac();
+		if ( $ds_khac ) {
+			echo '<div class="the">';
+			echo '<h3 style="margin:0 0 10px">Các trang khác</h3>';
+			echo '<p style="margin:0;display:flex;gap:10px;flex-wrap:wrap">';
+			foreach ( $ds_khac as $tr ) {
+				echo '<a class="nut" href="' . esc_url( $tr['url'] ) . '">'
+					. esc_html( $tr['icon'] . ' ' . $tr['ten'] ) . '</a>';
+			}
+			echo '</p></div>';
 		}
-		/* ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — chưa cài plugin chi phí thì trang
-		   này vẫn phải chạy, chỉ là thiếu đúng một cái nút. */
-		if ( class_exists( 'VHCP_App' ) && method_exists( 'VHCP_App', 'app_url' ) ) {
-			echo '<a class="nut" href="' . esc_url( VHCP_App::app_url() ) . '">💰 Vận hành chi phí</a>';
-		}
-		echo '</p></div>';
 
 		echo '</div>';
+	}
+
+	/**
+	 * CÁC TRANG KHÁC CỦA HỆ — một chỗ khai duy nhất, trang mới thêm vào là hiện ở mọi nơi.
+	 *
+	 * =========================================================================================
+	 * 🔴 VÌ SAO KHÔNG GÕ CỨNG MẤY CÁI NÚT.
+	 * =========================================================================================
+	 * Anh Thắng 30/08/2026, nhìn khối "Các trang khác" chỉ có Chấm công và Vận hành chi phí:
+	 * *"em quên trang ghế à"*. Đúng — vì bản trước gõ tay đúng hai cái nút. Gõ tay thì mỗi lần
+	 * dựng một trang mới lại phải nhớ đi sửa từng chỗ liệt kê, và chỗ nào quên thì trang mới coi
+	 * như không tồn tại với người dùng. Anh chốt tiếp: *"sau trang mới thì dùng chung hết, thiết
+	 * lập sẵn luôn"*.
+	 *
+	 * Nên đọc thẳng bảng trang của plugin Cổng K&H (`VHTC_Trang::ds_app`) — nơi ĐÃ khai đủ cả
+	 * Chấm công, Trạm chấm công, Chi phí, Ghế, Nội bộ, Hợp đồng, kèm chốt "plugin chưa cài thì
+	 * không dựng liên kết chết". Thêm trang mới thì thêm MỘT mục ở đó, không phải đi sửa sáu chỗ.
+	 *
+	 * ⚠️ CÓ NHÁNH DỰ PHÒNG khi chưa cài plugin Cổng. Không thì gỡ đúng plugin ấy ra là trang Nội
+	 *    bộ mất sạch đường đi, mà nó vốn chẳng liên quan gì tới việc đăng nhập ở đây.
+	 *
+	 * 🔴 BỎ CHÍNH TRANG NÀY RA. Một cái nút trỏ về đúng trang đang đứng thì vô nghĩa.
+	 *
+	 * @return array danh sách ['ten','icon','url'] — chỉ những trang THẬT SỰ có mặt.
+	 */
+	public static function ds_trang_khac() {
+		$toi_day = self::url();
+		$ra      = array();
+
+		/* ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'ds_app' ) ) {
+			foreach ( VHTC_Trang::ds_app() as $a ) {
+				if ( empty( $a['co'] ) || empty( $a['url'] ) ) { continue; }
+				if ( $a['url'] === $toi_day ) { continue; }
+				$ra[] = array(
+					'ten'  => (string) $a['ten'],
+					'icon' => (string) ( isset( $a['icon'] ) ? $a['icon'] : '' ),
+					'url'  => (string) $a['url'],
+				);
+			}
+			return $ra;
+		}
+
+		/* Dự phòng: chưa cài plugin Cổng thì tự dò lấy. Danh sách này CỐ Ý ngắn hơn — nó chỉ để
+		   trang không cụt đường, còn chỗ khai đầy đủ vẫn là `VHTC_Trang::ds_app`. */
+		$them = function ( $lop, $ham, $icon, $ten ) use ( &$ra, $toi_day ) {
+			if ( ! class_exists( $lop ) || ! method_exists( $lop, $ham ) ) { return; }
+			$u = (string) call_user_func( array( $lop, $ham ) );
+			if ( '' === $u || $u === $toi_day ) { return; }
+			$ra[] = array( 'ten' => $ten, 'icon' => $icon, 'url' => $u );
+		};
+		$them( 'VHCC_Web',  'url',     '🕐', 'Chấm công' );
+		$them( 'VHCC_Tram', 'url',     '📷', 'Chấm công online' );
+		$them( 'VHCP_App',  'app_url', '💰', 'Vận hành chi phí' );
+		$them( 'VHG_Trang', 'url',     '💺', 'Ghế massage' );
+		$them( 'VHD_Trang', 'url',     '📄', 'Thư viện hợp đồng' );
+		return $ra;
+	}
+
+	/**
+	 * Nút "← Về trang chấm công" ở hai màn CHỐI QUYỀN.
+	 *
+	 * ⚠️ TÁCH RA THÀNH HÀM RIÊNG để cái gác `method_exists` nằm CÙNG THÂN HÀM với lời gọi — luật
+	 *    `tools/test/kiem-goi-cheo.php`. Trước đây hai chỗ này gọi thẳng `VHCC_Web::url()` và
+	 *    "được" bộ kiểm bỏ qua chỉ vì trong cùng hàm `ve()` tình cờ có một cái gác của việc
+	 *    khác. Việc kia bị gỡ đi là hai chỗ này hụt gác mà chẳng ai đụng vào chúng.
+	 *
+	 * Thiếu plugin chấm công thì KHÔNG dựng nút — một liên kết dẫn tới trang không tồn tại còn
+	 * tệ hơn là không có nút nào.
+	 */
+	private static function nut_ve_cham_cong() {
+		if ( ! class_exists( 'VHCC_Web' ) || ! method_exists( 'VHCC_Web', 'url' ) ) { return ''; }
+		return '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() )
+			. '">← Về trang chấm công</a></p>';
 	}
 
 	/** Có đang bật "dùng làm trang chủ" không. */
@@ -574,8 +647,13 @@ class VHNB_Trang {
 			if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'url' ) ) {
 				echo '<a class="nut" href="' . esc_url( VHTC_Trang::url() ) . '">🏠 Cổng K&amp;H</a>';
 			}
-			if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
-				echo '<a class="nut" href="' . esc_url( VHCC_Web::url() ) . '">🕐 Chấm công</a>';
+			/* Đủ mọi trang của hệ, không riêng Chấm công — anh Thắng: *"em quên trang ghế à"*.
+			   Cùng một chỗ khai với khối "Các trang khác" ở màn chưa đăng nhập. */
+			foreach ( self::ds_trang_khac() as $tr ) {
+				if ( class_exists( 'VHTC_Trang' ) && method_exists( 'VHTC_Trang', 'url' )
+					&& $tr['url'] === VHTC_Trang::url() ) { continue; }   // đã có nút Cổng riêng
+				echo '<a class="nut" href="' . esc_url( $tr['url'] ) . '">'
+					. esc_html( $tr['icon'] . ' ' . $tr['ten'] ) . '</a>';
 			}
 			/* THOÁT. Là một FORM POST chứ không phải đường dẫn: một cái link đăng xuất thì chỉ
 			   cần ai đó dán ảnh có địa chỉ ấy vào bảng tin là cả phòng bị đá ra. Kèm chữ ký,
@@ -606,23 +684,16 @@ class VHNB_Trang {
 			echo '<div class="bo"><div class="the" style="max-width:520px;margin:40px auto">'
 				. '<h2>Không vào được trang này</h2>'
 				. '<p class="mo">' . esc_html( VHCC_Cong::vi_sao_khong( $toi, 'noi_bo' ) ) . '</p>'
-				. '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() ) . '">← Về trang chấm công</a></p>'
+				. self::nut_ve_cham_cong()
 				. '</div>';
 			self::dong_trang();
 			return;
 		}
-		if ( $toi && ! VHNB_Quyen::duoc( $toi, 'vao' ) ) {
-			echo '<div class="bo"><div class="the" style="max-width:520px;margin:40px auto">'
-				. '<h2>Chưa mở cho vai này</h2>'
-				. '<p class="mo">' . esc_html( VHNB_Quyen::vi_sao_khong( $toi, 'vao' ) ) . '</p>'
-				. '<p class="mo">Vai hiện tại của anh/chị: <b>'
-				. esc_html( (string) ( isset( $toi['role'] ) ? $toi['role'] : '—' ) ) . '</b>. '
-				. 'Cần vào thì nhờ Admin mở ở <b>wp-admin → Nội bộ K&amp;H</b>.</p>'
-				. '<p><a class="nut chinh" href="' . esc_url( VHCC_Web::url() ) . '">← Về trang chấm công</a></p>'
-				. '</div>';
-			self::dong_trang();
-			return;
-		}
+		/* 🔴 KHÔNG CÒN CHỐT VAI Ở CỬA VÀO — anh Thắng 30/08/2026: *"trang nội bộ là chung công
+		   ty nên ai cũng vào được hết, có mật khẩu là vào, đó là lý do anh đặt trang chủ mà"*.
+		   Ai có PIN là vào. Chặn riêng một người thì dùng chốt ngay trên (`VHCC_Cong`), khoá
+		   theo TỪNG NGƯỜI ở màn Quản lý nhân sự — chứ không khoá cả một bậc vai.
+		   Xem thêm khối đầu `VHNB_Quyen::VIEC`: 'vao' đã bị gỡ khỏi bảng phân quyền, cố ý. */
 		if ( ! $toi ) {
 			self::phan_cong_khai( $loi_dn );
 			self::dong_trang();

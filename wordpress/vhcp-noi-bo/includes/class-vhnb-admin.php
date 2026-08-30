@@ -96,6 +96,16 @@ class VHNB_Admin {
 
 		echo '<form method="post">';
 		wp_nonce_field( self::NONCE );
+		/* 🔴 NÓI THẲNG RA LUẬT "AI VÀO ĐƯỢC" — nó KHÔNG có ô nào ở đây, và người quản trị đi tìm
+		   một cái ô không tồn tại thì sẽ tưởng mình khai thiếu. Anh Thắng 30/08/2026: *"trang nội
+		   bộ là chung công ty nên ai cũng vào được hết, có mật khẩu là vào, đó là lý do anh đặt
+		   trang chủ mà"*. */
+		echo '<p style="max-width:760px;background:#f0f9ff;border-left:4px solid #0ea5e9;'
+			. 'padding:10px 14px;margin:0 0 14px">'
+			. '<b>Vào trang thì ai có PIN cũng vào được</b> — đây là trang chung của công ty, '
+			. 'không khoá theo vai. Mấy ô dưới đây chỉ quyết định ai được <i>làm gì</i> khi đã vào. '
+			. 'Cần chặn riêng một người thì mở <b>Quản lý nhân sự</b> bên trang chấm công, khoá '
+			. 'đúng người đó.</p>';
 		echo '<table class="form-table"><tbody>';
 		foreach ( VHNB_Quyen::VIEC as $k => $v ) {
 			echo '<tr><th scope="row"><label for="q_' . esc_attr( $k ) . '">'
