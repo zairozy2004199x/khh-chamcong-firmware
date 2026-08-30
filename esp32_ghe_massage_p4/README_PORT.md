@@ -52,6 +52,8 @@ Các `-1` là **chưa gán**, phải điền chân thật (đối chiếu pad bo
 5. **GĐ5 — Chạy thử máy thật:** quét QR → tiền vào → ghế chạy → hết giờ ngắt; đối chiếu doanh thu.
 
 ## 6. Đang chờ để làm tiếp
-- Điền **chân thật** vào `cau_hinh_p4.h` (4G UART/PWRKEY, cổng tiền RX/TX, relay/bypass, dò xung) —
-  đối chiếu pad/header bo. Nếu pad ra ngoài ít, dùng **IC mở rộng I²C** cho relay + đọc xung.
-- Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (bo có sẵn RS485 26/27).
+- ✅ Đã chốt **chân thật** trong `cau_hinh_p4.h` từ header JP1 — sơ đồ đầy đủ ở
+  **`SO_DO_DAU_NOI.md`** (4G 32/33/34, cổng tiền 49/50, relay 51, bypass 52, dò xung 29).
+- GĐ3: bê máy trạng thái I/O vật lý (đóng relay khi có tiền, chốt đếm ngược theo dò xung),
+  4G A7680C (Serial2) thay đường WiFi khi mall mất mạng.
+- Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (nếu RS485 → dời cổng tiền sang 26/27).

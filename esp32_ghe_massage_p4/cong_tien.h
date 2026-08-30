@@ -26,8 +26,15 @@
    byte lỗi rồi thì XÓA dòng này (tắt log) cho đỡ rác Serial. */
 #define TIEN_DEBUG    1
 
-#define TIEN_RX_ICT   35     // IO35 (chỉ-input) — đọc TX của ICT (81/4X/10)
-#define TIEN_TX_GHE   27     // IO27 — phát sang chân nhận tiền của ghế
+/* Chân LẤY TỪ cau_hinh_p4.h nếu đã khai (bản port P4). Không thì dùng chân bản cũ
+   (CYD: IO35/IO27). Nạp cau_hinh_p4.h TRƯỚC cong_tien.h để macro có hiệu lực. */
+#ifdef P4_TIEN_RX_ICT
+  #define TIEN_RX_ICT   P4_TIEN_RX_ICT
+  #define TIEN_TX_GHE   P4_TIEN_TX_GHE
+#else
+  #define TIEN_RX_ICT   35     // IO35 (chỉ-input) — đọc TX của ICT (81/4X/10)
+  #define TIEN_TX_GHE   27     // IO27 — phát sang chân nhận tiền của ghế
+#endif
 #define TIEN_BAUD     4800
 #define TIEN_KET_MS   8000
 
