@@ -236,6 +236,9 @@ void setup() {
     fbRect(0,   70, PANEL_W, 20, RGB565(0x2E,0x9B,0x57)); // lục
     fbRect(0,  100, PANEL_W, 20, RGB565(0x2F,0x6F,0xB0)); // lam
     fbRect(PANEL_W/2 - 60, PANEL_H/2 - 60, 120, 120, RGB565(0xFF,0xFF,0xFF)); // ô trắng giữa
+    /* BÁO TRẠNG THÁI GT911 NGAY TRÊN MÀN (khỏi cần Serial): ô góc trên-trái
+       XANH LÁ = dò thấy GT911 (địa chỉ 0x5D hoặc 0x14) · ĐỎ = không thấy. */
+    fbRect(12, 12, 60, 60, g_gt ? RGB565(0x2E,0x9B,0x57) : RGB565(0xD6,0x45,0x45));
     fbFlush();                                          // đẩy ảnh xuống PSRAM trước khi bật đèn
     gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1);      // bật đèn nền
     Serial.println("[LCD] Da ve man test — cham vao de kiem GT911.");
