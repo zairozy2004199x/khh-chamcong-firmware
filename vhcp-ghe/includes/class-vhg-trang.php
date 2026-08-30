@@ -1493,15 +1493,20 @@ class VHG_Trang {
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
     tb.appendChild(body); sc.appendChild(tb); c2.appendChild(sc);
-    // tổng — gọn: chỉ Tiền mặt + Thực thu; đầy đủ: cả 4 ô
+    /* Tổng — gọn: chỉ Tiền mặt + Doanh thu ngày; đầy đủ: cả 4 ô.
+       🔴 Ô CUỐI TÊN LÀ "DOANH THU NGÀY", KHÔNG PHẢI "THỰC THU". Anh Thắng 30/08/2026:
+          *"Ô thực thu tổng, đổi thành 'Doanh thu ngày'"*. Nó cộng TIỀN MẶT + QR của cả cơ sở,
+          tức là doanh thu cả ngày — khác hẳn cột "Thực thu tiền mặt" của từng hàng (số tiền mặt
+          thật của riêng một ghế). Hai thứ khác nghĩa mà cùng tên là người soát phải tự đoán
+          xem hai chỗ có nói cùng một số hay không, và số nào mới là số phải nộp. */
     var tot=el('div','bc-tot');
     tot.innerHTML = GON
       ? '<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
-        +'<div class="bc-tt"><span>Thực thu</span><b id="bc-s-total">0</b></div>'
+        +'<div class="bc-tt"><span>Doanh thu ngày</span><b id="bc-s-total">0</b></div>'
       : '<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
         +'<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
         +'<div class="bc-tt"><span>QR</span><b id="bc-s-qr">0</b></div>'
-        +'<div class="bc-tt"><span>Thực thu</span><b id="bc-s-total">0</b></div>';
+        +'<div class="bc-tt"><span>Doanh thu ngày</span><b id="bc-s-total">0</b></div>';
     c2.appendChild(tot);
     wrap.appendChild(c2);
 
