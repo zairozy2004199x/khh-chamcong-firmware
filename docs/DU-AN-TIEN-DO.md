@@ -9,6 +9,43 @@ cho ai.
 
 ---
 
+## Màn hình
+
+Ba màn, chuyển bằng cột trái:
+
+**Bảng chặng** (mặc định) — bảy cột, mỗi chặng một cột, dự án là thẻ nằm trong cột của nó. Đây là
+màn chính, vì câu hỏi đầu tiên mỗi sáng là *"cái nào đang kẹt ở đâu"* — một cái bảng dòng-cột
+không trả lời được câu ấy, phải đọc hết cột Chặng rồi tự nhóm trong đầu.
+
+Mỗi thẻ nói đủ ba thứ để quyết định có mở nó ra không: **còn mấy ngày** tới ngày mở cửa (quá hạn
+thì ghi thẳng *"quá 5 ngày"* chứ không phải −5), **tiến độ** tới đâu, và **bộ phận nào đang trễ**.
+Thiếu cái thứ ba thì phải mở từng dự án ra mới biết chỗ nào đang cháy.
+
+Cột **Đã huỷ** chỉ hiện khi thật sự có dự án đã huỷ — để nó đứng trống quanh năm thì bảy cột việc
+thật bị bóp hẹp lại vì một cột không có gì.
+
+**Danh sách** — bảng dòng-cột như cũ, cho ai quen đọc bảng, lọc được theo chặng.
+
+**Lập dự án** — chỉ hiện với vai Quản lý trở lên.
+
+### Dải thẻ số
+
+Năm con số ở đầu màn: **Đang chạy · Mở cửa ≤7 ngày · Bộ phận trễ hạn · Tiến độ trung bình · Xong**
+(thêm *Đã huỷ* khi có).
+
+Chỉ hai con số **để hành động** được tô màu — *sắp mở cửa* (cam) và *trễ hạn* (đỏ). Tô hết thì
+không cái nào nổi lên nữa.
+
+Ba chỗ đếm dễ sai, đã chốt bằng phép thử:
+- **"Sắp mở cửa"** chỉ đếm cái **chưa mở**. Đếm cả cái đã mở thì con số ấy chỉ tăng chứ không bao
+  giờ giảm, và nó thôi có nghĩa.
+- **Việc đã xong thì không trễ**, dù quá hạn. Tô đỏ việc đã làm xong chỉ làm người ta quen mắt
+  với màu đỏ, rồi bỏ qua cả những cái đỏ thật.
+- **Dự án chưa giao cho ai không kéo tụt tiến độ trung bình** — chưa bắt đầu khác hẳn "đã giao mà
+  cả phòng ngồi chơi ở 0%".
+
+---
+
 ## Bảy chặng
 
 ```
@@ -111,7 +148,7 @@ Vào không được `/du-an` sau khi cài: vào **Cài đặt → Đường d�
 
 ## Bài kiểm
 
-`tools/test/kiem-du-an.php` — 113 phép. Bài này canh nặng nhất vào **chỗ hệ TỪ CHỐI**, vì đó mới
+`tools/test/kiem-du-an.php` — 145 phép. Bài này canh nặng nhất vào **chỗ hệ TỪ CHỐI**, vì đó mới
 là giá trị của một hệ quy trình: cho nhảy cóc, cho bàn giao khi chưa có ngày, cho bên này sửa
 tiến độ bên kia — thì nó chỉ còn là một cái bảng ghi chép, và người ta sẽ quay lại hỏi nhau qua
 điện thoại như cũ.

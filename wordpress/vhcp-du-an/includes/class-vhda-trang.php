@@ -230,34 +230,35 @@ class VHDA_Trang {
 
 	/* ==================================================================== vẽ */
 
-	public static function ve( $toi ) {
+	/**
+	 * KHUNG HAI CỘT: cột trái điều hướng, cột phải nội dung.
+	 *
+	 * Anh Thắng 30/08/2026: *"Chuyển sang giao diện HRM trực quan"* — tức là mở lên nhìn một cái
+	 * là biết đang có gì, chứ không phải đọc một cái bảng rồi tự cộng trong đầu.
+	 *
+	 * ⚠️ VẪN KHÔNG CÓ JAVASCRIPT. Cột trái là mấy cái link, bảng chặng là CSS grid, thẻ dự án là
+	 *    thẻ HTML. Đổi lại nó chạy trên mọi máy, và thử được bằng bộ thử PHP.
+	 */
+	public static function ve( $toi, $man = '' ) {
 		$ma = isset( $_GET['da'] ) ? sanitize_text_field( wp_unslash( $_GET['da'] ) ) : '';
+		if ( '' === $man ) {
+			$man = isset( $_GET['man'] ) ? sanitize_text_field( wp_unslash( $_GET['man'] ) ) : '';
+		}
 
 		echo self::dau();
-		echo '<header><div class="bo">'
-			. '<a class="hieu" href="' . esc_url( self::url() ) . '"><b>K&amp;H</b> Quy trình công việc</a>'
-			. '<span class="ai">' . esc_html( (string) $toi['name'] ) . '</span>';
-		/* ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
-		if ( class_exists( 'VHNB_Trang' ) && method_exists( 'VHNB_Trang', 'url' ) ) {
-			echo '<a class="nut" href="' . esc_url( VHNB_Trang::url() ) . '">🏠 Nội bộ</a>';
-		}
-		if ( class_exists( 'VHCP_App' ) && method_exists( 'VHCP_App', 'app_url' ) ) {
-			echo '<a class="nut" href="' . esc_url( VHCP_App::app_url() ) . '">💰 Chi phí</a>';
-		}
-		echo self::nut_thoat();
-		echo '</div></header>';
+		echo '<div class="khung">';
+		self::cot_trai( $toi, $ma, $man );
+		echo '<main class="phai">';
 
 		/* 🔴 CHỐT "AI ĐƯỢC VÀO" ĐỨNG NGAY SAU CHỐT ĐĂNG NHẬP, trước mọi thứ khác. Đặt sau là đã
 		   lỡ vẽ dữ liệu ra rồi mới chối — mà nội dung thì đã nằm trong HTML gửi xuống máy. */
 		if ( ! VHDA_Quyen::duoc( $toi, 'xem' ) ) {
-			echo '<div class="bo"><div class="the" style="max-width:520px;margin:40px auto">'
-				. '<h2>Chưa mở cho vai này</h2><p class="mo">'
-				. esc_html( VHDA_Quyen::vi_sao_khong( $toi, 'xem' ) ) . '</p></div></div>';
-			echo self::chan();
+			echo '<div class="the" style="max-width:520px"><h2>Chưa mở cho vai này</h2><p class="mo">'
+				. esc_html( VHDA_Quyen::vi_sao_khong( $toi, 'xem' ) ) . '</p></div>';
+			echo '</main></div>' . self::chan();
 			return;
 		}
 
-		echo '<div class="bo">';
 		$bao = get_transient( self::khoa_bao() );
 		if ( is_array( $bao ) ) {
 			delete_transient( self::khoa_bao() );
@@ -267,13 +268,254 @@ class VHDA_Trang {
 
 		if ( '' !== $ma ) {
 			$d = VHDA_DuAn::mot( $ma );
-			if ( ! $d ) { echo '<div class="bao loi">Không tìm thấy dự án này.</div>'; self::ds_du_an( $toi ); }
-			else { self::mot_du_an( $toi, $d ); }
+			if ( ! $d ) {
+				echo '<div class="bao loi">Không tìm thấy dự án này.</div>';
+				self::man_bang( $toi );
+			} else {
+				self::mot_du_an( $toi, $d );
+			}
+		} elseif ( 'ds' === $man ) {
+			self::man_danh_sach( $toi );
+		} elseif ( 'lap' === $man ) {
+			self::man_lap( $toi );
 		} else {
-			self::ds_du_an( $toi );
+			self::man_bang( $toi );
+		}
+
+		echo '</main></div>' . self::chan();
+	}
+
+	/** Cột trái — người dùng, mấy màn chính, và đường sang các trang khác của hệ. */
+	private static function cot_trai( $toi, $ma, $man ) {
+		$ten  = (string) $toi['name'];
+		$vai  = (string) ( isset( $toi['role'] ) ? $toi['role'] : '' );
+		$chu  = mb_substr( trim( $ten ), 0, 1, 'UTF-8' );
+
+		echo '<aside class="trai">';
+		echo '<div class="hieu-o"><span class="hieu-ic">🗂</span>'
+			. '<span><b>Dự án</b><small>Quy trình công việc</small></span></div>';
+
+		echo '<div class="toi"><span class="chu-cai">' . esc_html( mb_strtoupper( $chu, 'UTF-8' ) ) . '</span>'
+			. '<span class="toi-chu"><b>' . esc_html( $ten ) . '</b><small>' . esc_html( $vai )
+			. '</small></span></div>';
+
+		$dang_bang = ( '' === $ma && 'ds' !== $man && 'lap' !== $man );
+		echo '<nav class="dh">';
+		echo '<a class="mi' . ( $dang_bang ? ' on' : '' ) . '" href="' . esc_url( self::url() )
+			. '"><span class="ic">📊</span>Bảng chặng</a>';
+		echo '<a class="mi' . ( 'ds' === $man && '' === $ma ? ' on' : '' ) . '" href="'
+			. esc_url( add_query_arg( 'man', 'ds', self::url() ) )
+			. '"><span class="ic">📋</span>Danh sách</a>';
+		if ( VHDA_Quyen::duoc( $toi, 'lap' ) ) {
+			echo '<a class="mi' . ( 'lap' === $man ? ' on' : '' ) . '" href="'
+				. esc_url( add_query_arg( 'man', 'lap', self::url() ) )
+				. '"><span class="ic">➕</span>Lập dự án</a>';
+		}
+		echo '</nav>';
+
+		echo '<div class="mi-nhan">Trang khác</div><nav class="dh">';
+		/* ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHNB_Trang' ) && method_exists( 'VHNB_Trang', 'url' ) ) {
+			echo '<a class="mi" href="' . esc_url( VHNB_Trang::url() ) . '"><span class="ic">🏠</span>Nội bộ</a>';
+		}
+		if ( class_exists( 'VHCC_Web' ) && method_exists( 'VHCC_Web', 'url' ) ) {
+			echo '<a class="mi" href="' . esc_url( VHCC_Web::url() ) . '"><span class="ic">🕐</span>Chấm công</a>';
+		}
+		if ( class_exists( 'VHCP_App' ) && method_exists( 'VHCP_App', 'app_url' ) ) {
+			echo '<a class="mi" href="' . esc_url( VHCP_App::app_url() ) . '"><span class="ic">💰</span>Chi phí</a>';
+		}
+		echo '</nav>';
+
+		echo '<div class="thoat-o">' . self::nut_thoat() . '</div>';
+		echo '</aside>';
+	}
+
+	/** Dải thẻ số — thứ nhìn đầu tiên mỗi sáng. */
+	private static function dai_the( $ds, $viec ) {
+		$t = VHDA_DuAn::tom_tat( $ds, $viec );
+		$o = function ( $nhan, $so, $lop = '', $phu = '' ) {
+			return '<div class="kpi ' . $lop . '"><span class="kpi-n">' . esc_html( $nhan ) . '</span>'
+				. '<b class="kpi-s">' . esc_html( (string) $so ) . '</b>'
+				. ( '' !== $phu ? '<span class="kpi-p">' . esc_html( $phu ) . '</span>' : '' ) . '</div>';
+		};
+		echo '<div class="dai">';
+		echo $o( 'Đang chạy', $t['dang_chay'], 'xanh', $t['tong'] . ' dự án' );
+		/* 🔴 "Sắp mở cửa" và "Trễ hạn" là hai con số ĐỂ HÀNH ĐỘNG, nên tô màu; mấy con số còn
+		   lại chỉ để biết. Tô hết thì không cái nào nổi lên nữa. */
+		echo $o( 'Mở cửa ≤7 ngày', $t['sap_mo'], $t['sap_mo'] > 0 ? 'cam' : '' );
+		echo $o( 'Bộ phận trễ hạn', $t['tre'], $t['tre'] > 0 ? 'do' : '' );
+		echo $o( 'Tiến độ trung bình',
+			( null === $t['tien_do'] ? '—' : $t['tien_do'] . '%' ), '',
+			null === $t['tien_do'] ? 'chưa giao việc' : '' );
+		echo $o( 'Xong', $t['xong'], 'luc' );
+		if ( $t['huy'] > 0 ) { echo $o( 'Đã huỷ', $t['huy'] ); }
+		echo '</div>';
+	}
+
+	/** Đọc một lượt danh sách + phần việc của tất cả — dùng chung cho cả ba màn. */
+	private static function doc_het( $loc = array() ) {
+		$ds = VHDA_DuAn::ds( $loc );
+		$viec = array();
+		foreach ( $ds as $d ) { $viec[ (int) $d['id'] ] = VHDA_DuAn::viec_cua( (int) $d['id'] ); }
+		return array( $ds, $viec );
+	}
+
+	/**
+	 * THẺ MỘT DỰ ÁN — dùng ở cả bảng chặng lẫn danh sách.
+	 *
+	 * ⚠️ Mỗi thẻ nói đủ ba thứ người ta cần để quyết định có mở nó ra không: CÒN MẤY NGÀY tới
+	 *    ngày mở cửa, TIẾN ĐỘ tới đâu, và bộ phận nào ĐANG TRỄ. Thiếu cái thứ ba thì phải mở
+	 *    từng dự án ra mới biết chỗ nào đang cháy.
+	 */
+	private static function the_du_an( $d, $dsv ) {
+		$td  = VHDA_DuAn::tien_do_chung( $dsv );
+		$con = VHDA_DuAn::con_may_ngay( isset( $d['ngay_mo_cua'] ) ? $d['ngay_mo_cua'] : '' );
+		$tre = array();
+		foreach ( (array) $dsv as $v ) {
+			if ( VHDA_DuAn::tre_han( $v ) ) { $tre[] = (string) $v['bo_phan']; }
+		}
+
+		$h = '<a class="dth" href="' . esc_url( self::url_da( $d['ma'] ) ) . '">';
+		$h .= '<b class="dth-ten">' . esc_html( (string) $d['ten'] ) . '</b>';
+		if ( '' !== trim( (string) $d['coso'] ) ) {
+			$h .= '<span class="dth-cs">' . esc_html( (string) $d['coso'] ) . '</span>';
+		}
+
+		/* Đếm ngược tới ngày mở cửa. Quá ngày mà chưa xong thì nói thẳng "quá N ngày" — chứ
+		   "−5" thì người đọc phải tự dịch. */
+		if ( null !== $con ) {
+			$lop = ( $con < 0 ) ? 'do' : ( ( $con <= 7 ) ? 'cam' : '' );
+			$chu = ( $con < 0 ) ? ( 'quá ' . abs( $con ) . ' ngày' )
+				: ( 0 === $con ? 'mở cửa hôm nay' : ( 'còn ' . $con . ' ngày' ) );
+			$h .= '<span class="dth-ngay ' . $lop . '">🎬 ' . esc_html( $chu ) . '</span>';
+		} else {
+			$h .= '<span class="dth-ngay mo">chưa chốt ngày</span>';
+		}
+
+		/* Thanh tiến độ. CHƯA GIAO CHO AI thì KHÔNG vẽ thanh 0% — 0% trông như "đã giao mà cả
+		   phòng ngồi chơi", còn thật ra là chưa giao. */
+		if ( null === $td ) {
+			$h .= '<span class="dth-td mo">chưa bàn giao bộ phận nào</span>';
+		} else {
+			$h .= '<span class="thanh"><span class="thanh-in" style="width:' . (int) $td . '%"></span></span>'
+				. '<span class="dth-td">' . (int) $td . '% · ' . count( $dsv ) . ' bộ phận</span>';
+		}
+		if ( count( $tre ) ) {
+			$h .= '<span class="dth-tre">⚠ trễ: ' . esc_html( implode( ', ', $tre ) ) . '</span>';
+		}
+		return $h . '</a>';
+	}
+
+	/**
+	 * BẢNG CHẶNG — mỗi chặng một cột, dự án là thẻ nằm trong cột của nó.
+	 *
+	 * 🔴 ĐÂY LÀ MÀN CHÍNH. Câu hỏi đầu tiên mỗi sáng là "cái nào đang kẹt ở đâu", và một cái
+	 *    bảng dòng-cột không trả lời được câu ấy — phải đọc hết cột Chặng rồi tự nhóm trong đầu.
+	 *
+	 * ⚠️ CỘT ĐÃ HUỶ chỉ hiện KHI CÓ dự án đã huỷ. Để nó đứng đó trống trơn quanh năm thì bảy cột
+	 *    việc thật bị bóp hẹp lại vì một cột không có gì.
+	 */
+	private static function man_bang( $toi ) {
+		list( $ds, $viec ) = self::doc_het();
+		self::dai_the( $ds, $viec );
+
+		$theo = array();
+		foreach ( VHDA_Luong::DAY as $c ) { $theo[ $c ] = array(); }
+		$theo[ VHDA_Luong::HUY ] = array();
+		foreach ( $ds as $d ) {
+			$c = (string) $d['chang'];
+			if ( ! isset( $theo[ $c ] ) ) { $theo[ $c ] = array(); }
+			$theo[ $c ][] = $d;
+		}
+
+		echo '<div class="bang">';
+		foreach ( VHDA_Luong::DAY as $c ) {
+			echo '<section class="cot"><header class="cot-dau">'
+				. '<span>' . esc_html( VHDA_Luong::ten( $c ) ) . '</span>'
+				. '<span class="dem">' . count( $theo[ $c ] ) . '</span></header>';
+			if ( ! count( $theo[ $c ] ) ) {
+				echo '<p class="trong">—</p>';
+			} else {
+				foreach ( $theo[ $c ] as $d ) {
+					echo self::the_du_an( $d, isset( $viec[ (int) $d['id'] ] ) ? $viec[ (int) $d['id'] ] : array() );
+				}
+			}
+			echo '</section>';
+		}
+		if ( count( $theo[ VHDA_Luong::HUY ] ) ) {
+			echo '<section class="cot huy"><header class="cot-dau"><span>Đã huỷ</span>'
+				. '<span class="dem">' . count( $theo[ VHDA_Luong::HUY ] ) . '</span></header>';
+			foreach ( $theo[ VHDA_Luong::HUY ] as $d ) {
+				echo self::the_du_an( $d, isset( $viec[ (int) $d['id'] ] ) ? $viec[ (int) $d['id'] ] : array() );
+			}
+			echo '</section>';
 		}
 		echo '</div>';
-		echo self::chan();
+
+		if ( ! count( $ds ) ) {
+			echo '<div class="the"><p class="mo">Chưa có dự án nào. '
+				. ( VHDA_Quyen::duoc( $toi, 'lap' ) ? 'Bấm <b>Lập dự án</b> ở cột trái để bắt đầu.'
+					: 'Chờ quản lý lập dự án và bàn giao xuống bộ phận.' ) . '</p></div>';
+		}
+	}
+
+	/** Danh sách dạng bảng — cho ai quen đọc bảng, và để lọc theo chặng. */
+	private static function man_danh_sach( $toi ) {
+		$loc = isset( $_GET['chang'] ) ? sanitize_text_field( wp_unslash( $_GET['chang'] ) ) : '';
+		list( $ds, $viec ) = self::doc_het( VHDA_Luong::co( $loc ) ? array( 'chang' => $loc ) : array() );
+		self::dai_the( $ds, $viec );
+
+		echo '<div class="the"><p style="margin:0 0 12px;display:flex;gap:6px;flex-wrap:wrap">';
+		$u_ds = add_query_arg( 'man', 'ds', self::url() );
+		echo '<a class="nut' . ( '' === $loc ? ' chinh' : '' ) . '" href="' . esc_url( $u_ds ) . '">Tất cả</a>';
+		foreach ( VHDA_Luong::DAY as $c ) {
+			echo '<a class="nut' . ( $loc === $c ? ' chinh' : '' ) . '" href="'
+				. esc_url( add_query_arg( 'chang', $c, $u_ds ) ) . '">'
+				. esc_html( VHDA_Luong::ten( $c ) ) . '</a>';
+		}
+		echo '</p>';
+
+		if ( ! count( $ds ) ) {
+			echo '<p class="mo">Không có dự án nào ở đây.</p></div>';
+			return;
+		}
+		echo '<div class="cuon"><table><thead><tr><th>Dự án</th><th>Cơ sở</th><th>Chặng</th>'
+			. '<th>Thi công</th><th>Mở cửa</th><th>Tiến độ</th></tr></thead><tbody>';
+		foreach ( $ds as $d ) {
+			$dsv = isset( $viec[ (int) $d['id'] ] ) ? $viec[ (int) $d['id'] ] : array();
+			$td  = VHDA_DuAn::tien_do_chung( $dsv );
+			echo '<tr><td><a href="' . esc_url( self::url_da( $d['ma'] ) ) . '"><b>'
+				. esc_html( (string) $d['ten'] ) . '</b></a>'
+				. ( '' !== trim( (string) $d['khach'] ) ? '<br><span class="mo">'
+					. esc_html( (string) $d['khach'] ) . '</span>' : '' ) . '</td>';
+			echo '<td>' . esc_html( (string) $d['coso'] ) . '</td>';
+			echo '<td><span class="nhan">' . esc_html( VHDA_Luong::ten( $d['chang'] ) ) . '</span></td>';
+			echo '<td>' . esc_html( (string) $d['ngay_thi_cong'] ) . '</td>';
+			echo '<td>' . esc_html( (string) $d['ngay_mo_cua'] ) . '</td>';
+			echo '<td>' . ( null === $td ? '<span class="mo">chưa giao</span>' : (int) $td . '%' ) . '</td></tr>';
+		}
+		echo '</tbody></table></div></div>';
+	}
+
+	private static function man_lap( $toi ) {
+		if ( ! VHDA_Quyen::duoc( $toi, 'lap' ) ) {
+			echo '<div class="the"><p class="mo">'
+				. esc_html( VHDA_Quyen::vi_sao_khong( $toi, 'lap' ) ) . '</p></div>';
+			return;
+		}
+		echo '<div class="the"><h2 style="margin:0 0 10px">Lập dự án mới</h2>';
+		echo '<form method="post">' . self::o_ky()
+			. '<input type="hidden" name="viec" value="lap">'
+			. '<div class="hang">'
+			. '<label>Tên dự án<input name="ten" required placeholder="VD: Gian hàng GO Dĩ An"></label>'
+			. '<label>Cơ sở<input name="coso" placeholder="VD: GO DĨ AN"></label>'
+			. '<label>Khách hàng<input name="khach"></label>'
+			. '<label>Số hợp đồng<input name="so_hop_dong"></label>'
+			. '<label>Giá trị (đ)<input name="gia_tri" inputmode="numeric"></label>'
+			. '<button class="chinh" type="submit">Lập dự án</button>'
+			. '</div></form>'
+			. '<p class="mo" style="margin:12px 0 0">Lập xong dự án nằm ở chặng <b>Nhận hợp đồng</b>. '
+			. 'Các bước sau: lên phương án → chốt hai ngày → bàn giao xuống bộ phận.</p></div>';
 	}
 
 	/** Vạch chặng — nhìn một cái là biết dự án đang ở đâu và còn mấy chặng nữa. */
@@ -289,61 +531,6 @@ class VHDA_Trang {
 			}
 		}
 		return $h . '</div>';
-	}
-
-	private static function ds_du_an( $toi ) {
-		$loc_chang = isset( $_GET['chang'] ) ? sanitize_text_field( wp_unslash( $_GET['chang'] ) ) : '';
-		$ds = VHDA_DuAn::ds( VHDA_Luong::co( $loc_chang ) ? array( 'chang' => $loc_chang ) : array() );
-
-		echo '<div class="the"><h2 style="margin:0 0 10px">Dự án</h2>';
-		echo '<p style="margin:0 0 12px;display:flex;gap:6px;flex-wrap:wrap">';
-		echo '<a class="nut' . ( '' === $loc_chang ? ' chinh' : '' ) . '" href="'
-			. esc_url( self::url() ) . '">Tất cả</a>';
-		foreach ( VHDA_Luong::DAY as $c ) {
-			echo '<a class="nut' . ( $loc_chang === $c ? ' chinh' : '' ) . '" href="'
-				. esc_url( add_query_arg( 'chang', $c, self::url() ) ) . '">'
-				. esc_html( VHDA_Luong::ten( $c ) ) . '</a>';
-		}
-		echo '</p>';
-
-		if ( ! count( $ds ) ) {
-			echo '<p class="mo">Chưa có dự án nào ở đây.</p>';
-		} else {
-			echo '<div class="cuon"><table><thead><tr><th>Dự án</th><th>Cơ sở</th><th>Chặng</th>'
-				. '<th>Thi công</th><th>Mở cửa</th><th>Tiến độ</th></tr></thead><tbody>';
-			foreach ( $ds as $d ) {
-				$viec = VHDA_DuAn::viec_cua( (int) $d['id'] );
-				$td   = VHDA_DuAn::tien_do_chung( $viec );
-				echo '<tr><td><a href="' . esc_url( self::url_da( $d['ma'] ) ) . '"><b>'
-					. esc_html( (string) $d['ten'] ) . '</b></a>'
-					. ( '' !== trim( (string) $d['khach'] ) ? '<br><span class="mo">'
-						. esc_html( (string) $d['khach'] ) . '</span>' : '' ) . '</td>';
-				echo '<td>' . esc_html( (string) $d['coso'] ) . '</td>';
-				echo '<td><span class="nhan">' . esc_html( VHDA_Luong::ten( $d['chang'] ) ) . '</span></td>';
-				echo '<td>' . esc_html( (string) $d['ngay_thi_cong'] ) . '</td>';
-				echo '<td>' . esc_html( (string) $d['ngay_mo_cua'] ) . '</td>';
-				/* 🔴 CHƯA BÀN GIAO CHO AI thì ghi thẳng "chưa giao", KHÔNG ghi 0%. Hai thứ ấy
-				   khác hẳn nhau, và hiện lẫn lộn thì sếp nhìn bảng tưởng cả phòng ngồi chơi. */
-				echo '<td>' . ( null === $td ? '<span class="mo">chưa giao</span>'
-					: (int) $td . '%' ) . '</td></tr>';
-			}
-			echo '</tbody></table></div>';
-		}
-		echo '</div>';
-
-		if ( VHDA_Quyen::duoc( $toi, 'lap' ) ) {
-			echo '<div class="the"><h3 style="margin:0 0 10px">Lập dự án mới</h3>';
-			echo '<form method="post">' . self::o_ky()
-				. '<input type="hidden" name="viec" value="lap">'
-				. '<div class="hang">'
-				. '<label>Tên dự án<input name="ten" required placeholder="VD: Gian hàng GO Dĩ An"></label>'
-				. '<label>Cơ sở<input name="coso" placeholder="VD: GO DĨ AN"></label>'
-				. '<label>Khách hàng<input name="khach"></label>'
-				. '<label>Số hợp đồng<input name="so_hop_dong"></label>'
-				. '<label>Giá trị (đ)<input name="gia_tri" inputmode="numeric"></label>'
-				. '<button class="chinh" type="submit">Lập dự án</button>'
-				. '</div></form></div>';
-		}
 	}
 
 	private static function mot_du_an( $toi, $d ) {
@@ -620,21 +807,87 @@ class VHDA_Trang {
 
 	private static function css() {
 		return ':root{--nen:#f1f5f9;--the:#fff;--vien:#e2e8f0;--chu:#0f172a;--mo:#64748b;'
-			. '--xanh:#2563eb;--do:#dc2626;--luc:#16a34a}'
+			. '--xanh:#2563eb;--do:#dc2626;--cam:#ea580c;--luc:#16a34a;--toi:#0f172a}'
 			. '*{box-sizing:border-box}'
 			. 'body{margin:0;font:15px/1.55 -apple-system,"Segoe UI",Roboto,Arial,sans-serif;'
 			. 'background:var(--nen);color:var(--chu)}'
-			. '.bo{max-width:1180px;margin:0 auto;padding:16px}'
-			. 'header{background:var(--the);border-bottom:1px solid var(--vien)}'
-			. 'header .bo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px}'
-			. '.hieu{flex:1;font-size:17px;font-weight:700;text-decoration:none;color:var(--chu)}'
-			. '.hieu b{color:var(--xanh)}'
-			. '.ai{font-weight:600;font-size:14px;color:var(--mo)}'
+			. 'a{color:var(--xanh)}'
+
+			/* ---------- khung hai cột ---------- */
+			. '.khung{display:grid;grid-template-columns:236px minmax(0,1fr);min-height:100vh;align-items:start}'
+			. '.trai{background:var(--toi);color:#e2e8f0;min-height:100vh;padding:14px 12px;'
+			. 'position:sticky;top:0;display:flex;flex-direction:column;gap:6px}'
+			. '.phai{padding:18px;min-width:0}'
+			. '.hieu-o{display:flex;align-items:center;gap:10px;padding:4px 8px 12px}'
+			. '.hieu-ic{font-size:22px}'
+			. '.hieu-o b{display:block;font-size:16px;color:#fff;line-height:1.2}'
+			. '.hieu-o small{color:#94a3b8;font-size:11.5px}'
+			. '.toi{display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.06);'
+			. 'border-radius:10px;padding:8px 10px;margin-bottom:6px}'
+			/* Chữ cái đầu thay ảnh đại diện — hệ này không có ảnh nhân sự, mà một ô xám trống
+			   thì trông như ảnh hỏng. */
+			. '.chu-cai{width:32px;height:32px;border-radius:50%;background:var(--xanh);color:#fff;'
+			. 'display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}'
+			. '.toi-chu{min-width:0}'
+			. '.toi-chu b{display:block;font-size:13.5px;color:#fff;overflow:hidden;'
+			. 'text-overflow:ellipsis;white-space:nowrap}'
+			. '.toi-chu small{color:#94a3b8;font-size:11.5px}'
+			. '.dh{display:flex;flex-direction:column;gap:2px}'
+			. '.mi{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;'
+			. 'text-decoration:none;color:#cbd5e1;font-weight:600;font-size:13.5px}'
+			. '.mi:hover{background:rgba(255,255,255,.07);color:#fff}'
+			. '.mi.on{background:var(--xanh);color:#fff}'
+			. '.ic{width:20px;text-align:center;flex:none}'
+			. '.mi-nhan{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;'
+			. 'color:#64748b;margin:14px 0 4px;padding:0 10px}'
+			. '.thoat-o{margin-top:auto;padding-top:12px}'
+			. '.thoat-o button{width:100%;background:transparent;color:#cbd5e1;border-color:#334155}'
+
+			/* ---------- dải thẻ số ---------- */
+			. '.dai{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;'
+			. 'margin:0 0 16px}'
+			. '.kpi{background:var(--the);border:1px solid var(--vien);border-radius:12px;padding:12px 14px;'
+			. 'display:flex;flex-direction:column;gap:2px}'
+			. '.kpi-n{font-size:12px;color:var(--mo);font-weight:600}'
+			. '.kpi-s{font-size:26px;line-height:1.15;font-weight:700}'
+			. '.kpi-p{font-size:11.5px;color:#94a3b8}'
+			/* Chỉ hai con số ĐỂ HÀNH ĐỘNG mới được tô màu — tô hết thì không cái nào nổi lên. */
+			. '.kpi.xanh{border-left:4px solid var(--xanh)}'
+			. '.kpi.cam{border-left:4px solid var(--cam)}.kpi.cam .kpi-s{color:var(--cam)}'
+			. '.kpi.do{border-left:4px solid var(--do)}.kpi.do .kpi-s{color:var(--do)}'
+			. '.kpi.luc{border-left:4px solid var(--luc)}'
+
+			/* ---------- bảng chặng ---------- */
+			/* Cuộn NGANG trong khung của nó, không đẩy cả trang trượt. Bảy cột trên màn hẹp thì
+			   phải cuộn — ép chúng co lại thì thẻ nào cũng vỡ chữ. */
+			. '.bang{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;align-items:flex-start}'
+			. '.cot{flex:0 0 246px;background:#e9eef5;border-radius:12px;padding:10px;'
+			. 'display:flex;flex-direction:column;gap:8px}'
+			. '.cot.huy{background:#fdeaea}'
+			. '.cot-dau{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;'
+			. 'text-transform:uppercase;letter-spacing:.02em;color:#475569;padding:2px 4px}'
+			. '.cot-dau .dem{margin-left:auto;background:#fff;border-radius:9px;padding:1px 8px;'
+			. 'font-size:12px;color:var(--mo)}'
+			. '.trong{margin:0;padding:8px 4px;color:#94a3b8;font-size:13px}'
+			. '.dth{display:flex;flex-direction:column;gap:4px;background:var(--the);'
+			. 'border:1px solid var(--vien);border-radius:10px;padding:10px 11px;text-decoration:none;'
+			. 'color:var(--chu)}'
+			. '.dth:hover{border-color:#94a3b8;box-shadow:0 2px 8px rgba(15,23,42,.07)}'
+			. '.dth-ten{font-size:14px;line-height:1.3}'
+			. '.dth-cs{font-size:12px;color:var(--mo)}'
+			. '.dth-ngay{font-size:12px;font-weight:600}'
+			. '.dth-ngay.cam{color:var(--cam)}.dth-ngay.do{color:var(--do)}.dth-ngay.mo{color:#94a3b8;font-weight:400}'
+			. '.dth-td{font-size:11.5px;color:var(--mo)}'
+			. '.dth-td.mo{color:#94a3b8}'
+			. '.dth-tre{font-size:11.5px;color:var(--do);font-weight:600}'
+			. '.thanh{display:block;height:6px;border-radius:4px;background:#e2e8f0;overflow:hidden}'
+			. '.thanh-in{display:block;height:100%;background:var(--luc)}'
+
+			/* ---------- thẻ, biểu mẫu, bảng ---------- */
 			. '.the{background:var(--the);border:1px solid var(--vien);border-radius:12px;'
 			. 'padding:14px;margin:0 0 14px}'
 			. '.the h2{font-size:18px;margin:0 0 8px}.the h3{font-size:15px;margin:0 0 8px}'
 			. '.mo{color:var(--mo);font-size:13px}'
-			. 'a{color:var(--xanh)}'
 			. 'label{display:block;font-size:13px;color:var(--mo)}'
 			. 'input,select,textarea{font:inherit;padding:8px 10px;border:1px solid #cbd5e1;'
 			. 'border-radius:8px;background:#fff;color:var(--chu);max-width:100%}'
@@ -642,7 +895,7 @@ class VHDA_Trang {
 			. 'border:1px solid #cbd5e1;background:#fff;color:var(--chu);cursor:pointer}'
 			. 'button.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
 			. 'button.nguy{color:var(--do);border-color:#fecaca}'
-			. '.nut{display:inline-block;font-size:14px;font-weight:600;padding:7px 12px;'
+			. '.nut{display:inline-block;font-size:13.5px;font-weight:600;padding:6px 11px;'
 			. 'border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:var(--chu);'
 			. 'text-decoration:none}'
 			. '.nut.chinh{background:var(--xanh);border-color:var(--xanh);color:#fff}'
@@ -653,22 +906,33 @@ class VHDA_Trang {
 			. '.chu-do{color:var(--do)}'
 			. '.nhan{background:#e0e7ff;color:#3730a3;border-radius:5px;padding:1px 7px;font-size:12px;'
 			. 'font-weight:600;white-space:nowrap}'
-			/* Bảng rộng thì CUỘN TRONG KHUNG CỦA NÓ, không đẩy cả trang trượt ngang. */
 			. '.cuon{overflow-x:auto}'
 			. 'table{width:100%;border-collapse:collapse;font-size:14px}'
 			. 'th,td{padding:8px 10px;border-bottom:1px solid var(--vien);text-align:left;vertical-align:top}'
 			. 'th{font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--mo)}'
-			/* Vạch chặng: chặng đã qua màu lục, chặng đang đứng màu xanh đậm, chặng chưa tới màu mờ. */
+
+			/* ---------- vạch chặng ---------- */
 			. '.vach{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}'
 			. '.ch{font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;'
 			. 'background:#f1f5f9;color:#94a3b8;border:1px solid var(--vien)}'
 			. '.ch.qua{background:#f0fdf4;color:#166534;border-color:#bbf7d0}'
 			. '.ch.day{background:var(--xanh);color:#fff;border-color:var(--xanh)}'
 			. '.ch.huy{background:#fef2f2;color:#991b1b;border-color:#fecaca}'
+
 			. '.cty{margin:20px 0 0;padding:14px 0 24px;border-top:1px solid var(--vien);'
 			. 'color:var(--mo);font-size:12.5px}'
 			. '.pb{margin-top:10px;font-size:11px;color:#cbd5e1;'
 			. 'font-family:ui-monospace,Menlo,Consolas,monospace}'
-			. '@media(max-width:640px){.bo{padding:10px}input,select,textarea{font-size:16px}}';
+
+			/* Màn hẹp: cột trái thành dải ngang cuộn được, không chiếm nửa màn hình điện thoại. */
+			. '@media(max-width:820px){'
+			. '.khung{grid-template-columns:minmax(0,1fr)}'
+			. '.trai{position:static;min-height:0;flex-direction:row;flex-wrap:wrap;align-items:center;gap:8px}'
+			. '.hieu-o{padding:0 6px 0 0}.hieu-o small{display:none}'
+			. '.dh{flex-direction:row;flex-wrap:wrap}'
+			. '.mi-nhan{display:none}.thoat-o{margin:0;padding:0}'
+			. '.thoat-o button{width:auto}'
+			. '.phai{padding:12px}}'
+			. '@media(max-width:640px){input,select,textarea{font-size:16px}}';
 	}
 }

@@ -355,11 +355,45 @@ $_GET = array(); $_POST = array(); $_COOKIE = array();
 ob_start(); VHDA_Trang::ve( $U_QL ); $h = ob_get_clean();
 t( 'vẽ được màn danh sách', strlen( $h ) > 500, strlen( $h ) );
 t( 'có tên dự án vừa lập', false !== mb_strpos( $h, 'Gian hàng GO Dĩ An' ) );
-t( 'Quản lý thấy ô lập dự án mới', false !== mb_strpos( $h, 'value="lap"' ) );
+
+/* ---------- GIAO DIỆN ĐIỀU HÀNH: cột trái · dải thẻ số · bảng chặng ----------
+   Anh Thắng 30/08/2026: *"Chuyển sang giao diện HRM trực quan"* — mở lên nhìn một cái là biết
+   đang có gì, chứ không phải đọc một cái bảng rồi tự cộng trong đầu. */
+t( 'có cột trái điều hướng', false !== mb_strpos( $h, 'class="trai"' ), substr( $h, 0, 800 ) );
+t( 'cột trái có tên người đang đăng nhập', false !== mb_strpos( $h, 'Chị Quản Lý' ) );
+t( 'có dải thẻ số', false !== mb_strpos( $h, 'class="dai"' ) );
+t( '🔴 có BẢNG CHẶNG, mỗi chặng một cột', false !== mb_strpos( $h, 'class="bang"' ) );
+$_so_cot = mb_substr_count( $h, 'class="cot"' );
+teq( 'đúng bảy cột (cột Đã huỷ chỉ hiện khi có dự án huỷ)', 7, $_so_cot );
+t( 'và dự án nằm trong đó dưới dạng thẻ', false !== mb_strpos( $h, 'class="dth"' ) );
+t( 'thẻ có thanh tiến độ', false !== mb_strpos( $h, 'class="thanh"' ) );
+/* Mục đang mở phải sáng lên — không thì người dùng không biết mình đang đứng ở màn nào. */
+t( '🔴 mục "Bảng chặng" đang sáng khi đứng ở màn bảng',
+	1 === preg_match( '#class="mi on"[^>]*>\s*<span class="ic">📊#u', $h ), 'không thấy mục sáng' );
+ob_start(); VHDA_Trang::ve( $U_QL, 'ds' ); $h_ds0 = ob_get_clean();
+t( '🔴 và KHÔNG còn sáng khi đã sang màn khác',
+	1 !== preg_match( '#class="mi on"[^>]*>\s*<span class="ic">📊#u', $h_ds0 ), 'sáng nhầm mục' );
+/* 🔴 CỘT "ĐÃ HUỶ" CHỈ HIỆN KHI CÓ dự án đã huỷ. Để nó đứng đó trống trơn quanh năm thì bảy cột
+   việc thật bị bóp hẹp lại vì một cột không có gì. */
+t( '🔴 không có dự án huỷ nào -> KHÔNG dựng cột Đã huỷ',
+	false === mb_strpos( $h, 'class="cot huy"' ), 'dựng thừa cột huỷ' );
+
+/* Ô lập dự án nay ở MÀN RIÊNG (cột trái → Lập dự án), không nằm chung màn bảng. */
+ob_start(); VHDA_Trang::ve( $U_QL, 'lap' ); $h_lap = ob_get_clean();
+t( 'Quản lý mở được màn Lập dự án', false !== mb_strpos( $h_lap, 'value="lap"' ) );
+t( 'và cột trái có mục Lập dự án', false !== mb_strpos( $h, 'Lập dự án' ) );
 
 ob_start(); VHDA_Trang::ve( $U_NV ); $h_nv = ob_get_clean();
-t( '🔴 Nhân viên KHÔNG thấy ô lập dự án', false === mb_strpos( $h_nv, 'value="lap"' ), substr( $h_nv, -1500 ) );
-t( 'nhưng vẫn xem được danh sách', false !== mb_strpos( $h_nv, 'Gian hàng GO Dĩ An' ) );
+t( '🔴 Nhân viên KHÔNG thấy mục Lập dự án ở cột trái',
+	false === mb_strpos( $h_nv, 'Lập dự án' ), substr( $h_nv, 0, 1500 ) );
+ob_start(); VHDA_Trang::ve( $U_NV, 'lap' ); $h_nv_lap = ob_get_clean();
+t( '🔴 và gõ thẳng địa chỉ màn ấy cũng KHÔNG có ô lập (giấu nút không phải là chặn)',
+	false === mb_strpos( $h_nv_lap, 'value="lap"' ), substr( $h_nv_lap, -1200 ) );
+t( 'nhưng vẫn xem được dự án', false !== mb_strpos( $h_nv, 'Gian hàng GO Dĩ An' ) );
+
+ob_start(); VHDA_Trang::ve( $U_QL, 'ds' ); $h_ds = ob_get_clean();
+t( 'màn Danh sách vẫn còn cho ai quen đọc bảng',
+	false !== mb_strpos( $h_ds, '<table' ) && false !== mb_strpos( $h_ds, 'Gian hàng GO Dĩ An' ) );
 
 $_GET = array( 'da' => $MA );
 ob_start(); VHDA_Trang::ve( $U_QL ); $h1 = ob_get_clean();
@@ -386,6 +420,75 @@ t( '🔴 số biểu mẫu bằng đúng số chữ ký', $_so_form === $_so_ky,
 t( 'và có ít nhất vài biểu mẫu để mà đếm', $_so_form >= 4, $_so_form );
 
 $_GET = array();
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * PHẦN 7b — MẤY CON SỐ TRÊN DẢI THẺ. HÀM THUẦN, nên dựng được cả những cảnh hiếm.
+ *
+ * 🔴 Đây là thứ sếp nhìn ĐẦU TIÊN mỗi sáng. Một con số sai ở đây thì mọi quyết định sau đó đều
+ *    dựa trên nó, và không ai đi kiểm lại — nên chúng phải đúng cả trong cảnh hiếm.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* --- CÒN MẤY NGÀY --- */
+teq( 'còn 3 ngày',            3,    VHDA_DuAn::con_may_ngay( '2026-09-04', '2026-09-01' ) );
+teq( 'đúng hôm nay là 0',     0,    VHDA_DuAn::con_may_ngay( '2026-09-01', '2026-09-01' ) );
+teq( 'đã qua thì ÂM',         -2,   VHDA_DuAn::con_may_ngay( '2026-08-30', '2026-09-01' ) );
+/* 🔴 Chưa chốt ngày trả `null`, KHÔNG trả 0. `null` là "chưa chốt", 0 là "khai trương hôm nay" —
+   hiện lẫn lộn thì dự án chưa có ngày nào nằm chung ô với dự án mở cửa sáng mai. */
+teq( '🔴 ngày rỗng -> null, KHÔNG phải 0', null, VHDA_DuAn::con_may_ngay( '', '2026-09-01' ) );
+teq( 'ngày sai khuôn -> null', null, VHDA_DuAn::con_may_ngay( '01/09/2026', '2026-09-01' ) );
+
+/* --- TRỄ HẠN --- */
+$_q = function ( $han, $pt, $xong = 0 ) { return array( 'han' => $han, 'phan_tram' => $pt, 'xong' => $xong ); };
+t( 'quá hạn mà chưa xong: TRỄ',      VHDA_DuAn::tre_han( $_q( '2026-08-30', 40 ), '2026-09-01' ) );
+t( 'chưa tới hạn: không trễ',      ! VHDA_DuAn::tre_han( $_q( '2026-09-05', 40 ), '2026-09-01' ) );
+/* 🔴 XONG RỒI THÌ KHÔNG TRỄ, dù quá hạn. Tô đỏ việc đã xong chỉ làm người ta quen mắt với màu
+   đỏ, rồi bỏ qua cả những cái đỏ thật. */
+t( '🔴 quá hạn nhưng ĐÃ XONG: không trễ', ! VHDA_DuAn::tre_han( $_q( '2026-08-30', 100, 1 ), '2026-09-01' ) );
+t( 'đạt 100% mà cờ xong chưa kịp bật: cũng không trễ',
+	! VHDA_DuAn::tre_han( $_q( '2026-08-30', 100, 0 ), '2026-09-01' ) );
+t( '🔴 CHƯA ĐẶT HẠN thì không trễ (không có mốc để so)',
+	! VHDA_DuAn::tre_han( $_q( '', 10 ), '2026-09-01' ) );
+
+/* --- TÓM TẮT CẢ BẢNG --- */
+$_d = function ( $id, $chang, $mo_cua = '' ) {
+	return array( 'id' => $id, 'chang' => $chang, 'ngay_mo_cua' => $mo_cua );
+};
+$_ds_t = array(
+	$_d( 1, VHDA_Luong::THI_CONG, '2026-09-05' ),   // sắp mở cửa (còn 4 ngày)
+	$_d( 2, VHDA_Luong::THI_CONG, '2026-10-20' ),   // còn xa
+	$_d( 3, VHDA_Luong::XONG,     '2026-08-20' ),
+	$_d( 4, VHDA_Luong::HUY,      '2026-09-03' ),   // đã huỷ: không đếm vào đâu cả
+	$_d( 5, VHDA_Luong::MO_CUA,   '2026-09-02' ),   // ĐÃ mở cửa rồi, không còn là "sắp"
+	/* 🔴 DỰ ÁN ĐANG CHẠY MÀ CHƯA GIAO CHO AI. Nó phải KHÔNG kéo tụt tiến độ trung bình xuống —
+	   chưa bắt đầu thì khác hẳn "đã giao mà cả phòng ngồi chơi ở 0%". */
+	$_d( 6, VHDA_Luong::PHUONG_AN, '2026-11-30' ),
+);
+$_v_t = array(
+	1 => array( $_q( '2026-08-28', 30 ), $_q( '2026-09-10', 50 ) ),   // có một phần trễ
+	2 => array( $_q( '2026-10-01', 80 ) ),
+	3 => array( $_q( '2026-08-19', 100, 1 ) ),
+	4 => array(),
+	5 => array( $_q( '2026-09-01', 100, 1 ) ),
+	6 => array(),   // chưa giao cho ai
+);
+$_t = VHDA_DuAn::tom_tat( $_ds_t, $_v_t, '2026-09-01' );
+teq( 'tổng dự án', 6, $_t['tong'] );
+teq( 'đã huỷ đếm riêng', 1, $_t['huy'] );
+/* "Đang chạy" = chưa xong và chưa huỷ. Gộp cả cái đã xong vào đây thì con số ấy chỉ tăng, và
+   sếp nhìn vào tưởng còn ngần ấy việc phải theo. */
+teq( 'đang chạy: không tính đã huỷ, cũng KHÔNG tính đã xong', 4, $_t['dang_chay'] );
+teq( 'xong', 1, $_t['xong'] );
+/* 🔴 "Sắp mở cửa" chỉ đếm cái CHƯA mở. Đếm cả cái đã mở thì con số ấy chỉ tăng chứ không bao
+   giờ giảm, và nó thôi có nghĩa. */
+teq( '🔴 sắp mở cửa: chỉ 1 (dự án đã MỞ CỬA rồi không tính)', 1, $_t['sap_mo'] );
+teq( 'đúng một dự án có bộ phận trễ hạn', 1, $_t['tre'] );
+/* Tiến độ trung bình: (40 + 80 + 100 + 100) / 4 — dự án đã huỷ KHÔNG có phần việc nào nên
+   không kéo tụt con số xuống. */
+teq( '🔴 tiến độ trung bình BỎ QUA dự án chưa giao việc (không kéo tụt xuống)', 80, $_t['tien_do'] );
+
+$_t0 = VHDA_DuAn::tom_tat( array(), array(), '2026-09-01' );
+teq( 'bảng rỗng: tổng 0', 0, $_t0['tong'] );
+teq( '🔴 và tiến độ trung bình là null, KHÔNG phải 0%', null, $_t0['tien_do'] );
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * PHẦN 8 — MỌI LƯỢT GHI PHẢI QUA CHỐT CHỮ KÝ

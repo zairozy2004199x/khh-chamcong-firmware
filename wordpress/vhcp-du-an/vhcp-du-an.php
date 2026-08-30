@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Dự Án & Tiến Độ K&H
  * Description:       Quy trình công việc: nhận hợp đồng → phương án → chốt ngày → bàn giao bộ phận → tiến độ → mở cửa. Nối với hệ chi phí, dùng chung PIN với hệ chấm công.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Author:            K&H
  * Requires at least: 5.6
  * Requires PHP:      7.2
@@ -23,7 +23,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHDA_VERSION', '1.0.0' );
+define( 'VHDA_VERSION', '1.1.0' );
 define( 'VHDA_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once VHDA_DIR . 'includes/class-vhda-db.php';

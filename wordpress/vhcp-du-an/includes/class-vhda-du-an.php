@@ -120,6 +120,89 @@ class VHDA_DuAn {
 		return (int) round( $t / count( $ds_viec ) );
 	}
 
+	/**
+	 * CÒN MẤY NGÀY NỮA TỚI NGÀY ẤY — âm là đã qua. HÀM THUẦN.
+	 *
+	 * ⚠️ Ngày rỗng hoặc sai khuôn trả `null`, KHÔNG trả 0. `null` là "chưa chốt ngày", còn 0 là
+	 *    "đúng hôm nay" — hiện lẫn lộn thì dự án chưa chốt ngày nào lại nằm chung ô với dự án
+	 *    khai trương sáng mai.
+	 */
+	public static function con_may_ngay( $ngay, $hom_nay = '' ) {
+		$n = self::ngay( $ngay );
+		if ( '' === $n ) { return null; }
+		$h = self::ngay( $hom_nay );
+		if ( '' === $h ) {
+			$h = function_exists( 'current_time' ) ? current_time( 'Y-m-d' ) : gmdate( 'Y-m-d' );
+		}
+		$a = strtotime( $n . ' 00:00:00' );
+		$b = strtotime( $h . ' 00:00:00' );
+		if ( ! $a || ! $b ) { return null; }
+		return (int) round( ( $a - $b ) / 86400 );
+	}
+
+	/**
+	 * MỘT BỘ PHẬN CÓ ĐANG TRỄ HẠN KHÔNG. HÀM THUẦN.
+	 *
+	 * 🔴 XONG RỒI THÌ KHÔNG TRỄ, dù quá hạn. Hạn là để giục việc chưa xong; tô đỏ một việc đã
+	 *    làm xong chỉ làm người ta quen mắt với màu đỏ, rồi bỏ qua cả những cái đỏ thật.
+	 *
+	 * ⚠️ CHƯA ĐẶT HẠN cũng không trễ — không có mốc thì không so được với cái gì.
+	 */
+	public static function tre_han( $v, $hom_nay = '' ) {
+		$v = (array) $v;
+		if ( ! empty( $v['xong'] ) || 100 <= (int) ( isset( $v['phan_tram'] ) ? $v['phan_tram'] : 0 ) ) {
+			return false;
+		}
+		/* ⛔ `null !== $con` là thừa về mặt kết quả — PHP so `null < 0` ra false, nên bỏ nó đi
+		   thì hàm vẫn chạy đúng và phá thử "chưa đặt hạn cũng coi là trễ" luôn sống. Giữ vì nó
+		   nói ra Ý ĐỊNH: "không có hạn" là một trạng thái riêng, không phải một con số nhỏ hơn
+		   0. Ngày nào `con_may_ngay()` đổi cách báo "không có" (chuỗi rỗng, -1, false…) thì
+		   dòng này vẫn đúng, còn phép so trần thì sai lặng lẽ. */
+		$con = self::con_may_ngay( isset( $v['han'] ) ? $v['han'] : '', $hom_nay );
+		return ( null !== $con && $con < 0 );
+	}
+
+	/**
+	 * TÓM TẮT CẢ BẢNG cho dải thẻ số ở đầu màn. HÀM THUẦN — nhận vào danh sách đã đọc sẵn.
+	 *
+	 * 🔴 NHẬN DỮ LIỆU VÀO, KHÔNG TỰ ĐỌC CSDL. Nhờ vậy bộ thử dựng được mọi cảnh (sắp mở cửa,
+	 *    trễ hạn, vừa huỷ) mà không phải ghi một dòng nào xuống bảng — và mấy con số này là thứ
+	 *    sếp nhìn đầu tiên mỗi sáng, nên chúng phải đúng trong cả những cảnh hiếm.
+	 *
+	 * @param array $ds   danh sách dự án (như `ds()` trả về)
+	 * @param array $viec bản đồ du_an_id => danh sách phần việc
+	 * @return array tong · dang_chay · sap_mo · tre · xong · huy · tien_do
+	 */
+	public static function tom_tat( $ds, $viec = array(), $hom_nay = '', $sap_trong = 7 ) {
+		$ra = array( 'tong' => 0, 'dang_chay' => 0, 'sap_mo' => 0, 'tre' => 0,
+			'xong' => 0, 'huy' => 0, 'tien_do' => null );
+		$tong_td = 0; $so_td = 0;
+		foreach ( (array) $ds as $d ) {
+			$ra['tong']++;
+			$ch = (string) ( isset( $d['chang'] ) ? $d['chang'] : '' );
+			if ( VHDA_Luong::HUY === $ch )       { $ra['huy']++;  continue; }
+			if ( VHDA_Luong::XONG === $ch )      { $ra['xong']++; }
+			else                                  { $ra['dang_chay']++; }
+
+			/* SẮP MỞ CỬA = còn trong ngần này ngày và CHƯA mở. Đã qua ngày mở cửa mà vẫn đếm là
+			   "sắp" thì con số ấy chỉ tăng chứ không bao giờ giảm. */
+			$con = self::con_may_ngay( isset( $d['ngay_mo_cua'] ) ? $d['ngay_mo_cua'] : '', $hom_nay );
+			if ( null !== $con && $con >= 0 && $con <= (int) $sap_trong
+				&& VHDA_Luong::XONG !== $ch && VHDA_Luong::MO_CUA !== $ch ) { $ra['sap_mo']++; }
+
+			$id = (int) ( isset( $d['id'] ) ? $d['id'] : 0 );
+			$dsv = isset( $viec[ $id ] ) ? (array) $viec[ $id ] : array();
+			foreach ( $dsv as $v ) { if ( self::tre_han( $v, $hom_nay ) ) { $ra['tre']++; break; } }
+
+			$td = self::tien_do_chung( $dsv );
+			/* Dự án CHƯA GIAO cho ai không được kéo tụt tiến độ trung bình xuống — nó chưa bắt
+			   đầu, chứ không phải đang đứng ở 0%. */
+			if ( null !== $td ) { $tong_td += $td; $so_td++; }
+		}
+		if ( $so_td ) { $ra['tien_do'] = (int) round( $tong_td / $so_td ); }
+		return $ra;
+	}
+
 	/* ==================================================================== ghi */
 
 	public static function lap( $u, $dat ) {
