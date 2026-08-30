@@ -72,6 +72,19 @@ static void lRect(int lx, int ly, int w, int h, uint16_t c) {
   for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) lpx(lx + i, ly + j, c);
 }
 static void lFill(uint16_t c) { lRect(0, 0, LW, LH, c); }
+// Hình chữ nhật BO GÓC (bán kính r) — cho giao diện mềm mắt.
+static void lRoundRect(int lx, int ly, int w, int h, int r, uint16_t c) {
+  if (r * 2 > w) r = w / 2; if (r * 2 > h) r = h / 2;
+  for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {
+    int dx = -1, dy = -1;
+    if (i < r && j < r)             { dx = r - 1 - i; dy = r - 1 - j; }
+    else if (i >= w - r && j < r)   { dx = i - (w - r); dy = r - 1 - j; }
+    else if (i < r && j >= h - r)   { dx = r - 1 - i; dy = j - (h - r); }
+    else if (i >= w - r && j >= h - r){ dx = i - (w - r); dy = j - (h - r); }
+    if (dx >= 0 && dx * dx + dy * dy > r * r) continue;   // ngoài cung tròn → bỏ
+    lpx(lx + i, ly + j, c);
+  }
+}
 
 /* Font số 5×7 (0–9) để hiện số gói / giá — vẽ phóng to. */
 static const uint8_t FONT57[10][7] = {
@@ -81,16 +94,24 @@ static const uint8_t FONT57[10][7] = {
   {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},{0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
   {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},{0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
 };
-static void lDigit(int lx, int ly, int d, int sc, uint16_t c) {
-  if (d < 0 || d > 9) return;
+static const uint8_t GLYPH_D[7] = {0x01,0x0F,0x0F,0x11,0x11,0x11,0x0F};  // "đ"
+static void lBitmap(int lx, int ly, const uint8_t g[7], int sc, uint16_t c) {
   for (int r = 0; r < 7; r++) for (int b = 0; b < 5; b++)
-    if (FONT57[d][r] & (1 << (4 - b))) lRect(lx + b * sc, ly + r * sc, sc, sc, c);
+    if (g[r] & (1 << (4 - b))) lRect(lx + b * sc, ly + r * sc, sc, sc, c);
 }
-// Vẽ số nguyên (căn trái), trả bề rộng đã vẽ (px).
-static int lNum(int lx, int ly, long v, int sc, uint16_t c) {
-  char s[12]; int n = snprintf(s, sizeof s, "%ld", v);
+static void lDigit(int lx, int ly, int d, int sc, uint16_t c) {
+  if (d >= 0 && d <= 9) lBitmap(lx, ly, FONT57[d], sc, c);
+}
+// Vẽ GIÁ có dấu chấm nghìn + "đ" (căn trái), trả bề rộng đã vẽ (px).
+static int lPrice(int lx, int ly, long v, int sc, uint16_t c) {
+  char s[16]; int n = snprintf(s, sizeof s, "%ld", v);
   int x = lx;
-  for (int i = 0; i < n; i++) { lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc; }
+  for (int i = 0; i < n; i++) {
+    lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc;
+    int rem = n - 1 - i;
+    if (rem > 0 && rem % 3 == 0) { lRect(x, ly + 6 * sc, sc, sc, c); x += 2 * sc; }  // dấu chấm nghìn
+  }
+  x += sc; lBitmap(x, ly, GLYPH_D, sc, c); x += 6 * sc;   // "đ"
   return x - lx;
 }
 
@@ -231,28 +252,51 @@ static const Goi GOI[3] = {
 };
 static int g_chon = 0;   // gói đang chọn (0..2)
 
-// Vùng nút (ngang): 3 nút xếp dọc bên trái.
-static const int BTN_X = 24, BTN_W = 300, BTN_H = 120, BTN_Y0 = 40, BTN_GAP = 20;
+/* Bảng màu sang, hợp màn IPS. */
+#define C_BG     RGB565(0xEC,0xF1,0xF7)
+#define C_INK    RGB565(0x22,0x30,0x45)
+#define C_BLUE   RGB565(0x2F,0x6F,0xB0)
+#define C_AMBER  RGB565(0xE8,0x91,0x2A)
+#define C_BORDER RGB565(0xD3,0xDD,0xEA)
+#define C_SHADOW RGB565(0xD7,0xDE,0xE8)
+#define C_TINT   RGB565(0xFF,0xF3,0xDF)
+#define C_WHITE  0xFFFF
+
+// Vùng thẻ gói (ngang): 3 thẻ xếp dọc bên trái. Chạm cả thẻ = chọn.
+static const int BTN_X = 28, BTN_W = 340, BTN_H = 124, BTN_Y0 = 44, BTN_GAP = 20;
+
 static void veManHinh() {
-  lFill(RGB565(0x21, 0x3A, 0x5E));   // nền navy
-  // Nút gói
+  lFill(C_BG);
+  lRect(0, 0, LW, 6, C_BLUE);   // vạch thương hiệu mảnh trên cùng
+
   for (int i = 0; i < 3; i++) {
     int y = BTN_Y0 + i * (BTN_H + BTN_GAP);
-    uint16_t nen = (i == g_chon) ? RGB565(0xE8,0x91,0x2A) : RGB565(0x2F,0x6F,0xB0);
-    lRect(BTN_X, y, BTN_W, BTN_H, nen);
-    lRect(BTN_X + 6, y + 6, BTN_W - 12, BTN_H - 12, (i == g_chon) ? RGB565(0xF6,0xB4,0x63) : RGB565(0x27,0x5C,0x95));
-    lDigit(BTN_X + 26, y + 28, GOI[i].so, 8, RGB565(0xFF,0xFF,0xFF));       // số gói to
-    lNum(BTN_X + 110, y + 44, GOI[i].gia, 5, RGB565(0xFF,0xFF,0xFF));       // giá
+    bool sel = (i == g_chon);
+    lRoundRect(BTN_X + 2, y + 5, BTN_W, BTN_H, 18, C_SHADOW);                 // đổ bóng nhẹ
+    lRoundRect(BTN_X, y, BTN_W, BTN_H, 18, sel ? C_AMBER : C_BORDER);         // viền
+    lRoundRect(BTN_X + 4, y + 4, BTN_W - 8, BTN_H - 8, 15, sel ? C_TINT : C_WHITE); // nền thẻ
+    // Huy hiệu số gói (bo góc)
+    lRoundRect(BTN_X + 22, y + 24, 76, 76, 16, sel ? C_AMBER : C_BLUE);
+    lDigit(BTN_X + 40, y + 34, GOI[i].so, 8, C_WHITE);
+    // Giá (chấm nghìn + đ)
+    lPrice(BTN_X + 120, y + 44, GOI[i].gia, 5, C_INK);
   }
-  // QR bên phải: MÃ VietQR THẬT theo gói đang chọn (số tiền = giá gói).
-  // Nội dung CK gồm mã ghế + gói để server đối chiếu (tạm GHE01; GĐ2b-2 server cấp mã thật).
+
+  // Thẻ QR bên phải
+  const int QX = 400, QY = 44, QW = 372, QH = 392;
+  lRoundRect(QX + 3, QY + 6, QW, QH, 22, C_SHADOW);
+  lRoundRect(QX, QY, QW, QH, 22, C_WHITE);
+  lRoundRect(QX, QY, QW, 8, 0, C_AMBER);   // nẹp cam mảnh trên thẻ QR
+
+  // MÃ VietQR THẬT theo gói đang chọn (số tiền = giá gói). GĐ2b-2 server sẽ cấp mã ghế thật.
   String memo = "GHE01 G" + String(GOI[g_chon].so);
   String payload;
   if (strlen(SEC_BANK_BIN) && strlen(SEC_ACCOUNT_NO))
     payload = buildVietQR(SEC_BANK_BIN, SEC_ACCOUNT_NO, GOI[g_chon].gia, memo);
   else
     payload = "CHUA DIEN SEC_BANK_BIN / SEC_ACCOUNT_NO trong secrets.h";
-  lQR(430, 70, 320, payload.c_str());
+  int qsz = 300;
+  lQR(QX + (QW - qsz) / 2, QY + (QH - qsz) / 2 + 8, qsz, payload.c_str());
 }
 
 /* ─── WiFi (giữ, hạ TX né brownout) ─────────────────────────────────────── */
