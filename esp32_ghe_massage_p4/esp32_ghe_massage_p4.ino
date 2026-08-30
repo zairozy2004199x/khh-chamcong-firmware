@@ -249,7 +249,45 @@ static String CHAIR_ID = "", BANK_BIN = SEC_BANK_BIN, ACCOUNT_NO = SEC_ACCOUNT_N
 static bool CHUA_GAN = true;
 
 static int  payIdx = 0; static long payAmount = 0; static int payMinutes = 0; static char payCode[8] = "";
-static uint32_t runUntil = 0, camonUntil = 0, waitUntil = 0, lastPoll = 0, lastNhip = 0, lastDrawSec = 0;
+static uint32_t camonUntil = 0, waitUntil = 0, lastPoll = 0, lastNhip = 0, lastDrawSec = 0;
+/* Đếm ngược CHỐT theo xung ghế: chỉ trừ giờ khi ghế THỰC SỰ chạy (dò xung). */
+static uint32_t runRemainMs = 0;   // ms còn lại của phiên
+static uint32_t lastTickMs  = 0;   // mốc trừ giờ gần nhất
+static uint32_t gheChetTu   = 0;   // lúc BẮT ĐẦU thấy ghế không chạy (0 = đang chạy)
+static bool     gheKhongChay = false;
+
+/* ─── I/O VẬT LÝ (GĐ3): relay chạy ghế + bypass + dò xung ─────────────────── */
+static void relayGhe(bool on) {
+#if (P4_RELAY_PIN >= 0)
+  digitalWrite(P4_RELAY_PIN, (on == P4_RELAY_ACTIVE_HIGH) ? HIGH : LOW);
+#endif
+}
+static void bypassSet(bool on) {
+#if (P4_BYPASS_PIN >= 0)
+  digitalWrite(P4_BYPASS_PIN, (on == P4_BYPASS_ACTIVE_HIGH) ? HIGH : LOW);
+#endif
+}
+// true = ghế đang chạy. Không gán chân / tắt cổng → coi như CHẠY (không chốt theo xung).
+static bool gheDangChay() {
+#if (P4_GHECHAY_PIN >= 0) && P4_GATE_BY_PIN
+  return digitalRead(P4_GHECHAY_PIN) == LOW;   // chạy=LOW / tắt=HIGH (như bản cũ)
+#else
+  return true;
+#endif
+}
+static void ioInit() {
+#if (P4_RELAY_PIN >= 0)
+  pinMode(P4_RELAY_PIN, OUTPUT);
+#endif
+#if (P4_BYPASS_PIN >= 0)
+  pinMode(P4_BYPASS_PIN, OUTPUT);
+#endif
+  relayGhe(false);      // AN TOÀN: ghế KHÔNG tự chạy lúc cấp nguồn
+  bypassSet(false);     // tiền đi qua tiếp điểm NC (fail-safe) khi chưa điều khiển
+#if (P4_GHECHAY_PIN >= 0) && P4_GATE_BY_PIN
+  pinMode(P4_GHECHAY_PIN, INPUT_PULLUP);
+#endif
+}
 
 static int phutGoi(int i) {
   if (i < 0 || i >= PKG_N) return 0;
@@ -294,8 +332,10 @@ static void nhip() {
   lastNhip = millis();
   const char* stt = (state == ST_RUNNING || state == ST_CAMON) ? "running"
                     : (state == ST_WAIT_PAY ? "wait_pay" : "idle");
-  long conLai = (state == ST_RUNNING && runUntil > millis()) ? (long)((runUntil - millis()) / 1000) : 0;
-  String nd = String("\"trang_thai\":\"") + stt + "\",\"con_lai\":" + String(conLai) + ",\"fw\":\"posh-qr-p4\"";
+  long conLai = (state == ST_RUNNING) ? (long)(runRemainMs / 1000) : 0;
+  String nd = String("\"trang_thai\":\"") + stt + "\",\"con_lai\":" + String(conLai)
+            + ",\"ghe_chay\":" + String((state == ST_RUNNING && !gheKhongChay) ? 1 : 0)
+            + ",\"fw\":\"posh-qr-p4\"";
   String r = wpPost("nhip", nd);
   if (!r.length()) return;
   DynamicJsonDocument d(2048);
@@ -397,13 +437,13 @@ static void veCamon() {   // đã nhận tiền — nền xanh + dấu tích
 }
 static void veRunning() {
   lFill(RGB565(0x14,0x1E,0x30));
-  int left = (runUntil > millis()) ? (int)((runUntil - millis()) / 1000) : 0;
-  lMMSS(LW / 2 - 170, LH / 2 - 60, left, 16, C_WHITE);
+  int left = (int)(runRemainMs / 1000);
+  lMMSS(LW / 2 - 170, LH / 2 - 60, left, 16, gheKhongChay ? C_AMBER : C_WHITE);
   // thanh tiến độ
   long total = (long)payMinutes * 60; if (total < 1) total = 1;
   int barW = (int)((long)(LW - 120) * left / total);
   lRoundRect(60, LH - 70, LW - 120, 22, 10, RGB565(0x2A,0x3A,0x55));
-  lRoundRect(60, LH - 70, barW, 22, 10, C_GREEN);
+  lRoundRect(60, LH - 70, barW, 22, 10, gheKhongChay ? C_AMBER : C_GREEN);
 }
 static void veNoAcc() {   // chưa có tài khoản nhận (chưa hỏi được server) — nền đỏ
   lFill(C_RED);
@@ -413,11 +453,16 @@ static void veNoAcc() {   // chưa có tài khoản nhận (chưa hỏi được
 }
 static void sangTrangThai(State s) {
   state = s;
+  if (s != ST_RUNNING) relayGhe(false);   // ngoài phiên chạy: LUÔN ngắt relay
   switch (s) {
     case ST_IDLE:    veIdle();    break;
     case ST_WAIT_PAY:veWaitPay(); break;
     case ST_CAMON:   veCamon();   camonUntil = millis() + 4000; break;
-    case ST_RUNNING: runUntil = millis() + (uint32_t)payMinutes * 60000UL; veRunning(); lastDrawSec = 0; break;
+    case ST_RUNNING:
+      runRemainMs = (uint32_t)payMinutes * 60000UL;
+      lastTickMs = millis(); gheChetTu = 0; gheKhongChay = false;
+      relayGhe(true);                      // ĐÓNG relay → ghế chạy
+      veRunning(); lastDrawSec = 0; break;
     case ST_NOACC:   veNoAcc();   break;
   }
   fbFlush();
@@ -434,6 +479,7 @@ static void startSession(int idx) {
 void setup() {
   Serial.begin(115200);
   randomSeed(esp_random());
+  ioInit();               // relay TẮT + bypass fail-safe + dò xung — TRƯỚC mọi thứ
   gtInit();
   if (manKhoiTao()) { sangTrangThai(ST_IDLE); gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1); }
   WiFi.mode(WIFI_STA); WiFi.setTxPower(WIFI_POWER_8_5dBm);
@@ -463,7 +509,18 @@ void loop() {
   }
   if (state == ST_CAMON && now > camonUntil) sangTrangThai(ST_RUNNING);
   if (state == ST_RUNNING) {
-    if (now >= runUntil) sangTrangThai(ST_IDLE);
+    // Trừ giờ CHỐT theo xung: chỉ trừ khi ghế thật sự chạy (hoặc không chốt theo pin).
+    uint32_t dt = now - lastTickMs; lastTickMs = now;
+    bool chay = gheDangChay();
+    if (chay) {
+      gheChetTu = 0; gheKhongChay = false;
+      runRemainMs = (runRemainMs > dt) ? (runRemainMs - dt) : 0;
+    } else {
+      // Ghế không chạy: TẠM DỪNG đồng hồ; quá ngưỡng thì cờ báo (không trừ giờ oan cho khách).
+      if (gheChetTu == 0) gheChetTu = now;
+      if (!gheKhongChay && (now - gheChetTu > P4_GHECHAY_CHET_MS)) { gheKhongChay = true; nhip(); }
+    }
+    if (runRemainMs == 0) sangTrangThai(ST_IDLE);
     else if (now / 1000 != lastDrawSec) { lastDrawSec = now / 1000; veRunning(); fbFlush(); }
   }
 

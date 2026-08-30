@@ -54,6 +54,9 @@ Các `-1` là **chưa gán**, phải điền chân thật (đối chiếu pad bo
 ## 6. Đang chờ để làm tiếp
 - ✅ Đã chốt **chân thật** trong `cau_hinh_p4.h` từ header JP1 — sơ đồ đầy đủ ở
   **`SO_DO_DAU_NOI.md`** (4G 32/33/34, cổng tiền 49/50, relay 51, bypass 52, dò xung 29).
-- GĐ3: bê máy trạng thái I/O vật lý (đóng relay khi có tiền, chốt đếm ngược theo dò xung),
-  4G A7680C (Serial2) thay đường WiFi khi mall mất mạng.
+- ✅ GĐ3 (relay + dò xung): có tiền → ĐÓNG relay GPIO51 cho ghế chạy; đồng hồ đếm ngược
+  CHỐT theo xung GPIO29 (ghế dừng thì TẠM DỪNG giờ, không trừ oan); relay TẮT khi hết
+  phiên + AN TOÀN lúc cấp nguồn; báo `ghe_chay`/`ghe_khong_chay` trong nhịp.
+- Còn lại: 4G A7680C (Serial2) thay đường WiFi khi mall mất mạng; đường tiền mặt ICT
+  (cong_tien.h) nếu cần thu tiền mặt song song QR.
 - Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (nếu RS485 → dời cổng tiền sang 26/27).

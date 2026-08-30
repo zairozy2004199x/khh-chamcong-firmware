@@ -60,7 +60,7 @@
  * Module relay opto thường KÍCH MỨC THẤP → để ACTIVE_HIGH=false nếu dùng loại đó.
  * Chọn chân boot ở mức an toàn (mặc định input hi-Z lúc reset) → setup() kéo về
  * trạng thái TẮT trước khi enable, tránh ghế tự chạy lúc mới cấp nguồn. */
-#define P4_USE_RELAY          false   // bật khi dùng relay rời (mặc định: tiền đi thẳng)
+#define P4_USE_RELAY          true    // P4 điều khiển ghế qua relay rời (GPIO51)
 #define P4_RELAY_PIN          51      // đóng nguồn/kích ghế chạy
 #define P4_RELAY_ACTIVE_HIGH  false   // đa số module relay opto kích LOW
 #define P4_BYPASS_PIN         52      // rơ-le bypass đường tiền (fail-safe khi mất điện)
