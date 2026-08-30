@@ -57,6 +57,12 @@ Các `-1` là **chưa gán**, phải điền chân thật (đối chiếu pad bo
 - ✅ GĐ3 (relay + dò xung): có tiền → ĐÓNG relay GPIO51 cho ghế chạy; đồng hồ đếm ngược
   CHỐT theo xung GPIO29 (ghế dừng thì TẠM DỪNG giờ, không trừ oan); relay TẮT khi hết
   phiên + AN TOÀN lúc cấp nguồn; báo `ghe_chay`/`ghe_khong_chay` trong nhịp.
-- Còn lại: 4G A7680C (Serial2) thay đường WiFi khi mall mất mạng; đường tiền mặt ICT
-  (cong_tien.h) nếu cần thu tiền mặt song song QR.
+- ✅ 4G A7680C (`net_4g.h`): WiFi ưu tiên, WiFi rớt → tự bật 4G (AT-HTTP, HTTPS giữ
+  phiên đọc thân). Bring-up chỉ chạy lúc ST_IDLE để không đơ màn giữa phiên.
+- ✅ Nhớ khi mất mạng, có mạng tự đẩy (`outbox.h`): mỗi tờ tiền mặt ICT nuốt → ghi NVS
+  ngay (ghế chạy liền, không chờ mạng) → có mạng đẩy `viec=tien_mat` (idempotent theo
+  `ref`, gửi lại không cộng đôi); mất điện vẫn còn trong flash.
+- ✅ Cổng tiền ICT (`cong_tien.h`) nối vào máy trạng thái: tiền mặt cộng dồn phút vào
+  phiên đang chạy, hoặc mở phiên mới.
+- Còn lại (tuỳ nhu cầu): OTA qua 4G; siết lại kiểm cert TLS (đang setInsecure).
 - Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (nếu RS485 → dời cổng tiền sang 26/27).

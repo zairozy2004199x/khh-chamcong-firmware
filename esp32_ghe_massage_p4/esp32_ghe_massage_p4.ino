@@ -35,6 +35,14 @@
 
 #include "cau_hinh_p4.h"
 #include "panel_jc4880p443.h"
+#include "net_4g.h"       // 4G A7680C (dự phòng khi WiFi rớt)
+#include "outbox.h"       // hàng đợi tiền mặt khi mất mạng → có mạng tự đẩy
+#if (P4_TIEN_RX_ICT >= 0) && (P4_TIEN_TX_GHE >= 0)
+  #define CO_CONG_TIEN 1
+  #include "cong_tien.h"  // ICT cổng tiền mặt (Serial1 4800 8E1)
+#else
+  #define CO_CONG_TIEN 0
+#endif
 
 #if __has_include("secrets.h")
   #include "secrets.h"
@@ -307,26 +315,66 @@ static String macBo() {
 }
 static String jsonEsc(String s) { s.replace("\\","\\\\"); s.replace("\"","\\\""); return s; }
 
-/* ─── SERVER: POST /ghe-may qua WiFi (C6) ────────────────────────────────── */
+/* ─── SERVER: POST /ghe-may — WiFi (C6) TRƯỚC, rớt thì 4G A7680C ──────────── */
+static bool netUp() { return WiFi.status() == WL_CONNECTED || net4gReady(); }
+
 static String wpPost(const String& viec, const String& them) {
-  if (WiFi.status() != WL_CONNECTED) return "";
   String body = "{\"key\":\"" + String(SEC_WP_KEY) + "\",\"viec\":\"" + viec + "\",\"mac\":\"" + macBo() + "\"";
   if (CHAIR_ID.length()) body += ",\"ma_may\":\"" + jsonEsc(CHAIR_ID) + "\"";
   if (them.length()) body += "," + them;
   body += "}";
-  WiFiClientSecure cli; cli.setInsecure();   // GĐ2: bỏ qua kiểm cert cho gọn; siết lại sau nếu cần
-  HTTPClient http; http.setTimeout(12000);
-  if (!http.begin(cli, SEC_WP_URL)) return "";
-  http.addHeader("Content-Type", "application/json");
-  int code = http.POST(body);
-  String r = (code == 200) ? http.getString() : "";
-  http.end();
-  return r;
+  // 1) WiFi nếu đang nối (nhanh, ổn khi mall có WiFi tốt).
+  if (WiFi.status() == WL_CONNECTED) {
+    WiFiClientSecure cli; cli.setInsecure();
+    HTTPClient http; http.setTimeout(12000);
+    if (http.begin(cli, SEC_WP_URL)) {
+      http.addHeader("Content-Type", "application/json");
+      int code = http.POST(body);
+      String r = (code == 200) ? http.getString() : "";
+      http.end();
+      if (code == 200) return r;   // WiFi lỗi → thử 4G bên dưới
+    }
+  }
+  // 2) 4G (dự phòng): AT-HTTP giữ phiên đọc thân trả về.
+  if (net4gReady()) { String r; if (net4gPost(SEC_WP_URL, body, r) == 200) return r; }
+  return "";
 }
 
 /* Vẽ trước — định nghĩa ở dưới */
 static void veIdle(); static void veWaitPay(); static void veCamon(); static void veRunning(); static void veNoAcc();
 static void sangTrangThai(State s);
+
+/* ─── TIỀN MẶT + HÀNG ĐỢI OFFLINE ────────────────────────────────────────── */
+static Outbox outbox;
+#if CO_CONG_TIEN
+CongTien congTien;   // định nghĩa cho extern trong cong_tien.h
+#endif
+
+// Gửi một lượt tiền mặt lên server (idempotent theo ref). true = server đã nhận.
+static bool guiTienMat(long vnd, const char* ref) {
+  String r = wpPost("tien_mat", String("\"so_tien\":") + String(vnd) + ",\"ref\":\"" + ref + "\"");
+  return r.indexOf("\"ok\":true") >= 0;
+}
+
+// Quy đổi tiền → phút theo tỉ lệ đang có (server nạp qua nhịp).
+static int phutTuTien(long vnd) {
+  if (PRICE_VND <= 0 || MINUTES <= 0) return 0;
+  return (int)(vnd * (long)MINUTES / PRICE_VND);
+}
+
+// ICT vừa NUỐT một tờ: ghế CHẠY NGAY (không chờ mạng) + ghi sổ vào hàng đợi.
+static void onCashIn(long vnd) {
+  outbox.themTienMat(vnd);                 // nhớ để đẩy server (kể cả đang offline)
+  int themPhut = phutTuTien(vnd);
+  if (themPhut <= 0) return;
+  if (state == ST_RUNNING) {
+    runRemainMs += (uint32_t)themPhut * 60000UL;   // CỘNG dồn, không ghi đè
+    payMinutes  += themPhut;
+  } else {
+    payAmount = vnd; payMinutes = themPhut; payIdx = 0;
+    sangTrangThai(ST_RUNNING);              // vào phiên chạy ngay
+  }
+}
 
 static void nhip() {
   lastNhip = millis();
@@ -482,8 +530,25 @@ void setup() {
   ioInit();               // relay TẮT + bypass fail-safe + dò xung — TRƯỚC mọi thứ
   gtInit();
   if (manKhoiTao()) { sangTrangThai(ST_IDLE); gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1); }
+  outbox.batDau(guiTienMat);              // mở hàng đợi tiền mặt (đọc NVS)
+#if CO_CONG_TIEN
+  congTien.khoiDong(onCashIn, nullptr);   // ICT cổng tiền mặt (Serial1)
+#endif
   WiFi.mode(WIFI_STA); WiFi.setTxPower(WIFI_POWER_8_5dBm);
   WiFi.begin(SEC_WIFI_SSID, SEC_WIFI_PASS);
+}
+
+/* Quản mạng: WiFi rồi 4G. Bật 4G khi WiFi rớt & ghế RẢNH (bring-up chặn ~20s).
+   Đẩy hàng đợi tiền mặt mỗi khi có mạng. */
+static void quanMang(uint32_t now) {
+  static uint32_t lanThu4g = 0, lanDay = 0;
+  bool wifi = (WiFi.status() == WL_CONNECTED);
+  // Chỉ bật/bơm lại 4G lúc RẢNH để không đơ màn giữa phiên chạy.
+  if (!wifi && !net4gReady() && (state == ST_IDLE || state == ST_NOACC)
+      && (lanThu4g == 0 || now - lanThu4g > 60000)) {
+    lanThu4g = now; net4gBatDau();
+  }
+  if (netUp() && now - lanDay > 5000) { lanDay = now; outbox.day(3); }
 }
 
 void loop() {
@@ -523,6 +588,12 @@ void loop() {
     if (runRemainMs == 0) sangTrangThai(ST_IDLE);
     else if (now / 1000 != lastDrawSec) { lastDrawSec = now / 1000; veRunning(); fbFlush(); }
   }
+
+#if CO_CONG_TIEN
+  congTien.datChay(state == ST_RUNNING);   // ICT phân biệt kẹt-tiền vs đang-chạy
+  congTien.tick();                          // relay tiền mặt + bắt tờ + dò kẹt
+#endif
+  quanMang(now);                            // WiFi/4G + đẩy hàng đợi tiền mặt
 
   uint32_t nhipEvery = (state == ST_WAIT_PAY) ? 3000 : 6000;
   if (now - lastNhip > nhipEvery) nhip();

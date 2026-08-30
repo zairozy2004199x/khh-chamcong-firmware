@@ -53,7 +53,7 @@
 #define P4_SIM_TX_PIN     32      // ESP TX -> SIM RX
 #define P4_SIM_RX_PIN     33      // ESP RX <- SIM TX
 #define P4_SIM_PWRKEY     34      // xung LOW ~1s để bật/tắt nguồn module
-#define P4_USE_PWRKEY     true
+#define P4_USE_PWRKEY     1       // 1/0 (dùng trong #if) — có kéo PWRKEY khi bật 4G không
 #define P4_SIM_APN        "v-internet"
 
 /* Relay chạy ghế + rơ-le bypass fail-safe đường tiền (giữ tiền mặt khi mất điện).
