@@ -1397,6 +1397,138 @@ ob_start(); VHNB_Trang::ve( null ); $_h_nut = ob_get_clean();
 t( '🔴 màn chưa đăng nhập vẽ ra nút sang trang Ghế',
 	false !== strpos( $_h_nut, 'Ghế Massage</a>' ), substr( $_h_nut, -2200 ) );
 
+/* ==================================================================================
+   BỘ NỐI PHIÊN DÙNG CHUNG (`VHCC_Phien`) — thứ trang MỚI sẽ cắm vào
+
+   Anh Thắng 30/08/2026: *"sau trang mới thì dùng chung hết, thiết lập sẵn luôn"*.
+
+   🔴 THỬ Ở ĐÂY chứ không ở `test-cham-cong.php`: bài này là bài duy nhất dựng được cảnh THẬT —
+      một trang của plugin KHÁC gọi sang lõi phiên của plugin chấm công. Lõi mà chỉ được thử
+      trong chính plugin của nó thì không ai biết nó có dùng nổi từ bên ngoài hay không.
+   ================================================================================== */
+
+vhnb_dung_bang();
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+$GLOBALS['VHCP_CHUYEN'] = '';
+
+t( 'có lớp VHCC_Phien', class_exists( 'VHCC_Phien' ) );
+teq( 'hệ sẵn sàng', true, VHCC_Phien::co() );
+teq( 'chưa đăng nhập -> thẻ rỗng', '', VHCC_Phien::the() );
+teq( 'chưa đăng nhập -> toi() null', null, VHCC_Phien::toi() );
+
+$nguon_cu2 = get_option( 'vhcc_nguon_nguoidung' );
+update_option( 'vhcc_nguon_nguoidung', 'chung' );
+$bang_cfg2 = $wpdb->prefix . 'vhcp_cfg';
+$wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+$wpdb->insert( $bang_cfg2, array( 'bang' => 'CH_NguoiDung', 'stt' => 1,
+	'cols' => wp_json_encode( array( 'Chị Lõi Phiên', '445566', 'Quản lý', 'CS_VIVO' ) ) ) );
+VHCC_Auth::mo_khoa();
+
+VHCC_Web::$cookie_da_dat = array();
+$r_p = VHCC_Phien::vao( '445566' );
+t( 'vao() nhận PIN đúng', ! empty( $r_p['ok'] ), $r_p );
+teq( 'và đặt cookie phiên', array( 'dat' ), VHCC_Web::$cookie_da_dat );
+
+VHCC_Auth::mo_khoa();
+$r_p2 = VHCC_Phien::vao( '000009' );
+t( 'vao() chối PIN sai', empty( $r_p2['ok'] ) && '' !== $r_p2['loi'], $r_p2 );
+t( '🔴 câu báo KHÔNG chứa PIN vừa gõ', false === strpos( (string) $r_p2['loi'], '000009' ), $r_p2 );
+
+/* 🔴 MỘT BỘ CHỐT, KHÔNG PHẢI HAI. `vao()` phải đi qua đúng `VHCC_Auth::login()` — tự so PIN lấy
+   là hệ có hai bộ đếm nhập sai rời nhau, và kẻ dò PIN bị khoá ở cửa này cứ sang cửa kia dò tiếp. */
+VHCC_Auth::mo_khoa();
+for ( $i_p = 0; $i_p < 10; $i_p++ ) { VHCC_Phien::vao( '111119' ); }
+$kq_p = VHCC_Auth::login( '445566' );
+t( '🔴 dò sai 10 lượt qua VHCC_Phien thì cửa VHCC_Auth khoá theo (một bộ chốt)',
+	empty( $kq_p['ok'] ) && false !== strpos( (string) $kq_p['error'], '10 phút' ), $kq_p );
+VHCC_Auth::mo_khoa();
+
+/* ---- chữ ký: mỗi trang một không gian ---- */
+$TOK_P = VHCC_Auth::phat_token( 'Chị Lõi Phiên', 'Quản lý', 'CS_VIVO', 'NV777' );
+$_COOKIE[ constant( 'VHCC_Web::COOKIE' ) ] = $TOK_P;
+teq( 'the() đọc đúng thẻ trong cookie', $TOK_P, VHCC_Phien::the() );
+t( 'toi() nhận ra người đang đăng nhập', is_array( VHCC_Phien::toi() ), VHCC_Phien::toi() );
+
+/* ⛔ MÃ TƯƠNG ĐƯƠNG CÓ CHỦ Ý — nói ra để đời sau khỏi đi tìm phép thử không tồn tại.
+   `VHNB_Trang::dang_nhap()` gọi `VHCC_Phien::vao()`, và có ĐƯỜNG LUI chạy đúng những việc ấy
+   khi plugin Chấm công còn là bản cũ chưa có lõi chung. Vì đường lui làm y hệt, tắt lõi đi thì
+   hành vi không đổi — phá thử "Nội bộ không dùng lõi chung" luôn sống, và đó là điều ĐÚNG.
+   Đường lui giữ vì trang Nội bộ nay là TRANG CHỦ: cài Nội bộ mới mà quên cập nhật Chấm công
+   thì cả công ty mất đường đăng nhập, chứ không phải mất một tính năng phụ.
+   Thứ PHẢI canh không phải "có gọi lõi không", mà là HAI BẢN KHÔNG ĐƯỢC LỆCH: */
+teq( '🔴 hai đường cho ra CÙNG một câu chối khi PIN sai khuôn',
+	(string) VHCC_Phien::vao( 'abc' )['loi'], (string) VHNB_Trang::dang_nhap( 'abc' )['loi'] );
+t( '🔴 chữ ký của hai trang KHÁC NHAU (cắt biểu mẫu trang này dán sang trang kia là hỏng)',
+	VHCC_Phien::chu_ky( 'vhnb' ) !== VHCC_Phien::chu_ky( 'vhxx' ) );
+/* 🔴 HAI BẢN KHÔNG ĐƯỢC LỆCH. Trang Nội bộ tự tính chữ ký của nó (cố ý — xem ghi chú ở
+   `VHNB_Trang::chu_ky`). Lệch một chữ là mọi biểu mẫu đang mở trên máy người dùng hỏng hết, mà
+   không bài kiểm nào kêu. */
+teq( '🔴 chữ ký Nội bộ khớp đúng chữ ký bộ nối cùng không gian',
+	VHNB_Trang::chu_ky( $TOK_P ), VHCC_Phien::chu_ky( 'vhnb', $TOK_P ) );
+teq( 'the_phien() của Nội bộ khớp the() của bộ nối', VHNB_Trang::the_phien(), VHCC_Phien::the() );
+
+$_POST = array( 'ky' => VHCC_Phien::chu_ky( 'vhxx' ) );
+t( 'ky_dung: chữ ký đúng không gian thì nhận', VHCC_Phien::ky_dung( 'vhxx' ) );
+t( '🔴 chữ ký của không gian KHÁC thì chối', ! VHCC_Phien::ky_dung( 'vhnb' ) );
+$_POST = array();
+
+/* ---- xu_post: một lời gọi cho cả đăng nhập lẫn thoát ---- */
+$_COOKIE = array();
+VHCC_Auth::mo_khoa();
+$_POST = array( 'viec' => 'dang_nhap', 'pin' => '445566' );
+$r_xp = VHCC_Phien::xu_post( 'vhxx' );
+$_POST = array();
+teq( 'xu_post nhận lượt đăng nhập', 'vao', (string) $r_xp['viec'] );
+t( 'và báo vào được', ! empty( $r_xp['ok'] ), $r_xp );
+
+/* 🔴 KHÔNG TỰ CHUYỂN HƯỚNG — nơi gọi quyết định đi đâu. Hàm có `wp_safe_redirect` + `exit` thì
+   bài kiểm gọi nó là bài kiểm tự chết giữa đường. */
+teq( '🔴 xu_post KHÔNG tự chuyển hướng', '', (string) $GLOBALS['VHCP_CHUYEN'] );
+
+$TOK_P2 = VHCC_Auth::phat_token( 'Chị Lõi Phiên', 'Quản lý', 'CS_VIVO', 'NV777' );
+$_COOKIE[ constant( 'VHCC_Web::COOKIE' ) ] = $TOK_P2;
+$_POST = array( 'viec' => 'thoat', 'ky' => 'ky-gia' );
+$r_xr = VHCC_Phien::xu_post( 'vhxx' );
+$_POST = array();
+teq( '🔴 thoát mà chữ ký sai thì KHÔNG làm gì', '', (string) $r_xr['viec'] );
+t( 'và thẻ vẫn còn sống', null !== VHCC_Auth::user_by_token( $TOK_P2 ) );
+
+$_POST = array( 'viec' => 'thoat', 'ky' => VHCC_Phien::chu_ky( 'vhxx' ) );
+$r_xr2 = VHCC_Phien::xu_post( 'vhxx' );
+$_POST = array();
+teq( 'chữ ký đúng thì thoát', 'ra', (string) $r_xr2['viec'] );
+teq( '🔴 và thẻ bị HUỶ hẳn, không chỉ xoá cookie', null, VHCC_Auth::user_by_token( $TOK_P2 ) );
+
+/* ---- hai mảnh HTML sẵn dùng ---- */
+$_COOKIE = array();
+$h_op = VHCC_Phien::o_pin( array( 'loi' => 'PIN không đúng.' ) );
+t( 'o_pin có ô nhập và tên việc',
+	false !== strpos( $h_op, 'name="pin"' ) && false !== strpos( $h_op, 'value="dang_nhap"' ), $h_op );
+t( '🔴 o_pin là type=password, PIN không hiện lên màn hình',
+	false !== strpos( $h_op, 'type="password"' ), $h_op );
+t( 'o_pin in ra câu báo lỗi được truyền vào', false !== strpos( $h_op, 'PIN không đúng.' ), $h_op );
+$h_op2 = VHCC_Phien::o_pin();
+t( 'không truyền lỗi thì không dựng khối báo rỗng', false === strpos( $h_op2, 'bao loi' ), $h_op2 );
+/* 🔴 GÕ SAI THÌ Ô VỀ TRỐNG. Trả lại giá trị vừa gõ là PIN nằm nguyên trong mã nguồn trang gửi
+   xuống máy người ta — ảnh chụp màn hình đi khắp nơi, và một ảnh đã làm mất một khoá cầu nối. */
+$_POST = array( 'viec' => 'dang_nhap', 'pin' => '778811' );
+$h_op3 = VHCC_Phien::o_pin( array( 'loi' => 'PIN không đúng.' ) );
+$_POST = array();
+t( '🔴 o_pin KHÔNG trả lại PIN vừa gõ vào ô', false === strpos( $h_op3, '778811' ), $h_op3 );
+
+$_COOKIE[ constant( 'VHCC_Web::COOKIE' ) ] = $TOK_P;
+$h_nt = VHCC_Phien::nut_thoat( 'vhxx' );
+t( '🔴 nút Thoát là FORM POST có chữ ký, không phải đường dẫn',
+	false !== strpos( $h_nt, '<form method="post"' ) && false !== strpos( $h_nt, 'name="ky"' )
+	&& false !== strpos( $h_nt, 'value="thoat"' ) && false === strpos( $h_nt, '<a ' ), $h_nt );
+t( 'và mang đúng chữ ký của không gian truyền vào',
+	false !== strpos( $h_nt, VHCC_Phien::chu_ky( 'vhxx' ) ), $h_nt );
+
+$wpdb->exec_raw( "DELETE FROM $bang_cfg2 WHERE bang='CH_NguoiDung'" );
+update_option( 'vhcc_nguon_nguoidung', $nguon_cu2 ? $nguon_cu2 : 'ho_so' );
+$_GET = array(); $_POST = array(); $_COOKIE = array();
+vhnb_dung_bang();
+
 /* ================================================================= kết */
 
 echo "\n=== KIỂM TRANG NỘI BỘ ===\n";

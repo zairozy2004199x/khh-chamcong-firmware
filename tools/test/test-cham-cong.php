@@ -9955,8 +9955,16 @@ delete_option( VHNB_Quyen::O );
 $tt_h = vhcc_ns( 'Kế toán' );
 t( '🔴 trang ngoài có bảng phân quyền Nội bộ',
 	strpos( $tt_h, 'Phân quyền trang Nội bộ' ) !== false, $tt_h );
-t( 'có ô xổ cho việc "vào trang"', strpos( $tt_h, 'name="nb[vao]"' ) !== false, $tt_h );
-t( 'và cho cả bốn việc',
+/* 🔴 KHÔNG CÒN Ô "VÀO TRANG" — ANH THẮNG BÁO CHUYỆN NÀY HAI LẦN.
+   28/08/2026: *"Trang nội bộ là trang chung thì ai vẫn được vào mà"*. Bản vá lần ấy chỉ kéo ô
+   xổ từ wp-admin ra đây rồi thêm một dòng cảnh báo — tức là để nguyên cái bẫy, chỉ dán thêm
+   biển báo cạnh nó. 30/08/2026 anh vấp lại đúng chỗ đó: *"trang nội bộ là chung công ty nên ai
+   cũng vào được hết, có mật khẩu là vào, đó là lý do anh đặt trang chủ mà"*.
+   Nay 'vao' bị gỡ hẳn khỏi `VHNB_Quyen::VIEC`, nên bảng này không còn ô ấy. */
+t( '🔴 KHÔNG còn ô xổ cho việc "vào trang" (ai có PIN là vào)',
+	strpos( $tt_h, 'name="nb[vao]"' ) === false, $tt_h );
+t( 'và nói thẳng ra luật ấy trên màn', strpos( $tt_h, 'ai có PIN là vào ' ) !== false, $tt_h );
+t( 'và cho cả ba việc còn lại',
 	strpos( $tt_h, 'name="nb[dang]"' ) !== false && strpos( $tt_h, 'name="nb[nhom]"' ) !== false
 	&& strpos( $tt_h, 'name="nb[don]"' ) !== false, $tt_h );
 /* ⚠️ Nói ra MẶC ĐỊNH ngay cạnh, để người khai biết mình đang lệch khỏi nó bao xa. */
@@ -9969,48 +9977,36 @@ t( '🔴 quyền khai phân quyền Nội bộ không được cao hơn quyền 
 	VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ] <= VHCC_Vai::BAC[ VHCC_Vai::QUYEN['ho_so'] ] );
 
 /* Lưu qua ĐÚNG đường màn hình dùng. Luật vẫn ở `VHNB_Quyen` — đây chỉ là ô xổ gọi vào nó. */
-$_POST = array( 'nb' => array( 'vao' => 'NHAN_VIEN', 'don' => 'QUAN_LY' ) );
+$_POST = array( 'nb' => array( 'dang' => 'CUA_HANG_TRUONG', 'don' => 'QUAN_LY' ) );
 $tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
 $_POST = array();
 $tt_c = VHNB_Quyen::cai_dat();
-teq( '🔴 lưu được: mở lại cửa vào cho Nhân viên', 'NHAN_VIEN', (string) $tt_c['vao'] );
+teq( '🔴 lưu được: siết đăng bài lên Cửa hàng trưởng', 'CUA_HANG_TRUONG', (string) $tt_c['dang'] );
 teq( 'và ô khác cũng lưu theo', 'QUAN_LY', (string) $tt_c['don'] );
-t( 'Quản lý nay vào được trang Nội bộ',
-	VHNB_Quyen::duoc( array( 'role' => 'Quản lý' ), 'vao' ) );
 
-/* 🔴 SIẾT Ô "VÀO TRANG" LÀ ĐÓNG CỬA CẢ TRANG — phải nói ra, vì nó im lặng cho tới khi có
-   người bị chối. Đúng chuyện anh Thắng vừa vấp. */
+/* 🔴 GỬI 'vao' LÊN CŨNG KHÔNG ĐƯỢC ĂN. Một biểu mẫu dựng tay từ bên ngoài vẫn POST được ô ấy;
+   nếu `VHNB_Quyen::dat()` nhận bừa thì bảng quyền lại mọc lại cái bẫy vừa gỡ, và không màn hình
+   nào cho thấy nó đang có ở đó. */
 $_POST = array( 'nb' => array( 'vao' => 'ADMIN' ) );
-$tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
-$_POST = array();
-$tt_txt = (string) wp_json_encode( $tt_bao );
-t( '🔴 siết cửa vào thì cảnh báo ngay',
-	strpos( $tt_txt, 'KHÔNG vào được trang Nội bộ' ) !== false, $tt_bao );
-t( 'và gọi đúng tên bậc vừa đặt', strpos( $tt_txt, 'Admin' ) !== false, $tt_bao );
-t( 'dựng cảnh: lúc ấy Quản lý bị chối thật',
-	! VHNB_Quyen::duoc( array( 'role' => 'Quản lý' ), 'vao' ) );
-
-/* Đặt về Nhân viên thì THÔI cảnh báo — cảnh báo thừa là cảnh báo bị bỏ qua. */
-$_POST = array( 'nb' => array( 'vao' => 'NHAN_VIEN' ) );
-$tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
-$_POST = array();
-t( 'để mở cho Nhân viên thì thôi cảnh báo',
-	strpos( (string) wp_json_encode( $tt_bao ), 'KHÔNG vào được' ) === false, $tt_bao );
-
-/* ⚠️ Bậc lạ thì `VHNB_Quyen::dat()` tự bỏ — trang này KHÔNG lọc lại, để luật nằm một chỗ. */
-$_POST = array( 'nb' => array( 'vao' => 'MOT_BAC_BIA_RA' ) );
 VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
 $_POST = array();
-teq( '🔴 bậc lạ bị bỏ, giữ nguyên giá trị cũ', 'NHAN_VIEN',
-	(string) VHNB_Quyen::cai_dat()['vao'] );
+t( '🔴 POST tay ô "vao" KHÔNG lọt vào bảng quyền',
+	! isset( VHNB_Quyen::cai_dat()['vao'] ), VHNB_Quyen::cai_dat() );
+
+/* ⚠️ Bậc lạ thì `VHNB_Quyen::dat()` tự bỏ — trang này KHÔNG lọc lại, để luật nằm một chỗ. */
+$_POST = array( 'nb' => array( 'dang' => 'MOT_BAC_BIA_RA' ) );
+VHCC_TrangNS::lam_viec( 'quyen_noi_bo', $U_AD );
+$_POST = array();
+teq( '🔴 bậc lạ bị bỏ, giữ nguyên giá trị cũ', 'CUA_HANG_TRUONG',
+	(string) VHNB_Quyen::cai_dat()['dang'] );
 
 /* Cửa hàng trưởng gọi thẳng đường ấy vẫn bị chối — giấu khối không phải là chặn. */
-$_POST = array( 'nb' => array( 'vao' => 'ADMIN' ) );
+$_POST = array( 'nb' => array( 'dang' => 'ADMIN' ) );
 $tt_bao = VHCC_TrangNS::lam_viec( 'quyen_noi_bo',
 	array( 'name' => 'CHT', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'TUTU_BT' ) );
 $_POST = array();
 t( '🔴 Cửa hàng trưởng gọi thẳng vẫn bị chối', isset( $tt_bao[0]['loi'] ), $tt_bao );
-teq( 'và cửa vào KHÔNG bị siết', 'NHAN_VIEN', (string) VHNB_Quyen::cai_dat()['vao'] );
+teq( 'và quyền KHÔNG bị siết', 'CUA_HANG_TRUONG', (string) VHNB_Quyen::cai_dat()['dang'] );
 delete_option( VHNB_Quyen::O );
 
 /* ---- GHÉP HAI MÃ VỀ MỘT NGƯỜI — NĂNG LỰC MÁY CHỦ, MÀN HÌNH ĐÃ BỎ ---------------------------

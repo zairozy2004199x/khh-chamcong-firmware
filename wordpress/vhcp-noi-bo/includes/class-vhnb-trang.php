@@ -346,22 +346,30 @@ class VHNB_Trang {
 				. 'đăng nhập dùng chung. Nhờ quản trị cập nhật plugin Chấm công.' );
 		}
 
+		/* 🔴 LÕI PHIÊN NẰM Ở `VHCC_Phien`, MỘT BẢN CHO CẢ HỆ. Anh Thắng 30/08/2026: *"sau trang
+		   mới thì dùng chung hết, thiết lập sẵn luôn"*. Trang thứ ba mà chép lại luật đăng nhập
+		   là có hai bản; trang thứ tư là ba bản. Rồi một hôm đổi ở một chỗ, mấy bản kia không ai
+		   đổi theo — và cái sai đó hiện ra vào lúc có người bị đá khỏi phiên giữa ca.
+		   ⚠️ Gác `method_exists` cùng thân hàm với lời gọi — luật `tools/test/kiem-goi-cheo.php`. */
+		if ( class_exists( 'VHCC_Phien' ) && method_exists( 'VHCC_Phien', 'vao' ) ) {
+			return VHCC_Phien::vao( $pin );
+		}
+
+		/* ĐƯỜNG LUI cho bản plugin Chấm công cũ hơn (chưa có `VHCC_Phien`). Giữ vì trang này nay
+		   là TRANG CHỦ: cài Nội bộ mới mà quên cập nhật Chấm công thì cả công ty mất đường đăng
+		   nhập, chứ không phải mất một tính năng phụ. Đường lui làm ĐÚNG những việc `vao()` làm,
+		   không nhiều không ít. */
 		$kq = VHCC_Auth::login( (string) $pin );
 		if ( empty( $kq['ok'] ) ) {
 			return array( 'ok' => false,
 				'loi' => isset( $kq['error'] ) ? (string) $kq['error'] : 'PIN không đúng.' );
 		}
-
-		/* 🔴 GÁC BẰNG ĐÚNG DANH SÁCH MÀ `user_by_token` DÙNG. Lệch một cái là người ta gõ PIN
-		   đúng, cookie được đặt, rồi lượt sau `toi()` trả null — màn hình quay lại y như cũ,
-		   không một câu giải thích, và họ gõ lại mười lần cho tới lúc tự khoá mình. */
 		if ( method_exists( 'VHCC_Auth', 'vai_tro_vao' )
 			&& ! in_array( (string) $kq['role'], VHCC_Auth::vai_tro_vao(), true ) ) {
 			return array( 'ok' => false, 'loi' => 'Tài khoản ' . (string) $kq['name'] . ' ('
 				. (string) $kq['role'] . ') chưa được mở vào hệ thống. Vai vào được: '
 				. implode( ' · ', VHCC_Auth::vai_tro_vao() ) . '.' );
 		}
-
 		if ( ! VHCC_Web::mo_phien( (string) $kq['token'] ) ) {
 			return array( 'ok' => false, 'loi' => 'Không mở được phiên. Thử lại một lượt nữa.' );
 		}
@@ -382,6 +390,11 @@ class VHNB_Trang {
 	 *    `dong_phien()` là để trình duyệt đừng mang theo một chuỗi rác suốt 12 tiếng.
 	 */
 	public static function thoat() {
+		/* Lõi ở `VHCC_Phien::ra()` — xem ghi chú trong `dang_nhap()`. Bên dưới là đường lui cho
+		   bản plugin Chấm công cũ hơn. */
+		if ( class_exists( 'VHCC_Phien' ) && method_exists( 'VHCC_Phien', 'ra' ) ) {
+			return VHCC_Phien::ra();
+		}
 		$tok = self::the_phien();
 		if ( '' === $tok ) { return false; }
 		$xong = false;

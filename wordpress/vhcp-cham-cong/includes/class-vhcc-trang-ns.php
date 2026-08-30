@@ -268,18 +268,18 @@ class VHCC_TrangNS {
 		/* Luật nằm ở `VHNB_Quyen::dat()` — nó tự bỏ việc lạ và bậc lạ. Đây không lọc lại. */
 		$moi = VHNB_Quyen::dat( $sach );
 
-		/* 🔴 NÓI RA CHỖ VỪA ĐÓNG CỬA. Siết ô "Vào trang Nội bộ" lên trên Nhân viên là đóng cửa
-		   cả trang với mọi người dưới bậc ấy — đúng chuyện anh Thắng vừa vấp, và nó im lặng cho
-		   tới khi có người bị chối. */
-		$bao = array( array( 'ok' => 'Đã lưu phân quyền trang Nội bộ.' ) );
-		$vao = isset( $moi['vao'] ) ? (string) $moi['vao'] : '';
-		if ( '' !== $vao && VHCC_Vai::NV !== $vao ) {
-			$bac = constant( 'VHNB_Quyen::BAC_DS' );
-			$bao[] = array( 'canh' => 'Ô "Vào trang Nội bộ" đang đặt là '
-				. ( isset( $bac[ $vao ] ) ? $bac[ $vao ] : $vao )
-				. ' — mọi người dưới bậc ấy sẽ KHÔNG vào được trang Nội bộ nữa.' );
-		}
-		return $bao;
+		/* 🔴 KHÔNG CÒN Ô "VÀO TRANG" ĐỂ MÀ CẢNH BÁO — anh Thắng báo chuyện ấy HAI LẦN.
+		   28/08/2026: *"Trang nội bộ là trang chung thì ai vẫn được vào mà"* — lần đó bản vá
+		   chỉ kéo cái ô xổ từ wp-admin ra đây rồi thêm một dòng cảnh báo, tức là vẫn để nguyên
+		   cái bẫy, chỉ dán thêm biển báo cạnh nó. 30/08/2026 anh vấp lại đúng chỗ đó:
+		   *"trang nội bộ là chung công ty nên ai cũng vào được hết, có mật khẩu là vào, đó là
+		   lý do anh đặt trang chủ mà"*.
+
+		   Nay 'vao' đã bị gỡ hẳn khỏi `VHNB_Quyen::VIEC`, nên bảng dưới không còn ô ấy và
+		   `$moi['vao']` không bao giờ tồn tại. Chặn riêng một người thì dùng chính bảng ngoại
+		   lệ của trang này (`VHCC_Cong`), khoá theo TỪNG NGƯỜI. */
+		unset( $moi );
+		return array( array( 'ok' => 'Đã lưu phân quyền trang Nội bộ.' ) );
 	}
 
 	private static function viec_ghep_ma( $toi ) {
@@ -1082,10 +1082,11 @@ class VHCC_TrangNS {
 		$bac  = constant( 'VHNB_Quyen::BAC_DS' );
 
 		echo '<div class="the"><details><summary><b>Phân quyền trang Nội bộ</b> — '
-			. 'ai vào được, ai đăng bài, ai dọn</summary>';
-		echo '<p class="mo">Trang Nội bộ là <b>trang chung</b>: mặc định ai cũng vào và cũng đăng '
-			. 'được. Siết lên thì siết ở đây — và nhớ rằng siết ô <b>Vào trang Nội bộ</b> là đóng '
-			. 'cửa cả trang với mọi người dưới bậc ấy.</p>';
+			. 'ai đăng bài, ai lập nhóm, ai dọn</summary>';
+		echo '<p class="mo">Trang Nội bộ là <b>trang chung</b> của công ty: <b>ai có PIN là vào '
+			. 'được</b>, không khoá theo vai. Mấy ô dưới đây chỉ quyết định ai được <i>làm gì</i> '
+			. 'khi đã vào. Cần chặn riêng một người thì khoá đúng người đó ở bảng nhân sự trên '
+			. 'trang này.</p>';
 		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( self::ky() ) . '">';
 		echo self::o_loc();
 		echo '<div class="cuon"><table class="stt"><thead><tr><th>Việc</th><th>Cần vai từ</th>'
