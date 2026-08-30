@@ -1493,7 +1493,12 @@ class VHG_Trang {
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
     tb.appendChild(body); sc.appendChild(tb); c2.appendChild(sc);
-    /* Tổng — gọn: chỉ Tiền mặt + Doanh thu ngày; đầy đủ: cả 4 ô.
+    /* Tổng — gọn: chỉ Tiền mặt phải nộp + Doanh thu ngày; đầy đủ: cả 4 ô.
+       🔴 "TIỀN MẶT PHẢI NỘP", KHÔNG PHẢI "TIỀN MẶT". Anh Thắng 30/08/2026: *"Còn tiền mặt tổng
+          (là Tiền mặt phải nộp)"*. Đây là con số người thu tiền phải mang về quầy — cộng tiền
+          mặt của từng ghế, đã tính cả những hàng gõ đè "Thực thu tiền mặt". Gọi trống là "Tiền
+          mặt" thì nó trông ngang hàng với ô "QR" bên cạnh, như hai cách khách trả tiền; mà thực
+          ra một bên là số phải nộp, còn bên kia thì tiền đã vào tài khoản rồi.
        🔴 Ô CUỐI TÊN LÀ "DOANH THU NGÀY", KHÔNG PHẢI "THỰC THU". Anh Thắng 30/08/2026:
           *"Ô thực thu tổng, đổi thành 'Doanh thu ngày'"*. Nó cộng TIỀN MẶT + QR của cả cơ sở,
           tức là doanh thu cả ngày — khác hẳn cột "Thực thu tiền mặt" của từng hàng (số tiền mặt
@@ -1501,10 +1506,10 @@ class VHG_Trang {
           xem hai chỗ có nói cùng một số hay không, và số nào mới là số phải nộp. */
     var tot=el('div','bc-tot');
     tot.innerHTML = GON
-      ? '<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
+      ? '<div class="bc-tt"><span>Tiền mặt phải nộp</span><b id="bc-s-cash">0</b></div>'
         +'<div class="bc-tt"><span>Doanh thu ngày</span><b id="bc-s-total">0</b></div>'
       : '<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
-        +'<div class="bc-tt"><span>Tiền mặt</span><b id="bc-s-cash">0</b></div>'
+        +'<div class="bc-tt"><span>Tiền mặt phải nộp</span><b id="bc-s-cash">0</b></div>'
         +'<div class="bc-tt"><span>QR</span><b id="bc-s-qr">0</b></div>'
         +'<div class="bc-tt"><span>Doanh thu ngày</span><b id="bc-s-total">0</b></div>';
     c2.appendChild(tot);
