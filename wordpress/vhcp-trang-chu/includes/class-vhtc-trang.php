@@ -103,6 +103,17 @@ class VHTC_Trang {
 				'url'   => ( $co( 'VHNB_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ) )
 					? VHNB_Trang::url() : '',
 			),
+			/* Dự án & tiến độ dùng chung PHIÊN với hệ chấm công (`VHCC_Phien`), nên nó chỉ đứng
+			   được khi hệ ấy có mặt — y như trang Nội bộ. Thiếu hệ ấy thì ô này phải xám: một
+			   liên kết dẫn tới trang chỉ nói "chưa cài plugin Chấm công" thì thà đừng dựng. */
+			array(
+				'ten'   => 'Dự Án & Tiến Độ',
+				'mo_ta' => 'Nhận hợp đồng, phương án, chốt ngày, bàn giao bộ phận, theo tiến độ tới ngày mở cửa',
+				'icon'  => '🗂',
+				'co'    => $co( 'VHDA_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ),
+				'url'   => ( $co( 'VHDA_Trang', 'url' ) && $co( 'VHCC_Web', 'url' ) )
+					? VHDA_Trang::url() : '',
+			),
 			array(
 				'ten'   => 'Thư Viện Hợp Đồng',
 				'mo_ta' => 'Hợp đồng, đối tác, ngày hết hiệu lực',
