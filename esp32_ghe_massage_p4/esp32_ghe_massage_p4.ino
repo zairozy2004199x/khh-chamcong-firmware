@@ -212,6 +212,7 @@ static int gt911Doc(int* x, int* y) {
 static void noiWiFi() {
   Serial.printf("[WiFi] noi qua C6 toi '%s' ...\n", SEC_WIFI_SSID);
   WiFi.mode(WIFI_STA);
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);   // hạ công suất phát để bớt spike dòng (né brownout nguồn yếu)
   WiFi.begin(SEC_WIFI_SSID, SEC_WIFI_PASS);
   uint32_t t0 = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) { delay(400); Serial.print('.'); }
