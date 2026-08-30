@@ -1356,6 +1356,45 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * ĐẨY HỒ SƠ VỪA TẠO XUỐNG MÁY — đường "Hồ sơ & tài khoản" (tab Admin), song song với
+	 * `them_nv_cua_hang()` (đường Cửa hàng trưởng "Thêm nhanh") vốn đã có việc này từ trước.
+	 *
+	 * Anh Thắng 29/08/2026: *"hiện tại đẩy xuống chỉ có cửa hàng trưởng mới thấy, bổ sung bên tab
+	 * admin cũng bổ sung được cho đợt đầu này"*. Trước bản này, `VHCC_Web::luu_ho_so()` (màn "Hồ
+	 * sơ & tài khoản" trong quản trị chấm công) ghi thẳng vào bảng `nhan_vien`, không đụng gì tới
+	 * máy chấm công hay mẫu đối chiếu khuôn mặt — hai lối tạo hồ sơ mới ra hai kết quả khác nhau.
+	 *
+	 * 🔴 KHÔNG QUA ADMIN DUYỆT — khác `day_len_may()`. Đường ấy `$can_duyet=true` vì Cửa hàng
+	 *    trưởng KHÔNG có quyền `ho_so`; còn màn "Hồ sơ & tài khoản" chỉ người có quyền `ho_so`
+	 *    (Kế toán trở lên — CHÍNH quyền để duyệt lệnh) mới vào tới nơi mà gọi hàm này. Bắt một
+	 *    người tự duyệt lại việc mình vừa làm là thêm một cú bấm chứ không thêm một lớp soi nào.
+	 *
+	 * @param array  $u       người đang thao tác — dùng để chốt quyền và ghi "người đặt lệnh".
+	 * @param string $ma_nv   mã hồ sơ VỪA GHI XONG vào bảng (đọc lại từ DB, không tin dữ liệu form).
+	 * @param mixed  $vector  dãy đặc trưng khuôn mặt trình duyệt tính từ ảnh thẻ, hoặc rỗng/null
+	 *                        nếu không có — xem `VHCC_NhanSu::them_nv_cua_hang()` cho cùng cơ chế.
+	 */
+	public static function day_ho_so_moi_len_may( $u, $ma_nv, $vector = null ) {
+		$ma = trim( (string) $ma_nv );
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_sua_ho_so( $u ) || ! self::co_quyen_coso( $u, $hs['cua_hang'] ) ) {
+			return array( 'ok' => false, 'error' => 'Không có quyền với hồ sơ này.' );
+		}
+		$anh = trim( (string) ( isset( $hs['anh_the'] ) ? $hs['anh_the'] : '' ) );
+		$cau = self::lenh_may_( $ma, (string) $hs['ho_ten'], (string) $hs['cua_hang'],
+			(string) ( isset( $hs['gioi_tinh'] ) ? $hs['gioi_tinh'] : '' ), $u, $anh, 'add' );
+
+		/* Cùng cơ chế "ảnh thẻ làm mẫu" của `them_nv_cua_hang()` — xem chú thích đầy đủ ở đó. */
+		if ( '' !== $anh && null !== $vector && class_exists( 'VHCC_Mat' )
+			&& method_exists( 'VHCC_Mat', 'dat_mau_tu_anh_the' )
+			&& VHCC_Mat::dat_mau_tu_anh_the( $ma, $vector ) ) {
+			$cau .= ' Đã lấy ảnh thẻ làm mẫu đối chiếu khuôn mặt cho chấm công online.';
+		}
+		return array( 'ok' => true, 'thong_bao' => $cau );
+	}
+
+	/**
 	 * XOÁ hồ sơ.
 	 * ⚠️ CHẶN khi người đó CÒN chấm công. Xoá hồ sơ mà giữ lại chấm công là bảng lương có mã
 	 *    không tra ra được tên — người thật, công thật, mà không biết trả cho ai. Muốn cho nghỉ

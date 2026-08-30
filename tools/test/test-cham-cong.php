@@ -14550,6 +14550,83 @@ t( '🔴 người đã nghỉ thì không nhắc chụp ảnh nữa',
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) );
 
+/* ---- ĐẨY XUỐNG MÁY + MẪU KHUÔN MẶT TỪ TAB ADMIN "HỒ SƠ & TÀI KHOẢN" -----------------------
+   Anh Thắng 29/08/2026: *"hiện tại đẩy xuống chỉ có cửa hàng trưởng mới thấy, bổ sung bên tab
+   admin cũng bổ sung được cho đợt đầu này"*. Trước bản này `VHCC_Web::luu_ho_so()` (màn "Hồ sơ
+   & tài khoản") ghi thẳng vào bảng nhan_vien, không đụng gì máy chấm công hay mẫu khuôn mặt —
+   khác hẳn `VHCC_NhanSu::them_nv_cua_hang()` (đường Cửa hàng trưởng) vốn đã có cả hai việc đó. */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-ADMHS', 'mac' => '', 'cua_hang' => 'ADH_CS' ) );
+$tok_adhs = VHCC_Auth::phat_token( 'Admin Hồ Sơ', 'Admin', '', 'ADMHS1' );
+
+/* Vector giả 128 số — không cần đúng số thật của face-api, chỉ cần ĐỦ SỐ CHIỀU và toàn số hợp
+   lệ để VHCC_Mat::doc_vector() nhận (kiem-mat.php có phép thử riêng cho chính hàm đọc dãy đó). */
+$vec_adm = array();
+for ( $i = 0; $i < 128; $i++ ) { $vec_adm[] = 0.3 + ( $i % 5 ) * 0.01; }
+
+$anh_adm = imagecreatetruecolor( 600, 800 );
+imagefill( $anh_adm, 0, 0, imagecolorallocate( $anh_adm, 200, 180, 160 ) );
+$tep_adm = tempnam( sys_get_temp_dir(), 'vhcc-adm' ) . '.jpg';
+imagejpeg( $anh_adm, $tep_adm, 90 );
+imagedestroy( $anh_adm );
+
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_adhs );
+$_GET    = array( 'man' => 'ho_so' );
+$_POST   = array( 'viec' => 'sua_hs', 'ky' => VHCC_Web::chu_ky( $tok_adhs ),
+	'ma_nv' => 'ADMHS_NEW', 'ho_ten' => 'Admin Tạo Mới', 'cua_hang' => 'ADH_CS',
+	'hs_vector' => wp_json_encode( $vec_adm ) );
+$_FILES  = array( 'hs_anh_the' => array( 'error' => UPLOAD_ERR_OK, 'tmp_name' => $tep_adm, 'name' => 'the.jpg' ) );
+ob_start(); VHCC_Web::phuc_vu(); $h_adm = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array(); $_FILES = array();
+@unlink( $tep_adm );
+
+$hs_adm = VHCC_NhanSu::ho_so( 'ADMHS_NEW' );
+t( '🔴 tạo được hồ sơ qua tab Admin', null !== $hs_adm, $h_adm );
+t( '🔴 ảnh thẻ vào thẳng hồ sơ',
+	$hs_adm && strpos( (string) $hs_adm['anh_the'], 'data:image/jpeg;base64,' ) === 0, $hs_adm );
+
+$lenh_adm = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='ADMHS_NEW'" );
+t( '🔴 và đặt lệnh xuống máy của cơ sở', count( $lenh_adm ) === 1, $lenh_adm );
+teq( '🔴 KHÔNG qua Admin duyệt — người tạo đã là Admin, đủ quyền duyệt lệnh của chính mình rồi',
+	'cho', $lenh_adm ? (string) $lenh_adm[0]['trang_thai'] : '' );
+t( '🔴 câu báo KHÔNG nói "chờ Admin duyệt" (khác đường Cửa hàng trưởng)',
+	strpos( $h_adm, 'tới Admin để duyệt' ) === false, $h_adm );
+
+$mau_adm = VHCC_Mat::mau( 'ADMHS_NEW' );
+t( '🔴 ảnh thẻ cũng seed mẫu đối chiếu khuôn mặt cho chấm công online', null !== $mau_adm, $mau_adm );
+if ( $mau_adm ) {
+	teq( 'mẫu duyệt sẵn — cùng lý do với đường Cửa hàng trưởng', 'duyet', $mau_adm['trang_thai'] );
+}
+t( '🔴 màn báo có nhắc tới việc lấy ảnh thẻ làm mẫu',
+	strpos( $h_adm, 'làm mẫu đối chiếu khuôn mặt' ) !== false, $h_adm );
+
+/* Không ảnh / không vector thì vẫn tạo hồ sơ được, và không seed mẫu rác. */
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_adhs );
+$_GET    = array( 'man' => 'ho_so' );
+$_POST   = array( 'viec' => 'sua_hs', 'ky' => VHCC_Web::chu_ky( $tok_adhs ),
+	'ma_nv' => 'ADMHS_KOANH', 'ho_ten' => 'Admin Không Ảnh', 'cua_hang' => 'ADH_CS' );
+ob_start(); VHCC_Web::phuc_vu(); ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+t( '🔴 không ảnh vẫn tạo được hồ sơ', null !== VHCC_NhanSu::ho_so( 'ADMHS_KOANH' ) );
+t( 'không ảnh thì không seed mẫu rác', null === VHCC_Mat::mau( 'ADMHS_KOANH' ) );
+$lenh_koanh = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='ADMHS_KOANH'" );
+t( 'vẫn đặt lệnh xuống máy dù không ảnh (mặt lấy trực tiếp tại máy)', count( $lenh_koanh ) === 1, $lenh_koanh );
+
+/* SỬA hồ sơ CŨ (không phải tạo mới) thì KHÔNG đặt thêm lệnh máy/mẫu nào — nút riêng "sửa lại
+   trên máy 🔄" ở trang Quản lý nhân sự đã lo việc đó, không lặp lại ở đây. */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='ADMHS_NEW'" );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_adhs );
+$_GET    = array( 'man' => 'ho_so' );
+$_POST   = array( 'viec' => 'sua_hs', 'ky' => VHCC_Web::chu_ky( $tok_adhs ),
+	'ma_nv' => 'ADMHS_NEW', 'ho_ten' => 'Admin Tạo Mới Sửa Tên' );
+ob_start(); VHCC_Web::phuc_vu(); ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( 'sửa tên thành công', 'Admin Tạo Mới Sửa Tên', VHCC_NhanSu::ho_so( 'ADMHS_NEW' )['ho_ten'] );
+$lenh_sua_lai = VHCC_DB::rows( "SELECT * FROM " . VHCC_DB::t( 'queue' ) . " WHERE ma_nv='ADMHS_NEW'" );
+t( '🔴 SỬA hồ sơ cũ không tự đặt thêm lệnh máy nào', count( $lenh_sua_lai ) === 0, $lenh_sua_lai );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'queue' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='SN-ADMHS'" );
+
 $h_tn_nv = vhcc_web_nhu( 'NVTN1', 'Nhân viên', array( 'man' => 'cham' ) );
 t( '🔴 nhân viên KHÔNG thấy khối ấy',
 	strpos( $h_tn_nv, 'Thêm người mới vào cửa hàng' ) === false );

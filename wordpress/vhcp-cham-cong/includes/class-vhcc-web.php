@@ -1231,7 +1231,7 @@ class VHCC_Web {
 		}
 
 		if ( 'sua_hs' === $viec ) {
-			$r = self::luu_ho_so();
+			$r = self::luu_ho_so( $toi );
 			return array( empty( $r['ok'] ) ? array( 'loi' => $r['error'] ) : array( 'xong' => $r['thong_bao'] ) );
 		}
 
@@ -1423,7 +1423,7 @@ class VHCC_Web {
 	}
 
 	/** Lưu một hồ sơ sửa tay. Ô để TRỐNG là xoá ô đó — khác hẳn luật của lượt nạp .csv. */
-	private static function luu_ho_so() {
+	private static function luu_ho_so( $toi = null ) {
 		global $wpdb;
 		$ma = isset( $_POST['ma_nv'] ) ? trim( (string) wp_unslash( $_POST['ma_nv'] ) ) : '';
 		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
@@ -1491,6 +1491,26 @@ class VHCC_Web {
 				$ghi[ $c ] = $v;
 			} else { $ghi[ $c ] = $v; }
 		}
+		$co = $wpdb->get_var( $wpdb->prepare(
+			'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma ) );
+
+		/**
+		 * 🔴 ẢNH THẺ + MÁY CHẤM CÔNG — CHỈ Ở NHÁNH TẠO MỚI (`!$co`).
+		 *
+		 * Anh Thắng 29/08/2026: *"hiện tại đẩy xuống chỉ có cửa hàng trưởng mới thấy, bổ sung bên
+		 * tab admin cũng bổ sung được cho đợt đầu này"*. Song song với `VHCC_NhanSu::them_nv_cua_hang()`
+		 * (đường Cửa hàng trưởng) — ảnh không bắt buộc, hỏng ở đâu cũng không chặn việc tạo hồ sơ.
+		 *
+		 * ⚠️ RỬA ẢNH TRƯỚC KHI GHI, KHÔNG SAU. `rua_anh_the()` cũng validate/thu nhỏ — ghi thẳng
+		 *    `$_FILES` vào cột là ghi một mảng PHP, không phải chuỗi ảnh.
+		 */
+		$anh_kq = array( 'ok' => true, 'anh' => '' );
+		if ( ! $co ) {
+			$anh_kq = VHCC_NhanSu::rua_anh_the(
+				isset( $_FILES['hs_anh_the'] ) ? $_FILES['hs_anh_the'] : array() );
+			if ( ! empty( $anh_kq['ok'] ) && '' !== $anh_kq['anh'] ) { $ghi['anh_the'] = $anh_kq['anh']; }
+		}
+
 		if ( ! $ghi ) { return array( 'ok' => false, 'error' => 'Không có gì để lưu.' ); }
 		/* 🔴 HAI NGƯỜI CÙNG PIN thì cổng đăng nhập nhận người GẶP TRƯỚC, và nhật ký ghi tên
 		   người đó — người kia làm gì cũng mang tên người này. Chặn ngay lúc lưu, và nói ra
@@ -1506,8 +1526,6 @@ class VHCC_Web {
 			}
 		}
 
-		$co = $wpdb->get_var( $wpdb->prepare(
-			'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma ) );
 		$ghi['cap_nhat'] = current_time( 'mysql' );
 		if ( $co ) { $wpdb->update( VHCC_DB::t( 'nhan_vien' ), $ghi, array( 'ma_nv' => $ma ) ); }
 		else { $ghi['ma_nv'] = $ma; $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), $ghi ); }
@@ -1529,8 +1547,22 @@ class VHCC_Web {
 				$them_loi .= ' ⚠️ Vai trò này KHÔNG vào được trang chấm công.';
 			}
 		}
+		/* Nhắc "Nạp tài khoản" CHỈ khi vừa đổi thứ ảnh hưởng cổng đăng nhập (PIN/vai trò) — máy
+		   chấm công và mẫu khuôn mặt bên dưới không đi qua cổng ấy, nhắc vào đó là nhắc sai việc. */
 		if ( '' !== $them_loi ) {
 			$them_loi .= ' Nhớ bấm "Nạp tài khoản" ở ô 🔑 bên trên thì thay đổi mới có hiệu lực ở cổng đăng nhập.';
+		}
+		/* Đẩy xuống máy + seed mẫu khuôn mặt CHỈ khi vừa TẠO MỚI (đọc lại hồ sơ từ DB, không tin
+		   dữ liệu vừa gửi) — sửa hồ sơ cũ đã có nút riêng "sửa lại trên máy 🔄" ở trang Quản lý
+		   nhân sự, không lặp lại ở đây. */
+		if ( ! $co && class_exists( 'VHCC_NhanSu' ) && method_exists( 'VHCC_NhanSu', 'day_ho_so_moi_len_may' ) ) {
+			$vector = isset( $_POST['hs_vector'] ) ? wp_unslash( $_POST['hs_vector'] ) : '';
+			$day = VHCC_NhanSu::day_ho_so_moi_len_may( $toi, $ma, ( '' !== $vector ? $vector : null ) );
+			if ( ! empty( $day['ok'] ) ) { $them_loi .= ' ' . $day['thong_bao']; }
+		}
+		if ( ! $co && empty( $anh_kq['ok'] ) ) {
+			$them_loi .= ' ⚠️ Ảnh thẻ KHÔNG nhận được: ' . ( isset( $anh_kq['error'] ) ? $anh_kq['error'] : 'lỗi không rõ' )
+				. ' Mở hồ sơ này rồi tải ảnh lên sau nếu cần.';
 		}
 		return array( 'ok' => true,
 			'thong_bao' => ( $co ? 'Đã lưu hồ sơ ' : 'Đã thêm hồ sơ ' ) . $ma . '.' . $them_loi );
@@ -2843,64 +2875,82 @@ class VHCC_Web {
 			$tv_tn = VHCC_Mat::thu_vien();
 			if ( ! empty( $tv_tn['co'] ) ) {
 				echo '<input type="hidden" id="tn_vector" name="tn_vector" value="">';
-				echo '<script>(function(){'
-					. 'var TV_JS=' . wp_json_encode( $tv_tn['js'] ) . ',TV_MAU=' . wp_json_encode( $tv_tn['mau_url'] ) . ';'
-					. 'var taiXong=null;'
-					. 'function taiThuVien(){'
-						. 'if(taiXong) return taiXong;'
-						. 'taiXong=new Promise(function(xong,hong){'
-							. 'var s=document.createElement("script");'
-							. 's.src=TV_JS;s.onload=function(){xong();};'
-							. 's.onerror=function(){hong(new Error("khong tai duoc"));};'
-							. 'document.head.appendChild(s);'
-						. '}).then(function(){'
-							. 'if(!window.faceapi) throw new Error("thieu faceapi");'
-							. 'return Promise.all(['
-								. 'faceapi.nets.tinyFaceDetector.loadFromUri(TV_MAU),'
-								. 'faceapi.nets.faceLandmark68TinyNet.loadFromUri(TV_MAU),'
-								. 'faceapi.nets.faceRecognitionNet.loadFromUri(TV_MAU)'
-							. ']);'
-						. '});'
-						. 'taiXong.catch(function(){taiXong=null;});'
-						. 'return taiXong;'
-					. '}'
-					. 'var anhEl=document.getElementById("tn_anh"),vecEl=document.getElementById("tn_vector");'
-					. 'if(anhEl&&vecEl){'
-						. 'anhEl.addEventListener("change",function(){'
-							. 'vecEl.value="";'
-							. 'var f=anhEl.files&&anhEl.files[0];'
-							. 'if(!f) return;'
-							. 'var rd=new FileReader();'
-							. 'rd.onload=function(){'
-								. 'var dataUrl=rd.result;'
-								. 'taiThuVien().then(function(){'
-									. 'return new Promise(function(xong,hong){'
-										. 'var img=new Image();'
-										. 'img.onload=function(){xong(img);};'
-										. 'img.onerror=function(){hong(new Error("anh hong"));};'
-										. 'img.src=dataUrl;'
-									. '});'
-								. '}).then(function(img){'
-									. 'return faceapi.detectSingleFace(img,'
-										. 'new faceapi.TinyFaceDetectorOptions({inputSize:320}))'
-										. '.withFaceLandmarks(true).withFaceDescriptor();'
-								. '}).then(function(kq){'
-									. 'if(!kq||!kq.descriptor) return;'
-									. 'var v=[];'
-									. 'for(var i=0;i<kq.descriptor.length;i++){v.push(kq.descriptor[i]);}'
-									. 'vecEl.value=JSON.stringify(v);'
-								. '}).catch(function(){/* im — xem chú thích ở trên */});'
-							. '};'
-							. 'rd.readAsDataURL(f);'
-						. '});'
-					. '}'
-				. '})();</script>';
+				echo self::js_tinh_vector_anh_the( 'tn_anh', 'tn_vector', $tv_tn );
 			}
 		}
 
 		echo '<div><button class="chinh" name="viec" value="them_nv">Thêm người</button></div>';
 		echo '</form>';
 		echo '</details>';
+	}
+
+	/**
+	 * SCRIPT DÙNG CHUNG: tính dãy đặc trưng khuôn mặt từ ảnh thẻ ngay khi chọn tệp.
+	 *
+	 * Tách ra vì HAI form độc lập cần y hệt việc này: "Thêm nhanh" của Cửa hàng trưởng
+	 * (`khoi_them_nv()`) và "Hồ sơ mới" của tab Admin (`the_sua_ho_so()`) — anh Thắng 29/08/2026:
+	 * *"bổ sung bên tab admin cũng bổ sung được cho đợt đầu này"*. Hai nơi gọi CÙNG một hàm này
+	 * thay vì chép lại đoạn JS, để mai sau đổi thư viện chỉ phải sửa một chỗ.
+	 *
+	 * @param string $id_anh    id của `<input type="file">` ảnh thẻ.
+	 * @param string $id_vector id của `<input type="hidden">` sẽ nhận chuỗi JSON của dãy đặc trưng.
+	 * @param array  $tv        kết quả `VHCC_Mat::thu_vien()` — cần `js` và `mau_url` (gọi hàm
+	 *                          này chỉ khi `$tv['co']` đã đúng, chỗ gọi tự canh việc đó).
+	 */
+	private static function js_tinh_vector_anh_the( $id_anh, $id_vector, $tv ) {
+		return '<script>(function(){'
+			. 'var TV_JS=' . wp_json_encode( $tv['js'] ) . ',TV_MAU=' . wp_json_encode( $tv['mau_url'] ) . ';'
+			. 'var taiXong=null;'
+			. 'function taiThuVien(){'
+				. 'if(taiXong) return taiXong;'
+				. 'taiXong=new Promise(function(xong,hong){'
+					. 'var s=document.createElement("script");'
+					. 's.src=TV_JS;s.onload=function(){xong();};'
+					. 's.onerror=function(){hong(new Error("khong tai duoc"));};'
+					. 'document.head.appendChild(s);'
+				. '}).then(function(){'
+					. 'if(!window.faceapi) throw new Error("thieu faceapi");'
+					. 'return Promise.all(['
+						. 'faceapi.nets.tinyFaceDetector.loadFromUri(TV_MAU),'
+						. 'faceapi.nets.faceLandmark68TinyNet.loadFromUri(TV_MAU),'
+						. 'faceapi.nets.faceRecognitionNet.loadFromUri(TV_MAU)'
+					. ']);'
+				. '});'
+				. 'taiXong.catch(function(){taiXong=null;});'
+				. 'return taiXong;'
+			. '}'
+			. 'var anhEl=document.getElementById(' . wp_json_encode( $id_anh ) . '),'
+				. 'vecEl=document.getElementById(' . wp_json_encode( $id_vector ) . ');'
+			. 'if(anhEl&&vecEl){'
+				. 'anhEl.addEventListener("change",function(){'
+					. 'vecEl.value="";'
+					. 'var f=anhEl.files&&anhEl.files[0];'
+					. 'if(!f) return;'
+					. 'var rd=new FileReader();'
+					. 'rd.onload=function(){'
+						. 'var dataUrl=rd.result;'
+						. 'taiThuVien().then(function(){'
+							. 'return new Promise(function(xong,hong){'
+								. 'var img=new Image();'
+								. 'img.onload=function(){xong(img);};'
+								. 'img.onerror=function(){hong(new Error("anh hong"));};'
+								. 'img.src=dataUrl;'
+							. '});'
+						. '}).then(function(img){'
+							. 'return faceapi.detectSingleFace(img,'
+								. 'new faceapi.TinyFaceDetectorOptions({inputSize:320}))'
+								. '.withFaceLandmarks(true).withFaceDescriptor();'
+						. '}).then(function(kq){'
+							. 'if(!kq||!kq.descriptor) return;'
+							. 'var v=[];'
+							. 'for(var i=0;i<kq.descriptor.length;i++){v.push(kq.descriptor[i]);}'
+							. 'vecEl.value=JSON.stringify(v);'
+						. '}).catch(function(){/* im — hỏng ở đâu cũng không chặn việc tạo hồ sơ */});'
+					. '};'
+					. 'rd.readAsDataURL(f);'
+				. '});'
+			. '}'
+		. '})();</script>';
 	}
 
 	/**
@@ -6827,12 +6877,45 @@ class VHCC_Web {
 			. esc_html( $ma ) . ' — ' . esc_html( $g( 'ho_ten' ) ) ) . '</h2>';
 		echo '<p><a class="nut" href="' . esc_url( self::url() ) . '">← Về danh sách</a></p>';
 
-		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		/* ⚠️ `enctype` PHẢI CÓ ngay từ đây, dù chỉ nhánh TẠO MỚI có ô ảnh — thêm sau vào một
+		   `<form>` đã không có sẵn thuộc tính này là dễ quên, và quên thì ảnh gửi lên chỉ còn
+		   cái TÊN TỆP (xem chú thích ở `khoi_them_nv()`). */
+		echo '<form method="post" enctype="multipart/form-data">'
+			. '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
 		echo '<input type="hidden" name="viec" value="sua_hs">';
 		if ( $them_moi ) {
 			echo '<div class="luoi"><label>Mã NV <b style="color:var(--do)">*</b>'
 				. '<input name="ma_nv" required style="width:100%"></label>'
 				. '<label>Họ tên<input name="ho_ten" style="width:100%"></label></div>';
+			/**
+			 * 🔴 ẢNH THẺ Ở TAB ADMIN — SONG SONG VỚI "THÊM NHANH" CỦA CỬA HÀNG TRƯỞNG.
+			 *
+			 * Anh Thắng 29/08/2026: *"hiện tại đẩy xuống chỉ có cửa hàng trưởng mới thấy, bổ sung
+			 * bên tab admin cũng bổ sung được cho đợt đầu này"*. Cùng lối với ô ảnh ở
+			 * `khoi_them_nv()`: không bắt buộc, tính vector khuôn mặt ngay trong trình duyệt, và
+			 * không chặn việc tạo hồ sơ nếu bước tính vector trục trặc.
+			 *
+			 * ⚠️ CHỈ HIỆN Ở NHÁNH TẠO MỚI (`$them_moi`), CHƯA THÊM CHO SỬA HỒ SƠ CŨ. Anh Thắng
+			 *    chốt "cho đợt đầu này" — sửa ảnh của hồ sơ đã có thì đã có nút "sửa lại trên
+			 *    máy 🔄" ở trang Quản lý nhân sự, không cần làm lại ở đây.
+			 */
+			echo '<div style="flex:0 0 100%;display:flex;gap:14px;align-items:flex-start;'
+				. 'margin-top:6px;padding-top:10px;border-top:1px dashed var(--vien)">';
+			echo self::anh_the_mau();
+			echo '<div><label for="hs_anh_the"><b>Ảnh thẻ</b> <span class="mo">— không bắt buộc'
+				. '</span></label>'
+				. '<input id="hs_anh_the" name="hs_anh_the" type="file" accept="image/*" capture="user">'
+				. '<p class="mo" style="margin:6px 0 0;max-width:520px">Có ảnh thì <b>máy chấm công '
+				. 'tự nhận khuôn mặt</b> và web tự lấy làm mẫu đối chiếu cho chấm công online. '
+				. 'Chụp chính diện, ngang vai, nền trơn một màu, không kính râm/khẩu trang/mũ.</p></div>';
+			echo '</div>';
+			if ( class_exists( 'VHCC_Mat' ) && method_exists( 'VHCC_Mat', 'thu_vien' ) && VHCC_Mat::bat() ) {
+				$tv_hs = VHCC_Mat::thu_vien();
+				if ( ! empty( $tv_hs['co'] ) ) {
+					echo '<input type="hidden" id="hs_vector" name="hs_vector" value="">';
+					echo self::js_tinh_vector_anh_the( 'hs_anh_the', 'hs_vector', $tv_hs );
+				}
+			}
 		} else {
 			echo '<input type="hidden" name="ma_nv" value="' . esc_attr( $ma ) . '">';
 			echo '<div class="luoi"><label>Họ tên<input name="ho_ten" value="'
