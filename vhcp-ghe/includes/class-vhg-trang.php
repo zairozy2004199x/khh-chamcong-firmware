@@ -2105,14 +2105,39 @@ class VHG_Trang {
   }
 
   // ---------------- BÁO CÁO 24H — SỬA ----------------
+  /* 🔴 CHIA TRANG 10 BÁO CÁO/TRANG — anh Thắng 30/08/2026: "Chỗ này sửa hiện 10 báo cáo 1 trang
+     thôi nhé". Trước đây `ds` (toàn bộ báo cáo trong 24h thuộc phạm vi PIN) đổ thẳng ra hết một
+     lượt — cơ sở đông máy dồn vào một khung cuộn dài cả màn hình, khó dò ra báo cáo cần sửa.
+     ⚠️ CHIA TRANG PHÍA TRÌNH DUYỆT, KHÔNG GỌI LẠI SERVER MỖI TRANG. `ds_24h()` đã giới hạn theo
+        cửa sổ 24 giờ + phạm vi PIN — một PIN thực tế không bao giờ có tới hàng trăm báo cáo
+        trong 24h, nên cả danh sách vẫn tải MỘT LẦN (như trước) rồi cắt ra từng trang 10 dòng ở
+        đây; đổi trang chỉ vẽ lại từ mảng đã có, không thêm lượt gọi mạng nào. */
   function loadRecent(){
     var box=$('bc-recent'); if(!box) return;
     box.textContent=''; box.appendChild(el('h3','bc-h','Báo cáo trong 24h — sửa được'));
     var wrapl=el('div'); box.appendChild(wrapl);
+    var pager=el('div'); box.appendChild(pager);
     goi('bc_recent',{},function(r){
-      var ds=(r&&r.ds)||[]; wrapl.textContent='';
+      var ds=(r&&r.ds)||[];
       if(!ds.length){ wrapl.appendChild(el('div','bc-mut','Chưa có báo cáo nào trong 24 giờ qua.')); return; }
-      ds.forEach(function(rp){ wrapl.appendChild(recentItem(rp)); });
+      var TRANG=10, trang=1, soTrang=Math.max(1,Math.ceil(ds.length/TRANG));
+      function ve(){
+        wrapl.textContent='';
+        ds.slice((trang-1)*TRANG, trang*TRANG).forEach(function(rp){ wrapl.appendChild(recentItem(rp)); });
+        pager.textContent='';
+        if(soTrang<=1) return;
+        pager.style.cssText='display:flex;gap:10px;align-items:center;justify-content:center;'
+          +'margin-top:10px;flex-wrap:wrap';
+        var bTruoc=el('button','bc-btn','← Trang trước');
+        bTruoc.disabled=(trang<=1);
+        bTruoc.onclick=function(){ if(trang>1){ trang--; ve(); box.scrollIntoView({block:'start',behavior:'smooth'}); } };
+        var nhan=el('span','bc-mut','Trang '+trang+'/'+soTrang+' · '+ds.length+' báo cáo');
+        var bSau=el('button','bc-btn','Trang sau →');
+        bSau.disabled=(trang>=soTrang);
+        bSau.onclick=function(){ if(trang<soTrang){ trang++; ve(); box.scrollIntoView({block:'start',behavior:'smooth'}); } };
+        pager.appendChild(bTruoc); pager.appendChild(nhan); pager.appendChild(bSau);
+      }
+      ve();
     });
   }
   function recentItem(rp){
