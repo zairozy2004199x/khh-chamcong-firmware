@@ -44,6 +44,11 @@ static esp_lcd_panel_handle_t    g_panel = nullptr;
 static uint16_t*                 g_fb = nullptr;
 static uint8_t                   g_gt = 0;
 
+/* Kiểu dùng chung — KHAI TRƯỚC mọi hàm. Arduino tự sinh prototype ở đầu file; nếu struct
+   định nghĩa sau hàm dùng nó thì prototype báo "does not name a type". */
+struct Nut { int x, y, w, h; };
+struct Ap  { String ssid, nhan, bssid; int rssi; };
+
 static inline uint16_t RGB565(uint8_t r, uint8_t g, uint8_t b) {
   return (uint16_t)(((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3));
 }
@@ -238,9 +243,8 @@ static String g_token = "";      // token web (chỉ RAM)
 static String g_pinLuu = "";     // PIN đã lưu (NVS) — tự đăng nhập lại
 static bool   g_4gUp = false;
 
-/* Nút bấm hình chữ nhật bo góc + chữ căn giữa. */
-struct Nut { int x, y, w, h; };
-static void veNut(const Nut& b, const char* nhan, uint16_t nen, uint16_t chu, int sc = 3) {
+/* Nút bấm hình chữ nhật bo góc + chữ căn giữa. (struct Nut khai ở đầu file) */
+static void veNut(const Nut& b, const char* nhan, uint16_t nen, uint16_t chu, int sc) {
   lRoundRectA(b.x + 3, b.y + 5, b.w, b.h, 14, C_SHD, C_BG);
   lRoundRectA(b.x, b.y, b.w, b.h, 14, C_GLOW2, C_BG);
   lRoundRectA(b.x + 2, b.y + 2, b.w - 4, b.h - 4, 12, nen, C_GLOW2);
@@ -297,8 +301,7 @@ static long fwSize(const char* path) {
 }
 
 /* ─── DÒ AP máy đích (WiFi C6) ───────────────────────────────────────────── */
-struct Ap { String ssid, nhan, bssid; int rssi; };
-static Ap  g_ap[24]; static int g_apN = 0;
+static Ap  g_ap[24]; static int g_apN = 0;   // struct Ap khai ở đầu file
 static int quetAp(const char* prefix) {
   g_apN = 0;
   bao("DANG DO SONG...", C_YEL, prefix, "Lai gan may dich", 0);
