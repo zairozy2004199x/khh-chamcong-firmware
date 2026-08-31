@@ -1788,6 +1788,101 @@ teq( '🔴 số công LẺ in nguyên vẹn ra màn, không bị ép về số n
 t( 'và KHÔNG in giờ kiểu 7h02 cho cơ sở tính theo công',
 	preg_match( '/\d+h\d\d/', $bang_tv ) !== 1, $bang_tv );
 
+/* ---------------------------------------------------------------------------------------------
+ * 🔴 CƠ SỞ TRONG SỔ MÀ HỒ SƠ GÕ KHÁC MỘT CHÚT: KHÔNG ĐƯỢC NUỐT CẢ THÁNG CÔNG
+ * ---------------------------------------------------------------------------------------------
+ * Anh Thắng 31/08/2026: *"2 bên đang lệch"* — bảng của quản lý (cơ sở `PART_TIME (POSHJP)`) có
+ * cả một tháng giờ của chị Tường Vi, còn màn "Công của tôi" của chính chị thì hàng ấy trống
+ * trơn. Hồ sơ khai `(PART TIME )_POSH+JP`: cùng một cửa hàng, hai cách gõ. `bang_thang()` lọc
+ * `coso IN (danh sách khai trong hồ sơ)` nên không lượt nào khớp, và cả tháng công biến mất mà
+ * KHÔNG có một dòng nào báo.
+ *
+ * Sổ chấm công do MÁY ghi, danh sách cơ sở do NGƯỜI gõ. Bắt cái do máy ghi khớp từng ký tự với
+ * cái do người gõ thì mỗi dấu cách lệch là một người mất công — mà người mất công lại không có
+ * quyền sửa hồ sơ.
+ */
+$cs_ho_so = 'KHO_A (POSHJP)';      // tên khai trong hồ sơ
+$cs_so    = 'KHO_A_POSH+JP';       // tên máy chấm công đang ghi — khác một chút
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LECH_CS', 'ho_ten' => 'Người Lệch Tên',
+	'cua_hang' => $cs_ho_so, 'vai_tro' => 'Nhân viên' ) );
+vhcc_cham( $cs_so, '2026-08-12', 'LECH_CS', '', '08:00:00', '17:00:00' );
+vhcc_cham( $cs_so, '2026-08-13', 'LECH_CS', '', '08:00:00', '17:00:00' );
+
+$ds_lc = VHCC_Online::ds_coso_cua_nv( 'LECH_CS', $cs_ho_so );
+$kq_lc = VHCC_Online::bang_thang( 'LECH_CS', $ds_lc, '2026-08' );
+t( '🔴 lượt chấm ở cơ sở HỒ SƠ CHƯA KHAI vẫn phải đọc ra được',
+	2 === count( $kq_lc['dong'] ), $kq_lc['dong'] );
+teq( 'và tổng giờ đếm đủ cả hai ngày', 2, (int) $kq_lc['tong']['ngay'] );
+$co_la = false;
+foreach ( $kq_lc['dong'] as $d_lc ) { if ( $cs_so === $d_lc['coSo'] ) { $co_la = true; } }
+t( 'dòng mang ĐÚNG tên trong sổ, không bị nắn về tên trong hồ sơ', $co_la, $kq_lc['dong'] );
+
+/* ⚠️ KHÔNG tự khớp gần đúng hai tên. Đoán chúng là một là đúng ca này, sai ca khác — mà sai thì
+   công chạy sang bảng lương của cửa hàng khác. Hai hàng riêng, và màn hình nói ra chỗ lệch. */
+$tok_lc = VHCC_Auth::phat_token( 'Người Lệch Tên', 'Nhân viên', $cs_ho_so, 'LECH_CS' );
+$h_lc   = vhcc_hr( $tok_lc, array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+t( '🔴 màn hình BÀY RA cơ sở lạ ấy, không im lặng bỏ đi',
+	strpos( $h_lc, esc_html( $cs_so ) ) !== false, $h_lc );
+t( '🔴 và KÊU LÊN rằng hồ sơ chưa khai cơ sở ấy',
+	strpos( $h_lc, 'chưa khai' ) !== false, $h_lc );
+t( 'nói cả chỗ chữa: nhờ quản lý hoặc kế toán sửa ô Cơ sở',
+	strpos( $h_lc, 'kế toán sửa lại ô' ) !== false, $h_lc );
+t( 'gắn nhãn ngay tại hàng, không chỉ một câu ở cuối bảng',
+	strpos( $h_lc, 'chưa khai trong hồ sơ</span>' ) !== false, $h_lc );
+/* Hàng của cơ sở ĐÃ khai thì KHÔNG bị gắn nhãn oan. */
+$h_ok = vhcc_hr( $tok_tv, array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+t( 'cơ sở đã khai đúng thì không bị gắn nhãn',
+	strpos( $h_ok, 'chưa khai trong hồ sơ</span>' ) === false, $h_ok );
+
+/* 🔴 CƠ SỞ LẠ MÀ TÍNH THEO CÔNG THÌ VẪN PHẢI RA CÔNG, không rơi xuống nhánh cộng phút.
+   Thiếu nó là sửa xong lỗi này lại đẻ ra đúng cái lỗi vừa sửa ở bản trước, chỉ khác đường vào. */
+$cs_la_cong = 'KHO_CONG_LA';
+VHCC_Luong::dat_cach_tinh( $ad_2m, array( $cs_la_cong => 'cong' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LECH_C2', 'ho_ten' => 'Lệch Kiểu Công',
+	'cua_hang' => 'KHO_KHAI_KHAC', 'vai_tro' => 'Nhân viên' ) );
+vhcc_cham( $cs_la_cong, '2026-08-14', 'LECH_C2', '', '08:00:00', '17:30:00' );
+$tok_c2 = VHCC_Auth::phat_token( 'Lệch Kiểu Công', 'Nhân viên', 'KHO_KHAI_KHAC', 'LECH_C2' );
+$h_c2   = vhcc_hr( $tok_c2, array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+t( '🔴 cơ sở lạ tính theo công vẫn ghi "tính theo công"',
+	strpos( $h_c2, 'tính theo công' ) !== false, $h_c2 );
+/* 🔴 VÀ RA ĐÚNG CON SỐ, không phải 0. Nhãn đúng mà ô rỗng là hỏng nặng hơn: người đọc tin cái
+   nhãn. Cơ sở lạ không được đưa vào danh sách dựng thì `cong_vp_cua()` không hỏi engine cho nó,
+   ô rơi về 0.0 — nhãn vẫn ghi "tính theo công" nên nhìn qua tưởng đúng. */
+$b_c2 = VHCC_Luong::vp_bang_cong_va_luong( $cs_la_cong, '2026-08' );
+$cong_c2 = null;
+foreach ( (array) $b_c2['rows'] as $r_c2 ) {
+	if ( 'LECH_C2' === (string) $r_c2['ma'] ) { $cong_c2 = (float) $r_c2['tong']; }
+}
+t( 'engine có tính ra công cho người ở cơ sở lạ', null !== $cong_c2 && $cong_c2 > 0, $b_c2['rows'] );
+$ds_c2 = VHCC_Online::ds_coso_cua_nv( 'LECH_C2', 'KHO_KHAI_KHAC' );
+$kq_c2 = VHCC_Online::bang_thang( 'LECH_C2', $ds_c2, '2026-08' );
+$la_c2 = array();
+foreach ( (array) $kq_c2['dong'] as $d_c2 ) {
+	if ( ! in_array( (string) $d_c2['coSo'], $ds_c2, true ) ) { $la_c2[] = (string) $d_c2['coSo']; }
+}
+$lu_c2 = VHCC_Online::luoi_thang( $kq_c2['dong'], array_merge( $ds_c2, $la_c2 ), '2026-08', array(),
+	VHCC_Online::cong_vp_cua( 'LECH_C2', array_merge( $ds_c2, $la_c2 ), '2026-08' ) );
+$tong_c2 = null;
+foreach ( $lu_c2['hang'] as $h_x ) { if ( $cs_la_cong === $h_x['coSo'] ) { $tong_c2 = (float) $h_x['tong']; } }
+t( '🔴 TỔNG của cơ sở lạ = TỔNG của engine, KHÔNG phải 0',
+	null !== $tong_c2 && abs( $tong_c2 - (float) $cong_c2 ) < 0.005,
+	array( 'man' => $tong_c2, 'engine' => $cong_c2 ) );
+/* Và con số ấy in ra được trên màn — soi cả trang thì chuỗi "0" ở đâu cũng có, nên cắt đúng bảng. */
+$bang_c2 = '';
+$i_c2 = strpos( $h_c2, 'class="cc luoi-toi"' );
+if ( false !== $i_c2 ) {
+	$c_c2 = strpos( $h_c2, '</table>', $i_c2 );
+	$bang_c2 = ( false === $c_c2 ) ? '' : substr( $h_c2, $i_c2, $c_c2 - $i_c2 );
+}
+$chu_c2 = rtrim( rtrim( number_format( round( (float) $cong_c2, 2 ), 2, '.', '' ), '0' ), '.' );
+/* ⚠️ SOI Ô TỔNG, KHÔNG SOI CẢ BẢNG. Tiêu đề cột ngày in ra `>1<div class=…`, mà `strpos('>1<')`
+   khớp luôn tiền tố ấy — soi cả bảng là phép thử xanh kể cả khi hàng toàn số 0. Đã vấp đúng
+   bẫy này khi dựng phép thử, nên neo vào `<td class="tong">`. */
+preg_match_all( '#<td class="tong">([0-9.]+)#', $bang_c2, $mm_c2 );
+t( '🔴 và ô TỔNG trên màn mang đúng con số ấy, không phải 0',
+	'' !== $bang_c2 && ! empty( $mm_c2[1] ) && in_array( $chu_c2, $mm_c2[1], true ),
+	array( 'mong' => $chu_c2, 'thay' => isset( $mm_c2[1] ) ? $mm_c2[1] : null ) );
+
 /* ---- Cơ sở tính THEO GIỜ vẫn hiện giờ như cũ ---- */
 $cs_2g = 'SHOP_2M';
 VHCC_Luong::dat_cach_tinh( $ad_2m, array( $cs_2g => 'gio' ) );

@@ -673,14 +673,32 @@ class VHCC_Online {
 		if ( ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { $thang = current_time( 'Y-m' ); }
 		$rong = array( 'ok' => true, 'thang' => $thang, 'dong' => array(),
 			'tong' => array( 'ngay' => 0, 'luot' => 0, 'phut' => 0, 'thieuRa' => 0 ) );
-		if ( '' === $ma_nv || ! $ds_coso ) { return $rong; }
+		if ( '' === $ma_nv ) { return $rong; }
 
-		$oc = implode( ',', array_fill( 0, count( $ds_coso ), '%s' ) );
-		$tv = array_merge( array( $ma_nv, $thang . '-01', $thang . '-31' ), $ds_coso );
-		$r  = $wpdb->get_results( $wpdb->prepare(
+		/* 🔴 KHÔNG LỌC THEO DANH SÁCH CƠ SỞ NỮA. Anh Thắng 31/08/2026: *"2 bên đang lệch"* —
+		   màn quản lý cho thấy chị Tường Vi có cả một tháng giờ ở `PART_TIME (POSHJP)`, còn màn
+		   của chính chị thì hàng ấy trống trơn. Vì hồ sơ khai tên `(PART TIME )_POSH+JP` — cùng
+		   một cửa hàng, hai cách gõ — nên mệnh đề `coso IN (...)` không khớp, và **cả tháng
+		   công biến mất trong im lặng**.
+
+		   Danh sách cơ sở là thứ do NGƯỜI khai, sổ chấm công là thứ do MÁY ghi; bắt cái do máy
+		   ghi phải khớp từng ký tự với cái do người gõ thì mỗi lần lệch một dấu cách là một
+		   người mất công. Và người mất công lại là người KHÔNG có quyền sửa hồ sơ.
+
+		   Đây là công của CHÍNH người đang xem — không có gì phải che. Lấy hết, rồi để lưới bày
+		   ra đủ mọi cơ sở; hàng nào không có trong hồ sơ thì màn hình KÊU LÊN (xem
+		   `VHCC_Web::the_cong_toi()`), để người ta cầm đi báo quản lý sửa hồ sơ.
+
+		   ⚠️ KHÔNG tự khớp gần đúng hai cái tên. Đoán `(PART TIME )_POSH+JP` với
+		      `PART_TIME (POSHJP)` là một là đúng trong ca này và sai trong ca khác — mà sai thì
+		      công chạy sang bảng lương của cửa hàng khác. Hiện đúng tên trong sổ, và nói ra chỗ
+		      lệch, là việc của phần mềm; quyết định hai tên ấy có phải một không là việc của
+		      người khai. */
+		$r = $wpdb->get_results( $wpdb->prepare(
 			'SELECT coso, ngay, hau_to, gio_vao_giay, gio_ra_giay FROM ' . VHCC_DB::t( 'cham_cong' )
-			. " WHERE ma_nv=%s AND ngay BETWEEN %s AND %s AND coso IN ($oc)"
-			. ' ORDER BY ngay ASC, coso ASC, hau_to ASC', $tv ), ARRAY_A );
+			. ' WHERE ma_nv=%s AND ngay BETWEEN %s AND %s'
+			. ' ORDER BY ngay ASC, coso ASC, hau_to ASC',
+			$ma_nv, $thang . '-01', $thang . '-31' ), ARRAY_A );
 
 		$dong    = array();
 		$co_ngay = array();

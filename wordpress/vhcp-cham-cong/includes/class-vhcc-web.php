@@ -2921,10 +2921,33 @@ class VHCC_Web {
 		echo '<h3 style="margin:16px 0 6px">Công tháng</h3>';
 		echo '<p class="mo" style="margin:0 0 8px">Mỗi cơ sở một hàng — đối chiếu thẳng với bảng '
 			. 'của quản lý. Ô nền đỏ là ngày thiếu giờ ra, chưa tính được.</p>';
-		/* Số công của cơ sở tính THEO CÔNG lấy từ chính engine dựng nên bảng của quản lý —
-		   một nguồn, một con số. Xem `VHCC_Online::cong_vp_cua()`. */
-		self::luoi_cong_toi( VHCC_Online::luoi_thang( $kq['dong'], $ds_cs, $th, array(),
-			VHCC_Online::cong_vp_cua( $ma_nv, $ds_cs, $th ) ) );
+		/* 🔴 CƠ SỞ CÓ TRONG SỔ MÀ KHÔNG CÓ TRONG HỒ SƠ THÌ PHẢI KÊU LÊN.
+		   Anh Thắng 31/08/2026: *"2 bên đang lệch"* — bảng của quản lý có cả tháng giờ ở
+		   `PART_TIME (POSHJP)`, màn của chính người ấy thì hàng đó trống, vì hồ sơ khai
+		   `(PART TIME )_POSH+JP`: cùng một cửa hàng, hai cách gõ. Nay lưới bày ra ĐỦ (xem
+		   `VHCC_Online::bang_thang()`), nhưng bày ra thôi thì người đọc chỉ thấy một cái tên lạ
+		   và không biết phải làm gì. Nói thẳng: hồ sơ đang thiếu tên ấy, đi báo ai để sửa. */
+		$cs_la = array();
+		foreach ( (array) $kq['dong'] as $d_la ) {
+			$c_la = isset( $d_la['coSo'] ) ? (string) $d_la['coSo'] : '';
+			if ( '' === $c_la || in_array( $c_la, $ds_cs, true ) || in_array( $c_la, $cs_la, true ) ) { continue; }
+			$cs_la[] = $c_la;
+		}
+		/* Danh sách để DỰNG LƯỚI gồm cả cơ sở lạ — thiếu chúng thì hàng ấy vẫn hiện (lưới tự
+		   thêm) nhưng `cong_vp_cua()` không biết mà hỏi engine, và cơ sở tính theo công lại rơi
+		   xuống nhánh cộng phút: đúng cái lệch vừa sửa ở bản trước, chỉ đổi đường vào. */
+		$ds_ve = array_merge( $ds_cs, $cs_la );
+		self::luoi_cong_toi( VHCC_Online::luoi_thang( $kq['dong'], $ds_ve, $th, array(),
+			VHCC_Online::cong_vp_cua( $ma_nv, $ds_ve, $th ) ), $cs_la );
+		if ( $cs_la ) {
+			echo '<p class="loi" style="margin:8px 0 0"><b>Hồ sơ của anh/chị chưa khai '
+				. ( 1 === count( $cs_la ) ? 'cơ sở' : count( $cs_la ) . ' cơ sở' ) . ': '
+				. esc_html( implode( ' · ', $cs_la ) ) . '</b> — nhưng sổ chấm công tháng này CÓ '
+				. 'lượt của anh/chị ở đó, nên bảng trên vẫn tính đủ. Thường là do tên cửa hàng '
+				. 'trong hồ sơ gõ khác một chút với tên máy chấm công đang ghi. '
+				. 'Nhờ quản lý cửa hàng hoặc kế toán sửa lại ô <b>Cơ sở</b> trong hồ sơ nhân sự — '
+				. 'để lịch làm việc và bảng lương cũng nhìn thấy phần công này.</p>';
+		}
 
 		/* BẢNG 2 — GHI GIỜ VÀO RA. Sổ gốc: từng lượt một, không cộng gì. */
 		echo '<h3 style="margin:18px 0 6px">Giờ vào — giờ ra từng lượt</h3>';
@@ -2962,7 +2985,7 @@ class VHCC_Web {
 	 * ⚠️ KHÔNG BẤM SỬA ĐƯỢC Ở ĐÂY. Lưới của màn quản trị bấm vào ô là sửa giờ; lưới này chỉ
 	 *    đọc. Nhân viên tự sửa giờ công của mình thì con số hết là bằng chứng.
 	 */
-	private static function luoi_cong_toi( $luoi ) {
+	private static function luoi_cong_toi( $luoi, $cs_la = array() ) {
 		if ( empty( $luoi['hang'] ) ) { return; }
 		$so_ngay = (int) $luoi['soNgay'];
 		$tt      = (string) $luoi['thang'];
@@ -2987,7 +3010,12 @@ class VHCC_Web {
 			   với bản của quản lý"*. */
 			$la_cong = ( 'ngay' === $h['kieu'] || 'cong' === $h['kieu'] );
 			$don_vi  = $la_cong ? 'công' : 'giờ';
+			/* Nhãn ngay tại hàng, không chỉ một câu ở cuối bảng: có ba bốn hàng thì câu cuối
+			   bảng không chỉ được hàng nào đang lệch. */
+			$la_moi = in_array( (string) $h['coSo'], (array) $cs_la, true );
 			echo '<tr><td><b>' . esc_html( $h['coSo'] ) . '</b>'
+				. ( $la_moi ? ' <span class="duoi" style="background:#fee2e2;color:#b91c1c">'
+					. 'chưa khai trong hồ sơ</span>' : '' )
 				. '<div class="mo" style="font-size:10.5px">tính theo ' . esc_html( $don_vi ) . '</div></td>';
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
 				$ngay_o = $tt . '-' . str_pad( (string) $i, 2, '0', STR_PAD_LEFT );

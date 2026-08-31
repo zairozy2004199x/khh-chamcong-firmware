@@ -359,11 +359,25 @@ $bt999 = VHCC_Online::bang_thang( 'NV999', array( 'VIVO' ), '2026-08' );
 t( 'KHÔNG lẫn lượt của người khác: mã khác ra bảng khác',
 	1 === count( $bt999['dong'] ) && 3 === count( $bt['dong'] ), $bt999 );
 
-/* 🔴 Không có mã NV, hoặc không có cơ sở nào -> trả bảng RỖNG, không trả cả bảng của cơ sở. */
+/* 🔴 KHÔNG CÓ MÃ NV -> BẢNG RỖNG. Mã là thứ duy nhất buộc lượt chấm vào một người; thiếu nó
+   thì không có cách nào biết bảng này của ai, và trả bừa cả bảng của cơ sở là lộ công người
+   khác cho người đang ngồi trước máy. */
 $bt0 = VHCC_Online::bang_thang( '', array( 'VIVO' ), '2026-08' );
 t( 'mã NV rỗng -> bảng rỗng', 0 === count( $bt0['dong'] ) && 0 === $bt0['tong']['luot'] );
+
+/* 🔴 NHƯNG HỒ SƠ CHƯA KHAI CƠ SỞ NÀO THÌ VẪN PHẢI THẤY CÔNG CỦA MÌNH — đổi từ bản 3.22.0.
+   Anh Thắng 31/08/2026: *"2 bên đang lệch"*. Trước bản này hàm lọc `coso IN (danh sách khai
+   trong hồ sơ)`, nên chỉ cần tên cửa hàng trong hồ sơ gõ lệch một dấu cách với tên máy chấm
+   công đang ghi là CẢ THÁNG CÔNG biến mất, im lặng. Ca "chưa khai cơ sở nào" là cùng một lỗi
+   ở dạng cực đoan: hồ sơ mới, người ta đã đi làm và đã bấm máy, mà màn của họ trống trơn.
+   Sổ chấm công do MÁY ghi; danh sách cơ sở do NGƯỜI gõ. Đây là công của CHÍNH người đang xem
+   — lấy hết, rồi để màn hình kêu lên chỗ hồ sơ còn thiếu. */
 $bt0 = VHCC_Online::bang_thang( 'NV_BT', array(), '2026-08' );
-t( 'không cơ sở nào -> bảng rỗng', 0 === count( $bt0['dong'] ) );
+t( '🔴 chưa khai cơ sở nào thì VẪN thấy công của chính mình', count( $bt0['dong'] ) > 0, $bt0 );
+$bt_du = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), '2026-08' );
+t( 'và đủ y như khi hồ sơ khai đúng cơ sở',
+	count( $bt_du['dong'] ) === count( $bt0['dong'] ),
+	array( 'khai' => count( $bt_du['dong'] ), 'khong_khai' => count( $bt0['dong'] ) ) );
 /* Tháng sai khuôn -> tháng hiện tại, KHÔNG phải nuốt lỗi rồi quét cả bảng. */
 $btx = VHCC_Online::bang_thang( 'NV_BT', array( 'VIVO' ), 'linh tinh' );
 t( 'tháng sai khuôn rơi về tháng hiện tại',
