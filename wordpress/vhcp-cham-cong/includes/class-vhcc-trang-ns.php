@@ -551,7 +551,15 @@ class VHCC_TrangNS {
 
 	private static function viec_luu( $toi ) {
 		$sach = self::doc_o();
-		if ( ! $sach ) { return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) ); }
+		/* 🔴 CHỐI CẢ LƯỢT KHI **MỌI** NHÓM ĐỀU VẮNG, KHÔNG PHẢI KHI RIÊNG BẢNG Ô VẮNG.
+		   Một lượt Lưu chở BỐN nhóm độc lập: ô quyền (`o`), vai trò (`vai`), cơ sở (`cs_co`)
+		   và quyền trang Nội bộ. Bắt riêng `o` rỗng là vứt sạch ba nhóm kia — mà lại vứt kèm
+		   câu "Biểu mẫu không hợp lệ", nên người bấm đi kiểm trình duyệt chứ không ngờ dữ liệu
+		   mình gửi vẫn nguyên vẹn. Hôm nay trang luôn vẽ cột quyền nên `o` luôn có mặt và lỗi
+		   không lộ; ngày cột ấy ẩn đi với một vai nào đó thì đổi cơ sở im lặng không ăn. */
+		if ( ! $sach && ! isset( $_POST['vai'] ) && ! isset( $_POST['cs_co'] ) && ! isset( $_POST['nb'] ) ) {
+			return array( array( 'loi' => 'Biểu mẫu không hợp lệ.' ) );
+		}
 		list( $sach, $ghe, $chi_phi ) = self::tach_ghe( $sach );
 		$bao_ghe = array_merge( self::luu_ghe( $toi, $ghe ), self::luu_chi_phi( $toi, $chi_phi ) );
 		$kq = VHCC_Cong::luu_nhieu( $toi, $sach );
@@ -587,18 +595,27 @@ class VHCC_TrangNS {
 	/**
 	 * Chuyển cơ sở cho những người vừa đổi ô Cơ sở.
 	 *
-	 * ⚠️ ĐI QUA `VHCC_NhanSu::dat_co_so()` TỪNG NGƯỜI. Chốt bậc, chốt phụ trách cả hai cơ sở, và
-	 *    bước RESET ngoại lệ quyền đều nằm trong hàm ấy — ghi tắt ở đây là bỏ cả ba.
+	 * ⚠️ ĐI QUA `VHCC_NhanSu::dat_ds_coso()` TỪNG NGƯỜI. Chốt bậc, chốt phụ trách cả cơ sở CŨ
+	 *    lẫn cơ sở MỚI, bước khử tên trùng và bước RESET ngoại lệ quyền đều nằm trong hàm ấy —
+	 *    ghi tắt ở đây là bỏ hết.
 	 */
 	private static function luu_coso( $toi ) {
+		/* 🔴 DUYỆT THEO `cs_co`, KHÔNG THEO `cs`. Ô tích bỏ hết thì trình duyệt KHÔNG gửi `cs[MA]`
+		   nào cả — duyệt theo `cs` là hàng ấy biến mất khỏi lượt lưu, và người ta bỏ tích xong
+		   bấm Lưu thấy y nguyên, bấm lại mấy lượt rồi thôi. `cs_co[MA]` là ô ẩn luôn có mặt cho
+		   MỌI hàng đang hiện, nên nó mới là danh sách "hàng nào có gửi cơ sở lên". */
 		$gui = isset( $_POST['cs'] ) ? wp_unslash( $_POST['cs'] ) : array();
+		$co  = isset( $_POST['cs_co'] ) ? wp_unslash( $_POST['cs_co'] ) : array();
 		$ra  = array( 'doi' => 0, 'go' => 0, 'loi' => array() );
-		if ( ! is_array( $gui ) ) { return $ra; }
-		foreach ( $gui as $ma => $v ) {
+		if ( ! is_array( $gui ) ) { $gui = array(); }
+		if ( ! is_array( $co ) || ! $co ) { return $ra; }
+		foreach ( $co as $ma => $bo_qua ) {
 			$ma_s = sanitize_text_field( (string) $ma );
-			$v_s  = sanitize_text_field( is_array( $v ) ? '' : (string) $v );
 			if ( '' === $ma_s ) { continue; }
-			$r = VHCC_NhanSu::dat_co_so( $toi, $ma_s, $v_s );
+			$v = isset( $gui[ $ma ] ) ? $gui[ $ma ] : array();
+			$ds_cs = array();
+			foreach ( (array) $v as $x ) { $ds_cs[] = sanitize_text_field( (string) $x ); }
+			$r = VHCC_NhanSu::dat_ds_coso( $toi, $ma_s, $ds_cs );
 			if ( empty( $r['ok'] ) ) {
 				$ra['loi'][ $r['error'] ] = $ma_s . ': ' . $r['error'];
 				continue;
@@ -896,6 +913,13 @@ class VHCC_TrangNS {
 			. '.pin-o.pin-loi{background:#fef2f2;border-color:#fecaca;color:var(--do)}'
 			. '.pin-so{font-size:17px;font-weight:700;letter-spacing:2px;color:#92400e}'
 			. '.pin-nhac{color:var(--mo);font-size:11px;margin-left:6px}'
+			/* Lưới ô tích cơ sở trong cột hẹp: xếp dọc, chữ nhỏ, cuộn khi quá dài. Một người
+			   hiếm khi quá 3–4 cơ sở, nhưng cột này còn phải sống được ở chuỗi 26 cửa hàng. */
+			. '.o-cs-tich{display:flex;flex-direction:column;gap:1px;max-height:112px;overflow:auto;'
+			. 'min-width:132px}'
+			. '.o-cs-tich label{display:flex;align-items:center;gap:5px;font-size:11.5px;'
+			. 'white-space:nowrap;cursor:pointer}'
+			. '.o-cs-tich input[disabled]+*,.o-cs-tich label:has(input[disabled]){color:var(--mo)}'
 			. '.xoa-hs{color:var(--do);border-color:#fecaca}'
 			. '.xoa-hs:hover{color:#fff;background:var(--do);border-color:var(--do)}'
 			/* Nút xoá thật (nhịp hai): đỏ đặc, không lẫn với nút Lưu xanh. */
@@ -1700,7 +1724,7 @@ class VHCC_TrangNS {
 				if ( $dang_pin === $ma ) { self::o_xem_pin( $toi, $ma ); }
 			}
 			echo '</td>';
-			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'] ) . '</td>';
+			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'], $r ) . '</td>';
 			echo '<td>' . self::o_vai( $toi, $ma, isset( $r['vai_tro'] ) ? $r['vai_tro'] : '' ) . '</td>';
 
 			/* Giả một "người" chỉ có mã + vai, để hỏi `VHCC_Cong` xem MẶC ĐỊNH của họ ra sao.
@@ -1948,29 +1972,57 @@ class VHCC_TrangNS {
 	 *    tạo cơ sở nào. Cho gõ tay ở đây là đẻ ra "VP_KH_HCM " với một dấu cách ở cuối, và từ đó
 	 *    trở đi nó là một cơ sở khác trong mọi bảng tổng hợp.
 	 */
-	private static function o_coso( $toi, $ma, $cs_cu ) {
-		if ( '' === $ma || ! VHCC_NhanSu::co_quan_tri_nv( $toi )
-			|| ! VHCC_NhanSu::co_quyen_coso( $toi, $cs_cu ) ) {
-			return esc_html( $cs_cu );
+	/**
+	 * Ô CƠ SỞ — LƯỚI Ô TÍCH, NHIỀU CƠ SỞ MỘT NGƯỜI.
+	 *
+	 * Anh Thắng 31/08/2026: *"thay vì cửa hàng trưởng làm ở 1 cơ sở đó, tích chọn quản lý các cơ
+	 * sở khác, thì có thể quản lý các nhân viên ở các cơ sở khác"*, và chốt **một ô chung**: tích
+	 * cơ sở nào là vừa làm việc vừa quản ở đó.
+	 *
+	 * 🔴 Ô XỔ CHỌN MỘT LÀ CÁI CÒN SÓT LẠI. Màn Hồ sơ đã đổi sang lưới ô tích từ bản 3.13.0, còn
+	 *    trang này vẫn bắt chọn đúng một — hai màn nói hai kiểu về cùng một thứ, và bấm Lưu ở
+	 *    đây là xoá sạch những cơ sở khai bên kia.
+	 *
+	 * ⚠️ CƠ SỞ NGƯỜI TA ĐANG KHAI MÀ MÌNH KHÔNG PHỤ TRÁCH thì VẪN hiện, tích sẵn, và KHOÁ lại
+	 *    (`disabled` + ô ẩn chở giá trị). Không hiện thì bấm Lưu là lặng lẽ gỡ người ta khỏi một
+	 *    cơ sở mình không có quyền đụng tới; hiện mà cho bỏ tích thì cũng thế.
+	 */
+	private static function o_coso( $toi, $ma, $cs_cu, $hs = array() ) {
+		$dang = VHCC_NhanSu::ds_coso_hs( is_array( $hs ) && $hs
+			? $hs : array( 'cua_hang' => $cs_cu, 'coso_phu' => '' ) );
+		if ( '' === $ma || ! VHCC_NhanSu::co_quan_tri_nv( $toi ) ) {
+			return esc_html( implode( ', ', $dang ) );
 		}
+		$co_dang = array();
+		foreach ( $dang as $c ) { $co_dang[ VHCC_NhanSu::chu_thuong( $c ) ] = $c; }
+
 		$ds = VHCC_NhanSu::ds_coso();
-		$h  = '<select class="o-q-vai" name="cs[' . esc_attr( $ma ) . ']">';
-		$co = false;
+		foreach ( $dang as $c ) {
+			if ( ! in_array( $c, $ds, true ) ) { $ds[] = $c; }
+		}
+		sort( $ds );
+
+		$ten = 'cs[' . esc_attr( $ma ) . '][]';
+		$h   = '<div class="o-cs-tich">';
 		foreach ( $ds as $c ) {
-			if ( ! VHCC_NhanSu::co_quyen_coso( $toi, $c ) ) { continue; }
-			$chon = ( strtolower( trim( $cs_cu ) ) === strtolower( $c ) );
-			if ( $chon ) { $co = true; }
-			$h .= '<option value="' . esc_attr( $c ) . '"' . selected( true, $chon, false ) . '>'
-				. esc_html( $c ) . '</option>';
+			$k     = VHCC_NhanSu::chu_thuong( $c );
+			$tich  = isset( $co_dang[ $k ] );
+			$duoc  = VHCC_NhanSu::co_quyen_coso( $toi, $c );
+			if ( ! $duoc && ! $tich ) { continue; }   // không quản, không khai -> không bày ra
+			$h .= '<label' . ( $duoc ? '' : ' title="Cơ sở bạn không phụ trách — giữ nguyên"' ) . '>'
+				. '<input type="checkbox" name="' . $ten . '" value="' . esc_attr( $c ) . '"'
+				. checked( true, $tich, false ) . ( $duoc ? '' : ' disabled' ) . '>'
+				. esc_html( $c ) . '</label>';
+			/* Ô khoá không gửi giá trị lên — chở bằng ô ẩn, kẻo lượt Lưu gỡ mất nó. */
+			if ( ! $duoc && $tich ) {
+				$h .= '<input type="hidden" name="' . $ten . '" value="' . esc_attr( $c ) . '">';
+			}
 		}
-		/* Cơ sở hiện tại không có trong danh sách (gõ lệch, cơ sở đã bỏ) thì GIỮ nó làm lựa chọn
-		   đang chọn — không giữ thì ô tự nhảy về dòng đầu, và bấm Lưu một cái là chuyển cả trang
-		   người sang một cơ sở không ai định chuyển. */
-		if ( ! $co ) {
-			$h .= '<option value="' . esc_attr( $cs_cu ) . '" selected>'
-				. esc_html( '' === trim( $cs_cu ) ? '— chưa khai —' : $cs_cu ) . '</option>';
-		}
-		return $h . '</select>';
+		/* 🔴 Ô ẨN ĐÁNH DẤU "HÀNG NÀY CÓ GỬI CƠ SỞ". Bỏ tích HẾT thì trình duyệt không gửi phần
+		   tử nào, và nơi xử không phân biệt nổi "người ta bỏ hết" với "hàng này không có trên
+		   trang" — đoán sai chiều nào cũng hỏng: một bên xoá oan, một bên không xoá được. */
+		$h .= '<input type="hidden" name="cs_co[' . esc_attr( $ma ) . ']" value="1">';
+		return $h . '</div>';
 	}
 
 	/**

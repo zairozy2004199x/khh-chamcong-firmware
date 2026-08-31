@@ -4351,6 +4351,25 @@ $ds_phu = VHCC_NhanSu::ds_coso_cua( array( 'coso' => isset( $kq_phu['coso'] ) ? 
 t( 'và ds_coso_cua() tách được thành ĐÚNG HAI phần tử (nối bằng phẩy, không phải chấm phẩy)',
 	array( 'FZ_ADV_TP', 'TUTU_GV' ) === $ds_phu, $ds_phu );
 VHCC_Auth::mo_khoa();
+
+/* 🔴 TIỀN TỐ `CS_` PHẢI RỤNG Ở **MỌI** PHẦN TỬ, KHÔNG CHỈ PHẦN TỬ ĐẦU.
+   `users_cua()` nối bằng `', '` — có dấu cách. `ds_coso_cua()` `explode(',')` ra
+   `'CS_X'` và `' CS_Y'`; cái sau còn nguyên dấu cách đầu chuỗi. `chuan_coso()` trước bản
+   3.17.0 gọi `preg_replace('/^CS_/','')` TRƯỚC `trim()`, nên `^` không khớp và tiền tố ở lại.
+   Kết quả: người ấy phụ trách `'Y'` theo hồ sơ (đã chuẩn hoá) nhưng thẻ phiên nói `'CS_Y'`,
+   hai chuỗi khác nhau, `co_quyen_coso()` chối — họ CHỈ THẤY MỘT cơ sở. Đúng cái anh Thắng
+   vấp 30/08. Lỗi im lặng vì cơ sở ĐẦU vẫn đúng: nhìn qua tưởng hệ chạy.
+   Phép thử phải soi phần tử THỨ HAI; soi phần tử đầu thì xanh cả khi lỗi còn nguyên. */
+$ds_tt = VHCC_NhanSu::ds_coso_cua( array( 'coso' => 'CS_FZ_ADV_TP, CS_TUTU_GV' ) );
+t( '🔴 tiền tố CS_ rụng ở CẢ phần tử thứ hai của chuỗi nối bằng ", "',
+	array( 'FZ_ADV_TP', 'TUTU_GV' ) === $ds_tt, $ds_tt );
+teq( 'và chuan_coso() nuốt dấu cách thừa trước khi gỡ tiền tố', 'TUTU_GV',
+	VHCC_NhanSu::chuan_coso( ' CS_TUTU_GV ' ) );
+/* Nên người khai `CS_` ở thẻ phiên vẫn quản được cơ sở khai KHÔNG có tiền tố trong hồ sơ. */
+t( 'nhờ thế thẻ phiên có tiền tố vẫn khớp hồ sơ không tiền tố',
+	VHCC_NhanSu::co_quyen_coso(
+		array( 'role' => 'Cửa hàng trưởng', 'coso' => 'CS_FZ_ADV_TP, CS_TUTU_GV' ), 'TUTU_GV' ) );
+
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv='HS_PHU'" );
 /* 🔴 Hồ sơ CHƯA khai vai trò -> 'Nhân viên', bậc THẤP NHẤT, KHÔNG đoán lên cao. Đoán nhầm lên
    Admin là mở toàn bộ bảng lương cho một dòng gõ sai chính tả.
@@ -10622,18 +10641,223 @@ t( 'chưa chọn cơ sở đích thì chối', empty( $r['ok'] ), $r );
 delete_option( VHCC_Cong::O );
 VHCC_Cong::dat( $U_AD, 'CV1', 'tram', 'khoa' );
 $db_h = vhcc_ns( 'Admin' );
-t( '🔴 cột Cơ sở là ô xổ, chuyển được',
-	preg_match( '/<select[^>]*name="cs\[CV1\]"/', $db_h ) === 1, $db_h );
+/* 🔴 CỘT CƠ SỞ LÀ LƯỚI Ô TÍCH, NHIỀU CƠ SỞ MỘT NGƯỜI — anh Thắng 31/08/2026: *"thay vì cửa hàng
+   trưởng làm ở 1 cơ sở đó, tích chọn quản lý các cơ sở khác, thì có thể quản lý các nhân viên ở
+   các cơ sở khác"*, chốt **một ô chung**: tích cơ sở nào là vừa làm vừa quản ở đó.
+   Ô xổ chọn MỘT là cái còn sót lại — màn Hồ sơ đã đổi sang ô tích từ bản 3.13.0, để hai màn nói
+   hai kiểu thì bấm Lưu ở đây là xoá sạch cơ sở khai bên kia. */
+t( '🔴 cột Cơ sở là lưới Ô TÍCH, không phải ô xổ chọn một',
+	preg_match( '/name="cs\[CV1\]\[\]"/', $db_h ) === 1
+	&& preg_match( '/<select[^>]*name="cs\[CV1\]"/', $db_h ) !== 1, $db_h );
+/* Ô ẩn đánh dấu hàng có gửi cơ sở — thiếu nó thì bỏ tích hết là lượt lưu bỏ qua hàng ấy. */
+t( 'kèm ô ẩn đánh dấu hàng này có gửi cơ sở',
+	strpos( $db_h, 'name="cs_co[CV1]"' ) !== false, $db_h );
 t( 'và bảng NÓI RA luật reset, đừng để người ta ngạc nhiên',
 	strpos( $db_h, 'quyền riêng của người đó reset về mặc định' ) !== false, $db_h );
 vhcc_ns_luu( 'Admin', 'ADM', array( 'o' => array( 'CV1' => array( 'tram' => 'khoa' ) ),
-	'cs' => array( 'CV1' => 'TUTU_BT' ) ) );
+	'cs' => array( 'CV1' => array( 'TUTU_BT' ) ), 'cs_co' => array( 'CV1' => '1' ) ) );
 teq( 'chuyển qua màn hình thì hồ sơ đổi cơ sở', 'TUTU_BT', VHCC_NhanSu::ho_so( 'CV1' )['cua_hang'] );
 /* 🔴 THỨ TỰ: quyền lưu TRƯỚC, cơ sở chuyển SAU. Chạy ngược lại thì bước reset xoá luôn mấy ô
    quyền vừa lưu ở chính lượt này, mà màn hình vẫn báo "đã lưu N ô". */
 teq( '🔴 và quyền riêng reset về mặc định, kể cả ô vừa gửi cùng lượt',
 	'', VHCC_Cong::o( 'CV1', 'tram' ) );
 delete_option( VHCC_Cong::O );
+
+/* ---------------------------------------------------------------------------------------------
+ * LƯỚI Ô TÍCH NHÌN QUA MẮT NGƯỜI KHAI CHỈ PHỤ TRÁCH MỘT VÀI CƠ SỞ
+ * ---------------------------------------------------------------------------------------------
+ * ⚠️ PHẢI KHOÁ `cong_tat_ca` CHO NGƯỜI KHAI THÌ MỚI THỬ ĐƯỢC BA NHÁNH DƯỚI ĐÂY. Vai Kế toán —
+ *    bậc thấp nhất qua nổi cửa trang này — mặc định phụ trách MỌI cơ sở, nên `$duoc` luôn đúng
+ *    và ba nhánh "cơ sở mình không phụ trách" không bao giờ chạy. Chúng sống cho ngày có kế
+ *    toán vùng, và bảng chia đầu việc là đường tạo ra ngày ấy.
+ */
+/**
+ * Cắt lấy đúng MỘT hàng `<tr>` — hàng chứa cái mốc truyền vào.
+ *
+ * 🔴 SOI CẢ TRANG LÀ XANH GIẢ. Một trang nhân sự có mấy chục hàng, mỗi hàng một lưới ô tích;
+ *    `strpos( $ca_trang, 'disabled' )` khớp ở hàng bất kỳ, kể cả hàng của người khác. Phép thử
+ *    ấy vẫn xanh khi đúng hàng ta quan tâm đã hỏng.
+ */
+function vhcc_khuc( $html, $moc ) {
+	$i = strpos( $html, $moc );
+	if ( false === $i ) { return ''; }
+	$d = strrpos( substr( $html, 0, $i ), '<tr' );
+	$c = strpos( $html, '</tr>', $i );
+	if ( false === $d || false === $c ) { return ''; }
+	return substr( $html, $d, $c - $d );
+}
+
+$cs_nl_cu = get_option( VHCC_Vai::O_NGOAI_LE );
+$ns_ad = array( 'name' => 'Sếp NS', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'NSAD' );
+VHCC_Vai::dat_ngoai_le( $ns_ad, 'nv:QN3', 'cong_tat_ca', 'khoa' );
+/* CV1 làm ở TUTU_BT (người khai phụ trách) VÀ ở KHO_LA (không phụ trách). */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'cua_hang' => 'TUTU_BT', 'coso_phu' => 'KHO_LA' ), array( 'ma_nv' => 'CV1' ) );
+/* Một cơ sở có trong danh mục mà người khai không quản, CV1 cũng không khai. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CV_XA', 'ho_ten' => 'Người Xa',
+	'cua_hang' => 'KHO_XA', 'vai_tro' => 'Nhân viên' ) );
+$db_v = vhcc_ns( 'Kế toán' );
+$hang_cv1 = vhcc_khuc( $db_v, 'name="cs[CV1][]"' );
+
+t( 'ô cơ sở MÌNH phụ trách thì tích được',
+	preg_match( '/name="cs\[CV1\]\[\]" value="TUTU_BT"(?![^>]*disabled)/', $hang_cv1 ) === 1, $hang_cv1 );
+/* 🔴 Cơ sở người ta đang khai mà mình không phụ trách: BÀY RA nhưng KHOÁ. Giấu đi thì người
+   khai không hiểu vì sao bảng công của người này lại có một cột lạ; mở ra thì một cửa hàng
+   trưởng vùng gỡ được người khỏi cơ sở của vùng khác mà bên kia không hay. */
+t( '🔴 ô cơ sở mình KHÔNG phụ trách thì bày ra nhưng KHOÁ',
+	preg_match( '/name="cs\[CV1\]\[\]" value="KHO_LA"[^>]*disabled/', $hang_cv1 ) === 1, $hang_cv1 );
+/* 🔴 Ô khoá KHÔNG gửi giá trị lên — phải có ô ẩn chở hộ, kẻo bấm Lưu là gỡ mất cơ sở ấy.
+   Đây là cách hỏng tệ nhất trong cả khối: màn hình báo "đã lưu", không ai bấm nhầm gì cả, mà
+   người ta lặng lẽ rơi khỏi một cửa hàng. */
+t( '🔴 và có ô ẩn chở hộ giá trị của ô khoá',
+	preg_match( '/<input type="hidden" name="cs\[CV1\]\[\]" value="KHO_LA">/', $hang_cv1 ) === 1, $hang_cv1 );
+t( 'cơ sở mình không quản mà người ta cũng không khai thì KHÔNG bày ra',
+	strpos( $hang_cv1, 'value="KHO_XA"' ) === false, $hang_cv1 );
+/* Cơ sở khai trong `coso_phu` chưa từng xuất hiện ở cột `cua_hang` nào -> `ds_coso()` không
+   biết nó. Lưới vẫn phải có, nếu không thì bấm Lưu là mất. */
+t( '🔴 cơ sở người ta đang khai mà danh mục chưa biết vẫn có mặt trong lưới',
+	substr_count( $hang_cv1, 'value="KHO_LA"' ) >= 1, $hang_cv1 );
+
+/* 🔴 BỎ TÍCH HẾT QUA MÀN HÌNH: hàng vẫn phải được xử, và cơ sở KHOÁ vẫn phải ở lại.
+   Trình duyệt không gửi `cs[CV1]` nào khi bỏ tích sạch; `cs_co[CV1]` là thứ duy nhất nói
+   "hàng này có trên trang". Ở đây trang gửi lên ô ẩn của cơ sở khoá, nên KHO_LA còn. */
+/* 🔴 GỬI LƯỢT NÀY **KHÔNG KÈM** BẢNG Ô QUYỀN — đó là nửa còn lại của phép thử.
+   `viec_luu()` từng chối cả lượt khi riêng `$_POST['o']` rỗng, kèm câu "Biểu mẫu không hợp
+   lệ": ba nhóm kia (vai, cơ sở, quyền trang Nội bộ) bị vứt sạch dù hoàn toàn hợp lệ. Trang
+   thật luôn vẽ cột quyền nên `o` luôn có mặt và lỗi ấy không lộ ra — chỉ có phép thử này gọi
+   thẳng mới thấy. Thêm `'o' => …` vào đây là phép thử tự bịt mắt mình. */
+$cs_h = vhcc_ns_luu( 'Kế toán', 'QN3', array( 'cs' => array( 'CV1' => array( 'KHO_LA' ) ),
+	'cs_co' => array( 'CV1' => '1' ) ) );
+t( '🔴 lượt Lưu KHÔNG kèm bảng ô quyền vẫn chạy, không bị gạt là "biểu mẫu không hợp lệ"',
+	strpos( $cs_h, 'Biểu mẫu không hợp lệ' ) === false
+	&& strpos( $cs_h, 'sang cơ sở khác' ) !== false, $cs_h );
+teq( '🔴 bỏ tích hết qua màn hình thì cơ sở phụ trách rụng, cơ sở khoá ở lại', 'KHO_LA',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CV1' ) ) ) );
+
+
+/* 🔴 BỎ TÍCH **SẠCH SÀNH SANH**: không một `cs[MA]` nào lên, chỉ còn ô ẩn `cs_co[MA]`.
+   Đây là ca duy nhất phân biệt được "duyệt theo `cs_co`" với "duyệt theo `cs`" — phép trên
+   không phân biệt nổi, vì ở đó ô khoá vẫn chở một giá trị lên nên `cs[CV1]` có mặt. Duyệt
+   nhầm theo `cs` thì hàng này biến mất khỏi lượt lưu: người ta bỏ tích, bấm Lưu, thấy y
+   nguyên, bấm lại mấy lượt rồi thôi — và không có câu lỗi nào để mà đi hỏi. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'CV_HET', 'ho_ten' => 'Bỏ Tích Hết',
+	'cua_hang' => 'TUTU_BT', 'vai_tro' => 'Nhân viên' ) );
+vhcc_ns_luu( 'Kế toán', 'QN3', array( 'cs_co' => array( 'CV_HET' => '1' ) ) );
+teq( '🔴 bỏ tích SẠCH (không gửi cs[MA] nào) thì hồ sơ hết cơ sở', 0,
+	count( VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CV_HET' ) ) ) );
+
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) . " WHERE ma_nv IN ('CV_XA','CV_HET')" );
+update_option( VHCC_Vai::O_NGOAI_LE, $cs_nl_cu );
+VHCC_Vai::quen_nho_nl();
+delete_option( VHCC_Cong::O );
+
+/* =============================================================================================
+ * MỘT Ô CHUNG: TÍCH CƠ SỞ NÀO LÀ LÀM VIỆC **VÀ** QUẢN Ở ĐÓ.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"thay vì cửa hàng trưởng làm ở 1 cơ sở đó, tích chọn quản lý các cơ sở
+ * khác, thì có thể quản lý các nhân viên ở các cơ sở khác"* — và chốt **một ô chung**.
+ *
+ * Quyền đi theo VAI, phạm vi đi theo ô này: nhân viên tích 2 cơ sở thì chỉ là làm ở 2 nơi (họ
+ * không có `cong_coso`); cửa hàng trưởng tích 3 thì quản người ở cả 3.
+ */
+vhcc_dung_bang();
+$mo_ad = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'MOAD' );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'MO1', 'ho_ten' => 'Một Nơi',
+	'cua_hang' => 'CS_A', 'vai_tro' => 'Nhân viên' ) );
+
+/* (a) Đặt ba cơ sở một lượt -> rải vào hai cột, đọc ra đủ ba. */
+$r_mo = VHCC_NhanSu::dat_ds_coso( $mo_ad, 'MO1', array( 'KHU_A', 'KHU_B', 'KHU_C' ) );
+t( 'đặt được nhiều cơ sở một lượt', ! empty( $r_mo['ok'] ) && ! empty( $r_mo['doi'] ), $r_mo );
+teq( '🔴 đọc ra đủ ba cơ sở', 'KHU_A · KHU_B · KHU_C',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'MO1' ) ) ) );
+teq( 'cơ sở đầu vào cột cua_hang', 'KHU_A', VHCC_NhanSu::ho_so( 'MO1' )['cua_hang'] );
+teq( 'phần còn lại vào coso_phu', 'KHU_B, KHU_C', VHCC_NhanSu::ho_so( 'MO1' )['coso_phu'] );
+
+/* (a2) Tích trùng một cơ sở (hai ô cùng tên, hoặc một ô chở sẵn chuỗi ghép) -> chỉ còn MỘT.
+       Giữ cả hai thì `coso_phu` thành "KHU_B, KHU_B", bảng công đẻ hai hàng cho một nơi, và
+       `ds_coso_hs()` đếm ra ba cơ sở cho người làm ở hai. */
+VHCC_NhanSu::dat_ds_coso( $mo_ad, 'MO1', array( 'KHU_A', 'khu_b', 'KHU_B', 'KHU_A' ) );
+teq( '🔴 tích trùng cơ sở thì chỉ còn MỘT', 'KHU_A · khu_b',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'MO1' ) ) ) );
+teq( 'và coso_phu không đọng tên lặp', 'khu_b', VHCC_NhanSu::ho_so( 'MO1' )['coso_phu'] );
+VHCC_NhanSu::dat_ds_coso( $mo_ad, 'MO1', array( 'KHU_A', 'KHU_B', 'KHU_C' ) );
+
+/* (b) Gửi lại đúng bộ ấy nhưng ĐẢO THỨ TỰ -> không tính là đổi. Kéo lại thứ tự tích không phải
+       là chuyển cơ sở của ai, mà mỗi lượt "đổi" đều reset quyền riêng. */
+$r_dao = VHCC_NhanSu::dat_ds_coso( $mo_ad, 'MO1', array( 'KHU_C', 'KHU_A', 'KHU_B' ) );
+t( '🔴 đảo thứ tự KHÔNG tính là đổi cơ sở',
+	! empty( $r_dao['ok'] ) && empty( $r_dao['doi'] ), $r_dao );
+
+/* (c) Bỏ tích hết -> thôi làm ở đâu cả, đúng ý người bấm. */
+VHCC_NhanSu::dat_ds_coso( $mo_ad, 'MO1', array() );
+teq( 'bỏ tích hết thì không còn cơ sở nào', 0,
+	count( VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'MO1' ) ) ) );
+
+/* (d) 🔴 PHẢI PHỤ TRÁCH CẢ CƠ SỞ CŨ LẪN CƠ SỞ MỚI.
+       Thiếu vế "mới" là đẩy người sang cơ sở mình không có trách nhiệm; thiếu vế "cũ" là hút
+       người của cơ sở khác về mình mà bên kia không hay biết. Hai chiều, hai phép.
+
+   ⚠️ PHẢI KHOÁ `cong_tat_ca` THÌ HAI PHÉP NÀY MỚI CHẠM ĐƯỢC TỚI CHỐT. Vai Kế toán (bậc 4) là
+      bậc thấp nhất qua được cửa `ho_so`, mà `cong_tat_ca` chỉ cần Quản lý (bậc 3) — nên theo
+      thang mặc định, ai sửa được hồ sơ thì cũng phụ trách sẵn MỌI cơ sở, và chốt bên dưới
+      không bao giờ nói. Nó sống nhờ bảng chia đầu việc: một kế toán vùng bị khoá
+      `cong_tat_ca` là có thật, và cũng chính là ngày ta cần chốt ấy. Giữ chốt, và thử nó ở
+      đúng hình dạng nó sống. */
+$cs_ngoai_le = get_option( VHCC_Vai::O_NGOAI_LE );
+VHCC_NhanSu::dat_ds_coso( $mo_ad, 'MO1', array( 'KHU_A', 'KHU_B' ) );
+$cht_a = array( 'name' => 'Kế toán vùng A', 'role' => 'Kế toán', 'coso' => 'KHU_A', 'ma_nv' => 'TRA' );
+$r_nl = VHCC_Vai::dat_ngoai_le( $mo_ad, 'nv:TRA', 'cong_tat_ca', 'khoa' );
+t( 'khoá được "xem công mọi cơ sở" cho riêng một người', ! empty( $r_nl['ok'] ), $r_nl );
+t( 'và người ấy hết phụ trách cơ sở lạ', ! VHCC_NhanSu::co_quyen_coso( $cht_a, 'KHU_LA' ) );
+
+$r_them = VHCC_NhanSu::dat_ds_coso( $cht_a, 'MO1', array( 'KHU_A', 'KHU_B', 'KHU_LA' ) );
+t( '🔴 thêm cơ sở mình KHÔNG phụ trách: bị chối',
+	empty( $r_them['ok'] ) && stripos( $r_them['error'], 'không phụ trách' ) !== false, $r_them );
+/* Vế "cũ": người này đang thuộc KHU_B mà mình không phụ trách -> gỡ họ về một mình KHU_A cũng
+   bị chối. Thiếu vế ấy thì bất kỳ ai phụ trách MỘT cơ sở của người ta là kéo được họ ra khỏi
+   mọi cơ sở còn lại. */
+$r_bo = VHCC_NhanSu::dat_ds_coso( $cht_a, 'MO1', array( 'KHU_A' ) );
+t( '🔴 GỠ người khỏi cơ sở mình không phụ trách: cũng bị chối',
+	empty( $r_bo['ok'] ) && stripos( $r_bo['error'], 'không phụ trách' ) !== false, $r_bo );
+teq( 'và hồ sơ không suy suyển', 'KHU_A · KHU_B',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'MO1' ) ) ) );
+/* Nhưng cơ sở MÌNH phụ trách thì sửa được bình thường. */
+$cht_ab = array( 'name' => 'Kế toán vùng AB', 'role' => 'Kế toán', 'coso' => 'KHU_A, KHU_B', 'ma_nv' => 'TRAB' );
+VHCC_Vai::dat_ngoai_le( $mo_ad, 'nv:TRAB', 'cong_tat_ca', 'khoa' );
+$r_ok = VHCC_NhanSu::dat_ds_coso( $cht_ab, 'MO1', array( 'KHU_A' ) );
+t( 'phụ trách cả hai thì gỡ được', ! empty( $r_ok['ok'] ), $r_ok );
+update_option( VHCC_Vai::O_NGOAI_LE, $cs_ngoai_le );
+VHCC_Vai::quen_nho_nl();
+
+/* (e) Bậc dưới Kế toán không đụng được — đổi cơ sở là chuyển công và lương. */
+$r_cht = VHCC_NhanSu::dat_ds_coso(
+	array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'KHU_A' ), 'MO1', array( 'KHU_A', 'KHU_B' ) );
+/* ⚠️ SOI CẢ CÂU CHỐI, KHÔNG CHỈ SOI `ok` RỖNG. Hai tầng gác cùng dẫn tới "bị chối" ở đây:
+   cửa vai (`co_sua_ho_so`) và chốt từng cơ sở (`co_quyen_coso`) — Cửa hàng trưởng trượt cả
+   hai. Chỉ soi `ok` thì gỡ mất cửa vai mà phép thử vẫn xanh, và ngày ấy một cửa hàng trưởng
+   chuyển được người TRONG cơ sở mình sang cơ sở mình — tức tự sắp lại bảng lương của mình. */
+t( '🔴 Cửa hàng trưởng KHÔNG tự đổi cơ sở của người khác', empty( $r_cht['ok'] ), $r_cht );
+t( 'và bị chối ngay ở CỬA VAI, nói rõ cần Kế toán trở lên',
+	stripos( isset( $r_cht['error'] ) ? $r_cht['error'] : '', 'Kế toán trở lên' ) !== false, $r_cht );
+
+/* (f) 🔴 VÀ ĐÂY LÀ ĐIỀU ANH THẮNG CẦN: tích thêm cơ sở là quản được người ở đó.
+       Chị trưởng tích KHU_A + KHU_B thì thấy và sửa được người của KHU_B, dù "chỗ làm chính" vẫn
+       là KHU_A. Một ô chung, hai nghĩa. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NVB', 'ho_ten' => 'Người Ở B',
+	'cua_hang' => 'KHU_B', 'vai_tro' => 'Nhân viên' ) );
+$tr_1 = array( 'name' => 'Trưởng Một Nơi', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'KHU_A', 'ma_nv' => 'T1' );
+$tr_2 = array( 'name' => 'Trưởng Hai Nơi', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'KHU_A, KHU_B', 'ma_nv' => 'T2' );
+t( 'trưởng chỉ tích KHU_A: KHÔNG quản được người của KHU_B',
+	! VHCC_NhanSu::co_quyen_ho_so( $tr_1, VHCC_NhanSu::ho_so( 'NVB' ) ) );
+t( '🔴 tích thêm KHU_B thì quản được người của KHU_B',
+	VHCC_NhanSu::co_quyen_ho_so( $tr_2, VHCC_NhanSu::ho_so( 'NVB' ) ) );
+$ds_b = VHCC_NhanSu::ds_nhan_vien( $tr_2, 'KHU_B' );
+teq( 'và thấy họ trong danh sách nhân sự của KHU_B', 1, count( $ds_b ) );
+/* ⚠️ NHÂN VIÊN tích nhiều cơ sở thì VẪN chỉ là làm ở nhiều nơi — quyền đi theo VAI. */
+$nv_2 = array( 'name' => 'NV Hai Nơi', 'role' => 'Nhân viên', 'coso' => 'KHU_A, KHU_B', 'ma_nv' => 'N2' );
+t( '🔴 nhân viên tích 2 cơ sở KHÔNG vì thế mà quản được ai',
+	! VHCC_NhanSu::co_quyen_ho_so( $nv_2, VHCC_NhanSu::ho_so( 'NVB' ) ) );
+
 vhcc_dung_bang();
 
 /* ---- 64. SỬA NGAY TẠI HÀNG, KHÔNG NHẢY TRANG ----

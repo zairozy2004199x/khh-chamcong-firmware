@@ -128,7 +128,14 @@ class VHCC_NhanSu {
 		$s = (string) $s;
 		$phay = strpos( $s, ',' );
 		if ( false !== $phay ) { $s = substr( $s, 0, $phay ); }
-		return trim( preg_replace( '/^CS_/', '', $s ) );
+		/* 🔴 CẮT KHOẢNG TRẮNG TRƯỚC, GỠ TIỀN TỐ SAU — thứ tự này không đổi được.
+		   Làm ngược lại thì `^CS_` không khớp phần tử thứ hai trở đi của chuỗi nối bằng `', '`:
+		   `ds_coso_cua()` tách `'CS_A, CS_B'` ra thành `'CS_A'` và `' CS_B'`, cái sau còn
+		   nguyên dấu cách đầu nên gỡ hụt tiền tố và ở lại là `'CS_B'`. Trong khi hồ sơ của
+		   người bên ấy đã chuẩn hoá thành `'B'`. Hai chuỗi khác nhau -> `co_quyen_coso()` chối,
+		   và người làm ở hai nơi CHỈ THẤY MỘT — đúng cái anh Thắng vấp ngày 30/08. Lỗi im
+		   lặng: cơ sở đầu tiên vẫn đúng nên nhìn qua tưởng hệ chạy. */
+		return trim( preg_replace( '/^CS_/', '', trim( $s ) ) );
 	}
 
 	/**
@@ -808,6 +815,94 @@ class VHCC_NhanSu {
 			$go = (int) VHCC_Cong::xoa_nguoi( $ma );
 		}
 		return array( 'ok' => true, 'doi' => true, 'tu' => $cu, 'den' => $moi, 'go' => $go );
+	}
+
+	/**
+	 * ĐẶT DANH SÁCH CƠ SỞ CHO MỘT NGƯỜI — tích cơ sở nào là làm việc VÀ quản ở đó.
+	 *
+	 * Anh Thắng 31/08/2026: *"thay vì cửa hàng trưởng làm ở 1 cơ sở đó, tích chọn quản lý các cơ
+	 * sở khác, thì có thể quản lý các nhân viên ở các cơ sở khác"*, và chốt: **một ô chung**.
+	 *
+	 * 🔴 MỘT Ô, HAI NGHĨA, VÀ ĐÓ LÀ Ý ĐỊNH. Cơ sở tích ở đây vừa là nơi người ta LÀM (công của
+	 *    họ nằm ở bảng cơ sở ấy) vừa là phạm vi họ QUẢN (nếu vai đủ bậc). Nhân viên tích 2 cơ sở
+	 *    thì chỉ là làm ở 2 nơi — họ không có `cong_coso` nên chẳng quản được gì. Cửa hàng
+	 *    trưởng tích 3 cơ sở thì quản người ở cả 3. Quyền đi theo VAI, phạm vi đi theo ô này.
+	 *
+	 * 🔴 PHẢI PHỤ TRÁCH CẢ CƠ SỞ CŨ LẪN CƠ SỞ MỚI. Thiếu vế "cũ" là mở đường hút người của cơ sở
+	 *    khác về mình mà bên kia không hay biết; thiếu vế "mới" là đẩy người sang một cơ sở mình
+	 *    không có trách nhiệm gì. Kiểm TỪNG cơ sở bị thêm và TỪNG cơ sở bị bỏ, không kiểm cả
+	 *    danh sách một lượt — người ta thường chỉ sửa một ô trong năm.
+	 *
+	 * ⚠️ RESET QUYỀN RIÊNG khi cơ sở đổi, y như `dat_co_so()` cũ: ngoại lệ khai theo hoàn cảnh ở
+	 *    cơ sở cũ mà theo người sang cơ sở mới thì không ai ở đó biết nó tồn tại.
+	 *
+	 * @param array $ds Danh sách cơ sở (đã tích). Rỗng = thôi làm ở đâu cả.
+	 * @return array `ok` · `doi`(bool) · `tu` · `den` · `go`, hoặc `error`.
+	 */
+	public static function dat_ds_coso( $u, $ma_nv, $ds ) {
+		global $wpdb;
+		if ( ! self::co_sua_ho_so( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Đổi cơ sở là chuyển cả công và lương giữa các '
+				. 'cửa hàng — cần vai Kế toán trở lên.' );
+		}
+		$ma = trim( (string) $ma_nv );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		$cu_hs = self::ho_so( $ma );
+		if ( ! $cu_hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+
+		$moi = array();
+		$da  = array();
+		foreach ( (array) $ds as $x ) {
+			foreach ( explode( ',', (string) $x ) as $m ) {
+				$m = self::chuan_coso( $m );
+				if ( '' === $m ) { continue; }
+				$k = self::chu_thuong( $m );
+				if ( isset( $da[ $k ] ) ) { continue; }
+				$da[ $k ] = 1;
+				$moi[]    = $m;
+			}
+		}
+		$cu = self::ds_coso_hs( $cu_hs );
+
+		/* Không đổi gì thì thôi — so theo TẬP HỢP, không theo thứ tự: kéo lại thứ tự tích không
+		   phải là chuyển cơ sở của ai. */
+		$sx_cu = array_map( array( __CLASS__, 'chu_thuong' ), $cu );
+		$sx_moi = array_map( array( __CLASS__, 'chu_thuong' ), $moi );
+		sort( $sx_cu );
+		sort( $sx_moi );
+		if ( $sx_cu === $sx_moi ) { return array( 'ok' => true, 'doi' => false, 'go' => 0 ); }
+
+		foreach ( array_diff( $sx_moi, $sx_cu ) as $them ) {
+			if ( ! self::co_quyen_coso( $u, $them ) ) {
+				return array( 'ok' => false,
+					'error' => 'Bạn không phụ trách cơ sở "' . $them . '" nên không thêm vào được.' );
+			}
+		}
+		foreach ( array_diff( $sx_cu, $sx_moi ) as $bo ) {
+			if ( ! self::co_quyen_coso( $u, $bo ) ) {
+				return array( 'ok' => false,
+					'error' => 'Người này đang thuộc ' . $bo . ' — cơ sở bạn không phụ trách.' );
+			}
+		}
+
+		/* Rải vào hai cột y như `VHCC_Web::luu_ho_so()`: cơ sở đầu vào `cua_hang`, còn lại vào
+		   `coso_phu`. Một hình dạng lưu duy nhất cho cả hệ. */
+		$dat = $moi;
+		$ok  = $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array(
+			'cua_hang' => $dat ? array_shift( $dat ) : '',
+			'coso_phu' => implode( ', ', $dat ),
+			'cap_nhat' => current_time( 'mysql' ),
+		), array( 'ma_nv' => $ma ) );
+		if ( false === $ok ) {
+			return array( 'ok' => false, 'error' => 'MySQL: ' . $wpdb->last_error );
+		}
+
+		$go = 0;
+		if ( class_exists( 'VHCC_Cong' ) && method_exists( 'VHCC_Cong', 'xoa_nguoi' ) ) {
+			$go = (int) VHCC_Cong::xoa_nguoi( $ma );
+		}
+		return array( 'ok' => true, 'doi' => true, 'tu' => implode( ', ', $cu ),
+			'den' => implode( ', ', $moi ), 'go' => $go );
 	}
 
 	public static function ds_coso() {
