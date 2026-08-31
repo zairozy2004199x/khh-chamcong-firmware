@@ -20,9 +20,10 @@ MIPI-DSI, cảm ứng GT911, 4G A7680C). Dùng lại nền tảng màn/cảm ứ
   bật 4G thì tắt WiFi và ngược lại (không chạy song song).
 
 ## Chuẩn bị
-- **Thẻ microSD** chứa `firmware.bin` (đặt tên đúng `FW_PATH` = `/firmware.bin`).
-  Muốn nạp ghế thì chép .bin của ghế; nạp chấm công thì chép .bin chấm công (đổi thẻ
-  hoặc đổi file giữa 2 lần nạp).
+- **Thẻ microSD** chứa **2 file** (1 thẻ nạp được cả hai, khỏi tráo):
+  - `/ghe.bin`      — firmware GHẾ (đổi tên từ `esp32_ghe_massage….ino.bin`)
+  - `/chamcong.bin` — firmware CHẤM CÔNG (đổi tên từ `chamcong-*.bin`)
+  Menu tự đọc đúng file: "Nạp FW ghế" đọc `/ghe.bin`, "Nạp FW chấm công" đọc `/chamcong.bin`.
 - **`secrets.h`** (chép từ `secrets.example.h`, KHÔNG commit): `SEC_WEB_BASE`,
   mật khẩu AP + tài khoản `/update` của máy chấm công. Khoá ghế mặc định 12345678.
 - **Chân**: xem `cau_hinh_tram_p4.h`. 4G ở 32/33 + PWRKEY 34 (nguồn 4V riêng, GND

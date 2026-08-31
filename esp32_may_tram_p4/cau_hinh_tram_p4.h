@@ -26,13 +26,17 @@
 #define P4_TOUCH_RST    3
 #define P4_C6_RESET     54
 
-/* ─── THẺ NHỚ microSD (SDMMC 1-bit; chứa firmware.bin) ─────────────────────
+/* ─── THẺ NHỚ microSD (SDMMC 1-bit; chứa /ghe.bin + /chamcong.bin) ─────────
  * ⚠️ ĐỐI CHIẾU pad bo trước khi dùng — thứ tự CLK/CMD/D0 tuỳ layout. Dùng 1-bit
  *    (chỉ CLK/CMD/D0) cho chắc; muốn nhanh thì bật 4-bit thêm D1..D3. */
 #define SD_CLK_PIN      43
 #define SD_CMD_PIN      44
 #define SD_D0_PIN       39
-#define FW_PATH         "/firmware.bin"   // tên file .bin trên thẻ
+/* HAI file .bin trên thẻ — 1 thẻ nạp được CẢ ghế lẫn chấm công, khỏi tráo thẻ:
+ *   /ghe.bin       ← firmware GHẾ  (esp32_ghe_massage… .ino.bin, đổi tên)
+ *   /chamcong.bin  ← firmware CHẤM CÔNG (chamcong-*.bin, đổi tên) */
+#define FW_GHE          "/ghe.bin"
+#define FW_CC           "/chamcong.bin"
 
 /* ─── 4G A7680C (dùng cho việc KIỂM TRA CHỈ SỐ) — chân như bên ghế ─────────── */
 #define P4_SIM_TX_PIN   32      // ESP TX -> SIM RX

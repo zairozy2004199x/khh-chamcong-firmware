@@ -12,7 +12,8 @@
  *
  *  Nền tảng màn/cảm ứng/khử răng cưa/font BÊ NGUYÊN từ esp32_ghe_massage_p4 (đã
  *  chạy trên bo thật). WiFi (C6) chỉ để nối AP máy đích; Internet đi 4G A7680C.
- *  File .bin để trên thẻ microSD (FW_PATH). KHÔNG để khoá trong mã — xem secrets.h.
+ *  Thẻ microSD chứa 2 file: /ghe.bin + /chamcong.bin (1 thẻ nạp được cả hai).
+ *  KHÔNG để khoá trong mã — xem secrets.h.
  *
  *  THƯ VIỆN: ArduinoJson (Benoît Blanchon). Board "ESP32P4 Dev Module", PSRAM
  *  Enabled, Flash 16MB, USB CDC On Boot Enabled. KHÔNG compile được ở máy Claude.
@@ -289,9 +290,9 @@ static bool sdBatDau() {
   Serial.printf("[SD] %s\n", g_sdOk ? "OK" : "khong thay the");
   return g_sdOk;
 }
-static long fwSize() {
+static long fwSize(const char* path) {
   if (!g_sdOk) return -1;
-  File f = SD_MMC.open(FW_PATH, FILE_READ); if (!f) return -1;
+  File f = SD_MMC.open(path, FILE_READ); if (!f) return -1;
   long s = f.size(); f.close(); return s;
 }
 
@@ -406,8 +407,8 @@ static int httpStatus(const String& resp) { int sp = resp.indexOf(' '); return s
 
 /* NẠP GHẾ: POST .bin THÔ /update + header X-OTA-Key. */
 static bool napGhe(const Ap& a) {
-  long fsize = fwSize();
-  if (fsize <= 0) { bao("KHONG CO FILE", C_DO, FW_PATH, "Chep .bin vao the SD", 2000); return false; }
+  long fsize = fwSize(FW_GHE);
+  if (fsize <= 0) { bao("KHONG CO FILE", C_DO, FW_GHE, "Chep .bin ghe vao the SD", 2000); return false; }
   if (!noiAp(a, SEC_GHE_AP_PASS)) return false;
   WiFiClient cl; cl.setTimeout(20000);
   if (!cl.connect(IPAddress(192, 168, 4, 1), 80)) { bao("KHONG NOI 192.168.4.1", C_DO, "", "", 1600); WiFi.disconnect(true); return false; }
@@ -418,7 +419,7 @@ static bool napGhe(const Ap& a) {
   cl.print("Content-Length: " + String(fsize) + "\r\n");
   cl.print("Connection: close\r\n\r\n");
   ttMo("DANG NAP GHE", a.nhan.c_str()); ttPct(0);
-  File f = SD_MMC.open(FW_PATH, FILE_READ);
+  File f = SD_MMC.open(FW_GHE, FILE_READ);
   bool sent = f && guiFile(cl, f, fsize); if (f) f.close();
   String resp; docPhanHoi(cl, resp); WiFi.disconnect(true);
   int st = httpStatus(resp);
@@ -429,8 +430,8 @@ static bool napGhe(const Ap& a) {
 }
 /* NẠP CHẤM CÔNG: POST multipart /update + Basic-Auth. */
 static bool napChamCong(const Ap& a) {
-  long fsize = fwSize();
-  if (fsize <= 0) { bao("KHONG CO FILE", C_DO, FW_PATH, "Chep .bin vao the SD", 2000); return false; }
+  long fsize = fwSize(FW_CC);
+  if (fsize <= 0) { bao("KHONG CO FILE", C_DO, FW_CC, "Chep .bin cham cong vao the SD", 2000); return false; }
   if (!noiAp(a, SEC_CC_AP_PASS)) return false;
   WiFiClient cl; cl.setTimeout(20000);
   if (!cl.connect(IPAddress(192, 168, 4, 1), 80)) { bao("KHONG NOI 192.168.4.1", C_DO, "", "", 1600); WiFi.disconnect(true); return false; }
@@ -446,7 +447,7 @@ static bool napChamCong(const Ap& a) {
   cl.print("Connection: close\r\n\r\n");
   cl.print(pre);
   ttMo("DANG NAP CHAM CONG", a.nhan.c_str()); ttPct(0);
-  File f = SD_MMC.open(FW_PATH, FILE_READ);
+  File f = SD_MMC.open(FW_CC, FILE_READ);
   bool sent = f && guiFile(cl, f, fsize); if (f) f.close();
   if (sent) cl.print(post);
   String resp; docPhanHoi(cl, resp); WiFi.disconnect(true);
@@ -544,10 +545,13 @@ static void veMenu() {
   veNut(b1, "1  KIEM TRA CHI SO MAY", C_BTN2, C_WHITE, 3);
   veNut(b2, "2  NAP FIRMWARE GHE",    C_BTN,  C_WHITE, 3);
   veNut(b3, "3  NAP FW MAY CHAM CONG", C_BTN, C_WHITE, 3);
-  // Chân: trạng thái thẻ SD + file
-  long fs = fwSize();
-  String sd = g_sdOk ? (fs > 0 ? String("SD OK - firmware.bin ") + String(fs / 1024) + "KB" : "SD OK - THIEU firmware.bin") : "CHUA CO THE SD";
-  lTextC(LW / 2, LH - 30, sd.c_str(), 2, g_sdOk && fs > 0 ? C_OK : C_YEL, C_BG);
+  // Chân: trạng thái thẻ SD + 2 file .bin
+  long fg = fwSize(FW_GHE), fc = fwSize(FW_CC);
+  String sd;
+  if (!g_sdOk) sd = "CHUA CO THE SD";
+  else sd = String("SD OK  |  ghe.bin: ") + (fg > 0 ? String(fg / 1024) + "KB" : "THIEU")
+          + "  |  chamcong.bin: " + (fc > 0 ? String(fc / 1024) + "KB" : "THIEU");
+  lTextC(LW / 2, LH - 30, sd.c_str(), 2, g_sdOk ? ( (fg > 0 || fc > 0) ? C_OK : C_YEL ) : C_YEL, C_BG);
   fbFlush();
 }
 
