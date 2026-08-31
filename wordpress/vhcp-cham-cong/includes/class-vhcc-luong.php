@@ -1293,6 +1293,115 @@ class VHCC_Luong {
 			'ncGoiY' => ( $nc > 0 ? null : self::vp_nc_goi_y( $coso, $tt ) ) );
 	}
 
+	/**
+	 * LƯỚI CẢ THÁNG -> BẢNG ĐỂ XUẤT RA .xlsx (cơ sở tính THEO CÔNG).
+	 *
+	 * Anh Thắng 31/08/2026: *"bổ sung xuất bảng công ra"* — anh đang mở `VP_KH-HCM`, và cơ sở
+	 * tính theo công thì trước bản này KHÔNG có một nút xuất nào. Hai nút cũ (`ca` và `anh`)
+	 * chỉ vẽ ở nhánh "theo giờ".
+	 *
+	 * 🔴 HÀM THUẦN: ăn `$b` của `vp_bang_cong_va_luong()`, trả về bảng — không đọc cơ sở dữ
+	 *    liệu, không in ra gì. Nhờ thế bộ thử đối chiếu được TỆP với MÀN HÌNH: cùng một `$b`
+	 *    cho vào hai đường, số phải khớp. Đọc lại sổ ở đây là hai đường đọc hai lượt, và lúc số
+	 *    lệch thì không phân biệt nổi "phép tính sai" với "dữ liệu vừa đổi giữa hai lượt đọc".
+	 *
+	 * 🔴 TRANG 1 CHỈ CHỞ SỐ, KHÔNG CHỞ CỜ. Nhét dấu `?` hay `🌙` vào ô là cả cột thành CHỮ:
+	 *    Excel thôi cộng, và người ta cầm bảng công không tính được tổng. Mọi thứ cần soi dồn
+	 *    sang trang "Ô cần soi" — mỗi ô một dòng, nói thẳng vì sao.
+	 *
+	 * @param array $b Kết quả `vp_bang_cong_va_luong()`.
+	 * @return array Danh sách trang cho `VHCC_Xuat::xlsx()`.
+	 */
+	public static function to_luoi_vp( $b ) {
+		$tt   = isset( $b['month'] ) ? (string) $b['month'] : '';
+		$rows = isset( $b['rows'] ) ? (array) $b['rows'] : array();
+		$moc  = strtotime( $tt . '-01 00:00:00 UTC' );
+		if ( false === $moc ) { return array(); }
+		$so_ngay = (int) gmdate( 't', $moc );
+		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+
+		/* Gom `detail` về [mã][số ngày] — y hệt `ve_luoi_vp()` làm để vẽ. */
+		$o = array();
+		foreach ( (array) $b['detail'] as $d ) {
+			$o[ (string) $d['ma'] ][ (int) substr( (string) $d['ngay'], 8, 2 ) ] = $d;
+		}
+
+		$dau = array( 'Mã NV', 'Họ tên' );
+		for ( $i = 1; $i <= $so_ngay; $i++ ) {
+			$w = (int) gmdate( 'w', strtotime( sprintf( '%s-%02d 00:00:00 UTC', $tt, $i ) ) );
+			$dau[] = $i . ' ' . $thu_vn[ $w ];
+		}
+		$dau[] = 'TỔNG';
+
+		$luoi = array( $dau );
+		$soi  = array( array( 'Ngày', 'Thứ', 'Mã NV', 'Họ tên', 'Công ngày này', 'Cần soi vì' ) );
+		$tong = array( array( 'Mã NV', 'Họ tên', 'Công ngày', 'Tăng ca', 'Công đêm', 'Công bù', 'TỔNG' ) );
+
+		foreach ( $rows as $e ) {
+			$ma  = (string) $e['ma'];
+			$ngd = isset( $o[ $ma ] ) ? $o[ $ma ] : array();
+			/* 🔴 MÃ NV ÉP THÀNH CHỮ. Mã kiểu `0012` vào Excel dưới dạng số là rụng số 0 đầu, và
+			   người đối chiếu tìm mãi không ra người ấy. */
+			$hang = array( VHCC_Xuat::chu( $ma ), (string) $e['ten'] );
+			$cong = 0.0;
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				if ( ! isset( $ngd[ $i ] ) ) {
+					/* Ô TRỐNG, không phải số 0. Số 0 nghĩa là "có đi làm mà không ra công" —
+					   khác hẳn "hôm ấy nghỉ". Trộn hai thứ là bảng công nói dối. */
+					$hang[] = '';
+					continue;
+				}
+				$d = $ngd[ $i ];
+				$cong += (float) $d['tong'];
+				$hang[] = (float) $d['tong'];
+
+				$vi = self::vi_sao_soi_vp( $d );
+				if ( '' !== $vi ) {
+					$w = (int) gmdate( 'w', strtotime( sprintf( '%s-%02d 00:00:00 UTC', $tt, $i ) ) );
+					$soi[] = array( sprintf( '%s-%02d', $tt, $i ), $thu_vn[ $w ],
+						VHCC_Xuat::chu( $ma ), (string) $e['ten'], (float) $d['tong'], $vi );
+				}
+			}
+			$hang[] = round( $cong, 2 );
+			$luoi[] = $hang;
+
+			$tong[] = array( VHCC_Xuat::chu( $ma ), (string) $e['ten'],
+				(float) $e['congNgay'], (float) $e['congTangCa'], (float) $e['congDem'],
+				(float) $e['congBu'], (float) $e['tong'] );
+		}
+
+		if ( 1 === count( $soi ) ) {
+			$soi[] = array( '', '', '', '', '', 'Cả tháng không có ô nào cần soi.' );
+		}
+		return array(
+			array( 'ten' => 'Lưới cả tháng', 'hang' => $luoi ),
+			array( 'ten' => 'Ô cần soi',     'hang' => $soi ),
+			array( 'ten' => 'Tổng theo người', 'hang' => $tong ),
+		);
+	}
+
+	/**
+	 * Ô này cần soi vì cái gì — hoặc chuỗi rỗng nếu không có gì.
+	 *
+	 * 🔴 CÙNG BỘ LÝ DO VỚI MÀU Ô TRÊN MÀN HÌNH (`ve_luoi_vp()`). Hai bản luật cho cùng một câu
+	 *    hỏi thì sớm muộn lệch nhau, và lúc ấy người cầm tệp .xlsx thấy khác người mở trang —
+	 *    không ai biết bên nào đúng. Nói ra thành CHỮ ở đây vì tệp không có màu để mà tô.
+	 */
+	public static function vi_sao_soi_vp( $d ) {
+		$vi = array();
+		$thieu = ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) )
+			|| ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) );
+		if ( $thieu )                          { $vi[] = 'thiếu một đầu giờ (chỉ bấm vào, hoặc chỉ bấm ra)'; }
+		if ( ! empty( $d['caLa'] ) )           { $vi[] = 'ca lạ — giờ không khớp khung nào'; }
+		if ( ! empty( $d['demThieuGio'] ) )    { $vi[] = 'ca đêm KHÔNG đủ giờ tối thiểu nên 0 công đêm'; }
+		if ( ! empty( $d['demChuaDuCap'] ) )   { $vi[] = 'ca đêm thiếu một đầu giờ nên 0 công đêm'; }
+		if ( ! empty( $d['ktCnNghi'] ) )       { $vi[] = 'kế toán chấm chủ nhật'; }
+		if ( ! empty( $d['tuCoSo'] ) ) {
+			$vi[] = 'ngày này chấm ở ' . $d['tuCoSo'] . ' (cơ sở đã GHÉP vào bảng này — công ĐÃ nằm trong TỔNG)';
+		}
+		return implode( ' · ', $vi );
+	}
+
 	// ======================================================================= đặt cấu hình
 
 	/**

@@ -403,6 +403,20 @@ class VHCC_Web {
 			echo '<p><a href="' . esc_url( self::url() ) . '">← Quay lại bảng công</a></p></div>';
 		} );
 
+		/* -----------------------------------------------------------------------------------
+		 * XUẤT CHÍNH CÁI LƯỚI ĐANG NHÌN (.xlsx) — anh Thắng 31/08/2026: *"bổ sung xuất bảng
+		 * công ra"*. Anh đang mở `VP_KH-HCM`, cơ sở tính THEO CÔNG, và nhánh ấy trước bản này
+		 * không có một nút xuất nào: hai nút cũ chỉ vẽ ở nhánh theo giờ.
+		 *
+		 * 🔴 RẼ THEO CÁCH TÍNH CỦA CƠ SỞ, và mỗi bên đi qua ĐÚNG engine đã dựng nên lưới trên
+		 *    màn. Dựng lại phép tính ở đây là thêm một bản luật thứ hai cho cùng một câu hỏi —
+		 *    đúng cái đã làm tờ in lệch khỏi màn hình.
+		 * --------------------------------------------------------------------------------- */
+		if ( 'luoi' === $loai ) {
+			self::xuat_luoi( $toi, $cs, $th, $da_gui );   // $da_gui đi THAM CHIẾU — xem chữ ký
+			return;
+		}
+
 		$b = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
 		if ( empty( $b['ok'] ) ) { self::loi_xuat( $b['error'] ); return; }
 		if ( empty( $b['hang'] ) ) {
@@ -502,6 +516,55 @@ class VHCC_Web {
 	}
 
 	/**
+	 * Dựng và gửi tệp .xlsx của LƯỚI CẢ THÁNG.
+	 *
+	 * ⚠️ `$da_gui` đi THAM CHIẾU: lớp `register_shutdown_function` ở `xuat_tep()` đọc đúng biến
+	 *    ấy để biết "đã gửi tệp chưa" mà quyết định có in trang báo lỗi hay không. Nhận bản sao
+	 *    thì gửi tệp xong lớp kia vẫn tưởng chết giữa chừng và in HTML đè lên tệp.
+	 */
+	private static function xuat_luoi( $toi, $cs, $th, &$da_gui ) {
+		$la_cong = ( 'cong' === VHCC_Luong::cach_tinh( $cs ) );
+		if ( $la_cong ) {
+			$bv = VHCC_Luong::vp_bang_cong_va_luong( $cs, $th );
+			if ( empty( $bv['rows'] ) ) {
+				self::loi_xuat( 'Tháng ' . $th . ' chưa có dữ liệu chấm công nào ở ' . $cs
+					. ' — không có gì để xuất.' );
+				return;
+			}
+			$to = VHCC_Luong::to_luoi_vp( $bv );
+		} else {
+			$bg = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
+			if ( empty( $bg['ok'] ) ) { self::loi_xuat( $bg['error'] ); return; }
+			if ( empty( $bg['hang'] ) ) {
+				self::loi_xuat( 'Tháng ' . $bg['thang'] . ' chưa có dữ liệu chấm công nào ở ' . $cs
+					. ' — không có gì để xuất.' );
+				return;
+			}
+			$to = VHCC_Cham::to_luoi_gio( $bg );
+		}
+		if ( ! $to ) { self::loi_xuat( 'Không dựng được bảng để xuất — tháng không hợp lệ?' ); return; }
+
+		try {
+			$noi = VHCC_Xuat::xlsx( $to );
+		} catch ( \Throwable $e ) {
+			$da_gui = true;
+			self::loi_xuat( 'Dựng tệp .xlsx thì gặp lỗi: ' . $e->getMessage()
+				. ' (' . basename( $e->getFile() ) . ' dòng ' . $e->getLine() . ').'
+				. ' Gửi nguyên câu này cho người viết phần mềm — nó chỉ thẳng chỗ hỏng.' );
+			return;
+		}
+		if ( null === $noi ) {
+			self::loi_xuat( 'Không dựng được tệp .xlsx. Máy chủ có ZipArchive: '
+				. ( VHCC_Xuat::co_xlsx() ? 'có' : 'CHƯA CÓ — nhờ hosting bật phần mở rộng zip của PHP' )
+				. '.' );
+			return;
+		}
+		$da_gui = true;
+		$ten = 'bangcong-' . preg_replace( '/[^A-Za-z0-9_-]/', '', $cs ) . '-' . $th . '.xlsx';
+		VHCC_Xuat::gui( $ten, $noi );
+	}
+
+	/**
 	 * TỜ IN BẢNG CHẤM CÔNG — khổ A4, in thẳng từ trình duyệt.
 	 *
 	 * Anh Thắng chốt: *"mọi việc anh thao tác trên web giao diện bên ngoài hết"*. Đây là màn
@@ -523,8 +586,11 @@ class VHCC_Web {
 		if ( '' !== $chan ) { self::loi_xuat( $chan ); return; }
 
 		nocache_headers();
+		/* `&ct=1` = in kèm mục chi tiết từng ngày. Mặc định KHÔNG — anh Thắng 31/08/2026:
+		   *"Với bảng chi tiết theo từng nhân viên không cần thiết, vì kế toán đối soát rồi"*. */
+		$ct = ( isset( $_GET['ct'] ) && '1' === (string) $_GET['ct'] );
 		echo VHCC_Pdf::trang_in( $cs, $tu, $den,
-			isset( $toi['name'] ) ? (string) $toi['name'] : '' );
+			isset( $toi['name'] ) ? (string) $toi['name'] : '', $ct );
 		/* Bộ thử chạy trong CÙNG tiến trình — `exit` ở đây là giết luôn bài kiểm. */
 		if ( defined( 'VHCC_TEST' ) ) { return; }
 		exit;
@@ -580,11 +646,11 @@ class VHCC_Web {
 	 *    biệt được — bỏ đi vẫn xanh. Hỏi thẳng hàm này thì hỏi được cả trên máy có lẫn máy không.
 	 */
 	public static function xuat_can_zip( $loai ) {
-		return 'ca' === $loai;
+		return ( 'ca' === $loai || 'luoi' === $loai );
 	}
 
 	public static function vi_sao_khong_xuat( $toi, $loai, $cs ) {
-		if ( ! in_array( $loai, array( 'ca', 'anh' ), true ) ) {
+		if ( ! in_array( $loai, array( 'ca', 'anh', 'luoi' ), true ) ) {
 			return 'Không biết xuất kiểu "' . $loai . '".';
 		}
 		if ( ! VHCC_Vai::duoc( $toi, 'cong_coso' ) ) {
@@ -3925,6 +3991,17 @@ class VHCC_Web {
 				. '<b>giờ vào–giờ ra</b> ngay dưới số giờ công. Mở bằng trình duyệt hoặc kéo thẳng '
 				. 'vào Word / Zalo; muốn ra .png thì mở lên rồi chuột phải → lưu ảnh.</span></p>';
 		}
+		/* 🔴 NÚT XUẤT BẢNG CÔNG NẰM NGOÀI CẢ HAI NHÁNH — anh Thắng 31/08/2026: *"bổ sung xuất
+		   bảng công ra"*. Anh gửi ảnh màn `VP_KH-HCM`, cơ sở tính THEO CÔNG, và ở đó không có
+		   một nút xuất nào: hai nút cũ (`ca`, `anh`) vẽ trong nhánh `else`, tức chỉ cơ sở tính
+		   theo giờ mới thấy. Cái người ta gửi đi đối chiếu là CHÍNH CÁI LƯỚI này, mà lưới thì
+		   cơ sở nào cũng có. Nên nút ở đây, ngoài nhánh, cho cả hai. */
+		echo '<p style="margin:10px 0 0"><a class="nut" href="'
+			. esc_url( add_query_arg( array( 'xuat' => 'luoi', 'ccs' => $cs, 'cth' => $th ), self::url() ) )
+			. '">⬇ Xuất bảng công (.xlsx)</a> <span class="mo">— đúng cái lưới đang xem, mỗi ô '
+			. 'một ' . ( $la_vp ? 'số công' : 'số giờ' ) . ', kèm trang <b>Ô cần soi</b> nói rõ ngày nào '
+			. 'thiếu giờ' . ( $la_vp ? ', ngày nào có ca đêm' : '' ) . '.</span></p>';
+
 		/* 🔴 BẢNG GHÉP PHẢI NÓI RA NÓ ĐANG GỒM NHỮNG GÌ. Một bảng lặng lẽ cộng thêm công của một
 		   mã cơ sở khác là con số đúng mà không ai kiểm được — người đọc cộng tay lại theo mã
 		   chính thì ra thiếu, và không hiểu vì sao. */

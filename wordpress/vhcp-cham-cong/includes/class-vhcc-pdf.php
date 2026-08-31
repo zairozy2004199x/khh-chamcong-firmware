@@ -133,10 +133,94 @@ class VHCC_Pdf {
 		);
 	}
 
+	/**
+	 * SỐ CÔNG TRONG KHOẢNG NGÀY — ĐI QUA ĐÚNG ENGINE CỦA CƠ SỞ.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026: *"tại sao bảng công trên wed với bảng công in ra khác nhau"* và
+	 *    *"Cơ sở đã set công, tại sao lại xuất ra giờ làm chi đâu, không cần thiết, cần số công
+	 *    chính xác như wed"*.
+	 *
+	 *    Tờ in trước bản này đọc THẲNG bảng `cham_cong` rồi ĐẾM SỐ HÀNG và CỘNG GIỜ THÔ — nó
+	 *    không hề biết cơ sở ấy đang tính theo công hay theo giờ. Lưới web thì đi qua engine
+	 *    Văn phòng: khung giờ, bậc thang 0.5 · 1 · 1.5, tăng ca, ca đêm, công bù, và luật
+	 *    "thiếu một đầu giờ thì ngày ấy 0 công". Hai đường tính hai kiểu nên hai con số KHÔNG
+	 *    THỂ bằng nhau — Huỳnh Minh Nhật ra 21 trên giấy và 16.5 trên màn, Huỳnh Quang Thắng
+	 *    ra 27 trên giấy và 31 trên màn (ngày làm dài được 1.5 công nên tổng vượt số ngày).
+	 *
+	 *    Tờ giấy này đưa nhân viên KÝ. Hai bảng cùng tên "bảng công" mà lệch nhau là chỗ sinh
+	 *    tranh cãi đắt nhất, và bên nào đúng thì không ai chỉ ra được. Nay chỉ còn MỘT nguồn:
+	 *    engine của cơ sở.
+	 *
+	 * ⚠️ ENGINE TÍNH THEO THÁNG, TỜ IN NHẬN KHOẢNG NGÀY BẤT KỲ. Nên chạy engine cho TỪNG THÁNG
+	 *    mà khoảng chạm tới, rồi lọc lấy đúng những ngày nằm trong khoảng. Cắt theo tháng rồi
+	 *    cộng thẳng là sai khi anh in nửa tháng; mà tính riêng cho một khúc ngày cũng sai, vì
+	 *    ca đêm đêm cuối tháng đẩy công sang ngày đầu tháng sau.
+	 *
+	 * @return array [ 'nguoi' => [ma => ['ma','ten','cong','thieuRa']], 'o' => [ma][ngày] => công ]
+	 */
+	public static function cong_theo_khoang( $coso, $tu, $den ) {
+		$ra = array( 'nguoi' => array(), 'o' => array() );
+		if ( ! class_exists( 'VHCC_Luong' ) || ! method_exists( 'VHCC_Luong', 'vp_bang_cong_va_luong' ) ) {
+			return $ra;
+		}
+		$t1 = strtotime( (string) $tu . ' 00:00:00 UTC' );
+		$t2 = strtotime( (string) $den . ' 00:00:00 UTC' );
+		if ( false === $t1 || false === $t2 || $t2 < $t1 ) { return $ra; }
+
+		/* Danh sách THÁNG mà khoảng này chạm tới. Vòng lặp đi theo mốc "ngày 1 của tháng" chứ
+		   không cộng 30 ngày một bước — cộng ngày thì tháng 2 nhảy qua mất tháng 3. */
+		$thang = array();
+		$m = strtotime( gmdate( 'Y-m', $t1 ) . '-01 00:00:00 UTC' );
+		$het = strtotime( gmdate( 'Y-m', $t2 ) . '-01 00:00:00 UTC' );
+		while ( $m <= $het ) {
+			$thang[] = gmdate( 'Y-m', $m );
+			$m = strtotime( '+1 month', $m );
+		}
+
+		foreach ( $thang as $tt ) {
+			$b = VHCC_Luong::vp_bang_cong_va_luong( $coso, $tt );
+			$ten = array();
+			foreach ( (array) $b['rows'] as $e ) { $ten[ (string) $e['ma'] ] = (string) $e['ten']; }
+			foreach ( (array) $b['detail'] as $d ) {
+				$ngay = (string) $d['ngay'];
+				$g    = strtotime( $ngay . ' 00:00:00 UTC' );
+				if ( false === $g || $g < $t1 || $g > $t2 ) { continue; }
+				$ma = (string) $d['ma'];
+				if ( ! isset( $ra['nguoi'][ $ma ] ) ) {
+					$ra['nguoi'][ $ma ] = array( 'ma' => $ma,
+						'ten' => isset( $ten[ $ma ] ) ? $ten[ $ma ] : $ma,
+						'cong' => 0.0, 'thieuRa' => 0 );
+				}
+				$ra['nguoi'][ $ma ]['cong'] += (float) $d['tong'];
+				$ra['o'][ $ma ][ $ngay ] = (float) $d['tong'];
+				/* Cùng luật "thiếu một đầu giờ" với ô đỏ trên lưới — kể cả hàng ca đêm. */
+				if ( ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) )
+					|| ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) ) ) {
+					$ra['nguoi'][ $ma ]['thieuRa']++;
+				}
+			}
+		}
+		foreach ( $ra['nguoi'] as $ma => $n ) {
+			$ra['nguoi'][ $ma ]['cong'] = round( $n['cong'], 2 );
+		}
+		uasort( $ra['nguoi'], function ( $a, $b ) { return strcmp( $a['ten'], $b['ten'] ); } );
+		return $ra;
+	}
+
+	/** Số công in ra giấy: bỏ đuôi `.00`, giữ `.5`. Cùng thước với lưới web. */
+	public static function so_cong( $v ) {
+		$v = round( (float) $v, 2 );
+		return rtrim( rtrim( number_format( $v, 2, '.', '' ), '0' ), '.' );
+	}
+
 	/** Cả tờ giấy, dạng HTML đứng một mình (in được ngay). */
-	public static function trang_in( $coso, $tu, $den, $nguoi_xuat = '' ) {
+	public static function trang_in( $coso, $tu, $den, $nguoi_xuat = '', $co_chi_tiet = false ) {
 		$coso = trim( preg_replace( '/^CS_/', '', (string) $coso ) );
 		$d = self::gom( $coso, $tu, $den );
+		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `kiem-goi-cheo.php`. */
+		$la_cong = ( class_exists( 'VHCC_Luong' ) && method_exists( 'VHCC_Luong', 'cach_tinh' )
+			&& 'cong' === VHCC_Luong::cach_tinh( $coso ) );
+		$tc = $la_cong ? self::cong_theo_khoang( $coso, $tu, $den ) : array( 'nguoi' => array(), 'o' => array() );
 		$khoang = ( $den && $den !== $tu )
 			? ( 'Từ ngày ' . self::ngay_vn( $tu ) . ' đến ngày ' . self::ngay_vn( $den ) )
 			: ( 'Ngày ' . self::ngay_vn( $tu ) );
@@ -188,20 +272,52 @@ class VHCC_Pdf {
 		$h[] = '<p class="meta">In lúc ' . self::esc( $in_luc )
 			. ( '' !== $nguoi_xuat ? ' · người xuất: ' . self::esc( $nguoi_xuat ) : '' ) . '</p>';
 
-		$h[] = '<h2>1. Tổng hợp theo nhân viên</h2>';
-		$h[] = '<table><thead><tr><th style="width:70px">Mã NV</th><th>Họ và tên</th>'
-			. '<th style="width:60px">Ngày công</th><th style="width:70px">Thiếu giờ ra</th>'
-			. '<th style="width:110px">Tổng giờ làm</th></tr></thead><tbody>';
-		if ( ! $d['tongHop'] ) {
-			$h[] = '<tr><td colspan="5" class="c">(Không có dữ liệu)</td></tr>';
+		$h[] = '<h2>' . ( $co_chi_tiet ? '1. ' : '' ) . 'Tổng hợp theo nhân viên</h2>';
+		/* 🔴 ĐƠN VỊ CỦA TỜ GIẤY THEO CÁCH TÍNH CỦA CƠ SỞ, KHÔNG PHẢI MỘT KIỂU CHO TẤT CẢ.
+		   Anh Thắng 31/08/2026: *"Cơ sở đã set công, tại sao lại xuất ra giờ làm chi đâu, không
+		   cần thiết, cần số công chính xác như wed"*. Cơ sở khai tính THEO CÔNG thì tờ giấy in
+		   SỐ CÔNG, lấy thẳng từ engine đã dựng nên lưới web — một nguồn, một con số. Cơ sở tính
+		   theo giờ vẫn in giờ như cũ: ở đó giờ MỚI là đơn vị trả lương. */
+		if ( $la_cong ) {
+			$h[] = '<table><thead><tr><th style="width:70px">Mã NV</th><th>Họ và tên</th>'
+				. '<th style="width:70px">Số công</th><th style="width:70px">Thiếu giờ ra</th>'
+				. '</tr></thead><tbody>';
+			if ( ! $tc['nguoi'] ) {
+				$h[] = '<tr><td colspan="4" class="c">(Không có dữ liệu)</td></tr>';
+			}
+			$tong_cong = 0.0;
+			foreach ( $tc['nguoi'] as $r ) {
+				$tong_cong += (float) $r['cong'];
+				$h[] = '<tr><td class="c">' . self::esc( $r['ma'] ) . '</td><td>' . self::esc( $r['ten'] ) . '</td>'
+					. '<td class="c b">' . self::esc( self::so_cong( $r['cong'] ) ) . '</td>'
+					. '<td class="c' . ( $r['thieuRa'] ? ' thieu' : '' ) . '">' . (int) $r['thieuRa'] . '</td></tr>';
+			}
+			if ( $tc['nguoi'] ) {
+				$h[] = '<tr><td colspan="2" class="r b">CỘNG</td>'
+					. '<td class="c b">' . self::esc( self::so_cong( $tong_cong ) ) . '</td><td></td></tr>';
+			}
+			$h[] = '</tbody></table>';
+			/* Nói thẳng ra con số này ở đâu mà có — người cầm tờ giấy phải kiểm lại được. */
+			$h[] = '<p class="ghi">Cột <b>Số công</b> là <b>số công đã tính</b> theo cách tính đã khai '
+				. 'cho cơ sở này (khung giờ, tăng ca, ca đêm, công bù) — <b>đúng con số ở lưới cả '
+				. 'tháng trên trang quản trị</b>, không phải số ngày có bấm máy. Ngày <b>thiếu một '
+				. 'đầu giờ</b> (chỉ bấm vào, hoặc chỉ bấm ra) thì <b>không ra công</b>; cột Thiếu '
+				. 'giờ ra đếm đúng những ngày ấy — bù nốt giờ còn thiếu là công lên ngay.</p>';
+		} else {
+			$h[] = '<table><thead><tr><th style="width:70px">Mã NV</th><th>Họ và tên</th>'
+				. '<th style="width:60px">Ngày công</th><th style="width:70px">Thiếu giờ ra</th>'
+				. '<th style="width:110px">Tổng giờ làm</th></tr></thead><tbody>';
+			if ( ! $d['tongHop'] ) {
+				$h[] = '<tr><td colspan="5" class="c">(Không có dữ liệu)</td></tr>';
+			}
+			foreach ( $d['tongHop'] as $r ) {
+				$h[] = '<tr><td class="c">' . self::esc( $r['ma'] ) . '</td><td>' . self::esc( $r['ten'] ) . '</td>'
+					. '<td class="c">' . (int) $r['soNgay'] . '</td>'
+					. '<td class="c' . ( $r['thieuRa'] ? ' thieu' : '' ) . '">' . (int) $r['thieuRa'] . '</td>'
+					. '<td class="r b">' . esc_html( number_format( $r['phut'] / 60, 2 ) ) . 'h</td></tr>';
+			}
+			$h[] = '</tbody></table>';
 		}
-		foreach ( $d['tongHop'] as $r ) {
-			$h[] = '<tr><td class="c">' . self::esc( $r['ma'] ) . '</td><td>' . self::esc( $r['ten'] ) . '</td>'
-				. '<td class="c">' . (int) $r['soNgay'] . '</td>'
-				. '<td class="c' . ( $r['thieuRa'] ? ' thieu' : '' ) . '">' . (int) $r['thieuRa'] . '</td>'
-				. '<td class="r b">' . esc_html( number_format( $r['phut'] / 60, 2 ) ) . 'h</td></tr>';
-		}
-		$h[] = '</tbody></table>';
 
 		/* =====================================================================================
 		 * 🔴 GOM THEO NGƯỜI, KHÔNG PHẢI THEO NGÀY.
@@ -216,20 +332,34 @@ class VHCC_Pdf {
 		 * ⚠️ Bỏ hai cột Mã NV / Họ tên ở từng dòng: gom rồi thì mỗi dòng lặp lại tên là thừa,
 		 *    mà tờ A4 thì hết chỗ. Tên nằm ở hàng đầu mỗi khối, in đậm.
 		 */
-		$h[] = '<h2>2. Chi tiết theo từng nhân viên</h2>';
-		$h[] = self::khoi_theo_nguoi( $d['tongHop'], $d['chiTiet'] );
+		/* 🔴 MỤC CHI TIẾT TỪNG NGÀY: MẶC ĐỊNH KHÔNG IN.
+		   Anh Thắng 31/08/2026: *"Với bảng chi tiết theo từng nhân viên không cần thiết, vì kế
+		   toán đối soát rồi"*. Đúng: khúc ấy là 300-400 dòng, chiếm gần hết tập giấy, mà việc nó
+		   phục vụ — dò lại từng lượt bấm — đã làm xong ở màn quản trị trước khi in.
+		   ⚠️ GIỮ ĐƯỜNG BẬT LẠI (`&ct=1`) chứ không xoá hàm: ngày có người khiếu nại một ngày cụ
+		      thể thì tờ giấy có chi tiết là thứ đưa ra được. Bỏ hẳn thì lúc ấy phải viết lại. */
+		if ( $co_chi_tiet ) {
+			$h[] = '<h2>2. Chi tiết theo từng nhân viên</h2>';
+			$h[] = self::khoi_theo_nguoi( $d['tongHop'], $d['chiTiet'], $la_cong ? $tc['o'] : null );
+		}
 
-		/* Cắt bớt thì phải IN HẲN lên giấy. Cắt im lặng là tờ giấy trông đầy đủ trong khi thiếu người. */
-		if ( $d['biCat'] ) {
+		/* Cắt bớt thì phải IN HẲN lên giấy. Cắt im lặng là tờ giấy trông đầy đủ trong khi thiếu
+		   người. ⚠️ Hai câu này nói về MỤC CHI TIẾT — không in mục ấy thì đừng doạ người đọc về
+		   một khúc không có trên giấy. */
+		if ( $co_chi_tiet && $d['biCat'] ) {
 			$h[] = '<p class="ghi thieu">⚠ Kỳ này có ' . (int) $d['soChiTiet'] . ' dòng, nhiều hơn '
 				. self::MAX_CHI_TIET . ' nên phần chi tiết ĐÃ BỊ CẮT BỚT. Hãy in theo tuần để có đủ.</p>';
 		}
-		if ( $d['biCatTong'] ) {
+		/* Mục 1 của cơ sở tính THEO CÔNG dựng từ engine, KHÔNG đi qua `MAX_TONG_HOP` — nên câu
+		   cảnh báo ấy chỉ đúng ở nhánh theo giờ. */
+		if ( ! $la_cong && $d['biCatTong'] ) {
 			$h[] = '<p class="ghi thieu">⚠ Phần tổng hợp cũng bị cắt vì quá ' . self::MAX_TONG_HOP
 				. ' người.</p>';
 		}
-		$h[] = '<p class="ghi">Dòng ghi "THIẾU" ở cột Giờ ra là quên check-out — cần bổ sung trước '
-			. 'khi chốt công.</p>';
+		if ( $co_chi_tiet ) {
+			$h[] = '<p class="ghi">Dòng ghi "THIẾU" ở cột Giờ ra là quên check-out — cần bổ sung trước '
+				. 'khi chốt công.</p>';
+		}
 
 		$h[] = '<table class="ky"><tr>'
 			. '<td style="width:50%"><b>NHÂN VIÊN XÁC NHẬN</b><br>(ký, ghi rõ họ tên)<br><br><br><br></td>'
@@ -246,7 +376,7 @@ class VHCC_Pdf {
 	 * cảnh "mục 1 bị cắt vì quá 500 người" mà phải dựng 500 hồ sơ thật thì không ai thử, và
 	 * đúng cái nhánh ấy là nhánh dễ bỏ sót người nhất.
 	 */
-	public static function khoi_theo_nguoi( $tong_hop, $chi_tiet ) {
+	public static function khoi_theo_nguoi( $tong_hop, $chi_tiet, $cong_o = null ) {
 		$out = array();
 		/* Thứ tự người ĐI THEO MỤC 1, không sắp lại: hai mục trên cùng tờ giấy mà xếp khác nhau
 		   thì người đọc phải dò lại từ đầu mỗi lần liếc qua liếc lại. */
@@ -269,9 +399,14 @@ class VHCC_Pdf {
 			if ( ! in_array( $k, $thu_tu, true ) ) { $thu_tu[] = $k; }
 		}
 
+		/* 🔴 CỘT THỨ TƯ ĐỔI THEO ĐƠN VỊ CỦA CƠ SỞ. Cơ sở tính theo công mà mục 2 vẫn in giờ thô
+		   thì hai mục trên cùng tờ giấy nói hai đơn vị, và người ký không biết mình ký vào cái
+		   nào. `$cong_o` là bảng [mã trần][ngày] => công, lấy từ chính engine dựng nên lưới web. */
+		$la_cong = is_array( $cong_o );
 		$out[] = '<table><thead><tr><th style="width:80px">Ngày</th>'
 			. '<th style="width:80px">Giờ vào</th><th style="width:80px">Giờ ra</th>'
-			. '<th style="width:80px">Giờ làm</th><th>Ghi chú</th></tr></thead><tbody>';
+			. '<th style="width:80px">' . ( $la_cong ? 'Công' : 'Giờ làm' ) . '</th>'
+			. '<th>Ghi chú</th></tr></thead><tbody>';
 		if ( ! $chi_tiet ) {
 			$out[] = '<tr><td colspan="5" class="c">(Không có dữ liệu)</td></tr>';
 		}
@@ -280,17 +415,44 @@ class VHCC_Pdf {
 			$ten_ng = isset( $ten_cua[ $ma_ng ] ) ? $ten_cua[ $ma_ng ]
 				: (string) $theo_ma[ $ma_ng ][0]['ten'];
 			$tong_ng = isset( $phut_cua[ $ma_ng ] ) ? $phut_cua[ $ma_ng ] : 0;
+			/* Khối của HÀNG PHỤ (`MÃ-CD`, `MÃ-TC`) — engine gom công của nó vào người ở dòng
+			   chính, nên ở đây KHÔNG in lại số công: in lại là người đọc cộng hai lần. */
+			$phan  = explode( '-', $ma_ng, 2 );
+			$ma_tran = $phan[0];
+			$la_phu  = ( count( $phan ) > 1 );
+			$cong_ng = null;
+			if ( $la_cong && ! $la_phu && isset( $cong_o[ $ma_tran ] ) ) {
+				$cong_ng = 0.0;
+				foreach ( $theo_ma[ $ma_ng ] as $r_c ) {
+					$n_c = (string) $r_c['ngay'];
+					if ( isset( $cong_o[ $ma_tran ][ $n_c ] ) ) { $cong_ng += (float) $cong_o[ $ma_tran ][ $n_c ]; }
+				}
+			}
 			$out[] = '<tr class="nhom"><td colspan="3"><b>' . self::esc( $ten_ng ) . '</b> · '
-				. self::esc( $ma_ng ) . '</td>'
-				. '<td class="c b">' . esc_html( number_format( $tong_ng / 60, 2 ) ) . 'h</td>'
+				. self::esc( $ma_ng )
+				. ( $la_cong && $la_phu ? ' <i>(hàng phụ — công đã tính vào dòng chính)</i>' : '' ) . '</td>'
+				. '<td class="c b">'
+				. ( $la_cong
+					? ( null === $cong_ng ? '' : self::esc( self::so_cong( $cong_ng ) ) )
+					: esc_html( number_format( $tong_ng / 60, 2 ) ) . 'h' )
+				. '</td>'
 				. '<td class="c">' . count( $theo_ma[ $ma_ng ] ) . ' ngày</td></tr>';
 			foreach ( $theo_ma[ $ma_ng ] as $r ) {
 				$co_ra = '' !== trim( (string) $r['ra'] );
+				$n_o   = (string) $r['ngay'];
+				if ( $la_cong ) {
+					/* Ngày KHÔNG có trong bảng công (engine bỏ vì hậu tố lạ, hoặc ngày ấy 0 công
+					   nên không có dòng) thì ô để TRỐNG chứ không in số 0 bịa ra. */
+					$o_cong = ( ! $la_phu && isset( $cong_o[ $ma_tran ][ $n_o ] ) )
+						? self::esc( self::so_cong( $cong_o[ $ma_tran ][ $n_o ] ) ) : '';
+				} else {
+					$o_cong = self::esc( $r['gio'] );
+				}
 				$out[] = '<tr><td class="c">' . self::esc( self::ngay_vn( $r['ngay'] ) ) . '</td>'
 					. '<td class="c">' . self::esc( $r['vao'] ) . '</td>'
 					. '<td class="c' . ( $co_ra ? '' : ' thieu' ) . '">'
 					. ( $co_ra ? self::esc( $r['ra'] ) : 'THIẾU' ) . '</td>'
-					. '<td class="c">' . self::esc( $r['gio'] ) . '</td>'
+					. '<td class="c">' . $o_cong . '</td>'
 					. '<td>' . ( $co_ra ? '' : 'Quên check-out' ) . '</td></tr>';
 			}
 		}

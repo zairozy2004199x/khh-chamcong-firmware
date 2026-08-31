@@ -71,6 +71,100 @@ class VHCC_Cham {
 	}
 
 	/**
+	 * LƯỚI CẢ THÁNG -> BẢNG ĐỂ XUẤT RA .xlsx (cơ sở tính THEO GIỜ).
+	 *
+	 * Anh Thắng 31/08/2026: *"bổ sung xuất bảng công ra"*. Cơ sở theo giờ vốn đã có nút xuất,
+	 * nhưng tệp ấy là CHI TIẾT TỪNG CA (ca nào, từ mấy giờ, mấy tiếng) — không phải cái lưới
+	 * cả tháng đang bày trên màn. Người ta gửi đi đối chiếu là gửi cái lưới.
+	 *
+	 * 🔴 HÀM THUẦN — cùng lý do với `VHCC_Luong::to_luoi_vp()`: cùng một `$b` đi vào màn hình
+	 *    và đi vào tệp, nên bộ thử đối chiếu được hai bên.
+	 *
+	 * 🔴 Ô LÀ SỐ GIỜ THẬP PHÂN (7.5), KHÔNG PHẢI CHUỖI "7h30". Màn hình in `7h30` cho dễ đọc,
+	 *    nhưng đó là CHỮ: cả cột thành chữ thì Excel thôi cộng, mà cầm bảng công không cộng
+	 *    được thì cầm làm gì. Đơn vị nói rõ ngay ở tên trang và ở dòng đầu tiêu đề.
+	 *
+	 * ⚠️ HÀNG PHỤ (hậu tố `-CD` ca đêm, `-TC` tăng cường) CỘNG VÀO Ô, và liệt kê riêng ở trang
+	 *    "Ô cần soi". Bỏ chúng ra khỏi ô là tổng của tệp hụt so với tổng trên màn.
+	 *
+	 * @param array $b Kết quả `bang_cham_cong()`.
+	 * @return array Danh sách trang cho `VHCC_Xuat::xlsx()`.
+	 */
+	public static function to_luoi_gio( $b ) {
+		if ( empty( $b['ok'] ) ) { return array(); }
+		$tt  = (string) $b['thang'];
+		$moc = strtotime( $tt . '-01 00:00:00 UTC' );
+		if ( false === $moc ) { return array(); }
+		$so_ngay = (int) gmdate( 't', $moc );
+		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+
+		/* Gom [mã][ngày] -> phút, và giữ riêng phần hậu tố để trang "Ô cần soi" nói được. */
+		$o    = array();
+		$ten  = array();
+		$soi  = array( array( 'Ngày', 'Thứ', 'Mã NV', 'Họ tên', 'Hàng', 'Giờ vào', 'Giờ ra',
+			'Số giờ', 'Cần soi vì' ) );
+		foreach ( (array) $b['hang'] as $r ) {
+			$ma = (string) $r['maNV'];
+			$ng = (int) substr( (string) $r['ngay'], 8, 2 );
+			if ( ! isset( $ten[ $ma ] ) || '' === $ten[ $ma ] ) { $ten[ $ma ] = (string) $r['hoTen']; }
+			if ( $ng < 1 || $ng > $so_ngay ) { continue; }
+			if ( ! isset( $o[ $ma ][ $ng ] ) ) { $o[ $ma ][ $ng ] = 0; }
+			if ( null !== $r['phut'] ) { $o[ $ma ][ $ng ] += (int) $r['phut']; }
+
+			$ht  = ( '' !== (string) $r['hauTo'] ) ? (string) $r['hauTo'] : '';
+			$vi  = array();
+			if ( '' !== $r['vao'] && '' === $r['ra'] ) { $vi[] = 'THIẾU giờ ra — quên bấm lúc về'; }
+			elseif ( '' === $r['vao'] && '' !== $r['ra'] ) { $vi[] = 'THIẾU giờ vào — chỉ có lượt bấm ra'; }
+			elseif ( null === $r['phut'] && '' !== $r['vao'] && '' !== $r['ra'] ) {
+				$vi[] = 'giờ ra SỚM HƠN giờ vào — dấu hiệu ghi sai';
+			}
+			if ( '' !== $ht ) { $vi[] = 'hàng phụ -' . $ht . ' (đã cộng vào ô của ngày ấy)'; }
+			if ( $vi ) {
+				$w = (int) gmdate( 'w', strtotime( (string) $r['ngay'] . ' 00:00:00 UTC' ) );
+				$soi[] = array( (string) $r['ngay'], $thu_vn[ $w ], VHCC_Xuat::chu( $ma ),
+					(string) $r['hoTen'], ( '' !== $ht ? '-' . $ht : 'chính' ),
+					(string) $r['vao'], (string) $r['ra'],
+					( null === $r['phut'] ? '' : round( $r['phut'] / 60, 2 ) ),
+					implode( ' · ', $vi ) );
+			}
+		}
+
+		$dau = array( 'Mã NV', 'Họ tên' );
+		for ( $i = 1; $i <= $so_ngay; $i++ ) {
+			$w = (int) gmdate( 'w', strtotime( sprintf( '%s-%02d 00:00:00 UTC', $tt, $i ) ) );
+			$dau[] = $i . ' ' . $thu_vn[ $w ];
+		}
+		$dau[] = 'TỔNG GIỜ';
+
+		/* Thứ tự hàng: theo TÊN, cùng thước với `gom_tong()` — để tệp và màn xếp giống nhau. */
+		$ma_ds = array_keys( $ten );
+		usort( $ma_ds, function ( $x, $y ) use ( $ten ) {
+			return strcasecmp( $ten[ $x ], $ten[ $y ] );
+		} );
+
+		$luoi = array( $dau );
+		foreach ( $ma_ds as $ma ) {
+			$hang = array( VHCC_Xuat::chu( $ma ), $ten[ $ma ] );
+			$phut = 0;
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				if ( ! isset( $o[ $ma ][ $i ] ) ) { $hang[] = ''; continue; }
+				$phut  += (int) $o[ $ma ][ $i ];
+				$hang[] = round( $o[ $ma ][ $i ] / 60, 2 );
+			}
+			$hang[] = round( $phut / 60, 2 );
+			$luoi[] = $hang;
+		}
+
+		if ( 1 === count( $soi ) ) {
+			$soi[] = array( '', '', '', '', '', '', '', '', 'Cả tháng không có ô nào cần soi.' );
+		}
+		return array(
+			array( 'ten' => 'Lưới cả tháng (giờ)', 'hang' => $luoi ),
+			array( 'ten' => 'Ô cần soi',           'hang' => $soi ),
+		);
+	}
+
+	/**
 	 * Bảng chấm công một cơ sở / một tháng — dữ liệu cho màn quản trị công cơ sở.
 	 *
 	 * Trả về ĐÚNG những gì tab "Chấm công" của bản Apps Script hiện: từng lượt một (ngày, mã,

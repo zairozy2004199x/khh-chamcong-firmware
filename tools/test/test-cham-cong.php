@@ -1613,6 +1613,17 @@ teq( 'N1: tổng giờ chỉ tính ngày đủ cặp (9.5h)', 570, $t['N1']['phu
 teq( 'N2: 3 giờ', 180, $t['N2']['phut'] );
 
 $html = VHCC_Pdf::trang_in( 'TUTU_BT', '2026-08-01', '2026-08-31', 'Anh Thắng' );
+/* 🔴 MỤC CHI TIẾT MẶC ĐỊNH KHÔNG IN — anh Thắng 31/08/2026: *"Với bảng chi tiết theo từng nhân
+   viên không cần thiết, vì kế toán đối soát rồi"*. Bản có chi tiết dựng riêng bằng tham số cuối,
+   để mấy phép soi mục 2 dưới đây vẫn canh được nó. */
+$html_ct = VHCC_Pdf::trang_in( 'TUTU_BT', '2026-08-01', '2026-08-31', 'Anh Thắng', true );
+t( '🔴 tờ in mặc định KHÔNG có mục chi tiết từng ngày',
+	strpos( $html, 'Chi tiết theo từng nhân viên' ) === false, $html );
+t( 'và mục tổng hợp thôi đánh số khi đứng một mình',
+	strpos( $html, '<h2>Tổng hợp theo nhân viên</h2>' ) !== false, $html );
+t( 'bật &ct=1 thì mục chi tiết trở lại, và mục 1 lấy lại số thứ tự',
+	strpos( $html_ct, '2. Chi tiết theo từng nhân viên' ) !== false
+	&& strpos( $html_ct, '<h2>1. Tổng hợp theo nhân viên</h2>' ) !== false, $html_ct );
 t( 'tờ in là HTML đứng một mình', strpos( $html, '<!DOCTYPE html>' ) === 0 );
 t( 'khổ A4 và lề như bản gốc', strpos( $html, '@page{size:A4;margin:12mm 10mm}' ) !== false );
 /* Sang trang mới phải lặp lại dòng tiêu đề, và không cắt một hàng làm hai trang. Thiếu hai dòng
@@ -1621,11 +1632,11 @@ t( 'sang trang lặp lại dòng tiêu đề', strpos( $html, 'thead{display:tab
 t( 'không cắt một hàng làm hai trang', strpos( $html, 'tr{page-break-inside:avoid}' ) !== false );
 t( 'có tên công ty', strpos( $html, 'K&amp;H' ) !== false );
 t( 'có người xuất', strpos( $html, 'Anh Thắng' ) !== false );
-t( 'ngày viết kiểu Việt dd/MM/yyyy', strpos( $html, '03/08/2026' ) !== false );
+t( 'ngày viết kiểu Việt dd/MM/yyyy', strpos( $html_ct, '03/08/2026' ) !== false );
 t( 'KHÔNG để nguyên khuôn yyyy-MM-dd trên giấy', strpos( $html, '2026-08-03' ) === false );
 /* Quên check-out phải hiện chữ THIẾU đỏ, và có dòng giải thích cuối trang. */
-t( 'ngày quên check-out hiện chữ THIẾU', strpos( $html, '>THIẾU<' ) !== false );
-t( 'có dòng giải thích chữ THIẾU nghĩa là gì', strpos( $html, 'quên check-out' ) !== false );
+t( 'ngày quên check-out hiện chữ THIẾU', strpos( $html_ct, '>THIẾU<' ) !== false );
+t( 'có dòng giải thích chữ THIẾU nghĩa là gì', strpos( $html_ct, 'quên check-out' ) !== false );
 t( 'có hai ô ký tên', strpos( $html, 'NHÂN VIÊN XÁC NHẬN' ) !== false
 	&& strpos( $html, 'CỬA HÀNG TRƯỞNG' ) !== false );
 /* Thanh nút chỉ có trên màn hình, KHÔNG in ra giấy. */
@@ -1667,7 +1678,226 @@ teq( 'ngưỡng cắt chi tiết', 4000, VHCC_Pdf::MAX_CHI_TIET );
 $than_pdf = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-pdf.php' );
 t( 'có in cảnh báo khi bị cắt', strpos( $than_pdf, 'ĐÃ BỊ CẮT BỚT' ) !== false );
 t( 'và cảnh báo nằm trong phần dựng giấy, không phải chỉ ghi chú',
-	strpos( $than_pdf, "if ( \$d['biCat'] ) {" ) !== false );
+	strpos( $than_pdf, "\$d['biCat']" ) !== false );
+/* ⚠️ Câu cảnh báo ấy nói về MỤC CHI TIẾT — mà mục ấy nay mặc định không in. Doạ người đọc về
+   một khúc không có trên giấy là câu cảnh báo vô nghĩa, nên nó phải đi kèm cờ `$co_chi_tiet`. */
+t( '🔴 và chỉ doạ khi thật sự CÓ in mục chi tiết',
+	strpos( $than_pdf, "if ( \$co_chi_tiet && \$d['biCat'] ) {" ) !== false );
+
+/* =============================================================================================
+ * XUẤT BẢNG CÔNG RA .xlsx — CẢ CƠ SỞ THEO CÔNG LẪN THEO GIỜ
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"bổ sung xuất bảng công ra"* — ảnh anh gửi là `VP_KH-HCM`, cơ sở tính
+ * THEO CÔNG, và nhánh ấy trước bản này không có một nút xuất nào.
+ *
+ * 🔴 SO Ô TRONG TỆP VỚI ENGINE, không so với số chép tay — cùng lý do với khối tờ in bên dưới.
+ */
+vhcc_dung_bang();
+$ad_xl = array( 'name' => 'Sếp Xuất', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'ADXL' );
+$cs_xl = 'VP_XUAT_THU';
+VHCC_Luong::dat_cach_tinh( $ad_xl, array( $cs_xl => 'cong' ) );
+vhcc_cham( $cs_xl, '2026-08-03', 'XC1', '', '08:00:00', '17:30:00' );
+vhcc_cham( $cs_xl, '2026-08-04', 'XC1', '', '08:00:00', '' );
+vhcc_cham( $cs_xl, '2026-08-05', 'XC1', '', '08:00:00', '21:00:00' );
+
+$b_xl = VHCC_Luong::vp_bang_cong_va_luong( $cs_xl, '2026-08' );
+$to_xl = VHCC_Luong::to_luoi_vp( $b_xl );
+teq( 'tệp có ba trang: lưới · ô cần soi · tổng theo người', 3, count( $to_xl ) );
+teq( 'trang đầu là lưới cả tháng', 'Lưới cả tháng', $to_xl[0]['ten'] );
+/* Tiêu đề: Mã NV · Họ tên · 31 ngày · TỔNG = 34 cột cho tháng 8. */
+teq( 'tiêu đề có đủ 31 cột ngày cộng bốn cột kia', 34, count( $to_xl[0]['hang'][0] ) );
+teq( 'cột ngày ghi kèm thứ', '3 T2', $to_xl[0]['hang'][0][4] );
+teq( 'cột cuối là TỔNG', 'TỔNG', $to_xl[0]['hang'][0][33] );
+
+$hang_xl = null;
+foreach ( $to_xl[0]['hang'] as $i_xl => $h_xl ) {
+	if ( 0 === $i_xl ) { continue; }
+	if ( isset( $h_xl[0]['chu'] ) && 'XC1' === $h_xl[0]['chu'] ) { $hang_xl = $h_xl; }
+}
+t( 'người thử có một hàng trong lưới', null !== $hang_xl, $to_xl[0]['hang'] );
+/* 🔴 MÃ NV LÀ CHỮ, không phải số — mã kiểu `0012` vào Excel dạng số là rụng số 0 đầu. */
+t( '🔴 mã NV ép thành chữ', is_array( $hang_xl[0] ) && isset( $hang_xl[0]['chu'] ), $hang_xl[0] );
+/* Ngày KHÔNG có dữ liệu để TRỐNG, không phải số 0: số 0 nghĩa là "đi làm mà không ra công". */
+teq( '🔴 ngày không có dữ liệu để TRỐNG, không phải 0', '', $hang_xl[2] );   // ngày 1
+teq( 'ngày 04 có bấm mà thiếu giờ ra -> 0 công, và là SỐ 0 thật', 0.0, $hang_xl[5] );
+$cong_xl = null;
+foreach ( (array) $b_xl['rows'] as $r_xl ) {
+	if ( 'XC1' === (string) $r_xl['ma'] ) { $cong_xl = (float) $r_xl['tong']; }
+}
+t( '🔴 CỘT TỔNG TRONG TỆP = TỔNG CỦA ENGINE (tức con số ở lưới web)',
+	abs( (float) $hang_xl[33] - (float) $cong_xl ) < 0.005,
+	array( 'tep' => $hang_xl[33], 'engine' => $cong_xl ) );
+/* Và ô từng ngày cũng phải khớp, không chỉ cột tổng — tổng khớp mà ô lệch bù trừ nhau là bảng
+   công vẫn sai ở đúng chỗ người ta soi. */
+$o_xl = array();
+foreach ( (array) $b_xl['detail'] as $d_xl ) {
+	if ( 'XC1' === (string) $d_xl['ma'] ) { $o_xl[ (int) substr( (string) $d_xl['ngay'], 8, 2 ) ] = (float) $d_xl['tong']; }
+}
+$lech_xl = 0;
+foreach ( $o_xl as $ng_xl => $gia_xl ) {
+	if ( abs( (float) $hang_xl[ $ng_xl + 1 ] - $gia_xl ) > 0.005 ) { $lech_xl++; }
+}
+teq( '🔴 và TỪNG Ô ngày cũng khớp engine, không chỉ cột tổng', 0, $lech_xl );
+
+/* Trang "Ô cần soi" nói bằng CHỮ cái mà màn hình nói bằng MÀU — tệp không có màu để tô. */
+$soi_xl = '';
+foreach ( $to_xl[1]['hang'] as $h_s ) { $soi_xl .= implode( ' | ', array_map( function ( $x ) {
+	return is_array( $x ) ? ( isset( $x['chu'] ) ? $x['chu'] : '' ) : (string) $x; }, $h_s ) ) . "\n"; }
+t( '🔴 ngày thiếu một đầu giờ được kêu tên ở trang Ô cần soi',
+	strpos( $soi_xl, '2026-08-04' ) !== false && strpos( $soi_xl, 'thiếu một đầu giờ' ) !== false, $soi_xl );
+t( 'ngày bình thường KHÔNG bị lôi vào trang ấy', strpos( $soi_xl, '2026-08-03' ) === false, $soi_xl );
+/* Trang 1 chỉ chở SỐ. Nhét dấu ? hay 🌙 vào ô là cả cột thành chữ và Excel thôi cộng. */
+$co_chu_xl = false;
+foreach ( $to_xl[0]['hang'] as $i_xl => $h_xl ) {
+	if ( 0 === $i_xl ) { continue; }
+	for ( $c_xl = 2; $c_xl < count( $h_xl ); $c_xl++ ) {
+		if ( '' !== $h_xl[ $c_xl ] && ! is_numeric( $h_xl[ $c_xl ] ) ) { $co_chu_xl = true; }
+	}
+}
+t( '🔴 trang lưới chỉ chở SỐ — không lẫn dấu ? hay 🌙 làm Excel thôi cộng', ! $co_chu_xl, $to_xl[0]['hang'] );
+
+/* ---- Cơ sở tính THEO GIỜ: ô là số giờ THẬP PHÂN, cộng được ---- */
+$cs_xg = 'SHOP_XUAT_THU';
+VHCC_Luong::dat_cach_tinh( $ad_xl, array( $cs_xg => 'gio' ) );
+vhcc_cham( $cs_xg, '2026-08-03', 'XG1', '', '08:00:00', '17:30:00' );   // 9.5h
+vhcc_cham( $cs_xg, '2026-08-04', 'XG1', '', '08:00:00', '' );           // thiếu ra
+$to_xg = VHCC_Cham::to_luoi_gio( VHCC_Cham::bang_cham_cong( $ad_xl, $cs_xg, '2026-08' ) );
+teq( 'cơ sở theo giờ: hai trang', 2, count( $to_xg ) );
+teq( 'và tên trang nói rõ đơn vị', 'Lưới cả tháng (giờ)', $to_xg[0]['ten'] );
+teq( '🔴 ô là số giờ THẬP PHÂN (9.5), không phải chuỗi "9h30"', 9.5, $to_xg[0]['hang'][1][4] );
+teq( 'cột cuối ghi rõ TỔNG GIỜ', 'TỔNG GIỜ', $to_xg[0]['hang'][0][33] );
+teq( 'ngày thiếu giờ ra không cộng giờ nào vào tổng', 9.5, $to_xg[0]['hang'][1][33] );
+
+/* ---- Qua MÀN HÌNH: nút phải có ở CẢ HAI kiểu cơ sở ---- */
+foreach ( array( $cs_xl => 'số công', $cs_xg => 'số giờ' ) as $cs_n => $dv_n ) {
+	$_GET = array( 'man' => 'cham', 'ccs' => $cs_n, 'cth' => '2026-08' );
+	$_POST = array();
+	$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Sếp Xuất', 'Admin', $cs_n, 'ADXL' );
+	ob_start(); VHCC_Web::phuc_vu(); $h_n = ob_get_clean();
+	$_GET = array(); $_COOKIE = array();
+	t( 'màn ' . $cs_n . ' có nút Xuất bảng công',
+		strpos( $h_n, 'Xuất bảng công (.xlsx)' ) !== false
+		&& strpos( $h_n, 'xuat=luoi' ) !== false, substr( $h_n, 0, 400 ) );
+	/* Câu bên cạnh nút phải nói ĐÚNG đơn vị của cơ sở ấy — nói sai đơn vị là hứa một tệp
+	   khác với tệp thật ra, và người ta mở lên mới biết. */
+	t( 'và nói đúng đơn vị của ô: ' . $dv_n, strpos( $h_n, 'mỗi ô một ' . $dv_n ) !== false, $dv_n );
+}
+t( '🔴 loại xuất "luoi" được nhận, không bị chối là kiểu lạ',
+	'' === VHCC_Web::vi_sao_khong_xuat( array( 'role' => 'Admin', 'coso' => '' ), 'luoi', $cs_xl )
+	|| strpos( VHCC_Web::vi_sao_khong_xuat( array( 'role' => 'Admin', 'coso' => '' ), 'luoi', $cs_xl ),
+		'Không biết xuất kiểu' ) === false,
+	VHCC_Web::vi_sao_khong_xuat( array( 'role' => 'Admin', 'coso' => '' ), 'luoi', $cs_xl ) );
+t( 'và nó CẦN ZipArchive như mọi tệp .xlsx khác', VHCC_Web::xuat_can_zip( 'luoi' ) );
+t( 'kiểu lạ vẫn bị chối', strpos( VHCC_Web::vi_sao_khong_xuat(
+	array( 'role' => 'Admin', 'coso' => '' ), 'nem', $cs_xl ), 'Không biết xuất kiểu' ) !== false );
+vhcc_dung_bang();
+
+/* =============================================================================================
+ * 🔴 TỜ IN PHẢI RA ĐÚNG CON SỐ CỦA LƯỚI WEB — KHÔNG PHẢI SỐ NGÀY CÓ BẤM MÁY.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"tại sao bảng công trên wed với bảng công in ra khác nhau"*, rồi
+ * *"Cơ sở đã set công, tại sao lại xuất ra giờ làm chi đâu, không cần thiết, cần số công chính
+ * xác như wed"*.
+ *
+ * Tờ in trước bản này đọc THẲNG bảng `cham_cong`: mỗi hàng là một "ngày công", giờ cộng thô.
+ * Lưới web đi qua engine Văn phòng. Hai đường, hai con số, cùng một tờ giấy mang tên "bảng
+ * công" — và tờ ấy đưa nhân viên KÝ.
+ *
+ * 🔴 PHÉP THỬ SO TỜ IN VỚI CHÍNH ENGINE, KHÔNG SO VỚI MỘT CON SỐ CHÉP TAY. Chép tay thì ngày
+ *    engine đổi luật (thêm bậc, đổi khung giờ) phép thử vẫn xanh trong khi tờ giấy đã lệch
+ *    khỏi màn hình — đúng cái hỏng ta đang đi sửa.
+ */
+vhcc_dung_bang();
+$cs_in = 'VP_IN_THU';
+/* ⚠️ Khối này chạy SỚM trong tệp, trước chỗ dựng `$U_AD` — dựng người khai ngay tại đây. Dùng
+   một biến chưa có thì `dat_cach_tinh()` bị chối, cơ sở ở lại 'gio', và cả khối thử nhánh sai. */
+$ad_in = array( 'name' => 'Sếp In', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'ADIN' );
+VHCC_Luong::dat_cach_tinh( $ad_in, array( $cs_in => 'cong' ) );
+teq( 'cơ sở thử đã khai tính THEO CÔNG', 'cong', VHCC_Luong::cach_tinh( $cs_in ) );
+/* Ba dạng ngày cố ý khác nhau — nếu tờ in vẫn đếm số hàng thì cả ba ra 1, mà engine thì không. */
+vhcc_cham( $cs_in, '2026-08-03', 'IC1', '', '08:00:00', '17:30:00' );   // ngày đủ
+vhcc_cham( $cs_in, '2026-08-04', 'IC1', '', '08:00:00', '' );           // thiếu giờ ra -> 0 công
+vhcc_cham( $cs_in, '2026-08-05', 'IC1', '', '08:00:00', '21:00:00' );   // làm dài -> hơn 1 công
+
+$b_in  = VHCC_Luong::vp_bang_cong_va_luong( $cs_in, '2026-08' );
+$cong_engine = null;
+foreach ( (array) $b_in['rows'] as $r_in ) {
+	if ( 'IC1' === (string) $r_in['ma'] ) { $cong_engine = (float) $r_in['tong']; }
+}
+t( 'engine có tính ra công cho người thử', null !== $cong_engine, $b_in['rows'] );
+
+$to_in_c = VHCC_Pdf::trang_in( $cs_in, '2026-08-01', '2026-08-31', 'Người In' );
+t( '🔴 cơ sở tính theo công: tờ in bỏ hẳn cột "Tổng giờ làm"',
+	strpos( $to_in_c, 'Tổng giờ làm' ) === false, $to_in_c );
+t( 'và thay bằng cột "Số công"', strpos( $to_in_c, '>Số công<' ) !== false, $to_in_c );
+/* Rút chính con số trên giấy ra mà so — soi "có chuỗi X" thì một con số khác cũng lọt. */
+$so_giay = null;
+if ( preg_match( '#<td class="c">IC1</td><td>[^<]*</td><td class="c b">([0-9.]+)</td>#', $to_in_c, $mm_in ) ) {
+	$so_giay = (float) $mm_in[1];
+}
+t( '🔴 SỐ CÔNG TRÊN GIẤY = SỐ CÔNG CỦA ENGINE (tức con số ở lưới web)',
+	null !== $so_giay && abs( $so_giay - (float) $cong_engine ) < 0.005,
+	array( 'giay' => $so_giay, 'engine' => $cong_engine ) );
+/* Và nó KHÁC số ngày có bấm máy — nếu bằng nhau thì phép trên xanh một cách tình cờ, vì cách
+   tính cũ (đếm hàng) tình cờ ra cùng số. Ba ngày dựng ở trên cố ý làm hai con số lệch. */
+$d_in_cu = VHCC_Pdf::gom( $cs_in, '2026-08-01', '2026-08-31' );
+$ngay_cu = 0;
+foreach ( $d_in_cu['tongHop'] as $r_cu ) { if ( 'IC1' === $r_cu['ma'] ) { $ngay_cu = (int) $r_cu['soNgay']; } }
+teq( 'cách đếm CŨ ra 3 ngày có bấm máy', 3, $ngay_cu );
+t( '🔴 và số công KHÁC số ngày bấm máy — hai phép trên không xanh nhờ trùng hợp',
+	abs( (float) $cong_engine - 3.0 ) > 0.005, $cong_engine );
+/* Ngày thiếu một đầu giờ phải được ĐẾM RIÊNG, đúng như ô đỏ `?` trên lưới. */
+t( 'cột Thiếu giờ ra đếm đúng ngày thiếu đầu giờ',
+	preg_match( '#<td class="c">IC1</td><td>[^<]*</td><td class="c b">[0-9.]+</td><td class="c thieu">1</td>#', $to_in_c ) === 1,
+	$to_in_c );
+t( 'và tờ giấy NÓI RA con số ấy từ đâu mà có',
+	strpos( $to_in_c, 'đúng con số ở lưới cả tháng trên trang quản trị' ) !== false, $to_in_c );
+
+/* 🔴 IN NỬA THÁNG: CHỈ CỘNG CÔNG CỦA MẤY NGÀY TRONG KHOẢNG.
+   Engine tính theo THÁNG, tờ in nhận KHOẢNG NGÀY. Không cắt lại theo khoảng thì in từ 01 đến
+   03 vẫn ra công của cả tháng — và kỳ lương nửa đầu tháng trả dư mà không ai soi ra, vì con
+   số trông vẫn "hợp lý". */
+$to_nua = VHCC_Pdf::trang_in( $cs_in, '2026-08-01', '2026-08-03', 'Người In' );
+$so_nua = null;
+if ( preg_match( '#<td class="c">IC1</td><td>[^<]*</td><td class="c b">([0-9.]+)</td>#', $to_nua, $mm_n ) ) {
+	$so_nua = (float) $mm_n[1];
+}
+$o_ngay3 = null;
+foreach ( (array) $b_in['detail'] as $d_n ) {
+	if ( 'IC1' === (string) $d_n['ma'] && '2026-08-03' === (string) $d_n['ngay'] ) { $o_ngay3 = (float) $d_n['tong']; }
+}
+t( '🔴 in một khúc ngày thì chỉ cộng công của khúc ấy',
+	null !== $so_nua && null !== $o_ngay3 && abs( $so_nua - $o_ngay3 ) < 0.005,
+	array( 'khuc' => $so_nua, 'ngay3' => $o_ngay3 ) );
+t( 'và nó NHỎ HƠN công cả tháng — khúc con phải nhỏ hơn cả tháng',
+	null !== $so_nua && $so_nua < (float) $cong_engine, array( $so_nua, $cong_engine ) );
+
+/* 🔴 IN BẮC QUA HAI THÁNG: PHẢI CHẠY ENGINE CHO **CẢ HAI**.
+   Vòng lặp tháng đi theo mốc "ngày 1", không cộng 30 ngày một bước. Chỉ chạy tháng đầu thì
+   nửa sau tờ giấy trống trơn — mà tờ giấy vẫn in ra bình thường, có chữ ký, có đủ khung. */
+vhcc_cham( $cs_in, '2026-09-02', 'IC1', '', '08:00:00', '17:30:00' );
+$tc_2t = VHCC_Pdf::cong_theo_khoang( $cs_in, '2026-08-28', '2026-09-05' );
+t( 'khoảng bắc qua hai tháng vẫn thấy người ấy', isset( $tc_2t['nguoi']['IC1'] ), $tc_2t );
+t( '🔴 và có công của ngày bên THÁNG SAU',
+	isset( $tc_2t['o']['IC1']['2026-09-02'] ) && $tc_2t['o']['IC1']['2026-09-02'] > 0,
+	isset( $tc_2t['o']['IC1'] ) ? $tc_2t['o']['IC1'] : null );
+t( 'nhưng KHÔNG lôi vào ngày nằm ngoài khoảng',
+	! isset( $tc_2t['o']['IC1']['2026-08-03'] ), isset( $tc_2t['o']['IC1'] ) ? $tc_2t['o']['IC1'] : null );
+
+/* Cơ sở tính THEO GIỜ thì giữ nguyên đơn vị giờ — ở đó giờ mới là thứ trả lương. */
+$cs_in_g = 'SHOP_IN_THU';
+VHCC_Luong::dat_cach_tinh( $ad_in, array( $cs_in_g => 'gio' ) );
+vhcc_cham( $cs_in_g, '2026-08-03', 'IG1', '', '08:00:00', '17:00:00' );
+$to_in_g = VHCC_Pdf::trang_in( $cs_in_g, '2026-08-01', '2026-08-31', 'Người In' );
+t( '🔴 cơ sở tính theo GIỜ vẫn in cột Tổng giờ làm, không đổi sang công',
+	strpos( $to_in_g, 'Tổng giờ làm' ) !== false && strpos( $to_in_g, '>Số công<' ) === false, $to_in_g );
+
+/* Mục chi tiết (khi bật) cũng phải đổi đơn vị theo cơ sở — hai mục trên cùng tờ giấy nói hai
+   đơn vị thì người ký không biết mình ký vào cái nào. */
+$to_in_ct = VHCC_Pdf::trang_in( $cs_in, '2026-08-01', '2026-08-31', 'Người In', true );
+t( '🔴 mục chi tiết của cơ sở theo công đổi cột "Giờ làm" thành "Công"',
+	strpos( $to_in_ct, '>Công</th>' ) !== false && strpos( $to_in_ct, '>Giờ làm</th>' ) === false, $to_in_ct );
+vhcc_dung_bang();
 
 /* Tên tệp: không dấu, không khoảng trắng. */
 teq( 'tên tệp một ngày', 'BangCong_TUTU_BT_20260803', VHCC_Pdf::ten_tep( 'CS_TUTU_BT', '2026-08-03', '2026-08-03' ) );
@@ -11378,6 +11608,15 @@ t( 'không dính thanh điều hướng của màn quản trị',
 	strpos( $in_to, 'class="hieu"' ) === false );
 t( 'có tên người in để biết tờ giấy do ai xuất',
 	strpos( $in_to, 'Người In' ) !== false, $in_to );
+/* 🔴 QUA MÀN HÌNH CŨNG PHẢI GỌN — mặc định không có mục chi tiết, và `&ct=1` bật lại. Soi ở
+   đây chứ không chỉ soi hàm: đường địa chỉ mới là thứ anh Thắng bấm. */
+t( '🔴 tờ in qua màn hình mặc định KHÔNG kèm mục chi tiết',
+	strpos( $in_to, 'Chi tiết theo từng nhân viên' ) === false, $in_to );
+$_GET = array( 'to_in' => '1', 'ics' => 'TUTU_BT', 'itu' => '2026-08-01', 'iden' => '2026-08-31',
+	'ct' => '1' );
+$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Người In', 'Kế toán', 'TUTU_BT', 'KT9' );
+ob_start(); VHCC_Web::phuc_vu(); $in_to = ob_get_clean();
+$_GET = array(); $_COOKIE = array();
 
 /* 🔴 PHẦN CHI TIẾT GOM THEO NGƯỜI, KHÔNG THEO NGÀY.
    Anh Thắng 28/08/2026: *"in theo ngày hàng dọc theo 1 nhân viên cho dễ nhìn nhé em"*. Tờ này
