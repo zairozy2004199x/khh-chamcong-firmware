@@ -181,6 +181,69 @@ class VHCC_Online {
 		return $sach;
 	}
 
+	/**
+	 * SỐ CÔNG CỦA MỘT NGƯỜI, LẤY TỪ CHÍNH ENGINE ĐÃ DỰNG NÊN BẢNG CỦA QUẢN LÝ.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026: *"tài khoản nhân viên sao khác với bản của quản lý"* — chị Tường
+	 *    Vi mở "Công của tôi" thấy `POSH_HCM · tính theo giờ · 7h02 · 8h06 · …`, trong khi màn
+	 *    Bảng công của chị Quyên nói `POSH_HCM đang tính THEO CÔNG` và ô là `1 · 0? · 1`.
+	 *
+	 *    Cùng một cơ sở, hai màn nói hai chuyện, vì hai màn hỏi hai câu khác nhau:
+	 *      · màn quản lý rẽ ở `'cong' === cach_tinh()`  -> engine Văn phòng, ra SỐ CÔNG
+	 *      · màn nhân viên rẽ ở `'ngay' === $kieu`       -> `'cong'` không khớp, rơi xuống nhánh
+	 *        cộng phút, ra SỐ GIỜ
+	 *    Bảng `CACH_TINH_DS` có BỐN kiểu (`gio` · `cong` · `ngay` · `ca`); mỗi màn chỉ nhớ một
+	 *    kiểu trong số đó, và kiểu còn lại rơi vào nhánh mặc định mà không ai kêu.
+	 *
+	 *    Người ta mở màn này để ĐỐI CHIẾU với bảng của quản lý. Hai bảng ra hai con số thì màn
+	 *    này không những vô dụng, nó còn làm người ta tưởng mình bị tính thiếu công.
+	 *
+	 * ⚠️ HÀM NÀY ĐỌC SỔ. `luoi_thang()` là hàm THUẦN và phải giữ như thế, nên phần đọc tách ra
+	 *    đây rồi truyền kết quả vào — chứ không gọi engine từ trong hàm thuần.
+	 *
+	 * @return array [cơ sở] => [ngày (1..31)] => ['cong' => float, 'dem' => float, 'thieu' => bool]
+	 *               CHỈ những cơ sở khai `cach_tinh = 'cong'`; cơ sở khác không có mặt.
+	 */
+	public static function cong_vp_cua( $ma_nv, $ds_coso, $thang ) {
+		$ra = array();
+		$ma = strtoupper( trim( (string) $ma_nv ) );
+		if ( '' === $ma || ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { return $ra; }
+		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `kiem-goi-cheo.php`. */
+		if ( ! class_exists( 'VHCC_Luong' ) || ! method_exists( 'VHCC_Luong', 'vp_bang_cong_va_luong' )
+			|| ! method_exists( 'VHCC_Luong', 'cach_tinh' ) ) {
+			return $ra;
+		}
+		foreach ( (array) $ds_coso as $cs ) {
+			$cs = (string) $cs;
+			if ( '' === $cs || isset( $ra[ $cs ] ) ) { continue; }
+			if ( 'cong' !== VHCC_Luong::cach_tinh( $cs ) ) { continue; }
+			$b = VHCC_Luong::vp_bang_cong_va_luong( $cs, $thang );
+			foreach ( (array) $b['detail'] as $d ) {
+				if ( strtoupper( trim( (string) $d['ma'] ) ) !== $ma ) { continue; }
+				$ngay_d = (string) $d['ngay'];
+				/* Ca đêm ngày cuối tháng đẩy công sang ngày 1 tháng sau — nhận vào lưới tháng
+				   này là cộng nhầm công của tháng sau.
+				   ⚠️ TẦNG GÁC THỨ HAI, CỐ Ý. `vp_bang_cong_va_luong()` đã lọc sẵn (nó `continue`
+				      trên ngày ngoài tháng TRƯỚC khi dựng `detail`), nên bỏ dòng này đi hôm nay
+				      bộ thử vẫn xanh — đã phá thử để biết. Giữ vì nó rẻ và vì lưới ở đây đánh
+				      chỉ số ô bằng `substr($ngay,8,2)`: ngày 01 tháng sau rơi đúng vào ô số 1
+				      của tháng này, một cách im lặng, nếu engine có ngày nới bộ lọc kia ra. */
+				if ( substr( $ngay_d, 0, 7 ) !== (string) $thang ) { continue; }
+				$ra[ $cs ][ (int) substr( $ngay_d, 8, 2 ) ] = array(
+					'cong'  => (float) $d['tong'],
+					'dem'   => (float) $d['congDem'],
+					'thieu' => ( ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) )
+						|| ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) ) ),
+				);
+			}
+			/* ⚠️ KHÔNG cần đánh dấu cơ sở rỗng ở đây. `luoi_thang()` lấy `kieu` từ
+			   `VHCC_Luong::cach_tinh()` chứ không từ bảng này, nên cơ sở tính theo công mà
+			   tháng ấy trống vẫn ra hàng kiểu `cong` với mọi ô rỗng. Thêm một khoá rỗng chỉ để
+			   "cho chắc" là mã không ai đọc, và nó không đỏ khi bị gỡ. */
+		}
+		return $ra;
+	}
+
 	/** Nhiệm vụ người này ĐƯỢC KHAI trong hồ sơ. Rỗng = chỉ được nhiệm vụ mặc định. */
 	public static function nhiem_vu_cua_nv( $ma_nv ) {
 		global $wpdb;
@@ -504,7 +567,7 @@ class VHCC_Online {
 	 * @param array  $kieu_cs Cách tính từng cơ sở; thiếu thì hỏi VHCC_Luong.
 	 * @return array `thang` · `soNgay` · `hang`(mảng theo thứ tự $ds_coso)
 	 */
-	public static function luoi_thang( $dong, $ds_coso, $thang = '', $kieu_cs = array() ) {
+	public static function luoi_thang( $dong, $ds_coso, $thang = '', $kieu_cs = array(), $cong_vp = array() ) {
 		if ( ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { $thang = current_time( 'Y-m' ); }
 		$so_ngay = (int) gmdate( 't', strtotime( $thang . '-01' ) );
 
@@ -552,6 +615,15 @@ class VHCC_Online {
 				$hang[ $cs ]['thieuRa']++;
 			}
 
+			/* 🔴 CƠ SỞ KIỂU `cong` KHÔNG TỰ TÍNH Ở ĐÂY — số lấy thẳng từ engine Văn phòng, qua
+			   `$cong_vp`. Engine ấy có bậc thang 0.5 · 1 · 1.5, tăng ca, ca đêm, công bù; chép
+			   lại một bản rút gọn ở đây là đúng cái đã làm màn này nói `7h02` trong khi bảng
+			   của quản lý nói `1`. Ô nào engine không có dòng thì để 0 — không đoán. */
+			if ( 'cong' === $hang[ $cs ]['kieu'] ) {
+				$hang[ $cs ]['o'][ $ng ]['chinh'] = isset( $cong_vp[ $cs ][ $ng ]['cong'] )
+					? (float) $cong_vp[ $cs ][ $ng ]['cong'] : 0.0;
+				continue;
+			}
 			/* Kiểu 'ngay' đếm CÔNG, kiểu khác cộng PHÚT. Luật "thiếu giờ ra thì không tính công"
 			   nằm ở `VHCC_Luong::cong_co_di()` — hỏi lại nó chứ không chép luật sang đây, vì hai
 			   bản luật cho cùng một câu thì sớm muộn lệch nhau. */
@@ -574,6 +646,24 @@ class VHCC_Online {
 			}
 		}
 
+		/* 🔴 TỔNG CỦA CƠ SỞ KIỂU `cong` CỘNG TỪ Ô, không cộng dần trong vòng lặp trên: một ngày
+		   có thể có NHIỀU lượt chấm (hàng chính + hàng ca đêm), mà engine đã gộp chúng thành
+		   MỘT con số cho ngày ấy. Cộng theo lượt là mỗi lượt cộng lại nguyên con số của cả
+		   ngày — người làm hai lượt một ngày ra gấp đôi công. */
+		foreach ( $hang as $cs_t => $h_t ) {
+			if ( 'cong' !== $h_t['kieu'] ) { continue; }
+			$tong_t = 0.0;
+			foreach ( $h_t['o'] as $o_t ) {
+				if ( null !== $o_t['chinh'] ) { $tong_t += (float) $o_t['chinh']; }
+			}
+			$hang[ $cs_t ]['tong']    = round( $tong_t, 2 );
+			/* Engine đã gộp hàng phụ vào con số của ngày — bày thêm dòng `-CD` ở đây là cộng hai
+			   lần trong mắt người đọc. */
+			$hang[ $cs_t ]['tongPhu'] = array();
+			foreach ( $hang[ $cs_t ]['o'] as $ng_t => $o_t ) {
+				$hang[ $cs_t ]['o'][ $ng_t ]['phu'] = array();
+			}
+		}
 		return array( 'thang' => $thang, 'soNgay' => $so_ngay, 'hang' => array_values( $hang ) );
 	}
 

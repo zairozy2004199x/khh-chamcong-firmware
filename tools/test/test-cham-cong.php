@@ -1691,6 +1691,134 @@ t( '🔴 và chỉ doạ khi thật sự CÓ in mục chi tiết',
 	strpos( $than_pdf, "if ( \$co_chi_tiet && \$d['biCat'] ) {" ) !== false );
 
 /* =============================================================================================
+ * 🔴 MÀN "CÔNG CỦA TÔI" PHẢI NÓI CÙNG CON SỐ VỚI BẢNG CỦA QUẢN LÝ
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"tài khoản nhân viên sao khác với bản của quản lý"*. Chị Tường Vi mở
+ * "Công của tôi" thấy `POSH_HCM · tính theo giờ · 7h02 · 8h06`, còn màn Bảng công của chị Quyên
+ * cùng cơ sở ấy nói `POSH_HCM đang tính THEO CÔNG` với ô `1 · 0? · 1`.
+ *
+ * Gốc: `CACH_TINH_DS` có BỐN kiểu (`gio` · `cong` · `ngay` · `ca`), mà mỗi màn chỉ nhớ một kiểu
+ * — màn quản lý rẽ ở `'cong'`, màn nhân viên rẽ ở `'ngay'` — nên kiểu còn lại rơi vào nhánh mặc
+ * định của mỗi bên mà không ai kêu. Người ta mở màn này để ĐỐI CHIẾU; hai bảng ra hai con số
+ * thì nó không những vô dụng, nó làm người ta tưởng mình bị tính thiếu công.
+ *
+ * 🔴 PHÉP THỬ SO HAI MÀN VỚI NHAU, không so với số chép tay: chép tay thì ngày engine đổi luật,
+ *    hai màn cùng trôi theo hay một màn trôi cũng không có gì kêu.
+ */
+vhcc_dung_bang();
+$ad_2m = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'AD2M' );
+$cs_2m = 'POSH_2M';
+VHCC_Luong::dat_cach_tinh( $ad_2m, array( $cs_2m => 'cong' ) );
+teq( 'cơ sở thử khai tính THEO CÔNG', 'cong', VHCC_Luong::cach_tinh( $cs_2m ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TV1', 'ho_ten' => 'Tường Vi',
+	'cua_hang' => $cs_2m, 'vai_tro' => 'Nhân viên' ) );
+vhcc_cham( $cs_2m, '2026-08-03', 'TV1', '', '14:59:07', '22:01:47' );   // ~7h -> ra công lẻ
+vhcc_cham( $cs_2m, '2026-08-04', 'TV1', '', '09:57:56', '18:03:26' );
+vhcc_cham( $cs_2m, '2026-08-05', 'TV1', '', '08:00:00', '21:00:00' );   // làm dài -> hơn 1 công
+vhcc_cham( $cs_2m, '2026-08-06', 'TV1', '', '12:59:49', '' );           // thiếu giờ ra -> 0 công
+
+/* Con số của ENGINE — cũng chính là con số màn quản lý vẽ ra. */
+$b_2m = VHCC_Luong::vp_bang_cong_va_luong( $cs_2m, '2026-08' );
+$cong_ql = null;
+$o_ql    = array();
+foreach ( (array) $b_2m['rows'] as $r_2m ) {
+	if ( 'TV1' === (string) $r_2m['ma'] ) { $cong_ql = (float) $r_2m['tong']; }
+}
+foreach ( (array) $b_2m['detail'] as $d_2m ) {
+	if ( 'TV1' === (string) $d_2m['ma'] ) { $o_ql[ (int) substr( (string) $d_2m['ngay'], 8, 2 ) ] = (float) $d_2m['tong']; }
+}
+t( 'engine có tính ra công cho người thử', null !== $cong_ql && $cong_ql > 0, $b_2m['rows'] );
+
+/* Lưới của màn NHÂN VIÊN, dựng đúng cách màn ấy dựng. */
+$ds_tv  = VHCC_Online::ds_coso_cua_nv( 'TV1', $cs_2m );
+$kq_tv  = VHCC_Online::bang_thang( 'TV1', $ds_tv, '2026-08' );
+$lu_tv  = VHCC_Online::luoi_thang( $kq_tv['dong'], $ds_tv, '2026-08', array(),
+	VHCC_Online::cong_vp_cua( 'TV1', $ds_tv, '2026-08' ) );
+$hang_tv = null;
+foreach ( $lu_tv['hang'] as $h_tv ) { if ( $cs_2m === $h_tv['coSo'] ) { $hang_tv = $h_tv; } }
+t( 'màn nhân viên có hàng của cơ sở ấy', null !== $hang_tv, $lu_tv['hang'] );
+teq( '🔴 và hàng ấy mang kiểu "cong", không rơi xuống nhánh giờ', 'cong', $hang_tv['kieu'] );
+t( '🔴 TỔNG của màn nhân viên = TỔNG của bảng quản lý',
+	abs( (float) $hang_tv['tong'] - (float) $cong_ql ) < 0.005,
+	array( 'nhan_vien' => $hang_tv['tong'], 'quan_ly' => $cong_ql ) );
+/* Tổng khớp mà ô lệch bù trừ nhau thì bảng vẫn sai ở đúng chỗ người ta soi. */
+$lech_2m = 0;
+foreach ( $o_ql as $ng_2m => $gia_2m ) {
+	$o_tv = isset( $hang_tv['o'][ $ng_2m ]['chinh'] ) ? (float) $hang_tv['o'][ $ng_2m ]['chinh'] : null;
+	if ( null === $o_tv || abs( $o_tv - $gia_2m ) > 0.005 ) { $lech_2m++; }
+}
+teq( '🔴 và TỪNG Ô ngày cũng khớp, không chỉ cột tổng', 0, $lech_2m );
+/* Ngày thiếu giờ ra: engine cho 0 công, màn nhân viên phải nói 0 — KHÔNG phải số giờ có mặt. */
+teq( 'ngày thiếu giờ ra ra 0 công ở cả hai bên', 0.0, (float) $hang_tv['o'][6]['chinh'] );
+t( 'và ô ấy vẫn được đánh dấu thiếu', ! empty( $hang_tv['o'][6]['thieuRa'] ), $hang_tv['o'][6] );
+
+/* ---- Qua MÀN HÌNH: nhãn dưới tên cơ sở phải nói "tính theo công" ---- */
+$tok_tv = VHCC_Auth::phat_token( 'Tường Vi', 'Nhân viên', $cs_2m, 'TV1' );
+$h_tv   = vhcc_hr( $tok_tv, array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+t( '🔴 màn nhân viên ghi "tính theo công", không phải "tính theo giờ"',
+	strpos( $h_tv, 'tính theo công' ) !== false && strpos( $h_tv, 'tính theo giờ' ) === false, $h_tv );
+/* Số công lẻ .5 phải in ra .5 — ép về số nguyên là cột Tổng hụt so với bảng quản lý. */
+t( '🔴 số công lẻ không bị ép về số nguyên',
+	strpos( $h_tv, '>0<' ) !== false || strpos( $h_tv, '.5' ) !== false, $h_tv );
+/* ⚠️ SOI TRONG ĐÚNG BẢNG LƯỚI, không soi cả trang: dòng "72h21 có mặt" ở đầu màn và bảng "Giờ
+   vào — giờ ra từng lượt" bên dưới đều có chuỗi kiểu `7h02` một cách hợp lệ — chúng nói về GIỜ
+   CÓ MẶT, khác hẳn ô công. Soi cả trang là phép thử này không bao giờ xanh nổi. */
+$bang_tv = '';
+$i_tv = strpos( $h_tv, 'class="cc luoi-toi"' );
+if ( false !== $i_tv ) {
+	$c_tv = strpos( $h_tv, '</table>', $i_tv );
+	$bang_tv = ( false === $c_tv ) ? '' : substr( $h_tv, $i_tv, $c_tv - $i_tv );
+}
+t( 'cắt được đúng bảng lưới để soi', '' !== $bang_tv, substr( $h_tv, 0, 300 ) );
+/* 🔴 SOI CHÍNH CON SỐ IN RA MÀN, không chỉ soi dữ liệu bên dưới. Hai chỗ có thể hỏng mà dữ liệu
+   vẫn đúng: màn quên truyền bảng công vào lưới, và `so_o()` ép công về SỐ NGUYÊN. Engine Văn
+   phòng trả công lẻ (0.44 · 0.25 · 1.5); ép về nguyên là mọi ô lẻ thành 0 và cột Tổng hụt hẳn
+   so với bảng của quản lý — đúng cái lệch anh Thắng báo, chỉ đổi chiều. */
+$so_le_tv = array();
+foreach ( $o_ql as $ng_le => $gia_le ) {
+	if ( abs( $gia_le - round( $gia_le ) ) > 0.005 ) { $so_le_tv[] = $gia_le; }
+}
+t( 'dữ liệu dựng có ít nhất một ngày công LẺ để mà soi', ! empty( $so_le_tv ), $o_ql );
+$thieu_le = array();
+foreach ( $so_le_tv as $gia_le ) {
+	$chu_le = rtrim( rtrim( number_format( round( $gia_le, 2 ), 2, '.', '' ), '0' ), '.' );
+	if ( strpos( $bang_tv, '>' . $chu_le . '<' ) === false ) { $thieu_le[] = $gia_le; }
+}
+teq( '🔴 số công LẺ in nguyên vẹn ra màn, không bị ép về số nguyên', array(), $thieu_le );
+t( 'và KHÔNG in giờ kiểu 7h02 cho cơ sở tính theo công',
+	preg_match( '/\d+h\d\d/', $bang_tv ) !== 1, $bang_tv );
+
+/* ---- Cơ sở tính THEO GIỜ vẫn hiện giờ như cũ ---- */
+$cs_2g = 'SHOP_2M';
+VHCC_Luong::dat_cach_tinh( $ad_2m, array( $cs_2g => 'gio' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'TG1', 'ho_ten' => 'Theo Giờ',
+	'cua_hang' => $cs_2g, 'vai_tro' => 'Nhân viên' ) );
+vhcc_cham( $cs_2g, '2026-08-03', 'TG1', '', '08:00:00', '17:30:00' );
+$ds_tg = VHCC_Online::ds_coso_cua_nv( 'TG1', $cs_2g );
+$lu_tg = VHCC_Online::luoi_thang( VHCC_Online::bang_thang( 'TG1', $ds_tg, '2026-08' )['dong'],
+	$ds_tg, '2026-08', array(), VHCC_Online::cong_vp_cua( 'TG1', $ds_tg, '2026-08' ) );
+teq( 'cơ sở theo giờ vẫn cộng PHÚT', 570, (int) $lu_tg['hang'][0]['tong'] );
+teq( 'và không bị kéo sang kiểu cong', 'gio', $lu_tg['hang'][0]['kieu'] );
+
+/* ---- Một ngày NHIỀU LƯỢT chấm ở cơ sở tính theo công ---- */
+/* 🔴 Engine gộp mọi lượt của một ngày thành MỘT con số. Cộng theo LƯỢT là mỗi lượt cộng lại
+   nguyên con số của cả ngày — người bấm hai lần một ngày ra gấp đôi công. */
+vhcc_cham( $cs_2m, '2026-08-10', 'TV1', '', '08:00:00', '12:00:00' );
+vhcc_cham( $cs_2m, '2026-08-10', 'TV1', '', '13:00:00', '17:00:00' );
+$b_2l = VHCC_Luong::vp_bang_cong_va_luong( $cs_2m, '2026-08' );
+$cong_2l = null;
+foreach ( (array) $b_2l['rows'] as $r_2l ) { if ( 'TV1' === (string) $r_2l['ma'] ) { $cong_2l = (float) $r_2l['tong']; } }
+$ds_2l = VHCC_Online::ds_coso_cua_nv( 'TV1', $cs_2m );
+$lu_2l = VHCC_Online::luoi_thang( VHCC_Online::bang_thang( 'TV1', $ds_2l, '2026-08' )['dong'],
+	$ds_2l, '2026-08', array(), VHCC_Online::cong_vp_cua( 'TV1', $ds_2l, '2026-08' ) );
+$tong_2l = null;
+foreach ( $lu_2l['hang'] as $h_2l ) { if ( $cs_2m === $h_2l['coSo'] ) { $tong_2l = (float) $h_2l['tong']; } }
+t( '🔴 hai lượt trong một ngày KHÔNG làm tổng nhân đôi',
+	null !== $tong_2l && abs( $tong_2l - (float) $cong_2l ) < 0.005,
+	array( 'nhan_vien' => $tong_2l, 'quan_ly' => $cong_2l ) );
+vhcc_dung_bang();
+
+/* =============================================================================================
  * XUẤT BẢNG CÔNG RA .xlsx — CẢ CƠ SỞ THEO CÔNG LẪN THEO GIỜ
  * =============================================================================================
  * Anh Thắng 31/08/2026: *"bổ sung xuất bảng công ra"* — ảnh anh gửi là `VP_KH-HCM`, cơ sở tính

@@ -2921,7 +2921,10 @@ class VHCC_Web {
 		echo '<h3 style="margin:16px 0 6px">Công tháng</h3>';
 		echo '<p class="mo" style="margin:0 0 8px">Mỗi cơ sở một hàng — đối chiếu thẳng với bảng '
 			. 'của quản lý. Ô nền đỏ là ngày thiếu giờ ra, chưa tính được.</p>';
-		self::luoi_cong_toi( VHCC_Online::luoi_thang( $kq['dong'], $ds_cs, $th ) );
+		/* Số công của cơ sở tính THEO CÔNG lấy từ chính engine dựng nên bảng của quản lý —
+		   một nguồn, một con số. Xem `VHCC_Online::cong_vp_cua()`. */
+		self::luoi_cong_toi( VHCC_Online::luoi_thang( $kq['dong'], $ds_cs, $th, array(),
+			VHCC_Online::cong_vp_cua( $ma_nv, $ds_cs, $th ) ) );
 
 		/* BẢNG 2 — GHI GIỜ VÀO RA. Sổ gốc: từng lượt một, không cộng gì. */
 		echo '<h3 style="margin:18px 0 6px">Giờ vào — giờ ra từng lượt</h3>';
@@ -2976,7 +2979,14 @@ class VHCC_Web {
 		echo '<th class="tong-h">Tổng</th></tr></thead><tbody>';
 
 		foreach ( $luoi['hang'] as $h ) {
-			$don_vi = ( 'ngay' === $h['kieu'] ) ? 'công' : 'giờ';
+			/* 🔴 HAI KIỂU RA CÔNG, KHÔNG PHẢI MỘT. `CACH_TINH_DS` có bốn kiểu: `gio` · `cong` ·
+			   `ngay` · `ca`. `ngay` = "có đi là được 1 công"; `cong` = engine Văn phòng (bậc
+			   thang 0.5 · 1 · 1.5). Cả hai đều ra CÔNG. Trước bản này chỗ đây chỉ nhớ `ngay`,
+			   nên `POSH_HCM` (khai `cong`) hiện "tính theo giờ · 7h02" trong khi bảng của quản
+			   lý cùng cơ sở ấy hiện "THEO CÔNG · 1" — anh Thắng: *"tài khoản nhân viên sao khác
+			   với bản của quản lý"*. */
+			$la_cong = ( 'ngay' === $h['kieu'] || 'cong' === $h['kieu'] );
+			$don_vi  = $la_cong ? 'công' : 'giờ';
 			echo '<tr><td><b>' . esc_html( $h['coSo'] ) . '</b>'
 				. '<div class="mo" style="font-size:10.5px">tính theo ' . esc_html( $don_vi ) . '</div></td>';
 			for ( $i = 1; $i <= $so_ngay; $i++ ) {
@@ -3007,9 +3017,16 @@ class VHCC_Web {
 		echo '</tbody></table></div>';
 	}
 
-	/** Một con số trong ô lưới, theo đơn vị của cơ sở. */
+	/**
+	 * Một con số trong ô lưới, theo đơn vị của cơ sở.
+	 *
+	 * ⚠️ `cong` KHÔNG ÉP VỀ SỐ NGUYÊN. Engine Văn phòng trả 0.5 · 1 · 1.5; `(int)` cắt mất phần
+	 *    lẻ nên ngày làm dài 1.5 công hiện thành 1, và cột Tổng của màn này hụt so với bảng của
+	 *    quản lý — đúng cái lệch ta đang đi sửa. Kiểu `ngay` thì 0/1 nên in số nguyên là đủ,
+	 *    nhưng cùng một thước cho cả hai vẫn ra đúng, và bớt được một nhánh.
+	 */
 	private static function so_o( $gia, $kieu ) {
-		if ( 'ngay' === $kieu ) { return (string) (int) $gia; }
+		if ( 'ngay' === $kieu || 'cong' === $kieu ) { return self::so_vp( $gia ); }
 		return self::gio_phut( $gia );
 	}
 
