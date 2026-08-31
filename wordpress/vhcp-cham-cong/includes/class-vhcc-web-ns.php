@@ -279,8 +279,7 @@ class VHCC_WebNS {
 		echo '<div class="cuon" style="margin-top:8px"><table class="cc"><thead><tr><th>Lúc</th>'
 			. '<th>Ai</th><th>Từ cửa hàng</th><th>Ô</th><th>Cũ</th><th>Mới</th></tr></thead><tbody>';
 		foreach ( $ds as $x ) {
-			$ten_o = isset( VHCC_NhanSu::O_CUA_HANG_SUA[ $x['o'] ] )
-				? VHCC_NhanSu::O_CUA_HANG_SUA[ $x['o'] ] : 'PIN đăng nhập';
+			$ten_o = VHCC_NhanSu::ten_o_nhat_ky( $x['o'] );
 			echo '<tr><td>' . esc_html( $x['luc'] ) . '</td>'
 				. '<td>' . esc_html( $x['ai'] ) . '</td>'
 				. '<td>' . esc_html( $x['tu_coso'] ) . '</td>'

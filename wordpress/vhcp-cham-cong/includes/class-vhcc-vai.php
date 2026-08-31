@@ -154,7 +154,15 @@ class VHCC_Vai {
 		                                  // xoá mất bằng chứng gốc. Anh Thắng 26/08 chốt: *"admin
 		                                  // có quyền chỉnh sửa lại giờ công cho nhân viên"* —
 		                                  // đúng chữ ADMIN, không nới xuống Quản lý.
-		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác
+		'xem_pin'      => self::ADMIN,    // nhìn thấy PIN của người khác.
+		                                  // 🔴 CAO HƠN `ho_so` (cấp PIN) MỘT BẬC, CỐ Ý. Cấp PIN là
+		                                  // đặt số MỚI — người ta biết ngay, vì số cũ thôi vào
+		                                  // được. XEM PIN là biết số ĐANG DÙNG: đăng nhập thay
+		                                  // họ, đọc công, nộp đơn dưới tên họ, mà màn hình của
+		                                  // họ không có gì đổi.
+		                                  // ⚠️ Mọi lượt xem đi qua `VHCC_NhanSu::xem_pin()` và
+		                                  //    vào sổ `nhat_ky_ho_so` — xem là một VIỆC, không
+		                                  //    phải một cái nhìn.
 		'doi_ma_nv'    => self::ADMIN,    // ĐỔI Mã NV của một người
 		                                  // 🔴 Anh Thắng 27/08/2026: *"Mã NV thì cố định chỉ có
 		                                  // admin chỉnh được thôi"*. Trước đây gác bằng

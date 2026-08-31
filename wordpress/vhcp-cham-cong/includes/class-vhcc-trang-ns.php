@@ -106,7 +106,7 @@ class VHCC_TrangNS {
 	/** Tham số phải sống sót qua một lượt POST — bộ lọc và số trang. */
 	/* `sua_o` = mã người đang mở hàng sửa. Nó phải nằm trong THAM_SO để sống sót qua lượt POST —
 	   thiếu thì lưu xong hàng tự đóng, mà anh Thắng đang muốn sửa tiếp mấy ô nữa. */
-	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'np', 'sua_o' );
+	const THAM_SO = array( 'ncs', 'nq', 'nvai', 'np', 'sua_o', 'pin_o' );
 
 	private static function url_hien() {
 		$them = array();
@@ -889,6 +889,13 @@ class VHCC_TrangNS {
 			. '.mo-hs:hover{color:var(--xanh);border-color:var(--xanh)}'
 			/* Đường "xoá" đỏ ngay từ lúc chưa rê chuột — nó là đường DUY NHẤT ở cột này dẫn tới
 			   một việc không đảo lại được, nên không được trông giống ba đường kia. */
+			/* Ô hiện PIN: nền vàng nhạt như một tờ giấy nhắc tạm — khác hẳn nền trắng của bảng,
+			   để người đang mở nó nhớ rằng có một bí mật đang nằm trên màn hình mình. */
+			. '.pin-o{margin:5px 0 0;background:#fffbeb;border:1px solid #fde68a;border-radius:7px;'
+			. 'padding:5px 9px;font-size:12.5px;display:inline-block}'
+			. '.pin-o.pin-loi{background:#fef2f2;border-color:#fecaca;color:var(--do)}'
+			. '.pin-so{font-size:17px;font-weight:700;letter-spacing:2px;color:#92400e}'
+			. '.pin-nhac{color:var(--mo);font-size:11px;margin-left:6px}'
 			. '.xoa-hs{color:var(--do);border-color:#fecaca}'
 			. '.xoa-hs:hover{color:#fff;background:var(--do);border-color:var(--do)}'
 			/* Nút xoá thật (nhịp hai): đỏ đặc, không lẫn với nút Lưu xanh. */
@@ -1437,6 +1444,7 @@ class VHCC_TrangNS {
 
 	private static function the_bang( $toi, $ds_trang, $cs, $q, $vai, $p ) {
 		$dang_sua = isset( $_GET['sua_o'] ) ? sanitize_text_field( wp_unslash( $_GET['sua_o'] ) ) : '';
+		$dang_pin = isset( $_GET['pin_o'] ) ? sanitize_text_field( wp_unslash( $_GET['pin_o'] ) ) : '';
 		$dang_xoa = isset( $_GET['xoa_o'] ) ? sanitize_text_field( wp_unslash( $_GET['xoa_o'] ) ) : '';
 		$nguoi = VHCC_NhanSu::ds_nhan_vien( $toi, $cs, $q );
 		if ( '' !== $vai ) {
@@ -1663,11 +1671,33 @@ class VHCC_TrangNS {
 				   hỏi. Nhịp hai mới là nút gửi. Không dùng hộp thoại xác nhận bằng JavaScript:
 				   cả màn này không có lấy một dòng script, mà thứ bộ thử PHP không với tới thì
 				   không phải là chốt. */
+				/* 🔴 XEM PIN — anh Thắng 31/08/2026: *"Bổ sung xem PIn được tại vị trí này"*, kèm
+				   ảnh đúng dãy nút này.
+
+				   🔴 BẤM MỚI HIỆN, VÀ CHỈ HIỆN MỘT NGƯỜI. Luật của cả hệ từ đầu là không in PIN
+				      ra màn — trang chạy ngoài internet, ảnh chụp bảng nhân sự đi khắp nơi
+				      (chính tấm ảnh kèm yêu cầu này là một ví dụ: cả bảng 8 người ra ngoài chat).
+				      In sẵn thành một cột là mỗi tấm ảnh lộ toàn bộ chìa khoá của cả cơ sở. Bấm
+				      một người, tải lại trang, hiện đúng số ấy — ảnh chụp cả bảng vẫn sạch.
+
+				   ⚠️ Bậc ADMIN (`xem_pin`), cao hơn cửa vào trang này một bậc. Xem PIN là đăng
+				      nhập thay người ta được mà màn hình của họ không có gì đổi. */
+				if ( VHCC_Vai::duoc( $toi, 'xem_pin' ) ) {
+					if ( $dang_pin === $ma ) {
+						echo ' <a class="mo-hs" href="' . esc_url( self::url_pin( '' ) ) . '">ẩn PIN ▲</a>';
+					} else {
+						echo ' <a class="mo-hs" title="Hiện số PIN đang dùng của người này — mỗi lượt'
+							. ' xem đều vào sổ, và chỉ hiện đúng một người"'
+							. ' href="' . esc_url( self::url_pin( $ma ) . '#hs' . substr( md5( $ma ), 0, 8 ) )
+							. '">xem PIN 👁</a>';
+					}
+				}
 				if ( VHCC_Vai::duoc( $toi, 'xoa_ho_so' ) ) {
 					echo ' <a class="mo-hs xoa-hs" title="Xoá hẳn hồ sơ này khỏi sổ"'
 						. ' href="' . esc_url( self::url_xoa( $ma ) . '#hs' . substr( md5( $ma ), 0, 8 ) )
 						. '">xoá 🗑</a>';
 				}
+				if ( $dang_pin === $ma ) { self::o_xem_pin( $toi, $ma ); }
 			}
 			echo '</td>';
 			echo '<td>' . self::o_coso( $toi, $ma, (string) $r['cua_hang'] ) . '</td>';
@@ -1727,6 +1757,41 @@ class VHCC_TrangNS {
 		$u = self::url_hien();
 		$u = remove_query_arg( 'sua_o', $u );
 		return ( '' === $ma ) ? $u : add_query_arg( 'sua_o', $ma, $u );
+	}
+
+	/**
+	 * Địa chỉ mở / đóng ô XEM PIN của một người.
+	 *
+	 * ⚠️ Gỡ luôn `xoa_o` và `sua_o`: ba thứ ấy đều chèn thêm một khối vào giữa bảng, mở cùng lúc
+	 *    thì hàng người này đẩy hàng người kia đi và người bấm không còn biết mình đang xem của ai.
+	 */
+	/**
+	 * Ô hiện PIN của MỘT người, ngay dưới tên họ.
+	 *
+	 * ⚠️ Gọi `VHCC_NhanSu::xem_pin()` chứ không đọc thẳng cột: hàm ấy giữ hai thứ mà màn này
+	 *    không được tự làm lấy — chốt quyền, và ghi vào sổ rằng đã xem. Đọc thẳng cột cho ra
+	 *    đúng con số ấy mà bỏ mất cả hai.
+	 */
+	private static function o_xem_pin( $toi, $ma ) {
+		$r = VHCC_NhanSu::xem_pin( $toi, $ma );
+		if ( empty( $r['ok'] ) ) {
+			echo '<div class="pin-o pin-loi">' . esc_html( (string) $r['error'] ) . '</div>';
+			return;
+		}
+		if ( '' === (string) $r['pin'] ) {
+			echo '<div class="pin-o">Người này <b>chưa có PIN</b> — cấp ở ô <b>sửa ▾</b> hoặc ở '
+				. 'màn Nhân sự cửa hàng.</div>';
+			return;
+		}
+		/* Số to, giãn chữ: người ta mở ô này ra để ĐỌC CHO AI ĐÓ QUA ĐIỆN THOẠI, và 6 chữ số
+		   dính nhau thì đọc nhầm 3 với 8. */
+		echo '<div class="pin-o"><b>PIN:</b> <code class="pin-so">' . esc_html( $r['pin'] ) . '</code>'
+			. ' <span class="pin-nhac">đã vào sổ — đóng lại khi đọc xong</span></div>';
+	}
+
+	private static function url_pin( $ma ) {
+		$u = remove_query_arg( array( 'sua_o', 'xoa_o', 'pin_o' ), self::url_hien() );
+		return ( '' === $ma ) ? $u : add_query_arg( 'pin_o', $ma, $u );
 	}
 
 	private static function url_xoa( $ma ) {

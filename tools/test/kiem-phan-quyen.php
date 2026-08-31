@@ -204,6 +204,40 @@ t( 'Cửa hàng trưởng KHÔNG có quyền cơ sở khác',
 t( 'Quản lý có quyền mọi cơ sở',
 	VHCC_NhanSu::co_quyen_coso( array( 'role' => 'Quản lý', 'coso' => '' ), 'CO_SO_LA' ) );
 
+/* =============================================================================================
+ * 🔴 BẢNG QUYỀN KHÔNG ĐƯỢC CÓ KHOÁ TRÙNG — LỖI IM LẶNG NHẤT CỦA MẢNG PHP.
+ * =============================================================================================
+ * 31/08/2026: khai `'xem_pin'` lần thứ hai vào `QUYEN` mà không biết nó đã có sẵn ở đó. PHP
+ * không kêu một tiếng — khoá trùng thì GIÁ TRỊ SAU thắng, dòng trước biến mất. Lần ấy may vì
+ * hai dòng cùng bậc ADMIN nên không đổi gì; nhưng nếu dòng thêm vào đặt bậc THẤP hơn và nằm
+ * sau, thì cả hệ tụt quyền theo mà không có gì báo. Phá thử cũng mù: sửa dòng bị nuốt thì bộ
+ * thử vẫn xanh, đúng như đã xảy ra.
+ *
+ * ⚠️ ĐỌC TỪ TỆP NGUỒN, không đọc hằng số. Chính PHP đã nuốt mất bản trùng khi dựng mảng, nên
+ *    hỏi mảng là hỏi đúng cái thứ vừa che giấu lỗi. Phải đếm trên chữ.
+ */
+$src_vai = file_get_contents( dirname( dirname( __DIR__ ) )
+	. '/wordpress/vhcp-cham-cong/includes/class-vhcc-vai.php' );
+foreach ( array( 'QUYEN' => 'const QUYEN = array(', 'VIEC_TEN' => 'const VIEC_TEN = array(' ) as $ten_b => $mo ) {
+	$i_b = strpos( $src_vai, $mo );
+	if ( false === $i_b ) { continue; }
+	$than_b = substr( $src_vai, $i_b, strpos( $src_vai, "\n\t);", $i_b ) - $i_b );
+	preg_match_all( "/^\t\t'([a-z0-9_]+)'\s*=>/m", $than_b, $m_b );
+	$dem_b = array_count_values( $m_b[1] );
+	$trung_b = array();
+	foreach ( $dem_b as $k_b => $n_b ) { if ( $n_b > 1 ) { $trung_b[] = $k_b . ' (' . $n_b . ' lần)'; } }
+	t( "🔴 bảng $ten_b không có khoá nào khai hai lần", ! $trung_b, implode( ', ', $trung_b ) );
+}
+/* Và hai bảng phải khai CÙNG một bộ khoá — có quyền mà không có tên là màn Phân quyền hiện ra
+   một ô trống không ai biết nó gác việc gì. */
+$k_quyen = array_keys( VHCC_Vai::QUYEN );
+$k_ten   = array_keys( VHCC_Vai::VIEC_TEN );
+sort( $k_quyen ); sort( $k_ten );
+t( 'mọi quyền đều có tên đọc được',
+	implode( ',', $k_quyen ) === implode( ',', $k_ten ),
+	'chỉ có ở QUYEN: ' . implode( ',', array_diff( $k_quyen, $k_ten ) )
+	. ' | chỉ có ở VIEC_TEN: ' . implode( ',', array_diff( $k_ten, $k_quyen ) ) );
+
 echo "\n";
 if ( $truot ) {
 	echo 'TRƯỢT ' . count( $truot ) . ":\n";

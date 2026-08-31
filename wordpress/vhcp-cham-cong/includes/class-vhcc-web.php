@@ -6944,7 +6944,15 @@ class VHCC_Web {
 				. 'style="width:96px">';
 			echo '<div style="font-size:11.5px;margin-top:3px;white-space:nowrap">';
 			if ( $dang_ho ) {
-				echo '<b class="pin-ho">' . esc_html( $r['pin_dang_nhap'] ) . '</b> '
+				/* 🔴 ĐỌC QUA `VHCC_NhanSu::xem_pin()`, KHÔNG LẤY THẲNG TỪ HÀNG ĐÃ TRUY VẤN.
+				   Con số thì y hệt, nhưng hàm ấy giữ hai thứ màn này không được tự làm lấy: chốt
+				   quyền lần thứ hai, và GHI VÀO SỔ rằng đã xem. Trước 31/08/2026 chỗ này đọc
+				   thẳng cột — nên trang Quản lý nhân sự ghi sổ mà màn này thì không, và sổ hoá
+				   ra nói dối bằng cách bỏ sót: mở đúng màn kia thì lượt xem biến mất khỏi lịch
+				   sử. Một việc, một cửa. */
+				$r_xp = VHCC_NhanSu::xem_pin( $toi, (string) $r['ma_nv'] );
+				echo '<b class="pin-ho">' . esc_html( empty( $r_xp['ok'] ) ? '—' : (string) $r_xp['pin'] )
+					. '</b> '
 					. '<a href="' . esc_url( remove_query_arg( 'pin' ) ) . self::neo_hs( $r['ma_nv'] )
 					. '">ẩn</a>';
 			} elseif ( $co_pin ) {

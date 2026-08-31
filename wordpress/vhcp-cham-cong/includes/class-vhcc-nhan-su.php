@@ -1040,6 +1040,61 @@ class VHCC_NhanSu {
 			'thong_bao' => 'Đã lưu: ' . implode( ', ', $ten_doi ) . '.' );
 	}
 
+	/**
+	 * XEM SỐ PIN ĐANG DÙNG CỦA MỘT NGƯỜI — và ghi vào sổ rằng đã xem.
+	 *
+	 * Anh Thắng 31/08/2026, ảnh dãy nút dưới tên người ở trang Quản lý nhân sự: *"Bổ sung xem
+	 * PIn được tại vị trí này"*.
+	 *
+	 * 🔴 TRẢ VỀ MỘT NGƯỜI MỘT LƯỢT, KHÔNG BAO GIỜ CẢ CỘT. Luật của cả hệ này từ đầu là không in
+	 *    PIN ra màn — vì trang chạy ngoài internet và ảnh chụp bảng nhân sự đi khắp nơi (chính
+	 *    anh Thắng gửi một tấm như thế kèm yêu cầu này). Nên đường xem là: bấm đúng một người,
+	 *    tải lại trang, hiện đúng số của người ấy. Ảnh chụp cả bảng vẫn không lộ gì.
+	 *
+	 * 🔴 XEM LÀ MỘT VIỆC PHẢI VÀO SỔ. Biết PIN của người khác là đăng nhập thay họ được — đọc
+	 *    công, nộp đơn, xin phép dưới tên họ — mà màn hình của họ không có gì đổi. Không ghi
+	 *    lại thì ngày cần lần ra ai đã làm việc đó, không còn một dấu vết nào.
+	 *
+	 * ⚠️ SỔ GHI "đã xem", KHÔNG GHI SỐ. Sổ này người trong công ty đọc được.
+	 *
+	 * @return array `ok` · `pin` · `ho_ten`, hoặc `error`.
+	 */
+	public static function xem_pin( $u, $ma ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		if ( ! VHCC_Vai::duoc( $u, 'xem_pin' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'xem_pin', 'Xem PIN' ) );
+		}
+		$hs = self::ho_so( $ma );
+		if ( ! $hs ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_quyen_ho_so( $u, $hs ) ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
+		}
+		$pin = trim( (string) $hs['pin_dang_nhap'] );
+		if ( '' === $pin ) {
+			return array( 'ok' => true, 'pin' => '', 'ho_ten' => (string) $hs['ho_ten'] );
+		}
+
+		$wpdb->insert( VHCC_DB::t( 'nhat_ky_ho_so' ), array(
+			'luc'     => current_time( 'mysql' ),
+			'ma_nv'   => $ma,
+			'ai'      => trim( isset( $u['name'] ) ? (string) $u['name'] : '' ),
+			'tu_coso' => implode( ', ', self::ds_coso_cua( $u ) ),
+			'o'       => 'xem_pin',
+			'cu'      => '',
+			'moi'     => 'đã xem',
+		) );
+		return array( 'ok' => true, 'pin' => $pin, 'ho_ten' => (string) $hs['ho_ten'] );
+	}
+
+	/** Tên tiếng Việt của một ô trong sổ nhật ký hồ sơ. Một chỗ, để ba màn không gọi ba tên. */
+	public static function ten_o_nhat_ky( $o ) {
+		if ( isset( self::O_CUA_HANG_SUA[ $o ] ) ) { return self::O_CUA_HANG_SUA[ $o ]; }
+		if ( 'xem_pin' === $o ) { return 'XEM số PIN'; }
+		return 'PIN đăng nhập';
+	}
+
 	/** Mấy lượt sửa gần nhất của một người — đọc để đối chiếu khi số liệu lệch. */
 	public static function nhat_ky_ho_so( $ma, $tran = 20 ) {
 		global $wpdb;

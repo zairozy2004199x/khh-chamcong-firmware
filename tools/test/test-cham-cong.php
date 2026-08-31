@@ -16611,6 +16611,93 @@ t( '🔴 báo trước rằng sửa ở đây là đổi cho cả cửa hàng ki
 	strpos( $h_sua_2, 'đổi cho <b>cả</b>' ) !== false, $h_sua_2 );
 t( 'và có sổ sửa hồ sơ ngay dưới', strpos( $h_sua_2, 'Sổ sửa hồ sơ' ) !== false, $h_sua_2 );
 
+/* =============================================================================================
+ * XEM PIN Ở TRANG QUẢN LÝ NHÂN SỰ.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026, kèm ảnh dãy nút dưới tên người: *"Bổ sung xem PIn được tại vị trí này"*.
+ *
+ * 🔴 LUẬT CŨ CỦA CẢ HỆ LÀ KHÔNG IN PIN RA MÀN — trang chạy ngoài internet, ảnh chụp bảng nhân
+ *    sự đi khắp nơi (chính tấm ảnh kèm yêu cầu này là một ví dụ: cả bảng ra ngoài chat). Nên
+ *    đường xem là BẤM MỚI HIỆN, và chỉ hiện ĐÚNG MỘT NGƯỜI. Mục này canh cả hai chiều: mở đúng
+ *    người được bấm, và KHÔNG lộ ai khác.
+ */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'XP1', 'ho_ten' => 'Người Có PIN',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '246800', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'XP2', 'ho_ten' => 'Người Khác',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '135700', 'vai_tro' => 'Nhân viên' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'XP3', 'ho_ten' => 'Chưa Có PIN',
+	'cua_hang' => 'TUTU_BT', 'pin_dang_nhap' => '', 'vai_tro' => 'Nhân viên' ) );
+
+/* --- (a) Bảng thường: KHÔNG một số PIN nào lọt ra --- */
+$h_xp0 = vhcc_ns( 'Admin', array( 'ncs' => 'TUTU_BT' ) );
+t( 'bảng có nút "xem PIN" cho Admin', strpos( $h_xp0, 'xem PIN' ) !== false, $h_xp0 );
+t( '🔴 nhưng KHÔNG in sẵn số PIN nào',
+	strpos( $h_xp0, '246800' ) === false && strpos( $h_xp0, '135700' ) === false, 'lộ PIN ở bảng' );
+
+/* --- (b) Bấm xem một người: hiện ĐÚNG người ấy, không lộ ai khác --- */
+$h_xp1 = vhcc_ns( 'Admin', array( 'ncs' => 'TUTU_BT', 'pin_o' => 'XP1' ) );
+t( '🔴 bấm xem XP1 thì hiện PIN của XP1', strpos( $h_xp1, '246800' ) !== false, $h_xp1 );
+t( '🔴 và KHÔNG lộ PIN của người khác trên cùng bảng',
+	strpos( $h_xp1, '135700' ) === false, 'lộ PIN người khác' );
+t( 'có nút đóng lại', strpos( $h_xp1, 'ẩn PIN' ) !== false, $h_xp1 );
+t( 'và nhắc rằng lượt xem đã vào sổ', strpos( $h_xp1, 'đã vào sổ' ) !== false, $h_xp1 );
+
+/* Người chưa có PIN: nói rõ, đừng để một ô trống trông như hỏng. */
+$h_xp3 = vhcc_ns( 'Admin', array( 'ncs' => 'TUTU_BT', 'pin_o' => 'XP3' ) );
+t( 'người chưa có PIN thì nói "chưa có PIN"',
+	strpos( $h_xp3, 'chưa có PIN' ) !== false, $h_xp3 );
+/* 🔴 VÀ KHÔNG GHI SỔ — không có gì để xem thì không có gì để ghi. Ghi cả những lượt ấy là sổ
+   đầy dòng vô nghĩa, và lượt xem THẬT chìm lẫn vào giữa. */
+teq( '🔴 xem người chưa có PIN thì không vào sổ', 0,
+	count( VHCC_NhanSu::nhat_ky_ho_so( 'XP3' ) ) );
+
+/* --- (c) 🔴 BẬC: Kế toán vào được TRANG nhưng KHÔNG xem được PIN --- */
+$h_kt = vhcc_ns( 'Kế toán', array( 'ncs' => 'TUTU_BT' ) );
+t( 'Kế toán vẫn vào được trang', strpos( $h_kt, 'Người Có PIN' ) !== false, $h_kt );
+t( '🔴 nhưng KHÔNG thấy nút xem PIN', strpos( $h_kt, 'xem PIN' ) === false, $h_kt );
+/* 🔴 KHÔNG CÓ NÚT KHÔNG PHẢI LÀ KHÔNG GÕ ĐƯỢC ĐỊA CHỈ. Chốt thật nằm ở tầng dưới. */
+$h_kt2 = vhcc_ns( 'Kế toán', array( 'ncs' => 'TUTU_BT', 'pin_o' => 'XP1' ) );
+t( '🔴 Kế toán gõ thẳng địa chỉ pin_o vẫn KHÔNG thấy PIN',
+	strpos( $h_kt2, '246800' ) === false, 'lộ PIN cho bậc dưới' );
+
+$r_kt = VHCC_NhanSu::xem_pin(
+	array( 'name' => 'KT', 'role' => 'Kế toán', 'coso' => 'TUTU_BT' ), 'XP1' );
+t( 'gọi thẳng hàm bằng bậc Kế toán: bị chối', empty( $r_kt['ok'] ), $r_kt );
+$r_nv = VHCC_NhanSu::xem_pin(
+	array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'TUTU_BT' ), 'XP1' );
+t( 'nhân viên thì càng không', empty( $r_nv['ok'] ), $r_nv );
+
+/* --- (d) 🔴 MỖI LƯỢT XEM PHẢI VÀO SỔ. Biết PIN người khác là đăng nhập thay họ được mà màn
+       hình của họ không có gì đổi — không ghi lại thì không còn dấu vết nào để lần. --- */
+$sk_xp = VHCC_NhanSu::nhat_ky_ho_so( 'XP1' );
+$dong_xem = null;
+foreach ( $sk_xp as $x ) { if ( 'xem_pin' === $x['o'] ) { $dong_xem = $x; } }
+t( '🔴 sổ có ghi lượt xem PIN', null !== $dong_xem, $sk_xp );
+teq( 'sổ ghi tên người xem', 'Người Khai', (string) $dong_xem['ai'] );
+teq( 'và chỉ ghi "đã xem"', 'đã xem', (string) $dong_xem['moi'] );
+/* ⚠️ SỔ KHÔNG BAO GIỜ CHỨA SỐ PIN — sổ này người trong công ty đọc được. */
+$co_so_pin = false;
+foreach ( $sk_xp as $x ) {
+	if ( false !== strpos( $x['cu'] . '|' . $x['moi'], '246800' ) ) { $co_so_pin = true; }
+}
+t( '🔴 sổ KHÔNG chứa số PIN', ! $co_so_pin, $sk_xp );
+teq( 'tên ô trong sổ đọc được, không phải mã cột', 'XEM số PIN',
+	VHCC_NhanSu::ten_o_nhat_ky( 'xem_pin' ) );
+
+/* Bậc dưới bị chối thì KHÔNG được ghi sổ — ghi cả lượt trượt là sổ đầy rác và lượt xem thật
+   chìm lẫn vào đó. */
+$truoc = count( VHCC_NhanSu::nhat_ky_ho_so( 'XP2' ) );
+VHCC_NhanSu::xem_pin( array( 'name' => 'KT', 'role' => 'Kế toán', 'coso' => 'TUTU_BT' ), 'XP2' );
+teq( 'lượt bị chối KHÔNG vào sổ', $truoc, count( VHCC_NhanSu::nhat_ky_ho_so( 'XP2' ) ) );
+
+/* --- (e) Không mở hai khối cùng lúc: bấm xem PIN thì đóng ô sửa --- */
+$h_ca_hai = vhcc_ns( 'Admin', array( 'ncs' => 'TUTU_BT', 'sua_o' => 'XP2', 'pin_o' => 'XP1' ) );
+t( '🔴 địa chỉ nút xem PIN gỡ luôn sua_o — hai khối chèn cùng lúc thì đẩy nhau đi',
+	strpos( $h_ca_hai, 'pin_o=XP1' ) !== false
+	|| strpos( $h_ca_hai, 'pin_o=XP2' ) !== false, $h_ca_hai );
+t( 'trang này vẫn không có lấy một dòng script', stripos( $h_xp1, '<script' ) === false, $h_xp1 );
+
 vhcc_dung_bang();
 
 
