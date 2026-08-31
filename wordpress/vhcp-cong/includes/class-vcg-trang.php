@@ -65,7 +65,7 @@ class VCG_Trang {
 		$f = fopen( $_FILES[ $khoa ]['tmp_name'], 'r' );
 		if ( ! $f ) { return null; }
 		$ds = array();
-		while ( false !== ( $r = fgetcsv( $f, 0, ',' ) ) ) { $ds[] = $r; }
+		while ( false !== ( $r = fgetcsv( $f, 0, ',', '"', '\\' ) ) ) { $ds[] = $r; }
 		fclose( $f );
 		/* Google Sheets luôn kèm dấu BOM ở đầu tệp. Không bỏ thì ô đầu tiên mang thêm ba byte
 		   vô hình, và mọi phép so tên cột đều trượt mà nhìn bằng mắt thì thấy giống hệt nhau. */

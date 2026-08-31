@@ -470,7 +470,7 @@ class VHCP_Import {
 		fwrite( $fh, $text );
 		rewind( $fh );
 		$rows = array();
-		while ( false !== ( $r = fgetcsv( $fh, 0, $delim, '"' ) ) ) {
+		while ( false !== ( $r = fgetcsv( $fh, 0, $delim, '"', '\\' ) ) ) {
 			if ( $r === array( null ) ) { continue; }   // dòng trống
 			$rows[] = $r;
 		}

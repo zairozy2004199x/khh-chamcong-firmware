@@ -147,11 +147,23 @@ class VHCC_Online {
 		return false === $t ? $ngay : gmdate( 'Y-m-d', $t );
 	}
 
-	/** Cơ sở người này thật sự có mặt: cơ sở chính + các cơ sở phụ trong hồ sơ. */
+	/**
+	 * Cơ sở người này thật sự có mặt: cơ sở chính + các cơ sở phụ trong hồ sơ.
+	 *
+	 * 🔴 `$mac_dinh` PHẢI ĐƯỢC TÁCH THEO DẤU PHẨY. Nó thường là `coso` của thẻ phiên, mà thẻ
+	 *    phiên của người làm hai nơi mang cả hai tên nối bằng `', '` (xem `VHCC_Auth::users_cua`).
+	 *    Nhét nguyên khối vào danh sách thì người có 2 cơ sở hiện ra 3 — đúng dòng
+	 *    `POSH_HCM, (PART TIME )_POSH+JP · POSH_HCM · (PART TIME )_POSH+JP` anh Thắng gửi
+	 *    30/08/2026 ở màn "Công của tôi". Và cái phần tử ma ấy đi tiếp vào câu `coso IN (...)`
+	 *    của `bang_thang()`, nên nó kéo về đúng những hàng chấm công đã lỡ ghi sai cơ sở.
+	 */
 	public static function ds_coso_cua_nv( $ma_nv, $mac_dinh ) {
 		global $wpdb;
 		$ds = array();
-		if ( '' !== trim( (string) $mac_dinh ) ) { $ds[] = trim( $mac_dinh ); }
+		foreach ( explode( ',', (string) $mac_dinh ) as $x_md ) {
+			$x_md = trim( $x_md );
+			if ( '' !== $x_md ) { $ds[] = $x_md; }
+		}
 		$r = $wpdb->get_row( $wpdb->prepare(
 			'SELECT cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma_nv ), ARRAY_A );
 		if ( $r ) {
@@ -192,13 +204,21 @@ class VHCC_Online {
 			return array( 'ok' => false, 'error' => 'Tài khoản này chưa bật chấm công online.' );
 		}
 		$ma_nv    = trim( (string) $u['ma_nv'] );
-		$mac_dinh = trim( preg_replace( '/^CS_/', '', (string) ( isset( $u['coso'] ) ? $u['coso'] : '' ) ) );
+		/* 🔴 HAI GIÁ TRỊ KHÁC NHAU, ĐỪNG GỘP LÀM MỘT.
+		   `$the_coso` là NGUYÊN thẻ phiên — có thể mang nhiều cơ sở nối bằng `', '` (người làm
+		   ở hai nơi). Nó đi vào `ds_coso_cua_nv()`, nơi biết tách.
+		   `$coso` là MỘT tên để GHI XUỐNG BẢNG, nên phải qua `chuan_coso()` (cắt ở dấu phẩy đầu).
+		   Trước 30/08/2026 hai thứ này là một biến, nên lượt chấm công không chọn cơ sở ghi
+		   thẳng cả chuỗi `"POSH_HCM, (PART TIME )_POSH+JP"` vào cột `coso` — sinh ra một cơ sở
+		   không có thật, và nó hiện luôn trong ô xổ cơ sở của màn quản trị. */
+		$the_coso = isset( $u['coso'] ) ? (string) $u['coso'] : '';
+		$mac_dinh = VHCC_NhanSu::chuan_coso( $the_coso );
 		$coso     = $mac_dinh;
 
 		// Gác 2: cơ sở đi lên từ client -> đối chiếu với danh sách người đó thật sự có.
 		$chon = trim( preg_replace( '/^CS_/', '', (string) $coso_chon ) );
 		if ( '' !== $chon ) {
-			$duoc = self::ds_coso_cua_nv( $ma_nv, $mac_dinh );
+			$duoc = self::ds_coso_cua_nv( $ma_nv, $the_coso );
 			$ok   = false;
 			foreach ( $duoc as $x ) { if ( strtolower( $x ) === strtolower( $chon ) ) { $ok = true; $coso = $x; } }
 			if ( ! $ok ) {

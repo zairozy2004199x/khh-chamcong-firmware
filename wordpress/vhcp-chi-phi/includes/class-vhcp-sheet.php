@@ -328,7 +328,7 @@ class VHCP_Sheet {
 	/** Dựng lại CSV từ mảng dòng, để dùng chung bộ nạp sẵn có. */
 	public static function rows_to_csv( $rows ) {
 		$fh = fopen( 'php://memory', 'r+' );
-		foreach ( (array) $rows as $r ) { fputcsv( $fh, array_map( 'strval', (array) $r ) ); }
+		foreach ( (array) $rows as $r ) { fputcsv( $fh, array_map( 'strval', (array) $r ), ',', '"', '\\' ); }
 		rewind( $fh );
 		$out = stream_get_contents( $fh );
 		fclose( $fh );

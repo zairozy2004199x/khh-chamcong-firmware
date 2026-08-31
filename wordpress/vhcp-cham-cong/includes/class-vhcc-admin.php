@@ -1687,6 +1687,14 @@ class VHCC_Admin {
 		$action = sanitize_text_field( wp_unslash( $_POST['vhcc_action'] ) );
 		check_admin_referer( 'vhcc_' . $action );
 
+		/* DỌN CƠ SỞ GHÉP — xem trước và làm thật đi chung một việc, khác nhau ở ô ẩn `that`. */
+		if ( 'don_coso' === $action ) {
+			$that = isset( $_POST['that'] ) && '1' === (string) $_POST['that'];
+			set_transient( 'vhcc_don_' . get_current_user_id(),
+				VHCC_Nhan::don_coso_ghep( $that ), 60 );
+			self::ve( 'don' );
+		}
+
 		if ( $action === 'luu' ) {
 			$slug = isset( $_POST['vhcc_slug'] ) ? sanitize_title( wp_unslash( $_POST['vhcc_slug'] ) ) : 'cham-cong';
 			if ( $slug === '' ) { $slug = 'cham-cong'; }
@@ -1794,6 +1802,67 @@ class VHCC_Admin {
 		}
 	}
 
+	/**
+	 * KHỐI "DỌN CƠ SỞ GHÉP" — nút bảo trì cho lỗi 30/08/2026.
+	 *
+	 * 🔴 CHỈ HIỆN KHI CÓ VIỆC PHẢI LÀM. Một nút bảo trì nằm thường trực giữa màn Cài đặt thì
+	 *    sáu tháng nữa không ai nhớ nó là gì, và có ngày ai đó bấm thử. Không còn hàng nào thì
+	 *    khối này biến mất hẳn.
+	 */
+	private static function khoi_don_coso() {
+		global $wpdb;
+		$n = (int) $wpdb->get_var(
+			"SELECT COUNT(*) FROM " . VHCC_DB::t( 'cham_cong' ) . " WHERE coso LIKE '%,%'" );
+		if ( $n <= 0 ) { return; }
+		echo '<div class="notice notice-warning" style="padding:12px"><h2 style="margin-top:0">'
+			. 'Dọn cơ sở ghép trong bảng chấm công</h2>';
+		echo '<p>Có <b>' . $n . '</b> hàng chấm công đang mang tên cơ sở là <b>hai tên nối bằng '
+			. 'dấu phẩy</b> — do lỗi đã sửa ở bản 3.11.0. Chừng nào còn, ô chọn cơ sở của màn '
+			. 'Bảng chấm công vẫn hiện một cơ sở không có thật, và chọn phải nó thì hàng chính '
+			. 'trống trơn còn công thật rơi hết xuống hàng "cũng làm ở".</p>';
+		echo '<p><b>Bấm Xem trước trước đã.</b> Giờ trong những hàng ấy là giờ thật của nhân '
+			. 'viên — bản dọn chuyển chúng về đúng cơ sở, không xoá giờ của ai.</p>';
+		echo '<form method="post" style="display:inline">'
+			. wp_nonce_field( 'vhcc_don_coso', '_wpnonce', true, false )
+			. '<input type="hidden" name="vhcc_action" value="don_coso">'
+			. '<input type="hidden" name="that" value="0">'
+			. '<button class="button">Xem trước</button></form> ';
+		echo '<form method="post" style="display:inline">'
+			. wp_nonce_field( 'vhcc_don_coso', '_wpnonce', true, false )
+			. '<input type="hidden" name="vhcc_action" value="don_coso">'
+			. '<input type="hidden" name="that" value="1">'
+			. '<button class="button button-primary">Dọn thật</button></form>';
+		echo '</div>';
+	}
+
+	/** Báo kết quả một lượt dọn cơ sở ghép. */
+	private static function bao_don_coso( $b ) {
+		$xem = ! empty( $b['xem'] );
+		echo '<div class="notice notice-' . ( $xem ? 'info' : 'success' ) . '"><p><b>'
+			. ( $xem ? 'Xem trước — CHƯA đổi gì.' : 'Đã dọn xong.' ) . '</b> '
+			. esc_html( $xem ? 'Sẽ đổi tên cơ sở cho ' : 'Đã đổi tên cơ sở cho ' )
+			. '<b>' . (int) $b['doi_ten'] . '</b> hàng, '
+			. esc_html( $xem ? 'gộp ' : 'đã gộp ' ) . '<b>' . (int) $b['gop'] . '</b> hàng vào '
+			. 'hàng đã có của cùng ngày.</p>';
+		if ( ! empty( $b['cs'] ) ) {
+			echo '<p>Tên cơ sở ma tìm thấy: ';
+			$dau = true;
+			foreach ( $b['cs'] as $x ) {
+				echo ( $dau ? '' : ', ' ) . '<code>' . esc_html( $x ) . '</code>';
+				$dau = false;
+			}
+			echo '</p>';
+		}
+		if ( ! empty( $b['de_lai'] ) ) {
+			echo '<p><b>Để lại ' . count( $b['de_lai'] ) . ' hàng, cần xử tay</b> — hàng ở cơ sở '
+				. 'đúng đã được chỉnh tay hoặc chấm bù, nên bản dọn không đè lên số ấy:</p>'
+				. '<ul style="margin-left:18px;list-style:disc">';
+			foreach ( $b['de_lai'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+			echo '</ul>';
+		}
+		echo '</div>';
+	}
+
 	private static function ve( $msg ) {
 		wp_safe_redirect( add_query_arg( array( 'page' => 'vhcc', 'vhcc_msg' => $msg ), admin_url( 'admin.php' ) ) );
 		exit;
@@ -1822,6 +1891,12 @@ class VHCC_Admin {
 			echo '<div class="notice notice-success"><p>' . wp_kses_post( $loi_nhan[ $msg ] ) . '</p></div>';
 		}
 
+		if ( 'don' === $msg ) {
+			$b_don = get_transient( 'vhcc_don_' . get_current_user_id() );
+			delete_transient( 'vhcc_don_' . get_current_user_id() );
+			if ( is_array( $b_don ) ) { self::bao_don_coso( $b_don ); }
+		}
+
 		if ( $msg === 'nd' ) {
 			$bao_nd = get_transient( 'vhcc_nd_' . get_current_user_id() );
 			delete_transient( 'vhcc_nd_' . get_current_user_id() );
@@ -1834,6 +1909,8 @@ class VHCC_Admin {
 						: ( isset( $bao_nd['thong_bao'] ) ? $bao_nd['thong_bao'] : 'Đã lưu.' ) ) . '</p></div>';
 			}
 		}
+
+		self::khoi_don_coso();
 
 		$sua_url = get_transient( 'vhcc_sua_url_' . get_current_user_id() );
 		if ( is_array( $sua_url ) && $sua_url ) {

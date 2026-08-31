@@ -482,6 +482,11 @@ class VHCC_Nhan {
 	 */
 	public static function ghi_gio( $coso, $ngay, $ma_nv, $ho_ten, $giay, $anh_b64, $nguon = 'may', $ghi_chu = null ) {
 		global $wpdb;
+		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
+		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
+		   đường sẽ mọc ra sau. Chuỗi ghép lọt xuống một lần là bảng có thêm một "cơ sở" không
+		   có thật, và nó nằm lại trong ô xổ cơ sở của màn quản trị cho tới khi có người dọn tay. */
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		$bang = VHCC_DB::t( 'cham_cong' );
 		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
 
@@ -635,6 +640,11 @@ class VHCC_Nhan {
 	 */
 	public static function dat_gio( $coso, $ngay, $ma_nv, $ho_ten, $vao_giay, $ra_giay, $ghi_chu = null ) {
 		global $wpdb;
+		/* 🔴 LƯỚI CUỐI: tên cơ sở KHÔNG ĐƯỢC mang dấu phẩy.
+		   Mọi đường ghi vào bảng chấm công đều qua đây, nên chốt ở đây là chốt cho cả những
+		   đường sẽ mọc ra sau. Chuỗi ghép lọt xuống một lần là bảng có thêm một "cơ sở" không
+		   có thật, và nó nằm lại trong ô xổ cơ sở của màn quản trị cho tới khi có người dọn tay. */
+		$coso = VHCC_NhanSu::chuan_coso( $coso );
 		$bang = VHCC_DB::t( 'cham_cong' );
 		list( $ma_goc, $hau_to ) = self::tach_hau_to( $ma_nv );
 
@@ -893,5 +903,97 @@ class VHCC_Nhan {
 				'loi' => $loi, 'lan' => 1 ) );
 		}
 		update_option( 'vhcc_nhat_ky_may', array_slice( $ds, 0, 200 ), false );
+	}
+
+	/**
+	 * DỌN CÁC HÀNG ĐÃ LỠ GHI VÀO "CƠ SỞ" LÀ CHUỖI GHÉP.
+	 *
+	 * 🔴 VÌ SAO CẦN: bản vá 30/08/2026 bịt cửa ghi, nhưng KHÔNG tự sửa những gì đã nằm trong
+	 *    sổ. Mà chúng còn thì ô xổ cơ sở của màn quản trị (`SELECT DISTINCT coso`) vẫn hiện
+	 *    một cơ sở không có thật, chọn phải nó là hàng chính trống trơn — đúng cái ảnh anh
+	 *    Thắng gửi. Nên phải có một nút dọn, chứ không phải bảo anh vào phpMyAdmin.
+	 *
+	 * ⚠️ HAI NHÁNH, VÀ NHÁNH THỨ HAI KHÔNG ĐỘNG VÀO SỐ ĐÃ CHỐT:
+	 *      · Cơ sở đúng CHƯA có hàng của ngày ấy -> đổi tên cơ sở tại chỗ. Giữ nguyên ảnh,
+	 *        ghi chú, nguồn, giờ — không mất gì.
+	 *      · Đã có hàng rồi -> NỚI khung [vào, ra] của hàng đúng cho trùm cả hai, rồi xoá hàng
+	 *        ghép. Nới chứ không đè: giờ trong hàng ghép là giờ THẬT của người ta, chỉ có tên
+	 *        cơ sở là sai.
+	 *      · Trừ khi hàng đúng mang nguồn `sua` hoặc `bu` — tức người ta đã chỉnh tay và có
+	 *        thể đã chốt lương trên số đó. Chỗ ấy KHÔNG tự động: kể tên ra để xử tay.
+	 *
+	 * @param bool $that Xem trước (false) hay làm thật (true).
+	 * @return array `xem`(bool) · `doi_ten` · `gop` · `de_lai`(mảng mô tả) · `cs`(mảng tên cơ sở ma)
+	 */
+	public static function don_coso_ghep( $that = false ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$ds   = VHCC_DB::rows( "SELECT * FROM $bang WHERE coso LIKE '%,%' ORDER BY id" );
+		$kq   = array( 'xem' => ! $that, 'doi_ten' => 0, 'gop' => 0,
+			'de_lai' => array(), 'cs' => array() );
+
+		foreach ( (array) $ds as $r ) {
+			$cu   = (string) $r['coso'];
+			$dung = VHCC_NhanSu::chuan_coso( $cu );
+			if ( ! in_array( $cu, $kq['cs'], true ) ) { $kq['cs'][] = $cu; }
+			if ( '' === $dung || $dung === $cu ) { continue; }
+
+			$dich = $wpdb->get_row( $wpdb->prepare(
+				"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+				$dung, $r['ngay'], $r['ma_nv'], $r['hau_to'] ), ARRAY_A );
+
+			if ( null === $dich ) {
+				$kq['doi_ten']++;
+				if ( $that ) {
+					$wpdb->update( $bang, array( 'coso' => $dung ), array( 'id' => (int) $r['id'] ) );
+				}
+				continue;
+			}
+
+			if ( 'sua' === $dich['nguon'] || 'bu' === $dich['nguon'] ) {
+				$kq['de_lai'][] = $r['ngay'] . ' · ' . $r['ma_nv'] . ' · ' . $dung
+					. ' (hàng đúng đã chỉnh tay — nguồn "' . $dich['nguon'] . '")';
+				continue;
+			}
+
+			$kq['gop']++;
+			if ( $that ) {
+				$vao = self::som_hon( $dich['gio_vao_giay'], $r['gio_vao_giay'] );
+				$ra  = self::muon_hon( $dich['gio_ra_giay'], $r['gio_ra_giay'] );
+				$wpdb->update( $bang, array(
+					'gio_vao_giay' => $vao,
+					'gio_ra_giay'  => $ra,
+					'chuan'        => self::chuan_cap( $vao, $ra ),
+				), array( 'id' => (int) $dich['id'] ) );
+				$wpdb->delete( $bang, array( 'id' => (int) $r['id'] ) );
+			}
+		}
+		return $kq;
+	}
+
+	/** Giây nhỏ hơn trong hai giá trị, bỏ qua null. */
+	private static function som_hon( $a, $b ) {
+		$a = ( null === $a || '' === $a ) ? null : (int) $a;
+		$b = ( null === $b || '' === $b ) ? null : (int) $b;
+		if ( null === $a ) { return $b; }
+		if ( null === $b ) { return $a; }
+		return min( $a, $b );
+	}
+
+	/** Giây lớn hơn trong hai giá trị, bỏ qua null. */
+	private static function muon_hon( $a, $b ) {
+		$a = ( null === $a || '' === $a ) ? null : (int) $a;
+		$b = ( null === $b || '' === $b ) ? null : (int) $b;
+		if ( null === $a ) { return $b; }
+		if ( null === $b ) { return $a; }
+		return max( $a, $b );
+	}
+
+	/** Ô "Thời gian trong ngày" từ một cặp giây — cùng khuôn với `ghi_gio()` và `dat_gio()`. */
+	private static function chuan_cap( $vao, $ra ) {
+		if ( null === $vao && null === $ra ) { return ''; }
+		if ( null === $ra )  { return VHCC_DB::hhmm( $vao ); }
+		if ( null === $vao ) { return VHCC_DB::hhmm( $ra ); }
+		return VHCC_DB::hhmm( $vao ) . ' ' . VHCC_DB::hhmm( $ra );
 	}
 }

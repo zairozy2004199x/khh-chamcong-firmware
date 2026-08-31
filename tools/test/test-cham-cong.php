@@ -889,6 +889,91 @@ $kq = VHCC_Online::cham_cong( $u_cs, '', null, 'POSH_HCM' );
 t( 'chọn cơ sở PHỤ đã khai trong hồ sơ: được', ! empty( $kq['ok'] ), isset( $kq['error'] ) ? $kq['error'] : '' );
 teq( 'và ghi đúng cơ sở phụ đó', 'POSH_HCM', $kq['coSo'] );
 
+/* ---- 12c-bis. 🔴 THẺ PHIÊN MANG **HAI** CƠ SỞ NỐI BẰNG DẤU PHẨY ---------------------------
+ * Anh Thắng 30/08/2026, hai ảnh: *"Nhân viên chỉ có 2 cơ sở, tại sao sinh ra 2 hàng chấm
+ * công"* và *"Tài khoản nhân viên chỉ xem được 1 cơ sở"*.
+ *
+ * 🔴 MỘT GỐC, BA CHỖ NỞ RA. `VHCC_Auth::ds_tai_khoan()` nối `cua_hang` + `coso_phu` bằng
+ *    `', '` để `VHCC_NhanSu::ds_coso_cua()` tách ra được (nó `explode(',')`). Đúng cho nơi
+ *    biết tách. Nhưng ba nơi dưới đây nhận CẢ CHUỖI và dùng như MỘT tên cơ sở:
+ *      1. `VHCC_Online::cham_cong()` — `$coso = $mac_dinh` rồi ghi thẳng vào bảng chấm công,
+ *         nên bảng đẻ ra một cơ sở KHÔNG CÓ THẬT tên `"POSH_HCM, (PART TIME )_POSH+JP"`.
+ *      2. `VHCC_Online::ds_coso_cua_nv()` — nhét `$mac_dinh` nguyên khối vào danh sách, nên
+ *         người 2 cơ sở hiện ra 3 (chuỗi ghép + hai cái thật).
+ *      3. Ô xổ cơ sở của màn quản trị đọc `SELECT DISTINCT coso FROM cham_cong`, nên cơ sở ma
+ *         ấy nằm luôn trong danh sách chọn — chọn phải nó thì hàng chính TRỐNG và toàn bộ
+ *         công thật rơi xuống hàng "cũng làm ở", đúng ảnh anh gửi.
+ *
+ * ⚠️ VÌ SAO 1114 phép thử trước KHÔNG THẤY: mọi thẻ phiên trong bộ thử đều có ĐÚNG MỘT cơ sở
+ *    (`'coso' => 'TUTU_BT'`). Hình dạng dữ liệu mà chính `VHCC_Auth` sinh ra từ 29/08 chưa
+ *    bao giờ được đưa vào đây. Nên mục này bắt đầu từ thẻ phiên THẬT. */
+vhcp_test_dat_gio( '2026-08-23 09:00:00' );
+$u_ghep = array( 'pin' => '2222', 'ma_nv' => 'NV10', 'ho_ten' => 'Lê C',
+	'coso' => 'TUTU_BT, POSH_HCM' );
+
+/* (a) Thẻ phiên hai cơ sở là hình dạng THẬT — chính VHCC_Auth nối ra như vậy. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'NV77', 'ho_ten' => 'Vũ D',
+	'cua_hang' => 'TUTU_BT', 'coso_phu' => 'POSH_HCM', 'pin_dang_nhap' => '7777' ) );
+$ds_tk = VHCC_Auth::users_cua( 'ho_so' );
+$tk_ghep = '';
+foreach ( (array) $ds_tk as $x_tk ) {
+	if ( 'Vũ D' === $x_tk['ten'] ) { $tk_ghep = (string) $x_tk['coso']; }
+}
+teq( 'VHCC_Auth nối cơ sở chính + phụ bằng dấu phẩy', 'TUTU_BT, POSH_HCM', $tk_ghep );
+
+/* (b) Danh sách cơ sở của người này phải ra ĐÚNG HAI, không phần tử nào còn dấu phẩy. */
+$ds_2 = VHCC_Online::ds_coso_cua_nv( 'NV10', 'TUTU_BT, POSH_HCM' );
+teq( 'người 2 cơ sở ra đúng 2 cơ sở, không phải 3', 2, count( $ds_2 ), implode( ' · ', $ds_2 ) );
+$co_phay = false;
+foreach ( $ds_2 as $x_cs ) { if ( false !== strpos( $x_cs, ',' ) ) { $co_phay = true; } }
+t( 'không cơ sở nào còn nguyên chuỗi ghép', ! $co_phay, implode( ' · ', $ds_2 ) );
+
+/* (c) Chấm công KHÔNG chọn cơ sở -> ghi vào cơ sở ĐẦU, không phải cả chuỗi. */
+$kq = VHCC_Online::cham_cong( $u_ghep );
+t( 'chấm công với thẻ hai cơ sở: ghi được', ! empty( $kq['ok'] ), isset( $kq['error'] ) ? $kq['error'] : '' );
+teq( 'ghi vào cơ sở ĐẦU của thẻ, không phải chuỗi ghép', 'TUTU_BT', $kq['coSo'] );
+
+/* (d) 🔴 CHỐT Ở CHÍNH BẢNG: không hàng chấm công nào được mang tên cơ sở có dấu phẩy.
+       Đây là phép thử quan trọng nhất của mục — nó canh cái BẢNG, nên đường ghi nào mới mọc
+       ra sau này mà lọt chuỗi ghép xuống cũng bị bắt, không cần nhớ bổ sung phép thử. */
+$ma_coso = $wpdb->get_col( 'SELECT DISTINCT coso FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$ghep_lot = array();
+foreach ( (array) $ma_coso as $x_cs ) { if ( false !== strpos( (string) $x_cs, ',' ) ) { $ghep_lot[] = $x_cs; } }
+t( 'bảng chấm công KHÔNG có cơ sở nào tên chứa dấu phẩy',
+	count( $ghep_lot ) === 0, implode( ' | ', $ghep_lot ) );
+
+/* (e) Chọn tay cơ sở phụ vẫn phải chạy y như cũ khi thẻ mang hai cơ sở. */
+vhcp_test_dat_gio( '2026-08-24 09:00:00' );
+$kq = VHCC_Online::cham_cong( $u_ghep, '', null, 'POSH_HCM' );
+teq( 'thẻ hai cơ sở, chọn tay cơ sở phụ: vẫn đúng', 'POSH_HCM', $kq['coSo'] );
+
+/* (f) 🔴 KHI HỒ SƠ TRA KHÔNG RA MÃ ẤY, THẺ PHIÊN LÀ NGUỒN DUY NHẤT.
+       Ba phép trên vẫn xanh kể cả khi mã chỉ dùng cơ sở đã cắt, vì `ds_coso_cua_nv()` còn đọc
+       thêm `cua_hang` + `coso_phu` từ bảng hồ sơ và vá lại chỗ thiếu. Ca này bịt đường vá đó:
+       mã NV không có hồ sơ (đổi mã, hoặc hồ sơ chưa khai lại) thì cơ sở thứ hai CHỈ nằm trong
+       thẻ phiên — cắt thẻ trước khi tra là mất hẳn nó, và màn hình im lặng hiện thiếu. */
+$ds_kho = VHCC_Online::ds_coso_cua_nv( 'MA_KHONG_CO_HO_SO', 'ALPHA_CS, BETA_CS' );
+teq( 'mã không có hồ sơ: vẫn ra đủ 2 cơ sở từ thẻ phiên', 2, count( $ds_kho ), implode( ' · ', $ds_kho ) );
+
+/* (g) Và chấm công chọn tay cơ sở THỨ HAI vẫn phải được chấp nhận trong ca ấy. */
+vhcp_test_dat_gio( '2026-08-25 09:00:00' );
+$u_kho = array( 'pin' => '3333', 'ma_nv' => 'NV_KHONG_HO_SO', 'ho_ten' => 'Bùi E',
+	'coso' => 'ALPHA_CS, BETA_CS' );
+$kq = VHCC_Online::cham_cong( $u_kho, '', null, 'BETA_CS' );
+teq( 'mã không hồ sơ, chọn cơ sở thứ hai của thẻ: được', 'BETA_CS', $kq['coSo'],
+	isset( $kq['error'] ) ? $kq['error'] : '' );
+
+/* (h) 🔴 LƯỚI CUỐI Ở `VHCC_Nhan::ghi_gio()` — canh riêng, gọi thẳng.
+       Mọi phép trên đi qua `cham_cong()`, nơi đã cắt chuỗi từ trước, nên chúng KHÔNG canh được
+       cái lưới ở cửa ghi. Mà lưới ấy mới là thứ đỡ cho những đường ghi khác (nạp .csv, kéo từ
+       sheet, cổng máy) và cho những đường sẽ mọc ra sau. */
+vhcp_test_dat_gio( '2026-08-26 08:00:00' );
+VHCC_Nhan::ghi_gio( 'GAMMA_CS, DELTA_CS', '2026-08-26', 'NVL1', 'Đỗ F', 8 * 3600, '', 'may' );
+t( 'ghi_gio nhận chuỗi ghép: hàng nằm ở cơ sở ĐẦU',
+	null !== vhcc_hang( 'GAMMA_CS', '2026-08-26', 'NVL1' ) );
+t( 'và KHÔNG đẻ ra hàng mang tên cơ sở ghép',
+	null === vhcc_hang( 'GAMMA_CS, DELTA_CS', '2026-08-26', 'NVL1' ) );
+
 /* ---- 12d. Gác 3: NHIỆM VỤ đi lên từ client phải đối chiếu -------------------------------- */
 /* Không kiểm thì ai cũng tự gán cho mình việc có đơn giá cao hơn. */
 vhcp_test_dat_gio( '2026-08-22 09:00:00' );
@@ -15988,6 +16073,103 @@ t( '🔴 quá 3 cơ sở thì QUAY LẠI luật chọn một qua ô lọc',
 /* Màn quản trị KHÔNG có script — luật chung, nhánh "hiện hết" không được phá lệ dù vẽ nhiều bảng. */
 t( '🔴 màn "hiện hết" vẫn không có thẻ script nào', stripos( $h_2cs, '<script' ) === false );
 t( 'và không có thuộc tính on...= nào', preg_match( '/\son[a-z]+\s*=\s*["\']/i', $h_2cs ) === 0, $h_2cs );
+
+/* =============================================================================================
+ * MÀN "CÔNG CỦA TÔI" VỚI THẺ PHIÊN MANG HAI CƠ SỞ.
+ * =============================================================================================
+ * Anh Thắng 30/08/2026, ảnh màn Công của tôi: dòng đầu in
+ * `POSH_HCM, (PART TIME )_POSH+JP · POSH_HCM · (PART TIME )_POSH+JP` — người 2 cơ sở hiện ra 3,
+ * vì chuỗi ghép của thẻ phiên bị đếm thành một cơ sở nữa.
+ *
+ * ⚠️ Mã NV ở đây CỐ Ý không có hồ sơ trong bảng `nhan_vien`. Có hồ sơ thì `ds_coso_cua_nv()`
+ *    vá lại được chỗ thiếu và phép thử xanh kể cả khi màn này cắt thẻ trước lúc tra — tức là
+ *    canh mà không canh gì. Không hồ sơ thì thẻ phiên là nguồn duy nhất.
+ */
+vhcc_dung_bang();
+$h_2ten = vhcc_web_nhu2( 'CTNV01', 'Nhân viên', 'MOT_CS, HAI_CS', array( 'man' => 'cong_toi' ) );
+/* ⚠️ BỐC RIÊNG DÒNG CƠ SỞ CỦA MÀN, không tìm trên cả trang.
+   Bản đầu của mục này tìm chuỗi 'HAI_CS' trong toàn bộ HTML và XANH GIẢ: nó khớp phải mã NV
+   `CT_HAI_CS` ở thanh đầu trang, nên phá thử bỏ hẳn bản vá mà phép thử vẫn xanh. Mã NV nay
+   đổi thành `CTNV01` — không chứa tên cơ sở nào — và chỉ soi đúng dòng cần soi. */
+if ( ! preg_match( '~mã <b>CTNV01</b> · (.*?)</p>~', $h_2ten, $m_cs ) ) { $m_cs = array( '', '(không tìm thấy dòng cơ sở)' ); }
+$dong_cs = $m_cs[1];
+t( 'Công của tôi: hiện cơ sở thứ nhất', strpos( $dong_cs, 'MOT_CS' ) !== false, $dong_cs );
+t( 'Công của tôi: hiện cả cơ sở thứ hai', strpos( $dong_cs, 'HAI_CS' ) !== false, $dong_cs );
+t( '🔴 và KHÔNG in chuỗi ghép như một cơ sở thứ ba',
+	strpos( $dong_cs, 'MOT_CS, HAI_CS' ) === false, $dong_cs );
+
+/* =============================================================================================
+ * DỌN NHỮNG HÀNG ĐÃ LỠ GHI VÀO CƠ SỞ GHÉP.
+ * =============================================================================================
+ * Bịt cửa ghi không sửa được cái đã nằm trong sổ. Trên hosting thật đã có hàng như vậy rồi, và
+ * chừng nào còn thì ô xổ cơ sở của màn quản trị vẫn hiện một cơ sở không có thật.
+ *
+ * ⚠️ Chèn thẳng bằng `$wpdb->insert` — CỐ Ý đi vòng qua `ghi_gio()`, vì lưới ở đó nay chặn
+ *    đúng hình dạng mà mục này cần dựng lại. Đây là dữ liệu CŨ, sinh ra trước bản vá.
+ */
+vhcc_dung_bang();
+$t_cc = VHCC_DB::t( 'cham_cong' );
+
+/* (1) Cơ sở đúng CHƯA có hàng -> đổi tên tại chỗ, giữ nguyên giờ và ghi chú. */
+$wpdb->insert( $t_cc, array( 'coso' => 'AA_CS, BB_CS', 'ngay' => '2026-08-10', 'ma_nv' => 'D1',
+	'hau_to' => '', 'ho_ten' => 'Một', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 17 * 3600,
+	'nguon' => 'online', 'ghi_chu' => 'gps 10.7' ) );
+/* (2) Cơ sở đúng ĐÃ có hàng, nguồn thường -> gộp: nới khung [vào, ra] rồi bỏ hàng ghép. */
+$wpdb->insert( $t_cc, array( 'coso' => 'CC_CS', 'ngay' => '2026-08-11', 'ma_nv' => 'D2',
+	'hau_to' => '', 'ho_ten' => 'Hai', 'gio_vao_giay' => 9 * 3600, 'gio_ra_giay' => 16 * 3600,
+	'nguon' => 'may' ) );
+$wpdb->insert( $t_cc, array( 'coso' => 'CC_CS, DD_CS', 'ngay' => '2026-08-11', 'ma_nv' => 'D2',
+	'hau_to' => '', 'ho_ten' => 'Hai', 'gio_vao_giay' => 8 * 3600, 'gio_ra_giay' => 18 * 3600,
+	'nguon' => 'online' ) );
+/* (3) Cơ sở đúng đã được CHỈNH TAY -> không đụng, kể tên ra. */
+$wpdb->insert( $t_cc, array( 'coso' => 'EE_CS', 'ngay' => '2026-08-12', 'ma_nv' => 'D3',
+	'hau_to' => '', 'ho_ten' => 'Ba', 'gio_vao_giay' => 9 * 3600, 'gio_ra_giay' => 17 * 3600,
+	'nguon' => 'sua' ) );
+$wpdb->insert( $t_cc, array( 'coso' => 'EE_CS, FF_CS', 'ngay' => '2026-08-12', 'ma_nv' => 'D3',
+	'hau_to' => '', 'ho_ten' => 'Ba', 'gio_vao_giay' => 7 * 3600, 'gio_ra_giay' => 19 * 3600,
+	'nguon' => 'online' ) );
+
+/* --- Xem trước: đếm đúng, và KHÔNG đổi gì --- */
+$xem = VHCC_Nhan::don_coso_ghep( false );
+teq( 'xem trước: 1 hàng đổi tên', 1, (int) $xem['doi_ten'] );
+teq( 'xem trước: 1 hàng gộp', 1, (int) $xem['gop'] );
+teq( 'xem trước: 1 hàng để lại vì đã chỉnh tay', 1, count( $xem['de_lai'] ) );
+teq( 'xem trước: kể đủ 3 tên cơ sở ma', 3, count( $xem['cs'] ), implode( ' | ', $xem['cs'] ) );
+teq( '🔴 xem trước KHÔNG đổi gì trong sổ', 3,
+	(int) $wpdb->get_var( "SELECT COUNT(*) FROM $t_cc WHERE coso LIKE '%,%'" ) );
+
+/* --- Làm thật --- */
+$that = VHCC_Nhan::don_coso_ghep( true );
+teq( 'dọn thật: đổi tên 1 hàng', 1, (int) $that['doi_ten'] );
+teq( 'dọn thật: gộp 1 hàng', 1, (int) $that['gop'] );
+
+$h1 = vhcc_hang( 'AA_CS', '2026-08-10', 'D1' );
+t( '(1) hàng nay nằm ở cơ sở đúng', null !== $h1 );
+teq( '(1) giờ vào giữ nguyên', 8 * 3600, (int) $h1['gio_vao_giay'] );
+teq( '(1) giờ ra giữ nguyên', 17 * 3600, (int) $h1['gio_ra_giay'] );
+teq( '(1) ghi chú không mất', 'gps 10.7', (string) $h1['ghi_chu'] );
+t( '(1) không còn hàng cơ sở ghép', null === vhcc_hang( 'AA_CS, BB_CS', '2026-08-10', 'D1' ) );
+
+$h2 = vhcc_hang( 'CC_CS', '2026-08-11', 'D2' );
+teq( '(2) gộp NỚI giờ vào ra sớm hơn', 8 * 3600, (int) $h2['gio_vao_giay'] );
+teq( '(2) gộp NỚI giờ ra ra muộn hơn', 18 * 3600, (int) $h2['gio_ra_giay'] );
+teq( '(2) ô "thời gian trong ngày" tính lại', '08:00 18:00', (string) $h2['chuan'] );
+t( '(2) hàng ghép đã bị bỏ', null === vhcc_hang( 'CC_CS, DD_CS', '2026-08-11', 'D2' ) );
+
+$h3 = vhcc_hang( 'EE_CS', '2026-08-12', 'D3' );
+teq( '🔴 (3) hàng đã chỉnh tay KHÔNG bị đè', 9 * 3600, (int) $h3['gio_vao_giay'] );
+t( '🔴 (3) và hàng ghép được GIỮ LẠI để xử tay, không lặng lẽ xoá',
+	null !== vhcc_hang( 'EE_CS, FF_CS', '2026-08-12', 'D3' ) );
+
+/* Nút bảo trì chỉ hiện khi còn việc — và biến mất khi dọn sạch. */
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+ob_start(); VHCC_Admin::page(); $h_don = ob_get_clean();
+t( 'còn hàng ghép thì màn Cài đặt hiện nút dọn',
+	strpos( $h_don, 'Dọn cơ sở ghép' ) !== false );
+$wpdb->query( "DELETE FROM $t_cc WHERE coso LIKE '%,%'" );
+ob_start(); VHCC_Admin::page(); $h_sach = ob_get_clean();
+t( '🔴 dọn sạch rồi thì nút biến mất hẳn, không nằm lại giữa màn',
+	strpos( $h_sach, 'Dọn cơ sở ghép' ) === false );
 
 vhcc_dung_bang();
 

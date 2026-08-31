@@ -6,6 +6,47 @@
  * Chỉ dùng khi phát triển (tools/test), không nằm trong bản plugin phát hành.
  */
 
+/* =================================================================================================
+ * 🔴 LƯỚI BẮT CẢNH BÁO PHP — BỘ THỬ TỪNG MÙ HOÀN TOÀN VỚI LOẠI LỖI NÀY.
+ * =================================================================================================
+ * 30/08/2026: `php.ini` của máy chạy thử có `display_errors=Off` và `error_reporting` bỏ
+ * E_DEPRECATED. Nên mọi Warning / Notice / Deprecated do mã plugin sinh ra đều KHÔNG in ra đâu
+ * cả, và bộ lọc "có chữ Warning không" của bài kiểm luôn trả về sạch. Chạy lại đúng bộ thử ấy
+ * với `-d display_errors=1 -d error_reporting=E_ALL` thì lòi ra 1382 dòng Deprecated của
+ * `fgetcsv()`/`fputcsv()` trên PHP 8.4 — thứ mà hosting bật `display_errors` sẽ in thẳng vào
+ * giữa trang quản trị, và in vào cả tệp .csv xuất ra.
+ *
+ * Nên bộ thử KHÔNG được dựa vào `php.ini` của máy đang chạy. Nó tự bật E_ALL, tự bắt, và
+ * TỰ HỎNG khi mã trong kho này sinh ra một cảnh báo.
+ *
+ * ⚠️ CHỈ TÍNH TỆP TRONG KHO. Cảnh báo từ thư viện hệ thống không phải việc của bộ thử này.
+ * ⚠️ TÔN TRỌNG `@`: `error_reporting()` trả 0 (PHP < 8) hoặc bộ mặt nạ rút gọn (PHP >= 8) khi
+ *    lời gọi có `@` — nơi nào cố ý bịt thì bộ thử không cãi lại.
+ */
+error_reporting( E_ALL );
+ini_set( 'display_errors', '0' );
+$GLOBALS['VHCP_CANH_BAO'] = array();
+set_error_handler( function ( $so, $chu, $tep = '', $dong = 0 ) {
+	if ( 0 === ( error_reporting() & $so ) ) { return true; }
+	$goc = dirname( dirname( __DIR__ ) );
+	if ( 0 !== strpos( (string) $tep, $goc ) ) { return true; }
+	$ngan = substr( (string) $tep, strlen( $goc ) + 1 );
+	$khoa = $ngan . ':' . (int) $dong . ' — ' . $chu;
+	if ( ! in_array( $khoa, $GLOBALS['VHCP_CANH_BAO'], true ) ) {
+		$GLOBALS['VHCP_CANH_BAO'][] = $khoa;
+	}
+	return true;
+} );
+register_shutdown_function( function () {
+	if ( empty( $GLOBALS['VHCP_CANH_BAO'] ) ) { return; }
+	echo "\nHỎNG: " . count( $GLOBALS['VHCP_CANH_BAO'] ) . " cảnh báo PHP từ mã trong kho\n";
+	foreach ( array_slice( $GLOBALS['VHCP_CANH_BAO'], 0, 25 ) as $x ) { echo '  ✗ ' . $x . "\n"; }
+	if ( count( $GLOBALS['VHCP_CANH_BAO'] ) > 25 ) {
+		echo '  … và ' . ( count( $GLOBALS['VHCP_CANH_BAO'] ) - 25 ) . " chỗ nữa\n";
+	}
+	exit( 1 );
+} );
+
 $GLOBALS['VHCP_TMP'] = sys_get_temp_dir() . '/vhcp-test-' . getmypid();
 @mkdir( $GLOBALS['VHCP_TMP'] . '/wp-admin/includes', 0777, true );
 @mkdir( $GLOBALS['VHCP_TMP'] . '/uploads', 0777, true );

@@ -360,7 +360,15 @@ class VHCC_NapCong {
 		$f  = fopen( 'php://temp', 'r+' );
 		fwrite( $f, $van_ban );
 		rewind( $f );
-		while ( false !== ( $h = fgetcsv( $f, 0, $ngan ) ) ) {
+		/* 🔴 THAM SỐ `$escape` KHAI RÕ, KHÔNG ĐỂ MẶC ĐỊNH. PHP 8.4 kêu Deprecated ở mọi lời gọi
+		   `fgetcsv()`/`fputcsv()` thiếu nó, và PHP 9 sẽ ĐỔI mặc định từ `"\\"` sang `""`. Để mặc
+		   định thì hai chuyện cùng xảy ra: hosting bật `display_errors` in chữ vàng chen vào giữa
+		   trang (tệ nhất là chen vào chính tệp .csv XUẤT ra, làm hỏng tệp tải về), và tới PHP 9
+		   thì cách đọc đổi âm thầm giữa hai lần nạp cùng một tệp.
+		   ⚠️ GIỮ `'\\'` — đúng hành vi từ trước tới nay. Đổi sang `''` (chuẩn RFC 4180, và là
+		      hướng PHP 9 đi) là đổi cách đọc những ô có dấu `\` — việc đó phải làm riêng, có bảng
+		      đối chiếu trước sau, chứ không lặng lẽ kèm vào một bản vá về cơ sở. */
+		while ( false !== ( $h = fgetcsv( $f, 0, $ngan, '"', '\\' ) ) ) {
 			if ( null === $h || array( null ) === $h ) { continue; }
 			$ra[] = $h;
 		}

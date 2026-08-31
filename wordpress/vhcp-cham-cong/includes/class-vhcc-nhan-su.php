@@ -104,8 +104,31 @@ class VHCC_NhanSu {
 		return $ds;
 	}
 
+	/**
+	 * MỘT tên cơ sở, đã chuẩn hoá.
+	 *
+	 * 🔴 CẮT TẠI DẤU PHẨY ĐẦU TIÊN. Anh Thắng 30/08/2026: *"Nhân viên chỉ có 2 cơ sở, tại sao
+	 *    sinh ra 2 hàng chấm công"*. Thẻ phiên của người làm ở hai nơi mang CẢ HAI tên nối
+	 *    bằng `', '` — `VHCC_Auth::users_cua()` cố ý nối vậy để `ds_coso_cua()` tách ra được.
+	 *    Nhưng hàm này là cửa của những nơi cần MỘT tên, và chúng nhận nguyên chuỗi ghép rồi
+	 *    dùng như một cơ sở có thật: bảng chấm công đẻ ra hàng mang tên
+	 *    `"POSH_HCM, (PART TIME )_POSH+JP"`, ô xổ cơ sở của màn quản trị (đọc `SELECT DISTINCT
+	 *    coso`) hiện luôn cái tên ma ấy, và chọn phải nó thì hàng chính TRỐNG còn toàn bộ công
+	 *    thật rơi xuống hàng "cũng làm ở".
+	 *
+	 * ⚠️ CẮT chứ không phải báo lỗi: dữ liệu cũ trong sổ đã có những tên như vậy rồi, ném lỗi
+	 *    ở đây là khoá cửa chấm công của chính những người đang vấp. Cắt thì họ chấm được ngay,
+	 *    vào đúng cơ sở chính — còn danh sách ĐỦ cả hai cơ sở là việc của `ds_coso_cua()`.
+	 *
+	 * ⚠️ Tên cơ sở KHÔNG được chứa dấu phẩy — cả hệ thống đã ngầm định thế từ lâu, vì
+	 *    `ds_coso_cua()` và `ds_coso_cua_nv()` đều `explode(',')`. Nên cắt ở đây không làm mất
+	 *    một cái tên hợp lệ nào.
+	 */
 	public static function chuan_coso( $s ) {
-		return trim( preg_replace( '/^CS_/', '', (string) $s ) );
+		$s = (string) $s;
+		$phay = strpos( $s, ',' );
+		if ( false !== $phay ) { $s = substr( $s, 0, $phay ); }
+		return trim( preg_replace( '/^CS_/', '', $s ) );
 	}
 
 	/**

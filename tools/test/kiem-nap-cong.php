@@ -29,7 +29,7 @@ function that( $ten, $dieu ) { la( $ten, true, (bool) $dieu ); }
 function doc_csv( $duong ) {
 	$f = fopen( $duong, 'r' );
 	$ds = array();
-	while ( false !== ( $r = fgetcsv( $f, 0, ',' ) ) ) { $ds[] = $r; }
+	while ( false !== ( $r = fgetcsv( $f, 0, ',', '"', '\\' ) ) ) { $ds[] = $r; }
 	fclose( $f );
 	/* Bỏ dấu BOM ở ô đầu tiên — Sheets luôn kèm, và nó làm mọi phép so tên cột trượt. */
 	if ( isset( $ds[0][0] ) ) { $ds[0][0] = preg_replace( '/^\xEF\xBB\xBF/', '', $ds[0][0] ); }

@@ -2718,7 +2718,12 @@ class VHCC_Web {
 			return;
 		}
 
-		$ds_cs = VHCC_Online::ds_coso_cua_nv( $ma_nv, VHCC_NhanSu::chuan_coso( $toi['coso'] ) );
+		/* Truyền NGUYÊN chuỗi cơ sở của thẻ phiên, không cắt trước. `ds_coso_cua_nv()` biết tách
+		   dấu phẩy; cắt ở đây là vứt mất cơ sở thứ hai của người làm hai nơi trong đúng cái ca
+		   mà hồ sơ `nhan_vien` không tra được (mã NV đổi, hồ sơ chưa khai lại) — và khi ấy màn
+		   này im lặng hiện thiếu một cơ sở chứ không báo gì. */
+		$ds_cs = VHCC_Online::ds_coso_cua_nv( $ma_nv,
+			isset( $toi['coso'] ) ? (string) $toi['coso'] : '' );
 		$kq    = VHCC_Online::bang_thang( $ma_nv, $ds_cs, $th );
 		$tong  = $kq['tong'];
 
