@@ -48,7 +48,7 @@ class VHCC_WebMay {
 
 	/** Việc POST của màn này. Danh sách trắng: tên nào không có ở đây thì không phải việc của màn. */
 	const VIEC = array( 'may_gan', 'may_quet', 'may_dung_tai_lai', 'may_tai_lai', 'may_xoa_lenh',
-		'may_ota', 'may_ota_mot', 'may_go_ota', 'may_sim' );
+		'may_ota', 'may_ota_mot', 'may_go_ota', 'may_sim', 'may_dem_xoa' );
 
 	public static function la_viec( $viec ) {
 		return in_array( (string) $viec, self::VIEC, true );
@@ -78,6 +78,7 @@ class VHCC_WebMay {
 		if ( 'may_dung_tai_lai' === $viec ) { return array( VHCC_May::dung_tai_lai( $id ) ); }
 		if ( 'may_xoa_lenh' === $viec )     { return array( VHCC_May::xoa_lenh( $lay( 'op_id' ) ) ); }
 		if ( 'may_go_ota' === $viec )       { return array( VHCC_May::go_ota( $id ) ); }
+		if ( 'may_dem_xoa' === $viec )      { return array( VHCC_Nhan::dem_xoa() ); }
 		if ( 'may_tai_lai' === $viec ) {
 			return array( VHCC_May::tai_lai( $id, $lay( 'tu' ), $lay( 'den' ), $lay( 'ma_nv' ) ) );
 		}
@@ -111,6 +112,7 @@ class VHCC_WebMay {
 
 		self::the_cong();
 		self::the_chan_doan();
+		self::the_dem( $ds, $ky );
 		self::the_mat_nhip( $ds );
 		self::the_nhat_ky();
 		self::the_ds_may( $ds, $ky );
@@ -296,6 +298,82 @@ class VHCC_WebMay {
 			. '<b>405</b>. Ra trang khác, ra trang chủ, hay ra 404 thì địa chỉ đang sai — và đó '
 			. 'đúng là cái làm firmware mất gói.</p>';
 		echo '</div>';
+	}
+
+	/**
+	 * ĐANG NHẬN BAO NHIÊU LƯỢT, GHI ĐƯỢC BAO NHIÊU, THÀNH CÔNG HAY KHÔNG.
+	 *
+	 * Nhật ký (khối trên) chỉ kể cái HỎNG. Khối này đếm cả cái CHẠY TỐT, theo từng máy — để trả
+	 * lời thẳng câu "máy đẩy về bao nhiêu, vào sổ bao nhiêu". Số lấy từ `VHCC_Nhan` (đếm ngay lúc
+	 * ghi, không phải đếm lại bảng), nên nó đúng cả với lượt bị bỏ (gói thử, giờ sai khuôn…) —
+	 * những lượt KHÔNG để lại hàng nào trong bảng công.
+	 *
+	 * Nghĩa từng cột:
+	 *   NHẬN   — tổng lượt máy đẩy tới cổng (đã qua khoá).
+	 *   GHI    — ghi được giờ mới vào sổ (vào / ra / đảo thứ tự). Đây là "thành công".
+	 *   TRÙNG  — gói lặp / nằm trong khoảng đã có → không đổi gì (bình thường khi đẩy lại).
+	 *   GIỮ TAY— máy định đè lên ô người đã sửa/bù → đã chặn, giữ giờ của người.
+	 *   CHỜ GÁN— máy chưa gán cơ sở → giữ tạm ở "Lượt chờ gán".
+	 *   BỎ     — gói thử đường / giờ sai khuôn / thiếu mã NV → cố ý bỏ.
+	 *   HỎNG   — CSDL lỗi lúc ghi → máy sẽ tự đẩy lại (đây là ca duy nhất đáng lo).
+	 */
+	private static function the_dem( $ds, $ky ) {
+		$dem = VHCC_Nhan::dem_ds();
+		echo '<div class="the"><h2>Đang nhận &amp; ghi được bao nhiêu lượt</h2>';
+		if ( ! $dem ) {
+			echo '<p class="mo">Chưa đếm được lượt nào từ lúc bật bộ đếm. Bộ đếm bắt đầu chạy từ '
+				. 'bản này — có máy đẩy lượt về là số hiện ra ngay đây.</p></div>';
+			return;
+		}
+		/* Tên cơ sở theo MAC, để hàng nào cũng biết là máy nào. */
+		$ten = array();
+		foreach ( (array) $ds as $x ) {
+			$mac = strtolower( trim( (string) $x['mac'] ) );
+			if ( '' !== $mac ) { $ten[ $mac ] = $x['cua_hang'] ? (string) $x['cua_hang'] : '(chưa gán)'; }
+		}
+		$ks  = array( 'nhan', 'ghi', 'trung', 'giuTay', 'choGan', 'boQua', 'hong' );
+		$tong = array_fill_keys( $ks, 0 );
+		foreach ( $dem as $b ) { foreach ( $ks as $k ) { $tong[ $k ] += isset( $b[ $k ] ) ? (int) $b[ $k ] : 0; } }
+
+		$ty = $tong['nhan'] > 0 ? round( $tong['ghi'] * 100 / $tong['nhan'] ) : 0;
+		echo '<p><span class="chu-luc">Đã NHẬN ' . number_format( $tong['nhan'] ) . ' lượt</span> · '
+			. 'GHI được <b>' . number_format( $tong['ghi'] ) . '</b> (' . (int) $ty . '%)'
+			. ' · trùng ' . number_format( $tong['trung'] )
+			. ( $tong['giuTay'] ? ' · giữ tay ' . number_format( $tong['giuTay'] ) : '' )
+			. ( $tong['choGan'] ? ' · chờ gán ' . number_format( $tong['choGan'] ) : '' )
+			. ( $tong['boQua'] ? ' · bỏ ' . number_format( $tong['boQua'] ) : '' )
+			. ( $tong['hong'] ? ' · <span class="chu-hong">hỏng ' . number_format( $tong['hong'] ) . '</span>' : '' )
+			. '.</p>';
+		if ( $tong['hong'] > 0 ) {
+			echo '<div class="bao loi"><b>Có ' . number_format( $tong['hong'] ) . ' lượt GHI HỎNG (CSDL lỗi lúc đó).</b> '
+				. 'Đây là ca máy sẽ tự đẩy lại — nếu số này đứng yên thì đã qua, còn tăng đều thì CSDL đang trục trặc.</div>';
+		}
+		echo '<div class="cuon"><table class="stt"><thead><tr><th>Cơ sở</th><th>MAC bo</th>'
+			. '<th>Nhận</th><th>Ghi</th><th>Trùng</th><th>Giữ tay</th><th>Chờ gán</th><th>Bỏ</th><th>Hỏng</th>'
+			. '<th>Lượt cuối</th></tr></thead><tbody>';
+		foreach ( $dem as $mac => $b ) {
+			$k = strtolower( trim( (string) $mac ) );
+			$cs = isset( $ten[ $k ] ) ? $ten[ $k ] : ( 'khong-mac' === $k ? '(gói không có MAC)' : '(máy lạ)' );
+			$g = function ( $x ) use ( $b ) { return number_format( isset( $b[ $x ] ) ? (int) $b[ $x ] : 0 ); };
+			echo '<tr><td>' . esc_html( $cs ) . '</td><td><code>' . esc_html( (string) $mac ) . '</code></td>'
+				. '<td>' . $g( 'nhan' ) . '</td><td><b>' . $g( 'ghi' ) . '</b></td><td>' . $g( 'trung' ) . '</td>'
+				. '<td>' . $g( 'giuTay' ) . '</td><td>' . $g( 'choGan' ) . '</td><td>' . $g( 'boQua' ) . '</td>'
+				. '<td>' . ( isset( $b['hong'] ) && (int) $b['hong'] > 0 ? '<span class="chu-hong">' . $g( 'hong' ) . '</span>' : $g( 'hong' ) ) . '</td>'
+				. '<td>' . esc_html( isset( $b['luc'] ) ? (string) $b['luc'] : '' ) . '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+		/* 🔴 KHÔNG `onclick="return confirm(...)"` — CẢ MÀN QUẢN TRỊ NÀY KHÔNG CÓ MỘT DÒNG
+		   SCRIPT NÀO, và đó là chủ ý chứ không phải quên. Bước hỏi lại làm bằng `<details>`:
+		   nút thật nằm trong nếp gập, phải mở ra mới bấm được, nên không ai xoá nhầm bằng một
+		   cú bấm lỡ tay. Cùng tác dụng, mà chạy được cả khi trình duyệt chặn script. */
+		echo '<form method="post" style="margin-top:8px">';
+		echo '<input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">';
+		echo '<details><summary>Xoá bộ đếm…</summary>';
+		echo '<p class="mo" style="margin:6px 0">Đưa mọi con số trên về 0. Nhật ký lỗi KHÔNG bị đụng tới.</p>';
+		echo '<button name="viec" value="may_dem_xoa">Xoá bộ đếm về 0</button>';
+		echo '</details>';
+		echo '<span class="mo">Đếm cộng dồn từ lần xoá gần nhất. Xoá để đo lại "từ bây giờ".</span>';
+		echo '</form></div>';
 	}
 
 	/**
