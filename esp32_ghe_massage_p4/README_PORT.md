@@ -67,5 +67,11 @@ Các `-1` là **chưa gán**, phải điền chân thật (đối chiếu pad bo
 - ✅ Nhớ cấu hình vào NVS: giá/số phút/tài khoản nhận/nội dung tiền tố/danh sách gói lưu
   vào NVS mỗi khi server đổi (tự dedupe khỏi mòn flash); bật máy lúc offline vẫn hiện
   đúng gói + dựng được QR từ tài khoản lần chạy gần nhất.
+- ✅ Giao diện DỰNG LẠI THEO BẢN CYD (đạt yêu cầu): thẻ gói 2×2 có TÊN GÓI + "N PHUT" +
+  GIÁ (kèm "đ") + mô tả + huy hiệu VVIP, dải tiêu đề (mã ghế + tên hệ thống) + dải chân
+  ("CHON GOI > QUET QR..."), màn QR có ô lớn + "NOI DUNG:" + nút huỷ, màn đang chạy có ô
+  đếm ngược + "PHIEN MASSAGE DANG CHAY"/"GHE DUNG DOT NGOT". Có font chữ (font_ascii.h,
+  5×7 HOA+số+dấu, khử răng cưa) vì P4 vẽ thẳng framebuffer. Dấu tiếng Việt: máy chủ bỏ
+  dấu trước như bản CYD → chỉ cần ASCII.
 - Còn lại (tuỳ nhu cầu): OTA qua 4G; siết lại kiểm cert TLS (đang setInsecure).
 - Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (nếu RS485 → dời cổng tiền sang 26/27).

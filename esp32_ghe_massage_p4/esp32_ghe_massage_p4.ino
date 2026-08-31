@@ -35,6 +35,7 @@
 
 #include "cau_hinh_p4.h"
 #include "panel_jc4880p443.h"
+#include "font_ascii.h"  // font 5×7 chữ HOA + số + dấu (giao diện kiểu bản CYD)
 #include "net_4g.h"       // 4G A7680C (dự phòng khi WiFi rớt)
 #include "outbox.h"       // hàng đợi tiền mặt khi mất mạng → có mạng tự đẩy
 #if (P4_TIEN_RX_ICT >= 0) && (P4_TIEN_TX_GHE >= 0)
@@ -131,15 +132,7 @@ static void lStroke(int x0, int y0, int x1, int y1, int rad, uint16_t c, uint16_
     lCircleA(x0 + (x1 - x0) * s / steps, y0 + (y1 - y0) * s / steps, rad, c, bg);
 }
 
-/* ─── FONT SỐ khử răng cưa (nội suy 5×7 rồi tăng tương phản cho nét sắc) ───── */
-static const uint8_t FONT57[10][7] = {
-  {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},{0x04,0x0C,0x04,0x04,0x04,0x04,0x0E},
-  {0x0E,0x11,0x01,0x02,0x04,0x08,0x1F},{0x1F,0x02,0x04,0x02,0x01,0x11,0x0E},
-  {0x02,0x06,0x0A,0x12,0x1F,0x02,0x02},{0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E},
-  {0x06,0x08,0x10,0x1E,0x11,0x11,0x0E},{0x1F,0x01,0x02,0x04,0x08,0x08,0x08},
-  {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},{0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
-};
-static const uint8_t GLYPH_D[7] = {0x01,0x0F,0x0F,0x11,0x11,0x11,0x0F};
+/* ─── FONT khử răng cưa (nội suy 5×7 rồi tăng tương phản cho nét sắc) ──────── */
 static inline float _fbit(const uint8_t g[7], int cx, int cy) {
   if (cx < 0 || cx > 4 || cy < 0 || cy > 6) return 0.0f;
   return ((g[cy] >> (4 - cx)) & 1) ? 1.0f : 0.0f;
@@ -159,39 +152,45 @@ static void lBitmap(int lx, int ly, const uint8_t g[7], int sc, uint16_t c, uint
     lpx(lx + i, ly + j, a >= 250 ? c : blend565(c, bg, a));
   }
 }
+/* CHỮ (chuỗi ASCII) — mỗi ký tự rộng 6*sc (5 glyph + 1 cách). */
+#define CHAR_W(sc) (6 * (sc))
+static int lTextW(const char* s, int sc) { return (int)strlen(s) * CHAR_W(sc); }
+static void lText(int lx, int ly, const char* s, int sc, uint16_t c, uint16_t bg) {
+  int x = lx;
+  for (const char* p = s; *p; p++) { lBitmap(x, ly, glyph7(*p), sc, c, bg); x += CHAR_W(sc); }
+}
+static void lTextC(int cx, int ly, const char* s, int sc, uint16_t c, uint16_t bg) {  // căn giữa ngang
+  lText(cx - lTextW(s, sc) / 2, ly, s, sc, c, bg);
+}
+static void lTextR(int rx, int ly, const char* s, int sc, uint16_t c, uint16_t bg) {  // căn phải
+  lText(rx - lTextW(s, sc), ly, s, sc, c, bg);
+}
 static void lDigit(int lx, int ly, int d, int sc, uint16_t c, uint16_t bg) {
-  if (d >= 0 && d <= 9) lBitmap(lx, ly, FONT57[d], sc, c, bg);
+  if (d >= 0 && d <= 9) lBitmap(lx, ly, FONT_DIGIT[d], sc, c, bg);
 }
 static int lNum(int lx, int ly, long v, int sc, uint16_t c, uint16_t bg) {
-  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int x = lx;
-  for (int i = 0; i < n; i++) { lDigit(x, ly, s[i] - '0', sc, c, bg); x += 6 * sc; }
-  return x - lx;
+  char s[16]; snprintf(s, sizeof s, "%ld", v); lText(lx, ly, s, sc, c, bg); return lTextW(s, sc);
 }
-static int lPrice(int lx, int ly, long v, int sc, uint16_t c, uint16_t bg) {  // giá: chấm nghìn + "đ"
-  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int x = lx;
-  for (int i = 0; i < n; i++) {
-    lDigit(x, ly, s[i] - '0', sc, c, bg); x += 6 * sc;
-    int rem = n - 1 - i;
-    if (rem > 0 && rem % 3 == 0) { lCircleA(x + sc / 2, ly + 6 * sc + sc / 2, (sc + 1) / 2, c, bg); x += 2 * sc; }
-  }
-  x += sc; lBitmap(x, ly, GLYPH_D, sc, c, bg); x += 6 * sc; return x - lx;
+/* Chuỗi tiền "50.000" (chấm ngăn nghìn), KHÔNG kèm "đ". */
+static void _tienStr(long v, char* out, size_t cap) {
+  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int o = 0;
+  for (int i = 0; i < n && o < (int)cap - 2; i++) { out[o++] = s[i]; int rem = n - 1 - i; if (rem > 0 && rem % 3 == 0) out[o++] = '.'; }
+  out[o] = 0;
 }
-static int lPriceW(long v, int sc) {   // bề rộng chuỗi giá (để căn giữa)
-  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int w = 0;
-  for (int i = 0; i < n; i++) { w += 6 * sc; int rem = n - 1 - i; if (rem > 0 && rem % 3 == 0) w += 2 * sc; }
-  return w + sc + 6 * sc;
+static int lMoneyW(long v, int sc) { char t[24]; _tienStr(v, t, sizeof t); return lTextW(t, sc) + sc + CHAR_W(sc); }
+static int lMoney(int lx, int ly, long v, int sc, uint16_t c, uint16_t bg) {  // "50.000đ"
+  char t[24]; _tienStr(v, t, sizeof t);
+  lText(lx, ly, t, sc, c, bg);
+  int x = lx + lTextW(t, sc) + sc;
+  lBitmap(x, ly, GLYPH_DD, sc, c, bg);
+  return x + CHAR_W(sc) - lx;
 }
-static void lColon(int lx, int ly, int sc, uint16_t c, uint16_t bg) {
-  lCircleA(lx + sc / 2, ly + 2 * sc, (sc + 1) / 2, c, bg);
-  lCircleA(lx + sc / 2, ly + 5 * sc, (sc + 1) / 2, c, bg);
-}
+static void lMoneyC(int cx, int ly, long v, int sc, uint16_t c, uint16_t bg) { lMoney(cx - lMoneyW(v, sc) / 2, ly, v, sc, c, bg); }
 static void lMMSS(int lx, int ly, int secs, int sc, uint16_t c, uint16_t bg) {
-  if (secs < 0) secs = 0; int mm = secs / 60, ss = secs % 60; int x = lx;
-  lDigit(x, ly, mm / 10, sc, c, bg); x += 6 * sc; lDigit(x, ly, mm % 10, sc, c, bg); x += 6 * sc;
-  lColon(x, ly, sc, c, bg); x += 3 * sc;
-  lDigit(x, ly, ss / 10, sc, c, bg); x += 6 * sc; lDigit(x, ly, ss % 10, sc, c, bg);
+  if (secs < 0) secs = 0; char b[8]; snprintf(b, sizeof b, "%02d:%02d", secs / 60, secs % 60);
+  lText(lx, ly, b, sc, c, bg);
 }
-static int lMMSSW(int sc) { return (6 + 6 + 3 + 6 + 6) * sc; }   // bề rộng MM:SS
+static int lMMSSW(int sc) { return 5 * CHAR_W(sc); }   // "MM:SS"
 
 /* ─── VietQR (bê nguyên bản cũ) ──────────────────────────────────────────── */
 static String _tlv(const char* id, const String& val) {
@@ -306,8 +305,11 @@ enum State { ST_IDLE, ST_WAIT_PAY, ST_CAMON, ST_RUNNING, ST_NOACC };
 static State state = ST_IDLE;
 
 static const int PKG_MAX = 4;
-static long PKG_AMT[PKG_MAX]  = {50000, 100000, 150000, 200000};
-static int  PKG_PHUT[PKG_MAX] = {0, 0, 0, 0};
+static long   PKG_AMT[PKG_MAX]  = {50000, 100000, 150000, 200000};
+static int    PKG_PHUT[PKG_MAX] = {0, 0, 0, 0};
+static String PKG_TEN[PKG_MAX]  = {"GOI CO BAN", "GOI PHO BIEN", "GOI CHUYEN SAU", "GOI THUONG HANG"};
+static String PKG_MOTA[PKG_MAX] = {"", "", "", ""};
+static int    PKG_VIP[PKG_MAX]  = {0, 0, 0, 1};
 static int  PKG_N = 3;
 static long PRICE_VND = 50000; static int MINUTES = 6;   // tỉ lệ quy đổi phút
 static String CHAIR_ID = "", BANK_BIN = SEC_BANK_BIN, ACCOUNT_NO = SEC_ACCOUNT_NO, ND_TIEN_TO = "";
@@ -448,9 +450,14 @@ static void docCauHinh() {   // đọc lúc setup(), TRƯỚC khi vẽ màn đ�
   if (n > 0 && n <= PKG_MAX) {
     PKG_N = n;
     for (int i = 0; i < n; i++) {
-      char ka[8], kp[8]; snprintf(ka, sizeof ka, "a%d", i); snprintf(kp, sizeof kp, "p%d", i);
+      char ka[8], kp[8], kn[8], km[8], kv[8];
+      snprintf(ka, sizeof ka, "a%d", i); snprintf(kp, sizeof kp, "p%d", i);
+      snprintf(kn, sizeof kn, "n%d", i); snprintf(km, sizeof km, "m%d", i); snprintf(kv, sizeof kv, "v%d", i);
       PKG_AMT[i]  = cfgNvs.getLong(ka, PKG_AMT[i]);
       PKG_PHUT[i] = cfgNvs.getInt (kp, PKG_PHUT[i]);
+      PKG_TEN[i]  = cfgNvs.getString(kn, PKG_TEN[i]);
+      PKG_MOTA[i] = cfgNvs.getString(km, PKG_MOTA[i]);
+      PKG_VIP[i]  = cfgNvs.getInt (kv, PKG_VIP[i]);
     }
   }
   cfgNvs.end();
@@ -459,7 +466,8 @@ static void luuCauHinh() {   // gọi sau mỗi nhịp; TỰ bỏ qua nếu khô
   static String sig = "\x01";
   String cur = CHAIR_ID + "|" + ACCOUNT_NO + "|" + BANK_BIN + "|" + ND_TIEN_TO + "|"
              + String(PRICE_VND) + "|" + String(MINUTES) + "|" + String(PKG_N);
-  for (int i = 0; i < PKG_N; i++) cur += "|" + String(PKG_AMT[i]) + "," + String(PKG_PHUT[i]);
+  for (int i = 0; i < PKG_N; i++)
+    cur += "|" + String(PKG_AMT[i]) + "," + String(PKG_PHUT[i]) + "," + PKG_TEN[i] + "," + PKG_MOTA[i] + "," + String(PKG_VIP[i]);
   if (cur == sig) return;
   sig = cur;
   cfgNvs.begin("cfg", false);
@@ -467,8 +475,11 @@ static void luuCauHinh() {   // gọi sau mỗi nhịp; TỰ bỏ qua nếu khô
   cfgNvs.putString("bin", BANK_BIN); cfgNvs.putString("tienTo", ND_TIEN_TO);
   cfgNvs.putLong("gia", PRICE_VND); cfgNvs.putInt("phut", MINUTES); cfgNvs.putInt("pkgN", PKG_N);
   for (int i = 0; i < PKG_N; i++) {
-    char ka[8], kp[8]; snprintf(ka, sizeof ka, "a%d", i); snprintf(kp, sizeof kp, "p%d", i);
+    char ka[8], kp[8], kn[8], km[8], kv[8];
+    snprintf(ka, sizeof ka, "a%d", i); snprintf(kp, sizeof kp, "p%d", i);
+    snprintf(kn, sizeof kn, "n%d", i); snprintf(km, sizeof km, "m%d", i); snprintf(kv, sizeof kv, "v%d", i);
     cfgNvs.putLong(ka, PKG_AMT[i]); cfgNvs.putInt(kp, PKG_PHUT[i]);
+    cfgNvs.putString(kn, PKG_TEN[i]); cfgNvs.putString(km, PKG_MOTA[i]); cfgNvs.putInt(kv, PKG_VIP[i]);
   }
   cfgNvs.end();
   Serial.println("[CFG] da luu cau hinh vao NVS");
@@ -497,10 +508,12 @@ static void nhip() {
   if (!goi.isNull()) {
     int n = 0;
     for (JsonVariantConst v : goi) {
-      if (n >= PKG_MAX) break; long a; int ph = 0;
-      if (v.is<JsonObjectConst>()) { a = (long)(v["t"] | 0); ph = (int)(v["p"] | 0); }
-      else a = v.as<long>();
-      if (a >= 1000) { PKG_AMT[n] = a; PKG_PHUT[n] = ph; n++; }
+      if (n >= PKG_MAX) break; long a; int ph = 0, vp = 0; String nm = "", mt = "";
+      if (v.is<JsonObjectConst>()) {
+        a = (long)(v["t"] | 0); ph = (int)(v["p"] | 0);
+        nm = String((const char*)(v["n"] | "")); mt = String((const char*)(v["m"] | "")); vp = (int)(v["v"] | 0);
+      } else a = v.as<long>();
+      if (a >= 1000) { PKG_AMT[n] = a; PKG_PHUT[n] = ph; PKG_TEN[n] = nm; PKG_MOTA[n] = mt; PKG_VIP[n] = vp; n++; }
     }
     if (n > 0) PKG_N = n;
   }
@@ -518,140 +531,180 @@ static long checkPaid() {
   return (long)(d["so_tien"] | 0);
 }
 
-/* ─── GIAO DIỆN (bảng màu sang) ─────────────────────────────────────────── */
-#define C_BG     RGB565(0xEC,0xF1,0xF7)
-#define C_INK    RGB565(0x22,0x30,0x45)
-#define C_BLUE   RGB565(0x2F,0x6F,0xB0)
-#define C_AMBER  RGB565(0xE8,0x91,0x2A)
-#define C_GREEN  RGB565(0x2E,0x9B,0x57)
-#define C_RED    RGB565(0xD6,0x45,0x45)
-#define C_BORDER RGB565(0xD3,0xDD,0xEA)
-#define C_SHADOW RGB565(0xD7,0xDE,0xE8)
-#define C_TINT   RGB565(0xFF,0xF3,0xDF)
-#define C_WHITE  0xFFFF
+/* ─── GIAO DIỆN kiểu bản CYD (tông teal/xanh, thẻ 2×2, có chữ) ────────────── */
+#define C_BG    RGB565(0x0C,0x22,0x3A)  // nền xanh biển tối
+#define C_BAR   RGB565(0x15,0x42,0x57)  // dải tiêu đề / chân
+#define C_TOP   RGB565(0x2C,0x7E,0x8E)  // đỉnh thẻ (teal sáng)
+#define C_BOT   RGB565(0x16,0x4A,0x5E)  // đáy thẻ (teal tối)
+#define C_SHD   RGB565(0x05,0x12,0x20)  // bóng đổ
+#define C_GLOW  RGB565(0x6C,0xE6,0xF2)  // viền cyan sáng
+#define C_GLOW2 RGB565(0x27,0x6E,0x80)  // viền ngoài mờ
+#define C_WHITE 0xFFFF
+#define C_PHU   RGB565(0xAE,0xD8,0xE8)  // chữ phụ (phút / mô tả)
+#define C_ID    RGB565(0x5A,0xD8,0x88)  // mã ghế (xanh lá)
+#define C_YEL   RGB565(0xF4,0xC8,0x54)  // vàng nhấn
+#define C_VIP   RGB565(0xF6,0xD6,0x40)  // nền huy hiệu VVIP
+#define C_INK   RGB565(0x0A,0x20,0x30)  // chữ tối trên nền sáng
+#define C_RED   RGB565(0xE0,0x4B,0x4B)
+#define C_GREEN RGB565(0x2E,0xB0,0x66)
 
 static int g_chon = 0;
 struct Btn { int x, y, w, h; };
 static Btn g_btn[PKG_MAX];
 
-/* Đồng hồ nhỏ (vành + 2 kim) — báo "số phút" không cần chữ. */
-static void lClock(int cx, int cy, int r, uint16_t c, uint16_t bg) {
-  lCircleA(cx, cy, r, c, bg);
-  lCircleA(cx, cy, r - (r > 8 ? 3 : 2), bg, c);
-  lStroke(cx, cy, cx, cy - (r - 5), (r > 12 ? 2 : 1), c, bg);          // kim dài
-  lStroke(cx, cy, cx + (r - 8 > 0 ? r - 8 : 2), cy, (r > 12 ? 2 : 1), c, bg); // kim ngắn
-}
-/* Gợi ý "mã QR" ở màn chờ chọn gói: 3 ô định vị như góc mã QR thật. */
-static void lQrHint(int cx, int cy, int s, uint16_t c, uint16_t bg) {
-  int q = s / 3, off = s / 2 - q / 2;
-  int px[3] = { cx - off, cx + off, cx - off };
-  int py[3] = { cy - off, cy - off, cy + off };
-  for (int k = 0; k < 3; k++) {
-    lRoundRectA(px[k] - q / 2, py[k] - q / 2, q, q, q / 4, c, bg);
-    lRoundRectA(px[k] - q / 2 + q / 6, py[k] - q / 2 + q / 6, q - q / 3, q - q / 3, q / 6, bg, c);
-    lRoundRectA(px[k] - q / 6, py[k] - q / 6, q / 3, q / 3, q / 12, c, bg);
+/* Thân thẻ CHUYỂN MÀU đỉnh→đáy (bo góc). */
+static void lGradFill(int x, int y, int w, int h, int r, uint16_t top, uint16_t bot) {
+  for (int j = 0; j < h; j++) {
+    int ins = 0;
+    if (j < r)          { int d = r - 1 - j; ins = r - (int)(sqrtf((float)(r * r - d * d)) + 0.5f); }
+    else if (j >= h - r){ int d = j - (h - r); ins = r - (int)(sqrtf((float)(r * r - d * d)) + 0.5f); }
+    uint8_t t = (uint8_t)((long)j * 255 / (h - 1));
+    lRect(x + ins, y + j, w - 2 * ins, 1, blend565(top, bot, 255 - t));
   }
 }
+/* Dải tiêu đề trên + chân dưới, kèm đường viền glow. */
+static void veBar(int y, int h) { lRect(0, y, LW, h, C_BAR); }
 
-/* Kích thước & vị trí THẺ QR bên phải — dùng chung IDLE + WAIT_PAY cho cân đối. */
-#define QR_X   412
-#define QR_Y    40
-#define QR_W   364
-#define QR_H   400
+/* Màn báo (chưa gán mã / tạm ngưng…) — nền tối, chữ căn giữa. */
+static void veThongBao(uint16_t nhan, const char* d1, const char* d2, const char* d3, const char* d4) {
+  lFill(C_BG);
+  lTextC(LW / 2, 70, d1, 4, nhan, C_BG);
+  if (d2[0]) lTextC(LW / 2, 150, d2, 2, C_WHITE, C_BG);
+  if (d3[0]) lTextC(LW / 2, 190, d3, 2, C_WHITE, C_BG);
+  if (d4[0]) lTextC(LW / 2, 250, d4, 2, C_ID, C_BG);
+  bool up = netUp();
+  lTextC(LW / 2, 320, up ? "DANG CO MANG - CHO CAU HINH" : "MAT MANG", 2, up ? C_GREEN : C_RED, C_BG);
+}
+
+static void veTheGoi(int i, int x, int y, int w, int h) {
+  g_btn[i] = { x, y, w, h };
+  bool vip = (PKG_VIP[i] != 0);
+  int cx = x + w / 2;
+  lRoundRectA(x + 3, y + 6, w, h, 12, C_SHD, C_BG);       // bóng đổ
+  lRoundRectA(x, y, w, h, 12, C_GLOW2, C_BG);             // viền ngoài mờ
+  lRoundRectA(x + 1, y + 1, w - 2, h - 2, 11, C_GLOW, C_BG); // viền glow
+  lGradFill(x + 4, y + 4, w - 8, h - 8, 9, C_TOP, C_BOT); // thân chuyển màu
+  // Tên gói (trên)
+  String ten = PKG_TEN[i].length() ? PKG_TEN[i] : (String("GOI ") + String(i + 1));
+  lTextC(cx, y + 16, ten.c_str(), 2, C_WHITE, C_BOT);
+  // "N PHUT"
+  String ph = String(phutGoi(i)) + " PHUT";
+  lTextC(cx, y + 44, ph.c_str(), 2, C_PHU, C_BOT);
+  // GIÁ to (có "đ"), căn giữa
+  lMoneyC(cx, y + 78, PKG_AMT[i], 5, C_WHITE, C_BOT);
+  // Mô tả (dưới)
+  if (PKG_MOTA[i].length()) lTextC(cx, y + h - 26, PKG_MOTA[i].c_str(), 1, C_PHU, C_BOT);
+  // Huy hiệu VVIP góc phải trên
+  if (vip) {
+    lRoundRectA(x + w - 66, y - 6, 60, 26, 7, C_VIP, C_BG);
+    lTextC(x + w - 36, y + 1, "VVIP", 2, C_INK, C_VIP);
+  }
+}
 
 static void veIdle() {
-  lFill(C_BG);
-  int n = PKG_N < 1 ? 1 : (PKG_N > PKG_MAX ? PKG_MAX : PKG_N);
-  int LX = 24, LWD = 372, top = QR_Y, botM = 40, gap = 18;
-  int availH = LH - top - botM;
-  int h = (availH - (n - 1) * gap) / n; if (h > 132) h = 132;
-  for (int i = 0; i < n; i++) {
-    int y = top + i * (h + gap);
-    g_btn[i] = { LX, y, LWD, h };
-    bool sel = (i == g_chon);
-    uint16_t inner = sel ? C_TINT : C_WHITE, edge = sel ? C_AMBER : C_BORDER, badge = sel ? C_AMBER : C_BLUE;
-    lRoundRectA(LX + 3, y + 5, LWD, h, 22, C_SHADOW, C_BG);
-    lRoundRectA(LX, y, LWD, h, 22, edge, C_BG);
-    lRoundRectA(LX + 3, y + 3, LWD - 6, h - 6, 19, inner, edge);
-    // Huy hiệu số gói (đĩa tròn) + số ở giữa
-    int br = h / 2 - 16; if (br > 50) br = 50;
-    int bx = LX + 20 + br, by = y + h / 2;
-    lCircleA(bx, by, br, badge, inner);
-    int ds = br / 3; if (ds < 4) ds = 4;
-    lDigit(bx - (5 * ds) / 2, by - (7 * ds) / 2, i + 1, ds, C_WHITE, badge);
-    // Giá (to) + đồng hồ phút (nhỏ) xếp 2 dòng bên phải huy hiệu
-    int rx = LX + 40 + 2 * br;
-    lPrice(rx, y + 18, PKG_AMT[i], 5, C_INK, inner);
-    int ph = phutGoi(i);
-    lClock(rx + 12, y + h - 30, 12, C_BLUE, inner);
-    lNum(rx + 32, y + h - 44, ph, 4, C_BLUE, inner);
+  // Chưa gán mã / chưa có tài khoản nhận → nói thẳng cho nhân viên.
+  if (CHUA_GAN || CHAIR_ID.length() == 0) {
+    String mac = macBo();
+    veThongBao(C_YEL, "GHE CHUA DUOC GAN MA", "VAO WEB: GHE MASSAGE > MAY & CO SO",
+               "GAN MA CHO MAC NAY:", mac.c_str());
+    return;
   }
-  // Thẻ QR bên phải — ở IDLE là gợi ý "quét mã" (mời khách chọn gói).
-  lRoundRectA(QR_X + 3, QR_Y + 6, QR_W, QR_H, 24, C_SHADOW, C_BG);
-  lRoundRectA(QR_X, QR_Y, QR_W, QR_H, 24, C_WHITE, C_BG);
-  lRoundRectA(QR_X, QR_Y, QR_W, 10, 5, C_BLUE, C_WHITE);
-  lQrHint(QR_X + QR_W / 2, QR_Y + QR_H / 2, 210, RGB565(0xC7,0xD6,0xE8), C_WHITE);
+  lFill(C_BG);
+  // Dải tiêu đề: mã ghế (phải) + tên hệ thống (giữa phần còn lại)
+  veBar(0, 48); lRect(0, 48, LW, 2, C_GLOW2);
+  String idr = netUp() ? CHAIR_ID : (CHAIR_ID + " - MAT MANG");
+  lTextR(LW - 12, 15, idr.c_str(), 2, netUp() ? C_ID : C_YEL, C_BAR);
+  int mep = LW - 12 - lTextW(idr.c_str(), 2) - 16;
+  const char* td = "MASSAGE GHE CAO CAP";
+  if (lTextW(td, 2) <= mep - 12) lText((12 + mep) / 2 - lTextW(td, 2) / 2, 15, td, 2, C_WHITE, C_BAR);
+  // Lưới thẻ 2×2
+  int n = PKG_N < 1 ? 1 : (PKG_N > PKG_MAX ? PKG_MAX : PKG_N);
+  int mx = 20, gapx = 20, gapy = 20, gy = 62, gh = 168;
+  int cw = (LW - 2 * mx - gapx) / 2;
+  for (int i = 0; i < n; i++) {
+    int col = i % 2, row = i / 2;
+    int x = mx + col * (cw + gapx), y = gy + row * (gh + gapy);
+    veTheGoi(i, x, y, cw, gh);
+  }
+  // Dải chân: câu mời quét
+  veBar(LH - 42, 42); lRect(0, LH - 42, LW, 2, C_GLOW2);
+  lTextC(LW / 2, LH - 30, "CHON GOI  >  QUET QR DE THANH TOAN", 2, C_GLOW, C_BAR);
 }
+
 static void veWaitPay() {
   lFill(C_BG);
-  int LX = 24, LWD = 372, y = QR_Y, h = QR_H;
-  lRoundRectA(LX + 3, y + 6, LWD, h, 24, C_SHADOW, C_BG);
-  lRoundRectA(LX, y, LWD, h, 24, C_AMBER, C_BG);
-  lRoundRectA(LX + 4, y + 4, LWD - 8, h - 8, 20, C_TINT, C_AMBER);
-  // Huy hiệu số gói (trên)
-  int bx = LX + LWD / 2, by = y + 92;
-  lCircleA(bx, by, 56, C_AMBER, C_TINT);
-  lDigit(bx - (5 * 11) / 2, by - (7 * 11) / 2, payIdx + 1, 11, C_WHITE, C_AMBER);
-  // Giá (giữa, căn giữa)
-  int pw = lPriceW(payAmount, 7);
-  lPrice(bx - pw / 2, y + 188, payAmount, 7, C_INK, C_TINT);
-  // Cửa sổ chờ (đồng hồ + MM:SS)
-  int left = (waitUntil > millis()) ? (int)((waitUntil - millis()) / 1000) : 0;
-  int cw = 34 + lMMSSW(5);
-  int cx0 = bx - cw / 2;
-  lClock(cx0 + 12, y + 300 + 5 * 5 / 2, 13, C_INK, C_TINT);
-  lMMSS(cx0 + 34, y + 300, left, 5, C_INK, C_TINT);
-  // Thẻ QR VietQR THẬT
-  lRoundRectA(QR_X + 3, QR_Y + 6, QR_W, QR_H, 24, C_SHADOW, C_BG);
-  lRoundRectA(QR_X, QR_Y, QR_W, QR_H, 24, C_WHITE, C_BG);
-  lRoundRectA(QR_X, QR_Y, QR_W, 10, 5, C_AMBER, C_WHITE);
+  // Dải tiêu đề 2 dòng: hướng dẫn + giá & phút
+  veBar(0, 66); lRect(0, 66, LW, 2, C_GLOW2);
+  lTextC(LW / 2, 10, "QUET MA QR DE THANH TOAN & BAT DAU", 2, C_WHITE, C_BAR);
+  { String g = String(); char t[24]; _tienStr(payAmount, t, sizeof t);
+    g = String(t) + "D   -   " + String(payMinutes) + " PHUT";
+    lTextC(LW / 2, 40, g.c_str(), 2, C_YEL, C_BAR); }
+  // Ô QR to, canh giữa
+  int box = 336, bx = (LW - box) / 2, by = 84;
+  lRoundRectA(bx + 3, by + 5, box, box, 12, C_SHD, C_BG);
+  lRoundRectA(bx, by, box, box, 12, C_WHITE, C_BG);
   String memo = (ND_TIEN_TO.length() ? ND_TIEN_TO + " " : "") + "GHE" + (CHAIR_ID.length() ? CHAIR_ID : "01") + " " + String(payCode);
   String payload = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, memo);
-  int oPx = 305, mod = oPx / 61; if (mod < 1) mod = 1;   // v11 = 61 module
+  int oPx = box - 24, mod = oPx / 61; if (mod < 1) mod = 1;   // v11 = 61 module
   int qside = mod * 61 + 2 * mod;
-  lQR(QR_X + (QR_W - qside) / 2, QR_Y + (QR_H - qside) / 2, oPx, payload.c_str());
+  lQR(bx + (box - qside) / 2, by + (box - qside) / 2, oPx, payload.c_str());
+  // Nội dung chuyển khoản (để app không tự điền thì khách gõ tay)
+  String nd = String("NOI DUNG: ") + memo; nd.toUpperCase();
+  lTextC(LW / 2, by + box + 14, nd.c_str(), 2, C_YEL, C_BG);
+  // Cửa sổ chờ + nút huỷ
+  int left = (waitUntil > millis()) ? (int)((waitUntil - millis()) / 1000) : 0;
+  String cho = String("CHO TRA: ") + String(left) + "S";
+  lText(20, LH - 26, cho.c_str(), 2, C_RED, C_BG);
+  lRoundRectA(LW - 150, LH - 34, 132, 30, 7, C_BAR, C_BG);
+  lTextC(LW - 84, LH - 27, "CHAM DE HUY", 2, C_PHU, C_BAR);
 }
-static void veCamon() {   // đã nhận tiền — nền xanh + dấu tích mượt
+
+static void veCamon() {   // đã nhận tiền — nền xanh + dấu tích + chữ
   lFill(C_GREEN);
-  int cx = LW / 2, cy = LH / 2;
-  lCircleA(cx, cy, 96, C_WHITE, C_GREEN);
-  lStroke(cx - 42, cy + 4, cx - 12, cy + 40, 9, C_GREEN, C_WHITE);
-  lStroke(cx - 12, cy + 40, cx + 50, cy - 40, 9, C_GREEN, C_WHITE);
+  int cx = LW / 2, cy = LH / 2 - 40;
+  lCircleA(cx, cy, 84, C_WHITE, C_GREEN);
+  lStroke(cx - 36, cy + 4, cx - 10, cy + 34, 8, C_GREEN, C_WHITE);
+  lStroke(cx - 10, cy + 34, cx + 44, cy - 34, 8, C_GREEN, C_WHITE);
+  lTextC(cx, cy + 120, "DA NHAN TIEN - GHE SAP CHAY", 3, C_WHITE, C_GREEN);
 }
+
 static void veRunning() {
-  uint16_t bg = RGB565(0x12,0x1B,0x2C);
+  uint16_t bg = C_BG;
   lFill(bg);
+  veBar(0, 56); lRect(0, 56, LW, 2, C_GLOW2);
+  lTextC(LW / 2, 8, "HE THONG GHE MASSAGE CAO CAP", 2, C_PHU, C_BAR);
+  lTextC(LW / 2, 32, "PHIEN TRI LIEU DANG DIEN RA", 2, C_YEL, C_BAR);
+  // Ô đếm ngược
+  int boxX = 60, boxY = 78, boxW = LW - 120, boxH = 250;
+  lRoundRectA(boxX, boxY, boxW, boxH, 16, C_BAR, bg);
+  lTextC(LW / 2, boxY + 16, "SO PHUT CON LAI", 2, C_PHU, C_BAR);
   int left = (int)(runRemainMs / 1000);
-  uint16_t c = gheKhongChay ? C_AMBER : C_WHITE;
+  uint16_t c = gheKhongChay ? C_YEL : C_WHITE;
   int sc = 20, w = lMMSSW(sc);
-  lMMSS((LW - w) / 2, 150, left, sc, c, bg);
-  // Thanh tiến độ (bo góc, mượt)
-  long total = (long)payMinutes * 60; if (total < 1) total = 1;
-  int barX = 70, barW = LW - 140, barH = 26, barY = LH - 74;
-  lRoundRectA(barX, barY, barW, barH, 13, RGB565(0x27,0x35,0x4E), bg);
-  int fw = (int)((long)barW * left / total); if (fw < 0) fw = 0; if (fw > barW) fw = barW;
-  if (fw >= 2) lRoundRectA(barX, barY, fw, barH, 13, gheKhongChay ? C_AMBER : C_GREEN, bg);
-  if (gheKhongChay) {   // ghế đang tạm dừng → biểu tượng ‖
-    lRoundRectA(LW / 2 - 26, 80, 16, 44, 5, C_AMBER, bg);
-    lRoundRectA(LW / 2 + 10, 80, 16, 44, 5, C_AMBER, bg);
+  lMMSS((LW - w) / 2, boxY + 56, left, sc, c, C_BAR);
+  // Tổng + tên gói
+  String duoi = String("TONG: ") + String(payMinutes) + " PHUT";
+  if (payIdx >= 0 && payIdx < PKG_N && PKG_TEN[payIdx].length()) duoi += "  -  " + PKG_TEN[payIdx];
+  lTextC(LW / 2, boxY + boxH - 30, duoi.c_str(), 2, C_YEL, C_BAR);
+  // Dải trạng thái
+  int sX = 60, sY = LH - 82, sW = LW - 120, sH = 52;
+  if (gheKhongChay) {
+    lRoundRectA(sX, sY, sW, sH, 12, C_RED, bg);
+    lTextC(LW / 2, sY + 8, "GHE DUNG DOT NGOT", 2, C_WHITE, C_RED);
+    lTextC(LW / 2, sY + 30, "DONG HO TAM DUNG - KIEM TRA GHE", 2, C_WHITE, C_RED);
+  } else {
+    lRoundRectA(sX, sY, sW, sH, 12, C_BAR, bg);
+    lCircleA(sX + 30, sY + sH / 2, 10, C_GREEN, C_BAR);
+    lText(sX + 52, sY + 8, "PHIEN MASSAGE DANG CHAY", 2, C_YEL, C_BAR);
+    lText(sX + 52, sY + 30, "XIN THU GIAN VA TAN HUONG DICH VU", 1, C_PHU, C_BAR);
   }
 }
-static void veNoAcc() {   // chưa có tài khoản nhận — nền đỏ + dấu "!"
-  lFill(C_RED);
-  int cx = LW / 2, cy = LH / 2;
-  lCircleA(cx, cy, 84, C_WHITE, C_RED);
-  lRoundRectA(cx - 9, cy - 46, 18, 56, 9, C_RED, C_WHITE);
-  lCircleA(cx, cy + 34, 11, C_RED, C_WHITE);
+
+static void veNoAcc() {   // chưa có tài khoản nhận
+  veThongBao(C_YEL, "TAM NGUNG NHAN QR",
+             "QUY KHACH VUI LONG TRA TIEN MAT",
+             "HOAC BAO NHAN VIEN. XIN LOI QUY KHACH.",
+             CHAIR_ID.length() ? CHAIR_ID.c_str() : "");
 }
 static void sangTrangThai(State s) {
   state = s;
@@ -715,15 +768,15 @@ void loop() {
     for (int i = 0; i < PKG_N; i++) {
       Btn& b = g_btn[i];
       if (lx >= b.x && lx < b.x + b.w && ly >= b.y && ly < b.y + b.h) {
-        if (g_chon != i) { g_chon = i; sangTrangThai(ST_IDLE); }
-        startSession(i); break;
+        g_chon = i; startSession(i); break;   // chạm gói → mở màn QR ngay
       }
     }
     delay(150);
   }
 
   if (state == ST_WAIT_PAY) {
-    if (now - lastPoll > 800) { lastPoll = now; if (checkPaid() > 0) sangTrangThai(ST_CAMON); }
+    if (tch && lx >= LW - 150 && ly >= LH - 40) { sangTrangThai(ST_IDLE); delay(150); }  // nút HUỶ
+    if (state == ST_WAIT_PAY && now - lastPoll > 800) { lastPoll = now; if (checkPaid() > 0) sangTrangThai(ST_CAMON); }
     if (state == ST_WAIT_PAY && now > waitUntil) sangTrangThai(ST_IDLE);
     static uint32_t wd = 0; if (state == ST_WAIT_PAY && now - wd > 1000) { wd = now; veWaitPay(); fbFlush(); }
   }
