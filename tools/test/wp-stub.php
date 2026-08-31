@@ -544,6 +544,8 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}meta (k TEXT PRIMARY KEY, v TEXT)",
 		"CREATE TABLE {$p}log (id INTEGER PRIMARY KEY AUTOINCREMENT, tg TEXT, nguoi TEXT DEFAULT '', vai_tro TEXT DEFAULT '', hanh_dong TEXT DEFAULT '', doi_tuong TEXT DEFAULT '', chi_tiet TEXT DEFAULT '')",
 		"CREATE TABLE {$p}session (token TEXT PRIMARY KEY, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', bo_phan TEXT DEFAULT '', het_han TEXT)",
+		/* Thùng rác của Vận hành chi phí — xoá nhầm đơn / dòng chi thì hoàn lại được. */
+		"CREATE TABLE {$p}thungrac (id INTEGER PRIMARY KEY AUTOINCREMENT, luc TEXT, loai TEXT DEFAULT '', khoa TEXT DEFAULT '', nhan TEXT DEFAULT '', du_lieu TEXT, nguoi TEXT DEFAULT '', vai_tro TEXT DEFAULT '', don_vi TEXT DEFAULT '', da_hoan INTEGER DEFAULT 0, hoan_luc TEXT, hoan_nguoi TEXT DEFAULT '')",
 	);
 	foreach ( $q as $s ) { $wpdb->exec_raw( $s ); }
 }

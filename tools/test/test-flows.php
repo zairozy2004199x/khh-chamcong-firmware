@@ -3725,6 +3725,235 @@ foreach ( array( $cs_a, $cs_b, $cs_c, $cs_toi, $cs_ghep, $cs_rong ) as $_d ) {
 }
 VHCP_Auth::dat_vai_tro( $_vt_cs, 'Admin' );
 
+/* =============================================================================================
+ * 🔴 NHẢY ĐƠN SANG TUẦN KHÁC
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"Trường hợp 1 đơn không quyết toán kịp tuần đó thì không thể [quyết
+ * toán] đơn đó, vì quyết toán theo tuần. Nên kế toán sẽ gửi lệnh nhảy đơn cho tuần tiếp theo
+ * (hoặc tuần chỉ định), để chi phí tạm ứng của đơn đó đi theo."*
+ */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+global $wpdb;
+$goc_nk = dirname( __DIR__, 2 );
+
+/* ---- Hàm THUẦN: tuần kế tiếp ---- */
+teq( 'tuần kế tiếp của một tuần trong tháng', 'T8/2026 (24/8-30/8/2026)',
+	VHCP_Don::ky_ke_tiep( 'T8/2026 (17/8-23/8/2026)' ) );
+/* 🔴 TUẦN BẮC QUA THÁNG — chỗ dễ sai nhất, và cũng là tuần hay phải nhảy đơn nhất (cuối tháng
+   chứng từ về trễ). Tên kỳ mang THÁNG CỦA NGÀY CUỐI tuần, nên cộng tay vào con số trong tên là
+   sai ngay ở đây: tuần 31/8-6/9 phải mang tên T9, không phải T8. */
+teq( '🔴 tuần bắc qua tháng mang tên tháng của NGÀY CUỐI', 'T9/2026 (31/8-6/9/2026)',
+	VHCP_Don::ky_ke_tiep( 'T8/2026 (24/8-30/8/2026)' ) );
+teq( 'và tuần sau nữa vẫn chạy đúng', 'T9/2026 (7/9-13/9/2026)',
+	VHCP_Don::ky_ke_tiep( 'T9/2026 (31/8-6/9/2026)' ) );
+teq( 'kỳ không đọc ra được khoảng ngày -> rỗng, không đoán bừa', '',
+	VHCP_Don::ky_ke_tiep( 'hôm nào đó' ) );
+
+/* ---- Danh sách tuần để chọn ---- */
+$_ds_ky = VHCP_Don::ds_ky_quanh( 'T8/2026 (17/8-23/8/2026)', 2, 3 );
+teq( 'danh sách tuần quanh: 2 trước + tuần này + 3 sau', 6, count( $_ds_ky ) );
+teq( 'và tuần đang đứng nằm đúng giữa', 'T8/2026 (17/8-23/8/2026)', $_ds_ky[2] );
+t( '🔴 danh sách không có tên nào trùng nhau', count( $_ds_ky ) === count( array_unique( $_ds_ky ) ), $_ds_ky );
+
+/* ---- Nhảy đơn ---- */
+$_nk = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'Nguyễn Văn A' );
+$_mnk = $_nk['maDon'];
+VHCP_Don::add_line( $_mnk, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => '2026-08-19',
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Sửa mái',
+	'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+VHCP_Don::set_tam_ung( $_mnk, 'FARM PHAN THIẾT', 500000 );
+
+/* Không nói kỳ đích -> nhảy sang TUẦN KẾ TIẾP. Đó là lệnh hay dùng nhất, đừng bắt gõ. */
+$_r = VHCP_Don::chuyen_ky( $_mnk );
+t( 'nhảy sang tuần kế tiếp khi không chỉ định kỳ', ! empty( $_r['success'] ), $_r );
+teq( 'kỳ mới đúng là tuần sau', 'T8/2026 (24/8-30/8/2026)',
+	VHCP_Don::get_don( $_mnk )['don']['ky'] );
+
+/* 🔴 TẠM ỨNG ĐI THEO — đó là cả lý do của tính năng này. Tách ra là số tạm ứng nằm một tuần
+   còn chứng từ nằm tuần khác, và không tuần nào khớp lại được. */
+$_g = VHCP_Don::get_don( $_mnk );
+teq( '🔴 tạm ứng đi theo sang tuần mới, không rơi lại', 500000.0,
+	(float) $_g['tamUng']['FARM PHAN THIẾT'] );
+teq( 'và dòng chi vẫn nguyên trong đơn', 1, count( $_g['lines'] ) );
+/* ⚠️ NGÀY CỦA DÒNG CHI GIỮ NGUYÊN. Ngày mua là chuyện đã xảy ra; nắn nó theo kỳ mới là sửa
+   lịch sử cho vừa một cái ngăn. */
+teq( '🔴 ngày dòng chi KHÔNG bị nắn theo kỳ mới', '19/08/2026', (string) $_g['lines'][0]['ngay'] );
+/* Trạng thái giữ nguyên: nhảy tuần là dời CHỖ CHỐT, không phải làm lại quy trình. */
+teq( 'trạng thái không đổi', 'Nháp', (string) $_g['don']['trangThai'] );
+
+/* Nhảy tới một tuần CHỈ ĐỊNH, không phải tuần liền kề. */
+$_r = VHCP_Don::chuyen_ky( $_mnk, 'T9/2026 (7/9-13/9/2026)', 'Chờ hoá đơn nhà cung cấp' );
+t( 'nhảy tới tuần chỉ định', ! empty( $_r['success'] ), $_r );
+teq( 'kỳ mới đúng tuần được chỉ', 'T9/2026 (7/9-13/9/2026)',
+	VHCP_Don::get_don( $_mnk )['don']['ky'] );
+
+/* 🔴 NHẬT KÝ PHẢI GHI CẢ HAI ĐẦU. Tháng sau soi lại, thấy một khoản tạm ứng của tuần này nằm ở
+   tuần kia mà không có vết thì không ai giải thích được — và đó đúng là loại câu hỏi kế toán
+   phải trả lời trước khi chốt sổ. */
+$_nk_log = VHCP_Don::nhat_ky_don( $_mnk, 20 );
+$_thay_vet = '';
+foreach ( (array) ( isset( $_nk_log['items'] ) ? $_nk_log['items'] : array() ) as $_x ) {
+	if ( false !== strpos( (string) $_x['hanhDong'], 'Nhảy đơn' ) ) { $_thay_vet .= (string) $_x['chiTiet']; }
+}
+t( '🔴 nhật ký ghi cả kỳ CŨ lẫn kỳ MỚI',
+	false !== strpos( $_thay_vet, 'T8/2026 (24/8-30/8/2026)' )
+	&& false !== strpos( $_thay_vet, 'T9/2026 (7/9-13/9/2026)' ), $_thay_vet );
+t( 'và ghi cả lý do người bấm gõ', false !== strpos( $_thay_vet, 'Chờ hoá đơn nhà cung cấp' ), $_thay_vet );
+
+/* ---- Chốt ---- */
+$_r = VHCP_Don::chuyen_ky( $_mnk, 'T9/2026 (7/9-13/9/2026)' );
+t( 'nhảy vào chính kỳ đang đứng: bị chối', empty( $_r['success'] ), $_r );
+$_r = VHCP_Don::chuyen_ky( $_mnk, 'tuần sau nữa' );
+t( '🔴 kỳ gõ tay không đọc ra khoảng ngày: bị chối',
+	empty( $_r['success'] ) && false !== mb_strpos( (string) $_r['error'], 'không đọc ra được' ), $_r );
+teq( 'và đơn không suy suyển', 'T9/2026 (7/9-13/9/2026)',
+	VHCP_Don::get_don( $_mnk )['don']['ky'] );
+$_r = VHCP_Don::chuyen_ky( 'DON_KHONG_CO', 'T9/2026 (7/9-13/9/2026)' );
+t( 'đơn không tồn tại: bị chối', empty( $_r['success'] ), $_r );
+
+/* 🔴 ĐƠN ĐÃ VÀO SỔ THÌ KHÔNG NHẢY. Số đã quyết toán, mà kỳ là cái ngăn nó nằm; kéo sang tuần
+   khác là báo cáo của HAI tuần cùng sai, và tuần đã chốt thì không ai mở lại để đối chiếu. */
+$wpdb->update( VHCP_DB::t( 'don' ), array( 'trang_thai' => 'Đã quyết toán' ),
+	array( 'ma_don' => $_mnk ) );
+$_r = VHCP_Don::chuyen_ky( $_mnk, 'T9/2026 (14/9-20/9/2026)' );
+t( '🔴 đơn ĐÃ QUYẾT TOÁN thì không nhảy được', empty( $_r['success'] ), $_r );
+t( 'và câu chối nói rõ đang ở trạng thái nào',
+	false !== mb_strpos( (string) $_r['error'], 'Đã quyết toán' ), $_r );
+teq( 'kỳ vẫn y nguyên', 'T9/2026 (7/9-13/9/2026)', VHCP_Don::get_don( $_mnk )['don']['ky'] );
+
+/* ---- Cửa API: nhân viên KHÔNG được tự cho đơn mình nhảy tuần ---- */
+/* Dời chỗ chốt của một khoản tạm ứng đã cấp là đụng báo cáo của hai tuần. Để người lập tự làm
+   thì tuần nào sắp bị soi, đơn lặng lẽ trôi sang tuần sau. */
+/* ⚠️ `required_roles()` là hàm riêng tư nên soi THẲNG TỆP NGUỒN: khoá `'chuyenKy'` phải nằm
+   trong mảng `$nguoi_duyet`, và mảng ấy phải khai ra chính nó ở cửa trả về. Soi tệp là cách
+   duy nhất canh được một danh sách trắng mà không nới cửa của mã chạy thật ra chỉ để thử. */
+$_ma_api_src = file_get_contents( $goc_nk . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+$_khoi_nd = '';
+$_i_nd = strpos( $_ma_api_src, '$nguoi_duyet = array(' );
+if ( false !== $_i_nd ) {
+	$_c_nd = strpos( $_ma_api_src, ');', $_i_nd );
+	$_khoi_nd = ( false === $_c_nd ) ? '' : substr( $_ma_api_src, $_i_nd, $_c_nd - $_i_nd );
+}
+t( '🔴 chuyenKy nằm trong nhóm việc của người duyệt / kế toán',
+	'' !== $_khoi_nd && false !== strpos( $_khoi_nd, "'chuyenKy'" ), $_khoi_nd );
+t( 'và nhóm ấy trả về đúng bốn vai, KHÔNG có Nhân viên',
+	false !== strpos( $_ma_api_src,
+		"return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );" ) );
+/* Việc chỉ khai trong bản đồ mà quên khai vào nhóm quyền thì nhân viên gọi thẳng API được —
+   nên soi cả hai đầu, không chỉ một. */
+t( 'và chuyenKy có mặt trong bản đồ việc của API',
+	false !== strpos( $_ma_api_src, "'chuyenKy'              => array( 'VHCP_Don', 'chuyen_ky' )" ) );
+
+VHCP_Don::delete_don_admin( $_mnk );
+
+/* =============================================================================================
+ * 🔴 THÙNG RÁC — XOÁ NHẦM THÌ HOÀN LẠI ĐƯỢC
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ, cho lỡ xóa nhầm đơn hoặc chi phí thì
+ * hoàn lại lệnh đó."*
+ *
+ * Trước bản này xoá là XOÁ THẬT — ba lượt DELETE, không đường quay lại. Nhật ký ghi được "mất
+ * bao nhiêu tiền" nhưng không ghi nội dung từng dòng, nên nó không dựng lại được gì.
+ */
+VHCP_Auth::dat_vai_tro( 'Admin', 'Admin' );
+
+/* ---- Hoàn lại một DÒNG CHI ---- */
+$_tr = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'Nguyễn Văn A' );
+$_mtr = $_tr['maDon'];
+$_ltr = VHCP_Don::add_line( $_mtr, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => '2026-08-18',
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dây điện',
+	'soLuong' => 3, 'donGia' => 70000, 'thanhTien' => 210000 ) );
+$_id_tr = (string) $_ltr['id'];
+teq( 'đơn đang có 1 dòng', 1, count( VHCP_Don::get_don( $_mtr )['lines'] ) );
+
+VHCP_Don::delete_line( $_id_tr );
+teq( 'xoá xong thì đơn hết dòng', 0, count( VHCP_Don::get_don( $_mtr )['lines'] ) );
+
+$_tr_ds = VHCP_Don::ds_thung_rac( 50 );
+t( '🔴 dòng vừa xoá nằm trong thùng rác', ! empty( $_tr_ds['items'] ), $_tr_ds );
+$_muc = $_tr_ds['items'][0];
+teq( 'và biết nó là một DÒNG CHI', 'dong', (string) $_muc['loai'] );
+/* ⚠️ NHÃN PHẢI ĐỌC RA ĐƯỢC NỘI DUNG. "Dòng #418" thì không ai nhớ nó là cái gì mà dám bấm hoàn. */
+t( '🔴 nhãn nói ra nội dung và đơn nào', false !== mb_strpos( (string) $_muc['nhan'], 'Dây điện' )
+	&& false !== mb_strpos( (string) $_muc['nhan'], $_mtr ), $_muc );
+
+$_r = VHCP_Don::hoan_tac( $_muc['id'] );
+t( 'hoàn tác chạy', ! empty( $_r['success'] ), $_r );
+$_g = VHCP_Don::get_don( $_mtr );
+teq( '🔴 dòng chi về lại đúng đơn cũ', 1, count( $_g['lines'] ) );
+teq( 'nguyên văn nội dung', 'Dây điện', (string) $_g['lines'][0]['noiDung'] );
+teq( 'nguyên văn số tiền', 210000.0, (float) $_g['lines'][0]['thanhTien'] );
+teq( '🔴 và NGÀY giữ nguyên, không nắn về hôm nay', '18/08/2026', (string) $_g['lines'][0]['ngay'] );
+
+/* 🔴 KHÔNG HOÀN HAI LẦN — hoàn lần nữa là đẻ thêm bản sao của cùng khoản chi, tức tiền đếm đôi,
+   mà bảng vẫn trông bình thường vì hai dòng giống hệt nằm cạnh nhau. */
+$_r = VHCP_Don::hoan_tac( $_muc['id'] );
+t( '🔴 hoàn lần hai bị chối', empty( $_r['success'] ), $_r );
+t( 'và câu chối nói rõ vì sao', false !== mb_strpos( (string) $_r['error'], 'nhân đôi' ), $_r );
+teq( 'đơn vẫn đúng 1 dòng, không thành 2', 1, count( VHCP_Don::get_don( $_mtr )['lines'] ) );
+/* Mục đã hoàn thì rời khỏi danh sách mặc định — bày ra tiếp là mời người ta bấm nhầm lần nữa. */
+$_ids_con = array();
+foreach ( (array) VHCP_Don::ds_thung_rac( 50 )['items'] as $_x ) { $_ids_con[] = (int) $_x['id']; }
+t( 'mục đã hoàn KHÔNG còn trong danh sách chờ', ! in_array( (int) $_muc['id'], $_ids_con, true ), $_ids_con );
+
+/* ---- Hoàn lại CẢ ĐƠN ---- */
+/* ⚠️ SỐ TẠM ỨNG PHẢI KHÁC HẲN TỔNG DÒNG CHI (210.000). `get_don()` có nhánh "sổ cũ": không
+   có hàng tạm ứng nào thì nó suy tạm ứng TỪ tổng dòng chi. Đặt hai số bằng nhau là phép thử
+   dưới xanh cả khi bước dựng lại tạm ứng bị bỏ hẳn — đã phá thử để thấy đúng như vậy. */
+VHCP_Don::set_tam_ung( $_mtr, 'FARM PHAN THIẾT', 500000 );
+$_ky_tr = (string) VHCP_Don::get_don( $_mtr )['don']['ky'];
+VHCP_Don::delete_don_admin( $_mtr );
+t( 'xoá cả đơn thì đơn biến mất', empty( VHCP_Don::get_don( $_mtr )['success'] )
+	|| empty( VHCP_Don::get_don( $_mtr )['don'] ) );
+
+$_muc2 = VHCP_Don::ds_thung_rac( 50 )['items'][0];
+teq( '🔴 cả đơn nằm trong thùng rác', 'don', (string) $_muc2['loai'] );
+$_r = VHCP_Don::hoan_tac( $_muc2['id'] );
+t( 'dựng lại được cả đơn', ! empty( $_r['success'] ), $_r );
+$_g = VHCP_Don::get_don( $_mtr );
+teq( '🔴 đơn về đúng mã cũ', $_mtr, (string) $_g['don']['maDon'] );
+teq( 'kỳ giữ nguyên', $_ky_tr, (string) $_g['don']['ky'] );
+teq( '🔴 dòng chi dựng lại đủ', 1, count( $_g['lines'] ) );
+/* 🔴 TẠM ỨNG CŨNG PHẢI VỀ. Dựng lại đơn mà bỏ quên tạm ứng là đơn sống lại với số tiền bằng 0,
+   và người đọc tưởng khoản ấy chưa từng được cấp. */
+teq( '🔴 tạm ứng dựng lại đủ, và là SỐ ĐÃ CẤP chứ không phải tổng dòng chi',
+	500000.0, (float) $_g['tamUng']['FARM PHAN THIẾT'] );
+
+/* ---- Chốt ---- */
+$_r = VHCP_Don::hoan_tac( 999999 );
+t( 'id không có trong thùng rác: bị chối', empty( $_r['success'] ), $_r );
+
+/* 🔴 DÒNG CHI MÀ ĐƠN CHA ĐÃ MẤT THÌ KHÔNG DỰNG. Đẻ ra một khoản tiền mồ côi: có trong bảng
+   chi phí, cộng vào mọi báo cáo theo cơ sở, mà mở đơn ra thì không thấy đâu. */
+$_tr2 = VHCP_Don::create_don( 'T8/2026 (17/8-23/8/2026)', 'Nguyễn Văn A' );
+$_m2  = $_tr2['maDon'];
+$_l2  = VHCP_Don::add_line( $_m2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => '2026-08-18',
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Mồ côi',
+	'soLuong' => 1, 'donGia' => 50000, 'thanhTien' => 50000 ) );
+VHCP_Don::delete_line( (string) $_l2['id'] );
+$_muc3 = VHCP_Don::ds_thung_rac( 50 )['items'][0];
+VHCP_Don::delete_don_admin( $_m2 );          // xoá luôn đơn cha
+$_r = VHCP_Don::hoan_tac( $_muc3['id'] );
+t( '🔴 dòng chi mà đơn cha đã mất: bị chối', empty( $_r['success'] ), $_r );
+t( 'và chỉ đúng chỗ chữa: hoàn ĐƠN trước',
+	false !== mb_strpos( (string) $_r['error'], 'hoàn lại ĐƠN trước' ), $_r );
+
+/* ---- Nhân viên chỉ thấy và hoàn được thao tác của CHÍNH MÌNH ---- */
+/* Cửa hoàn tác không được rộng hơn cửa xem: bày thùng rác của cả cửa hàng cho người lập đơn là
+   cho họ đọc nội dung đơn của người khác. */
+$_vt_tr = VHCP_Auth::vai_tro();
+VHCP_Auth::dat_vai_tro( 'Nhân viên', 'Người Lạ', 'FARM PHAN THIẾT' );
+$_ds_nv = VHCP_Don::ds_thung_rac( 50 );
+$_co_cua_nguoi_khac = false;
+foreach ( (array) $_ds_nv['items'] as $_x ) {
+	if ( mb_strtolower( (string) $_x['nguoi'] ) !== mb_strtolower( 'Người Lạ' ) ) { $_co_cua_nguoi_khac = true; }
+}
+t( '🔴 nhân viên KHÔNG thấy thao tác xoá của người khác', ! $_co_cua_nguoi_khac, $_ds_nv['items'] );
+$_r = VHCP_Don::hoan_tac( $_muc3['id'] );
+t( '🔴 và KHÔNG hoàn được thao tác của người khác',
+	empty( $_r['success'] ) && false !== mb_strpos( (string) $_r['error'], 'của chính mình' ), $_r );
+VHCP_Auth::dat_vai_tro( $_vt_tr, 'Admin' );
+
 echo 'ĐẠT: ' . $GLOBALS['T_OK'] . ' phép thử' . "\n";
 if ( count( $GLOBALS['T_NG'] ) ) {
 	echo 'HỎNG: ' . count( $GLOBALS['T_NG'] ) . "\n";

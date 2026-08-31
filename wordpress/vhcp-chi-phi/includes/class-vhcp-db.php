@@ -333,6 +333,37 @@ class VHCP_DB {
 			KEY tg (tg)
 		) $c";
 
+		/* 🔴 THÙNG RÁC — anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ, cho lỡ xóa nhầm
+		   đơn hoặc chi phí thì hoàn lại lệnh đó."*
+
+		   Trước bản này xoá là XOÁ THẬT: `purge_don()` gọi ba lượt DELETE, và không có đường
+		   nào lấy lại. Nhật ký ghi được "ai xoá, tổng bao nhiêu tiền" nhưng KHÔNG ghi nội dung
+		   từng dòng — nên nó trả lời được câu "mất bao nhiêu", không trả lời được "mất những
+		   gì" và không dựng lại được.
+
+		   `du_lieu` giữ nguyên văn hàng đã xoá (đơn + mọi dòng chi + mọi dòng tạm ứng) dưới
+		   dạng JSON. Không tách thành cột: khuôn bảng `don` còn đổi theo thời gian, mà bản sao
+		   thì phải dựng lại được ĐÚNG những gì đã có lúc xoá, kể cả cột nay không còn dùng. */
+		$sql[] = "CREATE TABLE " . self::t( 'thungrac' ) . " (
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			luc DATETIME NULL,
+			loai VARCHAR(20) NOT NULL DEFAULT '',
+			khoa VARCHAR(190) NOT NULL DEFAULT '',
+			nhan TEXT NULL,
+			du_lieu LONGTEXT NULL,
+			nguoi VARCHAR(120) NOT NULL DEFAULT '',
+			vai_tro VARCHAR(60) NOT NULL DEFAULT '',
+			don_vi VARCHAR(60) NOT NULL DEFAULT '',
+			/* Đã hoàn rồi thì KHÔNG hoàn lần hai — hoàn hai lần là đẻ ra bản sao của cùng một
+			   khoản chi, tức tiền đếm đôi. Giữ dòng lại (không xoá) để nhật ký còn nguyên. */
+			da_hoan TINYINT(1) NOT NULL DEFAULT 0,
+			hoan_luc DATETIME NULL,
+			hoan_nguoi VARCHAR(120) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY luc (luc),
+			KEY khoa (khoa)
+		) $c";
+
 		$sql[] = "CREATE TABLE " . self::t( 'session' ) . " (
 			token CHAR(64) NOT NULL,
 			ten VARCHAR(120) NOT NULL DEFAULT '',

@@ -1681,6 +1681,8 @@ class VHCP_Don {
 
 		$binh_thuong = $ps ? ! self::da_chot( $st ) : $xin_edit;
 
+		/* Cất bản sao TRƯỚC khi xoá — xem khối THÙNG RÁC. Cất sau thì không còn gì để cất. */
+		self::vao_thung_rac_dong( $cur );
 		$wpdb->delete( VHCP_DB::t( 'chiphi' ), array( 'id' => (string) $id ) );
 		/* Xoá dòng thì ghi vết cho MỌI VAI, không riêng Admin. Nhật ký riêng của Admin ở dưới
 		   là để đánh dấu chuyện phá khoá; còn đây là câu trả lời cho "ai xoá mất dòng này". */
@@ -1963,10 +1965,196 @@ class VHCP_Don {
 
 	private static function purge_don( $ma_don ) {
 		global $wpdb;
+		/* 🔴 CẤT BẢN SAO TRƯỚC KHI XOÁ — anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ,
+		   cho lỡ xóa nhầm đơn hoặc chi phí thì hoàn lại lệnh đó."* Cất SAU thì không còn gì để
+		   mà cất; ba lượt DELETE dưới đây là điểm không quay lại. */
+		self::vao_thung_rac_don( $ma_don );
 		$wpdb->delete( VHCP_DB::t( 'chiphi' ), array( 'ma_don' => (string) $ma_don ) );
 		$wpdb->delete( VHCP_DB::t( 'tamung' ), array( 'ma_don' => (string) $ma_don ) );
 		$wpdb->delete( VHCP_DB::t( 'don' ), array( 'ma_don' => (string) $ma_don ) );
 		return VHCP_Util::ok();
+	}
+
+	/* =========================================================================================
+	 * THÙNG RÁC — XOÁ NHẦM THÌ HOÀN LẠI ĐƯỢC
+	 * =========================================================================================
+	 * Anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ, cho lỡ xóa nhầm đơn hoặc chi phí
+	 * thì hoàn lại lệnh đó."*
+	 *
+	 * 🔴 NHẬT KÝ KHÔNG THAY ĐƯỢC THÙNG RÁC. Nhật ký ghi "ai xoá, mấy dòng, tổng bao nhiêu tiền"
+	 *    — đủ để biết MẤT BAO NHIÊU, không đủ để biết MẤT NHỮNG GÌ, và không dựng lại được một
+	 *    dòng nào. Muốn hoàn tác thì phải giữ nguyên văn hàng đã xoá.
+	 *
+	 * ⚠️ KHÔNG TỰ DỌN THÙNG RÁC THEO NGÀY. Dọn tự động là xoá thật lần thứ hai, lần này không
+	 *    ai bấm và không ai biết. Thùng đầy thì người ta dọn tay, và lúc dọn thì họ nhìn thấy
+	 *    mình đang bỏ đi cái gì.
+	 */
+
+	/** Cất nguyên văn một đơn (kèm dòng chi + tạm ứng) vào thùng rác. */
+	private static function vao_thung_rac_don( $ma_don ) {
+		global $wpdb;
+		$ma_don = (string) $ma_don;
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return 0; }
+		$chi = VHCP_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCP_DB::t( 'chiphi' ) . ' WHERE ma_don=%s ORDER BY stt ASC', $ma_don ) );
+		$tu  = VHCP_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCP_DB::t( 'tamung' ) . ' WHERE ma_don=%s ORDER BY id ASC', $ma_don ) );
+		$tien = 0;
+		foreach ( $chi as $r ) { $tien += VHCP_Util::num( $r['thanh_tien'] ); }
+		return self::vao_thung_rac( 'don', $ma_don,
+			'Đơn ' . $ma_don . ' · ' . (string) $d['ky'] . ' · ' . (string) $d['nguoi_lap']
+				. ' · ' . count( $chi ) . ' dòng · ' . VHCP_Util::out_num( $tien )
+				. ' · trạng thái ' . (string) $d['trang_thai'],
+			array( 'don' => $d, 'chiphi' => $chi, 'tamung' => $tu ),
+			isset( $d['don_vi'] ) ? (string) $d['don_vi'] : '' );
+	}
+
+	/** Cất nguyên văn MỘT dòng chi vào thùng rác. */
+	private static function vao_thung_rac_dong( $row ) {
+		if ( ! $row ) { return 0; }
+		return self::vao_thung_rac( 'dong', (string) $row['id'],
+			'Dòng chi trong đơn ' . (string) $row['ma_don'] . ' · ' . self::ta_dong( $row ),
+			array( 'chiphi' => $row ),
+			VHCP_DonVi::cua_don( (string) $row['ma_don'] ) );
+	}
+
+	private static function vao_thung_rac( $loai, $khoa, $nhan, $du_lieu, $don_vi = '' ) {
+		global $wpdb;
+		$wpdb->insert( VHCP_DB::t( 'thungrac' ), array(
+			'luc'     => current_time( 'mysql' ),
+			'loai'    => (string) $loai,
+			'khoa'    => (string) $khoa,
+			'nhan'    => (string) $nhan,
+			'du_lieu' => wp_json_encode( $du_lieu ),
+			'nguoi'   => VHCP_Auth::nguoi(),
+			'vai_tro' => VHCP_Auth::vai_tro(),
+			'don_vi'  => (string) $don_vi,
+			'da_hoan' => 0,
+		) );
+		return (int) $wpdb->insert_id;
+	}
+
+	/**
+	 * Thùng rác — những gì còn hoàn lại được.
+	 *
+	 * ⚠️ LỌC THEO ĐƠN VỊ y như mọi màn khác: kế toán POSH không được thấy đơn K&H trong thùng
+	 *    rác, kẻo cửa này thành đường vòng đọc sổ bên kia.
+	 */
+	public static function ds_thung_rac( $limit = 50, $ca = false ) {
+		global $wpdb;
+		$limit = (int) $limit;
+		if ( $limit <= 0 || $limit > 300 ) { $limit = 50; }
+		$rows = VHCP_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCP_DB::t( 'thungrac' ) . ' ORDER BY id DESC LIMIT %d', $limit * 3 ) );
+		$dv_toi = VHCP_DonVi::cua_toi();
+		$nv     = VHCP_Auth::la_nhan_vien();
+		$toi    = mb_strtolower( trim( (string) VHCP_Auth::nguoi() ) );
+		$out = array();
+		foreach ( $rows as $r ) {
+			if ( ! $ca && (int) $r['da_hoan'] ) { continue; }
+			$dv = trim( (string) $r['don_vi'] );
+			if ( '' !== $dv && '' !== $dv_toi && ! VHCP_DonVi::bang( $dv, $dv_toi ) ) { continue; }
+			/* 🔴 NHÂN VIÊN CHỈ THẤY THAO TÁC CỦA CHÍNH MÌNH. Bày cả thùng rác của cửa hàng cho
+			   người lập đơn là cho họ đọc nội dung đơn của người khác — thứ mà ở màn thường họ
+			   không được thấy. Cửa hoàn tác không được rộng hơn cửa xem. */
+			if ( $nv && mb_strtolower( trim( (string) $r['nguoi'] ) ) !== $toi ) { continue; }
+			$out[] = array(
+				'id'      => (int) $r['id'],
+				'luc'     => VHCP_Util::fmt_dt( $r['luc'] ),
+				'loai'    => (string) $r['loai'],
+				'khoa'    => (string) $r['khoa'],
+				'nhan'    => (string) $r['nhan'],
+				'nguoi'   => (string) $r['nguoi'],
+				'vaiTro'  => (string) $r['vai_tro'],
+				'daHoan'  => (int) $r['da_hoan'] ? 1 : 0,
+				'hoanLuc' => VHCP_Util::fmt_dt( $r['hoan_luc'] ),
+			);
+			if ( count( $out ) >= $limit ) { break; }
+		}
+		return VHCP_Util::ok( array( 'items' => $out ) );
+	}
+
+	/**
+	 * HOÀN TÁC một lượt xoá.
+	 *
+	 * 🔴 KHÔNG HOÀN HAI LẦN. Hoàn lần thứ hai là dựng thêm một bản sao của cùng khoản chi —
+	 *    tiền đếm đôi, mà bảng vẫn trông bình thường vì hai dòng giống hệt nhau nằm cạnh nhau.
+	 *
+	 * 🔴 DÒNG CHI THÌ ĐƠN CHA PHẢI CÒN. Dựng một dòng chi vào một mã đơn không tồn tại là đẻ ra
+	 *    một khoản tiền mồ côi: nó có trong bảng `chiphi`, cộng vào mọi báo cáo theo cơ sở, mà
+	 *    mở đơn ra thì không thấy đâu.
+	 */
+	public static function hoan_tac( $id ) {
+		global $wpdb;
+		$id = (int) $id;
+		$r  = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHCP_DB::t( 'thungrac' ) . ' WHERE id=%d', $id ), ARRAY_A );
+		if ( ! $r ) { return VHCP_Util::err( 'Không tìm thấy mục này trong thùng rác.' ); }
+		if ( (int) $r['da_hoan'] ) {
+			return VHCP_Util::err( 'Mục này đã được hoàn lúc ' . VHCP_Util::fmt_dt( $r['hoan_luc'] )
+				. ( '' !== trim( (string) $r['hoan_nguoi'] ) ? ' bởi ' . $r['hoan_nguoi'] : '' )
+				. ' — hoàn lần nữa là nhân đôi số.' );
+		}
+		$dv = trim( (string) $r['don_vi'] );
+		$dv_toi = VHCP_DonVi::cua_toi();
+		if ( '' !== $dv && '' !== $dv_toi && ! VHCP_DonVi::bang( $dv, $dv_toi ) ) {
+			return VHCP_Util::err( 'Mục này thuộc đơn vị ' . $dv . ' — không phải sổ của bạn.' );
+		}
+		if ( VHCP_Auth::la_nhan_vien()
+			&& mb_strtolower( trim( (string) $r['nguoi'] ) ) !== mb_strtolower( trim( (string) VHCP_Auth::nguoi() ) ) ) {
+			return VHCP_Util::err( 'Chỉ hoàn lại được thao tác của chính mình. Nhờ kế toán hoàn giúp.' );
+		}
+
+		$d = json_decode( (string) $r['du_lieu'], true );
+		if ( ! is_array( $d ) ) { return VHCP_Util::err( 'Bản sao trong thùng rác đọc không ra — không dựng lại được.' ); }
+
+		if ( 'don' === (string) $r['loai'] ) {
+			$don = isset( $d['don'] ) ? (array) $d['don'] : array();
+			$ma  = isset( $don['ma_don'] ) ? (string) $don['ma_don'] : '';
+			if ( '' === $ma ) { return VHCP_Util::err( 'Bản sao thiếu mã đơn.' ); }
+			if ( self::don_row( $ma ) ) {
+				return VHCP_Util::err( 'Mã đơn ' . $ma . ' nay đã có một đơn khác đang dùng — '
+					. 'không dựng đè lên được.' );
+			}
+			$wpdb->insert( VHCP_DB::t( 'don' ), $don );
+			$so = 0;
+			foreach ( (array) ( isset( $d['chiphi'] ) ? $d['chiphi'] : array() ) as $x ) {
+				$wpdb->insert( VHCP_DB::t( 'chiphi' ), (array) $x );
+				$so++;
+			}
+			foreach ( (array) ( isset( $d['tamung'] ) ? $d['tamung'] : array() ) as $x ) {
+				$wpdb->insert( VHCP_DB::t( 'tamung' ), (array) $x );
+			}
+			self::danh_dau_hoan( $id );
+			self::ghi_vet( $ma, 'Hoàn tác xoá đơn', 'Dựng lại từ thùng rác #' . $id . ' · ' . $so . ' dòng chi' );
+			return VHCP_Util::ok( array( 'loai' => 'don', 'maDon' => $ma, 'soDong' => $so ) );
+		}
+
+		$row = isset( $d['chiphi'] ) ? (array) $d['chiphi'] : array();
+		$ma  = isset( $row['ma_don'] ) ? (string) $row['ma_don'] : '';
+		if ( '' === $ma ) { return VHCP_Util::err( 'Bản sao thiếu mã đơn.' ); }
+		if ( ! self::don_row( $ma ) ) {
+			return VHCP_Util::err( 'Đơn ' . $ma . ' của dòng này đã bị xoá — '
+				. 'hoàn lại ĐƠN trước, dòng chi nằm sẵn trong đó.' );
+		}
+		if ( isset( $row['id'] ) && self::line_row( (string) $row['id'] ) ) {
+			return VHCP_Util::err( 'Dòng này đã có lại trong đơn rồi.' );
+		}
+		$wpdb->insert( VHCP_DB::t( 'chiphi' ), $row );
+		self::danh_dau_hoan( $id );
+		self::ghi_vet( $ma, 'Hoàn tác xoá dòng chi',
+			'Dựng lại từ thùng rác #' . $id . ' · ' . self::ta_dong( $row ) );
+		return VHCP_Util::ok( array( 'loai' => 'dong', 'maDon' => $ma, 'id' => (string) $row['id'] ) );
+	}
+
+	private static function danh_dau_hoan( $id ) {
+		global $wpdb;
+		$wpdb->update( VHCP_DB::t( 'thungrac' ), array(
+			'da_hoan'    => 1,
+			'hoan_luc'   => current_time( 'mysql' ),
+			'hoan_nguoi' => VHCP_Auth::nguoi(),
+		), array( 'id' => (int) $id ) );
 	}
 
 	/**
@@ -2058,6 +2246,141 @@ class VHCP_Don {
 			/* Chuyển hết dòng đi thì đơn cũ thành cái vỏ rỗng — nói ra để màn mời xoá, chứ
 			   đừng tự xoá: xoá thay người ta là mất luôn nhật ký của đơn ấy. */
 			'goc_rong' => count( $chon ) >= count( $tat_ca ),
+		) );
+	}
+
+	/**
+	 * KỲ CỦA TUẦN KẾ TIẾP — hàm THUẦN, vào một chuỗi kỳ, ra một chuỗi kỳ.
+	 *
+	 * ⚠️ ĐI QUA `khoang_ky()` RỒI `nhan_ky()`, không tự cộng 7 vào con số trong tên. Tên kỳ mang
+	 *    cả THÁNG của ngày cuối tuần (`T9/2026 (31/8-6/9/2026)`), nên cộng tay là sai ngay ở
+	 *    tuần bắc qua tháng — đúng cái tuần hay phải nhảy đơn nhất.
+	 */
+	public static function ky_ke_tiep( $ky ) {
+		list( , $den ) = self::khoang_ky( $ky );
+		if ( '' === $den ) { return ''; }
+		$ts = strtotime( $den . ' 00:00:00 UTC' );
+		if ( ! $ts ) { return ''; }
+		return self::nhan_ky( gmdate( 'Y-m-d', $ts + 86400 ) );
+	}
+
+	/**
+	 * DANH SÁCH KỲ QUANH MỘT KỲ — để màn hình bày ra ô chọn "nhảy sang tuần nào".
+	 *
+	 * Bắt gõ tay chuỗi `T9/2026 (7/9-13/9/2026)` là mời người ta gõ sai một dấu gạch rồi đơn
+	 * rơi vào một kỳ không tồn tại, mà lọc theo tuần thì không bao giờ thấy nó nữa.
+	 *
+	 * @param string $ky    Kỳ đang đứng.
+	 * @param int    $truoc Bao nhiêu tuần TRƯỚC (nhảy lùi cũng có thật: đơn lập nhầm tuần).
+	 * @param int    $sau   Bao nhiêu tuần SAU.
+	 */
+	public static function ds_ky_quanh( $ky, $truoc = 4, $sau = 8 ) {
+		list( $tu ) = self::khoang_ky( $ky );
+		if ( '' === $tu ) { return array(); }
+		$ts = strtotime( $tu . ' 00:00:00 UTC' );
+		if ( ! $ts ) { return array(); }
+		$ds = array();
+		for ( $i = -abs( (int) $truoc ); $i <= abs( (int) $sau ); $i++ ) {
+			$k = self::nhan_ky( gmdate( 'Y-m-d', $ts + $i * 7 * 86400 ) );
+			if ( '' !== $k && ! in_array( $k, $ds, true ) ) { $ds[] = $k; }
+		}
+		return $ds;
+	}
+
+	/**
+	 * Cửa API của `ds_ky_quanh()`: nhận MÃ ĐƠN, trả danh sách kỳ quanh kỳ của chính đơn ấy.
+	 *
+	 * ⚠️ Nhận mã đơn chứ không nhận chuỗi kỳ: giao diện đang cầm sẵn mã đơn, còn chuỗi kỳ thì
+	 *    nó phải tự dựng lại — mà dựng lại một chuỗi có khuôn chặt như thế ở phía trình duyệt
+	 *    là chỗ sinh ra kỳ gõ sai.
+	 */
+	public static function ds_ky_quanh_api( $ma_don ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$ky = trim( (string) $d['ky'] );
+		return VHCP_Util::ok( array(
+			'ky'      => $ky,
+			'keTiep'  => self::ky_ke_tiep( $ky ),
+			'ds'      => self::ds_ky_quanh( $ky ),
+		) );
+	}
+
+	/**
+	 * NHẢY ĐƠN SANG TUẦN KHÁC — cả đơn, kèm tạm ứng, sang kỳ mới.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026: *"Trường hợp 1 đơn không quyết toán kịp tuần đó thì không thể
+	 *    [quyết toán] đơn đó, vì quyết toán theo tuần. Nên kế toán sẽ gửi lệnh nhảy đơn cho
+	 *    tuần tiếp theo (hoặc tuần chỉ định), để chi phí tạm ứng của đơn đó đi theo."*
+	 *
+	 *    Trước bản này không có đường nào làm việc ấy: kỳ ghi một lần lúc lập đơn rồi đứng yên.
+	 *    Đơn không kịp chứng từ trong tuần thì nằm lại kỳ cũ mãi — kế toán chốt tuần xong vẫn
+	 *    còn một đơn treo, mà đóng tuần thì đơn ấy mất chỗ.
+	 *
+	 * 🔴 CHUYỂN CẢ ĐƠN, KHÔNG TÁCH DÒNG. Khác hẳn `chuyen_don_vi()` (đẩy vài dòng sang một đơn
+	 *    MỚI ở sổ bên kia). Ở đây tạm ứng đã cấp phải đi theo nguyên vẹn — tách ra là số tạm
+	 *    ứng nằm một tuần còn chứng từ nằm tuần khác, và không tuần nào khớp lại được.
+	 *
+	 * ⚠️ KHÔNG ĐỤNG NGÀY CỦA DÒNG CHI. Ngày mua là chuyện đã xảy ra; nắn nó theo kỳ mới là sửa
+	 *    lịch sử để cho vừa một cái ngăn. Dòng chi ngày 3/9 nằm trong đơn kỳ tuần sau là đúng
+	 *    và đọc ra được — đó chính là điều cần thấy khi soi lại.
+	 *
+	 * ⚠️ KHÔNG đổi trạng thái. Đơn đang "Chờ quyết toán" thì nhảy tuần xong vẫn "Chờ quyết
+	 *    toán" — nhảy tuần là dời CHỖ CHỐT, không phải làm lại quy trình.
+	 *
+	 * @param string $ma_don
+	 * @param string $ky_moi Kỳ đích. Rỗng = tuần kế tiếp của chính đơn ấy.
+	 * @param string $ly_do  Vì sao nhảy — vào nhật ký.
+	 */
+	public static function chuyen_ky( $ma_don, $ky_moi = '', $ly_do = '', $nguoi = '' ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCP_Util::err( $_loi ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+
+		$ky_cu = trim( (string) $d['ky'] );
+		if ( '' === $ky_cu ) {
+			return VHCP_Util::err( 'Đơn này chưa có kỳ nên không biết nhảy từ đâu. '
+				. 'Sửa kỳ ở Cấu hình → Sửa kỳ hỏng trước.' );
+		}
+
+		/* 🔴 ĐÃ QUYẾT TOÁN / ĐÃ XUẤT MISA THÌ KHÔNG NHẢY. Số đã vào sổ, mà kỳ là cái ngăn nó
+		   nằm; kéo sang tuần khác là báo cáo của HAI tuần cùng sai, và tuần đã chốt thì không
+		   ai mở lại để đối chiếu nữa. Cần sửa thì mở lại đơn theo đường của nó. */
+		$_c = self::vi_sao_khong_sua( $ma_don );
+		if ( '' !== $_c ) { return VHCP_Util::err( $_c ); }
+
+		$ky_moi = trim( (string) $ky_moi );
+		if ( '' === $ky_moi ) { $ky_moi = self::ky_ke_tiep( $ky_cu ); }
+		if ( '' === $ky_moi ) {
+			return VHCP_Util::err( 'Không đọc ra được tuần kế tiếp của kỳ "' . $ky_cu . '".' );
+		}
+		/* Kỳ đích phải ĐỌC RA ĐƯỢC khoảng ngày. Nhận bừa một chuỗi tự do thì đơn rơi vào một
+		   kỳ không tồn tại, và lọc theo tuần không bao giờ thấy nó nữa — mất đơn trong im lặng,
+		   đúng kiểu hỏng mà cả bảng vẫn trông bình thường. */
+		list( $tu_m, $den_m ) = self::khoang_ky( $ky_moi );
+		if ( '' === $tu_m || '' === $den_m ) {
+			return VHCP_Util::err( 'Kỳ "' . $ky_moi . '" không đọc ra được khoảng ngày — '
+				. 'chọn tuần trong danh sách, đừng gõ tay.' );
+		}
+		if ( $ky_moi === $ky_cu ) {
+			return VHCP_Util::err( 'Đơn này đang ở kỳ ' . $ky_cu . ' rồi.' );
+		}
+
+		$nguoi = trim( (string) $nguoi );
+		if ( '' === $nguoi ) { $nguoi = VHCP_Auth::nguoi(); }
+
+		self::upd_don( $ma_don, array( 'ky' => $ky_moi ) );
+
+		$ly_do = trim( (string) $ly_do );
+		self::ghi_vet( $ma_don, 'Nhảy đơn sang tuần khác',
+			$ky_cu . '  →  ' . $ky_moi . ( '' !== $ly_do ? ' — ' . $ly_do : '' ) );
+
+		return VHCP_Util::ok( array(
+			'maDon' => (string) $ma_don,
+			'kyCu'  => $ky_cu,
+			'kyMoi' => $ky_moi,
+			'tu'    => $tu_m,
+			'den'   => $den_m,
 		) );
 	}
 

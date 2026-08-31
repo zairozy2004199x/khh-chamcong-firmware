@@ -181,12 +181,23 @@
       <button class="btn b-p" id="btnNewDon" onclick="newDon()">＋ Tạo đơn mới</button>
       <button class="btn b-g" id="btnBackPrev" onclick="backToPrev()" style="display:none">← Quay lại</button>
       <button class="btn b-x" id="btnBackList" onclick="backToList()" style="display:none">📋 Danh sách đơn</button>
+      <!-- 🔴 THÙNG RÁC — anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ, cho lỡ xóa nhầm
+           đơn hoặc chi phí thì hoàn lại lệnh đó."* Nút đứng cạnh danh sách đơn chứ không giấu
+           trong Cấu hình: lúc cần nó là lúc vừa bấm nhầm, tay còn đang ở màn này. -->
+      <button class="btn b-x" id="btnThungRac" onclick="moThungRac()"
+        title="Xoá nhầm đơn hoặc dòng chi thì vào đây hoàn lại">♻ Hoàn tác xoá</button>
       <div class="db-day"></div>
       <!-- 🔴 ĐẨY ĐƠN SANG ĐƠN VỊ KHÁC — kế toán POSH gửi cho kế toán cá nhân.
            Nút chỉ hiện cho người nhìn được HƠN MỘT đơn vị: người chỉ có một đơn vị thì không
            có chỗ nào để đẩy tới, bày nút ra chỉ để bấm vào rồi báo lỗi. -->
       <button class="btn b-x" id="btnChuyenDV" style="display:none" onclick="moChuyenDonVi()"
         title="Đẩy cả đơn hoặc vài dòng chi lẻ sang đơn vị khác — bên kia nhận về thành một đơn Nháp mới">🏢➜ Đẩy sang đơn vị khác</button>
+      <!-- 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: đơn không quyết toán kịp trong
+           tuần của nó thì kế toán ra lệnh cho nó nhảy sang tuần sau, tạm ứng đi theo.
+           Cùng chỗ với nút đẩy đơn vị vì cùng một loại việc: dời chỗ chốt của một khoản
+           tiền đã cấp. -->
+      <button class="btn b-x" id="btnChuyenKy" style="display:none" onclick="moChuyenKy()"
+        title="Đơn chưa quyết toán kịp tuần này — cho nó nhảy sang tuần sau (hoặc tuần chỉ định), tạm ứng đi theo">📅➜ Nhảy sang tuần khác</button>
       <button class="btn b-s" id="btnAction" style="display:none"></button>
       <button class="btn b-d" id="btnDelDon" style="display:none" onclick="delDon(CUR&&CUR.don&&CUR.don.maDon)" title="Xóa đơn nháp/lỗi (chưa cấp tạm ứng)">🗑 Xóa đơn</button>
       <button class="btn b-d" id="btnDelDonAdmin" style="display:none;background:#7f1d1d" onclick="delDonAdmin(CUR&&CUR.don&&CUR.don.maDon)" title="ADMIN: Xóa vĩnh viễn đơn này (mọi trạng thái, kể cả đã xuất MISA)">🗑✕ Xóa (admin)</button>
@@ -1714,6 +1725,108 @@
       .chuyenDonVi(CUR.don.maDon, chon, dich, nhan);
   }
 
+  /* ============ NHẢY ĐƠN SANG TUẦN KHÁC ============
+     🔴 Anh Thắng 31/08/2026: *"Trường hợp 1 đơn không quyết toán kịp tuần đó thì không thể
+        [quyết toán] đơn đó, vì quyết toán theo tuần. Nên kế toán sẽ gửi lệnh nhảy đơn cho tuần
+        tiếp theo (hoặc tuần chỉ định), để chi phí tạm ứng của đơn đó đi theo."*
+
+     🔴 DANH SÁCH TUẦN DO MÁY CHỦ DỰNG, KHÔNG BẮT GÕ TAY. Tên kỳ có khuôn chặt
+        (`T9/2026 (7/9-13/9/2026)`) và mang cả tháng của ngày CUỐI tuần — gõ tay sai một dấu
+        gạch là đơn rơi vào một kỳ không tồn tại, mà lọc theo tuần thì không bao giờ thấy nó
+        nữa: mất đơn trong im lặng.
+
+     ⚠️ NÓI TRƯỚC HẬU QUẢ: tuần cũ mất đơn này khỏi bảng quyết toán, tuần mới nhận thêm. Người
+        bấm cần biết TRƯỚC khi bấm — hai tuần cùng đổi số một lúc. */
+  function moChuyenKy(){
+    if(!(CUR&&CUR.don)) return;
+    var m=CUR.don.maDon;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){
+      loading(false);
+      if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var ds=(r.ds||[]), ke=String(r.keTiep||'');
+      if(!ds.length){ toast('err','Không đọc ra được các tuần quanh kỳ "'+(r.ky||'')+'".'); return; }
+      /* Đánh số để người ta chọn bằng MỘT con số, khỏi chép cả chuỗi kỳ. Tuần đang đứng và
+         tuần kế tiếp gắn nhãn — đó là hai lựa chọn hay dùng nhất. */
+      var dong=ds.map(function(k,i){
+        var nhan = (k===String(r.ky||'')) ? '  ← đang ở đây' : (k===ke ? '  ← tuần kế tiếp' : '');
+        return (i+1)+'. '+k+nhan;
+      }).join('\n');
+      var mac=ds.indexOf(ke); mac=(mac>=0?mac+1:1);
+      var chon=prompt('Đơn '+m+' đang ở kỳ:\n'+(r.ky||'(chưa có)')+'\n\n'
+        +'Nhảy sang tuần nào? Gõ SỐ THỨ TỰ:\n\n'+dong, String(mac));
+      if(chon===null) return;
+      var i=parseInt(String(chon).trim(),10)-1;
+      if(!(i>=0 && ds[i])){ toast('warn','Số thứ tự không có trong danh sách'); return; }
+      var dich=ds[i];
+      if(dich===String(r.ky||'')){ toast('warn','Đơn này đang ở kỳ đó rồi'); return; }
+
+      var ly=prompt('Vì sao nhảy tuần?\n\n(Ghi vào nhật ký đơn — để tháng sau soi lại còn biết '
+        +'vì sao một khoản tạm ứng của tuần này lại nằm ở tuần kia.)','Chưa quyết toán kịp trong tuần');
+      if(ly===null) return;
+
+      if(!confirm('Xác nhận cho đơn '+m+' nhảy tuần:\n\n'
+        +(r.ky||'(chưa có)')+'\n      ↓\n'+dich+'\n\n'
+        +'⚠️ Tạm ứng của đơn ĐI THEO sang tuần mới. Bảng quyết toán tuần cũ sẽ KHÔNG còn đơn '
+        +'này, tuần mới nhận thêm — hai tuần cùng đổi số một lúc.\n\n'
+        +'Ngày của từng dòng chi giữ NGUYÊN: ngày mua là chuyện đã xảy ra.')) return;
+
+      loading(true);
+      google.script.run.withSuccessHandler(function(k){
+        loading(false);
+        if(!(k&&k.success)){ toast('err',(k&&k.error)||'Lỗi'); return; }
+        _log('NHẢY TUẦN', k.maDon, k.kyCu+' → '+k.kyMoi+(ly?' — '+ly:''));
+        toast('ok','Đơn '+k.maDon+' đã nhảy sang '+k.kyMoi);
+        boot(function(){ openDon(k.maDon); });
+      }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+        .chuyenKy(m, dich, ly);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .dsKyQuanh(m);
+  }
+
+  /* ============ THÙNG RÁC — HOÀN TÁC XOÁ ============
+     🔴 Anh Thắng 31/08/2026: *"Bổ sung thêm nút hoàn tác vụ, cho lỡ xóa nhầm đơn hoặc chi phí
+        thì hoàn lại lệnh đó."*
+
+     ⚠️ BÀY RA CẢ NHÃN, không chỉ mã. "Đơn CP0142" thì không ai nhớ nó là cái gì; phải đọc được
+        kỳ, người lập, mấy dòng, bao nhiêu tiền — rồi mới dám bấm hoàn. */
+  function moThungRac(){
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){
+      loading(false);
+      if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      var ds=(r.items||[]);
+      if(!ds.length){ toast('ok','Thùng rác trống — chưa xoá nhầm gì cả.'); return; }
+      var dong=ds.map(function(x,i){
+        return (i+1)+'. ['+(x.loai==='don'?'ĐƠN ':'dòng')+'] '+x.nhan
+             +'\n     xoá lúc '+(x.luc||'?')+' bởi '+(x.nguoi||'?');
+      }).join('\n');
+      var chon=prompt('THÙNG RÁC — chọn mục muốn hoàn lại (gõ SỐ THỨ TỰ):\n\n'+dong,'1');
+      if(chon===null) return;
+      var i=parseInt(String(chon).trim(),10)-1;
+      if(!(i>=0 && ds[i])){ toast('warn','Số thứ tự không có trong danh sách'); return; }
+      var x=ds[i];
+      if(!confirm('Hoàn lại mục này?\n\n'+x.nhan+'\n\n'
+        +(x.loai==='don'
+           ? '⚠️ Cả đơn sẽ dựng lại NGUYÊN TRẠNG lúc bị xoá: mọi dòng chi, mọi khoản tạm ứng, '
+             +'đúng trạng thái cũ.'
+           : '⚠️ Dòng chi sẽ về lại đúng đơn cũ. Đơn ấy phải còn — nếu đơn cũng bị xoá thì hoàn '
+             +'ĐƠN trước, dòng nằm sẵn trong đó.'))) return;
+      loading(true);
+      google.script.run.withSuccessHandler(function(k){
+        loading(false);
+        if(!(k&&k.success)){ toast('err',(k&&k.error)||'Lỗi'); return; }
+        _log('HOÀN TÁC XOÁ', k.maDon, x.nhan);
+        toast('ok', k.loai==='don'
+          ? ('Đã dựng lại đơn '+k.maDon+' ('+k.soDong+' dòng chi)')
+          : ('Đã trả dòng chi về đơn '+k.maDon));
+        boot(function(){ openDon(k.maDon); });
+      }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+        .hoanTac(x.id);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .dsThungRac(50);
+  }
+
   function _syncDonView(){   // danh sách & chi tiết loại trừ nhau: mở đơn -> ẩn danh sách + hiện nút quay lại
     var open=!!(CUR&&CUR.don);
     if(el('donListCard'))  el('donListCard').style.display  = open?'none':'';
@@ -2009,6 +2122,12 @@
       if(el('btnChuyenDV')){
         var _cdv=!!BOOT.nhieuDonVi && !CUR.stChot && (canDo('duyetTU')||canDo('capTU')||_laAdmin());
         el('btnChuyenDV').style.display=_cdv?'inline-block':'none';
+      }
+      /* Nhảy tuần: cùng cửa quyền với đẩy đơn vị (việc của người duyệt / kế toán), và cùng
+         ranh giới "đã vào sổ" — đơn đã quyết toán thì kỳ là cái ngăn nó nằm, không kéo đi. */
+      if(el('btnChuyenKy')){
+        var _ck=!CUR.stChot && (canDo('duyetTU')||canDo('capTU')||_laAdmin());
+        el('btnChuyenKy').style.display=_ck?'inline-block':'none';
       }
       if(el('btnDelDon')) el('btnDelDon').style.display=_canDelDon(r.don)?'inline-block':'none';
       if(el('btnDelDonAdmin')) el('btnDelDonAdmin').style.display=(CURUSER&&CURUSER.role==='Admin')?'inline-block':'none';

@@ -38,6 +38,11 @@ class VHCP_API {
 			'setLineThucMua', 'setLineCN',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
+			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn
+			   cho tuần tiếp theo (hoặc tuần chỉ định)"*. Đây là dời chỗ chốt của một khoản tạm
+			   ứng đã cấp, tức đụng vào báo cáo của HAI tuần cùng lúc — người lập đơn không được
+			   tự làm, kẻo tuần nào sắp bị soi thì đơn lặng lẽ trôi sang tuần sau. */
+			'chuyenKy',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
@@ -202,6 +207,15 @@ class VHCP_API {
 			'setTatToanTuan'        => array( 'VHCP_Don', 'set_tat_toan_tuan' ),
 			/* Đẩy đơn / dòng chi sang đơn vị khác — kế toán POSH gửi cho kế toán cá nhân. */
 			'chuyenDonVi'           => array( 'VHCP_Don', 'chuyen_don_vi' ),
+			/* Nhảy đơn sang tuần khác khi không quyết toán kịp trong tuần của nó. */
+			'chuyenKy'              => array( 'VHCP_Don', 'chuyen_ky' ),
+			'dsKyQuanh'             => array( 'VHCP_Don', 'ds_ky_quanh_api' ),
+			/* Thùng rác: xoá nhầm đơn hoặc dòng chi thì hoàn lại được. Cố ý KHÔNG khai vào
+			   nhóm người-duyệt: người lập tự xoá nháp của mình thì cũng phải tự hoàn lại được.
+			   Chốt "chỉ hoàn thao tác của chính mình" nằm trong `VHCP_Don::hoan_tac()`, cùng
+			   chỗ với chốt đơn vị — gác ở lõi thì mọi đường vào đều đi qua. */
+			'dsThungRac'            => array( 'VHCP_Don', 'ds_thung_rac' ),
+			'hoanTac'               => array( 'VHCP_Don', 'hoan_tac' ),
 			'dsDonVi'               => array( 'VHCP_DonVi', 'ds' ),
 			'duyetTamUngNhieu'      => array( 'VHCP_Don', 'duyet_tam_ung_nhieu' ),
 			'capTamUngNhieu'        => array( 'VHCP_Don', 'cap_tam_ung_nhieu' ),
