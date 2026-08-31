@@ -84,20 +84,54 @@ static void lRect(int lx, int ly, int w, int h, uint16_t c) {
   for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) lpx(lx + i, ly + j, c);
 }
 static void lFill(uint16_t c) { lRect(0, 0, LW, LH, c); }
-static void lRoundRect(int lx, int ly, int w, int h, int r, uint16_t c) {
+
+/* ─── KHỬ RĂNG CƯA (anti-alias): trộn màu theo độ phủ 0..255 ───────────────── */
+static inline uint16_t blend565(uint16_t fg, uint16_t bg, uint8_t a) {
+  uint16_t fr = (fg >> 11) & 0x1F, fgc = (fg >> 5) & 0x3F, fb = fg & 0x1F;
+  uint16_t br = (bg >> 11) & 0x1F, bgc = (bg >> 5) & 0x3F, bb = bg & 0x1F;
+  uint16_t r = (fr * a + br * (255 - a) + 127) / 255;
+  uint16_t g = (fgc * a + bgc * (255 - a) + 127) / 255;
+  uint16_t b = (fb * a + bb * (255 - a) + 127) / 255;
+  return (uint16_t)((r << 11) | (g << 5) | b);
+}
+// Chữ nhật BO GÓC mượt (góc khử răng cưa, trộn với nền `bg`).
+static void lRoundRectA(int lx, int ly, int w, int h, int r, uint16_t c, uint16_t bg) {
   if (r * 2 > w) r = w / 2; if (r * 2 > h) r = h / 2;
-  for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) {
-    int dx = -1, dy = -1;
-    if (i < r && j < r)              { dx = r - 1 - i; dy = r - 1 - j; }
-    else if (i >= w - r && j < r)    { dx = i - (w - r); dy = r - 1 - j; }
-    else if (i < r && j >= h - r)    { dx = r - 1 - i; dy = j - (h - r); }
-    else if (i >= w - r && j >= h - r){ dx = i - (w - r); dy = j - (h - r); }
-    if (dx >= 0 && dx * dx + dy * dy > r * r) continue;
-    lpx(lx + i, ly + j, c);
+  if (r < 1) { lRect(lx, ly, w, h, c); return; }
+  lRect(lx + r, ly, w - 2 * r, h, c);
+  lRect(lx, ly + r, r, h - 2 * r, c);
+  lRect(lx + w - r, ly + r, r, h - 2 * r, c);
+  for (int cn = 0; cn < 4; cn++) {
+    int ox = (cn & 1) ? (lx + w - r) : lx;
+    int oy = (cn & 2) ? (ly + h - r) : ly;
+    float ccx = (cn & 1) ? (float)(lx + w - r) : (float)(lx + r);
+    float ccy = (cn & 2) ? (float)(ly + h - r) : (float)(ly + r);
+    for (int j = 0; j < r; j++) for (int i = 0; i < r; i++) {
+      float dx = (ox + i + 0.5f) - ccx, dy = (oy + j + 0.5f) - ccy;
+      float cov = (float)r - sqrtf(dx * dx + dy * dy) + 0.5f;
+      if (cov <= 0) continue; if (cov > 1) cov = 1;
+      uint8_t a = (uint8_t)(cov * 255);
+      lpx(ox + i, oy + j, a >= 255 ? c : blend565(c, bg, a));
+    }
   }
 }
+// Đĩa tròn ĐẶC mượt.
+static void lCircleA(int cx, int cy, int r, uint16_t c, uint16_t bg) {
+  for (int j = -r - 1; j <= r + 1; j++) for (int i = -r - 1; i <= r + 1; i++) {
+    float cov = (float)r - sqrtf((float)(i * i + j * j)) + 0.5f;
+    if (cov <= 0) continue; if (cov > 1) cov = 1;
+    uint8_t a = (uint8_t)(cov * 255);
+    lpx(cx + i, cy + j, a >= 255 ? c : blend565(c, bg, a));
+  }
+}
+// Nét đậm bo đầu (đóng dấu đĩa tròn dọc đoạn) — dùng vẽ dấu tích.
+static void lStroke(int x0, int y0, int x1, int y1, int rad, uint16_t c, uint16_t bg) {
+  int steps = abs(x1 - x0) + abs(y1 - y0); if (steps < 1) steps = 1;
+  for (int s = 0; s <= steps; s++)
+    lCircleA(x0 + (x1 - x0) * s / steps, y0 + (y1 - y0) * s / steps, rad, c, bg);
+}
 
-/* Font số 5×7 + glyph "đ" + ":" */
+/* ─── FONT SỐ khử răng cưa (nội suy 5×7 rồi tăng tương phản cho nét sắc) ───── */
 static const uint8_t FONT57[10][7] = {
   {0x0E,0x11,0x13,0x15,0x19,0x11,0x0E},{0x04,0x0C,0x04,0x04,0x04,0x04,0x0E},
   {0x0E,0x11,0x01,0x02,0x04,0x08,0x1F},{0x1F,0x02,0x04,0x02,0x01,0x11,0x0E},
@@ -106,35 +140,58 @@ static const uint8_t FONT57[10][7] = {
   {0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E},{0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C},
 };
 static const uint8_t GLYPH_D[7] = {0x01,0x0F,0x0F,0x11,0x11,0x11,0x0F};
-static void lBitmap(int lx, int ly, const uint8_t g[7], int sc, uint16_t c) {
-  for (int r = 0; r < 7; r++) for (int b = 0; b < 5; b++)
-    if (g[r] & (1 << (4 - b))) lRect(lx + b * sc, ly + r * sc, sc, sc, c);
+static inline float _fbit(const uint8_t g[7], int cx, int cy) {
+  if (cx < 0 || cx > 4 || cy < 0 || cy > 6) return 0.0f;
+  return ((g[cy] >> (4 - cx)) & 1) ? 1.0f : 0.0f;
 }
-static void lDigit(int lx, int ly, int d, int sc, uint16_t c) {
-  if (d >= 0 && d <= 9) lBitmap(lx, ly, FONT57[d], sc, c);
+static void lBitmap(int lx, int ly, const uint8_t g[7], int sc, uint16_t c, uint16_t bg) {
+  int W = 5 * sc, H = 7 * sc;
+  for (int j = 0; j < H; j++) for (int i = 0; i < W; i++) {
+    float u = (i + 0.5f) / sc - 0.5f, v = (j + 0.5f) / sc - 0.5f;
+    int u0 = (int)floorf(u), v0 = (int)floorf(v);
+    float fu = u - u0, fv = v - v0;
+    float top = _fbit(g, u0, v0) * (1 - fu) + _fbit(g, u0 + 1, v0) * fu;
+    float bot = _fbit(g, u0, v0 + 1) * (1 - fu) + _fbit(g, u0 + 1, v0 + 1) * fu;
+    float cov = top * (1 - fv) + bot * fv;
+    cov = (cov - 0.5f) * 1.7f + 0.5f;      // tăng tương phản: giữ nét đặc, chỉ mềm viền
+    if (cov <= 0.02f) continue; if (cov > 1) cov = 1;
+    uint8_t a = (uint8_t)(cov * 255);
+    lpx(lx + i, ly + j, a >= 250 ? c : blend565(c, bg, a));
+  }
 }
-static int lNum(int lx, int ly, long v, int sc, uint16_t c) {   // số trơn, căn trái
+static void lDigit(int lx, int ly, int d, int sc, uint16_t c, uint16_t bg) {
+  if (d >= 0 && d <= 9) lBitmap(lx, ly, FONT57[d], sc, c, bg);
+}
+static int lNum(int lx, int ly, long v, int sc, uint16_t c, uint16_t bg) {
   char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int x = lx;
-  for (int i = 0; i < n; i++) { lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc; }
+  for (int i = 0; i < n; i++) { lDigit(x, ly, s[i] - '0', sc, c, bg); x += 6 * sc; }
   return x - lx;
 }
-static int lPrice(int lx, int ly, long v, int sc, uint16_t c) { // giá: chấm nghìn + "đ"
+static int lPrice(int lx, int ly, long v, int sc, uint16_t c, uint16_t bg) {  // giá: chấm nghìn + "đ"
   char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int x = lx;
   for (int i = 0; i < n; i++) {
-    lDigit(x, ly, s[i] - '0', sc, c); x += 6 * sc;
-    int rem = n - 1 - i; if (rem > 0 && rem % 3 == 0) { lRect(x, ly + 6 * sc, sc, sc, c); x += 2 * sc; }
+    lDigit(x, ly, s[i] - '0', sc, c, bg); x += 6 * sc;
+    int rem = n - 1 - i;
+    if (rem > 0 && rem % 3 == 0) { lCircleA(x + sc / 2, ly + 6 * sc + sc / 2, (sc + 1) / 2, c, bg); x += 2 * sc; }
   }
-  x += sc; lBitmap(x, ly, GLYPH_D, sc, c); x += 6 * sc; return x - lx;
+  x += sc; lBitmap(x, ly, GLYPH_D, sc, c, bg); x += 6 * sc; return x - lx;
 }
-static void lColon(int lx, int ly, int sc, uint16_t c) {   // dấu ":" cho MM:SS
-  lRect(lx, ly + 2 * sc, sc, sc, c); lRect(lx, ly + 5 * sc, sc, sc, c);
+static int lPriceW(long v, int sc) {   // bề rộng chuỗi giá (để căn giữa)
+  char s[16]; int n = snprintf(s, sizeof s, "%ld", v); int w = 0;
+  for (int i = 0; i < n; i++) { w += 6 * sc; int rem = n - 1 - i; if (rem > 0 && rem % 3 == 0) w += 2 * sc; }
+  return w + sc + 6 * sc;
 }
-static void lMMSS(int lx, int ly, int secs, int sc, uint16_t c) {
+static void lColon(int lx, int ly, int sc, uint16_t c, uint16_t bg) {
+  lCircleA(lx + sc / 2, ly + 2 * sc, (sc + 1) / 2, c, bg);
+  lCircleA(lx + sc / 2, ly + 5 * sc, (sc + 1) / 2, c, bg);
+}
+static void lMMSS(int lx, int ly, int secs, int sc, uint16_t c, uint16_t bg) {
   if (secs < 0) secs = 0; int mm = secs / 60, ss = secs % 60; int x = lx;
-  lDigit(x, ly, mm / 10, sc, c); x += 6 * sc; lDigit(x, ly, mm % 10, sc, c); x += 6 * sc;
-  lColon(x, ly, sc, c); x += 3 * sc;
-  lDigit(x, ly, ss / 10, sc, c); x += 6 * sc; lDigit(x, ly, ss % 10, sc, c);
+  lDigit(x, ly, mm / 10, sc, c, bg); x += 6 * sc; lDigit(x, ly, mm % 10, sc, c, bg); x += 6 * sc;
+  lColon(x, ly, sc, c, bg); x += 3 * sc;
+  lDigit(x, ly, ss / 10, sc, c, bg); x += 6 * sc; lDigit(x, ly, ss % 10, sc, c, bg);
 }
+static int lMMSSW(int sc) { return (6 + 6 + 3 + 6 + 6) * sc; }   // bề rộng MM:SS
 
 /* ─── VietQR (bê nguyên bản cũ) ──────────────────────────────────────────── */
 static String _tlv(const char* id, const String& val) {
@@ -477,69 +534,124 @@ static int g_chon = 0;
 struct Btn { int x, y, w, h; };
 static Btn g_btn[PKG_MAX];
 
+/* Đồng hồ nhỏ (vành + 2 kim) — báo "số phút" không cần chữ. */
+static void lClock(int cx, int cy, int r, uint16_t c, uint16_t bg) {
+  lCircleA(cx, cy, r, c, bg);
+  lCircleA(cx, cy, r - (r > 8 ? 3 : 2), bg, c);
+  lStroke(cx, cy, cx, cy - (r - 5), (r > 12 ? 2 : 1), c, bg);          // kim dài
+  lStroke(cx, cy, cx + (r - 8 > 0 ? r - 8 : 2), cy, (r > 12 ? 2 : 1), c, bg); // kim ngắn
+}
+/* Gợi ý "mã QR" ở màn chờ chọn gói: 3 ô định vị như góc mã QR thật. */
+static void lQrHint(int cx, int cy, int s, uint16_t c, uint16_t bg) {
+  int q = s / 3, off = s / 2 - q / 2;
+  int px[3] = { cx - off, cx + off, cx - off };
+  int py[3] = { cy - off, cy - off, cy + off };
+  for (int k = 0; k < 3; k++) {
+    lRoundRectA(px[k] - q / 2, py[k] - q / 2, q, q, q / 4, c, bg);
+    lRoundRectA(px[k] - q / 2 + q / 6, py[k] - q / 2 + q / 6, q - q / 3, q - q / 3, q / 6, bg, c);
+    lRoundRectA(px[k] - q / 6, py[k] - q / 6, q / 3, q / 3, q / 12, c, bg);
+  }
+}
+
+/* Kích thước & vị trí THẺ QR bên phải — dùng chung IDLE + WAIT_PAY cho cân đối. */
+#define QR_X   412
+#define QR_Y    40
+#define QR_W   364
+#define QR_H   400
+
 static void veIdle() {
-  lFill(C_BG); lRect(0, 0, LW, 6, C_BLUE);
+  lFill(C_BG);
   int n = PKG_N < 1 ? 1 : (PKG_N > PKG_MAX ? PKG_MAX : PKG_N);
-  int top = 40, gap = 16, availH = LH - top - 24;
-  int h = (availH - (n - 1) * gap) / n; if (h > 130) h = 130;
+  int LX = 24, LWD = 372, top = QR_Y, botM = 40, gap = 18;
+  int availH = LH - top - botM;
+  int h = (availH - (n - 1) * gap) / n; if (h > 132) h = 132;
   for (int i = 0; i < n; i++) {
     int y = top + i * (h + gap);
-    g_btn[i] = { 28, y, 340, h };
+    g_btn[i] = { LX, y, LWD, h };
     bool sel = (i == g_chon);
-    lRoundRect(30, y + 5, 340, h, 18, C_SHADOW);
-    lRoundRect(28, y, 340, h, 18, sel ? C_AMBER : C_BORDER);
-    lRoundRect(32, y + 4, 332, h - 8, 15, sel ? C_TINT : C_WHITE);
-    int bs = h - 48; if (bs > 76) bs = 76;
-    lRoundRect(50, y + (h - bs) / 2, bs, bs, 14, sel ? C_AMBER : C_BLUE);
-    lDigit(50 + (bs - 40) / 2, y + (h - 56) / 2, i + 1, 8, C_WHITE);
-    lPrice(150, y + (h - 35) / 2, PKG_AMT[i], 5, C_INK);
+    uint16_t inner = sel ? C_TINT : C_WHITE, edge = sel ? C_AMBER : C_BORDER, badge = sel ? C_AMBER : C_BLUE;
+    lRoundRectA(LX + 3, y + 5, LWD, h, 22, C_SHADOW, C_BG);
+    lRoundRectA(LX, y, LWD, h, 22, edge, C_BG);
+    lRoundRectA(LX + 3, y + 3, LWD - 6, h - 6, 19, inner, edge);
+    // Huy hiệu số gói (đĩa tròn) + số ở giữa
+    int br = h / 2 - 16; if (br > 50) br = 50;
+    int bx = LX + 20 + br, by = y + h / 2;
+    lCircleA(bx, by, br, badge, inner);
+    int ds = br / 3; if (ds < 4) ds = 4;
+    lDigit(bx - (5 * ds) / 2, by - (7 * ds) / 2, i + 1, ds, C_WHITE, badge);
+    // Giá (to) + đồng hồ phút (nhỏ) xếp 2 dòng bên phải huy hiệu
+    int rx = LX + 40 + 2 * br;
+    lPrice(rx, y + 18, PKG_AMT[i], 5, C_INK, inner);
+    int ph = phutGoi(i);
+    lClock(rx + 12, y + h - 30, 12, C_BLUE, inner);
+    lNum(rx + 32, y + h - 44, ph, 4, C_BLUE, inner);
   }
-  // Thẻ QR bên phải: trống ở IDLE, hiện khung để mời chạm.
-  lRoundRect(403, 46, 372, 392, 22, C_SHADOW);
-  lRoundRect(400, 40, 372, 392, 22, C_WHITE);
-  lRoundRect(400, 40, 372, 8, 0, C_BLUE);
-  // dấu QR mờ (khung) — chưa có mã tới khi chọn gói
-  lRoundRect(470, 130, 232, 232, 16, C_BG);
+  // Thẻ QR bên phải — ở IDLE là gợi ý "quét mã" (mời khách chọn gói).
+  lRoundRectA(QR_X + 3, QR_Y + 6, QR_W, QR_H, 24, C_SHADOW, C_BG);
+  lRoundRectA(QR_X, QR_Y, QR_W, QR_H, 24, C_WHITE, C_BG);
+  lRoundRectA(QR_X, QR_Y, QR_W, 10, 5, C_BLUE, C_WHITE);
+  lQrHint(QR_X + QR_W / 2, QR_Y + QR_H / 2, 210, RGB565(0xC7,0xD6,0xE8), C_WHITE);
 }
 static void veWaitPay() {
-  lFill(C_BG); lRect(0, 0, LW, 6, C_AMBER);
-  // Bên trái: gói đã chọn + số tiền + phút
-  lRoundRect(30, 45, 340, 190, 18, C_SHADOW); lRoundRect(28, 40, 340, 190, 18, C_AMBER);
-  lRoundRect(32, 44, 332, 182, 15, C_TINT);
-  lRoundRect(60, 70, 80, 80, 16, C_AMBER); lDigit(80, 82, payIdx + 1, 9, C_WHITE);
-  lPrice(60, 170, payAmount, 6, C_INK);
-  // phút còn (cửa sổ chờ) — đồng hồ nhỏ
+  lFill(C_BG);
+  int LX = 24, LWD = 372, y = QR_Y, h = QR_H;
+  lRoundRectA(LX + 3, y + 6, LWD, h, 24, C_SHADOW, C_BG);
+  lRoundRectA(LX, y, LWD, h, 24, C_AMBER, C_BG);
+  lRoundRectA(LX + 4, y + 4, LWD - 8, h - 8, 20, C_TINT, C_AMBER);
+  // Huy hiệu số gói (trên)
+  int bx = LX + LWD / 2, by = y + 92;
+  lCircleA(bx, by, 56, C_AMBER, C_TINT);
+  lDigit(bx - (5 * 11) / 2, by - (7 * 11) / 2, payIdx + 1, 11, C_WHITE, C_AMBER);
+  // Giá (giữa, căn giữa)
+  int pw = lPriceW(payAmount, 7);
+  lPrice(bx - pw / 2, y + 188, payAmount, 7, C_INK, C_TINT);
+  // Cửa sổ chờ (đồng hồ + MM:SS)
   int left = (waitUntil > millis()) ? (int)((waitUntil - millis()) / 1000) : 0;
-  lMMSS(160, 90, left, 5, C_INK);
+  int cw = 34 + lMMSSW(5);
+  int cx0 = bx - cw / 2;
+  lClock(cx0 + 12, y + 300 + 5 * 5 / 2, 13, C_INK, C_TINT);
+  lMMSS(cx0 + 34, y + 300, left, 5, C_INK, C_TINT);
   // Thẻ QR VietQR THẬT
-  lRoundRect(403, 46, 372, 392, 22, C_SHADOW); lRoundRect(400, 40, 372, 392, 22, C_WHITE);
-  lRoundRect(400, 40, 372, 8, 0, C_AMBER);
+  lRoundRectA(QR_X + 3, QR_Y + 6, QR_W, QR_H, 24, C_SHADOW, C_BG);
+  lRoundRectA(QR_X, QR_Y, QR_W, QR_H, 24, C_WHITE, C_BG);
+  lRoundRectA(QR_X, QR_Y, QR_W, 10, 5, C_AMBER, C_WHITE);
   String memo = (ND_TIEN_TO.length() ? ND_TIEN_TO + " " : "") + "GHE" + (CHAIR_ID.length() ? CHAIR_ID : "01") + " " + String(payCode);
   String payload = buildVietQR(BANK_BIN, ACCOUNT_NO, payAmount, memo);
-  lQR(430, 78, 300, payload.c_str());
+  int oPx = 305, mod = oPx / 61; if (mod < 1) mod = 1;   // v11 = 61 module
+  int qside = mod * 61 + 2 * mod;
+  lQR(QR_X + (QR_W - qside) / 2, QR_Y + (QR_H - qside) / 2, oPx, payload.c_str());
 }
-static void veCamon() {   // đã nhận tiền — nền xanh + dấu tích
+static void veCamon() {   // đã nhận tiền — nền xanh + dấu tích mượt
   lFill(C_GREEN);
-  int cx = LW / 2 - 70, cy = LH / 2 - 60;
-  // dấu tích to bằng 2 thanh
-  for (int i = 0; i < 40; i++) lRect(cx + i, cy + 60 + i, 14, 14, C_WHITE);
-  for (int i = 0; i < 90; i++) lRect(cx + 40 + i, cy + 100 - i, 14, 14, C_WHITE);
+  int cx = LW / 2, cy = LH / 2;
+  lCircleA(cx, cy, 96, C_WHITE, C_GREEN);
+  lStroke(cx - 42, cy + 4, cx - 12, cy + 40, 9, C_GREEN, C_WHITE);
+  lStroke(cx - 12, cy + 40, cx + 50, cy - 40, 9, C_GREEN, C_WHITE);
 }
 static void veRunning() {
-  lFill(RGB565(0x14,0x1E,0x30));
+  uint16_t bg = RGB565(0x12,0x1B,0x2C);
+  lFill(bg);
   int left = (int)(runRemainMs / 1000);
-  lMMSS(LW / 2 - 170, LH / 2 - 60, left, 16, gheKhongChay ? C_AMBER : C_WHITE);
-  // thanh tiến độ
+  uint16_t c = gheKhongChay ? C_AMBER : C_WHITE;
+  int sc = 20, w = lMMSSW(sc);
+  lMMSS((LW - w) / 2, 150, left, sc, c, bg);
+  // Thanh tiến độ (bo góc, mượt)
   long total = (long)payMinutes * 60; if (total < 1) total = 1;
-  int barW = (int)((long)(LW - 120) * left / total);
-  lRoundRect(60, LH - 70, LW - 120, 22, 10, RGB565(0x2A,0x3A,0x55));
-  lRoundRect(60, LH - 70, barW, 22, 10, gheKhongChay ? C_AMBER : C_GREEN);
+  int barX = 70, barW = LW - 140, barH = 26, barY = LH - 74;
+  lRoundRectA(barX, barY, barW, barH, 13, RGB565(0x27,0x35,0x4E), bg);
+  int fw = (int)((long)barW * left / total); if (fw < 0) fw = 0; if (fw > barW) fw = barW;
+  if (fw >= 2) lRoundRectA(barX, barY, fw, barH, 13, gheKhongChay ? C_AMBER : C_GREEN, bg);
+  if (gheKhongChay) {   // ghế đang tạm dừng → biểu tượng ‖
+    lRoundRectA(LW / 2 - 26, 80, 16, 44, 5, C_AMBER, bg);
+    lRoundRectA(LW / 2 + 10, 80, 16, 44, 5, C_AMBER, bg);
+  }
 }
-static void veNoAcc() {   // chưa có tài khoản nhận (chưa hỏi được server) — nền đỏ
+static void veNoAcc() {   // chưa có tài khoản nhận — nền đỏ + dấu "!"
   lFill(C_RED);
-  lRoundRect(LW / 2 - 40, LH / 2 - 60, 80, 80, 8, C_WHITE);   // hình chữ nhật báo
-  lRect(LW / 2 - 8, LH / 2 - 45, 16, 45, C_RED);
-  lRect(LW / 2 - 8, LH / 2 + 6, 16, 16, C_RED);
+  int cx = LW / 2, cy = LH / 2;
+  lCircleA(cx, cy, 84, C_WHITE, C_RED);
+  lRoundRectA(cx - 9, cy - 46, 18, 56, 9, C_RED, C_WHITE);
+  lCircleA(cx, cy + 34, 11, C_RED, C_WHITE);
 }
 static void sangTrangThai(State s) {
   state = s;
