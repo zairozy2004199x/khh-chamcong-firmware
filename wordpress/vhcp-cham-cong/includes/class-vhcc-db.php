@@ -754,6 +754,29 @@ class VHCC_DB {
 		/* ===== 18. NHẬT KÝ TRA PIN (sheet NhatKyTraPin) =====================================
 		   Ghi CCCD đã CHE và KHÔNG BAO GIỜ ghi PIN. Nhật ký là chỗ rò rỉ dễ nhất: người xem được
 		   nhật ký thường nhiều hơn người được xem PIN. */
+		/* ===== 18b. NHẬT KÝ SỬA HỒ SƠ TỪ CỬA HÀNG ==========================================
+		   Anh Thắng 31/08/2026 mở cho cửa hàng trưởng sửa thông tin liên lạc và cấp PIN cho
+		   người của cơ sở mình, và chốt rằng người làm HAI nơi thì CẢ HAI cửa hàng sửa được.
+
+		   🔴 HAI NƠI CÙNG SỬA ĐƯỢC THÌ PHẢI CÓ SỔ. Không có sổ, đến lúc một số điện thoại sai
+		      thì không ai biết ai gõ, gõ lúc nào, gõ từ cửa hàng nào — và câu trả lời duy nhất
+		      còn lại là "chắc bên kia sửa", tức là không có câu trả lời nào.
+
+		   ⚠️ CỘT `cu` VÀ `moi` KHÔNG BAO GIỜ CHỨA PIN. Đổi PIN chỉ ghi đúng chữ "đã đổi" — sổ
+		      này người trong công ty đọc được, mà PIN là thứ đọc một lần là dùng được mãi. */
+		$b['nhat_ky_ho_so'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			luc DATETIME NOT NULL,
+			ma_nv VARCHAR(40) NOT NULL DEFAULT '',
+			ai VARCHAR(190) NOT NULL DEFAULT '',
+			tu_coso VARCHAR(120) NOT NULL DEFAULT '',
+			o VARCHAR(40) NOT NULL DEFAULT '',
+			cu VARCHAR(255) NOT NULL DEFAULT '',
+			moi VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY nguoi (ma_nv,luc),
+			KEY luc (luc)";
+
 		$b['nhat_ky_tra_pin'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			luc DATETIME NOT NULL,

@@ -201,12 +201,24 @@ class VHCC_NhanSu {
 	 * @return array `sql` · `tv` (tham số cho $wpdb->prepare)
 	 */
 	public static function dk_sql_coso( $coso ) {
-		global $wpdb;
 		$coso = self::chuan_coso( $coso );
 		if ( '' === $coso ) { return array( 'sql' => '1=1', 'tv' => array() ); }
+		/* 🔴 CỐ Ý KHÔNG `esc_like()`, VÀ ĐÂY LÀ MỘT CÁI BẪY THẬT ĐÃ SẬP.
+		   Mã cơ sở của K&H đầy dấu gạch dưới (`POSH_HCM`, `FZ_SC_VIVO_T`). `esc_like()` biến
+		   `_` thành `\_`, mà dấu `\` chỉ là ký tự thoát của LIKE trên MySQL — SQLite thì
+		   KHÔNG, trừ khi khai `ESCAPE`. Nên cùng một câu cho hai kết quả khác nhau: trên
+		   hosting thì khớp, trên máy chạy thử thì không. Loại lệch ấy tệ hơn cả một lỗi thường,
+		   vì bộ thử và thật nói ngược nhau mà chẳng bên nào kêu.
+
+		   Bỏ `esc_like()` thì `_` và `%` trong tên cơ sở thành ký tự đại diện, tức mệnh đề bắt
+		   THỪA. Đúng ý: mệnh đề này vốn chỉ để NỚI, và `hs_thuoc_coso()` lọc lại cho đúng ngay
+		   sau đó. Nới rồi lọc thì sai một chiều duy nhất là đọc thừa vài dòng.
+
+		   ⚠️ NƠI GỌI PHẢI LỌC LẠI. Không lọc thì đây thành lỗ: lọc cơ sở "TA" kéo về cả người
+		      của "BETA", tức lộ hồ sơ của chi nhánh khác. Phá thử canh đúng chỗ đó. */
 		return array(
 			'sql' => '(LOWER(cua_hang)=LOWER(%s) OR LOWER(coso_phu) LIKE LOWER(%s))',
-			'tv'  => array( $coso, '%' . $wpdb->esc_like( $coso ) . '%' ),
+			'tv'  => array( $coso, '%' . $coso . '%' ),
 		);
 	}
 
@@ -907,6 +919,135 @@ class VHCC_NhanSu {
 	 *
 	 * ⚠️ Bốn chốt, mỗi chốt một lý do khác nhau — bỏ chốt nào cũng mất một thứ khác nhau.
 	 */
+	/**
+	 * PIN NÀY ĐANG LÀ CỦA AI — trả mã NV, hoặc chuỗi rỗng nếu chưa ai dùng.
+	 *
+	 * 🔴 HAI NGƯỜI CÙNG MỘT PIN LÀ ĐĂNG NHẬP NHẦM NGƯỜI. `VHCC_Auth::login()` tra theo PIN, nên
+	 *    người vào được sẽ là người đầu tiên khớp — và người kia gõ đúng PIN của mình mà vào
+	 *    nhầm tài khoản, thấy công của người khác, nộp đơn dưới tên người khác. Đây là loại lỗi
+	 *    không ai báo, vì người dùng tưởng mình bấm nhầm.
+	 *
+	 * ⚠️ KHÔNG trả về PIN, chỉ trả MÃ NV. Nơi gọi cần biết "có đụng ai không", không cần biết số.
+	 */
+	public static function pin_dang_dung( $pin, $tru_ma = '' ) {
+		global $wpdb;
+		$pin = trim( (string) $pin );
+		if ( '' === $pin ) { return ''; }
+		$ma = $wpdb->get_var( $wpdb->prepare(
+			'SELECT ma_nv FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. ' WHERE pin_dang_nhap=%s AND ma_nv<>%s LIMIT 1', $pin, trim( (string) $tru_ma ) ) );
+		return null === $ma ? '' : (string) $ma;
+	}
+
+	/** Bốn ô liên lạc cửa hàng được sửa. Khai MỘT chỗ để cửa và màn không bao giờ lệch nhau. */
+	const O_CUA_HANG_SUA = array(
+		'sdt'                => 'Số điện thoại',
+		'dia_chi'            => 'Địa chỉ',
+		'nguoi_lien_he_khan' => 'Người liên hệ khẩn',
+		'sdt_khan'           => 'SĐT khẩn',
+	);
+
+	/**
+	 * CỬA SỬA HỒ SƠ DÀNH CHO CỬA HÀNG — hẹp, và hẹp là điểm chính của nó.
+	 *
+	 * Anh Thắng 31/08/2026: mỗi cơ sở có hệ thống quản lý nhân sự con của mình, *"để tại cửa
+	 * hàng trực tiếp quản lý dễ hơn"*; cửa hàng trưởng được sửa thông tin liên lạc và cấp PIN.
+	 *
+	 * 🔴 DANH SÁCH TRẮNG, KHÔNG PHẢI DANH SÁCH ĐEN. Chỉ bốn ô ở `O_CUA_HANG_SUA` cộng ô PIN đi
+	 *    qua được; mọi ô khác bị bỏ lặng lẽ. Viết theo kiểu "chặn mấy ô nhạy cảm" thì thêm một
+	 *    cột mới vào bảng là tự động mở cửa cho nó, và không ai nhớ ra để chặn.
+	 *
+	 * 🔴 KHÔNG ĐỔI ĐƯỢC CƠ SỞ, VAI TRÒ, LƯƠNG, SỐ TÀI KHOẢN, MÃ NV. Đổi cơ sở là chuyển công và
+	 *    lương sang cửa hàng khác; đổi vai trò là tự nâng quyền cho mình. Hai việc ấy ở bậc trên.
+	 *
+	 * ⚠️ NGƯỜI LÀM HAI NƠI THÌ CẢ HAI CỬA HÀNG SỬA ĐƯỢC (anh Thắng chốt 31/08) — nên gác bằng
+	 *    `co_quyen_ho_so()` chứ không phải `co_quyen_coso()` trên cơ sở đứng đầu. Đổi lại, mọi
+	 *    lượt sửa đều vào sổ `nhat_ky_ho_so` kèm TÊN người sửa và CỬA HÀNG họ đang đứng: hai nơi
+	 *    cùng sửa mà không có sổ thì lúc lệch chỉ còn mỗi câu "chắc bên kia sửa".
+	 *
+	 * @return array `ok` · `doi`(mảng tên ô đã đổi) hoặc `error`.
+	 */
+	public static function sua_ho_so_coso( $u, $ma, $dat ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu Mã NV.' ); }
+		/* ⚠️ PHÁ THỬ KHÔNG BẮT ĐƯỢC VIỆC BỎ DÒNG NÀY, và đó là điều bình thường — đã tìm ra lý do
+		   (pha70, 31/08/2026): `co_quyen_ho_so()` ngay dưới hỏi `co_quyen_coso()`, mà hàm ấy
+		   chặn ngay ai không có `cong_coso` — cùng bậc Cửa hàng trưởng với `ho_so_coso`. Nên
+		   hôm nay hai gác chặn đúng cùng một nhóm người.
+		   VẪN GIỮ, vì nó nói ĐÚNG việc đang xin: "sửa hồ sơ" chứ không phải "xem công cơ sở".
+		   Ngày ai đó hạ `cong_coso` xuống bậc Nhân viên (chuyện hoàn toàn có thể — nhân viên xem
+		   công cơ sở mình là một yêu cầu hợp lý), dòng này là thứ duy nhất còn chặn. */
+		if ( ! VHCC_Vai::duoc( $u, 'ho_so_coso' ) ) {
+			return array( 'ok' => false, 'error' => VHCC_Vai::loi( $u, 'ho_so_coso', 'Sửa hồ sơ' ) );
+		}
+		$cu = self::ho_so( $ma );
+		if ( ! $cu ) { return array( 'ok' => false, 'error' => 'Không thấy hồ sơ ' . $ma . '.' ); }
+		if ( ! self::co_quyen_ho_so( $u, $cu ) ) {
+			return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
+		}
+
+		$ghi = array();
+		$sg  = array();
+		foreach ( self::O_CUA_HANG_SUA as $o => $ten ) {
+			if ( ! isset( $dat[ $o ] ) ) { continue; }
+			$moi = trim( (string) $dat[ $o ] );
+			if ( $moi === trim( (string) $cu[ $o ] ) ) { continue; }
+			$ghi[ $o ] = $moi;
+			$sg[]      = array( 'o' => $o, 'cu' => (string) $cu[ $o ], 'moi' => $moi );
+		}
+
+		/* PIN: trống = GIỮ NGUYÊN, không phải xoá — cùng luật với mọi ô PIN khác trong hệ. */
+		if ( isset( $dat['pin_dang_nhap'] ) ) {
+			$pin = VHCC_NapCsv::pin( (string) $dat['pin_dang_nhap'] );
+			if ( '' !== $pin ) {
+				$dung = self::pin_dang_dung( $pin, $ma );
+				if ( '' !== $dung ) {
+					return array( 'ok' => false,
+						'error' => 'PIN này đang là PIN của một người khác. Chọn số khác.' );
+				}
+				$ghi['pin_dang_nhap'] = $pin;
+				/* 🔴 SỔ KHÔNG BAO GIỜ GHI GIÁ TRỊ PIN — chỉ ghi rằng đã đổi. Sổ này người trong
+				   công ty đọc được, mà PIN đọc một lần là dùng được mãi. */
+				$sg[] = array( 'o' => 'pin_dang_nhap', 'cu' => '', 'moi' => 'đã đổi' );
+			}
+		}
+
+		if ( ! $ghi ) { return array( 'ok' => true, 'doi' => array(), 'thong_bao' => 'Không có gì đổi.' ); }
+
+		$ghi['cap_nhat'] = current_time( 'mysql' );
+		$wpdb->update( VHCC_DB::t( 'nhan_vien' ), $ghi, array( 'ma_nv' => $ma ) );
+
+		$ai = trim( isset( $u['name'] ) ? (string) $u['name'] : '' );
+		$tu = implode( ', ', self::ds_coso_cua( $u ) );
+		foreach ( $sg as $x ) {
+			$wpdb->insert( VHCC_DB::t( 'nhat_ky_ho_so' ), array(
+				'luc'     => current_time( 'mysql' ),
+				'ma_nv'   => $ma,
+				'ai'      => $ai,
+				'tu_coso' => $tu,
+				'o'       => $x['o'],
+				'cu'      => mb_substr( $x['cu'], 0, 250 ),
+				'moi'     => mb_substr( $x['moi'], 0, 250 ),
+			) );
+		}
+		$ten_doi = array();
+		foreach ( $sg as $x ) {
+			$ten_doi[] = isset( self::O_CUA_HANG_SUA[ $x['o'] ] )
+				? self::O_CUA_HANG_SUA[ $x['o'] ] : 'PIN đăng nhập';
+		}
+		return array( 'ok' => true, 'doi' => $ten_doi,
+			'thong_bao' => 'Đã lưu: ' . implode( ', ', $ten_doi ) . '.' );
+	}
+
+	/** Mấy lượt sửa gần nhất của một người — đọc để đối chiếu khi số liệu lệch. */
+	public static function nhat_ky_ho_so( $ma, $tran = 20 ) {
+		global $wpdb;
+		return VHCC_DB::rows( $wpdb->prepare(
+			'SELECT * FROM ' . VHCC_DB::t( 'nhat_ky_ho_so' )
+			. ' WHERE ma_nv=%s ORDER BY id DESC LIMIT %d', trim( (string) $ma ), (int) $tran ) );
+	}
+
 	public static function luu_ho_so( $u, $dat ) {
 		global $wpdb;
 		$ma = trim( isset( $dat['ma_nv'] ) ? (string) $dat['ma_nv'] : '' );
@@ -932,8 +1073,10 @@ class VHCC_NhanSu {
 					'error' => 'Đổi cửa hàng của một người là chuyển công và lương giữa hai cửa hàng — '
 						. self::LOI_QT . ' Cần người này làm thêm ở cửa hàng bạn thì khai vào ô Cơ sở phụ.' );
 			}
-			// Chốt 4: cửa hàng trưởng chỉ sửa người ĐANG ở cửa hàng mình.
-			if ( ! self::co_quyen_coso( $u, $coso_cu ) ) {
+			/* Chốt 4: chỉ sửa người của cơ sở mình — nhưng tính CẢ cơ sở người ta tích thêm.
+			   Anh Thắng 31/08/2026 chốt: người làm hai nơi thì CẢ HAI cửa hàng sửa được. Hỏi mỗi
+			   cơ sở đứng đầu là dựng lại đúng cái thứ bậc chính/phụ vừa bỏ. */
+			if ( ! self::co_quyen_ho_so( $u, $cu ) ) {
 				return array( 'ok' => false, 'error' => 'Hồ sơ này không thuộc cơ sở bạn phụ trách.' );
 			}
 		} elseif ( '' !== $coso_moi && ! self::co_quyen_coso( $u, $coso_moi ) ) {

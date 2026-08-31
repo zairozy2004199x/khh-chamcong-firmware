@@ -16126,6 +16126,18 @@ foreach ( $ds_ta as $x ) { $ma_ta[] = $x['ma_nv']; }
 sort( $ma_ta );
 teq( '🔴 lọc "TA" KHÔNG kéo nhầm người của "BETA"', 'CSTA', implode( ',', $ma_ta ) );
 
+/* (d2) 🔴 MÃ CƠ SỞ CÓ DẤU GẠCH DƯỚI — mã THẬT của K&H đều thế (`POSH_HCM`, `FZ_SC_VIVO_T`).
+       Bản đầu dùng `$wpdb->esc_like()`, biến `_` thành `\_`. Dấu `\` là ký tự thoát của LIKE
+       trên MySQL nhưng KHÔNG trên SQLite, nên cùng một câu cho hai kết quả: hosting khớp, máy
+       chạy thử không. Bộ thử và thật nói ngược nhau mà chẳng bên nào kêu — nên mục này dùng
+       đúng hình dạng mã thật, để cái lệch ấy không quay lại. */
+VHCC_NhanSu::luu_ho_so( $ad_cs, array( 'ma_nv' => 'CSU1', 'ho_ten' => 'Gạch Dưới',
+	'cua_hang' => 'POSH_HCM', 'coso_phu' => 'FZ_SC_VIVO_T', 'vai_tro' => 'Nhân viên' ) );
+$ds_u = VHCC_NhanSu::ds_nhan_vien( $ad_cs, 'FZ_SC_VIVO_T' );
+$ma_u = array();
+foreach ( $ds_u as $x ) { $ma_u[] = $x['ma_nv']; }
+teq( '🔴 lọc theo mã có dấu gạch dưới vẫn tìm ra người', 'CSU1', implode( ',', $ma_u ) );
+
 /* (e) Cờ "chờ trả về" cũng phải hiện ở lưới của cơ sở tích thêm — người bấm nút đang đứng ở đó. */
 global $wpdb;
 $wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cho_tra_ve' => 1 ), array( 'ma_nv' => 'CSAB' ) );
@@ -16427,6 +16439,177 @@ $_POST = array(); $_GET = array();
 teq( '🔴 wp-admin lưu: rải đúng và bỏ trùng', 'BA · BON',
 	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'AD1' ) ) ) );
 teq( 'cơ sở đầu vào cột cua_hang', 'BA', VHCC_NhanSu::ho_so( 'AD1' )['cua_hang'] );
+
+/* =============================================================================================
+ * KHU NHÂN SỰ CỦA CỬA HÀNG.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"Mỗi cơ sở sẽ có thêm 1 hệ thống quản lý nhân sự con của mình. Để tại
+ * cửa hàng trực tiếp quản lý dễ hơn"*, và chốt: cửa hàng trưởng sửa được thông tin liên lạc +
+ * cấp PIN; người làm hai nơi thì CẢ HAI cửa hàng sửa được.
+ *
+ * Cửa `sua_ho_so_coso()` là một DANH SÁCH TRẮNG bốn ô liên lạc cộng ô PIN. Mục này canh cả hai
+ * chiều: mở đúng cái phải mở, và KHÔNG mở cái gì khác.
+ */
+vhcc_dung_bang();
+$ns_ad  = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'NSAD' );
+$ns_cht = array( 'name' => 'Trưởng Một', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'CH_MOT', 'ma_nv' => 'NSTR' );
+$ns_nv  = array( 'name' => 'Nhân Viên', 'role' => 'Nhân viên', 'coso' => 'CH_MOT', 'ma_nv' => 'NSNV' );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'N1', 'ho_ten' => 'Người Một',
+	'cua_hang' => 'CH_MOT', 'sdt' => '0900000001', 'luong_co_ban' => 7000000,
+	'so_tai_khoan' => '111', 'vai_tro' => 'Nhân viên', 'chuc_vu' => 'Bán hàng' ) );
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'N2', 'ho_ten' => 'Người Hai',
+	'cua_hang' => 'CH_HAI', 'sdt' => '0900000002', 'vai_tro' => 'Nhân viên' ) );
+/* Người làm hai nơi — cả hai cửa hàng sửa được. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'N12', 'ho_ten' => 'Người Hai Nơi',
+	'cua_hang' => 'CH_HAI', 'coso_phu' => 'CH_MOT', 'sdt' => '0900000012', 'vai_tro' => 'Nhân viên' ) );
+
+/* --- (a) Cửa mở đúng bốn ô liên lạc --- */
+$r_ns = VHCC_NhanSu::sua_ho_so_coso( $ns_cht, 'N1', array(
+	'sdt' => '0911111111', 'dia_chi' => 'Số 1 Lê Lợi',
+	'nguoi_lien_he_khan' => 'Mẹ', 'sdt_khan' => '0922222222' ) );
+t( 'cửa hàng trưởng sửa được liên lạc', ! empty( $r_ns['ok'] ), $r_ns );
+$hs_n1 = VHCC_NhanSu::ho_so( 'N1' );
+teq( 'SĐT đã đổi', '0911111111', $hs_n1['sdt'] );
+teq( 'địa chỉ đã đổi', 'Số 1 Lê Lợi', $hs_n1['dia_chi'] );
+teq( 'người liên hệ khẩn đã đổi', 'Mẹ', $hs_n1['nguoi_lien_he_khan'] );
+
+/* --- (b) 🔴 VÀ KHÔNG MỞ GÌ KHÁC. Danh sách trắng, nên ô lạ bị bỏ lặng lẽ chứ không ghi. --- */
+VHCC_NhanSu::sua_ho_so_coso( $ns_cht, 'N1', array(
+	'luong_co_ban' => 99000000, 'so_tai_khoan' => 'HACK', 'vai_tro' => 'Admin',
+	'cua_hang' => 'CH_KHAC', 'coso_phu' => 'CH_KHAC_2', 'ma_nv' => 'N999',
+	'ho_ten' => 'Tên Khác', 'trang_thai_lam_viec' => 'Đã nghỉ' ) );
+$hs_n1 = VHCC_NhanSu::ho_so( 'N1' );
+teq( '🔴 lương KHÔNG đụng được', '7000000', (string) (int) $hs_n1['luong_co_ban'] );
+teq( '🔴 số tài khoản KHÔNG đụng được', '111', $hs_n1['so_tai_khoan'] );
+teq( '🔴 vai trò KHÔNG tự nâng được', 'Nhân viên', $hs_n1['vai_tro'] );
+teq( '🔴 cơ sở KHÔNG đổi được (chuyển công + lương sang nơi khác)', 'CH_MOT', $hs_n1['cua_hang'] );
+teq( 'và họ tên cũng không', 'Người Một', $hs_n1['ho_ten'] );
+teq( 'trạng thái làm việc cũng không — cho nghỉ là việc bậc trên', '', $hs_n1['trang_thai_lam_viec'] );
+
+/* --- (c) Chặn theo cơ sở và theo bậc --- */
+$r_xa = VHCC_NhanSu::sua_ho_so_coso( $ns_cht, 'N2', array( 'sdt' => '0999' ) );
+t( '🔴 không sửa được người của cơ sở khác',
+	empty( $r_xa['ok'] ) && stripos( $r_xa['error'], 'không thuộc cơ sở' ) !== false, $r_xa );
+teq( 'và hồ sơ ấy không suy suyển', '0900000002', VHCC_NhanSu::ho_so( 'N2' )['sdt'] );
+$r_nv = VHCC_NhanSu::sua_ho_so_coso( $ns_nv, 'N1', array( 'sdt' => '0999' ) );
+t( '🔴 nhân viên bậc 1 KHÔNG sửa được hồ sơ ai', empty( $r_nv['ok'] ), $r_nv );
+
+/* --- (d) 🔴 NGƯỜI HAI NƠI: CẢ HAI CỬA HÀNG SỬA ĐƯỢC (anh Thắng chốt 31/08) --- */
+$cht2 = array( 'name' => 'Trưởng Hai', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'CH_HAI', 'ma_nv' => 'NSTR2' );
+$r_a = VHCC_NhanSu::sua_ho_so_coso( $ns_cht, 'N12', array( 'sdt' => '0933333333' ) );
+t( 'cửa hàng CH_MOT sửa được người tích thêm CH_MOT', ! empty( $r_a['ok'] ), $r_a );
+$r_b = VHCC_NhanSu::sua_ho_so_coso( $cht2, 'N12', array( 'dia_chi' => 'Chỗ mới' ) );
+t( 'và cửa hàng CH_HAI cũng sửa được', ! empty( $r_b['ok'] ), $r_b );
+
+/* --- (e) 🔴 HAI NƠI CÙNG SỬA THÌ PHẢI CÓ SỔ, và sổ ghi rõ AI, TỪ ĐÂU --- */
+$sk = VHCC_NhanSu::nhat_ky_ho_so( 'N12' );
+teq( 'sổ ghi đủ hai lượt sửa', 2, count( $sk ) );
+$ai = array();
+foreach ( $sk as $x ) { $ai[] = $x['ai'] . '@' . $x['tu_coso']; }
+sort( $ai );
+teq( '🔴 sổ nói rõ ai sửa và sửa từ cửa hàng nào',
+	'Trưởng Hai@CH_HAI,Trưởng Một@CH_MOT', implode( ',', $ai ) );
+$dia = null;
+foreach ( $sk as $x ) { if ( 'dia_chi' === $x['o'] ) { $dia = $x; } }
+teq( 'sổ giữ cả giá trị cũ để đối chiếu', '', (string) $dia['cu'] );
+teq( 'và giá trị mới', 'Chỗ mới', (string) $dia['moi'] );
+
+/* --- (f) 🔴 PIN: cấp được, nhưng SỔ KHÔNG BAO GIỜ CHỨA SỐ PIN --- */
+VHCC_NhanSu::sua_ho_so_coso( $ns_cht, 'N1', array( 'pin_dang_nhap' => '778899' ) );
+teq( 'PIN đã được cấp', '778899', VHCC_NhanSu::ho_so( 'N1' )['pin_dang_nhap'] );
+$sk1 = VHCC_NhanSu::nhat_ky_ho_so( 'N1' );
+$co_so_pin = false;
+foreach ( $sk1 as $x ) {
+	if ( false !== strpos( $x['cu'] . '|' . $x['moi'], '778899' ) ) { $co_so_pin = true; }
+}
+t( '🔴 SỔ KHÔNG chứa số PIN — sổ này người trong công ty đọc được', ! $co_so_pin, $sk1 );
+$dong_pin = null;
+foreach ( $sk1 as $x ) { if ( 'pin_dang_nhap' === $x['o'] ) { $dong_pin = $x; } }
+teq( 'chỉ ghi rằng đã đổi', 'đã đổi', (string) $dong_pin['moi'] );
+
+/* Ô PIN để TRỐNG = giữ nguyên, không phải xoá — cùng luật với mọi ô PIN khác trong hệ. */
+VHCC_NhanSu::sua_ho_so_coso( $ns_cht, 'N1', array( 'pin_dang_nhap' => '' ) );
+teq( '🔴 ô PIN trống thì GIỮ NGUYÊN, không xoá mất đường đăng nhập',
+	'778899', VHCC_NhanSu::ho_so( 'N1' )['pin_dang_nhap'] );
+
+/* 🔴 PIN TRÙNG NGƯỜI KHÁC BỊ CHẶN. Hai người cùng PIN là đăng nhập nhầm người — và người dùng
+   tưởng mình bấm nhầm, nên không ai báo. */
+$r_trung = VHCC_NhanSu::sua_ho_so_coso( $cht2, 'N12', array( 'pin_dang_nhap' => '778899' ) );
+t( '🔴 PIN trùng người khác: bị chối',
+	empty( $r_trung['ok'] ) && stripos( $r_trung['error'], 'người khác' ) !== false, $r_trung );
+teq( 'và người kia vẫn giữ PIN của mình', '778899', VHCC_NhanSu::ho_so( 'N1' )['pin_dang_nhap'] );
+
+/* --- (g) Màn: tab, danh sách, và KHÔNG in PIN --- */
+$ds_man_tr = VHCC_Web::man_cua( $ns_cht );
+t( 'cửa hàng trưởng có tab Nhân sự cửa hàng', isset( $ds_man_tr['ns_coso'] ) );
+t( '🔴 nhân viên bậc 1 KHÔNG có tab ấy',
+	! isset( VHCC_Web::man_cua( $ns_nv )['ns_coso'] ) );
+
+/* 🔴 KHÔNG CÓ TAB KHÔNG CÓ NGHĨA LÀ KHÔNG GÕ ĐƯỢC ĐỊA CHỈ. Người ta gõ thật — bookmark cũ,
+   link ai đó gửi. Luật chung của trang: màn không có quyền thì đưa về màn mình dùng được
+   (`trang_chinh()`), không phải ném một trang lỗi. Mục này canh điều PHẢI đúng dù đi đường
+   nào: KHÔNG một cái tên nào của cơ sở lọt ra.
+
+   ⚠️ Gác trong `VHCC_WebNS::man()` là TẦNG HAI, cố ý giữ dù luật chung đã chặn ở tầng một:
+      hai thứ ấy là hai bảng khác nhau (`man_cua()` và `VHCC_Vai`), và ngày chúng lệch nhau là
+      ngày tầng hai đỡ. */
+$h_nv_ns = vhcc_web_nhu2( 'NSNV', 'Nhân viên', 'CH_MOT', array( 'man' => 'ns_coso' ) );
+t( '🔴 nhân viên gõ thẳng địa chỉ: KHÔNG lọt tên ai của cơ sở ra màn',
+	strpos( $h_nv_ns, 'Người Một' ) === false
+	&& strpos( $h_nv_ns, 'Người Hai Nơi' ) === false, $h_nv_ns );
+t( 'và không có bảng nhân sự cửa hàng nào được vẽ',
+	strpos( $h_nv_ns, 'Sổ sửa hồ sơ' ) === false
+	&& strpos( $h_nv_ns, 'có PIN' ) === false, $h_nv_ns );
+/* Gọi THẲNG vào màn (bỏ qua luật chung) để canh tầng hai. */
+ob_start(); VHCC_WebNS::man( '', $ns_nv ); $h_thang = ob_get_clean();
+t( '🔴 tầng hai: gọi thẳng màn bằng tài khoản nhân viên vẫn bị chối',
+	stripos( $h_thang, 'Quản lý nhân sự cửa hàng' ) !== false, $h_thang );
+t( 'và tầng hai cũng không vẽ ra tên ai', strpos( $h_thang, 'Người Một' ) === false, $h_thang );
+
+$h_ns = vhcc_web_nhu2( 'NSTR', 'CUA_HANG_TRUONG', 'CH_MOT',
+	array( 'man' => 'ns_coso', 'ncs' => 'CH_MOT' ) );
+t( 'màn hiện người của cơ sở', strpos( $h_ns, 'Người Một' ) !== false, $h_ns );
+t( '🔴 và hiện cả người TÍCH THÊM cơ sở này',
+	strpos( $h_ns, 'Người Hai Nơi' ) !== false, $h_ns );
+t( 'không hiện người của cơ sở khác', strpos( $h_ns, '>Người Hai<' ) === false, $h_ns );
+t( '🔴 KHÔNG in PIN ra màn — chỉ nói có hay chưa',
+	strpos( $h_ns, '778899' ) === false, 'có số PIN trong HTML' );
+t( 'có nói là đã có PIN', strpos( $h_ns, 'có PIN' ) !== false, $h_ns );
+/* 🔴 LƯƠNG KHÔNG RA TỚI MÀN NÀY — không phải ẩn bằng CSS, mà không đọc lên. */
+t( '🔴 số lương KHÔNG có trong HTML của màn', strpos( $h_ns, '7000000' ) === false, 'lộ lương' );
+t( 'người hai nơi được đánh dấu rõ',
+	strpos( $h_ns, 'CH_HAI · CH_MOT' ) !== false || strpos( $h_ns, 'CH_MOT · CH_HAI' ) !== false, $h_ns );
+
+/* Khối sửa: đúng bốn ô liên lạc + ô PIN, không có ô lương/cơ sở/vai trò. */
+$h_sua_ns = vhcc_web_nhu2( 'NSTR', 'CUA_HANG_TRUONG', 'CH_MOT',
+	array( 'man' => 'ns_coso', 'ncs' => 'CH_MOT', 'nma' => 'N1' ) );
+foreach ( array( 'sdt', 'dia_chi', 'nguoi_lien_he_khan', 'sdt_khan' ) as $o_ns ) {
+	t( 'khối sửa có ô ' . $o_ns, strpos( $h_sua_ns, 'name="' . $o_ns . '"' ) !== false, $h_sua_ns );
+}
+t( 'có ô PIN', strpos( $h_sua_ns, 'name="pin_dang_nhap"' ) !== false, $h_sua_ns );
+/* 🔴 CHỮ KÝ PHẢI LÀ Ô ẨN, KHÔNG PHẢI CHỮ IN RA MÀN.
+   `$ky` là chuỗi băm THÔ. `echo $ky;` trần in nguyên 64 ký tự ra giữa biểu mẫu — đè lên nhãn ô
+   đầu tiên — và lượt gửi thì thiếu `name="ky"` nên bị chối, tức nút Lưu không bao giờ ăn. Bắt
+   được lỗi này khi dựng thật màn ra ảnh, chứ 4400 phép trước đó không thấy: chúng chỉ hỏi "có
+   ô tên X không", mà ô ấy vẫn có. */
+t( '🔴 chữ ký nằm trong ô ẩn name="ky"',
+	preg_match( '/<input type="hidden" name="ky" value="[0-9a-f]{64}"/', $h_sua_ns ) === 1, $h_sua_ns );
+t( '🔴 và KHÔNG có chuỗi băm nào in trần ra ngoài thẻ',
+	preg_match( '/>\s*[0-9a-f]{64}\s*</', $h_sua_ns ) !== 1, $h_sua_ns );
+t( '🔴 ô PIN KHÔNG điền sẵn số cũ',
+	strpos( $h_sua_ns, 'value="778899"' ) === false, $h_sua_ns );
+foreach ( array( 'luong_co_ban', 'so_tai_khoan', 'vai_tro', 'cua_hang', 'coso_o' ) as $o_cam ) {
+	t( '🔴 khối sửa KHÔNG có ô ' . $o_cam,
+		strpos( $h_sua_ns, 'name="' . $o_cam . '"' ) === false, $h_sua_ns );
+}
+t( 'màn này không có lấy một dòng script', stripos( $h_sua_ns, '<script' ) === false, $h_sua_ns );
+
+/* Người hai nơi: nói TRƯỚC khi gõ rằng sửa ở đây là đổi cho cả cửa hàng kia. */
+$h_sua_2 = vhcc_web_nhu2( 'NSTR', 'CUA_HANG_TRUONG', 'CH_MOT',
+	array( 'man' => 'ns_coso', 'ncs' => 'CH_MOT', 'nma' => 'N12' ) );
+t( '🔴 báo trước rằng sửa ở đây là đổi cho cả cửa hàng kia',
+	strpos( $h_sua_2, 'đổi cho <b>cả</b>' ) !== false, $h_sua_2 );
+t( 'và có sổ sửa hồ sơ ngay dưới', strpos( $h_sua_2, 'Sổ sửa hồ sơ' ) !== false, $h_sua_2 );
 
 vhcc_dung_bang();
 

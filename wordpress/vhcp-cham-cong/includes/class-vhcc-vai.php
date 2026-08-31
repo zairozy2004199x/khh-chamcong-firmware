@@ -92,6 +92,12 @@ class VHCC_Vai {
 		'lich_lam'     => self::CHT,      // lên lịch làm việc cho cửa hàng
 		'bao_loi'      => self::CHT,      // gắn cờ / báo lỗi lên trên
 		'ho_so_xem'    => self::CHT,      // xem hồ sơ người CỦA CƠ SỞ MÌNH (không có ô lương)
+		'ho_so_coso'   => self::CHT,      // sửa THÔNG TIN LIÊN LẠC + cấp PIN cho người của cơ sở
+		                                  // mình. 🔴 CỬA HẸP, KHÔNG PHẢI `ho_so` thu nhỏ: nó chỉ
+		                                  // mở đúng bốn ô liên lạc và ô PIN. Lương, số tài khoản,
+		                                  // vai trò, cơ sở, mã NV đều KHÔNG đụng tới được — đó là
+		                                  // những thứ đổi một cái là ra tiền hoặc ra quyền, phải
+		                                  // ở bậc kế toán trở lên.
 		'them_nv'      => self::CHT,      // thêm người mới VÀO CƠ SỞ MÌNH, mã NV tạm
 		                                  // ⚠️ Cố ý ĐẶT DƯỚI ho_so: đây KHÔNG phải cấp mã chuẩn
 		                                  // của công ty (`luu_ho_so` vẫn chặn ở Quản lý), mà là
@@ -179,6 +185,7 @@ class VHCC_Vai {
 		'lich_lam'     => 'Lên lịch làm việc',
 		'bao_loi'      => 'Gắn cờ báo lỗi lên trên',
 		'ho_so_xem'    => 'Xem hồ sơ người cơ sở mình',
+		'ho_so_coso'   => 'Sửa liên lạc & cấp PIN cho người của cơ sở mình',
 		'them_nv'      => 'Thêm người mới vào cơ sở mình (mã tạm)',
 		'cong_tat_ca'  => 'Xem bảng công MỌI cơ sở',
 		'xu_ly_loi'    => 'Kết luận / đóng cờ',

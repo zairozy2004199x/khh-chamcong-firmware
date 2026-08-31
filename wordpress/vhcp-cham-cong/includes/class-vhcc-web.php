@@ -662,7 +662,7 @@ class VHCC_Web {
 	      danh sách này là thứ `o_loc()` đọc để chở tham số qua một lượt POST, và thiếu nó thì
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
 	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk',
-		'lcs', 'lth', 'ltu', 'lden', 'msoma' );
+		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq' );
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -798,6 +798,14 @@ class VHCC_Web {
 
 		if ( VHCC_WebMay::la_viec( $viec ) ) {
 			return VHCC_WebMay::viec( $viec, $toi );
+		}
+
+		/* Cùng lý do với hai màn trên: người cần màn Nhân sự cửa hàng nhất là Cửa hàng trưởng,
+		   và họ KHÔNG có bậc `ho_so`. Để sau chốt dưới thì họ bị đá ra bằng một câu nói về màn
+		   Hồ sơ mà họ không hề đụng tới. `VHCC_WebNS::viec()` tự hỏi quyền ngay dòng đầu, và
+		   `VHCC_NhanSu::sua_ho_so_coso()` gác lần nữa ở tầng dưới. */
+		if ( VHCC_WebNS::la_viec( $viec ) ) {
+			return VHCC_WebNS::viec( $viec, $toi );
 		}
 
 		if ( ! in_array( $viec, self::VIEC_CHAM, true ) && ! self::co_ho_so( $toi ) ) {
@@ -2328,6 +2336,12 @@ class VHCC_Web {
 			return;
 		}
 
+		if ( 'ns_coso' === $man ) {
+			VHCC_WebNS::man( $ky, $toi );
+			self::dong_trang();
+			return;
+		}
+
 		$sua = isset( $_GET['sua'] ) ? sanitize_text_field( wp_unslash( $_GET['sua'] ) ) : '';
 		if ( '' !== $sua ) {
 			/* Màn sửa vẫn cần mấy danh sách xổ ra của bảng — dựng luôn ở đây. */
@@ -2383,7 +2397,12 @@ class VHCC_Web {
 	   rơi vào nhánh đoán mò ở cuối hàm. */
 	/* 'may' đứng CUỐI, cùng lối với hai màn khai cấu hình: Admin mở app ra là để xem bảng công,
 	   không phải để rơi thẳng vào màn có nút đẩy firmware cả chuỗi. Nhưng vẫn phải có tên. */
-	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu', 'lich', 'may' );
+	/* ⚠️ `ns_coso` đứng SAU `du_lieu`, không phải trước. Bảng này quyết định màn nào mở ra đầu
+	   tiên, và với cửa hàng trưởng thì thứ họ mở hằng ngày là Bảng công, không phải khu nhân sự
+	   — khu nhân sự là chỗ họ vào khi CÓ VIỆC. Chen lên trước là đổi màn mở đầu của mọi người
+	   chỉ vì thêm một tab. */
+	const MAN_UU_TIEN = array( 'nha', 'ho_so', 'cham', 'cong_toi', 'cau_hinh', 'du_lieu',
+		'ns_coso', 'lich', 'may' );
 
 	public static function man_mac_dinh( $ds_man ) {
 		foreach ( self::MAN_UU_TIEN as $k ) {
@@ -2508,6 +2527,12 @@ class VHCC_Web {
 		   Nhân viên vào đây không để xếp lịch cho ai; họ hỏi "mai tôi làm ca nào", và màn này
 		   trả lời được câu ấy mà không cần quyền gì thêm. Gác bằng `lich_lam` là đúng một nửa:
 		   nửa kia (xem lịch của chính mình, xin đổi) bị khoá mất mà chẳng vì lý do nào. */
+		/* 🔴 KHU NHÂN SỰ CỦA CỬA HÀNG — anh Thắng 31/08/2026: *"Mỗi cơ sở sẽ có thêm 1 hệ thống
+		   quản lý nhân sự con của mình. Để tại cửa hàng trực tiếp quản lý dễ hơn"*.
+		   Gác bằng `ho_so_coso` (bậc Cửa hàng trưởng), KHÔNG phải `ho_so` (bậc Kế toán): đây
+		   đúng là màn dựng cho người không có bậc hồ sơ. Kế toán và Admin vẫn thấy nó, vì thang
+		   quyền là thang — nhưng họ có thêm màn Hồ sơ & tài khoản đầy đủ. */
+		if ( VHCC_Vai::duoc( $toi, 'ho_so_coso' ) ) { $ds['ns_coso']  = 'Nhân sự cửa hàng'; }
 		if ( VHCC_Vai::duoc( $toi, 'cham_online' ) ) { $ds['lich']     = 'Lịch làm việc'; }
 		if ( VHCC_Vai::duoc( $toi, 'may' ) )        { $ds['may']      = 'Máy & Firmware'; }
 		if ( ! $ds ) { $ds['cong_toi'] = 'Công của tôi'; }
@@ -2522,6 +2547,7 @@ class VHCC_Web {
 	const MAN_BIEU = array(
 		'nha'      => '🏠', 'cong_toi' => '🕐', 'cham'    => '📋', 'ho_so' => '👤',
 		'cau_hinh' => '⚙️', 'du_lieu'  => '🗂️', 'lich'    => '📅', 'may'   => '🖥️',
+		'ns_coso'  => '🏪',
 	);
 
 	/** Một câu nói màn ấy để làm gì — hiện trên thẻ Truy cập nhanh và dưới tiêu đề màn. */
@@ -2532,6 +2558,7 @@ class VHCC_Web {
 		'ho_so'    => 'Khai người, cấp PIN, đặt vai trò và cơ sở',
 		'cau_hinh' => 'Bộ phận, cách tính công, ghép bảng, tên cơ sở',
 		'du_lieu'  => 'Nạp bảng công cũ từ .csv, xem trước rồi mới ghi',
+		'ns_coso'  => 'Người của cửa hàng: sửa liên lạc, cấp PIN',
 		'lich'     => 'Xếp ca cho cửa hàng, duyệt xin đổi lịch',
 		'may'      => 'Thiết bị, cổng nhận từ máy, nạp firmware',
 	);
