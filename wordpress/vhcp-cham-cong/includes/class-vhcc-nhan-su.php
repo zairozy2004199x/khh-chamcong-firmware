@@ -132,6 +132,85 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * MỌI CƠ SỞ MỘT HỒ SƠ LÀM VIỆC — không phân biệt chính với phụ.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026: *"việc phân thêm cơ sở phụ nó đang bị lẫn lộn. Thay vì việc cơ sở
+	 *    phụ. Thì nhân viên sẽ được tích vào cơ sở nào thì sẽ được có mặt làm việc đầy đủ tại
+	 *    chi nhánh đó"*.
+	 *
+	 *    Trước đó `cua_hang` là cơ sở "thật", còn `coso_phu` chỉ là ghi chú: mọi câu lọc theo cơ
+	 *    sở đều hỏi mỗi `cua_hang`, nên người tích cơ sở B làm phụ KHÔNG hiện trong danh sách
+	 *    nhân sự của B, cửa hàng trưởng B không thấy họ, và bảng đếm "ai chưa khai lương" của B
+	 *    cũng bỏ sót. Tích một ô mà không có mặt ở đâu cả — đúng nghĩa lẫn lộn.
+	 *
+	 * ⚠️ HAI CỘT VẪN CÒN, vì chúng là hình dạng dữ liệu mà hệ ghế, sổ lương và bản kéo từ sheet
+	 *    đang đọc. Nhưng từ đây MỌI câu hỏi "người này làm ở đâu" đi qua hàm này, và nó trả về
+	 *    một danh sách BÌNH ĐẲNG. `cua_hang` chỉ còn là "cơ sở đứng đầu danh sách".
+	 */
+	public static function ds_coso_hs( $hs ) {
+		$ds  = array();
+		$goc = array(
+			isset( $hs['cua_hang'] ) ? (string) $hs['cua_hang'] : '',
+			isset( $hs['coso_phu'] ) ? (string) $hs['coso_phu'] : '',
+		);
+		foreach ( $goc as $chuoi ) {
+			foreach ( explode( ',', $chuoi ) as $x ) {
+				$x = self::chuan_coso( $x );
+				if ( '' === $x ) { continue; }
+				$k = self::chu_thuong( $x );
+				if ( ! isset( $ds[ $k ] ) ) { $ds[ $k ] = $x; }
+			}
+		}
+		return array_values( $ds );
+	}
+
+	/** Hồ sơ này có làm ở cơ sở ấy không — so KHÔNG phân biệt hoa thường. */
+	public static function hs_thuoc_coso( $hs, $coso ) {
+		$coso = self::chu_thuong( self::chuan_coso( $coso ) );
+		if ( '' === $coso ) { return false; }
+		foreach ( self::ds_coso_hs( $hs ) as $x ) {
+			if ( self::chu_thuong( $x ) === $coso ) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Người đang đăng nhập có được xem hồ sơ này không.
+	 *
+	 * 🔴 ĐỦ MỘT CƠ SỞ TRÙNG LÀ ĐƯỢC. Cửa hàng trưởng của B phải thấy người tích B, dù trong hồ
+	 *    sơ họ B đứng thứ hai — đó chính là *"có mặt làm việc đầy đủ tại chi nhánh đó"*.
+	 */
+	public static function co_quyen_ho_so( $u, $hs ) {
+		$ds = self::ds_coso_hs( $hs );
+		if ( ! $ds ) { return self::co_quyen_coso( $u, '' ); }
+		foreach ( $ds as $x ) {
+			if ( self::co_quyen_coso( $u, $x ) ) { return true; }
+		}
+		return false;
+	}
+
+	/**
+	 * Mệnh đề SQL "hồ sơ có làm ở cơ sở này" — NỚI RỘNG, lọc lại bằng PHP.
+	 *
+	 * ⚠️ `coso_phu` là một chuỗi nối bằng dấu phẩy, mà cách so chính xác trong SQL thì mỗi hệ
+	 *    quản trị viết một kiểu (`CONCAT` của MySQL, `||` của SQLite). Nên ở đây chỉ NỚI bằng
+	 *    `LIKE %X%` — có thể bắt thừa khi tên cơ sở này là một khúc của tên cơ sở khác — rồi
+	 *    `hs_thuoc_coso()` lọc lại cho đúng. Nới rồi lọc thì sai một chiều duy nhất là đọc thừa
+	 *    vài dòng; hẹp rồi thôi thì sai chiều kia, là MẤT người, và mất im lặng.
+	 *
+	 * @return array `sql` · `tv` (tham số cho $wpdb->prepare)
+	 */
+	public static function dk_sql_coso( $coso ) {
+		global $wpdb;
+		$coso = self::chuan_coso( $coso );
+		if ( '' === $coso ) { return array( 'sql' => '1=1', 'tv' => array() ); }
+		return array(
+			'sql' => '(LOWER(cua_hang)=LOWER(%s) OR LOWER(coso_phu) LIKE LOWER(%s))',
+			'tv'  => array( $coso, '%' . $wpdb->esc_like( $coso ) . '%' ),
+		);
+	}
+
+	/**
 	 * Hồ sơ này đã nghỉ việc chưa — đọc từ ô "Trạng thái làm việc".
 	 *
 	 * 🔴 MỘT NƠI DUY NHẤT quyết định câu đó. Ô này người ta gõ tay, nên trong sổ có đủ kiểu:
@@ -188,7 +267,14 @@ class VHCC_NhanSu {
 		$dk = array( '1=1' );
 		$tv = array();
 		$coso = self::chuan_coso( $coso );
-		if ( '' !== $coso ) { $dk[] = 'LOWER(cua_hang)=LOWER(%s)'; $tv[] = $coso; }
+		/* Lọc theo cơ sở phải tính CẢ cơ sở người ta tích thêm — xem `dk_sql_coso()`. Hỏi mỗi
+		   `cua_hang` là danh sách nhân sự của một chi nhánh thiếu đúng những người hay chạy
+		   giữa hai chi nhánh, tức là những người cần theo dõi nhất. */
+		if ( '' !== $coso ) {
+			$dk_cs = self::dk_sql_coso( $coso );
+			$dk[]  = $dk_cs['sql'];
+			$tv    = array_merge( $tv, $dk_cs['tv'] );
+		}
 		if ( '' !== trim( (string) $tim ) ) {
 			$like = '%' . $wpdb->esc_like( trim( $tim ) ) . '%';
 			$dk[] = '(ma_nv LIKE %s OR ho_ten LIKE %s OR sdt LIKE %s OR cccd LIKE %s)';
@@ -201,8 +287,10 @@ class VHCC_NhanSu {
 		$xem_luong = self::co_xem_luong( $u );
 		$out = array();
 		foreach ( $rows as $r ) {
-			// Cửa hàng trưởng chỉ thấy người của cửa hàng mình.
-			if ( ! self::co_quyen_coso( $u, $r['cua_hang'] ) ) { continue; }
+			/* Mệnh đề SQL ở trên NỚI (LIKE), nên lọc lại cho đúng ở đây. */
+			if ( '' !== $coso && ! self::hs_thuoc_coso( $r, $coso ) ) { continue; }
+			// Cửa hàng trưởng thấy người của MỌI cơ sở mình quản, kể cả người tích thêm.
+			if ( ! self::co_quyen_ho_so( $u, $r ) ) { continue; }
 			if ( ! $xem_luong ) {
 				/* BỎ khỏi dữ liệu, không phải ẩn bằng CSS. Ẩn trên màn thì số vẫn đi xuống trình
 				   duyệt và ai mở công cụ nhà phát triển là đọc được. */

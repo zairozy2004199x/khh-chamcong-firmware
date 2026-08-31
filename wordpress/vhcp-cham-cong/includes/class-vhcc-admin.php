@@ -189,6 +189,16 @@ class VHCC_Admin {
 					'pin_dang_nhap', 'luong_co_ban', 'so_tai_khoan', 'ngan_hang' ) as $o ) {
 					if ( isset( $_POST[ $o ] ) ) { $dat[ $o ] = wp_unslash( $_POST[ $o ] ); }
 				}
+				/* 🔴 MỘT Ô "Cơ sở làm việc" -> RẢI VÀO HAI CỘT, y hệt màn ngoài.
+				   Rải ở đây chứ không trong `luu_ho_so()`: hàm ấy còn nhận dữ liệu từ lượt nạp
+				   .csv và từ bản kéo sheet, nơi hai cột tới riêng và đã đúng sẵn. Gộp luật rải
+				   vào đó là bắt hai đường dữ liệu khác hẳn nhau đi chung một cửa hẹp. */
+				if ( isset( $_POST['cac_coso'] ) ) {
+					$cs_ds = VHCC_NhanSu::ds_coso_hs( array(
+						'cua_hang' => wp_unslash( $_POST['cac_coso'] ), 'coso_phu' => '' ) );
+					$dat['cua_hang'] = $cs_ds ? array_shift( $cs_ds ) : '';
+					$dat['coso_phu'] = implode( ', ', $cs_ds );
+				}
 				$bao[] = VHCC_NhanSu::luu_ho_so( $u, $dat );
 			} elseif ( 'xoa' === $viec ) {
 				$bao[] = VHCC_NhanSu::xoa_ho_so( $u, wp_unslash( $_POST['ma_nv'] ) );
@@ -294,11 +304,17 @@ class VHCC_Admin {
 					. 'người. Cửa hàng trưởng không tạo được hồ sơ mới vì lý do này.</em></td></tr>';
 			}
 			echo self::o( 'ho_ten', 'Họ tên', $g( 'ho_ten' ) );
-			echo self::o( 'cua_hang', 'Cửa hàng chính', $g( 'cua_hang' ) );
-			echo self::o( 'coso_phu', 'Cơ sở phụ (cách nhau dấu phẩy)', $g( 'coso_phu' ) );
-			echo '<tr><th></th><td><em>Làm ở nhiều nơi thì khai vào <b>Cơ sở phụ</b>, đừng đổi '
-				. '"Cửa hàng chính" — đổi cửa hàng chính là chuyển cả công và lương sang cửa hàng khác.'
-				. '</em></td></tr>';
+			/* 🔴 KHÔNG CÒN "CHÍNH" VỚI "PHỤ" — anh Thắng 31/08/2026: *"nhân viên sẽ được tích
+			   vào cơ sở nào thì sẽ được có mặt làm việc đầy đủ tại chi nhánh đó"*. Màn ngoài
+			   dùng lưới ô tích; ở đây (wp-admin, không có JavaScript theo luật chung của plugin)
+			   là MỘT ô gõ, các cơ sở ngăn bằng dấu phẩy. Hai màn khác hình dạng nhưng CÙNG một
+			   câu hỏi — và cùng một cách lưu: cơ sở đầu vào `cua_hang`, còn lại vào `coso_phu`. */
+			echo self::o( 'cac_coso', 'Cơ sở làm việc (nhiều nơi thì cách nhau dấu phẩy)',
+				implode( ', ', VHCC_NhanSu::ds_coso_hs( array(
+					'cua_hang' => $g( 'cua_hang' ), 'coso_phu' => $g( 'coso_phu' ) ) ) ) );
+			echo '<tr><th></th><td><em>Tích/khai cơ sở nào là người này <b>có mặt làm việc đầy đủ '
+				. 'ở đó</b>: hiện trong danh sách nhân sự của cơ sở ấy, cửa hàng trưởng ở đó thấy '
+				. 'và quản được. Không còn phân biệt cơ sở chính với cơ sở phụ.</em></td></tr>';
 			echo self::o( 'chuc_vu', 'Chức vụ', $g( 'chuc_vu' ) );
 			echo self::o( 'nhiem_vu', 'Nhiệm vụ (cách nhau dấu phẩy)', $g( 'nhiem_vu' ) );
 			echo '<tr><th></th><td><em>Chỉ có nghĩa ở Nhóm Máy Tự Động. "Trực Ghế Posh - JP" là '
@@ -414,15 +430,14 @@ class VHCC_Admin {
 
 		echo '<h2>Danh sách (' . count( $ds ) . ')</h2>';
 		echo '<table class="widefat striped"><thead><tr><th>Mã NV</th><th>Họ tên</th>'
-			. '<th>Cửa hàng</th><th>Cơ sở phụ</th><th>Chức vụ</th><th>Nhiệm vụ</th>'
+			. '<th>Cơ sở làm việc</th><th>Chức vụ</th><th>Nhiệm vụ</th>'
 			. '<th>Trạng thái</th><th>SĐT</th>'
 			. ( VHCC_NhanSu::co_xem_luong( $u ) ? '<th>Lương cơ bản</th>' : '' )
 			. '<th></th></tr></thead><tbody>';
 		foreach ( $ds as $r ) {
 			echo '<tr><td><code>' . esc_html( $r['ma_nv'] ) . '</code></td>'
 				. '<td>' . esc_html( $r['ho_ten'] ) . '</td>'
-				. '<td>' . esc_html( $r['cua_hang'] ) . '</td>'
-				. '<td>' . esc_html( $r['coso_phu'] ) . '</td>'
+				. '<td>' . esc_html( implode( ', ', VHCC_NhanSu::ds_coso_hs( $r ) ) ) . '</td>'
 				. '<td>' . esc_html( $r['chuc_vu'] ) . '</td>'
 				. '<td>' . esc_html( $r['nhiem_vu'] ) . '</td>'
 				. '<td>' . esc_html( $r['trang_thai_lam_viec'] ) . '</td>'

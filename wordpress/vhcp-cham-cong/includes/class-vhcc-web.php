@@ -1466,16 +1466,34 @@ class VHCC_Web {
 			foreach ( VHCC_Auth::vai_tro_vao() as $v ) { $in[] = $wpdb->prepare( '%s', $v ); }
 			$dk[] = "( pin_dang_nhap='' OR vai_tro NOT IN (" . implode( ',', $in ) . ') )';
 		}
-		if ( '' !== $cs ) { $dk[] = 'cua_hang=%s'; $ts[] = $cs; }
+		/* 🔴 CƠ SỞ: NỚI Ở SQL RỒI CHỐT BẰNG PHP, VÀ GHI THEO DANH SÁCH MÃ.
+		   `coso_phu` là chuỗi nối bằng dấu phẩy nên mệnh đề SQL chỉ nới được (`LIKE`), có thể
+		   bắt thừa khi một mã cơ sở là khúc của mã khác. Đọc thừa vài dòng rồi bỏ là vô hại;
+		   GHI thừa vài dòng là đổi vai trò của người ngoài bộ lọc — đúng cái ghi chú trên hàm
+		   này cấm. Nên: chọn ra mã, lọc chính xác, rồi UPDATE theo danh sách mã ấy. */
+		if ( '' !== $cs ) {
+			$dk_cs = VHCC_NhanSu::dk_sql_coso( $cs );
+			$dk[]  = $dk_cs['sql'];
+			$ts    = array_merge( $ts, $dk_cs['tv'] );
+		}
 		if ( '' !== $tim ) {
 			$dk[] = '(ma_nv LIKE %s OR ho_ten LIKE %s OR sdt LIKE %s OR cccd LIKE %s)';
 			$nhu  = '%' . $wpdb->esc_like( $tim ) . '%';
 			array_push( $ts, $nhu, $nhu, $nhu, $nhu );
 		}
 		$where = $dk ? ' WHERE ' . implode( ' AND ', $dk ) : '';
-		$sql   = "UPDATE $bang SET vai_tro=%s, cap_nhat=%s" . $where;
-		array_unshift( $ts, $vt, current_time( 'mysql' ) );
-		return (int) $wpdb->query( $wpdb->prepare( $sql, $ts ) );
+		$sql_l = "SELECT ma_nv, cua_hang, coso_phu FROM $bang" . $where;
+		$ma_ds = array();
+		foreach ( VHCC_DB::rows( $ts ? $wpdb->prepare( $sql_l, $ts ) : $sql_l ) as $r ) {
+			if ( '' !== $cs && ! VHCC_NhanSu::hs_thuoc_coso( $r, $cs ) ) { continue; }
+			if ( '' === trim( (string) $r['ma_nv'] ) ) { continue; }
+			$ma_ds[] = (string) $r['ma_nv'];
+		}
+		if ( ! $ma_ds ) { return 0; }
+		$o  = implode( ',', array_fill( 0, count( $ma_ds ), '%s' ) );
+		$tv = array_merge( array( $vt, current_time( 'mysql' ) ), $ma_ds );
+		return (int) $wpdb->query( $wpdb->prepare(
+			"UPDATE $bang SET vai_tro=%s, cap_nhat=%s WHERE ma_nv IN ($o)", $tv ) );
 	}
 
 	/** Lưu một hồ sơ sửa tay. Ô để TRỐNG là xoá ô đó — khác hẳn luật của lượt nạp .csv. */
@@ -1486,23 +1504,36 @@ class VHCC_Web {
 		$xoa_pin = ! empty( $_POST['xoa_pin'] );
 		$ghi = array();
 
-		/* 🔴 CƠ SỞ PHỤ ĐẾN TỪ NHIỀU Ô, GOM LẠI THÀNH MỘT CHUỖI.
-		   Màn sửa đủ nay dùng lưới ô tích (xem `o_coso_phu()`), nên giá trị về dưới dạng MẢNG
-		   `coso_phu_o[]` — mỗi ô tích một phần tử, cộng thêm ô gõ tay ở cuối cho cơ sở chưa có
-		   trong sổ. Cột trong bảng vẫn là một chuỗi ngăn bằng dấu phẩy, y như cũ: đổi cách
-		   NHẬP chứ không đổi cách LƯU, nên mọi chỗ đang đọc cột này không phải sửa gì.
+		/* 🔴 MỘT LƯỚI Ô TÍCH -> RẢI VÀO HAI CỘT.
+		   Anh Thắng 31/08/2026: *"nhân viên sẽ được tích vào cơ sở nào thì sẽ được có mặt làm
+		   việc đầy đủ tại chi nhánh đó"*. Biểu mẫu nay chỉ có MỘT ô "Cơ sở làm việc", gửi lên
+		   mảng `coso_o[]` (mỗi ô tích một phần tử, cộng ô gõ tay ở cuối cho cơ sở chưa có
+		   trong sổ). Bảng vẫn giữ hai cột vì hệ ghế, sổ lương và bản kéo từ sheet đang đọc
+		   chúng — nên ở đây rải: cơ sở ĐẦU vào `cua_hang`, phần còn lại vào `coso_phu`.
+
+		   ⚠️ `cua_hang` KHÔNG CÒN NGHĨA "quan trọng hơn", chỉ là "cái đứng đầu danh sách". Mọi
+		      câu hỏi "người này làm ở đâu" nay đi qua `VHCC_NhanSu::ds_coso_hs()`, và nó trả về
+		      một danh sách bình đẳng.
 
 		   ⚠️ Bỏ trùng theo CHỮ THƯỜNG CÓ DẤU (`chu_thuong`, không phải `strtolower` — hàm ấy
 		      không hạ được chữ có dấu). Tích một cơ sở rồi gõ lại chính nó ở ô cuối là chuyện
 		      thường, mà "FZ_LTVT, FZ_LTVT" thì mọi phép đếm cơ sở đều lệch.
 
-		   ⚠️ MẢNG RỖNG LÀ XOÁ HẾT, ĐÚNG Ý NGƯỜI BẤM: bỏ tích hết rồi Lưu nghĩa là người này
-		      thôi làm ở cơ sở phụ nào. Nhưng biểu mẫu KHÔNG gửi gì khi không có ô tích nào —
-		      nên ô gõ tay ở cuối luôn có mặt, và nó bảo đảm `coso_phu_o` luôn được gửi lên. */
-		if ( isset( $_POST['coso_phu_o'] ) && is_array( $_POST['coso_phu_o'] ) ) {
+		   ⚠️ MẢNG RỖNG LÀ XOÁ HẾT, ĐÚNG Ý NGƯỜI BẤM. Biểu mẫu KHÔNG gửi gì khi không có ô tích
+		      nào — nên ô gõ tay ở cuối luôn có mặt, và nó bảo đảm `coso_o` luôn được gửi lên.
+
+		   ⚠️ Nhận cả tên cũ `coso_phu_o` để trang đang mở dở trong một tab khác lưu vẫn đúng —
+		      người ta không tải lại trang chỉ vì mình vừa nâng cấp plugin. */
+		$o_cs = null;
+		if ( isset( $_POST['coso_o'] ) && is_array( $_POST['coso_o'] ) ) {
+			$o_cs = (array) wp_unslash( $_POST['coso_o'] );
+		} elseif ( isset( $_POST['coso_phu_o'] ) && is_array( $_POST['coso_phu_o'] ) ) {
+			$o_cs = (array) wp_unslash( $_POST['coso_phu_o'] );
+		}
+		if ( null !== $o_cs ) {
 			$cp  = array();
 			$da  = array();
-			foreach ( (array) wp_unslash( $_POST['coso_phu_o'] ) as $x ) {
+			foreach ( $o_cs as $x ) {
 				foreach ( explode( ',', (string) $x ) as $m ) {
 					$m = trim( $m );
 					if ( '' === $m ) { continue; }
@@ -1512,13 +1543,15 @@ class VHCC_Web {
 					$cp[]     = $m;
 				}
 			}
+			$ghi['cua_hang'] = $cp ? array_shift( $cp ) : '';
 			$ghi['coso_phu'] = implode( ', ', $cp );
 		}
 
 		foreach ( self::COT_SUA as $c ) {
-			/* Ô tích ở trên đã lo cột này; một ô `coso_phu` gõ tay còn sót lại trong biểu mẫu
-			   sẽ ghi đè mất kết quả gom. */
-			if ( 'coso_phu' === $c && isset( $ghi['coso_phu'] ) ) { continue; }
+			/* Ô tích ở trên đã lo CẢ HAI cột cơ sở; một ô `cua_hang` hay `coso_phu` gõ tay còn
+			   sót lại trong biểu mẫu (trang mở dở từ bản cũ, hoặc màn khác dùng chung hàm này)
+			   sẽ ghi đè mất kết quả gom — và ghi đè theo hướng tệ nhất: xoá bớt cơ sở. */
+			if ( ( 'coso_phu' === $c || 'cua_hang' === $c ) && isset( $ghi['coso_phu'] ) ) { continue; }
 			if ( ! isset( $_POST[ $c ] ) ) { continue; }
 			$v = trim( (string) wp_unslash( $_POST[ $c ] ) );
 			if ( in_array( $c, VHCC_NapCsv::COT_TIEN, true ) )      { $ghi[ $c ] = VHCC_NapCsv::tien( $v ); }
@@ -4655,9 +4688,16 @@ class VHCC_Web {
 
 		/* Đếm thôi, KHÔNG dán tên ra. Hai mươi mấy cái tên chạy ba dòng là thứ người ta lướt qua
 		   chứ không đọc; một CON SỐ kèm đường tới đúng bảng để sửa mới là thứ dùng được. */
-		$thieu = (int) $wpdb->get_var( $wpdb->prepare(
-			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'nhan_vien' )
-			. ' WHERE cua_hang=%s AND (luong_co_ban IS NULL OR luong_co_ban<=0)', $cs ) );
+		/* Đếm CẢ người tích thêm cơ sở này: lương của họ cũng ra 0 và cũng do cơ sở này chốt.
+		   Mệnh đề SQL nới, nên đếm bằng cách duyệt và lọc chính xác chứ không COUNT(*) thẳng. */
+		$dk_thieu = VHCC_NhanSu::dk_sql_coso( $cs );
+		$thieu    = 0;
+		foreach ( VHCC_DB::rows( $wpdb->prepare(
+			'SELECT cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' )
+			. ' WHERE ' . $dk_thieu['sql'] . ' AND (luong_co_ban IS NULL OR luong_co_ban<=0)',
+			$dk_thieu['tv'] ) ) as $r_t ) {
+			if ( VHCC_NhanSu::hs_thuoc_coso( $r_t, $cs ) ) { $thieu++; }
+		}
 		if ( $thieu > 0 ) {
 			$ds[] = array( 'canh', 'Có <b>' . $thieu . ' người</b> ở cơ sở này chưa khai '
 				. '<b>lương cơ bản</b> — tiền của họ ra 0. Khai ở màn <b>Hồ sơ &amp; tài khoản</b>, '
@@ -6688,7 +6728,12 @@ class VHCC_Web {
 			foreach ( $vao_duoc as $v ) { $in[] = $wpdb->prepare( '%s', $v ); }
 			$dk[] = "( pin_dang_nhap='' OR vai_tro NOT IN (" . implode( ',', $in ) . ') )';
 		}
-		if ( '' !== $cs ) { $dk[] = 'cua_hang=%s'; $ts[] = $cs; }
+		/* Cơ sở: nới ở SQL (xem `VHCC_NhanSu::dk_sql_coso()`) rồi lọc chính xác bên dưới. */
+		if ( '' !== $cs ) {
+			$dk_cs = VHCC_NhanSu::dk_sql_coso( $cs );
+			$dk[]  = $dk_cs['sql'];
+			$ts    = array_merge( $ts, $dk_cs['tv'] );
+		}
 		if ( '' !== $tim ) {
 			$dk[] = '(ma_nv LIKE %s OR ho_ten LIKE %s OR sdt LIKE %s OR cccd LIKE %s)';
 			$nhu  = '%' . $wpdb->esc_like( $tim ) . '%';
@@ -6697,6 +6742,13 @@ class VHCC_Web {
 		$where = $dk ? ' WHERE ' . implode( ' AND ', $dk ) : '';
 		$sql   = "SELECT * FROM $bang" . $where . ' ORDER BY cua_hang ASC, ho_ten ASC LIMIT 100';
 		$rows  = VHCC_DB::rows( $ts ? $wpdb->prepare( $sql, $ts ) : $sql );
+		if ( '' !== $cs ) {
+			$loc_cs = array();
+			foreach ( $rows as $r_cs ) {
+				if ( VHCC_NhanSu::hs_thuoc_coso( $r_cs, $cs ) ) { $loc_cs[] = $r_cs; }
+			}
+			$rows = $loc_cs;
+		}
 
 		echo '<div class="the"><h2>👤 Hồ sơ nhân sự</h2>';
 		echo '<form method="get" class="hang" style="margin-bottom:10px">';
@@ -6965,14 +7017,14 @@ class VHCC_Web {
 			foreach ( $ds as $k => $v ) {
 				$h .= '<label style="display:flex;align-items:center;gap:5px;font-size:13px;'
 					. 'font-weight:400;white-space:nowrap">'
-					. '<input type="checkbox" name="coso_phu_o[]" value="' . esc_attr( $v ) . '"'
+					. '<input type="checkbox" name="coso_o[]" value="' . esc_attr( $v ) . '"'
 					. checked( isset( $chon[ $k ] ), true, false ) . '>'
 					. esc_html( $v ) . '</label>';
 			}
 			$h .= '</div>';
 		}
 		$h .= '<div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-			. '<input name="coso_phu_o[]" list="dl_cp" placeholder="cơ sở khác — gõ mã rồi Lưu"'
+			. '<input name="coso_o[]" list="dl_cp" placeholder="cơ sở khác — gõ mã rồi Lưu"'
 			. ' style="flex:1;min-width:190px;font-size:13px">'
 			. '<span class="mo" style="font-size:11.5px">Tích bao nhiêu cơ sở cũng được.</span>'
 			. '</div></div>';
@@ -7109,7 +7161,11 @@ class VHCC_Web {
 				. 'border-top:1px solid var(--vien);padding-top:12px">' . esc_html( $nhom ) . '</h3>';
 			echo '<div class="luoi">';
 			foreach ( $cot_ds as $c => $nhan ) {
-				echo '<label>' . esc_html( $nhan );
+				/* Ô cơ sở chiếm CẢ HÀNG: nó là một lưới ô tích, `.luoi` là lưới grid, nên trải bằng `grid-column`. Nhét vào một cột hẹp thì các mã
+				   cơ sở xếp dọc thành một cột dài phải cuộn, trong khi cả hàng thì mười mấy mã
+				   nằm gọn hai ba dòng và nhìn một cái là thấy hết. */
+				echo ( 'cua_hang' === $c ) ? '<label style="grid-column:1/-1">' : '<label>';
+				echo esc_html( $nhan );
 				if ( 'vai_tro' === $c ) {
 					echo '<select name="vai_tro" style="width:100%">';
 					echo '<option value=""' . selected( '', $g( 'vai_tro' ), false ) . '>— chưa khai —</option>';
@@ -7133,8 +7189,9 @@ class VHCC_Web {
 				} elseif ( in_array( $c, VHCC_NapCsv::COT_NGAY, true ) ) {
 					echo '<input type="date" name="' . esc_attr( $c ) . '" value="'
 						. esc_attr( $g( $c ) ) . '" style="width:100%">';
-				} elseif ( 'coso_phu' === $c ) {
-					echo self::o_coso_phu( $g( $c ) );
+				} elseif ( 'cua_hang' === $c ) {
+					/* Lưới gộp: hiện CẢ hai cột, tích cái nào là làm ở đó. */
+					echo self::o_coso_phu( trim( $g( 'cua_hang' ) . ', ' . $g( 'coso_phu' ), ' ,' ) );
 				} else {
 					$dl = array( 'cua_hang' => 'dl_ch', 'chuc_vu' => 'dl_cv',
 						'nhiem_vu' => 'dl_nv', 'coso_phu' => 'dl_cp' );
@@ -7198,8 +7255,13 @@ class VHCC_Web {
 	 */
 	const NHOM_SUA = array(
 		'Công việc'  => array(
-			'cua_hang'            => 'Cửa hàng chính',
-			'coso_phu'           => 'Cơ sở phụ (cách nhau dấu phẩy)',
+			/* 🔴 MỘT Ô DUY NHẤT, KHÔNG CÒN "CHÍNH" VỚI "PHỤ".
+			   Anh Thắng 31/08/2026: *"nhân viên sẽ được tích vào cơ sở nào thì sẽ được có mặt
+			   làm việc đầy đủ tại chi nhánh đó"*. Hai ô riêng dạy người dùng một điều SAI —
+			   rằng cơ sở thứ hai là hạng dưới — trong khi giờ đây chúng bình đẳng. Cột
+			   `coso_phu` vẫn còn trong bảng (hệ ghế và sổ lương đang đọc), nhưng nó không còn
+			   là một Ô NGƯỜI TA ĐIỀN nữa: `luu_ho_so()` tự rải danh sách tích vào hai cột. */
+			'cua_hang'            => 'Cơ sở làm việc (tích bao nhiêu cũng được)',
 			'chuc_vu'            => 'Chức vụ',
 			'nhiem_vu'           => 'Nhiệm vụ (cách nhau dấu phẩy)',
 			'trang_thai_lam_viec' => 'Trạng thái làm việc',

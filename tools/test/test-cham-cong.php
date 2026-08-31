@@ -15940,76 +15940,109 @@ $h_sua = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP',
 $h_sua_1 = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP',
 	array( 'man' => 'ho_so', 'sua' => 'CP1' ) );
 t( '🔴 lưới ô tích thấy cả cơ sở chỉ tồn tại ở cột phụ của NGƯỜI KHÁC',
-	strpos( $h_sua_1, 'name="coso_phu_o[]" value="FARM_NT"' ) !== false, $h_sua_1 );
-t( 'và người này chưa tích cái nào',
+	strpos( $h_sua_1, 'name="coso_o[]" value="FARM_NT"' ) !== false, $h_sua_1 );
+t( 'và người này chưa tích cơ sở ấy',
 	strpos( $h_sua_1, 'value="FARM_NT" checked' ) === false, $h_sua_1 );
 
-t( '🔴 màn Sửa đủ dùng Ô TÍCH cho cơ sở phụ, không phải một ô gõ chữ',
-	strpos( $h_sua, 'name="coso_phu_o[]"' ) !== false, $h_sua );
-t( 'mỗi cơ sở một ô tích', substr_count( $h_sua, 'type="checkbox" name="coso_phu_o[]"' ) >= 3,
-	substr_count( $h_sua, 'type="checkbox" name="coso_phu_o[]"' ) );
-t( 'cơ sở đang khai thì ô ấy được tích sẵn',
-	preg_match( '/name="coso_phu_o\[\]" value="FARM_NT" checked/', $h_sua ) === 1, $h_sua );
+t( '🔴 màn Sửa đủ dùng Ô TÍCH cho cơ sở, không phải một ô gõ chữ',
+	strpos( $h_sua, 'name="coso_o[]"' ) !== false, $h_sua );
+t( 'mỗi cơ sở một ô tích', substr_count( $h_sua, 'type="checkbox" name="coso_o[]"' ) >= 3,
+	substr_count( $h_sua, 'type="checkbox" name="coso_o[]"' ) );
+/* 🔴 MỘT LƯỚI CHO CẢ HAI CỘT — anh Thắng 31/08/2026 bỏ hẳn khái niệm "cơ sở phụ".
+   `VR_TA` là cột `cua_hang` của CP3, `FARM_NT` là cột `coso_phu`. Cả hai phải tích sẵn trong
+   CÙNG một lưới; tích sẵn mỗi cái thì mở hồ sơ ra là thấy mất một cơ sở, và bấm Lưu là mất
+   thật. */
+t( 'cơ sở ở cột chính được tích sẵn',
+	preg_match( '/name="coso_o\[\]" value="VR_TA" checked/', $h_sua ) === 1, $h_sua );
+t( 'cơ sở ở cột phụ CŨNG được tích sẵn, cùng một lưới',
+	preg_match( '/name="coso_o\[\]" value="FARM_NT" checked/', $h_sua ) === 1, $h_sua );
 t( 'cơ sở chưa khai thì không tích',
-	preg_match( '/name="coso_phu_o\[\]" value="TUTU_BT" checked/', $h_sua ) !== 1, $h_sua );
+	preg_match( '/name="coso_o\[\]" value="TUTU_BT" checked/', $h_sua ) !== 1, $h_sua );
+/* 🔴 KHÔNG CÒN Ô "Cơ sở phụ" RIÊNG. Còn nó là còn dạy người dùng rằng cơ sở thứ hai là hạng
+   dưới, đúng cái "lẫn lộn" anh vừa bảo bỏ. */
+t( '🔴 biểu mẫu KHÔNG còn ô gõ chữ tên `coso_phu`',
+	preg_match( '/name="coso_phu"[^>]*>/', $h_sua ) !== 1, $h_sua );
+t( 'và nhãn ô cơ sở không còn chữ "phụ"',
+	strpos( $h_sua, 'Cơ sở phụ' ) === false && strpos( $h_sua, 'Cửa hàng chính' ) === false, $h_sua );
 /* ⚠️ Vẫn giữ MỘT ô gõ chữ cho cơ sở chưa có trong sổ — lưới ô tích dựng từ dữ liệu đang có. */
 /* 🔴 Ô GÕ TAY PHẢI MANG ĐÚNG TÊN `coso_phu_o[]`. Mang tên khác thì nó vẫn hiện ra, vẫn gõ
    được, mà giá trị không bao giờ tới nơi — và người khai chỉ biết khi mở lại hồ sơ. Soi cả
    chuỗi `name=… placeholder=…` chứ không soi riêng placeholder. */
 t( 'còn một ô gõ tay cho cơ sở chưa có trong sổ, mang đúng tên gửi lên',
-	preg_match( '/name="coso_phu_o\[\]"[^>]*placeholder="cơ sở khác/', $h_sua ) === 1, $h_sua );
+	preg_match( '/name="coso_o\[\]"[^>]*placeholder="cơ sở khác/', $h_sua ) === 1, $h_sua );
 /* 🔴 KHÔNG dùng `<select multiple>`: nó đòi giữ Ctrl, thứ không ai đoán ra nếu chưa được dạy,
    và trên điện thoại gần như không bấm nổi. */
 t( '🔴 KHÔNG dùng select multiple', strpos( $h_sua, '<select multiple' ) === false, $h_sua );
 
-/* ---- LƯU: nhiều ô gộp lại thành một chuỗi ---- */
-$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'FARM_NT', 'TUTU_BT', '' ) );
+/* ---- LƯU: lưới ô tích -> danh sách cơ sở bình đẳng ----
+   ⚠️ Soi bằng `ds_coso_hs()` chứ KHÔNG đọc thẳng một cột. Câu cần canh là "người này làm ở
+      những cơ sở nào", và nó phải đúng dù mai kia hai cột có gộp làm một. Cách RẢI vào hai cột
+      được canh riêng ở phép ngay dưới — một phép cho một câu. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_o' => array( 'FARM_NT', 'TUTU_BT', '' ) );
 $r_cp = vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
 $_POST = array();
 t( 'lưu được', ! empty( $r_cp['ok'] ), $r_cp );
-teq( '🔴 hai ô tích gộp thành một chuỗi ngăn bằng dấu phẩy', 'FARM_NT, TUTU_BT',
+teq( '🔴 hai ô tích thành hai cơ sở bình đẳng', 'FARM_NT · TUTU_BT',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
+/* 🔴 CÁCH RẢI: cơ sở ĐẦU vào `cua_hang`, phần còn lại vào `coso_phu`. Hệ ghế, sổ lương và bản
+   kéo từ sheet đang đọc hai cột này, nên hình dạng lưu phải cố định chứ không tuỳ hứng. */
+teq( 'cơ sở đầu danh sách nằm ở cột cua_hang', 'FARM_NT',
+	VHCC_NhanSu::ho_so( 'CP3' )['cua_hang'] );
+teq( 'phần còn lại nằm ở cột coso_phu', 'TUTU_BT',
 	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
 
 /* Ba cơ sở, trong đó một cái gõ tay ở ô cuối. */
-$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'FARM_NT', 'TUTU_BT', 'CO_SO_MOI' ) );
+$_POST = array( 'ma_nv' => 'CP3', 'coso_o' => array( 'FARM_NT', 'TUTU_BT', 'CO_SO_MOI' ) );
 vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
 $_POST = array();
-teq( '🔴 ba cơ sở cùng lúc, kể cả cái gõ tay ở ô cuối', 'FARM_NT, TUTU_BT, CO_SO_MOI',
-	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+teq( '🔴 ba cơ sở cùng lúc, kể cả cái gõ tay ở ô cuối', 'FARM_NT · TUTU_BT · CO_SO_MOI',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
 
 /* 🔴 BỎ TRÙNG THEO CHỮ THƯỜNG CÓ DẤU. Tích một cơ sở rồi gõ lại chính nó ở ô cuối là chuyện
    thường, mà "FZ_LTVT, FZ_LTVT" thì mọi phép đếm cơ sở đều lệch. */
-$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'FARM_NT', 'farm_nt', ' FARM_NT ' ) );
+$_POST = array( 'ma_nv' => 'CP3', 'coso_o' => array( 'FARM_NT', 'farm_nt', ' FARM_NT ' ) );
 vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
 $_POST = array();
-teq( '🔴 gõ trùng thì chỉ còn một', 'FARM_NT', VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+teq( '🔴 gõ trùng thì chỉ còn một', 'FARM_NT',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
+teq( 'và cột phụ trống hẳn, không còn rác', '', VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
 
 /* Ô cuối gõ luôn cả chuỗi có dấu phẩy (dán từ chỗ khác) cũng phải tách ra đúng. */
 /* ⚠️ Dán chuỗi KHÔNG CÓ khoảng trắng sau dấu phẩy — đây mới là ca phân biệt. Chuỗi đã có sẵn
    ", " thì tách hay không tách cũng ra y hệt, nên nó không hỏi được gì. */
-$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'JP_HCM,POSH_HCM' ) );
+$_POST = array( 'ma_nv' => 'CP3', 'coso_o' => array( 'JP_HCM,POSH_HCM' ) );
 vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
 $_POST = array();
-teq( '🔴 dán cả chuỗi có dấu phẩy thì tách ra rồi ghép lại cho đều', 'JP_HCM, POSH_HCM',
-	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+teq( '🔴 dán cả chuỗi có dấu phẩy thì tách ra thành hai cơ sở', 'JP_HCM · POSH_HCM',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
 
-/* 🔴 Ô TÍCH THẮNG Ô GÕ CHỮ CŨ. Một biểu mẫu cũ còn trong bộ nhớ trình duyệt (hoặc một lượt
-   gửi tay) vẫn có thể kèm theo ô `coso_phu` kiểu cũ; để nó chạy tiếp trong vòng lặp cột là nó
-   ghi đè mất kết quả vừa gom từ các ô tích, và người bấm thấy "Đã lưu" trong khi cơ sở phụ vừa
-   chọn biến mất. */
-$_POST = array( 'ma_nv' => 'CP3', 'coso_phu' => 'CU_KY_LAM_SAO',
-	'coso_phu_o' => array( 'FARM_NT', 'TUTU_BT' ) );
+/* 🔴 Ô TÍCH THẮNG CẢ HAI Ô GÕ CHỮ CŨ. Một biểu mẫu cũ còn trong bộ nhớ trình duyệt (hoặc một
+   lượt gửi tay) vẫn có thể kèm `cua_hang` và `coso_phu` kiểu cũ; để chúng chạy tiếp trong vòng
+   lặp cột là ghi đè mất kết quả vừa gom, và người bấm thấy "Đã lưu" trong khi cơ sở vừa chọn
+   biến mất. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu' => 'CU_KY_LAM_SAO', 'cua_hang' => 'CU_KY_HON',
+	'coso_o' => array( 'FARM_NT', 'TUTU_BT' ) );
 vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
 $_POST = array();
-teq( '🔴 gửi kèm ô gõ chữ cũ thì ô tích vẫn thắng', 'FARM_NT, TUTU_BT',
-	VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+teq( '🔴 gửi kèm hai ô gõ chữ cũ thì ô tích vẫn thắng', 'FARM_NT · TUTU_BT',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
 
-/* 🔴 BỎ TÍCH HẾT RỒI LƯU = THÔI LÀM Ở CƠ SỞ PHỤ NÀO. Ô gõ tay ở cuối luôn có mặt trong biểu
-   mẫu nên `coso_phu_o` luôn được gửi lên, kể cả khi không tích ô nào. */
-$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( '' ) );
+/* 🔴 TÊN Ô CŨ VẪN NHẬN ĐƯỢC. Người ta không tải lại trang chỉ vì mình vừa nâng cấp plugin —
+   một tab đang mở dở gửi lên `coso_phu_o[]` thì lượt lưu ấy vẫn phải đúng, không được lặng lẽ
+   rơi về nhánh "không gửi gì" và giữ nguyên dữ liệu cũ. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_phu_o' => array( 'JP_HCM', 'VR_TA' ) );
 vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
 $_POST = array();
-teq( '🔴 bỏ tích hết thì cột rỗng thật', '', VHCC_NhanSu::ho_so( 'CP3' )['coso_phu'] );
+teq( '🔴 biểu mẫu bản cũ gửi lên vẫn lưu đúng', 'JP_HCM · VR_TA',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
+
+/* 🔴 BỎ TÍCH HẾT RỒI LƯU = THÔI LÀM Ở CƠ SỞ NÀO. Ô gõ tay ở cuối luôn có mặt trong biểu mẫu
+   nên `coso_o` luôn được gửi lên, kể cả khi không tích ô nào. */
+$_POST = array( 'ma_nv' => 'CP3', 'coso_o' => array( '' ) );
+vhcc_goi_rieng( 'VHCC_Web', 'luu_ho_so', array() );
+$_POST = array();
+teq( '🔴 bỏ tích hết thì không còn cơ sở nào', 0,
+	count( VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'CP3' ) ) ) );
 
 /* Cơ sở người này đang khai mà không cửa hàng nào mang mã ấy vẫn phải hiện ra và tích sẵn —
    `ds_moi_coso()` quét cả cột phụ nên nó tới từ chính hồ sơ này. */
@@ -16017,7 +16050,125 @@ VHCC_NhanSu::luu_ho_so( $cp_ad, array( 'ma_nv' => 'CP3', 'coso_phu' => 'CO_SO_DA
 $h_sua2 = vhcc_web_nhu2( 'CPAD', 'Admin', 'FZ_ADV_TP',
 	array( 'man' => 'ho_so', 'sua' => 'CP3' ) );
 t( 'cơ sở không cửa hàng nào mang mã ấy vẫn hiện ra và vẫn được tích',
-	preg_match( '/name="coso_phu_o\[\]" value="CO_SO_DA_DONG" checked/', $h_sua2 ) === 1, $h_sua2 );
+	preg_match( '/name="coso_o\[\]" value="CO_SO_DA_DONG" checked/', $h_sua2 ) === 1, $h_sua2 );
+
+/* =============================================================================================
+ * TÍCH CƠ SỞ NÀO LÀ CÓ MẶT ĐẦY ĐỦ Ở CHI NHÁNH ĐÓ.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"việc phân thêm cơ sở phụ nó đang bị lẫn lộn. Thay vì việc cơ sở phụ.
+ * Thì nhân viên sẽ được tích vào cơ sở nào thì sẽ được có mặt làm việc đầy đủ tại chi nhánh
+ * đó"*.
+ *
+ * Trước bản này, `cua_hang` là cơ sở "thật" còn `coso_phu` chỉ là ghi chú: mọi câu lọc theo cơ
+ * sở đều hỏi mỗi `cua_hang`. Nên tích thêm một cơ sở mà KHÔNG hiện ở đâu cả — danh sách nhân
+ * sự của chi nhánh ấy không có họ, cửa hàng trưởng ở đấy không thấy họ, bảng "ai chưa khai
+ * lương" cũng bỏ sót. Mục này canh từng cửa một.
+ */
+vhcc_dung_bang();
+$ad_cs = array( 'name' => 'Sếp', 'role' => 'Admin', 'coso' => '', 'ma_nv' => 'CSAD' );
+VHCC_NhanSu::luu_ho_so( $ad_cs, array( 'ma_nv' => 'CSA', 'ho_ten' => 'Chỉ A',
+	'cua_hang' => 'ALPHA', 'vai_tro' => 'Nhân viên' ) );
+VHCC_NhanSu::luu_ho_so( $ad_cs, array( 'ma_nv' => 'CSB', 'ho_ten' => 'Chỉ B',
+	'cua_hang' => 'BETA', 'vai_tro' => 'Nhân viên' ) );
+/* Người chạy giữa hai nơi: ALPHA đứng đầu, BETA tích thêm. */
+VHCC_NhanSu::luu_ho_so( $ad_cs, array( 'ma_nv' => 'CSAB', 'ho_ten' => 'Cả Hai',
+	'cua_hang' => 'ALPHA', 'coso_phu' => 'BETA', 'vai_tro' => 'Nhân viên' ) );
+
+/* (a) Danh sách cơ sở của một hồ sơ: gộp hai cột, bình đẳng, không trùng. */
+$hs_ab = VHCC_NhanSu::ho_so( 'CSAB' );
+teq( 'hồ sơ hai cơ sở ra đúng hai', 'ALPHA · BETA',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( $hs_ab ) ) );
+teq( 'khai trùng ở cả hai cột chỉ tính một', 1,
+	count( VHCC_NhanSu::ds_coso_hs( array( 'cua_hang' => 'ALPHA', 'coso_phu' => 'alpha' ) ) ) );
+teq( 'bỏ tiền tố CS_ như mọi nơi khác', 'ALPHA',
+	implode( ',', VHCC_NhanSu::ds_coso_hs( array( 'cua_hang' => 'CS_ALPHA', 'coso_phu' => '' ) ) ) );
+t( 'hs_thuoc_coso không phân biệt hoa thường',
+	VHCC_NhanSu::hs_thuoc_coso( $hs_ab, 'beta' ) );
+t( 'và trả false với cơ sở không liên quan',
+	! VHCC_NhanSu::hs_thuoc_coso( $hs_ab, 'GAMMA' ) );
+
+/* (b) 🔴 CỬA CHÍNH: lọc nhân sự theo cơ sở B phải có người tích thêm B. */
+$ds_b = VHCC_NhanSu::ds_nhan_vien( $ad_cs, 'BETA' );
+$ma_b = array();
+foreach ( $ds_b as $x ) { $ma_b[] = $x['ma_nv']; }
+sort( $ma_b );
+teq( '🔴 danh sách nhân sự của BETA có cả người tích thêm BETA', 'CSAB,CSB', implode( ',', $ma_b ) );
+$ds_a = VHCC_NhanSu::ds_nhan_vien( $ad_cs, 'ALPHA' );
+$ma_a = array();
+foreach ( $ds_a as $x ) { $ma_a[] = $x['ma_nv']; }
+sort( $ma_a );
+teq( 'và ALPHA vẫn đúng người của ALPHA', 'CSA,CSAB', implode( ',', $ma_a ) );
+
+/* (c) 🔴 CỬA HÀNG TRƯỞNG CỦA B PHẢI THẤY HỌ. Không thấy thì không xếp lịch được, không sửa
+       giờ được, không duyệt đơn được — tức là người ấy làm ở B mà B không quản được. */
+$cht_b = array( 'name' => 'Trưởng B', 'role' => 'CUA_HANG_TRUONG', 'coso' => 'BETA', 'ma_nv' => 'TB' );
+$ds_tb = VHCC_NhanSu::ds_nhan_vien( $cht_b, 'BETA' );
+$ma_tb = array();
+foreach ( $ds_tb as $x ) { $ma_tb[] = $x['ma_nv']; }
+sort( $ma_tb );
+teq( '🔴 cửa hàng trưởng BETA thấy cả người tích thêm BETA', 'CSAB,CSB', implode( ',', $ma_tb ) );
+t( 'co_quyen_ho_so: trưởng BETA có quyền với hồ sơ ấy',
+	VHCC_NhanSu::co_quyen_ho_so( $cht_b, $hs_ab ) );
+t( 'nhưng KHÔNG có quyền với người chỉ làm ở ALPHA',
+	! VHCC_NhanSu::co_quyen_ho_so( $cht_b, VHCC_NhanSu::ho_so( 'CSA' ) ) );
+
+/* (d) 🔴 CA PHÂN BIỆT CỦA "NỚI RỒI LỌC".
+       Mệnh đề SQL chỉ nới được bằng `LIKE %X%`, nên mã cơ sở là KHÚC của mã khác sẽ bị bắt
+       thừa. Không lọc lại bằng PHP thì lọc "TA" kéo về cả người của "BETA" — sai im lặng, và
+       sai theo hướng lộ hồ sơ người của chi nhánh khác. */
+VHCC_NhanSu::luu_ho_so( $ad_cs, array( 'ma_nv' => 'CSTA', 'ho_ten' => 'Chỉ TA',
+	'cua_hang' => 'TA', 'vai_tro' => 'Nhân viên' ) );
+VHCC_NhanSu::luu_ho_so( $ad_cs, array( 'ma_nv' => 'CSX', 'ho_ten' => 'Có BETA phụ',
+	'cua_hang' => 'ALPHA', 'coso_phu' => 'BETA', 'vai_tro' => 'Nhân viên' ) );
+$ds_ta = VHCC_NhanSu::ds_nhan_vien( $ad_cs, 'TA' );
+$ma_ta = array();
+foreach ( $ds_ta as $x ) { $ma_ta[] = $x['ma_nv']; }
+sort( $ma_ta );
+teq( '🔴 lọc "TA" KHÔNG kéo nhầm người của "BETA"', 'CSTA', implode( ',', $ma_ta ) );
+
+/* (e) Cờ "chờ trả về" cũng phải hiện ở lưới của cơ sở tích thêm — người bấm nút đang đứng ở đó. */
+global $wpdb;
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'cho_tra_ve' => 1 ), array( 'ma_nv' => 'CSAB' ) );
+$cho_b = VHCC_TraVe::ds_cho( 'BETA' );
+t( '🔴 chờ trả về hiện ở cơ sở tích thêm', isset( $cho_b['CSAB'] ), array_keys( $cho_b ) );
+$cho_ta = VHCC_TraVe::ds_cho( 'TA' );
+t( 'và KHÔNG lẫn sang cơ sở có mã là khúc của mã khác',
+	! isset( $cho_ta['CSAB'] ), array_keys( $cho_ta ) );
+
+/* (e2) 🔴 MÀN HỒ SƠ CŨNG PHẢI LỌC LẠI, KHÔNG CHỈ HÀM ĐỌC.
+       Màn này dựng câu SQL riêng chứ không gọi `ds_nhan_vien()`, nên nó có đường vấp riêng:
+       nới bằng `LIKE %TA%` rồi in thẳng là bảng "nhân sự cơ sở TA" hiện luôn người của BETA —
+       tức lộ hồ sơ (có cả lương) của chi nhánh khác cho người chỉ quản TA. */
+$h_ta = vhcc_web_nhu2( 'CSAD', 'Admin', '', array( 'man' => 'ho_so', 'cs' => 'TA' ) );
+t( 'màn Hồ sơ lọc cơ sở TA có người của TA', strpos( $h_ta, 'Chỉ TA' ) !== false, $h_ta );
+t( '🔴 và KHÔNG lẫn người của BETA vào', strpos( $h_ta, 'Cả Hai' ) === false, $h_ta );
+$h_beta = vhcc_web_nhu2( 'CSAD', 'Admin', '', array( 'man' => 'ho_so', 'cs' => 'BETA' ) );
+t( '🔴 lọc BETA thì thấy cả người tích thêm BETA',
+	strpos( $h_beta, 'Cả Hai' ) !== false, $h_beta );
+
+/* (f) 🔴 ÁP VAI TRÒ HÀNG LOẠT: nới để GHI là đổi vai trò người ngoài bộ lọc.
+       Đây là chỗ nguy nhất của cách "nới rồi lọc" — đọc thừa thì bỏ đi được, ghi thừa thì
+       không lấy lại được. */
+/* ⚠️ Đặt vai trò thẳng vào bảng, không qua `luu_ho_so()` — hàm ấy không nhận ô `vai_tro`
+   (vai trò đi đường riêng), nên dựa vào nó thì phép dưới so với chuỗi rỗng và không phân biệt
+   được "không bị đổi lây" với "chưa bao giờ có vai trò". */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Nhân viên' ), array( 'ma_nv' => 'CSAB' ) );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'vai_tro' => 'Nhân viên' ), array( 'ma_nv' => 'CSTA' ) );
+$_POST = array( 'cs' => 'TA', 'q' => '', 'loc' => '' );
+$n_ap = vhcc_goi_rieng( 'VHCC_Web', 'vai_tro_hang_loat', array( 'Quản lý' ) );
+$_POST = array();
+teq( 'áp vai trò cho cơ sở TA chỉ đụng đúng 1 người', 1, (int) $n_ap );
+teq( 'người của TA đã đổi vai trò', 'Quản lý', VHCC_NhanSu::ho_so( 'CSTA' )['vai_tro'] );
+teq( '🔴 người của BETA KHÔNG bị đổi lây', 'Nhân viên', VHCC_NhanSu::ho_so( 'CSAB' )['vai_tro'] );
+
+/* (g) Và áp theo BETA thì phải trúng cả người tích thêm. */
+$_POST = array( 'cs' => 'BETA', 'q' => '', 'loc' => '' );
+$n_ap2 = vhcc_goi_rieng( 'VHCC_Web', 'vai_tro_hang_loat', array( 'Kế toán' ) );
+$_POST = array();
+teq( 'áp theo BETA trúng 3 người (1 chính + 2 tích thêm)', 3, (int) $n_ap2 );
+teq( '🔴 người tích thêm BETA cũng được áp', 'Kế toán', VHCC_NhanSu::ho_so( 'CSAB' )['vai_tro'] );
+
+vhcc_dung_bang();
 
 vhcc_dung_bang();
 
@@ -16241,6 +16392,41 @@ teq( 'đúng HAI hàng cơ sở, không đẻ thêm', 2,
 	substr_count( $h_lt, 'tính theo ' ) );
 t( 'lưới KHÔNG có ô sửa giờ — màn này chỉ đọc',
 	strpos( $h_lt, 'name="sg_vao"' ) === false && strpos( $h_lt, 'suaday' ) === false, $h_lt );
+
+/* --- Màn wp-admin cũng phải nói cùng một câu ---
+   Hai màn khác hình dạng (ngoài: lưới ô tích; wp-admin: một ô gõ, vì màn quản trị KHÔNG có
+   JavaScript theo luật chung), nhưng cùng một khái niệm và cùng một cách lưu. Để wp-admin còn
+   ô "Cơ sở phụ" là cái lẫn lộn anh Thắng vừa bảo bỏ vẫn còn nguyên một nửa. */
+vhcc_dung_bang();
+$GLOBALS['VHCP_CO_QUYEN'] = true;
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'AD1', 'ho_ten' => 'Quản Trị',
+	'cua_hang' => 'MOT', 'coso_phu' => 'HAI' ) );
+$_GET = array( 'page' => 'vhcc-nhan-su', 'sua' => 'AD1' );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_ad = ob_get_clean();
+$_GET = array();
+t( 'wp-admin: có ô "Cơ sở làm việc"', strpos( $h_ad, 'Cơ sở làm việc' ) !== false, $h_ad );
+/* Bảng liệt kê cũng một cột gộp: hai cột riêng ở bảng là vẫn còn dạy "chính/phụ" bằng mắt,
+   và cột thứ hai thì ai cũng lướt qua. */
+$_GET = array( 'page' => 'vhcc-nhan-su' );
+ob_start(); VHCC_Admin::trang_nhan_su(); $h_bang = ob_get_clean();
+$_GET = array();
+t( 'bảng wp-admin có cột "Cơ sở làm việc"',
+	strpos( $h_bang, '<th>Cơ sở làm việc</th>' ) !== false, $h_bang );
+t( '🔴 và ô của người hai cơ sở in ĐỦ cả hai',
+	strpos( $h_bang, '<td>MOT, HAI</td>' ) !== false, $h_bang );
+t( '🔴 và ô ấy điền sẵn CẢ HAI cơ sở', strpos( $h_ad, 'value="MOT, HAI"' ) !== false, $h_ad );
+t( '🔴 KHÔNG còn ô "Cửa hàng chính" / "Cơ sở phụ" riêng',
+	strpos( $h_ad, 'Cửa hàng chính' ) === false && strpos( $h_ad, 'Cơ sở phụ' ) === false, $h_ad );
+
+/* Lưu từ wp-admin: một ô -> rải vào hai cột, đúng như màn ngoài. */
+$_POST = array( 'vhcc_ns' => 'luu', 'ma_nv' => 'AD1', 'ho_ten' => 'Quản Trị',
+	'cac_coso' => 'BA, BON, ba' );
+$_GET = array( 'page' => 'vhcc-nhan-su' );
+ob_start(); VHCC_Admin::trang_nhan_su(); ob_get_clean();
+$_POST = array(); $_GET = array();
+teq( '🔴 wp-admin lưu: rải đúng và bỏ trùng', 'BA · BON',
+	implode( ' · ', VHCC_NhanSu::ds_coso_hs( VHCC_NhanSu::ho_so( 'AD1' ) ) ) );
+teq( 'cơ sở đầu vào cột cua_hang', 'BA', VHCC_NhanSu::ho_so( 'AD1' )['cua_hang'] );
 
 vhcc_dung_bang();
 

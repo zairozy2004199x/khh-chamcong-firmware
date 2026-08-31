@@ -78,11 +78,19 @@ class VHCC_TraVe {
 		global $wpdb;
 		$cs = VHCC_NhanSu::chuan_coso( $coso );
 		if ( '' === $cs ) { return array(); }
+		/* Người tích thêm cơ sở này cũng phải hiện cờ "chờ trả về" ở lưới của cơ sở này — họ có
+		   mặt làm việc ở đây thật, và người bấm nút trả về đang đứng ở đây. Mệnh đề nới, lọc
+		   chính xác ngay dưới. */
+		$dk_cs = VHCC_NhanSu::dk_sql_coso( $cs );
 		$r = $wpdb->get_results( $wpdb->prepare(
-			'SELECT ma_nv, ho_ten, trang_thai_lam_viec, cho_tra_luc, cho_tra_boi FROM '
-			. VHCC_DB::t( 'nhan_vien' ) . ' WHERE cua_hang=%s AND cho_tra_ve=1', $cs ), ARRAY_A );
+			'SELECT ma_nv, ho_ten, cua_hang, coso_phu, trang_thai_lam_viec, cho_tra_luc, cho_tra_boi FROM '
+			. VHCC_DB::t( 'nhan_vien' ) . ' WHERE ' . $dk_cs['sql'] . ' AND cho_tra_ve=1',
+			$dk_cs['tv'] ), ARRAY_A );
 		$ra = array();
-		foreach ( (array) $r as $x ) { $ra[ trim( (string) $x['ma_nv'] ) ] = $x; }
+		foreach ( (array) $r as $x ) {
+			if ( ! VHCC_NhanSu::hs_thuoc_coso( $x, $cs ) ) { continue; }
+			$ra[ trim( (string) $x['ma_nv'] ) ] = $x;
+		}
 		return $ra;
 	}
 
