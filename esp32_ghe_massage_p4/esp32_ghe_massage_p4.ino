@@ -23,6 +23,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <Update.h>       // nạp firmware qua AP nội bộ (máy trạm) — Update tự huỷ nếu ảnh lỗi
 #include <ArduinoJson.h>
 #include <qrcode.h>
 #include "esp_lcd_mipi_dsi.h"
@@ -59,6 +60,11 @@
 #ifndef SEC_BANK_BIN
   #define SEC_BANK_BIN   ""    // dự phòng khi server chưa trả tài khoản
   #define SEC_ACCOUNT_NO ""
+#endif
+/* OTA-AP: mật khẩu AP "POSH_QR-<mã>" + khoá X-OTA-Key (máy trạm gửi). Mặc định 12345678
+   (khớp SEC_GHE_AP_PASS/SEC_GHE_OTA_KEY của máy trạm). Đổi ở secrets.h nếu muốn. */
+#ifndef SEC_AP_PASS
+  #define SEC_AP_PASS   "12345678"
 #endif
 
 /* ─── FRAMEBUFFER + phần cứng (như GĐ1, đã chạy) ─────────────────────────── */
@@ -730,6 +736,77 @@ static void startSession(int idx) {
   sangTrangThai(ST_WAIT_PAY);
 }
 
+/* ─── OTA-AP: máy trạm nạp firmware qua WiFi (giao thức POSH_QR-* + /update) ──
+ * Ghế bật AP "POSH_QR-<mã>" (mật khẩu SEC_AP_PASS). Máy trạm nối vào, POST .bin THÔ
+ * lên 192.168.4.1/update kèm header X-OTA-Key = SEC_AP_PASS. Update.h tự huỷ nếu ảnh
+ * lỗi → nạp dở thì GIỮ firmware cũ. Dùng WIFI_AP_STA: vừa nối server (STA) vừa mở AP.
+ * Bê nguyên giao thức bản CYD (esp32_ghe_massage) để cùng một máy trạm nạp được cả hai. */
+static WiFiServer otaTcp(80);
+static bool g_otaMoAP = false;
+
+static void otaManNap(const char* msg) {   // báo trên màn P4 lúc đang nạp
+  lFill(RGB565(0x14,0x1E,0x30));
+  lTextC(LW / 2, LH / 2 - 20, msg, 4, C_YEL, RGB565(0x14,0x1E,0x30));
+  lTextC(LW / 2, LH / 2 + 40, "KHONG TAT NGUON", 2, C_DO, RGB565(0x14,0x1E,0x30));
+  fbFlush();
+}
+
+/* Gọi mỗi vòng loop(): nhận 1 client. GET / → mô tả; POST /update (X-OTA-Key khớp)
+   → đọc Content-Length byte .bin THÔ → Update. Máy trạm ghế gửi raw body (không multipart). */
+static void otaPhucVu() {
+  WiFiClient cl = otaTcp.available();
+  if (!cl) return;
+  cl.setTimeout(8000);
+  String req = cl.readStringUntil('\n');
+  bool isPost = req.startsWith("POST");
+  long len = 0; bool keyOk = false;
+  for (;;) {
+    String h = cl.readStringUntil('\n');
+    h.trim(); if (h.length() == 0) break;
+    int c = h.indexOf(':'); if (c <= 0) continue;
+    String k = h.substring(0, c); k.toLowerCase();
+    String v = h.substring(c + 1); v.trim();
+    if (k == "content-length") len = v.toInt();
+    else if (k == "x-ota-key" && v == String(SEC_AP_PASS)) keyOk = true;
+  }
+  if (!isPost) {
+    cl.print(F("HTTP/1.1 200 OK\r\nContent-Type:text/plain\r\nConnection:close\r\n\r\n"
+               "POSH QR OTA P4. POST .bin toi /update, kem X-OTA-Key = mat khau AP."));
+    cl.stop(); return;
+  }
+  if (!keyOk || len <= 0) {
+    cl.print(F("HTTP/1.1 401 Unauthorized\r\nConnection:close\r\n\r\nSai khoa hoac thieu Content-Length"));
+    cl.stop(); Serial.println("[OTA] tu choi: sai khoa / thieu len"); return;
+  }
+  Serial.printf("[OTA] bat dau nap %ld byte\n", len);
+  otaManNap("DANG NAP FIRMWARE...");
+  if (!Update.begin(len)) {
+    Update.printError(Serial);
+    cl.print(F("HTTP/1.1 500\r\nConnection:close\r\n\r\nUpdate.begin loi")); cl.stop(); return;
+  }
+  long got = 0; uint8_t buf[1024]; uint32_t t0 = millis();
+  while (got < len && cl.connected() && millis() - t0 < 60000) {
+    int n = cl.read(buf, sizeof buf);
+    if (n > 0) { if (Update.write(buf, n) != (size_t)n) { Update.printError(Serial); break; } got += n; t0 = millis(); }
+    else delay(1);
+  }
+  bool ok = (got == len) && Update.end(true);
+  cl.print(ok ? F("HTTP/1.1 200 OK\r\nConnection:close\r\n\r\nOK - dang khoi dong lai")
+              : F("HTTP/1.1 500\r\nConnection:close\r\n\r\nFAIL - giu firmware cu"));
+  cl.stop();
+  Serial.printf("[OTA] nhan %ld/%ld byte -> %s\n", got, len, ok ? "OK" : "FAIL");
+  delay(600);
+  if (ok) ESP.restart();
+}
+
+static void startOtaAP() {
+  String mac = macBo(); mac.replace(":", "");
+  String ap = String("POSH_QR-") + (CHAIR_ID.length() ? CHAIR_ID : mac);
+  WiFi.softAP(ap.c_str(), SEC_AP_PASS);
+  if (!g_otaMoAP) { otaTcp.begin(); g_otaMoAP = true; }
+  Serial.printf("[OTA] AP \"%s\" @192.168.4.1 (may tram nap .bin)\n", ap.c_str());
+}
+
 /* ─── SETUP / LOOP ──────────────────────────────────────────────────────── */
 void setup() {
   Serial.begin(115200);
@@ -742,8 +819,9 @@ void setup() {
 #if CO_CONG_TIEN
   congTien.khoiDong(onCashIn, nullptr);   // ICT cổng tiền mặt (Serial1)
 #endif
-  WiFi.mode(WIFI_STA); WiFi.setTxPower(WIFI_POWER_8_5dBm);
+  WiFi.mode(WIFI_AP_STA); WiFi.setTxPower(WIFI_POWER_8_5dBm);   // STA nối server + AP cho máy trạm nạp
   WiFi.begin(SEC_WIFI_SSID, SEC_WIFI_PASS);
+  startOtaAP();           // mở AP "POSH_QR-<mã>" để máy trạm P4 nạp firmware
 }
 
 /* Quản mạng: WiFi rồi 4G. Bật 4G khi WiFi rớt & ghế RẢNH (bring-up chặn ~20s).
@@ -802,6 +880,7 @@ void loop() {
   congTien.tick();                          // relay tiền mặt + bắt tờ + dò kẹt
 #endif
   quanMang(now);                            // WiFi/4G + đẩy hàng đợi tiền mặt
+  otaPhucVu();                              // máy trạm nạp firmware qua AP POSH_QR-*
 
   uint32_t nhipEvery = (state == ST_WAIT_PAY) ? 3000 : 6000;
   if (now - lastNhip > nhipEvery) nhip();

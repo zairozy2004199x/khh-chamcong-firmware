@@ -73,5 +73,7 @@ Các `-1` là **chưa gán**, phải điền chân thật (đối chiếu pad bo
   đếm ngược + "PHIEN MASSAGE DANG CHAY"/"GHE DUNG DOT NGOT". Có font chữ (font_ascii.h,
   5×7 HOA+số+dấu, khử răng cưa) vì P4 vẽ thẳng framebuffer. Dấu tiếng Việt: máy chủ bỏ
   dấu trước như bản CYD → chỉ cần ASCII.
+- ✅ Cổng OTA-AP: ghế bật AP `POSH_QR-<mã>` (WIFI_AP_STA) + server `/update` (raw .bin +
+  X-OTA-Key = SEC_AP_PASS) → máy trạm P4 nạp được firmware ghế P4 (cùng giao thức ghế CYD).
 - Còn lại (tuỳ nhu cầu): OTA qua 4G; siết lại kiểm cert TLS (đang setInsecure).
 - Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (nếu RS485 → dời cổng tiền sang 26/27).
