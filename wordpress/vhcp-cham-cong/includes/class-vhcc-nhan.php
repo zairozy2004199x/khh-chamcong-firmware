@@ -94,8 +94,57 @@ class VHCC_Nhan {
 		return false;
 	}
 
+	/* ═══════════════════════════════════ BỘ ĐẾM LƯỢT (Máy → Web) ═══════════════════════════════
+	 * Nhật ký chỉ ghi cái HỎNG. Nhưng câu "đang nhận bao nhiêu, ghi được bao nhiêu, thành công
+	 * hay không" cần đếm cả cái CHẠY TỐT — nếu không, một cổng khoẻ trông y một cổng chết (nhật ký
+	 * trống cả hai). Nên đếm dương, theo từng MÁY (khoá theo MAC bo — cùng khoá với DANH SÁCH MÁY).
+	 *
+	 * 🔴 GỘP 1 LẦN MỖI REQUEST, KHÔNG GHI OPTION MỖI DÒNG. Lô 2000 lượt mà mỗi dòng một
+	 *    `update_option` là 2000 lần đọc-ghi-serialize cùng một ô — đủ để một gói lô làm nghẽn cả
+	 *    site. Cộng dồn trong RAM (`$dem_acc`), `dem_luu()` gộp vào option đúng MỘT lần, gọi ở
+	 *    `tra()` (cửa đáp duy nhất, chạy một lần rồi exit).
+	 */
+	private static $dem_acc = array();
+
+	/** Cộng 1 vào một ô đếm của máy (RAM). $key: nhan·ghi·trung·giuTay·choGan·boQua·hong. */
+	private static function dem( $mac, $key ) {
+		$mac = '' !== trim( (string) $mac ) ? trim( (string) $mac ) : 'KHONG-MAC';
+		if ( ! isset( self::$dem_acc[ $mac ] ) ) { self::$dem_acc[ $mac ] = array(); }
+		self::$dem_acc[ $mac ][ $key ] = ( isset( self::$dem_acc[ $mac ][ $key ] ) ? self::$dem_acc[ $mac ][ $key ] : 0 ) + 1;
+	}
+
+	/** Gộp bộ đếm RAM vào option `vhcc_dem_may` — gọi MỘT lần ở `tra()`. */
+	private static function dem_luu() {
+		if ( ! self::$dem_acc ) { return; }
+		$ds = get_option( 'vhcc_dem_may', array() );
+		if ( ! is_array( $ds ) ) { $ds = array(); }
+		$luc = current_time( 'mysql' );
+		foreach ( self::$dem_acc as $mac => $b ) {
+			if ( ! isset( $ds[ $mac ] ) || ! is_array( $ds[ $mac ] ) ) { $ds[ $mac ] = array(); }
+			foreach ( $b as $k => $v ) {
+				$ds[ $mac ][ $k ] = ( isset( $ds[ $mac ][ $k ] ) ? (int) $ds[ $mac ][ $k ] : 0 ) + (int) $v;
+			}
+			$ds[ $mac ]['luc'] = $luc;   // lần cuối máy này đẩy lượt (khác nhịp sống)
+		}
+		self::$dem_acc = array();
+		update_option( 'vhcc_dem_may', $ds, false );
+	}
+
+	/** Bộ đếm để màn chẩn đoán đọc. [ mac => { nhan, ghi, trung, giuTay, choGan, boQua, hong, luc } ]. */
+	public static function dem_ds() {
+		$ds = get_option( 'vhcc_dem_may', array() );
+		return is_array( $ds ) ? $ds : array();
+	}
+
+	/** Xoá bộ đếm (nút trên màn chẩn đoán) — nhật ký lỗi giữ nguyên. */
+	public static function dem_xoa() {
+		delete_option( 'vhcc_dem_may' );
+		return array( 'ok' => true, 'thong_bao' => 'Đã xoá bộ đếm lượt (nhật ký lỗi giữ nguyên).' );
+	}
+
 	/** Trả JSON rồi dừng. `status` để đầu để chữ SUCCESS chắc chắn nằm trong thân. */
 	private static function tra( $ma, $tt ) {
+		self::dem_luu();   // gộp bộ đếm đúng một lần, trước khi đáp + exit
 		if ( ! headers_sent() ) {
 			status_header( $ma );
 			nocache_headers();
@@ -361,9 +410,12 @@ class VHCC_Nhan {
 		$model   = isset( $d['hikModel'] ) ? trim( (string) $d['hikModel'] ) : '';
 		$tu_khai = isset( $d['stationName'] ) ? trim( (string) $d['stationName'] ) : '';
 
+		self::dem( $mac, 'nhan' );   // mỗi lượt vào tới đây = một lượt NHẬN (kể cả sẽ bị bỏ)
+
 		/* --- Luật 4: gói thử đường truyền. Kiểm cả cờ `selftest` lẫn mã TEST4G, y như Code.gs. */
 		if ( ( isset( $d['selftest'] ) && true === $d['selftest'] ) || 'TEST4G' === strtoupper( $ma_nv ) ) {
 			self::ghi_loi( 'GOI_THU_DUONG', 'máy ' . ( $tu_khai ? $tu_khai : $mac ) . ' đẩy gói thử đường truyền' );
+			self::dem( $mac, 'boQua' );
 			return array( 'boQua' => true, 'note' => 'Goi THU DUONG TRUYEN -> khong ghi cham cong.' );
 		}
 
@@ -376,10 +428,12 @@ class VHCC_Nhan {
 		if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $ngay ) || null === $giay || ! self::ngay_that( $ngay ) ) {
 			self::ghi_loi( 'GIO_SAI_KHUON', 'máy ' . ( $tu_khai ? $tu_khai : $mac ) . ' gửi time="' . $luc
 				. '" (NV ' . $ma_nv . ') -> bỏ qua' );
+			self::dem( $mac, 'boQua' );
 			return array( 'boQua' => true, 'note' => 'time="' . $luc . '" khong dung khuon -> bo qua.' );
 		}
 		if ( '' === $ma_nv ) {
 			self::ghi_loi( 'THIEU_MA_NV', 'gói không có employeeNo (máy ' . ( $tu_khai ? $tu_khai : $mac ) . ')' );
+			self::dem( $mac, 'boQua' );
 			return array( 'boQua' => true, 'note' => 'Thieu employeeNo -> bo qua.' );
 		}
 
@@ -389,6 +443,7 @@ class VHCC_Nhan {
 			/* Máy chưa gán cơ sở -> giữ tạm, TUYỆT ĐỐI không tạo cơ sở mới từ lời khai của máy.
 			   Bỏ lượt bấm này là mất công của người thật chỉ vì cái máy chưa được khai. */
 			$luu = self::luu_cho_gan( $serial, $mac, $tu_khai, $ma_nv, $ho_ten, $luc, strlen( $anh ) > 100 );
+			self::dem( $mac, 'choGan' );
 			return array( 'choGan' => true, 'luu' => $luu,
 				'note' => 'May chua gan co so - da giu tam, vao web gan co so cho may nay.' );
 		}
@@ -420,8 +475,14 @@ class VHCC_Nhan {
 		if ( isset( $kq['loi'] ) ) {
 			/* Cơ sở dữ liệu hỏng — ĐÂY là ca duy nhất phải để firmware thử lại. */
 			self::ghi_loi( 'GHI_HONG', $kq['loi'] );
+			self::dem( $mac, 'hong' );
 			return array( 'loi' => $kq['loi'] );
 		}
+		/* Đếm theo loại: vào/ra/đảo-thứ-tự = GHI được giờ mới; trùng/giữa = gói lặp; giữ-tay = đã
+		   chặn không đè lên giờ người sửa. */
+		$lo = $kq['loai'];
+		self::dem( $mac, ( 'vao' === $lo || 'ra' === $lo || 'daoThuTu' === $lo ) ? 'ghi'
+			: ( 'giu-tay' === $lo ? 'giuTay' : 'trung' ) );
 		return array( 'loai' => $kq['loai'], 'coSo' => $coso, 'img' => $kq['anh'] );
 	}
 
