@@ -1339,6 +1339,11 @@ class VHG_Trang {
       '.bc-ro{display:block;text-align:right;font-weight:800;padding:9px 10px;border-radius:9px;background:#f1f5f9}',
       '.bc-cash{background:#ecfdf5;color:#059669}',
       '.bc-warn{font-size:11px;color:#b91c1c;font-weight:600;margin-top:3px}',
+      /* 🔴 NHẮC ≠ CHẶN, nên KHÔNG dùng chung màu đỏ. Đỏ ở màn này từ trước tới nay nghĩa là
+         "chưa gửi được"; để ca máy-đứng-yên mặc áo đỏ ấy thì nhân viên đi tìm ô lý do không có
+         thật, rồi tưởng trang hỏng. Vàng: có chuyện cần biết, vẫn gửi được. */
+      '.bc-warn.bc-nhac{color:#92400e;background:#fffbeb;border:1px solid #fde68a;'
+        + 'border-radius:6px;padding:4px 6px;font-weight:500;line-height:1.35}',
       '.bc-tot{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:12px}',
       '.bc-tt{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:10px}',
       '.bc-tt span{display:block;font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b}',
@@ -1786,6 +1791,14 @@ class VHG_Trang {
        cần người kiểm tra, không phải cứ trừ ra âm rồi lặng lẽ ghi vào sổ. */
     var chiSoNguoc=(before!==''&&after!==''&&after<before);
     var batThuong=chiSoNguoc||(rawCash<0);
+    /* 🔴 MÁY ĐỨNG YÊN MÀ CÓ QR — chỉ CẢNH BÁO, không đòi lý do, không chặn gửi.
+       Anh Thắng 31/08/2026: *"Khi chỉ số đứng yên (nhưng lại có chỉ số QR) dẫn đến chỉ số tiền
+       mặt âm. Lúc này nhân viên sẽ nhập thực thu là 0. Thì vẫn cho phép gửi báo cáo."*
+       Khác hẳn ca chỉ số TĂNG mà QR > actual (AM-BD-1): ở đó một trong hai số gõ sai và cần
+       người kiểm. Ở đây chỉ số đứng yên mà có lượt QR nghĩa là khách trả QR nhưng bộ đếm không
+       nhảy — lý do đã nằm sẵn trong chính con số, bắt gõ lại là bắt chép lại điều màn vừa nói.
+       ⚠️ Chặt đúng MỘT ca: sau BẰNG ĐÚNG trước. Không phải "âm thì cho qua". */
+    var mayDungCoQR=(before!==''&&after!==''&&Number(after)===Number(before)&&qr>0&&rawCash<0);
     var elA=tr.querySelector('.actual'); if(elA) elA.textContent=money(actual);   // gọn: ẩn
     var elC=tr.querySelector('.cash');   if(elC) elC.textContent=money(cash);
     /* 🔴 Ô "Thực thu" ĐỂ TRỐNG THÌ GỢI Ý SẴN SỐ CÔNG THỨC — anh Thắng 30/08/2026: *"mặc định là
@@ -1796,14 +1809,25 @@ class VHG_Trang {
        ⚠️ CÔNG THỨC RA ÂM thì ĐỪNG gợi ý số âm: máy không bao giờ nộp tiền mặt âm, gợi một số âm
           là mời người ta gõ đại nó vào. Lúc ấy nói thẳng phải nhập tay. */
     if(aEl && !coTT){
-      aEl.placeholder = (rawCash<0) ? 'Nhập số tiền thật' : money(rawCash);
+      /* Máy đứng yên: gợi ý thẳng số 0 — đó gần như luôn là số thật, và gõ 0 là xong hàng. */
+      aEl.placeholder = mayDungCoQR ? '0' : ((rawCash<0) ? 'Nhập số tiền thật' : money(rawCash));
     }
     tr.dataset.actual=actual; tr.dataset.cash=cash;
     var w=tr.querySelector('.bc-warn');
     /* Bất thường: hiện ô nhập LÝ DO ngay tại hàng đó — Thực thu đã có sẵn ở cột chính, không
        dựng thêm ô thứ hai trong khung cảnh báo nữa. */
-    if(batThuong){
+    if(mayDungCoQR){
+      /* Khung này KHÔNG có ô lý do — có ô là người ta tưởng phải điền mới gửi được. Chỉ nói ra
+         chuyện gì đang xảy ra và việc duy nhất cần làm: gõ số tiền mặt thật (thường là 0). */
       w.style.display='';
+      w.classList.add('bc-nhac');
+      if(w.querySelector('.ly-do-bt')) w.textContent='';
+      w.textContent='⚠ Máy đứng yên ('+after+') mà có QR — bình thường khi khách trả QR nhưng '
+        +'bộ đếm không nhảy. Gõ số tiền mặt thật vào cột "Thực thu tiền mặt" (thường là 0) là gửi '
+        +'được, không cần ghi lý do.';
+    } else if(batThuong){
+      w.style.display='';
+      w.classList.remove('bc-nhac');
       if(!w.querySelector('.ly-do-bt')){
         w.textContent='';
         w.appendChild(document.createTextNode(chiSoNguoc
@@ -1913,7 +1937,13 @@ class VHG_Trang {
       actualR-=(Number(kxR.tien)||0);   // khớp đúng phần trừ lượt kích từ xa server sẽ tính, xem calc()
       var rawCashR=actualR-Number(r.qr||0);
       var coTTR=(r.adjust!==null && r.adjust!==undefined);
-      if(chiSoNguoc||rawCashR<0){
+      /* Máy đứng yên mà có QR: chỉ cần đã gõ Thực thu là cho gửi — không đòi lý do. Chốt này
+         lặp lại y hệt ở server (`VHG_BaoCao::luu()`); ở đây chỉ để người bấm khỏi bị chặn oan. */
+      var mayDungR=(r.meterBefore!==''&&r.meterAfter!==''
+        &&Number(r.meterAfter)===Number(r.meterBefore)&&Number(r.qr||0)>0&&rawCashR<0);
+      if(mayDungR){
+        if(!coTTR){ canhBao.push((r.chairName||r.chairCode)+' (gõ Thực thu, thường là 0)'); continue; }
+      } else if(chiSoNguoc||rawCashR<0){
         var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
         var iLy=trR&&trR.querySelector('.ly-do-bt');
         var ly=iLy?(iLy.value||'').trim():'';

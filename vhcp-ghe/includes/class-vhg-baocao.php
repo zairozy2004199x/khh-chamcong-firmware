@@ -644,6 +644,28 @@ class VHG_BaoCao {
 			   điều kiện, không chỉ chỉ số. */
 			$chi_so_nguoc = ( null !== $r['chi_so_truoc'] && $r['chi_so_sau'] < $r['chi_so_truoc'] );
 			$bat_thuong = $chi_so_nguoc || $r['tien_mat'] < 0;
+
+			/* 🔴 MÁY ĐỨNG YÊN MÀ CÓ QR — CHỈ CẢNH BÁO, VẪN CHO GỬI.
+			   Anh Thắng 31/08/2026: *"Khi chỉ số đứng yên (nhưng lại có chỉ số QR) dẫn đến chỉ
+			   số tiền mặt âm. Lúc này nhân viên sẽ nhập thực thu là 0. Thì vẫn cho phép gửi báo
+			   cáo."* và *"Chỉ đưa ra cảnh báo, nhưng vẫn cho phép gửi báo cáo bình thường, và
+			   chỉ số tiền mặt lúc này vẫn ghi nhận thực thu, và chỉ số QR vẫn là QR."*
+
+			   Ca này KHÁC HẲN ca AM-BD-1 (597→610, chỉ số TĂNG mà QR gõ 240.000 > actual
+			   130.000): ở đó một trong hai con số gõ sai và phải có người kiểm. Còn ở đây chỉ số
+			   ĐỨNG YÊN mà có lượt QR nghĩa là khách trả QR nhưng bộ đếm không nhảy — chuyện
+			   thường ngày, và lý do thì đã nằm sẵn trong chính con số. Bắt gõ lại lý do mỗi lượt
+			   là bắt người ta chép lại điều màn hình vừa nói.
+
+			   🔴 CHẶT ĐÚNG MỘT CA, KHÔNG NỚI CẢ NHÁNH ÂM. Điều kiện là chỉ số sau BẰNG ĐÚNG chỉ
+			      số trước — không phải "âm thì cho qua". Nới cả nhánh âm là mở lại đúng ca anh
+			      Thắng bắt chặn hôm 28/08, và số âm lại lặng lẽ vào sổ.
+
+			   ⚠️ VẪN PHẢI CÓ THỰC THU. "Nhập thực thu là 0" — số 0 ấy là lời khai của nhân viên
+			      rằng ca này không thu được đồng tiền mặt nào; bỏ trống thì tiền mặt rơi về công
+			      thức và ghi số ÂM vào sổ. Không có số khai thì không có gì để ghi nhận. */
+			$dung_yen = ( null !== $r['chi_so_truoc'] && (int) $r['chi_so_sau'] === (int) $r['chi_so_truoc'] );
+			$may_dung_co_qr = ( $dung_yen && (int) $r['qr'] > 0 && $r['tien_mat'] < 0 );
 			/* 🔴 "THỰC THU" GHI ĐÈ CHO MỌI HÀNG, KHÔNG CHỈ HÀNG BẤT THƯỜNG. Anh Thắng 29/08/2026:
 			   "cột này là cột thực thu" + "khi nhập thực thu ở cột này, tiền cộng sẽ lấy theo cột
 			   này" — cột "Tăng/Giảm" cũ (chỉ cộng dồn) nay đổi hẳn thành "Thực thu": bất kỳ hàng
@@ -652,7 +674,7 @@ class VHG_BaoCao {
 			   đáng tin; hàng bình thường thì đây là lựa chọn — nhân viên gõ khi tiền mặt đếm thực
 			   tế khác số máy tính ra (thiếu/dư quỹ, làm tròn…). */
 			$thuc_thu = isset( $r0['actualOverride'] ) ? self::songuyen_( $r0['actualOverride'] ) : null;
-			if ( $bat_thuong ) {
+			if ( $bat_thuong && ! ( $may_dung_co_qr && null !== $thuc_thu ) ) {
 				if ( '' === $ly_do_bt ) {
 					$ly_ban_dau = $chi_so_nguoc
 						? ( 'chỉ số sau (' . $r['chi_so_sau'] . ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . ')' )
@@ -664,6 +686,13 @@ class VHG_BaoCao {
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten']
 						. ': cần nhập Thực thu tiền mặt (số tiền nộp thật) vì chỉ số bất thường không tính được theo công thức.' );
 				}
+			}
+			/* Cảnh báo đi VÀO GHI CHÚ, để kế toán mở báo cáo ra là thấy — "chỉ cảnh báo" nghĩa
+			   là không chặn tay nhân viên, không phải là im lặng với người soát sổ. */
+			if ( $may_dung_co_qr && null !== $thuc_thu ) {
+				$r['ghi_chu'] = mb_substr( trim( '⚠ MÁY ĐỨNG YÊN (' . (int) $r['chi_so_sau']
+					. ') mà có QR ' . number_format( (int) $r['qr'], 0, ',', '.' ) . 'đ'
+					. ( '' !== $r['ghi_chu'] ? ' · ' . $r['ghi_chu'] : '' ) ), 0, 250 );
 			}
 			if ( null !== $thuc_thu ) {
 				$r['tien_mat'] = $thuc_thu;
