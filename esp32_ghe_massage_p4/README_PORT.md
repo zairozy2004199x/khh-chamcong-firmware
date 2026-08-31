@@ -64,5 +64,8 @@ Các `-1` là **chưa gán**, phải điền chân thật (đối chiếu pad bo
   `ref`, gửi lại không cộng đôi); mất điện vẫn còn trong flash.
 - ✅ Cổng tiền ICT (`cong_tien.h`) nối vào máy trạng thái: tiền mặt cộng dồn phút vào
   phiên đang chạy, hoặc mở phiên mới.
+- ✅ Nhớ cấu hình vào NVS: giá/số phút/tài khoản nhận/nội dung tiền tố/danh sách gói lưu
+  vào NVS mỗi khi server đổi (tự dedupe khỏi mòn flash); bật máy lúc offline vẫn hiện
+  đúng gói + dựng được QR từ tài khoản lần chạy gần nhất.
 - Còn lại (tuỳ nhu cầu): OTA qua 4G; siết lại kiểm cert TLS (đang setInsecure).
 - Xác nhận cổng tiền & bo ghế là **UART TTL hay RS485** (nếu RS485 → dời cổng tiền sang 26/27).

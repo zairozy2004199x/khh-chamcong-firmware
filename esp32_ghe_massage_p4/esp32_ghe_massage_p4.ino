@@ -376,6 +376,47 @@ static void onCashIn(long vnd) {
   }
 }
 
+/* ─── NHỚ CẤU HÌNH VÀO NVS (mất mạng lúc bật máy vẫn có gói + QR đúng) ─────── */
+static Preferences cfgNvs;
+static void docCauHinh() {   // đọc lúc setup(), TRƯỚC khi vẽ màn đầu tiên
+  cfgNvs.begin("cfg", true);
+  String v;
+  v = cfgNvs.getString("ma",  ""); if (v.length()) CHAIR_ID   = v;
+  v = cfgNvs.getString("tk",  ""); if (v.length()) ACCOUNT_NO = v;
+  v = cfgNvs.getString("bin", ""); if (v.length()) BANK_BIN   = v;
+  if (cfgNvs.isKey("tienTo")) ND_TIEN_TO = cfgNvs.getString("tienTo", "");
+  long g = cfgNvs.getLong("gia", 0); if (g > 0) PRICE_VND = g;
+  int  p = cfgNvs.getInt ("phut", 0); if (p > 0) MINUTES   = p;
+  int  n = cfgNvs.getInt ("pkgN", 0);
+  if (n > 0 && n <= PKG_MAX) {
+    PKG_N = n;
+    for (int i = 0; i < n; i++) {
+      char ka[8], kp[8]; snprintf(ka, sizeof ka, "a%d", i); snprintf(kp, sizeof kp, "p%d", i);
+      PKG_AMT[i]  = cfgNvs.getLong(ka, PKG_AMT[i]);
+      PKG_PHUT[i] = cfgNvs.getInt (kp, PKG_PHUT[i]);
+    }
+  }
+  cfgNvs.end();
+}
+static void luuCauHinh() {   // gọi sau mỗi nhịp; TỰ bỏ qua nếu không đổi (khỏi mòn flash)
+  static String sig = "\x01";
+  String cur = CHAIR_ID + "|" + ACCOUNT_NO + "|" + BANK_BIN + "|" + ND_TIEN_TO + "|"
+             + String(PRICE_VND) + "|" + String(MINUTES) + "|" + String(PKG_N);
+  for (int i = 0; i < PKG_N; i++) cur += "|" + String(PKG_AMT[i]) + "," + String(PKG_PHUT[i]);
+  if (cur == sig) return;
+  sig = cur;
+  cfgNvs.begin("cfg", false);
+  cfgNvs.putString("ma", CHAIR_ID); cfgNvs.putString("tk", ACCOUNT_NO);
+  cfgNvs.putString("bin", BANK_BIN); cfgNvs.putString("tienTo", ND_TIEN_TO);
+  cfgNvs.putLong("gia", PRICE_VND); cfgNvs.putInt("phut", MINUTES); cfgNvs.putInt("pkgN", PKG_N);
+  for (int i = 0; i < PKG_N; i++) {
+    char ka[8], kp[8]; snprintf(ka, sizeof ka, "a%d", i); snprintf(kp, sizeof kp, "p%d", i);
+    cfgNvs.putLong(ka, PKG_AMT[i]); cfgNvs.putInt(kp, PKG_PHUT[i]);
+  }
+  cfgNvs.end();
+  Serial.println("[CFG] da luu cau hinh vao NVS");
+}
+
 static void nhip() {
   lastNhip = millis();
   const char* stt = (state == ST_RUNNING || state == ST_CAMON) ? "running"
@@ -406,6 +447,7 @@ static void nhip() {
     }
     if (n > 0) PKG_N = n;
   }
+  luuCauHinh();   // nhớ cấu hình mới nhất vào NVS (tự bỏ qua nếu không đổi)
   // Tiền vào trong lúc chờ (server báo qua coTien) → chạy.
   if (((int)(d["coTien"] | 0) == 1) && state == ST_WAIT_PAY) sangTrangThai(ST_CAMON);
   if (state == ST_IDLE || state == ST_NOACC) sangTrangThai(duNhanTien() ? ST_IDLE : ST_NOACC);
@@ -528,6 +570,7 @@ void setup() {
   Serial.begin(115200);
   randomSeed(esp_random());
   ioInit();               // relay TẮT + bypass fail-safe + dò xung — TRƯỚC mọi thứ
+  docCauHinh();           // nạp cấu hình lần chạy gần nhất từ NVS (chạy được cả khi offline)
   gtInit();
   if (manKhoiTao()) { sangTrangThai(ST_IDLE); gpio_set_level((gpio_num_t)PANEL_BL_GPIO, 1); }
   outbox.batDau(guiTienMat);              // mở hàng đợi tiền mặt (đọc NVS)
