@@ -1857,6 +1857,16 @@ class VHCC_Web {
 			. 'table.cc td.oc.tim{background:#f5f3ff;color:#6d28d9}'
 			. 'table.cc td.oc.luc{background:#f0fdf4;color:#15803d}'
 			. 'table.cc td.tong{text-align:right;font-weight:700;background:#f8fafc}'
+			/* 🔴 CỘT TỔNG GHIM BÊN PHẢI — chỉ ở lưới "Công của tôi".
+			   Lưới 31 cột luôn phải cuộn ngang, và cuộn tới đâu thì cột Tổng trôi ra ngoài tới
+			   đó. Mà tổng đúng là con số người ta mở màn này để xem: đối soát là nhìn tổng của
+			   mình với tổng của quản lý. Ghim cột đầu (tên cơ sở) đã có sẵn ở `.cuon`; đây là
+			   nửa còn lại. KHÔNG ghim ở lưới màn quản trị: ở đó cột cuối là ô bấm sửa, ghim đè
+			   lên vùng bấm. */
+			. 'table.cc.luoi-toi td.tong{position:sticky;right:0;z-index:2;text-align:center;'
+			. 'box-shadow:-3px 0 5px rgba(15,23,42,.07)}'
+			. 'table.cc.luoi-toi th.tong-h{position:sticky;right:0;z-index:3;background:#f8fafc;'
+			. 'box-shadow:-3px 0 5px rgba(15,23,42,.07)}'
 			. '.chu-luc{color:var(--luc);font-weight:600}'
 			. '.k{padding:1px 6px;border-radius:3px;font-size:12px}'
 			. '.k.luc{background:#f0fdf4;color:#15803d}.k.tim{background:#f5f3ff;color:#6d28d9}'
@@ -2752,6 +2762,14 @@ class VHCC_Web {
 			return;
 		}
 
+		/* BẢNG 1 — TÍNH RA CÔNG. Cùng khuôn với lưới màn quản trị, mỗi cơ sở một hàng. */
+		echo '<h3 style="margin:16px 0 6px">Công tháng</h3>';
+		echo '<p class="mo" style="margin:0 0 8px">Mỗi cơ sở một hàng — đối chiếu thẳng với bảng '
+			. 'của quản lý. Ô nền đỏ là ngày thiếu giờ ra, chưa tính được.</p>';
+		self::luoi_cong_toi( VHCC_Online::luoi_thang( $kq['dong'], $ds_cs, $th ) );
+
+		/* BẢNG 2 — GHI GIỜ VÀO RA. Sổ gốc: từng lượt một, không cộng gì. */
+		echo '<h3 style="margin:18px 0 6px">Giờ vào — giờ ra từng lượt</h3>';
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Ngày</th><th>Cơ sở</th><th>Hàng</th>'
 			. '<th>Vào</th><th>Ra</th><th>Giờ có mặt</th></tr></thead><tbody>';
 		foreach ( $kq['dong'] as $d ) {
@@ -2771,6 +2789,79 @@ class VHCC_Web {
 			. 'chấm công — chưa trừ nghỉ, chưa quy ra công tính lương. Bảng lương do kế toán chốt '
 			. 'có thể khác; thấy lệch thì báo, đừng tự cộng.</p>';
 		echo '</div>';
+	}
+
+	/**
+	 * LƯỚI CÔNG THÁNG CỦA CHÍNH MÌNH — mỗi cơ sở MỘT hàng.
+	 *
+	 * Anh Thắng 31/08/2026: *"1 bảng tính ra công, 1 bảng ghi giờ vào ra, tách 2 hàng, vì 1
+	 * nhân viên chỉ có 2 hàng, thì làm 2 hàng cho nhân viên dễ đối soát"*.
+	 *
+	 * 🔴 CÙNG KHUÔN VỚI LƯỚI CỦA MÀN QUẢN TRỊ — cùng lớp CSS `table.cc`, cùng quy ước màu, cùng
+	 *    cách xếp cột. Đối soát là đặt hai màn cạnh nhau; hai khuôn khác nhau thì mỗi lần so
+	 *    phải dịch trong đầu, và chỗ nào dịch được thì chỗ ấy nhầm được.
+	 *
+	 * ⚠️ KHÔNG BẤM SỬA ĐƯỢC Ở ĐÂY. Lưới của màn quản trị bấm vào ô là sửa giờ; lưới này chỉ
+	 *    đọc. Nhân viên tự sửa giờ công của mình thì con số hết là bằng chứng.
+	 */
+	private static function luoi_cong_toi( $luoi ) {
+		if ( empty( $luoi['hang'] ) ) { return; }
+		$so_ngay = (int) $luoi['soNgay'];
+		$tt      = (string) $luoi['thang'];
+		$hom_nay = (string) current_time( 'Y-m-d' );
+
+		echo '<div class="cuon"><table class="cc luoi-toi"><thead><tr><th>Cơ sở</th>';
+		for ( $i = 1; $i <= $so_ngay; $i++ ) {
+			$ngay_o = $tt . '-' . str_pad( (string) $i, 2, '0', STR_PAD_LEFT );
+			$thu    = (int) gmdate( 'w', strtotime( $ngay_o ) );
+			$lop    = 'ng' . ( 0 === $thu ? ' cn' : '' ) . ( $ngay_o === $hom_nay ? ' nay' : '' );
+			echo '<th class="' . $lop . '">' . $i . '<div style="font-weight:400;font-size:9.5px">'
+				. esc_html( self::ten_thu( $thu ) ) . '</div></th>';
+		}
+		echo '<th class="tong-h">Tổng</th></tr></thead><tbody>';
+
+		foreach ( $luoi['hang'] as $h ) {
+			$don_vi = ( 'ngay' === $h['kieu'] ) ? 'công' : 'giờ';
+			echo '<tr><td><b>' . esc_html( $h['coSo'] ) . '</b>'
+				. '<div class="mo" style="font-size:10.5px">tính theo ' . esc_html( $don_vi ) . '</div></td>';
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				$ngay_o = $tt . '-' . str_pad( (string) $i, 2, '0', STR_PAD_LEFT );
+				$nay    = ( $ngay_o === $hom_nay ) ? ' nay' : '';
+				if ( ! isset( $h['o'][ $i ] ) ) {
+					echo '<td class="o' . $nay . '">·</td>';
+					continue;
+				}
+				$o    = $h['o'][ $i ];
+				$lop  = ( $o['thieuRa'] ? 'hong' : 'oc' ) . $nay;
+				$chu  = ( null === $o['chinh'] ) ? '·' : self::so_o( $o['chinh'], $h['kieu'] );
+				echo '<td class="' . $lop . '">' . esc_html( $chu );
+				foreach ( $o['phu'] as $ht => $gia ) {
+					echo '<div class="mo" style="font-size:9.5px">-' . esc_html( $ht ) . ' '
+						. esc_html( self::so_o( $gia, $h['kieu'] ) ) . '</div>';
+				}
+				if ( $o['thieuRa'] ) { echo '<div style="font-size:9.5px">thiếu ?</div>'; }
+				echo '</td>';
+			}
+			echo '<td class="tong">' . esc_html( self::so_o( $h['tong'], $h['kieu'] ) );
+			foreach ( $h['tongPhu'] as $ht => $gia ) {
+				echo '<div class="mo" style="font-size:9.5px;font-weight:400">-' . esc_html( $ht )
+					. ' ' . esc_html( self::so_o( $gia, $h['kieu'] ) ) . '</div>';
+			}
+			echo '</td></tr>';
+		}
+		echo '</tbody></table></div>';
+	}
+
+	/** Một con số trong ô lưới, theo đơn vị của cơ sở. */
+	private static function so_o( $gia, $kieu ) {
+		if ( 'ngay' === $kieu ) { return (string) (int) $gia; }
+		return self::gio_phut( $gia );
+	}
+
+	/** 0..6 -> CN, T2..T7. */
+	private static function ten_thu( $w ) {
+		$ds = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+		return isset( $ds[ $w ] ) ? $ds[ $w ] : '';
 	}
 
 	/** Phút -> "7h30". Rỗng/null -> "—". */

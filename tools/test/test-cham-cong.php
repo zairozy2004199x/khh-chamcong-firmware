@@ -16171,6 +16171,77 @@ ob_start(); VHCC_Admin::page(); $h_sach = ob_get_clean();
 t( '🔴 dọn sạch rồi thì nút biến mất hẳn, không nằm lại giữa màn',
 	strpos( $h_sach, 'Dọn cơ sở ghép' ) === false );
 
+/* =============================================================================================
+ * LƯỚI CÔNG THÁNG Ở MÀN "CÔNG CỦA TÔI" — MỖI CƠ SỞ MỘT HÀNG.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"Chuyển dữ liệu nhìn công tháng của nhân viên cũng như bản tổng.
+ * 1 bảng tính ra công, 1 bảng ghi giờ vào ra, tách 2 hàng, vì 1 nhân viên chỉ có 2 hàng, thì
+ * làm 2 hàng cho nhân viên dễ đối soát"*.
+ *
+ * `luoi_thang()` là hàm THUẦN, nên mục này thử bằng con số trần — không dựng bảng, không dựng
+ * màn. Ba chỗ đếm dễ sai nằm cả ở đây.
+ */
+$dong_thu = array(
+	array( 'ngay' => '2026-08-03', 'coSo' => 'G_CS', 'hauTo' => '',   'vao' => '08:00:00', 'ra' => '17:00:00', 'phut' => 540 ),
+	array( 'ngay' => '2026-08-03', 'coSo' => 'G_CS', 'hauTo' => 'CD', 'vao' => '22:00:00', 'ra' => '23:00:00', 'phut' => 60 ),
+	array( 'ngay' => '2026-08-04', 'coSo' => 'G_CS', 'hauTo' => '',   'vao' => '08:00:00', 'ra' => '',         'phut' => null ),
+	array( 'ngay' => '2026-08-05', 'coSo' => 'N_CS', 'hauTo' => '',   'vao' => '09:00:00', 'ra' => '18:00:00', 'phut' => 540 ),
+	array( 'ngay' => '2026-08-06', 'coSo' => 'N_CS', 'hauTo' => '',   'vao' => '09:00:00', 'ra' => '',         'phut' => null ),
+	array( 'ngay' => '2026-09-01', 'coSo' => 'G_CS', 'hauTo' => '',   'vao' => '08:00:00', 'ra' => '17:00:00', 'phut' => 540 ),
+);
+$kieu_thu = array( 'G_CS' => 'gio', 'N_CS' => 'ngay', 'R_CS' => 'gio' );
+
+/* (a) Người 3 cơ sở -> ĐÚNG 3 hàng, kể cả cơ sở tháng này không có công nào. */
+$lg = VHCC_Online::luoi_thang( $dong_thu, array( 'G_CS', 'N_CS', 'R_CS' ), '2026-08', $kieu_thu );
+teq( 'mỗi cơ sở đúng một hàng', 3, count( $lg['hang'] ) );
+teq( 'thứ tự hàng theo danh sách cơ sở đưa vào', 'G_CS', $lg['hang'][0]['coSo'] );
+teq( '🔴 cơ sở KHÔNG có công tháng này vẫn có hàng', 'R_CS', $lg['hang'][2]['coSo'] );
+teq( 'và hàng ấy tổng bằng 0', 0, (int) $lg['hang'][2]['tong'] );
+teq( 'số ngày của tháng 8', 31, (int) $lg['soNgay'] );
+
+/* (b) 🔴 HẬU TỐ KHÔNG ĐẺ THÊM HÀNG — nằm trong ô của ngày ấy.
+       Không có phép này thì người 2 cơ sở kiêm trực ghế bỗng có 4 hàng, đúng cái anh bảo đừng. */
+$g = $lg['hang'][0];
+teq( 'hàng chính ngày 3: 9 tiếng', 540, (int) $g['o'][3]['chinh'] );
+teq( 'hậu tố CD nằm TRONG ô ngày 3', 60, (int) $g['o'][3]['phu']['CD'] );
+teq( 'tổng riêng của hậu tố CD', 60, (int) $g['tongPhu']['CD'] );
+teq( '🔴 tổng hàng chính KHÔNG cộng hậu tố vào', 540, (int) $g['tong'] );
+
+/* (c) Ngày thiếu giờ ra: cắm cờ, và với kiểu 'ngay' thì KHÔNG tính công. */
+t( 'ngày thiếu giờ ra được cắm cờ', true === $g['o'][4]['thieuRa'] );
+teq( 'đếm số lượt thiếu giờ ra của hàng', 1, (int) $g['thieuRa'] );
+$n = $lg['hang'][1];
+teq( 'kiểu "ngay": ngày đủ giờ = 1 công', 1, (int) $n['o'][5]['chinh'] );
+teq( '🔴 kiểu "ngay": ngày thiếu giờ ra = 0 công, không tính đại', 0, (int) $n['o'][6]['chinh'] );
+teq( 'nên tổng công của cơ sở ấy là 1', 1, (int) $n['tong'] );
+
+/* (d) Lượt của tháng khác bị bỏ — không thì ô ngày 1 tháng sau đè lên ngày 1 tháng này. */
+t( 'lượt tháng 9 không lọt vào lưới tháng 8', ! isset( $g['o'][1] ) );
+
+/* (e) 🔴 LƯỢT Ở CƠ SỞ KHÔNG CÓ TRONG DANH SÁCH VẪN PHẢI HIỆN.
+       Bỏ lặng lẽ thì tổng của lưới lệch với bảng giờ ngay bên dưới, mà không ai biết mất ở đâu
+       — đúng loại lệch làm người ta thôi tin cả hai bảng. */
+$lg2 = VHCC_Online::luoi_thang( $dong_thu, array( 'N_CS' ), '2026-08', $kieu_thu );
+teq( 'cơ sở lạ được thêm hàng chứ không bị bỏ', 2, count( $lg2['hang'] ) );
+
+/* (f) Màn thật: hai bảng, và lưới có đúng hai hàng cơ sở. */
+vhcc_dung_bang();
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LT01', 'ho_ten' => 'Lưới A',
+	'cua_hang' => 'LT_CHINH', 'coso_phu' => 'LT_PHU' ) );
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'LT_CHINH', 'ngay' => '2026-08-03',
+	'ma_nv' => 'LT01', 'hau_to' => '', 'ho_ten' => 'Lưới A', 'gio_vao_giay' => 8 * 3600,
+	'gio_ra_giay' => 17 * 3600, 'nguon' => 'may' ) );
+$h_lt = vhcc_web_nhu2( 'LT01', 'Nhân viên', 'LT_CHINH, LT_PHU', array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+t( 'màn có bảng tính công', strpos( $h_lt, '>Công tháng<' ) !== false, $h_lt );
+t( 'và bảng giờ vào ra', strpos( $h_lt, 'Giờ vào — giờ ra từng lượt' ) !== false, $h_lt );
+t( '🔴 lưới có hàng cơ sở chính', strpos( $h_lt, '<b>LT_CHINH</b>' ) !== false, $h_lt );
+t( '🔴 và hàng cơ sở phụ, dù tháng này chưa có công',
+	strpos( $h_lt, '<b>LT_PHU</b>' ) !== false, $h_lt );
+teq( 'đúng HAI hàng cơ sở, không đẻ thêm', 2,
+	substr_count( $h_lt, 'tính theo ' ) );
+t( 'lưới KHÔNG có ô sửa giờ — màn này chỉ đọc',
+	strpos( $h_lt, 'name="sg_vao"' ) === false && strpos( $h_lt, 'suaday' ) === false, $h_lt );
+
 vhcc_dung_bang();
 
 

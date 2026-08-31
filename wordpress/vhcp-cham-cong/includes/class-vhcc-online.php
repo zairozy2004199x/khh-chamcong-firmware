@@ -478,6 +478,105 @@ class VHCC_Online {
 	 *
 	 * @param string $thang 'YYYY-MM'. Sai định dạng -> tháng hiện tại theo GIỜ MÁY CHỦ.
 	 */
+	/**
+	 * DỰNG LƯỚI CÔNG THÁNG TỪ DANH SÁCH LƯỢT — HÀM THUẦN.
+	 *
+	 * Anh Thắng 31/08/2026: *"Chuyển dữ liệu nhìn công tháng của nhân viên cũng như bản tổng.
+	 * 1 bảng tính ra công, 1 bảng ghi giờ vào ra, tách 2 hàng, vì 1 nhân viên chỉ có 2 hàng,
+	 * thì làm 2 hàng cho nhân viên dễ đối soát"*.
+	 *
+	 * 🔴 THUẦN, KHÔNG ĐỌC CSDL. Vào là danh sách lượt (`bang_thang()['dong']`), danh sách cơ sở,
+	 *    và bảng cách tính; ra là lưới. Nhờ vậy ba chỗ đếm dễ sai — gộp hậu tố, ngày thiếu giờ
+	 *    ra, cơ sở không có công — thử được bằng con số trần, không cần dựng bảng.
+	 *
+	 * ⚠️ CƠ SỞ KHÔNG CÓ CÔNG THÁNG NÀY VẪN CÓ HÀNG. Bỏ hàng trống đi thì số hàng thay đổi theo
+	 *    tháng, mà anh Thắng cần *"2 hàng cho nhân viên dễ đối soát"* — đối soát là đặt hai
+	 *    tháng cạnh nhau và nhìn cùng một chỗ. Hàng trống nói "tháng này cơ sở kia không có
+	 *    công", khác hẳn với việc không thấy hàng đâu và không biết vì sao.
+	 *
+	 * ⚠️ HẬU TỐ KHÔNG ĐẺ THÊM HÀNG. Tăng ca / ca đêm / nhiệm vụ phụ nằm thành dòng nhỏ TRONG ô
+	 *    của ngày ấy, y như màn quản trị. Đẻ hàng theo hậu tố là người 2 cơ sở kiêm trực ghế
+	 *    bỗng có 4 hàng, đúng cái anh vừa bảo đừng.
+	 *
+	 * @param array  $dong    Mảng lượt: ngay · coSo · hauTo · ra · phut.
+	 * @param array  $ds_coso Cơ sở của người này, theo thứ tự muốn hiện.
+	 * @param string $thang   'YYYY-MM'.
+	 * @param array  $kieu_cs Cách tính từng cơ sở; thiếu thì hỏi VHCC_Luong.
+	 * @return array `thang` · `soNgay` · `hang`(mảng theo thứ tự $ds_coso)
+	 */
+	public static function luoi_thang( $dong, $ds_coso, $thang = '', $kieu_cs = array() ) {
+		if ( ! preg_match( '/^\d{4}-\d{2}$/', (string) $thang ) ) { $thang = current_time( 'Y-m' ); }
+		$so_ngay = (int) gmdate( 't', strtotime( $thang . '-01' ) );
+
+		$hang = array();
+		foreach ( (array) $ds_coso as $cs ) {
+			$cs = (string) $cs;
+			if ( '' === $cs || isset( $hang[ $cs ] ) ) { continue; }
+			$hang[ $cs ] = array(
+				'coSo'    => $cs,
+				'kieu'    => isset( $kieu_cs[ $cs ] ) ? $kieu_cs[ $cs ] : VHCC_Luong::cach_tinh( $cs ),
+				'o'       => array(),
+				'tong'    => 0,
+				'tongPhu' => array(),
+				'thieuRa' => 0,
+			);
+		}
+
+		foreach ( (array) $dong as $d ) {
+			$cs = isset( $d['coSo'] ) ? (string) $d['coSo'] : '';
+			/* Lượt ở cơ sở KHÔNG có trong danh sách vẫn phải hiện — nếu lặng lẽ bỏ thì tổng của
+			   lưới lệch với bảng giờ ngay bên dưới, và không ai biết mất ở đâu. */
+			if ( ! isset( $hang[ $cs ] ) ) {
+				if ( '' === $cs ) { continue; }
+				$hang[ $cs ] = array( 'coSo' => $cs,
+					'kieu' => isset( $kieu_cs[ $cs ] ) ? $kieu_cs[ $cs ] : VHCC_Luong::cach_tinh( $cs ),
+					'o' => array(), 'tong' => 0, 'tongPhu' => array(), 'thieuRa' => 0 );
+			}
+			/* 🔴 KIỂM CẢ THÁNG, KHÔNG CHỈ CẮT LẤY SỐ NGÀY. Cắt suông thì lượt ngày 01/09 rơi
+			   đúng vào ô ngày 1 của tháng 8 và cộng luôn vào tổng — một tháng cộng nhầm công
+			   của tháng sau, mà lưới vẫn trông bình thường. */
+			$ngay_d = (string) $d['ngay'];
+			if ( substr( $ngay_d, 0, 7 ) !== $thang ) { continue; }
+			$ng = (int) substr( $ngay_d, 8, 2 );
+			if ( $ng < 1 || $ng > $so_ngay ) { continue; }
+			$ht  = isset( $d['hauTo'] ) ? trim( (string) $d['hauTo'] ) : '';
+			$co_ra = isset( $d['ra'] ) && '' !== trim( (string) $d['ra'] );
+			$phut  = ( isset( $d['phut'] ) && null !== $d['phut'] && '' !== $d['phut'] )
+				? (int) $d['phut'] : null;
+
+			if ( ! isset( $hang[ $cs ]['o'][ $ng ] ) ) {
+				$hang[ $cs ]['o'][ $ng ] = array( 'chinh' => null, 'phu' => array(), 'thieuRa' => false );
+			}
+			if ( ! $co_ra ) {
+				$hang[ $cs ]['o'][ $ng ]['thieuRa'] = true;
+				$hang[ $cs ]['thieuRa']++;
+			}
+
+			/* Kiểu 'ngay' đếm CÔNG, kiểu khác cộng PHÚT. Luật "thiếu giờ ra thì không tính công"
+			   nằm ở `VHCC_Luong::cong_co_di()` — hỏi lại nó chứ không chép luật sang đây, vì hai
+			   bản luật cho cùng một câu thì sớm muộn lệch nhau. */
+			$gia = ( 'ngay' === $hang[ $cs ]['kieu'] )
+				? VHCC_Luong::cong_co_di(
+					isset( $d['vao'] ) ? $d['vao'] : null,
+					isset( $d['ra'] ) ? $d['ra'] : null )
+				: (int) $phut;
+
+			if ( '' === $ht ) {
+				$cu = $hang[ $cs ]['o'][ $ng ]['chinh'];
+				$hang[ $cs ]['o'][ $ng ]['chinh'] = ( null === $cu ) ? $gia : $cu + $gia;
+				$hang[ $cs ]['tong'] += $gia;
+			} else {
+				$cu = isset( $hang[ $cs ]['o'][ $ng ]['phu'][ $ht ] )
+					? $hang[ $cs ]['o'][ $ng ]['phu'][ $ht ] : 0;
+				$hang[ $cs ]['o'][ $ng ]['phu'][ $ht ] = $cu + $gia;
+				$hang[ $cs ]['tongPhu'][ $ht ] = ( isset( $hang[ $cs ]['tongPhu'][ $ht ] )
+					? $hang[ $cs ]['tongPhu'][ $ht ] : 0 ) + $gia;
+			}
+		}
+
+		return array( 'thang' => $thang, 'soNgay' => $so_ngay, 'hang' => array_values( $hang ) );
+	}
+
 	public static function bang_thang( $ma_nv, $ds_coso, $thang = '' ) {
 		global $wpdb;
 		$ma_nv = trim( (string) $ma_nv );
