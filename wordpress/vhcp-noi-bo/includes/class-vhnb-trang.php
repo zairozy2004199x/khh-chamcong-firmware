@@ -42,7 +42,128 @@ class VHNB_Trang {
 	 *    nhập" giữa màn hình trắng: người mới vào không biết mình đang ở đâu, không biết lấy
 	 *    PIN ở đâu, và không có gì đọc trong lúc chưa có PIN.
 	 */
-	private static function phan_cong_khai( $loi = '' ) {
+	/** Trạng thái rỗng của khối quên PIN — khai một chỗ để hai nơi không tự bịa ra hình dạng khác. */
+	const QP_RONG = array( 'loi' => '', 'ok' => '', 'the' => '', 'ten' => '' );
+
+	/**
+	 * KHỐI "QUÊN PIN" NGAY TRÊN TRANG NỘI BỘ.
+	 *
+	 * Anh Thắng 31/08/2026: *"trang nội bộ hỗ trợ tính năng lấy lại pin theo số CCCD"*.
+	 *
+	 * 🔴 GỌI ĐÚNG LÕI CỦA TRANG CHẤM CÔNG, KHÔNG VIẾT LUẬT THỨ HAI. `VHCC_QuenPin` đã có bộ đếm
+	 *    chống dò (5 lần mỗi số + 30 lần toàn hệ trong 10 phút), thẻ sống 5 phút, sổ ghi mỗi
+	 *    lần đổi, và luật "câu chối phải giống nhau cho mọi ca hỏng". Dựng bản thứ hai ở đây là
+	 *    có hai bộ đếm rời nhau — khoá bên này thì bên kia vẫn cho dò tiếp, đúng cái lỗ mà bộ
+	 *    đếm sinh ra để bịt.
+	 *
+	 * 🔴 KHÔNG HIỆN PIN CŨ. Khớp danh tính thì cho ĐẶT PIN MỚI. Trang này chạy ngoài internet.
+	 *
+	 * ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật `tools/test/kiem-goi-cheo.php`.
+	 */
+	private static function khoi_quen_pin( $qp ) {
+		if ( ! class_exists( 'VHCC_QuenPin' )
+			|| ! method_exists( 'VHCC_QuenPin', 'so_co_cccd' ) ) {
+			return;
+		}
+		$dang = ( '' !== (string) $qp['the'] );
+
+		echo '<div class="the"><details' . ( $dang || '' !== (string) $qp['loi'] ? ' open' : '' ) . '>';
+		echo '<summary><b>Quên PIN?</b> — lấy lại bằng họ tên và số căn cước</summary>';
+
+		if ( '' !== (string) $qp['loi'] ) {
+			echo '<div class="bao loi" style="margin-top:10px">' . esc_html( $qp['loi'] ) . '</div>';
+		}
+		if ( '' !== (string) $qp['ok'] ) {
+			echo '<div class="bao ok" style="margin-top:10px">' . esc_html( $qp['ok'] ) . '</div>';
+		}
+
+		if ( ! $dang ) {
+			/* Không ai khai CCCD thì đường này vô dụng — nói ra, đừng để người ta gõ mãi. */
+			if ( ! VHCC_QuenPin::so_co_cccd() ) {
+				echo '<div class="bao canh" style="margin-top:10px">Chưa hồ sơ nào khai <b>số căn '
+					. 'cước</b>, nên chưa ai lấy lại PIN bằng đường này được. Nhờ quản lý cửa hàng '
+					. 'hoặc kế toán khai ô <b>CCCD</b> trong hồ sơ nhân sự trước.</div>';
+				echo '</details></div>';
+				return;
+			}
+			echo '<p class="mo" style="margin:10px 0">Gõ đúng như trong hồ sơ nhân sự. Khớp rồi thì '
+				. 'đặt PIN mới ngay — <b>hệ thống không hiện PIN cũ ra màn hình</b> bao giờ.</p>';
+			echo '<form method="post" style="margin:0">';
+			echo '<input type="hidden" name="qp_viec" value="tra">';
+			echo '<div style="margin-bottom:8px"><label for="qp_ten">Họ tên</label>'
+				. '<input id="qp_ten" name="qp_ten" required style="width:100%;padding:9px 11px;'
+				. 'border:1px solid var(--vien);border-radius:8px"></div>';
+			echo '<div style="margin-bottom:10px"><label for="qp_cccd">Số căn cước công dân</label>'
+				. '<input id="qp_cccd" name="qp_cccd" inputmode="numeric" required '
+				. 'autocomplete="off" style="width:100%;padding:9px 11px;border:1px solid var(--vien);'
+				. 'border-radius:8px"></div>';
+			echo '<button class="nut chinh" type="submit">Tra hồ sơ</button></form>';
+			echo '</details></div>';
+			return;
+		}
+
+		echo '<p style="margin:10px 0"><b>✓ Khớp hồ sơ ' . esc_html( $qp['ten'] ) . '.</b> '
+			. 'Đặt PIN mới ngay bây giờ — <b>ô này sống 5 phút</b>.</p>';
+		echo '<form method="post" style="margin:0">';
+		echo '<input type="hidden" name="qp_viec" value="dat">';
+		echo '<input type="hidden" name="qp_the" value="' . esc_attr( $qp['the'] ) . '">';
+		echo '<div style="margin-bottom:10px"><label for="qp_moi">PIN mới (4–8 chữ số)</label>'
+			. '<input id="qp_moi" name="qp_moi" type="password" inputmode="numeric" required '
+			. 'autocomplete="off" style="width:100%;padding:10px 12px;border:1px solid var(--vien);'
+			. 'border-radius:8px;font-size:19px;letter-spacing:3px;text-align:center"></div>';
+		echo '<button class="nut chinh" type="submit">Đặt PIN mới</button></form>';
+		echo '</details></div>';
+	}
+
+	/**
+	 * Hai bước của "quên PIN". Lõi ở `VHCC_QuenPin`; đây chỉ đọc biểu mẫu và kể lại.
+	 *
+	 * ⚠️ TRẢ VỀ null KHI KHÔNG PHẢI VIỆC CỦA MÌNH, để nơi gọi biết mà đi tiếp — chứ không trả
+	 *    một mảng rỗng trông y hệt "đã xử xong mà chẳng ra gì".
+	 */
+	private static function viec_quen_pin() {
+		$p = function ( $k ) {
+			return isset( $_POST[ $k ] ) ? sanitize_text_field( wp_unslash( $_POST[ $k ] ) ) : '';
+		};
+		$viec = $p( 'qp_viec' );
+		if ( 'tra' !== $viec && 'dat' !== $viec ) { return null; }
+
+		$ra = self::QP_RONG;
+		if ( ! class_exists( 'VHCC_QuenPin' ) || ! method_exists( 'VHCC_QuenPin', 'tra' )
+			|| ! method_exists( 'VHCC_QuenPin', 'dat' ) || ! method_exists( 'VHCC_QuenPin', 'doc_the' ) ) {
+			$ra['loi'] = 'Chưa cài plugin Chấm công trên site này, nên chưa lấy lại PIN được.';
+			return $ra;
+		}
+
+		if ( 'tra' === $viec ) {
+			$kq = VHCC_QuenPin::tra( $p( 'qp_ten' ), $p( 'qp_cccd' ) );
+			if ( empty( $kq['ok'] ) ) {
+				$ra['loi'] = (string) $kq['error'];
+				return $ra;
+			}
+			$ra['the'] = (string) $kq['the'];
+			$ra['ten'] = (string) $kq['ho_ten'];
+			return $ra;
+		}
+
+		$kq = VHCC_QuenPin::dat( $p( 'qp_the' ), $p( 'qp_moi' ) );
+		if ( empty( $kq['ok'] ) ) {
+			$ra['loi'] = (string) $kq['error'];
+			/* 🔴 THẺ CÒN SỐNG THÌ GIỮ Ô BƯỚC HAI. PIN mới trùng người khác, hay gõ 3 chữ số —
+			   đó là gõ lại một lần, không phải làm lại từ họ tên và căn cước. Ném họ về bước
+			   một là bắt khai lại danh tính vì một lỗi chính tả. */
+			$ma_con = VHCC_QuenPin::doc_the( $p( 'qp_the' ) );
+			if ( '' !== $ma_con ) {
+				$ra['the'] = $p( 'qp_the' );
+				$ra['ten'] = $p( 'qp_ten' );
+			}
+			return $ra;
+		}
+		$ra['ok'] = 'Đã đặt PIN mới cho ' . $kq['ho_ten'] . '. Đăng nhập bằng PIN mới ngay bên trên.';
+		return $ra;
+	}
+
+	private static function phan_cong_khai( $loi = '', $qp = null ) {
 		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `tools/test/kiem-goi-cheo.php`.
 		   Bốn plugin cài độc lập, bản có thể lệch nhau; `class_exists` chỉ nói CÓ PLUGIN, không
 		   nói CÓ HÀM. Gỡ plugin chấm công ra thì trang này vẫn phải chạy, chỉ mất đường đăng nhập. */
@@ -78,13 +199,17 @@ class VHNB_Trang {
 			echo '<button class="nut chinh" type="submit">Đăng nhập</button>';
 			echo '</form>';
 			echo '<p class="mo" style="margin:12px 0 0;font-size:13px">Ba trang dùng chung một phiên — '
-				. 'đăng nhập một lần ở đây là vào được cả Nội bộ, Chấm công và Vận hành chi phí. '
-				. 'Quên PIN thì mở <a href="' . esc_url( $url_cc ) . '">trang chấm công</a> để lấy lại.</p>';
+				. 'đăng nhập một lần ở đây là vào được cả Nội bộ, Chấm công và Vận hành chi phí.</p>';
 		} else {
 			echo '<p class="mo" style="margin:0">Chưa cài plugin <b>Chấm công</b> trên site này, '
 				. 'nên chưa có đường đăng nhập. Nhờ quản trị cài rồi kích hoạt nó.</p>';
 		}
 		echo '</div>';
+
+		/* Không gác thêm `$co_cc` ở đây: `khoi_quen_pin()` tự dò `VHCC_QuenPin` bằng
+		   `method_exists` rồi im lặng rút lui. Gác hai lần cùng một câu hỏi thì một ngày nào đó
+		   hai chỗ trả lời khác nhau, và chẳng ai biết chỗ nào mới là chỗ quyết định. */
+		self::khoi_quen_pin( is_array( $qp ) ? $qp : self::QP_RONG );
 
 		$hd = self::huong_dan();
 		if ( '' !== $hd ) {
@@ -209,7 +334,8 @@ class VHNB_Trang {
 	 *    và người vừa cài xong chưa kịp khai gì thì đó đúng là lúc cần hướng dẫn nhất.
 	 */
 	const HD_MAC_DINH = "Đăng nhập bằng mã PIN chấm công.\n"
-		. "Chưa có PIN, hoặc quên PIN: nhắn quản lý cửa hàng hoặc kế toán để được cấp lại.\n"
+		. "Quên PIN: mở khối \"Quên PIN?\" ngay dưới ô đăng nhập, lấy lại bằng họ tên và số căn cước.\n"
+		. "Chưa có PIN, hoặc hồ sơ chưa khai căn cước: nhắn quản lý cửa hàng hoặc kế toán để được cấp.\n"
 		. "Đăng nhập một lần dùng được cả ba trang: Nội bộ, Chấm công, Vận hành chi phí.\n"
 		. "Vào Chấm công để xem công của mình trong tháng và xin phép đi trễ.\n"
 		. "Vào Vận hành chi phí để lên đơn tạm ứng và gửi quyết toán.";
@@ -526,6 +652,24 @@ class VHNB_Trang {
 		      tên theo thẻ phiên, mà lúc chưa đăng nhập thì thẻ rỗng — mọi khách trên internet
 		      dùng CHUNG một ô nhớ, và câu báo của người này hiện lên màn hình người kia. Nên
 		      gõ sai thì vẽ thẳng lại trang, không chuyển hướng. */
+		/* 🔴 QUÊN PIN CŨNG ĐỨNG TRƯỚC CHỐT CHỮ KÝ, cùng lý do với ô đăng nhập ngay dưới: chữ ký
+		   tính theo THẺ PHIÊN, mà người quên PIN thì chưa có thẻ nào. Đặt sau chốt là ô nằm đó
+		   nhìn thấy được nhưng mọi lượt gửi đều bị chối, và chẳng có gì nói vì sao.
+
+		   ⚠️ CHỈ CHO NGƯỜI CHƯA ĐĂNG NHẬP. Đã có phiên thì đổi PIN đi đường trong (biết PIN cũ);
+		      đường này là đường DUY NHẤT không cần biết PIN cũ, nên đừng mở thêm cho ai không
+		      cần tới nó.
+
+		   ⚠️ Vẽ thẳng lại trang, KHÔNG chuyển hướng — y như ô đăng nhập: câu báo ở đây không
+		      cất được vào transient khoá theo thẻ, vì thẻ đang rỗng. */
+		if ( ! $toi ) {
+			$qp_kq = self::viec_quen_pin();
+			if ( null !== $qp_kq ) {
+				self::ve( null, '', $qp_kq );
+				return;
+			}
+		}
+
 		if ( ! $toi && 'dang_nhap' === $viec_gui ) {
 			$r = self::dang_nhap( isset( $_POST['pin'] ) ? wp_unslash( $_POST['pin'] ) : '' );
 			if ( ! empty( $r['ok'] ) ) {
@@ -645,7 +789,7 @@ class VHNB_Trang {
 
 	/* ==================================================================== vẽ */
 
-	public static function ve( $toi, $loi_dn = '' ) {
+	public static function ve( $toi, $loi_dn = '', $qp = null ) {
 		$nhom = isset( $_GET['nhom'] ) ? sanitize_text_field( wp_unslash( $_GET['nhom'] ) ) : '';
 		$g    = isset( $_GET['g'] ) ? (int) $_GET['g'] : 0;
 
@@ -708,7 +852,7 @@ class VHNB_Trang {
 		   theo TỪNG NGƯỜI ở màn Quản lý nhân sự — chứ không khoá cả một bậc vai.
 		   Xem thêm khối đầu `VHNB_Quyen::VIEC`: 'vao' đã bị gỡ khỏi bảng phân quyền, cố ý. */
 		if ( ! $toi ) {
-			self::phan_cong_khai( $loi_dn );
+			self::phan_cong_khai( $loi_dn, $qp );
 			self::dong_trang();
 			return;
 		}

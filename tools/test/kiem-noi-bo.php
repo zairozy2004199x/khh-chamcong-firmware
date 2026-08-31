@@ -362,8 +362,19 @@ t( 'và KHÔNG có ô đăng bài', false === strpos( $h_ra, 'name="noi_dung"' )
 /* 🔴 PIN KHÔNG BAO GIỜ HIỆN LÊN MÀN HÌNH — trang chạy ngoài internet, ảnh chụp đi khắp nơi. */
 t( 'ô PIN là type=password, không phải ô chữ thường',
 	false !== strpos( $h_ra, 'type="password" name="pin"' ), $h_ra );
-t( 'vẫn còn đường sang trang chấm công để lấy lại PIN quên',
-	false !== strpos( $h_ra, 'trang chấm công</a>' ), $h_ra );
+/* 🔴 LẤY LẠI PIN LÀM NGAY TẠI ĐÂY, KHÔNG ĐẨY SANG TRANG KHÁC.
+   Anh Thắng 31/08/2026: *"trang nội bộ hỗ trợ tính năng lấy lại pin theo số CCCD"*. Trang này
+   là TRANG CHỦ; bảo người quên PIN bấm sang trang chấm công, tự tìm khối ở đó, rồi tự tìm
+   đường quay lại là ba bước cho một việc — và bước cuối thì không ai chỉ. */
+t( 'có khối Quên PIN ngay tại trang Nội bộ',
+	false !== strpos( $h_ra, 'Quên PIN?' ), $h_ra );
+/* 🔴 CHƯA AI KHAI CCCD THÌ ĐƯỜNG NÀY VÔ DỤNG — nói ra, đừng để người ta gõ mãi vào một ô không
+   bao giờ khớp nổi. Lúc này sổ nhân sự đang rỗng, nên đây đúng là ca ấy. */
+t( 'chưa ai khai căn cước: KHÔNG có ô nhập, mà có câu chỉ đường',
+	false === strpos( $h_ra, 'name="qp_cccd"' )
+	&& false !== strpos( $h_ra, 'Chưa hồ sơ nào khai' ), $h_ra );
+t( 'gập sẵn (details), không chiếm chỗ của ô đăng nhập',
+	false !== strpos( $h_ra, '<details><summary><b>Quên PIN?</b>' ), $h_ra );
 
 /* 🔴 THÔNG TIN CHUNG THÌ CÓ. Bản trước chỉ có đúng một cái nút giữa màn hình trắng: người mới
    vào không biết mình đang ở đâu, không biết lấy PIN ở đâu, và không có gì đọc trong lúc chưa
@@ -1608,6 +1619,91 @@ foreach ( array( 'vhnb-chat-panel', 'vhnb-chat-thread', 'vhnb-chat-moimoi' ) as 
 	t( $id_c . ' có đặt display riêng — nên PHẢI có lưới phủ',
 		1 === preg_match( '/#' . preg_quote( $id_c, '/' ) . '\{[^}]*display:/', $src_nb ), $id_c );
 }
+$_COOKIE = array();
+
+/* =============================================================================================
+ * LẤY LẠI PIN BẰNG SỐ CĂN CƯỚC, NGAY TRÊN TRANG NỘI BỘ.
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"trang nội bộ hỗ trợ tính năng lấy lại pin theo số CCCD"*.
+ *
+ * 🔴 ĐI ĐÚNG LÕI `VHCC_QuenPin` CỦA TRANG CHẤM CÔNG. Đó mới là chốt thật: bộ đếm chống dò, thẻ
+ *    5 phút, sổ ghi mỗi lần đổi, và luật "câu chối giống nhau cho mọi ca hỏng" đều nằm ở đó.
+ *    Dựng bản thứ hai ở đây là có hai bộ đếm rời nhau — khoá bên này thì bên kia vẫn cho dò.
+ */
+vhcc_dung_bang();
+$GLOBALS['wpdb']->insert( VHCC_DB::t( 'nhan_vien' ), array(
+	'ma_nv' => 'QP1', 'ho_ten' => 'Lê Thị Hoa', 'cccd' => '079300012345',
+	'cua_hang' => 'QP_CS', 'pin_dang_nhap' => '424242' ) );
+VHCC_QuenPin::mo_khoa();
+
+/* --- Khối hiện ra khi ĐÃ có người khai CCCD --- */
+$_POST = array(); $_COOKIE = array();
+ob_start(); VHNB_Trang::ve( null ); $h_qp0 = ob_get_clean();
+t( 'có hồ sơ khai CCCD thì hiện ô Họ tên + Số căn cước',
+	false !== strpos( $h_qp0, 'name="qp_ten"' )
+	&& false !== strpos( $h_qp0, 'name="qp_cccd"' ), $h_qp0 );
+t( 'và nói rõ KHÔNG hiện PIN cũ',
+	false !== strpos( $h_qp0, 'không hiện PIN cũ' ), $h_qp0 );
+
+/* --- Bước 1: gõ SAI --- */
+$_POST = array( 'qp_viec' => 'tra', 'qp_ten' => 'Lê Thị Hoa', 'qp_cccd' => '000000000000' );
+ob_start(); VHNB_Trang::phuc_vu(); $h_sai = ob_get_clean();
+$_POST = array();
+t( 'gõ sai căn cước: báo không khớp', false !== strpos( $h_sai, 'Không khớp' ), $h_sai );
+/* 🔴 CÂU CHỐI KHÔNG ĐƯỢC NÓI RA CÓ AI TÊN ĐÓ HAY KHÔNG — nếu không, ô này thành máy dò xem
+   một người có làm ở công ty hay không. */
+t( '🔴 và KHÔNG nói "có người tên đó"',
+	false === stripos( $h_sai, 'không có ai tên' ), $h_sai );
+t( '🔴 PIN thật KHÔNG lọt ra màn', false === strpos( $h_sai, '424242' ), 'lộ PIN' );
+teq( 'và PIN chưa bị đổi', '424242', VHCC_NhanSu::ho_so( 'QP1' )['pin_dang_nhap'] );
+
+/* --- Bước 1: gõ ĐÚNG --- */
+VHCC_QuenPin::mo_khoa();
+$_POST = array( 'qp_viec' => 'tra', 'qp_ten' => 'Lê Thị Hoa', 'qp_cccd' => '079 300 012 345' );
+ob_start(); VHNB_Trang::phuc_vu(); $h_dung = ob_get_clean();
+$_POST = array();
+t( 'căn cước gõ có khoảng trắng vẫn khớp — người ta gõ thế thật',
+	false !== strpos( $h_dung, 'Khớp hồ sơ' ), $h_dung );
+t( 'sang bước 2: có ô PIN mới', false !== strpos( $h_dung, 'name="qp_moi"' ), $h_dung );
+/* ⚠️ SOI ĐÚNG Ô `qp_moi`, không soi chuỗi `type="password"` trần: ô PIN ĐĂNG NHẬP ngay trên
+   cũng mang thuộc tính ấy, nên soi trần là xanh giả — bỏ hẳn `type="password"` khỏi ô PIN mới
+   mà phép vẫn qua. Phá thử bắt đúng chỗ này. */
+t( '🔴 ô PIN mới là type=password',
+	1 === preg_match( '/id="qp_moi"[^>]*type="password"/', $h_dung ), $h_dung );
+t( '🔴 bước 2 vẫn KHÔNG in PIN cũ', false === strpos( $h_dung, '424242' ), 'lộ PIN' );
+/* Thẻ phải có mặt để bước 2 gửi lên được — thiếu là người ta gõ PIN mới rồi bấm vào hư không. */
+$the_qp = '';
+if ( preg_match( '/name="qp_the" value="([^"]+)"/', $h_dung, $m_qp ) ) { $the_qp = $m_qp[1]; }
+t( 'thẻ bước 2 có trong biểu mẫu', '' !== $the_qp, $h_dung );
+
+/* --- Bước 2: PIN mới sai khuôn thì GIỮ NGUYÊN bước 2, không ném về bước 1 --- */
+$_POST = array( 'qp_viec' => 'dat', 'qp_the' => $the_qp, 'qp_moi' => '12', 'qp_ten' => 'Lê Thị Hoa' );
+ob_start(); VHNB_Trang::phuc_vu(); $h_ngan = ob_get_clean();
+$_POST = array();
+t( 'PIN 2 chữ số bị chối', false !== strpos( $h_ngan, '4–8 chữ số' ), $h_ngan );
+t( '🔴 và vẫn ở bước 2 — không bắt khai lại căn cước vì một lỗi chính tả',
+	false !== strpos( $h_ngan, 'name="qp_moi"' ), $h_ngan );
+
+/* --- Bước 2: đặt PIN mới --- */
+$_POST = array( 'qp_viec' => 'dat', 'qp_the' => $the_qp, 'qp_moi' => '135791', 'qp_ten' => 'Lê Thị Hoa' );
+ob_start(); VHNB_Trang::phuc_vu(); $h_xong = ob_get_clean();
+$_POST = array();
+t( 'đặt PIN mới xong thì báo rõ', false !== strpos( $h_xong, 'Đã đặt PIN mới' ), $h_xong );
+teq( '🔴 PIN trong sổ đã đổi thật', '135791', VHCC_NhanSu::ho_so( 'QP1' )['pin_dang_nhap'] );
+t( '🔴 và màn báo KHÔNG in PIN vừa đặt ra',
+	false === strpos( $h_xong, '135791' ), 'lộ PIN mới' );
+/* Sổ phải ghi lại — đây là đường vào DUY NHẤT không cần biết PIN cũ. */
+$sk_qp = VHCC_QuenPin::nhat_ky();
+t( '🔴 sổ ghi lại lượt đổi PIN qua đường căn cước',
+	is_array( $sk_qp ) && count( $sk_qp ) >= 1, $sk_qp );
+
+/* --- Đã đăng nhập thì KHÔNG mở đường này nữa --- */
+$tok_qp = VHCC_Auth::phat_token( 'Lê Thị Hoa', 'Nhân viên', 'QP_CS', 'QP1' );
+$_COOKIE = array( VHCC_Web::COOKIE => $tok_qp );
+$_POST   = array();
+ob_start(); VHNB_Trang::ve( $U_NV ); $h_vao = ob_get_clean();
+t( '🔴 đã đăng nhập thì không còn khối Quên PIN',
+	false === strpos( $h_vao, 'name="qp_cccd"' ), $h_vao );
 $_COOKIE = array();
 
 /* ================================================================= kết */
