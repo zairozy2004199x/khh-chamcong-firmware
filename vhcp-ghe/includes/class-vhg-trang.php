@@ -141,9 +141,6 @@ class VHG_Trang {
 			if ( 'bc_boot' === $viec ) {
 				self::tra( VHG_BaoCao::boot( $pin ) ); return;
 			}
-			if ( 'bc_gon_luu' === $viec ) {
-				self::tra( VHG_BaoCao::gon_luu( $pin, ! empty( $d['gon'] ) ) ); return;
-			}
 			if ( 'bc_lastmeters' === $viec ) {
 				/* toi=1 (chế độ "thu lần nữa"): lấy chỉ số sau MỚI NHẤT tính cả các lần thu trong
 				   chính ngày đó, để lần thu mới nối tiếp lần trước. Mặc định giữ như cũ (ngày trước). */
@@ -1254,27 +1251,14 @@ class VHG_Trang {
 (function(){
   var API = window.VHG_API || '';
   var PIN='', BC=null, NGAY='', LOC='', LAST={}, KICHXA={}, GUI_DANG=false;
-  /* GỌN = màn điện thoại: chỉ nhập chỉ số + gửi. ĐẦY ĐỦ = máy tính: hiện hết. Mặc định theo bề
-     ngang màn hình, nhớ lựa chọn của người dùng. Anh Thắng 27/08: điện thoại ít thông tin thôi. */
-  var GON = true;
-  try{ var _p=localStorage.getItem('bc_gon');
-    GON = (_p==='0') ? false : (_p==='1') ? true : (!window.matchMedia || window.matchMedia('(max-width: 860px)').matches);
-  }catch(e){ GON = true; }
-  function datGon(v){
-    GON=!!v; try{ localStorage.setItem('bc_gon', GON?'1':'0'); }catch(e){} veChinh();
-    /* Đồng bộ theo PIN — anh Thắng 29/08/2026: "Trên PC sao lại không đồng bộ với web điện
-       thoại, thiếu cột". localStorage chỉ sống trên đúng một máy; lưu thêm lên server theo PIN
-       thì máy khác mở lên (bc_boot) thấy đúng lựa chọn này, khỏi phải bấm lại từng máy. */
-    if(PIN) goi('bc_gon_luu',{gon:GON?1:0},function(){});
-  }
-  /* Server thắng máy — CHỈ khi đã có người từng đổi (r.gon là 0/1, không phải null/undefined).
-     Chưa ai đổi bao giờ thì giữ nguyên cách đoán cũ theo bề ngang màn hình đang mở. */
-  function apGonServer(r){
-    if(r && (0===r.gon || 1===r.gon)){
-      GON = (1===r.gon);
-      try{ localStorage.setItem('bc_gon', GON?'1':'0'); }catch(e){}
-    }
-  }
+  /* 🔴 CHẾ ĐỘ "GỌN" ĐÃ BỎ HẲN — anh Thắng 31/08/2026: *"bỏ tính năng rút gọn, rút gọn nó làm
+     mất cột nhập liệu"*.
+     Ý ban đầu (27/08) là màn điện thoại thì bớt cột cho đỡ chật. Nhưng thứ bị bớt lại chính là
+     mấy cột NGƯỜI TA PHẢI ĐIỀN — QR, thực thu tiền mặt, ghi chú — nên người mở trên điện thoại
+     chốt ca xong mà thiếu số, và không có gì trên màn nói rằng còn cột nữa ở đâu đó. Một chế độ
+     xem mà giấu mất ô nhập thì không phải chế độ xem, nó là một cái bẫy.
+     Nay chỉ còn MỘT bảng, đủ cột, cuộn ngang trên máy hẹp. Cuộn thì ai cũng biết cuộn; còn cột
+     bị giấu thì không ai đoán ra. */
 
   function $(id){ return document.getElementById(id); }
   function el(t,c,tx){ var e=document.createElement(t); if(c)e.className=c; if(tx!=null)e.textContent=tx; return e; }
@@ -1352,8 +1336,6 @@ class VHG_Trang {
       /* Chế độ Gọn: cột đã ít (7 thay vì 10) nhưng vẫn nên bớt đệm + bớt min-width từng ô cho vừa
          khít điện thoại phổ thông (~360-390px ngang) mà không phải cuộn — 2 nút "Chọn ảnh" vốn đã
          hẹp sẵn, chỉ input chỉ số/QR cần thu nhỏ. */
-      '.bc-t.gon th,.bc-t.gon td{padding:6px 5px}',
-      '.bc-t.gon input{min-width:52px}',
       '.bc-ro{display:block;text-align:right;font-weight:800;padding:9px 10px;border-radius:9px;background:#f1f5f9}',
       '.bc-cash{background:#ecfdf5;color:#059669}',
       '.bc-warn{font-size:11px;color:#b91c1c;font-weight:600;margin-top:3px}',
@@ -1431,10 +1413,6 @@ class VHG_Trang {
       cc.title='Vào thẳng trang chấm công online để check in / check out';
       top.appendChild(cc);
     }
-    var tg=el('button','bc-btn', GON ? '🖥 Đầy đủ' : '📱 Gọn');
-    tg.title = GON ? 'Chuyển sang chế độ đầy đủ (máy tính)' : 'Chuyển sang chế độ gọn (điện thoại)';
-    tg.onclick=function(){ datGon(!GON); };
-    top.appendChild(tg);
     var out=el('button','bc-btn','Thoát');
     /* Thoát cả hai lớp trong MỘT lượt bấm — anh Thắng 29/08/2026: "2 trang này là 1, tại sao
        thoát 2 lần, kiểm tra lỗi". Xem chú thích đầy đủ ở thoatNgoai()/window.VHG_Trang.thoat
@@ -1456,9 +1434,8 @@ class VHG_Trang {
     // chọn ngày + cơ sở
     var c1=el('div','bc-card');
     c1.appendChild(el('h3','bc-h','Báo cáo doanh thu theo cơ sở'));
-    c1.appendChild(el('div','bc-mut', GON
-      ? 'Nhập CHỈ SỐ SAU (và QR nếu có), rồi bấm Gửi. Xong hết cơ sở thì Xin chốt ca.'
-      : 'Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
+    c1.appendChild(el('div','bc-mut',
+      'Chỉ nhập CHỈ SỐ SAU và QR. Chỉ số trước hệ thống tự lấy; tiền mặt web tự tính.'));
     var r1=el('div','bc-row'); r1.style.marginTop='12px';
     var fN=el('label','bc-f'); fN.appendChild(el('span',null,'Ngày báo cáo'));
     var iN=el('input'); iN.type='date'; iN.value=NGAY; iN.max=BC.today||'';
@@ -1477,18 +1454,13 @@ class VHG_Trang {
     var c2=el('div','bc-card');
     c2.appendChild(el('h3','bc-h','Số liệu từng ghế'));
     var sc=el('div','bc-scroll');
-    /* `.full`/`.gon` quyết định bảng có ép min-width:820px hay tự co theo màn hình — xem lý do
-       đầy đủ ở styleOnce() (anh Thắng 29/08/2026: "tự co giãn theo màn hình máy tính và điện
-       thoại"). Đầy đủ (máy tính) vẫn cần rộng vì có 2 ô nhập chữ "Thực thu"/"Ghi chú"; Gọn (điện
-       thoại) thì không, để `.bc-t.gon` tự vừa khít màn hình dọc thay vì bắt cuộn ngang. */
-    var tb=el('table','bc-t '+(GON?'gon':'full'));
-    /* Cột Actual LUÔN hiện, kể cả chế độ Gọn — anh Thắng 29/08/2026: "Khi nhập số sau, sẽ hiện
-       luôn ra số trừ". Trước đây Gọn không có cột này, nhân viên gõ chỉ số sau xong không thấy
-       ngay số tiền tính ra (actual = (sau−trước)×đơn vị), phải đợi xem tổng cuối bảng. calc()
-       vốn đã tính lại actual mỗi lần gõ (uỷ quyền sự kiện input) — chỉ thiếu ô hiện ra ở Gọn. */
-    tb.innerHTML = GON
-      ? '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>QR</th><th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>'
-      : '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Thực thu tiền mặt</th><th>Ghi chú</th>'
+    /* `.full` ép bảng rộng tối thiểu 820px rồi cho cuộn ngang — xem `styleOnce()`. Bảng có hai
+       ô nhập chữ ("Thực thu tiền mặt", "Ghi chú") nên bóp hẹp là gõ không nổi.
+       ⚠️ Trên điện thoại thì CUỘN NGANG, không giấu bớt cột. Anh Thắng 31/08/2026: *"bỏ tính
+          năng rút gọn, rút gọn nó làm mất cột nhập liệu"*. Cuộn thì ai cũng biết cuộn; cột bị
+          giấu thì không ai đoán ra là nó còn ở đâu đó. */
+    var tb=el('table','bc-t full');
+    tb.innerHTML = '<thead><tr><th>Ghế</th><th>Chỉ số trước</th><th>Chỉ số sau</th><th>Actual</th><th>Tiền mặt</th><th>QR</th><th>Thực thu tiền mặt</th><th>Ghi chú</th>'
         + '<th>📷 Chỉ số</th><th>🧹 Vệ sinh</th></tr></thead>';
     var body=el('tbody'); body.id='bc-rows';
     body.appendChild(elEmptyRow('Chọn cơ sở để hiện ghế…'));
@@ -1505,10 +1477,7 @@ class VHG_Trang {
           thật của riêng một ghế). Hai thứ khác nghĩa mà cùng tên là người soát phải tự đoán
           xem hai chỗ có nói cùng một số hay không, và số nào mới là số phải nộp. */
     var tot=el('div','bc-tot');
-    tot.innerHTML = GON
-      ? '<div class="bc-tt"><span>Tiền mặt phải nộp</span><b id="bc-s-cash">0</b></div>'
-        +'<div class="bc-tt"><span>Doanh thu ngày</span><b id="bc-s-total">0</b></div>'
-      : '<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
+    tot.innerHTML = '<div class="bc-tt"><span>Actual</span><b id="bc-s-actual">0</b></div>'
         +'<div class="bc-tt"><span>Tiền mặt phải nộp</span><b id="bc-s-cash">0</b></div>'
         +'<div class="bc-tt"><span>QR</span><b id="bc-s-qr">0</b></div>'
         +'<div class="bc-tt"><span>Doanh thu ngày</span><b id="bc-s-total">0</b></div>';
@@ -1525,7 +1494,7 @@ class VHG_Trang {
     sM.appendChild(new Option('Chuyển khoản','transfer'));
     sM.appendChild(new Option('Chưa nộp','unpaid'));
     fM.appendChild(sM); r3.appendChild(fM);
-    if(!GON){
+    {
       var fA=el('label','bc-f'); fA.appendChild(el('span',null,'Số tiền nộp (trống = đủ)'));
       var iA=el('input'); iA.id='bc-amt'; iA.type='text'; iA.inputMode='numeric'; iA.placeholder='Để trống = nộp đủ tiền mặt';
       fA.appendChild(iA); r3.appendChild(fA);
@@ -1543,7 +1512,7 @@ class VHG_Trang {
        thứ tự (rất dễ với 20 ghế) là ảnh gán nhầm sang ghế khác, không ai biết cho tới khi kế
        toán soát thấy sai. Mỗi ô ảnh giờ gắn CỨNG vào đúng ghế đang gõ số liệu, không đoán nữa.
        Card này chỉ còn ảnh chứng từ nộp tiền (QR/bill) — không phải theo ghế. */
-    if(!GON){
+    {
       var c4=el('div','bc-card');
       c4.appendChild(el('h3','bc-h','Ảnh chứng từ nộp tiền (tuỳ chọn)'));
       c4.appendChild(el('div','bc-mut','QR chuyển khoản, hoá đơn… — không phải ảnh ghế (ảnh ghế nằm ngay trong bảng số liệu ở trên).'));
@@ -1586,7 +1555,7 @@ class VHG_Trang {
        ngoài tải lại cả trang. Nay bấm LẦN 1 chạy đối chiếu (như cũ) + đổi chữ nút thành "Đóng đối
        chiếu"; bấm LẦN 2 chỉ xoá sạch #bc-doi + trả chữ nút về — giống hệt cách nút "Sửa/Đóng" ở
        khung "Báo cáo trong 24h" (recentItem()) đang làm, không tự dựng kiểu mới. */
-    if(!GON){
+    {
       var bDoi=el('button','bc-btn','Đối chiếu máy'); bDoi.style.cssText='flex:1 1 160px';
       bDoi.onclick=function(){
         if(doi.dataset.mo==='1'){ doi.dataset.mo=''; doi.textContent=''; bDoi.textContent='Đối chiếu máy'; return; }
@@ -1600,7 +1569,7 @@ class VHG_Trang {
     wrap.appendChild(bar);
 
     // các mục phụ — chỉ chế độ đầy đủ (điện thoại gọn thì ẩn hết cho gọn mắt)
-    if(!GON){
+    {
       wrap.appendChild(boxId('bc-yc'));       // kế toán yêu cầu
       wrap.appendChild(boxId('bc-recent'));   // báo cáo 24h — sửa
       wrap.appendChild(boxId('bc-unpaid'));   // nộp bổ sung
@@ -1612,7 +1581,7 @@ class VHG_Trang {
 
     app.appendChild(wrap);
     refreshPhien();
-    if(!GON){ loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veLichSuCa(); veHoiDap(); }
+    { loadYeuCau(); loadRecent(); loadUnpaid(); veDenghi(); veHist(); veLichSuCa(); veHoiDap(); }
     if(LOC && (BC.coso||[]).indexOf(LOC)>=0){ sL.value=LOC; selectLoc(LOC); }
     else if((BC.coso||[]).length===1){ sL.value=BC.coso[0]; LOC=BC.coso[0]; selectLoc(LOC); }
   }
@@ -1716,11 +1685,11 @@ class VHG_Trang {
     tr.appendChild(tdB);
     tr.appendChild(cell(inp('after','Chỉ số sau')));
     tr.appendChild(cellRo('actual'));
-    if(!GON){
+    {
       tr.appendChild(cellRo('cash',true));
     }
     tr.appendChild(cell(inp('qr','QR')));
-    if(!GON){
+    {
       /* 🔴 GỢI Ý CỦA Ô "THỰC THU" LÀ CHÍNH CON SỐ CÔNG THỨC, KHÔNG PHẢI MỘT SỐ BỊA.
          Anh Thắng 30/08/2026: *"Chỉ số tiền mặt là Actual − QR (nếu có vẫn sai thì = thực thu),
          mặc định là công thức ra sẵn"*. Trước đây ô này gợi ý "VD 500000" — một con số không
