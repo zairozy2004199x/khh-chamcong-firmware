@@ -1387,7 +1387,6 @@ class VHG_Trang {
         if(!r){ er.textContent='Không nhận được trả lời máy chủ.'; return; }
         if(!r.ok || !r.pinOk){ er.textContent=(r.error||'PIN không đúng.'); inp.value=''; inp.focus(); return; }
         PIN=v; BC=r; NGAY=r.today||''; LOC='';
-        apGonServer(r);
         veChinh();
       });
     }
@@ -2490,7 +2489,6 @@ class VHG_Trang {
     }
     styleOnce();
     PIN=r.pin||''; BC=r; NGAY=r.today||''; LOC='';
-    apGonServer(r);
     var app=$('bc-app'); app.className='mo'; app.textContent='';
     veChinh();
   }
