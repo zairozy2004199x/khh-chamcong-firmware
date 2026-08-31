@@ -7468,9 +7468,18 @@ t( 'tìm được hàng sửa trong lưới', '' !== $khoi_iv, substr( $h_iv, 0,
 t( 'gửi đúng việc sua_gio', strpos( $khoi_iv, 'name="viec" value="sua_gio"' ) !== false, $khoi_iv );
 t( 'có ô nhập giờ ngay tại đó', strpos( $khoi_iv, 'name="sg_vao"' ) !== false, $khoi_iv );
 t( 'và đòi lý do', strpos( $khoi_iv, 'name="ly_do" required' ) !== false, $khoi_iv );
-/* 🔴 Nhắc lại ĐANG SỬA AI, GIỜ ĐANG CÓ BAO NHIÊU — lưới 31 cột thì mắt vẫn lạc, mà sửa nhầm
-   người là sửa nhầm lương. */
-t( 'nhắc lại giờ đang có', strpos( $h_iv, 'đang có: vào' ) !== false, $h_iv );
+/* 🔴 Ô GIỜ ĐIỀN SẴN GIỜ ĐANG CÓ — anh Thắng 31/08/2026: *"chỗ nào thiếu giờ vào hoặc ra thì
+   trống chỗ đó, còn có thì chèn vào luôn, sai mình sửa mà, không cần tách giờ mới giờ cũ"*.
+   Bản trước để hai ô TRỐNG và thêm một dòng chữ "đang có: vào 11:43 · ra —" bên cạnh: ô nói
+   một đằng, dòng chữ nói một nẻo, và muốn bỏ giờ thì phải tìm cái ô tích thứ ba. */
+t( '🔴 ô giờ vào mang sẵn giờ đang có',
+	1 === preg_match( '/name="sg_vao"[^>]*value="\d{2}:\d{2}"/', $khoi_iv ), $khoi_iv );
+t( 'nhãn ô KHÔNG còn chữ "mới"',
+	strpos( $khoi_iv, 'Giờ vào mới' ) === false, $khoi_iv );
+t( 'và KHÔNG còn ô tích Xoá trắng — ô trống chính là "không có giờ"',
+	strpos( $khoi_iv, 'name="sg_xoa_vao"' ) === false, $khoi_iv );
+t( 'kèm ô ẩn chở giá trị cũ để biết người ta động vào đâu',
+	strpos( $khoi_iv, 'name="sg_cu"' ) !== false, $khoi_iv );
 /* Ô đang mở phải tìm lại được giữa 600 ô. */
 t( 'ô đang sửa được tô viền', strpos( $h_iv, 'dang-sua' ) !== false, $h_iv );
 /* 🔴 CHỈ MỘT HÀNG. Vẽ sẵn biểu mẫu cho cả 600 ô là 600 biểu mẫu trong một trang. */
@@ -7486,8 +7495,8 @@ $h_cd = vhcc_web( '135791', array(), array( 'man' => 'vp', 'ccs' => $CS_GIO, 'ct
 t( 'bấm dòng phụ -CD -> hàng sửa mở ra', strpos( $h_cd, 'class="hang-sua"' ) !== false, $h_cd );
 t( '🔴 và mở cho ĐÚNG hàng -CD, không phải hàng chính',
 	strpos( $h_cd, 'name="ma_nv" value="GIO1-CD"' ) !== false, $h_cd );
-t( 'nhắc lại giờ đang có của chính hàng -CD (21:00)',
-	strpos( $h_cd, '21:00' ) !== false, $h_cd );
+t( 'ô của chính hàng -CD điền sẵn giờ của nó (21:00)',
+	strpos( $h_cd, 'value="21:00"' ) !== false, $h_cd );
 teq( 'vẫn chỉ mở ĐÚNG MỘT hàng sửa', 1, substr_count( $h_cd, 'class="hang-sua"' ) );
 
 /* Ô TRỐNG -> biểu mẫu BÙ, không phải biểu mẫu sửa. Hai việc khác nhau. */
@@ -11395,45 +11404,35 @@ ob_start(); VHCC_Web::phuc_vu(); $h_hc = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
 t( 'dựng cảnh: lưới cơ sở A vẽ ra được', strpos( $h_hc, 'Lưới cả tháng' ) !== false,
 	substr( $h_hc, 0, 600 ) );
-/* 🔴 NGÀY Ở CƠ SỞ KHÁC NAY LÀ MỘT HÀNG RIÊNG, KHÔNG CÒN LÀ DÒNG XÁM TRONG Ô.
-   Anh Thắng 28/08/2026: *"khi ghép cửa hàng phụ, thì hiện ra 2 hàng chấm công riêng nhé"* —
-   kèm ảnh một hàng đang trộn `TUTU_TP 12.6` vào ô của cơ sở đang xem. Anh đúng: hai cơ sở trên
-   MỘT dòng thì đọc một hàng mà phải tự tách xem số nào của ai. */
-t( '🔴 có HÀNG RIÊNG cho cơ sở phụ', strpos( $h_hc, 'class="hang-phu"' ) !== false, $h_hc );
-t( 'hàng ấy mang tên cơ sở kia',
-	preg_match( '~class="hang-phu"><td>.{0,80}HAI_CS_B~su', $h_hc ) === 1, $h_hc );
-/* ⚠️ VÀ KHÔNG CÒN dòng xám nhét trong ô — bày cả hai là nói hai lần một chuyện, mà lại làm ô
-   của cơ sở đang xem trông như có thêm giờ. */
-t( '🔴 và KHÔNG còn dòng xám trong ô của cơ sở đang xem',
+/* 🔴 MỖI CƠ SỞ MỘT BẢNG RIÊNG — KHÔNG GỘP, KHÔNG HÀNG PHỤ.
+   Anh Thắng 31/08/2026: *"Việc 1 cửa hàng trưởng quản lý nhiều cửa hàng, và nhân viên làm việc
+   nhiều cửa hàng. Thì cứ để mỗi cửa hàng 1 bảng công riêng.. đôi khi cách tính công riêng, việc
+   gộp lại cũng không hợp lý"*, và *"Tách ra luôn cho anh"*, *"Để xem bảng công số 2 thì chọn cơ
+   sở"*.
+
+   Trước bản này công của cơ sở kia bị kéo vào đây thành một hàng phụ: tính bằng công thức của
+   cơ sở kia, nằm trong bảng của cơ sở này, KHÔNG sửa được, KHÔNG cộng vào tổng. Ba chữ "không"
+   cho một hàng — nó chỉ tổ bắt người đọc nhớ ba ngoại lệ. Nay bảng nào ra bảng ấy. */
+t( '🔴 KHÔNG còn hàng phụ của cơ sở kia', strpos( $h_hc, 'class="hang-phu"' ) === false, $h_hc );
+t( 'KHÔNG còn dòng xám nhét trong ô',
 	strpos( $h_hc, '<div class="mdem ngoai"' ) === false, $h_hc );
-/* ⚠️ Hàng phụ CHỈ ĐỌC: công của những ngày ấy thuộc bảng của cơ sở kia, sửa từ đây là sửa vào
-   bảng người khác đang quản. */
-t( 'hàng phụ nói rõ là CHỈ ĐỌC', strpos( $h_hc, 'Hàng CHỈ ĐỌC' ) !== false, $h_hc );
-t( 'và tổng của nó không cộng vào tổng trên',
-	strpos( $h_hc, 'không cộng vào tổng trên' ) !== false, $h_hc );
-/* 🔴 TỔNG HÀNG PHỤ TÍNH BẰNG ĐƠN VỊ CỦA CHÍNH CƠ SỞ ẤY, không phải của cơ sở đang xem. Hai cơ
-   sở khai hai cách tính khác nhau là chuyện thường — cơ sở A theo giờ, cơ sở B "có đi là được".
-   Lấy đơn vị của bên đang xem là in ra một con số không thuộc về đâu cả. */
-VHCC_Luong::dat_cach_tinh( $U_AD, array( 'HAI_CS_B' => 'ngay' ) );
-$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Admin', 'Admin', '', 'ADHC' );
-$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07' );
-ob_start(); VHCC_Web::phuc_vu(); $h_hc2 = ob_get_clean();
-$_GET = array(); $_COOKIE = array();
-t( '🔴 cơ sở phụ khai "có đi là được" thì hàng phụ ra SỐ CÔNG',
-	preg_match( '/<td class="tong"><b>\d+ công<\/b>/', $h_hc2 ) === 1, substr( $h_hc2, -5000 ) );
-/* Trong khi cơ sở đang xem vẫn theo giờ — hai đơn vị trên cùng một bảng, mỗi hàng một đơn vị
-   của nó, và đó là điều đúng. */
-t( 'còn cơ sở đang xem vẫn ra số giờ',
-	strpos( $h_hc2, 'CÓ ĐI LÀ ĐƯỢC' ) === false, substr( $h_hc2, 0, 3000 ) );
-VHCC_Luong::dat_cach_tinh( $U_AD, array( 'HAI_CS_B' => '' ) );
-/* 🔴 Nhãn ở ĐẦU HÀNG. Một người làm hai nơi mà lưới này chỉ có vài ngày thì nhìn hàng ấy
-   tưởng người ta nghỉ gần hết tháng — nhãn nói ngay phần còn lại nằm ở đâu. */
-t( '🔴 tên người mang nhãn "cũng làm ở <cơ sở kia>"',
-	strpos( $h_hc, 'cũng làm ở HAI_CS_B' ) !== false, $h_hc );
-/* ⚠️ Chữ "cũng làm ở" nay xuất hiện HAI chỗ cho cùng một người: nhãn ở tên, và đầu hàng phụ.
-   Nên đếm theo NHÃN (`class="duoi ngoai"`), đừng đếm chữ. */
-t( 'người chỉ làm một nơi thì KHÔNG bị gắn nhãn',
-	substr_count( $h_hc, 'class="duoi ngoai"' ) === 1, $h_hc );
+t( 'và KHÔNG còn tổng của cơ sở kia trong ô TỔNG',
+	strpos( $h_hc, 'class="tk-ngoai"' ) === false, $h_hc );
+
+/* 🔴 THAY VÀO ĐÓ: MỘT ĐƯỜNG BẤM SANG BẢNG CƠ SỞ KIA. Không có nó thì người quản hai cửa hàng
+   phải tự nhớ mình còn phải mở cơ sở nào — và một người làm hai nơi mà bảng này chỉ có ba ngày
+   thì nhìn hàng ấy tưởng họ nghỉ gần hết tháng. */
+t( '🔴 cạnh tên có đường bấm sang bảng cơ sở kia',
+	preg_match( '~class="di-cs"[^>]*href="[^"]*ccs=HAI_CS_B[^"]*"~', $h_hc ) === 1, $h_hc );
+t( 'đường ấy mở đúng màn Bảng công',
+	preg_match( '~class="di-cs"[^>]*href="[^"]*man=cham~', $h_hc ) === 1, $h_hc );
+t( 'và có chữ "còn làm ở" cho người đọc hiểu vì sao có đường ấy',
+	strpos( $h_hc, 'còn làm ở' ) !== false, $h_hc );
+/* 🔴 CHỈ NGƯỜI LÀM HAI NƠI MỚI CÓ. Gắn cho cả bảng là mời người ta bấm sang một cơ sở mà người
+   kia chưa từng đặt chân tới. */
+teq( 'người chỉ làm một nơi thì KHÔNG có đường ấy', 1,
+	substr_count( $h_hc, 'class="duoi ngoai"' ) );
+
 /* 🔴 TỔNG KHÔNG ĐỔI. Đây là con số ra tiền — bày thêm một dòng để nhìn mà làm nó nhích lên là
    hỏng đúng thứ khối này hứa không đụng tới. */
 $hc_b = VHCC_Cham::bang_cham_cong( $U_AD, $CS_A, '2026-07' );
@@ -11461,12 +11460,11 @@ t( 'người chỉ làm một nơi thì không có dòng nào', ! isset( $hc_t2[
 teq( 'dựng cảnh: cơ sở kia đang tính theo GIỜ', 'gio', VHCC_Luong::cach_tinh( $CS_B ) );
 teq( 'đơn vị nói đúng là giờ', 'gio', $hc_t2['HC1'][ $CS_B ]['donVi'] );
 teq( '🔴 và cong = null, KHÔNG phải 0', null, $hc_t2['HC1'][ $CS_B ]['cong'] );
-t( '🔴 ô TỔNG trên lưới hiện dòng của cơ sở kia',
-	strpos( $h_hc, '<div class="tk-ngoai"' ) !== false, $h_hc );
-t( 'dòng ấy in tên cơ sở kia và con số kèm ĐƠN VỊ',
-	preg_match( '~<div class="tk-ngoai"[^>]*>HAI_CS_B <b>6 giờ</b>~', $h_hc ) === 1, $h_hc );
-t( 'và nói rõ KHÔNG cộng vào tổng ở đây',
-	strpos( $h_hc, 'KHÔNG cộng vào tổng ở đây' ) !== false, $h_hc );
+/* ⚠️ HÀM LÕI `tong_o_coso_khac()` VẪN GIỮ, dù lưới thôi in con số ấy: nó là thứ cho biết người
+   này còn làm ở đâu, và đó chính là dữ liệu dựng nên đường bấm sang bảng kia. Bỏ hàm là bỏ luôn
+   đường bấm. */
+t( '🔴 lưới KHÔNG còn in tổng của cơ sở kia — con số ấy thuộc bảng của cơ sở ấy',
+	strpos( $h_hc, 'class="tk-ngoai"' ) === false, $h_hc );
 
 /* 🔴 CƠ SỞ KIA TÍNH THEO CÔNG THÌ PHẢI RA CÔNG, và tính bằng CÔNG THỨC CỦA CHÍNH NÓ.
    Đem công thức cơ sở đang xem áp lên giờ của cơ sở kia là ra một con số trông rất giống công
@@ -11480,17 +11478,6 @@ $hc_t3 = VHCC_Cham::tong_o_coso_khac( array( 'HC9' ), $CS_A, '2026-07' );
 teq( 'đơn vị nói đúng là công', 'cong', $hc_t3['HC9'][ $CS_VPB ]['donVi'] );
 teq( '🔴 và ra CÔNG thật, tính bằng công thức của chính cơ sở ấy',
 	1.0, (float) $hc_t3['HC9'][ $CS_VPB ]['cong'] );
-$_COOKIE[ VHCC_Web::COOKIE ] = VHCC_Auth::phat_token( 'Quản trị', 'Admin',
-	$CS_A . ',' . $CS_B . ',' . $CS_VPB, 'HCAD' );
-$_GET = array( 'man' => 'vp', 'ccs' => $CS_A, 'cth' => '2026-07' );
-$_POST = array();
-ob_start(); VHCC_Web::phuc_vu(); $h_hc2 = ob_get_clean();
-$_GET = array(); $_COOKIE = array();
-t( '🔴 ô TỔNG hiện đúng chữ "công" cho cơ sở tính theo công',
-	preg_match( '~<div class="tk-ngoai"[^>]*>HAI_VP_B <b>1 công</b>~', $h_hc2 ) === 1, $h_hc2 );
-t( 'và vẫn hiện "giờ" cho cơ sở tính theo giờ, không quy về một đơn vị',
-	strpos( $h_hc2, 'HAI_CS_B <b>6 giờ</b>' ) !== false, $h_hc2 );
-
 /* ---- 🔴 CÙNG LUẬT Ở LƯỚI CÔNG. Hai lưới là HAI HÀM khác nhau (`ve_luoi_gio` / `ve_luoi_vp`),
    nên thử một cái không nói gì về cái kia. Cơ sở A ở trên không khai bộ phận nên tính THEO GIỜ
    — cả khối trên chưa hề chạm `ve_luoi_vp`. Đã phá thử để thấy đúng chuyện đó: bỏ hẳn dòng cơ
@@ -11508,17 +11495,16 @@ ob_start(); VHCC_Web::phuc_vu(); $h_hv = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
 t( 'dựng cảnh: lưới CÔNG vẽ ra được', strpos( $h_hv, 'Ô là <b>số công</b>' ) !== false,
 	substr( $h_hv, 0, 600 ) );
-t( '🔴 lưới CÔNG cũng có dòng xám ghi cơ sở kia',
-	preg_match( '~<div class="mdem ngoai"[^>]*>HAI_CS_B ~', $h_hv ) === 1, $h_hv );
-t( 'và cũng gắn nhãn "cũng làm ở" cạnh tên', strpos( $h_hv, 'cũng làm ở HAI_CS_B' ) !== false, $h_hv );
-/* 🔴 Nhãn gắn cho ĐÚNG NGƯỜI. Gắn nhầm cả hàng là bảo người rà bảng đi tìm những ngày không
-   tồn tại ở một cơ sở người ta chưa từng đặt chân tới. */
-teq( '🔴 chỉ MỘT người mang nhãn, không phải cả bảng', 1, substr_count( $h_hv, 'cũng làm ở' ) );
-/* 🔴 Ô TỔNG của lưới CÔNG cũng phải tách theo cơ sở. Hai lưới là HAI HÀM khác nhau, nên thử một
-   cái không nói gì về cái kia — bỏ hẳn dòng TỔNG ra khỏi lưới CÔNG mà bộ thử vẫn xanh nếu chỉ
-   thử ở lưới GIỜ. Đã phá thử để thấy. */
-t( '🔴 lưới CÔNG: ô TỔNG hiện dòng của cơ sở kia',
-	preg_match( '~<div class="tk-ngoai"[^>]*>HAI_CS_B <b>6 giờ</b>~', $h_hv ) === 1, $h_hv );
+t( '🔴 lưới CÔNG cũng KHÔNG còn dòng xám ghi cơ sở kia',
+	strpos( $h_hv, '<div class="mdem ngoai"' ) === false, $h_hv );
+t( 'và cũng KHÔNG còn tổng của cơ sở kia',
+	strpos( $h_hv, 'class="tk-ngoai"' ) === false, $h_hv );
+t( '🔴 mà có đường bấm sang bảng cơ sở kia, y như lưới GIỜ',
+	preg_match( '~class="di-cs"[^>]*href="[^"]*ccs=HAI_CS_B~', $h_hv ) === 1, $h_hv );
+/* 🔴 Đường bấm gắn cho ĐÚNG NGƯỜI. Gắn cả hàng là mời người ta bấm sang một cơ sở người kia
+   chưa từng đặt chân tới. */
+teq( '🔴 chỉ MỘT người có đường ấy, không phải cả bảng', 1,
+	substr_count( $h_hv, 'class="duoi ngoai"' ) );
 
 /* ---- Lõi: mấy chỗ dễ sai mà nhìn màn hình không thấy ---- */
 /* Một ngày chấm ở HAI nơi khác nữa: ô chỉ đủ chỗ một dòng, giữ nơi làm NHIỀU giờ hơn. Giữ nơi
@@ -12377,15 +12363,19 @@ t( 'và nói ra hậu tố để khỏi đoán', strpos( $h_su, '(-TC)' ) !== fa
    chẳng hiện giờ nào. Đúng cái bẫy đã cắn ở khối lưới. */
 $hs_khoi = preg_match( '~<tr class="hang-sua".*?</tr>~s', $h_su, $m_hs ) ? $m_hs[0] : '';
 t( 'dựng cảnh: cắt được đúng khối hàng sửa', '' !== $hs_khoi, substr( $h_su, 0, 300 ) );
-t( 'hiện giờ đang có của ca đêm ngay tại cụm ấy',
-	preg_match( '~' . preg_quote( $S_SU, '~' ) . '(?:(?!</div>).)*\(-TC\)(?:(?!</div>).)*21:30'
-		. '(?:(?!</div>).)*05:30~s', $hs_khoi ) === 1,
-	$hs_khoi );
-/* Và giờ của ca CHÍNH cũng phải có mặt ngay tại cụm của nó — hai cụm, hai cặp giờ khác nhau. */
-t( 'và giờ đang có của ca chính ở cụm ca chính',
-	preg_match( '~' . preg_quote( $S_VP, '~' ) . ' · ca chính(?:(?!</div>).)*08:30'
-		. '(?:(?!</div>).)*17:00~s', $hs_khoi ) === 1,
-	$hs_khoi );
+/* Ô GIỜ CỦA CỤM ẤY mang sẵn giờ đang có của chính nó — anh Thắng 31/08/2026 bỏ cách bày
+   "ô trống + dòng chữ đang có". Soi theo `value=` của ô, chứ không soi chữ chạy trong dòng. */
+t( 'ô của cụm ca đêm điền sẵn giờ của ca đêm',
+	strpos( $hs_khoi, 'value="21:30"' ) !== false
+	&& strpos( $hs_khoi, 'value="05:30"' ) !== false, $hs_khoi );
+/* Và ô của ca CHÍNH mang giờ của ca chính — hai cụm, hai cặp giờ khác nhau, mỗi ô đúng của nó. */
+t( 'và ô của cụm ca chính điền sẵn giờ ca chính',
+	strpos( $hs_khoi, 'value="08:30"' ) !== false
+	&& strpos( $hs_khoi, 'value="17:00"' ) !== false, $hs_khoi );
+/* 🔴 VÀ MỖI CỤM MỘT Ô ẨN GIỮ GIÁ TRỊ CŨ — đó là thứ cho nơi xử biết ô nào người ta động vào.
+   Thiếu nó thì mọi ô gửi lên đều trông như "vừa gõ", và một lượt bấm Lưu không đổi gì cũng ghi
+   đè lại toàn bộ, đầy sổ nhật ký những dòng "21:30 -> 21:30". */
+teq( 'mỗi cụm một ô ẩn chở giá trị cũ', 2, substr_count( $hs_khoi, 'name="sg_cu[' ) );
 
 /* Cơ sở ĐỨNG RIÊNG (không ghép) thì giữ nguyên dạng ô ĐƠN — không bắt người ta đọc thêm một
    lớp nhãn cho một dòng duy nhất. */
@@ -12456,9 +12446,66 @@ $h_rong = vhcc_web_sua( array( 'man' => 'vp', 'ccs' => $S_VP, 'cth' => '2026-07'
 	'sg_ra'  => array( $S_VP . '~' => '', $S_SU . '~TC' => '' ),
 	'ly_do'  => 'bấm nhầm nút Lưu, không gõ gì',
 ) );
-t( 'không điền ô nào thì báo lỗi, không báo "Đã sửa"',
-	strpos( $h_rong, 'Không ô giờ nào được điền' ) !== false
+/* Gửi lên đúng bằng giờ đang có (bấm Lưu mà không sửa gì) -> báo "không có gì đổi", KHÔNG
+   báo "Đã sửa", và KHÔNG ghi một dòng nhật ký nào. */
+t( 'bấm Lưu mà không đổi gì thì báo rõ, không báo "Đã sửa"',
+	strpos( $h_rong, 'Không có gì đổi' ) !== false
 	&& strpos( $h_rong, 'Đã sửa' ) === false, $h_rong );
+
+/* 🔴 BA CA CỦA Ô ĐIỀN SẴN — anh Thắng 31/08/2026: *"chỗ nào thiếu giờ vào hoặc ra thì trống chỗ
+   đó, còn có thì chèn vào luôn, sai mình sửa mà, không cần tách giờ mới giờ cũ"*.
+   Ô nay mang sẵn giờ đang có, nên "ô trống" ĐỔI NGHĨA: trước là "giữ nguyên", nay là "không có
+   giờ". Ba ca phải tách bạch, và ca thứ ba là ca nguy nhất. */
+$wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'SU7', 'ho_ten' => 'Sửa Bảy',
+	'cua_hang' => $S_VP, 'vai_tro' => 'Nhân viên' ) );
+vhcc_cham( $S_VP, '2026-07-09', 'SU7', '', '08:00:00', '17:00:00' );
+
+/* (1) Gửi lên Y HỆT giờ đang có -> bỏ qua lặng lẽ, không ghi đè lại chính nó. */
+$h_ynguyen = vhcc_web_sua( array( 'man' => 'cham', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-09',
+	'ma_nv'  => 'SU7',
+	'sg_vao' => array( $S_VP . '~' => '08:00' ),
+	'sg_ra'  => array( $S_VP . '~' => '17:00' ),
+	'sg_cu'  => array( $S_VP . '~' => '08:00|17:00' ),
+	'ly_do'  => 'mở ra xem rồi bấm Lưu',
+) );
+t( '🔴 gửi đúng bằng giờ đang có: báo không có gì đổi',
+	strpos( $h_ynguyen, 'Không có gì đổi' ) !== false, $h_ynguyen );
+
+/* (2) Đổi MỘT ô -> chỉ ô ấy đổi, ô kia y nguyên. */
+vhcc_web_sua( array( 'man' => 'cham', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-09',
+	'ma_nv'  => 'SU7',
+	'sg_vao' => array( $S_VP . '~' => '09:15' ),
+	'sg_ra'  => array( $S_VP . '~' => '17:00' ),
+	'sg_cu'  => array( $S_VP . '~' => '08:00|17:00' ),
+	'ly_do'  => 'máy lệch đồng hồ',
+) );
+$h_su7 = vhcc_hang( $S_VP, '2026-07-09', 'SU7' );
+teq( 'ô vào đã đổi', 9 * 3600 + 900, (int) $h_su7['gio_vao_giay'] );
+teq( '🔴 và ô ra KHÔNG bị đụng tới', 17 * 3600, (int) $h_su7['gio_ra_giay'] );
+
+/* (3) 🔴 XOÁ CHO TRỐNG. Đây là ca thay cho ô tích "Xoá trắng" cũ: ô để trống mà giá trị cũ CÓ
+       giờ nghĩa là người ta vừa xoá nó đi. Không hiểu đúng ca này thì nút Lưu im lặng bỏ qua,
+       và người ta bấm mấy lượt không hiểu sao giờ sai vẫn nằm đó. */
+vhcc_web_sua( array( 'man' => 'cham', 'ccs' => $S_VP, 'cth' => '2026-07' ), array(
+	'viec'   => 'sua_gio',
+	'ccs'    => $S_VP,
+	'ngay'   => '2026-07-09',
+	'ma_nv'  => 'SU7',
+	'sg_vao' => array( $S_VP . '~' => '09:15' ),
+	'sg_ra'  => array( $S_VP . '~' => '' ),
+	'sg_cu'  => array( $S_VP . '~' => '09:15|17:00' ),
+	'ly_do'  => 'giờ ra là của người khác quẹt nhầm',
+) );
+$h_su7b = vhcc_hang( $S_VP, '2026-07-09', 'SU7' );
+t( '🔴 xoá cho trống thì giờ ra bị bỏ thật',
+	null === $h_su7b['gio_ra_giay'] || '' === (string) $h_su7b['gio_ra_giay'], $h_su7b );
+teq( 'còn giờ vào vẫn nguyên', 9 * 3600 + 900, (int) $h_su7b['gio_vao_giay'] );
 
 /* 🔴 MỘT DÒNG XONG, MỘT DÒNG HỎNG — phải báo CẢ HAI.
    Nuốt lỗi đi là người ta đọc "Đã sửa" rồi bỏ đi, trong khi ca đêm vẫn nguyên giờ cũ. Đây là
