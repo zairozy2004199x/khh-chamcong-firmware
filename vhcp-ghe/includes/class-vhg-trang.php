@@ -4442,6 +4442,14 @@ function ktdCard(o, xong){
   spDuyet.style.color = daXongHet ? 'var(--green)' : 'var(--amber)';
   sub.appendChild(spDuyet);
   if(o.chairsNoPhoto) sub.appendChild(document.createTextNode(' · '+o.chairsNoPhoto+' ghế thiếu ảnh'));
+  /* 🔴 CẢNH BÁO NỔI NGAY DÒNG TÓM TẮT — anh Thắng 31/08/2026: *"cảnh báo đó sẽ đi kèm khi gửi
+     về kế toán, để kế toán biết nhé"*. Ghi chú cảnh báo vẫn nằm dưới từng ghế như cũ; đây là
+     cái để kế toán nhìn DANH SÁCH là biết thẻ nào cần mở ra, khỏi bung cả 26 cơ sở để dò. */
+  if(o.chairsWarn){
+    var spW=ktEl('b',null,' · ⚠ '+o.chairsWarn+' ghế cần soi');
+    spW.style.color='var(--amber)';
+    sub.appendChild(spW);
+  }
   if(o.staff) sub.appendChild(document.createTextNode(' · '+o.staff));
   t.appendChild(sub);
   head.appendChild(t);

@@ -118,6 +118,13 @@ class VHG_KeToan {
 					'reportId' => $r['report_id'], 'staff' => $r['nhan_vien'],
 					'chairs' => 0, 'actual' => 0, 'cash' => 0, 'qr' => 0, 'adjust' => 0, 'total' => 0,
 					'paid' => 0, 'confirmedChairs' => 0, 'photos' => 0, 'chairsNoPhoto' => 0,
+					/* 🔴 ĐẾM GHẾ CÓ CẢNH BÁO NGAY Ở DÒNG TÓM TẮT — anh Thắng 31/08/2026: *"cảnh
+					   báo đó sẽ đi kèm khi gửi về kế toán, để kế toán biết nhé"*. Ghi chú cảnh
+					   báo vốn đã đi tới kế toán và hiện dưới tên từng ghế, nhưng chỉ khi BUNG
+					   thẻ báo cáo ra. Hai mươi sáu cơ sở nộp trong một ngày thì bung từng thẻ để
+					   dò là việc không ai làm — và cảnh báo nào không ai đọc thì bằng không có.
+					   Đếm ở đây để nó nằm ngay cạnh "N ghế thiếu ảnh" trên dòng tóm tắt. */
+					'chairsWarn' => 0,
 					'locked' => isset( $khoa[ $r['coso_key'] . '|' . self::ngay_( $r['ngay'] ) ] ) );
 			}
 			$o = &$g[ $k ];
@@ -129,6 +136,10 @@ class VHG_KeToan {
 			$na = ( '' === $anh ) ? 0 : count( (array) json_decode( $anh, true ) );
 			$o['photos'] += $na;
 			if ( ! $na ) { $o['chairsNoPhoto']++; }
+			/* Dấu `⚠` ở ĐẦU ghi chú là quy ước sẵn có của cả màn này (`ktdRow()` tô đỏ đúng theo
+			   nó). Đếm theo dấu ấy chứ không dò từng câu chữ: thêm một loại cảnh báo mới sau này
+			   thì nó tự vào bộ đếm, khỏi phải nhớ sửa thêm chỗ này. */
+			if ( 0 === mb_strpos( trim( (string) $r['ghi_chu'] ), '⚠' ) ) { $o['chairsWarn']++; }
 			unset( $o );
 		}
 		$ra = array_values( $g );

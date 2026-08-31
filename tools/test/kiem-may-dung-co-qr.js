@@ -122,6 +122,31 @@ t('bốc được nhánh vẽ khung nhắc', iN > 0 && iE > iN);
 t('🔴 khung nhắc KHÔNG dựng ô lý do', iN > 0 && !/el\('input','ly-do-bt'\)/.test(jsSrc.slice(iN, iE)));
 t('và nó mặc áo NHẮC, không phải áo chặn màu đỏ', iN > 0 && /bc-nhac/.test(jsSrc.slice(iN, iE)));
 
+/* ---------- CẢNH BÁO PHẢI ĐI TỚI KẾ TOÁN ---------- */
+/* Anh Thắng 31/08/2026: *"cảnh báo đó sẽ đi kèm khi gửi về kế toán, để kế toán biết nhé"*.
+   Ba chặng, thiếu chặng nào thì cảnh báo chết dọc đường:
+     1. lúc GỬI  — ghép vào `ghi_chu` của hàng (đã canh ở khối trên)
+     2. lúc ĐỌC  — `kt_ct` trả `ghi_chu` về màn kế toán, và hàng ghế in nó ra
+     3. lúc LƯỚT — đếm ở dòng tóm tắt để kế toán biết thẻ nào cần mở
+   Chặng 3 mới là chặng dễ quên nhất: hai chặng đầu vẫn chạy, chỉ là không ai đọc — mà cảnh báo
+   không ai đọc thì bằng không có. */
+const ktSrc = fs.readFileSync(G + 'class-vhg-ketoan.php', 'utf8');
+t('🔴 (2) kế toán nhận được ghi chú của từng ghế',
+  /'note'\s*=>\s*\(string\) \$r\['ghi_chu'\]/.test(ktSrc));
+t('🔴 (2) và hàng ghế IN ghi chú ấy ra màn', /if\(c\.note\)\{/.test(jsSrc));
+t('và tô đỏ khi ghi chú mở đầu bằng ⚠', /\/\^⚠\/\.test\(c\.note\)/.test(jsSrc));
+
+t('🔴 (3) máy chủ ĐẾM số ghế có cảnh báo trong mỗi báo cáo',
+  /\$o\['chairsWarn'\]\+\+/.test(ktSrc));
+/* Đếm theo DẤU `⚠` ở đầu ghi chú — quy ước sẵn có của màn này. Dò từng câu chữ thì thêm một
+   loại cảnh báo mới là phải nhớ sửa thêm chỗ đếm, mà không ai nhớ. */
+t('và đếm theo DẤU ⚠, không dò từng câu chữ',
+  /mb_strpos\( trim\( \(string\) \$r\['ghi_chu'\] \), '⚠' \)/.test(ktSrc));
+t('🔴 (3) và dòng tóm tắt của báo cáo bày con số ấy ra',
+  /if\(o\.chairsWarn\)\{[\s\S]{0,200}ghế cần soi/.test(jsSrc));
+/* Bộ đếm phải nằm trong khuôn khởi tạo, nếu không lượt cộng đầu tiên là cộng vào khoá chưa có. */
+t('bộ đếm được khai giá trị đầu', /'chairsWarn' => 0,/.test(ktSrc));
+
 if (TRUOT.length) {
   console.log('HỎNG: ' + TRUOT.length);
   TRUOT.forEach(function (x) { console.log('  ✗ ' + x); });
