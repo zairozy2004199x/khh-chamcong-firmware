@@ -159,7 +159,7 @@ class VHCC_Pdf {
 	 * @return array [ 'nguoi' => [ma => ['ma','ten','cong','thieuRa']], 'o' => [ma][ngày] => công ]
 	 */
 	public static function cong_theo_khoang( $coso, $tu, $den ) {
-		$ra = array( 'nguoi' => array(), 'o' => array() );
+		$ra = array( 'nguoi' => array(), 'o' => array(), 'co' => array() );
 		if ( ! class_exists( 'VHCC_Luong' ) || ! method_exists( 'VHCC_Luong', 'vp_bang_cong_va_luong' ) ) {
 			return $ra;
 		}
@@ -194,10 +194,19 @@ class VHCC_Pdf {
 				$ra['nguoi'][ $ma ]['cong'] += (float) $d['tong'];
 				$ra['o'][ $ma ][ $ngay ] = (float) $d['tong'];
 				/* Cùng luật "thiếu một đầu giờ" với ô đỏ trên lưới — kể cả hàng ca đêm. */
-				if ( ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) )
-					|| ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) ) ) {
-					$ra['nguoi'][ $ma ]['thieuRa']++;
-				}
+				$thieu_o = ( ( ( '' !== $d['vao'] ) !== ( '' !== $d['ra'] ) )
+					|| ( ( '' !== $d['h2vao'] ) !== ( '' !== $d['h2ra'] ) ) );
+				if ( $thieu_o ) { $ra['nguoi'][ $ma ]['thieuRa']++; }
+				/* 🔴 CỜ CỦA TỪNG Ô — thứ làm cho lưới in ra giấy nói được đúng những gì lưới
+				   trên màn nói. Giấy in đen trắng KHÔNG có màu để tô, nên dấu `?` và nhãn cơ sở
+				   ghép là tất cả những gì còn lại; bỏ chúng thì ô `0` vì quên bấm trông y hệt
+				   ô `0` vì nghỉ — hai chuyện xử lý khác hẳn nhau. */
+				$ra['co'][ $ma ][ $ngay ] = array(
+					'thieu'  => $thieu_o,
+					'dem'    => (float) $d['congDem'],
+					'demHut' => ( ! empty( $d['demThieuGio'] ) || ! empty( $d['demChuaDuCap'] ) ),
+					'tuCoSo' => (string) $d['tuCoSo'],
+				);
 			}
 		}
 		foreach ( $ra['nguoi'] as $ma => $n ) {
@@ -205,6 +214,133 @@ class VHCC_Pdf {
 		}
 		uasort( $ra['nguoi'], function ( $a, $b ) { return strcmp( $a['ten'], $b['ten'] ); } );
 		return $ra;
+	}
+
+	/**
+	 * LƯỚI CẢ THÁNG TRÊN GIẤY — bảng ngang, mỗi cột một ngày.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026 gửi ảnh chính cái lưới trên màn: *"thiếu bảng này"*. Sau khi bỏ
+	 *    mục chi tiết từng ngày, tờ giấy chỉ còn bảng tổng hợp — mỗi người một dòng, một con
+	 *    số. Kế toán đối soát bằng LƯỚI: nhìn ngang một hàng là thấy ngày nào nghỉ, ngày nào
+	 *    quên bấm, ngày nào 1.5. Một con số tổng không thay được việc ấy.
+	 *
+	 * 🔴 GIỮ CỜ, VÌ GIẤY KHÔNG CÓ MÀU. Màn hình tô ô đỏ; giấy in đen trắng thì dấu `?` và nhãn
+	 *    cơ sở ghép là thứ duy nhất còn lại. Bỏ chúng đi thì ô `0` vì quên bấm trông y hệt ô
+	 *    `0` vì nghỉ — mà hai chuyện ấy xử lý khác hẳn nhau.
+	 *
+	 * ⚠️ Ô TRỐNG ≠ Ô `0`. Trống là hôm ấy không có dữ liệu chấm công; `0` là có đi làm mà
+	 *    không ra công. In `0` cho cả hai là bảng công nói dối trên giấy có chữ ký.
+	 *
+	 * Hàm THUẦN: vào là mấy mảng, ra là một chuỗi. Thử được bằng dữ liệu trần.
+	 *
+	 * @param string $tt      Tháng `YYYY-MM`.
+	 * @param array  $nguoi   [ ['ma','ten'], … ] theo đúng thứ tự muốn in.
+	 * @param array  $o       [mã][ngày `YYYY-MM-DD`] => số (công hoặc giờ).
+	 * @param array  $co      [mã][ngày] => ['thieu','dem','demHut','tuCoSo'] — có thể rỗng.
+	 * @param bool   $la_cong true = ô là số công · false = ô là số giờ.
+	 */
+	public static function luoi_in( $tt, $nguoi, $o, $co, $la_cong = true ) {
+		$moc = strtotime( (string) $tt . '-01 00:00:00 UTC' );
+		if ( false === $moc ) { return ''; }
+		$so_ngay = (int) gmdate( 't', $moc );
+		$thu_vn  = array( 'CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7' );
+
+		$out = array();
+		$out[] = '<table class="luoi"><thead><tr><th class="ten">Nhân viên</th>';
+		for ( $i = 1; $i <= $so_ngay; $i++ ) {
+			$w  = (int) gmdate( 'w', strtotime( sprintf( '%s-%02d 00:00:00 UTC', $tt, $i ) ) );
+			$cn = ( 0 === $w || 6 === $w );
+			$out[] = '<th class="' . ( $cn ? 'cn' : '' ) . '">' . $i
+				. '<div class="thu">' . $thu_vn[ $w ] . '</div></th>';
+		}
+		$out[] = '<th class="tg">TỔNG</th></tr></thead><tbody>';
+
+		if ( ! $nguoi ) {
+			$out[] = '<tr><td colspan="' . ( $so_ngay + 2 ) . '" class="c">(Không có dữ liệu)</td></tr>';
+		}
+		foreach ( $nguoi as $n ) {
+			$ma = (string) $n['ma'];
+			$out[] = '<tr><td class="ten">' . self::esc( (string) $n['ten'] ) . '</td>';
+			$cong = 0.0;
+			for ( $i = 1; $i <= $so_ngay; $i++ ) {
+				$ngay = sprintf( '%s-%02d', $tt, $i );
+				if ( ! isset( $o[ $ma ][ $ngay ] ) ) {
+					$out[] = '<td class="c"></td>';
+					continue;
+				}
+				$gia   = (float) $o[ $ma ][ $ngay ];
+				$cong += $gia;
+				$c     = isset( $co[ $ma ][ $ngay ] ) ? $co[ $ma ][ $ngay ] : array();
+				$thieu = ! empty( $c['thieu'] );
+				$them  = '';
+				/* Dòng nhỏ 🌙 y như trên màn: `🌙` một mình = đêm đó có làm (công sang hôm sau) ·
+				   `🌙 kèm số` = công đêm tính vào ngày này · `🌙0` = có làm mà không ra công. */
+				if ( ! empty( $c['dem'] ) )          { $them .= '<div class="nho">🌙' . self::esc( self::so_cong( $c['dem'] ) ) . '</div>'; }
+				elseif ( ! empty( $c['demHut'] ) )   { $them .= '<div class="nho thieu">🌙0</div>'; }
+				if ( ! empty( $c['tuCoSo'] ) )       { $them .= '<div class="nho ghep">' . self::esc( (string) $c['tuCoSo'] ) . '</div>'; }
+				$out[] = '<td class="c' . ( $thieu ? ' o-thieu' : '' ) . '">'
+					. self::esc( $la_cong ? self::so_cong( $gia ) : self::so_cong( $gia ) . 'h' )
+					. ( $thieu ? '<span class="thieu"> ?</span>' : '' ) . $them . '</td>';
+			}
+			$out[] = '<td class="tg b">' . self::esc( self::so_cong( $cong ) . ( $la_cong ? '' : 'h' ) )
+				. '</td></tr>';
+		}
+		$out[] = '</tbody></table>';
+		return implode( '', $out );
+	}
+
+	/**
+	 * Danh sách THÁNG mà khoảng ngày này chạm tới — `['2026-08','2026-09']`.
+	 *
+	 * ⚠️ Đi theo mốc "ngày 1 của tháng", KHÔNG cộng 30 ngày một bước: cộng ngày thì tháng 2
+	 *    nhảy qua mất tháng 3.
+	 */
+	public static function ds_thang( $tu, $den ) {
+		$t1 = strtotime( (string) $tu . ' 00:00:00 UTC' );
+		$t2 = strtotime( (string) $den . ' 00:00:00 UTC' );
+		if ( false === $t1 || false === $t2 || $t2 < $t1 ) { return array(); }
+		$ds  = array();
+		$m   = strtotime( gmdate( 'Y-m', $t1 ) . '-01 00:00:00 UTC' );
+		$het = strtotime( gmdate( 'Y-m', $t2 ) . '-01 00:00:00 UTC' );
+		while ( $m <= $het ) {
+			$ds[] = gmdate( 'Y-m', $m );
+			$m = strtotime( '+1 month', $m );
+		}
+		return $ds;
+	}
+
+	/**
+	 * Lưới của cơ sở tính THEO GIỜ: gom `chiTiet` về [mã trần][ngày] => số giờ.
+	 *
+	 * ⚠️ CỘNG CẢ HÀNG PHỤ (`-CD` ca đêm, `-TC` tăng cường) VÀO Ô CỦA NGƯỜI ẤY. Bảng tổng hợp
+	 *    tách chúng thành dòng riêng vì mã in ra khác nhau, nhưng LƯỚI thì mỗi người một hàng —
+	 *    để hàng phụ thành hàng riêng ở đây là một người hiện hai lần trên cùng tờ giấy.
+	 */
+	public static function luoi_gio_tu_chi_tiet( $chi_tiet ) {
+		$o  = array();
+		$co = array();
+		foreach ( (array) $chi_tiet as $r ) {
+			$ma = isset( $r['maTran'] ) ? (string) $r['maTran'] : (string) $r['ma'];
+			$ng = (string) $r['ngay'];
+			if ( ! isset( $o[ $ma ][ $ng ] ) ) { $o[ $ma ][ $ng ] = 0.0; }
+			if ( isset( $r['phut'] ) && null !== $r['phut'] ) {
+				$o[ $ma ][ $ng ] += round( ( (int) $r['phut'] ) / 60, 2 );
+			}
+			$thieu = ( ( '' !== trim( (string) $r['vao'] ) ) !== ( '' !== trim( (string) $r['ra'] ) ) );
+			if ( $thieu || ! empty( $co[ $ma ][ $ng ]['thieu'] ) ) {
+				$co[ $ma ][ $ng ] = array( 'thieu' => true );
+			}
+		}
+		foreach ( $o as $ma => $ds ) {
+			foreach ( $ds as $ng => $v ) { $o[ $ma ][ $ng ] = round( $v, 2 ); }
+		}
+		return array( $o, $co );
+	}
+
+	/** `2026-08` -> `08/2026`. Khuôn lạ thì GIỮ NGUYÊN, không tự đoán. */
+	public static function thang_vn( $tt ) {
+		$tt = (string) $tt;
+		return preg_match( '/^(\d{4})-(\d{2})$/', $tt, $m ) ? $m[2] . '/' . $m[1] : $tt;
 	}
 
 	/** Số công in ra giấy: bỏ đuôi `.00`, giữ `.5`. Cùng thước với lưới web. */
@@ -220,7 +356,8 @@ class VHCC_Pdf {
 		/* ⚠️ Gác `method_exists` CÙNG THÂN HÀM với lời gọi — luật của `kiem-goi-cheo.php`. */
 		$la_cong = ( class_exists( 'VHCC_Luong' ) && method_exists( 'VHCC_Luong', 'cach_tinh' )
 			&& 'cong' === VHCC_Luong::cach_tinh( $coso ) );
-		$tc = $la_cong ? self::cong_theo_khoang( $coso, $tu, $den ) : array( 'nguoi' => array(), 'o' => array() );
+		$tc = $la_cong ? self::cong_theo_khoang( $coso, $tu, $den )
+			: array( 'nguoi' => array(), 'o' => array(), 'co' => array() );
 		$khoang = ( $den && $den !== $tu )
 			? ( 'Từ ngày ' . self::ngay_vn( $tu ) . ' đến ngày ' . self::ngay_vn( $den ) )
 			: ( 'Ngày ' . self::ngay_vn( $tu ) );
@@ -231,7 +368,11 @@ class VHCC_Pdf {
 		$h[] = '<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8">';
 		$h[] = '<meta name="viewport" content="width=device-width,initial-scale=1">';
 		$h[] = '<title>' . esc_html( $ten_tep ) . '</title><style>';
-		$h[] = '@page{size:A4;margin:12mm 10mm}';
+		/* 🔴 XOAY NGANG. Lưới cả tháng là 31 cột ngày + tên + tổng; nhét vào khổ dọc thì mỗi
+		   cột còn chưa tới 5mm và con số dính vào nhau. Cả tờ xoay ngang chứ không riêng mục
+		   lưới: `@page` không đổi hướng giữa chừng được, mà hai tờ hai hướng thì kẹp vào cặp
+		   tài liệu cũng không ai lật nổi. */
+		$h[] = '@page{size:A4 landscape;margin:8mm 8mm}';
 		$h[] = 'body{font-family:Arial,Helvetica,sans-serif;color:#111;font-size:11px;margin:0;padding:10mm}';
 		$h[] = 'h1{font-size:16px;margin:0 0 2px;text-align:center;text-transform:uppercase}';
 		$h[] = '.cty{font-size:11px;font-weight:bold;text-align:center;margin:0}';
@@ -252,6 +393,25 @@ class VHCC_Pdf {
 		$h[] = 'tr.nhom td{background:#dde5ee;border-top:2px solid #666}';
 		$h[] = 'tr.nhom{page-break-after:avoid;page-break-inside:avoid}';
 		$h[] = '.ghi{font-size:9px;color:#666;margin-top:6px}';
+		/* Lưới: chữ nhỏ hơn hẳn hai bảng kia, và ô ngày bó sát — 31 cột phải vừa bề ngang tờ
+		   giấy mà vẫn đọc được con số. */
+		/* 🔴 `table-layout:fixed` — MỌI CỘT NGÀY BẰNG NHAU. Để trình duyệt tự co giãn thì ô nào
+		   có nhãn cơ sở ghép (`SETUP_VP`, 9 ký tự) kéo rộng gấp đôi, và cả bảng lệch nhịp: mắt
+		   dò theo cột số 17 sẽ trượt sang 18. Cột rộng bằng nhau thì dò dọc mới tin được. */
+		$h[] = 'table.luoi{table-layout:fixed}';
+		$h[] = 'table.luoi th,table.luoi td{padding:1px 1px;font-size:8.5px;text-align:center;'
+			. 'overflow:hidden}';
+		$h[] = 'table.luoi th.ten,table.luoi td.ten{width:104px}';
+		$h[] = 'table.luoi th.tg,table.luoi td.tg{width:32px}';
+		$h[] = 'table.luoi td.ten,table.luoi th.ten{text-align:left;white-space:nowrap;'
+			. 'max-width:120px;overflow:hidden;text-overflow:ellipsis;font-size:9px}';
+		$h[] = 'table.luoi .thu{font-weight:400;font-size:7px;color:#555}';
+		$h[] = 'table.luoi th.cn{background:#f6dede}';   // cuối tuần: nền khác, in đen trắng vẫn thấy
+		$h[] = 'table.luoi td.o-thieu{background:#fdeaea}';
+		$h[] = 'table.luoi .nho{font-size:6.5px;line-height:1.1;color:#444;white-space:nowrap;'
+			. 'overflow:hidden;text-overflow:ellipsis}';
+		$h[] = 'table.luoi .ghep{background:#e6f0fb}';
+		$h[] = 'table.luoi td.tg,table.luoi th.tg{background:#eef2f7}';
 		$h[] = '.ky{margin-top:22px;width:100%}';
 		$h[] = '.ky td{border:none;text-align:center;font-size:10px;padding-top:4px}';
 		/* Thanh nút chỉ có trên màn hình, KHÔNG in ra giấy. */
@@ -272,7 +432,7 @@ class VHCC_Pdf {
 		$h[] = '<p class="meta">In lúc ' . self::esc( $in_luc )
 			. ( '' !== $nguoi_xuat ? ' · người xuất: ' . self::esc( $nguoi_xuat ) : '' ) . '</p>';
 
-		$h[] = '<h2>' . ( $co_chi_tiet ? '1. ' : '' ) . 'Tổng hợp theo nhân viên</h2>';
+		$h[] = '<h2>1. Tổng hợp theo nhân viên</h2>';
 		/* 🔴 ĐƠN VỊ CỦA TỜ GIẤY THEO CÁCH TÍNH CỦA CƠ SỞ, KHÔNG PHẢI MỘT KIỂU CHO TẤT CẢ.
 		   Anh Thắng 31/08/2026: *"Cơ sở đã set công, tại sao lại xuất ra giờ làm chi đâu, không
 		   cần thiết, cần số công chính xác như wed"*. Cơ sở khai tính THEO CÔNG thì tờ giấy in
@@ -332,6 +492,50 @@ class VHCC_Pdf {
 		 * ⚠️ Bỏ hai cột Mã NV / Họ tên ở từng dòng: gom rồi thì mỗi dòng lặp lại tên là thừa,
 		 *    mà tờ A4 thì hết chỗ. Tên nằm ở hàng đầu mỗi khối, in đậm.
 		 */
+		/* =====================================================================================
+		 * 🔴 LƯỚI CẢ THÁNG — anh Thắng 31/08/2026 gửi ảnh chính cái lưới trên màn: *"thiếu bảng
+		 *    này"*, và chốt *"đúng, cùng hàng nhân viên luôn"*.
+		 * =====================================================================================
+		 * Bảng tổng hợp cho MỘT con số mỗi người; lưới cho biết con số ấy ghép từ những ngày
+		 * nào. Kế toán đối soát bằng lưới, nên nó phải có mặt trên tờ giấy đem đi ký.
+		 *
+		 * ⚠️ MỖI THÁNG MỘT LƯỚI. Lưới là lưới THÁNG (cột 1..31); in khoảng bắc qua hai tháng mà
+		 *    ép vào một bảng thì hoặc mất nửa sau, hoặc cột ngày mang hai nghĩa.
+		 */
+		$ds_thang_in = self::ds_thang( $tu, $den );
+		if ( $la_cong ) {
+			$luoi_o  = $tc['o'];
+			$luoi_co = $tc['co'];
+			$luoi_ng = array_values( $tc['nguoi'] );
+		} else {
+			list( $luoi_o, $luoi_co ) = self::luoi_gio_tu_chi_tiet( $d['chiTiet'] );
+			/* 🔴 MỖI NGƯỜI ĐÚNG MỘT HÀNG. `tongHop` tách hàng phụ (`MÃ-CD`, `MÃ-TC`) thành dòng
+			   riêng vì mã in ra khác nhau — bê nguyên sang lưới là một người hiện hai lần. */
+			$luoi_ng = array();
+			$da_ma   = array();
+			foreach ( $d['tongHop'] as $r_l ) {
+				$ph = explode( '-', (string) $r_l['ma'], 2 );
+				if ( isset( $da_ma[ $ph[0] ] ) ) { continue; }
+				$da_ma[ $ph[0] ] = 1;
+				$luoi_ng[] = array( 'ma' => $ph[0], 'ten' => (string) $r_l['ten'] );
+			}
+		}
+		$so_muc = 1;
+		foreach ( $ds_thang_in as $tt_in ) {
+			$so_muc++;
+			$h[] = '<h2>' . $so_muc . '. Lưới cả tháng ' . self::esc( self::thang_vn( $tt_in ) )
+				. ' — mỗi ô là ' . ( $la_cong ? 'số công' : 'số giờ' ) . ' của ngày đó</h2>';
+			$h[] = self::luoi_in( $tt_in, $luoi_ng, $luoi_o, $luoi_co, $la_cong );
+		}
+		if ( $ds_thang_in ) {
+			$h[] = '<p class="ghi">Ô <b>trống</b> = ngày ấy không có dữ liệu chấm công · ô <b>0</b> '
+				. '= có đi làm mà không ra công · dấu <b>?</b> và nền hồng = <b>thiếu một đầu giờ</b> '
+				. '(chỉ bấm vào, hoặc chỉ bấm ra) nên ngày ấy không tính công — bù nốt giờ còn thiếu '
+				. 'là công lên ngay. Dòng nhỏ <b>🌙</b> là phần ca đêm; <b>🌙0</b> = đêm đó có làm mà '
+				. 'không ra công. Nhãn <b>nền xanh nhạt</b> là ngày chấm ở cơ sở đã ghép vào bảng này '
+				. '— công của nó ĐÃ nằm trong cột TỔNG.</p>';
+		}
+
 		/* 🔴 MỤC CHI TIẾT TỪNG NGÀY: MẶC ĐỊNH KHÔNG IN.
 		   Anh Thắng 31/08/2026: *"Với bảng chi tiết theo từng nhân viên không cần thiết, vì kế
 		   toán đối soát rồi"*. Đúng: khúc ấy là 300-400 dòng, chiếm gần hết tập giấy, mà việc nó
@@ -339,7 +543,7 @@ class VHCC_Pdf {
 		   ⚠️ GIỮ ĐƯỜNG BẬT LẠI (`&ct=1`) chứ không xoá hàm: ngày có người khiếu nại một ngày cụ
 		      thể thì tờ giấy có chi tiết là thứ đưa ra được. Bỏ hẳn thì lúc ấy phải viết lại. */
 		if ( $co_chi_tiet ) {
-			$h[] = '<h2>2. Chi tiết theo từng nhân viên</h2>';
+			$h[] = '<h2>' . ( $so_muc + 1 ) . '. Chi tiết theo từng nhân viên</h2>';
 			$h[] = self::khoi_theo_nguoi( $d['tongHop'], $d['chiTiet'], $la_cong ? $tc['o'] : null );
 		}
 

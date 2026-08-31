@@ -1619,13 +1619,19 @@ $html = VHCC_Pdf::trang_in( 'TUTU_BT', '2026-08-01', '2026-08-31', 'Anh Thắng'
 $html_ct = VHCC_Pdf::trang_in( 'TUTU_BT', '2026-08-01', '2026-08-31', 'Anh Thắng', true );
 t( '🔴 tờ in mặc định KHÔNG có mục chi tiết từng ngày',
 	strpos( $html, 'Chi tiết theo từng nhân viên' ) === false, $html );
-t( 'và mục tổng hợp thôi đánh số khi đứng một mình',
-	strpos( $html, '<h2>Tổng hợp theo nhân viên</h2>' ) !== false, $html );
-t( 'bật &ct=1 thì mục chi tiết trở lại, và mục 1 lấy lại số thứ tự',
-	strpos( $html_ct, '2. Chi tiết theo từng nhân viên' ) !== false
+/* Mục 1 LUÔN đánh số: từ bản 3.20.0 tờ giấy luôn có ít nhất hai mục (tổng hợp + lưới cả
+   tháng), nên bỏ số thứ tự đi là hai tiêu đề đứng cạnh nhau mà không biết cái nào trước. */
+t( 'mục tổng hợp luôn mang số 1',
+	strpos( $html, '<h2>1. Tổng hợp theo nhân viên</h2>' ) !== false, $html );
+t( '🔴 và LƯỚI CẢ THÁNG là mục 2 — anh Thắng: "thiếu bảng này"',
+	strpos( $html, '2. Lưới cả tháng 08/2026' ) !== false, $html );
+t( 'bật &ct=1 thì mục chi tiết trở lại, xếp SAU lưới',
+	strpos( $html_ct, '3. Chi tiết theo từng nhân viên' ) !== false
 	&& strpos( $html_ct, '<h2>1. Tổng hợp theo nhân viên</h2>' ) !== false, $html_ct );
 t( 'tờ in là HTML đứng một mình', strpos( $html, '<!DOCTYPE html>' ) === 0 );
-t( 'khổ A4 và lề như bản gốc', strpos( $html, '@page{size:A4;margin:12mm 10mm}' ) !== false );
+/* 🔴 XOAY NGANG từ bản 3.20.0: lưới cả tháng là 31 cột ngày, nhét vào khổ dọc thì mỗi cột
+   chưa tới 5mm và mấy con số dính vào nhau. */
+t( 'khổ A4 NGANG', strpos( $html, '@page{size:A4 landscape' ) !== false, $html );
 /* Sang trang mới phải lặp lại dòng tiêu đề, và không cắt một hàng làm hai trang. Thiếu hai dòng
    CSS này thì bảng nhiều trang đọc không ra ai là ai. */
 t( 'sang trang lặp lại dòng tiêu đề', strpos( $html, 'thead{display:table-header-group}' ) !== false );
@@ -1852,6 +1858,78 @@ t( 'cột Thiếu giờ ra đếm đúng ngày thiếu đầu giờ',
 	$to_in_c );
 t( 'và tờ giấy NÓI RA con số ấy từ đâu mà có',
 	strpos( $to_in_c, 'đúng con số ở lưới cả tháng trên trang quản trị' ) !== false, $to_in_c );
+
+/* ---------------------------------------------------------------------------------------------
+ * 🔴 LƯỚI CẢ THÁNG PHẢI CÓ MẶT TRÊN TỜ GIẤY — anh Thắng 31/08/2026: *"thiếu bảng này"*
+ * ---------------------------------------------------------------------------------------------
+ * Bảng tổng hợp cho MỘT con số mỗi người; lưới cho biết con số ấy ghép từ những ngày nào. Kế
+ * toán đối soát bằng lưới. Và *"đúng, cùng hàng nhân viên luôn"*: hàng phụ (-CD, -TC) gộp vào
+ * hàng của chính người ấy, không tách thành hàng thứ hai.
+ */
+t( 'lưới có đủ 31 cột ngày', substr_count( $to_in_c, '<th class="' ) >= 31, null );
+t( 'cột ngày ghi kèm thứ', strpos( $to_in_c, '<div class="thu">' ) !== false, $to_in_c );
+t( 'ngày cuối tuần có nền riêng — in đen trắng vẫn phân biệt được',
+	strpos( $to_in_c, '<th class="cn">' ) !== false, $to_in_c );
+/* 🔴 CỘT TỔNG CỦA LƯỚI = CỘT SỐ CÔNG CỦA BẢNG 1. Hai bảng trên CÙNG một tờ giấy mà nói hai con
+   số thì tờ giấy ấy tự cãi nhau, và người ký không biết ký vào cái nào. */
+if ( preg_match( '#<td class="ten">Người IC1</td>(.*?)</tr>#s', $to_in_c, $mm_l ) ) {
+	preg_match_all( '#<td class="tg b">([0-9.]+)</td>#', $mm_l[1], $mm_tg );
+	$tg_luoi = isset( $mm_tg[1][0] ) ? (float) $mm_tg[1][0] : null;
+} else { $tg_luoi = null; }
+t( '🔴 cột TỔNG của lưới = cột Số công của bảng tổng hợp',
+	null !== $tg_luoi && null !== $so_giay && abs( $tg_luoi - $so_giay ) < 0.005,
+	array( 'luoi' => $tg_luoi, 'bang1' => $so_giay ) );
+
+/* 🔴 GIẤY KHÔNG CÓ MÀU: ngày thiếu một đầu giờ phải mang dấu `?`, không chỉ đổi nền.
+   Nền hồng in ra máy đen trắng thành xám nhạt, mà xám nhạt cạnh trắng thì không ai thấy. */
+t( '🔴 ô thiếu một đầu giờ mang dấu ? chứ không chỉ đổi nền',
+	strpos( $to_in_c, 'o-thieu' ) !== false && strpos( $to_in_c, '<span class="thieu"> ?</span>' ) !== false,
+	$to_in_c );
+/* Ô TRỐNG ≠ ô `0`: trống là không có dữ liệu, `0` là đi làm mà không ra công. */
+t( 'ngày không có dữ liệu để ô TRỐNG, không in số 0',
+	strpos( $to_in_c, '<td class="c"></td>' ) !== false, $to_in_c );
+t( 'và có dòng nói rõ trống khác 0 ở chỗ nào',
+	strpos( $to_in_c, 'không có dữ liệu chấm công' ) !== false
+	&& strpos( $to_in_c, 'có đi làm mà không ra công' ) !== false, $to_in_c );
+/* Mọi cột ngày rộng bằng nhau — ô có nhãn cơ sở ghép mà kéo rộng gấp đôi thì dò dọc trượt cột. */
+t( '🔴 mọi cột rộng bằng nhau (table-layout:fixed)',
+	strpos( $to_in_c, 'table.luoi{table-layout:fixed}' ) !== false, $to_in_c );
+
+/* ---- hàm thuần: thử bằng dữ liệu trần ---- */
+$lu = VHCC_Pdf::luoi_in( '2026-08',
+	array( array( 'ma' => 'L1', 'ten' => 'Người L' ) ),
+	array( 'L1' => array( '2026-08-01' => 1.5, '2026-08-02' => 0.0 ) ),
+	array( 'L1' => array( '2026-08-02' => array( 'thieu' => true, 'dem' => 0, 'demHut' => false,
+		'tuCoSo' => 'SETUP_VP' ) ) ), true );
+t( 'ô 1.5 in ra 1.5, không phải 1.50', strpos( $lu, '>1.5<' ) !== false, $lu );
+t( 'ô 0 in ra 0 kèm dấu ?', strpos( $lu, '>0<span class="thieu"> ?</span>' ) !== false, $lu );
+t( 'nhãn cơ sở ghép hiện ngay trong ô', strpos( $lu, '<div class="nho ghep">SETUP_VP</div>' ) !== false, $lu );
+teq( 'tổng của hàng cộng đúng', 1, substr_count( $lu, '<td class="tg b">1.5</td>' ) );
+/* Ngày 3..31 không có dữ liệu -> 29 ô trống. */
+teq( '🔴 ngày không có dữ liệu ra ô TRỐNG, không phải số 0', 29, substr_count( $lu, '<td class="c"></td>' ) );
+$lu_g = VHCC_Pdf::luoi_in( '2026-08', array( array( 'ma' => 'L1', 'ten' => 'Người L' ) ),
+	array( 'L1' => array( '2026-08-01' => 9.5 ) ), array(), false );
+t( 'cơ sở theo giờ: ô kèm chữ h', strpos( $lu_g, '>9.5h<' ) !== false, $lu_g );
+teq( 'tháng lạ thì không dựng bừa một bảng rỗng', '', VHCC_Pdf::luoi_in( 'hôm qua', array(), array(), array() ) );
+teq( 'tháng viết kiểu Việt trên tiêu đề mục', '08/2026', VHCC_Pdf::thang_vn( '2026-08' ) );
+teq( 'tháng sai khuôn thì GIỮ NGUYÊN', 'hôm qua', VHCC_Pdf::thang_vn( 'hôm qua' ) );
+teq( 'khoảng trong một tháng ra một lưới', array( '2026-08' ),
+	VHCC_Pdf::ds_thang( '2026-08-01', '2026-08-31' ) );
+teq( '🔴 khoảng bắc qua hai tháng ra HAI lưới', array( '2026-08', '2026-09' ),
+	VHCC_Pdf::ds_thang( '2026-08-28', '2026-09-05' ) );
+teq( 'và bắc qua tháng 2 không nhảy mất tháng 3', array( '2026-01', '2026-02', '2026-03' ),
+	VHCC_Pdf::ds_thang( '2026-01-31', '2026-03-01' ) );
+
+/* 🔴 MỖI NGƯỜI ĐÚNG MỘT HÀNG, kể cả người có hàng phụ -CD / -TC.
+   `tongHop` tách chúng ra vì mã in khác nhau; bê nguyên sang lưới là một người hiện hai lần. */
+list( $o_gp, $co_gp ) = VHCC_Pdf::luoi_gio_tu_chi_tiet( array(
+	array( 'ngay' => '2026-08-01', 'ma' => 'G1', 'maTran' => 'G1', 'hauTo' => '',
+		'vao' => '08:00:00', 'ra' => '12:00:00', 'phut' => 240 ),
+	array( 'ngay' => '2026-08-01', 'ma' => 'G1-CD', 'maTran' => 'G1', 'hauTo' => 'CD',
+		'vao' => '22:00:00', 'ra' => '02:00:00', 'phut' => 240 ),
+) );
+teq( '🔴 hàng phụ cộng vào CÙNG Ô của người ấy', 8.0, $o_gp['G1']['2026-08-01'] );
+teq( 'và không đẻ ra một mã thứ hai', 1, count( $o_gp ) );
 
 /* 🔴 IN NỬA THÁNG: CHỈ CỘNG CÔNG CỦA MẤY NGÀY TRONG KHOẢNG.
    Engine tính theo THÁNG, tờ in nhận KHOẢNG NGÀY. Không cắt lại theo khoảng thì in từ 01 đến
