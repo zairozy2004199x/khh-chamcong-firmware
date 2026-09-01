@@ -1873,9 +1873,15 @@ class VHCP_Don {
 		$n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ma_don=%s", (string) $ma_don ) );
 		// Ở "Nháp" mọi dòng là hạng mục XIN: gộp cả dòng phát sinh (nếu có do đơn bị trả về).
 		$wpdb->query( $wpdb->prepare( "UPDATE $t SET phat_sinh=0 WHERE ma_don=%s AND phat_sinh=1", (string) $ma_don ) );
-		/* Chỉ cần CÓ hạng mục (dòng chi) là gửi được — tạm ứng để 0 (không xin ứng trước) vẫn hợp
-		   lệ: cơ sở lên đơn trễ tự mua rồi kế toán bù khi quyết toán (anh Thắng 01/09/2026). */
-		if ( ! $n ) { return VHCP_Util::err( 'Chưa nhập hạng mục nào — thêm ít nhất 1 dòng chi rồi gửi.' ); }
+		/* Gửi được khi CÓ HẠNG MỤC (dòng chi) HOẶC CÓ SỐ TẠM ỨNG (anh Thắng 01/09/2026: "1 là có
+		   hạng mục, 2 là có số tạm ứng là được gửi đơn"). Đơn chỉ có tạm ứng = xin ứng trước chưa
+		   liệt kê; đơn chỉ có hạng mục, tạm ứng 0 = cơ sở lên trễ, tự mua rồi kế toán bù. */
+		$tt_bang = VHCP_DB::t( 'tamung' );
+		$tu_sum  = VHCP_Util::num( $wpdb->get_var( $wpdb->prepare(
+			"SELECT SUM(so) FROM $tt_bang WHERE ma_don=%s", (string) $ma_don ) ) );
+		if ( ! $n && ! ( $tu_sum > 0 ) ) {
+			return VHCP_Util::err( 'Chưa có gì để gửi — thêm ít nhất 1 hạng mục, hoặc nhập số tạm ứng.' );
+		}
 		self::clear_tra_marker( $ma_don );
 		// Chốt bù trừ theo đúng thời điểm gửi xin, trước khi đơn rời trạng thái "Nháp"
 		self::chot_bu_tru( $ma_don );
