@@ -1032,6 +1032,110 @@ class VHCC_Nhan {
 		return $kq;
 	}
 
+	/**
+	 * DANH SÁCH TÊN CƠ SỞ THÔ đang có trong bảng chấm công, kèm số hàng — để màn Quản trị đổ vào
+	 * ô chọn "gộp cơ sở trùng". Trả tên Y NGUYÊN như trong kho (không chuẩn hoá), vì chính mấy tên
+	 * gõ lệch nhau mới là thứ cần gộp; chuẩn hoá ở đây thì hai tên khác kiểu gõ gộp làm một trên
+	 * màn hình và người ta không chọn tách được.
+	 *
+	 * @return array array( array( 'coso' => tên, 'so' => số hàng ) ), nhiều hàng trước.
+	 */
+	public static function ds_coso_tho() {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$ds = $wpdb->get_results(
+			"SELECT coso, COUNT(*) so FROM $bang WHERE coso<>'' GROUP BY coso ORDER BY so DESC, coso ASC",
+			ARRAY_A );
+		$out = array();
+		foreach ( (array) $ds as $r ) {
+			$out[] = array( 'coso' => (string) $r['coso'], 'so' => (int) $r['so'] );
+		}
+		return $out;
+	}
+
+	/**
+	 * GỘP HAI CƠ SỞ TRÙNG NHAU NHƯNG GÕ KHÁC KIỂU — dời mọi lượt chấm công từ tên SAI sang tên
+	 * ĐÚNG. Sinh ra vì máy chấm công ghi `PART_TIME (POSHJP)` còn hồ sơ khai `(PART TIME )_POSH+JP`:
+	 * cùng một chỗ, khác chữ, nên lưới coi là hai cơ sở và công thật rơi rải ra hai hàng. Nút
+	 * "Dọn cơ sở ghép" chỉ chạm tên có dấu phẩy, không với tới ca này.
+	 *
+	 * ⚠️ KHÁC `don_coso_ghep` Ở CHỖ: bên kia đích đến là `chuan_coso($cu)` (tự suy ra), ở đây đích
+	 *    là tên NGƯỜI DÙNG CHỌN — vì hai tên gõ lệch không suy ra nhau được. Còn luật dời thì y hệt:
+	 *      · Đích CHƯA có hàng ngày ấy -> đổi tên tại chỗ, giữ nguyên ảnh/ghi chú/nguồn/giờ.
+	 *      · Đích ĐÃ có hàng -> NỚI khung [vào, ra] của hàng đích trùm cả hai rồi xoá hàng nguồn.
+	 *      · Hàng đích mang nguồn `sua`/`bu` (đã chỉnh tay, có thể đã chốt lương) -> KHÔNG đụng,
+	 *        kể tên ra để xử tay.
+	 *
+	 * @param string $tu  Tên cơ sở SAI (đang có trong kho) — dời đi khỏi đây.
+	 * @param string $den Tên cơ sở ĐÚNG — dồn về đây.
+	 * @param bool   $that Xem trước (false) hay làm thật (true).
+	 * @return array `xem`(bool) · `tu` · `den` · `doi_ten` · `gop` · `de_lai`(mảng) · `loi`(nếu có)
+	 */
+	public static function gop_coso( $tu, $den, $that = false ) {
+		global $wpdb;
+		$bang = VHCC_DB::t( 'cham_cong' );
+		$tu   = trim( (string) $tu );
+		$den  = trim( (string) $den );
+		$kq   = array( 'xem' => ! $that, 'tu' => $tu, 'den' => $den,
+			'doi_ten' => 0, 'gop' => 0, 'de_lai' => array() );
+
+		if ( '' === $tu || '' === $den ) {
+			$kq['loi'] = 'Chọn cả cơ sở nguồn (sai) lẫn cơ sở đích (đúng).';
+			return $kq;
+		}
+		if ( strtolower( $tu ) === strtolower( $den ) ) {
+			$kq['loi'] = 'Hai ô đang là một tên — không có gì để gộp.';
+			return $kq;
+		}
+		/* Đích PHẢI là tên có thật trong kho — không thì gõ nhầm một tên lạ là dời hết công sang
+		   một cơ sở không tồn tại, đúng cái đang đi sửa. So không phân biệt hoa thường cho khớp
+		   với `cham_cong()` (`strtolower`). */
+		$den_that = $wpdb->get_var( $wpdb->prepare(
+			"SELECT coso FROM $bang WHERE LOWER(coso)=LOWER(%s) LIMIT 1", $den ) );
+		if ( null === $den_that ) {
+			$kq['loi'] = 'Cơ sở đích "' . $den . '" chưa có lượt chấm công nào — kiểm lại tên (phải '
+				. 'trùng đúng tên máy đang ghi).';
+			return $kq;
+		}
+		$den = (string) $den_that;   // dùng đúng kiểu gõ đang có trong kho
+
+		$ds = $wpdb->get_results( $wpdb->prepare(
+			"SELECT * FROM $bang WHERE coso=%s ORDER BY id", $tu ), ARRAY_A );
+
+		foreach ( (array) $ds as $r ) {
+			$dich = $wpdb->get_row( $wpdb->prepare(
+				"SELECT * FROM $bang WHERE coso=%s AND ngay=%s AND ma_nv=%s AND hau_to=%s",
+				$den, $r['ngay'], $r['ma_nv'], $r['hau_to'] ), ARRAY_A );
+
+			if ( null === $dich ) {
+				$kq['doi_ten']++;
+				if ( $that ) {
+					$wpdb->update( $bang, array( 'coso' => $den ), array( 'id' => (int) $r['id'] ) );
+				}
+				continue;
+			}
+
+			if ( 'sua' === $dich['nguon'] || 'bu' === $dich['nguon'] ) {
+				$kq['de_lai'][] = $r['ngay'] . ' · ' . $r['ma_nv'] . ' · ' . $den
+					. ' (hàng đúng đã chỉnh tay — nguồn "' . $dich['nguon'] . '")';
+				continue;
+			}
+
+			$kq['gop']++;
+			if ( $that ) {
+				$vao = self::som_hon( $dich['gio_vao_giay'], $r['gio_vao_giay'] );
+				$ra  = self::muon_hon( $dich['gio_ra_giay'], $r['gio_ra_giay'] );
+				$wpdb->update( $bang, array(
+					'gio_vao_giay' => $vao,
+					'gio_ra_giay'  => $ra,
+					'chuan'        => self::chuan_cap( $vao, $ra ),
+				), array( 'id' => (int) $dich['id'] ) );
+				$wpdb->delete( $bang, array( 'id' => (int) $r['id'] ) );
+			}
+		}
+		return $kq;
+	}
+
 	/** Giây nhỏ hơn trong hai giá trị, bỏ qua null. */
 	private static function som_hon( $a, $b ) {
 		$a = ( null === $a || '' === $a ) ? null : (int) $a;
