@@ -335,16 +335,74 @@ jobs:
                    | sed 's/.*"\(.*\)".*/\1/')
           mkdir -p /tmp/binghe
           cp "$BIN" /tmp/binghe/ghe-latest.bin
+
+          # ========================================================================================
+          # BỐN MẢNH, KHÔNG PHẢI MỘT.
+          #
+          # 🔴 Board CÒN TRỐNG (chưa từng nạp gì, hoặc vừa xoá sạch) mà chỉ ghi mỗi app vào
+          #    0x10000 thì KHÔNG BOOT: chip đọc bootloader ở 0x1000, đọc bảng phân vùng ở 0x8000,
+          #    rồi đọc boot_app0 ở 0xe000 để biết chạy app nào. Thiếu mảnh nào cũng là màn đen và
+          #    không có thông báo gì — người nạp chỉ thấy "nạp xong mà máy im".
+          #
+          #    Board ĐÃ có firmware cùng loại thì ghi mỗi app là đủ; ba mảnh kia không đổi.
+          #
+          # ⚠️ boot_app0.bin KHÔNG do bản dựng sinh ra — nó nằm trong core ESP32. Tìm theo đường
+          #    dẫn thay vì chép cứng số phiên bản: core nâng lên là đường dẫn đổi.
+          # ========================================================================================
+          cp ghebuild/esp32_ghe_massage.ino.bootloader.bin /tmp/binghe/ghe-bootloader.bin
+          cp ghebuild/esp32_ghe_massage.ino.partitions.bin /tmp/binghe/ghe-partitions.bin
+          BOOTAPP=$(find "$HOME/.arduino15/packages/esp32" -name boot_app0.bin | head -1)
+          [ -n "$BOOTAPP" ] || { echo "::error::Khong tim thay boot_app0.bin trong core ESP32"; exit 1; }
+          cp "$BOOTAPP" /tmp/binghe/ghe-boot_app0.bin
+          for f in ghe-latest.bin ghe-bootloader.bin ghe-partitions.bin ghe-boot_app0.bin; do
+            [ -s "/tmp/binghe/$f" ] || { echo "::error::Thieu hoac rong: $f"; exit 1; }
+          done
+
           printf 'fw=%s\ncommit=%s\nnhanh=%s\nsize=%s\n' \
             "$VERGHE" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(stat -c%s "$BIN")" > /tmp/binghe/thongtin.txt
           {
-            echo 'Nhanh nay CHI chua file .bin cua GHE MASSAGE de tai thang qua link raw.'
+            echo 'Nhanh nay CHI chua ban nap cua GHE MASSAGE, de tai thang qua link raw.'
             echo 'Bi force-push moi lan build - dung dat gi khac vao day.'
             echo ''
-            echo 'Nap bang esptool:'
+            echo '== BOARD DA CO FIRMWARE CUNG LOAI: chi can ghi app =='
             echo '  esptool.py --chip esp32 --port <CONG> --baud 921600 write_flash 0x10000 ghe-latest.bin'
-            echo 'Hoac nap ca ba manh (bootloader + partitions + app) neu board con trong.'
+            echo ''
+            echo '== BOARD CON TRONG: phai ghi DU BON manh, dung dia chi =='
+            echo '  esptool.py --chip esp32 --port <CONG> --baud 921600 write_flash \'
+            echo '    0x1000  ghe-bootloader.bin \'
+            echo '    0x8000  ghe-partitions.bin \'
+            echo '    0xe000  ghe-boot_app0.bin \'
+            echo '    0x10000 ghe-latest.bin'
+            echo ''
+            echo 'Thieu mot manh la man den va KHONG co thong bao gi.'
+            echo 'Windows: cai Python roi "pip install esptool"; <CONG> dang COM5.'
+            echo 'Linux/macOS: <CONG> dang /dev/ttyUSB0 hoac /dev/cu.usbserial-xxx.'
           } > /tmp/binghe/README.md
+
+          # Script nạp sẵn cho hai hệ — người đứng cạnh máy khỏi phải gõ lại bốn địa chỉ.
+          {
+            echo '@echo off'
+            echo 'REM Nap DU BON MANH cho board con trong. Sua COM5 thanh cong that.'
+            echo 'set CONG=COM5'
+            echo 'esptool.py --chip esp32 --port %CONG% --baud 921600 write_flash ^'
+            echo '  0x1000 ghe-bootloader.bin ^'
+            echo '  0x8000 ghe-partitions.bin ^'
+            echo '  0xe000 ghe-boot_app0.bin ^'
+            echo '  0x10000 ghe-latest.bin'
+            echo 'pause'
+          } > /tmp/binghe/nap-windows.bat
+          {
+            echo '#!/usr/bin/env bash'
+            echo '# Nap DU BON MANH cho board con trong. Truyen cong lam tham so, vd: ./nap.sh /dev/ttyUSB0'
+            echo 'set -e'
+            echo 'CONG="${1:-/dev/ttyUSB0}"'
+            echo 'esptool.py --chip esp32 --port "$CONG" --baud 921600 write_flash \'
+            echo '  0x1000  ghe-bootloader.bin \'
+            echo '  0x8000  ghe-partitions.bin \'
+            echo '  0xe000  ghe-boot_app0.bin \'
+            echo '  0x10000 ghe-latest.bin'
+          } > /tmp/binghe/nap.sh
+          chmod +x /tmp/binghe/nap.sh
           cd /tmp/binghe
           git init -q
           git config user.name  "github-actions[bot]"
