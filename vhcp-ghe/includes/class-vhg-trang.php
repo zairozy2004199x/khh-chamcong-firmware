@@ -6258,16 +6258,17 @@ function qlNaNa(a, b){
   return qlLev(a, b) <= 1;
 }
 
-/* Tim cac NHOM ghe trung ten na na (cung co so, cung so cuoi, chu na na). Moi nhom chon 1 ghe GIU
-   (uu tien co phan cung; neu hoa thi ten ngan nhat) va goi y AN cac ghe con lai. Tra mang nhom. */
+/* Tim cac NHOM ghe trung ten na na. GOM THEO SO CUOI, KHONG theo co so — vi ghe ao thuong nam o
+   MOT CO SO KHAC (hoac chua gan) nen loc co so o tren khong thay; phai soi ca kho. Moi nhom giu 1
+   ghe (uu tien CO PHAN CUNG; hoa thi ten ngan nhat). CHI goi y an ghe CHUA GAN PHAN CUNG — ghe that
+   dang chay (co MAC) khong bao gio bi an tu dong. */
 function qlTimNhom(){
   var may = (D && D.may || []).filter(function(m){ return !m.an; });
   var bucket = {};
   may.forEach(function(m){
     var p = qlTach(m.ten || m.ma);
     if (!p.chu || !p.so) return;                 // ten khong co dang chu+so thi bo qua
-    var k = (m.coso || '') + '|' + p.so;
-    (bucket[k] = bucket[k] || []).push({ m: m, chu: p.chu });
+    (bucket[p.so] = bucket[p.so] || []).push({ m: m, chu: p.chu });
   });
   var nhom = [];
   for (var k in bucket){
@@ -6282,12 +6283,15 @@ function qlTimNhom(){
         if (qlNaNa(arr[a].chu, arr[b].chu)){ grp.push(arr[b]); done[b] = 1; }
       }
       if (grp.length < 2) continue;
-      // chon nguoi GIU: co phan cung truoc; roi den ten (chu) ngan nhat
-      grp.sort(function(x, y){
+      grp.sort(function(x, y){                    // nguoi GIU: co phan cung truoc, roi ten ngan nhat
         if ((y.m.hw?1:0) !== (x.m.hw?1:0)) return (y.m.hw?1:0) - (x.m.hw?1:0);
         return x.chu.length - y.chu.length;
       });
-      nhom.push({ giu: grp[0].m, an: grp.slice(1).map(function(g){ return g.m; }), coso: grp[0].m.coso || '' });
+      var giu = grp[0].m;
+      var an = [];
+      for (var i = 1; i < grp.length; i++){ if (!grp[i].m.hw) an.push(grp[i].m); }  // chi an ghe chua co phan cung
+      if (!an.length) continue;                   // ca nhom deu co phan cung -> khong dong
+      nhom.push({ giu: giu, an: an });
     }
   }
   return nhom;
@@ -6314,12 +6318,12 @@ function qlTimTrung(){
   nhom.forEach(function(g){
     h += '<tr style="background:#f6faf6"><td></td><td><b>✔ ' + L('GIU','KEEP') + ':</b> '
       + esc(g.giu.ten || g.giu.ma) + ' <span class="mut">(' + esc(g.giu.ma) + ')</span></td>'
-      + '<td class="mut">' + esc(g.coso) + '</td><td class="r hide-sm mut">' + (g.giu.chot == null ? '—' : g.giu.chot)
+      + '<td class="mut">' + esc(g.giu.coso || L('(chưa gán)','(unassigned)')) + '</td><td class="r hide-sm mut">' + (g.giu.chot == null ? '—' : g.giu.chot)
       + '</td><td>' + (g.giu.hw ? '🔌 ' + L('co','yes') : L('chua','no')) + '</td></tr>';
     g.an.forEach(function(m){
       h += '<tr><td><input type="checkbox" class="ql-tt-ck" data-ma="' + esc(m.ma) + '" checked></td>'
         + '<td>📦 ' + esc(m.ten || m.ma) + ' <span class="mut">(' + esc(m.ma) + ')</span></td>'
-        + '<td class="mut">' + esc(g.coso) + '</td><td class="r hide-sm mut">' + (m.chot == null ? '—' : m.chot)
+        + '<td class="mut">' + esc(m.coso || L('(chưa gán)','(unassigned)')) + '</td><td class="r hide-sm mut">' + (m.chot == null ? '—' : m.chot)
         + '</td><td>' + (m.hw ? '🔌 ' + L('co','yes') : '<span class="mut">' + L('chua','no') + '</span>') + '</td></tr>';
     });
   });
