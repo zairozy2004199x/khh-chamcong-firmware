@@ -234,9 +234,9 @@
 
   <div class="wrap" id="main" style="display:none">
 
-    <!-- TỔNG TẠM ỨNG (tự tính từ hạng mục xin bên dưới) -->
+    <!-- TỔNG TẠM ỨNG (nhập tay cho từng cơ sở + dự phòng; để trống = 0 = không xin) -->
     <div class="card" id="tuCard">
-      <div class="ch"><h2>Tạm ứng xin (hạng mục + dự phòng)</h2><span style="font-size:11px;color:#64748b">= tổng các hạng mục xin bên dưới + tạm ứng dự phòng · quản lý duyệt/chỉnh số khi duyệt</span></div>
+      <div class="ch"><h2>Tạm ứng xin (nhập tay + dự phòng)</h2><span style="font-size:11px;color:#64748b">= số tạm ứng NHẬP cho từng cơ sở + tạm ứng dự phòng · <b>để trống = 0 = không xin ứng trước</b> · quản lý duyệt/chỉnh số khi duyệt</span></div>
       <div class="cb">
         <div id="tuEntryRow" style="display:none;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:8px">
           <div class="fld"><label>Cơ sở</label><select id="tuCoso" style="min-width:220px"></select></div>
@@ -2111,7 +2111,10 @@
       // Hiển thị card theo trạng thái (model mới: hạng mục xin trước — thực chi + phát sinh sau khi cấp)
       var _showTU=(st==='Nháp' || CUR.tuMode==='new');
       if(el('tuCard'))      el('tuCard').style.display      = _showTU?'':'none';
-      if(el('tuEntryRow'))  el('tuEntryRow').style.display  = 'none';   // bỏ nhập tạm ứng tay — tạm ứng = tổng hạng mục xin
+      /* MỞ LẠI Ô NHẬP TẠM ỨNG TAY (anh Thắng 01/09/2026): tạm ứng KHÔNG còn tự bằng tổng hạng mục.
+         Cửa hàng không xin thì để trống = 0. Ai cần ứng trước thì nhập số cho từng cơ sở ở đây.
+         Chỉ cho nhập khi đơn còn "Nháp" (máy chủ cũng khóa sau đó). */
+      if(el('tuEntryRow'))  el('tuEntryRow').style.display  = CUR.stNhap?'flex':'none';   // nhập tạm ứng tay khi Nháp
       if(el('dpRow'))       el('dpRow').style.display       = CUR.stNhap?'flex':'none';   // nhập tạm ứng dự phòng chỉ khi Nháp
       if(el('dpSo'))        el('dpSo').value                = (Number(CUR.don.duPhong)||0)>0?CUR.don.duPhong:'';
       if(el('buSo')){
@@ -2256,7 +2259,7 @@
       el('tuChips').innerHTML='<span class="chip">💰 Tạm ứng (cục cả đơn): <b>'+money(duyet)+'đ</b></span>'+
         '<div style="font-size:11px;color:#94a3b8;margin-top:6px">Số đã duyệt cho cả đơn.</div>';
     } else {
-      el('tuChips').innerHTML='<span style="color:#94a3b8;font-size:12px">Chưa có hạng mục xin nào — thêm ở mục 1 bên dưới (hoặc nhập tạm ứng dự phòng ở trên).</span>';
+      el('tuChips').innerHTML='<span style="color:#94a3b8;font-size:12px">Đơn này <b>không xin tạm ứng</b> (= 0). Cần ứng trước thì nhập số ở ô <b>“Số tạm ứng”</b> cho từng cơ sở phía trên; để trống = kế toán chi bù khi quyết toán.</span>';
     }
   }
   function saveDuPhong(){

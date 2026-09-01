@@ -496,7 +496,9 @@ class VHCP_Don {
 			if ( VHCP_Util::is_ncc( $r['phan_loai_tt'], $r['cn_xu_ly'] ) ) { $tt_ncc[ $m ] = ( isset( $tt_ncc[ $m ] ) ? $tt_ncc[ $m ] : 0 ) + $eff; }
 			else { $tt_cn[ $m ] = ( isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0 ) + $eff; }
 		}
-		foreach ( $xin as $m => $v ) { if ( empty( $tu_has[ $m ] ) ) { $tu_sum[ $m ] = $v; } }
+		/* 🔴 KHÔNG suy tạm ứng từ tổng hạng mục nữa (anh Thắng 01/09/2026: cửa hàng không xin thì
+		   tạm ứng = 0). Tạm ứng CHỈ là số nhập tay ở ô "Số tiền tạm ứng" (bảng `tamung`) + dự phòng;
+		   ô để trống = 0 = không xin. (Bỏ dòng cũ đổ `$xin` vào `$tu_sum` khi thiếu ô nhập.) */
 
 		$out = array();
 		foreach ( $dons as $r ) {
@@ -522,7 +524,7 @@ class VHCP_Don {
 
 			   ⚠️ VẪN TÍNH VÀ VẪN HIỆN con số ấy — chỉ thôi cộng vào tiền. Bỏ hẳn thì mất luôn
 			      thứ đang giúp kế toán biết tuần trước còn treo bao nhiêu. */
-			$tu_tay   = ! empty( $tu_has[ $m ] ) ? ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) : ( ( isset( $xin[ $m ] ) ? $xin[ $m ] : 0 ) + $du_phong );
+			$tu_tay   = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) + $du_phong;
 			$ad_total = ( null !== $tu_d ) ? $tu_d : $tu_tay;
 			$has_tu   = ( $ad_total > 0 );
 			$mua_cn   = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
@@ -843,22 +845,16 @@ class VHCP_Don {
 			);
 		}
 
-		// Chưa nhập tạm ứng tay -> tạm ứng xin = tổng hạng mục theo cơ sở
-		// (ở "Nháp" gộp cả dòng phát sinh vì khi đó mọi dòng đều là hạng mục xin).
-		if ( ! $has_tu_rows ) {
-			foreach ( $lines as $l ) {
-				if ( ! $l['phatSinh'] || $don['trangThai'] === 'Nháp' ) {
-					$cs = $l['coso'];
-					$tam_ung[ $cs ] = ( isset( $tam_ung[ $cs ] ) ? $tam_ung[ $cs ] : 0 ) + VHCP_Util::num( $l['thanhTien'] );
-				}
-			}
-		}
-
+		/* 🔴 KHÔNG suy tạm ứng từ tổng hạng mục (anh Thắng 01/09/2026: cửa hàng không xin thì tạm
+		   ứng = 0). `$tam_ung` CHỈ gồm số nhập tay ở ô "Số tiền tạm ứng" (bảng `tamung`, đọc ở trên);
+		   ô để trống = không có dòng = 0 = không xin. Các dòng chi phí là kế hoạch mua / thực mua,
+		   quyết toán riêng — không đổ vào tạm ứng. */
 		$tu_tay_sum = 0;
 		foreach ( $tam_ung as $v ) { $tu_tay_sum += VHCP_Util::num( $v ); }
 		/* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `list_dons()`. Nó vẫn được
-		   tính và vẫn trả về (`buTru`, `buTruAuto`) để màn hình bày ra như một con số báo cáo. */
-		if ( ! $has_tu_rows ) { $tu_tay_sum += VHCP_Util::num( $don['duPhong'] ); }
+		   tính và vẫn trả về (`buTru`, `buTruAuto`) để màn hình bày ra như một con số báo cáo.
+		   Dự phòng là số nhập tay riêng, luôn cộng vào tạm ứng xin. */
+		$tu_tay_sum += VHCP_Util::num( $don['duPhong'] );
 		/* 🔴 TẠM ỨNG BẰNG 0 LÀ MỘT CON SỐ THẬT, KHÔNG PHẢI "CHƯA BIẾT".
 		   Anh Thắng 01/09/2026: *"Khi 1 cửa hàng không xin tạm ứng, tạm ứng = 0. Nhân viên sau
 		   đó mua đồ và quyết toán, thì hệ thống ghi nhận cả tạm ứng và thực chi = nhau luôn.
