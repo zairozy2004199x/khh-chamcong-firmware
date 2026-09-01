@@ -2939,10 +2939,9 @@ class VHCC_Web {
 		echo '<p style="margin:12px 0 4px"><b>' . (int) $tong['ngay'] . '</b> ngày · <b>'
 			. (int) $tong['luot'] . '</b> lượt · <b>' . esc_html( self::gio_phut( $tong['phut'] ) )
 			. '</b> có mặt</p>';
-		if ( $tong['thieuRa'] ) {
-			echo '<p class="loi"><b>' . (int) $tong['thieuRa'] . ' lượt thiếu giờ ra</b> '
-				. '(ô Ra để trống bên dưới). Báo quản lý bổ sung <b>trước khi chốt lương tháng</b>.</p>';
-		}
+		/* Bỏ cảnh báo "N lượt thiếu giờ ra — báo quản lý…" bên MÀN NHÂN VIÊN (anh Thắng: bỏ thông
+		   báo bên nhân viên). Nhân viên vẫn thấy ô "thiếu ?" ở bảng chi tiết + ô nền đỏ ở lưới; chỉ
+		   bỏ dòng nhắc nhở. Bên màn QUẢN LÝ vẫn giữ cảnh báo thiếu giờ ra để còn bổ sung trước chốt. */
 
 		if ( ! $kq['dong'] ) {
 			echo '<p class="mo" style="margin-top:10px">Tháng này chưa có lượt chấm công nào.</p>';
