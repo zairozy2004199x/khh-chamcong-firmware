@@ -1002,9 +1002,18 @@
         Từ bản <b>1.53.0</b>, thừa/thiếu của tuần trước <b>chỉ là con số báo cáo</b> — không trừ vào tiền
         tuần sau nữa. Nhưng đơn đã duyệt <b>trước</b> đó vẫn giữ con số đã bị trừ, nên khối Quyết toán
         so tiền đã chi với con số cũ và báo <b>thiếu</b> dù thực ra không thiếu.
+        <div style="margin-top:6px">Khối này nhặt <b>hai loại</b> đơn:</div>
+        <div style="margin-top:4px;padding:8px 10px;background:#f1f5f9;border-radius:8px">
+          <b>1. Đã duyệt, chưa cấp tiền, còn dính bù trừ</b> — số duyệt <b>đúng bằng</b> tổng xin + bù trừ.
+          Sửa = gỡ phần bù trừ ra, đưa về đúng tổng xin.<br>
+          <b>2. Chưa duyệt mà vẫn mang số duyệt</b> — đơn đang ở <b>Nháp</b> hoặc <b>Chờ duyệt tạm ứng</b>
+          (thường là đơn từng được duyệt rồi bị <b>trả lại</b>). Con số duyệt cũ ấy vẫn đè lên tổng xin ở khối
+          Quyết toán và làm nó báo thiếu. Sửa = <b>xoá hẳn</b> số duyệt, đơn về đúng trạng thái chưa duyệt,
+          chờ quản lý duyệt lại.
+        </div>
         <div style="margin-top:6px;padding:8px 10px;background:#fef9c3;color:#854d0e;border-radius:8px">
-          ⚠️ Chỉ đụng vào đơn <b>chưa cấp tiền</b>, và chỉ khi số duyệt <b>đúng bằng</b> tổng xin + bù trừ —
-          tức dấu tay rõ ràng của luật cũ. Quản lý <b>cố ý</b> duyệt thấp hơn số xin thì <b>không</b> bị đụng tới.
+          ⚠️ Chỉ đụng vào đơn <b>chưa cấp tiền</b>. Với loại 1, chỉ khi số duyệt <b>đúng bằng</b> tổng xin + bù trừ —
+          tức dấu tay rõ ràng của luật cũ; quản lý <b>cố ý</b> duyệt thấp hơn số xin thì <b>không</b> bị đụng tới.
         </div>
         Luôn <b>Dò</b> để xem trước — <b>không sửa gì</b> cho tới khi bấm xác nhận.
       </div>
@@ -2328,9 +2337,12 @@
   function doDoBtCu(){ _chayBtCu(false); }
   function doChotBtCu(){
     if(!BTC||!BTC.tong) return;
+    var _m=BTC.soMoCoi||0, _b=BTC.soBuTru||0;
     if(!confirm('Sửa số đã duyệt của '+BTC.tong+' đơn?\n\n'
-      +'Mỗi đơn sẽ gỡ phần bù trừ tuần trước ra khỏi con số duyệt, đưa về đúng tổng xin.\n'
-      +'Chỉ đơn CHƯA cấp tiền. Mỗi lượt sửa đều ghi nhật ký của đơn.')) return;
+      +(_b?('• '+_b+' đơn đã duyệt: gỡ phần bù trừ tuần trước ra khỏi con số duyệt, đưa về đúng tổng xin.\n'):'')
+      +(_m?('• '+_m+' đơn chưa duyệt (Nháp / Chờ duyệt): xoá hẳn con số duyệt còn sót của lần duyệt cũ —\n'
+            +'  đơn quay về đúng trạng thái "chưa duyệt", chờ quản lý duyệt lại.\n'):'')
+      +'\nChỉ đơn CHƯA cấp tiền. Mỗi lượt sửa đều ghi nhật ký của đơn.')) return;
     _chayBtCu(true);
   }
   function _chayBtCu(chot){
@@ -2352,15 +2364,24 @@
     }
     if(nut) nut.style.display=BTC.daSua?'none':'inline-block';
     var h='<div style="font-size:12.5px;margin-bottom:6px">Tìm thấy <b>'+BTC.tong+'</b> đơn'
+      +((BTC.soBuTru||0)?(' · '+BTC.soBuTru+' dính bù trừ cũ'):'')
+      +((BTC.soMoCoi||0)?(' · <b style="color:#b45309">'+BTC.soMoCoi+' mang số duyệt mồ côi</b>'):'')
       +(BTC.daSua?(' · <b style="color:#166534">đã sửa '+BTC.daSua+'</b>'):' — xem trước, chưa sửa gì')+'</div>';
-    h+='<div class="tw"><table style="min-width:640px"><thead><tr><th>Mã đơn</th><th>Kỳ</th><th>Người lập</th>'
+    h+='<div class="tw"><table style="min-width:760px"><thead><tr><th>Mã đơn</th><th>Kỳ</th><th>Người lập</th>'
+      +'<th>Vì sao dính</th>'
       +'<th style="text-align:right">Đang duyệt</th><th style="text-align:right">Bù trừ dính</th>'
       +'<th style="text-align:right">Sẽ thành</th></tr></thead><tbody>';
     BTC.items.forEach(function(x){
+      var mc=(x.loai==='mocoi');
       h+='<tr><td><b>'+esc(x.maDon)+'</b></td><td>'+esc(x.ky||'')+'</td><td>'+esc(x.nguoi||'')+'</td>'
+        +'<td style="font-size:11.5px">'+(mc
+            ? ('<b style="color:#b45309">Chưa duyệt mà vẫn mang số duyệt</b><br><span style="color:#64748b">đang ở "'+esc(x.trangThai||'')+'" — số sót của lần duyệt cũ đã bị trả lại</span>')
+            : '<span style="color:#64748b">Số duyệt = tổng xin + bù trừ tuần trước (luật trước 1.53.0)</span>')+'</td>'
         +'<td style="text-align:right">'+money(x.duyet)+'đ</td>'
-        +'<td style="text-align:right;color:#b91c1c">'+(x.buTru>0?'+':'−')+money(Math.abs(x.buTru))+'đ</td>'
-        +'<td style="text-align:right;color:#166534"><b>'+money(x.moi)+'đ</b></td></tr>';
+        +'<td style="text-align:right;color:#b91c1c">'+(mc?'<span style="color:#94a3b8">—</span>':((x.buTru>0?'+':'−')+money(Math.abs(x.buTru))+'đ'))+'</td>'
+        +'<td style="text-align:right;color:#166534"><b>'+(mc
+            ? ('<span style="color:#b45309">chưa duyệt</span><br><span style="font-weight:400;color:#64748b;font-size:11px">tổng xin '+money(x.moi)+'đ</span>')
+            : (money(x.moi)+'đ'))+'</b></td></tr>';
     });
     b.innerHTML=h+'</tbody></table></div>';
   }

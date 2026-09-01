@@ -481,6 +481,120 @@ VHCP_Don::delete_don_admin( $mbc1 );
 VHCP_Don::delete_don_admin( $mbc2 );
 VHCP_Don::delete_don_admin( $mbc3 );
 
+/* =============================================================================================
+ * 🔴 SỐ DUYỆT MỒ CÔI — ĐƠN BỊ TRẢ LẠI VỀ "NHÁP" MÀ VẪN MANG SỐ ĐÃ DUYỆT
+ * =============================================================================================
+ * Anh Thắng 01/09/2026, ảnh đơn SNOW NHÀ TUYẾT BÌNH DƯƠNG: *"đơn này thì lại không có"* — chính
+ * cái đơn sinh ra khối "Dọn bù trừ cũ" lại không lọt lưới của nó.
+ *
+ * Đơn ấy đã bị quản lý TRẢ LẠI, nên đang ở "Nháp"; bản đầu chỉ nhặt đơn ở "Chờ cấp tạm ứng".
+ * Mà đơn về Nháp vẫn giữ nguyên `tam_ung_duyet` của lần duyệt cũ, và `get_don()` lấy
+ * `$ad_total = $tu_duyet > 0 ? $tu_duyet : $tu_tay_sum` — nên con số cũ ĐÈ lên tổng xin và khối
+ * Quyết toán vẫn báo thiếu.
+ *
+ * ⚠️ KHÔNG dò được bằng phép "duyệt = xin + bù trừ" như nhóm kia: `chot_bu_tru()` tính lại và
+ *    ghi đè `bu_tru` mỗi lần mở đơn ở Nháp, nên con số bù trừ LÚC DUYỆT không còn ở đâu trong
+ *    sổ. Cái chắc chắn còn lại chỉ là trạng thái: chưa duyệt thì không được mang số duyệt.
+ */
+$mc1 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mmc1 = $mc1['maDon'];
+VHCP_Don::add_line( $mmc1, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Ca SNOW',
+	'soLuong' => 1, 'donGia' => 15000032, 'thanhTien' => 15000032 ) );
+VHCP_Don::gui_duyet_tam_ung( $mmc1 );
+VHCP_Don::duyet_tam_ung( $mmc1, 'Trần Quản Lý', 9405032 );   // bản cũ: 15.000.032 − 5.595.000
+teq( 'duyệt xong thì đơn mang số duyệt cắt bớt', 9405032.0,
+	(float) VHCP_Don::get_don( $mmc1 )['tongCN']['tamUng'] );
+
+$r_tl = VHCP_Don::tra_lai_don( $mmc1, 'sai số' );
+teq( 'trả lại thì về Nháp', 'Nháp', (string) $r_tl['target'] );
+t( '🔴 và GỠ LUÔN số đã duyệt', ! empty( $r_tl['goDuyet'] ), $r_tl );
+teq( '🔴 khối đối chiếu quay về đúng TỔNG XIN, không còn số duyệt mồ côi', 15000032.0,
+	(float) VHCP_Don::get_don( $mmc1 )['tongCN']['tamUng'] );
+$_g_mc = VHCP_Don::get_don( $mmc1 );
+t( 'ô "đã duyệt" trên đầu đơn thôi hiện số cũ',
+	'' === (string) $_g_mc['don']['tamUngDuyet'] || 0.0 === (float) $_g_mc['don']['tamUngDuyet'], $_g_mc['don']['tamUngDuyet'] );
+$_mc_log = '';
+foreach ( (array) VHCP_Don::nhat_ky_don( $mmc1, 20 )['items'] as $_x ) {
+	if ( false !== mb_strpos( (string) $_x['hanhDong'], 'Gỡ số đã duyệt' ) ) { $_mc_log .= (string) $_x['chiTiet']; }
+}
+t( '🔴 gỡ tiền thì phải có vết', false !== mb_strpos( $_mc_log, '9.405.032' )
+	&& false !== mb_strpos( $_mc_log, 'chưa duyệt' ), $_mc_log );
+
+/* 🔴 TIỀN ĐÃ RA KHỎI KÉT THÌ KHÔNG ĐỤNG. Đơn "Chờ quyết toán" bị trả lại quay về "Đã cấp tạm
+   ứng" — con số duyệt ở đó là chứng từ khớp với sổ quỹ, gỡ nó là làm hai bên nói khác nhau. */
+$mc2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mmc2 = $mc2['maDon'];
+VHCP_Don::add_line( $mmc2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đã ra tiền',
+	'soLuong' => 1, 'donGia' => 700000, 'thanhTien' => 700000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mmc2 );
+VHCP_Don::duyet_tam_ung( $mmc2, 'Trần Quản Lý', 650000 );
+VHCP_Don::cap_tam_ung( $mmc2, 'Lê Kế Toán' );
+VHCP_Don::gui_quyet_toan( $mmc2 );
+$r_tl2 = VHCP_Don::tra_lai_don( $mmc2, 'thiếu hoá đơn' );
+teq( 'trả lại đơn đã cấp tiền thì về "Đã cấp tạm ứng"', 'Đã cấp tạm ứng', (string) $r_tl2['target'] );
+t( '🔴 và KHÔNG gỡ số duyệt', empty( $r_tl2['goDuyet'] ), $r_tl2 );
+teq( 'số duyệt khớp sổ quỹ, y nguyên', 650000.0,
+	(float) VHCP_Don::get_don( $mmc2 )['tongCN']['tamUng'] );
+
+/* Đơn CŨ đã bị trả lại từ trước bản vá — số duyệt mồ côi còn nằm trong sổ. Ghi thẳng vào bảng
+   để dựng đúng cảnh ấy, rồi đòi khối Dọn phải nhặt được. */
+global $wpdb;
+$wpdb->update( VHCP_DB::t( 'don' ), array( 'tam_ung_duyet' => 9405032 ), array( 'ma_don' => $mmc1 ) );
+teq( 'dựng lại được cảnh cũ', 9405032.0, (float) VHCP_Don::get_don( $mmc1 )['tongCN']['tamUng'] );
+
+$do4 = VHCP_Don::don_bu_tru_cu( false );
+$mc_row = null;
+foreach ( (array) $do4['items'] as $x ) { if ( (string) $x['maDon'] === $mmc1 ) { $mc_row = $x; } }
+t( '🔴 dò THẤY đơn Nháp mang số duyệt mồ côi', null !== $mc_row, $do4 );
+teq( 'và gắn đúng loại', 'mocoi', $mc_row ? (string) $mc_row['loai'] : '' );
+teq( 'nói rõ đơn đang ở đâu', 'Nháp', $mc_row ? (string) $mc_row['trangThai'] : '' );
+teq( 'đếm riêng nhóm mồ côi', 1, (int) $do4['soMoCoi'] );
+teq( 'dò thôi thì chưa sửa gì', 9405032.0, (float) VHCP_Don::get_don( $mmc1 )['tongCN']['tamUng'] );
+
+/* Đơn đã cấp tiền vẫn phải đứng ngoài — kể cả khi số duyệt của nó thấp hơn tổng xin. */
+$ma_do4 = array();
+foreach ( (array) $do4['items'] as $x ) { $ma_do4[] = (string) $x['maDon']; }
+t( '🔴 đơn đã cấp tiền vẫn ngoài lưới', ! in_array( $mmc2, $ma_do4, true ), $ma_do4 );
+
+$do5 = VHCP_Don::don_bu_tru_cu( true );
+t( 'chốt thì có sửa', (int) $do5['daSua'] >= 1, $do5 );
+teq( '🔴 số duyệt mồ côi biến mất, đơn về đúng tổng xin', 15000032.0,
+	(float) VHCP_Don::get_don( $mmc1 )['tongCN']['tamUng'] );
+teq( 'đơn đã cấp tiền không suy suyển', 650000.0,
+	(float) VHCP_Don::get_don( $mmc2 )['tongCN']['tamUng'] );
+teq( 'chạy lại thì sạch', 0, (int) VHCP_Don::don_bu_tru_cu( false )['tong'] );
+
+/* ⚠️ MÀN HÌNH PHẢI NÓI RÕ HAI LOẠI. Bảng cũ chỉ có cột "Bù trừ dính" — đơn mồ côi không có bù
+   trừ nào, mà cột "Sẽ thành" lại ghi một con số tiền, người đọc sẽ tưởng đơn được duyệt bằng
+   số ấy. Phải nói thẳng: xoá số duyệt, chờ duyệt lại. */
+$_app4 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 bảng dò có cột nói vì sao đơn dính', false !== strpos( $_app4, 'Vì sao dính' ), null );
+t( 'và phân biệt đơn mồ côi', false !== strpos( $_app4, "x.loai==='mocoi'" ), null );
+t( '🔴 cột "Sẽ thành" của đơn mồ côi KHÔNG bày ra một con số duyệt',
+	false !== strpos( $_app4, ">chưa duyệt</span><br>" ), null );
+t( 'ô xác nhận nói rõ sẽ xoá hẳn số duyệt',
+	false !== strpos( $_app4, 'xoá hẳn con số duyệt còn sót' ), null );
+/* ⚠️ Neo vào ĐÚNG chuỗi trong ô xác nhận. Câu "chờ quản lý duyệt lại" còn nằm cả ở phần mô tả
+   tĩnh phía trên thẻ; soi chuỗi trần thì phần mô tả đỡ đòn cho ô xác nhận — đã ra XANH giả một
+   lần lúc phá thử. */
+t( 'và ô xác nhận nói tiếp đơn sẽ đi đâu sau đó',
+	false !== strpos( $_app4, 'đơn quay về đúng trạng thái "chưa duyệt", chờ quản lý duyệt lại' ), null );
+t( 'phần mô tả kể cả hai loại', false !== strpos( $_app4, 'Chưa duyệt mà vẫn mang số duyệt' ), null );
+/* ⚠️ NEO VÀO ĐÚNG NHÁNH JS, KHÔNG NEO VÀO PHẦN MÔ TẢ TĨNH. Hai chỗ dùng cùng một câu chữ; soi
+   chuỗi trần thì phần mô tả ở trên đỡ đòn cho ô trong bảng, và ô ấy có ghi sai cũng không ai
+   biết — phá thử đúng cảnh này ra XANH một lần rồi. */
+t( '🔴 ô "Vì sao dính" của đơn mồ côi nói đúng chuyện chưa duyệt',
+	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,400}?Chưa duyệt mà vẫn mang số duyệt/u', $_app4 ), null );
+t( 'và nói luôn đơn đang nằm ở trạng thái nào',
+	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,600}?esc\(x\.trangThai/u', $_app4 ), null );
+t( '🔴 dòng đầu bảng đếm riêng bao nhiêu đơn mồ côi',
+	false !== strpos( $_app4, "BTC.soMoCoi+' mang số duyệt mồ côi" ), null );
+
+VHCP_Don::delete_don_admin( $mmc1 );
+VHCP_Don::delete_don_admin( $mmc2 );
+
 /* 🔴 CÂU GIẢI THÍCH BÙ TRỪ KHÔNG ĐƯỢC CHỌI VỚI NHÃN. Anh Thắng gửi ảnh đúng cảnh ấy: nhãn ghi
    "chỉ để biết, KHÔNG trừ vào tuần này", rê chuột vào thì tooltip cũ vẫn nói "→ tuần này trừ
    đi". Người đọc tin câu nào cũng sai một nửa, mà đây là câu giải thích một con số TIỀN.

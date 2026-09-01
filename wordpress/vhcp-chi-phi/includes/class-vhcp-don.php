@@ -1966,6 +1966,11 @@ class VHCP_Don {
 	 *    hoàn toàn hợp lệ — không được đụng vào. Chênh phải đúng bằng con số bù trừ thì mới là
 	 *    dấu tay của luật cũ, và lúc ấy sửa mới là khôi phục chứ không phải đoán.
 	 *
+	 * 🔴 NHÓM THỨ HAI — SỐ DUYỆT MỒ CÔI. Anh Thắng 01/09/2026: *"đơn này thì lại không có"*.
+	 *    Chính cái đơn sinh ra tính năng này lại không lọt lưới, vì nó đã bị TRẢ LẠI về "Nháp" —
+	 *    mà bản đầu chỉ nhặt đơn ở "Chờ cấp tạm ứng". Đơn về Nháp vẫn giữ nguyên `tam_ung_duyet`
+	 *    của lần duyệt cũ, và con số ấy vẫn đè lên tổng xin ở khối Quyết toán. Xem thân hàm.
+	 *
 	 * ⚠️ CHƯA CẤP TIỀN. Cấp rồi thì số đã vào sổ quỹ — cùng lý do với `duyet_lai_tam_ung()`.
 	 *
 	 * ⚠️ DÒ TRƯỚC, CHỐT SAU. `$chot = false` chỉ trả danh sách xem trước, không đụng dữ liệu.
@@ -1974,11 +1979,52 @@ class VHCP_Don {
 	public static function don_bu_tru_cu( $chot = false ) {
 		$ds = array(); $da_sua = 0;
 		foreach ( self::don_rows() as $d ) {
-			if ( 'Chờ cấp tạm ứng' !== (string) $d['trang_thai'] ) { continue; }
-			$bt = VHCP_Util::num( $d['bu_tru'] );
-			if ( 0.0 === (float) $bt ) { continue; }
+			$st  = (string) $d['trang_thai'];
 			$ma  = (string) $d['ma_don'];
 			$duy = VHCP_Util::num( $d['tam_ung_duyet'] );
+
+			/* ── NHÓM 2: SỐ DUYỆT MỒ CÔI ────────────────────────────────────────────────────
+			   "Nháp" và "Chờ duyệt tạm ứng" theo đúng định nghĩa là CHƯA AI DUYỆT — chỉ
+			   `duyet_tam_ung()` và `duyet_lai_tam_ung()` mới đặt được `tam_ung_duyet`, và cả
+			   hai đều đẩy đơn sang "Chờ cấp tạm ứng". Nên đơn ở hai trạng thái này mà còn mang
+			   số duyệt là dữ liệu tự mâu thuẫn: dấu tích của một lần duyệt đã bị trả lại (hoặc
+			   một bản nạp .csv cũ). Xoá nó đi là khôi phục sự thật, không phải đoán số.
+
+			   🔴 KHÔNG dùng phép so "duyệt = xin + bù trừ" cho nhóm này được. `bu_tru` là con
+			      số ĐỘNG: `chot_bu_tru()` tính lại và GHI ĐÈ mỗi lần mở đơn ở "Nháp". Đơn của
+			      anh Thắng duyệt với bù trừ −5.595.000đ, nay ô ấy đã thành −419.500đ — con số
+			      cũ không còn ở đâu trong sổ để mà đối chiếu. Cái chắc chắn duy nhất còn lại là
+			      trạng thái: chưa duyệt thì không được mang số duyệt. */
+			if ( 'Nháp' === $st || 'Chờ duyệt tạm ứng' === $st ) {
+				if ( $duy <= 0 ) { continue; }
+				$xin = self::tong_xin_hien_tai( $ma );
+				$ds[] = array(
+					'maDon'  => $ma,
+					'ky'     => (string) $d['ky'],
+					'nguoi'  => (string) $d['nguoi_lap'],
+					'duyet'  => $duy,
+					'buTru'  => 0,
+					'moi'    => ( null === $xin ) ? 0 : $xin,
+					'loai'   => 'mocoi',
+					'trangThai' => $st,
+				);
+				if ( $chot ) {
+					self::upd_don( $ma, array(
+						'tam_ung_duyet' => null,
+						'nguoi_duyet'   => '',
+						'ngay_duyet'    => null,
+					) );
+					self::ghi_vet( $ma, 'Gỡ số duyệt mồ côi (đơn đang ở "' . $st . '")',
+						VHCP_Util::tien( $duy ) . '  →  chưa duyệt' );
+					$da_sua++;
+				}
+				continue;
+			}
+
+			/* ── NHÓM 1: ĐÃ DUYỆT, CHƯA CẤP TIỀN, CÒN DÍNH BÙ TRỪ ──────────────────────────── */
+			if ( 'Chờ cấp tạm ứng' !== $st ) { continue; }
+			$bt = VHCP_Util::num( $d['bu_tru'] );
+			if ( 0.0 === (float) $bt ) { continue; }
 			$xin = self::tong_xin_hien_tai( $ma );
 			if ( null === $xin ) { continue; }
 			/* Dấu tay của luật cũ: số duyệt = xin + bù trừ. Lệch một đồng là không phải, bỏ qua. */
@@ -1990,6 +2036,8 @@ class VHCP_Don {
 				'duyet'  => $duy,
 				'buTru'  => $bt,
 				'moi'    => $xin,
+				'loai'   => 'butru',
+				'trangThai' => $st,
 			);
 			if ( $chot ) {
 				self::upd_don( $ma, array( 'tam_ung_duyet' => VHCP_Util::num( $xin ) ) );
@@ -1999,10 +2047,14 @@ class VHCP_Don {
 				$da_sua++;
 			}
 		}
+		$so_mocoi = 0;
+		foreach ( $ds as $x ) { if ( 'mocoi' === $x['loai'] ) { $so_mocoi++; } }
 		return VHCP_Util::ok( array(
-			'items'  => array_slice( $ds, 0, 400 ),
-			'tong'   => count( $ds ),
-			'daSua'  => $da_sua,
+			'items'   => array_slice( $ds, 0, 400 ),
+			'tong'    => count( $ds ),
+			'soMoCoi' => $so_mocoi,
+			'soBuTru' => count( $ds ) - $so_mocoi,
+			'daSua'   => $da_sua,
 		) );
 	}
 
@@ -2060,6 +2112,27 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * TRẢ ĐƠN VỀ CHO NGƯỜI LẬP SỬA.
+	 *
+	 * 🔴 VỀ "NHÁP" THÌ GỠ LUÔN SỐ ĐÃ DUYỆT. Anh Thắng 01/09/2026, ảnh đơn SNOW NHÀ TUYẾT BÌNH
+	 *    DƯƠNG: *"đơn này thì lại không có"* — đơn xin 15.000.032đ, đầu đơn vẫn ghi
+	 *    *"đã duyệt: 9.405.032đ"* dù đơn đang ở **Nháp**, tức CHƯA GỬI DUYỆT.
+	 *
+	 *    Con số ấy là của lần duyệt TRƯỚC, rồi quản lý trả đơn lại. Trả lại nghĩa là lần duyệt
+	 *    ấy không còn giá trị — nhưng `tam_ung_duyet` vẫn nằm nguyên trong sổ. Nó gây hai chuyện
+	 *    thật, không phải chuyện hình thức:
+	 *
+	 *      · `get_don()` lấy `$ad_total = $tu_duyet > 0 ? $tu_duyet : $tu_tay_sum` — số duyệt
+	 *        MỒ CÔI đè lên tổng xin, nên khối Quyết toán so tiền đã chi với con số cũ rồi báo
+	 *        "Thiếu 5.595.000đ" dù chẳng thiếu đồng nào.
+	 *      · Nhân viên gửi lại, màn Duyệt tạm ứng điền sẵn con số cũ — quản lý bấm duyệt là
+	 *        duyệt trúng số của lần trước.
+	 *
+	 * 🔴 CHỈ GỠ KHI VỀ "NHÁP". Đơn "Chờ quyết toán" bị trả về "Đã cấp tạm ứng" thì tiền ĐÃ ra
+	 *    khỏi két và đã vào sổ quỹ — con số duyệt ở đó là chứng từ, đụng vào là làm sổ quỹ nói
+	 *    một đằng đơn nói một nẻo. Giữ nguyên.
+	 */
 	public static function tra_lai_don( $ma_don, $ly_do = '' ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
@@ -2070,9 +2143,20 @@ class VHCP_Don {
 			$old = (string) $d['ghi_chu'];
 			$data['ghi_chu'] = '[Trả lại] ' . $ly_do . ( $old !== '' ? ' | ' . $old : '' );
 		}
+		$duyet_cu = VHCP_Util::num( $d['tam_ung_duyet'] );
+		$go_duyet = ( 'Nháp' === $target && $duyet_cu > 0 );
+		if ( $go_duyet ) {
+			$data['tam_ung_duyet'] = null;
+			$data['nguoi_duyet']   = '';
+			$data['ngay_duyet']    = null;
+		}
 		self::upd_don( $ma_don, $data );
+		if ( $go_duyet ) {
+			self::ghi_vet( $ma_don, 'Gỡ số đã duyệt (đơn bị trả về Nháp)',
+				VHCP_Util::tien( $duyet_cu ) . '  →  chưa duyệt' );
+		}
 		self::bao_noi_bo( $ma_don, 'bị TRẢ LẠI' . ( $ly_do ? ' — ' . $ly_do : '' ) . '. Sửa rồi gửi lại nhé.' );
-		return VHCP_Util::ok( array( 'target' => $target ) );
+		return VHCP_Util::ok( array( 'target' => $target, 'goDuyet' => $go_duyet ) );
 	}
 
 	public static function delete_don( $ma_don ) {
