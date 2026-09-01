@@ -1911,7 +1911,8 @@ class VHCC_Admin {
 			. '(VD <code>PART_TIME (POSHJP)</code> với <code>(PART TIME )_POSH+JP</code>) thì lưới '
 			. 'coi là <b>hai cơ sở</b>, công thật rơi rải ra hai hàng. Dồn hết lượt từ <b>tên sai</b> '
 			. 'về <b>tên đúng</b> ở đây. Giờ là giờ thật của nhân viên — bản gộp nới khung [vào, ra] '
-			. 'của hàng đúng, không xoá giờ của ai.</p>';
+			. 'của hàng đúng, không xoá giờ của ai. <b>Đồng thời sửa luôn tên cơ sở trong hồ sơ nhân '
+			. 'viên</b> để tên sai không còn ở đâu — hàng 0h trong lưới và ô xổ cơ sở ma sẽ hết.</p>';
 		echo '<p><b>Bấm Xem trước trước đã.</b> Đích phải là tên máy đang ghi thật (chọn trong danh '
 			. 'sách), không gõ tay một tên lạ.</p>';
 		echo '<form method="post">'
@@ -1943,7 +1944,11 @@ class VHCC_Admin {
 			. esc_html( (string) $b['den'] ) . '</code>: '
 			. esc_html( $xem ? 'đổi tên ' : 'đã đổi tên ' ) . '<b>' . (int) $b['doi_ten'] . '</b> hàng, '
 			. esc_html( $xem ? 'gộp ' : 'đã gộp ' ) . '<b>' . (int) $b['gop'] . '</b> hàng vào '
-			. 'hàng đã có của cùng ngày.</p>';
+			. 'hàng đã có của cùng ngày, ' . esc_html( $xem ? 'sửa ' : 'đã sửa ' )
+			. 'tên cơ sở trong <b>' . (int) ( isset( $b['ho_so'] ) ? $b['ho_so'] : 0 ) . '</b> hồ sơ '
+			. 'nhân viên.</p>';
+		echo '<p class="description">Sau khi làm thật, tên sai không còn ở bảng chấm công lẫn hồ sơ '
+			. '— hàng 0h trong lưới và ô xổ cơ sở ma sẽ biến mất.</p>';
 		if ( ! empty( $b['de_lai'] ) ) {
 			echo '<p><b>Để lại ' . count( $b['de_lai'] ) . ' hàng, cần xử tay</b> — hàng ở cơ sở '
 				. 'đúng đã được chỉnh tay hoặc chấm bù, nên bản gộp không đè lên số ấy:</p>'
