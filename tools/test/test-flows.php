@@ -627,6 +627,25 @@ t( '🔴 haTamUngVe0 nằm trong nhóm CHỈ ADMIN',
 	1 === preg_match( '/\$admin_only = array\([\s\S]{0,700}?\x27haTamUngVe0\x27/', $_api_h ), null );
 t( 'và có khai vào bản đồ việc', false !== strpos( $_api_h, "'haTamUngVe0'           => array( 'VHCP_Don', 'ha_tam_ung_ve_0' )" ), null );
 
+/* 🔴 HỎI THẲNG CHỐT GÁC, ĐỪNG SOI CHUỖI. Anh Thắng 01/09/2026 nhắc lại: *"nhớ là chỉ admin hạ
+   thôi nhé"*. Soi chuỗi chỉ nói được "cái tên có nằm trong mảng"; nó KHÔNG thấy được thứ tự các
+   nhóm trong `required_roles()`. Nhóm `$nguoi_duyet` được hỏi TRƯỚC `$admin_only` và trả về
+   danh sách bốn vai — lỡ tay khai thêm tên này vào đó nữa là nó thắng, `$admin_only` không bao
+   giờ tới lượt, và bài thử soi chuỗi vẫn xanh trong khi cửa đã mở cho cả kế toán. */
+$_rr = new ReflectionMethod( 'VHCP_Api', 'required_roles' );
+$_rr->setAccessible( true );
+teq( '🔴 cổng chỉ cho ĐÚNG một vai: Admin', array( 'Admin' ), $_rr->invoke( null, 'haTamUngVe0' ) );
+$_vai_khac = array( 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC', 'Nhân viên', '' );
+$_lot = array();
+foreach ( $_vai_khac as $_v ) {
+	if ( in_array( $_v, (array) $_rr->invoke( null, 'haTamUngVe0' ), true ) ) { $_lot[] = $_v; }
+}
+teq( '🔴 không vai nào khác lọt qua', array(), $_lot );
+/* Đối chứng: việc của người duyệt thì vẫn mở cho bốn vai — chứng tỏ bài đang đọc đúng chốt
+   chứ không phải mọi việc đều ra "chỉ Admin". */
+t( 'đối chứng: duyetLaiTamUng vẫn mở cho Quản lý',
+	in_array( 'Quản lý', (array) $_rr->invoke( null, 'duyetLaiTamUng' ), true ), null );
+
 /* ⚠️ NÚT PHẢI CÓ THẬT, VÀ PHẢI ĐỨNG RIÊNG. Lõi chạy đúng mà không có cửa bấm thì vô dụng; mà
    xếp nó cạnh "Không dùng — hoàn tạm ứng" là mời người ta bấm theo vị trí chứ không đọc — chọn
    nhầm giữa hai nút ấy là sổ quỹ lệch. */
