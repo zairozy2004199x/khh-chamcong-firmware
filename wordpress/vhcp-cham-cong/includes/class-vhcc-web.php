@@ -2986,7 +2986,12 @@ class VHCC_Web {
 		echo '<div class="cuon"><table class="cc"><thead><tr><th>Ngày</th><th>Cơ sở</th><th>Hàng</th>'
 			. '<th>Vào</th><th>Ra</th><th>Giờ có mặt</th></tr></thead><tbody>';
 		foreach ( $kq['dong'] as $d ) {
-			$thieu = ( '' === $d['ra'] );
+			/* Lượt bị "Xoá công" xoá sạch cả hai giờ (vào='' và ra='') là một dòng RỖNG — không
+			   phải công dở dang. Bỏ qua, khỏi hiện một hàng "— / thiếu ?" ma khiến nhân viên tưởng
+			   còn thiếu giờ trong khi chính họ (hoặc quản lý) đã xoá. Dấu vết xoá vẫn còn ở nhật ký. */
+			if ( '' === $d['vao'] && '' === $d['ra'] ) { continue; }
+			/* Chỉ "thiếu" khi lệch một bên: có vào mà không ra (hoặc ngược lại). */
+			$thieu = ( '' === $d['vao'] ) !== ( '' === $d['ra'] );
 			echo '<tr>';
 			echo '<td>' . esc_html( $d['ngay'] ) . '</td>';
 			echo '<td>' . esc_html( $d['coSo'] ) . '</td>';

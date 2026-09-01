@@ -603,14 +603,18 @@ class VHCC_Online {
 			$ng = (int) substr( $ngay_d, 8, 2 );
 			if ( $ng < 1 || $ng > $so_ngay ) { continue; }
 			$ht  = isset( $d['hauTo'] ) ? trim( (string) $d['hauTo'] ) : '';
-			$co_ra = isset( $d['ra'] ) && '' !== trim( (string) $d['ra'] );
+			$co_vao = isset( $d['vao'] ) && '' !== trim( (string) $d['vao'] );
+			$co_ra  = isset( $d['ra'] ) && '' !== trim( (string) $d['ra'] );
 			$phut  = ( isset( $d['phut'] ) && null !== $d['phut'] && '' !== $d['phut'] )
 				? (int) $d['phut'] : null;
 
 			if ( ! isset( $hang[ $cs ]['o'][ $ng ] ) ) {
 				$hang[ $cs ]['o'][ $ng ] = array( 'chinh' => null, 'phu' => array(), 'thieuRa' => false );
 			}
-			if ( ! $co_ra ) {
+			/* Chỉ báo "thiếu" khi lệch một bên: có VÀO mà không RA, hoặc ngược lại.
+			   Lượt đã bị "Xoá công" xoá SẠCH cả hai giờ (vao='' và ra='') không phải thiếu —
+			   nó rỗng, không dở dang — nên đừng đếm là thiếu. */
+			if ( $co_vao !== $co_ra ) {
 				$hang[ $cs ]['o'][ $ng ]['thieuRa'] = true;
 				$hang[ $cs ]['thieuRa']++;
 			}
@@ -707,6 +711,12 @@ class VHCC_Online {
 		foreach ( (array) $r as $x ) {
 			$v = $x['gio_vao_giay'];
 			$a = $x['gio_ra_giay'];
+			/* Dòng đã bị "Xoá công" xoá sạch cả hai giờ là một lượt RỖNG — nó còn tồn trong kho để
+			   giữ dấu vết (nhật ký cũ→trống), nhưng với người xem thì coi như không có: khỏi cộng
+			   vào số "lượt", khỏi tính là một "ngày", khỏi hiện ở bảng từng lượt, khỏi tô đỏ ô lưới. */
+			$rong_v = ( null === $v || '' === $v );
+			$rong_a = ( null === $a || '' === $a );
+			if ( $rong_v && $rong_a ) { continue; }
 			$p = null;
 			if ( null !== $v && '' !== $v && null !== $a && '' !== $a ) {
 				$p = VHCC_Luong::phut_ca( intdiv( (int) $v, 60 ), intdiv( (int) $a, 60 ) );
