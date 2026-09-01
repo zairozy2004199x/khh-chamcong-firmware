@@ -1066,10 +1066,16 @@ class VHCC_Nhan {
 	 *      · Hàng đích mang nguồn `sua`/`bu` (đã chỉnh tay, có thể đã chốt lương) -> KHÔNG đụng,
 	 *        kể tên ra để xử tay.
 	 *
+	 * 🔴 DỌN LUÔN HỒ SƠ. Cơ sở KHÔNG phải một bản ghi riêng — nó chỉ là chữ trong `cham_cong.coso`
+	 *    và trong `nhan_vien.cua_hang`/`coso_phu`. Dời hết lượt chấm công mà vẫn để tên sai trong hồ
+	 *    sơ thì lưới cả tháng vẫn vẽ một hàng 0h (cơ sở đã khai thì luôn hiện dù rỗng), và ô xổ cơ
+	 *    sở khắp nơi vẫn chào tên ma. Nên bước này đổi luôn tên sai -> tên đúng trong mọi hồ sơ,
+	 *    gộp phần trùng. Sau đó tên sai không còn ở đâu -> cơ sở ảo biến mất thật.
+	 *
 	 * @param string $tu  Tên cơ sở SAI (đang có trong kho) — dời đi khỏi đây.
 	 * @param string $den Tên cơ sở ĐÚNG — dồn về đây.
 	 * @param bool   $that Xem trước (false) hay làm thật (true).
-	 * @return array `xem`(bool) · `tu` · `den` · `doi_ten` · `gop` · `de_lai`(mảng) · `loi`(nếu có)
+	 * @return array `xem`(bool) · `tu` · `den` · `doi_ten` · `gop` · `ho_so` · `de_lai`(mảng) · `loi`(nếu có)
 	 */
 	public static function gop_coso( $tu, $den, $that = false ) {
 		global $wpdb;
@@ -1077,7 +1083,7 @@ class VHCC_Nhan {
 		$tu   = trim( (string) $tu );
 		$den  = trim( (string) $den );
 		$kq   = array( 'xem' => ! $that, 'tu' => $tu, 'den' => $den,
-			'doi_ten' => 0, 'gop' => 0, 'de_lai' => array() );
+			'doi_ten' => 0, 'gop' => 0, 'ho_so' => 0, 'de_lai' => array() );
 
 		if ( '' === $tu || '' === $den ) {
 			$kq['loi'] = 'Chọn cả cơ sở nguồn (sai) lẫn cơ sở đích (đúng).';
@@ -1133,7 +1139,50 @@ class VHCC_Nhan {
 				$wpdb->delete( $bang, array( 'id' => (int) $r['id'] ) );
 			}
 		}
+
+		/* Dọn HỒ SƠ: đổi tên sai -> tên đúng ở cua_hang/coso_phu của mọi nhân viên đang khai nó.
+		   LIKE bắt lỏng (chuỗi con) nên còn lọc lại bằng cờ `$doi` — chỉ tính khi đúng một PHẦN TỬ
+		   (tách ở dấu phẩy) khớp, tránh đụng nhầm cơ sở khác có tên chứa chuỗi này. */
+		$t_nv = VHCC_DB::t( 'nhan_vien' );
+		$like = '%' . $wpdb->esc_like( $tu ) . '%';
+		$hs = $wpdb->get_results( $wpdb->prepare(
+			"SELECT ma_nv, cua_hang, coso_phu FROM $t_nv WHERE cua_hang LIKE %s OR coso_phu LIKE %s",
+			$like, $like ), ARRAY_A );
+		foreach ( (array) $hs as $h ) {
+			$doi = false;
+			$ch  = self::doi_coso_chuoi( $h['cua_hang'], $tu, $den, $doi );
+			$cp  = self::doi_coso_chuoi( $h['coso_phu'], $tu, $den, $doi );
+			if ( ! $doi ) { continue; }
+			$kq['ho_so']++;
+			if ( $that ) {
+				$wpdb->update( $t_nv,
+					array( 'cua_hang' => $ch, 'coso_phu' => $cp ),
+					array( 'ma_nv' => $h['ma_nv'] ) );
+			}
+		}
+
 		return $kq;
+	}
+
+	/**
+	 * Đổi một tên cơ sở trong chuỗi cua_hang/coso_phu (có thể nối nhiều tên bằng dấu phẩy):
+	 * phần tử nào TRÙNG `$tu` (đã chuẩn hoá, không phân biệt hoa thường) thì thay bằng `$den`, rồi
+	 * bỏ trùng. Giữ nguyên các phần tử khác đúng kiểu gõ cũ. Bật `$co_doi` nếu có thật sự đổi.
+	 */
+	private static function doi_coso_chuoi( $chuoi, $tu, $den, &$co_doi ) {
+		$tu_n = strtolower( VHCC_NhanSu::chuan_coso( $tu ) );
+		$out  = array();
+		$thay = array();
+		foreach ( explode( ',', (string) $chuoi ) as $x ) {
+			$x = trim( $x );
+			if ( '' === $x ) { continue; }
+			$xn = strtolower( VHCC_NhanSu::chuan_coso( $x ) );
+			if ( $xn === $tu_n ) { $x = $den; $xn = strtolower( VHCC_NhanSu::chuan_coso( $den ) ); $co_doi = true; }
+			if ( isset( $thay[ $xn ] ) ) { continue; }   // bỏ trùng sau khi đổi
+			$thay[ $xn ] = true;
+			$out[] = $x;
+		}
+		return implode( ', ', $out );
 	}
 
 	/** Giây nhỏ hơn trong hai giá trị, bỏ qua null. */
