@@ -340,9 +340,12 @@ class VHG_Trang {
 						'error' => 'Nhập doanh thu cũ chỉ dành cho Quản lý hoặc Admin.' ) );
 					return;
 				}
+				/* Tự thêm ghế mới từ file MẶC ĐỊNH TẮT — file cũ tên ghế lệch chính tả (VHM vs VHMM,
+				   VC-TD vs VC-TDUC) là mỗi lần nhập lại đẻ ra một ghế ảo mới. Chỉ tạo khi người dùng
+				   CỐ Ý tích ô, không suy ra "bật" khi thiếu tham số. */
 				self::tra( VHG_KeToan::nhap_doanhthu( isset( $d['rows'] ) ? $d['rows'] : array(),
 					! empty( $d['ghi_de'] ), ! empty( $d['duyet'] ),
-					! isset( $d['tao_ghe'] ) || ! empty( $d['tao_ghe'] ), $boi ) );
+					! empty( $d['tao_ghe'] ), $boi ) );
 				return;
 			}
 			self::tra( array( 'ok' => false, 'error' => 'Việc kế toán không rõ: ' . $viec ) );
@@ -5265,7 +5268,7 @@ function veKtNhap(){
         'Default is SUPPLEMENT: existing reports only get blanks filled, never overwritten. Tick "Overwrite" to replace.') + '</p>'
     + '<div class="act" style="flex-wrap:wrap;margin-top:8px">'
     + '<button id="ktn-xem" class="ghost">' + L('Xem trước','Preview') + '</button>'
-    + '<label class="mut"><input type="checkbox" id="ktn-taoghe" checked> ' + L('Thêm cơ sở &amp; ghế vào danh mục','Add branch &amp; chairs') + '</label>'
+    + '<label class="mut"><input type="checkbox" id="ktn-taoghe"> ' + L('Tự thêm cơ sở &amp; ghế mới từ file (dễ sinh ghế ảo — chỉ bật khi chắc file sạch)','Add branches &amp; chairs from file (may create phantom chairs — only if the file is clean)') + '</label>'
     + '<label class="mut"><input type="checkbox" id="ktn-ghide"> ' + L('Ghi đè hẳn (thay báo cáo cũ)','Overwrite existing') + '</label>'
     + '<label class="mut"><input type="checkbox" id="ktn-duyet"> ' + L('Đánh dấu đã duyệt','Mark confirmed') + '</label>'
     + '<button id="ktn-nap" class="on">' + L('Nhập vào hệ thống','Import') + '</button>'
