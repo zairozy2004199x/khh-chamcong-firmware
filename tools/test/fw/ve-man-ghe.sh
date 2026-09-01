@@ -55,6 +55,7 @@ mau = [dinh(t) for t in ('COL_BG','COL_KHUNG','COL_VANG','COL_VANG2','COL_KEM','
 btn = [d for d in src.split('\n') if d.startswith('Btn PKG_BTN[PKG_MAX]')][0]
 
 out = '\n'.join(mau) + '\n' + btn + '\n\n' \
+    + boc('void veChuDam(const String& s, int x, int y, int font, uint16_t mau, uint16_t nen){') + '\n\n' \
     + boc('String tienVN(long v){') + '\n\n' \
     + boc('int phutGoi(int i){') + '\n\n' \
     + boc('void veTheGoi(int i){') + '\n\n' \
@@ -68,8 +69,12 @@ g++ -std=c++17 -O1 -I"$tmp" -o "$tmp/ve" "$tmp/main.cpp"
 "$tmp/ve" "$tmp/man.ppm"
 python3 -c "
 from PIL import Image
-import sys
 im = Image.open('$tmp/man.ppm')
-im.resize((im.width*3, im.height*3), Image.NEAREST).save('$ra')
-print('  ảnh:', '$ra', im.width, 'x', im.height, '(phóng 3x)')
+# Phóng 5 lần bằng NEAREST (giữ nguyên từng pixel của màn, không bịa thêm màu), rồi làm mềm
+# nhẹ cạnh — mắt đọc ra hình khối gần với màn thật hơn là bậc thang vuông vức của NEAREST trần.
+big = im.resize((im.width*5, im.height*5), Image.NEAREST)
+from PIL import ImageFilter
+big = big.filter(ImageFilter.GaussianBlur(0.8))
+big.save('$ra')
+print('  ảnh:', '$ra', im.width, 'x', im.height, '-> ', big.width, 'x', big.height, '(phóng 5x)')
 "

@@ -173,6 +173,33 @@ for ten_tep in TEP:
     t('%s: khai báo trước nào cũng có định nghĩa' % nhan, not treo,
       'khai rồi mà không thấy định nghĩa: ' + ', '.join(treo))
 
+# =================================================================================================
+# CHỮ ĐẬM: CÁC LƯỢT SAU PHẢI VẼ KHÔNG NỀN
+# =================================================================================================
+# `veChuDam()` chồng bốn lượt chữ lệch nhau 1px để nét dày lên gấp đôi. Chốt duy nhất làm nó chạy
+# được là: lượt ĐẦU vẽ có nền (để xoá vệt chữ cũ), ba lượt SAU vẽ trong suốt. Ai đó "dọn cho nhất
+# quán" thành `setTextColor(mau, nen)` cả bốn lượt là mỗi lượt lấy nền xoá nét của lượt trước —
+# chữ không đậm hơn chút nào, chỉ lệch đi 1px, mà nhìn ảnh dựng thì gần như không nhận ra.
+#
+# Bản dựng màn KHÔNG bắt được ca này: font 5×7 phóng to của bộ giả vốn đã có nét 3px sẵn, nên
+# đậm hay không đậm đều ra một hình. Nên chốt ở đây, soi thẳng mã.
+for tep in TEP:
+    ma = io.open(tep, encoding='utf-8').read()
+    if 'void veChuDam(' not in ma:
+        continue
+    nhan = os.path.basename(tep)
+    than = ma[ma.index('void veChuDam('):]
+    than = than[:than.index('\n}\n') + 3]
+    hai  = len(re.findall(r'setTextColor\s*\([^)]*,', than))
+    mot  = len(re.findall(r'setTextColor\s*\([^),]*\)', than))
+    t('%s: veChuDam vẽ lượt đầu CÓ nền' % nhan, hai == 1,
+      'thấy %d lượt setTextColor có nền, phải đúng 1' % hai)
+    t('%s: veChuDam vẽ các lượt sau KHÔNG nền' % nhan, mot >= 1,
+      'không thấy lượt setTextColor một tham số — chữ sẽ không đậm lên')
+    t('%s: veChuDam vẽ đủ bốn lượt chồng nhau' % nhan,
+      len(re.findall(r'drawString', than)) == 4,
+      'thấy %d lượt drawString, phải đúng 4' % len(re.findall(r'drawString', than)))
+
 if hong:
     print('\n🔴 HỎNG: %d | ĐẠT: %d' % (hong, dat))
     sys.exit(1)

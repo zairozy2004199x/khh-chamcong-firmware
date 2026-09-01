@@ -147,6 +147,7 @@ struct Tft {
   }
   void setTextDatum(int d){ datum = d; }
   void setTextColor(uint16_t f, uint16_t b){ fg = f; bg = b; }
+  void setTextColor(uint16_t f){ fg = f; }   // vẽ không nền — dùng cho các lượt chữ đậm
   void setTextSize(int s){ tsize = s; }
 
   /* Chiều cao / chiều rộng mỗi ký tự theo số hiệu font của TFT_eSPI. */

@@ -26,6 +26,7 @@ mau = [dinh(t) for t in ('COL_BG','COL_KHUNG','COL_VANG','COL_VANG2','COL_KEM','
                          'COL_VIEN3','COL_SO','COL_PHU')]
 btn = [d for d in src.split('\n') if d.startswith('Btn PKG_BTN[PKG_MAX]')][0]
 io.open(ra,'w',encoding='utf-8').write('\n'.join(mau)+'\n'+btn+'\n\n'
+  + boc('void veChuDam(const String& s, int x, int y, int font, uint16_t mau, uint16_t nen){') + '\n\n'
   + boc('String tienVN(long v){')+'\n\n'+boc('int phutGoi(int i){')+'\n\n'
   + boc('void veTheGoi(int i){')+'\n\n'+boc('void drawIdle(){')+'\n')
 PY
