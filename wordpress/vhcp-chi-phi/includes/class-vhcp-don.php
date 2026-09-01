@@ -1873,8 +1873,9 @@ class VHCP_Don {
 		$n = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM $t WHERE ma_don=%s", (string) $ma_don ) );
 		// Ở "Nháp" mọi dòng là hạng mục XIN: gộp cả dòng phát sinh (nếu có do đơn bị trả về).
 		$wpdb->query( $wpdb->prepare( "UPDATE $t SET phat_sinh=0 WHERE ma_don=%s AND phat_sinh=1", (string) $ma_don ) );
-		$dp = VHCP_Util::num( $d['du_phong'] );
-		if ( ! $n && ! ( $dp > 0 ) ) { return VHCP_Util::err( 'Chưa nhập hạng mục nào và cũng chưa nhập tạm ứng dự phòng' ); }
+		/* Chỉ cần CÓ hạng mục (dòng chi) là gửi được — tạm ứng để 0 (không xin ứng trước) vẫn hợp
+		   lệ: cơ sở lên đơn trễ tự mua rồi kế toán bù khi quyết toán (anh Thắng 01/09/2026). */
+		if ( ! $n ) { return VHCP_Util::err( 'Chưa nhập hạng mục nào — thêm ít nhất 1 dòng chi rồi gửi.' ); }
 		self::clear_tra_marker( $ma_don );
 		// Chốt bù trừ theo đúng thời điểm gửi xin, trước khi đơn rời trạng thái "Nháp"
 		self::chot_bu_tru( $ma_don );

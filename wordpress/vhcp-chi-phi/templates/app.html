@@ -2723,19 +2723,20 @@
     if(el('reconBox')) el('reconBox').innerHTML=_reconTablesHtml(CUR,{people:false});   // banner cục + đã chi theo cơ sở
   }
   function guiDuyetTU(){ if(!CUR)return;
-    // XIN TẠM ỨNG CHỈ CẦN CÓ SỐ: hoặc hạng mục, hoặc TẠM ỨNG DỰ PHÒNG. Nhiều tuần nhân
-    // viên chưa biết sẽ mua gì, chỉ xin một cục dự phòng — bắt liệt kê hạng mục trước là
-    // bắt họ khai bừa. Máy chủ vốn đã cho gửi khi dự phòng > 0; chỗ chặn nằm ở đây.
-    var _tu=CUR.tamUng||{};
-    var coHangMuc=Object.keys(_tu).some(function(cs){return Number(_tu[cs])>0;});
-    var coDuPhong=(Number(CUR.don&&CUR.don.duPhong)||0)>0;
-    if(!coHangMuc && !coDuPhong){
-      toast('warn','Chưa có số nào để xin — nhập hạng mục ở mục 1, hoặc nhập Tạm ứng dự phòng rồi bấm Lưu');
+    /* 🔴 GỬI XIN CHỈ CẦN CÓ HẠNG MỤC (dòng chi) — KHÔNG cần tạm ứng > 0. Anh Thắng 01/09/2026:
+       cơ sở lên đơn TRỄ (qua hạn xin ứng) vẫn phải gửi được với tạm ứng = 0 — nhân viên tự mua,
+       kế toán bù khi quyết toán, quy trình chạy bình thường. Máy chủ vốn đã cho gửi khi có dòng
+       chi (đếm bảng chiphi); trước đây chỗ CHẶN nằm ở giao diện này vì nó soi ô tạm ứng. */
+    var coDong=(CUR.lines||[]).length>0;
+    if(!coDong){
+      toast('warn','Chưa có hạng mục nào — nhập ít nhất 1 dòng chi ở mục 1 rồi gửi. (Tạm ứng để 0 = không xin ứng trước, vẫn gửi được.)');
       return;
     }
-    var _hoi=coHangMuc
+    var _tu=CUR.tamUng||{};
+    var coTU=Object.keys(_tu).some(function(cs){return Number(_tu[cs])>0;});
+    var _hoi=coTU
       ? 'Gửi đơn xin tạm ứng để quản lý duyệt?'
-      : 'Đơn này chỉ xin TẠM ỨNG DỰ PHÒNG '+money(CUR.don.duPhong)+'đ, chưa liệt kê hạng mục.\nGửi xin tạm ứng?';
+      : 'Đơn này KHÔNG xin tạm ứng (= 0) — nhân viên tự mua, kế toán bù khi quyết toán.\nGửi để quản lý duyệt?';
     if(!confirm(_hoi))return;
     loading(true);
     google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){toast('ok','Đã gửi xin tạm ứng — chờ quản lý duyệt');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
