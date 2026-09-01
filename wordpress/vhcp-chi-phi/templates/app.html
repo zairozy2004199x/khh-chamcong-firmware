@@ -2036,20 +2036,32 @@
       else toast('err',r.error);
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).createDon(ky,nv);
   }
-  // Sinh danh sách kỳ (tuần) tự động, CẮT theo cuối tháng (đơn không vắt sang tháng sau)
+  /* 🔴 TUẦN LIÊN TỤC, KHÔNG CẮT THEO THÁNG. Anh Thắng 01/09/2026: *"giờ luật tạo cho đơn mới
+     theo tuần liên tục, không tạo theo tháng nữa"*.
+
+     Luật cũ cắt mỗi tuần tại ngày cuối tháng để đơn không vắt sang tháng sau. Cái giá của nó
+     nằm ngay trong ảnh anh gửi: `T8/2026 (31/8-31/8/2026)` — một "tuần" đúng MỘT ngày, vì
+     31/8/2026 rơi vào thứ hai; rồi `T9/2026 (1/9-6/9/2026)` sáu ngày. Cùng một tuần làm việc bị
+     xé làm đôi, mỗi nửa một đơn, quyết toán hai lần, và bù trừ tuần trước cũng lệch theo.
+
+     🔴 NHÃN THÁNG THEO NGÀY CUỐI TUẦN, không theo ngày đầu — bắt buộc, không phải sở thích.
+     `VHCP_Don::nhan_ky()` bên máy chủ dựng tên bằng tháng của ngày cuối, còn `khoang_ky()` và
+     `ky_num()` suy ngược năm bằng `sm > em ? yy-1 : yy`, tức chúng đọc con số trong nhãn NHƯ LÀ
+     tháng của ngày cuối. Chừng nào tuần còn bị cắt gọn trong một tháng thì lấy đầu hay cuối
+     cũng ra một chuỗi; bỏ cắt tháng ra là lệch ngay ở tuần bắc tháng, và lúc ấy ô tạo đơn với
+     nút "Nhảy sang tuần khác" sinh hai chuỗi khác nhau cho CÙNG một tuần.
+     `VHCP_Don::chuan_ky_moi()` chốt lại lần nữa ở máy chủ, phòng trình duyệt còn giữ bản cũ. */
   function _mondayOf(d){ var x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); var g=x.getDay(); x.setDate(x.getDate()+(g===0?-6:1-g)); return x; }
   function _p2(n){ return ('0'+n).slice(-2); }
-  function _kyRange(s,e){ return 'T'+(s.getMonth()+1)+'/'+s.getFullYear()+' ('+s.getDate()+'/'+(s.getMonth()+1)+'-'+e.getDate()+'/'+(e.getMonth()+1)+'/'+e.getFullYear()+')'; }
+  function _kyRange(s,e){ return 'T'+(e.getMonth()+1)+'/'+e.getFullYear()+' ('+s.getDate()+'/'+(s.getMonth()+1)+'-'+e.getDate()+'/'+(e.getMonth()+1)+'/'+e.getFullYear()+')'; }
   function genKyOptions(){
     var ptr=_mondayOf(new Date()); ptr.setDate(ptr.getDate()-7);   // bắt đầu từ tuần trước
     var periods=[];
     for(var i=0;i<9;i++){
-      var s=new Date(ptr), dow=s.getDay();
-      var sun=new Date(s); sun.setDate(sun.getDate()+(dow===0?0:7-dow));      // Chủ nhật của tuần chứa s
-      var mEnd=new Date(s.getFullYear(), s.getMonth()+1, 0);                   // ngày cuối tháng của s
-      var e=(sun.getTime()<=mEnd.getTime())?sun:mEnd;                          // cắt tại cuối tháng nếu vắt sang tháng
+      var s=new Date(ptr);
+      var e=new Date(s); e.setDate(e.getDate()+6);                             // thứ 2 → chủ nhật, luôn đủ 7 ngày
       periods.push({val:_kyRange(s,e), startT:s.getTime(), endT:e.getTime()+86399999});
-      ptr=new Date(e); ptr.setDate(ptr.getDate()+1);                          // kỳ kế tiếp bắt đầu ngay sau
+      ptr=new Date(s); ptr.setDate(ptr.getDate()+7);                           // tuần kế tiếp, liên tục
     }
     var todayT=(new Date()).getTime(), cur=-1;
     periods.forEach(function(p,idx){ if(todayT>=p.startT && todayT<=p.endT) cur=idx; });

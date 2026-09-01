@@ -665,12 +665,65 @@ class VHCP_Don {
 
 	// ---------------------------------------------------------------- 1 đơn
 
+	/**
+	 * CHUẨN HOÁ CHUỖI KỲ CỦA ĐƠN MỚI — TUẦN LIÊN TỤC, KHÔNG CẮT THEO THÁNG.
+	 *
+	 * 🔴 Anh Thắng 01/09/2026: *"giờ luật tạo cho đơn mới theo tuần liên tục, không tạo theo
+	 *    tháng nữa"*. Luật cũ cắt mỗi tuần tại ngày cuối tháng, nên sinh ra những kỳ dị dạng —
+	 *    ảnh anh gửi có `T8/2026 (31/8-31/8/2026)`: một "tuần" đúng MỘT ngày, vì 31/8/2026 rơi
+	 *    vào thứ hai. Tuần sau nó lại là `T9/2026 (1/9-6/9/2026)`, sáu ngày. Cùng một tuần làm
+	 *    việc bị xé làm đôi, mỗi nửa một đơn, quyết toán hai lần.
+	 *
+	 * 🔴 NHÃN THÁNG LẤY THEO NGÀY CUỐI KHOẢNG, không theo ngày đầu. Đây KHÔNG phải lựa chọn tuỳ
+	 *    ý mà là luật đã có sẵn ở máy chủ: `nhan_ky()` dựng tên bằng `gmdate('n',$d2)`, và
+	 *    `khoang_ky()` / `ky_num()` suy ngược năm bằng `$m1 > $m2 ? $y2-1 : $y2` — tức chúng đọc
+	 *    con số trong nhãn như là tháng của ngày CUỐI.
+	 *
+	 *    Giao diện thì lại dựng nhãn theo ngày ĐẦU. Chừng nào tuần còn bị cắt trong một tháng
+	 *    thì hai luật ấy cho ra cùng một chuỗi nên không ai thấy; bỏ cắt tháng ra là chúng lệch
+	 *    ngay ở tuần bắc qua tháng — `T8/2026 (31/8-6/9/2026)` từ ô tạo đơn, `T9/2026
+	 *    (31/8-6/9/2026)` từ nút "Nhảy sang tuần khác" — hai kỳ khác nhau cho CÙNG một tuần,
+	 *    và lọc theo tuần thì không bao giờ gom chúng lại được nữa.
+	 *
+	 *    Chốt ở đây chứ không chỉ sửa giao diện: trình duyệt còn giữ bản .html cũ trong bộ nhớ
+	 *    đệm, mà một chuỗi kỳ ghi sai thì nằm luôn trong sổ.
+	 *
+	 * ⚠️ CHỈ SỬA NHÃN, KHÔNG ĐỘNG VÀO KHOẢNG NGÀY. Người lập được chọn khoảng ngày tự do (ô
+	 *    "từ ngày – đến ngày"), nên nới một khoảng 3 ngày thành 7 ngày là sửa ý người dùng.
+	 *    Việc "tuần phải đủ 7 ngày" thuộc về chỗ SINH ra danh sách tuần, không thuộc chỗ này.
+	 *
+	 * @param string $ky Chuỗi kỳ giao diện gửi lên.
+	 * @return string Chuỗi kỳ đã chuẩn nhãn; trả nguyên văn nếu không nhận ra khuôn khoảng ngày.
+	 */
+	public static function chuan_ky_moi( $ky ) {
+		$s = trim( (string) $ky );
+		if ( '' === $s ) { return $s; }
+		list( $tu, $den ) = self::khoang_ky( $s );
+		if ( '' === $tu || '' === $den ) { return $s; }
+		$ts_den = strtotime( $den . ' 00:00:00 UTC' );
+		if ( ! $ts_den ) { return $s; }
+		$nhan = 'T' . (int) gmdate( 'n', $ts_den ) . '/' . gmdate( 'Y', $ts_den );
+		/* 🔴 THAY MỖI CÁI NHÃN Ở ĐẦU, phần trong ngoặc chép nguyên văn. Dựng lại chuỗi từ các
+		   con số vừa bóc ra thì tiện hơn, nhưng nó lặng lẽ đổi luôn cách viết: kỳ ai đó ghi
+		   `(06/10-12/10/2026)` sẽ thành `(6/10-...)`, và đơn cũ cùng tuần ấy lập tức khác chuỗi
+		   với đơn mới — lọc theo tuần thấy hai kỳ. Bài thử "lấy đúng tuần trước" bắt đúng lỗi
+		   này ngay lượt chạy đầu. */
+		/* Khuôn "T8/2026" trần (cả tháng) tự lo được: `khoang_ky()` trả ngày cuối CÙNG THÁNG
+		   nên nhãn dựng ra đúng bằng nhãn đang có, thay vào cũng là chính nó. Không cần chốt
+		   riêng — một chốt không bao giờ đổi kết quả là mã không có vết, phá thử chỉ ra ngay. */
+		$ra = preg_replace( '#^T\s*\d{1,2}\s*/\s*\d{4}#u', $nhan, $s, 1 );
+		/* Không khớp khuôn nhãn thì `preg_replace` trả lại chính chuỗi cũ — đúng cái ta muốn,
+		   nên không cần nhánh riêng cho ca ấy (bản đầu có một nhánh như thế, phá thử chỉ ra nó
+		   không bao giờ đổi kết quả). `null` chỉ xảy ra khi PCRE hỏng; ngã về chuỗi cũ. */
+		return ( null === $ra ) ? $s : $ra;
+	}
+
 	public static function create_don( $ky, $nguoi_lap ) {
 		global $wpdb;
 		$m = VHCP_Util::uid( 'D' );
 		$wpdb->insert( VHCP_DB::t( 'don' ), array(
 			'ma_don'     => $m,
-			'ky'         => (string) $ky,
+			'ky'         => self::chuan_ky_moi( $ky ),
 			'nguoi_lap'  => (string) $nguoi_lap,
 			/* 🔴 ĐƠN VỊ LẤY TỪ NHÀ CỦA NGƯỜI LẬP, ghi một lần rồi thôi.
 			   Anh Thắng chốt 26/08: người lập thuộc đơn vị nào thì đơn thuộc đơn vị đó — kể cả

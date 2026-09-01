@@ -491,6 +491,78 @@ VHCP_Don::delete_don_admin( $mbc2 );
 VHCP_Don::delete_don_admin( $mbc3 );
 
 /* =============================================================================================
+ * 🔴 KỲ CỦA ĐƠN MỚI: TUẦN LIÊN TỤC, NHÃN THÁNG THEO NGÀY CUỐI
+ * =============================================================================================
+ * Anh Thắng 01/09/2026: *"giờ luật tạo cho đơn mới theo tuần liên tục, không tạo theo tháng
+ * nữa"*. Luật cũ cắt tuần tại ngày cuối tháng — ảnh anh gửi có `T8/2026 (31/8-31/8/2026)`, một
+ * "tuần" đúng MỘT ngày.
+ *
+ * Bỏ cắt tháng ra thì lộ ngay một chỗ lệch có sẵn: giao diện dựng nhãn tháng theo ngày ĐẦU,
+ * còn `nhan_ky()` / `khoang_ky()` / `ky_num()` bên máy chủ đọc nhãn như tháng của ngày CUỐI.
+ * Chừng nào tuần còn gọn trong một tháng thì hai luật cho cùng một chuỗi nên không ai thấy.
+ */
+teq( 'tuần gọn trong tháng thì nhãn không đổi', 'T8/2026 (24/8-30/8/2026)',
+	VHCP_Don::chuan_ky_moi( 'T8/2026 (24/8-30/8/2026)' ) );
+teq( '🔴 tuần bắc tháng: nhãn theo ngày CUỐI', 'T9/2026 (31/8-6/9/2026)',
+	VHCP_Don::chuan_ky_moi( 'T8/2026 (31/8-6/9/2026)' ) );
+teq( '🔴 tuần bắc năm: nhãn theo ngày CUỐI', 'T1/2027 (28/12-3/1/2027)',
+	VHCP_Don::chuan_ky_moi( 'T12/2026 (28/12-3/1/2027)' ) );
+teq( 'chuẩn rồi thì chạy lại vẫn thế', 'T9/2026 (31/8-6/9/2026)',
+	VHCP_Don::chuan_ky_moi( 'T9/2026 (31/8-6/9/2026)' ) );
+
+/* 🔴 CHUẨN LẠI RỒI PHẢI ĐỌC NGƯỢC RA ĐÚNG KHOẢNG NGÀY CŨ. Sửa nhãn mà `khoang_ky()` đọc lệch
+   thì đơn rơi vào một tuần khác trong mọi báo cáo — tệ hơn hẳn chỗ lệch đang đi sửa. */
+teq( 'khoảng ngày của tuần bắc tháng đọc ngược đúng', array( '2026-08-31', '2026-09-06' ),
+	VHCP_Don::khoang_ky( VHCP_Don::chuan_ky_moi( 'T8/2026 (31/8-6/9/2026)' ) ) );
+teq( 'khoảng ngày của tuần bắc năm đọc ngược đúng', array( '2026-12-28', '2027-01-03' ),
+	VHCP_Don::khoang_ky( VHCP_Don::chuan_ky_moi( 'T12/2026 (28/12-3/1/2027)' ) ) );
+teq( 'và xếp thứ tự vẫn theo NGÀY ĐẦU', 20261228,
+	VHCP_Util::ky_num( VHCP_Don::chuan_ky_moi( 'T12/2026 (28/12-3/1/2027)' ) ) );
+
+/* ⚠️ KHÔNG ĐỘNG VÀO KHOẢNG NGÀY. Người lập được chọn khoảng tự do (ô "từ ngày – đến ngày");
+   nới một khoảng 3 ngày thành tuần 7 ngày là sửa ý người dùng. */
+teq( 'khoảng tự chọn giữ nguyên độ dài', 'T9/2026 (2/9-4/9/2026)',
+	VHCP_Don::chuan_ky_moi( 'T9/2026 (2/9-4/9/2026)' ) );
+teq( 'đợt dự án dài hai tháng cũng không bị nới/cắt', 'T9/2026 (10/7-20/9/2026)',
+	VHCP_Don::chuan_ky_moi( 'T7/2026 (10/7-20/9/2026)' ) );
+/* Kỳ khuôn tháng trần và chuỗi lạ thì trả nguyên văn — đừng dựng thêm khoảng ngày cho chúng. */
+/* 🔴 CHÉP NGUYÊN VĂN PHẦN TRONG NGOẶC. Dựng lại chuỗi từ các con số vừa bóc ra thì lặng lẽ đổi
+   cách viết ngày, và đơn cũ cùng tuần lập tức khác chuỗi với đơn mới — lọc theo tuần thấy hai
+   kỳ. Ca này bắt được ngay lượt chạy đầu, ở một bài thử khác. */
+teq( 'giữ nguyên số 0 đứng đầu người ta đã ghi', 'T10/2026 (06/10-12/10/2026)',
+	VHCP_Don::chuan_ky_moi( 'T10/2026 (06/10-12/10/2026)' ) );
+teq( 'và vẫn sửa được nhãn của chuỗi ghi kiểu ấy', 'T9/2026 (31/08-06/09/2026)',
+	VHCP_Don::chuan_ky_moi( 'T8/2026 (31/08-06/09/2026)' ) );
+teq( 'kỳ khuôn tháng trần giữ nguyên', 'T8/2026', VHCP_Don::chuan_ky_moi( 'T8/2026' ) );
+teq( 'chuỗi không đọc được thì trả nguyên văn', 'linh tinh', VHCP_Don::chuan_ky_moi( 'linh tinh' ) );
+/* 🔴 KHÔNG ĐỌC RA ĐƯỢC NGÀY THÌ ĐỪNG ĐOÁN. `T13/2026` không phải tháng nào cả nên `khoang_ky()`
+   chịu; bỏ chốt ấy đi là `strtotime('')` ngã về HÔM NAY và chuỗi bị đổi thành tháng hiện tại —
+   một kỳ bịa. Phá thử ca này ra XANH lúc đầu vì bài chưa có chuỗi nào vừa hỏng vừa mở đầu bằng
+   đúng khuôn nhãn. */
+teq( 'kỳ có số tháng vô lý thì trả nguyên văn', 'T13/2026', VHCP_Don::chuan_ky_moi( 'T13/2026' ) );
+teq( 'kỳ vô lý kèm chữ cũng trả nguyên văn', 'T99/2026 gì đó', VHCP_Don::chuan_ky_moi( 'T99/2026 gì đó' ) );
+teq( 'rỗng thì vẫn rỗng', '', VHCP_Don::chuan_ky_moi( '' ) );
+
+/* 🔴 VÀ create_don() PHẢI ĐI QUA CỬA ẤY. Sửa mỗi giao diện là chưa đủ: trình duyệt còn giữ bản
+   .html cũ trong bộ nhớ đệm, mà một chuỗi kỳ ghi sai thì nằm luôn trong sổ. */
+$dk = VHCP_Don::create_don( 'T8/2026 (31/8-6/9/2026)', 'Nguyễn Văn A' );
+teq( '🔴 đơn tạo bằng nhãn cũ vẫn vào sổ với nhãn chuẩn', 'T9/2026 (31/8-6/9/2026)',
+	(string) VHCP_Don::get_don( $dk['maDon'] )['don']['ky'] );
+VHCP_Don::delete_don_admin( $dk['maDon'] );
+
+/* ⚠️ GIAO DIỆN PHẢI THÔI CẮT THÁNG. Máy chủ chỉ chuẩn được cái NHÃN; nếu ô chọn kỳ vẫn bày ra
+   "31/8-31/8" thì người lập vẫn tạo ra tuần một ngày, và máy chủ không có cách nào biết đó là
+   tuần bị cắt hay khoảng ba ngày người ta cố ý chọn. */
+$_app_ky = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 danh sách kỳ thôi cắt ở cuối tháng',
+	false === strpos( $_app_ky, 'cắt tại cuối tháng nếu vắt sang tháng' ), null );
+t( '🔴 mỗi kỳ đúng 7 ngày, tuần nối tuần',
+	false !== strpos( $_app_ky, 'e.setDate(e.getDate()+6);' )
+	&& false !== strpos( $_app_ky, 'ptr.setDate(ptr.getDate()+7);' ), null );
+t( '🔴 nhãn tháng ở giao diện lấy theo NGÀY CUỐI, khớp nhan_ky() của máy chủ',
+	false !== strpos( $_app_ky, "function _kyRange(s,e){ return 'T'+(e.getMonth()+1)+'/'+e.getFullYear()" ), null );
+
+/* =============================================================================================
  * 🔴 SỐ DUYỆT MỒ CÔI — ĐƠN BỊ TRẢ LẠI VỀ "NHÁP" MÀ VẪN MANG SỐ ĐÃ DUYỆT
  * =============================================================================================
  * Anh Thắng 01/09/2026, ảnh đơn SNOW NHÀ TUYẾT BÌNH DƯƠNG: *"đơn này thì lại không có"* — chính
