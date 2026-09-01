@@ -944,6 +944,20 @@ class VHG_May {
 
 	/** Chuyển ghế sang cơ sở khác — CHỈ đổi coso_id, giữ nguyên giá/thời lượng/số tài khoản.
 	 *  (gan_ma trả về sớm khi mã không đổi nên không dùng để đổi mỗi cơ sở được.) */
+	/** Đặt/đổi TÊN ghế (ten_khai — tên trên sao kê). CHỈ đụng cột tên, không đụng giá/tài khoản
+	 *  (khác luu_may vốn cần đủ mọi ô, để trống là xoá trắng cấu hình). */
+	public static function dat_ten( $ma, $ten ) {
+		global $wpdb;
+		$ma = trim( (string) $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		$ten = VHG_Doc::chuan_ten( (string) $ten );
+		$wpdb->update( VHG_DB::t( 'may' ),
+			array( 'ten_khai' => $ten, 'cap_nhat' => current_time( 'mysql' ) ),
+			array( 'ma' => $ma ) );
+		return array( 'ok' => true, 'thong_bao' => '' === $ten
+			? ( 'Đã xoá tên ghế ' . $ma . '.' ) : ( 'Đã đặt tên ghế ' . $ma . ' = "' . $ten . '".' ) );
+	}
+
 	public static function dat_coso( $ma, $coso_id ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );

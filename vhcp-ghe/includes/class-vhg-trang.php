@@ -473,6 +473,11 @@ class VHG_Trang {
 			/* DIEU CHUYEN GHE — danh dau DA DON/DIEU CHUYEN (an), KHONG xoa: chi so, doanh thu, log
 			   deu giu nguyen. Tich nhieu ghe an di mot luot (`may_an_lo`) hoac mot ghe (`may_an`).
 			   `an=0` = dua ghe ve dung lai. */
+			if ( 'may_ten' === $viec ) {
+				$r = VHG_May::dat_ten( isset( $d['ma'] ) ? (string) $d['ma'] : '',
+					isset( $d['ten'] ) ? (string) $d['ten'] : '' );
+				self::tra( $r ); return;
+			}
 			if ( 'may_an' === $viec ) {
 				$r = VHG_May::dat_an( isset( $d['ma'] ) ? (string) $d['ma'] : '', ! empty( $d['an'] ) );
 				if ( ! empty( $r['ok'] ) ) {
@@ -846,6 +851,7 @@ class VHG_Trang {
 			$may[] = array(
 				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
+				'ten'     => (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ),  // tên ghế (trên sao kê)
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
 				'tt'      => (string) $m['trang_thai'],
@@ -1114,6 +1120,7 @@ class VHG_Trang {
 				   biết ngay ngăn đang có bao nhiêu — trước cả khi mở ngăn ra đếm. */
 				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
+				'ten'     => (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ),  // tên ghế (trên sao kê)
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
 				'tt'      => (string) $m['trang_thai'],
@@ -6255,9 +6262,9 @@ function qlGheRender(){
 
   var h = bulk + '<table><tr>'
     + '<th style="width:26px"><input type="checkbox" id="ql-cp"' + (trangDu ? ' checked' : '') + '></th>'
-    + '<th>' + L('Ma','Code') + '</th><th>' + L('Dia diem','Site')
+    + '<th>' + L('Ma','Code') + '</th><th>' + L('Ten ghe','Chair name') + '</th><th>' + L('Dia diem','Site')
     + '</th><th class="r hide-sm">' + L('Trang thai','Status') + '</th><th class="r"></th></tr>';
-  if (!list.length) h += '<tr><td colspan="5" class="mut">'
+  if (!list.length) h += '<tr><td colspan="6" class="mut">'
     + (may.length ? L('Khong co ghe o co so nay.','No chairs at this site.')
                   : L('Chua co ghe nao.','No chairs yet.')) + '</td></tr>';
   for (var i = from; i < to; i++){ var m = list[i];
@@ -6267,6 +6274,8 @@ function qlGheRender(){
       + '<td><input type="checkbox" data-ck="' + esc(m.ma) + '"' + ck + '></td>'
       + '<td><b' + (m.an ? ' style="text-decoration:line-through"' : '') + '>' + esc(m.ma) + '</b>'
       + (m.an ? ' <span class="pill p-wait">' + L('da dieu chuyen','moved') + '</span>' : '') + '</td>'
+      + '<td><input type="text" data-ten="' + esc(m.ma) + '" value="' + esc(m.ten || '') + '" maxlength="190" '
+      + 'placeholder="' + L('vd VHM-1','e.g. VHM-1') + '" style="width:120px"></td>'
       + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + qlCsOpt(coso, m.coso) + '</select></td>'
       + '<td class="r hide-sm mut">' + tt + '</td>'
       + '<td class="r">' + (m.an
@@ -6296,6 +6305,14 @@ function qlGheRender(){
   };
   [].forEach.call(box.querySelectorAll('[data-csma]'), function(s){
     s.onchange = function(){ lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value }); };
+  });
+  // đặt/đổi tên ghế — lưu khi rời ô (chỉ khi có đổi, khỏi lưu thừa mỗi lần bấm vào)
+  [].forEach.call(box.querySelectorAll('[data-ten]'), function(t){
+    t.setAttribute('data-goc', t.value);
+    t.onchange = function(){
+      if (t.value === t.getAttribute('data-goc')) return;
+      lam('may_ten', { ma: t.getAttribute('data-ten'), ten: t.value });
+    };
   });
   [].forEach.call(box.querySelectorAll('[data-man]'), function(b){
     b.onclick = function(){ var m = b.getAttribute('data-man');
