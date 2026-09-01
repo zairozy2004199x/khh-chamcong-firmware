@@ -491,6 +491,87 @@ VHCP_Don::delete_don_admin( $mbc2 );
 VHCP_Don::delete_don_admin( $mbc3 );
 
 /* =============================================================================================
+ * 🔴 KHÔNG XIN TẠM ỨNG THÌ TẠM ỨNG PHẢI LÀ 0 — ĐỪNG LẤY THỰC CHI LẤP VÀO
+ * =============================================================================================
+ * Anh Thắng 01/09/2026: *"Khi 1 cửa hàng không xin tạm ứng, tạm ứng = 0. Nhân viên sau đó mua
+ * đồ và quyết toán, thì hệ thống ghi nhận cả tạm ứng và thực chi = nhau luôn. Đáng lẽ tạm ứng
+ * phải = 0"*.
+ *
+ * Hai dòng cùng một kiểu hỏng, ở hai chỗ:
+ *   `get_don()`   : `$cn_tu  = $has_tu ? $ad_total : $cn_tc;`
+ *   `list_dons()` : `$tam_ung = $has_tu ? $ad_total : $mua_cn;`
+ * Không có tạm ứng thì lấy luôn tổng đã mua làm tạm ứng — chênh lệch ra 0, màn Quyết toán ghi
+ * "Khớp", trong khi người đi mua đang bỏ tiền túi toàn bộ.
+ *
+ * ⚠️ Ở `list_dons()` nó đi xa hơn: `chenhLech` nuôi cả màn Thừa/thiếu tuần lẫn phép bù trừ
+ *    luân chuyển, nên khoản NV ứng ra không nổi lên ở BẤT KỲ đâu.
+ */
+/* (a) Đơn KHÔNG XIN ĐỒNG NÀO: mọi dòng đều là PHÁT SINH (thêm sau khi đã rời "Nháp"). */
+$kx = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mkx = $kx['maDon'];
+VHCP_Don::add_line( $mkx, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dòng mồi',
+	'soLuong' => 1, 'donGia' => 1, 'thanhTien' => 1 ) );
+VHCP_Don::gui_duyet_tam_ung( $mkx );
+VHCP_Don::duyet_tam_ung( $mkx, 'Trần Quản Lý', 0 );          // duyệt ĐÚNG 0đ — cửa hàng không xin
+teq( '🔴 duyệt 0đ thì tạm ứng là 0, không phải "chưa có"', 0.0,
+	(float) VHCP_Don::get_don( $mkx )['tongCN']['tamUng'] );
+VHCP_Don::cap_tam_ung( $mkx, 'Lê Kế Toán' );
+VHCP_Don::add_line( $mkx, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'NV tự bỏ tiền mua',
+	'soLuong' => 1, 'donGia' => 73000, 'thanhTien' => 73000 ) );
+$g_kx = VHCP_Don::get_don( $mkx );
+teq( 'thực chi ghi đủ', 73001.0, (float) $g_kx['tongCN']['thucChi'] );
+teq( '🔴 tạm ứng vẫn là 0 sau khi mua', 0.0, (float) $g_kx['tongCN']['tamUng'] );
+teq( '🔴 và chênh lệch nói THIẾU đúng số NV đã ứng ra', -73001.0,
+	(float) $g_kx['tongCN']['chenhLech'] );
+
+/* Cùng con số ấy phải nổi lên ở DANH SÁCH ĐƠN — nơi màn Thừa/thiếu tuần và phép bù trừ luân
+   chuyển lấy dữ liệu. Sửa mỗi `get_don()` là màn đơn nói một đằng, báo cáo nói một nẻo. */
+$_row_kx = null;
+foreach ( (array) VHCP_Don::list_dons() as $x ) { if ( (string) $x['maDon'] === $mkx ) { $_row_kx = $x; } }
+t( 'thấy đơn trong danh sách', null !== $_row_kx, null );
+teq( '🔴 danh sách đơn: tạm ứng 0', 0.0, (float) $_row_kx['tamUng'] );
+teq( '🔴 danh sách đơn: chênh lệch = THIẾU', -73001.0, (float) $_row_kx['chenhLech'] );
+VHCP_Don::delete_don_admin( $mkx );
+
+/* ⚠️ MÀN HÌNH PHẢI NÓI ĐÚNG CHUYỆN ĐANG XẢY RA. Câu gợi ý cũ dưới khối Quyết toán ghi "đối
+   chiếu khớp" cho mọi đơn không nhập tạm ứng theo cơ sở — với đơn tạm ứng 0 thì nó chọi thẳng
+   với con số ngay bên trên: ô "Còn lại" báo THIẾU mà câu chú thích bảo là khớp. */
+$_app_tu = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 tạm ứng 0 thì câu gợi ý nói rõ NV tự ứng ra',
+	false !== strpos( $_app_tu, "(tongTU===0)" )
+	&& false !== strpos( $_app_tu, 'Đơn này KHÔNG có tạm ứng' ), null );
+t( 'và nói kế toán phải trả lại đủ số ấy',
+	false !== strpos( $_app_tu, 'Kế toán trả lại đủ số này' ), null );
+t( '🔴 thôi gọi là "đối chiếu khớp"', false === strpos( $_app_tu, '(đối chiếu khớp)' ), null );
+
+/* (b) ĐƠN CŨ CHƯA AI CHỐT SỐ (tam_ung_duyet NULL) VẪN SUY TỪ HẠNG MỤC XIN NHƯ TRƯỚC.
+   Đây là hàng rào chống hồi tố: `duyet_tam_ung()` để trống số vẫn ghi NULL, và cả sổ đang có
+   những đơn như thế. Coi NULL là "duyệt 0đ" thì mọi đơn cũ lập tức báo thiếu toàn bộ. */
+$cu = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mcu = $cu['maDon'];
+VHCP_Don::add_line( $mcu, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Hạng mục xin',
+	'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mcu );
+VHCP_Don::duyet_tam_ung( $mcu, 'Trần Quản Lý', '' );          // để trống = duyệt đúng số xin
+teq( '🔴 duyệt để trống vẫn suy từ hạng mục xin', 500000.0,
+	(float) VHCP_Don::get_don( $mcu )['tongCN']['tamUng'] );
+$_row_cu = null;
+foreach ( (array) VHCP_Don::list_dons() as $x ) { if ( (string) $x['maDon'] === $mcu ) { $_row_cu = $x; } }
+teq( 'danh sách đơn cũng thế', 500000.0, (float) $_row_cu['tamUng'] );
+VHCP_Don::delete_don_admin( $mcu );
+
+/* (c) 0 KHÁC RỖNG — chốt nằm ở `blank_or_num()`. `num()` nghiền cả hai thành 0.0 nên không
+   phân biệt được "duyệt 0đ" với "chưa ai chốt số". */
+teq( 'blank_or_num phân biệt rỗng', null, VHCP_Util::blank_or_num( '' ) );
+teq( 'blank_or_num phân biệt null', null, VHCP_Util::blank_or_num( null ) );
+teq( 'blank_or_num giữ số 0', 0, VHCP_Util::blank_or_num( '0' ) );
+t( '🔴 và num() thì KHÔNG phân biệt được — vì thế mới phải đổi',
+	VHCP_Util::num( '' ) === VHCP_Util::num( '0' ), null );
+
+/* =============================================================================================
  * 🔴 KỲ CỦA ĐƠN MỚI: TUẦN LIÊN TỤC, NHÃN THÁNG THEO NGÀY CUỐI
  * =============================================================================================
  * Anh Thắng 01/09/2026: *"giờ luật tạo cho đơn mới theo tuần liên tục, không tạo theo tháng

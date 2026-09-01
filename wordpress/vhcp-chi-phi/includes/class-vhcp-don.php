@@ -504,7 +504,9 @@ class VHCP_Don {
 			if ( $m === '' ) { continue; }
 			$du_phong = VHCP_Util::num( $r['du_phong'] );
 			$bu_tru   = VHCP_Util::num( $r['bu_tru'] );
-			$tu_d     = VHCP_Util::num( $r['tam_ung_duyet'] );
+			/* NULL = chưa ai chốt số; 0 = đã chốt và chốt là không đồng nào. Xem khối 🔴 ở
+			   `get_don()` — `num()` nghiền hai thứ ấy thành một. */
+			$tu_d     = VHCP_Util::blank_or_num( $r['tam_ung_duyet'] );
 			/* 🔴 BÙ TRỪ TUẦN TRƯỚC KHÔNG CỘNG VÀO TIỀN — anh Thắng 31/08/2026: *"phần thiếu thừa
 			   tạm ứng của tuần trước nó chỉ là con số báo cáo, và không được cộng hay trừ vào
 			   tiền của tuần sau"*, *"Hiện nó đang trừ tiền tạm ứng của tuần này"*.
@@ -521,12 +523,16 @@ class VHCP_Don {
 			   ⚠️ VẪN TÍNH VÀ VẪN HIỆN con số ấy — chỉ thôi cộng vào tiền. Bỏ hẳn thì mất luôn
 			      thứ đang giúp kế toán biết tuần trước còn treo bao nhiêu. */
 			$tu_tay   = ! empty( $tu_has[ $m ] ) ? ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) : ( ( isset( $xin[ $m ] ) ? $xin[ $m ] : 0 ) + $du_phong );
-			$ad_total = ( $tu_d > 0 ) ? $tu_d : $tu_tay;
+			$ad_total = ( null !== $tu_d ) ? $tu_d : $tu_tay;
 			$has_tu   = ( $ad_total > 0 );
 			$mua_cn   = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
 			$tc_ncc   = isset( $tt_ncc[ $m ] ) ? $tt_ncc[ $m ] : 0;
 			$tc       = $mua_cn + $tc_ncc;
-			$tam_ung  = $has_tu ? $ad_total : $mua_cn;
+			/* 🔴 KHÔNG LẤY THỰC CHI LẤP VÀO CHỖ TẠM ỨNG — cùng lý do với `get_don()`. Ở đây nó
+			   còn đi xa hơn: `chenhLech` = `$tam_ung - $mua_cn` nuôi cả màn Thừa/thiếu tuần và
+			   phép bù trừ luân chuyển, nên một đơn không xin tạm ứng đang báo chênh 0 ở KHẮP
+			   NƠI, và khoản NV ứng ra không bao giờ nổi lên. */
+			$tam_ung  = $ad_total;
 
 			$mp = isset( $coso_by[ $m ] ) ? $coso_by[ $m ] : array();
 			arsort( $mp );
@@ -853,8 +859,20 @@ class VHCP_Don {
 		/* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `list_dons()`. Nó vẫn được
 		   tính và vẫn trả về (`buTru`, `buTruAuto`) để màn hình bày ra như một con số báo cáo. */
 		if ( ! $has_tu_rows ) { $tu_tay_sum += VHCP_Util::num( $don['duPhong'] ); }
-		$tu_duyet = ( $don['tamUngDuyet'] !== '' && VHCP_Util::num( $don['tamUngDuyet'] ) > 0 ) ? VHCP_Util::num( $don['tamUngDuyet'] ) : 0;
-		$ad_total = $tu_duyet > 0 ? $tu_duyet : $tu_tay_sum;
+		/* 🔴 TẠM ỨNG BẰNG 0 LÀ MỘT CON SỐ THẬT, KHÔNG PHẢI "CHƯA BIẾT".
+		   Anh Thắng 01/09/2026: *"Khi 1 cửa hàng không xin tạm ứng, tạm ứng = 0. Nhân viên sau
+		   đó mua đồ và quyết toán, thì hệ thống ghi nhận cả tạm ứng và thực chi = nhau luôn.
+		   Đáng lẽ tạm ứng phải = 0"*.
+
+		   Bản cũ hỏi `> 0`, nên số duyệt 0đ bị coi như chưa có rồi rơi xuống suy từ hạng mục
+		   xin — mà hạng mục xin lại suy tiếp từ chính các dòng chi. Cuối đường, "tạm ứng" hoá
+		   ra là bản sao của thực chi, khối Quyết toán báo "khớp 0đ", trong khi người đi mua
+		   đang bỏ tiền túi toàn bộ và chẳng có gì nói cho kế toán biết phải trả lại họ.
+
+		   Phân biệt NULL (chưa ai chốt số — đơn cũ, đơn chưa duyệt) với 0 (đã chốt, và chốt là
+		   không đồng nào). `blank_or_num()` giữ được sự khác nhau ấy; `num()` thì không. */
+		$tu_duyet = VHCP_Util::blank_or_num( $don['tamUngDuyet'] );
+		$ad_total = ( null !== $tu_duyet ) ? $tu_duyet : $tu_tay_sum;
 		$has_tu   = $ad_total > 0;
 
 		$cn_by = array(); $ncc_by = array();
@@ -873,7 +891,11 @@ class VHCP_Don {
 		foreach ( $cn_by as $cs => $v ) { $recon_cn[] = array( 'coso' => $cs, 'thucChi' => $v ); $cn_tc += $v; }
 		$recon_ncc = array(); $ncc_tc = 0;
 		foreach ( $ncc_by as $cs => $v ) { $recon_ncc[] = array( 'coso' => $cs, 'thucChi' => $v ); $ncc_tc += $v; }
-		$cn_tu = $has_tu ? $ad_total : $cn_tc;
+		/* 🔴 KHÔNG LẤY THỰC CHI LẤP VÀO CHỖ TẠM ỨNG. Bản cũ: `$has_tu ? $ad_total : $cn_tc` —
+		   không có tạm ứng thì lấy luôn tổng đã mua làm tạm ứng, nên chênh lệch ra 0 và màn
+		   Quyết toán ghi "Khớp — không thừa thiếu". Đơn không xin tạm ứng phải ra "Thiếu N —
+		   kế toán bù cho NV", vì đó mới là chuyện đang xảy ra ngoài đời. */
+		$cn_tu = $ad_total;
 
 		return VHCP_Util::ok( array(
 			'don'       => $don,

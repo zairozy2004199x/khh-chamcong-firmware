@@ -2800,9 +2800,14 @@
     var tongTU=(CUR.tongCN||{}).tamUng||0;
     el('qtTU').value=money(tongTU);
     el('qtThucMua').value=money((CUR.tongCN||{}).thucChi||0); el('qtThucMua').disabled=true;   // model mới = tổng Thành tiền các dòng đã mua; model cũ = tổng cột Thực mua
-    if(el('qtHint')) el('qtHint').innerHTML=(CUR.tuMode==='new')
+    /* 🔴 CÂU GỢI Ý KHÔNG ĐƯỢC CHỌI VỚI CON SỐ NGAY TRÊN NÓ. Anh Thắng 01/09/2026: đơn không xin
+       tạm ứng thì tạm ứng phải là 0 — và lúc ấy câu cũ *"đối chiếu khớp"* là sai hẳn: không có
+       gì khớp cả, người đi mua đang ứng trước toàn bộ và kế toán phải trả lại họ. */
+    if(el('qtHint')) el('qtHint').innerHTML=(tongTU===0)
+      ? '💰 <b>Đơn này KHÔNG có tạm ứng</b> — toàn bộ <b>'+money((CUR.tongCN||{}).thucChi||0)+'đ</b> là tiền người đi mua tự ứng ra. <b>Kế toán trả lại đủ số này</b>; ô "Còn lại" vì thế báo THIẾU, không phải sai.'
+      : ((CUR.tuMode==='new')
       ? '💡 <b>Tạm ứng = số đã duyệt</b> (cố định, khóa sau duyệt). NV nhập <b>từng dòng đã mua</b>; ô <b>Thực mua</b> để trống = bằng Thành tiền, nhập nếu thực trả khác (vd có ship). → <b>Còn lại = Tạm ứng − Tổng thực mua</b> (thừa: NV trả lại · thiếu: kế toán bù).'
-      : '💡 Đơn không nhập tạm ứng theo cơ sở — <b>Thực mua = tổng thực chi các dòng</b> (đối chiếu khớp).';
+      : '💡 Đơn không nhập tạm ứng theo cơ sở — <b>Thực mua = tổng thực chi các dòng</b>, chênh lệch tính trên số tạm ứng thật của đơn.');
     el('qtHTTT').value=CUR.don.httt||''; el('qtHTTT').disabled=!editable;
     QT.anh=CUR.don.anhHoaDon||'';
     // ĐÍNH HÓA ĐƠN ĐƯỢC CẢ SAU KHI QUYẾT TOÁN. Hóa đơn giấy về sau ngày chi tiền là chuyện
