@@ -1,0 +1,4 @@
+fw=ghe-massage 2026-09-01c (man chon goi: font dep neu co, chu dam neu khong)
+commit=7083bbca760f04bf94a2c267aa72130dabe60fc7
+nhanh=claude/rebuild-chi-phi-wordpress-hl2yze
+size=494128
