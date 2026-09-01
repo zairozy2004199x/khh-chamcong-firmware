@@ -1114,6 +1114,21 @@ class VHG_BaoCao {
 			$data_up['nop_so_tien'] = $r['tien_mat'];
 		}
 		if ( count( $anh_moi ) ) { $data_up['anh'] = wp_json_encode( $anh_tong ); }
+		/* 🔴 LƯỢT SỬA CỦA NHÂN VIÊN CŨNG PHẢI ĐỂ LẠI VẾT. Trước bản này chỉ đường KẾ TOÁN
+		   (`VHG_KeToan::sua()`) ghi bản cũ vào `bc_undo`; sửa qua màn 24h thì số đổi mà không ai
+		   biết đã đổi từ đâu. Nay khối "Lịch sử sửa" cạnh nút Sửa đọc đúng bảng ấy — thiếu một
+		   nửa thì lịch sử kể sai: nhân viên sửa 3 lần, màn hình bảo chưa ai đụng vào.
+		   Cùng dạng bản ghi với bên kế toán (`viec='sua'`, khoá `<report_id>·<ma_may>`) để một
+		   hàm đọc dùng chung cho cả hai đường, khỏi hai bản lịch sử lệch nhau. */
+		$wpdb->insert( VHG_DB::t( 'bc_undo' ), array(
+			'viec' => 'sua', 'ly_do' => mb_substr( $rid . '·' . $ma, 0, 250 ),
+			'chi_tiet' => wp_json_encode( array( array(
+				'report_id' => $rid, 'ma_may' => $ma,
+				'chi_so_truoc' => $d['chi_so_truoc'], 'chi_so_sau' => $d['chi_so_sau'], 'actual' => $d['actual'],
+				'tien_mat' => $d['tien_mat'], 'qr' => $d['qr'], 'dieu_chinh' => $d['dieu_chinh'], 'tong' => $d['tong'],
+				'ghi_chu' => $d['ghi_chu'], 'nop_so_tien' => $d['nop_so_tien'] ) ) ),
+			'da_hoan_tac' => 0, 'boi' => (string) $q['ten'] . ' · sửa 24h',
+			'tao_luc' => current_time( 'mysql' ) ) );
 		$wpdb->update( VHG_DB::t( 'bc_dong' ), $data_up, array( 'id' => (int) $d['id'] ) );
 		$wpdb->update( VHG_DB::t( 'bc' ), array( 'sua_luc' => current_time( 'mysql' ) ), array( 'report_id' => $rid ) );
 		self::noi_tiep( $ma, $h['ngay'] );   // sửa chỉ số sau → ngày kế tiếp tự nối lại chỉ số trước

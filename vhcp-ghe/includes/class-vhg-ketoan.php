@@ -238,12 +238,85 @@ class VHG_KeToan {
 				'paid' => (int) $r['nop_so_tien'], 'payStatus' => (string) $r['nop_trang_thai'],
 				'payMethod' => (string) $r['nop_hinhthuc'],
 				'confirmed' => (int) $r['kt_duyet'] ? 1 : 0,
+				/* Lịch sử sửa số của chính ghế này — hiện nhỏ ngay cạnh nút Sửa (anh Thắng
+				   01/09/2026). Đọc từ `bc_undo`, xem `lich_su_sua()`. */
+				'lichSu' => self::lich_su_sua( (string) $r['report_id'], (string) $r['ma_may'], $r ),
 				'anh' => '' === $anh ? array() : (array) json_decode( $anh, true ) );
 			$sum['actual'] += (int) $r['actual']; $sum['cash'] += (int) $r['tien_mat']; $sum['qr'] += (int) $r['qr'];
 			$sum['adjust'] += (int) $r['dieu_chinh']; $sum['total'] += (int) $r['tong']; $sum['paid'] += (int) $r['nop_so_tien'];
 		}
 		return array( 'ok' => true, 'coso' => (string) $coso, 'ngay' => $d, 'reportId' => $rid,
 			'rows' => $ghe, 'sum' => $sum, 'locked' => self::dang_khoa( $coso, $d ) );
+	}
+
+	/**
+	 * LỊCH SỬ SỬA SỐ CỦA TỪNG GHẾ — anh Thắng 01/09/2026: *"thêm phần lịch sử sửa số, ngay chỗ
+	 * ô sửa lại, chèn nhỏ thôi"*.
+	 *
+	 * 🔴 KHÔNG ĐẺ BẢNG MỚI. Mỗi lượt sửa đã ghi sẵn BẢN CŨ vào `bc_undo` (`undo_ghi_()`), kèm ai
+	 *    sửa và lúc nào, khoá là `<report_id>·<ma_may>`. Thứ thiếu bấy lâu chỉ là không ai đọc nó
+	 *    ra theo từng ghế. Dựng bảng thứ hai cho cùng một sự kiện là mở đường cho hai bản lịch sử
+	 *    lệch nhau, rồi không biết tin bản nào.
+	 *
+	 * ⚠️ BẢNG UNDO CHỈ GIỮ GIÁ TRỊ TRƯỚC KHI SỬA. Nên bước thứ k là "bản cũ thứ k → bản cũ thứ
+	 *    k+1", và bước cuối cùng là "bản cũ cuối → GIÁ TRỊ HIỆN TẠI". Xếp CŨ TRƯỚC MỚI SAU rồi
+	 *    ghép cặp; đọc ngược là ra một chuỗi thay đổi kể ngược đời.
+	 *
+	 * ⚠️ BỎ QUA LƯỢT ĐÃ HOÀN TÁC. Bấm Hoàn tác là số quay về như cũ; vẫn kể nó ra thành một bước
+	 *    thì lịch sử nói có thay đổi trong khi sổ không đổi gì.
+	 *
+	 * @param string $rid  Mã báo cáo.
+	 * @param string $ma   Mã ghế.
+	 * @param array  $nay  Dòng hiện tại (bc_dong) — mốc cuối của chuỗi.
+	 * @return array Mỗi phần tử: {luc, boi, doi:[{o, cu, moi}]}, cũ trước mới sau.
+	 */
+	public static function lich_su_sua( $rid, $ma, $nay ) {
+		global $wpdb;
+		$rid = (string) $rid; $ma = (string) $ma;
+		if ( '' === $rid || '' === $ma ) { return array(); }
+		$r = $wpdb->get_results( $wpdb->prepare(
+			'SELECT id, chi_tiet, boi, tao_luc FROM ' . VHG_DB::t( 'bc_undo' )
+			. " WHERE viec='sua' AND ly_do=%s AND da_hoan_tac=0 ORDER BY id ASC LIMIT 30",
+			$rid . '·' . $ma ), ARRAY_A );
+		if ( ! $r ) { return array(); }
+
+		/* Ba ô đáng kể ra. Chỉ số trước/tổng/actual là số SUY RA từ ba ô này, kể thêm chỉ làm dài
+		   dòng mà không nói thêm điều gì; ghi chú thì đã hiện nguyên văn ngay dưới tên ghế. */
+		$o_ten = array( 'chi_so_sau' => 'chỉ số sau', 'tien_mat' => 'tiền mặt', 'qr' => 'QR' );
+
+		$moc = array();
+		foreach ( $r as $x ) {
+			$ct = json_decode( (string) $x['chi_tiet'], true );
+			$cu = ( is_array( $ct ) && isset( $ct[0] ) && is_array( $ct[0] ) ) ? $ct[0] : null;
+			if ( null === $cu ) { continue; }
+			$moc[] = array( 'luc' => (string) $x['tao_luc'], 'boi' => (string) $x['boi'], 'gt' => $cu );
+		}
+		if ( ! $moc ) { return array(); }
+
+		$ra = array();
+		for ( $i = 0; $i < count( $moc ); $i++ ) {
+			$truoc = $moc[ $i ]['gt'];
+			$sau   = ( $i + 1 < count( $moc ) ) ? $moc[ $i + 1 ]['gt'] : (array) $nay;
+			$doi   = array();
+			foreach ( $o_ten as $cot => $ten ) {
+				$a = array_key_exists( $cot, $truoc ) ? $truoc[ $cot ] : null;
+				$b = array_key_exists( $cot, $sau ) ? $sau[ $cot ] : null;
+				/* So bằng CHUỖI sau khi ép kiểu: undo lưu qua JSON nên số có thể về dạng chuỗi,
+				   `!==` trần trụi là mọi ô đều "đổi" ở mọi lượt. NULL giữ riêng — "chưa có chỉ số"
+				   khác hẳn "chỉ số 0". */
+				$a_s = ( null === $a || '' === $a ) ? null : (string) (int) $a;
+				$b_s = ( null === $b || '' === $b ) ? null : (string) (int) $b;
+				if ( $a_s === $b_s ) { continue; }
+				$doi[] = array( 'o' => $ten,
+					'cu' => ( null === $a_s ) ? null : (int) $a_s,
+					'moi' => ( null === $b_s ) ? null : (int) $b_s );
+			}
+			/* Lượt không đổi ô nào trong ba ô ấy (ví dụ chỉ sửa ghi chú) thì không kể — một dòng
+			   "đã sửa" mà không nói sửa gì chỉ làm người đọc mất công dò. */
+			if ( ! $doi ) { continue; }
+			$ra[] = array( 'luc' => $moc[ $i ]['luc'], 'boi' => $moc[ $i ]['boi'], 'doi' => $doi );
+		}
+		return $ra;
 	}
 
 	// ══════════════════════════════════════════════════════════════════ SỬA (tính lại tiền)
@@ -286,6 +359,13 @@ class VHG_KeToan {
 		   thì THAY HẲN cash bằng số đó — QR giữ nguyên (điện tử, không phụ thuộc chỉ số máy). */
 		if ( array_key_exists( 'actualOverride', $patch ) && '' !== trim( (string) $patch['actualOverride'] ) ) {
 			$cash = (int) $patch['actualOverride'];
+			/* 🔴 DỌN DẤU GHI ĐÈ CŨ TRƯỚC KHI GẮN DẤU MỚI. Anh Thắng 01/09/2026 gửi ảnh ghế
+			   GO-TDM-1: *"Thực thu ghi đè: 100.000đ · Thực thu ghi đè: 220.000đ"* — sửa hai lần
+			   là hai dấu chồng lên nhau, sửa năm lần thì ghi chú thành một dải vô nghĩa, và
+			   người đọc không biết số nào đang có hiệu lực. `VHG_BaoCao::sua_dong()` (màn nhân
+			   viên 24h) vốn đã dọn đúng như thế từ đầu; đường KẾ TOÁN này thì quên — nên cùng
+			   một cột lại hành xử khác nhau tuỳ sửa ở màn nào. Cùng một phép dọn cho cả hai. */
+			$note = trim( preg_replace( '/\s*·?\s*Thực thu ghi đè:[^·]*/u', '', $note ) );
 			$note = trim( $note . ( '' !== $note ? ' · ' : '' ) . 'Thực thu ghi đè: ' . number_format( $cash, 0, ',', '.' ) . 'đ' );
 		}
 		$tong = $cash + $qr;

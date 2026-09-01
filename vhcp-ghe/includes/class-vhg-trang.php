@@ -4560,6 +4560,58 @@ function ktdDetail(o,box,xong){
     if(xong) xong();
   });
 }
+/* LỊCH SỬ SỬA SỐ CỦA MỘT GHẾ — anh Thắng 01/09/2026: *"thêm phần lịch sử sửa số, ngay chỗ ô sửa
+   lại, chèn nhỏ thôi"*.
+
+   ⚠️ "CHÈN NHỎ THÔI" LÀ MỘT YÊU CẦU VỀ BỐ CỤC, KHÔNG PHẢI LỜI KHÁCH SÁO. Cột này đã có hai nút,
+      và bảng thì hai mươi ghế một cơ sở. Nên: mặc định chỉ HAI DÒNG (lượt gần nhất), phần còn lại
+      nằm sau một chữ "còn N lượt" bấm mới bung. Đổ hết mười lượt ra là bảng dài gấp ba, và thứ
+      kế toán cần nhìn — số tiền — bị đẩy trôi khỏi màn. */
+function ktdLichSu(c){
+  var ds=(c.lichSu||[]);
+  if(!ds.length) return null;
+  var box=ktEl('div');
+  box.style.cssText='margin-top:6px;font-size:11px;line-height:1.45;opacity:.75;max-width:230px;text-align:left';
+  function gonLuc(s){
+    /* 'YYYY-MM-DD HH:MM:SS' -> 'dd/mm HH:MM'. Cắt bằng regex chứ không new Date(): chuỗi này là
+       giờ ĐỊA PHƯƠNG của máy chủ (current_time), đưa qua Date là trình duyệt hiểu thành UTC rồi
+       lệch đi vài tiếng — giờ sai trên nhật ký còn tệ hơn không có giờ. */
+    var k=/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(s||''));
+    return k?(k[3]+'/'+k[2]+' '+k[4]+':'+k[5]):String(s||'');
+  }
+  function so(v){ return (v===null||v===undefined)?'—':ktVnd(v); }
+  function dongBuoc(x){
+    var d=ktEl('div');
+    var t=ktEl('span','mut',gonLuc(x.luc)+' · '); t.style.opacity='.8'; d.appendChild(t);
+    (x.doi||[]).forEach(function(k,i){
+      if(i) d.appendChild(document.createTextNode(', '));
+      d.appendChild(document.createTextNode(k.o+' '+so(k.cu)+'→'));
+      var b=ktEl('b',null,so(k.moi)); d.appendChild(b);
+    });
+    if(x.boi){ var w=ktEl('div','mut','— '+x.boi); w.style.cssText='opacity:.7;margin-left:2px'; d.appendChild(w); }
+    return d;
+  }
+  var tieu=ktEl('div','mut',L('Lịch sử sửa số','Edit history'));
+  tieu.style.cssText='font-weight:600;opacity:.8';
+  box.appendChild(tieu);
+  /* Lượt GẦN NHẤT đứng trên — người đọc muốn biết "vừa rồi ai đổi gì" trước khi truy về gốc. */
+  var xuoi=ds.slice().reverse();
+  box.appendChild(dongBuoc(xuoi[0]));
+  if(xuoi.length>1){
+    var con=ktEl('div'); con.style.display='none';
+    for(var i=1;i<xuoi.length;i++) con.appendChild(dongBuoc(xuoi[i]));
+    var mo=ktEl('a',null,L('còn '+(xuoi.length-1)+' lượt…','+'+(xuoi.length-1)+' more…'));
+    mo.href='#'; mo.style.cssText='font-size:11px;text-decoration:underline;cursor:pointer';
+    mo.onclick=function(ev){
+      ev.preventDefault();
+      var hien=(con.style.display==='none');
+      con.style.display=hien?'':'none';
+      mo.textContent=hien?L('thu gọn','less'):L('còn '+(xuoi.length-1)+' lượt…','+'+(xuoi.length-1)+' more…');
+    };
+    box.appendChild(con); box.appendChild(mo);
+  }
+  return box;
+}
 function ktdRow(o,c,m,reload,locked){
   var tr=ktEl('tr'); tr.dataset.ma=c.chairCode;
   function td(x,r){ var e=ktEl('td',null,x); if(r){e.style.textAlign='right';e.style.fontVariantNumeric='tabular-nums';} return e; }
@@ -4623,6 +4675,10 @@ function ktdRow(o,c,m,reload,locked){
     };
     tdA.appendChild(bS); tdA.appendChild(bX);
   }
+  /* Lịch sử nằm NGAY DƯỚI hai nút, trong cùng ô — "ngay chỗ ô sửa" theo đúng nghĩa đen. Hiện cả
+     khi báo cáo đã khoá: khoá là thôi sửa được, không phải thôi xem được ai đã sửa gì. */
+  var ls=ktdLichSu(c);
+  if(ls) tdA.appendChild(ls);
   tr.appendChild(tdA);
   return tr;
 }
