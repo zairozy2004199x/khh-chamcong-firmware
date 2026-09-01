@@ -6242,28 +6242,27 @@ function qlTach(t){
   var chu = mm ? t.slice(0, t.length - mm[1].length) : t;
   return { chu: chu, so: so };
 }
-function qlLev(a, b){   // khoang cach chinh sua, du dung cho ten ngan
-  var m = a.length, n = b.length, i, j, d = [];
-  for (i = 0; i <= m; i++){ d[i] = [i]; }
-  for (j = 0; j <= n; j++){ d[0][j] = j; }
-  for (i = 1; i <= m; i++) for (j = 1; j <= n; j++){
-    d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
-  }
-  return d[m][n];
-}
-/* Hai phan chu "na na" nhau: mot cai la dau cua cai kia (VHM ⊂ VHMM), hoac lech <=1 ky tu. */
+/* Hai phan chu "na na" = TEN NGAN LA DAU (prefix) CUA TEN DAI: VHM ⊂ VHMM, VCTD ⊂ VCTDUC.
+   KHONG dung khoang cach chinh sua — "AMBD" vs "AMBT" chi lech 1 ky tu nhung la HAI co so khac
+   nhau (Aeon Binh Duong vs Binh Tan), khong phai trung. Chi bat dung kieu "them chu vao duoi". */
 function qlNaNa(a, b){
-  if (a === b) return true;
-  if (a && b && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) return true;
-  return qlLev(a, b) <= 1;
+  if (!a || !b) return false;
+  if (a === b) return true;                          // trung y het (cung co so = mot ghe lam 2 lan)
+  var ng = a.length < b.length ? a : b, dai = a.length < b.length ? b : a;
+  return ng.length >= 2 && dai.indexOf(ng) === 0;    // ten ngan la DAU cua ten dai
 }
 
-/* Tim cac NHOM ghe trung ten na na. GOM THEO SO CUOI, KHONG theo co so — vi ghe ao thuong nam o
+/* Tim cac NHOM ghe trung ten na na TRONG CO SO DANG LOC. GOM THEO SO CUOI — vi ghe ao thuong nam o
    MOT CO SO KHAC (hoac chua gan) nen loc co so o tren khong thay; phai soi ca kho. Moi nhom giu 1
    ghe (uu tien CO PHAN CUNG; hoa thi ten ngan nhat). CHI goi y an ghe CHUA GAN PHAN CUNG — ghe that
    dang chay (co MAC) khong bao gio bi an tu dong. */
 function qlTimNhom(){
-  var may = (D && D.may || []).filter(function(m){ return !m.an; });
+  var may = (D && D.may || []).filter(function(m){
+    if (m.an) return false;
+    if (QL_LOC === '') return true;
+    if (QL_LOC === '__none__') return !m.coso;
+    return m.coso === QL_LOC;                         // CHI soi trong co so dang loc — tranh gom nham ghe khac co so
+  });
   var bucket = {};
   may.forEach(function(m){
     var p = qlTach(m.ten || m.ma);
@@ -6300,15 +6299,22 @@ function qlTimNhom(){
 /* Man xem truoc: liet ke nhom trung ten, tich san cac ghe se an, cho sua roi bam An. */
 function qlTimTrung(){
   var box = document.getElementById('ql-wrap'); if (!box) return;
+  if (QL_LOC === ''){
+    alert(L('Chon 1 co so o o "Loc co so" truoc roi bam. Cong cu chi soi trung ten TRONG co so dang mo — de anh thay ro cai nao that, cai nao sai; khong an loan xa ca he thong.',
+      'Pick a site in the filter first — this only scans within the selected site.'));
+    return;
+  }
+  var tenCs = QL_LOC === '__none__' ? L('(chưa gán)','(unassigned)') : QL_LOC;
   var nhom = qlTimNhom();
   if (!nhom.length){
-    alert(L('Khong tim thay ghe trung ten na na nhau. (Chi soi ghe chua dieu chuyen, ten dang chu+so nhu VHM-1.)',
-      'No near-duplicate chair names found.'));
+    alert(L('Cơ sở "' + tenCs + '" không có ghế trùng tên kiểu thêm chữ (VHM-1 vs VHMM-1). '
+        + 'Mở cơ sở khác để soi tiếp.',
+      'No duplicate names in "' + tenCs + '".'));
     return;
   }
   var tong = 0; nhom.forEach(function(g){ tong += g.an.length; });
   var h = '<div class="card" style="margin:0 0 10px;border:1px solid #f0c98a;background:#fffaf0">'
-    + '<h3 style="margin:0 0 6px">🔍 ' + L('Ghe nghi trung ten','Suspected duplicates') + ' — '
+    + '<h3 style="margin:0 0 6px">🔍 ' + L('Ghế nghi trùng tên trong','Duplicates in') + ' ' + esc(tenCs) + ' — '
     + nhom.length + ' ' + L('nhom','groups') + ', ' + tong + ' ' + L('ghe se an','chairs to hide') + '</h3>'
     + '<p class="mut" style="margin:0 0 10px">' + L('Moi nhom giu 1 ghe (uu tien ghe co phan cung / ten ngan). '
       + 'Cac ghe tich san se AN (dieu chuyen) — chi so & doanh thu GIU NGUYEN, dua ve lai duoc. Bo tich neu muon giu.',
