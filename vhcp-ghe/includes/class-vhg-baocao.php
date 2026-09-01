@@ -617,8 +617,15 @@ class VHG_BaoCao {
 			   khi KHÔNG có lý do, y hệt trước giờ. */
 			$ly_do_bt = mb_substr( trim( (string) ( isset( $r0['abnormalReason'] ) ? $r0['abnormalReason'] : '' ) ), 0, 200 );
 			$ghi_chu  = trim( (string) ( isset( $r0['note'] ) ? $r0['note'] : '' ) );
+			/* 🔴 LÝ DO NAY CHÍNH LÀ GHI CHÚ. Từ 01/09/2026 màn hình bỏ ô lý do riêng trong khung
+			   cảnh báo (anh Thắng: *"Chỉ hiện cảnh báo thôi, chứ không nhập, vì phía sau có
+			   rồi"*) và gửi thẳng nội dung cột "Ghi chú" lên làm `abnormalReason`. Ghép nguyên
+			   phép cũ thì ghi chú bị chép hai lần: "⚠ CHỈ SỐ BẤT THƯỜNG: đổi máy · đổi máy".
+			   Nên chỉ gắn TIỀN TỐ khi hai chuỗi khác nhau; giống nhau thì gắn tiền tố một lần. */
 			if ( '' !== $ly_do_bt ) {
-				$ghi_chu = trim( '⚠ CHỈ SỐ BẤT THƯỜNG: ' . $ly_do_bt . ( '' !== $ghi_chu ? ' · ' . $ghi_chu : '' ) );
+				$ghi_chu = ( $ly_do_bt === $ghi_chu || '' === $ghi_chu )
+					? trim( '⚠ CHỈ SỐ BẤT THƯỜNG: ' . $ly_do_bt )
+					: trim( '⚠ CHỈ SỐ BẤT THƯỜNG: ' . $ly_do_bt . ' · ' . $ghi_chu );
 			}
 			/* ĐỐI CHIẾU LƯỢT KÍCH GHẾ TỪ XA — anh Thắng 28/08: "nếu ghế nào có kích thì báo,
 			   không có thì thôi". Tính TRƯỚC khi tinh_() để trừ thẳng vào actual; "báo" bằng cách
@@ -687,7 +694,7 @@ class VHG_BaoCao {
 						? ( 'chỉ số sau (' . $r['chi_so_sau'] . ') nhỏ hơn chỉ số trước (' . $r['chi_so_truoc'] . ')' )
 						: ( 'tiền mặt tính ra ÂM (' . number_format( $r['tien_mat'], 0, ',', '.' ) . 'đ) — QR lớn hơn Actual' );
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten'] . ': ' . $ly_ban_dau
-						. '. Ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột Thực thu tiền mặt rồi gửi lại.' );
+						. '. Ghi lý do ở cột Ghi chú và nhập đúng số tiền thật vào cột Thực thu tiền mặt rồi gửi lại.' );
 				}
 				if ( null === $thuc_thu ) {
 					return array( 'ok' => false, 'message' => 'Ghế ' . $r['ten']

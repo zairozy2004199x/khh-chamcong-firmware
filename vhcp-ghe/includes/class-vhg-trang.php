@@ -1868,26 +1868,24 @@ class VHG_Trang {
          chuyện gì đang xảy ra và việc duy nhất cần làm: gõ số tiền mặt thật (thường là 0). */
       w.style.display='';
       w.classList.add('bc-nhac');
-      if(w.querySelector('.ly-do-bt')) w.textContent='';
       w.textContent='⚠ Máy đứng yên ('+after+') mà có QR — bình thường khi khách trả QR nhưng '
         +'bộ đếm không nhảy. Gõ số tiền mặt thật vào cột "Thực thu tiền mặt" (thường là 0) là gửi '
         +'được, không cần ghi lý do.';
     } else if(batThuong){
+      /* 🔴 CHỈ HIỆN CẢNH BÁO, KHÔNG DỰNG THÊM Ô NHẬP — anh Thắng 01/09/2026: *"Chỉ hiện cảnh báo
+         thôi, chứ không nhập, vì phía sau có rồi"*. Hàng nào cũng đã có sẵn cột "Ghi chú" với ô
+         "Lý do…", và cột "Thực thu tiền mặt" đứng ngay cạnh. Nhét thêm một ô lý do THỨ HAI vào
+         khung đỏ là bắt người ta gõ hai lần cùng một câu, mà hai ô ấy lại đi về hai chỗ khác
+         nhau trong sổ. Nay lý do lấy thẳng từ cột Ghi chú. */
       w.style.display='';
       w.classList.remove('bc-nhac');
-      if(!w.querySelector('.ly-do-bt')){
-        w.textContent='';
-        w.appendChild(document.createTextNode(chiSoNguoc
-          ? '⚠ Chỉ số sau nhỏ hơn trước — ghi lý do:'
-          : '⚠ Công thức tính ra ÂM (QR lớn hơn Actual) — ghi lý do:'));
-        var iLy=el('input','ly-do-bt'); iLy.type='text'; iLy.placeholder='VD: đổi máy đếm, thay điểm, gõ nhầm QR…';
-        iLy.style.cssText='display:block;width:100%;max-width:220px;margin-top:4px';
-        w.appendChild(iLy);
-        w.appendChild(document.createTextNode('Và nhập đúng số tiền thật vào cột "Thực thu tiền mặt" ở trên.'));
-      }
+      w.textContent=(chiSoNguoc
+        ? '⚠ Chỉ số sau nhỏ hơn trước'
+        : '⚠ Công thức tính ra ÂM (QR lớn hơn Actual)')
+        + ' — ghi lý do ở cột "Ghi chú" và nhập số tiền thật ở cột "Thực thu tiền mặt" của hàng này.';
     } else {
       w.style.display='none';
-      if(w.querySelector('.ly-do-bt')) w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
+      w.textContent='';   // hết bất thường (sửa lại số) thì dọn sạch
     }
   }
 
@@ -1991,8 +1989,9 @@ class VHG_Trang {
       if(mayDungR){
         if(!coTTR){ canhBao.push((r.chairName||r.chairCode)+' (gõ Thực thu, thường là 0)'); continue; }
       } else if(chiSoNguoc||rawCashR<0){
+        /* Lý do lấy từ cột "Ghi chú" của chính hàng đó — ô lý do riêng trong khung đỏ đã bỏ. */
         var trR=document.querySelector('#bc-rows tr[data-ma="'+r.chairCode.replace(/"/g,'\\"')+'"]');
-        var iLy=trR&&trR.querySelector('.ly-do-bt');
+        var iLy=trR&&trR.querySelector('.note');
         var ly=iLy?(iLy.value||'').trim():'';
         if(!ly||!coTTR){ canhBao.push(r.chairName||r.chairCode); continue; }
         r.abnormalReason=ly;
@@ -2000,7 +1999,7 @@ class VHG_Trang {
       r.actualOverride=coTTR?r.adjust:null;
     }
     if(canhBao.length){
-      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do ở ô đỏ và nhập đúng số tiền thật vào cột "Thực thu tiền mặt" của hàng đó rồi bấm Gửi lại.';
+      msg.textContent='Chỉ số/tiền bất thường ở '+canhBao.length+' ghế ('+canhBao.join(', ')+') — ghi lý do ở cột "Ghi chú" và nhập đúng số tiền thật vào cột "Thực thu tiền mặt" của hàng đó rồi bấm Gửi lại.';
       msg.className='bc-msg bc-err'; return;
     }
     var mEl=$('bc-method'); var method=mEl?mEl.value:'cash';
