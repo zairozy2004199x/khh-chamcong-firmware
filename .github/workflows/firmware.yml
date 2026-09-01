@@ -301,6 +301,63 @@ jobs:
           name: ghe-${{ github.sha }}
           path: ghebuild/esp32_ghe_massage.ino.bin
 
+      # ==========================================================================================
+      # ĐẨY .bin GHẾ LÊN NHÁNH 'bin-ghe' — ĐỂ CÓ LINK TẢI THẲNG.
+      #
+      # 🔴 VÌ SAO CẦN. Artifact của Actions nằm trên blob của Azure, và link tải nó vừa cần đăng
+      #    nhập GitHub vừa hết hạn sau ít phút. Muốn đưa một bản nạp cho người khác thì phải bảo
+      #    họ tự vào Actions, tìm đúng lượt chạy, tải zip rồi giải nén — mà lúc cần nạp firmware
+      #    thì thường là đang đứng cạnh cái máy, không phải ngồi trước máy tính có tài khoản.
+      #
+      #    Link raw của nhánh thì tải thẳng, không đăng nhập, không hết hạn:
+      #      https://raw.githubusercontent.com/<chu>/<repo>/bin-ghe/ghe-latest.bin
+      #
+      # 🔴 NHÁNH RIÊNG, KHÔNG DÙNG CHUNG NHÁNH 'bin'. Nhánh 'bin' bị FORCE-PUSH mỗi lượt build
+      #    máy chấm công; để chung là bản ghế lặng lẽ biến mất ở lượt build sau, mà không có gì
+      #    báo. Hai loại máy, hai nhánh.
+      #
+      # ⚠️ CHẠY TRÊN MỌI NHÁNH — cố ý. Bản ghế thường phải xem thử trước khi gộp, mà đó đúng là
+      #    lúc cần bản nạp nhất. .bin này build với `secrets.ci.h` toàn placeholder và đã qua
+      #    bước kiểm "sạch bí mật" ngay phía trên, nên đặt ở chỗ tải công khai được.
+      # ==========================================================================================
+      - name: Day .bin ghe len nhanh 'bin-ghe' (link tai thang)
+        env:
+          PUB: ${{ github.repository }}
+        run: |
+          set -e
+          BIN="ghebuild/esp32_ghe_massage.ino.bin"
+          VERGHE=$(grep -m1 '#define FW_VERSION' esp32_ghe_massage/esp32_ghe_massage.ino \
+                   | sed 's/.*"\(.*\)".*/\1/')
+          mkdir -p /tmp/binghe
+          cp "$BIN" /tmp/binghe/ghe-latest.bin
+          printf 'fw=%s\ncommit=%s\nnhanh=%s\nsize=%s\n' \
+            "$VERGHE" "$GITHUB_SHA" "$GITHUB_REF_NAME" "$(stat -c%s "$BIN")" > /tmp/binghe/thongtin.txt
+          {
+            echo 'Nhanh nay CHI chua file .bin cua GHE MASSAGE de tai thang qua link raw.'
+            echo 'Bi force-push moi lan build - dung dat gi khac vao day.'
+            echo ''
+            echo 'Nap bang esptool:'
+            echo '  esptool.py --chip esp32 --port <CONG> --baud 921600 write_flash 0x10000 ghe-latest.bin'
+            echo 'Hoac nap ca ba manh (bootloader + partitions + app) neu board con trong.'
+          } > /tmp/binghe/README.md
+          cd /tmp/binghe
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -b bin-ghe
+          git add -A && git commit -q -m "bin ghe $VERGHE ($GITHUB_SHA)"
+          git push -q --force "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/$PUB.git" bin-ghe
+          RAW="https://raw.githubusercontent.com/$PUB/bin-ghe/ghe-latest.bin"
+          echo "Link tai thang: $RAW"
+          # Kiểm THẬT link vừa đẩy — đừng để đưa cho người ta một địa chỉ chết.
+          for i in 1 2 3 4 5 6; do
+            sleep 5
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' "$RAW" || echo 0)
+            echo "  thu $i: http=$CODE"
+            [ "$CODE" = "200" ] && break
+          done
+          [ "$CODE" = "200" ] || { echo "::error::Link raw chua tra 200 - .bin chua tai duoc"; exit 1; }
+
   # Máy trạm ("thợ nạp"): CHỈ kiểm biên dịch, không phát hành.
   # Sketch này trước 30/07/2026 CHƯA TỪNG được compile kiểm lần nào.
   updater:
