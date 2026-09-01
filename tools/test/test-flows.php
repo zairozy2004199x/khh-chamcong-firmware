@@ -405,6 +405,96 @@ t( '🔴 và việc ấy là việc của người duyệt, không phải của 
 VHCP_Don::delete_don_admin( $mdl );
 VHCP_Don::delete_don_admin( $dl2['maDon'] );
 
+/* =============================================================================================
+ * 🔴 DỌN BÙ TRỪ CŨ KHỎI SỐ ĐÃ DUYỆT
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"tạm ứng 15tr, chi 15tr mà vẫn thiếu"*. Đơn duyệt TRƯỚC bản 1.53.0 giữ
+ * con số đã bị trừ bù trừ; luật nay đã đổi nhưng con số ấy nằm cứng trong sổ, nên khối Quyết
+ * toán so tiền đã chi với con số cũ và báo thiếu dù thực ra không thiếu.
+ */
+/* (a) Đơn DÍNH luật cũ: số duyệt = tổng xin + bù trừ. */
+$bc1 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mbc1 = $bc1['maDon'];
+VHCP_Don::add_line( $mbc1, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dính luật cũ',
+	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+$bt1 = VHCP_Util::num( VHCP_Don::get_don( $mbc1 )['don']['buTru'] );
+t( 'đơn thử có bù trừ khác 0', 0.0 !== (float) $bt1, $bt1 );
+VHCP_Don::gui_duyet_tam_ung( $mbc1 );
+VHCP_Don::duyet_tam_ung( $mbc1, 'Trần Quản Lý', 1000000 + $bt1 );   // đúng cách bản cũ tính
+
+/* (b) Đơn quản lý CỐ Ý duyệt thấp hơn — hoàn toàn hợp lệ, KHÔNG được đụng tới. */
+$bc2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mbc2 = $bc2['maDon'];
+VHCP_Don::add_line( $mbc2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Duyệt thấp cố ý',
+	'soLuong' => 1, 'donGia' => 2000000, 'thanhTien' => 2000000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mbc2 );
+VHCP_Don::duyet_tam_ung( $mbc2, 'Trần Quản Lý', 1200000 );   // cắt bớt, không liên quan bù trừ
+
+$do1 = VHCP_Don::don_bu_tru_cu( false );
+$ma_do = array();
+foreach ( (array) $do1['items'] as $x ) { $ma_do[] = (string) $x['maDon']; }
+t( '🔴 dò thấy đơn dính luật cũ', in_array( $mbc1, $ma_do, true ), $ma_do );
+t( '🔴 KHÔNG đụng đơn quản lý cố ý duyệt thấp', ! in_array( $mbc2, $ma_do, true ), $ma_do );
+teq( 'dò thôi thì chưa sửa gì', 0, (int) $do1['daSua'] );
+teq( 'và số duyệt còn nguyên', 1000000.0 + (float) $bt1,
+	(float) VHCP_Don::get_don( $mbc1 )['tongCN']['tamUng'] );
+
+$do2 = VHCP_Don::don_bu_tru_cu( true );
+t( 'chốt thì có sửa', (int) $do2['daSua'] >= 1, $do2 );
+teq( '🔴 số duyệt về đúng tổng xin', 1000000.0,
+	(float) VHCP_Don::get_don( $mbc1 )['tongCN']['tamUng'] );
+teq( 'đơn duyệt thấp cố ý vẫn y nguyên', 1200000.0,
+	(float) VHCP_Don::get_don( $mbc2 )['tongCN']['tamUng'] );
+/* Nhật ký ghi rõ đã gỡ cái gì — sửa tiền hàng loạt mà không có vết thì không ai soi lại được. */
+$_bc_log = '';
+foreach ( (array) VHCP_Don::nhat_ky_don( $mbc1, 20 )['items'] as $_x ) {
+	if ( false !== strpos( (string) $_x['hanhDong'], 'Dọn bù trừ cũ' ) ) { $_bc_log .= (string) $_x['chiTiet']; }
+}
+t( '🔴 nhật ký ghi số cũ, số mới và phần bù trừ đã gỡ',
+	false !== mb_strpos( $_bc_log, '1.000.000' ) && false !== mb_strpos( $_bc_log, 'luật trước 1.53.0' ), $_bc_log );
+/* Chạy lại thì không còn gì — đã sửa rồi, dấu tay số học không còn khớp nữa. */
+teq( 'chạy lại thì sạch', 0, (int) VHCP_Don::don_bu_tru_cu( false )['tong'] );
+
+/* 🔴 CẤP TIỀN RỒI THÌ KHÔNG ĐỤNG. Số đã vào sổ quỹ — cùng lý do với `duyet_lai_tam_ung()`. */
+$bc3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mbc3 = $bc3['maDon'];
+VHCP_Don::add_line( $mbc3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đã cấp tiền',
+	'soLuong' => 1, 'donGia' => 900000, 'thanhTien' => 900000 ) );
+$bt3 = VHCP_Util::num( VHCP_Don::get_don( $mbc3 )['don']['buTru'] );
+VHCP_Don::gui_duyet_tam_ung( $mbc3 );
+VHCP_Don::duyet_tam_ung( $mbc3, 'Trần Quản Lý', 900000 + $bt3 );
+VHCP_Don::cap_tam_ung( $mbc3, 'Lê Kế Toán' );
+$do3 = VHCP_Don::don_bu_tru_cu( false );
+$ma_do3 = array();
+foreach ( (array) $do3['items'] as $x ) { $ma_do3[] = (string) $x['maDon']; }
+t( '🔴 đơn ĐÃ CẤP TIỀN không nằm trong danh sách dọn', ! in_array( $mbc3, $ma_do3, true ), $ma_do3 );
+
+/* ⚠️ Sửa TIỀN hàng loạt thì chỉ Admin — soi thẳng danh sách trắng ở API. */
+$_api3 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+t( '🔴 donBuTruCu nằm trong nhóm CHỈ ADMIN',
+	1 === preg_match( '/\$admin_only = array\([\s\S]{0,400}?\x27donBuTruCu\x27/', $_api3 ), null );
+
+VHCP_Don::delete_don_admin( $mbc1 );
+VHCP_Don::delete_don_admin( $mbc2 );
+VHCP_Don::delete_don_admin( $mbc3 );
+
+/* 🔴 CÂU GIẢI THÍCH BÙ TRỪ KHÔNG ĐƯỢC CHỌI VỚI NHÃN. Anh Thắng gửi ảnh đúng cảnh ấy: nhãn ghi
+   "chỉ để biết, KHÔNG trừ vào tuần này", rê chuột vào thì tooltip cũ vẫn nói "→ tuần này trừ
+   đi". Người đọc tin câu nào cũng sai một nửa, mà đây là câu giải thích một con số TIỀN.
+   Đổi luật ở một nơi thì phải đi hết những nơi ĐANG KỂ LẠI luật ấy — chuỗi chữ không có trình
+   biên dịch nào nhắc. */
+$bc4 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$_ly = (string) VHCP_Don::get_don( $bc4['maDon'] )['don']['buTruAuto']['lyDo'];
+t( 'câu giải thích KHÔNG còn nói "tuần này trừ đi"', false === mb_strpos( $_ly, 'tuần này trừ đi' ), $_ly );
+t( 'và KHÔNG còn nói "tuần này bù thêm"', false === mb_strpos( $_ly, 'tuần này bù thêm' ), $_ly );
+t( '🔴 mà nói rõ nó chỉ để BÁO CÁO',
+	'' === $_ly || false !== mb_strpos( $_ly, 'chỉ để BÁO CÁO' )
+	|| false !== mb_strpos( $_ly, 'chưa có tuần nào trước' ), $_ly );
+VHCP_Don::delete_don_admin( $bc4['maDon'] );
+
 // Người khác thì không ăn theo bù trừ của người này
 $d3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Mới Toanh' );
 teq( 'người khác không bị bù trừ của người này', 0, VHCP_Util::num( VHCP_Don::get_don( $d3['maDon'] )['don']['buTru'] ) );

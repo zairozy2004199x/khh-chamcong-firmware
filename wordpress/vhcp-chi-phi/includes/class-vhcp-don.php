@@ -876,8 +876,13 @@ class VHCP_Don {
 	 * lập nên số dư của quản lý bị xé nhỏ theo từng người, và tuần nào quản lý duyệt nhiều đơn
 	 * thì chỉ một đơn được mang sang, phần còn lại rơi mất.
 	 *
-	 * chenhLech của đơn = tạm ứng − thực chi cá nhân: DƯƠNG là DƯ, ÂM là THIẾU. Bù trừ mang
-	 * dấu ngược lại: tuần trước dư thì tuần này trừ đi, thiếu thì tuần này bù thêm.
+	 * chenhLech của đơn = tạm ứng − thực chi cá nhân: DƯƠNG là DƯ, ÂM là THIẾU.
+	 *
+	 * 🔴 TỪ BẢN 1.53.0 CON SỐ NÀY CHỈ ĐỂ BÁO CÁO, KHÔNG CỘNG/TRỪ VÀO TIỀN TUẦN SAU.
+	 *    Anh Thắng 31/08/2026: *"phần thiếu thừa tạm ứng của tuần trước nó chỉ là con số báo
+	 *    cáo, và không được cộng hay trừ vào tiền của tuần sau"*. Dấu vẫn giữ nguyên (âm = tuần
+	 *    trước dư, dương = tuần trước thiếu) để màn hình đọc ra chiều, nhưng KHÔNG nơi nào cộng
+	 *    nó vào tạm ứng nữa — xem khối 🔴 ở `list_dons()`.
 	 *
 	 * Đơn đã đánh dấu TẤT TOÁN, hoặc thuộc cơ sở ĐÃ ĐÓNG CỬA, thì không góp vào tổng — đã
 	 * thu/bù xong bằng tiền, cộng tiếp là cộng hai lần.
@@ -992,9 +997,16 @@ class VHCP_Don {
 
 		$so  = -$tong;   // tuần trước DƯ (chênh dương) → tuần này TRỪ; THIẾU → tuần này BÙ
 		$goi = $so_don . ' đơn';
-		if ( $so > 0 )     { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — THIẾU ' . VHCP_Util::tien( $so ) . ' → tuần này bù thêm'; }
-		elseif ( $so < 0 ) { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — còn DƯ ' . VHCP_Util::tien( -$so ) . ' → tuần này trừ đi'; }
-		else               { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — vừa khớp, không phải bù trừ'; }
+		/* 🔴 CÂU NÀY LÀ TOOLTIP CỦA CHÍNH CÁI NHÃN "KHÔNG trừ vào tuần này" — hai câu không được
+		   chọi nhau. Anh Thắng 31/08/2026 gửi ảnh đúng cảnh ấy: nhãn ghi "chỉ để biết, KHÔNG trừ
+		   vào tuần này", rê chuột vào thì tooltip cũ vẫn nói "→ tuần này trừ đi". Người đọc tin
+		   câu nào cũng sai một nửa, mà đây là câu giải thích một con số tiền.
+		   ⚠️ Đổi luật ở một nơi thì phải đi hết những nơi ĐANG KỂ LẠI luật ấy — chuỗi chữ không
+		      có trình biên dịch nào nhắc. */
+		$duoi = ' · chỉ để BÁO CÁO, không trừ/cộng vào tạm ứng tuần này';
+		if ( $so > 0 )     { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — còn THIẾU ' . VHCP_Util::tien( $so ) . $duoi; }
+		elseif ( $so < 0 ) { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — còn DƯ ' . VHCP_Util::tien( -$so ) . $duoi; }
+		else               { $ly = 'tuần trước (' . $ky_truoc . ') của ' . $ql . ' — ' . $goi . ' — vừa khớp, không còn treo gì'; }
 		if ( $du_kien ) { $ly .= ' · QUẢN LÝ DỰ KIẾN — chốt lại khi duyệt'; }
 		if ( $bo_qua )  { $ly .= ' · bỏ qua: ' . implode( ' · ', $bo_qua ); }
 
@@ -1937,6 +1949,61 @@ class VHCP_Don {
 			VHCP_Util::tien( $cu ) . '  →  ' . VHCP_Util::tien( $moi ) );
 		self::bao_noi_bo( $ma_don, 'đã được duyệt LẠI số tạm ứng: ' . VHCP_Util::tien( $moi ) );
 		return VHCP_Util::ok( array( 'cu' => $cu, 'moi' => VHCP_Util::num( $moi ) ) );
+	}
+
+	/**
+	 * DỌN ĐƠN CÒN DÍNH BÙ TRỪ THEO LUẬT CŨ.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026: *"tạm ứng 15tr, chi 15tr mà vẫn thiếu"*. Đơn duyệt TRƯỚC bản
+	 *    1.53.0 giữ con số duyệt đã bị trừ bù trừ tuần trước; luật nay đã đổi nhưng con số ấy
+	 *    nằm cứng trong sổ, nên khối đối chiếu vẫn so 15.000.032đ đã chi với 9.405.032đ đã duyệt
+	 *    và ra "THIẾU 5.595.000đ — kế toán bù". Tiền không thiếu; chỉ con số duyệt là cũ.
+	 *
+	 *    Bấm "Duyệt lại" từng đơn thì đúng nhưng chậm khi có mấy chục đơn dính.
+	 *
+	 * 🔴 CHỈ NHẬN ĐƠN CÓ DẤU VẾT SỐ HỌC RÕ RÀNG: `tam_ung_duyet` đúng bằng
+	 *    `tổng xin + dự phòng + bù trừ`. Quản lý CỐ Ý duyệt thấp hơn số xin là chuyện có thật và
+	 *    hoàn toàn hợp lệ — không được đụng vào. Chênh phải đúng bằng con số bù trừ thì mới là
+	 *    dấu tay của luật cũ, và lúc ấy sửa mới là khôi phục chứ không phải đoán.
+	 *
+	 * ⚠️ CHƯA CẤP TIỀN. Cấp rồi thì số đã vào sổ quỹ — cùng lý do với `duyet_lai_tam_ung()`.
+	 *
+	 * ⚠️ DÒ TRƯỚC, CHỐT SAU. `$chot = false` chỉ trả danh sách xem trước, không đụng dữ liệu.
+	 *    Sửa tiền hàng loạt mà chạy thẳng thì sai một phát là sai cả chồng đơn.
+	 */
+	public static function don_bu_tru_cu( $chot = false ) {
+		$ds = array(); $da_sua = 0;
+		foreach ( self::don_rows() as $d ) {
+			if ( 'Chờ cấp tạm ứng' !== (string) $d['trang_thai'] ) { continue; }
+			$bt = VHCP_Util::num( $d['bu_tru'] );
+			if ( 0.0 === (float) $bt ) { continue; }
+			$ma  = (string) $d['ma_don'];
+			$duy = VHCP_Util::num( $d['tam_ung_duyet'] );
+			$xin = self::tong_xin_hien_tai( $ma );
+			if ( null === $xin ) { continue; }
+			/* Dấu tay của luật cũ: số duyệt = xin + bù trừ. Lệch một đồng là không phải, bỏ qua. */
+			if ( abs( ( $xin + $bt ) - $duy ) > 0.5 ) { continue; }
+			$ds[] = array(
+				'maDon'  => $ma,
+				'ky'     => (string) $d['ky'],
+				'nguoi'  => (string) $d['nguoi_lap'],
+				'duyet'  => $duy,
+				'buTru'  => $bt,
+				'moi'    => $xin,
+			);
+			if ( $chot ) {
+				self::upd_don( $ma, array( 'tam_ung_duyet' => VHCP_Util::num( $xin ) ) );
+				self::ghi_vet( $ma, 'Dọn bù trừ cũ khỏi số duyệt',
+					VHCP_Util::tien( $duy ) . '  →  ' . VHCP_Util::tien( $xin )
+					. ' (gỡ phần bù trừ ' . VHCP_Util::tien( $bt ) . ' theo luật trước 1.53.0)' );
+				$da_sua++;
+			}
+		}
+		return VHCP_Util::ok( array(
+			'items'  => array_slice( $ds, 0, 400 ),
+			'tong'   => count( $ds ),
+			'daSua'  => $da_sua,
+		) );
 	}
 
 	public static function cap_tam_ung( $ma_don, $nguoi, $ht_cap = 'Tiền mặt', $anh_cap = '' ) {

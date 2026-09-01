@@ -24,6 +24,8 @@ class VHCP_API {
 		// Sửa hàng loạt NGÀY của dòng chi là đụng thẳng vào số liệu kế toán (ngày quyết định
 		// kỳ hạch toán). Chốt ở máy chủ, không tin mỗi giao diện.
 		$admin_only = array( 'deleteDonAdmin', 'unmarkExportedSoChi', 'suaNamVoLy', 'suaNgayHong', 'suaKyHong', 'setDonNgay',
+			/* Sửa TIỀN hàng loạt trên đơn đã duyệt — chỉ Admin, và chỉ sau khi xem trước. */
+			'donBuTruCu',
 			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
 			'listUserBak', 'khoiPhucUsers',
 			// Đổi tên cơ sở là sửa hàng loạt trên bốn bảng dữ liệu — chỉ Admin.
@@ -215,6 +217,7 @@ class VHCP_API {
 			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho
 			   quản lý chốt lại số, miễn là chưa cấp tiền. */
 			'duyetLaiTamUng'        => array( 'VHCP_Don', 'duyet_lai_tam_ung' ),
+			'donBuTruCu'            => array( 'VHCP_Don', 'don_bu_tru_cu' ),
 			/* Thùng rác: xoá nhầm đơn hoặc dòng chi thì hoàn lại được. Cố ý KHÔNG khai vào
 			   nhóm người-duyệt: người lập tự xoá nháp của mình thì cũng phải tự hoàn lại được.
 			   Chốt "chỉ hoàn thao tác của chính mình" nằm trong `VHCP_Don::hoan_tac()`, cùng

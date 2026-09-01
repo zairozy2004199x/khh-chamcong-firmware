@@ -987,6 +987,30 @@
       <div id="ngayHongKq" style="padding:0 14px 12px"></div>
     </div>
 
+    <!-- 🔴 DỌN BÙ TRỪ CŨ KHỎI SỐ ĐÃ DUYỆT — anh Thắng 31/08/2026: *"tạm ứng 15tr, chi 15tr mà
+         vẫn thiếu"*. Đơn duyệt TRƯỚC bản 1.53.0 giữ con số đã bị trừ bù trừ tuần trước; luật
+         nay đã đổi nhưng con số ấy nằm cứng trong sổ. Bấm "Duyệt lại" từng đơn thì đúng nhưng
+         chậm khi có mấy chục đơn dính. -->
+    <div class="card" id="btCuCard">
+      <div class="ch"><h2>🧹 Dọn bù trừ cũ khỏi số đã duyệt</h2>
+        <div style="display:flex;gap:8px">
+          <button class="btn b-x" onclick="doDoBtCu()">🔍 Dò</button>
+          <button class="btn b-g" id="btCuChot" style="display:none" onclick="doChotBtCu()">✔ Sửa các đơn trên</button>
+        </div>
+      </div>
+      <div style="padding:10px 14px;font-size:12px;color:#475569;line-height:1.7">
+        Từ bản <b>1.53.0</b>, thừa/thiếu của tuần trước <b>chỉ là con số báo cáo</b> — không trừ vào tiền
+        tuần sau nữa. Nhưng đơn đã duyệt <b>trước</b> đó vẫn giữ con số đã bị trừ, nên khối Quyết toán
+        so tiền đã chi với con số cũ và báo <b>thiếu</b> dù thực ra không thiếu.
+        <div style="margin-top:6px;padding:8px 10px;background:#fef9c3;color:#854d0e;border-radius:8px">
+          ⚠️ Chỉ đụng vào đơn <b>chưa cấp tiền</b>, và chỉ khi số duyệt <b>đúng bằng</b> tổng xin + bù trừ —
+          tức dấu tay rõ ràng của luật cũ. Quản lý <b>cố ý</b> duyệt thấp hơn số xin thì <b>không</b> bị đụng tới.
+        </div>
+        Luôn <b>Dò</b> để xem trước — <b>không sửa gì</b> cho tới khi bấm xác nhận.
+      </div>
+      <div id="btCuKq" style="padding:0 14px 12px"></div>
+    </div>
+
     <div class="card" id="quyenCard">
       <div class="ch"><h2>🔑 Phân quyền chỉnh sửa (Hành động × Vai trò)</h2><div style="display:flex;gap:8px"><button class="btn b-x" onclick="doResetQuyen()" title="Đặt lại toàn bộ ma trận về mặc định. Dùng khi nạp bảng CH_Quyen cũ bị lệch cột làm một vai trò mất quyền (biểu hiện: nhập xong không thấy nút gửi).">↺ Đặt lại mặc định</button><button class="btn b-g" onclick="saveQuyen()">💾 Lưu phân quyền</button></div></div>
       <div class="tw"><table style="min-width:640px"><thead id="quyenHead"></thead><tbody id="quyenBody"></tbody></table></div>
@@ -2299,6 +2323,48 @@
       if(chot){ _log('Sửa kỳ hỏng hàng loạt','', 'đã sửa '+r.daSua+' đơn'); toast('ok','Đã sửa kỳ cho '+r.daSua+' đơn'); boot(); }
     }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).suaKyHong(chot?1:0);
   }
+  // ---- DỌN BÙ TRỪ CŨ KHỎI SỐ ĐÃ DUYỆT (chỉ Admin) ----
+  var BTC=null;
+  function doDoBtCu(){ _chayBtCu(false); }
+  function doChotBtCu(){
+    if(!BTC||!BTC.tong) return;
+    if(!confirm('Sửa số đã duyệt của '+BTC.tong+' đơn?\n\n'
+      +'Mỗi đơn sẽ gỡ phần bù trừ tuần trước ra khỏi con số duyệt, đưa về đúng tổng xin.\n'
+      +'Chỉ đơn CHƯA cấp tiền. Mỗi lượt sửa đều ghi nhật ký của đơn.')) return;
+    _chayBtCu(true);
+  }
+  function _chayBtCu(chot){
+    if(!_laAdmin()){ toast('warn','Chỉ Admin dọn được hàng loạt'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){ loading(false);
+      if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      BTC=r; veBtCu();
+      if(chot){ _log('Dọn bù trừ cũ','', 'đã sửa '+r.daSua+' đơn'); toast('ok','Đã sửa '+r.daSua+' đơn'); boot(); }
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).donBuTruCu(chot?1:0);
+  }
+  function veBtCu(){
+    var b=el('btCuKq'); if(!b) return;
+    var nut=el('btCuChot');
+    if(!BTC){ b.innerHTML=''; if(nut) nut.style.display='none'; return; }
+    if(!BTC.tong){
+      b.innerHTML='<div style="padding:10px 12px;background:#dcfce7;color:#166534;border-radius:8px;font-size:12.5px">✓ Không còn đơn nào dính bù trừ cũ.</div>';
+      if(nut) nut.style.display='none'; return;
+    }
+    if(nut) nut.style.display=BTC.daSua?'none':'inline-block';
+    var h='<div style="font-size:12.5px;margin-bottom:6px">Tìm thấy <b>'+BTC.tong+'</b> đơn'
+      +(BTC.daSua?(' · <b style="color:#166534">đã sửa '+BTC.daSua+'</b>'):' — xem trước, chưa sửa gì')+'</div>';
+    h+='<div class="tw"><table style="min-width:640px"><thead><tr><th>Mã đơn</th><th>Kỳ</th><th>Người lập</th>'
+      +'<th style="text-align:right">Đang duyệt</th><th style="text-align:right">Bù trừ dính</th>'
+      +'<th style="text-align:right">Sẽ thành</th></tr></thead><tbody>';
+    BTC.items.forEach(function(x){
+      h+='<tr><td><b>'+esc(x.maDon)+'</b></td><td>'+esc(x.ky||'')+'</td><td>'+esc(x.nguoi||'')+'</td>'
+        +'<td style="text-align:right">'+money(x.duyet)+'đ</td>'
+        +'<td style="text-align:right;color:#b91c1c">'+(x.buTru>0?'+':'−')+money(Math.abs(x.buTru))+'đ</td>'
+        +'<td style="text-align:right;color:#166534"><b>'+money(x.moi)+'đ</b></td></tr>';
+    });
+    b.innerHTML=h+'</tbody></table></div>';
+  }
+
   function veKyHong(){
     var b=el('kyHongKq'); if(!b) return;
     if(!KYH){ b.innerHTML=''; return; }
