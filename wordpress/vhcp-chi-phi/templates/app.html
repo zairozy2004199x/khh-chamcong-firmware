@@ -2146,7 +2146,13 @@
     var dp=editing?(Number(el('dpSo').value)||0):(Number(CUR.don&&CUR.don.duPhong)||0);   // tạm ứng dự phòng (Cách A)
     var bt=Number(CUR.don&&CUR.don.buTru)||0;      // bù trừ luân chuyển kỳ trước (±) — hệ thống tính, không đọc từ ô nhập
     var hangMuc=keys.reduce(function(s,cs){return s+(Number(t[cs])||0);},0);
-    var tong=hangMuc+dp+bt;
+    /* 🔴 BÙ TRỪ TUẦN TRƯỚC KHÔNG VÀO TỔNG — anh Thắng 31/08/2026: *"phần thiếu thừa tạm ứng của
+       tuần trước nó chỉ là con số báo cáo, và không được cộng hay trừ vào tiền của tuần sau"*,
+       *"Hiện nó đang trừ tiền tạm ứng của tuần này"*. Ca thật: xin 15.000.032đ, bù −5.595.000đ
+       → duyệt 9.405.032đ, rồi quyết toán báo "Thiếu 5.595.000đ — kế toán chi bù cho NV". Tuần
+       này lại đẻ ra một khoản chênh mới, và nó lại bị bù sang tuần sau — vòng không đóng được,
+       mà mỗi vòng người đi mua lại thiếu tiền mặt. */
+    var tong=hangMuc+dp;
     var duyet=(CUR.tongCN||{}).tamUng||0;
     if(keys.length || dp>0 || bt){
       var chips=keys.sort().map(function(cs){ return '<span class="chip">'+esc(cs)+': <b>'+money(t[cs])+'đ</b></span>'; }).join('');
@@ -2157,9 +2163,11 @@
         var _a=(CUR.don&&CUR.don.buTruAuto)||{};
         var _ai=_a.quanLy?(' · '+esc(_a.quanLy)+(_a.duKien?' (dự kiến)':'')):'';
         var _sd=_a.soDon?(' · '+_a.soDon+' đơn tuần trước'):'';
-        chips+='<span class="chip" style="background:'+(bt>0?'#dbeafe':'#fee2e2')+'" title="'+esc(_a.lyDo||'')+'">🔄 Bù trừ tuần trước: <b>'+(bt>0?'+':'−')+money(Math.abs(bt))+'đ</b><span style="color:#64748b;font-weight:400">'+_ai+_sd+'</span></span>';
+        /* Nói thẳng "chỉ để biết" ngay trong nhãn: con số nằm cạnh mấy con số CÓ cộng vào
+           tổng, không ghi rõ thì người đọc mặc định nó cũng cộng. */
+        chips+='<span class="chip" style="background:'+(bt>0?'#dbeafe':'#fee2e2')+'" title="'+esc(_a.lyDo||'')+'">🔄 Tuần trước còn '+(bt>0?'THIẾU ':'DƯ ')+'<b>'+money(Math.abs(bt))+'đ</b> <span style="color:#64748b;font-weight:400">· chỉ để biết, KHÔNG trừ vào tuần này'+_ai+_sd+'</span></span>';
       }
-      var parts=[]; if(hangMuc>0)parts.push('hạng mục '+money(hangMuc)+'đ'); if(dp>0)parts.push('dự phòng '+money(dp)+'đ'); if(bt)parts.push('bù '+(bt>0?'+':'−')+money(Math.abs(bt))+'đ');
+      var parts=[]; if(hangMuc>0)parts.push('hạng mục '+money(hangMuc)+'đ'); if(dp>0)parts.push('dự phòng '+money(dp)+'đ');
       var bd=(parts.length>1)?(' <span style="color:#94a3b8">('+parts.join(' + ')+')</span>'):'';
       /* 🔴 XIN ĐÃ ĐỔI SAU KHI DUYỆT -> PHẢI KÊU LÊN.
          Từ 26/08/2026 nhân viên sửa được hạng mục xin ở cả những trạng thái SAU khi quản lý đã
@@ -3636,7 +3644,9 @@
     var clc = (t.cl>=0) ? {bg:'#dcfce7',bd:'#86efac',fg:'#166534',lb:'▲ CÒN DƯ (xin > thực tế)'}
                         : {bg:'#fee2e2',bd:'#fecaca',fg:'#b91c1c',lb:'▼ CHI VƯỢT (thực tế > xin)'};
     el('tqCards').innerHTML=
-      _tqCard('#eff6ff','#bfdbfe','#1e40af','💸 Chi phí xin (hạng mục)', money(t.xin)+'đ', '+ dự phòng '+money(t.duPhong)+'đ'+((t.buTru||0)?((t.buTru>0?' + bù ':' − bù ')+money(Math.abs(t.buTru))+'đ'):'')+' = tổng tạm ứng '+money((t.xin||0)+(t.duPhong||0)+(t.buTru||0))+'đ')+
+      /* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `renderTU()`. Vẫn hiện, nhưng
+         tách hẳn ra sau dấu chấm giữa và nói rõ là con số để biết. */
+      _tqCard('#eff6ff','#bfdbfe','#1e40af','💸 Chi phí xin (hạng mục)', money(t.xin)+'đ', '+ dự phòng '+money(t.duPhong)+'đ = tổng tạm ứng '+money((t.xin||0)+(t.duPhong||0))+'đ'+((t.buTru||0)?(' · tuần trước còn '+(t.buTru>0?'thiếu ':'dư ')+money(Math.abs(t.buTru))+'đ (chỉ để biết)'):''))+
       _tqCard('#fff7ed','#fed7aa','#9a3412','🧾 Chi phí thực tế', money(t.thucTe)+'đ', (t.soDon||0)+' đơn · '+(t.soTuan||0)+' tuần')+
       _tqCard(clc.bg,clc.bd,clc.fg, clc.lb, money(Math.abs(t.cl||0))+'đ', 'Chênh lệch = xin − thực tế');
     // BIỂU ĐỒ TRÒN tỉ trọng chi phí THỰC TẾ theo hạng mục (conic-gradient, không cần thư viện ngoài)

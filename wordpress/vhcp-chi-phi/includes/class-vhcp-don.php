@@ -505,7 +505,22 @@ class VHCP_Don {
 			$du_phong = VHCP_Util::num( $r['du_phong'] );
 			$bu_tru   = VHCP_Util::num( $r['bu_tru'] );
 			$tu_d     = VHCP_Util::num( $r['tam_ung_duyet'] );
-			$tu_tay   = ! empty( $tu_has[ $m ] ) ? ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) : ( ( isset( $xin[ $m ] ) ? $xin[ $m ] : 0 ) + $du_phong + $bu_tru );
+			/* 🔴 BÙ TRỪ TUẦN TRƯỚC KHÔNG CỘNG VÀO TIỀN — anh Thắng 31/08/2026: *"phần thiếu thừa
+			   tạm ứng của tuần trước nó chỉ là con số báo cáo, và không được cộng hay trừ vào
+			   tiền của tuần sau"*, *"Hiện nó đang trừ tiền tạm ứng của tuần này"*.
+
+			   Ca thật anh gửi: đơn xin 15.000.032đ, bù trừ −5.595.000đ → tạm ứng duyệt chỉ còn
+			   9.405.032đ. Nhân viên vẫn phải mua đủ 15.000.032đ, nên đến bước quyết toán màn
+			   hình báo "Thiếu 5.595.000đ — kế toán chi bù cho NV". Tiền không mất đi đâu, nhưng
+			   nó đẻ ra một khoản chênh MỚI ở chính tuần này, rồi khoản ấy lại bị bù sang tuần
+			   sau — một vòng không bao giờ đóng, và mỗi vòng người đi mua lại thiếu tiền mặt.
+
+			   Thừa/thiếu của tuần trước là việc giữa kế toán và người cầm TK 141, quyết toán
+			   riêng. Tuần này xin bao nhiêu thì cấp bấy nhiêu.
+
+			   ⚠️ VẪN TÍNH VÀ VẪN HIỆN con số ấy — chỉ thôi cộng vào tiền. Bỏ hẳn thì mất luôn
+			      thứ đang giúp kế toán biết tuần trước còn treo bao nhiêu. */
+			$tu_tay   = ! empty( $tu_has[ $m ] ) ? ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) : ( ( isset( $xin[ $m ] ) ? $xin[ $m ] : 0 ) + $du_phong );
 			$ad_total = ( $tu_d > 0 ) ? $tu_d : $tu_tay;
 			$has_tu   = ( $ad_total > 0 );
 			$mua_cn   = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
@@ -782,7 +797,9 @@ class VHCP_Don {
 
 		$tu_tay_sum = 0;
 		foreach ( $tam_ung as $v ) { $tu_tay_sum += VHCP_Util::num( $v ); }
-		if ( ! $has_tu_rows ) { $tu_tay_sum += VHCP_Util::num( $don['duPhong'] ) + VHCP_Util::num( $don['buTru'] ); }
+		/* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `list_dons()`. Nó vẫn được
+		   tính và vẫn trả về (`buTru`, `buTruAuto`) để màn hình bày ra như một con số báo cáo. */
+		if ( ! $has_tu_rows ) { $tu_tay_sum += VHCP_Util::num( $don['duPhong'] ); }
 		$tu_duyet = ( $don['tamUngDuyet'] !== '' && VHCP_Util::num( $don['tamUngDuyet'] ) > 0 ) ? VHCP_Util::num( $don['tamUngDuyet'] ) : 0;
 		$ad_total = $tu_duyet > 0 ? $tu_duyet : $tu_tay_sum;
 		$has_tu   = $ad_total > 0;

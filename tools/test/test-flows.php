@@ -236,6 +236,62 @@ t( 'đơn chưa duyệt thì đánh dấu là quản lý DỰ KIẾN', ! empty( 
 t( 'ghi rõ lý do là còn DƯ', strpos( (string) $g2['don']['buTruAuto']['lyDo'], 'DƯ' ) !== false, $g2['don']['buTruAuto']['lyDo'] );
 teq( 'số ghi thẳng vào đơn, không chờ giao diện', -250000, (float) VHCP_Don::don_row( $ma2 )['bu_tru'] );
 
+/* =============================================================================================
+ * 🔴 BÙ TRỪ TUẦN TRƯỚC KHÔNG ĐƯỢC CỘNG/TRỪ VÀO TIỀN TUẦN NÀY
+ * =============================================================================================
+ * Anh Thắng 31/08/2026: *"phần thiếu thừa tạm ứng của tuần trước nó chỉ là con số báo cáo, và
+ * không được cộng hay trừ vào tiền của tuần sau"*, *"Hiện nó đang trừ tiền tạm ứng của tuần
+ * này"*.
+ *
+ * Ca thật anh gửi ảnh: đơn xin 15.000.032đ, bù trừ −5.595.000đ → tạm ứng duyệt chỉ 9.405.032đ.
+ * Nhân viên vẫn phải mua đủ 15.000.032đ, nên đến bước quyết toán màn hình báo "Thiếu 5.595.000đ
+ * — kế toán chi bù cho NV": tuần này lại đẻ ra một khoản chênh MỚI, rồi khoản ấy bị bù sang
+ * tuần sau. Vòng không bao giờ đóng, và mỗi vòng người đi mua lại thiếu tiền mặt.
+ *
+ * 🔴 CANH CON SỐ TIỀN, KHÔNG CANH DÒNG CHỮ. Cả bộ thử trước bản này chỉ canh `buTru` bằng bao
+ *    nhiêu — mà nó vẫn đúng bằng −250.000 cả khi số ấy đang bị trừ vào tạm ứng lẫn khi không.
+ *    Đúng chỗ mù ấy là chỗ lỗi sống được.
+ */
+VHCP_Don::add_line( $ma2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Xin tuần này',
+	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+$g2c = VHCP_Don::get_don( $ma2 );
+teq( 'đơn tuần này vẫn thấy bù trừ của tuần trước', -250000, VHCP_Util::num( $g2c['don']['buTru'] ) );
+/* 🔴 VÀ TỔNG TẠM ỨNG ĐÚNG BẰNG HẠNG MỤC XIN — không bị trừ đi 250.000. */
+teq( '🔴 tạm ứng KHÔNG bị bù trừ tuần trước trừ vào', 1000000.0,
+	(float) $g2c['tongCN']['tamUng'] );
+/* Đường thứ hai: cột Tạm ứng ở DANH SÁCH đơn. Hai đường tính riêng, sửa một quên một là danh
+   sách nói một số còn mở đơn ra thấy số khác. */
+$hang_bt = null;
+foreach ( (array) VHCP_Don::list_dons() as $x_bt ) {
+	if ( isset( $x_bt['maDon'] ) && (string) $x_bt['maDon'] === $ma2 ) { $hang_bt = $x_bt; }
+}
+t( 'thấy đơn ấy trong danh sách', null !== $hang_bt, $ma2 );
+teq( '🔴 cột Tạm ứng ở danh sách cũng KHÔNG bị trừ', 1000000.0,
+	(float) VHCP_Util::num( $hang_bt['tamUng'] ) );
+
+/* Dự phòng thì VẪN cộng — nó là tiền xin thật của tuần này, khác hẳn bù trừ. Thiếu phép này thì
+   sửa lỗi trên bằng cách bỏ luôn cả dự phòng mà bộ thử vẫn xanh. */
+VHCP_Don::set_du_phong( $ma2, 200000 );
+$g2d = VHCP_Don::get_don( $ma2 );
+teq( '🔴 nhưng DỰ PHÒNG thì vẫn cộng vào tạm ứng', 1200000.0, (float) $g2d['tongCN']['tamUng'] );
+teq( 'và bù trừ vẫn nguyên đó để đọc', -250000, VHCP_Util::num( $g2d['don']['buTru'] ) );
+VHCP_Don::set_du_phong( $ma2, 0 );
+
+/* ⚠️ GIAO DIỆN CŨNG PHẢI THÔI CỘNG. Lõi trả số đúng mà màn hình tự cộng lại thì người bấm vẫn
+   thấy con số sai — mà đó mới là con số họ đọc. Soi thẳng tệp giao diện. */
+$_app = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 màn đơn: tổng tạm ứng KHÔNG cộng bù trừ',
+	false !== strpos( $_app, 'var tong=hangMuc+dp;' )
+	&& false === strpos( $_app, 'var tong=hangMuc+dp+bt;' ), null );
+t( '🔴 màn tổng quan: cũng KHÔNG cộng bù trừ vào tổng tạm ứng',
+	false === strpos( $_app, "money((t.xin||0)+(t.duPhong||0)+(t.buTru||0))" ), null );
+/* Vẫn phải BÀY RA con số ấy — bỏ hẳn là mất thứ đang giúp kế toán biết tuần trước còn treo bao
+   nhiêu. Và nhãn phải nói thẳng "chỉ để biết": nó nằm cạnh mấy con số CÓ cộng vào tổng. */
+t( 'nhưng vẫn bày ra, kèm chữ nói rõ là chỉ để biết',
+	false !== strpos( $_app, 'KHÔNG trừ vào tuần này' )
+	&& false !== strpos( $_app, '(chỉ để biết)' ), null );
+
 // Người khác thì không ăn theo bù trừ của người này
 $d3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Mới Toanh' );
 teq( 'người khác không bị bù trừ của người này', 0, VHCP_Util::num( VHCP_Don::get_don( $d3['maDon'] )['don']['buTru'] ) );
