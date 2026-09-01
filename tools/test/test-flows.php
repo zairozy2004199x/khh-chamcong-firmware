@@ -292,6 +292,119 @@ t( 'nhưng vẫn bày ra, kèm chữ nói rõ là chỉ để biết',
 	false !== strpos( $_app, 'KHÔNG trừ vào tuần này' )
 	&& false !== strpos( $_app, '(chỉ để biết)' ), null );
 
+/* =============================================================================================
+ * 🔴 DUYỆT LẠI SỐ TẠM ỨNG KHI TỔNG XIN ĐÃ ĐỔI SAU KHI DUYỆT
+ * =============================================================================================
+ * Anh Thắng 31/08/2026, ảnh hai khối lệch nhau: *"Làm sao để điều chỉnh, 2 có số tổng tạm ứng
+ * khác nhau."* Khối "Tạm ứng xin" nói 15.000.032đ, khối Quyết toán nói 9.405.032đ — vì số duyệt
+ * là con số CHỤP LẠI lúc bấm duyệt, còn tổng xin thì đổi được sau đó.
+ *
+ * Màn hình vốn ĐÃ kêu "Báo lại quản lý để duyệt lại số mới" nhưng KHÔNG có đường nào làm việc
+ * ấy — `duyet_tam_ung()` chỉ nhận đơn còn ở "Chờ duyệt tạm ứng". Một câu nhắc trỏ vào chỗ không
+ * có cửa thì tệ hơn là không nhắc.
+ */
+$dl = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mdl = $dl['maDon'];
+VHCP_Don::add_line( $mdl, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Xin lần đầu',
+	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mdl );
+/* 🔴 DỰNG ĐÚNG CA CỦA ANH THẮNG: duyệt bằng con số ĐÃ BỊ TRỪ bù trừ tuần trước — đúng như bản
+   trước 1.53.0 vẫn làm. Hạng mục xin không hề đổi; chỉ con số duyệt là thấp hơn.
+   ⚠️ KHÔNG dựng bằng cách thêm dòng sau khi duyệt: dòng thêm sau khi gửi duyệt là PHÁT SINH
+      (mua thêm ngoài dự trù), cố ý KHÔNG nằm trong tạm ứng xin — dựng thế là thử một luật
+      khác hẳn, và phép thử sẽ nói dối về thứ mình đang canh. */
+t( 'duyệt bằng số đã bị trừ bù trừ (như bản cũ)',
+	! empty( VHCP_Don::duyet_tam_ung( $mdl, 'Trần Quản Lý', 750000 )['success'] ) );
+teq( 'số duyệt là con số thấp ấy', 750000.0, (float) VHCP_Don::get_don( $mdl )['tongCN']['tamUng'] );
+teq( '🔴 trong khi tổng xin thật vẫn nguyên — đúng hai con số lệch nhau anh Thắng gửi ảnh',
+	1000000.0, (float) VHCP_Don::tong_xin_hien_tai( $mdl ) );
+
+$r_dl = VHCP_Don::duyet_lai_tam_ung( $mdl, 'Trần Quản Lý' );
+t( 'duyệt lại chạy', ! empty( $r_dl['success'] ), $r_dl );
+teq( 'nói ra số cũ', 750000.0, (float) $r_dl['cu'] );
+teq( 'và số mới', 1000000.0, (float) $r_dl['moi'] );
+teq( '🔴 hai chỗ nay về cùng một số', 1000000.0,
+	(float) VHCP_Don::get_don( $mdl )['tongCN']['tamUng'] );
+/* Trạng thái KHÔNG đổi: duyệt lại là chốt lại con số, không đẩy đơn đi bước khác. */
+teq( 'trạng thái giữ nguyên', 'Chờ cấp tạm ứng', (string) VHCP_Don::get_don( $mdl )['don']['trangThai'] );
+/* Nhật ký ghi cả hai đầu — tháng sau soi lại còn biết vì sao số duyệt đổi. */
+$_dl_log = '';
+foreach ( (array) VHCP_Don::nhat_ky_don( $mdl, 20 )['items'] as $_x ) {
+	if ( false !== strpos( (string) $_x['hanhDong'], 'Duyệt lại' ) ) { $_dl_log .= (string) $_x['chiTiet']; }
+}
+t( '🔴 nhật ký ghi cả số CŨ lẫn số MỚI',
+	false !== mb_strpos( $_dl_log, '750.000' ) && false !== mb_strpos( $_dl_log, '1.000.000' ), $_dl_log );
+
+/* 🔴 DỰ PHÒNG CŨNG PHẢI VÀO SỐ DUYỆT LẠI. Nó là tiền xin thật của tuần này (khác hẳn bù trừ),
+   nên bỏ quên là duyệt lại xong vẫn thiếu đúng chừng ấy — lỗi y hệt cái đang đi sửa, chỉ nhỏ
+   hơn. Đặt một số LẺ, khác hẳn mọi con số quanh đây, để nếu nó rơi mất thì thấy ngay. */
+/* ⚠️ Dự phòng chỉ khai được lúc đơn còn "Nháp" (`set_du_phong`), nên dựng một đơn RIÊNG cho ca
+   này thay vì cố nhét vào đơn đang chờ cấp tiền ở trên. */
+$dl3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mdl3 = $dl3['maDon'];
+VHCP_Don::add_line( $mdl3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Có dự phòng',
+	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+VHCP_Don::set_du_phong( $mdl3, 123000 );
+teq( 'tổng xin hiện tại gồm cả dự phòng', 1123000.0, (float) VHCP_Don::tong_xin_hien_tai( $mdl3 ) );
+VHCP_Don::gui_duyet_tam_ung( $mdl3 );
+VHCP_Don::duyet_tam_ung( $mdl3, 'Trần Quản Lý', 900000 );   // duyệt hụt, như bản cũ
+$r_dl = VHCP_Don::duyet_lai_tam_ung( $mdl3, 'Trần Quản Lý' );
+t( 'duyệt lại đơn có dự phòng', ! empty( $r_dl['success'] ), $r_dl );
+teq( '🔴 số duyệt gồm cả dự phòng', 1123000.0,
+	(float) VHCP_Don::get_don( $mdl3 )['tongCN']['tamUng'] );
+VHCP_Don::delete_don_admin( $mdl3 );
+
+/* Số đang đúng rồi thì chối — bấm lại lần nữa không được lặng lẽ ghi thêm một dòng nhật ký. */
+$r_dl = VHCP_Don::duyet_lai_tam_ung( $mdl, 'Trần Quản Lý' );
+t( 'số đang đúng thì chối', empty( $r_dl['success'] )
+	&& false !== mb_strpos( (string) $r_dl['error'], 'không có gì để đổi' ), $r_dl );
+/* ⚠️ Cấp tiền THEO SỐ MỚI, không phải số cũ — đó là cả điểm của việc duyệt lại. */
+
+/* 🔴 CẤP TIỀN RỒI THÌ KHÔNG SỬA. Số đã ra khỏi két và đã vào sổ quỹ; đổi con số duyệt lúc ấy là
+   làm sổ quỹ nói một đằng, đơn nói một nẻo. */
+t( 'cấp tạm ứng', ! empty( VHCP_Don::cap_tam_ung( $mdl, 'Lê Kế Toán' )['success'] ) );
+VHCP_Don::add_line( $mdl, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Mua thêm',
+	'soLuong' => 1, 'donGia' => 300000, 'thanhTien' => 300000 ) );
+$r_dl = VHCP_Don::duyet_lai_tam_ung( $mdl, 'Trần Quản Lý' );
+t( '🔴 cấp tiền rồi thì KHÔNG duyệt lại được', empty( $r_dl['success'] ), $r_dl );
+t( 'và chỉ đúng chỗ chữa: Trả lại đơn rồi đi lại quy trình',
+	false !== mb_strpos( (string) $r_dl['error'], 'Trả lại đơn' ), $r_dl );
+teq( 'số duyệt không suy suyển', 1000000.0,
+	(float) VHCP_Don::get_don( $mdl )['tongCN']['tamUng'] );
+
+/* Đơn ĐANG chờ duyệt lần đầu thì đi cửa duyệt bình thường, không phải cửa này — và câu chối
+   phải chỉ sang đúng cửa ấy, đừng bắt người ta đi dò. */
+$dl2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+VHCP_Don::add_line( $dl2['maDon'], array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Chờ duyệt',
+	'soLuong' => 1, 'donGia' => 100000, 'thanhTien' => 100000 ) );
+VHCP_Don::gui_duyet_tam_ung( $dl2['maDon'] );
+$r_dl = VHCP_Don::duyet_lai_tam_ung( $dl2['maDon'], 'Trần Quản Lý' );
+t( 'đơn chưa duyệt thì chỉ sang cửa Duyệt tạm ứng', empty( $r_dl['success'] )
+	&& false !== mb_strpos( (string) $r_dl['error'], 'Duyệt tạm ứng như bình thường' ), $r_dl );
+
+/* ⚠️ NÚT PHẢI CÓ THẬT TRÊN MÀN. Lõi chạy đúng mà dải cảnh báo vẫn chỉ nói "báo lại quản lý"
+   thì người bấm vẫn không có cửa nào — đúng cái hỏng đang đi sửa. */
+$_app2 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 dải cảnh báo có nút Duyệt lại', false !== strpos( $_app2, 'Duyệt lại theo số mới' ), null );
+t( 'và nút chỉ hiện khi CHƯA cấp tiền',
+	false !== strpos( $_app2, "CUR.don.trangThai==='Chờ cấp tạm ứng'" ), null );
+/* 🔴 VÀ CHỈ NGƯỜI CÓ QUYỀN DUYỆT MỚI THẤY. Bày nút cho người lập đơn là mời họ bấm rồi nhận
+   câu chối từ máy chủ — cửa vẫn kín, nhưng người dùng không hiểu vì sao mình thấy một cái nút
+   không dùng được. Soi cả điều kiện, không chỉ soi tên nút. */
+t( '🔴 nút gác bằng quyền duyệt, không bày cho mọi người',
+	false !== strpos( $_app2, "&& (canDo('duyetTU')||_laAdmin());" ), null );
+t( 'gọi đúng việc ở máy chủ', false !== strpos( $_app2, '.duyetLaiTamUng(' ), null );
+$_api2 = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+t( '🔴 và việc ấy là việc của người duyệt, không phải của người xin',
+	false !== strpos( $_api2, "'duyetLaiTamUng',", ), null );
+
+VHCP_Don::delete_don_admin( $mdl );
+VHCP_Don::delete_don_admin( $dl2['maDon'] );
+
 // Người khác thì không ăn theo bù trừ của người này
 $d3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Người Mới Toanh' );
 teq( 'người khác không bị bù trừ của người này', 0, VHCP_Util::num( VHCP_Don::get_don( $d3['maDon'] )['don']['buTru'] ) );

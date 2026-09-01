@@ -43,6 +43,8 @@ class VHCP_API {
 			   ứng đã cấp, tức đụng vào báo cáo của HAI tuần cùng lúc — người lập đơn không được
 			   tự làm, kẻo tuần nào sắp bị soi thì đơn lặng lẽ trôi sang tuần sau. */
 			'chuyenKy',
+			/* Đổi con số tiền quản lý đã duyệt — việc của chính người duyệt, không phải người xin. */
+			'duyetLaiTamUng',
 		);
 		if ( in_array( $fn, $nguoi_duyet, true ) ) {
 			return array( 'Admin', 'Quản lý', 'Kế toán cá nhân', 'Kế toán NCC' );
@@ -210,6 +212,9 @@ class VHCP_API {
 			/* Nhảy đơn sang tuần khác khi không quyết toán kịp trong tuần của nó. */
 			'chuyenKy'              => array( 'VHCP_Don', 'chuyen_ky' ),
 			'dsKyQuanh'             => array( 'VHCP_Don', 'ds_ky_quanh_api' ),
+			/* Tổng xin đổi sau khi duyệt (nhân viên sửa hạng mục, hoặc luật tính đổi) — cho
+			   quản lý chốt lại số, miễn là chưa cấp tiền. */
+			'duyetLaiTamUng'        => array( 'VHCP_Don', 'duyet_lai_tam_ung' ),
 			/* Thùng rác: xoá nhầm đơn hoặc dòng chi thì hoàn lại được. Cố ý KHÔNG khai vào
 			   nhóm người-duyệt: người lập tự xoá nháp của mình thì cũng phải tự hoàn lại được.
 			   Chốt "chỉ hoàn thao tác của chính mình" nằm trong `VHCP_Don::hoan_tac()`, cùng

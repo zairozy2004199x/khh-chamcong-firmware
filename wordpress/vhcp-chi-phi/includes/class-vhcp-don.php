@@ -1864,6 +1864,81 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * TỔNG XIN HIỆN TẠI của một đơn — hạng mục + dự phòng, KHÔNG cộng bù trừ tuần trước.
+	 *
+	 * ⚠️ Đi qua `get_don()` chứ không tự cộng lại các dòng: luật gom hạng mục có chỗ tinh
+	 *    (`Nháp` thì gộp cả dòng phát sinh, sau đó thì không; có hàng tạm ứng tay thì lấy hàng
+	 *    ấy). Chép luật sang đây là dựng bản thứ hai cho cùng một câu hỏi, rồi hai bản lệch nhau.
+	 *
+	 * 🔴 Trừ thẳng `tamUngDuyet` ra khỏi phép tính bằng cách đọc `tamUng` theo cơ sở — `tongCN`
+	 *    trả về số ĐÃ DUYỆT khi có, nên dùng nó ở đây là quay lại chính con số cần thay.
+	 */
+	public static function tong_xin_hien_tai( $ma_don ) {
+		$g = self::get_don( $ma_don, false );
+		if ( empty( $g['success'] ) ) { return null; }
+		$t = 0;
+		foreach ( (array) ( isset( $g['tamUng'] ) ? $g['tamUng'] : array() ) as $v ) {
+			$t += VHCP_Util::num( $v );
+		}
+		return $t + VHCP_Util::num( $g['don']['duPhong'] );
+	}
+
+	/**
+	 * DUYỆT LẠI SỐ TẠM ỨNG cho đơn đã duyệt nhưng CHƯA CẤP TIỀN.
+	 *
+	 * 🔴 Anh Thắng 31/08/2026, ảnh hai khối lệch nhau: *"Làm sao để điều chỉnh, 2 có số tổng tạm
+	 *    ứng khác nhau."* Khối "Tạm ứng xin" nói 15.000.032đ, khối Quyết toán nói 9.405.032đ —
+	 *    vì số duyệt là một con số CHỤP LẠI lúc bấm duyệt, còn tổng xin thì đổi được sau đó
+	 *    (nhân viên sửa hạng mục, hoặc — như ca này — luật bù trừ vừa đổi).
+	 *
+	 *    Màn hình vốn ĐÃ kêu lên "Tổng xin đã đổi sau khi duyệt… Báo lại quản lý để duyệt lại số
+	 *    mới", nhưng KHÔNG có đường nào làm việc ấy: `duyet_tam_ung()` chỉ nhận đơn còn ở "Chờ
+	 *    duyệt tạm ứng". Một câu nhắc trỏ vào chỗ không có cửa thì tệ hơn là không nhắc.
+	 *
+	 * 🔴 CHỈ KHI CHƯA CẤP TIỀN. Cấp rồi thì số đã ra khỏi két và đã vào sổ quỹ; sửa con số duyệt
+	 *    lúc ấy là làm sổ quỹ nói một đằng, đơn nói một nẻo. Cần đổi thì trả đơn lại cho nhân
+	 *    viên sửa rồi đi lại quy trình — đường ấy có sẵn và để lại vết đầy đủ.
+	 *
+	 * @param string $so Rỗng = lấy đúng tổng xin hiện tại của đơn.
+	 */
+	public static function duyet_lai_tam_ung( $ma_don, $nguoi = '', $so = '' ) {
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCP_Util::err( $_loi ); }
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$st = (string) $d['trang_thai'];
+		if ( 'Chờ cấp tạm ứng' !== $st ) {
+			return VHCP_Util::err( 'Chỉ duyệt lại được đơn ĐÃ duyệt mà CHƯA cấp tiền. Đơn này đang ở "'
+				. $st . '"'
+				. ( 'Chờ duyệt tạm ứng' === $st ? ' — bấm Duyệt tạm ứng như bình thường.'
+					: ( self::da_chot( $st ) || 'Đã cấp tạm ứng' === $st || 'Chờ quyết toán' === $st
+						? ' — tiền đã ra khỏi két, muốn đổi số thì Trả lại đơn cho nhân viên sửa rồi duyệt lại từ đầu.'
+						: '.' ) ) );
+		}
+
+		$cu  = VHCP_Util::num( $d['tam_ung_duyet'] );
+		$moi = ( '' === trim( (string) $so ) ) ? self::tong_xin_hien_tai( $ma_don ) : VHCP_Util::num( $so );
+		if ( null === $moi ) { return VHCP_Util::err( 'Không đọc ra được tổng xin hiện tại của đơn.' ); }
+		if ( $moi < 0 ) { return VHCP_Util::err( 'Số tạm ứng không âm được.' ); }
+		if ( VHCP_Util::num( $moi ) === $cu ) {
+			return VHCP_Util::err( 'Số duyệt đang đúng bằng ' . VHCP_Util::tien( $cu ) . ' rồi — không có gì để đổi.' );
+		}
+
+		$nguoi = trim( (string) $nguoi );
+		if ( '' === $nguoi ) { $nguoi = VHCP_Auth::nguoi(); }
+
+		self::upd_don( $ma_don, array(
+			'tam_ung_duyet' => VHCP_Util::num( $moi ),
+			'nguoi_duyet'   => $nguoi,
+			'ngay_duyet'    => VHCP_Util::now_sql(),
+		) );
+		self::ghi_vet( $ma_don, 'Duyệt lại số tạm ứng',
+			VHCP_Util::tien( $cu ) . '  →  ' . VHCP_Util::tien( $moi ) );
+		self::bao_noi_bo( $ma_don, 'đã được duyệt LẠI số tạm ứng: ' . VHCP_Util::tien( $moi ) );
+		return VHCP_Util::ok( array( 'cu' => $cu, 'moi' => VHCP_Util::num( $moi ) ) );
+	}
+
 	public static function cap_tam_ung( $ma_don, $nguoi, $ht_cap = 'Tiền mặt', $anh_cap = '' ) {
 		$d = self::don_row( $ma_don );
 		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }

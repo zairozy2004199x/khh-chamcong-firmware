@@ -1827,6 +1827,24 @@
       .dsThungRac(50);
   }
 
+  /* Duyệt lại số tạm ứng cho đơn đã duyệt mà chưa cấp tiền — xem khối 🔴 ở renderTU(). */
+  function duyetLaiTU(){
+    if(!(CUR&&CUR.don)) return;
+    var m=CUR.don.maDon;
+    if(!confirm('Duyệt LẠI số tạm ứng của đơn '+m+' theo tổng xin hiện tại?\n\n'
+      +'⚠️ Con số quản lý đã duyệt sẽ được thay bằng tổng xin đang hiển thị. Chỉ làm được khi '
+      +'CHƯA cấp tiền — cấp rồi thì phải Trả lại đơn để đi lại quy trình.')) return;
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){
+      loading(false);
+      if(!(r&&r.success)){ toast('err',(r&&r.error)||'Lỗi'); return; }
+      _log('DUYỆT LẠI TẠM ỨNG', m, money(r.cu)+'đ → '+money(r.moi)+'đ');
+      toast('ok','Đã duyệt lại: '+money(r.cu)+'đ → '+money(r.moi)+'đ');
+      openDon(m);
+    }).withFailureHandler(function(e){loading(false);toast('err',e.message);})
+      .duyetLaiTamUng(m,'','');
+  }
+
   function _syncDonView(){   // danh sách & chi tiết loại trừ nhau: mở đơn -> ẩn danh sách + hiện nút quay lại
     var open=!!(CUR&&CUR.don);
     if(el('donListCard'))  el('donListCard').style.display  = open?'none':'';
@@ -2176,7 +2194,16 @@
          mục xong thì tổng xin không còn khớp nó nữa — mà không có gì nói ra. Người duyệt tưởng
          mình duyệt cái đang nhìn thấy. Nên chênh là hiện đỏ, ngay cạnh con số. */
       var _lech=(duyet>0 && Math.round(duyet)!==Math.round(tong) && CUR.don && CUR.don.trangThai!=='Nháp');
-      var _canhLech=_lech?('<div style="margin-top:6px;padding:7px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;color:#b91c1c;font-size:11.5px">⚠️ <b>Tổng xin đã đổi sau khi duyệt.</b> Quản lý duyệt <b>'+money(duyet)+'đ</b>, nay tổng hạng mục xin là <b>'+money(tong)+'đ</b> — chênh <b>'+money(Math.abs(duyet-tong))+'đ</b>. Báo lại quản lý để duyệt lại số mới.</div>'):'';
+      /* 🔴 CÓ NÚT NGAY TRONG DẢI CẢNH BÁO — anh Thắng 31/08/2026: *"Làm sao để điều chỉnh, 2 có
+         số tổng tạm ứng khác nhau."* Dải này vốn chỉ nói "Báo lại quản lý để duyệt lại số mới"
+         mà không có cửa nào làm việc ấy: `duyetTamUng` chỉ nhận đơn còn ở "Chờ duyệt tạm ứng".
+         Một câu nhắc trỏ vào chỗ không có cửa thì tệ hơn là không nhắc.
+         Nút chỉ hiện khi CHƯA CẤP TIỀN và người đang xem có quyền duyệt — cấp rồi thì tiền đã
+         ra khỏi két, đổi số là sổ quỹ nói một đằng đơn nói một nẻo. */
+      var _suaDuoc=_lech && CUR.don && CUR.don.trangThai==='Chờ cấp tạm ứng'
+                   && (canDo('duyetTU')||_laAdmin());
+      var _nutLai=_suaDuoc?(' <button class="btn b-s" style="padding:3px 10px;font-size:11.5px;margin-left:6px" onclick="duyetLaiTU()">✅ Duyệt lại theo số mới</button>'):'';
+      var _canhLech=_lech?('<div style="margin-top:6px;padding:7px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:7px;color:#b91c1c;font-size:11.5px">⚠️ <b>Tổng xin đã đổi sau khi duyệt.</b> Quản lý duyệt <b>'+money(duyet)+'đ</b>, nay tổng hạng mục xin là <b>'+money(tong)+'đ</b> — chênh <b>'+money(Math.abs(duyet-tong))+'đ</b>. '+(_suaDuoc?'Duyệt lại để hai chỗ về cùng một số.':'Báo lại quản lý để duyệt lại số mới.')+_nutLai+'</div>'):'';
       el('tuChips').innerHTML=chips+'<div style="margin-top:6px;font-size:13px"><b>Tổng tạm ứng xin: '+money(tong)+'đ</b>'+bd+((duyet>0&&duyet!==tong)?(' · <span style="color:#0369a1">đã duyệt: '+money(duyet)+'đ</span>'):'')+'</div>'+_canhLech;
     } else if(CUR.tuMode==='new' && duyet>0){   // tạm ứng CỤC do quản lý duyệt
       el('tuChips').innerHTML='<span class="chip">💰 Tạm ứng (cục cả đơn): <b>'+money(duyet)+'đ</b></span>'+
