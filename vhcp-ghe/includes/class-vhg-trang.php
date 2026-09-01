@@ -855,6 +855,7 @@ class VHG_Trang {
 				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
 				'ten'     => (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ),  // tên ghế (trên sao kê)
+				'hw'      => '' !== trim( (string) ( isset( $m['mac'] ) ? $m['mac'] : '' ) ) ? 1 : 0,  // đã gắn phần cứng (có MAC)?
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
 				'tt'      => (string) $m['trang_thai'],
@@ -1124,6 +1125,7 @@ class VHG_Trang {
 				'chot' => isset( $cs_cuoi[ $m['ma'] ] ) ? $cs_cuoi[ $m['ma'] ] : null,
 				'ma'      => $m['ma'],
 				'ten'     => (string) ( isset( $m['ten_khai'] ) ? $m['ten_khai'] : '' ),  // tên ghế (trên sao kê)
+				'hw'      => '' !== trim( (string) ( isset( $m['mac'] ) ? $m['mac'] : '' ) ) ? 1 : 0,  // đã gắn phần cứng (có MAC)?
 				'coso'    => $m['coso_ten'] ? $m['coso_ten'] : '',
 				'song'    => ! empty( $m['con_song'] ),
 				'tt'      => (string) $m['trang_thai'],
@@ -6211,7 +6213,8 @@ function veQuanLy(){
     + L('Lọc cơ sở','Filter site') + ':</label>'
     + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select>'
     + '<label class="mut" style="align-self:center;white-space:nowrap"><input type="checkbox" id="ql-htan"'
-    + (QL_HIEN_AN ? ' checked' : '') + '> ' + L('Hiện ghế đã điều chuyển','Show moved chairs') + '</label></div>';
+    + (QL_HIEN_AN ? ' checked' : '') + '> ' + L('Hiện ghế đã điều chuyển','Show moved chairs') + '</label>'
+    + '<button id="ql-timtrung" class="ghost">🔍 ' + L('Ẩn nhanh ghế trùng tên','Auto-hide duplicates') + '</button></div>';
   h += '<div id="ql-wrap"></div>'
     + '<p class="mut" style="margin:8px 0 0">'
     + L('Tích chọn nhiều ghế rồi bấm “Điều chuyển (ẩn đi)” để ẩn ghế đã dời nơi khác — CHỈ SỐ và doanh thu GIỮ NGUYÊN, không mất, đưa về lại được. Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay).',
@@ -6228,6 +6231,113 @@ function qlCsOpt(coso, chonTen){
     + '</option>' + coso.map(function(c){
         return '<option value="' + c.id + '"' + (chonTen === c.ten ? ' selected' : '') + '>'
           + esc(c.ten) + '</option>'; }).join('');
+}
+
+/* Tach ten ghe thanh (chu, so): "VHM-1" -> {chu:"VHM", so:"1"}; "VC-TDUC-2" -> {chu:"VCTDUC", so:"2"}.
+   So la nhom SO CUOI cung; chu la phan chu con lai (bo dau gach, khoang trang, viet hoa). */
+function qlTach(t){
+  t = String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  var mm = t.match(/(\d+)$/);
+  var so = mm ? mm[1] : '';
+  var chu = mm ? t.slice(0, t.length - mm[1].length) : t;
+  return { chu: chu, so: so };
+}
+function qlLev(a, b){   // khoang cach chinh sua, du dung cho ten ngan
+  var m = a.length, n = b.length, i, j, d = [];
+  for (i = 0; i <= m; i++){ d[i] = [i]; }
+  for (j = 0; j <= n; j++){ d[0][j] = j; }
+  for (i = 1; i <= m; i++) for (j = 1; j <= n; j++){
+    d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
+  }
+  return d[m][n];
+}
+/* Hai phan chu "na na" nhau: mot cai la dau cua cai kia (VHM ⊂ VHMM), hoac lech <=1 ky tu. */
+function qlNaNa(a, b){
+  if (a === b) return true;
+  if (a && b && (a.indexOf(b) === 0 || b.indexOf(a) === 0)) return true;
+  return qlLev(a, b) <= 1;
+}
+
+/* Tim cac NHOM ghe trung ten na na (cung co so, cung so cuoi, chu na na). Moi nhom chon 1 ghe GIU
+   (uu tien co phan cung; neu hoa thi ten ngan nhat) va goi y AN cac ghe con lai. Tra mang nhom. */
+function qlTimNhom(){
+  var may = (D && D.may || []).filter(function(m){ return !m.an; });
+  var bucket = {};
+  may.forEach(function(m){
+    var p = qlTach(m.ten || m.ma);
+    if (!p.chu || !p.so) return;                 // ten khong co dang chu+so thi bo qua
+    var k = (m.coso || '') + '|' + p.so;
+    (bucket[k] = bucket[k] || []).push({ m: m, chu: p.chu });
+  });
+  var nhom = [];
+  for (var k in bucket){
+    var arr = bucket[k];
+    if (arr.length < 2) continue;
+    var done = {};
+    for (var a = 0; a < arr.length; a++){
+      if (done[a]) continue;
+      var grp = [arr[a]]; done[a] = 1;
+      for (var b = a + 1; b < arr.length; b++){
+        if (done[b]) continue;
+        if (qlNaNa(arr[a].chu, arr[b].chu)){ grp.push(arr[b]); done[b] = 1; }
+      }
+      if (grp.length < 2) continue;
+      // chon nguoi GIU: co phan cung truoc; roi den ten (chu) ngan nhat
+      grp.sort(function(x, y){
+        if ((y.m.hw?1:0) !== (x.m.hw?1:0)) return (y.m.hw?1:0) - (x.m.hw?1:0);
+        return x.chu.length - y.chu.length;
+      });
+      nhom.push({ giu: grp[0].m, an: grp.slice(1).map(function(g){ return g.m; }), coso: grp[0].m.coso || '' });
+    }
+  }
+  return nhom;
+}
+
+/* Man xem truoc: liet ke nhom trung ten, tich san cac ghe se an, cho sua roi bam An. */
+function qlTimTrung(){
+  var box = document.getElementById('ql-wrap'); if (!box) return;
+  var nhom = qlTimNhom();
+  if (!nhom.length){
+    alert(L('Khong tim thay ghe trung ten na na nhau. (Chi soi ghe chua dieu chuyen, ten dang chu+so nhu VHM-1.)',
+      'No near-duplicate chair names found.'));
+    return;
+  }
+  var tong = 0; nhom.forEach(function(g){ tong += g.an.length; });
+  var h = '<div class="card" style="margin:0 0 10px;border:1px solid #f0c98a;background:#fffaf0">'
+    + '<h3 style="margin:0 0 6px">🔍 ' + L('Ghe nghi trung ten','Suspected duplicates') + ' — '
+    + nhom.length + ' ' + L('nhom','groups') + ', ' + tong + ' ' + L('ghe se an','chairs to hide') + '</h3>'
+    + '<p class="mut" style="margin:0 0 10px">' + L('Moi nhom giu 1 ghe (uu tien ghe co phan cung / ten ngan). '
+      + 'Cac ghe tich san se AN (dieu chuyen) — chi so & doanh thu GIU NGUYEN, dua ve lai duoc. Bo tich neu muon giu.',
+      'Each group keeps one chair; ticked ones will be hidden. Meter & revenue kept, reversible.') + '</p>';
+  h += '<table><tr><th></th><th>' + L('Ghe','Chair') + '</th><th>' + L('Co so','Site')
+    + '</th><th class="r hide-sm">' + L('Chi so','Meter') + '</th><th>' + L('Phan cung','Hardware') + '</th></tr>';
+  nhom.forEach(function(g){
+    h += '<tr style="background:#f6faf6"><td></td><td><b>✔ ' + L('GIU','KEEP') + ':</b> '
+      + esc(g.giu.ten || g.giu.ma) + ' <span class="mut">(' + esc(g.giu.ma) + ')</span></td>'
+      + '<td class="mut">' + esc(g.coso) + '</td><td class="r hide-sm mut">' + (g.giu.chot == null ? '—' : g.giu.chot)
+      + '</td><td>' + (g.giu.hw ? '🔌 ' + L('co','yes') : L('chua','no')) + '</td></tr>';
+    g.an.forEach(function(m){
+      h += '<tr><td><input type="checkbox" class="ql-tt-ck" data-ma="' + esc(m.ma) + '" checked></td>'
+        + '<td>📦 ' + esc(m.ten || m.ma) + ' <span class="mut">(' + esc(m.ma) + ')</span></td>'
+        + '<td class="mut">' + esc(g.coso) + '</td><td class="r hide-sm mut">' + (m.chot == null ? '—' : m.chot)
+        + '</td><td>' + (m.hw ? '🔌 ' + L('co','yes') : '<span class="mut">' + L('chua','no') + '</span>') + '</td></tr>';
+    });
+  });
+  h += '</table>'
+    + '<div class="act" style="margin-top:10px">'
+    + '<button id="ql-tt-an" class="on">📦 ' + L('An cac ghe da tich','Hide ticked') + '</button>'
+    + '<button id="ql-tt-huy" class="ghost">' + L('Quay lai','Back') + '</button></div></div>';
+  box.innerHTML = h;
+  var e;
+  if ((e = document.getElementById('ql-tt-huy'))) e.onclick = function(){ qlGheRender(); };
+  if ((e = document.getElementById('ql-tt-an'))) e.onclick = function(){
+    var ds = [];
+    [].forEach.call(box.querySelectorAll('.ql-tt-ck'), function(c){ if (c.checked) ds.push(c.getAttribute('data-ma')); });
+    if (!ds.length){ alert(L('Chua tich ghe nao.','Nothing ticked.')); return; }
+    if (!confirm(L('An (dieu chuyen) ' + ds.length + ' ghe trung ten?\nChi so & doanh thu giu nguyen, dua ve lai duoc.',
+      'Hide ' + ds.length + ' duplicate chairs?\nMeter & revenue kept, reversible.'))) return;
+    lam('may_an_lo', { ma: ds, an: 1 });
+  };
 }
 
 /* Danh sach ghe (tab Quan ly ghe): 10 ghe/trang, loc theo QL_LOC. O tich chon giu qua cac trang
@@ -6964,6 +7074,7 @@ function noi(){
   if ((_e = document.getElementById('ql-htan'))) _e.onchange = function(){
     QL_HIEN_AN = this.checked; QL_PG = 0; qlGheRender();   // soi / giấu ghế đã điều chuyển
   };
+  if ((_e = document.getElementById('ql-timtrung'))) _e.onclick = function(){ qlTimTrung(); };
   if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){
     DK_LOC = this.value; ve();   // lọc lưới ghế tab Điều khiển
   };
