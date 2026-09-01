@@ -379,29 +379,21 @@ jobs:
             echo 'Linux/macOS: <CONG> dang /dev/ttyUSB0 hoac /dev/cu.usbserial-xxx.'
           } > /tmp/binghe/README.md
 
-          # Script nạp sẵn cho hai hệ — người đứng cạnh máy khỏi phải gõ lại bốn địa chỉ.
-          {
-            echo '@echo off'
-            echo 'REM Nap DU BON MANH cho board con trong. Sua COM5 thanh cong that.'
-            echo 'set CONG=COM5'
-            echo 'esptool.py --chip esp32 --port %CONG% --baud 921600 write_flash ^'
-            echo '  0x1000 ghe-bootloader.bin ^'
-            echo '  0x8000 ghe-partitions.bin ^'
-            echo '  0xe000 ghe-boot_app0.bin ^'
-            echo '  0x10000 ghe-latest.bin'
-            echo 'pause'
-          } > /tmp/binghe/nap-windows.bat
-          {
-            echo '#!/usr/bin/env bash'
-            echo '# Nap DU BON MANH cho board con trong. Truyen cong lam tham so, vd: ./nap.sh /dev/ttyUSB0'
-            echo 'set -e'
-            echo 'CONG="${1:-/dev/ttyUSB0}"'
-            echo 'esptool.py --chip esp32 --port "$CONG" --baud 921600 write_flash \'
-            echo '  0x1000  ghe-bootloader.bin \'
-            echo '  0x8000  ghe-partitions.bin \'
-            echo '  0xe000  ghe-boot_app0.bin \'
-            echo '  0x10000 ghe-latest.bin'
-          } > /tmp/binghe/nap.sh
+          # ========================================================================================
+          # SCRIPT NẠP SẴN — GỌI `python -m esptool`, KHÔNG GỌI `esptool.py`.
+          #
+          # 🔴 Anh Thắng 01/09/2026 chạy bản đầu và nhận đúng câu này:
+          #      'esptool.py' is not recognized as an internal or external command
+          #    pip đời mới cài esptool thành lệnh `esptool` (không có đuôi .py), và trên Windows
+          #    thư mục Scripts của Python thường không nằm trong PATH. Gọi qua `-m` thì chạy được
+          #    ở cả hai kiểu cài và không phụ thuộc PATH.
+          #
+          # ⚠️ Script tự cài esptool nếu thiếu, tự liệt kê cổng COM, và hỏi cổng thay vì bắt người
+          #    ta mở tệp ra sửa. Người nạp thường đang đứng cạnh cái máy, không phải ngồi trước
+          #    trình soạn thảo.
+          # ========================================================================================
+          cp "$GITHUB_WORKSPACE/tools/nap-ghe/nap-windows.bat" /tmp/binghe/nap-windows.bat
+          cp "$GITHUB_WORKSPACE/tools/nap-ghe/nap.sh"          /tmp/binghe/nap.sh
           chmod +x /tmp/binghe/nap.sh
           cd /tmp/binghe
           git init -q
