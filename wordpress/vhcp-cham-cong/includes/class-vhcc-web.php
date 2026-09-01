@@ -1047,6 +1047,39 @@ class VHCC_Web {
 			$v_g    = isset( $_POST['sg_vao'] ) ? wp_unslash( $_POST['sg_vao'] ) : '';
 			$r_g    = isset( $_POST['sg_ra'] ) ? wp_unslash( $_POST['sg_ra'] ) : '';
 
+			/* 🗑 XOÁ CÔNG BẤM NHẦM — nút riêng, xoá TRẮNG cả giờ vào lẫn giờ ra của ngày ấy.
+			 * Nhân viên quẹt nhầm mặt thì có một dòng công không có thật; xoá đây = xoá GIỜ (đặt
+			 * null), KHÔNG xoá hàng — `ghi_chu`/dấu vết `ghi_luc` vẫn còn, và VHCC_Bu::sua ghi nhật
+			 * ký cũ→mới nên dựng lại được. Xoá CẢ CHÙM (kể cả dòng ca đêm ở cơ sở phụ) trong 1 lượt.
+			 * Vì sao tách khỏi nhánh sửa thường: ô giờ để trống ở nhánh kia nghĩa là "giữ nguyên"
+			 * cho ô đơn — một nút xoá rõ ràng mới là hành động cố ý, khỏi lẫn. */
+			if ( ! empty( $_POST['xoa_het'] ) ) {
+				$ma_goc = VHCC_Nhan::tach_hau_to( $ma_g );
+				$ma_goc = $ma_goc[0];
+				$o = VHCC_Bu::cac_o( VHCC_Luong::chum_cua( $cs_g ), $ngay_g, $ma_g );
+				$xong = array(); $loi = array();
+				foreach ( (array) $o as $d ) {
+					$co_v = null !== $d['vao'] && '' !== $d['vao'];
+					$co_r = null !== $d['ra']  && '' !== $d['ra'];
+					if ( ! $co_v && ! $co_r ) { continue; }   // dòng đã trống -> khỏi xoá
+					$r = VHCC_Bu::sua( $toi, array(
+						'coso'    => $d['coso'],
+						'ngay'    => $ngay_g,
+						'ma_nv'   => $ma_goc . ( '' !== $d['hauTo'] ? '-' . $d['hauTo'] : '' ),
+						'xoa_vao' => true,
+						'xoa_ra'  => true,
+						'ly_do'   => $ly_g,
+					) );
+					if ( empty( $r['ok'] ) ) { $loi[] = self::ten_dong_sua( $d['coso'], $d['hauTo'] ) . ': ' . $r['error']; }
+					else { $xong[] = $r; }
+				}
+				if ( ! $xong && ! $loi ) { return array( array( 'loi' => 'Ngày này không có giờ để xoá.' ) ); }
+				if ( ! $xong ) { return array( array( 'loi' => implode( ' · ', $loi ) ) ); }
+				$noi = '🗑 Đã xoá công (xoá giờ) ngày ' . self::ngay_vn( $ngay_g ) . ' của ' . esc_html( $ma_g ) . '.';
+				if ( $loi ) { $noi .= ' CHƯA xoá được: ' . implode( ' · ', $loi ) . '.'; }
+				return array( array( 'xong' => $noi ) );
+			}
+
 			/* 🔴 MỘT LƯỢT SỬA CÓ THỂ CHẠM NHIỀU DÒNG (anh Thắng 27/08/2026: *"nếu cơ sở được ghép
 			   từ 2 cơ sở, thì khi sửa sẽ sửa luôn được cả 2 là 4 giờ vào ra"*).
 			   Dạng ô ĐƠN vẫn phải chạy: biểu mẫu đang mở sẵn trên máy ai đó trước lúc cập nhật
@@ -4855,6 +4888,14 @@ class VHCC_Web {
 			. 'placeholder="' . esc_attr( $co_gio ? 'VD: máy lệch đồng hồ 2 tiếng — đối chiếu camera'
 				: 'VD: máy hỏng sáng nay, có camera' ) . '"></div>';
 		echo '<div><button class="chinh">' . ( $co_gio ? 'Lưu giờ' : 'Bù giờ' ) . '</button></div>';
+		/* 🗑 Nút XOÁ CÔNG — chỉ hiện khi ô CÓ giờ (mới có gì để xoá). Cùng form nên "Vì sao *"
+		   vẫn bắt buộc: buộc ghi rõ "bấm nhầm" trước khi xoá. Nền đỏ để không bấm lẫn với Lưu. */
+		if ( $co_gio ) {
+			echo '<div><button class="chinh" name="xoa_het" value="1" '
+				. 'style="background:#b32d2e" title="Xoá cả giờ vào lẫn giờ ra của ngày này '
+				. '(cho ca nhân viên quẹt nhầm mặt). Ghi lại nhật ký, dựng lại được.">'
+				. '🗑 Xoá công</button></div>';
+		}
 		echo '<div><a class="nut" href="' . esc_url( remove_query_arg(
 			array( 'sgn', 'sgm', 'gnd', 'gma' ), self::url_hien() ) ) . '#luoithang">Đóng</a></div>';
 		echo '</form></td></tr>';
