@@ -237,6 +237,11 @@ jobs:
   # động vào toàn bộ đường mạng, mà sai một chỗ là ghế cắm điện lên rồi đứng im.
   ghe:
     runs-on: ubuntu-latest
+    # Cần quyền GHI để đẩy .bin lên nhánh 'bin-ghe'. Thiếu dòng này thì bước đẩy chết với
+    # "Permission to <repo> denied to github-actions[bot]" — job `build` vốn đã có, job này
+    # thì chưa vì trước đây nó chỉ biên dịch chứ không phát hành gì.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
