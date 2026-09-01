@@ -167,7 +167,17 @@ class VHCC_Online {
 		$r = $wpdb->get_row( $wpdb->prepare(
 			'SELECT cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' ) . ' WHERE ma_nv=%s', $ma_nv ), ARRAY_A );
 		if ( $r ) {
-			if ( '' !== trim( (string) $r['cua_hang'] ) ) { $ds[] = trim( $r['cua_hang'] ); }
+			/* 🔴 `cua_hang` CŨNG PHẢI TÁCH Ở DẤU PHẨY — không thì sinh ra "cơ sở ảo".
+			   Hồ sơ cũ để `cua_hang` = "POSH_HCM, (PART TIME )_POSH+JP" (người làm hai nơi, nối
+			   bằng dấu phẩy — đúng hình dạng mà `ds_coso_hs()` và cột `coso_phu` bên dưới vẫn tách).
+			   Nhét NGUYÊN chuỗi vào danh sách thì ô xổ cơ sở lúc chấm công có một dòng
+			   "POSH_HCM, (PART TIME )_POSH+JP"; nhân viên chọn nó -> `cham_cong()` ghi thẳng cả
+			   chuỗi vào cột `coso` -> lưới cả tháng mọc một cơ sở không có thật. Tách y như
+			   `coso_phu` thì mỗi tên đứng riêng, `array_unique` bên dưới gộp về đúng hai cơ sở. */
+			foreach ( explode( ',', (string) $r['cua_hang'] ) as $x ) {
+				$x = trim( preg_replace( '/^CS_/', '', $x ) );
+				if ( '' !== $x ) { $ds[] = $x; }
+			}
 			foreach ( explode( ',', (string) $r['coso_phu'] ) as $x ) {
 				$x = trim( preg_replace( '/^CS_/', '', $x ) );
 				if ( '' !== $x ) { $ds[] = $x; }

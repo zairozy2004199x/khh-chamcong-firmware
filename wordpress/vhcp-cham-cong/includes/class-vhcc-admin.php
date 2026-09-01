@@ -1710,6 +1710,18 @@ class VHCC_Admin {
 			self::ve( 'don' );
 		}
 
+		/* GỘP CƠ SỞ TRÙNG TÊN KHÁC KIỂU GÕ — dời lượt từ tên sai sang tên đúng. Cùng một biểu mẫu
+		   cho xem trước lẫn gộp thật, khác nhau ở nút `that`. Tên cơ sở giữ nguyên kiểu gõ (không
+		   sanitize_title) — chính khoảng trắng và dấu ngoặc mới là thứ phân biệt hai tên. */
+		if ( 'gop_coso' === $action ) {
+			$that = isset( $_POST['that'] ) && '1' === (string) $_POST['that'];
+			$tu   = isset( $_POST['gop_tu'] ) ? sanitize_text_field( wp_unslash( $_POST['gop_tu'] ) ) : '';
+			$den  = isset( $_POST['gop_den'] ) ? sanitize_text_field( wp_unslash( $_POST['gop_den'] ) ) : '';
+			set_transient( 'vhcc_gop_' . get_current_user_id(),
+				VHCC_Nhan::gop_coso( $tu, $den, $that ), 60 );
+			self::ve( 'gop' );
+		}
+
 		if ( $action === 'luu' ) {
 			$slug = isset( $_POST['vhcc_slug'] ) ? sanitize_title( wp_unslash( $_POST['vhcc_slug'] ) ) : 'cham-cong';
 			if ( $slug === '' ) { $slug = 'cham-cong'; }
@@ -1878,6 +1890,70 @@ class VHCC_Admin {
 		echo '</div>';
 	}
 
+	/**
+	 * Ô GỘP CƠ SỞ TRÙNG TÊN KHÁC KIỂU GÕ. Luôn hiện (không như "Dọn cơ sở ghép" chỉ hiện khi có
+	 * dấu phẩy) — vì lệch chính tả thì máy không tự nhận ra được, phải để người nhìn danh sách mà
+	 * chọn. Hai ô xổ đổ từ chính các tên cơ sở đang có trong kho, kèm số lượt để biết đâu là tên
+	 * thật (nhiều lượt) đâu là tên gõ lệch (ít lượt).
+	 */
+	private static function khoi_gop_coso() {
+		$ds = VHCC_Nhan::ds_coso_tho();
+		if ( count( $ds ) < 2 ) { return; }   // dưới 2 cơ sở thì không có gì để gộp
+
+		$opt = '';
+		foreach ( $ds as $x ) {
+			$opt .= '<option value="' . esc_attr( $x['coso'] ) . '">'
+				. esc_html( $x['coso'] ) . ' (' . (int) $x['so'] . ' lượt)</option>';
+		}
+		echo '<div class="notice notice-info" style="padding:12px"><h2 style="margin-top:0">'
+			. 'Gộp cơ sở trùng (khác kiểu gõ)</h2>';
+		echo '<p>Khi máy chấm công ghi tên cơ sở <b>khác một chút</b> với tên trong hồ sơ '
+			. '(VD <code>PART_TIME (POSHJP)</code> với <code>(PART TIME )_POSH+JP</code>) thì lưới '
+			. 'coi là <b>hai cơ sở</b>, công thật rơi rải ra hai hàng. Dồn hết lượt từ <b>tên sai</b> '
+			. 'về <b>tên đúng</b> ở đây. Giờ là giờ thật của nhân viên — bản gộp nới khung [vào, ra] '
+			. 'của hàng đúng, không xoá giờ của ai.</p>';
+		echo '<p><b>Bấm Xem trước trước đã.</b> Đích phải là tên máy đang ghi thật (chọn trong danh '
+			. 'sách), không gõ tay một tên lạ.</p>';
+		echo '<form method="post">'
+			. wp_nonce_field( 'vhcc_gop_coso', '_wpnonce', true, false )
+			. '<input type="hidden" name="vhcc_action" value="gop_coso">'
+			. '<p><label>Dời TỪ cơ sở (tên sai): '
+			. '<select name="gop_tu" style="min-width:280px">' . $opt . '</select></label></p>'
+			. '<p><label>Dồn VỀ cơ sở (tên đúng): '
+			. '<select name="gop_den" style="min-width:280px">' . $opt . '</select></label></p>'
+			. '<button class="button" name="that" value="0">Xem trước</button> '
+			. '<button class="button button-primary" name="that" value="1" '
+			. 'onclick="return confirm(\'Dồn hết lượt sang cơ sở đích? Bấm Xem trước rồi hẵng làm.\')">'
+			. 'Gộp thật</button>';
+		echo '</form></div>';
+	}
+
+	/** Báo kết quả một lượt gộp cơ sở trùng tên. */
+	private static function bao_gop_coso( $b ) {
+		if ( ! empty( $b['loi'] ) ) {
+			echo '<div class="notice notice-error"><p><b>Chưa gộp được:</b> '
+				. esc_html( $b['loi'] ) . '</p></div>';
+			return;
+		}
+		$xem = ! empty( $b['xem'] );
+		echo '<div class="notice notice-' . ( $xem ? 'info' : 'success' ) . '"><p><b>'
+			. ( $xem ? 'Xem trước — CHƯA đổi gì.' : 'Đã gộp xong.' ) . '</b> '
+			. esc_html( $xem ? 'Sẽ dời từ ' : 'Đã dời từ ' )
+			. '</p><p><code>' . esc_html( (string) $b['tu'] ) . '</code> → <code>'
+			. esc_html( (string) $b['den'] ) . '</code>: '
+			. esc_html( $xem ? 'đổi tên ' : 'đã đổi tên ' ) . '<b>' . (int) $b['doi_ten'] . '</b> hàng, '
+			. esc_html( $xem ? 'gộp ' : 'đã gộp ' ) . '<b>' . (int) $b['gop'] . '</b> hàng vào '
+			. 'hàng đã có của cùng ngày.</p>';
+		if ( ! empty( $b['de_lai'] ) ) {
+			echo '<p><b>Để lại ' . count( $b['de_lai'] ) . ' hàng, cần xử tay</b> — hàng ở cơ sở '
+				. 'đúng đã được chỉnh tay hoặc chấm bù, nên bản gộp không đè lên số ấy:</p>'
+				. '<ul style="margin-left:18px;list-style:disc">';
+			foreach ( $b['de_lai'] as $x ) { echo '<li>' . esc_html( $x ) . '</li>'; }
+			echo '</ul>';
+		}
+		echo '</div>';
+	}
+
 	private static function ve( $msg ) {
 		wp_safe_redirect( add_query_arg( array( 'page' => 'vhcc', 'vhcc_msg' => $msg ), admin_url( 'admin.php' ) ) );
 		exit;
@@ -1912,6 +1988,12 @@ class VHCC_Admin {
 			if ( is_array( $b_don ) ) { self::bao_don_coso( $b_don ); }
 		}
 
+		if ( 'gop' === $msg ) {
+			$b_gop = get_transient( 'vhcc_gop_' . get_current_user_id() );
+			delete_transient( 'vhcc_gop_' . get_current_user_id() );
+			if ( is_array( $b_gop ) ) { self::bao_gop_coso( $b_gop ); }
+		}
+
 		if ( $msg === 'nd' ) {
 			$bao_nd = get_transient( 'vhcc_nd_' . get_current_user_id() );
 			delete_transient( 'vhcc_nd_' . get_current_user_id() );
@@ -1926,6 +2008,7 @@ class VHCC_Admin {
 		}
 
 		self::khoi_don_coso();
+		self::khoi_gop_coso();
 
 		$sua_url = get_transient( 'vhcc_sua_url_' . get_current_user_id() );
 		if ( is_array( $sua_url ) && $sua_url ) {
