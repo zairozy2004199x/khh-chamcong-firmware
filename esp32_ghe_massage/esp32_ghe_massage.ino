@@ -57,14 +57,21 @@
  *    kiểm chứng được nó từ đây. Thiếu font thì `CO_FONT_DEP` không được định nghĩa và toàn bộ
  *    màn rơi về font số như cũ. Bản dựng không bao giờ vỡ vì chuyện này.
  * ============================================================================================= */
-#if defined(LOAD_GFXFF) && defined(__has_include)
-  #if __has_include(<Fonts/GFXFF/FreeSansBold18pt7b.h>)
-    #include <Fonts/GFXFF/FreeSansBold18pt7b.h>
-    #include <Fonts/GFXFF/FreeSansBold12pt7b.h>
-    #include <Fonts/GFXFF/FreeSansBold9pt7b.h>
-    #include <Fonts/GFXFF/FreeSans9pt7b.h>
-    #define CO_FONT_DEP 1
-  #endif
+/* 🔴 KHÔNG `#include` FONT NÀO Ở ĐÂY. `TFT_eSPI.h` đã kéo sẵn toàn bộ Free Fonts vào qua
+ *    `Fonts/GFXFF/gfxfont.h` khi `LOAD_GFXFF` bật — include lại là ĐỊNH NGHĨA HAI LẦN và bản
+ *    dựng chết ngay:
+ *
+ *      FreeSansBold18pt7b.h:1:15: error: redefinition of 'const uint8_t FreeSansBold18pt7bBitmaps []'
+ *
+ *    Bản đầu gác bằng `__has_include` và tưởng thế là an toàn. Không phải: `__has_include` chỉ
+ *    trả lời "tệp có tồn tại không", nó không biết tệp ấy ĐÃ ĐƯỢC NẠP RỒI. Chính CI bắt được —
+ *    xem run 33481286970. Bài học: gác sự tồn tại không thay được việc đọc xem thư viện đã làm
+ *    gì cho mình.
+ *
+ * ⚠️ Máy nào không bật `LOAD_GFXFF` thì `CO_FONT_DEP` không được định nghĩa và cả màn rơi về
+ *    font dựng sẵn — xem `datFont()`. */
+#if defined(LOAD_GFXFF)
+  #define CO_FONT_DEP 1
 #endif
 #include <XPT2046_Touchscreen.h>
 #include <SPI.h>
