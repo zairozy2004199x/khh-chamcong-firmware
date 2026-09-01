@@ -546,6 +546,101 @@ t( 'và nói kế toán phải trả lại đủ số ấy',
 	false !== strpos( $_app_tu, 'Kế toán trả lại đủ số này' ), null );
 t( '🔴 thôi gọi là "đối chiếu khớp"', false === strpos( $_app_tu, '(đối chiếu khớp)' ), null );
 
+/* (a2) ĐƠN ĐÃ ĐÁNH DẤU CẤP TIỀN NHƯNG TIỀN CHƯA TỪNG RA KHỎI KÉT.
+   Anh Thắng 01/09/2026, sau khi cài 1.59.0: *"vẫn còn"*, *"đơn này là đơn đã cấp"*. Đơn VR TÂN
+   AN ghi hẳn `tam_ung_duyet = 73.000`, có người duyệt và có người bấm cấp tiền — con số nằm
+   cứng trong sổ, không phép tính nào gỡ ra được. Đường sẵn có không tới nơi: `duyet_lai_tam_ung()`
+   chỉ nhận đơn còn ở "Chờ cấp tạm ứng", còn "Không dùng" thì chỉ gắn nhãn chứ không hạ số. */
+$hc = VHCP_Don::create_don( 'T9/2026 (31/8-6/9/2026)', 'Huỳnh Thị Thu Thảo' );
+$mhc = $hc['maDon'];
+VHCP_Don::add_line( $mhc, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'xịt phòng',
+	'soLuong' => 1, 'donGia' => 37000, 'thanhTien' => 37000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mhc );
+VHCP_Don::duyet_tam_ung( $mhc, 'Nguyễn Thị Phương Hòa', 73000 );
+VHCP_Don::cap_tam_ung( $mhc, 'Kế Toán ( Chị Nhàn )' );
+VHCP_Don::add_line( $mhc, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'pin',
+	'soLuong' => 1, 'donGia' => 36000, 'thanhTien' => 36000 ) );
+teq( 'dựng đúng cảnh: sổ ghi đã cấp 73.000', 73000.0,
+	(float) VHCP_Don::get_don( $mhc )['tongCN']['tamUng'] );
+teq( 'và đối chiếu báo KHỚP dù NV chưa nhận đồng nào', 0.0,
+	(float) VHCP_Don::get_don( $mhc )['tongCN']['chenhLech'] );
+
+/* Cửa cũ không tới nơi — nói rõ để người bấm khỏi đi tìm. */
+$r_dl0 = VHCP_Don::duyet_lai_tam_ung( $mhc, 'Admin' );
+t( 'duyệt lại KHÔNG nhận đơn đã cấp tiền', empty( $r_dl0['success'] ), $r_dl0 );
+
+/* ⚠️ BẮT NÊU LÝ DO. Đây là lượt sửa tiền trên đơn đã có vết "cấp tiền" đứng sau. */
+$r_h0 = VHCP_Don::ha_tam_ung_ve_0( $mhc, '' );
+t( '🔴 không nêu lý do thì CHỐI', empty( $r_h0['success'] ), $r_h0 );
+t( 'và nói rõ vì sao bắt nêu', false !== mb_strpos( (string) $r_h0['error'], 'Phải nêu lý do' ), $r_h0 );
+teq( 'chối rồi thì không đụng đồng nào', 73000.0,
+	(float) VHCP_Don::get_don( $mhc )['tongCN']['tamUng'] );
+
+$r_h = VHCP_Don::ha_tam_ung_ve_0( $mhc, 'Cửa hàng không nhận tiền, lượt cấp là bấm nhầm' );
+t( 'hạ được', ! empty( $r_h['success'] ), $r_h );
+teq( 'trả về số cũ để màn hình ghi nhật ký', 73000.0, (float) $r_h['cu'] );
+$g_h = VHCP_Don::get_don( $mhc );
+teq( '🔴 tạm ứng về 0', 0.0, (float) $g_h['tongCN']['tamUng'] );
+teq( 'thực chi giữ nguyên', 73000.0, (float) $g_h['tongCN']['thucChi'] );
+teq( '🔴 đối chiếu nay báo THIẾU đúng số NV tự ứng ra', -73000.0, (float) $g_h['tongCN']['chenhLech'] );
+$_row_h = null;
+foreach ( (array) VHCP_Don::list_dons() as $x ) { if ( (string) $x['maDon'] === $mhc ) { $_row_h = $x; } }
+teq( 'danh sách đơn cũng thế', -73000.0, (float) $_row_h['chenhLech'] );
+/* Sửa tiền thì phải có vết, và vết phải mang cả lý do — không có nó thì tháng sau không ai
+   dựng lại được vì sao con số tụt từ 73.000 xuống 0. */
+$_h_log = '';
+foreach ( (array) VHCP_Don::nhat_ky_don( $mhc, 20 )['items'] as $_x ) {
+	if ( false !== mb_strpos( (string) $_x['hanhDong'], 'Hạ tạm ứng về 0' ) ) { $_h_log .= (string) $_x['chiTiet']; }
+}
+t( '🔴 nhật ký ghi số cũ, số mới và LÝ DO',
+	false !== mb_strpos( $_h_log, '73.000' ) && false !== mb_strpos( $_h_log, 'bấm nhầm' ), $_h_log );
+t( 'hạ lần nữa thì chối — đang là 0 rồi',
+	empty( VHCP_Don::ha_tam_ung_ve_0( $mhc, 'thử lại' )['success'] ), null );
+
+/* ⚠️ ĐƠN ĐÃ CHỐT SỔ THÌ KHÔNG. Con số đã đi vào báo cáo và vào MISA. */
+VHCP_Don::gui_quyet_toan( $mhc );
+VHCP_Don::xac_nhan_quyet_toan_cn( $mhc, 'Lê Kế Toán', 'Kế toán bù', -73000 );
+$r_hc = VHCP_Don::ha_tam_ung_ve_0( $mhc, 'thử sau khi chốt' );
+t( '🔴 đơn ĐÃ QUYẾT TOÁN thì chối', empty( $r_hc['success'] ), $r_hc );
+t( 'và nói rõ vì sao', false !== mb_strpos( (string) $r_hc['error'], 'đã chốt sổ' ), $r_hc );
+VHCP_Don::delete_don_admin( $mhc );
+
+/* ⚠️ CHƯA CẤP TIỀN thì đi cửa khác — câu chối phải chỉ sang đúng cửa ấy. */
+$hc2 = VHCP_Don::create_don( 'T9/2026 (31/8-6/9/2026)', 'Nguyễn Văn A' );
+$mhc2 = $hc2['maDon'];
+VHCP_Don::add_line( $mhc2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'chưa cấp',
+	'soLuong' => 1, 'donGia' => 50000, 'thanhTien' => 50000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mhc2 );
+VHCP_Don::duyet_tam_ung( $mhc2, 'Trần Quản Lý', 50000 );
+$r_hc2 = VHCP_Don::ha_tam_ung_ve_0( $mhc2, 'thử' );
+t( 'đơn chưa cấp tiền thì chối', empty( $r_hc2['success'] ), $r_hc2 );
+t( 'và chỉ sang cửa Duyệt lại',
+	false !== mb_strpos( (string) $r_hc2['error'], 'Duyệt lại theo số mới' ), $r_hc2 );
+VHCP_Don::delete_don_admin( $mhc2 );
+
+/* ⚠️ SỬA TIỀN TRÊN ĐƠN ĐÃ CÓ VẾT CẤP TIỀN — CHỈ ADMIN. Anh Thắng chốt 01/09/2026. */
+$_api_h = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/includes/class-vhcp-api.php' );
+t( '🔴 haTamUngVe0 nằm trong nhóm CHỈ ADMIN',
+	1 === preg_match( '/\$admin_only = array\([\s\S]{0,700}?\x27haTamUngVe0\x27/', $_api_h ), null );
+t( 'và có khai vào bản đồ việc', false !== strpos( $_api_h, "'haTamUngVe0'           => array( 'VHCP_Don', 'ha_tam_ung_ve_0' )" ), null );
+
+/* ⚠️ NÚT PHẢI CÓ THẬT, VÀ PHẢI ĐỨNG RIÊNG. Lõi chạy đúng mà không có cửa bấm thì vô dụng; mà
+   xếp nó cạnh "Không dùng — hoàn tạm ứng" là mời người ta bấm theo vị trí chứ không đọc — chọn
+   nhầm giữa hai nút ấy là sổ quỹ lệch. */
+$_app_h = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
+t( '🔴 có nút hạ tạm ứng về 0', false !== strpos( $_app_h, 'Hạ tạm ứng về 0 — tiền chưa ra khỏi két' ), null );
+t( '🔴 nút chỉ hiện cho Admin, đơn chưa chốt sổ, và khi đang có tạm ứng',
+	false !== strpos( $_app_h, "if(_laAdmin() && (st==='Đã cấp tạm ứng'||st==='Chờ quyết toán') && ((CUR.tongCN||{}).tamUng||0)>0){" ), null );
+t( 'gọi đúng việc ở máy chủ và gửi kèm lý do',
+	false !== strpos( $_app_h, '.haTamUngVe0(CUR.don.maDon, ly)' ), null );
+t( '🔴 chặn ngay ở màn khi bỏ trống lý do',
+	false !== strpos( $_app_h, "if(!String(ly).trim()){ toast('warn','Phải nêu lý do'); return; }" ), null );
+t( 'ô xác nhận nói rõ khác gì với "Không dùng"',
+	false !== strpos( $_app_h, 'Nếu tiền ĐÃ ra thật thì đừng bấm đây' ), null );
+
 /* (b) ĐƠN CŨ CHƯA AI CHỐT SỐ (tam_ung_duyet NULL) VẪN SUY TỪ HẠNG MỤC XIN NHƯ TRƯỚC.
    Đây là hàng rào chống hồi tố: `duyet_tam_ung()` để trống số vẫn ghi NULL, và cả sổ đang có
    những đơn như thế. Coi NULL là "duyệt 0đ" thì mọi đơn cũ lập tức báo thiếu toàn bộ. */

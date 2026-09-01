@@ -2772,6 +2772,64 @@ class VHCP_Don {
 		return array( 'success' => count( $errs ) === 0, 'returned' => $ok, 'errors' => $errs );
 	}
 
+	/**
+	 * HẠ TẠM ỨNG VỀ 0 CHO ĐƠN ĐÃ ĐÁNH DẤU CẤP TIỀN NHƯNG TIỀN CHƯA TỪNG RA KHỎI KÉT.
+	 *
+	 * 🔴 Anh Thắng 01/09/2026, đơn VR TÂN AN: *"Khi 1 cửa hàng không xin tạm ứng, tạm ứng = 0.
+	 *    Nhân viên sau đó mua đồ và quyết toán, thì hệ thống ghi nhận cả tạm ứng và thực chi =
+	 *    nhau luôn"* — rồi *"vẫn còn"*, *"đơn này là đơn đã cấp"*.
+	 *
+	 *    Bản 1.59.0 chữa được ca chưa ai chốt số / chốt là 0đ. Đơn này thì khác: sổ ghi hẳn
+	 *    `tam_ung_duyet = 73.000`, có người duyệt và có người bấm cấp tiền. Con số ấy nằm cứng
+	 *    trong sổ, không phép tính nào gỡ ra được.
+	 *
+	 *    Đường sẵn có không tới nơi: `duyet_lai_tam_ung()` chỉ nhận đơn còn ở "Chờ cấp tạm ứng";
+	 *    nút "🚫 Không dùng — hoàn tạm ứng" thì chỉ gắn nhãn `[Không dùng]` và đẩy sang Chờ
+	 *    quyết toán, KHÔNG hạ con số — nên khối đối chiếu vẫn so với 73.000 và báo THỪA, tức
+	 *    đòi nhân viên trả lại một khoản họ chưa từng nhận.
+	 *
+	 * 🔴 HAI CA KHÁC HẲN NHAU, ĐỪNG GỘP:
+	 *      · Tiền ĐÃ ra khỏi két rồi mới thôi dùng  → "Không dùng — hoàn tạm ứng": giữ con số,
+	 *        đối chiếu báo THỪA, nhân viên trả lại. Sổ quỹ khớp với lượt chi đã ghi.
+	 *      · Tiền CHƯA từng ra khỏi két (lượt cấp là bấm nhầm) → hàm này: hạ về 0, đối chiếu
+	 *        báo THIẾU đúng số nhân viên đã tự ứng ra, kế toán trả lại họ.
+	 *    Chọn nhầm ca là sổ quỹ nói một đằng đơn nói một nẻo — nên hàm này không tự chạy bao
+	 *    giờ, và người bấm phải nêu lý do.
+	 *
+	 * ⚠️ CHỈ ADMIN (chốt ở `$admin_only` bên API — anh Thắng chọn 01/09/2026), và chỉ khi đơn
+	 *    CHƯA chốt sổ. Đơn đã quyết toán / đã xuất MISA thì con số đã đi vào báo cáo và vào
+	 *    MISA; sửa ở đây là để lại một chỗ lệch không ai dò ra.
+	 */
+	public static function ha_tam_ung_ve_0( $ma_don, $ly_do = '' ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$st = (string) $d['trang_thai'];
+		if ( ! in_array( $st, array( 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
+			return VHCP_Util::err( 'Chỉ hạ được tạm ứng của đơn ĐÃ CẤP mà chưa chốt sổ. Đơn này đang ở "'
+				. $st . '"'
+				. ( 'Chờ cấp tạm ứng' === $st ? ' — chưa cấp tiền thì bấm "Duyệt lại theo số mới" và duyệt 0đ.'
+					: ( self::da_chot( $st ) ? ' — đã chốt sổ, con số đã đi vào báo cáo và MISA.' : '.' ) ) );
+		}
+		$cu = VHCP_Util::num( $d['tam_ung_duyet'] );
+		if ( 0.0 === (float) $cu && null === VHCP_Util::blank_or_num( $d['tam_ung_duyet'] ) ) {
+			/* Chưa ai chốt số: hạ về 0 vẫn có nghĩa (0 khác "chưa chốt"), nên cứ chạy tiếp. */
+			$cu = 0.0;
+		} elseif ( 0.0 === (float) $cu ) {
+			return VHCP_Util::err( 'Tạm ứng của đơn này đang là 0 rồi — không có gì để hạ.' );
+		}
+
+		$ly_do = trim( (string) $ly_do );
+		if ( '' === $ly_do ) {
+			return VHCP_Util::err( 'Phải nêu lý do — đây là lượt sửa tiền trên đơn đã đánh dấu cấp.' );
+		}
+
+		self::upd_don( $ma_don, array( 'tam_ung_duyet' => 0 ) );
+		self::ghi_vet( $ma_don, 'Hạ tạm ứng về 0 (tiền chưa ra khỏi két)',
+			VHCP_Util::tien( $cu ) . '  →  0đ · ' . $ly_do );
+		self::bao_noi_bo( $ma_don, 'được hạ tạm ứng về 0đ (tiền chưa ra khỏi két) — ' . $ly_do );
+		return VHCP_Util::ok( array( 'cu' => $cu ) );
+	}
+
 	public static function khong_dung_tam_ung( $ma_don ) {
 		$_loi = self::loi_khong_phai_don_minh( $ma_don );
 		if ( $_loi !== '' ) { return VHCP_Util::err( $_loi ); }

@@ -2790,6 +2790,28 @@
     google.script.run.withSuccessHandler(function(r){loading(false); if(r.success){_log('Không dùng — hoàn tạm ứng', CUR.don.maDon, money(tu)+'đ'); toast('ok','Đã đánh dấu không dùng — hoàn tạm ứng');boot();openDon(CUR.don.maDon);} else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).khongDungTamUng(CUR.don.maDon);
   }
+  /* 🔴 LƯỢT CẤP TIỀN CHỈ LÀ BẤM NHẦM — TIỀN CHƯA TỪNG RA KHỎI KÉT.
+     Anh Thắng 01/09/2026, đơn VR TÂN AN đã cấp 73.000đ trong khi cửa hàng không nhận đồng nào.
+     Khác hẳn "Không dùng — hoàn tạm ứng" ở ngay cạnh: bên kia là tiền ĐÃ ra rồi mới thôi dùng
+     nên giữ con số và đòi NV trả lại; bên này tiền chưa ra, giữ con số là đòi người ta trả một
+     khoản chưa từng nhận. Chỉ Admin (anh Thắng chốt), và bắt nêu lý do — đây là lượt sửa tiền
+     trên một đơn đã có vết "cấp tiền" đứng sau. */
+  function doHaTU0(){ if(!CUR)return;
+    var tu=(CUR.tongCN||{}).tamUng||0;
+    if(!confirm('HẠ TẠM ỨNG VỀ 0 cho đơn này?\n\n'
+      +'Đang ghi: '+money(tu)+'đ đã cấp.\n'
+      +'Chỉ dùng khi tiền CHƯA TỪNG ra khỏi két (lượt cấp là bấm nhầm).\n'
+      +'Sau khi hạ, đối chiếu sẽ báo THIẾU đúng số NV đã tự ứng ra — kế toán trả lại họ.\n\n'
+      +'Nếu tiền ĐÃ ra thật thì đừng bấm đây: dùng "🚫 Không dùng — hoàn tạm ứng" để NV trả lại.'))return;
+    var ly=prompt('Lý do (bắt buộc — sẽ vào nhật ký đơn):','Cửa hàng không nhận tiền, lượt cấp là bấm nhầm');
+    if(ly===null) return;
+    if(!String(ly).trim()){ toast('warn','Phải nêu lý do'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r.success){_log('Hạ tạm ứng về 0', CUR.don.maDon, money(r.cu)+'đ → 0đ · '+ly); toast('ok','Đã hạ tạm ứng về 0');boot();openDon(CUR.don.maDon);}
+      else toast('err',r.error);})
+      .withFailureHandler(function(e){loading(false);toast('err',e.message);}).haTamUngVe0(CUR.don.maDon, ly);
+  }
   // ---- Mục 4: Quyết toán trong đơn ----
   var QT={anh:''};
   function renderQT(){
@@ -2839,6 +2861,16 @@
       if(canDo('guiQT')) h+='<button class="btn b-x" onclick="saveQT()">💾 Lưu nháp</button> <button class="btn b-p" onclick="guiQT()">📤 Gửi hóa đơn cho kế toán</button>';
       if(canDo('khongDung')) h+=' <button class="btn b-d" onclick="doKhongDung()" title="Tạm ứng không xài / không có hóa đơn — hoàn lại toàn bộ, khỏi nhập dòng">🚫 Không dùng — hoàn tạm ứng</button>';
       h+='</div>';
+    }
+    /* Nút hạ tạm ứng về 0 — chỉ Admin, chỉ khi đơn CHƯA chốt sổ và đang thật sự mang một con
+       số tạm ứng. Để riêng một dải, không xếp cạnh hai nút kia: ba nút cùng hàng thì người ta
+       bấm theo vị trí chứ không đọc, mà chọn nhầm giữa "hoàn tạm ứng" với "hạ về 0" là sổ quỹ
+       lệch. */
+    if(_laAdmin() && (st==='Đã cấp tạm ứng'||st==='Chờ quyết toán') && ((CUR.tongCN||{}).tamUng||0)>0){
+      h+='<div style="margin-bottom:10px;padding:9px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px">'
+        +'<div style="font-size:12px;color:#854d0e;margin-bottom:7px">🏦 Đơn ghi <b>đã cấp '+money((CUR.tongCN||{}).tamUng||0)+'đ</b> nhưng tiền <b>chưa từng ra khỏi két</b> (lượt cấp là bấm nhầm)? '
+        +'Hạ về 0 để đối chiếu báo đúng số NV tự ứng ra. <i>Tiền đã ra thật thì dùng "Không dùng — hoàn tạm ứng" ở trên.</i></div>'
+        +'<button class="btn b-d" onclick="doHaTU0()">🏦 Hạ tạm ứng về 0 — tiền chưa ra khỏi két</button></div>';
     }
     // Phần Cá nhân (141): KT cá nhân xác nhận ở bước Chờ quyết toán
     if(loai.cn && role!=='Kế toán NCC'){
