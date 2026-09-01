@@ -2361,8 +2361,13 @@ t( 'chặn mã sai khuôn ngay trên máy, trước khi gửi đi',
    được, một màn vẽ lại cả nền mỗi giây thì chạm màn hình trễ thấy rõ. Ba lỗi đó đều KHÔNG
    hiện ra khi đọc mã. */
 $fw3 = file_get_contents( $goc . '/esp32_ghe_massage/esp32_ghe_massage.ino' );
-t( 'màn chọn gói có dải tiêu đề như bảng giá',
-	strpos( $fw3, 'CHAO MUNG QUY KHACH' ) !== false );
+/* Dải tiêu đề dựng lại 01/09/2026 theo tấm mẫu anh Thắng: dòng trên nói VIỆC PHẢI LÀM, dòng
+   dưới nói LÀM BẰNG GÌ. Câu chào cũ "CHAO MUNG QUY KHACH" đã bỏ — canh vào BẢNG BA MỨC, vì đó
+   mới là thứ giữ cho tiêu đề không bao giờ tràn khỏi màn. */
+t( 'màn chọn gói có bảng tiêu đề ba mức, dài xuống dần',
+	strpos( $fw3, 'static const char* TIEU[] = {' ) !== false
+	&& strpos( $fw3, '"QUET MA QR DE THANH TOAN"' ) !== false
+	&& strpos( $fw3, '"QUET MA QR"' ) !== false );
 t( 'và dải chân mời quét mã', strpos( $fw3, 'QUET MA QR DE THANH TOAN' ) !== false );
 t( 'thẻ VVIP vẽ khác thẻ thường', strpos( $fw3, 'PKG_VIP[i] != 0' ) !== false );
 t( 'số tiền in đủ kiểu Việt (200.000d), không viết tắt "200k"',
@@ -2772,7 +2777,10 @@ t( 'và từ chối TRƯỚC khi dựng mã', $vt_chot !== false && $vt_dung !==
 t( 'màn chờ cũng không mời chọn gói khi chưa có tài khoản',
 	preg_match( '/if\(!duNhanTien\(\)\)\{\s*veManChuaCoTk\(\);\s*return;\s*\}/s', $fw9 ) === 1 );
 $vt_tuchoi = strpos( $fw9, 'veManChuaCoTk();' );
-$vt_tieude = strpos( $fw9, 'fillRect(0, 0, 320, 28, COL_KHUNG)' );   // nét vẽ đầu tiên của màn chờ
+/* Nét vẽ đầu tiên của phần "mời chọn gói" — dải tiêu đề. Neo vào bảng TIEU[] chứ không vào một
+   lệnh fillRect cụ thể: bố cục vẽ lại được (và đã vẽ lại một lần), còn dải tiêu đề thì luôn là
+   thứ đầu tiên hiện ra sau hai chốt từ chối. */
+$vt_tieude = strpos( $fw9, 'static const char* TIEU[] = {' );
 $vt_vongo  = strpos( $fw9, 'for(int i=0;i<PKG_N;i++) veTheGoi(i);' );
 t( '🔴 và chốt đó đứng TRƯỚC mọi nét vẽ của màn chờ',
 	false !== $vt_tuchoi && false !== $vt_tieude && $vt_tuchoi < $vt_tieude );
@@ -3812,8 +3820,20 @@ t( '🔴 version 3 nay vẫn đủ to — đây là khoảng đệm vừa mua đ
 /* ⚠️ Chữ THƯỜNG. 'A' nằm trong bảng chữ alphanumeric của QR (đặc hơn nhiều), nên 60 chữ 'A'
    vẫn chỉ là version 3 — phép thử tưởng canh trần mà thật ra canh hụt. */
 $qro_v4 = VHG_Ma::qr_o_goi( str_repeat( 'a', 60 ) );                      // 60 ký tự -> version 4
-t( 'quá version 3 thì vẫn quá nhỏ', (int) $qro_v4['px'] < 2, $qro_v4['chu'] );
-t( 'và màn quản trị kêu lên', strpos( (string) $qro_v4['chu'], 'QUÁ NHỎ' ) !== false );
+/* 01/09/2026 vùng vẽ nới 70 -> 74px, nên version 4 — mức dài nhất còn nhận — nay CŨNG đủ 2px.
+   Tức trong tầm hiện tại không còn mức nào rơi vào "vẽ được nhưng quá nhỏ": hoặc đủ to, hoặc
+   quá dài và nói thẳng là không vẽ. Bài này vì thế canh đúng điều ấy thay vì đòi một cảnh báo
+   không còn xảy ra. */
+teq( '🔴 version 4 — mức dài nhất còn nhận — vẫn đủ 2px ở vùng 74', 2, (int) $qro_v4['px'] );
+t( 'và không kêu QUÁ NHỎ nữa', false === strpos( (string) $qro_v4['chu'], 'QUÁ NHỎ' ), $qro_v4['chu'] );
+/* ⚠️ NHƯNG NGƯỠNG PHẢI CÒN NGUYÊN TRONG MÃ. Nó là hàng rào cho lần sau ai đó thu vùng vẽ lại
+   (đã thu một lần: 70 xuống từ ý định 58). Canh thẳng nhánh trong tệp, vì đường ra của hàm
+   không còn chạm tới nó được nữa — mà một nhánh không phép thử nào đi qua là nhánh dễ bị xoá
+   nhầm nhất. */
+$_ma_php = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-ghe/includes/class-vhg-ma.php' );
+t( '🔴 ngưỡng "quá nhỏ" vẫn còn trong mã, phòng khi vùng vẽ bị thu lại',
+	false !== strpos( $_ma_php, 'if ( $px >= 2 ) {' )
+	&& false !== strpos( $_ma_php, 'QUÁ NHỎ, phần lớn điện thoại sẽ không quét nổi' ), null );
 /* Chuỗi dài quá tầm thì nói thẳng là không vẽ được, đừng trả một con số vô nghĩa. */
 $qro_qua = VHG_Ma::qr_o_goi( str_repeat( 'A', 200 ) );
 teq( 'chuỗi quá dài thì không vẽ được mã', 0, (int) $qro_qua['px'] );
@@ -4261,10 +4281,16 @@ t( 'ô nhập tên gói khai maxlength khớp giới hạn',
    chữ "MAT MANG" là thứ nhân viên cần đọc nhất. Nay phải ĐO rồi mới xếp. */
 $than_idle = $than_ham( $ino_v, 'drawIdle' );
 t( 'bóc được thân hàm drawIdle()', '' !== $than_idle );
-t( '🔴 dải tiêu đề ĐO chiều rộng phần bên phải thay vì đoán',
-	strpos( $than_idle, 'tft.textWidth(chuPhai, 1)' ) !== false );
+/* 01/09/2026 mã ghế đã dời xuống dải đáy, nên tiêu đề chiếm trọn bề ngang thay vì phải né một
+   khối bên phải. Ý cần canh KHÔNG đổi: vẫn phải ĐO chữ rồi mới chọn mức, chứ không đoán. */
+t( '🔴 dải tiêu đề ĐO chiều rộng chữ thay vì đoán',
+	strpos( $than_idle, 'rongChu(TIEU[k], CAP_TIEU)' ) !== false );
 t( 'và chọn mức tiêu đề theo chỗ thật sự còn lại',
-	preg_match( '/textWidth\(TIEU_DE\[k\], 1\)\s*<=\s*mepPhai/', $than_idle ) === 1 );
+	preg_match( '/rongChu\(TIEU\[k\], CAP_TIEU\)\s*<=\s*\d+/', $than_idle ) === 1 );
+/* Và mức NGẮN NHẤT phải là mức mặc định — đo hụt thì thà hiện câu ngắn còn đọc được, hơn là
+   hiện câu dài bị cụt hai đầu. */
+t( 'mức ngắn nhất là mức mặc định khi không mức nào vừa',
+	preg_match( '/String tieu = TIEU\[2\];/', $than_idle ) === 1 );
 t( '🔴 không còn vẽ tiêu đề căn cứng giữa màn (x=160)',
 	preg_match( '/drawString\("CHAO MUNG[^"]*",\s*160\s*,/', $than_idle ) !== 1 );
 /* Mức ngắn nhất phải vừa kể cả khi mã ghế dài hết cỡ VÀ đang mất mạng. */

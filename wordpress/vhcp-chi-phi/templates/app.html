@@ -2198,11 +2198,17 @@
     var hangMuc=keys.reduce(function(s,cs){return s+(Number(t[cs])||0);},0);
     /* Bù trừ tuần trước đã ẨN khỏi màn này (anh Thắng 01/09/2026). Máy chủ vẫn tính & lưu (buTru,
        buTruAuto) cho báo cáo, nhưng KHÔNG bày ở đây và KHÔNG cộng/trừ vào tạm ứng tuần này. */
-    var tong=hangMuc;
+    /* 🔴 DỰ PHÒNG CỦA ĐƠN CŨ VẪN PHẢI CỘNG VÀO. Ô nhập dự phòng đã gỡ nên đơn mới luôn có 0,
+       nhưng đơn cũ thì còn số trong đó và máy chủ VẪN cộng nó vào `tongCN.tamUng`. Bỏ nó ra ở
+       đây là hai con số lệch nhau ngay trong cùng một màn: dải "Tổng xin đã đổi sau khi duyệt"
+       ở dưới so `tong` với `duyet`, nên mọi đơn cũ có dự phòng sẽ bị kêu lệch oan. */
+    var dp=Number((CUR.don||{}).duPhong)||0;
+    var tong=hangMuc+dp;
     var duyet=(CUR.tongCN||{}).tamUng||0;
     if(keys.length){
       var chips=keys.sort().map(function(cs){ return '<span class="chip">'+esc(cs)+': <b>'+money(t[cs])+'đ</b></span>'; }).join('');
       var parts=[]; if(hangMuc>0)parts.push('nhập tay '+money(hangMuc)+'đ');
+      if(dp>0)parts.push('dự phòng đơn cũ '+money(dp)+'đ');
       var bd=(parts.length>1)?(' <span style="color:#94a3b8">('+parts.join(' + ')+')</span>'):'';
       /* 🔴 XIN ĐÃ ĐỔI SAU KHI DUYỆT -> PHẢI KÊU LÊN.
          Từ 26/08/2026 nhân viên sửa được hạng mục xin ở cả những trạng thái SAU khi quản lý đã
@@ -2229,15 +2235,10 @@
       el('tuChips').innerHTML='<span style="color:#94a3b8;font-size:12px">Đơn này <b>không xin tạm ứng</b> (= 0). Cần ứng trước thì nhập số ở ô <b>“Số tạm ứng”</b> cho từng cơ sở phía trên; để trống = kế toán chi bù khi quyết toán.</span>';
     }
   }
-  function saveDuPhong(){
-    if(!CUR||!CUR.don||CUR.don.trangThai!=='Nháp'){toast('warn','Chỉ nhập khi đơn ở "Nháp"');return;}
-    // Bù trừ kỳ trước KHÔNG gửi lên nữa: máy chủ tự tính từ kỳ trước và bỏ qua số này.
-    var dp=el('dpSo').value;
-    loading(true);
-    google.script.run.withSuccessHandler(function(r){loading(false);
-      if(r.success){toast('ok','Đã lưu tạm ứng dự phòng');openDon(CUR.don.maDon);} else toast('err',r.error);
-    }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).setTuExtra(CUR.don.maDon, dp, 0);
-  }
+  /* `saveDuPhong()` ĐÃ BỎ cùng ô nhập dự phòng (01/09/2026). Hàm ở lại thì mồ côi mà vẫn nguy:
+     nó đọc `el('dpSo').value` của một ô không còn tồn tại — ai gọi nhầm là màn đứng im vì lỗi
+     đọc thuộc tính của null, chứ không báo gì. Số dự phòng của ĐƠN CŨ vẫn đọc và vẫn cộng vào
+     tạm ứng ở máy chủ; chỉ là không nhập thêm được nữa. */
   function saveTU(){
     if(_guardTU())return;
     var cs=el('tuCoso').value, so=el('tuSo').value;
@@ -3853,7 +3854,14 @@
     el('tqCards').innerHTML=
       /* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `renderTU()`. Vẫn hiện, nhưng
          tách hẳn ra sau dấu chấm giữa và nói rõ là con số để biết. */
-      _tqCard('#eff6ff','#bfdbfe','#1e40af','💸 Chi phí xin (hạng mục)', money(t.xin)+'đ', '+ dự phòng '+money(t.duPhong)+'đ = tổng tạm ứng '+money((t.xin||0)+(t.duPhong||0))+'đ'+((t.buTru||0)?(' · tuần trước còn '+(t.buTru>0?'thiếu ':'dư ')+money(Math.abs(t.buTru))+'đ (chỉ để biết)'):''))+
+      /* 🔴 KHÔNG CÒN GỌI "hạng mục xin + dự phòng" LÀ TỔNG TẠM ỨNG. Từ 01/09/2026 tạm ứng là
+         số nhân viên NHẬP TAY ở ô "Số tạm ứng", chẳng dính gì tới tổng hạng mục xin. Ô này vẫn
+         nói câu cũ thì màn Tổng quan và màn đơn ra hai con số khác nhau — đúng cảnh anh Thắng
+         gửi ảnh 31/08/2026. Dự phòng chỉ còn ở ĐƠN CŨ nên ẩn hẳn khi bằng 0. */
+      _tqCard('#eff6ff','#bfdbfe','#1e40af','💸 Chi phí xin (hạng mục)', money(t.xin)+'đ',
+        'tổng hạng mục xin — KHÔNG phải số tạm ứng'
+        +((t.duPhong||0)?(' · đơn cũ còn dự phòng '+money(t.duPhong)+'đ'):'')
+        +((t.buTru||0)?(' · tuần trước còn '+(t.buTru>0?'thiếu ':'dư ')+money(Math.abs(t.buTru))+'đ (chỉ để biết)'):''))+
       _tqCard('#fff7ed','#fed7aa','#9a3412','🧾 Chi phí thực tế', money(t.thucTe)+'đ', (t.soDon||0)+' đơn · '+(t.soTuan||0)+' tuần')+
       _tqCard(clc.bg,clc.bd,clc.fg, clc.lb, money(Math.abs(t.cl||0))+'đ', 'Chênh lệch = xin − thực tế');
     // BIỂU ĐỒ TRÒN tỉ trọng chi phí THỰC TẾ theo hạng mục (conic-gradient, không cần thư viện ngoài)

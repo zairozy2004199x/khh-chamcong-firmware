@@ -525,8 +525,19 @@ class VHCP_Don {
 			   ⚠️ VẪN TÍNH VÀ VẪN HIỆN con số ấy — chỉ thôi cộng vào tiền. Bỏ hẳn thì mất luôn
 			      thứ đang giúp kế toán biết tuần trước còn treo bao nhiêu. */
 			/* Bỏ "tạm ứng dự phòng" (anh Thắng 01/09/2026): nhân viên nhập thẳng số tạm ứng ở ô,
-			   không cần khoản dự phòng riêng nữa. Tạm ứng = đúng số nhập tay ở bảng `tamung`. */
-			$tu_tay   = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 );
+			   không cần khoản dự phòng riêng nữa — ô nhập đã gỡ khỏi màn nên đơn MỚI luôn có
+			   `du_phong` = 0.
+
+			   🔴 NHƯNG ĐƠN CŨ THÌ ĐÃ CÓ SỐ TRONG ĐÓ, VÀ TIỀN ẤY ĐÃ RA KHỎI KÉT THẬT. Bỏ hẳn nó
+			      ra khỏi phép cộng là hồi tố: đơn cũ đang xin 1.700.000đ (1.500.000 + 200.000 dự
+			      phòng) bỗng chỉ còn 1.500.000đ, rồi khối Quyết toán báo nhân viên tiêu vượt
+			      200.000đ mà thật ra chính công ty đã đưa. Nên vẫn cộng — với đơn mới thì cộng
+			      thêm 0, không đổi gì.
+
+			   ⚠️ Ba nơi phải cùng một phép cộng, nếu không lại đúng cảnh anh Thắng gửi ảnh
+			      31/08/2026 "2 có số tổng tạm ứng khác nhau": chỗ này, `get_don()`, và
+			      `tong_xin_hien_tai()` (vốn đã cộng dự phòng từ trước). */
+			$tu_tay   = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) + $du_phong;
 			$ad_total = ( null !== $tu_d ) ? $tu_d : $tu_tay;
 			$has_tu   = ( $ad_total > 0 );
 			$mua_cn   = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
@@ -853,6 +864,9 @@ class VHCP_Don {
 		   quyết toán riêng — không đổ vào tạm ứng. */
 		$tu_tay_sum = 0;
 		foreach ( $tam_ung as $v ) { $tu_tay_sum += VHCP_Util::num( $v ); }
+		/* Dự phòng của ĐƠN CŨ vẫn cộng vào — xem khối 🔴 cùng chuyện ở `list_dons()`. Đơn mới
+		   không còn ô nhập nên số này là 0 và phép cộng không đổi gì. */
+		$tu_tay_sum += VHCP_Util::num( $don['duPhong'] );
 		/* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `list_dons()`. Nó vẫn được
 		   tính và vẫn trả về (`buTru`, `buTruAuto`) để màn hình bày ra như một con số báo cáo.
 		   Đã bỏ "tạm ứng dự phòng" (anh Thắng 01/09/2026): nhân viên nhập thẳng số tạm ứng ở ô. */

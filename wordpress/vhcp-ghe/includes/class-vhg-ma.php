@@ -248,8 +248,11 @@ class VHG_Ma {
 	   không tồn tại, tức là báo yên tâm trong khi ghế đang vẽ mã không quét nổi (hoặc ngược lại).
 	   Hai ngôn ngữ khác nhau nên không có gì tự ràng: phép thử ở test-ghe.php ĐỌC tệp .ino và
 	   bắt hai con số phải bằng nhau. Đổi một bên thì bộ thử gãy ngay, đúng ý.
-	   23/08/2026: 58 -> 70 sau khi bỏ hai hàng chữ kẹp trên dưới mã. */
-	const QR_VUNG_PX = 70;
+	   23/08/2026: 58 -> 70 sau khi bỏ hai hàng chữ kẹp trên dưới mã.
+	   01/09/2026: 70 -> 74 — dựng lại toàn màn ghế theo tấm mẫu anh Thắng, thẻ quảng cáo rộng
+	   thêm nên vùng mã nới theo. Bên .ino đổi trước, con số này ở lại 70 và bộ thử bắt được
+	   đúng như đã hẹn: màn quản trị chấm điểm mã theo một cỡ ghế không còn vẽ nữa. */
+	const QR_VUNG_PX = 74;
 
 	public static function qr_o_goi( $url ) {
 		$u = (string) $url;

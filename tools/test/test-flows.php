@@ -68,6 +68,17 @@ $ma_ncc = $d_ncc['maDon'];
 $l3 = VHCP_Don::add_line( $ma_ncc, array( 'coso' => 'TÀU TÂN PHÚ', 'ngay' => $today, 'phanLoaiTT' => 'Nhà cung cấp', 'doiTuong' => 'CTY ABC', 'nhom' => 'SP Đồ uống - NCC', 'noiDung' => 'Nước ngọt', 'soLuong' => 20, 'donGia' => 15000, 'thanhTien' => 300000, 'thueSuat' => 8 ) );
 teq( 'dòng 1..3 đều là hạng mục xin', 0, $l3['phatSinh'] );
 
+/* 🔴 TẠM ỨNG KHÔNG CÒN SUY TỪ HẠNG MỤC XIN (anh Thắng 01/09/2026). Trước đây bài này chỉ thêm
+   dòng chi rồi mong tạm ứng tự bằng tổng dòng; nay tạm ứng CHỈ là số nhân viên nhập tay ở ô
+   "Số tiền tạm ứng". Nên: chưa nhập thì đúng ra phải là 0, và phải gọi `set_tam_ung()` mới có. */
+$g0 = VHCP_Don::get_don( $ma );
+teq( '🔴 chưa nhập tay thì tạm ứng = 0, KHÔNG suy từ hạng mục xin', 0, $g0['tongCN']['tamUng'] );
+t( 'chưa nhập tay thì bảng tạm ứng theo cơ sở còn rỗng', empty( $g0['tamUng'] ) );
+teq( 'nhưng thực chi vẫn thấy đủ — hai con số tách bạch', 1500000, $g0['tongCN']['thucChi'] );
+
+t( 'nhập tay tạm ứng FARM', ! empty( VHCP_Don::set_tam_ung( $ma, 'FARM PHAN THIẾT', 1500000 )['success'] ) );
+t( 'nhập tay tạm ứng TÀU TÂN PHÚ', ! empty( VHCP_Don::set_tam_ung( $ma_ncc, 'TÀU TÂN PHÚ', 300000 )['success'] ) );
+
 $g = VHCP_Don::get_don( $ma );
 teq( 'tạm ứng FARM = 1.500.000', 1500000, $g['tamUng']['FARM PHAN THIẾT'] );
 t( 'đơn FARM không có cơ sở khác', ! isset( $g['tamUng']['TÀU TÂN PHÚ'] ) );
@@ -275,6 +286,10 @@ teq( 'số ghi thẳng vào đơn, không chờ giao diện', -250000, (float) V
 VHCP_Don::add_line( $ma2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Xin tuần này',
 	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+/* Từ 01/09/2026 hạng mục xin KHÔNG tự thành tạm ứng nữa — phải nhập tay đúng số muốn ứng.
+   Nhập đúng 1.000.000 để câu hỏi của khối này vẫn nguyên: bù trừ −250.000 có bị trừ vào
+   không. */
+VHCP_Don::set_tam_ung( $ma2, 'FARM PHAN THIẾT', 1000000 );
 $g2c = VHCP_Don::get_don( $ma2 );
 teq( 'đơn tuần này vẫn thấy bù trừ của tuần trước', -250000, VHCP_Util::num( $g2c['don']['buTru'] ) );
 /* 🔴 VÀ TỔNG TẠM ỨNG ĐÚNG BẰNG HẠNG MỤC XIN — không bị trừ đi 250.000. */
@@ -308,9 +323,16 @@ t( '🔴 màn tổng quan: cũng KHÔNG cộng bù trừ vào tổng tạm ứng
 	false === strpos( $_app, "money((t.xin||0)+(t.duPhong||0)+(t.buTru||0))" ), null );
 /* Vẫn phải BÀY RA con số ấy — bỏ hẳn là mất thứ đang giúp kế toán biết tuần trước còn treo bao
    nhiêu. Và nhãn phải nói thẳng "chỉ để biết": nó nằm cạnh mấy con số CÓ cộng vào tổng. */
-t( 'nhưng vẫn bày ra, kèm chữ nói rõ là chỉ để biết',
-	false !== strpos( $_app, 'KHÔNG trừ vào tuần này' )
+/* 01/09/2026 con số bù trừ đã ẨN HẲN khỏi màn đơn (chỉ còn ở màn Tổng quan) — nhân viên mở đơn
+   không cần nhìn nợ tuần trước, còn kế toán thì xem ở Tổng quan. Nên chỗ soi cũng dời theo:
+   vẫn phải BÀY RA ở đâu đó, và vẫn phải nói thẳng là con số chỉ để biết. */
+t( 'nhưng vẫn bày ra ở màn Tổng quan, kèm chữ nói rõ là chỉ để biết',
+	false !== strpos( $_app, "tuần trước còn '+(t.buTru>0?'thiếu ':'dư ')" )
 	&& false !== strpos( $_app, '(chỉ để biết)' ), null );
+/* Và màn đơn thì thôi hẳn — không cộng, không trừ, không bày. */
+t( 'màn đơn không còn nhắc bù trừ tuần trước',
+	false === strpos( $_app, 'var tong=hangMuc+dp+bt;' )
+	&& false === strpos( $_app, 'var tong=hangMuc+bt;' ), null );
 
 /* =============================================================================================
  * 🔴 DUYỆT LẠI SỐ TẠM ỨNG KHI TỔNG XIN ĐÃ ĐỔI SAU KHI DUYỆT
@@ -328,6 +350,8 @@ $mdl = $dl['maDon'];
 VHCP_Don::add_line( $mdl, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Xin lần đầu',
 	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+/* Tạm ứng là số NHẬP TAY (01/09/2026), không suy từ hạng mục — xin 1.000.000 thì nhập 1.000.000. */
+VHCP_Don::set_tam_ung( $mdl, 'FARM PHAN THIẾT', 1000000 );
 VHCP_Don::gui_duyet_tam_ung( $mdl );
 /* 🔴 DỰNG ĐÚNG CA CỦA ANH THẮNG: duyệt bằng con số ĐÃ BỊ TRỪ bù trừ tuần trước — đúng như bản
    trước 1.53.0 vẫn làm. Hạng mục xin không hề đổi; chỉ con số duyệt là thấp hơn.
@@ -366,6 +390,7 @@ $mdl3 = $dl3['maDon'];
 VHCP_Don::add_line( $mdl3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Có dự phòng',
 	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+VHCP_Don::set_tam_ung( $mdl3, 'FARM PHAN THIẾT', 1000000 );
 VHCP_Don::set_du_phong( $mdl3, 123000 );
 teq( 'tổng xin hiện tại gồm cả dự phòng', 1123000.0, (float) VHCP_Don::tong_xin_hien_tai( $mdl3 ) );
 VHCP_Don::gui_duyet_tam_ung( $mdl3 );
@@ -438,6 +463,7 @@ $mbc1 = $bc1['maDon'];
 VHCP_Don::add_line( $mbc1, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Dính luật cũ',
 	'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+VHCP_Don::set_tam_ung( $mbc1, 'FARM PHAN THIẾT', 1000000 );
 $bt1 = VHCP_Util::num( VHCP_Don::get_don( $mbc1 )['don']['buTru'] );
 t( 'đơn thử có bù trừ khác 0', 0.0 !== (float) $bt1, $bt1 );
 VHCP_Don::gui_duyet_tam_ung( $mbc1 );
@@ -449,6 +475,7 @@ $mbc2 = $bc2['maDon'];
 VHCP_Don::add_line( $mbc2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Duyệt thấp cố ý',
 	'soLuong' => 1, 'donGia' => 2000000, 'thanhTien' => 2000000 ) );
+VHCP_Don::set_tam_ung( $mbc2, 'FARM PHAN THIẾT', 2000000 );
 VHCP_Don::gui_duyet_tam_ung( $mbc2 );
 VHCP_Don::duyet_tam_ung( $mbc2, 'Trần Quản Lý', 1200000 );   // cắt bớt, không liên quan bù trừ
 
@@ -492,6 +519,7 @@ $mbc3 = $bc3['maDon'];
 VHCP_Don::add_line( $mbc3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đã cấp tiền',
 	'soLuong' => 1, 'donGia' => 900000, 'thanhTien' => 900000 ) );
+VHCP_Don::set_tam_ung( $mbc3, 'FARM PHAN THIẾT', 900000 );
 $bt3 = VHCP_Util::num( VHCP_Don::get_don( $mbc3 )['don']['buTru'] );
 VHCP_Don::gui_duyet_tam_ung( $mbc3 );
 VHCP_Don::duyet_tam_ung( $mbc3, 'Trần Quản Lý', 900000 + $bt3 );
@@ -692,22 +720,49 @@ t( '🔴 chặn ngay ở màn khi bỏ trống lý do',
 t( 'ô xác nhận nói rõ khác gì với "Không dùng"',
 	false !== strpos( $_app_h, 'Nếu tiền ĐÃ ra thật thì đừng bấm đây' ), null );
 
-/* (b) ĐƠN CŨ CHƯA AI CHỐT SỐ (tam_ung_duyet NULL) VẪN SUY TỪ HẠNG MỤC XIN NHƯ TRƯỚC.
-   Đây là hàng rào chống hồi tố: `duyet_tam_ung()` để trống số vẫn ghi NULL, và cả sổ đang có
-   những đơn như thế. Coi NULL là "duyệt 0đ" thì mọi đơn cũ lập tức báo thiếu toàn bộ. */
+/* (b) DUYỆT ĐỂ TRỐNG = GIỮ NGUYÊN SỐ NHÂN VIÊN XIN, KHÔNG PHẢI "DUYỆT 0Đ".
+   `duyet_tam_ung()` để trống vẫn ghi NULL, và NULL phải rơi về số nhập tay ở ô "Số tạm ứng".
+   Coi NULL là 0 thì mọi đơn duyệt bằng nút hàng loạt (`duyet_tam_ung_nhieu()` luôn gọi với '')
+   lập tức tụt tạm ứng về 0 và khối Quyết toán báo thiếu toàn bộ.
+
+   ⚠️ TỪ 01/09/2026 nguồn của "số xin" là Ô NHẬP TAY, không còn là tổng hạng mục. Bài này vì thế
+      nhập tay trước rồi mới duyệt — đúng đường người dùng thật đi. */
 $cu = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
 $mcu = $cu['maDon'];
 VHCP_Don::add_line( $mcu, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Hạng mục xin',
 	'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+VHCP_Don::set_tam_ung( $mcu, 'FARM PHAN THIẾT', 500000 );
 VHCP_Don::gui_duyet_tam_ung( $mcu );
 VHCP_Don::duyet_tam_ung( $mcu, 'Trần Quản Lý', '' );          // để trống = duyệt đúng số xin
-teq( '🔴 duyệt để trống vẫn suy từ hạng mục xin', 500000.0,
+teq( '🔴 duyệt để trống vẫn giữ nguyên số nhân viên nhập', 500000.0,
 	(float) VHCP_Don::get_don( $mcu )['tongCN']['tamUng'] );
 $_row_cu = null;
 foreach ( (array) VHCP_Don::list_dons() as $x ) { if ( (string) $x['maDon'] === $mcu ) { $_row_cu = $x; } }
 teq( 'danh sách đơn cũng thế', 500000.0, (float) $_row_cu['tamUng'] );
 VHCP_Don::delete_don_admin( $mcu );
+
+/* (b2) 🔴 GHI LẠI ĐÚNG CHỖ HỞ CÒN LẠI, ĐỂ KHÔNG AI TƯỞNG NÓ ĐÃ ĐƯỢC XỬ.
+   Đơn lập TRƯỚC 01/09/2026 không có hàng nào trong bảng `tamung` (hồi ấy tạm ứng suy từ tổng
+   hạng mục xin). Nếu đơn ấy lại duyệt bằng nút hàng loạt thì `tam_ung_duyet` cũng NULL. Hai cái
+   NULL gặp nhau: tạm ứng của đơn nay ra 0 dù tiền đã ra khỏi két thật.
+
+   Bài này KHÔNG phải để đòi sửa — luật mới là ý anh Thắng và đúng cho đơn mới. Nó ở đây để con
+   số ấy được nói ra thành lời, và để nếu sau này có hàng rào chống hồi tố thì bài đổi màu ngay. */
+$cu2 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mcu2 = $cu2['maDon'];
+VHCP_Don::add_line( $mcu2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đơn kiểu cũ',
+	'soLuong' => 1, 'donGia' => 500000, 'thanhTien' => 500000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mcu2 );
+VHCP_Don::duyet_tam_ung( $mcu2, 'Trần Quản Lý', '' );
+teq( '⚠️ đơn kiểu cũ (không có ô nhập tay) + duyệt để trống → tạm ứng ra 0', 0.0,
+	(float) VHCP_Don::get_don( $mcu2 )['tongCN']['tamUng'] );
+/* Trong khi các dòng chi vẫn nằm đó với đủ 500.000 — số tiền người ta thật sự phải bỏ ra. */
+$_hm_cu2 = 0;
+foreach ( (array) VHCP_Don::get_don( $mcu2 )['lines'] as $_ln ) { $_hm_cu2 += VHCP_Util::num( $_ln['thanhTien'] ); }
+teq( 'trong khi hạng mục xin vẫn là 500.000 — đúng khoảng hở đang nói', 500000.0, (float) $_hm_cu2 );
+VHCP_Don::delete_don_admin( $mcu2 );
 
 /* (c) 0 KHÁC RỖNG — chốt nằm ở `blank_or_num()`. `num()` nghiền cả hai thành 0.0 nên không
    phân biệt được "duyệt 0đ" với "chưa ai chốt số". */
@@ -809,6 +864,7 @@ $mmc1 = $mc1['maDon'];
 VHCP_Don::add_line( $mmc1, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Ca SNOW',
 	'soLuong' => 1, 'donGia' => 15000032, 'thanhTien' => 15000032 ) );
+VHCP_Don::set_tam_ung( $mmc1, 'FARM PHAN THIẾT', 15000032 );
 VHCP_Don::gui_duyet_tam_ung( $mmc1 );
 VHCP_Don::duyet_tam_ung( $mmc1, 'Trần Quản Lý', 9405032 );   // bản cũ: 15.000.032 − 5.595.000
 teq( 'duyệt xong thì đơn mang số duyệt cắt bớt', 9405032.0,
@@ -836,6 +892,7 @@ $mmc2 = $mc2['maDon'];
 VHCP_Don::add_line( $mmc2, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đã ra tiền',
 	'soLuong' => 1, 'donGia' => 700000, 'thanhTien' => 700000 ) );
+VHCP_Don::set_tam_ung( $mmc2, 'FARM PHAN THIẾT', 700000 );
 VHCP_Don::gui_duyet_tam_ung( $mmc2 );
 VHCP_Don::duyet_tam_ung( $mmc2, 'Trần Quản Lý', 650000 );
 VHCP_Don::cap_tam_ung( $mmc2, 'Lê Kế Toán' );
@@ -874,6 +931,7 @@ $mbs = $bs['maDon'];
 VHCP_Don::add_line( $mbs, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đứng cạnh, không tích',
 	'soLuong' => 1, 'donGia' => 800000, 'thanhTien' => 800000 ) );
+VHCP_Don::set_tam_ung( $mbs, 'FARM PHAN THIẾT', 800000 );
 $bt_bs = VHCP_Util::num( VHCP_Don::get_don( $mbs )['don']['buTru'] );
 VHCP_Don::gui_duyet_tam_ung( $mbs );
 VHCP_Don::duyet_tam_ung( $mbs, 'Trần Quản Lý', 800000 + $bt_bs );
@@ -884,6 +942,7 @@ $mmc3 = $mc3['maDon'];
 VHCP_Don::add_line( $mmc3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
 	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Mồ côi, không tích',
 	'soLuong' => 1, 'donGia' => 2500000, 'thanhTien' => 2500000 ) );
+VHCP_Don::set_tam_ung( $mmc3, 'FARM PHAN THIẾT', 2500000 );
 VHCP_Don::gui_duyet_tam_ung( $mmc3 );
 VHCP_Don::duyet_tam_ung( $mmc3, 'Trần Quản Lý', 1750000 );
 VHCP_Don::tra_lai_don( $mmc3, 'sai số' );                                   // 1.56.0 gỡ số duyệt
@@ -3456,6 +3515,7 @@ teq( 'gian mới thì chưa đóng', '', VHCP_Cfg::coso_dong_cua( 'GIAN SẼ Đ�
 $d_c1 = VHCP_Don::create_don( 'T9/2026 (15/9-21/9/2026)', 'NV Gian Đóng' );
 $mc1  = $d_c1['maDon'];
 VHCP_Don::add_line( $mc1, array( 'coso' => 'GIAN SẼ ĐÓNG', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Mua đồ', 'soLuong' => 1, 'donGia' => 1000000, 'thanhTien' => 1000000 ) );
+VHCP_Don::set_tam_ung( $mc1, 'GIAN SẼ ĐÓNG', 1000000 );
 VHCP_Don::gui_duyet_tam_ung( $mc1 );
 VHCP_Don::duyet_tam_ung( $mc1, 'Trần Quản Lý', '' );
 VHCP_Don::cap_tam_ung( $mc1, 'Lê Kế Toán', 'Tiền mặt' );
@@ -3491,17 +3551,21 @@ teq( 'mở lại thì xóa ngày đóng', '', VHCP_Cfg::coso_dong_cua( 'GIAN S�
 VHCP_Don::delete_don_admin( $mc1 );
 VHCP_Don::delete_don_admin( $mc2 );
 
-// ------------------------------- XIN TẠM ỨNG CHỈ CẦN DỰ PHÒNG, KHÔNG BẮT LIỆT KÊ HẠNG MỤC
-// Nhiều tuần nhân viên chưa biết sẽ mua gì, chỉ xin một cục dự phòng. Bắt liệt kê hạng mục
-// trước khi gửi là bắt họ khai bừa.
-$d_dp = VHCP_Don::create_don( 'T9/2026 (8/9-14/9/2026)', 'NV Chỉ Dự Phòng' );
+// ------------------------------- XIN TẠM ỨNG KHÔNG BẮT LIỆT KÊ HẠNG MỤC TRƯỚC
+// Nhiều tuần nhân viên chưa biết sẽ mua gì, chỉ xin một cục. Bắt liệt kê hạng mục trước khi gửi
+// là bắt họ khai bừa.
+//
+// ⚠️ Ca này TRƯỚC 01/09/2026 dựng bằng ô "tạm ứng dự phòng". Ô ấy đã gỡ khỏi màn: nay nhân viên
+//    nhập thẳng số vào ô "Số tạm ứng" của cơ sở. Cùng một câu hỏi, chỉ đổi cửa nhập.
+$d_dp = VHCP_Don::create_don( 'T9/2026 (8/9-14/9/2026)', 'NV Chỉ Xin Cục' );
 $ma_dp = $d_dp['maDon'];
 t( 'chưa có gì thì không gửi được', empty( VHCP_Don::gui_duyet_tam_ung( $ma_dp )['success'] ) );
-t( 'nhập dự phòng', ! empty( VHCP_Don::set_du_phong( $ma_dp, 5000000 )['success'] ) );
+t( 'nhập thẳng số tạm ứng', ! empty( VHCP_Don::set_tam_ung( $ma_dp, 'FARM PHAN THIẾT', 5000000 )['success'] ) );
 $g_dp = VHCP_Don::get_don( $ma_dp );
 teq( 'không có hạng mục nào', 0, count( $g_dp['lines'] ) );
-teq( 'tạm ứng = dự phòng', 5000000, $g_dp['tongCN']['tamUng'] );
-t( 'CHỈ dự phòng vẫn gửi xin tạm ứng được', ! empty( VHCP_Don::gui_duyet_tam_ung( $ma_dp )['success'] ) );
+teq( 'tạm ứng = đúng số nhập tay', 5000000, $g_dp['tongCN']['tamUng'] );
+t( 'CHỈ có số tạm ứng, chưa có hạng mục nào, vẫn gửi xin được',
+	! empty( VHCP_Don::gui_duyet_tam_ung( $ma_dp )['success'] ) );
 teq( 'đơn sang chờ duyệt', 'Chờ duyệt tạm ứng', VHCP_Don::don_row( $ma_dp )['trang_thai'] );
 VHCP_Don::delete_don_admin( $ma_dp );
 
@@ -3785,6 +3849,7 @@ foreach ( array( array( 'NV Bù Trừ Một', 'FARM PHAN THIẾT', 1000000, 7000
                  array( 'NV Bù Trừ Hai', 'TÀU TÂN PHÚ',      2000000, 2500000 ) ) as $_c ) {
 	$_m = VHCP_Don::create_don( $_ky_a, $_c[0] )['maDon'];
 	VHCP_Don::add_line( $_m, array( 'coso' => $_c[1], 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Nguyên vật liệu', 'noiDung' => 'Hàng tuần A', 'soLuong' => 1, 'donGia' => $_c[2], 'thanhTien' => $_c[2] ) );
+	VHCP_Don::set_tam_ung( $_m, $_c[1], $_c[2] );   // tạm ứng = số nhập tay (01/09/2026)
 	VHCP_Don::gui_duyet_tam_ung( $_m );
 	VHCP_Don::duyet_tam_ung( $_m, $_ql, '' );
 	VHCP_Don::cap_tam_ung( $_m, 'Lê Kế Toán', 'Tiền mặt' );
