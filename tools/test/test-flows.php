@@ -670,9 +670,21 @@ t( 'đối chứng: duyetLaiTamUng vẫn mở cho Quản lý',
    xếp nó cạnh "Không dùng — hoàn tạm ứng" là mời người ta bấm theo vị trí chứ không đọc — chọn
    nhầm giữa hai nút ấy là sổ quỹ lệch. */
 $_app_h = file_get_contents( dirname( __DIR__, 2 ) . '/wordpress/vhcp-chi-phi/templates/app.html' );
-t( '🔴 có nút hạ tạm ứng về 0', false !== strpos( $_app_h, 'Hạ tạm ứng về 0 — tiền chưa ra khỏi két' ), null );
+/* Neo vào LỜI GỌI, không neo câu chữ trên nút: chữ trên nút đổi được (và đã đổi một lần), còn
+   `doHaTU0()` mà biến mất thì tính năng thật sự mất cửa bấm. */
+t( '🔴 có nút hạ tạm ứng về 0', false !== strpos( $_app_h, 'onclick="doHaTU0()"' ), null );
+/* Ba chốt phải cùng có mặt trong CÙNG một nhánh dựng nút. Cắt đúng đoạn quanh nút rồi soi,
+   để nút không trôi sang chỗ khác mà bài vẫn xanh nhờ ba chốt nằm rải rác cả tệp. */
+$_pos_ha = strpos( $_app_h, 'onclick="doHaTU0()"' );
+/* Cắt theo BYTE thì đứt giữa một ký tự tiếng Việt, và `preg_match` cờ /u gặp chuỗi UTF-8 hỏng
+   thì trả về `false` — tức LỖI, không phải "không khớp". Viết ngược điều kiện một cái là bài
+   xanh mãi mà chẳng soi gì. Nên: cắt từ đầu nhánh `if(_laAdmin()` gần nhất đứng TRƯỚC nút, và
+   soi bằng strpos (theo byte, không cần chuỗi hợp lệ). */
+$_dau_ha  = ( false === $_pos_ha ) ? false : strrpos( substr( $_app_h, 0, $_pos_ha ), 'if(_laAdmin()' );
+$_khoi_ha = ( false === $_dau_ha ) ? '' : substr( $_app_h, $_dau_ha, $_pos_ha - $_dau_ha + 60 );
 t( '🔴 nút chỉ hiện cho Admin, đơn chưa chốt sổ, và khi đang có tạm ứng',
-	false !== strpos( $_app_h, "if(_laAdmin() && (st==='Đã cấp tạm ứng'||st==='Chờ quyết toán') && ((CUR.tongCN||{}).tamUng||0)>0){" ), null );
+	false !== strpos( $_khoi_ha, "_laAdmin() && (st==='Đã cấp tạm ứng'||st==='Chờ quyết toán')" )
+	&& false !== strpos( $_khoi_ha, '+(_atu>0?(' ), null );
 t( 'gọi đúng việc ở máy chủ và gửi kèm lý do',
 	false !== strpos( $_app_h, '.haTamUngVe0(CUR.don.maDon, ly)' ), null );
 t( '🔴 chặn ngay ở màn khi bỏ trống lý do',
