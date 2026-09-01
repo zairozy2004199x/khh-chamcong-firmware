@@ -524,7 +524,9 @@ class VHCP_Don {
 
 			   ⚠️ VẪN TÍNH VÀ VẪN HIỆN con số ấy — chỉ thôi cộng vào tiền. Bỏ hẳn thì mất luôn
 			      thứ đang giúp kế toán biết tuần trước còn treo bao nhiêu. */
-			$tu_tay   = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 ) + $du_phong;
+			/* Bỏ "tạm ứng dự phòng" (anh Thắng 01/09/2026): nhân viên nhập thẳng số tạm ứng ở ô,
+			   không cần khoản dự phòng riêng nữa. Tạm ứng = đúng số nhập tay ở bảng `tamung`. */
+			$tu_tay   = ( isset( $tu_sum[ $m ] ) ? $tu_sum[ $m ] : 0 );
 			$ad_total = ( null !== $tu_d ) ? $tu_d : $tu_tay;
 			$has_tu   = ( $ad_total > 0 );
 			$mua_cn   = isset( $tt_cn[ $m ] ) ? $tt_cn[ $m ] : 0;
@@ -853,8 +855,7 @@ class VHCP_Don {
 		foreach ( $tam_ung as $v ) { $tu_tay_sum += VHCP_Util::num( $v ); }
 		/* Bù trừ tuần trước KHÔNG vào tổng tạm ứng — xem khối 🔴 ở `list_dons()`. Nó vẫn được
 		   tính và vẫn trả về (`buTru`, `buTruAuto`) để màn hình bày ra như một con số báo cáo.
-		   Dự phòng là số nhập tay riêng, luôn cộng vào tạm ứng xin. */
-		$tu_tay_sum += VHCP_Util::num( $don['duPhong'] );
+		   Đã bỏ "tạm ứng dự phòng" (anh Thắng 01/09/2026): nhân viên nhập thẳng số tạm ứng ở ô. */
 		/* 🔴 TẠM ỨNG BẰNG 0 LÀ MỘT CON SỐ THẬT, KHÔNG PHẢI "CHƯA BIẾT".
 		   Anh Thắng 01/09/2026: *"Khi 1 cửa hàng không xin tạm ứng, tạm ứng = 0. Nhân viên sau
 		   đó mua đồ và quyết toán, thì hệ thống ghi nhận cả tạm ứng và thực chi = nhau luôn.
@@ -916,6 +917,13 @@ class VHCP_Don {
 		if ( ! $coso ) { return VHCP_Util::err( 'Thiếu cơ sở' ); }
 		$d = self::don_row( $ma_don );
 		if ( $d && (string) $d['trang_thai'] !== 'Nháp' ) { return VHCP_Util::err( 'Tạm ứng đã khóa (chỉ sửa khi đơn ở "Nháp")' ); }
+		/* 🔒 MỘT ĐƠN = MỘT CƠ SỞ. Đơn đã chốt cơ sở (do tạm ứng/dòng chi trước) thì không nhận
+		   tạm ứng cho cơ sở KHÁC — xin tạm ứng nơi này mà chi nơi khác là sai. Gác cả ở máy chủ,
+		   không tin mỗi khóa trên giao diện. */
+		$cs_don = self::coso_cua_don( $ma_don );
+		if ( $cs_don !== '' && strcasecmp( $cs_don, (string) $coso ) !== 0 ) {
+			return VHCP_Util::err( 'Đơn này của cơ sở "' . $cs_don . '" — muốn tạm ứng cơ sở khác thì tạo đơn mới.' );
+		}
 		$t  = VHCP_DB::t( 'tamung' );
 		$so = VHCP_Util::num( $so );
 		$wpdb->query( $wpdb->prepare( "INSERT INTO $t (ma_don,coso,so) VALUES (%s,%s,%f) ON DUPLICATE KEY UPDATE so=VALUES(so)", (string) $ma_don, (string) $coso, $so ) );
@@ -1232,6 +1240,15 @@ class VHCP_Don {
 	 */
 	public static function coso_cua_don( $ma_don ) {
 		global $wpdb;
+		/* 🔴 MỘT ĐƠN = MỘT CƠ SỞ (anh Thắng 01/09/2026): tạm ứng nhập cho cơ sở nào thì đơn CHỐT
+		   cơ sở đó, để ô nhập hạng mục khóa theo — không còn cảnh xin tạm ứng cơ sở này mà lên chi
+		   phí cơ sở khác. Ưu tiên cơ sở của TẠM ỨNG (thường nhập trước), rồi mới tới dòng chi. */
+		$tt = VHCP_DB::t( 'tamung' );
+		$v  = $wpdb->get_var( $wpdb->prepare(
+			"SELECT coso FROM $tt WHERE ma_don=%s AND coso<>'' ORDER BY id ASC LIMIT 1",
+			(string) $ma_don
+		) );
+		if ( trim( (string) $v ) !== '' ) { return trim( (string) $v ); }
 		$t = VHCP_DB::t( 'chiphi' );
 		$v = $wpdb->get_var( $wpdb->prepare(
 			"SELECT coso FROM $t WHERE ma_don=%s AND coso<>'' ORDER BY id ASC LIMIT 1",
