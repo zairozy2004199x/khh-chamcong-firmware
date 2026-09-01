@@ -2785,6 +2785,35 @@
       else toast('err',r.error);})
       .withFailureHandler(function(e){loading(false);toast('err',e.message);}).haTamUngVe0(CUR.don.maDon, ly);
   }
+  function doSuaTU(){ if(!CUR)return;
+    var cu=(CUR.tongCN||{}).tamUng||0;
+    var inp=el('suaTUInp'); var moi=inp?Number(inp.value):NaN;
+    if(!(moi>=0)){ toast('warn','Nhập số tạm ứng mới (≥0)'); return; }
+    if(Number(moi)===Number(cu)){ toast('warn','Số mới trùng số cũ'); return; }
+    if(!confirm('SỬA SỐ TẠM ỨNG của đơn ĐÃ CẤP?\n\n'+money(cu)+'đ  →  '+money(moi)+'đ\n\n'
+      +'Chỉ dùng khi duyệt/cấp NHẦM số. Khối Quyết toán sẽ tính lại "còn lại" theo số mới.'))return;
+    var ly=prompt('Lý do (bắt buộc — sẽ vào nhật ký đơn):','Duyệt/cấp nhầm số tạm ứng, sửa lại cho đúng');
+    if(ly===null) return;
+    if(!String(ly).trim()){ toast('warn','Phải nêu lý do'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r.success){_log('Admin sửa tạm ứng', CUR.don.maDon, money(r.cu)+'đ → '+money(r.moi)+'đ · '+ly); toast('ok','Đã sửa số tạm ứng');boot();openDon(CUR.don.maDon);}
+      else toast('err',r.error);})
+      .withFailureHandler(function(e){loading(false);toast('err',e.message);}).suaTamUngDaCap(CUR.don.maDon, moi, ly);
+  }
+  function doGoCapTU(){ if(!CUR)return;
+    if(!confirm('TRẢ NGƯỢC đơn về "Chờ cấp tạm ứng"?\n\n'
+      +'Gỡ đúng lượt CẤP (tiền), GIỮ số đã duyệt. Sau đó cấp lại từ đầu.\n'
+      +'Chỉ dùng khi đơn/cấp SAI. Tiền đã ra thật thì phải thu về cho khớp sổ quỹ.'))return;
+    var ly=prompt('Lý do (bắt buộc — sẽ vào nhật ký đơn):','Đơn/cấp sai, trả ngược để làm lại');
+    if(ly===null) return;
+    if(!String(ly).trim()){ toast('warn','Phải nêu lý do'); return; }
+    loading(true);
+    google.script.run.withSuccessHandler(function(r){loading(false);
+      if(r.success){_log('Trả ngược về Chờ cấp', CUR.don.maDon, ly); toast('ok','Đã trả về "Chờ cấp tạm ứng"');boot();openDon(CUR.don.maDon);}
+      else toast('err',r.error);})
+      .withFailureHandler(function(e){loading(false);toast('err',e.message);}).goCapTamUng(CUR.don.maDon, ly);
+  }
   // ---- Mục 4: Quyết toán trong đơn ----
   var QT={anh:''};
   function renderQT(){
@@ -2839,11 +2868,21 @@
        số tạm ứng. Để riêng một dải, không xếp cạnh hai nút kia: ba nút cùng hàng thì người ta
        bấm theo vị trí chứ không đọc, mà chọn nhầm giữa "hoàn tạm ứng" với "hạ về 0" là sổ quỹ
        lệch. */
-    if(_laAdmin() && (st==='Đã cấp tạm ứng'||st==='Chờ quyết toán') && ((CUR.tongCN||{}).tamUng||0)>0){
+    if(_laAdmin() && (st==='Đã cấp tạm ứng'||st==='Chờ quyết toán')){
+      var _atu=(CUR.tongCN||{}).tamUng||0;
       h+='<div style="margin-bottom:10px;padding:9px 12px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px">'
-        +'<div style="font-size:12px;color:#854d0e;margin-bottom:7px">🏦 Đơn ghi <b>đã cấp '+money((CUR.tongCN||{}).tamUng||0)+'đ</b> nhưng tiền <b>chưa từng ra khỏi két</b> (lượt cấp là bấm nhầm)? '
-        +'Hạ về 0 để đối chiếu báo đúng số NV tự ứng ra. <i>Tiền đã ra thật thì dùng "Không dùng — hoàn tạm ứng" ở trên.</i></div>'
-        +'<button class="btn b-d" onclick="doHaTU0()">🏦 Hạ tạm ứng về 0 — tiền chưa ra khỏi két</button></div>';
+        +'<div style="font-size:12px;color:#854d0e;margin-bottom:7px">✏️ <b>Admin sửa số tạm ứng</b> (đơn đã cấp) — dùng khi duyệt/cấp <b>nhầm số</b>. '
+        +'Đổi số ở đây thì khối Quyết toán tính lại "còn lại". Ghi vết cũ→mới, có báo nội bộ.</div>'
+        +'<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+        +'<span style="font-size:12px">Tạm ứng hiện <b>'+money(_atu)+'đ</b> → mới:</span>'
+        +'<input id="suaTUInp" type="number" min="0" value="'+_atu+'" style="width:150px;padding:5px 7px;text-align:right;border:1px solid #cbd5e1;border-radius:6px">'
+        +'<button class="btn b-p" onclick="doSuaTU()">✏️ Lưu số tạm ứng mới</button>'
+        +(_atu>0?('<button class="btn b-d" onclick="doHaTU0()" title="Lượt cấp là bấm nhầm, tiền chưa ra khỏi két">🏦 Hạ về 0 (tiền chưa ra khỏi két)</button>'):'')
+        +'</div>'
+        +(st==='Đã cấp tạm ứng'?('<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #fde68a">'
+          +'<button class="btn b-d" onclick="doGoCapTU()" title="Trả về Chờ cấp tạm ứng để cấp lại">↩︎ Trả ngược về "Chờ cấp tạm ứng" (làm lại)</button>'
+          +' <span style="font-size:11px;color:#854d0e">— gỡ đúng lượt CẤP, giữ số đã duyệt; dùng khi đơn/cấp sai.</span></div>'):'')
+        +'</div>';
     }
     // Phần Cá nhân (141): KT cá nhân xác nhận ở bước Chờ quyết toán
     if(loai.cn && role!=='Kế toán NCC'){

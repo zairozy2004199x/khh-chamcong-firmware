@@ -2192,6 +2192,35 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * ADMIN TRẢ NGƯỢC "ĐÃ CẤP TẠM ỨNG" → "CHỜ CẤP TẠM ỨNG" (anh Thắng 01/09/2026) — gỡ đúng lượt
+	 * CẤP để làm lại khi đơn/cấp sai, GIỮ nguyên số đã duyệt (khác `tra_lai_don` vốn kéo về "Nháp").
+	 *
+	 * ⚠️ CHỈ ADMIN (gác ở API) · chỉ khi đơn đang "Đã cấp tạm ứng" (chưa quyết toán/chốt sổ) ·
+	 *    BẮT nêu lý do, ghi vết + báo nội bộ. Cấp = tiền đã ra khỏi két: gỡ lượt cấp nghĩa là tiền
+	 *    đã được thu về / lượt cấp là nhầm — người bấm chịu trách nhiệm con số ấy khớp sổ quỹ.
+	 */
+	public static function go_cap_tam_ung( $ma_don, $ly_do = '' ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		if ( (string) $d['trang_thai'] !== 'Đã cấp tạm ứng' ) {
+			return VHCP_Util::err( 'Chỉ trả ngược được đơn đang "Đã cấp tạm ứng". Đơn này đang ở "' . (string) $d['trang_thai'] . '".' );
+		}
+		$ly_do = trim( (string) $ly_do );
+		if ( '' === $ly_do ) { return VHCP_Util::err( 'Phải nêu lý do — đây là lượt gỡ cấp tiền của đơn đã đánh dấu cấp.' ); }
+		self::upd_don( $ma_don, array(
+			'trang_thai' => 'Chờ cấp tạm ứng',
+			'nguoi_cap'  => '',
+			'ngay_cap'   => null,
+			'ht_cap'     => '',
+			'anh_cap'    => '',
+		) );
+		self::ghi_vet( $ma_don, 'Admin trả ngược "Đã cấp" → "Chờ cấp tạm ứng"',
+			'gỡ lượt cấp (' . (string) $d['ht_cap'] . ') · ' . $ly_do );
+		self::bao_noi_bo( $ma_don, 'bị Admin TRẢ NGƯỢC về "Chờ cấp tạm ứng" để làm lại — ' . $ly_do );
+		return VHCP_Util::ok();
+	}
+
 	/** _donLoai(): đơn có dòng cá nhân / dòng NCC hay không. */
 	public static function don_loai( $ma_don ) {
 		global $wpdb;
@@ -2848,6 +2877,36 @@ class VHCP_Don {
 			VHCP_Util::tien( $cu ) . '  →  0đ · ' . $ly_do );
 		self::bao_noi_bo( $ma_don, 'được hạ tạm ứng về 0đ (tiền chưa ra khỏi két) — ' . $ly_do );
 		return VHCP_Util::ok( array( 'cu' => $cu ) );
+	}
+
+	/**
+	 * ADMIN SỬA LẠI SỐ TẠM ỨNG KHI ĐƠN ĐÃ CẤP (anh Thắng 01/09/2026). Tổng quát hơn `ha_tam_ung_ve_0`
+	 * (vốn chỉ hạ về 0): đặt tạm ứng về ĐÚNG con số admin gõ — dùng khi duyệt/cấp nhầm số.
+	 *
+	 * ⚠️ CHỈ ADMIN (gác ở `$admin_only` bên API) · chỉ khi đơn ĐÃ CẤP mà CHƯA chốt sổ (đã quyết
+	 *    toán / xuất MISA thì số đã vào báo cáo + MISA, sửa đây để lại chỗ lệch không ai dò ra) ·
+	 *    BẮT nêu lý do, và ghi vết cũ→mới + báo nội bộ, vì đây là sửa TIỀN trên đơn đã đánh dấu cấp.
+	 */
+	public static function sua_tam_ung_da_cap( $ma_don, $so_moi = '', $ly_do = '' ) {
+		$d = self::don_row( $ma_don );
+		if ( ! $d ) { return VHCP_Util::err( 'Không tìm thấy đơn' ); }
+		$st = (string) $d['trang_thai'];
+		if ( ! in_array( $st, array( 'Đã cấp tạm ứng', 'Chờ quyết toán' ), true ) ) {
+			return VHCP_Util::err( 'Chỉ sửa được tạm ứng của đơn ĐÃ CẤP mà chưa chốt sổ. Đơn này đang ở "' . $st . '"'
+				. ( 'Chờ cấp tạm ứng' === $st ? ' — chưa cấp thì bấm "Duyệt lại theo số mới".'
+					: ( self::da_chot( $st ) ? ' — đã chốt sổ, số đã vào báo cáo và MISA.' : '.' ) ) );
+		}
+		$moi = VHCP_Util::blank_or_num( $so_moi );
+		if ( null === $moi || $moi < 0 ) { return VHCP_Util::err( 'Số tạm ứng mới không hợp lệ.' ); }
+		$ly_do = trim( (string) $ly_do );
+		if ( '' === $ly_do ) { return VHCP_Util::err( 'Phải nêu lý do — đây là lượt sửa tiền trên đơn đã đánh dấu cấp.' ); }
+		$cu = VHCP_Util::num( $d['tam_ung_duyet'] );
+		if ( (float) $cu === (float) $moi ) { return VHCP_Util::err( 'Số mới trùng số cũ — không có gì thay đổi.' ); }
+		self::upd_don( $ma_don, array( 'tam_ung_duyet' => $moi ) );
+		self::ghi_vet( $ma_don, 'Admin sửa số tạm ứng (đơn đã cấp)',
+			VHCP_Util::tien( $cu ) . '  →  ' . VHCP_Util::tien( $moi ) . 'đ · ' . $ly_do );
+		self::bao_noi_bo( $ma_don, 'được Admin sửa tạm ứng ' . VHCP_Util::tien( $cu ) . 'đ → ' . VHCP_Util::tien( $moi ) . 'đ — ' . $ly_do );
+		return VHCP_Util::ok( array( 'cu' => $cu, 'moi' => $moi ) );
 	}
 
 	public static function khong_dung_tam_ung( $ma_don ) {

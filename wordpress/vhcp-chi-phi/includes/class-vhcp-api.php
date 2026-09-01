@@ -29,6 +29,11 @@ class VHCP_API {
 			/* Hạ tạm ứng của đơn ĐÃ đánh dấu cấp tiền về 0 — anh Thắng chốt 01/09/2026: chỉ
 			   Admin. Đụng vào con số đã có lượt "cấp tiền" đứng sau, nên không mở cho kế toán. */
 			'haTamUngVe0',
+			/* Admin sửa lại số tạm ứng của đơn ĐÃ cấp về đúng con số (tổng quát hơn haTamUngVe0)
+			   — anh Thắng 01/09/2026: chỉ Admin, vì đụng số đã có lượt cấp tiền đứng sau. */
+			'suaTamUngDaCap',
+			/* Admin trả ngược "Đã cấp" → "Chờ cấp tạm ứng" để làm lại đơn sai — chỉ Admin. */
+			'goCapTamUng',
 			// Khôi phục bảng người dùng là đụng thẳng vào ai đăng nhập được — chỉ Admin.
 			'listUserBak', 'khoiPhucUsers',
 			// Đổi tên cơ sở là sửa hàng loạt trên bốn bảng dữ liệu — chỉ Admin.
@@ -224,6 +229,10 @@ class VHCP_API {
 			/* Lượt cấp tiền chỉ là bấm nhầm, tiền chưa ra khỏi két -> hạ tạm ứng về 0. Khác hẳn
 			   `khongDungTamUng` (tiền ĐÃ ra, giữ số, NV trả lại) — xem chú thích ở lõi. */
 			'haTamUngVe0'           => array( 'VHCP_Don', 'ha_tam_ung_ve_0' ),
+			/* Admin sửa lại số tạm ứng của đơn đã cấp về đúng con số (duyệt/cấp nhầm số). */
+			'suaTamUngDaCap'        => array( 'VHCP_Don', 'sua_tam_ung_da_cap' ),
+			/* Admin trả ngược "Đã cấp" → "Chờ cấp tạm ứng" để làm lại đơn sai. */
+			'goCapTamUng'           => array( 'VHCP_Don', 'go_cap_tam_ung' ),
 			/* Thùng rác: xoá nhầm đơn hoặc dòng chi thì hoàn lại được. Cố ý KHÔNG khai vào
 			   nhóm người-duyệt: người lập tự xoá nháp của mình thì cũng phải tự hoàn lại được.
 			   Chốt "chỉ hoàn thao tác của chính mình" nằm trong `VHCP_Don::hoan_tac()`, cùng
