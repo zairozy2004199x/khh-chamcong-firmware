@@ -1397,6 +1397,24 @@ class VHCP_Don {
 		return VHCP_Util::ok();
 	}
 
+	/**
+	 * NHẬP THỰC CHI CHO MỘT DÒNG.
+	 *
+	 * 🔴 NHÂN VIÊN PHẢI NHẬP ĐƯỢC. Anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU: *"nhân viên
+	 *    được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng nhập vào ô thực mua
+	 *    lại báo lỗi nhân viên không được chỉnh sửa"*.
+	 *
+	 *    Gốc nằm ở cổng API: `setLineThucMua` từng bị xếp vào nhóm "việc của người duyệt". Nhưng
+	 *    nhập thực chi là việc của NGƯỜI ĐI MUA — chính màn hình cũng bảo nhân viên như vậy
+	 *    ("Mua xong thì nhập Thực chi + ảnh chứng từ rồi bấm Gửi quyết toán"). Cổng chối trong
+	 *    khi màn mời là kiểu hỏng làm người dùng tưởng mình khai sai vai trò.
+	 *
+	 * 🔴 CHỐT KHÔNG MẤT, CHỈ CHUYỂN VÀO ĐÂY:
+	 *      · "Đã cấp tạm ứng" — người đi mua đang nhập. Nhân viên sửa được ĐƠN CỦA MÌNH.
+	 *      · "Chờ quyết toán" — đã gửi, kế toán đang soát. Chỉ người duyệt/kế toán được đụng;
+	 *        nhân viên muốn sửa thì nhờ trả đơn lại, và đường ấy để lại vết đầy đủ.
+	 *    Gác ở lõi thì mọi đường vào đều đi qua, kể cả bản giao diện cũ trong bộ nhớ đệm.
+	 */
 	public static function set_line_thuc_mua( $id, $val, $actor = '' ) {
 		global $wpdb;
 		$cur = self::line_row( $id );
@@ -1405,6 +1423,20 @@ class VHCP_Don {
 		$st     = self::state( $ma_don );
 		if ( $st !== 'Đã cấp tạm ứng' && $st !== 'Chờ quyết toán' ) {
 			return VHCP_Util::err( 'Chỉ nhập Thực chi khi "Đã cấp tạm ứng" (hoặc kế toán sửa khi "Chờ quyết toán")' );
+		}
+		/* Đơn của mình mới sửa được — chốt sẵn có, dùng lại nguyên vẹn. */
+		$_loi = self::loi_khong_phai_don_minh( $ma_don );
+		if ( '' !== $_loi ) { return VHCP_Util::err( $_loi ); }
+		/* Sang "Chờ quyết toán" thì nhân viên thôi đụng: kế toán đang đối chiếu, sửa số lúc ấy
+		   là làm hỏng chính lượt soát đang diễn ra. */
+		/* ⚠️ HỎI `la_nhan_vien()`, ĐỪNG LIỆT KÊ BỐN VAI KIA. Bản đầu viết "không nằm trong
+		   [Admin, Quản lý, Kế toán cá nhân, Kế toán NCC] thì chối" — nghe thì như nhau, nhưng nó
+		   chối luôn cả vai RỖNG và mọi vai TỰ TẠO chưa kịp khai vào danh sách. Bộ thử dính ngay
+		   (phiên thử không mang vai nào), và ngoài đời thì vai tự tạo "Kế toán vùng" sẽ bị chối
+		   oan mà không ai hiểu vì sao. `la_nhan_vien()` đã lo phần vai kế thừa. */
+		if ( 'Chờ quyết toán' === $st && VHCP_Auth::la_nhan_vien() ) {
+			return VHCP_Util::err( 'Đơn đã gửi kế toán — nhân viên thôi sửa được Thực chi. '
+				. 'Cần sửa thì nhờ kế toán trả đơn lại.' );
 		}
 		$v = VHCP_Util::blank_or_num( $val );
 		$cu_tm = ( '' !== $cur['thuc_mua'] && null !== $cur['thuc_mua'] )

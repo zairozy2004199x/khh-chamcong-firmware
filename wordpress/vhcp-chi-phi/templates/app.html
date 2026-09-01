@@ -105,7 +105,7 @@
         <button class="btn b-p" id="tqOpenSave" onclick="saveSoDuDauKy()">💾 Lưu số dư đầu kỳ</button>
         <span style="font-size:11px;color:#94a3b8;flex-basis:100%">Áp dụng cho tuần/kỳ ĐẦU TIÊN ở Quyết toán ▸ "Theo tuần" — mang số dư đầu vào để cân bằng dòng tiền liền mạch cả tháng.</span>
       </div>
-      <div style="padding:0 14px 10px;font-size:12px;color:#64748b">💸 <b>Chi phí xin</b> = tổng hạng mục xin (chưa gồm tạm ứng dự phòng) · 🧾 <b>Chi phí thực tế</b> = thực mua (gồm phát sinh) · <b>Chênh lệch</b> = xin − thực tế (dương = còn dư, âm = chi vượt).</div>
+      <div style="padding:0 14px 10px;font-size:12px;color:#64748b">💸 <b>Chi phí xin</b> = tổng hạng mục xin (chưa gồm tạm ứng dự phòng) · 🧾 <b>Chi phí thực tế</b> = thực chi (gồm phát sinh) · <b>Chênh lệch</b> = xin − thực tế (dương = còn dư, âm = chi vượt).</div>
     </div>
 
     <div class="card" id="tqKtCard" style="display:none">
@@ -306,7 +306,7 @@
       <div class="ch"><h2>Các dòng đã nhập (<span id="lineCount">0</span>)</h2></div>
       <div class="tw">
         <table id="lineTable">
-          <thead><tr><th class="colCoso">Cơ sở</th><th>Ngày</th><th>Nội dung</th><th>ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right" title="Số thực trả — để trống = bằng Thành tiền; nhập nếu khác (vd kèm ship/phụ phí)">Thực mua</th><th style="text-align:right">Thuế</th><th>TT</th><th style="text-align:center" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">Cá nhân</th><th>Ảnh</th><th style="text-align:center">Sửa</th></tr></thead>
+          <thead><tr><th class="colCoso">Cơ sở</th><th>Ngày</th><th>Nội dung</th><th>ĐVT</th><th style="text-align:right">SL</th><th style="text-align:right">Đơn giá</th><th style="text-align:right">Thành tiền</th><th style="text-align:right" title="Số thực trả — để trống = bằng Thành tiền; nhập nếu khác (vd kèm ship/phụ phí)">Thực chi</th><th style="text-align:right">Thuế</th><th>TT</th><th style="text-align:center" title="Tích = kế toán cá nhân xử lý; bỏ tích = chuyển kế toán NCC">Cá nhân</th><th>Ảnh</th><th style="text-align:center">Sửa</th></tr></thead>
           <tbody id="lineBody"></tbody>
         </table>
         <div class="empty" id="lineEmpty">Chưa có dòng chi nào. Thêm ở mục 2 phía trên.</div>
@@ -328,7 +328,7 @@
 
     <!-- QUYẾT TOÁN (hiện khi đã cấp tạm ứng trở đi) -->
     <div class="card qt-noi" id="qtCard" style="display:none">
-      <div class="ch"><h2>💰 3) Quyết toán — thực mua &amp; trả tiền kế toán</h2>
+      <div class="ch"><h2>💰 3) Quyết toán — thực chi &amp; trả tiền kế toán</h2>
         <span class="badge st-cho" id="qtNhan">kế toán đối chiếu &amp; trả tiền</span></div>
       <div class="cb">
         <div id="qtCNBox">
@@ -343,7 +343,7 @@
           <!-- type=text: ô này chỉ để ĐỌC mà nằm cạnh "Tạm ứng 30.000.000" — để type=number
                thì nó hiện 1837000 trong khi ô bên cạnh hiện 30.000.000, hai kiểu số cạnh nhau
                trên cùng một hàng. Giá trị thật đọc qua _tienSo() nên không đổi gì phía sau. -->
-          <div class="fld"><label>Thực mua (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:180px;font-weight:800;font-size:17px;text-align:right;color:#15803d;background:#f0fdf4;border:2px solid #bbf7d0"></div>
+          <div class="fld"><label>Thực chi (tổng dòng đã mua)</label><input id="qtThucMua" type="text" inputmode="numeric" disabled style="width:180px;font-weight:800;font-size:17px;text-align:right;color:#15803d;background:#f0fdf4;border:2px solid #bbf7d0"></div>
           <div class="fld"><label>Còn lại (thừa/thiếu)</label><div id="qtConLai" style="min-width:170px;font-weight:800;font-size:17px;padding:9px 12px;border:2px solid #e2e8f0;border-radius:8px;background:#f8fafc;text-align:right">—</div></div>
           <!-- HAI Ô HÓA ĐƠN, CÓ TÊN. Anh Thắng: "với 1 đơn cho phép upload 2 hóa đơn".
                Ô thứ hai sinh ra vì ô thứ nhất THIẾU hoặc SAI, nên đặt tên "bổ sung" chứ không
@@ -662,7 +662,7 @@
           <button class="btn b-x" onclick="loadVHTuan()">↻ Tải lại</button>
         </div>
       </div>
-      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Chi phí <b>VẬN HÀNH</b> phát sinh trong tuần (Thứ 2 → Chủ nhật) từ 3 nguồn: <b>📝 Đơn vận hành · 💵 Sổ chi phí · 📣 Marketing</b>. Mỗi cơ sở là 1 dòng — bấm để xem chi tiết từng khoản. Số tiền = <b>thực chi / thực mua</b>.<br><b>Kỹ thuật · Công tác · Setup KHÔNG còn gom vào đây</b> — mỗi mảng đứng riêng theo mã tài khoản của nó, xem ở tab của mảng đó.</div>
+      <div style="padding:6px 14px 0;font-size:12px;color:#64748b">Chi phí <b>VẬN HÀNH</b> phát sinh trong tuần (Thứ 2 → Chủ nhật) từ 3 nguồn: <b>📝 Đơn vận hành · 💵 Sổ chi phí · 📣 Marketing</b>. Mỗi cơ sở là 1 dòng — bấm để xem chi tiết từng khoản. Số tiền = <b>thực chi / thực chi</b>.<br><b>Kỹ thuật · Công tác · Setup KHÔNG còn gom vào đây</b> — mỗi mảng đứng riêng theo mã tài khoản của nó, xem ở tab của mảng đó.</div>
       <div id="vhOvSummary" style="display:flex;gap:12px;flex-wrap:wrap;padding:12px 14px"></div>
       <div class="tw"><table style="min-width:920px">
         <thead><tr><th>Cơ sở / Gian</th><th style="text-align:right">📝 Đơn vận hành</th><th style="text-align:right">💵 Sổ chi phí</th><th style="text-align:right">📣 Marketing</th><th style="text-align:right">TỔNG</th><th style="width:70px">Chi tiết</th></tr></thead>
@@ -806,7 +806,7 @@
       </div>
       <div class="tw">
         <table>
-          <thead><tr><th id="qtChkHead" style="width:32px;text-align:center;display:none"><input type="checkbox" id="qtChkAll" onchange="qtToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <thead><tr><th id="qtChkHead" style="width:32px;text-align:center;display:none"><input type="checkbox" id="qtChkAll" onchange="qtToggleAll(this)" title="Chọn tất cả"></th><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtBodyCho"></tbody>
         </table>
         <div class="empty" id="qtEmptyCho">Không còn đơn nào chờ quyết toán.</div>
@@ -821,7 +821,7 @@
       </div>
       <div class="tw">
         <table>
-          <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <thead><tr><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtBodyXong"></tbody>
         </table>
         <div class="empty" id="qtEmptyXong">Chưa có đơn nào đã quyết toán.</div>
@@ -849,7 +849,7 @@
       <div class="ch"><h2>📅 Theo tuần / kỳ <span style="font-size:11px;font-weight:400;color:#64748b">— mới nhất trước, kèm đối chiếu quỹ</span></h2></div>
       <div class="tw">
         <table>
-          <thead><tr id="qtHeadTuan"><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực mua</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
+          <thead><tr id="qtHeadTuan"><th>Kỳ / tuần</th><th>Người lập</th><th>Cơ sở</th><th style="text-align:right">Tạm ứng</th><th style="text-align:right">Thực chi</th><th style="text-align:right">Thừa/thiếu</th><th>Hình thức</th><th>Trạng thái</th><th style="text-align:center">Thao tác</th></tr></thead>
           <tbody id="qtBody"></tbody>
         </table>
         <div class="empty" id="qtListEmpty">Không có đơn.</div>
@@ -2166,7 +2166,7 @@
       // Nhân viên GỬI XIN tạm ứng; DUYỆT là bước sau của quản lý. Gác bằng quyền 'xinTU'
       // chứ không phải 'suaTU' (quyền sửa SỐ tiền) — hai việc khác nhau.
       if(st==='Nháp' && canDo('xinTU')){ nhan='📤 Gửi xin tạm ứng'; tay=guiDuyetTU; goi='Nhập đủ hạng mục rồi bấm gửi — quản lý duyệt, kế toán cấp tiền.'; }
-      else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ nhan='📤 Gửi quyết toán cho kế toán'; tay=guiQT; goi='Nhập đủ số thực mua + ảnh chứng từ rồi bấm gửi.'; }
+      else if(st==='Đã cấp tạm ứng' && canDo('guiQT')){ nhan='📤 Gửi quyết toán cho kế toán'; tay=guiQT; goi='Nhập đủ số thực chi + ảnh chứng từ rồi bấm gửi.'; }
       if(nhan){ btn.style.display='inline-block'; btn.textContent=nhan; btn.onclick=tay; }
       else { btn.style.display='none'; btn.onclick=null; }
       // KHÔNG CÓ NÚT THÌ PHẢI NÓI VÌ SAO.
@@ -2782,7 +2782,7 @@
     var obj={soThucMua:_tienSo(el('qtThucMua').value), httt:el('qtHTTT').value, anhHoaDon:QT.anh};
     google.script.run.withSuccessHandler(function(r){
       if(!r.success){loading(false);toast('err',r.error);return;}
-      google.script.run.withSuccessHandler(function(r2){loading(false); if(r2.success){_log('Gửi hóa đơn cho kế toán', CUR.don.maDon, 'thực mua '+money(_tienSo(el('qtThucMua').value))+'đ · '+el('qtHTTT').value); toast('ok','Đã gửi cho kế toán');boot();openDon(CUR.don.maDon);} else toast('err',r2.error);})
+      google.script.run.withSuccessHandler(function(r2){loading(false); if(r2.success){_log('Gửi hóa đơn cho kế toán', CUR.don.maDon, 'thực chi '+money(_tienSo(el('qtThucMua').value))+'đ · '+el('qtHTTT').value); toast('ok','Đã gửi cho kế toán');boot();openDon(CUR.don.maDon);} else toast('err',r2.error);})
         .withFailureHandler(function(e){loading(false);toast('err',e.message);}).guiQuyetToan(CUR.don.maDon);
     }).withFailureHandler(function(e){loading(false);toast('err',e.message);}).saveQuyetToan(CUR.don.maDon,obj);
   }
@@ -2824,15 +2824,15 @@
     var editable=(st==='Đã cấp tạm ứng');
     var tongTU=(CUR.tongCN||{}).tamUng||0;
     el('qtTU').value=money(tongTU);
-    el('qtThucMua').value=money((CUR.tongCN||{}).thucChi||0); el('qtThucMua').disabled=true;   // model mới = tổng Thành tiền các dòng đã mua; model cũ = tổng cột Thực mua
+    el('qtThucMua').value=money((CUR.tongCN||{}).thucChi||0); el('qtThucMua').disabled=true;   // model mới = tổng Thành tiền các dòng đã mua; model cũ = tổng cột Thực chi
     /* 🔴 CÂU GỢI Ý KHÔNG ĐƯỢC CHỌI VỚI CON SỐ NGAY TRÊN NÓ. Anh Thắng 01/09/2026: đơn không xin
        tạm ứng thì tạm ứng phải là 0 — và lúc ấy câu cũ *"đối chiếu khớp"* là sai hẳn: không có
        gì khớp cả, người đi mua đang ứng trước toàn bộ và kế toán phải trả lại họ. */
     if(el('qtHint')) el('qtHint').innerHTML=(tongTU===0)
       ? '💰 <b>Đơn này KHÔNG có tạm ứng</b> — toàn bộ <b>'+money((CUR.tongCN||{}).thucChi||0)+'đ</b> là tiền người đi mua tự ứng ra. <b>Kế toán trả lại đủ số này</b>; ô "Còn lại" vì thế báo THIẾU, không phải sai.'
       : ((CUR.tuMode==='new')
-      ? '💡 <b>Tạm ứng = số đã duyệt</b> (cố định, khóa sau duyệt). NV nhập <b>từng dòng đã mua</b>; ô <b>Thực mua</b> để trống = bằng Thành tiền, nhập nếu thực trả khác (vd có ship). → <b>Còn lại = Tạm ứng − Tổng thực mua</b> (thừa: NV trả lại · thiếu: kế toán bù).'
-      : '💡 Đơn không nhập tạm ứng theo cơ sở — <b>Thực mua = tổng thực chi các dòng</b>, chênh lệch tính trên số tạm ứng thật của đơn.');
+      ? '💡 <b>Tạm ứng = số đã duyệt</b> (cố định, khóa sau duyệt). NV nhập <b>từng dòng đã mua</b>; ô <b>Thực chi</b> để trống = bằng Thành tiền, nhập nếu thực trả khác (vd có ship). → <b>Còn lại = Tạm ứng − Tổng thực chi</b> (thừa: NV trả lại · thiếu: kế toán bù).'
+      : '💡 Đơn không nhập tạm ứng theo cơ sở — <b>Thực chi = tổng thực chi các dòng</b>, chênh lệch tính trên số tạm ứng thật của đơn.');
     el('qtHTTT').value=CUR.don.httt||''; el('qtHTTT').disabled=!editable;
     QT.anh=CUR.don.anhHoaDon||'';
     // ĐÍNH HÓA ĐƠN ĐƯỢC CẢ SAU KHI QUYẾT TOÁN. Hóa đơn giấy về sau ngày chi tiền là chuyện
@@ -2860,7 +2860,7 @@
     // NV (người đi mua) chốt quyết toán: nhập dòng + hóa đơn → gửi quản lý (theo phân quyền)
     if(st==='Đã cấp tạm ứng' && (canDo('guiQT')||canDo('khongDung'))){
       h+='<div style="margin-bottom:10px;padding:10px 12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px">'
-        +'<div style="font-size:12px;color:#1e40af;margin-bottom:8px">🛒 Đã mua xong? Nhập <b>các dòng đã mua</b> (bảng bên dưới, Thành tiền = số thực mua) + <b>đính hóa đơn</b> + chọn <b>hình thức trả kế toán</b>, rồi bấm:</div>';
+        +'<div style="font-size:12px;color:#1e40af;margin-bottom:8px">🛒 Đã mua xong? Nhập <b>các dòng đã mua</b> (bảng bên dưới, Thành tiền = số thực chi) + <b>đính hóa đơn</b> + chọn <b>hình thức trả kế toán</b>, rồi bấm:</div>';
       if(canDo('guiQT')) h+='<button class="btn b-x" onclick="saveQT()">💾 Lưu nháp</button> <button class="btn b-p" onclick="guiQT()">📤 Gửi hóa đơn cho kế toán</button>';
       if(canDo('khongDung')) h+=' <button class="btn b-d" onclick="doKhongDung()" title="Tạm ứng không xài / không có hóa đơn — hoàn lại toàn bộ, khỏi nhập dòng">🚫 Không dùng — hoàn tạm ứng</button>';
       h+='</div>';
@@ -4978,7 +4978,7 @@
   function loadQT(){ boot(renderQTList); }
   // Thứ tự giai đoạn (đầu -> cuối): đơn chưa duyệt/chờ tạm ứng lên trên, đã quyết toán/đã xuất MISA xuống dưới
   var QT_ST_ORDER=['Nháp','Chờ duyệt tạm ứng','Chờ cấp tạm ứng','Đã cấp tạm ứng','Chờ quyết toán','Đã quyết toán','Đã xuất MISA'];
-  // Tổng Tạm ứng / Thực mua / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)
+  // Tổng Tạm ứng / Thực chi / Thừa-thiếu của một nhóm đơn (cho kế toán xem nhanh)
   function _qtSums(rows){
     var tu=0, mua=0, cl=0;
     (rows||[]).forEach(function(d){
@@ -4991,7 +4991,7 @@
   }
   function _qtSumHtml(rows){
     var s=_qtSums(rows), clc=s.cl>=0?'#15803d':'#b91c1c';
-    return '&#8721; Tạm ứng: <b>'+money(s.tu)+'</b> · Thực mua: <b>'+money(s.mua)+'</b> · Thừa/thiếu: <b style="color:'+clc+'">'+money(s.cl)+'</b>';
+    return '&#8721; Tạm ứng: <b>'+money(s.tu)+'</b> · Thực chi: <b>'+money(s.mua)+'</b> · Thừa/thiếu: <b style="color:'+clc+'">'+money(s.cl)+'</b>';
   }
   // Chuyển kỳ/tuần -> số để sắp thứ tự (đơn không có kỳ -> -1, xuống cuối).
   // Nhận cả "dd/MM/yyyy" và nhãn "T7/2026 (20/7-26/7/2026)" (lấy ngày ĐẦU của khoảng).
@@ -5005,11 +5005,11 @@
     return -1;
   }
   // Hàng TỔNG đối chiếu quỹ (dòng tiền cộng dồn): khả dụng = tạm ứng tuần này ± thừa/thiếu LŨY KẾ kỳ trước
-  // (dư kỳ trước => CỘNG, thiếu kỳ trước => TRỪ); thừa/thiếu tuần này = khả dụng − thực mua (mang sang kỳ sau).
+  // (dư kỳ trước => CỘNG, thiếu kỳ trước => TRỪ); thừa/thiếu tuần này = khả dụng − thực chi (mang sang kỳ sau).
   function _qtReconHtml(tuThis, muaThis, carry, hasPrev, isOpening){
     tuThis=Number(tuThis)||0; muaThis=Number(muaThis)||0; carry=Number(carry)||0;
     var giaiNgan=tuThis-carry;         // kế toán giải ngân thêm = tạm ứng tuần này − thừa/thiếu kỳ trước
-    var cl=tuThis-muaThis;             // thừa/thiếu tuần này = tạm ứng − thực mua (RAW, mang sang kỳ sau)
+    var cl=tuThis-muaThis;             // thừa/thiếu tuần này = tạm ứng − thực chi (RAW, mang sang kỳ sau)
     var neg=giaiNgan<0;                // âm = dư kỳ trước nhiều hơn tạm ứng -> KHÔNG cần cấp thêm
     var lbl=isOpening?'đầu kỳ':'kỳ trước', prevTxt;
     if(!hasPrev)     prevTxt='<span style="opacity:.7">'+lbl+': chưa có</span>';
@@ -5020,7 +5020,7 @@
       ? '⚠️ kế toán giải ngân thêm <b style="color:#b91c1c">'+money(giaiNgan)+'</b> <b style="color:#b91c1c">(KHÔNG cần cấp — dư kỳ trước còn dư '+money(-giaiNgan)+'đ)</b>'
       : 'kế toán giải ngân thêm <b style="color:#1d4ed8">'+money(giaiNgan)+'</b>';
     var ec=cl>=0?'#15803d':'#b91c1c';
-    return '🧮 Đối chiếu quỹ: '+prevTxt+' + '+gnTxt+' = tạm ứng tuần này <b>'+money(tuThis)+'</b> &minus; thực mua tuần này <b>'+money(muaThis)+'</b> = <b>Thừa/thiếu tuần này (mang sang kỳ sau): <span style="color:'+ec+'">'+money(cl)+'đ</span></b>';
+    return '🧮 Đối chiếu quỹ: '+prevTxt+' + '+gnTxt+' = tạm ứng tuần này <b>'+money(tuThis)+'</b> &minus; thực chi tuần này <b>'+money(muaThis)+'</b> = <b>Thừa/thiếu tuần này (mang sang kỳ sau): <span style="color:'+ec+'">'+money(cl)+'đ</span></b>';
   }
   function _qtRowHtml(d, canBatch, COLS, gcls, collapsed){
     var cl=d.chenhLech>=0?'pos':'neg';
@@ -5176,8 +5176,8 @@
       return;
     }
 
-    // XỔ THEO TUẦN / KỲ: gom mọi đơn theo kỳ, mới nhất trước; mỗi kỳ hiện ∑ (tạm ứng · thực mua · thừa/thiếu)
-    // + 1 HÀNG TỔNG "Đối chiếu quỹ": khả dụng = tạm ứng tuần này ± thừa/thiếu LŨY KẾ kỳ trước; thừa/thiếu tuần này = khả dụng − thực mua (mang sang kỳ sau)
+    // XỔ THEO TUẦN / KỲ: gom mọi đơn theo kỳ, mới nhất trước; mỗi kỳ hiện ∑ (tạm ứng · thực chi · thừa/thiếu)
+    // + 1 HÀNG TỔNG "Đối chiếu quỹ": khả dụng = tạm ứng tuần này ± thừa/thiếu LŨY KẾ kỳ trước; thừa/thiếu tuần này = khả dụng − thực chi (mang sang kỳ sau)
     var COLS=9, html='', total=0;
     var byKy={}; all.forEach(function(d){ var k=d.ky||'(không kỳ)'; (byKy[k]=byKy[k]||[]).push(d); });
     var kAll=Object.keys(byKy);
@@ -5186,7 +5186,7 @@
     realAsc.forEach(function(k, _ix){
       if(_ix===0){ carryIn[k]=_seed; hasPrev[k]=(_seed!==0); isOpen[k]=true; }
       else { carryIn[k]=prevCl; hasPrev[k]=true; isOpen[k]=false; }
-      var s2=_qtSums(byKy[k]); prevCl=(s2.tu||0)-(s2.mua||0);   // thừa/thiếu kỳ này = tạm ứng − thực mua (mang sang kỳ sau)
+      var s2=_qtSums(byKy[k]); prevCl=(s2.tu||0)-(s2.mua||0);   // thừa/thiếu kỳ này = tạm ứng − thực chi (mang sang kỳ sau)
     });
     var keys=kAll.sort(function(a,b){ return _kyVal(b)-_kyVal(a); });   // hiển thị: mới nhất trước
     keys.forEach(function(k, gi){

@@ -40,7 +40,19 @@ class VHCP_API {
 			'duyetTamUng', 'capTamUng', 'duyetTamUngNhieu', 'capTamUngNhieu',
 			'traLaiDon', 'traLaiDonNhieu', 'xacNhanQuyetToanCN', 'xacNhanQuyetToanNCC',
 			'xacNhanQtCnNhieu', 'setTatToanTuan', 'setSoDuDauKy', 'dongCuaCoSo',
-			'setLineThucMua', 'setLineCN',
+			/* 🔴 `setLineThucMua` ĐÃ RỜI KHỎI ĐÂY — anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU:
+			   *"nhân viên được phép nhập và sửa lại đơn chính xác trước khi quyết toán, nhưng
+			   nhập vào ô thực mua lại báo lỗi nhân viên không được chỉnh sửa"*.
+
+			   Đúng là mâu thuẫn với chính màn hình: dải xanh trên đơn bảo nhân viên *"Mua xong
+			   thì nhập Thực chi + ảnh chứng từ rồi bấm Gửi quyết toán"*, mà cổng lại chối. Nhập
+			   thực chi LÀ việc của người đi mua — không phải việc của người duyệt.
+
+			   Chốt không mất đi, chỉ chuyển vào lõi `set_line_thuc_mua()`: nhân viên chỉ sửa
+			   được đơn CỦA MÌNH và chỉ khi đơn còn ở "Đã cấp tạm ứng"; sang "Chờ quyết toán" là
+			   kế toán đang soát, lúc ấy chỉ người duyệt/kế toán được đụng. Gác ở lõi thì mọi
+			   đường vào đều đi qua, kể cả bản giao diện cũ còn nằm trong bộ nhớ đệm. */
+			'setLineCN',
 			/* Đẩy tiền sang sổ của đơn vị khác — không phải việc của nhân viên. */
 			'chuyenDonVi',
 			/* 🔴 NHẢY ĐƠN SANG TUẦN KHÁC — anh Thắng 31/08/2026: *"kế toán sẽ gửi lệnh nhảy đơn

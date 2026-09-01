@@ -190,6 +190,26 @@ VHCP_Auth::dat_vai_tro( $_vt_truoc );
 $l4 = VHCP_Don::add_line( $ma, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today, 'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Phát sinh', 'noiDung' => 'Mua thêm đá', 'thanhTien' => 50000 ) );
 
 // nhập thực chi
+/* =============================================================================================
+ * 🔴 NHÂN VIÊN PHẢI NHẬP ĐƯỢC THỰC CHI
+ * =============================================================================================
+ * Anh Thắng 01/09/2026, ảnh đơn FUNZONE VŨNG TÀU: *"nhân viên được phép nhập và sửa lại đơn
+ * chính xác trước khi quyết toán, nhưng nhập vào ô thực mua lại báo lỗi nhân viên không được
+ * chỉnh sửa"*.
+ *
+ * Gốc ở cổng API: `setLineThucMua` bị xếp vào nhóm "việc của người duyệt". Nhưng nhập thực chi
+ * là việc của NGƯỜI ĐI MUA, và chính dải xanh trên đơn cũng bảo nhân viên làm đúng việc ấy.
+ * Cổng chối trong khi màn mời là kiểu hỏng làm người dùng tưởng mình khai sai vai trò.
+ */
+$_rr_tc = new ReflectionMethod( 'VHCP_Api', 'required_roles' );
+$_rr_tc->setAccessible( true );
+$_vai_tc = (array) $_rr_tc->invoke( null, 'setLineThucMua' );
+t( '🔴 cổng KHÔNG còn chặn nhân viên nhập thực chi',
+	! $_vai_tc || in_array( 'Nhân viên', $_vai_tc, true ), $_vai_tc );
+/* Đối chứng: việc của người duyệt thì vẫn chặn — chắc bài đang đọc đúng chốt. */
+t( 'đối chứng: duyetTamUng vẫn là việc của người duyệt',
+	! in_array( 'Nhân viên', (array) $_rr_tc->invoke( null, 'duyetTamUng' ), true ), null );
+
 t( 'nhập thực chi dòng 1', ! empty( VHCP_Don::set_line_thuc_mua( $l1['id'], 1150000, 'Nguyễn Văn A' )['success'] ) );
 VHCP_Don::set_line_thuc_mua( $l2['id'], 300000, 'Nguyễn Văn A' );
 VHCP_Don::set_line_thuc_mua( $l3['id'], 300000, 'Nguyễn Văn A' );
