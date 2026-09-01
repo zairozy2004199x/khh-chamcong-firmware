@@ -38,6 +38,34 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <TFT_eSPI.h>
+/* =============================================================================================
+ * FONT ĐẸP CHO MÀN CHỌN GÓI — CÓ THÌ DÙNG, KHÔNG CÓ THÌ THÔI.
+ *
+ * 🔴 Anh Thắng 01/09/2026: *"Giao diện chữ nó nhìn không trơn tru à"*.
+ *
+ *    Font dựng sẵn của TFT_eSPI (font 1/2/4) là font BITMAP: mỗi ký tự là một lưới điểm bật/tắt,
+ *    nét đúng một pixel, cạnh chữ là bậc thang. Ở cỡ nhỏ thì không sao, nhưng con số tiền cao
+ *    26px thì mắt thấy rõ từng bậc — đúng cái anh nhìn ra.
+ *
+ *    Free Fonts (GFX) của Adafruit đi kèm sẵn trong TFT_eSPI là font THẬT: có nét thanh nét
+ *    đậm, chữ bo, tỉ lệ chuẩn. Vẫn không khử răng cưa (muốn khử thì phải dùng smooth font .vlw,
+ *    và tệp font ấy phải nhúng vào flash — việc riêng, làm sau), nhưng hình dáng chữ đẹp hơn
+ *    hẳn font bitmap ở cùng cỡ.
+ *
+ * ⚠️ GÁC BẰNG `__has_include`, KHÔNG GIẢ ĐỊNH. Font GFX chỉ có khi User_Setup của máy bật
+ *    `LOAD_GFXFF`, mà tệp ấy nằm trong thư mục thư viện chứ không nằm trong kho này — em không
+ *    kiểm chứng được nó từ đây. Thiếu font thì `CO_FONT_DEP` không được định nghĩa và toàn bộ
+ *    màn rơi về font số như cũ. Bản dựng không bao giờ vỡ vì chuyện này.
+ * ============================================================================================= */
+#if defined(LOAD_GFXFF) && defined(__has_include)
+  #if __has_include(<Fonts/GFXFF/FreeSansBold18pt7b.h>)
+    #include <Fonts/GFXFF/FreeSansBold18pt7b.h>
+    #include <Fonts/GFXFF/FreeSansBold12pt7b.h>
+    #include <Fonts/GFXFF/FreeSansBold9pt7b.h>
+    #include <Fonts/GFXFF/FreeSans9pt7b.h>
+    #define CO_FONT_DEP 1
+  #endif
+#endif
 #include <XPT2046_Touchscreen.h>
 #include <SPI.h>
 #include <Preferences.h>
@@ -46,7 +74,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-09-01b (man chon goi: navy + vien sang + chu dam)"
+#define FW_VERSION "ghe-massage 2026-09-01c (man chon goi: font dep neu co, chu dam neu khong)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -983,34 +1011,90 @@ void veTheQuangCao(int i){
 }
 
 /* =============================================================================================
- * VẼ CHỮ ĐẬM — chồng nhiều lượt lệch nhau 1px.
+ * LỚP BỌC VẼ CHỮ — mã gọi theo Ý ĐỊNH, lớp này lo font.
  *
- * 🔴 Anh Thắng 01/09/2026: *"điều chỉnh độ nét, tăng độ phân giải lên"*.
+ * Mã bên dưới nói "đây là số tiền", "đây là tiêu đề" chứ không nói "font 4", "font 2". Máy có
+ * Free Font thì bốn cấp chữ ánh xạ sang FreeSansBold; không có thì rơi về font dựng sẵn. Nhờ
+ * vậy chỉ có ĐÚNG MỘT chỗ trong tệp biết chuyện font, và thêm cỡ chữ mới không phải sờ vào
+ * từng lệnh vẽ.
  *
- *    Độ phân giải thì KHÔNG tăng được: ESP32-2432S028 gắn cứng tấm ILI9341 320×240. Đó là phần
- *    cứng, không có thiết lập phần mềm nào đổi được. Muốn hơn thì phải đổi tấm màn.
+ * 🔴 KHÔNG CỐ ĐỊNH CHIỀU CAO DÒNG. Free font và font dựng sẵn cao khác nhau, mà con số cao bao
+ *    nhiêu thì quyết định dòng dưới đặt ở đâu. Nên chỗ nào xếp dòng đều hỏi `tft.fontHeight()`
+ *    sau khi đã đặt font — chép một con số vào mã là bố cục đúng ở máy này, chồng chữ ở máy kia.
  *
- *    Nhưng độ NÉT thì tăng được, và đây là cách rẻ nhất mà hiệu quả nhất trong 320×240: nét chữ
- *    dày lên gấp đôi. Font dựng sẵn của TFT_eSPI có nét dày đúng 1 pixel; ở cỡ font 4 (cao
- *    26px) một nét 1px trông mảnh và bợt, nhất là chữ vàng trên nền xanh đậm — mắt phải căng ra
- *    mới bắt được cạnh chữ. Vẽ chồng thêm một lượt lệch 1px sang phải và một lượt lệch 1px
- *    xuống là nét thành 2px: đúng thứ tấm mẫu đang có (số tiền của mẫu là chữ béo).
- *
- * ⚠️ CÁC LƯỢT SAU PHẢI VẼ KHÔNG NỀN. `setTextColor(fg, bg)` tô cả ô chữ nhật nền cho mỗi ký
- *    tự — lượt thứ hai sẽ lấy nền xoá mất nét của lượt thứ nhất, và kết quả không đậm hơn chút
- *    nào, chỉ lệch đi 1px. Nên lượt đầu vẽ CÓ nền (để xoá vệt chữ cũ), các lượt sau vẽ trong
- *    suốt bằng `setTextColor(fg)` một tham số.
- *
- * ⚠️ NÉT DÀY RA THÌ CHỮ RỘNG RA 1PX. Chỗ nào đo `textWidth()` để canh cho vừa ô thì phải trừ
- *    thêm chừng ấy — xem chỗ chọn font ở `veTheGoi()`.
+ * ⚠️ CHỮ ĐẬM GIẢ chỉ chạy khi KHÔNG có Free Font. FreeSansBold vốn đã là kiểu đậm; chồng thêm
+ *    bốn lượt nữa là nét dính vào nhau, chữ thành một khối đặc.
  * ============================================================================================= */
-void veChuDam(const String& s, int x, int y, int font, uint16_t mau, uint16_t nen){
+enum CapChu { CAP_SO_TO = 0, CAP_SO_VUA, CAP_DV, CAP_TIEU, CAP_PHU };
+
+static void datFont(int cap){
+#ifdef CO_FONT_DEP
+  switch(cap){
+    case CAP_SO_TO:  tft.setFreeFont(&FreeSansBold18pt7b); break;
+    case CAP_SO_VUA: tft.setFreeFont(&FreeSansBold12pt7b); break;
+    case CAP_DV:     tft.setFreeFont(&FreeSansBold9pt7b);  break;
+    case CAP_TIEU:   tft.setFreeFont(&FreeSansBold12pt7b); break;
+    default:         tft.setFreeFont(&FreeSans9pt7b);      break;
+  }
+#else
+  switch(cap){
+    case CAP_SO_TO:  tft.setTextFont(4); break;
+    case CAP_SO_VUA: tft.setTextFont(2); break;
+    case CAP_DV:     tft.setTextFont(2); break;
+    case CAP_TIEU:   tft.setTextFont(2); break;
+    default:         tft.setTextFont(1); break;
+  }
+#endif
+}
+
+/** Chiều rộng chuỗi ở một cấp chữ. Đặt font rồi mới đo — `textWidth()` đọc font đang hiện hành. */
+static int rongChu(const String& s, int cap){ datFont(cap); return tft.textWidth(s); }
+/** Chiều cao dòng của một cấp chữ. */
+static int caoChu(int cap){ datFont(cap); return tft.fontHeight(); }
+
+/**
+ * Vẽ một chuỗi.
+ *
+ * @param dam Xin nét đậm. Có Free Font thì bỏ qua (font đã đậm sẵn); không có thì chồng bốn
+ *            lượt lệch 1px, nét từ 1px thành 2px.
+ *
+ * ⚠️ LƯỢT ĐẦU VẼ CÓ NỀN, BA LƯỢT SAU KHÔNG. `setTextColor(fg, bg)` tô cả ô chữ nhật nền cho mỗi
+ *    ký tự — để nguyên cả bốn lượt là mỗi lượt lấy nền xoá nét của lượt trước, chữ không đậm
+ *    hơn chút nào mà chỉ lệch đi 1px. Chốt bằng phép soi mã trong kiem-cau-truc.py.
+ */
+static void veChu(const String& s, int x, int y, int cap, uint16_t mau, uint16_t nen, bool dam){
+  datFont(cap);
   tft.setTextColor(mau, nen);
-  tft.drawString(s, x, y, font);
-  tft.setTextColor(mau);          // các lượt sau: KHÔNG nền, xem khối ⚠️ ở trên
-  tft.drawString(s, x + 1, y, font);
-  tft.drawString(s, x, y + 1, font);
-  tft.drawString(s, x + 1, y + 1, font);
+  tft.drawString(s, x, y);
+#ifndef CO_FONT_DEP
+  if(dam){
+    tft.setTextColor(mau);          // các lượt sau: KHÔNG nền, xem khối ⚠️ ở trên
+    tft.drawString(s, x + 1, y);
+    tft.drawString(s, x, y + 1);
+    tft.drawString(s, x + 1, y + 1);
+  }
+#else
+  (void) dam;
+#endif
+}
+
+/**
+ * CẤP CHỮ CHUNG CHO SỐ TIỀN CỦA CẢ BỐN Ô.
+ *
+ * 🔴 MỘT CỠ CHO CẢ BỐN, KHÔNG PHẢI MỖI Ô MỘT CỠ. Bản trước để từng ô tự đo rồi tự tụt font khi
+ *    chật, nên bảng giá nào có một gói bảy chữ số là ô ấy chữ bé hẳn so với ba ô kia — nhìn như
+ *    hỏng. Đo chuỗi DÀI NHẤT trong bốn gói rồi chọn một cỡ cho tất cả thì lưới luôn cân.
+ */
+static int capSoTien(){
+  int rongToiDa = 0;
+  for(int i = 0; i < PKG_N && i < PKG_MAX; i++){
+    String s = tienVN(PKG_AMT[i]);
+    if(s.endsWith("d")) s.remove(s.length() - 1);
+    int r = rongChu(s, CAP_SO_TO);
+    if(r > rongToiDa) rongToiDa = r;
+  }
+  /* `- 16`: chừa 1px nét đậm mỗi bên và một chút đệm để chữ không dính viền. */
+  return (rongToiDa <= PKG_BTN[0].w - 16) ? CAP_SO_TO : CAP_SO_VUA;
 }
 
 void veTheGoi(int i){
@@ -1041,21 +1125,22 @@ void veTheGoi(int i){
   /* ============================================================================================
    * SỐ TIỀN — thứ to nhất trong ô, đúng như tấm mẫu.
    *
-   * Font 4 cao 26px. "200.000" là chuỗi dài nhất trong bảng giá hiện tại; ở font 4 nó rộng
-   * khoảng 112px, còn ô rộng 150 nên vừa. Nhưng bảng giá do MÁY CHỦ gửi xuống và anh Thắng đổi
-   * được bất cứ lúc nào, nên KHÔNG đoán chiều rộng: đo bằng `textWidth()` rồi tụt xuống font 2
-   * nếu font 4 tràn. Một con số tiền tràn ra ngoài ô thì lượt vẽ sau không xoá được phần tràn
-   * (nó nằm ngoài vùng `fillRoundRect`), và vệt chữ cũ nằm lại trên nền navy.
+   * Cấp chữ do `capSoTien()` chọn MỘT LẦN cho cả bốn ô, đo theo chuỗi dài nhất trong bảng giá.
+   * Bảng giá do máy chủ gửi xuống và anh Thắng đổi được bất cứ lúc nào, nên không đoán chiều
+   * rộng ở đây. Một con số tràn ra ngoài ô thì lượt vẽ sau không xoá được phần tràn (nó nằm
+   * ngoài vùng `fillRoundRect`), và vệt chữ cũ nằm lại trên nền navy.
+   *
+   * Dòng dưới xếp theo `caoChu()` chứ không theo số cố định — xem khối 🔴 ở `veChu()`.
    * ============================================================================================ */
   String so = tienVN(PKG_AMT[i]);
   /* `tienVN()` trả kèm chữ "d" ở cuối; tấm mẫu tách hẳn đơn vị xuống dòng dưới nên bỏ nó đi. */
   if(so.endsWith("d")) so.remove(so.length() - 1);
-  /* `- 16` chứ không `- 14`: nét đậm ăn thêm 1px mỗi chiều, cộng 1px đệm. */
-  int fSo = (tft.textWidth(so, 4) <= b.w - 16) ? 4 : 2;
-  veChuDam(so, cx, b.y + 16, fSo, COL_SO, COL_THE);
+  int capSo = capSoTien();
+  int ySo   = b.y + 14;
+  veChu(so, cx, ySo, capSo, COL_SO, COL_THE, true);
 
-  /* Đơn vị dưới số, TRẮNG — đúng tấm mẫu. Font 2 cao 16px. */
-  veChuDam("VND", cx, b.y + (fSo == 4 ? 46 : 38), 2, TFT_WHITE, COL_THE);
+  /* Đơn vị dưới số, TRẮNG — đúng tấm mẫu. */
+  veChu("VND", cx, ySo + caoChu(capSo) + 3, CAP_DV, TFT_WHITE, COL_THE, true);
 
   /* ============================================================================================
    * DÒNG NHỎ CUỐI Ô: SỐ PHÚT (+ tên gói nếu còn chỗ).
@@ -1076,12 +1161,11 @@ void veTheGoi(int i){
   if(vip) duoi = duoi + " - VVIP";
   if(PKG_TEN[i].length()){
     String ghep = duoi + " - " + PKG_TEN[i];
-    if(tft.textWidth(ghep, 1) <= b.w - 12) duoi = ghep;
+    if(rongChu(ghep, CAP_PHU) <= b.w - 12) duoi = ghep;
   }
   /* Chữ VVIP theo màu viền để hai thứ nói cùng một chuyện — người nhìn không phải học riêng
      rằng "viền vàng nghĩa là VVIP". */
-  tft.setTextColor(vip ? COL_SO : COL_PHU, COL_THE);
-  tft.drawString(duoi, cx, b.y + b.h - 16, 1);
+  veChu(duoi, cx, b.y + b.h - caoChu(CAP_PHU) - 6, CAP_PHU, vip ? COL_SO : COL_PHU, COL_THE, false);
 }
 
 /**
@@ -1152,10 +1236,10 @@ void drawIdle(){
     };
     String tieu = TIEU[2];
     for(unsigned k = 0; k < sizeof(TIEU)/sizeof(TIEU[0]); k++){
-      if(tft.textWidth(TIEU[k], 2) <= 312){ tieu = TIEU[k]; break; }   // 312: chừa 1px nét đậm mỗi bên
+      if(rongChu(TIEU[k], CAP_TIEU) <= 312){ tieu = TIEU[k]; break; }  // 312: chừa nét đậm mỗi bên
     }
     tft.setTextDatum(TC_DATUM);
-    veChuDam(tieu, 160, 2, 2, TFT_WHITE, COL_BG);
+    veChu(tieu, 160, 2, CAP_TIEU, TFT_WHITE, COL_BG, true);
 
     /* Phụ đề + hai gạch. Đo chữ trước rồi mới biết gạch bắt đầu từ đâu — cùng lý do trên. */
     static const char* PHU[] = {
@@ -1165,17 +1249,19 @@ void drawIdle(){
     };
     String phu = PHU[2];
     for(unsigned k = 0; k < sizeof(PHU)/sizeof(PHU[0]); k++){
-      if(tft.textWidth(PHU[k], 1) <= 250){ phu = PHU[k]; break; }
+      if(rongChu(PHU[k], CAP_PHU) <= 250){ phu = PHU[k]; break; }
     }
-    tft.setTextColor(COL_SO, COL_BG);
-    tft.drawString(phu, 160, 24, 1);
+    /* Đặt dưới tiêu đề theo chiều cao THẬT của nó, không theo con số chép tay. */
+    int yPhu = 2 + caoChu(CAP_TIEU) + 2;
+    veChu(phu, 160, yPhu, CAP_PHU, COL_SO, COL_BG, false);
 
     /* ⚠️ CHẤM THOI PHẢI NẰM HẲN TRONG LÒNG GẠCH, KHÔNG SÁT MÉP TRONG.
        Bản đầu đặt thoi ở `gT+2 .. gT+8` với khe 6px, tức nó lấn 2px qua mép chữ — bản dựng màn
        (`tools/test/fw/ve-man-ghe.sh`) cho thấy ngay hai chấm thoi ngồi đè lên chữ "B" và "U"
        của phụ đề. Nay khe 12px và thoi vẽ LÙI VÀO phía gạch, nên còn 4px trống trước chữ dù đo
        chữ có lệch vài pixel. */
-    int nua = tft.textWidth(phu, 1) / 2;
+    int yGach = yPhu + caoChu(CAP_PHU) / 2;
+    int nua = rongChu(phu, CAP_PHU) / 2;
     int gT  = 160 - nua - 12;         // mép trong của gạch trái
     int gP  = 160 + nua + 12;         // mép trong của gạch phải
     /* ⚠️ GẠCH VÀ THOI VẼ BẰNG COL_VANG2, KHÔNG PHẢI COL_SO — và đó không chỉ là chuyện thẩm mỹ.
@@ -1185,12 +1271,12 @@ void drawIdle(){
        gạch và mép chữ. Vàng tối trên navy vẫn đọc rõ, mà lại đúng vai: nét trang trí không nên
        chói ngang với chữ. */
     if(gT - 14 >= 16){                // đủ chỗ cho gạch + thoi thì mới vẽ
-      tft.drawFastHLine(14, 28, gT - 14, COL_VANG2);
-      tft.drawFastHLine(gP, 28, 306 - gP, COL_VANG2);
-      tft.fillTriangle(gT - 8, 28, gT - 5, 25, gT - 2, 28, COL_VANG2);
-      tft.fillTriangle(gT - 8, 28, gT - 5, 31, gT - 2, 28, COL_VANG2);
-      tft.fillTriangle(gP + 2, 28, gP + 5, 25, gP + 8, 28, COL_VANG2);
-      tft.fillTriangle(gP + 2, 28, gP + 5, 31, gP + 8, 28, COL_VANG2);
+      tft.drawFastHLine(14, yGach, gT - 14, COL_VANG2);
+      tft.drawFastHLine(gP, yGach, 306 - gP, COL_VANG2);
+      tft.fillTriangle(gT - 8, yGach, gT - 5, yGach - 3, gT - 2, yGach, COL_VANG2);
+      tft.fillTriangle(gT - 8, yGach, gT - 5, yGach + 3, gT - 2, yGach, COL_VANG2);
+      tft.fillTriangle(gP + 2, yGach, gP + 5, yGach - 3, gP + 8, yGach, COL_VANG2);
+      tft.fillTriangle(gP + 2, yGach, gP + 5, yGach + 3, gP + 8, yGach, COL_VANG2);
     }
   }
 
@@ -1205,6 +1291,7 @@ void drawIdle(){
    * ============================================================================================ */
   tft.drawFastHLine(0, 224, 320, COL_VIEN3);
   tft.setTextDatum(TL_DATUM);
+  tft.setTextFont(1);                 // dải đáy luôn dùng font nhỏ nhất, kể cả khi có Free Font
   tft.setTextColor(COL_PHU, COL_BG);
   tft.drawString(CHAIR_ID, 6, 229, 1);
   tft.setTextDatum(TR_DATUM);

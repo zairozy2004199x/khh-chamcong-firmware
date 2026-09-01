@@ -100,7 +100,12 @@ for ten_tep in TEP:
     #    Chỉ xét tên viết kiểu camelCase/có gạch dưới do người trong nhà đặt, và bỏ qua tên của
     #    thư viện Arduino — nên danh sách bỏ qua dưới đây là CỐ Ý ngắn: mục tiêu là bắt hàm bị
     #    xoá mất, không phải dựng lại trình biên dịch.
-    goi = set(re.findall(r'(?<![\w.>:])([a-z][A-Za-z0-9_]{3,})\s*\(', ma))
+    # ⚠️ BỎ QUA DÒNG TIỀN XỬ LÝ. `#if defined(LOAD_GFXFF)` và `#if __has_include(<...>)` trông
+    #    y hệt lời gọi hàm với biểu thức chính quy ở trên, nên bài thử từng báo thiếu định nghĩa
+    #    cho `defined` và `else` — một cảnh báo sai làm người đọc mất tin vào cả bài. Tiền xử lý
+    #    thì trình biên dịch lo, không phải việc của phép soi này.
+    ma_khong_tien_xu_ly = re.sub(r'^\s*#.*$', '', ma, flags=re.M)
+    goi = set(re.findall(r'(?<![\w.>:])([a-z][A-Za-z0-9_]{3,})\s*\(', ma_khong_tien_xu_ly))
     # ⚠️ `khai` PHẢI kén: chỉ nhận ĐỊNH NGHĨA (kết thúc bằng '{') và KHAI BÁO TRƯỚC ở cột 0
     #    (kết thúc bằng ';'). Bản đầu nhận cả `tên(...);` ở bất kỳ đâu — mà một LỜI GỌI
     #    `hikSend_(http, method, payload);` trông y hệt một khai báo. Hậu quả: xoá hẳn định
@@ -185,18 +190,18 @@ for ten_tep in TEP:
 # đậm hay không đậm đều ra một hình. Nên chốt ở đây, soi thẳng mã.
 for tep in TEP:
     ma = io.open(tep, encoding='utf-8').read()
-    if 'void veChuDam(' not in ma:
+    if 'static void veChu(' not in ma:
         continue
     nhan = os.path.basename(tep)
-    than = ma[ma.index('void veChuDam('):]
+    than = ma[ma.index('static void veChu('):]
     than = than[:than.index('\n}\n') + 3]
     hai  = len(re.findall(r'setTextColor\s*\([^)]*,', than))
     mot  = len(re.findall(r'setTextColor\s*\([^),]*\)', than))
-    t('%s: veChuDam vẽ lượt đầu CÓ nền' % nhan, hai == 1,
+    t('%s: veChu vẽ lượt đầu CÓ nền' % nhan, hai == 1,
       'thấy %d lượt setTextColor có nền, phải đúng 1' % hai)
-    t('%s: veChuDam vẽ các lượt sau KHÔNG nền' % nhan, mot >= 1,
+    t('%s: veChu vẽ các lượt sau KHÔNG nền' % nhan, mot >= 1,
       'không thấy lượt setTextColor một tham số — chữ sẽ không đậm lên')
-    t('%s: veChuDam vẽ đủ bốn lượt chồng nhau' % nhan,
+    t('%s: veChu vẽ đủ bốn lượt chồng nhau' % nhan,
       len(re.findall(r'drawString', than)) == 4,
       'thấy %d lượt drawString, phải đúng 4' % len(re.findall(r'drawString', than)))
 

@@ -145,6 +145,9 @@ struct Tft {
       if (!(am && duong)) cham(x, y, c);
     }
   }
+  int fontHienTai = 1;
+  void setTextFont(int f){ fontHienTai = f; }
+  int  fontHeight(){ return caoFont(fontHienTai); }
   void setTextDatum(int d){ datum = d; }
   void setTextColor(uint16_t f, uint16_t b){ fg = f; bg = b; }
   void setTextColor(uint16_t f){ fg = f; }   // vẽ không nền — dùng cho các lượt chữ đậm
@@ -156,9 +159,13 @@ struct Tft {
 
   int textWidth(const String& s, int f){ return (int) s.size() * rongKy(f) * tsize; }
   int textWidth(const char* s, int f){ return (int) strlen(s) * rongKy(f) * tsize; }
+  int textWidth(const String& s){ return textWidth(s, fontHienTai); }
+  int textWidth(const char* s){ return textWidth(s, fontHienTai); }
 
   void drawString(const String& s, int x, int y, int f){ ve(s, x, y, f); }
   void drawString(const char* s, int x, int y, int f){ ve(String(s), x, y, f); }
+  void drawString(const String& s, int x, int y){ ve(s, x, y, fontHienTai); }
+  void drawString(const char* s, int x, int y){ ve(String(s), x, y, fontHienTai); }
 
   void ve(const String& s, int x, int y, int f){
     int rong = textWidth(s, f), cao = caoFont(f) * tsize;
@@ -256,6 +263,68 @@ static void chayKiem(){
     kt(ten, demChuTrongVung(0, 36, 3, 223));
     snprintf(ten, sizeof ten, "[%s] mep phai man", c.ten);
     kt(ten, demChuTrongVung(316, 36, 319, 223));
+    /* 🔴 HAI DÒNG CHỮ KHÔNG ĐƯỢC DÙNG CHUNG MỘT HÀNG PIXEL.
+       Bài kiểm bản đầu chỉ soi các dải KHE và mép màn, nên nó bắt được chữ tràn RA NGOÀI ô mà
+       mù hẳn với chữ đè chữ BÊN TRONG ô — phá thử ba ca liền ra XANH: chép cứng chiều cao dòng
+       thay vì hỏi `caoChu()`, dòng dưới không trừ chiều cao chữ, và phụ đề đặt đè lên tiêu đề.
+       Cả ba đều là bố cục vỡ hẳn mà cửa kiểm vẫn cho qua.
+
+       Cách bắt: số tiền VÀNG, chữ VND TRẮNG, dòng phụ XANH NHẠT — ba màu khác nhau. Hàng nào
+       mang hai màu chữ cùng lúc là hai dòng đã chồng lên nhau.
+
+       ⚠️ Chỉ soi phần RUỘT ô, cách mép 4px. Ô VVIP có viền VÀNG chạy dọc hai bên, nên mọi hàng
+          của nó đều "có màu vàng" — soi cả viền là báo hỏng oan ở đúng ô ấy. */
+    {
+      int chong = 0;
+      for (int o = 0; o < 4; o++) {
+        Btn bb = PKG_BTN[o];
+        for (int y = bb.y + 4; y < bb.y + bb.h - 4; y++) {
+          bool vang = false, trang = false, xanh = false;
+          for (int x = bb.x + 4; x < bb.x + bb.w - 4; x++) {
+            uint16_t px = FB[y*W + x];
+            if (px == COL_SO)  vang  = true;
+            if (px == 0xFFFF)  trang = true;
+            if (px == COL_PHU) xanh  = true;
+          }
+          if ((vang && trang) || (vang && xanh) || (trang && xanh)) chong++;
+        }
+      }
+      snprintf(ten, sizeof ten, "[%s] hai dong chu khong chong hang trong o", c.ten);
+      kt(ten, chong);
+    }
+    /* Cùng phép ấy cho dải tiêu đề: tiêu đề TRẮNG, phụ đề VÀNG. */
+    {
+      int chong = 0;
+      for (int y = 0; y <= 34; y++) {
+        bool vang = false, trang = false;
+        for (int x = 0; x < W; x++) {
+          uint16_t px = FB[y*W + x];
+          if (px == COL_SO) vang  = true;
+          if (px == 0xFFFF) trang = true;
+        }
+        if (vang && trang) chong++;
+      }
+      snprintf(ten, sizeof ten, "[%s] phu de khong de len tieu de", c.ten);
+      kt(ten, chong);
+    }
+    /* 🔴 CHỮ KHÔNG ĐƯỢC CHẠM VÀO VIỀN Ô. Vành 2px sát mép trong phải sạch — chữ dính viền là
+       dấu hiệu nó sắp tràn, và ở ca "dòng dưới không trừ chiều cao chữ" thì nó đã tràn thật
+       nhưng phần tràn rơi đúng vào quầng sáng nên dải khe không thấy gì. */
+    {
+      /* ⚠️ BỎ 10px Ở MỖI GÓC. Góc bo của `drawRoundRect` cong vào trong vành, mà viền ô VVIP
+         mang đúng màu vàng của số tiền — soi cả góc là báo hỏng oan ở riêng ô ấy, và phép thử
+         báo sai thì tệ hơn không có phép thử. Bốn cạnh thẳng đã đủ bắt chữ dính viền. */
+      int cham = 0, G = 10;
+      for (int o = 0; o < 4; o++) {
+        Btn bb = PKG_BTN[o];
+        cham += demChuTrongVung(bb.x + G, bb.y + 1, bb.x + bb.w - 1 - G, bb.y + 2);
+        cham += demChuTrongVung(bb.x + G, bb.y + bb.h - 3, bb.x + bb.w - 1 - G, bb.y + bb.h - 2);
+        cham += demChuTrongVung(bb.x + 1, bb.y + G, bb.x + 2, bb.y + bb.h - 1 - G);
+        cham += demChuTrongVung(bb.x + bb.w - 3, bb.y + G, bb.x + bb.w - 2, bb.y + bb.h - 1 - G);
+      }
+      snprintf(ten, sizeof ten, "[%s] chu khong cham vien o", c.ten);
+      kt(ten, cham);
+    }
     /* Dải phụ đề: chữ vàng của phụ đề nằm ở giữa; hai đầu (x<14, x>306) phải sạch. */
     snprintf(ten, sizeof ten, "[%s] hai dau dai phu de", c.ten);
     kt(ten, demChuTrongVung(0, 20, 13, 34) + demChuTrongVung(307, 20, 319, 34));
