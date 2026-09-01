@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include <esp_mac.h>
 
-#define FW_VERSION "ghe-massage 2026-08-23c (QR mua ma tren o goi)"
+#define FW_VERSION "ghe-massage 2026-09-01a (man chon goi theo tam mau: navy + vien sang)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -819,8 +819,8 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
  *       flash, mà chỗ đó đang để dành cho phần MDB và bộ mã QR. Thay bằng một dải màu ở đầu
  *       thẻ để mắt phân biệt được các gói.
  * ============================================================================================ */
-#define COL_BG    0x1060   // nền nâu rất tối
-#define COL_KHUNG 0x20A1   // khung/ô chìm
+#define COL_BG    0x0085   // #04122A — navy rất tối (cũ 0x1060 nâu; đổi 01/09/2026 theo tấm mẫu)
+#define COL_KHUNG 0x08C7   // #0A1A3C — khung/ô chìm, xanh đậm hợp tông navy
 #define COL_VANG  0xDD28   // vàng đồng — chữ nhấn
 #define COL_VANG2 0x8B24   // vàng tối — viền, chữ phụ
 #define COL_KEM   0xF75B   // nền thẻ
@@ -859,8 +859,48 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
 #define COL_MO_KEM 0x7B6B  // chữ phụ trên nền KEM sáng — COL_MO ở đây chỉ được 2,84:1
 #define COL_ACC   COL_VANG // tên cũ, còn dùng ở màn "chưa gán mã"
 
-/* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
-Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,122,150,84} };
+/* ============================================================================================
+ * MÀN CHỌN GÓI — DỰNG LẠI THEO TẤM MẪU ANH THẮNG GỬI 01/09/2026
+ * ============================================================================================
+ * Mẫu: nền xanh navy rất tối · tiêu đề TRẮNG đậm "QUET MA QR DE THANH TOAN" · phụ đề VÀNG có
+ * hai gạch trang trí kẹp hai bên · bốn ô 2×2 nền xanh dương, VIỀN XANH SÁNG phát quang · số
+ * tiền VÀNG to nhất ô · chữ "VND" TRẮNG ngay dưới.
+ *
+ * 🔴 MỌI MÀU DƯỚI ĐÂY VẪN PHẢI ĐỌC ĐƯỢC KHI TẤM NỀN ĐẢO MÀU. Ghi chú ở khối trên còn nguyên
+ *    giá trị: ảnh chụp màn ghế cho thấy tấm nền render đảo so với thiết kế, mà cấu hình ấy nằm
+ *    trong User_Setup của TFT_eSPI chứ không nằm ở tệp này. Bảng màu mới chịu được cả hai chiều
+ *    vì nó dựa trên chênh lệch ĐỘ SÁNG lớn, không dựa trên khác biệt sắc độ:
+ *
+ *                                   bình thường          nếu đảo màu
+ *      COL_SO   trên COL_THE     vàng sáng / xanh tối   xanh tối / vàng sáng
+ *      TRẮNG    trên COL_THE     trắng    / xanh tối    đen      / vàng sáng
+ *
+ *    Hai cặp ấy đảo xong vẫn là "một sáng một tối", nên vẫn đọc được. Cặp nào chỉ khác nhau ở
+ *    SẮC (vàng trên đồng, như thẻ VVIP cũ) mới là cặp chết — đừng dựng lại kiểu đó.
+ *
+ * ⚠️ VIỀN PHÁT QUANG VẼ BẰNG BA LỚP KHUNG lồng nhau, đậm dần vào trong. Màn 320×240 không có
+ *    kênh alpha nên không có cách nào làm mờ thật; ba lớp là đủ để mắt đọc ra "có quầng sáng"
+ *    mà vẫn còn khe hở giữa hai ô cạnh nhau (khe 8px, quầng ăn 2px mỗi bên).
+ * ============================================================================================ */
+#define COL_THE    0x0173  // #002E9C — nền ô gói
+#define COL_VIEN   0x267F  // #22CCFF — viền trong, xanh sáng
+#define COL_VIEN2  0x1A9F  // #1E90FF — lớp quầng giữa
+#define COL_VIEN3  0x0AD1  // #0A5A8C — lớp quầng ngoài cùng
+#define COL_SO     0xFEA0  // #FFD400 — số tiền
+#define COL_PHU    0x9E7F  // #9CCFFF — chữ phụ xanh nhạt trên nền ô
+
+/* Thẻ 2×2. Chừa 36px đầu cho tiêu đề + phụ đề, 18px cuối cho dải mã ghế / trạng thái mạng.
+   Lề trái phải đều 6px.
+
+   🔴 KHE PHẢI CỘNG CẢ QUẦNG SÁNG. Quầng ăn 2px NGOÀI mỗi cạnh ô, nên khe giữa hai ô phải là
+      2 + 2 + khoảng trống. Bản đầu để ô cao 90 với khe dọc 4px: hai quầng chạm nhau, không còn
+      một hàng nền nào giữa hai hàng ô. Nhìn thì vẫn tạm được, nhưng nó xoá mất chỗ dựa của bài
+      kiểm bố cục — chữ của hàng trên tràn xuống bao nhiêu cũng bị quầng hàng dưới vẽ đè lên,
+      nên `kiem-man-ghe.sh` không thấy gì và phá thử ca "dòng chữ dưới tụt khỏi ô" ra XANH.
+
+      Nay ô cao 88: hàng 1 chiếm 38..125 (quầng 36..127), khe TRỐNG 128..129, hàng 2 quầng bắt
+      đầu 130. Khe ngang giữa hai cột vốn đã đủ: quầng 4..157 và 162..., trống 158..161. */
+Btn PKG_BTN[PKG_MAX] = { {6,38,150,88}, {164,38,150,88}, {6,132,150,88}, {164,132,150,88} };
 
 /* Một thẻ gói. Tách hẳn ra vì drawIdle() vốn đã dài, mà đây là phần duy nhất người ta sẽ còn
    sửa đi sửa lại — mỗi lần anh Thắng đổi bảng giá là đụng đúng hàm này. */
@@ -870,10 +910,14 @@ void veTheQuangCao(int i){
   Btn b  = PKG_BTN[i];
   int cx = b.x + b.w / 2;
 
-  tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, COL_VIP);
+  /* Cùng quầng sáng với ba ô kia — ô quảng cáo phải nằm CÙNG một lưới, chỉ khác ruột. Đổi
+     riêng khung của nó là lưới 2×2 trông lệch một góc. */
+  tft.drawRoundRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4, 10, COL_VIEN3);
+  tft.drawRoundRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, 9,  COL_VIEN2);
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, COL_VIP);
   /* Viền và dải màu phải là COL_VANG2 (vàng tối), không phải COL_VANG: trên nền vàng sáng thì
      COL_VANG chỉ còn 1,60:1 — nhìn như không có viền. */
-  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG2);
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_VANG2);
   tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG2);
 
   tft.setTextDatum(TC_DATUM);
@@ -892,7 +936,7 @@ void veTheQuangCao(int i){
      *    là thứ QUYẾT ĐỊNH mã có quét được hay không — ô rộng 150 nhưng chỉ cao 84, nên mã
      *    luôn bị chiều cao bó.
      *
-     *      vùng 58px (cũ, còn chữ)   vùng 70px (nay)
+     *      vùng 58px (cũ, còn chữ)   vùng 74px (nay — ô cao 90 thay vì 84)
      *        version 2 (25 module)   2 px/module        2 px/module
      *        version 3 (29 module)   1 px/module   →    2 px/module   ← chỗ ăn tiền
      *
@@ -904,7 +948,7 @@ void veTheQuangCao(int i){
      * ⚠️ NỀN TRẮNG PHỦ CẢ VÙNG LẶNG. Vẽ mã đen lên nền thẻ là không máy nào quét được: bộ dò
      *    cần tương phản trắng-đen, và cần vùng lặng trắng quanh mã.
      * ============================================================================================ */
-    int vungH = 70, vungY = b.y + 10;
+    int vungH = 74, vungY = b.y + 9;
     tft.fillRect(cx - vungH/2 - 2, vungY - 2, vungH + 4, vungH + 4, TFT_WHITE);
     qrDatVung(cx - vungH/2, vungY, vungH, vungH, 3);
     esp_qrcode_config_t qc = ESP_QRCODE_CONFIG_DEFAULT();
@@ -929,12 +973,12 @@ void veTheQuangCao(int i){
     tft.drawString("-" + String(QC_GIAM) + "%", cx, b.y + 26, 4);
     tft.setTextSize(1);
     tft.setTextColor(COL_VIP_MO, COL_VIP);
-    tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 60, 1);
+    tft.drawString("QUET TEM CANH THUNG TIEN", cx, b.y + 62, 1);
     /* Nói rõ vẫn bấm được vào đây để mua gói như thường — nếu không, ô này trông như một tấm
        biển quảng cáo chết và khách sẽ đợi nó đổi lại mới dám bấm.
        🔴 Câu cũ "(cham de mua goi nhu thuong)" dài 168px trong ô rộng 150 — tràn 9px mỗi bên,
           mà phần tràn nằm NGOÀI ô nên lượt luân phiên sau vẽ lại ô KHÔNG xoá được nó. */
-    tft.drawString("(cham vao de mua goi)", cx, b.y + 71, 1);
+    tft.drawString("(cham vao de mua goi)", cx, b.y + 74, 1);
   }
 }
 
@@ -944,49 +988,70 @@ void veTheGoi(int i){
   Btn  b    = PKG_BTN[i];
   bool vip  = (PKG_VIP[i] != 0);
   int  cx   = b.x + b.w / 2;
-  uint16_t nen  = vip ? COL_VIP : COL_KEM;
-  /* Chữ chính TỐI trên cả hai kiểu thẻ. Trước đây thẻ VVIP dùng COL_VANG trên nền đồng tối —
-     đó đúng là chỗ anh Thắng bảo "không thấy được". */
-  uint16_t chu  = COL_CHU;
-  uint16_t phu  = vip ? COL_VIP_MO : COL_MO_KEM;
 
-  tft.fillRoundRect(b.x, b.y, b.w, b.h, 7, nen);
-  tft.drawRoundRect(b.x, b.y, b.w, b.h, 7, COL_VANG2);
-  /* Dải màu ở đầu thẻ thay cho hình minh hoạ: đủ để mắt phân biệt bốn gói mà không tốn flash. */
-  tft.fillRect(b.x + 6, b.y + 4, b.w - 12, 3, COL_VANG2);
+  /* Quầng sáng quanh ô: ba khung lồng nhau, đậm dần vào trong. Vẽ TRƯỚC khi tô nền để nền
+     không đè mất lớp trong cùng.
+
+     🔴 Ô VVIP ĐÁNH DẤU BẰNG VIỀN VÀNG, KHÔNG BẰNG NHÃN GÓC. Hai bản trước đều thử nhãn "VVIP"
+        ở góc phải trên và cả hai đều đè lên thứ khác: đặt nhô ra ngoài ô thì nó ngồi lên viền ô
+        phía trên, kéo vào trong ô thì nó ngồi lên chính con số tiền — vì số tiền là thứ to nhất
+        và nó chiếm trọn nửa trên của ô. Trong một ô 150×90 không có góc nào còn trống.
+
+        Viền thì không tranh chỗ với chữ nào cả, mà mắt vẫn tách ra ngay giữa lưới bốn ô. */
+  uint16_t vTrong = vip ? COL_SO    : COL_VIEN;
+  uint16_t vGiua  = vip ? COL_VANG2 : COL_VIEN2;
+  tft.drawRoundRect(b.x - 2, b.y - 2, b.w + 4, b.h + 4, 10, COL_VIEN3);
+  tft.drawRoundRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, 9,  vGiua);
+  tft.fillRoundRect(b.x, b.y, b.w, b.h, 8, COL_THE);
+  tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, vTrong);
 
   tft.setTextDatum(TC_DATUM);
-  /* Tên gói. Máy chủ cắt còn VHG_May::CHU_VUA_O ký tự cho vừa 150px ở font 1 (6px/ký tự).
-     🔴 Chú thích cũ ghi "16 ký tự" — con số đó không có thật ở đâu cả: máy chủ hồi đó cắt ở 30,
-        tức là cho qua một chuỗi 180px trong ô 150px. Đừng chép số vào đây nữa. */
-  tft.setTextColor(chu, nen);
-  tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 12, 1);
 
-  /* Số phút ngay dưới tên — đúng thứ tự trên tấm bảng giá. */
-  tft.setTextColor(phu, nen);
-  tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 24, 1);
+  /* ============================================================================================
+   * SỐ TIỀN — thứ to nhất trong ô, đúng như tấm mẫu.
+   *
+   * Font 4 cao 26px. "200.000" là chuỗi dài nhất trong bảng giá hiện tại; ở font 4 nó rộng
+   * khoảng 112px, còn ô rộng 150 nên vừa. Nhưng bảng giá do MÁY CHỦ gửi xuống và anh Thắng đổi
+   * được bất cứ lúc nào, nên KHÔNG đoán chiều rộng: đo bằng `textWidth()` rồi tụt xuống font 2
+   * nếu font 4 tràn. Một con số tiền tràn ra ngoài ô thì lượt vẽ sau không xoá được phần tràn
+   * (nó nằm ngoài vùng `fillRoundRect`), và vệt chữ cũ nằm lại trên nền navy.
+   * ============================================================================================ */
+  String so = tienVN(PKG_AMT[i]);
+  /* `tienVN()` trả kèm chữ "d" ở cuối; tấm mẫu tách hẳn đơn vị xuống dòng dưới nên bỏ nó đi. */
+  if(so.endsWith("d")) so.remove(so.length() - 1);
+  int fSo = (tft.textWidth(so, 4) <= b.w - 14) ? 4 : 2;
+  tft.setTextColor(COL_SO, COL_THE);
+  tft.drawString(so, cx, b.y + 16, fSo);
 
-  /* SỐ TIỀN to nhất: đó là thứ khách quyết định. Font 4 cao 26px, "200.000d" rộng ~112px nên
-     vừa trong 150px. Dùng dấu chấm nghìn kiểu Việt, không viết tắt "200k" — tấm bảng giá ghi
-     đủ số, và khách đối chiếu bảng treo tường với màn ghế bằng mắt. */
-  tft.setTextColor(chu, nen);
-  tft.drawString(tienVN(PKG_AMT[i]), cx, b.y + 38, 4);
+  /* Đơn vị dưới số, TRẮNG — đúng tấm mẫu. Font 2 cao 16px. */
+  tft.setTextColor(TFT_WHITE, COL_THE);
+  tft.drawString("VND", cx, b.y + (fSo == 4 ? 46 : 38), 2);
 
-  /* Mô tả một dòng, dưới cùng. Rỗng thì bỏ trống chứ đừng bịa chữ. */
-  if(PKG_MOTA[i].length()){
-    tft.setTextColor(phu, nen);
-    tft.drawString(PKG_MOTA[i], cx, b.y + b.h - 14, 1);
+  /* ============================================================================================
+   * DÒNG NHỎ CUỐI Ô: SỐ PHÚT (+ tên gói nếu còn chỗ).
+   *
+   * 🔴 TẤM MẪU KHÔNG CÓ DÒNG NÀY — nhưng tấm mẫu là một tờ quảng cáo bốn mệnh giá, còn đây là
+   *    màn khách BẤM ĐỂ MUA. Số phút là thứ khách thật sự mua: cùng 50.000đ mà 6 phút hay 12
+   *    phút là hai món khác nhau, và khách đứng trước ghế không có tấm bảng giá nào khác để đối
+   *    chiếu. Bỏ hẳn nó đi là bán một món không ghi số lượng.
+   *
+   *    Nên giữ, nhưng để nhỏ và mờ hơn hẳn số tiền — mắt vẫn đọc bố cục của tấm mẫu trước.
+   *    Anh Thắng muốn bỏ hẳn thì xoá đúng khối này.
+   *
+   * ⚠️ Tên gói chỉ ghép vào khi ĐO THẤY còn chỗ. Máy chủ cắt tên theo `VHG_May::CHU_VUA_O`,
+   *    nhưng cắt theo số ký tự thì không biết được ô còn bao nhiêu pixel sau khi đã ghép
+   *    "N PHUT · " vào trước.
+   * ============================================================================================ */
+  String duoi = String(phutGoi(i)) + " PHUT";
+  if(vip) duoi = duoi + " - VVIP";
+  if(PKG_TEN[i].length()){
+    String ghep = duoi + " - " + PKG_TEN[i];
+    if(tft.textWidth(ghep, 1) <= b.w - 12) duoi = ghep;
   }
-  if(vip){
-    /* Nhãn VVIP ở góc phải trên, như tấm bảng giá. */
-    /* Nhãn cũng đổi sang COL_VANG2: nhãn COL_VANG nằm trên thẻ vàng sáng thì chỉ 1,60:1,
-       tức là cái nhãn biến mất đúng ở thẻ duy nhất cần nó. */
-    tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_VANG2);
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_KEM, COL_VANG2);
-    tft.drawString("VVIP", b.x + b.w - 23, b.y + 1, 1);
-    tft.setTextDatum(TC_DATUM);
-  }
+  /* Chữ VVIP theo màu viền để hai thứ nói cùng một chuyện — người nhìn không phải học riêng
+     rằng "viền vàng nghĩa là VVIP". */
+  tft.setTextColor(vip ? COL_SO : COL_PHU, COL_THE);
+  tft.drawString(duoi, cx, b.y + b.h - 16, 1);
 }
 
 /**
@@ -1039,59 +1104,84 @@ void drawIdle(){
     return;
   }
   /* ============================================================================================
-   * DẢI TIÊU ĐỀ. Mã ghế nằm ở góc phải, nhỏ: khách không cần nó, nhưng người đi sửa thì cần và
-   * không phải mò vào web mới biết mình đang đứng trước con ghế nào.
+   * TIÊU ĐỀ — dựng theo tấm mẫu anh Thắng gửi 01/09/2026.
    *
-   * 🔴 TRƯỚC ĐÂY HAI CHỮ ĐÈ LÊN NHAU. Tiêu đề căn giữa x=160 dài 258px nên chạy tới x=289, còn
-   *    mã ghế căn phải x=314 bắt đầu từ x=278 — chồng 11px. Anh Thắng chụp được: dải trên cùng
-   *    hiện ra "…GHE CAO CHMTP01".
+   * Dòng trên TRẮNG đậm nói VIỆC PHẢI LÀM; dòng dưới VÀNG nhỏ nói LÀM BẰNG GÌ, kẹp giữa hai
+   * gạch trang trí có chấm thoi ở đầu — đúng bố cục tấm mẫu.
    *
-   *    Và lúc MẤT MẠNG thì tệ hơn nhiều: chuỗi thành "AMTP01 - MAT MANG" (102px, bắt đầu từ
-   *    x=212) nên chồng 77px — tức là đúng cái chữ "MAT MANG", thứ nhân viên cần đọc nhất, bị
-   *    tiêu đề đè nát.
-   *
-   * ⚠️ Nên KHÔNG đoán chiều rộng nữa. Vẽ phần bên phải TRƯỚC, ĐO nó bằng `textWidth()`, rồi mới
-   *    căn tiêu đề vào phần còn lại. Mã ghế dài bao nhiêu cũng không đè được nữa.
+   * 🔴 KHÔNG ĐOÁN CHIỀU RỘNG CHỮ. Bài học cũ còn nguyên: tiêu đề căn giữa từng đè lên mã ghế
+   *    ở góc phải và anh Thắng chụp được cảnh "…GHE CAO CHMTP01". Nay tiêu đề chiếm trọn bề
+   *    ngang (mã ghế đã chuyển xuống dải đáy) nhưng vẫn phải ĐO: chuỗi font 2 dài hơn 320px thì
+   *    phần tràn nằm ngoài màn, và câu quan trọng nhất của cả màn bị cụt hai đầu.
    * ============================================================================================ */
-  tft.fillRect(0, 0, 320, 28, COL_KHUNG);
-  tft.drawFastHLine(0, 28, 320, COL_VANG2);
+  {
+    static const char* TIEU[] = {
+      "QUET MA QR DE THANH TOAN",
+      "QUET MA QR THANH TOAN",
+      "QUET MA QR"
+    };
+    String tieu = TIEU[2];
+    for(unsigned k = 0; k < sizeof(TIEU)/sizeof(TIEU[0]); k++){
+      if(tft.textWidth(TIEU[k], 2) <= 314){ tieu = TIEU[k]; break; }
+    }
+    tft.setTextDatum(TC_DATUM);
+    tft.setTextColor(TFT_WHITE, COL_BG);
+    tft.drawString(tieu, 160, 2, 2);
 
-  String chuPhai = netUp() ? CHAIR_ID : (CHAIR_ID + " - MAT MANG");
-  tft.setTextDatum(TR_DATUM);
-  tft.setTextColor(netUp() ? 0x0660 : 0xF800, COL_KHUNG);
-  tft.drawString(chuPhai, 314, 9, 1);
+    /* Phụ đề + hai gạch. Đo chữ trước rồi mới biết gạch bắt đầu từ đâu — cùng lý do trên. */
+    static const char* PHU[] = {
+      "BANG UNG DUNG NGAN HANG HOAC VI DIEN TU",
+      "BANG APP NGAN HANG HOAC VI DIEN TU",
+      "BANG APP NGAN HANG / VI DIEN TU"
+    };
+    String phu = PHU[2];
+    for(unsigned k = 0; k < sizeof(PHU)/sizeof(PHU[0]); k++){
+      if(tft.textWidth(PHU[k], 1) <= 250){ phu = PHU[k]; break; }
+    }
+    tft.setTextColor(COL_SO, COL_BG);
+    tft.drawString(phu, 160, 24, 1);
 
-  /* Chỗ còn lại cho tiêu đề, chừa 8px khe để hai bên không dính nhau. */
-  int mepPhai = 314 - tft.textWidth(chuPhai, 1) - 8;
-  /* Bốn mức, dài xuống ngắn: lấy mức ĐẦU TIÊN vừa chỗ. Cắt cụt giữa chừng chữ thì đọc còn khó
-     hiểu hơn là mất hẳn vế đầu, nên thà rụng cả cụm. Mức cuối luôn vừa ở mọi mã ghế hợp lệ. */
-  static const char* TIEU_DE[] = {
-    "CHAO MUNG QUY KHACH  -  MASSAGE GHE CAO CAP",
-    "CHAO MUNG  -  MASSAGE GHE CAO CAP",
-    "MASSAGE GHE CAO CAP",
-    "MASSAGE"
-  };
-  String tieu = "";
-  for(unsigned k = 0; k < sizeof(TIEU_DE)/sizeof(TIEU_DE[0]); k++){
-    if(tft.textWidth(TIEU_DE[k], 1) <= mepPhai - 6){ tieu = TIEU_DE[k]; break; }
-  }
-  if(tieu.length()){
-    tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(COL_VANG, COL_KHUNG);
-    tft.drawString(tieu, (6 + mepPhai) / 2, 13, 1);
+    /* ⚠️ CHẤM THOI PHẢI NẰM HẲN TRONG LÒNG GẠCH, KHÔNG SÁT MÉP TRONG.
+       Bản đầu đặt thoi ở `gT+2 .. gT+8` với khe 6px, tức nó lấn 2px qua mép chữ — bản dựng màn
+       (`tools/test/fw/ve-man-ghe.sh`) cho thấy ngay hai chấm thoi ngồi đè lên chữ "B" và "U"
+       của phụ đề. Nay khe 12px và thoi vẽ LÙI VÀO phía gạch, nên còn 4px trống trước chữ dù đo
+       chữ có lệch vài pixel. */
+    int nua = tft.textWidth(phu, 1) / 2;
+    int gT  = 160 - nua - 12;         // mép trong của gạch trái
+    int gP  = 160 + nua + 12;         // mép trong của gạch phải
+    /* ⚠️ GẠCH VÀ THOI VẼ BẰNG COL_VANG2, KHÔNG PHẢI COL_SO — và đó không chỉ là chuyện thẩm mỹ.
+       Nét trang trí cùng màu với chữ thì bài kiểm bố cục (`tools/test/fw/kiem-man-ghe.sh`)
+       không tách được hai thứ ra, nên một cái gạch bò vào giữa chữ vẫn qua được cửa kiểm —
+       phá thử ca ấy đã ra XANH một lần. Màu riêng cho phép bài kiểm đo đúng khoảng hở giữa mép
+       gạch và mép chữ. Vàng tối trên navy vẫn đọc rõ, mà lại đúng vai: nét trang trí không nên
+       chói ngang với chữ. */
+    if(gT - 14 >= 16){                // đủ chỗ cho gạch + thoi thì mới vẽ
+      tft.drawFastHLine(14, 28, gT - 14, COL_VANG2);
+      tft.drawFastHLine(gP, 28, 306 - gP, COL_VANG2);
+      tft.fillTriangle(gT - 8, 28, gT - 5, 25, gT - 2, 28, COL_VANG2);
+      tft.fillTriangle(gT - 8, 28, gT - 5, 31, gT - 2, 28, COL_VANG2);
+      tft.fillTriangle(gP + 2, 28, gP + 5, 25, gP + 8, 28, COL_VANG2);
+      tft.fillTriangle(gP + 2, 28, gP + 5, 31, gP + 8, 28, COL_VANG2);
+    }
   }
 
   for(int i=0;i<PKG_N;i++) veTheGoi(i);
 
-  /* Dải chân: câu mời quét mã. Đây là câu duy nhất nói cho khách biết PHẢI LÀM GÌ, nên nó nằm
-     trên dải riêng chứ không lẫn vào chữ nhỏ. */
-  tft.fillRect(0, 210, 320, 30, COL_KHUNG);
-  tft.drawFastHLine(0, 210, 320, COL_VANG2);
-  tft.setTextColor(COL_VANG, COL_KHUNG);
-  tft.drawString("CHON GOI  >  QUET MA QR DE THANH TOAN & BAT DAU", 160, 222, 1);
-
-  /* Mã ghế + trạng thái mạng đã vẽ ở ĐẦU hàm, trước tiêu đề — vì tiêu đề phải đo nó mới biết
-     căn vào đâu. Đừng chuyển xuống lại đây. */
+  /* ============================================================================================
+   * DẢI ĐÁY: mã ghế bên trái, trạng thái mạng bên phải.
+   *
+   * Khách không cần hai thứ này, nhưng người đi sửa thì cần và không phải mò vào web mới biết
+   * mình đang đứng trước con ghế nào. Trước đây chúng nằm chung dải với tiêu đề và đã một lần
+   * đè lên nhau; nay mỗi bên một mép của dải riêng, không có gì căn giữa để mà chồng vào.
+   * ============================================================================================ */
+  tft.drawFastHLine(0, 224, 320, COL_VIEN3);
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(COL_PHU, COL_BG);
+  tft.drawString(CHAIR_ID, 6, 229, 1);
+  tft.setTextDatum(TR_DATUM);
+  tft.setTextColor(netUp() ? 0x07E0 : 0xF800, COL_BG);
+  tft.drawString(netUp() ? "ONLINE" : "MAT MANG", 314, 229, 1);
+  tft.setTextDatum(TC_DATUM);
 }
 
 /* Vùng vẽ mã QR — callback của esp_qrcode không nhận tham số riêng nên phải để ở đây.
