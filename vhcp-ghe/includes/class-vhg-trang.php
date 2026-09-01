@@ -470,6 +470,40 @@ class VHG_Trang {
 			self::tra( $r ); return;
 		}
 
+			/* DIEU CHUYEN GHE — danh dau DA DON/DIEU CHUYEN (an), KHONG xoa: chi so, doanh thu, log
+			   deu giu nguyen. Tich nhieu ghe an di mot luot (`may_an_lo`) hoac mot ghe (`may_an`).
+			   `an=0` = dua ghe ve dung lai. */
+			if ( 'may_an' === $viec ) {
+				$r = VHG_May::dat_an( isset( $d['ma'] ) ? (string) $d['ma'] : '', ! empty( $d['an'] ) );
+				if ( ! empty( $r['ok'] ) ) {
+					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
+						. ( ! empty( $d['an'] ) ? ' dieu chuyen (an) ghe: ' : ' dua ve lai ghe: ' )
+						. (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) ) );
+				}
+				self::tra( $r ); return;
+			}
+			if ( 'may_an_lo' === $viec ) {
+				$ds_ma = isset( $d['ma'] ) ? (array) $d['ma'] : array();
+				$r = VHG_May::dat_an_lo( $ds_ma, ! empty( $d['an'] ) );
+				if ( ! empty( $r['ok'] ) ) {
+					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
+						. ( ! empty( $d['an'] ) ? ' dieu chuyen (an) ' : ' dua ve lai ' )
+						. (int) ( isset( $r['so'] ) ? $r['so'] : 0 ) . ' ghe: '
+						. implode( ', ', array_map( 'strval', array_slice( $ds_ma, 0, 40 ) ) ) ) );
+				}
+				self::tra( $r ); return;
+			}
+			if ( 'may_coso_lo' === $viec ) {
+				$ds_ma = isset( $d['ma'] ) ? (array) $d['ma'] : array();
+				$r = VHG_May::dat_coso_lo( $ds_ma, isset( $d['coso_id'] ) ? (int) $d['coso_id'] : 0 );
+				if ( ! empty( $r['ok'] ) ) {
+					VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
+						. ' doi co so ' . (int) ( isset( $r['so'] ) ? $r['so'] : 0 ) . ' ghe: '
+						. implode( ', ', array_map( 'strval', array_slice( $ds_ma, 0, 40 ) ) ) ) );
+				}
+				self::tra( $r ); return;
+			}
+
 		if ( 'ma_tra' === $viec ) {
 			/* Nhân viên tra hộ khách QUÊN PIN — chỉ cần số điện thoại.
 			   ⚠️ Đường này bỏ qua PIN, nên nó CHỈ được nằm ở đây: trang `/ghe` đã qua cổng PIN
@@ -832,6 +866,7 @@ class VHG_Trang {
 					? $m['tm_loi'] : $m['tm_cuoi'], 'en' ),
 				'khoa'    => ! empty( $m['khoa'] ) ? 1 : 0,   // ghế đang KHÓA lỗi
 				'kt'      => ! empty( $m['kt'] ) ? 1 : 0,     // ghế đang chế độ KỸ THUẬT (test)
+				'an'      => ! empty( $m['an'] ) ? 1 : 0,     // ghế ĐÃ DỌN/ĐIỀU CHUYỂN nơi khác
 			);
 		}
 		/* Ghế đang chờ gán mã + danh sách cơ sở: gửi kèm luôn trong lượt số liệu, không thêm
@@ -2952,6 +2987,8 @@ var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
 var QL_PG = 0, QL_PER = 10;   // Quản lý ghế: trang danh sách ghế (10 ghế/trang)
+var QL_SEL = {};   // Quản lý ghế: các mã ghế ĐANG TÍCH CHỌN (giữ qua các trang) — { ma: true }
+var QL_HIEN_AN = false;   // Quản lý ghế: có hiện ghế ĐÃ ĐIỀU CHUYỂN (ẩn) hay không
 var TM_PG = 0;   // Thu tiền: trang "từng lượt tiền mặt" (20/trang)
 var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
 var hen = null, demGiay = null;
@@ -6160,23 +6197,37 @@ function veQuanLy(){
     + '<p class="mut" style="margin:0 0 10px">'
     + L('Mã đi vào nội dung chuyển khoản khách gõ — chỉ chữ và số, không dấu, không khoảng trắng.',
         'The code goes into the transfer memo the customer types — letters and digits only.') + '</p>'
-    + '<div class="act" style="margin-bottom:10px"><label class="mut" style="align-self:center">'
+    + '<div class="act" style="flex-wrap:wrap;margin-bottom:10px"><label class="mut" style="align-self:center">'
     + L('Lọc cơ sở','Filter site') + ':</label>'
-    + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select></div>';
+    + '<select id="ql-loc" style="flex:1;min-width:160px">' + flt + '</select>'
+    + '<label class="mut" style="align-self:center;white-space:nowrap"><input type="checkbox" id="ql-htan"'
+    + (QL_HIEN_AN ? ' checked' : '') + '> ' + L('Hiện ghế đã điều chuyển','Show moved chairs') + '</label></div>';
   h += '<div id="ql-wrap"></div>'
     + '<p class="mut" style="margin:8px 0 0">'
-    + L('Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay). Xoá ghế chỉ xoá cấu hình — doanh thu đã ghi giữ nguyên.',
-        'Change the site dropdown to move a chair (saves immediately). Deleting a chair removes only its config — recorded revenue is kept.')
+    + L('Tích chọn nhiều ghế rồi bấm “Điều chuyển (ẩn đi)” để ẩn ghế đã dời nơi khác — CHỈ SỐ và doanh thu GIỮ NGUYÊN, không mất, đưa về lại được. Đổi ô địa điểm để chuyển ghế sang cơ sở khác (lưu ngay).',
+        'Tick chairs then “Move out (hide)” for chairs relocated elsewhere — meter & revenue are KEPT and reversible. Change the site dropdown to reassign a chair (saves immediately).')
     + '</p></div>';
   return h;
 }
 
-/* Danh sách ghế (tab Quản lý ghế): 10 ghế/trang, lọc theo QL_LOC — vẽ tại chỗ vào #ql-wrap,
-   tự gắn lại select đổi cơ sở + nút xoá cho mỗi trang. */
+/* Cac ma ghe dang tich chon (bo ma da bien mat khoi du lieu). */
+function qlChon(){ var r = []; for (var k in QL_SEL){ if (QL_SEL[k]) r.push(k); } return r; }
+/* Dung o xo co so (dung cho tung dong lan cho o "doi co so hang loat"). */
+function qlCsOpt(coso, chonTen){
+  return '<option value="0"' + (!chonTen ? ' selected' : '') + '>' + L('(chua gan)','(unassigned)')
+    + '</option>' + coso.map(function(c){
+        return '<option value="' + c.id + '"' + (chonTen === c.ten ? ' selected' : '') + '>'
+          + esc(c.ten) + '</option>'; }).join('');
+}
+
+/* Danh sach ghe (tab Quan ly ghe): 10 ghe/trang, loc theo QL_LOC. O tich chon giu qua cac trang
+   + thanh dieu chuyen hang loat. Ghe DA DIEU CHUYEN (m.an) mac dinh an — bat QL_HIEN_AN de soi.
+   Dieu chuyen = an, KHONG xoa (giu chi so). */
 function qlGheRender(){
   var box = document.getElementById('ql-wrap'); if (!box) return;
   var may = (D && D.may) || [], coso = (D && D.coso) || [];
   var list = may.filter(function(m){
+    if (!QL_HIEN_AN && m.an) return false;
     if (QL_LOC === '') return true;
     if (QL_LOC === '__none__') return !m.coso;
     return m.coso === QL_LOC;
@@ -6184,45 +6235,96 @@ function qlGheRender(){
   var pages = Math.max(1, Math.ceil(list.length / QL_PER));
   if (QL_PG >= pages) QL_PG = pages - 1; if (QL_PG < 0) QL_PG = 0;
   var from = QL_PG * QL_PER, to = Math.min(list.length, from + QL_PER);
-  var h = '<table><tr><th>' + L('Mã','Code') + '</th><th>' + L('Địa điểm','Site')
-    + '</th><th class="r hide-sm">' + L('Trạng thái','Status') + '</th><th class="r"></th></tr>';
-  if (!list.length) h += '<tr><td colspan="4" class="mut">'
-    + (may.length ? L('Không có ghế ở cơ sở này.','No chairs at this site.')
-                  : L('Chưa có ghế nào.','No chairs yet.')) + '</td></tr>';
+
+  var soChon = qlChon().length;
+  var trangDu = to > from;
+  for (var j = from; j < to; j++){ if (!QL_SEL[list[j].ma]) { trangDu = false; break; } }
+
+  var bulk = '';
+  if (soChon){
+    bulk = '<div class="act" style="flex-wrap:wrap;gap:8px;align-items:center;background:#f3f6ff;'
+      + 'border:1px solid #d6e0ff;border-radius:10px;padding:10px;margin-bottom:10px">'
+      + '<b>' + soChon + ' ' + L('ghe da chon','selected') + '</b>'
+      + '<button id="ql-dc" class="on">📦 ' + L('Dieu chuyen (an di)','Move out (hide)') + '</button>'
+      + '<span class="mut">' + L('hoac doi sang co so','or move to site') + ':</span>'
+      + '<select id="ql-dccs" style="min-width:150px">' + qlCsOpt(coso, '') + '</select>'
+      + '<button id="ql-doics" class="ghost">' + L('Doi co so','Change site') + '</button>'
+      + (QL_HIEN_AN ? '<button id="ql-hien" class="ghost">↩︎ ' + L('Dua ve dung lai','Restore') + '</button>' : '')
+      + '<button id="ql-boc" class="ghost">' + L('Bo chon','Clear') + '</button></div>';
+  }
+
+  var h = bulk + '<table><tr>'
+    + '<th style="width:26px"><input type="checkbox" id="ql-cp"' + (trangDu ? ' checked' : '') + '></th>'
+    + '<th>' + L('Ma','Code') + '</th><th>' + L('Dia diem','Site')
+    + '</th><th class="r hide-sm">' + L('Trang thai','Status') + '</th><th class="r"></th></tr>';
+  if (!list.length) h += '<tr><td colspan="5" class="mut">'
+    + (may.length ? L('Khong co ghe o co so nay.','No chairs at this site.')
+                  : L('Chua co ghe nao.','No chairs yet.')) + '</td></tr>';
   for (var i = from; i < to; i++){ var m = list[i];
-    var csOpt = '<option value="0"' + (!m.coso ? ' selected' : '') + '>' + L('(chưa gán)','(unassigned)')
-      + '</option>' + coso.map(function(c){
-          return '<option value="' + c.id + '"' + (m.coso === c.ten ? ' selected' : '') + '>'
-            + esc(c.ten) + '</option>'; }).join('');
     var tt = m.tt === 'running' ? '▶️' : (m.tt === 'wait_pay' ? '⏳' : (m.song ? '🟢' : '⚪'));
-    h += '<tr><td><b>' + esc(m.ma) + '</b></td>'
-      + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + csOpt + '</select></td>'
+    var ck = QL_SEL[m.ma] ? ' checked' : '';
+    h += '<tr' + (m.an ? ' style="opacity:.6"' : '') + '>'
+      + '<td><input type="checkbox" data-ck="' + esc(m.ma) + '"' + ck + '></td>'
+      + '<td><b' + (m.an ? ' style="text-decoration:line-through"' : '') + '>' + esc(m.ma) + '</b>'
+      + (m.an ? ' <span class="pill p-wait">' + L('da dieu chuyen','moved') + '</span>' : '') + '</td>'
+      + '<td><select data-csma="' + esc(m.ma) + '" style="max-width:150px">' + qlCsOpt(coso, m.coso) + '</select></td>'
       + '<td class="r hide-sm mut">' + tt + '</td>'
-      + '<td class="r"><button data-mxoa="' + esc(m.ma) + '">🗑 ' + L('Xoá','Delete') + '</button></td></tr>';
+      + '<td class="r">' + (m.an
+          ? '<button data-mhien="' + esc(m.ma) + '">↩︎ ' + L('Dua ve','Restore') + '</button>'
+          : '<button data-man="' + esc(m.ma) + '">📦 ' + L('Dieu chuyen','Move out') + '</button>')
+      + '</td></tr>';
   }
   h += '</table>';
   box.innerHTML = h;
-  // pager
   var pg = document.createElement('div'); pg.className = 'act'; pg.style.cssText = 'margin-top:8px;align-items:center';
-  var bT = document.createElement('button'); bT.className = 'ghost'; bT.textContent = '‹ ' + L('Trước','Prev');
+  var bT = document.createElement('button'); bT.className = 'ghost'; bT.textContent = '‹ ' + L('Truoc','Prev');
   bT.style.padding = '4px 10px'; bT.disabled = QL_PG <= 0; bT.onclick = function(){ QL_PG--; qlGheRender(); };
   var bS = document.createElement('button'); bS.className = 'ghost'; bS.textContent = L('Sau','Next') + ' ›';
   bS.style.padding = '4px 10px'; bS.disabled = QL_PG >= pages - 1; bS.onclick = function(){ QL_PG++; qlGheRender(); };
   var sp = document.createElement('span'); sp.className = 'mut';
-  sp.textContent = L('Trang','Page') + ' ' + (QL_PG + 1) + '/' + pages + ' · ' + list.length + ' ' + L('ghế','chairs');
+  sp.textContent = L('Trang','Page') + ' ' + (QL_PG + 1) + '/' + pages + ' · ' + list.length + ' ' + L('ghe','chairs');
   pg.appendChild(bT); pg.appendChild(sp); pg.appendChild(bS); box.appendChild(pg);
-  // gắn lại đổi cơ sở + xoá cho các dòng của trang này
+
+  [].forEach.call(box.querySelectorAll('[data-ck]'), function(c){
+    c.onchange = function(){ var m = c.getAttribute('data-ck');
+      if (c.checked) QL_SEL[m] = true; else delete QL_SEL[m]; qlGheRender(); };
+  });
+  var cp = document.getElementById('ql-cp');
+  if (cp) cp.onchange = function(){
+    for (var k = from; k < to; k++){ if (cp.checked) QL_SEL[list[k].ma] = true; else delete QL_SEL[list[k].ma]; }
+    qlGheRender();
+  };
   [].forEach.call(box.querySelectorAll('[data-csma]'), function(s){
     s.onchange = function(){ lam('may_coso', { ma: s.getAttribute('data-csma'), coso_id: s.value }); };
   });
-  [].forEach.call(box.querySelectorAll('[data-mxoa]'), function(b){
-    b.onclick = function(){
-      var m = b.getAttribute('data-mxoa');
-      if (!confirm(L('Xoá ghế ' + m + '? Chỉ xoá cấu hình, doanh thu đã ghi giữ nguyên.',
-        'Delete chair ' + m + '? Config only; recorded revenue is kept.'))) return;
-      lam('may_xoa', { ma: m });
-    };
+  [].forEach.call(box.querySelectorAll('[data-man]'), function(b){
+    b.onclick = function(){ var m = b.getAttribute('data-man');
+      if (!confirm(L('Dieu chuyen ghe ' + m + ' di?\nGhe an khoi trang thu tien cua nhan vien — chi so & doanh thu GIU NGUYEN, khong mat.',
+        'Move chair ' + m + ' out?\nIt hides from staff — meter & revenue are KEPT.'))) return;
+      lam('may_an', { ma: m, an: 1 }); };
   });
+  [].forEach.call(box.querySelectorAll('[data-mhien]'), function(b){
+    b.onclick = function(){ lam('may_an', { ma: b.getAttribute('data-mhien'), an: 0 }); };
+  });
+  var e;
+  if ((e = document.getElementById('ql-boc'))) e.onclick = function(){ QL_SEL = {}; qlGheRender(); };
+  if ((e = document.getElementById('ql-dc'))) e.onclick = function(){
+    var ds = qlChon(); if (!ds.length) return;
+    if (!confirm(L('Dieu chuyen ' + ds.length + ' ghe da chon di?\nCac ghe an khoi trang thu tien — chi so & doanh thu GIU NGUYEN, khong mat. Dua ve lai duoc.',
+      'Move ' + ds.length + ' selected chairs out?\nThey hide from staff — meter & revenue are KEPT. Reversible.'))) return;
+    QL_SEL = {}; lam('may_an_lo', { ma: ds, an: 1 });
+  };
+  if ((e = document.getElementById('ql-hien'))) e.onclick = function(){
+    var ds = qlChon(); if (!ds.length) return; QL_SEL = {}; lam('may_an_lo', { ma: ds, an: 0 });
+  };
+  if ((e = document.getElementById('ql-doics'))) e.onclick = function(){
+    var ds = qlChon(); if (!ds.length) return;
+    var sel = document.getElementById('ql-dccs'); var cid = sel ? sel.value : 0;
+    var ten = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : '';
+    if (!confirm(L('Doi co so cho ' + ds.length + ' ghe sang "' + ten + '"?',
+      'Move ' + ds.length + ' chairs to "' + ten + '"?'))) return;
+    QL_SEL = {}; lam('may_coso_lo', { ma: ds, coso_id: cid });
+  };
 }
 
 function kpi(lb, vl, sb, m){
@@ -6837,10 +6939,13 @@ function noi(){
     };
   });
   if ((_e = document.getElementById('ql-loc'))) _e.onchange = function(){
-    QL_LOC = _e.value; QL_PG = 0; qlGheRender();   // lọc + vẽ lại DANH SÁCH tại chỗ (không cả trang)
+    QL_LOC = this.value; QL_PG = 0; QL_SEL = {}; qlGheRender();   // lọc + vẽ lại DANH SÁCH tại chỗ (không cả trang)
+  };
+  if ((_e = document.getElementById('ql-htan'))) _e.onchange = function(){
+    QL_HIEN_AN = this.checked; QL_PG = 0; qlGheRender();   // soi / giấu ghế đã điều chuyển
   };
   if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){
-    DK_LOC = _e.value; ve();   // lọc lưới ghế tab Điều khiển
+    DK_LOC = this.value; ve();   // lọc lưới ghế tab Điều khiển
   };
 
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------

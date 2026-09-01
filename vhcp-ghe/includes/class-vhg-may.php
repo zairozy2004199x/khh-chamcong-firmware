@@ -972,6 +972,50 @@ class VHG_May {
 	 * ghế cho nhân viên nhập chỉ số — trang quản trị (bảng "Máy (ghế)", đối chiếu, kế toán…) vẫn
 	 * gọi thẳng `ds_may()` không lọc, nên vẫn thấy đủ ghế kể cả đã dọn.
 	 */
+	/**
+	 * ĐIỀU CHUYỂN NHIỀU GHẾ MỘT LƯỢT — tích chọn rồi ấn đi. Đánh dấu ẩn/hiện hàng loạt, KHÔNG xoá:
+	 * chỉ số, doanh thu, log của từng ghế giữ nguyên (xem `dat_an`). `$an=false` = đưa về dùng lại.
+	 */
+	public static function dat_an_lo( $ds_ma, $an ) {
+		global $wpdb;
+		$sach = array();
+		foreach ( (array) $ds_ma as $m ) {
+			$m = trim( (string) $m );
+			if ( '' !== $m && ! in_array( $m, $sach, true ) ) { $sach[] = $m; }
+		}
+		if ( ! $sach ) { return array( 'ok' => false, 'error' => 'Chưa chọn ghế nào.' ); }
+		$bang = VHG_DB::t( 'may' );
+		$cho  = implode( ',', array_fill( 0, count( $sach ), '%s' ) );
+		$wpdb->query( $wpdb->prepare(
+			"UPDATE $bang SET an=%d WHERE ma IN ($cho)",
+			array_merge( array( $an ? 1 : 0 ), $sach ) ) );
+		return array( 'ok' => true, 'so' => count( $sach ), 'thong_bao' => $an
+			? ( 'Đã điều chuyển (ẩn) ' . count( $sach ) . ' ghế — nhân viên hết thấy ở trang thu tiền. '
+				. 'Chỉ số và doanh thu cũ giữ nguyên.' )
+			: ( 'Đã đưa ' . count( $sach ) . ' ghế về dùng lại — hiện lại ở trang thu tiền.' ) );
+	}
+
+	/**
+	 * ĐỔI CƠ SỞ NHIỀU GHẾ MỘT LƯỢT — cùng cách giữ chỉ số như `dat_coso`, chỉ là chuyển cả cụm sang
+	 * một cơ sở đang có trong hệ thống (khác với `dat_an_lo` là ẩn ghế đã dời khỏi hệ).
+	 */
+	public static function dat_coso_lo( $ds_ma, $coso_id ) {
+		global $wpdb;
+		$sach = array();
+		foreach ( (array) $ds_ma as $m ) {
+			$m = trim( (string) $m );
+			if ( '' !== $m && ! in_array( $m, $sach, true ) ) { $sach[] = $m; }
+		}
+		if ( ! $sach ) { return array( 'ok' => false, 'error' => 'Chưa chọn ghế nào.' ); }
+		$bang = VHG_DB::t( 'may' );
+		$cho  = implode( ',', array_fill( 0, count( $sach ), '%s' ) );
+		$wpdb->query( $wpdb->prepare(
+			"UPDATE $bang SET coso_id=%d, cap_nhat=%s WHERE ma IN ($cho)",
+			array_merge( array( (int) $coso_id, current_time( 'mysql' ) ), $sach ) ) );
+		return array( 'ok' => true, 'so' => count( $sach ),
+			'thong_bao' => 'Đã đổi cơ sở cho ' . count( $sach ) . ' ghế.' );
+	}
+
 	public static function dat_an( $ma, $an ) {
 		global $wpdb;
 		$ma = trim( (string) $ma );
