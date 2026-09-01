@@ -1975,8 +1975,28 @@ class VHCP_Don {
 	 *
 	 * ⚠️ DÒ TRƯỚC, CHỐT SAU. `$chot = false` chỉ trả danh sách xem trước, không đụng dữ liệu.
 	 *    Sửa tiền hàng loạt mà chạy thẳng thì sai một phát là sai cả chồng đơn.
+	 *
+	 * 🔴 CHỐT THÌ PHẢI CHỈ ĐÍCH DANH TỪNG ĐƠN. Anh Thắng 01/09/2026: *"Cần tích vào dọn đơn chọn
+	 *    thôi, để tránh phát lỗi cho đơn khác"*. Dò ra 5 đơn mà chỉ muốn sửa 1 thì trước đây
+	 *    không có cách nào — bấm là cả 5 cùng đổi số.
+	 *
+	 *    Nay `$chi_ma` là DANH SÁCH BẮT BUỘC khi chốt: rỗng thì chối thẳng, không có đường
+	 *    "sửa tất cả" ngầm. Bỏ sót một tham số mà hoá ra sửa cả sổ là kiểu hỏng không ai kịp
+	 *    thấy trước khi tiền đã đổi.
+	 *
+	 * @param array $chi_ma Mã đơn được tích chọn. Chỉ có tác dụng khi `$chot`.
 	 */
-	public static function don_bu_tru_cu( $chot = false ) {
+	public static function don_bu_tru_cu( $chot = false, $chi_ma = null ) {
+		$chon = array();
+		foreach ( (array) $chi_ma as $m ) {
+			$m = trim( (string) $m );
+			if ( '' !== $m ) { $chon[ $m ] = true; }
+		}
+		if ( $chot && ! $chon ) {
+			return VHCP_Util::err( 'Chưa chọn đơn nào. Tích vào những đơn cần dọn rồi bấm lại — '
+				. 'khối này cố ý KHÔNG có đường sửa tất cả.' );
+		}
+
 		$ds = array(); $da_sua = 0;
 		foreach ( self::don_rows() as $d ) {
 			$st  = (string) $d['trang_thai'];
@@ -2007,8 +2027,9 @@ class VHCP_Don {
 					'moi'    => ( null === $xin ) ? 0 : $xin,
 					'loai'   => 'mocoi',
 					'trangThai' => $st,
+					'daSua'  => ( $chot && isset( $chon[ $ma ] ) ),
 				);
-				if ( $chot ) {
+				if ( $chot && isset( $chon[ $ma ] ) ) {
 					self::upd_don( $ma, array(
 						'tam_ung_duyet' => null,
 						'nguoi_duyet'   => '',
@@ -2038,8 +2059,9 @@ class VHCP_Don {
 				'moi'    => $xin,
 				'loai'   => 'butru',
 				'trangThai' => $st,
+				'daSua'  => ( $chot && isset( $chon[ $ma ] ) ),
 			);
-			if ( $chot ) {
+			if ( $chot && isset( $chon[ $ma ] ) ) {
 				self::upd_don( $ma, array( 'tam_ung_duyet' => VHCP_Util::num( $xin ) ) );
 				self::ghi_vet( $ma, 'Dọn bù trừ cũ khỏi số duyệt',
 					VHCP_Util::tien( $duy ) . '  →  ' . VHCP_Util::tien( $xin )

@@ -995,7 +995,7 @@
       <div class="ch"><h2>🧹 Dọn bù trừ cũ khỏi số đã duyệt</h2>
         <div style="display:flex;gap:8px">
           <button class="btn b-x" onclick="doDoBtCu()">🔍 Dò</button>
-          <button class="btn b-g" id="btCuChot" style="display:none" onclick="doChotBtCu()">✔ Sửa các đơn trên</button>
+          <button class="btn b-g" id="btCuChot" style="display:none" onclick="doChotBtCu()">✔ Dọn 0 đơn đã chọn</button>
         </div>
       </div>
       <div style="padding:10px 14px;font-size:12px;color:#475569;line-height:1.7">
@@ -1016,6 +1016,8 @@
           tức dấu tay rõ ràng của luật cũ; quản lý <b>cố ý</b> duyệt thấp hơn số xin thì <b>không</b> bị đụng tới.
         </div>
         Luôn <b>Dò</b> để xem trước — <b>không sửa gì</b> cho tới khi bấm xác nhận.
+        <div style="margin-top:4px"><b>Tích vào từng đơn</b> muốn dọn; đơn không tích thì không đụng tới.
+        Cố ý <b>không</b> có nút "sửa tất cả" — máy chủ cũng chối lượt dọn không kèm mã đơn.</div>
       </div>
       <div id="btCuKq" style="padding:0 14px 12px"></div>
     </div>
@@ -2335,24 +2337,47 @@
   // ---- DỌN BÙ TRỪ CŨ KHỎI SỐ ĐÃ DUYỆT (chỉ Admin) ----
   var BTC=null;
   function doDoBtCu(){ _chayBtCu(false); }
+  /* 🔴 CHỈ DỌN ĐƠN ĐƯỢC TÍCH. Anh Thắng: *"Cần tích vào dọn đơn chọn thôi, để tránh phát lỗi
+     cho đơn khác"*. Không có nút "sửa tất cả" — máy chủ cũng chối lượt chốt không kèm mã đơn,
+     nên bỏ sót tham số là ra câu chối chứ không phải sửa cả sổ. */
+  function _btCuChon(){
+    var ra=[], ck=document.querySelectorAll('.btcu-ck');
+    for(var i=0;i<ck.length;i++){ if(ck[i].checked) ra.push(ck[i].value); }
+    return ra;
+  }
+  function btCuDoiTich(){
+    var n=_btCuChon().length, nut=el('btCuChot');
+    if(nut){ nut.textContent='✔ Dọn '+n+' đơn đã chọn'; nut.disabled=(n===0); nut.style.opacity=n?'1':'.5'; }
+    var all=el('btCuAll'), ck=document.querySelectorAll('.btcu-ck');
+    if(all) all.checked=(ck.length>0 && n===ck.length);
+  }
+  function btCuTichHet(o){
+    var ck=document.querySelectorAll('.btcu-ck');
+    for(var i=0;i<ck.length;i++){ ck[i].checked=!!o.checked; }
+    btCuDoiTich();
+  }
   function doChotBtCu(){
     if(!BTC||!BTC.tong) return;
-    var _m=BTC.soMoCoi||0, _b=BTC.soBuTru||0;
-    if(!confirm('Sửa số đã duyệt của '+BTC.tong+' đơn?\n\n'
+    var chon=_btCuChon();
+    if(!chon.length){ toast('warn','Tích vào những đơn cần dọn trước đã'); return; }
+    var _m=0,_b=0, co={};
+    chon.forEach(function(m){ co[m]=1; });
+    (BTC.items||[]).forEach(function(x){ if(co[x.maDon]){ if(x.loai==='mocoi') _m++; else _b++; } });
+    if(!confirm('Dọn '+chon.length+' đơn ĐÃ CHỌN?\n\n'
       +(_b?('• '+_b+' đơn đã duyệt: gỡ phần bù trừ tuần trước ra khỏi con số duyệt, đưa về đúng tổng xin.\n'):'')
       +(_m?('• '+_m+' đơn chưa duyệt (Nháp / Chờ duyệt): xoá hẳn con số duyệt còn sót của lần duyệt cũ —\n'
             +'  đơn quay về đúng trạng thái "chưa duyệt", chờ quản lý duyệt lại.\n'):'')
-      +'\nChỉ đơn CHƯA cấp tiền. Mỗi lượt sửa đều ghi nhật ký của đơn.')) return;
-    _chayBtCu(true);
+      +'\nĐơn KHÔNG tích thì không đụng tới. Mỗi lượt sửa đều ghi nhật ký của đơn.')) return;
+    _chayBtCu(true, chon);
   }
-  function _chayBtCu(chot){
+  function _chayBtCu(chot, chon){
     if(!_laAdmin()){ toast('warn','Chỉ Admin dọn được hàng loạt'); return; }
     loading(true);
     google.script.run.withSuccessHandler(function(r){ loading(false);
       if(!r||!r.success){ toast('err',(r&&r.error)||'Lỗi'); return; }
       BTC=r; veBtCu();
       if(chot){ _log('Dọn bù trừ cũ','', 'đã sửa '+r.daSua+' đơn'); toast('ok','Đã sửa '+r.daSua+' đơn'); boot(); }
-    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).donBuTruCu(chot?1:0);
+    }).withFailureHandler(function(e){ loading(false); toast('err',e.message); }).donBuTruCu(chot?1:0, chon||[]);
   }
   function veBtCu(){
     var b=el('btCuKq'); if(!b) return;
@@ -2367,13 +2392,19 @@
       +((BTC.soBuTru||0)?(' · '+BTC.soBuTru+' dính bù trừ cũ'):'')
       +((BTC.soMoCoi||0)?(' · <b style="color:#b45309">'+BTC.soMoCoi+' mang số duyệt mồ côi</b>'):'')
       +(BTC.daSua?(' · <b style="color:#166534">đã sửa '+BTC.daSua+'</b>'):' — xem trước, chưa sửa gì')+'</div>';
-    h+='<div class="tw"><table style="min-width:760px"><thead><tr><th>Mã đơn</th><th>Kỳ</th><th>Người lập</th>'
+    h+='<div class="tw"><table style="min-width:820px"><thead><tr>'
+      +'<th style="width:34px;text-align:center"><input type="checkbox" id="btCuAll" onclick="btCuTichHet(this)" title="Chọn / bỏ chọn tất cả"></th>'
+      +'<th>Mã đơn</th><th>Kỳ</th><th>Người lập</th>'
       +'<th>Vì sao dính</th>'
       +'<th style="text-align:right">Đang duyệt</th><th style="text-align:right">Bù trừ dính</th>'
       +'<th style="text-align:right">Sẽ thành</th></tr></thead><tbody>';
     BTC.items.forEach(function(x){
       var mc=(x.loai==='mocoi');
-      h+='<tr><td><b>'+esc(x.maDon)+'</b></td><td>'+esc(x.ky||'')+'</td><td>'+esc(x.nguoi||'')+'</td>'
+      h+='<tr'+(x.daSua?' style="background:#f0fdf4"':'')+'>'
+        +'<td style="text-align:center">'+(x.daSua
+            ? '<span style="color:#166534" title="đã dọn">✓</span>'
+            : '<input type="checkbox" class="btcu-ck" value="'+esc(x.maDon)+'" onclick="btCuDoiTich()">')+'</td>'
+        +'<td><b>'+esc(x.maDon)+'</b></td><td>'+esc(x.ky||'')+'</td><td>'+esc(x.nguoi||'')+'</td>'
         +'<td style="font-size:11.5px">'+(mc
             ? ('<b style="color:#b45309">Chưa duyệt mà vẫn mang số duyệt</b><br><span style="color:#64748b">đang ở "'+esc(x.trangThai||'')+'" — số sót của lần duyệt cũ đã bị trả lại</span>')
             : '<span style="color:#64748b">Số duyệt = tổng xin + bù trừ tuần trước (luật trước 1.53.0)</span>')+'</td>'
@@ -2384,6 +2415,7 @@
             : (money(x.moi)+'đ'))+'</b></td></tr>';
     });
     b.innerHTML=h+'</tbody></table></div>';
+    btCuDoiTich();
   }
 
   function veKyHong(){

@@ -441,7 +441,16 @@ teq( 'dò thôi thì chưa sửa gì', 0, (int) $do1['daSua'] );
 teq( 'và số duyệt còn nguyên', 1000000.0 + (float) $bt1,
 	(float) VHCP_Don::get_don( $mbc1 )['tongCN']['tamUng'] );
 
-$do2 = VHCP_Don::don_bu_tru_cu( true );
+/* 🔴 CHỐT MÀ KHÔNG CHỈ ĐÍCH DANH THÌ CHỐI. Anh Thắng: *"Cần tích vào dọn đơn chọn thôi, để
+   tránh phát lỗi cho đơn khác"*. Không có đường "sửa tất cả" ngầm — bỏ sót danh sách mã phải ra
+   câu chối, chứ không phải lẳng lặng sửa cả sổ. */
+$r_trong = VHCP_Don::don_bu_tru_cu( true );
+t( '🔴 chốt không kèm mã đơn thì CHỐI', empty( $r_trong['success'] ), $r_trong );
+t( 'và nói rõ phải tích đơn', false !== mb_strpos( (string) $r_trong['error'], 'Chưa chọn đơn nào' ), $r_trong );
+teq( 'chối rồi thì không đụng đồng nào', 1000000.0 + (float) $bt1,
+	(float) VHCP_Don::get_don( $mbc1 )['tongCN']['tamUng'] );
+
+$do2 = VHCP_Don::don_bu_tru_cu( true, array( $mbc1 ) );
 t( 'chốt thì có sửa', (int) $do2['daSua'] >= 1, $do2 );
 teq( '🔴 số duyệt về đúng tổng xin', 1000000.0,
 	(float) VHCP_Don::get_don( $mbc1 )['tongCN']['tamUng'] );
@@ -558,10 +567,60 @@ $ma_do4 = array();
 foreach ( (array) $do4['items'] as $x ) { $ma_do4[] = (string) $x['maDon']; }
 t( '🔴 đơn đã cấp tiền vẫn ngoài lưới', ! in_array( $mmc2, $ma_do4, true ), $ma_do4 );
 
-$do5 = VHCP_Don::don_bu_tru_cu( true );
-t( 'chốt thì có sửa', (int) $do5['daSua'] >= 1, $do5 );
+/* 🔴 CHỈ ĐƠN ĐƯỢC TÍCH MỚI BỊ SỬA. Dựng thêm một đơn dính bù trừ cũ đứng cạnh, rồi chỉ tích
+   đơn mồ côi — đơn kia phải còn nguyên si. Đây đúng cảnh anh Thắng lo: dò ra 5 đơn mà chỉ muốn
+   dọn 1. */
+$bs = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mbs = $bs['maDon'];
+VHCP_Don::add_line( $mbs, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Đứng cạnh, không tích',
+	'soLuong' => 1, 'donGia' => 800000, 'thanhTien' => 800000 ) );
+$bt_bs = VHCP_Util::num( VHCP_Don::get_don( $mbs )['don']['buTru'] );
+VHCP_Don::gui_duyet_tam_ung( $mbs );
+VHCP_Don::duyet_tam_ung( $mbs, 'Trần Quản Lý', 800000 + $bt_bs );
+/* Và một đơn MỒ CÔI thứ hai đứng cạnh — cùng loại với đơn được tích, để chốt "chỉ đơn tích"
+   không lọt qua nhờ hai đơn khác loại nhau. Phá thử đúng cảnh này ra XANH một lần rồi. */
+$mc3 = VHCP_Don::create_don( 'T8/2026 (24/8-30/8/2026)', 'Nguyễn Văn A' );
+$mmc3 = $mc3['maDon'];
+VHCP_Don::add_line( $mmc3, array( 'coso' => 'FARM PHAN THIẾT', 'ngay' => $today,
+	'phanLoaiTT' => 'Thanh toán cá nhân', 'nhom' => 'Chi phí cơ sở', 'noiDung' => 'Mồ côi, không tích',
+	'soLuong' => 1, 'donGia' => 2500000, 'thanhTien' => 2500000 ) );
+VHCP_Don::gui_duyet_tam_ung( $mmc3 );
+VHCP_Don::duyet_tam_ung( $mmc3, 'Trần Quản Lý', 1750000 );
+VHCP_Don::tra_lai_don( $mmc3, 'sai số' );                                   // 1.56.0 gỡ số duyệt
+$wpdb->update( VHCP_DB::t( 'don' ), array( 'tam_ung_duyet' => 1750000 ), array( 'ma_don' => $mmc3 ) );
+teq( 'đơn mồ côi thứ hai dựng xong', 1750000.0,
+	(float) VHCP_Don::get_don( $mmc3 )['tongCN']['tamUng'] );
+
+$_ma_do45 = array();
+foreach ( (array) VHCP_Don::don_bu_tru_cu( false )['items'] as $x ) { $_ma_do45[] = (string) $x['maDon']; }
+t( 'cả ba đơn cùng nằm trong danh sách dò',
+	in_array( $mmc1, $_ma_do45, true ) && in_array( $mbs, $_ma_do45, true )
+	&& in_array( $mmc3, $_ma_do45, true ), $_ma_do45 );
+
+$do5 = VHCP_Don::don_bu_tru_cu( true, array( $mmc1 ) );
+teq( '🔴 chỉ sửa ĐÚNG một đơn được tích', 1, (int) $do5['daSua'] );
 teq( '🔴 số duyệt mồ côi biến mất, đơn về đúng tổng xin', 15000032.0,
 	(float) VHCP_Don::get_don( $mmc1 )['tongCN']['tamUng'] );
+teq( '🔴 đơn KHÔNG tích còn nguyên si', 800000.0 + (float) $bt_bs,
+	(float) VHCP_Don::get_don( $mbs )['tongCN']['tamUng'] );
+teq( '🔴 đơn mồ côi KHÔNG tích cũng còn nguyên si', 1750000.0,
+	(float) VHCP_Don::get_don( $mmc3 )['tongCN']['tamUng'] );
+$_bs_log = 0;
+foreach ( (array) VHCP_Don::nhat_ky_don( $mbs, 20 )['items'] as $_x ) {
+	if ( false !== mb_strpos( (string) $_x['hanhDong'], 'Dọn bù trừ cũ' ) ) { $_bs_log++; }
+}
+teq( 'và không có vết dọn nào trên đơn ấy', 0, $_bs_log );
+/* Hàng nào vừa dọn thì đánh dấu để màn hình khỏi bày lại ô tích cho nó. */
+$_do5_mc = null; $_do5_bs = null;
+foreach ( (array) $do5['items'] as $x ) {
+	if ( (string) $x['maDon'] === $mmc1 ) { $_do5_mc = $x; }
+	if ( (string) $x['maDon'] === $mbs )  { $_do5_bs = $x; }
+}
+t( 'hàng vừa dọn có cờ daSua', $_do5_mc && ! empty( $_do5_mc['daSua'] ), $_do5_mc );
+t( 'hàng không tích thì không có cờ', $_do5_bs && empty( $_do5_bs['daSua'] ), $_do5_bs );
+VHCP_Don::delete_don_admin( $mbs );
+VHCP_Don::delete_don_admin( $mmc3 );
 teq( 'đơn đã cấp tiền không suy suyển', 650000.0,
 	(float) VHCP_Don::get_don( $mmc2 )['tongCN']['tamUng'] );
 teq( 'chạy lại thì sạch', 0, (int) VHCP_Don::don_bu_tru_cu( false )['tong'] );
@@ -586,11 +645,27 @@ t( 'phần mô tả kể cả hai loại', false !== strpos( $_app4, 'Chưa duy�
    chuỗi trần thì phần mô tả ở trên đỡ đòn cho ô trong bảng, và ô ấy có ghi sai cũng không ai
    biết — phá thử đúng cảnh này ra XANH một lần rồi. */
 t( '🔴 ô "Vì sao dính" của đơn mồ côi nói đúng chuyện chưa duyệt',
-	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,400}?Chưa duyệt mà vẫn mang số duyệt/u', $_app4 ), null );
+	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,900}?Chưa duyệt mà vẫn mang số duyệt/u', $_app4 ), null );
 t( 'và nói luôn đơn đang nằm ở trạng thái nào',
-	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,600}?esc\(x\.trangThai/u', $_app4 ), null );
+	1 === preg_match( '/x\.loai===\x27mocoi\x27[\s\S]{0,1100}?esc\(x\.trangThai/u', $_app4 ), null );
 t( '🔴 dòng đầu bảng đếm riêng bao nhiêu đơn mồ côi',
 	false !== strpos( $_app4, "BTC.soMoCoi+' mang số duyệt mồ côi" ), null );
+
+/* ⚠️ Ô TÍCH PHẢI CÓ THẬT TRÊN MÀN. Máy chủ chối lượt dọn không kèm mã đơn — nếu giao diện không
+   có chỗ tích thì nút chỉ còn là cái bấm vào để nhận câu chối. */
+t( '🔴 mỗi hàng có ô tích mang mã đơn',
+	1 === preg_match( '/class="btcu-ck" value="\x27\+esc\(x\.maDon\)\+\x27"/u', $_app4 ), null );
+t( 'có ô tích chọn/bỏ tất cả ở đầu bảng', false !== strpos( $_app4, 'id="btCuAll" onclick="btCuTichHet(this)"' ), null );
+t( '🔴 nút gửi ĐÚNG danh sách đã tích lên máy chủ',
+	false !== strpos( $_app4, '.donBuTruCu(chot?1:0, chon||[])' ), null );
+t( 'và chặn ngay ở màn khi chưa tích đơn nào',
+	false !== strpos( $_app4, "if(!chon.length){ toast('warn','Tích vào những đơn cần dọn trước đã'); return; }" ), null );
+t( 'nhãn nút đếm theo số đơn đã tích',
+	false !== strpos( $_app4, "nut.textContent='✔ Dọn '+n+' đơn đã chọn'" ), null );
+t( '🔴 hàng đã dọn thôi bày ô tích, chỉ còn dấu ✓',
+	1 === preg_match( '/\(x\.daSua[\s\S]{0,140}?title="đã dọn">✓[\s\S]{0,140}?class="btcu-ck"/u', $_app4 ), null );
+t( 'ô xác nhận nói rõ đơn không tích thì không đụng',
+	false !== strpos( $_app4, 'Đơn KHÔNG tích thì không đụng tới' ), null );
 
 VHCP_Don::delete_don_admin( $mmc1 );
 VHCP_Don::delete_don_admin( $mmc2 );
