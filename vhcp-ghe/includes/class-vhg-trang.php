@@ -3052,6 +3052,10 @@ var QL_SEL = {};   // Quản lý ghế: các mã ghế ĐANG TÍCH CHỌN (giữ
 var QL_HIEN_AN = false;   // Quản lý ghế: có hiện ghế ĐÃ ĐIỀU CHUYỂN (ẩn) hay không
 var TM_PG = 0;   // Thu tiền: trang "từng lượt tiền mặt" (20/trang)
 var DK_LOC = '';   // Tab Điều khiển: lọc theo cơ sở (cùng quy ước với QL_LOC)
+/* Tự làm mới tab Điều khiển (2 giây/lần). Anh Thắng: "tắt tự f5 trang". Nhớ lựa chọn trong
+   localStorage của trình duyệt. Tắt thì KHÔNG tự hỏi lại + KHÔNG chạy đồng hồ; bấm tác vụ vẫn
+   cập nhật tại chỗ (lam -> capNhatDieuKhien). */
+var DK_AUTO = (function(){ try { return localStorage.getItem('vhg_dk_auto') !== '0'; } catch(e){ return true; } })();
 var hen = null, demGiay = null;
 try { TOK = localStorage.getItem('vhg_tok'); } catch(e) {}
 
@@ -3280,6 +3284,8 @@ function henLai(){
   /* Tab HỖ TRỢ KHÁCH (Hotline) cũng không tự vẽ lại cả trang, cùng lý do 'quan-ly' ở trên: có
      form nhập số lượt kích + tiền hoàn, vẽ lại giữa chừng là xoá số đang gõ dở. */
   if (TAB === 'hl-hotro') return;
+  /* Tab Điều khiển: người dùng tắt "Tự làm mới" -> không tự hỏi lại (chỉ bấm ↻ hoặc bấm tác vụ). */
+  if (TAB === 'dieu-khien' && !DK_AUTO) return;
   hen = setTimeout(function(){
     /* KHÔNG hỏi khi: người dùng đang chờ một lệnh chạy xong, đang mở bảng chốt ca (vẽ lại là
        xoá mất số họ đang gõ), đang GÕ vào một ô nào đó, hoặc trang đang ẩn (điện thoại trong túi
@@ -3327,7 +3333,7 @@ function capNhatDieuKhien(){
    vẽ lại cả trang — vẽ lại mỗi giây là mất luôn ô đang gõ dở và nút đang bấm. */
 function chayDongHo(){
   if (demGiay) { clearInterval(demGiay); demGiay = null; }
-  if (TAB !== 'dieu-khien' || !D) return;
+  if (TAB !== 'dieu-khien' || !D || !DK_AUTO) return;   // tắt tự làm mới -> khỏi chạy đồng hồ
   demGiay = setInterval(function(){
     if (!D || document.hidden) return;
     var co = false;
@@ -3758,7 +3764,12 @@ function veDieuKhien(){
         + 'còn giải thích được vì sao một ghế chạy nhiều hơn số tiền thu.',
         'Turning a chair on by hand is <b>a free session</b> — the system records who pressed it and '
         + 'when, so at month end you can still explain why a chair ran more than it took in.')
-    + '</p>' + dkFilter + '<div class="ghe-luoi" id="dk-grid">' + dkLuoiHtml() + '</div></div>';
+    + '</p>'
+    + '<label class="mut" style="display:inline-flex;align-items:center;gap:6px;margin:0 0 12px;cursor:pointer">'
+      + '<input type="checkbox" id="dk-auto"' + (DK_AUTO ? ' checked' : '') + ' style="width:auto">'
+      + L('Tự làm mới (2 giây)','Auto refresh (2s)')
+      + '<span class="mut" style="opacity:.7">— ' + L('tắt để khỏi nhảy trang khi thao tác','turn off to stop the page jumping') + '</span></label>'
+    + dkFilter + '<div class="ghe-luoi" id="dk-grid">' + dkLuoiHtml() + '</div></div>';
   return h;
 }
 
@@ -7352,6 +7363,13 @@ function noi(){
   if ((_e = document.getElementById('ql-timtrung'))) _e.onclick = function(){ qlTimTrung(); };
   if ((_e = document.getElementById('dk-loc'))) _e.onchange = function(){
     DK_LOC = this.value; ve();   // lọc lưới ghế tab Điều khiển
+  };
+  /* Công tắc "Tự làm mới" tab Điều khiển: nhớ trong localStorage; tắt -> dừng hỏi lại + đồng hồ. */
+  if ((_e = document.getElementById('dk-auto'))) _e.onchange = function(){
+    DK_AUTO = this.checked;
+    try { localStorage.setItem('vhg_dk_auto', DK_AUTO ? '1' : '0'); } catch(er){}
+    if (DK_AUTO) { henLai(); chayDongHo(); }
+    else { if (hen) { clearTimeout(hen); hen = null; } if (demGiay) { clearInterval(demGiay); demGiay = null; } }
   };
 
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
