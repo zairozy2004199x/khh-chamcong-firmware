@@ -137,12 +137,18 @@ class VHG_Fw {
 		if ( $size > self::MAX_MB * 1024 * 1024 ) {
 			return array( 'ok' => false, 'error' => 'tệp quá ' . self::MAX_MB . ' MB.' );
 		}
-		/* Ảnh ESP32 mở đầu bằng magic 0xE9. Chặn nhầm tệp ngay, khỏi đẩy rác cho máy nạp. */
+		/* Ảnh ESP32 có magic 0xE9. HAI trường hợp hợp lệ:
+		   - Ảnh APP/bootloader lẻ  -> 0xE9 ở BYTE ĐẦU (offset 0).
+		   - Ảnh GỘP full-flash (merge_bin) -> byte đầu là 0xFF (padding), bootloader nằm ở
+		     offset 0x1000 nên 0xE9 ở đó. (ESP32 cổ điển đặt bootloader tại 0x1000.)
+		   Nhận CẢ HAI, khỏi báo nhầm file .ino.merged.bin của Arduino. */
 		$fh = fopen( $f['tmp_name'], 'rb' );
-		$b0 = $fh ? fread( $fh, 1 ) : '';
+		$head = $fh ? fread( $fh, 0x1001 ) : '';
 		if ( $fh ) { fclose( $fh ); }
-		if ( '' === $b0 || 0xE9 !== ord( $b0[0] ) ) {
-			return array( 'ok' => false, 'error' => 'không phải ảnh ESP32 (thiếu magic 0xE9).' );
+		$ok_magic = ( strlen( $head ) >= 1 && 0xE9 === ord( $head[0] ) )                    // app/bootloader lẻ
+			|| ( strlen( $head ) >= 0x1001 && 0xE9 === ord( $head[0x1000] ) );             // ảnh gộp full-flash
+		if ( ! $ok_magic ) {
+			return array( 'ok' => false, 'error' => 'không phải ảnh ESP32 (không thấy magic 0xE9 ở đầu hay ở offset 0x1000).' );
 		}
 		$dest = trailingslashit( self::dir() ) . $dest_ten;
 		if ( ! @move_uploaded_file( $f['tmp_name'], $dest ) ) {
