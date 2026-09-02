@@ -2742,6 +2742,10 @@ tr:last-child td{border-bottom:0}
 /* --- Menu chính: mobile = hàng ngang cuộn; desktop = SIDEBAR DỌC (xem @media cuối tệp) --- */
 .nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;border-bottom:2px solid var(--line);padding-bottom:10px}
 .nav button{border-radius:8px 8px 0 0}
+/* Tiêu đề nhóm sidebar (DOANH THU · KẾ TOÁN · KỸ THUẬT). Mobile: nền sáng -> chữ mờ; desktop
+   sidebar navy đổi màu ở media query bên dưới. */
+.nav-grp{width:100%;box-sizing:border-box;font-size:10px;font-weight:800;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--mut);padding:10px 12px 3px;pointer-events:none}
 .side-brand{display:none;align-items:center;gap:9px;padding:4px 8px 12px;margin-bottom:8px;border-bottom:1px solid rgba(255,255,255,.14)}
 .side-brand .hieu-o{width:34px;height:34px;font-size:17px;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.22);color:#fff}
 .side-brand-t b{color:#fff;font-size:15px;line-height:1.1;display:block}
@@ -2875,6 +2879,7 @@ tr:last-child td{border-bottom:0}
     color:#c7d3e5;padding:10px 13px;font-size:13px;font-weight:500;white-space:nowrap}
   .nav button:hover{background:rgba(255,255,255,.08);color:#fff;border-color:transparent}
   .nav button.on{background:rgba(255,255,255,.15);color:#fff;font-weight:700;box-shadow:inset 3px 0 0 var(--amber)}
+  .nav .nav-grp{color:rgba(255,255,255,.5);padding:12px 14px 4px}
   .wrap{margin:0 0 0 216px;max-width:none;padding:16px 26px}
   .top{border-radius:12px}
   /* 🔴 Chân trang (VHG_Chan::html()) là ANH EM của #app trong <body>, không nằm trong `.wrap`,
@@ -3122,15 +3127,13 @@ function veGanMa(){
     });
     return o;
   }
-  /* Các mã ĐÃ GÁN (để "thay board cho mã cũ" — giữ chỉ số khi đổi ESP32). */
-  var daGan = ((D && D.may) ? D.may : []).filter(function(m){
+  /* Có mã ĐÃ GÁN nào không -> mới hiện phần "thay board cho mã cũ". */
+  var coMaDaGan = ((D && D.may) ? D.may : []).some(function(m){
     return m.ma && m.ma.charAt(0) !== '?' && !m.an;
-  }).sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true}); });
-  function optMaCu(){
-    var o = '<option value="">' + L('— chọn mã cũ —','— pick existing code —') + '</option>';
-    daGan.forEach(function(m){
-      o += '<option value="' + esc(m.ma) + '">' + esc(m.ma) + (m.coso ? ' · ' + esc(m.coso) : '') + '</option>';
-    });
+  });
+  function optCosoTen(){
+    var o = '<option value="">' + L('— chọn cơ sở —','— pick branch —') + '</option>';
+    coso.forEach(function(c){ o += '<option>' + esc(c.ten) + '</option>'; });   // value = tên cơ sở
     return o;
   }
 
@@ -3151,13 +3154,15 @@ function veGanMa(){
       + '<input data-gma="' + esc(cu) + '" placeholder="AMTP01" maxlength="20" style="width:120px;text-transform:uppercase">'
       + '<button data-gan="' + esc(cu) + '">' + L('Gắn','Assign') + '</button></div>';
 
-    /* Cách 2: THAY BOARD cho mã cũ (thay ESP32 hỏng, GIỮ chỉ số). Chỉ hiện khi đã có mã. */
-    if (daGan.length) {
+    /* Cách 2: THAY BOARD cho mã cũ (thay ESP32 hỏng, GIỮ chỉ số). Chọn CƠ SỞ trước -> đổ danh
+       sách mã của cơ sở đó (máy TRỐNG / mất kết nối lên đầu) -> chọn rồi Thay board. */
+    if (coMaDaGan) {
       h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
         + '<b style="min-width:120px">' + L('Thay cho mã cũ:','Replace board:') + '</b>'
-        + '<select data-oldsel="' + esc(mac) + '">' + optMaCu() + '</select>'
+        + '<select data-tcs="' + esc(mac) + '">' + optCosoTen() + '</select>'
+        + '<select data-told="' + esc(mac) + '"><option value="">' + L('— chọn cơ sở trước —','— pick branch first —') + '</option></select>'
         + '<button data-doimac="' + esc(mac) + '">' + L('Thay board','Swap board') + '</button>'
-        + '<span style="opacity:.7;font-size:12px">' + L('(giữ nguyên chỉ số của mã cũ)','(keeps the old code’s meter)') + '</span></div>';
+        + '<span style="opacity:.7;font-size:12px">' + L('(giữ chỉ số của mã cũ)','(keeps the meter)') + '</span></div>';
     }
     h += '</div>';
   });
@@ -3364,46 +3369,54 @@ function ve(){
    *    nên kể cả sửa JS trên máy mình thì các tab đó cũng rỗng.
    * ═════════════════════════════════════════════════════════════════════════════════════════ */
   var QT = QUAN_TRI(), GK = GIUP_KHACH(), KT = CHOT_DS();
-  var TABS = [];
-  if (QT) TABS.push(['doi-soat', '📊 ' + L('Đối soát','Reconciliation')]);
-  if (QT) TABS.push(['thu-tien', '💵 ' + L('Thu tiền','Cash collection')]);
-  TABS.push(['quy', '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')]);
-  /* Anh Thắng: hệ chốt ca quét QR tạm chưa chạy được — cho Người thu một lối vào MÀN BÁO CÁO
-     DOANH THU ngay trong trang chính (không phải đăng xuất rồi bấm nút riêng ở màn đăng nhập).
-     Tab này KHÔNG tự làm báo cáo — nó chỉ mở lại đúng module bc-app đã có (`moBaoCao()`, lộ ra
-     ngoài qua `window.VHG_BaoCao.mo`), vẫn đòi PIN báo cáo (`bc_pin`) như cũ. Cố ý KHÔNG tự
-     đăng nhập bằng token /ghe đang có — hai cổng PIN vẫn tách biệt, xem lý do ở đầu `VHG_Auth`. */
-  TABS.push(['bc-doanhthu', '📋 ' + L('Báo cáo doanh thu','Revenue report')]);
-  if (QT) TABS.push(['kich-hoat', '⚡ ' + L('Kích hoạt ghế','Chair activation')]);
-  if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
-  if (QT) TABS.push(['gan-ma', '🔖 ' + L('Gắn mã máy','Assign codes')]);
-  if (QT) TABS.push(['nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')]);
-  if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
-  /* PIN nhân viên báo cáo — Admin hoặc vai trò Quản trị (cấp PIN cho nhân viên mình quản lý). */
-  if (QT) TABS.push(['bc-pin', '📋 ' + L('PIN báo cáo','Report PINs')]);
-  /* Trang kế toán: duyệt báo cáo doanh thu — vai trò Chốt doanh số / Quản lý / Admin. */
-  if (QT || KT) TABS.push(['kt-duyet', '📈 ' + L('Duyệt báo cáo','Review reports')]);
-  if (QT || KT) TABS.push(['kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')]);
-  if (QT || KT) TABS.push(['kt-lichsu', '🏢 ' + L('Doanh thu địa điểm','Site revenue')]);
-  if (QT || KT) TABS.push(['kt-tien', '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')]);
-  if (QT || KT) TABS.push(['kt-xuat', '📤 ' + L('Xuất MISA','Export MISA')]);
-  if (QT) TABS.push(['kt-nhap', '📥 ' + L('Nhập doanh thu cũ','Import old data')]);
-  /* 🔴 Tab Điều khiển ghế theo quyền GIÚP KHÁCH, không theo quyền quản trị.
-     Anh Thắng 23/08/2026: *"Đấy là bạn Hotline bật ghế cho khách chứ không phải nhân viên"*.
-     Bạn Hotline phải vào được tab này mà KHÔNG được thấy doanh thu. */
-  if (GK) TABS.push(['dieu-khien', '🎛 ' + L('Điều khiển ghế','Chair control')]);
-  if (GK) TABS.push(['ghe-loi', '🚨 ' + L('Ghế lỗi','Faulty chairs')]);
-  /* Việc 4/4 (anh Thắng 28/08): sổ tay Hotline ghi lượt kích thêm + tiền hoàn khách hằng ngày.
-     Cùng quyền GIÚP KHÁCH với tab Điều khiển/Ghế lỗi — không theo quyền quản trị. */
-  if (GK) TABS.push(['hl-hotro', '📞 ' + L('Hỗ trợ khách','Customer support')]);
-  if (QT) TABS.push(['nap-fw', '⬆️ ' + L('Nạp firmware','Firmware')]);
-  if (QT) TABS.push(['cau-hinh', '⚙️ ' + L('Cấu hình','Settings')]);
+  /* SIDEBAR GOM 3 NHÓM có tiêu đề: DOANH THU · KẾ TOÁN · KỸ THUẬT. Mỗi tab vẫn giữ ĐÚNG điều
+     kiện quyền cũ (QT=quản trị, KT=chốt doanh số, GK=giúp khách/hotline). Nhóm rỗng (người dùng
+     không có tab nào trong đó) thì ẨN luôn tiêu đề — không để một cái đầu đề trơ không mục nào. */
+  function T(dk, id, nhan){ return dk ? [id, nhan] : null; }
+  var NHOM = [
+    [ L('Doanh thu','Revenue'), [
+      T(QT,   'doi-soat',    '📊 ' + L('Đối soát','Reconciliation')),
+      T(true, 'bc-doanhthu', '📋 ' + L('Báo cáo doanh thu','Revenue report')),
+      T(QT,   'ma',          '🎁 ' + L('Mã giảm giá','Discount codes')),
+      T(QT,   'thu-tien',    '💵 ' + L('Thu tiền','Cash collection'))
+    ]],
+    [ L('Kế toán','Accounting'), [
+      T(true,     'quy',       '🧾 ' + L('Quỹ &amp; nộp tiền','Cash float')),
+      T(QT || KT, 'kt-duyet',  '📈 ' + L('Duyệt báo cáo','Review reports')),
+      T(QT || KT, 'kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')),
+      T(QT || KT, 'kt-tien',   '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')),
+      T(QT || KT, 'kt-xuat',   '📤 ' + L('Xuất MISA','Export MISA')),
+      T(QT || KT, 'kt-lichsu', '🏢 ' + L('Doanh thu địa điểm','Site revenue')),
+      T(QT,       'kt-nhap',   '📥 ' + L('Nhập doanh thu cũ','Import old data'))
+    ]],
+    [ L('Kỹ thuật','Technical'), [
+      T(QT, 'kich-hoat',   '⚡ ' + L('Kích hoạt ghế','Chair activation')),
+      T(QT, 'quan-ly',     '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')),
+      T(QT, 'gan-ma',      '🔖 ' + L('Gắn mã máy','Assign codes')),
+      T(QT, 'nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')),
+      T(QT, 'bc-pin',      '📋 ' + L('PIN báo cáo','Report PINs')),
+      T(GK, 'dieu-khien',  '🎛 ' + L('Điều khiển ghế','Chair control')),
+      T(GK, 'ghe-loi',     '🚨 ' + L('Ghế lỗi','Faulty chairs')),
+      T(GK, 'hl-hotro',    '📞 ' + L('Hỗ trợ khách','Customer support')),
+      T(QT, 'nap-fw',      '⬆️ ' + L('Nạp firmware','Firmware')),
+      T(QT, 'cau-hinh',    '⚙️ ' + L('Cấu hình','Settings'))
+    ]]
+  ];
+  var TABS = [];        // danh sách phẳng (để kiểm quyền tab đang chọn ở dưới)
+  var navHtml = '';
+  NHOM.forEach(function(g){
+    var items = g[1].filter(Boolean);
+    if (!items.length) return;                       // nhóm rỗng -> ẩn tiêu đề
+    navHtml += '<div class="nav-grp">' + g[0] + '</div>';
+    items.forEach(function(x){
+      TABS.push(x);
+      navHtml += '<button data-tab="' + x[0] + '"' + (TAB===x[0]?' class="on"':'') + '>' + x[1] + '</button>';
+    });
+  });
   h += '<div class="nav">'
     + '<div class="side-brand"><div class="hieu-o">💆</div><div class="side-brand-t"><b>POSH</b>'
       + '<small>' + L('Ghế massage','Massage chairs') + '</small></div></div>'
-    + TABS.map(function(x){
-        return '<button data-tab="' + x[0] + '"' + (TAB===x[0]?' class="on"':'') + '>' + x[1] + '</button>';
-      }).join('')
+    + navHtml
     + '</div>';
   /* 🔴 TAB ĐANG CHỌN PHẢI NẰM TRONG DANH SÁCH ĐƯỢC PHÉP.
      Người thu chỉ có một tab; bạn Hotline có hai. Để `TAB` trỏ vào một tab họ không có là màn
@@ -7248,13 +7261,31 @@ function noi(){
       lam('gan_ma', { ma_cu: cu, ma_moi: moi, coso_id: cs ? cs.value : 0 });
     };
   });
-  /* Tab Gắn mã máy: THAY BOARD cho mã cũ (đổi ESP32, giữ chỉ số). data-doimac = MAC board mới. */
+  /* Tab Gắn mã máy — THAY BOARD cho mã cũ: chọn CƠ SỞ -> đổ mã của cơ sở đó (máy TRỐNG/mất kết
+     nối lên đầu), rồi chọn mã + Thay board. data-tcs/data-told = MAC board mới (khoá cặp). */
+  var _mayDs = (D && D.may) ? D.may : [];
+  [].forEach.call(document.querySelectorAll('[data-tcs]'), function(sel){
+    sel.onchange = function(){
+      var mac = sel.getAttribute('data-tcs'), cs = sel.value;
+      var out = document.querySelector('[data-told="' + mac + '"]');
+      if (!out) return;
+      var ds = _mayDs.filter(function(m){ return m.ma && m.ma.charAt(0) !== '?' && !m.an && (m.coso || '') === cs; });
+      /* Máy TRỐNG (mất kết nối) là máy cần board -> xếp lên đầu. */
+      ds.sort(function(a,b){ return (a.song?1:0) - (b.song?1:0)
+        || String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true}); });
+      var o = '<option value="">' + (ds.length ? L('— chọn mã máy —','— pick code —')
+        : L('(cơ sở này chưa có mã)','(no codes here)')) + '</option>';
+      ds.forEach(function(m){ o += '<option value="' + m.ma + '">' + m.ma
+        + (m.song ? '' : ' · ' + L('trống (mất kết nối)','empty (offline)')) + '</option>'; });
+      out.innerHTML = o;
+    };
+  });
   [].forEach.call(document.querySelectorAll('[data-doimac]'), function(b){
     b.onclick = function(){
       var mac = b.getAttribute('data-doimac');
-      var sel = document.querySelector('[data-oldsel="' + mac + '"]');
+      var sel = document.querySelector('[data-told="' + mac + '"]');
       var maCu = (sel && sel.value || '').trim();
-      if (!maCu) { alert(L('Chọn mã cũ cần chuyển sang board này.','Pick the existing code to move onto this board.')); return; }
+      if (!maCu) { alert(L('Chọn cơ sở rồi chọn mã máy cần gắn board này vào.','Pick a branch then the chair code to attach this board to.')); return; }
       if (!confirm(L('Chuyển mã ' + maCu + ' sang board mới (MAC ' + mac + ')?\n\nMã cũ bỏ board hỏng, nhận board này — GIỮ NGUYÊN chỉ số.',
         'Move code ' + maCu + ' onto this new board (MAC ' + mac + ')?\n\nThe old code drops the dead board and takes this one — meter is kept.'))) return;
       lam('doi_mac', { ma: maCu, mac: mac });
