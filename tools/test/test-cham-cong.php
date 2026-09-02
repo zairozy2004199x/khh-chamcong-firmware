@@ -6848,58 +6848,21 @@ t( 'đổi bộ phận thì BỎ cơ sở đang chọn, không chở theo',
 	&& false === strpos( $m_bo[0], 'ccs=' ), isset( $m_bo[0] ) ? $m_bo[0] : $h_kvc );
 
 VHCC_NhanSu::xep_bo_phan( $u_qtc, 'TUTU_BT', '' );
-foreach ( array( 'Ngày', 'Mã NV', 'Họ tên', 'Hàng', 'Giờ vào', 'Giờ ra', 'Giờ làm', 'Kiểm tra' ) as $c_qtc ) {
-	t( 'bảng chi tiết có cột "' . $c_qtc . '"', strpos( $h_qtc, '<th>' . $c_qtc . '</th>' ) !== false );
-}
+/* 🔴 BẢNG "CHI TIẾT TỪNG LƯỢT" ĐÃ BỎ KHỎI MÀN — anh Thắng 01/09/2026: *"bỏ phần này đi, vì nó
+   hiện trong chi tiết bảng công rồi"*. Lưới cả tháng ở trên đã bày đúng những lượt ấy, ngay tại
+   ô của từng người từng ngày. Mọi phép canh cột/thứ tự/thu-gọn của bảng ấy vì thế cũng bỏ theo;
+   chốt duy nhất còn lại nằm ở khối "🔴 BA KHỐI ĐÃ BỎ" cuối tệp. */
 foreach ( array( 'Ngày công', 'Ngày thiếu giờ ra', 'Tổng giờ làm' ) as $c_qtc ) {
 	t( 'bảng tổng có cột "' . $c_qtc . '"', strpos( $h_qtc, '<th>' . $c_qtc . '</th>' ) !== false );
 }
 t( 'in ra giờ làm đã quy đổi ("9h 30m") chứ không phải số phút trần',
 	strpos( $h_qtc, '9h 30m' ) !== false, $h_qtc );
-t( 'hàng thiếu giờ ra được tô cả DÒNG', strpos( $h_qtc, '<tr class="hong">' ) !== false, $h_qtc );
-t( 'và cột Giờ ra ghi thẳng chữ "thiếu"', strpos( $h_qtc, '>thiếu</td>' ) !== false );
-/* Tô nền bằng class thì phải CÓ luật CSS cho class đó. Thiếu luật là hỏng không kêu tiếng nào:
-   thuộc tính có trong HTML, mà màu thì không bao giờ lên. */
-t( 'và có LUẬT CSS cho tr.hong (thuộc tính có mà thiếu luật là tô hụt trong im lặng)',
-	strpos( $h_qtc, 'tr.hong>td' ) !== false, $h_qtc );
 t( 'màn này vẫn KHÔNG có ô nhập giờ nào — chỉ đọc, y như trước',
 	! preg_match( '/name="(gio_vao|gio_ra|vao|ra)"/', $h_qtc ), $h_qtc );
 
-/* ---- màn phải GỌN: bảng tổng trước, chi tiết thu sẵn ---- */
-/* Anh Thắng 26/08: *"lưới chiều ngang nó gọn, này quá dài"*. Một tháng của 24 người là mấy trăm
-   dòng, mà thứ gọn nhất (bảng tổng, một dòng một người) lại nằm dưới đáy. */
-$vt_tong = strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' );
-$vt_ct   = strpos( $h_qtc, 'Chi tiết từng lượt' );
-t( 'bảng TỔNG đứng TRƯỚC bảng chi tiết', $vt_tong !== false && $vt_ct !== false && $vt_tong < $vt_ct,
-	'tong@' . var_export( $vt_tong, true ) . ' ct@' . var_export( $vt_ct, true ) );
-/* ⚠️ CẮT ĐÚNG KHỐI CHI TIẾT RA RỒI MỚI SOI.
-   Trên màn đã gộp còn mấy khối `<details>` khác (bộ phận · khai ca · cách tính · công thức), và
-   khối "Cơ sở thuộc bộ phận nào" CỐ Ý tự mở khi còn cơ sở chưa xếp. Quét cả trang thì chốt
-   "phải thu sẵn" đỏ oan, mà sửa cho xanh bằng cách bỏ thuộc tính `open` ấy đi là mất đúng thứ
-   hữu ích: cái duy nhất làm mọi phép tính công im lặng không chạy. */
-$vt_ct_d = strpos( $h_qtc, '<div class="the"><details>' );
-$khoi_ct_d = ( false !== $vt_ct_d ) ? substr( $h_qtc, $vt_ct_d, 4000 ) : '';
-t( 'bảng chi tiết nằm trong khối thu gọn <details>',
-	false !== strpos( $khoi_ct_d, 'Chi tiết từng lượt' ), substr( $khoi_ct_d, 0, 200 ) );
-/* 🔴 THU SẴN, không mở sẵn: `<details open>` thì màn vẫn dài y như cũ, mà thẻ vẫn có nên phép
-   thử ở trên vẫn xanh. */
-t( 'và THU SẴN (không có thuộc tính open)',
-	strpos( $khoi_ct_d, '<details open' ) === false, substr( $khoi_ct_d, 0, 200 ) );
-/* ⚠️ Cắt ĐÚNG phần <summary> ra rồi mới kiểm. Bản đầu dùng '/<summary>.*?\d+ lượt/s' — với cờ
-   /s thì `.*?` vắt được qua cả đoạn "N lượt" nằm DƯỚI bảng, nên bỏ hẳn số ra khỏi nhãn mà phép
-   thử vẫn xanh. Đã phá thử để thấy đúng chuyện đó. */
-preg_match( '#<summary>(.*?)</summary>#s', $khoi_ct_d, $m_sum );
-$sum_qtc = isset( $m_sum[1] ) ? $m_sum[1] : '';
-t( 'có nhãn <summary>', '' !== $sum_qtc, $h_qtc );
-t( 'nhãn thu gọn nói sẵn có bao nhiêu lượt', preg_match( '/\d+ lượt/', $sum_qtc ) === 1, $sum_qtc );
-t( 'và nói sẵn bao nhiêu ngày thiếu giờ ra, khỏi mở ra mới biết',
-	strpos( $sum_qtc, 'ngày thiếu giờ ra' ) !== false, $sum_qtc );
-/* Thu gọn bằng HTML thuần, không JavaScript — cả màn này vẫn phải không có script nào. */
-t( 'thu gọn KHÔNG dùng JavaScript', stripos( $h_qtc, '<script' ) === false, $h_qtc );
-t( 'và summary có CSS cho ra dáng bấm được', strpos( $h_qtc, 'summary{cursor:pointer' ) !== false );
-/* Thu gọn chứ KHÔNG bỏ: nội dung vẫn phải nằm trong trang để Ctrl+F tìm thấy và để in ra giấy. */
-t( 'thu gọn nhưng dữ liệu VẪN nằm trong trang (Ctrl+F vẫn thấy)',
-	strpos( $h_qtc, 'QTC1' ) !== false && strpos( $h_qtc, '<th>Giờ vào</th>' ) !== false, $h_qtc );
+/* Cả màn quản trị này vẫn phải KHÔNG có lấy một dòng script — luật chung, không dính gì tới
+   việc bỏ ba khối. */
+t( 'màn quản trị KHÔNG dùng JavaScript', stripos( $h_qtc, '<script' ) === false, $h_qtc );
 
 /* ---- 🔴 CƠ SỞ TÍNH THEO CÔNG THÌ BỎ BẢNG "TỔNG GIỜ LÀM THEO NHÂN VIÊN" ----
  * Anh Thắng 29/08/2026: *"cơ sở nào tính công theo giờ mới hiện, còn tính theo công thì bỏ đi
@@ -6920,8 +6883,6 @@ $h_qtc_cong = vhcc_web( '135791', array(),
 	array( 'man' => 'cham', 'ccs' => $cs_cong_qtc, 'cth' => '2026-07' ) );
 t( '🔴 cơ sở THEO CÔNG: bảng "Tổng giờ làm theo nhân viên" KHÔNG còn hiện',
 	strpos( $h_qtc_cong, 'Tổng giờ làm theo nhân viên' ) === false, $h_qtc_cong );
-t( 'nhưng bảng "Chi tiết từng lượt" (đọc thẳng chấm công) vẫn còn nguyên',
-	strpos( $h_qtc_cong, 'Chi tiết từng lượt' ) !== false, $h_qtc_cong );
 t( 'và cơ sở TUTU_BT (tính THEO GIỜ) không bị đụng — bảng tổng vẫn hiện như cũ',
 	strpos( $h_qtc, 'Tổng giờ làm theo nhân viên' ) !== false, $h_qtc );
 
@@ -6948,10 +6909,6 @@ $h_nv = vhcc_web( '135791', array(),
 /* ⚠️ Canh vào ĐÚNG bảng chi tiết, không quét cả trang. Từ 26/08/2026 hai tab gộp làm một, nên
    trên cùng màn còn có LƯỚI NGANG — mà lưới cố ý KHÔNG lọc theo mã (lọc thì nó chỉ còn một
    dòng và mất hết ý nghĩa "cả cơ sở trong một màn"). Quét cả trang là chốt này đỏ oan. */
-$khoi_ct = preg_match( '/Chi tiết từng lượt(.*?)<\/details>/s', $h_nv, $m_ct ) ? $m_ct[1] : '';
-t( 'tìm được bảng chi tiết trong màn đã gộp', '' !== $khoi_ct, substr( $h_nv, 0, 200 ) );
-t( 'lọc theo mã NV thì bảng chi tiết chỉ còn người đó',
-	strpos( $khoi_ct, 'QTC1' ) !== false && strpos( $khoi_ct, 'QTC2' ) === false, $khoi_ct );
 t( 'lọc theo mã NV KHÔNG phân biệt hoa thường',
 	strpos( vhcc_web( '135791', array(),
 		array( 'man' => 'cham', 'ccs' => 'TUTU_BT', 'cth' => '2026-07', 'cnv' => 'qtc1' ) ),
@@ -6966,40 +6923,50 @@ t( 'màn quản trị KHÔNG có thẻ <script> nào', stripos( $h_qtc, '<script
    Một thuộc tính JS lẻ là cái khe để dòng thứ hai chui vào sau. */
 t( 'và không có thuộc tính JS nào trong HTML',
 	! preg_match( '/\son[a-z]+\s*=\s*"/i', $h_qtc ), $h_qtc );
-t( 'nút 🚩 là đường liên kết chở sẵn ngày', strpos( $h_qtc, 'gnd=2026-07-06' ) !== false, $h_qtc );
-t( 'và chở sẵn mã nhân viên', strpos( $h_qtc, 'gma=QTC1' ) !== false );
-t( 'và neo xuống đúng khối gắn cờ', strpos( $h_qtc, '#gancoform' ) !== false );
-t( 'khối gắn cờ có cái neo ấy để nhảy tới', strpos( $h_qtc, 'id="gancoform"' ) !== false );
-$h_dien = vhcc_web( '135791', array(), array( 'man' => 'cham', 'ccs' => 'TUTU_BT',
-	'cth' => '2026-07', 'gnd' => '2026-07-07', 'gma' => 'QTC1', 'gten' => 'Người QTC1' ) );
-t( 'bấm 🚩 thì ô Ngày của khối gắn cờ được điền sẵn',
-	strpos( $h_dien, 'id="co_ngay" name="ngay" type="date" required value="2026-07-07"' ) !== false, $h_dien );
-t( 'ô Mã NV cũng được điền sẵn', strpos( $h_dien, 'value="QTC1"' ) !== false );
-/* Điền sẵn NGÀY và MÃ thôi — lý do thì người ta phải tự gõ. Cờ không có lý do thì người đọc cờ
-   chẳng biết phải kiểm cái gì, mà cờ ấy vẫn nằm đó chờ ai đó xử lý. */
-t( 'nhưng LÝ DO vẫn để trống, bắt người gắn phải tự gõ',
-	preg_match( '/id="co_nd"[^>]*>\s*<\/textarea>/', $h_dien ) === 1, $h_dien );
-t( 'và màn nói rõ là còn thiếu lý do', strpos( $h_dien, 'còn thiếu lý do' ) !== false );
+/* 🔴 HAI KHỐI CỜ ĐÃ BỎ KHỎI MÀN NÀY — anh Thắng 01/09/2026: *"bỏ luôn"* (form "Gắn cờ cần
+   kiểm") và *"bỏ"* (bảng "Cờ tháng này"). Chúng đi cùng bảng "Chi tiết từng lượt" vì vốn là một
+   dây: nút 🚩 nằm trong bảng chi tiết, bấm nó điền sẵn xuống form, form ghi ra bảng.
 
-/* ---- cờ đã gắn thì cột Kiểm tra phải BIẾT ---- */
-/* 🔴 `$b['co']` là hàng đọc thẳng từ bảng `ghi_chu` (khoá gạch dưới: ma_nv, ghi_chu,
-   trang_thai), còn mảng `hang` dùng khoá lưng lạc đà. Hai kiểu khoá nằm cạnh nhau trong cùng
-   một hàm — gõ nhầm thì cột Kiểm tra im lặng hiện 🚩 cho cả ngày ĐÃ có cờ, không báo gì. */
+   ⚠️ LÕI CỜ THÌ KHÔNG BỎ. `VHCC_Cham::luu_ghi_chu()` / `ds_ghi_chu()` / `xu_ly_ghi_chu()` vẫn
+      chạy nguyên, vì đối chiếu khuôn mặt (`VHCC_Mat::gan_co()`) TỰ gắn cờ khi ảnh chấm công
+      lệch ảnh thẻ — đường tự động ấy là thứ duy nhất phát hiện người chấm hộ — và tờ in A4 vẫn
+      in cột cờ. Phép dưới đây canh đúng chuyện đó: bỏ MÀN, không bỏ LÕI. */
+$_co_truoc = VHCC_Cham::ds_ghi_chu( $u_qtc, 'TUTU_BT', '2026-07' );
 VHCC_Cham::luu_ghi_chu( $u_qtc, array( 'coso' => 'TUTU_BT', 'ngay' => '2026-07-07',
 	'ma_nv' => 'QTC1', 'ho_ten' => 'Người QTC1', 'ghi_chu' => 'quên check-out' ) );
-$h_co = vhcc_web( '135791', array(), $g_qtc );
-t( 'ngày đã có cờ thì cột Kiểm tra ghi "đã gắn cờ", không mời gắn lần nữa',
-	strpos( $h_co, 'đã gắn cờ' ) !== false, $h_co );
-t( 'và rê chuột đọc được lý do (đúng khoá gạch dưới của bảng ghi_chu)',
-	strpos( $h_co, 'title="quên check-out"' ) !== false, $h_co );
-/* Cờ ĐÃ XỬ LÝ thì phải mời gắn cờ MỚI được — nếu không, một ngày sai lần thứ hai sẽ đứng sau
-   cái cờ cũ đã đóng, và không ai gắn được cờ mới cho nó. */
-$co_ds_qtc = VHCC_Cham::ds_ghi_chu( $u_qtc, 'TUTU_BT', '2026-07' );
-VHCC_Cham::xu_ly_ghi_chu( $u_qtc, $co_ds_qtc[0]['flag_id'], 'đã hỏi, quên thật' );
-$h_xong = vhcc_web( '135791', array(), $g_qtc );
-t( 'cờ đã xử lý xong thì cột Kiểm tra mời gắn cờ MỚI, không kẹt ở cái cờ cũ',
-	strpos( $h_xong, 'đã gắn cờ' ) === false
-	&& strpos( $h_xong, 'gnd=2026-07-07' ) !== false, $h_xong );
+$_co_sau = VHCC_Cham::ds_ghi_chu( $u_qtc, 'TUTU_BT', '2026-07' );
+t( '🔴 lõi cờ vẫn ghi và đọc được (khuôn mặt tự gắn cờ dựa vào đây)',
+	count( $_co_sau ) === count( $_co_truoc ) + 1, array( count( $_co_truoc ), count( $_co_sau ) ) );
+t( 'và vẫn đóng cờ được', ! empty( VHCC_Cham::xu_ly_ghi_chu( $u_qtc,
+	$_co_sau[0]['flag_id'], 'đã hỏi, quên thật' ) ), null );
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 BA KHỐI ĐÃ BỎ — KHÔNG ĐƯỢC LẶNG LẼ QUAY LẠI
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 01/09/2026 bỏ ba khối khỏi màn Bảng công, mỗi cái một câu: bảng "Chi tiết từng
+ * lượt" (*"nó hiện trong chi tiết bảng công rồi"*), form "Gắn cờ cần kiểm" (*"bỏ luôn"*), bảng
+ * "Cờ tháng này" (*"bỏ"*).
+ *
+ * ⚠️ VÌ SAO CẦN MỘT CHỐT RIÊNG: ba khối này đều dựng bằng `echo` giữa một hàm dài, và chúng có
+ *    ích về mặt kỹ thuật — rất dễ có người sau thấy "thiếu chỗ xem cờ" rồi thêm lại y nguyên.
+ *    Phép dưới đây bắt được điều đó ngay, và ai thật sự muốn thêm lại thì phải đọc dòng này
+ *    trước, biết rằng nó đã bị bỏ có chủ đích chứ không phải rơi mất.
+ */
+t( '🔴 màn Bảng công KHÔNG còn bảng "Chi tiết từng lượt"',
+	strpos( $h_qtc, 'Chi tiết từng lượt' ) === false, $h_qtc );
+t( '🔴 KHÔNG còn form "Gắn cờ cần kiểm"',
+	strpos( $h_qtc, 'Gắn cờ cần kiểm' ) === false && strpos( $h_qtc, 'id="gancoform"' ) === false, $h_qtc );
+t( '🔴 KHÔNG còn bảng "Cờ tháng này"',
+	strpos( $h_qtc, 'Cờ tháng này' ) === false, $h_qtc );
+/* Và không để lại đường liên kết trỏ vào chỗ trống — neo chết còn tệ hơn không có nút. */
+t( 'không còn neo #gancoform trỏ vào chỗ không tồn tại',
+	strpos( $h_qtc, '#gancoform' ) === false, $h_qtc );
+
+/* ⚠️ ĐỐI CHỨNG: LƯỚI CẢ THÁNG PHẢI CÒN NGUYÊN. Cả lý do bỏ bảng chi tiết là "lưới đã bày rồi";
+   nếu lưới cũng mất thì màn này chẳng còn gì, và bốn phép trên vẫn xanh. */
+t( 'nhưng LƯỚI CẢ THÁNG vẫn còn — đó là chỗ đang thay thế bảng vừa bỏ',
+	strpos( $h_qtc, 'Lưới cả tháng' ) !== false, $h_qtc );
+t( 'và dữ liệu của người ta vẫn nằm trên màn', strpos( $h_qtc, 'QTC1' ) !== false, $h_qtc );
 
 /* ---- bộ lọc phải SỐNG SÓT qua một lượt POST ---- */
 /* Gắn cờ xong mà bảng nhảy về cơ sở khác / tháng khác thì người ta phải chọn lại từ đầu cho
@@ -7204,7 +7171,7 @@ t( 'và không còn hàm dựng nó trong mã',
 t( 'khối Chấm công bù vẫn còn', strpos( $h_qtc, 'id="bucong"' ) !== false, $h_qtc );
 
 /* Bảng chi tiết vẫn có cột ✏️, và nay nó neo thẳng vào HÀNG SỬA trong lưới. */
-t( 'bảng chi tiết có cột Sửa cho Admin', strpos( $h_qtc, '<th>Sửa</th>' ) !== false, $h_qtc );
+
 t( 'và bấm ✏️ thì điền sẵn ngày + mã',
 	preg_match( '/sgn=\d{4}-\d{2}-\d{2}[^"]*sgm=/', $h_qtc ) === 1, $h_qtc );
 /* 🔴 Neo phải trỏ vào ĐÚNG hàng sửa (`#suaday`), không còn `#suagio` — khối ấy không tồn tại
@@ -7217,7 +7184,7 @@ t( 'neo trỏ vào hàng sửa trong lưới, không phải khối đã bỏ',
    cái giá của nó là mỗi cửa hàng có một người viết lại được bảng công của cửa hàng mình.
    ⚠️ ĐỔI QUYỀN KHÔNG ĐƯỢC KÉO THEO ĐỔI PHẠM VI: vẫn chỉ cơ sở mình, vẫn bắt ghi vì sao, vẫn
       vào sổ không xoá được. Ba chốt ấy canh ngay bên dưới. */
-t( 'bảng chi tiết của cửa hàng trưởng CÓ cột Sửa', strpos( $h_cht, '<th>Sửa</th>' ) !== false, $h_cht );
+
 $_POST = array( 'viec' => 'sua_gio' );
 $r_sg  = vhcc_goi_rieng( 'VHCC_Web', 'lam_viec',
 	array( 'sua_gio', array( 'name' => 'CHT', 'role' => 'Cửa hàng trưởng', 'coso' => 'TUTU_BT',
@@ -7680,7 +7647,7 @@ t( 'KHÔNG còn tab riêng "Bảng công tháng"', strpos( $h_vp, '>Bảng công
 t( 'chỉ còn một tab "Bảng công"', strpos( $h_vp, '>Bảng công<' ) !== false, $h_vp );
 t( '🔴 đường cũ ?man=vp vẫn mở đúng màn đã gộp, không rơi về Trang chính',
 	strpos( $h_vp, 'Lưới cả tháng' ) !== false, $h_vp );
-t( 'và màn ấy có CẢ bảng chi tiết từng lượt', strpos( $h_vp, 'Chi tiết từng lượt' ) !== false, $h_vp );
+
 t( 'tab Bảng công thấy được từ màn Công của tôi',
 	strpos( vhcc_web( '135791', array(), array( 'man' => 'cong_toi' ) ), '>Bảng công<' ) !== false );
 /* Màn phải TỰ NÓI ra là có lưới ngang, và nói ngay trong phần mở đầu chứ không giấu ở đâu đó.
