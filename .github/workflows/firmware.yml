@@ -20,6 +20,7 @@ on:
     paths:
       - 'esp32_hik_chamcong_full/**'
       - 'esp32_ota_updater/**'
+      - 'esp32_ghe_massage/**'
       - 'esp32_posh_qr/**'
       - 'esp32_cau_ict/**'
       - 'esp32_nap_pic/**'
@@ -298,6 +299,145 @@ jobs:
             --notes "Tro toi ban may tram moi nhat. Chi MAY TRAM doc file nay." \
             || gh release upload latest-tram "outtram/latest-tram.json" --repo "$PUB" --clobber
           echo "Da phat hanh $VER" 
+
+  # ==========================================================================
+  #  BỘ QR GHẾ MASSAGE (esp32_ghe_massage) — build + PHÁT HÀNH.
+  #    · app.bin    -> release tag 'latest-ghe' (loai:"ghe") cho CON THỢ NẠP tự tải + OTA.
+  #    · merged.bin -> cùng release, cho TRANG NẠP USB (Web Serial) — Admin tải rồi upload.
+  #  Ghế dùng Update.h (OTA 2 phân vùng app) -> PartitionScheme=default như máy chấm công.
+  # ==========================================================================
+  ghe:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cai arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh -s 1.4.0
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Cache core + thu vien
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+          key: acli-esp32-${{ env.CORE_VER }}-v3
+
+      - name: Cai core ESP32 + thu vien
+        run: |
+          set -e
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32@${CORE_VER}
+          # Ghe: TFT_eSPI (VLW smooth font) + cam ung XPT2046 + ArduinoJson. QR dung esp_qrcode san trong core.
+          arduino-cli lib install "ArduinoJson@7.2.0" "TFT_eSPI@2.5.43" "XPT2046_Touchscreen@1.4.0"
+
+      - name: Cau hinh man CYD cho TFT_eSPI (co SMOOTH_FONT)
+        run: |
+          set -e
+          LIB=$(find "$HOME/Arduino/libraries" -maxdepth 1 -type d -name 'TFT_eSPI*' | head -1)
+          [ -n "$LIB" ] || { echo "KHONG thay thu vien TFT_eSPI"; exit 1; }
+          # ⚠️ User_Setup.h RIENG cua ghe: CO #define SMOOTH_FONT (font VLW vang/co dau).
+          #    Thieu -> loi 'class TFT_eSPI has no member named loadFont'.
+          cp esp32_ghe_massage/ci/User_Setup.h "$LIB/User_Setup.h"
+          grep -q SMOOTH_FONT "$LIB/User_Setup.h" || { echo "::error::User_Setup.h thieu SMOOTH_FONT"; exit 1; }
+          echo "Da ap User_Setup.h (SMOOTH_FONT) cho $LIB"
+
+      - name: Dat secrets.h PLACEHOLDER (co y - .bin phai sach bi mat)
+        run: cp esp32_ghe_massage/ci/secrets.ci.h esp32_ghe_massage/secrets.h
+
+      - name: Compile
+        run: |
+          set -eo pipefail
+          if ! arduino-cli compile --fqbn "$FQBN" --warnings default \
+                 --build-path "$PWD/ghebuild" esp32_ghe_massage 2>&1 | tee ghe.log; then
+            echo "===== CHI CAC DONG LOI ====="
+            grep -nE 'error:|Error during build|exceeds|undefined reference|No such file' ghe.log | head -40
+            echo "===== HET ====="
+            exit 1
+          fi
+          echo "--- File build sinh ra ---"
+          ls -la ghebuild/ | grep -E '\.bin' | head
+
+      - name: Kiem .bin app - sach bi mat va vua phan vung
+        run: |
+          set -e
+          BIN="ghebuild/esp32_ghe_massage.ino.bin"
+          [ -f "$BIN" ] || { echo "::error::KHONG co file .bin app"; ls -la ghebuild/ | head; exit 1; }
+          SZ=$(stat -c%s "$BIN")
+          PCT=$(( SZ * 100 / APP_MAX ))
+          echo "Ghe app .bin: $SZ / $APP_MAX byte ($PCT%)"
+          if [ "$SZ" -gt "$APP_MAX" ]; then
+            echo "::error::.bin ghe $SZ byte > phan vung app $APP_MAX byte -> OTA khong nap duoc."
+            exit 1
+          fi
+          [ "$PCT" -ge 90 ] && echo "::warning::.bin ghe da dung $PCT% phan vung app."
+          # Ghe dung placeholder, khong co bi mat that; van quet cho chac.
+          for pat in 'AKfycb' 'default-rtdb' 'khhcm-chamcong' 'firebaseio' 'databaseio'; do
+            if grep -aqF "$pat" "$BIN"; then echo "::error::.bin ghe CO chua '$pat'"; exit 1; fi
+          done
+          echo "OK: .bin ghe sach bi mat va vua phan vung."
+
+      - name: Gop merged.bin (cho nap USB Web Serial)
+        run: |
+          set -e
+          python3 -m pip install --quiet --disable-pip-version-check esptool
+          BOOTAPP=$(find "$HOME/.arduino15/packages/esp32/hardware/esp32" -name boot_app0.bin | head -1)
+          [ -n "$BOOTAPP" ] || { echo "::error::Khong thay boot_app0.bin"; exit 1; }
+          # Offset 4MB, PartitionScheme=default: bootloader 0x1000, partitions 0x8000,
+          # boot_app0 0xe000, app 0x10000. --flash_*=keep giu dung mode/freq cua bootloader.
+          python3 -m esptool --chip esp32 merge_bin -o merged.bin \
+            --flash_mode keep --flash_freq keep --flash_size 4MB \
+            0x1000  ghebuild/esp32_ghe_massage.ino.bootloader.bin \
+            0x8000  ghebuild/esp32_ghe_massage.ino.partitions.bin \
+            0xe000  "$BOOTAPP" \
+            0x10000 ghebuild/esp32_ghe_massage.ino.bin
+          ls -la merged.bin
+
+      - name: Luu file de tai tay
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghe-${{ github.sha }}
+          path: |
+            ghebuild/esp32_ghe_massage.ino.bin
+            merged.bin
+
+      - name: Phat hanh ban ghe (tag latest-ghe)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUB: ${{ github.repository }}
+        run: |
+          set -e
+          mkdir -p outghe
+          VER="ghe-$(date -u +%Y-%m-%d)-${GITHUB_SHA::7}"
+          APP="outghe/ghe-app-$VER.bin"
+          MRG="outghe/ghe-merged-$VER.bin"
+          cp ghebuild/esp32_ghe_massage.ino.bin "$APP"
+          cp merged.bin "$MRG"
+          SZ=$(stat -c%s "$APP")
+          # latest-ghe.json: THO NAP doc file nay (FW_URL_GHE mac dinh). url = APP .bin (Update.h
+          # ghi phan vung app). loai:"ghe" de tho nap tu choi neu dan nham firmware khac.
+          jq -n --arg ver "$VER" \
+                --arg url "https://github.com/$PUB/releases/download/$VER/ghe-app-$VER.bin" \
+                --arg urlMerged "https://github.com/$PUB/releases/download/$VER/ghe-merged-$VER.bin" \
+                --argjson size "$SZ" --arg commit "$GITHUB_SHA" --arg repo "$PUB" \
+                '{loai:"ghe", ver:$ver, url:$url, urlMerged:$urlMerged, size:$size, commit:$commit, repo:$repo}' > outghe/latest-ghe.json
+          cat outghe/latest-ghe.json
+          gh release create "$VER" "$APP" "$MRG" "outghe/latest-ghe.json" \
+            --repo "$PUB" --title "ghe $VER" \
+            --notes "Firmware BO QR GHE - build tu $PUB@${GITHUB_SHA::7}. KHONG chua bi mat (may lay tu web)." \
+            || gh release upload "$VER" "$APP" "$MRG" "outghe/latest-ghe.json" --repo "$PUB" --clobber
+          # Tag co dinh 'latest-ghe' CHI giu latest-ghe.json (tro toi .bin cua ban $VER o tren) ->
+          # tho nap + web chi can 1 link khong doi, khong tich .bin cu.
+          gh release create latest-ghe "outghe/latest-ghe.json" --repo "$PUB" --title "latest-ghe" \
+            --notes "Tro toi ban GHE moi nhat. Tho nap doc latest-ghe.json; url = app.bin, urlMerged = merged.bin." \
+            || gh release upload latest-ghe "outghe/latest-ghe.json" --repo "$PUB" --clobber
+          echo "Da phat hanh $VER"
 
   # ==========================================================================
   #  Hộp POSH QR (mở ghế massage bằng mã QR) — kiểm nhanh, KHÔNG cần arduino-cli.
