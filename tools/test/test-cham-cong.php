@@ -7289,16 +7289,24 @@ t( 'danh sách bộ phận có PART TIME', in_array( 'Part time', VHCC_Luong::BP
 teq( 'và mỗi bộ phận là một khối khai công thức riêng được',
 	array_values( (array) VHCC_Luong::BP_DS ), VHCC_Luong::vp_cfg_ds_khoi() );
 
-$h_bp = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
-t( 'màn có khối xếp bộ phận', strpos( $h_bp, 'id="bophan"' ) !== false, $h_bp );
+/* 🔴 TỪ 02/09/2026 VIỆC XẾP BỘ PHẬN NẰM Ở TAB "CƠ SỞ", trong bảng "Danh mục cơ sở" — anh Thắng:
+   *"thiếu tab quản lý cơ sở (thêm, xoá, sửa cơ sở)"*. Hai khối rời cũ ("Tên đầy đủ của cơ sở" và
+   "Cơ sở thuộc bộ phận nào") đã bỏ: bảng mới làm trọn cả hai việc trong MỘT hàng, nên không còn
+   hai chỗ sửa cùng một thứ rồi mất thay đổi của nhau. */
+$h_bp = vhcc_web( '135791', array(), array( 'man' => 'coso' ) );
+t( 'tab Cơ sở có bảng Danh mục cơ sở', strpos( $h_bp, 'id="dscs"' ) !== false, $h_bp );
+t( 'và bảng ấy có ô chọn bộ phận cho từng cơ sở',
+	strpos( $h_bp, 'name="bp[' ) !== false, $h_bp );
 foreach ( VHCC_Luong::BP_DS as $_b ) {
 	t( 'ô chọn có bộ phận "' . $_b . '"',
 		strpos( $h_bp, '<option value="' . esc_attr( $_b ) . '"' ) !== false, $h_bp );
 }
 /* 🔴 Còn cơ sở CHƯA XẾP thì khối tự MỞ. Đó là thứ duy nhất làm mọi phép tính công im lặng không
    chạy — thu gọn nó lại là giấu đúng cái đang hỏng. */
-t( 'còn cơ sở chưa xếp thì khối tự mở', strpos( $h_bp, 'id="bophan"><details open>' ) !== false, $h_bp );
-t( 'và nhãn nói sẵn còn bao nhiêu cơ sở chưa xếp', strpos( $h_bp, 'chưa xếp</b>' ) !== false, $h_bp );
+t( '🔴 hàng cơ sở CHƯA XẾP được tô đỏ (bảng không gập nên không giấu được gì)',
+	strpos( $h_bp, '<tr class="hong"><td><b>' ) !== false, $h_bp );
+t( 'và ô chọn của hàng ấy đang ở "chưa xếp"',
+	strpos( $h_bp, '<option value="" selected>— chưa xếp —</option>' ) !== false, $h_bp );
 /* Nói THẲNG hậu quả — "Chưa xếp" nghe như một trạng thái vô hại. */
 t( 'nói rõ chưa xếp thì KHÔNG có công thức tính công',
 	strpos( $h_bp, 'không có công thức tính công' ) !== false, $h_bp );
@@ -7309,14 +7317,19 @@ t( 'nói rõ chưa xếp thì KHÔNG có công thức tính công',
    ta khai một bộ số trước khi biết bộ số đó có được dùng hay không.
    (Trước 26/08/2026 mấy khối này nằm trên màn Bảng công và phép thử canh chúng đứng TRƯỚC bảng
    số. Anh Thắng cho dời sang tab riêng, nên nay canh thứ tự TRONG tab ấy.) */
-$_vt_bp  = strpos( $h_bp, 'id="bophan"' );
-$_vt_ct  = strpos( $h_bp, 'id="cachtinh"' );
-t( 'màn Cấu hình có khối xếp bộ phận', false !== $_vt_bp, substr( $h_bp, 0, 200 ) );
-t( 'màn Cấu hình có khối cách tính',   false !== $_vt_ct, substr( $h_bp, 0, 200 ) );
-t( 'bộ phận đứng TRƯỚC cách tính', $_vt_bp < $_vt_ct, array( $_vt_bp, $_vt_ct ) );
-/* Khối thứ ba là CA hay CÔNG THỨC tuỳ cơ sở — xem khối "chỉ bày đúng một trong hai" ở dưới. */
-$_vt_ba = max( (int) strpos( $h_bp . 'x', 'id="khaica"' ), (int) strpos( $h_bp . 'x', 'id="congthuc"' ) );
-t( 'và khối của riêng cơ sở đứng SAU cả hai', $_vt_ba > $_vt_ct, $_vt_ba );
+$h_cf_tt = vhcc_web( '135791', array(), array( 'man' => 'cau_hinh', 'ccs' => 'TUTU_BT', 'cth' => '2026-07' ) );
+$_vt_ct  = strpos( $h_cf_tt, 'id="cachtinh"' );
+t( 'màn Cấu hình có khối cách tính', false !== $_vt_ct, substr( $h_cf_tt, 0, 200 ) );
+/* 🔴 VÀ KHÔNG CÒN VIỆC CƠ SỞ Ở ĐÂY NỮA. Dời mà để lại bản cũ là hai chỗ sửa một thứ. */
+t( '🔴 màn Cấu hình KHÔNG còn khối xếp bộ phận (đã sang tab Cơ sở)',
+	strpos( $h_cf_tt, 'id="bophan"' ) === false, substr( $h_cf_tt, 0, 200 ) );
+t( '🔴 màn Cấu hình KHÔNG còn khối Tên đầy đủ của cơ sở',
+	strpos( $h_cf_tt, 'id="tencs"' ) === false );
+t( '🔴 màn Cấu hình KHÔNG còn khối Ghép bảng công', strpos( $h_cf_tt, 'id="ghepcs"' ) === false );
+/* Khối của riêng cơ sở (CA hay CÔNG THỨC) vẫn đứng SAU khối cách tính — xếp ngược lại là bắt
+   người ta khai một bộ số trước khi biết bộ số đó có được dùng hay không. */
+$_vt_ba = max( (int) strpos( $h_cf_tt . 'x', 'id="khaica"' ), (int) strpos( $h_cf_tt . 'x', 'id="congthuc"' ) );
+t( 'và khối của riêng cơ sở đứng SAU khối cách tính', $_vt_ba > $_vt_ct, $_vt_ba );
 
 /* ============================================================ CỘT "ID" KHÔNG PHẢI MÃ NV */
 /* 🔴 Anh Thắng 26/08/2026: *"Hồ sơ nhân sự đang bị lỗi giữa các nhân sự"*.
@@ -7461,7 +7474,6 @@ t( '🔴 cơ sở theo CÔNG: KHÔNG bày khối Khai ca',
 t( 'và nói ra vì sao không bày', strpos( $h_2m_cong, 'THEO CÔNG' ) !== false, $h_2m_cong );
 /* Hai khối bảng-của-mọi-cơ-sở thì luôn có, không phụ thuộc cơ sở đang chọn. */
 foreach ( array( 'gio' => $h_2m_gio, 'cong' => $h_2m_cong ) as $_k2 => $_h2 ) {
-	t( 'khối bộ phận luôn có (' . $_k2 . ')',  strpos( $_h2, 'id="bophan"' ) !== false );
 	t( 'khối cách tính luôn có (' . $_k2 . ')', strpos( $_h2, 'id="cachtinh"' ) !== false );
 }
 VHCC_Luong::dat_cach_tinh( $_AD_2M, array( $_CS_2M => '' ) );
@@ -12772,14 +12784,14 @@ t( '🔴 mở thẳng cơ sở phụ thì màn CẢNH BÁO là số đã tính v
 	strpos( $h_ghp, 'đã được tính vào bảng kia' ) !== false, $h_ghp );
 t( 'và cho đường sang bảng chính', strpos( $h_ghp, 'Mở bảng ' . $G_VP ) !== false, $h_ghp );
 
-/* ---- Khối khai trên màn Cấu hình, và lưu qua đúng cửa POST ---- */
+/* ---- Khối khai trên tab CƠ SỞ (dời khỏi Cấu hình 02/09/2026), và lưu qua đúng cửa POST ---- */
 $tok_gh = VHCC_Auth::phat_token( 'Quản trị', 'Admin', $G_VP . ',' . $G_SU . ',TUTU_BT', 'GHAD' );
 $_COOKIE[ VHCC_Web::COOKIE ] = $tok_gh;
-$_GET = array( 'man' => 'cau_hinh' );
+$_GET = array( 'man' => 'coso' );
 $_POST = array();
 ob_start(); VHCC_Web::phuc_vu(); $h_ghc = ob_get_clean();
 $_GET = array(); $_COOKIE = array();
-t( 'màn Cấu hình có khối Ghép bảng công',
+t( 'tab Cơ sở có khối Ghép bảng công',
 	strpos( $h_ghc, 'Ghép bảng công của hai cơ sở' ) !== false, $h_ghc );
 t( '🔴 và nói rõ chỗ khác nhau với dòng xám "cơ sở khác"',
 	strpos( $h_ghc, 'Chỉ ghép khi ĐÚNG LÀ MỘT BẢNG LƯƠNG' ) !== false, $h_ghc );
@@ -13875,12 +13887,11 @@ teq( '🔴 gõ ngược đầu đuôi thì ĐẢO lại, không trả khoảng r
 teq( 'và đuôi là ngày sau', '2026-09-30', $k_den );
 $_GET = array();
 
-/* ---- Khối khai tên cơ sở nằm ở màn Cấu hình ---- */
-$h_cf = vhcc_lich_web( $tok_a, array( 'man' => 'cau_hinh' ) );
-t( 'màn Cấu hình có khối Tên đầy đủ của cơ sở',
-	strpos( $h_cf, 'Tên đầy đủ của cơ sở' ) !== false, $h_cf );
-t( 'có ô nhập cho từng mã', strpos( $h_cf, 'name="tcs[' . $L_CS . ']"' ) !== false, $h_cf );
-t( 'và nói rõ MÃ không đổi', strpos( $h_cf, 'nó không đổi' ) !== false, $h_cf );
+/* ---- Ô đặt tên đầy đủ nay là MỘT CỘT của bảng Danh mục cơ sở, ở tab Cơ sở ---- */
+$h_cf = vhcc_lich_web( $tok_a, array( 'man' => 'coso' ) );
+t( 'tab Cơ sở có bảng Danh mục cơ sở', strpos( $h_cf, 'id="dscs"' ) !== false, $h_cf );
+t( 'có ô nhập tên cho từng mã', strpos( $h_cf, 'name="tcs[' . $L_CS . ']"' ) !== false, $h_cf );
+t( 'và nói rõ MÃ không sửa được', strpos( $h_cf, 'Mã không sửa được' ) !== false, $h_cf );
 /* Cửa hàng trưởng gõ thẳng `?man=cau_hinh` cũng không tới được: `phuc_vu()` đẩy mọi màn không
    nằm trong `man_cua()` về màn mặc định. */
 $h_cf_cht = vhcc_lich_web( $tok_l, array( 'man' => 'cau_hinh' ) );
@@ -17674,8 +17685,8 @@ t( '🔴 tên chỉ khác tiền tố CS_ không bị kể là lạ', ! isset( $
 t( '🔴 tên chỉ khác hoa thường không bị kể là lạ', ! isset( $cla3['khai_bp_1'] ), array_keys( $cla3 ) );
 
 /* ---- (g) Màn Cấu hình phải BÀY khối ấy ra, mở sẵn ---- */
-$h_cla = vhcc_web_nhu2( 'CLAAD', 'Admin', 'KHAI_BP_1', array( 'man' => 'cau_hinh' ) );
-t( '🔴 màn Cấu hình có khối "Cơ sở lạ"', strpos( $h_cla, 'id="cosola"' ) !== false, substr( $h_cla, 0, 300 ) );
+$h_cla = vhcc_web_nhu2( 'CLAAD', 'Admin', 'KHAI_BP_1', array( 'man' => 'coso' ) );
+t( '🔴 tab Cơ sở có khối "Cơ sở lạ"', strpos( $h_cla, 'id="cosola"' ) !== false, substr( $h_cla, 0, 300 ) );
 t( 'khối MỞ SẴN, không gập kín một việc chưa làm',
 	preg_match( '/id="cosola"><details open>/', $h_cla ) === 1 );
 t( 'và gọi đúng tên lạ ra', strpos( $h_cla, 'CA_LA_1' ) !== false );
@@ -17693,7 +17704,7 @@ $tok_cla = VHCC_Auth::phat_token( 'Người Thử', 'Admin', 'KHAI_BP_1', 'CLAAD
 $_COOKIE[ VHCC_Web::COOKIE ] = $tok_cla;
 $_POST = array( 'viec' => 'coso_la', 'ky' => VHCC_Web::chu_ky( $tok_cla ),
 	'cla' => array( 'PART_TIME (LA)' => 'nhan' ) );
-$_GET = array( 'man' => 'cau_hinh' );
+$_GET = array( 'man' => 'coso' );
 ob_start(); VHCC_Web::phuc_vu(); $h_nhan = ob_get_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 t( '🔴 nhận vào danh mục thì cơ sở CÓ trong ds_coso()',
@@ -17708,7 +17719,7 @@ $tok_cla2 = VHCC_Auth::phat_token( 'Người Thử', 'Admin', 'KHAI_BP_1', 'CLAA
 $_COOKIE[ VHCC_Web::COOKIE ] = $tok_cla2;
 $_POST = array( 'viec' => 'coso_la', 'ky' => VHCC_Web::chu_ky( $tok_cla2 ),
 	'cla' => array( 'CA_LA_1' => 'gop:KHAI_BP_1' ) );
-$_GET = array( 'man' => 'cau_hinh' );
+$_GET = array( 'man' => 'coso' );
 ob_start(); VHCC_Web::phuc_vu(); $h_gop = ob_get_clean();
 $_POST = array(); $_GET = array(); $_COOKIE = array();
 teq( '🔴 gộp là DỜI, không xoá: tổng số lượt giữ nguyên', $so_truoc,
@@ -17743,7 +17754,7 @@ t( '🔴 đích không có trong danh mục lẫn trong sổ thì CHỐI', isset
 /* ---- (k) Khối biến mất khi đã sạch — không chiếm chỗ trên màn ---- */
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) );
 $wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) );
-$h_sach = vhcc_web_nhu2( 'CLAAD', 'Admin', 'KHAI_BP_1', array( 'man' => 'cau_hinh' ) );
+$h_sach = vhcc_web_nhu2( 'CLAAD', 'Admin', 'KHAI_BP_1', array( 'man' => 'coso' ) );
 t( 'sạch tên lạ thì khối không hiện nữa', strpos( $h_sach, 'id="cosola"' ) === false );
 
 /* ---- (l) Nạp .csv vào mã lạ: câu trên màn phải nói ĐÚNG việc vừa làm ----
@@ -17755,6 +17766,167 @@ t( '🔴 câu cảnh báo nạp .csv không còn hứa TẠO MỚI cơ sở',
 t( 'mà nói rõ cơ sở không tự sinh ra + chỉ đường sang khối Cơ sở lạ',
 	strpos( $nc_src, 'không tự sinh ra' ) !== false
 	&& strpos( $nc_src, 'Cấu hình → Cơ sở lạ' ) !== false );
+
+vhcc_dung_bang();
+
+
+/* ==========================================================================================
+ *  77. TAB CƠ SỞ — THÊM · SỬA · XOÁ
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 02/09/2026: *"thiếu tab quản lý cơ sở (thêm, xoá, sửa cơ sở)"*, và trước đó, ảnh
+ *  lưới công của một người ra ba hàng: *"nó đang bị nhân lên, cách nào xoá luôn"*.
+ *
+ *  🔴 SIẾT DANH MỤC (bản 3.31.0) MÀ KHÔNG MỞ CỬA KHAI CHÍNH THỨC LÀ BỊT LỐI MÀ KHÔNG XÂY LỐI
+ *     MỚI. Trước tab này, cách duy nhất để có cơ sở mới là nạp một tệp .csv mang tên nó — đúng
+ *     con đường đẻ ra "cơ sở ảo". Người ta sẽ quay lại lối cũ, và mọi thứ vừa siết thành vô ích.
+ * ======================================================================================== */
+vhcc_dung_bang();
+$U_CS = array( 'name' => 'Quản trị', 'role' => 'Admin', 'coso' => '' );
+
+/* ---- (a) Thêm cơ sở qua đúng cửa POST ---- */
+$tok_cs = VHCC_Auth::phat_token( 'Người Thử', 'Admin', '', 'CSAD' );
+function vhcc_cs_post( $tok, $post, $get = array( 'man' => 'coso' ) ) {
+	$_COOKIE[ VHCC_Web::COOKIE ] = $tok;
+	$_POST = array_merge( array( 'ky' => VHCC_Web::chu_ky( $tok ) ), $post );
+	$_GET  = $get;
+	ob_start(); VHCC_Web::phuc_vu(); $h = ob_get_clean();
+	$_POST = array(); $_GET = array(); $_COOKIE = array();
+	return $h;
+}
+vhcc_cs_post( $tok_cs, array( 'viec' => 'them_cs', 'ncs_ma' => 'MOI_CS_1',
+	'ncs_ten' => 'Cơ Sở Mới Một', 'ncs_bp' => 'Part time' ) );
+t( '🔴 thêm được cơ sở qua trang thật',
+	in_array( 'MOI_CS_1', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+teq( 'và bộ phận vào luôn', 'Part time', VHCC_Luong::bo_phan_cua( 'MOI_CS_1' ) );
+t( 'tên đầy đủ cũng vào', strpos( VHCC_NhanSu::ten_coso( 'MOI_CS_1' ), 'Cơ Sở Mới Một' ) !== false,
+	VHCC_NhanSu::ten_coso( 'MOI_CS_1' ) );
+
+/* 🔴 THÊM TRÙNG THÌ CHỐI, và chối theo kiểu KHÔNG PHÂN BIỆT HOA THƯỜNG. `moi_cs_1` và
+   `MOI_CS_1` là một chỗ; cho qua là màn hình có hai dòng cho cùng một cửa hàng, tức đẻ đúng
+   cái "cơ sở ảo" mà cả bản này sinh ra để dẹp. */
+$r_trung = VHCC_NhanSu::them_coso( $U_CS, 'moi_cs_1' );
+t( '🔴 thêm trùng (khác hoa thường) bị chối', empty( $r_trung['ok'] ), $r_trung );
+$r_ma_xau = VHCC_NhanSu::them_coso( $U_CS, 'CS/XAU?' );
+t( 'mã có ký tự lạ bị chối', empty( $r_ma_xau['ok'] ), $r_ma_xau );
+$r_ma_rong = VHCC_NhanSu::them_coso( $U_CS, '   ' );
+t( 'mã rỗng bị chối', empty( $r_ma_rong['ok'] ), $r_ma_rong );
+/* Nhân viên POST thẳng cũng không lọt — ẩn cái khối không phải là gác. */
+$r_nv = VHCC_NhanSu::them_coso( array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'MOI_CS_1' ), 'LEN_LUT' );
+/* ⚠️ CANH CẢ CÂU CHỐI, KHÔNG CHỈ CANH "bị chối". `them_coso()` gọi `xep_bo_phan()` bên dưới,
+   mà hàm ấy CŨNG gác — nên tháo hẳn chốt ở `them_coso()` vẫn ra "bị chối", chỉ là chối ở tầng
+   sau và bằng một câu nói về bộ phận. Phá thử bắt đúng chỗ mù này. Câu chối phải nói "Thêm cơ
+   sở" thì mới là chốt của chính cửa này. */
+t( '🔴 Nhân viên không thêm được cơ sở', empty( $r_nv['ok'] )
+	&& isset( $r_nv['error'] ) && strpos( $r_nv['error'], 'Thêm cơ sở' ) !== false, $r_nv );
+
+/* ---- (b) Bảng danh mục bày đủ thứ cần để quyết ---- */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-CS1', 'mac' => 'AA:00:00:00:00:01',
+	'cua_hang' => 'MOI_CS_1' ) );
+vhcc_cham( 'MOI_CS_1', '2026-08-03', 'MCS1', '', '08:00:00', '17:00:00' );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'MCS1', 'ho_ten' => 'Người Mới',
+	'cua_hang' => 'MOI_CS_1', 'vai_tro' => 'Nhân viên' ) );
+/* 🔴 MỘT NGƯỜI CÓ THỂ THUỘC NHIỀU CƠ SỞ (`coso_phu`). Đếm mỗi `cua_hang` là bỏ sót đúng những
+   người chạy nhiều nơi — mà đó lại là người hay bị xoá oan nhất khi dọn cơ sở. */
+vhcc_bo_phan( 'PHU_CS_1', '' );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'MCS2', 'ho_ten' => 'Người Hai Nơi',
+	'cua_hang' => 'PHU_CS_1', 'coso_phu' => 'MOI_CS_1', 'vai_tro' => 'Nhân viên' ) );
+$tk_cs = array();
+foreach ( VHCC_NhanSu::thong_ke_coso() as $x ) { $tk_cs[ $x['ma'] ] = $x; }
+t( 'thống kê có cơ sở vừa thêm', isset( $tk_cs['MOI_CS_1'] ), array_keys( $tk_cs ) );
+teq( '🔴 đếm đúng máy · hồ sơ (kể cả người khai ở cơ sở phụ) · lượt', array( 1, 2, 1 ), isset( $tk_cs['MOI_CS_1'] )
+	? array( (int) $tk_cs['MOI_CS_1']['so_may'], (int) $tk_cs['MOI_CS_1']['so_hs'],
+		(int) $tk_cs['MOI_CS_1']['so_luot'] ) : array( -1, -1, -1 ) );
+$h_cs = vhcc_web_nhu2( 'CSAD', 'Admin', '', array( 'man' => 'coso' ) );
+t( 'màn có bảng danh mục', strpos( $h_cs, 'id="dscs"' ) !== false, substr( $h_cs, 0, 300 ) );
+t( 'và khối thêm cơ sở', strpos( $h_cs, 'id="themcs"' ) !== false );
+t( '🔴 cột "Đang giữ" bày ra máy/hồ sơ/lượt ngay cạnh nút Xoá',
+	strpos( $h_cs, '1 máy · 2 hồ sơ · 1 lượt' ) !== false, $h_cs );
+t( 'nút xoá mang theo ĐÚNG mã của hàng ấy',
+	strpos( $h_cs, 'value="xoa_cs:MOI_CS_1"' ) !== false, $h_cs );
+/* ⚠️ Mã là KHOÁ của mọi bảng cũ — sửa được ở đây là sửa mỗi cái nhãn, còn hàng nghìn dòng cũ
+   vẫn mang mã cũ. Nên bảng KHÔNG được có ô nhập mã. */
+t( '🔴 KHÔNG có ô sửa mã cơ sở', strpos( $h_cs, 'name="ma_cs[' ) === false );
+
+/* ---- (c) Sửa tên + bộ phận bằng một lượt ---- */
+vhcc_cs_post( $tok_cs, array( 'viec' => 'sua_cs',
+	'tcs' => array( 'MOI_CS_1' => 'Tên Đã Sửa' ),
+	'bp'  => array( 'MOI_CS_1' => 'Khu vui chơi' ) ) );
+VHCC_NhanSu::quen_ten_coso();
+t( '🔴 một lượt Lưu đổi được CẢ tên lẫn bộ phận',
+	strpos( VHCC_NhanSu::ten_coso( 'MOI_CS_1' ), 'Tên Đã Sửa' ) !== false
+	&& 'Khu vui chơi' === VHCC_Luong::bo_phan_cua( 'MOI_CS_1' ),
+	array( VHCC_NhanSu::ten_coso( 'MOI_CS_1' ), VHCC_Luong::bo_phan_cua( 'MOI_CS_1' ) ) );
+
+/* ---- (d) Xoá: chặn theo đúng thứ tự nguy hiểm ---- */
+$r_xm = VHCC_NhanSu::xoa_coso( $U_CS, 'MOI_CS_1' );
+t( '🔴 còn máy gán vào thì CHỐI HẲN', empty( $r_xm['ok'] ), $r_xm );
+t( 'và nói rõ phải gỡ gán máy trước',
+	isset( $r_xm['error'] ) && strpos( $r_xm['error'], 'Máy & Firmware' ) !== false, $r_xm );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'may' ) . " WHERE serial='SN-CS1'" );
+
+$r_xl = VHCC_NhanSu::xoa_coso( $U_CS, 'MOI_CS_1' );
+t( '🔴 hết máy nhưng còn lượt chấm công thì vẫn chối', empty( $r_xl['ok'] ), $r_xl );
+t( 'và bày ra con số + chỉ đường gộp',
+	isset( $r_xl['error'] ) && strpos( $r_xl['error'], '1 lượt chấm công' ) !== false
+	&& strpos( $r_xl['error'], 'Gộp' ) !== false, $r_xl );
+/* 🔴 CHỐT "ĐÚNG CON SỐ ANH VỪA NHÌN". Người mở màn lúc 9h, đi họp, 11h quay lại bấm — giữa
+   chừng máy chấm công đẩy thêm cả trăm lượt. Không so lại là xoá mất phần vừa vào. */
+$r_lech = VHCC_NhanSu::xoa_coso( $U_CS, 'MOI_CS_1', true, 99 );
+t( '🔴 số lượt lệch với lúc bấm thì CHỐI, không xoá gì', empty( $r_lech['ok'] ), $r_lech );
+teq( 'và lượt vẫn còn nguyên', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', 'MOI_CS_1' ) ) );
+
+$r_xoa = VHCC_NhanSu::xoa_coso( $U_CS, 'MOI_CS_1', true, 1 );
+t( '🔴 đúng số thì xoá được', ! empty( $r_xoa['ok'] ), $r_xoa );
+t( 'cơ sở biến khỏi danh mục', ! in_array( 'MOI_CS_1', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+teq( 'lượt đã xoá', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', 'MOI_CS_1' ) ) );
+teq( '🔴 và tên gỡ khỏi hồ sơ luôn — không để lại tên ma trong ô Cơ sở',
+	'', (string) VHCC_NhanSu::ho_so( 'MCS1' )['cua_hang'] );
+VHCC_NhanSu::quen_ten_coso();
+$bang_ten = VHCC_NhanSu::ten_coso_bang();
+t( 'tên đầy đủ cũng dọn theo', ! isset( $bang_ten['MOI_CS_1'] ), array_keys( $bang_ten ) );
+
+/* ---- (e) XOÁ HẲN một tên lạ (lối "xoá luôn" anh Thắng hỏi) ---- */
+vhcc_bo_phan( 'CHINH_1', 'Part time' );
+vhcc_cham( 'RAC_1', '2026-08-03', 'RAC9', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'RAC_1', '2026-08-04', 'RAC9', '', '08:00:00', null );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'RAC9', 'ho_ten' => 'Người Rác',
+	'cua_hang' => 'CHINH_1', 'coso_phu' => 'RAC_1', 'vai_tro' => 'Nhân viên' ) );
+$r_lech2 = VHCC_NhanSu::xoa_coso_la( $U_CS, 'RAC_1', 5 );
+t( '🔴 xoá tên lạ cũng đòi ĐÚNG số lượt', empty( $r_lech2['ok'] ), $r_lech2 );
+$r_xhl = VHCC_NhanSu::xoa_coso_la( $U_CS, 'RAC_1', 2 );
+t( '🔴 đúng số thì xoá hẳn được', ! empty( $r_xhl['ok'] ), $r_xhl );
+teq( 'xoá cả 2 lượt', 2, isset( $r_xhl['luot'] ) ? (int) $r_xhl['luot'] : -1 );
+teq( '🔴 và gỡ khỏi hồ sơ — đây mới là thứ làm lưới "nhân lên" ba hàng', 'CHINH_1',
+	(string) VHCC_NhanSu::ho_so( 'RAC9' )['cua_hang'] );
+teq( 'ô cơ sở phụ sạch tên rác', '', (string) VHCC_NhanSu::ho_so( 'RAC9' )['coso_phu'] );
+$cl_sau = array();
+foreach ( VHCC_NhanSu::ds_coso_la() as $x ) { $cl_sau[ $x['coso'] ] = 1; }
+t( 'và tên rác biến khỏi khối Cơ sở lạ', ! isset( $cl_sau['RAC_1'] ), array_keys( $cl_sau ) );
+
+/* 🔴 KHỚP THEO TÊN THÔ, KHÔNG QUA `chuan_coso()`. Tên lạ thường lạ CHÍNH VÌ mấy ký tự mà phép
+   chuẩn hoá sẽ cắt mất (tiền tố `CS_`, phần sau dấu phẩy) — chuẩn hoá rồi mới đếm thì câu xoá
+   trỏ vào một cái tên KHÁC, có thể là một cơ sở đang chạy. */
+vhcc_cham( 'CS_RAC_3', '2026-08-06', 'RAC9', '', '08:00:00', '17:00:00' );
+$r_tho = VHCC_NhanSu::xoa_coso_la( $U_CS, 'CS_RAC_3', 1 );
+t( '🔴 đếm theo TÊN THÔ: "CS_RAC_3" có đúng 1 lượt nên xoá được', ! empty( $r_tho['ok'] ), $r_tho );
+teq( 'và đúng lượt ấy bị xoá', 1, isset( $r_tho['luot'] ) ? (int) $r_tho['luot'] : -1 );
+
+/* 🔴 KHÔNG ĐƯỢC XOÁ NHẦM MỘT CƠ SỞ ĐANG CHẠY QUA CỬA NÀY. Cửa "Cơ sở lạ" khớp theo TÊN THÔ và
+   không hỏi danh mục thì `CS_CHINH_1` (chuẩn hoá ra `CHINH_1`) sẽ xoá sạch cửa hàng thật. */
+$r_nham = VHCC_NhanSu::xoa_coso_la( $U_CS, 'CS_CHINH_1', 0 );
+t( '🔴 tên chuẩn hoá ra một cơ sở ĐANG CÓ thì cửa Cơ sở lạ CHỐI', empty( $r_nham['ok'] ), $r_nham );
+t( 'cơ sở thật vẫn còn nguyên', in_array( 'CHINH_1', VHCC_NhanSu::ds_coso(), true ) );
+
+/* ---- (f) Ô xổ ở khối Cơ sở lạ có lối xoá, kèm số lượt ---- */
+vhcc_cham( 'RAC_2', '2026-08-05', 'RAC9', '', '08:00:00', '17:00:00' );
+$h_cl2 = vhcc_web_nhu2( 'CSAD', 'Admin', '', array( 'man' => 'coso' ) );
+t( '🔴 khối Cơ sở lạ có lối XOÁ HẲN kèm đúng số lượt',
+	strpos( $h_cl2, 'value="xoa:1"' ) !== false
+	&& strpos( $h_cl2, 'mất 1 lượt chấm công' ) !== false, $h_cl2 );
+t( 'và nói thẳng là mất công thật, không lấy lại được',
+	strpos( $h_cl2, 'không lấy lại được' ) !== false, $h_cl2 );
 
 vhcc_dung_bang();
 

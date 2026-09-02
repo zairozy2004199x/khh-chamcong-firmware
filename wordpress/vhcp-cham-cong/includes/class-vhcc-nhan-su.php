@@ -1087,6 +1087,234 @@ class VHCC_NhanSu {
 		return array( 'ok' => true, 'so' => count( $sach ), 'doi' => $doi );
 	}
 
+	/* ================================================================= quản lý cơ sở */
+
+	/**
+	 * BẢNG THỐNG KÊ TỪNG CƠ SỞ TRONG DANH MỤC — mã, tên, bộ phận, và NÓ ĐANG GIỮ GÌ.
+	 *
+	 * Anh Thắng 02/09/2026: *"thiếu tab quản lý cơ sở (thêm, xoá, sửa cơ sở)"*.
+	 *
+	 * 🔴 CỘT "ĐANG GIỮ GÌ" LÀ PHẦN QUAN TRỌNG NHẤT, không phải phần trang trí. Xoá một cơ sở
+	 *    còn 400 lượt chấm công là xoá công thật của người ta — mà nhìn một dòng chỉ có mã và
+	 *    tên thì không cách nào biết. Bày sẵn số máy · số hồ sơ · số lượt ngay cạnh nút Xoá thì
+	 *    người bấm biết mình đang bấm cái gì.
+	 *
+	 * @return array array( array( 'ma','ten','bo_phan','cach_tinh','so_may','so_hs','so_luot' ) )
+	 */
+	public static function thong_ke_coso() {
+		global $wpdb;
+		$ds = self::ds_coso();
+		if ( ! $ds ) { return array(); }
+		$ten = self::ten_coso_bang();
+
+		/* Đếm gộp MỘT LẦN cho cả ba bảng rồi tra bằng khoá chữ thường — hỏi từng cơ sở là 21 cơ
+		   sở × 3 truy vấn cho một màn chỉ để đọc. */
+		$dem_luot = array();
+		foreach ( (array) $wpdb->get_results(
+			'SELECT coso, COUNT(*) so FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE coso<>'' GROUP BY coso",
+			ARRAY_A ) as $r ) {
+			$k = self::chu_thuong( self::chuan_coso( $r['coso'] ) );
+			if ( '' === $k ) { continue; }
+			$dem_luot[ $k ] = ( isset( $dem_luot[ $k ] ) ? $dem_luot[ $k ] : 0 ) + (int) $r['so'];
+		}
+		$dem_may = array();
+		foreach ( (array) $wpdb->get_results(
+			'SELECT cua_hang, COUNT(*) so FROM ' . VHCC_DB::t( 'may' ) . " WHERE cua_hang<>'' GROUP BY cua_hang",
+			ARRAY_A ) as $r ) {
+			$k = self::chu_thuong( self::chuan_coso( $r['cua_hang'] ) );
+			if ( '' === $k ) { continue; }
+			$dem_may[ $k ] = ( isset( $dem_may[ $k ] ) ? $dem_may[ $k ] : 0 ) + (int) $r['so'];
+		}
+		/* Hồ sơ: đếm qua `ds_coso_hs()` vì một người có thể thuộc NHIỀU cơ sở (cột `coso_phu` là
+		   chuỗi nối bằng dấu phẩy). Đếm mỗi `cua_hang` là bỏ sót đúng những người chạy nhiều nơi. */
+		$dem_hs = array();
+		foreach ( (array) $wpdb->get_results(
+			'SELECT cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' ), ARRAY_A ) as $r ) {
+			foreach ( self::ds_coso_hs( $r ) as $x ) {
+				$k = self::chu_thuong( $x );
+				$dem_hs[ $k ] = ( isset( $dem_hs[ $k ] ) ? $dem_hs[ $k ] : 0 ) + 1;
+			}
+		}
+
+		$ra = array();
+		foreach ( $ds as $ma ) {
+			$k = self::chu_thuong( $ma );
+			$ra[] = array(
+				'ma'        => $ma,
+				'ten'       => isset( $ten[ $ma ] ) ? $ten[ $ma ] : '',
+				'bo_phan'   => VHCC_Luong::bo_phan_cua( $ma ),
+				'cach_tinh' => VHCC_Luong::cach_tinh( $ma ),
+				'so_may'    => isset( $dem_may[ $k ] ) ? $dem_may[ $k ] : 0,
+				'so_hs'     => isset( $dem_hs[ $k ] ) ? $dem_hs[ $k ] : 0,
+				'so_luot'   => isset( $dem_luot[ $k ] ) ? $dem_luot[ $k ] : 0,
+			);
+		}
+		return $ra;
+	}
+
+	/**
+	 * THÊM MỘT CƠ SỞ VÀO DANH MỤC.
+	 *
+	 * ⚠️ Đây là ĐƯỜNG DUY NHẤT sinh ra cơ sở mới bằng tay, và nó cố ý bắt người ta gõ mã rồi
+	 *    bấm nút — chứ không phải hệ quả của một lần nạp tệp hay một ô gõ nhầm (xem khối 🔴 ở
+	 *    `ds_coso()`).
+	 */
+	public static function them_coso( $u, $ma, $ten = '', $bo_phan = '' ) {
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Thêm cơ sở — ' . self::LOI_QT );
+		}
+		$ma = self::chuan_coso( $ma );
+		$loi = VHCC_NapCong::ma_coso_hop_le( $ma );
+		if ( '' !== $loi ) { return array( 'ok' => false, 'error' => $loi ); }
+		foreach ( self::ds_coso() as $x ) {
+			if ( 0 === strcasecmp( (string) $x, $ma ) ) {
+				return array( 'ok' => false, 'error' => 'Cơ sở "' . $x . '" đã có trong danh mục rồi.' );
+			}
+		}
+		$r = self::xep_bo_phan( $u, $ma, $bo_phan );
+		if ( empty( $r['ok'] ) ) { return $r; }
+		$ten = trim( (string) $ten );
+		if ( '' !== $ten ) {
+			$bang = self::ten_coso_bang();
+			$bang[ $ma ] = $ten;
+			self::dat_ten_coso( $u, $bang );
+		}
+		return array( 'ok' => true, 'ma' => $ma );
+	}
+
+	/**
+	 * GỠ MỘT TÊN CƠ SỞ KHỎI MỌI HỒ SƠ. Trả về số hồ sơ đã sửa.
+	 *
+	 * ⚠️ Đi qua `ds_coso_hs()` rồi rải lại vào hai cột `cua_hang`/`coso_phu` — y hệt cách
+	 *    `VHCC_Web::luu_ho_so()` và `doi_coso()` ghi. Cắt chuỗi bằng tay ở đây là nơi thứ ba
+	 *    hiểu một hình dạng dữ liệu, và nơi thứ ba luôn là nơi hiểu sai.
+	 */
+	public static function go_coso_ho_so( $ten ) {
+		global $wpdb;
+		$bo = self::chu_thuong( self::chuan_coso( $ten ) );
+		if ( '' === $bo ) { return 0; }
+		$so = 0;
+		foreach ( (array) $wpdb->get_results(
+			'SELECT ma_nv, cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' ), ARRAY_A ) as $r ) {
+			$cu  = self::ds_coso_hs( $r );
+			$giu = array();
+			foreach ( $cu as $x ) {
+				if ( self::chu_thuong( $x ) !== $bo ) { $giu[] = $x; }
+			}
+			if ( count( $giu ) === count( $cu ) ) { continue; }
+			$dat = $giu;
+			$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array(
+				'cua_hang' => $dat ? array_shift( $dat ) : '',
+				'coso_phu' => implode( ', ', $dat ),
+				'cap_nhat' => current_time( 'mysql' ),
+			), array( 'ma_nv' => $r['ma_nv'] ) );
+			$so++;
+		}
+		return $so;
+	}
+
+	/**
+	 * XOÁ MỘT CƠ SỞ — khỏi danh mục, khỏi tên hiện ra, khỏi mọi hồ sơ.
+	 *
+	 * 🔴 CÔNG ĐÃ CHẤM KHÔNG BAO GIỜ BỊ XOÁ THEO MỘT CÁCH ÂM THẦM. Cơ sở còn lượt chấm công thì
+	 *    hàm này CHỐI, và nói ra con số — muốn dọn thì gộp về cơ sở đúng (giữ nguyên công) hoặc
+	 *    bấm lại với `$ca_luot` kèm ĐÚNG số lượt đang thấy trên màn.
+	 *
+	 * ⚠️ `$mong_luot` là chốt "đúng con số anh vừa nhìn". Người mở màn lúc 9h, đi họp, 11h quay
+	 *    lại bấm Xoá — trong khoảng ấy máy chấm công có thể đã đẩy thêm cả trăm lượt. Không so
+	 *    lại là xoá mất phần vừa vào mà không ai biết.
+	 *
+	 * ⚠️ CÒN MÁY GÁN VÀO THÌ CHỐI HẲN, không có đường vòng: máy vẫn cắm ngoài cửa hàng và vẫn
+	 *    đẩy công về, nên xoá cơ sở chỉ làm công mới rơi thành "cơ sở lạ" ngay hôm sau. Gỡ gán
+	 *    máy ở màn Máy & Firmware trước.
+	 */
+	public static function xoa_coso( $u, $ma, $ca_luot = false, $mong_luot = null ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Xoá cơ sở — ' . self::LOI_QT );
+		}
+		$ma = self::chuan_coso( $ma );
+		if ( '' === $ma ) { return array( 'ok' => false, 'error' => 'Thiếu mã cơ sở.' ); }
+
+		$so_may = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'may' ) . ' WHERE LOWER(cua_hang)=LOWER(%s)', $ma ) );
+		if ( $so_may > 0 ) {
+			return array( 'ok' => false, 'error' => 'Cơ sở "' . $ma . '" còn ' . $so_may
+				. ' máy chấm công đang gán vào. Gỡ gán máy ở màn Máy & Firmware trước — máy còn cắm '
+				. 'ngoài cửa hàng thì công mới lại chảy về đây ngay hôm sau.' );
+		}
+
+		$so_luot = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE LOWER(coso)=LOWER(%s)', $ma ) );
+		if ( $so_luot > 0 && ! $ca_luot ) {
+			return array( 'ok' => false, 'error' => 'Cơ sở "' . $ma . '" còn ' . $so_luot
+				. ' lượt chấm công. Gộp nó về cơ sở đúng để giữ nguyên công, hoặc chọn "xoá cả '
+				. $so_luot . ' lượt" nếu chắc chắn phần công này là rác.' );
+		}
+		if ( $so_luot > 0 && null !== $mong_luot && (int) $mong_luot !== $so_luot ) {
+			return array( 'ok' => false, 'error' => 'Số lượt vừa đổi (' . $so_luot . ' chứ không phải '
+				. (int) $mong_luot . ') — có ai đó vừa chấm công vào cơ sở này. Xem lại rồi bấm lại.' );
+		}
+
+		$xoa_luot = 0;
+		if ( $so_luot > 0 ) {
+			$xoa_luot = (int) $wpdb->query( $wpdb->prepare(
+				'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE LOWER(coso)=LOWER(%s)', $ma ) );
+		}
+		$so_hs = self::go_coso_ho_so( $ma );
+		$wpdb->query( $wpdb->prepare(
+			'DELETE FROM ' . VHCC_DB::t( 'bo_phan_coso' ) . ' WHERE LOWER(coso)=LOWER(%s)', $ma ) );
+		$bang = self::ten_coso_bang();
+		if ( isset( $bang[ $ma ] ) ) { unset( $bang[ $ma ] ); self::dat_ten_coso( $u, $bang ); }
+
+		return array( 'ok' => true, 'ma' => $ma, 'luot' => $xoa_luot, 'ho_so' => $so_hs );
+	}
+
+	/**
+	 * XOÁ HẲN MỘT TÊN CƠ SỞ LẠ — gỡ khỏi mọi hồ sơ VÀ xoá mọi lượt chấm công mang đúng tên ấy.
+	 *
+	 * Anh Thắng 02/09/2026, ảnh lưới công của nhân viên có ba hàng cho một người: *"nó đang bị
+	 * nhân lên, cách nào xoá luôn"*.
+	 *
+	 * 🔴 KHÁC `xoa_coso()` Ở ĐÚNG MỘT CHỖ, VÀ CHỖ ẤY QUAN TRỌNG: ở đây khớp theo TÊN THÔ, y
+	 *    nguyên như trong kho. `xoa_coso()` chuẩn hoá mã trước khi khớp (`chuan_coso()` gỡ tiền
+	 *    tố `CS_`, cắt tại dấu phẩy) — đúng cho cơ sở trong danh mục, nhưng SAI ở đây: tên lạ
+	 *    thường lạ chính vì mấy ký tự mà phép chuẩn hoá sẽ cắt mất, và cắt xong thì câu xoá trỏ
+	 *    vào một cái tên khác — có thể là một cơ sở đang chạy.
+	 *
+	 * ⚠️ MẤT LÀ MẤT THẬT. Nên `$mong_luot` bắt buộc phải khớp đúng số lượt màn hình vừa bày ra:
+	 *    người mở màn lúc 9h, đi họp, 11h quay lại bấm — trong khoảng ấy máy có thể đã đẩy thêm
+	 *    cả trăm lượt. Muốn GIỮ công thì đừng dùng hàm này, dùng `VHCC_Nhan::gop_coso()`.
+	 */
+	public static function xoa_coso_la( $u, $ten, $mong_luot ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Xoá cơ sở — ' . self::LOI_QT );
+		}
+		$ten = trim( (string) $ten );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở.' ); }
+		foreach ( self::ds_coso() as $x ) {
+			if ( 0 === strcasecmp( (string) $x, self::chuan_coso( $ten ) ) ) {
+				return array( 'ok' => false, 'error' => '"' . $ten . '" là cơ sở ĐANG CÓ trong danh mục — '
+					. 'xoá nó ở bảng Danh mục cơ sở, không phải ở khối Cơ sở lạ.' );
+			}
+		}
+		$so = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $ten ) );
+		if ( (int) $mong_luot !== $so ) {
+			return array( 'ok' => false, 'error' => 'Số lượt của "' . $ten . '" vừa đổi (' . $so
+				. ' chứ không phải ' . (int) $mong_luot . ') — có ai đó vừa chấm công vào tên này. '
+				. 'Tải lại màn rồi bấm lại.' );
+		}
+		$xoa = 0;
+		if ( $so > 0 ) {
+			$xoa = (int) $wpdb->query( $wpdb->prepare(
+				'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $ten ) );
+		}
+		$hs = self::go_coso_ho_so( $ten );
+		return array( 'ok' => true, 'ten' => $ten, 'luot' => $xoa, 'ho_so' => $hs );
+	}
+
 	// ======================================================================= ghi
 
 	/**
