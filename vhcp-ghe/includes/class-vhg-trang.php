@@ -332,7 +332,7 @@ class VHG_Trang {
 			if ( 'kt_baocao_ngay' === $viec ) { self::tra( VHG_KeToan::baocao_ngay( isset( $d['thang'] ) ? $d['thang'] : '', ! empty( $d['chi_da_duyet'] ) ) ); return; }
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
 			if ( 'kt_lichsu' === $viec )      { self::tra( VHG_KeToan::lich_su( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
-			if ( 'kt_bangcheo' === $viec )    { self::tra( VHG_KeToan::bang_cheo( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
+			if ( 'kt_bangcheo' === $viec )    { self::tra( VHG_KeToan::bang_cheo( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '', isset( $d['thang'] ) ? $d['thang'] : '' ) ); return; }
 			if ( 'kt_bctong' === $viec ) {
 				self::tra( VHG_KeToan::bao_cao_tong(
 					isset( $d['tu'] ) ? $d['tu'] : '', isset( $d['den'] ) ? $d['den'] : '',
@@ -5102,6 +5102,7 @@ function ktycLoad(){
 var KTI_THANG = '';
 /* ══════════════════════════════ DOANH THU ĐỊA ĐIỂM (lịch sử nguyên năm, gọn theo tháng) ══════ */
 var KLS_COSO = '', KLS_NAM = '', KLS_MO = {};   // cơ sở, năm, tháng nào đang mở
+var KCG_THANG = '';                            // bảng chéo: '' = cả năm, '01'…'12' = một tháng
 function veKtLichSu(){
   var coso = (D && D.coso) || [];
   /* `D.luc` là GIỜ TRONG NGÀY, không phải ngày tháng — cắt ra rác kiểu "23:5" (không phải năm),
@@ -5126,9 +5127,18 @@ function veKtLichSu(){
        Dùng chung ô Cơ sở/Năm/nút Xem ở trên, khỏi có hai bộ lọc trùng nhau. Bắt buộc chọn MỘT
        cơ sở cụ thể (không có "tất cả") — gộp nhiều cơ sở là mỗi cơ sở một bộ ghế khác nhau, và
        cột Cộng của hàng mất nghĩa. */
-    + '<div class="card"><h2>📋 ' + L('Bảng chéo Ghế × Ngày (cả năm)','Chair × day grid (whole year)') + '</h2>'
-    + '<p class="mut">' + L('Mỗi ghế một dòng, mỗi ngày một cột — liên tục cả năm, không ngắt theo tháng. Hai bảng: Thực thu (tiền mặt + QR) và riêng Tiền QR. Chọn một cơ sở cụ thể ở ô trên rồi bấm Xem.',
-      'One row per chair, one column per day — continuous through the year, no month breaks. Two tables: Actual (cash + QR) and QR only. Pick one specific site above then click Xem.') + '</p>'
+    + '<div class="card"><h2>📋 ' + L('Bảng chéo Ghế × Ngày','Chair × day grid') + '</h2>'
+    + '<p class="mut">' + L('Mỗi ghế một dòng, mỗi ngày một cột. Hai bảng: Thực thu (tiền mặt + QR) và riêng Tiền QR. Chọn một cơ sở cụ thể ở ô trên rồi bấm Xem.',
+      'One row per chair, one column per day. Two tables: Actual (cash + QR) and QR only. Pick one specific site above then click Xem.') + '</p>'
+    /* 🔴 Ô LỌC THÁNG — anh Thắng 02/09/2026: *"bổ sung lọc theo tháng"*. Cả năm là 365 cột: muốn
+       nhìn một ngày giữa tháng bảy phải kéo ngang gần hết bảng, và không đối chiếu nổi hai ghế
+       ở hai đầu màn. Chọn một tháng thì còn 31 cột, vừa một màn.
+       Ô này đứng RIÊNG ở khối bảng chéo, không nhét lên dải lọc chung phía trên: khối trên vốn
+       đã gộp sẵn theo tháng (bấm tháng để mở), thêm ô tháng vào đó là hai thứ cùng tên làm hai
+       việc khác nhau. Mặc định vẫn CẢ NĂM, đúng thứ anh dựng bảng này để xem. */
+    + '<div class="act" style="flex-wrap:wrap"><b>' + L('Tháng','Month') + ':</b>'
+    + '<select id="kcg-thang" style="max-width:170px">' + kcgOptThang() + '</select>'
+    + '<span class="mut">' + L('Cả năm = 365 cột, chọn một tháng cho gọn.','Whole year = 365 columns; pick a month to narrow it.') + '</span></div>'
     + '<div id="kcg-wrap" style="margin-top:12px"></div></div>';
 }
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -5277,9 +5287,21 @@ function bctXuat(){
   document.body.appendChild(a); a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
+function kcgOptThang(){
+  var o = '<option value="">' + L('Cả năm','Whole year') + '</option>';
+  for (var i = 1; i <= 12; i++) {
+    var v = (i < 10 ? '0' : '') + i;
+    o += '<option value="' + v + '"' + (KCG_THANG === v ? ' selected' : '') + '>' + L('Tháng ','Month ') + v + '</option>';
+  }
+  return o;
+}
 function klsInit(){
   var s = document.getElementById('kls-coso'), n = document.getElementById('kls-nam'), b = document.getElementById('kls-xem');
   if (b) b.onclick = function(){ KLS_COSO = s ? s.value : ''; KLS_NAM = (n && n.value) ? n.value : KLS_NAM; KLS_MO = {}; klsLoad(); kcgLoad(); };
+  /* Đổi tháng là nạp lại NGAY, không phải bấm Xem: nút Xem ở dải trên thuộc về khối theo tháng,
+     bắt người ta chạy lên đó bấm cho một ô nằm dưới này là đúng kiểu nút không ở cạnh việc. */
+  var mt = document.getElementById('kcg-thang');
+  if (mt) mt.onchange = function(){ KCG_THANG = mt.value; kcgLoad(); };
   klsLoad();
   kcgLoad();
 }
@@ -5288,10 +5310,17 @@ function kcgLoad(){
   box.textContent = '';
   if (!KLS_COSO) { box.appendChild(ktEl('p','mut',L('Chọn một cơ sở cụ thể ở ô trên để xem bảng này.','Pick one specific site above to see this table.'))); return; }
   box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
-  goi('kt_bangcheo', { coso: KLS_COSO, nam: KLS_NAM }, function(r){
+  goi('kt_bangcheo', { coso: KLS_COSO, nam: KLS_NAM, thang: KCG_THANG }, function(r){
     box.textContent = '';
     if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
-    if (!r.ngay.length || !r.ghe.length) { box.appendChild(ktEl('p','mut',L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
+    /* Nói thẳng KHOẢNG nào đang xem. Một bảng ba mươi mốt cột trông y hệt một bảng cả năm bị
+       cuộn tới đoạn giữa — thiếu dòng này là kế toán không có cách nào biết mình đang nhìn gì. */
+    var khoang = r.thang ? (L('Tháng ','Month ') + r.thang + '/' + r.nam) : (L('Cả năm ','Whole year ') + r.nam);
+    if (!r.ngay.length || !r.ghe.length) {
+      box.appendChild(ktEl('p','mut', khoang + ' — ' + L('chưa có dữ liệu.','no data.')));
+      return;
+    }
+    box.appendChild(ktEl('div','mut', khoang + ' · ' + r.ghe.length + ' ' + L('ghế','chairs') + ' · ' + r.ngay.length + ' ' + L('ngày có số','days with data')));
     /* 🔴 HAI BẢNG, MỘT BỘ DỮ LIỆU — anh Thắng 02/09/2026: *"thêm bảng này theo tiền QR"* (ảnh
        chính bảng chéo Ghế × Ngày).
 

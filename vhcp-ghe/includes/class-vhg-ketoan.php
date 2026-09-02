@@ -1482,21 +1482,37 @@ class VHG_KeToan {
 	 * ⚠️ KHÁC `lich_su()`: hàm đó gộp theo THÁNG (ghế chỉ có chỉ số ĐẦU→CUỐI của cả tháng). Hàm
 	 *    này giữ NGUYÊN từng ngày, từng ghế — đúng dáng bảng cũ, để đối chiếu quen mắt.
 	 */
-	public static function bang_cheo( $coso, $nam ) {
+	public static function bang_cheo( $coso, $nam, $thang = '' ) {
 		global $wpdb;
 		$nam = preg_match( '/^\d{4}$/', (string) $nam ) ? (string) $nam : current_time( 'Y' );
 		$coso = trim( (string) $coso );
 		if ( '' === $coso ) { return array( 'ok' => false, 'error' => 'Chọn một cơ sở.' ); }
 		$ck = self::squash( $coso );
+
+		/* 🔴 LỌC THEO THÁNG — anh Thắng 02/09/2026: *"bổ sung lọc theo tháng"*, kèm ảnh bảng cả
+		   năm phải kéo ngang qua ba trăm sáu lăm cột mới tới ngày cần xem.
+
+		   ⚠️ LỌC Ở TRUY VẤN, KHÔNG LỌC Ở TRANG. Cắt bớt cột sau khi đã tải cả năm về thì vẫn
+		      phải kéo cả năm dữ liệu qua đường truyền và vẫn phải dựng cả năm trong trí nhớ —
+		      chỉ đỡ mỏi mắt, không đỡ chậm. Lọc thẳng ở đây thì cơ sở ba trăm ghế × một tháng
+		      chỉ còn một phần mười hai số dòng.
+
+		   ⚠️ THÁNG KHÔNG HỢP LỆ COI NHƯ CẢ NĂM, không coi như tháng 1. Ô chọn gửi lên chuỗi rỗng
+		      cho "cả năm"; nhận nhầm thành tháng 1 là kế toán mở bảng ra thấy đúng một tháng
+		      trong khi tưởng đang xem cả năm — và không có gì trên màn nói khác đi. */
+		$thang = preg_match( '/^(0[1-9]|1[0-2])$/', (string) $thang ) ? (string) $thang : '';
+		$dinh_dang = ( '' !== $thang ) ? '%Y-%m' : '%Y';
+		$moc = ( '' !== $thang ) ? ( $nam . '-' . $thang ) : $nam;
+
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			'SELECT d.ngay, d.ma_may, d.ten, d.chi_so_sau, d.actual, d.qr'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
 			. ' WHERE h.coso_key=%s AND DATE_FORMAT(d.ngay,%s)=%s'
 			. ' AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)'
-			. ' ORDER BY d.ngay ASC, d.ma_may ASC', $ck, '%Y', $nam ), ARRAY_A );
+			. ' ORDER BY d.ngay ASC, d.ma_may ASC', $ck, $dinh_dang, $moc ), ARRAY_A );
 
-		/* Cột GHẾ theo đúng thứ tự mã (khớp cách xếp trong ảnh cũ), gom từ CHÍNH dữ liệu năm này
-		   — cơ sở nào ghế đó, không lôi danh mục cả hệ vào làm bảng rộng vô ích. */
+		/* Cột GHẾ theo đúng thứ tự mã (khớp cách xếp trong ảnh cũ), gom từ CHÍNH dữ liệu khoảng
+		   đang xem — cơ sở nào ghế đó, không lôi danh mục cả hệ vào làm bảng rộng vô ích. */
 		$ten_ghe = array();
 		$o_theo_ngay = array();
 		foreach ( (array) $rows as $r ) {
@@ -1521,7 +1537,7 @@ class VHG_KeToan {
 		$ds_ngay = array();
 		foreach ( $o_theo_ngay as $ng => $o ) { $ds_ngay[] = array( 'ngay' => $ng, 'o' => $o ); }
 
-		return array( 'ok' => true, 'coso' => $coso, 'nam' => $nam, 'ghe' => $ds_ghe, 'ngay' => $ds_ngay );
+		return array( 'ok' => true, 'coso' => $coso, 'nam' => $nam, 'thang' => $thang, 'ghe' => $ds_ghe, 'ngay' => $ds_ngay );
 	}
 
 	/**

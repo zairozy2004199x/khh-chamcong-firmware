@@ -321,6 +321,81 @@ t('và cũng không tô đỏ ô theo chỉ số', /\(coCs && lech \? ' kcg-lech
 t('bảng QR cũng nằm trong khung cuộn (dựng khung rồi TRẢ chính khung ấy)',
 	/var sc = ktEl\('div','table-scroll'\);/.test(bang) && /sc\.appendChild\(t\);\s*\n\s*return sc;/.test(bang), null);
 
+/* ---------- 6f. LỌC THEO THÁNG CHO BẢNG CHÉO ----------
+   Anh Thắng 02/09/2026: *"bổ sung lọc theo tháng"*, kèm ảnh bảng cả năm — 365 cột, muốn nhìn
+   một ngày giữa tháng bảy phải kéo ngang gần hết bảng.
+
+   🔴 LỌC PHẢI Ở TRUY VẤN, KHÔNG Ở TRANG. Cắt bớt cột sau khi đã tải cả năm về thì vẫn kéo cả
+      năm dữ liệu qua đường truyền và vẫn dựng cả năm trong trí nhớ — chỉ đỡ mỏi mắt, không đỡ
+      chậm. */
+t('bang_cheo() nhận thêm tham số tháng, mặc định rỗng',
+	/public static function bang_cheo\( \$coso, \$nam, \$thang = '' \) \{/.test(bc_php), null);
+t('🔴 truy vấn đổi ĐỊNH DẠNG và MỐC theo tháng, không còn cắm cứng %Y',
+	/\$dinh_dang = \( '' !== \$thang \) \? '%Y-%m' : '%Y';/.test(bc_php)
+	&& /\$moc = \( '' !== \$thang \) \? \( \$nam \. '-' \. \$thang \) : \$nam;/.test(bc_php)
+	&& /\$ck, \$dinh_dang, \$moc \), ARRAY_A \);/.test(bc_php)
+	&& bc_php.indexOf("$ck, '%Y', $nam ), ARRAY_A );") < 0, null);
+t('và trả về tháng đang xem để trang nói đúng khoảng', /'thang' => \$thang,/.test(bc_php), null);
+t('cổng chuyển tiếp tham số thang xuống', /bang_cheo\([\s\S]{0,140}\$d\['thang'\] : ''/.test(tr), null);
+
+/* ⚠️ BỐC CHÍNH KHUÔN LỌC TỪ NGUỒN RA CHẠY, không chép lại một khuôn giống giống. Bản chép sẽ
+   xanh mãi kể cả khi khuôn thật đã đổi — mà đây là chỗ chuỗi của người dùng đi thẳng vào một
+   câu SQL, nên "giống giống" không đủ. */
+const mKhuon = bc_php.match(/\$thang = preg_match\( '\/\^([^']+)\$\/', \(string\) \$thang \) \? \(string\) \$thang : ('[^']*');/);
+t('bốc được khuôn lọc tháng từ nguồn', !!mKhuon, mKhuon && mKhuon[1]);
+if (mKhuon) {
+	const re = new RegExp('^' + mKhuon[1] + '$');
+	['01','02','06','09','10','11','12'].forEach(function (x) {
+		t('tháng hợp lệ "' + x + '" lọt qua khuôn', re.test(x), x);
+	});
+	/* 🔴 Hai chỗ dễ sai nhất: "1" (thiếu số 0) và "00"/"13" — cả ba đều không phải tháng, mà cả
+	   ba đều trông như số. Lọt một cái là DATE_FORMAT so với "2026-1" và bảng ra rỗng, im lặng. */
+	['', '0', '1', '00', '13', '99', '1;DROP', '0a', ' 01', '012'].forEach(function (x) {
+		t('🔴 chuỗi không phải tháng "' + x + '" bị chặn', !re.test(x), x);
+	});
+	/* 🔴 THÁNG SAI PHẢI VỀ CẢ NĂM, KHÔNG VỀ THÁNG 1. Ô chọn gửi lên chuỗi rỗng cho "cả năm";
+	   nhận nhầm thành '01' là kế toán tưởng đang xem cả năm mà thật ra chỉ thấy tháng giêng. */
+	t("🔴 tháng sai/rỗng thì rơi về CẢ NĂM (''), không về '01'", "''" === mKhuon[2], mKhuon[2]);
+}
+
+/* ---------- 6g. Ô LỌC THÁNG TRÊN TRANG ---------- */
+t('có ô chọn tháng riêng ở khối bảng chéo', tr.indexOf("id=\"kcg-thang\"") > 0, null);
+t('🔴 mặc định là CẢ NĂM', /var KCG_THANG = '';/.test(tr), null);
+t('🔴 đổi tháng thì nạp lại ngay, không phải bấm Xem',
+	/mt\.onchange = function\(\)\{ KCG_THANG = mt\.value; kcgLoad\(\); \};/.test(tr), null);
+t('🔴 và tháng được GỬI LÊN máy chủ',
+	/goi\('kt_bangcheo', \{ coso: KLS_COSO, nam: KLS_NAM, thang: KCG_THANG \}/.test(kcg), null);
+/* Một bảng ba mươi mốt cột trông y hệt một bảng cả năm bị cuộn tới đoạn giữa — thiếu dòng nói
+   rõ khoảng là kế toán không có cách nào biết mình đang nhìn gì. */
+t('🔴 màn nói rõ đang xem tháng nào / cả năm',
+	/var khoang = r\.thang \? \(L\('Tháng ','Month '\) \+ r\.thang \+ '\/' \+ r\.nam\) : /.test(kcg), null);
+t('câu "chưa có dữ liệu" cũng nói rõ khoảng nào', /khoang \+ ' — ' \+ L\('chưa có dữ liệu\./.test(kcg), null);
+t('tiêu đề khối không còn hứa "cả năm"',
+	tr.indexOf("L('Bảng chéo Ghế × Ngày','Chair × day grid')") > 0
+	&& tr.indexOf('Bảng chéo Ghế × Ngày (cả năm)') < 0, null);
+
+/* ⚠️ BỐC HÀM DỰNG Ô CHỌN RA CHẠY THẬT, không đếm chữ "option" trong tệp. */
+const iOpt = tr.indexOf('function kcgOptThang(');
+const jOpt = tr.indexOf('function klsInit(', iOpt);
+t('bốc được hàm dựng ô chọn tháng', iOpt > 0 && jOpt > iOpt);
+if (iOpt > 0 && jOpt > iOpt) {
+	const fn = new Function('L', 'KCG_THANG', tr.slice(iOpt, jOpt) + '; return kcgOptThang();');
+	const html = fn(function (a) { return a; }, '');
+	const vals = (html.match(/value="([^"]*)"/g) || []).map(function (x) { return x.slice(7, -1); });
+	teq('đủ 13 lựa chọn: cả năm + 12 tháng', 13, vals.length);
+	teq('giá trị đúng dạng hai chữ số, cả năm là rỗng',
+		['', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'], vals);
+	/* 🔴 Mọi giá trị hàm này đẻ ra đều phải lọt qua chính khuôn lọc của máy chủ — hai bên lệch
+	   nhau là ô chọn có tháng mà chọn vào thì bảng rỗng. */
+	if (mKhuon) {
+		const re2 = new RegExp('^' + mKhuon[1] + '$');
+		const xau = vals.filter(function (v) { return '' !== v && !re2.test(v); });
+		teq('🔴 ô chọn và khuôn lọc máy chủ khớp nhau', [], xau);
+	}
+	const html2 = fn(function (a) { return a; }, '07');
+	t('tháng đang chọn được đánh dấu selected', html2.indexOf('value="07" selected') > 0, null);
+}
+
 /* ---------- 7. MÃ KH: khai được, và KHÔNG bị xoá khi sửa việc khác ---------- */
 const may_php = fs.readFileSync('vhcp-ghe/includes/class-vhg-may.php', 'utf8');
 t('luu_coso() nhận ma_kh', /function luu_coso\( \$id, \$ten, \$tinh = null, \$ma_kh = null \)/.test(may_php));
