@@ -3086,6 +3086,54 @@ function goi(viec, d, xong0){
   x.send(JSON.stringify(d));
 }
 
+// ------------------------------------------------------------------ gắn mã máy (chỉ Admin)
+/* Máy mới lên mạng mà chưa có mã (ma bắt đầu bằng '?') nằm CHỜ GÁN. Chọn cơ sở + nhập mã rồi
+   Gắn. Dùng lại DỮ LIỆU sẵn (D.choGan, D.coso) và API 'gan_ma' — nút [data-gan]/[data-gma]/
+   [data-gcs] được noi() gắn sự kiện y như tab Quản lý ghế, nên khỏi viết lại logic gán. */
+function veGanMa(){
+  var list = (D && D.choGan) ? D.choGan : [];
+  var coso = (D && D.coso) ? D.coso : [];
+  var h = '<h2>' + L('Gắn mã máy','Assign chair codes') + '</h2>';
+  h += '<p style="opacity:.85">' + L('Máy vừa lên mạng mà chưa có mã sẽ nằm chờ ở đây. Chọn cơ sở, nhập mã máy (VD AMTP01) rồi bấm Gắn.',
+    'New chairs online without a code wait here. Pick a branch, enter the code (e.g. AMTP01), then Assign.') + '</p>';
+  if (!list.length) {
+    h += '<div class="note" style="opacity:.9">' + L('Chưa có máy nào chờ gán. Máy mới cắm điện + vào mạng sẽ tự hiện ở đây — bấm ↻ trên cùng để làm mới.',
+      'No chairs waiting. A newly powered, online chair shows up here — press ↻ at the top to refresh.') + '</div>';
+    return h;
+  }
+  function optCoso(){
+    var o = '<option value="0">' + L('— chọn cơ sở —','— pick branch —') + '</option>';
+    coso.forEach(function(c){
+      o += '<option value="' + c.id + '">' + esc(c.ten) + (c.tinh ? ' (' + esc(c.tinh) + ')' : '') + '</option>';
+    });
+    return o;
+  }
+  h += '<p style="opacity:.85"><b>' + list.length + '</b> ' + L('máy đang chờ gán.','chairs waiting.') + '</p>';
+  h += '<div style="overflow-x:auto"><table class="tb" style="border-collapse:collapse;min-width:640px;background:#fff;border:1px solid var(--line);border-radius:8px">';
+  h += '<thead><tr>'
+     + '<th style="text-align:left;padding:8px 10px">' + L('Máy (MAC)','Chair (MAC)') + '</th>'
+     + '<th style="padding:8px 10px">' + L('Trạng thái','Status') + '</th>'
+     + '<th style="padding:8px 10px">' + L('Cơ sở','Branch') + '</th>'
+     + '<th style="padding:8px 10px">' + L('Mã máy','Chair code') + '</th>'
+     + '<th style="padding:8px 10px"></th></tr></thead><tbody>';
+  list.forEach(function(m){
+    var cu = m.ma;
+    var song = m.song
+      ? '<span style="color:#1f7a44;font-weight:600">● ' + L('đang sống','online') + '</span>'
+      : '<span style="color:#b23636">○ ' + L('mất mạng','offline') + '</span>';
+    h += '<tr>'
+      + '<td style="padding:8px 10px"><code style="font-size:12px">' + esc(m.mac || cu) + '</code></td>'
+      + '<td style="padding:8px 10px;text-align:center">' + song + '</td>'
+      + '<td style="padding:8px 10px"><select data-gcs="' + esc(cu) + '">' + optCoso() + '</select></td>'
+      + '<td style="padding:8px 10px"><input data-gma="' + esc(cu) + '" placeholder="AMTP01" maxlength="20" '
+        + 'style="width:120px;text-transform:uppercase"></td>'
+      + '<td style="padding:8px 10px"><button data-gan="' + esc(cu) + '">' + L('Gắn','Assign') + '</button></td>'
+      + '</tr>';
+  });
+  h += '</tbody></table></div>';
+  return h;
+}
+
 // ------------------------------------------------------------------ nạp firmware (chỉ Admin)
 /* Nạp firmware ghế NGAY trong app: nạp USB qua Web Serial (dùng merged.bin quản trị đã tải),
    link cho thợ nạp, và nút mở trang tải file (wp-admin). URL đến từ window.VHG_FW (PHP nhúng). */
@@ -3298,6 +3346,7 @@ function ve(){
   TABS.push(['bc-doanhthu', '📋 ' + L('Báo cáo doanh thu','Revenue report')]);
   if (QT) TABS.push(['kich-hoat', '⚡ ' + L('Kích hoạt ghế','Chair activation')]);
   if (QT) TABS.push(['quan-ly', '🪑 ' + L('Quản lý ghế','Chairs &amp; sites')]);
+  if (QT) TABS.push(['gan-ma', '🔖 ' + L('Gắn mã máy','Assign codes')]);
   if (QT) TABS.push(['nhat-ky-may', '🔌 ' + L('Lịch sử tắt mở máy','Power on/off log')]);
   if (QT) TABS.push(['ma', '🎁 ' + L('Mã giảm giá','Discount codes')]);
   /* PIN nhân viên báo cáo — Admin hoặc vai trò Quản trị (cấp PIN cho nhân viên mình quản lý). */
@@ -3431,6 +3480,7 @@ function ve(){
   if (TAB === 'kt-nhap')    { h += veKtNhap()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kich-hoat')  { h += veKichHoat()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'gan-ma')     { h += veGanMa()     + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nap-fw')    { h += veNapFw()    + '</div>'; app.innerHTML = h; noi(); return; }
