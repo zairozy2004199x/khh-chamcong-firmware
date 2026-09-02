@@ -1520,6 +1520,150 @@ class VHG_KeToan {
 		return array( 'ok' => true, 'coso' => $coso, 'nam' => $nam, 'ghe' => $ds_ghe, 'ngay' => $ds_ngay );
 	}
 
+	/**
+	 * BÁO CÁO TỔNG — bảng chéo (cơ sở | ghế) × NGÀY, cho cả chuỗi, trong một khoảng ngày.
+	 *
+	 * Anh Thắng 01/09/2026, ba ảnh mẫu Excel: *"báo cáo tổng"* (theo cơ sở), *"từng điểm theo
+	 * ngày"* (theo từng ghế), *"QR theo ngày"* (cùng dạng, đổi sang cột QR).
+	 *
+	 * 🔴 BA BÁO CÁO, MỘT HÀM. Chúng khác nhau đúng hai chỗ: gộp theo CƠ SỞ hay theo GHẾ, và lấy
+	 *    cột TỔNG hay QR hay TIỀN MẶT. Viết ba hàm là ba nơi cùng đọc một bảng rồi sớm muộn ra
+	 *    ba con số khác nhau cho cùng một ngày — mà kế toán thì đối chiếu chéo giữa chúng.
+	 *
+	 * ⚠️ LIỆT KÊ ĐỦ CƠ SỞ, KỂ CẢ CƠ SỞ KHÔNG CÓ ĐỒNG NÀO. Ảnh mẫu có "BỆNH VIỆN 175" và
+	 *    "BZONE THẢO ĐIỀN" nằm nguyên dòng với toàn dấu gạch. Bỏ chúng đi thì bảng ngắn hơn
+	 *    nhưng người đọc mất đúng thông tin đáng giá nhất: chỗ nào đang không ra tiền. Một cơ sở
+	 *    vắng khỏi bảng trông y hệt một cơ sở chưa mở.
+	 *
+	 * ⚠️ TRẦN SỐ NGÀY. Mỗi ngày là một cột; chọn nhầm cả năm là 365 cột × 300 ghế = bảng không
+	 *    trình duyệt nào dựng nổi. Chặn ở 92 ngày (một quý) và nói rõ, thay vì để nó treo máy.
+	 *
+	 * @param string $tu  yyyy-mm-dd
+	 * @param string $den yyyy-mm-dd
+	 * @param string $muc 'coso' (gộp theo cơ sở) | 'ghe' (từng ghế)
+	 * @param string $cot 'tong' | 'qr' | 'tien_mat'
+	 */
+	const BCT_MAX_NGAY = 92;
+
+	public static function bao_cao_tong( $tu, $den, $muc = 'coso', $cot = 'tong' ) {
+		global $wpdb;
+		$tu  = self::ngay_( $tu );
+		$den = self::ngay_( $den );
+		if ( '' === $tu || '' === $den ) { return array( 'ok' => false, 'error' => 'Thiếu khoảng ngày.' ); }
+		if ( $tu > $den ) { $x = $tu; $tu = $den; $den = $x; }
+		$so_ngay = 1 + (int) floor( ( strtotime( $den ) - strtotime( $tu ) ) / 86400 );
+		if ( $so_ngay > self::BCT_MAX_NGAY ) {
+			return array( 'ok' => false, 'error' => 'Khoảng ' . $so_ngay . ' ngày là quá rộng — mỗi ngày một cột. '
+				. 'Chọn tối đa ' . self::BCT_MAX_NGAY . ' ngày (một quý).' );
+		}
+		$muc = ( 'ghe' === $muc ) ? 'ghe' : 'coso';
+		if ( ! in_array( $cot, array( 'tong', 'qr', 'tien_mat' ), true ) ) { $cot = 'tong'; }
+
+		/* Dãy ngày dựng từ KHOẢNG CHỌN, không từ dữ liệu: ngày không ai thu vẫn phải là một cột
+		   trống, nếu không thì bảng nhảy cóc và người đọc tưởng mình chọn sai ngày. */
+		$ds_ngay = array();
+		for ( $t = strtotime( $tu ); $t <= strtotime( $den ); $t += 86400 ) {
+			$ds_ngay[] = gmdate( 'Y-m-d', $t );
+		}
+
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			'SELECT d.ngay, d.ma_may, d.ten, d.tong, d.qr, d.tien_mat, h.coso'
+			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
+			. ' WHERE d.ngay BETWEEN %s AND %s'
+			. ' AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)', $tu, $den ), ARRAY_A );
+
+		/* Danh mục CƠ SỞ và GHẾ lấy từ cấu hình, không từ dữ liệu — xem khối ⚠️ ở trên. */
+		$ma_kh = array();
+		$tinh  = array();
+		foreach ( (array) VHG_May::ds_coso() as $c ) {
+			$ma_kh[ (string) $c['ten'] ] = (string) ( isset( $c['ma_kh'] ) ? $c['ma_kh'] : '' );
+			$tinh[ (string) $c['ten'] ]  = (string) ( isset( $c['tinh'] ) ? $c['tinh'] : '' );
+		}
+		$ghe_cua = array();   // coso => [ ma => ten ]
+		$dem_ghe = array();
+		/* ⚠️ `ds_may()`, KHÔNG phải `ds()` — lớp này không có hàm `ds()`, gọi nhầm là lỗi chí tử
+		   lúc chạy chứ không phải lúc nạp tệp, tức là chỉ lộ ra khi kế toán bấm Xem. */
+		foreach ( (array) VHG_May::ds_may() as $m ) {
+			if ( ! empty( $m['an'] ) ) { continue; }
+			$cs = (string) ( isset( $m['coso_ten'] ) ? $m['coso_ten'] : '' );
+			if ( '' === $cs ) { continue; }
+			if ( ! isset( $ghe_cua[ $cs ] ) ) { $ghe_cua[ $cs ] = array(); }
+			$ghe_cua[ $cs ][ (string) $m['ma'] ] = (string) ( '' !== (string) $m['ten_khai'] ? $m['ten_khai'] : $m['ma'] );
+			$dem_ghe[ $cs ] = ( isset( $dem_ghe[ $cs ] ) ? $dem_ghe[ $cs ] : 0 ) + 1;
+		}
+
+		/* o[ khoá hàng ][ ngày ] = số tiền. Khoá hàng: tên cơ sở, hoặc "cơ sở|mã ghế". */
+		$o = array();
+		foreach ( (array) $rows as $r ) {
+			$cs  = (string) $r['coso'];
+			$ng  = self::ngay_( $r['ngay'] );
+			$key = ( 'coso' === $muc ) ? $cs : ( $cs . '|' . (string) $r['ma_may'] );
+			$v   = (int) $r[ $cot ];
+			if ( ! isset( $o[ $key ] ) ) { $o[ $key ] = array(); }
+			$o[ $key ][ $ng ] = ( isset( $o[ $key ][ $ng ] ) ? $o[ $key ][ $ng ] : 0 ) + $v;
+			/* Ghế có dữ liệu mà chưa nằm trong danh mục (đã xoá/đổi mã) vẫn phải hiện — số của
+			   nó là tiền thật đã vào sổ. Thêm vào danh mục ngay tại đây. */
+			if ( 'ghe' === $muc && ! isset( $ghe_cua[ $cs ][ (string) $r['ma_may'] ] ) ) {
+				if ( ! isset( $ghe_cua[ $cs ] ) ) { $ghe_cua[ $cs ] = array(); }
+				$ghe_cua[ $cs ][ (string) $r['ma_may'] ] = (string) $r['ten'];
+			}
+		}
+
+		$ds_cs = array_keys( $ma_kh );
+		foreach ( $o as $k => $_ ) {
+			$cs = ( 'coso' === $muc ) ? $k : substr( $k, 0, strpos( $k . '|', '|' ) );
+			if ( ! in_array( $cs, $ds_cs, true ) ) { $ds_cs[] = $cs; }
+		}
+		sort( $ds_cs );
+
+		$hang = array();
+		$tong_cot = array_fill_keys( $ds_ngay, 0 );
+		$tong_all = 0;
+		foreach ( $ds_cs as $cs ) {
+			if ( 'coso' === $muc ) {
+				$hang[] = self::bct_hang_( $cs, $ma_kh, $tinh, $dem_ghe, $cs, '', $o, $ds_ngay, $tong_cot, $tong_all );
+				continue;
+			}
+			$ds_g = isset( $ghe_cua[ $cs ] ) ? $ghe_cua[ $cs ] : array();
+			ksort( $ds_g );
+			if ( ! $ds_g ) {
+				$hang[] = self::bct_hang_( $cs, $ma_kh, $tinh, $dem_ghe, $cs . '|', '', $o, $ds_ngay, $tong_cot, $tong_all );
+				continue;
+			}
+			foreach ( $ds_g as $ma => $ten ) {
+				$hang[] = self::bct_hang_( $cs, $ma_kh, $tinh, $dem_ghe, $cs . '|' . $ma, $ma, $o, $ds_ngay, $tong_cot, $tong_all, $ten );
+			}
+		}
+
+		return array( 'ok' => true, 'tu' => $tu, 'den' => $den, 'muc' => $muc, 'cot' => $cot,
+			'ngay' => $ds_ngay, 'hang' => $hang,
+			'tongCot' => array_values( $tong_cot ), 'tong' => $tong_all,
+			'soGhe' => array_sum( $dem_ghe ) );
+	}
+
+	/** Một hàng của báo cáo tổng. Tách ra để hai nhánh (cơ sở / ghế) dùng CHUNG phép cộng. */
+	private static function bct_hang_( $cs, $ma_kh, $tinh, $dem_ghe, $key, $ma_ghe, $o, $ds_ngay, &$tong_cot, &$tong_all, $ten_ghe = '' ) {
+		$so = array();
+		$tong_hang = 0;
+		foreach ( $ds_ngay as $ng ) {
+			$v = isset( $o[ $key ][ $ng ] ) ? (int) $o[ $key ][ $ng ] : 0;
+			$so[] = $v;
+			$tong_hang += $v;
+			$tong_cot[ $ng ] += $v;
+			$tong_all += $v;
+		}
+		return array(
+			'coso'   => $cs,
+			'maKH'   => isset( $ma_kh[ $cs ] ) ? $ma_kh[ $cs ] : '',
+			'tinh'   => isset( $tinh[ $cs ] ) ? $tinh[ $cs ] : '',
+			'soGhe'  => isset( $dem_ghe[ $cs ] ) ? (int) $dem_ghe[ $cs ] : 0,
+			'maGhe'  => (string) $ma_ghe,
+			'tenGhe' => (string) $ten_ghe,
+			'so'     => $so,
+			'tong'   => $tong_hang,
+		);
+	}
+
 	// ══════════════════════════════════════════════════════════════════ NHẬP DOANH THU CŨ (CSV)
 
 	/**

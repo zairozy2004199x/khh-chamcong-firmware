@@ -26,7 +26,14 @@ class VHG_May {
 		return VHG_DB::rows( 'SELECT * FROM ' . VHG_DB::t( 'coso' ) . ' ORDER BY ten ASC' );
 	}
 
-	public static function luu_coso( $id, $ten, $tinh = null ) {
+	/**
+	 * @param string|null $ma_kh Mã khách hàng bên sổ kế toán (KH00108…). null = KHÔNG đụng.
+	 *
+	 * ⚠️ `null` KHÁC chuỗi rỗng, và sự khác nhau ấy quan trọng. Mọi chỗ gọi hàm này từ trước
+	 *    (đổi tên cơ sở, thêm cơ sở lúc gán ghế…) đều không truyền `ma_kh` — nếu coi thiếu tham
+	 *    số là "đặt về rỗng" thì mỗi lần ai đó sửa tên một cơ sở là mã KH của nó bị xoá, im lặng.
+	 */
+	public static function luu_coso( $id, $ten, $tinh = null, $ma_kh = null ) {
 		global $wpdb;
 		$ten = trim( (string) $ten );
 		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở.' ); }
@@ -34,18 +41,25 @@ class VHG_May {
 		/* `tinh` (tỉnh/thành) — null = KHÔNG đụng (giữ nguyên), chuỗi = đặt lại. Để lọc theo địa bàn. */
 		$co_tinh = ( null !== $tinh );
 		$tinh = mb_substr( trim( (string) $tinh ), 0, 120 );
+		$co_makh = ( null !== $ma_kh );
+		$ma_kh = mb_substr( trim( (string) $ma_kh ), 0, 40 );
 		if ( (int) $id > 0 ) {
 			$data = array( 'ten' => $ten );
 			if ( $co_tinh ) { $data['tinh'] = $tinh; }
+			if ( $co_makh ) { $data['ma_kh'] = $ma_kh; }
 			$wpdb->update( $bang, $data, array( 'id' => (int) $id ) );
 			return array( 'ok' => true, 'id' => (int) $id, 'thong_bao' => 'Đã lưu cơ sở.' );
 		}
 		$co = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM $bang WHERE ten=%s LIMIT 1", $ten ) );
 		if ( $co ) {
-			if ( $co_tinh ) { $wpdb->update( $bang, array( 'tinh' => $tinh ), array( 'id' => (int) $co ) ); }
+			$data_cu = array();
+			if ( $co_tinh ) { $data_cu['tinh'] = $tinh; }
+			if ( $co_makh ) { $data_cu['ma_kh'] = $ma_kh; }
+			if ( $data_cu ) { $wpdb->update( $bang, $data_cu, array( 'id' => (int) $co ) ); }
 			return array( 'ok' => true, 'id' => (int) $co, 'thong_bao' => 'Cơ sở này đã có.' );
 		}
-		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '' ) );
+		$wpdb->insert( $bang, array( 'ten' => $ten, 'tinh' => $co_tinh ? $tinh : '',
+			'ma_kh' => $co_makh ? $ma_kh : '' ) );
 		return array( 'ok' => true, 'id' => (int) $wpdb->insert_id, 'thong_bao' => 'Đã thêm cơ sở ' . $ten . '.' );
 	}
 

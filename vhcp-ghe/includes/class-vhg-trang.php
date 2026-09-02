@@ -333,6 +333,12 @@ class VHG_Trang {
 			if ( 'kt_selftest' === $viec )    { self::tra( VHG_KeToan::selftest() ); return; }
 			if ( 'kt_lichsu' === $viec )      { self::tra( VHG_KeToan::lich_su( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
 			if ( 'kt_bangcheo' === $viec )    { self::tra( VHG_KeToan::bang_cheo( isset( $d['coso'] ) ? $d['coso'] : '', isset( $d['nam'] ) ? $d['nam'] : '' ) ); return; }
+			if ( 'kt_bctong' === $viec ) {
+				self::tra( VHG_KeToan::bao_cao_tong(
+					isset( $d['tu'] ) ? $d['tu'] : '', isset( $d['den'] ) ? $d['den'] : '',
+					isset( $d['muc'] ) ? $d['muc'] : 'coso', isset( $d['cot'] ) ? $d['cot'] : 'tong' ) );
+				return;
+			}
 			if ( 'kt_import' === $viec ) {
 				/* Nhập doanh thu cũ GHI ĐÈ được cả tháng — chỉ Quản trị, không mở cho vai trò chốt. */
 				if ( empty( $q['quan_tri'] ) ) {
@@ -446,7 +452,8 @@ class VHG_Trang {
 		if ( 'coso_luu' === $viec ) {
 			$r = VHG_May::luu_coso( isset( $d['id'] ) ? (int) $d['id'] : 0,
 				isset( $d['ten'] ) ? $d['ten'] : '',
-				isset( $d['tinh'] ) ? $d['tinh'] : null );
+				isset( $d['tinh'] ) ? $d['tinh'] : null,
+				isset( $d['ma_kh'] ) ? $d['ma_kh'] : null );
 			if ( ! empty( $r['ok'] ) ) {
 				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' =>
 					$ai['name'] . ' lưu địa điểm: ' . (string) ( isset( $d['ten'] ) ? $d['ten'] : '' ) ) );
@@ -2717,6 +2724,19 @@ td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:v
 /* Viền mảnh + bo góc để nhìn ra đây là một vùng cuộn, không phải bảng bị hụt. */
 .table-scroll{border:1px solid var(--line);border-radius:10px}
 .table-scroll>table{margin:0}
+/* --- BÁO CÁO TỔNG: bảng chéo ba mươi cột ngày ---
+   🔴 CỘT TÊN CƠ SỞ PHẢI DÍNH KHI CUỘN NGANG. Ba mươi cột ngày thì cuộn tới giữa bảng là tên cơ
+      sở đã trôi khỏi màn — người đọc đang nhìn một dãy số không biết của ai. Đó không phải bất
+      tiện, đó là đọc sai sổ. */
+.bct td.bct-dinh,.bct th.bct-dinh{position:sticky;left:0;z-index:2;background:#fff;
+  box-shadow:1px 0 0 var(--line);min-width:190px;max-width:230px}
+.bct th.bct-dinh{z-index:3}
+.bct th{white-space:nowrap;font-size:10.5px;line-height:1.25}
+.bct .bct-ng{font-size:11.5px}
+.bct td{white-space:nowrap;font-variant-numeric:tabular-nums}
+/* Hàng TỔNG: nền đậm hơn và dính đáy, để cuộn dọc tới đâu vẫn đối chiếu được với nó. */
+.bct tr.bct-tong td{position:sticky;bottom:0;background:#eef2f8;border-top:2px solid var(--line);z-index:1}
+.bct tr.bct-tong td.bct-dinh{z-index:4;background:#eef2f8}
 tr:last-child td{border-bottom:0}
 .r{text-align:right}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
@@ -3488,6 +3508,7 @@ function ve(){
       T(QT || KT, 'kt-denghi', '⚖️ ' + L('Đề nghị &amp; yêu cầu','Requests')),
       T(QT || KT, 'kt-tien',   '💰 ' + L('Đối soát &amp; công nợ','Reconcile &amp; debt')),
       T(QT || KT, 'kt-xuat',   '📤 ' + L('Xuất MISA','Export MISA')),
+      T(QT || KT, 'kt-bctong', '📊 ' + L('Báo cáo tổng','Master report')),
       T(QT || KT, 'kt-lichsu', '🏢 ' + L('Doanh thu địa điểm','Site revenue')),
       T(QT,       'kt-nhap',   '📥 ' + L('Nhập doanh thu cũ','Import old data'))
     ]],
@@ -3619,6 +3640,7 @@ function ve(){
   if (TAB === 'bc-pin')     { h += veBcPin()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-duyet')   { h += veKtDuyet()  + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-denghi')  { h += veKtDenghi() + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'kt-bctong')  { h += veKtBcTong() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-lichsu')  { h += veKtLichSu() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-tien')    { h += veKtTien()   + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'kt-xuat')    { h += veKtXuat()   + '</div>'; app.innerHTML = h; noi(); return; }
@@ -5101,6 +5123,152 @@ function veKtLichSu(){
       'One row per day, one column pair per chair (meter · Actual) — continuous through the year, no month breaks. Pick one specific site above then click Xem.') + '</p>'
     + '<div id="kcg-wrap" style="margin-top:12px"></div></div>';
 }
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * BÁO CÁO TỔNG — bảng chéo (cơ sở | ghế) × NGÀY cho cả chuỗi.
+ *
+ * Anh Thắng 01/09/2026, ba ảnh mẫu Excel: *"báo cáo tổng"* · *"từng điểm theo ngày"* ·
+ * *"QR theo ngày"*. Ba cái ấy khác nhau đúng hai chỗ — gộp theo CƠ SỞ hay theo GHẾ, và lấy cột
+ * TỔNG hay QR hay TIỀN MẶT — nên ở đây là MỘT màn với hai dải nút, không phải ba màn.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+var BCT_TU = '', BCT_DEN = '', BCT_MUC = 'coso', BCT_COT = 'tong', BCT_DATA = null;
+function veKtBcTong(){
+  /* Mặc định: 14 ngày gần nhất. Ảnh mẫu anh gửi là 9→19 và 8/1→8/13 — tức người ta xem theo
+     KHOẢNG, không theo trọn tháng, nên hai ô ngày chứ không phải một ô tháng. */
+  if (!BCT_TU || !BCT_DEN) {
+    var d2 = new Date(), d1 = new Date(d2.getTime() - 13*86400000);
+    function iso(d){ return d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2); }
+    BCT_DEN = iso(d2); BCT_TU = iso(d1);
+  }
+  function nut(id, val, cur, nhan){
+    return '<button class="' + (val === cur ? 'on' : 'ghost') + '" data-' + id + '="' + val + '">' + nhan + '</button>';
+  }
+  return '<div class="card"><h2>📊 ' + L('Báo cáo tổng','Master report') + '</h2>'
+    + '<p class="mut">' + L('Bảng chéo cả chuỗi: mỗi dòng một cơ sở (hoặc một ghế), mỗi ngày một cột, cột Tổng ở cuối. Cơ sở không thu được đồng nào vẫn nằm nguyên một dòng — chỗ nào đang không ra tiền là thứ đáng thấy nhất.',
+      'Cross table for the whole chain: one row per site (or chair), one column per day, total at the end. Sites with no revenue still get a row.') + '</p>'
+    + '<div class="act" style="flex-wrap:wrap">'
+    + '<b>' + L('Từ ngày','From') + ':</b><input type="date" id="bct-tu" value="' + esc(BCT_TU) + '">'
+    + '<b>' + L('Đến ngày','To') + ':</b><input type="date" id="bct-den" value="' + esc(BCT_DEN) + '">'
+    + '<button id="bct-xem" class="on">' + L('Xem','Load') + '</button>'
+    + '<span style="flex:1"></span>'
+    + '<button id="bct-xuat" class="ghost">⬇ ' + L('Xuất .csv','Export .csv') + '</button>'
+    + '</div>'
+    + '<div class="act" style="flex-wrap:wrap;margin-top:8px">'
+    + '<b>' + L('Gộp theo','Group by') + ':</b>'
+    + nut('bctmuc', 'coso', BCT_MUC, L('Cơ sở','Site'))
+    + nut('bctmuc', 'ghe', BCT_MUC, L('Từng ghế','Each chair'))
+    + '<b style="margin-left:10px">' + L('Số liệu','Figures') + ':</b>'
+    + nut('bctcot', 'tong', BCT_COT, L('Tổng','Total'))
+    + nut('bctcot', 'qr', BCT_COT, 'QR')
+    + nut('bctcot', 'tien_mat', BCT_COT, L('Tiền mặt','Cash'))
+    + '</div>'
+    + '<div id="bct-wrap" style="margin-top:12px"></div></div>';
+}
+function bctInit(){
+  var b = document.getElementById('bct-xem');
+  if (b) b.onclick = function(){
+    var t = document.getElementById('bct-tu'), d = document.getElementById('bct-den');
+    BCT_TU = t ? t.value : BCT_TU; BCT_DEN = d ? d.value : BCT_DEN; bctLoad();
+  };
+  /* Hai dải nút đổi kiểu bảng — tải lại ngay, khỏi bấm Xem lần nữa: đổi "Tổng" sang "QR" là
+     cùng một khoảng ngày, người ta không đổi ý về ngày. */
+  /* ⚠️ Hàm vẽ lại cả màn tên là `ve()`. Bản đầu em gọi một cái tên khác không hề tồn tại, và
+     `kiem-bang-du-cot.js` bắt ngay — nó dò mọi lời gọi hàm chưa khai.
+     ⚠️ Và ĐỪNG viết cái tên sai ấy ra đây: phép dò quét cả chú thích, nên nhắc lại nguyên văn
+        là bài tự đỏ vì chính lời giải thích này. */
+  [].forEach.call(document.querySelectorAll('[data-bctmuc]'), function(x){
+    x.onclick = function(){ BCT_MUC = x.getAttribute('data-bctmuc'); ve(); };
+  });
+  [].forEach.call(document.querySelectorAll('[data-bctcot]'), function(x){
+    x.onclick = function(){ BCT_COT = x.getAttribute('data-bctcot'); ve(); };
+  });
+  var xu = document.getElementById('bct-xuat');
+  if (xu) xu.onclick = bctXuat;
+  bctLoad();
+}
+function bctLoad(){
+  var box = document.getElementById('bct-wrap'); if (!box) return;
+  box.textContent = ''; box.appendChild(ktEl('p','mut',L('Đang tải…','Loading…')));
+  goi('kt_bctong', { tu: BCT_TU, den: BCT_DEN, muc: BCT_MUC, cot: BCT_COT }, function(r){
+    box.textContent = '';
+    BCT_DATA = (r && r.ok) ? r : null;
+    if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
+    box.appendChild(bctBang(r));
+  });
+}
+/* Thứ trong tuần cho tiêu đề cột — ảnh mẫu có THU/FRI/SAT… ngay dưới ngày, và đó không phải
+   trang trí: kế toán soi cuối tuần với ngày thường khác nhau. Dựng từ chuỗi 'YYYY-MM-DD' bằng
+   Date UTC để khỏi lệch múi giờ. */
+function bctThu(ngay){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(ngay || '')); if (!m) return '';
+  var d = new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+  return ['CN','T2','T3','T4','T5','T6','T7'][d.getUTCDay()];
+}
+function bctBang(r){
+  var wrap = ktEl('div');
+  wrap.appendChild(ktEl('div','mut',
+    L('Từ','From') + ' ' + r.tu + ' ' + L('đến','to') + ' ' + r.den
+    + ' · ' + r.ngay.length + ' ' + L('ngày','days')
+    + ' · ' + L('tổng','total') + ' ' + ktVnd(r.tong) + 'đ'));
+  var sc = ktEl('div','table-scroll'); var t = ktEl('table','bct');
+  /* 4 cột cố định (cơ sở · mã KH · ghế · số ghế) + mỗi ngày 92px + cột Tổng. */
+  t.style.minWidth = (420 + r.ngay.length*84 + 110) + 'px';
+  var cotGhe = (r.muc === 'ghe');
+  var h = '<tr><th class="bct-dinh">' + L('Tên cơ sở','Site') + '</th><th>' + L('Mã KH','Cust.') + '</th>'
+    + (cotGhe ? ('<th>' + L('Ghế','Chair') + '</th>') : '')
+    + '<th class="r">' + L('Số ghế','Chairs') + '</th>'
+    + r.ngay.map(function(n){
+        var th = bctThu(n);
+        return '<th class="r"><span class="bct-ng">' + esc(n.slice(8,10) + '/' + n.slice(5,7)) + '</span>'
+          + '<br><span class="mut" style="font-weight:400">' + th + '</span></th>';
+      }).join('')
+    + '<th class="r">' + L('Tổng','Total') + '</th></tr>';
+  var body = r.hang.map(function(g){
+    return '<tr><td class="bct-dinh"><b>' + esc(g.coso) + '</b></td>'
+      + '<td class="mut">' + esc(g.maKH || '—') + '</td>'
+      + (cotGhe ? ('<td>' + esc(g.tenGhe || g.maGhe || '—')
+          + (g.maGhe && g.tenGhe && g.maGhe !== g.tenGhe ? '<br><span class="mut">' + esc(g.maGhe) + '</span>' : '')
+          + '</td>') : '')
+      + '<td class="r mut">' + (g.soGhe || '') + '</td>'
+      /* 🔴 SỐ 0 HIỆN DẤU GẠCH, KHÔNG HIỆN "0". Ảnh mẫu cũng vậy, và có lý do: một bảng ba mươi
+         cột toàn số 0 thì mắt không tìm ra chỗ CÓ tiền. Gạch mờ đi thì số nổi lên. */
+      + g.so.map(function(v){ return '<td class="r">' + (v ? ktVnd(v) : '<span class="mut">–</span>') + '</td>'; }).join('')
+      + '<td class="r"><b>' + (g.tong ? ktVnd(g.tong) : '<span class="mut">–</span>') + '</b></td></tr>';
+  }).join('');
+  /* Hàng TỔNG ở cuối — ảnh mẫu để trên đầu, nhưng bảng này dài và cuộn dọc, để cuối thì nó
+     nằm ngay chỗ mắt dừng lại sau khi đọc hết. */
+  var chan = '<tr class="bct-tong"><td class="bct-dinh"><b>' + L('TỔNG','TOTAL') + '</b></td><td></td>'
+    + (cotGhe ? '<td></td>' : '')
+    + '<td class="r"><b>' + (r.soGhe || '') + '</b></td>'
+    + (r.tongCot || []).map(function(v){ return '<td class="r"><b>' + (v ? ktVnd(v) : '–') + '</b></td>'; }).join('')
+    + '<td class="r"><b>' + ktVnd(r.tong) + '</b></td></tr>';
+  t.innerHTML = h + body + chan;
+  sc.appendChild(t); wrap.appendChild(sc);
+  return wrap;
+}
+/* Xuất .csv — kế toán vẫn phải dán sang Excel để ghép với sổ ngoài. Dựng từ CHÍNH dữ liệu đang
+   hiện (`BCT_DATA`), không gọi lại máy chủ: gọi lại là có ngày tệp tải về khác cái đang nhìn. */
+function bctXuat(){
+  var r = BCT_DATA;
+  if (!r) { alert(L('Chưa có dữ liệu — bấm Xem trước.','No data — click Load first.')); return; }
+  var cotGhe = (r.muc === 'ghe');
+  function o(x){ var s = String(x == null ? '' : x); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s; }
+  var dong = [];
+  dong.push([L('Tên cơ sở','Site'), L('Mã KH','Cust.')].concat(cotGhe ? [L('Ghế','Chair')] : [])
+    .concat([L('Số ghế','Chairs')]).concat(r.ngay).concat([L('Tổng','Total')]).map(o).join(','));
+  r.hang.forEach(function(g){
+    dong.push([g.coso, g.maKH].concat(cotGhe ? [g.tenGhe || g.maGhe] : [])
+      .concat([g.soGhe]).concat(g.so).concat([g.tong]).map(o).join(','));
+  });
+  dong.push([L('TỔNG','TOTAL'), ''].concat(cotGhe ? [''] : []).concat([r.soGhe])
+    .concat(r.tongCot || []).concat([r.tong]).map(o).join(','));
+  /* BOM để Excel tiếng Việt mở ra không thành rác — không có nó thì mọi tên cơ sở có dấu đều vỡ. */
+  var blob = new Blob(['\ufeff' + dong.join('\n')], { type: 'text/csv;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bao-cao-tong_' + r.tu + '_' + r.den + '_' + r.muc + '_' + r.cot + '.csv';
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 500);
+}
 function klsInit(){
   var s = document.getElementById('kls-coso'), n = document.getElementById('kls-nam'), b = document.getElementById('kls-xem');
   if (b) b.onclick = function(){ KLS_COSO = s ? s.value : ''; KLS_NAM = (n && n.value) ? n.value : KLS_NAM; KLS_MO = {}; klsLoad(); kcgLoad(); };
@@ -6480,6 +6648,9 @@ function veQuanLy(){
       + L('Tên địa điểm mới','New site name') + '" style="flex:2;min-width:160px">'
     + '<input id="cs-tinh" type="text" maxlength="60" placeholder="'
       + L('Tỉnh/TP (VD Bình Dương)','Province') + '" style="flex:1;min-width:130px">'
+    /* Mã KH bên sổ kế toán (KH00108…) — cột "Mã KH" của báo cáo tổng lấy thẳng từ đây. */
+    + '<input id="cs-makh" type="text" maxlength="40" placeholder="'
+      + L('Mã KH (VD KH00108)','Customer code') + '" style="flex:1;min-width:120px">'
     + '<button id="cs-them" class="on">＋ ' + L('Thêm địa điểm','Add site') + '</button></div>';
   h += '<table><tr><th>' + L('Địa điểm','Site') + '</th><th class="r">' + L('Số ghế','Chairs')
     + '</th><th class="r">' + L('Doanh thu','Revenue') + '</th><th class="r hide-sm">' + L('QR','QR')
@@ -6490,6 +6661,8 @@ function veQuanLy(){
     var r = dt[c.ten] || { tong:0, qr:0, tien_mat:0 };
     h += '<tr><td><b>' + esc(c.ten) + '</b>'
       + (c.tinh ? '<div class="mut">📍 ' + esc(c.tinh) + '</div>' : '')
+      + (c.ma_kh ? '<div class="mut">🏷 ' + esc(c.ma_kh) + '</div>'
+                 : '<div class="mut" style="opacity:.55">🏷 ' + L('chưa có mã KH','no customer code') + '</div>')
       + '</td>'
       + '<td class="r">' + (demGhe[c.ten]||0) + '</td>'
       + '<td class="r"><b>' + tien(r.tong) + '</b>'
@@ -6498,7 +6671,8 @@ function veQuanLy(){
       + '<td class="r hide-sm">' + tien(r.qr) + '</td>'
       + '<td class="r hide-sm">' + tien(r.tien_mat) + '</td>'
       + '<td class="r" style="white-space:nowrap">'
-      + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '" data-cstinh="' + esc(c.tinh||'') + '">✎</button> '
+      + '<button data-cssua="' + c.id + '" data-csten="' + esc(c.ten) + '" data-cstinh="' + esc(c.tinh||'')
+        + '" data-csmakh="' + esc(c.ma_kh||'') + '">✎</button> '
       + '<button data-csxoa="' + c.id + '" data-csnhan="' + esc(c.ten) + '">🗑</button></td></tr>';
   });
   if (chuaGan) {
@@ -7295,6 +7469,7 @@ function noi(){
   if (document.getElementById('ktdn-list')) ktdnInit();
   if (document.getElementById('kti-congno')) ktiInit();
   if (document.getElementById('kls-wrap')) klsInit();
+  if (document.getElementById('bct-wrap')) bctInit();
   if (document.getElementById('hl-form-wrap')) hlInit();
   if (document.getElementById('ktx-manop-wrap')) ktxInit();
   if (document.getElementById('ktn-csv')) ktnInit();
@@ -7408,8 +7583,9 @@ function noi(){
   if ((_e = document.getElementById('cs-them'))) _e.onclick = function(){
     var t = (document.getElementById('cs-ten').value || '').trim();
     var tinh = (document.getElementById('cs-tinh').value || '').trim();
+    var makh = ((document.getElementById('cs-makh')||{}).value || '').trim();
     if (!t) { alert(L('Nhập tên địa điểm.','Enter a site name.')); return; }
-    lam('coso_luu', { id: 0, ten: t, tinh: tinh });
+    lam('coso_luu', { id: 0, ten: t, tinh: tinh, ma_kh: makh });
   };
   [].forEach.call(document.querySelectorAll('[data-cssua]'), function(b){
     b.onclick = function(){
@@ -7417,7 +7593,11 @@ function noi(){
       if (t === null) return; t = t.trim(); if (!t) return;
       var tinh = prompt(L('Tỉnh/TP của địa điểm (để lọc theo địa bàn):','Province/City:'), b.getAttribute('data-cstinh') || '');
       if (tinh === null) tinh = b.getAttribute('data-cstinh') || '';
-      lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t, tinh: tinh.trim() });
+      /* Bấm Huỷ ở ô Mã KH thì GIỮ NGUYÊN mã cũ, không xoá — đổi tên cơ sở không phải là lý do
+         để mất mã khách hàng. Cùng luật với ô Tỉnh ngay trên. */
+      var makh = prompt(L('Mã KH bên sổ kế toán (VD KH00108):','Customer code:'), b.getAttribute('data-csmakh') || '');
+      if (makh === null) makh = b.getAttribute('data-csmakh') || '';
+      lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t, tinh: tinh.trim(), ma_kh: makh.trim() });
     };
   });
   [].forEach.call(document.querySelectorAll('[data-csxoa]'), function(b){

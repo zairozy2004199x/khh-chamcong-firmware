@@ -74,6 +74,13 @@ class VHG_DB {
 		if ( ! $co_lich ) {
 			$wpdb->query( "ALTER TABLE $coso ADD COLUMN lich_bc VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7'" );
 		}
+		/* `ma_kh` (v1.99.8) — thêm tay cùng lý do với `phien.pin` ở trên: bảng `coso` là bảng
+		   ĐANG SỐNG, và "ô Mã KH trống" trông y hệt "cột chưa lên" nên không cách nào tự phân
+		   biệt lúc đi dò lỗi. Thêm ở đây cho chắc chắn nó CÓ. */
+		$co_makh = $wpdb->get_var( "SHOW COLUMNS FROM $coso LIKE 'ma_kh'" );
+		if ( ! $co_makh ) {
+			$wpdb->query( "ALTER TABLE $coso ADD COLUMN ma_kh VARCHAR(40) NOT NULL DEFAULT '' AFTER tinh" );
+		}
 	}
 
 	public static function bang() {
@@ -86,10 +93,20 @@ class VHG_DB {
 		   plugin chưa phân biệt được cơ sở nào không mở cửa/không thu ngày nào. Dùng ở
 		   `VHG_KeToan::thieu_bao_cao()` để biết cơ sở nào ĐÚNG LỊCH hôm nay mà CHƯA nộp — không
 		   báo nhầm cơ sở chỉ mở cuối tuần vào một ngày giữa tuần. */
+		/* 🔴 `ma_kh` — MÃ KHÁCH HÀNG bên sổ kế toán (KH00108…), anh Thắng 01/09/2026, ảnh mẫu
+		   báo cáo tổng: cột Mã KH đứng ngay sau tên cơ sở. Đây là mã của HỌ, không phải của
+		   mình: kế toán đối chiếu với sổ ngoài bằng chính con số này, nên nó phải khai được và
+		   phải đi theo cơ sở, không suy ra từ đâu được. Cùng một cơ sở dùng chung một mã.
+
+		   ⚠️ CHÚ THÍCH PHẢI ĐỨNG NGOÀI CHUỖI SQL. Viết nó vào giữa `$b['coso'] = "…"` thì hai
+		      chuyện xảy ra cùng lúc: dấu nháy kép trong câu chú thích ĐÓNG CHUỖI PHP sớm (gãy
+		      ngay lúc nạp tệp), và nếu không có dấu ấy thì nó lọt vào SQL thành cú pháp lạ.
+		      Cảnh báo này đã ghi sẵn ở cuối tệp từ trước; em vẫn dính đúng một lần. */
 		$b['coso'] = "
 			id BIGINT(20) NOT NULL AUTO_INCREMENT,
 			ten VARCHAR(190) NOT NULL,
 			tinh VARCHAR(120) NOT NULL DEFAULT '',
+			ma_kh VARCHAR(40) NOT NULL DEFAULT '',
 			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
 			lich_bc VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5,6,7',
 			PRIMARY KEY  (id),
