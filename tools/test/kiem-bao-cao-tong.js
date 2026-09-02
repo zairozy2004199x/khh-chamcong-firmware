@@ -220,6 +220,47 @@ t('có hàng TỔNG theo từng ngày và cột Cộng theo từng ghế',
 t('và dùng lại khung cuộn + cột dính như báo cáo tổng',
 	kcg.indexOf("ktEl('table','bct')") > 0 && kcg.indexOf('bct-dinh') > 0, null);
 
+/* ---------- 6c. CHỈ SỐ MÁY DƯỚI SỐ TIỀN, LỆCH THÌ ĐỎ ----------
+   Anh Thắng 01/09/2026: *"chèn theo ngày, chỉ số vào phía dưới số tiền, chỗ nào lệch chỉ số thì
+   hiện đỏ"*. "Lệch" = chỉ số chạy LÙI: máy đếm chỉ tăng, nên nhỏ hơn ngày trước nghĩa là máy bị
+   thay/reset hoặc gõ nhầm — và cả hai đều KHÔNG lộ ra ở cột tiền. */
+/* ⚠️ CANH ĐIỀU KIỆN DỰNG, KHÔNG CANH CHUỖI CÓ MẶT. Bản đầu chỉ hỏi `class="kcg-cs` có trong
+   khối hay không — cho `duoi` bằng rỗng vô điều kiện thì nhánh dựng thành mã chết mà chuỗi vẫn
+   nằm đó, bài vẫn xanh. Phá thử bắt đúng chỗ ấy. Nay canh: `duoi` chỉ rỗng khi KHÔNG có chỉ số,
+   và ô thì phải thật sự nối `duoi` vào sau số tiền. */
+t('🔴 mỗi ô có chỉ số in dưới số tiền',
+	/var duoi = \(cs === null\) \? '' :/.test(kcg) && /class="kcg-cs/.test(kcg), null);
+t('🔴 và ô nối chỉ số vào SAU số tiền', /\+ tien \+ duoi \+ '<\/td>'/.test(kcg), null);
+t('🔴 dò chỉ số CHẠY LÙI', /var lech = \(cs !== null && csTruoc !== null && cs < csTruoc\);/.test(kcg), null);
+/* ⚠️ So với ngày CÓ DỮ LIỆU gần nhất, không so ô liền kề: ghế nghỉ ba ngày rồi chạy lại thì ô
+   liền kề trống, so với nó là mọi ghế nghỉ đều hoá "lệch". */
+t('🔴 mốc so là ngày có dữ liệu gần nhất, không phải ô liền kề',
+	/if \(cs !== null\) \{[^}]*csTruoc = cs;/.test(kcg), null);
+t('lệch thì tô đỏ CẢ Ô, không chỉ con số nhỏ',
+	/kcg-lech/.test(kcg) && /td\.kcg-lech\{[^}]*background/.test(tr), null);
+t('và có luật CSS cho chỉ số nhỏ + màu đỏ',
+	/\.kcg-cs\{[^}]*font-size/.test(tr) && /\.kcg-cs\.lech\{[^}]*var\(--red\)/.test(tr), null);
+
+/* ---------- 6d. GỘP BIỂU ĐỒ THÁNG VÀO CHÍNH DANH SÁCH THÁNG ----------
+   Anh Thắng: *"gộp 2 bảng theo tháng chung luôn"*. Trước đó màn có HAI khối kể cùng một chuyện —
+   biểu đồ "Doanh thu theo tháng" và ngay dưới là danh sách thẻ tháng cũng ghi tổng · TM · QR. */
+const iKls = tr.indexOf('function klsLoad(');
+const jKls = tr.indexOf('function klsThang(', iKls);
+const kls = (iKls > 0 && jKls > iKls) ? tr.slice(iKls, jKls) : '';
+t('bốc được khối nạp danh sách tháng', '' !== kls);
+t('🔴 KHÔNG còn thẻ biểu đồ tháng riêng', kls.indexOf('bdCotStack(') < 0, kls.slice(-300));
+const iKt = tr.indexOf('function klsThang(');
+const jKt = tr.indexOf('function klsBody(', iKt);
+const klsT = (iKt > 0 && jKt > iKt) ? tr.slice(iKt, jKt) : '';
+t('🔴 thanh tỉ lệ nằm TRONG dòng tiêu đề tháng', /kls-thanh/.test(klsT) && /head\.appendChild\(tr\)/.test(klsT), null);
+/* Mốc so phải là tháng CAO NHẤT trong năm — mỗi thẻ tự tính riêng thì thanh nào cũng đầy và
+   hết ý nghĩa so sánh. */
+t('🔴 mốc so là tháng cao nhất, truyền từ ngoài vào',
+	/function klsThang\(T, dinh\)/.test(klsT) && /Number\(dinh\) \|\| tong/.test(klsT), null);
+t('và bên gọi có tính đỉnh ấy', /var dinh = r\.thang\.reduce\(/.test(kls), null);
+t('vẫn giữ đủ hai màu tiền mặt / QR như biểu đồ cũ',
+	/var\(--green\)/.test(klsT) && /var\(--blue\)/.test(klsT), null);
+
 /* ---------- 7. MÃ KH: khai được, và KHÔNG bị xoá khi sửa việc khác ---------- */
 const may_php = fs.readFileSync('vhcp-ghe/includes/class-vhg-may.php', 'utf8');
 t('luu_coso() nhận ma_kh', /function luu_coso\( \$id, \$ten, \$tinh = null, \$ma_kh = null \)/.test(may_php));

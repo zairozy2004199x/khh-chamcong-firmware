@@ -2737,6 +2737,12 @@ td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:v
 /* Hàng TỔNG: nền đậm hơn và dính đáy, để cuộn dọc tới đâu vẫn đối chiếu được với nó. */
 .bct tr.bct-tong td{position:sticky;bottom:0;background:#eef2f8;border-top:2px solid var(--line);z-index:1}
 .bct tr.bct-tong td.bct-dinh{z-index:4;background:#eef2f8}
+/* Chỉ số máy in nhỏ NGAY DƯỚI số tiền trong cùng một ô (anh Thắng 01/09/2026). Chạy lùi thì cả
+   ô đỏ nhạt + số chỉ số đỏ đậm — tô mỗi con số nhỏ thì mắt lướt qua một bảng ba mươi cột sẽ
+   không bắt được. */
+.kcg-cs{font-size:10.5px;color:var(--mut);line-height:1.2;margin-top:1px}
+.kcg-cs.lech{color:var(--red);font-weight:700}
+td.kcg-lech{background:#fdf1f1}
 tr:last-child td{border-bottom:0}
 .r{text-align:right}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
@@ -5316,12 +5322,30 @@ function kcgLoad(){
     var tongHet = 0;
     var body = r.ghe.map(function(g){
       var cong = 0, dau = null, cuoi = null;
+      /* 🔴 CHỈ SỐ MÁY DƯỚI SỐ TIỀN, LỆCH THÌ ĐỎ — anh Thắng 01/09/2026: *"chèn theo ngày, chỉ số
+         vào phía dưới số tiền, chỗ nào lệch chỉ số thì hiện đỏ"*.
+
+         "Lệch" ở đây là CHỈ SỐ CHẠY LÙI: máy đếm chỉ tăng, nên chỉ số của ngày sau nhỏ hơn ngày
+         có dữ liệu gần nhất trước đó nghĩa là một trong hai — máy bị thay/reset, hoặc ai đó gõ
+         nhầm. Cả hai đều làm doanh thu tính ra sai, và cả hai đều KHÔNG lộ ra ở cột tiền: tiền
+         vẫn là một con số trông bình thường.
+
+         ⚠️ SO VỚI NGÀY CÓ DỮ LIỆU GẦN NHẤT, không so với ô liền kề. Ghế nghỉ ba ngày rồi chạy
+            lại thì ô liền kề trống, so với nó là mọi ghế nghỉ đều hoá "lệch". */
+      var csTruoc = null;
       var td = r.ngay.map(function(N, i){
         var o = N.o[g.ma];
         var v = o ? Number(o.actual) || 0 : 0;
         cong += v; tongNgay[i] += v; tongHet += v;
-        if (o && o.cs != null) { if (dau === null) dau = o.cs; cuoi = o.cs; }
-        return '<td class="r">' + (v ? ktVnd(v) : '<span class="mut">–</span>') + '</td>';
+        var cs = (o && o.cs != null) ? Number(o.cs) : null;
+        var lech = (cs !== null && csTruoc !== null && cs < csTruoc);
+        if (cs !== null) { if (dau === null) dau = cs; cuoi = cs; csTruoc = cs; }
+        var tien = v ? ktVnd(v) : '<span class="mut">–</span>';
+        var duoi = (cs === null) ? '' :
+          ('<div class="kcg-cs' + (lech ? ' lech' : '') + '"'
+            + (lech ? ' title="' + L('Chỉ số chạy lùi — máy bị thay/reset hoặc gõ nhầm','Meter went backwards') + '"' : '')
+            + '>' + (lech ? '⚠ ' : '') + ktVnd(cs) + '</div>');
+        return '<td class="r' + (lech ? ' kcg-lech' : '') + '">' + tien + duoi + '</td>';
       }).join('');
       var cs = (dau === null && cuoi === null) ? '<span class="mut">—</span>'
         : (ktVnd(dau) + ' → ' + ktVnd(cuoi));
@@ -5347,23 +5371,42 @@ function klsLoad(){
     box.appendChild(ktEl('div', 'mut', L('Cả năm','Year') + ' ' + r.nam + (KLS_COSO ? (' · ' + KLS_COSO) : (' · ' + L('tất cả cơ sở','all sites')))
       + ' — ' + L('tổng','total') + ' ' + ktVnd(tn.tong) + 'đ · ' + L('tiền mặt','cash') + ' ' + ktVnd(tn.tien_mat) + 'đ · QR ' + ktVnd(tn.qr) + 'đ'));
     if (!r.thang || !r.thang.length) { box.appendChild(ktEl('p', 'mut', L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
-    /* Biểu đồ doanh thu theo tháng (giữ thứ tự tháng, không sắp theo giá trị) — nhìn cả năm một mắt. */
-    var thangTang = r.thang.slice().sort(function(a,b){ return a.thang < b.thang ? -1 : (a.thang > b.thang ? 1 : 0); });
-    var cd = ktEl('div', 'card'); cd.style.marginBottom = '12px';
-    cd.innerHTML = '<h2>' + L('Doanh thu theo tháng','Revenue by month') + '</h2>'
-      + bdCotStack(thangTang.map(function(T){ return { ten: T.thang.slice(5) + '/' + T.thang.slice(0,4),
-          tm: Number(T.tien_mat)||0, qr: Number(T.qr)||0 }; }), 12);
-    box.appendChild(cd);
-    r.thang.forEach(function(T){ box.appendChild(klsThang(T)); });
+    /* 🔴 GỘP BIỂU ĐỒ VÀO CHÍNH DANH SÁCH THÁNG — anh Thắng 01/09/2026: *"gộp 2 bảng theo tháng
+       chung luôn"*.
+
+       Trước bản này màn có HAI khối kể cùng một chuyện: một biểu đồ "Doanh thu theo tháng" và
+       ngay dưới là danh sách thẻ tháng, mỗi thẻ cũng ghi tổng · TM · QR. Người đọc phải dóng
+       mắt qua lại giữa hai chỗ để biết cái thanh dài kia là tháng nào — mà chúng luôn cùng một
+       con số, nên chẳng bao giờ có gì mới ở khối thứ hai.
+
+       Nay thanh tỉ lệ nằm NGAY TRONG dòng tiêu đề của từng tháng: vẫn thấy hình để so tháng
+       này với tháng kia, mà không phải dóng. Mốc so là tháng CAO NHẤT trong năm — mỗi thẻ tự
+       tính riêng thì thanh nào cũng đầy và hết ý nghĩa so sánh. */
+    var dinh = r.thang.reduce(function(a, T){ return Math.max(a, Number(T.tong) || 0); }, 0) || 1;
+    r.thang.forEach(function(T){ box.appendChild(klsThang(T, dinh)); });
   });
 }
-function klsThang(T){
+function klsThang(T, dinh){
   var mo = !!KLS_MO[T.thang];
   var card = ktEl('div'); card.style.cssText = 'border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden';
   var head = ktEl('div', 'act'); head.style.cssText = 'cursor:pointer;padding:10px 12px;background:#f4f6f9;flex-wrap:wrap;align-items:center';
   var mm = T.thang.slice(5) + '/' + T.thang.slice(0, 4);
   head.appendChild(ktEl('b', null, (mo ? '▾ ' : '▸ ') + L('Tháng','Month') + ' ' + mm));
   head.appendChild(ktEl('span', 'mut', ' · ' + T.so_ghe + ' ' + L('ghế','chairs') + ' · ' + T.so_ngay + ' ' + L('ngày','days')));
+  /* Thanh tỉ lệ gộp từ biểu đồ cũ (xem khối 🔴 ở `klsLoad`): dài theo tổng so với tháng cao
+     nhất, phần xanh lá là tiền mặt, phần xanh dương là QR — cùng bảng màu với mọi biểu đồ khác
+     trên trang, để không phải học lại màu ở mỗi màn. */
+  var tong = Number(T.tong) || 0;
+  var tm = Number(T.tien_mat) || 0;
+  if (tong > 0) {
+    var wTot = Math.max(3, Math.round(tong / (Number(dinh) || tong) * 100));
+    var wTm = Math.round(tm / tong * 100);
+    var tr = ktEl('div', 'bd-track kls-thanh');
+    tr.title = L('Tiền mặt','Cash') + ' ' + ktVnd(tm) + 'đ · QR ' + ktVnd(T.qr) + 'đ';
+    tr.innerHTML = '<div class="bd-bar" style="width:' + wTot + '%;background:var(--blue)">'
+      + '<div class="bd-seg" style="width:' + wTm + '%;background:var(--green)"></div></div>';
+    head.appendChild(tr);
+  }
   var sp = ktEl('span'); sp.style.flex = '1'; head.appendChild(sp);
   head.appendChild(ktEl('b', null, ktVnd(T.tong) + 'đ'));
   head.appendChild(ktEl('span', 'mut', ' (TM ' + ktVnd(T.tien_mat) + ' · QR ' + ktVnd(T.qr) + ')'));
