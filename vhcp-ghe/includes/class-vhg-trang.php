@@ -5127,8 +5127,8 @@ function veKtLichSu(){
        cơ sở cụ thể (không có "tất cả") — gộp nhiều cơ sở là mỗi cơ sở một bộ ghế khác nhau, và
        cột Cộng của hàng mất nghĩa. */
     + '<div class="card"><h2>📋 ' + L('Bảng chéo Ghế × Ngày (cả năm)','Chair × day grid (whole year)') + '</h2>'
-    + '<p class="mut">' + L('Mỗi ghế một dòng, mỗi ngày một cột — liên tục cả năm, không ngắt theo tháng. Chọn một cơ sở cụ thể ở ô trên rồi bấm Xem.',
-      'One row per chair, one column per day — continuous through the year, no month breaks. Pick one specific site above then click Xem.') + '</p>'
+    + '<p class="mut">' + L('Mỗi ghế một dòng, mỗi ngày một cột — liên tục cả năm, không ngắt theo tháng. Hai bảng: Thực thu (tiền mặt + QR) và riêng Tiền QR. Chọn một cơ sở cụ thể ở ô trên rồi bấm Xem.',
+      'One row per chair, one column per day — continuous through the year, no month breaks. Two tables: Actual (cash + QR) and QR only. Pick one specific site above then click Xem.') + '</p>'
     + '<div id="kcg-wrap" style="margin-top:12px"></div></div>';
 }
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
@@ -5292,74 +5292,113 @@ function kcgLoad(){
     box.textContent = '';
     if (!r || !r.ok) { box.appendChild(ktEl('p','mut',(r && r.error) || 'Lỗi.')); return; }
     if (!r.ngay.length || !r.ghe.length) { box.appendChild(ktEl('p','mut',L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
-    /* 🔴 GHẾ THEO HÀNG, NGÀY THEO CỘT — anh Thắng 01/09/2026: *"ngược rồi, đảo lại"*, kèm ảnh
-       bảng đang để ngày theo hàng.
+    /* 🔴 HAI BẢNG, MỘT BỘ DỮ LIỆU — anh Thắng 02/09/2026: *"thêm bảng này theo tiền QR"* (ảnh
+       chính bảng chéo Ghế × Ngày).
 
-       Chiều cũ (ngày × ghế) sai với chính mẫu Excel anh gửi, và sai cả về cách đọc: người ta
-       soi MỘT GHẾ chạy qua thời gian ("ghế này tuần rồi thế nào"), chứ không soi một ngày cắt
-       ngang ba trăm ghế. Để ngày theo hàng thì một ghế bị xé thành ba trăm sáu lăm ô nằm rải
-       khắp chiều dọc, không cách nào nhìn ra xu hướng.
+       Bảng trên là THỰC THU (tiền mặt + QR, đúng số kế toán chốt); bảng dưới chỉ TIỀN QR. Kế
+       toán đối chiếu chéo hai bảng để ra phần tiền mặt phải nộp, nên chúng bắt buộc phải cùng
+       một bộ ngày và cùng một bộ ghế — sai một ngày là trừ nhầm cả cột. Vì thế cả hai dựng từ
+       CÙNG MỘT lần gọi máy chủ, cùng một `r`, không phải hai truy vấn riêng.
 
-       ⚠️ CỘT "CHỈ SỐ" GỘP LẠI THÀNH MỘT. Chiều cũ mỗi ghế hai cột (chỉ số · Actual). Đảo chiều
-          mà giữ nguyên là mỗi NGÀY hai cột — 365×2 = 730 cột, không bảng nào dựng nổi. Mà nhìn
-          ảnh thì cột "Chỉ số" toàn dấu gạch: chỉ số từng ngày hiếm khi có. Nên gộp thành MỘT
-          cột "Chỉ số đầu→cuối" đứng đầu hàng, đúng như bảng "Theo ghế" ngay trên. */
-    var sc = ktEl('div','table-scroll'); var t = ktEl('table','bct');
-    t.style.minWidth = (300 + r.ngay.length*84 + 110) + 'px';
-    function nhanNgay(x){
-      var v = String(x || '');
-      return /^\d{4}-\d{2}-\d{2}/.test(v) ? (v.slice(8,10) + '/' + v.slice(5,7)) : v;
-    }
-    var h1 = '<tr><th class="bct-dinh">' + L('Ghế','Chair') + '</th>'
-      + '<th>' + L('Chỉ số đầu→cuối','Meter start→end') + '</th>'
-      + r.ngay.map(function(N){
-          return '<th class="r"><span class="bct-ng">' + esc(nhanNgay(N.ngay)) + '</span>'
-            + '<br><span class="mut" style="font-weight:400">' + bctThu(N.ngay) + '</span></th>';
-        }).join('')
-      + '<th class="r">' + L('Cộng','Total') + '</th></tr>';
-    /* Tổng theo NGÀY (cột) — dựng cùng lúc với thân bảng, một vòng lặp thay vì hai. */
-    var tongNgay = r.ngay.map(function(){ return 0; });
-    var tongHet = 0;
-    var body = r.ghe.map(function(g){
-      var cong = 0, dau = null, cuoi = null;
-      /* 🔴 CHỈ SỐ MÁY DƯỚI SỐ TIỀN, LỆCH THÌ ĐỎ — anh Thắng 01/09/2026: *"chèn theo ngày, chỉ số
-         vào phía dưới số tiền, chỗ nào lệch chỉ số thì hiện đỏ"*.
-
-         "Lệch" ở đây là CHỈ SỐ CHẠY LÙI: máy đếm chỉ tăng, nên chỉ số của ngày sau nhỏ hơn ngày
-         có dữ liệu gần nhất trước đó nghĩa là một trong hai — máy bị thay/reset, hoặc ai đó gõ
-         nhầm. Cả hai đều làm doanh thu tính ra sai, và cả hai đều KHÔNG lộ ra ở cột tiền: tiền
-         vẫn là một con số trông bình thường.
-
-         ⚠️ SO VỚI NGÀY CÓ DỮ LIỆU GẦN NHẤT, không so với ô liền kề. Ghế nghỉ ba ngày rồi chạy
-            lại thì ô liền kề trống, so với nó là mọi ghế nghỉ đều hoá "lệch". */
-      var csTruoc = null;
-      var td = r.ngay.map(function(N, i){
-        var o = N.o[g.ma];
-        var v = o ? Number(o.actual) || 0 : 0;
-        cong += v; tongNgay[i] += v; tongHet += v;
-        var cs = (o && o.cs != null) ? Number(o.cs) : null;
-        var lech = (cs !== null && csTruoc !== null && cs < csTruoc);
-        if (cs !== null) { if (dau === null) dau = cs; cuoi = cs; csTruoc = cs; }
-        var tien = v ? ktVnd(v) : '<span class="mut">–</span>';
-        var duoi = (cs === null) ? '' :
-          ('<div class="kcg-cs' + (lech ? ' lech' : '') + '"'
-            + (lech ? ' title="' + L('Chỉ số chạy lùi — máy bị thay/reset hoặc gõ nhầm','Meter went backwards') + '"' : '')
-            + '>' + (lech ? '⚠ ' : '') + ktVnd(cs) + '</div>');
-        return '<td class="r' + (lech ? ' kcg-lech' : '') + '">' + tien + duoi + '</td>';
-      }).join('');
-      var cs = (dau === null && cuoi === null) ? '<span class="mut">—</span>'
-        : (ktVnd(dau) + ' → ' + ktVnd(cuoi));
-      return '<tr><td class="bct-dinh"><b>' + esc(g.ten || g.ma) + '</b>'
-        + (g.ten && g.ten !== g.ma ? '<br><span class="mut">' + esc(g.ma) + '</span>' : '')
-        + '</td><td>' + cs + '</td>' + td
-        + '<td class="r"><b>' + (cong ? ktVnd(cong) : '<span class="mut">–</span>') + '</b></td></tr>';
-    }).join('');
-    var chan = '<tr class="bct-tong"><td class="bct-dinh"><b>' + L('TỔNG','TOTAL') + '</b></td><td></td>'
-      + tongNgay.map(function(v){ return '<td class="r"><b>' + (v ? ktVnd(v) : '–') + '</b></td>'; }).join('')
-      + '<td class="r"><b>' + ktVnd(tongHet) + '</b></td></tr>';
-    t.innerHTML = h1 + body + chan;
-    sc.appendChild(t); box.appendChild(sc);
+       ⚠️ CHỈ SỐ MÁY CHỈ IN Ở BẢNG TRÊN. Chỉ số là mốc đối chiếu của thực thu, không phải của
+          QR; in lại lần nữa dưới ô QR là cùng một con số nằm hai chỗ, người đọc phải dừng lại
+          nghĩ xem hai cái ấy có khác nhau không. */
+    box.appendChild(kcgNhan(L('Thực thu theo ngày (tiền mặt + QR)','Actual by day (cash + QR)'),
+      L('Chỉ số máy in nhỏ dưới số tiền — chỉ số chạy lùi thì ô tô đỏ.',
+        'Meter reading printed under each amount — a backwards meter turns the cell red.'), false));
+    box.appendChild(kcgBang(r, 'actual', true));
+    box.appendChild(kcgNhan(L('Tiền QR theo ngày','QR by day'),
+      L('Chỉ phần thu qua QR. Lấy Thực thu trừ đi bảng này ra phần tiền mặt.',
+        'QR takings only. Actual minus this table gives the cash part.'), true));
+    box.appendChild(kcgBang(r, 'qr', false));
   });
+}
+/* Nhãn của từng bảng trong khối bảng chéo. Hai bảng đứng liền nhau mà không có nhãn thì bảng
+   dưới trông như phần tràn của bảng trên. */
+function kcgNhan(ten, phu, cach){
+  var d = ktEl('div');
+  d.style.cssText = 'margin:' + (cach ? '18px' : '0') + ' 0 6px';
+  d.innerHTML = '<b>' + esc(ten) + '</b> <span class="mut">— ' + esc(phu) + '</span>';
+  return d;
+}
+function kcgNgay(x){
+  var v = String(x || '');
+  return /^\d{4}-\d{2}-\d{2}/.test(v) ? (v.slice(8,10) + '/' + v.slice(5,7)) : v;
+}
+/**
+ * Một bảng chéo GHẾ × NGÀY.
+ *
+ * 🔴 GHẾ THEO HÀNG, NGÀY THEO CỘT — anh Thắng 01/09/2026: *"ngược rồi, đảo lại"*, kèm ảnh bảng
+ *    đang để ngày theo hàng.
+ *
+ *    Chiều cũ (ngày × ghế) sai với chính mẫu Excel anh gửi, và sai cả về cách đọc: người ta soi
+ *    MỘT GHẾ chạy qua thời gian ("ghế này tuần rồi thế nào"), chứ không soi một ngày cắt ngang
+ *    ba trăm ghế. Để ngày theo hàng thì một ghế bị xé thành ba trăm sáu lăm ô nằm rải khắp
+ *    chiều dọc, không cách nào nhìn ra xu hướng.
+ *
+ * ⚠️ CỘT "CHỈ SỐ" GỘP LẠI THÀNH MỘT. Chiều cũ mỗi ghế hai cột (chỉ số · Actual). Đảo chiều mà
+ *    giữ nguyên là mỗi NGÀY hai cột — 365×2 = 730 cột, không bảng nào dựng nổi. Mà nhìn ảnh thì
+ *    cột "Chỉ số" toàn dấu gạch: chỉ số từng ngày hiếm khi có. Nên gộp thành MỘT cột "Chỉ số
+ *    đầu→cuối" đứng đầu hàng, đúng như bảng "Theo ghế" ngay trên.
+ *
+ * @param r    dữ liệu kt_bangcheo (ghế, ngày, ô)
+ * @param khoa 'actual' (thực thu) | 'qr' (chỉ phần QR)
+ * @param coCs có in chỉ số máy hay không — chỉ bảng thực thu mới in
+ */
+function kcgBang(r, khoa, coCs){
+  var sc = ktEl('div','table-scroll'); var t = ktEl('table','bct');
+  t.style.minWidth = (300 + r.ngay.length*84 + 110) + 'px';
+  var h1 = '<tr><th class="bct-dinh">' + L('Ghế','Chair') + '</th>'
+    + (coCs ? ('<th>' + L('Chỉ số đầu→cuối','Meter start→end') + '</th>') : '')
+    + r.ngay.map(function(N){
+        return '<th class="r"><span class="bct-ng">' + esc(kcgNgay(N.ngay)) + '</span>'
+          + '<br><span class="mut" style="font-weight:400">' + bctThu(N.ngay) + '</span></th>';
+      }).join('')
+    + '<th class="r">' + L('Cộng','Total') + '</th></tr>';
+  /* Tổng theo NGÀY (cột) — dựng cùng lúc với thân bảng, một vòng lặp thay vì hai. */
+  var tongNgay = r.ngay.map(function(){ return 0; });
+  var tongHet = 0;
+  var body = r.ghe.map(function(g){
+    var cong = 0, dau = null, cuoi = null;
+    /* 🔴 CHỈ SỐ MÁY DƯỚI SỐ TIỀN, LỆCH THÌ ĐỎ — anh Thắng 01/09/2026: *"chèn theo ngày, chỉ số
+       vào phía dưới số tiền, chỗ nào lệch chỉ số thì hiện đỏ"*.
+
+       "Lệch" ở đây là CHỈ SỐ CHẠY LÙI: máy đếm chỉ tăng, nên chỉ số của ngày sau nhỏ hơn ngày
+       có dữ liệu gần nhất trước đó nghĩa là một trong hai — máy bị thay/reset, hoặc ai đó gõ
+       nhầm. Cả hai đều làm doanh thu tính ra sai, và cả hai đều KHÔNG lộ ra ở cột tiền: tiền
+       vẫn là một con số trông bình thường.
+
+       ⚠️ SO VỚI NGÀY CÓ DỮ LIỆU GẦN NHẤT, không so với ô liền kề. Ghế nghỉ ba ngày rồi chạy
+          lại thì ô liền kề trống, so với nó là mọi ghế nghỉ đều hoá "lệch". */
+    var csTruoc = null;
+    var td = r.ngay.map(function(N, i){
+      var o = N.o[g.ma];
+      var v = o ? Number(o[khoa]) || 0 : 0;
+      cong += v; tongNgay[i] += v; tongHet += v;
+      var cs = (o && o.cs != null) ? Number(o.cs) : null;
+      var lech = (cs !== null && csTruoc !== null && cs < csTruoc);
+      if (cs !== null) { if (dau === null) dau = cs; cuoi = cs; csTruoc = cs; }
+      var tien = v ? ktVnd(v) : '<span class="mut">–</span>';
+      var duoi = (!coCs || cs === null) ? '' :
+        ('<div class="kcg-cs' + (lech ? ' lech' : '') + '"'
+          + (lech ? ' title="' + L('Chỉ số chạy lùi — máy bị thay/reset hoặc gõ nhầm','Meter went backwards') + '"' : '')
+          + '>' + (lech ? '⚠ ' : '') + ktVnd(cs) + '</div>');
+      return '<td class="r' + (coCs && lech ? ' kcg-lech' : '') + '">' + tien + duoi + '</td>';
+    }).join('');
+    var cs = (dau === null && cuoi === null) ? '<span class="mut">—</span>'
+      : (ktVnd(dau) + ' → ' + ktVnd(cuoi));
+    return '<tr><td class="bct-dinh"><b>' + esc(g.ten || g.ma) + '</b>'
+      + (g.ten && g.ten !== g.ma ? '<br><span class="mut">' + esc(g.ma) + '</span>' : '')
+      + '</td>' + (coCs ? ('<td>' + cs + '</td>') : '') + td
+      + '<td class="r"><b>' + (cong ? ktVnd(cong) : '<span class="mut">–</span>') + '</b></td></tr>';
+  }).join('');
+  var chan = '<tr class="bct-tong"><td class="bct-dinh"><b>' + L('TỔNG','TOTAL') + '</b></td>'
+    + (coCs ? '<td></td>' : '')
+    + tongNgay.map(function(v){ return '<td class="r"><b>' + (v ? ktVnd(v) : '–') + '</b></td>'; }).join('')
+    + '<td class="r"><b>' + ktVnd(tongHet) + '</b></td></tr>';
+  t.innerHTML = h1 + body + chan;
+  sc.appendChild(t);
+  return sc;
 }
 function klsLoad(){
   var box = document.getElementById('kls-wrap'); if (!box) return;
@@ -5371,42 +5410,28 @@ function klsLoad(){
     box.appendChild(ktEl('div', 'mut', L('Cả năm','Year') + ' ' + r.nam + (KLS_COSO ? (' · ' + KLS_COSO) : (' · ' + L('tất cả cơ sở','all sites')))
       + ' — ' + L('tổng','total') + ' ' + ktVnd(tn.tong) + 'đ · ' + L('tiền mặt','cash') + ' ' + ktVnd(tn.tien_mat) + 'đ · QR ' + ktVnd(tn.qr) + 'đ'));
     if (!r.thang || !r.thang.length) { box.appendChild(ktEl('p', 'mut', L('Năm này chưa có dữ liệu.','No data this year.'))); return; }
-    /* 🔴 GỘP BIỂU ĐỒ VÀO CHÍNH DANH SÁCH THÁNG — anh Thắng 01/09/2026: *"gộp 2 bảng theo tháng
-       chung luôn"*.
+    /* 🔴 CHỈ CÒN MỘT KHỐI THEO THÁNG — anh Thắng 01/09/2026: *"gộp 2 bảng theo tháng chung
+       luôn"*, rồi 02/09/2026: *"bỏ cái này đi"* (ảnh thanh tỉ lệ li ti trong dòng tiêu đề).
 
-       Trước bản này màn có HAI khối kể cùng một chuyện: một biểu đồ "Doanh thu theo tháng" và
-       ngay dưới là danh sách thẻ tháng, mỗi thẻ cũng ghi tổng · TM · QR. Người đọc phải dóng
-       mắt qua lại giữa hai chỗ để biết cái thanh dài kia là tháng nào — mà chúng luôn cùng một
-       con số, nên chẳng bao giờ có gì mới ở khối thứ hai.
+       Trước hết là HAI khối kể cùng một chuyện: một biểu đồ "Doanh thu theo tháng" và ngay dưới
+       là danh sách thẻ tháng, mỗi thẻ cũng ghi tổng · TM · QR. Bản gộp kéo thanh tỉ lệ vào dòng
+       tiêu đề từng tháng — nhưng dòng tiêu đề đã chật (tháng · số ghế · số ngày · tổng · TM ·
+       QR), phần chừa cho thanh chỉ còn vài chục pixel, nên cơ sở nhỏ hai ghế ra một vạch xanh
+       li ti không đọc được gì.
 
-       Nay thanh tỉ lệ nằm NGAY TRONG dòng tiêu đề của từng tháng: vẫn thấy hình để so tháng
-       này với tháng kia, mà không phải dóng. Mốc so là tháng CAO NHẤT trong năm — mỗi thẻ tự
-       tính riêng thì thanh nào cũng đầy và hết ý nghĩa so sánh. */
-    var dinh = r.thang.reduce(function(a, T){ return Math.max(a, Number(T.tong) || 0); }, 0) || 1;
-    r.thang.forEach(function(T){ box.appendChild(klsThang(T, dinh)); });
+       Nay bỏ hẳn hình: dòng tiêu đề chỉ còn CHỮ SỐ, vốn là thứ kế toán đối chiếu. Hình theo
+       ngày vẫn còn nguyên bên trong thẻ khi mở tháng ra (`klsBody`), chỗ ấy có cả chiều rộng
+       để vẽ. */
+    r.thang.forEach(function(T){ box.appendChild(klsThang(T)); });
   });
 }
-function klsThang(T, dinh){
+function klsThang(T){
   var mo = !!KLS_MO[T.thang];
   var card = ktEl('div'); card.style.cssText = 'border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden';
   var head = ktEl('div', 'act'); head.style.cssText = 'cursor:pointer;padding:10px 12px;background:#f4f6f9;flex-wrap:wrap;align-items:center';
   var mm = T.thang.slice(5) + '/' + T.thang.slice(0, 4);
   head.appendChild(ktEl('b', null, (mo ? '▾ ' : '▸ ') + L('Tháng','Month') + ' ' + mm));
   head.appendChild(ktEl('span', 'mut', ' · ' + T.so_ghe + ' ' + L('ghế','chairs') + ' · ' + T.so_ngay + ' ' + L('ngày','days')));
-  /* Thanh tỉ lệ gộp từ biểu đồ cũ (xem khối 🔴 ở `klsLoad`): dài theo tổng so với tháng cao
-     nhất, phần xanh lá là tiền mặt, phần xanh dương là QR — cùng bảng màu với mọi biểu đồ khác
-     trên trang, để không phải học lại màu ở mỗi màn. */
-  var tong = Number(T.tong) || 0;
-  var tm = Number(T.tien_mat) || 0;
-  if (tong > 0) {
-    var wTot = Math.max(3, Math.round(tong / (Number(dinh) || tong) * 100));
-    var wTm = Math.round(tm / tong * 100);
-    var tr = ktEl('div', 'bd-track kls-thanh');
-    tr.title = L('Tiền mặt','Cash') + ' ' + ktVnd(tm) + 'đ · QR ' + ktVnd(T.qr) + 'đ';
-    tr.innerHTML = '<div class="bd-bar" style="width:' + wTot + '%;background:var(--blue)">'
-      + '<div class="bd-seg" style="width:' + wTm + '%;background:var(--green)"></div></div>';
-    head.appendChild(tr);
-  }
   var sp = ktEl('span'); sp.style.flex = '1'; head.appendChild(sp);
   head.appendChild(ktEl('b', null, ktVnd(T.tong) + 'đ'));
   head.appendChild(ktEl('span', 'mut', ' (TM ' + ktVnd(T.tien_mat) + ' · QR ' + ktVnd(T.qr) + ')'));

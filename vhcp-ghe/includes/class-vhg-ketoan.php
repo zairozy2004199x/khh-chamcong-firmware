@@ -1489,7 +1489,7 @@ class VHG_KeToan {
 		if ( '' === $coso ) { return array( 'ok' => false, 'error' => 'Chọn một cơ sở.' ); }
 		$ck = self::squash( $coso );
 		$rows = $wpdb->get_results( $wpdb->prepare(
-			'SELECT d.ngay, d.ma_may, d.ten, d.chi_so_sau, d.actual'
+			'SELECT d.ngay, d.ma_may, d.ten, d.chi_so_sau, d.actual, d.qr'
 			. ' FROM ' . VHG_DB::t( 'bc_dong' ) . ' d JOIN ' . VHG_DB::t( 'bc' ) . ' h ON h.report_id=d.report_id'
 			. ' WHERE h.coso_key=%s AND DATE_FORMAT(d.ngay,%s)=%s'
 			. ' AND (d.chi_so_sau IS NOT NULL OR d.tong<>0 OR d.actual<>0)'
@@ -1504,9 +1504,13 @@ class VHG_KeToan {
 			$ng = self::ngay_( $r['ngay'] );
 			if ( ! isset( $ten_ghe[ $ma ] ) ) { $ten_ghe[ $ma ] = (string) $r['ten']; }
 			if ( ! isset( $o_theo_ngay[ $ng ] ) ) { $o_theo_ngay[ $ng ] = array(); }
+			/* Trả kèm QR để trang dựng được BẢNG THỨ HAI "tiền QR theo ngày" (anh Thắng 02/09/2026:
+			   *"thêm bảng này theo tiền QR"*) mà không phải gọi máy chủ lần nữa — cùng một truy
+			   vấn, cùng một bộ ngày/ghế, nên hai bảng không bao giờ lệch nhau. */
 			$o_theo_ngay[ $ng ][ $ma ] = array(
 				'cs' => null !== $r['chi_so_sau'] ? (int) $r['chi_so_sau'] : null,
 				'actual' => (int) $r['actual'],
+				'qr' => (int) $r['qr'],
 			);
 		}
 		$ds_ghe = array();

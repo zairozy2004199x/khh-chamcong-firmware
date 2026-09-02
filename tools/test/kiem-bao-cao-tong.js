@@ -229,7 +229,7 @@ t('và dùng lại khung cuộn + cột dính như báo cáo tổng',
    nằm đó, bài vẫn xanh. Phá thử bắt đúng chỗ ấy. Nay canh: `duoi` chỉ rỗng khi KHÔNG có chỉ số,
    và ô thì phải thật sự nối `duoi` vào sau số tiền. */
 t('🔴 mỗi ô có chỉ số in dưới số tiền',
-	/var duoi = \(cs === null\) \? '' :/.test(kcg) && /class="kcg-cs/.test(kcg), null);
+	/var duoi = \(!coCs \|\| cs === null\) \? '' :/.test(kcg) && /class="kcg-cs/.test(kcg), null);
 t('🔴 và ô nối chỉ số vào SAU số tiền', /\+ tien \+ duoi \+ '<\/td>'/.test(kcg), null);
 t('🔴 dò chỉ số CHẠY LÙI', /var lech = \(cs !== null && csTruoc !== null && cs < csTruoc\);/.test(kcg), null);
 /* ⚠️ So với ngày CÓ DỮ LIỆU gần nhất, không so ô liền kề: ghế nghỉ ba ngày rồi chạy lại thì ô
@@ -241,9 +241,18 @@ t('lệch thì tô đỏ CẢ Ô, không chỉ con số nhỏ',
 t('và có luật CSS cho chỉ số nhỏ + màu đỏ',
 	/\.kcg-cs\{[^}]*font-size/.test(tr) && /\.kcg-cs\.lech\{[^}]*var\(--red\)/.test(tr), null);
 
-/* ---------- 6d. GỘP BIỂU ĐỒ THÁNG VÀO CHÍNH DANH SÁCH THÁNG ----------
-   Anh Thắng: *"gộp 2 bảng theo tháng chung luôn"*. Trước đó màn có HAI khối kể cùng một chuyện —
-   biểu đồ "Doanh thu theo tháng" và ngay dưới là danh sách thẻ tháng cũng ghi tổng · TM · QR. */
+/* ---------- 6d. KHỐI THEO THÁNG: MỘT KHỐI, VÀ KHÔNG CÓ THANH TỈ LỆ ----------
+   Anh Thắng 01/09/2026: *"gộp 2 bảng theo tháng chung luôn"* — trước đó màn có HAI khối kể cùng
+   một chuyện: biểu đồ "Doanh thu theo tháng" và ngay dưới là danh sách thẻ tháng cũng ghi
+   tổng · TM · QR. Bản gộp kéo thanh tỉ lệ vào dòng tiêu đề từng tháng.
+
+   Rồi 02/09/2026, ảnh GALAXY KINH DƯƠNG VƯƠNG (cơ sở hai ghế): *"bỏ cái này đi"*. Dòng tiêu đề
+   đã chật (tháng · số ghế · số ngày · tổng · TM · QR) nên phần chừa cho thanh chỉ còn vài chục
+   pixel — ra một vạch xanh li ti không đọc được gì.
+
+   🔴 HAI CHỐT NGƯỢC CHIỀU NHAU, PHẢI GIỮ CẢ HAI. Bỏ thanh mà lỡ tay dựng lại khối biểu đồ tháng
+      riêng là quay về đúng chỗ 01/09 đã gộp; còn gộp lại mà kéo thanh vào là quay về chỗ 02/09
+      đã bỏ. Nên canh cả "không có khối riêng" lẫn "không có thanh trong dòng tiêu đề". */
 const iKls = tr.indexOf('function klsLoad(');
 const jKls = tr.indexOf('function klsThang(', iKls);
 const kls = (iKls > 0 && jKls > iKls) ? tr.slice(iKls, jKls) : '';
@@ -252,14 +261,65 @@ t('🔴 KHÔNG còn thẻ biểu đồ tháng riêng', kls.indexOf('bdCotStack('
 const iKt = tr.indexOf('function klsThang(');
 const jKt = tr.indexOf('function klsBody(', iKt);
 const klsT = (iKt > 0 && jKt > iKt) ? tr.slice(iKt, jKt) : '';
-t('🔴 thanh tỉ lệ nằm TRONG dòng tiêu đề tháng', /kls-thanh/.test(klsT) && /head\.appendChild\(tr\)/.test(klsT), null);
-/* Mốc so phải là tháng CAO NHẤT trong năm — mỗi thẻ tự tính riêng thì thanh nào cũng đầy và
-   hết ý nghĩa so sánh. */
-t('🔴 mốc so là tháng cao nhất, truyền từ ngoài vào',
-	/function klsThang\(T, dinh\)/.test(klsT) && /Number\(dinh\) \|\| tong/.test(klsT), null);
-t('và bên gọi có tính đỉnh ấy', /var dinh = r\.thang\.reduce\(/.test(kls), null);
-t('vẫn giữ đủ hai màu tiền mặt / QR như biểu đồ cũ',
-	/var\(--green\)/.test(klsT) && /var\(--blue\)/.test(klsT), null);
+t('bốc được khối dựng một thẻ tháng', '' !== klsT);
+t('🔴 KHÔNG còn thanh tỉ lệ trong dòng tiêu đề tháng',
+	klsT.indexOf('bd-track') < 0 && tr.indexOf('kls-thanh') < 0, klsT.slice(0, 300));
+/* Bỏ thanh thì mốc so ("tháng cao nhất trong năm") cũng hết việc — để lại là một phép tính chạy
+   mỗi lần nạp mà không ai dùng, và là mồi để ai đó dựng lại thanh. */
+t('🔴 và bên gọi không còn tính đỉnh cho thanh ấy',
+	/box\.appendChild\(klsThang\(T\)\)/.test(kls) && kls.indexOf('.reduce(') < 0, kls.slice(-200));
+t('🔴 khai hàm cũng chỉ còn một tham số', /function klsThang\(T\)\{/.test(tr.slice(iKt, iKt + 40)), null);
+/* Nhưng SỐ thì vẫn phải đủ — thứ anh Thắng đối chiếu là chữ số, không phải hình. */
+t('dòng tiêu đề vẫn ghi đủ tổng · tiền mặt · QR',
+	/ktVnd\(T\.tong\)/.test(klsT) && /ktVnd\(T\.tien_mat\)/.test(klsT) && /ktVnd\(T\.qr\)/.test(klsT), null);
+/* Hình theo NGÀY nằm trong thân thẻ (mở tháng ra mới thấy) — chỗ ấy có cả chiều rộng để vẽ, nên
+   nó KHÔNG bị bỏ theo. */
+const iBody = tr.indexOf('function klsBody(');
+const jBody = tr.indexOf('function veKtTien(', iBody);
+const klsB = (iBody > 0 && jBody > iBody) ? tr.slice(iBody, jBody) : '';
+t('biểu đồ theo NGÀY trong thân thẻ tháng vẫn còn', klsB.indexOf('bdCotStack(') > 0, null);
+
+/* ---------- 6e. BẢNG CHÉO THỨ HAI: TIỀN QR ----------
+   Anh Thắng 02/09/2026, ảnh chính bảng chéo Ghế × Ngày: *"thêm bảng này theo tiền QR"*.
+
+   🔴 HAI BẢNG PHẢI DỰNG TỪ CÙNG MỘT LẦN GỌI. Kế toán lấy Thực thu trừ QR ra phần tiền mặt phải
+      nộp; hai truy vấn riêng là hai bộ ngày/ghế có thể lệch nhau (một dòng được sửa giữa hai
+      lần gọi), và trừ nhầm cả cột mà không có gì báo. */
+/* ⚠️ BỐC RIÊNG THÂN `bang_cheo()` RA SOI. Soi trần trụi cả tệp thì phép dưới xanh nhờ một chỗ
+   chẳng liên quan: `duyet_rows()` cũng có đúng dòng `'qr' => (int) $r['qr'],`. Phá thử bắt được
+   chỗ mù ấy — đổi tên khoá trong bang_cheo mà bài vẫn xanh. */
+const iBC = src.indexOf('public static function bang_cheo(');
+const jBC = src.indexOf('BÁO CÁO TỔNG', iBC);
+t('bốc được thân bang_cheo()', iBC > 0 && jBC > iBC);
+const bc_php = (iBC > 0 && jBC > iBC) ? src.slice(iBC, jBC) : '';
+t('🔴 máy chủ trả kèm cột qr trong bảng chéo',
+	/SELECT d\.ngay, d\.ma_may, d\.ten, d\.chi_so_sau, d\.actual, d\.qr/.test(bc_php)
+	&& /'qr' => \(int\) \$r\['qr'\],/.test(bc_php), null);
+t('🔴 chỉ MỘT lần gọi kt_bangcheo cho cả hai bảng',
+	1 === (kcg.match(/goi\('kt_bangcheo'/g) || []).length, (kcg.match(/goi\('kt_bangcheo'/g) || []).length);
+t('🔴 dựng hai bảng: thực thu rồi tiền QR',
+	/kcgBang\(r, 'actual', true\)/.test(kcg) && /kcgBang\(r, 'qr', false\)/.test(kcg), null);
+/* ⚠️ CANH CHỖ LẤY SỐ, KHÔNG CANH TÊN THAM SỐ. Nhận `khoa` rồi bên trong vẫn đọc cứng `o.actual`
+   thì bảng QR in ra y hệt bảng trên — hai bảng giống nhau như đúc, và trông rất thuyết phục. */
+t('🔴 ô lấy số theo khoá truyền vào, không đọc cứng actual',
+	/var v = o \? Number\(o\[khoa\]\) \|\| 0 : 0;/.test(kcg) && kcg.indexOf('Number(o.actual)') < 0, null);
+t('nhãn hai bảng nói rõ bảng nào là bảng nào',
+	kcg.indexOf("L('Thực thu theo ngày (tiền mặt + QR)'") > 0 && kcg.indexOf("L('Tiền QR theo ngày'") > 0, null);
+/* 🔴 SỐ CỘT PHẢI KHỚP NHAU BA CHỖ. Bảng QR bỏ cột "Chỉ số đầu→cuối"; quên bỏ ở một trong ba
+   (tiêu đề / thân / hàng TỔNG) là bảng lệch một cột — mọi con số của hàng TỔNG trượt sang ngày
+   bên cạnh, và trình duyệt không kêu tiếng nào. */
+const bang = kcg.slice(kcg.indexOf('function kcgBang('));
+t('🔴 cột chỉ số có/không theo coCs ở TIÊU ĐỀ',
+	/\(coCs \? \('<th>' \+ L\('Chỉ số đầu→cuối'/.test(bang), null);
+t('🔴 …ở THÂN bảng', /\(coCs \? \('<td>' \+ cs \+ '<\/td>'\) : ''\)/.test(bang), null);
+t('🔴 …và ở hàng TỔNG', /\+ \(coCs \? '<td><\/td>' : ''\)/.test(bang), null);
+/* Chỉ số là mốc đối chiếu của THỰC THU, không phải của QR: in lại dưới ô QR là cùng một con số
+   nằm hai chỗ, người đọc phải dừng lại nghĩ xem hai cái có khác nhau không. */
+t('🔴 bảng QR không in chỉ số dưới số tiền', /var duoi = \(!coCs \|\| cs === null\) \? '' :/.test(bang), null);
+t('và cũng không tô đỏ ô theo chỉ số', /\(coCs && lech \? ' kcg-lech' : ''\)/.test(bang), null);
+/* Bảng QR rộng y như bảng trên nên cũng phải nằm trong khung cuộn, không thì cụt cột Cộng. */
+t('bảng QR cũng nằm trong khung cuộn (dựng khung rồi TRẢ chính khung ấy)',
+	/var sc = ktEl\('div','table-scroll'\);/.test(bang) && /sc\.appendChild\(t\);\s*\n\s*return sc;/.test(bang), null);
 
 /* ---------- 7. MÃ KH: khai được, và KHÔNG bị xoá khi sửa việc khác ---------- */
 const may_php = fs.readFileSync('vhcp-ghe/includes/class-vhg-may.php', 'utf8');
