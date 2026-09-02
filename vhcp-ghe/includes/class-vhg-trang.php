@@ -2698,6 +2698,25 @@ table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink);font-weight:700;
   background:#eef2f7;padding:9px 10px 9px 8px;border-bottom:1px solid #dbe2ec}
 td{padding:9px 8px;border-bottom:1px solid #eef1f5;vertical-align:middle;color:var(--ink2)}
+/* 🔴 KHUNG CUỘN NGANG CHO BẢNG RỘNG — anh Thắng 01/09/2026, ảnh màn "Doanh thu địa điểm":
+   bảng "Theo ghế" cụt mất cột TỔNG ở mép phải.
+
+   Lớp `.table-scroll` đã được dùng ở NĂM bảng của khu kế toán (Theo ghế · Theo ngày · Bảng chéo
+   Ngày×Ghế · và hai bảng nữa), mỗi bảng còn tự đặt `min-width` 480–620px cho khỏi bị bóp cột.
+   Nhưng luật CSS cho chính lớp ấy thì CHƯA BAO GIỜ TỒN TẠI — grep cả kho ra đúng 0 dòng. Không
+   có `overflow-x` thì `min-width` không sinh ra thanh cuộn, nó chỉ đẩy bảng tràn ra ngoài thẻ
+   và phần thừa bị cắt.
+
+   ⚠️ ĐÂY LÀ LOẠI HỎNG KHÔNG KÊU TIẾNG NÀO. Bảng vẫn vẽ đủ, số vẫn đúng, chỉ có cột cuối nằm
+      ngoài màn — mà cột cuối của bảng tiền thường là cột TỔNG. Người đọc không thấy thiếu, họ
+      thấy một bảng bình thường.
+
+   ⚠️ `max-width:100%` phải có: chỉ `overflow-x` thôi thì trên khung hẹp (sidebar chiếm chỗ) thẻ
+      con vẫn nở theo bảng bên trong và đẩy cả trang trôi ngang. */
+.table-scroll{overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch}
+/* Viền mảnh + bo góc để nhìn ra đây là một vùng cuộn, không phải bảng bị hụt. */
+.table-scroll{border:1px solid var(--line);border-radius:10px}
+.table-scroll>table{margin:0}
 tr:last-child td{border-bottom:0}
 .r{text-align:right}
 .pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:600}
