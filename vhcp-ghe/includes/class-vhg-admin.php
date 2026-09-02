@@ -1912,42 +1912,77 @@ class VHG_Admin {
 	// ======================================================================= NẠP FILE FIRMWARE
 
 	/**
-	 * Tab "Nạp file firmware": tải .bin ghế lên web -> các máy TỰ tải, khỏi mang thẻ SD.
-	 *   · app .bin   -> cho CON THỢ NẠP (ô "Link firmware GHE") và ghế OTA.
+	 * Tab "Nạp file firmware": tải .bin cho TỪNG loại máy lên web -> các máy TỰ tải, khỏi mang thẻ SD.
+	 *   · app .bin   -> cho CON THỢ NẠP (ô "Link firmware") và OTA.
 	 *   · merged .bin -> cho TRANG NẠP USB (esp-web-tools).
+	 * Chọn loại máy bằng các thẻ ở trên; mọi mục bên dưới thao tác theo loại đang chọn.
 	 * Xem VHG_Fw: file để trong uploads/vhg-firmware, phục vụ bằng đường uploads (khỏi rewrite).
 	 */
 	public static function trang_fw() {
 		self::gac();
 		$bao = array();
+
+		// Loại đang chọn: POST (khi vừa tải/xoá) > GET (khi bấm thẻ) > mặc định ghe.
+		$loai = '';
+		if ( isset( $_POST['fw_loai'] ) ) { $loai = sanitize_key( wp_unslash( $_POST['fw_loai'] ) ); }
+		elseif ( isset( $_GET['fw_loai'] ) ) { $loai = sanitize_key( wp_unslash( $_GET['fw_loai'] ) ); }
+		if ( ! VHG_Fw::la_loai( $loai ) ) { $loai = 'ghe'; }
+
 		if ( isset( $_POST['vhg'] ) ) {
 			check_admin_referer( 'vhg' );
 			$viec = sanitize_text_field( wp_unslash( $_POST['vhg'] ) );
 			if ( 'fw_nap' === $viec ) {
 				$bao = VHG_Fw::xu_ly( $_POST, isset( $_FILES ) ? $_FILES : array() );
 			} elseif ( 'fw_xoa' === $viec ) {
-				$bao = VHG_Fw::xoa();
+				$bao = VHG_Fw::xoa( $loai );
 			}
 		}
 
-		echo '<div class="wrap"><h1>Nạp file firmware ghế</h1>';
+		echo '<div class="wrap"><h1>Nạp file firmware</h1>';
 		self::ve_bao( $bao );
 
-		echo '<p class="description">Tải tệp <b>.bin</b> firmware ghế lên đây. Máy chủ giữ tệp, các thiết bị '
-			. 'TỰ tải về — khỏi mang thẻ SD đi từng nơi. <b>Không kèm bí mật vào repo:</b> tệp nằm ở uploads '
-			. 'trên máy chủ, chỉ đưa link cho người trong nhà.</p>';
+		echo '<p class="description">Tải tệp <b>.bin</b> firmware lên đây theo <b>loại máy</b>. Máy chủ giữ tệp, các '
+			. 'thiết bị TỰ tải về — khỏi mang thẻ SD đi từng nơi. <b>Không kèm bí mật vào repo:</b> tệp nằm ở '
+			. 'uploads trên máy chủ, chỉ đưa link cho người trong nhà.</p>';
 
-		$meta = VHG_Fw::meta();
+		// ---- Tổng quan mọi loại ----
+		$base = admin_url( 'admin.php?page=vhg-fw' );
+		echo '<h2>Tổng quan</h2>';
+		echo '<table class="widefat" style="max-width:900px"><thead><tr><th>Loại máy</th><th>App .bin</th>'
+			. '<th>Merged .bin</th><th>Phiên bản</th><th></th></tr></thead><tbody>';
+		foreach ( VHG_Fw::loai_ds() as $lk => $info ) {
+			$m   = VHG_Fw::meta( $lk );
+			$co_a = '' !== VHG_Fw::url_app( $lk );
+			$co_m = '' !== VHG_Fw::url_merged( $lk );
+			$dam  = ( $lk === $loai ) ? ' style="background:#f0f6fc"' : '';
+			$oke  = '<span style="color:#1a7f37;font-weight:700">✓</span>';
+			$khong = '<span style="color:#b32d2e">—</span>';
+			echo '<tr' . $dam . '>';
+			echo '<td><b>' . esc_html( $info['icon'] . ' ' . $info['ten'] ) . '</b></td>';
+			echo '<td>' . ( $co_a ? $oke : $khong ) . '</td>';
+			echo '<td>' . ( $co_m ? $oke : $khong ) . '</td>';
+			echo '<td>' . ( ! empty( $m['ver'] ) ? esc_html( $m['ver'] ) : '<span class="description">—</span>' ) . '</td>';
+			echo '<td>' . ( $lk === $loai
+				? '<b>đang chọn</b>'
+				: '<a href="' . esc_url( $base . '&fw_loai=' . $lk ) . '">chọn để nạp/xem</a>' ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table>';
+
+		$ten_loai = VHG_Fw::ten_loai( $loai );
+		$meta = VHG_Fw::meta( $loai );
 		$ver  = isset( $meta['ver'] ) ? $meta['ver'] : '';
-		$u_app = VHG_Fw::url_app();
-		$u_mrg = VHG_Fw::url_merged();
-		$u_ota = VHG_Fw::url_json_ota();
-		$u_usb = VHG_Fw::url_json_usb();
+		$u_app = VHG_Fw::url_app( $loai );
+		$u_mrg = VHG_Fw::url_merged( $loai );
+		$u_ota = VHG_Fw::url_json_ota( $loai );
+		$u_usb = VHG_Fw::url_json_usb( $loai );
 
-		// ---- Tình trạng hiện tại ----
-		echo '<h2>Đang có trên web</h2>';
+		echo '<hr><h2>' . esc_html( $ten_loai ) . '</h2>';
+
+		// ---- Tình trạng loại đang chọn ----
+		echo '<h3>Đang có trên web</h3>';
 		if ( '' === $u_app && '' === $u_mrg ) {
-			echo '<p><b style="color:#b32d2e">Chưa có firmware nào.</b> Tải lên bên dưới.</p>';
+			echo '<p><b style="color:#b32d2e">Chưa có firmware ' . esc_html( $ten_loai ) . '.</b> Tải lên bên dưới.</p>';
 		} else {
 			echo '<table class="widefat" style="max-width:900px"><tbody>';
 			echo '<tr><th style="width:180px">Phiên bản</th><td><b>' . esc_html( $ver ) . '</b>'
@@ -1958,45 +1993,53 @@ class VHG_Admin {
 			self::fw_dong( 'Merged .bin (nạp USB)', $u_mrg );
 			echo '</tbody></table>';
 
-			echo '<h2>Link để dán vào máy</h2>';
+			echo '<h3>Link để dán vào máy</h3>';
 			echo '<table class="widefat" style="max-width:900px"><tbody>';
-			self::fw_dong( 'Link firmware GHẾ (dán vào ô "Link firmware GHE" của con thợ nạp)', $u_ota );
-			self::fw_dong( 'Manifest USB (dán vào data-manifest thẻ ghế của trang nạp USB)', $u_usb );
+			self::fw_dong( 'Link firmware (dán vào ô "Link firmware" của con thợ nạp)', $u_ota );
+			self::fw_dong( 'Manifest USB (dán vào data-manifest của trang nạp USB)', $u_usb );
 			echo '</tbody></table>';
-			echo '<p class="description">Con thợ nạp: portal → chọn đích <b>Ghế massage QR</b> → dán link firmware GHẾ ở trên → '
-				. '<b>Tải bản mới về thẻ</b> → mang tới gần ghế → Nạp.</p>';
+			echo '<p class="description">Con thợ nạp: portal → chọn đúng đích → dán link firmware ở trên → '
+				. '<b>Tải bản mới về thẻ</b> → mang tới gần máy → Nạp.</p>';
 		}
 
 		// ---- Biểu mẫu tải lên ----
-		echo '<h2>Tải firmware lên</h2>';
+		echo '<h3>Tải firmware lên (' . esc_html( $ten_loai ) . ')</h3>';
 		echo '<form method="post" enctype="multipart/form-data">';
 		wp_nonce_field( 'vhg' );
+		echo '<input type="hidden" name="fw_loai" value="' . esc_attr( $loai ) . '">';
 		echo '<table class="form-table" role="presentation"><tbody>';
+		echo '<tr><th scope="row"><label for="fw_loai_sel">Loại máy</label></th><td>';
+		echo '<select id="fw_loai_sel" onchange="location.href=' . "'" . esc_js( $base ) . "'" . '+\'&fw_loai=\'+this.value">';
+		foreach ( VHG_Fw::loai_ds() as $lk => $info ) {
+			echo '<option value="' . esc_attr( $lk ) . '"' . selected( $lk, $loai, false ) . '>'
+				. esc_html( $info['icon'] . ' ' . $info['ten'] ) . '</option>';
+		}
+		echo '</select><p class="description">Đổi loại là chuyển sang mục nạp của loại đó.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="fw_ver">Phiên bản</label></th><td>'
-			. '<input name="fw_ver" id="fw_ver" type="text" class="regular-text" placeholder="vd: ghe-massage 2026-09-02b" value="'
+			. '<input name="fw_ver" id="fw_ver" type="text" class="regular-text" placeholder="vd: ' . esc_attr( $loai ) . ' 2026-09-02b" value="'
 			. esc_attr( $ver ) . '"><p class="description">Chỉ để hiển thị + ghi vào manifest.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="fw_app">App .bin (OTA / thợ nạp)</label></th><td>'
 			. '<input name="fw_app" id="fw_app" type="file" accept=".bin"><p class="description">Ảnh <b>APP</b> (Arduino: <code>*.ino.bin</code>) '
 			. '— thứ Update.h ghi vào phân vùng app. Dùng cho con thợ nạp và OTA. KHÁC file merged.</p></td></tr>';
 		echo '<tr><th scope="row"><label for="fw_merged">Merged .bin (nạp USB)</label></th><td>'
 			. '<input name="fw_merged" id="fw_merged" type="file" accept=".bin"><p class="description">Ảnh <b>GỘP</b> ('
-			. '<code>esptool merge_bin</code>, offset 0) — dùng cho trang nạp USB (esp-web-tools). Không bắt buộc.</p></td></tr>';
+			. '<code>esptool merge_bin</code>, offset 0; hoặc Arduino <code>*.ino.merged.bin</code>) — dùng cho trang nạp USB. Không bắt buộc.</p></td></tr>';
 		echo '</tbody></table>';
 		echo '<p><button class="button button-primary" name="vhg" value="fw_nap">Tải lên & cập nhật</button></p>';
 		echo '</form>';
 
 		// ---- NẠP QUA USB NGAY TRÊN WEB (Web Serial / esp-web-tools) ----
-		echo '<hr><h2>&#9889; Nạp firmware qua USB — ngay tại đây</h2>';
+		echo '<hr><h3>&#9889; Nạp ' . esc_html( $ten_loai ) . ' qua USB — ngay tại đây</h3>';
 		if ( '' === $u_mrg ) {
 			echo '<p class="description">Tải <b>merged .bin</b> ở trên trước thì mới nạp USB được. '
 				. '(App .bin chỉ dùng cho OTA/thợ nạp, không full-flash qua USB được.)</p>';
 		} elseif ( ! is_ssl() ) {
 			echo '<p style="color:#b32d2e"><b>Web Serial cần HTTPS.</b> Mở trang admin qua <code>https://</code> rồi thử lại.</p>';
 		} else {
-			echo '<p class="description">Cắm ghế/board vào máy tính bằng <b>cáp USB dữ liệu</b> (dùng <b>Chrome</b> hoặc '
+			echo '<p class="description">Cắm board vào máy tính bằng <b>cáp USB dữ liệu</b> (dùng <b>Chrome</b> hoặc '
 				. '<b>Edge</b> trên máy tính) rồi bấm nút. Nạp trực tiếp, khỏi Arduino IDE.</p>';
 			echo '<p><esp-web-install-button manifest="' . esc_url( $u_usb ) . '">'
-				. '<button class="button button-primary button-hero" slot="activate">&#9889; Nạp firmware qua USB</button>'
+				. '<button class="button button-primary button-hero" slot="activate">&#9889; Nạp ' . esc_html( $ten_loai ) . ' qua USB</button>'
 				. '<span slot="unsupported" style="color:#b32d2e">Trình duyệt không hỗ trợ — dùng Chrome/Edge trên máy tính.</span>'
 				. '<span slot="not-allowed" style="color:#b32d2e">Cần mở trang qua HTTPS.</span>'
 				. '</esp-web-install-button></p>';
@@ -2004,9 +2047,10 @@ class VHG_Admin {
 		}
 
 		if ( '' !== $u_app || '' !== $u_mrg ) {
-			echo '<hr><form method="post" onsubmit="return confirm(\'Xoá firmware ghế trên web?\');">';
+			echo '<hr><form method="post" onsubmit="return confirm(\'Xoá firmware ' . esc_js( $ten_loai ) . ' trên web?\');">';
 			wp_nonce_field( 'vhg' );
-			echo '<button class="button" name="vhg" value="fw_xoa">Xoá firmware trên web</button></form>';
+			echo '<input type="hidden" name="fw_loai" value="' . esc_attr( $loai ) . '">';
+			echo '<button class="button" name="vhg" value="fw_xoa">Xoá firmware ' . esc_html( $ten_loai ) . ' trên web</button></form>';
 		}
 		echo '</div>';
 	}
