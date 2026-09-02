@@ -10,6 +10,11 @@
 //     dưới copy đúng từ tft_display_addon.md. Màn trắng thì thử ILI9341_DRIVER
 //     hoặc ST7789_DRIVER (kèm TFT_RGB_ORDER TFT_BGR) — sửa ở đây, không sửa
 //     trong thư mục thư viện, để CI và máy anh không lệch nhau.
+//
+//  🟡 BO 2 CỔNG USB (micro + USB-C) = ĐỜI MỚI, chip màn ST7789 -> config NÀY
+//     (ILI9341) sẽ cho MÀN ĐEN. Dùng bản  User_Setup_ST7789_2USB.h  trong cùng
+//     thư mục (chép đè vào User_Setup.h của thư viện) rồi BIÊN DỊCH LẠI + nạp lại.
+//     Bo 1 cổng micro-USB = đời cũ ILI9341 -> giữ nguyên file này.
 // ============================================================================
 #define ILI9341_2_DRIVER
 #define TFT_MISO 12
