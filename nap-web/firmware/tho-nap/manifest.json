@@ -1,0 +1,13 @@
+{
+  "name": "Thợ nạp OTA",
+  "version": "tho-nap (dien phien ban that)",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "firmware-tho-nap-merged.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

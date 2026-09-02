@@ -1,0 +1,13 @@
+{
+  "name": "Máy chấm công",
+  "version": "cham-cong (dien phien ban that)",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "firmware-cham-cong-merged.bin", "offset": 0 }
+      ]
+    }
+  ]
+}

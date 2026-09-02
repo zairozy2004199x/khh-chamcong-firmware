@@ -1,0 +1,3 @@
+# Firmware .bin chua secrets da compile -> KHONG commit vao repo cong khai.
+# Admin dat *-merged.bin trong tung thu muc con tren SERVER, canh manifest.json.
+*.bin

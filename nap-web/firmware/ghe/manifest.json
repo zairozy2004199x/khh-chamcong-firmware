@@ -1,0 +1,13 @@
+{
+  "name": "Ghế Massage QR",
+  "version": "ghe-massage 2026-09-02a",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32",
+      "parts": [
+        { "path": "firmware-ghe-merged.bin", "offset": 0 }
+      ]
+    }
+  ]
+}
