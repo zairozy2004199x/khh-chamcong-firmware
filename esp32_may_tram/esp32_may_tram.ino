@@ -56,6 +56,8 @@ bool  webGoi(const String& viec, const String& body, String& raOut);
 void  cheDoOTA();
 void  cheDoChotCa();
 void  cheDoKiemTra();   // xem chỉ số như chốt ca nhưng CHỈ XEM, không ghi
+void  cheDoChotTien();  // chốt tiền: đọc chỉ số tiền mặt+QR THẲNG từ ghế qua AP rồi chốt lên web
+bool  docChiSoGhe(const ApGhe& g, long& tm, long& qr);   // GET /chotso trên AP ghế
 // 4G (bê từ esp32_ghe_massage.ino)
 void   modemPowerOn();
 bool   atProbe(int txPin, int rxPin, long baud);
@@ -99,7 +101,7 @@ const char* SIM_APN     = "v-internet";         // Viettel; đổi nếu SIM nh�
 int TS_MINX = 200, TS_MAXX = 3700, TS_MINY = 240, TS_MAXY = 3800;
 #define SD_CS  5                                 // thẻ SD trên CYD: SPI SCK18/MISO19/MOSI23
 #define BL_PIN 21                                // đèn nền
-#define FW_VERSION "may-tram 2026-08-27d (chu tieng Viet co dau - font VLW; nho PIN)"
+#define FW_VERSION "may-tram 2026-09-02a (them CHOT TIEN: doc /chotso tu ghe qua AP -> chot web)"
 // ═════════════════════════════════════════════════════════════════════════════
 
 TFT_eSPI tft = TFT_eSPI();
@@ -817,16 +819,132 @@ void cheDoKiemTra(){
 }
 
 // ═══════════════════════════════ MÀN CHÍNH ═══════════════════════════════════
+// ═══════════════════════════ ĐỌC CHỈ SỐ TIỀN TỪ GHẾ (AP) ═════════════════════
+/* Nối AP ghế, GET /chotso -> chỉ số TIỀN MẶT + QR cộng dồn của ghế. Trả false nếu lỗi.
+   Ghế phải chạy firmware có endpoint /chotso (2026-09-02b trở lên). */
+bool docChiSoGhe(const ApGhe& g, long& tm, long& qr){
+  bao("Kết nối ghế...", COL_ACC, g.ma, "đọc chỉ số tiền");
+  WiFi.mode(WIFI_STA); WiFi.disconnect(true); delay(150);
+  WiFi.begin(g.ssid.c_str(), GHE_AP_PASS);
+  unsigned long t0 = millis();
+  while(WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) delay(250);
+  if(WiFi.status() != WL_CONNECTED){
+    bao("Nối thất bại", COL_DO, g.ma, "Lại gần hơn rồi thử lại"); WiFi.disconnect(true); delay(1600); return false;
+  }
+  WiFiClient cl; cl.setTimeout(8000);
+  if(!cl.connect(GHE_IP, GHE_PORT)){
+    bao("Không nối 192.168.4.1", COL_DO, "", ""); WiFi.disconnect(true); delay(1500); return false;
+  }
+  cl.print("GET /chotso HTTP/1.1\r\n");
+  cl.print("Host: 192.168.4.1\r\n");
+  cl.print(String("X-OTA-Key: ") + OTA_KEY + "\r\n");
+  cl.print("Connection: close\r\n\r\n");
+
+  String resp = ""; unsigned long tr = millis();
+  while((cl.connected() || cl.available()) && millis() - tr < 8000){
+    while(cl.available()){ resp += (char)cl.read(); tr = millis(); if(resp.length() > 2000) break; }
+    delay(2);
+  }
+  cl.stop(); WiFi.disconnect(true);
+
+  int b = resp.indexOf("\r\n\r\n");                 // bỏ header HTTP, còn thân JSON
+  String body = (b >= 0) ? resp.substring(b + 4) : resp;
+  StaticJsonDocument<384> d;                        // đủ cho {ok,ma,tm,qr,fw} — fw dài
+  if(deserializeJson(d, body) || !(d["ok"] | 0)){
+    bao("Ghế không trả chỉ số", COL_DO, "Ghế cần firmware có /chotso", ""); delay(2200); return false;
+  }
+  tm = (long)(d["tm"] | 0);
+  qr = (long)(d["qr"] | 0);
+  Serial.printf("[CHOTSO] %s: tm=%ld qr=%ld\n", g.ma.c_str(), tm, qr);
+  return true;
+}
+
+// ═══════════════════════════════ CHẾ ĐỘ CHỐT TIỀN ════════════════════════════
+/* Đọc chỉ số tiền mặt + QR THẲNG TỪ GHẾ qua AP rồi chốt lên web (web trừ kỳ trước).
+   1) Dò AP -> chọn ghế. 2) Nối AP ghế, GET /chotso. 3) Nối Internet + đăng nhập.
+   4) Hiện tiền mặt + QR + "kỳ này". 5) Bấm CHỐT -> chot_tien_luu. */
+void cheDoChotTien(){
+  quetAp(true);
+  if(g_dsN == 0) return;
+  int sel = chonGheTuDanhSach("Chon ghe CHOT TIEN");
+  if(sel < 0) return;
+  ApGhe g = g_ds[sel];
+  String ma = g.ma;
+
+  // 1) Đọc chỉ số THẲNG từ ghế (qua AP) TRƯỚC khi chuyển sang Internet
+  long tm = 0, qr = 0;
+  if(!docChiSoGhe(g, tm, qr)) return;
+
+  // 2) Nối Internet (4G) + đăng nhập
+  if(!noiInternet()) return;
+  if(!damBaoDangNhap()) return;
+
+  // 3) Mốc kỳ trước (để hiện "kỳ này") — best-effort
+  long tmTruoc = 0, qrTruoc = 0; int lanDau = 0; String coso = "";
+  { String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
+    String body; serializeJson(b, body);
+    if(webGoi("chot_tien_xem", body, r)){
+      StaticJsonDocument<512> d;
+      if(!deserializeJson(d, r) && (d["ok"] | false)){
+        coso    = String((const char*)(d["coso"] | ""));
+        tmTruoc = (long)(d["tm_truoc"] | 0);
+        qrTruoc = (long)(d["qr_truoc"] | 0);
+        lanDau  = (int)(d["lan_dau"] | 0);
+      }
+    } }
+  long tmKy = lanDau ? 0 : (tm - tmTruoc);
+  long qrKy = lanDau ? 0 : (qr - qrTruoc);
+
+  // 4) Màn xác nhận: hiện chỉ số ghế + kỳ này, hai nút HUỶ / CHỐT
+  tft.fillScreen(COL_BG);
+  veLon("CHỐT TIỀN - Ghế " + ma, 14, 18, COL_ACC, COL_BG, TL_DATUM);
+  if(coso.length()) veVua(coso, 14, 46, COL_XAM, COL_BG, TL_DATUM);
+  veVua("Tiền mặt (ghế): " + String(tm) + " đ", 14, 72, TFT_WHITE, COL_BG, TL_DATUM);
+  veVua("QR (ghế): " + String(qr) + " đ", 14, 96, TFT_WHITE, COL_BG, TL_DATUM);
+  if(lanDau) veVua("Lần đầu - lấy làm mốc gốc", 14, 126, COL_OK, COL_BG, TL_DATUM);
+  else       veVua("Kỳ này: TM " + String(tmKy) + " đ  |  QR " + String(qrKy) + " đ", 14, 126, COL_OK, COL_BG, TL_DATUM);
+  tft.fillRoundRect(20, 190, 130, 40, 9, COL_DO);
+  veLon("HUỶ", 85, 210, TFT_WHITE, COL_DO);
+  tft.fillRoundRect(170, 190, 130, 40, 9, 0x0400);
+  veLon("CHỐT", 235, 210, TFT_WHITE, 0x0400);
+  { int cx, cy; cho4Cham(cx, cy, 0); if(cx < 160) return; }   // chạm nửa trái = HUỶ
+
+  // 5) Chốt -> web. ma_lan để gửi lại lúc sóng yếu KHÔNG ghi hai lần.
+  String ml = "ct-" + ma + "-" + String((uint32_t)millis());
+  bao("Đang chốt tiền...", COL_ACC, "Ghế " + ma, "");
+  String r2; StaticJsonDocument<256> b2;
+  b2["token"] = g_token; b2["ma_may"] = ma; b2["tm"] = tm; b2["qr"] = qr; b2["ma_lan"] = ml;
+  String body2; serializeJson(b2, body2);
+  if(!webGoi("chot_tien_luu", body2, r2)){ bao("Lỗi mạng", COL_DO, "chot_tien_luu", ""); delay(1600); return; }
+  StaticJsonDocument<512> d2;
+  if(deserializeJson(d2, r2)){ bao("Web trả rác", COL_DO, "", ""); delay(1600); return; }
+  if(!(d2["ok"] | false)){
+    String e = String((const char*)(d2["error"] | "Loi"));
+    bao("Chốt thất bại", COL_DO, e.substring(0, 34), ""); delay(2600); return;
+  }
+  long tk = (long)(d2["tm_ky"] | 0), qk = (long)(d2["qr_ky"] | 0);
+  int  ld = (int)(d2["lan_dau"] | 0);
+  tft.fillScreen(COL_BG);
+  veLon("ĐÃ CHỐT TIỀN", 160, 40, COL_OK, COL_BG);
+  veVua("Ghế " + ma, 160, 84, TFT_WHITE, COL_BG);
+  if(ld) veVua("Lần đầu - đã lưu mốc gốc", 160, 116, COL_XAM, COL_BG);
+  else   veVua("Kỳ này: TM " + String(tk) + " đ  |  QR " + String(qk) + " đ", 160, 116, TFT_WHITE, COL_BG);
+  veVua("Chạm để tiếp tục", 160, 180, COL_XAM, COL_BG);
+  int x, y; cho4Cham(x, y, 0);
+}
+
 void manChinh(){
   tft.fillScreen(COL_BG);
-  veLon("MÁY TRẠM POSH", 160, 18, COL_ACC, COL_BG);
-  // 3 nút lớn (mỗi nút cao 54, cách 8) — xem vùng chạm khớp trong loop()
-  tft.fillRoundRect(24, 40, 272, 54, 10, 0x2145);
-  veLon("NẠP FIRMWARE", 160, 67, TFT_WHITE, 0x2145);
-  tft.fillRoundRect(24, 102, 272, 54, 10, 0x0341);
-  veLon("THU TIỀN / CHỐT CA", 160, 129, TFT_WHITE, 0x0341);
-  tft.fillRoundRect(24, 164, 272, 54, 10, 0x03A0);
-  veLon("KIỂM TRA CHỈ SỐ", 160, 191, TFT_WHITE, 0x03A0);
+  veLon("MÁY TRẠM POSH", 160, 14, COL_ACC, COL_BG);
+  // 4 nút (mỗi nút cao 40, cách 6) — vùng chạm khớp trong loop()
+  tft.fillRoundRect(24, 32, 272, 40, 9, 0x2145);
+  veLon("NẠP FIRMWARE", 160, 52, TFT_WHITE, 0x2145);
+  tft.fillRoundRect(24, 78, 272, 40, 9, 0x0341);
+  veLon("THU TIỀN / CHỐT CA", 160, 98, TFT_WHITE, 0x0341);
+  tft.fillRoundRect(24, 124, 272, 40, 9, 0x0400);
+  veLon("CHỐT TIỀN (ĐỌC GHẾ)", 160, 144, TFT_WHITE, 0x0400);
+  tft.fillRoundRect(24, 170, 272, 40, 9, 0x03A0);
+  veLon("KIỂM TRA CHỈ SỐ", 160, 190, TFT_WHITE, 0x03A0);
 }
 
 void setup(){
@@ -858,11 +976,13 @@ void loop(){
   { int lx, ly; unsigned long t = millis(); while(getTouch(lx, ly) && millis() - t < 1200) delay(10); }
   delay(40);
 
-  if(x >= 24 && x <= 296 && y >= 40 && y <= 94){         // NẠP FIRMWARE
+  if(x >= 24 && x <= 296 && y >= 32 && y <= 72){          // NẠP FIRMWARE
     cheDoOTA();
-  } else if(x >= 24 && x <= 296 && y >= 102 && y <= 156){ // THU TIỀN / CHỐT CA
+  } else if(x >= 24 && x <= 296 && y >= 78 && y <= 118){  // THU TIỀN / CHỐT CA
     cheDoChotCa();
-  } else if(x >= 24 && x <= 296 && y >= 164 && y <= 218){ // KIỂM TRA CHỈ SỐ (chỉ xem)
+  } else if(x >= 24 && x <= 296 && y >= 124 && y <= 164){ // CHỐT TIỀN (ĐỌC GHẾ)
+    cheDoChotTien();
+  } else if(x >= 24 && x <= 296 && y >= 170 && y <= 210){ // KIỂM TRA CHỈ SỐ (chỉ xem)
     cheDoKiemTra();
   }
   manChinh();
