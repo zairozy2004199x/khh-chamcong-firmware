@@ -194,6 +194,32 @@ t('🔴 .csv có BOM cho Excel tiếng Việt', tr.indexOf("ufeff' + dong.join")
 t('xuất từ dữ liệu đang hiện, không gọi lại máy chủ',
 	/function bctXuat\(\)\{[\s\S]{0,200}var r = BCT_DATA;/.test(tr));
 
+/* ---------- 6b. BẢNG CHÉO Ở MÀN "DOANH THU ĐỊA ĐIỂM": GHẾ THEO HÀNG ----------
+   Anh Thắng 01/09/2026: *"ngược rồi, đảo lại"*. Bảng ấy vốn để ngày theo hàng — sai với mẫu
+   Excel, và sai cả cách đọc: người ta soi MỘT GHẾ chạy qua thời gian, chứ không soi một ngày
+   cắt ngang ba trăm ghế. Để ngày theo hàng thì một ghế bị xé thành 365 ô rải khắp chiều dọc.
+
+   ⚠️ CANH CHIỀU BẢNG, KHÔNG CANH TÊN KHỐI. Đổi tiêu đề mà quên đảo mã (hoặc ngược lại) thì
+      nhãn nói một đằng bảng làm một nẻo — nên canh cả hai, và canh vào vòng lặp dựng thân. */
+const iKcg = tr.indexOf('function kcgLoad(');
+const jKcg = tr.indexOf('function klsLoad(', iKcg);
+t('bốc được khối bảng chéo', iKcg > 0 && jKcg > iKcg);
+const kcg = (iKcg > 0 && jKcg > iKcg) ? tr.slice(iKcg, jKcg) : '';
+t('🔴 thân bảng lặp theo GHẾ (mỗi ghế một hàng)', /var body = r\.ghe\.map\(/.test(kcg), kcg.slice(0, 200));
+t('🔴 tiêu đề cột lặp theo NGÀY', /r\.ngay\.map\(function\(N\)\{?[\s\S]{0,80}bct-ng/.test(kcg), null);
+t('không còn dựng ngược (ngày theo hàng)', kcg.indexOf('var body = r.ngay.map(') < 0, null);
+t('tiêu đề khối nói đúng chiều',
+	tr.indexOf('Bảng chéo Ghế × Ngày') > 0 && tr.indexOf('Bảng chéo Ngày × Ghế') < 0, null);
+/* Đảo chiều mà giữ nguyên hai cột mỗi ghế là mỗi NGÀY hai cột — 365×2 = 730 cột, không bảng nào
+   dựng nổi. Chỉ số gộp thành MỘT cột "đầu→cuối" đứng đầu hàng. */
+t('🔴 chỉ số gộp thành một cột đầu→cuối, không nhân đôi mọi cột ngày',
+	kcg.indexOf("L('Chỉ số đầu→cuối','Meter start→end')") > 0
+	&& kcg.indexOf("L('Chỉ số','Meter') + '</th><th class=\"r\">Actual") < 0, null);
+t('có hàng TỔNG theo từng ngày và cột Cộng theo từng ghế',
+	/tongNgay\[i\] \+= v/.test(kcg) && /cong \+= v/.test(kcg), null);
+t('và dùng lại khung cuộn + cột dính như báo cáo tổng',
+	kcg.indexOf("ktEl('table','bct')") > 0 && kcg.indexOf('bct-dinh') > 0, null);
+
 /* ---------- 7. MÃ KH: khai được, và KHÔNG bị xoá khi sửa việc khác ---------- */
 const may_php = fs.readFileSync('vhcp-ghe/includes/class-vhg-may.php', 'utf8');
 t('luu_coso() nhận ma_kh', /function luu_coso\( \$id, \$ten, \$tinh = null, \$ma_kh = null \)/.test(may_php));
