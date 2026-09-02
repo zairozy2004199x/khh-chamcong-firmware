@@ -13,6 +13,12 @@
  * VÌ SAO CHẠY ĐƯỢC: tất cả máy dùng CHUNG mật khẩu AP (12345678) + CHUNG tài
  * khoản trang /update (admin/admin), tên AP theo mẫu "ChamCong-<cơ sở>".
  *
+ * NẠP ĐƯỢC CẢ GHẾ MASSAGE QR: bộ QR ghế bật AP "POSH_QR-<mã>" và DÙNG CHUNG creds
+ *   (mật khẩu AP + /update) như máy chấm công — chỉ khác TÊN AP và FILE .bin. Nên
+ *   thợ nạp có công tắc ĐÍCH ở portal: "Máy chấm công" hay "Ghế massage QR". Đổi đích
+ *   là đổi (bộ lọc AP + file /firmware-ghe.bin + link tải + nhãn 'loai' chống nạp nhầm).
+ *   TÁCH file .bin để KHÔNG BAO GIỜ đẩy nhầm firmware chấm công vào ghế và ngược lại.
+ *
  * THƯ VIỆN: TFT_eSPI (Bodmer) — dùng ĐÚNG User_Setup.h của board CYD như firmware chấm công.
  * AN TOÀN: máy đích dùng Update.h -> nếu upload lỗi/dở, nó HỦY và GIỮ firmware cũ.
  */
@@ -51,7 +57,7 @@ void   scr(const String& l1, uint16_t c1, const String& l2, uint16_t c2, const S
 #endif
 #include "secrets.h"
 
-#define FW_VERSION "2026-08-04a (BOOT: nhan=chon, 2s=NAP firmware, 5s=NAP token, 8s=tu dong)"
+#define FW_VERSION "2026-09-02a (them DICH nap GHE POSH_QR-* + file /firmware-ghe.bin rieng)"
 
 /* Máy chính từ 31/07/2026 dùng AP tên CỐ ĐỊNH "CHAM_CONG" (trước là ChamCong-<cơ sở>, mà tên
    cơ sở đổi là Hikvision mất WiFi). Vẫn NHẬN cả tên cũ, không thì không nạp được cho những máy
@@ -78,8 +84,15 @@ const char*   TOK_PATH    = "/token.txt";    // token đẩy vào máy chấm c�
 #define FW_REPO_MD "zairozy2004199x/khh-chamcong-firmware"
 const char* FW_URL_MC   = "https://github.com/" FW_REPO_MD "/releases/download/latest/latest.json";
 const char* FW_URL_TRAM = "https://github.com/" FW_REPO_MD "/releases/download/latest-tram/latest-tram.json";
+/* ĐÍCH GHẾ: firmware ghế massage (app .bin) để đi nạp cho các bộ QR ghế.
+   ⚠️ Link này trỏ tới APP .bin (thứ Update.h ghi vào phân vùng app), KHÔNG phải bản
+      *-merged.bin của trang nạp USB. Chưa có release 'latest-ghe' thì khai link .bin
+      trực tiếp ở portal (ô "Link firmware GHẾ"). */
+const char* FW_URL_GHE  = "https://github.com/" FW_REPO_MD "/releases/download/latest-ghe/latest-ghe.json";
 const char* LOAI_MC     = "may-chinh";
 const char* LOAI_TRAM   = "may-tram";
+const char* LOAI_GHE    = "ghe";
+const char* FW_PATH_GHE = "/firmware-ghe.bin";   // file .bin ghế trên thẻ (tách khỏi firmware.bin chấm công)
 IPAddress     TARGET_IP(192, 168, 4, 1);   // IP máy đích tại AP của nó
 const uint16_t TARGET_PORT = 80;
 const int     NEAR_RSSI   = -68;           // chỉ nạp máy Ở GẦN (sóng >= mức này) -> tránh nạp nhầm máy xa
@@ -265,6 +278,8 @@ WebServer   server(80);
 DNSServer   dnsServer;
 
 String _cfgApPass, _cfgOtaUser, _cfgOtaPass, _cfgStaSsid, _cfgStaPass, _cfgFwUrl, _cfgSelfAp, _cfgFwVer, _cfgFwTramUrl;
+String _cfgFwUrlGhe;            // link firmware GHẾ (đích = ghe)
+String g_dich = "cc";          // ĐÍCH nạp: "cc" = máy chấm công (mặc định), "ghe" = bộ QR ghế
 // Ban CI da nap vao CHINH may tram nay. KHONG so voi FW_VERSION duoc: FW_VERSION la chu viet
 // tay trong code, con ver cua CI la "tram-<ngay>-<sha>" — hai kieu khac han, so la khong bao gio
 // khop, thanh ra lan nao bam cung tai lai va nap lai du dang dung ban do.
@@ -291,10 +306,13 @@ void napCauHinh(){
   _cfgStaSsid = prefs.getString("staSsid", "");
   _cfgStaPass = prefs.getString("staPass", "");
   _cfgFwUrl     = prefs.getString("fwUrl",     FW_URL_MC);     // có mặc định -> khỏi gõ tay
+  _cfgFwUrlGhe  = prefs.getString("fwUrlGhe",  FW_URL_GHE);    // link firmware GHẾ
   _cfgFwTramUrl = prefs.getString("fwTramUrl", FW_URL_TRAM);
   _cfgTramVer   = prefs.getString("tramVer",   "");
   _cfgSelfAp  = prefs.getString("selfAp",  "");
-  _cfgFwVer   = prefs.getString("fwVer",   "");
+  g_dich      = prefs.getString("dich", "cc");                // ĐÍCH nạp (đọc TRƯỚC _cfgFwVer để lấy đúng key)
+  if(g_dich != "ghe") g_dich = "cc";
+  _cfgFwVer   = prefs.getString(g_dich == "ghe" ? "fwVerGhe" : "fwVer", "");
   g_tuDongNap = prefs.getString("autoNap", "") == "1";
   AP_PASS  = _cfgApPass.c_str();
   OTA_USER = _cfgOtaUser.c_str();
@@ -310,6 +328,25 @@ String cfgChe(const String& v){
   return v.substring(0, 4) + "…(" + String(v.length()) + " ký tự)";
 }
 void ghiTinhTrang(const String& s){ g_tinhTrang = s; Serial.println("[TT] " + s); }
+
+/* ===== ĐÍCH NẠP: máy chấm công ("cc") hay GHẾ ("ghe") =====================
+ * Ghế OTA-AP DÙNG CHUNG creds với máy chấm công (mật khẩu AP + tài khoản /update +
+ * cùng POST http://192.168.4.1/update, cùng chip ESP32). Chỉ khác ĐÚNG HAI thứ:
+ *    1) TÊN AP: ghế = "POSH_QR-<mã>" (chấm công = "CHAM_CONG"/"ChamCong-")
+ *    2) FILE .bin: ghế dùng /firmware-ghe.bin (khác /firmware.bin của chấm công)
+ * Nên đổi đích = đổi (bộ lọc AP + file nạp + link tải + nhãn 'loai' chống nhầm).
+ * ⚠️ TÁCH FILE là để KHÔNG BAO GIỜ đẩy .bin chấm công vào ghế (và ngược lại). */
+bool  dichLaGhe(){ return g_dich == "ghe"; }
+const char* fwPathDich(){ return dichLaGhe() ? FW_PATH_GHE : FW_PATH; }
+String fwUrlDich(){ return dichLaGhe() ? _cfgFwUrlGhe : _cfgFwUrl; }
+const char* loaiDich(){ return dichLaGhe() ? LOAI_GHE : LOAI_MC; }
+const char* verKeyDich(){ return dichLaGhe() ? "fwVerGhe" : "fwVer"; }
+const char* tenDich(){ return dichLaGhe() ? "GHE" : "CHAM CONG"; }
+/* Bộ lọc AP theo đích: chỉ nhận đúng loại máy đang chọn -> không hiện lẫn danh sách. */
+bool laMayDich(const String& ssid){
+  if(dichLaGhe()) return ssid.startsWith("POSH_QR-");
+  return ssid == String(AP_TEN) || ssid.startsWith(AP_PREFIX);
+}
 
 bool isDone(const String& s){ for(int i=0;i<g_doneN;i++) if(g_done[i]==s) return true; return false; }
 void markDone(const String& s){ if(g_doneN < 40) g_done[g_doneN++] = s; }
@@ -428,8 +465,8 @@ String basicAuth(){
 
 // Đẩy firmware.bin (multipart) lên máy đích /update. Trả true nếu máy đích báo thành công.
 bool pushFirmware(const String& ssid){
-  File f = SD.open(FW_PATH, FILE_READ);
-  if(!f){ Serial.println("[SD] Khong mo duoc firmware.bin"); return false; }
+  File f = SD.open(fwPathDich(), FILE_READ);   // .bin theo ĐÍCH (chấm công / ghế)
+  if(!f){ Serial.printf("[SD] Khong mo duoc %s\n", fwPathDich()); return false; }
   long fsize = f.size();
   if(fsize <= 0){ f.close(); Serial.println("[SD] File rong"); return false; }
 
@@ -555,7 +592,7 @@ bool updateOne(const String& ssid, const String& bssid, int kenh, bool chiToken)
 void doLaiCoFile(){
   g_fwSize = 0;
   if(!g_sdOk) return;
-  File f = SD.open(FW_PATH, FILE_READ);
+  File f = SD.open(fwPathDich(), FILE_READ);   // file theo ĐÍCH đang chọn (chấm công / ghế)
   if(f){ g_fwSize = f.size(); f.close(); }
 }
 
@@ -581,10 +618,10 @@ bool noiInternet(unsigned long chuMs = 15000){
  */
 String taiFirmware(bool batBuoc){
   if(!g_sdOk) return "The SD chua san sang";
-  if(_cfgFwUrl.length() == 0) return "Chua khai link firmware (fwUrl) o phan cau hinh";
+  if(fwUrlDich().length() == 0) return String("Chua khai link firmware ") + tenDich() + " o phan cau hinh";
   if(!noiInternet()) return "Khong noi duoc WiFi Internet — kiem ten/mat khau WiFi";
 
-  String url = _cfgFwUrl, ver = "";
+  String url = fwUrlDich(), ver = "";   // link theo ĐÍCH (chấm công / ghế)
   // (1) latest.json -> lấy ver + url thật
   if(url.endsWith(".json")){
     WiFiClientSecure c1; c1.setInsecure();
@@ -600,8 +637,8 @@ String taiFirmware(bool batBuoc){
     // ⚠️ CHAN NHAM LOAI: the SD nay de di nap cho MAY CHINH. Dan nham link firmware may tram
     //    vao day la mang di nap sai firmware cho ca chuoi cua hang.
     String loai = String((const char*)(d["loai"] | ""));
-    if(loai.length() && loai != String(LOAI_MC))
-      return "File nay la firmware '" + loai + "', KHONG phai cua may cham cong — tu choi tai";
+    if(loai.length() && loai != String(loaiDich()))
+      return "File nay la firmware '" + loai + "', KHONG phai cua " + tenDich() + " — tu choi tai";
     if(url.length() == 0) return "latest.json thieu 'url'";
     if(!batBuoc && ver.length() && ver == _cfgFwVer && g_fwSize > 0)
       return "Da co ban " + ver + " tren the roi (bam Tai lai neu muon tai de)";
@@ -651,12 +688,12 @@ String taiFirmware(bool batBuoc){
     return "Tai do dang (" + String(daGhi) + "/" + String(tong) + " byte). File cu tren the KHONG bi mat.";
   }
 
-  SD.remove(FW_PATH);
-  if(!SD.rename("/firmware.new", FW_PATH)){
+  SD.remove(fwPathDich());
+  if(!SD.rename("/firmware.new", fwPathDich())){
     ghiTinhTrang("Doi ten file that bai");
     return "Tai xong nhung doi ten that bai — rut the kiem lai";
   }
-  if(ver.length()){ prefs.putString("fwVer", ver); _cfgFwVer = ver; }
+  if(ver.length()){ prefs.putString(verKeyDich(), ver); _cfgFwVer = ver; }
   doLaiCoFile();
   g_doneN = 0;                                     // bản mới -> cho nạp lại các máy đã nạp phiên trước
   ghiTinhTrang("Da tai xong " + (ver.length()?ver:String("")) + " " + String(g_fwSize/1024) + " KB vao the");
@@ -976,7 +1013,7 @@ void tpQuetVaoDs(){
   g_soMay = 0;
   for (int i = 0; i < n && g_soMay < TP_MAX_MAY; i++){
     String sd = WiFi.SSID(i);
-    if (!laMayChamCong(sd)) continue;
+    if (!laMayDich(sd)) continue;               // lọc theo ĐÍCH (chấm công / ghế)
     g_dsMay[g_soMay].ssid  = sd;
     g_dsMay[g_soMay].bssid = WiFi.BSSIDstr(i);
     g_dsMay[g_soMay].ch    = WiFi.channel(i);
@@ -993,6 +1030,9 @@ void veManDs(){
   tft.drawString("NAP FIRMWARE", 12, 12, 4);
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString(g_fwSize > 0 ? (String(g_fwSize/1024) + " KB") : "CHUA CO FILE", 12, 40, 2);
+  /* NHÃN ĐÍCH: nạp cho GHẾ hay CHẤM CÔNG — hiện rõ để không nạp nhầm loại (ghế cam, chấm công lục). */
+  tft.setTextColor(dichLaGhe() ? TFT_ORANGE : TFT_GREEN, TFT_BLACK);
+  tft.drawString(String("DICH: ") + tenDich(), 150, 40, 2);
   /* Màn danh sách KHÔNG có chỗ cho logo lớn: 4 hàng máy chiếm nguyên y=44..200 hết bề
      ngang, hai nút chiếm y=202..234. Chỗ duy nhất còn lại là khe giữa tiêu đề và nút QUET.
      ⚠️ Bề rộng chữ font 4 KHÔNG đoán được từ số ký tự -> ĐO bằng textWidth() rồi mới vẽ.
@@ -1299,7 +1339,7 @@ String quetMayJson(){
   String j = "[";  bool dau = true;
   for(int i=0;i<n;i++){
     String s = WiFi.SSID(i); int r = WiFi.RSSI(i);
-    if(!laMayChamCong(s)) continue;
+    if(!laMayDich(s)) continue;                // lọc theo ĐÍCH (chấm công / ghế)
     String bs = WiFi.BSSIDstr(i);              // MAC của AP -> DANH TÍNH THẬT của máy
     if(!dau) j += ","; dau = false;
     j += "{\"ssid\":\"" + s + "\",\"bssid\":\"" + bs + "\",\"ch\":" + String(WiFi.channel(i))
@@ -1318,7 +1358,16 @@ void hTrangChinh(){
   h += ".p{background:#2563eb;color:#fff}.g{background:#16a34a;color:#fff}.w{background:#334155;color:#e2e8f0}";
   h += "input{width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid #334155;background:#0b1220;color:#e2e8f0;box-sizing:border-box}";
   h += ".r{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid #24365c}";
-  h += ".b{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:9px 13px;font-weight:700;width:auto;margin:0}</style>";
+  h += ".b{background:#2563eb;color:#fff;border:0;border-radius:8px;padding:9px 13px;font-weight:700;width:auto;margin:0}";
+  h += ".dich{background:#7c3aed;color:#fff}.dichg{background:#ea580c;color:#fff}</style>";
+
+  // ===== ĐÍCH ĐANG NẠP (chọn TRƯỚC khi nạp) — đổi đích thì đổi cả bộ lọc AP + file .bin =====
+  h += "<div class='c'><h2>&#127919; Dang nap cho: " + String(tenDich()) + "</h2>";
+  h += "<div class='m'>Chon dung LOAI may truoc khi nap. Ghe = AP <b>POSH_QR-*</b>, Cham cong = <b>CHAM_CONG</b>. "
+       "Doi dich thi may khoi dong lai.</div>";
+  h += String("<button class='") + (dichLaGhe()?"w":"dich")  + "' onclick=\"go('/doidich?d=cc','Chuyen dich sang MAY CHAM CONG?')\">&#9201;&#65039; May cham cong</button>";
+  h += String("<button class='") + (dichLaGhe()?"dichg":"w") + "' onclick=\"go('/doidich?d=ghe','Chuyen dich sang GHE massage QR?')\">&#129681; Ghe massage QR</button>";
+  h += "</div>";
 
   h += "<div class='c'><h2>&#128190; The SD</h2><div class='m'>";
   if(!g_sdOk)           h += "<b style='color:#f87171'>KHONG doc duoc the SD</b> — cam lai the roi bat lai may.";
@@ -1345,7 +1394,7 @@ void hTrangChinh(){
   h += "<button class='p' onclick=\"go('/tunangcap','Nang cap chinh may tram nay?')\">&#128295; Nang cap may tram</button>";
   h += "<button class='w' onclick=\"go('/tunangcap?force=1','EP nap de len ban dang chay?')\">&#8635; Ep nang cap</button></div>";
 
-  h += "<div class='c'><h2>&#11014;&#65039; Nap cho may cham cong</h2>";
+  h += "<div class='c'><h2>&#11014;&#65039; Nap cho " + String(tenDich()) + "</h2>";
   h += "<div class='m'>Dung <b>gan may</b> can nap roi bam. Chi may co <b>song manh</b> moi nen nap — xa qua de dut giua duong.";
   if(g_tuDongNap) h += "<br><b style='color:#fbbf24'>Dang bat che do TU DONG nap may o gan.</b>";
   h += "</div><div id='ds' class='m'>Dang quet...</div>";
@@ -1358,6 +1407,7 @@ void hTrangChinh(){
   h += "<input id='cSta'  placeholder='Ten WiFi co Internet (hotspot dien thoai duoc)'>";
   h += "<input id='cStaP' placeholder='Mat khau WiFi do'>";
   h += "<input id='cUrl'  placeholder='Link latest.json cho MAY CHAM CONG (de trong = dung mac dinh)'>";
+  h += "<input id='cUrlG' placeholder='Link firmware GHE: latest-ghe.json hoac link .bin ghe (app) truc tiep'>";
   h += "<input id='cUrlT' placeholder='Link latest-tram.json cho CHINH MAY NAY (de trong = dung mac dinh)'>";
   h += "<input id='cAp'   placeholder='Mat khau AP cua may cham cong'>";
   h += "<input id='cOtaU' placeholder='Tai khoan trang /update (mac dinh admin)'>";
@@ -1385,7 +1435,7 @@ void hTrangChinh(){
        "g('ds').innerHTML=a.map(m=>\"<div class='r'><span>\"+m.ssid+\" <b style='color:#38bdf8'>\"+m.bssid.slice(12)+\"</b> \"+m.rssi+\" dBm\"+"
        "(m.gan?\"\":\" <i style='color:#fbbf24'>(xa)</i>\")+(m.daNap?\" <i style='color:#4ade80'>(da nap)</i>\":\"\")+"
        "\"</span><button class='b' onclick=\\\"nap('\"+m.ssid+\"','\"+m.bssid+\"',\"+m.ch+\")\\\">Nap</button></div>\").join('');});}";
-  h += "function luu(){var f={cSta:'staSsid',cStaP:'staPass',cUrl:'fwUrl',cUrlT:'fwTramUrl',cAp:'apPass',cOtaU:'otaUser',cOtaP:'otaPass',cSelf:'selfAp'};"
+  h += "function luu(){var f={cSta:'staSsid',cStaP:'staPass',cUrl:'fwUrl',cUrlG:'fwUrlGhe',cUrlT:'fwTramUrl',cAp:'apPass',cOtaU:'otaUser',cOtaP:'otaPass',cSelf:'selfAp'};"
        "var b=['autoNap='+(g('cAuto').checked?'1':'0')];"
        "for(var k in f){var v=g(k).value.trim();if(v!=='')b.push(f[k]+'='+encodeURIComponent(v));}"
        "if(!confirm('Luu cau hinh va khoi dong lai?'))return;"
@@ -1461,7 +1511,7 @@ void hNap(){
   String ssid  = server.arg("ssid");
   String bssid = server.arg("bssid");
   int    kenh  = server.arg("ch").toInt();
-  if(!laMayChamCong(ssid)){ server.send(400, "text/plain; charset=utf-8", "Ten may khong hop le."); return; }
+  if(!laMayDich(ssid)){ server.send(400, "text/plain; charset=utf-8", "Ten may khong dung DICH dang chon."); return; }
   // Tên giống nhau hết -> BSSID là thứ DUY NHẤT chỉ đúng máy nào. Thiếu là không dám nạp.
   if(bssid.length() < 17){ server.send(400, "text/plain; charset=utf-8",
     "Thieu BSSID — bam Quet lai roi chon may tu danh sach."); return; }
@@ -1480,9 +1530,17 @@ void hNap(){
   server.send(200, "text/plain; charset=utf-8", ok ? ("XONG! " + ten + " dang khoi dong lai.")
                                                   : ("LOI khi nap " + ten + " — lai gan hon roi thu lai."));
 }
+/* Đổi ĐÍCH nạp (cc/ghe) rồi khởi động lại để nạp lại cấu hình + đọc đúng file/ver theo đích. */
+void hDoiDich(){
+  String d = server.arg("d"); d.trim();
+  if(d != "cc" && d != "ghe"){ server.send(400, "text/plain; charset=utf-8", "Dich khong hop le"); return; }
+  prefs.putString("dich", d);
+  server.send(200, "text/plain; charset=utf-8", String("Da chuyen dich sang ") + (d=="ghe"?"GHE":"MAY CHAM CONG") + ". May khoi dong lai...");
+  delay(600); ESP.restart();
+}
 void hLuuCfg(){
   struct { const char* arg; const char* khoa; } m[] = {
-    {"staSsid","staSsid"}, {"staPass","staPass"}, {"fwUrl","fwUrl"}, {"fwTramUrl","fwTramUrl"},
+    {"staSsid","staSsid"}, {"staPass","staPass"}, {"fwUrl","fwUrl"}, {"fwUrlGhe","fwUrlGhe"}, {"fwTramUrl","fwTramUrl"},
     {"apPass","apPass"}, {"otaUser","otaUser"}, {"otaPass","otaPass"}, {"selfAp","selfAp"}
   };
   int n = 0; String loi = "";
@@ -1512,6 +1570,7 @@ void batPortal(){
   server.on("/tai",     HTTP_POST, hTai);
   server.on("/tunangcap", HTTP_POST, hTuNangCap);
   server.on("/nap",     HTTP_POST, hNap);
+  server.on("/doidich", HTTP_POST, hDoiDich);
   server.on("/savecfg", HTTP_POST, hLuuCfg);
   server.onNotFound(hTrangChinh);            // captive portal: gõ gì cũng về trang chính
   server.begin();
@@ -1608,7 +1667,7 @@ void loop(){
   String best = "", bestBs = ""; int bestRssi = -999, bestCh = 0;
   for(int i = 0; i < n; i++){
     String s = WiFi.SSID(i); int r = WiFi.RSSI(i);
-    if(!laMayChamCong(s)) continue;
+    if(!laMayDich(s)) continue;             // tự động nạp: chỉ máy đúng ĐÍCH (chấm công / ghế)
     String bs = WiFi.BSSIDstr(i);
     if(isDone(bs)) continue;                // theo BSSID: tên giống nhau hết nên theo tên là bỏ sót máy
     if(r < NEAR_RSSI) continue;             // chỉ máy Ở GẦN (sóng mạnh) -> tránh nạp nhầm máy xa
