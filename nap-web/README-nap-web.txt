@@ -9,9 +9,15 @@ MỤC ĐÍCH
 CẤU TRÚC THƯ MỤC (upload nguyên cụm này lên web, CÙNG một chỗ)
   nap-esp32.html
   firmware/
-    ghe/        manifest.json  +  firmware-ghe-merged.bin
-    cham-cong/  manifest.json  +  firmware-cham-cong-merged.bin
-    tho-nap/    manifest.json  +  firmware-tho-nap-merged.bin
+    ghe/        manifest.json  +  firmware-ghe-merged.bin        (Ghế Massage QR)
+    cham-cong/  manifest.json  +  firmware-cham-cong-merged.bin  (Máy chấm công)
+    tho-nap/    manifest.json  +  firmware-tho-nap-merged.bin    (Thợ nạp OTA)
+    may-tram/   manifest.json  +  firmware-may-tram-merged.bin   (Máy thu tiền / chốt ca)
+    posh-qr/    manifest.json  +  firmware-posh-qr-merged.bin    (Hộp QR POSH đời trước)
+
+  Trang cho chọn 5 loại máy; mỗi loại đọc manifest.json trong thư mục con của
+  nó. Thư mục nào CHƯA có file *-merged.bin thì bấm nạp sẽ báo không tải được
+  .bin — chỉ cần bỏ file đúng tên vào là chạy.
 
 ⚠️ ĐIỀU KIỆN BẮT BUỘC
   - Trang PHẢI mở qua HTTPS (https://...). Web Serial không chạy trên http
