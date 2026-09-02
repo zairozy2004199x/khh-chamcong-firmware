@@ -279,6 +279,7 @@ class VHG_Admin {
 		add_submenu_page( 'vhg', 'Nhận tiền & nhật ký', 'Nhận tiền & nhật ký', self::CAP, 'vhg-cong', array( __CLASS__, 'trang_cong' ) );
 		add_submenu_page( 'vhg', 'Trang ngoài & PIN', 'Trang ngoài & PIN', self::CAP, 'vhg-trang', array( __CLASS__, 'trang_ngoai' ) );
 		add_submenu_page( 'vhg', 'Tem QR dán ghế', 'Tem QR dán ghế', self::CAP, 'vhg-tem', array( __CLASS__, 'trang_tem' ) );
+		add_submenu_page( 'vhg', 'Nạp file firmware', 'Nạp file firmware', self::CAP, 'vhg-fw', array( __CLASS__, 'trang_fw' ) );
 	}
 
 	// ======================================================================= tiện ích chung
@@ -1905,6 +1906,103 @@ class VHG_Admin {
 		$ds[] = array( 'ten' => $ten, 'pin' => $pin, 'vaiTro' => $vt, 'coso' => trim( (string) $coso ) );
 		update_option( 'vhg_nguoidung', array_values( $ds ) );
 		return array( 'ok' => true, 'thong_bao' => 'Đã thêm ' . $ten . '.' );
+	}
+
+	// ======================================================================= NẠP FILE FIRMWARE
+
+	/**
+	 * Tab "Nạp file firmware": tải .bin ghế lên web -> các máy TỰ tải, khỏi mang thẻ SD.
+	 *   · app .bin   -> cho CON THỢ NẠP (ô "Link firmware GHE") và ghế OTA.
+	 *   · merged .bin -> cho TRANG NẠP USB (esp-web-tools).
+	 * Xem VHG_Fw: file để trong uploads/vhg-firmware, phục vụ bằng đường uploads (khỏi rewrite).
+	 */
+	public static function trang_fw() {
+		self::gac();
+		$bao = array();
+		if ( isset( $_POST['vhg'] ) ) {
+			check_admin_referer( 'vhg' );
+			$viec = sanitize_text_field( wp_unslash( $_POST['vhg'] ) );
+			if ( 'fw_nap' === $viec ) {
+				$bao = VHG_Fw::xu_ly( $_POST, isset( $_FILES ) ? $_FILES : array() );
+			} elseif ( 'fw_xoa' === $viec ) {
+				$bao = VHG_Fw::xoa();
+			}
+		}
+
+		echo '<div class="wrap"><h1>Nạp file firmware ghế</h1>';
+		self::ve_bao( $bao );
+
+		echo '<p class="description">Tải tệp <b>.bin</b> firmware ghế lên đây. Máy chủ giữ tệp, các thiết bị '
+			. 'TỰ tải về — khỏi mang thẻ SD đi từng nơi. <b>Không kèm bí mật vào repo:</b> tệp nằm ở uploads '
+			. 'trên máy chủ, chỉ đưa link cho người trong nhà.</p>';
+
+		$meta = VHG_Fw::meta();
+		$ver  = isset( $meta['ver'] ) ? $meta['ver'] : '';
+		$u_app = VHG_Fw::url_app();
+		$u_mrg = VHG_Fw::url_merged();
+		$u_ota = VHG_Fw::url_json_ota();
+		$u_usb = VHG_Fw::url_json_usb();
+
+		// ---- Tình trạng hiện tại ----
+		echo '<h2>Đang có trên web</h2>';
+		if ( '' === $u_app && '' === $u_mrg ) {
+			echo '<p><b style="color:#b32d2e">Chưa có firmware nào.</b> Tải lên bên dưới.</p>';
+		} else {
+			echo '<table class="widefat" style="max-width:900px"><tbody>';
+			echo '<tr><th style="width:180px">Phiên bản</th><td><b>' . esc_html( $ver ) . '</b>'
+				. ( ! empty( $meta['cap_nhat'] ) ? ' <span class="description">· cập nhật ' . esc_html( self::gio( $meta['cap_nhat'] ) )
+					. ( ! empty( $meta['nguoi'] ) ? ' bởi ' . esc_html( $meta['nguoi'] ) : '' ) . '</span>' : '' )
+				. '</td></tr>';
+			self::fw_dong( 'App .bin (OTA / thợ nạp)', $u_app );
+			self::fw_dong( 'Merged .bin (nạp USB)', $u_mrg );
+			echo '</tbody></table>';
+
+			echo '<h2>Link để dán vào máy</h2>';
+			echo '<table class="widefat" style="max-width:900px"><tbody>';
+			self::fw_dong( 'Link firmware GHẾ (dán vào ô "Link firmware GHE" của con thợ nạp)', $u_ota );
+			self::fw_dong( 'Manifest USB (dán vào data-manifest thẻ ghế của trang nạp USB)', $u_usb );
+			echo '</tbody></table>';
+			echo '<p class="description">Con thợ nạp: portal → chọn đích <b>Ghế massage QR</b> → dán link firmware GHẾ ở trên → '
+				. '<b>Tải bản mới về thẻ</b> → mang tới gần ghế → Nạp.</p>';
+		}
+
+		// ---- Biểu mẫu tải lên ----
+		echo '<h2>Tải firmware lên</h2>';
+		echo '<form method="post" enctype="multipart/form-data">';
+		wp_nonce_field( 'vhg' );
+		echo '<table class="form-table" role="presentation"><tbody>';
+		echo '<tr><th scope="row"><label for="fw_ver">Phiên bản</label></th><td>'
+			. '<input name="fw_ver" id="fw_ver" type="text" class="regular-text" placeholder="vd: ghe-massage 2026-09-02b" value="'
+			. esc_attr( $ver ) . '"><p class="description">Chỉ để hiển thị + ghi vào manifest.</p></td></tr>';
+		echo '<tr><th scope="row"><label for="fw_app">App .bin (OTA / thợ nạp)</label></th><td>'
+			. '<input name="fw_app" id="fw_app" type="file" accept=".bin"><p class="description">Ảnh <b>APP</b> (Arduino: <code>*.ino.bin</code>) '
+			. '— thứ Update.h ghi vào phân vùng app. Dùng cho con thợ nạp và OTA. KHÁC file merged.</p></td></tr>';
+		echo '<tr><th scope="row"><label for="fw_merged">Merged .bin (nạp USB)</label></th><td>'
+			. '<input name="fw_merged" id="fw_merged" type="file" accept=".bin"><p class="description">Ảnh <b>GỘP</b> ('
+			. '<code>esptool merge_bin</code>, offset 0) — dùng cho trang nạp USB (esp-web-tools). Không bắt buộc.</p></td></tr>';
+		echo '</tbody></table>';
+		echo '<p><button class="button button-primary" name="vhg" value="fw_nap">Tải lên & cập nhật</button></p>';
+		echo '</form>';
+
+		if ( '' !== $u_app || '' !== $u_mrg ) {
+			echo '<hr><form method="post" onsubmit="return confirm(\'Xoá firmware ghế trên web?\');">';
+			wp_nonce_field( 'vhg' );
+			echo '<button class="button" name="vhg" value="fw_xoa">Xoá firmware trên web</button></form>';
+		}
+		echo '</div>';
+	}
+
+	private static function fw_dong( $nhan, $url ) {
+		echo '<tr><th style="width:340px">' . esc_html( $nhan ) . '</th><td>';
+		if ( '' === $url ) {
+			echo '<span class="description">— chưa có —</span>';
+		} else {
+			$id = 'fwu_' . wp_rand( 1000, 9999 );
+			echo '<input id="' . esc_attr( $id ) . '" type="text" readonly class="large-text code" value="'
+				. esc_url( $url ) . '" onfocus="this.select()" style="max-width:640px">'
+				. ' <a class="button" href="' . esc_url( $url ) . '" target="_blank" rel="noopener">Mở</a>';
+		}
+		echo '</td></tr>';
 	}
 
 }
