@@ -1294,7 +1294,17 @@ class VHG_Trang {
 				   số bản thì câu đó phải hỏi vòng qua ảnh chụp và phỏng đoán; hiện ra thì nhìn
 				   một giây là biết. */
 				. 'window.VHG_BAN=' . wp_json_encode( defined( 'VHG_VERSION' ) ? VHG_VERSION : '?' ) . ';'
-				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';</script>'
+				. 'window.VHG_TEN=' . wp_json_encode( self::TEN_HE_THONG ) . ';'
+				/* URL firmware ghế (uploads công khai) + cờ HTTPS + link trang tải quản trị -> cho
+				   tab "Nạp firmware" trong app nhân viên (chỉ Admin thấy). Xem VHG_Fw. */
+				. 'window.VHG_FW=' . wp_json_encode( array(
+					'app'       => VHG_Fw::url_app(),
+					'merged'    => VHG_Fw::url_merged(),
+					'ota'       => VHG_Fw::url_json_ota(),
+					'usb'       => VHG_Fw::url_json_usb(),
+					'ssl'       => is_ssl() ? 1 : 0,
+					'admin_url' => admin_url( 'admin.php?page=vhg-fw' ),
+				) ) . ';</script>'
 			. '<script>' . self::js() . '</script>'
 			/* Module BÁO CÁO DOANH THU (thu tiền) — tự chứa, cổng bc-PIN riêng, không cần token.
 			   Tách script riêng để KHÔNG đụng SPA token; mở từ nút ở màn đăng nhập. */
@@ -3076,6 +3086,59 @@ function goi(viec, d, xong0){
   x.send(JSON.stringify(d));
 }
 
+// ------------------------------------------------------------------ nạp firmware (chỉ Admin)
+/* Nạp firmware ghế NGAY trong app: nạp USB qua Web Serial (dùng merged.bin quản trị đã tải),
+   link cho thợ nạp, và nút mở trang tải file (wp-admin). URL đến từ window.VHG_FW (PHP nhúng). */
+function veNapFw(){
+  var F = window.VHG_FW || {};
+  function row(k,v){ return '<tr><th style="text-align:left;padding:6px 10px;white-space:nowrap">' + k
+    + '</th><td style="padding:6px 10px">' + v + '</td></tr>'; }
+  var chua = '<i style="opacity:.7">' + L('chưa có','none') + '</i>';
+  var h = '<h2>' + L('Nạp firmware ghế','Chair firmware') + '</h2>';
+  h += '<p style="opacity:.85">' + L('Nạp firmware cho bộ QR ghế. File .bin do quản trị tải lên; máy tự tải về.',
+    'Flash the chair QR box. Admin uploads the .bin; devices fetch it.') + '</p>';
+
+  h += '<table style="border-collapse:collapse;margin:8px 0;background:#fff;border:1px solid var(--line);border-radius:8px">';
+  h += row(L('App .bin (OTA / thợ nạp)','App .bin'),
+        F.app ? '<a href="' + esc(F.app) + '" target="_blank" rel="noopener">' + L('tải về','download') + '</a>' : chua);
+  h += row(L('Merged .bin (nạp USB)','Merged .bin'),
+        F.merged ? '<a href="' + esc(F.merged) + '" target="_blank" rel="noopener">' + L('tải về','download') + '</a>' : chua);
+  h += row(L('Link cho thợ nạp','Updater link'),
+        F.ota ? '<code style="font-size:12px;word-break:break-all">' + esc(F.ota) + '</code>' : chua);
+  h += '</table>';
+
+  h += '<h3>' + L('Nạp qua USB (Web Serial)','Flash via USB (Web Serial)') + '</h3>';
+  if (!F.merged) {
+    h += '<p style="opacity:.85">' + L('Cần tải merged .bin lên trước — bấm nút quản trị bên dưới.',
+      'Upload merged .bin first — use the admin button below.') + '</p>';
+  } else if (!F.ssl) {
+    h += '<p style="color:#b32d2e"><b>' + L('Web Serial cần HTTPS.','Web Serial needs HTTPS.')
+      + '</b> ' + L('Mở trang qua https:// rồi thử lại.','Open the page over https:// and retry.') + '</p>';
+  } else {
+    h += '<p><esp-web-install-button manifest="' + esc(F.usb) + '">'
+      + '<button class="btn" slot="activate">⚡ ' + L('Nạp firmware qua USB','Flash via USB') + '</button>'
+      + '<span slot="unsupported" style="color:#b32d2e">' + L('Dùng Chrome/Edge trên máy tính.','Use desktop Chrome/Edge.') + '</span>'
+      + '<span slot="not-allowed" style="color:#b32d2e">' + L('Cần HTTPS.','Needs HTTPS.') + '</span>'
+      + '</esp-web-install-button></p>';
+    h += '<p style="opacity:.85">' + L('Cắm ghế/board vào máy tính bằng cáp USB (Chrome/Edge) rồi bấm nút.',
+      'Plug the board into the computer via USB (Chrome/Edge) then click.') + '</p>';
+    /* Nạp thư viện esp-web-tools MỘT lần khi mở tab (module ngoài, lười tải cho nhẹ trang). */
+    setTimeout(function(){
+      if (window.__eswLoaded) return; window.__eswLoaded = true;
+      var s = document.createElement('script'); s.type = 'module';
+      s.src = 'https://cdn.jsdelivr.net/npm/esp-web-tools@10.0.0/dist/web/install-button.js';
+      document.head.appendChild(s);
+    }, 60);
+  }
+
+  h += '<h3>' + L('Tải file firmware lên','Upload firmware') + '</h3>';
+  h += '<p><a href="' + esc(F.admin_url || '#') + '" target="_blank" rel="noopener" '
+    + 'style="display:inline-block;padding:8px 14px;background:var(--ink);color:#fff;border-radius:8px;'
+    + 'text-decoration:none;font-weight:600">'
+    + L('Mở trang tải firmware (quản trị)','Open upload page (admin)') + '</a></p>';
+  return h;
+}
+
 // ------------------------------------------------------------------ đăng nhập
 function veLogin(loi){
   app.innerHTML =
@@ -3254,6 +3317,7 @@ function ve(){
   /* Việc 4/4 (anh Thắng 28/08): sổ tay Hotline ghi lượt kích thêm + tiền hoàn khách hằng ngày.
      Cùng quyền GIÚP KHÁCH với tab Điều khiển/Ghế lỗi — không theo quyền quản trị. */
   if (GK) TABS.push(['hl-hotro', '📞 ' + L('Hỗ trợ khách','Customer support')]);
+  if (QT) TABS.push(['nap-fw', '⬆️ ' + L('Nạp firmware','Firmware')]);
   if (QT) TABS.push(['cau-hinh', '⚙️ ' + L('Cấu hình','Settings')]);
   h += '<div class="nav">'
     + '<div class="side-brand"><div class="hieu-o">💆</div><div class="side-brand-t"><b>POSH</b>'
@@ -3369,6 +3433,7 @@ function ve(){
   if (TAB === 'quan-ly')    { h += veQuanLy()    + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'nhat-ky-may'){ h += veNhatKyMay() + '</div>'; app.innerHTML = h; noi(); return; }
   if (TAB === 'ma')        { h += veMa()        + '</div>'; app.innerHTML = h; noi(); return; }
+  if (TAB === 'nap-fw')    { h += veNapFw()    + '</div>'; app.innerHTML = h; noi(); return; }
 
   h += '<div class="kpis">'
     + kpi(L('Tổng doanh thu','Total revenue'), tien(t.tong), t.so_luot + ' ' + L('lượt','sessions'), 'a')
