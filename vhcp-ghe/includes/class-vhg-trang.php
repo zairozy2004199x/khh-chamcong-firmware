@@ -408,6 +408,20 @@ class VHG_Trang {
 			return;
 		}
 
+		if ( 'doi_mac' === $viec ) {
+			/* Thay board (MAC) cho mã ghế đã có — giữ chỉ số. Chỉ quản trị (VIEC_QUAN_TRI). */
+			$r = VHG_May::doi_mac(
+				isset( $d['ma'] ) ? $d['ma'] : '',
+				isset( $d['mac'] ) ? $d['mac'] : '' );
+			if ( ! empty( $r['ok'] ) ) {
+				VHG_Nhat_Ky::ghi( array( 'nguon' => 'he-thong', 'ghi_chu' => $ai['name']
+					. ' đổi board mã ' . (string) ( isset( $d['ma'] ) ? $d['ma'] : '' )
+					. ' -> MAC ' . (string) ( isset( $d['mac'] ) ? $d['mac'] : '' ) ) );
+			}
+			self::tra( $r );
+			return;
+		}
+
 		if ( 'gan_ma' === $viec ) {
 			/* 🔴 Gán ghế NGAY TRÊN ĐIỆN THOẠI. Người đi lắp ghế ở Aeon Tân Phú cầm cái điện
 			 *    thoại, không cầm wp-admin. Bắt họ nhắn về văn phòng nhờ ai đó vào wp-admin gán
@@ -3108,29 +3122,45 @@ function veGanMa(){
     });
     return o;
   }
+  /* Các mã ĐÃ GÁN (để "thay board cho mã cũ" — giữ chỉ số khi đổi ESP32). */
+  var daGan = ((D && D.may) ? D.may : []).filter(function(m){
+    return m.ma && m.ma.charAt(0) !== '?' && !m.an;
+  }).sort(function(a,b){ return String(a.ma).localeCompare(String(b.ma), undefined, {numeric:true}); });
+  function optMaCu(){
+    var o = '<option value="">' + L('— chọn mã cũ —','— pick existing code —') + '</option>';
+    daGan.forEach(function(m){
+      o += '<option value="' + esc(m.ma) + '">' + esc(m.ma) + (m.coso ? ' · ' + esc(m.coso) : '') + '</option>';
+    });
+    return o;
+  }
+
   h += '<p style="opacity:.85"><b>' + list.length + '</b> ' + L('máy đang chờ gán.','chairs waiting.') + '</p>';
-  h += '<div style="overflow-x:auto"><table class="tb" style="border-collapse:collapse;min-width:640px;background:#fff;border:1px solid var(--line);border-radius:8px">';
-  h += '<thead><tr>'
-     + '<th style="text-align:left;padding:8px 10px">' + L('Máy (MAC)','Chair (MAC)') + '</th>'
-     + '<th style="padding:8px 10px">' + L('Trạng thái','Status') + '</th>'
-     + '<th style="padding:8px 10px">' + L('Cơ sở','Branch') + '</th>'
-     + '<th style="padding:8px 10px">' + L('Mã máy','Chair code') + '</th>'
-     + '<th style="padding:8px 10px"></th></tr></thead><tbody>';
   list.forEach(function(m){
-    var cu = m.ma;
+    var cu  = m.ma;
+    var mac = m.mac || cu;
     var song = m.song
       ? '<span style="color:#1f7a44;font-weight:600">● ' + L('đang sống','online') + '</span>'
       : '<span style="color:#b23636">○ ' + L('mất mạng','offline') + '</span>';
-    h += '<tr>'
-      + '<td style="padding:8px 10px"><code style="font-size:12px">' + esc(m.mac || cu) + '</code></td>'
-      + '<td style="padding:8px 10px;text-align:center">' + song + '</td>'
-      + '<td style="padding:8px 10px"><select data-gcs="' + esc(cu) + '">' + optCoso() + '</select></td>'
-      + '<td style="padding:8px 10px"><input data-gma="' + esc(cu) + '" placeholder="AMTP01" maxlength="20" '
-        + 'style="width:120px;text-transform:uppercase"></td>'
-      + '<td style="padding:8px 10px"><button data-gan="' + esc(cu) + '">' + L('Gắn','Assign') + '</button></td>'
-      + '</tr>';
+    h += '<div class="note" style="margin:10px 0;background:#fff;border:1px solid var(--line)">';
+    h += '<div style="margin-bottom:8px"><code style="font-size:13px">' + esc(mac) + '</code> &nbsp; ' + song + '</div>';
+
+    /* Cách 1: gán MÃ MỚI (máy hoàn toàn mới). */
+    h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">'
+      + '<b style="min-width:120px">' + L('Gán mã mới:','New code:') + '</b>'
+      + '<select data-gcs="' + esc(cu) + '">' + optCoso() + '</select>'
+      + '<input data-gma="' + esc(cu) + '" placeholder="AMTP01" maxlength="20" style="width:120px;text-transform:uppercase">'
+      + '<button data-gan="' + esc(cu) + '">' + L('Gắn','Assign') + '</button></div>';
+
+    /* Cách 2: THAY BOARD cho mã cũ (thay ESP32 hỏng, GIỮ chỉ số). Chỉ hiện khi đã có mã. */
+    if (daGan.length) {
+      h += '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">'
+        + '<b style="min-width:120px">' + L('Thay cho mã cũ:','Replace board:') + '</b>'
+        + '<select data-oldsel="' + esc(mac) + '">' + optMaCu() + '</select>'
+        + '<button data-doimac="' + esc(mac) + '">' + L('Thay board','Swap board') + '</button>'
+        + '<span style="opacity:.7;font-size:12px">' + L('(giữ nguyên chỉ số của mã cũ)','(keeps the old code’s meter)') + '</span></div>';
+    }
+    h += '</div>';
   });
-  h += '</tbody></table></div>';
   return h;
 }
 
@@ -7216,6 +7246,18 @@ function noi(){
           'The code may contain letters and digits only — no accents, no spaces.')); return;
       }
       lam('gan_ma', { ma_cu: cu, ma_moi: moi, coso_id: cs ? cs.value : 0 });
+    };
+  });
+  /* Tab Gắn mã máy: THAY BOARD cho mã cũ (đổi ESP32, giữ chỉ số). data-doimac = MAC board mới. */
+  [].forEach.call(document.querySelectorAll('[data-doimac]'), function(b){
+    b.onclick = function(){
+      var mac = b.getAttribute('data-doimac');
+      var sel = document.querySelector('[data-oldsel="' + mac + '"]');
+      var maCu = (sel && sel.value || '').trim();
+      if (!maCu) { alert(L('Chọn mã cũ cần chuyển sang board này.','Pick the existing code to move onto this board.')); return; }
+      if (!confirm(L('Chuyển mã ' + maCu + ' sang board mới (MAC ' + mac + ')?\n\nMã cũ bỏ board hỏng, nhận board này — GIỮ NGUYÊN chỉ số.',
+        'Move code ' + maCu + ' onto this new board (MAC ' + mac + ')?\n\nThe old code drops the dead board and takes this one — meter is kept.'))) return;
+      lam('doi_mac', { ma: maCu, mac: mac });
     };
   });
   [].forEach.call(document.querySelectorAll('[data-mat]'), function(b){

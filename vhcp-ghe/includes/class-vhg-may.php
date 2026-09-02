@@ -894,6 +894,44 @@ class VHG_May {
 			. ' và dời ' . $dem . ' dòng lịch sử sang mã mới.' );
 	}
 
+	/**
+	 * ĐỔI BOARD (MAC) cho một mã ghế ĐÃ CÓ — thay ESP32 mà GIỮ NGUYÊN chỉ số + lịch sử.
+	 *
+	 * Khi thay board hỏng: board mới lên mạng tạo một dòng CHỜ GÁN (ma '?<mac>'). Thay vì gán
+	 * mã mới cho nó (mất chỉ số cũ), ta CHUYỂN mã cũ sang MAC mới:
+	 *   · Dòng mã cũ (AMTP01) giữ nguyên id -> giữ moc_chiso + mọi lịch sử theo ma_may. Chỉ đổi `mac`.
+	 *   · Dòng placeholder của board mới bị xoá (đã nhường MAC cho mã cũ).
+	 *
+	 * ⚠️ KHÔNG xoá dòng mã cũ (xoá là mất chỉ số — đúng điều anh Thắng dặn). Chỉ thay MAC.
+	 */
+	public static function doi_mac( $ma, $mac_moi ) {
+		global $wpdb;
+		$ma  = trim( (string) $ma );
+		$mac = self::chuan_mac( (string) $mac_moi );
+		$bang = VHG_DB::t( 'may' );
+		if ( '' === $ma )  { return array( 'ok' => false, 'error' => 'Thiếu mã ghế.' ); }
+		if ( '' === $mac ) { return array( 'ok' => false, 'error' => 'MAC mới không đúng khuôn (12 ký tự 0-9/A-F).' ); }
+
+		$row = $wpdb->get_row( $wpdb->prepare( "SELECT id, mac FROM $bang WHERE ma=%s LIMIT 1", $ma ), ARRAY_A );
+		if ( ! $row ) { return array( 'ok' => false, 'error' => 'Không thấy ghế ' . $ma . '.' ); }
+
+		/* MAC mới đang thuộc dòng nào? */
+		$chu = $wpdb->get_row( $wpdb->prepare( "SELECT id, ma FROM $bang WHERE mac=%s LIMIT 1", $mac ), ARRAY_A );
+		if ( $chu && (int) $chu['id'] !== (int) $row['id'] ) {
+			if ( 0 === strpos( (string) $chu['ma'], '?' ) ) {
+				/* Board mới đang nằm chờ gán -> xoá dòng tạm để nhường MAC cho mã cũ. */
+				$wpdb->delete( $bang, array( 'id' => (int) $chu['id'] ) );
+			} else {
+				return array( 'ok' => false, 'error' => 'MAC này đang là ghế ' . $chu['ma']
+					. ' — không thể gán cho hai ghế. Gỡ ghế đó trước nếu thật sự muốn chuyển.' );
+			}
+		}
+
+		$wpdb->update( $bang, array( 'mac' => $mac, 'cap_nhat' => current_time( 'mysql' ) ), array( 'ma' => $ma ) );
+		return array( 'ok' => true, 'thong_bao' => 'Đã chuyển ghế ' . $ma . ' sang board mới (MAC ' . $mac
+			. '). Giữ nguyên chỉ số + lịch sử.' );
+	}
+
 	public static function luu_may( $d ) {
 		global $wpdb;
 		$ma = trim( (string) ( isset( $d['ma'] ) ? $d['ma'] : '' ) );

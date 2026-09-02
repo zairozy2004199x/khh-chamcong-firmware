@@ -85,6 +85,7 @@ class VHG_Auth {
 	 */
 	const VIEC_QUAN_TRI = array(
 		'gan_ma',
+		'doi_mac',       // đổi board (MAC) cho mã ghế đã có — thay ESP32, giữ chỉ số
 		'ma_huy',
 		'so_may',
 		'nhat_ky_may',   // lịch sử bật/tắt ghế — số liệu vận hành cả chuỗi, chỉ quản trị
