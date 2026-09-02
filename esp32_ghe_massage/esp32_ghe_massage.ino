@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-09-01a (tong xanh duong hoang gia + so tien VANG bong, theo mau bang gia)"
+#define FW_VERSION "ghe-massage 2026-09-02a (man NGANG chot - the gia 2x2: ten tren, so VANG giua, phut duoi)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -974,30 +974,33 @@ void veTheGoi(int i){
   tft.drawRoundRect(b.x, b.y, b.w, b.h, 8, COL_T_VIEN);          // viền trong sáng
   tft.drawRoundRect(b.x - 1, b.y - 1, b.w + 2, b.h + 2, 9, COL_T_VIEN2);  // quầng ngoài mờ
 
+  /* Bố cục trong thẻ theo mẫu ngang đã chốt: TÊN ở trên, SỐ TIỀN vàng ở GIỮA, số PHÚT ở ĐÁY.
+     Mô tả (nếu máy chủ gửi) là dòng nhỏ ngay dưới tên. */
   tft.setTextDatum(TC_DATUM);
   /* Tên gói (máy chủ gửi xuống). Nền trong suốt -> không có hộp phẳng trên dải chuyển màu. */
   tft.setTextColor(COL_T_TEN);   // tên gói luôn TRẮNG — vàng nay dành riêng cho số tiền
-  tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 8, 1);
+  tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 7, 1);
 
-  tft.setTextColor(COL_T_PHU);
-  tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 20, 1);
+  if(PKG_MOTA[i].length()){
+    tft.setTextColor(COL_T_PHU);
+    tft.drawString(PKG_MOTA[i], cx, b.y + 19, 1);
+  }
 
   /* SỐ TIỀN to nhất — VÀNG BÓNG (font VLW, nền trong suốt). Vẽ HAI lượt: vàng tối lệch xuống 1px
-     (bóng) rồi vàng sáng ở trên -> giả kim loại 3D như bảng giá mẫu. */
+     (bóng) rồi vàng sáng ở trên -> giả kim loại 3D như bảng giá mẫu. Căn GIỮA thẻ. */
   tft.loadFont(vietLon);
   tft.setTextDatum(MC_DATUM);
   String _amt = tienVNd(PKG_AMT[i]);
   tft.setTextColor(COL_T_GIA_SH);
-  tft.drawString(_amt, cx, b.y + 49);   // bóng vàng tối
+  tft.drawString(_amt, cx, b.y + 45);   // bóng vàng tối
   tft.setTextColor(COL_T_GIA);
-  tft.drawString(_amt, cx, b.y + 48);   // vàng sáng
+  tft.drawString(_amt, cx, b.y + 44);   // vàng sáng
   tft.unloadFont();
 
-  if(PKG_MOTA[i].length()){
-    tft.setTextDatum(TC_DATUM);
-    tft.setTextColor(COL_T_PHU);
-    tft.drawString(PKG_MOTA[i], cx, b.y + b.h - 13, 1);
-  }
+  /* Số PHÚT ở ĐÁY thẻ — dòng nhỏ, xanh nhạt. */
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(COL_T_PHU);
+  tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + b.h - 15, 1);
   if(vip){
     tft.fillRoundRect(b.x + b.w - 42, b.y - 5, 38, 13, 5, COL_T_VIEN);
     tft.setTextDatum(MC_DATUM);
