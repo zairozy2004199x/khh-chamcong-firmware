@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-09-02b (chi so tien cong don TM/QR + GET /chotso cho chot tien)"
+#define FW_VERSION "ghe-massage 2026-09-02c (footer QR khong cut 2 dau - do textWidth chon cau vua)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -1110,13 +1110,25 @@ void drawIdle(){
 
   for(int i=0;i<PKG_N;i++) veTheGoi(i);
 
-  /* Dải chân: câu mời quét mã — CÓ DẤU (font VLW), cyan sáng cho nổi. */
+  /* Dải chân: câu mời quét mã — CÓ DẤU (font VLW), cyan sáng cho nổi.
+     🔴 Câu dài hơn 320px thì căn giữa sẽ CỤT CẢ HAI ĐẦU (anh Thắng chụp máy thật). Nên ĐO bề
+        rộng rồi lấy câu ĐẦU TIÊN còn vừa (chừa 8px mỗi bên), y hệt cách chọn tiêu đề ở trên. */
   tft.fillRect(0, 210, 320, 30, COL_T_BAR);
   tft.drawFastHLine(0, 210, 320, COL_T_VIEN2);
   tft.loadFont(vietVua);
+  static const char* MOI_QUET[] = {
+    "CHẠM CHỌN GÓI  >  QUÉT QR ĐỂ THANH TOÁN",
+    "CHỌN GÓI  >  QUÉT QR THANH TOÁN",
+    "QUÉT QR ĐỂ THANH TOÁN",
+    "QUÉT QR THANH TOÁN"
+  };
+  String moi = MOI_QUET[sizeof(MOI_QUET)/sizeof(MOI_QUET[0]) - 1];   // câu ngắn nhất làm mặc định
+  for(unsigned k = 0; k < sizeof(MOI_QUET)/sizeof(MOI_QUET[0]); k++){
+    if(tft.textWidth(MOI_QUET[k]) <= 304){ moi = MOI_QUET[k]; break; }
+  }
   tft.setTextDatum(MC_DATUM);
   tft.setTextColor(COL_T_GIA, COL_T_BAR);
-  tft.drawString("CHỌN GÓI  >  QUÉT QR ĐỂ THANH TOÁN", 160, 224);
+  tft.drawString(moi, 160, 224);
   tft.unloadFont();
 
   /* Mã ghế + trạng thái mạng đã vẽ ở ĐẦU hàm, trước tiêu đề — vì tiêu đề phải đo nó mới biết
