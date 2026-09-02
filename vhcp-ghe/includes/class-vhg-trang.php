@@ -7122,9 +7122,16 @@ function lam(viec, d){
   [].forEach.call(document.querySelectorAll('button'), function(b){ b.disabled = true; });
   goi(viec, d, function(r){
     ban = false;
+    /* Mở lại nút đã khoá lúc gửi (không thì mấy nút NGOÀI lưới bị kẹt disabled sau lần cập nhật
+       tại chỗ bên dưới). */
+    [].forEach.call(document.querySelectorAll('button'), function(b){ b.disabled = false; });
     if (r && r.ok === false && r.error) alert(r.error);
     else if (r && r.thong_bao) alert(r.thong_bao);
-    tai();
+    /* 🔴 KHÔNG vẽ lại CẢ TRANG ở tab Điều khiển: 434 ghế -> mỗi lần bấm là nhảy lên đầu, mất bộ
+       lọc cơ sở + số phút/tiền đang gõ (anh Thắng: "bấm tác vụ nó cứ rớt"). Chỉ cập nhật LƯỚI
+       tại chỗ. Các tab khác (quản lý, gán mã…) vẫn vẽ lại như cũ vì danh sách đổi hẳn. */
+    if (TAB === 'dieu-khien') capNhatDieuKhien();
+    else tai();
   });
 }
 
