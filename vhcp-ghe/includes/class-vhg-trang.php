@@ -3333,7 +3333,10 @@ function capNhatDieuKhien(){
    vẽ lại cả trang — vẽ lại mỗi giây là mất luôn ô đang gõ dở và nút đang bấm. */
 function chayDongHo(){
   if (demGiay) { clearInterval(demGiay); demGiay = null; }
-  if (TAB !== 'dieu-khien' || !D || !DK_AUTO) return;   // tắt tự làm mới -> khỏi chạy đồng hồ
+  /* Đồng hồ đếm ngược LUÔN chạy tại chỗ (chỉ đổi CHỮ trong từng ô [data-dh], không vẽ lại
+     trang) — KHÔNG phụ thuộc công tắc "Tự làm mới". Tắt auto chỉ bỏ lượt VẼ LẠI LƯỚI, đồng hồ
+     vẫn nhảy giây cho dễ nhìn. */
+  if (TAB !== 'dieu-khien' || !D) return;
   demGiay = setInterval(function(){
     if (!D || document.hidden) return;
     var co = false;
@@ -3343,9 +3346,9 @@ function chayDongHo(){
       var o = document.querySelector('[data-dh="' + m.ma + '"]');
       if (o) o.textContent = mmss(m.con_lai);
     });
-    /* Hết giờ tại chỗ thì hỏi lại ngay, đừng đợi hết nhịp 5 giây: lúc đó trạng thái ghế vừa
-       đổi và đó chính là thứ người ta đang chờ xem. */
-    if (!co) { clearInterval(demGiay); demGiay = null; if (!ban && !CHOT) tai(true); }
+    /* Hết giờ: CHỈ tự hỏi lại khi đang BẬT "Tự làm mới". Tắt thì để yên (bấm ↻ khi cần) —
+       không tự F5 sau lưng người đang thao tác. */
+    if (!co) { clearInterval(demGiay); demGiay = null; if (DK_AUTO && !ban && !CHOT) tai(true); }
   }, 1000);
 }
 
@@ -7368,8 +7371,9 @@ function noi(){
   if ((_e = document.getElementById('dk-auto'))) _e.onchange = function(){
     DK_AUTO = this.checked;
     try { localStorage.setItem('vhg_dk_auto', DK_AUTO ? '1' : '0'); } catch(er){}
-    if (DK_AUTO) { henLai(); chayDongHo(); }
-    else { if (hen) { clearTimeout(hen); hen = null; } if (demGiay) { clearInterval(demGiay); demGiay = null; } }
+    if (DK_AUTO) { henLai(); }
+    else if (hen) { clearTimeout(hen); hen = null; }   // tắt: chỉ dừng VẼ LẠI LƯỚI
+    chayDongHo();   // đồng hồ đếm ngược vẫn chạy dù bật hay tắt auto
   };
 
   /* ---- QUỸ: nộp tiền về quầy -----------------------------------------------------------
