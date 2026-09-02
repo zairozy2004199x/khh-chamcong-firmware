@@ -601,6 +601,15 @@ jobs:
             https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
           arduino-cli core update-index
           arduino-cli core install esp32:esp32@${CORE_VER}
+          # Ban CYD co man hinh -> can TFT_eSPI (dung font dung san, khong can SMOOTH_FONT).
+          arduino-cli lib install "TFT_eSPI@2.5.43"
+      - name: Cau hinh man CYD cho TFT_eSPI
+        run: |
+          set -e
+          LIB=$(find "$HOME/Arduino/libraries" -maxdepth 1 -type d -name 'TFT_eSPI*' | head -1)
+          [ -n "$LIB" ] || { echo "KHONG thay thu vien TFT_eSPI"; exit 1; }
+          cp esp32_nap_pic/ci/User_Setup.h "$LIB/User_Setup.h"
+          echo "Da ap User_Setup.h cho $LIB"
       - name: Compile
         run: |
           set -eo pipefail
