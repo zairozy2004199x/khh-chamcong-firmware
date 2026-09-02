@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-08-27t (doi tong SANG: nen xanh bien, the teal tuoi, gia trang)"
+#define FW_VERSION "ghe-massage 2026-09-01a (tong xanh duong hoang gia + so tien VANG bong, theo mau bang gia)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -859,19 +859,21 @@ String buildVietQR(const String& bin, const String& acct, long amount, const Str
    giá cyan nổi. Đây là MÀU HIỂN THỊ — panel này đảo màu (invertDisplay) nên giá trị đặt ra sẽ
    hiện đúng như vậy, giống bộ COL_* sẵn có. Chỉnh số nếu nạp lên thấy lệch tông. ===== */
 /* Tông SÁNG (anh Thắng: "màu sáng đi") — nền xanh biển, thẻ teal tươi, chữ trắng, glow cyan. */
-#define COL_T_BG    0x1A6B   // nền toàn màn (xanh biển vừa)
-#define COL_T_NEN   0x2C30   // nền thẻ (teal tươi)
+/* ===== TÔNG XANH DƯƠNG HOÀNG GIA + SỐ VÀNG BÓNG (anh Thắng 01/09/2026, theo mẫu bảng giá) ===== */
+#define COL_T_BG    0x1193   // nền toàn màn — xanh dương hoàng gia
+#define COL_T_NEN   0x1C9C   // nền thẻ — xanh dương
 #define COL_T_VIEN  0x5FFF   // viền sáng thẻ (glow) — cyan nhạt
 #define COL_T_VIEN2 0x2E5F   // viền lớp ngoài mờ hơn
-#define COL_T_GIA   0xFFFF   // số tiền — TRẮNG (rõ nhất)
+#define COL_T_GIA   0xFE89   // số tiền — VÀNG SÁNG (bóng, theo mẫu)
+#define COL_T_GIA_SH 0xA2E1  // vàng TỐI — đổ bóng dưới số tiền để giả kim loại 3D
 #define COL_T_TEN   0xFFFF   // tên gói — trắng
 #define COL_T_PHU   0xB6FD   // phút / mô tả — xanh nhạt
-#define COL_T_ID    0x27E9   // mã ghế góc phải — xanh lá sáng
-#define COL_T_BAR   0x22EE   // dải tiêu đề / dải chân — teal sáng
+#define COL_T_ID    0x5FFF   // mã ghế góc phải — cyan sáng
+#define COL_T_BAR   0x2D7F   // dải tiêu đề / dải chân — xanh dương sáng
 /* Khối 3D cho thẻ gói: chuyển màu đỉnh (sáng) -> đáy (tối hơn) + bóng đổ. */
-#define COL_T_DINH  0x3EBB   // đỉnh thẻ (teal-xanh sáng)
-#define COL_T_DAY   0x1C90   // đáy thẻ (teal vừa)
-#define COL_T_BONG  0x0882   // bóng đổ sau thẻ (xanh tối)
+#define COL_T_DINH  0x2B7F   // đỉnh thẻ — xanh dương sáng
+#define COL_T_DAY   0x114F   // đáy thẻ — xanh dương sâu
+#define COL_T_BONG  0x0028   // bóng đổ sau thẻ (xanh navy tối)
 
 /* Thẻ 2×2. Chiều cao chừa 30px đầu cho tiêu đề và 34px cuối cho dải "QUET MA QR". */
 Btn PKG_BTN[PKG_MAX] = { {8,34,150,84}, {162,34,150,84}, {8,122,150,84}, {162,122,150,84} };
@@ -974,17 +976,21 @@ void veTheGoi(int i){
 
   tft.setTextDatum(TC_DATUM);
   /* Tên gói (máy chủ gửi xuống). Nền trong suốt -> không có hộp phẳng trên dải chuyển màu. */
-  tft.setTextColor(vip ? COL_T_GIA : COL_T_TEN);
+  tft.setTextColor(COL_T_TEN);   // tên gói luôn TRẮNG — vàng nay dành riêng cho số tiền
   tft.drawString(PKG_TEN[i].length() ? PKG_TEN[i] : String("GOI ") + String(i + 1), cx, b.y + 8, 1);
 
   tft.setTextColor(COL_T_PHU);
   tft.drawString(String(phutGoi(i)) + " PHUT", cx, b.y + 20, 1);
 
-  /* SỐ TIỀN to nhất, cyan sáng, có "đ" (font VLW, nền trong suốt -> hoà vào dải chuyển màu). */
+  /* SỐ TIỀN to nhất — VÀNG BÓNG (font VLW, nền trong suốt). Vẽ HAI lượt: vàng tối lệch xuống 1px
+     (bóng) rồi vàng sáng ở trên -> giả kim loại 3D như bảng giá mẫu. */
   tft.loadFont(vietLon);
   tft.setTextDatum(MC_DATUM);
+  String _amt = tienVNd(PKG_AMT[i]);
+  tft.setTextColor(COL_T_GIA_SH);
+  tft.drawString(_amt, cx, b.y + 49);   // bóng vàng tối
   tft.setTextColor(COL_T_GIA);
-  tft.drawString(tienVNd(PKG_AMT[i]), cx, b.y + 48);
+  tft.drawString(_amt, cx, b.y + 48);   // vàng sáng
   tft.unloadFont();
 
   if(PKG_MOTA[i].length()){
