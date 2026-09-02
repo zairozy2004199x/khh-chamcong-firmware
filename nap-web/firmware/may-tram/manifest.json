@@ -1,0 +1,6 @@
+{
+  "name": "Máy thu tiền (máy trạm)",
+  "version": "may-tram (dien phien ban that)",
+  "new_install_prompt_erase": true,
+  "builds": [ { "chipFamily": "ESP32", "parts": [ { "path": "firmware-may-tram-merged.bin", "offset": 0 } ] } ]
+}

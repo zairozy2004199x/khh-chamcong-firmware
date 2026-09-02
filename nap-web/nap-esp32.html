@@ -29,7 +29,7 @@
   h2{font-family:var(--disp);font-weight:800;font-size:15px;letter-spacing:.02em;margin:30px 0 12px;color:var(--mut);
     text-transform:uppercase;font-size:12.5px;letter-spacing:.14em}
 
-  .targets{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
   @media(max-width:640px){.targets{grid-template-columns:1fr}}
   .tg{cursor:pointer;background:var(--bg2);border:1.5px solid var(--line);border-radius:14px;padding:16px 15px;
     transition:border-color .15s, background .15s, transform .1s;position:relative}
@@ -98,7 +98,17 @@
     <div class="tg" role="radio" aria-checked="false" tabindex="0"
          data-manifest="firmware/tho-nap/manifest.json" data-name="Thợ nạp OTA" data-ver="thợ nạp — bản mới nhất">
       <div class="tick"></div><div class="ico">🔧</div>
-      <div class="nm">Thợ nạp</div><div class="ds">Con nạp OTA cầm tay</div>
+      <div class="nm">Thợ nạp OTA</div><div class="ds">Nạp chấm công + POSH qua AP</div>
+    </div>
+    <div class="tg" role="radio" aria-checked="false" tabindex="0"
+         data-manifest="firmware/may-tram/manifest.json" data-name="Máy thu tiền" data-ver="máy trạm — bản mới nhất">
+      <div class="tick"></div><div class="ico">💰</div>
+      <div class="nm">Máy thu tiền</div><div class="ds">Máy trạm thu tiền / chốt ca</div>
+    </div>
+    <div class="tg" role="radio" aria-checked="false" tabindex="0"
+         data-manifest="firmware/posh-qr/manifest.json" data-name="POSH QR" data-ver="posh-qr — bản mới nhất">
+      <div class="tick"></div><div class="ico">🎫</div>
+      <div class="nm">POSH QR</div><div class="ds">Hộp QR POSH đời trước</div>
     </div>
   </div>
 

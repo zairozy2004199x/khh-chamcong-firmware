@@ -1,0 +1,6 @@
+{
+  "name": "POSH QR",
+  "version": "posh-qr (dien phien ban that)",
+  "new_install_prompt_erase": true,
+  "builds": [ { "chipFamily": "ESP32", "parts": [ { "path": "firmware-posh-qr-merged.bin", "offset": 0 } ] } ]
+}
