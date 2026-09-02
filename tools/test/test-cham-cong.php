@@ -6968,6 +6968,44 @@ t( 'nhưng LƯỚI CẢ THÁNG vẫn còn — đó là chỗ đang thay thế b�
 	strpos( $h_qtc, 'Lưới cả tháng' ) !== false, $h_qtc );
 t( 'và dữ liệu của người ta vẫn nằm trên màn', strpos( $h_qtc, 'QTC1' ) !== false, $h_qtc );
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════
+ * 🔴 MỖI CƠ SỞ = MỘT Ô GẬP, TỪNG TÍNH NĂNG CŨNG GẬP
+ * ══════════════════════════════════════════════════════════════════════════════════════════
+ * Anh Thắng 01/09/2026, ảnh JP_HCM: *"mỗi cơ sở hiện ra trong 1 ô, với các tính năng thì hiện
+ * theo chiều dọc, bấm vào cái nào hiện cái đó để gọn nhất, tức cần xem cái nào thôi"*.
+ */
+t( '🔴 mỗi cơ sở nằm trong một ô có id riêng', strpos( $h_qtc, 'class="the cs-o" id="cs-' ) !== false, $h_qtc );
+t( 'tên cơ sở là dòng bấm được (summary), không phải tiêu đề chết',
+	preg_match( '/<summary class="cs-ten">[^<]*<b>TUTU_BT<\/b>/', $h_qtc ) === 1, $h_qtc );
+/* Chọn ĐÚNG MỘT cơ sở thì mở sẵn — người ta vừa chỉ đích danh nó ở ô lọc, bắt bấm thêm một cú
+   nữa để thấy thứ mình vừa chọn là thêm việc chứ không phải bớt. */
+t( '🔴 chọn đúng một cơ sở thì ô ấy MỞ SẴN',
+	strpos( $h_qtc, '<details open><summary class="cs-ten">' ) !== false, $h_qtc );
+
+/* Và bốn tính năng bên trong đều là dòng gập, xếp một cột. */
+foreach ( array( 'Lưới cả tháng', 'Tổng giờ làm theo nhân viên', 'Đã động vào giờ công tháng này' ) as $_tn ) {
+	t( 'tính năng "' . $_tn . '" là một dòng gập',
+		preg_match( '/<summary><b>' . preg_quote( $_tn, '/' ) . '<\/b>/u', $h_qtc ) === 1, $_tn );
+}
+/* 🔴 GẬP THẬT, KHÔNG PHẢI GẬP MỖI LỜI DẪN. Bản đầu bọc `<details>` quanh đoạn giới thiệu của
+   Lưới, còn cái bảng dài thì vẫn nằm ngoài — nhìn thì có mũi tên gập, bấm vào chẳng ngắn đi
+   được bao nhiêu. Nên canh: bảng lưới thật phải nằm TRONG khối gập ấy. */
+$_i_luoi = strpos( $h_qtc, 'id="luoithang"' );
+$_i_dong = ( false !== $_i_luoi ) ? strpos( $h_qtc, '</details>', $_i_luoi ) : false;
+t( 'bốc được khối Lưới', false !== $_i_luoi && false !== $_i_dong, null );
+$_khoi_luoi = ( false !== $_i_dong ) ? substr( $h_qtc, $_i_luoi, $_i_dong - $_i_luoi ) : '';
+t( '🔴 bảng lưới THẬT nằm trong khối gập, không chỉ mỗi lời dẫn',
+	strpos( $_khoi_luoi, 'QTC1' ) !== false, substr( $_khoi_luoi, -300 ) );
+
+/* 🔴 CÂN THẺ. Lồng `<details>` trong `<div>` trong `<details>` là chỗ hụt thẻ dễ nhất, và hụt
+   một thẻ đóng thì trình duyệt tự vá theo cách của nó: cả phần còn lại của trang lọt vào bên
+   trong khối gập, gập cái đó là mất luôn mọi khối phía dưới. Không có gì báo. */
+$_mo_d  = substr_count( $h_qtc, '<details' );
+$_dong_d = substr_count( $h_qtc, '</details>' );
+teq( '🔴 số thẻ <details> mở và đóng bằng nhau', $_mo_d, $_dong_d );
+$_mo_s  = substr_count( $h_qtc, '<summary' );
+t( 'mỗi <details> có đúng một <summary>', $_mo_s === $_mo_d, array( $_mo_d, $_mo_s ) );
+
 /* ---- bộ lọc phải SỐNG SÓT qua một lượt POST ---- */
 /* Gắn cờ xong mà bảng nhảy về cơ sở khác / tháng khác thì người ta phải chọn lại từ đầu cho
    từng cái cờ. Ô ẩn `o_loc` chở bộ lọc qua, nên MỌI tham số lọc phải có tên trong THAM_SO. */
@@ -17016,6 +17054,14 @@ t( 'và có tên cả hai cơ sở làm tiêu đề',
 /* Nhiều bảng thì phải có dải nhảy tới — sáu lưới cả tháng là một trang rất dài, dựng sẵn hết mà
    không có cách nhảy thì thứ vừa tiết kiệm được lại mất vào việc cuộn tìm. */
 t( 'kèm dải "Nhảy tới" để khỏi cuộn tìm', strpos( $h_kt_bp, 'Nhảy tới' ) !== false, $h_kt_bp );
+/* 🔴 VẼ NHIỀU CƠ SỞ THÌ CÁC Ô GẬP SẴN — đó mới là lúc màn dài (anh Thắng 01/09/2026). Chọn
+   đúng một cơ sở thì ngược lại: mở sẵn, vì người ta vừa chỉ đích danh nó. */
+t( '🔴 vẽ nhiều cơ sở thì các ô GẬP SẴN, không đổ hết ra',
+	strpos( $h_kt_bp, '<details open><summary class="cs-ten">' ) === false, $h_kt_bp );
+t( 'nhưng vẫn có đủ ô của cả hai cơ sở',
+	substr_count( $h_kt_bp, '<summary class="cs-ten">' ) === 2, $h_kt_bp );
+teq( 'và cân thẻ ở cả màn nhiều cơ sở',
+	substr_count( $h_kt_bp, '<details' ), substr_count( $h_kt_bp, '</details>' ) );
 /* Chọn đúng MỘT cơ sở trong khi vẫn đang lọc bộ phận thì vẫn ra đúng một bảng — ô lọc không
    được thành vô tác dụng chỉ vì "bấm bộ phận là hiện hết". */
 $h_kt_bp1 = vhcc_web_nhu2( 'HTBKT', 'Kế toán', $u_2cs,

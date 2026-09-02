@@ -2146,6 +2146,14 @@ class VHCC_Web {
 			. 'summary{cursor:pointer;padding:6px 0;font-size:15px;user-select:none}'
 			. 'summary::marker{color:var(--xanh)}'
 			. 'summary:hover{color:var(--xanh)}'
+			/* --- Ô CƠ SỞ: mỗi cơ sở một ô gập (anh Thắng 01/09/2026) ---
+			   Viền trái đậm để mắt bắt được ranh giới giữa hai cơ sở khi mở nhiều ô một lúc —
+			   không có nó thì các thẻ con bên trong trông y hệt thẻ của cơ sở kế tiếp. */
+			. '.cs-o{border-left:4px solid var(--xanh);padding-left:12px}'
+			. '.cs-ten{font-size:17px;padding:2px 0}'
+			/* Thẻ con nằm TRONG ô cơ sở thì bỏ nền và viền riêng: lồng khung trong khung làm
+			   màn trông chật, mà thứ cần thấy là các dòng tiêu đề gập xếp thẳng một cột. */
+			. '.cs-o .the{background:none;border:0;box-shadow:none;padding:0;margin:8px 0}'
 			/* --- đầu trang --- */
 			. '.hieu{flex:1;font-size:16px;text-decoration:none;color:var(--chu)}'
 			. '.hieu b{color:var(--xanh)}'
@@ -3615,17 +3623,28 @@ class VHCC_Web {
 			}
 			echo '</div></div>';
 		}
+		/* 🔴 MỖI CƠ SỞ = MỘT Ô GẬP. Anh Thắng 01/09/2026, ảnh JP_HCM: *"mỗi cơ sở hiện ra trong
+		   1 ô, với các tính năng thì hiện theo chiều dọc, bấm vào cái nào hiện cái đó để gọn
+		   nhất, tức cần xem cái nào thôi"*.
+
+		   Một cơ sở đổ hết ra là sáu khối nối đuôi (ảnh thẻ · lưới · tổng giờ · nhật ký · in ·
+		   lương) — riêng JP_HCM chưa có một dòng dữ liệu nào đã dài hơn một màn hình. Nhân với
+		   bốn cơ sở của một bộ phận thì việc "bấm bộ phận là ra hết" vừa làm xong lại thành một
+		   trang không ai cuộn nổi. Gập lại thì hai thứ ấy sống chung được: ra hết, mà vẫn gọn.
+
+		   ⚠️ CHỌN ĐÚNG MỘT CƠ SỞ THÌ MỞ SẴN. Người ta vừa chỉ đích danh nó ở ô lọc; bắt bấm thêm
+		      một cú nữa để thấy thứ mình vừa chọn là thêm việc chứ không phải bớt. Chỉ khi vẽ
+		      NHIỀU cơ sở một lượt thì mới gập — đó mới là lúc màn dài. */
+		$nhieu_cs = count( $ds_ve ) > 1;
 		foreach ( $ds_ve as $mot_cs ) {
-			/* Tên cơ sở làm tiêu đề CHỈ khi có hơn một bảng — một bảng thì tiêu đề "Chấm công"
-			   ở trên đã đủ nói, thêm một dòng tên cơ sở nữa là lặp lại vô ích. */
-			if ( count( $ds_ve ) > 1 ) {
-				echo '<h3 id="cs-' . esc_attr( sanitize_title( $mot_cs ) ) . '" style="margin:22px 0 4px">🏬 '
-					. esc_html( $mot_cs ) . '</h3>';
-			}
+			echo '<div class="the cs-o" id="cs-' . esc_attr( sanitize_title( $mot_cs ) ) . '">';
+			echo '<details' . ( $nhieu_cs ? '' : ' open' ) . '>';
+			echo '<summary class="cs-ten">🏬 <b>' . esc_html( $mot_cs ) . '</b>'
+				. ' <span class="mo">· tháng ' . esc_html( $th ) . '</span></summary>';
 			self::khoi_thieu_anh( $toi, $mot_cs );
 			$b = VHCC_Cham::bang_cham_cong( $toi, $mot_cs, $th );
 			if ( empty( $b['ok'] ) ) {
-				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div>';
+				echo '<div class="bao loi">' . esc_html( $b['error'] ) . '</div></details></div>';
 				continue;
 			}
 			self::ve_bang_cham( $b, $mot_cs, $th, $ngay, $ma_nv, $ky, $toi );
@@ -3639,6 +3658,7 @@ class VHCC_Web {
 			      tiền tính từ một tháng không đọc nổi. */
 			self::the_khoi_in( $toi, $mot_cs, $th );
 			self::the_khoi_luong( $toi, $mot_cs, $th );
+			echo '</details></div>';
 		}
 	}
 
@@ -3782,8 +3802,9 @@ class VHCC_Web {
 	 */
 	private static function the_tong_cham( $loc_thang, $tt, $cs, $th ) {
 		$tong = VHCC_Cham::gom_tong( $loc_thang );
-		echo '<div class="the">';
-		echo '<h3 style="margin:0 0 6px">Tổng giờ làm theo nhân viên · ' . esc_html( $tt ) . '</h3>';
+		echo '<div class="the"><details>';
+		echo '<summary><b>Tổng giờ làm theo nhân viên</b> · ' . esc_html( $tt )
+			. ' <span class="mo">(' . count( (array) $tong ) . ' người)</span></summary>';
 		echo '<p class="mo" style="margin:0 0 10px">Tổng của <b>cả tháng</b> — không đổi theo ô '
 			. 'Ngày ở trên. Chọn một ngày là để soi bảng chi tiết, còn bảng này mà tụt xuống một '
 			. 'ngày thì cột Ngày công luôn bằng 1 và hết ý nghĩa.</p>';
@@ -3811,7 +3832,7 @@ class VHCC_Web {
 				. '<td><b>' . esc_html( VHCC_Cham::chu_gio( $tong_phut ) ) . '</b></td></tr>';
 			echo '</tbody></table></div>';
 		}
-		echo '</div>';
+		echo '</details></div>';
 	}
 
 	/**
@@ -4050,8 +4071,13 @@ class VHCC_Web {
 		$vi_sao   = $khai_roi ? 'đã khai thẳng'
 			: 'suy theo bộ phận <b>' . esc_html( VHCC_Luong::bo_phan_cua( $cs ) ) . '</b>';
 
-		echo '<div class="the" id="luoithang">';
-		echo '<h2>Lưới cả tháng</h2>';
+		/* 🔴 GẬP TỪNG TÍNH NĂNG, và LƯỚI thì mở sẵn — anh Thắng 01/09/2026: *"bấm vào cái nào
+		   hiện cái đó… tức cần xem cái nào thôi"*. Lưới là thứ người ta mở màn Bảng công để xem;
+		   gập cả nó lại thì ai vào cũng phải bấm thêm một cú cho cùng một việc. Mấy khối còn lại
+		   (tổng giờ · nhật ký · in · lương) là thứ soi khi cần, nên gập sẵn. */
+		echo '<div class="the" id="luoithang"><details>';
+		echo '<summary><b>Lưới cả tháng</b> <span class="mo">— mỗi ô một số, cả tháng của cả cơ '
+			. 'sở trên một màn</span></summary>';
 		if ( $la_vp ) {
 			echo '<p class="mo"><b>' . esc_html( $cs ) . '</b> đang tính <b>THEO CÔNG</b> (' . $vi_sao
 				. ') nên mỗi ô là <b>số công</b> — đã qua phép tính (khung giờ, tăng ca, ca đêm, '
@@ -4105,7 +4131,10 @@ class VHCC_Web {
 				. '">Mở bảng ' . esc_html( $cs_ghep ) . '</a></div>';
 		}
 		echo '<p class="mo">Đổi đơn vị ở khối <b>Cách tính công của từng cơ sở</b> dưới cùng.</p>';
-		echo '</div>';
+		/* ⚠️ KHÔNG đóng thẻ ở đây nữa. Trước 01/09/2026 khối này đóng ngay sau phần giới thiệu,
+		   rồi lưới thật vẽ ra thành mấy thẻ RIÊNG bên dưới — nên bọc `<details>` quanh phần giới
+		   thiệu là gập đi đúng cái lời dẫn mà giữ nguyên cái bảng dài. Nay `<details>` ôm trọn cả
+		   lưới, và đóng ngay trước khối Khai ca (khối ấy là tính năng riêng, có ô gập của nó). */
 
 		/* Hỏi quyền MỘT LẦN rồi truyền xuống — ô nào bấm được là do quyền, không phải do lưới. */
 		$duoc_sua = VHCC_Vai::duoc( $toi, 'sua_gio' );
@@ -4120,11 +4149,13 @@ class VHCC_Web {
 		}
 		if ( $la_vp ) {
 			self::ve_luoi_vp( VHCC_Luong::vp_bang_cong_va_luong( $cs, $th ), $duoc_sua, $duoc_bu, $ky, $toi );
+			echo '</details></div>';   // nhánh về sớm cũng phải đóng, kẻo cả trang lọt vào trong lưới
 			return;
 		}
 		$b_gio = VHCC_Cham::bang_cham_cong( $toi, $cs, $th );
 		self::ve_luoi_gio( $b_gio, $th, $duoc_sua, $duoc_bu, $ky, $toi );
 		self::the_tong_ca( $b_gio, $cs, $toi );
+		echo '</details></div>';
 		/* 🔴 KHỐI KHAI CA PHẢI ĐỨNG NGAY ĐÂY, KHÔNG PHẢI CHỈ Ở MÀN CẤU HÌNH.
 		   Nó vốn nằm một mình trong màn Cấu hình, mà màn ấy gác `ngoai_coso` — bậc Quản lý. Tức
 		   là Cửa hàng trưởng, đúng người biết cửa hàng mình vào ca mấy giờ, KHÔNG có cửa nào để
@@ -6165,7 +6196,8 @@ class VHCC_Web {
 	 */
 	private static function the_nhat_ky_gio( $cs, $tt, $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'cham_bu' ) && ! VHCC_Vai::duoc( $toi, 'sua_gio' ) ) { return; }
-		echo '<div class="the" id="bucong"><h2>Đã động vào giờ công tháng này</h2>';
+		echo '<div class="the" id="bucong"><details>';
+		echo '<summary><b>Đã động vào giờ công tháng này</b></summary>';
 		echo '<p class="mo">Mỗi lượt <b>bù</b> (điền ô còn trống) và mỗi lượt <b>sửa đè</b> đều vào '
 			. 'sổ này — ai làm · cho ai · ngày nào · giờ cũ ra sao · vì sao — và <b>không xoá được</b>. '
 			. 'Bù và sửa làm ngay tại ô trong <a href="#luoithang"><b>Lưới cả tháng</b></a>: ô '
@@ -6202,7 +6234,7 @@ class VHCC_Web {
 		} else {
 			echo '<p class="mo">Tháng này chưa ai bù hay sửa giờ công ở cơ sở này.</p>';
 		}
-		echo '</div>';
+		echo '</details></div>';
 	}
 
 	/* 🔴 KHỐI "SỬA GIỜ CÔNG" Ở CUỐI MÀN ĐÃ BỎ (anh Thắng 26/08/2026: *"Loại bỏ chỗ này. Chỗ này
