@@ -1985,6 +1985,24 @@ class VHG_Admin {
 		echo '<p><button class="button button-primary" name="vhg" value="fw_nap">Tải lên & cập nhật</button></p>';
 		echo '</form>';
 
+		// ---- NẠP QUA USB NGAY TRÊN WEB (Web Serial / esp-web-tools) ----
+		echo '<hr><h2>&#9889; Nạp firmware qua USB — ngay tại đây</h2>';
+		if ( '' === $u_mrg ) {
+			echo '<p class="description">Tải <b>merged .bin</b> ở trên trước thì mới nạp USB được. '
+				. '(App .bin chỉ dùng cho OTA/thợ nạp, không full-flash qua USB được.)</p>';
+		} elseif ( ! is_ssl() ) {
+			echo '<p style="color:#b32d2e"><b>Web Serial cần HTTPS.</b> Mở trang admin qua <code>https://</code> rồi thử lại.</p>';
+		} else {
+			echo '<p class="description">Cắm ghế/board vào máy tính bằng <b>cáp USB dữ liệu</b> (dùng <b>Chrome</b> hoặc '
+				. '<b>Edge</b> trên máy tính) rồi bấm nút. Nạp trực tiếp, khỏi Arduino IDE.</p>';
+			echo '<p><esp-web-install-button manifest="' . esc_url( $u_usb ) . '">'
+				. '<button class="button button-primary button-hero" slot="activate">&#9889; Nạp firmware qua USB</button>'
+				. '<span slot="unsupported" style="color:#b32d2e">Trình duyệt không hỗ trợ — dùng Chrome/Edge trên máy tính.</span>'
+				. '<span slot="not-allowed" style="color:#b32d2e">Cần mở trang qua HTTPS.</span>'
+				. '</esp-web-install-button></p>';
+			echo '<script type="module" src="https://cdn.jsdelivr.net/npm/esp-web-tools@10.0.0/dist/web/install-button.js"></script>';
+		}
+
 		if ( '' !== $u_app || '' !== $u_mrg ) {
 			echo '<hr><form method="post" onsubmit="return confirm(\'Xoá firmware ghế trên web?\');">';
 			wp_nonce_field( 'vhg' );
