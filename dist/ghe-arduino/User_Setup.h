@@ -26,5 +26,8 @@
 #define LOAD_FONT6
 #define LOAD_FONT7
 #define LOAD_GFXFF
+// 🔴 BẮT BUỘC: firmware dùng font VLW tiếng Việt có dấu + số vàng (tft.loadFont/unloadFont).
+//    THIẾU dòng này -> biên dịch báo: 'class TFT_eSPI' has no member named 'loadFont'.
+#define SMOOTH_FONT
 #define SPI_FREQUENCY       55000000
 #define SPI_READ_FREQUENCY  20000000
