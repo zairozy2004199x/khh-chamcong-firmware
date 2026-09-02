@@ -905,11 +905,38 @@ class VHCC_NhanSu {
 			'den' => implode( ', ', $moi ), 'go' => $go );
 	}
 
+	/**
+	 * DANH MỤC CƠ SỞ — những cơ sở ĐÃ ĐƯỢC KHAI, không phải những tên từng xuất hiện đâu đó.
+	 *
+	 * Anh Thắng 02/09/2026, ảnh hồ sơ Phạm Tường Vi và lưới bảng công có hàng
+	 * `(PART TIME )_POSH+JP` cạnh hàng `PART_TIME (POSHJP)`: *"bị sinh cơ sở ảo"*.
+	 *
+	 * 🔴 TRƯỚC BẢN NÀY DANH SÁCH CƠ SỞ ĐƯỢC SUY RA TỪ DỮ LIỆU CHẢY VÀO — `SELECT DISTINCT` trên
+	 *    `cham_cong.coso` và `nhan_vien.cua_hang`. Nghĩa là BẤT KỲ tên nào từng lọt vào một lượt
+	 *    chấm công hay một ô gõ tay đều nghiễm nhiên thành một cơ sở của cả hệ, vĩnh viễn, và
+	 *    KHÔNG AI PHẢI QUYẾT ĐỊNH GÌ. Nạp .csv thì cơ sở suy ra từ TÊN TỆP
+	 *    (`VHCC_NapCong::coso_tu_ten_tep`), nên hai lần nạp hai tên tệp khác nhau của cùng một
+	 *    chỗ đẻ ra hai cơ sở; ô "Cơ sở phụ" trong hồ sơ là ô gõ tay, gõ lệch một dấu cách cũng
+	 *    đẻ thêm một cơ sở nữa.
+	 *
+	 *    Hậu quả không dừng ở ô chọn dài thêm mấy dòng: công thật của một người bị XÉ ra nằm rải
+	 *    trên hai ba hàng mang ba cái tên, mỗi hàng thiếu giờ, và bảng lương cộng theo hàng.
+	 *
+	 * 🔴 NAY CƠ SỞ CHỈ CÓ THẬT KHI ĐƯỢC KHAI CÓ Ý — đúng một trong hai:
+	 *      · đã khai bộ phận ở màn Cấu hình (`bo_phan_coso`), hoặc
+	 *      · đã có máy chấm công gán vào (`may.cua_hang`).
+	 *    Cả hai đều là việc một người phải chủ động làm, không phải hệ quả của một lần gõ.
+	 *
+	 * ⚠️ SIẾT DANH MỤC KHÔNG ĐƯỢC LÀM MẤT CÔNG. Tên nằm ngoài danh mục mà vẫn đang mang lượt
+	 *    chấm công thì KHÔNG biến mất im lặng — `ds_coso_la()` gom chúng lại và màn Cấu hình
+	 *    hiện thành khối đỏ mở sẵn, kèm số lượt, để người ta gộp về tên đúng hoặc nhận vào danh
+	 *    mục. Bỏ khối ấy đi là đổi một lỗi ồn ào (ô chọn thừa dòng) lấy một lỗi câm (công biến
+	 *    mất khỏi mọi màn), tức là làm cho tệ hơn.
+	 */
 	public static function ds_coso() {
 		global $wpdb;
 		$ds = array();
-		foreach ( array( 'may' => 'cua_hang', 'cham_cong' => 'coso', 'nhan_vien' => 'cua_hang',
-			'bo_phan_coso' => 'coso' ) as $bang => $cot ) {
+		foreach ( array( 'bo_phan_coso' => 'coso', 'may' => 'cua_hang' ) as $bang => $cot ) {
 			foreach ( (array) $wpdb->get_col( "SELECT DISTINCT $cot FROM " . VHCC_DB::t( $bang ) ) as $x ) {
 				$x = self::chuan_coso( $x );
 				if ( '' !== $x && ! in_array( $x, $ds, true ) ) { $ds[] = $x; }
@@ -917,6 +944,59 @@ class VHCC_NhanSu {
 		}
 		sort( $ds );
 		return $ds;
+	}
+
+	/**
+	 * CƠ SỞ LẠ — tên đang MANG DỮ LIỆU THẬT mà chưa có trong danh mục.
+	 *
+	 * Đây là mặt kia của `ds_coso()`: siết danh mục thì phải có chỗ nhìn thấy thứ vừa bị siết
+	 * ra ngoài, kèm đủ số liệu để quyết — nó là một cơ sở thật chưa kịp khai, hay chỉ là một
+	 * tên gõ lệch của cơ sở đã có?
+	 *
+	 * ⚠️ TÊN TRẢ VỀ LÀ TÊN THÔ, y như trong kho. Chính mấy cái tên gõ lệch nhau mới là thứ cần
+	 *    gộp; chuẩn hoá ở đây thì hai kiểu gõ nhập làm một trên màn hình và người ta không chọn
+	 *    tách ra được nữa. (Cùng lý do với `VHCC_Nhan::ds_coso_tho()`.)
+	 *
+	 * @return array array( array( 'coso' => tên thô, 'luot' => số lượt chấm công, 'nguoi' => số hồ sơ ) )
+	 *               — nhiều lượt nhất trước.
+	 */
+	public static function ds_coso_la() {
+		global $wpdb;
+		$biet = array();
+		foreach ( self::ds_coso() as $x ) { $biet[ self::chu_thuong( $x ) ] = 1; }
+
+		$gom = array();
+		$them = function ( $ten, $o_dau, $so ) use ( &$gom, $biet ) {
+			$ten = trim( (string) $ten );
+			if ( '' === $ten ) { return; }
+			$chuan = VHCC_NhanSu::chuan_coso( $ten );
+			if ( '' === $chuan ) { return; }
+			/* So bằng dạng CHUẨN: `CS_POSH_HCM` và `POSH_HCM` là một chỗ, đừng kể thành lạ. */
+			if ( isset( $biet[ VHCC_NhanSu::chu_thuong( $chuan ) ] ) ) { return; }
+			$k = VHCC_NhanSu::chu_thuong( $ten );
+			if ( ! isset( $gom[ $k ] ) ) { $gom[ $k ] = array( 'coso' => $ten, 'luot' => 0, 'nguoi' => 0 ); }
+			$gom[ $k ][ $o_dau ] += (int) $so;
+		};
+
+		foreach ( (array) $wpdb->get_results(
+			'SELECT coso, COUNT(*) so FROM ' . VHCC_DB::t( 'cham_cong' )
+			. " WHERE coso<>'' GROUP BY coso", ARRAY_A ) as $r ) {
+			$them( $r['coso'], 'luot', $r['so'] );
+		}
+
+		/* Hồ sơ: đi qua `ds_coso_hs()` để `coso_phu` (chuỗi nối bằng dấu phẩy) được tách đúng
+		   như mọi nơi khác trong hệ — tự `explode` ở đây là nơi thứ hai tách một thứ. */
+		foreach ( (array) $wpdb->get_results(
+			'SELECT cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' ), ARRAY_A ) as $r ) {
+			foreach ( self::ds_coso_hs( $r ) as $x ) { $them( $x, 'nguoi', 1 ); }
+		}
+
+		$ra = array_values( $gom );
+		usort( $ra, function ( $a, $b ) {
+			if ( $a['luot'] !== $b['luot'] ) { return $b['luot'] - $a['luot']; }
+			return strcmp( $a['coso'], $b['coso'] );
+		} );
+		return $ra;
 	}
 
 	/* ====================================================================== tên cơ sở */

@@ -949,6 +949,55 @@ class VHCC_Web {
 				: 'Không có tên nào đổi.' ) );
 		}
 
+		if ( 'coso_la' === $viec ) {
+			$o = isset( $_POST['cla'] ) ? (array) wp_unslash( $_POST['cla'] ) : array();
+			$nhan = 0; $gop = array(); $loi = array(); $de_lai = array();
+			foreach ( $o as $ten_x => $lam_x ) {
+				$ten_x = sanitize_text_field( $ten_x );
+				$lam_x = sanitize_text_field( is_array( $lam_x ) ? '' : $lam_x );
+				if ( '' === $ten_x || '' === $lam_x ) { continue; }
+
+				if ( 'nhan' === $lam_x ) {
+					/* Nhận vào danh mục = ghi một dòng `bo_phan_coso` với bộ phận TRỐNG. Cơ sở
+					   có mặt ngay ở khối "Cơ sở thuộc bộ phận nào" ngay bên dưới để xếp tiếp —
+					   chứ không bắt khai bộ phận ngay tại đây, vì hai việc ấy khác nhau: nhận
+					   là "chỗ này có thật", xếp là "tính lương theo công thức nào". */
+					$r = VHCC_NhanSu::xep_bo_phan( $toi, $ten_x, '' );
+					if ( empty( $r['ok'] ) ) { $loi[] = $ten_x . ': ' . $r['error']; }
+					else { $nhan++; }
+					continue;
+				}
+
+				if ( 0 === strpos( $lam_x, 'gop:' ) ) {
+					$den_x = substr( $lam_x, 4 );
+					/* 🔴 LÀM THẬT NGAY, KHÔNG XEM TRƯỚC. Người dùng vừa chọn đích trong một ô xổ
+					   chỉ chứa cơ sở CÓ THẬT (danh mục), nên không có chỗ để gõ nhầm — thêm một
+					   bước xác nhận ở đây là thêm một bước người ta bấm qua mà không đọc. Từng
+					   lượt vẫn còn nguyên: gộp là DỜI, không xoá. */
+					$r = VHCC_Nhan::gop_coso( $ten_x, $den_x, true );
+					if ( isset( $r['loi'] ) ) { $loi[] = $ten_x . ': ' . $r['loi']; continue; }
+					$gop[] = $ten_x . ' → ' . $r['den'] . ' (' . ( (int) $r['doi_ten'] + (int) $r['gop'] )
+						. ' lượt' . ( $r['ho_so'] ? ' · ' . (int) $r['ho_so'] . ' hồ sơ' : '' ) . ')';
+					foreach ( (array) $r['de_lai'] as $d ) { $de_lai[] = $d; }
+				}
+			}
+			if ( $loi ) { return array( array( 'loi' => implode( ' · ', $loi ) ) ); }
+			if ( ! $nhan && ! $gop ) { return array( array( 'xong' => 'Không chọn việc gì — không có gì đổi.' ) ); }
+			$noi = array();
+			if ( $nhan ) { $noi[] = 'Nhận ' . $nhan . ' cơ sở vào danh mục (nhớ xếp bộ phận ở khối ngay dưới, '
+				. 'chưa xếp là chưa có công thức tính công).'; }
+			if ( $gop ) { $noi[] = 'Gộp: ' . implode( ' · ', $gop ) . '.'; }
+			/* 🔴 KỂ RA HÀNG KHÔNG DỜI ĐƯỢC. Hàng đích đã chỉnh tay (nguồn `sua`/`bu`) thì `gop_coso`
+			   cố ý không đụng — im lặng ở đây là người ta tưởng đã gộp sạch, trong khi vẫn còn
+			   mấy ngày nằm lại ở tên cũ. */
+			if ( $de_lai ) {
+				$noi[] = 'ĐỂ LẠI ' . count( $de_lai ) . ' lượt vì hàng đúng đã chỉnh tay: '
+					. implode( ' · ', array_slice( $de_lai, 0, 10 ) )
+					. ( count( $de_lai ) > 10 ? ' …' : '' ) . ' — xử tay từng ngày.';
+			}
+			return array( array( 'xong' => implode( ' ', $noi ) ) );
+		}
+
 		if ( 'bo_phan' === $viec ) {
 			$o = isset( $_POST['bp'] ) ? (array) wp_unslash( $_POST['bp'] ) : array();
 			$doi = 0; $loi = array();
@@ -5065,6 +5114,66 @@ class VHCC_Web {
 	 * ⚠️ Bộ phận quyết định CÔNG THỨC LƯƠNG của cả cơ sở, nên gác ở bậc Quản lý trở lên
 	 *    (`VHCC_NhanSu::xep_bo_phan` gác lại lần nữa ở máy chủ — ẩn cái khối không phải là gác).
 	 */
+	/**
+	 * CƠ SỞ LẠ — TÊN ĐANG MANG CÔNG THẬT MÀ CHƯA CÓ TRONG DANH MỤC.
+	 *
+	 * Anh Thắng 02/09/2026, ảnh hồ sơ Phạm Tường Vi (`Cơ sở phụ` = `(PART TIME )_POSH+JP`) và
+	 * bảng lượt có cả `PART_TIME (POSHJP)`: *"bị sinh cơ sở ảo"*.
+	 *
+	 * 🔴 ĐÂY LÀ MẶT KIA CỦA VIỆC SIẾT DANH MỤC. Từ 02/09/2026 `VHCC_NhanSu::ds_coso()` chỉ còn
+	 *    nhận cơ sở ĐÃ KHAI (xếp bộ phận, hoặc gán máy) — nên một tên gõ lệch không tự nhập tịch
+	 *    được nữa. Nhưng công đã chấm vào cái tên ấy thì VẪN NẰM ĐÓ. Không có khối này thì siết
+	 *    danh mục = đổi một lỗi ồn ào (ô chọn thừa mấy dòng) lấy một lỗi CÂM: công biến mất khỏi
+	 *    mọi màn mà không ai được báo. Nên khối mở sẵn, tô đỏ, kèm số lượt.
+	 *
+	 * ⚠️ HAI LỐI RA, VÀ PHẢI TỰ CHỌN. "Gộp vào" khi đây chỉ là kiểu gõ khác của cơ sở đã có;
+	 *    "Nhận vào danh mục" khi nó là cơ sở thật chưa kịp khai. Máy KHÔNG đoán hộ: hai tên gõ
+	 *    lệch không suy ra nhau được, và đoán sai là dồn công của cửa hàng này sang bảng lương
+	 *    của cửa hàng khác.
+	 */
+	private static function the_coso_la( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		$la = VHCC_NhanSu::ds_coso_la();
+		if ( ! $la ) { return; }               // sạch thì không chiếm chỗ trên màn
+		$ds = VHCC_NhanSu::ds_coso();
+
+		echo '<div class="the" id="cosola"><details open><summary>'
+			. '<b class="chu-hong">⚠ Cơ sở lạ — chưa khai</b> <span class="mo">('
+			. count( $la ) . ' tên · bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Mấy tên dưới đây <b>đang mang dữ liệu thật</b> '
+			. '(lượt chấm công, hoặc hồ sơ khai làm ở đó) nhưng <b>không có trong danh mục cơ sở</b> '
+			. '— chúng <b>không hiện trong ô chọn Cơ sở</b> ở bất kỳ màn nào, nên công nằm trong '
+			. 'chúng cũng không ai xem được.</p>';
+		echo '<div class="bao canh">Tên lạ sinh ra từ hai chỗ: <b>nạp .csv</b> (cơ sở suy ra từ '
+			. '<b>tên tệp</b> — hai lần nạp hai tên tệp khác nhau của cùng một chỗ là hai cơ sở), '
+			. 'và <b>ô Cơ sở / Cơ sở phụ</b> trong hồ sơ (gõ tay, lệch một dấu cách cũng thành tên '
+			. 'mới). Đây <b>không phải</b> nơi xoá dữ liệu: cả hai lối dưới đều giữ nguyên từng lượt.</div>';
+
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="viec" value="coso_la">' . self::o_loc();
+		echo '<div class="cuon"><table><thead><tr><th>Tên lạ</th><th>Đang mang</th>'
+			. '<th>Làm gì với nó</th></tr></thead><tbody>';
+		foreach ( $la as $x ) {
+			$ten = (string) $x['coso'];
+			echo '<tr class="hong"><td><b>' . esc_html( $ten ) . '</b></td>';
+			echo '<td>' . ( $x['luot'] ? (int) $x['luot'] . ' lượt chấm công' : '<span class="mo">không lượt nào</span>' )
+				. ( $x['nguoi'] ? ' · ' . (int) $x['nguoi'] . ' hồ sơ' : '' ) . '</td>';
+			echo '<td><select name="cla[' . esc_attr( $ten ) . ']">';
+			echo '<option value="">— để yên —</option>';
+			echo '<option value="nhan">✔ Nhận vào danh mục (là cơ sở thật)</option>';
+			foreach ( $ds as $d ) {
+				echo '<option value="gop:' . esc_attr( $d ) . '">↦ Gộp vào ' . esc_html( $d ) . '</option>';
+			}
+			echo '</select></td></tr>';
+		}
+		echo '</tbody></table></div>';
+		echo '<p><button class="chinh">Áp dụng</button> <span class="mo">Gộp thì mọi lượt được '
+			. 'dời sang tên đúng (hàng trùng ngày thì <b>nới</b> khung giờ, không đè); hàng đã chỉnh '
+			. 'tay được kể ra để xử riêng. Nhận vào danh mục thì cơ sở hiện ngay ở khối bên dưới để '
+			. 'xếp bộ phận.</span></p></form>';
+		echo '</details></div>';
+	}
+
 	private static function the_bo_phan( $ky, $toi ) {
 		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
 		$ds = self::ds_coso_xem( $toi );
@@ -6470,6 +6579,7 @@ class VHCC_Web {
 		echo '</select></div><div><button class="chinh">Xem</button></div></form>';
 		echo '</div>';
 
+		self::the_coso_la( $ky, $toi );
 		self::the_bo_phan( $ky, $toi );
 		self::the_cach_tinh( $ky, $toi );
 		self::the_ghep_cs( $ky, $toi );
@@ -6732,13 +6842,20 @@ class VHCC_Web {
 				. '<span class="mo">Nạp nhầm cửa hàng thì cả tháng công chui vào sổ của nơi khác mà '
 				. 'không câu nào báo. Kiểm lại ô cơ sở trước khi bấm Nạp thật.</span></div>';
 		}
+		/* 🔴 CÂU NÀY ĐỔI HẲN NGHĨA TỪ 02/09/2026. Trước đó nạp vào một mã lạ là TẠO MỚI một cơ
+		   sở — chính chỗ đẻ ra "cơ sở ảo" anh Thắng gặp. Nay danh mục chỉ nhận cơ sở ĐÃ KHAI,
+		   nên nạp vào mã lạ KHÔNG tạo cơ sở nào: công vào kho thật nhưng nằm ngoài mọi ô chọn,
+		   và chỉ thấy được ở khối "Cơ sở lạ" bên màn Cấu hình. Để nguyên câu cũ là màn hình nói
+		   dối về việc mình vừa làm. */
 		if ( ! empty( $b['la_moi'] ) ) {
-			echo '<div class="bao canh"><b>Cơ sở "' . esc_html( $b['coSo'] ) . '" CHƯA có trong hệ thống.</b><br>'
+			echo '<div class="bao canh"><b>Cơ sở "' . esc_html( $b['coSo'] ) . '" chưa có trong danh mục.</b><br>'
 				. ( ! empty( $b['chi_xem'] )
-					? 'Bấm Nạp thật là nó được TẠO MỚI cùng với số công trong tệp. '
-					: 'Đã tạo mới cùng với số công trong tệp. ' )
-				. '<span class="mo">Gõ sai một ký tự là đẻ ra một cơ sở ma mang cả tháng công, mà '
-				. 'nhìn bảng thì trông y như thật. Soi lại mã cho chắc.</span></div>';
+					? 'Nạp thật thì công vẫn vào kho, nhưng cơ sở này <b>không tự sinh ra</b>: nó sẽ '
+					: 'Công đã vào kho, nhưng cơ sở này <b>không được tự sinh ra</b>: nó ' )
+				. 'không hiện trong ô chọn Cơ sở ở bất kỳ màn nào cho tới khi được khai.<br>'
+				. '<span class="mo">Nếu đây là kiểu gõ khác của một cơ sở đã có thì sang '
+				. '<b>Cấu hình → Cơ sở lạ</b> gộp nó về tên đúng; nếu là cơ sở thật mới mở thì nhận '
+				. 'vào danh mục ở chính khối đó rồi xếp bộ phận.</span></div>';
 		}
 		if ( ! empty( $b['la'] ) ) {
 			echo '<div class="bao canh"><b>' . count( (array) $b['la'] ) . ' mã có công nhưng CHƯA có hồ sơ:</b> '

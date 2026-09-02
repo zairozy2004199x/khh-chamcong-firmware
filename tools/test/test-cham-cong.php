@@ -1149,6 +1149,21 @@ function vhcc_bo_phan( $coso, $bp ) {
 	global $wpdb;
 	$wpdb->insert( VHCC_DB::t( 'bo_phan_coso' ), array( 'coso' => $coso, 'bo_phan' => $bp ) );
 }
+/**
+ * KHAI MỘT CƠ SỞ VÀO DANH MỤC, KHÔNG XẾP BỘ PHẬN.
+ *
+ * 🔴 TỪ 02/09/2026 CHÈN LƯỢT CHẤM CÔNG KHÔNG CÒN ĐẺ RA CƠ SỞ. `VHCC_NhanSu::ds_coso()` chỉ nhận
+ *    cơ sở ĐÃ KHAI (xếp bộ phận, hoặc gán máy) — chính là thứ anh Thắng gọi là *"bị sinh cơ sở
+ *    ảo"*. Nên cảnh thử nào cần một cơ sở CÓ THẬT thì phải khai nó ra, y như ngoài đời phải vào
+ *    màn Cấu hình khai. Chỉ `vhcc_cham()` thôi là dựng đúng cảnh "cơ sở lạ", không phải cảnh
+ *    "cửa hàng đang chạy".
+ *
+ * ⚠️ Bộ phận để TRỐNG = "Chưa xếp" — có mặt trong danh mục nhưng KHÔNG có công thức tính công.
+ *    Đúng thứ cần cho những cảnh thử vốn dựa vào "cơ sở này không phải Văn phòng".
+ */
+function vhcc_khai_cs() {
+	foreach ( func_get_args() as $x ) { vhcc_bo_phan( $x, '' ); }
+}
 /** Ghi thẳng một hàng chấm công (khỏi phải qua cổng máy cho từng ca thử). */
 function vhcc_cham( $coso, $ngay, $ma, $hau_to, $vao, $ra, $nguon = 'may' ) {
 	global $wpdb;
@@ -7949,7 +7964,8 @@ t( 'lưới không in ô tiền nào', strpos( $khoi_luoi, 'đ</td>' ) === false
 t( 'cơ sở Văn phòng thì ô là SỐ CÔNG', strpos( $h_vp, 'là <b>số công</b>' ) !== false, $h_vp );
 
 $ADMIN_W = array( 'name' => 'Admin Soát Công', 'role' => 'Admin', 'coso' => '' );
-$CS_GIO = 'FZ_SC_THU';                                  /* KHÔNG khai bộ phận -> không phải VP */
+$CS_GIO = 'FZ_SC_THU';                                  /* khai vào danh mục, KHÔNG xếp bộ phận -> không phải VP */
+vhcc_khai_cs( $CS_GIO );
 vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', '', '08:00:00', '17:30:00' );   /* 9.5h */
 vhcc_cham( $CS_GIO, '2026-07-02', 'GIO1', '', '08:00:00', null );         /* thiếu giờ ra */
 vhcc_cham( $CS_GIO, '2026-07-01', 'GIO1', 'CD', '21:00:00', '23:00:00' ); /* hàng riêng */
@@ -11690,6 +11706,7 @@ t( 'và tất nhiên không có cột tiền nào', strpos( $lw_h, 'Đơn giá 1
    khác và cũng không thấy có gì để bấm. Lộ ra vì khối lương in tên cơ sở, và tên ấy không khớp
    ô chọn. Đúng loại lỗi mà cả `VHCC_Vai` sinh ra để dẹp: hỏi QUYỀN, đừng so TÊN VAI. */
 $lw_kt = array( 'role' => 'Kế toán', 'coso' => 'TUTU_BT', 'ma_nv' => 'KT9' );
+vhcc_khai_cs( 'TUTU_BT' );        // cơ sở trên thẻ phiên phải CÓ THẬT thì cảnh mới dựng được
 $lw_ds = VHCC_NhanSu::ds_coso();
 t( 'sổ có nhiều hơn một cơ sở (nếu chỉ một thì phép thử dưới vô nghĩa)',
 	count( $lw_ds ) > 1, $lw_ds );
@@ -11824,6 +11841,7 @@ t( '🔴 tháng 2 ra ngày 28, không phải 31',
    ⚠️ PHẢI CÓ ÍT NHẤT HAI CƠ SỞ TRONG SỔ mới dựng được cảnh này: `the_bang_cham()` TỰ CHỌN khi
       danh sách chỉ còn đúng một dòng (tiện, và đúng). Sổ một cơ sở thì "chưa chọn" không tồn
       tại, và phép thử đo phải một cảnh không có thật. */
+vhcc_khai_cs( 'TUTU_BT', 'JP_HCM' );
 vhcc_cham( 'JP_HCM', '2026-08-04', 'IN2', '', '08:00:00', '17:00:00' );
 t( 'sổ có từ hai cơ sở trở lên (nếu một thì phép thử dưới vô nghĩa)',
 	count( VHCC_NhanSu::ds_coso() ) > 1, VHCC_NhanSu::ds_coso() );
@@ -15570,6 +15588,7 @@ teq( 'chuỗi rỗng tính như không có', 0, VHCC_Luong::cong_co_di( '', '' )
 /* Làm 15 phút vẫn là 1 công — đó chính là ý "có đi là được". */
 teq( '🔴 làm 15 phút vẫn đủ 1 công', 1, VHCC_Luong::cong_co_di( 28800, 29700 ) );
 
+vhcc_khai_cs( 'CODI_CS', 'TUTU_BT' );   // khối Cách tính công chỉ vẽ khi danh mục có cơ sở
 VHCC_Luong::dat_cach_tinh( $U_AD, array( 'CODI_CS' => 'ngay' ) );
 teq( '🔴 khai được kiểu ngay', 'ngay', VHCC_Luong::cach_tinh( 'CODI_CS' ) );
 teq( 'và tính là ĐÃ KHAI THẲNG', true, VHCC_Luong::cach_tinh_da_khai( 'CODI_CS' ) );
@@ -16093,6 +16112,7 @@ teq( 'và làm tròn theo khung cuối tuần', 240, $lt['phut'] );
 
 /* ---- Trên MÀN: cơ sở khai "Theo khung ca" thì ô hết số lẻ, thiếu giờ thì ô vàng ---- */
 $cs_tron = 'FZ_SC_TRON';
+vhcc_khai_cs( $cs_tron );
 VHCC_Ca::luu( $ADMIN_W, $cs_tron, $lt_ca );
 VHCC_Tre::dat( $ADMIN_W, $cs_tron, 15 );
 VHCC_Luong::dat_cach_tinh( $ADMIN_W, array( $cs_tron => 'ca' ) );
@@ -17009,6 +17029,7 @@ vhcc_dung_bang();
  *  bắt CHỌN MỘT qua ô lọc rồi mới vẽ bảng — cơ sở phụ có tới cũng như không, vì không ai đi bấm
  *  chọn cái mình còn chưa biết là có.
  * ======================================================================================== */
+vhcc_khai_cs( 'HT_BC1', 'HT_BC2' );
 vhcc_cham( 'HT_BC1', '2026-08-05', 'HTB1', '', '08:00:00', '17:00:00' );
 vhcc_cham( 'HT_BC2', '2026-08-06', 'HTB2', '', '08:00:00', '17:00:00' );
 $u_2cs = 'HT_BC1,HT_BC2';
@@ -17580,6 +17601,160 @@ t( '🔴 địa chỉ nút xem PIN gỡ luôn sua_o — hai khối chèn cùng l
 	strpos( $h_ca_hai, 'pin_o=XP1' ) !== false
 	|| strpos( $h_ca_hai, 'pin_o=XP2' ) !== false, $h_ca_hai );
 t( 'trang này vẫn không có lấy một dòng script', stripos( $h_xp1, '<script' ) === false, $h_xp1 );
+
+vhcc_dung_bang();
+
+
+/* ==========================================================================================
+ *  76. CƠ SỞ ẢO — DANH MỤC LÀ THỨ ĐƯỢC KHAI, KHÔNG PHẢI THỨ SUY RA TỪ DỮ LIỆU
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 02/09/2026, ba ảnh: ô chọn Cơ sở, lưới bảng công có hàng `(PART TIME )_POSH+JP`
+ *  cạnh `PART_TIME (POSHJP)`, và hồ sơ Phạm Tường Vi có `Cơ sở phụ` = `(PART TIME )_POSH+JP`:
+ *  *"bị sinh cơ sở ảo"*.
+ *
+ *  🔴 GỐC: `ds_coso()` gom `SELECT DISTINCT` trên `cham_cong.coso` và `nhan_vien.cua_hang` —
+ *     nghĩa là BẤT KỲ tên nào từng lọt vào một lượt chấm công hay một ô gõ tay đều nghiễm nhiên
+ *     thành cơ sở của cả hệ, và KHÔNG AI PHẢI QUYẾT ĐỊNH GÌ. Nạp .csv thì cơ sở suy ra từ TÊN
+ *     TỆP, nên hai lần nạp hai tên tệp khác nhau của cùng một chỗ là hai cơ sở.
+ *
+ *     Hậu quả không dừng ở ô chọn dài thêm mấy dòng: công thật của một người bị XÉ ra nằm trên
+ *     hai ba hàng mang ba cái tên, mỗi hàng thiếu giờ, và bảng lương cộng theo hàng.
+ * ======================================================================================== */
+vhcc_dung_bang();
+
+/* ---- (a) Chèn lượt chấm công KHÔNG còn đẻ ra cơ sở ---- */
+vhcc_cham( 'CA_LA_1', '2026-08-03', 'CLA1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'CA_LA_1', '2026-08-04', 'CLA1', '', '08:00:00', '17:00:00' );
+t( '🔴 tên chỉ có trong bảng chấm công KHÔNG vào danh mục',
+	! in_array( 'CA_LA_1', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+
+/* ---- (b) Khai bộ phận là vào danh mục ---- */
+vhcc_bo_phan( 'KHAI_BP_1', 'Part time' );
+t( 'khai bộ phận thì cơ sở CÓ trong danh mục',
+	in_array( 'KHAI_BP_1', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+
+/* ---- (c) Gán máy cũng là khai — máy cắm ở cửa hàng nào thì cửa hàng ấy có thật ---- */
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-CSLA', 'mac' => 'AA:BB:CC:00:11:22',
+	'cua_hang' => 'CO_MAY_1' ) );
+t( 'gán máy vào cơ sở thì cơ sở CÓ trong danh mục',
+	in_array( 'CO_MAY_1', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+
+/* ---- (d) Nhưng tên lạ KHÔNG được biến mất im lặng ---- */
+$cla = VHCC_NhanSu::ds_coso_la();
+$cla_ten = array();
+foreach ( $cla as $x ) { $cla_ten[ $x['coso'] ] = $x; }
+t( '🔴 tên lạ được kể ra ở ds_coso_la()', isset( $cla_ten['CA_LA_1'] ), array_keys( $cla_ten ) );
+teq( 'và kể ĐÚNG số lượt đang mang', 2, isset( $cla_ten['CA_LA_1'] ) ? (int) $cla_ten['CA_LA_1']['luot'] : -1 );
+t( 'cơ sở đã khai thì KHÔNG bị kể là lạ',
+	! isset( $cla_ten['KHAI_BP_1'] ) && ! isset( $cla_ten['CO_MAY_1'] ), array_keys( $cla_ten ) );
+
+/* ---- (e) Ô "Cơ sở phụ" gõ tay cũng sinh tên lạ, và cũng phải kể ra ----
+   Đúng ca của Phạm Tường Vi: `cua_hang` là cơ sở thật, `coso_phu` là một tên gõ tay khác. */
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'CLA9', 'ho_ten' => 'Người Cơ Sở Lạ',
+	'cua_hang' => 'KHAI_BP_1', 'coso_phu' => 'PART_TIME (LA)', 'vai_tro' => 'Nhân viên' ) );
+$cla2 = array();
+foreach ( VHCC_NhanSu::ds_coso_la() as $x ) { $cla2[ $x['coso'] ] = $x; }
+t( '🔴 tên gõ tay trong ô Cơ sở phụ cũng bị kể là lạ', isset( $cla2['PART_TIME (LA)'] ), array_keys( $cla2 ) );
+teq( 'kể là 1 hồ sơ, 0 lượt', array( 1, 0 ),
+	isset( $cla2['PART_TIME (LA)'] )
+		? array( (int) $cla2['PART_TIME (LA)']['nguoi'], (int) $cla2['PART_TIME (LA)']['luot'] )
+		: array( -1, -1 ) );
+t( 'còn cơ sở CHÍNH của người ấy (đã khai) thì không bị kể',
+	! isset( $cla2['KHAI_BP_1'] ), array_keys( $cla2 ) );
+
+/* ---- (f) 🔴 "Lạ" phải so bằng dạng CHUẨN, không so chữ thô ----
+   `CS_POSH_HCM` và `POSH_HCM` là MỘT chỗ (`chuan_coso()` gỡ tiền tố `CS_`), và hoa thường cũng
+   vậy. Kể chúng thành lạ là bắt người ta đi "gộp" hai cái vốn đã là một — và nút gộp sẽ chối
+   vì hai tên chuẩn hoá ra giống nhau. Vòng luẩn quẩn không lối ra. */
+vhcc_cham( 'CS_KHAI_BP_1', '2026-08-05', 'CLA1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'khai_bp_1', '2026-08-06', 'CLA1', '', '08:00:00', '17:00:00' );
+$cla3 = array();
+foreach ( VHCC_NhanSu::ds_coso_la() as $x ) { $cla3[ $x['coso'] ] = 1; }
+t( '🔴 tên chỉ khác tiền tố CS_ không bị kể là lạ', ! isset( $cla3['CS_KHAI_BP_1'] ), array_keys( $cla3 ) );
+t( '🔴 tên chỉ khác hoa thường không bị kể là lạ', ! isset( $cla3['khai_bp_1'] ), array_keys( $cla3 ) );
+
+/* ---- (g) Màn Cấu hình phải BÀY khối ấy ra, mở sẵn ---- */
+$h_cla = vhcc_web_nhu2( 'CLAAD', 'Admin', 'KHAI_BP_1', array( 'man' => 'cau_hinh' ) );
+t( '🔴 màn Cấu hình có khối "Cơ sở lạ"', strpos( $h_cla, 'id="cosola"' ) !== false, substr( $h_cla, 0, 300 ) );
+t( 'khối MỞ SẴN, không gập kín một việc chưa làm',
+	preg_match( '/id="cosola"><details open>/', $h_cla ) === 1 );
+t( 'và gọi đúng tên lạ ra', strpos( $h_cla, 'CA_LA_1' ) !== false );
+t( 'kèm số lượt để biết nó đang giữ bao nhiêu công',
+	strpos( $h_cla, '2 lượt chấm công' ) !== false );
+t( 'bày cả hai lối ra: nhận vào danh mục, hoặc gộp',
+	strpos( $h_cla, 'value="nhan"' ) !== false && strpos( $h_cla, 'value="gop:KHAI_BP_1"' ) !== false );
+/* ⚠️ Ô xổ đích CHỈ chứa cơ sở CÓ THẬT. Cho gõ tay hay liệt kê cả tên lạ là mở đúng cái cửa vừa
+   đóng: dồn công sang một cơ sở không tồn tại. */
+t( '🔴 ô xổ đích không liệt kê chính tên lạ',
+	strpos( $h_cla, 'value="gop:CA_LA_1"' ) === false );
+
+/* ---- (h) Bấm "Nhận vào danh mục" ---- */
+$tok_cla = VHCC_Auth::phat_token( 'Người Thử', 'Admin', 'KHAI_BP_1', 'CLAAD' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_cla;
+$_POST = array( 'viec' => 'coso_la', 'ky' => VHCC_Web::chu_ky( $tok_cla ),
+	'cla' => array( 'PART_TIME (LA)' => 'nhan' ) );
+$_GET = array( 'man' => 'cau_hinh' );
+ob_start(); VHCC_Web::phuc_vu(); $h_nhan = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+t( '🔴 nhận vào danh mục thì cơ sở CÓ trong ds_coso()',
+	in_array( 'PART_TIME (LA)', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+teq( 'nhận xong vẫn là "Chưa xếp" — nhận KHÁC với xếp bộ phận',
+	VHCC_Luong::BP_CHUA_XEP, VHCC_Luong::bo_phan_cua( 'PART_TIME (LA)' ) );
+t( 'và màn nhắc đi xếp bộ phận', strpos( $h_nhan, 'nhớ xếp bộ phận' ) !== false, substr( $h_nhan, 0, 400 ) );
+
+/* ---- (i) Bấm "Gộp vào" — lượt phải DỜI, không mất ---- */
+$so_truoc = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$tok_cla2 = VHCC_Auth::phat_token( 'Người Thử', 'Admin', 'KHAI_BP_1', 'CLAAD' );
+$_COOKIE[ VHCC_Web::COOKIE ] = $tok_cla2;
+$_POST = array( 'viec' => 'coso_la', 'ky' => VHCC_Web::chu_ky( $tok_cla2 ),
+	'cla' => array( 'CA_LA_1' => 'gop:KHAI_BP_1' ) );
+$_GET = array( 'man' => 'cau_hinh' );
+ob_start(); VHCC_Web::phuc_vu(); $h_gop = ob_get_clean();
+$_POST = array(); $_GET = array(); $_COOKIE = array();
+teq( '🔴 gộp là DỜI, không xoá: tổng số lượt giữ nguyên', $so_truoc,
+	(int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) ) );
+teq( 'không còn lượt nào mang tên cũ', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', 'CA_LA_1' ) ) );
+/* ⚠️ SO KHÔNG PHÂN BIỆT HOA THƯỜNG, CÓ LÝ DO. `gop_coso()` cố ý dồn về ĐÚNG KIỂU GÕ ĐANG CÓ
+   trong kho, mà phần (f) ngay trên vừa cắm vào đó một lượt mang tên chữ thường — nên đích thật
+   sự là `khai_bp_1`. Đếm cứng theo một kiểu gõ là phép thử đo cách viết hoa, không đo việc dời. */
+teq( '2 lượt ấy nay nằm ở cơ sở đúng', 2, (int) $wpdb->get_var(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' )
+	. " WHERE ma_nv='CLA1' AND ngay IN ('2026-08-03','2026-08-04')"
+	. " AND LOWER(coso) LIKE '%khai_bp_1'" ) );
+$cla4 = array();
+foreach ( VHCC_NhanSu::ds_coso_la() as $x ) { $cla4[ $x['coso'] ] = 1; }
+t( '🔴 gộp xong thì tên lạ biến mất khỏi khối', ! isset( $cla4['CA_LA_1'] ), array_keys( $cla4 ) );
+
+/* ---- (j) 🔴 Gộp về một cơ sở VỪA KHAI mà CHƯA CÓ LƯỢT NÀO ----
+   Đúng lúc cần nhất: cửa hàng mới mở, công đang nằm hết ở một tên gõ lệch. Bản trước 02/09/2026
+   `gop_coso()` chỉ hỏi bảng chấm công nên chối thẳng — và không có lối nào khác để dọn. */
+vhcc_bo_phan( 'MOI_TINH_1', 'Part time' );
+vhcc_cham( 'MOI TINH 1', '2026-08-07', 'CLA2', '', '08:00:00', '17:00:00' );
+$r_gop_moi = VHCC_Nhan::gop_coso( 'MOI TINH 1', 'MOI_TINH_1', true );
+t( '🔴 gộp về cơ sở đã khai nhưng chưa có lượt nào: KHÔNG chối',
+	! isset( $r_gop_moi['loi'] ), $r_gop_moi );
+teq( 'và lượt đã sang đúng chỗ', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', 'MOI_TINH_1' ) ) );
+/* Nhưng đích BỊA HẲN thì vẫn phải chối — không thì lại dồn công vào cơ sở không tồn tại. */
+$r_gop_bia = VHCC_Nhan::gop_coso( 'MOI_TINH_1', 'CS_KHONG_CO_THAT', true );
+t( '🔴 đích không có trong danh mục lẫn trong sổ thì CHỐI', isset( $r_gop_bia['loi'] ), $r_gop_bia );
+
+/* ---- (k) Khối biến mất khi đã sạch — không chiếm chỗ trên màn ---- */
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'nhan_vien' ) );
+$h_sach = vhcc_web_nhu2( 'CLAAD', 'Admin', 'KHAI_BP_1', array( 'man' => 'cau_hinh' ) );
+t( 'sạch tên lạ thì khối không hiện nữa', strpos( $h_sach, 'id="cosola"' ) === false );
+
+/* ---- (l) Nạp .csv vào mã lạ: câu trên màn phải nói ĐÚNG việc vừa làm ----
+   Trước 02/09/2026 câu ấy là "nó được TẠO MỚI cùng với số công trong tệp" — nay không còn tạo
+   ra cơ sở nào, để nguyên câu cũ là màn hình nói dối về việc mình vừa làm. */
+$nc_src = file_get_contents( $goc . '/wordpress/vhcp-cham-cong/includes/class-vhcc-web.php' );
+t( '🔴 câu cảnh báo nạp .csv không còn hứa TẠO MỚI cơ sở',
+	strpos( $nc_src, 'Bấm Nạp thật là nó được TẠO MỚI' ) === false );
+t( 'mà nói rõ cơ sở không tự sinh ra + chỉ đường sang khối Cơ sở lạ',
+	strpos( $nc_src, 'không tự sinh ra' ) !== false
+	&& strpos( $nc_src, 'Cấu hình → Cơ sở lạ' ) !== false );
 
 vhcc_dung_bang();
 

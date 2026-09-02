@@ -1098,9 +1098,18 @@ class VHCC_Nhan {
 		   với `cham_cong()` (`strtolower`). */
 		$den_that = $wpdb->get_var( $wpdb->prepare(
 			"SELECT coso FROM $bang WHERE LOWER(coso)=LOWER(%s) LIMIT 1", $den ) );
+		/* Đích CHƯA có lượt nào vẫn nhận, MIỄN LÀ nó nằm trong DANH MỤC cơ sở đã khai.
+		   Trước 02/09/2026 chỗ này chỉ hỏi bảng chấm công, nên một cơ sở vừa khai (đã xếp bộ
+		   phận, đã gán máy) mà chưa ai chấm công buổi nào thì KHÔNG gộp về được — đúng lúc cần
+		   nhất: cơ sở mới mở, công đang nằm hết ở một cái tên gõ lệch. */
 		if ( null === $den_that ) {
-			$kq['loi'] = 'Cơ sở đích "' . $den . '" chưa có lượt chấm công nào — kiểm lại tên (phải '
-				. 'trùng đúng tên máy đang ghi).';
+			foreach ( VHCC_NhanSu::ds_coso() as $x ) {
+				if ( 0 === strcasecmp( (string) $x, $den ) ) { $den_that = $x; break; }
+			}
+		}
+		if ( null === $den_that ) {
+			$kq['loi'] = 'Cơ sở đích "' . $den . '" không có trong danh mục và cũng chưa có lượt chấm '
+				. 'công nào — kiểm lại tên, hoặc khai nó ở khối "Cơ sở thuộc bộ phận nào" trước.';
 			return $kq;
 		}
 		$den = (string) $den_that;   // dùng đúng kiểu gõ đang có trong kho
