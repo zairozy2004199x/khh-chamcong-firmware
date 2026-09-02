@@ -17931,6 +17931,129 @@ t( 'và nói thẳng là mất công thật, không lấy lại được',
 vhcc_dung_bang();
 
 
+/* ==========================================================================================
+ *  78. GỘP TRỌN VẸN — TÊN CŨ PHẢI BIẾN MẤT THẬT
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 02/09/2026, sau khi thử dọn `(PART TIME )_POSH+JP` và `PART_TIME (POSHJP)`:
+ *  *"Có gì đó xung đột không xoá hay gộp được"*.
+ *
+ *  🔴 HAI CÁI KẸT ĂN KHỚP NHAU, VÀ ĐÓ LÀ LÝ DO "LÀM GÌ CŨNG KHÔNG XONG":
+ *    1. `VHCC_Nhan::gop_coso()` dời LƯỢT và dọn HỒ SƠ, nhưng KHÔNG chạm dòng `bo_phan_coso`,
+ *       máy đang gán, hay tên đầy đủ. Mà từ 3.31.0 chính `bo_phan_coso` quyết định một cơ sở
+ *       có thật hay không — nên gộp xong tên cũ vẫn nằm nguyên trong danh mục.
+ *    2. Còn trong danh mục thì nó KHÔNG rơi vào khối "Cơ sở lạ" (khối ấy chỉ nhặt tên NGOÀI
+ *       danh mục), mà bảng Danh mục lúc đó chỉ có nút Xoá. Giữ công thì không gộp được, gộp
+ *       được thì phải xoá mất công.
+ * ======================================================================================== */
+vhcc_dung_bang();
+$U_GT = array( 'name' => 'Quản trị', 'role' => 'Admin', 'coso' => '' );
+
+/* Dựng đúng cảnh của anh Thắng: một tên gõ lệch ĐÃ LỠ được khai vào danh mục (bản cũ cho xếp
+   bộ phận cho mọi tên `ds_coso()` nhặt được, kể cả tên chỉ có trong bảng chấm công). */
+vhcc_bo_phan( 'GOC_1', 'Part time' );
+vhcc_bo_phan( 'LECH_1', 'Part time' );
+vhcc_cham( 'GOC_1',  '2026-08-03', 'GT1', '', '08:00:00', '17:00:00' );
+vhcc_cham( 'LECH_1', '2026-08-04', 'GT1', '', '09:00:00', '18:00:00' );
+vhcc_cham( 'LECH_1', '2026-08-05', 'GT1', '', '09:00:00', '18:00:00' );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-GT', 'mac' => 'BB:00:00:00:00:01',
+	'cua_hang' => 'LECH_1' ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'GT1', 'ho_ten' => 'Người Gộp',
+	'cua_hang' => 'GOC_1', 'coso_phu' => 'LECH_1', 'vai_tro' => 'Nhân viên' ) );
+VHCC_NhanSu::dat_ten_coso( $U_GT, array( 'GOC_1' => 'Gốc Một', 'LECH_1' => 'Lệch Một' ) );
+
+$cl_truoc = array();
+foreach ( VHCC_NhanSu::ds_coso_la() as $x ) { $cl_truoc[ $x['coso'] ] = 1; }
+t( '🔴 dựng đúng cảnh: tên lệch NẰM TRONG danh mục nên KHÔNG rơi vào khối Cơ sở lạ',
+	in_array( 'LECH_1', VHCC_NhanSu::ds_coso(), true ) && ! isset( $cl_truoc['LECH_1'] ),
+	array( 'danh mục' => VHCC_NhanSu::ds_coso(), 'lạ' => array_keys( $cl_truoc ) ) );
+
+/* ---- (a) Bảng Danh mục phải có lối GỘP, không chỉ nút Xoá ---- */
+$h_gt = vhcc_web_nhu2( 'GTAD', 'Admin', '', array( 'man' => 'coso' ) );
+t( '🔴 mỗi hàng có ô xổ "Gộp vào cơ sở khác"',
+	strpos( $h_gt, 'name="gcs[LECH_1]"' ) !== false, $h_gt );
+t( 'và ô ấy liệt kê cơ sở đích trong danh mục',
+	strpos( $h_gt, 'name="gcs[LECH_1]"' ) !== false
+	&& preg_match( '~name="gcs\[LECH_1\]"[^>]*>.*?<option value="GOC_1"~s', $h_gt ) === 1, $h_gt );
+/* ⚠️ KHÔNG liệt kê CHÍNH NÓ làm đích — gộp một cơ sở vào chính nó là một lượt chạy vô nghĩa,
+   và `gop_coso()` sẽ chối bằng một câu khó hiểu ("hai ô đang là một tên"). */
+t( '🔴 ô xổ của hàng nào KHÔNG có chính mã hàng ấy',
+	preg_match( '~name="gcs\[LECH_1\]"[^>]*>(.*?)</select>~s', $h_gt, $m_gt ) === 1
+	&& strpos( $m_gt[1], 'value="LECH_1"' ) === false, isset( $m_gt[1] ) ? $m_gt[1] : null );
+
+/* ---- (b) Gộp qua đúng cửa POST ---- */
+$tok_gt = VHCC_Auth::phat_token( 'Người Thử', 'Admin', '', 'GTAD' );
+$h_gop1 = vhcc_cs_post( $tok_gt, array( 'viec' => 'gop_cs', 'gcs' => array( 'LECH_1' => 'GOC_1' ) ) );
+/* 🔴 MÀN PHẢI NÓI RÕ MÃ CŨ CÓ BỊ BỎ KHỎI DANH MỤC HAY KHÔNG — đây chính là câu trả lời cho
+   *"Có gì đó xung đột không xoá hay gộp được"*: người dọn cần biết việc vừa làm đã xong hẳn,
+   hay tên cũ vẫn còn nằm đó. Im lặng thì họ bấm lại lần nữa, rồi lần nữa. */
+t( '🔴 màn báo đã bỏ mã cũ khỏi danh mục',
+	strpos( $h_gop1, 'đã bỏ mã cũ khỏi danh mục' ) !== false, substr( $h_gop1, 0, 400 ) );
+t( 'và kể ra dời được bao nhiêu lượt · hồ sơ · máy',
+	strpos( $h_gop1, 'LECH_1 → GOC_1' ) !== false && strpos( $h_gop1, 'máy)' ) !== false, $h_gop1 );
+teq( '🔴 mọi lượt sang cơ sở đích', 3, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE LOWER(coso)=LOWER(%s)', 'GOC_1' ) ) );
+teq( 'không còn lượt nào mang tên lệch', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE LOWER(coso)=LOWER(%s)', 'LECH_1' ) ) );
+/* 🔴 ĐÂY LÀ CHỖ ANH THẮNG VẤP: gộp xong mà tên cũ vẫn nằm trong danh mục thì nó vẫn hiện ở mọi
+   ô chọn, lưới cả tháng vẫn vẽ một hàng 0h cho nó, và vì "còn trong danh mục" nên khối Cơ sở lạ
+   cũng không nhặt — hết đường dọn. */
+t( '🔴 TÊN CŨ BIẾN KHỎI DANH MỤC',
+	! in_array( 'LECH_1', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+t( 'và cơ sở đích vẫn còn', in_array( 'GOC_1', VHCC_NhanSu::ds_coso(), true ) );
+VHCC_NhanSu::quen_ten_coso();
+$ten_sau = VHCC_NhanSu::ten_coso_bang();
+t( 'tên đầy đủ của mã cũ cũng dọn theo', ! isset( $ten_sau['LECH_1'] ), array_keys( $ten_sau ) );
+/* 🔴 MÁY PHẢI DỜI THEO. Không dời thì hôm sau máy lại đẩy công về tên cũ, tên cũ lại thành "cơ
+   sở lạ" — vừa dọn xong đã đẻ ra rác mới, và người dọn không hiểu vì sao nó quay lại. */
+teq( '🔴 máy dời sang cơ sở đích', 'GOC_1', (string) $wpdb->get_var( $wpdb->prepare(
+	'SELECT cua_hang FROM ' . VHCC_DB::t( 'may' ) . ' WHERE serial=%s', 'SN-GT' ) ) );
+$hs_gt = VHCC_NhanSu::ho_so( 'GT1' );
+t( '🔴 hồ sơ hết tên lệch, không đẻ ra hàng thứ hai',
+	strpos( (string) $hs_gt['cua_hang'] . ',' . (string) $hs_gt['coso_phu'], 'LECH_1' ) === false,
+	array( $hs_gt['cua_hang'], $hs_gt['coso_phu'] ) );
+
+/* ---- (c) Còn lượt KHÔNG dời được thì GIỮ mã cũ, và nói ra ----
+   `gop_coso()` cố ý không đụng hàng đích đã chỉnh tay (nguồn `sua`/`bu`, có thể đã chốt lương).
+   Bỏ mã cũ khỏi danh mục lúc ấy là đẩy mấy lượt còn lại thành "cơ sở lạ" — vừa dọn đã đẻ rác. */
+vhcc_bo_phan( 'LECH_2', '' );
+vhcc_cham( 'GOC_1',  '2026-08-09', 'GT2', '', '08:00:00', '17:00:00', 'sua' );
+vhcc_cham( 'LECH_2', '2026-08-09', 'GT2', '', '09:00:00', '18:00:00' );
+/* Chạy qua ĐÚNG CỬA POST để canh luôn câu báo, rồi mới đọc lõi cho mấy phép dưới. */
+vhcc_bo_phan( 'LECH_3', '' );
+vhcc_cham( 'GOC_1',  '2026-08-10', 'GT4', '', '08:00:00', '17:00:00', 'bu' );
+vhcc_cham( 'LECH_3', '2026-08-10', 'GT4', '', '09:00:00', '18:00:00' );
+$h_giu = vhcc_cs_post( $tok_gt, array( 'viec' => 'gop_cs', 'gcs' => array( 'LECH_3' => 'GOC_1' ) ) );
+t( '🔴 còn lượt không dời được thì màn nói GIỮ mã cũ, kèm con số',
+	strpos( $h_giu, 'GIỮ mã cũ vì còn 1 lượt không dời được' ) !== false, substr( $h_giu, 0, 500 ) );
+t( 'và mã ấy vẫn trong danh mục thật', in_array( 'LECH_3', VHCC_NhanSu::ds_coso(), true ) );
+
+$r_giu = VHCC_NhanSu::gop_coso_day_du( $U_GT, 'LECH_2', 'GOC_1' );
+t( 'gộp vẫn chạy', ! empty( $r_giu['ok'] ), $r_giu );
+teq( '🔴 còn lượt không dời được thì GIỮ mã cũ trong danh mục', false, $r_giu['go_danh_muc'] );
+teq( 'và kể ra còn bao nhiêu lượt', 1, (int) $r_giu['con_lai'] );
+t( 'mã cũ vẫn trong danh mục thật', in_array( 'LECH_2', VHCC_NhanSu::ds_coso(), true ) );
+t( 'và nêu tên ngày để xử tay', ! empty( $r_giu['de_lai'] ), $r_giu['de_lai'] );
+
+/* ---- (d) Gộp qua khối "Cơ sở lạ" cũng phải dọn trọn vẹn ---- */
+vhcc_cham( 'RAC_G', '2026-08-11', 'GT3', '', '08:00:00', '17:00:00' );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-GT2', 'mac' => 'BB:00:00:00:00:02',
+	'cua_hang' => 'RAC_G' ) );
+vhcc_cs_post( $tok_gt, array( 'viec' => 'coso_la', 'cla' => array( 'RAC_G' => 'gop:GOC_1' ) ) );
+teq( '🔴 khối Cơ sở lạ cũng dời MÁY (trước bản này thì không)', 'GOC_1',
+	(string) $wpdb->get_var( $wpdb->prepare(
+		'SELECT cua_hang FROM ' . VHCC_DB::t( 'may' ) . ' WHERE serial=%s', 'SN-GT2' ) ) );
+teq( 'và lượt sang đúng chỗ', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', 'RAC_G' ) ) );
+
+/* ---- (e) Gác quyền ---- */
+$r_nv_gt = VHCC_NhanSu::gop_coso_day_du(
+	array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'GOC_1' ), 'GOC_1', 'LECH_2' );
+t( '🔴 Nhân viên không gộp được cơ sở', empty( $r_nv_gt['ok'] )
+	&& isset( $r_nv_gt['error'] ) && strpos( $r_nv_gt['error'], 'Gộp cơ sở' ) !== false, $r_nv_gt );
+
+vhcc_dung_bang();
+
+
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";
 	foreach ( $truot as $x ) { echo '  ✗ ' . $x . "\n"; }

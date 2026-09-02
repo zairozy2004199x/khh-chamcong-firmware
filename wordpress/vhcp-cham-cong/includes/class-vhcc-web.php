@@ -992,6 +992,38 @@ class VHCC_Web {
 				: 'Không có gì đổi.' ) );
 		}
 
+		if ( 'gop_cs' === $viec ) {
+			$o = isset( $_POST['gcs'] ) ? (array) wp_unslash( $_POST['gcs'] ) : array();
+			$xong = array(); $loi = array(); $de_lai = array();
+			foreach ( $o as $tu_x => $den_x ) {
+				$tu_x  = sanitize_text_field( $tu_x );
+				$den_x = sanitize_text_field( is_array( $den_x ) ? '' : $den_x );
+				if ( '' === $tu_x || '' === $den_x ) { continue; }
+				$r = VHCC_NhanSu::gop_coso_day_du( $toi, $tu_x, $den_x );
+				if ( empty( $r['ok'] ) ) { $loi[] = $tu_x . ': ' . $r['error']; continue; }
+				$chu = $r['tu'] . ' → ' . $r['den'] . ' (' . (int) $r['luot'] . ' lượt';
+				if ( $r['ho_so'] ) { $chu .= ' · ' . (int) $r['ho_so'] . ' hồ sơ'; }
+				if ( $r['may'] )   { $chu .= ' · ' . (int) $r['may'] . ' máy'; }
+				$chu .= ')';
+				/* 🔴 NÓI RÕ MÃ CŨ CÓ BỊ BỎ KHỎI DANH MỤC HAY KHÔNG. Còn lượt không dời được thì
+				   mã cũ ở lại — im lặng ở đây là người ta tưởng đã dọn xong, rồi thấy nó vẫn nằm
+				   trong ô chọn và không hiểu vì sao. */
+				$chu .= $r['go_danh_muc'] ? ' — đã bỏ mã cũ khỏi danh mục'
+					: ' — GIỮ mã cũ vì còn ' . (int) $r['con_lai'] . ' lượt không dời được';
+				$xong[] = $chu;
+				foreach ( $r['de_lai'] as $d ) { $de_lai[] = $d; }
+			}
+			if ( $loi ) { return array( array( 'loi' => implode( ' · ', $loi ) ) ); }
+			if ( ! $xong ) { return array( array( 'xong' => 'Không chọn cơ sở nào để gộp.' ) ); }
+			$noi = 'Đã gộp: ' . implode( ' · ', $xong ) . '.';
+			if ( $de_lai ) {
+				$noi .= ' ĐỂ LẠI ' . count( $de_lai ) . ' lượt vì hàng đúng đã chỉnh tay: '
+					. implode( ' · ', array_slice( $de_lai, 0, 10 ) )
+					. ( count( $de_lai ) > 10 ? ' …' : '' ) . ' — xử tay từng ngày.';
+			}
+			return array( array( 'xong' => $noi ) );
+		}
+
 		/* 🔴 MÃ CƠ SỞ ĐI KÈM TRONG CHÍNH TÊN VIỆC (`xoa_cs:MA`) — xem chú thích ở nút 🗑. */
 		if ( 0 === strpos( (string) $viec, 'xoa_cs:' ) ) {
 			$ma_x = substr( (string) $viec, 7 );
@@ -1039,10 +1071,14 @@ class VHCC_Web {
 					   chỉ chứa cơ sở CÓ THẬT (danh mục), nên không có chỗ để gõ nhầm — thêm một
 					   bước xác nhận ở đây là thêm một bước người ta bấm qua mà không đọc. Từng
 					   lượt vẫn còn nguyên: gộp là DỜI, không xoá. */
-					$r = VHCC_Nhan::gop_coso( $ten_x, $den_x, true );
-					if ( isset( $r['loi'] ) ) { $loi[] = $ten_x . ': ' . $r['loi']; continue; }
-					$gop[] = $ten_x . ' → ' . $r['den'] . ' (' . ( (int) $r['doi_ten'] + (int) $r['gop'] )
-						. ' lượt' . ( $r['ho_so'] ? ' · ' . (int) $r['ho_so'] . ' hồ sơ' : '' ) . ')';
+					/* Đi qua `gop_coso_day_du()` chứ không gọi thẳng `VHCC_Nhan::gop_coso()`: hàm
+					   kia chỉ dời lượt và hồ sơ, còn máy · dòng bộ phận · tên đầy đủ thì ở lại —
+					   và tên ở lại trong danh mục thì lần sau không còn cửa nào dọn nó nữa. */
+					$r = VHCC_NhanSu::gop_coso_day_du( $toi, $ten_x, $den_x );
+					if ( empty( $r['ok'] ) ) { $loi[] = $ten_x . ': ' . $r['error']; continue; }
+					$gop[] = $ten_x . ' → ' . $r['den'] . ' (' . (int) $r['luot']
+						. ' lượt' . ( $r['ho_so'] ? ' · ' . (int) $r['ho_so'] . ' hồ sơ' : '' )
+						. ( $r['may'] ? ' · ' . (int) $r['may'] . ' máy' : '' ) . ')';
 					foreach ( (array) $r['de_lai'] as $d ) { $de_lai[] = $d; }
 				}
 			}
@@ -6609,7 +6645,8 @@ class VHCC_Web {
 		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
 			. self::o_loc();
 		echo '<div class="cuon"><table><thead><tr><th>Mã</th><th>Tên đầy đủ</th><th>Bộ phận</th>'
-			. '<th>Đang dùng</th><th>Đang giữ</th><th>Xoá</th></tr></thead><tbody>';
+			. '<th>Đang dùng</th><th>Đang giữ</th><th>Gộp vào cơ sở khác</th><th>Xoá</th>'
+			. '</tr></thead><tbody>';
 		foreach ( $tk as $x ) {
 			$ma = (string) $x['ma'];
 			/* Tiền tố `tcs_` giữ nguyên từ khối "Tên đầy đủ" cũ — nhãn ẩn cho trình đọc màn hình
@@ -6636,6 +6673,19 @@ class VHCC_Web {
 			if ( $x['so_hs'] )   { $giu[] = (int) $x['so_hs'] . ' hồ sơ'; }
 			if ( $x['so_luot'] ) { $giu[] = (int) $x['so_luot'] . ' lượt'; }
 			echo '<td>' . ( $giu ? esc_html( implode( ' · ', $giu ) ) : '<span class="mo">trống</span>' ) . '</td>';
+			/* 🔴 GỘP PHẢI CÓ NGAY Ở ĐÂY, KHÔNG CHỈ Ở KHỐI "CƠ SỞ LẠ" — anh Thắng 02/09/2026:
+			   *"Có gì đó xung đột không xoá hay gộp được"*.
+			   Một tên gõ lệch đã LỠ được khai vào danh mục (bản cũ cho xếp bộ phận cho mọi tên
+			   mà `ds_coso()` nhặt được, kể cả tên chỉ có trong bảng chấm công) thì nó KHÔNG rơi
+			   vào khối "Cơ sở lạ" nữa — mà bảng này lại chỉ có nút Xoá. Kết quả: giữ công thì
+			   không gộp được, gộp được thì phải xoá mất công. Đúng cảm giác "làm gì cũng không
+			   xong". Nay mỗi hàng gộp thẳng sang một cơ sở khác trong danh mục. */
+			echo '<td><select name="gcs[' . esc_attr( $ma ) . ']"><option value="">— để yên —</option>';
+			foreach ( $tk as $d ) {
+				if ( 0 === strcasecmp( (string) $d['ma'], $ma ) ) { continue; }
+				echo '<option value="' . esc_attr( $d['ma'] ) . '">↦ ' . esc_html( $d['ma'] ) . '</option>';
+			}
+			echo '</select></td>';
 			/* 🔴 XOÁ LÀ NÚT RIÊNG CỦA TỪNG HÀNG, không phải một ô tích rồi bấm "Lưu" chung.
 			   Trang này không có một dòng script nào nên không có hộp "Bạn chắc chưa?"; hai
 			   chốt thay cho nó là: phải bấm ĐÚNG nút của hàng ấy, và nếu còn lượt thì phải
@@ -6655,7 +6705,10 @@ class VHCC_Web {
 		}
 		echo '</tbody></table></div>';
 		echo '<p><button class="chinh" name="viec" value="sua_cs">💾 Lưu tên &amp; bộ phận</button>'
-			. ' <span class="mo">Nút 🗑 ở từng hàng xoá riêng cơ sở đó, không cần bấm Lưu.</span></p>';
+			. ' <button name="viec" value="gop_cs">↦ Gộp những dòng đã chọn</button>'
+			. ' <span class="mo">Nút 🗑 ở từng hàng xoá riêng cơ sở đó, không cần bấm Lưu. '
+			. '<b>Gộp</b> dời trọn công + hồ sơ + máy sang cơ sở đích rồi <b>bỏ</b> mã cũ khỏi danh '
+			. 'mục — giữ nguyên số, khác hẳn Xoá.</span></p>';
 		echo '</form>';
 		echo '<p class="mo">⚠️ Cơ sở để <b>Chưa xếp</b> thì <b>không có công thức tính công</b> — bảng '
 			. 'công của nó sẽ không ra số công nào. Đó là hành vi cố ý (thà không tính còn hơn tính '

@@ -1271,6 +1271,66 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * GỘP TRỌN VẸN MỘT CƠ SỞ VÀO CƠ SỞ KHÁC — công, hồ sơ, MÁY, và cả chỗ đứng trong danh mục.
+	 *
+	 * Anh Thắng 02/09/2026, sau khi thử dọn `(PART TIME )_POSH+JP` và `PART_TIME (POSHJP)`:
+	 * *"Có gì đó xung đột không xoá hay gộp được"*.
+	 *
+	 * 🔴 GỐC: `VHCC_Nhan::gop_coso()` dời LƯỢT và dọn HỒ SƠ — nhưng KHÔNG chạm ba thứ còn lại:
+	 *    dòng trong `bo_phan_coso`, máy đang gán, và tên đầy đủ. Mà từ 3.31.0 chính `bo_phan_coso`
+	 *    là thứ quyết định một cơ sở CÓ THẬT hay không. Nên gộp xong:
+	 *      · tên cũ VẪN nằm trong danh mục -> vẫn hiện ở mọi ô chọn, lưới cả tháng vẫn vẽ một
+	 *        hàng 0h cho nó (cơ sở đã khai thì luôn hiện dù rỗng);
+	 *      · vì còn trong danh mục nên nó KHÔNG rơi vào khối "Cơ sở lạ" -> không còn chỗ nào gộp
+	 *        hay xoá được nữa. Đúng cảm giác "xung đột": làm gì cũng không mất đi.
+	 *      · máy vẫn gán vào tên cũ -> hôm sau công lại chảy về đấy, vòng lặp khép kín.
+	 *
+	 * ⚠️ MÁY THÌ DỜI, KHÔNG CHỐI. `xoa_coso()` chối khi còn máy, và đúng — xoá là bỏ hẳn một chỗ.
+	 *    Nhưng GỘP nghĩa là "hai cái tên này là MỘT chỗ", nên cái máy ấy vẫn đang ở đúng chỗ đó,
+	 *    chỉ là khai dưới tên khác. Chối ở đây là bắt người ta đi vòng qua màn Máy rồi quay lại,
+	 *    trong khi câu trả lời đã rõ. Dời, và KỂ RA số máy đã dời.
+	 *
+	 * ⚠️ CÒN LƯỢT KHÔNG DỜI ĐƯỢC THÌ GIỮ TÊN CŨ LẠI TRONG DANH MỤC. `gop_coso()` cố ý không đụng
+	 *    hàng đích đã chỉnh tay (nguồn `sua`/`bu`, có thể đã chốt lương). Xoá tên cũ khỏi danh mục
+	 *    lúc ấy là đẩy mấy lượt còn lại thành "cơ sở lạ" — nghĩa là vừa dọn xong đã đẻ ra rác mới.
+	 */
+	public static function gop_coso_day_du( $u, $tu, $den ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Gộp cơ sở — ' . self::LOI_QT );
+		}
+		$tu  = trim( (string) $tu );
+		$den = trim( (string) $den );
+		$r   = VHCC_Nhan::gop_coso( $tu, $den, true );
+		if ( isset( $r['loi'] ) ) { return array( 'ok' => false, 'error' => $r['loi'] ); }
+
+		/* Dời máy sang tên đích — dùng đúng kiểu gõ mà `gop_coso()` đã chốt (`$r['den']`), không
+		   dùng chuỗi người ta gõ vào: hai thứ ấy có thể khác hoa thường. */
+		$may = (int) $wpdb->query( $wpdb->prepare(
+			'UPDATE ' . VHCC_DB::t( 'may' ) . ' SET cua_hang=%s WHERE LOWER(cua_hang)=LOWER(%s)',
+			$r['den'], $tu ) );
+
+		/* Còn lượt nào mang tên cũ (hàng đã chỉnh tay) thì GIỮ tên cũ trong danh mục. */
+		$con = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE LOWER(coso)=LOWER(%s)', $tu ) );
+		$go_danh_muc = false;
+		if ( 0 === $con ) {
+			$wpdb->query( $wpdb->prepare(
+				'DELETE FROM ' . VHCC_DB::t( 'bo_phan_coso' ) . ' WHERE LOWER(coso)=LOWER(%s)', $tu ) );
+			$bang = self::ten_coso_bang();
+			$k_tu = self::chuan_coso( $tu );
+			if ( isset( $bang[ $k_tu ] ) ) { unset( $bang[ $k_tu ] ); self::dat_ten_coso( $u, $bang ); }
+			self::quen_ten_coso();
+			$go_danh_muc = true;
+		}
+
+		return array( 'ok' => true, 'tu' => $tu, 'den' => $r['den'],
+			'luot' => (int) $r['doi_ten'] + (int) $r['gop'], 'ho_so' => (int) $r['ho_so'],
+			'may' => $may, 'con_lai' => $con, 'go_danh_muc' => $go_danh_muc,
+			'de_lai' => (array) $r['de_lai'] );
+	}
+
+	/**
 	 * XOÁ HẲN MỘT TÊN CƠ SỞ LẠ — gỡ khỏi mọi hồ sơ VÀ xoá mọi lượt chấm công mang đúng tên ấy.
 	 *
 	 * Anh Thắng 02/09/2026, ảnh lưới công của nhân viên có ba hàng cho một người: *"nó đang bị

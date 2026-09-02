@@ -1150,13 +1150,13 @@ class VHCC_Nhan {
 		}
 
 		/* Dọn HỒ SƠ: đổi tên sai -> tên đúng ở cua_hang/coso_phu của mọi nhân viên đang khai nó.
-		   LIKE bắt lỏng (chuỗi con) nên còn lọc lại bằng cờ `$doi` — chỉ tính khi đúng một PHẦN TỬ
-		   (tách ở dấu phẩy) khớp, tránh đụng nhầm cơ sở khác có tên chứa chuỗi này. */
+		   ⚠️ DUYỆT CẢ BẢNG, KHÔNG LỌC BẰNG `LIKE`. Bản trước hỏi
+		      `WHERE cua_hang LIKE '%tên%' OR coso_phu LIKE '%tên%'` rồi lọc lại bằng cờ `$doi` —
+		      chạy đúng, nhưng bắt LỎNG (chuỗi con) nên vừa quét thừa vừa phụ thuộc vào một mệnh
+		      đề mà không phải nơi nào cũng hiểu; chính `doi_coso_chuoi()` mới là chỗ quyết định.
+		      Bảng nhân viên cỡ vài trăm dòng, đọc hết rẻ hơn một lần đọc nhầm. */
 		$t_nv = VHCC_DB::t( 'nhan_vien' );
-		$like = '%' . $wpdb->esc_like( $tu ) . '%';
-		$hs = $wpdb->get_results( $wpdb->prepare(
-			"SELECT ma_nv, cua_hang, coso_phu FROM $t_nv WHERE cua_hang LIKE %s OR coso_phu LIKE %s",
-			$like, $like ), ARRAY_A );
+		$hs = $wpdb->get_results( "SELECT ma_nv, cua_hang, coso_phu FROM $t_nv", ARRAY_A );
 		foreach ( (array) $hs as $h ) {
 			$doi = false;
 			$ch  = self::doi_coso_chuoi( $h['cua_hang'], $tu, $den, $doi );
