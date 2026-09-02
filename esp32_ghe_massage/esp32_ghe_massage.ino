@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-09-02a (man NGANG chot - the gia 2x2: ten tren, so VANG giua, phut duoi)"
+#define FW_VERSION "ghe-massage 2026-09-02b (chi so tien cong don TM/QR + GET /chotso cho chot tien)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -381,6 +381,12 @@ char    payCode[8] = "";
 long    payAmount = 0;
 int     payMinutes = 0;
 long    g_runTotalVnd = 0;
+/* ===== CHỈ SỐ TIỀN CỘNG DỒN (cho CHỐT TIỀN) =================================
+ * KHÁC g_runTotalVnd (kia gộp cash+QR và XOÁ mỗi phiên): hai chỉ số dưới CỘNG DỒN
+ * suốt đời máy, TÁCH tiền mặt / QR, GIỮ qua mất điện (NVS "csTm"/"csQr"). Máy trạm
+ * đọc qua GET /chotso trên AP; web trừ kỳ trước như chỉ số công-tơ (KHÔNG reset ở ghế). */
+long    g_csTienMat = 0;   // tổng tiền MẶT ghế đã nhận (cộng dồn)
+long    g_csQR      = 0;   // tổng tiền QR ghế đã nhận (cộng dồn)
 String  qrPayload = "";
 /* Nội dung chuyển khoản THẬT của lượt này — dựng MỘT LẦN trong startSession().
    ⚠️ MÀN PHẢI IN ĐÚNG BIẾN NÀY, tuyệt đối không ráp lại chuỗi lần thứ hai để hiển thị.
@@ -2044,6 +2050,12 @@ void mdbInit(){
 /* Máy MDB báo đã nuốt một tờ -> chạy/cộng giờ ghế, rồi xếp vào hàng chờ ghi sổ.
    Dùng CHUNG `g_pendingCashLog` + `g_cashRef` với đường đếm xung: một chỗ ghi sổ duy nhất, nên
    không thể có chuyện hai đường ghi ra hai kiểu. */
+/* Ghi CHỈ SỐ TIỀN cộng dồn vào NVS. Gọi mỗi lần tiền vào — tờ tiền/QR thưa nên không lo mòn flash.
+   prefs "ghe" mở ở setup(); hàm này chạy trong loop() (main core) nên an toàn. */
+void luuChiSoTien(){
+  prefs.putLong("csTm", g_csTienMat);
+  prefs.putLong("csQr", g_csQR);
+}
 static void mdbCreditVnd(long vnd){
   if(vnd <= 0) return;
   int minutes = (PRICE_VND>0) ? (int)((vnd*(long)MINUTES)/PRICE_VND) : 0;
@@ -2061,6 +2073,7 @@ static void mdbCreditVnd(long vnd){
   }
   portEXIT_CRITICAL(&g_mux);
   g_runTotalVnd += vnd; updateAcceptor();
+  g_csTienMat += vnd; luuChiSoTien();   // CHỈ SỐ tiền MẶT cộng dồn (cho chốt tiền)
 }
 
 // Gọi mỗi vòng loop(). Chu trình: RESET -> SETUP -> BILL TYPE(enable) -> POLL lặp.
@@ -2156,6 +2169,18 @@ void otaPhucVu(){
     if(k == "content-length") len = v.toInt();
     else if(k == "x-ota-key" && v == String(SEC_AP_PASS)) keyOk = true;
   }
+  /* GET /chotso -> khai CHỈ SỐ TIỀN cộng dồn (tiền mặt + QR) cho máy trạm đọc qua AP.
+     Chỉ ĐỌC (không đổi gì) nên không bắt buộc X-OTA-Key: AP đã có mật khẩu WiFi bảo vệ.
+     Máy trạm chốt tiền: đọc số này -> hiện -> gửi lên web (web trừ kỳ trước). */
+  if(!isPost && req.indexOf("/chotso") > 0){
+    String js = String("{\"ok\":1,\"ma\":\"") + (CHAIR_ID.length()?CHAIR_ID:macBo())
+              + "\",\"tm\":" + String(g_csTienMat)
+              + ",\"qr\":" + String(g_csQR)
+              + ",\"fw\":\"" + String(FW_VERSION) + "\"}";
+    cl.print(F("HTTP/1.1 200 OK\r\nContent-Type:application/json; charset=utf-8\r\nConnection:close\r\n\r\n"));
+    cl.print(js);
+    cl.stop(); return;
+  }
   if(!isPost){
     cl.print(F("HTTP/1.1 200 OK\r\nContent-Type:text/plain; charset=utf-8\r\nConnection:close\r\n\r\n"
                "POSH QR OTA. POST file .bin toi /update, kem header X-OTA-Key = mat khau AP."));
@@ -2241,6 +2266,10 @@ void setup(){
       portEXIT_CRITICAL(&g_mux);
       Serial.printf("[TIEN] khoi phuc no tien mat chua gui: %ld d (ref %s)\n", noCu, g_cashRef);
     } }
+  /* CHỈ SỐ TIỀN cộng dồn (cho chốt tiền) — giữ qua mất điện. */
+  g_csTienMat = prefs.getLong("csTm", 0);
+  g_csQR      = prefs.getLong("csQr", 0);
+  Serial.printf("[CHOT] chi so tien: TM=%ld QR=%ld\n", g_csTienMat, g_csQR);
   docCauHinh();                              // và nhớ luôn phần NHẬN TIỀN — xem khối trên luuCauHinh()
 #if OTA_AP_ENABLE
   startOtaAP();   // BẬT SỚM: AP "POSH_QR-<mã>" lên ngay, KHÔNG chờ 4G (4G lâu/kẹt vẫn có AP để nạp)
@@ -2431,6 +2460,7 @@ void loop(){
        trình của nó (Hướng 1). startRunning() bên dưới chỉ để MÀN đếm ngược cho khớp. */
     congTien.bom(paid);
     g_runTotalVnd += paid; updateAcceptor();
+    g_csQR += paid; luuChiSoTien();   // CHỈ SỐ QR cộng dồn (cho chốt tiền)
     henChay(mins, 'q');    // đồng hồ đếm theo chân ghế -> tự khớp lúc ghế thật sự chạy
     return;
   }
