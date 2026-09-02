@@ -3539,14 +3539,8 @@ function ve(){
   // --- biểu đồ: cơ cấu tiền, theo khu vực, top cơ sở, top ghế (kỳ đang chọn).
   h += veBieuDo(t);
 
-  // --- tình trạng ghế: LIỆT KÊ (tìm kiếm + phân trang 20). Bấm nút thì sang tab Điều khiển.
-  h += '<div class="card"><h2>' + L('Tình trạng ghế','Chair status') + '</h2>'
-    + '<div class="act" style="margin-bottom:10px"><input id="tt-q" placeholder="'
-    + L('Tìm theo mã ghế hoặc cơ sở…','Search chair or branch…') + '" style="max-width:340px" value="' + esc(TT_Q) + '"></div>'
-    + '<div id="tt-wrap"></div>'
-    + '<p class="mut" style="margin:9px 0 0">'
-    + L('Bật/tắt ghế ở tab <b>🎛 Điều khiển ghế</b>.',
-        'Turn chairs on/off in the <b>🎛 Chair control</b> tab.') + '</p></div>';
+  /* Bảng "Tình trạng ghế" đã BỎ khỏi dashboard — trùng với tab 🎛 Điều khiển ghế / 🚨 Ghế lỗi
+     (anh Thắng: "nó hiện trong đây rồi"). ttLoc/ttRender/ttWire giữ lại, tự no-op khi thiếu ô. */
 
   /* Hai bảng tổng hợp trong một khối: trên màn rộng chúng nằm cạnh nhau (xem .doi trong CSS),
      trên điện thoại vẫn xếp dọc như cũ. */
