@@ -655,6 +655,27 @@ class VHG_Trang {
 			return;
 		}
 
+		/* ══════════════════════════════════════════════════════════════════════════════════════
+		 * CHỐT TIỀN THEO CHỈ SỐ ĐỌC TỪ GHẾ (máy trạm nối AP ghế -> GET /chotso -> tm + qr cộng dồn).
+		 * Cùng rào với chốt ca: tên người + cơ sở LẤY TỪ PHIÊN, không nhận từ gói tin. */
+		if ( 'chot_tien_xem' === $viec ) {
+			self::tra( VHG_Quy::chot_tien_xem(
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '', (string) $ai['coso'] ) );
+			return;
+		}
+
+		if ( 'chot_tien_luu' === $viec ) {
+			self::tra( VHG_Quy::chot_tien_luu(
+				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
+				isset( $d['tm'] ) ? $d['tm'] : 0,
+				isset( $d['qr'] ) ? $d['qr'] : 0,
+				(string) $ai['name'],
+				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '',
+				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '',
+				(string) $ai['coso'] ) );
+			return;
+		}
+
 		if ( 'nhat_ky_may' === $viec ) {
 			/* Lịch sử bật/tắt ghế — chỉ quản trị (đã chặn ở duoc_lam qua VIEC_QUAN_TRI). */
 			$ky = isset( $d['ky'] ) ? (string) $d['ky'] : 'week';

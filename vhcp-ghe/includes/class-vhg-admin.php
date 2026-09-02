@@ -279,6 +279,7 @@ class VHG_Admin {
 		add_submenu_page( 'vhg', 'Nhận tiền & nhật ký', 'Nhận tiền & nhật ký', self::CAP, 'vhg-cong', array( __CLASS__, 'trang_cong' ) );
 		add_submenu_page( 'vhg', 'Trang ngoài & PIN', 'Trang ngoài & PIN', self::CAP, 'vhg-trang', array( __CLASS__, 'trang_ngoai' ) );
 		add_submenu_page( 'vhg', 'Tem QR dán ghế', 'Tem QR dán ghế', self::CAP, 'vhg-tem', array( __CLASS__, 'trang_tem' ) );
+		add_submenu_page( 'vhg', 'Chốt tiền (chỉ số ghế)', 'Chốt tiền (chỉ số ghế)', self::CAP, 'vhg-chottien', array( __CLASS__, 'trang_chottien' ) );
 		add_submenu_page( 'vhg', 'Nạp file firmware', 'Nạp file firmware', self::CAP, 'vhg-fw', array( __CLASS__, 'trang_fw' ) );
 	}
 
@@ -1990,6 +1991,57 @@ class VHG_Admin {
 			echo '<button class="button" name="vhg" value="fw_xoa">Xoá firmware trên web</button></form>';
 		}
 		echo '</div>';
+	}
+
+	// ======================================================================= CHỐT TIỀN (chỉ số ghế)
+
+	/**
+	 * Tab "Chốt tiền": lịch sử các lượt chốt tiền theo chỉ số CỘNG DỒN đọc từ ghế (bảng chot_tien).
+	 * Máy trạm nối AP ghế -> GET /chotso -> gửi tm/qr -> web trừ kỳ trước. Đây là chỗ XEM lại.
+	 */
+	public static function trang_chottien() {
+		self::gac();
+		$ky = self::chon_ky( 'vhg-chottien' );
+		$ds = VHG_Quy::chot_tien_ds( $ky, 800 );
+
+		$t_tm = 0; $t_qr = 0;
+		foreach ( $ds as $c ) { $t_tm += (int) $c['tm_ky']; $t_qr += (int) $c['qr_ky']; }
+
+		echo '<div class="wrap"><h1>Chốt tiền — chỉ số đọc từ ghế</h1>';
+		echo '<p class="description">Máy trạm tới gần ghế, nối AP, đọc thẳng chỉ số <b>tiền mặt</b> + <b>QR</b> '
+			. 'cộng dồn của ghế rồi chốt. Cột <b>Kỳ này</b> = chỉ số lần này − lần chốt trước.</p>';
+
+		echo '<p><b>Tổng kỳ này:</b> tiền mặt <b>' . esc_html( self::tien( $t_tm ) ) . '</b> · QR <b>'
+			. esc_html( self::tien( $t_qr ) ) . '</b> · cộng <b>' . esc_html( self::tien( $t_tm + $t_qr ) )
+			. '</b> · ' . count( $ds ) . ' lượt.</p>';
+
+		if ( ! $ds ) {
+			echo '<p>Chưa có lượt chốt tiền nào trong kỳ này.</p></div>';
+			return;
+		}
+
+		echo '<table class="widefat striped"><thead><tr>'
+			. '<th>Lúc</th><th>Ghế</th><th>Cơ sở</th><th>Người</th>'
+			. '<th style="text-align:right">Tiền mặt (chỉ số)</th><th style="text-align:right">TM kỳ này</th>'
+			. '<th style="text-align:right">QR (chỉ số)</th><th style="text-align:right">QR kỳ này</th>'
+			. '<th>Ghi chú</th></tr></thead><tbody>';
+		foreach ( $ds as $c ) {
+			$ld = ! empty( $c['lan_dau'] );
+			echo '<tr>';
+			echo '<td>' . esc_html( self::gio( $c['tao_luc'] ) ) . '</td>';
+			echo '<td><b>' . esc_html( $c['ma_may'] ) . '</b></td>';
+			echo '<td>' . esc_html( $c['coso'] ) . '</td>';
+			echo '<td>' . esc_html( $c['nguoi'] ) . '</td>';
+			echo '<td style="text-align:right">' . esc_html( self::tien( $c['tm'] ) ) . '</td>';
+			echo '<td style="text-align:right">' . ( $ld ? '<span class="description">lần đầu</span>'
+				: '<b>' . esc_html( self::tien( $c['tm_ky'] ) ) . '</b>' ) . '</td>';
+			echo '<td style="text-align:right">' . esc_html( self::tien( $c['qr'] ) ) . '</td>';
+			echo '<td style="text-align:right">' . ( $ld ? '<span class="description">lần đầu</span>'
+				: '<b>' . esc_html( self::tien( $c['qr_ky'] ) ) . '</b>' ) . '</td>';
+			echo '<td>' . esc_html( $c['ghi_chu'] ) . '</td>';
+			echo '</tr>';
+		}
+		echo '</tbody></table></div>';
 	}
 
 	private static function fw_dong( $nhan, $url ) {

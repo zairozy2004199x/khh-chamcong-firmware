@@ -967,4 +967,141 @@ class VHG_Quy {
 		return array( 'tren_tay' => $tren_tay, 'cho_xac_nhan' => $t_cho, 'so_cho' => count( $cho ),
 			'chot_ky' => $chot_ky, 'lech_may' => $lech_may, 'lech_dem' => $lech_dem );
 	}
+
+	/* ══════════════════════════════════════════════════════════════════════════════════════════
+	 * CHỐT TIỀN THEO CHỈ SỐ ĐỌC TỪ GHẾ (bảng `chot_tien`).
+	 *
+	 * Máy trạm nối AP ghế, đọc GET /chotso -> hai chỉ số CỘNG DỒN: tiền mặt (tm) + QR (qr).
+	 * Rồi gọi `chot_tien_luu`. Web trừ kỳ trước như công-tơ. Khác `chot()` (chốt ca máy đếm).
+	 * ═════════════════════════════════════════════════════════════════════════════════════════ */
+
+	/** Lượt chốt tiền GẦN NHẤT của một ghế (hoặc null). */
+	public static function chot_tien_truoc( $ma_may ) {
+		global $wpdb;
+		$m = strtoupper( trim( (string) $ma_may ) );
+		if ( '' === $m ) { return null; }
+		$r = $wpdb->get_row( $wpdb->prepare(
+			'SELECT * FROM ' . VHG_DB::t( 'chot_tien' ) . ' WHERE ma_may=%s ORDER BY id DESC LIMIT 1',
+			$m ), ARRAY_A );
+		return $r ? $r : null;
+	}
+
+	/** Xem trước khi chốt tiền: mốc tm/qr lần trước (để máy trạm hiện "kỳ này"). */
+	public static function chot_tien_xem( $ma_may, $coso_cua_toi = null ) {
+		$t = self::truoc_khi_chot( $ma_may, $coso_cua_toi );   // dùng lại rào cơ sở + kiểm ghế có thật
+		if ( empty( $t['ok'] ) ) { return $t; }
+		$tr = self::chot_tien_truoc( $t['ma_may'] );
+		return array(
+			'ok'       => true,
+			'ma_may'   => $t['ma_may'],
+			'coso'     => (string) $t['coso'],
+			'song'     => (int) $t['song'],
+			'lan_dau'  => $tr ? 0 : 1,
+			'tm_truoc' => $tr ? (int) $tr['tm'] : 0,
+			'qr_truoc' => $tr ? (int) $tr['qr'] : 0,
+			'chot_truoc_luc' => $tr ? (string) $tr['tao_luc'] : '',
+			'chot_truoc_ai'  => $tr ? (string) $tr['nguoi'] : '',
+		);
+	}
+
+	/**
+	 * GHI MỘT LƯỢT CHỐT TIỀN.
+	 *
+	 * @param string $ma_may Ghế (từ mã QR / AP).
+	 * @param int    $tm     Chỉ số TIỀN MẶT cộng dồn ĐỌC TỪ GHẾ, ngay lúc này.
+	 * @param int    $qr     Chỉ số QR cộng dồn đọc từ ghế.
+	 * @param string $nguoi  Ai chốt — LẤY TỪ PHIÊN, không nhận từ gói tin.
+	 */
+	public static function chot_tien_luu( $ma_may, $tm, $qr, $nguoi, $ghi_chu = '', $ma_lan = '',
+		$coso_cua_toi = null ) {
+		global $wpdb;
+
+		/* Gửi lại (sóng yếu) -> trả lượt cũ, không ghi thêm. Chốt thật ở UNIQUE ma_lan tầng SQL. */
+		$ml = mb_substr( trim( (string) $ma_lan ), 0, 40 );
+		if ( '' !== $ml ) {
+			$cu = $wpdb->get_row( $wpdb->prepare(
+				'SELECT * FROM ' . VHG_DB::t( 'chot_tien' ) . ' WHERE ma_lan=%s LIMIT 1', $ml ), ARRAY_A );
+			if ( $cu ) {
+				return array( 'ok' => true, 'lap_lai' => 1,
+					'thong_bao' => 'Lượt chốt tiền này đã ghi rồi — không ghi thêm.',
+					'tm' => (int) $cu['tm'], 'qr' => (int) $cu['qr'],
+					'tm_ky' => (int) $cu['tm_ky'], 'qr_ky' => (int) $cu['qr_ky'],
+					'tm_truoc' => (int) $cu['tm_truoc'], 'qr_truoc' => (int) $cu['qr_truoc'] );
+			}
+		}
+
+		$ai = trim( (string) $nguoi );
+		if ( '' === $ai ) {
+			return array( 'ok' => false, 'error' => 'Chưa biết ai đang chốt — không ghi sổ được.' );
+		}
+
+		$t = self::truoc_khi_chot( $ma_may, $coso_cua_toi );   // rào cơ sở + kiểm ghế có thật
+		if ( empty( $t['ok'] ) ) { return $t; }
+		$m = $t['ma_may'];
+
+		$tm = (int) $tm; $qr = (int) $qr;
+		if ( $tm < 0 || $qr < 0 ) {
+			return array( 'ok' => false, 'error' => 'Chỉ số tiền không âm được.' );
+		}
+
+		$tr = self::chot_tien_truoc( $m );
+		$lan_dau = $tr ? 0 : 1;
+		$tm_truoc = $tr ? (int) $tr['tm'] : 0;
+		$qr_truoc = $tr ? (int) $tr['qr'] : 0;
+
+		/* 🔴 CHỈ SỐ CỘNG DỒN KHÔNG CHẠY LÙI. Nhỏ hơn lần trước = ghế vừa thay/xoá NVS, hoặc đọc
+		   nhầm. Bắt ghi chú rồi mới cho qua (giống chốt ca) — ghi lặng thì "kỳ này" ra số âm. */
+		if ( ! $lan_dau && ( $tm < $tm_truoc || $qr < $qr_truoc ) ) {
+			if ( '' === trim( (string) $ghi_chu ) ) {
+				return array( 'ok' => false, 'error' => 'Chỉ số nhỏ hơn lần chốt trước (TM ' . $tm_truoc
+					. ' / QR ' . $qr_truoc . '). Ghế không chạy lùi — kiểm lại. Nếu vừa thay ghế/xoá bộ nhớ '
+					. 'thì ghi rõ vào ô ghi chú rồi bấm lại.' );
+			}
+		}
+
+		$tm_ky = $lan_dau ? 0 : max( 0, $tm - $tm_truoc );
+		$qr_ky = $lan_dau ? 0 : max( 0, $qr - $qr_truoc );
+
+		$luc = current_time( 'mysql' );
+		$ok = $wpdb->insert( VHG_DB::t( 'chot_tien' ), array(
+			'ma_may' => $m, 'coso' => (string) $t['coso'], 'nguoi' => $ai,
+			'tm' => $tm, 'qr' => $qr, 'tm_truoc' => $lan_dau ? 0 : $tm_truoc,
+			'qr_truoc' => $lan_dau ? 0 : $qr_truoc, 'tm_ky' => $tm_ky, 'qr_ky' => $qr_ky,
+			'lan_dau' => $lan_dau, 'ghi_chu' => mb_substr( trim( (string) $ghi_chu ), 0, 255 ),
+			'ma_lan' => '' !== $ml ? $ml : null, 'tao_luc' => $luc,
+		) );
+		if ( false === $ok ) {
+			/* Trùng ma_lan do hai lượt gửi lại chen nhau -> đọc lại lượt đã ghi. */
+			if ( '' !== $ml ) {
+				$cu = $wpdb->get_row( $wpdb->prepare(
+					'SELECT * FROM ' . VHG_DB::t( 'chot_tien' ) . ' WHERE ma_lan=%s LIMIT 1', $ml ), ARRAY_A );
+				if ( $cu ) {
+					return array( 'ok' => true, 'lap_lai' => 1, 'thong_bao' => 'Đã ghi rồi.',
+						'tm' => (int) $cu['tm'], 'qr' => (int) $cu['qr'],
+						'tm_ky' => (int) $cu['tm_ky'], 'qr_ky' => (int) $cu['qr_ky'],
+						'tm_truoc' => (int) $cu['tm_truoc'], 'qr_truoc' => (int) $cu['qr_truoc'] );
+				}
+			}
+			return array( 'ok' => false, 'error' => 'Ghi sổ chốt tiền thất bại.' );
+		}
+
+		return array( 'ok' => true, 'ma_may' => $m, 'coso' => (string) $t['coso'],
+			'lan_dau' => $lan_dau, 'tm' => $tm, 'qr' => $qr,
+			'tm_truoc' => $lan_dau ? 0 : $tm_truoc, 'qr_truoc' => $lan_dau ? 0 : $qr_truoc,
+			'tm_ky' => $tm_ky, 'qr_ky' => $qr_ky,
+			'thong_bao' => $lan_dau ? 'Đã chốt tiền (lần đầu — mốc gốc).' : 'Đã chốt tiền.' );
+	}
+
+	/** Lịch sử chốt tiền cho tab admin. */
+	public static function chot_tien_ds( $ky = 'month', $limit = 500 ) {
+		global $wpdb;
+		$t   = VHG_DB::t( 'chot_tien' );
+		$dau = VHG_Thu::dau_ky( $ky );          // '' = tất cả (giống ds_chot)
+		$gh  = max( 1, min( 2000, (int) $limit ) );
+		$sql = '' !== $dau
+			? $wpdb->prepare( "SELECT * FROM $t WHERE tao_luc>=%s ORDER BY id DESC LIMIT %d", $dau, $gh )
+			: $wpdb->prepare( "SELECT * FROM $t ORDER BY id DESC LIMIT %d", $gh );
+		$rows = $wpdb->get_results( $sql, ARRAY_A );
+		return is_array( $rows ) ? $rows : array();
+	}
 }

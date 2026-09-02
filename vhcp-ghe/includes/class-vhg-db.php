@@ -566,6 +566,31 @@ class VHG_DB {
 			KEY nguoi (nguoi,nop_id),
 			KEY nop (nop_id)";
 
+		/* ===== 14b. CHỐT TIỀN THEO CHỈ SỐ ĐỌC TỪ GHẾ ======================================
+		   Khác bảng `chot` (chốt ca: một chỉ số máy đếm + tiền mặt đếm tay). Bảng này ghi HAI
+		   chỉ số CỘNG DỒN đọc THẲNG từ ghế qua AP (GET /chotso): tiền MẶT và QR, tách bạch.
+		   Web trừ kỳ trước như công-tơ: tm_ky = tm - tm_truoc, qr_ky = qr - qr_truoc.
+		   ma_lan UNIQUE = mã lượt do máy trạm sinh -> gửi lại lúc sóng yếu không ghi hai lần. */
+		$b['chot_tien'] = "
+			id BIGINT(20) NOT NULL AUTO_INCREMENT,
+			ma_may VARCHAR(40) NOT NULL DEFAULT '',
+			coso VARCHAR(190) NOT NULL DEFAULT '',
+			nguoi VARCHAR(190) NOT NULL DEFAULT '',
+			tm BIGINT(20) NOT NULL DEFAULT 0,
+			qr BIGINT(20) NOT NULL DEFAULT 0,
+			tm_truoc BIGINT(20) NOT NULL DEFAULT 0,
+			qr_truoc BIGINT(20) NOT NULL DEFAULT 0,
+			tm_ky BIGINT(20) NOT NULL DEFAULT 0,
+			qr_ky BIGINT(20) NOT NULL DEFAULT 0,
+			lan_dau TINYINT(1) NOT NULL DEFAULT 0,
+			ghi_chu VARCHAR(255) NOT NULL DEFAULT '',
+			ma_lan VARCHAR(40) NULL DEFAULT NULL,
+			tao_luc DATETIME NULL,
+			PRIMARY KEY  (id),
+			UNIQUE KEY ma_lan (ma_lan),
+			KEY may (ma_may,id),
+			KEY luc (tao_luc)";
+
 		/* ===== 15. NỘP TIỀN VỀ QUỸ =========================================================
 		   Tiền trong tay người thu là tiền của cửa hàng đang nằm ở chỗ không ai nhìn thấy. Bảng
 		   này là chỗ nó chuyển tay, và là chỗ DUY NHẤT trả lời được câu "ai đang cầm bao nhiêu".
