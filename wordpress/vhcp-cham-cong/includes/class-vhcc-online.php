@@ -660,6 +660,28 @@ class VHCC_Online {
 			}
 		}
 
+		/* 🔴 BỎ HÀNG RỖNG CỦA CƠ SỞ KHÔNG CÓ TRONG DANH MỤC — anh Thắng 02/09/2026, ảnh lưới của
+		   Phạm Tường Vi có ba hàng cho một người: *"vẫn cứ hiện cơ sở giữa lỗi, cần xoá luôn"*.
+
+		   Hàng ở đây dựng từ HAI nguồn: danh sách cơ sở của hồ sơ (dựng trước, kể cả khi không
+		   có lượt nào) và các cơ sở thật sự có lượt trong tháng. Nguồn thứ nhất là chỗ tên gõ
+		   lệch còn sót trong ô "Cơ sở"/"Cơ sở phụ" của hồ sơ đẻ ra một hàng 0h — dọn hết lượt
+		   rồi mà hàng vẫn nằm đấy, và người đọc không có cách nào biết vì sao.
+
+		   ⚠️ CHỈ BỎ HÀNG THẬT SỰ RỖNG. Cơ sở ngoài danh mục mà CÒN LƯỢT thì vẫn phải vẽ — giấu
+		      đi là tổng của lưới lệch với bảng giờ ngay bên dưới, và không ai biết mất ở đâu.
+		      Cơ sở ĐANG CÓ trong danh mục cũng vẫn vẽ dù rỗng: "cửa hàng này tháng nay không ai
+		      chấm" là một thông tin, khác hẳn "cửa hàng này không tồn tại". */
+		$biet = array();
+		foreach ( VHCC_NhanSu::ds_coso() as $b_cs ) {
+			$biet[ VHCC_NhanSu::chu_thuong( $b_cs ) ] = 1;
+		}
+		foreach ( $hang as $cs_r => $h_r ) {
+			if ( $h_r['o'] ) { continue; }
+			if ( isset( $biet[ VHCC_NhanSu::chu_thuong( VHCC_NhanSu::chuan_coso( $cs_r ) ) ] ) ) { continue; }
+			unset( $hang[ $cs_r ] );
+		}
+
 		/* 🔴 TỔNG CỦA CƠ SỞ KIỂU `cong` CỘNG TỪ Ô, không cộng dần trong vòng lặp trên: một ngày
 		   có thể có NHIỀU lượt chấm (hàng chính + hàng ca đêm), mà engine đã gộp chúng thành
 		   MỘT con số cho ngày ấy. Cộng theo lượt là mỗi lượt cộng lại nguyên con số của cả

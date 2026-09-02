@@ -1331,6 +1331,140 @@ class VHCC_NhanSu {
 	}
 
 	/**
+	 * TRA MỘT TÊN CƠ SỞ — NÓ ĐANG NẰM Ở ĐÂU, VÀ CÓ MẤY BIẾN THỂ.
+	 *
+	 * Anh Thắng 02/09/2026, sau hai lượt dọn mà hàng vẫn còn: *"vẫn cứ hiện cơ sở giữa lỗi, cần
+	 * xoá luôn"*.
+	 *
+	 * 🔴 MỘT CÁI TÊN NẰM Ở NĂM CHỖ, VÀ DỌN BỐN CHỖ THÌ NÓ VẪN HIỆN. Cơ sở không phải một bản ghi
+	 *    — nó chỉ là chữ, rải ở: `cham_cong.coso` · `nhan_vien.cua_hang` · `nhan_vien.coso_phu` ·
+	 *    `may.cua_hang` · `bo_phan_coso.coso` (+ bảng tên đầy đủ). Mỗi chỗ có một lối dọn riêng,
+	 *    nên "đã bấm gộp rồi mà vẫn thấy" là chuyện bình thường — và không màn nào nói cho biết
+	 *    còn sót ở đâu. Hàm này trả lời đúng câu ấy.
+	 *
+	 * ⚠️ TRẢ CẢ DANH SÁCH BIẾN THỂ. Hai tên chỉ khác một dấu cách (`(PART TIME )_POSH+JP` và
+	 *    `(PART TIME)_POSH+JP`) là HAI hàng khác nhau trong kho, mà nhìn trên màn thì gần như
+	 *    không phân biệt được. Gộp một cái rồi tưởng xong, cái kia vẫn nguyên.
+	 */
+	public static function tra_coso( $ten ) {
+		global $wpdb;
+		$ten = trim( (string) $ten );
+		if ( '' === $ten ) { return array(); }
+		$chuan = self::chuan_coso( $ten );
+		$goc   = self::rut_gon_ten( $ten );
+
+		/* Biến thể: mọi tên trong bảng chấm công mà bỏ dấu cách + gạch + chữ thường thì giống
+		   nhau. Đây là phép so LỎNG có chủ ý — chỗ này để TÌM, không phải để xoá. */
+		$bien = array();
+		foreach ( (array) $wpdb->get_results(
+			'SELECT coso, COUNT(*) so FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE coso<>'' GROUP BY coso",
+			ARRAY_A ) as $r ) {
+			if ( self::rut_gon_ten( $r['coso'] ) !== $goc ) { continue; }
+			$bien[] = array( 'ten' => (string) $r['coso'], 'luot' => (int) $r['so'] );
+		}
+		/* Tên có trong hồ sơ mà không có lượt nào cũng là một biến thể — nó vẫn đẻ ra hàng trên
+		   lưới, và đó chính là cái hàng anh Thắng thấy. */
+		$ho_so = array();
+		foreach ( (array) $wpdb->get_results(
+			'SELECT ma_nv, ho_ten, cua_hang, coso_phu FROM ' . VHCC_DB::t( 'nhan_vien' ), ARRAY_A ) as $r ) {
+			foreach ( self::ds_coso_hs( $r ) as $x ) {
+				if ( self::rut_gon_ten( $x ) !== $goc ) { continue; }
+				$ho_so[] = array( 'ma_nv' => (string) $r['ma_nv'], 'ho_ten' => (string) $r['ho_ten'],
+					'ten' => $x );
+				$co = false;
+				foreach ( $bien as $b ) { if ( $b['ten'] === $x ) { $co = true; break; } }
+				if ( ! $co ) { $bien[] = array( 'ten' => $x, 'luot' => 0 ); }
+			}
+		}
+		$may = array();
+		foreach ( (array) $wpdb->get_results(
+			'SELECT serial, mac, cua_hang FROM ' . VHCC_DB::t( 'may' ) . " WHERE cua_hang<>''", ARRAY_A ) as $r ) {
+			if ( self::rut_gon_ten( $r['cua_hang'] ) !== $goc ) { continue; }
+			$may[] = array( 'serial' => (string) $r['serial'], 'mac' => (string) $r['mac'],
+				'ten' => (string) $r['cua_hang'] );
+		}
+		$bp = array();
+		foreach ( (array) $wpdb->get_col( 'SELECT coso FROM ' . VHCC_DB::t( 'bo_phan_coso' ) ) as $x ) {
+			if ( self::rut_gon_ten( $x ) === $goc ) { $bp[] = (string) $x; }
+		}
+		$ten_bang = array();
+		foreach ( self::ten_coso_bang() as $ma => $t ) {
+			if ( self::rut_gon_ten( $ma ) === $goc ) { $ten_bang[] = $ma; }
+		}
+		usort( $bien, function ( $a, $b ) { return $b['luot'] - $a['luot']; } );
+
+		return array( 'ten' => $ten, 'chuan' => $chuan, 'bien_the' => $bien,
+			'ho_so' => $ho_so, 'may' => $may, 'bo_phan' => $bp, 'ten_day_du' => $ten_bang,
+			'trong_danh_muc' => in_array( $chuan, self::ds_coso(), true ) );
+	}
+
+	/**
+	 * Rút một tên cơ sở về dạng "gần nhau thì bằng nhau": bỏ tiền tố `CS_`, bỏ mọi thứ không
+	 * phải chữ/số, hạ chữ thường. `(PART TIME )_POSH+JP` và `PART_TIME (POSHJP)` ra cùng một
+	 * chuỗi `parttimeposhjp`.
+	 *
+	 * ⚠️ CHỈ DÙNG ĐỂ TÌM, KHÔNG BAO GIỜ ĐỂ XOÁ hay để so "cơ sở này là cơ sở kia". Nó cố ý bắt
+	 *    LỎNG, nên hai cửa hàng khác nhau mà tên gần giống sẽ rơi vào cùng một rổ — người nhìn
+	 *    mới là người quyết, máy chỉ bày ra.
+	 */
+	public static function rut_gon_ten( $s ) {
+		$s = self::chuan_coso( $s );
+		$s = preg_replace( '/[^\p{L}\p{N}]+/u', '', (string) $s );
+		return self::chu_thuong( (string) $s );
+	}
+
+	/**
+	 * XOÁ SẠCH MỌI DẤU VẾT CỦA MỘT TÊN CƠ SỞ — cả năm chỗ, trong một lượt.
+	 *
+	 * Anh Thắng 02/09/2026: *"vẫn cứ hiện cơ sở giữa lỗi, cần xoá luôn"*.
+	 *
+	 * 🔴 KHÁC `xoa_coso()` VÀ `xoa_coso_la()` Ở CHỖ NÓ KHÔNG CHỪA GÌ: gỡ luôn cả máy đang gán
+	 *    (đặt về "chưa gán", KHÔNG xoá máy) và dòng bộ phận, kể cả khi tên ấy đang nằm trong
+	 *    danh mục. Đây là cái nút cuối cùng cho tên đã bị dọn nửa vời mấy lượt mà vẫn hiện.
+	 *
+	 * ⚠️ KHỚP THEO TÊN THÔ, CHÍNH XÁC TỪNG KÝ TỰ. `rut_gon_ten()` chỉ dùng để TÌM và bày ra;
+	 *    xoá thì phải đúng cái tên người ta nhìn thấy, không thì một dấu cách lệch là xoá nhầm
+	 *    cửa hàng bên cạnh.
+	 *
+	 * ⚠️ `$mong_luot` phải khớp đúng số lượt đang có. Mất công thì mất thật, không lấy lại được.
+	 */
+	public static function xoa_sach_coso( $u, $ten, $mong_luot ) {
+		global $wpdb;
+		if ( ! self::co_quan_tri_nv( $u ) ) {
+			return array( 'ok' => false, 'error' => 'Xoá sạch cơ sở — ' . self::LOI_QT );
+		}
+		$ten = trim( (string) $ten );
+		if ( '' === $ten ) { return array( 'ok' => false, 'error' => 'Thiếu tên cơ sở.' ); }
+
+		$so = (int) $wpdb->get_var( $wpdb->prepare(
+			'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $ten ) );
+		if ( (int) $mong_luot !== $so ) {
+			return array( 'ok' => false, 'error' => 'Số lượt của "' . $ten . '" vừa đổi (' . $so
+				. ' chứ không phải ' . (int) $mong_luot . '). Tải lại màn rồi bấm lại.' );
+		}
+		$luot = 0;
+		if ( $so > 0 ) {
+			$luot = (int) $wpdb->query( $wpdb->prepare(
+				'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $ten ) );
+		}
+		$hs  = self::go_coso_ho_so( $ten );
+		/* Máy thì GỠ GÁN, không xoá: cái máy vẫn là tài sản đang cắm ở đâu đó. Lượt bấm của nó
+		   sẽ nằm ở hàng "chờ gán" cho tới khi được gán lại — thấy được, và gán lại được. */
+		$may = (int) $wpdb->query( $wpdb->prepare(
+			'UPDATE ' . VHCC_DB::t( 'may' ) . " SET cua_hang='' WHERE cua_hang=%s", $ten ) );
+		$bp  = (int) $wpdb->query( $wpdb->prepare(
+			'DELETE FROM ' . VHCC_DB::t( 'bo_phan_coso' ) . ' WHERE coso=%s', $ten ) );
+		$bang = self::ten_coso_bang();
+		$k    = self::chuan_coso( $ten );
+		$xoa_ten = false;
+		if ( isset( $bang[ $k ] ) ) { unset( $bang[ $k ] ); self::dat_ten_coso( $u, $bang ); $xoa_ten = true; }
+		self::quen_ten_coso();
+
+		return array( 'ok' => true, 'ten' => $ten, 'luot' => $luot, 'ho_so' => $hs,
+			'may' => $may, 'bo_phan' => $bp, 'ten_day_du' => $xoa_ten );
+	}
+
+	/**
 	 * XOÁ HẲN MỘT TÊN CƠ SỞ LẠ — gỡ khỏi mọi hồ sơ VÀ xoá mọi lượt chấm công mang đúng tên ấy.
 	 *
 	 * Anh Thắng 02/09/2026, ảnh lưới công của nhân viên có ba hàng cho một người: *"nó đang bị

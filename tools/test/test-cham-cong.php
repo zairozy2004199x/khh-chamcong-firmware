@@ -17269,7 +17269,12 @@ $dong_thu = array(
 );
 $kieu_thu = array( 'G_CS' => 'gio', 'N_CS' => 'ngay', 'R_CS' => 'gio' );
 
-/* (a) Người 3 cơ sở -> ĐÚNG 3 hàng, kể cả cơ sở tháng này không có công nào. */
+/* (a) Người 3 cơ sở -> ĐÚNG 3 hàng, kể cả cơ sở tháng này không có công nào.
+   ⚠️ BA CƠ SỞ ẤY PHẢI CÓ TRONG DANH MỤC. Từ 02/09/2026 lưới bỏ hàng RỖNG của cơ sở KHÔNG có
+      trong danh mục — đó là chỗ tên gõ lệch còn sót trong ô "Cơ sở phụ" của hồ sơ đẻ ra một
+      hàng 0h mãi không mất (anh Thắng: *"vẫn cứ hiện cơ sở giữa lỗi"*). Cơ sở đã khai thì vẫn
+      hiện dù rỗng: "tháng này không ai chấm" là một thông tin, khác "chỗ này không tồn tại". */
+vhcc_khai_cs( 'G_CS', 'N_CS', 'R_CS' );
 $lg = VHCC_Online::luoi_thang( $dong_thu, array( 'G_CS', 'N_CS', 'R_CS' ), '2026-08', $kieu_thu );
 teq( 'mỗi cơ sở đúng một hàng', 3, count( $lg['hang'] ) );
 teq( 'thứ tự hàng theo danh sách cơ sở đưa vào', 'G_CS', $lg['hang'][0]['coSo'] );
@@ -17304,6 +17309,7 @@ teq( 'cơ sở lạ được thêm hàng chứ không bị bỏ', 2, count( $lg2
 
 /* (f) Màn thật: hai bảng, và lưới có đúng hai hàng cơ sở. */
 vhcc_dung_bang();
+vhcc_khai_cs( 'LT_CHINH', 'LT_PHU' );
 $wpdb->insert( VHCC_DB::t( 'nhan_vien' ), array( 'ma_nv' => 'LT01', 'ho_ten' => 'Lưới A',
 	'cua_hang' => 'LT_CHINH', 'coso_phu' => 'LT_PHU' ) );
 $wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => 'LT_CHINH', 'ngay' => '2026-08-03',
@@ -17315,6 +17321,30 @@ t( 'và bảng giờ vào ra', strpos( $h_lt, 'Giờ vào — giờ ra từng l�
 t( '🔴 lưới có hàng cơ sở chính', strpos( $h_lt, '<b>LT_CHINH</b>' ) !== false, $h_lt );
 t( '🔴 và hàng cơ sở phụ, dù tháng này chưa có công',
 	strpos( $h_lt, '<b>LT_PHU</b>' ) !== false, $h_lt );
+/* 🔴 VÀ ĐÂY LÀ CHỖ ANH THẮNG VẤP — ảnh lưới của Phạm Tường Vi có ba hàng cho một người:
+   *"vẫn cứ hiện cơ sở giữa lỗi, cần xoá luôn"*. Một tên gõ lệch còn sót trong ô "Cơ sở phụ"
+   của hồ sơ vẫn đẻ ra một hàng 0h, kể cả khi mọi lượt đã được gộp đi hết — và không có gì trên
+   màn nói vì sao. Nay: ngoài danh mục + không lượt nào trong tháng = KHÔNG vẽ. */
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ),
+	array( 'coso_phu' => 'LT_PHU, (LOI GO )_LT+X' ), array( 'ma_nv' => 'LT01' ) );
+$h_lt_la = vhcc_web_nhu2( 'LT01', 'Nhân viên', 'LT_CHINH, LT_PHU, (LOI GO )_LT+X',
+	array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+/* ⚠️ CANH HÀNG CỦA LƯỚI, KHÔNG CANH CHUỖI CÓ MẶT TRÊN TRANG. Tên ấy còn nằm ở ô "Cơ sở" của
+   thẻ phiên và mấy chỗ khác; dò cả trang là đo nhầm một thứ khác. Hàng lưới in tên trong `<b>`. */
+t( '🔴 tên gõ lệch còn sót trong hồ sơ KHÔNG đẻ ra hàng rỗng nữa',
+	strpos( $h_lt_la, '<b>(LOI GO )_LT+X</b>' ) === false, $h_lt_la );
+/* ⚠️ NHƯNG CÒN LƯỢT THÌ VẪN PHẢI VẼ — giấu đi là tổng của lưới lệch với bảng giờ ngay bên
+   dưới, và không ai biết mất ở đâu. */
+$wpdb->insert( VHCC_DB::t( 'cham_cong' ), array( 'coso' => '(LOI GO )_LT+X', 'ngay' => '2026-08-04',
+	'ma_nv' => 'LT01', 'hau_to' => '', 'ho_ten' => 'Lưới A', 'gio_vao_giay' => 9 * 3600,
+	'gio_ra_giay' => 18 * 3600, 'nguon' => 'may' ) );
+$h_lt_co = vhcc_web_nhu2( 'LT01', 'Nhân viên', 'LT_CHINH, LT_PHU, (LOI GO )_LT+X',
+	array( 'man' => 'cong_toi', 'cth' => '2026-08' ) );
+t( '🔴 nhưng ngoài danh mục mà CÒN LƯỢT thì vẫn vẽ — không giấu công',
+	strpos( $h_lt_co, '<b>(LOI GO )_LT+X</b>' ) !== false, $h_lt_co );
+$wpdb->query( 'DELETE FROM ' . VHCC_DB::t( 'cham_cong' ) . " WHERE coso='(LOI GO )_LT+X'" );
+$wpdb->update( VHCC_DB::t( 'nhan_vien' ), array( 'coso_phu' => 'LT_PHU' ), array( 'ma_nv' => 'LT01' ) );
+
 teq( 'đúng HAI hàng cơ sở, không đẻ thêm', 2,
 	substr_count( $h_lt, 'tính theo ' ) );
 t( 'lưới KHÔNG có ô sửa giờ — màn này chỉ đọc',
@@ -18066,6 +18096,130 @@ $r_nv_gt = VHCC_NhanSu::gop_coso_day_du(
 	array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => 'GOC_1' ), 'GOC_1', 'LECH_2' );
 t( '🔴 Nhân viên không gộp được cơ sở', empty( $r_nv_gt['ok'] )
 	&& isset( $r_nv_gt['error'] ) && strpos( $r_nv_gt['error'], 'Gộp cơ sở' ) !== false, $r_nv_gt );
+
+vhcc_dung_bang();
+
+
+/* ==========================================================================================
+ *  79. TRA & DỌN DỨT ĐIỂM — "vẫn cứ hiện cơ sở giữa lỗi, cần xoá luôn"
+ * ------------------------------------------------------------------------------------------
+ *  Anh Thắng 02/09/2026, sau hai lượt dọn mà hàng vẫn còn trên lưới.
+ *
+ *  🔴 MỘT CÁI TÊN NẰM Ở NĂM CHỖ, DỌN BỐN CHỖ THÌ NÓ VẪN HIỆN: `cham_cong.coso` ·
+ *     `nhan_vien.cua_hang` · `nhan_vien.coso_phu` · `may.cua_hang` · `bo_phan_coso.coso`
+ *     (+ bảng tên đầy đủ). Mỗi chỗ một lối dọn riêng, và trước bản này KHÔNG màn nào nói cho
+ *     biết còn sót ở đâu — người dùng chỉ còn cách bấm lại, rồi bấm lại.
+ * ======================================================================================== */
+vhcc_dung_bang();
+$U_TR = array( 'name' => 'Quản trị', 'role' => 'Admin', 'coso' => '' );
+$TEN_RAC = '(PART TIME )_POSH+JP';
+$TEN_RAC2 = 'PART_TIME (POSHJP)';
+
+vhcc_bo_phan( $TEN_RAC2, 'Part time' );                 // biến thể này ĐÃ vào danh mục
+vhcc_cham( $TEN_RAC,  '2026-09-01', 'TRV', '', '18:02:43', null );
+vhcc_cham( $TEN_RAC,  '2026-09-02', 'TRV', '', '09:01:33', null );
+vhcc_cham( $TEN_RAC2, '2026-09-01', 'TRV', '', '08:59:15', '18:02:00' );
+$wpdb->insert( VHCC_DB::t( 'may' ), array( 'serial' => 'SN-TR', 'mac' => 'CC:00:00:00:00:01',
+	'cua_hang' => $TEN_RAC ) );
+VHCC_NhanSu::luu_ho_so( $U_AD, array( 'ma_nv' => 'TRV', 'ho_ten' => 'Phạm Thử Vi',
+	'cua_hang' => 'POSH_HCM_T', 'coso_phu' => $TEN_RAC, 'vai_tro' => 'Nhân viên' ) );
+
+/* ---- (a) Tra ra ĐỦ hai biến thể, dù chúng viết khác nhau hẳn ---- */
+$tr = VHCC_NhanSu::tra_coso( $TEN_RAC );
+$tr_ten = array();
+foreach ( $tr['bien_the'] as $b ) { $tr_ten[ $b['ten'] ] = (int) $b['luot']; }
+t( '🔴 tra ra CẢ HAI biến thể — hai tên viết khác nhau nhưng cùng một chỗ',
+	isset( $tr_ten[ $TEN_RAC ] ) && isset( $tr_ten[ $TEN_RAC2 ] ), array_keys( $tr_ten ) );
+teq( 'và đếm đúng số lượt của từng biến thể', array( 2, 1 ),
+	array( isset( $tr_ten[ $TEN_RAC ] ) ? $tr_ten[ $TEN_RAC ] : -1,
+		isset( $tr_ten[ $TEN_RAC2 ] ) ? $tr_ten[ $TEN_RAC2 ] : -1 ) );
+/* ⚠️ `rut_gon_ten()` CỐ Ý BẮT LỎNG — nó để TÌM, không để xoá. Nhưng lỏng không có nghĩa là
+   vơ hết: một cửa hàng khác hẳn thì không được rơi vào cùng rổ. */
+teq( 'hai tên gõ lệch rút gọn ra CÙNG một chuỗi',
+	VHCC_NhanSu::rut_gon_ten( $TEN_RAC ), VHCC_NhanSu::rut_gon_ten( $TEN_RAC2 ) );
+t( '🔴 nhưng cơ sở khác hẳn thì KHÔNG rơi vào cùng rổ',
+	VHCC_NhanSu::rut_gon_ten( 'POSH_HCM' ) !== VHCC_NhanSu::rut_gon_ten( $TEN_RAC ) );
+t( 'và tiền tố CS_ vẫn rút về cùng một chuỗi',
+	VHCC_NhanSu::rut_gon_ten( 'CS_POSH_HCM' ) === VHCC_NhanSu::rut_gon_ten( 'POSH_HCM' ) );
+
+/* ---- (b) Tra phải NÓI RA nó còn nằm ở đâu — đây mới là câu trả lời cho "sao vẫn hiện" ---- */
+$hs_ten = array();
+foreach ( $tr['ho_so'] as $h ) { $hs_ten[] = $h['ma_nv']; }
+t( '🔴 kể ra hồ sơ đang khai tên ấy (chỗ đẻ ra hàng 0h trên lưới)',
+	in_array( 'TRV', $hs_ten, true ), $hs_ten );
+t( '🔴 kể ra máy đang gán vào tên ấy (chỗ làm công chảy về lại hôm sau)',
+	1 === count( $tr['may'] ), $tr['may'] );
+t( '🔴 kể ra dòng bộ phận đang giữ tên trong danh mục',
+	in_array( $TEN_RAC2, $tr['bo_phan'], true ), $tr['bo_phan'] );
+
+/* ---- (c) Màn Tra bày đủ ra ---- */
+$h_tr = vhcc_web_nhu2( 'TRAD', 'Admin', '', array( 'man' => 'coso', 'tracs' => $TEN_RAC ) );
+t( 'tab Cơ sở có khối Tra', strpos( $h_tr, 'id="tracs"' ) !== false, substr( $h_tr, 0, 300 ) );
+t( 'khối MỞ SẴN khi đang tra', strpos( $h_tr, 'id="tracs"><details open>' ) !== false );
+t( '🔴 bày cả hai biến thể ra bảng',
+	strpos( $h_tr, '<code>' . esc_html( $TEN_RAC ) . '</code>' ) !== false
+	&& strpos( $h_tr, '<code>' . esc_html( $TEN_RAC2 ) . '</code>' ) !== false, $h_tr );
+t( 'nút Xoá sạch mang theo ĐÚNG số lượt của hàng ấy',
+	strpos( $h_tr, 'value="xoa_sach:2:' . esc_attr( $TEN_RAC ) . '"' ) !== false, $h_tr );
+t( 'và nói rõ xoá sạch là MẤT công thật', strpos( $h_tr, 'không lấy lại được' ) !== false );
+t( 'kèm lối GIỮ công: dùng Gộp', strpos( $h_tr, 'muốn GIỮ công' ) !== false );
+
+/* ---- (d) Xoá sạch: cả năm chỗ, trong một lượt ---- */
+$r_lech_tr = VHCC_NhanSu::xoa_sach_coso( $U_TR, $TEN_RAC, 99 );
+t( '🔴 số lượt lệch thì CHỐI, không xoá gì', empty( $r_lech_tr['ok'] ), $r_lech_tr );
+teq( 'và lượt vẫn còn nguyên', 2, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $TEN_RAC ) ) );
+
+$tok_tr = VHCC_Auth::phat_token( 'Người Thử', 'Admin', '', 'TRAD' );
+$h_xs = vhcc_cs_post( $tok_tr, array( 'viec' => 'xoa_sach:2:' . $TEN_RAC ),
+	array( 'man' => 'coso', 'tracs' => $TEN_RAC ) );
+teq( '🔴 hết lượt', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $TEN_RAC ) ) );
+$hs_tr = VHCC_NhanSu::ho_so( 'TRV' );
+t( '🔴 hết trong hồ sơ',
+	strpos( (string) $hs_tr['cua_hang'] . ',' . (string) $hs_tr['coso_phu'], $TEN_RAC ) === false,
+	array( $hs_tr['cua_hang'], $hs_tr['coso_phu'] ) );
+/* 🔴 MÁY THÌ GỠ GÁN, KHÔNG XOÁ. Cái máy vẫn là tài sản đang cắm ở đâu đó; xoá bản ghi của nó là
+   lần sau nó gọi về mà không ai biết nó là máy nào. Về hàng "chờ gán" thì thấy được và gán lại
+   được. */
+teq( '🔴 máy được GỠ GÁN, không bị xoá', '', (string) $wpdb->get_var( $wpdb->prepare(
+	'SELECT cua_hang FROM ' . VHCC_DB::t( 'may' ) . ' WHERE serial=%s', 'SN-TR' ) ) );
+teq( 'bản ghi máy vẫn còn', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'may' ) . ' WHERE serial=%s', 'SN-TR' ) ) );
+t( 'màn báo đã xoá sạch', strpos( $h_xs, 'Đã xoá sạch' ) !== false, substr( $h_xs, 0, 400 ) );
+/* Và biến thể KIA không bị đụng — xoá phải khớp TÊN THÔ từng ký tự.
+   ⚠️ PHÉP NÀY CHỈ ĐO ĐƯỢC MỘT NỬA TRÊN BỆ ĐỠ GIẢ: nó không chạy được mấy hàm SQL (LOWER,
+      REPLACE) nên một bản sửa đổi câu WHERE thành so-lỏng sẽ không lộ ra ở đây. Trên kho thật
+      thì lộ. Giữ phép lại vì nó vẫn bắt được ca đơn giản (xoá bừa cả bảng), và ghi rõ chỗ mù
+      này thay vì để người sau tưởng nó phủ kín. */
+teq( '🔴 biến thể kia KHÔNG bị xoá lây', 1, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $TEN_RAC2 ) ) );
+t( 'và nó vẫn trong danh mục', in_array( $TEN_RAC2, VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+
+/* ---- (d2) 🔴 TÊN CÓ DẤU HAI CHẤM — nút gửi việc dưới dạng `xoa_sach:<số>:<tên>`, nên cắt ở
+   MỌI dấu hai chấm là tên bị cụt và xoá nhầm (hoặc không xoá gì). Tên rác vào kho bằng nạp .csv
+   hay cổng máy thì KHÔNG đi qua `ma_coso_hop_le()`, nên nó có thể mang bất kỳ ký tự nào. */
+$TEN_HC = 'CA:DEM:LT';
+vhcc_cham( $TEN_HC, '2026-09-03', 'TRV', '', '08:00:00', '17:00:00' );
+$h_hc = vhcc_cs_post( $tok_tr, array( 'viec' => 'xoa_sach:1:' . $TEN_HC ),
+	array( 'man' => 'coso', 'tracs' => $TEN_HC ) );
+teq( '🔴 tên có dấu hai chấm vẫn xoá đúng, không bị cắt cụt', 0, (int) $wpdb->get_var( $wpdb->prepare(
+	'SELECT COUNT(*) FROM ' . VHCC_DB::t( 'cham_cong' ) . ' WHERE coso=%s', $TEN_HC ) ) );
+/* ⚠️ Câu báo in ra qua `esc_html()` nên dấu nháy kép thành `&quot;` — dò chuỗi thô là đo nhầm
+   một thứ không tồn tại trên trang. */
+t( 'và màn báo đúng cái tên đầy đủ',
+	strpos( $h_hc, esc_html( 'Đã xoá sạch "' . $TEN_HC . '"' ) ) !== false, $h_hc );
+
+/* ---- (e) Xoá sạch cũng bỏ được tên ĐANG NẰM TRONG danh mục ---- */
+$r_xs2 = VHCC_NhanSu::xoa_sach_coso( $U_TR, $TEN_RAC2, 1 );
+t( 'xoá sạch chạy cho cả tên trong danh mục', ! empty( $r_xs2['ok'] ), $r_xs2 );
+t( '🔴 và nó rời khỏi danh mục', ! in_array( $TEN_RAC2, VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+
+/* ---- (f) Gác quyền ---- */
+$r_nv_tr = VHCC_NhanSu::xoa_sach_coso(
+	array( 'name' => 'NV', 'role' => 'Nhân viên', 'coso' => '' ), 'POSH_HCM_T', 0 );
+t( '🔴 Nhân viên không xoá sạch được', empty( $r_nv_tr['ok'] )
+	&& isset( $r_nv_tr['error'] ) && strpos( $r_nv_tr['error'], 'Xoá sạch cơ sở' ) !== false, $r_nv_tr );
 
 vhcc_dung_bang();
 

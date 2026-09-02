@@ -1024,6 +1024,24 @@ class VHCC_Web {
 			return array( array( 'xong' => $noi ) );
 		}
 
+		/* `xoa_sach:<số lượt>:<tên thô>` — số lượt đi kèm để máy chủ so lại với số màn hình vừa
+		   bày ra; tên để NGUYÊN, kể cả dấu hai chấm bên trong (cắt ở hai dấu đầu tiên thôi). */
+		if ( 0 === strpos( (string) $viec, 'xoa_sach:' ) ) {
+			$phan = explode( ':', (string) $viec, 3 );
+			if ( 3 !== count( $phan ) ) { return array( array( 'loi' => 'Thiếu tên cơ sở cần xoá.' ) ); }
+			$r = VHCC_NhanSu::xoa_sach_coso( $toi, $phan[2], (int) $phan[1] );
+			if ( empty( $r['ok'] ) ) { return array( array( 'loi' => $r['error'] ) ); }
+			$chu = array();
+			if ( $r['luot'] )   { $chu[] = 'xoá ' . (int) $r['luot'] . ' lượt chấm công'; }
+			if ( $r['ho_so'] )  { $chu[] = 'gỡ khỏi ' . (int) $r['ho_so'] . ' hồ sơ'; }
+			if ( $r['may'] )    { $chu[] = 'gỡ gán ' . (int) $r['may'] . ' máy (máy về hàng chờ gán)'; }
+			if ( $r['bo_phan'] ) { $chu[] = 'bỏ khỏi danh mục'; }
+			if ( $r['ten_day_du'] ) { $chu[] = 'xoá tên đầy đủ'; }
+			return array( array( 'xong' => 'Đã xoá sạch "' . $r['ten'] . '": '
+				. ( $chu ? implode( ' · ', $chu ) : 'không còn dấu vết nào để xoá' )
+				. '. Tên này không còn ở đâu trong hệ nữa.' ) );
+		}
+
 		/* 🔴 MÃ CƠ SỞ ĐI KÈM TRONG CHÍNH TÊN VIỆC (`xoa_cs:MA`) — xem chú thích ở nút 🗑. */
 		if ( 0 === strpos( (string) $viec, 'xoa_cs:' ) ) {
 			$ma_x = substr( (string) $viec, 7 );
@@ -6717,6 +6735,105 @@ class VHCC_Web {
 
 		self::the_ghep_cs( $ky, $toi );
 		self::the_coso_la( $ky, $toi );
+		self::the_tra_cs( $ky, $toi );
+	}
+
+	/**
+	 * TRA & DỌN DỨT ĐIỂM MỘT TÊN CƠ SỞ.
+	 *
+	 * Anh Thắng 02/09/2026, sau hai lượt dọn mà hàng vẫn còn trên lưới: *"vẫn cứ hiện cơ sở
+	 * giữa lỗi, cần xoá luôn"*.
+	 *
+	 * 🔴 MỘT CÁI TÊN NẰM Ở NĂM CHỖ, DỌN BỐN CHỖ THÌ NÓ VẪN HIỆN. Cơ sở không phải một bản ghi —
+	 *    nó là chữ, rải ở `cham_cong.coso` · `nhan_vien.cua_hang` · `nhan_vien.coso_phu` ·
+	 *    `may.cua_hang` · `bo_phan_coso.coso` (+ bảng tên đầy đủ). Mỗi chỗ một lối dọn riêng,
+	 *    nên "bấm gộp rồi mà vẫn thấy" là chuyện thường — và trước khối này KHÔNG màn nào nói
+	 *    cho biết còn sót ở đâu. Người dùng chỉ còn cách bấm lại, rồi bấm lại.
+	 *
+	 * ⚠️ BÀY RA CẢ BIẾN THỂ. Hai tên chỉ khác một dấu cách là HAI hàng khác nhau trong kho, mà
+	 *    trên màn thì gần như không phân biệt được — gộp một cái rồi tưởng xong.
+	 */
+	private static function the_tra_cs( $ky, $toi ) {
+		if ( ! VHCC_Vai::duoc( $toi, 'ngoai_coso' ) ) { return; }
+		$q = isset( $_GET['tracs'] ) ? trim( (string) wp_unslash( $_GET['tracs'] ) ) : '';
+
+		echo '<div class="the" id="tracs"><details' . ( '' !== $q ? ' open' : '' ) . '><summary>'
+			. '<b>🔎 Tra &amp; dọn dứt điểm một tên cơ sở</b> '
+			. '<span class="mo">(dùng khi đã gộp/xoá rồi mà tên vẫn hiện · bấm để mở)</span></summary>';
+		echo '<p class="mo" style="margin:10px 0">Một cái tên nằm ở <b>năm chỗ</b>: bảng chấm công · '
+			. 'ô Cơ sở trong hồ sơ · ô Cơ sở phụ · máy đang gán · dòng bộ phận. Dọn bốn chỗ thì nó '
+			. '<b>vẫn hiện</b>. Gõ tên vào đây để xem nó còn sót ở đâu.</p>';
+
+		echo '<form method="get" class="hang">';
+		if ( ! get_option( 'permalink_structure' ) ) { echo '<input type="hidden" name="vhcc_qt" value="1">'; }
+		echo '<input type="hidden" name="man" value="coso">';
+		echo '<div><label for="tracs_o">Tên cơ sở (gõ gần đúng cũng được)</label>'
+			. '<input id="tracs_o" name="tracs" style="min-width:280px" value="' . esc_attr( $q ) . '"></div>';
+		echo '<div><button class="chinh">Tra</button></div></form>';
+
+		if ( '' === $q ) { echo '</details></div>'; return; }
+
+		$r = VHCC_NhanSu::tra_coso( $q );
+		if ( ! $r || ( ! $r['bien_the'] && ! $r['may'] && ! $r['bo_phan'] && ! $r['ten_day_du'] ) ) {
+			echo '<div class="bao"><b>Không tìm thấy dấu vết nào của "' . esc_html( $q ) . '".</b> '
+				. 'Nếu lưới vẫn hiện hàng ấy thì tải lại trang — có thể trình duyệt đang giữ bản cũ.</div>';
+			echo '</details></div>';
+			return;
+		}
+
+		echo '<p class="mo" style="margin:12px 0 6px"><b>Những tên gần giống đang có trong kho</b> '
+			. '— mỗi dòng là một tên <b>khác nhau</b>, dù nhìn có thể giống hệt:</p>';
+		echo '<form method="post"><input type="hidden" name="ky" value="' . esc_attr( $ky ) . '">'
+			. '<input type="hidden" name="tracs_q" value="' . esc_attr( $q ) . '">';
+		echo '<div class="cuon"><table><thead><tr><th>Tên trong kho</th><th>Lượt chấm công</th>'
+			. '<th>Trong danh mục?</th><th>Xoá sạch</th></tr></thead><tbody>';
+		$dm = VHCC_NhanSu::ds_coso();
+		foreach ( $r['bien_the'] as $b ) {
+			$trong = false;
+			foreach ( $dm as $d ) {
+				if ( 0 === strcasecmp( (string) $d, VHCC_NhanSu::chuan_coso( $b['ten'] ) ) ) { $trong = true; break; }
+			}
+			echo '<tr><td><code>' . esc_html( $b['ten'] ) . '</code></td>';
+			echo '<td>' . ( $b['luot'] ? (int) $b['luot'] : '<span class="mo">0</span>' ) . '</td>';
+			echo '<td>' . ( $trong ? '<span class="k ca2">có</span>' : '<span class="mo">không</span>' ) . '</td>';
+			/* Số lượt nằm trong chính giá trị nút để máy chủ so lại — xem `xoa_sach_coso()`. */
+			echo '<td><button name="viec" value="xoa_sach:' . (int) $b['luot'] . ':' . esc_attr( $b['ten'] )
+				. '" class="nut">🗑 Xoá sạch</button></td></tr>';
+		}
+		echo '</tbody></table></div></form>';
+
+		echo '<p class="mo" style="margin:12px 0 4px"><b>Nó còn nằm ở đâu nữa</b>:</p><ul class="mo">';
+		if ( $r['ho_so'] ) {
+			$ds_hs = array();
+			foreach ( $r['ho_so'] as $h ) { $ds_hs[] = $h['ma_nv'] . ' · ' . $h['ho_ten'] . ' (' . $h['ten'] . ')'; }
+			echo '<li><b>Hồ sơ nhân sự</b> (' . count( $r['ho_so'] ) . '): '
+				. esc_html( implode( ' · ', array_slice( $ds_hs, 0, 20 ) ) )
+				. ( count( $ds_hs ) > 20 ? ' …' : '' )
+				. ' — đây chính là chỗ đẻ ra một <b>hàng 0h</b> trên lưới dù không còn lượt nào.</li>';
+		}
+		if ( $r['may'] ) {
+			$ds_m = array();
+			foreach ( $r['may'] as $m ) { $ds_m[] = ( '' !== $m['serial'] ? $m['serial'] : $m['mac'] ); }
+			echo '<li><b>Máy chấm công</b> (' . count( $r['may'] ) . '): ' . esc_html( implode( ' · ', $ds_m ) )
+				. ' — máy còn gán thì hôm sau công lại chảy về tên này.</li>';
+		}
+		if ( $r['bo_phan'] ) {
+			echo '<li><b>Dòng bộ phận</b> (' . count( $r['bo_phan'] ) . '): '
+				. esc_html( implode( ' · ', $r['bo_phan'] ) )
+				. ' — dòng này là thứ giữ tên trong <b>danh mục</b>, nên nó không rơi xuống khối Cơ sở lạ.</li>';
+		}
+		if ( $r['ten_day_du'] ) {
+			echo '<li><b>Tên đầy đủ đã đặt</b>: ' . esc_html( implode( ' · ', $r['ten_day_du'] ) ) . '</li>';
+		}
+		if ( ! $r['ho_so'] && ! $r['may'] && ! $r['bo_phan'] && ! $r['ten_day_du'] ) {
+			echo '<li>Không còn ở đâu ngoài bảng chấm công.</li>';
+		}
+		echo '</ul>';
+		echo '<div class="bao canh"><b>🗑 Xoá sạch = xoá cả năm chỗ trong một lượt</b>: xoá lượt chấm '
+			. 'công, gỡ tên khỏi mọi hồ sơ, <b>gỡ gán</b> máy (máy không bị xoá, nó về hàng "chờ gán"), '
+			. 'xoá dòng bộ phận và tên đầy đủ. <b>Công đã xoá không lấy lại được</b> — muốn GIỮ công thì '
+			. 'dùng <b>Gộp</b> ở bảng Danh mục hoặc khối Cơ sở lạ.</div>';
+		echo '</details></div>';
 	}
 
 	private static function the_man_cau_hinh( $ky, $toi ) {
