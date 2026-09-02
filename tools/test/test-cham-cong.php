@@ -17806,6 +17806,22 @@ t( 'tên đầy đủ cũng vào', strpos( VHCC_NhanSu::ten_coso( 'MOI_CS_1' ), 
    cái "cơ sở ảo" mà cả bản này sinh ra để dẹp. */
 $r_trung = VHCC_NhanSu::them_coso( $U_CS, 'moi_cs_1' );
 t( '🔴 thêm trùng (khác hoa thường) bị chối', empty( $r_trung['ok'] ), $r_trung );
+/* 🔴 TÊN THẬT CỦA ANH THẮNG PHẢI KHAI ĐƯỢC. `(PART TIME )_POSH+JP` đang nằm trong bảng chấm
+   công thật; không khai nó vào danh mục được thì cũng không gộp hay xoá được — chặn đầu vào
+   không dọn được thứ đã ở trong nhà, nó chỉ khoá mất cái chổi. */
+$r_cong = VHCC_NhanSu::them_coso( $U_CS, '(PART TIME )_POSH+JP', 'Part time POSH+JP' );
+t( '🔴 khai được mã có dấu + và ngoặc', ! empty( $r_cong['ok'] ), $r_cong );
+t( 'và nó vào danh mục thật',
+	in_array( '(PART TIME )_POSH+JP', VHCC_NhanSu::ds_coso(), true ), VHCC_NhanSu::ds_coso() );
+/* Và hàng của nó trên bảng phải dựng được ô Gộp / nút Xoá mang đúng cái tên ấy — tên có dấu
+   cách, ngoặc và `+` là chỗ dễ vỡ nhất khi nhét vào `name="..."` và `value="..."`. */
+$h_cong = vhcc_web_nhu2( 'CSAD', 'Admin', '', array( 'man' => 'coso' ) );
+t( '🔴 bảng dựng được ô Gộp cho tên có dấu + · ngoặc · khoảng trắng',
+	strpos( $h_cong, 'name="gcs[(PART TIME )_POSH+JP]"' ) !== false, $h_cong );
+t( 'và nút Xoá mang đúng tên ấy',
+	strpos( $h_cong, 'value="xoa_cs:(PART TIME )_POSH+JP"' ) !== false, $h_cong );
+VHCC_NhanSu::xoa_coso( $U_CS, '(PART TIME )_POSH+JP' );
+
 $r_ma_xau = VHCC_NhanSu::them_coso( $U_CS, 'CS/XAU?' );
 t( 'mã có ký tự lạ bị chối', empty( $r_ma_xau['ok'] ), $r_ma_xau );
 $r_ma_rong = VHCC_NhanSu::them_coso( $U_CS, '   ' );

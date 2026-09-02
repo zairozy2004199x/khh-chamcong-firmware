@@ -255,6 +255,18 @@ teq( 'mã thường hợp lệ', '', VHCC_NapCong::ma_coso_hop_le( 'JP_SANBAY' )
 /* Sổ thật CÓ cơ sở tên `PART_TIME (POSHJP)` — dấu cách và ngoặc phải nhận, đừng siết quá tay
    rồi chối đúng cái tên đang dùng. */
 teq( 'mã có dấu cách và ngoặc vẫn hợp lệ', '', VHCC_NapCong::ma_coso_hop_le( 'PART_TIME (POSHJP)' ) );
+/* 🔴 DẤU `+` CŨNG PHẢI NHẬN — sổ thật có `(PART TIME )_POSH+JP`. Anh Thắng 02/09/2026 vấp đúng
+   chỗ này khi khai tên ấy vào danh mục để dọn nó: chối ở đây KHÔNG xoá được cái tên đã nằm sẵn
+   trong bảng chấm công (nó vào bằng đường khác — nạp .csv, cổng máy), chỉ khoá mất cái chổi.
+   Mã cơ sở không do ai thiết kế: nó là chuỗi máy chấm công khai và nằm trong tên tệp, nên khuôn
+   này phải mở theo SỔ THẬT, không theo trực giác. */
+teq( '🔴 mã có dấu + vẫn hợp lệ (sổ thật có "(PART TIME )_POSH+JP")',
+	'', VHCC_NapCong::ma_coso_hop_le( '(PART TIME )_POSH+JP' ) );
+teq( 'và cả mã chỉ có dấu + đứng giữa', '', VHCC_NapCong::ma_coso_hop_le( 'POSH+JP' ) );
+/* Nhưng nới một ký tự KHÔNG được thành nới hết — mấy ký tự dưới vẫn phải chối. */
+foreach ( array( 'a"b', "a'b", 'a<b', 'a;b', 'a,b', 'a|b', 'a\\b', 'a%b' ) as $_ma_xau ) {
+	t( 'mã chứa ' . $_ma_xau . ' vẫn bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( $_ma_xau ), $_ma_xau );
+}
 t( 'mã rỗng bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( '' ) );
 t( 'mã có ký tự lạ bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( 'a"b' ) );
 t( 'mã dài quá bị chối', '' !== VHCC_NapCong::ma_coso_hop_le( str_repeat( 'x', 200 ) ) );

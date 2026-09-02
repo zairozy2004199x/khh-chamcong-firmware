@@ -340,14 +340,25 @@ class VHCC_NapCong {
 
 	/**
 	 * Mã cơ sở người ta gõ tay có dùng được không? '' = được, hoặc câu từ chối.
-	 * Cho phép chữ, số, gạch, khoảng trắng và ngoặc — sổ thật có cả `PART_TIME (POSHJP)`.
+	 *
+	 * 🔴 DANH SÁCH KÝ TỰ NÀY MỞ DẦN THEO SỔ THẬT, KHÔNG THEO TRỰC GIÁC. Mã cơ sở không do ai
+	 *    thiết kế — nó là chuỗi mà máy chấm công khai và nằm trong tên tệp .csv, nên nó có gì
+	 *    thì đây phải nhận đúng cái đó.
+	 *      · `( ) ` và khoảng trắng — sổ có `PART_TIME (POSHJP)`;
+	 *      · dấu `+` — sổ có `(PART TIME )_POSH+JP`. Anh Thắng 02/09/2026 vấp đúng chỗ này khi
+	 *        khai tên ấy vào danh mục để dọn: *"Mã cơ sở chỉ nhận chữ, số…"*.
+	 *
+	 * ⚠️ CHẶT Ở ĐÂY MÀ SỔ ĐÃ CÓ RỒI THÌ HỎNG THEO KIỂU TỆ NHẤT: cái tên VẪN nằm trong bảng chấm
+	 *    công (nó vào bằng đường khác — nạp .csv, cổng máy), nhưng người dọn KHÔNG khai nó vào
+	 *    danh mục được, nên cũng không gộp hay xoá được. Chặn đầu vào không xoá được thứ đã ở
+	 *    trong nhà; nó chỉ khoá mất cái chổi.
 	 */
 	public static function ma_coso_hop_le( $cs ) {
 		$cs = trim( (string) $cs );
 		if ( '' === $cs ) { return 'Chưa nhập mã cơ sở.'; }
 		if ( mb_strlen( $cs, 'UTF-8' ) > 100 ) { return 'Mã cơ sở dài quá (tối đa 100 ký tự).'; }
-		if ( ! preg_match( '/^[\p{L}\p{N} _\-().]+$/u', $cs ) ) {
-			return 'Mã cơ sở chỉ nhận chữ, số, khoảng trắng và _ - ( ) . — không nhận ký tự khác.';
+		if ( ! preg_match( '/^[\p{L}\p{N} _\-().+]+$/u', $cs ) ) {
+			return 'Mã cơ sở chỉ nhận chữ, số, khoảng trắng và _ - ( ) . + — không nhận ký tự khác.';
 		}
 		return '';
 	}
