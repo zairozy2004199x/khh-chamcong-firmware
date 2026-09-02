@@ -727,8 +727,21 @@ class VHCC_Web {
 	/* ⚠️ `msoma` là của màn Máy & Firmware — khai ở đây chứ không chỉ ở `VHCC_WebMay::THAM_SO`:
 	      danh sách này là thứ `o_loc()` đọc để chở tham số qua một lượt POST, và thiếu nó thì
 	      chọn máy xong bấm một nút bất kỳ là ô chọn nhảy về máy đầu tiên. */
-	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cng', 'cnv', 'ctk',
+	const THAM_SO = array( 'cs', 'q', 'loc', 'sua', 'pin', 'man', 'ccs', 'cth', 'cbp', 'cbp_het',
+		'cng', 'cnv', 'ctk',
 		'lcs', 'lth', 'ltu', 'lden', 'msoma', 'ncs', 'nma', 'nq' );
+
+	/**
+	 * BAO NHIÊU BẢNG CÔNG DỰNG SẴN KHI BẤM MỘT BỘ PHẬN.
+	 *
+	 * 🔴 CON SỐ NÀY LÀ MỘT ĐÁNH ĐỔI THẬT, KHÔNG PHẢI SỞ THÍCH. Mỗi bảng là lưới CẢ THÁNG của cả
+	 *    một cơ sở — một lượt đọc bảng `cham_cong` cộng một lượt tính. Bộ phận "Khu vui chơi"
+	 *    đang 15 cơ sở: dựng hết là 15 lượt trong một lần tải trang, và người bấm ngồi chờ.
+	 *    Sáu bảng đã phủ trọn ba bộ phận đang có (Máy tự động 4 · Văn phòng 2 · Part time 0) và
+	 *    vẫn mở trang trong một nhịp; phần dư của bộ phận đông thì thành đường tắt một dòng mỗi
+	 *    cơ sở, kèm nút "Vẽ hết" cho ai thật sự cần cả bộ phận trên một trang.
+	 */
+	const TRAN_BANG = 6;
 
 	/** Địa chỉ hiện tại KÈM bộ lọc, lấy từ POST (ô ẩn) rồi mới tới GET. */
 	private static function url_hien() {
@@ -3530,10 +3543,37 @@ class VHCC_Web {
 		$hien_het = ( '' === $cs && $ds_cs && count( $ds_cs ) <= 3
 			&& ! VHCC_Vai::duoc( $toi, 'cong_tat_ca' ) );
 
+		/* 🔴 BẤM MỘT BỘ PHẬN LÀ RA LUÔN BẢNG CÔNG CỦA TỪNG CƠ SỞ TRONG ĐÓ.
+		   Anh Thắng 01/09/2026, ảnh màn Bảng công của kế toán Huỳnh Thị Nhẫn: *"Chỉnh sửa quản
+		   trị cho tài khoản kế toán hoặc admin các xem công cơ sở dễ nhất"* và *"Khi kế toán bấm
+		   vào bộ phận, từng cơ sở 1 bảng công sẽ hiện ra sẵn luôn"*.
+
+		   Trước bản này dải Bộ phận chỉ LỌC LẠI Ô CHỌN — bấm "Máy tự động (4)" xong vẫn đứng
+		   trước một màn trống và câu "Chọn một cơ sở rồi bấm Xem". Kế toán soát công cả chuỗi thì
+		   mỗi cơ sở là ba cú (chọn → Xem → cuộn ngược lên chọn cái khác); hai mươi hai cơ sở là
+		   sáu mươi sáu cú bấm cho một việc lặp đi lặp lại mỗi tháng.
+
+		   ⚠️ CÓ TRẦN, VÀ TRẦN LÀ THẬT CHỨ KHÔNG PHẢI CHO ĐẸP. Mỗi bảng là lưới CẢ THÁNG của cả
+		      cơ sở; "Khu vui chơi" đang 15 cơ sở, dựng hết một lượt là một trang không ai chờ nổi
+		      và máy chủ gánh 15 lượt đọc + tính. Nên vẽ tối đa `TRAN_BANG` cơ sở đầu; phần còn
+		      lại liệt kê thành đường tắt một dòng mỗi cơ sở, bấm là vào thẳng (không phải chọn ô
+		      rồi bấm Xem). Ai thật sự cần cả bộ phận trong một trang thì có nút "Vẽ hết" — chủ
+		      động chờ, khác hẳn với bị bắt chờ.
+
+		   ⚠️ CHỈ khi CHƯA chọn cơ sở. Chọn đúng một cơ sở ở ô lọc vẫn phải ra đúng một bảng, nếu
+		      không thì ô lọc ấy thành vô tác dụng — cùng lý do đã ghi ở khối `$hien_het` trên. */
+		$het_bp = ( '' === $cs && '' !== $bp && $ds_cs
+			&& ! empty( $_GET['cbp_het'] ) );
+		if ( '' === $cs && '' !== $bp && $ds_cs ) { $hien_het = true; }
+
 		if ( '' === $cs && ! $hien_het ) {
 			self::khoi_thieu_anh( $toi, $cs );
 			echo '<p class="mo" style="margin-top:12px">'
-				. ( $ds_cs ? 'Chọn một cơ sở rồi bấm Xem.'
+				/* Chỉ đường sang dải Bộ phận thay vì chỉ nói "chọn cơ sở": từ 01/09/2026 bấm một
+				   bộ phận là ra thẳng bảng công của từng cơ sở trong đó, nhanh hơn hẳn đường
+				   chọn-rồi-bấm-Xem. Không nói ra thì không ai biết dải ấy làm được việc đó. */
+				. ( $ds_cs ? 'Bấm một <b>Bộ phận</b> ở trên là hiện luôn bảng công của từng cơ sở '
+						. 'trong đó — khỏi chọn từng cái. Hoặc chọn đúng một cơ sở rồi bấm Xem.'
 					: ( '' !== $bp
 						? 'Không có cơ sở nào thuộc bộ phận này trong phạm vi của anh/chị.'
 						: 'Tài khoản này chưa được gán cơ sở nào — nhờ Admin khai ô "Cửa hàng phụ trách".' ) )
@@ -3556,11 +3596,31 @@ class VHCC_Web {
 		/* $hien_het thì vẽ HẾT các cơ sở của người này; ngược lại (đã chọn ở ô lọc) chỉ vẽ đúng
 		   một cơ sở — mảng một phần tử để dùng chung một vòng lặp, không tách hai nhánh mã. */
 		$ds_ve = $hien_het ? $ds_cs : array( $cs );
+		/* Cắt theo trần (xem khối 🔴 ở trên). `$het_bp` = người dùng đã tự bấm "Vẽ hết". */
+		$du_lai = array();
+		if ( $hien_het && ! $het_bp && count( $ds_ve ) > self::TRAN_BANG ) {
+			$du_lai = array_slice( $ds_ve, self::TRAN_BANG );
+			$ds_ve  = array_slice( $ds_ve, 0, self::TRAN_BANG );
+		}
+		if ( $du_lai ) { self::khoi_con_lai_bp( $du_lai, $bp, $th, $ngay, $ma_nv, count( $ds_cs ) ); }
+		/* 🔴 SÁU BẢNG CẢ THÁNG LÀ MỘT TRANG RẤT DÀI. Dựng sẵn hết mà không có cách nhảy thì thứ
+		   vừa tiết kiệm được (khỏi chọn từng cơ sở) lại mất vào việc cuộn tìm. Dải neo này nhảy
+		   thẳng tới bảng của từng cơ sở, không tải lại trang. */
+		if ( count( $ds_ve ) > 1 ) {
+			echo '<div class="the"><div class="loc-bp" style="margin:0">'
+				. '<span class="nhan-bp">Nhảy tới</span>';
+			foreach ( $ds_ve as $x ) {
+				echo '<a class="nut" href="#cs-' . esc_attr( sanitize_title( $x ) ) . '">'
+					. esc_html( $x ) . '</a>';
+			}
+			echo '</div></div>';
+		}
 		foreach ( $ds_ve as $mot_cs ) {
 			/* Tên cơ sở làm tiêu đề CHỈ khi có hơn một bảng — một bảng thì tiêu đề "Chấm công"
 			   ở trên đã đủ nói, thêm một dòng tên cơ sở nữa là lặp lại vô ích. */
 			if ( count( $ds_ve ) > 1 ) {
-				echo '<h3 style="margin:22px 0 4px">🏬 ' . esc_html( $mot_cs ) . '</h3>';
+				echo '<h3 id="cs-' . esc_attr( sanitize_title( $mot_cs ) ) . '" style="margin:22px 0 4px">🏬 '
+					. esc_html( $mot_cs ) . '</h3>';
 			}
 			self::khoi_thieu_anh( $toi, $mot_cs );
 			$b = VHCC_Cham::bang_cham_cong( $toi, $mot_cs, $th );
@@ -6235,6 +6295,39 @@ class VHCC_Web {
 	 *     tính theo công + giờ) · `vp` (văn phòng, tính theo ngày công). Không gộp làm một:
 	 *     mỗi kiểu có những cột mà kiểu kia không có nghĩa gì.
 	 * ======================================================================== */
+	/**
+	 * PHẦN CƠ SỞ VƯỢT TRẦN — đường tắt một dòng mỗi cơ sở, và nút "Vẽ hết".
+	 *
+	 * 🔴 KHÔNG ĐƯỢC LẶNG LẼ CẮT. Bấm "Khu vui chơi (15)" mà chỉ hiện 6 bảng rồi thôi là người
+	 *    đọc tưởng chuỗi chỉ có 6 cơ sở, hoặc tưởng 9 cơ sở kia chưa nạp dữ liệu — cả hai đều
+	 *    dẫn tới kết luận sai về con số. Nói thẳng còn bao nhiêu, và cho đường đi tới từng cái.
+	 *
+	 * ⚠️ ĐƯỜNG TẮT PHẢI VÀO THẲNG, không phải "chọn ô rồi bấm Xem". Đó là chính cái vòng mà bản
+	 *    này đang gỡ bỏ; dựng lại nó dưới dạng một danh sách thì chẳng đỡ được gì.
+	 */
+	private static function khoi_con_lai_bp( $du_lai, $bp, $th, $ngay, $ma_nv, $tong ) {
+		$giu = array( 'man' => 'cham', 'cbp' => $bp );
+		if ( '' !== $th )    { $giu['cth'] = $th; }
+		if ( '' !== $ngay )  { $giu['cng'] = $ngay; }
+		if ( '' !== $ma_nv ) { $giu['cnv'] = $ma_nv; }
+
+		echo '<div class="the">';
+		echo '<p class="mo" style="margin:0 0 8px">Bộ phận <b>' . esc_html( $bp ) . '</b> có <b>'
+			. (int) $tong . '</b> cơ sở. Đang dựng sẵn <b>' . (int) self::TRAN_BANG
+			. '</b> bảng đầu — mỗi bảng là lưới cả tháng nên dựng hết một lượt thì trang rất nặng. '
+			. 'Bấm tên cơ sở bên dưới là vào thẳng bảng của nó.</p>';
+		echo '<div class="loc-bp" style="margin:0">';
+		foreach ( $du_lai as $x ) {
+			$u = add_query_arg( array_merge( $giu, array( 'ccs' => $x ) ), self::url() );
+			echo '<a class="nut" href="' . esc_url( $u ) . '">' . esc_html( $x ) . '</a>';
+		}
+		echo '</div>';
+		$u_het = add_query_arg( array_merge( $giu, array( 'cbp_het' => '1' ) ), self::url() );
+		echo '<p class="mo" style="margin:8px 0 0"><a href="' . esc_url( $u_het ) . '"><b>Vẽ hết '
+			. (int) $tong . ' bảng trên một trang</b></a> — sẽ chờ lâu hơn.</p>';
+		echo '</div>';
+	}
+
 	private static function the_khoi_luong( $toi, $cs, $th ) {
 		/* 🔴 KHÔNG CÓ Ô LỌC RIÊNG. Cơ sở và tháng nhận thẳng từ màn Bảng công — đó là toàn bộ
 		   điểm của việc gộp. Dựng thêm một ô chọn ở đây là hai ô cho cùng một thứ, và người ta

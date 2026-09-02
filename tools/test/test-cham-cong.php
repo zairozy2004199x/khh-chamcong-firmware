@@ -17031,8 +17031,30 @@ t( 'chọn đúng một cơ sở ở ô lọc thì CHỈ ra đúng cơ sở đó
 t( 'sổ (toàn hệ) đúng 2 cơ sở lúc này (nếu khác thì phép thử dưới vô nghĩa)',
 	count( VHCC_NhanSu::ds_coso() ) === 2, VHCC_NhanSu::ds_coso() );
 $h_kt_2cs = vhcc_web_nhu2( 'HTBKT', 'Kế toán', $u_2cs, array( 'man' => 'cham', 'cth' => '2026-08' ) );
-t( '🔴 Kế toán (cong_tat_ca) vẫn phải CHỌN, dù sổ chỉ 2 cơ sở',
-	strpos( $h_kt_2cs, 'Chọn một cơ sở rồi bấm Xem.' ) !== false, $h_kt_2cs );
+/* ⚠️ CANH CÓ VẼ BẢNG HAY KHÔNG, ĐỪNG CANH CÂU CHỮ. Bản trước dò đúng câu "Chọn một cơ sở rồi
+   bấm Xem." — rồi 01/09/2026 câu ấy đổi thành lời chỉ đường sang dải Bộ phận, và phép thử gãy
+   dù luật không đổi tí nào. Thứ đang canh là: chưa chọn gì thì KHÔNG có bảng nào được dựng. */
+t( '🔴 Kế toán (cong_tat_ca) chưa chọn bộ phận/cơ sở thì KHÔNG tự vẽ bảng nào, dù sổ chỉ 2 cơ sở',
+	strpos( $h_kt_2cs, 'HTB1' ) === false && strpos( $h_kt_2cs, 'HTB2' ) === false, $h_kt_2cs );
+
+/* 🔴 NHƯNG BẤM MỘT BỘ PHẬN LÀ RA LUÔN TỪNG CƠ SỞ TRONG ĐÓ.
+   Anh Thắng 01/09/2026: *"Khi kế toán bấm vào bộ phận, từng cơ sở 1 bảng công sẽ hiện ra sẵn
+   luôn"*. HT_BC1/HT_BC2 chưa xếp bộ phận nào nên chúng nằm ở nhóm "Chưa xếp". */
+$h_kt_bp = vhcc_web_nhu2( 'HTBKT', 'Kế toán', $u_2cs,
+	array( 'man' => 'cham', 'cth' => '2026-08', 'cbp' => VHCC_Luong::BP_CHUA_XEP ) );
+t( '🔴 Kế toán bấm một bộ phận -> hiện SẴN bảng của từng cơ sở trong đó',
+	strpos( $h_kt_bp, 'HTB1' ) !== false && strpos( $h_kt_bp, 'HTB2' ) !== false, $h_kt_bp );
+t( 'và có tên cả hai cơ sở làm tiêu đề',
+	strpos( $h_kt_bp, 'HT_BC1' ) !== false && strpos( $h_kt_bp, 'HT_BC2' ) !== false, $h_kt_bp );
+/* Nhiều bảng thì phải có dải nhảy tới — sáu lưới cả tháng là một trang rất dài, dựng sẵn hết mà
+   không có cách nhảy thì thứ vừa tiết kiệm được lại mất vào việc cuộn tìm. */
+t( 'kèm dải "Nhảy tới" để khỏi cuộn tìm', strpos( $h_kt_bp, 'Nhảy tới' ) !== false, $h_kt_bp );
+/* Chọn đúng MỘT cơ sở trong khi vẫn đang lọc bộ phận thì vẫn ra đúng một bảng — ô lọc không
+   được thành vô tác dụng chỉ vì "bấm bộ phận là hiện hết". */
+$h_kt_bp1 = vhcc_web_nhu2( 'HTBKT', 'Kế toán', $u_2cs,
+	array( 'man' => 'cham', 'cth' => '2026-08', 'cbp' => VHCC_Luong::BP_CHUA_XEP, 'ccs' => 'HT_BC1' ) );
+t( '🔴 chọn một cơ sở khi đang lọc bộ phận thì CHỈ ra cơ sở đó',
+	strpos( $h_kt_bp1, 'HTB1' ) !== false && strpos( $h_kt_bp1, 'HTB2' ) === false, $h_kt_bp1 );
 
 /* 🔴 QUÁ 3 CƠ SỞ THÌ QUAY LẠI LUẬT CHỌN MỘT — coi như một vai vận hành rộng hơn CHT một-vài-
    cửa-hàng, dựng hết một lượt là một trang không ai cuộn nổi. */
@@ -17041,8 +17063,45 @@ vhcc_cham( 'HT_BC4', '2026-08-08', 'HTB4', '', '08:00:00', '17:00:00' );
 $u_4cs = 'HT_BC1,HT_BC2,HT_BC3,HT_BC4';
 $h_4cs = vhcc_web_nhu2( 'HTBCHT2', 'CUA_HANG_TRUONG', $u_4cs,
 	array( 'man' => 'cham', 'cth' => '2026-08' ) );
-t( '🔴 quá 3 cơ sở thì QUAY LẠI luật chọn một qua ô lọc',
-	strpos( $h_4cs, 'Chọn một cơ sở rồi bấm Xem.' ) !== false, $h_4cs );
+t( '🔴 quá 3 cơ sở, CHƯA lọc bộ phận: không tự vẽ bảng nào',
+	strpos( $h_4cs, 'HTB1' ) === false && strpos( $h_4cs, 'HTB4' ) === false, $h_4cs );
+
+/* =============================================================================================
+ * 🔴 TRẦN SỐ BẢNG DỰNG SẴN KHI BẤM MỘT BỘ PHẬN ĐÔNG CƠ SỞ
+ * =============================================================================================
+ * Mỗi bảng là lưới CẢ THÁNG của cả một cơ sở — một lượt đọc `cham_cong` cộng một lượt tính.
+ * Bộ phận "Khu vui chơi" thật đang 15 cơ sở; dựng hết một lượt là trang không ai chờ nổi. Nên
+ * vẽ `TRAN_BANG` bảng đầu, phần dư thành đường tắt một dòng mỗi cơ sở.
+ *
+ * ⚠️ CẮT MÀ IM LẶNG LÀ TỆ HƠN KHÔNG CẮT: người đọc tưởng bộ phận chỉ có ngần ấy cơ sở, hoặc
+ *    tưởng số còn lại chưa nạp dữ liệu. Cả hai đều dẫn tới kết luận SAI về con số.
+ */
+$ds_tran = array();
+for ( $i = 1; $i <= 8; $i++ ) {
+	$cs_t = 'HT_TRAN' . $i;
+	vhcc_cham( $cs_t, '2026-08-1' . ( $i % 10 ), 'HTT' . $i, '', '08:00:00', '17:00:00' );
+	VHCC_NhanSu::xep_bo_phan( array( 'name' => 'Người Thử', 'vai_tro' => 'Admin' ), $cs_t, 'Khu vui chơi' );
+	$ds_tran[] = $cs_t;
+}
+$u_tran = implode( ',', $ds_tran );
+$h_tran = vhcc_web_nhu2( 'HTBKT2', 'Kế toán', $u_tran,
+	array( 'man' => 'cham', 'cth' => '2026-08', 'cbp' => 'Khu vui chơi' ) );
+t( 'dựng đúng TRAN_BANG bảng đầu', strpos( $h_tran, 'HTT1' ) !== false
+	&& strpos( $h_tran, 'HTT' . VHCC_Web::TRAN_BANG ) !== false, null );
+t( '🔴 cơ sở thứ (TRAN_BANG+1) KHÔNG bị dựng bảng',
+	strpos( $h_tran, 'HTT' . ( VHCC_Web::TRAN_BANG + 1 ) ) === false, null );
+t( '🔴 nhưng phải NÓI RA còn bao nhiêu, không lặng lẽ cắt',
+	strpos( $h_tran, 'Đang dựng sẵn' ) !== false, $h_tran );
+t( 'và cho đường vào thẳng từng cơ sở còn lại',
+	strpos( $h_tran, 'HT_TRAN' . ( VHCC_Web::TRAN_BANG + 1 ) ) !== false, null );
+t( 'kèm nút vẽ hết cho ai thật sự cần', strpos( $h_tran, 'cbp_het' ) !== false, null );
+
+/* Bấm "Vẽ hết" thì phải ra ĐỦ — nút mà không làm đúng điều nó hứa còn tệ hơn không có nút. */
+$h_het = vhcc_web_nhu2( 'HTBKT2', 'Kế toán', $u_tran,
+	array( 'man' => 'cham', 'cth' => '2026-08', 'cbp' => 'Khu vui chơi', 'cbp_het' => '1' ) );
+t( '🔴 bấm "Vẽ hết" thì dựng đủ cả 8 cơ sở',
+	strpos( $h_het, 'HTT1' ) !== false && strpos( $h_het, 'HTT8' ) !== false, null );
+t( 'và thôi hiện khối "còn lại"', strpos( $h_het, 'Đang dựng sẵn' ) === false, null );
 
 /* Màn quản trị KHÔNG có script — luật chung, nhánh "hiện hết" không được phá lệ dù vẽ nhiều bảng. */
 t( '🔴 màn "hiện hết" vẫn không có thẻ script nào', stripos( $h_2cs, '<script' ) === false );
