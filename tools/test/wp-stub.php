@@ -533,8 +533,9 @@ function vhcp_test_create_tables() {
 		"CREATE TABLE {$p}mk_line (stt INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE, ma_don TEXT, kenh TEXT DEFAULT '', noi_dung TEXT DEFAULT '', du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ket_qua REAL DEFAULT 0, ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '')",
 		"CREATE TABLE {$p}bp_index (stt INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT UNIQUE, loai TEXT DEFAULT '', ten TEXT DEFAULT '', nguoi TEXT DEFAULT '', dia_diem TEXT DEFAULT '', ky TEXT DEFAULT '', trang_thai TEXT DEFAULT 'Đang xử lý', ngay_tao TEXT DEFAULT '', nguoi_tao TEXT DEFAULT '')",
 		"CREATE TABLE {$p}bp_line (id INTEGER PRIMARY KEY AUTOINCREMENT, ma TEXT, row_no INTEGER DEFAULT 5, noi_dung TEXT DEFAULT '', so_luong REAL DEFAULT 0, don_gia REAL DEFAULT 0, thanh_tien REAL DEFAULT 0, du_toan REAL DEFAULT 0, thuc_te REAL DEFAULT 0, hinh_thuc TEXT DEFAULT '', vat TEXT DEFAULT '', ngay TEXT DEFAULT '', note TEXT DEFAULT '', ho_so TEXT DEFAULT '', loai_cp TEXT DEFAULT '', tk_no TEXT DEFAULT '', tk_co TEXT DEFAULT '', ma_dt TEXT DEFAULT '', UNIQUE(ma,row_no))",
-		// Bảng phiên của plugin Thư viện hợp đồng — tiền tố vhd_, KHÔNG phải vhcp_
-		"CREATE TABLE wp_vhd_session (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE, ten TEXT DEFAULT '', vai_tro TEXT DEFAULT '', coso TEXT DEFAULT '', het_han TEXT)",
+		/* Bảng của plugin Thư viện hợp đồng KHÔNG khai ở đây nữa — xem `vhd_test_boot()`, nó
+		   dựng thẳng từ `VHD_DB::bang()`. Trước bản này `wp_vhd_session` được gõ tay ngay chỗ
+		   này: đúng cái bẫy khai-hai-nơi mà bảng chấm công đã sập một lần. */
 		/* Bảng của plugin chấm công KHÔNG khai ở đây nữa — xem vhcc_test_boot(), nó dựng thẳng
 		   từ VHCC_DB::bang(). Trước bản này `wp_vhcc_session` được gõ tay ngay chỗ này, và đúng
 		   cái bẫy khai-hai-nơi đã sập: thêm cột `ma_nv` vào sơ đồ thật thì bài kiểm chết với
@@ -678,9 +679,27 @@ function vhd_test_boot( $dir ) {
 	define( 'VHD_VERSION', 'test' );
 	define( 'VHD_DIR', $dir . '/' );
 	define( 'VHD_URL', 'http://example.test/plugin-hop-dong/' );
-	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'trang' ) as $c ) {
+	foreach ( array( 'db', 'auth', 'cau-noi', 'api', 'kho', 'man-kho', 'trang' ) as $c ) {
 		require_once $dir . '/includes/class-vhd-' . $c . '.php';
 	}
+	vhd_test_create_tables();
+}
+
+/** Dựng bảng của plugin hợp đồng từ CHÍNH sơ đồ thật — cùng lý do với `vhcc_test_create_tables`. */
+function vhd_test_create_tables() {
+	global $wpdb;
+	foreach ( VHD_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( vhcc_test_ddl( VHD_DB::t( $ten ), $than ) );
+	}
+}
+
+/** Xoá sạch rồi dựng lại kho hợp đồng — để mỗi mục của bài kiểm bắt đầu từ bảng trống. */
+function vhd_dung_bang() {
+	global $wpdb;
+	foreach ( VHD_DB::bang() as $ten => $than ) {
+		$wpdb->exec_raw( 'DROP TABLE IF EXISTS ' . VHD_DB::t( $ten ) );
+	}
+	vhd_test_create_tables();
 }
 
 /* Múi giờ của website. WordPress thật đọc `timezone_string` rồi tới `gmt_offset`. Bản giả này

@@ -3,7 +3,7 @@
  * Plugin Name:       Thư Viện Hợp Đồng (K&H)
  * Plugin URI:        https://github.com/zairozy2004199x/khh-chamcong-firmware
  * Description:       Đưa app Thư viện hợp đồng (Apps Script) lên website: giao diện và nghiệp vụ GIỮ NGUYÊN bản gốc, dữ liệu vẫn đọc/ghi trên Google Sheet. WordPress lo cổng PIN và giữ khoá bí mật.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 5.6
  * Requires PHP:      7.2
  * Author:            K&H
@@ -29,7 +29,7 @@
 
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
-define( 'VHD_VERSION', '1.0.0' );
+define( 'VHD_VERSION', '1.1.0' );
 define( 'VHD_FILE', __FILE__ );
 define( 'VHD_DIR', plugin_dir_path( __FILE__ ) );
 define( 'VHD_URL', plugin_dir_url( __FILE__ ) );
@@ -38,6 +38,8 @@ require_once VHD_DIR . 'includes/class-vhd-db.php';
 require_once VHD_DIR . 'includes/class-vhd-auth.php';
 require_once VHD_DIR . 'includes/class-vhd-cau-noi.php';
 require_once VHD_DIR . 'includes/class-vhd-api.php';
+require_once VHD_DIR . 'includes/class-vhd-kho.php';
+require_once VHD_DIR . 'includes/class-vhd-man-kho.php';
 require_once VHD_DIR . 'includes/class-vhd-trang.php';
 require_once VHD_DIR . 'includes/class-vhd-admin.php';
 

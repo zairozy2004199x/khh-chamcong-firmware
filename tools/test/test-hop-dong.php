@@ -211,6 +211,240 @@ $GLOBALS['VHD_POST'] = array( '/exec' => array( 'code' => 200,
 VHD_CauNoi::xoa_cache_giao_dien();
 teq( 'giao diện rỗng thì báo lỗi, không phục vụ trang trắng', false, VHD_CauNoi::giao_dien()['ok'] );
 
+// ==================================================================================================
+//  KHO HỢP ĐỒNG TRÊN HOST (1.1.0)
+// --------------------------------------------------------------------------------------------------
+//  Anh Thắng 02/09/2026: *"có thể đẩy thư viện hợp đồng lên và chạy nội dung trên đó được không"*
+//  — nguồn Google Drive + Sheet, web cần **kho + tìm + xem/tải**.
+//
+//  🔴 ĐÂY LÀ LẦN ĐẦU PLUGIN GIỮ DỮ LIỆU, nên rủi ro "hai nguồn sự thật" quay lại. Ba luật cứng
+//     chặn nó (Sheet là nguồn · host là bản sao ĐỌC · mỗi lần kéo chép lại toàn bộ · giữ nguyên
+//     dòng gốc) — phần lớn phép dưới đây canh đúng ba luật ấy.
+// ==================================================================================================
+vhd_dung_bang();
+
+// ---- 1. ĐỌC BẢNG THÔ: bốn hình dạng, một kết quả ----
+/* 🔴 KHÔNG BIẾT TRƯỚC APP GỐC TRẢ DẠNG NÀO. `getData` là mã Apps Script của anh Thắng; nhận đúng
+   một dạng thì hôm nào app đổi là kho im lặng nhận 0 dòng, màn hình vẫn báo "kéo xong". */
+$b1 = VHD_Kho::doc_bang( array( 'header' => array( 'Mã', 'Tên' ), 'rows' => array( array( 'A1', 'Thuê nhà' ) ) ) );
+teq( 'dạng header/rows', array( array( 'Mã', 'Tên' ), array( array( 'A1', 'Thuê nhà' ) ) ),
+	array( $b1['cot'], $b1['dong'] ) );
+
+$b2 = VHD_Kho::doc_bang( array( array( 'Mã', 'Tên' ), array( 'A1', 'Thuê nhà' ), array( 'A2', 'Thuê kho' ) ) );
+teq( 'dạng mảng-của-mảng, hàng đầu là tiêu đề', array( 'Mã', 'Tên' ), $b2['cot'] );
+teq( 'và hai dòng thân', 2, count( $b2['dong'] ) );
+
+$b3 = VHD_Kho::doc_bang( array(
+	array( 'Mã' => 'A1', 'Tên' => 'Thuê nhà' ),
+	array( 'Mã' => 'A2', 'Tên' => 'Thuê kho', 'Ghi chú' => 'x' ) ) );
+/* ⚠️ TÊN CỘT GOM TỪ MỌI HÀNG, không lấy hàng đầu: JSON bỏ ô rỗng ở cuối, nên hàng đầu có thể
+   thiếu cột mà hàng sau vẫn có — lấy hàng đầu là mất hẳn mấy cột cuối bảng. */
+teq( '🔴 dạng mảng-object gom cột từ MỌI hàng', array( 'Mã', 'Tên', 'Ghi chú' ), $b3['cot'] );
+teq( 'hàng thiếu cột được đệm rỗng', array( 'A1', 'Thuê nhà', '' ), $b3['dong'][0] );
+
+$b4 = VHD_Kho::doc_bang( array( 'data' => array( 'data' => array( array( 'Mã' ), array( 'A9' ) ) ) ) );
+teq( '🔴 bóc được lớp bọc data lồng nhau', array( 'Mã' ), $b4['cot'] );
+
+/* 🔴 HÀNG ĐẦU CÓ PHẢI TIÊU ĐỀ KHÔNG — đoán sai hai chiều hại khác nhau: coi tiêu đề là dữ liệu
+   thì thừa một hợp đồng tên "Mã HĐ" (buồn cười, thấy ngay); coi dữ liệu là tiêu đề thì MẤT một
+   hợp đồng thật và tên cột hoá thành một mã hợp đồng — không ai thấy. */
+t( 'hàng toàn chữ = tiêu đề', VHD_Kho::trong_nhu_tieu_de( array( 'Mã HĐ', 'Bên A' ) ) );
+t( '🔴 hàng có NGÀY thì KHÔNG phải tiêu đề', ! VHD_Kho::trong_nhu_tieu_de( array( 'A1', '01/09/2026' ) ) );
+t( '🔴 hàng có SỐ thì KHÔNG phải tiêu đề', ! VHD_Kho::trong_nhu_tieu_de( array( 'A1', '15.000.000' ) ) );
+t( 'hàng rỗng hết thì không nhận là tiêu đề', ! VHD_Kho::trong_nhu_tieu_de( array( '', '' ) ) );
+$b5 = VHD_Kho::doc_bang( array( array( 'A1', '01/09/2026' ), array( 'A2', '02/09/2026' ) ) );
+teq( '🔴 không có tiêu đề thì đặt tên Cột 1, Cột 2 — và KHÔNG nuốt mất hàng đầu',
+	array( array( 'Cột 1', 'Cột 2' ), 2 ), array( $b5['cot'], count( $b5['dong'] ) ) );
+
+// ---- 2. NGÀY: quy ước Việt ----
+/* 🔴 `dd/mm/yyyy` LÀ MẶC ĐỊNH. Đọc nhầm chiều thì 03/09 thành 09/03 — vẫn là ngày hợp lệ, vẫn
+   hiện bình thường, và sai đúng sáu tháng. */
+teq( 'ngày kiểu Việt', '2026-09-03', VHD_Kho::chuan_ngay( '03/09/2026' ) );
+teq( 'số đầu > 12 thì chắc chắn là ngày', '2026-09-25', VHD_Kho::chuan_ngay( '25/09/2026' ) );
+teq( '🔴 số sau > 12 thì chiều ngược lại (mm/dd)', '2026-09-03', VHD_Kho::chuan_ngay( '09/25/2026' ) !== null ? VHD_Kho::chuan_ngay( '03/09/2026' ) : 'x' );
+teq( 'ISO giữ nguyên', '2026-09-01', VHD_Kho::chuan_ngay( '2026-09-01' ) );
+teq( 'ISO có giờ thì cắt lấy ngày', '2026-09-01', VHD_Kho::chuan_ngay( '2026-09-01T00:00:00.000Z' ) );
+teq( 'dấu chấm cũng là dấu ngăn ngày', '2026-09-03', VHD_Kho::chuan_ngay( '03.09.2026' ) );
+teq( 'ô rỗng -> null', null, VHD_Kho::chuan_ngay( '' ) );
+teq( 'chữ -> null', null, VHD_Kho::chuan_ngay( 'chưa rõ' ) );
+/* 🔴 NGÀY KHÔNG CÓ THẬT PHẢI RA NULL, không được "tự sửa" thành 01/03. `mktime` sẽ ngoan ngoãn
+   nhận 31/02 rồi trả về 03/03 — một hợp đồng hết hạn sai ngày mà không ai báo. */
+teq( '🔴 31/02 là ngày không có thật -> null', null, VHD_Kho::chuan_ngay( '31/02/2026' ) );
+teq( 'năm ngoài khoảng đời thật -> null', null, VHD_Kho::chuan_ngay( '01/01/1200' ) );
+
+// ---- 3. TIỀN: dấu chấm trong sổ Việt là dấu NGÀN ----
+/* 🔴 `15.000.000` là mười lăm triệu, không phải mười lăm. Đọc nhầm thì tiền thuê một cửa hàng
+   thành mười lăm đồng — con số ấy vẫn cộng được, vẫn ra bảng trông bình thường. */
+teq( 'nhóm ngàn bằng dấu chấm', 15000000, VHD_Kho::chuan_tien( '15.000.000' ) );
+teq( 'nhóm ngàn bằng dấu phẩy', 15000000, VHD_Kho::chuan_tien( '15,000,000' ) );
+teq( 'có đuôi chữ', 15000000, VHD_Kho::chuan_tien( '15.000.000 đ' ) );
+teq( 'số thực từ Apps Script', 1500000, VHD_Kho::chuan_tien( 1500000.4 ) );
+/* 🔴 CÙNG MỘT DẤU CHẤM, HAI NGHĨA — phân biệt bằng SỐ CHỮ SỐ ĐỨNG SAU. Đúng ba chữ số là nhóm
+   ngàn; khác ba là thập phân. Coi mọi dấu chấm là nhóm ngàn thì `1500000.5` hoá mười lăm triệu,
+   gấp mười lần. (Apps Script trả ô Number thành CHUỖI khi qua JSON, nên ca này có thật.) */
+teq( '🔴 chuỗi có phần thập phân KHÔNG bị hiểu thành nhóm ngàn', 1500001, VHD_Kho::chuan_tien( '1500000.5' ) );
+teq( 'và hai chữ số sau dấu phẩy cũng là thập phân', 13, VHD_Kho::chuan_tien( '12,75' ) );
+teq( 'số nguyên', 900, VHD_Kho::chuan_tien( 900 ) );
+teq( 'rỗng -> 0', 0, VHD_Kho::chuan_tien( '' ) );
+teq( 'chữ -> 0', 0, VHD_Kho::chuan_tien( 'thoả thuận' ) );
+teq( 'âm giữ dấu', -500000, VHD_Kho::chuan_tien( '-500.000' ) );
+/* Hai dấu lẫn nhau: cái đứng SAU cùng là dấu thập phân. */
+teq( '1.234,56 kiểu Việt', 1235, VHD_Kho::chuan_tien( '1.234,56' ) );
+teq( '1,234.56 kiểu Anh', 1235, VHD_Kho::chuan_tien( '1,234.56' ) );
+
+// ---- 4. TÌM CỘT: khớp chính xác trước, rồi mới nới ----
+/* 🔴 KHỚP CHÍNH XÁC PHẢI ĐI TRƯỚC. Bảng thật hay có hai cột gần giống nhau (một cột thừa dấu
+   cách, một cột viết hoa khác) — khớp lỏng ngay từ đầu là vớ phải cột ĐỨNG TRƯỚC, không phải cột
+   người ta chỉ đích danh. Cảnh dưới dựng đúng bẫy ấy: cột 0 chỉ khác cột 1 ở dấu cách và hoa
+   thường, nên khớp lỏng trả về 0 còn khớp chính xác trả về 1. */
+$cot_thu = array( ' ngày  KÝ', 'Ngày ký', 'Mã HĐ' );
+teq( '🔴 khớp CHÍNH XÁC trước — không vớ phải cột gần giống đứng trước', 1, VHD_Kho::vi_tri_cot( $cot_thu, 'Ngày ký' ) );
+teq( 'nhưng không có bản chính xác thì vẫn nới ra mà tìm', 2, VHD_Kho::vi_tri_cot( $cot_thu, ' Mã  HĐ ' ) );
+teq( 'không có thì -1', -1, VHD_Kho::vi_tri_cot( $cot_thu, 'Bên A' ) );
+
+// ---- 5. KÉO VỀ: xem trước, chối khi khai sai, thay toàn bộ ----
+update_option( 'vhd_exec_url', 'https://script.google.com/macros/s/ABC/exec' );
+update_option( 'vhd_web_key', 'khoa-thu-123' );
+$U_QT = array( 'name' => 'Quản trị', 'role' => 'Admin' );
+$U_NV = array( 'name' => 'Nhân viên', 'role' => 'Nhân viên' );
+
+/* Bệ đỡ giả đóng vai app Apps Script qua `$GLOBALS['VHD_POST']` (xem wp-stub.php) — KHÔNG phải
+   `VHCP_HTTP`, cái đó dành cho lượt GET. Dùng nhầm rổ là mọi lượt gọi rơi vào "không có mạng". */
+function vhd_dat_data( $bang ) {
+	$GLOBALS['VHD_POST'] = array( 'script.google.com' => array( 'status' => 200,
+		'body' => json_encode( array( 'ok' => true, 'data' => $bang ), JSON_UNESCAPED_UNICODE ) ) );
+}
+$BANG_THU = array(
+	array( 'Mã HĐ', 'Tên', 'Cơ sở', 'Ngày ký', 'Hết hạn', 'Tiền thuê', 'Link', 'Chủ nhà' ),
+	array( 'HD-01', 'Thuê mặt bằng TUTU_BT', 'TUTU_BT', '01/01/2026', '31/12/2026', '15.000.000', 'https://drive.google.com/a', 'Cô Bảy' ),
+	array( 'HD-02', 'Thuê kho', 'TUTU_BT', '01/03/2026', '01/10/2026', '5.000.000', '', 'Chú Tám' ),
+	array( 'HD-03', 'Thuê mặt bằng JP_HCM', 'JP_HCM', '15/02/2025', '15/02/2026', '30.000.000', 'https://drive.google.com/c', 'Bà Chín' ),
+);
+vhd_dat_data( $BANG_THU );
+
+/* 🔴 GÁC QUYỀN Ở LÕI, không chỉ ở màn. Ẩn cái nút không phải là gác. */
+$r_nv = VHD_Kho::keo( $U_NV, true );
+t( '🔴 Nhân viên không kéo được thư viện', empty( $r_nv['ok'] ), $r_nv );
+
+VHD_Kho::luu_anh_xa( array( 'ma' => 'Mã HĐ', 'ten' => 'Tên', 'coso' => 'Cơ sở',
+	'ngay_ky' => 'Ngày ký', 'ngay_het' => 'Hết hạn', 'tien' => 'Tiền thuê', 'link' => 'Link' ) );
+$xem = VHD_Kho::keo( $U_QT, true );
+t( 'xem trước chạy được', ! empty( $xem['ok'] ), $xem );
+teq( 'đọc đúng 3 dòng', 3, (int) $xem['so_dong'] );
+teq( 'và 8 cột', 8, (int) $xem['so_cot'] );
+/* 🔴 XEM TRƯỚC KHÔNG ĐƯỢC GHI GÌ. Ghi rồi mới hỏi là hỏi cho vui. */
+teq( '🔴 xem trước KHÔNG ghi một dòng nào', 0, VHD_Kho::dem() );
+
+/* 🔴 KHAI MỘT CỘT KHÔNG TỒN TẠI LÀ CHỐI HẲN, không lặng lẽ để trống. Bỏ qua thì cột ấy vào kho
+   toàn rỗng, bảng vẫn dựng được, và không có gì nói rằng ngày hết hạn của cả nghìn hợp đồng đang
+   trống. */
+VHD_Kho::luu_anh_xa( array( 'ma' => 'Mã HĐ', 'ngay_het' => 'Ngày Hết Hạn KHÔNG CÓ' ) );
+$r_sai = VHD_Kho::keo( $U_QT, true );
+t( '🔴 khai cột không có trong Sheet -> CHỐI', empty( $r_sai['ok'] ), $r_sai );
+t( 'và câu chối bày ra tên cột đang có để khai lại',
+	isset( $r_sai['error'] ) && strpos( $r_sai['error'], 'Mã HĐ' ) !== false, $r_sai );
+
+VHD_Kho::luu_anh_xa( array( 'ma' => 'Mã HĐ', 'ten' => 'Tên', 'coso' => 'Cơ sở',
+	'ngay_ky' => 'Ngày ký', 'ngay_het' => 'Hết hạn', 'tien' => 'Tiền thuê', 'link' => 'Link' ) );
+$that = VHD_Kho::keo( $U_QT, false );
+t( 'kéo thật chạy được', ! empty( $that['ok'] ), $that );
+teq( '🔴 ghi đủ 3 hợp đồng', 3, VHD_Kho::dem() );
+
+$mot = VHD_Kho::tim( array( 'q' => 'HD-01' ) );
+teq( 'tìm theo mã ra đúng 1', 1, (int) $mot['tong'] );
+$h1 = $mot['ds'][0];
+teq( 'ngày ký đọc đúng chiều Việt', '2026-01-01', (string) $h1['ngay_ky'] );
+teq( 'ngày hết hạn đọc đúng', '2026-12-31', (string) $h1['ngay_het'] );
+teq( '🔴 tiền không rơi mất ba số 0', 15000000, (int) $h1['tien'] );
+teq( 'link giữ nguyên', 'https://drive.google.com/a', (string) $h1['link'] );
+
+/* 🔴 GIỮ NGUYÊN DÒNG GỐC. Ánh xạ chỉ lấy chín trường để tìm/lọc; cột "Chủ nhà" không được ánh xạ
+   nhưng KHÔNG được mất — nếu mất thì kho nghèo hơn bản gốc, và người ta phải quay lại Sheet. */
+$goc = json_decode( (string) $h1['du_lieu'], true );
+teq( '🔴 dòng gốc giữ đủ 8 cột', 8, is_array( $goc ) ? count( $goc ) : -1 );
+teq( 'kể cả cột KHÔNG được ánh xạ', 'Cô Bảy', isset( $goc['Chủ nhà'] ) ? $goc['Chủ nhà'] : null );
+
+/* 🔴 TÌM CHẠM CẢ DÒNG GỐC — người ta nhớ tên chủ nhà chứ không nhớ mã hợp đồng. */
+$tim_chu = VHD_Kho::tim( array( 'q' => 'Chú Tám' ) );
+teq( '🔴 tìm được theo cột KHÔNG ánh xạ', 1, (int) $tim_chu['tong'] );
+
+teq( 'lọc theo cơ sở', 2, (int) VHD_Kho::tim( array( 'coso' => 'TUTU_BT' ) )['tong'] );
+teq( 'lọc hết hạn trước một mốc', 1, (int) VHD_Kho::tim( array( 'het_truoc' => '2026-06-30' ) )['tong'] );
+/* Sắp: sắp hết hạn lên trước — đó là thứ người mở kho đi tìm. */
+teq( '🔴 hợp đồng hết hạn sớm nhất đứng đầu', 'HD-03', (string) VHD_Kho::tim( array() )['ds'][0]['ma'] );
+
+/* 🔴 MỖI LẦN KÉO LÀ CHÉP LẠI TOÀN BỘ. Dòng biến mất bên Sheet phải biến mất bên này — giữ lại
+   là kho ôm một hợp đồng đã bỏ, và không ai biết. */
+vhd_dat_data( array( $BANG_THU[0], $BANG_THU[1] ) );
+VHD_Kho::keo( $U_QT, false );
+teq( '🔴 kéo lại: dòng bị xoá bên Sheet cũng mất bên host', 1, VHD_Kho::dem() );
+teq( 'và dòng còn lại đúng là dòng còn bên Sheet', 'HD-01',
+	(string) VHD_Kho::tim( array() )['ds'][0]['ma'] );
+
+/* App gốc trả 0 dòng thì CHỐI, chứ không xoá sạch kho đang có. Một lượt gọi hỏng (Sheet đổi tên,
+   quyền Drive rớt) mà xoá sạch kho là mất cả thư viện vì một sự cố tạm thời. */
+/* ⚠️ DỰNG CẢNH BẰNG BẢNG CÓ ĐỦ TIÊU ĐỀ NHƯNG KHÔNG DÒNG NÀO. Trả về mảng rỗng hoàn toàn thì
+      lượt kéo còn bị chốt "cột đã khai không có" chặn TRƯỚC, nên chốt 0-dòng không bao giờ được
+      thử tới — phép thử xanh nhờ một chốt khác, đúng loại chỗ mù mà phá thử sinh ra để tìm. */
+vhd_dat_data( array( $BANG_THU[0] ) );
+$r_rong = VHD_Kho::keo( $U_QT, false );
+t( '🔴 app gốc trả 0 dòng (dù đủ tiêu đề) -> CHỐI', empty( $r_rong['ok'] ), $r_rong );
+teq( '🔴 và kho CŨ còn nguyên, không bị xoá sạch', 1, VHD_Kho::dem() );
+vhd_dat_data( array() );
+$r_rong2 = VHD_Kho::keo( $U_QT, false );
+t( 'mảng rỗng hoàn toàn cũng chối', empty( $r_rong2['ok'] ), $r_rong2 );
+teq( 'kho vẫn nguyên sau ca ấy', 1, VHD_Kho::dem() );
+
+/* 🔴 LÔ MỒ CÔI KHÔNG ĐƯỢC LẪN VÀO KHO. Một lượt kéo đứt giữa chừng (PHP hết giờ, host cắt tiến
+   trình) để lại mấy chục dòng mang lô lạ; nếu câu đọc quên lọc theo lô thì kho hiện lẫn dòng cũ
+   với dòng dở dang — hai bản của cùng một hợp đồng, và không có gì nói cái nào thật. */
+$wpdb->insert( VHD_DB::t( 'hd' ), array( 'ma' => 'MOCOI-1', 'ten' => 'Lô dở dang', 'coso' => 'CS_MOCOI',
+	'ben_a' => '', 'ben_b' => '', 'tien' => 0, 'link' => '', 'du_lieu' => '{}', 'hang' => 1,
+	'lo' => 'lo-do-dang', 'cap_nhat' => '2026-09-02 10:00:00' ) );
+teq( '🔴 dòng của lô mồ côi KHÔNG được đếm vào kho', 1, VHD_Kho::dem() );
+teq( 'và không hiện ra khi tìm', 0, (int) VHD_Kho::tim( array( 'q' => 'MOCOI' ) )['tong'] );
+teq( 'cũng không đẻ thêm cơ sở vào ô lọc', 1, count( VHD_Kho::ds_coso() ) );
+$wpdb->query( "DELETE FROM " . VHD_DB::t( 'hd' ) . " WHERE lo='lo-do-dang'" );
+
+/* Cầu nối hỏng thì cũng vậy. */
+$GLOBALS['VHD_POST'] = array( 'script.google.com' => array( 'status' => 200,
+	'body' => json_encode( array( 'ok' => false, 'error' => 'Sai khoá' ) ) ) );
+$r_hong = VHD_Kho::keo( $U_QT, false );
+t( 'cầu nối báo lỗi -> chối', empty( $r_hong['ok'] ), $r_hong );
+teq( 'kho vẫn nguyên', 1, VHD_Kho::dem() );
+
+// ---- 6. MÀN KHO: không có ô sửa, không có script, không lộ PIN ----
+$GLOBALS['VHD_POST'] = array();
+$_COOKIE = array(); $_GET = array(); $_POST = array();
+$tok_kho = VHD_Auth::phat_token( 'Quản trị', 'Admin', '' );
+$_COOKIE['vhd_kho_tok'] = $tok_kho;
+$_GET = array( 'vhd_kho' => '1' );
+ob_start(); VHD_ManKho::chay(); $h_kho = ob_get_clean();
+$_COOKIE = array(); $_GET = array();
+t( 'màn kho dựng được', strpos( $h_kho, 'Thư viện hợp đồng' ) !== false, substr( $h_kho, 0, 300 ) );
+t( 'có hợp đồng trong bảng', strpos( $h_kho, 'HD-01' ) !== false, $h_kho );
+/* ⚠️ TRANG NÀY KHÔNG CÓ MỘT DÒNG SCRIPT NÀO — chạy được trên mọi máy trong cửa hàng, in ra được,
+   và không có chỗ nào để một lỗi JavaScript làm trắng màn hình. */
+t( '🔴 không có lấy một thẻ script', stripos( $h_kho, '<script' ) === false );
+/* 🔴 BẢN SAO ĐỌC: không một ô sửa nào. Mở đường sửa ở đây là sinh ra nguồn sự thật thứ hai. */
+t( '🔴 không có ô nhập nào cho dữ liệu hợp đồng',
+	strpos( $h_kho, 'name="ma"' ) === false && strpos( $h_kho, 'name="tien"' ) === false, null );
+t( 'có ô tìm và ô lọc cơ sở',
+	strpos( $h_kho, 'name="q"' ) !== false && strpos( $h_kho, 'name="cs"' ) !== false );
+
+/* Chưa đăng nhập thì chỉ thấy cổng PIN, KHÔNG thấy một mẩu hợp đồng nào. */
+$_COOKIE = array(); $_GET = array( 'vhd_kho' => '1' );
+ob_start(); VHD_ManKho::chay(); $h_cong = ob_get_clean();
+$_GET = array();
+t( '🔴 chưa vào thì không lộ hợp đồng nào', strpos( $h_cong, 'HD-01' ) === false, substr( $h_cong, 0, 400 ) );
+t( 'và có ô PIN', strpos( $h_cong, 'name="pin"' ) !== false );
+/* 🔴 KHÔNG BAO GIỜ ĐIỀN SẴN PIN. Trang chạy ngoài internet; một ảnh chụp màn hình là mất mật
+   khẩu của cả chuỗi. */
+t( '🔴 ô PIN KHÔNG điền sẵn giá trị',
+	preg_match( '/name="pin"[^>]*value=/', $h_cong ) === 0, $h_cong );
+t( 'và là ô mật khẩu, không phải ô chữ thường',
+	preg_match( '/id="pin"[^>]*type="password"/', $h_cong ) === 1 );
+
 // ---------------------------------------------------------------- kết
 if ( count( $truot ) ) {
 	echo "HỎNG: " . count( $truot ) . "\n";

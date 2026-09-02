@@ -44,6 +44,13 @@ class VHD_Trang {
 			VHD_API::trang();
 			exit;
 		}
+		/* 🔴 KHO CHẠY TRÊN HOST, KHÔNG QUA APP GỐC. Cùng một địa chỉ trang nhưng rẽ sớm — trước
+		   cả lượt gọi lấy giao diện gốc, vì đó là chuyến ra Apps Script mất mấy giây và hay
+		   hỏng khi deploy lệch. Kho phải mở được cả khi Google hỏng. */
+		if ( isset( $_GET['vhd_kho'] ) ) {
+			VHD_ManKho::chay();
+			exit;
+		}
 		self::render();
 		exit;
 	}
