@@ -12,4 +12,4 @@ CACH DUNG:
 4. Ra file ghe-merged.bin -> up vao o "Merged .bin" tren web (hoac nap Web Serial).
 
 Yeu cau: da cai core ESP32 trong Arduino (script tu tim esptool + boot_app0 trong core).
-Neu bao thieu esptool: mo CMD chay  pip install esptool
+boot_app0.bin KHONG bat buoc (thieu van gop duoc). Neu bao thieu esptool: chay  pip install esptool
