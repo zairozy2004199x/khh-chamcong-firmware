@@ -46,17 +46,19 @@
 #define ESP_PANEL_BOARD_LCD_RGB_IO_DISP      (-1)
 
 /* 16 chân dữ liệu RGB565 = 5 Blue + 6 Green + 5 Red.
-   ✅ GREEN chắc chắn: DG2..DG7 = GPIO 14,13,12,11,10,9  (thấp->cao).
-   🟡 BLUE/RED: đọc từ ảnh schematic, thứ tự nhóm CÓ THỂ đảo. Nếu test ra
-      đỏ↔xanh dương -> ĐỔI CHÉO cả cụm DATA0..4 với DATA11..15. Nếu 1 màu bị
-      loang/sai sắc -> đảo thứ tự trong cụm đó. */
+   ✅ ĐÃ ĐỌC CHÍNH XÁC 100% từ bảng phân bổ GPIO trong schematic:
+      Blue  B0..B4 = DB3,DB4,DB5,DB6,DB7 = GPIO 5, 45, 48, 47, 21
+      Green G0..G5 = DG2,DG3,DG4,DG5,DG6,DG7 = GPIO 14,13,12,11,10,9
+      Red   R0..R4 = DR3,DR4,DR5,DR6,DR7 = GPIO 46, 3, 8, 18, 17
+   (Nếu vẫn sai màu tone/âm bản thì là do INIT ST7701, không phải chân — dán init
+    Waveshare vào VENDOR_INIT_CMD; chân dưới đây đã đúng theo schematic.) */
 /* Blue B0..B4 */
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA0     (5)     /* DB (blue) */
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA1     (3)
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA2     (8)
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA3     (18)
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA4     (17)
-/* Green G0..G5 (chắc chắn) */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA0     (5)     /* DB3 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA1     (45)    /* DB4 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA2     (48)    /* DB5 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA3     (47)    /* DB6 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA4     (21)    /* DB7 */
+/* Green G0..G5 */
 #define ESP_PANEL_BOARD_LCD_RGB_IO_DATA5     (14)    /* DG2 */
 #define ESP_PANEL_BOARD_LCD_RGB_IO_DATA6     (13)    /* DG3 */
 #define ESP_PANEL_BOARD_LCD_RGB_IO_DATA7     (12)    /* DG4 */
@@ -64,11 +66,11 @@
 #define ESP_PANEL_BOARD_LCD_RGB_IO_DATA9     (10)    /* DG6 */
 #define ESP_PANEL_BOARD_LCD_RGB_IO_DATA10    (9)     /* DG7 */
 /* Red R0..R4 */
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA11    (21)    /* DR (red) */
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA12    (45)
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA13    (46)
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA14    (47)
-#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA15    (48)
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA11    (46)    /* DR3 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA12    (3)     /* DR4 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA13    (8)     /* DR5 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA14    (18)    /* DR6 */
+#define ESP_PANEL_BOARD_LCD_RGB_IO_DATA15    (17)    /* DR7 */
 
 /* Xung/porch RGB — GIÁ TRỊ MẶC ĐỊNH GẦN ĐÚNG cho ST7701 480×640. Hình trôi/sọc
    thì tinh chỉnh (Waveshare demo hay dùng PCLK ~14-16MHz). */

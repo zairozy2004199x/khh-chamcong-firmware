@@ -27,17 +27,18 @@ schematic chính thức:
 | Nhóm | Giá trị đã điền |
 |---|---|
 | RGB điều khiển | HSYNC=**38**, VSYNC=**39**, DE=**40**, PCLK=**41** |
-| RGB green (6 bit) | GPIO **9,10,11,12,13,14** (chắc chắn) |
-| RGB blue+red (10 bit) | GPIO 3,5,8,17,18 (blue) · 21,45,46,47,48 (red) — 🟡 **thứ tự nhóm cần xác nhận qua màu** |
+| RGB green G0..5 | GPIO **14,13,12,11,10,9** (DG2..DG7) |
+| RGB blue B0..4 | GPIO **5,45,48,47,21** (DB3..DB7) |
+| RGB red R0..4 | GPIO **46,3,8,18,17** (DR3..DR7) |
 | Init SPI ST7701 | SDA=**GPIO1**, SCK=**GPIO2**, CS=**EXIO3** (qua TCA9554) |
 | Đèn nền | **GPIO6** (PWM) |
 | Cảm ứng GT911 | SCL=**7**, SDA=**15**, INT=**16**, RST=EXIO2 |
 | SD | MOSI=1, SCLK=2, MISO=42, CS=EXIO4 |
 | Expander/Còi | TCA9554 @0x20 · Còi=EXIO8 · LCD_RST=EXIO1 · TP_RST=EXIO2 |
 
-> 🟡 **Chỉ còn 1 điều cần kiểm khi test:** thứ tự bit blue/red (đọc từ ảnh schematic hơi mờ).
-> Nếu lên hình mà **đỏ↔xanh dương đảo** → đổi chéo cụm `DATA0..4` với `DATA11..15` trong file conf.
-> Nếu 1 màu **loang/sai sắc** → đảo thứ tự trong cụm đó. **Không gây màn đen.**
+> ✅ Toàn bộ chân RGB (kể cả blue/red) đã đọc **chính xác từ schematic nét** — không còn chỗ đoán.
+> Nếu lên hình mà màu tone lạ/âm bản thì là do **init ST7701** (dán init Waveshare vào
+> `VENDOR_INIT_CMD`), không phải chân.
 
 ## Đọc kết quả bring-up (Serial 115200)
 | Hiện tượng | Nghĩa |
