@@ -9,7 +9,8 @@
  *  CHUẨN BỊ (xem README_S3.md):
  *    1. Arduino: Board = "ESP32S3 Dev Module", PSRAM = "OPI PSRAM", Flash = 16MB.
  *    2. Library Manager: cài  ESP32_Display_Panel  (>=1.2.0) của esp-arduino-libs.
- *    3. ĐIỀN số chân RGB vào  esp_panel_board_custom_conf.h  (cạnh file này).
+ *    3. Chân RGB ĐÃ điền sẵn trong  esp_panel_board_custom_conf.h  (bóc từ schematic
+ *       Waveshare). Chỉ cần xác nhận: nếu SAI MÀU thì đảo cụm Blue/Red (xem file conf).
  *    4. Nạp. Mở Serial 115200.
  *
  *  KẾT QUẢ MONG ĐỢI:

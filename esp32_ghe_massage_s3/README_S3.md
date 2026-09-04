@@ -20,22 +20,24 @@ vẽ màn sang ESP32_Display_Panel.
 3. **Library Manager** → cài **`ESP32_Display_Panel`** (esp-arduino-libs, **>= 1.2.0**).
    Nó tự kéo theo `ESP32_Display_Panel` core + `esp_lcd` drivers.
 
-## ĐIỀN CHÂN (bắt buộc) — `esp_panel_board_custom_conf.h`
-Thư viện **không có preset cho 2.8B**, nên phải khai tay. Mở file `esp_panel_board_custom_conf.h`
-(cạnh .ino) và điền các chỗ ghi `ĐIỀN`. Lấy số từ **Wiki Waveshare ESP32-S3-Touch-LCD-2.8B →
-Hardware/Schematic**, hoặc file demo Arduino của họ (thường `pins_config.h` / `Display_ST7701.*`).
+## CHÂN — `esp_panel_board_custom_conf.h` (ĐÃ ĐIỀN từ schematic Waveshare)
+Thư viện không có preset 2.8B nên khai custom. **Chân đã điền sẵn** từ bảng phân bổ GPIO trong
+schematic chính thức:
 
-| Nhóm | Macro | Lấy ở đâu |
-|---|---|---|
-| RGB điều khiển | `..._IO_HSYNC/_VSYNC/_DE/_PCLK` | bảng chân LCD trong wiki |
-| RGB dữ liệu | `..._IO_DATA0..DATA15` (B0..B4,G0..G5,R0..R4) | **chép đúng thứ tự**, đảo là sai màu/trắng |
-| ST7701 init SPI | `..._SPI_IO_CS/_SCK/_SDA` (là chân **TCA9554**, 0..7) | wiki/demo |
-| Đèn nền | `..._BACKLIGHT_IO` (chân TCA9554) | wiki/demo |
-| Cảm ứng GT911 | đã điền sẵn: SDA15 / SCL7 / INT16 | silk trên board (anh chụp) |
-| Expander | `..._EXPANDER_I2C_ADDRESS` 0x20 (hoặc 0x38) | wiki |
+| Nhóm | Giá trị đã điền |
+|---|---|
+| RGB điều khiển | HSYNC=**38**, VSYNC=**39**, DE=**40**, PCLK=**41** |
+| RGB green (6 bit) | GPIO **9,10,11,12,13,14** (chắc chắn) |
+| RGB blue+red (10 bit) | GPIO 3,5,8,17,18 (blue) · 21,45,46,47,48 (red) — 🟡 **thứ tự nhóm cần xác nhận qua màu** |
+| Init SPI ST7701 | SDA=**GPIO1**, SCK=**GPIO2**, CS=**EXIO3** (qua TCA9554) |
+| Đèn nền | **GPIO6** (PWM) |
+| Cảm ứng GT911 | SCL=**7**, SDA=**15**, INT=**16**, RST=EXIO2 |
+| SD | MOSI=1, SCLK=2, MISO=42, CS=EXIO4 |
+| Expander/Còi | TCA9554 @0x20 · Còi=EXIO8 · LCD_RST=EXIO1 · TP_RST=EXIO2 |
 
-> Các phần đã điền sẵn (I2C 15/7, INT 16, timing gần đúng, độ phân giải 480×640) là suy từ silk
-> board + chuẩn ST7701 — nếu wiki khác thì sửa lại.
+> 🟡 **Chỉ còn 1 điều cần kiểm khi test:** thứ tự bit blue/red (đọc từ ảnh schematic hơi mờ).
+> Nếu lên hình mà **đỏ↔xanh dương đảo** → đổi chéo cụm `DATA0..4` với `DATA11..15` trong file conf.
+> Nếu 1 màu **loang/sai sắc** → đảo thứ tự trong cụm đó. **Không gây màn đen.**
 
 ## Đọc kết quả bring-up (Serial 115200)
 | Hiện tượng | Nghĩa |
