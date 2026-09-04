@@ -56,8 +56,14 @@ bool  webGoi(const String& viec, const String& body, String& raOut);
 void  cheDoOTA();
 void  cheDoChotCa();
 void  cheDoKiemTra();   // xem chỉ số như chốt ca nhưng CHỈ XEM, không ghi
-void  cheDoChotTien();  // chốt tiền: đọc chỉ số tiền mặt+QR THẲNG từ ghế qua AP rồi chốt lên web
-bool  docChiSoGhe(const ApGhe& g, long& tm, long& qr);   // GET /chotso trên AP ghế
+void  cheDoChotTien();  // chốt tiền: đọc chỉ số + MỐC từ ghế qua AP, tính kỳ OFFLINE, dời mốc, đẩy web sau
+struct ChiSoGhe;
+struct ChotKetQua;
+bool  docChiSoGhe(const ApGhe& g, ChiSoGhe& cs);          // GET /chotso: chỉ số + mốc chốt trước
+bool  doiMocGhe(const ApGhe& g, const String& maLan, ChotKetQua& kq);  // POST /chotmoc: dời mốc, lấy kỳ
+void  themChotQueue(const String& line);                  // xếp 1 bản ghi chốt vào NVS chờ đẩy web
+void  flushChotQueue();                                   // có mạng -> đẩy các bản ghi chốt đang chờ
+int   demChotQueue();                                     // số bản ghi còn chờ đẩy
 // 4G (bê từ esp32_ghe_massage.ino)
 void   modemPowerOn();
 bool   atProbe(int txPin, int rxPin, long baud);
@@ -101,7 +107,7 @@ const char* SIM_APN     = "v-internet";         // Viettel; đổi nếu SIM nh�
 int TS_MINX = 200, TS_MAXX = 3700, TS_MINY = 240, TS_MAXY = 3800;
 #define SD_CS  5                                 // thẻ SD trên CYD: SPI SCK18/MISO19/MOSI23
 #define BL_PIN 21                                // đèn nền
-#define FW_VERSION "may-tram 2026-09-02a (them CHOT TIEN: doc /chotso tu ghe qua AP -> chot web)"
+#define FW_VERSION "may-tram 2026-09-04a (CHOT TIEN offline: moc tren ghe, /chotmoc + hang cho day web)"
 // ═════════════════════════════════════════════════════════════════════════════
 
 TFT_eSPI tft = TFT_eSPI();
@@ -120,6 +126,10 @@ volatile int  g_netFails = 0;
 // Một AP ghế dò được
 struct ApGhe { String ssid; String ma; String bssid; int rssi; int kenh; };
 ApGhe g_ds[24]; int g_dsN = 0;
+/* Chỉ số + mốc đọc từ ghế qua /chotso. kỳ này = tm-tmc, qr-qrc (tính ngay, khỏi web). */
+struct ChiSoGhe { long tm = 0, qr = 0, tmc = 0, qrc = 0; String lan = ""; };
+/* Kết quả /chotmoc (ghế trả về sau khi dời mốc) — là con số CHỐT CHÍNH THỨC. */
+struct ChotKetQua { long tm = 0, qr = 0, tmc = 0, qrc = 0, tmKy = 0, qrKy = 0; };
 
 /* ══════════════════════════════════════════════════════════════════════════════════════════
  * PREFETCH CẢ CƠ SỞ.
@@ -820,49 +830,121 @@ void cheDoKiemTra(){
 
 // ═══════════════════════════════ MÀN CHÍNH ═══════════════════════════════════
 // ═══════════════════════════ ĐỌC CHỈ SỐ TIỀN TỪ GHẾ (AP) ═════════════════════
-/* Nối AP ghế, GET /chotso -> chỉ số TIỀN MẶT + QR cộng dồn của ghế. Trả false nếu lỗi.
-   Ghế phải chạy firmware có endpoint /chotso (2026-09-02b trở lên). */
-bool docChiSoGhe(const ApGhe& g, long& tm, long& qr){
-  bao("Kết nối ghế...", COL_ACC, g.ma, "đọc chỉ số tiền");
+/* Nối AP ghế rồi trao đổi 1 request thô (GET/POST). Trả thân JSON (đã bỏ header), ""=lỗi.
+   Dùng chung cho /chotso (đọc) và /chotmoc (dời mốc). extraHdr: header phụ (vd X-Chot-Lan). */
+static String gheYeuCau(const ApGhe& g, const char* dong1, const String& extraHdr){
   WiFi.mode(WIFI_STA); WiFi.disconnect(true); delay(150);
   WiFi.begin(g.ssid.c_str(), GHE_AP_PASS);
   unsigned long t0 = millis();
   while(WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) delay(250);
-  if(WiFi.status() != WL_CONNECTED){
-    bao("Nối thất bại", COL_DO, g.ma, "Lại gần hơn rồi thử lại"); WiFi.disconnect(true); delay(1600); return false;
-  }
+  if(WiFi.status() != WL_CONNECTED){ WiFi.disconnect(true); return ""; }
   WiFiClient cl; cl.setTimeout(8000);
-  if(!cl.connect(GHE_IP, GHE_PORT)){
-    bao("Không nối 192.168.4.1", COL_DO, "", ""); WiFi.disconnect(true); delay(1500); return false;
-  }
-  cl.print("GET /chotso HTTP/1.1\r\n");
+  if(!cl.connect(GHE_IP, GHE_PORT)){ WiFi.disconnect(true); return ""; }
+  cl.print(String(dong1) + " HTTP/1.1\r\n");
   cl.print("Host: 192.168.4.1\r\n");
   cl.print(String("X-OTA-Key: ") + OTA_KEY + "\r\n");
+  if(extraHdr.length()) cl.print(extraHdr);         // vd "X-Chot-Lan: ...\r\nContent-Length: 0\r\n"
   cl.print("Connection: close\r\n\r\n");
-
   String resp = ""; unsigned long tr = millis();
   while((cl.connected() || cl.available()) && millis() - tr < 8000){
     while(cl.available()){ resp += (char)cl.read(); tr = millis(); if(resp.length() > 2000) break; }
     delay(2);
   }
   cl.stop(); WiFi.disconnect(true);
+  int b = resp.indexOf("\r\n\r\n");
+  return (b >= 0) ? resp.substring(b + 4) : resp;
+}
 
-  int b = resp.indexOf("\r\n\r\n");                 // bỏ header HTTP, còn thân JSON
-  String body = (b >= 0) ? resp.substring(b + 4) : resp;
-  StaticJsonDocument<384> d;                        // đủ cho {ok,ma,tm,qr,fw} — fw dài
+/* GET /chotso -> chỉ số tiền mặt + QR cộng dồn + MỐC chốt trước của ghế. Trả false nếu lỗi.
+   Ghế cũ (không có tmc/qrc/lan) -> mốc = 0 -> coi như lần đầu, kỳ = toàn bộ. */
+bool docChiSoGhe(const ApGhe& g, ChiSoGhe& cs){
+  bao("Kết nối ghế...", COL_ACC, g.ma, "đọc chỉ số + mốc");
+  String body = gheYeuCau(g, "GET /chotso", "");
+  if(body.length() == 0){
+    bao("Nối ghế thất bại", COL_DO, g.ma, "Lại gần hơn rồi thử lại"); delay(1600); return false;
+  }
+  StaticJsonDocument<384> d;
   if(deserializeJson(d, body) || !(d["ok"] | 0)){
     bao("Ghế không trả chỉ số", COL_DO, "Ghế cần firmware có /chotso", ""); delay(2200); return false;
   }
-  tm = (long)(d["tm"] | 0);
-  qr = (long)(d["qr"] | 0);
-  Serial.printf("[CHOTSO] %s: tm=%ld qr=%ld\n", g.ma.c_str(), tm, qr);
+  cs.tm  = (long)(d["tm"]  | 0);
+  cs.qr  = (long)(d["qr"]  | 0);
+  cs.tmc = (long)(d["tmc"] | 0);
+  cs.qrc = (long)(d["qrc"] | 0);
+  cs.lan = String((const char*)(d["lan"] | ""));
+  Serial.printf("[CHOTSO] %s: tm=%ld qr=%ld | moc tm=%ld qr=%ld lan='%s'\n",
+                g.ma.c_str(), cs.tm, cs.qr, cs.tmc, cs.qrc, cs.lan.c_str());
   return true;
 }
 
-// ═══════════════════════════════ CHẾ ĐỘ CHỐT TIỀN ════════════════════════════
-/* Đọc chỉ số tiền mặt + QR THẲNG TỪ GHẾ qua AP rồi chốt lên web (web trừ kỳ trước).
-   1) Dò AP -> chọn ghế. 2) Nối AP ghế, GET /chotso. 3) Nối Internet + đăng nhập.
-   4) Hiện tiền mặt + QR + "kỳ này". 5) Bấm CHỐT -> chot_tien_luu. */
+/* POST /chotmoc (mã lần) -> ghế DỜI MỐC = chỉ số hiện tại, trả KỲ vừa chốt (con số chính thức).
+   Gửi lại đúng mã lần -> ghế trả y kết quả cũ (không dời hai lần). Chạy hoàn toàn qua AP, OFFLINE. */
+bool doiMocGhe(const ApGhe& g, const String& maLan, ChotKetQua& kq){
+  String extra = String("X-Chot-Lan: ") + maLan + "\r\nContent-Length: 0\r\n";
+  String body = gheYeuCau(g, "POST /chotmoc", extra);
+  if(body.length() == 0) return false;
+  StaticJsonDocument<384> d;
+  if(deserializeJson(d, body) || !(d["ok"] | 0)) return false;
+  kq.tm   = (long)(d["tm"]    | 0);  kq.qr   = (long)(d["qr"]    | 0);
+  kq.tmc  = (long)(d["tmc"]   | 0);  kq.qrc  = (long)(d["qrc"]   | 0);
+  kq.tmKy = (long)(d["tm_ky"] | 0);  kq.qrKy = (long)(d["qr_ky"] | 0);
+  Serial.printf("[CHOTMOC] %s lan='%s' trung=%d ky tm=%ld qr=%ld\n",
+                g.ma.c_str(), maLan.c_str(), (int)(d["trung"] | 0), kq.tmKy, kq.qrKy);
+  return true;
+}
+
+/* ── HÀNG CHỜ ĐẨY WEB (NVS "chotQ") — mỗi dòng 1 bản ghi JSON, chốt offline nằm đây tới khi có mạng ── */
+void themChotQueue(const String& line){
+  String q = prefsTram.getString("chotQ", "");
+  q += line; q += "\n";
+  while(q.length() > 3000){ int nl = q.indexOf('\n'); if(nl < 0) break; q = q.substring(nl + 1); }  // bỏ cũ nhất
+  prefsTram.putString("chotQ", q);
+}
+int demChotQueue(){
+  String q = prefsTram.getString("chotQ", "");
+  int n = 0, i = 0;
+  while(i < (int)q.length()){ int nl = q.indexOf('\n', i); if(nl < 0) nl = q.length();
+    if(nl > i) n++; i = nl + 1; }
+  return n;
+}
+/* Có internet + đăng nhập -> đẩy từng bản ghi lên web (chot_tien_luu). Web idempotent theo ma_lan.
+   Đẩy được thì bỏ khỏi hàng; thất bại thì giữ lại. Im lặng nếu không có mạng. */
+void flushChotQueue(){
+  String q = prefsTram.getString("chotQ", "");
+  if(q.length() == 0) return;
+  if(!noiInternet()) return;
+  if(!damBaoDangNhap()) return;
+  String con = "";
+  int i = 0;
+  while(i < (int)q.length()){
+    int nl = q.indexOf('\n', i); if(nl < 0) nl = q.length();
+    String line = q.substring(i, nl); i = nl + 1;
+    line.trim(); if(line.length() == 0) continue;
+    StaticJsonDocument<384> d;
+    if(deserializeJson(d, line)) continue;          // dòng rác -> bỏ luôn
+    StaticJsonDocument<384> b;
+    b["token"]  = g_token;
+    b["ma_may"] = (const char*)(d["ma_may"] | "");
+    b["ma_lan"] = (const char*)(d["ma_lan"] | "");
+    b["tm"] = (long)(d["tm"] | 0);   b["qr"] = (long)(d["qr"] | 0);
+    b["tmc"] = (long)(d["tmc"] | 0); b["qrc"] = (long)(d["qrc"] | 0);
+    b["tm_ky"] = (long)(d["tm_ky"] | 0); b["qr_ky"] = (long)(d["qr_ky"] | 0);
+    String body; serializeJson(b, body);
+    String r; bool ok = false;
+    if(webGoi("chot_tien_luu", body, r)){
+      StaticJsonDocument<256> dr;
+      if(!deserializeJson(dr, r) && (dr["ok"] | false)) ok = true;
+    }
+    if(!ok){ con += line; con += "\n"; }            // giữ lại để đẩy sau
+  }
+  prefsTram.putString("chotQ", con);
+}
+
+// ═══════════════════════════════ CHẾ ĐỘ CHỐT TIỀN (OFFLINE) ══════════════════
+/* MỐC nằm TRÊN GHẾ -> chốt chạy được KHÔNG cần internet:
+   1) Dò AP -> chọn ghế. 2) GET /chotso: chỉ số + mốc -> tính KỲ NÀY ngay tại chỗ.
+   3) Bấm CHỐT -> POST /chotmoc (ghế dời mốc, trả kỳ chính thức) — vẫn qua AP, offline.
+   4) Lưu bản ghi vào NVS + thử đẩy web luôn; không có mạng thì để hàng chờ, đẩy sau. */
 void cheDoChotTien(){
   quetAp(true);
   if(g_dsN == 0) return;
@@ -871,65 +953,53 @@ void cheDoChotTien(){
   ApGhe g = g_ds[sel];
   String ma = g.ma;
 
-  // 1) Đọc chỉ số THẲNG từ ghế (qua AP) TRƯỚC khi chuyển sang Internet
-  long tm = 0, qr = 0;
-  if(!docChiSoGhe(g, tm, qr)) return;
+  // 1) Đọc chỉ số + MỐC thẳng từ ghế (qua AP) — không cần internet
+  ChiSoGhe cs;
+  if(!docChiSoGhe(g, cs)) return;
+  bool dau  = (cs.lan.length() == 0);               // ghế chưa chốt lần nào -> kỳ = toàn bộ từ đầu
+  long tmKy = cs.tm - cs.tmc;
+  long qrKy = cs.qr - cs.qrc;
 
-  // 2) Nối Internet (4G) + đăng nhập
-  if(!noiInternet()) return;
-  if(!damBaoDangNhap()) return;
-
-  // 3) Mốc kỳ trước (để hiện "kỳ này") — best-effort
-  long tmTruoc = 0, qrTruoc = 0; int lanDau = 0; String coso = "";
-  { String r; StaticJsonDocument<192> b; b["token"] = g_token; b["ma_may"] = ma;
-    String body; serializeJson(b, body);
-    if(webGoi("chot_tien_xem", body, r)){
-      StaticJsonDocument<512> d;
-      if(!deserializeJson(d, r) && (d["ok"] | false)){
-        coso    = String((const char*)(d["coso"] | ""));
-        tmTruoc = (long)(d["tm_truoc"] | 0);
-        qrTruoc = (long)(d["qr_truoc"] | 0);
-        lanDau  = (int)(d["lan_dau"] | 0);
-      }
-    } }
-  long tmKy = lanDau ? 0 : (tm - tmTruoc);
-  long qrKy = lanDau ? 0 : (qr - qrTruoc);
-
-  // 4) Màn xác nhận: hiện chỉ số ghế + kỳ này, hai nút HUỶ / CHỐT
+  // 2) Màn xác nhận (OFFLINE): chỉ số ghế + kỳ này, hai nút HUỶ / CHỐT
   tft.fillScreen(COL_BG);
-  veLon("CHỐT TIỀN - Ghế " + ma, 14, 18, COL_ACC, COL_BG, TL_DATUM);
-  if(coso.length()) veVua(coso, 14, 46, COL_XAM, COL_BG, TL_DATUM);
-  veVua("Tiền mặt (ghế): " + String(tm) + " đ", 14, 72, TFT_WHITE, COL_BG, TL_DATUM);
-  veVua("QR (ghế): " + String(qr) + " đ", 14, 96, TFT_WHITE, COL_BG, TL_DATUM);
-  if(lanDau) veVua("Lần đầu - lấy làm mốc gốc", 14, 126, COL_OK, COL_BG, TL_DATUM);
-  else       veVua("Kỳ này: TM " + String(tmKy) + " đ  |  QR " + String(qrKy) + " đ", 14, 126, COL_OK, COL_BG, TL_DATUM);
+  veLon("CHỐT TIỀN - Ghế " + ma, 14, 16, COL_ACC, COL_BG, TL_DATUM);
+  veVua("Tiền mặt (ghế): " + String(cs.tm) + " đ", 14, 54, TFT_WHITE, COL_BG, TL_DATUM);
+  veVua("QR (ghế): " + String(cs.qr) + " đ", 14, 78, TFT_WHITE, COL_BG, TL_DATUM);
+  if(dau) veVua("Lần đầu - kỳ này = toàn bộ từ đầu", 14, 108, COL_XAM, COL_BG, TL_DATUM);
+  veVua("Kỳ này: TM " + String(tmKy) + "  |  QR " + String(qrKy), 14, 132, COL_OK, COL_BG, TL_DATUM);
   tft.fillRoundRect(20, 190, 130, 40, 9, COL_DO);
   veLon("HUỶ", 85, 210, TFT_WHITE, COL_DO);
   tft.fillRoundRect(170, 190, 130, 40, 9, 0x0400);
   veLon("CHỐT", 235, 210, TFT_WHITE, 0x0400);
   { int cx, cy; cho4Cham(cx, cy, 0); if(cx < 160) return; }   // chạm nửa trái = HUỶ
 
-  // 5) Chốt -> web. ma_lan để gửi lại lúc sóng yếu KHÔNG ghi hai lần.
+  // 3) CHỐT: dời mốc TRÊN GHẾ (qua AP, offline). ma_lan chống chốt trùng khi gửi lại.
   String ml = "ct-" + ma + "-" + String((uint32_t)millis());
-  bao("Đang chốt tiền...", COL_ACC, "Ghế " + ma, "");
-  String r2; StaticJsonDocument<256> b2;
-  b2["token"] = g_token; b2["ma_may"] = ma; b2["tm"] = tm; b2["qr"] = qr; b2["ma_lan"] = ml;
-  String body2; serializeJson(b2, body2);
-  if(!webGoi("chot_tien_luu", body2, r2)){ bao("Lỗi mạng", COL_DO, "chot_tien_luu", ""); delay(1600); return; }
-  StaticJsonDocument<512> d2;
-  if(deserializeJson(d2, r2)){ bao("Web trả rác", COL_DO, "", ""); delay(1600); return; }
-  if(!(d2["ok"] | false)){
-    String e = String((const char*)(d2["error"] | "Loi"));
-    bao("Chốt thất bại", COL_DO, e.substring(0, 34), ""); delay(2600); return;
+  bao("Đang chốt (ghế)...", COL_ACC, "Ghế " + ma, "dời mốc trên ghế");
+  ChotKetQua kq;
+  if(!doiMocGhe(g, ml, kq)){
+    bao("Chốt ghế lỗi", COL_DO, "Không dời được mốc", "Lại gần ghế rồi thử lại"); delay(2200); return;
   }
-  long tk = (long)(d2["tm_ky"] | 0), qk = (long)(d2["qr_ky"] | 0);
-  int  ld = (int)(d2["lan_dau"] | 0);
+
+  // 4) Lưu bản ghi vào NVS (nguồn để đẩy web) rồi thử đẩy ngay
+  { StaticJsonDocument<384> rec;
+    rec["ma_may"] = ma; rec["ma_lan"] = ml;
+    rec["tm"] = kq.tm; rec["qr"] = kq.qr; rec["tmc"] = kq.tmc; rec["qrc"] = kq.qrc;
+    rec["tm_ky"] = kq.tmKy; rec["qr_ky"] = kq.qrKy;
+    String line; serializeJson(rec, line);
+    themChotQueue(line); }
+  bao("Đang đẩy web...", COL_ACC, "Ghế " + ma, "(offline thì để sau)");
+  flushChotQueue();                                  // có mạng thì đẩy; không thì im lặng để hàng chờ
+
+  // 5) Kết quả (con số từ ghế — luôn có, kể cả offline)
+  int conCho = demChotQueue();
   tft.fillScreen(COL_BG);
-  veLon("ĐÃ CHỐT TIỀN", 160, 40, COL_OK, COL_BG);
-  veVua("Ghế " + ma, 160, 84, TFT_WHITE, COL_BG);
-  if(ld) veVua("Lần đầu - đã lưu mốc gốc", 160, 116, COL_XAM, COL_BG);
-  else   veVua("Kỳ này: TM " + String(tk) + " đ  |  QR " + String(qk) + " đ", 160, 116, TFT_WHITE, COL_BG);
-  veVua("Chạm để tiếp tục", 160, 180, COL_XAM, COL_BG);
+  veLon("ĐÃ CHỐT TIỀN", 160, 36, COL_OK, COL_BG);
+  veVua("Ghế " + ma, 160, 76, TFT_WHITE, COL_BG);
+  veVua("Kỳ này: TM " + String(kq.tmKy) + "  |  QR " + String(kq.qrKy), 160, 108, TFT_WHITE, COL_BG);
+  if(conCho > 0) veVua(String(conCho) + " bản chờ đẩy web (tự đẩy khi có mạng)", 160, 140, COL_XAM, COL_BG);
+  else           veVua("Đã đồng bộ lên web", 160, 140, COL_OK, COL_BG);
+  veVua("Chạm để tiếp tục", 160, 182, COL_XAM, COL_BG);
   int x, y; cho4Cham(x, y, 0);
 }
 

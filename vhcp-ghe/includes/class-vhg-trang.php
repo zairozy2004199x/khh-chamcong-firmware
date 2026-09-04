@@ -686,6 +686,8 @@ class VHG_Trang {
 		}
 
 		if ( 'chot_tien_luu' === $viec ) {
+			/* Máy trạm ĐỜI MỚI gửi kèm tmc/qrc (mốc trước) + tm_ky/qr_ky do GHẾ tính -> web lưu y số
+			   ghế đưa (chốt offline, tới trễ/lệch thứ tự vẫn đúng). Máy trạm cũ không gửi -> web tự trừ. */
 			self::tra( VHG_Quy::chot_tien_luu(
 				isset( $d['ma_may'] ) ? $d['ma_may'] : '',
 				isset( $d['tm'] ) ? $d['tm'] : 0,
@@ -693,7 +695,11 @@ class VHG_Trang {
 				(string) $ai['name'],
 				isset( $d['ghi_chu'] ) ? $d['ghi_chu'] : '',
 				isset( $d['ma_lan'] ) ? $d['ma_lan'] : '',
-				(string) $ai['coso'] ) );
+				(string) $ai['coso'],
+				isset( $d['tmc'] )   ? $d['tmc']   : null,
+				isset( $d['qrc'] )   ? $d['qrc']   : null,
+				isset( $d['tm_ky'] ) ? $d['tm_ky'] : null,
+				isset( $d['qr_ky'] ) ? $d['qr_ky'] : null ) );
 			return;
 		}
 

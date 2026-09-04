@@ -1013,7 +1013,7 @@ class VHG_Quy {
 	 * @param string $nguoi  Ai chốt — LẤY TỪ PHIÊN, không nhận từ gói tin.
 	 */
 	public static function chot_tien_luu( $ma_may, $tm, $qr, $nguoi, $ghi_chu = '', $ma_lan = '',
-		$coso_cua_toi = null ) {
+		$coso_cua_toi = null, $tmc_ghe = null, $qrc_ghe = null, $tmky_ghe = null, $qrky_ghe = null ) {
 		global $wpdb;
 
 		/* Gửi lại (sóng yếu) -> trả lượt cũ, không ghi thêm. Chốt thật ở UNIQUE ma_lan tầng SQL. */
@@ -1044,23 +1044,40 @@ class VHG_Quy {
 			return array( 'ok' => false, 'error' => 'Chỉ số tiền không âm được.' );
 		}
 
-		$tr = self::chot_tien_truoc( $m );
-		$lan_dau = $tr ? 0 : 1;
-		$tm_truoc = $tr ? (int) $tr['tm'] : 0;
-		$qr_truoc = $tr ? (int) $tr['qr'] : 0;
+		/* NGUỒN CỦA "KỲ NÀY":
+		   - MỚI (mốc nằm trên ghế): máy trạm gửi kèm tmc/qrc (mốc trước) + tm_ky/qr_ky do GHẾ tính.
+		     Web LƯU Y SỐ GHẾ ĐƯA — mỗi bản ghi tự đủ (mốc trước + mốc sau + kỳ), nên chốt offline tới
+		     web TRỄ hay LỆCH THỨ TỰ vẫn đúng, không phụ thuộc "lượt trước" của web.
+		   - CŨ (máy trạm đời trước, không gửi kèm): web tự trừ lượt chốt trước như công-tơ. */
+		$ghe_tinh = ( null !== $tmc_ghe && null !== $qrc_ghe && null !== $tmky_ghe && null !== $qrky_ghe );
+		if ( $ghe_tinh ) {
+			$tm_truoc = max( 0, (int) $tmc_ghe );
+			$qr_truoc = max( 0, (int) $qrc_ghe );
+			$tm_ky    = max( 0, (int) $tmky_ghe );
+			$qr_ky    = max( 0, (int) $qrky_ghe );
+			/* Đường ghế: LƯU Y số ghế đưa, KHÔNG ép kỳ 0. Chốt đầu tiên (mốc gốc 0) thì kỳ = toàn bộ
+			   tiền dồn từ đầu — đó là tiền thật chưa chốt, đếm đủ. lan_dau=0 để không zero-hoá tm_truoc. */
+			$lan_dau  = 0;
+		} else {
+			$tr = self::chot_tien_truoc( $m );
+			$lan_dau = $tr ? 0 : 1;
+			$tm_truoc = $tr ? (int) $tr['tm'] : 0;
+			$qr_truoc = $tr ? (int) $tr['qr'] : 0;
 
-		/* 🔴 CHỈ SỐ CỘNG DỒN KHÔNG CHẠY LÙI. Nhỏ hơn lần trước = ghế vừa thay/xoá NVS, hoặc đọc
-		   nhầm. Bắt ghi chú rồi mới cho qua (giống chốt ca) — ghi lặng thì "kỳ này" ra số âm. */
-		if ( ! $lan_dau && ( $tm < $tm_truoc || $qr < $qr_truoc ) ) {
-			if ( '' === trim( (string) $ghi_chu ) ) {
-				return array( 'ok' => false, 'error' => 'Chỉ số nhỏ hơn lần chốt trước (TM ' . $tm_truoc
-					. ' / QR ' . $qr_truoc . '). Ghế không chạy lùi — kiểm lại. Nếu vừa thay ghế/xoá bộ nhớ '
-					. 'thì ghi rõ vào ô ghi chú rồi bấm lại.' );
+			/* 🔴 CHỈ SỐ CỘNG DỒN KHÔNG CHẠY LÙI. Nhỏ hơn lần trước = ghế vừa thay/xoá NVS, hoặc đọc
+			   nhầm. Bắt ghi chú rồi mới cho qua (giống chốt ca) — ghi lặng thì "kỳ này" ra số âm.
+			   (Chỉ áp cho đường CŨ: đường mới đã có ghế bảo đảm không chạy lùi.) */
+			if ( ! $lan_dau && ( $tm < $tm_truoc || $qr < $qr_truoc ) ) {
+				if ( '' === trim( (string) $ghi_chu ) ) {
+					return array( 'ok' => false, 'error' => 'Chỉ số nhỏ hơn lần chốt trước (TM ' . $tm_truoc
+						. ' / QR ' . $qr_truoc . '). Ghế không chạy lùi — kiểm lại. Nếu vừa thay ghế/xoá bộ nhớ '
+						. 'thì ghi rõ vào ô ghi chú rồi bấm lại.' );
+				}
 			}
-		}
 
-		$tm_ky = $lan_dau ? 0 : max( 0, $tm - $tm_truoc );
-		$qr_ky = $lan_dau ? 0 : max( 0, $qr - $qr_truoc );
+			$tm_ky = $lan_dau ? 0 : max( 0, $tm - $tm_truoc );
+			$qr_ky = $lan_dau ? 0 : max( 0, $qr - $qr_truoc );
+		}
 
 		$luc = current_time( 'mysql' );
 		$ok = $wpdb->insert( VHG_DB::t( 'chot_tien' ), array(

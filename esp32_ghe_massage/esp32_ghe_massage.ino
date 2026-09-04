@@ -51,7 +51,7 @@
    Tự viết server OTA bằng WiFiServer (raw POST) — nhẹ, không phụ thuộc. */
 #include "cong_tien.h"   // CỔNG TIỀN serial 4800 8E1 (thay đường XUNG cũ) — đã prove máy thật
 
-#define FW_VERSION "ghe-massage 2026-09-02c (footer QR khong cut 2 dau - do textWidth chon cau vua)"
+#define FW_VERSION "ghe-massage 2026-09-04a (chot offline: /chotso tra moc + POST /chotmoc doi moc)"
 
 #if !__has_include("secrets.h")
   #error "Thieu secrets.h — copy secrets.example.h thanh secrets.h roi dien gia tri that."
@@ -387,6 +387,16 @@ long    g_runTotalVnd = 0;
  * đọc qua GET /chotso trên AP; web trừ kỳ trước như chỉ số công-tơ (KHÔNG reset ở ghế). */
 long    g_csTienMat = 0;   // tổng tiền MẶT ghế đã nhận (cộng dồn)
 long    g_csQR      = 0;   // tổng tiền QR ghế đã nhận (cộng dồn)
+/* ===== MỐC CHỐT (để CHỐT TIỀN chạy OFFLINE, không cần web) ==================
+ * "Mốc" = chỉ số cộng dồn TẠI LẦN CHỐT TRƯỚC. Kỳ này = (csTm-tmMoc, csQr-qrMoc).
+ * Giữ MỐC ngay trên ghế -> máy trạm nối AP đọc /chotso là tính được kỳ, KHỎI hỏi web.
+ * Chốt = POST /chotmoc (kèm mã lần) -> ghế dời mốc = chỉ số hiện tại, trả kỳ vừa chốt.
+ * Mã lần chống chốt trùng: gửi lại đúng mã lần cũ -> ghế KHÔNG dời nữa, trả y kết quả cũ. */
+long    g_tmMoc     = 0;    // mốc tiền mặt (chỉ số tại lần chốt trước)
+long    g_qrMoc     = 0;    // mốc QR
+long    g_tmMocTruoc = 0;   // mốc TRƯỚC lần chốt cuối (để trả lại y hệt khi chốt trùng)
+long    g_qrMocTruoc = 0;
+String  g_lanChot   = "";   // mã lần chốt cuối đã xử lý (idempotency)
 String  qrPayload = "";
 /* Nội dung chuyển khoản THẬT của lượt này — dựng MỘT LẦN trong startSession().
    ⚠️ MÀN PHẢI IN ĐÚNG BIẾN NÀY, tuyệt đối không ráp lại chuỗi lần thứ hai để hiển thị.
@@ -2068,6 +2078,15 @@ void luuChiSoTien(){
   prefs.putLong("csTm", g_csTienMat);
   prefs.putLong("csQr", g_csQR);
 }
+/* Ghi MỐC CHỐT xuống NVS (gọi sau mỗi lần dời mốc). Đủ để chốt trùng/khởi động lại
+   vẫn trả đúng kết quả kỳ vừa chốt. */
+void luuMocChot(){
+  prefs.putLong("tmMoc",  g_tmMoc);
+  prefs.putLong("qrMoc",  g_qrMoc);
+  prefs.putLong("tmMocT", g_tmMocTruoc);
+  prefs.putLong("qrMocT", g_qrMocTruoc);
+  prefs.putString("lanChot", g_lanChot);
+}
 static void mdbCreditVnd(long vnd){
   if(vnd <= 0) return;
   int minutes = (PRICE_VND>0) ? (int)((vnd*(long)MINUTES)/PRICE_VND) : 0;
@@ -2169,7 +2188,7 @@ void otaPhucVu(){
   cl.setTimeout(8000);
   String req = cl.readStringUntil('\n');           // "POST /update HTTP/1.1"
   bool isPost = req.startsWith("POST");
-  long len = 0; bool keyOk = false;
+  long len = 0; bool keyOk = false; String lanMoc = "";
   for(;;){                                          // đọc header tới dòng trống
     String h = cl.readStringUntil('\n');
     if(h.length() == 0) break;
@@ -2180,15 +2199,51 @@ void otaPhucVu(){
     String v = h.substring(c + 1); v.trim();
     if(k == "content-length") len = v.toInt();
     else if(k == "x-ota-key" && v == String(SEC_AP_PASS)) keyOk = true;
+    else if(k == "x-chot-lan") lanMoc = v;          // mã lần chốt (idempotency) cho /chotmoc
   }
-  /* GET /chotso -> khai CHỈ SỐ TIỀN cộng dồn (tiền mặt + QR) cho máy trạm đọc qua AP.
-     Chỉ ĐỌC (không đổi gì) nên không bắt buộc X-OTA-Key: AP đã có mật khẩu WiFi bảo vệ.
-     Máy trạm chốt tiền: đọc số này -> hiện -> gửi lên web (web trừ kỳ trước). */
+  String maGhe = CHAIR_ID.length() ? CHAIR_ID : macBo();
+  /* GET /chotso -> khai CHỈ SỐ TIỀN cộng dồn (tiền mặt + QR) + MỐC chốt trước cho máy
+     trạm đọc qua AP. Chỉ ĐỌC nên không bắt buộc X-OTA-Key (AP đã có mật khẩu WiFi).
+     Máy trạm tính KỲ NÀY = tm-tmc, qr-qrc ngay tại chỗ, KHỎI hỏi web (chốt offline). */
   if(!isPost && req.indexOf("/chotso") > 0){
-    String js = String("{\"ok\":1,\"ma\":\"") + (CHAIR_ID.length()?CHAIR_ID:macBo())
+    String js = String("{\"ok\":1,\"ma\":\"") + maGhe
               + "\",\"tm\":" + String(g_csTienMat)
               + ",\"qr\":" + String(g_csQR)
-              + ",\"fw\":\"" + String(FW_VERSION) + "\"}";
+              + ",\"tmc\":" + String(g_tmMoc)
+              + ",\"qrc\":" + String(g_qrMoc)
+              + ",\"lan\":\"" + g_lanChot
+              + "\",\"fw\":\"" + String(FW_VERSION) + "\"}";
+    cl.print(F("HTTP/1.1 200 OK\r\nContent-Type:application/json; charset=utf-8\r\nConnection:close\r\n\r\n"));
+    cl.print(js);
+    cl.stop(); return;
+  }
+  /* POST /chotmoc -> DỜI MỐC = chỉ số hiện tại, trả KỲ vừa chốt. Đổi trạng thái nên
+     BẮT BUỘC X-OTA-Key (mật khẩu AP) + mã lần (X-Chot-Lan). Gửi lại đúng mã lần cũ ->
+     KHÔNG dời nữa, trả y kết quả cũ (chống chốt trùng khi máy trạm gửi lại). */
+  if(isPost && req.indexOf("/chotmoc") > 0){
+    if(!keyOk || lanMoc.length() == 0){
+      cl.print(F("HTTP/1.1 401 Unauthorized\r\nConnection:close\r\n\r\nSai khoa hoac thieu X-Chot-Lan"));
+      cl.stop(); return;
+    }
+    long tmT, qrT, tmN, qrN;
+    bool trung = (lanMoc == g_lanChot);
+    if(trung){                                       // chốt trùng: trả lại y kết quả lần trước
+      tmT = g_tmMocTruoc; qrT = g_qrMocTruoc; tmN = g_tmMoc; qrN = g_qrMoc;
+    } else {                                         // chốt mới: dời mốc
+      tmT = g_tmMoc; qrT = g_qrMoc; tmN = g_csTienMat; qrN = g_csQR;
+      g_tmMocTruoc = tmT; g_qrMocTruoc = qrT;
+      g_tmMoc = tmN;      g_qrMoc = qrN;
+      g_lanChot = lanMoc;
+      luuMocChot();
+      Serial.printf("[CHOT] DOI MOC (lan '%s'): TM %ld->%ld qr %ld->%ld | ky TM=%ld QR=%ld\n",
+                    lanMoc.c_str(), tmT, tmN, qrT, qrN, tmN - tmT, qrN - qrT);
+    }
+    String js = String("{\"ok\":1,\"ma\":\"") + maGhe
+              + "\",\"lan\":\"" + lanMoc
+              + "\",\"trung\":" + (trung ? "1" : "0")
+              + ",\"tm\":"    + String(tmN)   + ",\"qr\":"    + String(qrN)
+              + ",\"tmc\":"   + String(tmT)   + ",\"qrc\":"   + String(qrT)
+              + ",\"tm_ky\":" + String(tmN-tmT) + ",\"qr_ky\":" + String(qrN-qrT) + "}";
     cl.print(F("HTTP/1.1 200 OK\r\nContent-Type:application/json; charset=utf-8\r\nConnection:close\r\n\r\n"));
     cl.print(js);
     cl.stop(); return;
@@ -2281,7 +2336,13 @@ void setup(){
   /* CHỈ SỐ TIỀN cộng dồn (cho chốt tiền) — giữ qua mất điện. */
   g_csTienMat = prefs.getLong("csTm", 0);
   g_csQR      = prefs.getLong("csQr", 0);
-  Serial.printf("[CHOT] chi so tien: TM=%ld QR=%ld\n", g_csTienMat, g_csQR);
+  g_tmMoc      = prefs.getLong("tmMoc",  0);
+  g_qrMoc      = prefs.getLong("qrMoc",  0);
+  g_tmMocTruoc = prefs.getLong("tmMocT", 0);
+  g_qrMocTruoc = prefs.getLong("qrMocT", 0);
+  g_lanChot    = prefs.getString("lanChot", "");
+  Serial.printf("[CHOT] chi so tien: TM=%ld QR=%ld | moc TM=%ld QR=%ld (lan '%s')\n",
+                g_csTienMat, g_csQR, g_tmMoc, g_qrMoc, g_lanChot.c_str());
   docCauHinh();                              // và nhớ luôn phần NHẬN TIỀN — xem khối trên luuCauHinh()
 #if OTA_AP_ENABLE
   startOtaAP();   // BẬT SỚM: AP "POSH_QR-<mã>" lên ngay, KHÔNG chờ 4G (4G lâu/kẹt vẫn có AP để nạp)
