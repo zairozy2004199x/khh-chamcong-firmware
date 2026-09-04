@@ -1,14 +1,15 @@
 /* ============================================================================
  *  GHẾ QR — Waveshare ESP32-S3-Touch-LCD-2.8B (480×640, ST7701 RGB)
- *  ⚠️ BƯỚC 2 — STAGE A: LỚP VẼ + MÀN CHỜ CHỌN GÓI (chưa cảm ứng/QR/tiền).
+ *  ⚠️ BƯỚC 2 — STAGE B: LỚP VẼ + CHỌN GÓI BẰNG CẢM ỨNG (chưa QR/tiền/mạng).
  * ----------------------------------------------------------------------------
  *  Nền: driver ST7701 RGB gốc Waveshare (Display_ST7701 + TCA9554 + I2C).
  *  Lớp vẽ (rect/text/bo góc/tiền) bê từ bản _p4 (vẽ thẳng framebuffer), đổi sang
  *  đẩy buffer qua LCD_addWindow. Font 5×7 khử răng cưa (font_ascii.h).
+ *  Cảm ứng CST328 (touch_cst328.h) — poll I2C, lấy điểm đầu, dò trúng ô.
  *
- *  KẾT QUẢ: màn hiện GIAO DIỆN GHẾ dọc — thanh tiêu đề + lưới 2×2 chọn gói +
- *  thanh dưới "QUÉT QR". Chứng minh cả stack vẽ (chữ + khối) chạy trên panel thật.
- *  Bước sau: cảm ứng CST328 -> chọn gói -> hiện QR -> logic tiền/mạng (bê _p4).
+ *  KẾT QUẢ: chạm 1 gói ở lưới 2×2 -> sang màn "ĐÃ CHỌN GÓI" (thẻ to + nút
+ *  QUAY LAI). Chứng minh cả vẽ lẫn cảm ứng (dò trúng ô) chạy trên panel thật.
+ *  Bước sau: hiện QR thanh toán -> cổng tiền ICT/4G/NVS/chốt offline (bê _p4).
  * ========================================================================== */
 #include <Arduino.h>
 #include <math.h>
@@ -16,6 +17,7 @@
 #include "TCA9554PWR.h"
 #include "Display_ST7701.h"
 #include "font_ascii.h"
+#include "touch_cst328.h"
 
 // ───────────────────────────── KHUNG MÀN + FRAMEBUFFER ──────────────────────
 #define LW 480
@@ -125,6 +127,20 @@ static const Goi GOI[4] = {
   { "DAC BIET", 60, 80000 },
 };
 
+// Hình học lưới 2×2 (dùng chung cho vẽ + dò chạm).
+static const int GX[2] = { 22, 250 };
+static const int GY[2] = { 120, 372 };
+static const int TW = 208, TH = 232;
+
+// Ô nào chứa điểm (tx,ty)? -1 nếu không trúng ô nào.
+static int hitGoi(int tx, int ty){
+  for(int r = 0; r < 2; r++) for(int c = 0; c < 2; c++){
+    int x = GX[c], y = GY[r];
+    if(tx >= x && tx < x + TW && ty >= y && ty < y + TH) return r * 2 + c;
+  }
+  return -1;
+}
+
 // Một thẻ gói (bo góc, tên trên, tiền vàng giữa, phút dưới).
 static void veTheGoi(int i, int x, int y, int w, int h){
   lRoundRectA(x+3, y+6, w, h, 14, C_SHD, C_BG);         // bóng đổ
@@ -144,19 +160,50 @@ static void veIdle(){
   lTextC(LW/2, 20, "POSH", 5, C_YEL, C_BAR);
   lTextC(LW/2, 62, "GHE MASSAGE QR", 2, C_WHITE, C_BAR);
   // Lưới 2×2 chọn gói
-  int gx[2] = { 22, 250 }, gy[2] = { 120, 372 };
-  int tw = 208, th = 232, k = 0;
-  for(int r=0;r<2;r++) for(int c=0;c<2;c++) veTheGoi(k++, gx[c], gy[r], tw, th);
+  int k = 0;
+  for(int r=0;r<2;r++) for(int c=0;c<2;c++) veTheGoi(k++, GX[c], GY[r], TW, TH);
   // Thanh dưới
   lRect(0, LH-56, LW, 56, C_BAR);
   lTextC(LW/2, LH-40, "CHON GOI - QUET QR THANH TOAN", 2, C_GLOW, C_BAR);
   veFlush();
 }
 
+// Màn "đã chọn gói" — tạm thời (chỗ QR sẽ ráp ở Stage sau). Có nút QUAY LAI.
+static const int BACK_X = 40, BACK_Y = LH - 120, BACK_W = LW - 80, BACK_H = 76;
+static void veChon(int idx){
+  lFill(C_BG);
+  lRect(0, 0, LW, 92, C_BAR);
+  lTextC(LW/2, 20, "DA CHON GOI", 4, C_YEL, C_BAR);
+  lTextC(LW/2, 64, "GHE MASSAGE QR", 2, C_WHITE, C_BAR);
+  // Thẻ gói đã chọn (giữa màn)
+  int cw = LW - 80, ch = 250, cx0 = 40, cy0 = 140;
+  lRoundRectA(cx0, cy0, cw, ch, 16, C_TOP, C_BG);
+  lRoundRectA(cx0+2, cy0+ch/2, cw-4, ch/2-2, 14, C_BOT, C_TOP);
+  int cx = LW/2;
+  lTextC(cx, cy0+26, GOI[idx].ten, 4, C_WHITE, C_TOP);
+  lMoneyC(cx, cy0+ch/2-24, GOI[idx].tien, 5, C_YEL, C_BOT);
+  char p[16]; snprintf(p, sizeof p, "%d PHUT", GOI[idx].phut);
+  lTextC(cx, cy0+ch-46, p, 2, C_PHU, C_BOT);
+  // Ghi chú bước sau
+  lTextC(cx, cy0+ch+28, "QR THANH TOAN SE HIEN O DAY", 2, C_GLOW, C_BG);
+  // Nút QUAY LAI
+  lRoundRectA(BACK_X, BACK_Y, BACK_W, BACK_H, 14, C_BAR, C_BG);
+  lTextC(cx, BACK_Y+26, "QUAY LAI", 3, C_WHITE, C_BAR);
+  veFlush();
+}
+static bool inBack(int tx, int ty){
+  return tx >= BACK_X && tx < BACK_X+BACK_W && ty >= BACK_Y && ty < BACK_Y+BACK_H;
+}
+
+// ───────────────────────────── TRẠNG THÁI APP ──────────────────────────────
+enum { ST_IDLE, ST_CHON };
+static int  g_state = ST_IDLE;
+static int  g_goi   = -1;
+
 void setup(){
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n\n=== GHE QR S3 - Stage A (lop ve + man chon goi) ===");
+  Serial.println("\n\n=== GHE QR S3 - Stage B (lop ve + cham chon goi) ===");
 
   I2C_Init();
   TCA9554PWR_Init(0x00);
@@ -166,13 +213,43 @@ void setup(){
   Serial.println("[S3] LCD OK, cap phat framebuffer...");
 
   if(!veInit()){ Serial.println("[S3] THIEU PSRAM cho framebuffer!"); return; }
+  TP_Init();                     // cảm ứng CST328
   Serial.println("[S3] ve man chon goi...");
   veIdle();
-  Serial.println("[S3] xong. Man phai hien tieu de + luoi 2x2 + thanh duoi.");
+  Serial.println("[S3] xong. Cham 1 goi de chon; man 'da chon' co nut QUAY LAI.");
+}
+
+// Chạm 1 lần (sườn lên): trả true + toạ độ tại thời điểm nhả/chạm mới.
+static bool chamMoi(int* px, int* py){
+  static bool truoc = false;      // trạng thái chạm lần trước
+  static int  lx = 0, ly = 0;
+  int x, y;
+  bool now = TP_Read(&x, &y);
+  if(now){ lx = x; ly = y; }
+  bool su_kien = (!truoc && now);  // vừa nhấn xuống
+  truoc = now;
+  if(su_kien){ *px = lx; *py = ly; }
+  return su_kien;
 }
 
 void loop(){
-  static uint32_t t = 0;
-  if(millis() - t > 3000){ t = millis(); Serial.println("[S3] idle..."); }
-  delay(50);
+  int tx, ty;
+  if(chamMoi(&tx, &ty)){
+    Serial.printf("[TP] cham x=%d y=%d (state=%d)\n", tx, ty, g_state);
+    if(g_state == ST_IDLE){
+      int k = hitGoi(tx, ty);
+      if(k >= 0){
+        g_goi = k; g_state = ST_CHON;
+        Serial.printf("[APP] chon goi %d (%s)\n", k, GOI[k].ten);
+        veChon(k);
+      }
+    } else if(g_state == ST_CHON){
+      if(inBack(tx, ty)){
+        g_state = ST_IDLE; g_goi = -1;
+        Serial.println("[APP] quay lai man chon goi");
+        veIdle();
+      }
+    }
+  }
+  delay(15);
 }

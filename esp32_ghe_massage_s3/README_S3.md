@@ -12,10 +12,17 @@ config rời**. Mọi thứ nằm trong thư mục sketch.
 ## Các file trong sketch (bê từ demo Arduino Waveshare, chỉ bỏ LVGL)
 | File | Việc |
 |---|---|
-| `esp32_ghe_massage_s3.ino` | Bring-up: init + vẽ 4 dải màu |
+| `esp32_ghe_massage_s3.ino` | App ghế: lớp vẽ + chọn gói bằng cảm ứng |
 | `Display_ST7701.cpp/.h` | Init ST7701 (SPI2) + panel RGB (esp_lcd) + `LCD_addWindow` + đèn nền |
 | `TCA9554PWR.cpp/.h` | Mở rộng GPIO (CS/RST màn = EXIO3/EXIO1, còi = EXIO8) qua I2C |
 | `I2C_Driver.cpp/.h` | Wire trên SDA=15, SCL=7 |
+| `touch_cst328.h` | Cảm ứng CST328 (I2C 0x1A, thanh ghi 16-bit) — tự viết theo tài liệu, poll |
+| `font_ascii.h` | Font 5×7 khử răng cưa |
+
+## Chỉnh chiều cảm ứng (nếu chạm lệch)
+Nếu chạm mà trúng sai ô, mở `touch_cst328.h` sửa 3 cờ đầu file:
+`TOUCH_SWAP_XY` (đổi X↔Y), `TOUCH_MIRROR_X`, `TOUCH_MIRROR_Y` (lật trục) = 0/1.
+Serial in `[TP] cham x=.. y=..` để so với chỗ ngón tay mà chỉnh.
 
 ## Nạp & kết quả
 Mở `esp32_ghe_massage_s3.ino` → Upload → Serial 115200.
