@@ -1,61 +1,75 @@
 /* ============================================================================
- *  GHẾ QR — Waveshare ESP32-S3-Touch-LCD-2.8B (480×640, ST7701 RGB + GT911)
- *  ⚠️ BƯỚC 1: BRING-UP — CHỈ THỬ MÀN + CẢM ỨNG (chưa có app ghế/QR/tiền).
+ *  GHẾ QR — Waveshare ESP32-S3-Touch-LCD-2.8B (480×640, ST7701 RGB)
+ *  ⚠️ BƯỚC 1: BRING-UP MÀN — dùng DRIVER GỐC ĐÃ TEST của Waveshare.
  * ----------------------------------------------------------------------------
- *  Dùng API ESP32_Display_Panel v1.x (esp-arduino-libs). Header + cách gọi lấy
- *  từ ví dụ chính thức board_static_config của thư viện.
+ *  Không cần thư viện ngoài (TFT_eSPI / ESP32_Display_Panel / Arduino_GFX) — màn
+ *  ST7701 RGB chạy bằng esp_lcd có sẵn trong ESP32 core. Các file kèm theo lấy
+ *  NGUYÊN từ demo Arduino chính hãng Waveshare (LVGL_Arduino), chỉ bỏ phần LVGL:
+ *      Display_ST7701.cpp/.h  — init ST7701 (SPI2) + panel RGB + LCD_addWindow + đèn nền
+ *      TCA9554PWR.cpp/.h       — mở rộng GPIO (CS/RST màn, còi) qua I2C
+ *      I2C_Driver.cpp/.h       — Wire trên SDA=15, SCL=7
  *
- *  CHUẨN BỊ (xem README_S3.md):
- *    1. Arduino: Board = "ESP32S3 Dev Module", PSRAM = "OPI PSRAM", Flash = 16MB.
- *    2. Library Manager: cài  ESP32_Display_Panel  (>=1.0) của esp-arduino-libs.
- *    3. Chân RGB đã điền sẵn (bóc từ schematic) trong esp_panel_board_custom_conf.h.
- *    4. Nạp. Mở Serial 115200.
+ *  CÀI ĐẶT ARDUINO:
+ *      Board = "ESP32S3 Dev Module" · PSRAM = "OPI PSRAM" · Flash = 16MB
+ *      (KHÔNG cần cài/đặt file config gì thêm — mọi thứ nằm trong thư mục sketch.)
  *
- *  KẾT QUẢ MONG ĐỢI:
- *    · Màn hiện CÁC DẢI MÀU (colorBarTest) — đỏ/lục/lam... đúng màu = chân RGB OK.
- *    · Chạm màn -> Serial in toạ độ x,y.
- *    · Màn ĐEN -> begin() lỗi / sai chân RGB (xem Serial). Màu SAI -> init ST7701.
+ *  KẾT QUẢ: màn hiện 4 DẢI MÀU dọc theo chiều cao: ĐỎ / LỤC / LAM / TRẮNG.
+ *      · Đúng màu -> panel + chân RGB OK -> báo em ráp full app ghế.
+ *      · Đen -> báo Serial. Sai màu -> chỉnh nhỏ (ít khi, vì đây là code Waveshare).
  * ========================================================================== */
 #include <Arduino.h>
-#include <vector>
-#include <esp_display_panel.hpp>
+#include "I2C_Driver.h"
+#include "TCA9554PWR.h"
+#include "Display_ST7701.h"
 
-using namespace esp_panel::board;
-using namespace esp_panel::drivers;
+#define LCD_W  480
+#define LCD_H  640
+#define CHUNK  40                    // vẽ theo khối 40 hàng (480*40*2 = 38 KB/lần)
 
-Board* board = nullptr;
+static uint16_t* g_buf = nullptr;    // buffer nguồn để đẩy vào panel (PSRAM)
+
+static inline uint16_t RGB(uint8_t r, uint8_t g, uint8_t b){
+  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+}
+
+/* Tô 1 hình chữ nhật màu đặc — đẩy theo khối cho nhẹ RAM. */
+void toHcn(int x, int y, int w, int h, uint16_t mau){
+  if(!g_buf) return;
+  for(int yy = y; yy < y + h; yy += CHUNK){
+    int rows = min(CHUNK, y + h - yy);
+    for(int i = 0; i < w * rows; i++) g_buf[i] = mau;
+    LCD_addWindow(x, yy, x + w - 1, yy + rows - 1, (uint8_t*)g_buf);   // Xend/Yend inclusive
+  }
+}
 
 void setup(){
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n\n=== GHE QR S3 (bring-up man + cam ung) ===");
+  Serial.println("\n\n=== GHE QR S3 (bring-up man ST7701 RGB - driver Waveshare) ===");
 
-  board = new Board();
-  bool ok = board->begin();               // begin() tự init bus + LCD + touch + expander
-  Serial.println(ok ? "[LCD] begin() OK" : "[LCD] begin() LOI - soat lai conf/chan RGB");
+  I2C_Init();                        // Wire SDA=15 SCL=7
+  TCA9554PWR_Init(0x00);             // expander: tất cả OUTPUT
+  Set_EXIO(EXIO_PIN8, Low);          // tắt còi
+  Backlight_Init();                  // đèn nền GPIO6 (PWM)
+  Serial.println("[S3] I2C + expander + den nen OK, dang init LCD...");
+  LCD_Init();                        // ST7701 reset(EXIO1)+init(CS EXIO3) + panel RGB
+  Serial.println("[S3] LCD_Init xong. Neu man den -> bao Serial.");
 
-  auto lcd = board->getLCD();
-  if(lcd){
-    Serial.println("[LCD] colorBarTest -> man phai hien cac DAI MAU");
-    lcd->colorBarTest();                  // vẽ dải màu: chứng minh panel + chân RGB
-  } else {
-    Serial.println("[LCD] getLCD() = null");
-  }
+  g_buf = (uint16_t*)heap_caps_malloc((size_t)LCD_W * CHUNK * 2, MALLOC_CAP_SPIRAM);
+  if(!g_buf) g_buf = (uint16_t*)malloc((size_t)LCD_W * CHUNK * 2);
+  Serial.println(g_buf ? "[S3] buffer ve OK" : "[S3] THIEU RAM buffer ve");
 
-  auto touch = board->getTouch();
-  Serial.println(touch ? "[TP] co GT911 - cham man de thu (toa do ra Serial)"
-                       : "[TP] KHONG thay touch");
+  // 4 dải màu dọc theo chiều cao (mỗi dải 160px) — kiểm panel + màu RGB
+  toHcn(0,   0, LCD_W, 160, RGB(255,0,0));    Serial.println("[VE] DO");
+  toHcn(0, 160, LCD_W, 160, RGB(0,255,0));    Serial.println("[VE] LUC");
+  toHcn(0, 320, LCD_W, 160, RGB(0,0,255));    Serial.println("[VE] LAM");
+  toHcn(0, 480, LCD_W, 160, RGB(255,255,255)); Serial.println("[VE] TRANG");
+  Serial.println("[S3] Da ve 4 dai mau. Xong bring-up neu man dung mau.");
 }
 
 void loop(){
-  auto touch = board->getTouch();
-  if(touch){
-    touch->readRawData(-1, -1, 20);
-    std::vector<TouchPoint> points;
-    touch->getPoints(points);
-    for(auto& p : points){
-      Serial.printf("[CHAM] x=%d y=%d\n", p.x, p.y);
-    }
-  }
-  delay(20);
+  // Nhấp nháy đèn nền nhẹ để biết còn sống (không đổi màn)
+  static uint32_t t = 0;
+  if(millis() - t > 2000){ t = millis(); Serial.println("[S3] dang chay..."); }
+  delay(50);
 }
