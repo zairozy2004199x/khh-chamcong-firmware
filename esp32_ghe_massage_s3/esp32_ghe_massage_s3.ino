@@ -1,75 +1,178 @@
 /* ============================================================================
  *  GHẾ QR — Waveshare ESP32-S3-Touch-LCD-2.8B (480×640, ST7701 RGB)
- *  ⚠️ BƯỚC 1: BRING-UP MÀN — dùng DRIVER GỐC ĐÃ TEST của Waveshare.
+ *  ⚠️ BƯỚC 2 — STAGE A: LỚP VẼ + MÀN CHỜ CHỌN GÓI (chưa cảm ứng/QR/tiền).
  * ----------------------------------------------------------------------------
- *  Không cần thư viện ngoài (TFT_eSPI / ESP32_Display_Panel / Arduino_GFX) — màn
- *  ST7701 RGB chạy bằng esp_lcd có sẵn trong ESP32 core. Các file kèm theo lấy
- *  NGUYÊN từ demo Arduino chính hãng Waveshare (LVGL_Arduino), chỉ bỏ phần LVGL:
- *      Display_ST7701.cpp/.h  — init ST7701 (SPI2) + panel RGB + LCD_addWindow + đèn nền
- *      TCA9554PWR.cpp/.h       — mở rộng GPIO (CS/RST màn, còi) qua I2C
- *      I2C_Driver.cpp/.h       — Wire trên SDA=15, SCL=7
+ *  Nền: driver ST7701 RGB gốc Waveshare (Display_ST7701 + TCA9554 + I2C).
+ *  Lớp vẽ (rect/text/bo góc/tiền) bê từ bản _p4 (vẽ thẳng framebuffer), đổi sang
+ *  đẩy buffer qua LCD_addWindow. Font 5×7 khử răng cưa (font_ascii.h).
  *
- *  CÀI ĐẶT ARDUINO:
- *      Board = "ESP32S3 Dev Module" · PSRAM = "OPI PSRAM" · Flash = 16MB
- *      (KHÔNG cần cài/đặt file config gì thêm — mọi thứ nằm trong thư mục sketch.)
- *
- *  KẾT QUẢ: màn hiện 4 DẢI MÀU dọc theo chiều cao: ĐỎ / LỤC / LAM / TRẮNG.
- *      · Đúng màu -> panel + chân RGB OK -> báo em ráp full app ghế.
- *      · Đen -> báo Serial. Sai màu -> chỉnh nhỏ (ít khi, vì đây là code Waveshare).
+ *  KẾT QUẢ: màn hiện GIAO DIỆN GHẾ dọc — thanh tiêu đề + lưới 2×2 chọn gói +
+ *  thanh dưới "QUÉT QR". Chứng minh cả stack vẽ (chữ + khối) chạy trên panel thật.
+ *  Bước sau: cảm ứng CST328 -> chọn gói -> hiện QR -> logic tiền/mạng (bê _p4).
  * ========================================================================== */
 #include <Arduino.h>
+#include <math.h>
 #include "I2C_Driver.h"
 #include "TCA9554PWR.h"
 #include "Display_ST7701.h"
+#include "font_ascii.h"
 
-#define LCD_W  480
-#define LCD_H  640
-#define CHUNK  40                    // vẽ theo khối 40 hàng (480*40*2 = 38 KB/lần)
+// ───────────────────────────── KHUNG MÀN + FRAMEBUFFER ──────────────────────
+#define LW 480
+#define LH 640
+#define RGB565(r,g,b) ((uint16_t)((((r)&0xF8)<<8)|(((g)&0xFC)<<3)|((b)>>3)))
 
-static uint16_t* g_buf = nullptr;    // buffer nguồn để đẩy vào panel (PSRAM)
+static uint16_t* g_fb = nullptr;      // framebuffer của mình (PSRAM), đẩy qua LCD_addWindow
 
-static inline uint16_t RGB(uint8_t r, uint8_t g, uint8_t b){
-  return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
+bool veInit(){
+  g_fb = (uint16_t*)heap_caps_malloc((size_t)LW * LH * 2, MALLOC_CAP_SPIRAM);
+  return g_fb != nullptr;
+}
+void veFlush(){ if(g_fb) LCD_addWindow(0, 0, LW - 1, LH - 1, (uint8_t*)g_fb); }
+
+static inline void lpx(int x, int y, uint16_t c){
+  if(x < 0 || x >= LW || y < 0 || y >= LH || !g_fb) return;
+  g_fb[y * LW + x] = c;              // dọc, không xoay
+}
+static void lRect(int x, int y, int w, int h, uint16_t c){
+  for(int j = 0; j < h; j++) for(int i = 0; i < w; i++) lpx(x + i, y + j, c);
+}
+static void lFill(uint16_t c){ lRect(0, 0, LW, LH, c); }
+
+// ───────────────────────────── KHỬ RĂNG CƯA + BO GÓC ────────────────────────
+static inline uint16_t blend565(uint16_t fg, uint16_t bg, uint8_t a){
+  uint16_t fr=(fg>>11)&0x1F, fgc=(fg>>5)&0x3F, fbl=fg&0x1F;
+  uint16_t br=(bg>>11)&0x1F, bgc=(bg>>5)&0x3F, bbl=bg&0x1F;
+  uint16_t r=(fr*a+br*(255-a)+127)/255, g=(fgc*a+bgc*(255-a)+127)/255, b=(fbl*a+bbl*(255-a)+127)/255;
+  return (uint16_t)((r<<11)|(g<<5)|b);
+}
+static void lRoundRectA(int x, int y, int w, int h, int r, uint16_t c, uint16_t bg){
+  if(r*2>w) r=w/2; if(r*2>h) r=h/2;
+  if(r<1){ lRect(x,y,w,h,c); return; }
+  lRect(x+r, y, w-2*r, h, c);
+  lRect(x, y+r, r, h-2*r, c);
+  lRect(x+w-r, y+r, r, h-2*r, c);
+  for(int cn=0; cn<4; cn++){
+    int ox=(cn&1)?(x+w-r):x, oy=(cn&2)?(y+h-r):y;
+    float ccx=(cn&1)?(float)(x+w-r):(float)(x+r), ccy=(cn&2)?(float)(y+h-r):(float)(y+r);
+    for(int j=0;j<r;j++) for(int i=0;i<r;i++){
+      float dx=(ox+i+0.5f)-ccx, dy=(oy+j+0.5f)-ccy;
+      float cov=(float)r-sqrtf(dx*dx+dy*dy)+0.5f;
+      if(cov<=0) continue; if(cov>1) cov=1;
+      uint8_t a=(uint8_t)(cov*255);
+      lpx(ox+i, oy+j, a>=255?c:blend565(c,bg,a));
+    }
+  }
 }
 
-/* Tô 1 hình chữ nhật màu đặc — đẩy theo khối cho nhẹ RAM. */
-void toHcn(int x, int y, int w, int h, uint16_t mau){
-  if(!g_buf) return;
-  for(int yy = y; yy < y + h; yy += CHUNK){
-    int rows = min(CHUNK, y + h - yy);
-    for(int i = 0; i < w * rows; i++) g_buf[i] = mau;
-    LCD_addWindow(x, yy, x + w - 1, yy + rows - 1, (uint8_t*)g_buf);   // Xend/Yend inclusive
+// ───────────────────────────── FONT (5×7 khử răng cưa) ──────────────────────
+static inline float _fbit(const uint8_t g[7], int cx, int cy){
+  if(cx<0||cx>4||cy<0||cy>6) return 0.0f;
+  return ((g[cy]>>(4-cx))&1)?1.0f:0.0f;
+}
+static void lBitmap(int x, int y, const uint8_t g[7], int sc, uint16_t c, uint16_t bg){
+  int W=5*sc, H=7*sc;
+  for(int j=0;j<H;j++) for(int i=0;i<W;i++){
+    float u=(i+0.5f)/sc-0.5f, v=(j+0.5f)/sc-0.5f;
+    int u0=(int)floorf(u), v0=(int)floorf(v);
+    float fu=u-u0, fv=v-v0;
+    float top=_fbit(g,u0,v0)*(1-fu)+_fbit(g,u0+1,v0)*fu;
+    float bot=_fbit(g,u0,v0+1)*(1-fu)+_fbit(g,u0+1,v0+1)*fu;
+    float cov=top*(1-fv)+bot*fv;
+    cov=(cov-0.5f)*1.7f+0.5f;
+    if(cov<=0.02f) continue; if(cov>1) cov=1;
+    uint8_t a=(uint8_t)(cov*255);
+    lpx(x+i, y+j, a>=250?c:blend565(c,bg,a));
   }
+}
+#define CHAR_W(sc) (6*(sc))
+static int lTextW(const char* s, int sc){ return (int)strlen(s)*CHAR_W(sc); }
+static void lText(int x, int y, const char* s, int sc, uint16_t c, uint16_t bg){
+  int xx=x; for(const char* p=s; *p; p++){ lBitmap(xx,y,glyph7(*p),sc,c,bg); xx+=CHAR_W(sc); }
+}
+static void lTextC(int cx, int y, const char* s, int sc, uint16_t c, uint16_t bg){ lText(cx-lTextW(s,sc)/2, y, s, sc, c, bg); }
+static void lTextR(int rx, int y, const char* s, int sc, uint16_t c, uint16_t bg){ lText(rx-lTextW(s,sc), y, s, sc, c, bg); }
+static void _tienStr(long v, char* out, size_t cap){
+  char s[16]; int n=snprintf(s,sizeof s,"%ld",v); int o=0;
+  for(int i=0;i<n && o<(int)cap-2;i++){ out[o++]=s[i]; int rem=n-1-i; if(rem>0 && rem%3==0) out[o++]='.'; }
+  out[o]=0;
+}
+static int lMoneyW(long v, int sc){ char t[24]; _tienStr(v,t,sizeof t); return lTextW(t,sc)+sc+CHAR_W(sc); }
+static int lMoney(int x, int y, long v, int sc, uint16_t c, uint16_t bg){
+  char t[24]; _tienStr(v,t,sizeof t); lText(x,y,t,sc,c,bg);
+  int xx=x+lTextW(t,sc)+sc; lBitmap(xx,y,GLYPH_DD,sc,c,bg); return xx+CHAR_W(sc)-x;
+}
+static void lMoneyC(int cx, int y, long v, int sc, uint16_t c, uint16_t bg){ lMoney(cx-lMoneyW(v,sc)/2, y, v, sc, c, bg); }
+
+// ───────────────────────────── MÀU ─────────────────────────────────────────
+#define C_BG    RGB565(0x0C,0x22,0x3A)
+#define C_BAR   RGB565(0x15,0x42,0x57)
+#define C_TOP   RGB565(0x2C,0x7E,0x8E)
+#define C_BOT   RGB565(0x16,0x4A,0x5E)
+#define C_SHD   RGB565(0x05,0x12,0x20)
+#define C_GLOW  RGB565(0x6C,0xE6,0xF2)
+#define C_WHITE RGB565(0xFF,0xFF,0xFF)
+#define C_PHU   RGB565(0xAE,0xD8,0xE8)
+#define C_ID    RGB565(0x5A,0xD8,0x88)
+#define C_YEL   RGB565(0xF4,0xC8,0x54)
+
+// ───────────────────────────── GÓI DỊCH VỤ (tạm) ───────────────────────────
+struct Goi { const char* ten; int phut; long tien; };
+static const Goi GOI[4] = {
+  { "THUONG",   15, 20000 },
+  { "VIP",      30, 40000 },
+  { "CAO CAP",  45, 60000 },
+  { "DAC BIET", 60, 80000 },
+};
+
+// Một thẻ gói (bo góc, tên trên, tiền vàng giữa, phút dưới).
+static void veTheGoi(int i, int x, int y, int w, int h){
+  lRoundRectA(x+3, y+6, w, h, 14, C_SHD, C_BG);         // bóng đổ
+  lRoundRectA(x, y, w, h, 14, C_TOP, C_BG);             // thân thẻ
+  lRoundRectA(x+2, y+h/2, w-4, h/2-2, 12, C_BOT, C_TOP);// nửa dưới tối hơn
+  int cx = x + w/2;
+  lTextC(cx, y+18, GOI[i].ten, 3, C_WHITE, C_TOP);       // tên gói
+  lMoneyC(cx, y+h/2-18, GOI[i].tien, 4, C_YEL, C_BOT);   // tiền (vàng, to)
+  char p[16]; snprintf(p, sizeof p, "%d PHUT", GOI[i].phut);
+  lTextC(cx, y+h-40, p, 2, C_PHU, C_BOT);                // phút
+}
+
+static void veIdle(){
+  lFill(C_BG);
+  // Thanh tiêu đề
+  lRect(0, 0, LW, 92, C_BAR);
+  lTextC(LW/2, 20, "POSH", 5, C_YEL, C_BAR);
+  lTextC(LW/2, 62, "GHE MASSAGE QR", 2, C_WHITE, C_BAR);
+  // Lưới 2×2 chọn gói
+  int gx[2] = { 22, 250 }, gy[2] = { 120, 372 };
+  int tw = 208, th = 232, k = 0;
+  for(int r=0;r<2;r++) for(int c=0;c<2;c++) veTheGoi(k++, gx[c], gy[r], tw, th);
+  // Thanh dưới
+  lRect(0, LH-56, LW, 56, C_BAR);
+  lTextC(LW/2, LH-40, "CHON GOI - QUET QR THANH TOAN", 2, C_GLOW, C_BAR);
+  veFlush();
 }
 
 void setup(){
   Serial.begin(115200);
   delay(300);
-  Serial.println("\n\n=== GHE QR S3 (bring-up man ST7701 RGB - driver Waveshare) ===");
+  Serial.println("\n\n=== GHE QR S3 - Stage A (lop ve + man chon goi) ===");
 
-  I2C_Init();                        // Wire SDA=15 SCL=7
-  TCA9554PWR_Init(0x00);             // expander: tất cả OUTPUT
-  Set_EXIO(EXIO_PIN8, Low);          // tắt còi
-  Backlight_Init();                  // đèn nền GPIO6 (PWM)
-  Serial.println("[S3] I2C + expander + den nen OK, dang init LCD...");
-  LCD_Init();                        // ST7701 reset(EXIO1)+init(CS EXIO3) + panel RGB
-  Serial.println("[S3] LCD_Init xong. Neu man den -> bao Serial.");
+  I2C_Init();
+  TCA9554PWR_Init(0x00);
+  Set_EXIO(EXIO_PIN8, Low);      // còi tắt
+  Backlight_Init();
+  LCD_Init();
+  Serial.println("[S3] LCD OK, cap phat framebuffer...");
 
-  g_buf = (uint16_t*)heap_caps_malloc((size_t)LCD_W * CHUNK * 2, MALLOC_CAP_SPIRAM);
-  if(!g_buf) g_buf = (uint16_t*)malloc((size_t)LCD_W * CHUNK * 2);
-  Serial.println(g_buf ? "[S3] buffer ve OK" : "[S3] THIEU RAM buffer ve");
-
-  // 4 dải màu dọc theo chiều cao (mỗi dải 160px) — kiểm panel + màu RGB
-  toHcn(0,   0, LCD_W, 160, RGB(255,0,0));    Serial.println("[VE] DO");
-  toHcn(0, 160, LCD_W, 160, RGB(0,255,0));    Serial.println("[VE] LUC");
-  toHcn(0, 320, LCD_W, 160, RGB(0,0,255));    Serial.println("[VE] LAM");
-  toHcn(0, 480, LCD_W, 160, RGB(255,255,255)); Serial.println("[VE] TRANG");
-  Serial.println("[S3] Da ve 4 dai mau. Xong bring-up neu man dung mau.");
+  if(!veInit()){ Serial.println("[S3] THIEU PSRAM cho framebuffer!"); return; }
+  Serial.println("[S3] ve man chon goi...");
+  veIdle();
+  Serial.println("[S3] xong. Man phai hien tieu de + luoi 2x2 + thanh duoi.");
 }
 
 void loop(){
-  // Nhấp nháy đèn nền nhẹ để biết còn sống (không đổi màn)
   static uint32_t t = 0;
-  if(millis() - t > 2000){ t = millis(); Serial.println("[S3] dang chay..."); }
+  if(millis() - t > 3000){ t = millis(); Serial.println("[S3] idle..."); }
   delay(50);
 }
