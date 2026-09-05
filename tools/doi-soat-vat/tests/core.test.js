@@ -376,6 +376,74 @@ eq('cộng đúng theo ngày', theoNgayBang['2026-08-02'].tong, 250);
 eq('ngày không phát sinh thì không có khoá', theoNgayBang['2026-08-03'], undefined);
 eq('tách được theo luồng trong ngày', theoNgayBang['2026-08-01'].theoLuong.QR, 100);
 
+/* --------------------------------------- đề xuất điểm cho mã mới */
+
+function catalogGoiY() {
+  var cat = new V.Catalog();
+  [['FARM AEON HUẾ', 'FARM AEON HUE', 'Hà Nội'],
+   ['FUNFEST AEON MALL BÌNH TÂN', 'AE BT KVCM', 'HCM'],
+   ['Funzone IPH Cầu Giấy', 'FUNZONE IPH KVCN', 'Hà Nội'],
+   ['Funzone Adventure SC Vivo', 'SC VIVO KVCM', 'HCM'],
+   ['Eco Kids farm Hải Phòng', 'EKF HP', 'Hà Nội']
+  ].forEach(function (p) {
+    cat.addPoint(V.makePoint({ tenDiem: p[0], maMisa: p[1], khuVuc: p[2] }));
+  });
+  return cat;
+}
+
+eq('bỏ dấu và emoji', V.tachTu('🌸 THE LOOP (IPH)').join(','), 'loop,iph');
+eq('cắt giữa chữ và số', V.tachTu('FZ2_IPH').join(','), 'fz,iph');
+eq('bỏ chữ đ có dấu', V.tachTu('ĐÀ NẴNG').join(','), 'da,nang');
+eq('bỏ từ mô tả khuyến mãi', V.tachTu('COMBO MUA 4 TẶNG 2').join(','), '');
+check('bỏ loại hình mặt bằng', V.tachTu('AEON MALL HUẾ').indexOf('mall') < 0);
+
+var catGoiY = catalogGoiY();
+var canGoiY = V.trongSo(catGoiY);
+
+// "mall" bị bỏ nên "Huế" mới là chỗ phân biệt, không để khớp nhầm sang Bình Tân.
+var gAeonHue = V.goiYDiem('AEON MALL HUẾ', 'zalo', catGoiY, null, 3, canGoiY);
+eq('chọn đúng điểm cùng địa danh', gAeonHue.length && gAeonHue[0].point.tenDiem, 'FARM AEON HUẾ');
+
+var gVivo = V.goiYDiem('🌸 SC VivoCity', 'zalo', catGoiY, null, 3, canGoiY);
+eq('nhận ra tên gian hàng có emoji', gVivo.length && gVivo[0].point.tenDiem,
+  'Funzone Adventure SC Vivo');
+
+// Đúng đường đi thật: tiền tố chung của cả lô bị loại trước khi so.
+var maPayoo = ['DVGIAITRIKH_FZ_IPH', 'DVGIAITRIKH_FARM_VC', 'DVGIAITRIKH_AE_HUE'];
+var gPayoo = V.goiYDiem('DVGIAITRIKH_FZ_IPH', 'payoo', catGoiY, V.tuPhoBien(maPayoo), 3, canGoiY);
+eq('nhận ra mã kỹ thuật của Payoo', gPayoo.length && gPayoo[0].point.tenDiem,
+  'Funzone IPH Cầu Giấy');
+
+eq('không đề xuất bừa cho chữ không phải địa danh',
+  V.goiYDiem('COMBO MUA 4 TẶNG 2', 'zalo', catGoiY, null, 3, canGoiY).length, 0);
+
+// Mã đã khai ở cổng khác là bằng chứng thật, không phải phỏng đoán.
+catGoiY.add('vnpay', 'SHOP9', V.makePoint({ tenDiem: 'FARM AEON HUẾ' }));
+var gChac = V.goiYDiem('SHOP9', 'zalo', catGoiY);
+eq('mã đã có ở kênh khác thì chắc chắn', gChac.length && gChac[0].diem, 1);
+check('nói rõ vì sao chắc', gChac.length && gChac[0].lyDo.indexOf('đã khai ở kênh') >= 0);
+
+var dayDu = V.goiYDiem('Eco Kids farm Hải Phòng', 'zalo', catGoiY, null, 3, canGoiY);
+var motPhan = V.goiYDiem('AEON MALL HẢI PHÒNG', 'zalo', catGoiY, null, 3, canGoiY);
+eq('khớp đủ chữ thì điểm tuyệt đối', dayDu.length && dayDu[0].diem, 1);
+check('khớp một phần thì thấp hơn hẳn', motPhan.length && motPhan[0].diem < dayDu[0].diem,
+  motPhan.length ? String(motPhan[0].diem) : '(rỗng)');
+
+var boPhoBien = V.tuPhoBien(maPayoo);
+check('bỏ tiền tố có ở mọi mã', !!boPhoBien.dvgiaitrikh);
+check('giữ lại phần phân biệt', !boPhoBien.iph && !boPhoBien.farm);
+eq('ít mã quá thì không kết luận', Object.keys(V.tuPhoBien(['A_X', 'A_Y'])).length, 0);
+
+// Payoo ghi hai mã cho một cửa hàng — khai theo mã nào cũng tra ra được.
+var catMaPhu = new V.Catalog();
+catMaPhu.add('payoo', '00003182', V.makePoint({ tenDiem: 'Funzone IPH Cầu Giấy' }));
+var maPhu = V.aggregate([{
+  channel: 'payoo', stream: 'Payoo - Thẻ', nguon: 'p.xlsx', code: 'DVGIAITRIKH_FZ_IPH',
+  codePhu: '00003182', ngay: '2026-08-02', soTien: 5000, phi: 0, nhom: 'Thẻ', ref: 'r1'
+}], catMaPhu, KY);
+eq('tra được qua mã cửa hàng', V.totalOf(maPhu), 5000);
+eq('không rơi vào mã chưa map', maPhu.chuaMap.length, 0);
+
 /* ----------------------------------------------------- bảng lọc Payoo */
 
 function payooTxn(code, ngay, tien, phi, nhom, ref) {

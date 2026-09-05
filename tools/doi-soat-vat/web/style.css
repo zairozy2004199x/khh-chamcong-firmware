@@ -359,3 +359,10 @@ label.inline {
 label.inline select {
   font-weight: 600;
 }
+
+/* Ô chọn đề xuất trong bảng mã chưa có danh mục: gọn lại cho vừa cột. */
+#unmappedTable select {
+  padding: 5px 8px;
+  max-width: 320px;
+  font-size: 13px;
+}

@@ -224,7 +224,7 @@ function run(message) {
     chuaVat: invoices.reduce(function (a, i) { return a + i.chuaVat; }, 0),
     vat: invoices.reduce(function (a, i) { return a + i.vat; }, 0),
     coVat: invoices.reduce(function (a, i) { return a + i.coVat; }, 0),
-    chuaMap: result.chuaMap,
+    chuaMap: demXuat(result.chuaMap, catalog),
     chuaGanDiem: chuaGanDiem.slice(0, 500),
     soChuaGanDiem: chuaGanDiem.length,
     vangLai: result.vangLai,
@@ -249,6 +249,33 @@ function run(message) {
 }
 
 /** Bảng doanh thu từng ngày để hiện ngay trên trang, không phải mở file mới thấy. */
+/*
+ * Gắn đề xuất điểm xuất hoá đơn cho từng mã chưa có trong danh mục.
+ *
+ * Tính một lần cho cả lô: bảng cân theo độ hiếm và danh sách từ quá phổ biến
+ * đều phụ thuộc vào cả lô chứ không phải từng mã, nên tính sẵn rồi dùng lại.
+ */
+function demXuat(chuaMap, catalog) {
+  if (!chuaMap.length) return chuaMap;
+  var can = VatRec.trongSo(catalog);
+  var boQua = VatRec.tuPhoBien(chuaMap.map(function (item) { return item.code; }));
+  return chuaMap.map(function (item) {
+    var goi = VatRec.goiYDiem(item.code, item.channel, catalog, boQua, 3, can);
+    return {
+      channel: item.channel, code: item.code,
+      soGiaoDich: item.soGiaoDich, soTien: item.soTien,
+      goiY: goi.map(function (g) {
+        return {
+          diem: g.diem, lyDo: g.lyDo,
+          tenDiem: g.point.tenDiem, maMisa: g.point.maMisa, khuVuc: g.point.khuVuc,
+          dichVu: g.point.dichVu, hinhThucHopTac: g.point.hinhThucHopTac,
+          phapNhan: g.point.phapNhan
+        };
+      })
+    };
+  });
+}
+
 function bangTheoNgay(result, message) {
   var byDate = VatRec.totalsByDate(result);
   return VatRec.periodDates(message.kyTu, message.kyDen).map(function (date) {

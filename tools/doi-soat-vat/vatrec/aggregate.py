@@ -200,7 +200,11 @@ def aggregate(
             tk.vang_lai_so_giao_dich += 1
             continue
 
+        # Một cửa hàng có thể mang hai mã (Payoo ghi cả mã chữ và mã số); khai
+        # danh mục theo mã nào cũng tra ra được.
         point = catalog.lookup(txn.channel, txn.code)
+        if point is None and txn.code_phu:
+            point = catalog.lookup(txn.channel, txn.code_phu)
         if point is None:
             unmapped_count[(txn.channel, txn.code)] += 1
             unmapped_amount[(txn.channel, txn.code)] += txn.so_tien

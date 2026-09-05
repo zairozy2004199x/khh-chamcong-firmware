@@ -17,6 +17,7 @@ from vatrec.excel import column_index, date_blocks, find_header  # noqa: E402
 from vatrec.invoices import build_invoices, split_vat  # noqa: E402
 from vatrec.normalize import clean_text, key_text, to_date, to_int  # noqa: E402
 from vatrec.payoo_view import THU_TU_NHOM, payoo_dates, payoo_view  # noqa: E402
+from vatrec.suggest import goi_y, tach_tu, trong_so, tu_pho_bien  # noqa: E402
 from vatrec import report  # noqa: E402
 from vatrec.sources import Txn  # noqa: E402
 
@@ -404,6 +405,82 @@ def test_by_date():
     per_date = result.points_per_date()
     check("đếm đúng số điểm trong ngày", per_date[dt.date(2026, 8, 1)] == 2)
     check("ngày chỉ một điểm", per_date[dt.date(2026, 8, 3)] == 1)
+
+
+# --------------------------------------------- đề xuất điểm cho mã mới
+
+def _catalog_goi_y() -> Catalog:
+    catalog = Catalog()
+    for ten, misa, khu in [
+        ("FARM AEON HUẾ", "FARM AEON HUE", "Hà Nội"),
+        ("FUNFEST AEON MALL BÌNH TÂN", "AE BT KVCM", "HCM"),
+        ("Funzone IPH Cầu Giấy", "FUNZONE IPH KVCN", "Hà Nội"),
+        ("Funzone Adventure SC Vivo", "SC VIVO KVCM", "HCM"),
+        ("Eco Kids farm Hải Phòng", "EKF HP", "Hà Nội"),
+    ]:
+        catalog.add_point(Point(ten_diem=ten, ma_misa=misa, khu_vuc=khu))
+    return catalog
+
+
+def test_tach_tu():
+    check("bỏ dấu và emoji", tach_tu("🌸 THE LOOP (IPH)") == ["loop", "iph"],
+          str(tach_tu("🌸 THE LOOP (IPH)")))
+    check("cắt giữa chữ và số", tach_tu("FZ2_IPH") == ["fz", "iph"], str(tach_tu("FZ2_IPH")))
+    check("bỏ chữ đ có dấu", tach_tu("ĐÀ NẴNG") == ["da", "nang"], str(tach_tu("ĐÀ NẴNG")))
+    check("bỏ từ mô tả khuyến mãi", tach_tu("COMBO MUA 4 TẶNG 2") == [],
+          str(tach_tu("COMBO MUA 4 TẶNG 2")))
+    check("bỏ loại hình mặt bằng", "mall" not in tach_tu("AEON MALL HUẾ"),
+          str(tach_tu("AEON MALL HUẾ")))
+
+
+def test_goi_y():
+    catalog = _catalog_goi_y()
+    can = trong_so(catalog)
+
+    # "mall" bị bỏ nên "Huế" mới là chỗ phân biệt, không để khớp nhầm sang Bình Tân.
+    ra = goi_y("AEON MALL HUẾ", "zalo", catalog, can=can)
+    check("chọn đúng điểm cùng địa danh", ra and ra[0].point.ten_diem == "FARM AEON HUẾ",
+          ra[0].point.ten_diem if ra else "(rỗng)")
+
+    ra = goi_y("🌸 SC VivoCity", "zalo", catalog, can=can)
+    check("nhận ra tên gian hàng có emoji",
+          ra and ra[0].point.ten_diem == "Funzone Adventure SC Vivo",
+          ra[0].point.ten_diem if ra else "(rỗng)")
+
+    # Đúng đường đi thật: tiền tố chung của cả lô bị loại trước khi so.
+    ma_payoo = ["DVGIAITRIKH_FZ_IPH", "DVGIAITRIKH_FARM_VC", "DVGIAITRIKH_AE_HUE"]
+    ra = goi_y("DVGIAITRIKH_FZ_IPH", "payoo", catalog, tu_pho_bien(ma_payoo), can=can)
+    check("nhận ra mã kỹ thuật của Payoo",
+          ra and ra[0].point.ten_diem == "Funzone IPH Cầu Giấy",
+          ra[0].point.ten_diem if ra else "(rỗng)")
+
+    check("không đề xuất bừa cho chữ không phải địa danh",
+          goi_y("COMBO MUA 4 TẶNG 2", "zalo", catalog, can=can) == [])
+
+    # Mã đã khai ở cổng khác là bằng chứng thật, không phải phỏng đoán.
+    catalog.add("vnpay", "SHOP9", Point(ten_diem="FARM AEON HUẾ"))
+    chac = goi_y("SHOP9", "zalo", catalog)
+    check("mã đã có ở kênh khác thì chắc chắn", chac and chac[0].diem == 1.0)
+    check("nói rõ vì sao chắc", chac and "đã khai ở kênh" in chac[0].ly_do, chac[0].ly_do)
+
+
+def test_goi_y_khop_mot_phan_thi_bot_chac():
+    catalog = _catalog_goi_y()
+    can = trong_so(catalog)
+    day_du = goi_y("Eco Kids farm Hải Phòng", "zalo", catalog, can=can)
+    mot_phan = goi_y("AEON MALL HẢI PHÒNG", "zalo", catalog, can=can)
+    check("khớp đủ chữ thì điểm tuyệt đối", day_du and day_du[0].diem == 1.0,
+          str(day_du[0].diem) if day_du else "(rỗng)")
+    check("khớp một phần thì thấp hơn hẳn",
+          mot_phan and mot_phan[0].diem < day_du[0].diem, str(mot_phan[0].diem) if mot_phan else "(rỗng)")
+
+
+def test_tu_pho_bien():
+    codes = ["DVGIAITRIKH_FZ_IPH", "DVGIAITRIKH_FARM_VC", "DVGIAITRIKH_AE_HUE"]
+    bo = tu_pho_bien(codes)
+    check("bỏ tiền tố có ở mọi mã", "dvgiaitrikh" in bo, str(bo))
+    check("giữ lại phần phân biệt", "iph" not in bo and "farm" not in bo, str(bo))
+    check("ít mã quá thì không kết luận", tu_pho_bien(["A_X", "A_Y"]) == set())
 
 
 # ----------------------------------------------------- bảng lọc Payoo

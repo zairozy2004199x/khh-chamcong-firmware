@@ -234,7 +234,7 @@
 
   function readPayoo(rows, headerRow, stream, nguon) {
     var ix = columnIndex(rows[headerRow], ['Cửa hàng', 'Ngày giao dịch', 'Hình thức thanh toán',
-      'Số tiền thanh toán (₫)', 'Phí xử lý giao dịch (₫)'].concat(PAYOO_REF));
+      'Số tiền thanh toán (₫)', 'Phí xử lý giao dịch (₫)', 'Mã cửa hàng'].concat(PAYOO_REF));
     var out = [];
     for (var r = headerRow + 1; r < rows.length; r += 1) {
       var row = rows[r] || [];
@@ -253,6 +253,9 @@
         ngay: toDate(at(row, ix['Ngày giao dịch'])),
         soTien: toInt(at(row, ix['Số tiền thanh toán (₫)'])),
         phi: toInt(at(row, ix['Phí xử lý giao dịch (₫)'])),
+        // Payoo ghi hai mã cho một cửa hàng: "Cửa hàng" (chữ) và "Mã cửa hàng"
+        // (số). Danh mục khai theo mã nào cũng tra ra được.
+        codePhu: cleanText(at(row, ix['Mã cửa hàng'])),
         nhom: hinhThuc,
         ref: ref
       });
@@ -573,7 +576,10 @@
         tk.vangLaiSoGiaoDich += 1;
         return;
       }
+      // Một cửa hàng có thể mang hai mã (Payoo ghi cả mã chữ và mã số); khai
+      // danh mục theo mã nào cũng tra ra được.
       var point = catalog.lookup(txn.channel, txn.code);
+      if (!point && txn.codePhu) point = catalog.lookup(txn.channel, txn.codePhu);
       if (!point) {
         var missKey = txn.channel + SEP + txn.code;
         chuaMapCount[missKey] = (chuaMapCount[missKey] || 0) + 1;
@@ -855,6 +861,175 @@
     return trongKy.concat(Object.keys(ngoai).sort());
   }
 
+  /* ------------------------------------------- đề xuất điểm cho mã mới */
+
+  /*
+   * Cửa hàng mới phát sinh liên tục, và mỗi cổng đặt mã một kiểu: Payoo ghi
+   * DVGIAITRIKH_FZ_IPH, Zalo ghi thẳng tên gian hàng kèm emoji ("🌸 THE LOOP
+   * (IPH)"). Người khai vẫn quyết định cuối cùng, nhưng máy đọc được phần lớn
+   * tín hiệu trong chính cái mã đó nên gợi ý sẵn để chỉ còn việc xác nhận.
+   *
+   * Gợi ý không bao giờ tự áp vào: nó chỉ điền sẵn vào bảng danh mục để người
+   * khai sửa hoặc bỏ. Thà đề xuất sai và bị sửa còn hơn âm thầm gán nhầm tiền
+   * vào hoá đơn của điểm khác.
+   */
+  var NGUONG_PHO_BIEN = 0.5;
+  /*
+   * Từ không mang danh tính điểm: mô tả khuyến mãi / loại vé, và loại hình mặt
+   * bằng ("mall", "mart"). Loại hình mặt bằng hay hiếm trong một danh mục cụ thể
+   * nên nếu để lại sẽ bị cân là từ đặc trưng và lấn át đúng cái tên địa danh -
+   * "AEON MALL HUẾ" khớp nhầm sang "FUNFEST AEON MALL BÌNH TÂN" chỉ vì chung chữ
+   * "mall", trong khi "Huế" mới là chỗ phân biệt.
+   */
+  var TU_BO = {};
+  ('ve combo mua tang sale km uu dai gia re vui choi tre em nguoi lon thang ngay gio moi hot new vnd d the va cho mall mart plaza center centre sieu thi trung tam cua hang chi nhanh').split(' ').forEach(function (t) { TU_BO[t] = true; });
+
+  var DIEM_TRUNG = 1.0, DIEM_TIEP_DAU = 0.7, DIEM_CHUA = 0.5;
+  // Viết tắt hai chữ là quy ước có thật trong danh mục ("AE" = AEON, "JP", "SC"),
+  // nên vẫn cho khớp tiếp đầu ngữ ngắn, chỉ tính điểm thấp hơn.
+  var DIEM_TAT = 0.45, DAI_TOI_THIEU = 4, DAI_TAT = 2;
+  var NGUONG_NHAN = 0.34, CAN_TU_LA = 1.0, PHU_TOI_THIEU = 0.35;
+
+  /*
+   * Bỏ dấu tiếng Việt và hạ chữ thường - dùng cả để tách từ và để xếp thứ tự.
+   * Hai bản lõi Python / JavaScript phải xếp giống hệt nhau khi điểm bằng nhau,
+   * nên chốt một khoá sắp xếp chung thay vì dựa vào cách xếp chữ Việt của từng
+   * ngôn ngữ.
+   */
+  function boDau(text) {
+    return String(text === null || text === undefined ? '' : text)
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  }
+
+  /**
+   * Tách một mã hay tên điểm thành các từ so khớp được.
+   * Bỏ dấu tiếng Việt và emoji, cắt ở mọi ký tự không phải chữ/số, đồng thời cắt
+   * giữa cụm chữ và cụm số ("FZ2" -> "fz", "2").
+   */
+  function tachTu(text) {
+    if (!text) return [];
+    var ra = boDau(text).match(/[a-z]+|[0-9]+/g) || [];
+    return ra.filter(function (tu) { return tu.length > 1 && !TU_BO[tu]; });
+  }
+
+  function khopTu(tu, cacTu) {
+    if (cacTu[tu]) return DIEM_TRUNG;
+    var tot = 0;
+    Object.keys(cacTu).forEach(function (khac) {
+      var ngan = tu.length <= khac.length ? tu : khac;
+      var dai = tu.length <= khac.length ? khac : tu;
+      if (dai.indexOf(ngan) < 0) return;
+      if (ngan.length >= DAI_TOI_THIEU) {
+        tot = Math.max(tot, dai.indexOf(ngan) === 0 ? DIEM_TIEP_DAU : DIEM_CHUA);
+      } else if (ngan.length >= DAI_TAT && dai.indexOf(ngan) === 0) {
+        tot = Math.max(tot, DIEM_TAT);
+      }
+    });
+    return tot;
+  }
+
+  /** Từ có mặt ở quá nửa số mã đang xét — không phân biệt được điểm nào. */
+  function tuPhoBien(codes) {
+    var bo = Object.create(null);
+    if (codes.length < 3) return bo;
+    var dem = Object.create(null);
+    codes.forEach(function (code) {
+      var da = Object.create(null);
+      tachTu(code).forEach(function (tu) {
+        if (da[tu]) return;
+        da[tu] = true;
+        dem[tu] = (dem[tu] || 0) + 1;
+      });
+    });
+    Object.keys(dem).forEach(function (tu) {
+      if (dem[tu] > codes.length * NGUONG_PHO_BIEN) bo[tu] = true;
+    });
+    return bo;
+  }
+
+  /**
+   * Cân từ theo độ hiếm trong danh mục.
+   * Từ có ở hầu hết các điểm ("mall", "an", "go") thì không giúp chọn được điểm
+   * nào, còn từ chỉ có ở một điểm ("vivocity") thì gần như là chữ ký.
+   */
+  function trongSo(catalog) {
+    var dem = Object.create(null);
+    var tong = 0;
+    Object.keys(catalog.points).forEach(function (key) {
+      var tu = tuCuaDiem(catalog.points[key]);
+      var ten = Object.keys(tu);
+      if (!ten.length) return;
+      tong += 1;
+      ten.forEach(function (t) { dem[t] = (dem[t] || 0) + 1; });
+    });
+    var can = Object.create(null);
+    if (!tong) return can;
+    Object.keys(dem).forEach(function (t) { can[t] = Math.log(tong / dem[t]) + 1; });
+    return can;
+  }
+
+  function tuCuaDiem(point) {
+    var tu = Object.create(null);
+    tachTu(point.tenDiem).concat(tachTu(point.maMisa)).forEach(function (t) { tu[t] = true; });
+    return tu;
+  }
+
+  /**
+   * Xếp hạng các điểm có sẵn theo mức khớp với `code`.
+   * Trả về mảng { point, diem, lyDo } đã sắp giảm dần, tối đa `soLuong` mục.
+   */
+  function goiYDiem(code, channel, catalog, boQua, soLuong, can) {
+    boQua = boQua || {};
+    soLuong = soLuong || 3;
+
+    // Mã đã được khai ở cổng khác là bằng chứng thật, không phải phỏng đoán.
+    var kenh = Object.keys(catalog.byChannel);
+    for (var i = 0; i < kenh.length; i += 1) {
+      if (kenh[i] === channel) continue;
+      var san = catalog.byChannel[kenh[i]][keyText(code)];
+      if (san) return [{ point: san, diem: 1, lyDo: 'mã này đã khai ở kênh ' + kenh[i] }];
+    }
+
+    var tuMa = tachTu(code).filter(function (t) { return !boQua[t]; });
+    if (!tuMa.length) return [];
+    if (!can) can = trongSo(catalog);
+    var canTu = {};
+    var mau = 0;
+    tuMa.forEach(function (t) {
+      canTu[t] = can[t] === undefined ? CAN_TU_LA : can[t];
+      mau += canTu[t];
+    });
+    if (mau <= 0) return [];
+
+    var ra = [];
+    Object.keys(catalog.points).forEach(function (key) {
+      var point = catalog.points[key];
+      var tuDiem = tuCuaDiem(point);
+      if (!Object.keys(tuDiem).length) return;
+      var tong = 0, soKhop = 0, chu = [];
+      tuMa.forEach(function (t) {
+        var muc = khopTu(t, tuDiem);
+        tong += canTu[t] * muc;
+        if (muc) { soKhop += 1; chu.push(t); }
+      });
+      // Hệ số phủ: khớp được càng ít từ trong mã thì càng bớt chắc, kể cả khi từ
+      // khớp được là từ đặc trưng nhất.
+      var phu = PHU_TOI_THIEU + (1 - PHU_TOI_THIEU) * soKhop / tuMa.length;
+      var diem = phu * tong / mau;
+      if (diem >= NGUONG_NHAN) {
+        ra.push({ point: point, diem: Math.round(diem * 1000) / 1000, lyDo: 'khớp chữ ' + chu.join(', ') });
+      }
+    });
+
+    ra.sort(function (a, b) {
+      if (b.diem !== a.diem) return b.diem - a.diem;
+      var ka = boDau(a.point.tenDiem), kb = boDau(b.point.tenDiem);
+      return ka < kb ? -1 : (ka > kb ? 1 : 0);
+    });
+    return ra.slice(0, soLuong);
+  }
+
   root.VatRec = {
     SEP: SEP,
     toDate: toDate,
@@ -881,6 +1056,10 @@
     pointsOfNguon: pointsOfNguon,
     splitVat: splitVat,
     buildInvoices: buildInvoices,
+    tachTu: tachTu,
+    tuPhoBien: tuPhoBien,
+    trongSo: trongSo,
+    goiYDiem: goiYDiem,
     payooView: payooView,
     payooDates: payooDates,
     totalsByDate: totalsByDate,

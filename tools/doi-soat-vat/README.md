@@ -354,6 +354,39 @@ mã vẫn được coi là hai giao dịch thật.
 | `Tổng theo ngày` | Mỗi ngày trong kỳ một dòng: tổng, chưa VAT, VAT, số điểm phát sinh, tách theo luồng |
 | `Đối soát` | Tổng theo luồng, số hoá đơn, và **toàn bộ cảnh báo ở mục 3.5** |
 
+### 4.x. Đề xuất điểm cho cửa hàng mới
+
+Cửa hàng mới phát sinh liên tục, và mỗi cổng đặt mã một kiểu: Payoo ghi
+`DVGIAITRIKH_FZ_IPH`, Zalo ghi thẳng tên gian hàng kèm emoji (`🌸 THE LOOP (IPH)`).
+Mã nào chưa có trong danh mục thì bảng *Mã điểm bán chưa có trong danh mục* hiện
+kèm một ô chọn **đề xuất điểm xuất hoá đơn**, xếp theo mức khớp.
+
+Cách chấm điểm:
+
+1. **Mã đã khai ở cổng khác** → chắc chắn, không phải phỏng đoán.
+2. Còn lại thì so chữ: bỏ dấu và emoji, cắt thành từ, rồi
+   - cân mỗi từ theo **độ hiếm trong danh mục** — từ có ở hầu hết các điểm
+     (`an`, `go`) gần như không tính, từ chỉ có ở một điểm (`vivocity`) gần như
+     là chữ ký;
+   - bỏ hẳn từ không mang danh tính điểm: mô tả khuyến mãi (`combo`, `sale`,
+     `vé`) và **loại hình mặt bằng** (`mall`, `mart`, `plaza`) — nếu để lại,
+     `AEON MALL HUẾ` khớp nhầm sang `FUNFEST AEON MALL BÌNH TÂN` chỉ vì chung
+     chữ "mall", trong khi "Huế" mới là chỗ phân biệt;
+   - bỏ tiền tố chung của cả lô mã (`DVGIAITRIKH` của Payoo);
+   - nhân thêm **hệ số phủ**: khớp được càng ít từ trong mã thì càng bớt chắc.
+
+Mức chắc hiện thành chữ (*gần chắc chắn* / *nhiều khả năng* / *có thể*) chứ không
+phải con số lẻ. Dưới ngưỡng thì **không đề xuất gì** — `COMBO MUA 4 TẶNG 2` không
+phải địa danh nên để trống, thà thế còn hơn đoán bừa.
+
+**Đề xuất không bao giờ tự áp vào.** Bấm *Khai vào danh mục* mới đưa xuống bảng ở
+bước 4, điền sẵn cả mã misa / khu vực / dịch vụ / pháp nhân của điểm được chọn —
+sửa hoặc xoá thoải mái trước khi chạy lại.
+
+**Hai mã cho một cửa hàng:** Payoo ghi cả `Cửa hàng` (`DVGIAITRIKH_FZ_IPH`) lẫn
+`Mã cửa hàng` (`00003182`). Danh mục khai theo mã nào cũng tra ra được — mã chính
+không thấy thì tra tiếp mã phụ.
+
 ### 5.0. Bảng lọc Payoo
 
 Sao kê Payoo tải theo ngày hay theo tháng đều là một danh sách giao dịch thô. Tab

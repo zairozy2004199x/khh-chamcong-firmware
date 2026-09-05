@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=1.5.0">
+<link rel="stylesheet" href="style.css?v=1.6.0">
 </head>
 <body>
 
@@ -212,12 +212,15 @@
       <h3>Mã điểm bán chưa có trong danh mục</h3>
       <p class="note">
         Tiền của các mã này <strong>chưa được tính vào hoá đơn nào</strong>.
-        Bấm “Khai vào danh mục” để đưa lên bảng ở bước 4, gán điểm xuất hoá đơn rồi chạy lại.
+        Cột <em>Đề xuất</em> là điểm mà hệ thống đoán khớp nhất, kèm mức chắc chắn —
+        <strong>chỉ là gợi ý, không tự áp vào</strong>. Chọn lại nếu đoán sai, rồi bấm
+        “Khai vào danh mục” để đưa lên bảng ở bước 4 và chạy lại.
       </p>
       <div class="table-scroll">
         <table class="grid-table" id="unmappedTable">
           <thead>
-            <tr><th>Kênh</th><th>Mã</th><th class="num-col">Số GD</th><th class="num-col">Số tiền</th><th></th></tr>
+            <tr><th>Kênh</th><th>Mã</th><th class="num-col">Số GD</th><th class="num-col">Số tiền</th>
+              <th>Đề xuất điểm xuất hoá đơn</th><th></th></tr>
           </thead>
           <tbody></tbody>
         </table>
@@ -298,7 +301,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>1.5.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
+      Phiên bản <strong>1.6.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
     </p>
   </footer>
 </div>
@@ -306,6 +309,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=1.5.0"></script>
+<script src="js/app.js?v=1.6.0"></script>
 </body>
 </html>

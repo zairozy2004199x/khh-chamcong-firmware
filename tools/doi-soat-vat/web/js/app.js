@@ -642,11 +642,31 @@
       row.appendChild(text('td', item.code));
       row.appendChild(text('td', money(item.soGiaoDich), 'num-col'));
       row.appendChild(text('td', money(item.soTien), 'num-col'));
+
+      // Ô đề xuất là một danh sách chọn, không phải chữ chết: máy chỉ đoán, người
+      // khai vẫn phải xác nhận hoặc chọn lại trước khi tiền được gán vào điểm.
+      var goiY = item.goiY || [];
+      var chonCell = document.createElement('td');
+      var chon = document.createElement('select');
+      goiY.forEach(function (g, i) {
+        var option = document.createElement('option');
+        option.value = String(i);
+        option.textContent = g.tenDiem + ' — ' + mucChac(g.diem);
+        option.title = g.lyDo;
+        chon.appendChild(option);
+      });
+      var trong = document.createElement('option');
+      trong.value = '';
+      trong.textContent = goiY.length ? '— tự nhập —' : '— không có đề xuất, tự nhập —';
+      chon.appendChild(trong);
+      chonCell.appendChild(chon);
+      row.appendChild(chonCell);
+
       var actionCell = document.createElement('td');
       var button = text('button', 'Khai vào danh mục', 'btn ghost mini');
       button.type = 'button';
       button.addEventListener('click', function () {
-        khaiVaoDanhMuc(item);
+        khaiVaoDanhMuc(item, chon.value === '' ? null : goiY[+chon.value]);
         button.disabled = true;
         button.textContent = 'Đã thêm ↑';
       });
@@ -656,11 +676,27 @@
     });
   }
 
-  function khaiVaoDanhMuc(item) {
+  /** Đổi điểm khớp 0..1 thành chữ, vì con số lẻ không nói lên điều gì cho người đọc. */
+  function mucChac(diem) {
+    if (diem >= 0.85) return 'gần chắc chắn';
+    if (diem >= 0.6) return 'nhiều khả năng';
+    return 'có thể';
+  }
+
+  function khaiVaoDanhMuc(item, goiY) {
     var daCo = extraRows().some(function (row) {
       return row.channel === item.channel && row.code === item.code;
     });
-    if (!daCo) addExtraRow({ channel: item.channel, code: item.code });
+    if (daCo) { saveExtra(); return; }
+    var values = { channel: item.channel, code: item.code };
+    if (goiY) {
+      // Chép luôn khu vực / dịch vụ / pháp nhân của điểm được chọn, để dòng mới
+      // đầy đủ như các điểm đã có sẵn chứ không chỉ có mỗi cái tên.
+      ['tenDiem', 'maMisa', 'khuVuc', 'dichVu', 'phapNhan'].forEach(function (field) {
+        values[field] = goiY[field] || '';
+      });
+    }
+    addExtraRow(values);
     saveExtra();
   }
 
@@ -727,7 +763,11 @@
 
   el.addAllUnmapped.addEventListener('click', function () {
     if (!ketQua) return;
-    ketQua.chuaMap.forEach(khaiVaoDanhMuc);
+    // Khai hàng loạt thì lấy đề xuất tốt nhất của từng mã; dòng nào máy không
+    // đoán được thì vẫn thêm với tên điểm để trống cho người khai tự điền.
+    ketQua.chuaMap.forEach(function (item) {
+      khaiVaoDanhMuc(item, (item.goiY && item.goiY[0]) || null);
+    });
     document.getElementById('stepExtra').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 

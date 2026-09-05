@@ -20,8 +20,10 @@ def read_payoo(path: str, sheet: str, stream: str | None = None,
     header_row = find_header(rows, REQUIRED)
     index = column_index(rows[header_row], REQUIRED)
     ref_columns = _ref_columns(rows[header_row])
-    phi_column = column_index(rows[header_row], ["Phí xử lý giao dịch (₫)"], required_all=False).get(
-        "Phí xử lý giao dịch (₫)", -1)
+    tuy_chon = column_index(rows[header_row], ["Phí xử lý giao dịch (₫)", "Mã cửa hàng"],
+                            required_all=False)
+    phi_column = tuy_chon.get("Phí xử lý giao dịch (₫)", -1)
+    ma_ch_column = tuy_chon.get("Mã cửa hàng", -1)
 
     prefix = stream or "Payoo"
     out: list[Txn] = []
@@ -39,6 +41,7 @@ def read_payoo(path: str, sheet: str, stream: str | None = None,
                 ngay=to_date(_at(row, index["Ngày giao dịch"])),
                 so_tien=to_int(_at(row, index["Số tiền thanh toán (₫)"])),
                 ref=_ref(row, ref_columns),
+                code_phu=clean_text(_at(row, ma_ch_column)) if ma_ch_column >= 0 else "",
                 nhom=hinh_thuc,
                 phi=to_int(_at(row, phi_column)) if phi_column >= 0 else 0,
             )

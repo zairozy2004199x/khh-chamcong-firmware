@@ -29,6 +29,13 @@ class Txn:
     nguon: str = ""
     """Tên file đã đọc ra giao dịch này, để đối chiếu ngược từng file một."""
 
+    code_phu: str = ""
+    """Mã thứ hai của cùng điểm bán, tra khi mã chính không có trong danh mục.
+
+    Payoo ghi hai mã cho một cửa hàng: "Cửa hàng" (DVGIAITRIKH_FZ_IPH) và
+    "Mã cửa hàng" (00003182). Danh mục khai theo mã nào cũng tra ra được.
+    """
+
     nhom: str = ""
     """Nhóm nhỏ trong cùng một luồng, ví dụ hình thức thanh toán của Payoo."""
 
