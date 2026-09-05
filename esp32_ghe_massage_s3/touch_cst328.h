@@ -53,21 +53,31 @@ static bool _tpWrite(uint16_t reg, uint8_t val){
 }
 
 // Quét I2C in ra Serial (chẩn đoán: phải thấy 0x1A cảm ứng, 0x20 TCA9554).
-static void TP_Scan(){
+// Trả true nếu thấy địa chỉ CST328 (0x1A).
+static bool TP_Scan(){
+  bool co1A = false;
   Serial.print("[TP] I2C scan:");
   for(uint8_t a = 1; a < 127; a++){
     Wire.beginTransmission(a);
-    if(Wire.endTransmission() == 0){ Serial.print(" 0x"); Serial.print(a, HEX); }
+    if(Wire.endTransmission() == 0){
+      Serial.print(" 0x"); Serial.print(a, HEX);
+      if(a == CST328_ADDR) co1A = true;
+    }
   }
   Serial.println();
+  return co1A;
 }
 
 static void TP_Init(){
-  TP_Scan();
-  // CST328 tự reset khi cấp nguồn -> vào chế độ báo bình thường, chỉ cần poll.
+  bool co1A = TP_Scan();
+  if(!co1A){
+    Serial.println("[TP] !! KHONG thay 0x1A tren bus -> CST328 dang bi giu reset");
+    Serial.println("[TP]    hoac sai chan. Bao lai dong '[TP] I2C scan:' cho toi.");
+    return;
+  }
   uint8_t b[1];
-  if(_tpRead(CST328_REG_NUM, b, 1)) Serial.println("[TP] CST328 tra loi OK");
-  else Serial.println("[TP] CST328 KHONG tra loi (kiem tra I2C/nguon)");
+  if(_tpRead(CST328_REG_NUM, b, 1)) Serial.println("[TP] CST328 0x1A tra loi OK - san sang");
+  else Serial.println("[TP] Thay 0x1A nhung doc thanh ghi loi (?)");
 }
 
 // Đọc 1 điểm chạm. Trả true nếu đang chạm; (x,y) theo hệ màn 480×640.

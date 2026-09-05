@@ -129,8 +129,8 @@ static const Goi GOI[4] = {
 
 // Hình học lưới 2×2 (dùng chung cho vẽ + dò chạm).
 static const int GX[2] = { 22, 250 };
-static const int GY[2] = { 120, 372 };
-static const int TW = 208, TH = 232;
+static const int GY[2] = { 110, 350 };
+static const int TW = 208, TH = 216;   // hàng dưới kết thúc y=566, tách thanh chân trang (y=584)
 
 // Ô nào chứa điểm (tx,ty)? -1 nếu không trúng ô nào.
 static int hitGoi(int tx, int ty){
@@ -206,13 +206,23 @@ void setup(){
   Serial.println("\n\n=== GHE QR S3 - Stage B (lop ve + cham chon goi) ===");
 
   I2C_Init();
-  TCA9554PWR_Init(0x00);
+  TCA9554PWR_Init(0x00);         // demo Waveshare: tất cả EXIO = LOW
   Set_EXIO(EXIO_PIN8, Low);      // còi tắt
+  // TCA9554 dùng HẾT 8 chân (không đưa ra ngoài). Init(0x00) kéo tất cả xuống
+  // LOW -> giữ luôn TP_RST của CST328 => cảm ứng "chết". Kéo các chân còn lại
+  // (2,4,5,6,7 — trừ LCD RST/CS = 1/3, trừ còi = 8) lên HIGH để NHẢ reset touch.
+  Set_EXIO(EXIO_PIN2, High);
+  Set_EXIO(EXIO_PIN4, High);
+  Set_EXIO(EXIO_PIN5, High);
+  Set_EXIO(EXIO_PIN6, High);
+  Set_EXIO(EXIO_PIN7, High);
+  delay(10);
   Backlight_Init();
-  LCD_Init();
+  LCD_Init();                    // drives EXIO1 (RST) + EXIO3 (CS)
   Serial.println("[S3] LCD OK, cap phat framebuffer...");
 
   if(!veInit()){ Serial.println("[S3] THIEU PSRAM cho framebuffer!"); return; }
+  delay(300);                    // chờ CST328 boot sau khi nhả reset
   TP_Init();                     // cảm ứng CST328
   Serial.println("[S3] ve man chon goi...");
   veIdle();
