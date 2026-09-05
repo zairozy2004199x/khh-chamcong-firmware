@@ -14,6 +14,7 @@
   var ketQua = null;       // payload 'done' gần nhất
   var dangChay = false;    // đang có một lượt tổng hợp chạy dở
   var canChayLai = false;  // có file mới đọc xong trong lúc đang chạy
+  var nguonDaBiet = [];    // các file đã có trang đối soát ở lượt chạy trước
   var blobUrl = null;
 
   var el = {};
@@ -22,7 +23,8 @@
     'addExtra', 'clearExtra', 'extraCount', 'run', 'download', 'status', 'error',
     'results', 'cards', 'streamTable', 'warnTable', 'warnBadge', 'unmappedPanel',
     'unmappedTable', 'addAllUnmapped', 'pointTable', 'fileTable',
-    'resultTabs', 'paneTongHop', 'paneKenh', 'locTieuDe', 'locGhiChu', 'locTable',
+    'resultTabs', 'paneThietLap', 'paneTongHop', 'paneKenh', 'locTieuDe', 'locGhiChu',
+    'locTable', 'locTai',
     'locNgay', 'locNhom', 'locTrangThai', 'locKhoi', 'locKhoiWrap', 'locTim',
     'locAnRong', 'locXoaLoc', 'locTong', 'locCotSo', 'locThongKe'
   ].forEach(function (id) {
@@ -234,6 +236,7 @@
   }
 
   function renderFiles() {
+    renderTabs();
     el.fileList.textContent = '';
     files.forEach(function (item) {
       var row = text('div', null, 'file-row' + (item.kind === 'busy' ? ' busy' : '') +
@@ -474,24 +477,49 @@
     blobUrl = URL.createObjectURL(blob);
     el.download.hidden = false;
 
-    var lanDau = el.results.hidden;
+    // Có file mới xuất hiện thì mở luôn trang đối soát của nó — thả lẻ từng
+    // file là để xem ngay file đó. Chạy lại trên đúng bộ file cũ thì đứng yên,
+    // khỏi cướp mất chỗ đang xem.
+    var moi = (message.loc || []).filter(function (item) {
+      return nguonDaBiet.indexOf(item.nguon) < 0;
+    });
+    nguonDaBiet = (message.loc || []).map(function (item) { return item.nguon; });
     renderResults(message);
-    el.results.hidden = false;
-    // Chỉ cuộn xuống ở lần ra kết quả đầu tiên. Thả lẻ từng file thì mỗi lần
-    // thả lại chạy lại, cuộn mỗi lần là giật trang ngay lúc đang đọc số.
-    if (lanDau) el.results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (moi.length) chonTab(moi[moi.length - 1].nguon);
+  }
+
+  /** Tải file .xlsx của riêng đối soát đang xem. */
+  function downloadMot() {
+    var kenh = timKenh(tabDangXem);
+    if (!kenh || !kenh.file) return;
+    var blob = new Blob([kenh.file], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    var url = URL.createObjectURL(blob);
+    taiVe(url, 'doi-soat-' + tenTepAnToan(kenh.nguon) + '.xlsx');
+    // Thu hồi sau khi trình duyệt kịp bắt đầu tải; giữ mãi là rò bộ nhớ.
+    setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+  }
+
+  /** Tên file tải về: bỏ đuôi cũ và các ký tự hệ điều hành không nhận. */
+  function tenTepAnToan(nguon) {
+    return String(nguon).replace(/\.[^.]+$/, '').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80);
+  }
+
+  function taiVe(url, ten) {
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = ten;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
   function download() {
     if (!blobUrl) return;
-    var link = document.createElement('a');
-    link.href = blobUrl;
     var kyTen = el.kyTu.value === el.kyDen.value ? el.kyTu.value : el.kyTu.value + '_' + el.kyDen.value;
-    link.download = 'VAT_' + (el.coSo.value.trim() || 'coso') + '_' + kyTen +
-      (el.kieuXuat.value === 'ngay' ? '_theo-ngay' : '') + '.xlsx';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    taiVe(blobUrl, 'VAT_' + (el.coSo.value.trim() || 'coso') + '_' + kyTen +
+      (el.kieuXuat.value === 'ngay' ? '_theo-ngay' : '') + '.xlsx');
   }
 
   /* ------------------------------------------------------------- kết quả */
@@ -499,23 +527,33 @@
   /* ------------------------------------------------------- tab kết quả */
 
   /*
-   * Mỗi file đầu vào một tab riêng: kiểm từng file rồi mới tin số tổng, thay vì
-   * trộn hết vào một trang rồi không biết sai từ đâu. Tab "Tổng hợp" là trang
-   * gộp cuối cùng, các tab còn lại là dữ liệu thô của từng file.
+   * Mỗi đối soát một trang riêng: kiểm từng file rồi mới tin số tổng, thay vì
+   * trộn hết vào một trang rồi không biết sai từ đâu. Trang "Thiết lập" để khai
+   * kỳ và thả file, "Tổng hợp" là kết quả gộp cuối cùng, các trang còn lại là
+   * một file đầu vào.
    */
-  var locData = [];        // [{ nguon, rows, ngay, coPhi, luong, thongKe }]
-  var tabDangXem = '';     // '' = Tổng hợp, còn lại là tên file
+  var THIET_LAP = '\u0000thiet-lap';
+  var TONG_HOP = '\u0000tong-hop';
+
+  var locData = [];              // [{ nguon, rows, ngay, coPhi, luong, thongKe }]
+  var tabDangXem = THIET_LAP;
 
   function renderTabs(message) {
-    locData = message.loc || [];
+    locData = (message && message.loc) || locData;
+    el.results.hidden = tabDangXem === THIET_LAP;
     el.resultTabs.textContent = '';
-    if (locData.every(function (item) { return item.nguon !== tabDangXem; })) tabDangXem = '';
 
-    themTab('', 'Tổng hợp', '');
-    locData.forEach(function (item) {
-      themTab(item.nguon, tenNganGon(item.nguon), item.rows.length + ' mã');
+    themTab(THIET_LAP, 'Thiết lập', files.length ? files.length + ' file' : '');
+    locData.forEach(function (item, i) {
+      themTab(item.nguon, (i + 1) + '. ' + tenNganGon(item.nguon), item.rows.length + ' mã');
     });
-    chonTab(tabDangXem);
+    if (locData.length) themTab(TONG_HOP, 'Tổng hợp', '');
+
+    // Trang đang xem có thể vừa biến mất (chạy lại với bộ file khác).
+    var con = Array.prototype.some.call(el.resultTabs.children, function (button) {
+      return button.dataset.tab === tabDangXem;
+    });
+    chonTab(con ? tabDangXem : THIET_LAP);
   }
 
   /** Tên file rút gọn cho nhãn tab; tên đầy đủ vẫn hiện trong tiêu đề bảng. */
@@ -540,9 +578,12 @@
     Array.prototype.forEach.call(el.resultTabs.children, function (button) {
       button.setAttribute('aria-selected', button.dataset.tab === id ? 'true' : 'false');
     });
-    el.paneTongHop.hidden = id !== '';
-    el.paneKenh.hidden = id === '';
-    if (id) renderLoc(timKenh(id));
+    el.paneThietLap.hidden = id !== THIET_LAP;
+    el.paneTongHop.hidden = id !== TONG_HOP;
+    el.paneKenh.hidden = id === THIET_LAP || id === TONG_HOP;
+    el.results.hidden = id === THIET_LAP;
+    if (!el.paneKenh.hidden) renderLoc(timKenh(id));
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function timKenh(nguon) {
@@ -557,7 +598,8 @@
    */
   function renderLoc(kenh) {
     if (!kenh) return;
-    el.locTieuDe.textContent = 'Lọc dữ liệu — ' + kenh.nguon;
+    el.locTieuDe.textContent = 'Đối soát — ' + kenh.nguon;
+    el.locTai.hidden = !kenh.file;
     el.locGhiChu.textContent = 'Chỉ tính riêng file này, gom theo mã điểm bán × nhóm × ngày. ' +
       'Mở ra là thấy sẵn ngày mới nhất có dữ liệu, muốn xem ngày khác thì chọn lại ở ô Ngày. ' +
       'Bảng dựng thẳng từ dữ liệu gốc nên hiện cả mã chưa có trong danh mục — ' +
@@ -984,10 +1026,12 @@
 
   el.run.addEventListener('click', run);
   el.download.addEventListener('click', download);
+  el.locTai.addEventListener('click', downloadMot);
   ['coSo', 'kyTu', 'kyDen', 'ngayHoaDon', 'rate', 'phapNhan', 'noiDung', 'tenKhach', 'kieuXuat']
     .forEach(function (id) { el[id].addEventListener('change', saveSettings); });
 
   defaultPeriod();
   loadExtra();
   refreshRunButton();
+  renderTabs();
 }());

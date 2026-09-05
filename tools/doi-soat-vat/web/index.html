@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex, nofollow">
 <title>Đối soát thu hộ &amp; lập danh sách xuất hoá đơn VAT</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
-<link rel="stylesheet" href="style.css?v=1.9.0">
+<link rel="stylesheet" href="style.css?v=2.0.0">
 </head>
 <body>
 
@@ -17,7 +17,14 @@
   </div>
 </header>
 
-<div class="wrap main" id="cacBuoc">
+<div class="wrap main">
+
+  <!-- Mỗi đối soát một trang riêng. Thanh này luôn hiện ở đầu trang: trang
+       "Thiết lập" để khai kỳ và thả file, mỗi file thả vào được một trang đối
+       soát của riêng nó, và trang "Tổng hợp" là kết quả gộp cuối cùng. -->
+  <nav class="tabs" id="resultTabs" role="tablist"></nav>
+
+  <div id="paneThietLap" class="pane">
 
   <p class="privacy">
     <strong>Toàn bộ xử lý chạy ngay trong trình duyệt của bạn.</strong>
@@ -149,28 +156,29 @@
   <section class="step">
     <h2><span class="num"></span> Tổng hợp</h2>
     <p class="note">
-      Thả file nào là trang tự tổng hợp và tách sẵn tab của file đó ngay — thả lẻ
-      từng file cũng được. Nút dưới đây chỉ cần bấm khi bạn đổi kỳ, đổi thuế suất
-      hay sửa danh mục ở bước trên rồi muốn tính lại.
+      Thả file nào là trang tự tổng hợp và mở luôn <strong>trang đối soát riêng</strong>
+      của file đó — thả lẻ từng file cũng được, chuyển qua lại bằng thanh ở đầu trang.
+      Nút dưới đây chỉ cần bấm khi bạn đổi kỳ, đổi thuế suất hay sửa danh mục rồi
+      muốn tính lại.
     </p>
     <div class="row-actions">
       <button type="button" id="today" class="btn ghost">Đặt kỳ = hôm qua</button>
       <button type="button" id="run" class="btn primary" disabled>Tổng hợp lại</button>
-      <button type="button" id="download" class="btn" hidden>⬇ Tải file .xlsx</button>
       <span id="status" class="status" role="status" aria-live="polite"></span>
     </div>
     <div id="error" class="error" hidden></div>
   </section>
 
+  </div><!-- /paneThietLap -->
+
   <!-- ------------------------------------------------------------- kết quả -->
   <section id="results" hidden>
-    <h2 class="results-title">Kết quả</h2>
 
-    <!-- Mỗi cổng một tab riêng để kiểm từng nguồn rồi mới tin số tổng. Tab được
-         dựng theo đúng các cổng thật sự có trong bộ file vừa chạy. -->
-    <div class="tabs" id="resultTabs" role="tablist"></div>
-
-    <div id="paneTongHop" class="pane">
+    <div id="paneTongHop" class="pane" hidden>
+      <div class="pane-head">
+        <h2 class="results-title">Tổng hợp — tất cả đối soát</h2>
+        <button type="button" id="download" class="btn primary" hidden>⬇ Tải file .xlsx đầy đủ</button>
+      </div>
 
     <div class="cards" id="cards"></div>
 
@@ -273,11 +281,14 @@
 
     </div><!-- /paneTongHop -->
 
-    <!-- Pane của một cổng: cùng một bố cục dùng lại cho mọi cổng, nội dung do
-         app.js đổ vào theo tab đang chọn. -->
+    <!-- Trang của một đối soát: cùng một bố cục dùng lại cho mọi file, nội dung
+         do app.js đổ vào theo trang đang chọn. -->
     <div id="paneKenh" class="pane" hidden>
+      <div class="pane-head">
+        <h2 class="results-title" id="locTieuDe">Đối soát</h2>
+        <button type="button" id="locTai" class="btn primary">⬇ Tải riêng đối soát này</button>
+      </div>
       <div class="panel">
-        <h3 id="locTieuDe">Lọc dữ liệu</h3>
         <p class="note" id="locGhiChu"></p>
         <div class="chips" id="locThongKe"></div>
         <!-- Mỗi tiêu chí một ô lọc riêng, lọc chồng lên nhau. Dòng TỔNG và dải
@@ -334,7 +345,7 @@
     <p>
       Quy tắc tính đã đối chiếu khớp tuyệt đối với file VAT mẫu KH705 / KH989.
       Chi tiết quy tắc và bản chạy dòng lệnh: xem <code>tools/doi-soat-vat/README.md</code>.
-      Phiên bản <strong>1.9.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — có bảng lọc riêng cho Payoo.
+      Phiên bản <strong>2.0.0</strong> — nhận sao kê QR VietQR, Payoo, VNPay, Zalo Mini App, MoMo — mỗi đối soát một trang riêng.
     </p>
   </footer>
 </div>
@@ -342,6 +353,6 @@
 <!-- Số phiên bản ở đây là nguồn duy nhất: app.js đọc lại từ chính thẻ script
      này rồi truyền tiếp cho worker, worker truyền tiếp cho core.js và report.js.
      Đổi số này là cả bộ file được tải mới, không bị trình duyệt giữ bản cũ. -->
-<script src="js/app.js?v=1.9.0"></script>
+<script src="js/app.js?v=2.0.0"></script>
 </body>
 </html>

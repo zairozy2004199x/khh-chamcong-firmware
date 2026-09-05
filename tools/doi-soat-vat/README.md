@@ -421,8 +421,17 @@ Bảng dựng thẳng từ giao dịch thô, **không đi qua bước tra danh m
 được cả khi file Payoo chỉ có mỗi sheet dữ liệu gốc — lúc đó cột tên điểm và mã
 misa để trống, còn số tiền vẫn đủ.
 
-Trên trang web, phần Kết quả chia thành các tab: `Tổng hợp` là trang gộp cuối
-cùng, còn mỗi file được một tab riêng.
+Trên trang web, **mỗi đối soát là một trang riêng**, chuyển qua lại bằng thanh ở
+đầu trang:
+
+```
+[ Thiết lập ] [ 1. Payoo_… ] [ 2. VNPay_… ] [ 3. … ] [ Tổng hợp ]
+```
+
+- **Thiết lập** — kỳ báo cáo, thả file, sheet nhận diện, danh mục bổ sung.
+- **Mỗi file một trang** — dải số của riêng file, bộ lọc, bảng, và nút
+  *Tải riêng đối soát này* xuất ra một file `.xlsx` chỉ chứa đúng đối soát đó.
+- **Tổng hợp** — kết quả gộp và nút *Tải file .xlsx đầy đủ*.
 
 **Thả file nào là trang tự tổng hợp và tách sẵn tab của file đó ngay** — thả lẻ
 từng file cũng được, không phải bấm nút. Thả cả bộ thì vẫn chỉ chạy một lần, sau

@@ -516,8 +516,21 @@
     return cleaned.slice(0, 28) + '~';
   }
 
+  /**
+   * Workbook chỉ có đúng bảng lọc của một file đầu vào.
+   *
+   * Mỗi đối soát tải riêng được một file, khỏi phải mở file tổng hợp rồi mò
+   * đúng tab — gửi cho người khác kiểm cũng chỉ gửi đúng phần của họ.
+   */
+  function buildOneWorkbook(opts, kenh) {
+    var XLSXLib = root.XLSX;
+    var book = XLSXLib.utils.book_new();
+    addSheet(XLSXLib, book, safeTitle('Lọc ' + tenNgan(kenh.nguon), book), sheetLoc(opts, kenh));
+    return book;
+  }
+
   root.VatRecReport = {
-    buildWorkbook: buildWorkbook, safeTitle: safeTitle,
+    buildWorkbook: buildWorkbook, buildOneWorkbook: buildOneWorkbook, safeTitle: safeTitle,
     DS_HEADER: DS_HEADER, KE_HEADER: KE_HEADER
   };
 }(typeof self !== 'undefined' ? self : this));

@@ -201,6 +201,14 @@ function run(message) {
   var book = VatRecReport.buildWorkbook(options);
   var buffer = XLSX.write(book, { bookType: 'xlsx', type: 'array', cellDates: true });
 
+  // Kèm một file lẻ cho mỗi đối soát: gửi cho người kiểm thì chỉ gửi đúng phần
+  // của họ, khỏi bắt mở file tổng hợp rồi mò đúng tab.
+  loc.forEach(function (kenh) {
+    post('progress', { phase: 'Đang dựng file đối soát ' + kenh.nguon + '...' });
+    kenh.file = XLSX.write(VatRecReport.buildOneWorkbook(options, kenh),
+      { bookType: 'xlsx', type: 'array', cellDates: true });
+  });
+
   post('done', {
     file: buffer,
     tongTheoLuong: result.streams.map(function (stream) {

@@ -77,7 +77,7 @@ body {
 
 /* Đánh số bước bằng bộ đếm CSS, chỉ tính bước đang hiện — bước "Sheet đã nhận
    diện" ẩn cho tới khi có file, đánh số cứng thì trang nhảy 1, 2, 4. */
-#cacBuoc { counter-reset: buoc; }
+#paneThietLap { counter-reset: buoc; }
 
 .step:not([hidden]) { counter-increment: buoc; }
 
@@ -484,3 +484,15 @@ label.inline select {
   background: var(--surface);
   color: inherit;
 }
+
+/* Đầu mỗi trang đối soát: tiêu đề bên trái, nút tải file lẻ bên phải. */
+.pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pane-head .results-title { margin: 0; }
