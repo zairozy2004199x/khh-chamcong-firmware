@@ -3159,6 +3159,18 @@ var NHIP_MS = { 'dieu-khien': 2000, 'doi-soat': 30000, 'ghe-loi': 5000, 'nhat-ky
 /* Ví nhân viên vừa tra — giữ để lượt bấm "Trừ ví, chạy ghế" biết đang làm cho số nào. */
 var NV_VI = null;
 var QL_LOC = '';   // Tab Quản lý ghế: lọc theo cơ sở ('' = tất cả, '__none__' = chưa gán, còn lại = tên cơ sở)
+/* 🔴 CƠ SỞ MUỐN NHẢY Ô LỌC SANG SAU LƯỢT TẢI LẠI KẾ TIẾP — anh Thắng 05/09/2026 hỏi: *"vậy giờ
+   muốn tạo cơ sở mới thì sao"*.
+
+   Từ 2.5.0 ô lọc là nơi DUY NHẤT quyết định ghế mới vào đâu. Nên vừa thêm xong một cơ sở mà ô
+   lọc còn đứng ở cơ sở cũ là dựng lại đúng cái bẫy vừa vá: nút vẫn nói "Thêm ghế vào GO TRƯỜNG
+   CHINH" trong khi người ta vừa tạo "GO ĐÀ NẴNG" và đang định thêm ghế vào đó. Cùng lỗi, chỉ
+   khác đường vào.
+
+   ⚠️ ĐẶT Ý ĐỊNH, KHÔNG ĐẶT THẲNG. Đặt thẳng `QL_LOC` lúc gửi là lạc quan: máy chủ chối (trùng
+   tên, tên rỗng) thì ô lọc trỏ vào một cơ sở không có thật, và ghế mới lặng lẽ rơi vào "chưa
+   gán". Nên ghi ý định ở đây, tải lại xong mới đối chiếu với danh mục THẬT rồi mới áp. */
+var QL_CHO_CS = '';
 var QL_PG = 0, QL_PER = 10;   // Quản lý ghế: trang danh sách ghế (10 ghế/trang)
 var QL_SEL = {};   // Quản lý ghế: các mã ghế ĐANG TÍCH CHỌN (giữ qua các trang) — { ma: true }
 var TM_PG = 0;   // Thu tiền: trang "từng lượt tiền mặt" (20/trang)
@@ -3450,7 +3462,17 @@ function veLogin(loi){
 function tai(im){
   goi('so_lieu', { ky: KY }, function(r){
     if (!r.ok) { if (!im) veLogin(r.error || ''); return; }
-    D = r; ve();
+    D = r;
+    /* Áp ý định đổi ô lọc (xem khối 🔴 ở chỗ khai QL_CHO_CS) — chỉ khi cơ sở ấy THẬT SỰ có mặt
+       trong danh mục vừa tải về. Dù có áp được hay không cũng phải dọn ý định đi: để sót thì
+       lượt tải lại sau, chẳng liên quan gì, lại bị nó lái ô lọc. */
+    if (QL_CHO_CS){
+      var coThat = false;
+      (D.coso || []).forEach(function(c){ if (c.ten === QL_CHO_CS) coThat = true; });
+      if (coThat && QL_LOC !== QL_CHO_CS){ QL_LOC = QL_CHO_CS; QL_PG = 0; QL_SEL = {}; }
+      QL_CHO_CS = '';
+    }
+    ve();
   });
 }
 
@@ -7869,6 +7891,9 @@ function noi(){
     var tinh = (document.getElementById('cs-tinh').value || '').trim();
     var makh = ((document.getElementById('cs-makh')||{}).value || '').trim();
     if (!t) { alert(L('Nhập tên địa điểm.','Enter a site name.')); return; }
+    /* Tạo cơ sở xong thì việc tiếp theo gần như luôn là thêm ghế vào nó — nhảy ô lọc sang luôn,
+       để nút Thêm ghế nói đúng tên vừa tạo chứ không còn đứng ở cơ sở cũ. */
+    QL_CHO_CS = t;
     lam('coso_luu', { id: 0, ten: t, tinh: tinh, ma_kh: makh });
   };
   [].forEach.call(document.querySelectorAll('[data-cssua]'), function(b){
@@ -7881,6 +7906,10 @@ function noi(){
          để mất mã khách hàng. Cùng luật với ô Tỉnh ngay trên. */
       var makh = prompt(L('Mã KH bên sổ kế toán (VD KH00108):','Customer code:'), b.getAttribute('data-csmakh') || '');
       if (makh === null) makh = b.getAttribute('data-csmakh') || '';
+      /* 🔴 ĐANG LỌC ĐÚNG CƠ SỞ VỪA ĐỔI TÊN THÌ Ô LỌC PHẢI THEO. Ô lọc giữ TÊN chứ không giữ id,
+         nên đổi tên xong là nó trỏ vào một cái tên không còn ai mang: bảng trống trơn dù ghế
+         còn nguyên, và nút Thêm ghế tụt về "(chưa gán)". */
+      if (QL_LOC === b.getAttribute('data-csten')) QL_CHO_CS = t;
       lam('coso_luu', { id: b.getAttribute('data-cssua'), ten: t, tinh: tinh.trim(), ma_kh: makh.trim() });
     };
   });
@@ -7889,6 +7918,11 @@ function noi(){
       var nhan = b.getAttribute('data-csnhan');
       if (!confirm(L('Xoá địa điểm "' + nhan + '"?\nGhế của địa điểm này thành "chưa gán", KHÔNG bị xoá.',
         'Delete site "' + nhan + '"?\nIts chairs become "unassigned" — they are NOT deleted.'))) return;
+      /* Xoá cơ sở đang lọc: ô lọc về "Tất cả". Ghế của nó thành "chưa gán" chứ không mất, nên
+         để ô lọc trỏ vào cái tên vừa xoá là bày ra một bảng trống và một nút Thêm ghế vô nghĩa.
+         Ở đây đặt thẳng, không cần ý định: máy chủ có chối thì cùng lắm mất bộ lọc — bảng hiện
+         đủ ghế, không gán nhầm cái gì. */
+      if (QL_LOC === nhan){ QL_LOC = ''; QL_PG = 0; QL_SEL = {}; }
       lam('coso_xoa', { id: b.getAttribute('data-csxoa') });
     };
   });

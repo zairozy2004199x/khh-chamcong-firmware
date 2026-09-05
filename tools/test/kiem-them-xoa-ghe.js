@@ -336,10 +336,119 @@ t('🔴 cơ sở không có ghế ẩn thì KHÔNG bày khối rỗng', bangSach
 t('🔴 không còn ô tích "Hiện ghế đã điều chuyển"', tr.indexOf("id=\"ql-htan\"") < 0, null);
 t('🔴 và không còn biến QL_HIEN_AN nào sót lại', tr.indexOf('QL_HIEN_AN') < 0, null);
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * 5. TẠO / ĐỔI TÊN / XOÁ CƠ SỞ — Ô LỌC PHẢI THEO KỊP
+ * ═════════════════════════════════════════════════════════════════════════════════════════════ */
+/* Anh Thắng 05/09/2026: *"vậy giờ muốn tạo cơ sở mới thì sao"*.
+ *
+ * 🔴 TỪ 2.5.0 Ô LỌC LÀ NƠI DUY NHẤT QUYẾT ĐỊNH GHẾ MỚI VÀO ĐÂU, nên mọi thứ làm đổi danh mục cơ
+ *    sở đều phải kéo ô lọc theo. Vừa tạo "GO ĐÀ NẴNG" mà nút vẫn nói "Thêm ghế vào GO TRƯỜNG
+ *    CHINH" là dựng lại đúng cái bẫy 2.5.0 vừa vá — cùng lỗi, chỉ khác đường vào.
+ *
+ * ⚠️ BA CA, VÌ BA ĐƯỜNG KHÁC NHAU: thêm mới, đổi tên, xoá. Ô lọc giữ TÊN chứ không giữ id, nên
+ *    đổi tên là nó trỏ vào một cái tên không còn ai mang. */
+
+/* Bốc `tai()` ra chạy — đây là chỗ ý định được đối chiếu với danh mục THẬT rồi mới áp. */
+const iTai = tr.indexOf('function tai(im){');
+const jTai = tr.indexOf('\nfunction henLai(){', iTai);
+t('bốc được hàm tải lại', iTai > 0 && jTai > iTai);
+const hamTai = (iTai > 0 && jTai > iTai) ? tr.slice(iTai, jTai) : '';
+
+/* Chạy tai() với danh mục cơ sở máy chủ trả về, xem ô lọc đậu ở đâu. */
+function taiLai(choCs, locCu, cosoVe) {
+	const f = new Function('QL_CHO_CS', 'QL_LOC', 'GOI', 'VE',
+		'var D = null, QL_PG = 9, QL_SEL = {a:1}, KY = "";\n'
+		+ 'function goi(v,d,cb){ GOI(cb); }\nfunction ve(){ VE(); }\nfunction veLogin(){}\n'
+		+ hamTai + '\ntai(); return { loc: QL_LOC, cho: QL_CHO_CS, pg: QL_PG, sel: QL_SEL };');
+	return f(choCs, locCu,
+		function (cb) { cb({ ok: true, coso: cosoVe.map(function (n) { return { id: 1, ten: n }; }) }); },
+		function () {});
+}
+
+/* ---------- 5a. TẠO CƠ SỞ MỚI ---------- */
+const raTao = taiLai('GO ĐÀ NẴNG', 'GO TRƯỜNG CHINH', [ 'GO TRƯỜNG CHINH', 'GO ĐÀ NẴNG' ]);
+teq('🔴 tạo xong cơ sở mới -> ô lọc nhảy sang chính nó', 'GO ĐÀ NẴNG', raTao.loc);
+teq('và ý định được dọn đi', '', raTao.cho);
+teq('🔴 về trang 1 (danh sách ghế đổi hẳn)', 0, raTao.pg);
+teq('🔴 và bỏ ô đang tích của cơ sở cũ', {}, raTao.sel);
+
+/* 🔴 MÁY CHỦ CHỐI (trùng tên, tên rỗng) THÌ KHÔNG ĐƯỢC NHẢY. Đặt thẳng QL_LOC lúc gửi là lạc
+   quan: cơ sở không ra đời mà ô lọc vẫn trỏ sang nó, và ghế mới lặng lẽ rơi vào "chưa gán". */
+const raChoi = taiLai('GO ĐÀ NẴNG', 'GO TRƯỜNG CHINH', [ 'GO TRƯỜNG CHINH' ]);
+teq('🔴 máy chủ chối -> ô lọc đứng nguyên chỗ cũ', 'GO TRƯỜNG CHINH', raChoi.loc);
+teq('🔴 nhưng ý định vẫn phải dọn, không để nó lái lượt tải lại sau', '', raChoi.cho);
+/* Không áp được thì cũng đừng đá số trang và ô tích của người ta. */
+teq('không áp được thì giữ nguyên trang đang xem', 9, raChoi.pg);
+teq('và giữ nguyên ô đang tích', { a: 1 }, raChoi.sel);
+
+/* Không có ý định gì thì tuyệt đối không đụng vào ô lọc. */
+const raIm = taiLai('', 'AM-TP', [ 'AM-TP', 'GO TRƯỜNG CHINH' ]);
+teq('🔴 lượt tải lại thường không đụng vào ô lọc', 'AM-TP', raIm.loc);
+teq('và không đá số trang', 9, raIm.pg);
+
+/* ---------- 5b. THÊM CƠ SỞ CÓ GHI Ý ĐỊNH KHÔNG ---------- */
+const iCsThem = tr.indexOf("if ((_e = document.getElementById('cs-them'))) _e.onclick");
+const jCsThem = tr.indexOf('\n  };', iCsThem);
+t('bốc được tay xử lý nút Thêm địa điểm', iCsThem > 0 && jCsThem > iCsThem);
+const tayCsThem = (iCsThem > 0 && jCsThem > iCsThem) ? tr.slice(iCsThem, jCsThem) : '';
+
+function bamThemCs(ten) {
+	const daGui = [];
+	/* `QL_CHO_CS` khởi đầu bằng 'CU' — một giá trị KHÔNG BAO GIỜ đúng, để phân biệt được "tay xử
+	   lý đã ghi ý định" với "nó chẳng đụng gì". Khởi đầu bằng '' thì ca không ghi và ca ghi
+	   chuỗi rỗng trông y hệt nhau. */
+	const f = new Function('DOC', 'LAM', 'NN',
+		'function L(vi,en){ return NN===\'en\' ? en : vi; }\n'
+		+ 'var document = DOC, _e, QL_CHO_CS = "CU";\n'
+		+ 'function lam(v,d){ LAM(v,d); }\nfunction alert(){}\n'
+		+ tayCsThem + '\n  };\n if (_e && _e.onclick) _e.onclick();\n return QL_CHO_CS;');
+	const cho = f({ getElementById: function (id) {
+			if (id === 'cs-them') return { onclick: null };
+			if (id === 'cs-ten') return { value: ten };
+			return { value: '' };
+		} },
+		function (v, d) { daGui.push([ v, d ]); }, 'vi');
+	return { daGui: daGui, cho: cho };
+}
+const bamOk = bamThemCs('GO ĐÀ NẴNG');
+t('đối chứng: bấm được nút Thêm địa điểm', bamOk.daGui.length === 1, bamOk);
+teq('vẫn gửi việc tạo cơ sở như cũ', 'coso_luu', bamOk.daGui[0] && bamOk.daGui[0][0]);
+teq('🔴 và ghi ý định nhảy ô lọc sang cơ sở vừa xin tạo', 'GO ĐÀ NẴNG', bamOk.cho);
+/* Tên rỗng thì chối ngay — không gửi gì, và cũng không ghi ý định lơ lửng. */
+const bamRong = bamThemCs('   ');
+teq('🔴 tên rỗng -> không gửi gì đi', 0, bamRong.daGui.length);
+teq('🔴 và không ghi ý định lơ lửng', 'CU', bamRong.cho);
+
+/* ---------- 5c. ĐỔI TÊN VÀ XOÁ CƠ SỞ ĐANG LỌC ---------- */
+/* Ô lọc giữ TÊN. Đổi tên cơ sở đang lọc mà không kéo ô lọc theo thì bảng trống trơn dù ghế còn
+   nguyên, và nút Thêm ghế tụt về "(chưa gán)". */
+const iSua = tr.indexOf("if (QL_LOC === b.getAttribute('data-csten')) QL_CHO_CS = t;");
+t('🔴 đổi tên cơ sở ĐANG LỌC thì ghi ý định theo tên mới', iSua > 0);
+/* Và chỉ khi đang lọc ĐÚNG cơ sở ấy — đổi tên một cơ sở khác mà kéo ô lọc đi là cướp chỗ đang
+   xem của người ta. */
+t('🔴 và chỉ khi đang lọc đúng cơ sở ấy, không kéo ô lọc đi vô cớ',
+	/if \(QL_LOC === b\.getAttribute\('data-csten'\)\) QL_CHO_CS = t;/.test(tr), null);
+
+const iXoaCs = tr.indexOf("if (QL_LOC === nhan){ QL_LOC = ''; QL_PG = 0; QL_SEL = {}; }");
+t('🔴 xoá cơ sở ĐANG LỌC thì ô lọc về "Tất cả"', iXoaCs > 0);
+t('và cũng chỉ khi đang lọc đúng cơ sở bị xoá',
+	/if \(QL_LOC === nhan\)\{ QL_LOC = ''; QL_PG = 0; QL_SEL = \{\}; \}/.test(tr), null);
+/* Hai câu ấy phải đứng TRƯỚC lệnh gửi đi, không thì tải lại xong mới đổi là đã vẽ nhầm một lượt. */
+t('🔴 ô lọc được dọn TRƯỚC khi gửi lệnh xoá',
+	iXoaCs > 0 && iXoaCs < tr.indexOf("lam('coso_xoa'", iXoaCs), null);
+
+/* ---------- 5d. KHỐI THÊM ĐỊA ĐIỂM VẪN CÒN NGUYÊN ---------- */
+/* Bỏ ô chọn cơ sở trong khối GHẾ không được đụng tới khối ĐỊA ĐIỂM — đó là nơi duy nhất tạo
+   được cơ sở mới, và cũng là câu hỏi của anh Thắng. */
+t('🔴 vẫn còn ô gõ tên địa điểm mới', tr.indexOf('id="cs-ten"') > 0, null);
+t('🔴 vẫn còn nút Thêm địa điểm', tr.indexOf('id="cs-them"') > 0, null);
+t('vẫn còn ô Tỉnh/TP và Mã KH', tr.indexOf('id="cs-tinh"') > 0 && tr.indexOf('id="cs-makh"') > 0, null);
+t('vẫn sửa và xoá được địa điểm', tr.indexOf('data-cssua="') > 0 && tr.indexOf('data-csxoa="') > 0, null);
+
 /* ---------- KẾT ---------- */
 if (TRUOT.length) {
 	console.log('\n✗ HỎNG ' + TRUOT.length + ' phép:');
 	TRUOT.forEach(function (x) { console.log('  ✗ ' + x); });
 	process.exit(1);
 }
-console.log('✓ SẠCH — ' + DAT + ' phép: một ô cơ sở duy nhất, ghế mới vào đúng cơ sở đang xem, xoá được ngay tại hàng, ghế đã điều chuyển nằm sẵn ở dưới.');
+console.log('✓ SẠCH — ' + DAT + ' phép: một ô cơ sở duy nhất, ghế mới vào đúng cơ sở đang xem, xoá được ngay tại hàng, ghế đã điều chuyển nằm sẵn ở dưới, tạo/đổi tên/xoá cơ sở thì ô lọc theo kịp.');
